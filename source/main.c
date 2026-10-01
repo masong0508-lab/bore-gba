@@ -21,9 +21,11 @@ typedef uint8_t u8; typedef uint16_t u16; typedef uint32_t u32;
 #define W 6
 #define D 4
 #define H 8
-#define CA 10   // cube half width
-#define CB 5    // cube half height of top face
-#define CC 10   // cube side height
+// Voxel size: change CA (and CC) to resize everything; the starter model, sprites and limbs all scale with them.
+#define CA 8    // cube half width (was 10)
+#define CB (CA/2)   // cube half height of top face
+#define CC 8    // cube side height (was 10)
+#define HUG ((CA*3+5)/10)   // limb inset toward the torso (was 3 at CA 10)
 #define OX 50
 #define OY 96
 #define PANEL_X 124
@@ -96,10 +98,10 @@ static inline __attribute__((always_inline)) u16 lite(u16 c,int n){
 }
 // Soft voxel: tonal outline only on the silhouette (no seams between joined blocks), lit rim, shaded base.
 // shape 0 block, 1 slim limb, 2 hand, 3 leg. f: 1 block above, 2 block below, 16/32 coplanar neighbour at left/right edge.
-static const u8 rTab[4]={CA,7,5,8};
+static const u8 rTab[4]={CA,CA*7/10,CA/2,CA*4/5};   // block, slim limb, hand, leg half widths
 static u8 hhT[4][CA+1];   // hhT[shape][|t|] = (r/2)*(r-|t|)/r, filled once in initTables (no division in the hot loop)
 IWRAM_CODE static void cube(int sx,int sy,int ci,int shape,int f){
-    int r=rTab[shape], ch=shape==2?7:CC; const u8*hhp=hhT[shape];
+    int r=rTab[shape], ch=shape==2?CC*7/10:CC; const u8*hhp=hhT[shape];
     if(shape) f&=3;
     u16 T=sT[ci], L=sL[ci], R=sR[ci], eT=shade(T,9), eL=shade(L,9), eR=shade(R,9);
     for(int t=-r;t<=r;t++){
@@ -134,18 +136,18 @@ static int sty[2];                     // chosen style per kind: 0 = eye, 1 = mo
 // face: 0 = left cube face (+Z seen from view 0), 1 = right cube face (+Z seen from view 3)
 IWRAM_CODE static void drawDeco(int sx,int sy,u16 code,int face,int tint){
     const Spr*sp=&spr[(code&7)-1];
-    int ci=(code>>3)&7, cj=(code>>6)&3, sz=((code>>8)&3)+1, fl=(code>>10)&1, aw=10*sp->wc-1;
-    int wp=(aw+1)*sz-1, hp=10*sz-2;   // footprint size in px
+    int ci=(code>>3)&7, cj=(code>>6)&3, sz=((code>>8)&3)+1, fl=(code>>10)&1, aw=10*sp->wc-1;   // aw = art width in chars
+    int wp=CA*sp->wc*sz-1, hp=CC*sz-2;   // footprint size in px (scales with the voxel size)
     const u16*pal=face?dR:dL;
-    int lc0=ci?-1:0, lr0=cj?-1:0, axT[10];
-    for(int lc=lc0;lc<9;lc++){ int ax=((ci*10+lc)*aw)/wp; if(ax>aw-1) ax=aw-1; if(fl) ax=aw-1-ax; axT[lc+1]=ax; }   // column map, once per sprite
-    for(int lr=lr0;lr<8;lr++){
-        int ay=((cj*10+lr)*8)/hp; if(ay>7) ay=7;
+    int lc0=ci?-1:0, lr0=cj?-1:0, axT[CA+1];
+    for(int lc=lc0;lc<CA-1;lc++){ int ax=((ci*CA+lc)*aw)/wp; if(ax>aw-1) ax=aw-1; if(fl) ax=aw-1-ax; axT[lc+1]=ax; }
+    for(int lr=lr0;lr<CC-2;lr++){
+        int ay=((cj*CC+lr)*8)/hp; if(ay>7) ay=7;
         const char*row=sp->art[ay];
-        for(int lc=lc0;lc<9;lc++){
+        for(int lc=lc0;lc<CA-1;lc++){
             char c=row[axT[lc+1]]; if(c=='.') continue;
             u16 col=tint?(face?sR[8]:sL[8]):pal[c=='k'?0:c=='w'?1:c=='r'?2:3];
-            if(!face) px(sx-CA+1+lc, sy+((1+lc)>>1)+1+lr, col);        // (CB*n)/CA == n/2
+            if(!face) px(sx-CA+1+lc, sy+((1+lc)>>1)+1+lr, col);
             else      px(sx+1+lc,    sy+((CA-1-lc)>>1)+1+lr, col);
         }
     }
@@ -307,7 +309,7 @@ IWRAM_CODE static void drawScene(int blink,int full){
         if(!ci) continue;
         int u=2*x+1-W, w=2*z+1-D;
         int sx,sy; projC(u,w,y+1,&sx,&sy);   // top-face centre
-        if(shape==1||shape==2){ int sg=u<0?1:-1, a2,b2; rotUW(sg,0,&a2,&b2); sx+=3*(a2-b2); sy+=(3*(a2+b2))/2; }   // hug the torso
+        if(shape==1||shape==2){ int sg=u<0?1:-1, a2,b2; rotUW(sg,0,&a2,&b2); sx+=HUG*(a2-b2); sy+=(HUG*(a2+b2))/2; }   // hug the torso
         int f=(solid(x,y+1,z)?1:0)|(solid(x,y-1,z)?2:0)
              |(solid(x-dA[view][0],y,z-dA[view][1])?16:0)|(solid(x-dB[view][0],y,z-dB[view][1])?32:0);
         cube(sx,sy,ci,shape,f);
