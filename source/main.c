@@ -414,7 +414,9 @@ static const char* const lifeMap[MH]={
 "w.......##...w","w.......##...w","w.====.......w","w............w","w............w","w............w","wwwwwwwwwwwwww" };
 static const short cosT[16]={256,237,181,98,0,-98,-181,-237,-256,-237,-181,-98,0,98,181,237};   // sin(a)=cosT[(a+12)&15]
 static u16 spr4[4][SPW*SPH] EWRAM_BSS;
-static s32 lfx,lfy,lz,lvz,lvx,lvy; static int lskate;   // lskate: 0 on foot, 1 skateboard
+static s32 lfx,lfy,lz,lvz,lvx,lvy; static int lskate, lhave, lfr;   // lskate: 0 on foot, 1 skateboard; lhave: picked up the board
+#define BDX 10   // where the skateboard lies on the floor (tile)
+#define BDY 4
 static int lsp,lhd,lspin,lflip,lgrind,lscore,lstun,lairF,lpts,lnoteT; static const char*lnote;
 
 static int tileH(int tx,int ty){   // surface height in px
@@ -442,14 +444,15 @@ static void numText(int x,int y,int n,u16 c){
 }
 static void lifeInit(void){
     bakeSprites();
-    lfx=3*256+128; lfy=6*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote=""; lskate=0; lvx=lvy=0;
+    lfx=3*256+128; lfy=6*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote=""; lskate=0; lhave=0; lfr=0; lvx=lvy=0;
 }
 static const signed char hdT[3][3]={{10,12,14},{8,-1,0},{6,4,2}};   // [sign dy+1][sign dx+1] -> heading (16 steps), -1 = keep
 static void lifeStep(u16 k,u16 pr,int fr){
     int fh=tileH(lfx>>8,lfy>>8)<<8;
     if(lstun>0){ lstun--; lsp=0; lvx=lvy=0; }
     else {
-        if((pr&K_L)&&lz<=fh){   // L: swap between on-foot (walk/run) and skateboard
+        if((pr&K_L)&&!lhave){ lnote="FIND A BOARD"; lnoteT=40; }
+        if((pr&K_L)&&lhave&&lz<=fh){   // L: swap between on-foot (walk/run) and skateboard
             lskate=!lskate; lsp=0; lgrind=0; lspin=0; lflip=0; lnote=lskate?"SKATE":"ON FOOT"; lnoteT=40;
         }
         if(lskate){
@@ -493,6 +496,8 @@ static void lifeStep(u16 k,u16 pr,int fr){
     }
     lairF=air;
     if(lgrind){ if(air||tileH(lfx>>8,lfy>>8)!=6) lgrind=0; else if((fr&3)==0){ lscore+=3; lnote="GRIND"; lnoteT=10; } }
+    if(!lhave&&lz<(8<<8)&&(lfx>>8)==BDX&&(lfy>>8)==BDY){ lhave=1; lnote="GOT A SKATEBOARD"; lnoteT=90; }   // walk over it to pick it up
+    lfr++;
     if(lnoteT>0) lnoteT--;
 }
 static void tileTop(int sx,int sy,u16 c){ for(int t=-CA;t<=CA;t++){ int at=t<0?-t:t, hh=hhT[0][at]; vline(sx+t,sy-hh,sy+hh,c); } }
@@ -507,10 +512,15 @@ static void lifeDraw(void){
             char c=lifeMap[ty][tx]; int sx=LOX+(tx-ty)*CA, sy=LOY+(tx+ty+1)*CB;
             if(c=='w'||c=='#'){ int h=c=='#'?2:1; for(int j=1;j<=h;j++) cube(sx,sy-j*CC,c=='#'?7:6,0,(j<h?1:0)|(j>1?2:0)); }
             else if(c=='=') cube(sx,sy-6,8,1,2);
+            if(!lhave&&tx==BDX&&ty==BDY){   // the skateboard pickup, bobbing
+                int by=sy-3-((lfr>>4)&1);
+                rect(sx-6,by-1,12,3,RGB(26,10,6)); rect(sx-5,by-2,10,1,RGB(31,20,8)); rect(sx-5,by+2,2,2,RGB(3,3,6)); rect(sx+3,by+2,2,2,RGB(3,3,6));
+            }
         }
         if(s==ss){
             int fhp=tileH(lfx>>8,lfy>>8), zp=(int)(lz>>8), vsel=((lhd+lspin+66)>>2)&3;
             rect(psx-3,psy-fhp-1,7,2,RGB(10,8,5)); rect(psx-1,psy-fhp-2,3,4,RGB(10,8,5));   // shadow
+            if(lskate){ rect(psx-6,psy-zp-1,12,2,RGB(26,10,6)); rect(psx-5,psy-zp+1,2,2,RGB(3,3,6)); rect(psx+3,psy-zp+1,2,2,RGB(3,3,6)); }   // board under the feet
             blit(spr4[vsel],psx-16,psy-40-zp);
         }
     }
@@ -519,7 +529,7 @@ static void lifeDraw(void){
     text(2,10,"SPEED",dim,1); rect(24,10,lsp,5,RGB(8,24,10));
     text(60,2,lskate?"SKATE":(lsp>5?"RUN":"WALK"),gold,1);
     if(lnoteT>0){ text(2,18,lnote,RGB(31,31,31),1); if(lpts&&lnote[0]=='N'){ text(2,25,"+",gold,1); numText(6,25,lpts,gold); } }
-    text(2,146,lskate?"A PUSH B OLLIE DPAD STEER L WALK":"DPAD WALK B RUN A HOP L SKATE",RGB(12,14,16),1);
+    text(2,146,lskate?"A PUSH B OLLIE DPAD STEER L WALK":(lhave?"DPAD WALK B RUN A HOP L SKATE":"DPAD WALK B RUN A HOP FIND A BOARD"),RGB(12,14,16),1);
     text(2,153,"SEL+START BACK TO EDITOR",RGB(12,14,16),1);
 }
 static void lifeMode(void){
