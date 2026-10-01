@@ -73,18 +73,18 @@ IWRAM_CODE static void line(int x0,int y0,int x1,int y1,u16 c){
 }
 
 // 3x5 font: A-Z, 0-9, '+', '>'
-static const u8 F[38][5] = {
+static const u8 F[39][5] = {
 {2,5,7,5,5},{6,5,6,5,6},{3,4,4,4,3},{6,5,5,5,6},{7,4,6,4,7},{7,4,6,4,4},{3,4,5,5,3},
 {5,5,7,5,5},{7,2,2,2,7},{1,1,1,5,2},{5,5,6,5,5},{4,4,4,4,7},{5,7,7,5,5},{6,5,5,5,5},
 {2,5,5,5,2},{6,5,6,4,4},{2,5,5,7,3},{6,5,6,5,5},{3,4,2,1,6},{7,2,2,2,2},{5,5,5,5,7},
 {5,5,5,5,2},{5,5,7,7,5},{5,5,2,5,5},{5,5,2,2,2},{7,1,2,4,7},
 {7,5,5,5,7},{2,6,2,2,7},{6,1,2,4,7},{6,1,6,1,6},{5,5,7,1,1},{7,4,6,1,6},{3,4,7,5,7},{7,1,2,2,2},{7,5,7,5,7},{7,5,7,1,6},
-{0,2,7,2,0},{4,6,7,6,4} };
+{0,2,7,2,0},{4,6,7,6,4},{2,2,2,0,2} };
 IWRAM_CODE static void text(int x,int y,const char*s,u16 c,int sc){
     for(;*s;s++,x+=4*sc){
         int i=-1; char ch=*s;
         if(ch>='A'&&ch<='Z') i=ch-'A'; else if(ch>='0'&&ch<='9') i=26+ch-'0';
-        else if(ch=='+') i=36; else if(ch=='>') i=37;
+        else if(ch=='+') i=36; else if(ch=='>') i=37; else if(ch=='!') i=38;
         if(i<0) continue;
         for(int r=0;r<5;r++)for(int cc=0;cc<3;cc++)
             if((F[i][r]>>(2-cc))&1) rect(x+cc*sc,y+r*sc,sc,sc,c);
@@ -157,6 +157,7 @@ static int cx,cy,cz,part,size;
 #define OXC 60
 #define OYC 121
 static int view=0;   // 0..3 = 90 degree turns
+static int noGrid=0;   // sprite baking draws the character without the floor grid
 static void rotUW(int u,int w,int*ru,int*rw){
     switch(view){ case 0:*ru=u;*rw=w;break; case 1:*ru=-w;*rw=u;break; case 2:*ru=-u;*rw=-w;break; default:*ru=w;*rw=-u; }
 }
@@ -225,6 +226,7 @@ static void doPart(int act,int pi,int s,int x,int y,int z){
     if(parts[pi].mirror){ int mx=W-x-parts[pi].w*s; if(mx!=x) apply(mx,y,z,1,act,pi,s); }
 }
 static void clampCursor(void){
+    if(part>=NPARTS) return;   // "GO LIVE LIFE!" entry has no cursor
     const Part*p=&parts[part];
     int mx=W-p->w*size, my=H-p->h*size, mz=D-p->d*size;
     if(mx<0)mx=0; if(my<0)my=0; if(mz<0)mz=0;
@@ -273,11 +275,11 @@ IWRAM_CODE static void drawPanel(void){
     fillCols(SCENE_W,ROW_W,PANEL);
     text(130,5,"BORE",RGB(31,26,6),2);
     text(130,17,"VOXEL DEMO",RGB(14,16,18),1);
-    for(int i=0;i<NPARTS;i++){
-        int y=28+i*8;
-        if(i==part){ rect(128,y-1,108,7,RGB(6,16,8)); text(130,y,">",RGB(31,31,31),1); }
-        text(137,y,parts[i].name,i==part?RGB(31,31,31):RGB(18,20,22),1);
-        if(i==part&&parts[i].dk) text(190,y,spr[SPRID(parts[i].dk-1)].name,RGB(31,26,6),1);
+    for(int i=0;i<=NPARTS;i++){
+        int y=28+i*7, go=(i==NPARTS);
+        if(i==part){ rect(128,y-1,108,6,go?RGB(16,10,2):RGB(6,16,8)); text(130,y,">",RGB(31,31,31),1); }
+        text(137,y,go?"GO LIVE LIFE!":parts[i].name,i==part?(go?RGB(31,26,6):RGB(31,31,31)):(go?RGB(24,20,6):RGB(18,20,22)),1);
+        if(i==part&&!go&&parts[i].dk) text(190,y,spr[SPRID(parts[i].dk-1)].name,RGB(31,26,6),1);
     }
     text(130,94,"SIZE",RGB(18,20,22),1);
     const char*sn[3]={"S","M","L"};
@@ -287,7 +289,7 @@ IWRAM_CODE static void drawPanel(void){
     }
     text(130,106,"X",RGB(18,20,22),1); num(136,106,cx,RGB(31,31,31));
     text(148,106,"Y",RGB(18,20,22),1); num(154,106,cy,RGB(31,31,31));
-    text(166,106,"Z",RGB(18,20,22),1); num(172,106,cz,parts[part].dk?RGB(12,14,16):RGB(31,31,31));   // sprites ignore Z
+    text(166,106,"Z",RGB(18,20,22),1); num(172,106,cz,(part<NPARTS&&parts[part].dk)?RGB(12,14,16):RGB(31,31,31));   // sprites ignore Z
     u16 hc=RGB(12,14,16);
     text(130,116,"DPAD X Z  L R HEIGHT",hc,1); text(130,122,"A PLACE B ERASE",hc,1);
     text(130,128,"START SIZE  SEL TAP PART",hc,1); text(130,134,"SEL+UP DOWN FACE STYLE",hc,1);
@@ -297,8 +299,8 @@ IWRAM_CODE static void drawScene(int blink,int full){
     fillCols(0,SCENE_W,SKY);
     // floor grid
     u16 gc=RGB(13,18,22); int a,b,c,d;
-    for(int i=0;i<=W;i++){ projC(2*i-W,-D,0,&a,&b); projC(2*i-W,D,0,&c,&d); line(a,b,c,d,gc); }
-    for(int j=0;j<=D;j++){ projC(-W,2*j-D,0,&a,&b); projC(W,2*j-D,0,&c,&d); line(a,b,c,d,gc); }
+    if(!noGrid) for(int i=0;i<=W;i++){ projC(2*i-W,-D,0,&a,&b); projC(2*i-W,D,0,&c,&d); line(a,b,c,d,gc); }
+    if(!noGrid) for(int j=0;j<=D;j++){ projC(-W,2*j-D,0,&a,&b); projC(W,2*j-D,0,&c,&d); line(a,b,c,d,gc); }
     int fv=view==0?0:view==3?1:-1;   // which cube face shows the +Z (front) face, -1 = turned away
     // voxels (back to front)
     for(int y=0;y<H;y++)for(int i=0;i<W*D;i++){
@@ -393,6 +395,125 @@ static void titleScreen(void){
     while((~REG_KEYINPUT)&K_START) vsync();   // wait for release so START doesn't also change size
 }
 
+// ---------- LIFE MODE: fixed isometric "sim" room + Tony-Hawk-style skating (placeholder) ----------
+// Pick "GO LIVE LIFE!" in the part list and press A. SELECT+START returns to the editor.
+// Controls: D-pad L/R steer (grounded) or spin (airborne) | hold A push | D-pad down brake | B ollie / kickflip in air
+// Land spins in half-turns (180/360) for points, a bad angle is a bail. Land on a yellow rail to grind it.
+typedef int32_t s32;
+#define MW 14
+#define MH 14
+#define LOX 120   // screen x of the map's top corner
+#define LOY 24
+#define SPW 32   // baked at half size so the skater is ~2 tiles tall in the room
+#define SPH 44
+#define SPX0 (OXC-32)
+#define SPY0 (OYC-80)   // capture window top; feet sit at row 40 of the half-size sprite
+// w = low wall, # = 2-block crate, = = grind rail, . = floor
+static const char* const lifeMap[MH]={
+"wwwwwwwwwwwwww","w............w","w.....====...w","w............w","w..##........w","w..##........w","w............w",
+"w.......##...w","w.......##...w","w.====.......w","w............w","w............w","w............w","wwwwwwwwwwwwww" };
+static const short cosT[16]={256,237,181,98,0,-98,-181,-237,-256,-237,-181,-98,0,98,181,237};   // sin(a)=cosT[(a+12)&15]
+static u16 spr4[4][SPW*SPH] EWRAM_BSS;
+static s32 lfx,lfy,lz,lvz;
+static int lsp,lhd,lspin,lflip,lgrind,lscore,lstun,lairF,lpts,lnoteT; static const char*lnote;
+
+static int tileH(int tx,int ty){   // surface height in px
+    if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
+    char c=lifeMap[ty][tx];
+    return c=='#'?2*CC: c=='w'?CC: c=='='?6:0;
+}
+static void bakeSprites(void){   // render the built character once per view (4 turns), then just blit it
+    int sv=view; noGrid=1;
+    for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ ghost[y][z][x]=0; gdec[y][z][x]=0; }
+    for(int v=0;v<4;v++){
+        view=v; drawScene(0,0);
+        for(int y=0;y<SPH;y++)for(int x=0;x<SPW;x++) spr4[v][y*SPW+x]=fb[(SPY0+y*2)*SW+SPX0+x*2];
+    }
+    noGrid=0; view=sv;
+}
+IWRAM_CODE static void blit(const u16*s,int x0,int y0){
+    for(int y=0;y<SPH;y++){ int yy=y0+y; if((unsigned)yy>=SH) continue;
+        for(int x=0;x<SPW;x++){ u16 c=s[y*SPW+x]; if(c!=SKY) px(x0+x,yy,c); } }
+}
+static void numText(int x,int y,int n,u16 c){
+    char b[10]; int i=9; b[i]=0; if(n<=0) b[--i]='0';
+    while(n>0&&i>0){ int q=n/10; b[--i]=(char)('0'+n-q*10); n=q; }
+    text(x,y,b+i,c,1);
+}
+static void lifeInit(void){
+    bakeSprites();
+    lfx=3*256+128; lfy=6*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote="";
+}
+static void lifeStep(u16 k,u16 pr,int fr){
+    int fh=tileH(lfx>>8,lfy>>8)<<8;
+    if(lstun>0){ lstun--; lsp=0; }
+    else if(lz<=fh){                                   // on the ground (or on a rail)
+        if((fr&3)==0){ if(k&K_LEFT) lhd=(lhd+15)&15; if(k&K_RIGHT) lhd=(lhd+1)&15; }
+        if(k&K_A){ if((fr&3)==0&&lsp<24) lsp++; } else if(lsp>0&&(fr&7)==0) lsp--;   // push / coast
+        if((k&K_DOWN)&&lsp>0&&(fr&1)==0) lsp--;                                       // brake
+        if(lgrind&&lsp<12) lsp=12;                                                     // rails keep you rolling
+        if(pr&K_B){ lvz=0x380; lgrind=0; }                                             // ollie
+    } else {                                                                           // airborne
+        if((fr&3)==0){ if(k&K_LEFT) lspin--; if(k&K_RIGHT) lspin++; }                  // spin: 16 steps = 360 deg
+        if((pr&K_B)&&!lflip){ lflip=1; lnote="KICKFLIP"; lnoteT=40; }
+    }
+    int zp=(int)(lz>>8);
+    s32 nx=lfx+(lsp*cosT[lhd])/256, ny=lfy+(lsp*cosT[(lhd+12)&15])/256;   // move per axis so walls slide
+    if(tileH(nx>>8,lfy>>8)<=zp+3) lfx=nx; else lsp=(lsp*2)/3;
+    if(tileH(lfx>>8,ny>>8)<=zp+3) lfy=ny; else lsp=(lsp*2)/3;
+    fh=tileH(lfx>>8,lfy>>8)<<8;
+    if(lz<fh){ lz=fh; if(lvz<0) lvz=0; }
+    if(lz>fh||lvz>0){ lz+=lvz; lvz-=0x40; if(lz<=fh&&lvz<=0){ lz=fh; lvz=0; } }   // gravity
+    int air=lz>fh;
+    if(lairF&&!air){                                   // just landed
+        int a=lspin<0?-lspin:lspin, pts=(a>>3)*180+(lflip?100:0);
+        if(lspin&7){ lnote="BAIL"; lnoteT=60; lsp=0; lstun=45; lgrind=0; }
+        else{
+            if(pts){ lscore+=pts; lpts=pts; lnote="NICE"; lnoteT=60; }
+            if(tileH(lfx>>8,lfy>>8)==6){ lgrind=1; lnote="GRIND"; lnoteT=30; }
+        }
+        lspin=0; lflip=0;
+    }
+    lairF=air;
+    if(lgrind){ if(air||tileH(lfx>>8,lfy>>8)!=6) lgrind=0; else if((fr&3)==0){ lscore+=3; lnote="GRIND"; lnoteT=10; } }
+    if(lnoteT>0) lnoteT--;
+}
+static void tileTop(int sx,int sy,u16 c){ for(int t=-CA;t<=CA;t++){ int at=t<0?-t:t, hh=hhT[0][at]; vline(sx+t,sy-hh,sy+hh,c); } }
+static void lifeDraw(void){
+    fillCols(0,ROW_W,RGB(4,5,8));
+    u16 cA=RGB(26,21,14), cB=RGB(23,18,11);
+    for(int ty=0;ty<MH;ty++)for(int tx=0;tx<MW;tx++){ char c=lifeMap[ty][tx]; if(c=='w'||c=='#') continue;
+        tileTop(LOX+(tx-ty)*CA,LOY+(tx+ty+1)*CB,((tx^ty)&1)?cA:cB); }
+    int ss=(int)((lfx>>8)+(lfy>>8)), psx=LOX+(int)((lfx-lfy)>>5), psy=LOY+(int)((lfx+lfy)>>6);
+    for(int s=0;s<MW+MH-1;s++){
+        for(int tx=0;tx<MW;tx++){ int ty=s-tx; if(ty<0||ty>=MH) continue;
+            char c=lifeMap[ty][tx]; int sx=LOX+(tx-ty)*CA, sy=LOY+(tx+ty+1)*CB;
+            if(c=='w'||c=='#'){ int h=c=='#'?2:1; for(int j=1;j<=h;j++) cube(sx,sy-j*CC,c=='#'?7:6,0,(j<h?1:0)|(j>1?2:0)); }
+            else if(c=='=') cube(sx,sy-6,8,1,2);
+        }
+        if(s==ss){
+            int fhp=tileH(lfx>>8,lfy>>8), zp=(int)(lz>>8), vsel=((lhd+lspin+66)>>2)&3;
+            rect(psx-3,psy-fhp-1,7,2,RGB(10,8,5)); rect(psx-1,psy-fhp-2,3,4,RGB(10,8,5));   // shadow
+            blit(spr4[vsel],psx-16,psy-40-zp);
+        }
+    }
+    u16 gold=RGB(31,26,6), dim=RGB(18,20,22);
+    text(2,2,"SCORE",dim,1); numText(24,2,lscore,gold);
+    text(2,10,"SPEED",dim,1); rect(24,10,lsp,5,RGB(8,24,10));
+    if(lnoteT>0){ text(2,18,lnote,RGB(31,31,31),1); if(lpts&&lnote[0]=='N'){ text(2,25,"+",gold,1); numText(6,25,lpts,gold); } }
+    text(2,146,"A PUSH  B OLLIE  DPAD STEER",RGB(12,14,16),1);
+    text(2,153,"SEL+START BACK TO EDITOR",RGB(12,14,16),1);
+}
+static void lifeMode(void){
+    lifeInit(); u16 prev=0;
+    for(int fr=0;;fr++){
+        u16 k=(u16)(~REG_KEYINPUT)&0x3FF, pr=k&~prev; prev=k;
+        if((k&K_SEL)&&(k&K_START)) break;
+        lifeStep(k,pr,fr); lifeDraw(); present();
+    }
+    while((~REG_KEYINPUT)&0x3FF) vsync();   // wait for release so the editor doesn't see the exit keys
+}
+
 int main(void){
     REG_WAITCNT=0x4317;  // ROM 3/1 waits + prefetch (power-on default is 4/2, no prefetch)
     REG_DISPCNT=0x0403;  // mode 3, BG2 on
@@ -408,22 +529,22 @@ int main(void){
         if(sel){
             if(pressed&K_A){ skinI=(skinI+1)%4; setColors(); comboUsed=1; dirty=1; }
             if(pressed&K_B){ hairI=(hairI+1)%5; setColors(); comboUsed=1; dirty=1; }
-            if(pressed&K_R){ part=(part+1)%NPARTS; comboUsed=1; dirty=1; }
-            if(pressed&K_L){ part=(part+NPARTS-1)%NPARTS; comboUsed=1; dirty=1; }
+            if(pressed&K_R){ part=(part+1)%(NPARTS+1); comboUsed=1; dirty=1; }
+            if(pressed&K_L){ part=(part+NPARTS)%(NPARTS+1); comboUsed=1; dirty=1; }
             if(pressed&K_RIGHT){ view=(view+1)&3; comboUsed=1; dirty=1; }
             if(pressed&K_LEFT){ view=(view+3)&3; comboUsed=1; dirty=1; }
             if(pressed&(K_UP|K_DOWN)){
                 comboUsed=1;
-                if(parts[part].dk){ int kd=parts[part].dk-1; sty[kd]=(sty[kd]+((pressed&K_UP)?1:2))%3; dirty=1; }
+                if(part<NPARTS&&parts[part].dk){ int kd=parts[part].dk-1; sty[kd]=(sty[kd]+((pressed&K_UP)?1:2))%3; dirty=1; }
             }
         } else {
             if(TRIG(K_RIGHT,4)){moveView(1,0);dirty=1;} if(TRIG(K_LEFT,5)){moveView(-1,0);dirty=1;}
             if(TRIG(K_UP,6)){moveView(0,-1);dirty=1;}     if(TRIG(K_DOWN,7)){moveView(0,1);dirty=1;}
             if(TRIG(K_R,8)){cy++;dirty=1;}      if(TRIG(K_L,9)){cy--;dirty=1;}
-            if(pressed&K_A){ doPart(1,part,size,cx,cy,cz); dirty=1; }
-            if(pressed&K_B){ doPart(2,part,size,cx,cy,cz); dirty=1; }
+            if(pressed&K_A){ if(part==NPARTS) lifeMode(); else doPart(1,part,size,cx,cy,cz); dirty=1; }
+            if(pressed&K_B){ if(part<NPARTS) doPart(2,part,size,cx,cy,cz); dirty=1; }
         }
-        if(released&K_SEL){ if(!comboUsed){ part=(part+1)%NPARTS; dirty=1; } comboUsed=0; }
+        if(released&K_SEL){ if(!comboUsed){ part=(part+1)%(NPARTS+1); dirty=1; } comboUsed=0; }
         if(pressed&K_START){ size=size%3+1; dirty=1; }
         clampCursor();
         if(dirty) frame=16;   // restart blink with the ghost visible
@@ -431,8 +552,8 @@ int main(void){
         if(dirty||blink!=lastBlink){
             for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ ghost[y][z][x]=0; gdec[y][z][x]=0; }
             gAny=0;
-            doPart(0,part,size,cx,cy,cz);
-            if(parts[part].dk&&!gAny) ghost[cy][cz][cx]=1;   // nothing solid under the cursor: show a marker cube
+            if(part<NPARTS){ doPart(0,part,size,cx,cy,cz);
+            if(parts[part].dk&&!gAny) ghost[cy][cz][cx]=1; }   // nothing solid under the cursor: show a marker cube
             drawScene(blink,dirty); if(dirty) present(); else presentScene();   // blink-only: scene columns only
             dirty=0; lastBlink=blink;
         } else vsync();
