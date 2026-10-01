@@ -414,7 +414,7 @@ static const char* const lifeMap[MH]={
 "w.......##...w","w.......##...w","w.====.......w","w............w","w............w","w............w","wwwwwwwwwwwwww" };
 static const short cosT[16]={256,237,181,98,0,-98,-181,-237,-256,-237,-181,-98,0,98,181,237};   // sin(a)=cosT[(a+12)&15]
 static u16 spr4[4][SPW*SPH] EWRAM_BSS;
-static s32 lfx,lfy,lz,lvz;
+static s32 lfx,lfy,lz,lvz,lvx,lvy; static int lskate;   // lskate: 0 on foot, 1 skateboard
 static int lsp,lhd,lspin,lflip,lgrind,lscore,lstun,lairF,lpts,lnoteT; static const char*lnote;
 
 static int tileH(int tx,int ty){   // surface height in px
@@ -442,23 +442,40 @@ static void numText(int x,int y,int n,u16 c){
 }
 static void lifeInit(void){
     bakeSprites();
-    lfx=3*256+128; lfy=6*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote="";
+    lfx=3*256+128; lfy=6*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote=""; lskate=0; lvx=lvy=0;
 }
+static const signed char hdT[3][3]={{10,12,14},{8,-1,0},{6,4,2}};   // [sign dy+1][sign dx+1] -> heading (16 steps), -1 = keep
 static void lifeStep(u16 k,u16 pr,int fr){
     int fh=tileH(lfx>>8,lfy>>8)<<8;
-    if(lstun>0){ lstun--; lsp=0; }
-    else if(lz<=fh){                                   // on the ground (or on a rail)
-        if((fr&3)==0){ if(k&K_LEFT) lhd=(lhd+15)&15; if(k&K_RIGHT) lhd=(lhd+1)&15; }
-        if(k&K_A){ if((fr&3)==0&&lsp<24) lsp++; } else if(lsp>0&&(fr&7)==0) lsp--;   // push / coast
-        if((k&K_DOWN)&&lsp>0&&(fr&1)==0) lsp--;                                       // brake
-        if(lgrind&&lsp<12) lsp=12;                                                     // rails keep you rolling
-        if(pr&K_B){ lvz=0x380; lgrind=0; }                                             // ollie
-    } else {                                                                           // airborne
-        if((fr&3)==0){ if(k&K_LEFT) lspin--; if(k&K_RIGHT) lspin++; }                  // spin: 16 steps = 360 deg
-        if((pr&K_B)&&!lflip){ lflip=1; lnote="KICKFLIP"; lnoteT=40; }
+    if(lstun>0){ lstun--; lsp=0; lvx=lvy=0; }
+    else {
+        if((pr&K_L)&&lz<=fh){   // L: swap between on-foot (walk/run) and skateboard
+            lskate=!lskate; lsp=0; lgrind=0; lspin=0; lflip=0; lnote=lskate?"SKATE":"ON FOOT"; lnoteT=40;
+        }
+        if(lskate){
+            if(lz<=fh){                                        // on the ground (or on a rail)
+                if((fr&3)==0){ if(k&K_LEFT) lhd=(lhd+15)&15; if(k&K_RIGHT) lhd=(lhd+1)&15; }
+                if(k&K_A){ if((fr&3)==0&&lsp<24) lsp++; } else if(lsp>0&&(fr&7)==0) lsp--;   // push / coast
+                if((k&K_DOWN)&&lsp>0&&(fr&1)==0) lsp--;                                       // brake
+                if(lgrind&&lsp<12) lsp=12;                                                     // rails keep you rolling
+                if(pr&K_B){ lvz=0x380; lgrind=0; }                                             // ollie
+            } else {                                                                           // airborne
+                if((fr&3)==0){ if(k&K_LEFT) lspin--; if(k&K_RIGHT) lspin++; }                  // spin: 16 steps = 360 deg
+                if((pr&K_B)&&!lflip){ lflip=1; lnote="KICKFLIP"; lnoteT=40; }
+            }
+            lvx=(lsp*cosT[lhd])/256; lvy=(lsp*cosT[(lhd+12)&15])/256;
+        } else {
+            // on foot: D-pad moves relative to the screen (up = away from camera), B held = run, A = hop
+            int ux=((k&K_RIGHT)?1:0)-((k&K_LEFT)?1:0), uy=((k&K_DOWN)?1:0)-((k&K_UP)?1:0);
+            int dx=ux+uy, dy=uy-ux, spd=(k&K_B)?10:5;
+            if(ux&&uy) spd=(spd*3)/4;                          // diagonals cover the same ground
+            lvx=dx*spd; lvy=dy*spd; lsp=(dx||dy)?spd:0;
+            if(dx||dy){ int h=hdT[(dy>0)-(dy<0)+1][(dx>0)-(dx<0)+1]; if(h>=0) lhd=h; }
+            if((pr&K_A)&&lz<=fh) lvz=0x300;
+        }
     }
     int zp=(int)(lz>>8);
-    s32 nx=lfx+(lsp*cosT[lhd])/256, ny=lfy+(lsp*cosT[(lhd+12)&15])/256;   // move per axis so walls slide
+    s32 nx=lfx+lvx, ny=lfy+lvy;   // move per axis so walls slide
     if(tileH(nx>>8,lfy>>8)<=zp+3) lfx=nx; else lsp=(lsp*2)/3;
     if(tileH(lfx>>8,ny>>8)<=zp+3) lfy=ny; else lsp=(lsp*2)/3;
     fh=tileH(lfx>>8,lfy>>8)<<8;
@@ -470,7 +487,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
         if(lspin&7){ lnote="BAIL"; lnoteT=60; lsp=0; lstun=45; lgrind=0; }
         else{
             if(pts){ lscore+=pts; lpts=pts; lnote="NICE"; lnoteT=60; }
-            if(tileH(lfx>>8,lfy>>8)==6){ lgrind=1; lnote="GRIND"; lnoteT=30; }
+            if(lskate&&tileH(lfx>>8,lfy>>8)==6){ lgrind=1; lnote="GRIND"; lnoteT=30; }
         }
         lspin=0; lflip=0;
     }
@@ -500,8 +517,9 @@ static void lifeDraw(void){
     u16 gold=RGB(31,26,6), dim=RGB(18,20,22);
     text(2,2,"SCORE",dim,1); numText(24,2,lscore,gold);
     text(2,10,"SPEED",dim,1); rect(24,10,lsp,5,RGB(8,24,10));
+    text(60,2,lskate?"SKATE":(lsp>5?"RUN":"WALK"),gold,1);
     if(lnoteT>0){ text(2,18,lnote,RGB(31,31,31),1); if(lpts&&lnote[0]=='N'){ text(2,25,"+",gold,1); numText(6,25,lpts,gold); } }
-    text(2,146,"A PUSH  B OLLIE  DPAD STEER",RGB(12,14,16),1);
+    text(2,146,lskate?"A PUSH B OLLIE DPAD STEER L WALK":"DPAD WALK B RUN A HOP L SKATE",RGB(12,14,16),1);
     text(2,153,"SEL+START BACK TO EDITOR",RGB(12,14,16),1);
 }
 static void lifeMode(void){
