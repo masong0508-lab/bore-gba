@@ -1,3 +1,4 @@
+# Needs devkitARM (arm-none-eabi-gcc + gbafix). Paths are set below so PATH does not matter.
 DEVKITPRO ?= /opt/devkitpro
 DEVKITARM ?= $(DEVKITPRO)/devkitARM
 export PATH := $(DEVKITARM)/bin:$(DEVKITPRO)/tools/bin:$(PATH)
