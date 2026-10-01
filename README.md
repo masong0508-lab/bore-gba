@@ -12,6 +12,7 @@ GBA voxel creature creator, the seed of a later life sim. Pseudo-3D isometric vi
 | Start | cycle size S, M, L |
 | Select (tap) | next part |
 | Select + L/R | previous / next part |
+| Select + Left/Right | turn the view 90° (D-pad then moves relative to the screen) |
 | Select + A / B | cycle skin / hair colour (recolours everything) |
 
 Arm, leg, eye and ear are mirrored automatically across the body.

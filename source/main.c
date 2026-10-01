@@ -92,7 +92,25 @@ static void cube(int sx,int sy,int ci){
         if(t==-CA||t==0||t==CA) vline(x,yt,yt+CC-1,EDGE);
     }
 }
-static void proj(int x,int y,int z,int*ox,int*oy){ *ox=OX+(x-z)*CA; *oy=OY+(x+z)*CB-y*CC; }
+static int cx,cy,cz,part,size;
+#define OXC 60
+#define OYC 121
+static int view=0;   // 0..3 = 90 degree turns
+static void rotUW(int u,int w,int*ru,int*rw){
+    switch(view){ case 0:*ru=u;*rw=w;break; case 1:*ru=-w;*rw=u;break; case 2:*ru=-u;*rw=-w;break; default:*ru=w;*rw=-u; }
+}
+// u,w = doubled grid coords relative to the build-space centre
+static void projC(int u,int w,int yy,int*ox,int*oy){
+    int a,b; rotUW(u,w,&a,&b); *ox=OXC+(a-b)*CA/2; *oy=OYC+(a+b)*CB/2-yy*CC;
+}
+static void moveView(int sx,int sz){   // screen-relative step -> grid step
+    int gx,gz;
+    switch(view){ case 0:gx=sx;gz=sz;break; case 1:gx=sz;gz=-sx;break; case 2:gx=-sx;gz=-sz;break; default:gx=-sz;gz=sx; }
+    cx+=gx; cz+=gz;
+}
+
+static u8 vox[H][D][W], ghost[H][D][W];
+
 
 // ---------- parts ----------
 typedef struct { const char*name; u8 n,mirror,w,h,d; const u8 (*c)[4]; } Part;
@@ -110,8 +128,7 @@ static const Part parts[NPARTS]={
  {"EYE",2,1,1,2,1,cEye},{"MOUTH",2,0,2,1,1,cMouth},{"EAR",2,1,1,2,1,cEar},{"HAIR",6,0,2,2,2,cHair}};
 
 // ---------- state ----------
-static u8 vox[H][D][W], ghost[H][D][W];
-static int cx=2,cy=0,cz=1,part=0,size=1;
+
 
 static void apply(int x0,int y0,int z0,int flip,int act,int pi,int s){
     const Part*p=&parts[pi];
@@ -135,6 +152,7 @@ static void clampCursor(void){
     if(cx<0)cx=0; if(cy<0)cy=0; if(cz<0)cz=0;
 }
 static void starter(void){
+    cx=2;cy=0;cz=1;part=0;size=1;
     doPart(1,3,1,2,0,1);  // legs
     doPart(1,1,1,2,3,1);  // torso
     doPart(1,2,1,1,3,1);  // arms
@@ -149,14 +167,16 @@ static void drawScene(int blink){
     for(int i=0;i<SW*SH;i++) fb[i]=(i%SW)<PANEL_X?SKY:PANEL;
     // floor grid
     u16 gc=RGB(13,18,22); int a,b,c,d;
-    for(int i=0;i<=W;i++){ proj(i,0,0,&a,&b); proj(i,0,D,&c,&d); line(a,b,c,d,gc); }
-    for(int j=0;j<=D;j++){ proj(0,0,j,&a,&b); proj(W,0,j,&c,&d); line(a,b,c,d,gc); }
+    for(int i=0;i<=W;i++){ projC(2*i-W,-D,0,&a,&b); projC(2*i-W,D,0,&c,&d); line(a,b,c,d,gc); }
+    for(int j=0;j<=D;j++){ projC(-W,2*j-D,0,&a,&b); projC(W,2*j-D,0,&c,&d); line(a,b,c,d,gc); }
     // voxels (back to front)
-    for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){
+    for(int y=0;y<H;y++)for(int s=-8;s<=8;s++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){
+        int u=2*x+1-W, w=2*z+1-D, ru, rw; rotUW(u,w,&ru,&rw);
+        if(ru+rw!=s) continue;
         int ci=vox[y][z][x];
         if(ghost[y][z][x]&&blink) ci=8;
         if(!ci) continue;
-        int sx,sy; proj(x,y+1,z,&sx,&sy); sy+=CB;   // top-face centre
+        int sx,sy; projC(u,w,y+1,&sx,&sy);   // top-face centre
         cube(sx,sy,ci);
     }
     // panel
@@ -179,7 +199,7 @@ static void drawScene(int blink){
     u16 hc=RGB(12,14,16);
     text(130,116,"DPAD MOVE X Z",hc,1);  text(130,122,"L R HEIGHT",hc,1);
     text(130,128,"A PLACE B ERASE",hc,1); text(130,134,"START SIZE",hc,1);
-    text(130,140,"SEL TAP NEXT PART",hc,1); text(130,146,"SEL+A SKIN SEL+B HAIR",hc,1);
+    text(130,140,"SEL TAP NEXT PART",hc,1); text(130,146,"SEL+A SKIN SEL+B HAIR",hc,1); text(130,152,"SEL+LEFT RIGHT TURN VIEW",hc,1);
 }
 static void vsync(void){ while(REG_VCOUNT>=160); while(REG_VCOUNT<160); }
 static void present(void){
@@ -202,9 +222,11 @@ int main(void){
             if(pressed&K_B){ hairI=(hairI+1)%5; comboUsed=1; dirty=1; }
             if(pressed&K_R){ part=(part+1)%NPARTS; comboUsed=1; dirty=1; }
             if(pressed&K_L){ part=(part+NPARTS-1)%NPARTS; comboUsed=1; dirty=1; }
+            if(pressed&K_RIGHT){ view=(view+1)&3; comboUsed=1; dirty=1; }
+            if(pressed&K_LEFT){ view=(view+3)&3; comboUsed=1; dirty=1; }
         } else {
-            if(TRIG(K_RIGHT,4)){cx++;dirty=1;} if(TRIG(K_LEFT,5)){cx--;dirty=1;}
-            if(TRIG(K_UP,6)){cz--;dirty=1;}     if(TRIG(K_DOWN,7)){cz++;dirty=1;}
+            if(TRIG(K_RIGHT,4)){moveView(1,0);dirty=1;} if(TRIG(K_LEFT,5)){moveView(-1,0);dirty=1;}
+            if(TRIG(K_UP,6)){moveView(0,-1);dirty=1;}     if(TRIG(K_DOWN,7)){moveView(0,1);dirty=1;}
             if(TRIG(K_R,8)){cy++;dirty=1;}      if(TRIG(K_L,9)){cy--;dirty=1;}
             if(pressed&K_A){ doPart(1,part,size,cx,cy,cz); dirty=1; }
             if(pressed&K_B){ doPart(2,part,size,cx,cy,cz); dirty=1; }
