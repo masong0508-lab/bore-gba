@@ -86,29 +86,38 @@ static void text(int x,int y,const char*s,u16 c,int sc){
 }
 static void num(int x,int y,int n,u16 c){ char s[2]={(char)('0'+n),0}; text(x,y,s,c,1); }
 
-static void cube(int sx,int sy,int ci){
-    u16 T=sT[ci], L=sL[ci], R=sR[ci];
-    for(int t=-CA;t<=CA;t++){
-        int at=t<0?-t:t, hh=CB*(CA-at)/CA, x=sx+t, yt=sy+hh;
-        vline(x,yt,yt+CC-1,t<0?L:R);
+static u16 lite(u16 c,int n){
+    int r=(c&31)*n/16, g=((c>>5)&31)*n/16, b=((c>>10)&31)*n/16;
+    if(r>31)r=31; if(g>31)g=31; if(b>31)b=31; return RGB(r,g,b);
+}
+// Soft voxel: tonal outline only on the silhouette (no seams between joined blocks), lit rim, shaded base.
+// shape 0 block, 1 slim limb, 2 hand, 3 leg. f: 1 block above, 2 block below, 16/32 coplanar neighbour at left/right edge.
+static void cube(int sx,int sy,int ci,int shape,int f){
+    int r=shape==0?CA:shape==1?7:shape==2?5:8, rb=r/2, ch=shape==2?7:CC;
+    if(shape) f&=3;
+    u16 T=sT[ci], L=sL[ci], R=sR[ci], eT=shade(T,9), eL=shade(L,9), eR=shade(R,9);
+    for(int t=-r;t<=r;t++){
+        int at=t<0?-t:t, hh=rb*(r-at)/r, x=sx+t, yt=sy+hh, yb=yt+ch-1;
+        u16 sc=t<0?L:R, ec=t<0?eL:eR;
+        vline(x,yt,yb,sc);
         vline(x,sy-hh,sy+hh,T);
-        px(x,sy-hh,EDGE); px(x,sy+hh,EDGE); px(x,yt+CC-1,EDGE);
-        if(t==-CA||t==0||t==CA) vline(x,yt,yt+CC-1,EDGE);
+        if(!(f&1)){ px(x,yt+1,lite(sc,19)); px(x,sy-hh,eT); }
+        if(!(f&2)){ px(x,yb-1,shade(sc,13)); px(x,yb,ec); }
+        if((t==-r&&!(f&16))||(t==r&&!(f&32))) vline(x,sy-hh,yb,ec);
     }
 }
 
 // ---------- face sprites ----------
-// One cell = the 9 x 8 px lit interior of a cube face. Wider sprites span several cells
-// (the 1px cube seam between cells stays visible, like the rest of the voxel look).
+// One cell = 9 x 8 px of art on a cube face. Wider sprites span cells: width = 10*cells-1 (the seam column is art too).
 // Palette: k dark, w white, r red, s lid shadow (skin), . clear
 #define B9  "........."
-#define B18 ".................."
+#define B19 "..................."
 static const char* const aHalf[8] ={ B9, "..sssss..", ".kkkkkkk.", ".wwkkkww.", "..wkkkw..", "...www...", B9, B9 };
 static const char* const aRound[8]={ B9, "..kkkkk..", ".kwwwwwk.", ".kwkkkwk.", ".kwkkkwk.", ".kwwwwwk.", "..kkkkk..", B9 };
 static const char* const aHappy[8]={ B9, B9, "...kkk...", "..k...k..", ".k.....k.", B9, B9, B9 };
-static const char* const mFlat[8] ={ B18, B18, B18, ".....kkkkkkkk.....", B18, B18, B18, B18 };
-static const char* const mSmile[8]={ B18, B18, "...k..........k...", "....k........k....", ".....kkkkkkkk.....", B18, B18, B18 };
-static const char* const mOh[8]   ={ B18, "......kkkkkk......", ".....krrrrrrk.....", ".....krrrrrrk.....", "......kkkkkk......", B18, B18, B18 };
+static const char* const mFlat[8] ={ B19, B19, B19, ".....kkkkkkkkk.....", B19, B19, B19, B19 };
+static const char* const mSmile[8]={ B19, B19, "...k...........k...", "....k.........k....", ".....kkkkkkkkk.....", B19, B19, B19 };
+static const char* const mOh[8]   ={ B19, ".......kkkkk.......", "......krrrrrk......", "......krrrrrk......", ".......kkkkk.......", B19, B19, B19 };
 typedef struct { const char*name; u8 wc; const char* const*art; } Spr;   // wc = width in cells
 static const Spr spr[6]={ {"HALF",1,aHalf},{"ROUND",1,aRound},{"HAPPY",1,aHappy},
                           {"FLAT",2,mFlat},{"SMILE",2,mSmile},{"OH",2,mOh} };
@@ -119,13 +128,15 @@ static int sty[2];                     // chosen style per kind: 0 = eye, 1 = mo
 // face: 0 = left cube face (+Z seen from view 0), 1 = right cube face (+Z seen from view 3)
 static void drawDeco(int sx,int sy,u16 code,int face,int tint){
     const Spr*sp=&spr[(code&7)-1];
-    int ci=(code>>3)&7, cj=(code>>6)&3, s=((code>>8)&3)+1, fl=(code>>10)&1, aw=9*sp->wc;
+    int ci=(code>>3)&7, cj=(code>>6)&3, sz=((code>>8)&3)+1, fl=(code>>10)&1, aw=10*sp->wc-1;
+    int wp=(aw+1)*sz-1, hp=10*sz-2;   // footprint size in px
     const u16*pal=face?dR:dL;
-    for(int lr=0;lr<8;lr++){
-        int ay=(cj*8+lr)/s; if(ay>7) continue;
+    for(int lr=cj?-1:0;lr<8;lr++){
+        int ay=((cj*10+lr)*8)/hp; if(ay>7) ay=7;
         const char*row=sp->art[ay];
-        for(int lc=0;lc<9;lc++){
-            int ax=(ci*9+lc)/s; if(fl) ax=aw-1-ax;
+        for(int lc=ci?-1:0;lc<9;lc++){
+            int ax=((ci*10+lc)*aw)/wp; if(ax>aw-1) ax=aw-1;
+            if(fl) ax=aw-1-ax;
             char c=row[ax]; if(c=='.') continue;
             u16 col=tint?(face?sR[8]:sL[8]):pal[c=='k'?0:c=='w'?1:c=='r'?2:3];
             if(!face) px(sx-CA+1+lc, sy+(CB*(1+lc))/CA+1+lr, col);
@@ -160,8 +171,8 @@ static int gAny;
 typedef struct { const char*name; u8 n,mirror,w,h,d; const u8 (*c)[4]; u8 dk; } Part;   // dk: 0 voxel part, 1 eye sprite, 2 mouth sprite
 static const u8 cHead[][4]={{0,0,0,1},{1,0,0,1},{0,1,0,1},{1,1,0,1},{0,0,1,1},{1,0,1,1},{0,1,1,1},{1,1,1,1}};
 static const u8 cTorso[][4]={{0,0,0,6},{1,0,0,6},{0,1,0,6},{1,1,0,6},{0,0,1,6},{1,0,1,6},{0,1,1,6},{1,1,1,6}};
-static const u8 cArm[][4]={{0,0,0,1},{0,1,0,1},{0,2,0,1}};
-static const u8 cLeg[][4]={{0,0,0,7},{0,1,0,7},{0,2,0,7}};
+static const u8 cArm[][4]={{0,0,0,1|(2<<4)},{0,1,0,1|(1<<4)},{0,2,0,6|(1<<4)}};   // hand, forearm, sleeve (high nibble = shape)
+static const u8 cLeg[][4]={{0,0,0,7|(3<<4)},{0,1,0,7|(3<<4)},{0,2,0,7|(3<<4)}};
 static const u8 cEar[][4]={{0,0,0,1},{0,1,0,1}};
 static const u8 cHair[][4]={{0,0,0,5},{1,0,0,5},{0,0,1,5},{1,0,1,5},{0,1,0,5},{1,1,1,5}};
 #define NPARTS 8
@@ -216,7 +227,7 @@ static void starter(void){
     cx=2;cy=0;cz=1;part=0;size=1;
     doPart(1,3,1,2,0,1);  // legs
     doPart(1,1,1,2,3,1);  // torso
-    doPart(1,2,1,1,3,1);  // arms
+    doPart(1,2,1,1,2,1);  // arms (shoulder level with the torso top)
     doPart(1,0,1,2,5,1);  // head
     doPart(1,4,1,2,6,0);  // eyes (sprites on the head's front face)
     doPart(1,5,1,2,5,0);  // mouth
@@ -224,6 +235,8 @@ static void starter(void){
 }
 
 // ---------- scene ----------
+static int solid(int x,int y,int z){ return x>=0&&x<W&&y>=0&&y<H&&z>=0&&z<D&&vox[y][z][x]; }
+static const signed char dA[4][2]={{1,0},{0,-1},{-1,0},{0,1}}, dB[4][2]={{0,1},{1,0},{0,-1},{-1,0}};   // screen +a / +b in grid x,z per view
 static void drawScene(int blink){
     setColors();
     for(int i=0;i<SW*SH;i++) fb[i]=(i%SW)<PANEL_X?SKY:PANEL;
@@ -236,12 +249,15 @@ static void drawScene(int blink){
     for(int y=0;y<H;y++)for(int s=-8;s<=8;s++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){
         int u=2*x+1-W, w=2*z+1-D, ru, rw; rotUW(u,w,&ru,&rw);
         if(ru+rw!=s) continue;
-        int ci=vox[y][z][x];
+        int raw=vox[y][z][x], ci=raw&15, shape=raw>>4;
         if(ghost[y][z][x]&&blink) ci=8;
         if(gdec[y][z][x]&&blink&&fv<0) ci=8;   // face turned away: flag the target voxel instead
         if(!ci) continue;
         int sx,sy; projC(u,w,y+1,&sx,&sy);   // top-face centre
-        cube(sx,sy,ci);
+        if(shape==1||shape==2){ int sg=u<0?1:-1, a2,b2; rotUW(sg,0,&a2,&b2); sx+=3*(a2-b2); sy+=(3*(a2+b2))/2; }   // hug the torso
+        int f=(solid(x,y+1,z)?1:0)|(solid(x,y-1,z)?2:0)
+             |(solid(x-dA[view][0],y,z-dA[view][1])?16:0)|(solid(x-dB[view][0],y,z-dB[view][1])?32:0);
+        cube(sx,sy,ci,shape,f);
         u16 dc=dec[y][z][x]; int tint=0;
         if(gdec[y][z][x]&&blink){ dc=gdec[y][z][x]; tint=1; }
         if(dc&&fv>=0) drawDeco(sx,sy,dc,fv,tint);
