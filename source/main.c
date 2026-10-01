@@ -11,7 +11,10 @@ typedef uint8_t u8; typedef uint16_t u16; typedef uint32_t u32;
 #define REG_DMA3DAD (*(volatile u32*)0x040000D8)
 #define REG_DMA3CNT (*(volatile u32*)0x040000DC)
 #define VRAM_ADDR 0x06000000u
-#define EWRAM_BSS __attribute__((section(".sbss")))
+#define EWRAM_BSS __attribute__((section(".sbss"), aligned(4)))
+// Hot loops run as ARM code from IWRAM (32-bit, zero-wait bus) instead of Thumb from the 16-bit ROM bus.
+#define IWRAM_CODE __attribute__((section(".iwram"), target("arm"), long_call))
+#define REG_WAITCNT (*(volatile u16*)0x04000204)
 
 #define SW 240
 #define SH 160
@@ -41,7 +44,7 @@ static int skinI = 0, hairI = 0;
 #define SKY  RGB(20,26,31)
 #define PANEL RGB(5,6,9)
 
-static u16 shade(u16 c, int n) {
+static inline __attribute__((always_inline)) u16 shade(u16 c, int n) {
     int r=c&31, g=(c>>5)&31, b=(c>>10)&31;
     return RGB(r*n/16, g*n/16, b*n/16);
 }
@@ -55,13 +58,13 @@ static void setColors(void) {
 }
 
 // ---------- drawing ----------
-static inline void px(int x,int y,u16 c){ if((unsigned)x<SW && (unsigned)y<SH) fb[y*SW+x]=c; }
-static void vline(int x,int y0,int y1,u16 c){
+static inline __attribute__((always_inline)) void px(int x,int y,u16 c){ if((unsigned)x<SW && (unsigned)y<SH) fb[y*SW+x]=c; }
+IWRAM_CODE static void vline(int x,int y0,int y1,u16 c){
     if((unsigned)x>=SW) return; if(y0<0)y0=0; if(y1>=SH)y1=SH-1;
     for(;y0<=y1;y0++) fb[y0*SW+x]=c;
 }
-static void rect(int x,int y,int w,int h,u16 c){ for(int j=0;j<h;j++)for(int i=0;i<w;i++)px(x+i,y+j,c); }
-static void line(int x0,int y0,int x1,int y1,u16 c){
+IWRAM_CODE static void rect(int x,int y,int w,int h,u16 c){ for(int j=0;j<h;j++)for(int i=0;i<w;i++)px(x+i,y+j,c); }
+IWRAM_CODE static void line(int x0,int y0,int x1,int y1,u16 c){
     int dx=x1>x0?x1-x0:x0-x1, dy=y1>y0?y0-y1:y1-y0, sx=x0<x1?1:-1, sy=y0<y1?1:-1, e=dx+dy;
     for(;;){ px(x0,y0,c); if(x0==x1&&y0==y1)break; int e2=2*e;
         if(e2>=dy){e+=dy;x0+=sx;} if(e2<=dx){e+=dx;y0+=sy;} }
@@ -75,7 +78,7 @@ static const u8 F[38][5] = {
 {5,5,5,5,2},{5,5,7,7,5},{5,5,2,5,5},{5,5,2,2,2},{7,1,2,4,7},
 {7,5,5,5,7},{2,6,2,2,7},{6,1,2,4,7},{6,1,6,1,6},{5,5,7,1,1},{7,4,6,1,6},{3,4,7,5,7},{7,1,2,2,2},{7,5,7,5,7},{7,5,7,1,6},
 {0,2,7,2,0},{4,6,7,6,4} };
-static void text(int x,int y,const char*s,u16 c,int sc){
+IWRAM_CODE static void text(int x,int y,const char*s,u16 c,int sc){
     for(;*s;s++,x+=4*sc){
         int i=-1; char ch=*s;
         if(ch>='A'&&ch<='Z') i=ch-'A'; else if(ch>='0'&&ch<='9') i=26+ch-'0';
@@ -87,18 +90,20 @@ static void text(int x,int y,const char*s,u16 c,int sc){
 }
 static void num(int x,int y,int n,u16 c){ char s[2]={(char)('0'+n),0}; text(x,y,s,c,1); }
 
-static u16 lite(u16 c,int n){
+static inline __attribute__((always_inline)) u16 lite(u16 c,int n){
     int r=(c&31)*n/16, g=((c>>5)&31)*n/16, b=((c>>10)&31)*n/16;
     if(r>31)r=31; if(g>31)g=31; if(b>31)b=31; return RGB(r,g,b);
 }
 // Soft voxel: tonal outline only on the silhouette (no seams between joined blocks), lit rim, shaded base.
 // shape 0 block, 1 slim limb, 2 hand, 3 leg. f: 1 block above, 2 block below, 16/32 coplanar neighbour at left/right edge.
-static void cube(int sx,int sy,int ci,int shape,int f){
-    int r=shape==0?CA:shape==1?7:shape==2?5:8, rb=r/2, ch=shape==2?7:CC;
+static const u8 rTab[4]={CA,7,5,8};
+static u8 hhT[4][CA+1];   // hhT[shape][|t|] = (r/2)*(r-|t|)/r, filled once in initTables (no division in the hot loop)
+IWRAM_CODE static void cube(int sx,int sy,int ci,int shape,int f){
+    int r=rTab[shape], ch=shape==2?7:CC; const u8*hhp=hhT[shape];
     if(shape) f&=3;
     u16 T=sT[ci], L=sL[ci], R=sR[ci], eT=shade(T,9), eL=shade(L,9), eR=shade(R,9);
     for(int t=-r;t<=r;t++){
-        int at=t<0?-t:t, hh=rb*(r-at)/r, x=sx+t, yt=sy+hh, yb=yt+ch-1;
+        int at=t<0?-t:t, hh=hhp[at], x=sx+t, yt=sy+hh, yb=yt+ch-1;
         u16 sc=t<0?L:R, ec=t<0?eL:eR;
         vline(x,yt,yb,sc);
         vline(x,sy-hh,sy+hh,T);
@@ -127,21 +132,21 @@ static int sty[2];                     // chosen style per kind: 0 = eye, 1 = mo
 
 // code (0 = none): bits 0-2 sprite+1, 3-5 cell column, 6-7 cell row (from top), 8-9 size-1, 10 mirrored
 // face: 0 = left cube face (+Z seen from view 0), 1 = right cube face (+Z seen from view 3)
-static void drawDeco(int sx,int sy,u16 code,int face,int tint){
+IWRAM_CODE static void drawDeco(int sx,int sy,u16 code,int face,int tint){
     const Spr*sp=&spr[(code&7)-1];
     int ci=(code>>3)&7, cj=(code>>6)&3, sz=((code>>8)&3)+1, fl=(code>>10)&1, aw=10*sp->wc-1;
     int wp=(aw+1)*sz-1, hp=10*sz-2;   // footprint size in px
     const u16*pal=face?dR:dL;
-    for(int lr=cj?-1:0;lr<8;lr++){
+    int lc0=ci?-1:0, lr0=cj?-1:0, axT[10];
+    for(int lc=lc0;lc<9;lc++){ int ax=((ci*10+lc)*aw)/wp; if(ax>aw-1) ax=aw-1; if(fl) ax=aw-1-ax; axT[lc+1]=ax; }   // column map, once per sprite
+    for(int lr=lr0;lr<8;lr++){
         int ay=((cj*10+lr)*8)/hp; if(ay>7) ay=7;
         const char*row=sp->art[ay];
-        for(int lc=ci?-1:0;lc<9;lc++){
-            int ax=((ci*10+lc)*aw)/wp; if(ax>aw-1) ax=aw-1;
-            if(fl) ax=aw-1-ax;
-            char c=row[ax]; if(c=='.') continue;
+        for(int lc=lc0;lc<9;lc++){
+            char c=row[axT[lc+1]]; if(c=='.') continue;
             u16 col=tint?(face?sR[8]:sL[8]):pal[c=='k'?0:c=='w'?1:c=='r'?2:3];
-            if(!face) px(sx-CA+1+lc, sy+(CB*(1+lc))/CA+1+lr, col);
-            else      px(sx+1+lc,    sy+(CB*(CA-1-lc))/CA+1+lr, col);
+            if(!face) px(sx-CA+1+lc, sy+((1+lc)>>1)+1+lr, col);        // (CB*n)/CA == n/2
+            else      px(sx+1+lc,    sy+((CA-1-lc)>>1)+1+lr, col);
         }
     }
 }
@@ -238,32 +243,32 @@ static void starter(void){
 // ---------- scene ----------
 static int solid(int x,int y,int z){ return x>=0&&x<W&&y>=0&&y<H&&z>=0&&z<D&&vox[y][z][x]; }
 static const signed char dA[4][2]={{1,0},{0,-1},{-1,0},{0,1}}, dB[4][2]={{0,1},{1,0},{0,-1},{-1,0}};   // screen +a / +b in grid x,z per view
-static void drawScene(int blink){
-    setColors();
-    for(int i=0;i<SW*SH;i++) fb[i]=(i%SW)<PANEL_X?SKY:PANEL;
-    // floor grid
-    u16 gc=RGB(13,18,22); int a,b,c,d;
-    for(int i=0;i<=W;i++){ projC(2*i-W,-D,0,&a,&b); projC(2*i-W,D,0,&c,&d); line(a,b,c,d,gc); }
-    for(int j=0;j<=D;j++){ projC(-W,2*j-D,0,&a,&b); projC(W,2*j-D,0,&c,&d); line(a,b,c,d,gc); }
-    int fv=view==0?0:view==3?1:-1;   // which cube face shows the +Z (front) face, -1 = turned away
-    // voxels (back to front)
-    for(int y=0;y<H;y++)for(int s=-8;s<=8;s++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){
-        int u=2*x+1-W, w=2*z+1-D, ru, rw; rotUW(u,w,&ru,&rw);
-        if(ru+rw!=s) continue;
-        int raw=vox[y][z][x], ci=raw&15, shape=raw>>4;
-        if(ghost[y][z][x]&&blink) ci=8;
-        if(gdec[y][z][x]&&blink&&fv<0) ci=8;   // face turned away: flag the target voxel instead
-        if(!ci) continue;
-        int sx,sy; projC(u,w,y+1,&sx,&sy);   // top-face centre
-        if(shape==1||shape==2){ int sg=u<0?1:-1, a2,b2; rotUW(sg,0,&a2,&b2); sx+=3*(a2-b2); sy+=(3*(a2+b2))/2; }   // hug the torso
-        int f=(solid(x,y+1,z)?1:0)|(solid(x,y-1,z)?2:0)
-             |(solid(x-dA[view][0],y,z-dA[view][1])?16:0)|(solid(x-dB[view][0],y,z-dB[view][1])?32:0);
-        cube(sx,sy,ci,shape,f);
-        u16 dc=dec[y][z][x]; int tint=0;
-        if(gdec[y][z][x]&&blink){ dc=gdec[y][z][x]; tint=1; }
-        if(dc&&fv>=0) drawDeco(sx,sy,dc,fv,tint);
+// The screen is two independent regions: the 3D scene (columns 0..PANEL_X-1) and the side panel.
+// Both are cleared with 32-bit stores, and the panel is only redrawn when something it shows changed.
+#define SCENE_W (PANEL_X/2)
+#define ROW_W   (SW/2)
+IWRAM_CODE static void fillCols(int w0,int w1,u16 c){
+    u32 v=c|((u32)c<<16), *row=(u32*)fb;
+    for(int y=0;y<SH;y++,row+=ROW_W) for(int w=w0;w<w1;w++) row[w]=v;
+}
+static u8 ord[4][W*D];   // per view: cells (x | z<<4) sorted back to front, so the draw loop needs no search
+static void initTables(void){
+    for(int sh=0;sh<4;sh++){ int r=rTab[sh]; for(int at=0;at<=r;at++) hhT[sh][at]=(u8)((r/2)*(r-at)/r); }
+    int sv=view;
+    for(int v=0;v<4;v++){
+        view=v; int key[W*D], n=0;
+        for(int z=0;z<D;z++)for(int x=0;x<W;x++){
+            int ru,rw; rotUW(2*x+1-W,2*z+1-D,&ru,&rw);
+            int k=((ru+rw+8)<<8)|(z<<4)|x, j=n++;
+            while(j>0&&key[j-1]>k){ key[j]=key[j-1]; j--; }
+            key[j]=k;
+        }
+        for(int i=0;i<n;i++) ord[v][i]=(u8)(key[i]&0xFF);
     }
-    // panel
+    view=sv;
+}
+IWRAM_CODE static void drawPanel(void){
+    fillCols(SCENE_W,ROW_W,PANEL);
     text(130,5,"BORE",RGB(31,26,6),2);
     text(130,17,"VOXEL DEMO",RGB(14,16,18),1);
     for(int i=0;i<NPARTS;i++){
@@ -286,11 +291,52 @@ static void drawScene(int blink){
     text(130,128,"START SIZE  SEL TAP PART",hc,1); text(130,134,"SEL+UP DOWN FACE STYLE",hc,1);
     text(130,140,"SEL+A SKIN SEL+B HAIR",hc,1); text(130,146,"SEL+LEFT RIGHT TURN VIEW",hc,1);
 }
+IWRAM_CODE static void drawScene(int blink,int full){
+    fillCols(0,SCENE_W,SKY);
+    // floor grid
+    u16 gc=RGB(13,18,22); int a,b,c,d;
+    for(int i=0;i<=W;i++){ projC(2*i-W,-D,0,&a,&b); projC(2*i-W,D,0,&c,&d); line(a,b,c,d,gc); }
+    for(int j=0;j<=D;j++){ projC(-W,2*j-D,0,&a,&b); projC(W,2*j-D,0,&c,&d); line(a,b,c,d,gc); }
+    int fv=view==0?0:view==3?1:-1;   // which cube face shows the +Z (front) face, -1 = turned away
+    // voxels (back to front)
+    for(int y=0;y<H;y++)for(int i=0;i<W*D;i++){
+        int x=ord[view][i]&15, z=ord[view][i]>>4;
+        int raw=vox[y][z][x], ci=raw&15, shape=raw>>4;
+        if(ghost[y][z][x]&&blink) ci=8;
+        if(gdec[y][z][x]&&blink&&fv<0) ci=8;   // face turned away: flag the target voxel instead
+        if(!ci) continue;
+        int u=2*x+1-W, w=2*z+1-D;
+        int sx,sy; projC(u,w,y+1,&sx,&sy);   // top-face centre
+        if(shape==1||shape==2){ int sg=u<0?1:-1, a2,b2; rotUW(sg,0,&a2,&b2); sx+=3*(a2-b2); sy+=(3*(a2+b2))/2; }   // hug the torso
+        int f=(solid(x,y+1,z)?1:0)|(solid(x,y-1,z)?2:0)
+             |(solid(x-dA[view][0],y,z-dA[view][1])?16:0)|(solid(x-dB[view][0],y,z-dB[view][1])?32:0);
+        cube(sx,sy,ci,shape,f);
+        u16 dc=dec[y][z][x]; int tint=0;
+        if(gdec[y][z][x]&&blink){ dc=gdec[y][z][x]; tint=1; }
+        if(dc&&fv>=0) drawDeco(sx,sy,dc,fv,tint);
+    }
+    if(full) drawPanel();
+}
 static void vsync(void){ while(REG_VCOUNT>=160); while(REG_VCOUNT<160); }
 static void present(void){
     vsync();
     REG_DMA3SAD=(u32)(uintptr_t)fb; REG_DMA3DAD=VRAM_ADDR;
     REG_DMA3CNT=(SW*SH/2)|0x84000000u;
+}
+
+// Copy only the scene columns (blink-only redraws leave the panel untouched).
+static void presentScene(void){
+    vsync();
+    for(int y=0;y<SH;y++){
+        REG_DMA3SAD=(u32)(uintptr_t)(fb+y*SW); REG_DMA3DAD=VRAM_ADDR+(u32)(y*SW*2); REG_DMA3CNT=SCENE_W|0x84000000u;
+    }
+}
+// Row-by-row DMA of a rectangle (32-bit columns w0..w1-1, rows y0..y1-1): src buffer -> dst base address.
+static void dmaRows(const u16*src,u32 dst,int w0,int w1,int y0,int y1){
+    for(int y=y0;y<y1;y++){
+        int o=y*SW+w0*2;
+        REG_DMA3SAD=(u32)(uintptr_t)(src+o); REG_DMA3DAD=dst+(u32)(o*2); REG_DMA3CNT=(u32)(w1-w0)|0x84000000u;
+    }
 }
 
 // ---------- title screen ----------
@@ -321,20 +367,34 @@ static void smoke(int frame){
         }
     }
 }
+#define SM_W0 76   // smoke stays inside columns 152..203, rows 0..89 (checked over its whole 128-frame loop)
+#define SM_W1 102
+#define SM_Y1 90
+#define TX_W0 47    // "PRESS START" box
+#define TX_W1 70
+#define TX_Y0 141
+#define TX_Y1 147
 static void titleScreen(void){
-    buildTitle();
+    buildTitle();                          // leaves the finished backdrop in both fb and tfb
+    vsync(); dmaRows(fb,VRAM_ADDR,0,ROW_W,0,SH);
+    int shown=0;
     for(int frame=0;;frame++){
         if((~REG_KEYINPUT)&K_START) break;
-        REG_DMA3SAD=(u32)(uintptr_t)tfb; REG_DMA3DAD=(u32)(uintptr_t)fb; REG_DMA3CNT=(SW*SH/2)|0x84000000u;
+        dmaRows(tfb,(u32)(uintptr_t)fb,SM_W0,SM_W1,0,SM_Y1);   // wipe last frame's smoke only
         smoke(frame);
-        if((frame>>4)&1) text(94,141,"PRESS START",RGB(31,31,31),1);
-        present();
+        int on=(frame>>4)&1, tx=(on!=shown);
+        if(tx){ dmaRows(tfb,(u32)(uintptr_t)fb,TX_W0,TX_W1,TX_Y0,TX_Y1); if(on) text(94,141,"PRESS START",RGB(31,31,31),1); shown=on; }
+        vsync();
+        dmaRows(fb,VRAM_ADDR,SM_W0,SM_W1,0,SM_Y1);
+        if(tx) dmaRows(fb,VRAM_ADDR,TX_W0,TX_W1,TX_Y0,TX_Y1);
     }
     while((~REG_KEYINPUT)&K_START) vsync();   // wait for release so START doesn't also change size
 }
 
 int main(void){
+    REG_WAITCNT=0x4317;  // ROM 3/1 waits + prefetch (power-on default is 4/2, no prefetch)
     REG_DISPCNT=0x0403;  // mode 3, BG2 on
+    initTables(); setColors();
     titleScreen();
     starter();
     u16 prev=0; int hold[10]={0}, frame=0, dirty=1, lastBlink=-1, comboUsed=0;
@@ -344,8 +404,8 @@ int main(void){
         #define TRIG(m,i) ((pressed&(m))||(hold[i]>14&&(hold[i]&3)==0))
         int sel=k&K_SEL;
         if(sel){
-            if(pressed&K_A){ skinI=(skinI+1)%4; comboUsed=1; dirty=1; }
-            if(pressed&K_B){ hairI=(hairI+1)%5; comboUsed=1; dirty=1; }
+            if(pressed&K_A){ skinI=(skinI+1)%4; setColors(); comboUsed=1; dirty=1; }
+            if(pressed&K_B){ hairI=(hairI+1)%5; setColors(); comboUsed=1; dirty=1; }
             if(pressed&K_R){ part=(part+1)%NPARTS; comboUsed=1; dirty=1; }
             if(pressed&K_L){ part=(part+NPARTS-1)%NPARTS; comboUsed=1; dirty=1; }
             if(pressed&K_RIGHT){ view=(view+1)&3; comboUsed=1; dirty=1; }
@@ -371,7 +431,7 @@ int main(void){
             gAny=0;
             doPart(0,part,size,cx,cy,cz);
             if(parts[part].dk&&!gAny) ghost[cy][cz][cx]=1;   // nothing solid under the cursor: show a marker cube
-            drawScene(blink); present();
+            drawScene(blink,dirty); if(dirty) present(); else presentScene();   // blink-only: scene columns only
             dirty=0; lastBlink=blink;
         } else vsync();
         frame++;
