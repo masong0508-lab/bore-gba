@@ -29,6 +29,7 @@ enum { K_A=1, K_B=2, K_SEL=4, K_START=8, K_RIGHT=16, K_LEFT=32, K_UP=64, K_DOWN=
 
 #define RGB(r,g,b) ((u16)((r)|((g)<<5)|((b)<<10)))
 static u16 fb[SW*SH] EWRAM_BSS;
+static u16 tfb[SW*SH] EWRAM_BSS;   // pre-rendered title backdrop
 
 // ---------- palette ----------
 static const u16 skinTones[4] = { RGB(30,23,17), RGB(24,16,10), RGB(13,8,5), RGB(14,26,10) };
@@ -292,8 +293,49 @@ static void present(void){
     REG_DMA3CNT=(SW*SH/2)|0x84000000u;
 }
 
+// ---------- title screen ----------
+#include "titleimg.h"
+static void buildTitle(void){
+    for(int y=0;y<80;y++)for(int x=0;x<120;x++){
+        char c=titleArt[y][x]; u16 col=titlePal[c<='9'?c-'0':c-'a'+10];
+        u16*o=&fb[(y*2)*SW+x*2]; o[0]=o[1]=o[SW]=o[SW+1]=col;
+    }
+    for(int y=118;y<SH;y++)for(int x=0;x<SW;x++){ u16 c=fb[y*SW+x]; fb[y*SW+x]=shade(c,7); }   // dim strip for the prompt
+    u16 ink=RGB(4,3,6), gold=RGB(31,27,6), grn=RGB(12,28,8);
+    for(int dy=-2;dy<=2;dy++)for(int dx=-2;dx<=2;dx++) text(10+dx,10+dy,"BORE",ink,5);   // outline
+    text(10,10,"BORE",gold,5);
+    text(12,40,"A VOXEL LIFE SIM",ink,1); text(11,39,"A VOXEL LIFE SIM",grn,1);
+    text(14,126,"PUFF PUFF PASS THE CONTROLLER",RGB(16,22,12),1);
+    for(int i=0;i<SW*SH;i++) tfb[i]=fb[i];
+}
+static void smoke(int frame){
+    static const signed char wob[16]={0,1,2,3,3,3,2,1,0,-1,-2,-3,-3,-3,-2,-1};
+    for(int i=0;i<9;i++){
+        int t=(frame+i*14)&127;
+        int x=164+wob[(t/4+i*5)&15]+t/5, y=82-t*7/8, r=1+t/24;
+        for(int dy=-r;dy<=r;dy++)for(int dx=-r;dx<=r;dx++){
+            if(dx*dx+dy*dy>r*r+1) continue;
+            if(t>64&&((x+dx+y+dy)&1)) continue;       // fade out by dithering
+            if(t>100&&((x+dx)&1)) continue;
+            px(x+dx,y+dy,RGB(27,28,29));
+        }
+    }
+}
+static void titleScreen(void){
+    buildTitle();
+    for(int frame=0;;frame++){
+        if((~REG_KEYINPUT)&K_START) break;
+        REG_DMA3SAD=(u32)(uintptr_t)tfb; REG_DMA3DAD=(u32)(uintptr_t)fb; REG_DMA3CNT=(SW*SH/2)|0x84000000u;
+        smoke(frame);
+        if((frame>>4)&1) text(94,141,"PRESS START",RGB(31,31,31),1);
+        present();
+    }
+    while((~REG_KEYINPUT)&K_START) vsync();   // wait for release so START doesn't also change size
+}
+
 int main(void){
     REG_DISPCNT=0x0403;  // mode 3, BG2 on
+    titleScreen();
     starter();
     u16 prev=0; int hold[10]={0}, frame=0, dirty=1, lastBlink=-1, comboUsed=0;
     for(;;){
