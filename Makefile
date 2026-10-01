@@ -1,4 +1,7 @@
-# Needs devkitARM (arm-none-eabi-gcc + gbafix on PATH). The GitHub workflow uses the devkitpro/devkitarm image.
+DEVKITPRO ?= /opt/devkitpro
+DEVKITARM ?= $(DEVKITPRO)/devkitARM
+export PATH := $(DEVKITARM)/bin:$(DEVKITPRO)/tools/bin:$(PATH)
+
 TARGET  := bore
 CC      := arm-none-eabi-gcc
 OBJCOPY := arm-none-eabi-objcopy
