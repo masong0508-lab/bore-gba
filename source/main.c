@@ -39,12 +39,16 @@ static u8 sfxRam[SFX_MAX] EWRAM_BSS;
 #define tfb ((u16*)sfxRam)   // pre-rendered title backdrop (only needed while the title screen shows)
 
 // ---------- settings (kept in SRAM; the SETTINGS screen edits them) ----------
-static u8 sFps=1;    // frame rate: 0 = 60, 1 = 30, 2 = 20 frames per second (game speed stays the same)
+static u8 sFps=1;    // frame rate: 0 = 60, 1 = 30, 2 = 20, 3 = 15 frames per second (game speed stays the same)
 static u8 sWall=1;   // walls: 0 full height, 1 cutaway (walls in front drop low), 2 all low
 static u8 sWp=1;     // wallpaper patterns on
 static u8 sFl=1;     // floor patterns on
 static u8 sSnd=1;    // sound on
-static u8 sShow=0;   // show the frames-per-second counter
+static u8 sShad=1;   // shadows under the player
+static u8 sHud=0;    // on-screen info: 0 full, 1 slim, 2 off
+static u8 sRom=0;    // ROM waits: 0 fast (3/1 + prefetch), 1 safe (power-on default, for fussy flash carts)
+static u8 sShow=0;   // performance counter: 0 off, 1 fps, 2 fps + load
+static int lloadV;   // work per drawn frame as a percent of its time budget (PERFORMANCE INFO: DETAIL)
 #define NWP 14       // wallpapers
 #define NFL 14       // floors
 
@@ -695,11 +699,13 @@ static void mapPlace(int x,int y,char c){
     if(c=='B'||c=='P'){ for(int j=0;j<MH;j++)for(int i=0;i<MW;i++) if(lifeMap[j][i]==c) lifeMap[j][i]='.'; }
     lifeMap[y][x]=c; if(c=='w'||c=='W') wallMap[y][x]=(u8)eWp; }
 // settings (SRAM offset 640)
-static void settingsSave(void){ volatile u8*m=SRAM_BASE+640; m[0]='S'; m[1]='1'; m[2]=sFps; m[3]=sWall; m[4]=sWp; m[5]=sFl; m[6]=sSnd; m[7]=sShow; }
+static void settingsSave(void){ volatile u8*m=SRAM_BASE+640; m[0]='S'; m[1]='2'; m[2]=sFps; m[3]=sWall; m[4]=sWp; m[5]=sFl; m[6]=sSnd; m[7]=sShow; m[8]=sShad; m[9]=sHud; m[10]=sRom; }
 static void settingsLoad(void){ volatile u8*m=SRAM_BASE+640;
-    if(m[0]!='S'||m[1]!='1'||m[2]>2||m[3]>2||m[4]>1||m[5]>1||m[6]>1||m[7]>1) return;
-    sFps=m[2]; sWall=m[3]; sWp=m[4]; sFl=m[5]; sSnd=m[6]; sShow=m[7]; }
-
+    if(m[0]!='S') return;
+    if(m[1]=='1'){ if(m[2]>2||m[3]>2||m[4]>1||m[5]>1||m[6]>1||m[7]>1) return;   // older save: fewer settings
+        sFps=m[2]; sWall=m[3]; sWp=m[4]; sFl=m[5]; sSnd=m[6]; sShow=m[7]; return; }
+    if(m[1]!='2'||m[2]>3||m[3]>2||m[4]>1||m[5]>1||m[6]>1||m[7]>2||m[8]>1||m[9]>2||m[10]>1) return;
+    sFps=m[2]; sWall=m[3]; sWp=m[4]; sFl=m[5]; sSnd=m[6]; sShow=m[7]; sShad=m[8]; sHud=m[9]; sRom=m[10]; }
 
 // ---------- small UI kit: one menu style, one help style, one toast ----------
 #define GOLD RGB(31,26,6)
@@ -742,78 +748,147 @@ static const char* const creatureHelp[13]={">PLACE PARTS","DPAD MOVE  L R HEIGHT
 static const char* const mapHelp[12]={">BUILD A ROOM","ROOM TOOL  A CORNER  A BUILDS","WALL TOOL  A START  A DRAWS A LINE","FLOOR TOOL  A CORNER  A FILLS","ITEM TOOL  PLACE SINGLE TILES","ERASE TOOL  A CORNER  A CLEARS",">STYLES","L R PICK FLOOR OR ITEM","SEL+L R PICK WALLPAPER","SELECT TAP NEXT TOOL  B CANCELS",">KEEP IT","START OPENS PLAY TEST AND SAVE"};
 
 // ---------- settings screen ----------
-#define NSET 7
-static const char* const setNm[NSET]={"PRESET","FRAME RATE","WALLS","WALLPAPER","FLOORS","SOUND","SHOW FPS"};
+static void drawRoom(int ed);
+// Timer2 (65536 Hz) is the clock for pacing, the speed meter and the load counter.
+#define R_TM2D   (*(volatile u16*)0x04000108)
+#define R_TM2CNT (*(volatile u16*)0x0400010A)
+#define TICKS_FRAME 1097   // 65536 / 59.7275 Hz
+static void tmStart(void){ R_TM2CNT=0; R_TM2D=0; R_TM2CNT=0x82; }
+#define NSET 12
+enum { R_PRESET, R_TUNE, R_FPS, R_WALLS, R_WP, R_FL, R_SHAD, R_HUD, R_SND, R_ROM, R_SHOW, R_DEF };
+static const char* const setNm[NSET]={"PRESET","AUTO TUNE","FRAME RATE","WALLS","WALLPAPER","FLOORS","SHADOWS","INFO ON SCREEN","SOUND","ROM SPEED","PERFORMANCE INFO","RESET ALL"};
 static const char* const setDesc[NSET][2]={
- {"QUICK PICK  LOOKS IS PRETTIEST","SPEED RUNS SMOOTHEST ON SLOW DEVICES"},
- {"LOWER SAVES POWER AND SPEED","THE GAME RUNS AT THE SAME PACE"},
- {"CUTAWAY LOWERS THE WALLS IN FRONT","LOW IS FASTEST"},
- {"OFF DRAWS PLAIN COLOUR WALLS","FASTER"},
- {"PLAIN DRAWS FLAT COLOUR FLOORS","FASTER"},
- {"OFF SKIPS SOUND DECODING","SAVES A LITTLE SPEED"},
- {"SHOWS FRAMES PER SECOND","WHILE YOU PLAY"} };
-static int presetOf(void){   // 0 looks, 1 balanced, 2 speed, 3 custom
-    if(sFps==0&&sWall==0&&sWp&&sFl) return 0;
-    if(sFps==1&&sWall==1&&sWp&&sFl) return 1;
-    if(sFps==1&&sWall==2&&!sWp&&!sFl) return 2;
-    return 3;
+ {"LOOKS BALANCED SPEED BATTERY  ONE TAP SETUP","CHANGING ANYTHING BELOW MAKES IT CUSTOM"},
+ {"PRESS A  TESTS YOUR SCREEN AND PICKS THE","PRETTIEST PRESET THAT STAYS SMOOTH"},
+ {"HOW OFTEN THE PICTURE REDRAWS","LOWER IS FASTER  THE GAME KEEPS ITS PACE"},
+ {"FULL SHOWS EVERY WALL  CUTAWAY LOWERS THE","WALLS IN FRONT  LOW DRAWS THEM ALL SHORT"},
+ {"PATTERNED OR PLAIN COLOUR WALLS","PLAIN IS QUICKER TO DRAW"},
+ {"PATTERNED OR PLAIN COLOUR FLOORS","PLAIN IS QUICKER TO DRAW"},
+ {"THE DARK SPOT UNDER YOUR FEET","OFF SAVES A LITTLE DRAWING"},
+ {"FULL SHOWS EVERYTHING  SLIM KEEPS SCORE AND BARS","OFF HIDES ALL OF IT  ALERTS STILL SHOW"},
+ {"SOUND OFF SKIPS SOUND DECODING","SAVES A LITTLE SPEED AND BATTERY"},
+ {"FAST IS RIGHT FOR MOST CARTS AND EMULATORS","SAFE IF A FLASH CART FREEZES OR GLITCHES"},
+ {"SHOWS FPS WHILE YOU PLAY  DETAIL ALSO SHOWS","LOAD  100 MEANS A FRAME IS JUST FITTING"},
+ {"PUTS EVERY SETTING BACK TO NORMAL","PRESS A"} };
+// graphics fields per preset: fps wall wallpaper floors shadows hud
+static const u8 presetTab[4][6]={ {0,0,1,1,1,0}, {1,1,1,1,1,0}, {1,2,0,0,0,1}, {2,2,0,0,0,1} };
+static const char* const presetNm[5]={"LOOKS","BALANCED","SPEED","BATTERY","CUSTOM"};
+static int sCost, sTunedMsg;   // measured cost of drawing one frame (timer ticks); 1 = just auto-tuned
+static int presetOf(void){
+    for(int p=0;p<4;p++){ const u8*t=presetTab[p];
+        if(sFps==t[0]&&sWall==t[1]&&sWp==t[2]&&sFl==t[3]&&sShad==t[4]&&sHud==t[5]) return p; }
+    return 4;
 }
-static void setPreset(int p){
-    if(p==0){ sFps=0; sWall=0; sWp=1; sFl=1; }
-    else if(p==1){ sFps=1; sWall=1; sWp=1; sFl=1; }
-    else { sFps=1; sWall=2; sWp=0; sFl=0; }
+static void setPreset(int p){ const u8*t=presetTab[p]; sFps=t[0]; sWall=t[1]; sWp=t[2]; sFl=t[3]; sShad=t[4]; sHud=t[5]; }
+static void applyRom(void){ REG_WAITCNT=sRom?0x0000:0x4317; }
+static void setDefaults(void){ setPreset(1); sSnd=1; sRom=0; sShow=0; applyRom(); }
+// Time to draw the room once (timer ticks), averaged over 3 draws. Uses the editor view so it never touches the game state.
+static int measureDraw(void){
+    drawRoom(1); u16 t0=R_TM2D;
+    for(int i=0;i<3;i++) drawRoom(1);
+    return (int)(u16)(R_TM2D-t0)/3;
+}
+static int capLevel(void){   // how many 60 Hz frames one picture really needs: 1 = holds 60 FPS ... 4 = 15 FPS (logic and copy get ~30%)
+    int c=sCost+TICKS_FRAME*3/10;
+    return c<=TICKS_FRAME?1: c<=2*TICKS_FRAME?2: c<=3*TICKS_FRAME?3: 4;
+}
+static void autoTune(void){
+    int p; for(p=0;p<4;p++){ setPreset(p); sCost=measureDraw(); if(capLevel()<=sFps+1) break; }
+    if(p==4){ setPreset(3); sCost=measureDraw(); }
+    sTunedMsg=1;
 }
 static void setChange(int row,int d){
+    sTunedMsg=0;
     switch(row){
-        case 0:{ int p=presetOf(); p=(p==3)?(d>0?0:2):(p+d+3)%3; setPreset(p); } break;
-        case 1: sFps=(u8)((sFps+d+3)%3); break;
-        case 2: sWall=(u8)((sWall+d+3)%3); break;
-        case 3: sWp^=1; break;
-        case 4: sFl^=1; break;
-        case 5: sSnd^=1; if(!sSnd) sfxStop(); break;
-        default: sShow^=1; break;
+        case R_PRESET:{ int p=presetOf(); p=(p==4)?(d>0?0:3):(p+d+4)%4; setPreset(p); } break;
+        case R_FPS: sFps=(u8)((sFps+d+4)%4); break;
+        case R_WALLS: sWall=(u8)((sWall+d+3)%3); break;
+        case R_WP: sWp^=1; break;
+        case R_FL: sFl^=1; break;
+        case R_SHAD: sShad^=1; break;
+        case R_HUD: sHud=(u8)((sHud+d+3)%3); break;
+        case R_SND: sSnd^=1; if(!sSnd) sfxStop(); break;
+        case R_ROM: sRom^=1; applyRom(); break;
+        case R_SHOW: sShow=(u8)((sShow+d+3)%3); break;
     }
 }
 static const char* setVal(int row){
-    static const char* const pn[4]={"LOOKS","BALANCED","SPEED","CUSTOM"}, *const fp[3]={"60 FPS","30 FPS","20 FPS"}, *const wn[3]={"FULL","CUTAWAY","LOW"};
+    static const char* const fp[4]={"60 FPS","30 FPS","20 FPS","15 FPS"}, *const wn[3]={"FULL","CUTAWAY","LOW"}, *const hn[3]={"FULL","SLIM","OFF"}, *const sn[3]={"OFF","FPS","DETAIL"};
     switch(row){
-        case 0: return pn[presetOf()];
-        case 1: return fp[sFps];
-        case 2: return wn[sWall];
-        case 3: return sWp?"ON":"PLAIN";
-        case 4: return sFl?"ON":"PLAIN";
-        case 5: return sSnd?"ON":"OFF";
-        default: return sShow?"ON":"OFF";
+        case R_PRESET: return presetNm[presetOf()];
+        case R_TUNE: return "PRESS A";
+        case R_FPS: return fp[sFps];
+        case R_WALLS: return wn[sWall];
+        case R_WP: return sWp?"PATTERNS":"PLAIN";
+        case R_FL: return sFl?"PATTERNS":"PLAIN";
+        case R_SHAD: return sShad?"ON":"OFF";
+        case R_HUD: return hn[sHud];
+        case R_SND: return sSnd?"ON":"OFF";
+        case R_ROM: return sRom?"SAFE":"FAST";
+        case R_SHOW: return sn[sShow];
+        default: return "PRESS A";
+    }
+}
+static int setHeat(int row){   // 0 light (green), 1 medium (yellow), 2 heavy (red), 3 neutral
+    switch(row){
+        case R_FPS: return sFps==0?2:sFps==1?1:0;
+        case R_WALLS: return sWall==0?2:sWall==1?1:0;
+        case R_WP: return sWp?1:0;
+        case R_FL: return sFl?1:0;
+        case R_SHAD: return sShad?1:0;
+        case R_HUD: return sHud==0?1:0;
+        case R_SND: return sSnd?1:0;
+        case R_ROM: return sRom?1:0;
+        case R_SHOW: return sShow==2?1:0;
+        default: return 3;
     }
 }
 static void drawSettings(int sel){
+    static const u16 heat[4]={ RGB(12,28,10), RGB(31,26,6), RGB(30,10,8), RGB(22,24,26) };
     fillCols(0,ROW_W,RGB(3,4,8));
-    box(6,4,228,152); text(16,10,"SETTINGS",GOLD,2);
-    text(110,13,"FPS SAVERS",RGB(12,28,8),1);
-    for(int i=0;i<NSET;i++){
-        int y=34+i*12;
-        if(i==sel){ rect(10,y-3,220,11,RGB(6,16,8)); text(14,y,">",WHITE,1); }
-        text(24,y,setNm[i],i==sel?WHITE:DIMC,1);
-        const char*v=setVal(i); u16 vc=i==sel?GOLD:RGB(22,24,26);
-        if(i>=3&&v[1]=='N'&&v[0]=='O'&&v[2]==0) vc=RGB(12,28,10);   // ON in green
-        text(130,y,v,vc,1);
+    box(4,2,232,156); text(12,7,"SETTINGS",GOLD,2);
+    text(112,9,sTunedMsg?"TUNED FOR YOUR SCREEN":"PERFORMANCE",sTunedMsg?heat[0]:DIMC,1);
+    // speed meter: how much of the frame the picture needs. 60 / 30 / 20 marks show which frame rate it can hold.
+    int cap=capLevel(), want=sFps+1, fill=sCost*100/(3*TICKS_FRAME); if(fill>100) fill=100;
+    u16 mc=cap==1?heat[0]:cap<=2?heat[1]:heat[2];
+    text(12,25,"DRAW COST",DIMC,1);
+    rect(60,25,100,5,RGB(8,10,14)); rect(60,25,fill,5,mc);
+    static const int mk[3]={23,57,90}; static const char* const ml[3]={"60","30","20"};
+    for(int i=0;i<3;i++){ rect(60+mk[i],24,1,7,WHITE); text(60+mk[i]-3,32,ml[i],DIMC,1); }
+    if(cap>want){ text(168,25,"TOO SLOW FOR",heat[2],1); text(168,32,"THIS FRAME RATE",heat[2],1); }
+    else { text(168,25,cap==1?"HOLDS 60 FPS":cap==2?"HOLDS 30 FPS":cap==3?"HOLDS 20 FPS":"HOLDS 15 FPS",heat[0],1); text(168,32,"SMOOTH",DIMC,1); }
+    int top=sel-4; if(top<0) top=0; if(top>NSET-9) top=NSET-9;
+    for(int n=0;n<9;n++){
+        int i=top+n, y=43+n*9;
+        if(i==sel){ rect(8,y-2,212,9,RGB(6,16,8)); text(12,y,">",WHITE,1); }
+        text(20,y,setNm[i],i==sel?WHITE:DIMC,1);
+        int h=setHeat(i); u16 vc=heat[h]; if(i==sel&&h==3) vc=GOLD;
+        text(124,y,setVal(i),vc,1);
     }
-    text(14,122,setDesc[sel][0],WHITE,1); text(14,129,setDesc[sel][1],DIMC,1);
-    text(14,142,"UP DOWN ROW  LEFT RIGHT CHANGE  B BACK",RGB(12,14,16),1);
+    if(top>0){ for(int k=0;k<3;k++) rect(227-k,44+k,1+2*k,1,GOLD); }          // more rows above
+    if(top<NSET-9){ for(int k=0;k<3;k++) rect(227-k,108+(2-k),1+2*k,1,GOLD); } // more rows below
+    text(12,126,setDesc[sel][0],WHITE,1); text(12,133,setDesc[sel][1],DIMC,1);
+    text(12,143,"UP DOWN ROW  L R CHANGE  B BACK",RGB(12,14,16),1);
+    text(12,150,"GREEN FAST",heat[0],1); text(60,150,"YELLOW MID",heat[1],1); text(112,150,"RED SLOW",heat[2],1);
 }
 static void settingsScreen(void){
-    int sel=0, dirty=1; u16 prev=keyNow();
+    int sel=0, dirty=1, remeasure=1; u16 prev=keyNow(); tmStart(); sTunedMsg=0;
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k;
         if(pr&K_DOWN){ sel=(sel+1)%NSET; dirty=1; }
         if(pr&K_UP){ sel=(sel+NSET-1)%NSET; dirty=1; }
-        int d=((pr&K_RIGHT)?1:0)-((pr&K_LEFT)?1:0); if(pr&K_A) d=1;
-        if(d){ setChange(sel,d); dirty=1; }
-        if(pr&(K_B|K_START)){ settingsSave(); return; }
+        if(sel==R_TUNE||sel==R_DEF){
+            if(pr&K_A){ if(sel==R_TUNE){ autoTune(); } else { setDefaults(); sTunedMsg=0; } remeasure=1; dirty=1; }
+        } else {
+            int d=((pr&K_RIGHT)?1:0)-((pr&K_LEFT)?1:0); if(pr&K_A) d=1;
+            if(pr&K_R) d=1; if(pr&K_L) d=-1;
+            if(d){ setChange(sel,d); remeasure=1; dirty=1; }
+        }
+        if(pr&(K_B|K_START)){ settingsSave(); R_TM2CNT=0; return; }
+        if(remeasure){ sCost=measureDraw(); remeasure=0; }
         if(dirty){ drawSettings(sel); present(); dirty=0; } else vsync();
     }
 }
-
 
 static void lifeInit(void){
     mapScan(); bakeSprites();
@@ -968,7 +1043,7 @@ static void drawRoom(int ed){   // the room, drawn back to front; ed=1: editor v
         }
         if(!ed&&s==ss){
             int fhp=tileH(lfx>>8,lfy>>8), zp=(int)(lz>>8), vsel=((lhd+lspin+66)>>2)&3;
-            rect(psx-3,psy-fhp-1,7,2,RGB(10,8,5)); rect(psx-1,psy-fhp-2,3,4,RGB(10,8,5));   // shadow
+            if(sShad){ rect(psx-3,psy-fhp-1,7,2,RGB(10,8,5)); rect(psx-1,psy-fhp-2,3,4,RGB(10,8,5)); }   // shadow
             if(lskate){ rect(psx-6,psy-zp-1,12,2,RGB(26,10,6)); rect(psx-5,psy-zp+1,2,2,RGB(3,3,6)); rect(psx+3,psy-zp+1,2,2,RGB(3,3,6)); }   // board under the feet
             blit(spr4[vsel],psx-16,psy-40-zp);
         }
@@ -988,36 +1063,40 @@ static void drawRoom(int ed){   // the room, drawn back to front; ed=1: editor v
 
 static void lifeDraw(void){
     drawRoom(0);
-    u16 gold=GOLD, dim=DIMC;
-    text(2,2,"SCORE",dim,1); numText(24,2,lscore,gold);
-    text(2,10,"SPEED",dim,1); rect(24,10,lsp,5,RGB(8,24,10));
-    text(150,2,MAPNAME,RGB(14,16,18),1);
-    text(150,10,"FOOD",dim,1); rect(172,10,lfood/2,5,lfood<20?RGB(28,8,6):RGB(10,24,8));
-    text(150,18,"WC",dim,1); rect(172,18,lbl/2,5,lbl>80?RGB(28,8,6):RGB(26,22,6));
-    if(lnear&&!ldead) text(2,132,lnear==1?"R OPEN FRIDGE":"R USE TOILET",gold,1);
-    text(60,2,lskate?"SKATE":(lsp>5?"RUN":"WALK"),gold,1);
+    u16 gold=GOLD, dim=DIMC, hint=RGB(12,14,16);
+    if(sHud<2){
+        text(2,2,"SCORE",dim,1); numText(24,2,lscore,gold);
+        text(150,10,"FOOD",dim,1); rect(172,10,lfood/2,5,lfood<20?RGB(28,8,6):RGB(10,24,8));
+        text(150,18,"WC",dim,1); rect(172,18,lbl/2,5,lbl>80?RGB(28,8,6):RGB(26,22,6));
+    }
+    if(sHud==0){
+        text(2,10,"SPEED",dim,1); rect(24,10,lsp,5,RGB(8,24,10));
+        text(150,2,MAPNAME,RGB(14,16,18),1);
+        text(60,2,lskate?"SKATE":(lsp>5?"RUN":"WALK"),gold,1);
+        text(2,146,lskate?"A PUSH B OLLIE DPAD STEER L WALK":(lhave?"DPAD WALK B RUN A HOP L SKATE":"DPAD WALK B RUN A HOP FIND A BOARD"),hint,1);
+        text(2,153,"START MENU",hint,1);
+    }
+    if(lnear&&!ldead) text(2,132,lnear==1?"R OPEN FRIDGE":"R USE TOILET",gold,1);   // prompts and alerts always show
     if(ldead) text(2,25,"PRESS A TO RESPAWN",RGB(31,12,8),1);
     if(lnoteT>0){ text(2,18,lnote,RGB(31,31,31),1); if(lpts&&lnote[0]=='N'){ text(2,25,"+",gold,1); numText(6,25,lpts,gold); } }
-    text(2,146,lskate?"A PUSH B OLLIE DPAD STEER L WALK":(lhave?"DPAD WALK B RUN A HOP L SKATE":"DPAD WALK B RUN A HOP FIND A BOARD"),RGB(12,14,16),1);
-    text(2,153,"START MENU",RGB(12,14,16),1);
-    if(sShow){ text(196,153,"FPS",dim,1); numText(214,153,lfpsV,gold); }
+    if(sShow){   // performance counter, bottom right
+        text(184,153,"FPS",dim,1); numText(200,153,lfpsV,gold);
+        if(sShow==2){ text(184,146,"LOAD",dim,1); numText(204,146,lloadV,lloadV>=100?RGB(30,10,8):gold); }
+    }
 }
 static int gToMenu;   // set when the player picks MAIN MENU in the pause menu, so every screen above returns to it
 static const char* const lifeItems[5]={"RESUME","HOW TO PLAY","SETTINGS","EDIT MAP","MAIN MENU"};
 static const char* const lifeItemsEd[4]={"RESUME","HOW TO PLAY","SETTINGS","BACK TO EDITOR"};
-// Timer2 (65536 Hz) is the clock. The game logic always runs at 60 steps per second; the frame rate setting only
-// says how often the picture is redrawn, so 30 / 20 FPS saves work without slowing the game down.
-#define R_TM2D   (*(volatile u16*)0x04000108)
-#define R_TM2CNT (*(volatile u16*)0x0400010A)
-#define TICKS_FRAME 1097   // 65536 / 59.7275 Hz
-static void tmStart(void){ R_TM2CNT=0; R_TM2D=0; R_TM2CNT=0x82; }
+// Timer2 (65536 Hz) is the clock (defined with the settings). The game logic always runs at 60 steps per second; the
+// frame rate setting only says how often the picture is redrawn, so lower rates save work without slowing the game.
 static void lifeMode(int ed){   // ed=1: test play started from the map editor
     lifeInit(); u16 prev=keyNow();
-    tmStart(); u16 tl=R_TM2D; int acc=0, fpsN=0, fr=0; u32 fpsT=0; lfpsV=0;
+    tmStart(); u16 tl=R_TM2D; int acc=0, fpsN=0, fr=0; u32 fpsT=0, workT=0; lfpsV=0; lloadV=0;
     for(;;){
         int need=(sFps+1)*TICKS_FRAME-100;
         for(;;){ u16 now=R_TM2D, dt=(u16)(now-tl); tl=now; acc+=dt; fpsT+=dt; if(acc>=need) break; vsync(); }
-        int steps=(acc+110)/TICKS_FRAME; if(steps>4){ steps=4; acc=0; } else acc-=steps*TICKS_FRAME;
+        u16 w0=R_TM2D;
+        int steps=(acc+110)/TICKS_FRAME; if(steps>6){ steps=6; acc=0; } else acc-=steps*TICKS_FRAME;
         u16 k=keyNow(), pr=k&~prev; prev=k;
         if((k&K_SEL)&&(k&K_START)) break;
         if(pr&K_START){   // pause menu
@@ -1030,8 +1109,8 @@ static void lifeMode(int ed){   // ed=1: test play started from the map editor
             prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; continue;
         }
         for(int s=0;s<steps;s++) lifeStep(k,s?0:pr,fr++);   // catch up if a frame took long; button presses count once
-        lifeDraw(); present();
-        fpsN++; if(fpsT>=65536){ lfpsV=fpsN; fpsN=0; fpsT-=65536; }
+        lifeDraw(); workT+=(u16)(R_TM2D-w0); present();
+        fpsN++; if(fpsT>=65536){ lfpsV=fpsN; lloadV=(int)(workT/(u32)fpsN*100/(u32)((sFps+1)*TICKS_FRAME)); workT=0; fpsN=0; fpsT-=65536; }
     }
     R_TM2CNT=0; sfxStop();
     while((~REG_KEYINPUT)&0x3FF) vsync();   // wait for release so the caller doesn't see the exit keys
@@ -1237,7 +1316,7 @@ static void mainMenu(void){
 int main(void){
     REG_WAITCNT=0x4317;  // ROM 3/1 waits + prefetch (power-on default is 4/2, no prefetch)
     REG_DISPCNT=0x0403;  // mode 3, BG2 on
-    initTables(); setColors(); settingsLoad();
+    initTables(); setColors(); settingsLoad(); applyRom();
     titleScreen();
     starter();
     mapReset(); mapLoad();   // default room, or the one saved to SRAM
