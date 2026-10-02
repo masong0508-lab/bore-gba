@@ -22,7 +22,7 @@ Push to GitHub: the **Build GBA ROM** workflow produces `bore.gba` as an artifac
 Locally with devkitARM installed: `make`. Run in mGBA or on hardware.
 
 ## Main menu, room builder, settings
-Boot goes title -> **main menu** (PLAY, MAKE CREATURE, BUILD ROOM, SETTINGS, HOW TO PLAY). "MAIN MENU" is the last entry in the creature part list and in the pause menu.
+Boot goes title -> **main menu** (PLAY, MAKE CREATURE, BUILD ROOM, JUKEBOX, SETTINGS, HOW TO PLAY). "MAIN MENU" is the last entry in the creature part list and in the pause menu.
 
 **Build Room** tools (Select taps to the next tool): ROOM (A corner, A again = walls + floor + doorway, min 3x3), WALL (straight line), FLOOR (fill area), ITEM (single tiles), ERASE (clear area). L/R picks floor (or item); Select+L/R picks wallpaper. 14 wallpapers and 14 floors, 90s house (floral, peach stripe, Memphis, wood panel, gingham, teal carpet, checker lino...) and factory (corrugated, red brick, cinder block, hazard, steel plate, grate, oil-stained concrete...). Floors, wallpaper and tiles are saved to SRAM.
 
@@ -49,3 +49,20 @@ The play map is now **40 x 40 tiles** (was 14 x 14), about 8x the floor space. T
 
 ## Title music
 The title screen plays "The Dipper Man" (tools/the_dipper_man.xm). `python3 tools/xm2gba.py` converts the XM to `source/musicdata.h`: note events per pattern plus 16 small instrument samples (8-bit, band-limited, down-sampled to the lowest rate that keeps them clean, about 94 KB in the ROM). A 10-voice mixer with linear interpolation plays it through Direct Sound B at 18157 Hz (exactly 304 samples per frame). The 7.7 s intro plays once, then the song loops from order 4; voices are never cut at the jump, so the last notes ring into the first ones. Music stops when you press START.
+
+## Jukebox
+Main menu -> **JUKEBOX**. Opening it starts the song the playlist is on. The song list lives in `source/songs.h`.
+| Key | Action |
+|---|---|
+| Up / Down | move the cursor through the playlist |
+| A | play the song under the cursor |
+| L / R | previous / next song |
+| Start | stop, or play the song under the cursor |
+| Left / Right | mode: SHUFFLE, IN ORDER, REPEAT ONE |
+| Select | re-roll the shuffle (saved; the playing song stays first) |
+| B | back to the menu |
+
+When a song ends the next one starts (REPEAT ONE replays it). **The shuffled order is saved in SRAM (offset 12288), so the song set comes back in the same shuffled order every time the game starts**, and the playlist carries on from the last song played. It is re-rolled only by SELECT, or automatically when the number of songs in `songs.h` changes. The mode is a normal setting (SETTINGS -> JUKEBOX).
+
+**Adding songs:** `python3 tools/encode_song.py "my song.mp3"` (needs ffmpeg + numpy). It writes `source/music/<id>.adp` and adds a `SONG_ADP(...)` line to `source/songs.h`. Song spec: 4-bit IMA-ADPCM, mono, 18157 Hz, about 9 KB per second, up to 32 songs. Song titles use capitals, digits and spaces (the font has no punctuation). The three `PLACEHOLDER` songs and `THE DIPPER MAN` (tracker song, `SONG_XM`) are there so shuffle can be heard from day one: delete the placeholder lines in `songs.h` and the files in `source/music/` when you add real songs.
+The jukebox plays only on its own screen for now: music during gameplay needs a vblank interrupt (game frames can run longer than a sound buffer).

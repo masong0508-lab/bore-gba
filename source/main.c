@@ -595,6 +595,8 @@ static MVoice mvc[10];
 static s8 mbuf[2][MUS_N] __attribute__((aligned(4)));
 static s16 macc[MUS_N];
 static int mOrd, mRow, mLeft, mCur, mOn, mFrac;
+static int mKind, mLaps, mDone, aTail;   // mKind 0 = tracker song, 1 = streamed ADPCM; mLaps = times the tracker song has wrapped; mDone = ADPCM song finished
+static const u8 *aSrc; static u32 aN, aPos; static int aPred, aIdx;   // ADPCM stream: data, sample count, position, decoder state
 static void musTrigger(void){
     const u16*e=&musEv[musPatOff[musOrder[mOrd]]];
     for(int r=0;r<mRow;r++) e+=1+*e;
@@ -605,7 +607,7 @@ static void musTrigger(void){
 IWRAM_CODE static void musMix(s8*out){
     int done=0;
     while(done<MUS_N){
-        if(mLeft==0){ musTrigger(); mFrac+=MUS_RFR; mLeft=MUS_ROW+(mFrac>>8); mFrac&=255; if(++mRow>=16){ mRow=0; if(++mOrd>=MUS_NORD) mOrd=MUS_LOOP; } }
+        if(mLeft==0){ musTrigger(); mFrac+=MUS_RFR; mLeft=MUS_ROW+(mFrac>>8); mFrac&=255; if(++mRow>=16){ mRow=0; if(++mOrd>=MUS_NORD){ mOrd=MUS_LOOP; mLaps++; } } }
         int n=MUS_N-done; if(n>mLeft) n=mLeft;
         s16*a=macc+done;
         for(int i=0;i<n;i++) a[i]=0;
@@ -620,13 +622,34 @@ IWRAM_CODE static void musMix(s8*out){
     }
     for(int i=0;i<MUS_N;i++){ int x=macc[i]>>2; out[i]=(s8)(x>127?127:x<-128?-128:x); }
 }
-static void musStart(void){
+// Streamed ADPCM song (source/music/*.adp from tools/encode_song.py): 4-bit IMA-ADPCM, 18157 Hz, so one frame = 304 samples.
+// Same format as the sound effects: u32 sample count, then nibbles (low first). Decoded straight into the DMA buffer.
+IWRAM_CODE static void adpMix(s8*out){
+    u32 p=aPos, e=aN; int pred=aPred, idx=aIdx, i=0; const u8*d=aSrc;
+    for(;i<MUS_N&&p<e;i++,p++){
+        int v=d[p>>1]; v=(p&1)?(v>>4):(v&15);
+        int step=stepT[idx], diff=step>>3;
+        if(v&1) diff+=step>>2; if(v&2) diff+=step>>1; if(v&4) diff+=step;
+        pred+=(v&8)?-diff:diff; if(pred>32767) pred=32767; if(pred<-32768) pred=-32768;
+        idx+=idxT[v&7]; if(idx<0) idx=0; if(idx>88) idx=88;
+        out[i]=(s8)(pred>>8);
+    }
+    for(;i<MUS_N;i++) out[i]=0;
+    aPos=p; aPred=pred; aIdx=idx;
+    if(p>=e&&++aTail>=3) mDone=1;   // 2 buffers are in flight, so wait for the last real samples to be heard
+}
+static void musMixAny(s8*out){ if(mKind) adpMix(out); else musMix(out); }
+// Start a song: kind 0 = the tracker song, kind 1 = the ADPCM data in adp.
+static void musBegin(int kind,const u8*adp){
     sfxStop();
     for(int i=0;i<10;i++) mvc[i].d=0;
-    mOrd=0; mRow=0; mLeft=0; mFrac=0; mCur=0; mOn=1;
-    musMix(mbuf[0]); musMix(mbuf[1]);
+    mOrd=0; mRow=0; mLeft=0; mFrac=0; mCur=0; mLaps=0; mDone=0; aTail=0; mKind=kind;
+    if(kind){ aSrc=adp+4; aN=*(const u32*)adp; aPos=0; aPred=0; aIdx=0; }
+    mOn=1;
+    musMixAny(mbuf[0]);   // only the first buffer is primed; musFill renders the idle one while this one plays
     R_SNDCNT_X=0x80; R_SNDCNT_L=0; R_SNDCNT_H=0xB308;   // Direct Sound B: 100%, L+R, Timer0, FIFO reset
 }
+static void musStart(void){ musBegin(0,0); }
 static void musKick(void){   // right after vsync: start the buffer filled last frame, in step with the screen
     if(!mOn) return;
     R_DMA2CNT=0; R_TM0CNT=0;
@@ -634,13 +657,37 @@ static void musKick(void){   // right after vsync: start the buffer filled last 
     R_DMA2CNT=0xB6400000u;                               // enable, FIFO timing, repeat, 32-bit, fixed dest
     R_TM0D=(u16)(65536-924); R_TM0CNT=0x80;
 }
-static void musFill(void){ if(!mOn) return; musMix(mbuf[mCur]); mCur^=1; }   // render the buffer that just finished
+static void musFill(void){ if(!mOn) return; musMixAny(mbuf[mCur^1]); mCur^=1; }   // render the idle buffer (the other one is playing), it plays next frame
 static void musStop(void){ if(!mOn) return; mOn=0; R_DMA2CNT=0; R_TM0CNT=0; R_SNDCNT_H=0; }
-static void titleScreen(void){
+// ---------- jukebox song table: built from source/songs.h (edit that file, not this) ----------
+// Pass 1 bakes every .adp into the ROM, pass 2 declares the data, pass 3 builds the table.
+#define SONG_XM(n)
+#define SONG_ADP(id,n,f) ".global jbs_" #id "\njbs_" #id ":\n.incbin \"" f "\"\n.balign 4\n"
+__asm__(".pushsection .rodata\n.balign 4\n"
+#include "songs.h"
+".popsection\n");
+#undef SONG_XM
+#undef SONG_ADP
+#define SONG_XM(n)
+#define SONG_ADP(id,n,f) extern const u8 jbs_##id[];
+#include "songs.h"
+#undef SONG_XM
+#undef SONG_ADP
+typedef struct { const char*name; const u8*adp; } Song;   // adp = 0 means the built-in tracker song
+#define SONG_XM(n) {n,0},
+#define SONG_ADP(id,n,f) {n,jbs_##id},
+static const Song songs[]={
+#include "songs.h"
+};
+#undef SONG_XM
+#undef SONG_ADP
+#define NSONGS ((int)(sizeof(songs)/sizeof(songs[0])))
+_Static_assert(sizeof(songs)/sizeof(songs[0])<=32,"the jukebox holds at most 32 songs (see source/songs.h)");
+static int titleScreen(void){
     buildTitle();                          // leaves the finished backdrop in both fb and tfb
     vsync(); dmaRows(fb,VRAM_ADDR,0,ROW_W,0,SH);
-    int shown=0; musStart();
-    for(int frame=0;;frame++){
+    int shown=0, frame; musStart();
+    for(frame=0;;frame++){
         if((~REG_KEYINPUT)&K_START) break;
         dmaRows(tfb,(u32)(uintptr_t)fb,SM_W0,SM_W1,0,SM_Y1);   // wipe last frame's smoke only
         smoke(frame);
@@ -653,6 +700,7 @@ static void titleScreen(void){
     }
     musStop();
     while((~REG_KEYINPUT)&K_START) vsync();   // wait for release so START doesn't also change size
+    return frame;   // how long the player sat on the title: stirs the random seed
 }
 
 IWRAM_CODE static void sfxDecode(int cnt){   // decode the next cnt samples into sfxRam (signed 8-bit)
@@ -783,6 +831,7 @@ static const char sramTag[] __attribute__((used)) = "SRAM_V113";   // tells emul
 #define OMSZ (OMW*OMW)
 #define LEG_X 13                // an old save is copied into the plaza at (13,22)
 #define LEG_Y 22
+#include "jukebox.h"   // playlist logic: shuffled order lives in SRAM at JB_OFF (12288), the mode is a setting
 // SRAM layout: 0..2 "BM3", then MSZ bytes each of tiles, floors, wallpapers. Settings at SET_OFF (see settingsSave).
 // Old "BM1" / "BM2" saves (14x14, settings at 640) still load: the room is placed into the plaza of the new default map.
 static void mapSave(void){ volatile u8*m=SRAM_BASE; m[0]='B'; m[1]='M'; m[2]='3';
@@ -811,14 +860,14 @@ static void mapPlace(int x,int y,char c){
     if(c=='B'||c=='P'){ for(int j=0;j<MH;j++)for(int i=0;i<MW;i++) if(lifeMap[j][i]==c) lifeMap[j][i]='.'; }
     lifeMap[y][x]=c; if(c=='w'||c=='W') wallMap[y][x]=(u8)eWp; }
 // settings (SRAM offset 640)
-static void settingsSave(void){ volatile u8*m=SRAM_BASE+SET_OFF; m[0]='S'; m[1]='2'; m[2]=sFps; m[3]=sWall; m[4]=sWp; m[5]=sFl; m[6]=sSnd; m[7]=sShow; m[8]=sShad; m[9]=sHud; m[10]=sRom; m[11]=sCam; }
+static void settingsSave(void){ volatile u8*m=SRAM_BASE+SET_OFF; m[0]='S'; m[1]='2'; m[2]=sFps; m[3]=sWall; m[4]=sWp; m[5]=sFl; m[6]=sSnd; m[7]=sShow; m[8]=sShad; m[9]=sHud; m[10]=sRom; m[11]=sCam; m[12]=sJb; }
 static void settingsLoad(void){ volatile u8*m=SRAM_BASE+SET_OFF;
     if(m[0]!='S'){ volatile u8*o=SRAM_BASE; if(o[0]=='B'&&o[1]=='M'&&o[2]!='3') m=SRAM_BASE+640; else return; }   // old saves kept settings at 640
     if(m[0]!='S') return;
     if(m[1]=='1'){ if(m[2]>2||m[3]>2||m[4]>1||m[5]>1||m[6]>1||m[7]>1) return;   // older save: fewer settings
         sFps=m[2]; sWall=m[3]; sWp=m[4]; sFl=m[5]; sSnd=m[6]; sShow=m[7]; return; }
     if(m[1]!='2'||m[2]>3||m[3]>2||m[4]>1||m[5]>1||m[6]>1||m[7]>2||m[8]>1||m[9]>2||m[10]>1) return;
-    sCam=(m[11]<=3)?m[11]:1;
+    sCam=(m[11]<=3)?m[11]:1; sJb=(m[12]<=2)?m[12]:0;
     sFps=m[2]; sWall=m[3]; sWp=m[4]; sFl=m[5]; sSnd=m[6]; sShow=m[7]; sShad=m[8]; sHud=m[9]; sRom=m[10]; }
 
 // ---------- small UI kit: one menu style, one help style, one toast ----------
@@ -868,9 +917,9 @@ static void drawRoom(int ed);
 #define R_TM2CNT (*(volatile u16*)0x0400010A)
 #define TICKS_FRAME 1097   // 65536 / 59.7275 Hz
 static void tmStart(void){ R_TM2CNT=0; R_TM2D=0; R_TM2CNT=0x82; }
-#define NSET 13
-enum { R_PRESET, R_TUNE, R_FPS, R_WALLS, R_WP, R_FL, R_SHAD, R_CAM, R_HUD, R_SND, R_ROM, R_SHOW, R_DEF };
-static const char* const setNm[NSET]={"PRESET","AUTO TUNE","FRAME RATE","WALLS","WALLPAPER","FLOORS","SHADOWS","ACTION CAM","INFO ON SCREEN","SOUND","ROM SPEED","PERFORMANCE INFO","RESET ALL"};
+#define NSET 14
+enum { R_PRESET, R_TUNE, R_FPS, R_WALLS, R_WP, R_FL, R_SHAD, R_CAM, R_HUD, R_SND, R_JB, R_ROM, R_SHOW, R_DEF };
+static const char* const setNm[NSET]={"PRESET","AUTO TUNE","FRAME RATE","WALLS","WALLPAPER","FLOORS","SHADOWS","ACTION CAM","INFO ON SCREEN","SOUND","JUKEBOX","ROM SPEED","PERFORMANCE INFO","RESET ALL"};
 static const char* const setDesc[NSET][2]={
  {"LOOKS BALANCED SPEED BATTERY  ONE TAP SETUP","CHANGING ANYTHING BELOW MAKES IT CUSTOM"},
  {"PRESS A  TESTS YOUR SCREEN AND PICKS THE","PRETTIEST PRESET THAT STAYS SMOOTH"},
@@ -882,6 +931,7 @@ static const char* const setDesc[NSET][2]={
  {"AFTER A BIG COMBO THE CAMERA ZOOMS IN AND SPINS","ALL 4 VIEWS  PICK HOW BIG A COMBO TRIGGERS IT"},
  {"FULL SHOWS EVERYTHING  SLIM KEEPS SCORE AND BARS","OFF HIDES ALL OF IT  ALERTS STILL SHOW"},
  {"SOUND OFF SKIPS SOUND DECODING","SAVES A LITTLE SPEED AND BATTERY"},
+ {"SHUFFLE PLAYS YOUR SAVED RANDOM SONG ORDER","IN ORDER  OR  REPEAT ONE SONG  OPEN FROM MENU"},
  {"FAST IS RIGHT FOR MOST CARTS AND EMULATORS","SAFE IF A FLASH CART FREEZES OR GLITCHES"},
  {"SHOWS FPS WHILE YOU PLAY  DETAIL ALSO SHOWS","LOAD  100 MEANS A FRAME IS JUST FITTING"},
  {"PUTS EVERY SETTING BACK TO NORMAL","PRESS A"} };
@@ -896,7 +946,7 @@ static int presetOf(void){
 }
 static void setPreset(int p){ const u8*t=presetTab[p]; sFps=t[0]; sWall=t[1]; sWp=t[2]; sFl=t[3]; sShad=t[4]; sHud=t[5]; }
 static void applyRom(void){ REG_WAITCNT=sRom?0x0000:0x4317; }
-static void setDefaults(void){ setPreset(1); sCam=1; sSnd=1; sRom=0; sShow=0; applyRom(); }
+static void setDefaults(void){ setPreset(1); sCam=1; sSnd=1; sRom=0; sShow=0; applyRom(); jbSetMode(0); }
 // Time to draw the room once (timer ticks), averaged over 3 draws. Uses the editor view so it never touches the game state.
 static int measureDraw(void){
     drawRoom(1); u16 t0=R_TM2D;
@@ -924,6 +974,7 @@ static void setChange(int row,int d){
         case R_CAM: sCam=(u8)((sCam+d+4)%4); break;
         case R_HUD: sHud=(u8)((sHud+d+3)%3); break;
         case R_SND: sSnd^=1; if(!sSnd) sfxStop(); break;
+        case R_JB: jbSetMode((sJb+d+3)%3); break;
         case R_ROM: sRom^=1; applyRom(); break;
         case R_SHOW: sShow=(u8)((sShow+d+3)%3); break;
     }
@@ -941,6 +992,7 @@ static const char* setVal(int row){
         case R_CAM: return cn[sCam];
         case R_HUD: return hn[sHud];
         case R_SND: return sSnd?"ON":"OFF";
+        case R_JB: return jbModeNm[sJb];
         case R_ROM: return sRom?"SAFE":"FAST";
         case R_SHOW: return sn[sShow];
         default: return "PRESS A";
@@ -1500,10 +1552,99 @@ static void creatureEditor(void){
     }
 }
 
+// ---------- jukebox ----------
+// Listen to the songs in source/songs.h. The playlist (jukebox.h) is shuffled once and the shuffle is saved, so the song set
+// keeps the same random order every time the game starts. SELECT re-rolls it. Audio uses the same Direct Sound B player as the
+// title music. That player is refilled once per frame, so the screen only redraws small regions (one per frame, drawn one
+// frame and copied to the display the next) to keep every frame short enough for the sound.
+// (Music while playing the game would need a vblank interrupt, because game frames can run long: not done yet.)
+#define JB_BG RGB(3,4,8)
+#define JB_LY 50                 // list region starts at this row
+#define JB_ROWS 8                // visible list rows, 9 px each
+#define JB_LH (JB_ROWS*9+4)
+static int jbPlaying, jbMsgT; static const char*jbMsg;
+static void fillBox(int x0,int x1,int y0,int y1,u16 c){   // x0, x1 must be even (32-bit stores)
+    u32 v=c|((u32)c<<16);
+    for(int y=y0;y<y1;y++){ u32*row=(u32*)fb+y*ROW_W; for(int w=x0>>1;w<(x1>>1);w++) row[w]=v; }
+}
+static int numAt(int x,int y,int n,u16 c){ numText(x,y,n,c); int w=4; while(n>=10){ n/=10; w+=4; } return x+w; }
+static void jbStartSlot(int slot){   // play playlist slot (remembered in SRAM so the playlist carries on after a reboot)
+    jbPos=slot; jbSave();
+    if(!sSnd){ jbPlaying=0; return; }
+    const u8*d=songs[jbSong(slot)].adp;
+    musBegin(d?1:0,d); jbPlaying=1;
+}
+static void jbHead(void){   // title, equalizer, mode, now playing, progress bar
+    fillBox(0,SW,0,JB_LY,JB_BG);
+    text(8,5,"JUKEBOX",GOLD,2);
+    for(int b=0;b<6;b++){ int h=jbPlaying?2+((rnd8()*13)>>8):1; rect(196+b*6,19-h,4,h,jbPlaying?RGB(10,26,10):RGB(10,12,16)); }
+    text(8,22,"MODE",DIMC,1); text(34,22,jbModeNm[sJb],GOLD,1);
+    if(jbMsgT>0) text(110,22,jbMsg,WHITE,1);
+    else { text(110,22,"TRACK",DIMC,1); int x=numAt(132,22,jbPos+1,WHITE); text(x+4,22,"OF",DIMC,1); numAt(x+16,22,jbN,WHITE); }
+    text(8,32,"NOW",DIMC,1);
+    if(!sSnd) text(28,32,"SOUND IS OFF IN SETTINGS",RGB(30,10,8),1);
+    else text(28,32,songs[jbSong(jbPos)].name,WHITE,1);
+    int pct=!mOn?0:mKind?(int)(aPos/(aN/100+1)):mOrd*100/MUS_NORD; if(pct>100) pct=100;
+    u16 gc=jbPlaying?RGB(12,28,10):DIMC;
+    rect(8,42,160,4,RGB(8,10,14)); rect(8,42,pct*160/100,4,gc);
+    text(176,41,jbPlaying?"PLAYING":"STOPPED",gc,1);
+}
+static void jbList(int cur){   // the playlist in play order: > cursor, + playing
+    fillBox(0,SW,JB_LY,JB_LY+JB_LH,JB_BG);
+    int top=cur-JB_ROWS/2; if(top>jbN-JB_ROWS) top=jbN-JB_ROWS; if(top<0) top=0;
+    for(int r=0;r<JB_ROWS&&top+r<jbN;r++){
+        int slot=top+r, y=JB_LY+3+r*9; u16 c=(slot==cur)?WHITE:DIMC;
+        if(slot==cur){ fillBox(6,228,y-2,y+7,RGB(6,16,8)); text(8,y,">",WHITE,1); }
+        if(slot==jbPos&&jbPlaying) text(14,y,"+",GOLD,1);
+        numAt(22,y,slot+1,c); text(36,y,songs[jbSong(slot)].name,c,1);
+    }
+    if(jbN>JB_ROWS){   // scroll bar
+        int th=JB_ROWS*9*JB_ROWS/jbN, ty=JB_LY+3+(JB_ROWS*9-th)*top/(jbN-JB_ROWS);
+        rect(233,JB_LY+3,2,JB_ROWS*9,RGB(8,10,14)); rect(233,ty,2,th,GOLD);
+    }
+}
+static void jukeboxScreen(void){
+    int cur=jbPos, dH=1, dL=1, pend=0, fr=0; u16 prev=keyNow();
+    jbMsgT=0; jbPlaying=0;
+    if(sSnd) jbStartSlot(jbPos);                          // opening the jukebox starts the song the playlist is on
+    fillBox(0,SW,0,SH,JB_BG);
+    jbHead(); jbList(cur);
+    u16 hint=RGB(16,18,20);
+    text(8,130,"UP DOWN PICK  A PLAY  L R PREV NEXT",hint,1);
+    text(8,137,"START STOP OR PLAY  SELECT RESHUFFLE",hint,1);
+    text(8,144,"LEFT RIGHT MODE  B BACK",hint,1);
+    vsync(); dmaRows(fb,VRAM_ADDR,0,ROW_W,0,SH); dH=dL=0;
+    for(;;){
+        u16 k=keyNow(), pr=k&~prev; prev=k; fr++;
+        if(pr&K_B) break;
+        if(pr&K_DOWN){ cur=(cur+1)%jbN; dL=1; }
+        if(pr&K_UP){ cur=(cur+jbN-1)%jbN; dL=1; }
+        if(pr&K_A){ jbStartSlot(cur); dH=dL=1; }
+        if(pr&K_R){ cur=(jbPos+1)%jbN; jbStartSlot(cur); dH=dL=1; }
+        if(pr&K_L){ cur=(jbPos+jbN-1)%jbN; jbStartSlot(cur); dH=dL=1; }
+        if(pr&K_START){ if(jbPlaying){ musStop(); jbPlaying=0; } else jbStartSlot(cur); dH=dL=1; }
+        if(pr&(K_LEFT|K_RIGHT)){ int cs=jbSong(cur); jbSetMode((sJb+((pr&K_RIGHT)?1:2))%3); cur=jbSlotOf(cs); dH=dL=1; }
+        if(pr&K_SEL){ lrng^=(u32)fr*2654435761u; jbReshuffle(); cur=jbPos; jbMsg="NEW ORDER SAVED"; jbMsgT=90; dH=dL=1; }
+        if(jbPlaying&&(mKind?mDone:mLaps>=1)){ jbStartSlot(sJb==2?jbPos:(jbPos+1)%jbN); cur=jbPos; dH=dL=1; }   // song over: next one
+        if(jbMsgT>0&&--jbMsgT==0) dH=1;
+        if(jbPlaying&&(fr&3)==0) dH=1;                    // bar + equalizer
+        int drew=0;   // draw at most ONE region per frame into fb (only when none is waiting to be copied)...
+        if(!pend){ if(dH){ jbHead(); drew=1; dH=0; } else if(dL){ jbList(cur); drew=2; dL=0; } }
+        vsync(); musKick();
+        if(pend==1) dmaRows(fb,VRAM_ADDR,0,ROW_W,0,JB_LY);                  // ...and copy it to the screen the frame after
+        else if(pend==2) dmaRows(fb,VRAM_ADDR,0,ROW_W,JB_LY,JB_LY+JB_LH);
+        pend=drew;
+        musFill();
+    }
+    musStop(); jbPlaying=0; settingsSave();
+    while(keyNow()) vsync();
+}
+
 // ---------- main menu ----------
-static const char* const mmName[5]={"PLAY","MAKE CREATURE","BUILD ROOM","SETTINGS","HOW TO PLAY"};
-static const char* const mmDesc[5]={"WALK AND SKATE AROUND YOUR ROOM","DESIGN YOUR OWN VOXEL CHARACTER","BUILD WALLS AND LAY FLOORS AND WALLPAPER","FRAME RATE AND OTHER SPEED OPTIONS","LEARN THE CONTROLS"};
-static const char* const guideItems[3]={"PLAYING","MAKE CREATURE","BUILD ROOMS"};
+static const char* const mmName[6]={"PLAY","MAKE CREATURE","BUILD ROOM","JUKEBOX","SETTINGS","HOW TO PLAY"};
+static const char* const mmDesc[6]={"WALK AND SKATE AROUND YOUR ROOM","DESIGN YOUR OWN VOXEL CHARACTER","BUILD WALLS AND LAY FLOORS AND WALLPAPER","LISTEN  PICK  OR SHUFFLE THE SONGS","FRAME RATE AND OTHER SPEED OPTIONS","LEARN THE CONTROLS"};
+static const char* const guideItems[4]={"PLAYING","MAKE CREATURE","BUILD ROOMS","JUKEBOX"};
+static const char* const jbHelp[10]={">LISTEN","UP DOWN PICK A SONG  A PLAY IT","L R PREVIOUS OR NEXT SONG","START STOPS OR PLAYS AGAIN",">ORDER","LEFT RIGHT SHUFFLE  IN ORDER  REPEAT ONE","SELECT MAKES A NEW SHUFFLE  SAVED","THE SHUFFLE STAYS THE SAME EVERY BOOT",">LEAVE","B GOES BACK TO THE MENU"};
 static void drawMainMenu(int sel){
     for(int y=0;y<SH;y++){ u16 c=RGB(2+y/50,3+y/36,9+y/13); u32 v=c|((u32)c<<16), *row=(u32*)fb+y*ROW_W; for(int w=0;w<ROW_W;w++) row[w]=v; }
     u16 ink=RGB(4,3,6);
@@ -1514,8 +1655,8 @@ static void drawMainMenu(int sel){
     { int ox=206, oy=92;
       cube(ox,oy,1,0,1); cube(ox,oy-CC,4,0,3); cube(ox,oy-2*CC,8,0,2);
       cube(ox+CA,oy+CB,6,0,0); cube(ox-CA,oy+CB,7,0,0); cube(ox,oy+2*CB,2,0,0); }
-    for(int i=0;i<5;i++){
-        int y=54+i*15;
+    for(int i=0;i<6;i++){
+        int y=48+i*13;
         if(i==sel){ rect(10,y-3,150,14,RGB(6,16,8)); rect(10,y-3,2,14,GOLD); text(16,y,">",WHITE,2); }
         text(28,y,mmName[i],i==sel?WHITE:DIMC,2);
     }
@@ -1526,15 +1667,16 @@ static void mainMenu(void){
     int sel=0, dirty=1; u16 prev=keyNow();
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k;
-        if(pr&K_DOWN){ sel=(sel+1)%5; dirty=1; }
-        if(pr&K_UP){ sel=(sel+4)%5; dirty=1; }
+        if(pr&K_DOWN){ sel=(sel+1)%6; dirty=1; }
+        if(pr&K_UP){ sel=(sel+5)%6; dirty=1; }
         if(pr&(K_A|K_START)){
             if(sel==0) lifeMode(0);
             else if(sel==1) creatureEditor();
             else if(sel==2) mapEditor();
-            else if(sel==3) settingsScreen();
-            else { int g=menu("HOW TO PLAY",guideItems,3);
-                   if(g==0) helpScreen("PLAYING",lifeHelp,12); else if(g==1) helpScreen("MAKE CREATURE",creatureHelp,13); else if(g==2) helpScreen("BUILD ROOMS",mapHelp,12); }
+            else if(sel==3) jukeboxScreen();
+            else if(sel==4) settingsScreen();
+            else { int g=menu("HOW TO PLAY",guideItems,4);
+                   if(g==0) helpScreen("PLAYING",lifeHelp,12); else if(g==1) helpScreen("MAKE CREATURE",creatureHelp,13); else if(g==2) helpScreen("BUILD ROOMS",mapHelp,12); else if(g==3) helpScreen("JUKEBOX",jbHelp,10); }
             gToMenu=0; prev=keyNow(); dirty=1; continue;
         }
         if(dirty){ drawMainMenu(sel); present(); dirty=0; } else vsync();
@@ -1545,7 +1687,8 @@ int main(void){
     REG_WAITCNT=0x4317;  // ROM 3/1 waits + prefetch (power-on default is 4/2, no prefetch)
     REG_DISPCNT=0x0403;  // mode 3, BG2 on
     initTables(); setColors(); settingsLoad(); applyRom();
-    titleScreen();
+    lrng^=(u32)titleScreen()*2654435761u;   // time spent on the title seeds the random numbers (first shuffle)
+    jbInit(NSONGS);                         // load the saved shuffled order (or make a new one)
     starter();
     mapReset(); mapLoad();   // default room, or the one saved to SRAM
     mainMenu();
