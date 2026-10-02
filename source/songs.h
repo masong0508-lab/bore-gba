@@ -24,3 +24,5 @@ SONG_XM(earth_and_the_space_citizens,"EARTH AND THE SPACE CITIZENS","tools/earth
 SONG_XM(amiga_music,"AMIGA MUSIC","tools/amiga_music.xm")
 SONG_XM(emergency_dance_floor,"EMERGENCY ON THE DANCE FLOOR","tools/emergency_dance_floor.xm")
 SONG_XM(tree_swaying_action,"TREE SWAYING ACTION","tools/tree_swaying_action.xm")
+
+SONG_XM(meltdown_in_mars_house,"MELTDOWN IN MARS 90S HOUSE","tools/meltdown_in_mars_house.xm")

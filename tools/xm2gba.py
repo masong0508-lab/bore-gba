@@ -22,7 +22,7 @@ MIXR = 18157                      # the game's music rate (MUS_RATE)
 SONGS_H = "source/songs.h"
 OUT = "source/musicdata.h"
 TITLE = ("the_dipper_man", "tools/the_dipper_man.xm")
-GAIN = {"tree_swaying_action": 0.9, "amiga_music": 1.1, "earth_and_the_space_citizens": 2.0}   # louder/quieter per song (default 1.0), so every tracker song sits at a similar level
+GAIN = {"tree_swaying_action": 0.9, "amiga_music": 1.1, "earth_and_the_space_citizens": 2.0, "meltdown_in_mars_house": 1.8}   # louder/quieter per song (default 1.0), so every tracker song sits at a similar level
 LOOP_OVERRIDE = {"the_dipper_man": 4, "amiga_music": 0, "emergency_dance_floor": 0, "tree_swaying_action": 0}   # the title song plays its intro once, then loops from order 4 (others loop from the XM restart position)
 
 def make_ending(S):
