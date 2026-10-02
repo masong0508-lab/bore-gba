@@ -1385,12 +1385,12 @@ static void camClamp(int ed){
     if(camX<xl) camX=xl; if(camX>xh) camX=xh; if(camY<yl) camY=yl; if(camY>yh) camY=yh;
 }
 static void camFollow(int snap){   // keep the skater near the middle of the screen, eased so it stays steady
-    s32 rfx,rfy; rotPos(lfx+(lskate?lvx*14:0),lfy+(lskate?lvy*14:0),&rfx,&rfy);   // look ahead of the skater
+    s32 rfx,rfy; rotPos(lfx+lvx*(lskate?14:10),lfy+lvy*(lskate?14:10),&rfx,&rfy);   // look ahead of the skater (a little less on foot)
     int ox=camX, oy=camY; camX=(int)((rfx-rfy)>>5); camY=(int)((rfx+rfy)>>6)-76; camClamp(0);
     int tx=camX, ty=camY; camX=ox; camY=oy;
     if(cview!=camLastV){ camLastV=cview; snap=1; }
     if(snap){ camX=tx; camY=ty; return; }
-    int dx=tx-camX, dy=ty-camY, sx=dx/4, sy=dy/4;
+    int ease=lskate?4:3, dx=tx-camX, dy=ty-camY, sx=dx/ease, sy=dy/ease;   // on foot the camera catches up a bit faster
     if(!sx) sx=(dx>0)-(dx<0); if(!sy) sy=(dy>0)-(dy<0);
     camX+=sx; camY+=sy;
 }

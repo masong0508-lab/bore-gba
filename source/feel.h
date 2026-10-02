@@ -16,6 +16,10 @@
 #define F_OLLIE   0x2C0 // ollie base vz (+spd/2): tap = hop, hold = full
 #define F_CUT     0x240 // releasing B early caps upward speed here (variable jump height)
 #define F_SPIN_MAX 6    // air spin rate (256/360 units per frame)
+#define F_WALK    8     // on foot: walk speed (1/256 tile per step, adult; the life stage scales it). Was 5 = 1.2 tiles/s
+#define F_RUN     16    // on foot: run speed with B. Was 10
+#define F_WACC    2     // on foot: velocity closes 1/F_WACC of the gap to the target each step (was 3): quick start AND quick stop
+#define F_WKICK   2     // on foot: from standstill the first step already moves at target/F_WKICK (was 1 unit = under a pixel, felt dead)
 #define F_LAND_TOL 36   // land clean within +-36 (~50 deg) of a 180 multiple; +12 while grabbing
 static const short sinQ[65]={0,6,13,19,25,31,38,44,50,56,62,68,74,80,86,92,98,104,109,115,121,126,132,137,142,147,152,157,162,167,172,177,181,185,190,194,198,202,206,209,213,216,220,223,226,229,231,234,237,239,241,243,245,247,248,250,251,252,253,254,255,255,256,256,256};
 static inline int fsin(int a){ int s=1; a&=255; if(a>=128){ a-=128; s=-1; } if(a>64) a=128-a; return s*sinQ[a]; }
@@ -67,11 +71,14 @@ static void feelVel(void){   // velocity chases heading*speed (grip), exact sub-
     F.rx+=F.fvx; F.ry+=F.fvy; lvx=F.rx/16; lvy=F.ry/16; F.rx-=lvx*16; F.ry-=lvy*16;
     lsp=F.spd>>4; lhd=((a+8)>>4)&15;
 }
+static inline int wEase(int e){ int s=e/F_WACC; return s?s:(e>0)-(e<0); }   // ease step, never stalls below 1 unit
 static void feelWalk(u16 k,u16 pr,int ongr){   // on foot: eased accel instead of instant speed, hop with buffer + coyote
     int ux=((k&K_RIGHT)?1:0)-((k&K_LEFT)?1:0), uy=((k&K_DOWN)?1:0)-((k&K_UP)?1:0);
-    int dx=ux+uy, dy=uy-ux, spd=(k&K_B)?10:5; spd=spd*stSpd[stage]/100; if(spd<2) spd=2; if(ux&&uy) spd=(spd*3)/4;   // the life stage scales the pace
-    int tx=dx*spd, ty=dy*spd, ex=tx-lvx, ey=ty-lvy;
-    lvx+=ex/3+((ex>0&&ex<3)?1:(ex<0&&ex>-3)?-1:0); lvy+=ey/3+((ey>0&&ey<3)?1:(ey<0&&ey>-3)?-1:0);
+    int dx=ux+uy, dy=uy-ux, spd=(k&K_B)?F_RUN:F_WALK; spd=spd*stSpd[stage]/100; if(spd<2) spd=2; if(ux&&uy) spd=(spd*3)/4;   // the life stage scales the pace
+    int tx=dx*spd, ty=dy*spd;
+    if((tx||ty)&&!lvx&&!lvy){ lvx=tx/F_WKICK; lvy=ty/F_WKICK; }   // standing start: visible movement on the very first step
+    int ex=tx-lvx, ey=ty-lvy;
+    lvx+=wEase(ex); lvy+=wEase(ey);
     lsp=(dx||dy)?spd:0;
     if(dx||dy){ int h=hdT[(dy>0)-(dy<0)+1][(dx>0)-(dx<0)+1]; if(h>=0) lhd=h; }
     if(pr&K_A) F.buf=F_BUF;
