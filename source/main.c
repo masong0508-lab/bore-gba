@@ -47,6 +47,8 @@ static u8 sSnd=1;    // sound on
 static u8 sShad=1;   // shadows under the player
 static u8 sHud=0;    // on-screen info: 0 full, 1 slim, 2 off
 static u8 sRom=0;    // ROM waits: 0 fast (3/1 + prefetch), 1 safe (power-on default, for fussy flash carts)
+static u8 sUnlock=0;  // 1 = the Konami code was entered on the title screen: START+SELECT in the creator swaps creator screens
+static u8 sClassic=0; // 1 = the secret classic creature screen (toggled with UP UP DOWN DOWN in the creator)
 static u8 sNoWarn=0; // 1 = hide the TOO SLOW FOR THIS FRAME RATE warning in settings
 static u8 sShow=0;   // performance counter: 0 off, 1 fps, 2 fps + load
 static int cview;    // room view while the action cam spins (0..3, quarter turns); always 0 in the editor
@@ -58,14 +60,21 @@ static const int camThr[4]={0,10000,5000,2000};
 static int lloadV;   // work per drawn frame as a percent of its time budget (PERFORMANCE INFO: DETAIL)
 #define NWP 14       // wallpapers
 #define NFL 14       // floors
+#include "opts.h"   // extended options (xo[]): gameplay, input, audio, HUD and room options; also defines GOLD (the accent colour)
 
 
 // ---------- palette ----------
-static const u16 skinTones[4] = { RGB(30,23,17), RGB(24,16,10), RGB(13,8,5), RGB(14,26,10) };
-static const u16 hairTones[5] = { RGB(5,3,2), RGB(27,21,6), RGB(28,8,4), RGB(21,21,22), RGB(10,22,12) };
+// Colour rows of the creature creator: 8 swatches each. Swatch 0 of every row is the starter creature's colour.
+#define NSW 8
+static const u16 skinTones[NSW] = { RGB(30,23,17), RGB(24,16,10), RGB(19,12,7), RGB(13,8,5), RGB(14,26,10), RGB(10,19,29), RGB(22,13,27), RGB(31,17,19) };
+static const u16 hairTones[NSW] = { RGB(5,3,2), RGB(14,8,4), RGB(27,21,6), RGB(28,8,4), RGB(21,21,22), RGB(10,22,12), RGB(8,12,28), RGB(30,14,22) };
+static const u16 topTones[NSW]  = { RGB(8,20,22), RGB(28,8,6), RGB(30,24,6), RGB(10,24,8), RGB(8,10,26), RGB(22,10,26), RGB(30,30,30), RGB(5,5,8) };
+static const u16 botTones[NSW]  = { RGB(8,9,20), RGB(5,5,8), RGB(18,12,6), RGB(14,15,16), RGB(24,20,12), RGB(8,16,8), RGB(26,6,6), RGB(30,30,30) };
+// The look: one number per choice in the creature creator. 0 everywhere = the starter creature.
+enum { LK_SHAPE, LK_SKIN, LK_EYES, LK_MOUTH, LK_EARS, LK_HSTYLE, LK_HCOL, LK_TOP, LK_BOT, LK_N };
+static u8 look[LK_N];
 static u16 base[9+NWP], sT[9+NWP], sL[9+NWP], sR[9+NWP];   // slots 1..8 = body colours, 9.. = wallpaper average colours
 static u16 dL[4], dR[4];   // face-sprite palette (k w r s) pre-shaded for the left / right cube face
-static int skinI = 0, hairI = 0;
 #define EDGE RGB(3,2,5)
 #define SKY  RGB(20,26,31)
 #define PANEL RGB(5,6,9)
@@ -121,9 +130,9 @@ static u16 wpAvg[NWP];   // average colour of each wallpaper: wall tops and the 
 
 
 static void setColors(void) {
-    base[1]=skinTones[skinI]; base[2]=RGB(31,31,31); base[3]=RGB(3,3,6);
-    base[4]=RGB(29,12,16);    base[5]=hairTones[hairI];
-    base[6]=RGB(8,20,22);     base[7]=RGB(8,9,20); base[8]=RGB(31,30,16);
+    base[1]=skinTones[look[LK_SKIN]]; base[2]=RGB(31,31,31); base[3]=RGB(3,3,6);
+    base[4]=RGB(29,12,16);    base[5]=hairTones[look[LK_HCOL]];
+    base[6]=topTones[look[LK_TOP]]; base[7]=botTones[look[LK_BOT]]; base[8]=RGB(31,30,16);
     for (int i=1;i<9;i++){ sT[i]=base[i]; sL[i]=shade(base[i],12); sR[i]=shade(base[i],9); }
     for (int i=0;i<NWP;i++){ int s=9+i; base[s]=wpAvg[i]; sT[s]=base[s]; sL[s]=shade(base[s],12); sR[s]=shade(base[s],9); }
     u16 dc[4]={ base[3], base[2], base[4], shade(base[1],11) };   // k dark, w white, r red, s lid shadow
@@ -253,6 +262,16 @@ IWRAM_CODE static void floorTile(int sx,int sy,const u16*tex){   // one scanline
     }
 }
 
+IWRAM_CODE static void tileTop(int sx,int sy,u16 c){
+    for(int ry=-CB;ry<=CB;ry++){
+        int y=sy+ry; if((unsigned)y>=SH) continue;
+        int hw=rowHW[ry<0?-ry:ry], x0=sx-hw, x1=sx+hw;
+        if(x0<0) x0=0; if(x1>=SW) x1=SW-1;
+        u16*d=&fb[y*SW+x0]; u16*e=&fb[y*SW+x1];
+        while(d<=e) *d++=c;
+    }
+}
+
 
 // ---------- face sprites ----------
 // One cell = 9 x 8 px of art on a cube face. Wider sprites span cells: width = 10*cells-1 (the seam column is art too).
@@ -304,6 +323,35 @@ static void rotUW(int u,int w,int*ru,int*rw){
 static void projC(int u,int w,int yy,int*ox,int*oy){
     int a,b; rotUW(u,w,&a,&b); *ox=OXC+(a-b)*CA/2; *oy=OYC+(a+b)*CB/2-yy*CC;
 }
+// Wedge blocks (hair): the block's own diamond, with some top corners lowered by a full block height, so the top face slopes.
+// shape 4..11: 4 edges (slope towards +x +z -x -z) and 4 corners (only the outer corner drops: ++ -+ -- +-). Slopes are given in grid space and
+// turned with the view like everything else, so a wedge keeps pointing the same way as the creature spins.
+static const u8 wMask[8]={10,12,5,3,8,4,1,2};   // bit k = grid corner (k&1 ? +x : -x, k&2 ? +z : -z)
+IWRAM_CODE static void wedgeCube(int sx,int sy,int ci,int shape,int f){
+    int m=wMask[shape-4], o[4]={0,0,0,0};   // lowered corners as seen on screen: N, E, S, W
+    for(int k=0;k<4;k++) if(m>>k&1){
+        int a,b; rotUW((k&1)?1:-1,(k&2)?1:-1,&a,&b); int dx=a-b, dy=a+b;
+        o[dx>0?1:dx<0?3:dy>0?2:0]=CC;
+    }
+    const u8*hhp=hhT[0];
+    u16 T=sT[ci], L=sL[ci], R=sR[ci], eT=shade(T,9), eL=shade(L,9), eR=shade(R,9);
+    int left=o[3]+o[2], right=o[1]+o[0];
+    u16 S2=shade(T,left>right?13:left<right?11:12);   // the slope: a little darker than a flat top, tilted towards the light on the left
+    for(int t=-CA;t<=CA;t++){
+        int x=sx+t, hh=hhp[t<0?-t:t], k=t<0?t+CA:t, u0,u1,l0,l1;
+        if(t<0){ u0=o[3];u1=o[0];l0=o[3];l1=o[2]; } else { u0=o[0];u1=o[1];l0=o[2];l1=o[1]; }
+        int yu=sy-hh+u0+(u1-u0)*k/CA, yl=sy+hh+l0+(l1-l0)*k/CA, yb=sy+hh+CC-1;
+        if(yl>yb) yl=yb;
+        u16 sc=t<0?L:R, ec=t<0?eL:eR;
+        if(yl<yb) vline(x,yl,yb,sc);
+        if(yl>=yu) vline(x,yu,yl,S2);
+        px(x,yu,eT);
+        if(yl<yb-1){ px(x,yl+1,lite(sc,19)); } else px(x,yl,ec);
+        if(yb>yl+2) px(x,yb-1,shade(sc,13));
+        px(x,yb,ec);
+        if(t==-CA||t==CA){ if(!(f&(t<0?16:32))) vline(x,yu,yb,ec); }
+    }
+}
 static void moveView(int sx,int sz){   // screen-relative step -> grid step
     int gx,gz;
     switch(view){ case 0:gx=sx;gz=sz;break; case 1:gx=sz;gz=-sx;break; case 2:gx=-sx;gz=-sz;break; default:gx=-sz;gz=sx; }
@@ -324,7 +372,6 @@ static const u8 cLeg[][4]={{0,0,0,7|(3<<4)},{0,1,0,7|(3<<4)},{0,2,0,7|(3<<4)}};
 static const u8 cEar[][4]={{0,0,0,1},{0,1,0,1}};
 static const u8 cHair[][4]={{0,0,0,5},{1,0,0,5},{0,0,1,5},{1,0,1,5},{0,1,0,5},{1,1,1,5}};
 #define NPARTS 8
-#define NENT (NPARTS+3)   // part list + "GO LIVE LIFE!" + "EDIT MAP" + "MAIN MENU"
 static const Part parts[NPARTS]={
  {"HEAD",8,0,2,2,2,cHead,0},{"TORSO",8,0,2,2,2,cTorso,0},{"ARM",3,1,1,3,1,cArm,0},{"LEG",3,1,1,3,1,cLeg,0},
  {"EYE",0,1,1,1,1,0,1},{"MOUTH",0,0,2,1,1,0,2},{"EAR",2,1,1,2,1,cEar,0},{"HAIR",6,0,2,2,2,cHair,0}};
@@ -373,15 +420,61 @@ static void clampCursor(void){
     if(cx>mx)cx=mx; if(cy>my)cy=my; if(cz>mz)cz=mz;
     if(cx<0)cx=0; if(cy<0)cy=0; if(cz<0)cz=0;
 }
+// ---------- the look -> blocks ----------
+// The creature creator never asks for blocks: it asks for a look (shape, ears, hair style...) and this turns it into the 6x4x8 model.
+// Skin, hair, top and bottom colours are only palette slots (setColors), eye and mouth styles only re-skin the face sprites (restyle),
+// so those never touch the blocks. Shape, ears and hair style rebuild the whole model (the pickers ask first if you built by hand).
+static int custom;   // 1 once the block builder has placed or erased something by hand
+static void headBox(int*hx,int*hy,int*hz,int*hs){   // where the head sits (and how many blocks per head cell) for each body shape
+    *hx=2; *hy=5; *hz=1; *hs=1;
+    switch(look[LK_SHAPE]){ case 2: *hx=1; *hy=4; *hz=0; *hs=2; break; case 3: *hy=4; break; }
+}
+static void hairW(int x,int y,int z,int xp,int xm,int zp,int zm){   // one hair block; the flags say which sides slope away (grid space)
+    if(x<0||x>=W||y<0||y>=H||z<0||z>=D) return;
+    int nx=xp+xm, nz=zp+zm, m=0;
+    if(nx+nz==1) m=xp?10:zp?12:xm?5:3;
+    else if(nx==1&&nz==1) m=1<<((xp?1:0)+(zp?2:0));
+    for(int i=0;i<8;i++) if(wMask[i]==m&&m){ vox[y][z][x]=(u8)(5|((4+i)<<4)); return; }
+    vox[y][z][x]=5;
+}
+static void buildLook(void){
+    for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ vox[y][z][x]=0; dec[y][z][x]=0; }
+    sty[0]=look[LK_EYES]; sty[1]=look[LK_MOUTH];
+    switch(look[LK_SHAPE]){
+      default:                                                   // AVERAGE: legs 3, torso 2, head 2, hair on top (the starter)
+        doPart(1,3,1,2,0,1); doPart(1,1,1,2,3,1); doPart(1,2,1,1,2,1); break;
+      case 1:                                                    // BROAD: torso and legs two blocks wider each side
+        doPart(1,3,1,1,0,1); doPart(1,3,1,2,0,1);
+        doPart(1,1,1,1,3,1); doPart(1,1,1,3,3,1); doPart(1,2,1,0,2,1); break;
+      case 2: case 3:                                            // BIG HEAD and STUBBY: legs one block shorter (the bottom block is clipped)
+        doPart(1,3,1,2,-1,1); doPart(1,1,1,2,2,1); doPart(1,2,1,1,1,1); break;
+    }
+    int hx,hy,hz,hs; headBox(&hx,&hy,&hz,&hs);
+    int hw=2*hs, hh=2*hs, hd=2*hs;
+    doPart(1,0,hs,hx,hy,hz);                                     // head
+    int es=look[LK_EARS];                                        // ears: 0 none, 1 small (1x2), 2 big (2x4)
+    if(es) doPart(1,6,es,hx-es,hy+(es==1?(hh-2)/2:0),hz+(es==1?hd/2:0));
+    int st=look[LK_HSTYLE], top=(H-(hy+hh)>=1)?hy+hh:hy+hh-1;    // hair: a cap on the head, or in place of its top layer when the head touches the ceiling
+    if(st!=3){
+        // every style starts with the same dome: the outer edges of the cap are wedges that slope away, down to the head's top
+        for(int z=hz;z<hz+hd;z++)for(int x=hx;x<hx+hw;x++) hairW(x,top,z,x==hx+hw-1,x==hx,z==hz+hd-1,z==hz);
+        // BOWL: full blocks down both sides (the dome slopes down onto them, so the profile stays smooth)
+        if(st==1) for(int z=hz;z<hz+hd;z++)for(int y=top-1;y>=top-2&&y>=0;y--){ hairW(hx-1,y,z,0,0,0,0); hairW(hx+hw,y,z,0,0,0,0); }
+        // LONG: full blocks down the back, from the dome to below the neck
+        if(st==2){ int z0=hz>0?hz-1:hz; for(int x=hx;x<hx+hw;x++)for(int y=hy-1;y<top;y++) hairW(x,y,z0,0,0,0,0); }
+    }
+    if(hs==1){ doPart(1,4,1,hx,hy+1,0); doPart(1,5,1,hx,hy,0); }          // eyes on the top row of the face, mouth on the bottom row
+    else     { doPart(1,4,2,hx,hy+1,0); doPart(1,5,1,hx+1,hy,0); }        // big head: big eyes, mouth still one block
+    custom=0;
+}
+static void restyle(int kind){   // change the style of every eye (0) or mouth (1) sprite already on the creature, built by hand or not
+    for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){
+        u16 c=dec[y][z][x]; if(!c) continue;
+        if(((c&7)-1)/3==kind) dec[y][z][x]=(u16)((c&~7)|(kind*3+sty[kind]+1)); }
+}
 static void starter(void){
     cx=2;cy=0;cz=1;part=0;size=1;
-    doPart(1,3,1,2,0,1);  // legs
-    doPart(1,1,1,2,3,1);  // torso
-    doPart(1,2,1,1,2,1);  // arms (shoulder level with the torso top)
-    doPart(1,0,1,2,5,1);  // head
-    doPart(1,4,1,2,6,0);  // eyes (sprites on the head's front face)
-    doPart(1,5,1,2,5,0);  // mouth
-    doPart(1,7,1,2,7,1);  // hair
+    buildLook();   // the starter creature is look 0 everywhere: legs, torso, arms, head, eyes, mouth and hair
 }
 
 // ---------- scene ----------
@@ -413,39 +506,38 @@ static void initTables(void){
     }
     view=sv;
 }
-IWRAM_CODE static void drawPanel(void){
-    fillCols(SCENE_W,ROW_W,PANEL);
-    text(130,5,"BORE",RGB(31,26,6),2);
-    text(130,17,"VOXEL DEMO",RGB(14,16,18),1);
-    for(int i=0;i<NENT;i++){
-        int y=28+i*6, go=(i>=NPARTS);
-        if(i==part){ rect(128,y-1,108,6,go?RGB(16,10,2):RGB(6,16,8)); text(130,y,">",RGB(31,31,31),1); }
-        text(137,y,go?(i==NPARTS?"GO LIVE LIFE!":i==NPARTS+1?"EDIT MAP":"MAIN MENU"):parts[i].name,i==part?(go?RGB(31,26,6):RGB(31,31,31)):(go?RGB(24,20,6):RGB(18,20,22)),1);
-        if(i==part&&!go&&parts[i].dk) text(190,y,spr[SPRID(parts[i].dk-1)].name,RGB(31,26,6),1);
-    }
-    text(130,101,"SIZE",RGB(18,20,22),1);
-    const char*sn[3]={"S","M","L"};
-    for(int i=0;i<3;i++){
-        int x=156+i*16; rect(x,99,12,9,i==size-1?RGB(6,16,8):RGB(2,3,5));
-        text(x+4,101,sn[i],RGB(31,31,31),1);
-    }
-    text(130,113,"X",RGB(18,20,22),1); num(136,113,cx,RGB(31,31,31));
-    text(148,113,"Y",RGB(18,20,22),1); num(154,113,cy,RGB(31,31,31));
-    text(166,113,"Z",RGB(18,20,22),1); num(172,113,cz,(part<NPARTS&&parts[part].dk)?RGB(12,14,16):RGB(31,31,31));   // sprites ignore Z
-    u16 hc=RGB(12,14,16);
-    if(part>=NPARTS){ text(130,123,"PRESS A TO OPEN",RGB(31,26,6),1); text(130,131,"SELECT NEXT ENTRY",hc,1); }
-    else {
-    text(130,123,"DPAD X Z  L R UP DN",hc,1); text(130,129,"A PLACE B ERASE",hc,1);
-    text(130,135,"START SIZE  SEL PART",hc,1); text(130,141,"SEL+UP DN FACE",hc,1);
-    text(130,147,"SEL+A SKIN  B HAIR",hc,1); text(130,153,"SEL+L R TURN VIEW",hc,1);
+// The creature creator's stage: a little house room built from the game's own wallpaper and floors, so the creature stands in the
+// same kind of place it will live in. Floor tile (tx,ty) lines up with build cell x=tx, z=ty-1, so the creature stands on it exactly.
+static int stageOn;   // 1: draw the stage under the creature; 0: the plain sky and build grid (block builder, game sprite baking)
+#define ST_N 6                       // floor tiles per side
+#define ST_WH 6                      // wall height in blocks
+#define ST_WP 2                      // PEACH STRIPE
+#define ST_Y0 (OYC-ST_N*CB)          // screen y of the floor's back corner
+static void stageWall(int tx,int ty,int j32){   // one wall cell (tx or ty is -1); j32/16 = coplanar neighbour flags
+    int sx=OXC+(tx-ty)*CA, sy=ST_Y0+(tx+ty+1)*CB;
+    for(int j=1;j<=ST_WH;j++){
+        int f=(j<ST_WH?1:0)|(j>1?2:0)|j32;
+        if(sWp) wallBlock(sx,sy-j*CC,ST_WP,f); else cube(sx,sy-j*CC,9+ST_WP,0,f);
     }
 }
-IWRAM_CODE static void drawScene(int blink,int full){
-    fillCols(0,SCENE_W,SKY);
+static void drawStage(void){
+    for(int y=0;y<SH;y++){ u16 c=RGB(3+y/45,4+y/34,10+y/16); u32 v=c|((u32)c<<16), *row=(u32*)fb+y*ROW_W; for(int w=0;w<SCENE_W;w++) row[w]=v; }
+    for(int ty=0;ty<ST_N;ty++)for(int tx=0;tx<ST_N;tx++){
+        int sx=OXC+(tx-ty)*CA, sy=ST_Y0+(tx+ty+1)*CB, v=(tx^ty)&1;
+        int fl=(tx>=1&&tx<=ST_N-2&&ty>=1&&ty<=ST_N-2)?2:4;   // TEAL CARPET rug on WOOD PLANKS
+        if(sFl) floorTile(sx,sy,&flTab[fl][v][0][0]); else tileTop(sx,sy,flFlat[fl][v]);
+    }
+    for(int k=-1;k<ST_N;k++){   // back to front: the corner first, then the two walls moving toward the viewer
+        stageWall(-1,k,k>=0?32:0);
+        if(k>=0) stageWall(k,-1,16);
+    }
+}
+IWRAM_CODE static void drawScene(int blink){
+    if(stageOn&&!noGrid) drawStage(); else fillCols(0,SCENE_W,SKY);
     // floor grid
     u16 gc=RGB(13,18,22); int a,b,c,d;
-    if(!noGrid) for(int i=0;i<=W;i++){ projC(2*i-W,-D,0,&a,&b); projC(2*i-W,D,0,&c,&d); line(a,b,c,d,gc); }
-    if(!noGrid) for(int j=0;j<=D;j++){ projC(-W,2*j-D,0,&a,&b); projC(W,2*j-D,0,&c,&d); line(a,b,c,d,gc); }
+    if(!noGrid&&!stageOn) for(int i=0;i<=W;i++){ projC(2*i-W,-D,0,&a,&b); projC(2*i-W,D,0,&c,&d); line(a,b,c,d,gc); }
+    if(!noGrid&&!stageOn) for(int j=0;j<=D;j++){ projC(-W,2*j-D,0,&a,&b); projC(W,2*j-D,0,&c,&d); line(a,b,c,d,gc); }
     int fv=view==0?0:view==3?1:-1;   // which cube face shows the +Z (front) face, -1 = turned away
     // voxels (back to front)
     for(int y=0;y<H;y++)for(int i=0;i<W*D;i++){
@@ -459,12 +551,11 @@ IWRAM_CODE static void drawScene(int blink,int full){
         if(shape==1||shape==2){ int sg=u<0?1:-1, a2,b2; rotUW(sg,0,&a2,&b2); sx+=HUG*(a2-b2); sy+=(HUG*(a2+b2))/2; }   // hug the torso
         int f=(solid(x,y+1,z)?1:0)|(solid(x,y-1,z)?2:0)
              |(solid(x-dA[view][0],y,z-dA[view][1])?16:0)|(solid(x-dB[view][0],y,z-dB[view][1])?32:0);
-        cube(sx,sy,ci,shape,f);
+        if(shape>=4) wedgeCube(sx,sy,ci,shape,f); else cube(sx,sy,ci,shape,f);
         u16 dc=dec[y][z][x]; int tint=0;
         if(gdec[y][z][x]&&blink){ dc=gdec[y][z][x]; tint=1; }
         if(dc&&fv>=0) drawDeco(sx,sy,dc,fv,tint);
     }
-    if(full) drawPanel();
 }
 static void vsync(void){ while(REG_VCOUNT>=160); while(REG_VCOUNT<160); }
 static void present(void){
@@ -554,6 +645,8 @@ static int lsp,lhd,lspin,lflip,lgrind,lscore,lstun,lairF,lpts,lnoteT; static con
 
 static int lfood, lbl, lnear;   // hunger (100 = full), bladder (100 = bursting), what is in reach (1 fridge, 2 toilet)
 static int lmaxz, lplay, ldead, lbumpCd;   // peak height this jump, air sound played, dead, bump cooldown
+#include "mood.h"   // FUN + HAPPY meters: moodEvent(), moodTick(), moodTop(), moodPts()
+#include "sims.h"   // life-sim layer: energy/hygiene/comfort, wants and fears, aspiration. simsTick(), simBegin(), simsHud()
 
 // ---------- sound effects: 4-bit IMA-ADPCM @ 6554 Hz, decoded on the fly into RAM, played by Direct Sound A (DMA1 + Timer0) ----------
 // source/sfx/*.adp (made by tools/encode_sfx.py) are baked into the ROM with .incbin; paths are relative to the project root.
@@ -594,13 +687,14 @@ static void sfxStop(void){ R_DMA1CNT=0; R_TM0CNT=0; R_TM1CNT=0; sfxOn=0; }
 #define TX_Y1 147
 // ---------- tracker songs: note-based XM player (tools/xm2gba.py converts the .xm songs listed in songs.h) ----------
 // A song is stored as notes (pattern/row/channel events, each with its own volume) plus small instrument samples (8-bit,
-// band-limited and down-sampled in the converter). A 10-voice mixer with linear interpolation renders 304 samples per frame
-// into Direct Sound B (DMA2 + Timer0, restarted every vblank). The title song plays its intro once, then orders loop.. repeat
+// band-limited and down-sampled in the converter). A 16-voice stereo mixer (each note has a pan bus, see tools/xm2gba.py) with linear interpolation renders 304 samples per frame
+// into Direct Sound A (left, DMA1) and B (right, DMA2), both on Timer0, restarted every vblank. The title song plays its intro once, then orders loop.. repeat
 // (loop = per-song loop order); the voices are never cut at the loop jump, so the last notes ring into the first ones.
 typedef int8_t s8; typedef int16_t s16;
 typedef struct {            // one converted tracker song (generated into musicdata.h)
     const u8*order; const u16*rows; const u32*patOff; const u32*ev;   // order list, rows per pattern, pattern start in ev, note events
     const u32*step; const u32*len; const s8*const*data;               // per instrument: 96 note steps, sample length, sample data
+    const u8*busL; const u8*busR;                                     // 7 pan buses: left / right gain (128 = 1.0), balanced per song by the converter
     int nord, loop, rowN, rfr;                                        // orders in the song, loop order, samples per row (+ fraction/256)
 } XmSong;
 #include "musicdata.h"
@@ -609,10 +703,12 @@ typedef struct {            // one converted tracker song (generated into musicd
 #define R_DMA2CNT (*(volatile u32*)0x040000D0)
 #define MUS_N 304   // samples per frame at 18157 Hz (924 cycles each = exactly one frame)
 #define MUS_VOICES 16   // tracker channels the mixer can play at once
-typedef struct { const s8*d; u32 pos,step,len; int vol; } MVoice;
+typedef struct { const s8*d; u32 pos,step,len; int vl,vr; } MVoice;   // vl / vr = note volume x left / right pan-bus gain
 static MVoice mvc[MUS_VOICES];
-static s8 mbuf[2][MUS_N] __attribute__((aligned(4)));
-static s16 macc[MUS_N];
+// STEREO: Direct Sound A plays the left buffers, Direct Sound B the right ones; both are fed by Timer0 and restarted together at vblank.
+static s8 mbufL[2][MUS_N] __attribute__((aligned(4))), mbufR[2][MUS_N] __attribute__((aligned(4)));
+static s16 maccL[MUS_N], maccR[MUS_N];
+static s8 mDly[256]; static int mDp, mLp;   // pseudo-stereo for streamed songs: 256-sample (14 ms) delay line + a low-pass state that keeps the bass centred
 static int mOrd, mRow, mLeft, mFrac; static volatile int mCur, mOn, mFilled; static const XmSong*mSong;
 static int mKind, aTail; static volatile int mLaps, mDone;   // mKind 0 = tracker song, 1 = streamed ADPCM; mLaps = times the tracker song has wrapped; mDone = ADPCM song finished
 static int aSlow, aPrv, aPh; static const u8 *aSrc; static u32 aN, aPos; static int aPred, aIdx;   // ADPCM stream: data, sample count, position, decoder state
@@ -621,30 +717,33 @@ static void musTrigger(void){
     for(int r=0;r<mRow;r++) e+=1+*e;
     int n=*e++;
     while(n--){ u32 w=*e++; int ch=w&15, in=(w>>4)&31, nt=(w>>9)&127, vol=(w>>16)&127;   // channel, instrument, note, voice volume
-        MVoice*v=&mvc[ch]; v->d=s->data[in]; v->pos=0; v->step=s->step[in*96+nt]; v->len=s->len[in]<<16; v->vol=vol; }
+        int bus=(w>>23)&7; if(bus>6) bus=3;   // pan bus 0 = hard left .. 3 = centre .. 6 = hard right
+        MVoice*v=&mvc[ch]; v->d=s->data[in]; v->pos=0; v->step=s->step[in*96+nt]; v->len=s->len[in]<<16; v->vl=vol*s->busL[bus]; v->vr=vol*s->busR[bus]; }
 }
-IWRAM_CODE static void musMix(s8*out){
+IWRAM_CODE static void musMix(s8*outL,s8*outR){
     int done=0;
     while(done<MUS_N){
         if(mLeft==0){ musTrigger(); mFrac+=mSong->rfr; mLeft=mSong->rowN+(mFrac>>8); mFrac&=255;
             if(++mRow>=mSong->rows[mSong->order[mOrd]]){ mRow=0; if(++mOrd>=mSong->nord){ mOrd=mSong->loop; mLaps++; } } }
         int n=MUS_N-done; if(n>mLeft) n=mLeft;
-        s16*a=macc+done;
-        for(int i=0;i<n;i++) a[i]=0;
+        s16*a=maccL+done; s16*b=maccR+done;
+        for(int i=0;i<n;i++){ a[i]=0; b[i]=0; }
         for(int vi=0;vi<MUS_VOICES;vi++){ MVoice*v=&mvc[vi]; if(!v->d) continue;
-            u32 pos=v->pos, st=v->step, len=v->len; const s8*d=v->d; int vol=v->vol, i=0;
+            u32 pos=v->pos, st=v->step, len=v->len; const s8*d=v->d; int vl=v->vl, vr=v->vr, i=0;
             for(;i<n;i++){
                 if(pos>=len){ v->d=0; break; }
                 int ix=(int)(pos>>16), fr=(int)((pos>>8)&255), x0=d[ix], x1=d[ix+1];
-                a[i]=(s16)(a[i]+(((x0*256+(x1-x0)*fr)*vol)>>14)); pos+=st; }
+                int x=x0*256+(x1-x0)*fr;                      // one interpolated sample, 16-bit scale
+                a[i]=(s16)(a[i]+((x*vl)>>21)); b[i]=(s16)(b[i]+((x*vr)>>21)); pos+=st; }   // (>>21 = the old >>14 with the 1/128 bus gain folded in)
             v->pos=pos; }
         mLeft-=n; done+=n;
     }
-    for(int i=0;i<MUS_N;i++){ int x=macc[i]>>2; out[i]=(s8)(x>127?127:x<-128?-128:x); }
+    for(int i=0;i<MUS_N;i++){ int x=maccL[i]>>2, y=maccR[i]>>2;
+        outL[i]=(s8)(x>127?127:x<-128?-128:x); outR[i]=(s8)(y>127?127:y<-128?-128:y); }
 }
 // Streamed ADPCM song (source/music/*.adp from tools/encode_song.py): 4-bit IMA-ADPCM, 18157 Hz, so one frame = 304 samples.
 // Same format as the sound effects: u32 sample count, then nibbles (low first). Decoded straight into the DMA buffer.
-IWRAM_CODE static void adpMix(s8*out){
+IWRAM_CODE static void adpMix(s8*out,s8*outR){
     // bit 31 of the sample count = song stored at 2/3 rate (12105 Hz): every 2 stored samples become 3 output samples (linear interpolation)
     u32 p=aPos, e=aN; int pred=aPred, idx=aIdx, i=0; const u8*d=aSrc;
     int prv=aPrv, ph=aPh;
@@ -671,9 +770,23 @@ IWRAM_CODE static void adpMix(s8*out){
     }
     for(;i<MUS_N;i++) out[i]=0;
     aPos=p; aPred=pred; aIdx=idx; aPrv=prv; aPh=ph;
+    // Pseudo-stereo (complementary comb): L = 0.75x + 0.5z, R = 0.75x - 0.5z, where z is the high part of x delayed by 14 ms. L+R is exactly the
+    // original mono signal (so it also sounds right on the GBA's mono speaker); the ears get different comb patterns = width.
+    // The one-pole low-pass is subtracted from z so bass and kick stay in the middle.
+    int dp=mDp, lp=mLp;
+    for(int k=0;k<MUS_N;k++){ int x=out[k], z=mDly[dp]; mDly[dp]=(s8)x; dp=(dp+1)&255;
+        lp+=(z*16-lp)>>3; int h=z-(lp>>4);                 // lp holds the low-passed delayed signal x16
+        int l=(x*12+h*8)>>4, r=(x*12-h*8)>>4;
+        out[k]=(s8)(l>127?127:l<-128?-128:l); outR[k]=(s8)(r>127?127:r<-128?-128:r); }
+    mDp=dp; mLp=lp;
     if(p>=e&&i<MUS_N&&++aTail>=3) mDone=1;   // 2 buffers are in flight, so wait for the last real samples to be heard
 }
-IWRAM_CODE static void musMixAny(s8*out){ if(mKind) adpMix(out); else musMix(out); }
+IWRAM_CODE static void musMixAny(int b){
+    if(mKind) adpMix(mbufL[b],mbufR[b]); else musMix(mbufL[b],mbufR[b]);
+    int sh=oMusShift();   // MUSIC VOLUME option: full, half, quarter, off
+    if(sh>=8){ for(int i=0;i<MUS_N;i++){ mbufL[b][i]=0; mbufR[b][i]=0; } }
+    else if(sh){ for(int i=0;i<MUS_N;i++){ mbufL[b][i]=(s8)(mbufL[b][i]>>sh); mbufR[b][i]=(s8)(mbufR[b][i]>>sh); } }
+}
 // ---- Audio is driven by interrupts, NOT by the main loop ----
 // Old design: the main loop mixed one buffer per frame right after vsync. Any frame whose drawing ran long (jukebox list
 // redraw, equalizer...) missed the next vblank, so the DMA ran dry (crackle) and the song fell a frame behind (timing lag).
@@ -695,29 +808,30 @@ __attribute__((used)) IWRAM_CODE void irqMain(void){
         R_IF=1;
         if(mOn){
             if(!mFilled) mCur^=1;                      // (mix overran: replay the last buffer rather than a half-filled one)
-            R_DMA2CNT=0; R_TM0CNT=0;
-            R_DMA2SAD=(u32)(uintptr_t)mbuf[mCur]; R_DMA2DAD=0x040000A4u;
-            R_DMA2CNT=0xB6400000u;                     // enable, FIFO timing, repeat, 32-bit, fixed dest
+            R_DMA1CNT=0; R_DMA2CNT=0; R_TM0CNT=0;
+            R_DMA1SAD=(u32)(uintptr_t)mbufL[mCur]; R_DMA1DAD=0x040000A0u;   // left  -> Direct Sound A
+            R_DMA2SAD=(u32)(uintptr_t)mbufR[mCur]; R_DMA2DAD=0x040000A4u;   // right -> Direct Sound B
+            R_DMA1CNT=0xB6400000u; R_DMA2CNT=0xB6400000u;                   // enable, FIFO timing, repeat, 32-bit, fixed dest
             R_TM0D=(u16)(65536-924); R_TM0CNT=0x80;
             mCur^=1; mFilled=0;                        // mCur is now the idle buffer
         }
     }
     if(f&4){   // line 0: render the idle buffer, it plays at the next vblank
         R_IF=4;
-        if(mOn&&!mFilled){ musMixAny(mbuf[mCur]); mFilled=1; }
+        if(mOn&&!mFilled){ musMixAny(mCur); mFilled=1; }
     }
 }
 static void irqOff(void){ R_IME=0; R_IE=0; R_DISPSTAT=0; R_IF=0xFFFF; }
 // Start a song: kind 0 = the tracker song xm, kind 1 = the ADPCM data in adp.
 static void musBegin(int kind,const u8*adp,const XmSong*xm){
-    irqOff(); mOn=0; R_DMA2CNT=0; R_TM0CNT=0;
+    irqOff(); mOn=0; R_DMA1CNT=0; R_DMA2CNT=0; R_TM0CNT=0;
     sfxStop();
     for(int i=0;i<MUS_VOICES;i++) mvc[i].d=0;
-    mOrd=0; mRow=0; mLeft=0; mFrac=0; mCur=0; mFilled=0; mLaps=0; mDone=0; aTail=0; mKind=kind; mSong=xm;
+    mOrd=0; mRow=0; mLeft=0; mFrac=0; mCur=0; mFilled=0; mLaps=0; mDone=0; aTail=0; mKind=kind; mSong=xm; mDp=0; mLp=0; for(int i=0;i<256;i++) mDly[i]=0;
     if(kind){ aSrc=adp+4; aN=*(const u32*)adp; aSlow=(int)(aN>>31); aN&=0x7FFFFFFFu; aPrv=0; aPh=0; aPos=0; aPred=0; aIdx=0; }
-    musMixAny(mbuf[0]);   // buffer 0 is primed here and plays at the first vblank; the line-0 IRQ then renders buffer 1
+    musMixAny(0);   // buffer 0 is primed here and plays at the first vblank; the line-0 IRQ then renders buffer 1
     mFilled=1; mOn=1;
-    R_SNDCNT_X=0x80; R_SNDCNT_L=0; R_SNDCNT_H=0xB308;   // Direct Sound B: 100%, L+R, Timer0, FIFO reset
+    R_SNDCNT_X=0x80; R_SNDCNT_L=0; R_SNDCNT_H=0x9A0C;   // stereo: Direct Sound A -> left only, B -> right only, both 100%, Timer0, FIFOs reset
     R_IRQVEC=(u32)(uintptr_t)irqEntry;
     R_DISPSTAT=0x0028;                // vblank IRQ (bit 3) + vcount IRQ (bit 5) at line 0
     R_IF=0xFFFF; R_IE=5; R_IME=1;
@@ -725,7 +839,7 @@ static void musBegin(int kind,const u8*adp,const XmSong*xm){
 static void musStart(void){ musBegin(0,0,&xm_the_dipper_man); }   // the title music
 static void musKick(void){}   // (kept so old call sites still compile: the interrupts do this now)
 static void musFill(void){}
-static void musStop(void){ irqOff(); if(!mOn) return; mOn=0; R_DMA2CNT=0; R_TM0CNT=0; R_SNDCNT_H=0; }
+static void musStop(void){ irqOff(); if(!mOn) return; mOn=0; R_DMA1CNT=0; R_DMA2CNT=0; R_TM0CNT=0; R_SNDCNT_H=0; }
 // ---------- jukebox song table: built from source/songs.h (edit that file, not this) ----------
 // Pass 1 bakes every .adp into the ROM, pass 2 declares the data, pass 3 builds the table.
 #define SONG_XM(id,n,f)
@@ -750,12 +864,26 @@ static const Song songs[]={
 #undef SONG_ADP
 #define NSONGS ((int)(sizeof(songs)/sizeof(songs[0])))
 _Static_assert(sizeof(songs)/sizeof(songs[0])<=32,"the jukebox holds at most 32 songs (see source/songs.h)");
+// ---------- debug code: UP UP DOWN DOWN LEFT LEFT RIGHT B A START on the title screen ----------
+// Reveals the PLACEHOLDER test tunes in the jukebox for this session (they are hidden otherwise).
+static u8 dbgOn;
+static void settingsSave(void);
+static const u16 konSeq[11]={K_UP,K_UP,K_DOWN,K_DOWN,K_LEFT,K_RIGHT,K_LEFT,K_RIGHT,K_B,K_A,K_START};   // UP UP DOWN DOWN LEFT RIGHT LEFT RIGHT B A START
+static u8 konMsg;   // 1 = the code just locked the classic creator, 2 = unlocked (main shows a toast once the title is gone)
+static const u16 dbgSeq[10]={K_UP,K_UP,K_DOWN,K_DOWN,K_LEFT,K_LEFT,K_RIGHT,K_B,K_A,K_START};
 static int titleScreen(void){
     buildTitle();                          // leaves the finished backdrop in both fb and tfb
     vsync(); dmaRows(fb,VRAM_ADDR,0,ROW_W,0,SH);
-    int shown=0, frame; musStart();
+    int shown=0, frame, dbgI=0, konI=0; u16 dbgPrev=(u16)(~REG_KEYINPUT)&0x3FF; if(xo[XO_TITLEMUS]) musStart();
     for(frame=0;;frame++){
-        if((~REG_KEYINPUT)&K_START) break;
+        u16 dk=(u16)(~REG_KEYINPUT)&0x3FF, dp=dk&(u16)~dbgPrev; dbgPrev=dk;
+        if(dp){   // a fresh button press: right next key of the code, or start over
+            if(dp==dbgSeq[dbgI]){ if(++dbgI==10){ dbgOn=1; dbgI=0; } }
+            else dbgI=(dp==dbgSeq[0])?1:0;
+            if(dp==konSeq[konI]){ if(++konI==11){ konI=0; sUnlock^=1; if(!sUnlock) sClassic=0; settingsSave(); konMsg=1+sUnlock; } }
+            else konI=(dp==konSeq[0])?1:0;
+        }
+        if(dk&K_START) break;
         dmaRows(tfb,(u32)(uintptr_t)fb,SM_W0,SM_W1,0,SM_Y1);   // wipe last frame's smoke only
         smoke(frame);
         int on=(frame>>4)&1, tx=(on!=shown);
@@ -779,7 +907,7 @@ IWRAM_CODE static void sfxDecode(int cnt){   // decode the next cnt samples into
         if(v&1) diff+=step>>2; if(v&2) diff+=step>>1; if(v&4) diff+=step;
         pred+=(v&8)?-diff:diff; if(pred>32767) pred=32767; if(pred<-32768) pred=-32768;
         idx+=idxT[v&7]; if(idx<0) idx=0; if(idx>88) idx=88;
-        out[i]=(signed char)(pred>>8);
+        out[i]=(signed char)(pred>>(8+oSfxShift()));   // SFX VOLUME option
     }
     spred=pred; sidx=idx; sdone=e;
     if(sdone>=sn) for(int k=0;k<256;k++) out[sn+k]=0;   // silence after the end, so the DMA read-ahead plays nothing
@@ -807,8 +935,10 @@ static u32 lrng=12345;
 static int rnd8(void){ lrng=lrng*1664525u+1013904223u; return (int)(lrng>>24); }
 
 // Getting hurt. sev grows with fall height, speed and a bad landing. kind: 0 clean landing, 1 bail, 2 wall hit.
-static void die(int snd){ ldead=1; lstun=2; lsp=0; lgrind=0; sfxPlay(snd); lnote="YOU DIED"; lnoteT=0x7fff; }
+static void die(int snd){ moodEvent(M_DIE); ldead=1; lstun=2; lsp=0; lgrind=0; sfxPlay(snd); lnote="YOU DIED"; lnoteT=0x7fff; }
 static void hurt(int sev,int kind){
+    if(xo[XO_HURT]==1) sev/=2; else if(xo[XO_HURT]==2&&sev>=30) sev=29;   // HURT option: GENTLE halves it, NO DEATH keeps a fall survivable
+    if(sev>=30) moodEvent(M_HURT_BIG); else if(sev>=18) moodEvent(M_HURT); else if(kind==2) moodEvent(M_BUMP);   // (40+ is death: die() logs it)
     if(sev>=40) die(SFX_INSTANT);                                                                   // instant death
     else if(sev>=30){                                                                                // life or death
         if(rnd8()<128){ lstun=240; lsp=0; lgrind=0; sfxPlay(SFX_NEARLY); lnote="CLOSE CALL"; lnoteT=120; }
@@ -819,16 +949,21 @@ static void hurt(int sev,int kind){
     else if(kind==2){ lstun=20; sfxPlay(SFX_HIT); lnote="OOF"; lnoteT=30; }                          // grunts and hits
 }
 
-static int tileH(int tx,int ty){   // surface height in px
+#include "ramps.h"
+static int tileH(int tx,int ty){   // surface height in px (ramps: their highest point). Grind height is 6: rails, ledges and benches
     if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
     char c=lifeMap[ty][tx];
-    return (c=='#'||c=='F'||c=='W')?2*CC: (c=='w'||c=='T')?CC: c=='='?6:0;
+    return (c=='#'||c=='F'||c=='W'||c=='H')?2*CC: (c=='w'||c=='T'||c=='S'||c=='C')?CC: (c=='='||c=='L'||c=='N')?6: isKicker(c)?KICKER_H: isQPipe(c)?qpH[7]: 0;
+}
+static int surfH(s32 fx,s32 fy){   // surface height at an exact position (1/256 tiles): same as tileH, but ramps slope
+    int tx=(int)(fx>>8), ty=(int)(fy>>8); if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
+    char c=lifeMap[ty][tx]; return isRamp(c)?rampH(c,(int)fx,(int)fy):tileH(tx,ty);
 }
 static void bakeSprites(void){   // render the built character once per view (4 turns), then just blit it
     int sv=view; noGrid=1;
     for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ ghost[y][z][x]=0; gdec[y][z][x]=0; }
     for(int v=0;v<4;v++){
-        view=v; drawScene(0,0);
+        view=v; drawScene(0);
         for(int y=0;y<SPH;y++)for(int x=0;x<SPW;x++) spr4[v][y*SPW+x]=fb[(SPY0+y*2)*SW+SPX0+x*2];
     }
     noGrid=0; view=sv;
@@ -846,11 +981,15 @@ static int numText(int x,int y,int n,u16 c){
 // lifeMap = what stands on each tile, floorMap = floor style under it, wallMap = wallpaper on it (for wall tiles).
 enum { T_ROOM, T_WALL, T_FLOOR, T_ITEM, T_ERASE, NTOOL };
 static int eTool, eAct, eAx, eAy, eFl, eWp, eOb;   // editor: tool, rectangle anchor set?, anchor tile, chosen floor / wallpaper / item
-#define NOBJ 10
-static const char palCh[NOBJ]={'.','w','W','#','=','F','T','D','B','P'};
-static const char* const palNm[NOBJ]={"CLEAR","LOW WALL","WALL","CRATE","RAIL","FRIDGE","TOILET","DOOR","BOARD","SPAWN"};
-static const u16 palCol[NOBJ]={RGB(26,21,14),RGB(8,20,22),RGB(10,22,24),RGB(8,9,20),RGB(31,30,16),RGB(31,31,31),RGB(30,28,18),RGB(14,9,5),RGB(26,10,6),RGB(28,10,8)};
-static int palIdx(char c){ for(int i=0;i<NOBJ;i++) if(palCh[i]==c) return i; return -1; }
+#define NOBJ 17
+#define OB_KICKER 10   // palette slots whose char carries a turn (+eRot): kicker '1'..'4', quarter pipe '5'..'8'
+#define OB_QPIPE 11
+static int eRot;   // editor: which way the next ramp faces (0 S, 1 E, 2 N, 3 W)
+static const char palCh[NOBJ]={'.','w','W','#','=','F','T','D','B','P','1','5','L','N','S','H','C'};
+static const char* const palNm[NOBJ]={"CLEAR","LOW WALL","WALL","CRATE","RAIL","FRIDGE","TOILET","DOOR","BOARD","SPAWN","KICKER","Q PIPE","LEDGE","BENCH","BED","SHOWER","SOFA"};
+static const u16 palCol[NOBJ]={RGB(26,21,14),RGB(8,20,22),RGB(10,22,24),RGB(8,9,20),RGB(31,30,16),RGB(31,31,31),RGB(30,28,18),RGB(14,9,5),RGB(26,10,6),RGB(28,10,8),RGB(24,17,9),RGB(27,19,11),RGB(20,20,22),RGB(25,18,9),RGB(10,14,28),RGB(22,28,30),RGB(26,18,9)};
+static int palIdx(char c){ if(isKicker(c)) return OB_KICKER; if(isQPipe(c)) return OB_QPIPE; for(int i=0;i<NOBJ;i++) if(palCh[i]==c) return i; return -1; }
+static char edObjCh(void){ char c=palCh[eOb]; return (eOb==OB_KICKER||eOb==OB_QPIPE)?(char)(c+eRot):c; }   // the char the ITEM tool places
 // ---- default big map: house (top left), factory (top right), rail park (bottom), roads of concrete between ----
 static void gBox(int x0,int y0,int x1,int y1,int fl){ for(int y=y0;y<=y1;y++)for(int x=x0;x<=x1;x++) floorMap[y][x]=(u8)fl; }
 static void gRoom(int x0,int y0,int x1,int y1,int fl,int wp){   // walled room with a floor
@@ -867,6 +1006,7 @@ static void mapGen(void){
     gPut(9,17,'D'); gPut(17,13,'D');
     gPut(16,11,'F'); gPut(16,12,'F'); gPut(12,4,'#'); gPut(13,4,'#'); gPut(12,5,'#'); gPut(13,5,'#');
     gPut(5,12,'P'); gPut(7,14,'B');
+    gPut(8,3,'H'); gPut(4,16,'S'); gPut(3,11,'C');                     // shower (bathroom), bed and sofa (lounge)
     // FACTORY: red brick, steel plate, oil-stained and hazard lanes, grate corner, crates and a rail
     gRoom(22,2,37,19,8,8); gBox(23,10,36,11,10); gBox(23,14,27,18,9); gBox(30,3,36,8,12);
     gPut(29,19,'D'); gPut(22,10,'D'); gPut(37,10,'D');
@@ -881,6 +1021,9 @@ static void mapGen(void){
     gPut(31,26,'#'); gPut(32,26,'#'); gPut(31,27,'#'); gPut(32,27,'#'); gPut(34,33,'#'); gPut(35,33,'#'); gPut(34,34,'#'); gPut(35,34,'#');
     gPut(14,24,'#'); gPut(15,24,'#'); gPut(14,25,'#'); gPut(15,25,'#'); gPut(24,25,'#'); gPut(25,25,'#'); gPut(24,26,'#'); gPut(25,26,'#');
     gLine(12,21,27,21,'w',13);
+    gPut(16,30,'4'); gPut(21,30,'2');                                  // two kickers facing each other: a gap jump
+    gPut(17,22,'5'); gPut(18,22,'5');                                  // quarter pipes (face south) in front of the plaza wall
+    gPut(13,33,'L'); gPut(14,33,'L'); gPut(15,33,'L'); gPut(25,33,'N'); gPut(26,33,'N');   // ledge and bench to grind
 }
 static void mapReset(void){ mapGen(); }
 static void mapScan(void){   // find the skateboard (B) and the spawn point (P); fall back to sane defaults
@@ -899,6 +1042,12 @@ static const char sramTag[] __attribute__((used)) = "SRAM_V113";   // tells emul
 #define LEG_X 13                // an old save is copied into the plaza at (13,22)
 #define LEG_Y 22
 #include "jukebox.h"   // playlist logic: shuffled order lives in SRAM at JB_OFF (12288), the mode is a setting
+// Songs named PLACEHOLDER... are hidden from the jukebox unless the title-screen debug code was entered (dbgOn).
+static int isDbgSong(int i){ const char*n=songs[i].name, *p="PLACEHOLDER"; while(*p){ if(*n++!=*p++) return 0; } return 1; }
+static void jbSetup(void){   // build the list of songs the jukebox shows, then load / make the playlist order
+    int n=0; for(int i=0;i<NSONGS&&n<JB_MAX;i++) if(songs[i].xm!=&xm_the_dipper_man&&(dbgOn||!isDbgSong(i))) jbMap[n++]=(u8)i;   // THE DIPPER MAN is the title music only: never listed
+    jbInit(n);
+}
 // SRAM layout: 0..2 "BM3", then MSZ bytes each of tiles, floors, wallpapers. Settings at SET_OFF (see settingsSave).
 // Old "BM1" / "BM2" saves (14x14, settings at 640) still load: the room is placed into the plaza of the new default map.
 static void mapSave(void){ volatile u8*m=SRAM_BASE; m[0]='B'; m[1]='M'; m[2]='3';
@@ -926,22 +1075,41 @@ static int mapLoad(void){   // returns 1 if a valid saved map was loaded
 static void mapPlace(int x,int y,char c){
     if(c=='B'||c=='P'){ for(int j=0;j<MH;j++)for(int i=0;i<MW;i++) if(lifeMap[j][i]==c) lifeMap[j][i]='.'; }
     lifeMap[y][x]=c; if(c=='w'||c=='W') wallMap[y][x]=(u8)eWp; }
-// settings (SRAM offset 640)
-static void settingsSave(void){ volatile u8*m=SRAM_BASE+SET_OFF; m[0]='S'; m[1]='2'; m[2]=sFps; m[3]=sWall; m[4]=sWp; m[5]=sFl; m[6]=sSnd; m[7]=sShow; m[8]=sShad; m[9]=sHud; m[10]=sRom; m[11]=sCam; m[12]=sJb; m[13]=sNoWarn; }
+// extended options (opts.h): one byte each at OPT_OFF, 'X' 'O', count, values, checksum. A save with fewer options (older game) leaves the new ones at their defaults.
+#define OPT_OFF 8448
+static void optsSave(void){
+    volatile u8*m=SRAM_BASE+OPT_OFF; unsigned sum=0x3C;
+    for(int i=0;i<XO_N;i++){ m[3+i]=xo[i]; sum+=xo[i]; }
+    m[2]=XO_N; sum+=XO_N; m[3+XO_N]=(u8)sum; m[0]='X'; m[1]='O';
+}
+static void optsLoad(void){
+    volatile u8*m=SRAM_BASE+OPT_OFF; optsDefaults();
+    if(m[0]!='X'||m[1]!='O'||m[2]==0||m[2]>XO_N) return;
+    int n=m[2]; unsigned sum=0x3C+n; for(int i=0;i<n;i++) sum+=m[3+i];
+    if(m[3+n]!=(u8)sum) return;                                       // damaged: keep the defaults
+    for(int i=0;i<n;i++) if(m[3+i]<xoCnt[i]) xo[i]=m[3+i];            // every value range checked
+}
+// settings (SRAM offset 8192)
+static void settingsSave(void){ optsSave();
+   volatile u8*m=SRAM_BASE+SET_OFF; m[0]='S'; m[1]='2'; m[2]=sFps; m[3]=sWall; m[4]=sWp; m[5]=sFl; m[6]=sSnd; m[7]=sShow; m[8]=sShad; m[9]=sHud; m[10]=sRom; m[11]=sCam; m[12]=sJb; m[13]=sNoWarn; m[14]=sClassic; m[15]=sUnlock; }
 static void settingsLoad(void){ volatile u8*m=SRAM_BASE+SET_OFF;
     if(m[0]!='S'){ volatile u8*o=SRAM_BASE; if(o[0]=='B'&&o[1]=='M'&&o[2]!='3') m=SRAM_BASE+640; else return; }   // old saves kept settings at 640
     if(m[0]!='S') return;
     if(m[1]=='1'){ if(m[2]>2||m[3]>2||m[4]>1||m[5]>1||m[6]>1||m[7]>1) return;   // older save: fewer settings
         sFps=m[2]; sWall=m[3]; sWp=m[4]; sFl=m[5]; sSnd=m[6]; sShow=m[7]; return; }
     if(m[1]!='2'||m[2]>3||m[3]>2||m[4]>1||m[5]>1||m[6]>1||m[7]>2||m[8]>1||m[9]>2||m[10]>1) return;
-    sCam=(m[11]<=3)?m[11]:1; sJb=(m[12]<=2)?m[12]:0; sNoWarn=(m[13]==1)?1:0;
+    sCam=(m[11]<=3)?m[11]:1; sJb=(m[12]<=2)?m[12]:0; sNoWarn=(m[13]==1)?1:0; sClassic=(m[14]==1)?1:0; sUnlock=(m[15]==1)?1:0; if(!sUnlock) sClassic=0;
     sFps=m[2]; sWall=m[3]; sWp=m[4]; sFl=m[5]; sSnd=m[6]; sShow=m[7]; sShad=m[8]; sHud=m[9]; sRom=m[10]; }
 
 // ---------- small UI kit: one menu style, one help style, one toast ----------
-#define GOLD RGB(31,26,6)
 #define DIMC RGB(18,20,22)
 #define WHITE RGB(31,31,31)
-static u16 keyNow(void){ return (u16)(~REG_KEYINPUT)&0x3FF; }
+static u16 keyNow(void){   // BUTTONS option: A/B and L/R can be swapped here, so every screen sees the swapped keys
+    u16 k=(u16)(~REG_KEYINPUT)&0x3FF; int b=xo[XO_BTN];
+    if(b&1){ u16 a=k&K_A, c=k&K_B; k=(u16)((k&~(K_A|K_B))|(a?K_B:0)|(c?K_A:0)); }
+    if(b&2){ u16 l=k&K_L, r=k&K_R; k=(u16)((k&~(K_L|K_R))|(l?K_R:0)|(r?K_L:0)); }
+    return k;
+}
 static void box(int x,int y,int w,int h){ rect(x-1,y-1,w+2,h+2,GOLD); rect(x,y,w,h,RGB(3,4,7)); }
 static int menu(const char*title,const char*const*it,int n){   // UP/DOWN + A to choose, B or START to cancel (returns -1)
     int sel=0, w=116, h=26+n*10, x=(SW-w)/2, y=(SH-h)/2; u16 prev=keyNow();
@@ -971,10 +1139,10 @@ static void helpScreen(const char*title,const char*const*ln,int n){   // lines s
     }
 }
 static void toast(const char*msg){ int w=tw(msg,1)+16;
-    box((SW-w)/2,66,w,22); text((SW-w)/2+8,74,msg,WHITE,1); for(int i=0;i<45;i++){ present(); } }
-static const char* const lifeHelp[12]={">ON FOOT","DPAD WALK  B RUN  A HOP","R FRIDGE OR TOILET","L GET ON THE BOARD",">ON THE BOARD","A PUSH  DPAD STEER  B OLLIE","IN AIR DPAD SPINS  B KICKFLIP","LAND CLEAN FOR POINTS","HIGH FALLS AND WALLS HURT",">KEEP YOURSELF GOING","WATCH THE FOOD AND WC BARS","START OPENS THE MENU"};
+    box((SW-w)/2,66,w,22); text((SW-w)/2+8,74,msg,WHITE,1); for(int i=0,n=oToastLen();i<n;i++){ present(); } }
+static const char* const lifeHelp[16]={">ON FOOT","DPAD WALK  B RUN  A HOP","L GET ON THE BOARD","R USE FRIDGE TOILET BED SHOWER SOFA",">ON THE BOARD","A PUSH  DPAD STEER  B OLLIE","IN AIR DPAD SPINS  B KICKFLIP",">KEEP YOURSELF GOING","FOOD WC REST CLEAN COMFY ROOM BARS","SLEEP IN BED  A OR B GETS YOU UP",">WORK  MON TO FRI 9 TO 5","TRICK POINTS BEAT THE QUOTA FOR PAY","3 GOOD DAYS PROMOTE  3 BAD DEMOTE",">WANTS AND FEARS","MEET WANTS TO RISE  AVOID FEARS","START OPENS THE MENU"};
 
-static const char* const creatureHelp[13]={">PLACE PARTS","DPAD MOVE  L R HEIGHT","A PLACE  B ERASE  START SIZE",">PICK A PART","SELECT TAP NEXT PART","SEL+L R PREVIOUS OR NEXT PART","SEL+UP DN FACE",">LOOK","SEL+A SKIN  SEL+B HAIR","SEL+LEFT RIGHT TURN THE VIEW",">LEAVE","GO LIVE LIFE PLAYS YOUR CREATURE","MAIN MENU IS LAST IN THE LIST"};
+static const char* const creatureHelp[15]={">PICK YOUR LOOK","L R CHANGE TAB   UP DOWN PICK A ROW","LEFT RIGHT CHANGE IT  A ALSO STEPS","SELECT TURNS THE CREATURE ROUND",">THE TABS","1 BODY  SHAPE AND SKIN","2 FACE  EYES MOUTH AND EARS","3 HAIR  4 CLOTHES  COLOURS AND STYLE","5 BUILD  PLACE EVERY BLOCK YOURSELF",">FINISH","START JUMPS TO THE DONE TAB","GO LIVE LIFE PLAYS YOUR CREATURE",">BLOCK BUILDER","DPAD AND L R MOVE  A PLACE  B ERASE","SELECT+START BACK TO THE TABS"};
 static const char* const mapHelp[12]={">BUILD A ROOM","ROOM TOOL  A CORNER  A BUILDS","WALL TOOL  A START  A DRAWS A LINE","FLOOR TOOL  A CORNER  A FILLS","ITEM TOOL  PLACE SINGLE TILES","ERASE TOOL  A CORNER  A CLEARS",">STYLES","L R PICK FLOOR OR ITEM","SEL+L R PICK WALLPAPER","SELECT TAP NEXT TOOL  B CANCELS",">KEEP IT","START OPENS PLAY TEST AND SAVE"};
 
 // ---------- settings screen ----------
@@ -984,25 +1152,6 @@ static void drawRoom(int ed);
 #define R_TM2CNT (*(volatile u16*)0x0400010A)
 #define TICKS_FRAME 1097   // 65536 / 59.7275 Hz
 static void tmStart(void){ R_TM2CNT=0; R_TM2D=0; R_TM2CNT=0x82; }
-#define NSET 15
-enum { R_PRESET, R_TUNE, R_FPS, R_WALLS, R_WP, R_FL, R_SHAD, R_CAM, R_HUD, R_SND, R_JB, R_ROM, R_SHOW, R_WARN, R_DEF };
-static const char* const setNm[NSET]={"PRESET","AUTO TUNE","FRAME RATE","WALLS","WALLPAPER","FLOORS","SHADOWS","ACTION CAM","INFO ON SCREEN","SOUND","JUKEBOX","ROM SPEED","PERFORMANCE INFO","SPEED WARNING","RESET ALL"};
-static const char* const setDesc[NSET][2]={
- {"LOOKS BALANCED SPEED BATTERY  ONE TAP SETUP","CHANGING ANYTHING BELOW MAKES IT CUSTOM"},
- {"PRESS A  TESTS YOUR SCREEN AND PICKS THE","PRETTIEST PRESET THAT STAYS SMOOTH"},
- {"HOW OFTEN THE PICTURE REDRAWS","LOWER IS FASTER  THE GAME KEEPS ITS PACE"},
- {"FULL SHOWS EVERY WALL  CUTAWAY LOWERS THE","WALLS IN FRONT  LOW DRAWS THEM ALL SHORT"},
- {"PATTERNED OR PLAIN COLOUR WALLS","PLAIN IS QUICKER TO DRAW"},
- {"PATTERNED OR PLAIN COLOUR FLOORS","PLAIN IS QUICKER TO DRAW"},
- {"THE DARK SPOT UNDER YOUR FEET","OFF SAVES A LITTLE DRAWING"},
- {"AFTER A BIG COMBO THE CAMERA ZOOMS IN AND SPINS","ALL 4 VIEWS  PICK HOW BIG A COMBO TRIGGERS IT"},
- {"FULL SHOWS EVERYTHING  SLIM KEEPS SCORE AND BARS","OFF HIDES ALL OF IT  ALERTS STILL SHOW"},
- {"SOUND OFF SKIPS SOUND DECODING","SAVES A LITTLE SPEED AND BATTERY"},
- {"SHUFFLE PLAYS YOUR SAVED RANDOM SONG ORDER","IN ORDER  OR  REPEAT ONE SONG  OPEN FROM MENU"},
- {"FAST IS RIGHT FOR MOST CARTS AND EMULATORS","SAFE IF A FLASH CART FREEZES OR GLITCHES"},
- {"SHOWS FPS WHILE YOU PLAY  DETAIL ALSO SHOWS","LOAD  100 MEANS A FRAME IS JUST FITTING"},
- {"ON SHOWS TOO SLOW FOR THIS FRAME RATE WHEN THE","PICTURE CANT KEEP UP  OFF HIDES THAT WARNING"},
- {"PUTS EVERY SETTING BACK TO NORMAL","PRESS A"} };
 // graphics fields per preset: fps wall wallpaper floors shadows hud
 static const u8 presetTab[4][6]={ {0,0,1,1,1,0}, {1,1,1,1,1,0}, {1,2,0,0,0,1}, {2,2,0,0,0,1} };
 static const char* const presetNm[5]={"LOOKS","BALANCED","SPEED","BATTERY","CUSTOM"};
@@ -1030,202 +1179,101 @@ static void autoTune(void){
     if(p==4){ setPreset(3); sCost=measureDraw(); }
     sTunedMsg=1;
 }
-static void setChange(int row,int d){
-    sTunedMsg=0;
-    switch(row){
-        case R_PRESET:{ int p=presetOf(); p=(p==4)?(d>0?0:3):(p+d+4)%4; setPreset(p); } break;
-        case R_FPS: sFps=(u8)((sFps+d+4)%4); break;
-        case R_WALLS: sWall=(u8)((sWall+d+3)%3); break;
-        case R_WP: sWp^=1; break;
-        case R_FL: sFl^=1; break;
-        case R_SHAD: sShad^=1; break;
-        case R_CAM: sCam=(u8)((sCam+d+4)%4); break;
-        case R_HUD: sHud=(u8)((sHud+d+3)%3); break;
-        case R_SND: sSnd^=1; if(!sSnd) sfxStop(); break;
-        case R_JB: jbSetMode((sJb+d+3)%3); break;
-        case R_ROM: sRom^=1; applyRom(); break;
-        case R_SHOW: sShow=(u8)((sShow+d+3)%3); break;
-        case R_WARN: sNoWarn^=1; break;
-    }
-}
-static const char* setVal(int row){
-    static const char* const fp[4]={"60 FPS","30 FPS","20 FPS","15 FPS"}, *const wn[3]={"FULL","CUTAWAY","LOW"}, *const hn[3]={"FULL","SLIM","OFF"}, *const sn[3]={"OFF","FPS","DETAIL"}, *const cn[4]={"OFF","OVER 10000","OVER 5000","OVER 2000"};
-    switch(row){
-        case R_PRESET: return presetNm[presetOf()];
-        case R_TUNE: return "PRESS A";
-        case R_FPS: return fp[sFps];
-        case R_WALLS: return wn[sWall];
-        case R_WP: return sWp?"PATTERNS":"PLAIN";
-        case R_FL: return sFl?"PATTERNS":"PLAIN";
-        case R_SHAD: return sShad?"ON":"OFF";
-        case R_CAM: return cn[sCam];
-        case R_HUD: return hn[sHud];
-        case R_SND: return sSnd?"ON":"OFF";
-        case R_JB: return jbModeNm[sJb];
-        case R_ROM: return sRom?"SAFE":"FAST";
-        case R_SHOW: return sn[sShow];
-        case R_WARN: return sNoWarn?"OFF":"ON";
-        default: return "PRESS A";
-    }
-}
-static int setHeat(int row){   // 0 light (green), 1 medium (yellow), 2 heavy (red), 3 neutral
-    switch(row){
-        case R_FPS: return sFps==0?2:sFps==1?1:0;
-        case R_WALLS: return sWall==0?2:sWall==1?1:0;
-        case R_WP: return sWp?1:0;
-        case R_FL: return sFl?1:0;
-        case R_SHAD: return sShad?1:0;
-        case R_CAM: return sCam?1:0;
-        case R_HUD: return sHud==0?1:0;
-        case R_SND: return sSnd?1:0;
-        case R_ROM: return sRom?1:0;
-        case R_SHOW: return sShow==2?1:0;
-        default: return 3;
-    }
-}
-static void drawSettings(int sel){
-    static const u16 heat[4]={ RGB(12,28,10), RGB(31,26,6), RGB(30,10,8), RGB(22,24,26) };
-    fillCols(0,ROW_W,RGB(3,4,8));
-    box(4,2,232,156); text(12,7,"SETTINGS",GOLD,2);
-    text(112,9,sTunedMsg?"TUNED FOR YOUR SCREEN":"PERFORMANCE",sTunedMsg?heat[0]:DIMC,1);
-    // speed meter: how much of the frame the picture needs. 60 / 30 / 20 marks show which frame rate it can hold.
-    int cap=capLevel(), want=sFps+1, fill=sCost*100/(3*TICKS_FRAME); if(fill>100) fill=100;
-    u16 mc=cap==1?heat[0]:cap<=2?heat[1]:heat[2];
-    text(12,25,"DRAW COST",DIMC,1);
-    rect(60,25,100,5,RGB(8,10,14)); rect(60,25,fill,5,mc);
-    static const int mk[3]={23,57,90}; static const char* const ml[3]={"60","30","20"};
-    for(int i=0;i<3;i++){ rect(60+mk[i],24,1,7,WHITE); text(60+mk[i]-3,32,ml[i],DIMC,1); }
-    if(cap>want){ if(!sNoWarn){ text(168,25,"TOO SLOW FOR",heat[2],1); text(168,32,"THIS FRAME RATE",heat[2],1); } }
-    else { text(168,25,cap==1?"HOLDS 60 FPS":cap==2?"HOLDS 30 FPS":cap==3?"HOLDS 20 FPS":"HOLDS 15 FPS",heat[0],1); text(168,32,"SMOOTH",DIMC,1); }
-    int top=sel-4; if(top<0) top=0; if(top>NSET-9) top=NSET-9;
-    for(int n=0;n<9;n++){
-        int i=top+n, y=43+n*9;
-        if(i==sel){ rect(8,y-2,212,9,RGB(6,16,8)); text(12,y,">",WHITE,1); }
-        text(20,y,setNm[i],i==sel?WHITE:DIMC,1);
-        int h=setHeat(i); u16 vc=heat[h]; if(i==sel&&h==3) vc=GOLD;
-        text(124,y,setVal(i),vc,1);
-    }
-    if(top>0){ for(int k=0;k<3;k++) rect(227-k,44+k,1+2*k,1,GOLD); }          // more rows above
-    if(top<NSET-9){ for(int k=0;k<3;k++) rect(227-k,108+(2-k),1+2*k,1,GOLD); } // more rows below
-    text(12,126,setDesc[sel][0],WHITE,1); text(12,133,setDesc[sel][1],DIMC,1);
-    text(12,143,"UP DOWN ROW  L R CHANGE  B BACK",RGB(12,14,16),1);
-    text(12,150,"GREEN FAST",heat[0],1); text(60,150,"YELLOW MID",heat[1],1); text(112,150,"RED SLOW",heat[2],1);
-}
-static s16 costCache[24];   // draw cost per walls/wallpaper/floors/shadows combo, 0 = not measured yet
-static inline int costKey(void){ return sWall*8+sWp*4+sFl*2+sShad; }
-static void settingsScreen(void){
-    int sel=0, dirty=1, remeasure=1, idle=0; u16 prev=keyNow(); tmStart(); sTunedMsg=0;
-    for(int i=0;i<24;i++) costCache[i]=0;
-    for(;;){
-        u16 k=keyNow(), pr=k&~prev; prev=k;
-        if(pr&K_DOWN){ sel=(sel+1)%NSET; dirty=1; }
-        if(pr&K_UP){ sel=(sel+NSET-1)%NSET; dirty=1; }
-        if(sel==R_TUNE||sel==R_DEF){
-            if(pr&K_A){ if(sel==R_TUNE){ autoTune(); costCache[costKey()]=(s16)sCost; remeasure=0; } else { setDefaults(); sTunedMsg=0; remeasure=1; } dirty=1; }
-        } else {
-            int d=((pr&K_RIGHT)?1:0)-((pr&K_LEFT)?1:0); if(pr&K_A) d=1;
-            if(pr&K_R) d=1; if(pr&K_L) d=-1;
-            if(d){ setChange(sel,d); dirty=1; idle=0;
-                if(sel==R_PRESET||sel==R_WALLS||sel==R_WP||sel==R_FL||sel==R_SHAD){ int c=costCache[costKey()]; if(c){ sCost=c; remeasure=0; } else remeasure=1; } }
-        }
-        if(pr&(K_B|K_START)){ settingsSave(); R_TM2CNT=0; return; }
-        if(dirty){ drawSettings(sel); present(); dirty=0; idle=0; }
-        else { vsync(); if(remeasure&&++idle>=20){ sCost=measureDraw(); costCache[costKey()]=(s16)sCost; remeasure=0; dirty=1; } }
-    }
-}
+#include "slots.h"      // ROOM SLOTS: named saves of the room, the person and the life (header made ready for houses)
+#include "optscreen.h"  // OPTIONS: seven pages of settings (replaces the old SETTINGS screen; settingsScreen() keeps its name)
 
+static const signed char hdT[3][3]={{10,12,14},{8,-1,0},{6,4,2}};   // [sign dy+1][sign dx+1] -> heading (16 steps), -1 = keep
+#include "feel.h"
 static void lifeInit(void){
     mapScan(); bakeSprites(); camSnap=1;
-    lfx=spx*256+128; lfy=spy*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote=""; lskate=0; lhave=(bdx<0); lfr=0; lvx=lvy=0; ldead=0; lmaxz=0; lplay=0; lbumpCd=0; lfood=100; lbl=0; lnear=0; sfxStop();
+    lfx=spx*256+128; lfy=spy*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote=""; lskate=0; lhave=(bdx<0); lfr=0; lvx=lvy=0; ldead=0; lmaxz=0; lplay=0; lbumpCd=0; lfood=100; lbl=0; lnear=0; moodReset(); simsReset(); sfxStop(); feelReset(0);
 }
-static const signed char hdT[3][3]={{10,12,14},{8,-1,0},{6,4,2}};   // [sign dy+1][sign dx+1] -> heading (16 steps), -1 = keep
+static int rampAvg, rampOn;   // px/step (8.8) the skater has been climbing a ramp, smoothed (heights are whole px, so single steps are lumpy); rampOn = rode a ramp last step
 static void lifeStep(u16 k,u16 pr,int fr){
-    int fh=tileH(lfx>>8,lfy>>8)<<8;
+    int fh=surfH(lfx,lfy)<<8;
     if(ldead){   // dead: frozen until A
         lstun=2;
-        if(pr&K_A){ ldead=0; lstun=0; lfx=spx*256+128; lfy=spy*256+128; lz=0; lvz=0; lskate=0; lsp=0; lgrind=0; lspin=0; lflip=0; lairF=0; lmaxz=0; lplay=0; lnoteT=0; lfood=100; lbl=0; sfxStop(); }
+        if(pr&K_A){ ldead=0; lstun=0; lfx=spx*256+128; lfy=spy*256+128; lz=0; lvz=0; lskate=0; lsp=0; lgrind=0; lspin=0; lflip=0; lairF=0; lmaxz=0; lplay=0; lnoteT=0; lfood=100; lbl=0; moodReset(); simsRespawn(); sfxStop(); feelReset(0); }
     }
     if(lstun>0){ lstun--; lsp=0; lvx=lvy=0; }
     else {
         if((pr&K_L)&&!lhave){ lnote="FIND A BOARD"; lnoteT=40; }
         if((pr&K_L)&&lhave&&lz<=fh){   // L: swap between on-foot (walk/run) and skateboard
-            lskate=!lskate; lsp=0; lgrind=0; lspin=0; lflip=0; lnote=lskate?"SKATE":"ON FOOT"; lnoteT=40;
+            lskate=!lskate; lsp=0; lgrind=0; lspin=0; lflip=0; feelReset(lhd); lnote=lskate?"SKATE":"ON FOOT"; lnoteT=40;
         }
+        feelSync(); feelTick(lz<=fh,(pr&K_B)!=0&&lskate&&(lz<=fh||F.coy>0));
         if(lskate){
-            if(lz<=fh){                                        // on the ground (or on a rail)
-                if((fr&3)==0){ if(k&K_LEFT) lhd=(lhd+15)&15; if(k&K_RIGHT) lhd=(lhd+1)&15; }
-                if(k&K_A){ if((fr&3)==0&&lsp<24) lsp++; } else if(lsp>0&&(fr&7)==0) lsp--;   // push / coast
-                if((k&K_DOWN)&&lsp>0&&(fr&1)==0) lsp--;                                       // brake
-                if(lgrind&&lsp<12) lsp=12;                                                     // rails keep you rolling
-                if(pr&K_B){ lvz=0x380; lgrind=0; }                                             // ollie
-            } else {                                                                           // airborne
-                if((fr&3)==0){ if(k&K_LEFT) lspin--; if(k&K_RIGHT) lspin++; }                  // spin: 16 steps = 360 deg
-                if((pr&K_B)&&!lflip){ lflip=1; lnote="KICKFLIP"; lnoteT=40; }
-            }
-            lvx=(lsp*cosT[lhd])/256; lvy=(lsp*cosT[(lhd+12)&15])/256;
+            if(lz<=fh||(F.coy>0&&lvz<=0)){                     // on the ground (or a rail), incl. coyote frames
+                feelSteer(k); feelPush(k,lgrind);
+                if(F.buf>0){ lvz=feelOllie(); lgrind=0; }      // ollie (buffered, variable height)
+            } else feelAir(k,pr,(lz-fh)<(8<<8));               // airborne
+            feelVel(); lspin=F.spin>>4;
         } else {
-            // on foot: D-pad moves relative to the screen (up = away from camera), B held = run, A = hop
-            int ux=((k&K_RIGHT)?1:0)-((k&K_LEFT)?1:0), uy=((k&K_DOWN)?1:0)-((k&K_UP)?1:0);
-            int dx=ux+uy, dy=uy-ux, spd=(k&K_B)?10:5;
-            if(ux&&uy) spd=(spd*3)/4;                          // diagonals cover the same ground
-            lvx=dx*spd; lvy=dy*spd; lsp=(dx||dy)?spd:0;
-            if(dx||dy){ int h=hdT[(dy>0)-(dy<0)+1][(dx>0)-(dx<0)+1]; if(h>=0) lhd=h; }
-            if((pr&K_A)&&lz<=fh) lvz=0x300;
+            feelWalk(k,pr,lz<=fh);                             // D-pad relative to screen, B = run, A = hop
         }
     }
     int zp=(int)(lz>>8);
     s32 nx=lfx+lvx, ny=lfy+lvy;   // move per axis so walls slide
     int bump=0, sp0b=lsp;
-    if(tileH(nx>>8,lfy>>8)<=zp+3) lfx=nx; else bump=1;
-    if(tileH(lfx>>8,ny>>8)<=zp+3) lfy=ny; else bump=1;
+    int tol=isRamp(lifeMap[lfy>>8][lfx>>8])?F_RAMP_TOL:3;   // a ramp climbs a few px per step without being a wall
+    if(surfH(nx,lfy)<=zp+tol) lfx=nx; else bump=1;
+    if(surfH(lfx,ny)<=zp+tol) lfy=ny; else bump=1;
     if(bump){
         lsp=(lsp*2)/3;
         if(lbumpCd==0&&sp0b>=(lskate?12:10)){ lbumpCd=40; if(lskate) hurt(sp0b+(rnd8()>>4),2); else sfxPlay(SFX_BONK); }   // skating into a wall hurts, running into one bonks
     }
     if(lbumpCd>0) lbumpCd--;
-    fh=tileH(lfx>>8,lfy>>8)<<8;
+    fh=surfH(lfx,lfy)<<8;
+    int wasOn=rampOn, onRamp=lskate&&isRamp(lifeMap[lfy>>8][lfx>>8]); rampOn=0;
+    if(lz<=fh&&onRamp){ int rise=lz<fh?(int)(fh-lz):0; rampAvg=(rampAvg*3+rise)>>2; rampOn=1; }   // riding a ramp: remember how fast we are climbing
     if(lz<fh){ lz=fh; if(lvz<0) lvz=0; }
+    else if(lz>fh&&wasOn&&!onRamp&&lskate&&lvz<=0&&(lz-fh)<(16<<8)){   // rolled off the lip: launch with the climb speed
+        int v=rampAvg*F_RAMP_BOOST; if(v>F_RAMP_MAX) v=F_RAMP_MAX; if(v>0){ lvz=v; lnote="AIR"; lnoteT=20; moodEvent(M_LAUNCH); } }
+    if(!rampOn) rampAvg=0;
     if(lz>fh||lvz>0){ lz+=lvz; lvz-=0x40; if(lz<=fh&&lvz<=0){ lz=fh; lvz=0; } }   // gravity
     int air=lz>fh;
     if(air){
         int zz=(int)(lz>>8); if(zz>lmaxz) lmaxz=zz;
         if(!lplay&&lvz<0){ int hi=lmaxz-(int)(fh>>8);
             if(hi>=34){ sfxPlay(SFX_SCREAM); lplay=1; }                 // falling from way up
-            else if((lspin&7)&&hi>=10){ sfxPlay(SFX_GASP); lplay=1; }   // landing is going wrong
+            else if(!feelClean()&&hi>=10){ sfxPlay(SFX_GASP); lplay=1; }   // landing is going wrong
         }
     }
     if(lairF&&!air){                                   // just landed
-        int a=lspin<0?-lspin:lspin, pts=(a>>3)*180+(lflip?100:0);
-        int drop=lmaxz-(int)(lz>>8), sp0=lsp, bail=(lspin&7)!=0;
-        if(bail){ lnote="BAIL"; lnoteT=60; lsp=0; lstun=45; lgrind=0; }
+        int pts=feelHalfTurns()*180+(lflip?100:0)+feelGrabPts();
+        int drop=lmaxz-(int)(lz>>8), sp0=lsp, bail=!feelClean();
+        if(bail){ lnote="BAIL"; lnoteT=60; lsp=0; lstun=45; lgrind=0; moodEvent(M_BAIL); }
         else{
-            if(pts){ lscore+=pts; lpts=pts; lnote="NICE"; lnoteT=60; lcN++; lcPts+=pts; lcT=150; }
-            if(lskate&&tileH(lfx>>8,lfy>>8)==6){ lgrind=1; lnote="GRIND"; lnoteT=30; lcN++; lcT=150; }
+            if(pts){ pts=moodPts(pts); lscore+=pts; lpts=pts; lnote="NICE"; lnoteT=60; lcN++; lcPts+=pts; lcT=oComboLen(); moodEvent(M_TRICK); }
+            if(lskate&&tileH(lfx>>8,lfy>>8)==6){ lgrind=1; lnote="GRIND"; lnoteT=30; lcN++; lcT=oComboLen(); moodEvent(M_GRIND_ON); }
         }
         if(bail) hurt(drop/2+sp0+(rnd8()>>5),1);        // bad landing: harder/faster/higher = worse
         else if(drop>24) hurt(drop-24+(rnd8()>>5),0);   // big drops hurt even landed clean
-        lspin=0; lflip=0;
+        lspin=0; lflip=0; feelLandReset();
     }
     if(!air){ lmaxz=(int)(lz>>8); lplay=0; }
     lairF=air;
-    if(lgrind){ if(air||tileH(lfx>>8,lfy>>8)!=6) lgrind=0; else if((fr&3)==0){ lscore+=3; lnote="GRIND"; lnoteT=10; lcPts+=3; lcT=150; } }
-    if(!lhave&&lz<(8<<8)&&(lfx>>8)==BDX&&(lfy>>8)==BDY){ lhave=1; lnote="GOT A SKATEBOARD"; lnoteT=90; }   // walk over it to pick it up
-    if(!ldead){   // needs: hunger and bladder
-        if(lfr%120==0&&lfood>0) lfood--;
-        if(lfr%100==0&&lbl<100) lbl++;
-        if(lfood==0&&lfr%300==0){ lfood=15; lstun=120; lsp=0; lgrind=0; sfxPlay(SFX_GROAN); lnote="FAINTED FROM HUNGER"; lnoteT=90; }
-        if(lbl>=100){ lbl=0; lstun=90; lsp=0; lgrind=0; lscore=lscore>100?lscore-100:0; sfxPlay(SFX_CRY); lnote="ACCIDENT"; lnoteT=90; }
-        int nf=0, nt=0;
+    if(lgrind){ if(air||tileH(lfx>>8,lfy>>8)!=6) lgrind=0; else if((fr&3)==0){ lscore+=3; lnote="GRIND"; lnoteT=10; lcPts+=3; lcT=oComboLen(); } }
+    if(!lhave&&lz<(8<<8)&&(lfx>>8)==BDX&&(lfy>>8)==BDY){ lhave=1; lnote="GOT A SKATEBOARD"; lnoteT=90; moodEvent(M_GOT_BOARD); }   // walk over it to pick it up
+    if(!ldead){   // needs: hunger and bladder, then how they (and the skating) make the skater feel
+        moodTick(); simsTick(pr,(int)(lfx>>8),(int)(lfy>>8));
+        { int fe=oFoodEvery(), we=oWcEvery();   // FOOD AND WC option
+          if(fe&&lfr%fe==0&&lfood>0) lfood--;
+          if(we&&lfr%we==0&&lbl<100) lbl++; }
+        if(lfood==0&&lfr%300==0){ lfood=15; lstun=120; lsp=0; lgrind=0; sfxPlay(SFX_GROAN); lnote="FAINTED FROM HUNGER"; lnoteT=90; moodEvent(M_FAINT); }
+        if(lbl>=100){ lbl=0; lstun=90; lsp=0; lgrind=0; lscore=lscore>100?lscore-100:0; sfxPlay(SFX_CRY); lnote="ACCIDENT"; lnoteT=90; moodEvent(M_ACCIDENT); }
+        int nf=0, nt=0, nb=0, nh=0, nc=0;
         for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++){ int tx=(lfx>>8)+dx, ty=(lfy>>8)+dy; if(tx<0||ty<0||tx>=MW||ty>=MH) continue;
-            char c=lifeMap[ty][tx]; if(c=='F') nf=1; if(c=='T') nt=1; }
-        lnear=nf?1:(nt?2:0);
+            char c=lifeMap[ty][tx]; if(c=='F') nf=1; if(c=='T') nt=1; if(c=='S') nb=1; if(c=='H') nh=1; if(c=='C') nc=1; }
+        lnear=nf?1:(nt?2:(nb?3:(nh?4:(nc?5:0))));   // 1 fridge, 2 toilet, 3 bed, 4 shower, 5 sofa
         if((pr&K_R)&&lnear&&lstun<=0&&lz<=fh){
             if(lnear==1){   // fridge: eat
                 if(lfood>=95){ lnote="FULL"; lnoteT=40; }
-                else { lfood+=35; if(lfood>100) lfood=100; lbl+=10; if(lbl>99) lbl=99; lstun=30; lsp=0; lnote="YUM"; lnoteT=50; }
+                else { lfood+=35; if(lfood>100) lfood=100; lbl+=10; if(lbl>99) lbl=99; lstun=30; lsp=0; lnote="YUM"; lnoteT=50; moodEvent(M_EAT); }
+            } else if(lnear>=3){ simBegin(lnear);   // bed / shower / sofa (sims.h)
             } else {        // toilet: relieve yourself
                 if(lbl<15){ lnote="LATER"; lnoteT=40; }
-                else { lbl=0; lstun=70; lsp=0; lgrind=0; lnote="AHH"; lnoteT=60; }
+                else { lbl=0; lstun=70; lsp=0; lgrind=0; lnote="AHH"; lnoteT=60; moodEvent(M_RELIEVE); }
             }
         }
     }
@@ -1235,6 +1283,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
             int tot=lcPts*lcN; if(lcN>=2) lscore+=lcPts*(lcN-1);
             lcBank=tot; lcBankT=120;
             if(lcN>=2&&sCam&&tot>camThr[sCam]) lcamPend=1;
+            if(lcN>=2) moodEventN(M_COMBO,lcN-1);
             lcN=0; lcPts=0;
         }
     }
@@ -1242,15 +1291,6 @@ static void lifeStep(u16 k,u16 pr,int fr){
     lfr++;
     if(lnoteT>0) lnoteT--;
     sfxTick();
-}
-IWRAM_CODE static void tileTop(int sx,int sy,u16 c){
-    for(int ry=-CB;ry<=CB;ry++){
-        int y=sy+ry; if((unsigned)y>=SH) continue;
-        int hw=rowHW[ry<0?-ry:ry], x0=sx-hw, x1=sx+hw;
-        if(x0<0) x0=0; if(x1>=SW) x1=SW-1;
-        u16*d=&fb[y*SW+x0]; u16*e=&fb[y*SW+x1];
-        while(d<=e) *d++=c;
-    }
 }
 static int ecx=6, ecy=6, efr;   // map editor cursor (tile) and frame counter
 // The room can be viewed from 4 sides (action cam). (rx,ry) are screen-space tile coords for the current view, (tx,ty) the real map tile.
@@ -1270,7 +1310,7 @@ static void camClamp(int ed){
     if(camX<xl) camX=xl; if(camX>xh) camX=xh; if(camY<yl) camY=yl; if(camY>yh) camY=yh;
 }
 static void camFollow(int snap){   // keep the skater near the middle of the screen, eased so it stays steady
-    s32 rfx,rfy; rotPos(lfx,lfy,&rfx,&rfy);
+    s32 rfx,rfy; rotPos(lfx+(lskate?lvx*14:0),lfy+(lskate?lvy*14:0),&rfx,&rfy);   // look ahead of the skater
     int ox=camX, oy=camY; camX=(int)((rfx-rfy)>>5); camY=(int)((rfx+rfy)>>6)-76; camClamp(0);
     int tx=camX, ty=camY; camX=ox; camY=oy;
     if(cview!=camLastV){ camLastV=cview; snap=1; }
@@ -1317,15 +1357,15 @@ static void eRect(int*x0,int*y0,int*x1,int*y1){   // anchor..cursor as an ordere
     if(eTool==T_WALL){ int dx=bx>ax?bx-ax:ax-bx, dy=by>ay?by-ay:ay-by; if(dx>=dy) by=ay; else bx=ax; }
     *x0=ax<bx?ax:bx; *x1=ax<bx?bx:ax; *y0=ay<by?ay:by; *y1=ay<by?by:ay;
 }
+#include "items.h"
 static int lpsx, lpsy;   // where the player is on screen (zoom centre)
 static void drawRoom(int ed){   // the room, drawn back to front; ed=1: editor view (no player, markers + cursor)
     fillCols(0,ROW_W,RGB(4,5,8));
     int s0,s1; bandRows(&s0,&s1);
     for(int s=s0;s<=s1;s++){ int a,b; bandCols(s,&a,&b);
-        for(int tx=a;tx<=b;tx++){ int ty=s-tx; char c=cellAt(tx,ty); if(c=='w'||c=='W'||c=='#'||c=='F'||c=='T') continue;
+        for(int tx=a;tx<=b;tx++){ int ty=s-tx; char c=cellAt(tx,ty); if(c=='w'||c=='W'||c=='#') continue;
             int sx=LOX+(tx-ty)*CA, sy=LOY+(tx+ty+1)*CB;
-            if(c=='D') tileTop(sx,sy,RGB(14,9,5));
-            else { int fl=flAt(tx,ty), v=(tx^ty)&1; if(sFl) floorTile(sx,sy,&flTab[fl][v][0][0]); else tileTop(sx,sy,flFlat[fl][v]); } } }
+            { int fl=flAt(tx,ty), v=(tx^ty)&1; if(sFl) floorTile(sx,sy,&flTab[fl][v][0][0]); else tileTop(sx,sy,flFlat[fl][v]); } } }
     s32 rfx,rfy; rotPos(lfx,lfy,&rfx,&rfy);
     int ss=(int)((rfx>>8)+(rfy>>8)), psx=LOX+(int)((rfx-rfy)>>5), psy=LOY+(int)((rfx+rfy)>>6);
     lpsx=psx; lpsy=psy-20;
@@ -1333,19 +1373,13 @@ static void drawRoom(int ed){   // the room, drawn back to front; ed=1: editor v
         for(int tx=a;tx<=b;tx++){ int ty=s-tx;
             char c=cellAt(tx,ty); int sx=LOX+(tx-ty)*CA, sy=LOY+(tx+ty+1)*CB;
             if(c=='w'||c=='W') drawWall(tx,ty,sx,sy);
-            else if(c=='#'){ for(int j=1;j<=2;j++) cube(sx,sy-j*CC,7,0,(j<2?1:0)|(j>1?2:0)); }
-            else if(c=='F'){ for(int j=1;j<=2;j++) cube(sx,sy-j*CC,2,0,(j<2?1:0)|(j>1?2:0)); }   // fridge: white, 2 blocks tall
-            else if(c=='T') cube(sx,sy-CC,8,0,0);                                                  // toilet: pale, 1 block
-            else if(c=='=') cube(sx,sy-6,8,1,2);
             int ox,oy; rotXY(tx,ty,&ox,&oy);
-            if((ed&&c=='B')||(!ed&&!lhave&&ox==BDX&&oy==BDY)){   // the skateboard pickup, bobbing
-                int by=sy-3-(ed?0:((lfr>>4)&1));
-                rect(sx-6,by-1,12,3,RGB(26,10,6)); rect(sx-5,by-2,10,1,RGB(31,20,8)); rect(sx-5,by+2,2,2,RGB(3,3,6)); rect(sx+3,by+2,2,2,RGB(3,3,6));
-            }
-            if(ed&&c=='P'){ rect(sx-2,sy-9,5,7,RGB(28,10,8)); rect(sx-2,sy-13,5,4,RGB(30,23,17)); }   // little person = spawn
+            if(c=='#'||c=='F'||c=='T'||c=='='||c=='D'||c=='L'||c=='N'||c=='S'||c=='H'||c=='C'||isRamp(c)) drawItemTile(c,sx,sy,ox,oy);
+            if((ed&&c=='B')||(!ed&&!lhave&&ox==BDX&&oy==BDY)) blitItem(V_BOARD,sx,sy-(ed?0:((lfr>>4)&1)));   // the skateboard pickup, bobbing
+            if(ed&&c=='P') drawSpawn(sx,sy+1);   // little person = spawn
         }
         if(!ed&&s==ss){
-            int fhp=tileH(lfx>>8,lfy>>8), zp=(int)(lz>>8), vsel=((lhd+lspin+66+4*cview)>>2)&3;
+            int fhp=surfH(lfx,lfy), zp=(int)(lz>>8), vsel=((lhd+lspin+66+4*cview)>>2)&3;
             if(sShad){ rect(psx-3,psy-fhp-1,7,2,RGB(10,8,5)); rect(psx-1,psy-fhp-2,3,4,RGB(10,8,5)); }   // shadow
             if(lskate){ rect(psx-6,psy-zp-1,12,2,RGB(26,10,6)); rect(psx-5,psy-zp+1,2,2,RGB(3,3,6)); rect(psx+3,psy-zp+1,2,2,RGB(3,3,6)); }   // board under the feet
             blit(spr4[vsel],psx-16,psy-40-zp);
@@ -1379,6 +1413,17 @@ IWRAM_CODE static void zoomFb(int cx,int cy,int zk){
         }
     }
 }
+// a 7x7 face for the mood state (SAD, BORED, OK, HAPPY, STOKED); 'y' = skin, 'k' = features
+static const char* const faceArt[5][7]={
+ {".yyyyy.","yyyyyyy","yykykyy","yyyyyyy","yykkkyy","ykyyyky",".yyyyy."},   // sad
+ {".yyyyy.","yyyyyyy","ykkykky","yyyyyyy","yykkkyy","yyyyyyy",".yyyyy."},   // bored: half-shut eyes, flat mouth
+ {".yyyyy.","yyyyyyy","yykykyy","yyyyyyy","yykkkyy","yyyyyyy",".yyyyy."},   // ok
+ {".yyyyy.","yyyyyyy","yykykyy","yyyyyyy","ykyyyky","yykkkyy",".yyyyy."},   // happy
+ {".yyyyy.","yyyyyyy","ykkykky","yyyyyyy","ykkkkky","yykkkyy",".yyyyy."} }; // stoked
+static void drawFace(int x,int y,int st){
+    static const u16 skin[5]={RGB(14,18,28),RGB(22,22,20),RGB(30,26,8),RGB(26,30,10),RGB(31,20,6)};
+    for(int j=0;j<7;j++)for(int i=0;i<7;i++){ char c=faceArt[st][j][i]; if(c=='.') continue; px(x+i,y+j,c=='k'?RGB(4,3,6):skin[st]); }
+}
 static void lifeDraw(void){
     camFollow(camSnap||lcamF>0); camSnap=0;
     drawRoom(0);
@@ -1387,14 +1432,20 @@ static void lifeDraw(void){
         if(z>0){ int cx=lpsx<0?0:lpsx>=SW?SW-1:lpsx, cy=lpsy<0?0:lpsy>=SH?SH-1:lpsy; zoomFb(cx,cy,256-z*(CAM_ZOOM)/12); }
     }
     u16 gold=GOLD, dim=DIMC, hint=RGB(12,14,16);
+    if(!lcamF&&!ldead&&sHud<2) simsBubble(lpsx,lpsy-16,RGB(6,6,10));   // thought bubble over the head (sims.h)
     if(sHud<2){
+        simsClockDraw(150,2,dim,gold);
         numText(text(2,2,"SCORE",dim,1)+3,2,lscore,gold);
-        text(150,10,"FOOD",dim,1); rect(172,10,lfood/2,5,lfood<20?RGB(28,8,6):RGB(10,24,8));
-        text(150,18,"WC",dim,1); rect(172,18,lbl/2,5,lbl>80?RGB(28,8,6):RGB(26,22,6));
+        text(150,10,"FOOD",dim,1); rect(180,10,lfood/2,5,lfood<20?RGB(28,8,6):RGB(10,24,8));
+        text(150,18,"WC",dim,1); rect(180,18,lbl/2,5,lbl>80?RGB(28,8,6):RGB(26,22,6));
+        text(150,26,"FUN",dim,1); rect(180,26,moodFunPct()/2,5,moodFunPct()<MOOD_BORED?RGB(28,8,6):RGB(8,22,28));
+        text(150,34,"HAPPY",dim,1); rect(180,34,moodHapPct()/2,5,moodHapPct()<MOOD_SAD?RGB(28,8,6):RGB(28,13,19));
+        drawFace(150,42,moodState()); text(160,43,moodStName[moodState()],gold,1);
+        simsHud(150,52,dim,gold);
     }
     if(sHud==0){
         text(2,10,"SPEED",dim,1); rect(24,10,lsp,5,RGB(8,24,10));
-        text(150,2,MAPNAME,RGB(14,16,18),1);
+        text(2,139,MAPNAME,RGB(14,16,18),1);
         text(60,2,lskate?"SKATE":(lsp>5?"RUN":"WALK"),gold,1);
         text(2,146,lskate?"A PUSH B OLLIE DPAD STEER L WALK":(lhave?"DPAD WALK B RUN A HOP L SKATE":"DPAD WALK B RUN A HOP FIND A BOARD"),hint,1);
         text(2,153,"START MENU",hint,1);
@@ -1402,7 +1453,7 @@ static void lifeDraw(void){
     if(lcamF>0){ rect(56,126,128,32,PANEL); text(72,130,"BIG COMBO",GOLD,2); numText(120-tw("0",1)*3/2,145,lcBank,WHITE); }   // banner at the bottom so it never covers the skater
     else if(lcN>0&&sHud<2){ int x=text(2,32,"COMBO X",GOLD,1)+1; x=numText(x,32,lcN,WHITE)+4; numText(x,32,lcPts*lcN,gold); }
     else if(lcBankT>0&&sHud<2){ numText(text(2,32,"COMBO",GOLD,1)+3,32,lcBank,WHITE); }
-    if(lnear&&!ldead&&!lcamF) text(2,132,lnear==1?"R OPEN FRIDGE":"R USE TOILET",gold,1);   // prompts and alerts always show
+    if(lnear&&!ldead&&!lcamF) text(2,132,simAct?"A OR B GET UP":(lnear==1?"R OPEN FRIDGE":lnear==2?"R USE TOILET":lnear==3?"R SLEEP IN BED":lnear==4?"R TAKE A SHOWER":"R SIT ON SOFA"),gold,1);   // prompts and alerts always show
     if(ldead) text(2,25,"PRESS A TO RESPAWN",RGB(31,12,8),1);
     if(lnoteT>0){ text(2,18,lnote,RGB(31,31,31),1); if(lpts&&lnote[0]=='N'){ numText(text(2,25,"+",gold,1)+1,25,lpts,gold); } }
     if(sShow){   // performance counter, bottom right
@@ -1416,11 +1467,14 @@ static void camStep(int steps,u16 k,u16 pr){   // action cam: the game holds sti
     else { int f=lcamF; cview=(f<6||f>=60)?0:(f-6)/18+1; if(cview>3) cview=0; }
 }
 static int gToMenu;   // set when the player picks MAIN MENU in the pause menu, so every screen above returns to it
-static const char* const lifeItems[5]={"RESUME","HOW TO PLAY","SETTINGS","EDIT MAP","MAIN MENU"};
-static const char* const lifeItemsEd[4]={"RESUME","HOW TO PLAY","SETTINGS","BACK TO EDITOR"};
+static const char* const lifeItems[7]={"RESUME","HOW TO PLAY","OPTIONS","ROOM SLOTS","EDIT MAP","NEW LIFE","MAIN MENU"};
+static const char* const lifeItemsEd[4]={"RESUME","HOW TO PLAY","OPTIONS","BACK TO EDITOR"};
 // Timer2 (65536 Hz) is the clock (defined with the settings). The game logic always runs at 60 steps per second; the
 // frame rate setting only says how often the picture is redrawn, so lower rates save work without slowing the game.
-static void lifeMode(int ed){   // ed=1: test play started from the map editor
+static const char* const yesNoLife[2]={"NO","YES ERASE IT"};
+static void lifeModeRun(int ed);
+static void lifeMode(int ed){ gInPlay=1; lifeModeRun(ed); gInPlay=0; }   // gInPlay: some option actions are only allowed while playing / only outside it
+static void lifeModeRun(int ed){   // ed=1: test play started from the map editor
     lifeInit(); lcamF=0; cview=0; lcN=lcPts=lcT=lcBank=lcBankT=lcamPend=0; u16 prev=keyNow();
     tmStart(); u16 tl=R_TM2D; int acc=0, fpsN=0, fr=0; u32 fpsT=0, workT=0; lfpsV=0; lloadV=0;
     for(;;){
@@ -1431,12 +1485,14 @@ static void lifeMode(int ed){   // ed=1: test play started from the map editor
         u16 k=keyNow(), pr=k&~prev; prev=k;
         if((k&K_SEL)&&(k&K_START)) break;
         if(pr&K_START){   // pause menu
-            sfxStop();
-            int c=menu("PAUSED",ed?lifeItemsEd:lifeItems,ed?4:5);
-            if(c==1) helpScreen("HOW TO PLAY",lifeHelp,12);
+            sfxStop(); simsSave();   // the pause menu is also a save point
+            int c=menu("PAUSED",ed?lifeItemsEd:lifeItems,ed?4:7);
+            if(c==1) helpScreen("HOW TO PLAY",lifeHelp,16);
             else if(c==2) settingsScreen();
-            else if(c==3&&!ed){ mapEditor(); lifeInit(); }
-            else if((c==3&&ed)||c==4){ if(c==4) gToMenu=1; break; }
+            else if(c==3&&!ed){ simsSaveNow(); if(slotScreen()) lifeInit(); }   // a slot was loaded: start again in the loaded room (the life was written first, so nothing is lost)
+            else if(c==4&&!ed){ mapEditor(); lifeInit(); }
+            else if(c==5&&!ed){ if(menu("START A NEW LIFE",yesNoLife,2)==1){ simsNewLife(); moodReset(); lscore=0; simLastScore=0; lnote="NEW LIFE"; lnoteT=60; } }
+            else if((c==3&&ed)||c==6){ if(c==6) gToMenu=1; break; }
             prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=0; continue;
         }
         if(lcamF>0) camStep(steps,k,pr);
@@ -1447,21 +1503,21 @@ static void lifeMode(int ed){   // ed=1: test play started from the map editor
         lifeDraw(); workT+=(u16)(R_TM2D-w0); present();
         fpsN++; if(fpsT>=65536){ lfpsV=fpsN; lloadV=(int)(workT/(u32)fpsN*100/(u32)((sFps+1)*TICKS_FRAME)); workT=0; fpsN=0; fpsT-=65536; }
     }
-    R_TM2CNT=0; sfxStop(); lcamF=0; cview=0;
+    simsSave(); R_TM2CNT=0; sfxStop(); lcamF=0; cview=0;   // leaving the life game saves it
     while((~REG_KEYINPUT)&0x3FF) vsync();   // wait for release so the caller doesn't see the exit keys
 }
 
 
 // ---------- map editor ----------
 // Tools: ROOM (two corners -> walls + floor + a door), WALL (a straight line), FLOOR (fill an area), ITEM (single tiles), ERASE (clear an area).
-static const char* const mapItems[6]={"PLAY TEST","SAVE MAP","SETTINGS","RESET MAP","HOW TO EDIT","BACK"};
+static const char* const mapItems[7]={"PLAY TEST","SAVE MAP","ROOM SLOTS","OPTIONS","RESET MAP","HOW TO EDIT","BACK"};
 static const char* const yesNo[2]={"NO","YES RESET"};
 static const char* const toolNm[NTOOL]={"ROOM","WALL","FLOOR","ITEM","ERASE"};
 static const char* const toolHint[NTOOL][2]={
  {"A CORNER  A AGAIN BUILDS THE ROOM  B CANCEL","L R FLOOR  SEL+L R WALLPAPER  SEL TOOL"},
  {"A START  A AGAIN DRAWS A WALL  B CANCEL","L R WALLPAPER  SEL TOOL  START MENU"},
  {"A CORNER  A AGAIN FILLS THE AREA  B CANCEL","L R FLOOR  SEL TOOL  START MENU"},
- {"A PLACE  B ERASE  HOLD AND MOVE TO PAINT","L R ITEM  SEL+L R WALLPAPER  SEL TOOL"},
+ {"A PLACE  B ERASE  HOLD AND MOVE TO PAINT","L R ITEM  SEL+A TURN RAMP  SEL TOOL"},
  {"A CORNER  A AGAIN CLEARS THE AREA  B CANCEL","SEL TOOL  START MENU"} };
 static void texSwatch(const Tex*t,int x,int y){   // the 8x8 pattern itself, 1:1
     rect(x-1,y-1,10,10,WHITE);
@@ -1496,8 +1552,15 @@ static void drawEditorHud(const char*msg){
         else text(2,11,"PICK A START POINT",GOLD,1);
     }
     if(eTool==T_ITEM){
-        for(int i=0;i<NOBJ;i++){ int xx=2+i*13; rect(xx,136,12,9,i==eOb?WHITE:RGB(3,4,7)); rect(xx+1,137,10,7,palCol[i]); }
-        text(136,139,palNm[eOb],WHITE,1);
+        for(int i=0;i<NOBJ;i++){ int xx=2+i*11; rect(xx,136,10,9,i==eOb?WHITE:RGB(3,4,7)); rect(xx+1,137,8,7,palCol[i]); }
+        { static const char*const faceNm[4]={"FACES S","FACES E","FACES N","FACES W"};
+          int xx=text(2,127,palNm[eOb],WHITE,1)+4; if(eOb==OB_KICKER||eOb==OB_QPIPE) text(xx,127,faceNm[eRot],GOLD,1); }
+        if(eOb>=3){ rect(204,114,34,36,RGB(4,5,8)); tileTop(221,141,RGB(14,14,18));   // preview of the picked item
+            switch(eOb){ case 3:blitItem(V_CRATE,221,141);break; case 4:blitItem(V_RAILU,221,141);break; case 5:blitItem(V_FRIDGE,221,141);break;
+                case 6:blitItem(V_TOILET,221,141);break; case 7:blitItem(V_DOOR,221,141);break; case 8:blitItem(V_BOARD,221,141);break;
+                case OB_KICKER:blitItem(V_KICKER+((eRot-cview)&3),221,141);break; case OB_QPIPE:blitItem(V_QPIPE+((eRot-cview)&3),221,141);break;
+                case 12:blitItem(V_LEDGEU,221,141);break; case 13:blitItem(V_BENCHU,221,141);break;
+                case 14:blitItem(V_BED,221,141);break; case 15:blitItem(V_SHOWER,221,141);break; case 16:blitItem(V_SOFA,221,141);break; default:drawSpawn(221,142); } }
         if(eOb==1||eOb==2){ texSwatch(&wpTex[eWp],212,137); }
     } else if(eTool!=T_ERASE){
         if(eTool!=T_WALL){ text(2,139,"FLOOR",DIMC,1); texSwatch(&flTex[eFl],24,137); text(36,139,flTex[eFl].nm,WHITE,1); }
@@ -1538,12 +1601,12 @@ static void mapEditor(void){
     for(efr=0;;efr++){
         u16 k=keyNow(), pr=k&~prev, rel=prev&~k; prev=k;
         int tr[4];
-        for(int i=0;i<4;i++){ hold[i]=(k&dirK[i])?hold[i]+1:0; tr[i]=(hold[i]==1)||(hold[i]>14&&(hold[i]&3)==0); }
+        for(int i=0;i<4;i++){ hold[i]=(k&dirK[i])?hold[i]+1:0; tr[i]=(hold[i]==1)||(hold[i]>oRepDelay()&&(hold[i]&oRepMask())==0); }
         int ux=tr[0]-tr[1], uy=tr[3]-tr[2];
         if(ux||uy){   // screen-relative like walking: up = away from the camera
             int dx=ux+uy, dy=uy-ux; dx=(dx>0)-(dx<0); dy=(dy>0)-(dy<0);
             ecx+=dx; ecy+=dy; if(ecx<0)ecx=0; if(ecy<0)ecy=0; if(ecx>=MW)ecx=MW-1; if(ecy>=MH)ecy=MH-1;
-            if(eTool==T_ITEM){ if(k&K_A) mapPlace(ecx,ecy,palCh[eOb]); else if(k&K_B) mapPlace(ecx,ecy,'.'); }
+            if(eTool==T_ITEM){ if(k&K_A) mapPlace(ecx,ecy,edObjCh()); else if(k&K_B) mapPlace(ecx,ecy,'.'); }
             dirty=1;
         }
         if(pr|rel) dirty=1;
@@ -1556,27 +1619,32 @@ static void mapEditor(void){
         }
         if(rel&K_SEL){ if(!comboUsed){ eTool=(eTool+1)%NTOOL; eAct=0; } comboUsed=0; }
         if(pr&K_A){
-            if(eTool==T_ITEM) mapPlace(ecx,ecy,palCh[eOb]);
+            if(eTool==T_ITEM&&(k&K_SEL)){ eRot=(eRot+1)&3; comboUsed=1; msg="TURNED"; msgT=20; }   // SEL+A: turn the next ramp
+            else if(eTool==T_ITEM) mapPlace(ecx,ecy,edObjCh());
             else if(!eAct){ eAct=1; eAx=ecx; eAy=ecy; }
             else if(eApply()){ eAct=0; msg=eTool==T_ROOM?"ROOM BUILT":eTool==T_WALL?"WALL BUILT":eTool==T_FLOOR?"FLOOR LAID":"CLEARED"; msgT=70; }
             else { msg="ROOM NEEDS 3 X 3 OR BIGGER"; msgT=70; }
         }
         if(pr&K_B){ if(eAct) eAct=0; else mapPlace(ecx,ecy,'.'); }
         if(pr&K_START){
-            int c=menu("MAP MENU",mapItems,6);
+            int c=menu("MAP MENU",mapItems,7);
             if(c==0){ mapScan(); lifeMode(1); }
-            else if(c==1){ mapSave(); toast(mapSaved()?"MAP SAVED":"SAVE NOT SUPPORTED HERE"); }
-            else if(c==2) settingsScreen();
-            else if(c==3){ if(menu("RESET THE MAP",yesNo,2)==1){ mapReset(); eAct=0; toast("MAP RESET"); } }
-            else if(c==4) helpScreen("HOW TO EDIT",mapHelp,12);
-            else if(c==5){ mapSave(); break; }
+            else if(c==1){ mapSave();
+                if(!mapSaved()) toast("SAVE NOT SUPPORTED HERE");
+                else if(xo[XO_SLOTSYNC]&&slotSyncActive()) toast("MAP AND SLOT SAVED");   // MAP SAVE TO SLOT option
+                else toast("MAP SAVED"); }
+            else if(c==2) slotScreen();
+            else if(c==3) settingsScreen();
+            else if(c==4){ if(!xo[XO_RESETASK]||menu("RESET THE MAP",yesNo,2)==1){ mapReset(); eAct=0; toast("MAP RESET"); } }
+            else if(c==5) helpScreen("HOW TO EDIT",mapHelp,12);
+            else if(c==6){ if(xo[XO_EDSAVE]) mapSave(); break; }
             prev=keyNow(); edCamSnap(); dirty=1; continue;
         }
         if(edCamStep()) dirty=1;
         if(msgT>0&&--msgT==0){ msg=""; dirty=1; }
         int bl=(efr>>3)&1;   // the editor only redraws when something changed or the cursor blinks
         if(dirty||bl!=lastBl){
-            drawRoom(1); drawEditorHud(msgT>0?msg:""); miniMap();
+            drawRoom(1); drawEditorHud(msgT>0?msg:""); if(xo[XO_MINI]) miniMap();
             present(); dirty=0; lastBl=bl;
         } else vsync();
     }
@@ -1584,37 +1652,325 @@ static void mapEditor(void){
 }
 
 
-// ---------- creature editor (the original editor screen) ----------
-static void creatureEditor(void){
+// ---------- creature creator ----------
+// Pick a look from numbered tabs (like a character creator), or open the block builder to place every block by hand.
+// L R change tab | UP DOWN pick a row | LEFT RIGHT change it | SELECT turns the creature | START jumps to DONE | B leaves.
+enum { TB_BODY, TB_FACE, TB_HAIR, TB_CLOTHES, TB_BUILD, TB_DONE, NTAB };
+enum { RK_PICK, RK_SWATCH, RK_ACT };                 // a row picks from named options, picks a colour, or is a button
+enum { AC_BUILD, AC_PLAY, AC_MAP, AC_MENU };
+typedef struct { const char*lab,*sub; u8 kind,id,n; } Row;   // sub = second line of a button
+static const char* const tabNm[NTAB]={"BODY","FACE","HAIR","CLOTHES","BUILD","DONE"};
+static const char* const shapeNm[4]={"AVERAGE","BROAD","BIG HEAD","STUBBY"};
+static const char* const eyeNm[3]={"SLEEPY","ROUND","HAPPY"};
+static const char* const mouthNm[3]={"FLAT","SMILE","OH"};
+static const char* const earNm[3]={"NONE","SMALL","BIG"};
+static const char* const hairNm[4]={"CROP","BOWL","LONG","BALD"};
+static const char* const* const lookNm[LK_N]={shapeNm,0,eyeNm,mouthNm,earNm,hairNm,0,0,0};
+static const u16* const lookCol[LK_N]={0,skinTones,0,0,0,0,hairTones,topTones,botTones};
+static const Row tabRow[NTAB][3]={
+  {{"SHAPE",0,RK_PICK,LK_SHAPE,4},{"SKIN",0,RK_SWATCH,LK_SKIN,NSW},{0}},
+  {{"EYES",0,RK_PICK,LK_EYES,3},{"MOUTH",0,RK_PICK,LK_MOUTH,3},{"EARS",0,RK_PICK,LK_EARS,3}},
+  {{"STYLE",0,RK_PICK,LK_HSTYLE,4},{"COLOUR",0,RK_SWATCH,LK_HCOL,NSW},{0}},
+  {{"TOP",0,RK_SWATCH,LK_TOP,NSW},{"BOTTOM",0,RK_SWATCH,LK_BOT,NSW},{0}},
+  {{"OPEN BUILDER","BY HAND",RK_ACT,AC_BUILD,0},{0},{0}},
+  {{"GO LIVE LIFE!","PLAY IT NOW",RK_ACT,AC_PLAY,0},{"EDIT MAP","BUILD ROOMS",RK_ACT,AC_MAP,0},{"MAIN MENU","LOOK IS KEPT",RK_ACT,AC_MENU,0}} };
+static const u8 tabN[NTAB]={2,3,2,2,1,3};
+
+// layout (the panel is x 124..239): tabs down the left edge, the card of rows beside them, key legend under both
+#define TBX 128
+#define TBW 18
+#define TBH 17
+#define TBP 20
+#define TBY 7
+#define CDX 149
+#define CDY 5
+#define CDW 91
+#define CDH 124
+#define RW0 (CDY+26)      // first row
+#define RHT 19            // row pitch
+#define CARD   RGB(8,11,21)
+#define CARDED RGB(14,17,30)
+#define FOCUS  RGB(6,16,8)
+#define GOLD2  RGB(14,11,3)
+
+static void roundRect(int x,int y,int w,int h,u16 c){ rect(x+1,y,w-2,h,c); rect(x,y+1,w,h-2,c); }
+static void tri(int x,int y,int dir,u16 c){   // dir 0 left, 1 right (3 wide, 5 tall); 2 up, 3 down (5 wide, 3 tall); x,y = top left
+    if(dir<2){ for(int r=0;r<5;r++){ int hf=2-(r<2?2-r:r-2); if(dir==0) rect(x+2-hf,y+r,hf+1,1,c); else rect(x,y+r,hf+1,1,c); } }
+    else for(int r=0;r<3;r++){ if(dir==2) rect(x+2-r,y+r,2*r+1,1,c); else rect(x+r,y+r,5-2*r,1,c); }
+}
+static int kcap(int x,int y,const char*t){   // a little key cap with a label in it; returns the x after it
+    int w=tw(t,1)+5; rect(x,y-2,w,10,RGB(22,18,5)); rect(x+1,y-1,w-2,8,RGB(8,9,15)); text(x+3,y,t,GOLD,1); return x+w+2;
+}
+static int kcapAr(int x,int y,int vert){   // a key cap showing two arrows: up/down or left/right
+    int w=vert?17:14; rect(x,y-2,w,10,RGB(22,18,5)); rect(x+1,y-1,w-2,8,RGB(8,9,15));
+    if(vert){ tri(x+3,y+1,2,GOLD); tri(x+9,y+2,3,GOLD); } else { tri(x+3,y,0,GOLD); tri(x+8,y,1,GOLD); }
+    return x+w+2;
+}
+static int klab(int x,int y,const char*t){ return text(x,y,t,RGB(20,22,26),1)+6; }
+static void disc(int x0,int y0,int r,u16 c){ for(int dy=-r;dy<=r;dy++)for(int dx=-r;dx<=r;dx++) if(dx*dx+dy*dy<=r*r) px(x0+dx,y0+dy,c); }
+
+static const char* const iconArt[5][9]={
+  {"...###...","...###...","...###...","..#####..",".#.###.#.",".#.###.#.","...#.#...","...#.#...","...#.#..."},   // body
+  {"..#####..",".#.....#.","#.#...#.#","#.#...#.#","#.......#","#.#...#.#","#..###..#",".#.....#.","..#####.."},   // face
+  {"..#####..",".#######.","#########","##.....##","#.......#","#.......#",".#.....#.","..#...#..","........."},   // hair
+  {".##...##.","####.####","#########","#.#####.#","..#####..","..#####..","..#####..","..#####..","........."},   // clothes
+  {"....#....","..#####..","..#####..","..#####..","..#####..","..#####..","....#....",".........","........."} };  // (build is drawn with lines)
+static void drawIcon(int x,int y,int id,u16 c){
+    if(id==TB_BUILD){ line(x+4,y,x+8,y+2,c); line(x+8,y+2,x+8,y+6,c); line(x+8,y+6,x+4,y+8,c); line(x+4,y+8,x,y+6,c); line(x,y+6,x,y+2,c); line(x,y+2,x+4,y,c);
+        line(x+4,y+4,x,y+2,c); line(x+4,y+4,x+8,y+2,c); line(x+4,y+4,x+4,y+8,c); return; }
+    if(id==TB_DONE){ line(x,y+4,x+3,y+7,c); line(x+3,y+7,x+9,y+1,c); line(x,y+3,x+3,y+6,c); line(x+3,y+6,x+9,y,c); return; }
+    for(int r=0;r<9;r++)for(int q=0;q<9;q++) if(iconArt[id][r][q]=='#') px(x+q,y+r,c);
+}
+static void panelBg(void){
+    for(int y=0;y<SH;y++){ u16 c=RGB(2+y/55,3+y/38,9+y/14); u32 v=c|((u32)c<<16), *row=(u32*)fb+y*ROW_W; for(int w=SCENE_W;w<ROW_W;w++) row[w]=v; }
+    rect(PANEL_X,0,2,SH,GOLD2);
+}
+static void drawTabs(int tab){
+    roundRect(CDX-1,CDY-1,CDW+2,CDH+2,CARDED); roundRect(CDX,CDY,CDW,CDH,CARD);   // the card first, tabs on top of its edge
+    for(int i=0;i<NTAB;i++){
+        int y=TBY+i*TBP, sel=(i==tab); u16 ink=sel?WHITE:RGB(14,17,22);
+        if(sel){ roundRect(TBX-1,y-1,CDX-TBX+3,TBH+2,GOLD); roundRect(TBX,y,CDX-TBX+3,TBH,CARD); rect(CDX-1,y,3,TBH,CARD); }   // open into the card
+        else   { roundRect(TBX,y,TBW,TBH,RGB(4,6,13)); roundRect(TBX+1,y+1,TBW-2,TBH-2,RGB(9,12,22)); }
+        if(i==TB_DONE) drawIcon(TBX+4,y+4,TB_DONE,sel?RGB(14,30,12):RGB(8,18,8));
+        else { char d[2]={(char)('1'+i),0}; text(TBX+(TBW-tw(d,2))/2,y+2,d,ink,2); }
+    }
+}
+static const char* const lookName(int id,int v){ return lookNm[id][v]; }
+static void drawRowSet(int tab,int sel){
+    if(tab==TB_BUILD){
+        const char*t[]={"PLACE BLOCKS BY","HAND FOR A ONE","OF A KIND LOOK.","","CHANGING SHAPE,","EARS OR HAIR","STYLE LATER ASKS","BEFORE REPLACING","YOUR BLOCKS."};
+        for(int i=0;i<9;i++) text(CDX+6,RW0+i*7,t[i],i<3?WHITE:DIMC,1);
+    }
+    for(int i=0;i<tabN[tab];i++){
+        const Row*r=&tabRow[tab][i]; int y=RW0+i*RHT, f=(i==sel);
+        if(tab==TB_BUILD) y=RW0+9*7+4;
+        if(r->kind==RK_ACT){
+            rect(CDX+3,y-2,CDW-6,17,f?FOCUS:RGB(5,8,16)); if(f){ rect(CDX+3,y-2,2,17,GOLD); }
+            text(CDX+9,y,r->lab,f?GOLD:WHITE,1); text(CDX+9,y+8,r->sub,f?WHITE:DIMC,1); continue;
+        }
+        if(f){ rect(CDX+3,y-2,CDW-6,RHT-1,FOCUS); rect(CDX+3,y-2,2,RHT-1,GOLD); }
+        text(CDX+9,y,r->lab,f?WHITE:DIMC,1);
+        { int v=look[r->id]; char b[4]={(char)('1'+v),'/',(char)('0'+r->n),0}; text(CDX+CDW-6-tw(b,1),y,b,f?DIMC:RGB(10,12,16),1); }
+        if(r->kind==RK_PICK){
+            const char*nm=lookName(r->id,look[r->id]); int mx=CDX+CDW/2;
+            tri(CDX+9,y+9,0,f?GOLD:RGB(10,12,16)); tri(CDX+CDW-12,y+9,1,f?GOLD:RGB(10,12,16));
+            text(mx-tw(nm,1)/2,y+9,nm,f?WHITE:DIMC,1);
+        } else {
+            const u16*pal=lookCol[r->id];
+            for(int q=0;q<NSW;q++){
+                int x=CDX+8+q*10, on=(q==look[r->id]);
+                if(on){ rect(x-1,y+8,11,11,f?WHITE:RGB(16,18,22)); }
+                rect(x,y+9,9,9,pal[q]);
+            }
+        }
+    }
+}
+static void drawCreatorPanel(int tab,int sel){
+    panelBg(); drawTabs(tab);
+    drawIcon(CDX+6,CDY+6,tab,GOLD); text(CDX+20,CDY+4,tabNm[tab],GOLD,2);
+    rect(CDX+5,CDY+20,CDW-10,1,GOLD2);
+    drawRowSet(tab,sel);
+    int act=(tabRow[tab][sel].kind==RK_ACT), x;
+    x=kcap(128,132,"L"); x=kcap(x,132,"R"); x=klab(x,132,"TABS"); x=kcapAr(x,132,1); klab(x,132,"ROW");
+    x=act?kcap(128,142,"A"):kcapAr(128,142,0); klab(x,142,act?"CHOOSE":"CHANGE");
+    x=kcap(128,152,"START"); x=klab(x,152,"DONE"); x=kcap(x,152,"B"); klab(x,152,"BACK");
+}
+static void drawDial(void){   // the creature's compass: the needle points the way it faces on screen (view 0 = down-left, then clockwise)
+    static const signed char ddx[4]={-1,-1,1,1}, ddy[4]={1,-1,-1,1};
+    int x0=18, y0=143;
+    disc(x0,y0,12,GOLD2); disc(x0,y0,11,RGB(4,6,12));
+    for(int i=0;i<4;i++) rect(x0+ddx[i]*7-1,y0+ddy[i]*7-1,2,2,RGB(10,12,18));
+    int tx=x0+ddx[view&3]*7, ty=y0+ddy[view&3]*7;
+    line(x0,y0,tx,ty,GOLD); rect(tx-1,ty-1,3,3,GOLD); rect(x0-1,y0-1,3,3,WHITE);
+    int x=kcap(34,152,"SELECT"); klab(x,152,"TURN");
+}
+static void drawCreatorScene(void){
+    stageOn=1; drawScene(0);
+    text(7,6,"MAKE CREATURE",RGB(3,3,6),1); text(6,5,"MAKE CREATURE",GOLD,1);
+    drawDial();
+}
+
+// ---- tab actions ----
+static int confirmRebuild(void){ static const char* const it[2]={"YES  REBUILD","NO  KEEP BLOCKS"}; return menu("REPLACE YOUR BLOCKS?",it,2)==0; }
+static void lookStep(int id,int n,int d){
+    int nv=(look[id]+d+n)%n;
+    if((id==LK_SHAPE||id==LK_EARS||id==LK_HSTYLE)&&custom&&!confirmRebuild()) return;   // declined: keep the hand-built blocks
+    look[id]=(u8)nv;
+    switch(id){
+      case LK_SKIN: case LK_HCOL: case LK_TOP: case LK_BOT: setColors(); break;
+      case LK_EYES:  sty[0]=nv; restyle(0); break;
+      case LK_MOUTH: sty[1]=nv; restyle(1); break;
+      default: buildLook(); break;
+    }
+}
+
+// ---- the block builder (the original free editor, with a legend you can read) ----
+static void drawBuildPanel(void){
+    panelBg();
+    text(130,4,"BLOCK BUILDER",GOLD,1);
+    for(int i=0;i<NPARTS;i++){
+        int y=14+i*7;
+        if(i==part){ rect(128,y-1,108,7,FOCUS); rect(128,y-1,2,7,GOLD); }
+        text(134,y,parts[i].name,i==part?WHITE:DIMC,1);
+        if(i==part&&parts[i].dk) text(190,y,spr[SPRID(parts[i].dk-1)].name,GOLD,1);
+    }
+    text(130,74,"SIZE",DIMC,1);
+    const char*sn[3]={"S","M","L"};
+    for(int i=0;i<3;i++){ int x=156+i*14; rect(x,73,11,9,i==size-1?FOCUS:RGB(2,3,5)); text(x+4,74,sn[i],i==size-1?WHITE:DIMC,1); }
+    text(130,85,"X",DIMC,1); num(136,85,cx,WHITE); text(148,85,"Y",DIMC,1); num(154,85,cy,WHITE);
+    text(166,85,"Z",DIMC,1); num(172,85,cz,(part<NPARTS&&parts[part].dk)?RGB(12,14,16):WHITE);   // sprites ignore Z
+    int x;
+    x=kcap(128,98,"DPAD"); x=klab(x,98,"MOVE"); x=kcap(x,98,"L"); x=kcap(x,98,"R"); klab(x,98,"LIFT");
+    x=kcap(128,108,"A"); x=klab(x,108,"PLACE"); x=kcap(x,108,"B"); klab(x,108,"ERASE");
+    x=kcap(128,118,"SELECT"); klab(x,118,"NEXT PART");
+    x=kcap(128,128,"START"); klab(x,128,"SIZE S M L");
+    x=kcap(128,138,"SEL"); x=kcapAr(x,138,0); klab(x,138,"TURN");
+    x=kcap(128,148,"SEL"); x=kcap(x,148,"START"); klab(x,148,"BACK");
+}
+static void blockBuilder(void){
+    int hx,hy,hz,hs; headBox(&hx,&hy,&hz,&hs);
+    part=0; size=hs; cx=hx; cy=hy; cz=hz; view=0; stageOn=0;
     u16 prev=keyNow(); int hold[10]={0}, frame=0, dirty=1, lastBlink=-1, comboUsed=0;
     for(;;){
-        u16 k=(u16)(~REG_KEYINPUT)&0x3FF, pressed=k&~prev, released=prev&~k; prev=k;
+        u16 k=keyNow(), pressed=k&~prev, released=prev&~k; prev=k;
         for(int i=0;i<10;i++) hold[i]=(k>>i&1)?hold[i]+1:0;
         #define TRIG(m,i) ((pressed&(m))||(hold[i]>14&&(hold[i]&3)==0))
         int sel=k&K_SEL;
         if(sel){
-            if(pressed&K_A){ skinI=(skinI+1)%4; setColors(); comboUsed=1; dirty=1; }
-            if(pressed&K_B){ hairI=(hairI+1)%5; setColors(); comboUsed=1; dirty=1; }
+            if(pressed&K_START){ break; }                                                  // SELECT+START: back to the pickers
+            if(pressed&K_R){ part=(part+1)%NPARTS; comboUsed=1; dirty=1; }
+            if(pressed&K_L){ part=(part+NPARTS-1)%NPARTS; comboUsed=1; dirty=1; }
+            if(pressed&K_RIGHT){ view=(view+1)&3; comboUsed=1; dirty=1; }
+            if(pressed&K_LEFT){ view=(view+3)&3; comboUsed=1; dirty=1; }
+        } else {
+            if(TRIG(K_RIGHT,4)){moveView(1,0);dirty=1;} if(TRIG(K_LEFT,5)){moveView(-1,0);dirty=1;}
+            if(TRIG(K_UP,6)){moveView(0,-1);dirty=1;}     if(TRIG(K_DOWN,7)){moveView(0,1);dirty=1;}
+            if(TRIG(K_R,8)){cy++;dirty=1;}      if(TRIG(K_L,9)){cy--;dirty=1;}
+            if(pressed&K_A){ doPart(1,part,size,cx,cy,cz); custom=1; dirty=1; }
+            if(pressed&K_B){ doPart(2,part,size,cx,cy,cz); custom=1; dirty=1; }
+            if(pressed&K_START){ size=size%3+1; dirty=1; }
+        }
+        if(released&K_SEL){ if(!comboUsed){ part=(part+1)%NPARTS; dirty=1; } comboUsed=0; }
+        clampCursor();
+        if(dirty) frame=16;   // restart blink with the ghost visible
+        int blink=(frame>>4)&1;
+        if(dirty||blink!=lastBlink){
+            for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ ghost[y][z][x]=0; gdec[y][z][x]=0; }
+            gAny=0;
+            doPart(0,part,size,cx,cy,cz);
+            if(parts[part].dk&&!gAny) ghost[cy][cz][cx]=1;   // nothing solid under the cursor: show a marker cube
+            drawScene(blink); if(dirty){ drawBuildPanel(); present(); } else presentScene();   // blink-only: scene columns only
+            dirty=0; lastBlink=blink;
+        } else vsync();
+        frame++;
+    }
+    view=0;
+}
+
+// ---------- the secret classic creator ----------
+// Title screen: UP UP DOWN DOWN LEFT RIGHT LEFT RIGHT B A START unlocks (or locks again) the classic creature screen.
+// Creator: once unlocked, pressing START and SELECT together swaps between the new creator and the classic one. Remembered in SRAM.
+static int comboSS(u16 k,u16 pressed){ return (k&K_START)&&(k&K_SEL)&&(pressed&(K_START|K_SEL)); }
+#define NENT (NPARTS+3)   // classic list: the parts, then GO LIVE LIFE, EDIT MAP, MAIN MENU
+
+static int creatorNew(void){   // returns 1 when the secret code switched screens, 0 when leaving
+    int tab=0, rs[NTAB]={0}, dirty=3, hold[10]={0}; u16 prev=keyNow();
+    for(;;){
+        u16 k=keyNow(), pressed=k&~prev; prev=k;
+        for(int i=0;i<10;i++) hold[i]=(k>>i&1)?hold[i]+1:0;
+        if(sUnlock&&comboSS(k,pressed)){ sClassic=1; settingsSave(); stageOn=0; return 1; }
+        if(pressed&K_R){ tab=(tab+1)%NTAB; dirty|=2; }
+        if(pressed&K_L){ tab=(tab+NTAB-1)%NTAB; dirty|=2; }
+        if(pressed&K_DOWN){ rs[tab]=(rs[tab]+1)%tabN[tab]; dirty|=2; }
+        if(pressed&K_UP){ rs[tab]=(rs[tab]+tabN[tab]-1)%tabN[tab]; dirty|=2; }
+        if(pressed&K_SEL){ view=(view+1)&3; dirty=3; }
+        if(pressed&K_START){ tab=TB_DONE; rs[tab]=0; dirty|=2; }
+        if(pressed&K_B){ stageOn=0; return 0; }
+        const Row*r=&tabRow[tab][rs[tab]];
+        int d=TRIG(K_RIGHT,4)?1:TRIG(K_LEFT,5)?-1:0;
+        if(r->kind==RK_ACT){
+            if(pressed&K_A){
+                switch(r->id){
+                    case AC_BUILD: blockBuilder(); break;
+                    case AC_PLAY:  lifeMode(0); if(gToMenu){ stageOn=0; return 0; } break;
+                    case AC_MAP:   mapEditor(); break;
+                    default:       stageOn=0; return 0;   // MAIN MENU
+                }
+                prev=keyNow(); for(int i=0;i<10;i++) hold[i]=0; dirty=3;
+            }
+        } else if(d||(pressed&K_A)){
+            lookStep(r->id,r->n,d?d:1); prev=keyNow(); for(int i=0;i<10;i++) hold[i]=0; dirty=3;
+        }
+        if(dirty){
+            if(dirty&1) drawCreatorScene();
+            drawCreatorPanel(tab,rs[tab]);
+            present(); dirty=0;
+        } else vsync();
+    }
+}
+
+IWRAM_CODE static void drawClassicPanel(void){
+    fillCols(SCENE_W,ROW_W,PANEL);
+    text(130,5,"BORE",RGB(31,26,6),2);
+    text(130,17,"VOXEL DEMO",RGB(14,16,18),1);
+    for(int i=0;i<NENT;i++){
+        int y=28+i*6, go=(i>=NPARTS);
+        if(i==part){ rect(128,y-1,108,6,go?RGB(16,10,2):RGB(6,16,8)); text(130,y,">",RGB(31,31,31),1); }
+        text(137,y,go?(i==NPARTS?"GO LIVE LIFE!":i==NPARTS+1?"EDIT MAP":"MAIN MENU"):parts[i].name,i==part?(go?RGB(31,26,6):RGB(31,31,31)):(go?RGB(24,20,6):RGB(18,20,22)),1);
+        if(i==part&&!go&&parts[i].dk) text(190,y,spr[SPRID(parts[i].dk-1)].name,RGB(31,26,6),1);
+    }
+    text(130,101,"SIZE",RGB(18,20,22),1);
+    const char*sn[3]={"S","M","L"};
+    for(int i=0;i<3;i++){
+        int x=156+i*16; rect(x,99,12,9,i==size-1?RGB(6,16,8):RGB(2,3,5));
+        text(x+4,101,sn[i],RGB(31,31,31),1);
+    }
+    text(130,113,"X",RGB(18,20,22),1); num(136,113,cx,RGB(31,31,31));
+    text(148,113,"Y",RGB(18,20,22),1); num(154,113,cy,RGB(31,31,31));
+    text(166,113,"Z",RGB(18,20,22),1); num(172,113,cz,(part<NPARTS&&parts[part].dk)?RGB(12,14,16):RGB(31,31,31));   // sprites ignore Z
+    u16 hc=RGB(12,14,16);
+    if(part>=NPARTS){ text(130,123,"PRESS A TO OPEN",RGB(31,26,6),1); text(130,131,"SELECT NEXT ENTRY",hc,1); }
+    else {
+    text(130,123,"DPAD X Z  L R UP DN",hc,1); text(130,129,"A PLACE B ERASE",hc,1);
+    text(130,135,"START SIZE  SEL PART",hc,1); text(130,141,"SEL+UP DN FACE",hc,1);
+    text(130,147,"SEL+A SKIN  B HAIR",hc,1); text(130,153,"SEL+L R TURN VIEW",hc,1);
+    }
+}
+
+
+// ---------- the classic creature screen (the original editor, kept as a secret) ----------
+static int creatorClassic(void){   // returns 1 when the secret code switched screens, 0 when leaving
+    stageOn=0;
+    u16 prev=keyNow(); int hold[10]={0}, frame=0, dirty=1, lastBlink=-1, comboUsed=(keyNow()&K_SEL)?1:0;
+    for(;;){
+        u16 k=keyNow(), pressed=k&~prev, released=prev&~k; prev=k;
+        for(int i=0;i<10;i++) hold[i]=(k>>i&1)?hold[i]+1:0;
+        #define TRIG(m,i) ((pressed&(m))||(hold[i]>14&&(hold[i]&3)==0))
+        if(sUnlock&&comboSS(k,pressed)){ sClassic=0; settingsSave(); return 1; }
+        int sel=k&K_SEL;
+        if(sel){
+            if(pressed&K_A){ look[LK_SKIN]=(look[LK_SKIN]+1)%NSW; setColors(); comboUsed=1; dirty=1; }
+            if(pressed&K_B){ look[LK_HCOL]=(look[LK_HCOL]+1)%NSW; setColors(); comboUsed=1; dirty=1; }
             if(pressed&K_R){ part=(part+1)%NENT; comboUsed=1; dirty=1; }
             if(pressed&K_L){ part=(part+NENT-1)%NENT; comboUsed=1; dirty=1; }
             if(pressed&K_RIGHT){ view=(view+1)&3; comboUsed=1; dirty=1; }
             if(pressed&K_LEFT){ view=(view+3)&3; comboUsed=1; dirty=1; }
             if(pressed&(K_UP|K_DOWN)){
                 comboUsed=1;
-                if(part<NPARTS&&parts[part].dk){ int kd=parts[part].dk-1; sty[kd]=(sty[kd]+((pressed&K_UP)?1:2))%3; dirty=1; }
+                if(part<NPARTS&&parts[part].dk){ int kd=parts[part].dk-1; sty[kd]=(sty[kd]+((pressed&K_UP)?1:2))%3; look[LK_EYES]=sty[0]%3; look[LK_MOUTH]=sty[1]%3; dirty=1; }
             }
         } else {
             if(TRIG(K_RIGHT,4)){moveView(1,0);dirty=1;} if(TRIG(K_LEFT,5)){moveView(-1,0);dirty=1;}
             if(TRIG(K_UP,6)){moveView(0,-1);dirty=1;}     if(TRIG(K_DOWN,7)){moveView(0,1);dirty=1;}
             if(TRIG(K_R,8)){cy++;dirty=1;}      if(TRIG(K_L,9)){cy--;dirty=1;}
             if(pressed&K_A){
-                if(part==NPARTS){ lifeMode(0); if(gToMenu) return; }
+                if(part==NPARTS){ lifeMode(0); if(gToMenu) return 0; }
                 else if(part==NPARTS+1) mapEditor();
-                else if(part==NPARTS+2) return;   // MAIN MENU
-                else doPart(1,part,size,cx,cy,cz);
+                else if(part==NPARTS+2) return 0;   // MAIN MENU
+                else { doPart(1,part,size,cx,cy,cz); custom=1; }
                 prev=keyNow(); dirty=1;
             }
-            if(pressed&K_B){ if(part<NPARTS) doPart(2,part,size,cx,cy,cz); dirty=1; }
+            if(pressed&K_B){ if(part<NPARTS){ doPart(2,part,size,cx,cy,cz); custom=1; } dirty=1; }
         }
         if(released&K_SEL){ if(!comboUsed){ part=(part+1)%NENT; dirty=1; } comboUsed=0; }
         if(pressed&K_START){ size=size%3+1; dirty=1; }
@@ -1626,12 +1982,15 @@ static void creatureEditor(void){
             gAny=0;
             if(part<NPARTS){ doPart(0,part,size,cx,cy,cz);
             if(parts[part].dk&&!gAny) ghost[cy][cz][cx]=1; }   // nothing solid under the cursor: show a marker cube
-            drawScene(blink,dirty); if(dirty) present(); else presentScene();   // blink-only: scene columns only
+            drawScene(blink); if(dirty){ drawClassicPanel(); present(); } else presentScene();   // blink-only: scene columns only
             dirty=0; lastBlink=blink;
         } else vsync();
         frame++;
     }
 }
+
+
+static void creatureEditor(void){ for(;;){ int sw=(sUnlock&&sClassic)?creatorClassic():creatorNew(); if(!sw) break; } }   // main menu entry: the new creator, or the classic one once the code has been entered
 
 // ---------- jukebox ----------
 // Listen to the songs in source/songs.h. The playlist (jukebox.h) is shuffled once and the shuffle is saved, so the song set
@@ -1655,45 +2014,77 @@ static void jbStartSlot(int slot){   // play playlist slot (remembered in SRAM s
     const Song*sg=&songs[jbSong(slot)];
     musBegin(sg->adp?1:0,sg->adp,sg->xm); jbPlaying=1;
 }
-static void jbHead(void){   // title, equalizer, mode, now playing, progress bar
-    fillBox(0,SW,0,JB_LY,JB_BG);
-    text(8,5,"JUKEBOX",GOLD,2);
-    for(int b=0;b<6;b++){ int h=jbPlaying?2+((rnd8()*13)>>8):1; rect(196+b*6,19-h,4,h,jbPlaying?RGB(10,26,10):RGB(10,12,16)); }
-    text(8,22,"MODE",DIMC,1); text(34,22,jbModeNm[sJb],GOLD,1);
-    if(jbMsgT>0) text(110,22,jbMsg,WHITE,1);
-    else { text(110,22,"TRACK",DIMC,1); int x=numAt(110+tw("TRACK",1)+4,22,jbPos+1,WHITE); x=text(x+4,22,"OF",DIMC,1); numAt(x+4,22,jbN,WHITE); }
-    text(8,32,"NOW",DIMC,1);
-    if(!sSnd) text(28,32,"SOUND IS OFF IN SETTINGS",RGB(30,10,8),1);
-    else text(28,32,songs[jbSong(jbPos)].name,WHITE,1);
-    int pct=!mOn?0:mKind?(int)(aPos/(aN/100+1)):mOrd*100/mSong->nord; if(pct>100) pct=100;
-    u16 gc=jbPlaying?RGB(12,28,10):DIMC;
-    rect(8,42,160,4,RGB(8,10,14)); rect(8,42,pct*160/100,4,gc);
-    text(176,41,jbPlaying?"PLAYING":"STOPPED",gc,1);
+// Look: dark navy gradient with gold side rails, readable plain text (no jitter or fading), a segmented equalizer, a pill for the
+// mode, a green NOW tag, a progress bar with a playhead, banded list rows, and key-cap hints at the bottom.
+#define JB_GOLD2 RGB(14,11,3)
+#define JB_GREEN RGB(14,30,12)
+#define JB_TXT   RGB(22,24,28)
+static u8 jbEq[12];
+static void jbFill(int y0,int y1){   // gradient background + gold rails for rows y0..y1
+    for(int y=y0;y<y1;y++) fillBox(0,SW,y,y+1,RGB(2+y/55,3+y/38,9+y/14));
+    rect(0,y0,2,y1-y0,JB_GOLD2); rect(SW-2,y0,2,y1-y0,JB_GOLD2);
 }
-static void jbList(int cur){   // the playlist in play order: > cursor, + playing
-    fillBox(0,SW,JB_LY,JB_LY+JB_LH,JB_BG);
+static void jbNote(int x,int y,u16 c){ rect(x,y+8,4,3,c); rect(x+3,y,1,9,c); rect(x+4,y,3,1,c); rect(x+6,y+1,1,3,c); }   // a little eighth note
+static void jbHead(void){   // title, equalizer, mode, now playing, progress bar
+    jbFill(0,JB_LY);
+    text(9,6,"JUKEBOX",RGB(10,7,1),2); int tx=text(8,5,"JUKEBOX",GOLD,2);
+    jbNote(tx+6,4,JB_GOLD2); jbNote(tx+14,6,GOLD);
+    for(int b=0;b<12;b++){                     // segmented equalizer: green, then yellow, then red at the top
+        int e=jbEq[b], t=jbPlaying?2+((rnd8()*16)>>8):1;
+        e=(t>e)?t:(e>3?e-3:(e>1?e-1:1)); jbEq[b]=(u8)e;
+        int x=150+b*7;
+        if(!jbPlaying){ rect(x,20,5,1,RGB(8,10,16)); continue; }
+        for(int k=0;k*3<e;k++){ int sh=(e-k*3>3)?2:(e-k*3>2?2:e-k*3); if(sh<1) sh=1;
+            u16 c=k<3?RGB(8,26,8):k<4?RGB(28,26,5):RGB(30,9,6); rect(x,19-k*3-(sh-1),5,sh,c); }
+    }
+    int mx=text(8,22,"MODE",DIMC,1)+3; int vw=tw(jbModeNm[sJb],1);
+    rect(mx,21,vw+7,9,RGB(14,10,2)); rect(mx,21,vw+7,1,RGB(24,19,5)); text(mx+3,22,jbModeNm[sJb],GOLD,1);
+    if(jbMsgT>0) text(140,22,jbMsg,WHITE,1);
+    else { int x=text(140,22,"TRACK",DIMC,1)+3; x=numAt(x,22,jbPos+1,WHITE); x=text(x+3,22,"OF",DIMC,1); numAt(x+3,22,jbN,WHITE); }
+    rect(8,31,22,9,RGB(6,16,8)); text(11,32,"NOW",JB_GREEN,1);
+    if(!sSnd) text(36,32,"SOUND IS OFF IN SETTINGS",RGB(30,10,8),1);
+    else text(36,32,songs[jbSong(jbPos)].name,WHITE,1);
+    int pct=!mOn?0:mKind?(int)(aPos/(aN/100+1)):mOrd*100/mSong->nord; if(pct>100) pct=100;
+    int fw=pct*162/100; u16 gd=jbPlaying?RGB(8,22,8):RGB(10,12,18), gl=jbPlaying?RGB(14,30,12):RGB(14,16,22);
+    rect(8,44,162,5,RGB(7,9,15)); rect(8,44,fw,5,gd); rect(8,44,fw,2,gl);
+    if(fw>0&&jbPlaying) rect(8+fw-1,42,3,9,WHITE);
+    if(jbPlaying){ for(int k=0;k<4;k++) rect(178+k,43+k,1,7-2*k,JB_GREEN); text(187,43,"PLAYING",JB_GREEN,1); }
+    else { rect(178,44,5,5,RGB(14,16,22)); text(187,43,"STOPPED",RGB(14,16,22),1); }
+    rect(8,49,224,1,JB_GOLD2);
+}
+static void jbList(int cur){   // the playlist in play order: triangle = cursor, bars = playing
+    jbFill(JB_LY,JB_LY+JB_LH);
     int top=cur-JB_ROWS/2; if(top>jbN-JB_ROWS) top=jbN-JB_ROWS; if(top<0) top=0;
     for(int r=0;r<JB_ROWS&&top+r<jbN;r++){
-        int slot=top+r, y=JB_LY+3+r*9; u16 c=(slot==cur)?WHITE:DIMC;
-        if(slot==cur){ fillBox(6,228,y-2,y+7,RGB(6,16,8)); text(8,y,">",WHITE,1); }
-        if(slot==jbPos&&jbPlaying) text(14,y,"+",GOLD,1);
-        numAt(22,y,slot+1,c); text(36,y,songs[jbSong(slot)].name,c,1);
+        int slot=top+r, y=JB_LY+3+r*9, sel=(slot==cur), pl=(slot==jbPos&&jbPlaying);
+        if(sel){ fillBox(6,228,y-2,y+7,RGB(7,18,9)); fillBox(8,228,y-2,y-1,RGB(12,26,13)); rect(6,y-2,2,9,GOLD); }
+        else if(r&1) fillBox(6,228,y-2,y+7,RGB(5,7,16));
+        if(sel){ rect(10,y,1,5,WHITE); rect(11,y+1,1,3,WHITE); rect(12,y+2,1,1,WHITE); }
+        if(pl){ rect(15,y+3,1,3,GOLD); rect(17,y+1,1,5,GOLD); rect(19,y+4,1,2,GOLD); }
+        numAt(24,y,slot+1,sel?GOLD:RGB(14,16,20));
+        text(38,y,songs[jbSong(slot)].name,sel?WHITE:pl?JB_GREEN:JB_TXT,1);
     }
     if(jbN>JB_ROWS){   // scroll bar
         int th=JB_ROWS*9*JB_ROWS/jbN, ty=JB_LY+3+(JB_ROWS*9-th)*top/(jbN-JB_ROWS);
-        rect(233,JB_LY+3,2,JB_ROWS*9,RGB(8,10,14)); rect(233,ty,2,th,GOLD);
+        rect(233,JB_LY+3,2,JB_ROWS*9,RGB(8,10,16)); rect(233,ty,2,th,GOLD);
     }
+}
+static int jbKey(int x,int y,const char*k){   // a little key cap, returns the x after it
+    int w=tw(k,1)+5; rect(x,y-2,w,10,RGB(22,18,5)); rect(x+1,y-1,w-2,8,RGB(8,9,15)); text(x+3,y,k,GOLD,1); return x+w+2;
+}
+static int jbLab(int x,int y,const char*t){ return text(x,y,t,RGB(20,22,26),1)+7; }
+static void jbFoot(void){
+    int x=8; x=jbKey(x,130,"UP"); x=jbKey(x,130,"DOWN"); x=jbLab(x,130,"PICK"); x=jbKey(x,130,"A"); x=jbLab(x,130,"PLAY");
+    x=jbKey(x,130,"L"); x=jbKey(x,130,"R"); jbLab(x,130,"PREV NEXT");
+    x=8; x=jbKey(x,140,"START"); x=jbLab(x,140,"STOP OR PLAY"); x=jbKey(x,140,"SELECT"); jbLab(x,140,"RESHUFFLE");
+    x=8; x=jbKey(x,150,"LEFT"); x=jbKey(x,150,"RIGHT"); x=jbLab(x,150,"MODE"); x=jbKey(x,150,"B"); jbLab(x,150,"BACK");
 }
 static void jukeboxScreen(void){
     int cur=jbPos, dH=1, dL=1, pend=0, fr=0; u16 prev=keyNow();
     jbMsgT=0; jbPlaying=0;
     if(sSnd) jbStartSlot(jbPos);                          // opening the jukebox starts the song the playlist is on
-    fillBox(0,SW,0,SH,JB_BG);
-    jbHead(); jbList(cur);
-    u16 hint=RGB(16,18,20);
-    text(8,130,"UP DOWN PICK  A PLAY  L R PREV NEXT",hint,1);
-    text(8,137,"START STOP OR PLAY  SELECT RESHUFFLE",hint,1);
-    text(8,144,"LEFT RIGHT MODE  B BACK",hint,1);
+    jbFill(0,SH);
+    jbHead(); jbList(cur); jbFoot();
     vsync(); dmaRows(fb,VRAM_ADDR,0,ROW_W,0,SH); dH=dL=0;
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; fr++;
@@ -1722,9 +2113,9 @@ static void jukeboxScreen(void){
 }
 
 // ---------- main menu ----------
-static const char* const mmName[6]={"PLAY","MAKE CREATURE","BUILD ROOM","JUKEBOX","SETTINGS","HOW TO PLAY"};
-static const char* const mmDesc[6]={"WALK AND SKATE AROUND YOUR ROOM","DESIGN YOUR OWN VOXEL CHARACTER","BUILD WALLS AND LAY FLOORS AND WALLPAPER","LISTEN  PICK  OR SHUFFLE THE SONGS","FRAME RATE AND OTHER SPEED OPTIONS","LEARN THE CONTROLS"};
-static const char* const guideItems[4]={"PLAYING","MAKE CREATURE","BUILD ROOMS","JUKEBOX"};
+static const char* const mmName[7]={"PLAY","MAKE CREATURE","BUILD ROOM","ROOM SLOTS","JUKEBOX","OPTIONS","HOW TO PLAY"};
+static const char* const mmDesc[7]={"WALK AND SKATE AROUND YOUR ROOM","DESIGN YOUR OWN VOXEL CHARACTER","BUILD WALLS AND LAY FLOORS AND WALLPAPER","SAVE AND LOAD ROOMS  PEOPLE AND LIVES","LISTEN  PICK  OR SHUFFLE THE SONGS","SPEED  GAMEPLAY  SOUND  BUTTONS AND MORE","LEARN THE CONTROLS"};
+static const char* const guideItems[6]={"PLAYING","MAKE CREATURE","BUILD ROOMS","JUKEBOX","ROOM SLOTS","OPTIONS"};
 static const char* const jbHelp[10]={">LISTEN","UP DOWN PICK A SONG  A PLAY IT","L R PREVIOUS OR NEXT SONG","START STOPS OR PLAYS AGAIN",">ORDER","LEFT RIGHT SHUFFLE  IN ORDER  REPEAT ONE","SELECT MAKES A NEW SHUFFLE  SAVED","THE SHUFFLE STAYS THE SAME EVERY BOOT",">LEAVE","B GOES BACK TO THE MENU"};
 static void drawMainMenu(int sel){
     for(int y=0;y<SH;y++){ u16 c=RGB(2+y/50,3+y/36,9+y/13); u32 v=c|((u32)c<<16), *row=(u32*)fb+y*ROW_W; for(int w=0;w<ROW_W;w++) row[w]=v; }
@@ -1736,9 +2127,9 @@ static void drawMainMenu(int sel){
     { int ox=206, oy=92;
       cube(ox,oy,1,0,1); cube(ox,oy-CC,4,0,3); cube(ox,oy-2*CC,8,0,2);
       cube(ox+CA,oy+CB,6,0,0); cube(ox-CA,oy+CB,7,0,0); cube(ox,oy+2*CB,2,0,0); }
-    for(int i=0;i<6;i++){
-        int y=48+i*13;
-        if(i==sel){ rect(10,y-3,150,14,RGB(6,16,8)); rect(10,y-3,2,14,GOLD); text(16,y,">",WHITE,2); }
+    for(int i=0;i<7;i++){
+        int y=47+i*12;
+        if(i==sel){ rect(10,y-2,150,12,RGB(6,16,8)); rect(10,y-2,2,12,GOLD); text(16,y,">",WHITE,2); }
         text(28,y,mmName[i],i==sel?WHITE:DIMC,2);
     }
     rect(0,134,SW,26,PANEL);
@@ -1748,16 +2139,17 @@ static void mainMenu(void){
     int sel=0, dirty=1; u16 prev=keyNow();
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k;
-        if(pr&K_DOWN){ sel=(sel+1)%6; dirty=1; }
-        if(pr&K_UP){ sel=(sel+5)%6; dirty=1; }
+        if(pr&K_DOWN){ sel=(sel+1)%7; dirty=1; }
+        if(pr&K_UP){ sel=(sel+6)%7; dirty=1; }
         if(pr&(K_A|K_START)){
             if(sel==0) lifeMode(0);
             else if(sel==1) creatureEditor();
             else if(sel==2) mapEditor();
-            else if(sel==3) jukeboxScreen();
-            else if(sel==4) settingsScreen();
-            else { int g=menu("HOW TO PLAY",guideItems,4);
-                   if(g==0) helpScreen("PLAYING",lifeHelp,12); else if(g==1) helpScreen("MAKE CREATURE",creatureHelp,13); else if(g==2) helpScreen("BUILD ROOMS",mapHelp,12); else if(g==3) helpScreen("JUKEBOX",jbHelp,10); }
+            else if(sel==3) slotScreen();
+            else if(sel==4) jukeboxScreen();
+            else if(sel==5) settingsScreen();
+            else { int g=menu("HOW TO PLAY",guideItems,6);
+                   if(g==0) helpScreen("PLAYING",lifeHelp,16); else if(g==1) helpScreen("MAKE CREATURE",creatureHelp,15); else if(g==2) helpScreen("BUILD ROOMS",mapHelp,12); else if(g==3) helpScreen("JUKEBOX",jbHelp,10); else if(g==4) helpScreen("ROOM SLOTS",slotHelp,11); else if(g==5) helpScreen("OPTIONS",optHelp,11); }
             gToMenu=0; prev=keyNow(); dirty=1; continue;
         }
         if(dirty){ drawMainMenu(sel); present(); dirty=0; } else vsync();
@@ -1767,11 +2159,13 @@ static void mainMenu(void){
 int main(void){
     REG_WAITCNT=0x4317;  // ROM 3/1 waits + prefetch (power-on default is 4/2, no prefetch)
     REG_DISPCNT=0x0403;  // mode 3, BG2 on
-    initTables(); setColors(); settingsLoad(); applyRom();
+    initTables(); setColors(); settingsLoad(); optsLoad(); applyRom();
     lrng^=(u32)titleScreen()*2654435761u;   // time spent on the title seeds the random numbers (first shuffle)
-    jbInit(NSONGS);                         // load the saved shuffled order (or make a new one)
+    if(konMsg) toast(konMsg==2?"CLASSIC CREATOR UNLOCKED":"CLASSIC CREATOR LOCKED");
+    jbSetup();                              // load the saved shuffled order (or make a new one), placeholders hidden
     starter();
     mapReset(); mapLoad();   // default room, or the one saved to SRAM
+    slotBoot();              // BOOT LOADS PERSON option: the creature of the active room slot
     mainMenu();
     return 0;
 }
