@@ -1165,43 +1165,33 @@ static void settingsScreen(void){
     }
 }
 
+static const signed char hdT[3][3]={{10,12,14},{8,-1,0},{6,4,2}};   // [sign dy+1][sign dx+1] -> heading (16 steps), -1 = keep
+#include "feel.h"
 static void lifeInit(void){
     mapScan(); bakeSprites(); camSnap=1;
-    lfx=spx*256+128; lfy=spy*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote=""; lskate=0; lhave=(bdx<0); lfr=0; lvx=lvy=0; ldead=0; lmaxz=0; lplay=0; lbumpCd=0; lfood=100; lbl=0; lnear=0; sfxStop();
+    lfx=spx*256+128; lfy=spy*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote=""; lskate=0; lhave=(bdx<0); lfr=0; lvx=lvy=0; ldead=0; lmaxz=0; lplay=0; lbumpCd=0; lfood=100; lbl=0; lnear=0; sfxStop(); feelReset(0);
 }
-static const signed char hdT[3][3]={{10,12,14},{8,-1,0},{6,4,2}};   // [sign dy+1][sign dx+1] -> heading (16 steps), -1 = keep
 static void lifeStep(u16 k,u16 pr,int fr){
     int fh=tileH(lfx>>8,lfy>>8)<<8;
     if(ldead){   // dead: frozen until A
         lstun=2;
-        if(pr&K_A){ ldead=0; lstun=0; lfx=spx*256+128; lfy=spy*256+128; lz=0; lvz=0; lskate=0; lsp=0; lgrind=0; lspin=0; lflip=0; lairF=0; lmaxz=0; lplay=0; lnoteT=0; lfood=100; lbl=0; sfxStop(); }
+        if(pr&K_A){ ldead=0; lstun=0; lfx=spx*256+128; lfy=spy*256+128; lz=0; lvz=0; lskate=0; lsp=0; lgrind=0; lspin=0; lflip=0; lairF=0; lmaxz=0; lplay=0; lnoteT=0; lfood=100; lbl=0; sfxStop(); feelReset(0); }
     }
     if(lstun>0){ lstun--; lsp=0; lvx=lvy=0; }
     else {
         if((pr&K_L)&&!lhave){ lnote="FIND A BOARD"; lnoteT=40; }
         if((pr&K_L)&&lhave&&lz<=fh){   // L: swap between on-foot (walk/run) and skateboard
-            lskate=!lskate; lsp=0; lgrind=0; lspin=0; lflip=0; lnote=lskate?"SKATE":"ON FOOT"; lnoteT=40;
+            lskate=!lskate; lsp=0; lgrind=0; lspin=0; lflip=0; feelReset(lhd); lnote=lskate?"SKATE":"ON FOOT"; lnoteT=40;
         }
+        feelSync(); feelTick(lz<=fh,(pr&K_B)!=0&&lskate&&(lz<=fh||F.coy>0));
         if(lskate){
-            if(lz<=fh){                                        // on the ground (or on a rail)
-                if((fr&3)==0){ if(k&K_LEFT) lhd=(lhd+15)&15; if(k&K_RIGHT) lhd=(lhd+1)&15; }
-                if(k&K_A){ if((fr&3)==0&&lsp<24) lsp++; } else if(lsp>0&&(fr&7)==0) lsp--;   // push / coast
-                if((k&K_DOWN)&&lsp>0&&(fr&1)==0) lsp--;                                       // brake
-                if(lgrind&&lsp<12) lsp=12;                                                     // rails keep you rolling
-                if(pr&K_B){ lvz=0x380; lgrind=0; }                                             // ollie
-            } else {                                                                           // airborne
-                if((fr&3)==0){ if(k&K_LEFT) lspin--; if(k&K_RIGHT) lspin++; }                  // spin: 16 steps = 360 deg
-                if((pr&K_B)&&!lflip){ lflip=1; lnote="KICKFLIP"; lnoteT=40; }
-            }
-            lvx=(lsp*cosT[lhd])/256; lvy=(lsp*cosT[(lhd+12)&15])/256;
+            if(lz<=fh||(F.coy>0&&lvz<=0)){                     // on the ground (or a rail), incl. coyote frames
+                feelSteer(k); feelPush(k,lgrind);
+                if(F.buf>0){ lvz=feelOllie(); lgrind=0; }      // ollie (buffered, variable height)
+            } else feelAir(k,pr,(lz-fh)<(8<<8));               // airborne
+            feelVel(); lspin=F.spin>>4;
         } else {
-            // on foot: D-pad moves relative to the screen (up = away from camera), B held = run, A = hop
-            int ux=((k&K_RIGHT)?1:0)-((k&K_LEFT)?1:0), uy=((k&K_DOWN)?1:0)-((k&K_UP)?1:0);
-            int dx=ux+uy, dy=uy-ux, spd=(k&K_B)?10:5;
-            if(ux&&uy) spd=(spd*3)/4;                          // diagonals cover the same ground
-            lvx=dx*spd; lvy=dy*spd; lsp=(dx||dy)?spd:0;
-            if(dx||dy){ int h=hdT[(dy>0)-(dy<0)+1][(dx>0)-(dx<0)+1]; if(h>=0) lhd=h; }
-            if((pr&K_A)&&lz<=fh) lvz=0x300;
+            feelWalk(k,pr,lz<=fh);                             // D-pad relative to screen, B = run, A = hop
         }
     }
     int zp=(int)(lz>>8);
@@ -1222,12 +1212,12 @@ static void lifeStep(u16 k,u16 pr,int fr){
         int zz=(int)(lz>>8); if(zz>lmaxz) lmaxz=zz;
         if(!lplay&&lvz<0){ int hi=lmaxz-(int)(fh>>8);
             if(hi>=34){ sfxPlay(SFX_SCREAM); lplay=1; }                 // falling from way up
-            else if((lspin&7)&&hi>=10){ sfxPlay(SFX_GASP); lplay=1; }   // landing is going wrong
+            else if(!feelClean()&&hi>=10){ sfxPlay(SFX_GASP); lplay=1; }   // landing is going wrong
         }
     }
     if(lairF&&!air){                                   // just landed
-        int a=lspin<0?-lspin:lspin, pts=(a>>3)*180+(lflip?100:0);
-        int drop=lmaxz-(int)(lz>>8), sp0=lsp, bail=(lspin&7)!=0;
+        int pts=feelHalfTurns()*180+(lflip?100:0)+feelGrabPts();
+        int drop=lmaxz-(int)(lz>>8), sp0=lsp, bail=!feelClean();
         if(bail){ lnote="BAIL"; lnoteT=60; lsp=0; lstun=45; lgrind=0; }
         else{
             if(pts){ lscore+=pts; lpts=pts; lnote="NICE"; lnoteT=60; lcN++; lcPts+=pts; lcT=150; }
@@ -1235,7 +1225,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
         }
         if(bail) hurt(drop/2+sp0+(rnd8()>>5),1);        // bad landing: harder/faster/higher = worse
         else if(drop>24) hurt(drop-24+(rnd8()>>5),0);   // big drops hurt even landed clean
-        lspin=0; lflip=0;
+        lspin=0; lflip=0; feelLandReset();
     }
     if(!air){ lmaxz=(int)(lz>>8); lplay=0; }
     lairF=air;
@@ -1301,7 +1291,7 @@ static void camClamp(int ed){
     if(camX<xl) camX=xl; if(camX>xh) camX=xh; if(camY<yl) camY=yl; if(camY>yh) camY=yh;
 }
 static void camFollow(int snap){   // keep the skater near the middle of the screen, eased so it stays steady
-    s32 rfx,rfy; rotPos(lfx,lfy,&rfx,&rfy);
+    s32 rfx,rfy; rotPos(lfx+(lskate?lvx*14:0),lfy+(lskate?lvy*14:0),&rfx,&rfy);   // look ahead of the skater
     int ox=camX, oy=camY; camX=(int)((rfx-rfy)>>5); camY=(int)((rfx+rfy)>>6)-76; camClamp(0);
     int tx=camX, ty=camY; camX=ox; camY=oy;
     if(cview!=camLastV){ camLastV=cview; snap=1; }
