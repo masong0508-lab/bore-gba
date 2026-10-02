@@ -594,13 +594,14 @@ static void sfxStop(void){ R_DMA1CNT=0; R_TM0CNT=0; R_TM1CNT=0; sfxOn=0; }
 #define TX_Y1 147
 // ---------- tracker songs: note-based XM player (tools/xm2gba.py converts the .xm songs listed in songs.h) ----------
 // A song is stored as notes (pattern/row/channel events, each with its own volume) plus small instrument samples (8-bit,
-// band-limited and down-sampled in the converter). A 10-voice mixer with linear interpolation renders 304 samples per frame
-// into Direct Sound B (DMA2 + Timer0, restarted every vblank). The title song plays its intro once, then orders loop.. repeat
+// band-limited and down-sampled in the converter). A 16-voice stereo mixer (each note has a pan bus, see tools/xm2gba.py) with linear interpolation renders 304 samples per frame
+// into Direct Sound A (left, DMA1) and B (right, DMA2), both on Timer0, restarted every vblank. The title song plays its intro once, then orders loop.. repeat
 // (loop = per-song loop order); the voices are never cut at the loop jump, so the last notes ring into the first ones.
 typedef int8_t s8; typedef int16_t s16;
 typedef struct {            // one converted tracker song (generated into musicdata.h)
     const u8*order; const u16*rows; const u32*patOff; const u32*ev;   // order list, rows per pattern, pattern start in ev, note events
     const u32*step; const u32*len; const s8*const*data;               // per instrument: 96 note steps, sample length, sample data
+    const u8*busL; const u8*busR;                                     // 7 pan buses: left / right gain (128 = 1.0), balanced per song by the converter
     int nord, loop, rowN, rfr;                                        // orders in the song, loop order, samples per row (+ fraction/256)
 } XmSong;
 #include "musicdata.h"
@@ -609,10 +610,12 @@ typedef struct {            // one converted tracker song (generated into musicd
 #define R_DMA2CNT (*(volatile u32*)0x040000D0)
 #define MUS_N 304   // samples per frame at 18157 Hz (924 cycles each = exactly one frame)
 #define MUS_VOICES 16   // tracker channels the mixer can play at once
-typedef struct { const s8*d; u32 pos,step,len; int vol; } MVoice;
+typedef struct { const s8*d; u32 pos,step,len; int vl,vr; } MVoice;   // vl / vr = note volume x left / right pan-bus gain
 static MVoice mvc[MUS_VOICES];
-static s8 mbuf[2][MUS_N] __attribute__((aligned(4)));
-static s16 macc[MUS_N];
+// STEREO: Direct Sound A plays the left buffers, Direct Sound B the right ones; both are fed by Timer0 and restarted together at vblank.
+static s8 mbufL[2][MUS_N] __attribute__((aligned(4))), mbufR[2][MUS_N] __attribute__((aligned(4)));
+static s16 maccL[MUS_N], maccR[MUS_N];
+static s8 mDly[256]; static int mDp, mLp;   // pseudo-stereo for streamed songs: 256-sample (14 ms) delay line + a low-pass state that keeps the bass centred
 static int mOrd, mRow, mLeft, mFrac; static volatile int mCur, mOn, mFilled; static const XmSong*mSong;
 static int mKind, aTail; static volatile int mLaps, mDone;   // mKind 0 = tracker song, 1 = streamed ADPCM; mLaps = times the tracker song has wrapped; mDone = ADPCM song finished
 static int aSlow, aPrv, aPh; static const u8 *aSrc; static u32 aN, aPos; static int aPred, aIdx;   // ADPCM stream: data, sample count, position, decoder state
@@ -621,30 +624,33 @@ static void musTrigger(void){
     for(int r=0;r<mRow;r++) e+=1+*e;
     int n=*e++;
     while(n--){ u32 w=*e++; int ch=w&15, in=(w>>4)&31, nt=(w>>9)&127, vol=(w>>16)&127;   // channel, instrument, note, voice volume
-        MVoice*v=&mvc[ch]; v->d=s->data[in]; v->pos=0; v->step=s->step[in*96+nt]; v->len=s->len[in]<<16; v->vol=vol; }
+        int bus=(w>>23)&7; if(bus>6) bus=3;   // pan bus 0 = hard left .. 3 = centre .. 6 = hard right
+        MVoice*v=&mvc[ch]; v->d=s->data[in]; v->pos=0; v->step=s->step[in*96+nt]; v->len=s->len[in]<<16; v->vl=vol*s->busL[bus]; v->vr=vol*s->busR[bus]; }
 }
-IWRAM_CODE static void musMix(s8*out){
+IWRAM_CODE static void musMix(s8*outL,s8*outR){
     int done=0;
     while(done<MUS_N){
         if(mLeft==0){ musTrigger(); mFrac+=mSong->rfr; mLeft=mSong->rowN+(mFrac>>8); mFrac&=255;
             if(++mRow>=mSong->rows[mSong->order[mOrd]]){ mRow=0; if(++mOrd>=mSong->nord){ mOrd=mSong->loop; mLaps++; } } }
         int n=MUS_N-done; if(n>mLeft) n=mLeft;
-        s16*a=macc+done;
-        for(int i=0;i<n;i++) a[i]=0;
+        s16*a=maccL+done; s16*b=maccR+done;
+        for(int i=0;i<n;i++){ a[i]=0; b[i]=0; }
         for(int vi=0;vi<MUS_VOICES;vi++){ MVoice*v=&mvc[vi]; if(!v->d) continue;
-            u32 pos=v->pos, st=v->step, len=v->len; const s8*d=v->d; int vol=v->vol, i=0;
+            u32 pos=v->pos, st=v->step, len=v->len; const s8*d=v->d; int vl=v->vl, vr=v->vr, i=0;
             for(;i<n;i++){
                 if(pos>=len){ v->d=0; break; }
                 int ix=(int)(pos>>16), fr=(int)((pos>>8)&255), x0=d[ix], x1=d[ix+1];
-                a[i]=(s16)(a[i]+(((x0*256+(x1-x0)*fr)*vol)>>14)); pos+=st; }
+                int x=x0*256+(x1-x0)*fr;                      // one interpolated sample, 16-bit scale
+                a[i]=(s16)(a[i]+((x*vl)>>21)); b[i]=(s16)(b[i]+((x*vr)>>21)); pos+=st; }   // (>>21 = the old >>14 with the 1/128 bus gain folded in)
             v->pos=pos; }
         mLeft-=n; done+=n;
     }
-    for(int i=0;i<MUS_N;i++){ int x=macc[i]>>2; out[i]=(s8)(x>127?127:x<-128?-128:x); }
+    for(int i=0;i<MUS_N;i++){ int x=maccL[i]>>2, y=maccR[i]>>2;
+        outL[i]=(s8)(x>127?127:x<-128?-128:x); outR[i]=(s8)(y>127?127:y<-128?-128:y); }
 }
 // Streamed ADPCM song (source/music/*.adp from tools/encode_song.py): 4-bit IMA-ADPCM, 18157 Hz, so one frame = 304 samples.
 // Same format as the sound effects: u32 sample count, then nibbles (low first). Decoded straight into the DMA buffer.
-IWRAM_CODE static void adpMix(s8*out){
+IWRAM_CODE static void adpMix(s8*out,s8*outR){
     // bit 31 of the sample count = song stored at 2/3 rate (12105 Hz): every 2 stored samples become 3 output samples (linear interpolation)
     u32 p=aPos, e=aN; int pred=aPred, idx=aIdx, i=0; const u8*d=aSrc;
     int prv=aPrv, ph=aPh;
@@ -671,9 +677,18 @@ IWRAM_CODE static void adpMix(s8*out){
     }
     for(;i<MUS_N;i++) out[i]=0;
     aPos=p; aPred=pred; aIdx=idx; aPrv=prv; aPh=ph;
+    // Pseudo-stereo (complementary comb): L = 0.75x + 0.5z, R = 0.75x - 0.5z, where z is the high part of x delayed by 14 ms. L+R is exactly the
+    // original mono signal (so it also sounds right on the GBA's mono speaker); the ears get different comb patterns = width.
+    // The one-pole low-pass is subtracted from z so bass and kick stay in the middle.
+    int dp=mDp, lp=mLp;
+    for(int k=0;k<MUS_N;k++){ int x=out[k], z=mDly[dp]; mDly[dp]=(s8)x; dp=(dp+1)&255;
+        lp+=(z*16-lp)>>3; int h=z-(lp>>4);                 // lp holds the low-passed delayed signal x16
+        int l=(x*12+h*8)>>4, r=(x*12-h*8)>>4;
+        out[k]=(s8)(l>127?127:l<-128?-128:l); outR[k]=(s8)(r>127?127:r<-128?-128:r); }
+    mDp=dp; mLp=lp;
     if(p>=e&&i<MUS_N&&++aTail>=3) mDone=1;   // 2 buffers are in flight, so wait for the last real samples to be heard
 }
-IWRAM_CODE static void musMixAny(s8*out){ if(mKind) adpMix(out); else musMix(out); }
+IWRAM_CODE static void musMixAny(int b){ if(mKind) adpMix(mbufL[b],mbufR[b]); else musMix(mbufL[b],mbufR[b]); }
 // ---- Audio is driven by interrupts, NOT by the main loop ----
 // Old design: the main loop mixed one buffer per frame right after vsync. Any frame whose drawing ran long (jukebox list
 // redraw, equalizer...) missed the next vblank, so the DMA ran dry (crackle) and the song fell a frame behind (timing lag).
@@ -695,29 +710,30 @@ __attribute__((used)) IWRAM_CODE void irqMain(void){
         R_IF=1;
         if(mOn){
             if(!mFilled) mCur^=1;                      // (mix overran: replay the last buffer rather than a half-filled one)
-            R_DMA2CNT=0; R_TM0CNT=0;
-            R_DMA2SAD=(u32)(uintptr_t)mbuf[mCur]; R_DMA2DAD=0x040000A4u;
-            R_DMA2CNT=0xB6400000u;                     // enable, FIFO timing, repeat, 32-bit, fixed dest
+            R_DMA1CNT=0; R_DMA2CNT=0; R_TM0CNT=0;
+            R_DMA1SAD=(u32)(uintptr_t)mbufL[mCur]; R_DMA1DAD=0x040000A0u;   // left  -> Direct Sound A
+            R_DMA2SAD=(u32)(uintptr_t)mbufR[mCur]; R_DMA2DAD=0x040000A4u;   // right -> Direct Sound B
+            R_DMA1CNT=0xB6400000u; R_DMA2CNT=0xB6400000u;                   // enable, FIFO timing, repeat, 32-bit, fixed dest
             R_TM0D=(u16)(65536-924); R_TM0CNT=0x80;
             mCur^=1; mFilled=0;                        // mCur is now the idle buffer
         }
     }
     if(f&4){   // line 0: render the idle buffer, it plays at the next vblank
         R_IF=4;
-        if(mOn&&!mFilled){ musMixAny(mbuf[mCur]); mFilled=1; }
+        if(mOn&&!mFilled){ musMixAny(mCur); mFilled=1; }
     }
 }
 static void irqOff(void){ R_IME=0; R_IE=0; R_DISPSTAT=0; R_IF=0xFFFF; }
 // Start a song: kind 0 = the tracker song xm, kind 1 = the ADPCM data in adp.
 static void musBegin(int kind,const u8*adp,const XmSong*xm){
-    irqOff(); mOn=0; R_DMA2CNT=0; R_TM0CNT=0;
+    irqOff(); mOn=0; R_DMA1CNT=0; R_DMA2CNT=0; R_TM0CNT=0;
     sfxStop();
     for(int i=0;i<MUS_VOICES;i++) mvc[i].d=0;
-    mOrd=0; mRow=0; mLeft=0; mFrac=0; mCur=0; mFilled=0; mLaps=0; mDone=0; aTail=0; mKind=kind; mSong=xm;
+    mOrd=0; mRow=0; mLeft=0; mFrac=0; mCur=0; mFilled=0; mLaps=0; mDone=0; aTail=0; mKind=kind; mSong=xm; mDp=0; mLp=0; for(int i=0;i<256;i++) mDly[i]=0;
     if(kind){ aSrc=adp+4; aN=*(const u32*)adp; aSlow=(int)(aN>>31); aN&=0x7FFFFFFFu; aPrv=0; aPh=0; aPos=0; aPred=0; aIdx=0; }
-    musMixAny(mbuf[0]);   // buffer 0 is primed here and plays at the first vblank; the line-0 IRQ then renders buffer 1
+    musMixAny(0);   // buffer 0 is primed here and plays at the first vblank; the line-0 IRQ then renders buffer 1
     mFilled=1; mOn=1;
-    R_SNDCNT_X=0x80; R_SNDCNT_L=0; R_SNDCNT_H=0xB308;   // Direct Sound B: 100%, L+R, Timer0, FIFO reset
+    R_SNDCNT_X=0x80; R_SNDCNT_L=0; R_SNDCNT_H=0x9A0C;   // stereo: Direct Sound A -> left only, B -> right only, both 100%, Timer0, FIFOs reset
     R_IRQVEC=(u32)(uintptr_t)irqEntry;
     R_DISPSTAT=0x0028;                // vblank IRQ (bit 3) + vcount IRQ (bit 5) at line 0
     R_IF=0xFFFF; R_IE=5; R_IME=1;
@@ -725,7 +741,7 @@ static void musBegin(int kind,const u8*adp,const XmSong*xm){
 static void musStart(void){ musBegin(0,0,&xm_the_dipper_man); }   // the title music
 static void musKick(void){}   // (kept so old call sites still compile: the interrupts do this now)
 static void musFill(void){}
-static void musStop(void){ irqOff(); if(!mOn) return; mOn=0; R_DMA2CNT=0; R_TM0CNT=0; R_SNDCNT_H=0; }
+static void musStop(void){ irqOff(); if(!mOn) return; mOn=0; R_DMA1CNT=0; R_DMA2CNT=0; R_TM0CNT=0; R_SNDCNT_H=0; }
 // ---------- jukebox song table: built from source/songs.h (edit that file, not this) ----------
 // Pass 1 bakes every .adp into the ROM, pass 2 declares the data, pass 3 builds the table.
 #define SONG_XM(id,n,f)
