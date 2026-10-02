@@ -91,3 +91,17 @@ When a song ends the next one starts (REPEAT ONE replays it). **The shuffled ord
 
 **Adding streamed songs:** `python3 tools/encode_song.py "my song.mp3"` (needs ffmpeg + numpy). It writes `source/music/<id>.adp` and adds a `SONG_ADP(...)` line to `source/songs.h`. Song spec: 4-bit IMA-ADPCM, mono, 18157 Hz, about 9 KB per second, up to 32 songs. Song titles use capitals, digits and spaces (the font has no punctuation). The three `PLACEHOLDER` songs and the tracker songs (`SONG_XM`) are there so shuffle can be heard from day one: delete the placeholder lines in `songs.h` and the files in `source/music/` when you add real songs.
 The jukebox plays only on its own screen for now: music during gameplay needs a vblank interrupt (game frames can run longer than a sound buffer).
+
+
+## Creature creator (rebuilt)
+The creature screen is now a character-creator: a live preview in a little house room (the game's own wallpaper and floor) on the left, a card of numbered tabs on the right.
+| Key | Action |
+|---|---|
+| L / R | change tab (1 BODY, 2 FACE, 3 HAIR, 4 CLOTHES, 5 BUILD, tick = DONE) |
+| Up / Down | pick a row |
+| Left / Right (or A) | change it: named options (shape, eyes, mouth, ears, hair style) or 8 colour swatches (skin, hair, top, bottom) |
+| Select | turn the creature (compass bottom left) |
+| Start | jump to DONE (GO LIVE LIFE, EDIT MAP, MAIN MENU) |
+| B | back to the main menu |
+
+Tab 5 opens the original block builder (legend with key caps; Select+Start returns). Changing shape, ears or hair style after hand-building asks before replacing your blocks.

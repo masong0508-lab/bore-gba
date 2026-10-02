@@ -61,11 +61,17 @@ static int lloadV;   // work per drawn frame as a percent of its time budget (PE
 
 
 // ---------- palette ----------
-static const u16 skinTones[4] = { RGB(30,23,17), RGB(24,16,10), RGB(13,8,5), RGB(14,26,10) };
-static const u16 hairTones[5] = { RGB(5,3,2), RGB(27,21,6), RGB(28,8,4), RGB(21,21,22), RGB(10,22,12) };
+// Colour rows of the creature creator: 8 swatches each. Swatch 0 of every row is the starter creature's colour.
+#define NSW 8
+static const u16 skinTones[NSW] = { RGB(30,23,17), RGB(24,16,10), RGB(19,12,7), RGB(13,8,5), RGB(14,26,10), RGB(10,19,29), RGB(22,13,27), RGB(31,17,19) };
+static const u16 hairTones[NSW] = { RGB(5,3,2), RGB(14,8,4), RGB(27,21,6), RGB(28,8,4), RGB(21,21,22), RGB(10,22,12), RGB(8,12,28), RGB(30,14,22) };
+static const u16 topTones[NSW]  = { RGB(8,20,22), RGB(28,8,6), RGB(30,24,6), RGB(10,24,8), RGB(8,10,26), RGB(22,10,26), RGB(30,30,30), RGB(5,5,8) };
+static const u16 botTones[NSW]  = { RGB(8,9,20), RGB(5,5,8), RGB(18,12,6), RGB(14,15,16), RGB(24,20,12), RGB(8,16,8), RGB(26,6,6), RGB(30,30,30) };
+// The look: one number per choice in the creature creator. 0 everywhere = the starter creature.
+enum { LK_SHAPE, LK_SKIN, LK_EYES, LK_MOUTH, LK_EARS, LK_HSTYLE, LK_HCOL, LK_TOP, LK_BOT, LK_N };
+static u8 look[LK_N];
 static u16 base[9+NWP], sT[9+NWP], sL[9+NWP], sR[9+NWP];   // slots 1..8 = body colours, 9.. = wallpaper average colours
 static u16 dL[4], dR[4];   // face-sprite palette (k w r s) pre-shaded for the left / right cube face
-static int skinI = 0, hairI = 0;
 #define EDGE RGB(3,2,5)
 #define SKY  RGB(20,26,31)
 #define PANEL RGB(5,6,9)
@@ -121,9 +127,9 @@ static u16 wpAvg[NWP];   // average colour of each wallpaper: wall tops and the 
 
 
 static void setColors(void) {
-    base[1]=skinTones[skinI]; base[2]=RGB(31,31,31); base[3]=RGB(3,3,6);
-    base[4]=RGB(29,12,16);    base[5]=hairTones[hairI];
-    base[6]=RGB(8,20,22);     base[7]=RGB(8,9,20); base[8]=RGB(31,30,16);
+    base[1]=skinTones[look[LK_SKIN]]; base[2]=RGB(31,31,31); base[3]=RGB(3,3,6);
+    base[4]=RGB(29,12,16);    base[5]=hairTones[look[LK_HCOL]];
+    base[6]=topTones[look[LK_TOP]]; base[7]=botTones[look[LK_BOT]]; base[8]=RGB(31,30,16);
     for (int i=1;i<9;i++){ sT[i]=base[i]; sL[i]=shade(base[i],12); sR[i]=shade(base[i],9); }
     for (int i=0;i<NWP;i++){ int s=9+i; base[s]=wpAvg[i]; sT[s]=base[s]; sL[s]=shade(base[s],12); sR[s]=shade(base[s],9); }
     u16 dc[4]={ base[3], base[2], base[4], shade(base[1],11) };   // k dark, w white, r red, s lid shadow
@@ -253,6 +259,16 @@ IWRAM_CODE static void floorTile(int sx,int sy,const u16*tex){   // one scanline
     }
 }
 
+IWRAM_CODE static void tileTop(int sx,int sy,u16 c){
+    for(int ry=-CB;ry<=CB;ry++){
+        int y=sy+ry; if((unsigned)y>=SH) continue;
+        int hw=rowHW[ry<0?-ry:ry], x0=sx-hw, x1=sx+hw;
+        if(x0<0) x0=0; if(x1>=SW) x1=SW-1;
+        u16*d=&fb[y*SW+x0]; u16*e=&fb[y*SW+x1];
+        while(d<=e) *d++=c;
+    }
+}
+
 
 // ---------- face sprites ----------
 // One cell = 9 x 8 px of art on a cube face. Wider sprites span cells: width = 10*cells-1 (the seam column is art too).
@@ -324,7 +340,6 @@ static const u8 cLeg[][4]={{0,0,0,7|(3<<4)},{0,1,0,7|(3<<4)},{0,2,0,7|(3<<4)}};
 static const u8 cEar[][4]={{0,0,0,1},{0,1,0,1}};
 static const u8 cHair[][4]={{0,0,0,5},{1,0,0,5},{0,0,1,5},{1,0,1,5},{0,1,0,5},{1,1,1,5}};
 #define NPARTS 8
-#define NENT (NPARTS+3)   // part list + "GO LIVE LIFE!" + "EDIT MAP" + "MAIN MENU"
 static const Part parts[NPARTS]={
  {"HEAD",8,0,2,2,2,cHead,0},{"TORSO",8,0,2,2,2,cTorso,0},{"ARM",3,1,1,3,1,cArm,0},{"LEG",3,1,1,3,1,cLeg,0},
  {"EYE",0,1,1,1,1,0,1},{"MOUTH",0,0,2,1,1,0,2},{"EAR",2,1,1,2,1,cEar,0},{"HAIR",6,0,2,2,2,cHair,0}};
@@ -373,15 +388,49 @@ static void clampCursor(void){
     if(cx>mx)cx=mx; if(cy>my)cy=my; if(cz>mz)cz=mz;
     if(cx<0)cx=0; if(cy<0)cy=0; if(cz<0)cz=0;
 }
+// ---------- the look -> blocks ----------
+// The creature creator never asks for blocks: it asks for a look (shape, ears, hair style...) and this turns it into the 6x4x8 model.
+// Skin, hair, top and bottom colours are only palette slots (setColors), eye and mouth styles only re-skin the face sprites (restyle),
+// so those never touch the blocks. Shape, ears and hair style rebuild the whole model (the pickers ask first if you built by hand).
+static int custom;   // 1 once the block builder has placed or erased something by hand
+static void headBox(int*hx,int*hy,int*hz,int*hs){   // where the head sits (and how many blocks per head cell) for each body shape
+    *hx=2; *hy=5; *hz=1; *hs=1;
+    switch(look[LK_SHAPE]){ case 2: *hx=1; *hy=4; *hz=0; *hs=2; break; case 3: *hy=4; break; }
+}
+static void hairBlock(int x,int y,int z){ if(x>=0&&x<W&&y>=0&&y<H&&z>=0&&z<D) vox[y][z][x]=5; }
+static void buildLook(void){
+    for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ vox[y][z][x]=0; dec[y][z][x]=0; }
+    sty[0]=look[LK_EYES]; sty[1]=look[LK_MOUTH];
+    switch(look[LK_SHAPE]){
+      default:                                                   // AVERAGE: legs 3, torso 2, head 2, hair on top (the starter)
+        doPart(1,3,1,2,0,1); doPart(1,1,1,2,3,1); doPart(1,2,1,1,2,1); break;
+      case 1:                                                    // BROAD: torso and legs two blocks wider each side
+        doPart(1,3,1,1,0,1); doPart(1,3,1,2,0,1);
+        doPart(1,1,1,1,3,1); doPart(1,1,1,3,3,1); doPart(1,2,1,0,2,1); break;
+      case 2: case 3:                                            // BIG HEAD and STUBBY: legs one block shorter (the bottom block is clipped)
+        doPart(1,3,1,2,-1,1); doPart(1,1,1,2,2,1); doPart(1,2,1,1,1,1); break;
+    }
+    int hx,hy,hz,hs; headBox(&hx,&hy,&hz,&hs);
+    int hw=2*hs, hh=2*hs, hd=2*hs;
+    doPart(1,0,hs,hx,hy,hz);                                     // head
+    int es=look[LK_EARS];                                        // ears: 0 none, 1 small (1x2), 2 big (2x4)
+    if(es) doPart(1,6,es,hx-es,hy+(es==1?(hh-2)/2:0),hz+(es==1?hd/2:0));
+    int st=look[LK_HSTYLE], top=(H-(hy+hh)>=1)?hy+hh:hy+hh-1;    // hair: a cap on the head, or in place of its top layer when the head touches the ceiling
+    if(st!=3) for(int z=hz;z<hz+hd;z++)for(int x=hx;x<hx+hw;x++) hairBlock(x,top,z);
+    if(st==1) for(int z=hz;z<hz+hd;z++)for(int y=top-1;y<=top;y++){ hairBlock(hx-1,y,z); hairBlock(hx+hw,y,z); }   // BOWL: down the sides
+    if(st==2){ int z0=hz>0?hz-1:hz; for(int x=hx;x<hx+hw;x++)for(int y=hy-1;y<=top;y++) hairBlock(x,y,z0); }          // LONG: down the back
+    if(hs==1){ doPart(1,4,1,hx,hy+1,0); doPart(1,5,1,hx,hy,0); }          // eyes on the top row of the face, mouth on the bottom row
+    else     { doPart(1,4,2,hx,hy+1,0); doPart(1,5,1,hx+1,hy,0); }        // big head: big eyes, mouth still one block
+    custom=0;
+}
+static void restyle(int kind){   // change the style of every eye (0) or mouth (1) sprite already on the creature, built by hand or not
+    for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){
+        u16 c=dec[y][z][x]; if(!c) continue;
+        if(((c&7)-1)/3==kind) dec[y][z][x]=(u16)((c&~7)|(kind*3+sty[kind]+1)); }
+}
 static void starter(void){
     cx=2;cy=0;cz=1;part=0;size=1;
-    doPart(1,3,1,2,0,1);  // legs
-    doPart(1,1,1,2,3,1);  // torso
-    doPart(1,2,1,1,2,1);  // arms (shoulder level with the torso top)
-    doPart(1,0,1,2,5,1);  // head
-    doPart(1,4,1,2,6,0);  // eyes (sprites on the head's front face)
-    doPart(1,5,1,2,5,0);  // mouth
-    doPart(1,7,1,2,7,1);  // hair
+    buildLook();   // the starter creature is look 0 everywhere: legs, torso, arms, head, eyes, mouth and hair
 }
 
 // ---------- scene ----------
@@ -413,39 +462,38 @@ static void initTables(void){
     }
     view=sv;
 }
-IWRAM_CODE static void drawPanel(void){
-    fillCols(SCENE_W,ROW_W,PANEL);
-    text(130,5,"BORE",RGB(31,26,6),2);
-    text(130,17,"VOXEL DEMO",RGB(14,16,18),1);
-    for(int i=0;i<NENT;i++){
-        int y=28+i*6, go=(i>=NPARTS);
-        if(i==part){ rect(128,y-1,108,6,go?RGB(16,10,2):RGB(6,16,8)); text(130,y,">",RGB(31,31,31),1); }
-        text(137,y,go?(i==NPARTS?"GO LIVE LIFE!":i==NPARTS+1?"EDIT MAP":"MAIN MENU"):parts[i].name,i==part?(go?RGB(31,26,6):RGB(31,31,31)):(go?RGB(24,20,6):RGB(18,20,22)),1);
-        if(i==part&&!go&&parts[i].dk) text(190,y,spr[SPRID(parts[i].dk-1)].name,RGB(31,26,6),1);
-    }
-    text(130,101,"SIZE",RGB(18,20,22),1);
-    const char*sn[3]={"S","M","L"};
-    for(int i=0;i<3;i++){
-        int x=156+i*16; rect(x,99,12,9,i==size-1?RGB(6,16,8):RGB(2,3,5));
-        text(x+4,101,sn[i],RGB(31,31,31),1);
-    }
-    text(130,113,"X",RGB(18,20,22),1); num(136,113,cx,RGB(31,31,31));
-    text(148,113,"Y",RGB(18,20,22),1); num(154,113,cy,RGB(31,31,31));
-    text(166,113,"Z",RGB(18,20,22),1); num(172,113,cz,(part<NPARTS&&parts[part].dk)?RGB(12,14,16):RGB(31,31,31));   // sprites ignore Z
-    u16 hc=RGB(12,14,16);
-    if(part>=NPARTS){ text(130,123,"PRESS A TO OPEN",RGB(31,26,6),1); text(130,131,"SELECT NEXT ENTRY",hc,1); }
-    else {
-    text(130,123,"DPAD X Z  L R UP DN",hc,1); text(130,129,"A PLACE B ERASE",hc,1);
-    text(130,135,"START SIZE  SEL PART",hc,1); text(130,141,"SEL+UP DN FACE",hc,1);
-    text(130,147,"SEL+A SKIN  B HAIR",hc,1); text(130,153,"SEL+L R TURN VIEW",hc,1);
+// The creature creator's stage: a little house room built from the game's own wallpaper and floors, so the creature stands in the
+// same kind of place it will live in. Floor tile (tx,ty) lines up with build cell x=tx, z=ty-1, so the creature stands on it exactly.
+static int stageOn;   // 1: draw the stage under the creature; 0: the plain sky and build grid (block builder, game sprite baking)
+#define ST_N 6                       // floor tiles per side
+#define ST_WH 6                      // wall height in blocks
+#define ST_WP 2                      // PEACH STRIPE
+#define ST_Y0 (OYC-ST_N*CB)          // screen y of the floor's back corner
+static void stageWall(int tx,int ty,int j32){   // one wall cell (tx or ty is -1); j32/16 = coplanar neighbour flags
+    int sx=OXC+(tx-ty)*CA, sy=ST_Y0+(tx+ty+1)*CB;
+    for(int j=1;j<=ST_WH;j++){
+        int f=(j<ST_WH?1:0)|(j>1?2:0)|j32;
+        if(sWp) wallBlock(sx,sy-j*CC,ST_WP,f); else cube(sx,sy-j*CC,9+ST_WP,0,f);
     }
 }
-IWRAM_CODE static void drawScene(int blink,int full){
-    fillCols(0,SCENE_W,SKY);
+static void drawStage(void){
+    for(int y=0;y<SH;y++){ u16 c=RGB(3+y/45,4+y/34,10+y/16); u32 v=c|((u32)c<<16), *row=(u32*)fb+y*ROW_W; for(int w=0;w<SCENE_W;w++) row[w]=v; }
+    for(int ty=0;ty<ST_N;ty++)for(int tx=0;tx<ST_N;tx++){
+        int sx=OXC+(tx-ty)*CA, sy=ST_Y0+(tx+ty+1)*CB, v=(tx^ty)&1;
+        int fl=(tx>=1&&tx<=ST_N-2&&ty>=1&&ty<=ST_N-2)?2:4;   // TEAL CARPET rug on WOOD PLANKS
+        if(sFl) floorTile(sx,sy,&flTab[fl][v][0][0]); else tileTop(sx,sy,flFlat[fl][v]);
+    }
+    for(int k=-1;k<ST_N;k++){   // back to front: the corner first, then the two walls moving toward the viewer
+        stageWall(-1,k,k>=0?32:0);
+        if(k>=0) stageWall(k,-1,16);
+    }
+}
+IWRAM_CODE static void drawScene(int blink){
+    if(stageOn&&!noGrid) drawStage(); else fillCols(0,SCENE_W,SKY);
     // floor grid
     u16 gc=RGB(13,18,22); int a,b,c,d;
-    if(!noGrid) for(int i=0;i<=W;i++){ projC(2*i-W,-D,0,&a,&b); projC(2*i-W,D,0,&c,&d); line(a,b,c,d,gc); }
-    if(!noGrid) for(int j=0;j<=D;j++){ projC(-W,2*j-D,0,&a,&b); projC(W,2*j-D,0,&c,&d); line(a,b,c,d,gc); }
+    if(!noGrid&&!stageOn) for(int i=0;i<=W;i++){ projC(2*i-W,-D,0,&a,&b); projC(2*i-W,D,0,&c,&d); line(a,b,c,d,gc); }
+    if(!noGrid&&!stageOn) for(int j=0;j<=D;j++){ projC(-W,2*j-D,0,&a,&b); projC(W,2*j-D,0,&c,&d); line(a,b,c,d,gc); }
     int fv=view==0?0:view==3?1:-1;   // which cube face shows the +Z (front) face, -1 = turned away
     // voxels (back to front)
     for(int y=0;y<H;y++)for(int i=0;i<W*D;i++){
@@ -464,7 +512,6 @@ IWRAM_CODE static void drawScene(int blink,int full){
         if(gdec[y][z][x]&&blink){ dc=gdec[y][z][x]; tint=1; }
         if(dc&&fv>=0) drawDeco(sx,sy,dc,fv,tint);
     }
-    if(full) drawPanel();
 }
 static void vsync(void){ while(REG_VCOUNT>=160); while(REG_VCOUNT<160); }
 static void present(void){
@@ -860,7 +907,7 @@ static void bakeSprites(void){   // render the built character once per view (4 
     int sv=view; noGrid=1;
     for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ ghost[y][z][x]=0; gdec[y][z][x]=0; }
     for(int v=0;v<4;v++){
-        view=v; drawScene(0,0);
+        view=v; drawScene(0);
         for(int y=0;y<SPH;y++)for(int x=0;x<SPW;x++) spr4[v][y*SPW+x]=fb[(SPY0+y*2)*SW+SPX0+x*2];
     }
     noGrid=0; view=sv;
@@ -1019,7 +1066,7 @@ static void toast(const char*msg){ int w=tw(msg,1)+16;
     box((SW-w)/2,66,w,22); text((SW-w)/2+8,74,msg,WHITE,1); for(int i=0;i<45;i++){ present(); } }
 static const char* const lifeHelp[12]={">ON FOOT","DPAD WALK  B RUN  A HOP","R FRIDGE OR TOILET","L GET ON THE BOARD",">ON THE BOARD","A PUSH  DPAD STEER  B OLLIE","IN AIR DPAD SPINS  B KICKFLIP","LAND CLEAN FOR POINTS","HIGH FALLS AND WALLS HURT",">KEEP YOURSELF GOING","WATCH THE FOOD AND WC BARS","START OPENS THE MENU"};
 
-static const char* const creatureHelp[13]={">PLACE PARTS","DPAD MOVE  L R HEIGHT","A PLACE  B ERASE  START SIZE",">PICK A PART","SELECT TAP NEXT PART","SEL+L R PREVIOUS OR NEXT PART","SEL+UP DN FACE",">LOOK","SEL+A SKIN  SEL+B HAIR","SEL+LEFT RIGHT TURN THE VIEW",">LEAVE","GO LIVE LIFE PLAYS YOUR CREATURE","MAIN MENU IS LAST IN THE LIST"};
+static const char* const creatureHelp[15]={">PICK YOUR LOOK","L R CHANGE TAB   UP DOWN PICK A ROW","LEFT RIGHT CHANGE IT  A ALSO STEPS","SELECT TURNS THE CREATURE ROUND",">THE TABS","1 BODY  SHAPE AND SKIN","2 FACE  EYES MOUTH AND EARS","3 HAIR  4 CLOTHES  COLOURS AND STYLE","5 BUILD  PLACE EVERY BLOCK YOURSELF",">FINISH","START JUMPS TO THE DONE TAB","GO LIVE LIFE PLAYS YOUR CREATURE",">BLOCK BUILDER","DPAD AND L R MOVE  A PLACE  B ERASE","SELECT+START BACK TO THE TABS"};
 static const char* const mapHelp[12]={">BUILD A ROOM","ROOM TOOL  A CORNER  A BUILDS","WALL TOOL  A START  A DRAWS A LINE","FLOOR TOOL  A CORNER  A FILLS","ITEM TOOL  PLACE SINGLE TILES","ERASE TOOL  A CORNER  A CLEARS",">STYLES","L R PICK FLOOR OR ITEM","SEL+L R PICK WALLPAPER","SELECT TAP NEXT TOOL  B CANCELS",">KEEP IT","START OPENS PLAY TEST AND SAVE"};
 
 // ---------- settings screen ----------
@@ -1286,15 +1333,6 @@ static void lifeStep(u16 k,u16 pr,int fr){
     lfr++;
     if(lnoteT>0) lnoteT--;
     sfxTick();
-}
-IWRAM_CODE static void tileTop(int sx,int sy,u16 c){
-    for(int ry=-CB;ry<=CB;ry++){
-        int y=sy+ry; if((unsigned)y>=SH) continue;
-        int hw=rowHW[ry<0?-ry:ry], x0=sx-hw, x1=sx+hw;
-        if(x0<0) x0=0; if(x1>=SW) x1=SW-1;
-        u16*d=&fb[y*SW+x0]; u16*e=&fb[y*SW+x1];
-        while(d<=e) *d++=c;
-    }
 }
 static int ecx=6, ecy=6, efr;   // map editor cursor (tile) and frame counter
 // The room can be viewed from 4 sides (action cam). (rx,ry) are screen-space tile coords for the current view, (tx,ty) the real map tile.
@@ -1643,52 +1681,253 @@ static void mapEditor(void){
 }
 
 
-// ---------- creature editor (the original editor screen) ----------
-static void creatureEditor(void){
+// ---------- creature creator ----------
+// Pick a look from numbered tabs (like a character creator), or open the block builder to place every block by hand.
+// L R change tab | UP DOWN pick a row | LEFT RIGHT change it | SELECT turns the creature | START jumps to DONE | B leaves.
+enum { TB_BODY, TB_FACE, TB_HAIR, TB_CLOTHES, TB_BUILD, TB_DONE, NTAB };
+enum { RK_PICK, RK_SWATCH, RK_ACT };                 // a row picks from named options, picks a colour, or is a button
+enum { AC_BUILD, AC_PLAY, AC_MAP, AC_MENU };
+typedef struct { const char*lab,*sub; u8 kind,id,n; } Row;   // sub = second line of a button
+static const char* const tabNm[NTAB]={"BODY","FACE","HAIR","CLOTHES","BUILD","DONE"};
+static const char* const shapeNm[4]={"AVERAGE","BROAD","BIG HEAD","STUBBY"};
+static const char* const eyeNm[3]={"SLEEPY","ROUND","HAPPY"};
+static const char* const mouthNm[3]={"FLAT","SMILE","OH"};
+static const char* const earNm[3]={"NONE","SMALL","BIG"};
+static const char* const hairNm[4]={"CROP","BOWL","LONG","BALD"};
+static const char* const* const lookNm[LK_N]={shapeNm,0,eyeNm,mouthNm,earNm,hairNm,0,0,0};
+static const u16* const lookCol[LK_N]={0,skinTones,0,0,0,0,hairTones,topTones,botTones};
+static const Row tabRow[NTAB][3]={
+  {{"SHAPE",0,RK_PICK,LK_SHAPE,4},{"SKIN",0,RK_SWATCH,LK_SKIN,NSW},{0}},
+  {{"EYES",0,RK_PICK,LK_EYES,3},{"MOUTH",0,RK_PICK,LK_MOUTH,3},{"EARS",0,RK_PICK,LK_EARS,3}},
+  {{"STYLE",0,RK_PICK,LK_HSTYLE,4},{"COLOUR",0,RK_SWATCH,LK_HCOL,NSW},{0}},
+  {{"TOP",0,RK_SWATCH,LK_TOP,NSW},{"BOTTOM",0,RK_SWATCH,LK_BOT,NSW},{0}},
+  {{"OPEN BUILDER","BY HAND",RK_ACT,AC_BUILD,0},{0},{0}},
+  {{"GO LIVE LIFE!","PLAY IT NOW",RK_ACT,AC_PLAY,0},{"EDIT MAP","BUILD ROOMS",RK_ACT,AC_MAP,0},{"MAIN MENU","LOOK IS KEPT",RK_ACT,AC_MENU,0}} };
+static const u8 tabN[NTAB]={2,3,2,2,1,3};
+
+// layout (the panel is x 124..239): tabs down the left edge, the card of rows beside them, key legend under both
+#define TBX 128
+#define TBW 18
+#define TBH 17
+#define TBP 20
+#define TBY 7
+#define CDX 149
+#define CDY 5
+#define CDW 91
+#define CDH 124
+#define RW0 (CDY+26)      // first row
+#define RHT 19            // row pitch
+#define CARD   RGB(8,11,21)
+#define CARDED RGB(14,17,30)
+#define FOCUS  RGB(6,16,8)
+#define GOLD2  RGB(14,11,3)
+
+static void roundRect(int x,int y,int w,int h,u16 c){ rect(x+1,y,w-2,h,c); rect(x,y+1,w,h-2,c); }
+static void tri(int x,int y,int dir,u16 c){   // dir 0 left, 1 right (3 wide, 5 tall); 2 up, 3 down (5 wide, 3 tall); x,y = top left
+    if(dir<2){ for(int r=0;r<5;r++){ int hf=2-(r<2?2-r:r-2); if(dir==0) rect(x+2-hf,y+r,hf+1,1,c); else rect(x,y+r,hf+1,1,c); } }
+    else for(int r=0;r<3;r++){ if(dir==2) rect(x+2-r,y+r,2*r+1,1,c); else rect(x+r,y+r,5-2*r,1,c); }
+}
+static int kcap(int x,int y,const char*t){   // a little key cap with a label in it; returns the x after it
+    int w=tw(t,1)+5; rect(x,y-2,w,10,RGB(22,18,5)); rect(x+1,y-1,w-2,8,RGB(8,9,15)); text(x+3,y,t,GOLD,1); return x+w+2;
+}
+static int kcapAr(int x,int y,int vert){   // a key cap showing two arrows: up/down or left/right
+    int w=vert?17:14; rect(x,y-2,w,10,RGB(22,18,5)); rect(x+1,y-1,w-2,8,RGB(8,9,15));
+    if(vert){ tri(x+3,y+1,2,GOLD); tri(x+9,y+2,3,GOLD); } else { tri(x+3,y,0,GOLD); tri(x+8,y,1,GOLD); }
+    return x+w+2;
+}
+static int klab(int x,int y,const char*t){ return text(x,y,t,RGB(20,22,26),1)+6; }
+static void disc(int x0,int y0,int r,u16 c){ for(int dy=-r;dy<=r;dy++)for(int dx=-r;dx<=r;dx++) if(dx*dx+dy*dy<=r*r) px(x0+dx,y0+dy,c); }
+
+static const char* const iconArt[5][9]={
+  {"...###...","...###...","...###...","..#####..",".#.###.#.",".#.###.#.","...#.#...","...#.#...","...#.#..."},   // body
+  {"..#####..",".#.....#.","#.#...#.#","#.#...#.#","#.......#","#.#...#.#","#..###..#",".#.....#.","..#####.."},   // face
+  {"..#####..",".#######.","#########","##.....##","#.......#","#.......#",".#.....#.","..#...#..","........."},   // hair
+  {".##...##.","####.####","#########","#.#####.#","..#####..","..#####..","..#####..","..#####..","........."},   // clothes
+  {"....#....","..#####..","..#####..","..#####..","..#####..","..#####..","....#....",".........","........."} };  // (build is drawn with lines)
+static void drawIcon(int x,int y,int id,u16 c){
+    if(id==TB_BUILD){ line(x+4,y,x+8,y+2,c); line(x+8,y+2,x+8,y+6,c); line(x+8,y+6,x+4,y+8,c); line(x+4,y+8,x,y+6,c); line(x,y+6,x,y+2,c); line(x,y+2,x+4,y,c);
+        line(x+4,y+4,x,y+2,c); line(x+4,y+4,x+8,y+2,c); line(x+4,y+4,x+4,y+8,c); return; }
+    if(id==TB_DONE){ line(x,y+4,x+3,y+7,c); line(x+3,y+7,x+9,y+1,c); line(x,y+3,x+3,y+6,c); line(x+3,y+6,x+9,y,c); return; }
+    for(int r=0;r<9;r++)for(int q=0;q<9;q++) if(iconArt[id][r][q]=='#') px(x+q,y+r,c);
+}
+static void panelBg(void){
+    for(int y=0;y<SH;y++){ u16 c=RGB(2+y/55,3+y/38,9+y/14); u32 v=c|((u32)c<<16), *row=(u32*)fb+y*ROW_W; for(int w=SCENE_W;w<ROW_W;w++) row[w]=v; }
+    rect(PANEL_X,0,2,SH,GOLD2);
+}
+static void drawTabs(int tab){
+    roundRect(CDX-1,CDY-1,CDW+2,CDH+2,CARDED); roundRect(CDX,CDY,CDW,CDH,CARD);   // the card first, tabs on top of its edge
+    for(int i=0;i<NTAB;i++){
+        int y=TBY+i*TBP, sel=(i==tab); u16 ink=sel?WHITE:RGB(14,17,22);
+        if(sel){ roundRect(TBX-1,y-1,CDX-TBX+3,TBH+2,GOLD); roundRect(TBX,y,CDX-TBX+3,TBH,CARD); rect(CDX-1,y,3,TBH,CARD); }   // open into the card
+        else   { roundRect(TBX,y,TBW,TBH,RGB(4,6,13)); roundRect(TBX+1,y+1,TBW-2,TBH-2,RGB(9,12,22)); }
+        if(i==TB_DONE) drawIcon(TBX+4,y+4,TB_DONE,sel?RGB(14,30,12):RGB(8,18,8));
+        else { char d[2]={(char)('1'+i),0}; text(TBX+(TBW-tw(d,2))/2,y+2,d,ink,2); }
+    }
+}
+static const char* const lookName(int id,int v){ return lookNm[id][v]; }
+static void drawRowSet(int tab,int sel){
+    if(tab==TB_BUILD){
+        const char*t[]={"PLACE BLOCKS BY","HAND FOR A ONE","OF A KIND LOOK.","","CHANGING SHAPE,","EARS OR HAIR","STYLE LATER ASKS","BEFORE REPLACING","YOUR BLOCKS."};
+        for(int i=0;i<9;i++) text(CDX+6,RW0+i*7,t[i],i<3?WHITE:DIMC,1);
+    }
+    for(int i=0;i<tabN[tab];i++){
+        const Row*r=&tabRow[tab][i]; int y=RW0+i*RHT, f=(i==sel);
+        if(tab==TB_BUILD) y=RW0+9*7+4;
+        if(r->kind==RK_ACT){
+            rect(CDX+3,y-2,CDW-6,17,f?FOCUS:RGB(5,8,16)); if(f){ rect(CDX+3,y-2,2,17,GOLD); }
+            text(CDX+9,y,r->lab,f?GOLD:WHITE,1); text(CDX+9,y+8,r->sub,f?WHITE:DIMC,1); continue;
+        }
+        if(f){ rect(CDX+3,y-2,CDW-6,RHT-1,FOCUS); rect(CDX+3,y-2,2,RHT-1,GOLD); }
+        text(CDX+9,y,r->lab,f?WHITE:DIMC,1);
+        { int v=look[r->id]; char b[4]={(char)('1'+v),'/',(char)('0'+r->n),0}; text(CDX+CDW-6-tw(b,1),y,b,f?DIMC:RGB(10,12,16),1); }
+        if(r->kind==RK_PICK){
+            const char*nm=lookName(r->id,look[r->id]); int mx=CDX+CDW/2;
+            tri(CDX+9,y+9,0,f?GOLD:RGB(10,12,16)); tri(CDX+CDW-12,y+9,1,f?GOLD:RGB(10,12,16));
+            text(mx-tw(nm,1)/2,y+9,nm,f?WHITE:DIMC,1);
+        } else {
+            const u16*pal=lookCol[r->id];
+            for(int q=0;q<NSW;q++){
+                int x=CDX+8+q*10, on=(q==look[r->id]);
+                if(on){ rect(x-1,y+8,11,11,f?WHITE:RGB(16,18,22)); }
+                rect(x,y+9,9,9,pal[q]);
+            }
+        }
+    }
+}
+static void drawCreatorPanel(int tab,int sel){
+    panelBg(); drawTabs(tab);
+    drawIcon(CDX+6,CDY+6,tab,GOLD); text(CDX+20,CDY+4,tabNm[tab],GOLD,2);
+    rect(CDX+5,CDY+20,CDW-10,1,GOLD2);
+    drawRowSet(tab,sel);
+    int act=(tabRow[tab][sel].kind==RK_ACT), x;
+    x=kcap(128,132,"L"); x=kcap(x,132,"R"); x=klab(x,132,"TABS"); x=kcapAr(x,132,1); klab(x,132,"ROW");
+    x=act?kcap(128,142,"A"):kcapAr(128,142,0); klab(x,142,act?"CHOOSE":"CHANGE");
+    x=kcap(128,152,"START"); x=klab(x,152,"DONE"); x=kcap(x,152,"B"); klab(x,152,"BACK");
+}
+static void drawDial(void){   // the creature's compass: the needle points the way it faces on screen (view 0 = down-left, then clockwise)
+    static const signed char ddx[4]={-1,-1,1,1}, ddy[4]={1,-1,-1,1};
+    int x0=18, y0=143;
+    disc(x0,y0,12,GOLD2); disc(x0,y0,11,RGB(4,6,12));
+    for(int i=0;i<4;i++) rect(x0+ddx[i]*7-1,y0+ddy[i]*7-1,2,2,RGB(10,12,18));
+    int tx=x0+ddx[view&3]*7, ty=y0+ddy[view&3]*7;
+    line(x0,y0,tx,ty,GOLD); rect(tx-1,ty-1,3,3,GOLD); rect(x0-1,y0-1,3,3,WHITE);
+    int x=kcap(34,152,"SELECT"); klab(x,152,"TURN");
+}
+static void drawCreatorScene(void){
+    stageOn=1; drawScene(0);
+    text(7,6,"MAKE CREATURE",RGB(3,3,6),1); text(6,5,"MAKE CREATURE",GOLD,1);
+    drawDial();
+}
+
+// ---- tab actions ----
+static int confirmRebuild(void){ static const char* const it[2]={"YES  REBUILD","NO  KEEP BLOCKS"}; return menu("REPLACE YOUR BLOCKS?",it,2)==0; }
+static void lookStep(int id,int n,int d){
+    int nv=(look[id]+d+n)%n;
+    if((id==LK_SHAPE||id==LK_EARS||id==LK_HSTYLE)&&custom&&!confirmRebuild()) return;   // declined: keep the hand-built blocks
+    look[id]=(u8)nv;
+    switch(id){
+      case LK_SKIN: case LK_HCOL: case LK_TOP: case LK_BOT: setColors(); break;
+      case LK_EYES:  sty[0]=nv; restyle(0); break;
+      case LK_MOUTH: sty[1]=nv; restyle(1); break;
+      default: buildLook(); break;
+    }
+}
+
+// ---- the block builder (the original free editor, with a legend you can read) ----
+static void drawBuildPanel(void){
+    panelBg();
+    text(130,4,"BLOCK BUILDER",GOLD,1);
+    for(int i=0;i<NPARTS;i++){
+        int y=14+i*7;
+        if(i==part){ rect(128,y-1,108,7,FOCUS); rect(128,y-1,2,7,GOLD); }
+        text(134,y,parts[i].name,i==part?WHITE:DIMC,1);
+        if(i==part&&parts[i].dk) text(190,y,spr[SPRID(parts[i].dk-1)].name,GOLD,1);
+    }
+    text(130,74,"SIZE",DIMC,1);
+    const char*sn[3]={"S","M","L"};
+    for(int i=0;i<3;i++){ int x=156+i*14; rect(x,73,11,9,i==size-1?FOCUS:RGB(2,3,5)); text(x+4,74,sn[i],i==size-1?WHITE:DIMC,1); }
+    text(130,85,"X",DIMC,1); num(136,85,cx,WHITE); text(148,85,"Y",DIMC,1); num(154,85,cy,WHITE);
+    text(166,85,"Z",DIMC,1); num(172,85,cz,(part<NPARTS&&parts[part].dk)?RGB(12,14,16):WHITE);   // sprites ignore Z
+    int x;
+    x=kcap(128,98,"DPAD"); x=klab(x,98,"MOVE"); x=kcap(x,98,"L"); x=kcap(x,98,"R"); klab(x,98,"LIFT");
+    x=kcap(128,108,"A"); x=klab(x,108,"PLACE"); x=kcap(x,108,"B"); klab(x,108,"ERASE");
+    x=kcap(128,118,"SELECT"); klab(x,118,"NEXT PART");
+    x=kcap(128,128,"START"); klab(x,128,"SIZE S M L");
+    x=kcap(128,138,"SEL"); x=kcapAr(x,138,0); klab(x,138,"TURN");
+    x=kcap(128,148,"SEL"); x=kcap(x,148,"START"); klab(x,148,"BACK");
+}
+static void blockBuilder(void){
+    int hx,hy,hz,hs; headBox(&hx,&hy,&hz,&hs);
+    part=0; size=hs; cx=hx; cy=hy; cz=hz; view=0; stageOn=0;
     u16 prev=keyNow(); int hold[10]={0}, frame=0, dirty=1, lastBlink=-1, comboUsed=0;
     for(;;){
-        u16 k=(u16)(~REG_KEYINPUT)&0x3FF, pressed=k&~prev, released=prev&~k; prev=k;
+        u16 k=keyNow(), pressed=k&~prev, released=prev&~k; prev=k;
         for(int i=0;i<10;i++) hold[i]=(k>>i&1)?hold[i]+1:0;
         #define TRIG(m,i) ((pressed&(m))||(hold[i]>14&&(hold[i]&3)==0))
         int sel=k&K_SEL;
         if(sel){
-            if(pressed&K_A){ skinI=(skinI+1)%4; setColors(); comboUsed=1; dirty=1; }
-            if(pressed&K_B){ hairI=(hairI+1)%5; setColors(); comboUsed=1; dirty=1; }
-            if(pressed&K_R){ part=(part+1)%NENT; comboUsed=1; dirty=1; }
-            if(pressed&K_L){ part=(part+NENT-1)%NENT; comboUsed=1; dirty=1; }
+            if(pressed&K_START){ break; }                                                  // SELECT+START: back to the pickers
+            if(pressed&K_R){ part=(part+1)%NPARTS; comboUsed=1; dirty=1; }
+            if(pressed&K_L){ part=(part+NPARTS-1)%NPARTS; comboUsed=1; dirty=1; }
             if(pressed&K_RIGHT){ view=(view+1)&3; comboUsed=1; dirty=1; }
             if(pressed&K_LEFT){ view=(view+3)&3; comboUsed=1; dirty=1; }
-            if(pressed&(K_UP|K_DOWN)){
-                comboUsed=1;
-                if(part<NPARTS&&parts[part].dk){ int kd=parts[part].dk-1; sty[kd]=(sty[kd]+((pressed&K_UP)?1:2))%3; dirty=1; }
-            }
         } else {
             if(TRIG(K_RIGHT,4)){moveView(1,0);dirty=1;} if(TRIG(K_LEFT,5)){moveView(-1,0);dirty=1;}
             if(TRIG(K_UP,6)){moveView(0,-1);dirty=1;}     if(TRIG(K_DOWN,7)){moveView(0,1);dirty=1;}
             if(TRIG(K_R,8)){cy++;dirty=1;}      if(TRIG(K_L,9)){cy--;dirty=1;}
-            if(pressed&K_A){
-                if(part==NPARTS){ lifeMode(0); if(gToMenu) return; }
-                else if(part==NPARTS+1) mapEditor();
-                else if(part==NPARTS+2) return;   // MAIN MENU
-                else doPart(1,part,size,cx,cy,cz);
-                prev=keyNow(); dirty=1;
-            }
-            if(pressed&K_B){ if(part<NPARTS) doPart(2,part,size,cx,cy,cz); dirty=1; }
+            if(pressed&K_A){ doPart(1,part,size,cx,cy,cz); custom=1; dirty=1; }
+            if(pressed&K_B){ doPart(2,part,size,cx,cy,cz); custom=1; dirty=1; }
+            if(pressed&K_START){ size=size%3+1; dirty=1; }
         }
-        if(released&K_SEL){ if(!comboUsed){ part=(part+1)%NENT; dirty=1; } comboUsed=0; }
-        if(pressed&K_START){ size=size%3+1; dirty=1; }
+        if(released&K_SEL){ if(!comboUsed){ part=(part+1)%NPARTS; dirty=1; } comboUsed=0; }
         clampCursor();
         if(dirty) frame=16;   // restart blink with the ghost visible
         int blink=(frame>>4)&1;
         if(dirty||blink!=lastBlink){
             for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ ghost[y][z][x]=0; gdec[y][z][x]=0; }
             gAny=0;
-            if(part<NPARTS){ doPart(0,part,size,cx,cy,cz);
-            if(parts[part].dk&&!gAny) ghost[cy][cz][cx]=1; }   // nothing solid under the cursor: show a marker cube
-            drawScene(blink,dirty); if(dirty) present(); else presentScene();   // blink-only: scene columns only
+            doPart(0,part,size,cx,cy,cz);
+            if(parts[part].dk&&!gAny) ghost[cy][cz][cx]=1;   // nothing solid under the cursor: show a marker cube
+            drawScene(blink); if(dirty){ drawBuildPanel(); present(); } else presentScene();   // blink-only: scene columns only
             dirty=0; lastBlink=blink;
         } else vsync();
         frame++;
+    }
+    view=0;
+}
+
+static void creatureEditor(void){
+    int tab=0, rs[NTAB]={0}, dirty=3, hold[10]={0}; u16 prev=keyNow();
+    for(;;){
+        u16 k=keyNow(), pressed=k&~prev; prev=k;
+        for(int i=0;i<10;i++) hold[i]=(k>>i&1)?hold[i]+1:0;
+        if(pressed&K_R){ tab=(tab+1)%NTAB; dirty|=2; }
+        if(pressed&K_L){ tab=(tab+NTAB-1)%NTAB; dirty|=2; }
+        if(pressed&K_DOWN){ rs[tab]=(rs[tab]+1)%tabN[tab]; dirty|=2; }
+        if(pressed&K_UP){ rs[tab]=(rs[tab]+tabN[tab]-1)%tabN[tab]; dirty|=2; }
+        if(pressed&K_SEL){ view=(view+1)&3; dirty=3; }
+        if(pressed&K_START){ tab=TB_DONE; rs[tab]=0; dirty|=2; }
+        if(pressed&K_B){ stageOn=0; return; }
+        const Row*r=&tabRow[tab][rs[tab]];
+        int d=TRIG(K_RIGHT,4)?1:TRIG(K_LEFT,5)?-1:0;
+        if(r->kind==RK_ACT){
+            if(pressed&K_A){
+                switch(r->id){
+                    case AC_BUILD: blockBuilder(); break;
+                    case AC_PLAY:  lifeMode(0); if(gToMenu){ stageOn=0; return; } break;
+                    case AC_MAP:   mapEditor(); break;
+                    default:       stageOn=0; return;   // MAIN MENU
+                }
+                prev=keyNow(); for(int i=0;i<10;i++) hold[i]=0; dirty=3;
+            }
+        } else if(d||(pressed&K_A)){
+            lookStep(r->id,r->n,d?d:1); prev=keyNow(); for(int i=0;i<10;i++) hold[i]=0; dirty=3;
+        }
+        if(dirty){
+            if(dirty&1) drawCreatorScene();
+            drawCreatorPanel(tab,rs[tab]);
+            present(); dirty=0;
+        } else vsync();
     }
 }
 
@@ -1848,7 +2087,7 @@ static void mainMenu(void){
             else if(sel==3) jukeboxScreen();
             else if(sel==4) settingsScreen();
             else { int g=menu("HOW TO PLAY",guideItems,4);
-                   if(g==0) helpScreen("PLAYING",lifeHelp,12); else if(g==1) helpScreen("MAKE CREATURE",creatureHelp,13); else if(g==2) helpScreen("BUILD ROOMS",mapHelp,12); else if(g==3) helpScreen("JUKEBOX",jbHelp,10); }
+                   if(g==0) helpScreen("PLAYING",lifeHelp,12); else if(g==1) helpScreen("MAKE CREATURE",creatureHelp,15); else if(g==2) helpScreen("BUILD ROOMS",mapHelp,12); else if(g==3) helpScreen("JUKEBOX",jbHelp,10); }
             gToMenu=0; prev=keyNow(); dirty=1; continue;
         }
         if(dirty){ drawMainMenu(sel); present(); dirty=0; } else vsync();
