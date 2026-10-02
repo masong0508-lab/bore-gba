@@ -48,6 +48,12 @@ static u8 sShad=1;   // shadows under the player
 static u8 sHud=0;    // on-screen info: 0 full, 1 slim, 2 off
 static u8 sRom=0;    // ROM waits: 0 fast (3/1 + prefetch), 1 safe (power-on default, for fussy flash carts)
 static u8 sShow=0;   // performance counter: 0 off, 1 fps, 2 fps + load
+static int cview;    // room view while the action cam spins (0..3, quarter turns); always 0 in the editor
+static int lcN, lcPts, lcT, lcBank, lcBankT, lcamPend, lcamF;   // combo chain: tricks, points, time left, banked total + display time, cam queued, cam frame
+static u8 sCam=1;    // action cam after a big combo: 0 off, 1 over 10000, 2 over 5000, 3 over 2000
+static const int camThr[4]={0,10000,5000,2000};
+#define CAM_LEN 84    // action cam length in game steps (1.4 s)
+#define CAM_ZOOM 62   // zoom in by 256/(256-62) = 1.3x
 static int lloadV;   // work per drawn frame as a percent of its time budget (PERFORMANCE INFO: DETAIL)
 #define NWP 14       // wallpapers
 #define NFL 14       // floors
@@ -699,12 +705,13 @@ static void mapPlace(int x,int y,char c){
     if(c=='B'||c=='P'){ for(int j=0;j<MH;j++)for(int i=0;i<MW;i++) if(lifeMap[j][i]==c) lifeMap[j][i]='.'; }
     lifeMap[y][x]=c; if(c=='w'||c=='W') wallMap[y][x]=(u8)eWp; }
 // settings (SRAM offset 640)
-static void settingsSave(void){ volatile u8*m=SRAM_BASE+640; m[0]='S'; m[1]='2'; m[2]=sFps; m[3]=sWall; m[4]=sWp; m[5]=sFl; m[6]=sSnd; m[7]=sShow; m[8]=sShad; m[9]=sHud; m[10]=sRom; }
+static void settingsSave(void){ volatile u8*m=SRAM_BASE+640; m[0]='S'; m[1]='2'; m[2]=sFps; m[3]=sWall; m[4]=sWp; m[5]=sFl; m[6]=sSnd; m[7]=sShow; m[8]=sShad; m[9]=sHud; m[10]=sRom; m[11]=sCam; }
 static void settingsLoad(void){ volatile u8*m=SRAM_BASE+640;
     if(m[0]!='S') return;
     if(m[1]=='1'){ if(m[2]>2||m[3]>2||m[4]>1||m[5]>1||m[6]>1||m[7]>1) return;   // older save: fewer settings
         sFps=m[2]; sWall=m[3]; sWp=m[4]; sFl=m[5]; sSnd=m[6]; sShow=m[7]; return; }
     if(m[1]!='2'||m[2]>3||m[3]>2||m[4]>1||m[5]>1||m[6]>1||m[7]>2||m[8]>1||m[9]>2||m[10]>1) return;
+    sCam=(m[11]<=3)?m[11]:1;
     sFps=m[2]; sWall=m[3]; sWp=m[4]; sFl=m[5]; sSnd=m[6]; sShow=m[7]; sShad=m[8]; sHud=m[9]; sRom=m[10]; }
 
 // ---------- small UI kit: one menu style, one help style, one toast ----------
@@ -754,9 +761,9 @@ static void drawRoom(int ed);
 #define R_TM2CNT (*(volatile u16*)0x0400010A)
 #define TICKS_FRAME 1097   // 65536 / 59.7275 Hz
 static void tmStart(void){ R_TM2CNT=0; R_TM2D=0; R_TM2CNT=0x82; }
-#define NSET 12
-enum { R_PRESET, R_TUNE, R_FPS, R_WALLS, R_WP, R_FL, R_SHAD, R_HUD, R_SND, R_ROM, R_SHOW, R_DEF };
-static const char* const setNm[NSET]={"PRESET","AUTO TUNE","FRAME RATE","WALLS","WALLPAPER","FLOORS","SHADOWS","INFO ON SCREEN","SOUND","ROM SPEED","PERFORMANCE INFO","RESET ALL"};
+#define NSET 13
+enum { R_PRESET, R_TUNE, R_FPS, R_WALLS, R_WP, R_FL, R_SHAD, R_CAM, R_HUD, R_SND, R_ROM, R_SHOW, R_DEF };
+static const char* const setNm[NSET]={"PRESET","AUTO TUNE","FRAME RATE","WALLS","WALLPAPER","FLOORS","SHADOWS","ACTION CAM","INFO ON SCREEN","SOUND","ROM SPEED","PERFORMANCE INFO","RESET ALL"};
 static const char* const setDesc[NSET][2]={
  {"LOOKS BALANCED SPEED BATTERY  ONE TAP SETUP","CHANGING ANYTHING BELOW MAKES IT CUSTOM"},
  {"PRESS A  TESTS YOUR SCREEN AND PICKS THE","PRETTIEST PRESET THAT STAYS SMOOTH"},
@@ -765,6 +772,7 @@ static const char* const setDesc[NSET][2]={
  {"PATTERNED OR PLAIN COLOUR WALLS","PLAIN IS QUICKER TO DRAW"},
  {"PATTERNED OR PLAIN COLOUR FLOORS","PLAIN IS QUICKER TO DRAW"},
  {"THE DARK SPOT UNDER YOUR FEET","OFF SAVES A LITTLE DRAWING"},
+ {"AFTER A BIG COMBO THE CAMERA ZOOMS IN AND SPINS","ALL 4 VIEWS  PICK HOW BIG A COMBO TRIGGERS IT"},
  {"FULL SHOWS EVERYTHING  SLIM KEEPS SCORE AND BARS","OFF HIDES ALL OF IT  ALERTS STILL SHOW"},
  {"SOUND OFF SKIPS SOUND DECODING","SAVES A LITTLE SPEED AND BATTERY"},
  {"FAST IS RIGHT FOR MOST CARTS AND EMULATORS","SAFE IF A FLASH CART FREEZES OR GLITCHES"},
@@ -781,7 +789,7 @@ static int presetOf(void){
 }
 static void setPreset(int p){ const u8*t=presetTab[p]; sFps=t[0]; sWall=t[1]; sWp=t[2]; sFl=t[3]; sShad=t[4]; sHud=t[5]; }
 static void applyRom(void){ REG_WAITCNT=sRom?0x0000:0x4317; }
-static void setDefaults(void){ setPreset(1); sSnd=1; sRom=0; sShow=0; applyRom(); }
+static void setDefaults(void){ setPreset(1); sCam=1; sSnd=1; sRom=0; sShow=0; applyRom(); }
 // Time to draw the room once (timer ticks), averaged over 3 draws. Uses the editor view so it never touches the game state.
 static int measureDraw(void){
     drawRoom(1); u16 t0=R_TM2D;
@@ -806,6 +814,7 @@ static void setChange(int row,int d){
         case R_WP: sWp^=1; break;
         case R_FL: sFl^=1; break;
         case R_SHAD: sShad^=1; break;
+        case R_CAM: sCam=(u8)((sCam+d+4)%4); break;
         case R_HUD: sHud=(u8)((sHud+d+3)%3); break;
         case R_SND: sSnd^=1; if(!sSnd) sfxStop(); break;
         case R_ROM: sRom^=1; applyRom(); break;
@@ -813,7 +822,7 @@ static void setChange(int row,int d){
     }
 }
 static const char* setVal(int row){
-    static const char* const fp[4]={"60 FPS","30 FPS","20 FPS","15 FPS"}, *const wn[3]={"FULL","CUTAWAY","LOW"}, *const hn[3]={"FULL","SLIM","OFF"}, *const sn[3]={"OFF","FPS","DETAIL"};
+    static const char* const fp[4]={"60 FPS","30 FPS","20 FPS","15 FPS"}, *const wn[3]={"FULL","CUTAWAY","LOW"}, *const hn[3]={"FULL","SLIM","OFF"}, *const sn[3]={"OFF","FPS","DETAIL"}, *const cn[4]={"OFF","OVER 10000","OVER 5000","OVER 2000"};
     switch(row){
         case R_PRESET: return presetNm[presetOf()];
         case R_TUNE: return "PRESS A";
@@ -822,6 +831,7 @@ static const char* setVal(int row){
         case R_WP: return sWp?"PATTERNS":"PLAIN";
         case R_FL: return sFl?"PATTERNS":"PLAIN";
         case R_SHAD: return sShad?"ON":"OFF";
+        case R_CAM: return cn[sCam];
         case R_HUD: return hn[sHud];
         case R_SND: return sSnd?"ON":"OFF";
         case R_ROM: return sRom?"SAFE":"FAST";
@@ -836,6 +846,7 @@ static int setHeat(int row){   // 0 light (green), 1 medium (yellow), 2 heavy (r
         case R_WP: return sWp?1:0;
         case R_FL: return sFl?1:0;
         case R_SHAD: return sShad?1:0;
+        case R_CAM: return sCam?1:0;
         case R_HUD: return sHud==0?1:0;
         case R_SND: return sSnd?1:0;
         case R_ROM: return sRom?1:0;
@@ -955,8 +966,8 @@ static void lifeStep(u16 k,u16 pr,int fr){
         int drop=lmaxz-(int)(lz>>8), sp0=lsp, bail=(lspin&7)!=0;
         if(bail){ lnote="BAIL"; lnoteT=60; lsp=0; lstun=45; lgrind=0; }
         else{
-            if(pts){ lscore+=pts; lpts=pts; lnote="NICE"; lnoteT=60; }
-            if(lskate&&tileH(lfx>>8,lfy>>8)==6){ lgrind=1; lnote="GRIND"; lnoteT=30; }
+            if(pts){ lscore+=pts; lpts=pts; lnote="NICE"; lnoteT=60; lcN++; lcPts+=pts; lcT=150; }
+            if(lskate&&tileH(lfx>>8,lfy>>8)==6){ lgrind=1; lnote="GRIND"; lnoteT=30; lcN++; lcT=150; }
         }
         if(bail) hurt(drop/2+sp0+(rnd8()>>5),1);        // bad landing: harder/faster/higher = worse
         else if(drop>24) hurt(drop-24+(rnd8()>>5),0);   // big drops hurt even landed clean
@@ -964,7 +975,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
     }
     if(!air){ lmaxz=(int)(lz>>8); lplay=0; }
     lairF=air;
-    if(lgrind){ if(air||tileH(lfx>>8,lfy>>8)!=6) lgrind=0; else if((fr&3)==0){ lscore+=3; lnote="GRIND"; lnoteT=10; } }
+    if(lgrind){ if(air||tileH(lfx>>8,lfy>>8)!=6) lgrind=0; else if((fr&3)==0){ lscore+=3; lnote="GRIND"; lnoteT=10; lcPts+=3; lcT=150; } }
     if(!lhave&&lz<(8<<8)&&(lfx>>8)==BDX&&(lfy>>8)==BDY){ lhave=1; lnote="GOT A SKATEBOARD"; lnoteT=90; }   // walk over it to pick it up
     if(!ldead){   // needs: hunger and bladder
         if(lfr%120==0&&lfood>0) lfood--;
@@ -985,26 +996,46 @@ static void lifeStep(u16 k,u16 pr,int fr){
             }
         }
     }
+    if(lcN>0){
+        if(lstun>0||ldead){ lcN=0; lcPts=0; lcT=0; }                      // a bail or hit loses the chain
+        else if(!air&&!lgrind&&--lcT<=0){                                  // chain over: bank the multiplier bonus
+            int tot=lcPts*lcN; if(lcN>=2) lscore+=lcPts*(lcN-1);
+            lcBank=tot; lcBankT=120;
+            if(lcN>=2&&sCam&&tot>camThr[sCam]) lcamPend=1;
+            lcN=0; lcPts=0;
+        }
+    }
+    if(lcBankT>0) lcBankT--;
     lfr++;
     if(lnoteT>0) lnoteT--;
     sfxTick();
 }
 static void tileTop(int sx,int sy,u16 c){ for(int t=-CA;t<=CA;t++){ int at=t<0?-t:t, hh=hhT[0][at]; vline(sx+t,sy-hh,sy+hh,c); } }
 static int ecx=6, ecy=6, efr;   // map editor cursor (tile) and frame counter
+// The room can be viewed from 4 sides (action cam). (rx,ry) are screen-space tile coords for the current view, (tx,ty) the real map tile.
+static void rotXY(int rx,int ry,int*tx,int*ty){
+    switch(cview){ case 0:*tx=rx;*ty=ry;break; case 1:*tx=ry;*ty=MW-1-rx;break; case 2:*tx=MW-1-rx;*ty=MH-1-ry;break; default:*tx=MH-1-ry;*ty=rx; }
+}
+static void rotPos(s32 x,s32 y,s32*rx,s32*ry){   // same for a position in 1/256 tiles
+    switch(cview){ case 0:*rx=x;*ry=y;break; case 1:*rx=MH*256-y;*ry=x;break; case 2:*rx=MW*256-x;*ry=MH*256-y;break; default:*rx=y;*ry=MW*256-x; }
+}
+static char cellAt(int rx,int ry){ int tx,ty; rotXY(rx,ry,&tx,&ty); return lifeMap[ty][tx]; }
+static int wpAt(int rx,int ry){ int tx,ty; rotXY(rx,ry,&tx,&ty); return wallMap[ty][tx]; }
+static int flAt(int rx,int ry){ int tx,ty; rotXY(rx,ry,&tx,&ty); return floorMap[ty][tx]; }
 static int isWallCh(char c){ return c=='w'||c=='W'; }
 static int tileOpen(int x,int y){   // in the map and not a wall / crate / fridge
     if(x<0||y<0||x>=MW||y>=MH) return 0;
-    char c=lifeMap[y][x]; return !(c=='w'||c=='W'||c=='#'||c=='F'); }
+    char c=cellAt(x,y); return !(c=='w'||c=='W'||c=='#'||c=='F'); }
 static int wallH(int tx,int ty){    // wall blocks DRAWN for this tile (the player still bumps into the full height)
-    if(lifeMap[ty][tx]=='w'||sWall==2) return 1;
+    if(cellAt(tx,ty)=='w'||sWall==2) return 1;
     if(sWall==1&&(tileOpen(tx-1,ty)||tileOpen(tx,ty-1)||tileOpen(tx-1,ty-1))) return 1;   // faces the camera: cut it down
     return 2;
 }
 static int wallJoin(int tx,int ty,int j,int wp){   // neighbour wall with the same wallpaper that reaches block j
-    if(tx<0||ty<0||tx>=MW||ty>=MH||!isWallCh(lifeMap[ty][tx])) return 0;
-    return wallH(tx,ty)>=j&&wallMap[ty][tx]==wp; }
+    if(tx<0||ty<0||tx>=MW||ty>=MH||!isWallCh(cellAt(tx,ty))) return 0;
+    return wallH(tx,ty)>=j&&wpAt(tx,ty)==wp; }
 static void drawWall(int tx,int ty,int sx,int sy){
-    int h=wallH(tx,ty), wp=wallMap[ty][tx];
+    int h=wallH(tx,ty), wp=wpAt(tx,ty);
     for(int j=1;j<=h;j++){
         int f=(j<h?1:0)|(j>1?2:0)|(wallJoin(tx-1,ty,j,wp)?16:0)|(wallJoin(tx,ty-1,j,wp)?32:0);
         if(sWp) wallBlock(sx,sy-j*CC,wp,f); else cube(sx,sy-j*CC,9+wp,0,f);
@@ -1020,29 +1051,33 @@ static void eRect(int*x0,int*y0,int*x1,int*y1){   // anchor..cursor as an ordere
     if(eTool==T_WALL){ int dx=bx>ax?bx-ax:ax-bx, dy=by>ay?by-ay:ay-by; if(dx>=dy) by=ay; else bx=ax; }
     *x0=ax<bx?ax:bx; *x1=ax<bx?bx:ax; *y0=ay<by?ay:by; *y1=ay<by?by:ay;
 }
+static int lpsx, lpsy;   // where the player is on screen (zoom centre)
 static void drawRoom(int ed){   // the room, drawn back to front; ed=1: editor view (no player, markers + cursor)
     fillCols(0,ROW_W,RGB(4,5,8));
-    for(int ty=0;ty<MH;ty++)for(int tx=0;tx<MW;tx++){ char c=lifeMap[ty][tx]; if(c=='w'||c=='W'||c=='#'||c=='F'||c=='T') continue;
+    for(int ty=0;ty<MH;ty++)for(int tx=0;tx<MW;tx++){ char c=cellAt(tx,ty); if(c=='w'||c=='W'||c=='#'||c=='F'||c=='T') continue;
         int sx=LOX+(tx-ty)*CA, sy=LOY+(tx+ty+1)*CB;
         if(c=='D') tileTop(sx,sy,RGB(14,9,5));
-        else { int fl=floorMap[ty][tx], v=(tx^ty)&1; if(sFl) floorTile(sx,sy,&flTab[fl][v][0][0]); else tileTop(sx,sy,flFlat[fl][v]); } }
-    int ss=(int)((lfx>>8)+(lfy>>8)), psx=LOX+(int)((lfx-lfy)>>5), psy=LOY+(int)((lfx+lfy)>>6);
+        else { int fl=flAt(tx,ty), v=(tx^ty)&1; if(sFl) floorTile(sx,sy,&flTab[fl][v][0][0]); else tileTop(sx,sy,flFlat[fl][v]); } }
+    s32 rfx,rfy; rotPos(lfx,lfy,&rfx,&rfy);
+    int ss=(int)((rfx>>8)+(rfy>>8)), psx=LOX+(int)((rfx-rfy)>>5), psy=LOY+(int)((rfx+rfy)>>6);
+    lpsx=psx; lpsy=psy-20;
     for(int s=0;s<MW+MH-1;s++){
         for(int tx=0;tx<MW;tx++){ int ty=s-tx; if(ty<0||ty>=MH) continue;
-            char c=lifeMap[ty][tx]; int sx=LOX+(tx-ty)*CA, sy=LOY+(tx+ty+1)*CB;
+            char c=cellAt(tx,ty); int sx=LOX+(tx-ty)*CA, sy=LOY+(tx+ty+1)*CB;
             if(c=='w'||c=='W') drawWall(tx,ty,sx,sy);
             else if(c=='#'){ for(int j=1;j<=2;j++) cube(sx,sy-j*CC,7,0,(j<2?1:0)|(j>1?2:0)); }
             else if(c=='F'){ for(int j=1;j<=2;j++) cube(sx,sy-j*CC,2,0,(j<2?1:0)|(j>1?2:0)); }   // fridge: white, 2 blocks tall
             else if(c=='T') cube(sx,sy-CC,8,0,0);                                                  // toilet: pale, 1 block
             else if(c=='=') cube(sx,sy-6,8,1,2);
-            if((ed&&c=='B')||(!ed&&!lhave&&tx==BDX&&ty==BDY)){   // the skateboard pickup, bobbing
+            int ox,oy; rotXY(tx,ty,&ox,&oy);
+            if((ed&&c=='B')||(!ed&&!lhave&&ox==BDX&&oy==BDY)){   // the skateboard pickup, bobbing
                 int by=sy-3-(ed?0:((lfr>>4)&1));
                 rect(sx-6,by-1,12,3,RGB(26,10,6)); rect(sx-5,by-2,10,1,RGB(31,20,8)); rect(sx-5,by+2,2,2,RGB(3,3,6)); rect(sx+3,by+2,2,2,RGB(3,3,6));
             }
             if(ed&&c=='P'){ rect(sx-2,sy-9,5,7,RGB(28,10,8)); rect(sx-2,sy-13,5,4,RGB(30,23,17)); }   // little person = spawn
         }
         if(!ed&&s==ss){
-            int fhp=tileH(lfx>>8,lfy>>8), zp=(int)(lz>>8), vsel=((lhd+lspin+66)>>2)&3;
+            int fhp=tileH(lfx>>8,lfy>>8), zp=(int)(lz>>8), vsel=((lhd+lspin+66+4*cview)>>2)&3;
             if(sShad){ rect(psx-3,psy-fhp-1,7,2,RGB(10,8,5)); rect(psx-1,psy-fhp-2,3,4,RGB(10,8,5)); }   // shadow
             if(lskate){ rect(psx-6,psy-zp-1,12,2,RGB(26,10,6)); rect(psx-5,psy-zp+1,2,2,RGB(3,3,6)); rect(psx+3,psy-zp+1,2,2,RGB(3,3,6)); }   // board under the feet
             blit(spr4[vsel],psx-16,psy-40-zp);
@@ -1061,8 +1096,27 @@ static void drawRoom(int ed){   // the room, drawn back to front; ed=1: editor v
     }
 }
 
+// Camera zoom: scale the finished picture up around (cx,cy) in place. zk = 256 / zoom. Source pixels are always nearer the
+// centre than their destination, so working outward from the centre never reads a pixel that was already overwritten.
+static short zxm[SW], zym[SH];
+IWRAM_CODE static void zoomFb(int cx,int cy,int zk){
+    for(int x=0;x<SW;x++) zxm[x]=(short)(cx+(((x-cx)*zk)>>8));
+    for(int y=0;y<SH;y++) zym[y]=(short)(cy+(((y-cy)*zk)>>8));
+    for(int pass=0;pass<2;pass++){
+        int y0=pass?0:SH-1, y1=pass?cy:cy-1, st=pass?1:-1;
+        for(int y=y0;y!=y1;y+=st){
+            u16*d=fb+y*SW; const u16*s=fb+zym[y]*SW;
+            for(int x=SW-1;x>=cx;x--) d[x]=s[zxm[x]];
+            for(int x=0;x<cx;x++) d[x]=s[zxm[x]];
+        }
+    }
+}
 static void lifeDraw(void){
     drawRoom(0);
+    if(lcamF>0){   // action cam: ease in, spin through all 4 views, ease out
+        int f=lcamF, z=f<12?f:(f>CAM_LEN-12?CAM_LEN-f:12);   // 0..12 zoom amount
+        if(z>0){ int cx=lpsx<0?0:lpsx>=SW?SW-1:lpsx, cy=lpsy<0?0:lpsy>=SH?SH-1:lpsy; zoomFb(cx,cy,256-z*(CAM_ZOOM)/12); }
+    }
     u16 gold=GOLD, dim=DIMC, hint=RGB(12,14,16);
     if(sHud<2){
         text(2,2,"SCORE",dim,1); numText(24,2,lscore,gold);
@@ -1076,7 +1130,10 @@ static void lifeDraw(void){
         text(2,146,lskate?"A PUSH B OLLIE DPAD STEER L WALK":(lhave?"DPAD WALK B RUN A HOP L SKATE":"DPAD WALK B RUN A HOP FIND A BOARD"),hint,1);
         text(2,153,"START MENU",hint,1);
     }
-    if(lnear&&!ldead) text(2,132,lnear==1?"R OPEN FRIDGE":"R USE TOILET",gold,1);   // prompts and alerts always show
+    if(lcamF>0){ rect(56,126,128,32,PANEL); text(72,130,"BIG COMBO",GOLD,2); numText(108,145,lcBank,WHITE); }   // banner at the bottom so it never covers the skater
+    else if(lcN>0&&sHud<2){ text(2,32,"COMBO X",GOLD,1); numText(30,32,lcN,WHITE); numText(44,32,lcPts*lcN,gold); }
+    else if(lcBankT>0&&sHud<2){ text(2,32,"COMBO",GOLD,1); numText(24,32,lcBank,WHITE); }
+    if(lnear&&!ldead&&!lcamF) text(2,132,lnear==1?"R OPEN FRIDGE":"R USE TOILET",gold,1);   // prompts and alerts always show
     if(ldead) text(2,25,"PRESS A TO RESPAWN",RGB(31,12,8),1);
     if(lnoteT>0){ text(2,18,lnote,RGB(31,31,31),1); if(lpts&&lnote[0]=='N'){ text(2,25,"+",gold,1); numText(6,25,lpts,gold); } }
     if(sShow){   // performance counter, bottom right
@@ -1084,13 +1141,18 @@ static void lifeDraw(void){
         if(sShow==2){ text(184,146,"LOAD",dim,1); numText(204,146,lloadV,lloadV>=100?RGB(30,10,8):gold); }
     }
 }
+static void camStep(int steps,u16 k,u16 pr){   // action cam: the game holds still while the camera swings round the room
+    lcamF+=steps;
+    if(((k&K_SEL)&&(pr&K_SEL))||lcamF>=CAM_LEN){ lcamF=0; cview=0; lcBankT=120; }
+    else { int f=lcamF; cview=(f<6||f>=60)?0:(f-6)/18+1; if(cview>3) cview=0; }
+}
 static int gToMenu;   // set when the player picks MAIN MENU in the pause menu, so every screen above returns to it
 static const char* const lifeItems[5]={"RESUME","HOW TO PLAY","SETTINGS","EDIT MAP","MAIN MENU"};
 static const char* const lifeItemsEd[4]={"RESUME","HOW TO PLAY","SETTINGS","BACK TO EDITOR"};
 // Timer2 (65536 Hz) is the clock (defined with the settings). The game logic always runs at 60 steps per second; the
 // frame rate setting only says how often the picture is redrawn, so lower rates save work without slowing the game.
 static void lifeMode(int ed){   // ed=1: test play started from the map editor
-    lifeInit(); u16 prev=keyNow();
+    lifeInit(); lcamF=0; cview=0; lcN=lcPts=lcT=lcBank=lcBankT=lcamPend=0; u16 prev=keyNow();
     tmStart(); u16 tl=R_TM2D; int acc=0, fpsN=0, fr=0; u32 fpsT=0, workT=0; lfpsV=0; lloadV=0;
     for(;;){
         int need=(sFps+1)*TICKS_FRAME-100;
@@ -1106,13 +1168,17 @@ static void lifeMode(int ed){   // ed=1: test play started from the map editor
             else if(c==2) settingsScreen();
             else if(c==3&&!ed){ mapEditor(); lifeInit(); }
             else if((c==3&&ed)||c==4){ if(c==4) gToMenu=1; break; }
-            prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; continue;
+            prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=0; continue;
         }
-        for(int s=0;s<steps;s++) lifeStep(k,s?0:pr,fr++);   // catch up if a frame took long; button presses count once
+        if(lcamF>0) camStep(steps,k,pr);
+        else {
+            for(int s=0;s<steps;s++) lifeStep(k,s?0:pr,fr++);   // catch up if a frame took long; button presses count once
+            if(lcamPend){ lcamPend=0; if(sCam){ lcamF=1; cview=0; } }
+        }
         lifeDraw(); workT+=(u16)(R_TM2D-w0); present();
         fpsN++; if(fpsT>=65536){ lfpsV=fpsN; lloadV=(int)(workT/(u32)fpsN*100/(u32)((sFps+1)*TICKS_FRAME)); workT=0; fpsN=0; fpsT-=65536; }
     }
-    R_TM2CNT=0; sfxStop();
+    R_TM2CNT=0; sfxStop(); lcamF=0; cview=0;
     while((~REG_KEYINPUT)&0x3FF) vsync();   // wait for release so the caller doesn't see the exit keys
 }
 
