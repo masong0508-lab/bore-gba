@@ -31,8 +31,8 @@
 #define MOOD_BORED      20    // fun below this = BORED (fewer points)
 #define MOOD_STOKED     80    // fun at/above this (and happy >= 60) = STOKED (more points, a touch faster)
 
-enum { M_TRICK, M_COMBO, M_GRIND_ON, M_LAUNCH, M_GOT_BOARD, M_EAT, M_RELIEVE,      // good
-       M_BAIL, M_HURT, M_HURT_BIG, M_BUMP, M_ACCIDENT, M_FAINT, M_DIE, M_N };        // bad
+enum { M_TRICK, M_COMBO, M_GRIND_ON, M_LAUNCH, M_GOT_BOARD, M_EAT, M_RELIEVE, M_SLEEP, M_SHOWER, M_SOFA, M_WANT,      // good
+       M_BAIL, M_HURT, M_HURT_BIG, M_BUMP, M_ACCIDENT, M_FAINT, M_DIE, M_FEAR, M_PASSOUT, M_N };        // bad
 typedef struct { signed char fun, hap; } MoodRow;
 static const MoodRow moodTab[M_N]={
     { 5, 1},   // M_TRICK       landed a clean trick (spin / flip / grab)
@@ -42,6 +42,10 @@ static const MoodRow moodTab[M_N]={
     {10, 6},   // M_GOT_BOARD   found the skateboard
     { 2,10},   // M_EAT         ate at the fridge
     { 1, 8},   // M_RELIEVE     used the toilet
+    { 0, 8},   // M_SLEEP       got up from bed
+    { 2, 8},   // M_SHOWER      finished a shower
+    { 3, 5},   // M_SOFA        got up from the sofa
+    { 4, 8},   // M_WANT        met a want (sims.h)
     {-6,-4},   // M_BAIL        bad landing
     {-4,-6},   // M_HURT        hurt badly enough to groan (OW)
     {-6,-12},  // M_HURT_BIG    close call
@@ -49,10 +53,13 @@ static const MoodRow moodTab[M_N]={
     {-8,-15},  // M_ACCIDENT    bladder let go
     {-6,-12},  // M_FAINT       fainted from hunger
     {-10,-25}, // M_DIE
+    {-3,-7},   // M_FEAR        a fear came true (sims.h)
+    {-6,-12},  // M_PASSOUT     fell asleep on their feet (sims.h)
 };
 enum { MS_SAD, MS_BORED, MS_OK, MS_HAPPY, MS_STOKED };
 static int moodFun, moodHap, moodIdle, moodAir, moodSt;   // meters x256, steps since anything fun, steps airborne, last announced state
 static const char* const moodStName[5]={"SAD","BORED","OK","HAPPY","STOKED"};
+static int simsComfort(void); static int simsTop(int top); static void simsMood(int ev,int n);   // sims.h (included after this file)
 static inline int moodClamp(int v){ return v<0?0:v>100*MOOD_ONE?100*MOOD_ONE:v; }
 static inline int moodFunPct(void){ return moodFun/MOOD_ONE; }
 static inline int moodHapPct(void){ return moodHap/MOOD_ONE; }
@@ -69,6 +76,7 @@ static void moodEventN(int ev,int n){
     if(n>8) n=8;
     moodFun=moodClamp(moodFun+moodTab[ev].fun*MOOD_ONE*n); moodHap=moodClamp(moodHap+moodTab[ev].hap*MOOD_ONE*n);
     if(moodTab[ev].fun>0) moodIdle=0;   // something fun happened: boredom starts over
+    simsMood(ev,n);                     // sims.h: tell the wants and fears about it
 }
 static inline void moodEvent(int ev){ moodEventN(ev,1); }
 static void moodTick(void){   // once per logic step while alive
@@ -79,6 +87,7 @@ static void moodTick(void){   // once per logic step while alive
     if(lairF){ if(++moodAir>MOOD_AIR_MIN){ dec-=MOOD_AIRTIME; moodIdle=0; } } else moodAir=0;
     moodFun=moodClamp(moodFun-dec);
     int comfort=lfood<100-lbl?lfood:100-lbl;                            // 0..100: worst of hunger and bladder
+    { int sc=simsComfort()+20; if(sc>100) sc=100; if(sc<comfort) comfort=sc; }   // ...and the sims.h needs (energy, hygiene, comfort), with some slack
     int target=(comfort*MOOD_W_COMFORT+moodFunPct()*(100-MOOD_W_COMFORT))/100;
     int t=target*MOOD_ONE;
     if(moodHap<t){ moodHap+=MOOD_HAP_UP; if(moodHap>t) moodHap=t; } else if(moodHap>t){ moodHap-=MOOD_HAP_DOWN; if(moodHap<t) moodHap=t; }
@@ -90,8 +99,8 @@ static void moodTick(void){   // once per logic step while alive
     }
 }
 // ---- effects: what the mood does to the game ----
-static int moodTop(int top){    // top speed: SAD drags 15%, STOKED adds 6%
-    int s=moodState(); return s==MS_SAD?top-top*15/100: s==MS_STOKED?top+top*6/100: top;
+static int moodTop(int top){    // top speed: SAD drags 15%, STOKED adds 6%, and being worn out (sims.h) slows you down
+    int s=moodState(); top=s==MS_SAD?top-top*15/100: s==MS_STOKED?top+top*6/100: top; return simsTop(top);
 }
 static int moodPts(int pts){    // trick points: STOKED +25%, BORED -25%
     int s=moodState(); return s==MS_STOKED?pts+pts/4: s==MS_BORED?pts-pts/4: pts;

@@ -42,6 +42,8 @@ static const IBox bxToilet[3]={
 
 // ---- grind rail, kicker ramp, quarter pipe, ledge, bench: generated art (tools/make_skate_items.py) ----
 #include "skateart.h"
+// ---- bed, shower, sofa: the life-sim furniture ----
+#include "simart.h"
 
 // ---- door mat / threshold ----
 static const u16 pDr[4]={RGB(8,5,3),RGB(18,11,6),RGB(24,16,8),RGB(28,20,10)};
@@ -60,7 +62,7 @@ static const IBox bxBoard[5]={
  {2,1,6,7,3,4,{&mBdEdge,&mBdEdge,&mBdEdge,&mBdEdge,&mBdTop}} };
 
 enum { V_CRATE, V_FRIDGE, V_TOILET=V_FRIDGE+4, V_RAILU=V_TOILET+4, V_RAILV, V_DOOR, V_BOARD,
-       V_KICKER, V_QPIPE=V_KICKER+4, V_LEDGEU=V_QPIPE+4, V_LEDGEV, V_BENCHU, V_BENCHV, NIV };
+       V_KICKER, V_QPIPE=V_KICKER+4, V_LEDGEU=V_QPIPE+4, V_LEDGEV, V_BENCHU, V_BENCHV, V_BED, V_SHOWER=V_BED+4, V_SOFA=V_SHOWER+4, NIV=V_SOFA+4 };
 static u16 itemSpr[NIV][IH][IW] EWRAM_BSS;
 static u16 itemTmp[IH][IW];
 static u8 itemsReady;
@@ -126,7 +128,8 @@ static void bakeOne(int k,const IBox*b,int n,int r,int nsh){
 }
 static void bakeItems(void){
     bakeOne(V_CRATE,bxCrate,1,0,11);
-    for(int r=0;r<4;r++){ bakeOne(V_FRIDGE+r,bxFridge,1,r,11); bakeOne(V_TOILET+r,bxToilet,3,r,11); }
+    for(int r=0;r<4;r++){ bakeOne(V_FRIDGE+r,bxFridge,1,r,11); bakeOne(V_TOILET+r,bxToilet,3,r,11);
+        bakeOne(V_BED+r,bxBed,4,r,11); bakeOne(V_SHOWER+r,bxShower,4,r,11); bakeOne(V_SOFA+r,bxSofa,4,r,11); }
     bakeOne(V_RAILU,bxRailU,3,0,16); bakeOne(V_RAILV,bxRailV,3,0,16);
     bakeOne(V_DOOR,bxDoor,1,0,13); bakeOne(V_BOARD,bxBoard,5,0,12);
     for(int r=0;r<4;r++){ bakeOne(V_KICKER+r,bxKicker,8,r,11); bakeOne(V_QPIPE+r,bxQuarterPipe,8,r,11); }
@@ -167,5 +170,8 @@ static void drawItemTile(char c,int sx,int sy,int x,int y){
     else if(c=='N') blitItem(itemAlongU(x,y,'N')?V_BENCHU:V_BENCHV,sx,sy);
     else if(isKicker(c)) blitItem(V_KICKER+(((c-'1')-cview)&3),sx,sy);
     else if(isQPipe(c)) blitItem(V_QPIPE+(((c-'5')-cview)&3),sx,sy);
+    else if(c=='S') blitItem(V_BED+((itemFacing(x,y)-cview)&3),sx,sy);
+    else if(c=='H') blitItem(V_SHOWER+((itemFacing(x,y)-cview)&3),sx,sy);
+    else if(c=='C') blitItem(V_SOFA+((itemFacing(x,y)-cview)&3),sx,sy);
     else if(c=='D') blitItem(V_DOOR,sx,sy);
 }

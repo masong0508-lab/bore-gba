@@ -645,6 +645,7 @@ static int lsp,lhd,lspin,lflip,lgrind,lscore,lstun,lairF,lpts,lnoteT; static con
 static int lfood, lbl, lnear;   // hunger (100 = full), bladder (100 = bursting), what is in reach (1 fridge, 2 toilet)
 static int lmaxz, lplay, ldead, lbumpCd;   // peak height this jump, air sound played, dead, bump cooldown
 #include "mood.h"   // FUN + HAPPY meters: moodEvent(), moodTick(), moodTop(), moodPts()
+#include "sims.h"   // life-sim layer: energy/hygiene/comfort, wants and fears, aspiration, plumbob. simsTick(), simBegin(), simsHud()
 
 // ---------- sound effects: 4-bit IMA-ADPCM @ 6554 Hz, decoded on the fly into RAM, played by Direct Sound A (DMA1 + Timer0) ----------
 // source/sfx/*.adp (made by tools/encode_sfx.py) are baked into the ROM with .incbin; paths are relative to the project root.
@@ -945,7 +946,7 @@ static void hurt(int sev,int kind){
 static int tileH(int tx,int ty){   // surface height in px (ramps: their highest point). Grind height is 6: rails, ledges and benches
     if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
     char c=lifeMap[ty][tx];
-    return (c=='#'||c=='F'||c=='W')?2*CC: (c=='w'||c=='T')?CC: (c=='='||c=='L'||c=='N')?6: isKicker(c)?KICKER_H: isQPipe(c)?qpH[7]: 0;
+    return (c=='#'||c=='F'||c=='W'||c=='H')?2*CC: (c=='w'||c=='T'||c=='S'||c=='C')?CC: (c=='='||c=='L'||c=='N')?6: isKicker(c)?KICKER_H: isQPipe(c)?qpH[7]: 0;
 }
 static int surfH(s32 fx,s32 fy){   // surface height at an exact position (1/256 tiles): same as tileH, but ramps slope
     int tx=(int)(fx>>8), ty=(int)(fy>>8); if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
@@ -973,13 +974,13 @@ static int numText(int x,int y,int n,u16 c){
 // lifeMap = what stands on each tile, floorMap = floor style under it, wallMap = wallpaper on it (for wall tiles).
 enum { T_ROOM, T_WALL, T_FLOOR, T_ITEM, T_ERASE, NTOOL };
 static int eTool, eAct, eAx, eAy, eFl, eWp, eOb;   // editor: tool, rectangle anchor set?, anchor tile, chosen floor / wallpaper / item
-#define NOBJ 14
+#define NOBJ 17
 #define OB_KICKER 10   // palette slots whose char carries a turn (+eRot): kicker '1'..'4', quarter pipe '5'..'8'
 #define OB_QPIPE 11
 static int eRot;   // editor: which way the next ramp faces (0 S, 1 E, 2 N, 3 W)
-static const char palCh[NOBJ]={'.','w','W','#','=','F','T','D','B','P','1','5','L','N'};
-static const char* const palNm[NOBJ]={"CLEAR","LOW WALL","WALL","CRATE","RAIL","FRIDGE","TOILET","DOOR","BOARD","SPAWN","KICKER","Q PIPE","LEDGE","BENCH"};
-static const u16 palCol[NOBJ]={RGB(26,21,14),RGB(8,20,22),RGB(10,22,24),RGB(8,9,20),RGB(31,30,16),RGB(31,31,31),RGB(30,28,18),RGB(14,9,5),RGB(26,10,6),RGB(28,10,8),RGB(24,17,9),RGB(27,19,11),RGB(20,20,22),RGB(25,18,9)};
+static const char palCh[NOBJ]={'.','w','W','#','=','F','T','D','B','P','1','5','L','N','S','H','C'};
+static const char* const palNm[NOBJ]={"CLEAR","LOW WALL","WALL","CRATE","RAIL","FRIDGE","TOILET","DOOR","BOARD","SPAWN","KICKER","Q PIPE","LEDGE","BENCH","BED","SHOWER","SOFA"};
+static const u16 palCol[NOBJ]={RGB(26,21,14),RGB(8,20,22),RGB(10,22,24),RGB(8,9,20),RGB(31,30,16),RGB(31,31,31),RGB(30,28,18),RGB(14,9,5),RGB(26,10,6),RGB(28,10,8),RGB(24,17,9),RGB(27,19,11),RGB(20,20,22),RGB(25,18,9),RGB(10,14,28),RGB(22,28,30),RGB(26,18,9)};
 static int palIdx(char c){ if(isKicker(c)) return OB_KICKER; if(isQPipe(c)) return OB_QPIPE; for(int i=0;i<NOBJ;i++) if(palCh[i]==c) return i; return -1; }
 static char edObjCh(void){ char c=palCh[eOb]; return (eOb==OB_KICKER||eOb==OB_QPIPE)?(char)(c+eRot):c; }   // the char the ITEM tool places
 // ---- default big map: house (top left), factory (top right), rail park (bottom), roads of concrete between ----
@@ -1278,14 +1279,14 @@ static const signed char hdT[3][3]={{10,12,14},{8,-1,0},{6,4,2}};   // [sign dy+
 #include "feel.h"
 static void lifeInit(void){
     mapScan(); bakeSprites(); camSnap=1;
-    lfx=spx*256+128; lfy=spy*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote=""; lskate=0; lhave=(bdx<0); lfr=0; lvx=lvy=0; ldead=0; lmaxz=0; lplay=0; lbumpCd=0; lfood=100; lbl=0; lnear=0; moodReset(); sfxStop(); feelReset(0);
+    lfx=spx*256+128; lfy=spy*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote=""; lskate=0; lhave=(bdx<0); lfr=0; lvx=lvy=0; ldead=0; lmaxz=0; lplay=0; lbumpCd=0; lfood=100; lbl=0; lnear=0; moodReset(); simsReset(); sfxStop(); feelReset(0);
 }
 static int rampAvg, rampOn;   // px/step (8.8) the skater has been climbing a ramp, smoothed (heights are whole px, so single steps are lumpy); rampOn = rode a ramp last step
 static void lifeStep(u16 k,u16 pr,int fr){
     int fh=surfH(lfx,lfy)<<8;
     if(ldead){   // dead: frozen until A
         lstun=2;
-        if(pr&K_A){ ldead=0; lstun=0; lfx=spx*256+128; lfy=spy*256+128; lz=0; lvz=0; lskate=0; lsp=0; lgrind=0; lspin=0; lflip=0; lairF=0; lmaxz=0; lplay=0; lnoteT=0; lfood=100; lbl=0; moodReset(); sfxStop(); feelReset(0); }
+        if(pr&K_A){ ldead=0; lstun=0; lfx=spx*256+128; lfy=spy*256+128; lz=0; lvz=0; lskate=0; lsp=0; lgrind=0; lspin=0; lflip=0; lairF=0; lmaxz=0; lplay=0; lnoteT=0; lfood=100; lbl=0; moodReset(); simsReset(); sfxStop(); feelReset(0); }
     }
     if(lstun>0){ lstun--; lsp=0; lvx=lvy=0; }
     else {
@@ -1348,19 +1349,20 @@ static void lifeStep(u16 k,u16 pr,int fr){
     if(lgrind){ if(air||tileH(lfx>>8,lfy>>8)!=6) lgrind=0; else if((fr&3)==0){ lscore+=3; lnote="GRIND"; lnoteT=10; lcPts+=3; lcT=150; } }
     if(!lhave&&lz<(8<<8)&&(lfx>>8)==BDX&&(lfy>>8)==BDY){ lhave=1; lnote="GOT A SKATEBOARD"; lnoteT=90; moodEvent(M_GOT_BOARD); }   // walk over it to pick it up
     if(!ldead){   // needs: hunger and bladder, then how they (and the skating) make the skater feel
-        moodTick();
+        moodTick(); simsTick(pr);
         if(lfr%120==0&&lfood>0) lfood--;
         if(lfr%100==0&&lbl<100) lbl++;
         if(lfood==0&&lfr%300==0){ lfood=15; lstun=120; lsp=0; lgrind=0; sfxPlay(SFX_GROAN); lnote="FAINTED FROM HUNGER"; lnoteT=90; moodEvent(M_FAINT); }
         if(lbl>=100){ lbl=0; lstun=90; lsp=0; lgrind=0; lscore=lscore>100?lscore-100:0; sfxPlay(SFX_CRY); lnote="ACCIDENT"; lnoteT=90; moodEvent(M_ACCIDENT); }
-        int nf=0, nt=0;
+        int nf=0, nt=0, nb=0, nh=0, nc=0;
         for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++){ int tx=(lfx>>8)+dx, ty=(lfy>>8)+dy; if(tx<0||ty<0||tx>=MW||ty>=MH) continue;
-            char c=lifeMap[ty][tx]; if(c=='F') nf=1; if(c=='T') nt=1; }
-        lnear=nf?1:(nt?2:0);
+            char c=lifeMap[ty][tx]; if(c=='F') nf=1; if(c=='T') nt=1; if(c=='S') nb=1; if(c=='H') nh=1; if(c=='C') nc=1; }
+        lnear=nf?1:(nt?2:(nb?3:(nh?4:(nc?5:0))));   // 1 fridge, 2 toilet, 3 bed, 4 shower, 5 sofa
         if((pr&K_R)&&lnear&&lstun<=0&&lz<=fh){
             if(lnear==1){   // fridge: eat
                 if(lfood>=95){ lnote="FULL"; lnoteT=40; }
                 else { lfood+=35; if(lfood>100) lfood=100; lbl+=10; if(lbl>99) lbl=99; lstun=30; lsp=0; lnote="YUM"; lnoteT=50; moodEvent(M_EAT); }
+            } else if(lnear>=3){ simBegin(lnear);   // bed / shower / sofa (sims.h)
             } else {        // toilet: relieve yourself
                 if(lbl<15){ lnote="LATER"; lnoteT=40; }
                 else { lbl=0; lstun=70; lsp=0; lgrind=0; lnote="AHH"; lnoteT=60; moodEvent(M_RELIEVE); }
@@ -1464,7 +1466,7 @@ static void drawRoom(int ed){   // the room, drawn back to front; ed=1: editor v
             char c=cellAt(tx,ty); int sx=LOX+(tx-ty)*CA, sy=LOY+(tx+ty+1)*CB;
             if(c=='w'||c=='W') drawWall(tx,ty,sx,sy);
             int ox,oy; rotXY(tx,ty,&ox,&oy);
-            if(c=='#'||c=='F'||c=='T'||c=='='||c=='D'||c=='L'||c=='N'||isRamp(c)) drawItemTile(c,sx,sy,ox,oy);
+            if(c=='#'||c=='F'||c=='T'||c=='='||c=='D'||c=='L'||c=='N'||c=='S'||c=='H'||c=='C'||isRamp(c)) drawItemTile(c,sx,sy,ox,oy);
             if((ed&&c=='B')||(!ed&&!lhave&&ox==BDX&&oy==BDY)) blitItem(V_BOARD,sx,sy-(ed?0:((lfr>>4)&1)));   // the skateboard pickup, bobbing
             if(ed&&c=='P') drawSpawn(sx,sy+1);   // little person = spawn
         }
@@ -1522,6 +1524,7 @@ static void lifeDraw(void){
         if(z>0){ int cx=lpsx<0?0:lpsx>=SW?SW-1:lpsx, cy=lpsy<0?0:lpsy>=SH?SH-1:lpsy; zoomFb(cx,cy,256-z*(CAM_ZOOM)/12); }
     }
     u16 gold=GOLD, dim=DIMC, hint=RGB(12,14,16);
+    if(!lcamF&&!ldead){ simsPlumbDraw(lpsx,lpsy-16); if(sHud<2) simsBubble(lpsx,lpsy-24,RGB(6,6,10)); }   // plumbob and thought bubble over the head (sims.h)
     if(sHud<2){
         numText(text(2,2,"SCORE",dim,1)+3,2,lscore,gold);
         text(150,10,"FOOD",dim,1); rect(180,10,lfood/2,5,lfood<20?RGB(28,8,6):RGB(10,24,8));
@@ -1529,6 +1532,7 @@ static void lifeDraw(void){
         text(150,26,"FUN",dim,1); rect(180,26,moodFunPct()/2,5,moodFunPct()<MOOD_BORED?RGB(28,8,6):RGB(8,22,28));
         text(150,34,"HAPPY",dim,1); rect(180,34,moodHapPct()/2,5,moodHapPct()<MOOD_SAD?RGB(28,8,6):RGB(28,13,19));
         drawFace(150,42,moodState()); text(160,43,moodStName[moodState()],gold,1);
+        simsHud(150,54,dim,gold);
     }
     if(sHud==0){
         text(2,10,"SPEED",dim,1); rect(24,10,lsp,5,RGB(8,24,10));
@@ -1540,7 +1544,7 @@ static void lifeDraw(void){
     if(lcamF>0){ rect(56,126,128,32,PANEL); text(72,130,"BIG COMBO",GOLD,2); numText(120-tw("0",1)*3/2,145,lcBank,WHITE); }   // banner at the bottom so it never covers the skater
     else if(lcN>0&&sHud<2){ int x=text(2,32,"COMBO X",GOLD,1)+1; x=numText(x,32,lcN,WHITE)+4; numText(x,32,lcPts*lcN,gold); }
     else if(lcBankT>0&&sHud<2){ numText(text(2,32,"COMBO",GOLD,1)+3,32,lcBank,WHITE); }
-    if(lnear&&!ldead&&!lcamF) text(2,132,lnear==1?"R OPEN FRIDGE":"R USE TOILET",gold,1);   // prompts and alerts always show
+    if(lnear&&!ldead&&!lcamF) text(2,132,simAct?"A OR B GET UP":(lnear==1?"R OPEN FRIDGE":lnear==2?"R USE TOILET":lnear==3?"R SLEEP IN BED":lnear==4?"R TAKE A SHOWER":"R SIT ON SOFA"),gold,1);   // prompts and alerts always show
     if(ldead) text(2,25,"PRESS A TO RESPAWN",RGB(31,12,8),1);
     if(lnoteT>0){ text(2,18,lnote,RGB(31,31,31),1); if(lpts&&lnote[0]=='N'){ numText(text(2,25,"+",gold,1)+1,25,lpts,gold); } }
     if(sShow){   // performance counter, bottom right
@@ -1634,14 +1638,15 @@ static void drawEditorHud(const char*msg){
         else text(2,11,"PICK A START POINT",GOLD,1);
     }
     if(eTool==T_ITEM){
-        for(int i=0;i<NOBJ;i++){ int xx=2+i*13; rect(xx,136,12,9,i==eOb?WHITE:RGB(3,4,7)); rect(xx+1,137,10,7,palCol[i]); }
+        for(int i=0;i<NOBJ;i++){ int xx=2+i*11; rect(xx,136,10,9,i==eOb?WHITE:RGB(3,4,7)); rect(xx+1,137,8,7,palCol[i]); }
         { static const char*const faceNm[4]={"FACES S","FACES E","FACES N","FACES W"};
           int xx=text(2,127,palNm[eOb],WHITE,1)+4; if(eOb==OB_KICKER||eOb==OB_QPIPE) text(xx,127,faceNm[eRot],GOLD,1); }
         if(eOb>=3){ rect(204,114,34,36,RGB(4,5,8)); tileTop(221,141,RGB(14,14,18));   // preview of the picked item
             switch(eOb){ case 3:blitItem(V_CRATE,221,141);break; case 4:blitItem(V_RAILU,221,141);break; case 5:blitItem(V_FRIDGE,221,141);break;
                 case 6:blitItem(V_TOILET,221,141);break; case 7:blitItem(V_DOOR,221,141);break; case 8:blitItem(V_BOARD,221,141);break;
                 case OB_KICKER:blitItem(V_KICKER+((eRot-cview)&3),221,141);break; case OB_QPIPE:blitItem(V_QPIPE+((eRot-cview)&3),221,141);break;
-                case 12:blitItem(V_LEDGEU,221,141);break; case 13:blitItem(V_BENCHU,221,141);break; default:drawSpawn(221,142); } }
+                case 12:blitItem(V_LEDGEU,221,141);break; case 13:blitItem(V_BENCHU,221,141);break;
+                case 14:blitItem(V_BED,221,141);break; case 15:blitItem(V_SHOWER,221,141);break; case 16:blitItem(V_SOFA,221,141);break; default:drawSpawn(221,142); } }
         if(eOb==1||eOb==2){ texSwatch(&wpTex[eWp],212,137); }
     } else if(eTool!=T_ERASE){
         if(eTool!=T_WALL){ text(2,139,"FLOOR",DIMC,1); texSwatch(&flTex[eFl],24,137); text(36,139,flTex[eFl].nm,WHITE,1); }

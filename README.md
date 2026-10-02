@@ -105,3 +105,25 @@ The creature screen is now a character-creator: a live preview in a little house
 | B | back to the main menu |
 
 Tab 5 opens the original block builder (legend with key caps; Select+Start returns). Changing shape, ears or hair style after hand-building asks before replacing your blocks.
+
+## Life sim layer (Sims 2, handheld edition)
+The life part of the game now has a Sims 2 style loop on top of the skating: needs, furniture, wants and fears, aspiration and a plumbob. All the logic is in `source/sims.h` (art in `source/simart.h`, preview in `assets/preview/sims_furniture.png`); every tuning number is in the TUNING block at the top of `sims.h`.
+
+**Furniture** (room editor, ITEM tool, 3 new slots at the end of the list so old saves still load): **BED** (S), **SHOWER** (H), **SOFA** (C). They face away from the wall like the fridge. Stand next to one and press **R**; **A, B or R** gets you up early.
+| Item | Fills | Takes (full) | Pays |
+|---|---|---|---|
+| Bed | REST (energy) | ~10 s | mood lift when you get up |
+| Shower | CLEAN (hygiene) | ~4 s | mood lift |
+| Sofa | COMFY (comfort) | ~6 s | mood lift |
+
+**Needs.** FOOD and WC were already there; REST, CLEAN and COMFY join them in the right-hand column. They drain on their own (REST empties in about 4 minutes). At 0 REST the skater **passes out** (short blackout, REST back to 25, a mood knock); below 20 REST top speed drops 20%. Needs also feed the HAPPY meter (`simsComfort()` in `mood.h`).
+
+**Thought bubble and plumbob.** A plumbob bobs and turns over the head: green = fine, yellow = so-so, red = in trouble. Above it a thought bubble shows the most urgent need (WC, EAT, ZZZ, STINKY, SIT), otherwise it alternates between the current wants.
+
+**Wants and fears.** Two wants and one fear are always on show under the needs (green and red markers). Meeting a want (eat, nap, shower, sofa, land a trick, 3 trick combo, grind, get air, feel stoked...) pays aspiration points and a mood lift; a fear coming true (bail, accident, passing out, getting hurt, fainting) costs points. A want is only offered if the room has what it needs: no bed in the map, no nap want. Wants are hooked to the mood events, so every `moodEvent()` in the game already feeds them.
+
+**Aspiration.** Points climb through BRONZE, SILVER, GOLD and PLATINUM (40 / 120 / 260 / 450). Each level slows the needs down; PLATINUM halves them.
+
+**Adding things.** A want or fear: add a `SE_` name, a row in `simWants` / `simFears`, and map the game event in `simsMood()` (or call `simEvent(SE_X)` yourself). A need: a variable, a rate in `simsTick()`, a use in `simBegin()`, a bar in `simsHud()`. A piece of furniture: art in `simart.h`, a slot in `palCh`/`palNm`/`palCol` and a `drawItemTile` line.
+
+**Not done yet** (next steps toward the full Sims 2 feel): SOCIAL and ROOM needs, other people to talk to and relationships, a clock with days and jobs, and saving needs and aspiration to SRAM (meters and aspiration reset on respawn and on boot, like the mood meters).
