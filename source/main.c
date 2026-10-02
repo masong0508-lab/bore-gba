@@ -185,6 +185,7 @@ static const u8 cLeg[][4]={{0,0,0,7|(3<<4)},{0,1,0,7|(3<<4)},{0,2,0,7|(3<<4)}};
 static const u8 cEar[][4]={{0,0,0,1},{0,1,0,1}};
 static const u8 cHair[][4]={{0,0,0,5},{1,0,0,5},{0,0,1,5},{1,0,1,5},{0,1,0,5},{1,1,1,5}};
 #define NPARTS 8
+#define NENT (NPARTS+2)   // part list + "GO LIVE LIFE!" + "EDIT MAP"
 static const Part parts[NPARTS]={
  {"HEAD",8,0,2,2,2,cHead,0},{"TORSO",8,0,2,2,2,cTorso,0},{"ARM",3,1,1,3,1,cArm,0},{"LEG",3,1,1,3,1,cLeg,0},
  {"EYE",0,1,1,1,1,0,1},{"MOUTH",0,0,2,1,1,0,2},{"EAR",2,1,1,2,1,cEar,0},{"HAIR",6,0,2,2,2,cHair,0}};
@@ -275,25 +276,28 @@ IWRAM_CODE static void drawPanel(void){
     fillCols(SCENE_W,ROW_W,PANEL);
     text(130,5,"BORE",RGB(31,26,6),2);
     text(130,17,"VOXEL DEMO",RGB(14,16,18),1);
-    for(int i=0;i<=NPARTS;i++){
-        int y=28+i*7, go=(i==NPARTS);
+    for(int i=0;i<NENT;i++){
+        int y=28+i*7, go=(i>=NPARTS);
         if(i==part){ rect(128,y-1,108,6,go?RGB(16,10,2):RGB(6,16,8)); text(130,y,">",RGB(31,31,31),1); }
-        text(137,y,go?"GO LIVE LIFE!":parts[i].name,i==part?(go?RGB(31,26,6):RGB(31,31,31)):(go?RGB(24,20,6):RGB(18,20,22)),1);
+        text(137,y,go?(i==NPARTS?"GO LIVE LIFE!":"EDIT MAP"):parts[i].name,i==part?(go?RGB(31,26,6):RGB(31,31,31)):(go?RGB(24,20,6):RGB(18,20,22)),1);
         if(i==part&&!go&&parts[i].dk) text(190,y,spr[SPRID(parts[i].dk-1)].name,RGB(31,26,6),1);
     }
-    text(130,94,"SIZE",RGB(18,20,22),1);
+    text(130,101,"SIZE",RGB(18,20,22),1);
     const char*sn[3]={"S","M","L"};
     for(int i=0;i<3;i++){
-        int x=156+i*16; rect(x,92,12,9,i==size-1?RGB(6,16,8):RGB(2,3,5));
-        text(x+4,94,sn[i],RGB(31,31,31),1);
+        int x=156+i*16; rect(x,99,12,9,i==size-1?RGB(6,16,8):RGB(2,3,5));
+        text(x+4,101,sn[i],RGB(31,31,31),1);
     }
-    text(130,106,"X",RGB(18,20,22),1); num(136,106,cx,RGB(31,31,31));
-    text(148,106,"Y",RGB(18,20,22),1); num(154,106,cy,RGB(31,31,31));
-    text(166,106,"Z",RGB(18,20,22),1); num(172,106,cz,(part<NPARTS&&parts[part].dk)?RGB(12,14,16):RGB(31,31,31));   // sprites ignore Z
+    text(130,113,"X",RGB(18,20,22),1); num(136,113,cx,RGB(31,31,31));
+    text(148,113,"Y",RGB(18,20,22),1); num(154,113,cy,RGB(31,31,31));
+    text(166,113,"Z",RGB(18,20,22),1); num(172,113,cz,(part<NPARTS&&parts[part].dk)?RGB(12,14,16):RGB(31,31,31));   // sprites ignore Z
     u16 hc=RGB(12,14,16);
-    text(130,116,"DPAD X Z  L R HEIGHT",hc,1); text(130,122,"A PLACE B ERASE",hc,1);
-    text(130,128,"START SIZE  SEL TAP PART",hc,1); text(130,134,"SEL+UP DOWN FACE STYLE",hc,1);
-    text(130,140,"SEL+A SKIN SEL+B HAIR",hc,1); text(130,146,"SEL+LEFT RIGHT TURN VIEW",hc,1);
+    if(part>=NPARTS){ text(130,123,"PRESS A TO OPEN",RGB(31,26,6),1); text(130,131,"SELECT PICKS NEXT ENTRY",hc,1); }
+    else {
+    text(130,123,"DPAD X Z  L R HEIGHT",hc,1); text(130,129,"A PLACE B ERASE",hc,1);
+    text(130,135,"START SIZE  SEL TAP PART",hc,1); text(130,141,"SEL+UP DOWN FACE STYLE",hc,1);
+    text(130,147,"SEL+A SKIN SEL+B HAIR",hc,1); text(130,153,"SEL+LEFT RIGHT TURN VIEW",hc,1);
+    }
 }
 IWRAM_CODE static void drawScene(int blink,int full){
     fillCols(0,SCENE_W,SKY);
@@ -400,6 +404,8 @@ static void titleScreen(void){
 // Controls: D-pad L/R steer (grounded) or spin (airborne) | hold A push | D-pad down brake | B ollie / kickflip in air
 // Land spins in half-turns (180/360) for points, a bad angle is a bail. Land on a yellow rail to grind it.
 typedef int32_t s32;
+static void lifeMode(int ed);
+static void mapEditor(void);
 #define MW 14
 #define MH 14
 #define LOX 120   // screen x of the map's top corner
@@ -410,14 +416,16 @@ typedef int32_t s32;
 #define SPY0 (OYC-80)   // capture window top; feet sit at row 40 of the half-size sprite
 #define MAPNAME "THE MAN BASE"   // name of the (placeholder) map
 // w = low wall, # = 2-block crate, = = grind rail, . = floor
-static const char* const lifeMap[MH]={
-"wwwwwwwwwwwwww","w...........Fw","w.....====..Fw","w............w","w..##........w","w..##........w","w............w",
+static const char* const mapDef[MH]={   // default room
+"wwwwwwwwwwwwww","w...........Fw","w.....====..Fw","w............w","w..##.....B..w","w..##........w","w..P.........w",
 "w.......##...w","w.......##...w","w.====.......w","w............D","w............D","w..........TTw","wwwwwwwwwwwwww" };
 static const short cosT[16]={256,237,181,98,0,-98,-181,-237,-256,-237,-181,-98,0,98,181,237};   // sin(a)=cosT[(a+12)&15]
 static u16 spr4[4][SPW*SPH] EWRAM_BSS;
 static s32 lfx,lfy,lz,lvz,lvx,lvy; static int lskate, lhave, lfr;   // lskate: 0 on foot, 1 skateboard; lhave: picked up the board
-#define BDX 10   // where the skateboard lies on the floor (tile)
-#define BDY 4
+static char lifeMap[MH][MW+1];   // the room being played / edited (starts as mapDef, or the copy saved in SRAM)
+static int bdx=10, bdy=4, spx=3, spy=6;   // skateboard tile and spawn tile, found by mapScan (B and P tiles)
+#define BDX bdx
+#define BDY bdy
 static int lsp,lhd,lspin,lflip,lgrind,lscore,lstun,lairF,lpts,lnoteT; static const char*lnote;
 
 static int lfood, lbl, lnear;   // hunger (100 = full), bladder (100 = bursting), what is in reach (1 fridge, 2 toilet)
@@ -506,16 +514,81 @@ static void numText(int x,int y,int n,u16 c){
     while(n>0&&i>0){ int q=n/10; b[--i]=(char)('0'+n-q*10); n=q; }
     text(x,y,b+i,c,1);
 }
+// ---------- map data: reset / scan / save ----------
+static const char palCh[9]={'.','w','#','=','F','T','D','B','P'};
+static const char* const palNm[9]={"FLOOR","WALL","CRATE","RAIL","FRIDGE","TOILET","DOOR","BOARD","SPAWN"};
+static const u16 palCol[9]={RGB(26,21,14),RGB(8,20,22),RGB(8,9,20),RGB(31,30,16),RGB(31,31,31),RGB(30,28,18),RGB(14,9,5),RGB(26,10,6),RGB(28,10,8)};
+static int palIdx(char c){ for(int i=0;i<9;i++) if(palCh[i]==c) return i; return -1; }
+static void mapReset(void){ for(int y=0;y<MH;y++){ for(int x=0;x<MW;x++) lifeMap[y][x]=mapDef[y][x]; lifeMap[y][MW]=0; } }
+static void mapScan(void){   // find the skateboard (B) and the spawn point (P); fall back to sane defaults
+    int fx=-1, fy=-1; bdx=bdy=spx=spy=-1;
+    for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ char c=lifeMap[y][x];
+        if(c=='B'){ bdx=x; bdy=y; } if(c=='P'){ spx=x; spy=y; }
+        if(fx<0&&c=='.'){ fx=x; fy=y; } }
+    if(spx<0){ if(fx<0){ lifeMap[1][1]='P'; fx=fy=1; } spx=fx; spy=fy; }
+}
+#define SRAM_BASE ((volatile u8*)0x0E000000)
+static const char sramTag[] __attribute__((used)) = "SRAM_V113";   // tells emulators / flash carts to give the game battery saves
+static void mapSave(void){ volatile u8*m=SRAM_BASE; m[0]='B'; m[1]='M'; m[2]='1'; for(int y=0;y<MH;y++)for(int x=0;x<MW;x++) m[3+y*MW+x]=(u8)lifeMap[y][x]; }
+static int mapSaved(void){ volatile u8*m=SRAM_BASE; if(m[0]!='B'||m[1]!='M'||m[2]!='1') return 0;
+    for(int y=0;y<MH;y++)for(int x=0;x<MW;x++) if(m[3+y*MW+x]!=(u8)lifeMap[y][x]) return 0; return 1; }
+static int mapLoad(void){   // returns 1 if a valid saved map was loaded
+    volatile u8*m=SRAM_BASE; if(m[0]!='B'||m[1]!='M'||m[2]!='1') return 0;
+    for(int y=0;y<MH;y++)for(int x=0;x<MW;x++) if(palIdx((char)m[3+y*MW+x])<0) return 0;
+    for(int y=0;y<MH;y++)for(int x=0;x<MW;x++) lifeMap[y][x]=(char)m[3+y*MW+x];
+    return 1; }
+static void mapPlace(int x,int y,char c){
+    if(c=='B'||c=='P'){ for(int j=0;j<MH;j++)for(int i=0;i<MW;i++) if(lifeMap[j][i]==c) lifeMap[j][i]='.'; }
+    lifeMap[y][x]=c; }
+
+// ---------- small UI kit: one menu style, one help style, one toast ----------
+#define GOLD RGB(31,26,6)
+#define DIMC RGB(18,20,22)
+#define WHITE RGB(31,31,31)
+static u16 keyNow(void){ return (u16)(~REG_KEYINPUT)&0x3FF; }
+static void box(int x,int y,int w,int h){ rect(x-1,y-1,w+2,h+2,GOLD); rect(x,y,w,h,RGB(3,4,7)); }
+static int menu(const char*title,const char*const*it,int n){   // UP/DOWN + A to choose, B or START to cancel (returns -1)
+    int sel=0, w=116, h=26+n*10, x=(SW-w)/2, y=(SH-h)/2; u16 prev=keyNow();
+    for(;;){
+        u16 k=keyNow(), pr=k&~prev; prev=k;
+        if(pr&K_DOWN) sel=(sel+1)%n;
+        if(pr&K_UP) sel=(sel+n-1)%n;
+        if(pr&K_A) return sel;
+        if(pr&(K_B|K_START)) return -1;
+        box(x,y,w,h); text(x+6,y+5,title,GOLD,1);
+        for(int i=0;i<n;i++){ int yy=y+16+i*10;
+            if(i==sel){ rect(x+3,yy-2,w-6,9,RGB(6,16,8)); text(x+6,yy,">",WHITE,1); }
+            text(x+13,yy,it[i],i==sel?WHITE:DIMC,1); }
+        text(x+6,y+h-9,"A OK  B BACK",RGB(12,14,16),1);
+        present();
+    }
+}
+static void helpScreen(const char*title,const char*const*ln,int n){   // lines starting with > are headings
+    u16 prev=keyNow();
+    for(;;){
+        u16 k=keyNow(), pr=k&~prev; prev=k;
+        if(pr&(K_A|K_B|K_START)) return;
+        box(3,1,234,157); text(14,10,title,GOLD,1);
+        for(int i=0;i<n;i++){ const char*l=ln[i]; if(l[0]=='>') text(14,22+i*8,l+1,GOLD,1); else text(18,22+i*8,l,WHITE,1); }
+        text(14,144,"PRESS A TO CLOSE",DIMC,1);
+        present();
+    }
+}
+static void toast(const char*msg){ int w=(int)(4*0); const char*p=msg; while(*p){ w+=4; p++; } w+=16;
+    box((SW-w)/2,66,w,22); text((SW-w)/2+8,74,msg,WHITE,1); for(int i=0;i<45;i++){ present(); } }
+static const char* const lifeHelp[12]={">ON FOOT","DPAD WALK  B RUN  A HOP","R FRIDGE OR TOILET","L GET ON THE BOARD",">ON THE BOARD","A PUSH  DPAD STEER  B OLLIE","IN AIR DPAD SPINS  B KICKFLIP","LAND CLEAN FOR POINTS","HIGH FALLS AND WALLS HURT",">KEEP YOURSELF GOING","WATCH THE FOOD AND WC BARS","START OPENS THE MENU"};
+static const char* const mapHelp[12]={">PAINT YOUR ROOM","DPAD MOVE THE CURSOR","A PLACE  B ERASE","HOLD A OR B AND MOVE TO PAINT","L R CHANGE TILE","SELECT PICKS THE TILE UNDER IT",">SPECIAL TILES","SPAWN TILE IS WHERE YOU START","BOARD TILE IS THE SKATEBOARD","DOOR IS A PLACEHOLDER ENTRANCE","FRIDGE EATS  TOILET RELIEVES",">START OPENS PLAY AND SAVE"};
+
 static void lifeInit(void){
-    bakeSprites();
-    lfx=3*256+128; lfy=6*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote=""; lskate=0; lhave=0; lfr=0; lvx=lvy=0; ldead=0; lmaxz=0; lplay=0; lbumpCd=0; lfood=100; lbl=0; lnear=0; sfxStop();
+    mapScan(); bakeSprites();
+    lfx=spx*256+128; lfy=spy*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote=""; lskate=0; lhave=(bdx<0); lfr=0; lvx=lvy=0; ldead=0; lmaxz=0; lplay=0; lbumpCd=0; lfood=100; lbl=0; lnear=0; sfxStop();
 }
 static const signed char hdT[3][3]={{10,12,14},{8,-1,0},{6,4,2}};   // [sign dy+1][sign dx+1] -> heading (16 steps), -1 = keep
 static void lifeStep(u16 k,u16 pr,int fr){
     int fh=tileH(lfx>>8,lfy>>8)<<8;
     if(ldead){   // dead: frozen until A
         lstun=2;
-        if(pr&K_A){ ldead=0; lstun=0; lfx=3*256+128; lfy=6*256+128; lz=0; lvz=0; lskate=0; lsp=0; lgrind=0; lspin=0; lflip=0; lairF=0; lmaxz=0; lplay=0; lnoteT=0; lfood=100; lbl=0; sfxStop(); }
+        if(pr&K_A){ ldead=0; lstun=0; lfx=spx*256+128; lfy=spy*256+128; lz=0; lvz=0; lskate=0; lsp=0; lgrind=0; lspin=0; lflip=0; lairF=0; lmaxz=0; lplay=0; lnoteT=0; lfood=100; lbl=0; sfxStop(); }
     }
     if(lstun>0){ lstun--; lsp=0; lvx=lvy=0; }
     else {
@@ -606,7 +679,8 @@ static void lifeStep(u16 k,u16 pr,int fr){
     if(sfxFrames>0&&--sfxFrames==0) sfxStop();
 }
 static void tileTop(int sx,int sy,u16 c){ for(int t=-CA;t<=CA;t++){ int at=t<0?-t:t, hh=hhT[0][at]; vline(sx+t,sy-hh,sy+hh,c); } }
-static void lifeDraw(void){
+static int ecx=6, ecy=6, efr;   // map editor cursor (tile) and frame counter
+static void drawRoom(int ed){   // the room, drawn back to front; ed=1: editor view (no player, markers + cursor)
     fillCols(0,ROW_W,RGB(4,5,8));
     u16 cA=RGB(26,21,14), cB=RGB(23,18,11);
     for(int ty=0;ty<MH;ty++)for(int tx=0;tx<MW;tx++){ char c=lifeMap[ty][tx]; if(c=='w'||c=='#'||c=='F'||c=='T') continue;
@@ -619,19 +693,27 @@ static void lifeDraw(void){
             else if(c=='F'){ for(int j=1;j<=2;j++) cube(sx,sy-j*CC,2,0,(j<2?1:0)|(j>1?2:0)); }   // fridge: white, 2 blocks tall
             else if(c=='T') cube(sx,sy-CC,8,0,0);                                                  // toilet: pale, 1 block
             else if(c=='=') cube(sx,sy-6,8,1,2);
-            if(!lhave&&tx==BDX&&ty==BDY){   // the skateboard pickup, bobbing
-                int by=sy-3-((lfr>>4)&1);
+            if((ed&&c=='B')||(!ed&&!lhave&&tx==BDX&&ty==BDY)){   // the skateboard pickup, bobbing
+                int by=sy-3-(ed?0:((lfr>>4)&1));
                 rect(sx-6,by-1,12,3,RGB(26,10,6)); rect(sx-5,by-2,10,1,RGB(31,20,8)); rect(sx-5,by+2,2,2,RGB(3,3,6)); rect(sx+3,by+2,2,2,RGB(3,3,6));
             }
+            if(ed&&c=='P'){ rect(sx-2,sy-9,5,7,RGB(28,10,8)); rect(sx-2,sy-13,5,4,RGB(30,23,17)); }   // little person = spawn
         }
-        if(s==ss){
+        if(!ed&&s==ss){
             int fhp=tileH(lfx>>8,lfy>>8), zp=(int)(lz>>8), vsel=((lhd+lspin+66)>>2)&3;
             rect(psx-3,psy-fhp-1,7,2,RGB(10,8,5)); rect(psx-1,psy-fhp-2,3,4,RGB(10,8,5));   // shadow
             if(lskate){ rect(psx-6,psy-zp-1,12,2,RGB(26,10,6)); rect(psx-5,psy-zp+1,2,2,RGB(3,3,6)); rect(psx+3,psy-zp+1,2,2,RGB(3,3,6)); }   // board under the feet
             blit(spr4[vsel],psx-16,psy-40-zp);
         }
     }
-    u16 gold=RGB(31,26,6), dim=RGB(18,20,22);
+    if(ed){   // blinking diamond on the tile under the cursor
+        int sx=LOX+(ecx-ecy)*CA, sy=LOY+(ecx+ecy+1)*CB-tileH(ecx,ecy); u16 cc=(efr&8)?WHITE:GOLD;
+        for(int t=-CA;t<=CA;t++){ int at=t<0?-t:t, hh=hhT[0][at]; px(sx+t,sy-hh,cc); px(sx+t,sy-hh-1,cc); px(sx+t,sy+hh,cc); px(sx+t,sy+hh+1,cc); }
+    }
+}
+static void lifeDraw(void){
+    drawRoom(0);
+    u16 gold=GOLD, dim=DIMC;
     text(2,2,"SCORE",dim,1); numText(24,2,lscore,gold);
     text(2,10,"SPEED",dim,1); rect(24,10,lsp,5,RGB(8,24,10));
     text(150,2,MAPNAME,RGB(14,16,18),1);
@@ -642,17 +724,67 @@ static void lifeDraw(void){
     if(ldead) text(2,25,"PRESS A TO RESPAWN",RGB(31,12,8),1);
     if(lnoteT>0){ text(2,18,lnote,RGB(31,31,31),1); if(lpts&&lnote[0]=='N'){ text(2,25,"+",gold,1); numText(6,25,lpts,gold); } }
     text(2,146,lskate?"A PUSH B OLLIE DPAD STEER L WALK":(lhave?"DPAD WALK B RUN A HOP L SKATE":"DPAD WALK B RUN A HOP FIND A BOARD"),RGB(12,14,16),1);
-    text(2,153,"SEL+START BACK TO EDITOR",RGB(12,14,16),1);
+    text(2,153,"START MENU",RGB(12,14,16),1);
 }
-static void lifeMode(void){
-    lifeInit(); u16 prev=0;
+static const char* const lifeItems[4]={"RESUME","HOW TO PLAY","EDIT MAP","BACK TO CREATURE"};
+static const char* const lifeItemsEd[3]={"RESUME","HOW TO PLAY","BACK TO EDITOR"};
+static void lifeMode(int ed){   // ed=1: test play started from the map editor
+    lifeInit(); u16 prev=keyNow();
     for(int fr=0;;fr++){
-        u16 k=(u16)(~REG_KEYINPUT)&0x3FF, pr=k&~prev; prev=k;
+        u16 k=keyNow(), pr=k&~prev; prev=k;
         if((k&K_SEL)&&(k&K_START)) break;
+        if(pr&K_START){   // pause menu
+            sfxStop();
+            int c=menu("PAUSED",ed?lifeItemsEd:lifeItems,ed?3:4);
+            if(c==1) helpScreen("HOW TO PLAY",lifeHelp,12);
+            else if(c==2&&!ed){ mapEditor(); lifeInit(); }
+            else if((c==2&&ed)||c==3) break;
+            prev=keyNow(); continue;
+        }
         lifeStep(k,pr,fr); lifeDraw(); present();
     }
     sfxStop();
-    while((~REG_KEYINPUT)&0x3FF) vsync();   // wait for release so the editor doesn't see the exit keys
+    while((~REG_KEYINPUT)&0x3FF) vsync();   // wait for release so the caller doesn't see the exit keys
+}
+
+// ---------- map editor ----------
+static const char* const mapItems[5]={"PLAY TEST","SAVE MAP","RESET MAP","HOW TO EDIT","BACK"};
+static const char* const yesNo[2]={"NO","YES RESET"};
+static void mapEditor(void){
+    int ts=0, hold[4]={0}; u16 prev=keyNow();
+    static const u16 dirK[4]={K_RIGHT,K_LEFT,K_UP,K_DOWN};
+    for(efr=0;;efr++){
+        u16 k=keyNow(), pr=k&~prev; prev=k;
+        int tr[4];
+        for(int i=0;i<4;i++){ hold[i]=(k&dirK[i])?hold[i]+1:0; tr[i]=(hold[i]==1)||(hold[i]>14&&(hold[i]&3)==0); }
+        int ux=tr[0]-tr[1], uy=tr[3]-tr[2];
+        if(ux||uy){   // screen-relative like walking: up = away from the camera
+            int dx=ux+uy, dy=uy-ux; dx=(dx>0)-(dx<0); dy=(dy>0)-(dy<0);
+            ecx+=dx; ecy+=dy; if(ecx<0)ecx=0; if(ecy<0)ecy=0; if(ecx>=MW)ecx=MW-1; if(ecy>=MH)ecy=MH-1;
+            if(k&K_A) mapPlace(ecx,ecy,palCh[ts]); else if(k&K_B) mapPlace(ecx,ecy,'.');
+        }
+        if(pr&K_A) mapPlace(ecx,ecy,palCh[ts]);
+        if(pr&K_B) mapPlace(ecx,ecy,'.');
+        if(pr&K_R) ts=(ts+1)%9;
+        if(pr&K_L) ts=(ts+8)%9;
+        if(pr&K_SEL){ int i=palIdx(lifeMap[ecy][ecx]); if(i>=0) ts=i; }
+        if(pr&K_START){
+            int c=menu("MAP MENU",mapItems,5);
+            if(c==0){ mapScan(); lifeMode(1); }
+            else if(c==1){ mapSave(); toast(mapSaved()?"MAP SAVED":"SAVE NOT SUPPORTED HERE"); }
+            else if(c==2){ if(menu("RESET THE MAP",yesNo,2)==1){ mapReset(); toast("MAP RESET"); } }
+            else if(c==3) helpScreen("HOW TO EDIT",mapHelp,12);
+            else if(c==4){ mapSave(); break; }
+            prev=keyNow(); continue;
+        }
+        drawRoom(1);
+        text(2,2,"MAP EDITOR",GOLD,1); text(2,10,palNm[ts],WHITE,1);
+        for(int i=0;i<9;i++){ int x=2+i*13; rect(x,136,12,8,i==ts?WHITE:RGB(3,4,7)); rect(x+1,137,10,6,palCol[i]); }
+        text(2,146,"DPAD MOVE A PLACE B ERASE",RGB(12,14,16),1);
+        text(2,153,"L R TILE SEL PICK START MENU",RGB(12,14,16),1);
+        present();
+    }
+    while((~REG_KEYINPUT)&0x3FF) vsync();
 }
 
 int main(void){
@@ -661,6 +793,7 @@ int main(void){
     initTables(); setColors();
     titleScreen();
     starter();
+    mapReset(); mapLoad();   // default room, or the one saved to SRAM
     u16 prev=0; int hold[10]={0}, frame=0, dirty=1, lastBlink=-1, comboUsed=0;
     for(;;){
         u16 k=(u16)(~REG_KEYINPUT)&0x3FF, pressed=k&~prev, released=prev&~k; prev=k;
@@ -670,8 +803,8 @@ int main(void){
         if(sel){
             if(pressed&K_A){ skinI=(skinI+1)%4; setColors(); comboUsed=1; dirty=1; }
             if(pressed&K_B){ hairI=(hairI+1)%5; setColors(); comboUsed=1; dirty=1; }
-            if(pressed&K_R){ part=(part+1)%(NPARTS+1); comboUsed=1; dirty=1; }
-            if(pressed&K_L){ part=(part+NPARTS)%(NPARTS+1); comboUsed=1; dirty=1; }
+            if(pressed&K_R){ part=(part+1)%NENT; comboUsed=1; dirty=1; }
+            if(pressed&K_L){ part=(part+NENT-1)%NENT; comboUsed=1; dirty=1; }
             if(pressed&K_RIGHT){ view=(view+1)&3; comboUsed=1; dirty=1; }
             if(pressed&K_LEFT){ view=(view+3)&3; comboUsed=1; dirty=1; }
             if(pressed&(K_UP|K_DOWN)){
@@ -682,10 +815,10 @@ int main(void){
             if(TRIG(K_RIGHT,4)){moveView(1,0);dirty=1;} if(TRIG(K_LEFT,5)){moveView(-1,0);dirty=1;}
             if(TRIG(K_UP,6)){moveView(0,-1);dirty=1;}     if(TRIG(K_DOWN,7)){moveView(0,1);dirty=1;}
             if(TRIG(K_R,8)){cy++;dirty=1;}      if(TRIG(K_L,9)){cy--;dirty=1;}
-            if(pressed&K_A){ if(part==NPARTS) lifeMode(); else doPart(1,part,size,cx,cy,cz); dirty=1; }
+            if(pressed&K_A){ if(part==NPARTS) lifeMode(0); else if(part==NPARTS+1) mapEditor(); else doPart(1,part,size,cx,cy,cz); dirty=1; }
             if(pressed&K_B){ if(part<NPARTS) doPart(2,part,size,cx,cy,cz); dirty=1; }
         }
-        if(released&K_SEL){ if(!comboUsed){ part=(part+1)%(NPARTS+1); dirty=1; } comboUsed=0; }
+        if(released&K_SEL){ if(!comboUsed){ part=(part+1)%NENT; dirty=1; } comboUsed=0; }
         if(pressed&K_START){ size=size%3+1; dirty=1; }
         clampCursor();
         if(dirty) frame=16;   // restart blink with the ghost visible
