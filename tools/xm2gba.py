@@ -22,8 +22,74 @@ MIXR = 18157                      # the game's music rate (MUS_RATE)
 SONGS_H = "source/songs.h"
 OUT = "source/musicdata.h"
 TITLE = ("the_dipper_man", "tools/the_dipper_man.xm")
-GAIN = {"earth_and_the_space_citizens": 2.0}   # louder/quieter per song (default 1.0), so every tracker song sits at a similar level
-LOOP_OVERRIDE = {"the_dipper_man": 4}   # the title song plays its intro once, then loops from order 4 (others loop from the XM restart position)
+GAIN = {"amiga_music": 1.1, "earth_and_the_space_citizens": 2.0}   # louder/quieter per song (default 1.0), so every tracker song sits at a similar level
+LOOP_OVERRIDE = {"the_dipper_man": 4, "amiga_music": 0}   # the title song plays its intro once, then loops from order 4 (others loop from the XM restart position)
+
+def make_ending(S):
+    """New ending for the Amiga Music song: the song's old tail (orders 15-16) is replaced by a generated breakdown + fade-out.
+    Breakdown: pattern 4 (full groove) loses channels one by one (melody+bass, then bass+drum, then bass alone).
+    Fade: the same pattern repeated 6 times, every note's volume column stepped down 0x50 -> 0x12, then a short silent tail
+    so the last notes ring out before the jukebox moves on. Only patterns and the order list are touched."""
+    import copy
+    pats = S['pats']; full = pats[4]; keep = S['order'][:15]
+    def variant(chs, vol, src=full):
+        out = []
+        for r in src:
+            row = []
+            for c, (n, i, v, e, ep) in enumerate(r):
+                if c in chs and n and n < 97:
+                    rel = (v - 0x10) / 64 if 0x10 <= v <= 0x50 else 1.0
+                    v = 0x10 + max(1, int(round(64 * rel * vol)))
+                    row.append((n, i, min(v, 0x50), 0, 0))
+                else: row.append((0, 0, 0, 0, 0))
+            out.append(row)
+        return out
+    plan = [((0, 2, 3, 7), 1.0), ((0, 2, 7), 1.0), ((2, 3), 1.0), ((2,), 1.0)]      # the breakdown: strip the arrangement down
+    plan += [((2, 7, 3)[:k], 0.7 * (0.62 ** j)) for j, k in enumerate((3, 3, 2, 2, 1, 1))]   # the fade-out
+    order = list(keep)
+    for chs, vol in plan:
+        pats.append(variant(chs, vol)); order.append(len(pats) - 1)
+    pats.append([[(0, 0, 0, 0, 0)] * 4 for _ in range(8)]); order.append(len(pats) - 1)   # silent tail
+    S['order'] = order
+
+def make_pop(S):
+    """POP pass for the Amiga Music song (adds layers on the unused channels 5-9, nothing from the original is removed):
+      ch5 four-on-the-floor kick (inst 10), ch6 backbeat clap (inst 15, an octave up so it snaps), ch7 bright off-beat hats with
+      ghost 16ths (inst 14), ch8 octave-up shimmer doubling the lead (inst 5), ch9 crash on every groove downbeat (inst 13).
+      The 4th pass of the intro becomes a build (kick doubling up + rising snare roll) that drops into the groove, the last groove
+      bar before the B section gets a snare-roll fill, and the tempo goes 120 -> 126 BPM. Channel numbers below are 0-based."""
+    pats = S['pats']; S['bpm'] = 126
+    for p in pats:
+        for r in p: r.extend([(0, 0, 0, 0, 0)] * (10 - len(r)))
+    def put(p, r, ch, n, i, vol): p[r][ch] = (n, i, 0x10 + max(1, min(64, vol)), 0, 0)
+    def groove(p, hats=True, crash=False):
+        for r in range(32):
+            if r % 4 == 0: put(p, r, 4, 49, 10, 64)                       # kick on every beat
+            if r % 8 == 4: put(p, r, 5, 61, 15, 50)                       # clap on 2 and 4
+            if hats:
+                if r % 4 == 2: put(p, r, 6, 61, 14, 40)                   # off-beat hat
+                elif r % 2 == 1: put(p, r, 6, 61, 14, 14)                 # ghost 16th
+            n, i, v, _, _ = p[r][2]
+            if n and n < 85 and i == 5: put(p, r, 7, n + 12, 5, 26)       # shimmer an octave up
+        if crash: put(p, 0, 8, 61, 13, 40)
+    def roll(p, start):
+        for r in range(start, 32):
+            step = 1 if r >= 24 else 2
+            if (r - start) % step == 0: put(p, r, 5, 61, 15, 22 + (r - start) * 42 // (32 - start))
+            if r % 2 == 0 and r >= 24: put(p, r, 4, 49, 10, 60)
+    import copy
+    for k in (4, 5): groove(pats[k], crash=(k == 4))
+    build = copy.deepcopy(pats[3])                                          # intro bar 4: tension build
+    for r in range(0, 32, 8): put(build, r, 4, 49, 10, 64)
+    for r in range(16, 32, 4): put(build, r, 4, 49, 10, 64)
+    for r in range(8, 32, 4): put(build, r, 6, 61, 14, 30)
+    roll(build, 16)
+    fill = copy.deepcopy(pats[4]); roll(fill, 24)                           # fill into the B section
+    pats.append(build); pats.append(fill)
+    order = S['order']; order[7] = len(pats) - 2; order[12] = len(pats) - 1
+
+ENDINGS = {"amiga_music": make_ending}
+POPS = {"amiga_music": make_pop}
 
 def song_list():
     text = open(SONGS_H).read() if os.path.exists(SONGS_H) else ""
@@ -56,6 +122,8 @@ def convert_samples(S, used):
 def convert(sid, path):
     print("%s  <-  %s" % (sid, path))
     S = parse(path)
+    if sid in POPS: POPS[sid](S)
+    if sid in ENDINGS: ENDINGS[sid](S)
     d = open(path, 'rb').read()
     flags = int.from_bytes(d[74:76], 'little')
     if not flags & 1: sys.exit("  ERROR: %s uses Amiga frequencies; save it with linear frequencies" % path)
