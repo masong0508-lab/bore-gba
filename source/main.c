@@ -606,7 +606,7 @@ static s8 mbuf[2][MUS_N] __attribute__((aligned(4)));
 static s16 macc[MUS_N];
 static int mOrd, mRow, mLeft, mCur, mOn, mFrac;
 static int mKind, mLaps, mDone, aTail;   // mKind 0 = tracker song, 1 = streamed ADPCM; mLaps = times the tracker song has wrapped; mDone = ADPCM song finished
-static const u8 *aSrc; static u32 aN, aPos; static int aPred, aIdx;   // ADPCM stream: data, sample count, position, decoder state
+static int aSlow, aPrv, aPh; static const u8 *aSrc; static u32 aN, aPos; static int aPred, aIdx;   // ADPCM stream: data, sample count, position, decoder state
 static void musTrigger(void){
     const u16*e=&musEv[musPatOff[musOrder[mOrd]]];
     for(int r=0;r<mRow;r++) e+=1+*e;
@@ -635,18 +635,33 @@ IWRAM_CODE static void musMix(s8*out){
 // Streamed ADPCM song (source/music/*.adp from tools/encode_song.py): 4-bit IMA-ADPCM, 18157 Hz, so one frame = 304 samples.
 // Same format as the sound effects: u32 sample count, then nibbles (low first). Decoded straight into the DMA buffer.
 IWRAM_CODE static void adpMix(s8*out){
+    // bit 31 of the sample count = song stored at 2/3 rate (12105 Hz): every 2 stored samples become 3 output samples (linear interpolation)
     u32 p=aPos, e=aN; int pred=aPred, idx=aIdx, i=0; const u8*d=aSrc;
-    for(;i<MUS_N&&p<e;i++,p++){
-        int v=d[p>>1]; v=(p&1)?(v>>4):(v&15);
-        int step=stepT[idx], diff=step>>3;
-        if(v&1) diff+=step>>2; if(v&2) diff+=step>>1; if(v&4) diff+=step;
-        pred+=(v&8)?-diff:diff; if(pred>32767) pred=32767; if(pred<-32768) pred=-32768;
-        idx+=idxT[v&7]; if(idx<0) idx=0; if(idx>88) idx=88;
-        out[i]=(s8)(pred>>8);
+    int prv=aPrv, ph=aPh;
+    for(;i<MUS_N;i++){
+        if(aSlow){
+            ph+=2;
+            while(ph>=3&&p<e){ ph-=3; prv=pred;
+                int v=d[p>>1]; v=(p&1)?(v>>4):(v&15); p++;
+                int step=stepT[idx], diff=step>>3;
+                if(v&1) diff+=step>>2; if(v&2) diff+=step>>1; if(v&4) diff+=step;
+                pred+=(v&8)?-diff:diff; if(pred>32767) pred=32767; if(pred<-32768) pred=-32768;
+                idx+=idxT[v&7]; if(idx<0) idx=0; if(idx>88) idx=88; }
+            if(p>=e&&ph>=3) break;
+            out[i]=(s8)((prv+(((pred-prv)*ph)/3))>>8);
+        } else {
+            if(p>=e) break;
+            int v=d[p>>1]; v=(p&1)?(v>>4):(v&15); p++;
+            int step=stepT[idx], diff=step>>3;
+            if(v&1) diff+=step>>2; if(v&2) diff+=step>>1; if(v&4) diff+=step;
+            pred+=(v&8)?-diff:diff; if(pred>32767) pred=32767; if(pred<-32768) pred=-32768;
+            idx+=idxT[v&7]; if(idx<0) idx=0; if(idx>88) idx=88;
+            out[i]=(s8)(pred>>8);
+        }
     }
     for(;i<MUS_N;i++) out[i]=0;
-    aPos=p; aPred=pred; aIdx=idx;
-    if(p>=e&&++aTail>=3) mDone=1;   // 2 buffers are in flight, so wait for the last real samples to be heard
+    aPos=p; aPred=pred; aIdx=idx; aPrv=prv; aPh=ph;
+    if(p>=e&&i<MUS_N&&++aTail>=3) mDone=1;   // 2 buffers are in flight, so wait for the last real samples to be heard
 }
 static void musMixAny(s8*out){ if(mKind) adpMix(out); else musMix(out); }
 // Start a song: kind 0 = the tracker song, kind 1 = the ADPCM data in adp.
@@ -654,7 +669,7 @@ static void musBegin(int kind,const u8*adp){
     sfxStop();
     for(int i=0;i<10;i++) mvc[i].d=0;
     mOrd=0; mRow=0; mLeft=0; mFrac=0; mCur=0; mLaps=0; mDone=0; aTail=0; mKind=kind;
-    if(kind){ aSrc=adp+4; aN=*(const u32*)adp; aPos=0; aPred=0; aIdx=0; }
+    if(kind){ aSrc=adp+4; aN=*(const u32*)adp; aSlow=(int)(aN>>31); aN&=0x7FFFFFFFu; aPrv=0; aPh=0; aPos=0; aPred=0; aIdx=0; }
     mOn=1;
     musMixAny(mbuf[0]);   // only the first buffer is primed; musFill renders the idle one while this one plays
     R_SNDCNT_X=0x80; R_SNDCNT_L=0; R_SNDCNT_H=0xB308;   // Direct Sound B: 100%, L+R, Timer0, FIFO reset
