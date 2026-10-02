@@ -927,7 +927,7 @@ static const char sramTag[] __attribute__((used)) = "SRAM_V113";   // tells emul
 // Songs named PLACEHOLDER... are hidden from the jukebox unless the title-screen debug code was entered (dbgOn).
 static int isDbgSong(int i){ const char*n=songs[i].name, *p="PLACEHOLDER"; while(*p){ if(*n++!=*p++) return 0; } return 1; }
 static void jbSetup(void){   // build the list of songs the jukebox shows, then load / make the playlist order
-    int n=0; for(int i=0;i<NSONGS&&n<JB_MAX;i++) if(songs[i].xm!=&xm_the_dipper_man&&(dbgOn||!isDbgSong(i))) jbMap[n++]=(u8)i;
+    int n=0; for(int i=0;i<NSONGS&&n<JB_MAX;i++) if(songs[i].xm!=&xm_the_dipper_man&&(dbgOn||!isDbgSong(i))) jbMap[n++]=(u8)i;   // THE DIPPER MAN is the title music only: never listed
     jbInit(n);
 }
 // SRAM layout: 0..2 "BM3", then MSZ bytes each of tiles, floors, wallpapers. Settings at SET_OFF (see settingsSave).
@@ -1675,14 +1675,6 @@ static void creatureEditor(void){
 #define JB_ROWS 8                // visible list rows, 9 px each
 #define JB_LH (JB_ROWS*9+4)
 static int jbPlaying, jbMsgT; static const char*jbMsg;
-// Deliberately hard to read: every other letter is faded toward the background, some letters sit a pixel low, and the
-// spacing is stretched. Returns the x where the text ends (it is wider than tw() says).
-static u16 jmix(u16 c){ return (u16)(((c&0x7BDE)>>1)+((JB_BG&0x7BDE)>>1)); }
-static int jtext(int x,int y,const char*s,u16 c,int sc){
-    char t[2]={0,0}; u16 d=jmix(c);
-    for(int i=0;*s;s++,i++){ t[0]=*s; x=text(x,y+(((i*5+(i>>1))%3)==0),t,(i&1)?d:c,sc)+1; }
-    return x;
-}
 static void fillBox(int x0,int x1,int y0,int y1,u16 c){   // x0, x1 must be even (32-bit stores)
     u32 v=c|((u32)c<<16);
     for(int y=y0;y<y1;y++){ u32*row=(u32*)fb+y*ROW_W; for(int w=x0>>1;w<(x1>>1);w++) row[w]=v; }
@@ -1694,45 +1686,77 @@ static void jbStartSlot(int slot){   // play playlist slot (remembered in SRAM s
     const Song*sg=&songs[jbSong(slot)];
     musBegin(sg->adp?1:0,sg->adp,sg->xm); jbPlaying=1;
 }
-static void jbHead(void){   // title, equalizer, mode, now playing, progress bar
-    fillBox(0,SW,0,JB_LY,JB_BG);
-    jtext(8,5,"JUKEBOX",GOLD,2);
-    for(int b=0;b<6;b++){ int h=jbPlaying?2+((rnd8()*13)>>8):1; rect(196+b*6,19-h,4,h,jbPlaying?RGB(10,26,10):RGB(10,12,16)); }
-    int mx=jtext(8,22,"MODE",DIMC,1)+4; jtext(mx,22,jbModeNm[sJb],GOLD,1);
-    if(jbMsgT>0) jtext(110,22,jbMsg,WHITE,1);
-    else { int x=jtext(110,22,"TRACK",DIMC,1)+4; x=numAt(x,22,jbPos+1,WHITE); x=jtext(x+4,22,"OF",DIMC,1); numAt(x+4,22,jbN,WHITE); }
-    int nx=jtext(8,32,"NOW",DIMC,1)+4;
-    if(!sSnd) jtext(nx,32,"SOUND IS OFF IN SETTINGS",RGB(30,10,8),1);
-    else jtext(nx,32,songs[jbSong(jbPos)].name,WHITE,1);
-    int pct=!mOn?0:mKind?(int)(aPos/(aN/100+1)):mOrd*100/mSong->nord; if(pct>100) pct=100;
-    u16 gc=jbPlaying?RGB(12,28,10):DIMC;
-    rect(8,42,160,4,RGB(8,10,14)); rect(8,42,pct*160/100,4,gc);
-    jtext(176,41,jbPlaying?"PLAYING":"STOPPED",gc,1);
+// Look: dark navy gradient with gold side rails, readable plain text (no jitter or fading), a segmented equalizer, a pill for the
+// mode, a green NOW tag, a progress bar with a playhead, banded list rows, and key-cap hints at the bottom.
+#define JB_GOLD2 RGB(14,11,3)
+#define JB_GREEN RGB(14,30,12)
+#define JB_TXT   RGB(22,24,28)
+static u8 jbEq[12];
+static void jbFill(int y0,int y1){   // gradient background + gold rails for rows y0..y1
+    for(int y=y0;y<y1;y++) fillBox(0,SW,y,y+1,RGB(2+y/55,3+y/38,9+y/14));
+    rect(0,y0,2,y1-y0,JB_GOLD2); rect(SW-2,y0,2,y1-y0,JB_GOLD2);
 }
-static void jbList(int cur){   // the playlist in play order: > cursor, + playing
-    fillBox(0,SW,JB_LY,JB_LY+JB_LH,JB_BG);
+static void jbNote(int x,int y,u16 c){ rect(x,y+8,4,3,c); rect(x+3,y,1,9,c); rect(x+4,y,3,1,c); rect(x+6,y+1,1,3,c); }   // a little eighth note
+static void jbHead(void){   // title, equalizer, mode, now playing, progress bar
+    jbFill(0,JB_LY);
+    text(9,6,"JUKEBOX",RGB(10,7,1),2); int tx=text(8,5,"JUKEBOX",GOLD,2);
+    jbNote(tx+6,4,JB_GOLD2); jbNote(tx+14,6,GOLD);
+    for(int b=0;b<12;b++){                     // segmented equalizer: green, then yellow, then red at the top
+        int e=jbEq[b], t=jbPlaying?2+((rnd8()*16)>>8):1;
+        e=(t>e)?t:(e>3?e-3:(e>1?e-1:1)); jbEq[b]=(u8)e;
+        int x=150+b*7;
+        if(!jbPlaying){ rect(x,20,5,1,RGB(8,10,16)); continue; }
+        for(int k=0;k*3<e;k++){ int sh=(e-k*3>3)?2:(e-k*3>2?2:e-k*3); if(sh<1) sh=1;
+            u16 c=k<3?RGB(8,26,8):k<4?RGB(28,26,5):RGB(30,9,6); rect(x,19-k*3-(sh-1),5,sh,c); }
+    }
+    int mx=text(8,22,"MODE",DIMC,1)+3; int vw=tw(jbModeNm[sJb],1);
+    rect(mx,21,vw+7,9,RGB(14,10,2)); rect(mx,21,vw+7,1,RGB(24,19,5)); text(mx+3,22,jbModeNm[sJb],GOLD,1);
+    if(jbMsgT>0) text(140,22,jbMsg,WHITE,1);
+    else { int x=text(140,22,"TRACK",DIMC,1)+3; x=numAt(x,22,jbPos+1,WHITE); x=text(x+3,22,"OF",DIMC,1); numAt(x+3,22,jbN,WHITE); }
+    rect(8,31,22,9,RGB(6,16,8)); text(11,32,"NOW",JB_GREEN,1);
+    if(!sSnd) text(36,32,"SOUND IS OFF IN SETTINGS",RGB(30,10,8),1);
+    else text(36,32,songs[jbSong(jbPos)].name,WHITE,1);
+    int pct=!mOn?0:mKind?(int)(aPos/(aN/100+1)):mOrd*100/mSong->nord; if(pct>100) pct=100;
+    int fw=pct*162/100; u16 gd=jbPlaying?RGB(8,22,8):RGB(10,12,18), gl=jbPlaying?RGB(14,30,12):RGB(14,16,22);
+    rect(8,44,162,5,RGB(7,9,15)); rect(8,44,fw,5,gd); rect(8,44,fw,2,gl);
+    if(fw>0&&jbPlaying) rect(8+fw-1,42,3,9,WHITE);
+    if(jbPlaying){ for(int k=0;k<4;k++) rect(178+k,43+k,1,7-2*k,JB_GREEN); text(187,43,"PLAYING",JB_GREEN,1); }
+    else { rect(178,44,5,5,RGB(14,16,22)); text(187,43,"STOPPED",RGB(14,16,22),1); }
+    rect(8,49,224,1,JB_GOLD2);
+}
+static void jbList(int cur){   // the playlist in play order: triangle = cursor, bars = playing
+    jbFill(JB_LY,JB_LY+JB_LH);
     int top=cur-JB_ROWS/2; if(top>jbN-JB_ROWS) top=jbN-JB_ROWS; if(top<0) top=0;
     for(int r=0;r<JB_ROWS&&top+r<jbN;r++){
-        int slot=top+r, y=JB_LY+3+r*9; u16 c=(slot==cur)?WHITE:DIMC;
-        if(slot==cur){ fillBox(6,228,y-2,y+7,RGB(6,16,8)); text(8,y,">",WHITE,1); }
-        if(slot==jbPos&&jbPlaying) text(14,y,"+",GOLD,1);
-        numAt(22,y,slot+1,c); jtext(36,y,songs[jbSong(slot)].name,c,1);
+        int slot=top+r, y=JB_LY+3+r*9, sel=(slot==cur), pl=(slot==jbPos&&jbPlaying);
+        if(sel){ fillBox(6,228,y-2,y+7,RGB(7,18,9)); fillBox(8,228,y-2,y-1,RGB(12,26,13)); rect(6,y-2,2,9,GOLD); }
+        else if(r&1) fillBox(6,228,y-2,y+7,RGB(5,7,16));
+        if(sel){ rect(10,y,1,5,WHITE); rect(11,y+1,1,3,WHITE); rect(12,y+2,1,1,WHITE); }
+        if(pl){ rect(15,y+3,1,3,GOLD); rect(17,y+1,1,5,GOLD); rect(19,y+4,1,2,GOLD); }
+        numAt(24,y,slot+1,sel?GOLD:RGB(14,16,20));
+        text(38,y,songs[jbSong(slot)].name,sel?WHITE:pl?JB_GREEN:JB_TXT,1);
     }
     if(jbN>JB_ROWS){   // scroll bar
         int th=JB_ROWS*9*JB_ROWS/jbN, ty=JB_LY+3+(JB_ROWS*9-th)*top/(jbN-JB_ROWS);
-        rect(233,JB_LY+3,2,JB_ROWS*9,RGB(8,10,14)); rect(233,ty,2,th,GOLD);
+        rect(233,JB_LY+3,2,JB_ROWS*9,RGB(8,10,16)); rect(233,ty,2,th,GOLD);
     }
+}
+static int jbKey(int x,int y,const char*k){   // a little key cap, returns the x after it
+    int w=tw(k,1)+5; rect(x,y-2,w,10,RGB(22,18,5)); rect(x+1,y-1,w-2,8,RGB(8,9,15)); text(x+3,y,k,GOLD,1); return x+w+2;
+}
+static int jbLab(int x,int y,const char*t){ return text(x,y,t,RGB(20,22,26),1)+7; }
+static void jbFoot(void){
+    int x=8; x=jbKey(x,130,"UP"); x=jbKey(x,130,"DOWN"); x=jbLab(x,130,"PICK"); x=jbKey(x,130,"A"); x=jbLab(x,130,"PLAY");
+    x=jbKey(x,130,"L"); x=jbKey(x,130,"R"); jbLab(x,130,"PREV NEXT");
+    x=8; x=jbKey(x,140,"START"); x=jbLab(x,140,"STOP OR PLAY"); x=jbKey(x,140,"SELECT"); jbLab(x,140,"RESHUFFLE");
+    x=8; x=jbKey(x,150,"LEFT"); x=jbKey(x,150,"RIGHT"); x=jbLab(x,150,"MODE"); x=jbKey(x,150,"B"); jbLab(x,150,"BACK");
 }
 static void jukeboxScreen(void){
     int cur=jbPos, dH=1, dL=1, pend=0, fr=0; u16 prev=keyNow();
     jbMsgT=0; jbPlaying=0;
     if(sSnd) jbStartSlot(jbPos);                          // opening the jukebox starts the song the playlist is on
-    fillBox(0,SW,0,SH,JB_BG);
-    jbHead(); jbList(cur);
-    u16 hint=RGB(16,18,20);
-    jtext(8,130,"UP DOWN PICK  A PLAY  L R PREV NEXT",hint,1);
-    jtext(8,137,"START STOP OR PLAY  SELECT RESHUFFLE",hint,1);
-    jtext(8,144,"LEFT RIGHT MODE  B BACK",hint,1);
+    jbFill(0,SH);
+    jbHead(); jbList(cur); jbFoot();
     vsync(); dmaRows(fb,VRAM_ADDR,0,ROW_W,0,SH); dH=dL=0;
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; fr++;
