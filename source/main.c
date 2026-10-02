@@ -534,25 +534,23 @@ static void titleScreen(void){
 typedef int32_t s32;
 static void lifeMode(int ed);
 static void mapEditor(void);
-#define MW 14
-#define MH 14
-#define LOX 120   // screen x of the map's top corner
-#define LOY 24
+#define MW 40
+#define MH 40    // keep MH == MW: the 4-way action cam rotates the square map
+static int camX, camY, camSnap=1, camLastV;   // camera offset in px; the map's top corner is drawn at (120-camX, 24-camY)
+#define LOX (120-camX)   // screen x of the map's top corner
+#define LOY (24-camY)
 #define SPW 32   // baked at half size so the skater is ~2 tiles tall in the room
 #define SPH 44
 #define SPX0 (OXC-32)
 #define SPY0 (OYC-80)   // capture window top; feet sit at row 40 of the half-size sprite
 #define MAPNAME "THE MAN BASE"   // name of the (placeholder) map
-// w = low wall, # = 2-block crate, = = grind rail, . = floor
-static const char* const mapDef[MH]={   // default room
-"wwwwwwwwwwwwww","w...........Fw","w.....====..Fw","w............w","w..##.....B..w","w..##........w","w..P.........w",
-"w.......##...w","w.......##...w","w.====.......w","w............D","w............D","w..........TTw","wwwwwwwwwwwwww" };
+// w = low wall, W = wall, # = 2-block crate, = = grind rail, . = floor (the default map is built by mapGen below)
 static const short cosT[16]={256,237,181,98,0,-98,-181,-237,-256,-237,-181,-98,0,98,181,237};   // sin(a)=cosT[(a+12)&15]
 static u16 spr4[4][SPW*SPH] EWRAM_BSS;
 static s32 lfx,lfy,lz,lvz,lvx,lvy; static int lskate, lhave, lfr;   // lskate: 0 on foot, 1 skateboard; lhave: picked up the board
 static u8 floorMap[MH][MW] EWRAM_BSS, wallMap[MH][MW] EWRAM_BSS;   // floor style and wallpaper per tile
 static int lfpsV;   // measured frames per second (shown when SHOW FPS is on)
-static char lifeMap[MH][MW+1];   // the room being played / edited (starts as mapDef, or the copy saved in SRAM)
+static char lifeMap[MH][MW+1] EWRAM_BSS;   // the room being played / edited (starts as mapDef, or the copy saved in SRAM)
 static int bdx=10, bdy=4, spx=3, spy=6;   // skateboard tile and spawn tile, found by mapScan (B and P tiles)
 #define BDX bdx
 #define BDY bdy
@@ -672,8 +670,38 @@ static const char palCh[NOBJ]={'.','w','W','#','=','F','T','D','B','P'};
 static const char* const palNm[NOBJ]={"CLEAR","LOW WALL","WALL","CRATE","RAIL","FRIDGE","TOILET","DOOR","BOARD","SPAWN"};
 static const u16 palCol[NOBJ]={RGB(26,21,14),RGB(8,20,22),RGB(10,22,24),RGB(8,9,20),RGB(31,30,16),RGB(31,31,31),RGB(30,28,18),RGB(14,9,5),RGB(26,10,6),RGB(28,10,8)};
 static int palIdx(char c){ for(int i=0;i<NOBJ;i++) if(palCh[i]==c) return i; return -1; }
-static void mapReset(void){
-    for(int y=0;y<MH;y++){ for(int x=0;x<MW;x++){ lifeMap[y][x]=mapDef[y][x]; floorMap[y][x]=0; wallMap[y][x]=0; } lifeMap[y][MW]=0; } }
+// ---- default big map: house (top left), factory (top right), rail park (bottom), roads of concrete between ----
+static void gBox(int x0,int y0,int x1,int y1,int fl){ for(int y=y0;y<=y1;y++)for(int x=x0;x<=x1;x++) floorMap[y][x]=(u8)fl; }
+static void gRoom(int x0,int y0,int x1,int y1,int fl,int wp){   // walled room with a floor
+    for(int y=y0;y<=y1;y++)for(int x=x0;x<=x1;x++){ floorMap[y][x]=(u8)fl;
+        if(x==x0||x==x1||y==y0||y==y1){ lifeMap[y][x]='W'; wallMap[y][x]=(u8)wp; } } }
+static void gLine(int x0,int y0,int x1,int y1,char c,int wp){ for(int y=y0;y<=y1;y++)for(int x=x0;x<=x1;x++){ lifeMap[y][x]=c; wallMap[y][x]=(u8)wp; } }
+static void gPut(int x,int y,char c){ lifeMap[y][x]=c; }
+static void mapGen(void){
+    for(int y=0;y<MH;y++){ for(int x=0;x<MW;x++){ lifeMap[y][x]='.'; floorMap[y][x]=7; wallMap[y][x]=0; } lifeMap[y][MW]=0; }
+    gLine(0,0,MW-1,0,'w',13); gLine(0,MH-1,MW-1,MH-1,'w',13); gLine(0,0,0,MH-1,'w',13); gLine(MW-1,0,MW-1,MH-1,'w',13);   // low wall round the edge
+    // HOUSE: peach wallpaper, beige carpet, lino kitchen, pink-tile bathroom
+    gRoom(2,2,17,17,1,2); gBox(11,11,16,16,3);
+    gRoom(2,2,9,9,5,11); gPut(6,9,'D'); gPut(3,3,'T');
+    gPut(9,17,'D'); gPut(17,13,'D');
+    gPut(16,11,'F'); gPut(16,12,'F'); gPut(12,4,'#'); gPut(13,4,'#'); gPut(12,5,'#'); gPut(13,5,'#');
+    gPut(5,12,'P'); gPut(7,14,'B');
+    // FACTORY: red brick, steel plate, oil-stained and hazard lanes, grate corner, crates and a rail
+    gRoom(22,2,37,19,8,8); gBox(23,10,36,11,10); gBox(23,14,27,18,9); gBox(30,3,36,8,12);
+    gPut(29,19,'D'); gPut(22,10,'D'); gPut(37,10,'D');
+    gLine(24,13,29,13,'=',8);
+    gPut(25,4,'#'); gPut(26,4,'#'); gPut(25,5,'#'); gPut(26,5,'#'); gPut(31,15,'#'); gPut(32,15,'#'); gPut(31,16,'#'); gPut(32,16,'#'); gPut(34,5,'#'); gPut(34,6,'#');
+    // RAIL PARK: oil-stained skate lanes, long rails, crate boxes. The middle (x 13-26, y 22-35) is a plaza (an old 14x14 saved room lands here)
+    gBox(2,22,37,37,7); gBox(2,28,37,29,12);
+    gLine(3,24,10,24,'=',0); gLine(3,31,10,31,'=',0); gLine(3,35,10,35,'=',0);
+    gLine(29,24,36,24,'=',0); gLine(29,31,36,31,'=',0); gLine(29,35,36,35,'=',0);
+    gLine(16,28,23,28,'=',0); gLine(16,33,23,33,'=',0);
+    gPut(5,26,'#'); gPut(6,26,'#'); gPut(5,27,'#'); gPut(6,27,'#'); gPut(8,33,'#'); gPut(9,33,'#'); gPut(8,34,'#'); gPut(9,34,'#');
+    gPut(31,26,'#'); gPut(32,26,'#'); gPut(31,27,'#'); gPut(32,27,'#'); gPut(34,33,'#'); gPut(35,33,'#'); gPut(34,34,'#'); gPut(35,34,'#');
+    gPut(14,24,'#'); gPut(15,24,'#'); gPut(14,25,'#'); gPut(15,25,'#'); gPut(24,25,'#'); gPut(25,25,'#'); gPut(24,26,'#'); gPut(25,26,'#');
+    gLine(12,21,27,21,'w',13);
+}
+static void mapReset(void){ mapGen(); }
 static void mapScan(void){   // find the skateboard (B) and the spawn point (P); fall back to sane defaults
     int fx=-1, fy=-1; bdx=bdy=spx=spy=-1;
     for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ char c=lifeMap[y][x];
@@ -684,29 +712,42 @@ static void mapScan(void){   // find the skateboard (B) and the spawn point (P);
 #define SRAM_BASE ((volatile u8*)0x0E000000)
 static const char sramTag[] __attribute__((used)) = "SRAM_V113";   // tells emulators / flash carts to give the game battery saves
 #define MSZ (MW*MH)
-// SRAM layout: 0..2 "BM2", then MSZ bytes each of tiles, floors, wallpapers. Settings live at 640 (see settingsSave). Old "BM1" saves (tiles only) still load.
-static void mapSave(void){ volatile u8*m=SRAM_BASE; m[0]='B'; m[1]='M'; m[2]='2';
+#define SET_OFF 8192            // settings live here now (the big map takes bytes 0..4802)
+#define OMW 14                  // old 14x14 saves
+#define OMSZ (OMW*OMW)
+#define LEG_X 13                // an old save is copied into the plaza at (13,22)
+#define LEG_Y 22
+// SRAM layout: 0..2 "BM3", then MSZ bytes each of tiles, floors, wallpapers. Settings at SET_OFF (see settingsSave).
+// Old "BM1" / "BM2" saves (14x14, settings at 640) still load: the room is placed into the plaza of the new default map.
+static void mapSave(void){ volatile u8*m=SRAM_BASE; m[0]='B'; m[1]='M'; m[2]='3';
     for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x; m[3+i]=(u8)lifeMap[y][x]; m[3+MSZ+i]=floorMap[y][x]; m[3+2*MSZ+i]=wallMap[y][x]; } }
-static int mapSaved(void){ volatile u8*m=SRAM_BASE; if(m[0]!='B'||m[1]!='M'||m[2]!='2') return 0;
+static int mapSaved(void){ volatile u8*m=SRAM_BASE; if(m[0]!='B'||m[1]!='M'||m[2]!='3') return 0;
     for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x;
         if(m[3+i]!=(u8)lifeMap[y][x]||m[3+MSZ+i]!=floorMap[y][x]||m[3+2*MSZ+i]!=wallMap[y][x]) return 0; }
     return 1; }
 static int mapLoad(void){   // returns 1 if a valid saved map was loaded
-    volatile u8*m=SRAM_BASE; int v2=0;
+    volatile u8*m=SRAM_BASE;
     if(m[0]!='B'||m[1]!='M') return 0;
-    if(m[2]=='2') v2=1; else if(m[2]!='1') return 0;
-    for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x;
-        if(palIdx((char)m[3+i])<0) return 0;
-        if(v2&&(m[3+MSZ+i]>=NFL||m[3+2*MSZ+i]>=NWP)) return 0; }
-    for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x;
-        lifeMap[y][x]=(char)m[3+i]; floorMap[y][x]=v2?m[3+MSZ+i]:0; wallMap[y][x]=v2?m[3+2*MSZ+i]:0; }
+    if(m[2]=='3'){
+        for(int i=0;i<MSZ;i++){ if(palIdx((char)m[3+i])<0||m[3+MSZ+i]>=NFL||m[3+2*MSZ+i]>=NWP) return 0; }
+        for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x;
+            lifeMap[y][x]=(char)m[3+i]; floorMap[y][x]=m[3+MSZ+i]; wallMap[y][x]=m[3+2*MSZ+i]; }
+        return 1; }
+    if(m[2]!='1'&&m[2]!='2') return 0;
+    int v2=(m[2]=='2');
+    for(int i=0;i<OMSZ;i++){ if(palIdx((char)m[3+i])<0) return 0; if(v2&&(m[3+OMSZ+i]>=NFL||m[3+2*OMSZ+i]>=NWP)) return 0; }
+    mapReset();
+    for(int y=0;y<MH;y++)for(int x=0;x<MW;x++) if(lifeMap[y][x]=='B'||lifeMap[y][x]=='P') lifeMap[y][x]='.';   // the old room brings its own
+    for(int y=0;y<OMW;y++)for(int x=0;x<OMW;x++){ int i=y*OMW+x, X=LEG_X+x, Y=LEG_Y+y;
+        lifeMap[Y][X]=(char)m[3+i]; floorMap[Y][X]=v2?m[3+OMSZ+i]:0; wallMap[Y][X]=v2?m[3+2*OMSZ+i]:0; }
     return 1; }
 static void mapPlace(int x,int y,char c){
     if(c=='B'||c=='P'){ for(int j=0;j<MH;j++)for(int i=0;i<MW;i++) if(lifeMap[j][i]==c) lifeMap[j][i]='.'; }
     lifeMap[y][x]=c; if(c=='w'||c=='W') wallMap[y][x]=(u8)eWp; }
 // settings (SRAM offset 640)
-static void settingsSave(void){ volatile u8*m=SRAM_BASE+640; m[0]='S'; m[1]='2'; m[2]=sFps; m[3]=sWall; m[4]=sWp; m[5]=sFl; m[6]=sSnd; m[7]=sShow; m[8]=sShad; m[9]=sHud; m[10]=sRom; m[11]=sCam; }
-static void settingsLoad(void){ volatile u8*m=SRAM_BASE+640;
+static void settingsSave(void){ volatile u8*m=SRAM_BASE+SET_OFF; m[0]='S'; m[1]='2'; m[2]=sFps; m[3]=sWall; m[4]=sWp; m[5]=sFl; m[6]=sSnd; m[7]=sShow; m[8]=sShad; m[9]=sHud; m[10]=sRom; m[11]=sCam; }
+static void settingsLoad(void){ volatile u8*m=SRAM_BASE+SET_OFF;
+    if(m[0]!='S'){ volatile u8*o=SRAM_BASE; if(o[0]=='B'&&o[1]=='M'&&o[2]!='3') m=SRAM_BASE+640; else return; }   // old saves kept settings at 640
     if(m[0]!='S') return;
     if(m[1]=='1'){ if(m[2]>2||m[3]>2||m[4]>1||m[5]>1||m[6]>1||m[7]>1) return;   // older save: fewer settings
         sFps=m[2]; sWall=m[3]; sWp=m[4]; sFl=m[5]; sSnd=m[6]; sShow=m[7]; return; }
@@ -902,7 +943,7 @@ static void settingsScreen(void){
 }
 
 static void lifeInit(void){
-    mapScan(); bakeSprites();
+    mapScan(); bakeSprites(); camSnap=1;
     lfx=spx*256+128; lfy=spy*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote=""; lskate=0; lhave=(bdx<0); lfr=0; lvx=lvy=0; ldead=0; lmaxz=0; lplay=0; lbumpCd=0; lfood=100; lbl=0; lnear=0; sfxStop();
 }
 static const signed char hdT[3][3]={{10,12,14},{8,-1,0},{6,4,2}};   // [sign dy+1][sign dx+1] -> heading (16 steps), -1 = keep
@@ -1023,6 +1064,30 @@ static char cellAt(int rx,int ry){ int tx,ty; rotXY(rx,ry,&tx,&ty); return lifeM
 static int wpAt(int rx,int ry){ int tx,ty; rotXY(rx,ry,&tx,&ty); return wallMap[ty][tx]; }
 static int flAt(int rx,int ry){ int tx,ty; rotXY(rx,ry,&tx,&ty); return floorMap[ty][tx]; }
 static int isWallCh(char c){ return c=='w'||c=='W'; }
+// ---- camera: follows the player (play) or the cursor (editor); only the tiles on screen are drawn ----
+static void camClamp(int ed){
+    int xl=120-MH*CA, xh=120+MW*CA-SW, yl=24-(ed?20:0), yh=24+(MW+MH)*CB-SH+(ed?20:0);
+    if(camX<xl) camX=xl; if(camX>xh) camX=xh; if(camY<yl) camY=yl; if(camY>yh) camY=yh;
+}
+static void camFollow(int snap){   // keep the skater near the middle of the screen, eased so it stays steady
+    s32 rfx,rfy; rotPos(lfx,lfy,&rfx,&rfy);
+    int ox=camX, oy=camY; camX=(int)((rfx-rfy)>>5); camY=(int)((rfx+rfy)>>6)-76; camClamp(0);
+    int tx=camX, ty=camY; camX=ox; camY=oy;
+    if(cview!=camLastV){ camLastV=cview; snap=1; }
+    if(snap){ camX=tx; camY=ty; return; }
+    int dx=tx-camX, dy=ty-camY, sx=dx/4, sy=dy/4;
+    if(!sx) sx=(dx>0)-(dx<0); if(!sy) sy=(dy>0)-(dy<0);
+    camX+=sx; camY+=sy;
+}
+static void bandRows(int*s0,int*s1){   // diagonals (tx+ty) that can touch the screen
+    int lo=(-LOY-CB-10)/CB-1, hi=(SH+2*CC+CB-LOY)/CB+1;
+    if(lo<0) lo=0; if(hi>MW+MH-2) hi=MW+MH-2; *s0=lo; *s1=hi;
+}
+static void bandCols(int s,int*a,int*b){   // tx range of diagonal s that falls on screen
+    int kmin=(-2*CA-LOX)/CA-1, kmax=(SW+2*CA-LOX)/CA+1;
+    int lo=(s+kmin)>>1, hi=(s+kmax+1)>>1, mn=s-(MH-1), mx=s<MW-1?s:MW-1;
+    if(mn<0) mn=0; if(lo<mn) lo=mn; if(hi>mx) hi=mx; *a=lo; *b=hi;
+}
 static int tileOpen(int x,int y){   // in the map and not a wall / crate / fridge
     if(x<0||y<0||x>=MW||y>=MH) return 0;
     char c=cellAt(x,y); return !(c=='w'||c=='W'||c=='#'||c=='F'); }
@@ -1044,6 +1109,7 @@ static void drawWall(int tx,int ty,int sx,int sy){
 static void tileMark(int tx,int ty,u16 cc){   // diamond outline on a tile (editor cursor / preview)
     char c=lifeMap[ty][tx]; int hgt=isWallCh(c)?wallH(tx,ty)*CC:tileH(tx,ty);
     int sx=LOX+(tx-ty)*CA, sy=LOY+(tx+ty+1)*CB-hgt;
+    if(sx<-CA-1||sx>SW+CA||sy<-CB-2||sy>SH+CB+2) return;   // off screen
     for(int t=-CA;t<=CA;t++){ int at=t<0?-t:t, hh=hhT[0][at]; px(sx+t,sy-hh,cc); px(sx+t,sy-hh-1,cc); px(sx+t,sy+hh,cc); px(sx+t,sy+hh+1,cc); }
 }
 static void eRect(int*x0,int*y0,int*x1,int*y1){   // anchor..cursor as an ordered rectangle; the WALL tool snaps to a straight line
@@ -1054,15 +1120,17 @@ static void eRect(int*x0,int*y0,int*x1,int*y1){   // anchor..cursor as an ordere
 static int lpsx, lpsy;   // where the player is on screen (zoom centre)
 static void drawRoom(int ed){   // the room, drawn back to front; ed=1: editor view (no player, markers + cursor)
     fillCols(0,ROW_W,RGB(4,5,8));
-    for(int ty=0;ty<MH;ty++)for(int tx=0;tx<MW;tx++){ char c=cellAt(tx,ty); if(c=='w'||c=='W'||c=='#'||c=='F'||c=='T') continue;
-        int sx=LOX+(tx-ty)*CA, sy=LOY+(tx+ty+1)*CB;
-        if(c=='D') tileTop(sx,sy,RGB(14,9,5));
-        else { int fl=flAt(tx,ty), v=(tx^ty)&1; if(sFl) floorTile(sx,sy,&flTab[fl][v][0][0]); else tileTop(sx,sy,flFlat[fl][v]); } }
+    int s0,s1; bandRows(&s0,&s1);
+    for(int s=s0;s<=s1;s++){ int a,b; bandCols(s,&a,&b);
+        for(int tx=a;tx<=b;tx++){ int ty=s-tx; char c=cellAt(tx,ty); if(c=='w'||c=='W'||c=='#'||c=='F'||c=='T') continue;
+            int sx=LOX+(tx-ty)*CA, sy=LOY+(tx+ty+1)*CB;
+            if(c=='D') tileTop(sx,sy,RGB(14,9,5));
+            else { int fl=flAt(tx,ty), v=(tx^ty)&1; if(sFl) floorTile(sx,sy,&flTab[fl][v][0][0]); else tileTop(sx,sy,flFlat[fl][v]); } } }
     s32 rfx,rfy; rotPos(lfx,lfy,&rfx,&rfy);
     int ss=(int)((rfx>>8)+(rfy>>8)), psx=LOX+(int)((rfx-rfy)>>5), psy=LOY+(int)((rfx+rfy)>>6);
     lpsx=psx; lpsy=psy-20;
-    for(int s=0;s<MW+MH-1;s++){
-        for(int tx=0;tx<MW;tx++){ int ty=s-tx; if(ty<0||ty>=MH) continue;
+    for(int s=s0;s<=s1;s++){ int a,b; bandCols(s,&a,&b);
+        for(int tx=a;tx<=b;tx++){ int ty=s-tx;
             char c=cellAt(tx,ty); int sx=LOX+(tx-ty)*CA, sy=LOY+(tx+ty+1)*CB;
             if(c=='w'||c=='W') drawWall(tx,ty,sx,sy);
             else if(c=='#'){ for(int j=1;j<=2;j++) cube(sx,sy-j*CC,7,0,(j<2?1:0)|(j>1?2:0)); }
@@ -1112,6 +1180,7 @@ IWRAM_CODE static void zoomFb(int cx,int cy,int zk){
     }
 }
 static void lifeDraw(void){
+    camFollow(camSnap||lcamF>0); camSnap=0;
     drawRoom(0);
     if(lcamF>0){   // action cam: ease in, spin through all 4 views, ease out
         int f=lcamF, z=f<12?f:(f>CAM_LEN-12?CAM_LEN-f:12);   // 0..12 zoom amount
@@ -1237,10 +1306,36 @@ static void drawEditorHud(const char*msg){
     } else text(2,139,"CLEARS WALLS ITEMS AND FLOORS",DIMC,1);
     text(2,147,toolHint[eTool][0],RGB(12,14,16),1); text(2,153,toolHint[eTool][1],RGB(12,14,16),1);
 }
+static void edCamSnap(void){ camX=(ecx-ecy)*CA; camY=24+(ecx+ecy+1)*CB-80; camClamp(1); }
+static int edCamStep(void){   // dead-zone camera: the view only scrolls when the cursor nears the edge of the screen
+    int sx=LOX+(ecx-ecy)*CA, sy=LOY+(ecx+ecy+1)*CB, dx=0, dy=0;
+    if(sx<76) dx=sx-76; else if(sx>164) dx=sx-164;
+    if(sy<48) dy=sy-48; else if(sy>112) dy=sy-112;
+    if(!dx&&!dy) return 0;
+    if(dx>10) dx=10; if(dx<-10) dx=-10; if(dy>5) dy=5; if(dy<-5) dy=-5;
+    int ox=camX, oy=camY; camX+=dx; camY+=dy; camClamp(1);
+    return camX!=ox||camY!=oy;
+}
+static void mmPx(int x,int y,u16 c){ if((unsigned)x<MW&&(unsigned)y<MH) px(SW-MW-3+x,2+y,c); }
+static void miniMap(void){   // whole map at 1 px per tile, top right: colours by tile, the camera's view outlined, cursor blinking
+    int X0=SW-MW-3, Y0=2;
+    rect(X0-1,Y0-1,MW+2,MH+2,RGB(3,4,7));
+    for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){
+        char c=lifeMap[y][x]; u16 col;
+        if(c=='.') col=shade(flFlat[floorMap[y][x]][0],10);
+        else { int i=palIdx(c); col=i>=0?palCol[i]:0; }
+        px(X0+x,Y0+y,col);
+    }
+    int ca=(120-LOX)/CA, cb=(80-LOY)/CB-1;   // screen centre as (tx-ty, tx+ty); the screen is a tilted box on the map
+    for(int t=-15;t<=15;t++){ int a=ca+t, b=cb-20; mmPx((a+b)>>1,(b-a)>>1,RGB(20,22,24)); b=cb+20; mmPx((a+b)>>1,(b-a)>>1,RGB(20,22,24)); }
+    for(int t=-20;t<=20;t++){ int b=cb+t, a=ca-15; mmPx((a+b)>>1,(b-a)>>1,RGB(20,22,24)); a=ca+15; mmPx((a+b)>>1,(b-a)>>1,RGB(20,22,24)); }
+    u16 cc=(efr&8)?WHITE:GOLD;
+    mmPx(ecx,ecy,cc); mmPx(ecx-1,ecy,cc); mmPx(ecx+1,ecy,cc); mmPx(ecx,ecy-1,cc); mmPx(ecx,ecy+1,cc);
+}
 static void mapEditor(void){
     int hold[4]={0}, comboUsed=0, dirty=1, lastBl=-1, msgT=0; const char*msg=""; u16 prev=keyNow();
     static const u16 dirK[4]={K_RIGHT,K_LEFT,K_UP,K_DOWN};
-    eAct=0;
+    eAct=0; edCamSnap();
     for(efr=0;;efr++){
         u16 k=keyNow(), pr=k&~prev, rel=prev&~k; prev=k;
         int tr[4];
@@ -1276,12 +1371,13 @@ static void mapEditor(void){
             else if(c==3){ if(menu("RESET THE MAP",yesNo,2)==1){ mapReset(); eAct=0; toast("MAP RESET"); } }
             else if(c==4) helpScreen("HOW TO EDIT",mapHelp,12);
             else if(c==5){ mapSave(); break; }
-            prev=keyNow(); dirty=1; continue;
+            prev=keyNow(); edCamSnap(); dirty=1; continue;
         }
+        if(edCamStep()) dirty=1;
         if(msgT>0&&--msgT==0){ msg=""; dirty=1; }
         int bl=(efr>>3)&1;   // the editor only redraws when something changed or the cursor blinks
         if(dirty||bl!=lastBl){
-            drawRoom(1); drawEditorHud(msgT>0?msg:"");
+            drawRoom(1); drawEditorHud(msgT>0?msg:""); miniMap();
             present(); dirty=0; lastBl=bl;
         } else vsync();
     }
