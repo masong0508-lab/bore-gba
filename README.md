@@ -107,23 +107,26 @@ The creature screen is now a character-creator: a live preview in a little house
 Tab 5 opens the original block builder (legend with key caps; Select+Start returns). Changing shape, ears or hair style after hand-building asks before replacing your blocks.
 
 ## Life sim layer (Sims 2, handheld edition)
-The life part of the game now has a Sims 2 style loop on top of the skating: needs, furniture, wants and fears, aspiration and a plumbob. All the logic is in `source/sims.h` (art in `source/simart.h`, preview in `assets/preview/sims_furniture.png`); every tuning number is in the TUNING block at the top of `sims.h`.
+The life part of the game has a Sims 2 style loop on top of the skating. All the logic is in `source/sims.h` (art in `source/simart.h`, preview in `assets/preview/sims_furniture.png`); every tuning number is in the TUNING block at the top of `sims.h`. Everything except other people (social needs, relationships) is in.
 
-**Furniture** (room editor, ITEM tool, 3 new slots at the end of the list so old saves still load): **BED** (S), **SHOWER** (H), **SOFA** (C). They face away from the wall like the fridge. Stand next to one and press **R**; **A, B or R** gets you up early.
-| Item | Fills | Takes (full) | Pays |
-|---|---|---|---|
-| Bed | REST (energy) | ~10 s | mood lift when you get up |
-| Shower | CLEAN (hygiene) | ~4 s | mood lift |
-| Sofa | COMFY (comfort) | ~6 s | mood lift |
+**Furniture** (room editor, ITEM tool, 3 slots at the end of the list so old saves still load): **BED** (S), **SHOWER** (H), **SOFA** (C). They face away from the wall like the fridge. Stand next to one and press **R**; **A, B or R** gets you up early. The default house now has a shower in the bathroom, and a bed and sofa in the lounge. (A map you saved earlier keeps its old layout: place them yourself, or RESET MAP.)
 
-**Needs.** FOOD and WC were already there; REST, CLEAN and COMFY join them in the right-hand column. They drain on their own (REST empties in about 4 minutes). At 0 REST the skater **passes out** (short blackout, REST back to 25, a mood knock); below 20 REST top speed drops 20%. Needs also feed the HAPPY meter (`simsComfort()` in `mood.h`).
+**Needs.** FOOD and WC were already there. REST, CLEAN, COMFY and ROOM join them in the right-hand column. They drain on their own (REST empties in about 4 minutes awake, faster at night). Bed refills REST (~10 s), shower CLEAN (~4 s), sofa COMFY (~6 s). **ROOM** is the look of the place you stand in: it rises near furniture (fridge, toilet, bed, shower, sofa; five different kinds in 5 tiles = 100) and sags slowly in an empty place. At 0 REST the skater **passes out** (blackout, REST back to 25, a mood knock); below 20 REST top speed drops 20%. All needs feed the HAPPY meter.
 
-**Thought bubble and plumbob.** A plumbob bobs and turns over the head: green = fine, yellow = so-so, red = in trouble. Above it a thought bubble shows the most urgent need (WC, EAT, ZZZ, STINKY, SIT), otherwise it alternates between the current wants.
+**Clock.** A game day is 6 real minutes (`SIM_STEPS_MIN`), a week is MON..SUN, the game starts MON 08:00. The clock is top right and turns gold during your shift. Sleeping runs the clock fast (one game minute per step); between 22:00 and 06:00 sleep restores 25% faster and staying awake costs REST 50% faster.
 
-**Wants and fears.** Two wants and one fear are always on show under the needs (green and red markers). Meeting a want (eat, nap, shower, sofa, land a trick, 3 trick combo, grind, get air, feel stoked...) pays aspiration points and a mood lift; a fear coming true (bail, accident, passing out, getting hurt, fainting) costs points. A want is only offered if the room has what it needs: no bed in the map, no nap want. Wants are hooked to the mood events, so every `moodEvent()` in the game already feeds them.
+**Career: pro skater**, Mon to Fri 09:00 to 17:00. Trick points you score during the shift count towards the day's quota (600 at level 0, +500 per level). At 17:00 you are paid: full quota = full pay (70, +40 per level, +30 for double the quota) and a step to promotion; half quota = half pay; less = nothing and a strike. **3 good days = promotion, 3 strikes = demotion.** Levels: NEWBIE, AMATEUR, SPONSORED, PRO, TEAM RIDER, LEGEND. A reminder shows at 08:00 and when the shift starts. **Bills** of 40 are taken every midnight; if you cannot pay you are BROKE (cash to 0, a mood knock, and it ticks the BEING BROKE fear). You start with 200.
+
+**Skill.** SKATING skill 0 to 5 is trained by tricks, combos and grinds (12 / 35 / 70 / 120 / 200 points). Each level adds 8% to trick points. It shows as SK on the job line.
+
+**Thought bubble and plumbob.** A plumbob bobs and turns over the head: green = fine, yellow = so-so, red = in trouble. Above it a thought bubble shows the most urgent need (WC, EAT, ZZZ, STINKY, SIT), otherwise it alternates between your wants.
+
+**Wants and fears.** Two wants and one fear are always on show under the needs (green and red markers). Wants: snack, WC, nap, get clean, sofa, land a trick, trick combo, grind, get air, feel stoked, finish a shift, get promoted, learn a skill, nice room. Fears: bailing, accident, passing out, getting hurt, fainting, being broke, demotion. Meeting a want pays aspiration points and a mood lift; a fear coming true costs points. A want is only offered if the map has what it needs (no bed, no nap want). All of it hooks into the mood events, so every `moodEvent()` in the game feeds it.
 
 **Aspiration.** Points climb through BRONZE, SILVER, GOLD and PLATINUM (40 / 120 / 260 / 450). Each level slows the needs down; PLATINUM halves them.
 
-**Adding things.** A want or fear: add a `SE_` name, a row in `simWants` / `simFears`, and map the game event in `simsMood()` (or call `simEvent(SE_X)` yourself). A need: a variable, a rate in `simsTick()`, a use in `simBegin()`, a bar in `simsHud()`. A piece of furniture: art in `simart.h`, a slot in `palCh`/`palNm`/`palCol` and a `drawItemTile` line.
+**Saving.** Needs, cash, aspiration, clock, job level and progress, and skill are saved to SRAM (offset 16384) at every midnight, every payday, when you open the pause menu and when you leave the life game, with a checksum so a bad save is ignored. Dying only resets the needs: the life goes on. **Pause menu -> NEW LIFE** erases it and starts over.
 
-**Not done yet** (next steps toward the full Sims 2 feel): SOCIAL and ROOM needs, other people to talk to and relationships, a clock with days and jobs, and saving needs and aspiration to SRAM (meters and aspiration reset on respawn and on boot, like the mood meters).
+**Adding things.** A want or fear: add a `SE_` name, a row in `simWants` / `simFears`, and map the game event in `simsMood()` (or call `simEvent(SE_X)` yourself). A need: a variable (and in `simsSave`/`simsLoad`), a rate in `simsTick()`, a use in `simBegin()`, a bar in `simsHud()`. A piece of furniture: art in `simart.h`, a slot in `palCh`/`palNm`/`palCol` and a `drawItemTile` line.
+
+**Not done yet:** SOCIAL need, other people to talk to, relationships.

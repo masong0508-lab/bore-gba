@@ -999,6 +999,7 @@ static void mapGen(void){
     gPut(9,17,'D'); gPut(17,13,'D');
     gPut(16,11,'F'); gPut(16,12,'F'); gPut(12,4,'#'); gPut(13,4,'#'); gPut(12,5,'#'); gPut(13,5,'#');
     gPut(5,12,'P'); gPut(7,14,'B');
+    gPut(8,3,'H'); gPut(4,16,'S'); gPut(3,11,'C');                     // shower (bathroom), bed and sofa (lounge)
     // FACTORY: red brick, steel plate, oil-stained and hazard lanes, grate corner, crates and a rail
     gRoom(22,2,37,19,8,8); gBox(23,10,36,11,10); gBox(23,14,27,18,9); gBox(30,3,36,8,12);
     gPut(29,19,'D'); gPut(22,10,'D'); gPut(37,10,'D');
@@ -1113,7 +1114,7 @@ static void helpScreen(const char*title,const char*const*ln,int n){   // lines s
 }
 static void toast(const char*msg){ int w=tw(msg,1)+16;
     box((SW-w)/2,66,w,22); text((SW-w)/2+8,74,msg,WHITE,1); for(int i=0;i<45;i++){ present(); } }
-static const char* const lifeHelp[12]={">ON FOOT","DPAD WALK  B RUN  A HOP","R FRIDGE OR TOILET","L GET ON THE BOARD",">ON THE BOARD","A PUSH  DPAD STEER  B OLLIE","IN AIR DPAD SPINS  B KICKFLIP","LAND CLEAN FOR POINTS","HIGH FALLS AND WALLS HURT",">KEEP YOURSELF GOING","WATCH THE FOOD AND WC BARS","START OPENS THE MENU"};
+static const char* const lifeHelp[16]={">ON FOOT","DPAD WALK  B RUN  A HOP","L GET ON THE BOARD","R USE FRIDGE TOILET BED SHOWER SOFA",">ON THE BOARD","A PUSH  DPAD STEER  B OLLIE","IN AIR DPAD SPINS  B KICKFLIP",">KEEP YOURSELF GOING","FOOD WC REST CLEAN COMFY ROOM BARS","SLEEP IN BED  A OR B GETS YOU UP",">WORK  MON TO FRI 9 TO 5","TRICK POINTS BEAT THE QUOTA FOR PAY","3 GOOD DAYS PROMOTE  3 BAD DEMOTE",">WANTS AND FEARS","MEET WANTS TO RISE  AVOID FEARS","START OPENS THE MENU"};
 
 static const char* const creatureHelp[15]={">PICK YOUR LOOK","L R CHANGE TAB   UP DOWN PICK A ROW","LEFT RIGHT CHANGE IT  A ALSO STEPS","SELECT TURNS THE CREATURE ROUND",">THE TABS","1 BODY  SHAPE AND SKIN","2 FACE  EYES MOUTH AND EARS","3 HAIR  4 CLOTHES  COLOURS AND STYLE","5 BUILD  PLACE EVERY BLOCK YOURSELF",">FINISH","START JUMPS TO THE DONE TAB","GO LIVE LIFE PLAYS YOUR CREATURE",">BLOCK BUILDER","DPAD AND L R MOVE  A PLACE  B ERASE","SELECT+START BACK TO THE TABS"};
 static const char* const mapHelp[12]={">BUILD A ROOM","ROOM TOOL  A CORNER  A BUILDS","WALL TOOL  A START  A DRAWS A LINE","FLOOR TOOL  A CORNER  A FILLS","ITEM TOOL  PLACE SINGLE TILES","ERASE TOOL  A CORNER  A CLEARS",">STYLES","L R PICK FLOOR OR ITEM","SEL+L R PICK WALLPAPER","SELECT TAP NEXT TOOL  B CANCELS",">KEEP IT","START OPENS PLAY TEST AND SAVE"};
@@ -1286,7 +1287,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
     int fh=surfH(lfx,lfy)<<8;
     if(ldead){   // dead: frozen until A
         lstun=2;
-        if(pr&K_A){ ldead=0; lstun=0; lfx=spx*256+128; lfy=spy*256+128; lz=0; lvz=0; lskate=0; lsp=0; lgrind=0; lspin=0; lflip=0; lairF=0; lmaxz=0; lplay=0; lnoteT=0; lfood=100; lbl=0; moodReset(); simsReset(); sfxStop(); feelReset(0); }
+        if(pr&K_A){ ldead=0; lstun=0; lfx=spx*256+128; lfy=spy*256+128; lz=0; lvz=0; lskate=0; lsp=0; lgrind=0; lspin=0; lflip=0; lairF=0; lmaxz=0; lplay=0; lnoteT=0; lfood=100; lbl=0; moodReset(); simsRespawn(); sfxStop(); feelReset(0); }
     }
     if(lstun>0){ lstun--; lsp=0; lvx=lvy=0; }
     else {
@@ -1349,7 +1350,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
     if(lgrind){ if(air||tileH(lfx>>8,lfy>>8)!=6) lgrind=0; else if((fr&3)==0){ lscore+=3; lnote="GRIND"; lnoteT=10; lcPts+=3; lcT=150; } }
     if(!lhave&&lz<(8<<8)&&(lfx>>8)==BDX&&(lfy>>8)==BDY){ lhave=1; lnote="GOT A SKATEBOARD"; lnoteT=90; moodEvent(M_GOT_BOARD); }   // walk over it to pick it up
     if(!ldead){   // needs: hunger and bladder, then how they (and the skating) make the skater feel
-        moodTick(); simsTick(pr);
+        moodTick(); simsTick(pr,(int)(lfx>>8),(int)(lfy>>8));
         if(lfr%120==0&&lfood>0) lfood--;
         if(lfr%100==0&&lbl<100) lbl++;
         if(lfood==0&&lfr%300==0){ lfood=15; lstun=120; lsp=0; lgrind=0; sfxPlay(SFX_GROAN); lnote="FAINTED FROM HUNGER"; lnoteT=90; moodEvent(M_FAINT); }
@@ -1526,17 +1527,18 @@ static void lifeDraw(void){
     u16 gold=GOLD, dim=DIMC, hint=RGB(12,14,16);
     if(!lcamF&&!ldead){ simsPlumbDraw(lpsx,lpsy-16); if(sHud<2) simsBubble(lpsx,lpsy-24,RGB(6,6,10)); }   // plumbob and thought bubble over the head (sims.h)
     if(sHud<2){
+        simsClockDraw(150,2,dim,gold);
         numText(text(2,2,"SCORE",dim,1)+3,2,lscore,gold);
         text(150,10,"FOOD",dim,1); rect(180,10,lfood/2,5,lfood<20?RGB(28,8,6):RGB(10,24,8));
         text(150,18,"WC",dim,1); rect(180,18,lbl/2,5,lbl>80?RGB(28,8,6):RGB(26,22,6));
         text(150,26,"FUN",dim,1); rect(180,26,moodFunPct()/2,5,moodFunPct()<MOOD_BORED?RGB(28,8,6):RGB(8,22,28));
         text(150,34,"HAPPY",dim,1); rect(180,34,moodHapPct()/2,5,moodHapPct()<MOOD_SAD?RGB(28,8,6):RGB(28,13,19));
         drawFace(150,42,moodState()); text(160,43,moodStName[moodState()],gold,1);
-        simsHud(150,54,dim,gold);
+        simsHud(150,52,dim,gold);
     }
     if(sHud==0){
         text(2,10,"SPEED",dim,1); rect(24,10,lsp,5,RGB(8,24,10));
-        text(150,2,MAPNAME,RGB(14,16,18),1);
+        text(2,139,MAPNAME,RGB(14,16,18),1);
         text(60,2,lskate?"SKATE":(lsp>5?"RUN":"WALK"),gold,1);
         text(2,146,lskate?"A PUSH B OLLIE DPAD STEER L WALK":(lhave?"DPAD WALK B RUN A HOP L SKATE":"DPAD WALK B RUN A HOP FIND A BOARD"),hint,1);
         text(2,153,"START MENU",hint,1);
@@ -1558,10 +1560,11 @@ static void camStep(int steps,u16 k,u16 pr){   // action cam: the game holds sti
     else { int f=lcamF; cview=(f<6||f>=60)?0:(f-6)/18+1; if(cview>3) cview=0; }
 }
 static int gToMenu;   // set when the player picks MAIN MENU in the pause menu, so every screen above returns to it
-static const char* const lifeItems[5]={"RESUME","HOW TO PLAY","SETTINGS","EDIT MAP","MAIN MENU"};
+static const char* const lifeItems[6]={"RESUME","HOW TO PLAY","SETTINGS","EDIT MAP","NEW LIFE","MAIN MENU"};
 static const char* const lifeItemsEd[4]={"RESUME","HOW TO PLAY","SETTINGS","BACK TO EDITOR"};
 // Timer2 (65536 Hz) is the clock (defined with the settings). The game logic always runs at 60 steps per second; the
 // frame rate setting only says how often the picture is redrawn, so lower rates save work without slowing the game.
+static const char* const yesNoLife[2]={"NO","YES ERASE IT"};
 static void lifeMode(int ed){   // ed=1: test play started from the map editor
     lifeInit(); lcamF=0; cview=0; lcN=lcPts=lcT=lcBank=lcBankT=lcamPend=0; u16 prev=keyNow();
     tmStart(); u16 tl=R_TM2D; int acc=0, fpsN=0, fr=0; u32 fpsT=0, workT=0; lfpsV=0; lloadV=0;
@@ -1573,12 +1576,13 @@ static void lifeMode(int ed){   // ed=1: test play started from the map editor
         u16 k=keyNow(), pr=k&~prev; prev=k;
         if((k&K_SEL)&&(k&K_START)) break;
         if(pr&K_START){   // pause menu
-            sfxStop();
-            int c=menu("PAUSED",ed?lifeItemsEd:lifeItems,ed?4:5);
-            if(c==1) helpScreen("HOW TO PLAY",lifeHelp,12);
+            sfxStop(); simsSave();   // the pause menu is also a save point
+            int c=menu("PAUSED",ed?lifeItemsEd:lifeItems,ed?4:6);
+            if(c==1) helpScreen("HOW TO PLAY",lifeHelp,16);
             else if(c==2) settingsScreen();
             else if(c==3&&!ed){ mapEditor(); lifeInit(); }
-            else if((c==3&&ed)||c==4){ if(c==4) gToMenu=1; break; }
+            else if(c==4&&!ed){ if(menu("START A NEW LIFE",yesNoLife,2)==1){ simsNewLife(); moodReset(); lscore=0; simLastScore=0; lnote="NEW LIFE"; lnoteT=60; } }
+            else if((c==3&&ed)||c==5){ if(c==5) gToMenu=1; break; }
             prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=0; continue;
         }
         if(lcamF>0) camStep(steps,k,pr);
@@ -1589,7 +1593,7 @@ static void lifeMode(int ed){   // ed=1: test play started from the map editor
         lifeDraw(); workT+=(u16)(R_TM2D-w0); present();
         fpsN++; if(fpsT>=65536){ lfpsV=fpsN; lloadV=(int)(workT/(u32)fpsN*100/(u32)((sFps+1)*TICKS_FRAME)); workT=0; fpsN=0; fpsT-=65536; }
     }
-    R_TM2CNT=0; sfxStop(); lcamF=0; cview=0;
+    simsSave(); R_TM2CNT=0; sfxStop(); lcamF=0; cview=0;   // leaving the life game saves it
     while((~REG_KEYINPUT)&0x3FF) vsync();   // wait for release so the caller doesn't see the exit keys
 }
 
@@ -2230,7 +2234,7 @@ static void mainMenu(void){
             else if(sel==3) jukeboxScreen();
             else if(sel==4) settingsScreen();
             else { int g=menu("HOW TO PLAY",guideItems,4);
-                   if(g==0) helpScreen("PLAYING",lifeHelp,12); else if(g==1) helpScreen("MAKE CREATURE",creatureHelp,15); else if(g==2) helpScreen("BUILD ROOMS",mapHelp,12); else if(g==3) helpScreen("JUKEBOX",jbHelp,10); }
+                   if(g==0) helpScreen("PLAYING",lifeHelp,16); else if(g==1) helpScreen("MAKE CREATURE",creatureHelp,15); else if(g==2) helpScreen("BUILD ROOMS",mapHelp,12); else if(g==3) helpScreen("JUKEBOX",jbHelp,10); }
             gToMenu=0; prev=keyNow(); dirty=1; continue;
         }
         if(dirty){ drawMainMenu(sel); present(); dirty=0; } else vsync();

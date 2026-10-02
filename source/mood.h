@@ -31,8 +31,8 @@
 #define MOOD_BORED      20    // fun below this = BORED (fewer points)
 #define MOOD_STOKED     80    // fun at/above this (and happy >= 60) = STOKED (more points, a touch faster)
 
-enum { M_TRICK, M_COMBO, M_GRIND_ON, M_LAUNCH, M_GOT_BOARD, M_EAT, M_RELIEVE, M_SLEEP, M_SHOWER, M_SOFA, M_WANT,      // good
-       M_BAIL, M_HURT, M_HURT_BIG, M_BUMP, M_ACCIDENT, M_FAINT, M_DIE, M_FEAR, M_PASSOUT, M_N };        // bad
+enum { M_TRICK, M_COMBO, M_GRIND_ON, M_LAUNCH, M_GOT_BOARD, M_EAT, M_RELIEVE, M_SLEEP, M_SHOWER, M_SOFA, M_WANT, M_SKILL, M_PAY, M_PROMO,      // good
+       M_BAIL, M_HURT, M_HURT_BIG, M_BUMP, M_ACCIDENT, M_FAINT, M_DIE, M_FEAR, M_PASSOUT, M_BROKE, M_DEMOTE, M_N };        // bad
 typedef struct { signed char fun, hap; } MoodRow;
 static const MoodRow moodTab[M_N]={
     { 5, 1},   // M_TRICK       landed a clean trick (spin / flip / grab)
@@ -46,6 +46,9 @@ static const MoodRow moodTab[M_N]={
     { 2, 8},   // M_SHOWER      finished a shower
     { 3, 5},   // M_SOFA        got up from the sofa
     { 4, 8},   // M_WANT        met a want (sims.h)
+    { 6, 6},   // M_SKILL       skill level up (sims.h)
+    { 4, 8},   // M_PAY         shift paid (sims.h)
+    { 8,15},   // M_PROMO       promoted (sims.h)
     {-6,-4},   // M_BAIL        bad landing
     {-4,-6},   // M_HURT        hurt badly enough to groan (OW)
     {-6,-12},  // M_HURT_BIG    close call
@@ -55,11 +58,13 @@ static const MoodRow moodTab[M_N]={
     {-10,-25}, // M_DIE
     {-3,-7},   // M_FEAR        a fear came true (sims.h)
     {-6,-12},  // M_PASSOUT     fell asleep on their feet (sims.h)
+    {-4,-10},  // M_BROKE       bills could not be paid (sims.h)
+    {-6,-15},  // M_DEMOTE      demoted (sims.h)
 };
 enum { MS_SAD, MS_BORED, MS_OK, MS_HAPPY, MS_STOKED };
 static int moodFun, moodHap, moodIdle, moodAir, moodSt;   // meters x256, steps since anything fun, steps airborne, last announced state
 static const char* const moodStName[5]={"SAD","BORED","OK","HAPPY","STOKED"};
-static int simsComfort(void); static int simsTop(int top); static void simsMood(int ev,int n);   // sims.h (included after this file)
+static int simsComfort(void); static int simsTop(int top); static void simsMood(int ev,int n); static int simsPts(int pts);   // sims.h (included after this file)
 static inline int moodClamp(int v){ return v<0?0:v>100*MOOD_ONE?100*MOOD_ONE:v; }
 static inline int moodFunPct(void){ return moodFun/MOOD_ONE; }
 static inline int moodHapPct(void){ return moodHap/MOOD_ONE; }
@@ -103,5 +108,5 @@ static int moodTop(int top){    // top speed: SAD drags 15%, STOKED adds 6%, and
     int s=moodState(); top=s==MS_SAD?top-top*15/100: s==MS_STOKED?top+top*6/100: top; return simsTop(top);
 }
 static int moodPts(int pts){    // trick points: STOKED +25%, BORED -25%
-    int s=moodState(); return s==MS_STOKED?pts+pts/4: s==MS_BORED?pts-pts/4: pts;
+    int s=moodState(); pts=s==MS_STOKED?pts+pts/4: s==MS_BORED?pts-pts/4: pts; return simsPts(pts);   // then the skill bonus (sims.h)
 }
