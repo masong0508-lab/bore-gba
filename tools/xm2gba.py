@@ -8,7 +8,7 @@ Which songs get converted is read from source/songs.h - every line like
 is converted. The title-screen song (tools/the_dipper_man.xm) is always included, because the title screen plays it.
 Needs numpy and scipy   (Termux: pkg install python-numpy python-scipy)
 
-What the player supports: up to 10 channels, up to 32 instruments per song, any pattern length, notes, the volume column
+What the player supports: up to 16 channels, up to 32 instruments per song, any pattern length, notes, the volume column
 (set volume 0x10-0x50), and a fixed speed/BPM per song. It ignores effect commands, panning, envelopes and note-off, and
 this script prints a WARNING when a song uses any of them.
 """
@@ -266,7 +266,7 @@ def convert(sid, path):
                 if n and n < 97:
                     if not i: sys.exit("  ERROR: a note without an instrument number in pattern %d (put the instrument in every note)" % o)
                     used.add(i); maxch = max(maxch, ch)
-    if maxch >= 10: sys.exit("  ERROR: notes on channel %d, the player has channels 1-10" % (maxch + 1))
+    if maxch >= 16: sys.exit("  ERROR: notes on channel %d, the player has channels 1-16" % (maxch + 1))
     if max(used, default=0) > 32: sys.exit("  ERROR: instrument numbers go up to 32")
     if eff: print("  WARNING: %d effect commands are ignored by the player" % eff)
     if offs: print("  WARNING: %d note-off keys are ignored by the player" % offs)

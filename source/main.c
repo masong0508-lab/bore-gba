@@ -608,12 +608,13 @@ typedef struct {            // one converted tracker song (generated into musicd
 #define R_DMA2DAD (*(volatile u32*)0x040000CC)
 #define R_DMA2CNT (*(volatile u32*)0x040000D0)
 #define MUS_N 304   // samples per frame at 18157 Hz (924 cycles each = exactly one frame)
+#define MUS_VOICES 16   // tracker channels the mixer can play at once
 typedef struct { const s8*d; u32 pos,step,len; int vol; } MVoice;
-static MVoice mvc[10];
+static MVoice mvc[MUS_VOICES];
 static s8 mbuf[2][MUS_N] __attribute__((aligned(4)));
 static s16 macc[MUS_N];
-static int mOrd, mRow, mLeft, mCur, mOn, mFrac; static const XmSong*mSong;
-static int mKind, mLaps, mDone, aTail;   // mKind 0 = tracker song, 1 = streamed ADPCM; mLaps = times the tracker song has wrapped; mDone = ADPCM song finished
+static int mOrd, mRow, mLeft, mFrac; static volatile int mCur, mOn, mFilled; static const XmSong*mSong;
+static int mKind, aTail; static volatile int mLaps, mDone;   // mKind 0 = tracker song, 1 = streamed ADPCM; mLaps = times the tracker song has wrapped; mDone = ADPCM song finished
 static int aSlow, aPrv, aPh; static const u8 *aSrc; static u32 aN, aPos; static int aPred, aIdx;   // ADPCM stream: data, sample count, position, decoder state
 static void musTrigger(void){
     const XmSong*s=mSong; const u32*e=&s->ev[s->patOff[s->order[mOrd]]];
@@ -630,7 +631,7 @@ IWRAM_CODE static void musMix(s8*out){
         int n=MUS_N-done; if(n>mLeft) n=mLeft;
         s16*a=macc+done;
         for(int i=0;i<n;i++) a[i]=0;
-        for(int vi=0;vi<10;vi++){ MVoice*v=&mvc[vi]; if(!v->d) continue;
+        for(int vi=0;vi<MUS_VOICES;vi++){ MVoice*v=&mvc[vi]; if(!v->d) continue;
             u32 pos=v->pos, st=v->step, len=v->len; const s8*d=v->d; int vol=v->vol, i=0;
             for(;i<n;i++){
                 if(pos>=len){ v->d=0; break; }
@@ -672,27 +673,59 @@ IWRAM_CODE static void adpMix(s8*out){
     aPos=p; aPred=pred; aIdx=idx; aPrv=prv; aPh=ph;
     if(p>=e&&i<MUS_N&&++aTail>=3) mDone=1;   // 2 buffers are in flight, so wait for the last real samples to be heard
 }
-static void musMixAny(s8*out){ if(mKind) adpMix(out); else musMix(out); }
+IWRAM_CODE static void musMixAny(s8*out){ if(mKind) adpMix(out); else musMix(out); }
+// ---- Audio is driven by interrupts, NOT by the main loop ----
+// Old design: the main loop mixed one buffer per frame right after vsync. Any frame whose drawing ran long (jukebox list
+// redraw, equalizer...) missed the next vblank, so the DMA ran dry (crackle) and the song fell a frame behind (timing lag).
+// Now: VBlank IRQ (line 160) only restarts the sound DMA on the buffer that is already filled (a few dozen cycles);
+// VCount IRQ (line 0) mixes the next buffer. The song clock is therefore locked to the hardware, whatever the main loop does.
+#define R_IE  (*(volatile u16*)0x04000200)
+#define R_IF  (*(volatile u16*)0x04000202)
+#define R_IME (*(volatile u16*)0x04000208)
+#define R_DISPSTAT (*(volatile u16*)0x04000004)
+#define R_IRQVEC (*(volatile u32*)0x03007FFC)
+u32 irqStack[256] __attribute__((aligned(8)));   // private IRQ stack (the BIOS one is only 160 bytes)
+extern void irqEntry(void);
+__asm__(".pushsection .iwram,\"ax\",%progbits\n.arm\n.align 2\n.global irqEntry\nirqEntry:\n"
+        "  push {r4-r11,lr}\n  mov r4,sp\n  ldr r0,=irqStack+1024\n  mov sp,r0\n  bl irqMain\n  mov sp,r4\n  pop {r4-r11,lr}\n  bx lr\n"
+        ".ltorg\n.popsection\n");
+__attribute__((used)) IWRAM_CODE void irqMain(void){
+    u16 f=R_IF;
+    if(f&1){   // vblank: start the buffer that was filled last frame, in step with the screen
+        R_IF=1;
+        if(mOn){
+            if(!mFilled) mCur^=1;                      // (mix overran: replay the last buffer rather than a half-filled one)
+            R_DMA2CNT=0; R_TM0CNT=0;
+            R_DMA2SAD=(u32)(uintptr_t)mbuf[mCur]; R_DMA2DAD=0x040000A4u;
+            R_DMA2CNT=0xB6400000u;                     // enable, FIFO timing, repeat, 32-bit, fixed dest
+            R_TM0D=(u16)(65536-924); R_TM0CNT=0x80;
+            mCur^=1; mFilled=0;                        // mCur is now the idle buffer
+        }
+    }
+    if(f&4){   // line 0: render the idle buffer, it plays at the next vblank
+        R_IF=4;
+        if(mOn&&!mFilled){ musMixAny(mbuf[mCur]); mFilled=1; }
+    }
+}
+static void irqOff(void){ R_IME=0; R_IE=0; R_DISPSTAT=0; R_IF=0xFFFF; }
 // Start a song: kind 0 = the tracker song xm, kind 1 = the ADPCM data in adp.
 static void musBegin(int kind,const u8*adp,const XmSong*xm){
+    irqOff(); mOn=0; R_DMA2CNT=0; R_TM0CNT=0;
     sfxStop();
-    for(int i=0;i<10;i++) mvc[i].d=0;
-    mOrd=0; mRow=0; mLeft=0; mFrac=0; mCur=0; mLaps=0; mDone=0; aTail=0; mKind=kind; mSong=xm;
+    for(int i=0;i<MUS_VOICES;i++) mvc[i].d=0;
+    mOrd=0; mRow=0; mLeft=0; mFrac=0; mCur=0; mFilled=0; mLaps=0; mDone=0; aTail=0; mKind=kind; mSong=xm;
     if(kind){ aSrc=adp+4; aN=*(const u32*)adp; aSlow=(int)(aN>>31); aN&=0x7FFFFFFFu; aPrv=0; aPh=0; aPos=0; aPred=0; aIdx=0; }
-    mOn=1;
-    musMixAny(mbuf[0]);   // only the first buffer is primed; musFill renders the idle one while this one plays
+    musMixAny(mbuf[0]);   // buffer 0 is primed here and plays at the first vblank; the line-0 IRQ then renders buffer 1
+    mFilled=1; mOn=1;
     R_SNDCNT_X=0x80; R_SNDCNT_L=0; R_SNDCNT_H=0xB308;   // Direct Sound B: 100%, L+R, Timer0, FIFO reset
+    R_IRQVEC=(u32)(uintptr_t)irqEntry;
+    R_DISPSTAT=0x0028;                // vblank IRQ (bit 3) + vcount IRQ (bit 5) at line 0
+    R_IF=0xFFFF; R_IE=5; R_IME=1;
 }
 static void musStart(void){ musBegin(0,0,&xm_the_dipper_man); }   // the title music
-static void musKick(void){   // right after vsync: start the buffer filled last frame, in step with the screen
-    if(!mOn) return;
-    R_DMA2CNT=0; R_TM0CNT=0;
-    R_DMA2SAD=(u32)(uintptr_t)mbuf[mCur]; R_DMA2DAD=0x040000A4u;
-    R_DMA2CNT=0xB6400000u;                               // enable, FIFO timing, repeat, 32-bit, fixed dest
-    R_TM0D=(u16)(65536-924); R_TM0CNT=0x80;
-}
-static void musFill(void){ if(!mOn) return; musMixAny(mbuf[mCur^1]); mCur^=1; }   // render the idle buffer (the other one is playing), it plays next frame
-static void musStop(void){ if(!mOn) return; mOn=0; R_DMA2CNT=0; R_TM0CNT=0; R_SNDCNT_H=0; }
+static void musKick(void){}   // (kept so old call sites still compile: the interrupts do this now)
+static void musFill(void){}
+static void musStop(void){ irqOff(); if(!mOn) return; mOn=0; R_DMA2CNT=0; R_TM0CNT=0; R_SNDCNT_H=0; }
 // ---------- jukebox song table: built from source/songs.h (edit that file, not this) ----------
 // Pass 1 bakes every .adp into the ROM, pass 2 declares the data, pass 3 builds the table.
 #define SONG_XM(id,n,f)
