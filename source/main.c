@@ -47,6 +47,8 @@ static u8 sSnd=1;    // sound on
 static u8 sShad=1;   // shadows under the player
 static u8 sHud=0;    // on-screen info: 0 full, 1 slim, 2 off
 static u8 sRom=0;    // ROM waits: 0 fast (3/1 + prefetch), 1 safe (power-on default, for fussy flash carts)
+static u8 sUnlock=0;  // 1 = the Konami code was entered on the title screen: START+SELECT in the creator swaps creator screens
+static u8 sClassic=0; // 1 = the secret classic creature screen (toggled with UP UP DOWN DOWN in the creator)
 static u8 sNoWarn=0; // 1 = hide the TOO SLOW FOR THIS FRAME RATE warning in settings
 static u8 sShow=0;   // performance counter: 0 off, 1 fps, 2 fps + load
 static int cview;    // room view while the action cam spins (0..3, quarter turns); always 0 in the editor
@@ -858,16 +860,21 @@ _Static_assert(sizeof(songs)/sizeof(songs[0])<=32,"the jukebox holds at most 32 
 // ---------- debug code: UP UP DOWN DOWN LEFT LEFT RIGHT B A START on the title screen ----------
 // Reveals the PLACEHOLDER test tunes in the jukebox for this session (they are hidden otherwise).
 static u8 dbgOn;
+static void settingsSave(void);
+static const u16 konSeq[11]={K_UP,K_UP,K_DOWN,K_DOWN,K_LEFT,K_RIGHT,K_LEFT,K_RIGHT,K_B,K_A,K_START};   // UP UP DOWN DOWN LEFT RIGHT LEFT RIGHT B A START
+static u8 konMsg;   // 1 = the code just locked the classic creator, 2 = unlocked (main shows a toast once the title is gone)
 static const u16 dbgSeq[10]={K_UP,K_UP,K_DOWN,K_DOWN,K_LEFT,K_LEFT,K_RIGHT,K_B,K_A,K_START};
 static int titleScreen(void){
     buildTitle();                          // leaves the finished backdrop in both fb and tfb
     vsync(); dmaRows(fb,VRAM_ADDR,0,ROW_W,0,SH);
-    int shown=0, frame, dbgI=0; u16 dbgPrev=(u16)(~REG_KEYINPUT)&0x3FF; musStart();
+    int shown=0, frame, dbgI=0, konI=0; u16 dbgPrev=(u16)(~REG_KEYINPUT)&0x3FF; musStart();
     for(frame=0;;frame++){
         u16 dk=(u16)(~REG_KEYINPUT)&0x3FF, dp=dk&(u16)~dbgPrev; dbgPrev=dk;
         if(dp){   // a fresh button press: right next key of the code, or start over
             if(dp==dbgSeq[dbgI]){ if(++dbgI==10){ dbgOn=1; dbgI=0; } }
             else dbgI=(dp==dbgSeq[0])?1:0;
+            if(dp==konSeq[konI]){ if(++konI==11){ konI=0; sUnlock^=1; if(!sUnlock) sClassic=0; settingsSave(); konMsg=1+sUnlock; } }
+            else konI=(dp==konSeq[0])?1:0;
         }
         if(dk&K_START) break;
         dmaRows(tfb,(u32)(uintptr_t)fb,SM_W0,SM_W1,0,SM_Y1);   // wipe last frame's smoke only
@@ -1060,14 +1067,14 @@ static void mapPlace(int x,int y,char c){
     if(c=='B'||c=='P'){ for(int j=0;j<MH;j++)for(int i=0;i<MW;i++) if(lifeMap[j][i]==c) lifeMap[j][i]='.'; }
     lifeMap[y][x]=c; if(c=='w'||c=='W') wallMap[y][x]=(u8)eWp; }
 // settings (SRAM offset 640)
-static void settingsSave(void){ volatile u8*m=SRAM_BASE+SET_OFF; m[0]='S'; m[1]='2'; m[2]=sFps; m[3]=sWall; m[4]=sWp; m[5]=sFl; m[6]=sSnd; m[7]=sShow; m[8]=sShad; m[9]=sHud; m[10]=sRom; m[11]=sCam; m[12]=sJb; m[13]=sNoWarn; }
+static void settingsSave(void){ volatile u8*m=SRAM_BASE+SET_OFF; m[0]='S'; m[1]='2'; m[2]=sFps; m[3]=sWall; m[4]=sWp; m[5]=sFl; m[6]=sSnd; m[7]=sShow; m[8]=sShad; m[9]=sHud; m[10]=sRom; m[11]=sCam; m[12]=sJb; m[13]=sNoWarn; m[14]=sClassic; m[15]=sUnlock; }
 static void settingsLoad(void){ volatile u8*m=SRAM_BASE+SET_OFF;
     if(m[0]!='S'){ volatile u8*o=SRAM_BASE; if(o[0]=='B'&&o[1]=='M'&&o[2]!='3') m=SRAM_BASE+640; else return; }   // old saves kept settings at 640
     if(m[0]!='S') return;
     if(m[1]=='1'){ if(m[2]>2||m[3]>2||m[4]>1||m[5]>1||m[6]>1||m[7]>1) return;   // older save: fewer settings
         sFps=m[2]; sWall=m[3]; sWp=m[4]; sFl=m[5]; sSnd=m[6]; sShow=m[7]; return; }
     if(m[1]!='2'||m[2]>3||m[3]>2||m[4]>1||m[5]>1||m[6]>1||m[7]>2||m[8]>1||m[9]>2||m[10]>1) return;
-    sCam=(m[11]<=3)?m[11]:1; sJb=(m[12]<=2)?m[12]:0; sNoWarn=(m[13]==1)?1:0;
+    sCam=(m[11]<=3)?m[11]:1; sJb=(m[12]<=2)?m[12]:0; sNoWarn=(m[13]==1)?1:0; sClassic=(m[14]==1)?1:0; sUnlock=(m[15]==1)?1:0; if(!sUnlock) sClassic=0;
     sFps=m[2]; sWall=m[3]; sWp=m[4]; sFl=m[5]; sSnd=m[6]; sShow=m[7]; sShad=m[8]; sHud=m[9]; sRom=m[10]; }
 
 // ---------- small UI kit: one menu style, one help style, one toast ----------
@@ -1937,27 +1944,34 @@ static void blockBuilder(void){
     view=0;
 }
 
-static void creatureEditor(void){
+// ---------- the secret classic creator ----------
+// Title screen: UP UP DOWN DOWN LEFT RIGHT LEFT RIGHT B A START unlocks (or locks again) the classic creature screen.
+// Creator: once unlocked, pressing START and SELECT together swaps between the new creator and the classic one. Remembered in SRAM.
+static int comboSS(u16 k,u16 pressed){ return (k&K_START)&&(k&K_SEL)&&(pressed&(K_START|K_SEL)); }
+#define NENT (NPARTS+3)   // classic list: the parts, then GO LIVE LIFE, EDIT MAP, MAIN MENU
+
+static int creatorNew(void){   // returns 1 when the secret code switched screens, 0 when leaving
     int tab=0, rs[NTAB]={0}, dirty=3, hold[10]={0}; u16 prev=keyNow();
     for(;;){
         u16 k=keyNow(), pressed=k&~prev; prev=k;
         for(int i=0;i<10;i++) hold[i]=(k>>i&1)?hold[i]+1:0;
+        if(sUnlock&&comboSS(k,pressed)){ sClassic=1; settingsSave(); stageOn=0; return 1; }
         if(pressed&K_R){ tab=(tab+1)%NTAB; dirty|=2; }
         if(pressed&K_L){ tab=(tab+NTAB-1)%NTAB; dirty|=2; }
         if(pressed&K_DOWN){ rs[tab]=(rs[tab]+1)%tabN[tab]; dirty|=2; }
         if(pressed&K_UP){ rs[tab]=(rs[tab]+tabN[tab]-1)%tabN[tab]; dirty|=2; }
         if(pressed&K_SEL){ view=(view+1)&3; dirty=3; }
         if(pressed&K_START){ tab=TB_DONE; rs[tab]=0; dirty|=2; }
-        if(pressed&K_B){ stageOn=0; return; }
+        if(pressed&K_B){ stageOn=0; return 0; }
         const Row*r=&tabRow[tab][rs[tab]];
         int d=TRIG(K_RIGHT,4)?1:TRIG(K_LEFT,5)?-1:0;
         if(r->kind==RK_ACT){
             if(pressed&K_A){
                 switch(r->id){
                     case AC_BUILD: blockBuilder(); break;
-                    case AC_PLAY:  lifeMode(0); if(gToMenu){ stageOn=0; return; } break;
+                    case AC_PLAY:  lifeMode(0); if(gToMenu){ stageOn=0; return 0; } break;
                     case AC_MAP:   mapEditor(); break;
-                    default:       stageOn=0; return;   // MAIN MENU
+                    default:       stageOn=0; return 0;   // MAIN MENU
                 }
                 prev=keyNow(); for(int i=0;i<10;i++) hold[i]=0; dirty=3;
             }
@@ -1971,6 +1985,89 @@ static void creatureEditor(void){
         } else vsync();
     }
 }
+
+IWRAM_CODE static void drawClassicPanel(void){
+    fillCols(SCENE_W,ROW_W,PANEL);
+    text(130,5,"BORE",RGB(31,26,6),2);
+    text(130,17,"VOXEL DEMO",RGB(14,16,18),1);
+    for(int i=0;i<NENT;i++){
+        int y=28+i*6, go=(i>=NPARTS);
+        if(i==part){ rect(128,y-1,108,6,go?RGB(16,10,2):RGB(6,16,8)); text(130,y,">",RGB(31,31,31),1); }
+        text(137,y,go?(i==NPARTS?"GO LIVE LIFE!":i==NPARTS+1?"EDIT MAP":"MAIN MENU"):parts[i].name,i==part?(go?RGB(31,26,6):RGB(31,31,31)):(go?RGB(24,20,6):RGB(18,20,22)),1);
+        if(i==part&&!go&&parts[i].dk) text(190,y,spr[SPRID(parts[i].dk-1)].name,RGB(31,26,6),1);
+    }
+    text(130,101,"SIZE",RGB(18,20,22),1);
+    const char*sn[3]={"S","M","L"};
+    for(int i=0;i<3;i++){
+        int x=156+i*16; rect(x,99,12,9,i==size-1?RGB(6,16,8):RGB(2,3,5));
+        text(x+4,101,sn[i],RGB(31,31,31),1);
+    }
+    text(130,113,"X",RGB(18,20,22),1); num(136,113,cx,RGB(31,31,31));
+    text(148,113,"Y",RGB(18,20,22),1); num(154,113,cy,RGB(31,31,31));
+    text(166,113,"Z",RGB(18,20,22),1); num(172,113,cz,(part<NPARTS&&parts[part].dk)?RGB(12,14,16):RGB(31,31,31));   // sprites ignore Z
+    u16 hc=RGB(12,14,16);
+    if(part>=NPARTS){ text(130,123,"PRESS A TO OPEN",RGB(31,26,6),1); text(130,131,"SELECT NEXT ENTRY",hc,1); }
+    else {
+    text(130,123,"DPAD X Z  L R UP DN",hc,1); text(130,129,"A PLACE B ERASE",hc,1);
+    text(130,135,"START SIZE  SEL PART",hc,1); text(130,141,"SEL+UP DN FACE",hc,1);
+    text(130,147,"SEL+A SKIN  B HAIR",hc,1); text(130,153,"SEL+L R TURN VIEW",hc,1);
+    }
+}
+
+
+// ---------- the classic creature screen (the original editor, kept as a secret) ----------
+static int creatorClassic(void){   // returns 1 when the secret code switched screens, 0 when leaving
+    stageOn=0;
+    u16 prev=keyNow(); int hold[10]={0}, frame=0, dirty=1, lastBlink=-1, comboUsed=(keyNow()&K_SEL)?1:0;
+    for(;;){
+        u16 k=keyNow(), pressed=k&~prev, released=prev&~k; prev=k;
+        for(int i=0;i<10;i++) hold[i]=(k>>i&1)?hold[i]+1:0;
+        #define TRIG(m,i) ((pressed&(m))||(hold[i]>14&&(hold[i]&3)==0))
+        if(sUnlock&&comboSS(k,pressed)){ sClassic=0; settingsSave(); return 1; }
+        int sel=k&K_SEL;
+        if(sel){
+            if(pressed&K_A){ look[LK_SKIN]=(look[LK_SKIN]+1)%NSW; setColors(); comboUsed=1; dirty=1; }
+            if(pressed&K_B){ look[LK_HCOL]=(look[LK_HCOL]+1)%NSW; setColors(); comboUsed=1; dirty=1; }
+            if(pressed&K_R){ part=(part+1)%NENT; comboUsed=1; dirty=1; }
+            if(pressed&K_L){ part=(part+NENT-1)%NENT; comboUsed=1; dirty=1; }
+            if(pressed&K_RIGHT){ view=(view+1)&3; comboUsed=1; dirty=1; }
+            if(pressed&K_LEFT){ view=(view+3)&3; comboUsed=1; dirty=1; }
+            if(pressed&(K_UP|K_DOWN)){
+                comboUsed=1;
+                if(part<NPARTS&&parts[part].dk){ int kd=parts[part].dk-1; sty[kd]=(sty[kd]+((pressed&K_UP)?1:2))%3; look[LK_EYES]=sty[0]%3; look[LK_MOUTH]=sty[1]%3; dirty=1; }
+            }
+        } else {
+            if(TRIG(K_RIGHT,4)){moveView(1,0);dirty=1;} if(TRIG(K_LEFT,5)){moveView(-1,0);dirty=1;}
+            if(TRIG(K_UP,6)){moveView(0,-1);dirty=1;}     if(TRIG(K_DOWN,7)){moveView(0,1);dirty=1;}
+            if(TRIG(K_R,8)){cy++;dirty=1;}      if(TRIG(K_L,9)){cy--;dirty=1;}
+            if(pressed&K_A){
+                if(part==NPARTS){ lifeMode(0); if(gToMenu) return 0; }
+                else if(part==NPARTS+1) mapEditor();
+                else if(part==NPARTS+2) return 0;   // MAIN MENU
+                else { doPart(1,part,size,cx,cy,cz); custom=1; }
+                prev=keyNow(); dirty=1;
+            }
+            if(pressed&K_B){ if(part<NPARTS){ doPart(2,part,size,cx,cy,cz); custom=1; } dirty=1; }
+        }
+        if(released&K_SEL){ if(!comboUsed){ part=(part+1)%NENT; dirty=1; } comboUsed=0; }
+        if(pressed&K_START){ size=size%3+1; dirty=1; }
+        clampCursor();
+        if(dirty) frame=16;   // restart blink with the ghost visible
+        int blink=(frame>>4)&1;
+        if(dirty||blink!=lastBlink){
+            for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ ghost[y][z][x]=0; gdec[y][z][x]=0; }
+            gAny=0;
+            if(part<NPARTS){ doPart(0,part,size,cx,cy,cz);
+            if(parts[part].dk&&!gAny) ghost[cy][cz][cx]=1; }   // nothing solid under the cursor: show a marker cube
+            drawScene(blink); if(dirty){ drawClassicPanel(); present(); } else presentScene();   // blink-only: scene columns only
+            dirty=0; lastBlink=blink;
+        } else vsync();
+        frame++;
+    }
+}
+
+
+static void creatureEditor(void){ for(;;){ int sw=(sUnlock&&sClassic)?creatorClassic():creatorNew(); if(!sw) break; } }   // main menu entry: the new creator, or the classic one once the code has been entered
 
 // ---------- jukebox ----------
 // Listen to the songs in source/songs.h. The playlist (jukebox.h) is shuffled once and the shuffle is saved, so the song set
@@ -2140,6 +2237,7 @@ int main(void){
     REG_DISPCNT=0x0403;  // mode 3, BG2 on
     initTables(); setColors(); settingsLoad(); applyRom();
     lrng^=(u32)titleScreen()*2654435761u;   // time spent on the title seeds the random numbers (first shuffle)
+    if(konMsg) toast(konMsg==2?"CLASSIC CREATOR UNLOCKED":"CLASSIC CREATOR LOCKED");
     jbSetup();                              // load the saved shuffled order (or make a new one), placeholders hidden
     starter();
     mapReset(); mapLoad();   // default room, or the one saved to SRAM
