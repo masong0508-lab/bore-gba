@@ -23,7 +23,7 @@ SONGS_H = "source/songs.h"
 OUT = "source/musicdata.h"
 TITLE = ("the_dipper_man", "tools/the_dipper_man.xm")
 GAIN = {"amiga_music": 1.1, "earth_and_the_space_citizens": 2.0}   # louder/quieter per song (default 1.0), so every tracker song sits at a similar level
-LOOP_OVERRIDE = {"the_dipper_man": 4, "amiga_music": 0}   # the title song plays its intro once, then loops from order 4 (others loop from the XM restart position)
+LOOP_OVERRIDE = {"the_dipper_man": 4, "amiga_music": 0, "emergency_dance_floor": 0}   # the title song plays its intro once, then loops from order 4 (others loop from the XM restart position)
 
 def make_ending(S):
     """New ending for the Amiga Music song: the song's old tail (orders 15-16) is replaced by a generated breakdown + fade-out.
@@ -88,6 +88,60 @@ def make_pop(S):
     pats.append(build); pats.append(fill)
     order = S['order']; order[7] = len(pats) - 2; order[12] = len(pats) - 1
 
+def make_dance(S):
+    """Rework of Emergency On The Dance Floor: the 36 s original (18 orders) becomes a ~105 s song with a real arrangement.
+    Layers added on the free channels: ch8 off-beat hats + ghost 16ths (inst 14), ch9 octave-up shimmer on the lead (inst 9);
+    ch8 also plays the snare risers. Arrangement: intro -> drop -> breakdown + riser -> second drop (new bar order) ->
+    breakdown + riser -> final drop -> breakdown, then a volume fade-out and a silent tail. Only patterns and the order list change.
+    Channels are 0-based: ch0/1 bass (inst 8), ch2 lead (9), ch3/5 stabs, ch4 pulse, ch6 snare (12), ch7 kick (11)."""
+    import copy
+    pats = S['pats']
+    for p in pats:
+        for r in p: r.extend([(0, 0, 0, 0, 0)] * (10 - len(r)))
+    def put(p, r, ch, n, i, vol): p[r][ch] = (n, i, 0x10 + max(1, min(64, vol)), 0, 0)
+    def mix(src, chs, vol=1.0):               # keep only some channels, scale their volume
+        out = []
+        for r in src:
+            row = []
+            for c, (n, i, v, e, ep) in enumerate(r):
+                if c in chs and n and n < 97:
+                    rel = (v - 0x10) / 64 if 0x10 <= v <= 0x50 else 1.0
+                    row.append((n, i, 0x10 + min(64, max(1, int(round(64 * rel * vol)))), 0, 0))
+                else: row.append((0, 0, 0, 0, 0))
+            out.append(row)
+        return out
+    def groove(k):
+        p = copy.deepcopy(pats[k])
+        for r in range(24):
+            if r % 4 == 2: put(p, r, 8, 61, 14, 34)
+            elif r % 2 == 1: put(p, r, 8, 61, 14, 12)
+            n, i, v, _, _ = p[r][2]
+            if n and n < 85 and i == 9: put(p, r, 9, n + 12, 9, 14)
+        return p
+    def riser(src, vol=1.0):                  # build bar: stripped groove + rising snare roll (every 2 rows, then every row)
+        p = mix(src, (0, 1, 2, 5), vol)
+        for r in range(24):
+            if r >= 12 and (r % 2 == 0 or r >= 18): put(p, r, 8, 61, 15, 16 + (r - 12) * 48 // 12)
+        for r in range(0, 24, 6): put(p, r, 7, 61, 11, 64)
+        return p
+    base = len(pats)
+    G2, G3 = groove(2), groove(3)
+    pats += [G2, G3, mix(pats[3], (0, 1, 2, 3, 5)), mix(pats[1], (0, 1, 5)), riser(pats[1]), riser(pats[3])]
+    g2, g3, br3, br1, rs1, rs3 = range(base, base + 6)
+    sil = [[(0, 0, 0, 0, 0)] * 10 for _ in range(24)]
+    order = [0, 0, 1, 1, 0, 0, 1, 1]                                  # intro (original)
+    order += [g2, g2, g3, g3, g2, g2, g3, g3]                         # drop 1
+    order += [br3, br3, br1, br1, rs1, rs1]                           # breakdown + riser
+    order += [g3, g3, g2, g2, g3, g3, g2, g2]                         # drop 2 (chorus first)
+    order += [br1, br1, br3, rs3, rs3]                                # shorter breakdown + riser
+    order += [g2, g3, g3, g2, g3, g3, g3, g3]                         # final drop
+    order += [br3, br3]                                               # last breakdown
+    for j, k in enumerate((3, 3, 2, 2, 1, 1)):                        # fade-out: thinning layers, volume falling
+        pats.append(mix(G3, (2, 9, 0, 1)[:k + 1], 0.7 * 0.62 ** j)); order.append(len(pats) - 1)
+    pats.append(sil); order.append(len(pats) - 1)                     # silent tail
+    S['order'] = order
+
+DANCES = {"emergency_dance_floor": make_dance}
 ENDINGS = {"amiga_music": make_ending}
 POPS = {"amiga_music": make_pop}
 
@@ -122,6 +176,7 @@ def convert_samples(S, used):
 def convert(sid, path):
     print("%s  <-  %s" % (sid, path))
     S = parse(path)
+    if sid in DANCES: DANCES[sid](S)
     if sid in POPS: POPS[sid](S)
     if sid in ENDINGS: ENDINGS[sid](S)
     d = open(path, 'rb').read()

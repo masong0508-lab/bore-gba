@@ -22,3 +22,4 @@ SONG_ADP(placeholder_c,"PLACEHOLDER C","source/music/placeholder_c.adp")
 // ---- songs added by tools/encode_song.py go below this line ----
 SONG_XM(earth_and_the_space_citizens,"EARTH AND THE SPACE CITIZENS","tools/earth_and_the_space_citizens.xm")
 SONG_XM(amiga_music,"AMIGA MUSIC","tools/amiga_music.xm")
+SONG_XM(emergency_dance_floor,"EMERGENCY ON THE DANCE FLOOR","tools/emergency_dance_floor.xm")
