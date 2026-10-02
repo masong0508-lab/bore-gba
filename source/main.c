@@ -589,12 +589,17 @@ static void sfxStop(void){ R_DMA1CNT=0; R_TM0CNT=0; R_TM1CNT=0; sfxOn=0; }
 #define TX_W1 70
 #define TX_Y0 141
 #define TX_Y1 147
-// ---------- title music: note-based XM player (tools/xm2gba.py converts the_dipper_man.xm) ----------
-// The song is stored as notes (pattern/row/channel events) plus 16 small instrument samples (8-bit, band-limited and
-// down-sampled in the converter). A 10-voice mixer with linear interpolation renders 304 samples per frame into
-// Direct Sound B (DMA2 + Timer0, restarted every vblank). Intro plays once, then orders MUS_LOOP.. repeat; the voices are
-// never cut at the loop jump, so the last notes ring into the first ones for a seamless wrap.
+// ---------- tracker songs: note-based XM player (tools/xm2gba.py converts the .xm songs listed in songs.h) ----------
+// A song is stored as notes (pattern/row/channel events, each with its own volume) plus small instrument samples (8-bit,
+// band-limited and down-sampled in the converter). A 10-voice mixer with linear interpolation renders 304 samples per frame
+// into Direct Sound B (DMA2 + Timer0, restarted every vblank). The title song plays its intro once, then orders loop.. repeat
+// (loop = per-song loop order); the voices are never cut at the loop jump, so the last notes ring into the first ones.
 typedef int8_t s8; typedef int16_t s16;
+typedef struct {            // one converted tracker song (generated into musicdata.h)
+    const u8*order; const u16*rows; const u32*patOff; const u32*ev;   // order list, rows per pattern, pattern start in ev, note events
+    const u32*step; const u32*len; const s8*const*data;               // per instrument: 96 note steps, sample length, sample data
+    int nord, loop, rowN, rfr;                                        // orders in the song, loop order, samples per row (+ fraction/256)
+} XmSong;
 #include "musicdata.h"
 #define R_DMA2SAD (*(volatile u32*)0x040000C8)
 #define R_DMA2DAD (*(volatile u32*)0x040000CC)
@@ -604,20 +609,21 @@ typedef struct { const s8*d; u32 pos,step,len; int vol; } MVoice;
 static MVoice mvc[10];
 static s8 mbuf[2][MUS_N] __attribute__((aligned(4)));
 static s16 macc[MUS_N];
-static int mOrd, mRow, mLeft, mCur, mOn, mFrac;
+static int mOrd, mRow, mLeft, mCur, mOn, mFrac; static const XmSong*mSong;
 static int mKind, mLaps, mDone, aTail;   // mKind 0 = tracker song, 1 = streamed ADPCM; mLaps = times the tracker song has wrapped; mDone = ADPCM song finished
 static int aSlow, aPrv, aPh; static const u8 *aSrc; static u32 aN, aPos; static int aPred, aIdx;   // ADPCM stream: data, sample count, position, decoder state
 static void musTrigger(void){
-    const u16*e=&musEv[musPatOff[musOrder[mOrd]]];
+    const XmSong*s=mSong; const u32*e=&s->ev[s->patOff[s->order[mOrd]]];
     for(int r=0;r<mRow;r++) e+=1+*e;
     int n=*e++;
-    while(n--){ u16 w=*e++; int ch=w&15, in=(w>>4)&15, nt=w>>8;
-        MVoice*v=&mvc[ch]; v->d=musData[in]; v->pos=0; v->step=musStep[in*96+nt]; v->len=musLen[in]<<16; v->vol=musVol[in]; }
+    while(n--){ u32 w=*e++; int ch=w&15, in=(w>>4)&31, nt=(w>>9)&127, vol=(w>>16)&127;   // channel, instrument, note, voice volume
+        MVoice*v=&mvc[ch]; v->d=s->data[in]; v->pos=0; v->step=s->step[in*96+nt]; v->len=s->len[in]<<16; v->vol=vol; }
 }
 IWRAM_CODE static void musMix(s8*out){
     int done=0;
     while(done<MUS_N){
-        if(mLeft==0){ musTrigger(); mFrac+=MUS_RFR; mLeft=MUS_ROW+(mFrac>>8); mFrac&=255; if(++mRow>=16){ mRow=0; if(++mOrd>=MUS_NORD){ mOrd=MUS_LOOP; mLaps++; } } }
+        if(mLeft==0){ musTrigger(); mFrac+=mSong->rfr; mLeft=mSong->rowN+(mFrac>>8); mFrac&=255;
+            if(++mRow>=mSong->rows[mSong->order[mOrd]]){ mRow=0; if(++mOrd>=mSong->nord){ mOrd=mSong->loop; mLaps++; } } }
         int n=MUS_N-done; if(n>mLeft) n=mLeft;
         s16*a=macc+done;
         for(int i=0;i<n;i++) a[i]=0;
@@ -664,17 +670,17 @@ IWRAM_CODE static void adpMix(s8*out){
     if(p>=e&&i<MUS_N&&++aTail>=3) mDone=1;   // 2 buffers are in flight, so wait for the last real samples to be heard
 }
 static void musMixAny(s8*out){ if(mKind) adpMix(out); else musMix(out); }
-// Start a song: kind 0 = the tracker song, kind 1 = the ADPCM data in adp.
-static void musBegin(int kind,const u8*adp){
+// Start a song: kind 0 = the tracker song xm, kind 1 = the ADPCM data in adp.
+static void musBegin(int kind,const u8*adp,const XmSong*xm){
     sfxStop();
     for(int i=0;i<10;i++) mvc[i].d=0;
-    mOrd=0; mRow=0; mLeft=0; mFrac=0; mCur=0; mLaps=0; mDone=0; aTail=0; mKind=kind;
+    mOrd=0; mRow=0; mLeft=0; mFrac=0; mCur=0; mLaps=0; mDone=0; aTail=0; mKind=kind; mSong=xm;
     if(kind){ aSrc=adp+4; aN=*(const u32*)adp; aSlow=(int)(aN>>31); aN&=0x7FFFFFFFu; aPrv=0; aPh=0; aPos=0; aPred=0; aIdx=0; }
     mOn=1;
     musMixAny(mbuf[0]);   // only the first buffer is primed; musFill renders the idle one while this one plays
     R_SNDCNT_X=0x80; R_SNDCNT_L=0; R_SNDCNT_H=0xB308;   // Direct Sound B: 100%, L+R, Timer0, FIFO reset
 }
-static void musStart(void){ musBegin(0,0); }
+static void musStart(void){ musBegin(0,0,&xm_the_dipper_man); }   // the title music
 static void musKick(void){   // right after vsync: start the buffer filled last frame, in step with the screen
     if(!mOn) return;
     R_DMA2CNT=0; R_TM0CNT=0;
@@ -686,21 +692,21 @@ static void musFill(void){ if(!mOn) return; musMixAny(mbuf[mCur^1]); mCur^=1; } 
 static void musStop(void){ if(!mOn) return; mOn=0; R_DMA2CNT=0; R_TM0CNT=0; R_SNDCNT_H=0; }
 // ---------- jukebox song table: built from source/songs.h (edit that file, not this) ----------
 // Pass 1 bakes every .adp into the ROM, pass 2 declares the data, pass 3 builds the table.
-#define SONG_XM(n)
+#define SONG_XM(id,n,f)
 #define SONG_ADP(id,n,f) ".global jbs_" #id "\njbs_" #id ":\n.incbin \"" f "\"\n.balign 4\n"
 __asm__(".pushsection .rodata\n.balign 4\n"
 #include "songs.h"
 ".popsection\n");
 #undef SONG_XM
 #undef SONG_ADP
-#define SONG_XM(n)
+#define SONG_XM(id,n,f)
 #define SONG_ADP(id,n,f) extern const u8 jbs_##id[];
 #include "songs.h"
 #undef SONG_XM
 #undef SONG_ADP
-typedef struct { const char*name; const u8*adp; } Song;   // adp = 0 means the built-in tracker song
-#define SONG_XM(n) {n,0},
-#define SONG_ADP(id,n,f) {n,jbs_##id},
+typedef struct { const char*name; const u8*adp; const XmSong*xm; } Song;   // adp = 0 means a tracker song (xm)
+#define SONG_XM(id,n,f) {n,0,&xm_##id},
+#define SONG_ADP(id,n,f) {n,jbs_##id,0},
 static const Song songs[]={
 #include "songs.h"
 };
@@ -1602,8 +1608,8 @@ static int numAt(int x,int y,int n,u16 c){ return numText(x,y,n,c); }
 static void jbStartSlot(int slot){   // play playlist slot (remembered in SRAM so the playlist carries on after a reboot)
     jbPos=slot; jbSave();
     if(!sSnd){ jbPlaying=0; return; }
-    const u8*d=songs[jbSong(slot)].adp;
-    musBegin(d?1:0,d); jbPlaying=1;
+    const Song*sg=&songs[jbSong(slot)];
+    musBegin(sg->adp?1:0,sg->adp,sg->xm); jbPlaying=1;
 }
 static void jbHead(void){   // title, equalizer, mode, now playing, progress bar
     fillBox(0,SW,0,JB_LY,JB_BG);
@@ -1615,7 +1621,7 @@ static void jbHead(void){   // title, equalizer, mode, now playing, progress bar
     text(8,32,"NOW",DIMC,1);
     if(!sSnd) text(28,32,"SOUND IS OFF IN SETTINGS",RGB(30,10,8),1);
     else text(28,32,songs[jbSong(jbPos)].name,WHITE,1);
-    int pct=!mOn?0:mKind?(int)(aPos/(aN/100+1)):mOrd*100/MUS_NORD; if(pct>100) pct=100;
+    int pct=!mOn?0:mKind?(int)(aPos/(aN/100+1)):mOrd*100/mSong->nord; if(pct>100) pct=100;
     u16 gc=jbPlaying?RGB(12,28,10):DIMC;
     rect(8,42,160,4,RGB(8,10,14)); rect(8,42,pct*160/100,4,gc);
     text(176,41,jbPlaying?"PLAYING":"STOPPED",gc,1);
