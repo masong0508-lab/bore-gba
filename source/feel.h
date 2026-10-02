@@ -39,7 +39,8 @@ static void feelSteer(u16 k){
     F.turn+=d; F.angF=(F.angF+F.turn)&4095;
 }
 static void feelPush(u16 k,int rail){
-    if(k&K_A){ if(F.spd<F_TOP) F.spd+=((F_TOP-F.spd)>>F_PUSHDIV)+1; }
+    int top=moodTop(F_TOP);                             // mood: SAD drags the top speed, STOKED adds a touch
+    if(k&K_A){ if(F.spd<top) F.spd+=((top-F.spd)>>F_PUSHDIV)+1; }
     else { F.spd-=1+(F.spd>>F_COAST); }
     if(k&K_DOWN) F.spd-=F_BRAKE+1+(F.spd>>4);
     F.spd-=(fabsi(F.turn)*F.spd)>>14;                  // carving costs a little speed

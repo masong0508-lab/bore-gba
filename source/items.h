@@ -40,19 +40,8 @@ static const IBox bxToilet[3]={
  {2,3,6,7,2,5,{&mToBowl,&mToBowl,&mToBowl,&mToBowl,&mToBowlT}},
  {2,1,6,3,3,8,{&mToTankF,&mToTankS,&mToTankF,&mToTankS,&mToTankT}} };
 
-// ---- grind rail: steel bar on a post (one tile, both axes) ----
-static const u16 pRl[4]={RGB(7,7,10),RGB(19,20,24),RGB(29,30,31),RGB(30,26,5)};
-MAT(mRlLong,pRl,8,2,"cccccccc","bbbbbbbb")
-MAT(mRlShort,pRl,2,2,"cc","bb")
-MAT(mRlTopL,pRl,8,2,"cccccccc","cdcdcdcd")
-MAT(mRlTopS,pRl,2,8,"cc","cd","cc","cd","cc","cd","cc","cd")
-MAT(mRlPost,pRl,1,1,"a")
-static const IBox bxRailU[2]={
- {3,3,5,5,0,4,{&mRlPost,&mRlPost,&mRlPost,&mRlPost,&mRlPost}},
- {0,3,8,5,4,6,{&mRlLong,&mRlShort,&mRlLong,&mRlShort,&mRlTopL}} };
-static const IBox bxRailV[2]={
- {3,3,5,5,0,4,{&mRlPost,&mRlPost,&mRlPost,&mRlPost,&mRlPost}},
- {3,0,5,8,4,6,{&mRlShort,&mRlLong,&mRlShort,&mRlLong,&mRlTopS}} };
+// ---- grind rail, kicker ramp, quarter pipe, ledge, bench: generated art (tools/make_skate_items.py) ----
+#include "skateart.h"
 
 // ---- door mat / threshold ----
 static const u16 pDr[4]={RGB(8,5,3),RGB(18,11,6),RGB(24,16,8),RGB(28,20,10)};
@@ -70,7 +59,8 @@ static const IBox bxBoard[5]={
  {2,5,3,6,2,3,{&mBdWh,&mBdWh,&mBdWh,&mBdWh,&mBdWh}}, {5,5,6,6,2,3,{&mBdWh,&mBdWh,&mBdWh,&mBdWh,&mBdWh}},
  {2,1,6,7,3,4,{&mBdEdge,&mBdEdge,&mBdEdge,&mBdEdge,&mBdTop}} };
 
-enum { V_CRATE, V_FRIDGE, V_TOILET=V_FRIDGE+4, V_RAILU=V_TOILET+4, V_RAILV, V_DOOR, V_BOARD, NIV };
+enum { V_CRATE, V_FRIDGE, V_TOILET=V_FRIDGE+4, V_RAILU=V_TOILET+4, V_RAILV, V_DOOR, V_BOARD,
+       V_KICKER, V_QPIPE=V_KICKER+4, V_LEDGEU=V_QPIPE+4, V_LEDGEV, V_BENCHU, V_BENCHV, NIV };
 static u16 itemSpr[NIV][IH][IW] EWRAM_BSS;
 static u16 itemTmp[IH][IW];
 static u8 itemsReady;
@@ -107,7 +97,7 @@ static void drawBox(u16 (*d)[IW],const VBox*q,int r){
 }
 static int boxBehind(const VBox*A,const VBox*B){ return A->u1<=B->u0||A->v1<=B->v0||A->z1<=B->z0; }
 static void drawObj(u16 (*d)[IW],const IBox*b,int n,int r,int zoff){
-    VBox q[6]; int done=0;
+    VBox q[10]; int done=0;
     for(int i=0;i<n;i++){
         int ua,va,ub,vb; rotPt(r,b[i].a0,b[i].b0,&ua,&va); rotPt(r,b[i].a1,b[i].b1,&ub,&vb);
         q[i].u0=ua<ub?ua:ub; q[i].u1=ua<ub?ub:ua; q[i].v0=va<vb?va:vb; q[i].v1=va<vb?vb:va;
@@ -137,8 +127,10 @@ static void bakeOne(int k,const IBox*b,int n,int r,int nsh){
 static void bakeItems(void){
     bakeOne(V_CRATE,bxCrate,1,0,11);
     for(int r=0;r<4;r++){ bakeOne(V_FRIDGE+r,bxFridge,1,r,11); bakeOne(V_TOILET+r,bxToilet,3,r,11); }
-    bakeOne(V_RAILU,bxRailU,2,0,16); bakeOne(V_RAILV,bxRailV,2,0,16);
+    bakeOne(V_RAILU,bxRailU,3,0,16); bakeOne(V_RAILV,bxRailV,3,0,16);
     bakeOne(V_DOOR,bxDoor,1,0,13); bakeOne(V_BOARD,bxBoard,5,0,12);
+    for(int r=0;r<4;r++){ bakeOne(V_KICKER+r,bxKicker,8,r,11); bakeOne(V_QPIPE+r,bxQuarterPipe,8,r,11); }
+    bakeOne(V_LEDGEU,bxLedgeU,1,0,12); bakeOne(V_LEDGEV,bxLedgeV,1,0,12); bakeOne(V_BENCHU,bxBenchU,3,0,12); bakeOne(V_BENCHV,bxBenchV,3,0,12);
     itemsReady=1;
 }
 static void blitItem(int k,int sx,int sy){
@@ -161,8 +153,8 @@ static int itemFacing(int x,int y){
     for(int d=0;d<4;d++) if(itemOpen(x+dx[d],y+dy[d])) return d;
     return 0;
 }
-static int itemRailAlongU(int x,int y){   // rails link up with neighbouring rails; in the rotated view the axis may swap
-    int ax=(x>0&&lifeMap[y][x-1]=='=')+(x<MW-1&&lifeMap[y][x+1]=='='), ay=(y>0&&lifeMap[y-1][x]=='=')+(y<MH-1&&lifeMap[y+1][x]=='=');
+static int itemAlongU(int x,int y,char ch){   // rails / ledges / benches link up with neighbours of their own kind; in the rotated view the axis may swap
+    int ax=(x>0&&lifeMap[y][x-1]==ch)+(x<MW-1&&lifeMap[y][x+1]==ch), ay=(y>0&&lifeMap[y-1][x]==ch)+(y<MH-1&&lifeMap[y+1][x]==ch);
     int axisX=!(ay>0&&ax==0); return axisX?!(cview&1):(cview&1);
 }
 // draw the item standing on real tile (x,y); (sx,sy) = screen centre of the tile
@@ -170,6 +162,10 @@ static void drawItemTile(char c,int sx,int sy,int x,int y){
     if(c=='#') blitItem(V_CRATE,sx,sy);
     else if(c=='F') blitItem(V_FRIDGE+((itemFacing(x,y)-cview)&3),sx,sy);
     else if(c=='T') blitItem(V_TOILET+((itemFacing(x,y)-cview)&3),sx,sy);
-    else if(c=='=') blitItem(itemRailAlongU(x,y)?V_RAILU:V_RAILV,sx,sy);
+    else if(c=='=') blitItem(itemAlongU(x,y,'=')?V_RAILU:V_RAILV,sx,sy);
+    else if(c=='L') blitItem(itemAlongU(x,y,'L')?V_LEDGEU:V_LEDGEV,sx,sy);
+    else if(c=='N') blitItem(itemAlongU(x,y,'N')?V_BENCHU:V_BENCHV,sx,sy);
+    else if(isKicker(c)) blitItem(V_KICKER+(((c-'1')-cview)&3),sx,sy);
+    else if(isQPipe(c)) blitItem(V_QPIPE+(((c-'5')-cview)&3),sx,sy);
     else if(c=='D') blitItem(V_DOOR,sx,sy);
 }
