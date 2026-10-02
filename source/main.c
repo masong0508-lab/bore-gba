@@ -645,7 +645,7 @@ static int lsp,lhd,lspin,lflip,lgrind,lscore,lstun,lairF,lpts,lnoteT; static con
 static int lfood, lbl, lnear;   // hunger (100 = full), bladder (100 = bursting), what is in reach (1 fridge, 2 toilet)
 static int lmaxz, lplay, ldead, lbumpCd;   // peak height this jump, air sound played, dead, bump cooldown
 #include "mood.h"   // FUN + HAPPY meters: moodEvent(), moodTick(), moodTop(), moodPts()
-#include "sims.h"   // life-sim layer: energy/hygiene/comfort, wants and fears, aspiration, plumbob. simsTick(), simBegin(), simsHud()
+#include "sims.h"   // life-sim layer: energy/hygiene/comfort, wants and fears, aspiration. simsTick(), simBegin(), simsHud()
 
 // ---------- sound effects: 4-bit IMA-ADPCM @ 6554 Hz, decoded on the fly into RAM, played by Direct Sound A (DMA1 + Timer0) ----------
 // source/sfx/*.adp (made by tools/encode_sfx.py) are baked into the ROM with .incbin; paths are relative to the project root.
@@ -1525,7 +1525,7 @@ static void lifeDraw(void){
         if(z>0){ int cx=lpsx<0?0:lpsx>=SW?SW-1:lpsx, cy=lpsy<0?0:lpsy>=SH?SH-1:lpsy; zoomFb(cx,cy,256-z*(CAM_ZOOM)/12); }
     }
     u16 gold=GOLD, dim=DIMC, hint=RGB(12,14,16);
-    if(!lcamF&&!ldead){ simsPlumbDraw(lpsx,lpsy-16); if(sHud<2) simsBubble(lpsx,lpsy-24,RGB(6,6,10)); }   // plumbob and thought bubble over the head (sims.h)
+    if(!lcamF&&!ldead&&sHud<2) simsBubble(lpsx,lpsy-16,RGB(6,6,10));   // thought bubble over the head (sims.h)
     if(sHud<2){
         simsClockDraw(150,2,dim,gold);
         numText(text(2,2,"SCORE",dim,1)+3,2,lscore,gold);

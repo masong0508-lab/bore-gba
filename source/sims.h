@@ -13,7 +13,7 @@
 //  WANTS     two wants and one fear float next to the needs. Meeting a want pays aspiration points and a mood lift; a fear costs points.
 //            A want is only offered if the room has what it needs (no bed, no nap want).
 //  ASPIRATION  points -> BRONZE / SILVER / GOLD / PLATINUM. Each level slows the needs down (platinum: half speed).
-//  PLUMBOB   green = fine, yellow = so-so, red = in trouble. THOUGHT BUBBLE: an urgent need if there is one, otherwise a want.
+//  THOUGHT BUBBLE  over the head: an urgent need if there is one, otherwise a want.
 //  SAVING    needs, cash, aspiration, clock, job, skill are kept in SRAM (SIM_OFF). See simsSave() / simsLoad().
 //
 // HOW TO ADD A WANT: add a SE_ name, a row in simWants (name, event, aspiration points, required furniture mask), and call
@@ -204,13 +204,6 @@ static int simsWorst(void){ return simMin3(sNrg,sHyg,sCom); }                 //
 static int simsComfort(void){ return (sNrg*30+sHyg*25+sCom*25+sRoom*20)/100; } // blended, used by the HAPPY target in mood.h
 static int simsTop(int top){ return sNrg<SIM_LOW?top-top*SIM_SLEEPY_TOP/100:top; }   // too tired: slower
 static int simsPts(int pts){ return pts+pts*skillLvl*8/100; }                  // SKATING skill: +8% trick points per level
-// plumbob colour: 0 green, 1 yellow, 2 red
-static int simsPlumb(void){
-    int h=moodHapPct(), w=simMin3(simsWorst(),lfood,100-lbl);
-    if(h<MOOD_SAD||w<10) return 2;
-    if(h<60||w<SIM_LOW) return 1;
-    return 0;
-}
 static const char* simsAlert(void){   // most urgent need, or 0
     if(lbl>80) return "WC";
     if(lfood<SIM_LOW) return "EAT";
@@ -350,12 +343,6 @@ static void simsHud(int x,int y,u16 dim,u16 gold){
     // wants (green marker) and the fear (red marker)
     for(int s=0;s<2;s++) if(simW[s]>=0){ rect(x,y+72+s*8,3,5,RGB(10,26,10)); text(x+6,y+72+s*8,simWants[simW[s]].name,RGB(22,28,22),1); }
     if(simF>=0){ rect(x,y+88,3,5,RGB(28,8,6)); text(x+6,y+88,simFears[simF].name,RGB(30,18,16),1); }
-}
-static void simsPlumbDraw(int cx,int cy){   // cx,cy = above the head; a little diamond that bobs and turns
-    static const u16 col[3][2]={{RGB(8,28,8),RGB(3,16,4)},{RGB(30,27,6),RGB(20,16,2)},{RGB(30,8,6),RGB(18,3,3)}};
-    int c=simsPlumb(), bob=((simT/10)&3)==1||((simT/10)&3)==2?1:0, ph=(simT/5)&7, wd=ph<4?4-ph:ph-4;   // half width 0..4
-    cy-=bob; if(wd<1) wd=1;
-    for(int j=-5;j<=5;j++){ int a=5-(j<0?-j:j); int hw=a*wd/5; for(int i=-hw;i<=hw;i++) px(cx+i,cy+j,(i<=0)?col[c][0]:col[c][1]); }
 }
 static void simsBubble(int cx,int cy,u16 ink){   // cx = centre, cy = bottom of the bubble
     const char* t=simsAlert(); u16 edge;

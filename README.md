@@ -119,7 +119,7 @@ The life part of the game has a Sims 2 style loop on top of the skating. All the
 
 **Skill.** SKATING skill 0 to 5 is trained by tricks, combos and grinds (12 / 35 / 70 / 120 / 200 points). Each level adds 8% to trick points. It shows as SK on the job line.
 
-**Thought bubble and plumbob.** A plumbob bobs and turns over the head: green = fine, yellow = so-so, red = in trouble. Above it a thought bubble shows the most urgent need (WC, EAT, ZZZ, STINKY, SIT), otherwise it alternates between your wants.
+**Thought bubble.** A thought bubble over the head shows the most urgent need (WC, EAT, ZZZ, STINKY, SIT), otherwise it alternates between your wants.
 
 **Wants and fears.** Two wants and one fear are always on show under the needs (green and red markers). Wants: snack, WC, nap, get clean, sofa, land a trick, trick combo, grind, get air, feel stoked, finish a shift, get promoted, learn a skill, nice room. Fears: bailing, accident, passing out, getting hurt, fainting, being broke, demotion. Meeting a want pays aspiration points and a mood lift; a fear coming true costs points. A want is only offered if the map has what it needs (no bed, no nap want). All of it hooks into the mood events, so every `moodEvent()` in the game feeds it.
 
