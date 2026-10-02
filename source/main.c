@@ -38,10 +38,21 @@ static u16 fb[SW*SH] EWRAM_BSS;
 static u8 sfxRam[SFX_MAX] EWRAM_BSS;
 #define tfb ((u16*)sfxRam)   // pre-rendered title backdrop (only needed while the title screen shows)
 
+// ---------- settings (kept in SRAM; the SETTINGS screen edits them) ----------
+static u8 sFps=1;    // frame rate: 0 = 60, 1 = 30, 2 = 20 frames per second (game speed stays the same)
+static u8 sWall=1;   // walls: 0 full height, 1 cutaway (walls in front drop low), 2 all low
+static u8 sWp=1;     // wallpaper patterns on
+static u8 sFl=1;     // floor patterns on
+static u8 sSnd=1;    // sound on
+static u8 sShow=0;   // show the frames-per-second counter
+#define NWP 14       // wallpapers
+#define NFL 14       // floors
+
+
 // ---------- palette ----------
 static const u16 skinTones[4] = { RGB(30,23,17), RGB(24,16,10), RGB(13,8,5), RGB(14,26,10) };
 static const u16 hairTones[5] = { RGB(5,3,2), RGB(27,21,6), RGB(28,8,4), RGB(21,21,22), RGB(10,22,12) };
-static u16 base[9], sT[9], sL[9], sR[9];
+static u16 base[9+NWP], sT[9+NWP], sL[9+NWP], sR[9+NWP];   // slots 1..8 = body colours, 9.. = wallpaper average colours
 static u16 dL[4], dR[4];   // face-sprite palette (k w r s) pre-shaded for the left / right cube face
 static int skinI = 0, hairI = 0;
 #define EDGE RGB(3,2,5)
@@ -52,11 +63,58 @@ static inline __attribute__((always_inline)) u16 shade(u16 c, int n) {
     int r=c&31, g=(c>>5)&31, b=(c>>10)&31;
     return RGB(r*n/16, g*n/16, b*n/16);
 }
+// ---------- wallpapers & floors: 8x8 texels, each char 0-3 picks one of the 4 colours ----------
+typedef struct { const char*nm; u16 c[4]; const char*p[8]; } Tex;
+#define PN_FLAT  "00000000","00000000","00000000","00000000","00000000","00000000","00000000","00000000"
+#define PN_NOISE "01000200","00020010","20001000","00100020","01000100","00200001","10002000","00010200"
+#define PN_CONC  "00000100","02000000","00001000","00000020","00100000","00000002","20000000","00020100"
+#define PN_TILE  "11111111","12001200","10001000","10001000","11111111","12001200","10001000","10001000"
+#define PN_STEEL "00000000","01110000","00220000","00000000","00000000","00000111","00000022","00000000"
+#define PN_HAZ   "00110011","10011001","11001100","01100110","00110011","10011001","11001100","01100110"
+// Wallpaper tiles repeat every block (8 px), so they line up across a whole wall. Colours: house first, factory after.
+static const Tex wpTex[NWP]={
+ {"TEAL PAINT",{RGB(8,20,22),0,0,0},{PN_FLAT}},
+ {"FLORAL",{RGB(28,26,20),RGB(26,12,16),RGB(10,20,9),RGB(30,26,8)},{"00000000","00100000","01310020","00102200","00000000","00000100","20001310","02200100"}},
+ {"PEACH STRIPE",{RGB(30,23,18),RGB(31,29,24),RGB(26,16,15),0},{"11102000","11102000","11102000","11102000","11102000","11102000","11102000","11102000"}},
+ {"MEMPHIS",{RGB(30,30,28),RGB(4,22,22),RGB(29,9,18),RGB(31,27,5)},{"01000010","10100101","00000000","00022000","00222200","00000030","30000000","00000000"}},
+ {"WOOD PANEL",{RGB(18,11,5),RGB(11,6,3),RGB(22,14,7),0},{"10201000","10001020","10021002","10001000","10201020","10001000","10021002","10001000"}},
+ {"DIAMONDS",{RGB(20,13,17),RGB(25,18,21),RGB(14,8,12),0},{"00010000","00101000","01000100","10020010","01000100","00101000","00010000","00000000"}},
+ {"GINGHAM",{RGB(29,29,29),RGB(18,22,29),RGB(10,15,26),0},{"22112211","22112211","11001100","11001100","22112211","22112211","11001100","11001100"}},
+ {"CORRUGATED",{RGB(15,17,18),RGB(22,24,25),RGB(9,11,12),0},{"10201020","10201020","10201020","10201020","10201020","10201020","10201020","10201020"}},
+ {"RED BRICK",{RGB(20,8,6),RGB(22,20,18),RGB(14,5,4),0},{"00010001","02010201","00010001","11111111","01000100","01020102","01000100","11111111"}},
+ {"CINDER BLOCK",{RGB(17,17,17),RGB(11,11,11),RGB(21,21,20),0},{"10000000","10200000","10000020","11111111","00001000","02001000","00001020","11111111"}},
+ {"HAZARD",{RGB(30,25,2),RGB(4,4,5),0,0},{PN_HAZ}},
+ {"GREEN TILE",{RGB(10,20,14),RGB(22,24,22),RGB(14,25,18),0},{PN_TILE}},
+ {"STEEL PLATE",{RGB(14,16,18),RGB(22,24,26),RGB(8,9,11),0},{PN_STEEL}},
+ {"CONCRETE",{RGB(16,16,15),RGB(19,19,18),RGB(12,12,11),0},{PN_CONC}},
+};
+// Floor textures are mapped onto each iso tile in tile space (a = along +x, b = along +y).
+static const Tex flTex[NFL]={
+ {"TAN CHECK",{RGB(26,21,14),0,0,0},{PN_FLAT}},
+ {"BEIGE CARPET",{RGB(24,21,16),RGB(21,18,13),RGB(27,24,19),0},{PN_NOISE}},
+ {"TEAL CARPET",{RGB(6,16,16),RGB(4,12,13),RGB(8,19,19),0},{PN_NOISE}},
+ {"CHECKER LINO",{RGB(29,29,28),RGB(5,5,8),0,0},{"00001111","00001111","00001111","00001111","11110000","11110000","11110000","11110000"}},
+ {"WOOD PLANKS",{RGB(20,13,6),RGB(12,7,3),RGB(23,16,8),0},{"11111111","10020000","10000200","10002000","11111111","02001000","00201000","00001002"}},
+ {"PINK TILE",{RGB(28,18,20),RGB(30,28,27),RGB(30,22,23),0},{PN_TILE}},
+ {"BLUE TILE",{RGB(9,19,26),RGB(28,29,30),RGB(14,24,29),0},{PN_TILE}},
+ {"CONCRETE",{RGB(15,15,14),RGB(18,18,17),RGB(12,12,11),0},{PN_CONC}},
+ {"STEEL PLATE",{RGB(12,14,16),RGB(20,22,24),RGB(7,8,10),0},{PN_STEEL}},
+ {"METAL GRATE",{RGB(4,5,7),RGB(17,18,20),RGB(10,11,13),0},{"11111111","10001000","10201020","10001000","11111111","10001000","10201020","10001000"}},
+ {"HAZARD",{RGB(30,25,2),RGB(4,4,5),0,0},{"00000000","00000000","11111111","11111111","00000000","00000000","11111111","11111111"}},
+ {"GREEN LINO",{RGB(12,19,10),RGB(14,22,12),RGB(10,16,8),0},{PN_NOISE}},
+ {"OIL STAINED",{RGB(14,14,13),RGB(8,8,9),RGB(11,11,11),0},{"00000000","00022000","00211200","00022100","00002000","00000000","00000000","00000000"}},
+ {"RED TILE",{RGB(22,8,5),RGB(14,6,4),RGB(25,11,7),0},{PN_TILE}},
+};
+static const u8 flVs[NFL]={14,15,15,16,14,15,15,15,15,15,15,15,15,15};   // shade (of 16) for the odd tiles of a checkerboard of tiles
+static u16 wpAvg[NWP];   // average colour of each wallpaper: wall tops and the "wallpaper off" look
+
+
 static void setColors(void) {
     base[1]=skinTones[skinI]; base[2]=RGB(31,31,31); base[3]=RGB(3,3,6);
     base[4]=RGB(29,12,16);    base[5]=hairTones[hairI];
     base[6]=RGB(8,20,22);     base[7]=RGB(8,9,20); base[8]=RGB(31,30,16);
     for (int i=1;i<9;i++){ sT[i]=base[i]; sL[i]=shade(base[i],12); sR[i]=shade(base[i],9); }
+    for (int i=0;i<NWP;i++){ int s=9+i; base[s]=wpAvg[i]; sT[s]=base[s]; sL[s]=shade(base[s],12); sR[s]=shade(base[s],9); }
     u16 dc[4]={ base[3], base[2], base[4], shade(base[1],11) };   // k dark, w white, r red, s lid shadow
     for (int i=0;i<4;i++){ dL[i]=shade(dc[i],12); dR[i]=shade(dc[i],9); }
 }
@@ -116,6 +174,63 @@ IWRAM_CODE static void cube(int sx,int sy,int ci,int shape,int f){
         if((t==-r&&!(f&16))||(t==r&&!(f&32))) vline(x,sy-hh,yb,ec);
     }
 }
+
+// ---------- textured walls and floors ----------
+static u16 wpTab[NWP][2][8][8] EWRAM_BSS;              // [wallpaper][0 left face / 1 right face][column][row], pre-shaded
+static u16 flTab[NFL][2][2*CA+1][2*CB+1] EWRAM_BSS;    // [floor][odd tile][column][row] pre-sampled onto the iso diamond
+static u16 flFlat[NFL][2];                             // plain-colour fallback ("floor patterns off")
+static u16 avgTex(const Tex*t){
+    int r=0,g=0,b=0;
+    for(int v=0;v<8;v++)for(int u=0;u<8;u++){ u16 c=t->c[t->p[v][u]-'0']; r+=c&31; g+=(c>>5)&31; b+=(c>>10)&31; }
+    return RGB(r/64,g/64,b/64);
+}
+static void bakeTex(void){   // needs hhT (filled by initTables)
+    for(int w=0;w<NWP;w++){
+        const Tex*t=&wpTex[w]; wpAvg[w]=avgTex(t);
+        for(int f=0;f<2;f++)for(int u=0;u<8;u++)for(int v=0;v<8;v++) wpTab[w][f][u][v]=shade(t->c[t->p[v][u]-'0'],f?9:12);
+    }
+    for(int fl=0;fl<NFL;fl++){
+        const Tex*t=&flTex[fl]; u16 av=avgTex(t); int vs=flVs[fl];
+        flFlat[fl][0]=av; flFlat[fl][1]=shade(av,vs);
+        for(int var=0;var<2;var++)for(int tt=-CA;tt<=CA;tt++){
+            int hh=hhT[0][tt<0?-tt:tt];
+            for(int y=-hh;y<=hh;y++){
+                int X=tt*CB+y*CA+CA*CB, Y=y*CA-tt*CB+CA*CB;      // tile-space position, 0..2*CA*CB
+                int ta=X*8/(2*CA*CB), tb=Y*8/(2*CA*CB);
+                if(ta<0)ta=0; if(ta>7)ta=7; if(tb<0)tb=0; if(tb>7)tb=7;
+                u16 c=t->c[t->p[tb][ta]-'0']; if(var) c=shade(c,vs);
+                flTab[fl][var][tt+CA][y+hh]=c;
+            }
+        }
+    }
+}
+// One wall block with its wallpaper on both faces. Same silhouette and outline as cube(); f as for cube().
+// The baseboard / crown lines come from cube's own edge rows, so they stay visible over the pattern.
+IWRAM_CODE static void wallBlock(int sx,int sy,int wp,int f){
+    const u8*hhp=hhT[0]; int sl=9+wp;
+    u16 T=sT[sl], eT=shade(T,9), eL=shade(sL[sl],9), eR=shade(sR[sl],9);
+    for(int t=-CA;t<=CA;t++){
+        int x=sx+t; if((unsigned)x>=SW) continue;
+        int hh=hhp[t<0?-t:t], yt=sy+hh, yb=yt+CC-1;
+        const u16*col=wpTab[wp][t<0?0:1][t<0?t+CA:(t&7)];
+        u16 ec=t<0?eL:eR;
+        for(int y=yt,v=0;y<=yb;y++,v++) if((unsigned)y<SH) fb[y*SW+x]=col[v];
+        vline(x,sy-hh,sy+hh,T);
+        if(!(f&1)){ px(x,yt+1,lite(col[1],19)); px(x,sy-hh,eT); }
+        if(!(f&2)){ px(x,yb-1,shade(col[6],13)); px(x,yb,ec); }
+        if((t==-CA&&!(f&16))||(t==CA&&!(f&32))) vline(x,sy-hh,yb,ec);
+    }
+}
+// One floor tile: copy the pre-sampled columns. tex = flTab[floor][odd][0][0].
+IWRAM_CODE static void floorTile(int sx,int sy,const u16*tex){
+    for(int t=-CA;t<=CA;t++,tex+=2*CB+1){
+        int x=sx+t; if((unsigned)x>=SW) continue;
+        int hh=hhT[0][t<0?-t:t], y0=sy-hh, n=2*hh+1;
+        if(y0>=0&&y0+n<=SH){ u16*p=&fb[y0*SW+x]; for(int i=0;i<n;i++,p+=SW) *p=tex[i]; }
+        else for(int i=0;i<n;i++){ int y=y0+i; if((unsigned)y<SH) fb[y*SW+x]=tex[i]; }
+    }
+}
+
 
 // ---------- face sprites ----------
 // One cell = 9 x 8 px of art on a cube face. Wider sprites span cells: width = 10*cells-1 (the seam column is art too).
@@ -187,7 +302,7 @@ static const u8 cLeg[][4]={{0,0,0,7|(3<<4)},{0,1,0,7|(3<<4)},{0,2,0,7|(3<<4)}};
 static const u8 cEar[][4]={{0,0,0,1},{0,1,0,1}};
 static const u8 cHair[][4]={{0,0,0,5},{1,0,0,5},{0,0,1,5},{1,0,1,5},{0,1,0,5},{1,1,1,5}};
 #define NPARTS 8
-#define NENT (NPARTS+2)   // part list + "GO LIVE LIFE!" + "EDIT MAP"
+#define NENT (NPARTS+3)   // part list + "GO LIVE LIFE!" + "EDIT MAP" + "MAIN MENU"
 static const Part parts[NPARTS]={
  {"HEAD",8,0,2,2,2,cHead,0},{"TORSO",8,0,2,2,2,cTorso,0},{"ARM",3,1,1,3,1,cArm,0},{"LEG",3,1,1,3,1,cLeg,0},
  {"EYE",0,1,1,1,1,0,1},{"MOUTH",0,0,2,1,1,0,2},{"EAR",2,1,1,2,1,cEar,0},{"HAIR",6,0,2,2,2,cHair,0}};
@@ -261,6 +376,7 @@ IWRAM_CODE static void fillCols(int w0,int w1,u16 c){
 static u8 ord[4][W*D];   // per view: cells (x | z<<4) sorted back to front, so the draw loop needs no search
 static void initTables(void){
     for(int sh=0;sh<4;sh++){ int r=rTab[sh]; for(int at=0;at<=r;at++) hhT[sh][at]=(u8)((r/2)*(r-at)/r); }
+    bakeTex();
     int sv=view;
     for(int v=0;v<4;v++){
         view=v; int key[W*D], n=0;
@@ -279,9 +395,9 @@ IWRAM_CODE static void drawPanel(void){
     text(130,5,"BORE",RGB(31,26,6),2);
     text(130,17,"VOXEL DEMO",RGB(14,16,18),1);
     for(int i=0;i<NENT;i++){
-        int y=28+i*7, go=(i>=NPARTS);
+        int y=28+i*6, go=(i>=NPARTS);
         if(i==part){ rect(128,y-1,108,6,go?RGB(16,10,2):RGB(6,16,8)); text(130,y,">",RGB(31,31,31),1); }
-        text(137,y,go?(i==NPARTS?"GO LIVE LIFE!":"EDIT MAP"):parts[i].name,i==part?(go?RGB(31,26,6):RGB(31,31,31)):(go?RGB(24,20,6):RGB(18,20,22)),1);
+        text(137,y,go?(i==NPARTS?"GO LIVE LIFE!":i==NPARTS+1?"EDIT MAP":"MAIN MENU"):parts[i].name,i==part?(go?RGB(31,26,6):RGB(31,31,31)):(go?RGB(24,20,6):RGB(18,20,22)),1);
         if(i==part&&!go&&parts[i].dk) text(190,y,spr[SPRID(parts[i].dk-1)].name,RGB(31,26,6),1);
     }
     text(130,101,"SIZE",RGB(18,20,22),1);
@@ -424,6 +540,8 @@ static const char* const mapDef[MH]={   // default room
 static const short cosT[16]={256,237,181,98,0,-98,-181,-237,-256,-237,-181,-98,0,98,181,237};   // sin(a)=cosT[(a+12)&15]
 static u16 spr4[4][SPW*SPH] EWRAM_BSS;
 static s32 lfx,lfy,lz,lvz,lvx,lvy; static int lskate, lhave, lfr;   // lskate: 0 on foot, 1 skateboard; lhave: picked up the board
+static u8 floorMap[MH][MW] EWRAM_BSS, wallMap[MH][MW] EWRAM_BSS;   // floor style and wallpaper per tile
+static int lfpsV;   // measured frames per second (shown when SHOW FPS is on)
 static char lifeMap[MH][MW+1];   // the room being played / edited (starts as mapDef, or the copy saved in SRAM)
 static int bdx=10, bdy=4, spx=3, spy=6;   // skateboard tile and spawn tile, found by mapScan (B and P tiles)
 #define BDX bdx
@@ -478,7 +596,7 @@ IWRAM_CODE static void sfxDecode(int cnt){   // decode the next cnt samples into
     if(sdone>=sn) for(int k=0;k<256;k++) out[sn+k]=0;   // silence after the end, so the DMA read-ahead plays nothing
 }
 static void sfxPlay(int id){   // a new sound replaces whatever is playing
-    sfxStop();
+    sfxStop(); if(!sSnd) return;
     const u8*b=sfxTab[id]; sn=*(const u32*)b; if(sn>SFX_MAX-256) sn=SFX_MAX-256;
     ssrc=b+4; sdone=0; spred=0; sidx=0;
     sfxDecode(1024);                             // a head start; sfxTick decodes the rest while it plays
@@ -515,7 +633,7 @@ static void hurt(int sev,int kind){
 static int tileH(int tx,int ty){   // surface height in px
     if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
     char c=lifeMap[ty][tx];
-    return (c=='#'||c=='F')?2*CC: (c=='w'||c=='T')?CC: c=='='?6:0;
+    return (c=='#'||c=='F'||c=='W')?2*CC: (c=='w'||c=='T')?CC: c=='='?6:0;
 }
 static void bakeSprites(void){   // render the built character once per view (4 turns), then just blit it
     int sv=view; noGrid=1;
@@ -536,11 +654,16 @@ static void numText(int x,int y,int n,u16 c){
     text(x,y,b+i,c,1);
 }
 // ---------- map data: reset / scan / save ----------
-static const char palCh[9]={'.','w','#','=','F','T','D','B','P'};
-static const char* const palNm[9]={"FLOOR","WALL","CRATE","RAIL","FRIDGE","TOILET","DOOR","BOARD","SPAWN"};
-static const u16 palCol[9]={RGB(26,21,14),RGB(8,20,22),RGB(8,9,20),RGB(31,30,16),RGB(31,31,31),RGB(30,28,18),RGB(14,9,5),RGB(26,10,6),RGB(28,10,8)};
-static int palIdx(char c){ for(int i=0;i<9;i++) if(palCh[i]==c) return i; return -1; }
-static void mapReset(void){ for(int y=0;y<MH;y++){ for(int x=0;x<MW;x++) lifeMap[y][x]=mapDef[y][x]; lifeMap[y][MW]=0; } }
+// lifeMap = what stands on each tile, floorMap = floor style under it, wallMap = wallpaper on it (for wall tiles).
+enum { T_ROOM, T_WALL, T_FLOOR, T_ITEM, T_ERASE, NTOOL };
+static int eTool, eAct, eAx, eAy, eFl, eWp, eOb;   // editor: tool, rectangle anchor set?, anchor tile, chosen floor / wallpaper / item
+#define NOBJ 10
+static const char palCh[NOBJ]={'.','w','W','#','=','F','T','D','B','P'};
+static const char* const palNm[NOBJ]={"CLEAR","LOW WALL","WALL","CRATE","RAIL","FRIDGE","TOILET","DOOR","BOARD","SPAWN"};
+static const u16 palCol[NOBJ]={RGB(26,21,14),RGB(8,20,22),RGB(10,22,24),RGB(8,9,20),RGB(31,30,16),RGB(31,31,31),RGB(30,28,18),RGB(14,9,5),RGB(26,10,6),RGB(28,10,8)};
+static int palIdx(char c){ for(int i=0;i<NOBJ;i++) if(palCh[i]==c) return i; return -1; }
+static void mapReset(void){
+    for(int y=0;y<MH;y++){ for(int x=0;x<MW;x++){ lifeMap[y][x]=mapDef[y][x]; floorMap[y][x]=0; wallMap[y][x]=0; } lifeMap[y][MW]=0; } }
 static void mapScan(void){   // find the skateboard (B) and the spawn point (P); fall back to sane defaults
     int fx=-1, fy=-1; bdx=bdy=spx=spy=-1;
     for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ char c=lifeMap[y][x];
@@ -550,17 +673,33 @@ static void mapScan(void){   // find the skateboard (B) and the spawn point (P);
 }
 #define SRAM_BASE ((volatile u8*)0x0E000000)
 static const char sramTag[] __attribute__((used)) = "SRAM_V113";   // tells emulators / flash carts to give the game battery saves
-static void mapSave(void){ volatile u8*m=SRAM_BASE; m[0]='B'; m[1]='M'; m[2]='1'; for(int y=0;y<MH;y++)for(int x=0;x<MW;x++) m[3+y*MW+x]=(u8)lifeMap[y][x]; }
-static int mapSaved(void){ volatile u8*m=SRAM_BASE; if(m[0]!='B'||m[1]!='M'||m[2]!='1') return 0;
-    for(int y=0;y<MH;y++)for(int x=0;x<MW;x++) if(m[3+y*MW+x]!=(u8)lifeMap[y][x]) return 0; return 1; }
+#define MSZ (MW*MH)
+// SRAM layout: 0..2 "BM2", then MSZ bytes each of tiles, floors, wallpapers. Settings live at 640 (see settingsSave). Old "BM1" saves (tiles only) still load.
+static void mapSave(void){ volatile u8*m=SRAM_BASE; m[0]='B'; m[1]='M'; m[2]='2';
+    for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x; m[3+i]=(u8)lifeMap[y][x]; m[3+MSZ+i]=floorMap[y][x]; m[3+2*MSZ+i]=wallMap[y][x]; } }
+static int mapSaved(void){ volatile u8*m=SRAM_BASE; if(m[0]!='B'||m[1]!='M'||m[2]!='2') return 0;
+    for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x;
+        if(m[3+i]!=(u8)lifeMap[y][x]||m[3+MSZ+i]!=floorMap[y][x]||m[3+2*MSZ+i]!=wallMap[y][x]) return 0; }
+    return 1; }
 static int mapLoad(void){   // returns 1 if a valid saved map was loaded
-    volatile u8*m=SRAM_BASE; if(m[0]!='B'||m[1]!='M'||m[2]!='1') return 0;
-    for(int y=0;y<MH;y++)for(int x=0;x<MW;x++) if(palIdx((char)m[3+y*MW+x])<0) return 0;
-    for(int y=0;y<MH;y++)for(int x=0;x<MW;x++) lifeMap[y][x]=(char)m[3+y*MW+x];
+    volatile u8*m=SRAM_BASE; int v2=0;
+    if(m[0]!='B'||m[1]!='M') return 0;
+    if(m[2]=='2') v2=1; else if(m[2]!='1') return 0;
+    for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x;
+        if(palIdx((char)m[3+i])<0) return 0;
+        if(v2&&(m[3+MSZ+i]>=NFL||m[3+2*MSZ+i]>=NWP)) return 0; }
+    for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x;
+        lifeMap[y][x]=(char)m[3+i]; floorMap[y][x]=v2?m[3+MSZ+i]:0; wallMap[y][x]=v2?m[3+2*MSZ+i]:0; }
     return 1; }
 static void mapPlace(int x,int y,char c){
     if(c=='B'||c=='P'){ for(int j=0;j<MH;j++)for(int i=0;i<MW;i++) if(lifeMap[j][i]==c) lifeMap[j][i]='.'; }
-    lifeMap[y][x]=c; }
+    lifeMap[y][x]=c; if(c=='w'||c=='W') wallMap[y][x]=(u8)eWp; }
+// settings (SRAM offset 640)
+static void settingsSave(void){ volatile u8*m=SRAM_BASE+640; m[0]='S'; m[1]='1'; m[2]=sFps; m[3]=sWall; m[4]=sWp; m[5]=sFl; m[6]=sSnd; m[7]=sShow; }
+static void settingsLoad(void){ volatile u8*m=SRAM_BASE+640;
+    if(m[0]!='S'||m[1]!='1'||m[2]>2||m[3]>2||m[4]>1||m[5]>1||m[6]>1||m[7]>1) return;
+    sFps=m[2]; sWall=m[3]; sWp=m[4]; sFl=m[5]; sSnd=m[6]; sShow=m[7]; }
+
 
 // ---------- small UI kit: one menu style, one help style, one toast ----------
 #define GOLD RGB(31,26,6)
@@ -598,7 +737,83 @@ static void helpScreen(const char*title,const char*const*ln,int n){   // lines s
 static void toast(const char*msg){ int w=(int)(4*0); const char*p=msg; while(*p){ w+=4; p++; } w+=16;
     box((SW-w)/2,66,w,22); text((SW-w)/2+8,74,msg,WHITE,1); for(int i=0;i<45;i++){ present(); } }
 static const char* const lifeHelp[12]={">ON FOOT","DPAD WALK  B RUN  A HOP","R FRIDGE OR TOILET","L GET ON THE BOARD",">ON THE BOARD","A PUSH  DPAD STEER  B OLLIE","IN AIR DPAD SPINS  B KICKFLIP","LAND CLEAN FOR POINTS","HIGH FALLS AND WALLS HURT",">KEEP YOURSELF GOING","WATCH THE FOOD AND WC BARS","START OPENS THE MENU"};
-static const char* const mapHelp[12]={">PAINT YOUR ROOM","DPAD MOVE THE CURSOR","A PLACE  B ERASE","HOLD A OR B AND MOVE TO PAINT","L R CHANGE TILE","SELECT PICKS THE TILE UNDER IT",">SPECIAL TILES","SPAWN TILE IS WHERE YOU START","BOARD TILE IS THE SKATEBOARD","DOOR IS A PLACEHOLDER ENTRANCE","FRIDGE EATS  TOILET RELIEVES",">START OPENS PLAY AND SAVE"};
+
+static const char* const creatureHelp[13]={">PLACE PARTS","DPAD MOVE  L R HEIGHT","A PLACE  B ERASE  START SIZE",">PICK A PART","SELECT TAP NEXT PART","SEL+L R PREVIOUS OR NEXT PART","SEL+UP DOWN FACE STYLE",">LOOK","SEL+A SKIN  SEL+B HAIR","SEL+LEFT RIGHT TURN THE VIEW",">LEAVE","GO LIVE LIFE PLAYS YOUR CREATURE","MAIN MENU IS LAST IN THE LIST"};
+static const char* const mapHelp[12]={">BUILD A ROOM","ROOM TOOL  A CORNER  A BUILDS","WALL TOOL  A START  A DRAWS A LINE","FLOOR TOOL  A CORNER  A FILLS","ITEM TOOL  PLACE SINGLE TILES","ERASE TOOL  A CORNER  A CLEARS",">STYLES","L R PICK FLOOR OR ITEM","SEL+L R PICK WALLPAPER","SELECT TAP NEXT TOOL  B CANCELS",">KEEP IT","START OPENS PLAY TEST AND SAVE"};
+
+// ---------- settings screen ----------
+#define NSET 7
+static const char* const setNm[NSET]={"PRESET","FRAME RATE","WALLS","WALLPAPER","FLOORS","SOUND","SHOW FPS"};
+static const char* const setDesc[NSET][2]={
+ {"QUICK PICK  LOOKS IS PRETTIEST","SPEED RUNS SMOOTHEST ON SLOW DEVICES"},
+ {"LOWER SAVES POWER AND SPEED","THE GAME RUNS AT THE SAME PACE"},
+ {"CUTAWAY LOWERS THE WALLS IN FRONT","LOW IS FASTEST"},
+ {"OFF DRAWS PLAIN COLOUR WALLS","FASTER"},
+ {"PLAIN DRAWS FLAT COLOUR FLOORS","FASTER"},
+ {"OFF SKIPS SOUND DECODING","SAVES A LITTLE SPEED"},
+ {"SHOWS FRAMES PER SECOND","WHILE YOU PLAY"} };
+static int presetOf(void){   // 0 looks, 1 balanced, 2 speed, 3 custom
+    if(sFps==0&&sWall==0&&sWp&&sFl) return 0;
+    if(sFps==1&&sWall==1&&sWp&&sFl) return 1;
+    if(sFps==1&&sWall==2&&!sWp&&!sFl) return 2;
+    return 3;
+}
+static void setPreset(int p){
+    if(p==0){ sFps=0; sWall=0; sWp=1; sFl=1; }
+    else if(p==1){ sFps=1; sWall=1; sWp=1; sFl=1; }
+    else { sFps=1; sWall=2; sWp=0; sFl=0; }
+}
+static void setChange(int row,int d){
+    switch(row){
+        case 0:{ int p=presetOf(); p=(p==3)?(d>0?0:2):(p+d+3)%3; setPreset(p); } break;
+        case 1: sFps=(u8)((sFps+d+3)%3); break;
+        case 2: sWall=(u8)((sWall+d+3)%3); break;
+        case 3: sWp^=1; break;
+        case 4: sFl^=1; break;
+        case 5: sSnd^=1; if(!sSnd) sfxStop(); break;
+        default: sShow^=1; break;
+    }
+}
+static const char* setVal(int row){
+    static const char* const pn[4]={"LOOKS","BALANCED","SPEED","CUSTOM"}, *const fp[3]={"60 FPS","30 FPS","20 FPS"}, *const wn[3]={"FULL","CUTAWAY","LOW"};
+    switch(row){
+        case 0: return pn[presetOf()];
+        case 1: return fp[sFps];
+        case 2: return wn[sWall];
+        case 3: return sWp?"ON":"PLAIN";
+        case 4: return sFl?"ON":"PLAIN";
+        case 5: return sSnd?"ON":"OFF";
+        default: return sShow?"ON":"OFF";
+    }
+}
+static void drawSettings(int sel){
+    fillCols(0,ROW_W,RGB(3,4,8));
+    box(6,4,228,152); text(16,10,"SETTINGS",GOLD,2);
+    text(110,13,"FPS SAVERS",RGB(12,28,8),1);
+    for(int i=0;i<NSET;i++){
+        int y=34+i*12;
+        if(i==sel){ rect(10,y-3,220,11,RGB(6,16,8)); text(14,y,">",WHITE,1); }
+        text(24,y,setNm[i],i==sel?WHITE:DIMC,1);
+        const char*v=setVal(i); u16 vc=i==sel?GOLD:RGB(22,24,26);
+        if(i>=3&&v[1]=='N'&&v[0]=='O'&&v[2]==0) vc=RGB(12,28,10);   // ON in green
+        text(130,y,v,vc,1);
+    }
+    text(14,122,setDesc[sel][0],WHITE,1); text(14,129,setDesc[sel][1],DIMC,1);
+    text(14,142,"UP DOWN ROW  LEFT RIGHT CHANGE  B BACK",RGB(12,14,16),1);
+}
+static void settingsScreen(void){
+    int sel=0, dirty=1; u16 prev=keyNow();
+    for(;;){
+        u16 k=keyNow(), pr=k&~prev; prev=k;
+        if(pr&K_DOWN){ sel=(sel+1)%NSET; dirty=1; }
+        if(pr&K_UP){ sel=(sel+NSET-1)%NSET; dirty=1; }
+        int d=((pr&K_RIGHT)?1:0)-((pr&K_LEFT)?1:0); if(pr&K_A) d=1;
+        if(d){ setChange(sel,d); dirty=1; }
+        if(pr&(K_B|K_START)){ settingsSave(); return; }
+        if(dirty){ drawSettings(sel); present(); dirty=0; } else vsync();
+    }
+}
+
 
 static void lifeInit(void){
     mapScan(); bakeSprites();
@@ -701,16 +916,47 @@ static void lifeStep(u16 k,u16 pr,int fr){
 }
 static void tileTop(int sx,int sy,u16 c){ for(int t=-CA;t<=CA;t++){ int at=t<0?-t:t, hh=hhT[0][at]; vline(sx+t,sy-hh,sy+hh,c); } }
 static int ecx=6, ecy=6, efr;   // map editor cursor (tile) and frame counter
+static int isWallCh(char c){ return c=='w'||c=='W'; }
+static int tileOpen(int x,int y){   // in the map and not a wall / crate / fridge
+    if(x<0||y<0||x>=MW||y>=MH) return 0;
+    char c=lifeMap[y][x]; return !(c=='w'||c=='W'||c=='#'||c=='F'); }
+static int wallH(int tx,int ty){    // wall blocks DRAWN for this tile (the player still bumps into the full height)
+    if(lifeMap[ty][tx]=='w'||sWall==2) return 1;
+    if(sWall==1&&(tileOpen(tx-1,ty)||tileOpen(tx,ty-1)||tileOpen(tx-1,ty-1))) return 1;   // faces the camera: cut it down
+    return 2;
+}
+static int wallJoin(int tx,int ty,int j,int wp){   // neighbour wall with the same wallpaper that reaches block j
+    if(tx<0||ty<0||tx>=MW||ty>=MH||!isWallCh(lifeMap[ty][tx])) return 0;
+    return wallH(tx,ty)>=j&&wallMap[ty][tx]==wp; }
+static void drawWall(int tx,int ty,int sx,int sy){
+    int h=wallH(tx,ty), wp=wallMap[ty][tx];
+    for(int j=1;j<=h;j++){
+        int f=(j<h?1:0)|(j>1?2:0)|(wallJoin(tx-1,ty,j,wp)?16:0)|(wallJoin(tx,ty-1,j,wp)?32:0);
+        if(sWp) wallBlock(sx,sy-j*CC,wp,f); else cube(sx,sy-j*CC,9+wp,0,f);
+    }
+}
+static void tileMark(int tx,int ty,u16 cc){   // diamond outline on a tile (editor cursor / preview)
+    char c=lifeMap[ty][tx]; int hgt=isWallCh(c)?wallH(tx,ty)*CC:tileH(tx,ty);
+    int sx=LOX+(tx-ty)*CA, sy=LOY+(tx+ty+1)*CB-hgt;
+    for(int t=-CA;t<=CA;t++){ int at=t<0?-t:t, hh=hhT[0][at]; px(sx+t,sy-hh,cc); px(sx+t,sy-hh-1,cc); px(sx+t,sy+hh,cc); px(sx+t,sy+hh+1,cc); }
+}
+static void eRect(int*x0,int*y0,int*x1,int*y1){   // anchor..cursor as an ordered rectangle; the WALL tool snaps to a straight line
+    int ax=eAx, ay=eAy, bx=ecx, by=ecy;
+    if(eTool==T_WALL){ int dx=bx>ax?bx-ax:ax-bx, dy=by>ay?by-ay:ay-by; if(dx>=dy) by=ay; else bx=ax; }
+    *x0=ax<bx?ax:bx; *x1=ax<bx?bx:ax; *y0=ay<by?ay:by; *y1=ay<by?by:ay;
+}
 static void drawRoom(int ed){   // the room, drawn back to front; ed=1: editor view (no player, markers + cursor)
     fillCols(0,ROW_W,RGB(4,5,8));
-    u16 cA=RGB(26,21,14), cB=RGB(23,18,11);
-    for(int ty=0;ty<MH;ty++)for(int tx=0;tx<MW;tx++){ char c=lifeMap[ty][tx]; if(c=='w'||c=='#'||c=='F'||c=='T') continue;
-        tileTop(LOX+(tx-ty)*CA,LOY+(tx+ty+1)*CB,c=='D'?RGB(14,9,5):(((tx^ty)&1)?cA:cB)); }
+    for(int ty=0;ty<MH;ty++)for(int tx=0;tx<MW;tx++){ char c=lifeMap[ty][tx]; if(c=='w'||c=='W'||c=='#'||c=='F'||c=='T') continue;
+        int sx=LOX+(tx-ty)*CA, sy=LOY+(tx+ty+1)*CB;
+        if(c=='D') tileTop(sx,sy,RGB(14,9,5));
+        else { int fl=floorMap[ty][tx], v=(tx^ty)&1; if(sFl) floorTile(sx,sy,&flTab[fl][v][0][0]); else tileTop(sx,sy,flFlat[fl][v]); } }
     int ss=(int)((lfx>>8)+(lfy>>8)), psx=LOX+(int)((lfx-lfy)>>5), psy=LOY+(int)((lfx+lfy)>>6);
     for(int s=0;s<MW+MH-1;s++){
         for(int tx=0;tx<MW;tx++){ int ty=s-tx; if(ty<0||ty>=MH) continue;
             char c=lifeMap[ty][tx]; int sx=LOX+(tx-ty)*CA, sy=LOY+(tx+ty+1)*CB;
-            if(c=='w'||c=='#'){ int h=c=='#'?2:1; for(int j=1;j<=h;j++) cube(sx,sy-j*CC,c=='#'?7:6,0,(j<h?1:0)|(j>1?2:0)); }
+            if(c=='w'||c=='W') drawWall(tx,ty,sx,sy);
+            else if(c=='#'){ for(int j=1;j<=2;j++) cube(sx,sy-j*CC,7,0,(j<2?1:0)|(j>1?2:0)); }
             else if(c=='F'){ for(int j=1;j<=2;j++) cube(sx,sy-j*CC,2,0,(j<2?1:0)|(j>1?2:0)); }   // fridge: white, 2 blocks tall
             else if(c=='T') cube(sx,sy-CC,8,0,0);                                                  // toilet: pale, 1 block
             else if(c=='=') cube(sx,sy-6,8,1,2);
@@ -727,11 +973,19 @@ static void drawRoom(int ed){   // the room, drawn back to front; ed=1: editor v
             blit(spr4[vsel],psx-16,psy-40-zp);
         }
     }
-    if(ed){   // blinking diamond on the tile under the cursor
-        int sx=LOX+(ecx-ecy)*CA, sy=LOY+(ecx+ecy+1)*CB-tileH(ecx,ecy); u16 cc=(efr&8)?WHITE:GOLD;
-        for(int t=-CA;t<=CA;t++){ int at=t<0?-t:t, hh=hhT[0][at]; px(sx+t,sy-hh,cc); px(sx+t,sy-hh-1,cc); px(sx+t,sy+hh,cc); px(sx+t,sy+hh+1,cc); }
+    if(ed){
+        if(eAct&&eTool!=T_ITEM){   // preview of what the next A will build
+            int x0,y0,x1,y1; eRect(&x0,&y0,&x1,&y1);
+            u16 pc=eTool==T_ERASE?RGB(31,10,8):RGB(10,28,10);
+            for(int y=y0;y<=y1;y++)for(int x=x0;x<=x1;x++){
+                if(eTool==T_ROOM&&x!=x0&&x!=x1&&y!=y0&&y!=y1) continue;   // a room only outlines its walls
+                tileMark(x,y,pc);
+            }
+        }
+        tileMark(ecx,ecy,(efr&8)?WHITE:GOLD);   // blinking diamond on the tile under the cursor
     }
 }
+
 static void lifeDraw(void){
     drawRoom(0);
     u16 gold=GOLD, dim=DIMC;
@@ -746,76 +1000,153 @@ static void lifeDraw(void){
     if(lnoteT>0){ text(2,18,lnote,RGB(31,31,31),1); if(lpts&&lnote[0]=='N'){ text(2,25,"+",gold,1); numText(6,25,lpts,gold); } }
     text(2,146,lskate?"A PUSH B OLLIE DPAD STEER L WALK":(lhave?"DPAD WALK B RUN A HOP L SKATE":"DPAD WALK B RUN A HOP FIND A BOARD"),RGB(12,14,16),1);
     text(2,153,"START MENU",RGB(12,14,16),1);
+    if(sShow){ text(196,153,"FPS",dim,1); numText(214,153,lfpsV,gold); }
 }
-static const char* const lifeItems[4]={"RESUME","HOW TO PLAY","EDIT MAP","BACK TO CREATURE"};
-static const char* const lifeItemsEd[3]={"RESUME","HOW TO PLAY","BACK TO EDITOR"};
+static int gToMenu;   // set when the player picks MAIN MENU in the pause menu, so every screen above returns to it
+static const char* const lifeItems[5]={"RESUME","HOW TO PLAY","SETTINGS","EDIT MAP","MAIN MENU"};
+static const char* const lifeItemsEd[4]={"RESUME","HOW TO PLAY","SETTINGS","BACK TO EDITOR"};
+// Timer2 (65536 Hz) is the clock. The game logic always runs at 60 steps per second; the frame rate setting only
+// says how often the picture is redrawn, so 30 / 20 FPS saves work without slowing the game down.
+#define R_TM2D   (*(volatile u16*)0x04000108)
+#define R_TM2CNT (*(volatile u16*)0x0400010A)
+#define TICKS_FRAME 1097   // 65536 / 59.7275 Hz
+static void tmStart(void){ R_TM2CNT=0; R_TM2D=0; R_TM2CNT=0x82; }
 static void lifeMode(int ed){   // ed=1: test play started from the map editor
     lifeInit(); u16 prev=keyNow();
-    for(int fr=0;;fr++){
+    tmStart(); u16 tl=R_TM2D; int acc=0, fpsN=0, fr=0; u32 fpsT=0; lfpsV=0;
+    for(;;){
+        int need=(sFps+1)*TICKS_FRAME-100;
+        for(;;){ u16 now=R_TM2D, dt=(u16)(now-tl); tl=now; acc+=dt; fpsT+=dt; if(acc>=need) break; vsync(); }
+        int steps=(acc+110)/TICKS_FRAME; if(steps>4){ steps=4; acc=0; } else acc-=steps*TICKS_FRAME;
         u16 k=keyNow(), pr=k&~prev; prev=k;
         if((k&K_SEL)&&(k&K_START)) break;
         if(pr&K_START){   // pause menu
             sfxStop();
-            int c=menu("PAUSED",ed?lifeItemsEd:lifeItems,ed?3:4);
+            int c=menu("PAUSED",ed?lifeItemsEd:lifeItems,ed?4:5);
             if(c==1) helpScreen("HOW TO PLAY",lifeHelp,12);
-            else if(c==2&&!ed){ mapEditor(); lifeInit(); }
-            else if((c==2&&ed)||c==3) break;
-            prev=keyNow(); continue;
+            else if(c==2) settingsScreen();
+            else if(c==3&&!ed){ mapEditor(); lifeInit(); }
+            else if((c==3&&ed)||c==4){ if(c==4) gToMenu=1; break; }
+            prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; continue;
         }
-        lifeStep(k,pr,fr); lifeDraw(); present();
+        for(int s=0;s<steps;s++) lifeStep(k,s?0:pr,fr++);   // catch up if a frame took long; button presses count once
+        lifeDraw(); present();
+        fpsN++; if(fpsT>=65536){ lfpsV=fpsN; fpsN=0; fpsT-=65536; }
     }
-    sfxStop();
+    R_TM2CNT=0; sfxStop();
     while((~REG_KEYINPUT)&0x3FF) vsync();   // wait for release so the caller doesn't see the exit keys
 }
 
+
 // ---------- map editor ----------
-static const char* const mapItems[5]={"PLAY TEST","SAVE MAP","RESET MAP","HOW TO EDIT","BACK"};
+// Tools: ROOM (two corners -> walls + floor + a door), WALL (a straight line), FLOOR (fill an area), ITEM (single tiles), ERASE (clear an area).
+static const char* const mapItems[6]={"PLAY TEST","SAVE MAP","SETTINGS","RESET MAP","HOW TO EDIT","BACK"};
 static const char* const yesNo[2]={"NO","YES RESET"};
+static const char* const toolNm[NTOOL]={"ROOM","WALL","FLOOR","ITEM","ERASE"};
+static const char* const toolHint[NTOOL][2]={
+ {"A CORNER  A AGAIN BUILDS THE ROOM  B CANCEL","L R FLOOR  SEL+L R WALLPAPER  SEL TOOL"},
+ {"A START  A AGAIN DRAWS A WALL  B CANCEL","L R WALLPAPER  SEL TOOL  START MENU"},
+ {"A CORNER  A AGAIN FILLS THE AREA  B CANCEL","L R FLOOR  SEL TOOL  START MENU"},
+ {"A PLACE  B ERASE  HOLD AND MOVE TO PAINT","L R ITEM  SEL+L R WALLPAPER  SEL TOOL"},
+ {"A CORNER  A AGAIN CLEARS THE AREA  B CANCEL","SEL TOOL  START MENU"} };
+static int slen(const char*s){ int n=0; while(s[n]) n++; return n; }
+static void texSwatch(const Tex*t,int x,int y){   // the 8x8 pattern itself, 1:1
+    rect(x-1,y-1,10,10,WHITE);
+    for(int v=0;v<8;v++)for(int u=0;u<8;u++) px(x+u,y+v,t->c[t->p[v][u]-'0']);
+}
+static int eApply(void){   // second A of ROOM / WALL / FLOOR / ERASE. 0 = refused
+    int x0,y0,x1,y1; eRect(&x0,&y0,&x1,&y1);
+    if(eTool==T_ROOM){
+        if(x1-x0<2||y1-y0<2) return 0;   // needs at least 3 x 3
+        for(int y=y0;y<=y1;y++)for(int x=x0;x<=x1;x++){
+            floorMap[y][x]=(u8)eFl;
+            if(x==x0||x==x1||y==y0||y==y1){ lifeMap[y][x]='W'; wallMap[y][x]=(u8)eWp; }
+            else if(isWallCh(lifeMap[y][x])) lifeMap[y][x]='.';   // old walls inside are cleared, furniture stays
+        }
+        lifeMap[y1][(x0+x1)/2]='D';   // doorway in the front wall; move or remove it with the ITEM tool
+    } else for(int y=y0;y<=y1;y++)for(int x=x0;x<=x1;x++){
+        if(eTool==T_WALL){ lifeMap[y][x]='W'; wallMap[y][x]=(u8)eWp; }
+        else if(eTool==T_FLOOR) floorMap[y][x]=(u8)eFl;
+        else { lifeMap[y][x]='.'; floorMap[y][x]=0; wallMap[y][x]=0; }
+    }
+    return 1;
+}
+static void drawEditorHud(const char*msg){
+    int x=2;
+    for(int i=0;i<NTOOL;i++){ int w=slen(toolNm[i])*4+3;
+        rect(x,1,w,8,i==eTool?GOLD:RGB(3,4,7)); text(x+2,2,toolNm[i],i==eTool?RGB(4,3,6):DIMC,1); x+=w+1; }
+    if(msg[0]) text(2,11,msg,WHITE,1);
+    else if(eTool!=T_ITEM){
+        if(eAct){ int x0,y0,x1,y1; eRect(&x0,&y0,&x1,&y1); int w=x1-x0+1, h=y1-y0+1;
+            if(eTool==T_WALL){ text(2,11,"LENGTH",GOLD,1); numText(30,11,w+h-1,WHITE); }
+            else { text(2,11,"SIZE",GOLD,1); numText(20,11,w,WHITE); int xx=20+(w>9?10:6); text(xx,11,"X",GOLD,1); numText(xx+6,11,h,WHITE); } }
+        else text(2,11,"PICK A START POINT",GOLD,1);
+    }
+    if(eTool==T_ITEM){
+        for(int i=0;i<NOBJ;i++){ int xx=2+i*13; rect(xx,136,12,9,i==eOb?WHITE:RGB(3,4,7)); rect(xx+1,137,10,7,palCol[i]); }
+        text(136,139,palNm[eOb],WHITE,1);
+        if(eOb==1||eOb==2){ texSwatch(&wpTex[eWp],212,137); }
+    } else if(eTool!=T_ERASE){
+        if(eTool!=T_WALL){ text(2,139,"FLOOR",DIMC,1); texSwatch(&flTex[eFl],24,137); text(36,139,flTex[eFl].nm,WHITE,1); }
+        if(eTool!=T_FLOOR){ text(100,139,"WALL",DIMC,1); texSwatch(&wpTex[eWp],118,137); text(130,139,wpTex[eWp].nm,WHITE,1); }
+    } else text(2,139,"CLEARS WALLS ITEMS AND FLOORS",DIMC,1);
+    text(2,147,toolHint[eTool][0],RGB(12,14,16),1); text(2,153,toolHint[eTool][1],RGB(12,14,16),1);
+}
 static void mapEditor(void){
-    int ts=0, hold[4]={0}; u16 prev=keyNow();
+    int hold[4]={0}, comboUsed=0, dirty=1, lastBl=-1, msgT=0; const char*msg=""; u16 prev=keyNow();
     static const u16 dirK[4]={K_RIGHT,K_LEFT,K_UP,K_DOWN};
+    eAct=0;
     for(efr=0;;efr++){
-        u16 k=keyNow(), pr=k&~prev; prev=k;
+        u16 k=keyNow(), pr=k&~prev, rel=prev&~k; prev=k;
         int tr[4];
         for(int i=0;i<4;i++){ hold[i]=(k&dirK[i])?hold[i]+1:0; tr[i]=(hold[i]==1)||(hold[i]>14&&(hold[i]&3)==0); }
         int ux=tr[0]-tr[1], uy=tr[3]-tr[2];
         if(ux||uy){   // screen-relative like walking: up = away from the camera
             int dx=ux+uy, dy=uy-ux; dx=(dx>0)-(dx<0); dy=(dy>0)-(dy<0);
             ecx+=dx; ecy+=dy; if(ecx<0)ecx=0; if(ecy<0)ecy=0; if(ecx>=MW)ecx=MW-1; if(ecy>=MH)ecy=MH-1;
-            if(k&K_A) mapPlace(ecx,ecy,palCh[ts]); else if(k&K_B) mapPlace(ecx,ecy,'.');
+            if(eTool==T_ITEM){ if(k&K_A) mapPlace(ecx,ecy,palCh[eOb]); else if(k&K_B) mapPlace(ecx,ecy,'.'); }
+            dirty=1;
         }
-        if(pr&K_A) mapPlace(ecx,ecy,palCh[ts]);
-        if(pr&K_B) mapPlace(ecx,ecy,'.');
-        if(pr&K_R) ts=(ts+1)%9;
-        if(pr&K_L) ts=(ts+8)%9;
-        if(pr&K_SEL){ int i=palIdx(lifeMap[ecy][ecx]); if(i>=0) ts=i; }
+        if(pr|rel) dirty=1;
+        if(pr&(K_L|K_R)){
+            int d=(pr&K_R)?1:-1;
+            if(k&K_SEL){ eWp=(eWp+d+NWP)%NWP; comboUsed=1; }
+            else if(eTool==T_ITEM) eOb=(eOb+d+NOBJ)%NOBJ;
+            else if(eTool==T_WALL) eWp=(eWp+d+NWP)%NWP;
+            else if(eTool!=T_ERASE) eFl=(eFl+d+NFL)%NFL;
+        }
+        if(rel&K_SEL){ if(!comboUsed){ eTool=(eTool+1)%NTOOL; eAct=0; } comboUsed=0; }
+        if(pr&K_A){
+            if(eTool==T_ITEM) mapPlace(ecx,ecy,palCh[eOb]);
+            else if(!eAct){ eAct=1; eAx=ecx; eAy=ecy; }
+            else if(eApply()){ eAct=0; msg=eTool==T_ROOM?"ROOM BUILT":eTool==T_WALL?"WALL BUILT":eTool==T_FLOOR?"FLOOR LAID":"CLEARED"; msgT=70; }
+            else { msg="ROOM NEEDS 3 X 3 OR BIGGER"; msgT=70; }
+        }
+        if(pr&K_B){ if(eAct) eAct=0; else mapPlace(ecx,ecy,'.'); }
         if(pr&K_START){
-            int c=menu("MAP MENU",mapItems,5);
+            int c=menu("MAP MENU",mapItems,6);
             if(c==0){ mapScan(); lifeMode(1); }
             else if(c==1){ mapSave(); toast(mapSaved()?"MAP SAVED":"SAVE NOT SUPPORTED HERE"); }
-            else if(c==2){ if(menu("RESET THE MAP",yesNo,2)==1){ mapReset(); toast("MAP RESET"); } }
-            else if(c==3) helpScreen("HOW TO EDIT",mapHelp,12);
-            else if(c==4){ mapSave(); break; }
-            prev=keyNow(); continue;
+            else if(c==2) settingsScreen();
+            else if(c==3){ if(menu("RESET THE MAP",yesNo,2)==1){ mapReset(); eAct=0; toast("MAP RESET"); } }
+            else if(c==4) helpScreen("HOW TO EDIT",mapHelp,12);
+            else if(c==5){ mapSave(); break; }
+            prev=keyNow(); dirty=1; continue;
         }
-        drawRoom(1);
-        text(2,2,"MAP EDITOR",GOLD,1); text(2,10,palNm[ts],WHITE,1);
-        for(int i=0;i<9;i++){ int x=2+i*13; rect(x,136,12,8,i==ts?WHITE:RGB(3,4,7)); rect(x+1,137,10,6,palCol[i]); }
-        text(2,146,"DPAD MOVE A PLACE B ERASE",RGB(12,14,16),1);
-        text(2,153,"L R TILE SEL PICK START MENU",RGB(12,14,16),1);
-        present();
+        if(msgT>0&&--msgT==0){ msg=""; dirty=1; }
+        int bl=(efr>>3)&1;   // the editor only redraws when something changed or the cursor blinks
+        if(dirty||bl!=lastBl){
+            drawRoom(1); drawEditorHud(msgT>0?msg:"");
+            present(); dirty=0; lastBl=bl;
+        } else vsync();
     }
     while((~REG_KEYINPUT)&0x3FF) vsync();
 }
 
-int main(void){
-    REG_WAITCNT=0x4317;  // ROM 3/1 waits + prefetch (power-on default is 4/2, no prefetch)
-    REG_DISPCNT=0x0403;  // mode 3, BG2 on
-    initTables(); setColors();
-    titleScreen();
-    starter();
-    mapReset(); mapLoad();   // default room, or the one saved to SRAM
-    u16 prev=0; int hold[10]={0}, frame=0, dirty=1, lastBlink=-1, comboUsed=0;
+
+// ---------- creature editor (the original editor screen) ----------
+static void creatureEditor(void){
+    u16 prev=keyNow(); int hold[10]={0}, frame=0, dirty=1, lastBlink=-1, comboUsed=0;
     for(;;){
         u16 k=(u16)(~REG_KEYINPUT)&0x3FF, pressed=k&~prev, released=prev&~k; prev=k;
         for(int i=0;i<10;i++) hold[i]=(k>>i&1)?hold[i]+1:0;
@@ -836,7 +1167,13 @@ int main(void){
             if(TRIG(K_RIGHT,4)){moveView(1,0);dirty=1;} if(TRIG(K_LEFT,5)){moveView(-1,0);dirty=1;}
             if(TRIG(K_UP,6)){moveView(0,-1);dirty=1;}     if(TRIG(K_DOWN,7)){moveView(0,1);dirty=1;}
             if(TRIG(K_R,8)){cy++;dirty=1;}      if(TRIG(K_L,9)){cy--;dirty=1;}
-            if(pressed&K_A){ if(part==NPARTS) lifeMode(0); else if(part==NPARTS+1) mapEditor(); else doPart(1,part,size,cx,cy,cz); dirty=1; }
+            if(pressed&K_A){
+                if(part==NPARTS){ lifeMode(0); if(gToMenu) return; }
+                else if(part==NPARTS+1) mapEditor();
+                else if(part==NPARTS+2) return;   // MAIN MENU
+                else doPart(1,part,size,cx,cy,cz);
+                prev=keyNow(); dirty=1;
+            }
             if(pressed&K_B){ if(part<NPARTS) doPart(2,part,size,cx,cy,cz); dirty=1; }
         }
         if(released&K_SEL){ if(!comboUsed){ part=(part+1)%NENT; dirty=1; } comboUsed=0; }
@@ -855,3 +1192,56 @@ int main(void){
         frame++;
     }
 }
+
+// ---------- main menu ----------
+static const char* const mmName[5]={"PLAY","MAKE CREATURE","BUILD ROOM","SETTINGS","HOW TO PLAY"};
+static const char* const mmDesc[5]={"WALK AND SKATE AROUND YOUR ROOM","DESIGN YOUR OWN VOXEL CHARACTER","BUILD WALLS AND LAY FLOORS AND WALLPAPER","FRAME RATE AND OTHER SPEED OPTIONS","LEARN THE CONTROLS"};
+static const char* const guideItems[3]={"PLAYING","MAKE CREATURE","BUILD ROOMS"};
+static void drawMainMenu(int sel){
+    for(int y=0;y<SH;y++){ u16 c=RGB(2+y/50,3+y/36,9+y/13); u32 v=c|((u32)c<<16), *row=(u32*)fb+y*ROW_W; for(int w=0;w<ROW_W;w++) row[w]=v; }
+    u16 ink=RGB(4,3,6);
+    for(int dy=-2;dy<=2;dy++)for(int dx=-2;dx<=2;dx++) text(14+dx,8+dy,"BORE",ink,5);
+    text(14,8,"BORE",GOLD,5);
+    text(16,38,"A VOXEL LIFE SIM",RGB(12,28,8),1);
+    // a little pile of voxels (back to front)
+    { int ox=206, oy=92;
+      cube(ox,oy,1,0,1); cube(ox,oy-CC,4,0,3); cube(ox,oy-2*CC,8,0,2);
+      cube(ox+CA,oy+CB,6,0,0); cube(ox-CA,oy+CB,7,0,0); cube(ox,oy+2*CB,2,0,0); }
+    for(int i=0;i<5;i++){
+        int y=54+i*15;
+        if(i==sel){ rect(10,y-3,150,14,RGB(6,16,8)); rect(10,y-3,2,14,GOLD); text(16,y,">",WHITE,2); }
+        text(28,y,mmName[i],i==sel?WHITE:DIMC,2);
+    }
+    rect(0,134,SW,26,PANEL);
+    text(8,139,mmDesc[sel],WHITE,1); text(8,150,"UP DOWN CHOOSE  A OK",RGB(12,14,16),1);
+}
+static void mainMenu(void){
+    int sel=0, dirty=1; u16 prev=keyNow();
+    for(;;){
+        u16 k=keyNow(), pr=k&~prev; prev=k;
+        if(pr&K_DOWN){ sel=(sel+1)%5; dirty=1; }
+        if(pr&K_UP){ sel=(sel+4)%5; dirty=1; }
+        if(pr&(K_A|K_START)){
+            if(sel==0) lifeMode(0);
+            else if(sel==1) creatureEditor();
+            else if(sel==2) mapEditor();
+            else if(sel==3) settingsScreen();
+            else { int g=menu("HOW TO PLAY",guideItems,3);
+                   if(g==0) helpScreen("PLAYING",lifeHelp,12); else if(g==1) helpScreen("MAKE CREATURE",creatureHelp,13); else if(g==2) helpScreen("BUILD ROOMS",mapHelp,12); }
+            gToMenu=0; prev=keyNow(); dirty=1; continue;
+        }
+        if(dirty){ drawMainMenu(sel); present(); dirty=0; } else vsync();
+    }
+}
+
+int main(void){
+    REG_WAITCNT=0x4317;  // ROM 3/1 waits + prefetch (power-on default is 4/2, no prefetch)
+    REG_DISPCNT=0x0403;  // mode 3, BG2 on
+    initTables(); setColors(); settingsLoad();
+    titleScreen();
+    starter();
+    mapReset(); mapLoad();   // default room, or the one saved to SRAM
+    mainMenu();
+    return 0;
+}
+
