@@ -252,7 +252,36 @@ def bus_gains(trim=(1.0, 1.0)):
         g.append((int(round(min(1.9, l * trim[0]) * 128)), int(round(min(1.9, r * trim[1]) * 128))))
     return g                                                # (left, right) in 1/128 units
 
-def design_pan(S, used, insts):
+# ---- hand-made pan choreography (overrides the automatic plan for the notes it returns a position for; None = leave it to the plan) ----
+def title_pan(pat, row, ch, i, n):
+    """THE DIPPER MAN.  Third drop (patterns 20-22, the one where the extra drums come in) is the widest part of the song:
+       toms (inst 8) sweep across the field in opposite directions and cross in the middle of every bar, the swoosh (inst 9) throws
+       high notes right and low notes left, the click (inst 11) answers on the opposite side, the double hits (inst 16) ping-pong
+       on every row, the stab chords swap sides every half bar.  Elsewhere: gentler versions of the same ideas, the lead (inst 3)
+       auto-pans in a slow sine, and the bass pair stays close to the middle."""
+    d3 = pat in (20, 21, 22); W = 0.9 if d3 else 0.6
+    if i == 4: return -0.25 if ch == 0 else 0.25                          # bass pair: a little apart, still centred
+    if i == 1:                                                            # stab chords
+        side = -1 if ch == 2 else 1
+        if d3 and (row // 4) % 2: side = -side                            # drop 3: swap sides every half bar
+        return side * W
+    if i == 3: return 0.8 * np.sin(2 * np.pi * (row / 16.0 + pat * 0.37))  # lead: each note lands further round the circle
+    if i == 8:                                                            # drop-3 toms: two voices sweep L->R and R->L, crossing mid bar
+        x = 0.9 * np.cos(np.pi * row / 15.0); return -x if ch == 8 else x
+    if i == 9: return 0.7 if n >= 78 else -0.7                            # swoosh: pitch decides the side
+    if i == 11: return 0.85 if (row // 2) % 2 == 0 else -0.85             # click answers on the opposite side
+    if i == 16:
+        if ch == 4: return (-1 if row % 2 == 0 else 1) * W                # double hits ping-pong on every row
+        return 0.25 * (-1 if (row // 4) % 2 else 1)
+    if i == 15:
+        base = {5: -0.55, 6: 0.55, 7: (0.35 if row % 2 else -0.35)}.get(ch, 0.0)
+        return base * (W / 0.9 if not d3 else 1.0)
+    if i == 14: return -W if row < 8 else W                               # hats cross the field once per bar
+    if i == 13: return -0.35 if row < 8 else 0.35
+    return None
+OVERRIDES = {"the_dipper_man": title_pan}
+
+def design_pan(S, used, insts, sid=None):
     """Pan plan for one song. Returns pan(pat, row, ch, inst, note) -> bus.  Rules (a small 'mix engineer'):
       kick / sub / bass (low and short, or low notes)  -> centre.
       long low pads (two or more of them)               -> alternate hard-ish left / right, so pad pairs become a wide bed.
@@ -303,9 +332,13 @@ def design_pan(S, used, insts):
         b = pan0(pat, row, ch, i, note)
         if flip.get(i, 1) < 0: b = 6 - b
         return max(0, min(6, b + shift.get(i, 0)))
+    ov = OVERRIDES.get(sid)
     def pan0(pat, row, ch, i, note):
         d = info.get(i)
         if not d: return 3
+        if ov:
+            q = ov(pat, row, ch, i, note)
+            if q is not None: return int(round(max(-0.9, min(0.9, q)) * 3 / 0.9)) + 3
         if (i, 'pp') in pos:                                 # hats: ping-pong
             k = toggle.get(i, 0); toggle[i] = k + 1
             side = -1 if (k + pos[(i, 'pp')]) % 2 == 0 else 1
@@ -320,27 +353,27 @@ def design_pan(S, used, insts):
     gl = [g[0] / 128.0 for g in bus_gains()]; gr = [g[1] / 128.0 for g in bus_gains()]
     rowN = S['tempo'] * 2.5 / S['bpm'] * MIXR; seq = []; t = 0           # the song in play order; a new note on a channel cuts the old one
     for o in S['order']:
-        for r in S['pats'][o]:
+        for ri, r in enumerate(S['pats'][o]):
             for ch, (n, i, v, e_, ep) in enumerate(r):
-                if n and n < 97 and i in info: seq.append([t, ch, i, n, v])
+                if n and n < 97 and i in info: seq.append([t, ch, i, n, v, o, ri])
             t += 1
     nxt = {}
     for k in range(len(seq) - 1, -1, -1):
         t0, ch = seq[k][0], seq[k][1]; seq[k].append((nxt.get(ch, t + 8) - t0) * rowN); nxt[ch] = t0
     ents = {i: [] for i in info}; etot = 1e-9; cums = {}
-    for t0, ch, i, n, v, room in seq:
+    for t0, ch, i, n, v, o_, r_, room in seq:
         I = insts[i - 1]; q = I['q'].astype(float); st = I['steps'][n - 1] / 65536
         rel = (v - 0x10) / 64 if 0x10 <= v <= 0x50 else 1.0
         cs = cums.get(i)
         if cs is None: cs = cums[i] = np.cumsum(q ** 2)
         e = (I['svol'] * I['pk'] * rel) ** 2 * cs[min(len(q) - 1, int(room * st))] / st      # energy of the part of the sample that actually plays
-        ents[i].append((e, pan0(0, 0, ch, i, n))); etot += e
+        ents[i].append((e, pan0(o_, r_, ch, i, n))); etot += e
     def contrib(i, f, sh):
         c = 0.0
         for e, b0 in ents[i]:
             b = max(0, min(6, (6 - b0 if f < 0 else b0) + sh)); c += e * (gl[b] ** 2 - gr[b] ** 2)
         return c
-    movable = [i for i in info if info[i]['cls'] != 'low']
+    movable = [] if ov else [i for i in info if info[i]['cls'] != 'low']   # (a hand-made plan is not mirrored; the trim below balances it)
     cur = {i: contrib(i, 1, 0) for i in movable}; D = sum(cur.values())
     # balance: weigh how much energy each instrument puts on each side and mirror whole instruments (left <-> right) where that evens
     # the two ears out. The player is stereo, so a song that leans 2-3 dB to one side is plainly audible on headphones.
@@ -412,7 +445,7 @@ def convert(sid, path):
     if offs: print("  WARNING: %d note-off keys are ignored by the player" % offs)
     insts = convert_samples(S, used)
     ninst = len(insts)
-    panf = design_pan(S, used, insts)
+    panf = design_pan(S, used, insts, sid)
     # note events: u32  ch(4) | inst(5)<<4 | note(7)<<9 | volume(7)<<16 | pan bus(3)<<23   (volume = final voice volume, 64 = full sample level, up to 127 with GAIN)
     ev = []; off = []; rows = []
     for pi, p in enumerate(S['pats']):
