@@ -242,10 +242,10 @@ static void simShiftEnd(void){   // 17:00 on a workday
     if(p>=q/2) simEvent(SE_SHIFT);
     shiftPts=0; simsSave();
 }
-static void ageTick(void){   // once per game day: baby, child and teen each last a number of days (AGING option); the life loop does the growing
+static void ageTick(void){   // once per game day: each stage lasts the days set on OPTIONS > AGES (the AGING option scales them); the life loop does the growing
     static const u8 pct[4]={0,200,100,50};
-    if(stage>=AG_ADULT||!xo[XO_AGING]) return;
-    int need=stDays[stage]*pct[xo[XO_AGING]]/100; if(need<1) need=1;
+    if(stage>=AG_ELDER||!xo[XO_AGING]||!oStageDays(stage)) return;   // an elder is the last stage; OFF or FOREVER never grows
+    int need=oStageDays(stage)*pct[xo[XO_AGING]]/100; if(need<1) need=1;
     if(++ageDays>=need){ gGrow=1; simQueue("BIRTHDAY"); } else ageSave();
 }
 static void simMinute(void){   // once per game minute

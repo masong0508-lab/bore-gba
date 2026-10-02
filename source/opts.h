@@ -43,11 +43,15 @@ enum {
     XO_SLOTCONF,  // ask before overwriting, loading over or deleting a slot
     XO_SLOTCONT,  // what a slot saves: ROOM, ROOM + PERSON, ALL (room, person, life)
     XO_SLOTBOOT,  // at power on, the person of the active slot is loaded (the creature is not kept anywhere else)
-    XO_AGING,     // how fast the life stages pass: OFF SLOW NORMAL FAST (baby 2 days, child 3, teen 3 at normal; slow doubles it, fast halves it)
+    XO_AGING,     // how fast the life stages pass: OFF SLOW NORMAL FAST (slow doubles the days of every stage, fast halves them)
+    XO_AGEB,      // OPTIONS > AGES: days as a BABY  (see oStageDays)
+    XO_AGEC,      // days as a CHILD
+    XO_AGET,      // days as a TEEN
+    XO_AGEA,      // days as an ADULT (the last choice is FOREVER: never grows old)
     XO_N
 };
-static const u8 xoCnt[]={ 5,5,2,4,4,4,4,2,3,4,2,3,2,4,   4,3,   4,3,2,   3,6,3,   2,2,2,2,2,3,2, 4 };
-static const u8 xoDef[]={ 2,1,1,2,1,1,1,1,0,2,1,2,1,1,   0,1,   0,0,1,   0,0,1,   1,1,1,0,1,2,1, 2 };
+static const u8 xoCnt[]={ 5,5,2,4,4,4,4,2,3,4,2,3,2,4,   4,3,   4,3,2,   3,6,3,   2,2,2,2,2,3,2, 4,10,10,10,11 };
+static const u8 xoDef[]={ 2,1,1,2,1,1,1,1,0,2,1,2,1,1,   0,1,   0,0,1,   0,0,1,   1,1,1,0,1,2,1, 2,1,2,2,4 };
 _Static_assert(sizeof(xoCnt)==XO_N&&sizeof(xoDef)==XO_N,"xoCnt / xoDef must have one entry per XO_ name");
 static u8 xo[XO_N];
 static void optsDefaults(void){ for(int i=0;i<XO_N;i++) xo[i]=xoDef[i]; }
@@ -60,6 +64,9 @@ static const char* const accentNm[NACC]={"GOLD","MINT","SKY","PINK","ORANGE","LI
 // ---- helpers: the number each choice stands for ----
 static inline int oNeedPct(void){ static const u8 t[5]={0,50,100,150,200}; return t[xo[XO_NEED]]; }
 static inline int oStepsMin(void){ static const u8 t[5]={7,15,30,60,0}; return t[xo[XO_DAY]]; }   // logic steps per game minute, 0 = stopped
+static inline int oStageDays(int st){   // game days a stage lasts before the next one (0 = for ever); ELDER is the last stage and has no row
+    static const u8 t[10]={1,2,3,5,7,10,14,21,30,60};
+    if(st<0||st>3) return 0; int i=xo[XO_AGEB+st]; return i<10?t[i]:0; }
 static inline int oBillsPct(void){ static const u8 t[4]={0,50,100,200}; return t[xo[XO_BILLS]]; }
 static inline int oQuotaPct(void){ static const u8 t[4]={60,100,150,200}; return t[xo[XO_QUOTA]]; }
 static inline int oScorePct(void){ static const u16 t[4]={50,100,200,300}; return t[xo[XO_SCORE]]; }

@@ -1,4 +1,4 @@
-// optscreen.h - the OPTIONS screen (settingsScreen). Seven pages, every row is one choice or one action.
+// optscreen.h - the OPTIONS screen (settingsScreen). Eight pages, every row is one choice or one action.
 //
 //   L / R  change page        UP / DOWN  pick a row        LEFT / RIGHT (or A)  change it
 //   SELECT  put the row back to its normal value           B or START  back (everything is saved)
@@ -23,7 +23,8 @@ static const char* const lbNeed[5]={"OFF","SLOW","NORMAL","FAST","BRUTAL"}, *con
     *const lbDay[5]={"3 MIN","6 MIN","12 MIN","24 MIN","STOPPED"}, *const lbBills[4]={"NONE","HALF","NORMAL","DOUBLE"},
     *const lbQuota[4]={"EASY","NORMAL","HARD","INSANE"}, *const lbScore[4]={"X0.5","X1","X2","X3"},
     *const lbCombo[4]={"1.5 SEC","2.5 SEC","4 SEC","6 SEC"}, *const lbSpeed[4]={"80 %","100 %","125 %","150 %"},
-    *const lbAging[4]={"OFF","SLOW","NORMAL","FAST"}, *const lbHurt[3]={"NORMAL","GENTLE","NO DEATH"}, *const lbBubble[3]={"OFF","URGENT","ALL"}, *const lbShown[2]={"HIDDEN","SHOWN"};
+    *const lbDays[10]={"1 DAY","2 DAYS","3 DAYS","5 DAYS","7 DAYS","10 DAYS","14 DAYS","21 DAYS","30 DAYS","60 DAYS"},
+    *const lbDaysA[11]={"1 DAY","2 DAYS","3 DAYS","5 DAYS","7 DAYS","10 DAYS","14 DAYS","21 DAYS","30 DAYS","60 DAYS","FOREVER"}, *const lbAging[4]={"OFF","SLOW","NORMAL","FAST"}, *const lbHurt[3]={"NORMAL","GENTLE","NO DEATH"}, *const lbBubble[3]={"OFF","URGENT","ALL"}, *const lbShown[2]={"HIDDEN","SHOWN"};
 static const char* const lbVol4[4]={"FULL","HALF","QUARTER","OFF"}, *const lbVol3[3]={"FULL","HALF","QUARTER"},
     *const lbBtn[4]={"NORMAL","A B SWAPPED","L R SWAPPED","BOTH SWAPPED"}, *const lbRep[3]={"SLOW","NORMAL","FAST"},
     *const lbClock[3]={"24 HOUR","12 HOUR","HIDDEN"}, *const lbToast[3]={"SHORT","NORMAL","LONG"},
@@ -52,9 +53,15 @@ static const OptRow pgPlay[]={
  XR(XO_COMBO,"COMBO WINDOW",lbCombo,"TIME YOU HAVE TO LAND THE NEXT TRICK","BEFORE THE CHAIN IS BANKED"),
  XR(XO_SPEED,"TOP SPEED",lbSpeed,"HOW FAST YOU WALK RUN AND SKATE","80 TO 150 % OF NORMAL"),
  XR(XO_MOODFX,"MOOD EFFECTS",lbOnOff,"SAD SLOWS YOU  STOKED SPEEDS YOU UP AND MOOD","CHANGES TRICK POINTS  OFF IGNORES MOOD"),
- XR(XO_AGING,"AGING",lbAging,"HOW LONG BABY CHILD AND TEEN LAST BEFORE YOU","GROW  OFF STAYS AT THE AGE YOU PICKED"),
  XR(XO_HURT,"HURT",lbHurt,"GENTLE HALVES FALL DAMAGE","NO DEATH MEANS A FALL CAN NEVER KILL"),
  XR(XO_AUTOSAVE,"AUTO SAVE LIFE",lbOnOff,"SAVES AT MIDNIGHT PAYDAY AND THE PAUSE MENU","OFF  ONLY SLOTS AND SAVE LIFE NOW SAVE IT"),
+};
+static const OptRow pgAges[]={
+ XR(XO_AGING,"AGING",lbAging,"OFF STAYS AT THE AGE YOU PICKED  SLOW DOUBLES","EVERY STAGE BELOW  FAST HALVES THEM"),
+ XR(XO_AGEB,"BABY LASTS",lbDays,"GAME DAYS AS A BABY  THE ONE STAGE YOU","CANNOT STEER"),
+ XR(XO_AGEC,"CHILD LASTS",lbDays,"GAME DAYS AS A CHILD","BEFORE GROWING INTO A TEEN"),
+ XR(XO_AGET,"TEEN LASTS",lbDays,"GAME DAYS AS A TEEN","THE CAREER STARTS AT THIS STAGE"),
+ XR(XO_AGEA,"ADULT LASTS",lbDaysA,"GAME DAYS AS AN ADULT BEFORE BECOMING AN","ELDER  FOREVER NEVER GROWS OLD"),
 };
 static const OptRow pgAudio[]={
  VR(sSnd,2,1,"SOUND",lbOnOff,"SOUND OFF SKIPS SOUND DECODING","SAVES A LITTLE SPEED AND BATTERY"),
@@ -96,9 +103,9 @@ static const OptRow pgData[]={
  AR(OA_RESET,"RESET ALL OPTIONS","PUTS EVERY OPTION BACK TO NORMAL","PRESS A"),
 };
 typedef struct { const char*nm; const OptRow*r; u8 n; } OptPage;
-#define NOPG 7
+#define NOPG 8
 #define PG(nm,t) {nm,t,(u8)(sizeof(t)/sizeof(t[0]))}
-static const OptPage optPages[NOPG]={ PG("VIDEO",pgVideo), PG("PLAY",pgPlay), PG("AUDIO",pgAudio), PG("INPUT",pgInput), PG("HUD",pgHud), PG("ROOMS",pgRooms), PG("DATA",pgData) };
+static const OptPage optPages[NOPG]={ PG("VIDEO",pgVideo), PG("PLAY",pgPlay), PG("AGES",pgAges), PG("AUDIO",pgAudio), PG("INPUT",pgInput), PG("HUD",pgHud), PG("ROOMS",pgRooms), PG("DATA",pgData) };
 static int opPage; static u8 opSel[NOPG];
 
 static u8* rowVar(const OptRow*r){ return r->kind==OR_XO?&xo[r->idx]: r->kind==OR_JB?&sJb: r->v; }
@@ -144,8 +151,8 @@ static void drawOptions(void){
     static const u16 heat[4]={ RGB(12,28,10), RGB(31,26,6), RGB(30,10,8), RGB(22,24,26) };
     fillCols(0,ROW_W,RGB(3,4,8));
     box(4,2,232,156);
-    for(int i=0;i<NOPG;i++){ int x=7+i*33;   // the page tabs
-        if(i==opPage){ rect(x,4,32,10,GOLD); text(x+2,6,optPages[i].nm,RGB(4,3,6),1); } else text(x+2,6,optPages[i].nm,DIMC,1); }
+    for(int i=0;i<NOPG;i++){ int x=4+i*29;   // the page tabs
+        if(i==opPage){ rect(x,4,28,10,GOLD); text(x+2,6,optPages[i].nm,RGB(4,3,6),1); } else text(x+2,6,optPages[i].nm,DIMC,1); }
     rect(6,15,228,1,RGB(10,12,16));
     const OptPage*pg=&optPages[opPage]; int sel=opSel[opPage], y0=19, vis=11;
     if(opPage==0){   // the speed meter: how much of the frame the picture needs. 60 / 30 / 20 marks show which frame rate it can hold.
@@ -242,4 +249,4 @@ static void settingsScreen(void){   // the OPTIONS screen (the name stays so eve
         else { vsync(); if(remeasure&&opPage==0&&++idle>=20){ sCost=measureDraw(); costCache[costKey()]=(s16)sCost; remeasure=0; dirty=1; } }
     }
 }
-static const char* const optHelp[12]={">OPTIONS",">PAGES  L AND R","VIDEO  SPEED AND LOOKS   PLAY  THE LIFE SIM","AUDIO  INPUT  HUD  ROOMS  DATA",">ROWS","UP DOWN PICK  LEFT RIGHT CHANGE","SELECT PUTS A ROW BACK TO NORMAL","A GOLD DOT MARKS A CHANGED ROW",">SAFE TO TRY","RESET ALL OPTIONS IS ON THE DATA PAGE","B OR START GOES BACK AND SAVES",""};
+static const char* const optHelp[12]={">OPTIONS",">PAGES  L AND R","VIDEO  SPEED AND LOOKS   PLAY  THE LIFE SIM","AGES  HOW LONG EACH LIFE STAGE LASTS",">ROWS","UP DOWN PICK  LEFT RIGHT CHANGE","SELECT PUTS A ROW BACK TO NORMAL","A GOLD DOT MARKS A CHANGED ROW",">SAFE TO TRY","RESET ALL OPTIONS IS ON THE DATA PAGE","B OR START GOES BACK AND SAVES",""};

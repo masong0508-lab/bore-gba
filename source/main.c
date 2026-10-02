@@ -73,21 +73,20 @@ static const u16 botTones[NSW]  = { RGB(8,9,20), RGB(5,5,8), RGB(18,12,6), RGB(1
 // The look: one number per choice in the creature creator. 0 everywhere = the starter creature.
 enum { LK_SHAPE, LK_SKIN, LK_EYES, LK_MOUTH, LK_EARS, LK_HSTYLE, LK_HCOL, LK_TOP, LK_BOT, LK_N };
 static u8 look[LK_N];
-// ---- life stages ----  BABY (cannot be steered, walks about by itself), CHILD, TEEN, ADULT. The creator's room to build in is smaller
+// ---- life stages ----  BABY (cannot be steered, walks about by itself), CHILD, TEEN, ADULT, ELDER (the last stage, slower and stooped). The creator's room to build in is smaller
 // when young and grows with the age: a box of stBW x stBD x stBH blocks centred on the floor, a biggest block size and a list of looks
 // each part picker may use. The adult box is the whole 6x4x8 space, so every old person and save is an ADULT.
-enum { AG_BABY, AG_CHILD, AG_TEEN, AG_ADULT, AG_N };
+enum { AG_BABY, AG_CHILD, AG_TEEN, AG_ADULT, AG_ELDER, AG_N };
 static u8 stage=AG_ADULT;   // current life stage
-static u8 ageDays;          // game days lived in this stage (grows the creature when it reaches stDays[], saved with the person)
-static const char* const stageNm[AG_N]={"BABY","CHILD","TEEN","ADULT"};
-static const u8 stBW[AG_N]={4,4,6,6}, stBD[AG_N]={4,4,4,4}, stBH[AG_N]={5,6,7,8};   // build box (width is always even: parts mirror around its centre)
-static const u8 stMaxSz[AG_N]={2,2,3,3};          // biggest block size S/M/L the builder offers
-static const u8 stLegs[AG_N]={0,1,2,3};           // leg blocks showing under the torso before the shape trims them
-static const u8 stSpd[AG_N]={50,80,95,100};       // walking speed in percent
-static const u8 stDays[AG_N]={2,3,3,0};           // game days spent in each stage (0 = stay for ever)
+static u8 ageDays;          // game days lived in this stage (grows the creature when it reaches the days set on the OPTIONS > AGES page, saved with the person)
+static const char* const stageNm[AG_N]={"BABY","CHILD","TEEN","ADULT","ELDER"};
+static const u8 stBW[AG_N]={4,4,6,6,6}, stBD[AG_N]={4,4,4,4,4}, stBH[AG_N]={5,6,7,8,7};   // build box (width is always even: parts mirror around its centre)
+static const u8 stMaxSz[AG_N]={2,2,3,3,3};          // biggest block size S/M/L the builder offers
+static const u8 stLegs[AG_N]={0,1,2,3,2};   // (an elder is stooped: a block lower than an adult)           // leg blocks showing under the torso before the shape trims them
+static const u8 stSpd[AG_N]={50,80,95,100,70};       // walking speed in percent
 // allowed looks per stage: bit n set = option n may be picked. Shape: AVERAGE BROAD BIG-HEAD STUBBY. Ears: NONE SMALL BIG. Hair: CROP BOWL LONG BALD.
-static const u8 stMaskShape[AG_N]={12,13,13,15}, stMaskEars[AG_N]={3,7,7,7}, stMaskHair[AG_N]={9,11,15,15};
-static const u8 stSwatches[AG_N]={4,6,8,8};       // how many colours of each row are on offer
+static const u8 stMaskShape[AG_N]={12,13,13,15,15}, stMaskEars[AG_N]={3,7,7,7,7}, stMaskHair[AG_N]={9,11,15,15,15};
+static const u8 stSwatches[AG_N]={4,6,8,8,8};       // how many colours of each row are on offer
 #define BX0 ((W-stBW[stage])/2)
 static u16 base[9+NWP], sT[9+NWP], sL[9+NWP], sR[9+NWP];   // slots 1..8 = body colours, 9.. = wallpaper average colours
 static u16 dL[4], dR[4];   // face-sprite palette (k w r s) pre-shaded for the left / right cube face
@@ -524,7 +523,7 @@ static void ageLoad(void){   // at power on, after the person came back from its
     if(m[2]!=stage){ stage=m[2]; fixLook(); if(custom) clipCustom(); else buildLook(); setColors(); }
 }
 static int gGrow;   // set at midnight when the creature has lived long enough in its stage: the life loop grows it (setStage) and re-bakes its sprites
-static inline int ojob(void){ return xo[XO_JOB]&&stage>=AG_TEEN; }   // career: shifts, quota and bills only for teens and adults
+static inline int ojob(void){ return xo[XO_JOB]&&stage>=AG_TEEN&&stage<AG_ELDER; }   // career: shifts, quota and bills for teens and adults (an elder is retired)
 static void starter(void){
     cx=2;cy=0;cz=1;part=0;size=1;
     buildLook();   // the starter creature is look 0 everywhere: legs, torso, arms, head, eyes, mouth and hair
@@ -1244,6 +1243,7 @@ static void lifeInit(void){
 static int rampAvg, rampOn;   // px/step (8.8) the skater has been climbing a ramp, smoothed (heights are whole px, so single steps are lumpy); rampOn = rode a ramp last step
 // BABY: cannot be steered. A caretaker keeps the needs up and the baby toddles about by itself: stops now and then, picks a new way
 // every second or two, and turns round when it walks into something.
+static const char* const growNote[AG_N]={"","NOW A CHILD","NOW A TEEN","NOW AN ADULT","NOW AN ELDER"};
 static u16 babyPad(void){
     static const u16 dm[9]={0,K_RIGHT,K_LEFT,K_UP,K_DOWN,K_RIGHT|K_DOWN,K_LEFT|K_DOWN,K_RIGHT|K_UP,K_LEFT|K_UP};
     static int t, dir, still; static s32 ox, oy;
@@ -1322,7 +1322,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
     if(!ldead){   // needs: hunger and bladder, then how they (and the skating) make the skater feel
         if(stage==AG_BABY){ if(lfood<70) lfood=70; if(lbl>30) lbl=30; if(sNrg<60) sNrg=60; if(sHyg<60) sHyg=60; if(sCom<60) sCom=60; }   // looked after
         moodTick(); simsTick(pr,(int)(lfx>>8),(int)(lfy>>8));
-        if(gGrow){ gGrow=0; setStage(stage+1); bakeSprites(); lnote=stage==AG_CHILD?"NOW A CHILD":stage==AG_TEEN?"NOW A TEEN":"NOW AN ADULT"; lnoteT=120; lstun=lstun>30?lstun:30; lsp=0; }
+        if(gGrow){ gGrow=0; setStage(stage+1); bakeSprites(); lnote=growNote[stage]; lnoteT=120; lstun=lstun>30?lstun:30; lsp=0; }
         { int fe=oFoodEvery(), we=oWcEvery();   // FOOD AND WC option
           if(fe&&lfr%fe==0&&lfood>0) lfood--;
           if(we&&lfr%we==0&&lbl<100) lbl++; }
@@ -1735,7 +1735,7 @@ static const char* const hairNm[4]={"CROP","BOWL","LONG","BALD"};
 static const char* const* const lookNm[LK_N+1]={shapeNm,0,eyeNm,mouthNm,earNm,hairNm,0,0,0,stageNm};
 static const u16* const lookCol[LK_N+1]={0,skinTones,0,0,0,0,hairTones,topTones,botTones,0};
 static const Row tabRow[NTAB][3]={
-  {{"AGE",0,RK_PICK,LK_AGE,4},{"SHAPE",0,RK_PICK,LK_SHAPE,4},{"SKIN",0,RK_SWATCH,LK_SKIN,NSW}},
+  {{"AGE",0,RK_PICK,LK_AGE,AG_N},{"SHAPE",0,RK_PICK,LK_SHAPE,4},{"SKIN",0,RK_SWATCH,LK_SKIN,NSW}},
   {{"EYES",0,RK_PICK,LK_EYES,3},{"MOUTH",0,RK_PICK,LK_MOUTH,3},{"EARS",0,RK_PICK,LK_EARS,3}},
   {{"STYLE",0,RK_PICK,LK_HSTYLE,4},{"COLOUR",0,RK_SWATCH,LK_HCOL,NSW},{0}},
   {{"TOP",0,RK_SWATCH,LK_TOP,NSW},{"BOTTOM",0,RK_SWATCH,LK_BOT,NSW},{0}},
