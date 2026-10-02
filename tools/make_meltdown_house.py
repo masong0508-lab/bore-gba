@@ -14,6 +14,8 @@ import numpy as np
 from scipy import signal
 
 SR = 16726          # sample rate of a "relative note +12" XM sample (plays at its natural pitch on note C-4)
+SR2 = 8363 * 2 ** (5 / 12)    # relative note +5: 11163 Hz, for sounds with no energy above ~5 kHz (stabs, lead, crash) - 1/3 smaller than SR
+SR3 = 8363 / 2                 # relative note -12: 4182 Hz, for the riser (a dark noise sweep)
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "meltdown_in_mars_house.xm")
 rng = np.random.default_rng(1990)
 BPM, SPEED, NCH, ROWS = 126, 6, 10, 64
@@ -77,22 +79,22 @@ s = (np.sin(2 * np.pi * f * t) + .25 * np.sin(4 * np.pi * f * t)) * np.minimum(1
 add('sub', 'sub bass', finish(s, .9), 43)
 # chord stabs (root = C4, played transposed) and pads (root = C3)
 def stab(minor):
-    n = int(.50 * SR); t = tt(n)
-    x = sum(supersaw(f, n, (-9, 9)) for f in chord_tones(mid2f(60), minor))
-    x = tv_lp(x, 300 + 4200 * np.exp(-t / .09), 1.2) * np.minimum(1, t / .003) * np.exp(-t / .16)
+    n = int(.42 * SR2); t = tt(n, SR2)
+    x = sum(supersaw(f, n, (-9, 9), SR2) for f in chord_tones(mid2f(60), minor))
+    x = tv_lp(x, 300 + 4200 * np.exp(-t / .09), 1.2, SR2) * np.minimum(1, t / .003) * np.exp(-t / .16)
     return finish(x, .75)
-add('stab_m', 'chord stab m', stab(True), 60); add('stab_M', 'chord stab M', stab(False), 60)
-def pad(minor):
+add('stab_m', 'chord stab m', stab(True), 60, rel=5); add('stab_M', 'chord stab M', stab(False), 60, rel=5)
+def pad():                     # one pad for every chord: root + fifth + octaves (the thirds come from the stabs, arp and lead), so one sample instead of two
     n = int(2.4 * SR); t = tt(n)
-    x = sum(supersaw(f, n, (-10, 0, 10)) for f in chord_tones(mid2f(48), minor) + [mid2f(60)])
+    x = sum(supersaw(f, n, (-10, 0, 10)) for f in (mid2f(48), mid2f(55), mid2f(60), mid2f(36)))
     x = lp(x, 1250, 4) * (1 - np.exp(-t / .22)) * np.minimum(1, (n / SR - t) / .35) * (1 + .12 * np.sin(2 * np.pi * 4.2 * t))
     return finish(x, .70)
-add('pad_m', 'pad m', pad(True), 48); add('pad_M', 'pad M', pad(False), 48)
+add('pad', 'pad', pad(), 48)
 # leads (C5 = midi 72)
-n = int(.70 * SR); t = tt(n); f = mid2f(72)
-x = supersaw(f, n, (-16, -8, 0, 8, 16)) + .35 * square(f / 2, n)
-x = tv_lp(x, 1400 + 3200 * np.exp(-t / .10), 1.3) * np.minimum(1, t / .004) * (.5 + .5 * np.exp(-t / .22)) * np.minimum(1, (n / SR - t) / .1)
-add('lead', 'house lead', finish(x, .80), 72)
+n = int(.60 * SR2); t = tt(n, SR2); f = mid2f(72)
+x = supersaw(f, n, (-16, -8, 0, 8, 16), SR2) + .35 * square(f / 2, n, SR2)
+x = tv_lp(x, 1400 + 3200 * np.exp(-t / .10), 1.3, SR2) * np.minimum(1, t / .004) * (.5 + .5 * np.exp(-t / .22)) * np.minimum(1, (n / SR2 - t) / .1)
+add('lead', 'house lead', finish(x, .80), 72, rel=5)
 n = int(.26 * SR); t = tt(n)
 x = tv_lp(saw(f, n) + .5 * square(f, n), 600 + 3000 * np.exp(-t / .045), 2.0) * np.exp(-t / .09)
 add('pluck', 'arp pluck', finish(x, .75), 72)
@@ -103,14 +105,14 @@ for key, base, peak in (('acid0', 220, 800), ('acid1', 380, 1900), ('acid2', 650
     x = tv_lp(saw(f, n), base + peak * np.exp(-t / .075), 7.0) * np.minimum(1, t / .002) * np.exp(-t / .22)
     add(key, 'acid ' + key[-1], finish(np.tanh(1.5 * x), .85), 48)
 # fx
-n = int(1.25 * SR); add('crash', 'crash', finish(hp(noise(n), 3300, 3) * np.exp(-tt(n) / .45), .65))
-sr0 = 8363; n = int(3.8 * sr0); t = tt(n, sr0); fc = 250 * 2 ** (t / t[-1] * 4)
+n = int(.90 * SR2); add('crash', 'crash', finish(hp(noise(n), 3300, 3, SR2) * np.exp(-tt(n, SR2) / .36), .65), None, rel=5)
+sr0 = SR3; n = int(3.8 * sr0); t = tt(n, sr0); fc = 180 * 2 ** (t / t[-1] * 3.3)
 x = tv_lp(noise(n), fc, 1.8, sr0) * (t / t[-1]) ** 1.6
-add('riser', 'riser', finish(x, .75), None, rel=0)
+add('riser', 'riser', finish(x, .75), None, rel=-12)
 n = int(1.0 * SR); t = tt(n); ph = 2 * np.pi * np.cumsum(30 + 70 * np.exp(-t / .12)) / SR
 x = np.sin(ph) * np.exp(-t / .38) + lp(noise(n), 700) * np.exp(-t / .12) * .5
 add('impact', 'impact', finish(np.tanh(1.4 * x), .95))
-ORDER_KEYS = ['kick', 'clap', 'chat', 'ohat', 'bass', 'sub', 'stab_m', 'stab_M', 'pad_m', 'pad_M', 'lead', 'pluck', 'acid0', 'acid1', 'acid2', 'crash', 'riser', 'snare', 'impact']
+ORDER_KEYS = ['kick', 'clap', 'chat', 'ohat', 'bass', 'sub', 'stab_m', 'stab_M', 'pad', 'lead', 'pluck', 'acid0', 'acid1', 'acid2', 'crash', 'riser', 'snare', 'impact']
 INST = {k: i + 1 for i, k in enumerate(ORDER_KEYS)}
 
 # ---------------------------------------------------------------- music
@@ -176,7 +178,7 @@ def build(sp):
                     elif s % 4 == 3: put(r, 4, 'bass', root + 12 if s in (7, 15) else root, .6)
         elif bm == 'sub': put(a, 4, 'sub', root, .9)
         # pad, stabs
-        if g('pad'): put(a, 6, 'pad_m' if minor else 'pad_M', near(pc, 55) if pc != 0 else 60, g('pad') * .55)
+        if g('pad'): put(a, 6, 'pad', near(pc, 55) if pc != 0 else 60, g('pad') * .55)
         if g('stab'):
             sm = near(pc, 62); pat = (0, 3, 6, 10) if g('stab') == 'A' else (2, 6, 10, 14)
             for r in range(a, b):

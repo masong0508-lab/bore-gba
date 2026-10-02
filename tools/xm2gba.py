@@ -20,6 +20,7 @@ from xm import parse
 
 MIXR = 18157                      # the game's music rate (MUS_RATE)
 SONGS_H = "source/songs.h"
+SHARED = {}                       # sample data already written for an earlier song: identical samples are stored once in the whole ROM
 OUT = "source/musicdata.h"
 TITLE = ("the_dipper_man", "tools/the_dipper_man.xm")
 GAIN = {"tree_swaying_action": 0.9, "amiga_music": 1.1, "earth_and_the_space_citizens": 2.0, "meltdown_in_mars_house": 1.8}   # louder/quieter per song (default 1.0), so every tracker song sits at a similar level
@@ -238,7 +239,9 @@ def convert_samples(S, used):
         y = signal.resample_poly(x, 1, ds) if ds > 1 else x.copy()
         pk = abs(y).max(); y = y / pk * 0.98 if pk > 0 else y     # normalise; the gain is folded into each note's volume
         q = np.round(y * 127).astype(int); fade = min(48, len(q) // 4); q[-fade:] = (q[-fade:] * np.linspace(1, 0, fade)).astype(int)
-        q = np.append(q, 0)                                       # guard sample for interpolation
+        k = len(q)
+        while k > 16 and abs(q[k - 1]) <= 1: k -= 1               # cut the inaudible tail (values -1..1 after the fade)
+        q = np.append(q[:k], 0)                                   # guard sample for interpolation
         base = fc4 / MIXR / ds
         steps = [int(round(base * 2 ** ((n - 49) / 12) * 65536)) for n in range(1, 97)]
         insts.append(dict(q=q, pk=pk, svol=s['vol'], steps=steps)); total += len(q)
@@ -301,7 +304,7 @@ def convert(sid, path):
     arr('u8', P + 'order', S['order'], 30); arr('u16', P + 'rows', rows, 30); arr('u32', P + 'patOff', off); arr('u32', P + 'ev', ev, 12)
     arr('u32', P + 'step', [s for I in insts for s in (I['steps'] if I else [0] * 96)], 8)
     arr('u32', P + 'len', [(len(I['q']) - 1) if I else 0 for I in insts])
-    seen = {}; names = []
+    seen = SHARED; names = []
     for k, I in enumerate(insts):
         if not I: names.append('0'); continue
         key = I['q'].tobytes()
