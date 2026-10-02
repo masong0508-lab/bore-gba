@@ -750,12 +750,21 @@ static const Song songs[]={
 #undef SONG_ADP
 #define NSONGS ((int)(sizeof(songs)/sizeof(songs[0])))
 _Static_assert(sizeof(songs)/sizeof(songs[0])<=32,"the jukebox holds at most 32 songs (see source/songs.h)");
+// ---------- debug code: UP UP DOWN DOWN LEFT LEFT RIGHT B A START on the title screen ----------
+// Reveals the PLACEHOLDER test tunes in the jukebox for this session (they are hidden otherwise).
+static u8 dbgOn;
+static const u16 dbgSeq[10]={K_UP,K_UP,K_DOWN,K_DOWN,K_LEFT,K_LEFT,K_RIGHT,K_B,K_A,K_START};
 static int titleScreen(void){
     buildTitle();                          // leaves the finished backdrop in both fb and tfb
     vsync(); dmaRows(fb,VRAM_ADDR,0,ROW_W,0,SH);
-    int shown=0, frame; musStart();
+    int shown=0, frame, dbgI=0; u16 dbgPrev=(u16)(~REG_KEYINPUT)&0x3FF; musStart();
     for(frame=0;;frame++){
-        if((~REG_KEYINPUT)&K_START) break;
+        u16 dk=(u16)(~REG_KEYINPUT)&0x3FF, dp=dk&(u16)~dbgPrev; dbgPrev=dk;
+        if(dp){   // a fresh button press: right next key of the code, or start over
+            if(dp==dbgSeq[dbgI]){ if(++dbgI==10){ dbgOn=1; dbgI=0; } }
+            else dbgI=(dp==dbgSeq[0])?1:0;
+        }
+        if(dk&K_START) break;
         dmaRows(tfb,(u32)(uintptr_t)fb,SM_W0,SM_W1,0,SM_Y1);   // wipe last frame's smoke only
         smoke(frame);
         int on=(frame>>4)&1, tx=(on!=shown);
@@ -899,6 +908,12 @@ static const char sramTag[] __attribute__((used)) = "SRAM_V113";   // tells emul
 #define LEG_X 13                // an old save is copied into the plaza at (13,22)
 #define LEG_Y 22
 #include "jukebox.h"   // playlist logic: shuffled order lives in SRAM at JB_OFF (12288), the mode is a setting
+// Songs named PLACEHOLDER... are hidden from the jukebox unless the title-screen debug code was entered (dbgOn).
+static int isDbgSong(int i){ const char*n=songs[i].name, *p="PLACEHOLDER"; while(*p){ if(*n++!=*p++) return 0; } return 1; }
+static void jbSetup(void){   // build the list of songs the jukebox shows, then load / make the playlist order
+    int n=0; for(int i=0;i<NSONGS&&n<JB_MAX;i++) if(dbgOn||!isDbgSong(i)) jbMap[n++]=(u8)i;
+    jbInit(n);
+}
 // SRAM layout: 0..2 "BM3", then MSZ bytes each of tiles, floors, wallpapers. Settings at SET_OFF (see settingsSave).
 // Old "BM1" / "BM2" saves (14x14, settings at 640) still load: the room is placed into the plaza of the new default map.
 static void mapSave(void){ volatile u8*m=SRAM_BASE; m[0]='B'; m[1]='M'; m[2]='3';
@@ -1644,6 +1659,14 @@ static void creatureEditor(void){
 #define JB_ROWS 8                // visible list rows, 9 px each
 #define JB_LH (JB_ROWS*9+4)
 static int jbPlaying, jbMsgT; static const char*jbMsg;
+// Deliberately hard to read: every other letter is faded toward the background, some letters sit a pixel low, and the
+// spacing is stretched. Returns the x where the text ends (it is wider than tw() says).
+static u16 jmix(u16 c){ return (u16)(((c&0x7BDE)>>1)+((JB_BG&0x7BDE)>>1)); }
+static int jtext(int x,int y,const char*s,u16 c,int sc){
+    char t[2]={0,0}; u16 d=jmix(c);
+    for(int i=0;*s;s++,i++){ t[0]=*s; x=text(x,y+(((i*5+(i>>1))%3)==0),t,(i&1)?d:c,sc)+1; }
+    return x;
+}
 static void fillBox(int x0,int x1,int y0,int y1,u16 c){   // x0, x1 must be even (32-bit stores)
     u32 v=c|((u32)c<<16);
     for(int y=y0;y<y1;y++){ u32*row=(u32*)fb+y*ROW_W; for(int w=x0>>1;w<(x1>>1);w++) row[w]=v; }
@@ -1657,18 +1680,18 @@ static void jbStartSlot(int slot){   // play playlist slot (remembered in SRAM s
 }
 static void jbHead(void){   // title, equalizer, mode, now playing, progress bar
     fillBox(0,SW,0,JB_LY,JB_BG);
-    text(8,5,"JUKEBOX",GOLD,2);
+    jtext(8,5,"JUKEBOX",GOLD,2);
     for(int b=0;b<6;b++){ int h=jbPlaying?2+((rnd8()*13)>>8):1; rect(196+b*6,19-h,4,h,jbPlaying?RGB(10,26,10):RGB(10,12,16)); }
-    text(8,22,"MODE",DIMC,1); text(34,22,jbModeNm[sJb],GOLD,1);
-    if(jbMsgT>0) text(110,22,jbMsg,WHITE,1);
-    else { text(110,22,"TRACK",DIMC,1); int x=numAt(110+tw("TRACK",1)+4,22,jbPos+1,WHITE); x=text(x+4,22,"OF",DIMC,1); numAt(x+4,22,jbN,WHITE); }
-    text(8,32,"NOW",DIMC,1);
-    if(!sSnd) text(28,32,"SOUND IS OFF IN SETTINGS",RGB(30,10,8),1);
-    else text(28,32,songs[jbSong(jbPos)].name,WHITE,1);
+    int mx=jtext(8,22,"MODE",DIMC,1)+4; jtext(mx,22,jbModeNm[sJb],GOLD,1);
+    if(jbMsgT>0) jtext(110,22,jbMsg,WHITE,1);
+    else { int x=jtext(110,22,"TRACK",DIMC,1)+4; x=numAt(x,22,jbPos+1,WHITE); x=jtext(x+4,22,"OF",DIMC,1); numAt(x+4,22,jbN,WHITE); }
+    int nx=jtext(8,32,"NOW",DIMC,1)+4;
+    if(!sSnd) jtext(nx,32,"SOUND IS OFF IN SETTINGS",RGB(30,10,8),1);
+    else jtext(nx,32,songs[jbSong(jbPos)].name,WHITE,1);
     int pct=!mOn?0:mKind?(int)(aPos/(aN/100+1)):mOrd*100/mSong->nord; if(pct>100) pct=100;
     u16 gc=jbPlaying?RGB(12,28,10):DIMC;
     rect(8,42,160,4,RGB(8,10,14)); rect(8,42,pct*160/100,4,gc);
-    text(176,41,jbPlaying?"PLAYING":"STOPPED",gc,1);
+    jtext(176,41,jbPlaying?"PLAYING":"STOPPED",gc,1);
 }
 static void jbList(int cur){   // the playlist in play order: > cursor, + playing
     fillBox(0,SW,JB_LY,JB_LY+JB_LH,JB_BG);
@@ -1677,7 +1700,7 @@ static void jbList(int cur){   // the playlist in play order: > cursor, + playin
         int slot=top+r, y=JB_LY+3+r*9; u16 c=(slot==cur)?WHITE:DIMC;
         if(slot==cur){ fillBox(6,228,y-2,y+7,RGB(6,16,8)); text(8,y,">",WHITE,1); }
         if(slot==jbPos&&jbPlaying) text(14,y,"+",GOLD,1);
-        numAt(22,y,slot+1,c); text(36,y,songs[jbSong(slot)].name,c,1);
+        numAt(22,y,slot+1,c); jtext(36,y,songs[jbSong(slot)].name,c,1);
     }
     if(jbN>JB_ROWS){   // scroll bar
         int th=JB_ROWS*9*JB_ROWS/jbN, ty=JB_LY+3+(JB_ROWS*9-th)*top/(jbN-JB_ROWS);
@@ -1691,9 +1714,9 @@ static void jukeboxScreen(void){
     fillBox(0,SW,0,SH,JB_BG);
     jbHead(); jbList(cur);
     u16 hint=RGB(16,18,20);
-    text(8,130,"UP DOWN PICK  A PLAY  L R PREV NEXT",hint,1);
-    text(8,137,"START STOP OR PLAY  SELECT RESHUFFLE",hint,1);
-    text(8,144,"LEFT RIGHT MODE  B BACK",hint,1);
+    jtext(8,130,"UP DOWN PICK  A PLAY  L R PREV NEXT",hint,1);
+    jtext(8,137,"START STOP OR PLAY  SELECT RESHUFFLE",hint,1);
+    jtext(8,144,"LEFT RIGHT MODE  B BACK",hint,1);
     vsync(); dmaRows(fb,VRAM_ADDR,0,ROW_W,0,SH); dH=dL=0;
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; fr++;
@@ -1769,7 +1792,7 @@ int main(void){
     REG_DISPCNT=0x0403;  // mode 3, BG2 on
     initTables(); setColors(); settingsLoad(); applyRom();
     lrng^=(u32)titleScreen()*2654435761u;   // time spent on the title seeds the random numbers (first shuffle)
-    jbInit(NSONGS);                         // load the saved shuffled order (or make a new one)
+    jbSetup();                              // load the saved shuffled order (or make a new one), placeholders hidden
     starter();
     mapReset(); mapLoad();   // default room, or the one saved to SRAM
     mainMenu();
