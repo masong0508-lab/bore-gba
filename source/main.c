@@ -320,6 +320,35 @@ static void rotUW(int u,int w,int*ru,int*rw){
 static void projC(int u,int w,int yy,int*ox,int*oy){
     int a,b; rotUW(u,w,&a,&b); *ox=OXC+(a-b)*CA/2; *oy=OYC+(a+b)*CB/2-yy*CC;
 }
+// Wedge blocks (hair): the block's own diamond, with some top corners lowered by a full block height, so the top face slopes.
+// shape 4..11: 4 edges (slope towards +x +z -x -z) and 4 corners (only the outer corner drops: ++ -+ -- +-). Slopes are given in grid space and
+// turned with the view like everything else, so a wedge keeps pointing the same way as the creature spins.
+static const u8 wMask[8]={10,12,5,3,8,4,1,2};   // bit k = grid corner (k&1 ? +x : -x, k&2 ? +z : -z)
+IWRAM_CODE static void wedgeCube(int sx,int sy,int ci,int shape,int f){
+    int m=wMask[shape-4], o[4]={0,0,0,0};   // lowered corners as seen on screen: N, E, S, W
+    for(int k=0;k<4;k++) if(m>>k&1){
+        int a,b; rotUW((k&1)?1:-1,(k&2)?1:-1,&a,&b); int dx=a-b, dy=a+b;
+        o[dx>0?1:dx<0?3:dy>0?2:0]=CC;
+    }
+    const u8*hhp=hhT[0];
+    u16 T=sT[ci], L=sL[ci], R=sR[ci], eT=shade(T,9), eL=shade(L,9), eR=shade(R,9);
+    int left=o[3]+o[2], right=o[1]+o[0];
+    u16 S2=shade(T,left>right?13:left<right?11:12);   // the slope: a little darker than a flat top, tilted towards the light on the left
+    for(int t=-CA;t<=CA;t++){
+        int x=sx+t, hh=hhp[t<0?-t:t], k=t<0?t+CA:t, u0,u1,l0,l1;
+        if(t<0){ u0=o[3];u1=o[0];l0=o[3];l1=o[2]; } else { u0=o[0];u1=o[1];l0=o[2];l1=o[1]; }
+        int yu=sy-hh+u0+(u1-u0)*k/CA, yl=sy+hh+l0+(l1-l0)*k/CA, yb=sy+hh+CC-1;
+        if(yl>yb) yl=yb;
+        u16 sc=t<0?L:R, ec=t<0?eL:eR;
+        if(yl<yb) vline(x,yl,yb,sc);
+        if(yl>=yu) vline(x,yu,yl,S2);
+        px(x,yu,eT);
+        if(yl<yb-1){ px(x,yl+1,lite(sc,19)); } else px(x,yl,ec);
+        if(yb>yl+2) px(x,yb-1,shade(sc,13));
+        px(x,yb,ec);
+        if(t==-CA||t==CA){ if(!(f&(t<0?16:32))) vline(x,yu,yb,ec); }
+    }
+}
 static void moveView(int sx,int sz){   // screen-relative step -> grid step
     int gx,gz;
     switch(view){ case 0:gx=sx;gz=sz;break; case 1:gx=sz;gz=-sx;break; case 2:gx=-sx;gz=-sz;break; default:gx=-sz;gz=sx; }
@@ -397,7 +426,14 @@ static void headBox(int*hx,int*hy,int*hz,int*hs){   // where the head sits (and 
     *hx=2; *hy=5; *hz=1; *hs=1;
     switch(look[LK_SHAPE]){ case 2: *hx=1; *hy=4; *hz=0; *hs=2; break; case 3: *hy=4; break; }
 }
-static void hairBlock(int x,int y,int z){ if(x>=0&&x<W&&y>=0&&y<H&&z>=0&&z<D) vox[y][z][x]=5; }
+static void hairW(int x,int y,int z,int xp,int xm,int zp,int zm){   // one hair block; the flags say which sides slope away (grid space)
+    if(x<0||x>=W||y<0||y>=H||z<0||z>=D) return;
+    int nx=xp+xm, nz=zp+zm, m=0;
+    if(nx+nz==1) m=xp?10:zp?12:xm?5:3;
+    else if(nx==1&&nz==1) m=1<<((xp?1:0)+(zp?2:0));
+    for(int i=0;i<8;i++) if(wMask[i]==m&&m){ vox[y][z][x]=(u8)(5|((4+i)<<4)); return; }
+    vox[y][z][x]=5;
+}
 static void buildLook(void){
     for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ vox[y][z][x]=0; dec[y][z][x]=0; }
     sty[0]=look[LK_EYES]; sty[1]=look[LK_MOUTH];
@@ -416,9 +452,14 @@ static void buildLook(void){
     int es=look[LK_EARS];                                        // ears: 0 none, 1 small (1x2), 2 big (2x4)
     if(es) doPart(1,6,es,hx-es,hy+(es==1?(hh-2)/2:0),hz+(es==1?hd/2:0));
     int st=look[LK_HSTYLE], top=(H-(hy+hh)>=1)?hy+hh:hy+hh-1;    // hair: a cap on the head, or in place of its top layer when the head touches the ceiling
-    if(st!=3) for(int z=hz;z<hz+hd;z++)for(int x=hx;x<hx+hw;x++) hairBlock(x,top,z);
-    if(st==1) for(int z=hz;z<hz+hd;z++)for(int y=top-1;y<=top;y++){ hairBlock(hx-1,y,z); hairBlock(hx+hw,y,z); }   // BOWL: down the sides
-    if(st==2){ int z0=hz>0?hz-1:hz; for(int x=hx;x<hx+hw;x++)for(int y=hy-1;y<=top;y++) hairBlock(x,y,z0); }          // LONG: down the back
+    if(st!=3){
+        // every style starts with the same dome: the outer edges of the cap are wedges that slope away, down to the head's top
+        for(int z=hz;z<hz+hd;z++)for(int x=hx;x<hx+hw;x++) hairW(x,top,z,x==hx+hw-1,x==hx,z==hz+hd-1,z==hz);
+        // BOWL: full blocks down both sides (the dome slopes down onto them, so the profile stays smooth)
+        if(st==1) for(int z=hz;z<hz+hd;z++)for(int y=top-1;y>=top-2&&y>=0;y--){ hairW(hx-1,y,z,0,0,0,0); hairW(hx+hw,y,z,0,0,0,0); }
+        // LONG: full blocks down the back, from the dome to below the neck
+        if(st==2){ int z0=hz>0?hz-1:hz; for(int x=hx;x<hx+hw;x++)for(int y=hy-1;y<top;y++) hairW(x,y,z0,0,0,0,0); }
+    }
     if(hs==1){ doPart(1,4,1,hx,hy+1,0); doPart(1,5,1,hx,hy,0); }          // eyes on the top row of the face, mouth on the bottom row
     else     { doPart(1,4,2,hx,hy+1,0); doPart(1,5,1,hx+1,hy,0); }        // big head: big eyes, mouth still one block
     custom=0;
@@ -507,7 +548,7 @@ IWRAM_CODE static void drawScene(int blink){
         if(shape==1||shape==2){ int sg=u<0?1:-1, a2,b2; rotUW(sg,0,&a2,&b2); sx+=HUG*(a2-b2); sy+=(HUG*(a2+b2))/2; }   // hug the torso
         int f=(solid(x,y+1,z)?1:0)|(solid(x,y-1,z)?2:0)
              |(solid(x-dA[view][0],y,z-dA[view][1])?16:0)|(solid(x-dB[view][0],y,z-dB[view][1])?32:0);
-        cube(sx,sy,ci,shape,f);
+        if(shape>=4) wedgeCube(sx,sy,ci,shape,f); else cube(sx,sy,ci,shape,f);
         u16 dc=dec[y][z][x]; int tint=0;
         if(gdec[y][z][x]&&blink){ dc=gdec[y][z][x]; tint=1; }
         if(dc&&fv>=0) drawDeco(sx,sy,dc,fv,tint);
