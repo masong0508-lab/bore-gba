@@ -510,23 +510,6 @@ static void smoke(int frame){
 #define TX_W1 70
 #define TX_Y0 141
 #define TX_Y1 147
-static void titleScreen(void){
-    buildTitle();                          // leaves the finished backdrop in both fb and tfb
-    vsync(); dmaRows(fb,VRAM_ADDR,0,ROW_W,0,SH);
-    int shown=0;
-    for(int frame=0;;frame++){
-        if((~REG_KEYINPUT)&K_START) break;
-        dmaRows(tfb,(u32)(uintptr_t)fb,SM_W0,SM_W1,0,SM_Y1);   // wipe last frame's smoke only
-        smoke(frame);
-        int on=(frame>>4)&1, tx=(on!=shown);
-        if(tx){ dmaRows(tfb,(u32)(uintptr_t)fb,TX_W0,TX_W1,TX_Y0,TX_Y1); if(on) text(94,141,"PRESS START",RGB(31,31,31),1); shown=on; }
-        vsync();
-        dmaRows(fb,VRAM_ADDR,SM_W0,SM_W1,0,SM_Y1);
-        if(tx) dmaRows(fb,VRAM_ADDR,TX_W0,TX_W1,TX_Y0,TX_Y1);
-    }
-    while((~REG_KEYINPUT)&K_START) vsync();   // wait for release so START doesn't also change size
-}
-
 // ---------- LIFE MODE: fixed isometric "sim" room + Tony-Hawk-style skating (placeholder) ----------
 // Pick "GO LIVE LIFE!" in the part list and press A. SELECT+START returns to the editor.
 // Controls: D-pad L/R steer (grounded) or spin (airborne) | hold A push | D-pad down brake | B ollie / kickflip in air
@@ -589,6 +572,89 @@ static const u16 stepT[89]={7,8,9,10,11,12,13,14,16,17,19,21,23,25,28,31,34,37,4
 static const signed char idxT[8]={-1,-1,-1,-1,2,4,6,8};
 static const u8 *ssrc; static u32 sn, sdone, swraps; static int spred, sidx, sfxOn; static u16 slast;
 static void sfxStop(void){ R_DMA1CNT=0; R_TM0CNT=0; R_TM1CNT=0; sfxOn=0; }
+#define SM_W0 76   // smoke stays inside columns 152..203, rows 0..89 (checked over its whole 128-frame loop)
+#define SM_W1 102
+#define SM_Y1 90
+#define TX_W0 47    // "PRESS START" box
+#define TX_W1 70
+#define TX_Y0 141
+#define TX_Y1 147
+// ---------- title music: note-based XM player (tools/xm2gba.py converts the_dipper_man.xm) ----------
+// The song is stored as notes (pattern/row/channel events) plus 16 small instrument samples (8-bit, band-limited and
+// down-sampled in the converter). A 10-voice mixer with linear interpolation renders 304 samples per frame into
+// Direct Sound B (DMA2 + Timer0, restarted every vblank). Intro plays once, then orders MUS_LOOP.. repeat; the voices are
+// never cut at the loop jump, so the last notes ring into the first ones for a seamless wrap.
+typedef int8_t s8; typedef int16_t s16;
+#include "musicdata.h"
+#define R_DMA2SAD (*(volatile u32*)0x040000C8)
+#define R_DMA2DAD (*(volatile u32*)0x040000CC)
+#define R_DMA2CNT (*(volatile u32*)0x040000D0)
+#define MUS_N 304   // samples per frame at 18157 Hz (924 cycles each = exactly one frame)
+typedef struct { const s8*d; u32 pos,step,len; int vol; } MVoice;
+static MVoice mvc[10];
+static s8 mbuf[2][MUS_N] __attribute__((aligned(4)));
+static s16 macc[MUS_N];
+static int mOrd, mRow, mLeft, mCur, mOn, mFrac;
+static void musTrigger(void){
+    const u16*e=&musEv[musPatOff[musOrder[mOrd]]];
+    for(int r=0;r<mRow;r++) e+=1+*e;
+    int n=*e++;
+    while(n--){ u16 w=*e++; int ch=w&15, in=(w>>4)&15, nt=w>>8;
+        MVoice*v=&mvc[ch]; v->d=musData[in]; v->pos=0; v->step=musStep[in*96+nt]; v->len=musLen[in]<<16; v->vol=musVol[in]; }
+}
+IWRAM_CODE static void musMix(s8*out){
+    int done=0;
+    while(done<MUS_N){
+        if(mLeft==0){ musTrigger(); mFrac+=MUS_RFR; mLeft=MUS_ROW+(mFrac>>8); mFrac&=255; if(++mRow>=16){ mRow=0; if(++mOrd>=MUS_NORD) mOrd=MUS_LOOP; } }
+        int n=MUS_N-done; if(n>mLeft) n=mLeft;
+        s16*a=macc+done;
+        for(int i=0;i<n;i++) a[i]=0;
+        for(int vi=0;vi<10;vi++){ MVoice*v=&mvc[vi]; if(!v->d) continue;
+            u32 pos=v->pos, st=v->step, len=v->len; const s8*d=v->d; int vol=v->vol, i=0;
+            for(;i<n;i++){
+                if(pos>=len){ v->d=0; break; }
+                int ix=(int)(pos>>16), fr=(int)((pos>>8)&255), x0=d[ix], x1=d[ix+1];
+                a[i]=(s16)(a[i]+(((x0*256+(x1-x0)*fr)*vol)>>14)); pos+=st; }
+            v->pos=pos; }
+        mLeft-=n; done+=n;
+    }
+    for(int i=0;i<MUS_N;i++){ int x=macc[i]>>2; out[i]=(s8)(x>127?127:x<-128?-128:x); }
+}
+static void musStart(void){
+    sfxStop();
+    for(int i=0;i<10;i++) mvc[i].d=0;
+    mOrd=0; mRow=0; mLeft=0; mFrac=0; mCur=0; mOn=1;
+    musMix(mbuf[0]); musMix(mbuf[1]);
+    R_SNDCNT_X=0x80; R_SNDCNT_L=0; R_SNDCNT_H=0xB308;   // Direct Sound B: 100%, L+R, Timer0, FIFO reset
+}
+static void musKick(void){   // right after vsync: start the buffer filled last frame, in step with the screen
+    if(!mOn) return;
+    R_DMA2CNT=0; R_TM0CNT=0;
+    R_DMA2SAD=(u32)(uintptr_t)mbuf[mCur]; R_DMA2DAD=0x040000A4u;
+    R_DMA2CNT=0xB6400000u;                               // enable, FIFO timing, repeat, 32-bit, fixed dest
+    R_TM0D=(u16)(65536-924); R_TM0CNT=0x80;
+}
+static void musFill(void){ if(!mOn) return; musMix(mbuf[mCur]); mCur^=1; }   // render the buffer that just finished
+static void musStop(void){ if(!mOn) return; mOn=0; R_DMA2CNT=0; R_TM0CNT=0; R_SNDCNT_H=0; }
+static void titleScreen(void){
+    buildTitle();                          // leaves the finished backdrop in both fb and tfb
+    vsync(); dmaRows(fb,VRAM_ADDR,0,ROW_W,0,SH);
+    int shown=0; musStart();
+    for(int frame=0;;frame++){
+        if((~REG_KEYINPUT)&K_START) break;
+        dmaRows(tfb,(u32)(uintptr_t)fb,SM_W0,SM_W1,0,SM_Y1);   // wipe last frame's smoke only
+        smoke(frame);
+        int on=(frame>>4)&1, tx=(on!=shown);
+        if(tx){ dmaRows(tfb,(u32)(uintptr_t)fb,TX_W0,TX_W1,TX_Y0,TX_Y1); if(on) text(94,141,"PRESS START",RGB(31,31,31),1); shown=on; }
+        vsync(); musKick();
+        dmaRows(fb,VRAM_ADDR,SM_W0,SM_W1,0,SM_Y1);
+        if(tx) dmaRows(fb,VRAM_ADDR,TX_W0,TX_W1,TX_Y0,TX_Y1);
+        musFill();
+    }
+    musStop();
+    while((~REG_KEYINPUT)&K_START) vsync();   // wait for release so START doesn't also change size
+}
+
 IWRAM_CODE static void sfxDecode(int cnt){   // decode the next cnt samples into sfxRam (signed 8-bit)
     u32 i=sdone, e=sdone+(u32)cnt; if(e>sn) e=sn;
     int pred=spred, idx=sidx; signed char*out=(signed char*)sfxRam;
