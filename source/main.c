@@ -408,6 +408,7 @@ typedef int32_t s32;
 #define SPH 44
 #define SPX0 (OXC-32)
 #define SPY0 (OYC-80)   // capture window top; feet sit at row 40 of the half-size sprite
+#define MAPNAME "THE MAN BASE"   // name of the (placeholder) map
 // w = low wall, # = 2-block crate, = = grind rail, . = floor
 static const char* const lifeMap[MH]={
 "wwwwwwwwwwwwww","w............w","w.....====...w","w............w","w..##........w","w..##........w","w............w",
@@ -418,6 +419,68 @@ static s32 lfx,lfy,lz,lvz,lvx,lvy; static int lskate, lhave, lfr;   // lskate: 0
 #define BDX 10   // where the skateboard lies on the floor (tile)
 #define BDY 4
 static int lsp,lhd,lspin,lflip,lgrind,lscore,lstun,lairF,lpts,lnoteT; static const char*lnote;
+
+static int lmaxz, lplay, ldead, lbumpCd;   // peak height this jump, air sound played, dead, bump cooldown
+
+// ---------- sound effects: 8-bit mono PCM @ ~11 kHz, Direct Sound A via DMA1 + Timer0 ----------
+// .raw files in source/sfx/ are baked into the ROM with .incbin (paths relative to project root, where make runs).
+#define R_SNDCNT_L (*(volatile u16*)0x04000080)
+#define R_SNDCNT_H (*(volatile u16*)0x04000082)
+#define R_SNDCNT_X (*(volatile u16*)0x04000084)
+#define R_DMA1SAD (*(volatile u32*)0x040000BC)
+#define R_DMA1DAD (*(volatile u32*)0x040000C0)
+#define R_DMA1CNT (*(volatile u32*)0x040000C4)
+#define R_TM0D    (*(volatile u16*)0x04000100)
+#define R_TM0CNT  (*(volatile u16*)0x04000102)
+#define SFX_TIMER (65536-1522)   // 16777216/1522 = 11023 Hz
+__asm__(".pushsection .rodata\n.balign 4\n"
+ ".global sfx_bonk\nsfx_bonk:\n.incbin \"source/sfx/bonk.raw\"\nsfx_bonk_end:\n"
+ ".global sfx_hit\nsfx_hit:\n.incbin \"source/sfx/hit.raw\"\nsfx_hit_end:\n"
+ ".global sfx_gasp\nsfx_gasp:\n.incbin \"source/sfx/gasp.raw\"\nsfx_gasp_end:\n"
+ ".global sfx_scream\nsfx_scream:\n.incbin \"source/sfx/scream.raw\"\nsfx_scream_end:\n"
+ ".global sfx_cry\nsfx_cry:\n.incbin \"source/sfx/cry.raw\"\nsfx_cry_end:\n"
+ ".global sfx_groan\nsfx_groan:\n.incbin \"source/sfx/groan.raw\"\nsfx_groan_end:\n"
+ ".global sfx_nearly\nsfx_nearly:\n.incbin \"source/sfx/nearly.raw\"\nsfx_nearly_end:\n"
+ ".global sfx_death\nsfx_death:\n.incbin \"source/sfx/death.raw\"\nsfx_death_end:\n"
+ ".global sfx_instant\nsfx_instant:\n.incbin \"source/sfx/instant.raw\"\nsfx_instant_end:\n"
+ ".popsection\n");
+extern const u8 sfx_bonk[],sfx_bonk_end[],
+                sfx_hit[],sfx_hit_end[],
+                sfx_gasp[],sfx_gasp_end[],
+                sfx_scream[],sfx_scream_end[],
+                sfx_cry[],sfx_cry_end[],
+                sfx_groan[],sfx_groan_end[],
+                sfx_nearly[],sfx_nearly_end[],
+                sfx_death[],sfx_death_end[],
+                sfx_instant[],sfx_instant_end[];
+enum { SFX_BONK, SFX_HIT, SFX_GASP, SFX_SCREAM, SFX_CRY, SFX_GROAN, SFX_NEARLY, SFX_DEATH, SFX_INSTANT, SFX_N };
+static const struct { const u8*p,*e; } sfxTab[SFX_N]={ {sfx_bonk,sfx_bonk_end},{sfx_hit,sfx_hit_end},{sfx_gasp,sfx_gasp_end},{sfx_scream,sfx_scream_end},{sfx_cry,sfx_cry_end},{sfx_groan,sfx_groan_end},{sfx_nearly,sfx_nearly_end},{sfx_death,sfx_death_end},{sfx_instant,sfx_instant_end} };
+static int sfxFrames;
+static void sfxStop(void){ R_DMA1CNT=0; R_TM0CNT=0; sfxFrames=0; }
+static void sfxPlay(int id){   // a new sound replaces whatever is playing
+    sfxStop();
+    R_SNDCNT_X=0x80; R_SNDCNT_L=0;
+    R_SNDCNT_H=0x0B04;                       // Direct Sound A: 100% vol, L+R, Timer0, reset FIFO
+    R_DMA1SAD=(u32)(uintptr_t)sfxTab[id].p; R_DMA1DAD=0x040000A0u;
+    R_DMA1CNT=0xB6400000u;                   // enable, FIFO timing, repeat, 32-bit, fixed dest
+    R_TM0D=SFX_TIMER; R_TM0CNT=0x80;
+    sfxFrames=(int)(sfxTab[id].e-sfxTab[id].p)/184+2;   // ~184 samples per frame; stopped cleanly at clip end
+}
+static u32 lrng=12345;
+static int rnd8(void){ lrng=lrng*1664525u+1013904223u; return (int)(lrng>>24); }
+
+// Getting hurt. sev grows with fall height, speed and a bad landing. kind: 0 clean landing, 1 bail, 2 wall hit.
+static void die(int snd){ ldead=1; lstun=2; lsp=0; lgrind=0; sfxPlay(snd); lnote="YOU DIED"; lnoteT=0x7fff; }
+static void hurt(int sev,int kind){
+    if(sev>=40) die(SFX_INSTANT);                                                                   // instant death
+    else if(sev>=30){                                                                                // life or death
+        if(rnd8()<128){ lstun=240; lsp=0; lgrind=0; sfxPlay(SFX_NEARLY); lnote="CLOSE CALL"; lnoteT=120; }
+        else die(SFX_DEATH);
+    }
+    else if(sev>=18){ lstun=150; lsp=0; lgrind=0; sfxPlay(SFX_GROAN); lnote="OW"; lnoteT=90; }     // groaning, struggling up
+    else if(kind==1){ lstun=60; sfxPlay(SFX_CRY); }                                                  // minor bail: crying
+    else if(kind==2){ lstun=20; sfxPlay(SFX_HIT); lnote="OOF"; lnoteT=30; }                          // grunts and hits
+}
 
 static int tileH(int tx,int ty){   // surface height in px
     if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
@@ -444,11 +507,15 @@ static void numText(int x,int y,int n,u16 c){
 }
 static void lifeInit(void){
     bakeSprites();
-    lfx=3*256+128; lfy=6*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote=""; lskate=0; lhave=0; lfr=0; lvx=lvy=0;
+    lfx=3*256+128; lfy=6*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote=""; lskate=0; lhave=0; lfr=0; lvx=lvy=0; ldead=0; lmaxz=0; lplay=0; lbumpCd=0; sfxStop();
 }
 static const signed char hdT[3][3]={{10,12,14},{8,-1,0},{6,4,2}};   // [sign dy+1][sign dx+1] -> heading (16 steps), -1 = keep
 static void lifeStep(u16 k,u16 pr,int fr){
     int fh=tileH(lfx>>8,lfy>>8)<<8;
+    if(ldead){   // dead: frozen until A
+        lstun=2;
+        if(pr&K_A){ ldead=0; lstun=0; lfx=3*256+128; lfy=6*256+128; lz=0; lvz=0; lskate=0; lsp=0; lgrind=0; lspin=0; lflip=0; lairF=0; lmaxz=0; lplay=0; lnoteT=0; sfxStop(); }
+    }
     if(lstun>0){ lstun--; lsp=0; lvx=lvy=0; }
     else {
         if((pr&K_L)&&!lhave){ lnote="FIND A BOARD"; lnoteT=40; }
@@ -479,26 +546,44 @@ static void lifeStep(u16 k,u16 pr,int fr){
     }
     int zp=(int)(lz>>8);
     s32 nx=lfx+lvx, ny=lfy+lvy;   // move per axis so walls slide
-    if(tileH(nx>>8,lfy>>8)<=zp+3) lfx=nx; else lsp=(lsp*2)/3;
-    if(tileH(lfx>>8,ny>>8)<=zp+3) lfy=ny; else lsp=(lsp*2)/3;
+    int bump=0, sp0b=lsp;
+    if(tileH(nx>>8,lfy>>8)<=zp+3) lfx=nx; else bump=1;
+    if(tileH(lfx>>8,ny>>8)<=zp+3) lfy=ny; else bump=1;
+    if(bump){
+        lsp=(lsp*2)/3;
+        if(lbumpCd==0&&sp0b>=(lskate?12:10)){ lbumpCd=40; if(lskate) hurt(sp0b+(rnd8()>>4),2); else sfxPlay(SFX_BONK); }   // skating into a wall hurts, running into one bonks
+    }
+    if(lbumpCd>0) lbumpCd--;
     fh=tileH(lfx>>8,lfy>>8)<<8;
     if(lz<fh){ lz=fh; if(lvz<0) lvz=0; }
     if(lz>fh||lvz>0){ lz+=lvz; lvz-=0x40; if(lz<=fh&&lvz<=0){ lz=fh; lvz=0; } }   // gravity
     int air=lz>fh;
+    if(air){
+        int zz=(int)(lz>>8); if(zz>lmaxz) lmaxz=zz;
+        if(!lplay&&lvz<0){ int hi=lmaxz-(int)(fh>>8);
+            if(hi>=34){ sfxPlay(SFX_SCREAM); lplay=1; }                 // falling from way up
+            else if((lspin&7)&&hi>=10){ sfxPlay(SFX_GASP); lplay=1; }   // landing is going wrong
+        }
+    }
     if(lairF&&!air){                                   // just landed
         int a=lspin<0?-lspin:lspin, pts=(a>>3)*180+(lflip?100:0);
-        if(lspin&7){ lnote="BAIL"; lnoteT=60; lsp=0; lstun=45; lgrind=0; }
+        int drop=lmaxz-(int)(lz>>8), sp0=lsp, bail=(lspin&7)!=0;
+        if(bail){ lnote="BAIL"; lnoteT=60; lsp=0; lstun=45; lgrind=0; }
         else{
             if(pts){ lscore+=pts; lpts=pts; lnote="NICE"; lnoteT=60; }
             if(lskate&&tileH(lfx>>8,lfy>>8)==6){ lgrind=1; lnote="GRIND"; lnoteT=30; }
         }
+        if(bail) hurt(drop/2+sp0+(rnd8()>>5),1);        // bad landing: harder/faster/higher = worse
+        else if(drop>24) hurt(drop-24+(rnd8()>>5),0);   // big drops hurt even landed clean
         lspin=0; lflip=0;
     }
+    if(!air){ lmaxz=(int)(lz>>8); lplay=0; }
     lairF=air;
     if(lgrind){ if(air||tileH(lfx>>8,lfy>>8)!=6) lgrind=0; else if((fr&3)==0){ lscore+=3; lnote="GRIND"; lnoteT=10; } }
     if(!lhave&&lz<(8<<8)&&(lfx>>8)==BDX&&(lfy>>8)==BDY){ lhave=1; lnote="GOT A SKATEBOARD"; lnoteT=90; }   // walk over it to pick it up
     lfr++;
     if(lnoteT>0) lnoteT--;
+    if(sfxFrames>0&&--sfxFrames==0) sfxStop();
 }
 static void tileTop(int sx,int sy,u16 c){ for(int t=-CA;t<=CA;t++){ int at=t<0?-t:t, hh=hhT[0][at]; vline(sx+t,sy-hh,sy+hh,c); } }
 static void lifeDraw(void){
@@ -527,7 +612,9 @@ static void lifeDraw(void){
     u16 gold=RGB(31,26,6), dim=RGB(18,20,22);
     text(2,2,"SCORE",dim,1); numText(24,2,lscore,gold);
     text(2,10,"SPEED",dim,1); rect(24,10,lsp,5,RGB(8,24,10));
+    text(150,2,MAPNAME,RGB(14,16,18),1);
     text(60,2,lskate?"SKATE":(lsp>5?"RUN":"WALK"),gold,1);
+    if(ldead) text(2,25,"PRESS A TO RESPAWN",RGB(31,12,8),1);
     if(lnoteT>0){ text(2,18,lnote,RGB(31,31,31),1); if(lpts&&lnote[0]=='N'){ text(2,25,"+",gold,1); numText(6,25,lpts,gold); } }
     text(2,146,lskate?"A PUSH B OLLIE DPAD STEER L WALK":(lhave?"DPAD WALK B RUN A HOP L SKATE":"DPAD WALK B RUN A HOP FIND A BOARD"),RGB(12,14,16),1);
     text(2,153,"SEL+START BACK TO EDITOR",RGB(12,14,16),1);
@@ -539,6 +626,7 @@ static void lifeMode(void){
         if((k&K_SEL)&&(k&K_START)) break;
         lifeStep(k,pr,fr); lifeDraw(); present();
     }
+    sfxStop();
     while((~REG_KEYINPUT)&0x3FF) vsync();   // wait for release so the editor doesn't see the exit keys
 }
 
