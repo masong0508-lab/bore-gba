@@ -22,8 +22,8 @@ MIXR = 18157                      # the game's music rate (MUS_RATE)
 SONGS_H = "source/songs.h"
 OUT = "source/musicdata.h"
 TITLE = ("the_dipper_man", "tools/the_dipper_man.xm")
-GAIN = {"amiga_music": 1.1, "earth_and_the_space_citizens": 2.0}   # louder/quieter per song (default 1.0), so every tracker song sits at a similar level
-LOOP_OVERRIDE = {"the_dipper_man": 4, "amiga_music": 0, "emergency_dance_floor": 0}   # the title song plays its intro once, then loops from order 4 (others loop from the XM restart position)
+GAIN = {"tree_swaying_action": 0.9, "amiga_music": 1.1, "earth_and_the_space_citizens": 2.0}   # louder/quieter per song (default 1.0), so every tracker song sits at a similar level
+LOOP_OVERRIDE = {"the_dipper_man": 4, "amiga_music": 0, "emergency_dance_floor": 0, "tree_swaying_action": 0}   # the title song plays its intro once, then loops from order 4 (others loop from the XM restart position)
 
 def make_ending(S):
     """New ending for the Amiga Music song: the song's old tail (orders 15-16) is replaced by a generated breakdown + fade-out.
@@ -142,6 +142,79 @@ def make_dance(S):
     S['order'] = order
 
 DANCES = {"emergency_dance_floor": make_dance}
+def make_tree(S):
+    """Rework of Tree Swaying Action: 67 s -> about 4 minutes, cooler, a KEY CHANGE (+2 semitones) for the last section and a hard
+    stop (stinger) instead of a fade.  The XM uses 12 channels but only 7 carry notes, so they are packed into channels 0-6 and the
+    free channels 7-9 take the new layers (0-based): ch7 backbeat snare / snare risers / crash, ch8 off-beat hats + ghost 16ths,
+    ch9 octave-up shimmer on the melody.  Existing channels after packing: 0/1 pad (inst 1, 2), 2/3 bass (inst 7), 4 pluck bass
+    (inst 3), 5 melody (inst 3), 6 drums (inst 11, 12, 16).  The key change moves the pitched instruments only (1, 2, 3, 7);
+    drums stay put.  Tempo 50 -> 62 BPM.  Only patterns and the order list change."""
+    import copy
+    pats = S['pats']; S['bpm'] = 62
+    pack = {0: 0, 1: 1, 2: 2, 4: 3, 6: 4, 8: 5, 10: 6}
+    for k, p in enumerate(pats):
+        for j, r in enumerate(p):
+            new = [(0, 0, 0, 0, 0)] * 10
+            for c, cell in enumerate(r):
+                if cell[0]: new[pack[c]] = cell
+            p[j] = new
+    PITCHED = (1, 2, 3, 7)
+    def put(p, r, ch, n, i, vol): p[r][ch] = (n, i, 0x10 + max(1, min(64, vol)), 0, 0)
+    def mix(src, chs, vol=1.0):
+        out = []
+        for r in src:
+            row = []
+            for c, (n, i, v, e, ep) in enumerate(r):
+                if c in chs and n and n < 97:
+                    rel = (v - 0x10) / 64 if 0x10 <= v <= 0x50 else 1.0
+                    row.append((n, i, 0x10 + min(64, max(1, int(round(64 * rel * vol)))), 0, 0))
+                else: row.append((0, 0, 0, 0, 0))
+            out.append(row)
+        return out
+    def transp(src, semis):                                                  # the key change
+        return [[(n + semis, i, v, e, ep) if n and n < 97 and i in PITCHED else (n, i, v, e, ep) for (n, i, v, e, ep) in r] for r in src]
+    def groove(k, crash=False, shim=True):
+        p = copy.deepcopy(pats[k])
+        for r in range(32):
+            if r % 8 == 4: put(p, r, 7, 61, 13, 44)                          # backbeat snare
+            if r % 4 == 2: put(p, r, 8, 61, 15, 30)                          # off-beat hat
+            elif r % 2 == 1: put(p, r, 8, 61, 15, 12)                        # ghost 16th
+            n, i, v, _, _ = p[r][5]
+            if shim and n and n < 85 and i == 3: put(p, r, 9, n + 12, 3, 14) # shimmer an octave above the melody
+        if crash: put(p, 0, 7, 61, 14, 36)
+        return p
+    def riser(src):                                                          # pad + rising snare roll + kick on the beat
+        p = mix(src, (0, 1), 1.0)
+        for r in range(16, 32):
+            if r % 2 == 0 or r >= 26: put(p, r, 7, 61, 13, 14 + (r - 16) * 50 // 16)
+        for r in range(0, 32, 8): put(p, r, 6, 80, 12, 64)
+        for r in range(24, 32, 2): put(p, r, 6, 80, 12, 64)
+        return p
+    base = len(pats)
+    g1, g2, g3 = groove(1), groove(2), groove(3, crash=True)
+    bd = mix(pats[3], (0, 1, 4, 5), 0.9)                                     # breakdown: pads + pluck + melody, no kick / bass
+    for r in range(32):
+        n, i, v, _, _ = bd[r][5]
+        if n and n < 85: put(bd, r, 9, n + 12, 3, 16)
+    rise = riser(pats[0])
+    t3 = transp(g3, 2); rt = transp(rise, 2)
+    st = [[(0, 0, 0, 0, 0)] * 10 for _ in range(16)]                         # the stinger: one big hit in the new key, then silence
+    for ch, n, i, v in ((2, 30, 7, 80), (3, 35, 7, 80), (4, 47, 3, 80), (5, 54, 3, 70), (9, 59, 3, 64), (8, 66, 3, 50), (6, 80, 11, 80), (7, 61, 14, 64)):
+        put(st, 0, ch, n, i, v)
+    pats += [g1, g2, g3, bd, rise, t3, rt, st]
+    G1, G2, G3, BD, RS, T3, RT, ST = range(base, base + 8)
+    order = [0, 0, 1, G1, 2, G2]                                             # A: intro, layers arrive
+    order += [G3] * 4                                                        # B: drop 1
+    order += [BD, BD, RS]                                                    # C: breakdown + riser
+    order += [G3] * 4                                                        # D: drop 2
+    order += [G2, G2, BD, RS]                                                # E: bridge + riser
+    order += [G3] * 4                                                        # F: drop 3
+    order += [4, RS]                                                         # G: last breakdown (the soft outro bar) + riser
+    order += [T3] * 4                                                        # H: KEY CHANGE, final drop
+    order += [RT, ST]                                                        # I: riser, then the hard stop
+    S['order'] = order
+
+TREES = {"tree_swaying_action": make_tree}
 ENDINGS = {"amiga_music": make_ending}
 POPS = {"amiga_music": make_pop}
 
@@ -177,6 +250,7 @@ def convert(sid, path):
     print("%s  <-  %s" % (sid, path))
     S = parse(path)
     if sid in DANCES: DANCES[sid](S)
+    if sid in TREES: TREES[sid](S)
     if sid in POPS: POPS[sid](S)
     if sid in ENDINGS: ENDINGS[sid](S)
     d = open(path, 'rb').read()
