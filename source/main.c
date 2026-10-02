@@ -34,7 +34,9 @@ enum { K_A=1, K_B=2, K_SEL=4, K_START=8, K_RIGHT=16, K_LEFT=32, K_UP=64, K_DOWN=
 
 #define RGB(r,g,b) ((u16)((r)|((g)<<5)|((b)<<10)))
 static u16 fb[SW*SH] EWRAM_BSS;
-static u16 tfb[SW*SH] EWRAM_BSS;   // pre-rendered title backdrop
+#define SFX_MAX 124000   // RAM for the decoded sound effect (also used as the title backdrop before the game starts)
+static u8 sfxRam[SFX_MAX] EWRAM_BSS;
+#define tfb ((u16*)sfxRam)   // pre-rendered title backdrop (only needed while the title screen shows)
 
 // ---------- palette ----------
 static const u16 skinTones[4] = { RGB(30,23,17), RGB(24,16,10), RGB(13,8,5), RGB(14,26,10) };
@@ -431,8 +433,9 @@ static int lsp,lhd,lspin,lflip,lgrind,lscore,lstun,lairF,lpts,lnoteT; static con
 static int lfood, lbl, lnear;   // hunger (100 = full), bladder (100 = bursting), what is in reach (1 fridge, 2 toilet)
 static int lmaxz, lplay, ldead, lbumpCd;   // peak height this jump, air sound played, dead, bump cooldown
 
-// ---------- sound effects: 8-bit mono PCM @ ~11 kHz, Direct Sound A via DMA1 + Timer0 ----------
-// .raw files in source/sfx/ are baked into the ROM with .incbin (paths relative to project root, where make runs).
+// ---------- sound effects: 4-bit IMA-ADPCM @ 6554 Hz, decoded on the fly into RAM, played by Direct Sound A (DMA1 + Timer0) ----------
+// source/sfx/*.adp (made by tools/encode_sfx.py) are baked into the ROM with .incbin; paths are relative to the project root.
+// Timer1 counts Timer0 overflows = samples played, so a clip stops exactly at its end whatever the frame rate is.
 #define R_SNDCNT_L (*(volatile u16*)0x04000080)
 #define R_SNDCNT_H (*(volatile u16*)0x04000082)
 #define R_SNDCNT_X (*(volatile u16*)0x04000084)
@@ -441,39 +444,57 @@ static int lmaxz, lplay, ldead, lbumpCd;   // peak height this jump, air sound p
 #define R_DMA1CNT (*(volatile u32*)0x040000C4)
 #define R_TM0D    (*(volatile u16*)0x04000100)
 #define R_TM0CNT  (*(volatile u16*)0x04000102)
-#define SFX_TIMER (65536-1522)   // 16777216/1522 = 11023 Hz
+#define R_TM1D    (*(volatile u16*)0x04000104)
+#define R_TM1CNT  (*(volatile u16*)0x04000106)
+#define SFX_TIMER (65536-2560)   // 16777216/2560 = 6553.6 Hz
 __asm__(".pushsection .rodata\n.balign 4\n"
- ".global sfx_bonk\nsfx_bonk:\n.incbin \"source/sfx/bonk.raw\"\nsfx_bonk_end:\n"
- ".global sfx_hit\nsfx_hit:\n.incbin \"source/sfx/hit.raw\"\nsfx_hit_end:\n"
- ".global sfx_gasp\nsfx_gasp:\n.incbin \"source/sfx/gasp.raw\"\nsfx_gasp_end:\n"
- ".global sfx_scream\nsfx_scream:\n.incbin \"source/sfx/scream.raw\"\nsfx_scream_end:\n"
- ".global sfx_cry\nsfx_cry:\n.incbin \"source/sfx/cry.raw\"\nsfx_cry_end:\n"
- ".global sfx_groan\nsfx_groan:\n.incbin \"source/sfx/groan.raw\"\nsfx_groan_end:\n"
- ".global sfx_nearly\nsfx_nearly:\n.incbin \"source/sfx/nearly.raw\"\nsfx_nearly_end:\n"
- ".global sfx_death\nsfx_death:\n.incbin \"source/sfx/death.raw\"\nsfx_death_end:\n"
- ".global sfx_instant\nsfx_instant:\n.incbin \"source/sfx/instant.raw\"\nsfx_instant_end:\n"
+ ".global sfx_hit\nsfx_hit:\n.incbin \"source/sfx/hit.adp\"\n.balign 4\n"
+ ".global sfx_gasp\nsfx_gasp:\n.incbin \"source/sfx/gasp.adp\"\n.balign 4\n"
+ ".global sfx_scream\nsfx_scream:\n.incbin \"source/sfx/scream.adp\"\n.balign 4\n"
+ ".global sfx_cry\nsfx_cry:\n.incbin \"source/sfx/cry.adp\"\n.balign 4\n"
+ ".global sfx_groan\nsfx_groan:\n.incbin \"source/sfx/groan.adp\"\n.balign 4\n"
+ ".global sfx_instant\nsfx_instant:\n.incbin \"source/sfx/instant.adp\"\n.balign 4\n"
  ".popsection\n");
-extern const u8 sfx_bonk[],sfx_bonk_end[],
-                sfx_hit[],sfx_hit_end[],
-                sfx_gasp[],sfx_gasp_end[],
-                sfx_scream[],sfx_scream_end[],
-                sfx_cry[],sfx_cry_end[],
-                sfx_groan[],sfx_groan_end[],
-                sfx_nearly[],sfx_nearly_end[],
-                sfx_death[],sfx_death_end[],
-                sfx_instant[],sfx_instant_end[];
+extern const u8 sfx_hit[],sfx_gasp[],sfx_scream[],sfx_cry[],sfx_groan[],sfx_instant[];
 enum { SFX_BONK, SFX_HIT, SFX_GASP, SFX_SCREAM, SFX_CRY, SFX_GROAN, SFX_NEARLY, SFX_DEATH, SFX_INSTANT, SFX_N };
-static const struct { const u8*p,*e; } sfxTab[SFX_N]={ {sfx_bonk,sfx_bonk_end},{sfx_hit,sfx_hit_end},{sfx_gasp,sfx_gasp_end},{sfx_scream,sfx_scream_end},{sfx_cry,sfx_cry_end},{sfx_groan,sfx_groan_end},{sfx_nearly,sfx_nearly_end},{sfx_death,sfx_death_end},{sfx_instant,sfx_instant_end} };
-static int sfxFrames;
-static void sfxStop(void){ R_DMA1CNT=0; R_TM0CNT=0; sfxFrames=0; }
+// effects that share a source file share one blob in the ROM
+static const u8* const sfxTab[SFX_N]={ sfx_hit,sfx_hit,sfx_gasp,sfx_scream,sfx_cry,sfx_groan,sfx_scream,sfx_scream,sfx_instant };
+static const u16 stepT[89]={7,8,9,10,11,12,13,14,16,17,19,21,23,25,28,31,34,37,41,45,50,55,60,66,73,80,88,97,107,118,130,143,157,173,190,209,230,253,279,307,337,371,408,449,494,544,598,658,724,796,876,963,1060,1166,1282,1411,1552,1707,1878,2066,2272,2499,2749,3024,3327,3660,4026,4428,4871,5358,5894,6484,7132,7845,8630,9493,10442,11487,12635,13899,15289,16818,18500,20350,22385,24623,27086,29794,32767};
+static const signed char idxT[8]={-1,-1,-1,-1,2,4,6,8};
+static const u8 *ssrc; static u32 sn, sdone, swraps; static int spred, sidx, sfxOn; static u16 slast;
+static void sfxStop(void){ R_DMA1CNT=0; R_TM0CNT=0; R_TM1CNT=0; sfxOn=0; }
+IWRAM_CODE static void sfxDecode(int cnt){   // decode the next cnt samples into sfxRam (signed 8-bit)
+    u32 i=sdone, e=sdone+(u32)cnt; if(e>sn) e=sn;
+    int pred=spred, idx=sidx; signed char*out=(signed char*)sfxRam;
+    for(;i<e;i++){
+        int v=ssrc[i>>1]; v=(i&1)?(v>>4):(v&15);
+        int step=stepT[idx], diff=step>>3;
+        if(v&1) diff+=step>>2; if(v&2) diff+=step>>1; if(v&4) diff+=step;
+        pred+=(v&8)?-diff:diff; if(pred>32767) pred=32767; if(pred<-32768) pred=-32768;
+        idx+=idxT[v&7]; if(idx<0) idx=0; if(idx>88) idx=88;
+        out[i]=(signed char)(pred>>8);
+    }
+    spred=pred; sidx=idx; sdone=e;
+    if(sdone>=sn) for(int k=0;k<256;k++) out[sn+k]=0;   // silence after the end, so the DMA read-ahead plays nothing
+}
 static void sfxPlay(int id){   // a new sound replaces whatever is playing
     sfxStop();
+    const u8*b=sfxTab[id]; sn=*(const u32*)b; if(sn>SFX_MAX-256) sn=SFX_MAX-256;
+    ssrc=b+4; sdone=0; spred=0; sidx=0;
+    sfxDecode(1024);                             // a head start; sfxTick decodes the rest while it plays
     R_SNDCNT_X=0x80; R_SNDCNT_L=0;
-    R_SNDCNT_H=0x0B04;                       // Direct Sound A: 100% vol, L+R, Timer0, reset FIFO
-    R_DMA1SAD=(u32)(uintptr_t)sfxTab[id].p; R_DMA1DAD=0x040000A0u;
-    R_DMA1CNT=0xB6400000u;                   // enable, FIFO timing, repeat, 32-bit, fixed dest
+    R_SNDCNT_H=0x0B04;                           // Direct Sound A: 100% vol, L+R, Timer0, reset FIFO
+    R_DMA1SAD=(u32)(uintptr_t)sfxRam; R_DMA1DAD=0x040000A0u;
+    R_DMA1CNT=0xB6400000u;                       // enable, FIFO timing, repeat, 32-bit, fixed dest
     R_TM0D=SFX_TIMER; R_TM0CNT=0x80;
-    sfxFrames=(int)(sfxTab[id].e-sfxTab[id].p)/184+2;   // ~184 samples per frame; stopped cleanly at clip end
+    swraps=0; slast=0; R_TM1D=0; R_TM1CNT=0x84;  // Timer1 counts Timer0 overflows (samples played)
+    sfxOn=1;
+}
+static void sfxTick(void){   // call once per frame
+    if(!sfxOn) return;
+    u16 t=R_TM1D; if(t<slast) swraps++; slast=t;
+    if(sdone<sn) sfxDecode(512);
+    if(swraps*65536u+t>=sn) sfxStop();
 }
 static u32 lrng=12345;
 static int rnd8(void){ lrng=lrng*1664525u+1013904223u; return (int)(lrng>>24); }
@@ -676,7 +697,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
     }
     lfr++;
     if(lnoteT>0) lnoteT--;
-    if(sfxFrames>0&&--sfxFrames==0) sfxStop();
+    sfxTick();
 }
 static void tileTop(int sx,int sy,u16 c){ for(int t=-CA;t<=CA;t++){ int at=t<0?-t:t, hh=hhT[0][at]; vline(sx+t,sy-hh,sy+hh,c); } }
 static int ecx=6, ecy=6, efr;   // map editor cursor (tile) and frame counter
