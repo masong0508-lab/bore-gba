@@ -47,6 +47,7 @@ static u8 sSnd=1;    // sound on
 static u8 sShad=1;   // shadows under the player
 static u8 sHud=0;    // on-screen info: 0 full, 1 slim, 2 off
 static u8 sRom=0;    // ROM waits: 0 fast (3/1 + prefetch), 1 safe (power-on default, for fussy flash carts)
+static u8 sNoWarn=0; // 1 = hide the TOO SLOW FOR THIS FRAME RATE warning in settings
 static u8 sShow=0;   // performance counter: 0 off, 1 fps, 2 fps + load
 static int cview;    // room view while the action cam spins (0..3, quarter turns); always 0 in the editor
 static int lcN, lcPts, lcT, lcBank, lcBankT, lcamPend, lcamF;   // combo chain: tricks, points, time left, banked total + display time, cam queued, cam frame
@@ -860,14 +861,14 @@ static void mapPlace(int x,int y,char c){
     if(c=='B'||c=='P'){ for(int j=0;j<MH;j++)for(int i=0;i<MW;i++) if(lifeMap[j][i]==c) lifeMap[j][i]='.'; }
     lifeMap[y][x]=c; if(c=='w'||c=='W') wallMap[y][x]=(u8)eWp; }
 // settings (SRAM offset 640)
-static void settingsSave(void){ volatile u8*m=SRAM_BASE+SET_OFF; m[0]='S'; m[1]='2'; m[2]=sFps; m[3]=sWall; m[4]=sWp; m[5]=sFl; m[6]=sSnd; m[7]=sShow; m[8]=sShad; m[9]=sHud; m[10]=sRom; m[11]=sCam; m[12]=sJb; }
+static void settingsSave(void){ volatile u8*m=SRAM_BASE+SET_OFF; m[0]='S'; m[1]='2'; m[2]=sFps; m[3]=sWall; m[4]=sWp; m[5]=sFl; m[6]=sSnd; m[7]=sShow; m[8]=sShad; m[9]=sHud; m[10]=sRom; m[11]=sCam; m[12]=sJb; m[13]=sNoWarn; }
 static void settingsLoad(void){ volatile u8*m=SRAM_BASE+SET_OFF;
     if(m[0]!='S'){ volatile u8*o=SRAM_BASE; if(o[0]=='B'&&o[1]=='M'&&o[2]!='3') m=SRAM_BASE+640; else return; }   // old saves kept settings at 640
     if(m[0]!='S') return;
     if(m[1]=='1'){ if(m[2]>2||m[3]>2||m[4]>1||m[5]>1||m[6]>1||m[7]>1) return;   // older save: fewer settings
         sFps=m[2]; sWall=m[3]; sWp=m[4]; sFl=m[5]; sSnd=m[6]; sShow=m[7]; return; }
     if(m[1]!='2'||m[2]>3||m[3]>2||m[4]>1||m[5]>1||m[6]>1||m[7]>2||m[8]>1||m[9]>2||m[10]>1) return;
-    sCam=(m[11]<=3)?m[11]:1; sJb=(m[12]<=2)?m[12]:0;
+    sCam=(m[11]<=3)?m[11]:1; sJb=(m[12]<=2)?m[12]:0; sNoWarn=(m[13]==1)?1:0;
     sFps=m[2]; sWall=m[3]; sWp=m[4]; sFl=m[5]; sSnd=m[6]; sShow=m[7]; sShad=m[8]; sHud=m[9]; sRom=m[10]; }
 
 // ---------- small UI kit: one menu style, one help style, one toast ----------
@@ -917,9 +918,9 @@ static void drawRoom(int ed);
 #define R_TM2CNT (*(volatile u16*)0x0400010A)
 #define TICKS_FRAME 1097   // 65536 / 59.7275 Hz
 static void tmStart(void){ R_TM2CNT=0; R_TM2D=0; R_TM2CNT=0x82; }
-#define NSET 14
-enum { R_PRESET, R_TUNE, R_FPS, R_WALLS, R_WP, R_FL, R_SHAD, R_CAM, R_HUD, R_SND, R_JB, R_ROM, R_SHOW, R_DEF };
-static const char* const setNm[NSET]={"PRESET","AUTO TUNE","FRAME RATE","WALLS","WALLPAPER","FLOORS","SHADOWS","ACTION CAM","INFO ON SCREEN","SOUND","JUKEBOX","ROM SPEED","PERFORMANCE INFO","RESET ALL"};
+#define NSET 15
+enum { R_PRESET, R_TUNE, R_FPS, R_WALLS, R_WP, R_FL, R_SHAD, R_CAM, R_HUD, R_SND, R_JB, R_ROM, R_SHOW, R_WARN, R_DEF };
+static const char* const setNm[NSET]={"PRESET","AUTO TUNE","FRAME RATE","WALLS","WALLPAPER","FLOORS","SHADOWS","ACTION CAM","INFO ON SCREEN","SOUND","JUKEBOX","ROM SPEED","PERFORMANCE INFO","SPEED WARNING","RESET ALL"};
 static const char* const setDesc[NSET][2]={
  {"LOOKS BALANCED SPEED BATTERY  ONE TAP SETUP","CHANGING ANYTHING BELOW MAKES IT CUSTOM"},
  {"PRESS A  TESTS YOUR SCREEN AND PICKS THE","PRETTIEST PRESET THAT STAYS SMOOTH"},
@@ -934,6 +935,7 @@ static const char* const setDesc[NSET][2]={
  {"SHUFFLE PLAYS YOUR SAVED RANDOM SONG ORDER","IN ORDER  OR  REPEAT ONE SONG  OPEN FROM MENU"},
  {"FAST IS RIGHT FOR MOST CARTS AND EMULATORS","SAFE IF A FLASH CART FREEZES OR GLITCHES"},
  {"SHOWS FPS WHILE YOU PLAY  DETAIL ALSO SHOWS","LOAD  100 MEANS A FRAME IS JUST FITTING"},
+ {"ON SHOWS TOO SLOW FOR THIS FRAME RATE WHEN THE","PICTURE CANT KEEP UP  OFF HIDES THAT WARNING"},
  {"PUTS EVERY SETTING BACK TO NORMAL","PRESS A"} };
 // graphics fields per preset: fps wall wallpaper floors shadows hud
 static const u8 presetTab[4][6]={ {0,0,1,1,1,0}, {1,1,1,1,1,0}, {1,2,0,0,0,1}, {2,2,0,0,0,1} };
@@ -946,7 +948,7 @@ static int presetOf(void){
 }
 static void setPreset(int p){ const u8*t=presetTab[p]; sFps=t[0]; sWall=t[1]; sWp=t[2]; sFl=t[3]; sShad=t[4]; sHud=t[5]; }
 static void applyRom(void){ REG_WAITCNT=sRom?0x0000:0x4317; }
-static void setDefaults(void){ setPreset(1); sCam=1; sSnd=1; sRom=0; sShow=0; applyRom(); jbSetMode(0); }
+static void setDefaults(void){ setPreset(1); sCam=1; sSnd=1; sRom=0; sShow=0; sNoWarn=0; applyRom(); jbSetMode(0); }
 // Time to draw the room once (timer ticks), averaged over 3 draws. Uses the editor view so it never touches the game state.
 static int measureDraw(void){
     drawRoom(1); u16 t0=R_TM2D;
@@ -977,6 +979,7 @@ static void setChange(int row,int d){
         case R_JB: jbSetMode((sJb+d+3)%3); break;
         case R_ROM: sRom^=1; applyRom(); break;
         case R_SHOW: sShow=(u8)((sShow+d+3)%3); break;
+        case R_WARN: sNoWarn^=1; break;
     }
 }
 static const char* setVal(int row){
@@ -995,6 +998,7 @@ static const char* setVal(int row){
         case R_JB: return jbModeNm[sJb];
         case R_ROM: return sRom?"SAFE":"FAST";
         case R_SHOW: return sn[sShow];
+        case R_WARN: return sNoWarn?"OFF":"ON";
         default: return "PRESS A";
     }
 }
@@ -1025,7 +1029,7 @@ static void drawSettings(int sel){
     rect(60,25,100,5,RGB(8,10,14)); rect(60,25,fill,5,mc);
     static const int mk[3]={23,57,90}; static const char* const ml[3]={"60","30","20"};
     for(int i=0;i<3;i++){ rect(60+mk[i],24,1,7,WHITE); text(60+mk[i]-3,32,ml[i],DIMC,1); }
-    if(cap>want){ text(168,25,"TOO SLOW FOR",heat[2],1); text(168,32,"THIS FRAME RATE",heat[2],1); }
+    if(cap>want){ if(!sNoWarn){ text(168,25,"TOO SLOW FOR",heat[2],1); text(168,32,"THIS FRAME RATE",heat[2],1); } }
     else { text(168,25,cap==1?"HOLDS 60 FPS":cap==2?"HOLDS 30 FPS":cap==3?"HOLDS 20 FPS":"HOLDS 15 FPS",heat[0],1); text(168,32,"SMOOTH",DIMC,1); }
     int top=sel-4; if(top<0) top=0; if(top>NSET-9) top=NSET-9;
     for(int n=0;n<9;n++){
