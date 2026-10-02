@@ -927,7 +927,7 @@ static const char sramTag[] __attribute__((used)) = "SRAM_V113";   // tells emul
 // Songs named PLACEHOLDER... are hidden from the jukebox unless the title-screen debug code was entered (dbgOn).
 static int isDbgSong(int i){ const char*n=songs[i].name, *p="PLACEHOLDER"; while(*p){ if(*n++!=*p++) return 0; } return 1; }
 static void jbSetup(void){   // build the list of songs the jukebox shows, then load / make the playlist order
-    int n=0; for(int i=0;i<NSONGS&&n<JB_MAX;i++) if(dbgOn||!isDbgSong(i)) jbMap[n++]=(u8)i;
+    int n=0; for(int i=0;i<NSONGS&&n<JB_MAX;i++) if(songs[i].xm!=&xm_the_dipper_man&&(dbgOn||!isDbgSong(i))) jbMap[n++]=(u8)i;
     jbInit(n);
 }
 // SRAM layout: 0..2 "BM3", then MSZ bytes each of tiles, floors, wallpapers. Settings at SET_OFF (see settingsSave).
