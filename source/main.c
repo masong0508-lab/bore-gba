@@ -1338,15 +1338,15 @@ static void eRect(int*x0,int*y0,int*x1,int*y1){   // anchor..cursor as an ordere
     if(eTool==T_WALL){ int dx=bx>ax?bx-ax:ax-bx, dy=by>ay?by-ay:ay-by; if(dx>=dy) by=ay; else bx=ax; }
     *x0=ax<bx?ax:bx; *x1=ax<bx?bx:ax; *y0=ay<by?ay:by; *y1=ay<by?by:ay;
 }
+#include "items.h"
 static int lpsx, lpsy;   // where the player is on screen (zoom centre)
 static void drawRoom(int ed){   // the room, drawn back to front; ed=1: editor view (no player, markers + cursor)
     fillCols(0,ROW_W,RGB(4,5,8));
     int s0,s1; bandRows(&s0,&s1);
     for(int s=s0;s<=s1;s++){ int a,b; bandCols(s,&a,&b);
-        for(int tx=a;tx<=b;tx++){ int ty=s-tx; char c=cellAt(tx,ty); if(c=='w'||c=='W'||c=='#'||c=='F'||c=='T') continue;
+        for(int tx=a;tx<=b;tx++){ int ty=s-tx; char c=cellAt(tx,ty); if(c=='w'||c=='W'||c=='#') continue;
             int sx=LOX+(tx-ty)*CA, sy=LOY+(tx+ty+1)*CB;
-            if(c=='D') tileTop(sx,sy,RGB(14,9,5));
-            else { int fl=flAt(tx,ty), v=(tx^ty)&1; if(sFl) floorTile(sx,sy,&flTab[fl][v][0][0]); else tileTop(sx,sy,flFlat[fl][v]); } } }
+            { int fl=flAt(tx,ty), v=(tx^ty)&1; if(sFl) floorTile(sx,sy,&flTab[fl][v][0][0]); else tileTop(sx,sy,flFlat[fl][v]); } } }
     s32 rfx,rfy; rotPos(lfx,lfy,&rfx,&rfy);
     int ss=(int)((rfx>>8)+(rfy>>8)), psx=LOX+(int)((rfx-rfy)>>5), psy=LOY+(int)((rfx+rfy)>>6);
     lpsx=psx; lpsy=psy-20;
@@ -1354,16 +1354,10 @@ static void drawRoom(int ed){   // the room, drawn back to front; ed=1: editor v
         for(int tx=a;tx<=b;tx++){ int ty=s-tx;
             char c=cellAt(tx,ty); int sx=LOX+(tx-ty)*CA, sy=LOY+(tx+ty+1)*CB;
             if(c=='w'||c=='W') drawWall(tx,ty,sx,sy);
-            else if(c=='#'){ for(int j=1;j<=2;j++) cube(sx,sy-j*CC,7,0,(j<2?1:0)|(j>1?2:0)); }
-            else if(c=='F'){ for(int j=1;j<=2;j++) cube(sx,sy-j*CC,2,0,(j<2?1:0)|(j>1?2:0)); }   // fridge: white, 2 blocks tall
-            else if(c=='T') cube(sx,sy-CC,8,0,0);                                                  // toilet: pale, 1 block
-            else if(c=='=') cube(sx,sy-6,8,1,2);
             int ox,oy; rotXY(tx,ty,&ox,&oy);
-            if((ed&&c=='B')||(!ed&&!lhave&&ox==BDX&&oy==BDY)){   // the skateboard pickup, bobbing
-                int by=sy-3-(ed?0:((lfr>>4)&1));
-                rect(sx-6,by-1,12,3,RGB(26,10,6)); rect(sx-5,by-2,10,1,RGB(31,20,8)); rect(sx-5,by+2,2,2,RGB(3,3,6)); rect(sx+3,by+2,2,2,RGB(3,3,6));
-            }
-            if(ed&&c=='P'){ rect(sx-2,sy-9,5,7,RGB(28,10,8)); rect(sx-2,sy-13,5,4,RGB(30,23,17)); }   // little person = spawn
+            if(c=='#'||c=='F'||c=='T'||c=='='||c=='D') drawItemTile(c,sx,sy,ox,oy);
+            if((ed&&c=='B')||(!ed&&!lhave&&ox==BDX&&oy==BDY)) blitItem(V_BOARD,sx,sy-(ed?0:((lfr>>4)&1)));   // the skateboard pickup, bobbing
+            if(ed&&c=='P') drawSpawn(sx,sy+1);   // little person = spawn
         }
         if(!ed&&s==ss){
             int fhp=tileH(lfx>>8,lfy>>8), zp=(int)(lz>>8), vsel=((lhd+lspin+66+4*cview)>>2)&3;
@@ -1519,6 +1513,9 @@ static void drawEditorHud(const char*msg){
     if(eTool==T_ITEM){
         for(int i=0;i<NOBJ;i++){ int xx=2+i*13; rect(xx,136,12,9,i==eOb?WHITE:RGB(3,4,7)); rect(xx+1,137,10,7,palCol[i]); }
         text(136,139,palNm[eOb],WHITE,1);
+        if(eOb>=3){ rect(204,114,34,36,RGB(4,5,8)); tileTop(221,141,RGB(14,14,18));   // preview of the picked item
+            switch(eOb){ case 3:blitItem(V_CRATE,221,141);break; case 4:blitItem(V_RAILU,221,141);break; case 5:blitItem(V_FRIDGE,221,141);break;
+                case 6:blitItem(V_TOILET,221,141);break; case 7:blitItem(V_DOOR,221,141);break; case 8:blitItem(V_BOARD,221,141);break; default:drawSpawn(221,142); } }
         if(eOb==1||eOb==2){ texSwatch(&wpTex[eWp],212,137); }
     } else if(eTool!=T_ERASE){
         if(eTool!=T_WALL){ text(2,139,"FLOOR",DIMC,1); texSwatch(&flTex[eFl],24,137); text(36,139,flTex[eFl].nm,WHITE,1); }
