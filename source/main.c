@@ -766,6 +766,7 @@ static s8 mbufL[2][MUS_N] __attribute__((aligned(4))), mbufR[2][MUS_N] __attribu
 static s16 maccL[MUS_N], maccR[MUS_N];
 static s8 mDly[256]; static int mDp, mLp;   // pseudo-stereo for streamed songs: 256-sample (14 ms) delay line + a low-pass state that keeps the bass centred
 static int mOrd, mRow, mLeft, mFrac; static volatile int mCur, mOn, mFilled; static const XmSong*mSong;
+static volatile int mGain=256, mGainT=256;   // music loudness 256 = full; mGain glides to mGainT a little every frame (half while a menu is open)
 static int mKind, aTail; static volatile int mLaps, mDone;   // mKind 0 = tracker song, 1 = streamed ADPCM; mLaps = times the tracker song has wrapped; mDone = ADPCM song finished
 static int aSlow, aPrv, aPh; static const u8 *aSrc; static u32 aN, aPos; static int aPred, aIdx;   // ADPCM stream: data, sample count, position, decoder state
 static void musTrigger(void){
@@ -842,6 +843,8 @@ IWRAM_CODE static void musMixAny(int b){
     int sh=oMusShift();   // MUSIC VOLUME option: full, half, quarter, off
     if(sh>=8){ for(int i=0;i<MUS_N;i++){ mbufL[b][i]=0; mbufR[b][i]=0; } }
     else if(sh){ for(int i=0;i<MUS_N;i++){ mbufL[b][i]=(s8)(mbufL[b][i]>>sh); mbufR[b][i]=(s8)(mbufR[b][i]>>sh); } }
+    if(mGain!=mGainT){ int g=mGain+((mGainT>mGain)?16:-16); if((mGainT>mGain)?g>mGainT:g<mGainT) g=mGainT; mGain=g; }   // fade: 16 steps of 1/16 per frame
+    if(mGain<256){ int g=mGain; for(int i=0;i<MUS_N;i++){ mbufL[b][i]=(s8)((mbufL[b][i]*g)>>8); mbufR[b][i]=(s8)((mbufR[b][i]*g)>>8); } }
 }
 // ---- Audio is driven by interrupts, NOT by the main loop ----
 // Old design: the main loop mixed one buffer per frame right after vsync. Any frame whose drawing ran long (jukebox list
@@ -1552,9 +1555,9 @@ static void gmPlay(void){   // start the song in playlist slot gmPos (always the
 static void gmStart(void){
     if(gMusic||!xo[XO_GAMEMUS]||!sSnd||jbN<=0) return;
     gmPos=(rnd8()*jbN)>>8; if(gmPos>=jbN) gmPos=0;
-    gMusic=1; mDucked=0; gmPlay();
+    gMusic=1; mDucked=0; mGain=mGainT=256; gmPlay();
 }
-static void gmStop(void){ if(!gMusic) return; gMusic=0; mDucked=0; musStop(); }
+static void gmStop(void){ mGain=mGainT=256; if(!gMusic) return; gMusic=0; mDucked=0; musStop(); }
 static void gmSync(void){ if(xo[XO_GAMEMUS]&&sSnd) gmStart(); else gmStop(); }   // after the pause menu: the option or SOUND may have changed
 static void gmTick(void){   // once per frame: when the song is over, the next one in the shuffle
     if(!gMusic||mDucked||sfxOn) return;
@@ -1573,7 +1576,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
         u16 k=keyNow(), pr=k&~prev; prev=k;
         if((k&K_SEL)&&(k&K_START)) break;
         if(pr&K_START){   // pause menu
-            sfxStop(); simsSave();   // the pause menu is also a save point
+            mGainT=128; sfxStop(); simsSave();   // the music fades to half while a menu is open   // the pause menu is also a save point
             int c=menu("PAUSED",ed?lifeItemsEd:lifeItems,ed?4:7);
             if(c==1) helpScreen("HOW TO PLAY",lifeHelp,16);
             else if(c==2) settingsScreen();
@@ -1581,7 +1584,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
             else if(c==4&&!ed){ mapEditor(); lifeInit(); }
             else if(c==5&&!ed){ if(menu("START A NEW LIFE",yesNoLife,2)==1){ simsNewLife(); moodReset(); lscore=0; simLastScore=0; lnote="NEW LIFE"; lnoteT=60; } }
             else if((c==3&&ed)||c==6){ if(c==6) gToMenu=1; break; }
-            gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=0; continue;
+            mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=0; continue;
         }
         if(lcamF>0) camStep(steps,k,pr);
         else {

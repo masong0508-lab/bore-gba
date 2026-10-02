@@ -62,7 +62,7 @@ Main menu -> **OPTIONS** (also in the pause menu and the map menu). Eight pages:
 | B / Start | back (everything is saved) |
 A gold dot marks a row that is not at its normal value. The row under the cursor explains itself in two lines.
 - **PLAY**: NEEDS (off to brutal), FOOD AND WC, DAY LENGTH (3 / 6 / 12 / 24 min or stopped), CAREER on/off (off = no shifts, quota or bills), JOB QUOTA, BILLS, SCORE multiplier (x0.5 to x3), COMBO WINDOW, TOP SPEED (80 to 150 %), MOOD EFFECTS, HURT (normal / gentle / no death), AUTO SAVE LIFE.
-- **AUDIO**: SOUND, SFX VOLUME, MUSIC VOLUME, **GAME MUSIC** (off by default: the jukebox songs play in their shuffled order while you play, the next song starts when one ends, and sound effects pause the music while they sound; mixing runs in an interrupt, so it costs some speed on slow devices), TITLE MUSIC, JUKEBOX MODE.
+- **AUDIO**: SOUND, SFX VOLUME, MUSIC VOLUME, **GAME MUSIC** (off by default: the jukebox songs play in their shuffled order while you play, the next song starts when one ends, it fades to half volume while the pause menu (or anything opened from it) is up, and sound effects pause the music while they sound; mixing runs in an interrupt, so it costs some speed on slow devices), TITLE MUSIC, JUKEBOX MODE.
 - **INPUT**: BUTTONS (swap A/B, L/R or both, on every screen), CURSOR REPEAT speed of the editor, BUTTON TEST (shows the keys the game sees).
 - **HUD**: INFO ON SCREEN, CLOCK (24 h / 12 h / hidden), THOUGHT BUBBLE, WANTS AND FEARS, ACTION CAM, ACCENT COLOUR (gold, mint, sky, pink, orange, lilac), MESSAGE TIME.
 - **ROOMS**: EDITOR MINIMAP, SAVE ON EXIT, ASK BEFORE RESET, SLOTS SAVE (room / room + person / all three), ASK IN SLOTS, SAVE MAP TO SLOT, BOOT LOADS PERSON.
