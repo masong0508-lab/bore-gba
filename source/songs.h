@@ -19,3 +19,4 @@ SONG_ADP(placeholder_b,"PLACEHOLDER B","source/music/placeholder_b.adp")
 SONG_ADP(placeholder_c,"PLACEHOLDER C","source/music/placeholder_c.adp")
 
 // ---- songs added by tools/encode_song.py go below this line ----
+SONG_ADP(earth_and_the_space_citizens,"EARTH AND THE SPACE CITIZENS","source/music/earth_and_the_space_citizens.adp")
