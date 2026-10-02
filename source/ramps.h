@@ -8,9 +8,10 @@
 #define F_RAMP_TOL   6      // px a ramp surface may rise between two steps before it counts as a wall (flat ground uses 3)
 static inline int isKicker(char c){ return c>='1'&&c<='4'; }
 static inline int isQPipe(char c){ return c>='5'&&c<='8'; }
-static inline int isRamp(char c){ return c>='1'&&c<='8'; }
+static inline int isLaunch(char c){ return c>='9'&&c<='<'; }   // launch ramp (pack 2): '9' ':' ';' '<' = faces S E N W
+static inline int isRamp(char c){ return (c>='1'&&c<='8')||isLaunch(c); }
 static int rampH(char c,int fx,int fy){   // surface height (px) at a position inside the tile (fx,fy in 1/256 tile)
-    int d=isKicker(c)?c-'1':c-'5', t;      // t 0..255 = how far from the low (entry) edge towards the lip
+    int d=isKicker(c)?c-'1':isQPipe(c)?c-'5':c-'9', t;      // t 0..255 = how far from the low (entry) edge towards the lip
     switch(d){ case 0: t=255-(fy&255); break; case 1: t=255-(fx&255); break; case 2: t=fy&255; break; default: t=fx&255; }
-    return isKicker(c)?(t*(KICKER_H+1))>>8:qpH[t>>5];
+    return isKicker(c)?(t*(KICKER_H+1))>>8:isLaunch(c)?(t*(LAUNCH_H+1))>>8:qpH[t>>5];
 }

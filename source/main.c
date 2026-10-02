@@ -1014,7 +1014,7 @@ static void hurt(int sev,int kind){
 static int tileH(int tx,int ty){   // surface height in px (ramps: their highest point). Grind height is 6: rails, ledges and benches
     if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
     char c=lifeMap[ty][tx];
-    return (c=='#'||c=='F'||c=='W'||c=='H')?2*CC: (c=='w'||c=='T'||c=='S'||c=='C')?CC: (c=='='||c=='L'||c=='N')?6: isKicker(c)?KICKER_H: isQPipe(c)?qpH[7]: 0;
+    return (c=='#'||c=='F'||c=='W'||c=='H')?2*CC: (c=='X'||c=='Y')?10: (c=='w'||c=='T'||c=='S'||c=='C'||c=='O')?CC: (c=='='||c=='L'||c=='N'||c=='Z'||c=='K'||c=='J')?6: (c=='M')?3: isKicker(c)?KICKER_H: isLaunch(c)?LAUNCH_H: isQPipe(c)?qpH[7]: 0;   // pack 2: X funbox 10, Y trash can 10, O barrel 8, Z planter / K table / J jersey grind at 6, M manual pad 3
 }
 static int surfH(s32 fx,s32 fy){   // surface height at an exact position (1/256 tiles): same as tileH, but ramps slope
     int tx=(int)(fx>>8), ty=(int)(fy>>8); if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
@@ -1042,15 +1042,16 @@ static int numText(int x,int y,int n,u16 c){
 // lifeMap = what stands on each tile, floorMap = floor style under it, wallMap = wallpaper on it (for wall tiles).
 enum { T_ROOM, T_WALL, T_FLOOR, T_ITEM, T_ERASE, NTOOL };
 static int eTool, eAct, eAx, eAy, eFl, eWp, eOb;   // editor: tool, rectangle anchor set?, anchor tile, chosen floor / wallpaper / item
-#define NOBJ 17
+#define NOBJ 25
+#define OB_LAUNCH 17   // launch ramp turns like the kicker: '9'..'<'
 #define OB_KICKER 10   // palette slots whose char carries a turn (+eRot): kicker '1'..'4', quarter pipe '5'..'8'
 #define OB_QPIPE 11
 static int eRot;   // editor: which way the next ramp faces (0 S, 1 E, 2 N, 3 W)
-static const char palCh[NOBJ]={'.','w','W','#','=','F','T','D','B','P','1','5','L','N','S','H','C'};
-static const char* const palNm[NOBJ]={"CLEAR","LOW WALL","WALL","CRATE","RAIL","FRIDGE","TOILET","DOOR","BOARD","SPAWN","KICKER","Q PIPE","LEDGE","BENCH","BED","SHOWER","SOFA"};
-static const u16 palCol[NOBJ]={RGB(26,21,14),RGB(8,20,22),RGB(10,22,24),RGB(8,9,20),RGB(31,30,16),RGB(31,31,31),RGB(30,28,18),RGB(14,9,5),RGB(26,10,6),RGB(28,10,8),RGB(24,17,9),RGB(27,19,11),RGB(20,20,22),RGB(25,18,9),RGB(10,14,28),RGB(22,28,30),RGB(26,18,9)};
-static int palIdx(char c){ if(isKicker(c)) return OB_KICKER; if(isQPipe(c)) return OB_QPIPE; for(int i=0;i<NOBJ;i++) if(palCh[i]==c) return i; return -1; }
-static char edObjCh(void){ char c=palCh[eOb]; return (eOb==OB_KICKER||eOb==OB_QPIPE)?(char)(c+eRot):c; }   // the char the ITEM tool places
+static const char palCh[NOBJ]={'.','w','W','#','=','F','T','D','B','P','1','5','L','N','S','H','C','9','X','O','Y','Z','K','J','M'};
+static const char* const palNm[NOBJ]={"CLEAR","LOW WALL","WALL","CRATE","RAIL","FRIDGE","TOILET","DOOR","BOARD","SPAWN","KICKER","Q PIPE","LEDGE","BENCH","BED","SHOWER","SOFA","LAUNCH","FUNBOX","BARREL","TRASH CAN","PLANTER","PICNIC","JERSEY","MANUAL PAD"};
+static const u16 palCol[NOBJ]={RGB(26,21,14),RGB(8,20,22),RGB(10,22,24),RGB(8,9,20),RGB(31,30,16),RGB(31,31,31),RGB(30,28,18),RGB(14,9,5),RGB(26,10,6),RGB(28,10,8),RGB(24,17,9),RGB(27,19,11),RGB(20,20,22),RGB(25,18,9),RGB(10,14,28),RGB(22,28,30),RGB(26,18,9),RGB(8,14,24),RGB(18,16,24),RGB(24,6,5),RGB(12,18,14),RGB(20,10,6),RGB(25,18,9),RGB(22,22,24),RGB(30,26,5)};
+static int palIdx(char c){ if(isKicker(c)) return OB_KICKER; if(isQPipe(c)) return OB_QPIPE; if(isLaunch(c)) return OB_LAUNCH; for(int i=0;i<NOBJ;i++) if(palCh[i]==c) return i; return -1; }
+static char edObjCh(void){ char c=palCh[eOb]; return (eOb==OB_KICKER||eOb==OB_QPIPE||eOb==OB_LAUNCH)?(char)(c+eRot):c; }   // the char the ITEM tool places
 // ---- default big map: house (top left), factory (top right), rail park (bottom), roads of concrete between ----
 static void gBox(int x0,int y0,int x1,int y1,int fl){ for(int y=y0;y<=y1;y++)for(int x=x0;x<=x1;x++) floorMap[y][x]=(u8)fl; }
 static void gRoom(int x0,int y0,int x1,int y1,int fl,int wp){   // walled room with a floor
@@ -1058,6 +1059,7 @@ static void gRoom(int x0,int y0,int x1,int y1,int fl,int wp){   // walled room w
         if(x==x0||x==x1||y==y0||y==y1){ lifeMap[y][x]='W'; wallMap[y][x]=(u8)wp; } } }
 static void gLine(int x0,int y0,int x1,int y1,char c,int wp){ for(int y=y0;y<=y1;y++)for(int x=x0;x<=x1;x++){ lifeMap[y][x]=c; wallMap[y][x]=(u8)wp; } }
 static void gPut(int x,int y,char c){ lifeMap[y][x]=c; }
+static void gFree(int x,int y,char c){ if(x>=0&&y>=0&&x<MW&&y<MH&&lifeMap[y][x]=='.') lifeMap[y][x]=c; }   // put only onto empty floor
 static void mapGen(void){
     for(int y=0;y<MH;y++){ for(int x=0;x<MW;x++){ lifeMap[y][x]='.'; floorMap[y][x]=7; wallMap[y][x]=0; } lifeMap[y][MW]=0; }
     gLine(0,0,MW-1,0,'w',13); gLine(0,MH-1,MW-1,MH-1,'w',13); gLine(0,0,0,MH-1,'w',13); gLine(MW-1,0,MW-1,MH-1,'w',13);   // low wall round the edge
@@ -1085,6 +1087,13 @@ static void mapGen(void){
     gPut(16,30,'4'); gPut(21,30,'2');                                  // two kickers facing each other: a gap jump
     gPut(17,22,'5'); gPut(18,22,'5');                                  // quarter pipes (face south) in front of the plaza wall
     gPut(13,33,'L'); gPut(14,33,'L'); gPut(15,33,'L'); gPut(25,33,'N'); gPut(26,33,'N');   // ledge and bench to grind
+    // SKATE PACK 2 (only onto empty floor, so nothing above is overwritten): funbox with two launch ramps, barrels, jersey barriers, planters, picnic table, trash cans, manual pad
+    gFree(18,30,'X'); gFree(19,30,'X'); gFree(18,31,'9'); gFree(19,31,'9');
+    gFree(13,31,'O'); gFree(13,32,'O'); gFree(14,31,'O'); gFree(26,30,'O'); gFree(26,31,'O');
+    for(int x=16;x<=21;x++) gFree(x,35,'J');
+    gFree(13,22,'Z'); gFree(14,22,'Z'); gFree(25,22,'Z'); gFree(26,22,'Z');
+    gFree(21,24,'K'); gFree(13,23,'Y'); gFree(26,23,'Y');
+    for(int x=17;x<=20;x++) gFree(x,26,'M');
 }
 static void mapReset(void){ mapGen(); }
 static void mapScan(void){   // find the skateboard (B) and the spawn point (P); fall back to sane defaults
@@ -1449,7 +1458,7 @@ static void drawRoom(int ed){   // the room, drawn back to front; ed=1: editor v
             char c=cellAt(tx,ty); int sx=LOX+(tx-ty)*CA, sy=LOY+(tx+ty+1)*CB;
             if(c=='w'||c=='W') drawWall(tx,ty,sx,sy);
             int ox,oy; rotXY(tx,ty,&ox,&oy);
-            if(c=='#'||c=='F'||c=='T'||c=='='||c=='D'||c=='L'||c=='N'||c=='S'||c=='H'||c=='C'||isRamp(c)) drawItemTile(c,sx,sy,ox,oy);
+            if(c=='#'||c=='F'||c=='T'||c=='='||c=='D'||c=='L'||c=='N'||c=='S'||c=='H'||c=='C'||c=='X'||c=='O'||c=='Y'||c=='Z'||c=='K'||c=='J'||c=='M'||isRamp(c)) drawItemTile(c,sx,sy,ox,oy);
             if((ed&&c=='B')||(!ed&&!lhave&&ox==BDX&&oy==BDY)) blitItem(V_BOARD,sx,sy-(ed?0:((lfr>>4)&1)));   // the skateboard pickup, bobbing
             if(ed&&c=='P') drawSpawn(sx,sy+1);   // little person = spawn
         }
@@ -1643,14 +1652,18 @@ static void drawEditorHud(const char*msg){
         else text(2,11,"PICK A START POINT",GOLD,1);
     }
     if(eTool==T_ITEM){
-        for(int i=0;i<NOBJ;i++){ int xx=2+i*11; rect(xx,136,10,9,i==eOb?WHITE:RGB(3,4,7)); rect(xx+1,137,8,7,palCol[i]); }
+        { int vis=18, first=eOb-9; if(first<0) first=0; if(first>NOBJ-vis) first=NOBJ-vis;   // a window of the palette that follows the cursor
+          for(int j=0;j<vis;j++){ int i=first+j, xx=2+j*11; rect(xx,136,10,9,i==eOb?WHITE:RGB(3,4,7)); rect(xx+1,137,8,7,palCol[i]); } }
         { static const char*const faceNm[4]={"FACES S","FACES E","FACES N","FACES W"};
-          int xx=text(2,127,palNm[eOb],WHITE,1)+4; if(eOb==OB_KICKER||eOb==OB_QPIPE) text(xx,127,faceNm[eRot],GOLD,1); }
+          int xx=text(2,127,palNm[eOb],WHITE,1)+4; if(eOb==OB_KICKER||eOb==OB_QPIPE||eOb==OB_LAUNCH) text(xx,127,faceNm[eRot],GOLD,1); }
         if(eOb>=3){ rect(204,114,34,36,RGB(4,5,8)); tileTop(221,141,RGB(14,14,18));   // preview of the picked item
             switch(eOb){ case 3:blitItem(V_CRATE,221,141);break; case 4:blitItem(V_RAILU,221,141);break; case 5:blitItem(V_FRIDGE,221,141);break;
                 case 6:blitItem(V_TOILET,221,141);break; case 7:blitItem(V_DOOR,221,141);break; case 8:blitItem(V_BOARD,221,141);break;
                 case OB_KICKER:blitItem(V_KICKER+((eRot-cview)&3),221,141);break; case OB_QPIPE:blitItem(V_QPIPE+((eRot-cview)&3),221,141);break;
                 case 12:blitItem(V_LEDGEU,221,141);break; case 13:blitItem(V_BENCHU,221,141);break;
+                case OB_LAUNCH:blitItem(V_LAUNCH+((eRot-cview)&3),221,141);break; case 18:blitItem(V_FUNBOX,221,141);break; case 19:blitItem(V_BARREL,221,141);break;
+                case 20:blitItem(V_TRASH,221,141);break; case 21:blitItem(V_PLANTER,221,141);break; case 22:blitItem(V_PICNIC,221,141);break;
+                case 23:blitItem(V_JERSEYU,221,141);break; case 24:blitItem(V_MPAD,221,141);break;
                 case 14:blitItem(V_BED,221,141);break; case 15:blitItem(V_SHOWER,221,141);break; case 16:blitItem(V_SOFA,221,141);break; default:drawSpawn(221,142); } }
         if(eOb==1||eOb==2){ texSwatch(&wpTex[eWp],212,137); }
     } else if(eTool!=T_ERASE){

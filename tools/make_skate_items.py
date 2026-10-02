@@ -100,6 +100,82 @@ def rail(alongU):
 OBJS.append(('RailU',rail(True),16,'grind rail along a'))
 OBJS.append(('RailV',rail(False),16,'grind rail along b'))
 
+# ================================================================== PACK 2: launch ramp, funbox, barrel, trash can, planter, picnic table, jersey barrier, manual pad
+# ------------------------------------------------------------------ launch ramp (taller blue wedge with a white centre stripe, 12 px lip)
+pLa =pal('pLa', [(3,5,10),(8,14,24),(14,22,31),(24,29,31),(5,9,17)])
+pLaR=pal('pLaR',[lift(c,4,3) for c in pLa])
+LAH=[12,11,9,7,6,4,2,1]                               # slice k, back (lip) to front; physics is a straight line up to LAUNCH_H
+def launch():
+    boxes=[]
+    for k,h in enumerate(LAH):
+        seam=(k%3==0)
+        top=mat('mLaT%d'%k,pLa,['bbbddbbb'])
+        ris=mat('mLaR%d'%k,pLaR,['c' if seam else 'b'])
+        side=mat('mLaS%d'%k,pLa,['e'])
+        boxes.append(Box(0,k,8,k+1,0,h,[ris,side,side,side,top]))
+    return boxes
+OBJS.append(('Launch',launch(),11,'launch ramp, 12 px lip'))
+
+# ------------------------------------------------------------------ funbox (flat concrete platform, yellow band, steel coping, 10 px)
+pFb=pal('pFb',[(5,5,9),(14,13,20),(20,18,27),(28,26,31),(10,9,15),(31,27,6)])
+def funbox():
+    side=mat('mFbSide',pFb,['dddddddd','eeeeeeee','bbbbbbbb','bbcbbbbb','ffffffff','ffffffff','bbbbbbbb','bbbbbcbb','bbbbbbbb','eeeeeeee'])
+    top=mat('mFbTop',pFb,['dddddddd','dbbbbbbd','dbbcbbbd','dbbbbbcd','dbcbbbbd','dbbbbbbd','dbbbcbbd','dddddddd'])
+    return [Box(0,0,8,8,0,10,[side,side,side,side,top])]
+OBJS.append(('Funbox',funbox(),12,'platform, 10 px, solid (ollie onto it)'))
+
+# ------------------------------------------------------------------ barrel (red oil drum with ribs, 8 px)
+pBa=pal('pBa',[(8,2,2),(24,6,5),(30,12,9),(14,3,3),(31,24,20)])
+def barrel():
+    side=mat('mBaSide',pBa,['bbcbbbbb','dddddddd','bbcbbbbb','bbcbbbbb','bbcbbbbb','bbcbbbbb','dddddddd','bbcbbbbb'])
+    top=mat('mBaTop',pBa,['dddddd','dbbbbd','dbeebd','dbeebd','dbbbbd','dddddd'])
+    return [Box(1,1,7,7,0,8,[side,side,side,side,top])]
+OBJS.append(('Barrel',barrel(),11,'oil drum, 8 px, solid'))
+
+# ------------------------------------------------------------------ trash can (grey-green, lid, 10 px)
+pTr=pal('pTr',[(3,5,4),(12,18,14),(17,24,19),(22,28,24),(7,11,8)])
+def trashcan():
+    body=mat('mTrBody',pTr,['bcbcbcbc']*9)
+    lidS=mat('mTrLidS',pTr,['d']); lidT=mat('mTrLidT',pTr,['dddddddd','dcccccd d'.replace(' ',''),'dcdddcdd','dcccccdd','dddddddd','dcccccdd','dcdddcdd','dddddddd'][:8])
+    return [Box(1,1,7,7,0,9,[body,body,body,body,body]),Box(0,0,8,8,9,10,[lidS,lidS,lidS,lidS,lidT])]
+OBJS.append(('TrashCan',trashcan(),11,'trash can, 10 px, solid'))
+
+# ------------------------------------------------------------------ planter (brick box with soil and plants, grind height 6)
+pPl=pal('pPl',[(6,3,2),(20,10,6),(26,15,9),(14,7,4),(9,6,3),(8,22,6),(14,28,9),(30,10,16)])
+def planter():
+    side=mat('mPlSide',pPl,['cbbbcbbb','dddddddd','bbcbbbcb','dddddddd','cbbbcbbb','dddddddd'])
+    top=mat('mPlTop',pPl,['cccccccc','cefeefec','cffefeec','cefhfefc','cfeefhec','cefefeec','cfehefec','cccccccc'])
+    return [Box(0,0,8,8,0,6,[side,side,side,side,top])]
+OBJS.append(('Planter',planter(),11,'planter box, grind 6 px'))
+
+# ------------------------------------------------------------------ picnic table (top at 6 px so it grinds; seats both sides)
+pPt=pal('pPt',[(6,4,2),(25,18,9),(18,12,6),(29,22,12),(13,8,4)])
+def picnic():
+    leg=mat('mPtLeg',pPt,['e']); seatE=mat('mPtSeatE',pPt,['bbbbbbbb']); seatT=mat('mPtSeatT',pPt,['bbbbbbbb','bbcbbbbb'])
+    topE=mat('mPtTopE',pPt,['dddddddd','cccccccc']); topT=mat('mPtTopT',pPt,['dddddddd','cccccccc']*3)
+    return [Box(1,0,2,8,0,2,[leg]*5),Box(6,0,7,8,0,2,[leg]*5),Box(0,0,8,2,2,3,[seatE,seatE,seatE,seatE,seatT]),Box(0,6,8,8,2,3,[seatE,seatE,seatE,seatE,seatT]),
+            Box(1,1,7,7,5,6,[topE,topE,topE,topE,topT]),Box(2,1,3,7,3,5,[leg]*5),Box(5,1,6,7,3,5,[leg]*5)]
+OBJS.append(('PicnicTable',picnic(),12,'picnic table, grind 6 px'))
+
+# ------------------------------------------------------------------ jersey barrier (concrete, red/white stripes on the top, grind 6 px). U / V variants like the ledge
+pJe=pal('pJe',[(6,6,8),(17,17,19),(22,22,24),(27,28,30),(12,12,14),(27,6,5),(30,30,30)])
+def jersey(alongU):
+    base=mat('mJeBase',pJe,['bbbbbbbb','eeeeeeee']); mid=mat('mJeMid',pJe,['cccccccc','bbbbbbbb'])
+    stp =mat('mJeStripe',pJe,['ffggffgg','ggffggff'])
+    topm=mat('mJeTop'+('U' if alongU else 'V'),pJe,['dddd']*8 if alongU else ['dddddddd']*4)
+    if alongU: return [Box(0,1,8,7,0,2,[base]*4+[mid]),Box(0,2,8,6,2,4,[mid,mid,mid,mid,mid]),Box(0,3,8,5,4,6,[stp,stp,stp,stp,topm])]
+    return [Box(1,0,7,8,0,2,[base]*4+[mid]),Box(2,0,6,8,2,4,[mid,mid,mid,mid,mid]),Box(3,0,5,8,4,6,[stp,stp,stp,stp,topm])]
+OBJS.append(('JerseyU',jersey(True),12,'jersey barrier, runs along a'))
+OBJS.append(('JerseyV',jersey(False),12,'jersey barrier, runs along b'))
+
+# ------------------------------------------------------------------ manual pad (low painted platform, 3 px: rolls straight on, the spot for manuals)
+pPd=pal('pPd',[(6,6,8),(16,16,18),(21,22,25),(30,26,5),(24,20,3)])
+def mpad():
+    side=mat('mPdSide',pPd,['bbb','eee'.replace('e','a')][:1]+['cccccccc','bbbbbbbb'])
+    top=mat('mPdTop',pPd,['dddddddd','dbbbbbbd','dbcbbbcd','dbbcbcbd','dbbbcbbd','dbbcbcbd','dbcbbbcd','dddddddd'])
+    return [Box(0,0,8,8,0,3,[side,side,side,side,top])]
+OBJS.append(('ManualPad',mpad(),12,'manual pad, 3 px, rides on without a jump'))
+
 # ------------------------------------------------------------------ renderer (port of items.h)
 def rotPt(r,a,b): return [(a,b),(b,8-a),(8-a,8-b),(8-b,a)][r]
 def drawBox(d,q,r):
@@ -189,14 +265,40 @@ def preview(path,scale=6):
                         for xx in range(scale): im.putpixel((ox+x*scale+xx,oy+y*scale+yy),c8)
     im.save(path)
 
+def preview2(path,scale=6):
+    from PIL import Image
+    by={n:b for n,b,_,_ in OBJS}; sh={n:x for n,_,x,_ in OBJS}
+    rows=[('Launch',[bake(by['Launch'],r,11) for r in range(4)]),
+          ('Funbox / Barrel / Trash can / Planter',[bake(by[n],0,sh[n]) for n in ('Funbox','Barrel','TrashCan','Planter')]),
+          ('Picnic table / Jersey U / Jersey V / Manual pad',[bake(by[n],0,sh[n]) for n in ('PicnicTable','JerseyU','JerseyV','ManualPad')])]
+    cols=4; pad=8; W=cols*(IW*scale+pad)+pad; H=len(rows)*(IH*scale+pad)+pad
+    im=Image.new('RGB',(W,H),(52,54,62))
+    for ri,(lab,sp) in enumerate(rows):
+        for ci,s2 in enumerate(sp):
+            ox=pad+ci*(IW*scale+pad); oy=pad+ri*(IH*scale+pad)
+            for y in range(IH):
+                for x in range(IW):
+                    if abs(x-IOX)/8.0+abs(y-(IOY-4))/4.0<=1.0:
+                        for yy in range(scale):
+                            for xx in range(scale): im.putpixel((ox+x*scale+xx,oy+y*scale+yy),(70,72,80))
+            for y in range(IH):
+                for x in range(IW):
+                    c=s2[y][x]
+                    if c is KEY: continue
+                    c8=tuple(min(255,v*255//31) for v in c)
+                    for yy in range(scale):
+                        for xx in range(scale): im.putpixel((ox+x*scale+xx,oy+y*scale+yy),c8)
+    im.save(path)
+
 def emit_ramps():
     return ('// rampdata.h - GENERATED by tools/make_skate_items.py. Surface heights (px) that match the ramp sprites, used by ramps.h.\n'
             'static const u8 qpH[8]={%s};   // quarter pipe, per eighth of the tile from the low edge to the lip\n'
-            '#define KICKER_H %d   // kicker height at the lip\n')%(','.join(str(h) for h in reversed(QPH)),max(h for h in [8]))
+            '#define KICKER_H %d   // kicker height at the lip\n'
+            '#define LAUNCH_H %d   // launch ramp height at the lip (pack 2)\n')%(','.join(str(h) for h in reversed(QPH)),8,LAH[0])
 
 if __name__=='__main__':
     open(os.path.join(ROOT,'source','skateart.h'),'w').write(emit())
     open(os.path.join(ROOT,'source','rampdata.h'),'w').write(emit_ramps())
-    try: preview(os.path.join(ROOT,'assets','preview','skate_items.png'))
+    try: preview(os.path.join(ROOT,'assets','preview','skate_items.png')); preview2(os.path.join(ROOT,'assets','preview','skate_items2.png'))
     except ImportError: print('Pillow missing: preview skipped')
     print('wrote source/skateart.h')

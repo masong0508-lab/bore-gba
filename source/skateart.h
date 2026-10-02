@@ -7,6 +7,15 @@ static const u16 pQpR[7]={RGB(8,5,4),RGB(29,20,10),RGB(22,14,6),RGB(31,25,14),RG
 static const u16 pLe[5]={RGB(6,6,8),RGB(16,16,18),RGB(12,12,14),RGB(27,28,30),RGB(21,22,25)};
 static const u16 pBe[5]={RGB(6,4,2),RGB(25,18,9),RGB(13,8,4),RGB(18,19,23),RGB(29,22,12)};
 static const u16 pRl[5]={RGB(7,7,10),RGB(19,20,24),RGB(29,30,31),RGB(30,26,5),RGB(12,12,15)};
+static const u16 pLa[5]={RGB(3,5,10),RGB(8,14,24),RGB(14,22,31),RGB(24,29,31),RGB(5,9,17)};
+static const u16 pLaR[5]={RGB(4,6,13),RGB(10,18,31),RGB(18,29,31),RGB(31,31,31),RGB(6,12,22)};
+static const u16 pFb[6]={RGB(5,5,9),RGB(14,13,20),RGB(20,18,27),RGB(28,26,31),RGB(10,9,15),RGB(31,27,6)};
+static const u16 pBa[5]={RGB(8,2,2),RGB(24,6,5),RGB(30,12,9),RGB(14,3,3),RGB(31,24,20)};
+static const u16 pTr[5]={RGB(3,5,4),RGB(12,18,14),RGB(17,24,19),RGB(22,28,24),RGB(7,11,8)};
+static const u16 pPl[8]={RGB(6,3,2),RGB(20,10,6),RGB(26,15,9),RGB(14,7,4),RGB(9,6,3),RGB(8,22,6),RGB(14,28,9),RGB(30,10,16)};
+static const u16 pPt[5]={RGB(6,4,2),RGB(25,18,9),RGB(18,12,6),RGB(29,22,12),RGB(13,8,4)};
+static const u16 pJe[7]={RGB(6,6,8),RGB(17,17,19),RGB(22,22,24),RGB(27,28,30),RGB(12,12,14),RGB(27,6,5),RGB(30,30,30)};
+static const u16 pPd[5]={RGB(6,6,8),RGB(16,16,18),RGB(21,22,25),RGB(30,26,5),RGB(24,20,3)};
 MAT(mKiT0,pKi,8,1,"cccccccc")
 MAT(mKiR0,pKiR,1,1,"c")
 MAT(mKiS0,pKi,1,1,"e")
@@ -70,6 +79,51 @@ MAT(mRlTopL,pRl,8,2,"cccccccc","cdcdcdcd")
 MAT(mRlLongV,pRl,8,2,"cccccccc","bbbbbbbb")
 MAT(mRlShortV,pRl,2,2,"cc","bb")
 MAT(mRlTopS,pRl,2,8,"cc","cd","cc","cd","cc","cd","cc","cd")
+MAT(mLaT0,pLa,8,1,"bbbddbbb")
+MAT(mLaR0,pLaR,1,1,"c")
+MAT(mLaS0,pLa,1,1,"e")
+MAT(mLaT1,pLa,8,1,"bbbddbbb")
+MAT(mLaR1,pLaR,1,1,"b")
+MAT(mLaS1,pLa,1,1,"e")
+MAT(mLaT2,pLa,8,1,"bbbddbbb")
+MAT(mLaR2,pLaR,1,1,"b")
+MAT(mLaS2,pLa,1,1,"e")
+MAT(mLaT3,pLa,8,1,"bbbddbbb")
+MAT(mLaR3,pLaR,1,1,"c")
+MAT(mLaS3,pLa,1,1,"e")
+MAT(mLaT4,pLa,8,1,"bbbddbbb")
+MAT(mLaR4,pLaR,1,1,"b")
+MAT(mLaS4,pLa,1,1,"e")
+MAT(mLaT5,pLa,8,1,"bbbddbbb")
+MAT(mLaR5,pLaR,1,1,"b")
+MAT(mLaS5,pLa,1,1,"e")
+MAT(mLaT6,pLa,8,1,"bbbddbbb")
+MAT(mLaR6,pLaR,1,1,"c")
+MAT(mLaS6,pLa,1,1,"e")
+MAT(mLaT7,pLa,8,1,"bbbddbbb")
+MAT(mLaR7,pLaR,1,1,"b")
+MAT(mLaS7,pLa,1,1,"e")
+MAT(mFbSide,pFb,8,10,"dddddddd","eeeeeeee","bbbbbbbb","bbcbbbbb","ffffffff","ffffffff","bbbbbbbb","bbbbbcbb","bbbbbbbb","eeeeeeee")
+MAT(mFbTop,pFb,8,8,"dddddddd","dbbbbbbd","dbbcbbbd","dbbbbbcd","dbcbbbbd","dbbbbbbd","dbbbcbbd","dddddddd")
+MAT(mBaSide,pBa,8,8,"bbcbbbbb","dddddddd","bbcbbbbb","bbcbbbbb","bbcbbbbb","bbcbbbbb","dddddddd","bbcbbbbb")
+MAT(mBaTop,pBa,6,6,"dddddd","dbbbbd","dbeebd","dbeebd","dbbbbd","dddddd")
+MAT(mTrBody,pTr,8,9,"bcbcbcbc","bcbcbcbc","bcbcbcbc","bcbcbcbc","bcbcbcbc","bcbcbcbc","bcbcbcbc","bcbcbcbc","bcbcbcbc")
+MAT(mTrLidS,pTr,1,1,"d")
+MAT(mTrLidT,pTr,8,8,"dddddddd","dcccccdd","dcdddcdd","dcccccdd","dddddddd","dcccccdd","dcdddcdd","dddddddd")
+MAT(mPlSide,pPl,8,6,"cbbbcbbb","dddddddd","bbcbbbcb","dddddddd","cbbbcbbb","dddddddd")
+MAT(mPlTop,pPl,8,8,"cccccccc","cefeefec","cffefeec","cefhfefc","cfeefhec","cefefeec","cfehefec","cccccccc")
+MAT(mPtLeg,pPt,1,1,"e")
+MAT(mPtSeatE,pPt,8,1,"bbbbbbbb")
+MAT(mPtSeatT,pPt,8,2,"bbbbbbbb","bbcbbbbb")
+MAT(mPtTopE,pPt,8,2,"dddddddd","cccccccc")
+MAT(mPtTopT,pPt,8,6,"dddddddd","cccccccc","dddddddd","cccccccc","dddddddd","cccccccc")
+MAT(mJeBase,pJe,8,2,"bbbbbbbb","eeeeeeee")
+MAT(mJeMid,pJe,8,2,"cccccccc","bbbbbbbb")
+MAT(mJeStripe,pJe,8,2,"ffggffgg","ggffggff")
+MAT(mJeTopU,pJe,4,8,"dddd","dddd","dddd","dddd","dddd","dddd","dddd","dddd")
+MAT(mJeTopV,pJe,8,4,"dddddddd","dddddddd","dddddddd","dddddddd")
+MAT(mPdSide,pPd,3,3,"bbb","cccccccc","bbbbbbbb")
+MAT(mPdTop,pPd,8,8,"dddddddd","dbbbbbbd","dbcbbbcd","dbbcbcbd","dbbbcbbd","dbbcbcbd","dbcbbbcd","dddddddd")
 static const IBox bxKicker[8]={ // wedge, 8 px lip
  {0,0,8,1,0,8,{&mKiR0,&mKiS0,&mKiS0,&mKiS0,&mKiT0}},
  {0,1,8,2,0,7,{&mKiR1,&mKiS1,&mKiS1,&mKiS1,&mKiT1}},
@@ -108,3 +162,39 @@ static const IBox bxRailV[3]={ // grind rail along b
  {2,2,6,6,0,1,{&mRlPlate,&mRlPlate,&mRlPlate,&mRlPlate,&mRlPlate}},
  {3,3,5,5,1,4,{&mRlPost,&mRlPost,&mRlPost,&mRlPost,&mRlPost}},
  {3,0,5,8,4,6,{&mRlShortV,&mRlLongV,&mRlShortV,&mRlLongV,&mRlTopS}} };
+static const IBox bxLaunch[8]={ // launch ramp, 12 px lip
+ {0,0,8,1,0,12,{&mLaR0,&mLaS0,&mLaS0,&mLaS0,&mLaT0}},
+ {0,1,8,2,0,11,{&mLaR1,&mLaS1,&mLaS1,&mLaS1,&mLaT1}},
+ {0,2,8,3,0,9,{&mLaR2,&mLaS2,&mLaS2,&mLaS2,&mLaT2}},
+ {0,3,8,4,0,7,{&mLaR3,&mLaS3,&mLaS3,&mLaS3,&mLaT3}},
+ {0,4,8,5,0,6,{&mLaR4,&mLaS4,&mLaS4,&mLaS4,&mLaT4}},
+ {0,5,8,6,0,4,{&mLaR5,&mLaS5,&mLaS5,&mLaS5,&mLaT5}},
+ {0,6,8,7,0,2,{&mLaR6,&mLaS6,&mLaS6,&mLaS6,&mLaT6}},
+ {0,7,8,8,0,1,{&mLaR7,&mLaS7,&mLaS7,&mLaS7,&mLaT7}} };
+static const IBox bxFunbox[1]={ // platform, 10 px, solid (ollie onto it)
+ {0,0,8,8,0,10,{&mFbSide,&mFbSide,&mFbSide,&mFbSide,&mFbTop}} };
+static const IBox bxBarrel[1]={ // oil drum, 8 px, solid
+ {1,1,7,7,0,8,{&mBaSide,&mBaSide,&mBaSide,&mBaSide,&mBaTop}} };
+static const IBox bxTrashCan[2]={ // trash can, 10 px, solid
+ {1,1,7,7,0,9,{&mTrBody,&mTrBody,&mTrBody,&mTrBody,&mTrBody}},
+ {0,0,8,8,9,10,{&mTrLidS,&mTrLidS,&mTrLidS,&mTrLidS,&mTrLidT}} };
+static const IBox bxPlanter[1]={ // planter box, grind 6 px
+ {0,0,8,8,0,6,{&mPlSide,&mPlSide,&mPlSide,&mPlSide,&mPlTop}} };
+static const IBox bxPicnicTable[7]={ // picnic table, grind 6 px
+ {1,0,2,8,0,2,{&mPtLeg,&mPtLeg,&mPtLeg,&mPtLeg,&mPtLeg}},
+ {6,0,7,8,0,2,{&mPtLeg,&mPtLeg,&mPtLeg,&mPtLeg,&mPtLeg}},
+ {0,0,8,2,2,3,{&mPtSeatE,&mPtSeatE,&mPtSeatE,&mPtSeatE,&mPtSeatT}},
+ {0,6,8,8,2,3,{&mPtSeatE,&mPtSeatE,&mPtSeatE,&mPtSeatE,&mPtSeatT}},
+ {1,1,7,7,5,6,{&mPtTopE,&mPtTopE,&mPtTopE,&mPtTopE,&mPtTopT}},
+ {2,1,3,7,3,5,{&mPtLeg,&mPtLeg,&mPtLeg,&mPtLeg,&mPtLeg}},
+ {5,1,6,7,3,5,{&mPtLeg,&mPtLeg,&mPtLeg,&mPtLeg,&mPtLeg}} };
+static const IBox bxJerseyU[3]={ // jersey barrier, runs along a
+ {0,1,8,7,0,2,{&mJeBase,&mJeBase,&mJeBase,&mJeBase,&mJeMid}},
+ {0,2,8,6,2,4,{&mJeMid,&mJeMid,&mJeMid,&mJeMid,&mJeMid}},
+ {0,3,8,5,4,6,{&mJeStripe,&mJeStripe,&mJeStripe,&mJeStripe,&mJeTopU}} };
+static const IBox bxJerseyV[3]={ // jersey barrier, runs along b
+ {1,0,7,8,0,2,{&mJeBase,&mJeBase,&mJeBase,&mJeBase,&mJeMid}},
+ {2,0,6,8,2,4,{&mJeMid,&mJeMid,&mJeMid,&mJeMid,&mJeMid}},
+ {3,0,5,8,4,6,{&mJeStripe,&mJeStripe,&mJeStripe,&mJeStripe,&mJeTopV}} };
+static const IBox bxManualPad[1]={ // manual pad, 3 px, rides on without a jump
+ {0,0,8,8,0,3,{&mPdSide,&mPdSide,&mPdSide,&mPdSide,&mPdTop}} };

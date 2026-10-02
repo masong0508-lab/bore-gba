@@ -108,7 +108,7 @@ static void simsScan(void){   // what does this map have?
     for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ char c=lifeMap[y][x];
         if(c=='F') simHave|=SR_FRIDGE; else if(c=='T') simHave|=SR_TOILET; else if(c=='S') simHave|=SR_BED;
         else if(c=='H') simHave|=SR_SHOWER; else if(c=='C') simHave|=SR_SOFA;
-        else if(c=='='||c=='L'||c=='N') simHave|=SR_RAIL; else if((c>='1'&&c<='8')) simHave|=SR_RAMP; }
+        else if(c=='='||c=='L'||c=='N'||c=='Z'||c=='K'||c=='J') simHave|=SR_RAIL; else if((c>='1'&&c<='<')) simHave|=SR_RAMP; }
 }
 static int simPick(const SimWish* tab,int n,int avoid1,int avoid2){   // a random wish the room can satisfy, not already on show
     for(int t=0;t<40;t++){ int i=simRnd()%n; if(i==avoid1||i==avoid2) continue; if((tab[i].req&simHave)!=tab[i].req) continue; return i; }

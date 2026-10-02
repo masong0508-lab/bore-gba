@@ -62,7 +62,8 @@ static const IBox bxBoard[5]={
  {2,1,6,7,3,4,{&mBdEdge,&mBdEdge,&mBdEdge,&mBdEdge,&mBdTop}} };
 
 enum { V_CRATE, V_FRIDGE, V_TOILET=V_FRIDGE+4, V_RAILU=V_TOILET+4, V_RAILV, V_DOOR, V_BOARD,
-       V_KICKER, V_QPIPE=V_KICKER+4, V_LEDGEU=V_QPIPE+4, V_LEDGEV, V_BENCHU, V_BENCHV, V_BED, V_SHOWER=V_BED+4, V_SOFA=V_SHOWER+4, NIV=V_SOFA+4 };
+       V_KICKER, V_QPIPE=V_KICKER+4, V_LEDGEU=V_QPIPE+4, V_LEDGEV, V_BENCHU, V_BENCHV, V_BED, V_SHOWER=V_BED+4, V_SOFA=V_SHOWER+4,
+       V_LAUNCH=V_SOFA+4, V_FUNBOX=V_LAUNCH+4, V_BARREL, V_TRASH, V_PLANTER, V_PICNIC, V_JERSEYU, V_JERSEYV, V_MPAD, NIV };   // V_LAUNCH..V_MPAD = skate pack 2
 static u16 itemSpr[NIV][IH][IW] EWRAM_BSS;
 static u16 itemTmp[IH][IW];
 static u8 itemsReady;
@@ -134,6 +135,9 @@ static void bakeItems(void){
     bakeOne(V_DOOR,bxDoor,1,0,13); bakeOne(V_BOARD,bxBoard,5,0,12);
     for(int r=0;r<4;r++){ bakeOne(V_KICKER+r,bxKicker,8,r,11); bakeOne(V_QPIPE+r,bxQuarterPipe,8,r,11); }
     bakeOne(V_LEDGEU,bxLedgeU,1,0,12); bakeOne(V_LEDGEV,bxLedgeV,1,0,12); bakeOne(V_BENCHU,bxBenchU,3,0,12); bakeOne(V_BENCHV,bxBenchV,3,0,12);
+    for(int r=0;r<4;r++) bakeOne(V_LAUNCH+r,bxLaunch,8,r,11);   // skate pack 2
+    bakeOne(V_FUNBOX,bxFunbox,1,0,12); bakeOne(V_BARREL,bxBarrel,1,0,11); bakeOne(V_TRASH,bxTrashCan,2,0,11); bakeOne(V_PLANTER,bxPlanter,1,0,11);
+    bakeOne(V_PICNIC,bxPicnicTable,7,0,12); bakeOne(V_JERSEYU,bxJerseyU,3,0,12); bakeOne(V_JERSEYV,bxJerseyV,3,0,12); bakeOne(V_MPAD,bxManualPad,1,0,12);
     itemsReady=1;
 }
 static void blitItem(int k,int sx,int sy){
@@ -168,6 +172,14 @@ static void drawItemTile(char c,int sx,int sy,int x,int y){
     else if(c=='=') blitItem(itemAlongU(x,y,'=')?V_RAILU:V_RAILV,sx,sy);
     else if(c=='L') blitItem(itemAlongU(x,y,'L')?V_LEDGEU:V_LEDGEV,sx,sy);
     else if(c=='N') blitItem(itemAlongU(x,y,'N')?V_BENCHU:V_BENCHV,sx,sy);
+    else if(c=='J') blitItem(itemAlongU(x,y,'J')?V_JERSEYU:V_JERSEYV,sx,sy);
+    else if(c=='X') blitItem(V_FUNBOX,sx,sy);
+    else if(c=='O') blitItem(V_BARREL,sx,sy);
+    else if(c=='Y') blitItem(V_TRASH,sx,sy);
+    else if(c=='Z') blitItem(V_PLANTER,sx,sy);
+    else if(c=='K') blitItem(V_PICNIC,sx,sy);
+    else if(c=='M') blitItem(V_MPAD,sx,sy);
+    else if(isLaunch(c)) blitItem(V_LAUNCH+(((c-'9')-cview)&3),sx,sy);
     else if(isKicker(c)) blitItem(V_KICKER+(((c-'1')-cview)&3),sx,sy);
     else if(isQPipe(c)) blitItem(V_QPIPE+(((c-'5')-cview)&3),sx,sy);
     else if(c=='S') blitItem(V_BED+((itemFacing(x,y)-cview)&3),sx,sy);

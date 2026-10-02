@@ -118,6 +118,20 @@ Ramps have a real slope: ride up a kicker or quarter pipe on the board and you a
 
 The sprite art is authored in `tools/make_skate_items.py`, which writes `source/skateart.h` (sprites), `source/rampdata.h` (matching physics heights) and a preview sheet `assets/preview/skate_items.png`. Edit the art there and re-run `python3 tools/make_skate_items.py`.
 
+## Skate pack 2 (more objects)
+Eight more pieces in the room editor's ITEM tool (the palette bar now scrolls, 25 entries). **Select+A turns the LAUNCH ramp** like the kicker. Tuning: `LAUNCH_H` in `source/rampdata.h`, the heights in `tileH()` in `main.c`.
+| Item | Tile | Height | Notes |
+|---|---|---|---|
+| LAUNCH | `9 : ; <` (S E N W) | 0 to 12 px | taller blue wedge; launches harder than a kicker (capped by `F_RAMP_MAX`) |
+| FUNBOX | `X` | 10 px | solid platform: ollie onto it, land on top |
+| BARREL | `O` | 8 px | oil drum, solid (bumping at speed hurts) |
+| TRASH CAN | `Y` | 10 px | solid |
+| PLANTER | `Z` | 6 px | brick box, **grinds** |
+| PICNIC | `K` | 6 px | table top, **grinds** |
+| JERSEY | `J` | 6 px | concrete barrier with red/white top, **grinds**, links up with neighbours like the ledge |
+| MANUAL PAD | `M` | 3 px | low painted pad, rolls straight on with no jump (the spot for a future manual mechanic) |
+The default plaza now has a funbox with two launch ramps in line with the rail above it, barrels, jersey barriers, planters, a picnic table, trash cans and a manual pad (they only go on empty floor). A map you saved earlier keeps its layout: place them yourself or RESET MAP. Art is in `tools/make_skate_items.py` (pack 2 section), preview sheet `assets/preview/skate_items2.png`.
+
 ## Mood meters (FUN and HAPPY)
 Two new HUD bars under FOOD and WC, plus a face and a mood word (SAD, BORED, OK, HAPPY, STOKED). All the logic is in `source/mood.h`, with every tuning number in the MOOD block at the top.
 - **FUN** is fast: tricks, combos, grinds, air time and ramp launches fill it; it drains by itself, and twice as fast after 15 s of nothing fun (that is the BORE in BORE). Cruising on the board only slows the drain.
