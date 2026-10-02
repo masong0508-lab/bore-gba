@@ -43,10 +43,11 @@ enum {
     XO_SLOTCONF,  // ask before overwriting, loading over or deleting a slot
     XO_SLOTCONT,  // what a slot saves: ROOM, ROOM + PERSON, ALL (room, person, life)
     XO_SLOTBOOT,  // at power on, the person of the active slot is loaded (the creature is not kept anywhere else)
+    XO_AGING,     // how fast the life stages pass: OFF SLOW NORMAL FAST (baby 2 days, child 3, teen 3 at normal; slow doubles it, fast halves it)
     XO_N
 };
-static const u8 xoCnt[]={ 5,5,2,4,4,4,4,2,3,4,2,3,2,4,   4,3,   4,3,2,   3,6,3,   2,2,2,2,2,3,2 };
-static const u8 xoDef[]={ 2,1,1,2,1,1,1,1,0,2,1,2,1,1,   0,1,   0,0,1,   0,0,1,   1,1,1,0,1,2,1 };
+static const u8 xoCnt[]={ 5,5,2,4,4,4,4,2,3,4,2,3,2,4,   4,3,   4,3,2,   3,6,3,   2,2,2,2,2,3,2, 4 };
+static const u8 xoDef[]={ 2,1,1,2,1,1,1,1,0,2,1,2,1,1,   0,1,   0,0,1,   0,0,1,   1,1,1,0,1,2,1, 2 };
 _Static_assert(sizeof(xoCnt)==XO_N&&sizeof(xoDef)==XO_N,"xoCnt / xoDef must have one entry per XO_ name");
 static u8 xo[XO_N];
 static void optsDefaults(void){ for(int i=0;i<XO_N;i++) xo[i]=xoDef[i]; }

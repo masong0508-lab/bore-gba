@@ -210,7 +210,7 @@ static void simEvent(int ev){
 static inline int simMin3(int a,int b,int c){ return a<b?(a<c?a:c):(b<c?b:c); }
 static int simsWorst(void){ return simMin3(sNrg,sHyg,sCom); }                 // lowest of the three activity needs
 static int simsComfort(void){ return (sNrg*30+sHyg*25+sCom*25+sRoom*20)/100; } // blended, used by the HAPPY target in mood.h
-static int simsTop(int top){ return sNrg<SIM_LOW?top-top*SIM_SLEEPY_TOP/100:top; }   // too tired: slower
+static int simsTop(int top){ if(sNrg<SIM_LOW) top-=top*SIM_SLEEPY_TOP/100; return top*stSpd[stage]/100; }   // too tired: slower
 static int simsPts(int pts){ return pts+pts*skillLvl*8/100; }                  // SKATING skill: +8% trick points per level
 static const char* simsAlert(void){   // most urgent need, or 0
     if(lbl>80) return "WC";
@@ -223,7 +223,7 @@ static const char* simsAlert(void){   // most urgent need, or 0
 
 // ---- clock and career ----
 static int simWorkday(void){ return (simDay%7)<5; }
-static int simInShift(void){ return xo[XO_JOB]&&simWorkday()&&simMin>=SIM_WORK_FROM&&simMin<SIM_WORK_TO; }
+static int simInShift(void){ return ojob()&&simWorkday()&&simMin>=SIM_WORK_FROM&&simMin<SIM_WORK_TO; }
 static int simQuota(void){ return (SIM_QUOTA0+SIM_QUOTA_LVL*jobLvl)*oQuotaPct()/100; }
 static int simIsNight(void){ return simMin>=SIM_NIGHT_FROM||simMin<SIM_NIGHT_TO; }
 static void simMsgPay(const char* pre,int n){   // "PAID 110" into simMsg
@@ -242,18 +242,25 @@ static void simShiftEnd(void){   // 17:00 on a workday
     if(p>=q/2) simEvent(SE_SHIFT);
     shiftPts=0; simsSave();
 }
+static void ageTick(void){   // once per game day: baby, child and teen each last a number of days (AGING option); the life loop does the growing
+    static const u8 pct[4]={0,200,100,50};
+    if(stage>=AG_ADULT||!xo[XO_AGING]) return;
+    int need=stDays[stage]*pct[xo[XO_AGING]]/100; if(need<1) need=1;
+    if(++ageDays>=need){ gGrow=1; simQueue("BIRTHDAY"); } else ageSave();
+}
 static void simMinute(void){   // once per game minute
     simMin++;
     if(simMin>=1440){   // midnight: new day, bills, autosave
         simMin=0; simDay++; if(simDay>30000) simDay=0;
-        int bill=xo[XO_JOB]?SIM_BILLS*oBillsPct()/100:0;   // no career = no bills; BILLS option scales them
+        ageTick();
+        int bill=ojob()?SIM_BILLS*oBillsPct()/100:0;   // no career = no bills; BILLS option scales them
         if(bill>0){ if(simMoney>=bill) simMoney-=bill;
             else { simMoney=0; moodEvent(M_BROKE); simEvent(SE_BROKE); simQueue("BILLS UNPAID"); } }
         simsSave();
     }
-    if(xo[XO_JOB]&&simMin==SIM_WORK_FROM-60&&simWorkday()&&!simQ) simQueue("WORK AT 9");
-    if(xo[XO_JOB]&&simMin==SIM_WORK_FROM&&simWorkday()){ shiftPts=0; if(!simQ) simQueue("SHIFT STARTS"); }
-    if(xo[XO_JOB]&&simMin==SIM_WORK_TO&&simWorkday()) simShiftEnd();
+    if(ojob()&&simMin==SIM_WORK_FROM-60&&simWorkday()&&!simQ) simQueue("WORK AT 9");
+    if(ojob()&&simMin==SIM_WORK_FROM&&simWorkday()){ shiftPts=0; if(!simQ) simQueue("SHIFT STARTS"); }
+    if(ojob()&&simMin==SIM_WORK_TO&&simWorkday()) simShiftEnd();
 }
 static const char* simsClock(void){   // "MON 14:05"
     int h=simMin/60, m=simMin%60, i=0; const char*d=simDayNm[simDay%7];
@@ -348,12 +355,12 @@ static void simsHud(int x,int y,u16 dim,u16 gold){
     // aspiration bar: progress to the next level
     int lo=simLvl==0?0:simLvlAt[simLvl-1], hi=simLvl>=4?simLvlAt[3]:simLvlAt[simLvl];
     int w=simLvl>=4?50:(simAsp-lo)*50/(hi-lo); if(w<0) w=0; if(w>50) w=50;
-    text(x,y+33,simLvlNm[simLvl],gold,1); rect(x,y+41,50,3,RGB(4,5,8)); rect(x,y+41,w,3,gold);
+    text(x,y+33,simLvlNm[simLvl],gold,1); if(stage<AG_ADULT) text(x+54,y+33,stageNm[stage],dim,1); rect(x,y+41,50,3,RGB(4,5,8)); rect(x,y+41,w,3,gold);
     // cash, job and skill, shift status
     int nx=text(x,y+46,"CASH ",dim,1); simsNum(nx,y+46,simMoney,gold);
     nx=text(x,y+54,simJobNm[jobLvl],RGB(22,24,28),1)+4; nx=text(nx,y+54,"SK",dim,1)+2; simsNum(nx,y+54,skillLvl,gold);
     if(simInShift()){ nx=text(x,y+62,"WORK ",gold,1); nx=simsNum(nx,y+62,shiftPts,gold); nx=text(nx,y+62,"/",dim,1); simsNum(nx,y+62,simQuota(),dim); }
-    else text(x,y+62,!xo[XO_JOB]?"NO JOB":simWorkday()&&simMin<SIM_WORK_FROM?"WORK AT 9":"OFF DUTY",dim,1);
+    else text(x,y+62,!ojob()?"NO JOB":simWorkday()&&simMin<SIM_WORK_FROM?"WORK AT 9":"OFF DUTY",dim,1);
     // wants (green marker) and the fear (red marker)
     for(int s=0;s<2&&xo[XO_WANTS];s++) if(simW[s]>=0){ rect(x,y+72+s*8,3,5,RGB(10,26,10)); text(x+6,y+72+s*8,simWants[simW[s]].name,RGB(22,28,22),1); }
     if(simF>=0&&xo[XO_WANTS]){ rect(x,y+88,3,5,RGB(28,8,6)); text(x+6,y+88,simFears[simF].name,RGB(30,18,16),1); }

@@ -23,7 +23,7 @@ static const char* const lbNeed[5]={"OFF","SLOW","NORMAL","FAST","BRUTAL"}, *con
     *const lbDay[5]={"3 MIN","6 MIN","12 MIN","24 MIN","STOPPED"}, *const lbBills[4]={"NONE","HALF","NORMAL","DOUBLE"},
     *const lbQuota[4]={"EASY","NORMAL","HARD","INSANE"}, *const lbScore[4]={"X0.5","X1","X2","X3"},
     *const lbCombo[4]={"1.5 SEC","2.5 SEC","4 SEC","6 SEC"}, *const lbSpeed[4]={"80 %","100 %","125 %","150 %"},
-    *const lbHurt[3]={"NORMAL","GENTLE","NO DEATH"}, *const lbBubble[3]={"OFF","URGENT","ALL"}, *const lbShown[2]={"HIDDEN","SHOWN"};
+    *const lbAging[4]={"OFF","SLOW","NORMAL","FAST"}, *const lbHurt[3]={"NORMAL","GENTLE","NO DEATH"}, *const lbBubble[3]={"OFF","URGENT","ALL"}, *const lbShown[2]={"HIDDEN","SHOWN"};
 static const char* const lbVol4[4]={"FULL","HALF","QUARTER","OFF"}, *const lbVol3[3]={"FULL","HALF","QUARTER"},
     *const lbBtn[4]={"NORMAL","A B SWAPPED","L R SWAPPED","BOTH SWAPPED"}, *const lbRep[3]={"SLOW","NORMAL","FAST"},
     *const lbClock[3]={"24 HOUR","12 HOUR","HIDDEN"}, *const lbToast[3]={"SHORT","NORMAL","LONG"},
@@ -52,6 +52,7 @@ static const OptRow pgPlay[]={
  XR(XO_COMBO,"COMBO WINDOW",lbCombo,"TIME YOU HAVE TO LAND THE NEXT TRICK","BEFORE THE CHAIN IS BANKED"),
  XR(XO_SPEED,"TOP SPEED",lbSpeed,"HOW FAST YOU WALK RUN AND SKATE","80 TO 150 % OF NORMAL"),
  XR(XO_MOODFX,"MOOD EFFECTS",lbOnOff,"SAD SLOWS YOU  STOKED SPEEDS YOU UP AND MOOD","CHANGES TRICK POINTS  OFF IGNORES MOOD"),
+ XR(XO_AGING,"AGING",lbAging,"HOW LONG BABY CHILD AND TEEN LAST BEFORE YOU","GROW  OFF STAYS AT THE AGE YOU PICKED"),
  XR(XO_HURT,"HURT",lbHurt,"GENTLE HALVES FALL DAMAGE","NO DEATH MEANS A FALL CAN NEVER KILL"),
  XR(XO_AUTOSAVE,"AUTO SAVE LIFE",lbOnOff,"SAVES AT MIDNIGHT PAYDAY AND THE PAUSE MENU","OFF  ONLY SLOTS AND SAVE LIFE NOW SAVE IT"),
 };
@@ -207,7 +208,7 @@ static void optAction(int a,int*remeasure){
             if(gInPlay){ toast("USE THIS FROM THE MAIN MENU"); break; }
             if(menu("ERASE ALL SAVE MEMORY",slYesNo,2)==1 && menu("REALLY ERASE EVERYTHING",slYesNo,2)==1){
                 volatile u8*m=SRAM_BASE; for(int i=0;i<32768;i++) m[i]=0;
-                optsDefaults(); setDefaults(); settingsSave(); mapReset(); for(int i=0;i<LK_N;i++) look[i]=0; starter(); setColors(); jbSetup(); *remeasure=1;
+                optsDefaults(); setDefaults(); settingsSave(); mapReset(); for(int i=0;i<LK_N;i++) look[i]=0; stage=AG_ADULT; ageDays=0; starter(); setColors(); jbSetup(); *remeasure=1;
                 toast("EVERYTHING ERASED"); }
             break;
         case OA_SRAMTEST:{

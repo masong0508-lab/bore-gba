@@ -69,7 +69,7 @@ static void feelVel(void){   // velocity chases heading*speed (grip), exact sub-
 }
 static void feelWalk(u16 k,u16 pr,int ongr){   // on foot: eased accel instead of instant speed, hop with buffer + coyote
     int ux=((k&K_RIGHT)?1:0)-((k&K_LEFT)?1:0), uy=((k&K_DOWN)?1:0)-((k&K_UP)?1:0);
-    int dx=ux+uy, dy=uy-ux, spd=(k&K_B)?10:5; if(ux&&uy) spd=(spd*3)/4;
+    int dx=ux+uy, dy=uy-ux, spd=(k&K_B)?10:5; spd=spd*stSpd[stage]/100; if(spd<2) spd=2; if(ux&&uy) spd=(spd*3)/4;   // the life stage scales the pace
     int tx=dx*spd, ty=dy*spd, ex=tx-lvx, ey=ty-lvy;
     lvx+=ex/3+((ex>0&&ex<3)?1:(ex<0&&ex>-3)?-1:0); lvy+=ey/3+((ey>0&&ey<3)?1:(ey<0&&ey>-3)?-1:0);
     lsp=(dx||dy)?spd:0;

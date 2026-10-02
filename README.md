@@ -21,6 +21,18 @@ Arm, leg, eye and ear are mirrored automatically across the body.
 Push to GitHub: the **Build GBA ROM** workflow produces `bore.gba` as an artifact (tag a commit to get it as a release).
 Locally with devkitARM installed: `make`. Run in mGBA or on hardware.
 
+## Life stages (BABY, CHILD, TEEN, ADULT)
+The creature has an **AGE**: pick it on the BODY tab of the creator (first row), or, in the classic creator, on the AGE entry of the list (A or Left/Right). The creative space grows with the age:
+| Stage | Build box (W x D x H) | Biggest block | Looks on offer |
+|---|---|---|---|
+| BABY | 4 x 4 x 5 | M | BIG HEAD / STUBBY, no big ears, CROP or BALD, 4 colours per row |
+| CHILD | 4 x 4 x 6 | M | no BROAD, no LONG hair, 6 colours |
+| TEEN | 6 x 4 x 7 | L | everything but BROAD, 8 colours |
+| ADULT | 6 x 4 x 8 | L | everything (old people and saves are adults) |
+The picker rows skip what a stage cannot have, the block builder only places inside the stage's box (its grid shows the box) and greys out sizes that do not fit. A look-built creature is rebuilt for the new stage; hand-built blocks stay (and are cut to the box if you go to a smaller stage, after asking).
+
+In the life: the **BABY cannot be steered**: it toddles about by itself and a caretaker keeps its needs up. Child and teen walk slower than an adult, the career (shifts, quota, bills) starts at TEEN. At midnight the days in the stage count up and the creature grows to the next stage (it gets a "NOW A CHILD" note and its sprites are re-baked). **OPTIONS > PLAY > AGING** (OFF / SLOW / NORMAL / FAST): normal is 2 days as a baby, 3 as a child, 3 as a teen; slow doubles it, fast halves it, off keeps the age you picked. The stage is saved in the person (room slot format 2; format 1 slots load as adults) and also in SRAM at 12416 so growth survives a power cycle.
+
 ## Main menu, room builder, settings
 Boot goes title -> **main menu** (PLAY, MAKE CREATURE, BUILD ROOM, JUKEBOX, SETTINGS, HOW TO PLAY). "MAIN MENU" is the last entry in the creature part list and in the pause menu.
 
