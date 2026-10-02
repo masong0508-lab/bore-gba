@@ -14,6 +14,7 @@
 SONG_XM(the_dipper_man,"THE DIPPER MAN","tools/the_dipper_man.xm")
 
 // ---- PLACEHOLDERS (short test tunes so shuffle / select can be heard now) ----
+// Hidden in the jukebox unless the title-screen code UP UP DOWN DOWN LEFT LEFT RIGHT B A START is entered (any song named PLACEHOLDER...).
 // Delete these 3 lines and the 3 files in source/music/ when you add your real songs.
 SONG_ADP(placeholder_a,"PLACEHOLDER A","source/music/placeholder_a.adp")
 SONG_ADP(placeholder_b,"PLACEHOLDER B","source/music/placeholder_b.adp")
@@ -25,3 +26,4 @@ SONG_XM(amiga_music,"AMIGA MUSIC","tools/amiga_music.xm")
 SONG_XM(emergency_dance_floor,"EMERGENCY ON THE DANCE FLOOR","tools/emergency_dance_floor.xm")
 SONG_XM(tree_swaying_action,"TREE SWAYING ACTION","tools/tree_swaying_action.xm")
 SONG_XM(meltdown_in_mars_house,"MELTDOWN IN MARS 90S HOUSE","tools/meltdown_in_mars_house.xm")
+SONG_XM(worthless_clouds,"WORTHLESS CLOUDS","tools/worthless_clouds.xm")

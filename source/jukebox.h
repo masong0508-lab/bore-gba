@@ -6,11 +6,13 @@
 #define JB_MAX 32          // most songs the jukebox can hold
 #define JB_OFF 12288       // SRAM block: 'J' 'B' '1', song count, current slot, then the shuffled order
 static u8 sJb;             // jukebox mode (a setting, saved with the other settings): 0 SHUFFLE, 1 IN ORDER, 2 REPEAT ONE
+static u8 jbMap[JB_MAX];   // visible song number -> index into songs[] (hides the placeholder tunes)
 static u8 jbOrd[JB_MAX];   // the shuffled order: playlist slot -> song number
 static int jbN, jbPos;     // number of songs, playlist slot of the current song
 static const char* const jbModeNm[3]={"SHUFFLE","IN ORDER","REPEAT ONE"};
 
-static int jbSong(int slot){ return sJb==0 ? jbOrd[slot] : slot; }   // which song sits in a playlist slot
+static int jbIdx(int slot){ return sJb==0 ? jbOrd[slot] : slot; }   // which visible song sits in a playlist slot
+static int jbSong(int slot){ return jbMap[jbIdx(slot)]; }          // the songs[] entry for that slot
 static int jbSlotOf(int song){ for(int i=0;i<jbN;i++) if(jbSong(i)==song) return i; return 0; }
 static void jbSave(void){
     volatile u8*m=SRAM_BASE+JB_OFF; m[0]='J'; m[1]='B'; m[2]='1'; m[3]=(u8)jbN; m[4]=(u8)jbPos;
@@ -28,7 +30,7 @@ static void jbShuffle(void){   // Fisher-Yates
     for(int i=jbN-1;i>0;i--){ int j=(rnd8()*(i+1))>>8; u8 t=jbOrd[i]; jbOrd[i]=jbOrd[j]; jbOrd[j]=t; }
 }
 static void jbReshuffle(void){   // new random order, saved. The song that is playing stays first, the rest follow it.
-    int s=jbSong(jbPos); sJb=0; jbShuffle();
+    int s=jbIdx(jbPos); sJb=0; jbShuffle();
     for(int i=0;i<jbN;i++) if(jbOrd[i]==s){ u8 t=jbOrd[0]; jbOrd[0]=jbOrd[i]; jbOrd[i]=t; break; }
     jbPos=0; jbSave();
 }

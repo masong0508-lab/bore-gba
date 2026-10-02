@@ -20,6 +20,8 @@ from xm import parse
 
 MIXR = 18157                      # the game's music rate (MUS_RATE)
 SONGS_H = "source/songs.h"
+QREG = {}                         # name -> sample data of every sample stored so far (to spot near-copies)
+NEARDUP = {"worthless_clouds"}    # songs whose near-identical samples are merged with earlier ones (the others are left as they were)
 SHARED = {}                       # sample data already written for an earlier song: identical samples are stored once in the whole ROM
 OUT = "source/musicdata.h"
 TITLE = ("the_dipper_man", "tools/the_dipper_man.xm")
@@ -219,6 +221,173 @@ TREES = {"tree_swaying_action": make_tree}
 ENDINGS = {"amiga_music": make_ending}
 POPS = {"amiga_music": make_pop}
 
+def make_clouds(S):
+    """Extended version of WORTHLESS CLOUDS: the 65-order original (271 s) becomes the 140-order extended edit (~584 s, same 115 BPM).
+    Nothing new is composed: only the order list changes, so no samples are added or copied. The arrangement follows the loudness
+    arc of the extended mp3 (soft / mid / loud runs, measured per 2-bar pattern) and fills each run from the original's sections:
+      'S' soft  = the quiet verse (orders 4-11), 'M' mid = its second half (orders 8-11), 'L' loud = the whole loud body (orders 12-53,
+      played once in its original order, then again from the start), and the original's own ending (orders 54-64) closes the song.
+    Edit PLAN to re-arrange: (pool, number of 2-bar patterns).  The opening is the original intro + first verse bars (orders 0-7)."""
+    O = list(S['order'])
+    pools = {'S': O[4:12], 'M': O[8:12], 'L': O[12:54]}; cur = {'S': 4, 'M': 0, 'L': 0}
+    PLAN = [('S', 30), ('L', 4), ('S', 6), ('M', 1), ('L', 29), ('M', 5), ('L', 9), ('M', 1), ('S', 3), ('L', 9),
+            ('M', 6), ('L', 6), ('M', 2), ('S', 10)]
+    out = O[0:8]
+    for pool, n in PLAN:
+        for _ in range(n): out.append(pools[pool][cur[pool] % len(pools[pool])]); cur[pool] += 1
+    S['order'] = out + O[54:65]
+
+CLOUDS = {"worthless_clouds": make_clouds}
+
+# ---- STEREO: every note carries a pan bus 0..6 (3 = centre); the player mixes each voice into left and right with that bus' gains ----
+NBUS = 7
+BUSPAN = [-0.9, -0.6, -0.3, 0.0, 0.3, 0.6, 0.9]           # pan position of each bus (-1 left .. +1 right)
+PANK = 1.6                                                  # overall pan gain; the law below is the "-4.5 dB" compromise (constant power x linear),
+                                                            # so a panned part keeps its loudness on stereo AND sums well on the mono speaker
+def bus_gains(trim=(1.0, 1.0)):
+    g = []
+    for p in BUSPAN:
+        th = (p + 1) * np.pi / 4
+        l = PANK * np.sqrt(np.cos(th) * (1 - p) / 2); r = PANK * np.sqrt(np.sin(th) * (1 + p) / 2)
+        g.append((int(round(min(1.9, l * trim[0]) * 128)), int(round(min(1.9, r * trim[1]) * 128))))
+    return g                                                # (left, right) in 1/128 units
+
+# ---- hand-made pan choreography (overrides the automatic plan for the notes it returns a position for; None = leave it to the plan) ----
+def title_pan(pat, row, ch, i, n):
+    """THE DIPPER MAN.  Third drop (patterns 20-22, the one where the extra drums come in) is the widest part of the song:
+       toms (inst 8) sweep across the field in opposite directions and cross in the middle of every bar, the swoosh (inst 9) throws
+       high notes right and low notes left, the click (inst 11) answers on the opposite side, the double hits (inst 16) ping-pong
+       on every row, the stab chords swap sides every half bar.  Elsewhere: gentler versions of the same ideas, the lead (inst 3)
+       auto-pans in a slow sine, and the bass pair stays close to the middle."""
+    d3 = pat in (20, 21, 22); W = 0.9 if d3 else 0.6
+    if i == 4: return -0.25 if ch == 0 else 0.25                          # bass pair: a little apart, still centred
+    if i == 1:                                                            # stab chords
+        side = -1 if ch == 2 else 1
+        if d3 and (row // 4) % 2: side = -side                            # drop 3: swap sides every half bar
+        return side * W
+    if i == 3: return 0.8 * np.sin(2 * np.pi * (row / 16.0 + pat * 0.37))  # lead: each note lands further round the circle
+    if i == 8:                                                            # drop-3 toms: two voices sweep L->R and R->L, crossing mid bar
+        x = 0.9 * np.cos(np.pi * row / 15.0); return -x if ch == 8 else x
+    if i == 9: return 0.7 if n >= 78 else -0.7                            # swoosh: pitch decides the side
+    if i == 11: return 0.85 if (row // 2) % 2 == 0 else -0.85             # click answers on the opposite side
+    if i == 16:
+        if ch == 4: return (-1 if row % 2 == 0 else 1) * W                # double hits ping-pong on every row
+        return 0.25 * (-1 if (row // 4) % 2 else 1)
+    if i == 15:
+        base = {5: -0.55, 6: 0.55, 7: (0.35 if row % 2 else -0.35)}.get(ch, 0.0)
+        return base * (W / 0.9 if not d3 else 1.0)
+    if i == 14: return -W if row < 8 else W                               # hats cross the field once per bar
+    if i == 13: return -0.35 if row < 8 else 0.35
+    return None
+OVERRIDES = {"the_dipper_man": title_pan}
+
+def design_pan(S, used, insts, sid=None):
+    """Pan plan for one song. Returns pan(pat, row, ch, inst, note) -> bus.  Rules (a small 'mix engineer'):
+      kick / sub / bass (low and short, or low notes)  -> centre.
+      long low pads (two or more of them)               -> alternate hard-ish left / right, so pad pairs become a wide bed.
+      bright short hits (hats, shakers, ticks)          -> ping-pong left/right on every hit (two such instruments play opposite phases).
+      mid noisy hits (snares, claps)                    -> just off centre, alternating sides by instrument.
+      melodic instruments on several channels (chords)  -> channels fanned across the field, lowest channel left.
+      single-channel melodic instruments                -> take the next slot of  -0.55 +0.55 -0.35 +0.35 -0.75 +0.75, brighter = wider,
+                                                           plus a gentle drift with pitch (low notes left, high notes right).
+    """
+    ev = {}                                                  # inst -> list of (ch, note)
+    for o in S['order']:
+        for r in S['pats'][o]:
+            for ch, (n, i, v, e, ep) in enumerate(r):
+                if n and n < 97 and i in used: ev.setdefault(i, []).append((ch, n, v))
+    info = {}
+    for i in sorted(ev):
+        I = insts[i - 1]
+        if not I: continue
+        q = I['q'].astype(float); st = I['steps'][48] / 65536; fc = st * MIXR
+        sec = len(q) / fc; sp = np.abs(np.fft.rfft(q * np.hanning(len(q)))) ** 2; fr = np.fft.rfftfreq(len(q), 1 / fc)
+        cen = (sp * fr).sum() / (sp.sum() + 1e-9); zc = (np.diff(np.sign(q)) != 0).mean()
+        notes = [n for c, n, v in ev[i]]; chs = sorted(set(c for c, n, v in ev[i])); med = float(np.median(notes))
+        cen_eff = cen * 2 ** ((med - 49) / 12.0)                                 # spectral centroid at the pitch the song actually plays it
+        if cen_eff < 120: cls = 'low'                                                 # kicks and subs (also long sub-bass: low notes stay in the middle)
+        elif med <= 45 and zc < 0.3: cls = 'low'                                  # bass notes
+        elif cen < 200 and sec > 2.0: cls = 'pad'                                 # long low-centroid pads
+        elif cen > 2000 and sec < 1.0: cls = 'hat'
+        elif zc > 0.3 and sec < 0.8: cls = 'snare'
+        else: cls = 'mel'
+        info[i] = dict(cls=cls, chs=chs, med=med, cen=cen, n=len(notes))
+    pos = {}                                                 # (inst, ch) -> base pan
+    pads = [i for i in info if info[i]['cls'] == 'pad']
+    for k, i in enumerate(pads): pos[(i, None)] = (-0.85 if k % 2 == 0 else 0.85)
+    slots = [-0.55, 0.55, -0.35, 0.35, -0.75, 0.75, -0.2, 0.2]; si = 0; sn = 0; ht = 0
+    for i in sorted(info, key=lambda k: (-info[k]['n'], k)):
+        d = info[i]
+        if d['cls'] == 'low': pos[(i, None)] = 0.0
+        elif d['cls'] == 'snare': pos[(i, None)] = (0.25 if sn % 2 == 0 else -0.25); sn += 1
+        elif d['cls'] == 'hat': pos[(i, 'pp')] = ht; ht += 1
+        elif d['cls'] == 'mel':
+            if len(d['chs']) >= 2:
+                w = 0.8; m = len(d['chs'])
+                for k, c in enumerate(d['chs']): pos[(i, c)] = -w + 2 * w * k / (m - 1)
+            else:
+                pos[(i, None)] = slots[si % len(slots)] * (1.0 + min(0.4, d['cen'] / 4000)); si += 1
+    toggle = {}; flip = {}; shift = {}
+    def pan(pat, row, ch, i, note):
+        b = pan0(pat, row, ch, i, note)
+        if flip.get(i, 1) < 0: b = 6 - b
+        return max(0, min(6, b + shift.get(i, 0)))
+    ov = OVERRIDES.get(sid)
+    def pan0(pat, row, ch, i, note):
+        d = info.get(i)
+        if not d: return 3
+        if ov:
+            q = ov(pat, row, ch, i, note)
+            if q is not None: return int(round(max(-0.9, min(0.9, q)) * 3 / 0.9)) + 3
+        if (i, 'pp') in pos:                                 # hats: ping-pong
+            k = toggle.get(i, 0); toggle[i] = k + 1
+            side = -1 if (k + pos[(i, 'pp')]) % 2 == 0 else 1
+            p = 0.8 * side
+        else:
+            p = pos.get((i, ch), pos.get((i, None), 0.0))
+            if d['cls'] == 'mel': p += max(-0.18, min(0.18, (note - d['med']) * 0.012))
+        p = max(-0.9, min(0.9, p))
+        return int(round(p * 3 / 0.9)) + 3
+    # --- balance: weigh how much energy each instrument puts on each side, then mirror whole instruments (never single notes)
+    # where that evens the two ears out. The player is stereo, so a song that leans 3 dB left is audible on headphones.
+    gl = [g[0] / 128.0 for g in bus_gains()]; gr = [g[1] / 128.0 for g in bus_gains()]
+    rowN = S['tempo'] * 2.5 / S['bpm'] * MIXR; seq = []; t = 0           # the song in play order; a new note on a channel cuts the old one
+    for o in S['order']:
+        for ri, r in enumerate(S['pats'][o]):
+            for ch, (n, i, v, e_, ep) in enumerate(r):
+                if n and n < 97 and i in info: seq.append([t, ch, i, n, v, o, ri])
+            t += 1
+    nxt = {}
+    for k in range(len(seq) - 1, -1, -1):
+        t0, ch = seq[k][0], seq[k][1]; seq[k].append((nxt.get(ch, t + 8) - t0) * rowN); nxt[ch] = t0
+    ents = {i: [] for i in info}; etot = 1e-9; cums = {}
+    for t0, ch, i, n, v, o_, r_, room in seq:
+        I = insts[i - 1]; q = I['q'].astype(float); st = I['steps'][n - 1] / 65536
+        rel = (v - 0x10) / 64 if 0x10 <= v <= 0x50 else 1.0
+        cs = cums.get(i)
+        if cs is None: cs = cums[i] = np.cumsum(q ** 2)
+        e = (I['svol'] * I['pk'] * rel) ** 2 * cs[min(len(q) - 1, int(room * st))] / st      # energy of the part of the sample that actually plays
+        ents[i].append((e, pan0(o_, r_, ch, i, n))); etot += e
+    def contrib(i, f, sh):
+        c = 0.0
+        for e, b0 in ents[i]:
+            b = max(0, min(6, (6 - b0 if f < 0 else b0) + sh)); c += e * (gl[b] ** 2 - gr[b] ** 2)
+        return c
+    movable = [] if ov else [i for i in info if info[i]['cls'] != 'low']   # (a hand-made plan is not mirrored; the trim below balances it)
+    cur = {i: contrib(i, 1, 0) for i in movable}; D = sum(cur.values())
+    # balance: weigh how much energy each instrument puts on each side and mirror whole instruments (left <-> right) where that evens
+    # the two ears out. The player is stereo, so a song that leans 2-3 dB to one side is plainly audible on headphones.
+    for i in sorted(movable, key=lambda k: -abs(cur[k])):
+        if abs(D - 2 * cur[i]) < abs(D): flip[i] = -1; D -= 2 * cur[i]; cur[i] = -cur[i]
+    toggle.clear()
+    # whatever imbalance is left is removed with a small per-song trim on the bus gains (the pan layout itself stays as designed)
+    tot = sum(e * (gl[b] ** 2 + gr[b] ** 2) for i in info for e, b in ents[i])      # total energy over both ears
+    ratio = max(0.5, min(2.0, (tot + D) / (tot - D + 1e-9)))     # left energy / right energy
+    pan.trim = (ratio ** -0.25, ratio ** 0.25)                      # amplitude factors for the left and right gains
+    pan.balance_db = 10 * np.log10(ratio)
+    pan.info = info
+    return pan
+
 def song_list():
     text = open(SONGS_H).read() if os.path.exists(SONGS_H) else ""
     found = re.findall(r'^\s*SONG_XM\(\s*(\w+)\s*,\s*"[^"]*"\s*,\s*"([^"]+)"\s*\)', text, re.M)
@@ -255,6 +424,7 @@ def convert(sid, path):
     if sid in DANCES: DANCES[sid](S)
     if sid in TREES: TREES[sid](S)
     if sid in POPS: POPS[sid](S)
+    if sid in CLOUDS: CLOUDS[sid](S)
     if sid in ENDINGS: ENDINGS[sid](S)
     d = open(path, 'rb').read()
     flags = int.from_bytes(d[74:76], 'little')
@@ -275,18 +445,19 @@ def convert(sid, path):
     if offs: print("  WARNING: %d note-off keys are ignored by the player" % offs)
     insts = convert_samples(S, used)
     ninst = len(insts)
-    # note events: u32  ch(4) | inst(5)<<4 | note(7)<<9 | volume(7)<<16   (volume = final voice volume, 64 = full sample level, up to 127 with GAIN)
+    panf = design_pan(S, used, insts, sid)
+    # note events: u32  ch(4) | inst(5)<<4 | note(7)<<9 | volume(7)<<16 | pan bus(3)<<23   (volume = final voice volume, 64 = full sample level, up to 127 with GAIN)
     ev = []; off = []; rows = []
-    for p in S['pats']:
+    for pi, p in enumerate(S['pats']):
         off.append(len(ev)); rows.append(len(p))
-        for r in p:
+        for ri, r in enumerate(p):
             e = []
             for ch, (n, i, v, _, _) in enumerate(r):
                 if n and n < 97 and i - 1 < ninst and insts[i - 1]:
                     I = insts[i - 1]
                     rel = (v - 0x10) / 64 if 0x10 <= v <= 0x50 else 1.0       # the volume column scales the sample's own volume
                     vol = min(127, max(1, int(round(I['svol'] * I['pk'] * rel * GAIN.get(sid, 1.0)))))
-                    e.append(ch | ((i - 1) << 4) | ((n - 1) << 9) | (vol << 16))
+                    e.append(ch | ((i - 1) << 4) | ((n - 1) << 9) | (vol << 16) | (panf(pi, ri, ch, i, n) << 23))
             ev.append(len(e)); ev.extend(e)
     rowsec = S['tempo'] * 2.5 / S['bpm']                       # speed ticks per row, 2.5/bpm seconds per tick
     rowN = int(rowsec * MIXR); rfr = int(round((rowsec * MIXR - rowN) * 256))
@@ -303,16 +474,27 @@ def convert(sid, path):
     o.append('// ---- %s  (from %s) ----\n' % (sid, path))
     arr('u8', P + 'order', S['order'], 30); arr('u16', P + 'rows', rows, 30); arr('u32', P + 'patOff', off); arr('u32', P + 'ev', ev, 12)
     arr('u32', P + 'step', [s for I in insts for s in (I['steps'] if I else [0] * 96)], 8)
-    arr('u32', P + 'len', [(len(I['q']) - 1) if I else 0 for I in insts])
-    seen = SHARED; names = []
+    seen = SHARED; names = []; fresh = []
     for k, I in enumerate(insts):
         if not I: names.append('0'); continue
         key = I['q'].tobytes()
         if key in seen: names.append(seen[key]); continue            # identical sample data is stored once
-        nm = P + 'S%d' % k; seen[key] = nm; names.append(nm)
-        arr('s8', nm, [int(v) for v in I['q']], 32)
+        if sid in NEARDUP:                                           # a near-copy of an earlier sample (same sound, trimmed a few samples
+            q = I['q']; hit = None                                   # differently) points at that sample instead of being stored again
+            for nm0, w in QREG.items():
+                n = min(len(q), len(w))
+                if n < 64 or abs(len(q) - len(w)) > 0.02 * max(len(q), len(w)): continue
+                if np.corrcoef(q[:n - 1], w[:n - 1])[0, 1] > 0.985: hit = (nm0, n); break
+            if hit:
+                nm0, n = hit; I['q'] = np.append(q[:n - 1], 0); names.append(nm0)
+                print("  inst %2d is a copy of %s - reusing it" % (k + 1, nm0)); continue
+        nm = P + 'S%d' % k; seen[key] = nm; QREG[nm] = I['q']; names.append(nm); fresh.append((nm, I['q']))
+    arr('u32', P + 'len', [(len(I['q']) - 1) if I else 0 for I in insts])
+    for nm, q in fresh: arr('s8', nm, [int(v) for v in q], 32)
     o.append('static const s8* const %sdata[%d]={%s};\n' % (P, ninst, ','.join(names)))
-    o.append('static const XmSong xm_%s={%sorder,%srows,%spatOff,%sev,%sstep,%slen,%sdata,%d,%d,%d,%d};\n' % (sid, P, P, P, P, P, P, P, nord, loop, rowN, rfr))
+    bg = bus_gains(panf.trim); print('  stereo balance %.2f dB (L-R) before trim' % panf.balance_db)
+    arr('u8', P + 'busL', [g[0] for g in bg]); arr('u8', P + 'busR', [g[1] for g in bg])   # pan bus gains, 128 = 1.0
+    o.append('static const XmSong xm_%s={%sorder,%srows,%spatOff,%sev,%sstep,%slen,%sdata,%sbusL,%sbusR,%d,%d,%d,%d};\n' % (sid, P, P, P, P, P, P, P, P, P, nord, loop, rowN, rfr))
     return ''.join(o)
 
 if __name__ == "__main__":
