@@ -411,8 +411,8 @@ typedef int32_t s32;
 #define MAPNAME "THE MAN BASE"   // name of the (placeholder) map
 // w = low wall, # = 2-block crate, = = grind rail, . = floor
 static const char* const lifeMap[MH]={
-"wwwwwwwwwwwwww","w............w","w.....====...w","w............w","w..##........w","w..##........w","w............w",
-"w.......##...w","w.......##...w","w.====.......w","w............w","w............w","w............w","wwwwwwwwwwwwww" };
+"wwwwwwwwwwwwww","w...........Fw","w.....====..Fw","w............w","w..##........w","w..##........w","w............w",
+"w.......##...w","w.......##...w","w.====.......w","w............D","w............D","w..........TTw","wwwwwwwwwwwwww" };
 static const short cosT[16]={256,237,181,98,0,-98,-181,-237,-256,-237,-181,-98,0,98,181,237};   // sin(a)=cosT[(a+12)&15]
 static u16 spr4[4][SPW*SPH] EWRAM_BSS;
 static s32 lfx,lfy,lz,lvz,lvx,lvy; static int lskate, lhave, lfr;   // lskate: 0 on foot, 1 skateboard; lhave: picked up the board
@@ -420,6 +420,7 @@ static s32 lfx,lfy,lz,lvz,lvx,lvy; static int lskate, lhave, lfr;   // lskate: 0
 #define BDY 4
 static int lsp,lhd,lspin,lflip,lgrind,lscore,lstun,lairF,lpts,lnoteT; static const char*lnote;
 
+static int lfood, lbl, lnear;   // hunger (100 = full), bladder (100 = bursting), what is in reach (1 fridge, 2 toilet)
 static int lmaxz, lplay, ldead, lbumpCd;   // peak height this jump, air sound played, dead, bump cooldown
 
 // ---------- sound effects: 8-bit mono PCM @ ~11 kHz, Direct Sound A via DMA1 + Timer0 ----------
@@ -485,7 +486,7 @@ static void hurt(int sev,int kind){
 static int tileH(int tx,int ty){   // surface height in px
     if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
     char c=lifeMap[ty][tx];
-    return c=='#'?2*CC: c=='w'?CC: c=='='?6:0;
+    return (c=='#'||c=='F')?2*CC: (c=='w'||c=='T')?CC: c=='='?6:0;
 }
 static void bakeSprites(void){   // render the built character once per view (4 turns), then just blit it
     int sv=view; noGrid=1;
@@ -507,14 +508,14 @@ static void numText(int x,int y,int n,u16 c){
 }
 static void lifeInit(void){
     bakeSprites();
-    lfx=3*256+128; lfy=6*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote=""; lskate=0; lhave=0; lfr=0; lvx=lvy=0; ldead=0; lmaxz=0; lplay=0; lbumpCd=0; sfxStop();
+    lfx=3*256+128; lfy=6*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote=""; lskate=0; lhave=0; lfr=0; lvx=lvy=0; ldead=0; lmaxz=0; lplay=0; lbumpCd=0; lfood=100; lbl=0; lnear=0; sfxStop();
 }
 static const signed char hdT[3][3]={{10,12,14},{8,-1,0},{6,4,2}};   // [sign dy+1][sign dx+1] -> heading (16 steps), -1 = keep
 static void lifeStep(u16 k,u16 pr,int fr){
     int fh=tileH(lfx>>8,lfy>>8)<<8;
     if(ldead){   // dead: frozen until A
         lstun=2;
-        if(pr&K_A){ ldead=0; lstun=0; lfx=3*256+128; lfy=6*256+128; lz=0; lvz=0; lskate=0; lsp=0; lgrind=0; lspin=0; lflip=0; lairF=0; lmaxz=0; lplay=0; lnoteT=0; sfxStop(); }
+        if(pr&K_A){ ldead=0; lstun=0; lfx=3*256+128; lfy=6*256+128; lz=0; lvz=0; lskate=0; lsp=0; lgrind=0; lspin=0; lflip=0; lairF=0; lmaxz=0; lplay=0; lnoteT=0; lfood=100; lbl=0; sfxStop(); }
     }
     if(lstun>0){ lstun--; lsp=0; lvx=lvy=0; }
     else {
@@ -581,6 +582,25 @@ static void lifeStep(u16 k,u16 pr,int fr){
     lairF=air;
     if(lgrind){ if(air||tileH(lfx>>8,lfy>>8)!=6) lgrind=0; else if((fr&3)==0){ lscore+=3; lnote="GRIND"; lnoteT=10; } }
     if(!lhave&&lz<(8<<8)&&(lfx>>8)==BDX&&(lfy>>8)==BDY){ lhave=1; lnote="GOT A SKATEBOARD"; lnoteT=90; }   // walk over it to pick it up
+    if(!ldead){   // needs: hunger and bladder
+        if(lfr%120==0&&lfood>0) lfood--;
+        if(lfr%100==0&&lbl<100) lbl++;
+        if(lfood==0&&lfr%300==0){ lfood=15; lstun=120; lsp=0; lgrind=0; sfxPlay(SFX_GROAN); lnote="FAINTED FROM HUNGER"; lnoteT=90; }
+        if(lbl>=100){ lbl=0; lstun=90; lsp=0; lgrind=0; lscore=lscore>100?lscore-100:0; sfxPlay(SFX_CRY); lnote="ACCIDENT"; lnoteT=90; }
+        int nf=0, nt=0;
+        for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++){ int tx=(lfx>>8)+dx, ty=(lfy>>8)+dy; if(tx<0||ty<0||tx>=MW||ty>=MH) continue;
+            char c=lifeMap[ty][tx]; if(c=='F') nf=1; if(c=='T') nt=1; }
+        lnear=nf?1:(nt?2:0);
+        if((pr&K_R)&&lnear&&lstun<=0&&lz<=fh){
+            if(lnear==1){   // fridge: eat
+                if(lfood>=95){ lnote="FULL"; lnoteT=40; }
+                else { lfood+=35; if(lfood>100) lfood=100; lbl+=10; if(lbl>99) lbl=99; lstun=30; lsp=0; lnote="YUM"; lnoteT=50; }
+            } else {        // toilet: relieve yourself
+                if(lbl<15){ lnote="LATER"; lnoteT=40; }
+                else { lbl=0; lstun=70; lsp=0; lgrind=0; lnote="AHH"; lnoteT=60; }
+            }
+        }
+    }
     lfr++;
     if(lnoteT>0) lnoteT--;
     if(sfxFrames>0&&--sfxFrames==0) sfxStop();
@@ -589,13 +609,15 @@ static void tileTop(int sx,int sy,u16 c){ for(int t=-CA;t<=CA;t++){ int at=t<0?-
 static void lifeDraw(void){
     fillCols(0,ROW_W,RGB(4,5,8));
     u16 cA=RGB(26,21,14), cB=RGB(23,18,11);
-    for(int ty=0;ty<MH;ty++)for(int tx=0;tx<MW;tx++){ char c=lifeMap[ty][tx]; if(c=='w'||c=='#') continue;
-        tileTop(LOX+(tx-ty)*CA,LOY+(tx+ty+1)*CB,((tx^ty)&1)?cA:cB); }
+    for(int ty=0;ty<MH;ty++)for(int tx=0;tx<MW;tx++){ char c=lifeMap[ty][tx]; if(c=='w'||c=='#'||c=='F'||c=='T') continue;
+        tileTop(LOX+(tx-ty)*CA,LOY+(tx+ty+1)*CB,c=='D'?RGB(14,9,5):(((tx^ty)&1)?cA:cB)); }
     int ss=(int)((lfx>>8)+(lfy>>8)), psx=LOX+(int)((lfx-lfy)>>5), psy=LOY+(int)((lfx+lfy)>>6);
     for(int s=0;s<MW+MH-1;s++){
         for(int tx=0;tx<MW;tx++){ int ty=s-tx; if(ty<0||ty>=MH) continue;
             char c=lifeMap[ty][tx]; int sx=LOX+(tx-ty)*CA, sy=LOY+(tx+ty+1)*CB;
             if(c=='w'||c=='#'){ int h=c=='#'?2:1; for(int j=1;j<=h;j++) cube(sx,sy-j*CC,c=='#'?7:6,0,(j<h?1:0)|(j>1?2:0)); }
+            else if(c=='F'){ for(int j=1;j<=2;j++) cube(sx,sy-j*CC,2,0,(j<2?1:0)|(j>1?2:0)); }   // fridge: white, 2 blocks tall
+            else if(c=='T') cube(sx,sy-CC,8,0,0);                                                  // toilet: pale, 1 block
             else if(c=='=') cube(sx,sy-6,8,1,2);
             if(!lhave&&tx==BDX&&ty==BDY){   // the skateboard pickup, bobbing
                 int by=sy-3-((lfr>>4)&1);
@@ -613,6 +635,9 @@ static void lifeDraw(void){
     text(2,2,"SCORE",dim,1); numText(24,2,lscore,gold);
     text(2,10,"SPEED",dim,1); rect(24,10,lsp,5,RGB(8,24,10));
     text(150,2,MAPNAME,RGB(14,16,18),1);
+    text(150,10,"FOOD",dim,1); rect(172,10,lfood/2,5,lfood<20?RGB(28,8,6):RGB(10,24,8));
+    text(150,18,"WC",dim,1); rect(172,18,lbl/2,5,lbl>80?RGB(28,8,6):RGB(26,22,6));
+    if(lnear&&!ldead) text(2,132,lnear==1?"R OPEN FRIDGE":"R USE TOILET",gold,1);
     text(60,2,lskate?"SKATE":(lsp>5?"RUN":"WALK"),gold,1);
     if(ldead) text(2,25,"PRESS A TO RESPAWN",RGB(31,12,8),1);
     if(lnoteT>0){ text(2,18,lnote,RGB(31,31,31),1); if(lpts&&lnote[0]=='N'){ text(2,25,"+",gold,1); numText(6,25,lpts,gold); } }
