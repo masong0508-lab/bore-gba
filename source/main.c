@@ -729,7 +729,11 @@ static const u8* const sfxTab[SFX_N]={ sfx_hit,sfx_hit,sfx_gasp,sfx_scream,sfx_c
 static const u16 stepT[89]={7,8,9,10,11,12,13,14,16,17,19,21,23,25,28,31,34,37,41,45,50,55,60,66,73,80,88,97,107,118,130,143,157,173,190,209,230,253,279,307,337,371,408,449,494,544,598,658,724,796,876,963,1060,1166,1282,1411,1552,1707,1878,2066,2272,2499,2749,3024,3327,3660,4026,4428,4871,5358,5894,6484,7132,7845,8630,9493,10442,11487,12635,13899,15289,16818,18500,20350,22385,24623,27086,29794,32767};
 static const signed char idxT[8]={-1,-1,-1,-1,2,4,6,8};
 static const u8 *ssrc; static u32 sn, sdone, swraps; static int spred, sidx, sfxOn; static u16 slast;
-static void sfxStop(void){ R_DMA1CNT=0; R_TM0CNT=0; R_TM1CNT=0; sfxOn=0; }
+// GAME MUSIC (jukebox songs while playing) shares Timer0 and the sound FIFOs with the sound effects, so an effect ducks the music: the music
+// stops feeding the DMA (mDucked) while the effect plays, and sfxStop() hands the speakers back when the effect is over.
+static volatile int mDucked; static int gMusic;   // mDucked: music paused for an effect; gMusic: game music is switched on right now
+static void musResume(void);
+static void sfxStop(void){ R_DMA1CNT=0; R_TM0CNT=0; R_TM1CNT=0; sfxOn=0; if(mDucked){ mDucked=0; if(gMusic) musResume(); } }
 #define SM_W0 76   // smoke stays inside columns 152..203, rows 0..89 (checked over its whole 128-frame loop)
 #define SM_W1 102
 #define SM_Y1 90
@@ -892,6 +896,7 @@ static void musStart(void){ musBegin(0,0,&xm_the_dipper_man); }   // the title m
 static void musKick(void){}   // (kept so old call sites still compile: the interrupts do this now)
 static void musFill(void){}
 static void musStop(void){ irqOff(); if(!mOn) return; mOn=0; R_DMA1CNT=0; R_DMA2CNT=0; R_TM0CNT=0; R_SNDCNT_H=0; }
+static void musResume(void){ R_SNDCNT_X=0x80; R_SNDCNT_L=0; R_SNDCNT_H=0x9A0C; mOn=1; }   // after an effect: the next vblank restarts the music DMA
 // ---------- jukebox song table: built from source/songs.h (edit that file, not this) ----------
 // Pass 1 bakes every .adp into the ROM, pass 2 declares the data, pass 3 builds the table.
 #define SONG_XM(id,n,f)
@@ -966,6 +971,7 @@ IWRAM_CODE static void sfxDecode(int cnt){   // decode the next cnt samples into
 }
 static void sfxPlay(int id){   // a new sound replaces whatever is playing
     sfxStop(); if(!sSnd) return;
+    if(gMusic&&mOn){ mOn=0; mDucked=1; R_DMA2CNT=0; }   // game music: pause it for the effect
     const u8*b=sfxTab[id]; sn=*(const u32*)b; if(sn>SFX_MAX-256) sn=SFX_MAX-256;
     ssrc=b+4; sdone=0; spred=0; sidx=0;
     sfxDecode(1024);                             // a head start; sfxTick decodes the rest while it plays
@@ -1538,10 +1544,26 @@ static const char* const lifeItemsEd[4]={"RESUME","HOW TO PLAY","OPTIONS","BACK 
 // Timer2 (65536 Hz) is the clock (defined with the settings). The game logic always runs at 60 steps per second; the
 // frame rate setting only says how often the picture is redrawn, so lower rates save work without slowing the game.
 static const char* const yesNoLife[2]={"NO","YES ERASE IT"};
+// ---- game music: the jukebox songs in their shuffled order while you play (OPTIONS > AUDIO > GAME MUSIC) ----
+static int gmPos;
+static void gmPlay(void){   // start the song in playlist slot gmPos (always the shuffled order, whatever the jukebox mode is)
+    const Song*sg=&songs[jbMap[jbOrd[gmPos]]]; musBegin(sg->adp?1:0,sg->adp,sg->xm);
+}
+static void gmStart(void){
+    if(gMusic||!xo[XO_GAMEMUS]||!sSnd||jbN<=0) return;
+    gmPos=(rnd8()*jbN)>>8; if(gmPos>=jbN) gmPos=0;
+    gMusic=1; mDucked=0; gmPlay();
+}
+static void gmStop(void){ if(!gMusic) return; gMusic=0; mDucked=0; musStop(); }
+static void gmSync(void){ if(xo[XO_GAMEMUS]&&sSnd) gmStart(); else gmStop(); }   // after the pause menu: the option or SOUND may have changed
+static void gmTick(void){   // once per frame: when the song is over, the next one in the shuffle
+    if(!gMusic||mDucked||sfxOn) return;
+    if(mKind?mDone:mLaps>=1){ gmPos=(gmPos+1)%jbN; gmPlay(); }
+}
 static void lifeModeRun(int ed);
 static void lifeMode(int ed){ gInPlay=1; lifeModeRun(ed); gInPlay=0; }   // gInPlay: some option actions are only allowed while playing / only outside it
 static void lifeModeRun(int ed){   // ed=1: test play started from the map editor
-    lifeInit(); lcamF=0; cview=0; lcN=lcPts=lcT=lcBank=lcBankT=lcamPend=0; u16 prev=keyNow();
+    lifeInit(); lcamF=0; cview=0; lcN=lcPts=lcT=lcBank=lcBankT=lcamPend=0; u16 prev=keyNow(); gmStart();
     tmStart(); u16 tl=R_TM2D; int acc=0, fpsN=0, fr=0; u32 fpsT=0, workT=0; lfpsV=0; lloadV=0;
     for(;;){
         int need=(sFps+1)*TICKS_FRAME-100;
@@ -1559,17 +1581,17 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
             else if(c==4&&!ed){ mapEditor(); lifeInit(); }
             else if(c==5&&!ed){ if(menu("START A NEW LIFE",yesNoLife,2)==1){ simsNewLife(); moodReset(); lscore=0; simLastScore=0; lnote="NEW LIFE"; lnoteT=60; } }
             else if((c==3&&ed)||c==6){ if(c==6) gToMenu=1; break; }
-            prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=0; continue;
+            gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=0; continue;
         }
         if(lcamF>0) camStep(steps,k,pr);
         else {
             for(int s=0;s<steps;s++) lifeStep(k,s?0:pr,fr++);   // catch up if a frame took long; button presses count once
             if(lcamPend){ lcamPend=0; if(sCam){ lcamF=1; cview=0; } }
         }
-        lifeDraw(); workT+=(u16)(R_TM2D-w0); present();
+        gmTick(); lifeDraw(); workT+=(u16)(R_TM2D-w0); present();
         fpsN++; if(fpsT>=65536){ lfpsV=fpsN; lloadV=(int)(workT/(u32)fpsN*100/(u32)((sFps+1)*TICKS_FRAME)); workT=0; fpsN=0; fpsT-=65536; }
     }
-    simsSave(); R_TM2CNT=0; sfxStop(); lcamF=0; cview=0;   // leaving the life game saves it
+    simsSave(); R_TM2CNT=0; gmStop(); sfxStop(); lcamF=0; cview=0;   // leaving the life game saves it
     while((~REG_KEYINPUT)&0x3FF) vsync();   // wait for release so the caller doesn't see the exit keys
 }
 

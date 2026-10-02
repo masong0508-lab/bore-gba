@@ -48,10 +48,11 @@ enum {
     XO_AGEC,      // days as a CHILD
     XO_AGET,      // days as a TEEN
     XO_AGEA,      // days as an ADULT (the last choice is FOREVER: never grows old)
+    XO_GAMEMUS,   // AUDIO: jukebox songs in their shuffled order while you play (off / on)
     XO_N
 };
-static const u8 xoCnt[]={ 5,5,2,4,4,4,4,2,3,4,2,3,2,4,   4,3,   4,3,2,   3,6,3,   2,2,2,2,2,3,2, 4,10,10,10,11 };
-static const u8 xoDef[]={ 2,1,1,2,1,1,1,1,0,2,1,2,1,1,   0,1,   0,0,1,   0,0,1,   1,1,1,0,1,2,1, 2,1,2,2,4 };
+static const u8 xoCnt[]={ 5,5,2,4,4,4,4,2,3,4,2,3,2,4,   4,3,   4,3,2,   3,6,3,   2,2,2,2,2,3,2, 4,10,10,10,11, 2 };
+static const u8 xoDef[]={ 2,1,1,2,1,1,1,1,0,2,1,2,1,1,   0,1,   0,0,1,   0,0,1,   1,1,1,0,1,2,1, 2,1,2,2,4, 0 };
 _Static_assert(sizeof(xoCnt)==XO_N&&sizeof(xoDef)==XO_N,"xoCnt / xoDef must have one entry per XO_ name");
 static u8 xo[XO_N];
 static void optsDefaults(void){ for(int i=0;i<XO_N;i++) xo[i]=xoDef[i]; }
