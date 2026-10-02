@@ -197,7 +197,8 @@ IWRAM_CODE static void cube(int sx,int sy,int ci,int shape,int f){
 
 // ---------- textured walls and floors ----------
 static u16 wpTab[NWP][2][8][8] EWRAM_BSS;              // [wallpaper][0 left face / 1 right face][column][row], pre-shaded
-static u16 flTab[NFL][2][2*CA+1][2*CB+1] EWRAM_BSS;    // [floor][odd tile][column][row] pre-sampled onto the iso diamond
+static u16 flTab[NFL][2][2*CB+1][2*CA+1] EWRAM_BSS;    // [floor][odd tile][row][column] pre-sampled onto the iso diamond (row-major: drawn as horizontal spans)
+static u8 rowHW[CB+1];   // rowHW[|y|] = half width of the diamond on that row
 static u16 flFlat[NFL][2];                             // plain-colour fallback ("floor patterns off")
 static u16 avgTex(const Tex*t){
     int r=0,g=0,b=0;
@@ -219,7 +220,7 @@ static void bakeTex(void){   // needs hhT (filled by initTables)
                 int ta=X*8/(2*CA*CB), tb=Y*8/(2*CA*CB);
                 if(ta<0)ta=0; if(ta>7)ta=7; if(tb<0)tb=0; if(tb>7)tb=7;
                 u16 c=t->c[t->p[tb][ta]-'0']; if(var) c=shade(c,vs);
-                flTab[fl][var][tt+CA][y+hh]=c;
+                flTab[fl][var][y+CB][tt+CA]=c;
             }
         }
     }
@@ -242,12 +243,13 @@ IWRAM_CODE static void wallBlock(int sx,int sy,int wp,int f){
     }
 }
 // One floor tile: copy the pre-sampled columns. tex = flTab[floor][odd][0][0].
-IWRAM_CODE static void floorTile(int sx,int sy,const u16*tex){
-    for(int t=-CA;t<=CA;t++,tex+=2*CB+1){
-        int x=sx+t; if((unsigned)x>=SW) continue;
-        int hh=hhT[0][t<0?-t:t], y0=sy-hh, n=2*hh+1;
-        if(y0>=0&&y0+n<=SH){ u16*p=&fb[y0*SW+x]; for(int i=0;i<n;i++,p+=SW) *p=tex[i]; }
-        else for(int i=0;i<n;i++){ int y=y0+i; if((unsigned)y<SH) fb[y*SW+x]=tex[i]; }
+IWRAM_CODE static void floorTile(int sx,int sy,const u16*tex){   // one scanline span per row instead of one call per column
+    for(int ry=-CB;ry<=CB;ry++,tex+=2*CA+1){
+        int y=sy+ry; if((unsigned)y>=SH) continue;
+        int hw=rowHW[ry<0?-ry:ry], x0=sx-hw, x1=sx+hw; const u16*sp=tex+(CA-hw);
+        if(x0<0){ sp-=x0; x0=0; } if(x1>=SW) x1=SW-1;
+        u16*d=&fb[y*SW+x0]; u16*e=&fb[y*SW+x1];
+        while(d<=e) *d++=*sp++;
     }
 }
 
@@ -396,6 +398,7 @@ IWRAM_CODE static void fillCols(int w0,int w1,u16 c){
 static u8 ord[4][W*D];   // per view: cells (x | z<<4) sorted back to front, so the draw loop needs no search
 static void initTables(void){
     for(int sh=0;sh<4;sh++){ int r=rTab[sh]; for(int at=0;at<=r;at++) hhT[sh][at]=(u8)((r/2)*(r-at)/r); }
+    for(int a=0;a<=CB;a++){ int w=0; for(int at=0;at<=CA;at++) if(hhT[0][at]>=a) w=at; rowHW[a]=(u8)w; }
     bakeTex();
     int sv=view;
     for(int v=0;v<4;v++){
@@ -1207,7 +1210,15 @@ static void lifeStep(u16 k,u16 pr,int fr){
     if(lnoteT>0) lnoteT--;
     sfxTick();
 }
-static void tileTop(int sx,int sy,u16 c){ for(int t=-CA;t<=CA;t++){ int at=t<0?-t:t, hh=hhT[0][at]; vline(sx+t,sy-hh,sy+hh,c); } }
+IWRAM_CODE static void tileTop(int sx,int sy,u16 c){
+    for(int ry=-CB;ry<=CB;ry++){
+        int y=sy+ry; if((unsigned)y>=SH) continue;
+        int hw=rowHW[ry<0?-ry:ry], x0=sx-hw, x1=sx+hw;
+        if(x0<0) x0=0; if(x1>=SW) x1=SW-1;
+        u16*d=&fb[y*SW+x0]; u16*e=&fb[y*SW+x1];
+        while(d<=e) *d++=c;
+    }
+}
 static int ecx=6, ecy=6, efr;   // map editor cursor (tile) and frame counter
 // The room can be viewed from 4 sides (action cam). (rx,ry) are screen-space tile coords for the current view, (tx,ty) the real map tile.
 static void rotXY(int rx,int ry,int*tx,int*ty){
