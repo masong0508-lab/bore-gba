@@ -20,6 +20,8 @@ from xm import parse
 
 MIXR = 18157                      # the game's music rate (MUS_RATE)
 SONGS_H = "source/songs.h"
+QREG = {}                         # name -> sample data of every sample stored so far (to spot near-copies)
+NEARDUP = {"worthless_clouds"}    # songs whose near-identical samples are merged with earlier ones (the others are left as they were)
 SHARED = {}                       # sample data already written for an earlier song: identical samples are stored once in the whole ROM
 OUT = "source/musicdata.h"
 TITLE = ("the_dipper_man", "tools/the_dipper_man.xm")
@@ -219,6 +221,24 @@ TREES = {"tree_swaying_action": make_tree}
 ENDINGS = {"amiga_music": make_ending}
 POPS = {"amiga_music": make_pop}
 
+def make_clouds(S):
+    """Extended version of WORTHLESS CLOUDS: the 65-order original (271 s) becomes the 140-order extended edit (~584 s, same 115 BPM).
+    Nothing new is composed: only the order list changes, so no samples are added or copied. The arrangement follows the loudness
+    arc of the extended mp3 (soft / mid / loud runs, measured per 2-bar pattern) and fills each run from the original's sections:
+      'S' soft  = the quiet verse (orders 4-11), 'M' mid = its second half (orders 8-11), 'L' loud = the whole loud body (orders 12-53,
+      played once in its original order, then again from the start), and the original's own ending (orders 54-64) closes the song.
+    Edit PLAN to re-arrange: (pool, number of 2-bar patterns).  The opening is the original intro + first verse bars (orders 0-7)."""
+    O = list(S['order'])
+    pools = {'S': O[4:12], 'M': O[8:12], 'L': O[12:54]}; cur = {'S': 4, 'M': 0, 'L': 0}
+    PLAN = [('S', 30), ('L', 4), ('S', 6), ('M', 1), ('L', 29), ('M', 5), ('L', 9), ('M', 1), ('S', 3), ('L', 9),
+            ('M', 6), ('L', 6), ('M', 2), ('S', 10)]
+    out = O[0:8]
+    for pool, n in PLAN:
+        for _ in range(n): out.append(pools[pool][cur[pool] % len(pools[pool])]); cur[pool] += 1
+    S['order'] = out + O[54:65]
+
+CLOUDS = {"worthless_clouds": make_clouds}
+
 def song_list():
     text = open(SONGS_H).read() if os.path.exists(SONGS_H) else ""
     found = re.findall(r'^\s*SONG_XM\(\s*(\w+)\s*,\s*"[^"]*"\s*,\s*"([^"]+)"\s*\)', text, re.M)
@@ -255,6 +275,7 @@ def convert(sid, path):
     if sid in DANCES: DANCES[sid](S)
     if sid in TREES: TREES[sid](S)
     if sid in POPS: POPS[sid](S)
+    if sid in CLOUDS: CLOUDS[sid](S)
     if sid in ENDINGS: ENDINGS[sid](S)
     d = open(path, 'rb').read()
     flags = int.from_bytes(d[74:76], 'little')
@@ -303,14 +324,23 @@ def convert(sid, path):
     o.append('// ---- %s  (from %s) ----\n' % (sid, path))
     arr('u8', P + 'order', S['order'], 30); arr('u16', P + 'rows', rows, 30); arr('u32', P + 'patOff', off); arr('u32', P + 'ev', ev, 12)
     arr('u32', P + 'step', [s for I in insts for s in (I['steps'] if I else [0] * 96)], 8)
-    arr('u32', P + 'len', [(len(I['q']) - 1) if I else 0 for I in insts])
-    seen = SHARED; names = []
+    seen = SHARED; names = []; fresh = []
     for k, I in enumerate(insts):
         if not I: names.append('0'); continue
         key = I['q'].tobytes()
         if key in seen: names.append(seen[key]); continue            # identical sample data is stored once
-        nm = P + 'S%d' % k; seen[key] = nm; names.append(nm)
-        arr('s8', nm, [int(v) for v in I['q']], 32)
+        if sid in NEARDUP:                                           # a near-copy of an earlier sample (same sound, trimmed a few samples
+            q = I['q']; hit = None                                   # differently) points at that sample instead of being stored again
+            for nm0, w in QREG.items():
+                n = min(len(q), len(w))
+                if n < 64 or abs(len(q) - len(w)) > 0.02 * max(len(q), len(w)): continue
+                if np.corrcoef(q[:n - 1], w[:n - 1])[0, 1] > 0.985: hit = (nm0, n); break
+            if hit:
+                nm0, n = hit; I['q'] = np.append(q[:n - 1], 0); names.append(nm0)
+                print("  inst %2d is a copy of %s - reusing it" % (k + 1, nm0)); continue
+        nm = P + 'S%d' % k; seen[key] = nm; QREG[nm] = I['q']; names.append(nm); fresh.append((nm, I['q']))
+    arr('u32', P + 'len', [(len(I['q']) - 1) if I else 0 for I in insts])
+    for nm, q in fresh: arr('s8', nm, [int(v) for v in q], 32)
     o.append('static const s8* const %sdata[%d]={%s};\n' % (P, ninst, ','.join(names)))
     o.append('static const XmSong xm_%s={%sorder,%srows,%spatOff,%sev,%sstep,%slen,%sdata,%d,%d,%d,%d};\n' % (sid, P, P, P, P, P, P, P, nord, loop, rowN, rfr))
     return ''.join(o)
