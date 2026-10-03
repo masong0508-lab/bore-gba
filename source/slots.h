@@ -1,7 +1,7 @@
 // slots.h - ROOM SLOTS: several named saves of a room, the person living in it and their life.
 //
 // WHAT A SLOT HOLDS      Chunks, each optional: ROOM (tiles, floors, wallpaper, run-length packed), PERSON (the creature: look, and
-//                        its hand-built blocks if any), LIFE (needs, cash, job, clock, skill: the same 24 bytes sims.h saves).
+//                        its hand-built blocks if any), LIFE (needs, cash, job, clock, skill: the same block sims.h saves: 52 bytes "SIM3", older slots 24 bytes "SIM2").
 // WHERE                  SRAM 20480.., SLOT_N slots of SLOT_SZ bytes (the old single room at 0, settings, jukebox and the life keep their places).
 // ACTIVE SLOT            The slot you saved to / loaded last. A tiny block at SLOT_DIR remembers it. Options use it:
 //                        SAVE MAP TO SLOT (the map editor's SAVE MAP also writes the active slot), BOOT LOADS PERSON.
@@ -103,9 +103,10 @@ static void slEncPlane(SlW*w,int plane){   // 0 = voxels, 1 = face sprite low by
     if(n){ slwPut(w,n); slwPut(w,cur); }
 }
 static void slEncPerson(SlW*w){
-    slwPut(w,3);                                            // format 3 (2 had no sliders: they read as 0 = the middle; 1 had no life stage: those people are adults)
+    slwPut(w,4);                                            // format 4 (3 had no persona: it reads as the one already set; 2 had no sliders: they read as 0 = the middle; 1 had no life stage: those people are adults)
     for(int i=0;i<LK_N;i++) slwPut(w,look[i]);
     slwPut(w,stage); slwPut(w,ageDays);
+    slwPut(w,pAsp); slwPut(w,pLtw); for(int i=0;i<TR_N;i++) slwPut(w,pTr[i]);   // persona: aspiration, lifetime want, personality
     slwPut(w,custom?1:0);                                   // hand-built blocks: only then the blocks are stored (else buildLook() remakes them)
     if(custom){ slEncPlane(w,0); slEncPlane(w,1); slEncPlane(w,2); }
 }
@@ -116,10 +117,12 @@ static int slDecPlane(SlR*c,int plane){
     return 1;
 }
 static int slDecPerson(SlR*c,int apply){
-    int fmt=slrGet(c); if(c->bad||fmt<1||fmt>3) return 0;
+    int fmt=slrGet(c); if(c->bad||fmt<1||fmt>4) return 0;
     u8 lk[LK_N]={0}; for(int i=0;i<(fmt>=3?LK_N:LK_BASE);i++) lk[i]=(u8)slrGet(c);
     int stg=AG_ADULT, agd=0; if(fmt>=2){ stg=slrGet(c); agd=slrGet(c); }
     if(c->bad||stg>=AG_N) return 0;
+    int pa=pAsp, pl=pLtw; u8 pt[TR_N]; for(int i=0;i<TR_N;i++) pt[i]=pTr[i];
+    if(fmt>=4){ pa=slrGet(c); pl=slrGet(c); for(int i=0;i<TR_N;i++) pt[i]=(u8)slrGet(c); if(c->bad||!persValid(pa,pl,pt)) return 0; }
     int cu=slrGet(c); if(c->bad) return 0;
     if(lk[LK_TONE]>=9||lk[LK_EARSZ]>=9||lk[LK_EARLF]>=9||lk[LK_SHAPE]>=NSHAPE||lk[LK_SKIN]>=NSW||lk[LK_EYES]>=3||lk[LK_MOUTH]>=3||lk[LK_EARS]>=3||lk[LK_HSTYLE]>=4||lk[LK_HCOL]>=NSW||lk[LK_TOP]>=NSW||lk[LK_BOT]>=NSW) return 0;
     if(cu>1) return 0;
@@ -133,6 +136,7 @@ static int slDecPerson(SlR*c,int apply){
     }
     if(apply){
         for(int i=0;i<LK_N;i++) look[i]=lk[i];
+        pAsp=(u8)pa; pLtw=(u8)pl; for(int i=0;i<TR_N;i++) pTr[i]=pt[i]; persSave();
         stage=(u8)stg; ageDays=(u8)agd; fixLook(); ageSave();
         buildLook();                                                   // also sets sty[] and custom=0
         if(cu){ u8*v=&vox[0][0][0]; u16*d=&dec[0][0][0]; for(int i=0;i<CNV;i++){ v[i]=slTmp[0][i]; d[i]=(u16)(slTmp[1][i]|(slTmp[2][i]<<8)); } custom=1; }
@@ -140,11 +144,12 @@ static int slDecPerson(SlR*c,int apply){
     }
     return 1;
 }
-// ---------- chunks: LIFE (24 bytes straight from the life block) ----------
-static void slEncLife(SlW*w){ slwPut(w,1); for(int i=0;i<SIM_BLOCK;i++) slwPut(w,SIM_SRAM[i]); }
+// ---------- chunks: LIFE (the life block straight from SRAM, SIM3 or the older SIM2) ----------
+static void slEncLife(SlW*w){ int n=simsVer(SIM_SRAM)==2?SIM_BLOCK2:SIM_BLOCK; slwPut(w,1); for(int i=0;i<n;i++) slwPut(w,SIM_SRAM[i]); }   // SRAM may still hold an older SIM2 life
 static int slDecLife(SlR*c,int apply){
-    if(c->len!=1+SIM_BLOCK||c->p[0]!=1) return 0;
+    if(c->len<1+4||c->p[0]!=1) return 0;
     volatile unsigned char*b=(volatile unsigned char*)(c->p+1);
+    int v=simsVer(b); if(c->len!=1+(v==3?SIM_BLOCK:SIM_BLOCK2)) return 0;   // SIM3 = 52 bytes, SIM2 = 24 bytes
     if(!simsCheck(b)) return 0;
     if(apply){ simsUnpack(b); simsSaveNow(); }
     return 1;

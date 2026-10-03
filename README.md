@@ -90,6 +90,8 @@ The slot you saved to or loaded last is the **active slot**. With SAVE MAP TO SL
 | 8448 | extended options (`opts.h`) |
 | 12288 | jukebox order and mode |
 | 12352 | active room slot |
+| 12416 | life stage and days in it |
+| 12432 | persona: aspiration, lifetime want, traits, DNA, unlocked parts |
 | 16384 | the life (`sims.h`) |
 | 18432 | 16 spare bytes for SAVE MEMORY TEST |
 | 20480 | six room slots of 2048 bytes (to the end of SRAM) |
@@ -169,14 +171,31 @@ The jukebox plays only on its own screen for now: music during gameplay needs a 
 The creature screen is now a character-creator: a live preview in a little house room (the game's own wallpaper and floor) on the left, a card of numbered tabs on the right.
 | Key | Action |
 |---|---|
-| L / R | change tab (1 BODY, 2 FACE, 3 HAIR, 4 CLOTHES, 5 BUILD, tick = DONE) |
+| L / R | change tab (1 BODY, 2 FACE, 3 HAIR, 4 CLOTHES, 5 PARTS, 6 ASPIRE, tick = DONE) |
 | Up / Down | pick a row |
 | Left / Right (or A) | change it: named options (shape, eyes, mouth, ears, hair style) or 8 colour swatches (skin, hair, top, bottom) |
 | Select | turn the creature (compass bottom left) |
 | Start | jump to DONE (GO LIVE LIFE, EDIT MAP, MAIN MENU) |
 | B | back to the main menu |
 
-Tab 5 opens the original block builder (legend with key caps; Select+Start returns). Changing shape, ears or hair style after hand-building asks before replacing your blocks.
+The old BUILD tab (block builder) is gone; the classic block screen is still behind the Konami code (START+SELECT in the creator). Changing shape, ears, hair style or a part after hand-building asks before replacing your blocks.
+
+### Tab 5: PARTS (Spore style)
+Like the Spore creature editor, the body decides what the creature can do. Parts are built as blocks on the model:
+| Part | Options | Power |
+|---|---|---|
+| TAIL | NONE, STUB, LONG (furry, hair colour) | LONG = **BALANCE**: spins land clean further off straight |
+| HORNS | NONE, NUBS, HORNS (ivory, out of the sides of the head) | HORNS = **CHARGE**: skating into a wall does not hurt |
+| BACK | NONE, SPIKES, WINGS | SPIKES = **ARMOUR** (falls and bails hurt 30% less), WINGS = **GLIDE** (hold R in the air to float down) |
+
+Under the rows is the **ability chart**: SPEED, JUMP, GRIP, STYLE, STAMINA, 0 to 5 each (2 is normal). Shape, face, hair and parts move them (TALL is fast, BROAD tough, BIG HEAD stylish, bald is quick, wings help jumps but drag, a tail helps grip...). In play: SPEED +-5% top speed per point, JUMP +-6% ollie and hop, GRIP more grind points and faster rails, STYLE +-6% trick points, STAMINA -8% need drain per point. All of it is in `abOf()` / `abPow()` in `main.c`.
+
+**DNA.** Big parts (LONG tail 60, HORNS 60, SPIKES 40, WINGS 120) are locked until bought with DNA. You can still look at a locked part (red, with a padlock): A buys it, and it comes off again when you leave the creator if you did not. DNA is earned by living: a met want pays its points, a skill level 15, a promotion 25, a birthday 50, the lifetime want 200. The Konami code makes every part free.
+
+### Tab 6: ASPIRE (Sims 2 Create-A-Sim)
+- **ASPIRATION**: FORTUNE, KNOWLEDGE, POPULARITY, PLEASURE or HOME. Babies and children always aspire to **GROW UP**; the one you pick starts when the creature becomes a teen (the row says TEEN).
+- **LIFETIME**: one of two lifetime wants for that aspiration (BE A LEGEND / HAVE 3000 CASH, MAX SKATE SKILL / LAND 500 TRICKS, 20000 COMBO / GO PRO, MEET 100 WANTS / STOKED 20 MIN, 30 GOOD NIGHTS / PERFECT HOME).
+- **SIGN** and **TRAITS**: NEAT, OUTGOING, ACTIVE, PLAYFUL, NICE share 25 points (0 to 10 each). A sign deals out its set of points; moving a trait shows the sign that fits best. Traits tilt which wants and fears roll and change the life: neat creatures stay clean longer, active ones need the sofa less (lazy ones sink into it), playful ones get bored faster, outgoing ones get a thrill from banked combos and shy ones are embarrassed by bails, grouchy ones (NICE 3 or less) take a fear coming true twice as hard.
 
 ## Life sim layer (Sims 2, handheld edition)
 The life part of the game has a Sims 2 style loop on top of the skating. All the logic is in `source/sims.h` (art in `source/simart.h`, preview in `assets/preview/sims_furniture.png`); every tuning number is in the TUNING block at the top of `sims.h`. Everything except other people (social needs, relationships) is in.
@@ -193,12 +212,15 @@ The life part of the game has a Sims 2 style loop on top of the skating. All the
 
 **Thought bubble.** A thought bubble over the head shows the most urgent need (WC, EAT, ZZZ, STINKY, SIT), otherwise it alternates between your wants.
 
-**Wants and fears.** Two wants and one fear are always on show under the needs (green and red markers). Wants: snack, WC, nap, get clean, sofa, land a trick, trick combo, grind, get air, feel stoked, finish a shift, get promoted, learn a skill, nice room. Fears: bailing, accident, passing out, getting hurt, fainting, being broke, demotion. Meeting a want pays aspiration points and a mood lift; a fear coming true costs points. A want is only offered if the map has what it needs (no bed, no nap want). All of it hooks into the mood events, so every `moodEvent()` in the game feeds it.
+**Wants and fears (The Sims 2 way).** **Four wants and three fears** are on show at the bottom right of the HUD as icon cells (green wants, red fears, a gold edge on a locked want); the line under them spotlights one at a time with its points. They roll from the creature's **aspiration** pool first, a few from anywhere, tilted by its **traits**, and wants for a need get likelier as the need runs low. A want only rolls if the map and the creature can do it (no bed, no nap want; no job, no shift wants; GO GLIDING needs wings, CHARGE A WALL needs horns). Some carry a target that is set when they roll (HAVE 450 CASH, BANK A 2500 COMBO, GAIN 12 SKILL). **A real night's sleep rerolls them**, and so do a birthday and a new aspiration; one want can be **locked** so it survives. Babies have no wants.
+Wants: snack, WC, nap, get clean, sofa, land a trick, trick combo, 5 trick combo, grind, get air, bank a combo, feel stoked, feel great, finish a shift, ace a shift, get promoted, have cash, pay the bills, learn a skill, gain skill, nice room, grow up, go gliding, charge a wall. Fears: bailing, getting hurt, an accident, fainting, passing out, being broke, demotion, no pay today, being stinky, getting bored, feeling sad, dying, growing old, a shabby room.
 
-**Aspiration.** Points climb through BRONZE, SILVER, GOLD and PLATINUM (40 / 120 / 260 / 450). Each level slows the needs down; PLATINUM halves them.
+**Aspiration meter.** A met want adds its points x5 to the meter (0 to 1000) and the same points to **reward points**; a fear coming true takes its points x5 off. The meter drains slowly by itself (twice as fast when SAD). Zones: FAILING, LOW, OK, GOOD, GOLD, PLATINUM, shown in their colours in the HUD. Higher zones slow the needs (PLATINUM halves them) and lift the mood; LOW and FAILING sink it. At 0 the creature has an **aspiration failure**: a breakdown, then a therapist puts the meter back at LOW and rolls new wants. Meeting the **lifetime want** pays 500 reward points and keeps the meter in PLATINUM for good.
 
-**Saving.** Needs, cash, aspiration, clock, job level and progress, and skill are saved to SRAM (offset 16384) at every midnight, every payday, when you open the pause menu and when you leave the life game, with a checksum so a bad save is ignored. Dying only resets the needs: the life goes on. **Pause menu -> NEW LIFE** erases it and starts over.
+**Pause menu -> ASPIRATION.** The full panel: the meter, the lifetime want and its progress, the wants (UP/DOWN and A locks one) and fears with their points, reward points, DNA, sign and abilities. **R opens the aspiration rewards**: ENERGIZER (100, REST to full), THINKING CAP (150, the next skill level), MONEY TREE (300, pays 25 every midnight), ELIXIR OF LIFE (250, resets the days in the life stage).
 
-**Adding things.** A want or fear: add a `SE_` name, a row in `simWants` / `simFears`, and map the game event in `simsMood()` (or call `simEvent(SE_X)` yourself). A need: a variable (and in `simsSave`/`simsLoad`), a rate in `simsTick()`, a use in `simBegin()`, a bar in `simsHud()`. A piece of furniture: art in `simart.h`, a slot in `palCh`/`palNm`/`palCol` and a `drawItemTile` line.
+**Saving.** Needs, cash, the aspiration meter and reward points, the wants and fears (and the lock), clock, job level and progress, skill and the lifetime want counters are saved to SRAM (offset 16384, 52 bytes "SIM3"; an older 24 byte "SIM2" life still loads, its points become reward points) at every midnight, every payday, when you open the pause menu and when you leave the life game, with a checksum so a bad save is ignored. Dying only resets the needs: the life goes on. **Pause menu -> NEW LIFE** erases it and starts over.
+
+**Adding things.** A want or fear: add an `SE_` name if it needs a new event, a row **at the end** of `simWants` / `simFears` (rows are saved by index: name, event, points, furniture, icon, parameter, aspirations, trait, minimum, who), and map the game event in `simsMood()` (or call `simEvent(SE_X)` yourself). A need: a variable (and in `simsSave`/`simsLoad`), a rate in `simsTick()`, a use in `simBegin()`, a bar in `simsHud()`. A piece of furniture: art in `simart.h`, a slot in `palCh`/`palNm`/`palCol` and a `drawItemTile` line.
 
 **Not done yet:** SOCIAL need, other people to talk to, relationships.

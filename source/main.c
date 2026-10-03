@@ -72,7 +72,9 @@ static const u16 topTones[NSW]  = { RGB(8,20,22), RGB(28,8,6), RGB(30,24,6), RGB
 static const u16 botTones[NSW]  = { RGB(8,9,20), RGB(5,5,8), RGB(18,12,6), RGB(14,15,16), RGB(24,20,12), RGB(8,16,8), RGB(26,6,6), RGB(30,30,30) };
 // The look: one number per choice in the creature creator. 0 everywhere = the starter creature.
 enum { LK_SHAPE, LK_SKIN, LK_EYES, LK_MOUTH, LK_EARS, LK_HSTYLE, LK_HCOL, LK_TOP, LK_BOT, LK_BASE,
-       LK_TONE=LK_BASE, LK_EARSZ, LK_EARLF, LK_N };   // LK_TONE, LK_EARSZ, LK_EARLF are sliders: 0 = middle, then 1..4 up, 5..8 down (see slidePos)
+       LK_TONE=LK_BASE, LK_EARSZ, LK_EARLF, LK_TAIL, LK_HORNS, LK_BACK, LK_N };   // LK_TONE, LK_EARSZ, LK_EARLF are sliders: 0 = middle, then 1..4 up, 5..8 down (see slidePos)
+#define LK_N3 (LK_EARLF+1)   // looks a person format 3 slot holds (the Spore parts TAIL, HORNS, BACK came with format 4)
+static inline int lkSlide(int id){ return id>=LK_BASE&&id<=LK_EARLF; }
 static inline int slidePos(int v){ return (v+4)%9; }      // 0..8 left to right, the middle (stored 0) is 4
 static inline int slideVal(int p){ return (p+5)%9; }
 static inline int slideEff(int v){ return slidePos(v)-4; }   // -4..4
@@ -505,6 +507,34 @@ static void hairW(int x,int y,int z,int xp,int xm,int zp,int zm){   // one hair 
     vox[y][z][x]=5;
 }
 static void vb(int x,int y,int z,int v){ if(x<BX0||x>=BX0+stBW[stage]||y<0||y>=stBH[stage]||z<0||z>=stBD[stage]) return; vox[y][z][x]=(u8)v; }
+// Spore parts (the PARTS tab): a TAIL behind the hips, HORNS on the sides of the head, SPIKES or WINGS on the back. The back of the
+// creature is z=0 (faces look towards +z). vw() is one block with a wedge top that slopes away on the sides flagged (grid space).
+static void vw(int x,int y,int z,int col,int xp,int xm,int zp,int zm){
+    if(x<BX0||x>=BX0+stBW[stage]||y<0||y>=stBH[stage]||z<0||z>=stBD[stage]) return;
+    int nx=xp+xm, nz=zp+zm, m=0;
+    if(nx+nz==1) m=xp?10:zp?12:xm?5:3;
+    else if(nx==1&&nz==1) m=1<<((xp?1:0)+(zp?2:0));
+    for(int i=0;i<8;i++) if(wMask[i]==m&&m){ vox[y][z][x]=(u8)(col|((4+i)<<4)); return; }
+    vox[y][z][x]=(u8)col;
+}
+static void sporeParts(int tx,int ty,int hx,int hy,int hz,int hw,int hh,int top){   // tx,ty = torso left column, bottom row; hx..hh = the head; top = the hair layer
+    int tail=look[LK_TAIL], horns=look[LK_HORNS], back=look[LK_BACK];
+    if(tail){                                                    // a furry tail in the hair colour: STUB is a wedge off the hips, LONG droops one more block
+        for(int x=tx;x<tx+2;x++){ vw(x,ty,0,5,x==tx+1,x==tx,0,tail==1); if(tail==2) vw(x,ty-1,0,5,x==tx+1,x==tx,0,1); }
+    }
+    if(back==1){                                                 // SPIKES: a ridge of wedges down the back, in the hair colour
+        for(int x=tx;x<tx+2;x++){ vw(x,ty+1,0,5,x==tx+1,x==tx,0,1); if(!tail) vw(x,ty,0,5,x==tx+1,x==tx,0,1); }
+        if(look[LK_HSTYLE]!=2&&hz>0) for(int x=hx;x<hx+hw;x++) vw(x,hy+hh-1,hz-1,5,x==hx+hw-1,x==hx,0,1);   // and up the back of the head (LONG hair is there already)
+    } else if(back==2){                                          // WINGS: white, from the shoulders out to the sides, tips sloping down
+        for(int x=tx-2;x<tx+4;x++){ if(x>=tx&&x<tx+2) continue; int out=x<tx?x==tx-2:x==tx+3;
+            vw(x,ty+1,0,2,out&&x>tx,out&&x<tx,0,0); if(!out) vw(x,ty,0,2,x>tx,x<tx,0,1); }
+    }
+    if(horns){                                                   // ivory, out of the sides of the head at the hair line: NUBS one block, HORNS two (the tips slope away)
+        int zf=hz+hw-1;                                          // the front row of the head (it is as deep as it is wide)
+        if(horns==1){ vw(hx-1,top,zf,8,0,1,0,0); vw(hx+hw,top,zf,8,1,0,0,0); }
+        else { vw(hx-1,top,zf,8,0,0,0,0); vw(hx+hw,top,zf,8,0,0,0,0); vw(hx-2,top,zf,8,0,1,0,0); vw(hx+hw+1,top,zf,8,1,0,0,0); }
+    }
+}
 static void buildLook(void){
     for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ vox[y][z][x]=0; dec[y][z][x]=0; }
     sty[0]=look[LK_EYES]; sty[1]=look[LK_MOUTH];
@@ -536,6 +566,7 @@ static void buildLook(void){
         // LONG: full blocks down the back, from the dome to below the neck
         if(st==2){ int z0=hz>0?hz-1:hz; for(int x=hx;x<hx+hw;x++)for(int y=hy-1;y<top;y++) hairW(x,y,z0,0,0,0,0); }
     }
+    sporeParts(tx,ty,hx,hy,hz,hw,hh,top);                               // tail, horns, spikes or wings (before the face: sprites snap to the front block)
     if(hs==1){ doPart(1,4,1,hx,hy+1,0); doPart(1,5,1,hx,hy,0); }          // eyes on the top row of the face, mouth on the bottom row
     else     { doPart(1,4,2,hx,hy+1,0); doPart(1,5,1,hx+1,hy,0); }        // big head: big eyes, mouth still one block
     custom=0;
@@ -579,6 +610,92 @@ static void starter(void){
     buildLook();   // the starter creature is look 0 everywhere: legs, torso, arms, head, eyes, mouth and hair
 }
 
+// ---------- persona: aspiration, lifetime want and personality (the creator's ASPIRE tab) ----------
+// Like Create-A-Sim in The Sims 2: pick what the creature dreams of (its ASPIRATION decides which wants and fears it rolls), a LIFETIME WANT
+// for that aspiration, and a personality of five traits 0..10 that share 25 points (a star SIGN deals them out; moving a trait finds the sign
+// that fits best). Babies and children always aspire to GROW UP; the chosen aspiration starts when the creature becomes a teen.
+// sims.h reads all of it; it is saved with the person (room slot person format 4) and in SRAM at PERS_OFF.
+enum { AS_FORTUNE, AS_KNOW, AS_POP, AS_PLEAS, AS_HOME, AS_GROW, AS_N };
+#define AS_PICK 5   // the first five can be picked; GROW UP comes with being young
+static const char* const aspNm[AS_N]={"FORTUNE","KNOWLEDGE","POPULARITY","PLEASURE","HOME","GROW UP"};
+enum { TR_NEAT, TR_OUT, TR_ACT, TR_PLAY, TR_NICE, TR_N };
+#define TR_POINTS 25   // personality points to share out
+static const char* const trNm[TR_N]={"NEAT","OUTGOING","ACTIVE","PLAYFUL","NICE"};
+static const char* const signNm[12]={"ARIES","TAURUS","GEMINI","CANCER","LEO","VIRGO","LIBRA","SCORPIO","SAGITTARIUS","CAPRICORN","AQUARIUS","PISCES"};
+static const u8 signTr[12][TR_N]={ {5,8,6,3,3},{5,5,3,8,4},{4,7,8,3,3},{6,3,6,4,6},{4,10,4,4,3},{9,2,6,3,5},
+                                   {2,8,2,6,7},{6,5,8,3,3},{2,3,9,7,4},{7,4,8,2,4},{4,4,4,7,6},{5,3,4,4,9} };   // each adds up to 25
+static u8 pAsp=AS_FORTUNE, pLtw=0, pTr[TR_N]={5,8,6,3,3};   // starts as an ARIES who wants FORTUNE
+static inline int aspNow(void){ return stage<AG_TEEN?AS_GROW:pAsp; }
+static inline int trOf(int t){ return pTr[t]; }
+static int trLeft(void){ int s=0; for(int i=0;i<TR_N;i++) s+=pTr[i]; return TR_POINTS-s; }
+static int signOf(void){   // the sign whose traits are nearest to the creature's
+    int best=0, bd=999;
+    for(int s=0;s<12;s++){ int d=0; for(int i=0;i<TR_N;i++){ int e=pTr[i]-signTr[s][i]; d+=e<0?-e:e; } if(d<bd){ bd=d; best=s; } }
+    return best;
+}
+static void setSign(int s){ for(int i=0;i<TR_N;i++) pTr[i]=signTr[s][i]; }
+static int persValid(int asp,int ltw,const u8*tr){
+    int s=0; if(asp>=AS_PICK||ltw>=2) return 0;
+    for(int i=0;i<TR_N;i++){ if(tr[i]>10) return 0; s+=tr[i]; }
+    return s<=TR_POINTS;
+}
+// ---- Spore: DNA, parts and abilities ----
+// Like the Spore creature editor, the body is not just a look: every part changes what the creature can do. Five ABILITIES 0..5
+// (SPEED, JUMP, GRIP, STYLE, STAMINA) come from the shape, face, hair and parts, and four parts carry a POWER:
+//   LONG TAIL = BALANCE (lands spins further off straight), HORNS = CHARGE (skating into a wall does not hurt),
+//   SPIKES = ARMOUR (falls and bails hurt less), WINGS = GLIDE (hold R in the air to float down).
+// DNA points are earned by living (wants met, skill, promotions, birthdays, the lifetime want) and unlock the bigger parts.
+enum { AB_SPEED, AB_JUMP, AB_GRIP, AB_STYLE, AB_STAMINA, AB_N };
+static const char* const abNm[AB_N]={"SPEED","JUMP","GRIP","STYLE","STAMINA"};
+enum { PW_BALANCE=1, PW_CHARGE=2, PW_ARMOUR=4, PW_GLIDE=8 };
+static const char* const tailNm[3]={"NONE","STUB","LONG"};
+static const char* const hornNm[3]={"NONE","NUBS","HORNS"};
+static const char* const backNm[3]={"NONE","SPIKES","WINGS"};
+static const short partCost[3][3]={{0,0,60},{0,0,60},{0,40,120}};   // DNA to unlock: TAIL, HORNS, BACK options
+static const signed char abShape[NSHAPE][AB_N]={   // ability changes for AVERAGE BROAD BIG-HEAD STUBBY SLIM ATHLETIC TALL
+    {0,0,0,0,0},{-1,-1,1,0,2},{-1,0,0,2,0},{0,-1,2,0,1},{1,1,0,0,-1},{1,1,0,0,0},{2,1,-1,0,-1} };
+static u16 pDna, pUnl;   // DNA points to spend; unlocked parts (bit = part*3 + option)
+static inline int partOf(int id){ return id-LK_TAIL; }   // 0 tail, 1 horns, 2 back
+static int partFree(int id,int v){ int p=partOf(id); return !partCost[p][v]||sUnlock||(pUnl>>(p*3+v)&1); }   // Konami: every part is free
+static int abOf(int a){   // 0..5
+    int v=2; v+=abShape[look[LK_SHAPE]<NSHAPE?look[LK_SHAPE]:0][a];
+    switch(a){
+      case AB_SPEED:   v+=(look[LK_HSTYLE]==3)-(look[LK_HSTYLE]==2)-(look[LK_BACK]==2); break;            // bald is quick, long hair and wings drag
+      case AB_JUMP:    v+=(look[LK_BACK]==2)+(look[LK_EARS]==2); break;                                    // wings and big (bunny) ears
+      case AB_GRIP:    v+=(look[LK_TAIL]!=0)+(look[LK_HORNS]==1); break;                                   // a tail to steer with
+      case AB_STYLE:   v+=(look[LK_EYES]==2)+(look[LK_MOUTH]==1)+(look[LK_HSTYLE]==1||look[LK_HSTYLE]==2)+(look[LK_HORNS]==1)-(look[LK_EYES]==0); break;
+      case AB_STAMINA: v+=(look[LK_BACK]==1)+(look[LK_HORNS]==2); break;                                  // armour plates and a thick skull
+    }
+    return v<0?0:v>5?5:v;
+}
+static int abPow(void){ return (look[LK_TAIL]==2?PW_BALANCE:0)|(look[LK_HORNS]==2?PW_CHARGE:0)|(look[LK_BACK]==1?PW_ARMOUR:0)|(look[LK_BACK]==2?PW_GLIDE:0); }
+static inline int abPct(int a,int step){ return 100+(abOf(a)-2)*step; }   // percent for an ability, 100 at 2
+static int abGrindPts(void){ static const u8 t[6]={1,2,3,4,5,6}; return t[abOf(AB_GRIP)]; }   // grind points every 4 steps (3 was the old fixed value)
+static int abBalance(void){ return (abPow()&PW_BALANCE)?10:0; }
+static void dnaAdd(int n){ int v=pDna+n; pDna=(u16)(v>9999?9999:v<0?0:v); }
+static void partsSettle(void){   // leaving the creator: a part that was only being looked at (still locked) comes off
+    int ch=0; for(int id=LK_TAIL;id<=LK_BACK;id++) if(!partFree(id,look[id])){ look[id]=0; ch=1; }
+    if(ch&&!custom) buildLook();
+}
+#define PERS_OFF 12432   // SRAM: 'P' 'S', aspiration, lifetime want, five traits, DNA (2), unlocked parts (2), checksum
+#define PERS_LEN (4+TR_N+5)
+static void persSave(void){
+    volatile u8*m=(volatile u8*)0x0E000000+PERS_OFF; u8 sum=0x50;
+    m[0]='P'; m[1]='S'; m[2]=pAsp; m[3]=pLtw; for(int i=0;i<TR_N;i++) m[4+i]=pTr[i];
+    m[4+TR_N]=(u8)pDna; m[5+TR_N]=(u8)(pDna>>8); m[6+TR_N]=(u8)pUnl; m[7+TR_N]=(u8)(pUnl>>8);
+    for(int i=2;i<PERS_LEN-1;i++) sum+=m[i];
+    m[PERS_LEN-1]=sum;
+}
+static void persLoad(void){   // at power on, after the person of the active slot came back (the last edit wins: both are written together)
+    volatile u8*m=(volatile u8*)0x0E000000+PERS_OFF; u8 tr[TR_N], sum=0x50;
+    if(m[0]!='P'||m[1]!='S') return;
+    for(int i=2;i<PERS_LEN-1;i++) sum+=m[i];
+    for(int i=0;i<TR_N;i++) tr[i]=m[4+i];
+    if(m[PERS_LEN-1]!=sum||!persValid(m[2],m[3],tr)) return;
+    pAsp=m[2]; pLtw=m[3]; for(int i=0;i<TR_N;i++) pTr[i]=tr[i];
+    pDna=(u16)(m[4+TR_N]|(m[5+TR_N]<<8)); pUnl=(u16)((m[6+TR_N]|(m[7+TR_N]<<8))&511);
+    if(pDna>9999) pDna=9999;
+}
 // ---------- scene ----------
 static int solid(int x,int y,int z){ return x>=0&&x<W&&y>=0&&y<H&&z>=0&&z<D&&vox[y][z][x]; }
 static const signed char dA[4][2]={{1,0},{0,-1},{-1,0},{0,1}}, dB[4][2]={{0,1},{1,0},{0,-1},{-1,0}};   // screen +a / +b in grid x,z per view
@@ -769,7 +886,7 @@ static char lifeMap[MH][MW+1] EWRAM_BSS;   // the room being played / edited (st
 static int bdx=10, bdy=4, spx=3, spy=6;   // skateboard tile and spawn tile, found by mapScan (B and P tiles)
 #define BDX bdx
 #define BDY bdy
-static int lsp,lhd,lspin,lflip,lgrind,lscore,lstun,lairF,lpts,lnoteT; static const char*lnote;
+static int lsp,lhd,lspin,lflip,lgrind,lscore,lstun,lairF,lpts,lnoteT,lglide; static const char*lnote;
 
 static int lfood, lbl, lnear;   // hunger (100 = full), bladder (100 = bursting), what is in reach (1 fridge, 2 toilet)
 static int lmaxz, lplay, ldead, lbumpCd;   // peak height this jump, air sound played, dead, bump cooldown
@@ -1074,6 +1191,7 @@ static int rnd8(void){ lrng=lrng*1664525u+1013904223u; return (int)(lrng>>24); }
 // Getting hurt. sev grows with fall height, speed and a bad landing. kind: 0 clean landing, 1 bail, 2 wall hit.
 static void die(int snd){ moodEvent(M_DIE); ldead=1; lstun=2; lsp=0; lgrind=0; sfxPlay(snd); lnote="YOU DIED"; lnoteT=0x7fff; }
 static void hurt(int sev,int kind){
+    if(abPow()&PW_ARMOUR) sev=sev*7/10;                                    // SPIKES: armour plates take the edge off
     if(xo[XO_HURT]==1) sev/=2; else if(xo[XO_HURT]==2&&sev>=30) sev=29;   // HURT option: GENTLE halves it, NO DEATH keeps a fall survivable
     if(sev>=30) moodEvent(M_HURT_BIG); else if(sev>=18) moodEvent(M_HURT); else if(kind==2) moodEvent(M_BUMP);   // (40+ is death: die() logs it)
     if(sev>=40) die(SFX_INSTANT);                                                                   // instant death
@@ -1132,6 +1250,7 @@ IWRAM_CODE static void blit(const u16*s,int x0,int y0){
         const u16*sp=s+y*SPW+ia; u16*d=&fb[yy*SW+x0+ia];
         for(int x=ia;x<ib;x++,sp++,d++){ u16 c=*sp; if(c!=SKY) *d=c; } }
 }
+static int numStr(char*b,int n){ char t[8]; int k=0, i=0; if(n<=0) t[k++]='0'; while(n>0&&k<7){ t[k++]=(char)('0'+n%10); n/=10; } while(k>0) b[i++]=t[--k]; b[i]=0; return i; }   // n as text into b; returns its length
 static int numText(int x,int y,int n,u16 c){
     char b[10]; int i=9; b[i]=0; if(n<=0) b[--i]='0';
     while(n>0&&i>0){ int q=n/10; b[--i]=(char)('0'+n-q*10); n=q; }
@@ -1314,9 +1433,9 @@ static void helpScreen(const char*title,const char*const*ln,int n){   // lines s
 }
 static void toast(const char*msg){ int w=tw(msg,1)+16;
     box((SW-w)/2,66,w,22); text((SW-w)/2+8,74,msg,WHITE,1); for(int i=0,n=oToastLen();i<n;i++){ present(); } }
-static const char* const lifeHelp[16]={">ON FOOT","DPAD WALK  B RUN  A HOP","L GET ON THE BOARD","R USE FRIDGE TOILET BED SHOWER SOFA",">ON THE BOARD","A PUSH  DPAD STEER  B OLLIE","IN AIR DPAD SPINS  B KICKFLIP",">KEEP YOURSELF GOING","FOOD WC REST CLEAN COMFY ROOM BARS","SLEEP IN BED  A OR B GETS YOU UP",">WORK  MON TO FRI 9 TO 5","TRICK POINTS BEAT THE QUOTA FOR PAY","3 GOOD DAYS PROMOTE  3 BAD DEMOTE",">WANTS AND FEARS","MEET WANTS TO RISE  AVOID FEARS","START OPENS THE MENU"};
+static const char* const lifeHelp[16]={">ON FOOT","DPAD WALK  B RUN  A HOP","L GET ON THE BOARD","R USE FRIDGE TOILET BED SHOWER SOFA",">ON THE BOARD","A PUSH  DPAD STEER  B OLLIE","IN AIR DPAD SPINS  B KICKFLIP  R GLIDES",">KEEP YOURSELF GOING","FOOD WC REST CLEAN COMFY ROOM BARS","A OR B GETS YOU UP FROM BED OR SOFA",">WORK  MON TO FRI 9 TO 5","TRICK POINTS BEAT THE QUOTA FOR PAY",">WANTS AND FEARS","WANTS FILL THE METER  FEARS DRAIN IT","A GOOD SLEEP ROLLS NEW WANTS AND FEARS","START MENU  ASPIRATION  LOCK AND REWARDS"};
 
-static const char* const creatureHelp[15]={">PICK YOUR LOOK","L R CHANGE TAB   UP DOWN PICK A ROW","LEFT RIGHT CHANGE IT  A ALSO STEPS","SELECT TURNS THE CREATURE ROUND",">THE TABS","1 BODY  SHAPE AND SKIN","2 FACE  EYES MOUTH AND EARS","3 HAIR  4 CLOTHES  COLOURS AND STYLE","5 BUILD  PLACE EVERY BLOCK YOURSELF",">FINISH","START JUMPS TO THE DONE TAB","GO LIVE LIFE PLAYS YOUR CREATURE",">BLOCK BUILDER","DPAD AND L R MOVE  A PLACE  B ERASE","SELECT+START BACK TO THE TABS"};
+static const char* const creatureHelp[15]={">PICK YOUR LOOK","L R CHANGE TAB   UP DOWN PICK A ROW","LEFT RIGHT CHANGE IT  A ALSO STEPS","SELECT TURNS THE CREATURE ROUND",">THE TABS","1 BODY  2 FACE  3 HAIR  4 CLOTHES","5 PARTS  TAIL HORNS SPIKES WINGS","  PARTS GIVE ABILITIES AND POWERS","  BIG PARTS COST DNA  A BUYS ONE","6 ASPIRE  ASPIRATION  LIFETIME WANT  SIGN","  AND TRAITS THAT SHARE 25 POINTS",">FINISH","START JUMPS TO THE DONE TAB","GO LIVE LIFE PLAYS YOUR CREATURE","LIVING EARNS DNA FOR NEW PARTS"};
 static const char* const mapHelp[12]={">BUILD A ROOM","ROOM TOOL  A CORNER  A BUILDS","WALL TOOL  A START  A DRAWS A LINE","FLOOR TOOL  A CORNER  A FILLS","ITEM TOOL  PLACE SINGLE TILES","ERASE TOOL  A CORNER  A CLEARS",">STYLES","L R PICK FLOOR OR ITEM","SEL+L R PICK WALLPAPER","SELECT TAP NEXT TOOL  B CANCELS",">KEEP IT","START OPENS PLAY TEST AND SAVE"};
 
 // ---------- settings screen ----------
@@ -1409,7 +1528,9 @@ static void lifeStep(u16 k,u16 pr,int fr){
     if(surfH(lfx,ny)<=zp+tol) lfy=ny; else bump=1;
     if(bump){
         lsp=(lsp*2)/3;
-        if(lbumpCd==0&&sp0b>=(lskate?12:10)){ lbumpCd=40; if(lskate) hurt(sp0b+(rnd8()>>4),2); else sfxPlay(SFX_BONK); }   // skating into a wall hurts, running into one bonks
+        if(lbumpCd==0&&sp0b>=(lskate?12:10)){ lbumpCd=40;   // skating into a wall hurts, running into one bonks
+            if(lskate&&(abPow()&PW_CHARGE)){ sfxPlay(SFX_HIT); lnote="HORNS FIRST"; lnoteT=30; simEvent(SE_CHARGE); }   // HORNS: charge the wall, no harm done
+            else if(lskate) hurt(sp0b+(rnd8()>>4),2); else sfxPlay(SFX_BONK); }
     }
     if(lbumpCd>0) lbumpCd--;
     fh=surfH(lfx,lfy)<<8;
@@ -1419,7 +1540,9 @@ static void lifeStep(u16 k,u16 pr,int fr){
     else if(lz>fh&&wasOn&&!onRamp&&lskate&&lvz<=0&&(lz-fh)<(16<<8)){   // rolled off the lip: launch with the climb speed
         int v=rampAvg*F_RAMP_BOOST; if(v>F_RAMP_MAX) v=F_RAMP_MAX; if(v>0){ lvz=v; lnote="AIR"; lnoteT=20; moodEvent(M_LAUNCH); } }
     if(!rampOn) rampAvg=0;
-    if(lz>fh||lvz>0){ lz+=lvz; lvz-=0x40; if(lz<=fh&&lvz<=0){ lz=fh; lvz=0; } }   // gravity
+    if(lz>fh||lvz>0){ lz+=lvz; lvz-=0x40;   // gravity
+        if((abPow()&PW_GLIDE)&&(k&K_R)&&lvz<0){ lvz+=0x2C; if(lvz<-0xC0) lvz=-0xC0; if(!lglide){ lnote="GLIDE"; lnoteT=30; simEvent(SE_GLIDE); } lglide=1; } else lglide=0;   // WINGS: hold R to float down
+        if(lz<=fh&&lvz<=0){ lz=fh; lvz=0; } }
     int air=lz>fh;
     if(air){
         int zz=(int)(lz>>8); if(zz>lmaxz) lmaxz=zz;
@@ -1442,7 +1565,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
     }
     if(!air){ lmaxz=(int)(lz>>8); lplay=0; }
     lairF=air;
-    if(lgrind){ if(air||tileH(lfx>>8,lfy>>8)!=6) lgrind=0; else if((fr&3)==0){ lscore+=3; lnote="GRIND"; lnoteT=10; lcPts+=3; lcT=oComboLen(); } }
+    if(lgrind){ if(air||tileH(lfx>>8,lfy>>8)!=6) lgrind=0; else if((fr&3)==0){ int g=abGrindPts(); lscore+=g; lnote="GRIND"; lnoteT=10; lcPts+=g; lcT=oComboLen(); } }   // GRIP ability
     if(!lhave&&lz<(8<<8)&&(lfx>>8)==BDX&&(lfy>>8)==BDY){ lhave=1; lnote="GOT A SKATEBOARD"; lnoteT=90; moodEvent(M_GOT_BOARD); }   // walk over it to pick it up
     if(!ldead){   // needs: hunger and bladder, then how they (and the skating) make the skater feel
         if(stage==AG_BABY){ if(lfood<70) lfood=70; if(lbl>30) lbl=30; if(sNrg<60) sNrg=60; if(sHyg<60) sHyg=60; if(sCom<60) sCom=60; }   // looked after
@@ -1820,7 +1943,63 @@ static void camStep(int steps,u16 k,u16 pr){   // action cam: the game holds sti
     else { int f=lcamF; cview=(f<6||f>=60)?0:(f-6)/18+1; if(cview>3) cview=0; }
 }
 static int gToMenu;   // set when the player picks MAIN MENU in the pause menu, so every screen above returns to it
-static const char* const lifeItems[7]={"RESUME","HOW TO PLAY","OPTIONS","ROOM SLOTS","EDIT MAP","NEW LIFE","MAIN MENU"};
+static const char* const lifeItems[8]={"RESUME","ASPIRATION","HOW TO PLAY","OPTIONS","ROOM SLOTS","EDIT MAP","NEW LIFE","MAIN MENU"};
+// ---- the ASPIRATION panel (pause menu): the Sims 2 wants and fears panel, the lifetime want, the reward shop, and the creature's Spore side ----
+// UP DOWN pick a want | A lock it (one at a time: a locked want survives the reroll when you wake up) | R aspiration rewards | B back
+static void aspRewards(void){
+    static char rb[RW_N][24]; const char* it[RW_N];
+    for(;;){
+        for(int r=0;r<RW_N;r++){ char*e=rb[r]; const char*p=simRewNm[r]; while(*p) *e++=*p++; *e++=' '; *e++=' '; e+=numStr(e,simRewCost[r]); *e=0; it[r]=rb[r]; }
+        char t[24]; { char*e=t; const char*p="REWARDS  POINTS "; while(*p) *e++=*p++; numStr(e,simAsp); }
+        int c=menu(t,it,RW_N); if(c<0) return;
+        toast(simBuy(c));
+    }
+}
+static void aspPanel(void){
+    u16 prev=keyNow(); int cur=0;
+    for(;;){
+        u16 k=keyNow(), pr=k&~prev; prev=k;
+        if(pr&(K_B|K_START)) return;
+        if(pr&K_DOWN) cur=(cur+1)%SIM_WS;
+        if(pr&K_UP) cur=(cur+SIM_WS-1)%SIM_WS;
+        if((pr&K_A)&&simW[cur]>=0){ simLock=(simLock>>cur&1)?0:(1<<cur); }   // one lock: locking another want moves it
+        if(pr&K_R){ aspRewards(); prev=keyNow(); }
+        box(3,1,234,157);
+        int a=aspNow(), wish=simWishes(); char b[24];
+        simIcon(10,6,simAspIcon[a],GOLD); text(20,6,aspNm[a],GOLD,1);
+        if(wish){ const char*z=simZoneNm[simZone]; text(230-tw(z,1),6,z,simZoneCol(simZone),1); simMeterBar(10,15,220,5); }
+        else text(230-tw("BABIES HAVE NO WANTS",1),6,"BABIES HAVE NO WANTS",DIMC,1);
+        // lifetime want
+        { int y=24; text(10,y,"LIFETIME",DIMC,1); const SimLtw*L=simLtw(); text(52,y,L->name,stage<AG_TEEN?DIMC:WHITE,1);
+          const char*st; if(simFlags&SF_LTW) st="MET"; else if(stage<AG_TEEN) st="AS A TEEN"; else { int v=simLtwVal(), g=L->goal; char*e=b; e+=numStr(e,v>g?g:v); *e++='/'; numStr(e,g); st=b; }
+          text(230-tw(st,1),y,st,(simFlags&SF_LTW)?RGB(24,30,31):GOLD,1); }
+        // wants
+        text(10,35,"WANTS",RGB(12,28,12),1);
+        for(int s=0;s<SIM_WS;s++){
+            int y=44+s*11, on=simW[s]>=0, lk=simLock>>s&1, f=(s==cur);
+            if(f){ rect(7,y-2,226,11,RGB(6,16,8)); rect(7,y-2,2,11,GOLD); }
+            simCell(12,y-1,on?simWants[simW[s]].icon:0,0,lk,on);
+            if(on){ text(25,y,simWantName(s),f?WHITE:RGB(22,28,22),1);
+                b[0]='+'; numStr(b+1,simWants[simW[s]].pts); int x=230-tw(b,1); text(x,y,b,RGB(12,30,12),1);
+                if(lk) text(x-6-tw("LOCKED",1),y,"LOCKED",GOLD,1); }
+            else text(25,y,"...",DIMC,1);
+        }
+        text(10,89,"FEARS",RGB(30,10,8),1);
+        for(int s=0;s<SIM_FS;s++){
+            int y=98+s*11, on=simF[s]>=0;
+            simCell(12,y-1,on?simFears[simF[s]].icon:0,1,0,on);
+            if(on){ text(25,y,simFearName(s),RGB(30,18,16),1); b[0]='-'; numStr(b+1,simFears[simF[s]].pts); text(230-tw(b,1),y,b,RGB(30,10,8),1); }
+            else text(25,y,"...",DIMC,1);
+        }
+        // points, DNA, sign and abilities
+        { int y=132, x=text(10,y,"REWARD POINTS",DIMC,1)+3; numStr(b,simAsp); x=text(x,y,b,GOLD,1)+10;
+          x=text(x,y,"DNA",DIMC,1)+3; numStr(b,pDna); x=text(x,y,b,RGB(12,30,24),1)+10;
+          text(x,y,signNm[signOf()],RGB(20,22,30),1); }
+        { int x=10, y=141; for(int ab=0;ab<AB_N;ab++){ x=text(x,y,abNm[ab],DIMC,1)+2; for(int q=0;q<5;q++) rect(x+q*3,y+1,2,4,q<abOf(ab)?GOLD:RGB(4,6,12)); x+=17; } }
+        text(10,150,"A LOCK WANT  R REWARDS  B BACK",RGB(12,14,16),1);
+        present();
+    }
+}
 static const char* const lifeItemsEd[4]={"RESUME","HOW TO PLAY","OPTIONS","BACK TO EDITOR"};
 // Timer2 (65536 Hz) is the clock (defined with the settings). The game logic always runs at 60 steps per second; the
 // frame rate setting only says how often the picture is redrawn, so lower rates save work without slowing the game.
@@ -1856,13 +2035,15 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
         if(pr&K_START){   // pause menu
             mGainT=128; sfxStop(); simsSave();   // the music fades to half while a menu is open   // the pause menu is also a save point
             liveInvalidate(); lifeDraw();          // a whole picture behind the menu (the screen itself only holds patches)
-            int c=menu("PAUSED",ed?lifeItemsEd:lifeItems,ed?4:7);
-            if(c==1) helpScreen("HOW TO PLAY",lifeHelp,16);
-            else if(c==2) settingsScreen();
-            else if(c==3&&!ed){ simsSaveNow(); if(slotScreen()) lifeInit(); }   // a slot was loaded: start again in the loaded room (the life was written first, so nothing is lost)
-            else if(c==4&&!ed){ vpY0=0; vpY1=SH; mapEditor(); lifeInit(); }
-            else if(c==5&&!ed){ if(menu("START A NEW LIFE",yesNoLife,2)==1){ simsNewLife(); moodReset(); lscore=0; simLastScore=0; lnote="NEW LIFE"; lnoteT=60; } }
-            else if((c==3&&ed)||c==6){ if(c==6) gToMenu=1; break; }
+            int c=menu("PAUSED",ed?lifeItemsEd:lifeItems,ed?4:8);
+            if(ed&&c>=1) c++;   // the test-play menu has no ASPIRATION entry
+            if(c==1) aspPanel();
+            else if(c==2) helpScreen("HOW TO PLAY",lifeHelp,16);
+            else if(c==3) settingsScreen();
+            else if(c==4&&!ed){ simsSaveNow(); if(slotScreen()) lifeInit(); }   // a slot was loaded: start again in the loaded room (the life was written first, so nothing is lost)
+            else if(c==5&&!ed){ vpY0=0; vpY1=SH; mapEditor(); lifeInit(); }
+            else if(c==6&&!ed){ if(menu("START A NEW LIFE",yesNoLife,2)==1){ simsNewLife(); moodReset(); lscore=0; simLastScore=0; lnote="NEW LIFE"; lnoteT=60; } }
+            else if((c==4&&ed)||c==7){ if(c==7) gToMenu=1; break; }
             hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=0; continue;
         }
         if(lcamF>0) camStep(steps,k,pr);
@@ -2027,38 +2208,40 @@ static void mapEditor(void){
 
 
 // ---------- creature creator ----------
-// Pick a look from numbered tabs (like a character creator), or open the block builder to place every block by hand.
+// Pick a look from numbered tabs (like a character creator): the body, the face, the hair, the clothes, Spore-style PARTS that change
+// what the creature can do, and (like Create-A-Sim) its ASPIRATION, lifetime want and personality.
 // L R change tab | UP DOWN pick a row | LEFT RIGHT change it | SELECT turns the creature | START jumps to DONE | B leaves.
-enum { TB_BODY, TB_FACE, TB_HAIR, TB_CLOTHES, TB_BUILD, TB_DONE, NTAB };
-enum { RK_PICK, RK_SWATCH, RK_ACT, RK_SLIDE };                 // a row picks from named options, picks a colour, or is a button
-enum { AC_BUILD, AC_PLAY, AC_MAP, AC_MENU };
+enum { TB_BODY, TB_FACE, TB_HAIR, TB_CLOTHES, TB_PARTS, TB_ASPIRE, TB_DONE, NTAB };
+enum { RK_PICK, RK_SWATCH, RK_ACT, RK_SLIDE, RK_PERS, RK_TRAIT };   // a row picks from named options, picks a colour, is a button, a slider, a persona choice or a trait
+enum { AC_PLAY, AC_MAP, AC_MENU };
+enum { PS_ASP, PS_LTW, PS_SIGN };
 typedef struct { const char*lab,*sub; u8 kind,id,n; } Row;   // sub = second line of a button
-static const char* const tabNm[NTAB]={"BODY","FACE","HAIR","CLOTHES","BUILD","DONE"};
+static const char* const tabNm[NTAB]={"BODY","FACE","HAIR","CLOTHES","PARTS","ASPIRE","DONE"};
 static const char* const shapeNm[NSHAPE]={"AVERAGE","BROAD","BIG HEAD","STUBBY","SLIM","ATHLETIC","TALL"};
 static const char* const eyeNm[3]={"SLEEPY","ROUND","HAPPY"};
 static const char* const mouthNm[3]={"FLAT","SMILE","OH"};
 static const char* const earNm[3]={"NONE","SMALL","BIG"};
 static const char* const hairNm[4]={"CROP","BOWL","LONG","BALD"};
 #define LK_AGE LK_N   // the AGE row is not part of look[]: it picks the life stage
-static const char* const* const lookNm[LK_N+1]={shapeNm,0,eyeNm,mouthNm,earNm,hairNm,0,0,0,0,0,0,stageNm};
-static const u16* const lookCol[LK_N+1]={0,skinTones,0,0,0,0,hairTones,topTones,botTones,0,0,0,0};
-static const Row tabRow[NTAB][5]={
+static const char* const* const lookNm[LK_N+1]={shapeNm,0,eyeNm,mouthNm,earNm,hairNm,0,0,0,0,0,0,tailNm,hornNm,backNm,stageNm};
+static const u16* const lookCol[LK_N+1]={0,skinTones,0,0,0,0,hairTones,topTones,botTones,0,0,0,0,0,0,0};
+static const Row tabRow[NTAB][8]={
   {{"AGE",0,RK_PICK,LK_AGE,AG_N},{"SHAPE",0,RK_PICK,LK_SHAPE,NSHAPE},{"SKIN",0,RK_SWATCH,LK_SKIN,NSW},{"SKIN TONE",0,RK_SLIDE,LK_TONE,9}},
   {{"EYES",0,RK_PICK,LK_EYES,3},{"MOUTH",0,RK_PICK,LK_MOUTH,3},{"EARS",0,RK_PICK,LK_EARS,3},{"EAR SIZE",0,RK_SLIDE,LK_EARSZ,9},{"EAR HEIGHT",0,RK_SLIDE,LK_EARLF,9}},
   {{"STYLE",0,RK_PICK,LK_HSTYLE,4},{"COLOUR",0,RK_SWATCH,LK_HCOL,NSW},{0}},
   {{"TOP",0,RK_SWATCH,LK_TOP,NSW},{"BOTTOM",0,RK_SWATCH,LK_BOT,NSW},{0}},
-  {{"OPEN BUILDER","BY HAND",RK_ACT,AC_BUILD,0},{0},{0}},
+  {{"TAIL",0,RK_PICK,LK_TAIL,3},{"HORNS",0,RK_PICK,LK_HORNS,3},{"BACK",0,RK_PICK,LK_BACK,3}},
+  {{"ASPIRATION",0,RK_PERS,PS_ASP,AS_PICK},{"LIFETIME WANT",0,RK_PERS,PS_LTW,2},{"SIGN",0,RK_PERS,PS_SIGN,12},
+   {"NEAT",0,RK_TRAIT,TR_NEAT,11},{"OUTGOING",0,RK_TRAIT,TR_OUT,11},{"ACTIVE",0,RK_TRAIT,TR_ACT,11},{"PLAYFUL",0,RK_TRAIT,TR_PLAY,11},{"NICE",0,RK_TRAIT,TR_NICE,11}},
   {{"GO LIVE LIFE!","PLAY IT NOW",RK_ACT,AC_PLAY,0},{"EDIT MAP","BUILD ROOMS",RK_ACT,AC_MAP,0},{"MAIN MENU","LOOK IS KEPT",RK_ACT,AC_MENU,0}} };
-static const u8 tabN[NTAB]={4,5,2,2,1,3};
-static inline int tabVis(int i){ return i!=TB_BUILD||sUnlock; }   // the BUILD tab only exists while the Konami code is on
-static int tabNext(int t,int d){ do t=(t+d+NTAB)%NTAB; while(!tabVis(t)); return t; }
-static int tabSlot(int t){ int j=0; for(int i=0;i<t;i++) j+=tabVis(i); return j; }
+static const u8 tabN[NTAB]={4,5,2,2,3,8,3};
+static int tabNext(int t,int d){ return (t+d+NTAB)%NTAB; }
 
 // layout (the panel is x 124..239): tabs down the left edge, the card of rows beside them, key legend under both
 #define TBX 128
 #define TBW 18
-#define TBH 17
-#define TBP 20
+#define TBH 15
+#define TBP 17
 #define TBY 7
 #define CDX 149
 #define CDY 5
@@ -2087,15 +2270,14 @@ static int kcapAr(int x,int y,int vert){   // a key cap showing two arrows: up/d
 static int klab(int x,int y,const char*t){ return text(x,y,t,RGB(20,22,26),1)+6; }
 static void disc(int x0,int y0,int r,u16 c){ for(int dy=-r;dy<=r;dy++)for(int dx=-r;dx<=r;dx++) if(dx*dx+dy*dy<=r*r) px(x0+dx,y0+dy,c); }
 
-static const char* const iconArt[5][9]={
+static const char* const iconArt[6][9]={
   {"...###...","...###...","...###...","..#####..",".#.###.#.",".#.###.#.","...#.#...","...#.#...","...#.#..."},   // body
   {"..#####..",".#.....#.","#.#...#.#","#.#...#.#","#.......#","#.#...#.#","#..###..#",".#.....#.","..#####.."},   // face
   {"..#####..",".#######.","#########","##.....##","#.......#","#.......#",".#.....#.","..#...#..","........."},   // hair
   {".##...##.","####.####","#########","#.#####.#","..#####..","..#####..","..#####..","..#####..","........."},   // clothes
-  {"....#....","..#####..","..#####..","..#####..","..#####..","..#####..","....#....",".........","........."} };  // (build is drawn with lines)
+  {"#.......#","##.....##",".#.###.#.","..#####..","..#.#.#..","..#####..","...###...",".........","........."},   // parts (a horned head)
+  {"....#....","...###...","..#####..",".#######.","#########",".#######.","..#####..","...###...","....#...."} }; // aspire (the plumbob)
 static void drawIcon(int x,int y,int id,u16 c){
-    if(id==TB_BUILD){ line(x+4,y,x+8,y+2,c); line(x+8,y+2,x+8,y+6,c); line(x+8,y+6,x+4,y+8,c); line(x+4,y+8,x,y+6,c); line(x,y+6,x,y+2,c); line(x,y+2,x+4,y,c);
-        line(x+4,y+4,x,y+2,c); line(x+4,y+4,x+8,y+2,c); line(x+4,y+4,x+4,y+8,c); return; }
     if(id==TB_DONE){ line(x,y+4,x+3,y+7,c); line(x+3,y+7,x+9,y+1,c); line(x,y+3,x+3,y+6,c); line(x+3,y+6,x+9,y,c); return; }
     for(int r=0;r<9;r++)for(int q=0;q<9;q++) if(iconArt[id][r][q]=='#') px(x+q,y+r,c);
 }
@@ -2106,12 +2288,11 @@ static void panelBg(void){
 static void drawTabs(int tab){
     roundRect(CDX-1,CDY-1,CDW+2,CDH+2,CARDED); roundRect(CDX,CDY,CDW,CDH,CARD);   // the card first, tabs on top of its edge
     for(int i=0;i<NTAB;i++){
-        if(!tabVis(i)) continue;
-        int j=tabSlot(i), y=TBY+j*TBP, sel=(i==tab); u16 ink=sel?WHITE:RGB(14,17,22);
+        int j=i, y=TBY+j*TBP, sel=(i==tab); u16 ink=sel?WHITE:RGB(14,17,22);
         if(sel){ roundRect(TBX-1,y-1,CDX-TBX+3,TBH+2,GOLD); roundRect(TBX,y,CDX-TBX+3,TBH,CARD); rect(CDX-1,y,3,TBH,CARD); }   // open into the card
         else   { roundRect(TBX,y,TBW,TBH,RGB(4,6,13)); roundRect(TBX+1,y+1,TBW-2,TBH-2,RGB(9,12,22)); }
         if(i==TB_DONE) drawIcon(TBX+4,y+4,TB_DONE,sel?RGB(14,30,12):RGB(8,18,8));
-        else { char d[2]={(char)('1'+j),0}; text(TBX+(TBW-tw(d,2))/2,y+2,d,ink,2); }
+        else { char d[2]={(char)('1'+j),0}; text(TBX+(TBW-tw(d,2))/2,y+1,d,ink,2); }
     }
 }
 static const char* const lookName(int id,int v){ return lookNm[id][v]; }
@@ -2121,6 +2302,7 @@ static int lkAllowed(int id,int v){   // may this stage pick option v of row id?
       case LK_EARS:  return stMaskEars[stage]>>v&1;
       case LK_HSTYLE:return stMaskHair[stage]>>v&1;
       case LK_SKIN: case LK_HCOL: case LK_TOP: case LK_BOT: return v<stSwatches[stage];
+      case LK_TAIL: case LK_HORNS: case LK_BACK: return 1;   // every part can be looked at; a locked one is bought with DNA (or comes off when you leave)
       default: return 1;
     }
 }
@@ -2129,14 +2311,55 @@ static int lkCount(int id,int n,int*rank){   // options on offer, and the 1-base
     for(int v=0;v<n;v++) if(lkAllowed(id,v)){ if(v==cur) *rank=c+1; c++; }
     return c;
 }
-static void drawRowSet(int tab,int sel){
-    if(tab==TB_BUILD){
-        const char*t[]={"PLACE BLOCKS BY","HAND FOR A ONE","OF A KIND LOOK.","","HOLD START AND","SELECT TOGETHER","AND PRESS A, OR","DO IT ANYWHERE","IN THE CREATOR."};
-        for(int i=0;i<9;i++) text(CDX+6,RW0+i*7,t[i],i<3?WHITE:DIMC,1);
+static void drawPip(int x,int y,int w,int h,int on,int f){ rect(x,y,w,h,on?(f?GOLD:RGB(20,17,6)):RGB(4,6,12)); }
+static const char* const powNm[4]={"BALANCE","CHARGE","ARMOUR","GLIDE"};
+static void drawAbilities(int sel){   // PARTS tab: the Spore ability chart under the part rows, then DNA and the focused part's cost or power
+    int y0=RW0+3*RHT-2, pw=abPow();
+    rect(CDX+5,y0-2,CDW-10,1,GOLD2);
+    for(int a=0;a<AB_N;a++){ int y=y0+a*6, v=abOf(a);
+        text(CDX+6,y,abNm[a],RGB(16,19,24),1);
+        for(int q=0;q<5;q++) drawPip(CDX+52+q*7,y+1,6,4,q<v,1); }
+    int y=y0+AB_N*6+2; char b[12]; numStr(b,pDna);
+    int x=text(CDX+6,y,"DNA",DIMC,1)+3; text(x,y,b,GOLD,1);
+    const Row*r=&tabRow[TB_PARTS][sel]; int v=look[r->id];
+    if(!partFree(r->id,v)){ numStr(b,partCost[partOf(r->id)][v]); int w=tw(b,1); text(CDX+CDW-6-w,y,b,RGB(31,12,8),1); text(CDX+CDW-9-w-tw("BUY",1),y,"BUY",RGB(31,12,8),1); }
+    else { int bit=r->id==LK_TAIL?PW_BALANCE:r->id==LK_HORNS?PW_CHARGE:v==1?PW_ARMOUR:PW_GLIDE;
+        if(pw&bit){ const char*nm=powNm[bit==1?0:bit==2?1:bit==4?2:3]; text(CDX+CDW-6-tw(nm,1),y,nm,RGB(12,30,24),1); } }
+}
+static void drawAspire(int sel){   // ASPIRE tab: aspiration, lifetime want and sign as rows, then the personality as five tracks of ten pips
+    static const char* const lab[3]={"ASPIRATION","LIFETIME","SIGN"};
+    for(int i=0;i<3;i++){
+        int y=RW0+i*18, f=(i==sel); char b[8];
+        if(f){ rect(CDX+3,y-2,CDW-6,17,FOCUS); rect(CDX+3,y-2,2,17,GOLD); }
+        text(CDX+9,y,lab[i],f?WHITE:DIMC,1);
+        const char*nm; int cur, cnt;
+        if(i==PS_ASP){ nm=aspNm[pAsp]; cur=pAsp; cnt=AS_PICK; }
+        else if(i==PS_LTW){ nm=simLtws[pAsp][pLtw].name; cur=pLtw; cnt=2; }
+        else { cur=signOf(); nm=signNm[cur]; cnt=12; }
+        if(i==PS_ASP&&stage<AG_TEEN) text(CDX+CDW-6-tw("TEEN",1),y,"TEEN",RGB(12,20,26),1);   // babies and children GROW UP first: this starts as a teen
+        else { int k=numStr(b,cur+1); b[k]='/'; numStr(b+k+1,cnt); text(CDX+CDW-6-tw(b,1),y,b,f?DIMC:RGB(10,12,16),1); }
+        u16 ink=f?GOLD:RGB(10,12,16); int w=tw(nm,1)+(i==PS_ASP?9:0), x=CDX+CDW/2-w/2+1;
+        if(x<CDX+14) x=CDX+14; if(x+w>CDX+CDW-14) x=CDX+CDW-14-w;   // long names (KNOWLEDGE and its icon) stay clear of the arrows
+        tri(CDX+9,y+9,0,ink); tri(CDX+CDW-12,y+9,1,ink);
+        if(i==PS_ASP){ simIcon(x,y+8,simAspIcon[pAsp],f?GOLD:DIMC); x+=9; }
+        text(x,y+9,nm,f?WHITE:DIMC,1);
     }
+    int y=RW0+3*18-1; char b[8];
+    rect(CDX+5,y,CDW-10,1,GOLD2);
+    text(CDX+6,y+2,"TRAITS",RGB(16,19,24),1);
+    { int k=numStr(b,trLeft()); b[k]=0; int x=CDX+CDW-6-tw("LEFT",1); text(x,y+2,"LEFT",DIMC,1); text(x-3-tw(b,1),y+2,b,trLeft()?GOLD:DIMC,1); }
+    for(int t=0;t<TR_N;t++){
+        int ty=y+10+t*7, f=(sel==3+t);
+        if(f){ rect(CDX+3,ty-1,CDW-6,7,FOCUS); rect(CDX+3,ty-1,2,7,GOLD); }
+        text(CDX+7,ty,trNm[t],f?WHITE:DIMC,1);
+        for(int q=0;q<10;q++) drawPip(CDX+55+q*3,ty,2,5,q<pTr[t],f);
+    }
+}
+static void drawRowSet(int tab,int sel){
+    if(tab==TB_ASPIRE){ drawAspire(sel); return; }
+    if(tab==TB_PARTS) drawAbilities(sel);
     for(int i=0;i<tabN[tab];i++){
         const Row*r=&tabRow[tab][i]; int y=RW0+i*RHT, f=(i==sel);
-        if(tab==TB_BUILD) y=RW0+9*7+4;
         if(r->kind==RK_ACT){
             rect(CDX+3,y-2,CDW-6,17,f?FOCUS:RGB(5,8,16)); if(f){ rect(CDX+3,y-2,2,17,GOLD); }
             text(CDX+9,y,r->lab,f?GOLD:WHITE,1); text(CDX+9,y+8,r->sub,f?WHITE:DIMC,1); continue;
@@ -2154,9 +2377,10 @@ static void drawRowSet(int tab,int sel){
         }
         { char b[4]={(char)('0'+rk),'/',(char)('0'+cnt),0}; text(CDX+CDW-6-tw(b,1),y,b,f?DIMC:RGB(10,12,16),1); }
         if(r->kind==RK_PICK){
-            const char*nm=lookName(r->id,cur); int mx=CDX+CDW/2;
+            const char*nm=lookName(r->id,cur); int mx=CDX+CDW/2, lk=r->id>=LK_TAIL&&!partFree(r->id,cur);
             tri(CDX+9,y+9,0,f?GOLD:RGB(10,12,16)); tri(CDX+CDW-12,y+9,1,f?GOLD:RGB(10,12,16));
-            text(mx-tw(nm,1)/2,y+9,nm,f?WHITE:DIMC,1);
+            text(mx-tw(nm,1)/2,y+9,nm,lk?RGB(28,10,8):f?WHITE:DIMC,1);
+            if(lk){ int lx=mx+tw(nm,1)/2+3; rect(lx,y+11,5,4,RGB(28,10,8)); rect(lx+1,y+9,3,2,RGB(28,10,8)); px(lx+2,y+10,f?FOCUS:CARD); }   // a little padlock
         } else {
             const u16*pal=lookCol[r->id];
             for(int q=0;q<cnt;q++){
@@ -2172,9 +2396,10 @@ static void drawCreatorPanel(int tab,int sel){
     drawIcon(CDX+6,CDY+6,tab,GOLD); text(CDX+20,CDY+4,tabNm[tab],GOLD,2);
     rect(CDX+5,CDY+20,CDW-10,1,GOLD2);
     drawRowSet(tab,sel);
-    int act=(tabRow[tab][sel].kind==RK_ACT), x;
+    const Row*rs=&tabRow[tab][sel]; int act=(rs->kind==RK_ACT), buy=rs->kind==RK_PICK&&rs->id>=LK_TAIL&&!partFree(rs->id,look[rs->id]), x;
     x=kcap(128,132,"L"); x=kcap(x,132,"R"); x=klab(x,132,"TABS"); x=kcapAr(x,132,1); klab(x,132,"ROW");
-    x=act?kcap(128,142,"A"):kcapAr(128,142,0); klab(x,142,act?"CHOOSE":"CHANGE");
+    if(buy){ x=kcap(128,142,"A"); x=klab(x,142,"BUY"); x=kcapAr(x,142,0); klab(x,142,"CHANGE"); }
+    else { x=act?kcap(128,142,"A"):kcapAr(128,142,0); klab(x,142,act?"CHOOSE":"CHANGE"); }
     x=kcap(128,152,"START"); x=klab(x,152,"DONE"); x=kcap(x,152,"B"); klab(x,152,"BACK");
 }
 static void drawDial(void){   // the creature's compass: the needle points the way it faces on screen (view 0 = down-left, then clockwise)
@@ -2200,14 +2425,14 @@ static void lookStep(int id,int n,int d){
         if(custom&&ns<stage){ static const char* const it[2]={"YES  CUT THEM","NO  KEEP AGE"}; if(menu("CUT BLOCKS TO FIT?",it,2)!=0) return; }
         setStage(ns); return;
     }
-    if(id>=LK_BASE){   // sliders: one step along the track, no wrap round, never rebuilds the blocks
+    if(lkSlide(id)){   // sliders: one step along the track, no wrap round, never rebuilds the blocks
         int p=slidePos(look[id])+d; if(p<0||p>8) return;
         look[id]=(u8)slideVal(p); if(id==LK_TONE) setColors(); return;
     }
     int nv=look[id];
     for(int t=0;t<n;t++){ nv=(nv+d+n)%n; if(lkAllowed(id,nv)) break; }   // skip what this stage cannot have
     if(nv==look[id]) return;
-    if((id==LK_SHAPE||id==LK_EARS||id==LK_HSTYLE)&&custom&&!confirmRebuild()) return;   // declined: keep the hand-built blocks
+    if((id==LK_SHAPE||id==LK_EARS||id==LK_HSTYLE||id>=LK_TAIL)&&custom&&!confirmRebuild()) return;   // declined: keep the hand-built blocks
     look[id]=(u8)nv;
     switch(id){
       case LK_SKIN: case LK_HCOL: case LK_TOP: case LK_BOT: setColors(); break;
@@ -2217,67 +2442,20 @@ static void lookStep(int id,int n,int d){
     }
 }
 
-// ---- the block builder (the original free editor, with a legend you can read) ----
-static void drawBuildPanel(void){
-    panelBg();
-    text(130,4,"BLOCK BUILDER",GOLD,1); text(236-tw(stageNm[stage],1),4,stageNm[stage],WHITE,1);
-    for(int i=0;i<NPARTS;i++){
-        int y=14+i*7;
-        if(i==part){ rect(128,y-1,108,7,FOCUS); rect(128,y-1,2,7,GOLD); }
-        text(134,y,parts[i].name,i==part?WHITE:DIMC,1);
-        if(i==part&&parts[i].dk) text(190,y,spr[SPRID(parts[i].dk-1)].name,GOLD,1);
-    }
-    text(130,74,"SIZE",DIMC,1);
-    const char*sn[3]={"S","M","L"};
-    for(int i=0;i<3;i++){ int x=156+i*14, ok=i<stMaxSz[stage]; rect(x,73,11,9,i==size-1?FOCUS:RGB(2,3,5)); text(x+4,74,sn[i],i==size-1?WHITE:ok?DIMC:RGB(6,7,9),1); }
-    text(130,85,"X",DIMC,1); num(136,85,cx,WHITE); text(148,85,"Y",DIMC,1); num(154,85,cy,WHITE);
-    text(166,85,"Z",DIMC,1); num(172,85,cz,(part<NPARTS&&parts[part].dk)?RGB(12,14,16):WHITE);   // sprites ignore Z
-    int x;
-    x=kcap(128,98,"DPAD"); x=klab(x,98,"MOVE"); x=kcap(x,98,"L"); x=kcap(x,98,"R"); klab(x,98,"LIFT");
-    x=kcap(128,108,"A"); x=klab(x,108,"PLACE"); x=kcap(x,108,"B"); klab(x,108,"ERASE");
-    x=kcap(128,118,"SELECT"); klab(x,118,"NEXT PART");
-    x=kcap(128,128,"START"); klab(x,128,"SIZE S M L");
-    x=kcap(128,138,"SEL"); x=kcapAr(x,138,0); klab(x,138,"TURN");
-    x=kcap(128,148,"SEL"); x=kcap(x,148,"START"); klab(x,148,"BACK");
+// ---- persona rows (ASPIRE tab) ----
+static void persStep(const Row*r,int d){
+    if(r->kind==RK_TRAIT){ int t=r->id, v=pTr[t]+d; if(v<0||v>10||(d>0&&trLeft()<=0)) return; pTr[t]=(u8)v; }
+    else if(r->id==PS_ASP) pAsp=(u8)((pAsp+d+AS_PICK)%AS_PICK);
+    else if(r->id==PS_LTW) pLtw=(u8)((pLtw+d+2)%2);
+    else setSign((signOf()+d+12)%12);
+    persSave();
 }
-static void blockBuilder(void){
-    int hx,hy,hz,hs; headBox(&hx,&hy,&hz,&hs);
-    part=0; size=hs; cx=hx; cy=hy; cz=hz; view=0; stageOn=0;
-    u16 prev=keyNow(); int hold[10]={0}, frame=0, dirty=1, lastBlink=-1, comboUsed=0;
-    for(;;){
-        u16 k=keyNow(), pressed=k&~prev, released=prev&~k; prev=k;
-        for(int i=0;i<10;i++) hold[i]=(k>>i&1)?hold[i]+1:0;
-        #define TRIG(m,i) ((pressed&(m))||(hold[i]>14&&(hold[i]&3)==0))
-        int sel=k&K_SEL;
-        if(sel){
-            if(pressed&K_START){ break; }                                                  // SELECT+START: back to the pickers
-            if(pressed&K_R){ part=(part+1)%NPARTS; comboUsed=1; dirty=1; }
-            if(pressed&K_L){ part=(part+NPARTS-1)%NPARTS; comboUsed=1; dirty=1; }
-            if(pressed&K_RIGHT){ view=(view+1)&3; comboUsed=1; dirty=1; }
-            if(pressed&K_LEFT){ view=(view+3)&3; comboUsed=1; dirty=1; }
-        } else {
-            if(TRIG(K_RIGHT,4)){moveView(1,0);dirty=1;} if(TRIG(K_LEFT,5)){moveView(-1,0);dirty=1;}
-            if(TRIG(K_UP,6)){moveView(0,-1);dirty=1;}     if(TRIG(K_DOWN,7)){moveView(0,1);dirty=1;}
-            if(TRIG(K_R,8)){cy++;dirty=1;}      if(TRIG(K_L,9)){cy--;dirty=1;}
-            if(pressed&K_A){ doPart(1,part,size,cx,cy,cz); custom=1; dirty=1; }
-            if(pressed&K_B){ doPart(2,part,size,cx,cy,cz); custom=1; dirty=1; }
-            if(pressed&K_START){ size=size%stMaxSz[stage]+1; dirty=1; }
-        }
-        if(released&K_SEL){ if(!comboUsed){ part=(part+1)%NPARTS; dirty=1; } comboUsed=0; }
-        clampCursor();
-        if(dirty) frame=16;   // restart blink with the ghost visible
-        int blink=(frame>>4)&1;
-        if(dirty||blink!=lastBlink){
-            for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ ghost[y][z][x]=0; gdec[y][z][x]=0; }
-            gAny=0;
-            doPart(0,part,size,cx,cy,cz);
-            if(parts[part].dk&&!gAny) ghost[cy][cz][cx]=1;   // nothing solid under the cursor: show a marker cube
-            drawScene(blink); if(dirty){ drawBuildPanel(); present(); } else presentScene();   // blink-only: scene columns only
-            dirty=0; lastBlink=blink;
-        } else vsync();
-        frame++;
-    }
-    view=0;
+static int buyPart(int id){   // A on a locked part: spend DNA on it. 1 = bought
+    int v=look[id], c=partCost[partOf(id)][v]; char t[24]; static const char* const it[2]={"YES  BUY IT","NO"};
+    if(pDna<c){ char*e=t; const char*p="NEED "; while(*p) *e++=*p++; e+=numStr(e,c); p=" DNA"; while(*p) *e++=*p++; *e=0; toast(t); return 0; }
+    { char*e=t; const char*p="SPEND "; while(*p) *e++=*p++; e+=numStr(e,c); p=" DNA?"; while(*p) *e++=*p++; *e=0; }
+    if(menu(t,it,2)!=0) return 0;
+    pDna=(u16)(pDna-c); pUnl|=(u16)(1<<(partOf(id)*3+v)); persSave(); return 1;
 }
 
 // ---------- the secret classic creator ----------
@@ -2286,32 +2464,37 @@ static void blockBuilder(void){
 static int comboSS(u16 k,u16 pressed){ return (k&K_START)&&(k&K_SEL)&&(pressed&(K_START|K_SEL)); }
 #define NENT (NPARTS+5)   // classic list: the parts, then AGE, SHAPE (the four original body shapes), GO LIVE LIFE, EDIT MAP, MAIN MENU
 
+#define TRIG(m,i) ((pressed&(m))||(hold[i]>14&&(hold[i]&3)==0))   // pressed now, or held long enough to repeat
 static int creatorNew(void){   // returns 1 when the secret code switched screens, 0 when leaving
     int tab=0, rs[NTAB]={0}, dirty=3, hold[10]={0}; u16 prev=keyNow();
     if(!(shapeMask()>>look[LK_SHAPE]&1)){ look[LK_SHAPE]=(u8)maskPick(shapeMask(),look[LK_SHAPE],NSHAPE); if(!custom) buildLook(); }   // BIG HEAD goes away when the Konami code is off
     for(;;){
         u16 k=keyNow(), pressed=k&~prev; prev=k;
         for(int i=0;i<10;i++) hold[i]=(k>>i&1)?hold[i]+1:0;
-        if(sUnlock&&comboSS(k,pressed)){ sClassic=1; settingsSave(); stageOn=0; return 1; }   // build mode (the classic block screen): Konami on, START and SELECT held together
+        if(sUnlock&&comboSS(k,pressed)){ partsSettle(); sClassic=1; settingsSave(); stageOn=0; return 1; }   // the classic block screen: Konami on, START and SELECT held together
         if(pressed&K_R){ tab=tabNext(tab,1); dirty|=2; }
         if(pressed&K_L){ tab=tabNext(tab,-1); dirty|=2; }
         if(pressed&K_DOWN){ rs[tab]=(rs[tab]+1)%tabN[tab]; dirty|=2; }
         if(pressed&K_UP){ rs[tab]=(rs[tab]+tabN[tab]-1)%tabN[tab]; dirty|=2; }
         if(pressed&K_SEL){ view=(view+1)&3; dirty=3; }
         if((pressed&K_START)&&!(k&K_SEL)){ tab=TB_DONE; rs[tab]=0; dirty|=2; }
-        if(pressed&K_B){ stageOn=0; return 0; }
+        if(pressed&K_B){ partsSettle(); stageOn=0; return 0; }
         const Row*r=&tabRow[tab][rs[tab]];
         int d=TRIG(K_RIGHT,4)?1:TRIG(K_LEFT,5)?-1:0;
         if(r->kind==RK_ACT){
             if(pressed&K_A){
+                partsSettle();   // a part still locked comes off before the creature leaves the creator
                 switch(r->id){
-                    case AC_BUILD: if((k&K_START)&&(k&K_SEL)) blockBuilder(); break;   // only with START and SELECT held
                     case AC_PLAY:  lifeMode(0); if(gToMenu){ stageOn=0; return 0; } break;
                     case AC_MAP:   mapEditor(); break;
                     default:       stageOn=0; return 0;   // MAIN MENU
                 }
                 prev=keyNow(); for(int i=0;i<10;i++) hold[i]=0; dirty=3;
             }
+        } else if(r->kind==RK_PERS||r->kind==RK_TRAIT){
+            if(d||(pressed&K_A)){ persStep(r,d?d:1); prev=keyNow(); for(int i=0;i<10;i++) hold[i]=0; dirty|=2; }
+        } else if((pressed&K_A)&&r->id>=LK_TAIL&&r->id<=LK_BACK&&!partFree(r->id,look[r->id])){
+            buyPart(r->id); prev=keyNow(); for(int i=0;i<10;i++) hold[i]=0; dirty=3;
         } else if(d||(pressed&K_A)){
             lookStep(r->id,r->n,d?d:1); prev=keyNow(); for(int i=0;i<10;i++) hold[i]=0; dirty=3;
         }
@@ -2363,7 +2546,6 @@ static int creatorClassic(void){   // returns 1 when the secret code switched sc
     for(;;){
         u16 k=keyNow(), pressed=k&~prev, released=prev&~k; prev=k;
         for(int i=0;i<10;i++) hold[i]=(k>>i&1)?hold[i]+1:0;
-        #define TRIG(m,i) ((pressed&(m))||(hold[i]>14&&(hold[i]&3)==0))
         if(sUnlock&&comboSS(k,pressed)){ sClassic=0; settingsSave(); return 1; }
         int sel=k&K_SEL;
         if(sel){
@@ -2591,6 +2773,7 @@ int main(void){
     mapReset(); mapLoad();   // default room, or the one saved to SRAM
     slotBoot();              // BOOT LOADS PERSON option: the creature of the active room slot
     ageLoad();               // ...grown to the stage it had reached
+    persLoad();              // ...with its aspiration, personality, DNA and unlocked parts
     mainMenu();
     return 0;
 }
