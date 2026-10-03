@@ -78,10 +78,13 @@ enum { SR_FRIDGE=1, SR_TOILET=2, SR_BED=4, SR_SHOWER=8, SR_SOFA=16, SR_RAIL=32, 
 enum { SE_EAT, SE_PEE, SE_SLEEP, SE_SHOWER, SE_SOFA, SE_TRICK, SE_COMBO, SE_GRIND, SE_AIR, SE_SHOWOFF, SE_STOKED, SE_GREAT,
        SE_SHIFT, SE_ACE, SE_PROMO, SE_CASH, SE_BILLS, SE_SKILL, SE_PRACTICE, SE_ROOM, SE_GROWUP,
        SE_BAIL, SE_HURT, SE_ACCIDENT, SE_FAINT, SE_PASSOUT, SE_BROKE, SE_DEMOTE, SE_NOPAY, SE_STINKY, SE_BORED, SE_SAD, SE_DIE, SE_OLD, SE_SHABBY,
-       SE_GLIDE, SE_CHARGE, SE_N };   // (event numbers are not saved: they can be put in any order; table ROWS are saved by index)
+       SE_GLIDE, SE_CHARGE,
+       SE_TALK, SE_FRIEND, SE_BFF, SE_KISS, SE_LOVE, SE_STEADY, SE_HUGGED, SE_LAUGH,   // social (house.h)
+       SE_REJECT, SE_SLAPPED, SE_FIGHT, SE_ENEMY, SE_LONELY, SE_N };   // (event numbers are not saved: they can be put in any order; table ROWS are saved by index)
 // icons (7x7, simIconArt): drawn in the HUD cells, the aspiration panel and the creator
 enum { IC_FOOD, IC_WC, IC_BED, IC_SHOWER, IC_SOFA, IC_BOARD, IC_COMBO, IC_RAIL, IC_AIR, IC_STAR, IC_BRIEF, IC_UP, IC_DOWN, IC_BOOK, IC_HOUSE,
-       IC_COIN, IC_TROPHY, IC_CAKE, IC_HEART, IC_SKULL, IC_HURT, IC_PUDDLE, IC_SAD, IC_GLASS, IC_CANE, IC_STINK, IC_BAIL, IC_ZZZ, IC_N };
+       IC_COIN, IC_TROPHY, IC_CAKE, IC_HEART, IC_SKULL, IC_HURT, IC_PUDDLE, IC_SAD, IC_GLASS, IC_CANE, IC_STINK, IC_BAIL, IC_ZZZ,
+       IC_TALK, IC_HAND, IC_ANGRY, IC_N };
 static const char* const simIconArt[IC_N][7]={
   {"...#...","..#....",".##.##.","#######","#######","#######",".##.##."},   // food (apple)
   {"###....","###....","###....","#######",".#####.","..###..","..###.."},   // wc
@@ -111,12 +114,15 @@ static const char* const simIconArt[IC_N][7]={
   {"#..#..#",".#..#..","#..#..#",".#..#..","#..#..#",".......","#######"},   // stink
   {"#.....#",".#...#.","..#.#..","...#...","..#.#..",".#...#.","#.....#"},   // bail (x)
   {"#####..","...#...","..#....",".#####.","....###",".....#.","....###"},   // zzz
+  {".#####.","#.....#","#.#.#.#","#.....#",".#####.","..#....",".#....."},   // talk (speech balloon)
+  {"..#.#..",".##.##.",".##.##.","######.","######.",".#####.","..###.."},   // hand (high five)
+  {"#.....#",".#...#.","..###..",".#.#.#.","#######","#.###.#",".#...#."},   // angry
 };
 static const unsigned char simAspIcon[AS_N]={IC_COIN,IC_BOOK,IC_TROPHY,IC_STAR,IC_HOUSE,IC_CAKE};
 // a wish's parameter: none, a cash target, a skill point target, a combo bank target (chosen when the wish rolls)
 enum { WP_NONE, WP_CASH, WP_SKILL, WP_COMBO };
 // who may roll a wish
-enum { WH_ANY=0, WH_JOB=1, WH_GROWS=2, WH_OLDING=4, WH_LEARN=8, WH_WINGS=16, WH_HORNS=32 };   // career on / can still grow up / an adult who will grow old / skill not maxed / has the Spore part
+enum { WH_ANY=0, WH_JOB=1, WH_GROWS=2, WH_OLDING=4, WH_LEARN=8, WH_WINGS=16, WH_HORNS=32, WH_SOCIAL=64, WH_ROMANCE=128 };   // ... someone else lives here / teen or older and someone to love   // career on / can still grow up / an adult who will grow old / skill not maxed / has the Spore part
 #define A(x) (1<<(x))
 #define TP(t) ((t)+1)    // trait: high values favour it
 #define TN(t) (-(t)-1)   // trait: low values favour it
@@ -146,6 +152,14 @@ static const SimWish simWants[]={   // '#' in a name is replaced by the wish's p
     {"GROW UP",        SE_GROWUP, 40,0,        IC_CAKE,  WP_NONE, A(AS_GROW),                        0,          0,WH_GROWS},
     {"GO GLIDING",     SE_GLIDE,  15,0,        IC_AIR,   WP_NONE, A(AS_PLEAS)|A(AS_POP)|A(AS_GROW),  TP(TR_PLAY),0,WH_WINGS},   // Spore parts: only with WINGS ...
     {"CHARGE A WALL",  SE_CHARGE, 12,0,        IC_HURT,  WP_NONE, A(AS_POP)|A(AS_PLEAS),             TP(TR_ACT), 0,WH_HORNS},   // ... or HORNS
+    {"TALK TO SOMEONE",SE_TALK,    8,0,        IC_TALK,  WP_NONE, A(AS_POP)|A(AS_HOME)|A(AS_GROW),   TP(TR_OUT), 0,WH_SOCIAL},  // social (house.h)
+    {"MAKE A FRIEND",  SE_FRIEND, 30,0,        IC_HAND,  WP_NONE, A(AS_POP)|A(AS_HOME)|A(AS_GROW),   TP(TR_OUT), 0,WH_SOCIAL},
+    {"BEST FRIENDS",   SE_BFF,    40,0,        IC_TROPHY,WP_NONE, A(AS_POP)|A(AS_HOME),              TP(TR_NICE),0,WH_SOCIAL},
+    {"FIRST KISS",     SE_KISS,   30,0,        IC_HEART, WP_NONE, A(AS_PLEAS)|A(AS_POP),             TP(TR_OUT), 0,WH_ROMANCE},
+    {"FALL IN LOVE",   SE_LOVE,   45,0,        IC_HEART, WP_NONE, A(AS_HOME)|A(AS_PLEAS),            TP(TR_NICE),0,WH_ROMANCE},
+    {"GO STEADY",      SE_STEADY, 50,0,        IC_HEART, WP_NONE, A(AS_HOME),                        TP(TR_NICE),0,WH_ROMANCE},
+    {"GET A HUG",      SE_HUGGED, 12,0,        IC_HEART, WP_NONE, A(AS_HOME)|A(AS_GROW),             TP(TR_NICE),0,WH_SOCIAL},
+    {"SHARE A LAUGH",  SE_LAUGH,  12,0,        IC_STAR,  WP_NONE, A(AS_PLEAS)|A(AS_POP),             TP(TR_PLAY),0,WH_SOCIAL},
 };
 static const SimWish simFears[]={
     {"BAILING",        SE_BAIL,     8,0,IC_BAIL,  WP_NONE,A(AS_POP)|A(AS_GROW),          TN(TR_OUT), 0,WH_ANY},
@@ -162,6 +176,11 @@ static const SimWish simFears[]={
     {"DYING",          SE_DIE,     25,0,IC_SKULL, WP_NONE,A(AS_KNOW)|A(AS_HOME)|A(AS_GROW),0,        0,WH_ANY},
     {"GROWING OLD",    SE_OLD,     15,0,IC_CANE,  WP_NONE,A(AS_POP)|A(AS_PLEAS),         0,          0,WH_OLDING},
     {"A SHABBY ROOM",  SE_SHABBY,  10,0,IC_HOUSE, WP_NONE,A(AS_HOME),                    TP(TR_NEAT),0,WH_ANY},
+    {"BEING REJECTED", SE_REJECT,  15,0,IC_BAIL,  WP_NONE,A(AS_POP)|A(AS_PLEAS),         TN(TR_OUT), 0,WH_SOCIAL},   // social (house.h)
+    {"GETTING SLAPPED",SE_SLAPPED, 15,0,IC_HURT,  WP_NONE,A(AS_POP)|A(AS_HOME),          TN(TR_NICE),0,WH_SOCIAL},
+    {"A FIGHT",        SE_FIGHT,   12,0,IC_ANGRY, WP_NONE,A(AS_HOME)|A(AS_GROW),         TP(TR_NICE),0,WH_SOCIAL},
+    {"MAKING AN ENEMY",SE_ENEMY,   20,0,IC_ANGRY, WP_NONE,A(AS_POP),                     TP(TR_OUT), 0,WH_SOCIAL},
+    {"BEING LONELY",   SE_LONELY,  12,0,IC_SAD,   WP_NONE,A(AS_POP)|A(AS_HOME),          TP(TR_OUT), 0,WH_SOCIAL},
 };
 #undef A
 #define SIM_NW ((int)(sizeof(simWants)/sizeof(simWants[0])))
@@ -185,7 +204,9 @@ static const char* const simRewNm[RW_N]={"ENERGIZER","THINKING CAP","MONEY TREE"
 static const short simRewCost[RW_N]={100,150,300,250};
 
 // ---- state ----
-static int sNrg, sHyg, sCom, sRoom;          // needs, 0..100
+static int sNrg, sHyg, sCom, sRoom, sSoc;    // needs, 0..100 (SOCIAL: refilled by talking to the household, house.h)
+static int simCrS;                           // fractional SOCIAL drain
+static int hhOthers(void); static int hhRomanceOk(void);   // house.h: is anyone else at home / anyone to love
 static int simCrN, simCrH, simCrC;           // fractional need changes, 1/1024 pt
 static int simAct, simActT, simActN;         // activity: 0 none, 1 sleep, 2 wash, 3 sit; steps left; steps done
 static int simAsp, simDone, simMeter, simZone;   // reward points, wants met, aspiration meter 0..1000 and its zone 0..5
@@ -234,6 +255,8 @@ static int simWho(int who){   // may this creature roll a wish with these WH_ fl
     if((who&WH_LEARN)&&skillLvl>=5) return 0;
     if((who&WH_WINGS)&&!(abPow()&PW_GLIDE)) return 0;
     if((who&WH_HORNS)&&!(abPow()&PW_CHARGE)) return 0;
+    if((who&(WH_SOCIAL|WH_ROMANCE))&&!hhOthers()) return 0;
+    if((who&WH_ROMANCE)&&(stage<AG_TEEN||!hhRomanceOk())) return 0;
     return 1;
 }
 static int simWeight(const SimWish*w){   // how likely a wish is to roll: aspiration first, then personality, then (for wants) how needed it is
@@ -317,7 +340,7 @@ static void simsPack(volatile unsigned char*m){   // write the life into any SIM
     m[32]=(unsigned char)simNights; m[33]=(unsigned char)(simAspUsed<0?255:simAspUsed);
     for(int s=0;s<SIM_WS;s++){ m[34+s]=(unsigned char)(simW[s]+1); simPut16(m,42+s*2,simWP[s]); }
     for(int s=0;s<SIM_FS;s++) m[38+s]=(unsigned char)(simF[s]+1);
-    m[41]=(unsigned char)simLock; m[50]=0;
+    m[41]=(unsigned char)simLock; m[50]=(unsigned char)(sSoc+1);   // (0 in an older SIM3 = not saved yet)
     for(int i=4;i<=50;i++) sum+=m[i];
     m[51]=(unsigned char)sum;
 }
@@ -347,7 +370,7 @@ static int simsUnpack(volatile unsigned char*m){   // 1 = a valid life was read 
         simNights=m[32]; simAspUsed=m[33]==255?-1:m[33];
         for(int s=0;s<SIM_WS;s++){ simW[s]=m[34+s]-1; simWP[s]=simGet16(m,42+s*2); }
         for(int s=0;s<SIM_FS;s++) simF[s]=m[38+s]-1;
-        simLock=m[41];
+        simLock=m[41]; sSoc=m[50]?(m[50]>101?70:m[50]-1):70;
     } else {   // SIM2: the old points carry over as reward points, the rest starts fresh
         simMeter=SIM_METER0; simFlags=0; simTricks=simBestCombo=simStokedS=simNights=0; simAspUsed=-1; simLock=0;
         for(int s=0;s<SIM_WS;s++){ simW[s]=-1; simWP[s]=0; } for(int s=0;s<SIM_FS;s++) simF[s]=-1;
@@ -357,7 +380,7 @@ static int simsUnpack(volatile unsigned char*m){   // 1 = a valid life was read 
 static int simsLoad(void){ return simsUnpack(SIM_SRAM); }   // 1 = loaded a valid save
 
 static void simsDefaults(void){   // a brand new life (nothing is written to SRAM)
-    sNrg=100; sHyg=100; sCom=80; sRoom=40; simMoney=SIM_CASH0; simAsp=0; simDone=0; simDay=0; simMin=480;
+    sNrg=100; sHyg=100; sCom=80; sRoom=40; sSoc=70; simMoney=SIM_CASH0; simAsp=0; simDone=0; simDay=0; simMin=480;
     jobLvl=0; jobGood=0; jobBad=0; skillPts=0;
     simMeter=SIM_METER0; simFlags=0; simTricks=simBestCombo=simStokedS=simNights=0; simAspUsed=-1; simLock=0;
     for(int s=0;s<SIM_WS;s++){ simW[s]=-1; simWP[s]=0; } for(int s=0;s<SIM_FS;s++) simF[s]=-1;
@@ -431,7 +454,7 @@ static void simsMood(int ev,int n){
     }
 }
 static inline int simMin3(int a,int b,int c){ return a<b?(a<c?a:c):(b<c?b:c); }
-static int simsComfort(void){ return (sNrg*30+sHyg*25+sCom*25+sRoom*20)/100; } // blended, used by the HAPPY target in mood.h
+static int simsComfort(void){ return (sNrg*25+sHyg*20+sCom*20+sRoom*15+sSoc*20)/100; } // blended, used by the HAPPY target in mood.h
 static int simsAspMood(void){ return simWishes()?simZoneMood[simZone]:0; }     // the aspiration zone lifts or sinks the HAPPY target
 static int simsFunPct(void){ return 70+pTr[TR_PLAY]*6; }                       // playful creatures get bored faster (FUN drains 70..130%)
 static int simsTop(int top){ if(sNrg<SIM_LOW) top-=top*SIM_SLEEPY_TOP/100; return top*stSpd[stage]/100*abPct(AB_SPEED,5)/100; }   // too tired: slower; SPEED ability +-5% a point
@@ -442,6 +465,7 @@ static const char* simsAlert(void){   // most urgent need, or 0
     if(sNrg<SIM_LOW) return "ZZZ";
     if(sHyg<SIM_LOW) return "STINKY";
     if(sCom<SIM_LOW) return "SIT";
+    if(sSoc<SIM_LOW&&hhOthers()) return "LONELY";
     return 0;
 }
 // lifetime want: progress towards the goal of the chosen one
@@ -598,6 +622,7 @@ static void simsTick(unsigned pr,int tx,int ty){
         simCrN+=SIM_RATE_NRG*pct/100*(night?3:2)/2;
         simCrH+=SIM_RATE_HYG*pct/100*(130-6*pTr[TR_NEAT])/100;
         simCrC+=SIM_RATE_COM*pct/100*(130-6*pTr[TR_ACT])/100;
+        if(hhOthers()){ simCrS+=4*pct/100*(70+6*pTr[TR_OUT])/100; while(simCrS>=1024){ simCrS-=1024; if(sSoc>0){ sSoc--; if(sSoc==SIM_LOW) simEvent(SE_LONELY); } } }   // outgoing Sims get lonely faster
         while(simCrN>=1024){ simCrN-=1024; if(sNrg>0) sNrg--; }
         while(simCrH>=1024){ simCrH-=1024; if(sHyg>0) sHyg--; }
         while(simCrC>=1024){ simCrC-=1024; if(sCom>0) sCom--; }

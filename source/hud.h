@@ -45,6 +45,7 @@ static int hudMsg(const char**txt,u16*col,int*pts){   // the message for the mid
     *pts=0;
     if(ldead){ *txt="PRESS A TO RESPAWN"; *col=RGB(31,12,8); return 1; }
     if(lnear&&!lcamF){ *txt=simAct?"A OR B GET UP":(lnear==1?"R OPEN FRIDGE":lnear==2?"R USE TOILET":lnear==3?"R SLEEP IN BED":lnear==4?"R TAKE A SHOWER":"R SIT ON SOFA"); *col=HC_GOLD; return 1; }
+    if(!lcamF&&!ldead&&lstun<=0){ int m=hhNearest(); if(m>=0){ static char b[24]; char*e=simCat(b,"R TALK TO "); simCat(e,hhM[m].name); if(lnoteT<=0){ *txt=b; *col=HC_GOLD; return 1; } } }   // a household Sim next to you
     if(lnoteT>0){ *txt=lnote; *col=WHITE; *pts=(lpts&&lnote[0]=='N')?lpts:0; return 1; }
     return 0;
 }
@@ -94,7 +95,7 @@ static void hudFace3(int x,int y,int st){   // the 7x7 mood face at 3x scale
     for(int j=0;j<7;j++)for(int i=0;i<7;i++){ char c=faceArt[st][j][i]; if(c=='.') continue; u16 col=c=='k'?RGB(4,3,6):skin[st]; rect(x+i*3,y+j*3,3,3,col); }
 }
 static u16 hudMoodCol(int st){ return st==MS_SAD?RGB(30,7,6): st==MS_BORED?RGB(29,19,4): st==MS_OK?RGB(18,27,8): st==MS_HAPPY?RGB(8,28,10): RGB(10,31,24); }
-static const char* const hudNeedNm[8]={"FOOD","REST","CLEAN","COMFY","WC","FUN","ROOM","MOOD"};
+static const char* const hudNeedNm[8]={"FOOD","REST","CLEAN","COMFY","WC","FUN","ROOM","SOCIAL"};   // (mood is the face)
 #define HUD_FX 31
 static void hudNeedPos(int i,int*x,int*y){ *x=HUD_FX+(i>>2)*66; *y=HUD_BOTY+4+(i&3)*6; }
 static void hudBotStatic(void){
@@ -106,7 +107,7 @@ static void hudBotUpdate(int all){
     int st=moodState();
     if(hudChg(all,HK_PORT,(unsigned)st)){   // portrait: a frame in the mood colour around the face
         rect(3,HUD_BOTY+4,24,24,hudMoodCol(st)); rect(4,HUD_BOTY+5,22,22,hudFaceBg[st]); hudFace3(5,HUD_BOTY+6,st); hudMark(3,HUD_BOTY+4,24,24); }
-    int v[8]={lfood,sNrg,sHyg,sCom,100-lbl,moodFunPct(),sRoom,moodHapPct()};
+    int v[8]={lfood,sNrg,sHyg,sCom,100-lbl,moodFunPct(),sRoom,sSoc};
     for(int i=0;i<8;i++){
         int q=hudBarPx(v[i])*4+(v[i]>=55?2:v[i]>=28?1:0);
         if(hudChg(all,HK_NEED+i,(unsigned)q)){ int x,y; hudNeedPos(i,&x,&y); hudBar(x+28,y+1,v[i],hudLvlCol(v[i])); hudMark(x+28,y+1,34,5); }
@@ -172,6 +173,8 @@ static void hudBotUpdate(int all){
 static int hudOverlayWhat(const char**txt,int*alert){   // 0 none, 1 plumbob, 2 bubble
     *txt=0; *alert=0;
     if(lcamF>0||ldead||sHud>=2||!xo[XO_BUBBLE]) return 0;
+    if(hhBubT&&hhBubTxt){ *txt=hhBubTxt; return 2; }   // talking (house.h)
+    if(hhStill<30) return 0;   // nothing over your head while you move: it only pops up once you stand still for half a second
     const char*t=simsAlert();
     if(t){ *txt=t; *alert=1; return 2; }
     if(xo[XO_BUBBLE]>=2&&simWishes()){ int s0=(simT/240)%SIM_WS; for(int i=0;i<SIM_WS;i++){ int s=(s0+i)%SIM_WS; if(simW[s]>=0){ *txt=simWantName(s); return 2; } } }   // the wants take turns

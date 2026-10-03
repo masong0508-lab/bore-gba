@@ -1484,7 +1484,7 @@ static void autoTune(void){
 
 static const signed char hdT[3][3]={{10,12,14},{8,-1,0},{6,4,2}};   // [sign dy+1][sign dx+1] -> heading (16 steps), -1 = keep
 #include "feel.h"
-static void hhStart(void); static void hhTick(void);   // house.h (included further down, next to the drawing it hooks into)
+static void hhStart(void); static void hhTick(void); static int hhSocR(int useLabel);   // house.h (included further down, next to the drawing it hooks into)
 static void lifeInit(void){
     { static int spanDone; if(!spanDone){ spanDone=1; itemSpanInit(); } }
     if(!(shapeMask()>>look[LK_SHAPE]&1)){ look[LK_SHAPE]=(u8)maskPick(shapeMask(),look[LK_SHAPE],NSHAPE); if(!custom) buildLook(); }
@@ -1588,6 +1588,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
         for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++){ int tx=(lfx>>8)+dx, ty=(lfy>>8)+dy; if(tx<0||ty<0||tx>=MW||ty>=MH) continue;
             char c=lifeMap[ty][tx]; if(c=='F') nf=1; if(c=='T') nt=1; if(c=='S') nb=1; if(c=='H') nh=1; if(c=='C') nc=1; }
         lnear=nf?1:(nt?2:(nb?3:(nh?4:(nc?5:0))));   // 1 fridge, 2 toilet, 3 bed, 4 shower, 5 sofa
+        if((pr&K_R)&&lstun<=0&&lz<=fh&&!simAct&&hhSocR(lnear)) pr&=~K_R;   // next to a household Sim: the social menu (it offers the furniture too)
         if((pr&K_R)&&lnear&&lstun<=0&&lz<=fh){
             if(lnear==1){   // fridge: eat
                 if(lfood>=95){ lnote="FULL"; lnoteT=40; }
@@ -1959,7 +1960,6 @@ static void camStep(int steps,u16 k,u16 pr){   // action cam: the game holds sti
 }
 static int gToMenu;   // set when the player picks MAIN MENU in the pause menu, so every screen above returns to it
 static const char* const lifeItems[9]={"RESUME","ASPIRATION","HOUSEHOLD","HOW TO PLAY","OPTIONS","ROOM SLOTS","EDIT MAP","NEW LIFE","MAIN MENU"};
-static char hhPName[10]="YOU";   // the name of the Sim you control (premade Sims bring theirs)
 static void hhSwap(HhSim*s){   // trade places: the player becomes s, s becomes who the player was
     s32 x=lfx, y=lfy; lfx=s->fx; lfy=s->fy; s->fx=x; s->fy=y;
     { u8 h=(u8)(lhd&15); lhd=s->hd; s->hd=h; }
@@ -1974,6 +1974,7 @@ static void hhSwap(HhSim*s){   // trade places: the player becomes s, s becomes 
     { u8 t=stage; stage=s->stage; s->stage=t; t=pAsp; pAsp=s->asp; s->asp=t; t=pLtw; pLtw=s->ltw; s->ltw=t; }
     for(int i=0;i<TR_N;i++){ u8 t=pTr[i]; pTr[i]=s->tr[i]; s->tr[i]=t; }
     for(int i=0;i<10;i++){ char t=hhPName[i]; hhPName[i]=s->name[i]; s->name[i]=t; }
+    { int u=hhPUid; hhPUid=s->uid; s->uid=(u8)u; int v=sSoc; sSoc=s->need[HN_SOC]; s->need[HN_SOC]=(u8)v; s->bubT=0; hhBubT=0; }
     s->act=HA_IDLE; s->think=30; s->gok=0;
     lz=lvz=0; lsp=0; lskate=0; lgrind=0; lstun=0; lairF=0; feelReset(lhd);
     buildLook(); setColors(); ageSave(); persSave();
