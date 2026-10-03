@@ -37,3 +37,7 @@ SONG_XM(gottcho_barracho,"GOTTCHO BARRACHO (ORIGINAL)","tools/gottcho_barracho.x
 // AN ODE TO THE SPANISH FLEXICODE: a soft 16-channel rework of "The Dipper Man - An Ode to Mexicode" (tools/the_dipper_man_ode_to_mexicode.xm),
 // built by tools/make_flexicode_rework.py.
 SONG_XM(spanish_flexicode,"AN ODE TO THE SPANISH FLEXICODE","tools/spanish_flexicode.xm")
+
+// MI CORA ZONE = a rework of THE DIPPER MAN (133 BPM, 92 bars, about 2:50): intro, drop, hook, breakdown, second drop,
+// half-time bridge, key lift (+2 semitones) and outro. Built from the original sounds; the generator is not in the repo.
+SONG_XM(mi_cora_zone,"MI CORA ZONE","tools/mi_cora_zone.xm")

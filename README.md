@@ -189,6 +189,8 @@ The title screen plays "The Dipper Man" (tools/the_dipper_man.xm). `python3 tool
 
 **Gottcho Barracho (rework)**: `tools/make_barracho_rework.py` builds `tools/gottcho_barracho_ii.xm`, the sister song of the Flexicode rework. It reads the bass line, the lead line and the piano harmony straight out of the original `tools/gottcho_barracho.xm` bar by bar, so the tune, the B-major riff and the changes are the original's, and plays them with the Flexicode palette: nylon, flute with a ping-pong echo, marimba, vibes, glass bells and breathing pads. Its bell call (B D# F# A C#) sits a tritone from Flexicode's (F Ab C Eb G). A soft 4/4 groove at 32nd-note resolution adds hat ratchets, flams and ghost notes, across all 16 voices hand-panned. 80 BPM, 3:04. The original transcription is still in the game as the secret song **GOTTCHO BARRACHO (ORIGINAL)**, which the title-screen code (UP UP DOWN DOWN LEFT LEFT RIGHT B A START) reveals in the jukebox.
 
+**Mi Cora Zone**: `tools/mi_cora_zone.xm`, a rework of "The Dipper Man - Mi Cora Zone", built from the original's own samples. It runs intro, drop, hook, breakdown, second drop, half-time bridge, a final section lifted 2 semitones, and outro. 133 BPM, 2:50. The generator is not in the repo.
+
 **Meltdown in Mars (90s house mix)**: `tools/make_meltdown_house.py` builds `tools/meltdown_in_mars_house.xm` (126 BPM, about 6 minutes, 10 channels, all sounds synthesised), it is listed in `source/songs.h`, and `python3 tools/xm2gba.py` bakes it into `source/musicdata.h`. `python3 tools/preview_xm.py meltdown_in_mars_house tools/meltdown_in_mars_house.xm out.wav` renders it the way the GBA mixer will play it.
 
 ## Jukebox
