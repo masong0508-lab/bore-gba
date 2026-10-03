@@ -247,6 +247,10 @@ The title screen plays "The Dipper Man" (tools/the_dipper_man.xm). `python3 tool
 - **Harmony and band:** Gm9 | C9 | Fadd9 | D7#9 on Rhodes, plus clav, a swelling horn section, a breathy whistle with an echo or a harmony a third under it, jazz-guitar licks, and a bridge of D7#9 hits.
 - **Technical:** all 16 voices, panned like a live band (`whistler_pan`).
 
+**Worthless Clouds**: rebuilt at load time by `make_clouds` in `tools/xm2gba.py` from `tools/worthless_clouds.xm`. It is a swung funk / house arrangement at 115 BPM over all 16 voices (`clouds_pan`) and runs 11:24.
+- **Second act:** after the original arrangement comes a build into a FINALE, where the lead is doubled an octave up on a free voice.
+- **Expanded ending:** the run-in plays first. The outro riff follows four times, stepping down from house to funk to groove to hats only. Then come a soft afterglow, the original coda, and a last hit that rings out.
+
 **Meltdown in Mars (90s house mix)**: `tools/make_meltdown_house.py` builds `tools/meltdown_in_mars_house.xm` (126 BPM, about 6 minutes, 10 channels, all sounds synthesised), it is listed in `source/songs.h`, and `python3 tools/xm2gba.py` bakes it into `source/musicdata.h`. `python3 tools/preview_xm.py meltdown_in_mars_house tools/meltdown_in_mars_house.xm out.wav` renders it the way the GBA mixer will play it.
 
 ## Jukebox

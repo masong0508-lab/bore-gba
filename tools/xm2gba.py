@@ -25,7 +25,7 @@ NEARDUP = {"worthless_clouds"}    # songs whose near-identical samples are merge
 SHARED = {}                       # sample data already written for an earlier song: identical samples are stored once in the whole ROM
 OUT = "source/musicdata.h"
 TITLE = ("the_dipper_man", "tools/the_dipper_man.xm")
-GAIN = {"tree_swaying_action": 0.9, "amiga_music": 1.1, "earth_and_the_space_citizens": 2.0, "meltdown_in_mars_house": 1.8, "sunman_sunrise": 1.6, "gottcho_barracho": 1.85, "spanish_flexicode": 1.7, "gottcho_barracho_ii": 1.7, "mi_cora_zone": 1.5, "emergency_hitech": 1.6, "excuses_house": 1.9, "whistler_shuffle": 2.2}   # louder/quieter per song (default 1.0), so every tracker song sits at a similar level
+GAIN = {"tree_swaying_action": 0.9, "amiga_music": 1.1, "earth_and_the_space_citizens": 2.0, "meltdown_in_mars_house": 1.8, "sunman_sunrise": 1.6, "gottcho_barracho": 1.85, "spanish_flexicode": 1.7, "gottcho_barracho_ii": 1.7, "mi_cora_zone": 1.5, "emergency_hitech": 1.6, "excuses_house": 1.9, "whistler_shuffle": 2.2, "worthless_clouds": 1.15}   # louder/quieter per song (default 1.0), so every tracker song sits at a similar level
 LOOP_OVERRIDE = {"the_dipper_man": 4, "amiga_music": 0, "emergency_dance_floor": 0, "tree_swaying_action": 0}   # the title song plays its intro once, then loops from order 4 (others loop from the XM restart position)
 
 def make_ending(S):
@@ -339,9 +339,9 @@ def make_clouds(S):
           3: dict(strip=('snare',), bass=1.0, hats=2, stab=2, snare=56, ghost=1, lead=1.0),
           4: dict(strip=('snare',), bass=1.0, hats=2, stab=2, snare=60, ghost=1, lead=1.0)}
     cache = {}
-    def variant(src, e, pk, fill, crash, nolead):
+    def variant(src, e, pk, fill, crash, nolead, octv=False):
         feel = 'house' if e == 4 else 'funk'
-        key = (src, e, feel, tuple(sorted(pk.items())), fill, crash, nolead)
+        key = (src, e, feel, tuple(sorted(pk.items())), fill, crash, nolead, octv)
         if key in cache: return cache[key]
         p = copy.deepcopy(P[src]); lv = LV[e]; rts = roots(p)
         snares = [(r, ch, p[r][ch]) for r in range(32) for ch in range(16) if role(p[r][ch]) == 'snare']
@@ -363,11 +363,21 @@ def make_clouds(S):
         if stab and (e >= 3 or pk['S'] % 2 == 1 or e == 1): add_stabs(p, rts, pk['S'], stab)
         if pk['D']: strip(p, (pk['D'],))                            # one layer sits out this pattern
         if fill: add_fill(p)
+        if octv:                                                    # the finale: the lead doubled an octave up on a channel this pattern leaves free
+            used = [any(0 < p[r][ch][0] < 97 for r in range(32)) for ch in range(16)]
+            free = [ch for ch in (2, 4, 5, 7, 10, 6) if not used[ch]]
+            if free:
+                for r in range(32):
+                    for ch in range(16):
+                        c = p[r][ch]
+                        if role(c) == 'lead' and c[0] + 12 < 97: put(p, r, free[0], c[0] + 12, c[1], 64 * rel(c[2]) * 0.42)
         if crash: put(p, 0, 15, 49, OPENI, 48)
         P.append(p); cache[key] = len(P) - 1
         return cache[key]
     BODY = O[12:54]; END = O[54:65]
-    RUNS = [('S', 26), ('L', 4), ('S', 6), ('M', 1), ('L', 29), ('M', 5), ('L', 9), ('M', 1), ('S', 3), ('L', 9), ('M', 6), ('L', 6), ('M', 2), ('S', 10)]
+    RUNS = [('S', 26), ('L', 4), ('S', 6), ('M', 1), ('L', 29), ('M', 5), ('L', 9), ('M', 1), ('S', 3), ('L', 9), ('M', 6), ('L', 6), ('M', 2), ('S', 10),
+            ('M', 4), ('L', 12), ('M', 2)]   # (the second act: a build, the FINALE with the lead doubled an octave up, a breath)
+    FINALE = len(RUNS) - 2
     seq = [(8, 1), (8, 1), (8, 2), (8, 2), (9, 2), (9, 2), (9, 2), (9, 3)]   # opening: the drum loop, then the riff + lead, funk groove coming in
     nrun = []                                                   # (pattern, energy, position in its run, run length)
     pi = 0
@@ -376,11 +386,11 @@ def make_clouds(S):
             if kind == 'S': e = 0 if (ri == 0 and k < 4) else (0 if (ri == len(RUNS) - 1 and k >= cnt - 2) else 1)
             elif kind == 'M': e = 2
             else: e = 4 if (cnt >= 6 and k >= cnt - 4) else 3
-            nrun.append((BODY[pi % len(BODY)], e, k, cnt)); pi += 1
+            nrun.append((BODY[pi % len(BODY)], e, k, cnt, ri == FINALE)); pi += 1
     es = [e for _, e in seq] + [x[1] for x in nrun] + [3] * 4          # the 4 patterns of the run-in to the ending (25-28) are energy 3
     order = list(O[0:4])
-    allp = [(p_, e_, None, None) for p_, e_ in seq] + nrun
-    for idx, (p_, e_, k, cnt) in enumerate(allp):
+    allp = [(p_, e_, None, None, False) for p_, e_ in seq] + nrun
+    for idx, (p_, e_, k, cnt, octv) in enumerate(allp):
         rng = random.Random(1150 + idx // 4 * 7919)             # one set of picks per 4 patterns, so a phrase hangs together and the next one differs
         g0, k0, s0, h0, gh0 = rng.randrange(6), rng.randrange(3), rng.randrange(4), rng.randrange(3), rng.randrange(3)
         q = idx % 4                                              # place in the phrase: bass groove / kick pairs, stab / ghost styles walk on every pattern
@@ -392,13 +402,21 @@ def make_clouds(S):
         crash = idx > 0 and e_ >= 3 and (es[idx - 1] < e_ or (idx - 1) % 4 == 3 and es[idx - 1] >= 2)
         rr = random.Random(77 + idx)
         nolead = e_ in (1, 2, 3) and k is not None and 0 < k < cnt - 1 and rr.random() < (0.2 if e_ == 1 else 0.12) and not fill
-        order.append(variant(p_, e_, pk, fill, crash, nolead))
-    for j, p_ in enumerate(END):
-        if p_ in (25, 26, 27, 28):
-            rng = random.Random(555 + j)
-            pk = dict(G=rng.randrange(6), K=rng.randrange(3), S=rng.randrange(4), H=rng.randrange(3), GH=rng.randrange(3), D='')
-            order.append(variant(p_, 3, pk, j == 3, j == 0, False))
-        else: order.append(p_)
+        order.append(variant(p_, e_, pk, fill, crash, nolead, octv))
+    # ---- the EXPANDED ENDING: the run-in (25-28), then the outro riff (29) four times stepping down in energy (house, funk, groove,
+    # hats only), a soft AFTERGLOW (the first four body patterns at the quietest level: pad, arps and the lead), the original coda
+    # (31-33), and a last HIT: the outro's first row (lead, riff, pad) with a crash and the bass, ringing out ----
+    def pk_(seed): rng = random.Random(seed); return dict(G=rng.randrange(6), K=rng.randrange(3), S=rng.randrange(4), H=rng.randrange(3), GH=rng.randrange(3), D='')
+    for j, p_ in enumerate((25, 26, 27, 28)): order.append(variant(p_, 3, pk_(555 + j), j == 3, j == 0, False))
+    for j, e_ in enumerate((4, 3, 2, 1)): order.append(variant(29 if j < 3 else 30, e_, pk_(600 + j), e_ >= 2 and j == 2, j == 0, False, j == 0))
+    for j in range(4): order.append(variant(BODY[j], 0, pk_(700 + j), False, False, False))
+    order.extend([31, 32, 33])
+    hit = [[Z] * 16 for _ in range(32)]
+    for ch in range(16):
+        c = P[29][0][ch]
+        if c[0] and c[0] < 97 and role(c) != 'kick': hit[0][ch] = c
+    put(hit, 0, 15, 49, OPENI, 56); put(hit, 0, 12, bnote(4) - 12, BASSI, 64)
+    P.append(hit); order.append(len(P) - 1)
     # ---- timing: 6 rows per 16th (speed 1); every odd 16th sits 1 row late (58 % swing), the snare lays back 1 row ----
     SUB, SWING = 6, 1
     for pi_, p in enumerate(P):
