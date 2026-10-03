@@ -40,7 +40,18 @@ enum { RF_CRUSH=1, RF_LOVE=2, RF_STEADY=4, RF_KISSED=8, RF_FRIEND=16, RF_BFF=32,
 static int hhPUid;                         // the uid of the Sim you control
 static char hhPName[10]="YOU";             // the name of the Sim you control (premade Sims bring theirs)
 static u8 hhBubT; static const char* hhBubTxt;   // the word over your head during a social (shown by hud.h's bubble)
-static u16 hhSpr[HH_MAX][4][SPW*SPH] EWRAM_BSS;   // baked sprites, one set per member
+// HARDWARE SPRITES: the members are GBA OBJ sprites (32x64, 16 colours each), so moving them costs no drawing: the CPU only draws their
+// shadow and talk balloons into the room. Their 4 views are baked like the player's, cut down to 15 colours + clear (hhQuant), and kept
+// as 4bpp tiles; each frame the view being shown goes into OBJ VRAM (1 KB a member) and OAM says where (hhObjUpdate, in vblank).
+// A window keeps them inside the room view (never over the HUD); menus hide them (box() -> objHideAll). Sprites always sit on top of the
+// picture, so a member standing behind a full-height wall is drawn see-through instead (the "x-ray" blend).
+#define OBJ_VRAM ((volatile u16*)0x06014000)   // OBJ tiles 512.. in the bitmap modes
+#define OBJ_PAL  ((volatile u16*)0x05000200)
+#define OAM      ((volatile u16*)0x07000000)
+static u8 hhObj[HH_MAX][4][1024] EWRAM_BSS;    // 4 views x 32x64 x 4bpp, tiles in 1D order
+static u16 hhPal[HH_MAX][16];                  // a palette per member (index 0 = clear)
+static u16 hhTmp[4][SPW*SPH] EWRAM_BSS;        // a 16-bit bake (one Sim) on its way to 4bpp, or back
+static signed char hhObjV[HH_MAX];             // the view in OBJ VRAM for each member (-1 = must copy)
 static u16 hhDist[MH*MW] EWRAM_BSS;
 #define hhQ bfsQ   // (main.c's shared search queue)   // BFS scratch, shared (one member plans per step)
 static int hhPlanNext;   // round robin: whose turn it is to plan
@@ -62,6 +73,35 @@ static const HhFam hhFams[]={
 };
 #define HH_NFAM ((int)(sizeof(hhFams)/sizeof(hhFams[0])))
 
+// ---- 16-bit sprite <-> 15 colours + clear, 4bpp tiles ----
+static void hhQuant(u16 (*src)[SPW*SPH],u8 (*dst)[1024],u16*pal){
+    static u16 col[256] EWRAM_BSS; static u32 cnt[256] EWRAM_BSS; int n=0;
+    for(int v=0;v<4;v++)for(int i=0;i<SPW*SPH;i++){ u16 c=src[v][i]; if(c==SKY) continue; int k=0; while(k<n&&col[k]!=c) k++;
+        if(k==n){ if(n==256) continue; col[n]=c; cnt[n]=0; n++; } cnt[k]++; }
+    while(n>15){   // merge the two closest colours (weighted by how often they appear) until 15 are left
+        int ba=0, bb=1, bd=1<<30;
+        for(int a=0;a<n;a++)for(int b=a+1;b<n;b++){ int dr=(col[a]&31)-(col[b]&31), dg=((col[a]>>5)&31)-((col[b]>>5)&31), db=((col[a]>>10)&31)-((col[b]>>10)&31);
+            int d=(dr*dr*3+dg*dg*4+db*db*2)*(int)(cnt[a]<cnt[b]?cnt[a]:cnt[b]); if(d<bd){ bd=d; ba=a; bb=b; } }
+        u32 w=cnt[ba]+cnt[bb]; if(!w) w=1;
+        int r=(int)(((col[ba]&31)*cnt[ba]+(col[bb]&31)*cnt[bb])/w), g=(int)((((col[ba]>>5)&31)*cnt[ba]+((col[bb]>>5)&31)*cnt[bb])/w), bl=(int)((((col[ba]>>10)&31)*cnt[ba]+((col[bb]>>10)&31)*cnt[bb])/w);
+        if(cnt[bb]>cnt[ba]) col[ba]=col[bb]; else if(cnt[ba]==cnt[bb]) col[ba]=(u16)(r|(g<<5)|(bl<<10));   // keep the commoner one exact (faces stay crisp)
+        cnt[ba]=w; col[bb]=col[n-1]; cnt[bb]=cnt[n-1]; n--; }
+    pal[0]=0; for(int k=0;k<15;k++) pal[k+1]=k<n?col[k]:0;
+    for(int v=0;v<4;v++){
+        for(int i=0;i<1024;i++) dst[v][i]=0;
+        for(int y=0;y<SPH;y++)for(int x=0;x<SPW;x++){ u16 c=src[v][y*SPW+x]; if(c==SKY) continue;
+            int best=1, bd=1<<30; for(int k=0;k<n;k++){ int dr=(c&31)-(col[k]&31), dg=((c>>5)&31)-((col[k]>>5)&31), db=((c>>10)&31)-((col[k]>>10)&31), d=dr*dr*3+dg*dg*4+db*db*2; if(d<bd){ bd=d; best=k+1; if(!d) break; } }
+            int t=(y>>3)*4+(x>>3), o=t*32+(y&7)*4+((x&7)>>1); dst[v][o]|=(u8)(best<<((x&1)*4)); }
+    }
+}
+static void hhUnquant(u8 (*src)[1024],const u16*pal,u16 (*dst)[SPW*SPH]){   // back to 16-bit (when a member becomes the one you control)
+    for(int v=0;v<4;v++)for(int y=0;y<SPH;y++)for(int x=0;x<SPW;x++){ int t=(y>>3)*4+(x>>3), o=t*32+(y&7)*4+((x&7)>>1), k=(src[v][o]>>((x&1)*4))&15; dst[v][y*SPW+x]=k?pal[k]:SKY; }
+}
+static void spBounds(void){   // the box that holds every opaque pixel of the player's four views (blits and redraw rectangles stay inside it)
+    spBx0=SPW; spBx1=0; spBy0=SPH; spBy1=0;
+    for(int v=0;v<4;v++)for(int y=0;y<SPH;y++)for(int x=0;x<SPW;x++) if(spr4[v][y*SPW+x]!=SKY){ if(x<spBx0) spBx0=x; if(x+1>spBx1) spBx1=x+1; if(y<spBy0) spBy0=y; if(y+1>spBy1) spBy1=y+1; }
+    if(spBx0>=spBx1){ spBx0=0; spBx1=SPW; spBy0=0; spBy1=SPH; }
+}
 // ---- baking: render a member's look with the creator's own code, then put the player's creature back ----
 static void hhBakeAll(void){
     static u8 sv[H][D][W] EWRAM_BSS; static u16 sd[H][D][W] EWRAM_BSS; u8 sl[LK_N]; u8 sst=stage; int sc=custom;
@@ -69,16 +109,14 @@ static void hhBakeAll(void){
     for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ sv[y][z][x]=vox[y][z][x]; sd[y][z][x]=dec[y][z][x]; }
     for(int m=0;m<hhN;m++){
         for(int i=0;i<LK_N;i++) look[i]=hhM[m].look[i]; stage=hhM[m].stage;
-        buildLook(); setColors(); bakeInto(hhSpr[m]);
+        buildLook(); setColors(); bakeInto(hhTmp); hhQuant(hhTmp,hhObj[m],hhPal[m]); hhObjV[m]=-1;
     }
     for(int i=0;i<LK_N;i++) look[i]=sl[i]; stage=sst;
     for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ vox[y][z][x]=sv[y][z][x]; dec[y][z][x]=sd[y][z][x]; }
     custom=sc; setColors();
-    bakeInto(spr4);   // the player last: it also sets the blit box (spBx0..), widened below to hold every member
-    for(int m=0;m<hhN;m++) for(int v=0;v<4;v++)for(int y=0;y<SPH;y++)for(int x=0;x<SPW;x++) if(hhSpr[m][v][y*SPW+x]!=SKY){
-        if(x<spBx0) spBx0=x; if(x+1>spBx1) spBx1=x+1; if(y<spBy0) spBy0=y; if(y+1>spBy1) spBy1=y+1; }
+    bakeInto(spr4);   // the player (still drawn by the CPU, so walls and furniture in front cover it and the action cam can zoom it)
+    for(int m=0;m<hhN;m++) for(int i=0;i<16;i++) OBJ_PAL[m*16+i]=hhPal[m][i];
 }
-
 // ---- where members can stand ----
 static int hhWalk(int x,int y){ if(x<0||y<0||x>=MW||y>=MH) return 0; char c=lifeMap[y][x]; return c!='w'&&c!='W'&&tileH(x,y)<=3; }
 static void hhPlace(HhSim*s,int k){   // somewhere free near the spawn point, spread out a little
@@ -390,17 +428,36 @@ static void hhCalc(void){
 }
 static void hhDrawBand(int s0,int s1){   // the members whose band is in s0..s1
     for(int m=0;m<hhN;m++){ if(hhB[m]<s0||hhB[m]>s1) continue;
-        if(sShad) rect(hhX[m]-3,hhY[m]-hhH[m]-1,7,2,RGB(10,8,5));
-        blit(hhSpr[m][hhV[m]],hhX[m]-16,hhY[m]-40-hhH[m]);
+        if(sShad) rect(hhX[m]-3,hhY[m]-hhH[m]-1,7,2,RGB(10,8,5));   // (the Sim itself is a hardware sprite: hhObjUpdate)
         if(hhM[m].bubT){ int bx=hhX[m]-5, by=hhY[m]-hhH[m]-56; rect(bx,by,11,10,RGB(14,16,22)); rect(bx+1,by+1,9,8,WHITE);   // a balloon with an icon (Sims style)
             simIcon(bx+2,by+1,hhM[m].bub,hhM[m].bub==IC_HEART?RGB(28,6,12):hhM[m].bub==IC_ANGRY||hhM[m].bub==IC_HURT?RGB(26,4,4):RGB(4,4,10)); px(hhX[m],by+10,RGB(14,16,22)); } }
 }
 typedef struct { short x0,y0,x1,y1; } HhR;   // (hud.h's Rc comes later in main.c)
-static void hhRc(int m,HhR*r){ int sx=hhX[m]-16, sy=hhY[m]-40-hhH[m];
-    r->x0=(short)(sx+spBx0); r->x1=(short)(sx+spBx1); r->y0=(short)(sy+spBy0); r->y1=(short)(sy+spBy1); if(r->y1<hhY[m]-hhH[m]+2) r->y1=(short)(hhY[m]-hhH[m]+2);   // the sprite's feet or the shadow, whichever is lower
-    if(r->x0>hhX[m]-3) r->x0=(short)(hhX[m]-3); if(r->x1<hhX[m]+4) r->x1=(short)(hhX[m]+4);
+static void hhRc(int m,HhR*r){   // what a member puts INTO the picture: only its shadow (and a balloon); the body is a hardware sprite
+    r->x0=(short)(hhX[m]-3); r->x1=(short)(hhX[m]+4); r->y0=(short)(hhY[m]-hhH[m]-1); r->y1=(short)(hhY[m]-hhH[m]+1);
     if(hhM[m].bubT){ int by=hhY[m]-hhH[m]-56; if(r->y0>by) r->y0=(short)by; if(r->x0>hhX[m]-5) r->x0=(short)(hhX[m]-5); if(r->x1<hhX[m]+6) r->x1=(short)(hhX[m]+6); } }
-static unsigned hhSig(int m){ return (unsigned)(hhX[m]&0x3FF)|((unsigned)(hhY[m]&0x3FF)<<10)|((unsigned)hhV[m]<<20)|((unsigned)(hhH[m]&15)<<22)|((unsigned)(hhM[m].bubT?1+(hhM[m].bub&31):0)<<26); }
+static unsigned hhSig(int m){ return (unsigned)(hhX[m]&0x3FF)|((unsigned)(hhY[m]&0x3FF)<<10)|((unsigned)(hhH[m]&15)<<22)|((unsigned)(hhM[m].bubT?1+(hhM[m].bub&31):0)<<26); }
+static int hhBehindWall(int m){   // is a full-height wall in front of this member (towards the camera)? then it is drawn see-through
+    s32 rx,ry; rotPos(hhM[m].fx,hhM[m].fy,&rx,&ry); int x=(int)(rx>>8), y=(int)(ry>>8);
+    static const signed char d[5][2]={{1,0},{0,1},{1,1},{2,1},{1,2}};
+    for(int k=0;k<5;k++){ int wx=x+d[k][0], wy=y+d[k][1]; if(!wallAtR(wx,wy)||cellAt(wx,wy)!='W'||sWall==2) continue;
+        if(sWall==1&&(wInAt(wx,wy-1)||wInAt(wx-1,wy))) continue;   // that wall is cut away
+        return 1; }
+    return 0;
+}
+static void hhObjUpdate(void){   // in vblank: the members' sprites (OAM 0..6), their current view in OBJ VRAM, the window that clips them
+    *(volatile u16*)0x04000040=240; *(volatile u16*)0x04000044=(u16)((vpY0<<8)|vpY1);   // WIN0: the room view
+    *(volatile u16*)0x04000048=0x34; *(volatile u16*)0x0400004A=0x04;                   // inside: BG2 + sprites + blend; outside: BG2 only
+    *(volatile u16*)0x04000050=0x0400; *(volatile u16*)0x04000052=(6<<8)|10;            // see-through sprites blend 10/16 over the picture
+    for(int m=0;m<HH_MAX;m++){
+        volatile u16*o=OAM+m*4;
+        if(m>=hhN||lcamF>0){ o[0]=0x200; continue; }
+        int x=hhX[m]-16, y=hhY[m]-40-hhH[m];
+        if(x+32<=0||x>=SW||y+SPH<=vpY0||y>=vpY1){ o[0]=0x200; continue; }
+        if(hhObjV[m]!=hhV[m]){ hhObjV[m]=(signed char)hhV[m]; const u16*s=(const u16*)hhObj[m][hhV[m]]; volatile u16*d=OBJ_VRAM+m*512; for(int i=0;i<512;i++) d[i]=s[i]; }
+        o[0]=(u16)((y&255)|(hhBehindWall(m)?0x400:0)|0x8000); o[1]=(u16)((x&511)|0xC000); o[2]=(u16)((512+m*32)|(m<<12));
+    }
+}
 static HhR hhOld[HH_MAX]; static unsigned hhOldSig[HH_MAX];
 
 static void hhLoad(void);
@@ -413,10 +470,14 @@ static void hhSwitch(void){
     if(!hhN) return;
     HhSim t=hhM[0]; for(int m=0;m<hhN-1;m++) hhM[m]=hhM[m+1];   // the player goes to the back of the line, the first member steps in
     hhSwap(&t); hhM[hhN-1]=t;
-    static u16 tmp[4][SPW*SPH] EWRAM_BSS; for(int v=0;v<4;v++)for(int i=0;i<SPW*SPH;i++) tmp[v][i]=spr4[v][i];
-    for(int v=0;v<4;v++)for(int i=0;i<SPW*SPH;i++) spr4[v][i]=hhSpr[0][v][i];
-    for(int m=0;m<hhN-1;m++) for(int v=0;v<4;v++)for(int i=0;i<SPW*SPH;i++) hhSpr[m][v][i]=hhSpr[m+1][v][i];
-    for(int v=0;v<4;v++)for(int i=0;i<SPW*SPH;i++) hhSpr[hhN-1][v][i]=tmp[v][i];
+    static u8 ob[4][1024] EWRAM_BSS; u16 pl[16];
+    hhUnquant(hhObj[0],hhPal[0],hhTmp);   // the member you take over: back to a full 16-bit sprite
+    hhQuant(spr4,ob,pl);                   // the one you leave: down to a hardware sprite
+    for(int m=0;m<hhN-1;m++){ for(int v=0;v<4;v++)for(int i=0;i<1024;i++) hhObj[m][v][i]=hhObj[m+1][v][i]; for(int i=0;i<16;i++) hhPal[m][i]=hhPal[m+1][i]; }
+    for(int v=0;v<4;v++)for(int i=0;i<1024;i++) hhObj[hhN-1][v][i]=ob[v][i]; for(int i=0;i<16;i++) hhPal[hhN-1][i]=pl[i];
+    for(int v=0;v<4;v++)for(int i=0;i<SPW*SPH;i++) spr4[v][i]=hhTmp[v][i];
+    spBounds();
+    for(int m=0;m<hhN;m++){ hhObjV[m]=-1; for(int i=0;i<16;i++) OBJ_PAL[m*16+i]=hhPal[m][i]; }
 }
 
 // ---- saving (SRAM at HH_OFF): 'H' '2' count, your uid, then per member its look, stage, persona, name, needs and uid, then the
