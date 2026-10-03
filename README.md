@@ -3,6 +3,9 @@
 GBA voxel creature creator, the seed of a later life sim. Pseudo-3D isometric view, humanoid-friendly build space:
 **6 wide × 4 long × 8 high** blocks. Parts: HEAD, TORSO, ARM, LEG, EYE, MOUTH, EAR, HAIR, each in 3 sizes (S/M/L = 1×/2×/3× blocks).
 
+## Boot logo
+At power on the game plays the **DippInn Productions** logo, about 8 s long. It comes from `source/logo.c`, taken from the danny-steel project. It draws a dusk scene with parallax, then a grey scan line, then the text with a rope underline. All of it is drawn in code with tiled mode 0 and HBlank DMA, so it needs no image files. Its tables live in EWRAM. Press A or START to skip it. Afterwards the game resets the display registers and goes to the title screen.
+
 ## Controls
 | Key | Action |
 |---|---|
@@ -113,7 +116,15 @@ The GBA has 256 KB of EWRAM and 32 KB of IWRAM. Check the numbers with `arm-none
 | after the audio rework | 113,000 B (43%) | 24,812 B |
 | with the 8-Sim household | 211,180 B (81%) | 25,452 B |
 | household on hardware sprites | 168,348 B (64%) | 25,096 B |
+| boot logo + face parts, before the IWRAM diet | 172,812 B (66%) | 26,060 B |
+| after the IWRAM diet | 174,980 B (67%) | 20,496 B (12 KB left for the stack) |
 | big users now | household sprite tiles `hhObj` 28 KB + bake buffer 11 KB, screen back buffer `fb` 76.8 KB, creature sprites `spr4` 11 KB, floor tiles `flTab` 8.6 KB, overlay `ovBuf` 5 KB, BFS queue + wall map 4.8 KB (wallpaper textures: ROM only) | mixer buffers, `irqStack` 1 KB, IWRAM code 14 KB |
+
+**IWRAM diet** (5.5 KB freed, the per-pixel hot paths untouched):
+- **Cold buffers moved to EWRAM.** These are the save screens' decode and list buffers (`slTmp`, `slI`, `slLn`, `slCopyNm`), the creator's cursor preview and face-sprite grids (`ghost`, `gdec`, `dec`, each read once per voxel), and the want names (`simWTxt`).
+- **Taken out of the IWRAM `drawScene`.** The ears, face sprites, body plan and creator room are now ROM functions instead of being inlined into it.
+- **Compiled as Thumb.** `drawScene`, `wedgeCube`, `text` and `line` are still in IWRAM but compiled as Thumb (`IWRAM_THUMB`), which is about 2/3 the size of ARM.
+- **Kept as ARM IWRAM.** The mixer, `cube`, walls, floors and blits, and the mixer buffers stay as they were.
 
 **Audio driver.** Sound effects used to be decoded whole into a 124 KB buffer (the longest clip is 15 s) and played on their own, pausing the music. Now an effect is one more voice in the interrupt-driven music mixer: it is decoded a few samples at a time straight from the ROM and resampled from 6554 Hz to the mixer's 18157 Hz (`sfxMix`), so it needs no buffer and plays over the game music. When nothing plays, the mixer switches itself off (`audStart` / `audStop`). The title screen used to borrow that buffer for a whole-screen copy of its backdrop; it now keeps only the two areas it repaints (the smoke and PRESS START), about 10 KB, inside `spr4` before any sprite is baked.
 

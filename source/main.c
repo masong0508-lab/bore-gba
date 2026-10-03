@@ -14,6 +14,7 @@ typedef uint8_t u8; typedef uint16_t u16; typedef uint32_t u32;
 #define EWRAM_BSS __attribute__((section(".sbss"), aligned(4)))
 // Hot loops run as ARM code from IWRAM (32-bit, zero-wait bus) instead of Thumb from the 16-bit ROM bus.
 #define IWRAM_CODE __attribute__((section(".iwram"), target("arm"), long_call))
+#define IWRAM_THUMB __attribute__((section(".iwram"), long_call))   // fast RAM, Thumb code: about 2/3 the size of ARM, for work that is not the per-pixel hot path
 #define REG_WAITCNT (*(volatile u16*)0x04000204)
 
 #define SW 240
@@ -205,7 +206,7 @@ IWRAM_CODE static void rect(int x,int y,int w,int h,u16 c){
     int x1=x+w, y1=y+h; if(x<cX0)x=cX0; if(y<cY0)y=cY0; if(x1>cX0+(int)cW)x1=cX0+(int)cW; if(y1>cY0+(int)cH)y1=cY0+(int)cH;
     for(;y<y1;y++){ u16*p=&fb[y*SW+x]; for(int i=x;i<x1;i++) *p++=c; }
 }
-IWRAM_CODE static void line(int x0,int y0,int x1,int y1,u16 c){
+IWRAM_THUMB static void line(int x0,int y0,int x1,int y1,u16 c){
     int dx=x1>x0?x1-x0:x0-x1, dy=y1>y0?y0-y1:y1-y0, sx=x0<x1?1:-1, sy=y0<y1?1:-1, e=dx+dy;
     for(;;){ px(x0,y0,c); if(x0==x1&&y0==y1)break; int e2=2*e;
         if(e2>=dy){e+=dy;x0+=sx;} if(e2<=dx){e+=dx;y0+=sy;} }
@@ -219,7 +220,7 @@ static int tw(const char*s,int sc){
     const u8*adv=sc<=1?fa_s:sc==2?fa_m:fa_l; int sp=sc<=1?FSP_s:sc==2?FSP_m:FSP_l, w=0;
     for(;*s;s++){ int i=fIdx(*s); w+=(i<0)?sp:adv[i]; } return w;
 }
-IWRAM_CODE static int text(int x,int y,const char*s,u16 c,int sc){
+IWRAM_THUMB static int text(int x,int y,const char*s,u16 c,int sc){
     const u32*fo=sc<=1?fo_s:sc==2?fo_m:fo_l; const u8*fw=sc<=1?fw_s:sc==2?fw_m:fw_l, *fa=sc<=1?fa_s:sc==2?fa_m:fa_l, *fp=sc<=1?fp_s:sc==2?fp_m:fp_l;
     int fh=sc<=1?FH_s:sc==2?FH_m:FH_l, sp=sc<=1?FSP_s:sc==2?FSP_m:FSP_l;
     int cr=c&31, cg=(c>>5)&31, cb=(c>>10)&31;
@@ -401,7 +402,7 @@ static inline u16 decSprBits(int n){ return (u16)((n&7)|((n>>3)<<11)); }
 // The FACE sliders move and scale the art inside its footprint (eye size, spacing and height; mouth width and height), drawing a 2 px
 // margin round it so a moved eye is not cut off at its own cell's edge.
 static int decLook;   // 1: brows, glasses, nose, cheeks and the face sliders apply (a look-built creature)
-IWRAM_CODE static void drawDeco(int sx,int sy,u16 code,int face,int tint){
+__attribute__((noinline)) static void drawDeco(int sx,int sy,u16 code,int face,int tint){   // ROM: only the few face voxels call it
     int id=decSpr(code)-1; if(id<0||id>=NSPR) return;
     const Spr*sp=&spr[id]; int eye=id<NEYE;
     int ci=(code>>3)&7, cj=(code>>6)&3, sz=((code>>8)&3)+1, fl=(code>>10)&1, aw=10*sp->wc-1;   // aw = art width in chars
@@ -456,7 +457,7 @@ static void projC(int u,int w,int yy,int*ox,int*oy){
 // shape 4..11: 4 edges (slope towards +x +z -x -z) and 4 corners (only the outer corner drops: ++ -+ -- +-). Slopes are given in grid space and
 // turned with the view like everything else, so a wedge keeps pointing the same way as the creature spins.
 static const u8 wMask[8]={10,12,5,3,8,4,1,2};   // bit k = grid corner (k&1 ? +x : -x, k&2 ? +z : -z)
-IWRAM_CODE static void wedgeCube(int sx,int sy,int ci,int shape,int f){
+IWRAM_THUMB static void wedgeCube(int sx,int sy,int ci,int shape,int f){
     int m=wMask[shape-4], o[4]={0,0,0,0};   // lowered corners as seen on screen: N, E, S, W
     for(int k=0;k<4;k++) if(m>>k&1){
         int a,b; rotUW((k&1)?1:-1,(k&2)?1:-1,&a,&b); int dx=a-b, dy=a+b;
@@ -487,8 +488,8 @@ static void moveView(int sx,int sz){   // screen-relative step -> grid step
     cx+=gx; cz+=gz;
 }
 
-static u8 vox[H][D][W], ghost[H][D][W];
-static u16 dec[H][D][W], gdec[H][D][W];   // face sprites per voxel (+Z face) and their cursor preview
+static u8 vox[H][D][W], ghost[H][D][W] EWRAM_BSS;   // (the cursor preview is read once per voxel: EWRAM is fine)
+static u16 dec[H][D][W] EWRAM_BSS, gdec[H][D][W] EWRAM_BSS;   // face sprites per voxel (+Z face) and their cursor preview
 static int gAny;
 
 
@@ -555,7 +556,7 @@ static void clampCursor(void){
 // Skin, hair, top and bottom colours are only palette slots (setColors), eye and mouth styles only re-skin the face sprites (restyle),
 // so those never touch the blocks. Shape, ears and hair style rebuild the whole model (the pickers ask first if you built by hand).
 static int custom;   // 1 once the block builder has placed or erased something by hand
-static void bodyPlan(int*L,int*T,int*hs){   // legs showing, torso blocks showing, head scale: the body that fits this stage's box
+__attribute__((noinline)) static void bodyPlan(int*L,int*T,int*hs){   // legs showing, torso blocks showing, head scale: the body that fits this stage's box
     int sh=look[LK_SHAPE]; *hs=(sh==2)?2:1;
     int l=stLegs[stage], t=2, ht=2*(*hs);
     if((sh==2||sh==3)&&l>0) l--;                          // BIG HEAD and STUBBY: legs one block shorter
@@ -837,7 +838,7 @@ static void stageWall(int tx,int ty,int j32){   // one wall cell (tx or ty is -1
         if(sWp) wallBlock(sx,sy-j*CC,ST_WP,f); else cube(sx,sy-j*CC,9+ST_WP,0,f);
     }
 }
-static void drawStage(void){
+__attribute__((noinline)) static void drawStage(void){   // ROM: the creator room, drawn once per redraw (its tiles and walls are IWRAM helpers)
     for(int y=0;y<SH;y++){ u16 c=RGB(3+y/45,4+y/34,10+y/16); u32 v=c|((u32)c<<16), *row=(u32*)fb+y*ROW_W; for(int w=0;w<SCENE_W;w++) row[w]=v; }
     for(int ty=0;ty<ST_N;ty++)for(int tx=0;tx<ST_N;tx++){
         int sx=OXC+(tx-ty)*CA, sy=ST_Y0+(tx+ty+1)*CB, v=(tx^ty)&1;
@@ -852,7 +853,7 @@ static void drawStage(void){
 // ---- ears: drawn flat on the sides of the head (the +x and -x faces), in the same iso perspective as the blocks, standing a little
 // proud of the face so they read as ears. The ear on the far side is drawn before the blocks (only its rim peeks out past the head),
 // the near one after them. Each is an oval in the side face's plane: wide along the head's depth, tall up the head, with a rim and a hollow.
-static void drawEars(int near){
+__attribute__((noinline)) static void drawEars(int near){   // ROM, not inlined into the IWRAM drawScene
     int es=look[LK_EARS]; if(!es||custom) return;
     int hx,hy,hz,hs; headBox(&hx,&hy,&hz,&hs);
     int hw=2*hs, hd=2*hs, f=10+slideEff(look[LK_EARSZ])*2;                       // ear size slider: 20% smaller or bigger per step
@@ -879,7 +880,7 @@ static void drawEars(int near){
         }
     }
 }
-IWRAM_CODE static void drawScene(int blink){
+IWRAM_THUMB static void drawScene(int blink){
     if(stageOn&&!noGrid) drawStage(); else fillCols(0,SCENE_W,SKY);
     // floor grid
     u16 gc=RGB(13,18,22); int a,b,c,d;
@@ -940,6 +941,7 @@ static void dmaRows(const u16*src,u32 dst,int w0,int w1,int y0,int y1){
 
 // ---------- title screen ----------
 #include "titleimg.h"
+#include "logo.h"
 #define SM_W0 76   // smoke stays inside columns 152..203, rows 0..89 (checked over its whole 128-frame loop)
 #define SM_W1 102
 #define SM_Y1 90
@@ -3023,6 +3025,8 @@ static void mainMenu(void){
 
 int main(void){
     REG_WAITCNT=0x4317;  // ROM 3/1 waits + prefetch (power-on default is 4/2, no prefetch)
+    logo_play();         // the DippInn Productions boot logo (source/logo.c, ~8 s; leaves a black screen, its DMA and sprites off)
+    { volatile u16*io=(volatile u16*)0x04000000; for(int r=0x08/2;r<0x20/2;r++) io[r]=0; for(int r=0x40/2;r<0x56/2;r++) io[r]=0; }   // undo its BG control, scroll, windows and blend (BG2's affine registers are left alone: mode 3 needs them)
     REG_DISPCNT=0x0403;  // mode 3, BG2 on
     initTables(); setColors(); settingsLoad(); optsLoad(); applyRom();
     lrng^=(u32)titleScreen()*2654435761u;   // time spent on the title seeds the random numbers (first shuffle)

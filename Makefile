@@ -12,8 +12,8 @@ LDFLAGS := -specs=gba.specs $(ARCH)
 
 all: $(TARGET).gba
 
-$(TARGET).elf: source/main.c $(wildcard source/*.h) $(wildcard source/sfx/*.adp) $(wildcard source/music/*.adp)
-	$(CC) $(CFLAGS) $< $(LDFLAGS) -o $@
+$(TARGET).elf: source/main.c source/logo.c $(wildcard source/*.h) $(wildcard source/sfx/*.adp) $(wildcard source/music/*.adp)
+	$(CC) $(CFLAGS) source/main.c source/logo.c $(LDFLAGS) -o $@
 
 $(TARGET).gba: $(TARGET).elf
 	$(OBJCOPY) -O binary $< $@

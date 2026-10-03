@@ -112,7 +112,7 @@ static void slEncPerson(SlW*w){
     slwPut(w,custom?1:0);                                   // hand-built blocks: only then the blocks are stored (else buildLook() remakes them)
     if(custom){ slEncPlane(w,0); slEncPlane(w,1); slEncPlane(w,2); }
 }
-static u8 slTmp[3][CNV];                          // decoded planes, checked before anything is applied
+static u8 slTmp[3][CNV] EWRAM_BSS;                          // decoded planes, checked before anything is applied
 static int slDecPlane(SlR*c,int plane){
     int i=0;
     while(i<CNV){ int n=slrGet(c), v=slrGet(c); if(c->bad||n==0||i+n>CNV) return 0; for(int k=0;k<n;k++) slTmp[plane][i+k]=(u8)v; i+=n; }
@@ -171,7 +171,7 @@ static int slBuild(SlW*w,int mask){
 
 // ---------- header, scan ----------
 typedef struct { u8 ok,kind,span,has,mw,mh; u16 len,sum,seq; char name[SLOT_NAME+1]; } SlInfo;
-static SlInfo slI[SLOT_N]; static s8 slOwner[SLOT_N]; static u8 slGood[SLOT_N];   // per slot: header, which head covers it (-1 none), payload checksum ok
+static SlInfo slI[SLOT_N] EWRAM_BSS; static s8 slOwner[SLOT_N]; static u8 slGood[SLOT_N];   // per slot: header, which head covers it (-1 none), payload checksum ok
 #define SLB(s) (SRAM_BASE+SLOT_BASE+(s)*SLOT_SZ)
 static int slInfo(int slot,SlInfo*I){
     volatile u8*m=SLB(slot); I->ok=0;
@@ -375,7 +375,7 @@ static int slEditName(char*nm){   // nm holds SLOT_NAME letters/digits/spaces an
     }
 }
 static const char* const slYesNo[2]={"NO","YES"};
-static char slLn[9][30]; static const char* slLp[9];
+static char slLn[9][30] EWRAM_BSS; static const char* slLp[9];
 static void slInfoScreen(int s){
     SlInfo*I=&slI[s]; int n=0; char*e;
     slLn[n][0]='>'; slCat(slLn[n]+1,I->name[0]?I->name:"NO NAME"); n++;
@@ -389,7 +389,7 @@ static void slInfoScreen(int s){
     helpScreen("SLOT INFO",slLp,n);
 }
 enum { SA_SAVE, SA_LOADALL, SA_LOADROOM, SA_LOADPERSON, SA_RENAME, SA_COPY, SA_INFO, SA_DELETE };
-static char slCopyNm[SLOT_N][20]; static const char* slCopyIt[SLOT_N];
+static char slCopyNm[SLOT_N][20] EWRAM_BSS; static const char* slCopyIt[SLOT_N];
 // A on a slot: the list of things you can do with it. Returns 1 if a slot was loaded (the caller must restart play).
 static int slActions(int s){
     int own=slOwner[s]; SlInfo*I=&slI[s];
