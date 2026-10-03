@@ -53,3 +53,6 @@ SONG_XM(whistler_shuffle_old,"WHISTLER MAN (ORIGINAL)","tools/whistler_shuffle_o
 // CYNICALLER MADNESS: a 172 BPM liquid / tech drum & bass rework of "The Dipper Man - Cynicaller Madness" on 64th-note rows
 // (tools/make_cynicaller_rework.py, about 4:05)
 SONG_XM(cynicaller_dnb,"CYNICALLER MADNESS","tools/cynicaller_dnb.xm")
+// HOT DAMN: a 90s rave / IDM rework (breakbeats, acid, hoover, a Moby-style breakdown, drill'n'bass) of the Caustic project
+// "HoTdamn v050" (tools/hotdamn_v050.caustic, read by tools/make_hotdamn_rework.py, about 3:48)
+SONG_XM(hotdamn_rave,"HOT DAMN","tools/hotdamn_rave.xm")

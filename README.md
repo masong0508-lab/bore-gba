@@ -266,6 +266,13 @@ The title screen plays "The Dipper Man" (tools/the_dipper_man.xm). `python3 tool
 - **Arrangement:** two drops, a breakdown, a third drop with the lead an octave up in thirds, a glitch section that stutters the lead, and a final drop.
 - **Technical:** it uses 64th-note rows (speed 1, XM BPM 115, 16 rows a beat), all 16 voices (`cynic_pan`) and 88 KB of samples.
 
+**Hot Damn (90s rave / IDM)**: `tools/make_hotdamn_rework.py` reads the Caustic project `tools/hotdamn_v050.caustic` directly and builds `tools/hotdamn_rave.xm`. The reader parses the SPAT pattern chunks and the SEQN song sequence. The track runs 3:48 at 135 BPM.
+- **From the original:** the organ's F# minor riff with its 64th-note chromatic runs, its long and doubled takes, and its chord fall; the modular lead; and its octave pumps (B C# | D E | A B).
+- **Prodigy:** an Amen-style break over a four-to-the-floor kick, and the riff as a 303 acid line (closed, long and accented samples, picked per note). It also has a hoover and organ stabs.
+- **Moby:** a piano / strings / "ahh" breakdown on the pumps.
+- **Aphex Twin:** a drill'n'bass section where every beat of the break is cut up (pitched snare ratchets, kick 32nds, 64th hat rolls, gaps, reverse swells), with the lead's licks stuttered on a bell.
+- **Technical:** it uses 64th-note rows (speed 1, XM BPM 90) and all 16 voices (`hotdamn_pan`).
+
 **Meltdown in Mars (90s house mix)**: `tools/make_meltdown_house.py` builds `tools/meltdown_in_mars_house.xm` (126 BPM, about 6 minutes, 10 channels, all sounds synthesised), it is listed in `source/songs.h`, and `python3 tools/xm2gba.py` bakes it into `source/musicdata.h`. `python3 tools/preview_xm.py meltdown_in_mars_house tools/meltdown_in_mars_house.xm out.wav` renders it the way the GBA mixer will play it.
 
 ## Jukebox
