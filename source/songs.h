@@ -1,4 +1,4 @@
-// songs.h - THE JUKEBOX SONG LIST. Order here = the "IN ORDER" order. Up to 32 songs.
+// songs.h - THE JUKEBOX SONG LIST. Order here = the "IN ORDER" order. Up to 64 songs.
 //
 //   SONG_XM(id,"NAME","file")    a tracker song (.xm). id = any unique C name, file = the .xm in tools/. After adding one, run
 //                                python3 tools/xm2gba.py   to rebuild source/musicdata.h (the title music, THE DIPPER MAN, is one too)
@@ -48,6 +48,8 @@ SONG_XM(mi_cora_zone,"MI CORA ZONE","tools/mi_cora_zone.xm")
 SONG_XM(excuses_house,"EXCUSES","tools/excuses_house.xm")
 // WHISTLER MAN: a steely half-time shuffle (the Purdie shuffle) rework of "The Dipper Man - Whistler Man" (tools/make_whistler_rework.py, about 5:37)
 SONG_XM(whistler_shuffle,"WHISTLER MAN","tools/whistler_shuffle.xm")
+// WHISTLER MAN (ORIGINAL): the first version of the rework, kept as a SECRET song, hidden until the title-screen code (isDbgSong in main.c)
+SONG_XM(whistler_shuffle_old,"WHISTLER MAN (ORIGINAL)","tools/whistler_shuffle_old.xm")
 // CYNICALLER MADNESS: a 172 BPM liquid / tech drum & bass rework of "The Dipper Man - Cynicaller Madness" on 64th-note rows
 // (tools/make_cynicaller_rework.py, about 4:05)
 SONG_XM(cynicaller_dnb,"CYNICALLER MADNESS","tools/cynicaller_dnb.xm")

@@ -715,7 +715,7 @@ static void setStage(int n){   // new stage: the look is fitted to it; a look-bu
     if(custom) clipCustom(); else buildLook();
     setColors(); ageSave();
 }
-#define AGE_OFF 12416   // SRAM: 'A' 'G', stage, days in the stage, checksum (the creature itself is only kept in room slots, so its growth is remembered here)
+#define AGE_OFF 5008   // SRAM: 'A' 'G', stage, days in the stage, checksum (the creature itself is only kept in room slots, so its growth is remembered here)
 static void ageSave(void){ volatile u8*m=(volatile u8*)0x0E000000+AGE_OFF; m[0]='A'; m[1]='G'; m[2]=stage; m[3]=ageDays; m[4]=(u8)(0x47+stage+ageDays); }
 static void ageLoad(void){   // at power on, after the person came back from its slot: the grown-up stage wins over the stage the slot was saved at
     volatile u8*m=(volatile u8*)0x0E000000+AGE_OFF;
@@ -807,7 +807,7 @@ static void partsSettle(void){   // leaving the creator: a part that was only be
     int ch=0; for(int id=0;id<LK_N;id++) if(isPart(id)&&!partFree(id,look[id])){ look[id]=0; ch=1; }
     if(ch&&!custom) buildLook();
 }
-#define PERS_OFF 12432   // SRAM: 'P' 'S', aspiration, lifetime want, five traits, DNA (2), unlocked parts (2), checksum
+#define PERS_OFF 5024   // SRAM: 'P' 'S', aspiration, lifetime want, five traits, DNA (2), unlocked parts (2), checksum
 #define PERS_LEN (4+TR_N+5)
 static void persSave(void){
     volatile u8*m=(volatile u8*)0x0E000000+PERS_OFF; u8 sum=0x50;
@@ -1515,14 +1515,14 @@ static void mapScan(void){   // find the skateboard (B) and the spawn point (P);
 #define SRAM_BASE ((volatile u8*)0x0E000000)
 static const char sramTag[] __attribute__((used)) = "SRAM_V113";   // tells emulators / flash carts to give the game battery saves
 #define MSZ (MW*MH)
-#define SET_OFF 8192            // settings live here now (the big map takes bytes 0..4802)
+#define SET_OFF 4864            // settings live here now (the big map takes bytes 0..4802)
 #define OMW 14                  // old 14x14 saves
 #define OMSZ (OMW*OMW)
 #define LEG_X 13                // an old save is copied into the plaza at (13,22)
 #define LEG_Y 22
-#include "jukebox.h"   // playlist logic: shuffled order lives in SRAM at JB_OFF (12288), the mode is a setting
+#include "jukebox.h"   // playlist logic: shuffled order lives in SRAM at JB_OFF (5056), the mode is a setting
 // Songs named PLACEHOLDER... are hidden from the jukebox unless the title-screen debug code was entered (dbgOn).
-static int isDbgSong(int i){ if(songs[i].xm==&xm_gottcho_barracho||songs[i].xm==&xm_emergency_dance_floor) return 1;   // the original GOTTCHO BARRACHO: a secret song
+static int isDbgSong(int i){ if(songs[i].xm==&xm_gottcho_barracho||songs[i].xm==&xm_emergency_dance_floor||songs[i].xm==&xm_whistler_shuffle_old) return 1;   // the original GOTTCHO BARRACHO: a secret song
     const char*n=songs[i].name, *p="PLACEHOLDER"; while(*p){ if(*n++!=*p++) return 0; } return 1; }
 static void jbSetup(void){   // build the list of songs the jukebox shows, then load / make the playlist order
     int n=0; for(int i=0;i<NSONGS&&n<JB_MAX;i++) if(songs[i].xm!=&xm_the_dipper_man&&(dbgOn||!isDbgSong(i))) jbMap[n++]=(u8)i;   // THE DIPPER MAN is the title music only: never listed
@@ -1557,7 +1557,7 @@ static void mapPlace(int x,int y,char c){
     if(c=='B'||c=='P'){ for(int j=0;j<MH;j++)for(int i=0;i<MW;i++) if(lifeMap[j][i]==c) lifeMap[j][i]='.'; }
     lifeMap[y][x]=c; if(c=='w'||c=='W') wallMap[y][x]=(u8)eWp; wDirty=1; }
 // extended options (opts.h): one byte each at OPT_OFF, 'X' 'O', count, values, checksum. A save with fewer options (older game) leaves the new ones at their defaults.
-#define OPT_OFF 8448
+#define OPT_OFF 4896
 static void optsSave(void){
     volatile u8*m=SRAM_BASE+OPT_OFF; unsigned sum=0x3C;
     for(int i=0;i<XO_N;i++){ m[3+i]=xo[i]; sum+=xo[i]; }
@@ -1591,7 +1591,7 @@ static u16 keyNow(void){   // BUTTONS option: A/B and L/R can be swapped here, s
     if(b&2){ u16 l=k&K_L, r=k&K_R; k=(u16)((k&~(K_L|K_R))|(l?K_R:0)|(r?K_L:0)); }
     return k;
 }
-static void objHideAll(void){ for(int i=0;i<16;i++) ((volatile u16*)0x07000000)[i*4]=0x200; }   // household sprites off (menus, other screens)
+static void objHideAll(void){ for(int i=0;i<32;i++) ((volatile u16*)0x07000000)[i*4]=0x200; }   // household sprites off (menus, other screens)
 static void box(int x,int y,int w,int h){ objHideAll(); rect(x-1,y-1,w+2,h+2,GOLD); rect(x,y,w,h,RGB(3,4,7)); }
 static int menu(const char*title,const char*const*it,int n){   // UP/DOWN + A to choose, B or START to cancel (returns -1)
     int sel=0, w=116, h=26+n*10, x=(SW-w)/2, y=(SH-h)/2; u16 prev=keyNow();
@@ -2777,7 +2777,7 @@ static void famAdd(void){
     if(custom){ toast("BLOCK-BUILT BODIES STAY YOURS"); return; }
     hhLoad(); int m=hhAdd(look,stage,pAsp,pLtw,pTr);
     if(m<0){ toast("THE HOUSE IS FULL"); return; }
-    hhSave(); static char t[28]; char*e=simCat(t,hhM[m].name); e=simCat(e," JOINS  "); e=simCatN(e,hhN+1); simCat(e," OF 10"); toast(t);
+    hhSave(); static char t[28]; char*e=simCat(t,hhM[m].name); e=simCat(e," JOINS  "); e=simCatN(e,hhN+1); e=simCat(e," OF "); simCatN(e,HH_MAX+1); toast(t);
 }
 static void famMenu(void){
     hhLoad(); if(!hhN){ toast("ONLY YOU SO FAR"); return; }
@@ -3118,7 +3118,7 @@ int main(void){
     { volatile u16*io=(volatile u16*)0x04000000; for(int r=0x08/2;r<0x20/2;r++) io[r]=0; for(int r=0x40/2;r<0x56/2;r++) io[r]=0; }   // undo its BG control, scroll, windows and blend (BG2's affine registers are left alone: mode 3 needs them)
     { static const u32 zero=0; REG_DMA3SAD=(u32)(uintptr_t)&zero; REG_DMA3DAD=VRAM_ADDR; REG_DMA3CNT=(SW*SH/2)|0x85000000u; }   // clear its tiles out of the bitmap (else mode 3 shows them as noise until the title is drawn)
     REG_DISPCNT=0x0403;  // mode 3, BG2 on
-    initTables(); setColors(); settingsLoad(); optsLoad(); applyRom();
+    initTables(); setColors(); slMigrate(); settingsLoad(); optsLoad(); applyRom();   // slMigrate: carries a layout 1 save over to layout 2 first (slots.h)
     lrng^=(u32)titleScreen()*2654435761u;   // time spent on the title seeds the random numbers (first shuffle)
     if(konMsg) toast(konMsg==2?"CLASSIC CREATOR UNLOCKED":"CLASSIC CREATOR LOCKED");
     jbSetup();                              // load the saved shuffled order (or make a new one), placeholders hidden

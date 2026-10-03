@@ -27,15 +27,36 @@
 //
 // Needs before it: the map (lifeMap/floorMap/wallMap, MW, MH, palIdx, palCol, flFlat), the creature (look, vox, dec, custom, buildLook,
 // setColors), sims.h (simsPack/simsCheck/simsUnpack/simsSaveNow), SRAM_BASE, mapSave/mapScan, and the UI kit (box, menu, helpScreen, toast).
-#define SLOT_BASE  20480
-#define SLOT_N     6
+//
+// ---- THE SRAM MAP (32 KB), layout 2 ------------------------------------------------------------------------------------
+//     0      .. 4802    the room being played ("BM3", main.c)
+//     4808   .. 4810    layout marker 'L' 'Y' 2 (slMigrate)
+//     4864   .. 4879    settings (SET_OFF)            4896 .. 4991   extended options (OPT_OFF)
+//     4992   .. 5007    active slot (SLOT_DIR)        5008 .. 5023   life stage (AGE_OFF)
+//     5024   .. 5055    persona (PERS_OFF)            5056 .. 5135   jukebox (JB_OFF)
+//     5136   .. 5199    the life (SIM_OFF)            5200 .. 5215   SAVE MEMORY TEST (SRAM_TEST)
+//     5216   .. 7263    the household (SL_HH_OFF; SL_HH_LEN = 2048 bytes are reserved; it used to be 1024)
+//     8192   .. 32767   SLOT_N room slots of SLOT_SZ bytes (twelve; layout 1 had six, from 20480, and its small blocks in between)
+// Layout 1 saves are carried over the first time the game starts (slMigrate): the old six slots keep their bytes and become slots 7 to 12.
+#define SLOT_BASE  8192
+#define SLOT_N     12
 #define SLOT_SZ    2048
 #define SLOT_HDR   32
 #define SLOT_NAME  10
-#define SLOT_DIR   12352      // 'S' 'D' active-slot checksum   (4 bytes; the jukebox block before it ends at 12325)
-#define SRAM_TEST  18432      // 16 spare bytes the SAVE TEST in the options writes to
+#define SLOT_DIR   4992       // 'S' 'D' active-slot checksum   (4 bytes, 16 reserved)
+#define SRAM_TEST  5200       // 16 spare bytes the SAVE TEST in the options writes to
+#define SL_HH_OFF  5216       // the household block (house.h); SL_MIG_HH bytes are reserved for it
+#define SL_MIG_HH  1024       // what the layout 1 -> 2 upgrade copies (old households fit in it)
+#define SL_HH_LEN  2048       // what the household block may use now (5216..7263; nothing else lives up to SLOT_BASE)
+#define SL_MIG_TAG 4808
+#define SL_OLD_BASE 20480     // layout 1: the six slots started here
+#define SL_OLD_N    6
 #define SLOT_HOUSE_READY 0
 _Static_assert(SLOT_BASE+SLOT_N*SLOT_SZ<=32768,"the slots do not fit in 32 KB of SRAM");
+_Static_assert(SL_OLD_BASE==SLOT_BASE+SL_OLD_N*SLOT_SZ,"the layout 1 slots must land on whole slots of the new bank");
+_Static_assert(3+MSZ*3<=SL_MIG_TAG,"the room being played must end before the layout marker");
+_Static_assert(SL_MIG_TAG+3<=SET_OFF&&SET_OFF+16<=OPT_OFF&&OPT_OFF+3+XO_N+1<=SLOT_DIR&&SLOT_DIR+4<=AGE_OFF&&AGE_OFF+5<=PERS_OFF,"the small SRAM blocks overlap (1)");
+_Static_assert(PERS_OFF+PERS_LEN<=JB_OFF&&JB_OFF+5+JB_MAX<=SIM_OFF&&SIM_OFF+SIM_BLOCK<=SRAM_TEST&&SRAM_TEST+16<=SL_HH_OFF&&SL_HH_OFF+SL_HH_LEN<=SLOT_BASE&&SL_MIG_HH<=SL_HH_LEN,"the small SRAM blocks overlap (2)");
 _Static_assert(NWALL<=255&&NFL<=255,"a run stores the floor and the wallpaper in a byte each");
 
 enum { SLK_ROOM=0, SLK_HOUSE=1 };
@@ -47,6 +68,26 @@ enum { SLE_OK=0, SLE_EMPTY=-1, SLE_BAD=-2, SLE_BIG=-3, SLE_HOUSE=-4, SLE_FMT=-5,
 #define SLC_HOUSE  'H'
 #define CNV (H*D*W)                                            // voxels in the creature (192)
 #define SLOT_NSPR NSPR
+
+// ---------- layout upgrade: layout 1 -> layout 2 (run once, first thing at power on) ----------
+// Layout 1 kept the small blocks between 8192 and 20479. Layout 2 puts the slots there, so the small blocks are copied down to
+// where main.c, sims.h, jukebox.h and house.h now expect them. Order matters, so a power cut at any point is safe:
+//   1 copy every block (the old copies stay untouched, running again just copies again)   2 move the active slot number on by
+//   six (the old slots are now slots 7 to 12)   3 write the marker   4 only then clear the old blocks.
+// The six old slots at 20480.. are never touched: their bytes simply are slots 7 to 12 now.
+typedef struct { u16 from, to, len; } SlMove;
+static void slMigrate(void){
+    volatile u8*m=SRAM_BASE;
+    if(m[SL_MIG_TAG]=='L'&&m[SL_MIG_TAG+1]=='Y'&&m[SL_MIG_TAG+2]==2) return;
+    static const SlMove mv[]={ {8192,SET_OFF,16}, {8448,OPT_OFF,96}, {12352,SLOT_DIR,16}, {12416,AGE_OFF,16}, {12432,PERS_OFF,32},
+                               {14336,JB_OFF,80}, {16384,SIM_OFF,64}, {18448,SL_HH_OFF,SL_MIG_HH} };
+    for(unsigned k=0;k<sizeof(mv)/sizeof(mv[0]);k++) for(int i=0;i<mv[k].len;i++) m[mv[k].to+i]=m[mv[k].from+i];
+    volatile u8*d=m+SLOT_DIR;
+    if(d[0]=='S'&&d[1]=='D'&&d[2]<SL_OLD_N&&d[3]==(u8)(0x5D+d[2])){ d[2]=(u8)(d[2]+SL_OLD_N); d[3]=(u8)(0x5D+d[2]); }
+    else { for(int i=0;i<4;i++) d[i]=0; }
+    m[SL_MIG_TAG]='L'; m[SL_MIG_TAG+1]='Y'; m[SL_MIG_TAG+2]=2;
+    for(int i=SLOT_BASE;i<SL_OLD_BASE;i++) m[i]=0;
+}
 
 // ---------- byte writer (a counting dry run when p is 0) and reader ----------
 typedef struct { volatile u8*p; int pos,cap,over; u32 s1,s2; } SlW;
@@ -64,22 +105,47 @@ static int slrGet16(SlR*r){ int a=slrGet(r); int b=slrGet(r); return a|(b<<8); }
 static int slSumOf(volatile u8*p,int n){ u32 s1=0,s2=0; for(int i=0;i<n;i++){ s1+=p[i]; if(s1>=255) s1-=255; s2+=s1; if(s2>=255) s2-=255; } return (int)(s1|(s2<<8)); }
 
 // ---------- chunks: ROOM ----------
+// Room formats: 1 = runs of (count, tile, floor<<4|wallpaper); 2 = runs of (count, tile, floor, wallpaper);
+// 3 = three planes one after the other, tiles then floors then wallpapers, each its own runs of (count, value) covering the whole
+//     map. Floors and wallpapers change far less often than the furniture, so each plane packs on its own: about a quarter smaller
+//     than format 2 on a furnished room (more rooms fit a slot). Formats 1 and 2 still load; new saves are format 3.
+static int slPlaneVal(int plane,int i){ int y=i/MW, x=i%MW; return plane==0?(u8)lifeMap[y][x]:plane==1?floorMap[y][x]:wallMap[y][x]; }
 static void slEncRoom(SlW*w){
     slwPut(w,0);   // room index: 0 = the one room of a ROOM slot (a house numbers its rooms)
-    slwPut(w,2);   // format 2: runs of (count, tile, floor, wallpaper)  (format 1 packed floor<<4 | wallpaper: only 16 wallpapers)
-    int n=0; u8 t=0,f=0,p=0;
-    for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){
-        u8 tt=(u8)lifeMap[y][x], ff=floorMap[y][x], pp=wallMap[y][x];
-        if(n>0&&tt==t&&ff==f&&pp==p&&n<255){ n++; continue; }
-        if(n){ slwPut(w,n); slwPut(w,t); slwPut(w,f); slwPut(w,p); }
-        n=1; t=tt; f=ff; p=pp;
+    slwPut(w,3);
+    for(int pl=0;pl<3;pl++){
+        int n=0, cur=0;
+        for(int i=0;i<MSZ;i++){
+            int v=slPlaneVal(pl,i);
+            if(n>0&&v==cur&&n<255){ n++; continue; }
+            if(n){ slwPut(w,n); slwPut(w,cur); }
+            n=1; cur=v;
+        }
+        if(n){ slwPut(w,n); slwPut(w,cur); }
     }
-    if(n){ slwPut(w,n); slwPut(w,t); slwPut(w,f); slwPut(w,p); }
+}
+// one plane of format 3: runs until the whole map is covered. Returns 1 if fine. apply=1 writes it into the map.
+static int slDecRoomPlane(SlR*c,int pl,int apply){
+    int i=0;
+    while(i<MSZ){
+        int n=slrGet(c), v=slrGet(c); if(c->bad||n==0||i+n>MSZ) return 0;
+        if(pl==0&&palIdx((char)v)<0) return 0;
+        if(pl==1&&v>=NFL) return 0;
+        if(pl==2&&v>=NWALL) return 0;
+        if(apply) for(int k=0;k<n;k++){ int y=(i+k)/MW, x=(i+k)%MW; if(pl==0) lifeMap[y][x]=(char)v; else if(pl==1) floorMap[y][x]=(u8)v; else wallMap[y][x]=(u8)v; }
+        i+=n;
+    }
+    return 1;
 }
 // returns 1 if fine (or a room index we do not use), 0 if broken. apply=1 writes the map.
 static int slDecRoom(SlR*c,int apply){
     int idx=slrGet(c), fmt=slrGet(c); if(c->bad) return 0;
     if(idx!=0) return 1;      // another room of a house: not used by a ROOM load
+    if(fmt==3){
+        for(int pl=0;pl<3;pl++) if(!slDecRoomPlane(c,pl,apply)) return 0;
+        if(apply) wDirty=1;
+        return c->pos==c->len;
+    }
     if(fmt!=1&&fmt!=2) return 0;
     int i=0;
     if(apply) wDirty=1;
@@ -297,44 +363,57 @@ static char* slSize(char*d,int n){   // 812B  or  1.4K
     if(n<1000) { d=slNum(d,n); return slCat(d,"B"); }
     d=slNum(d,n/1024); *d++='.'; d=slNum(d,(n%1024)*10/1024); return slCat(d,"K");
 }
-static void slThumb(int slot,int x0,int y0){   // the room of a slot at 1 pixel per tile, decoded straight from SRAM
+static u8 slTb[MSZ] EWRAM_BSS;   // the tile plane of the room being previewed (format 3)
+static u16 slThumbCol(int t,int f){ if(t=='.') return shade(flFlat[f%NFL][0],10); int pi=palIdx((char)t); return pi>=0?palCol[pi]:0; }
+static void slThumb(int slot,int x0,int y0){   // the room of a slot at 1 pixel per tile, decoded straight from SRAM (all room formats)
     rect(x0-1,y0-1,MW+2,MH+2,RGB(3,4,7)); rect(x0,y0,MW,MH,RGB(6,7,10));
     SlInfo*I=&slI[slot]; if(!I->ok||!slGood[slot]||I->kind!=SLK_ROOM||!(I->has&SLH_ROOM)) return;
     SlR r={SLB(slot)+SLOT_HDR,0,I->len,0};
     while(r.pos<r.len){
         int tag=slrGet(&r); if(!tag) break; int cl=slrGet16(&r); if(r.bad) return;
         if(tag!=SLC_ROOM){ r.pos+=cl; continue; }
-        SlR c={r.p+r.pos,0,cl,0}; int idx=slrGet(&c), fmt=slrGet(&c); if(idx!=0||fmt!=1) return;
+        SlR c={r.p+r.pos,0,cl,0}; int idx=slrGet(&c), fmt=slrGet(&c); if(idx!=0||c.bad) return;
         int i=0;
+        if(fmt==3){   // tiles first (kept), then the floors drawn with the tiles on top
+            while(i<MSZ){ int n=slrGet(&c), t=slrGet(&c); if(c.bad||n==0) return; for(int k=0;k<n&&i<MSZ;k++) slTb[i++]=(u8)t; }
+            i=0;
+            while(i<MSZ){ int n=slrGet(&c), f=slrGet(&c); if(c.bad||n==0) return; for(int k=0;k<n&&i<MSZ;k++,i++) px(x0+i%MW,y0+i/MW,slThumbCol(slTb[i],f)); }
+            return;
+        }
+        if(fmt!=1&&fmt!=2) return;
         while(c.pos<c.len&&i<MSZ){
-            int n=slrGet(&c), t=slrGet(&c), f=slrGet(&c); if(c.bad) return;
-            u16 col; if(t=='.') col=shade(flFlat[(f>>4)%NFL][0],10); else { int pi=palIdx((char)t); col=pi>=0?palCol[pi]:0; }
+            int n=slrGet(&c), t=slrGet(&c), f=slrGet(&c); if(c.bad) return; if(fmt==2) slrGet(&c); else f>>=4;
+            u16 col=slThumbCol(t,f);
             for(int k=0;k<n&&i<MSZ;k++,i++) px(x0+i%MW,y0+i/MW,col);
         }
         return;
     }
 }
+#define SL_ROWS 6
+static int slTop(int sel){ int t=sel-2; if(t>SLOT_N-SL_ROWS) t=SLOT_N-SL_ROWS; if(t<0) t=0; return t; }   // first slot shown: the cursor sits near the middle of the six rows
 static void slDraw(int sel){
     fillCols(0,ROW_W,RGB(3,4,8));
     box(3,1,234,157); text(12,6,"ROOM SLOTS",GOLD,1);
     int act=slActive();
-    text(100,6,act>=0?"ACTIVE SLOT":"NO ACTIVE SLOT",DIMC,1); if(act>=0){ char nb[2]={(char)('1'+act),0}; text(160,6,nb,GOLD,1); }
-    for(int i=0;i<SLOT_N;i++){
-        int y=18+i*15; SlInfo*I=&slI[i];
+    text(100,6,act>=0?"ACTIVE SLOT":"NO ACTIVE SLOT",DIMC,1); if(act>=0){ char nb[4]; slNum(nb,act+1); text(160,6,nb,GOLD,1); }
+    int top=slTop(sel);
+    if(SLOT_N>SL_ROWS){ rect(152,18,2,SL_ROWS*15-3,RGB(5,6,10)); rect(152,18+top*(SL_ROWS*15-3)/SLOT_N,2,SL_ROWS*(SL_ROWS*15-3)/SLOT_N,DIMC); }   // where the window is in the list
+    for(int i=top;i<top+SL_ROWS&&i<SLOT_N;i++){
+        int y=18+(i-top)*15; SlInfo*I=&slI[i];
         if(i==sel){ rect(8,y-2,142,14,RGB(6,16,8)); rect(8,y-2,2,14,GOLD); }
-        char nb[2]={(char)('1'+i),0}; text(13,y+2,nb,i==sel?GOLD:DIMC,1);
+        char nb[4]; slNum(nb,i+1); text(13,y+2,nb,i==sel?GOLD:DIMC,1);
         u16 nc=i==sel?WHITE:DIMC;
-        if(slOwner[i]<0) text(24,y,"EMPTY",i==sel?RGB(20,23,26):RGB(9,11,15),1);
-        else if(slOwner[i]!=i) text(24,y,"PART OF A HOUSE",RGB(14,16,22),1);
+        if(slOwner[i]<0) text(28,y,"EMPTY",i==sel?RGB(20,23,26):RGB(9,11,15),1);
+        else if(slOwner[i]!=i) text(28,y,"PART OF A HOUSE",RGB(14,16,22),1);
         else {
-            text(24,y,I->name[0]?I->name:"NO NAME",slGood[i]?nc:RGB(30,10,8),1);
+            text(28,y,I->name[0]?I->name:"NO NAME",slGood[i]?nc:RGB(30,10,8),1);
             char b[40]; char*e=b; *e=0;
             if(!slGood[i]) e=slCat(e,"DAMAGED");
             else if(I->kind==SLK_HOUSE) e=slCat(e,"HOUSE");
             else { if(I->has&SLH_ROOM) e=slCat(e,"ROOM "); if(I->has&SLH_PERSON) e=slCat(e,"PERSON "); if(I->has&SLH_LIFE) e=slCat(e,"LIFE "); }
             e=slCat(e," "); slSize(e,SLOT_HDR+I->len);
-            text(24,y+7,b,i==sel?RGB(22,25,28):RGB(11,13,18),1);
-            if(act==i) text(120,y,"ACTIVE",GOLD,1);
+            text(28,y+7,b,i==sel?RGB(22,25,28):RGB(11,13,18),1);
+            if(act==i) text(116,y,"ACTIVE",GOLD,1);
         }
     }
     // right: the room of the slot under the cursor
@@ -433,10 +512,11 @@ static int slActions(int s){
     }
     return changed;
 }
-static const char* const slotHelp[12]={">ROOM SLOTS","SIX NAMED SAVES OF A ROOM","A ON A SLOT OPENS ITS LIST",">WHAT A SLOT HOLDS","ROOM  WALLS FLOORS ITEMS","PERSON  YOUR CREATURE  LIFE  CASH AND CLOCK","OPTIONS PICK WHAT SAVING STORES",">GOOD TO KNOW","LOADING MAKES THAT ROOM THE CURRENT ONE","THE ACTIVE SLOT IS THE LAST YOU USED","HOUSES WILL SHARE THIS SCREEN LATER"};
+static const char* const slotHelp[12]={">ROOM SLOTS","TWELVE NAMED SAVES OF A ROOM","A ON A SLOT OPENS ITS LIST",">WHAT A SLOT HOLDS","ROOM  WALLS FLOORS ITEMS","PERSON  YOUR CREATURE  LIFE  CASH AND CLOCK","OPTIONS PICK WHAT SAVING STORES",">GOOD TO KNOW","LOADING MAKES THAT ROOM THE CURRENT ONE","THE ACTIVE SLOT IS THE LAST YOU USED","HOUSES WILL SHARE THIS SCREEN LATER"};
 static int slotScreen(void){   // returns 1 if something was loaded
     int sel=0, dirty=1, changed=0; u16 prev=keyNow();
     slScan();
+    { int a=slActive(); if(a>=0) sel=a; }   // open on the slot you used last
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k;
         if(pr&K_DOWN){ sel=(sel+1)%SLOT_N; dirty=1; }

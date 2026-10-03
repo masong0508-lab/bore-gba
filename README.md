@@ -37,7 +37,7 @@ The picker rows skip what a stage cannot have, the block builder only places ins
 
 In the life: the **BABY cannot be steered**: it toddles about by itself and a caretaker keeps its needs up. Child, teen and elder walk slower than an adult; the career (shifts, quota, bills) is for TEEN and ADULT only (an elder is retired). At midnight the days in the stage count up and the creature grows to the next stage (a "NOW A CHILD" note, and its sprites are re-baked). ELDER is the last stage.
 
-**OPTIONS > AGES** (its own page): **AGING** (OFF / SLOW / NORMAL / FAST: slow doubles the days of every stage, fast halves them, off keeps the age you picked) and how many game days each stage lasts: **BABY** (default 2), **CHILD** (3), **TEEN** (3), **ADULT** (7, or FOREVER to never grow old); each is 1, 2, 3, 5, 7, 10, 14, 21, 30 or 60 days. The stage is saved in the person (room slot format 2; format 1 slots load as adults) and also in SRAM at 12416 so growth survives a power cycle.
+**OPTIONS > AGES** (its own page): **AGING** (OFF / SLOW / NORMAL / FAST: slow doubles the days of every stage, fast halves them, off keeps the age you picked) and how many game days each stage lasts: **BABY** (default 2), **CHILD** (3), **TEEN** (3), **ADULT** (7, or FOREVER to never grow old); each is 1, 2, 3, 5, 7, 10, 14, 21, 30 or 60 days. The stage is saved in the person (room slot format 2; format 1 slots load as adults) and also in SRAM at 5008 so growth survives a power cycle.
 
 ## Main menu, room builder, settings
 Boot goes title -> **main menu** (PLAY, MAKE CREATURE, BUILD ROOM, JUKEBOX, SETTINGS, HOW TO PLAY). "MAIN MENU" is the last entry in the creature part list and in the pause menu.
@@ -74,7 +74,7 @@ A gold dot marks a row that is not at its normal value. The row under the cursor
 **Adding an option** takes four small steps (written at the top of `source/opts.h`): add a name at the *end* of the `XO_` enum, add its choice count and default to `xoCnt[]` / `xoDef[]`, read `xo[XO_X]` where the game uses it, and add an `XR(...)` row to a page table in `source/optscreen.h`. Options are one byte each, saved with a checksum and a range check per value, so an older save simply gets the defaults for options it does not have.
 
 ## Room slots
-Main menu (or pause menu, or map menu) -> **ROOM SLOTS**. Six named saves; each holds any of a **room** (walls, floors, wallpaper, items), the **person** (the creature, including hand built blocks) and the **life** (needs, cash, job, clock, skill). What a save stores is the SLOTS SAVE option.
+Main menu (or pause menu, or map menu) -> **ROOM SLOTS**. Twelve named saves (the list scrolls); each holds any of a **room** (walls, floors, wallpaper, items), the **person** (the creature, including hand built blocks) and the **life** (needs, cash, job, clock, skill). What a save stores is the SLOTS SAVE option.
 | Key | Action |
 |---|---|
 | Up / Down | pick a slot (the room is previewed on the right) |
@@ -105,8 +105,8 @@ Walls are drawn like The Sims: a wall tile is a **thin, tall panel** (24 px, 3 b
 - **4:20:** at 16:20 the HUD says "IT IS 4:20". The grown-ups in the house drift over to the pipe for the next hour, and PASS is what they pick when they talk.
 - **New want:** "PUFF PUFF PASS" (leaf icon) for grown-ups in a house with a pipe.
 
-## Households (up to 10 Sims)
-**Pause menu -> HOUSEHOLD** moves in a premade family (original characters: THE GRINDERS, a skater family of three; THE MIDNIGHTS, a pale night-owl family; THE FRESHLYS, a young couple; THE NOVAS, a mother and her teen) or moves everyone out. A household is you plus up to 9 more Sims (`source/house.h`): ten on screen at once. Each one is a hardware sprite with its own palette and 1 KB of sprite memory, which uses 9 of the 16 KB of OBJ VRAM and 9 of the 16 palettes. Only one Sim plans a path per step, so ten cost no more CPU per frame than eight. The RELATIONSHIPS screen scrolls with UP and DOWN when more than seven live there.
+## Households (up to 14 Sims)
+**Pause menu -> HOUSEHOLD** moves in a premade family (original characters: THE GRINDERS, a skater family of three; THE MIDNIGHTS, a pale night-owl family; THE FRESHLYS, a young couple; THE NOVAS, a mother and her teen) or moves everyone out. A household is you plus up to 13 more Sims (`source/house.h`, `HH_MAX`). Only the Sims in view hold a hardware sprite: OBJ VRAM (16 KB in the bitmap modes) and the OBJ palettes make 16 slots, a slot is 24 tiles (768 B, the 32x48 a Sim really fills, drawn as a 32x32 plus a 32x16 sprite) and its own palette, and `hhObjUpdate` hands slots out each frame, nearest the middle of the screen first, and takes them back when a Sim leaves the view, goes to work or school, or a passer-by walks off. So the number of Sims living in the house is limited by EWRAM (about 5.8 KB a member) and the SRAM block, not by sprites; if more than 16 are in view at once the farthest wait. A fresh sprite upload is limited to 5 per vblank, so a view turn shows the old view for a frame or two instead of overrunning vblank. Sims are in OAM in depth order, so the nearer one is drawn over the one behind. Only one Sim plans a path per step, so fourteen cost no more CPU per frame than eight. The RELATIONSHIPS screen scrolls with UP and DOWN when more than seven live there.
 - **Create-A-Family:**
   - **In the creator:** the DONE tab's **ADD TO FAMILY** puts a Sim with the look and persona on screen into the household and gives them a name. Change the look and add the next one, up to 10. **FAMILY** lists them: **EDIT** swaps one into the creator, so you become them and the Sim you were takes their place, and **MOVE OUT** removes one.
   - **In play:** the pause menu's **HOUSEHOLD** has **INVITE A NEW SIM** (a made-up Sim) and **MOVE SOMEONE OUT**, and **SELECT on the RELATIONSHIPS screen** invites someone too.
@@ -131,11 +131,11 @@ Walls are drawn like The Sims: a wall tile is a **thin, tall panel** (24 px, 3 b
   - Wants: TALK TO SOMEONE, MAKE A FRIEND, BEST FRIENDS, FIRST KISS, FALL IN LOVE, GO STEADY, GET A HUG, SHARE A LAUGH. Fears: BEING REJECTED, GETTING SLAPPED, A FIGHT, MAKING AN ENEMY, BEING LONELY.
   - **Pause menu > HOUSEHOLD > RELATIONSHIPS**: how you feel about everyone and how they feel about you, daily and lifetime. A family that moves in already knows each other, and its first two adults are a couple.
 - **The thought bubble** only shows when you stand still (nothing flashes over your head while you walk), and by default only for urgent needs (OPTIONS > HUD > THOUGHT BUBBLE: ALL brings the wants back).
-- **For now** the aspiration meter, wants, job, cash and skill belong to the household (whoever you control uses them), and the household is saved in SRAM at 18448 (one household, not per room slot).
+- **For now** the aspiration meter, wants, job, cash and skill belong to the household (whoever you control uses them), and the household is saved in SRAM at 5216 (one household, not per room slot).
 - RAM: each member's baked sprites are 11 KB (EWRAM), the free will state about 150 bytes a Sim.
 
 ## RAM budget (work RAM, not saves)
-The GBA has 256 KB of EWRAM and 32 KB of IWRAM. Check the numbers with `arm-none-eabi-size -A` on the object or ELF: `.sbss` is EWRAM, `.bss` + `.data` + `.iwram` are IWRAM (the stack shares what is left of IWRAM).
+The GBA has 256 KB of EWRAM and 32 KB of IWRAM. Every GitHub build prints the numbers in the job summary (`make size` does the same locally). By hand: `arm-none-eabi-size -A` on the object or ELF: `.sbss` is EWRAM, `.bss` + `.data` + `.iwram` are IWRAM (the stack shares what is left of IWRAM).
 | | EWRAM | IWRAM |
 |---|---|---|
 | before the audio rework | 237,000 B (90%) | 24,436 B |
@@ -146,6 +146,7 @@ The GBA has 256 KB of EWRAM and 32 KB of IWRAM. Check the numbers with `arm-none
 | after the IWRAM diet | 174,980 B (67%) | 20,496 B (12 KB left for the stack) |
 | 10-Sim household | 183,548 B (70%) | 20,752 B |
 | + routines, passers-by, Spore parts, walk frames | 240,800 B (92%) | 20,964 B |
+| 14-Sim household, 24-tile sprites, OBJ slots (`make size`) | 247,352 B (94%) | 22,324 B |
 | big users now | household sprite tiles `hhObj` 28 KB + bake buffer 11 KB, screen back buffer `fb` 76.8 KB, creature sprites `spr4` 11 KB, floor tiles `flTab` 8.6 KB, overlay `ovBuf` 5 KB, BFS queue + wall map 4.8 KB (wallpaper textures: ROM only) | mixer buffers, `irqStack` 1 KB, IWRAM code 14 KB |
 
 **IWRAM diet** (5.5 KB freed, the per-pixel hot paths untouched):
@@ -158,20 +159,27 @@ The GBA has 256 KB of EWRAM and 32 KB of IWRAM. Check the numbers with `arm-none
 
 **Room for more characters.** One baked character (4 views of 32 x 44 at 16 bits) is 11 KB, so the freed 124 KB holds about ten more at that size, or around twenty at 8 bits per pixel with a palette.
 
-## Save memory map (32 KB SRAM)
+## Save memory map (32 KB SRAM), layout 2
 | Offset | What |
 |---|---|
-| 0 | the room, "BM3" (4803 bytes; older 14 x 14 saves still load) |
-| 8192 | settings (16 bytes) |
-| 8448 | extended options (`opts.h`) |
-| 12288 | jukebox order and mode |
-| 12352 | active room slot |
-| 12416 | life stage and days in it |
-| 12432 | persona: aspiration, lifetime want, traits, DNA, unlocked parts |
-| 16384 | the life (`sims.h`) |
-| 18432 | 16 spare bytes for SAVE MEMORY TEST |
-| 18448 | the household (up to 7 more Sims, `house.h`) |
-| 20480 | six room slots of 2048 bytes (to the end of SRAM) |
+| 0 | the room being played, "BM3" (4803 bytes; older 14 x 14 saves still load) |
+| 4808 | layout marker `LY2` (set once the upgrade below has run) |
+| 4864 | settings (16 bytes) |
+| 4896 | extended options (`opts.h`) |
+| 4992 | active room slot |
+| 5008 | life stage and days in it |
+| 5024 | persona: aspiration, lifetime want, traits, DNA, unlocked parts |
+| 5056 | jukebox order and mode |
+| 5136 | the life (`sims.h`) |
+| 5200 | 16 spare bytes for SAVE MEMORY TEST |
+| 5216 | the household (up to 13 more Sims, `house.h`, format 'H6'; 2048 bytes reserved; 'H5' households load too) |
+| 8192 | **twelve** room slots of 2048 bytes (to the end of SRAM) |
+
+The full map, with the compile-time checks that keep the blocks from overlapping, is at the top of `source/slots.h`.
+
+**Upgrading a layout 1 save.** Layout 1 had six slots from 20480 and the small blocks in between. The first start of this version copies the small blocks down (`slMigrate`, `slots.h`), moves the active-slot number on by six, writes the marker and only then clears the old blocks, so a power cut at any point loses nothing. The six old slots are never touched: their bytes are now **slots 7 to 12**, with the same names and contents.
+
+**Room format 3.** New saves store the tiles, floors and wallpapers as three separate runs lists (floors and wallpapers change far less often than furniture), about a quarter smaller than the old combined runs on a furnished room. Formats 1 and 2 still load. The default 40 x 40 map takes about 1.4 KB of a slot's 2 KB; a room covered in scattered furniture can still be too big (the game says TOO BIG FOR A SLOT and leaves the slot as it was). The slot screen preview now draws every room format (it used to draw only the oldest).
 
 ## Combos and the action cam
 Clean tricks (spins, kickflips) and rail grinds now **chain**: each one adds to the chain and the chain multiplier equals the number of tricks. Land the next trick within 2.5 s (grinding keeps it alive) or the chain banks its bonus (points x (tricks - 1)). A bail or a hit loses the chain. The HUD shows `COMBO X5 2500` while it runs.
@@ -182,7 +190,7 @@ The play map is now **40 x 40 tiles** (was 14 x 14), about 8x the floor space. T
 - **Camera**: in play the view follows the skater, eased so it stays steady, and stops at the map edges. The action cam still spins round the skater.
 - **Speed**: only the tiles on screen are drawn, so the bigger map costs far less than drawing all 1600 tiles. Use SETTINGS (AUTO TUNE) if your device needs it.
 - **Map editor**: a dead-zone camera scrolls only when the cursor nears the edge of the screen, and a **minimap** (top right) shows the whole map, the area on screen and the blinking cursor.
-- **Saves**: new maps save in a bigger SRAM block (settings moved to offset 8192). Older 14 x 14 saves and settings still load; an old room is placed into the plaza of the new map and re-saves in the new format.
+- **Saves**: new maps save in a bigger SRAM block (settings moved, now at offset 4864). Older 14 x 14 saves and settings still load; an old room is placed into the plaza of the new map and re-saves in the new format.
 
 ## Skate objects and ramps
 New skate-park pieces, all in the room editor's ITEM tool (L/R to pick, **Select+A turns a ramp** to face S / E / N / W):
@@ -244,8 +252,9 @@ The title screen plays "The Dipper Man" (tools/the_dipper_man.xm). `python3 tool
 **Whistler Man (shuffle)**: `tools/make_whistler_rework.py` builds `tools/whistler_shuffle.xm` from "The Dipper Man - Whistler Man", a steely jazz-rock take. It runs 5:37 at 100 BPM.
 - **Kept from the original:** the bass walk, horn dyads, arp, whistled tune and trill lick, with their straight 16ths swung into triplets.
 - **The groove is the Purdie shuffle:** hats on the first and third triplet of each beat, the snare on 3 in half time, ghost notes on the middle triplets, kick on 1 plus pickups, and triplet fills.
-- **Harmony and band:** Gm9 | C9 | Fadd9 | D7#9 on Rhodes, plus clav, a swelling horn section, a breathy whistle with an echo or a harmony a third under it, jazz-guitar licks, and a bridge of D7#9 hits.
+- **Harmony and band:** Gm9 | C9 | Fadd9 | D9 on Rhodes, plus clav, a swelling horn section, a breathy whistle with an echo or a harmony a third under it, jazz-guitar licks, and a bridge of D9 hits.
 - **Technical:** all 16 voices, panned like a live band (`whistler_pan`).
+- **Secret:** the first version is still in the game as **WHISTLER MAN (ORIGINAL)** (`tools/whistler_shuffle_old.xm`), shown in the jukebox after the title-screen code.
 
 **Worthless Clouds**: rebuilt at load time by `make_clouds` in `tools/xm2gba.py` from `tools/worthless_clouds.xm`. It is a swung funk / house arrangement at 115 BPM over all 16 voices (`clouds_pan`) and runs 11:24.
 - **Second act:** after the original arrangement comes a build into a FINALE, where the lead is doubled an octave up on a free voice.
@@ -271,11 +280,11 @@ Main menu -> **JUKEBOX**. Opening it starts the song the playlist is on. The son
 | Select | re-roll the shuffle (saved; the playing song stays first) |
 | B | back to the menu |
 
-When a song ends the next one starts (REPEAT ONE replays it). **The shuffled order is saved in SRAM (offset 12288), so the song set comes back in the same shuffled order every time the game starts**, and the playlist carries on from the last song played. It is re-rolled only by SELECT, or automatically when the number of songs in `songs.h` changes. The mode is a normal setting (SETTINGS -> JUKEBOX).
+When a song ends the next one starts (REPEAT ONE replays it). **The shuffled order is saved in SRAM (offset 5056), so the song set comes back in the same shuffled order every time the game starts**, and the playlist carries on from the last song played. It is re-rolled only by SELECT, or automatically when the number of songs in `songs.h` changes. The mode is a normal setting (SETTINGS -> JUKEBOX).
 
 **Adding a tracker song (.xm):** copy it into `tools/`, add `SONG_XM(my_id,"MY SONG","tools/my_song.xm")` to `source/songs.h`, then run `python3 tools/xm2gba.py` (needs numpy + scipy) and commit the new `source/musicdata.h`. Tracker songs are tiny (tens of KB). The player handles up to 10 channels, 32 instruments, any pattern length, notes and the volume column; it ignores effects, panning, envelopes and note-off (the script warns if a song uses them). Speed/BPM must stay fixed in the song. `GAIN` in `tools/xm2gba.py` sets a song's loudness.
 
-**Adding streamed songs:** `python3 tools/encode_song.py "my song.mp3"` (needs ffmpeg + numpy). It writes `source/music/<id>.adp` and adds a `SONG_ADP(...)` line to `source/songs.h`. Song spec: 4-bit IMA-ADPCM, mono, 18157 Hz, about 9 KB per second, up to 32 songs. Song titles use capitals, digits and spaces (the font has no punctuation). The three `PLACEHOLDER` songs and the tracker songs (`SONG_XM`) are there so shuffle can be heard from day one: delete the placeholder lines in `songs.h` and the files in `source/music/` when you add real songs.
+**Adding streamed songs:** `python3 tools/encode_song.py "my song.mp3"` (needs ffmpeg + numpy). It writes `source/music/<id>.adp` and adds a `SONG_ADP(...)` line to `source/songs.h`. Song spec: 4-bit IMA-ADPCM, mono, 18157 Hz, about 9 KB per second, up to 64 songs. Song titles use capitals, digits and spaces (the font has no punctuation). The three `PLACEHOLDER` songs and the tracker songs (`SONG_XM`) are there so shuffle can be heard from day one: delete the placeholder lines in `songs.h` and the files in `source/music/` when you add real songs.
 The jukebox plays only on its own screen for now: music during gameplay needs a vblank interrupt (game frames can run longer than a sound buffer).
 
 
@@ -349,7 +358,7 @@ Wants: snack, WC, nap, get clean, sofa, land a trick, trick combo, 5 trick combo
 
 **Pause menu -> ASPIRATION.** The full panel: the meter, the lifetime want and its progress, the wants (UP/DOWN and A locks one) and fears with their points, reward points, DNA, sign and abilities. **R opens the aspiration rewards**: ENERGIZER (100, REST to full), THINKING CAP (150, the next skill level), MONEY TREE (300, pays 25 every midnight), ELIXIR OF LIFE (250, resets the days in the life stage).
 
-**Saving.** Needs, cash, the aspiration meter and reward points, the wants and fears (and the lock), clock, job level and progress, skill and the lifetime want counters are saved to SRAM (offset 16384, 52 bytes "SIM3"; an older 24 byte "SIM2" life still loads, its points become reward points) at every midnight, every payday, when you open the pause menu and when you leave the life game, with a checksum so a bad save is ignored. Dying only resets the needs: the life goes on. **Pause menu -> NEW LIFE** erases it and starts over.
+**Saving.** Needs, cash, the aspiration meter and reward points, the wants and fears (and the lock), clock, job level and progress, skill and the lifetime want counters are saved to SRAM (offset 5136, 52 bytes "SIM3"; an older 24 byte "SIM2" life still loads, its points become reward points) at every midnight, every payday, when you open the pause menu and when you leave the life game, with a checksum so a bad save is ignored. Dying only resets the needs: the life goes on. **Pause menu -> NEW LIFE** erases it and starts over.
 
 **Adding things.** A want or fear: add an `SE_` name if it needs a new event, a row **at the end** of `simWants` / `simFears` (rows are saved by index: name, event, points, furniture, icon, parameter, aspirations, trait, minimum, who), and map the game event in `simsMood()` (or call `simEvent(SE_X)` yourself). A need: a variable (and in `simsSave`/`simsLoad`), a rate in `simsTick()`, a use in `simBegin()`, a bar in `simsHud()`. A piece of furniture: art in `simart.h`, a slot in `palCh`/`palNm`/`palCol` and a `drawItemTile` line.
 
