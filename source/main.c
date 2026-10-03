@@ -1218,7 +1218,7 @@ static int surfH(s32 fx,s32 fy){   // surface height at an exact position (1/256
     int tx=(int)(fx>>8), ty=(int)(fy>>8); if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
     char c=lifeMap[ty][tx]; return isRamp(c)?rampH(c,(int)fx,(int)fy):tileH(tx,ty);
 }
-static void bakeSprites(void){   // render the built character once per view (4 turns), then just blit it
+static void bakeInto(u16 (*spr4)[SPW*SPH]){   // render the built character once per view (4 turns) into a sprite set, then just blit it
     int sv=view; noGrid=1;
     for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ ghost[y][z][x]=0; gdec[y][z][x]=0; }
     for(int v=0;v<4;v++){
@@ -1248,6 +1248,8 @@ static void bakeSprites(void){   // render the built character once per view (4 
         if(x<spBx0) spBx0=x; if(x+1>spBx1) spBx1=x+1; if(y<spBy0) spBy0=y; if(y+1>spBy1) spBy1=y+1; }
     if(spBx0>=spBx1){ spBx0=0; spBx1=SPW; spBy0=0; spBy1=SPH; }
 }
+static void hhBakeAll(void);
+static void bakeSprites(void){ hhBakeAll(); }   // the player and every household member (house.h)
 IWRAM_CODE static void blit(const u16*s,int x0,int y0){
     int ia=cX0-x0, ib=cX0+(int)cW-x0; if(ia<spBx0) ia=spBx0; if(ib>spBx1) ib=spBx1; if(ia>=ib) return;
     for(int y=spBy0;y<spBy1;y++){ int yy=y0+y; if((unsigned)(yy-cY0)>=cH) continue;
@@ -1482,10 +1484,12 @@ static void autoTune(void){
 
 static const signed char hdT[3][3]={{10,12,14},{8,-1,0},{6,4,2}};   // [sign dy+1][sign dx+1] -> heading (16 steps), -1 = keep
 #include "feel.h"
+static void hhStart(void); static void hhTick(void);   // house.h (included further down, next to the drawing it hooks into)
 static void lifeInit(void){
     { static int spanDone; if(!spanDone){ spanDone=1; itemSpanInit(); } }
     if(!(shapeMask()>>look[LK_SHAPE]&1)){ look[LK_SHAPE]=(u8)maskPick(shapeMask(),look[LK_SHAPE],NSHAPE); if(!custom) buildLook(); }
-    mapScan(); bakeSprites(); camSnap=1;
+    mapScan(); hhStart();
+    bakeSprites(); camSnap=1;
     lfx=spx*256+128; lfy=spy*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote=""; lskate=0; lhave=(bdx<0); lfr=0; lvx=lvy=0; ldead=0; lmaxz=0; lplay=0; lbumpCd=0; lfood=100; lbl=0; lnear=0; moodReset(); simsReset(); sfxStop(); feelReset(0);
 }
 static int rampAvg, rampOn;   // px/step (8.8) the skater has been climbing a ramp, smoothed (heights are whole px, so single steps are lumpy); rampOn = rode a ramp last step
@@ -1573,7 +1577,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
     if(!lhave&&lz<(8<<8)&&(lfx>>8)==BDX&&(lfy>>8)==BDY){ lhave=1; lnote="GOT A SKATEBOARD"; lnoteT=90; moodEvent(M_GOT_BOARD); }   // walk over it to pick it up
     if(!ldead){   // needs: hunger and bladder, then how they (and the skating) make the skater feel
         if(stage==AG_BABY){ if(lfood<70) lfood=70; if(lbl>30) lbl=30; if(sNrg<60) sNrg=60; if(sHyg<60) sHyg=60; if(sCom<60) sCom=60; }   // looked after
-        moodTick(); simsTick(pr,(int)(lfx>>8),(int)(lfy>>8));
+        moodTick(); simsTick(pr,(int)(lfx>>8),(int)(lfy>>8)); hhTick();
         if(gGrow){ gGrow=0; setStage(stage+1); bakeSprites(); lnote=growNote[stage]; lnoteT=120; lstun=lstun>30?lstun:30; lsp=0; }
         { int fe=oFoodEvery(), we=oWcEvery();   // FOOD AND WC option
           if(fe&&lfr%fe==0&&lfood>0) lfood--;
@@ -1686,6 +1690,7 @@ static int lpsx, lpsy;   // where the player is on screen (zoom centre)
 // The pad walks along the screen's up / down / left / right, which are the diagonals of the tile grid, so those four headings sit between two views:
 // they pick the one that reads right (down and left show the face, right shows the face, up shows the back).
 static const u8 faceView[16]={3,3,0,0,0,0,0,1,1,1,2,2,2,2,3,3};
+#include "house.h"   // households: up to 7 more Sims with free will, SELECT switches who you control
 static int plX, plY, plZ, plFh, plV, plBob;   // feet on screen, height above the floor, floor height under the feet, which baked view
 static void playerCalc(void){
     s32 rfx,rfy; rotPos(lfx,lfy,&rfx,&rfy);
@@ -1693,6 +1698,7 @@ static void playerCalc(void){
     plFh=surfH(lfx,lfy); plZ=(int)(lz>>8); plV=faceView[(lhd+lspin+4*cview)&15];
     plBob=(!lskate&&plZ<=plFh&&(lvx|lvy)&&lstun<=2)?(int)((lfr>>3)&1):0;   // a little step bounce while he walks
     lpsx=plX; lpsy=plY-20;
+    hhCalc();
 }
 static void drawPlayerNow(void){
     if(sShad){ rect(plX-3,plY-plFh-1,7,2,RGB(10,8,5)); rect(plX-1,plY-plFh-2,3,4,RGB(10,8,5)); }   // shadow
@@ -1723,8 +1729,10 @@ static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
             if((ed&&c=='B')||(!ed&&!lhave&&ox==BDX&&oy==BDY)) blitItem(V_BOARD,sx,sy-(ed?0:((lfr>>4)&1)));   // the skateboard pickup, bobbing
             if(ed&&c=='P') drawSpawn(sx,sy+1);   // little person = spawn
         }
+        if(!ed&&hhN) hhDrawBand(s,s);
         if(!ed&&s==ss) drawPlayerNow();
     }
+    if(!ed&&hhN) hhDrawBand(s1+1,9999);
     if(!ed&&ss>s1) drawPlayerNow();   // the feet are below the rectangle but the head is inside it: nothing in front can reach it, so draw last
     clipAll();
 }
@@ -1778,7 +1786,7 @@ static void drawFace(int x,int y,int st){
 // the very same pixels a whole-screen draw would make) and copied to VRAM. fb therefore only holds the last patches, not the room.
 // What floats over the room (thought bubble, plumbob) is not part of the room: the pixels under it are saved before it is drawn and put back before
 // it moves, so it costs a copy, not a redraw of the room behind it.
-#define NRC 12
+#define NRC 28   // (room for the household's Sims: each can add its old and new rectangle)
 static Rc rcs[NRC]; static int nrc;
 static int vpValid;                 // the screen holds the room as of pCamX/pCamY (cleared by anything that draws over it: menus, other screens)
 static int pCamX, pCamY;            // camera of the last picture
@@ -1873,6 +1881,7 @@ static void liveFull(void){   // the whole scene and both panels, from scratch
     present();
     pCamX=camX; pCamY=camY;
     Rc r; actorRc(&r); actOld=r; actHas=1; actSig=actSigNow();
+    for(int m=0;m<hhN;m++){ hhRc(m,&hhOld[m]); hhOldSig[m]=hhSig(m); }
     pBob=(!lhave)?((lfr>>4)&1):-1;
     vpValid=(lcamF>0)?0:1;
 #ifdef SELFTEST
@@ -1894,6 +1903,8 @@ static void livePatch(int dx,int dy){
         rcAdd(a.x0,a.y0,a.x1,a.y1);
         if(actHas) rcAdd(actOld.x0-dx,actOld.y0-dy,actOld.x1-dx,actOld.y1-dy);
     }
+    for(int m=0;m<hhN;m++){ unsigned sg=hhSig(m);   // household members: same as the player
+        if(dx||dy||sg!=hhOldSig[m]){ HhR r; hhRc(m,&r); rcAdd(r.x0,r.y0,r.x1,r.y1); if(hhOld[m].x1>hhOld[m].x0) rcAdd(hhOld[m].x0-dx,hhOld[m].y0-dy,hhOld[m].x1-dx,hhOld[m].y1-dy); hhOld[m]=r; hhOldSig[m]=sg; } }
     int bob=(!lhave)?((lfr>>4)&1):-1; if(bob!=pBob) liveBoardRc();
     for(int i=0;i<nrc;i++) drawRoomRect(rcs[i].x0,rcs[i].y0,rcs[i].x1,rcs[i].y1,0);
 #ifdef SELFTEST
@@ -1947,7 +1958,26 @@ static void camStep(int steps,u16 k,u16 pr){   // action cam: the game holds sti
     else { int f=lcamF; cview=(f<6||f>=60)?0:(f-6)/18+1; if(cview>3) cview=0; }
 }
 static int gToMenu;   // set when the player picks MAIN MENU in the pause menu, so every screen above returns to it
-static const char* const lifeItems[8]={"RESUME","ASPIRATION","HOW TO PLAY","OPTIONS","ROOM SLOTS","EDIT MAP","NEW LIFE","MAIN MENU"};
+static const char* const lifeItems[9]={"RESUME","ASPIRATION","HOUSEHOLD","HOW TO PLAY","OPTIONS","ROOM SLOTS","EDIT MAP","NEW LIFE","MAIN MENU"};
+static char hhPName[10]="YOU";   // the name of the Sim you control (premade Sims bring theirs)
+static void hhSwap(HhSim*s){   // trade places: the player becomes s, s becomes who the player was
+    s32 x=lfx, y=lfy; lfx=s->fx; lfy=s->fy; s->fx=x; s->fy=y;
+    { u8 h=(u8)(lhd&15); lhd=s->hd; s->hd=h; }
+    { int v;
+      v=lfood; lfood=s->need[HN_FOOD]; s->need[HN_FOOD]=(u8)v;
+      v=100-lbl; lbl=100-s->need[HN_WC]; s->need[HN_WC]=(u8)v;
+      v=sNrg; sNrg=s->need[HN_REST]; s->need[HN_REST]=(u8)v;
+      v=sHyg; sHyg=s->need[HN_CLEAN]; s->need[HN_CLEAN]=(u8)v;
+      v=sCom; sCom=s->need[HN_COMFY]; s->need[HN_COMFY]=(u8)v;
+      v=moodFunPct(); moodFun=s->need[HN_FUN]*MOOD_ONE; s->need[HN_FUN]=(u8)v; }
+    for(int i=0;i<LK_N;i++){ u8 t=look[i]; look[i]=s->look[i]; s->look[i]=t; }
+    { u8 t=stage; stage=s->stage; s->stage=t; t=pAsp; pAsp=s->asp; s->asp=t; t=pLtw; pLtw=s->ltw; s->ltw=t; }
+    for(int i=0;i<TR_N;i++){ u8 t=pTr[i]; pTr[i]=s->tr[i]; s->tr[i]=t; }
+    for(int i=0;i<10;i++){ char t=hhPName[i]; hhPName[i]=s->name[i]; s->name[i]=t; }
+    s->act=HA_IDLE; s->think=30; s->gok=0;
+    lz=lvz=0; lsp=0; lskate=0; lgrind=0; lstun=0; lairF=0; feelReset(lhd);
+    buildLook(); setColors(); ageSave(); persSave();
+}
 // ---- the ASPIRATION panel (pause menu): the Sims 2 wants and fears panel, the lifetime want, the reward shop, and the creature's Spore side ----
 // UP DOWN pick a want | A lock it (one at a time: a locked want survives the reroll when you wake up) | R aspiration rewards | B back
 static void aspRewards(void){
@@ -2036,18 +2066,25 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
         int steps=(acc+110)/TICKS_FRAME; if(steps>6){ steps=6; acc=0; } else acc-=steps*TICKS_FRAME;
         u16 k=keyNow(), pr=k&~prev; prev=k;
         if((k&K_SEL)&&(k&K_START)) break;
+        { static int selArm;   // SELECT tapped on its own (not SELECT+START, not during the action cam): control the next Sim of the household
+          if((pr&K_SEL)&&!(k&K_START)&&lcamF==0) selArm=1; if(k&K_START) selArm=0;
+          if(selArm&&!(k&K_SEL)){ selArm=0;
+              if(!hhN){ lnote="NO ONE ELSE LIVES HERE"; lnoteT=60; }
+              else if(custom){ lnote="HAND BUILT SIMS CANNOT SWITCH"; lnoteT=60; }
+              else { hhSwitch(); lnote=hhPName; lnoteT=60; liveInvalidate(); camSnap=1; } } }
         if(pr&K_START){   // pause menu
-            mGainT=128; sfxStop(); simsSave();   // the music fades to half while a menu is open   // the pause menu is also a save point
+            mGainT=128; sfxStop(); simsSave(); hhSave();   // the music fades to half while a menu is open   // the pause menu is also a save point
             liveInvalidate(); lifeDraw();          // a whole picture behind the menu (the screen itself only holds patches)
-            int c=menu("PAUSED",ed?lifeItemsEd:lifeItems,ed?4:8);
-            if(ed&&c>=1) c++;   // the test-play menu has no ASPIRATION entry
+            int c=menu("PAUSED",ed?lifeItemsEd:lifeItems,ed?4:9);
+            if(ed&&c>=1) c+=2;   // the test-play menu has no ASPIRATION or HOUSEHOLD entry
             if(c==1) aspPanel();
-            else if(c==2) helpScreen("HOW TO PLAY",lifeHelp,16);
-            else if(c==3) settingsScreen();
-            else if(c==4&&!ed){ simsSaveNow(); if(slotScreen()) lifeInit(); }   // a slot was loaded: start again in the loaded room (the life was written first, so nothing is lost)
-            else if(c==5&&!ed){ vpY0=0; vpY1=SH; mapEditor(); lifeInit(); }
-            else if(c==6&&!ed){ if(menu("START A NEW LIFE",yesNoLife,2)==1){ simsNewLife(); moodReset(); lscore=0; simLastScore=0; lnote="NEW LIFE"; lnoteT=60; } }
-            else if((c==4&&ed)||c==7){ if(c==7) gToMenu=1; break; }
+            else if(c==2) hhMenu();
+            else if(c==3) helpScreen("HOW TO PLAY",lifeHelp,16);
+            else if(c==4) settingsScreen();
+            else if(c==5&&!ed){ simsSaveNow(); hhSave(); if(slotScreen()) lifeInit(); }   // a slot was loaded: start again in the loaded room (the life was written first, so nothing is lost)
+            else if(c==6&&!ed){ vpY0=0; vpY1=SH; mapEditor(); lifeInit(); }
+            else if(c==7&&!ed){ if(menu("START A NEW LIFE",yesNoLife,2)==1){ simsNewLife(); moodReset(); lscore=0; simLastScore=0; lnote="NEW LIFE"; lnoteT=60; } }
+            else if((c==5&&ed)||c==8){ if(c==8) gToMenu=1; break; }
             hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=0; continue;
         }
         if(lcamF>0) camStep(steps,k,pr);
@@ -2058,7 +2095,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
         gmTick(); lifeDraw(); workT+=(u16)(lifeVs-w0);
         fpsN++; if(fpsT>=65536){ lfpsV=fpsN; lloadV=(int)(workT/(u32)fpsN*100/(u32)((sFps+1)*TICKS_FRAME)); workT=0; fpsN=0; fpsT-=65536; }
     }
-    simsSave(); R_TM2CNT=0; gmStop(); sfxStop(); lcamF=0; cview=0; vpY0=0; vpY1=SH; clipAll(); liveInvalidate();   // leaving the life game saves it
+    simsSave(); hhSave(); R_TM2CNT=0; gmStop(); sfxStop(); lcamF=0; cview=0; vpY0=0; vpY1=SH; clipAll(); liveInvalidate();   // leaving the life game saves it
     while((~REG_KEYINPUT)&0x3FF) vsync();   // wait for release so the caller doesn't see the exit keys
 }
 

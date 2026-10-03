@@ -82,12 +82,21 @@ The slot you saved to or loaded last is the **active slot**. With SAVE MAP TO SL
 
 **Format** (all in `source/slots.h`, made so a whole house can be added later without breaking any save): a 32 byte header (magic, version, kind ROOM or HOUSE, span = how many consecutive slots it covers, what it holds, payload length and checksum, map size, save counter, name) and then a list of tagged chunks (`R` room as run-length packed tiles, `C` person, `L` life, `H` reserved for the house plan). Readers skip tags they do not know. A house is KIND 1 with a span of several slots; the slot screen already lists, protects and deletes those. To add houses: write `houseSave()` / `houseLoad()` and set `SLOT_HOUSE_READY` to 1.
 
+## Households (up to 8 Sims)
+**Pause menu -> HOUSEHOLD** moves in a premade family (original characters: THE GRINDERS, a skater family of three; THE MIDNIGHTS, a pale night-owl family; THE FRESHLYS, a young couple) or moves everyone out. A household is you plus up to 7 more Sims (`source/house.h`).
+- **SELECT** (a tap, not SELECT+START) switches who you control: position, needs, look, persona and sprites trade places, and the camera jumps to the new Sim. Hand-built (block builder) creatures cannot switch yet.
+- **Free will**: the Sims you do not control look after themselves. Each kind of furniture advertises a need (fridge FOOD, toilet WC, bed REST, shower CLEAN, sofa COMFY) and wandering about gives FUN. A Sim scores them (how low the need is, squared, tilted by its traits: neat Sims shower sooner, lazy ones sit, playful ones roam), picks one of the two best, finds a path (breadth-first search on the 40x40 tiles, one Sim plans per step), walks there and uses it. **OPTIONS > PLAY > FREE WILL**: OFF / LOW (waits until needs are lower, thinks half as often) / HIGH.
+- Other Sims are drawn by the same back-to-front room renderer as you, so walls and furniture in front of them still cover them.
+- **For now** the aspiration meter, wants, job, cash and skill belong to the household (whoever you control uses them), and the household is saved in SRAM at 18448 (one household, not per room slot).
+- RAM: each member's baked sprites are 11 KB (EWRAM), the free will state about 150 bytes a Sim.
+
 ## RAM budget (work RAM, not saves)
 The GBA has 256 KB of EWRAM and 32 KB of IWRAM. Check the numbers with `arm-none-eabi-size -A` on the object or ELF: `.sbss` is EWRAM, `.bss` + `.data` + `.iwram` are IWRAM (the stack shares what is left of IWRAM).
 | | EWRAM | IWRAM |
 |---|---|---|
 | before the audio rework | 237,000 B (90%) | 24,436 B |
-| now | 113,000 B (43%) | 24,812 B |
+| after the audio rework | 113,000 B (43%) | 24,812 B |
+| with the 8-Sim household | 211,180 B (81%) | 25,452 B |
 | big users now | screen back buffer `fb` 76.8 KB, creature sprites `spr4` 11 KB, floor tiles `flTab` 8.6 KB, overlay `ovBuf` 5 KB | mixer buffers, `irqStack` 1 KB, IWRAM code 14 KB |
 
 **Audio driver.** Sound effects used to be decoded whole into a 124 KB buffer (the longest clip is 15 s) and played on their own, pausing the music. Now an effect is one more voice in the interrupt-driven music mixer: it is decoded a few samples at a time straight from the ROM and resampled from 6554 Hz to the mixer's 18157 Hz (`sfxMix`), so it needs no buffer and plays over the game music. When nothing plays, the mixer switches itself off (`audStart` / `audStop`). The title screen used to borrow that buffer for a whole-screen copy of its backdrop; it now keeps only the two areas it repaints (the smoke and PRESS START), about 10 KB, inside `spr4` before any sprite is baked.
@@ -106,6 +115,7 @@ The GBA has 256 KB of EWRAM and 32 KB of IWRAM. Check the numbers with `arm-none
 | 12432 | persona: aspiration, lifetime want, traits, DNA, unlocked parts |
 | 16384 | the life (`sims.h`) |
 | 18432 | 16 spare bytes for SAVE MEMORY TEST |
+| 18448 | the household (up to 7 more Sims, `house.h`) |
 | 20480 | six room slots of 2048 bytes (to the end of SRAM) |
 
 ## Combos and the action cam
