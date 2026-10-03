@@ -260,6 +260,7 @@ The title screen plays "The Dipper Man" (tools/the_dipper_man.xm). `python3 tool
 - **Harmony and band:** Gm9 | C9 | Fadd9 | D9 on Rhodes, plus clav, a swelling horn section, a breathy whistle with an echo or a harmony a third under it, jazz-guitar licks, and a bridge of D9 hits.
 - **Technical:** all 16 voices, panned like a live band (`whistler_pan`).
 - **Secret:** the first version is still in the game as **WHISTLER MAN (ORIGINAL)** (`tools/whistler_shuffle_old.xm`), shown in the jukebox after the title-screen code.
+- **Smoother take:** the bridge's band hits now follow the bass walk (Gm9, C9, Fadd9, D9) instead of hitting D over it, and the tune after the bridge stays in its own octave (an octave up it went shrill). The whistle, horns and hats are rounder and darker. The first version is still the secret **WHISTLER MAN (ORIGINAL)**.
 
 **Worthless Clouds**: rebuilt at load time by `make_clouds` in `tools/xm2gba.py` from `tools/worthless_clouds.xm`. It is a swung funk / house arrangement at 115 BPM over all 16 voices (`clouds_pan`) and runs 11:24.
 - **Second act:** after the original arrangement comes a build into a FINALE, where the lead is doubled an octave up on a free voice.

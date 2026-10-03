@@ -33,7 +33,7 @@ x = bp(noise(n), 1500, 6500) * np.exp(-t / .07) + (np.sin(2 * np.pi * 185 * t) +
 add('snare', 'fat snare', finish(np.tanh(1.4 * x), .9))
 n = int(.09 * SR); t = tt(n)
 add('ghost', 'ghost snare', finish(bp(noise(n), 2000, 7000) * np.exp(-t / .025) + np.sin(2 * np.pi * 200 * t) * np.exp(-t / .02) * .3, .5))
-n = int(.06 * SR); add('hat', 'tight hat', finish(hp(noise(n) * np.exp(-tt(n) / .014), 7500, 4), .36))
+n = int(.06 * SR); add('hat', 'tight hat', finish(hp(noise(n) * np.exp(-tt(n) / .014), 7500, 4), .3))
 n = int(.38 * SR); add('ohat', 'open hat', finish(hp(noise(n) * np.exp(-tt(n) / .12), 6500, 4), .4))
 n = int(.18 * SR); t = tt(n)
 add('tamb', 'tambourine', finish(hp(noise(n), 6000, 3) * (np.exp(-t / .03) + .5 * np.exp(-((t - .05) ** 2) / .0004)), .32))
@@ -52,13 +52,13 @@ x = square(f, n) * .5 + saw(f, n) * .5; x = bp(x, 900, 4500) * np.exp(-t / .07) 
 add('clav', 'clav', finish(x * np.minimum(1, t / .001), .6), 60)
 n = int(.55 * SR2); t = tt(n, SR2); f = mid2f(72)                                  # horn section (C5): saws that swell open ("bwah")
 x = sum(saw(f * 2 ** (c / 1200), n, SR2, ph=rng.uniform(0, 6.28)) for c in (-7, 0, 7)) / 3
-env = np.minimum(1, t / .04) * np.exp(-t / .5); cut = 700 + 2600 * np.minimum(1, t / .08)
+env = np.minimum(1, t / .04) * np.exp(-t / .5); cut = 600 + 1700 * np.minimum(1, t / .08)   # (a darker bwah than before: less glare on top)
 seg = [lp(x[i:i + 256], cut[min(i + 128, n - 1)], 2, SR2) for i in range(0, n, 256)]
 add('horn', 'horn section', finish(np.concatenate(seg)[:n] * env, .7), 72, rel=5)
 n = int(.8 * SR2); t = tt(n, SR2); f = mid2f(84)                                   # the whistle (C6): pure, breathy, vibrato after a moment
 vib = f * (1 + .008 * np.sin(2 * np.pi * 5.6 * t) * np.clip((t - .12) / .2, 0, 1)); w = 2 * np.pi * np.cumsum(vib) / SR2
-x = np.sin(w) + .04 * np.sin(2 * w) + bp(noise(n), 2500, 4500, 2, SR2) * (.12 * np.exp(-t / .05) + .03)
-add('whistle', 'whistle', finish(x * np.minimum(1, t / .025) * np.minimum(1, (t[-1] - t) / .2), .72), 84, rel=5)
+x = np.sin(w) + .04 * np.sin(2 * w) + lp(bp(noise(n), 1800, 3600, 2, SR2), 2400, 2, SR2) * (.06 * np.exp(-t / .05) + .015)   # round, the breath kept low
+add('whistle', 'whistle', finish(x * np.minimum(1, t / .04) * np.minimum(1, (t[-1] - t) / .2), .72), 84, rel=5)
 f = mid2f(64); L = int(round(SR / f)); n = int(.7 * SR); y = np.zeros(n); y[:L] = noise(L)   # jazz guitar (E4): plucked string
 for i in range(L, n): y[i] = .995 * .5 * (y[i - L] + (y[i - L - 1] if i - L - 1 >= 0 else 0))
 add('guitar', 'jazz guitar', finish(np.tanh(1.6 * lp(y, 3500)) * np.exp(-tt(n) / .4), .66), 64)
@@ -120,10 +120,12 @@ def build(p):
             else: put(sw(k) + 6, 13, 'whistle', m + o, p['tune'] * .38)
     if p.get('lick'):
         for k, m in LICK: put(sw(k), 14, 'guitar', m + p.get('lo', 0), p['lick'] - (k % 4) * 3)
-    if p.get('hits'):                                                   # bridge: the D9 hit, horns and Rhodes together
-        for r in (0, 10, 24, 34):
-            for j, m in enumerate((54, 60, 64)): put(r, 6 + j, 'rhodes', m, p['hits'])
-            put(r, 10, 'horn', 66, p['hits']); put(r, 11, 'horn', 72, p['hits'] - 4)
+    if p.get('hits'):                                                   # bridge: band hits that follow the bass walk (Gm9 | C9 | Fadd9 | D9), so nothing
+        HORNV = ((65, 70), (64, 70), (65, 69), (60, 66))                # sits against it: the horns move between the chords' thirds and sevenths
+        for c, (r0, ch) in enumerate(CHORDS):
+            for r, dv in ((r0, 0), (r0 + 5, 12)):                        # the hit and a softer pushed echo on the third triplet
+                for j, m in enumerate(ch[:3]): put(r, 6 + j, 'rhodes', m, p['hits'] - dv - j * 3)
+                put(r, 10, 'horn', HORNV[c][0], p['hits'] - 6 - dv); put(r, 11, 'horn', HORNV[c][1], p['hits'] - 10 - dv)
     if p.get('teaser'):
         for k, m in TUNE[:4]: put(sw(k) + 24, 12, 'whistle', m, p['teaser'])
     for (r, key, vol) in p.get('fx', ()): put(r, 15, key, None, vol)
@@ -138,12 +140,12 @@ sec(2, rhodes=42, comp=1, bass=50, drums=1, teaser=48); S[-1]['fill'] = 1
 sec(8, rhodes=40, comp=1, bass=56, drums=2, clav=40); S[-8]['fx'] = ((0, 'crash', 48),)   # the groove: the Purdie shuffle
 S[-1]['fill'] = 1; S[-1]['ohat'] = 1
 sec(8, rhodes=38, comp=1, bass=56, drums=3, clav=34, horns=52)                          # the horn hook
-sec(8, rhodes=38, comp=1, bass=56, drums=3, clav=30, tune=54); S[-8]['fx'] = ((0, 'crash', 50),)   # the whistled tune
+sec(8, rhodes=38, comp=1, bass=56, drums=3, clav=30, tune=50); S[-8]['fx'] = ((0, 'crash', 50),)   # the whistled tune
 S[-1]['fill'] = 1
-sec(8, rhodes=42, comp=1, bass=54, drums=2, rideon=1, lick=46, lo=12)                   # solo: guitar licks over the ride
-sec(4, hits=50, drums=1, bass=50); S[-1]['fill'] = 1                                   # bridge: D9 hits
-sec(8, rhodes=38, comp=1, bass=58, drums=3, clav=30, tune=54, oct=12, harm=1); S[-8]['fx'] = ((0, 'crash', 54),)   # tune again, up, harmonised
-sec(8, rhodes=40, comp=1, bass=58, drums=3, horns=54, tune=50, lick=36); S[-1]['fill'] = 1   # shout chorus
+sec(8, rhodes=42, comp=1, bass=54, drums=2, rideon=1, lick=44)                   # solo: guitar licks over the ride
+sec(4, hits=46, drums=1, bass=50); S[-1]['fill'] = 1                                   # bridge: band hits on the changes
+sec(8, rhodes=40, comp=1, bass=58, drums=3, clav=30, tune=50, harm=1); S[-8]['fx'] = ((0, 'crash', 54),)   # tune again, harmonised (in its own octave: up an octave it went shrill)
+sec(8, rhodes=40, comp=1, bass=58, drums=3, horns=48, tune=48, lick=34); S[-1]['fill'] = 1   # shout chorus
 sec(8, rhodes=38, comp=1, bass=52, drums=2, clav=34, horns=40)                          # outro vamp
 sec(4, rhodes=34, comp=1, bass=46, drums=1, teaser=40)
 sec(2, rhodes=36)
