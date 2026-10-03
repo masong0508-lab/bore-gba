@@ -5,10 +5,6 @@
 // A song with no line here simply shows no artist. Real UTF-8 works: the font (see "EXTENDED FONT" in README.md) draws punctuation, Latin-1 and
 // Latin Extended-A letters with their accents (Polish, Czech, Hungarian, Romanian, Turkish, Croatian ...), ss, ae, oe, o-slash, euro, pound and more.
 // Anything it still lacks falls back to the plain letter.
-ARTIST("SONG NAME","Artist")     SONG NAME = the name exactly as it is written in source/songs.h
-//
-// A song with no line here simply shows no artist. Punctuation and accents work (UTF-8): the font draws . , ' ! ? : ; - ( ) / & and lowercase accented
-// letters (a e i o u with acute / grave / circumflex / diaeresis, ã õ ñ ç, plus the inverted ¿ ¡). Capital accents show as the plain capital.
 ARTIST("AIM AND SHOOT","Singhs")
 ARTIST("AN ODE TO THE SPANISH FLEXICODE","Singhs")
 ARTIST("AMIGA MUSIC","DayBar")
