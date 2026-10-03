@@ -38,6 +38,9 @@ static u16 fb[SW*SH] EWRAM_BSS;
 #define SPW 32   // baked at half size so the skater is ~2 tiles tall in the room
 #define SPH 44
 static u16 spr4[4][SPW*SPH] EWRAM_BSS;   // the creature's sprites, one per view (bakeSprites)
+static u16 spr4s[4][SPW*SPH] EWRAM_BSS;  // the same with the legs mid-stride (walking alternates the two)
+#define STR_Y0 8                         // the stride frame differs from the standing one only in half-size rows STR_Y0..STR_Y1-1
+#define STR_Y1 48                        // (OBJ tile rows 1..5: what household sprites keep a second copy of)
 // The title screen only has to repaint two small areas of its backdrop (the smoke and the PRESS START box), so it keeps just those, in
 // spr4: the title shows once at power on, before any sprite is baked. (This used to be a whole-screen copy inside a 124 KB sound buffer.)
 #define tfb (&spr4[0][0])
@@ -451,7 +454,7 @@ static void rotUW(int u,int w,int*ru,int*rw){
     switch(view){ case 0:*ru=u;*rw=w;break; case 1:*ru=-w;*rw=u;break; case 2:*ru=-u;*rw=-w;break; default:*ru=w;*rw=-u; }
 }
 // u,w = doubled grid coords relative to the build-space centre
-static int liftK, liftL, bakeCapH=99, bakeCapW=99, bakeWk;   // HEIGHT slider: every one of the first liftL rows (the legs) is liftK px taller
+static int liftK, liftL, bakeCapH=99, bakeCapW=99, bakeWk, strideK;   // strideK: legs (shape 3) half a block forward / back, arms the other way   // HEIGHT slider: every one of the first liftL rows (the legs) is liftK px taller
 static void projC(int u,int w,int yy,int*ox,int*oy){
     int a,b; rotUW(u,w,&a,&b); *ox=OXC+(a-b)*CA/2; *oy=OYC+(a+b)*CB/2-yy*CC-liftK*(yy<liftL?yy:liftL);
 }
@@ -943,6 +946,7 @@ IWRAM_THUMB static void drawScene(int blink){
         if(gdec[y][z][x]&&blink&&fv<0) ci=8;   // face turned away: flag the target voxel instead
         if(!ci) continue;
         int u=2*x+1-W, w=2*z+1-D;
+        if(strideK&&shape>=1&&shape<=3) w+=((x<W/2)==(shape==3))?strideK:-strideK;   // the walk: legs (shape 3) and arms (1, 2) swing, in either creator
         int sx,sy; projC(u,w,y+1,&sx,&sy);   // top-face centre
         int bw=(y<hyB&&shape<4)?(shape==1||shape==2?wk/2:wk):0;
         if(shape==1||shape==2){ int sg=u<0?1:-1, a2,b2, hg=HUG-wk; rotUW(sg,0,&a2,&b2); sx+=hg*(a2-b2); sy+=(hg*(a2+b2))/2; }   // hug the torso (a heavier torso pushes the arms out)
@@ -1922,7 +1926,7 @@ static void playerCalc(void){
 static void drawPlayerNow(void){
     if(sShad){ rect(plX-3,plY-plFh-1,7,2,RGB(10,8,5)); rect(plX-1,plY-plFh-2,3,4,RGB(10,8,5)); }   // shadow
     if(lskate){ rect(plX-6,plY-plZ-1,12,2,RGB(26,10,6)); rect(plX-5,plY-plZ+1,2,2,RGB(3,3,6)); rect(plX+3,plY-plZ+1,2,2,RGB(3,3,6)); }   // board under the feet
-    blit(spr4[plV],plX-16,plY-40-plZ-plBob);
+    blit((plBob&&!lskate)?spr4s[plV]:spr4[plV],plX-16,plY-40-plZ-plBob);   // walking: the stride frame on the up-step
 }
 // The room inside the rectangle x0..x1 / y0..y1 (end excluded), drawn back to front and clipped to it: the same pixels a whole-screen
 // draw would put there. ed=1: editor view (no player).

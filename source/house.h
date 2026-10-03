@@ -49,8 +49,11 @@ static u8 hhBubT; static const char* hhBubTxt;   // the word over your head duri
 #define OBJ_PAL  ((volatile u16*)0x05000200)
 #define OAM      ((volatile u16*)0x07000000)
 static u8 hhObj[HH_MAX][4][1024] EWRAM_BSS;    // 4 views x 32x64 x 4bpp, tiles in 1D order
+#define STR_B0 128                               // the stride frame: tile rows 1..5 of each view (bytes 128..767), the rest is as standing
+#define STR_BN 640
+static u8 hhObjS[HH_MAX][4][STR_BN] EWRAM_BSS;
 #define TW_N 2                                   // passers-by (townies): OAM, OBJ VRAM and palettes after the members'
-static u8 twObj[TW_N][4][1024] EWRAM_BSS; static u16 twPal[TW_N][16]; static signed char twObjV[TW_N];
+static u8 twObj[TW_N][4][1024] EWRAM_BSS, twObjS[TW_N][4][STR_BN] EWRAM_BSS; static u16 twPal[TW_N][16]; static signed char twObjV[TW_N];
 static u16 hhPal[HH_MAX][16];                  // a palette per member (index 0 = clear)
 static u16 hhTmp[4][SPW*SPH] EWRAM_BSS;        // a 16-bit bake (one Sim) on its way to 4bpp, or back
 static signed char hhObjV[HH_MAX];             // the view in OBJ VRAM for each member (-1 = must copy)
@@ -98,12 +101,23 @@ static void hhQuant(u16 (*src)[SPW*SPH],u8 (*dst)[1024],u16*pal){
             int t=(y>>3)*4+(x>>3), o=t*32+(y&7)*4+((x&7)>>1); dst[v][o]|=(u8)(best<<((x&1)*4)); }
     }
 }
+static void hhQuantS(u16 (*src)[SPW*SPH],u8 (*dst)[STR_BN],const u16*pal){   // the stride band, in the palette the standing frame chose
+    for(int v=0;v<4;v++){
+        for(int i=0;i<STR_BN;i++) dst[v][i]=0;
+        for(int y=STR_Y0;y<STR_Y1&&y<SPH;y++)for(int x=0;x<SPW;x++){ u16 c=src[v][y*SPW+x]; if(c==SKY) continue;
+            int best=1, bd=1<<30; for(int k=1;k<16;k++){ int dr=(c&31)-(pal[k]&31), dg=((c>>5)&31)-((pal[k]>>5)&31), db=((c>>10)&31)-((pal[k]>>10)&31), d=dr*dr*3+dg*dg*4+db*db*2; if(d<bd){ bd=d; best=k; if(!d) break; } }
+            int t=(y>>3)*4+(x>>3), o=t*32+(y&7)*4+((x&7)>>1)-STR_B0; dst[v][o]|=(u8)(best<<((x&1)*4)); }
+    }
+}
+static void hhUnquantS(u8 (*src)[STR_BN],const u16*pal,u16 (*dst)[SPW*SPH]){   // a stride band back over a copy of the standing frame
+    for(int v=0;v<4;v++)for(int y=STR_Y0;y<STR_Y1&&y<SPH;y++)for(int x=0;x<SPW;x++){ int t=(y>>3)*4+(x>>3), o=t*32+(y&7)*4+((x&7)>>1)-STR_B0, k=(src[v][o]>>((x&1)*4))&15; dst[v][y*SPW+x]=k?pal[k]:SKY; }
+}
 static void hhUnquant(u8 (*src)[1024],const u16*pal,u16 (*dst)[SPW*SPH]){   // back to 16-bit (when a member becomes the one you control)
     for(int v=0;v<4;v++)for(int y=0;y<SPH;y++)for(int x=0;x<SPW;x++){ int t=(y>>3)*4+(x>>3), o=t*32+(y&7)*4+((x&7)>>1), k=(src[v][o]>>((x&1)*4))&15; dst[v][y*SPW+x]=k?pal[k]:SKY; }
 }
 static void spBounds(void){   // the box that holds every opaque pixel of the player's four views (blits and redraw rectangles stay inside it)
     spBx0=SPW; spBx1=0; spBy0=SPH; spBy1=0;
-    for(int v=0;v<4;v++)for(int y=0;y<SPH;y++)for(int x=0;x<SPW;x++) if(spr4[v][y*SPW+x]!=SKY){ if(x<spBx0) spBx0=x; if(x+1>spBx1) spBx1=x+1; if(y<spBy0) spBy0=y; if(y+1>spBy1) spBy1=y+1; }
+    for(int v=0;v<8;v++)for(int y=0;y<SPH;y++)for(int x=0;x<SPW;x++) if((v<4?spr4[v]:spr4s[v-4])[y*SPW+x]!=SKY){ if(x<spBx0) spBx0=x; if(x+1>spBx1) spBx1=x+1; if(y<spBy0) spBy0=y; if(y+1>spBy1) spBy1=y+1; }
     if(spBx0>=spBx1){ spBx0=0; spBx1=SPW; spBy0=0; spBy1=SPH; }
 }
 // ---- baking: render a member's look with the creator's own code, then put the player's creature back ----
@@ -114,6 +128,7 @@ static void hhBakeAll(void){
     for(int m=0;m<hhN;m++){
         for(int i=0;i<LK_N;i++) look[i]=hhM[m].look[i]; stage=hhM[m].stage;
         buildLook(); setColors(); bakeInto(hhTmp); hhQuant(hhTmp,hhObj[m],hhPal[m]); hhObjV[m]=-1;
+        strideK=1; bakeInto(hhTmp); strideK=0; hhQuantS(hhTmp,hhObjS[m],hhPal[m]);
     }
     for(int k=0;k<TW_N;k++){   // two passers-by with made-up looks (new ones every time the life game starts)
         static const u8 shp[6]={0,1,3,4,5,6}, stg[4]={AG_ADULT,AG_ADULT,AG_TEEN,AG_ELDER};
@@ -123,11 +138,13 @@ static void hhBakeAll(void){
         look[LK_TOPSTY]=(u8)(rnd8()&3); look[LK_HAT]=(rnd8()&3)==0?(u8)(1+rnd8()%5):0; look[LK_GLASS]=(rnd8()&3)==0?(u8)(1+rnd8()%3):0;
         stage=stg[rnd8()&3]; fixLook();
         buildLook(); setColors(); bakeInto(hhTmp); hhQuant(hhTmp,twObj[k],twPal[k]); twObjV[k]=-1;
+        strideK=1; bakeInto(hhTmp); strideK=0; hhQuantS(hhTmp,twObjS[k],twPal[k]);
     }
     for(int i=0;i<LK_N;i++) look[i]=sl[i]; stage=sst;
     for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ vox[y][z][x]=sv[y][z][x]; dec[y][z][x]=sd[y][z][x]; }
     custom=sc; setColors();
     bakeInto(spr4);   // the player (still drawn by the CPU, so walls and furniture in front cover it and the action cam can zoom it)
+    strideK=1; bakeInto(spr4s); strideK=0; spBounds();   // the blit box holds both frames
     for(int m=0;m<hhN;m++) for(int i=0;i<16;i++) OBJ_PAL[m*16+i]=hhPal[m][i];
     for(int k=0;k<TW_N;k++) for(int i=0;i<16;i++) OBJ_PAL[(HH_MAX+k)*16+i]=twPal[k][i];
 }
@@ -529,7 +546,11 @@ static void hhObjUpdate(void){   // in vblank: the members' sprites (OAM 0..6), 
         if(m>=hhN||lcamF>0||hhM[m].act==HA_AWAY){ o[0]=0x200; continue; }
         int x=hhX[m]-16, y=hhY[m]-40-hhH[m];
         if(x+32<=0||x>=SW||y+SPH<=vpY0||y>=vpY1){ o[0]=0x200; continue; }
-        if(hhObjV[m]!=hhV[m]){ hhObjV[m]=(signed char)hhV[m]; const u16*s=(const u16*)hhObj[m][hhV[m]]; volatile u16*d=OBJ_VRAM+m*512; for(int i=0;i<512;i++) d[i]=s[i]; }
+        { const HhSim*sm=&hhM[m]; int walk=(sm->act==HA_WALK||sm->act==HA_WANDER||sm->act==HA_SEEK||sm->act==HA_LEAVE)&&sm->pi<sm->pn;
+          int f=walk?((lfr+m*5)>>3)&1:0, key=hhV[m]*2+f;   // walking: standing / mid-stride, every 8 frames (each Sim a little out of step)
+          if(hhObjV[m]!=key){ int ov=hhObjV[m]; hhObjV[m]=(signed char)key; volatile u16*d=OBJ_VRAM+m*512;
+              if(ov<0||(ov>>1)!=hhV[m]){ const u16*s=(const u16*)hhObj[m][hhV[m]]; for(int i=0;i<512;i++) d[i]=s[i]; }
+              const u16*s=f?(const u16*)hhObjS[m][hhV[m]]:(const u16*)(hhObj[m][hhV[m]]+STR_B0); for(int i=0;i<STR_BN/2;i++) d[STR_B0/2+i]=s[i]; } }
         o[0]=(u16)((y&255)|(hhBehindAt(hhM[m].fx,hhM[m].fy)?0x400:0)|0x8000); o[1]=(u16)((x&511)|0xC000); o[2]=(u16)((512+m*32)|(m<<12));
     }
     for(int k=0;k<TW_N;k++){   // the passers-by: OAM, OBJ VRAM and palette right after the members'
@@ -538,7 +559,10 @@ static void hhObjUpdate(void){   // in vblank: the members' sprites (OAM 0..6), 
         s32 rx,ry; rotPos(s->fx,s->fy,&rx,&ry); int v=faceView[(s->hd+4*cview)&15];
         int x=LOX+(int)((rx-ry)>>5)-16, y=LOY+(int)((rx+ry)>>6)-40-surfH(s->fx,s->fy);
         if(x+32<=0||x>=SW||y+SPH<=vpY0||y>=vpY1){ o[0]=0x200; continue; }
-        if(twObjV[k]!=v){ twObjV[k]=(signed char)v; const u16*sp=(const u16*)twObj[k][v]; volatile u16*d=OBJ_VRAM+j*512; for(int i=0;i<512;i++) d[i]=sp[i]; }
+        { int f=((lfr+k*3)>>3)&1, key=v*2+f;   // passers-by are always walking
+          if(twObjV[k]!=key){ int ov=twObjV[k]; twObjV[k]=(signed char)key; volatile u16*d=OBJ_VRAM+j*512;
+              if(ov<0||(ov>>1)!=v){ const u16*sp=(const u16*)twObj[k][v]; for(int i=0;i<512;i++) d[i]=sp[i]; }
+              const u16*sp=f?(const u16*)twObjS[k][v]:(const u16*)(twObj[k][v]+STR_B0); for(int i=0;i<STR_BN/2;i++) d[STR_B0/2+i]=sp[i]; } }
         o[0]=(u16)((y&255)|(hhBehindAt(s->fx,s->fy)?0x400:0)|0x8000); o[1]=(u16)((x&511)|0xC000); o[2]=(u16)((512+j*32)|(j<<12));
     }
 }
@@ -556,18 +580,21 @@ static void hhSwitch(void){
     int f=0; while(f<hhN&&hhM[f].act==HA_AWAY) f++;
     if(f>=hhN){ lnote="EVERYONE IS OUT"; lnoteT=90; return; }
     while(f-->0){   // the ones at work or school go to the back of the line (with their sprites)
-        HhSim t=hhM[0]; static u8 o1[4][1024] EWRAM_BSS; u16 p1[16];
-        for(int v=0;v<4;v++)for(int i=0;i<1024;i++) o1[v][i]=hhObj[0][v][i]; for(int i=0;i<16;i++) p1[i]=hhPal[0][i];
-        for(int m=0;m<hhN-1;m++){ hhM[m]=hhM[m+1]; for(int v=0;v<4;v++)for(int i=0;i<1024;i++) hhObj[m][v][i]=hhObj[m+1][v][i]; for(int i=0;i<16;i++) hhPal[m][i]=hhPal[m+1][i]; }
-        hhM[hhN-1]=t; for(int v=0;v<4;v++)for(int i=0;i<1024;i++) hhObj[hhN-1][v][i]=o1[v][i]; for(int i=0;i<16;i++) hhPal[hhN-1][i]=p1[i];
+        HhSim t=hhM[0]; static u8 o1[4][1024] EWRAM_BSS, o1s[4][STR_BN] EWRAM_BSS; u16 p1[16];
+        for(int v=0;v<4;v++){ for(int i=0;i<1024;i++) o1[v][i]=hhObj[0][v][i]; for(int i=0;i<STR_BN;i++) o1s[v][i]=hhObjS[0][v][i]; } for(int i=0;i<16;i++) p1[i]=hhPal[0][i];
+        for(int m=0;m<hhN-1;m++){ hhM[m]=hhM[m+1]; for(int v=0;v<4;v++){ for(int i=0;i<1024;i++) hhObj[m][v][i]=hhObj[m+1][v][i]; for(int i=0;i<STR_BN;i++) hhObjS[m][v][i]=hhObjS[m+1][v][i]; } for(int i=0;i<16;i++) hhPal[m][i]=hhPal[m+1][i]; }
+        hhM[hhN-1]=t; for(int v=0;v<4;v++){ for(int i=0;i<1024;i++) hhObj[hhN-1][v][i]=o1[v][i]; for(int i=0;i<STR_BN;i++) hhObjS[hhN-1][v][i]=o1s[v][i]; } for(int i=0;i<16;i++) hhPal[hhN-1][i]=p1[i];
     }
     HhSim t=hhM[0]; for(int m=0;m<hhN-1;m++) hhM[m]=hhM[m+1];   // the player goes to the back of the line, the first member steps in
     hhSwap(&t); hhM[hhN-1]=t;
-    static u8 ob[4][1024] EWRAM_BSS; u16 pl[16];
+    static u8 ob[4][1024] EWRAM_BSS, obs[4][STR_BN] EWRAM_BSS; u16 pl[16];
     hhUnquant(hhObj[0],hhPal[0],hhTmp);   // the member you take over: back to a full 16-bit sprite
     hhQuant(spr4,ob,pl);                   // the one you leave: down to a hardware sprite
-    for(int m=0;m<hhN-1;m++){ for(int v=0;v<4;v++)for(int i=0;i<1024;i++) hhObj[m][v][i]=hhObj[m+1][v][i]; for(int i=0;i<16;i++) hhPal[m][i]=hhPal[m+1][i]; }
-    for(int v=0;v<4;v++)for(int i=0;i<1024;i++) hhObj[hhN-1][v][i]=ob[v][i]; for(int i=0;i<16;i++) hhPal[hhN-1][i]=pl[i];
+    hhQuantS(spr4s,obs,pl);
+    for(int v=0;v<4;v++)for(int i=0;i<SPW*SPH;i++) spr4s[v][i]=hhTmp[v][i];
+    hhUnquantS(hhObjS[0],hhPal[0],spr4s);
+    for(int m=0;m<hhN-1;m++){ for(int v=0;v<4;v++){ for(int i=0;i<1024;i++) hhObj[m][v][i]=hhObj[m+1][v][i]; for(int i=0;i<STR_BN;i++) hhObjS[m][v][i]=hhObjS[m+1][v][i]; } for(int i=0;i<16;i++) hhPal[m][i]=hhPal[m+1][i]; }
+    for(int v=0;v<4;v++){ for(int i=0;i<1024;i++) hhObj[hhN-1][v][i]=ob[v][i]; for(int i=0;i<STR_BN;i++) hhObjS[hhN-1][v][i]=obs[v][i]; } for(int i=0;i<16;i++) hhPal[hhN-1][i]=pl[i];
     for(int v=0;v<4;v++)for(int i=0;i<SPW*SPH;i++) spr4[v][i]=hhTmp[v][i];
     spBounds();
     for(int m=0;m<hhN;m++){ hhObjV[m]=-1; for(int i=0;i<16;i++) OBJ_PAL[m*16+i]=hhPal[m][i]; }
