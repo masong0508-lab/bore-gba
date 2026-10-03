@@ -18,7 +18,7 @@
 #define HH_PATH    96      // longest path a member remembers (steps between tiles)
 #define HH_USE     240     // steps a member spends using a piece of furniture
 #define HH_OFF     18448   // SRAM: the household (after SAVE MEMORY TEST's 16 bytes; slots start at 20480)
-enum { HA_IDLE, HA_WALK, HA_USE, HA_WANDER, HA_SEEK, HA_SOC };   // SEEK: walking to someone to talk to; SOC: in a conversation
+enum { HA_IDLE, HA_WALK, HA_USE, HA_WANDER, HA_SEEK, HA_SOC, HA_LEAVE, HA_AWAY };   // SEEK: walking to someone to talk to; SOC: in a conversation; LEAVE: off to work or school; AWAY: off the lot
 enum { HN_FOOD, HN_WC, HN_REST, HN_CLEAN, HN_COMFY, HN_FUN, HN_SOC, HN_N };
 static const char hnFurn[HN_N]={'F','T','S','H','C',0,0};   // what each need's furniture is (FUN: skate about; SOCIAL: find someone)
 typedef struct {
@@ -49,6 +49,8 @@ static u8 hhBubT; static const char* hhBubTxt;   // the word over your head duri
 #define OBJ_PAL  ((volatile u16*)0x05000200)
 #define OAM      ((volatile u16*)0x07000000)
 static u8 hhObj[HH_MAX][4][1024] EWRAM_BSS;    // 4 views x 32x64 x 4bpp, tiles in 1D order
+#define TW_N 2                                   // passers-by (townies): OAM, OBJ VRAM and palettes after the members'
+static u8 twObj[TW_N][4][1024] EWRAM_BSS; static u16 twPal[TW_N][16]; static signed char twObjV[TW_N];
 static u16 hhPal[HH_MAX][16];                  // a palette per member (index 0 = clear)
 static u16 hhTmp[4][SPW*SPH] EWRAM_BSS;        // a 16-bit bake (one Sim) on its way to 4bpp, or back
 static signed char hhObjV[HH_MAX];             // the view in OBJ VRAM for each member (-1 = must copy)
@@ -113,11 +115,21 @@ static void hhBakeAll(void){
         for(int i=0;i<LK_N;i++) look[i]=hhM[m].look[i]; stage=hhM[m].stage;
         buildLook(); setColors(); bakeInto(hhTmp); hhQuant(hhTmp,hhObj[m],hhPal[m]); hhObjV[m]=-1;
     }
+    for(int k=0;k<TW_N;k++){   // two passers-by with made-up looks (new ones every time the life game starts)
+        static const u8 shp[6]={0,1,3,4,5,6}, stg[4]={AG_ADULT,AG_ADULT,AG_TEEN,AG_ELDER};
+        for(int i=0;i<LK_N;i++) look[i]=0;
+        look[LK_SHAPE]=shp[rnd8()%6]; look[LK_SKIN]=(u8)(rnd8()%NSW); look[LK_EYES]=(u8)(rnd8()%NEYE); look[LK_MOUTH]=(u8)(rnd8()%NMOUTH);
+        look[LK_EARS]=(u8)(1+(rnd8()&1)); look[LK_HSTYLE]=(u8)(rnd8()%NHAIR); look[LK_HCOL]=(u8)(rnd8()%NSW); look[LK_TOP]=(u8)(rnd8()%NSW); look[LK_BOT]=(u8)(rnd8()%NSW);
+        look[LK_TOPSTY]=(u8)(rnd8()&3); look[LK_HAT]=(rnd8()&3)==0?(u8)(1+rnd8()%5):0; look[LK_GLASS]=(rnd8()&3)==0?(u8)(1+rnd8()%3):0;
+        stage=stg[rnd8()&3]; fixLook();
+        buildLook(); setColors(); bakeInto(hhTmp); hhQuant(hhTmp,twObj[k],twPal[k]); twObjV[k]=-1;
+    }
     for(int i=0;i<LK_N;i++) look[i]=sl[i]; stage=sst;
     for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ vox[y][z][x]=sv[y][z][x]; dec[y][z][x]=sd[y][z][x]; }
     custom=sc; setColors();
     bakeInto(spr4);   // the player (still drawn by the CPU, so walls and furniture in front cover it and the action cam can zoom it)
     for(int m=0;m<hhN;m++) for(int i=0;i<16;i++) OBJ_PAL[m*16+i]=hhPal[m][i];
+    for(int k=0;k<TW_N;k++) for(int i=0;i<16;i++) OBJ_PAL[(HH_MAX+k)*16+i]=twPal[k][i];
 }
 // ---- where members can stand ----
 static int hhWalk(int x,int y){ if(x<0||y<0||x>=MW||y>=MH) return 0; char c=lifeMap[y][x]; return c!='w'&&c!='W'&&tileH(x,y)<=3; }
@@ -162,12 +174,14 @@ static int hhTilt(const HhSim*s,int n){   // traits: neat Sims shower sooner, la
     switch(n){ case HN_CLEAN: return 70+s->tr[TR_NEAT]*6; case HN_COMFY: return 130-s->tr[TR_ACT]*6; case HN_FUN: return 70+s->tr[TR_PLAY]*6; case HN_SOC: return 60+s->tr[TR_OUT]*8; default: return 100; }
 }
 static void hhSeek(HhSim*s);   // social: pick someone and walk over (below)
+static int hhUseT(const HhSim*s){ return (s->use==HN_REST&&simIsNight())?HH_USE*5:HH_USE; }   // a night in bed is a long one
 static void hhDecide(HhSim*s){
     int best[2]={-1,-1}, bs[2]={0,0}, low=xo[XO_FREEWILL]==1?35:55;   // LOW free will waits until needs are lower
     for(int n=0;n<HN_N;n++){
         if(hnFurn[n]&&!(simHave&(n==HN_FOOD?SR_FRIDGE:n==HN_WC?SR_TOILET:n==HN_REST?SR_BED:n==HN_CLEAN?SR_SHOWER:SR_SOFA))) continue;   // no such furniture
         if(n==HN_SOC&&hhN<1) continue;
-        int v=s->need[n]; if(v>=low+30) continue;
+        int v=s->need[n]; if(n==HN_REST&&simIsNight()) v=v>45?v-45:0;   // night: bedtime comes first
+        if(v>=low+30) continue;
         int u=(100-v)*(100-v)/100*hhTilt(s,n)/100;
         if(u>bs[0]){ bs[1]=bs[0]; best[1]=best[0]; bs[0]=u; best[0]=n; } else if(u>bs[1]){ bs[1]=u; best[1]=n; }
     }
@@ -176,19 +190,70 @@ static void hhDecide(HhSim*s){
     if(n<0&&hhN>0&&(rnd8()*100>>8)<25+s->tr[TR_OUT]*5){ hhSeek(s); return; }   // nothing pressing: go and see someone (outgoing Sims more often)
     if(n<0){ if(hhPlan(s,0)>1){ s->act=HA_WANDER; s->use=HN_FUN; } else s->act=HA_IDLE; return; }
     int r=hhPlan(s,hnFurn[n]?hnFurn[n]:0);
-    if(r==1&&hnFurn[n]){ s->act=HA_USE; s->use=(u8)n; s->t=HH_USE; }
+    if(r==1&&hnFurn[n]){ s->act=HA_USE; s->use=(u8)n; s->t=hhUseT(s); }
     else if(r>1){ s->act=hnFurn[n]?HA_WALK:HA_WANDER; s->use=(u8)n; }
     else s->act=HA_IDLE;
 }
 static void hhArrive(int m);   // social: reached the person (below)
 static void relTick(void);
 static int hhStill;   // steps you have been standing still (hud.h only shows the thought bubble when you stop)
+// ---- the day's routine: work and school off the lot, back in the evening; passers-by on the edges of the map ----
+// Every reachable tile on the map's border is a way off the lot (found once, by a search from the spawn point). Adults go to work on
+// weekdays and children and teens to school: each walks to the nearest way off and is gone (needs still drain), then walks back in at
+// the end of the day, a little hungry and tired. If no border tile can be reached, they are picked up at the spawn point (a carpool).
+// Two passers-by (made-up townies, their own hardware sprites) walk from one way off to another in the daytime.
+static int hhExN, hhExX, hhExY; static u16 hhEx[16];
+static void hhFindExits(void){
+    hhExN=0; hhExX=spx; hhExY=spy; if(!hhWalk(spx,spy)) return;
+    for(int i=0;i<MW*MH;i++) hhDist[i]=0xFFFF;
+    int qh=0, qt=0, seen=0; hhDist[spy*MW+spx]=0; hhQ[qt++]=(u16)(spy*MW+spx);
+    while(qh<qt){ int p=hhQ[qh++], x=p%MW, y=p/MW;
+        if(x==0||y==0||x==MW-1||y==MH-1){
+            if(!seen){ hhExX=x; hhExY=y; }   // the nearest way off: where the household comes and goes
+            seen++; if(hhExN<16) hhEx[hhExN++]=(u16)p; else { int r=((rnd8()<<8)|rnd8())%seen; if(r<16) hhEx[r]=(u16)p; } }
+        for(int d=0;d<4;d++){ int nx=x+hhDx[d], ny=y+hhDy[d], np=ny*MW+nx; if(hhWalk(nx,ny)&&hhDist[np]==0xFFFF){ hhDist[np]=(u16)(hhDist[p]+1); hhQ[qt++]=(u16)np; } } }
+}
+static int hhSched(const HhSim*s,int*from,int*to){   // 1 work, 2 school (weekdays), 0 nothing: everyone leaves and comes back a little apart
+    if(!simWorkday()) return 0;
+    int u=s->uid;
+    if(s->stage==AG_ADULT){ *from=SIM_WORK_FROM-25-(u%4)*5; *to=SIM_WORK_TO+(u%5)*6; return 1; }
+    if(s->stage==AG_CHILD||s->stage==AG_TEEN){ *from=8*60-15-(u%3)*5; *to=15*60+(u%4)*5; return 2; }
+    return 0;
+}
+static char hhNoteB[28];
+static void hhNote(const HhSim*s,const char*w){ if(lnoteT>0) return; char*e=simCat(hhNoteB,s->name); simCat(e,w); lnote=hhNoteB; lnoteT=110; }
+static void hhStepAlong(HhSim*s){   // one step along the path, tile centre to tile centre
+    int d=s->path[s->pi];
+    if(!s->gok){ s->gx=((int)(s->fx>>8)+hhDx[d])*256+128; s->gy=((int)(s->fy>>8)+hhDy[d])*256+128; s->fx=(s->fx&~255)|128; s->fy=(s->fy&~255)|128; s->gok=1; }
+    int sp=F_WALK*stSpd[s->stage]/100; if(sp<2) sp=2;
+    if(hhDx[d]){ s->fx+=hhDx[d]*sp; if((hhDx[d]>0&&s->fx>=s->gx)||(hhDx[d]<0&&s->fx<=s->gx)){ s->fx=s->gx; s->pi++; s->gok=0; } }
+    else { s->fy+=hhDy[d]*sp; if((hhDy[d]>0&&s->fy>=s->gy)||(hhDy[d]<0&&s->fy<=s->gy)){ s->fy=s->gy; s->pi++; s->gok=0; } }
+    s->hd=(u8)(d*4);
+}
+static HhSim hhTw[TW_N] EWRAM_BSS; static short twWait[TW_N]={240,900}; static u8 twOn[TW_N];
+static void twTick(int*planned){
+    for(int k=0;k<TW_N;k++){ HhSim*s=&hhTw[k];
+        if(!twOn[k]){
+            if(twWait[k]>0){ twWait[k]--; continue; }
+            if(*planned||hhExN<2||simIsNight()){ twWait[k]=60; continue; }
+            int a=hhEx[rnd8()%hhExN], b=hhEx[rnd8()%hhExN], ax=a%MW, ay=a/MW, bx=b%MW, by=b/MW;
+            if((ax-bx)*(ax-bx)+(ay-by)*(ay-by)<100){ twWait[k]=30; continue; }   // somewhere worth walking to
+            s->fx=ax*256+128; s->fy=ay*256+128; s->stage=AG_ADULT; hhGX=bx; hhGY=by; *planned=1;
+            if(hhPlan(s,1)>1){ twOn[k]=1; twObjV[k]=-1; } else twWait[k]=120;
+            continue;
+        }
+        if(s->pi>=s->pn){ twOn[k]=0; twWait[k]=(short)(600+(rnd8()<<4)); continue; }   // off the map: someone else comes by in a while
+        hhStepAlong(s);
+    }
+}
 static void hhTick(void){   // once per logic step in the life game
     if(hhBubT) hhBubT--;
     if(lvx||lvy||lsp||lairF||lgrind) hhStill=0; else if(hhStill<1000) hhStill++;
+    int planned=0;
+    if(xo[XO_FREEWILL]) twTick(&planned);
     if(!hhN) return;
     relTick();
-    int fe=oFoodEvery(), we=oWcEvery(), planned=0;
+    int fe=oFoodEvery(), we=oWcEvery();
     for(int m=0;m<hhN;m++){ HhSim*s=&hhM[m];
         // needs drain (gently: the Sims you do not watch should not be in constant crisis)
         if(fe&&lfr%(fe*2)==0&&s->need[HN_FOOD]>0) s->need[HN_FOOD]--;
@@ -197,21 +262,27 @@ static void hhTick(void){   // once per logic step in the life game
         if(s->bubT) s->bubT--;
         if(lfr%(150-s->tr[TR_OUT]*8)==0&&s->need[HN_SOC]>0) s->need[HN_SOC]--;   // lonely sooner when outgoing
         if(s->act==HA_SOC){ if(--s->t<=0){ s->act=HA_IDLE; s->think=(short)(HH_THINK/2); } continue; }   // standing in a conversation
-        if(!xo[XO_FREEWILL]){ s->act=HA_IDLE; continue; }
-        if(s->act==HA_USE){   // using furniture: refill, then free again
+        if(!xo[XO_FREEWILL]){ if(s->act==HA_AWAY) s->fx=hhExX*256+128, s->fy=hhExY*256+128; s->act=HA_IDLE; continue; }
+        { int fr=0, to=0, k=hhSched(s,&fr,&to), due=k&&simMin>=fr&&simMin<to;   // the day's routine
+          if(s->act==HA_AWAY){ if(due) continue;
+              s->fx=hhExX*256+128; s->fy=hhExY*256+128; s->act=HA_IDLE; s->think=20; s->gok=0;   // home again: walks in from the edge
+              static const u8 dn[HN_N]={25,15,20,15,10,20,0}; for(int n=0;n<HN_N;n++) s->need[n]=(u8)(s->need[n]>dn[n]?s->need[n]-dn[n]:0);
+              hhNote(s,s->use==2?" IS BACK FROM SCHOOL":" IS HOME FROM WORK"); continue; }
+          if(due&&s->act!=HA_LEAVE&&!planned){   // time to go: walk to the way off (one search per step, like every plan)
+              s->use=(u8)k; hhGX=hhExX; hhGY=hhExY; planned=1;
+              int r=hhPlan(s,1); if(r>1) s->act=HA_LEAVE; else { s->act=HA_AWAY; hhNote(s,k==2?" WENT TO SCHOOL":" LEFT FOR WORK"); }
+              continue; }
+          if(due&&s->act!=HA_LEAVE) continue; }
+        if(s->act==HA_USE){   // using furniture: refill, then free again (a night's sleep lasts until it is over, rested or not)
             if(s->need[s->use]<100&&(lfr&1)) s->need[s->use]++;
-            if(--s->t<=0||s->need[s->use]>=100){ s->act=HA_IDLE; s->think=(short)(HH_THINK/2); }
+            if(--s->t<=0||(s->need[s->use]>=100&&!(s->use==HN_REST&&simIsNight()))){ s->act=HA_IDLE; s->think=(short)(HH_THINK/2); }
             continue;
         }
-        if(s->act==HA_WALK||s->act==HA_WANDER||s->act==HA_SEEK){   // follow the path, tile centre to tile centre
+        if(s->act==HA_WALK||s->act==HA_WANDER||s->act==HA_SEEK||s->act==HA_LEAVE){   // follow the path, tile centre to tile centre
             if(s->pi>=s->pn&&s->act==HA_SEEK){ hhArrive(m); continue; }
-            if(s->pi>=s->pn){ if(s->act==HA_WALK){ s->act=HA_USE; s->t=HH_USE; } else { s->act=HA_IDLE; if(s->need[HN_FUN]<90) s->need[HN_FUN]+=10; } continue; }
-            int d=s->path[s->pi];
-            if(!s->gok){ s->gx=((int)(s->fx>>8)+hhDx[d])*256+128; s->gy=((int)(s->fy>>8)+hhDy[d])*256+128; s->fx=(s->fx&~255)|128; s->fy=(s->fy&~255)|128; s->gok=1; }
-            int sp=F_WALK*stSpd[s->stage]/100; if(sp<2) sp=2;
-            if(hhDx[d]){ s->fx+=hhDx[d]*sp; if((hhDx[d]>0&&s->fx>=s->gx)||(hhDx[d]<0&&s->fx<=s->gx)){ s->fx=s->gx; s->pi++; s->gok=0; } }
-            else { s->fy+=hhDy[d]*sp; if((hhDy[d]>0&&s->fy>=s->gy)||(hhDy[d]<0&&s->fy<=s->gy)){ s->fy=s->gy; s->pi++; s->gok=0; } }
-            s->hd=(u8)(d*4);
+            if(s->pi>=s->pn&&s->act==HA_LEAVE){ s->act=HA_AWAY; hhNote(s,s->use==2?" WENT TO SCHOOL":" LEFT FOR WORK"); continue; }
+            if(s->pi>=s->pn){ if(s->act==HA_WALK){ s->act=HA_USE; s->t=hhUseT(s); } else { s->act=HA_IDLE; if(s->need[HN_FUN]<90) s->need[HN_FUN]+=10; } continue; }
+            hhStepAlong(s);
             continue;
         }
         if(--s->think<=0&&!planned&&m==hhPlanNext%hhN){   // one plan per step (BFS is the costly part)
@@ -346,7 +417,7 @@ static void relTick(void){   // every game hour (900 steps): daily scores drift 
     for(int a=0;a<HU_N;a++)for(int b=0;b<HU_N;b++){ int d=relD[a][b], l=relL[a][b]; if(d>l) relD[a][b]--; else if(d<l) relD[a][b]++; }
 }
 // ---- free will socials ----
-static int uTile(int u,int*x,int*y){ int m=hhMemOf(u); if(m<0){ *x=(int)(lfx>>8); *y=(int)(lfy>>8); return 1; } *x=(int)(hhM[m].fx>>8); *y=(int)(hhM[m].fy>>8); return hhM[m].act!=HA_USE; }
+static int uTile(int u,int*x,int*y){ int m=hhMemOf(u); if(m<0){ *x=(int)(lfx>>8); *y=(int)(lfy>>8); return 1; } *x=(int)(hhM[m].fx>>8); *y=(int)(hhM[m].fy>>8); return hhM[m].act!=HA_USE&&hhM[m].act<HA_LEAVE; }
 static void hhSeek(HhSim*s){   // pick someone to go and see: friends most, enemies when grouchy, anyone when lonely enough
     int best=-1, bs=-999, me=s->uid;
     for(int u=0;u<HU_N;u++){ if(u==me) continue; if(u!=hhPUid&&hhMemOf(u)<0) continue;
@@ -382,7 +453,7 @@ static void hhArrive(int m){   // a free-will Sim reached the one it wanted to s
     socDo(s->uid,b,socPick(s->uid,b));
 }
 // ---- you: R next to a household Sim opens the social menu (furniture you stand at is offered first) ----
-static int hhNearest(void){ int best=-1, bd=1<<30; for(int m=0;m<hhN;m++){ s32 dx=hhM[m].fx-lfx, dy=hhM[m].fy-lfy; int d=(int)((dx*dx+dy*dy)>>8); if(d<bd){ bd=d; best=m; } } return bd<=(380*380>>8)?best:-1; }   // within 1.5 tiles
+static int hhNearest(void){ int best=-1, bd=1<<30; for(int m=0;m<hhN;m++){ if(hhM[m].act==HA_AWAY) continue; s32 dx=hhM[m].fx-lfx, dy=hhM[m].fy-lfy; int d=(int)((dx*dx+dy*dy)>>8); if(d<bd){ bd=d; best=m; } } return bd<=(380*380>>8)?best:-1; }   // within 1.5 tiles
 static void liveInvalidate(void);
 static int hhSocR(int useLabel){   // 1 = handled (a social, or the menu was closed), 0 = go on and use the furniture
     int m=hhNearest(); if(m<0) return 0;
@@ -430,18 +501,19 @@ static void hhCalc(void){
         hhX[m]=LOX+(int)((rx-ry)>>5); hhY[m]=LOY+(int)((rx+ry)>>6); hhB[m]=(int)((rx>>8)+(ry>>8)); hhV[m]=faceView[(s->hd+4*cview)&15]; hhH[m]=surfH(s->fx,s->fy); }
 }
 static void hhDrawBand(int s0,int s1){   // the members whose band is in s0..s1
-    for(int m=0;m<hhN;m++){ if(hhB[m]<s0||hhB[m]>s1) continue;
+    for(int m=0;m<hhN;m++){ if(hhB[m]<s0||hhB[m]>s1||hhM[m].act==HA_AWAY) continue;
         if(sShad) rect(hhX[m]-3,hhY[m]-hhH[m]-1,7,2,RGB(10,8,5));   // (the Sim itself is a hardware sprite: hhObjUpdate)
         if(hhM[m].bubT){ int bx=hhX[m]-5, by=hhY[m]-hhH[m]-56; rect(bx,by,11,10,RGB(14,16,22)); rect(bx+1,by+1,9,8,WHITE);   // a balloon with an icon (Sims style)
             simIcon(bx+2,by+1,hhM[m].bub,hhM[m].bub==IC_HEART?RGB(28,6,12):hhM[m].bub==IC_ANGRY||hhM[m].bub==IC_HURT?RGB(26,4,4):RGB(4,4,10)); px(hhX[m],by+10,RGB(14,16,22)); } }
 }
 typedef struct { short x0,y0,x1,y1; } HhR;   // (hud.h's Rc comes later in main.c)
 static void hhRc(int m,HhR*r){   // what a member puts INTO the picture: only its shadow (and a balloon); the body is a hardware sprite
+    if(hhM[m].act==HA_AWAY){ r->x0=r->x1=r->y0=r->y1=0; return; }   // off the lot: nothing
     r->x0=(short)(hhX[m]-3); r->x1=(short)(hhX[m]+4); r->y0=(short)(hhY[m]-hhH[m]-1); r->y1=(short)(hhY[m]-hhH[m]+1);
     if(hhM[m].bubT){ int by=hhY[m]-hhH[m]-56; if(r->y0>by) r->y0=(short)by; if(r->x0>hhX[m]-5) r->x0=(short)(hhX[m]-5); if(r->x1<hhX[m]+6) r->x1=(short)(hhX[m]+6); } }
-static unsigned hhSig(int m){ return (unsigned)(hhX[m]&0x3FF)|((unsigned)(hhY[m]&0x3FF)<<10)|((unsigned)(hhH[m]&15)<<22)|((unsigned)(hhM[m].bubT?1+(hhM[m].bub&31):0)<<26); }
-static int hhBehindWall(int m){   // is a full-height wall in front of this member (towards the camera)? then it is drawn see-through
-    s32 rx,ry; rotPos(hhM[m].fx,hhM[m].fy,&rx,&ry); int x=(int)(rx>>8), y=(int)(ry>>8);
+static unsigned hhSig(int m){ return (unsigned)(hhX[m]&0x3FF)|((unsigned)(hhY[m]&0x3FF)<<10)|((unsigned)(hhH[m]&15)<<22)|((unsigned)(hhM[m].bubT?1+(hhM[m].bub&31):0)<<26)^(hhM[m].act==HA_AWAY?0x80000000u:0); }
+static int hhBehindAt(s32 fx,s32 fy){   // is a full-height wall in front of this spot (towards the camera)? then a Sim there is drawn see-through
+    s32 rx,ry; rotPos(fx,fy,&rx,&ry); int x=(int)(rx>>8), y=(int)(ry>>8);
     static const signed char d[5][2]={{1,0},{0,1},{1,1},{2,1},{1,2}};
     for(int k=0;k<5;k++){ int wx=x+d[k][0], wy=y+d[k][1]; if(!wallAtR(wx,wy)||cellAt(wx,wy)!='W'||sWall==2) continue;
         if(sWall==1&&(wInAt(wx,wy-1)||wInAt(wx-1,wy))) continue;   // that wall is cut away
@@ -454,23 +526,41 @@ static void hhObjUpdate(void){   // in vblank: the members' sprites (OAM 0..6), 
     *(volatile u16*)0x04000050=0x0400; *(volatile u16*)0x04000052=(6<<8)|10;            // see-through sprites blend 10/16 over the picture
     for(int m=0;m<HH_MAX;m++){
         volatile u16*o=OAM+m*4;
-        if(m>=hhN||lcamF>0){ o[0]=0x200; continue; }
+        if(m>=hhN||lcamF>0||hhM[m].act==HA_AWAY){ o[0]=0x200; continue; }
         int x=hhX[m]-16, y=hhY[m]-40-hhH[m];
         if(x+32<=0||x>=SW||y+SPH<=vpY0||y>=vpY1){ o[0]=0x200; continue; }
         if(hhObjV[m]!=hhV[m]){ hhObjV[m]=(signed char)hhV[m]; const u16*s=(const u16*)hhObj[m][hhV[m]]; volatile u16*d=OBJ_VRAM+m*512; for(int i=0;i<512;i++) d[i]=s[i]; }
-        o[0]=(u16)((y&255)|(hhBehindWall(m)?0x400:0)|0x8000); o[1]=(u16)((x&511)|0xC000); o[2]=(u16)((512+m*32)|(m<<12));
+        o[0]=(u16)((y&255)|(hhBehindAt(hhM[m].fx,hhM[m].fy)?0x400:0)|0x8000); o[1]=(u16)((x&511)|0xC000); o[2]=(u16)((512+m*32)|(m<<12));
+    }
+    for(int k=0;k<TW_N;k++){   // the passers-by: OAM, OBJ VRAM and palette right after the members'
+        int j=HH_MAX+k; volatile u16*o=OAM+j*4; const HhSim*s=&hhTw[k];
+        if(!twOn[k]||lcamF>0){ o[0]=0x200; continue; }
+        s32 rx,ry; rotPos(s->fx,s->fy,&rx,&ry); int v=faceView[(s->hd+4*cview)&15];
+        int x=LOX+(int)((rx-ry)>>5)-16, y=LOY+(int)((rx+ry)>>6)-40-surfH(s->fx,s->fy);
+        if(x+32<=0||x>=SW||y+SPH<=vpY0||y>=vpY1){ o[0]=0x200; continue; }
+        if(twObjV[k]!=v){ twObjV[k]=(signed char)v; const u16*sp=(const u16*)twObj[k][v]; volatile u16*d=OBJ_VRAM+j*512; for(int i=0;i<512;i++) d[i]=sp[i]; }
+        o[0]=(u16)((y&255)|(hhBehindAt(s->fx,s->fy)?0x400:0)|0x8000); o[1]=(u16)((x&511)|0xC000); o[2]=(u16)((512+j*32)|(j<<12));
     }
 }
 static HhR hhOld[HH_MAX]; static unsigned hhOldSig[HH_MAX];
 
 static void hhLoad(void);
 static void hhStart(void){   // entering the life game: load the household and stand everyone somewhere free
-    hhLoad(); for(int m=0;m<hhN;m++){ hhPlace(&hhM[m],m); hhOld[m].x0=hhOld[m].x1=0; hhOldSig[m]=0xFFFFFFFFu; }
+    hhLoad(); hhFindExits(); for(int k=0;k<TW_N;k++){ twOn[k]=0; twWait[k]=(short)(240+k*700); }
+    for(int m=0;m<hhN;m++){ hhPlace(&hhM[m],m); hhOld[m].x0=hhOld[m].x1=0; hhOldSig[m]=0xFFFFFFFFu; }
 }
 // ---- switching who you control ----
 static void hhSwap(HhSim*s);   // main.c: trades the player's position, needs, look and persona with s
 static void hhSwitch(void){
     if(!hhN) return;
+    int f=0; while(f<hhN&&hhM[f].act==HA_AWAY) f++;
+    if(f>=hhN){ lnote="EVERYONE IS OUT"; lnoteT=90; return; }
+    while(f-->0){   // the ones at work or school go to the back of the line (with their sprites)
+        HhSim t=hhM[0]; static u8 o1[4][1024] EWRAM_BSS; u16 p1[16];
+        for(int v=0;v<4;v++)for(int i=0;i<1024;i++) o1[v][i]=hhObj[0][v][i]; for(int i=0;i<16;i++) p1[i]=hhPal[0][i];
+        for(int m=0;m<hhN-1;m++){ hhM[m]=hhM[m+1]; for(int v=0;v<4;v++)for(int i=0;i<1024;i++) hhObj[m][v][i]=hhObj[m+1][v][i]; for(int i=0;i<16;i++) hhPal[m][i]=hhPal[m+1][i]; }
+        hhM[hhN-1]=t; for(int v=0;v<4;v++)for(int i=0;i<1024;i++) hhObj[hhN-1][v][i]=o1[v][i]; for(int i=0;i<16;i++) hhPal[hhN-1][i]=p1[i];
+    }
     HhSim t=hhM[0]; for(int m=0;m<hhN-1;m++) hhM[m]=hhM[m+1];   // the player goes to the back of the line, the first member steps in
     hhSwap(&t); hhM[hhN-1]=t;
     static u8 ob[4][1024] EWRAM_BSS; u16 pl[16];
