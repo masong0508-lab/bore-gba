@@ -71,7 +71,11 @@ static const u16 hairTones[NSW] = { RGB(5,3,2), RGB(14,8,4), RGB(27,21,6), RGB(2
 static const u16 topTones[NSW]  = { RGB(8,20,22), RGB(28,8,6), RGB(30,24,6), RGB(10,24,8), RGB(8,10,26), RGB(22,10,26), RGB(30,30,30), RGB(5,5,8) };
 static const u16 botTones[NSW]  = { RGB(8,9,20), RGB(5,5,8), RGB(18,12,6), RGB(14,15,16), RGB(24,20,12), RGB(8,16,8), RGB(26,6,6), RGB(30,30,30) };
 // The look: one number per choice in the creature creator. 0 everywhere = the starter creature.
-enum { LK_SHAPE, LK_SKIN, LK_EYES, LK_MOUTH, LK_EARS, LK_HSTYLE, LK_HCOL, LK_TOP, LK_BOT, LK_N };
+enum { LK_SHAPE, LK_SKIN, LK_EYES, LK_MOUTH, LK_EARS, LK_HSTYLE, LK_HCOL, LK_TOP, LK_BOT, LK_BASE,
+       LK_TONE=LK_BASE, LK_EARSZ, LK_EARLF, LK_N };   // LK_TONE, LK_EARSZ, LK_EARLF are sliders: 0 = middle, then 1..4 up, 5..8 down (see slidePos)
+static inline int slidePos(int v){ return (v+4)%9; }      // 0..8 left to right, the middle (stored 0) is 4
+static inline int slideVal(int p){ return (p+5)%9; }
+static inline int slideEff(int v){ return slidePos(v)-4; }   // -4..4
 static u8 look[LK_N];
 // ---- life stages ----  BABY (cannot be steered, walks about by itself), CHILD, TEEN, ADULT, ELDER (the last stage, slower and stooped). The creator's room to build in is smaller
 // when young and grows with the age: a box of stBW x stBD x stBH blocks centred on the floor, a biggest block size and a list of looks
@@ -84,8 +88,11 @@ static const u8 stBW[AG_N]={4,4,6,6,6}, stBD[AG_N]={4,4,4,4,4}, stBH[AG_N]={5,6,
 static const u8 stMaxSz[AG_N]={2,2,3,3,3};          // biggest block size S/M/L the builder offers
 static const u8 stLegs[AG_N]={0,1,2,3,2};   // (an elder is stooped: a block lower than an adult)           // leg blocks showing under the torso before the shape trims them
 static const u8 stSpd[AG_N]={50,80,95,100,70};       // walking speed in percent
-// allowed looks per stage: bit n set = option n may be picked. Shape: AVERAGE BROAD BIG-HEAD STUBBY. Ears: NONE SMALL BIG. Hair: CROP BOWL LONG BALD.
-static const u8 stMaskShape[AG_N]={12,13,13,15,15}, stMaskEars[AG_N]={3,7,7,7,7}, stMaskHair[AG_N]={9,11,15,15,15};
+// allowed looks per stage: bit n set = option n may be picked. Shape: AVERAGE BROAD BIG-HEAD STUBBY SLIM ATHLETIC TALL. Ears: NONE SMALL BIG. Hair: CROP BOWL LONG BALD.
+// BIG HEAD (bit 2) is only on offer while the Konami code is switched on (see shapeMask).
+#define NSHAPE 7
+static const u8 stMaskShape[AG_N]={12,13,13,127,127}, stMaskEars[AG_N]={3,7,7,7,7}, stMaskHair[AG_N]={9,11,15,15,15};
+static inline int shapeMask(void){ int m=stMaskShape[stage]; if(!sUnlock) m&=~4; return m; }
 static const u8 stSwatches[AG_N]={4,6,8,8,8};       // how many colours of each row are on offer
 #define BX0 ((W-stBW[stage])/2)
 static u16 base[9+NWP], sT[9+NWP], sL[9+NWP], sR[9+NWP];   // slots 1..8 = body colours, 9.. = wallpaper average colours
@@ -146,7 +153,9 @@ static u16 wpAvg[NWP];   // average colour of each wallpaper: wall tops and the 
 
 
 static void setColors(void) {
-    base[1]=skinTones[look[LK_SKIN]]; base[2]=RGB(31,31,31); base[3]=RGB(3,3,6);
+    { int e=slideEff(look[LK_TONE]); u16 sk=skinTones[look[LK_SKIN]];   // skin tone slider: darker to the left, lighter to the right
+      if(e<0) sk=shade(sk,16+e*2); else if(e>0){ int r=sk&31,g=(sk>>5)&31,b=(sk>>10)&31; sk=RGB(r+(31-r)*e/8,g+(31-g)*e/8,b+(31-b)*e/8); }
+      base[1]=sk; } base[2]=RGB(31,31,31); base[3]=RGB(3,3,6);
     base[4]=RGB(29,12,16);    base[5]=hairTones[look[LK_HCOL]];
     base[6]=topTones[look[LK_TOP]]; base[7]=botTones[look[LK_BOT]]; base[8]=RGB(31,30,16);
     for (int i=1;i<9;i++){ sT[i]=base[i]; sL[i]=shade(base[i],12); sR[i]=shade(base[i],9); }
@@ -477,7 +486,8 @@ static int custom;   // 1 once the block builder has placed or erased something 
 static void bodyPlan(int*L,int*T,int*hs){   // legs showing, torso blocks showing, head scale: the body that fits this stage's box
     int sh=look[LK_SHAPE]; *hs=(sh==2)?2:1;
     int l=stLegs[stage], t=2, ht=2*(*hs);
-    if(sh>=2&&l>0) l--;                                   // BIG HEAD and STUBBY: legs one block shorter
+    if((sh==2||sh==3)&&l>0) l--;                          // BIG HEAD and STUBBY: legs one block shorter
+    if(sh==6&&stage>=AG_TEEN) l++;                        // TALL: legs one block longer
     while(l+t+ht>stBH[stage]&&l>0) l--;                   // too tall for the box: shorten the legs, then the torso
     if(l+t+ht>stBH[stage]) t=1;
     *L=l; *T=t;
@@ -494,22 +504,29 @@ static void hairW(int x,int y,int z,int xp,int xm,int zp,int zm){   // one hair 
     for(int i=0;i<8;i++) if(wMask[i]==m&&m){ vox[y][z][x]=(u8)(5|((4+i)<<4)); return; }
     vox[y][z][x]=5;
 }
+static void vb(int x,int y,int z,int v){ if(x<BX0||x>=BX0+stBW[stage]||y<0||y>=stBH[stage]||z<0||z>=stBD[stage]) return; vox[y][z][x]=(u8)v; }
 static void buildLook(void){
     for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ vox[y][z][x]=0; dec[y][z][x]=0; }
     sty[0]=look[LK_EYES]; sty[1]=look[LK_MOUTH];
     int L,T,hs0; bodyPlan(&L,&T,&hs0);
     int tx=BX0+(stBW[stage]-2)/2, ty=L+T-2;                      // torso: left column and bottom row (the bottom row is clipped when T is 1)
-    if(look[LK_SHAPE]==1&&stage==AG_ADULT){                      // BROAD: torso and legs two blocks wider each side
+    int sh=look[LK_SHAPE];
+    if(sh==1&&stage==AG_ADULT){                                  // BROAD: torso and legs two blocks wider each side
         doPart(1,3,1,1,0,1); doPart(1,3,1,2,0,1);
         doPart(1,1,1,1,3,1); doPart(1,1,1,3,3,1); doPart(1,2,1,0,2,1);
-    } else {                                                     // AVERAGE, BIG HEAD, STUBBY: legs (clipped to the stage), torso, arms
+    } else if(sh==4&&stage>=AG_TEEN){                            // SLIM: a one block deep torso
+        doPart(1,3,1,tx,L-3,1); doPart(1,2,1,tx-1,ty-1,1);
+        for(int y=ty;y<ty+2;y++)for(int x=tx;x<tx+2;x++) vb(x,y,1,6);
+    } else if(sh==5&&stage>=AG_TEEN){                            // ATHLETIC: wide shoulders, narrow waist (the arms hang clear of the waist)
+        doPart(1,3,1,tx,L-3,1); doPart(1,2,1,tx-2,ty-1,1);
+        for(int z=1;z<3;z++){ for(int x=tx;x<tx+2;x++) vb(x,ty,z,6); for(int x=tx-1;x<tx+3;x++) vb(x,ty+1,z,6); }
+    } else {                                                     // AVERAGE, BIG HEAD, STUBBY, TALL: legs (clipped to the stage), torso, arms
         doPart(1,3,1,tx,L-3,1); doPart(1,1,1,tx,ty,1); doPart(1,2,1,tx-1,ty-1,1);
     }
     int hx,hy,hz,hs; headBox(&hx,&hy,&hz,&hs);
     int hw=2*hs, hh=2*hs, hd=2*hs;
     doPart(1,0,hs,hx,hy,hz);                                     // head
-    int es=look[LK_EARS];                                        // ears: 0 none, 1 small (1x2), 2 big (2x4)
-    if(es) doPart(1,6,es,hx-es,hy+(es==1?(hh-2)/2:0),hz+(es==1?hd/2:0));
+    // ears are sprites now (drawEars in drawScene), not blocks
     int st=look[LK_HSTYLE], top=(stBH[stage]-(hy+hh)>=1)?hy+hh:hy+hh-1;    // hair: a cap on the head, or in place of its top layer when the head touches the ceiling
     if(st!=3){
         // every style starts with the same dome: the outer edges of the cap are wedges that slope away, down to the head's top
@@ -531,7 +548,7 @@ static void restyle(int kind){   // change the style of every eye (0) or mouth (
 // ---- changing the stage ----
 static int maskPick(int mask,int v,int n){ for(int i=0;i<n;i++){ int j=(v+i)%n; if(mask>>j&1) return j; } return 0; }   // the option at or after v that is allowed
 static void fixLook(void){   // pull every choice into what this stage offers
-    look[LK_SHAPE]=(u8)maskPick(stMaskShape[stage],look[LK_SHAPE],4);
+    look[LK_SHAPE]=(u8)maskPick(shapeMask(),look[LK_SHAPE],NSHAPE);
     look[LK_EARS]=(u8)maskPick(stMaskEars[stage],look[LK_EARS],3);
     look[LK_HSTYLE]=(u8)maskPick(stMaskHair[stage],look[LK_HSTYLE],4);
     static const u8 sw[4]={LK_SKIN,LK_HCOL,LK_TOP,LK_BOT};
@@ -617,6 +634,30 @@ static void drawStage(void){
         if(k>=0) stageWall(k,-1,16);
     }
 }
+// ---- ears: little 2D sprites on the left and right edge of the head, drawn after the blocks (a half ellipse with an outline and an inner dip) ----
+static void earSprite(int ax,int ay,int dir,int rx,int ry,u16 fill,u16 pit,u16 edge){
+    int cxp=rx/2+1, prx=rx/3>0?rx/3:1, pry=ry/2>0?ry/2:1;
+    for(int dy=-ry;dy<=ry;dy++)for(int dx=1;dx<=rx;dx++){
+        if(dx*dx*ry*ry+dy*dy*rx*rx>rx*rx*ry*ry) continue;
+        int ix=rx-1, iy=ry-1, rim=(ix<1||iy<1)||(dx*dx*iy*iy+dy*dy*ix*ix>ix*ix*iy*iy);
+        u16 c=rim?edge:fill;
+        if(!rim){ int px_=dx-cxp; if(px_*px_*pry*pry+dy*dy*prx*prx<=prx*prx*pry*pry) c=pit; }
+        px(ax+dir*dx,ay+dy,c);
+    }
+}
+static void drawEars(void){
+    int es=look[LK_EARS]; if(!es||custom) return;
+    int hx,hy,hz,hs; headBox(&hx,&hy,&hz,&hs);
+    int hw=2*hs, hh=2*hs, hd=2*hs, sxc,syc;
+    projC(2*hx+hw-W,2*hz+hd-D,hy+hh,&sxc,&syc);                  // centre of the head's top face
+    int ext=(hw+hd)*CA/2+((look[LK_HSTYLE]==1)?CA:0);            // half width of the head on screen (a BOWL cut adds a block each side)
+    int ay=syc+(hh*CC*11)/20-slideEff(look[LK_EARLF]);                                    // a little below the middle of the head's side
+    int f=10+slideEff(look[LK_EARSZ])*2;                         // ear size slider: 20% smaller or bigger per step
+    int rx=((es==1?4:7)+(hs-1)*(es==1?1:2))*f/10, ry=((es==1?5:8)+(hs-1)*(es==1?2:3))*f/10; if(rx<2) rx=2; if(ry<2) ry=2;
+    u16 e=shade(sT[1],4);
+    earSprite(sxc-ext+1,ay,-1,rx,ry,shade(sL[1],15),shade(sL[1],11),e);
+    earSprite(sxc+ext-1,ay,1,rx,ry,shade(sR[1],15),shade(sR[1],11),e);
+}
 IWRAM_CODE static void drawScene(int blink){
     if(stageOn&&!noGrid) drawStage(); else fillCols(0,SCENE_W,SKY);
     // floor grid
@@ -641,6 +682,7 @@ IWRAM_CODE static void drawScene(int blink){
         if(gdec[y][z][x]&&blink){ dc=gdec[y][z][x]; tint=1; }
         if(dc&&fv>=0) drawDeco(sx,sy,dc,fv,tint);
     }
+    drawEars();
 }
 static void vsync(void){ while(REG_VCOUNT>=160); while(REG_VCOUNT<160); }
 static void present(void){
@@ -1319,6 +1361,7 @@ static const signed char hdT[3][3]={{10,12,14},{8,-1,0},{6,4,2}};   // [sign dy+
 #include "feel.h"
 static void lifeInit(void){
     { static int spanDone; if(!spanDone){ spanDone=1; itemSpanInit(); } }
+    if(!(shapeMask()>>look[LK_SHAPE]&1)){ look[LK_SHAPE]=(u8)maskPick(shapeMask(),look[LK_SHAPE],NSHAPE); if(!custom) buildLook(); }
     mapScan(); bakeSprites(); camSnap=1;
     lfx=spx*256+128; lfy=spy*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote=""; lskate=0; lhave=(bdx<0); lfr=0; lvx=lvy=0; ldead=0; lmaxz=0; lplay=0; lbumpCd=0; lfood=100; lbl=0; lnear=0; moodReset(); simsReset(); sfxStop(); feelReset(0);
 }
@@ -1987,26 +2030,29 @@ static void mapEditor(void){
 // Pick a look from numbered tabs (like a character creator), or open the block builder to place every block by hand.
 // L R change tab | UP DOWN pick a row | LEFT RIGHT change it | SELECT turns the creature | START jumps to DONE | B leaves.
 enum { TB_BODY, TB_FACE, TB_HAIR, TB_CLOTHES, TB_BUILD, TB_DONE, NTAB };
-enum { RK_PICK, RK_SWATCH, RK_ACT };                 // a row picks from named options, picks a colour, or is a button
+enum { RK_PICK, RK_SWATCH, RK_ACT, RK_SLIDE };                 // a row picks from named options, picks a colour, or is a button
 enum { AC_BUILD, AC_PLAY, AC_MAP, AC_MENU };
 typedef struct { const char*lab,*sub; u8 kind,id,n; } Row;   // sub = second line of a button
 static const char* const tabNm[NTAB]={"BODY","FACE","HAIR","CLOTHES","BUILD","DONE"};
-static const char* const shapeNm[4]={"AVERAGE","BROAD","BIG HEAD","STUBBY"};
+static const char* const shapeNm[NSHAPE]={"AVERAGE","BROAD","BIG HEAD","STUBBY","SLIM","ATHLETIC","TALL"};
 static const char* const eyeNm[3]={"SLEEPY","ROUND","HAPPY"};
 static const char* const mouthNm[3]={"FLAT","SMILE","OH"};
 static const char* const earNm[3]={"NONE","SMALL","BIG"};
 static const char* const hairNm[4]={"CROP","BOWL","LONG","BALD"};
 #define LK_AGE LK_N   // the AGE row is not part of look[]: it picks the life stage
-static const char* const* const lookNm[LK_N+1]={shapeNm,0,eyeNm,mouthNm,earNm,hairNm,0,0,0,stageNm};
-static const u16* const lookCol[LK_N+1]={0,skinTones,0,0,0,0,hairTones,topTones,botTones,0};
-static const Row tabRow[NTAB][3]={
-  {{"AGE",0,RK_PICK,LK_AGE,AG_N},{"SHAPE",0,RK_PICK,LK_SHAPE,4},{"SKIN",0,RK_SWATCH,LK_SKIN,NSW}},
-  {{"EYES",0,RK_PICK,LK_EYES,3},{"MOUTH",0,RK_PICK,LK_MOUTH,3},{"EARS",0,RK_PICK,LK_EARS,3}},
+static const char* const* const lookNm[LK_N+1]={shapeNm,0,eyeNm,mouthNm,earNm,hairNm,0,0,0,0,0,0,stageNm};
+static const u16* const lookCol[LK_N+1]={0,skinTones,0,0,0,0,hairTones,topTones,botTones,0,0,0,0};
+static const Row tabRow[NTAB][5]={
+  {{"AGE",0,RK_PICK,LK_AGE,AG_N},{"SHAPE",0,RK_PICK,LK_SHAPE,NSHAPE},{"SKIN",0,RK_SWATCH,LK_SKIN,NSW},{"SKIN TONE",0,RK_SLIDE,LK_TONE,9}},
+  {{"EYES",0,RK_PICK,LK_EYES,3},{"MOUTH",0,RK_PICK,LK_MOUTH,3},{"EARS",0,RK_PICK,LK_EARS,3},{"EAR SIZE",0,RK_SLIDE,LK_EARSZ,9},{"EAR HEIGHT",0,RK_SLIDE,LK_EARLF,9}},
   {{"STYLE",0,RK_PICK,LK_HSTYLE,4},{"COLOUR",0,RK_SWATCH,LK_HCOL,NSW},{0}},
   {{"TOP",0,RK_SWATCH,LK_TOP,NSW},{"BOTTOM",0,RK_SWATCH,LK_BOT,NSW},{0}},
   {{"OPEN BUILDER","BY HAND",RK_ACT,AC_BUILD,0},{0},{0}},
   {{"GO LIVE LIFE!","PLAY IT NOW",RK_ACT,AC_PLAY,0},{"EDIT MAP","BUILD ROOMS",RK_ACT,AC_MAP,0},{"MAIN MENU","LOOK IS KEPT",RK_ACT,AC_MENU,0}} };
-static const u8 tabN[NTAB]={3,3,2,2,1,3};
+static const u8 tabN[NTAB]={4,5,2,2,1,3};
+static inline int tabVis(int i){ return i!=TB_BUILD||sUnlock; }   // the BUILD tab only exists while the Konami code is on
+static int tabNext(int t,int d){ do t=(t+d+NTAB)%NTAB; while(!tabVis(t)); return t; }
+static int tabSlot(int t){ int j=0; for(int i=0;i<t;i++) j+=tabVis(i); return j; }
 
 // layout (the panel is x 124..239): tabs down the left edge, the card of rows beside them, key legend under both
 #define TBX 128
@@ -2060,17 +2106,18 @@ static void panelBg(void){
 static void drawTabs(int tab){
     roundRect(CDX-1,CDY-1,CDW+2,CDH+2,CARDED); roundRect(CDX,CDY,CDW,CDH,CARD);   // the card first, tabs on top of its edge
     for(int i=0;i<NTAB;i++){
-        int y=TBY+i*TBP, sel=(i==tab); u16 ink=sel?WHITE:RGB(14,17,22);
+        if(!tabVis(i)) continue;
+        int j=tabSlot(i), y=TBY+j*TBP, sel=(i==tab); u16 ink=sel?WHITE:RGB(14,17,22);
         if(sel){ roundRect(TBX-1,y-1,CDX-TBX+3,TBH+2,GOLD); roundRect(TBX,y,CDX-TBX+3,TBH,CARD); rect(CDX-1,y,3,TBH,CARD); }   // open into the card
         else   { roundRect(TBX,y,TBW,TBH,RGB(4,6,13)); roundRect(TBX+1,y+1,TBW-2,TBH-2,RGB(9,12,22)); }
         if(i==TB_DONE) drawIcon(TBX+4,y+4,TB_DONE,sel?RGB(14,30,12):RGB(8,18,8));
-        else { char d[2]={(char)('1'+i),0}; text(TBX+(TBW-tw(d,2))/2,y+2,d,ink,2); }
+        else { char d[2]={(char)('1'+j),0}; text(TBX+(TBW-tw(d,2))/2,y+2,d,ink,2); }
     }
 }
 static const char* const lookName(int id,int v){ return lookNm[id][v]; }
 static int lkAllowed(int id,int v){   // may this stage pick option v of row id?
     switch(id){
-      case LK_SHAPE: return stMaskShape[stage]>>v&1;
+      case LK_SHAPE: return shapeMask()>>v&1;
       case LK_EARS:  return stMaskEars[stage]>>v&1;
       case LK_HSTYLE:return stMaskHair[stage]>>v&1;
       case LK_SKIN: case LK_HCOL: case LK_TOP: case LK_BOT: return v<stSwatches[stage];
@@ -2084,7 +2131,7 @@ static int lkCount(int id,int n,int*rank){   // options on offer, and the 1-base
 }
 static void drawRowSet(int tab,int sel){
     if(tab==TB_BUILD){
-        const char*t[]={"PLACE BLOCKS BY","HAND FOR A ONE","OF A KIND LOOK.","","CHANGING SHAPE,","EARS OR HAIR","STYLE LATER ASKS","BEFORE REPLACING","YOUR BLOCKS."};
+        const char*t[]={"PLACE BLOCKS BY","HAND FOR A ONE","OF A KIND LOOK.","","HOLD START AND","SELECT TOGETHER","AND PRESS A, OR","DO IT ANYWHERE","IN THE CREATOR."};
         for(int i=0;i<9;i++) text(CDX+6,RW0+i*7,t[i],i<3?WHITE:DIMC,1);
     }
     for(int i=0;i<tabN[tab];i++){
@@ -2097,6 +2144,14 @@ static void drawRowSet(int tab,int sel){
         if(f){ rect(CDX+3,y-2,CDW-6,RHT-1,FOCUS); rect(CDX+3,y-2,2,RHT-1,GOLD); }
         text(CDX+9,y,r->lab,f?WHITE:DIMC,1);
         int cur=r->id==LK_AGE?stage:look[r->id], rk, cnt=lkCount(r->id,r->n,&rk);
+        if(r->kind==RK_SLIDE){   // a slider: a track with a notch for each step and a knob on the current one
+            int pos=slidePos(look[r->id]); u16 ink=f?GOLD:RGB(10,12,16);
+            rect(CDX+11,y+12,65,1,f?DIMC:RGB(8,10,16));
+            for(int q=0;q<9;q++) rect(CDX+11+q*8,y+(q==4?9:10),1,q==4?7:5,f?DIMC:RGB(8,10,16));
+            rect(CDX+11+pos*8-2,y+9,5,7,f?WHITE:RGB(16,18,22)); rect(CDX+11+pos*8-1,y+10,3,5,ink);
+            tri(CDX+3,y+10,0,ink); tri(CDX+CDW-6,y+10,1,ink);
+            continue;
+        }
         { char b[4]={(char)('0'+rk),'/',(char)('0'+cnt),0}; text(CDX+CDW-6-tw(b,1),y,b,f?DIMC:RGB(10,12,16),1); }
         if(r->kind==RK_PICK){
             const char*nm=lookName(r->id,cur); int mx=CDX+CDW/2;
@@ -2144,6 +2199,10 @@ static void lookStep(int id,int n,int d){
         int ns=(stage+d+AG_N)%AG_N;
         if(custom&&ns<stage){ static const char* const it[2]={"YES  CUT THEM","NO  KEEP AGE"}; if(menu("CUT BLOCKS TO FIT?",it,2)!=0) return; }
         setStage(ns); return;
+    }
+    if(id>=LK_BASE){   // sliders: one step along the track, no wrap round, never rebuilds the blocks
+        int p=slidePos(look[id])+d; if(p<0||p>8) return;
+        look[id]=(u8)slideVal(p); if(id==LK_TONE) setColors(); return;
     }
     int nv=look[id];
     for(int t=0;t<n;t++){ nv=(nv+d+n)%n; if(lkAllowed(id,nv)) break; }   // skip what this stage cannot have
@@ -2225,27 +2284,28 @@ static void blockBuilder(void){
 // Title screen: UP UP DOWN DOWN LEFT RIGHT LEFT RIGHT B A START unlocks (or locks again) the classic creature screen.
 // Creator: once unlocked, pressing START and SELECT together swaps between the new creator and the classic one. Remembered in SRAM.
 static int comboSS(u16 k,u16 pressed){ return (k&K_START)&&(k&K_SEL)&&(pressed&(K_START|K_SEL)); }
-#define NENT (NPARTS+4)   // classic list: the parts, then AGE, GO LIVE LIFE, EDIT MAP, MAIN MENU
+#define NENT (NPARTS+5)   // classic list: the parts, then AGE, SHAPE (the four original body shapes), GO LIVE LIFE, EDIT MAP, MAIN MENU
 
 static int creatorNew(void){   // returns 1 when the secret code switched screens, 0 when leaving
     int tab=0, rs[NTAB]={0}, dirty=3, hold[10]={0}; u16 prev=keyNow();
+    if(!(shapeMask()>>look[LK_SHAPE]&1)){ look[LK_SHAPE]=(u8)maskPick(shapeMask(),look[LK_SHAPE],NSHAPE); if(!custom) buildLook(); }   // BIG HEAD goes away when the Konami code is off
     for(;;){
         u16 k=keyNow(), pressed=k&~prev; prev=k;
         for(int i=0;i<10;i++) hold[i]=(k>>i&1)?hold[i]+1:0;
-        if(sUnlock&&comboSS(k,pressed)){ sClassic=1; settingsSave(); stageOn=0; return 1; }
-        if(pressed&K_R){ tab=(tab+1)%NTAB; dirty|=2; }
-        if(pressed&K_L){ tab=(tab+NTAB-1)%NTAB; dirty|=2; }
+        if(sUnlock&&comboSS(k,pressed)){ sClassic=1; settingsSave(); stageOn=0; return 1; }   // build mode (the classic block screen): Konami on, START and SELECT held together
+        if(pressed&K_R){ tab=tabNext(tab,1); dirty|=2; }
+        if(pressed&K_L){ tab=tabNext(tab,-1); dirty|=2; }
         if(pressed&K_DOWN){ rs[tab]=(rs[tab]+1)%tabN[tab]; dirty|=2; }
         if(pressed&K_UP){ rs[tab]=(rs[tab]+tabN[tab]-1)%tabN[tab]; dirty|=2; }
         if(pressed&K_SEL){ view=(view+1)&3; dirty=3; }
-        if(pressed&K_START){ tab=TB_DONE; rs[tab]=0; dirty|=2; }
+        if((pressed&K_START)&&!(k&K_SEL)){ tab=TB_DONE; rs[tab]=0; dirty|=2; }
         if(pressed&K_B){ stageOn=0; return 0; }
         const Row*r=&tabRow[tab][rs[tab]];
         int d=TRIG(K_RIGHT,4)?1:TRIG(K_LEFT,5)?-1:0;
         if(r->kind==RK_ACT){
             if(pressed&K_A){
                 switch(r->id){
-                    case AC_BUILD: blockBuilder(); break;
+                    case AC_BUILD: if((k&K_START)&&(k&K_SEL)) blockBuilder(); break;   // only with START and SELECT held
                     case AC_PLAY:  lifeMode(0); if(gToMenu){ stageOn=0; return 0; } break;
                     case AC_MAP:   mapEditor(); break;
                     default:       stageOn=0; return 0;   // MAIN MENU
@@ -2268,23 +2328,25 @@ IWRAM_CODE static void drawClassicPanel(void){
     text(130,5,"BORE",RGB(31,26,6),2);
     text(130,17,"VOXEL DEMO",RGB(14,16,18),1);
     for(int i=0;i<NENT;i++){
-        int y=26+i*6, go=(i>=NPARTS);
+        int y=24+i*6, go=(i>=NPARTS);
         if(i==part){ rect(128,y-1,108,6,go?RGB(16,10,2):RGB(6,16,8)); text(130,y,">",RGB(31,31,31),1); }
-        text(137,y,go?(i==NPARTS?"AGE":i==NPARTS+1?"GO LIVE LIFE!":i==NPARTS+2?"EDIT MAP":"MAIN MENU"):parts[i].name,i==part?(go?RGB(31,26,6):RGB(31,31,31)):(go?RGB(24,20,6):RGB(18,20,22)),1);
+        text(137,y,go?(i==NPARTS?"AGE":i==NPARTS+1?"SHAPE":i==NPARTS+2?"GO LIVE LIFE!":i==NPARTS+3?"EDIT MAP":"MAIN MENU"):parts[i].name,i==part?(go?RGB(31,26,6):RGB(31,31,31)):(go?RGB(24,20,6):RGB(18,20,22)),1);
         if(i==NPARTS) text(190,y,stageNm[stage],RGB(31,26,6),1);
+        if(i==NPARTS+1) text(190,y,shapeNm[look[LK_SHAPE]<4?look[LK_SHAPE]:0],RGB(31,26,6),1);
         if(i==part&&!go&&parts[i].dk) text(190,y,spr[SPRID(parts[i].dk-1)].name,RGB(31,26,6),1);
     }
-    text(130,101,"SIZE",RGB(18,20,22),1);
+    text(130,105,"SIZE",RGB(18,20,22),1);
     const char*sn[3]={"S","M","L"};
     for(int i=0;i<3;i++){
-        int x=156+i*16; rect(x,99,12,9,i==size-1?RGB(6,16,8):RGB(2,3,5));
-        text(x+4,101,sn[i],i<stMaxSz[stage]?RGB(31,31,31):RGB(8,9,11),1);
+        int x=156+i*16; rect(x,103,12,9,i==size-1?RGB(6,16,8):RGB(2,3,5));
+        text(x+4,105,sn[i],i<stMaxSz[stage]?RGB(31,31,31):RGB(8,9,11),1);
     }
-    text(130,113,"X",RGB(18,20,22),1); num(136,113,cx,RGB(31,31,31));
-    text(148,113,"Y",RGB(18,20,22),1); num(154,113,cy,RGB(31,31,31));
-    text(166,113,"Z",RGB(18,20,22),1); num(172,113,cz,(part<NPARTS&&parts[part].dk)?RGB(12,14,16):RGB(31,31,31));   // sprites ignore Z
+    text(130,115,"X",RGB(18,20,22),1); num(136,115,cx,RGB(31,31,31));
+    text(148,115,"Y",RGB(18,20,22),1); num(154,115,cy,RGB(31,31,31));
+    text(166,115,"Z",RGB(18,20,22),1); num(172,115,cz,(part<NPARTS&&parts[part].dk)?RGB(12,14,16):RGB(31,31,31));   // sprites ignore Z
     u16 hc=RGB(12,14,16);
     if(part==NPARTS){ text(130,123,"A OR LEFT RIGHT",RGB(31,26,6),1); text(130,131,"CHANGES THE AGE",RGB(31,26,6),1); text(130,141,"SELECT NEXT ENTRY",hc,1); }
+    else if(part==NPARTS+1){ text(130,123,"A OR LEFT RIGHT",RGB(31,26,6),1); text(130,131,"CHANGES THE SHAPE",RGB(31,26,6),1); text(130,141,"SELECT NEXT ENTRY",hc,1); }
     else if(part>=NPARTS){ text(130,123,"PRESS A TO OPEN",RGB(31,26,6),1); text(130,131,"SELECT NEXT ENTRY",hc,1); }
     else {
     text(130,123,"DPAD X Z  L R UP DN",hc,1); text(130,129,"A PLACE B ERASE",hc,1);
@@ -2318,15 +2380,17 @@ static int creatorClassic(void){   // returns 1 when the secret code switched sc
         } else {
             if(part==NPARTS){   // the AGE entry: LEFT / RIGHT step the life stage backwards / forwards, A steps forwards
                 if(pressed&(K_LEFT|K_RIGHT|K_A)){ lookStep(LK_AGE,AG_N,(pressed&K_LEFT)?-1:1); prev=keyNow(); dirty=1; }
+            } else if(part==NPARTS+1){   // the SHAPE entry: the four original body shapes (the new creator has the newer ones)
+                if(pressed&(K_LEFT|K_RIGHT|K_A)){ if(look[LK_SHAPE]>=4) look[LK_SHAPE]=0; lookStep(LK_SHAPE,4,(pressed&K_LEFT)?-1:1); prev=keyNow(); dirty=1; }
             } else {
             if(TRIG(K_RIGHT,4)){moveView(1,0);dirty=1;} if(TRIG(K_LEFT,5)){moveView(-1,0);dirty=1;}
             if(TRIG(K_UP,6)){moveView(0,-1);dirty=1;}     if(TRIG(K_DOWN,7)){moveView(0,1);dirty=1;}
             if(TRIG(K_R,8)){cy++;dirty=1;}      if(TRIG(K_L,9)){cy--;dirty=1;}
             }
-            if((pressed&K_A)&&part!=NPARTS){
-                if(part==NPARTS+1){ lifeMode(0); if(gToMenu) return 0; }
-                else if(part==NPARTS+2) mapEditor();
-                else if(part==NPARTS+3) return 0;   // MAIN MENU
+            if((pressed&K_A)&&part!=NPARTS&&part!=NPARTS+1){
+                if(part==NPARTS+2){ lifeMode(0); if(gToMenu) return 0; }
+                else if(part==NPARTS+3) mapEditor();
+                else if(part==NPARTS+4) return 0;   // MAIN MENU
                 else { doPart(1,part,size,cx,cy,cz); custom=1; }
                 prev=keyNow(); dirty=1;
             }

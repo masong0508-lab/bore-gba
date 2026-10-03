@@ -103,7 +103,7 @@ static void slEncPlane(SlW*w,int plane){   // 0 = voxels, 1 = face sprite low by
     if(n){ slwPut(w,n); slwPut(w,cur); }
 }
 static void slEncPerson(SlW*w){
-    slwPut(w,2);                                            // format 2 (format 1 had no life stage: those people are adults)
+    slwPut(w,3);                                            // format 3 (2 had no sliders: they read as 0 = the middle; 1 had no life stage: those people are adults)
     for(int i=0;i<LK_N;i++) slwPut(w,look[i]);
     slwPut(w,stage); slwPut(w,ageDays);
     slwPut(w,custom?1:0);                                   // hand-built blocks: only then the blocks are stored (else buildLook() remakes them)
@@ -116,12 +116,12 @@ static int slDecPlane(SlR*c,int plane){
     return 1;
 }
 static int slDecPerson(SlR*c,int apply){
-    int fmt=slrGet(c); if(c->bad||(fmt!=1&&fmt!=2)) return 0;
-    u8 lk[LK_N]; for(int i=0;i<LK_N;i++) lk[i]=(u8)slrGet(c);
-    int stg=AG_ADULT, agd=0; if(fmt==2){ stg=slrGet(c); agd=slrGet(c); }
+    int fmt=slrGet(c); if(c->bad||fmt<1||fmt>3) return 0;
+    u8 lk[LK_N]={0}; for(int i=0;i<(fmt>=3?LK_N:LK_BASE);i++) lk[i]=(u8)slrGet(c);
+    int stg=AG_ADULT, agd=0; if(fmt>=2){ stg=slrGet(c); agd=slrGet(c); }
     if(c->bad||stg>=AG_N) return 0;
     int cu=slrGet(c); if(c->bad) return 0;
-    if(lk[LK_SHAPE]>=4||lk[LK_SKIN]>=NSW||lk[LK_EYES]>=3||lk[LK_MOUTH]>=3||lk[LK_EARS]>=3||lk[LK_HSTYLE]>=4||lk[LK_HCOL]>=NSW||lk[LK_TOP]>=NSW||lk[LK_BOT]>=NSW) return 0;
+    if(lk[LK_TONE]>=9||lk[LK_EARSZ]>=9||lk[LK_EARLF]>=9||lk[LK_SHAPE]>=NSHAPE||lk[LK_SKIN]>=NSW||lk[LK_EYES]>=3||lk[LK_MOUTH]>=3||lk[LK_EARS]>=3||lk[LK_HSTYLE]>=4||lk[LK_HCOL]>=NSW||lk[LK_TOP]>=NSW||lk[LK_BOT]>=NSW) return 0;
     if(cu>1) return 0;
     if(cu){
         if(!slDecPlane(c,0)||!slDecPlane(c,1)||!slDecPlane(c,2)) return 0;
