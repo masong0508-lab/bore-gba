@@ -1,4 +1,4 @@
-// songs.h - THE JUKEBOX SONG LIST. Order here = the "IN ORDER" order. Up to 32 songs.
+// songs.h - THE JUKEBOX SONG LIST. Order here = the "IN ORDER" order. Up to 64 songs.
 //
 //   SONG_XM(id,"NAME","file")    a tracker song (.xm). id = any unique C name, file = the .xm in tools/. After adding one, run
 //                                python3 tools/xm2gba.py   to rebuild source/musicdata.h (the title music, THE DIPPER MAN, is one too)

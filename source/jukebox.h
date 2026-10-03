@@ -3,9 +3,12 @@
 //
 // The shuffled order is kept in SRAM, so the song set stays in the SAME shuffled order every time the game starts.
 // It is only re-rolled when you press SELECT in the jukebox, or when the number of songs changes (songs added / removed).
-#define JB_MAX 32          // most songs the jukebox can hold
+#define JB_MAX 64          // most songs the jukebox can hold (the saved order needs 5+JB_MAX bytes at JB_OFF; must stop before AGE_OFF)
 #define JB_OFF 12288       // SRAM block: 'J' 'B' '1', song count, current slot, then the shuffled order
 static u8 sJb;             // jukebox mode (a setting, saved with the other settings): 0 SHUFFLE, 1 IN ORDER, 2 REPEAT ONE
+#if defined(AGE_OFF) && (JB_OFF+5+JB_MAX>AGE_OFF)
+#error JB_MAX is too big: the saved shuffle order would run into the creature growth data at AGE_OFF
+#endif
 static u8 jbMap[JB_MAX];   // visible song number -> index into songs[] (hides the placeholder tunes)
 static u8 jbOrd[JB_MAX];   // the shuffled order: playlist slot -> song number
 static int jbN, jbPos;     // number of songs, playlist slot of the current song
@@ -19,9 +22,10 @@ static void jbSave(void){
     for(int i=0;i<jbN;i++) m[5+i]=jbOrd[i];
 }
 static int jbLoad(void){   // 1 = a saved order for exactly this many songs was found
-    volatile u8*m=SRAM_BASE+JB_OFF; u32 seen=0;
+    volatile u8*m=SRAM_BASE+JB_OFF; u8 seen[JB_MAX];
     if(m[0]!='J'||m[1]!='B'||m[2]!='1'||m[3]!=(u8)jbN||m[4]>=jbN) return 0;
-    for(int i=0;i<jbN;i++){ u8 v=m[5+i]; if(v>=jbN||((seen>>v)&1u)) return 0; seen|=1u<<v; }   // must be a real permutation
+    for(int i=0;i<JB_MAX;i++) seen[i]=0;
+    for(int i=0;i<jbN;i++){ u8 v=m[5+i]; if(v>=jbN||seen[v]) return 0; seen[v]=1; }   // must be a real permutation
     for(int i=0;i<jbN;i++) jbOrd[i]=m[5+i];
     jbPos=m[4]; return 1;
 }

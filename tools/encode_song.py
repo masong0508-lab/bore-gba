@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from encode_sfx import encode, decode          # same IMA-ADPCM coder the sound effects use
 
 RATE = 18157        # = MUS_RATE in source/musicdata.h
-MAX_SONGS = 32      # JB_MAX in source/jukebox.h
+MAX_SONGS = 64      # JB_MAX in source/jukebox.h
 SONGS_H = "source/songs.h"
 
 def load(path):
