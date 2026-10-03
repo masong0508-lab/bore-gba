@@ -25,7 +25,7 @@ NEARDUP = {"worthless_clouds"}    # songs whose near-identical samples are merge
 SHARED = {}                       # sample data already written for an earlier song: identical samples are stored once in the whole ROM
 OUT = "source/musicdata.h"
 TITLE = ("the_dipper_man", "tools/the_dipper_man.xm")
-GAIN = {"tree_swaying_action": 0.9, "amiga_music": 1.1, "earth_and_the_space_citizens": 2.0, "meltdown_in_mars_house": 1.8, "sunman_sunrise": 1.6, "gottcho_barracho": 1.85, "spanish_flexicode": 1.7}   # louder/quieter per song (default 1.0), so every tracker song sits at a similar level
+GAIN = {"tree_swaying_action": 0.9, "amiga_music": 1.1, "earth_and_the_space_citizens": 2.0, "meltdown_in_mars_house": 1.8, "sunman_sunrise": 1.6, "gottcho_barracho": 1.85, "spanish_flexicode": 1.7, "gottcho_barracho_ii": 1.7}   # louder/quieter per song (default 1.0), so every tracker song sits at a similar level
 LOOP_OVERRIDE = {"the_dipper_man": 4, "amiga_music": 0, "emergency_dance_floor": 0, "tree_swaying_action": 0}   # the title song plays its intro once, then loops from order 4 (others loop from the XM restart position)
 
 def make_ending(S):
@@ -471,7 +471,13 @@ def flexicode_pan(pat, row, ch, i, n):
     if ch == 13: return 0.5
     if ch == 14: return -0.5
     return None
-OVERRIDES = {"the_dipper_man": title_pan, "worthless_clouds": clouds_pan, "spanish_flexicode": flexicode_pan}
+def barracho_pan(pat, row, ch, i, n):
+    """GOTTCHO BARRACHO (tools/make_barracho_rework.py): the Flexicode layout, except channel 2 is a hat that ping-pongs on every hit
+       and channel 3 a shaker on the right."""
+    if ch == 2: return 0.6 if (row // 4) % 2 else -0.6
+    if ch == 3: return 0.55
+    return flexicode_pan(pat, row, ch, i, n)
+OVERRIDES = {"the_dipper_man": title_pan, "worthless_clouds": clouds_pan, "spanish_flexicode": flexicode_pan, "gottcho_barracho_ii": barracho_pan}
 
 def design_pan(S, used, insts, sid=None):
     """Pan plan for one song. Returns pan(pat, row, ch, inst, note) -> bus.  Rules (a small 'mix engineer'):

@@ -29,11 +29,11 @@ SONG_XM(meltdown_in_mars_house,"MELTDOWN IN MARS","tools/meltdown_in_mars_house.
 SONG_XM(worthless_clouds,"WORTHLESS CLOUDS","tools/worthless_clouds.xm")
 SONG_XM(sunman_sunrise,"SUNMAN SUNRISE","tools/sunman_sunrise.xm")
 
-// REMINDER: GOTTCHO BARRACHO v1 = the first full transcription of Dipper - Borracho (from the isolated stems).
-// When the song is reworked into a newer version, KEEP THIS ONE in the game: hide it from the jukebox until the
-// code UP UP DOWN DOWN LEFT LEFT RIGHT B A START is entered on the title screen, like the PLACEHOLDER songs
-// (see isDbgSong in main.c). Save the new version as a new file/id, do not overwrite tools/gottcho_barracho.xm.
-SONG_XM(gottcho_barracho,"GOTTCHO BARRACHO","tools/gottcho_barracho.xm")
+// GOTTCHO BARRACHO: the rework (tools/make_barracho_rework.py), the sister song of AN ODE TO THE SPANISH FLEXICODE.
+SONG_XM(gottcho_barracho_ii,"GOTTCHO BARRACHO","tools/gottcho_barracho_ii.xm")
+// GOTTCHO BARRACHO v1 = the first full transcription of Dipper - Borracho (from the isolated stems). A SECRET song: hidden from the
+// jukebox until the code UP UP DOWN DOWN LEFT LEFT RIGHT B A START is entered on the title screen (isDbgSong in main.c).
+SONG_XM(gottcho_barracho,"GOTTCHO BARRACHO (ORIGINAL)","tools/gottcho_barracho.xm")
 // AN ODE TO THE SPANISH FLEXICODE: a soft 16-channel rework of "The Dipper Man - An Ode to Mexicode" (tools/the_dipper_man_ode_to_mexicode.xm),
 // built by tools/make_flexicode_rework.py.
 SONG_XM(spanish_flexicode,"AN ODE TO THE SPANISH FLEXICODE","tools/spanish_flexicode.xm")
