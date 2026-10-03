@@ -24,6 +24,8 @@ QREG = {}                         # name -> sample data of every sample stored s
 NEARDUP = {"worthless_clouds"}    # songs whose near-identical samples are merged with earlier ones (the others are left as they were)
 SHARED = {}                       # sample data already written for an earlier song: identical samples are stored once in the whole ROM
 OUT = "source/musicdata.h"
+BIN = "source/music/xmdata.bin"   # every song's note events and sample data, pulled into the ROM with .incbin (keeps musicdata.h small and the ROM compact)
+BLOB = bytearray(); LABELS = []   # LABELS: (symbol, kind, offset, size) of each piece of BLOB; one .incbin line each in musicdata.h
 TITLE = ("the_dipper_man", "tools/the_dipper_man.xm")
 GAIN = {"tree_swaying_action": 0.9, "amiga_music": 1.1, "earth_and_the_space_citizens": 2.0, "meltdown_in_mars_house": 1.8, "sunman_sunrise": 1.6, "gottcho_barracho": 1.85, "spanish_flexicode": 1.7, "gottcho_barracho_ii": 1.7, "mi_cora_zone": 1.5, "emergency_hitech": 1.6, "excuses_house": 1.9, "whistler_shuffle": 2.2, "whistler_shuffle_old": 2.2, "worthless_clouds": 1.15, "cynicaller_dnb": 1.35, "hotdamn_rave": 1.5, "hotdamn_rave_old": 1.5, "aim_and_shoot": 2.15}   # louder/quieter per song (default 1.0), so every tracker song sits at a similar level
 LOOP_OVERRIDE = {"the_dipper_man": 4, "amiga_music": 0, "emergency_dance_floor": 0, "tree_swaying_action": 0}   # the title song plays its intro once, then loops from order 4 (others loop from the XM restart position)
@@ -780,10 +782,61 @@ def convert_samples(S, used, sid=None):
         q = np.append(q[:k], 0)                                   # guard sample for interpolation
         base = fc4 / MIXR / ds
         steps = [int(round(base * 2 ** ((n - 49) / 12) * 65536)) for n in range(1, 97)]
-        insts.append(dict(q=q, pk=pk, svol=s['vol'], steps=steps)); total += len(q)
+        insts.append(dict(q=q, pk=pk, svol=s['vol'], steps=steps, base=base)); total += len(q)
         print("  inst %2d  ds %d  len %6d  vol %2d  fc4 %.0f" % (k + 1, ds, len(q), s['vol'], fc4))
     print("  sample bytes", total)
     return insts
+
+# ---- how the compact tables are built (main.c reads them back; the maths must match xmStep() there) ----
+XT = [int(round(2 ** (j / 12) * 2 ** 30)) for j in range(12)]      # 2^(j/12) in Q30, written to musicdata.h as xmT[]
+
+def step_formula(A, k):
+    """playback step (16.16) of note index k (0..95) from the instrument's anchor A = base rate x 2^28, in plain integer maths"""
+    q = k // 12; j = k % 12; sh = 46 - q
+    return (A * XT[j] + (1 << (sh - 1))) >> sh
+
+def pitch_anchors(insts, sid):
+    """Per instrument: one 32-bit anchor instead of 96 steps. The anchor is nudged (a few units) until the integer formula gives exactly the
+    96 steps the old tables held; anything that still differs is stored as a fix-up (instrument, note, delta) - so the pitch never changes."""
+    anc = []; fx = []; nfix = 0
+    for k, I in enumerate(insts):
+        if not I: anc.append(0); continue
+        steps = I['steps']; A0 = int(round(I['base'] * 2 ** 28)); best = None
+        for d in sorted(range(-48, 49), key=abs):
+            A = A0 + d
+            if A <= 0 or A >= 2 ** 32: continue
+            bad = [(n, steps[n] - step_formula(A, n)) for n in range(96) if step_formula(A, n) != steps[n]]
+            if best is None or len(bad) < len(best[1]): best = (A, bad)
+            if not bad: break
+        if best is None: sys.exit("  ERROR: instrument %d plays faster than 16x its base rate" % (k + 1))
+        A, bad = best
+        for n, dlt in bad:
+            if not -128 <= dlt <= 127: sys.exit("  ERROR: pitch fix-up out of range")
+            fx += [k, n, dlt & 255]; nfix += 1
+        anc.append(A)
+    fx.append(255)
+    print("  pitch anchors: %d instruments, %d fix-ups" % (sum(1 for I in insts if I), nfix))
+    return anc, fx
+
+def decode_stream(stream, off, rows, vt):
+    """the player's reading of the event stream, written independently of the encoder: per pattern, per row, a list of (channel, instrument, bus, note, volume)"""
+    keys = list(vt); out = []
+    for po, nrows in zip(off, rows):
+        e = po; r = 0; pat = []
+        while r < nrows:
+            h = stream[e]; e += 1
+            if h & 0x80: pat += [[] for _ in range(h & 0x7F)]; r += h & 0x7F; continue
+            row = []
+            for _ in range(h):
+                w = stream[e] | (stream[e + 1] << 8) | (stream[e + 2] << 16); e += 3
+                vi = (w & 255) | ((w >> 22) << 8); ch, ins, bus = keys[vi]
+                row.append((ch, ins, bus, (w >> 8) & 127, (w >> 15) & 127))
+            pat.append(row); r += 1
+        out.append(pat)
+    return out
+
+def blob_add(name, kind, data):
+    LABELS.append((name, kind, len(BLOB), len(data))); BLOB.extend(data)
 
 def convert(sid, path):
     print("%s  <-  %s" % (sid, path))
@@ -813,25 +866,45 @@ def convert(sid, path):
     insts = convert_samples(S, used, sid)
     ninst = len(insts)
     panf = design_pan(S, used, insts, sid)
-    # note events: u32  ch(4) | inst(5)<<4 | note(7)<<9 | volume(7)<<16 | pan bus(3)<<23   (volume = final voice volume, 64 = full sample level, up to 127 with GAIN)
-    ev = []; off = []; rows = []
+    # NOTE EVENTS -> a byte stream (read back by musTrigger in main.c). Per pattern, row by row:
+    #   0x80|k  (k = 1..127)   k empty rows            n (1..16)  a row with n events, each 3 bytes (24 bits, little endian):
+    #   voice index low 8 bits | note-1 (7 bits)<<8 | voice volume (7 bits)<<15 | voice index high 2 bits<<22
+    # The voice index points into the song's voice table  vt[]:  channel(4) | instrument-1(5)<<4 | pan bus(3)<<9   (one entry per distinct combination)
+    # (this replaced 4-byte events + a 4-byte count per row; the notes, volumes, pans and the order they sound in are exactly the same)
+    vt = {}; stream = bytearray(); off = []; rows = []; plain = []      # plain = the events as tuples, to prove the stream decodes back to them
     for pi, p in enumerate(S['pats']):
-        off.append(len(ev)); rows.append(len(p))
+        off.append(len(stream)); rows.append(len(p)); run = 0; prow = []
         for ri, r in enumerate(p):
             e = []
             for ch, (n, i, v, _, _) in enumerate(r):
                 if n and n < 97 and i - 1 < ninst and insts[i - 1]:
                     I = insts[i - 1]
                     rel = (v - 0x10) / 64 if 0x10 <= v <= 0x50 else 1.0       # the volume column scales the sample's own volume
-                    vol = min(127, max(1, int(round(I['svol'] * I['pk'] * rel * GAIN.get(sid, 1.0)))))
-                    e.append(ch | ((i - 1) << 4) | ((n - 1) << 9) | (vol << 16) | (panf(pi, ri, ch, i, n) << 23))
-            ev.append(len(e)); ev.extend(e)
+                    vol = min(127, max(1, int(round(I['svol'] * I['pk'] * rel * GAIN.get(sid, 1.0)))))   # final voice volume: 64 = full sample level, up to 127 with GAIN
+                    key = (ch, i - 1, panf(pi, ri, ch, i, n))
+                    if key not in vt:
+                        vt[key] = len(vt)
+                        if len(vt) > 1024: sys.exit("  ERROR: more than 1024 different channel/instrument/pan combinations in one song")
+                    vi = vt[key]; e.append((vi, n - 1, vol))
+            prow.append(e)
+            if not e:
+                run += 1
+                if run == 127: stream.append(0x80 | run); run = 0
+                continue
+            if run: stream.append(0x80 | run); run = 0
+            stream.append(len(e))
+            for vi, nt, vol in e:
+                w = (vi & 255) | (nt << 8) | (vol << 15) | ((vi >> 8) << 22); stream += bytes((w & 255, (w >> 8) & 255, (w >> 16) & 255))
+        if run: stream.append(0x80 | run)
+        plain.append([[(k[0], k[1], k[2], nt, vol) for (vi, nt, vol) in e for k in [list(vt)[vi]]] for e in prow])
+    vtab = [ch | (ins << 4) | (bus << 9) for (ch, ins, bus) in vt]
+    assert decode_stream(bytes(stream), off, rows, vt) == plain, "event stream does not decode back to the events"
     rowsec = S['tempo'] * 2.5 / S['bpm']                       # speed ticks per row, 2.5/bpm seconds per tick
     rowN = int(rowsec * MIXR); rfr = int(round((rowsec * MIXR - rowN) * 256))
     loop = LOOP_OVERRIDE.get(sid, S['restart'])
     if loop >= nord: loop = 0
     secs = sum(rows[o] for o in S['order']) * rowsec
-    print("  %d orders, %d patterns, %.0f s, row %.3f s, loops from order %d" % (nord, len(S['pats']), secs, rowsec, loop))
+    print("  %d orders, %d patterns, %.0f s, row %.3f s, loops from order %d; %d voices, event stream %d bytes" % (nord, len(S['pats']), secs, rowsec, loop, len(vt), len(stream)))
     o = []
     def arr(t, nm, vals, w=24):
         o.append('static const %s %s[%d]={' % (t, nm, len(vals)))
@@ -839,8 +912,11 @@ def convert(sid, path):
         o.append('};\n')
     P = 'xm_%s_' % sid
     o.append('// ---- %s  (from %s) ----\n' % (sid, path))
-    arr('u8', P + 'order', S['order'], 30); arr('u16', P + 'rows', rows, 30); arr('u32', P + 'patOff', off); arr('u32', P + 'ev', ev, 12)
-    arr('u32', P + 'step', [s for I in insts for s in (I['steps'] if I else [0] * 96)], 8)
+    arr('u8', P + 'order', S['order'], 30); arr('u16', P + 'rows', rows, 30); arr('u32', P + 'patOff', off)
+    arr('u16', P + 'vt', vtab, 16)
+    anc, fx = pitch_anchors(insts, sid)
+    arr('u32', P + 'anc', anc, 8); arr('u8', P + 'fx', fx, 24)
+    blob_add(P + 'ev', 'u8', bytes(stream))
     seen = SHARED; names = []; fresh = []
     for k, I in enumerate(insts):
         if not I: names.append('0'); continue
@@ -857,18 +933,25 @@ def convert(sid, path):
                 print("  inst %2d is a copy of %s - reusing it" % (k + 1, nm0)); continue
         nm = P + 'S%d' % k; seen[key] = nm; QREG[nm] = I['q']; names.append(nm); fresh.append((nm, I['q']))
     arr('u32', P + 'len', [(len(I['q']) - 1) if I else 0 for I in insts])
-    for nm, q in fresh: arr('s8', nm, [int(v) for v in q], 32)
+    for nm, q in fresh: blob_add(nm, 's8', np.asarray(q, dtype=np.int8).tobytes())
     o.append('static const s8* const %sdata[%d]={%s};\n' % (P, ninst, ','.join(names)))
     bg = bus_gains(panf.trim); print('  stereo balance %.2f dB (L-R) before trim' % panf.balance_db)
     arr('u8', P + 'busL', [g[0] for g in bg]); arr('u8', P + 'busR', [g[1] for g in bg])   # pan bus gains, 128 = 1.0
-    o.append('static const XmSong xm_%s={%sorder,%srows,%spatOff,%sev,%sstep,%slen,%sdata,%sbusL,%sbusR,%d,%d,%d,%d};\n' % (sid, P, P, P, P, P, P, P, P, P, nord, loop, rowN, rfr))
+    o.append('static const XmSong xm_%s={%sorder,%srows,%spatOff,%sev,%svt,%sanc,%sfx,%slen,%sdata,%sbusL,%sbusR,%d,%d,%d,%d};\n' % (sid, P, P, P, P, P, P, P, P, P, P, P, nord, loop, rowN, rfr))
     return ''.join(o)
 
 if __name__ == "__main__":
     songs = song_list()
+    body = [convert(sid, p) for sid, p in songs]
     head = ['// generated by tools/xm2gba.py from the .xm songs listed in source/songs.h - do not edit\n',
             '// needs before it: u8 u16 u32 s8, and the XmSong struct (main.c)\n',
-            '#define MUS_RATE %d\n' % MIXR]
-    body = [convert(sid, p) for sid, p in songs]
+            '#define MUS_RATE %d\n' % MIXR,
+            '// The note events and the sample data live in %s (pulled into the ROM here with .incbin); the small tables below are plain C arrays.\n' % BIN,
+            '__asm__(".pushsection .rodata\\n"\n']
+    for nm, kind, o, n in LABELS: head.append('  ".global %s\\n%s:\\n.incbin \\"%s\\",%d,%d\\n"\n' % (nm, nm, BIN, o, n))
+    head.append('  ".popsection\\n");\n')
+    for nm, kind, o, n in LABELS: head.append('extern const %s %s[];\n' % (kind, nm))
+    head.append('static const u32 xmT[12]={%s};   // 2^(j/12) in Q30: with a per-instrument anchor this gives every note\'s playback step (see xmStep in main.c)\n' % ','.join(str(v) for v in XT))
     open(OUT, 'w').write(''.join(head) + ''.join(body))
-    print("wrote %s  (%d KB of source)" % (OUT, os.path.getsize(OUT) // 1024))
+    open(BIN, 'wb').write(BLOB)
+    print("wrote %s  (%d KB of source) and %s  (%d KB of events and samples)" % (OUT, os.path.getsize(OUT) // 1024, BIN, len(BLOB) // 1024))

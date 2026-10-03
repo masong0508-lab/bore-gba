@@ -1240,8 +1240,9 @@ static void sfxStop(void){ sfxV=0; sfxOn=0; if(mOn&&!mPlay) audStop(); }
 // (loop = per-song loop order); the voices are never cut at the loop jump, so the last notes ring into the first ones.
 typedef int8_t s8; typedef int16_t s16;
 typedef struct {            // one converted tracker song (generated into musicdata.h)
-    const u8*order; const u16*rows; const u32*patOff; const u32*ev;   // order list, rows per pattern, pattern start in ev, note events
-    const u32*step; const u32*len; const s8*const*data;               // per instrument: 96 note steps, sample length, sample data
+    const u8*order; const u16*rows; const u32*patOff; const u8*ev;    // order list, rows per pattern, pattern start (byte offset) in ev, the note-event byte stream
+    const u16*vt; const u32*anc; const u8*fx;                         // voice table (channel | instrument<<4 | pan bus<<9), per-instrument pitch anchor, pitch fix-ups
+    const u32*len; const s8*const*data;                               // per instrument: sample length, sample data
     const u8*busL; const u8*busR;                                     // 7 pan buses: left / right gain (128 = 1.0), balanced per song by the converter
     int nord, loop, rowN, rfr;                                        // orders in the song, loop order, samples per row (+ fraction/256)
 } XmSong;
@@ -1261,13 +1262,27 @@ static int mOrd, mRow, mLeft, mFrac; static volatile int mCur, mFilled; static c
 static volatile int mGain=256, mGainT=256;   // music loudness 256 = full; mGain glides to mGainT a little every frame (half while a menu is open)
 static int mKind, aTail; static volatile int mLaps, mDone;   // mKind 0 = tracker song, 1 = streamed ADPCM; mLaps = times the tracker song has wrapped; mDone = ADPCM song finished
 static int aSlow, aPrv, aPh; static const u8 *aSrc; static u32 aN, aPos; static int aPred, aIdx;   // ADPCM stream: data, sample count, position, decoder state
+// Playback step (16.16) of note nt (0..95) of instrument in: the instrument's anchor x 2^(nt/12) in integer maths (xmT = 2^(j/12) in Q30), plus the
+// converter's rare +-1 fix-ups, so every step is exactly what the old 96-entry table per instrument held (tools/xm2gba.py checks that).
+static u32 xmStep(const XmSong*s,int in,int nt){
+    int q=(nt*683)>>13, j=nt-12*q, sh=46-q;   // q = nt/12 (exact for 0..95)
+    u32 st=(u32)(((unsigned long long)s->anc[in]*xmT[j]+(1ull<<(sh-1)))>>sh);
+    for(const u8*f=s->fx;*f!=255;f+=3) if(f[0]==in&&f[1]==nt) st+=(u32)(int)(s8)f[2];
+    return st;
+}
+// Note events (tools/xm2gba.py): per pattern, row by row. A byte >=0x80 = that many (low 7 bits) empty rows; otherwise it is the number of events in
+// the row, each 3 bytes (24 bits, little endian): voice index low 8 bits | note<<8 (7 bits) | volume<<15 (7 bits) | voice index high 2 bits<<22.
+// The voice index picks a vt[] entry: channel(4) | instrument(5)<<4 | pan bus(3)<<9.
 static void musTrigger(void){
-    const XmSong*s=mSong; const u32*e=&s->ev[s->patOff[s->order[mOrd]]];
-    for(int r=0;r<mRow;r++) e+=1+*e;
-    int n=*e++;
-    while(n--){ u32 w=*e++; int ch=w&15, in=(w>>4)&31, nt=(w>>9)&127, vol=(w>>16)&127;   // channel, instrument, note, voice volume
-        int bus=(w>>23)&7; if(bus>6) bus=3;   // pan bus 0 = hard left .. 3 = centre .. 6 = hard right
-        MVoice*v=&mvc[ch]; v->d=s->data[in]; v->pos=0; v->step=s->step[in*96+nt]; v->len=s->len[in]<<16; v->vl=vol*s->busL[bus]; v->vr=vol*s->busR[bus]; }
+    const XmSong*s=mSong; const u8*e=&s->ev[s->patOff[s->order[mOrd]]]; int r=mRow, n;
+    for(;;){ int h=*e++;
+        if(h&0x80){ h&=0x7F; if(r<h){ n=0; break; } r-=h; }
+        else if(r--==0){ n=h; break; }
+        else e+=3*h; }
+    while(n--){ u32 w=e[0]|((u32)e[1]<<8)|((u32)e[2]<<16); e+=3;
+        u32 t=s->vt[(w&255)|((w>>22)<<8)]; int ch=t&15, in=(t>>4)&31, nt=(w>>8)&127, vol=(w>>15)&127;   // channel, instrument, note, voice volume
+        int bus=(t>>9)&7; if(bus>6) bus=3;   // pan bus 0 = hard left .. 3 = centre .. 6 = hard right
+        MVoice*v=&mvc[ch]; v->d=s->data[in]; v->pos=0; v->step=xmStep(s,in,nt); v->len=s->len[in]<<16; v->vl=vol*s->busL[bus]; v->vr=vol*s->busR[bus]; }
 }
 IWRAM_CODE static void musMix(s8*outL,s8*outR){
     int done=0;
