@@ -266,7 +266,7 @@ The title screen plays "The Dipper Man" (tools/the_dipper_man.xm). `python3 tool
 - **Second act:** after the original arrangement comes a build into a FINALE, where the lead is doubled an octave up on a free voice.
 - **Expanded ending:** the run-in plays first. The outro riff follows four times, stepping down from house to funk to groove to hats only. Then come a soft afterglow, the original coda, and a last hit that rings out.
 
-**Cynicaller Madness (drum & bass)**: `tools/make_cynicaller_rework.py` builds `tools/cynicaller_dnb.xm` from "The Dipper Man - Cynicaller Madness" (`tools/cynicaller_madness.xm`), a liquid / tech drum & bass track. It runs 4:06 at 172.5 BPM.
+**The Cynical Syndication (drum & bass)**: `tools/make_cynicaller_rework.py` builds `tools/cynicaller_dnb.xm` from "The Dipper Man - Cynicaller Madness" (`tools/cynicaller_madness.xm`), a liquid / tech drum & bass track. It runs 4:06 at 172.5 BPM.
 - **From the original:** the Bm / F#m / Am / Em changes, the B F# A E bass walk, the lead, the falling counter-line and the echoing E of the outro.
 - **New:** a two-step break with flams, ghosts a 64th late and 64th hat ratchets; a reese bass over a sine sub; 32nd-note arps with 64th flurries; and snare rolls that speed up to 64ths.
 - **Arrangement:** two drops, a breakdown, a third drop with the lead an octave up in thirds, a glitch section that stutters the lead, and a final drop.
@@ -278,6 +278,7 @@ The title screen plays "The Dipper Man" (tools/the_dipper_man.xm). `python3 tool
 - **Moby:** a piano / strings / "ahh" breakdown on the pumps.
 - **Aphex Twin:** a drill'n'bass section where every beat of the break is cut up (pitched snare ratchets, kick 32nds, 64th hat rolls, gaps, reverse swells), with the lead's licks stuttered on a bell.
 - **Technical:** it uses 64th-note rows (speed 1, XM BPM 90) and all 16 voices (`hotdamn_pan`).
+- **Second take:** less busy and more syncopated, ending in a long fade as the band plays off one by one (the drums and acid first, then the bass and lead, the strings and piano last). The first take is still in the game as the secret **HOT DAMN (ORIGINAL)**. The break is a sparse two-step with the kicks off the beat and hats only on the offbeats. The organ stabs land on the a of 1 and the and of 3, and the acid line keeps its 64th runs for the ends of phrases. The IDM licks play every other beat, and a soft string bed under the drops keeps the space wide.
 
 **Aim and Shoot**: `tools/make_aimandshoot_rework.py` reads the Caustic sketch `tools/aimandshoot_v11.caustic` (81 BPM, 53 seconds) and builds `tools/aim_and_shoot.xm`, a complete 2:52 piece.
 - **From the sketch:** the pulsing ostinato (moved up a semitone to sit on the FM part's C#), the FM tune, its descending progression (C# B A G# | F# G# A B | E B E A D G#), its second line and its beatbox pattern.

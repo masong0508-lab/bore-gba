@@ -50,12 +50,14 @@ SONG_XM(excuses_house,"EXCUSES","tools/excuses_house.xm")
 SONG_XM(whistler_shuffle,"WHISTLER MAN","tools/whistler_shuffle.xm")
 // WHISTLER MAN (ORIGINAL): the first version of the rework, kept as a SECRET song, hidden until the title-screen code (isDbgSong in main.c)
 SONG_XM(whistler_shuffle_old,"WHISTLER MAN (ORIGINAL)","tools/whistler_shuffle_old.xm")
-// CYNICALLER MADNESS: a 172 BPM liquid / tech drum & bass rework of "The Dipper Man - Cynicaller Madness" on 64th-note rows
+// THE CYNICAL SYNDICATION (once CYNICALLER MADNESS): a 172 BPM liquid / tech drum & bass rework of "The Dipper Man - Cynicaller Madness" on 64th-note rows
 // (tools/make_cynicaller_rework.py, about 4:05)
-SONG_XM(cynicaller_dnb,"CYNICALLER MADNESS","tools/cynicaller_dnb.xm")
+SONG_XM(cynicaller_dnb,"THE CYNICAL SYNDICATION","tools/cynicaller_dnb.xm")
 // HOT DAMN: a 90s rave / IDM rework (breakbeats, acid, hoover, a Moby-style breakdown, drill'n'bass) of the Caustic project
 // "HoTdamn v050" (tools/hotdamn_v050.caustic, read by tools/make_hotdamn_rework.py, about 3:48)
 SONG_XM(hotdamn_rave,"HOT DAMN","tools/hotdamn_rave.xm")
+// HOT DAMN (ORIGINAL): the first, busier take, kept as a SECRET song (isDbgSong in main.c)
+SONG_XM(hotdamn_rave_old,"HOT DAMN (ORIGINAL)","tools/hotdamn_rave_old.xm")
 // AIM AND SHOOT: the Caustic sketch "Aimandshoot 430 2021 V11" grown into a full piece in C# Hijaz: oud, qanun, ney and strings on a
 // half-time groove with a quiet darbuka (tools/aimandshoot_v11.caustic, read by tools/make_aimandshoot_rework.py, about 2:52)
 SONG_XM(aim_and_shoot,"AIM AND SHOOT","tools/aim_and_shoot.xm")
