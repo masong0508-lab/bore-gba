@@ -134,6 +134,11 @@ Walls are drawn like The Sims: a wall tile is a **thin, tall panel** (24 px, 3 b
 - **For now** the aspiration meter, wants, job, cash and skill belong to the household (whoever you control uses them), and the household is saved in SRAM at 5216 (one household, not per room slot).
 - RAM: each member's baked sprites are 11 KB (EWRAM), the free will state about 150 bytes a Sim.
 
+**No more Sims on top of each other:**
+- A Sim never picks a spot (furniture, a wander target, a spawn point) that another Sim stands on or is walking to.
+- An idle Sim that someone walks onto steps aside.
+- Household Sims go see-through when tall furniture (a fridge, a shower) or the player stands in front of them, as they already did behind full-height walls.
+
 ## RAM budget (work RAM, not saves)
 The GBA has 256 KB of EWRAM and 32 KB of IWRAM. Every GitHub build prints the numbers in the job summary (`make size` does the same locally). By hand: `arm-none-eabi-size -A` on the object or ELF: `.sbss` is EWRAM, `.bss` + `.data` + `.iwram` are IWRAM (the stack shares what is left of IWRAM).
 | | EWRAM | IWRAM |
@@ -326,6 +331,34 @@ The old BUILD tab (block builder) is gone; the classic block screen is still beh
   - **Ears** sit on the sides of the head in the same iso perspective as the blocks. The far ear only peeks out.
   - **Fixes:** TALL no longer pushes the eyes up onto the hair (a normal head keeps a free layer above it, and TALL now draws longer legs instead of adding a block). ATHLETIC arms hang under the front of the wide chest instead of sticking out sideways.
 - Saved as person format 5 (older slots still load; the new looks start at their first option), households as 'H3' (an 'H2' household still loads).
+
+**Creator overhaul** (person save format 8, household save H7; older saves still load):
+- **Every slider notch counts:** each step moves or grows the art by at least a pixel. Before, EYE SIZE, EYE SPACING and MOUTH WIDTH needed two steps to change anything, and the FLAT mouth vanished at normal size.
+- **New sliders:**
+  - BODY: TORSO (longer or shorter torso), ARMS (in or out) and STANCE (feet apart or together).
+  - FACE: EYE SHADE, BROW HEIGHT and NOSE HEIGHT.
+  - HAIR: HAIR TONE.
+  - CLOTHES: TOP TONE and BOTTOM TONE.
+  - BUTT, BUTT HEIGHT and BUTT WIDTH: teens, adults and elders only; the rows are not offered to babies or children.
+- **The seat:** BUTT draws two shaded, rounded cheeks in the bottom colour on the back of the hips, with a cleft and a crease, from nearly flat to full.
+- **Seventeen body types:**
+  - AVERAGE, BROAD, BIG HEAD, STUBBY, SLIM, ATHLETIC and TALL were already there.
+  - New: CHUBBY (soft belly), PEAR (wide hips), LANKY (long and thin, longer arms), STOCKY (short and wide), HUNCHED (head forward, a hump), POTBELLY, MUSCLE (heavy arms), PETITE, BARREL (deep chest) and DIGITIGRADE (animal legs with paws).
+  - Every age gets a real choice: babies have nine bodies to pick from.
+- **Furry parts (PARTS tab):**
+  - ANIMAL EARS: CAT, FOX, BUNNY, BEAR, in the fur (hair) colour.
+  - MUZZLE: SNOUT, MUZZLE, BEAK. The mouth moves onto its front.
+  - FUR TAIL: FOX, CAT, BUNNY.
+  - New PATTERNs: SOCKS (paws and hands) and MASK (a bandit band across the eyes).
+  - NOSE gains ANIMAL, and CHEEKS has WHISKERS.
+- **Beards and claws:**
+  - Beards grow flush on the jaw (a LONG BEARD also covers the top of the chest) instead of a block sticking out of the face.
+  - CLAWS are talons pointing forward out of the hand.
+  - Claws and pincers follow the arm when it is drawn in against the torso and when it swings.
+- **Ten-slot meters:** the ability chart is now 0 to 10 per ability, like a Sims skill bar. The body sliders add the odd points. The personality traits use the same bigger 10-slot meter.
+- **Names:** DONE > FIRST NAME and LAST NAME open an on-screen keyboard with capitals, lowercase, digits and symbols (`. - ' ! ? & @ # * " _ ~ $ : ; , + / ( ) = % < [ ] ^`), up to 11 characters each.
+  - The font gained lowercase letters and these symbols: `tools/make_font.py --add` adds glyphs without touching the existing ones.
+  - Premade families take their surname (THE MIDNIGHTS → MIDNIGHT), and new family members take yours.
 
 ### Tab 5: PARTS (Spore style)
 Like the Spore creature editor, the body decides what the creature can do. Parts are built as blocks on the model:
