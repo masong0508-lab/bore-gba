@@ -87,12 +87,15 @@ enum { LK_SHAPE, LK_SKIN, LK_EYES, LK_MOUTH, LK_EARS, LK_HSTYLE, LK_HCOL, LK_TOP
        LK_HAT, LK_HATCOL, LK_BEARD, LK_TOPSTY, LK_BOTSTY, LK_SHOE,   // (these six came with person format 5; 0 everywhere = the old look)
        LK_BROW, LK_NOSE, LK_CHEEK, LK_GLASS, LK_EYECOL,                // face details (person format 6): 0 = none / dark eyes
        LK_HEIGHT, LK_WEIGHT, LK_EYESZ, LK_EYESP, LK_EYEHT, LK_MOUTHW, LK_MOUTHHT,   // body and face sliders (format 6)
-       LK_CLAWS, LK_ANTENNA, LK_PATTERN, LK_PATCOL, LK_N };   // more Spore parts and body paint (format 7)
+       LK_CLAWS, LK_ANTENNA, LK_PATTERN, LK_PATCOL,                    // more Spore parts and body paint (format 7)
+       LK_HTONE, LK_TTONE, LK_BTONE, LK_EYETONE, LK_BROWHT, LK_NOSEHT, LK_TORSO, LK_ARMS, LK_STANCE,   // more sliders (format 8)
+       LK_FEARS, LK_MUZZLE, LK_FTAIL, LK_BUTT, LK_BUTTH, LK_BUTTW, LK_N };   // animal (furry) ears, a muzzle, a fur tail (format 8); LK_BUTT: a slider, the seat (teens and up)
+#define LK_N7 (LK_PATCOL+1)   // looks a person format 7 slot holds
 #define LK_N6 (LK_MOUTHHT+1)   // looks a person format 6 slot holds
 #define LK_N5 (LK_SHOE+1)    // looks a person format 5 slot holds
 #define LK_N4 (LK_BACK+1)    // looks a person format 4 slot holds   // LK_TONE, LK_EARSZ, LK_EARLF are sliders: 0 = middle, then 1..4 up, 5..8 down (see slidePos)
 #define LK_N3 (LK_EARLF+1)   // looks a person format 3 slot holds (the Spore parts TAIL, HORNS, BACK came with format 4)
-static inline int lkSlide(int id){ return (id>=LK_BASE&&id<=LK_EARLF)||(id>=LK_HEIGHT&&id<=LK_MOUTHHT); }
+static inline int lkSlide(int id){ return (id>=LK_BASE&&id<=LK_EARLF)||(id>=LK_HEIGHT&&id<=LK_MOUTHHT)||(id>=LK_HTONE&&id<=LK_STANCE)||(id>=LK_BUTT&&id<=LK_BUTTW); }
 static inline int slidePos(int v){ return (v+4)%9; }      // 0..8 left to right, the middle (stored 0) is 4
 static inline int slideVal(int p){ return (p+5)%9; }
 static inline int slideEff(int v){ return slidePos(v)-4; }   // -4..4
@@ -110,11 +113,17 @@ static const u8 stLegs[AG_N]={0,1,2,3,2};   // (an elder is stooped: a block low
 static const u8 stSpd[AG_N]={50,80,95,100,70};       // walking speed in percent
 // allowed looks per stage: bit n set = option n may be picked. Shape: AVERAGE BROAD BIG-HEAD STUBBY SLIM ATHLETIC TALL. Ears: NONE SMALL BIG. Hair: CROP BOWL LONG BALD.
 // BIG HEAD (bit 2) is only on offer while the Konami code is switched on (see shapeMask).
-#define NSHAPE 7
-static const u8 stMaskShape[AG_N]={12,13,13,127,127}, stMaskEars[AG_N]={3,7,7,7,7};
+#define NSHAPE 17   // + CHUBBY PEAR LANKY STOCKY HUNCHED POTBELLY MUSCLE PETITE BARREL DIGITIGRADE (7..16)
+enum { SH_AVG, SH_BROAD, SH_BIGHEAD, SH_STUBBY, SH_SLIM, SH_ATHL, SH_TALL, SH_CHUBBY, SH_PEAR, SH_LANKY, SH_STOCKY, SH_HUNCH, SH_POT, SH_MUSCLE, SH_PETITE, SH_BARREL, SH_DIGI };
+#define SHB(n) (1u<<(n))
+static const u32 stMaskShape[AG_N]={   // every age gets a real choice of bodies (a baby has no legs to speak of, so no LANKY or DIGITIGRADE)
+    SHB(SH_BIGHEAD)|SHB(SH_STUBBY)|SHB(SH_CHUBBY)|SHB(SH_PEAR)|SHB(SH_STOCKY)|SHB(SH_POT)|SHB(SH_PETITE)|SHB(SH_BARREL)|SHB(SH_MUSCLE),
+    13|SHB(SH_CHUBBY)|SHB(SH_PEAR)|SHB(SH_LANKY)|SHB(SH_STOCKY)|SHB(SH_HUNCH)|SHB(SH_POT)|SHB(SH_MUSCLE)|SHB(SH_PETITE)|SHB(SH_BARREL)|SHB(SH_DIGI),
+    0x1FFFF&~SHB(SH_BROAD), 0x1FFFF, 0x1FFFF };
+static const u8 stMaskEars[AG_N]={3,7,7,7,7};
 #define NHAIR 9   // CROP BOWL LONG BALD + SPIKY AFRO FLAT TOP SIDE TAIL BUN
 static const u16 stMaskHair[AG_N]={9,11|0x1F0,15|0x1F0,15|0x1F0,15|0x1F0};
-static inline int shapeMask(void){ int m=stMaskShape[stage]; if(!sUnlock) m&=~4; return m; }
+static inline int shapeMask(void){ int m=(int)stMaskShape[stage]; if(!sUnlock) m&=~4; return m; }
 static const u8 stSwatches[AG_N]={4,6,8,8,8};       // how many colours of each row are on offer
 #define BX0 ((W-stBW[stage])/2)
 static u16 base[9+NWP], sT[9+NWP], sL[9+NWP], sR[9+NWP];   // slots 1..8 = body colours, 9.. = wallpaper average colours
@@ -174,18 +183,22 @@ static const u8 flVs[NFL]={14,15,15,16,14,15,15,15,15,15,15,15,15,15};   // shad
 static u16 wpAvg[NWP];   // average colour of each wallpaper: wall tops and the "wallpaper off" look
 
 
+static u16 toneBy(u16 c,int e){   // a tone slider: darker to the left, lighter to the right (a step each notch)
+    if(e<0) return shade(c,16+e*2);
+    if(e>0){ int r=c&31,g=(c>>5)&31,b=(c>>10)&31; return RGB(r+(31-r)*e/8,g+(31-g)*e/8,b+(31-b)*e/8); }
+    return c;
+}
 static void setColors(void) {
-    { int e=slideEff(look[LK_TONE]); u16 sk=skinTones[look[LK_SKIN]];   // skin tone slider: darker to the left, lighter to the right
-      if(e<0) sk=shade(sk,16+e*2); else if(e>0){ int r=sk&31,g=(sk>>5)&31,b=(sk>>10)&31; sk=RGB(r+(31-r)*e/8,g+(31-g)*e/8,b+(31-b)*e/8); }
-      base[1]=sk; } base[2]=RGB(31,31,31); base[3]=RGB(3,3,6);
-    base[4]=RGB(29,12,16);    base[5]=hairTones[look[LK_HCOL]];
-    base[6]=topTones[look[LK_TOP]]; base[7]=botTones[look[LK_BOT]]; base[8]=RGB(31,30,16);
+    base[1]=toneBy(skinTones[look[LK_SKIN]],slideEff(look[LK_TONE]));   // skin tone
+    base[2]=RGB(31,31,31); base[3]=RGB(3,3,6);
+    base[4]=RGB(29,12,16);    base[5]=toneBy(hairTones[look[LK_HCOL]],slideEff(look[LK_HTONE]));
+    base[6]=toneBy(topTones[look[LK_TOP]],slideEff(look[LK_TTONE])); base[7]=toneBy(botTones[look[LK_BOT]],slideEff(look[LK_BTONE])); base[8]=RGB(31,30,16);
     for (int i=1;i<9;i++){ sT[i]=base[i]; sL[i]=shade(base[i],12); sR[i]=shade(base[i],9); }
     for (int i=0;i<NWP;i++){ int s=9+i; base[s]=wpAvg[i]; sT[s]=base[s]; sL[s]=shade(base[s],12); sR[s]=shade(base[s],9);
         wpEdge[i][0]=shade(sT[s],9); wpEdge[i][1]=shade(sL[s],9); wpEdge[i][2]=shade(sR[s],9); }
     u16 sk=base[1], bl=RGB(((sk&31)+31)/2,(((sk>>5)&31)+8)/2,(((sk>>10)&31)+12)/2);
     u16 dc[9]={ base[3], base[2], base[4], shade(base[1],11),        // k dark, w white, r red, s lid shadow (also the nose and freckles)
-                eyeTones[look[LK_EYECOL]%NSW], bl, RGB(6,6,8),         // i iris, b blush, g glasses frame
+                toneBy(eyeTones[look[LK_EYECOL]%NSW],slideEff(look[LK_EYETONE])), bl, RGB(6,6,8),         // i iris, b blush, g glasses frame
                 shade(base[5],10), RGB(4,5,9) };                       // h brows (the hair colour, darker), l dark lenses
     for (int i=0;i<9;i++){ dL[i]=shade(dc[i],12); dR[i]=shade(dc[i],9); }
 }
@@ -393,8 +406,9 @@ static const char* const brArt[5][2]={ {"..hhhhh..",B9},{".hhhhhhh.",".hhhhhhh."
 static const char* const glArt[3][8]={ {B9,"..ggggg..",".g.....g.","gg.....gg",".g.....g.","..ggggg..",B9,B9},              // ROUND
                                        {B9,"ggggggggg","g.......g","g.......g","g.......g","ggggggggg",B9,B9},              // SQUARE
                                        {B9,B9,"ggggggggg",".lllllll.",".lllllll.","..lllll..",B9,B9} };                       // SHADES
-static const char* const noArt[4][2]={ {"........sss........",B19},{".........ss........",".........kss......."},
-                                       {".......sssss.......",".......s...s......."},{"........sss........","........k.k........"} };   // BUTTON POINTY WIDE PIG
+static const char* const noArt[5][2]={ {"........sss........",B19},{".........ss........",".........kss......."},
+                                       {".......sssss.......",".......s...s......."},{"........sss........","........k.k........"},
+                                       {".......kkkkk.......","........kkk........"} };   // BUTTON POINTY WIDE PIG ANIMAL
 static const char* const chArt[4][4]={ {".bbb...........bbb.",".bbb...........bbb.",B19,B19},{".s.s...........s.s.","..s.............s..",B19,B19},
                                        {B19,"kkk.............kkk",B19,"kkk.............kkk"},{"................r..","...............r...","..............r....",B19} };   // BLUSH FRECKLES WHISKERS SCAR
 static int sty[2];                     // chosen style per kind: 0 = eye, 1 = mouth
@@ -406,6 +420,7 @@ static inline u16 decSprBits(int n){ return (u16)((n&7)|((n>>3)<<11)); }
 // face: 0 = left cube face (+Z seen from view 0), 1 = right cube face (+Z seen from view 3)
 // The FACE sliders move and scale the art inside its footprint (eye size, spacing and height; mouth width and height), drawing a 2 px
 // margin round it so a moved eye is not cut off at its own cell's edge.
+static int decNose;   // 1: drawDeco draws only the nose (a raised nose is drawn again after the body, else the block above covers it)
 static int decLook;   // 1: brows, glasses, nose, cheeks and the face sliders apply (a look-built creature)
 __attribute__((noinline)) static void drawDeco(int sx,int sy,u16 code,int face,int tint){   // ROM: only the few face voxels call it
     int id=decSpr(code)-1; if(id<0||id>=NSPR) return;
@@ -413,29 +428,40 @@ __attribute__((noinline)) static void drawDeco(int sx,int sy,u16 code,int face,i
     int ci=(code>>3)&7, cj=(code>>6)&3, sz=((code>>8)&3)+1, fl=(code>>10)&1, aw=10*sp->wc-1;   // aw = art width in chars
     int wp=CA*sp->wc*sz-1, hp=CC*sz-2;   // footprint size in px (scales with the voxel size)
     const u16*pal=face?dR:dL;
-    int sh=0, sv=0, kx=8, ky=8, br=0, gl=0, no=0, ch=0;   // shift (px), scale (8 = 1x), details
+    int sh=0, sv=0, kx=64, ky=64, br=0, gl=0, no=0, ch=0, bsh=0, nsh=0;   // shift (px), scale (64 = 1x), details
     if(decLook){
-        if(eye){ int e=slideEff(look[LK_EYESZ]); kx=ky=8+e; sh=slideEff(look[LK_EYESP])*sz/2; if(fl) sh=-sh; sv=slideEff(look[LK_EYEHT])*sz;
-                 br=look[LK_BROW]; gl=look[LK_GLASS]; }
-        else { kx=8+slideEff(look[LK_MOUTHW]); sv=slideEff(look[LK_MOUTHHT])*sz; no=look[LK_NOSE]; ch=look[LK_CHEEK]; }
+        // every notch of a face slider moves the art by a pixel, or grows its footprint by two (per voxel size): no two notches look the same
+        if(eye){ int e=slideEff(look[LK_EYESZ])*sz, gw; e=e>0?2*e:e<0?e-sz:0; gw=wp+e; int gh=hp+e; if(gw<1) gw=1; if(gh<1) gh=1; kx=64*gw/wp; ky=64*gh/hp;
+                 sh=slideEff(look[LK_EYESP])*sz; if(fl) sh=-sh; sv=slideEff(look[LK_EYEHT])*sz;
+                 br=look[LK_BROW]; gl=look[LK_GLASS]; bsh=slideEff(look[LK_BROWHT])*sz; }
+        else { int gw=wp+slideEff(look[LK_MOUTHW])*sz*3; if(gw<1) gw=1; kx=64*gw/wp; sv=slideEff(look[LK_MOUTHHT])*sz; no=look[LK_NOSE]; ch=look[LK_CHEEK]; nsh=slideEff(look[LK_NOSEHT])*sz; }
     }
-    int M=decLook?2:0, pc=wp/2, qc=hp/2;
+    int M=decLook?(eye?4:7):0, pc=wp/2, qc=hp/2;
     int lc0=(ci?-1:0)-M, lr0=(cj?-1:0)-M, lc1=CA-1+M, lr1=CC-2+M;
     for(int lr=lr0;lr<lr1;lr++){
-        int Q=cj*CC+lr+sv; Q=qc+((Q-qc)*8)/ky; if(Q<0||Q>=hp) continue;
-        int ay=(Q*8)/hp; if(ay>7) ay=7;
-        const char*row=sp->art[ay];
+        int Q=cj*CC+lr+sv; Q=qc+((Q-qc)*64)/ky;
+        int Qb=Q+bsh, Qn=Q+nsh-sv;   // (the brows and nose may sit outside the art's own rows: they are checked on their own)
+        if((Q<0||Q>=hp)&&(!br||Qb<0||Qb>=hp)&&(!no||Qn<0||Qn>=hp)) continue;
+        int ay0=Q>=0&&Q<hp?(Q*8)/hp:9, ay1=Q>=0&&Q<hp?((Q+1)*8-1)/hp:9; if(ay0<9){ if(ay0>7) ay0=7; if(ay1>7) ay1=7; if(ay1<ay0) ay1=ay0; }   // the art rows this pixel covers   // the brows (BROW HEIGHT) and the nose (NOSE HEIGHT) move on their own
+        int by0=Qb>=0&&Qb<hp?(Qb*8)/hp:9, by1=Qb>=0&&Qb<hp?((Qb+1)*8-1)/hp:9, ny0=Qn>=0&&Qn<hp?(Qn*8)/hp:9, ny1=Qn>=0&&Qn<hp?((Qn+1)*8-1)/hp:9;
         for(int lc=lc0;lc<lc1;lc++){
-            int P=ci*CA+lc+sh; P=pc+((P-pc)*8)/kx; if(P<0||P>=wp) continue;
-            int ax=(P*aw)/wp; if(ax>aw-1) ax=aw-1; if(fl) ax=aw-1-ax;
-            char c=row[ax];
-            if(eye){
-                if(br&&ay<2&&brArt[br-1][ay][ax]!='.') c=brArt[br-1][ay][ax];
-                if(gl&&glArt[gl-1][ay][ax]!='.') c=glArt[gl-1][ay][ax];
+            int P=ci*CA+lc+sh; P=pc+((P-pc)*64)/kx; if(P<0||P>=wp) continue;
+            int ax0=(P*aw)/wp, ax1=((P+1)*aw-1)/wp; if(ax0>aw-1) ax0=aw-1; if(ax1>aw-1) ax1=aw-1; if(ax1<ax0) ax1=ax0;
+            // shrunk art: a pixel shows the art at its corner, or if that is clear any ink in the box it covers (else a one-row line, like the FLAT mouth, can fall
+            // between the rows sampled and vanish)
+            #define PICKR(A,rmax,Y0,Y1) ({ char t_=(Y0)<(rmax)?(A)[Y0][fl?aw-1-ax0:ax0]:'.'; for(int a_=(Y0);a_<=(Y1)&&a_<(rmax)&&t_=='.';a_++) for(int b_=ax0;b_<=ax1;b_++){ char u_=(A)[a_][fl?aw-1-b_:b_]; if(u_!='.'){ t_=u_; break; } } t_; })
+            #define PICK(A,rmax) PICKR(A,rmax,ay0,ay1)
+            char c=decNose?'.':PICK(sp->art,8);
+            if(decNose){ if(!eye&&no) c=PICKR(noArt[no-1],2,ny0,ny1); }
+            else if(eye){
+                if(br){ char t=PICKR(brArt[br-1],2,by0,by1); if(t!='.') c=t; }
+                if(gl){ char t=PICK(glArt[gl-1],8); if(t!='.') c=t; }
             } else if(c=='.'){
-                if(no&&ay<2&&noArt[no-1][ay][ax]!='.') c=noArt[no-1][ay][ax];
-                else if(ch&&ay<4&&chArt[ch-1][ay][ax]!='.') c=chArt[ch-1][ay][ax];
+                if(no) c=PICKR(noArt[no-1],2,ny0,ny1);
+                if(c=='.'&&ch) c=PICK(chArt[ch-1],4);
             }
+            #undef PICK
+            #undef PICKR
             if(c=='.') continue;
             static const char key[]="kwrsibghl"; int k=0; while(key[k]&&key[k]!=c) k++; if(!key[k]) k=0;
             u16 col=tint?(face?sR[8]:sL[8]):pal[k];
@@ -454,9 +480,13 @@ static void rotUW(int u,int w,int*ru,int*rw){
     switch(view){ case 0:*ru=u;*rw=w;break; case 1:*ru=-w;*rw=u;break; case 2:*ru=-u;*rw=-w;break; default:*ru=w;*rw=-u; }
 }
 // u,w = doubled grid coords relative to the build-space centre
-static int liftK, liftL, bakeCapH=99, bakeCapW=99, bakeWk, strideK;   // strideK: legs (shape 3) half a block forward / back, arms the other way   // HEIGHT slider: every one of the first liftL rows (the legs) is liftK px taller
+static int liftK, liftL, liftT, liftTn, armK, stanceK, bakeCapH=99, bakeCapW=99, bakeCapT=99, bakeCapX=99, bakeCapL=99, bakeSh, bakeWk, strideK;   // liftT: TORSO slider px per torso row (liftTn rows); armK, stanceK: ARMS and STANCE spread (px)
+   // strideK: legs (shape 3) half a block forward / back, arms the other way   // HEIGHT slider: every one of the first liftL rows (the legs) is liftK px taller
+static const signed char shpDraw[NSHAPE][4]={   // per body type, drawn: torso width, arm width, leg width (px added to the block's half width), leg lift (px per leg row)
+    {0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},
+    {2,1,1,0},{-1,-1,2,0},{-2,-1,-1,2},{3,2,2,0},{0,0,0,-1},{1,-1,-1,0},{2,3,1,0},{-2,-1,-1,-1},{1,0,0,0},{0,0,1,0} };
 static void projC(int u,int w,int yy,int*ox,int*oy){
-    int a,b; rotUW(u,w,&a,&b); *ox=OXC+(a-b)*CA/2; *oy=OYC+(a+b)*CB/2-yy*CC-liftK*(yy<liftL?yy:liftL);
+    int a,b; rotUW(u,w,&a,&b); *ox=OXC+(a-b)*CA/2; *oy=OYC+(a+b)*CB/2-yy*CC-liftK*(yy<liftL?yy:liftL)-liftT*(yy<liftL?0:yy-liftL<liftTn?yy-liftL:liftTn);
 }
 // Wedge blocks (hair): the block's own diamond, with some top corners lowered by a full block height, so the top face slopes.
 // shape 4..11: 4 edges (slope towards +x +z -x -z) and 4 corners (only the outer corner drops: ++ -+ -- +-). Slopes are given in grid space and
@@ -564,7 +594,7 @@ static int custom;   // 1 once the block builder has placed or erased something 
 __attribute__((noinline)) static void bodyPlan(int*L,int*T,int*hs){   // legs showing, torso blocks showing, head scale: the body that fits this stage's box
     int sh=look[LK_SHAPE]; *hs=(sh==2)?2:1;
     int l=stLegs[stage], t=2, ht=2*(*hs);
-    if((sh==2||sh==3)&&l>0) l--;                          // BIG HEAD and STUBBY: legs one block shorter
+    if((sh==SH_BIGHEAD||sh==SH_STUBBY||sh==SH_STOCKY||sh==SH_PETITE)&&l>0) l--;   // BIG HEAD, STUBBY, STOCKY and PETITE: legs one block shorter
     int room=stBH[stage]-(*hs==1);                        // a normal head keeps a layer free above it for the hair (else the hair eats its top row, eyes and all)
     while(l+t+ht>room&&l>0) l--;                          // too tall for the box: shorten the legs, then the torso
     if(l+t+ht>room) t=1;
@@ -573,6 +603,7 @@ __attribute__((noinline)) static void bodyPlan(int*L,int*T,int*hs){   // legs sh
 static void headBox(int*hx,int*hy,int*hz,int*hs){   // where the head sits (and how many blocks per head cell) for each body shape
     int L,T; bodyPlan(&L,&T,hs);
     *hx=BX0+(stBW[stage]-2*(*hs))/2; *hy=L+T; *hz=(stBD[stage]-2*(*hs))/2;
+    if(look[LK_SHAPE]==SH_HUNCH&&*hz+2*(*hs)<stBD[stage]) (*hz)++;   // HUNCHED: the head pushed forward of the shoulders
 }
 static void hairW(int x,int y,int z,int xp,int xm,int zp,int zm){   // one hair block; the flags say which sides slope away (grid space)
     if(x<BX0||x>=BX0+stBW[stage]||y<0||y>=stBH[stage]||z<0||z>=stBD[stage]) return;
@@ -626,8 +657,22 @@ static void buildLook(void){
     } else if(sh==5&&stage>=AG_TEEN){                            // ATHLETIC: wide shoulders, narrow waist (the arms hang clear of the waist)
         doPart(1,3,1,tx,L-3,1); doPart(1,2,1,tx-1,ty-2,2);   // the arms hang under the front of the wide chest, beside the waist (long arms)
         for(int z=1;z<3;z++){ for(int x=tx;x<tx+2;x++) vb(x,ty,z,6); for(int x=tx-1;x<tx+3;x++) vb(x,ty+1,z,6); }
-    } else {                                                     // AVERAGE, BIG HEAD, STUBBY, TALL: legs (clipped to the stage), torso, arms
+    } else {                                                     // AVERAGE, BIG HEAD, STUBBY, TALL and the rest: legs (clipped to the stage), torso, arms
         doPart(1,3,1,tx,L-3,1); doPart(1,1,1,tx,ty,1); doPart(1,2,1,tx-1,ty-1,1);
+    }
+    {   // the newer body types: their own blocks on top of the standard body (the widths and heights are drawn: see shpDraw)
+        int yb=L, yt=L+T-1, fz=3;                                 // torso rows yb..yt, it is two deep (z 1..2): fz is the row in front of it, z 0 behind
+        if(sh==SH_CHUBBY) for(int x=tx;x<tx+2;x++) vw(x,yb,fz,6,0,0,1,0);                               // a soft belly
+        if(sh==SH_POT) for(int x=tx;x<tx+2;x++){ vb(x,yb,fz,6); if(yt>yb) vw(x,yt,fz,6,0,0,1,0); }    // a round potbelly, sloping up to the chest
+        if(sh==SH_BARREL) for(int x=tx;x<tx+2;x++){ for(int y=yb;y<=yt;y++) vb(x,y,fz,6); vw(x,yt,0,6,0,0,0,1); }   // a deep barrel chest
+        if(sh==SH_HUNCH) for(int x=tx;x<tx+2;x++) vw(x,yt,0,6,0,0,0,1);                                 // a hump behind the shoulders (the head hangs forward)
+        if(sh==SH_PEAR) for(int x=tx-1;x<tx+3;x+=3) if(!vox[yb][2][x]) vw(x,yb,2,7,x>tx,x<tx,1,0);       // hips flaring out in front of the hands
+        if(sh==SH_LANKY) for(int y=1;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ u8 v=vox[y][z][x];  // long arms: the hand a block lower
+            if((v&15)==1&&(v>>4)==2&&!vox[y-1][z][x]){ vox[y-1][z][x]=v; vox[y][z][x]=(u8)(1|(1<<4)); } }
+        if(sh==SH_DIGI&&L>0) for(int x=tx;x<tx+2;x++){                                                  // DIGITIGRADE: animal legs, hocks back, paws forward
+            if(L>=2&&vox[0][1][x]&&!vox[0][2][x]){ vox[0][2][x]=vox[0][1][x]; vox[0][1][x]=0; }
+            if(L>=3&&vox[1][1][x]&&!vox[1][0][x]){ vox[1][0][x]=vox[1][1][x]; vox[1][1][x]=0; }
+            int pz=L>=2?3:2; if(!vox[0][pz][x]) vw(x,0,pz,1,0,0,1,0); }                                // the paw: toes in the skin (fur) colour
     }
     int hx,hy,hz,hs; headBox(&hx,&hy,&hz,&hs);
     int hw=2*hs, hh=2*hs, hd=2*hs;
@@ -657,8 +702,28 @@ static void buildLook(void){
         if(hat==4){ for(int z=hz;z<hz+hd;z++)for(int x=hx;x<hx+hw;x++) vb(x,top,z,hc); }                                                         // FEZ: a tall square cap
         if(hat==5){ for(int z=hz;z<hz+hd;z++){ for(int x=hx;x<hx+hw;x++) vw(x,top,z,hc,x==hx+hw-1,x==hx,0,z==hz); vb(hx-1,top-1,z,hc); vb(hx+hw,top-1,z,hc); } }   // HELMET: dome and sides
     }
-    if(hs==1&&hz+hd<stBD[stage]&&look[LK_BEARD]){   // beards sit in front of the jaw (the mouth then sits on the beard)
-        for(int x=hx;x<hx+hw;x++){ vw(x,hy,hz+hd,5,0,0,0,0); if(look[LK_BEARD]==2) vw(x,hy-1,hz+hd,5,0,0,1,0); } }
+    if(look[LK_BEARD]){   // beards grow ON the face, flush: the jaw (the front of the head's bottom layer) turns hair-coloured, the mouth sits on it;
+        int zf=hz+hd-1;     // LONG also covers the top of the chest under the chin (no block sticks out in front of the face any more)
+        for(int x=hx;x<hx+hw;x++){ u8 v=vox[hy][zf][x]; if(v) vox[hy][zf][x]=(u8)((v&0xF0)|5);
+            if(look[LK_BEARD]==2&&hy>0){ u8 c=vox[hy-1][zf][x];
+                if(c&&((c&15)==6||(c&15)==1)) vox[hy-1][zf][x]=(u8)((c&0xF0)|5);
+                else if(!c&&zf+1<stBD[stage]) vw(x,hy-1,zf,5,0,0,1,0); } } }
+    {   // FURRY: animal ears out of the top corners of the head (fur = the hair colour), a muzzle on the lower face, a fur tail
+        int fe=look[LK_FEARS], mz=look[LK_MUZZLE], zb=hz, zf=hz+hd-1;
+        for(int sd=0;sd<2;sd++){ int x=sd?hx+hw:hx-1, xp=sd, xm=!sd;   // just outside the head, at the hair line, at the back
+            if(fe==1) vw(x,top,zb,5,xp,xm,0,1);                                                   // CAT: a point, sloping out and back
+            if(fe==2){ vw(x,top,zb,5,xp,xm,0,1); if(top>0) vw(x,top-1,zb,5,0,0,0,0); vw(x,top,zb+1<zf+1?zb+1:zb,5,xp,xm,0,0); }   // FOX: bigger, deeper
+            if(fe==3){ for(int y=top-1;y<=top;y++) if(y>=0) vw(x,y,zb,5,0,0,0,y==top); }          // BUNNY: tall and upright
+            if(fe==4) vw(x,top,zb,5,0,0,0,1); }                                                    // BEAR: round
+        if(mz&&zf+1<stBD[stage]) for(int x=hx;x<hx+hw;x++){                                         // the muzzle: the mouth goes onto its front
+            if(mz==1) vw(x,hy,zf+1,1,0,0,1,0);                                                      // SNOUT: sloping down to the nose
+            if(mz==2) vb(x,hy,zf+1,1);                                                              // MUZZLE: square
+            if(mz==3) vw(x,hy,zf+1,8,x==hx+hw-1,x==hx,1,0); }                                       // BEAK: gold, pointed
+        int ft=look[LK_FTAIL], yb=L;
+        if(ft==1) for(int x=tx;x<tx+2;x++){ vb(x,yb,0,5); if(yb>0) vw(x,yb-1,0,2,x==tx+1,x==tx,0,1); }   // FOX: bushy, with a white tip
+        if(ft==2){ vb(tx,yb,0,5); if(yb+1<stBH[stage]) vw(tx,yb+1,0,5,0,0,0,1); }                 // CAT: thin, curling up
+        if(ft==3) vw(tx+1,yb,0,2,1,1,0,1);                                                          // BUNNY: a white puff
+    }
     {   // clothes: the arms are the columns with a hand (skin) at the row below the torso
         int ts=look[LK_TOPSTY], bs=look[LK_BOTSTY];
         for(int x=0;x<W;x++)for(int z=0;z<D;z++){ if(ty-1<0||(vox[ty-1][z][x]&15)!=1) continue;
@@ -671,10 +736,10 @@ static void buildLook(void){
         if(bs==2&&L>0){ int yk=L-1; for(int z=1;z<3&&z<D;z++){ vw(tx-1,yk,z,7,0,1,0,0); vw(tx+2,yk,z,7,1,0,0,0); } }                // SKIRT: flares out at the hips
     }
     sporeParts(tx,ty,hx,hy,hz,hw,hh,top);                               // tail, horns, spikes or wings (before the face: sprites snap to the front block)
-    {   // HANDS: CLAWS (ivory talons under each hand) or PINCERS (a red claw in front of and under each hand)
+    {   // HANDS: CLAWS (an ivory talon pointing forward out of each hand) or PINCERS (a red claw in front of and under each hand)
         int cl=look[LK_CLAWS];
         if(cl) for(int y=1;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ u8 v=vox[y][z][x]; if((v&15)!=1||(v>>4)!=2) continue;   // a hand block
-            if(cl==1){ if(!vox[y-1][z][x]) vw(x,y-1,z,8,0,0,1,0); }
+            if(cl==1){ if(z+1<D&&!vox[y][z+1][x]) vw(x,y,z+1,8,0,0,1,0); else if(!vox[y-1][z][x]) vw(x,y-1,z,8,0,0,1,0); }
             else { if(z+1<D&&!vox[y][z+1][x]) vw(x,y,z+1,4,0,0,1,0); if(z+1<D&&!vox[y-1][z+1][x]) vw(x,y-1,z+1,4,0,0,1,0); } }
     }
     {   // PATTERN: Spore-style body paint over the skin (and the shirt for stripes and a belly), in a colour slot the creature has
@@ -684,8 +749,11 @@ static void buildLook(void){
             if(pt==1) on=(y&1)&&(c==1||y<hy);                                    // STRIPES: every other layer
             else if(pt==2) on=((x*7+y*13+z*5)%4==0);                             // SPOTS (skin and shirt)
             else if(pt==3) on=(z==D-1||!vox[y][z+1][x])&&y<hy&&y>=ty;           // BELLY: the front of the torso
-            else on=((x+y+z)%3==0)&&(c==1||y<hy);                               // TIGER: diagonal bands
+            else if(pt==4) on=((x+y+z)%3==0)&&(c==1||y<hy);                    // TIGER: diagonal bands
+            else if(pt==5) on=c==1&&(((v>>4)==2)||y==0||(y<L&&(v>>4)==3));       // SOCKS: the hands and the feet (paws)
+            else on=0;
             if(on&&!(y>=hy&&y<hy+hh&&(z==hz+hd-1))) vox[y][z][x]=(u8)((v&0xF0)|pc); }   // (never the face itself)
+        if(pt==6) for(int x=hx;x<hx+hw;x++){ int y=hy+hh-1-(hs>1), z=hz+hd-1; u8 v=vox[y][z][x]; if((v&15)==1) vox[y][z][x]=(u8)((v&0xF0)|pc); }   // MASK: a bandit band across the eyes
     }
     if(hs==1){ doPart(1,4,1,hx,hy+1,0); doPart(1,5,1,hx,hy,0); }          // eyes on the top row of the face, mouth on the bottom row
     else     { doPart(1,4,2,hx,hy+1,0); doPart(1,5,1,hx+1,hy,0); }        // big head: big eyes, mouth still one block
@@ -774,32 +842,43 @@ static const char* const hornNm[3]={"NONE","NUBS","HORNS"};
 static const char* const backNm[3]={"NONE","SPIKES","WINGS"};
 static const char* const clawNm[3]={"NONE","CLAWS","PINCERS"};
 static const char* const antNm[3]={"NONE","FEELERS","EYE STALKS"};
-static const char* const patNm[5]={"NONE","STRIPES","SPOTS","BELLY","TIGER"};
+static const char* const patNm[7]={"NONE","STRIPES","SPOTS","BELLY","TIGER","SOCKS","MASK"};
 static const char* const patColNm[6]={"AS THE HAIR","RED","GOLD","WHITE","BLACK","AS THE BOTTOM"};
 #define NPART 5   // the parts DNA can buy: TAIL, HORNS, BACK, CLAWS, ANTENNAE (unlock bits part*3+option, 15 of pUnl's 16)
 static const short partCost[NPART][3]={{0,0,60},{0,0,60},{0,40,120},{0,30,90},{0,0,70}};   // DNA to unlock each option
-static const signed char abShape[NSHAPE][AB_N]={   // ability changes for AVERAGE BROAD BIG-HEAD STUBBY SLIM ATHLETIC TALL
-    {0,0,0,0,0},{-1,-1,1,0,2},{-1,0,0,2,0},{0,-1,2,0,1},{1,1,0,0,-1},{1,1,0,0,0},{2,1,-1,0,-1} };
+static const signed char abShape[NSHAPE][AB_N]={   // ability changes (SPEED JUMP GRIP STYLE STAMINA) per body type, in half bars
+    {0,0,0,0,0},{-1,-1,1,0,2},{-1,0,0,2,0},{0,-1,2,0,1},{1,1,0,0,-1},{1,1,0,0,0},{2,1,-1,0,-1},   // AVERAGE BROAD BIG-HEAD STUBBY SLIM ATHLETIC TALL
+    {-1,-1,1,0,1},{0,-1,1,1,0},{1,1,-1,0,-1},{-1,-1,2,0,2},{-1,0,1,1,0},                          // CHUBBY PEAR LANKY STOCKY HUNCHED
+    {-1,-1,0,1,1},{0,0,2,1,1},{1,1,0,1,-1},{-1,0,1,0,2},{1,2,0,1,0} };                           // POTBELLY MUSCLE PETITE BARREL DIGITIGRADE
 static u16 pDna, pUnl;   // DNA points to spend; unlocked parts (bit = part*3 + option)
 static inline int isPart(int id){ return (id>=LK_TAIL&&id<=LK_BACK)||id==LK_CLAWS||id==LK_ANTENNA; }
 static inline int partOf(int id){ return id==LK_CLAWS?3:id==LK_ANTENNA?4:id-LK_TAIL; }   // 0 tail, 1 horns, 2 back, 3 claws, 4 antennae
 static int partFree(int id,int v){ int p=partOf(id); return !partCost[p][v]||sUnlock||(pUnl>>(p*3+v)&1); }   // Konami: every part is free
-static int abOf(int a){   // 0..5
-    int v=2; v+=abShape[look[LK_SHAPE]<NSHAPE?look[LK_SHAPE]:0][a];
+static int abOf10(int a){   // 0..10, like a Sims skill bar: every part counts double, the body sliders add the odd points between
+    int v=4+2*abShape[look[LK_SHAPE]<NSHAPE?look[LK_SHAPE]:0][a], hgt=slideEff(look[LK_HEIGHT]), wgt=slideEff(look[LK_WEIGHT]), tor=slideEff(look[LK_TORSO]),
+        arm=slideEff(look[LK_ARMS]), stn=slideEff(look[LK_STANCE]);
     switch(a){
-      case AB_SPEED:   v+=(look[LK_HSTYLE]==3)-(look[LK_HSTYLE]==2)-(look[LK_BACK]==2); break;            // bald is quick, long hair and wings drag
-      case AB_JUMP:    v+=(look[LK_BACK]==2)+(look[LK_EARS]==2); break;                                    // wings and big (bunny) ears
-      case AB_GRIP:    v+=(look[LK_TAIL]!=0)+(look[LK_HORNS]==1)+(look[LK_CLAWS]!=0); break;              // a tail to steer with, claws to hold on
-      case AB_STYLE:   v+=(look[LK_EYES]==2)+(look[LK_MOUTH]==1)+(look[LK_HSTYLE]==1||look[LK_HSTYLE]==2||look[LK_HSTYLE]>=4)+(look[LK_HORNS]==1)-(look[LK_EYES]==0)+(look[LK_HAT]&&look[LK_HAT]!=5)+(look[LK_PATTERN]!=0)+(look[LK_ANTENNA]==1)+(lchill>0); break;   // hairdos, hats, body paint and feelers are stylish
-      case AB_STAMINA: v+=(look[LK_BACK]==1)+(look[LK_HORNS]==2)+(look[LK_HAT]==5); break;                  // a helmet is armour too                                  // armour plates and a thick skull
+      case AB_SPEED:   v+=(hgt>=2)-(wgt>=2)+(wgt<=-2); break;          // long legs and a light frame are quick
+      case AB_JUMP:    v+=(hgt>=3)-(wgt>=3)+(tor<=-2); break;
+      case AB_GRIP:    v+=(arm<=-2)+(wgt>=2)+(stn>=2); break;          // arms close in, weight down, feet apart: planted
+      case AB_STYLE:   v+=(stn<=-2)+(arm>=3); break;                   // a narrow, cocky stance, arms out
+      case AB_STAMINA: v+=(tor>=2)+(wgt>=1)-(wgt<=-3); break;
     }
-    return v<0?0:v>5?5:v;
+    switch(a){
+      case AB_SPEED:   v+=2*((look[LK_HSTYLE]==3)-(look[LK_HSTYLE]==2)-(look[LK_BACK]==2)); break;            // bald is quick, long hair and wings drag
+      case AB_JUMP:    v+=2*((look[LK_BACK]==2)+(look[LK_EARS]==2)); break;                                    // wings and big (bunny) ears
+      case AB_GRIP:    v+=2*((look[LK_TAIL]!=0)+(look[LK_HORNS]==1)+(look[LK_CLAWS]!=0)); break;              // a tail to steer with, claws to hold on
+      case AB_STYLE:   v+=2*((look[LK_EYES]==2)+(look[LK_MOUTH]==1)+(look[LK_HSTYLE]==1||look[LK_HSTYLE]==2||look[LK_HSTYLE]>=4)+(look[LK_HORNS]==1)-(look[LK_EYES]==0)+(look[LK_HAT]&&look[LK_HAT]!=5)+(look[LK_PATTERN]!=0)+(look[LK_ANTENNA]==1)+(lchill>0)); break;   // hairdos, hats, body paint and feelers are stylish
+      case AB_STAMINA: v+=2*((look[LK_BACK]==1)+(look[LK_HORNS]==2)+(look[LK_HAT]==5)); break;                  // armour plates, a thick skull, a helmet
+    }
+    return v<0?0:v>10?10:v;
 }
+static int abOf(int a){ return (abOf10(a)+1)/2; }   // 0..5: what the game reads
 static int abPow(void){ return (look[LK_TAIL]==2?PW_BALANCE:0)|(look[LK_HORNS]==2?PW_CHARGE:0)|(look[LK_BACK]==1?PW_ARMOUR:0)|(look[LK_BACK]==2?PW_GLIDE:0)
                               |(look[LK_CLAWS]==2?PW_CLAMP:0)|(look[LK_ANTENNA]==2?PW_SENSE:0); }
 // PINCERS = CLAMP (grinds score 2 more points each tick), EYE STALKS = SENSE (every DNA reward is a quarter bigger)
 static int partPow(int id,int v){ return id==LK_TAIL?PW_BALANCE:id==LK_HORNS?PW_CHARGE:id==LK_BACK?(v==1?PW_ARMOUR:PW_GLIDE):id==LK_CLAWS?PW_CLAMP:PW_SENSE; }
-static inline int abPct(int a,int step){ return 100+(abOf(a)-2)*step; }   // percent for an ability, 100 at 2
+static inline int abPct(int a,int step){ return 100+(abOf10(a)-4)*step/2; }   // percent for an ability, 100 at 4 of 10
 static int abGrindPts(void){ static const u8 t[6]={1,2,3,4,5,6}; return t[abOf(AB_GRIP)]+((abPow()&PW_CLAMP)?2:0); }   // grind points every 4 steps (3 was the old fixed value)
 static int abBalance(void){ return (abPow()&PW_BALANCE)?10:0; }
 static void dnaAdd(int n){ if(n>0&&(abPow()&PW_SENSE)) n+=(n+3)/4; int v=pDna+n; pDna=(u16)(v>9999?9999:v<0?0:v); }
@@ -903,7 +982,7 @@ __attribute__((noinline)) static void drawEars(int near){   // ROM, not inlined 
     int hx,hy,hz,hs; headBox(&hx,&hy,&hz,&hs);
     int hw=2*hs, hd=2*hs, f=10+slideEff(look[LK_EARSZ])*2;                       // ear size slider: 20% smaller or bigger per step
     int ry=((es==1?5:9)+(hs-1)*(es==1?2:4))*f/10, rz=((es==1?4:5)+(hs-1)*2)*f/10;  // half height and half depth in px; BIG ears are tall
-    if(ry<2) ry=2; if(rz<2) rz=2;
+    if(ry<1) ry=1; if(rz<1) rz=1;
     for(int sd=-1;sd<=1;sd+=2){
         int a,b; rotUW(sd,0,&a,&b); int vis=(a+b)>0;                              // this side's face turns towards the camera
         if(vis!=near) continue;
@@ -925,6 +1004,31 @@ __attribute__((noinline)) static void drawEars(int near){   // ROM, not inlined 
         }
     }
 }
+// The seat (BUTT slider, teens and up): two rounded cheeks in the bottom colour on the back of the hips, drawn as shaded domes so they
+// read at a glance from behind or the side: lit from above, a dark rim, the cleft where they meet and the crease under them. The slider
+// takes them from nearly flat to full and round (each notch both bulges them out and grows them a little, so no two notches look alike).
+__attribute__((noinline)) static void drawSeat(int x,int y,int u,int w,int rl){   // on the back of the top leg block (rl: that row's HEIGHT stretch)
+    int sx,sy,ax,ay,bx,by; projC(u,w,y+1,&sx,&sy); projC(u+2,w,y+1,&ax,&ay); projC(u,w+2,y+1,&bx,&by);
+    int xX=ax-sx, xY=ay-sy, zX=bx-sx, zY=by-sy;              // one block along x, along z (towards the front), on screen
+    int p=slidePos(look[LK_BUTT]), side=(x==BX0+(stBW[stage]-2)/2)?-1:1;
+    int cx=sx-zX/2-side*xX/10, cy=sy+(CC+rl)/2-zY/2-side*xY/10;   // the back face of the block, a little high (up into the hips), nudged in to meet its twin
+    int rxq=30+p+8*slideEff(look[LK_BUTTW]), ry64=(CC+rl)*(40+2*p)+64*slideEff(look[LK_BUTTH]), bul=8+7*p;   // BUTT WIDTH / HEIGHT: a pixel a notch
+    if(rxq<8) rxq=8; if(ry64<128) ry64=128;   // a little taller than wide, so they read round, not squashed                 // half width (64ths of a block), half height (px/64), bulge (64ths of a block)
+    static const signed char cs[32]={64,63,59,53,45,36,24,12,0,-12,-24,-36,-45,-53,-59,-63,-64,-63,-59,-53,-45,-36,-24,-12,0,12,24,36,45,53,59,63};
+    static const u8 dq[17]={64,64,63,62,62,60,58,56,53,50,46,41,36,30,22,13,0};   // the dome's height at ring r of 16
+    u16 b=base[7];
+    for(int ri=16;ri>=0;ri--){ int na=ri?32:1, d=dq[ri];
+        for(int a=0;a<na;a++){
+            int cu=cs[a]*ri/16, cv=cs[(a+24)&31]*ri/16;       // where on the disc (64ths), outer rings first so the middle of the dome lands on top
+            int X=cx+(xX*cu*rxq)/4096-(zX*d*bul)/4096, Y=cy+(cv*ry64)/4096+(xY*cu*rxq)/4096-(zY*d*bul)/4096;
+            u16 c;
+            if(ri>=13&&cu*side<-40) c=RGB(3,3,5);                          // the cleft: a clean dark line down the inner edge (survives the half-size bake)
+            else if(ri>=15&&cv>-24) c=shade(b,7);                          // the rim (not along the top: it runs into the waist)
+            else if(ri>=13&&cv>46) c=shade(b,8);                           // the crease underneath
+            else { int f=10+(d*5)/64-(cv*2)/64+(cu*side>0?(cu*side)/48:0); c=f<=16?shade(b,f):lite(b,f); }   // lit from above and the outside, brightest where it sticks out most
+            px(X,Y,c); px(X+1,Y,c);
+        } }
+}
 IWRAM_THUMB static void drawScene(int blink){
     if(stageOn&&!noGrid) drawStage(); else fillCols(0,SCENE_W,SKY);
     // floor grid
@@ -934,11 +1038,16 @@ IWRAM_THUMB static void drawScene(int blink){
     int fv=view==0?0:view==3?1:-1;   // which cube face shows the +Z (front) face, -1 = turned away
     // the body sliders (a look-built creature only): HEIGHT stretches the leg rows, WEIGHT widens (or slims) every block below the head
     int wk=0, hyB=H; decLook=!custom;
-    if(decLook){ int L,T,hs; bodyPlan(&L,&T,&hs); liftL=L; liftK=slideEff(look[LK_HEIGHT])+((look[LK_SHAPE]==6&&stage>=AG_TEEN)?3:0); if(liftK<-3) liftK=-3; if(liftK>6) liftK=6;   // TALL: longer legs (drawn taller, so the hair keeps its room)
-        wk=slideEff(look[LK_WEIGHT]); hyB=L+T;
-        if(noGrid){ if(liftK>bakeCapH) liftK=bakeCapH; if(wk>bakeCapW) wk=bakeCapW; } bakeWk=wk; }   // a sprite bake: only as tall / wide as its box holds
-    else liftK=0;
+    int shA=0, shL=0;   // the body type's extra width for the arms and legs (the torso's goes into wk)
+    if(decLook){ int L,T,hs; bodyPlan(&L,&T,&hs); liftL=L; const signed char*sd=shpDraw[look[LK_SHAPE]<NSHAPE?look[LK_SHAPE]:0];
+        liftK=slideEff(look[LK_HEIGHT])+((look[LK_SHAPE]==6&&stage>=AG_TEEN)?3:0)+sd[3]; if(liftK<-4) liftK=-4; if(liftK>6) liftK=6;   // TALL: longer legs (drawn taller, so the hair keeps its room)
+        wk=slideEff(look[LK_WEIGHT])+sd[0]; shA=sd[1]; shL=sd[2]; hyB=L+T;
+        liftTn=T; liftT=slideEff(look[LK_TORSO]); armK=slideEff(look[LK_ARMS]); stanceK=slideEff(look[LK_STANCE]);   // TORSO px per torso row, ARMS and STANCE spread
+        if(noGrid){ if(liftK>bakeCapH) liftK=bakeCapH; if(wk>bakeCapW) wk=bakeCapW; if(liftT>bakeCapT) liftT=bakeCapT;
+                    if(armK>bakeCapX) armK=bakeCapX; if(stanceK>bakeCapX) stanceK=bakeCapX; if(shA>bakeCapL) shA=bakeCapL; if(shL>bakeCapL) shL=bakeCapL; } bakeWk=wk; bakeSh=shA>shL?shA:shL; }   // a sprite bake: only as tall / wide as its box holds
+    else liftK=liftT=armK=stanceK=0;
     drawEars(0);
+    int nsx=0, nsy=0, ntint=0; u16 ndc=0;   // where the mouth sprite went (for a raised nose)
     // voxels (back to front)
     for(int y=0;y<H;y++)for(int i=0;i<W*D;i++){
         int x=ord[view][i]&15, z=ord[view][i]>>4;
@@ -948,24 +1057,31 @@ IWRAM_THUMB static void drawScene(int blink){
         if(!ci) continue;
         int u=2*x+1-W, w=2*z+1-D;
         if(strideK&&shape>=1&&shape<=3) w+=((x<W/2)==(shape==3))?strideK:-strideK;   // the walk: legs (shape 3) and arms (1, 2) swing, in either creator
-        else if(strideK&&shape>=4){   // claws, pincers (anything wedge-shaped hanging off a hand) swing with that arm
+        int onArm=0;                     // claws, pincers (anything wedge-shaped hanging off a hand) go where that arm goes
+        if(shape>=4){
             #define ARMV(yy,zz) ((yy)<H&&(zz)>=0&&((vox[yy][zz][x]>>4)==1||(vox[yy][zz][x]>>4)==2))
-            if(ARMV(y+1,z)||ARMV(y,z-1)||ARMV(y+1,z-1)) w+=(x<W/2)?-strideK:strideK;
+            onArm=ARMV(y+1,z)||ARMV(y,z-1)||ARMV(y+1,z-1);
             #undef ARMV
+            if(strideK&&onArm) w+=(x<W/2)?-strideK:strideK;   // the swing
         }
         int sx,sy; projC(u,w,y+1,&sx,&sy);   // top-face centre
-        int bw=(y<hyB&&shape<4)?(shape==1||shape==2?wk/2:wk):0;
-        if(shape==1||shape==2){ int sg=u<0?1:-1, a2,b2, hg=HUG-wk; rotUW(sg,0,&a2,&b2); sx+=hg*(a2-b2); sy+=(hg*(a2+b2))/2; }   // hug the torso (a heavier torso pushes the arms out)
+        if(onArm){ int sg=u<0?1:-1, a2,b2, hg=HUG-wk-armK; rotUW(sg,0,&a2,&b2); sx+=hg*(a2-b2); sy+=(hg*(a2+b2))/2; }   // and the hug (else they float off the hand)
+        int bw=(y<hyB&&shape<4)?(shape==1||shape==2?wk/2+shA:shape==3?wk-shpDraw[look[LK_SHAPE]<NSHAPE?look[LK_SHAPE]:0][0]+shL:wk):0;
+        if(shape==1||shape==2){ int sg=u<0?1:-1, a2,b2, hg=HUG-wk-armK; rotUW(sg,0,&a2,&b2); sx+=hg*(a2-b2); sy+=(hg*(a2+b2))/2; }   // hug the torso (a heavier torso, or the ARMS slider, pushes the arms out)
+        else if(shape==3&&stanceK&&y<hyB){ int sg=u<0?-1:1, a2,b2; rotUW(sg,0,&a2,&b2); sx+=stanceK*(a2-b2); sy+=(stanceK*(a2+b2))/2; }   // STANCE: the legs apart or together
         int f=(solid(x,y+1,z)?1:0)|(solid(x,y-1,z)?2:0)
              |(solid(x-dA[view][0],y,z-dA[view][1])?16:0)|(solid(x-dB[view][0],y,z-dB[view][1])?32:0);
         if(shape>=4) wedgeCube(sx,sy,ci,shape,f);
         else { cubeDR=bw;
-            if(liftK>0&&y<liftL) cube(sx,sy+liftK,ci,shape,f|1);   // a stretched leg row: its lower part first, then the block on top of it
-            cube(sx,sy,ci,shape,(liftK>0&&y<liftL)?f|2:f); cubeDR=0; }
+            int rl=y<liftL?liftK:y<liftL+liftTn?liftT:0;   // this row stretched (HEIGHT: the legs, TORSO: the torso)
+            if(rl>0) cube(sx,sy+rl,ci,shape,f|1);   // a stretched row: its lower part first, then the block on top of it
+            cube(sx,sy,ci,shape,rl>0?f|2:f); cubeDR=0;
+            if(decLook&&stage>=AG_TEEN&&liftL>0&&y==liftL-1&&z==1&&shape==3&&(x==BX0+(stBW[stage]-2)/2||x==BX0+stBW[stage]/2)) drawSeat(x,y,u,w,rl); }   // the seat, on the back of the top of the legs
         u16 dc=dec[y][z][x]; int tint=0;
         if(gdec[y][z][x]&&blink){ dc=gdec[y][z][x]; tint=1; }
-        if(dc&&fv>=0) drawDeco(sx,sy,dc,fv,tint);
+        if(dc&&fv>=0){ drawDeco(sx,sy,dc,fv,tint); if(decSpr(dc)-1>=NEYE){ nsx=sx; nsy=sy; ndc=dc; ntint=tint; } }
     }
+    if(ndc&&decLook&&look[LK_NOSE]&&slideEff(look[LK_NOSEHT])>0){ decNose=1; drawDeco(nsx,nsy,ndc,fv,ntint); decNose=0; }   // a raised nose, over the block above the mouth
     drawEars(1); drawAntennae();
 }
 static void vsync(void){ while(REG_VCOUNT>=160); while(REG_VCOUNT<160); }
@@ -1387,15 +1503,20 @@ static int surfH(s32 fx,s32 fy){   // surface height at an exact position (1/256
 static void bakeInto(u16 (*spr4)[SPW*SPH]){   // render the built character once per view (4 turns) into a sprite set, then just blit it
     int sv=view; noGrid=1;
     for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ ghost[y][z][x]=0; gdec[y][z][x]=0; }
-    bakeCapH=99; bakeCapW=99; { view=0; drawScene(0); bakeCapH=liftK; bakeCapW=bakeWk; }   // the HEIGHT and WEIGHT sliders are eased off, a step at a time, until every view fits the sprite box
-    for(int tries=0;tries<9;tries++){
+    bakeCapH=99; bakeCapW=99; bakeCapT=99; bakeCapX=99; bakeCapL=99; { view=0; drawScene(0); bakeCapH=liftK; bakeCapW=bakeWk; bakeCapT=liftT; bakeCapX=armK>stanceK?armK:stanceK; bakeCapL=bakeSh; }   // the HEIGHT and WEIGHT sliders are eased off, a step at a time, until every view fits the sprite box
+    for(int tries=0;tries<24;tries++){
         int cl=0;
         for(int v=0;v<4&&!cl;v++){ view=v; drawScene(0);
             for(int x=0;x<SPW*2&&!cl;x++) if(fb[SPY0*SW+SPX0+x]!=SKY||fb[(SPY0+1)*SW+SPX0+x]!=SKY) cl=1;   // the two outer rows / columns (the bake keeps every other pixel)
             for(int y=0;y<SPH*2&&!cl;y++){ const u16*r=&fb[(SPY0+y)*SW+SPX0]; if(r[0]!=SKY||r[1]!=SKY||r[SPW*2-2]!=SKY||r[SPW*2-1]!=SKY) cl=1; } }
         if(!cl) break;
-        if(bakeCapW>0&&(bakeCapH<=0||(tries&1))) bakeCapW--;
+        if(bakeCapX>0&&(tries&1)) bakeCapX--;
+        else if(bakeCapL>0&&(tries&1)) bakeCapL--;
+        else if(bakeCapW>0&&(bakeCapH<=0||(tries&1))) bakeCapW--;
         else if(bakeCapH>0) bakeCapH--;
+        else if(bakeCapT>0) bakeCapT--;
+        else if(bakeCapX>0) bakeCapX--;
+        else if(bakeCapL>0) bakeCapL--;
         else break;
     }
     for(int v=0;v<4;v++){
@@ -2208,7 +2329,7 @@ static void hhSwap(HhSim*s){   // trade places: the player becomes s, s becomes 
     for(int i=0;i<LK_N;i++){ u8 t=look[i]; look[i]=s->look[i]; s->look[i]=t; }
     { u8 t=stage; stage=s->stage; s->stage=t; t=pAsp; pAsp=s->asp; s->asp=t; t=pLtw; pLtw=s->ltw; s->ltw=t; }
     for(int i=0;i<TR_N;i++){ u8 t=pTr[i]; pTr[i]=s->tr[i]; s->tr[i]=t; }
-    for(int i=0;i<10;i++){ char t=hhPName[i]; hhPName[i]=s->name[i]; s->name[i]=t; }
+    for(int i=0;i<HH_NM;i++){ char t=hhPName[i]; hhPName[i]=s->name[i]; s->name[i]=t; t=hhPLast[i]; hhPLast[i]=s->last[i]; s->last[i]=t; }
     { int u=hhPUid; hhPUid=s->uid; s->uid=(u8)u; int v=sSoc; sSoc=s->need[HN_SOC]; s->need[HN_SOC]=(u8)v; s->bubT=0; hhBubT=0; }
     s->act=HA_IDLE; s->think=30; s->gok=0;
     lz=lvz=0; lsp=0; lskate=0; lgrind=0; lstun=0; lairF=0; feelReset(lhd);
@@ -2265,7 +2386,7 @@ static void aspPanel(void){
         { int y=132, x=text(10,y,"REWARD POINTS",DIMC,1)+3; numStr(b,simAsp); x=text(x,y,b,GOLD,1)+10;
           x=text(x,y,"DNA",DIMC,1)+3; numStr(b,pDna); x=text(x,y,b,RGB(12,30,24),1)+10;
           text(x,y,signNm[signOf()],RGB(20,22,30),1); }
-        { int x=10, y=141; for(int ab=0;ab<AB_N;ab++){ x=text(x,y,abNm[ab],DIMC,1)+2; for(int q=0;q<5;q++) rect(x+q*3,y+1,2,4,q<abOf(ab)?GOLD:RGB(4,6,12)); x+=17; } }
+        { int x=10, y=141; for(int ab=0;ab<AB_N;ab++){ x=text(x,y,abNm[ab],DIMC,1)+2; for(int q=0;q<10;q++) rect(x+q*2,y+1,1,4,q<abOf10(ab)?GOLD:RGB(4,6,12)); x+=20; } }
         text(10,150,"A LOCK WANT  R REWARDS  B BACK",RGB(12,14,16),1);
         present();
     }
@@ -2497,15 +2618,18 @@ static void mapEditor(void){
 // L R change tab | UP DOWN pick a row | LEFT RIGHT change it | SELECT turns the creature | START jumps to DONE | B leaves.
 enum { TB_BODY, TB_FACE, TB_HAIR, TB_CLOTHES, TB_PARTS, TB_ASPIRE, TB_DONE, NTAB };
 enum { RK_PICK, RK_SWATCH, RK_ACT, RK_SLIDE, RK_PERS, RK_TRAIT };   // a row picks from named options, picks a colour, is a button, a slider, a persona choice or a trait
-enum { AC_PLAY, AC_MAP, AC_MENU, AC_RAND, AC_ADD, AC_FAM };
+enum { AC_PLAY, AC_MAP, AC_MENU, AC_RAND, AC_ADD, AC_FAM, AC_FNAME, AC_LNAME };
 enum { PS_ASP, PS_LTW, PS_SIGN };
 typedef struct { const char*lab,*sub; u8 kind,id,n; } Row;   // sub = second line of a button
 static const char* const tabNm[NTAB]={"BODY","FACE","HAIR","CLOTHES","PARTS","ASPIRE","DONE"};
-static const char* const shapeNm[NSHAPE]={"AVERAGE","BROAD","BIG HEAD","STUBBY","SLIM","ATHLETIC","TALL"};
+static const char* const shapeNm[NSHAPE]={"AVERAGE","BROAD","BIG HEAD","STUBBY","SLIM","ATHLETIC","TALL","CHUBBY","PEAR","LANKY","STOCKY","HUNCHED","POTBELLY","MUSCLE","PETITE","BARREL","DIGITIGRADE"};
 static const char* const eyeNm[NEYE]={"SLEEPY","ROUND","HAPPY","WIDE","ANGRY","CUTE","CAT","DOT","LASHES"};
 static const char* const mouthNm[NMOUTH]={"FLAT","SMILE","OH","GRIN","SMIRK","FROWN","TONGUE","FANGS","KITTY"};
 static const char* const browNm[6]={"NONE","THIN","THICK","ANGRY","WORRIED","UNIBROW"};
-static const char* const noseNm[5]={"NONE","BUTTON","POINTY","WIDE","PIG"};
+static const char* const noseNm[6]={"NONE","BUTTON","POINTY","WIDE","PIG","ANIMAL"};
+static const char* const fearNm[5]={"NONE","CAT","FOX","BUNNY","BEAR"};
+static const char* const muzNm[4]={"NONE","SNOUT","MUZZLE","BEAK"};
+static const char* const ftailNm[4]={"NONE","FOX","CAT","BUNNY"};
 static const char* const cheekNm[5]={"NONE","BLUSH","FRECKLES","WHISKERS","SCAR"};
 static const char* const glassNm[4]={"NONE","ROUND","SQUARE","SHADES"};
 static const char* const earNm[3]={"NONE","SMALL","BIG"};
@@ -2518,25 +2642,29 @@ static const char* const botStyNm[3]={"PANTS","SHORTS","SKIRT"};
 static const char* const shoeNm[6]={"AS THE BOTTOM","WHITE","BLACK","RED","GOLD","AS THE TOP"};
 #define LK_AGE LK_N   // the AGE row is not part of look[]: it picks the life stage
 static const char* const* const lookNm[LK_N+1]={shapeNm,0,eyeNm,mouthNm,earNm,hairNm,0,0,0,0,0,0,tailNm,hornNm,backNm,hatNm,hatColNm,beardNm,topStyNm,botStyNm,shoeNm,
-                                                browNm,noseNm,cheekNm,glassNm,0,0,0,0,0,0,0,0,clawNm,antNm,patNm,patColNm,stageNm};
-_Static_assert(LK_N==37,"lookNm / lookCol / cnt need a slot for every look");
-static const u16* const lookCol[LK_N+1]={0,skinTones,0,0,0,0,hairTones,topTones,botTones,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,eyeTones,0,0,0,0,0,0,0,0,0,0,0,0};
-#define TROWS 15   // most rows a tab holds; the card shows 5 at a time and scrolls
+                                                browNm,noseNm,cheekNm,glassNm,0,0,0,0,0,0,0,0,clawNm,antNm,patNm,patColNm,0,0,0,0,0,0,0,0,0,fearNm,muzNm,ftailNm,0,0,0,stageNm};
+_Static_assert(LK_N==52,"lookNm / lookCol / cnt need a slot for every look");
+static const u16* const lookCol[LK_N+1]={0,skinTones,0,0,0,0,hairTones,topTones,botTones,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,eyeTones,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+#define TROWS 18   // most rows a tab holds; the card shows 5 at a time and scrolls
 static const Row tabRow[NTAB][TROWS]={
   {{"AGE",0,RK_PICK,LK_AGE,AG_N},{"SHAPE",0,RK_PICK,LK_SHAPE,NSHAPE},{"HEIGHT",0,RK_SLIDE,LK_HEIGHT,9},{"WEIGHT",0,RK_SLIDE,LK_WEIGHT,9},
-   {"SKIN",0,RK_SWATCH,LK_SKIN,NSW},{"SKIN TONE",0,RK_SLIDE,LK_TONE,9}},
-  {{"EYES",0,RK_PICK,LK_EYES,NEYE},{"EYE COLOUR",0,RK_SWATCH,LK_EYECOL,NSW},{"EYE SIZE",0,RK_SLIDE,LK_EYESZ,9},{"EYE SPACING",0,RK_SLIDE,LK_EYESP,9},
-   {"EYE HEIGHT",0,RK_SLIDE,LK_EYEHT,9},{"BROWS",0,RK_PICK,LK_BROW,6},{"GLASSES",0,RK_PICK,LK_GLASS,4},{"NOSE",0,RK_PICK,LK_NOSE,5},
+   {"TORSO",0,RK_SLIDE,LK_TORSO,9},{"ARMS",0,RK_SLIDE,LK_ARMS,9},{"STANCE",0,RK_SLIDE,LK_STANCE,9},
+   {"SKIN",0,RK_SWATCH,LK_SKIN,NSW},{"SKIN TONE",0,RK_SLIDE,LK_TONE,9},{"BUTT",0,RK_SLIDE,LK_BUTT,9},{"BUTT HEIGHT",0,RK_SLIDE,LK_BUTTH,9},{"BUTT WIDTH",0,RK_SLIDE,LK_BUTTW,9}},   // (the BUTT rows last: cut from the tab below teen)
+  {{"EYES",0,RK_PICK,LK_EYES,NEYE},{"EYE COLOUR",0,RK_SWATCH,LK_EYECOL,NSW},{"EYE SHADE",0,RK_SLIDE,LK_EYETONE,9},{"EYE SIZE",0,RK_SLIDE,LK_EYESZ,9},{"EYE SPACING",0,RK_SLIDE,LK_EYESP,9},
+   {"EYE HEIGHT",0,RK_SLIDE,LK_EYEHT,9},{"BROWS",0,RK_PICK,LK_BROW,6},{"BROW HEIGHT",0,RK_SLIDE,LK_BROWHT,9},{"GLASSES",0,RK_PICK,LK_GLASS,4},{"NOSE",0,RK_PICK,LK_NOSE,6},
+   {"NOSE HEIGHT",0,RK_SLIDE,LK_NOSEHT,9},
    {"MOUTH",0,RK_PICK,LK_MOUTH,NMOUTH},{"MOUTH WIDTH",0,RK_SLIDE,LK_MOUTHW,9},{"MOUTH HEIGHT",0,RK_SLIDE,LK_MOUTHHT,9},{"CHEEKS",0,RK_PICK,LK_CHEEK,5},
    {"EARS",0,RK_PICK,LK_EARS,3},{"EAR SIZE",0,RK_SLIDE,LK_EARSZ,9},{"EAR HEIGHT",0,RK_SLIDE,LK_EARLF,9}},
-  {{"STYLE",0,RK_PICK,LK_HSTYLE,NHAIR},{"COLOUR",0,RK_SWATCH,LK_HCOL,NSW},{"BEARD",0,RK_PICK,LK_BEARD,3},{"HAT",0,RK_PICK,LK_HAT,6},{"HAT COLOUR",0,RK_PICK,LK_HATCOL,6}},
-  {{"TOP",0,RK_SWATCH,LK_TOP,NSW},{"BOTTOM",0,RK_SWATCH,LK_BOT,NSW},{"TOP STYLE",0,RK_PICK,LK_TOPSTY,4},{"BOTTOM STYLE",0,RK_PICK,LK_BOTSTY,3},{"SHOES",0,RK_PICK,LK_SHOE,6}},
+  {{"STYLE",0,RK_PICK,LK_HSTYLE,NHAIR},{"COLOUR",0,RK_SWATCH,LK_HCOL,NSW},{"HAIR TONE",0,RK_SLIDE,LK_HTONE,9},{"BEARD",0,RK_PICK,LK_BEARD,3},{"HAT",0,RK_PICK,LK_HAT,6},{"HAT COLOUR",0,RK_PICK,LK_HATCOL,6}},
+  {{"TOP",0,RK_SWATCH,LK_TOP,NSW},{"TOP TONE",0,RK_SLIDE,LK_TTONE,9},{"BOTTOM",0,RK_SWATCH,LK_BOT,NSW},{"BOTTOM TONE",0,RK_SLIDE,LK_BTONE,9},{"TOP STYLE",0,RK_PICK,LK_TOPSTY,4},{"BOTTOM STYLE",0,RK_PICK,LK_BOTSTY,3},{"SHOES",0,RK_PICK,LK_SHOE,6}},
   {{"TAIL",0,RK_PICK,LK_TAIL,3},{"HORNS",0,RK_PICK,LK_HORNS,3},{"BACK",0,RK_PICK,LK_BACK,3},{"HANDS",0,RK_PICK,LK_CLAWS,3},{"ANTENNAE",0,RK_PICK,LK_ANTENNA,3},
-   {"PATTERN",0,RK_PICK,LK_PATTERN,5},{"PAINT",0,RK_PICK,LK_PATCOL,6}},
+   {"PATTERN",0,RK_PICK,LK_PATTERN,7},{"PAINT",0,RK_PICK,LK_PATCOL,6},{"ANIMAL EARS",0,RK_PICK,LK_FEARS,5},{"MUZZLE",0,RK_PICK,LK_MUZZLE,4},{"FUR TAIL",0,RK_PICK,LK_FTAIL,4}},
   {{"ASPIRATION",0,RK_PERS,PS_ASP,AS_PICK},{"LIFETIME WANT",0,RK_PERS,PS_LTW,2},{"SIGN",0,RK_PERS,PS_SIGN,12},
    {"NEAT",0,RK_TRAIT,TR_NEAT,11},{"OUTGOING",0,RK_TRAIT,TR_OUT,11},{"ACTIVE",0,RK_TRAIT,TR_ACT,11},{"PLAYFUL",0,RK_TRAIT,TR_PLAY,11},{"NICE",0,RK_TRAIT,TR_NICE,11}},
-  {{"GO LIVE LIFE!","PLAY IT NOW",RK_ACT,AC_PLAY,0},{"RANDOMIZE","ROLL THE DICE",RK_ACT,AC_RAND,0},{"ADD TO FAMILY","COPY THIS LOOK",RK_ACT,AC_ADD,0},{"FAMILY","EDIT OR MOVE OUT",RK_ACT,AC_FAM,0},{"EDIT MAP","BUILD ROOMS",RK_ACT,AC_MAP,0},{"MAIN MENU","LOOK IS KEPT",RK_ACT,AC_MENU,0}} };
-static const u8 tabN[NTAB]={6,15,5,5,7,8,6};
+  {{"GO LIVE LIFE!","PLAY IT NOW",RK_ACT,AC_PLAY,0},{"FIRST NAME",0,RK_ACT,AC_FNAME,0},{"LAST NAME",0,RK_ACT,AC_LNAME,0},{"RANDOMIZE","ROLL THE DICE",RK_ACT,AC_RAND,0},{"ADD TO FAMILY","COPY THIS LOOK",RK_ACT,AC_ADD,0},{"FAMILY","EDIT OR MOVE OUT",RK_ACT,AC_FAM,0},{"EDIT MAP","BUILD ROOMS",RK_ACT,AC_MAP,0},{"MAIN MENU","LOOK IS KEPT",RK_ACT,AC_MENU,0}} };
+static const u8 tabN0[NTAB]={12,18,6,7,10,8,8};
+static int tabRows(int t){ return tabN0[t]-(t==0&&stage<AG_TEEN?3:0); }   // babies and children: no BUTT rows
+#define tabN(t) tabRows(t)
 static int tabNext(int t,int d){ return (t+d+NTAB)%NTAB; }
 
 // layout (the panel is x 124..239): tabs down the left edge, the card of rows beside them, key legend under both
@@ -2618,9 +2746,9 @@ static const char* const powNm[6]={"BALANCE","CHARGE","ARMOUR","GLIDE","CLAMP","
 static void drawAbilities(int sel){   // PARTS tab: the Spore ability chart under the part rows, then DNA and the focused part's cost or power
     int y0=RW0+3*RHT-2, pw=abPow();
     rect(CDX+5,y0-2,CDW-10,1,GOLD2);
-    for(int a=0;a<AB_N;a++){ int y=y0+a*6, v=abOf(a);
+    for(int a=0;a<AB_N;a++){ int y=y0+a*6, v=abOf10(a);
         text(CDX+6,y,abNm[a],RGB(16,19,24),1);
-        for(int q=0;q<5;q++) drawPip(CDX+52+q*7,y+1,6,4,q<v,1); }
+        for(int q=0;q<10;q++) drawPip(CDX+48+q*4,y+1,3,4,q<v,1); }   // ten slots, like a Sims skill bar
     int y=y0+AB_N*6+2; char b[12]; numStr(b,pDna);
     int x=text(CDX+6,y,"DNA",DIMC,1)+3; text(x,y,b,GOLD,1);
     const Row*r=&tabRow[TB_PARTS][sel]; int v=look[r->id];
@@ -2654,7 +2782,7 @@ static void drawAspire(int sel){   // ASPIRE tab: aspiration, lifetime want and 
         int ty=y+10+t*7, f=(sel==3+t);
         if(f){ rect(CDX+3,ty-1,CDW-6,7,FOCUS); rect(CDX+3,ty-1,2,7,GOLD); }
         text(CDX+7,ty,trNm[t],f?WHITE:DIMC,1);
-        for(int q=0;q<10;q++) drawPip(CDX+55+q*3,ty,2,5,q<pTr[t],f);
+        for(int q=0;q<10;q++) drawPip(CDX+48+q*4,ty,3,5,q<pTr[t],f);   // ten slots per trait, as in The Sims
     }
 }
 static void drawRowSet(int tab,int sel){
@@ -2662,12 +2790,13 @@ static void drawRowSet(int tab,int sel){
     if(tab==TB_PARTS) drawAbilities(sel);
     int vis=tab==TB_PARTS?3:5, first=sel>vis-1?sel-(vis-1):0;   // five rows fit on the card (three over the PARTS chart): it scrolls to keep the focused one in view
     if(first>0) tri(CDX+CDW/2-2,RW0-6,2,GOLD);
-    if(first+vis<tabN[tab]) tri(CDX+CDW/2-2,RW0+vis*RHT-3,3,GOLD);
-    for(int i=first;i<tabN[tab]&&i<first+vis;i++){
+    if(first+vis<tabN(tab)) tri(CDX+CDW/2-2,RW0+vis*RHT-3,3,GOLD);
+    for(int i=first;i<tabN(tab)&&i<first+vis;i++){
         const Row*r=&tabRow[tab][i]; int y=RW0+(i-first)*RHT, f=(i==sel);
         if(r->kind==RK_ACT){
             rect(CDX+3,y-2,CDW-6,17,f?FOCUS:RGB(5,8,16)); if(f){ rect(CDX+3,y-2,2,17,GOLD); }
-            text(CDX+9,y,r->lab,f?GOLD:WHITE,1); text(CDX+9,y+8,r->sub,f?WHITE:DIMC,1); continue;
+            const char*sb=r->id==AC_FNAME?hhPName:r->id==AC_LNAME?(hhPLast[0]?hhPLast:"NONE"):r->sub;   // the name rows show the name
+            text(CDX+9,y,r->lab,f?GOLD:WHITE,1); text(CDX+9,y+8,sb,f?WHITE:DIMC,1); continue;
         }
         if(f){ rect(CDX+3,y-2,CDW-6,RHT-1,FOCUS); rect(CDX+3,y-2,2,RHT-1,GOLD); }
         text(CDX+9,y,r->lab,f?WHITE:DIMC,1);
@@ -2732,7 +2861,7 @@ static void lookStep(int id,int n,int d){
     }
     if(lkSlide(id)){   // sliders: one step along the track, no wrap round, never rebuilds the blocks
         int p=slidePos(look[id])+d; if(p<0||p>8) return;
-        look[id]=(u8)slideVal(p); if(id==LK_TONE) setColors(); return;
+        look[id]=(u8)slideVal(p); if(id==LK_TONE||(id>=LK_HTONE&&id<=LK_EYETONE)) setColors(); return;   // the colour sliders repaint at once
     }
     int nv=look[id];
     for(int t=0;t<n;t++){ nv=(nv+d+n)%n; if(lkAllowed(id,nv)) break; }   // skip what this stage cannot have
@@ -2773,15 +2902,52 @@ static int comboSS(u16 k,u16 pressed){ return (k&K_START)&&(k&K_SEL)&&(pressed&(
 // ---- CREATE-A-FAMILY: the creator makes the whole household. ADD TO FAMILY puts a new Sim with the look on screen (and its persona) into
 // the household, then you can change the look and add the next one; FAMILY lists them: EDIT swaps one into the creator (you become them,
 // the Sim you were takes their place in the family) or MOVE OUT. ----
+// ---- naming: an on-screen keyboard with every character the font has (capitals, lowercase, digits and symbols) ----
+static const char* const kbRow[7]={"ABCDEFGHIJKLM","NOPQRSTUVWXYZ","abcdefghijklm","nopqrstuvwxyz","0123456789.-'","!?&@#*\"_~$:;,","+/()=%<[]^"};
+enum { KB_SPACE, KB_DEL, KB_CLEAR, KB_DONE };
+static int nameEdit(char*nm,int max,const char*title,int mayEmpty){   // returns 1 if the name was accepted (nm then holds it)
+    char b[24]; int n=0; while(nm[n]&&n<max){ b[n]=nm[n]; n++; } b[n]=0;
+    if(n==3&&b[0]=='Y'&&b[1]=='O'&&b[2]=='U'){ n=0; b[0]=0; }   // the stand-in name: start from a clean slate
+    int r=0, c=0, blink=0; u16 prev=keyNow(); int hold[10]={0};
+    for(;;){
+        u16 k=keyNow(), pr=k&~prev; prev=k; blink++; for(int i=0;i<10;i++) hold[i]=(k>>i&1)?hold[i]+1:0;
+        #define KREP(m,i) ((pr&(m))||(hold[i]>14&&(hold[i]&3)==0))
+        int rows=8, cols=r<7?(int)__builtin_strlen(kbRow[r]):4;
+        if(KREP(K_DOWN,7)){ r=(r+1)%rows; } if(KREP(K_UP,6)){ r=(r+rows-1)%rows; }
+        cols=r<7?(int)__builtin_strlen(kbRow[r]):4; if(c>=cols) c=cols-1;
+        if(KREP(K_RIGHT,4)) c=(c+1)%cols; if(KREP(K_LEFT,5)) c=(c+cols-1)%cols;
+        #undef KREP
+        int key=-1; if(pr&K_A) key=r<7?(u8)kbRow[r][c]:256+c;
+        if(pr&K_B){ if(n>0) b[--n]=0; else return 0; }                     // B rubs out a letter; on an empty name it backs out
+        if(pr&K_START) key=256+KB_DONE;
+        if(pr&K_SEL){ r=7; c=KB_DONE; }
+        if(key>=0&&key<256){ if(n<max){ b[n++]=(char)key; b[n]=0; } }
+        else if(key==256+KB_SPACE){ if(n<max&&n>0&&b[n-1]!=' '){ b[n++]=' '; b[n]=0; } }
+        else if(key==256+KB_DEL){ if(n>0) b[--n]=0; }
+        else if(key==256+KB_CLEAR){ n=0; b[0]=0; }
+        else if(key==256+KB_DONE){ while(n>0&&b[n-1]==' ') b[--n]=0;
+            if(n>0||mayEmpty){ for(int i=0;i<=n;i++) nm[i]=b[i]; return 1; } }
+        box(6,6,228,150); text(120-tw(title,1)/2,12,title,GOLD,1);
+        { char t[8]; char*e=t; e+=numStr(e,n); *e++='/'; e+=numStr(e,max); *e=0; text(226-tw(t,1),12,t,DIMC,1); }
+        rect(14,22,212,14,RGB(5,6,10)); rect(14,35,212,1,GOLD2); int x=text(18,25,b,WHITE,1); if((blink>>4)&1) rect(x+1,25,4,6,GOLD);   // the name so far, and the caret
+        for(int rr=0;rr<7;rr++){ const char*row=kbRow[rr]; for(int cc=0;row[cc];cc++){
+            int kx=16+cc*16, ky=42+rr*13, f=(rr==r&&cc==c); char t[2]={row[cc],0};
+            rect(kx,ky,14,11,f?RGB(6,16,8):RGB(5,7,14)); if(f) rect(kx,ky+10,14,1,GOLD); text(kx+5-(tw(t,1)>3),ky+2,t,f?GOLD:WHITE,1); } }
+        static const char* const sk[4]={"SPACE","DEL","CLEAR","DONE"};
+        for(int i=0;i<4;i++){ int kx=16+i*52, ky=134, f=(r==7&&c==i); rect(kx,ky,48,11,f?RGB(6,16,8):RGB(5,7,14)); if(f) rect(kx,ky+10,48,1,GOLD); text(kx+24-tw(sk[i],1)/2,ky+2,sk[i],f?GOLD:WHITE,1); }
+        text(120-tw("A TYPE  B RUB OUT  START DONE",1)/2,147,"A TYPE  B RUB OUT  START DONE",DIMC,1);
+        present();
+    }
+}
 static void famAdd(void){
     if(custom){ toast("BLOCK-BUILT BODIES STAY YOURS"); return; }
     hhLoad(); int m=hhAdd(look,stage,pAsp,pLtw,pTr);
     if(m<0){ toast("THE HOUSE IS FULL"); return; }
-    hhSave(); static char t[28]; char*e=simCat(t,hhM[m].name); e=simCat(e," JOINS  "); e=simCatN(e,hhN+1); e=simCat(e," OF "); simCatN(e,HH_MAX+1); toast(t);
+    hhSave(); static char t[36]; char*e=simCat(t,hhM[m].name); e=simCat(e," JOINS  "); e=simCatN(e,hhN+1); e=simCat(e," OF "); simCatN(e,HH_MAX+1); toast(t);
 }
 static void famMenu(void){
     hhLoad(); if(!hhN){ toast("ONLY YOU SO FAR"); return; }
-    static char lb[HH_MAX][24]; const char* it[HH_MAX];
+    static char lb[HH_MAX][32]; const char* it[HH_MAX];
     for(int m=0;m<hhN;m++){ char*e=simCat(lb[m],hhM[m].name); e=simCat(e,"  "); simCat(e,stageNm[hhM[m].stage<AG_N?hhM[m].stage:AG_ADULT]); it[m]=lb[m]; }
     int m=menu("THE FAMILY",it,hhN); if(m<0) return;
     static const char* const act[3]={"EDIT  PLAY AS THEM","MOVE OUT","BACK"}; int c=menu(hhM[m].name,act,3);
@@ -2792,18 +2958,18 @@ static void famMenu(void){
     for(int i=0;i<LK_N;i++){ u8 t=look[i]; look[i]=s->look[i]; s->look[i]=t; }
     { u8 t=stage; stage=s->stage; s->stage=t; } { u8 t=pAsp; pAsp=s->asp; s->asp=t; } { u8 t=pLtw; pLtw=s->ltw; s->ltw=t; }
     for(int i=0;i<TR_N;i++){ u8 t=pTr[i]; pTr[i]=s->tr[i]; s->tr[i]=t; }
-    for(int i=0;i<10;i++){ char t=hhPName[i]; hhPName[i]=s->name[i]; s->name[i]=t; }
+    for(int i=0;i<HH_NM;i++){ char t=hhPName[i]; hhPName[i]=s->name[i]; s->name[i]=t; t=hhPLast[i]; hhPLast[i]=s->last[i]; s->last[i]=t; }
     { int t=hhPUid; hhPUid=s->uid; s->uid=(u8)t; }
     custom=0; ageDays=0; fixLook(); buildLook(); setColors(); ageSave(); persSave(); hhSave();
-    static char t[24]; simCat(simCat(t,"NOW EDITING "),hhPName); toast(t);
+    static char t[32]; simCat(simCat(t,"NOW EDITING "),hhPName); toast(t);
 }
 static void lookRandom(void){   // the dice (like Create-A-Sim): a whole new look and personality, only from what this stage and your unlocked parts allow
-    static const u8 cnt[LK_N]={NSHAPE,NSW,NEYE,NMOUTH,3,NHAIR,NSW,NSW,NSW,9,9,9,3,3,3,6,6,3,4,3,6, 6,5,5,4,NSW, 9,9,9,9,9,9,9, 3,3,5,6};
+    static const u8 cnt[LK_N]={NSHAPE,NSW,NEYE,NMOUTH,3,NHAIR,NSW,NSW,NSW,9,9,9,3,3,3,6,6,3,4,3,6, 6,6,5,4,NSW, 9,9,9,9,9,9,9, 3,3,7,6, 9,9,9,9,9,9,9,9,9, 5,4,4, 9,9,9};
     for(int id=0;id<LK_N;id++){
         if(lkSlide(id)){ look[id]=(u8)slideVal(rnd8()%5+rnd8()%5); continue; }   // most land near the middle
         for(int t=0;t<20;t++){ int v=rnd8()%cnt[id];
             if(isPart(id)&&(!partFree(id,v)||(rnd8()&1))) v=0;
-            if(id==LK_PATTERN&&(rnd8()&1)) v=0;   // parts: half the time none, never a locked one
+            if((id==LK_PATTERN||id==LK_FEARS||id==LK_MUZZLE||id==LK_FTAIL)&&(rnd8()%3)) v=0;   // parts: half the time none, never a locked one (and the animal bits now and then)
             if((id==LK_HAT||id==LK_BEARD||id==LK_GLASS||id==LK_CHEEK)&&(rnd8()&1)) v=0;
             if(id==LK_BEARD&&stage<AG_ADULT) v=0;
             if(lkAllowed(id,v)){ look[id]=(u8)v; break; } }
@@ -2821,8 +2987,9 @@ static int creatorNew(void){   // returns 1 when the secret code switched screen
         if(sUnlock&&comboSS(k,pressed)){ partsSettle(); sClassic=1; settingsSave(); stageOn=0; return 1; }   // the classic block screen: Konami on, START and SELECT held together
         if(pressed&K_R){ tab=tabNext(tab,1); dirty|=2; }
         if(pressed&K_L){ tab=tabNext(tab,-1); dirty|=2; }
-        if(pressed&K_DOWN){ rs[tab]=(rs[tab]+1)%tabN[tab]; dirty|=2; }
-        if(pressed&K_UP){ rs[tab]=(rs[tab]+tabN[tab]-1)%tabN[tab]; dirty|=2; }
+        if(rs[tab]>=tabN(tab)) rs[tab]=tabN(tab)-1;   // (a row can go when the age changes)
+        if(pressed&K_DOWN){ rs[tab]=(rs[tab]+1)%tabN(tab); dirty|=2; }
+        if(pressed&K_UP){ rs[tab]=(rs[tab]+tabN(tab)-1)%tabN(tab); dirty|=2; }
         if(pressed&K_SEL){ view=(view+1)&3; dirty=3; }
         if((pressed&K_START)&&!(k&K_SEL)){ tab=TB_DONE; rs[tab]=0; dirty|=2; }
         if(pressed&K_B){ partsSettle(); stageOn=0; return 0; }
@@ -2837,6 +3004,8 @@ static int creatorNew(void){   // returns 1 when the secret code switched screen
                     case AC_RAND:  lookRandom(); break;
                     case AC_ADD:   famAdd(); break;
                     case AC_FAM:   famMenu(); break;
+                    case AC_FNAME: if(nameEdit(hhPName,HH_NM-1,"FIRST NAME",0)) hhSave(); break;
+                    case AC_LNAME: if(nameEdit(hhPLast,HH_NM-1,"LAST NAME",1)) hhSave(); break;
                     default:       stageOn=0; return 0;   // MAIN MENU
                 }
                 prev=keyNow(); for(int i=0;i<10;i++) hold[i]=0; dirty=3;
@@ -3127,6 +3296,7 @@ int main(void){
     slotBoot();              // BOOT LOADS PERSON option: the creature of the active room slot
     ageLoad();               // ...grown to the stage it had reached
     persLoad();              // ...with its aspiration, personality, DNA and unlocked parts
+    hhLoad();                // ...and the household, which holds your first and last name
     mainMenu();
     return 0;
 }

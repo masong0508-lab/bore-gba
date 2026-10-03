@@ -159,9 +159,55 @@ def preview(meta, atlas):
     c.resize((960, 640), Image.NEAREST).save(PREVIEW)
     print("preview:", PREVIEW)
 
+# ---- --add: new glyphs appended to the atlas, the existing ones left exactly as they are (the condensed TTF the font came from
+# is not always at hand). The small size is hand-drawn below (5 px capitals are too small to rasterise cleanly: lowercase there
+# has a 3-row x-height, two rows of descender); the medium and large sizes are rasterised from a TTF at the strip's capital height.
+ADD_CHARS = "abcdefghijklmnopqrstuvwxyz&@#*\"_~$<[]^"
+ADD_TTF = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+SMALL = {   # 7 rows: 0..4 above the baseline, 5..6 below; '#' solid
+ 'a':["","",".##","#.#",".##"], 'b':["#..","#..","##.","#.#","##."], 'c':["","",".##","#..",".##"], 'd':["..#","..#",".##","#.#",".##"],
+ 'e':["",".#.","#.#","##.",".##"], 'f':["..#",".#.","###",".#.",".#."], 'g':["","",".##","#.#",".##","..#","##."],
+ 'h':["#..","#..","##.","#.#","#.#"], 'i':["#","","#","#","#"], 'j':[".#","",".#",".#",".#",".#","#."], 'k':["#..","#..","#.#","##.","#.#"],
+ 'l':["#.","#.","#.","#.",".#"], 'm':["","","####.","#.#.#","#.#.#"], 'n':["","","##.","#.#","#.#"], 'o':["","",".#.","#.#",".#."],
+ 'p':["","","##.","#.#","##.","#..","#.."], 'q':["","",".##","#.#",".##","..#","..#"], 'r':["","",".##","#..","#.."], 's':["","",".##",".#.","##."],
+ 't':[".#.",".#.","###",".#.","..#"], 'u':["","","#.#","#.#",".##"], 'v':["","","#.#","#.#",".#."], 'w':["","","#...#","#.#.#",".#.#."],
+ 'x':["","","#.#",".#.","#.#"], 'y':["","","#.#","#.#",".##","..#","##."], 'z':["","","###",".#.","###"],
+ '&':[".#..","#.#.",".#..","#.##",".#.#"], '@':[".###.","#...#","#.###","#....",".###."], '#':[".#.#.","#####",".#.#.","#####",".#.#."],
+ '*':["","#.#",".#.","#.#",""], '"':["#.#","#.#"], '_':["","","","","","###"], '~':["","",".#.#","#.#."], '$':[".##","##.",".#.",".##","##."],
+ '<':["..#",".#.","#..",".#.","..#"], '[':["##","#.","#.","#.","##"], ']':["##",".#",".#",".#","##"], '^':[".#.","#.#"],
+}
+def small_glyph(ch, h):
+    rows = SMALL[ch]; w = max(len(r) for r in rows) or 1
+    im = Image.new("L", (w, h), 0)
+    for y, r in enumerate(rows):
+        for x, c in enumerate(r):
+            if c == '#': im.putpixel((x, y), 255)
+    return im
+def add_glyphs():
+    meta = json.load(open(META)); atlas = Image.open(ATLAS).convert("L")
+    new = [c for c in ADD_CHARS if c not in meta["chars"]]
+    if not new: print("nothing to add"); return
+    made = {}
+    for name, s in meta["sizes"].items():
+        if name == "s": made[name] = {ch: small_glyph(ch, s["h"]) for ch in new}
+        else:
+            px = fit_px(ADD_TTF, s["cap"]); font = ImageFont.truetype(ADD_TTF, px)
+            made[name] = {ch: quant(raster_glyph(font, ch, s["cap"], s["h"] - s["cap"])) for ch in new}
+    ends = {n: max(g["x"] + g["w"] for g in s["glyphs"].values()) + 2 for n, s in meta["sizes"].items()}
+    width = max(ends[n] + sum(g.width + 2 for g in made[n].values()) for n in made) + 2
+    big = Image.new("L", (max(width, atlas.width), atlas.height), 0); big.paste(atlas, (0, 0))
+    for name, s in meta["sizes"].items():
+        x = ends[name]
+        for ch in new:
+            g = made[name][ch]; big.paste(g, (x, s["y"])); s["glyphs"][ch] = {"x": x, "w": g.width}; x += g.width + 2
+    meta["chars"] += "".join(new)
+    big.save(ATLAS, optimize=True); json.dump(meta, open(META, "w"), indent=1)
+    print("added", "".join(new))
+
 if __name__ == "__main__":
     a = sys.argv[1:]
     ttf = DEFAULT_TTF
     if "--font" in a: ttf = a[a.index("--font") + 1]
     if "--regen" in a: regen(ttf)
+    if "--add" in a: add_glyphs()
     build()

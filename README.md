@@ -134,6 +134,11 @@ Walls are drawn like The Sims: a wall tile is a **thin, tall panel** (24 px, 3 b
 - **For now** the aspiration meter, wants, job, cash and skill belong to the household (whoever you control uses them), and the household is saved in SRAM at 5216 (one household, not per room slot).
 - RAM: each member's baked sprites are 11 KB (EWRAM), the free will state about 150 bytes a Sim.
 
+**No more Sims on top of each other:**
+- A Sim never picks a spot (furniture, a wander target, a spawn point) that another Sim stands on or is walking to.
+- An idle Sim that someone walks onto steps aside.
+- Household Sims go see-through when tall furniture (a fridge, a shower) or the player stands in front of them, as they already did behind full-height walls.
+
 ## RAM budget (work RAM, not saves)
 The GBA has 256 KB of EWRAM and 32 KB of IWRAM. Every GitHub build prints the numbers in the job summary (`make size` does the same locally). By hand: `arm-none-eabi-size -A` on the object or ELF: `.sbss` is EWRAM, `.bss` + `.data` + `.iwram` are IWRAM (the stack shares what is left of IWRAM).
 | | EWRAM | IWRAM |
@@ -255,6 +260,7 @@ The title screen plays "The Dipper Man" (tools/the_dipper_man.xm). `python3 tool
 - **Harmony and band:** Gm9 | C9 | Fadd9 | D9 on Rhodes, plus clav, a swelling horn section, a breathy whistle with an echo or a harmony a third under it, jazz-guitar licks, and a bridge of D9 hits.
 - **Technical:** all 16 voices, panned like a live band (`whistler_pan`).
 - **Secret:** the first version is still in the game as **WHISTLER MAN (ORIGINAL)** (`tools/whistler_shuffle_old.xm`), shown in the jukebox after the title-screen code.
+- **Smoother take:** the bridge's band hits now follow the bass walk (Gm9, C9, Fadd9, D9) instead of hitting D over it, and the tune after the bridge stays in its own octave (an octave up it went shrill). The whistle, horns and hats are rounder and darker. The first version is still the secret **WHISTLER MAN (ORIGINAL)**.
 
 **Worthless Clouds**: rebuilt at load time by `make_clouds` in `tools/xm2gba.py` from `tools/worthless_clouds.xm`. It is a swung funk / house arrangement at 115 BPM over all 16 voices (`clouds_pan`) and runs 11:24.
 - **Second act:** after the original arrangement comes a build into a FINALE, where the lead is doubled an octave up on a free voice.
@@ -272,6 +278,12 @@ The title screen plays "The Dipper Man" (tools/the_dipper_man.xm). `python3 tool
 - **Moby:** a piano / strings / "ahh" breakdown on the pumps.
 - **Aphex Twin:** a drill'n'bass section where every beat of the break is cut up (pitched snare ratchets, kick 32nds, 64th hat rolls, gaps, reverse swells), with the lead's licks stuttered on a bell.
 - **Technical:** it uses 64th-note rows (speed 1, XM BPM 90) and all 16 voices (`hotdamn_pan`).
+
+**Aim and Shoot**: `tools/make_aimandshoot_rework.py` reads the Caustic sketch `tools/aimandshoot_v11.caustic` (81 BPM, 53 seconds) and builds `tools/aim_and_shoot.xm`, a complete 2:52 piece.
+- **From the sketch:** the pulsing ostinato (moved up a semitone to sit on the FM part's C#), the FM tune, its descending progression (C# B A G# | F# G# A B | E B E A D G#), its second line and its beatbox pattern.
+- **The colour:** Damascus, kept understated. The C# Hijaz mode is already in the sketch, so it is left to speak. A small takht plays it: oud, qanun, ney and a string section in unison and octaves. The oud and qanun ornament the tune a 64th ahead (heterophony), with tremolo on the long notes.
+- **The groove:** a modern half-time beat, with a quiet maqsum on the darbuka underneath. The ending resolves to C# major.
+- **Technical:** 64th-note rows at 81 BPM (speed 2, XM BPM 108) and all 16 voices (`aim_pan`).
 
 **Meltdown in Mars (90s house mix)**: `tools/make_meltdown_house.py` builds `tools/meltdown_in_mars_house.xm` (126 BPM, about 6 minutes, 10 channels, all sounds synthesised), it is listed in `source/songs.h`, and `python3 tools/xm2gba.py` bakes it into `source/musicdata.h`. `python3 tools/preview_xm.py meltdown_in_mars_house tools/meltdown_in_mars_house.xm out.wav` renders it the way the GBA mixer will play it.
 
@@ -320,6 +332,34 @@ The old BUILD tab (block builder) is gone; the classic block screen is still beh
   - **Ears** sit on the sides of the head in the same iso perspective as the blocks. The far ear only peeks out.
   - **Fixes:** TALL no longer pushes the eyes up onto the hair (a normal head keeps a free layer above it, and TALL now draws longer legs instead of adding a block). ATHLETIC arms hang under the front of the wide chest instead of sticking out sideways.
 - Saved as person format 5 (older slots still load; the new looks start at their first option), households as 'H3' (an 'H2' household still loads).
+
+**Creator overhaul** (person save format 8, household save H7; older saves still load):
+- **Every slider notch counts:** each step moves or grows the art by at least a pixel. Before, EYE SIZE, EYE SPACING and MOUTH WIDTH needed two steps to change anything, and the FLAT mouth vanished at normal size.
+- **New sliders:**
+  - BODY: TORSO (longer or shorter torso), ARMS (in or out) and STANCE (feet apart or together).
+  - FACE: EYE SHADE, BROW HEIGHT and NOSE HEIGHT.
+  - HAIR: HAIR TONE.
+  - CLOTHES: TOP TONE and BOTTOM TONE.
+  - BUTT, BUTT HEIGHT and BUTT WIDTH: teens, adults and elders only; the rows are not offered to babies or children.
+- **The seat:** BUTT draws two shaded, rounded cheeks in the bottom colour on the back of the hips, with a cleft and a crease, from nearly flat to full.
+- **Seventeen body types:**
+  - AVERAGE, BROAD, BIG HEAD, STUBBY, SLIM, ATHLETIC and TALL were already there.
+  - New: CHUBBY (soft belly), PEAR (wide hips), LANKY (long and thin, longer arms), STOCKY (short and wide), HUNCHED (head forward, a hump), POTBELLY, MUSCLE (heavy arms), PETITE, BARREL (deep chest) and DIGITIGRADE (animal legs with paws).
+  - Every age gets a real choice: babies have nine bodies to pick from.
+- **Furry parts (PARTS tab):**
+  - ANIMAL EARS: CAT, FOX, BUNNY, BEAR, in the fur (hair) colour.
+  - MUZZLE: SNOUT, MUZZLE, BEAK. The mouth moves onto its front.
+  - FUR TAIL: FOX, CAT, BUNNY.
+  - New PATTERNs: SOCKS (paws and hands) and MASK (a bandit band across the eyes).
+  - NOSE gains ANIMAL, and CHEEKS has WHISKERS.
+- **Beards and claws:**
+  - Beards grow flush on the jaw (a LONG BEARD also covers the top of the chest) instead of a block sticking out of the face.
+  - CLAWS are talons pointing forward out of the hand.
+  - Claws and pincers follow the arm when it is drawn in against the torso and when it swings.
+- **Ten-slot meters:** the ability chart is now 0 to 10 per ability, like a Sims skill bar. The body sliders add the odd points. The personality traits use the same bigger 10-slot meter.
+- **Names:** DONE > FIRST NAME and LAST NAME open an on-screen keyboard with capitals, lowercase, digits and symbols (`. - ' ! ? & @ # * " _ ~ $ : ; , + / ( ) = % < [ ] ^`), up to 11 characters each.
+  - The font gained lowercase letters and these symbols: `tools/make_font.py --add` adds glyphs without touching the existing ones.
+  - Premade families take their surname (THE MIDNIGHTS → MIDNIGHT), and new family members take yours.
 
 ### Tab 5: PARTS (Spore style)
 Like the Spore creature editor, the body decides what the creature can do. Parts are built as blocks on the model:

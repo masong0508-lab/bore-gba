@@ -25,7 +25,7 @@ NEARDUP = {"worthless_clouds"}    # songs whose near-identical samples are merge
 SHARED = {}                       # sample data already written for an earlier song: identical samples are stored once in the whole ROM
 OUT = "source/musicdata.h"
 TITLE = ("the_dipper_man", "tools/the_dipper_man.xm")
-GAIN = {"tree_swaying_action": 0.9, "amiga_music": 1.1, "earth_and_the_space_citizens": 2.0, "meltdown_in_mars_house": 1.8, "sunman_sunrise": 1.6, "gottcho_barracho": 1.85, "spanish_flexicode": 1.7, "gottcho_barracho_ii": 1.7, "mi_cora_zone": 1.5, "emergency_hitech": 1.6, "excuses_house": 1.9, "whistler_shuffle": 2.2, "whistler_shuffle_old": 2.2, "worthless_clouds": 1.15, "cynicaller_dnb": 1.35, "hotdamn_rave": 1.5}   # louder/quieter per song (default 1.0), so every tracker song sits at a similar level
+GAIN = {"tree_swaying_action": 0.9, "amiga_music": 1.1, "earth_and_the_space_citizens": 2.0, "meltdown_in_mars_house": 1.8, "sunman_sunrise": 1.6, "gottcho_barracho": 1.85, "spanish_flexicode": 1.7, "gottcho_barracho_ii": 1.7, "mi_cora_zone": 1.5, "emergency_hitech": 1.6, "excuses_house": 1.9, "whistler_shuffle": 2.2, "whistler_shuffle_old": 2.2, "worthless_clouds": 1.15, "cynicaller_dnb": 1.35, "hotdamn_rave": 1.5, "aim_and_shoot": 2.15}   # louder/quieter per song (default 1.0), so every tracker song sits at a similar level
 LOOP_OVERRIDE = {"the_dipper_man": 4, "amiga_music": 0, "emergency_dance_floor": 0, "tree_swaying_action": 0}   # the title song plays its intro once, then loops from order 4 (others loop from the XM restart position)
 
 def make_ending(S):
@@ -470,6 +470,21 @@ def title_pan(pat, row, ch, i, n):
     if i == 14: return -W if row < 8 else W                               # hats cross the field once per bar
     if i == 13: return -0.35 if row < 8 else 0.35
     return None
+def aim_pan(pat, row, ch, i, n):
+    """AIM AND SHOOT (tools/make_aimandshoot_rework.py): seated like a takht: kick, snare, bass and the ney in the middle, the
+       darbuka a touch left and the riq right, congas left, the oud left of centre with its tremolo right, the strings spread,
+       the violins right of centre, the qanun right, glockenspiel / electone left."""
+    if ch in (0, 1, 5, 11, 15): return 0.0
+    if ch == 2: return -0.25
+    if ch == 3: return 0.45
+    if ch == 4: return -0.5
+    if ch == 6: return -0.35
+    if ch == 7: return 0.3
+    if ch in (8, 9, 10): return (-0.6, 0.0, 0.6)[ch - 8]
+    if ch == 12: return 0.25
+    if ch == 13: return 0.55
+    if ch == 14: return -0.45
+    return None
 def hotdamn_pan(pat, row, ch, i, n):
     """HOT DAMN (tools/make_hotdamn_rework.py): kick, snare, acid and sub in the middle, the break's ghosts left and hats right, the
        hoover / organ a touch left, piano / strings / vox fanned wide, the lead centre-right with its echo / harmony left, the bell
@@ -570,7 +585,7 @@ def whistler_pan(pat, row, ch, i, n):
     if ch == 14: return 0.7
     if ch == 15: return -0.5
     return None
-OVERRIDES = {"the_dipper_man": title_pan, "excuses_house": excuses_pan, "whistler_shuffle": whistler_pan, "whistler_shuffle_old": whistler_pan, "emergency_hitech": hitech_pan, "worthless_clouds": clouds_pan, "cynicaller_dnb": cynic_pan, "hotdamn_rave": hotdamn_pan, "spanish_flexicode": flexicode_pan, "gottcho_barracho_ii": barracho_pan}
+OVERRIDES = {"the_dipper_man": title_pan, "excuses_house": excuses_pan, "whistler_shuffle": whistler_pan, "whistler_shuffle_old": whistler_pan, "emergency_hitech": hitech_pan, "worthless_clouds": clouds_pan, "cynicaller_dnb": cynic_pan, "hotdamn_rave": hotdamn_pan, "aim_and_shoot": aim_pan, "spanish_flexicode": flexicode_pan, "gottcho_barracho_ii": barracho_pan}
 
 def design_pan(S, used, insts, sid=None):
     """Pan plan for one song. Returns pan(pat, row, ch, inst, note) -> bus.  Rules (a small 'mix engineer'):
