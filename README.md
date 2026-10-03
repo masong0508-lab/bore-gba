@@ -220,6 +220,13 @@ The creature screen is now a character-creator: a live preview in a little house
 
 The old BUILD tab (block builder) is gone; the classic block screen is still behind the Konami code (START+SELECT in the creator). Changing shape, ears, hair style or a part after hand-building asks before replacing your blocks.
 
+**More looks** (all built from blocks, like the rest of the creature):
+- **HAIR tab**: STYLE (CROP, BOWL, LONG, BALD, SPIKY, AFRO, FLAT TOP, SIDE TAIL, BUN; babies only CROP and BALD), COLOUR, **BEARD** (NONE, BEARD, LONG BEARD: adults and elders pick it in the dice, the mouth sits on the beard), **HAT** (NONE, CAP, BEANIE, BAND, FEZ, HELMET) and **HAT COLOUR** (as the top, as the bottom, white, black, red, gold).
+- **CLOTHES tab**: TOP and BOTTOM colours, **TOP STYLE** (TEE, LONG SLEEVE, TANK, HOODIE with a hood behind the head), **BOTTOM STYLE** (PANTS, SHORTS, SKIRT) and **SHOES** (as the bottom, white, black, red, gold, as the top).
+- Hats and the new hairdos add STYLE; a helmet adds STAMINA.
+- **DONE tab > RANDOMIZE** (the Create-A-Sim dice): a whole new look, star sign and aspiration, only from what this life stage and your unlocked parts allow. Press it again for another.
+- Saved as person format 5 (older slots still load; the new looks start at their first option), households as 'H3' (an 'H2' household still loads).
+
 ### Tab 5: PARTS (Spore style)
 Like the Spore creature editor, the body decides what the creature can do. Parts are built as blocks on the model:
 | Part | Options | Power |

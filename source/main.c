@@ -78,7 +78,9 @@ static const u16 topTones[NSW]  = { RGB(8,20,22), RGB(28,8,6), RGB(30,24,6), RGB
 static const u16 botTones[NSW]  = { RGB(8,9,20), RGB(5,5,8), RGB(18,12,6), RGB(14,15,16), RGB(24,20,12), RGB(8,16,8), RGB(26,6,6), RGB(30,30,30) };
 // The look: one number per choice in the creature creator. 0 everywhere = the starter creature.
 enum { LK_SHAPE, LK_SKIN, LK_EYES, LK_MOUTH, LK_EARS, LK_HSTYLE, LK_HCOL, LK_TOP, LK_BOT, LK_BASE,
-       LK_TONE=LK_BASE, LK_EARSZ, LK_EARLF, LK_TAIL, LK_HORNS, LK_BACK, LK_N };   // LK_TONE, LK_EARSZ, LK_EARLF are sliders: 0 = middle, then 1..4 up, 5..8 down (see slidePos)
+       LK_TONE=LK_BASE, LK_EARSZ, LK_EARLF, LK_TAIL, LK_HORNS, LK_BACK,
+       LK_HAT, LK_HATCOL, LK_BEARD, LK_TOPSTY, LK_BOTSTY, LK_SHOE, LK_N };   // (the last six came with person format 5; 0 everywhere = the old look)
+#define LK_N4 (LK_BACK+1)    // looks a person format 4 slot holds   // LK_TONE, LK_EARSZ, LK_EARLF are sliders: 0 = middle, then 1..4 up, 5..8 down (see slidePos)
 #define LK_N3 (LK_EARLF+1)   // looks a person format 3 slot holds (the Spore parts TAIL, HORNS, BACK came with format 4)
 static inline int lkSlide(int id){ return id>=LK_BASE&&id<=LK_EARLF; }
 static inline int slidePos(int v){ return (v+4)%9; }      // 0..8 left to right, the middle (stored 0) is 4
@@ -99,7 +101,9 @@ static const u8 stSpd[AG_N]={50,80,95,100,70};       // walking speed in percent
 // allowed looks per stage: bit n set = option n may be picked. Shape: AVERAGE BROAD BIG-HEAD STUBBY SLIM ATHLETIC TALL. Ears: NONE SMALL BIG. Hair: CROP BOWL LONG BALD.
 // BIG HEAD (bit 2) is only on offer while the Konami code is switched on (see shapeMask).
 #define NSHAPE 7
-static const u8 stMaskShape[AG_N]={12,13,13,127,127}, stMaskEars[AG_N]={3,7,7,7,7}, stMaskHair[AG_N]={9,11,15,15,15};
+static const u8 stMaskShape[AG_N]={12,13,13,127,127}, stMaskEars[AG_N]={3,7,7,7,7};
+#define NHAIR 9   // CROP BOWL LONG BALD + SPIKY AFRO FLAT TOP SIDE TAIL BUN
+static const u16 stMaskHair[AG_N]={9,11|0x1F0,15|0x1F0,15|0x1F0,15|0x1F0};
 static inline int shapeMask(void){ int m=stMaskShape[stage]; if(!sUnlock) m&=~4; return m; }
 static const u8 stSwatches[AG_N]={4,6,8,8,8};       // how many colours of each row are on offer
 #define BX0 ((W-stBW[stage])/2)
@@ -571,6 +575,34 @@ static void buildLook(void){
         if(st==1) for(int z=hz;z<hz+hd;z++)for(int y=top-1;y>=top-2&&y>=0;y--){ hairW(hx-1,y,z,0,0,0,0); hairW(hx+hw,y,z,0,0,0,0); }
         // LONG: full blocks down the back, from the dome to below the neck
         if(st==2){ int z0=hz>0?hz-1:hz; for(int x=hx;x<hx+hw;x++)for(int y=hy-1;y<top;y++) hairW(x,y,z0,0,0,0,0); }
+        int zb=hz>0?hz-1:-1;   // the row behind the head (-1: none, the big head fills the box)
+        if(st==4){ for(int z=hz;z<hz+hd;z++){ vw(hx-1,top-1,z,5,0,1,0,0); vw(hx+hw,top-1,z,5,1,0,0,0); } if(zb>=0) for(int x=hx;x<hx+hw;x++) vw(x,top-1,zb,5,0,0,0,1); }   // SPIKY: tufts out of every side
+        if(st==5){ for(int z=hz;z<hz+hd;z++)for(int y=top-1;y>=top-2&&y>=0;y--){ hairW(hx-1,y,z,0,y==top-1,0,0); hairW(hx+hw,y,z,y==top-1,0,0,0); }   // AFRO: big and round
+                   if(zb>=0) for(int x=hx-1;x<hx+hw+1;x++)for(int y=top-1;y>=top-2&&y>=0;y--) hairW(x,y,zb,x==hx+hw,x==hx-1,0,y==top-1); }
+        if(st==6){ for(int z=hz;z<hz+hd;z++)for(int x=hx;x<hx+hw;x++) vb(x,top,z,5); }                                                        // FLAT TOP: square, no slopes
+        if(st==7){ for(int y=top-1;y>=hy-1&&y>=0;y--) hairW(hx+hw,y,hz,0,0,0,0); vw(hx+hw,hy-2,hz,5,0,0,0,0); }                               // SIDE TAIL: down one side
+        if(st==8&&zb>=0){ for(int x=hx;x<hx+hw;x++) vw(x,top-1,zb,5,x==hx+hw-1,x==hx,0,1); }                                                   // BUN: a knot at the back
+    }
+    {   // hats (in a colour slot the creature already has: top, bottom, white, black, red or gold)
+        static const u8 hatSlot[6]={6,7,2,3,4,8}; int hat=look[LK_HAT], hc=hatSlot[look[LK_HATCOL]%6];
+        if(hat==1){ for(int z=hz;z<hz+hd;z++)for(int x=hx;x<hx+hw;x++) vb(x,top,z,hc); for(int x=hx;x<hx+hw;x++) vw(x,top,hz+hd,hc,0,0,1,0); }   // CAP: a flat crown and a peak at the front
+        if(hat==2){ for(int z=hz;z<hz+hd;z++)for(int x=hx;x<hx+hw;x++) vw(x,top,z,hc,x==hx+hw-1,x==hx,z==hz+hd-1,z==hz); }                      // BEANIE: a soft dome
+        if(hat==3){ for(int x=hx;x<hx+hw;x++){ vb(x,top,hz+hd-1,hc); if(hz>0) vb(x,top,hz,hc); } }                                              // BAND: across the hair
+        if(hat==4){ for(int z=hz;z<hz+hd;z++)for(int x=hx;x<hx+hw;x++) vb(x,top,z,hc); }                                                         // FEZ: a tall square cap
+        if(hat==5){ for(int z=hz;z<hz+hd;z++){ for(int x=hx;x<hx+hw;x++) vw(x,top,z,hc,x==hx+hw-1,x==hx,0,z==hz); vb(hx-1,top-1,z,hc); vb(hx+hw,top-1,z,hc); } }   // HELMET: dome and sides
+    }
+    if(hs==1&&hz+hd<stBD[stage]&&look[LK_BEARD]){   // beards sit in front of the jaw (the mouth then sits on the beard)
+        for(int x=hx;x<hx+hw;x++){ vw(x,hy,hz+hd,5,0,0,0,0); if(look[LK_BEARD]==2) vw(x,hy-1,hz+hd,5,0,0,1,0); } }
+    {   // clothes: the arms are the columns with a hand (skin) at the row below the torso
+        int ts=look[LK_TOPSTY], bs=look[LK_BOTSTY];
+        for(int x=0;x<W;x++)for(int z=0;z<D;z++){ if(ty-1<0||(vox[ty-1][z][x]&15)!=1) continue;
+            if(ts==1||ts==3){ if((vox[ty][z][x]&15)==1) vox[ty][z][x]=(u8)((vox[ty][z][x]&0xF0)|6); }        // LONG SLEEVE / HOODIE: forearms in the top colour
+            if(ts==2&&ty+1<H&&(vox[ty+1][z][x]&15)==6) vox[ty+1][z][x]=(u8)((vox[ty+1][z][x]&0xF0)|1); }      // TANK: bare shoulders
+        if(ts==3&&hz>0&&look[LK_HSTYLE]!=2){ for(int x=hx;x<hx+hw;x++)for(int y=hy;y<top;y++) vb(x,y,hz-1,6); }   // HOODIE: the hood hangs behind the head
+        for(int y=0;y<L&&y<ty;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ u8 v=vox[y][z][x]; if((v&15)!=7) continue;
+            if(bs==1&&y>0&&y<L-1) vox[y][z][x]=(u8)((v&0xF0)|1);                                                   // SHORTS: bare shins
+            if(y==0&&look[LK_SHOE]){ static const u8 shoeSlot[6]={7,2,3,4,8,6}; vox[y][z][x]=(u8)((v&0xF0)|shoeSlot[look[LK_SHOE]%6]); } }   // SHOES
+        if(bs==2&&L>0){ int yk=L-1; for(int z=1;z<3&&z<D;z++){ vw(tx-1,yk,z,7,0,1,0,0); vw(tx+2,yk,z,7,1,0,0,0); } }                // SKIRT: flares out at the hips
     }
     sporeParts(tx,ty,hx,hy,hz,hw,hh,top);                               // tail, horns, spikes or wings (before the face: sprites snap to the front block)
     if(hs==1){ doPart(1,4,1,hx,hy+1,0); doPart(1,5,1,hx,hy,0); }          // eyes on the top row of the face, mouth on the bottom row
@@ -587,7 +619,7 @@ static int maskPick(int mask,int v,int n){ for(int i=0;i<n;i++){ int j=(v+i)%n; 
 static void fixLook(void){   // pull every choice into what this stage offers
     look[LK_SHAPE]=(u8)maskPick(shapeMask(),look[LK_SHAPE],NSHAPE);
     look[LK_EARS]=(u8)maskPick(stMaskEars[stage],look[LK_EARS],3);
-    look[LK_HSTYLE]=(u8)maskPick(stMaskHair[stage],look[LK_HSTYLE],4);
+    look[LK_HSTYLE]=(u8)maskPick(stMaskHair[stage],look[LK_HSTYLE],NHAIR);
     static const u8 sw[4]={LK_SKIN,LK_HCOL,LK_TOP,LK_BOT};
     for(int i=0;i<4;i++) if(look[sw[i]]>=stSwatches[stage]) look[sw[i]]=(u8)(look[sw[i]]%stSwatches[stage]);
 }
@@ -669,8 +701,8 @@ static int abOf(int a){   // 0..5
       case AB_SPEED:   v+=(look[LK_HSTYLE]==3)-(look[LK_HSTYLE]==2)-(look[LK_BACK]==2); break;            // bald is quick, long hair and wings drag
       case AB_JUMP:    v+=(look[LK_BACK]==2)+(look[LK_EARS]==2); break;                                    // wings and big (bunny) ears
       case AB_GRIP:    v+=(look[LK_TAIL]!=0)+(look[LK_HORNS]==1); break;                                   // a tail to steer with
-      case AB_STYLE:   v+=(look[LK_EYES]==2)+(look[LK_MOUTH]==1)+(look[LK_HSTYLE]==1||look[LK_HSTYLE]==2)+(look[LK_HORNS]==1)-(look[LK_EYES]==0); break;
-      case AB_STAMINA: v+=(look[LK_BACK]==1)+(look[LK_HORNS]==2); break;                                  // armour plates and a thick skull
+      case AB_STYLE:   v+=(look[LK_EYES]==2)+(look[LK_MOUTH]==1)+(look[LK_HSTYLE]==1||look[LK_HSTYLE]==2||look[LK_HSTYLE]>=4)+(look[LK_HORNS]==1)-(look[LK_EYES]==0)+(look[LK_HAT]&&look[LK_HAT]!=5); break;   // hairdos and hats are stylish
+      case AB_STAMINA: v+=(look[LK_BACK]==1)+(look[LK_HORNS]==2)+(look[LK_HAT]==5); break;                  // a helmet is armour too                                  // armour plates and a thick skull
     }
     return v<0?0:v>5?5:v;
 }
@@ -2316,7 +2348,7 @@ static void mapEditor(void){
 // L R change tab | UP DOWN pick a row | LEFT RIGHT change it | SELECT turns the creature | START jumps to DONE | B leaves.
 enum { TB_BODY, TB_FACE, TB_HAIR, TB_CLOTHES, TB_PARTS, TB_ASPIRE, TB_DONE, NTAB };
 enum { RK_PICK, RK_SWATCH, RK_ACT, RK_SLIDE, RK_PERS, RK_TRAIT };   // a row picks from named options, picks a colour, is a button, a slider, a persona choice or a trait
-enum { AC_PLAY, AC_MAP, AC_MENU };
+enum { AC_PLAY, AC_MAP, AC_MENU, AC_RAND };
 enum { PS_ASP, PS_LTW, PS_SIGN };
 typedef struct { const char*lab,*sub; u8 kind,id,n; } Row;   // sub = second line of a button
 static const char* const tabNm[NTAB]={"BODY","FACE","HAIR","CLOTHES","PARTS","ASPIRE","DONE"};
@@ -2324,20 +2356,26 @@ static const char* const shapeNm[NSHAPE]={"AVERAGE","BROAD","BIG HEAD","STUBBY",
 static const char* const eyeNm[3]={"SLEEPY","ROUND","HAPPY"};
 static const char* const mouthNm[3]={"FLAT","SMILE","OH"};
 static const char* const earNm[3]={"NONE","SMALL","BIG"};
-static const char* const hairNm[4]={"CROP","BOWL","LONG","BALD"};
+static const char* const hairNm[NHAIR]={"CROP","BOWL","LONG","BALD","SPIKY","AFRO","FLAT TOP","SIDE TAIL","BUN"};
+static const char* const hatNm[6]={"NONE","CAP","BEANIE","BAND","FEZ","HELMET"};
+static const char* const hatColNm[6]={"AS THE TOP","AS THE BOTTOM","WHITE","BLACK","RED","GOLD"};
+static const char* const beardNm[3]={"NONE","BEARD","LONG BEARD"};
+static const char* const topStyNm[4]={"TEE","LONG SLEEVE","TANK","HOODIE"};
+static const char* const botStyNm[3]={"PANTS","SHORTS","SKIRT"};
+static const char* const shoeNm[6]={"AS THE BOTTOM","WHITE","BLACK","RED","GOLD","AS THE TOP"};
 #define LK_AGE LK_N   // the AGE row is not part of look[]: it picks the life stage
-static const char* const* const lookNm[LK_N+1]={shapeNm,0,eyeNm,mouthNm,earNm,hairNm,0,0,0,0,0,0,tailNm,hornNm,backNm,stageNm};
-static const u16* const lookCol[LK_N+1]={0,skinTones,0,0,0,0,hairTones,topTones,botTones,0,0,0,0,0,0,0};
+static const char* const* const lookNm[LK_N+1]={shapeNm,0,eyeNm,mouthNm,earNm,hairNm,0,0,0,0,0,0,tailNm,hornNm,backNm,hatNm,hatColNm,beardNm,topStyNm,botStyNm,shoeNm,stageNm};
+static const u16* const lookCol[LK_N+1]={0,skinTones,0,0,0,0,hairTones,topTones,botTones,0,0,0,0,0,0,0,0,0,0,0,0,0};
 static const Row tabRow[NTAB][8]={
   {{"AGE",0,RK_PICK,LK_AGE,AG_N},{"SHAPE",0,RK_PICK,LK_SHAPE,NSHAPE},{"SKIN",0,RK_SWATCH,LK_SKIN,NSW},{"SKIN TONE",0,RK_SLIDE,LK_TONE,9}},
   {{"EYES",0,RK_PICK,LK_EYES,3},{"MOUTH",0,RK_PICK,LK_MOUTH,3},{"EARS",0,RK_PICK,LK_EARS,3},{"EAR SIZE",0,RK_SLIDE,LK_EARSZ,9},{"EAR HEIGHT",0,RK_SLIDE,LK_EARLF,9}},
-  {{"STYLE",0,RK_PICK,LK_HSTYLE,4},{"COLOUR",0,RK_SWATCH,LK_HCOL,NSW},{0}},
-  {{"TOP",0,RK_SWATCH,LK_TOP,NSW},{"BOTTOM",0,RK_SWATCH,LK_BOT,NSW},{0}},
+  {{"STYLE",0,RK_PICK,LK_HSTYLE,NHAIR},{"COLOUR",0,RK_SWATCH,LK_HCOL,NSW},{"BEARD",0,RK_PICK,LK_BEARD,3},{"HAT",0,RK_PICK,LK_HAT,6},{"HAT COLOUR",0,RK_PICK,LK_HATCOL,6}},
+  {{"TOP",0,RK_SWATCH,LK_TOP,NSW},{"BOTTOM",0,RK_SWATCH,LK_BOT,NSW},{"TOP STYLE",0,RK_PICK,LK_TOPSTY,4},{"BOTTOM STYLE",0,RK_PICK,LK_BOTSTY,3},{"SHOES",0,RK_PICK,LK_SHOE,6}},
   {{"TAIL",0,RK_PICK,LK_TAIL,3},{"HORNS",0,RK_PICK,LK_HORNS,3},{"BACK",0,RK_PICK,LK_BACK,3}},
   {{"ASPIRATION",0,RK_PERS,PS_ASP,AS_PICK},{"LIFETIME WANT",0,RK_PERS,PS_LTW,2},{"SIGN",0,RK_PERS,PS_SIGN,12},
    {"NEAT",0,RK_TRAIT,TR_NEAT,11},{"OUTGOING",0,RK_TRAIT,TR_OUT,11},{"ACTIVE",0,RK_TRAIT,TR_ACT,11},{"PLAYFUL",0,RK_TRAIT,TR_PLAY,11},{"NICE",0,RK_TRAIT,TR_NICE,11}},
-  {{"GO LIVE LIFE!","PLAY IT NOW",RK_ACT,AC_PLAY,0},{"EDIT MAP","BUILD ROOMS",RK_ACT,AC_MAP,0},{"MAIN MENU","LOOK IS KEPT",RK_ACT,AC_MENU,0}} };
-static const u8 tabN[NTAB]={4,5,2,2,3,8,3};
+  {{"GO LIVE LIFE!","PLAY IT NOW",RK_ACT,AC_PLAY,0},{"RANDOMIZE","ROLL THE DICE",RK_ACT,AC_RAND,0},{"EDIT MAP","BUILD ROOMS",RK_ACT,AC_MAP,0},{"MAIN MENU","LOOK IS KEPT",RK_ACT,AC_MENU,0}} };
+static const u8 tabN[NTAB]={4,5,5,5,3,8,4};
 static int tabNext(int t,int d){ return (t+d+NTAB)%NTAB; }
 
 // layout (the panel is x 124..239): tabs down the left edge, the card of rows beside them, key legend under both
@@ -2480,7 +2518,7 @@ static void drawRowSet(int tab,int sel){
         }
         { char b[4]={(char)('0'+rk),'/',(char)('0'+cnt),0}; text(CDX+CDW-6-tw(b,1),y,b,f?DIMC:RGB(10,12,16),1); }
         if(r->kind==RK_PICK){
-            const char*nm=lookName(r->id,cur); int mx=CDX+CDW/2, lk=r->id>=LK_TAIL&&!partFree(r->id,cur);
+            const char*nm=lookName(r->id,cur); int mx=CDX+CDW/2, lk=r->id>=LK_TAIL&&r->id<=LK_BACK&&!partFree(r->id,cur);
             tri(CDX+9,y+9,0,f?GOLD:RGB(10,12,16)); tri(CDX+CDW-12,y+9,1,f?GOLD:RGB(10,12,16));
             text(mx-tw(nm,1)/2,y+9,nm,lk?RGB(28,10,8):f?WHITE:DIMC,1);
             if(lk){ int lx=mx+tw(nm,1)/2+3; rect(lx,y+11,5,4,RGB(28,10,8)); rect(lx+1,y+9,3,2,RGB(28,10,8)); px(lx+2,y+10,f?FOCUS:CARD); }   // a little padlock
@@ -2499,7 +2537,7 @@ static void drawCreatorPanel(int tab,int sel){
     drawIcon(CDX+6,CDY+6,tab,GOLD); text(CDX+20,CDY+4,tabNm[tab],GOLD,2);
     rect(CDX+5,CDY+20,CDW-10,1,GOLD2);
     drawRowSet(tab,sel);
-    const Row*rs=&tabRow[tab][sel]; int act=(rs->kind==RK_ACT), buy=rs->kind==RK_PICK&&rs->id>=LK_TAIL&&!partFree(rs->id,look[rs->id]), x;
+    const Row*rs=&tabRow[tab][sel]; int act=(rs->kind==RK_ACT), buy=rs->kind==RK_PICK&&rs->id>=LK_TAIL&&rs->id<=LK_BACK&&!partFree(rs->id,look[rs->id]), x;
     x=kcap(128,132,"L"); x=kcap(x,132,"R"); x=klab(x,132,"TABS"); x=kcapAr(x,132,1); klab(x,132,"ROW");
     if(buy){ x=kcap(128,142,"A"); x=klab(x,142,"BUY"); x=kcapAr(x,142,0); klab(x,142,"CHANGE"); }
     else { x=act?kcap(128,142,"A"):kcapAr(128,142,0); klab(x,142,act?"CHOOSE":"CHANGE"); }
@@ -2567,6 +2605,19 @@ static int buyPart(int id){   // A on a locked part: spend DNA on it. 1 = bought
 static int comboSS(u16 k,u16 pressed){ return (k&K_START)&&(k&K_SEL)&&(pressed&(K_START|K_SEL)); }
 #define NENT (NPARTS+5)   // classic list: the parts, then AGE, SHAPE (the four original body shapes), GO LIVE LIFE, EDIT MAP, MAIN MENU
 
+static void lookRandom(void){   // the dice (like Create-A-Sim): a whole new look and personality, only from what this stage and your unlocked parts allow
+    static const u8 cnt[LK_N]={NSHAPE,NSW,3,3,3,NHAIR,NSW,NSW,NSW,9,9,9,3,3,3,6,6,3,4,3,6};
+    for(int id=0;id<LK_N;id++){
+        if(lkSlide(id)){ look[id]=(u8)(rnd8()%9); continue; }
+        for(int t=0;t<20;t++){ int v=rnd8()%cnt[id];
+            if(id>=LK_TAIL&&id<=LK_BACK&&(!partFree(id,v)||(rnd8()&1))) v=0;   // parts: half the time none, never a locked one
+            if((id==LK_HAT||id==LK_BEARD)&&(rnd8()&1)) v=0;
+            if(id==LK_BEARD&&stage<AG_ADULT) v=0;
+            if(lkAllowed(id,v)){ look[id]=(u8)v; break; } }
+    }
+    setSign(rnd8()%12); pAsp=(u8)(rnd8()%AS_PICK); pLtw=(u8)(rnd8()&1); persSave();
+    custom=0; fixLook(); buildLook(); setColors();
+}
 #define TRIG(m,i) ((pressed&(m))||(hold[i]>14&&(hold[i]&3)==0))   // pressed now, or held long enough to repeat
 static int creatorNew(void){   // returns 1 when the secret code switched screens, 0 when leaving
     int tab=0, rs[NTAB]={0}, dirty=3, hold[10]={0}; u16 prev=keyNow();
@@ -2590,6 +2641,7 @@ static int creatorNew(void){   // returns 1 when the secret code switched screen
                 switch(r->id){
                     case AC_PLAY:  lifeMode(0); if(gToMenu){ stageOn=0; return 0; } break;
                     case AC_MAP:   mapEditor(); break;
+                    case AC_RAND:  lookRandom(); break;
                     default:       stageOn=0; return 0;   // MAIN MENU
                 }
                 prev=keyNow(); for(int i=0;i<10;i++) hold[i]=0; dirty=3;
