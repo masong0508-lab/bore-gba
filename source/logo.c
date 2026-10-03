@@ -51,6 +51,9 @@ typedef struct { volatile u32 src, dst, cnt; } DmaRec;
 #define DCNT_WIN1 0x4000
 #define DCNT_OBJ_1D 0x0040
 #define DCNT_BLANK 0x0080
+// BORE: between the phases the screen is switched to 'no layers' on a black backdrop instead of forced blank,
+// because forced blank shows WHITE on a GBA (a white flash while the next phase draws its tiles).
+#define BLACKOUT() do { BG_PAL[0] = 0; REG_DISPCNT = 0; } while (0)
 #define BGCNT(prio, cb, sb) ((prio) | ((cb) << 2) | ((sb) << 8))   // 4bpp, 256x256
 
 /* ---------- artwork, drawn at startup ---------- */
@@ -297,7 +300,7 @@ static void scene_oam(int tq) {
     oam_set(13, 150 - ((tq * 154) >> 16) - 8, 44, 0, 1, OBJT_MOON, 0, 2);
 }
 static void scene_init(void) {
-    REG_DISPCNT = DCNT_BLANK;
+    BLACKOUT();
     for (int i = 0; i < 16 * 8; i++) BG_PAL[i] = 0;
     gfx_scene(SB_SKY, SB_FOL, SB_SUN, SB_RIDGE);
     REG_BGCNT(3) = BGCNT(3, 0, SB_SKY);  REG_BGCNT(2) = BGCNT(1, 0, SB_FOL);
@@ -324,7 +327,7 @@ static void scene_frame(int f) {
 
 // ---- Phase 2: grey screen + scan line ----
 static void grey_init(void) {
-    REG_DISPCNT = DCNT_BLANK; dma_off(); clear_oam();
+    BLACKOUT(); dma_off(); clear_oam();
     REG_WININ = 0; REG_WINOUT = 0;
     for (int i = 0; i < 16 * 8; i++) BG_PAL[i] = 0;
     BG_PAL[0] = RGB15(0x2B, 0x29, 0x33);                             // backdrop #2b2933
@@ -344,7 +347,7 @@ static void grey_frame(int f) {
 
 // ---- Phase 3: text + underline ----
 static void text_init(void) {
-    REG_DISPCNT = DCNT_BLANK; dma_off(); clear_oam();
+    BLACKOUT(); dma_off(); clear_oam();
     for (int i = 0; i < 16 * 8; i++) BG_PAL[i] = 0;
     gfx_text(SB_TEXT);                  // backdrop black
     for (int i = 0; i < 1024; i++) BG_MAP(SB_ROPE)[i] = 0;
@@ -382,5 +385,5 @@ void logo_play(void) {
         if (f == P3) text_init();
         if (f < P2) scene_frame(f); else if (f < P3) grey_frame(f); else text_frame(f);
     }
-    vsync(); REG_DISPCNT = DCNT_BLANK; dma_off(); clear_oam(); BG_PAL[0] = 0;
+    vsync(); BLACKOUT(); dma_off(); clear_oam();
 }

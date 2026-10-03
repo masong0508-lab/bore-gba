@@ -92,10 +92,18 @@ Walls are drawn like The Sims: a wall tile is a **thin, tall panel** (24 px, 3 b
 - Saves: the map in SRAM already kept a byte per tile; room slots now use room format 2 (a byte for the floor and one for the wallpaper; format 1 slots still load).
 - **Credits**: the converted wallpapers are KHLVH's work (the "KHLVH 06162005" wallpaper set on ModTheSims); they are in this repo only as the shrunk 8 x 24 versions. Check the creator's terms before you distribute a ROM with them.
 
-## Households (up to 8 Sims)
-**Pause menu -> HOUSEHOLD** moves in a premade family (original characters: THE GRINDERS, a skater family of three; THE MIDNIGHTS, a pale night-owl family; THE FRESHLYS, a young couple) or moves everyone out. A household is you plus up to 7 more Sims (`source/house.h`).
+## Households (up to 10 Sims)
+**Pause menu -> HOUSEHOLD** moves in a premade family (original characters: THE GRINDERS, a skater family of three; THE MIDNIGHTS, a pale night-owl family; THE FRESHLYS, a young couple; THE NOVAS, a mother and her teen) or moves everyone out. A household is you plus up to 9 more Sims (`source/house.h`): ten on screen at once. Each one is a hardware sprite with its own palette and 1 KB of sprite memory, which uses 9 of the 16 KB of OBJ VRAM and 9 of the 16 palettes. Only one Sim plans a path per step, so ten cost no more CPU per frame than eight. The RELATIONSHIPS screen scrolls with UP and DOWN when more than seven live there.
+- **A living day:**
+  - **Work and school.** On weekdays the adults leave for work around 08:30 and the children and teens for school around 07:45. Each walks to the nearest way off the lot (a reachable tile on the map's border, or the spawn point if there is none) and is gone: no sprite, needs still draining. They walk back in at the end of the day (about 15:00 from school, 17:00 to 17:30 from work), hungry and tired, and the HUD says who left or came home.
+  - **Night.** From 22:00 to 06:00, bed comes first, and a night in bed lasts until the night is over.
+  - **Passers-by.** Two made-up townies (their own hardware sprites, OAM 9 and 10, with new looks every time the life game starts) walk from one way off the map to another in the daytime.
+  - **Switching.** SELECT skips Sims who are out. Elders and babies stay home.
 - **SELECT** (a tap, not SELECT+START) switches who you control: position, needs, look, persona and sprites trade places, and the camera jumps to the new Sim. Hand-built (block builder) creatures cannot switch yet.
 - **Free will**: the Sims you do not control look after themselves. Each kind of furniture advertises a need (fridge FOOD, toilet WC, bed REST, shower CLEAN, sofa COMFY) and wandering about gives FUN. A Sim scores them (how low the need is, squared, tilted by its traits: neat Sims shower sooner, lazy ones sit, playful ones roam), picks one of the two best, finds a path (breadth-first search on the 40x40 tiles, one Sim plans per step), walks there and uses it. **OPTIONS > PLAY > FREE WILL**: OFF / LOW (waits until needs are lower, thinks half as often) / HIGH.
+- **Walking animation.** Every Sim has a second, mid-stride frame for each view: legs half a block forward and back, arms swinging the other way. It alternates with the standing frame every 8 frames while the Sim walks (your Sim on foot, members following a path, passers-by), each one a little out of step.
+  - It works for both creators: legs are the leg-shaped blocks and arms the arm-shaped ones, whether built from a look or by hand in the classic block builder.
+  - Household sprites keep only the part that changes: OBJ tile rows 1..5, 640 bytes per view. Your Sim keeps a full second set (`spr4s`).
 - **Hardware sprites**: the other Sims are GBA sprites (OBJ, 32x64, 16 colours each with their own palette), so their moving costs no drawing; the CPU only draws their shadows and talk balloons into the room. Their four views are baked like yours, cut down to 15 colours (closest colours merged, the common ones kept exact), and only the view on show sits in sprite memory (1 KB each, copied in vblank). A window keeps them inside the room view (never over the HUD), menus and other screens hide them. Sprites always sit on top of the picture, so a Sim standing behind a full-height wall is drawn see-through (an x-ray blend) instead of in front of it. You stay drawn by the CPU (furniture in front of you covers you, the action cam can zoom you); SELECT swaps sprites both ways.
 - **Social life** (Sims 2 style). A SOCIAL need (HUD bar, a LONELY alert; outgoing Sims get lonely faster). Every pair of Sims has a one-way DAILY and LIFETIME relationship (-100..100): daily changes fast and drifts back to lifetime every game hour, lifetime moves a third as much. Statuses: STRANGER, ACQUAINTANCE, FRIEND (daily 50+), BEST FRIEND (daily and lifetime 70+), DISLIKE, ENEMY (daily -50 or less), and the romance steps CRUSH, IN LOVE, STEADY.
   - **R next to a household Sim** opens the social menu (the furniture you stand at is offered first): TALK, JOKE, COMPLIMENT, HIGH FIVE, HUG, SHOW A TRICK, FLIRT, KISS, GO STEADY, APOLOGIZE, ARGUE, INSULT, SLAP. What is on offer depends on the relationship (a hug needs daily 35, a kiss a crush, going steady being in love), age (romance only teen with teen or adult with adult/elder; no slapping for children) and mood.
@@ -118,6 +126,8 @@ The GBA has 256 KB of EWRAM and 32 KB of IWRAM. Check the numbers with `arm-none
 | household on hardware sprites | 168,348 B (64%) | 25,096 B |
 | boot logo + face parts, before the IWRAM diet | 172,812 B (66%) | 26,060 B |
 | after the IWRAM diet | 174,980 B (67%) | 20,496 B (12 KB left for the stack) |
+| 10-Sim household | 183,548 B (70%) | 20,752 B |
+| + routines, passers-by, Spore parts, walk frames | 240,800 B (92%) | 20,964 B |
 | big users now | household sprite tiles `hhObj` 28 KB + bake buffer 11 KB, screen back buffer `fb` 76.8 KB, creature sprites `spr4` 11 KB, floor tiles `flTab` 8.6 KB, overlay `ovBuf` 5 KB, BFS queue + wall map 4.8 KB (wallpaper textures: ROM only) | mixer buffers, `irqStack` 1 KB, IWRAM code 14 KB |
 
 **IWRAM diet** (5.5 KB freed, the per-pixel hot paths untouched):
@@ -202,6 +212,8 @@ The title screen plays "The Dipper Man" (tools/the_dipper_man.xm). `python3 tool
 
 **Mi Cora Zone**: `tools/mi_cora_zone.xm`, a rework of "The Dipper Man - Mi Cora Zone", built from the original's own samples. It runs intro, drop, hook, breakdown, second drop, half-time bridge, a final section lifted 2 semitones, and outro. 133 BPM, 2:50. The generator is not in the repo.
 
+**Emergency On The Dance Floor (hi-tech)**: `tools/make_emergency_rework.py` builds `tools/emergency_hitech.xm`. It reads the bass riff and lead line straight from the original at the original 181 BPM. The sounds are all new: an FM growl bass over a sine sub, a supersaw pluck lead with an octave shadow and a ping-pong echo, glassy FM arps, digital stabs, a vowel pad, a ring-modulated hat, glitch ticks, data blips, zaps, lasers and risers. It runs at 32nd-note resolution for ratchets and stutters, uses all 16 voices hand-panned (`hitech_pan`), and lasts 1:28. The earlier rework is now the secret song **EMERGENCY (ORIGINAL)**, which shows up after the title-screen code.
+
 **Meltdown in Mars (90s house mix)**: `tools/make_meltdown_house.py` builds `tools/meltdown_in_mars_house.xm` (126 BPM, about 6 minutes, 10 channels, all sounds synthesised), it is listed in `source/songs.h`, and `python3 tools/xm2gba.py` bakes it into `source/musicdata.h`. `python3 tools/preview_xm.py meltdown_in_mars_house tools/meltdown_in_mars_house.xm out.wav` renders it the way the GBA mixer will play it.
 
 ## Jukebox
@@ -257,10 +269,15 @@ Like the Spore creature editor, the body decides what the creature can do. Parts
 | TAIL | NONE, STUB, LONG (furry, hair colour) | LONG = **BALANCE**: spins land clean further off straight |
 | HORNS | NONE, NUBS, HORNS (ivory, out of the sides of the head) | HORNS = **CHARGE**: skating into a wall does not hurt |
 | BACK | NONE, SPIKES, WINGS | SPIKES = **ARMOUR** (falls and bails hurt 30% less), WINGS = **GLIDE** (hold R in the air to float down) |
+| HANDS | NONE, CLAWS (ivory talons), PINCERS (red claws) | both add GRIP; PINCERS = **CLAMP**: grinds score 2 more points every tick |
+| ANTENNAE | NONE, FEELERS (a bead on each, in the paint colour), EYE STALKS | FEELERS add STYLE; EYE STALKS = **SENSE**: every DNA reward is a quarter bigger |
+| PATTERN + PAINT | NONE, STRIPES, SPOTS, BELLY, TIGER, in hair, red, gold, white, black or bottom colour | body paint over the skin and shirt (never the face); any pattern adds STYLE |
+
+The PARTS tab scrolls: three rows show above the ability chart. Saved as person format 7 and household H5; older saves still load.
 
 Under the rows is the **ability chart**: SPEED, JUMP, GRIP, STYLE, STAMINA, 0 to 5 each (2 is normal). Shape, face, hair and parts move them (TALL is fast, BROAD tough, BIG HEAD stylish, bald is quick, wings help jumps but drag, a tail helps grip...). In play: SPEED +-5% top speed per point, JUMP +-6% ollie and hop, GRIP more grind points and faster rails, STYLE +-6% trick points, STAMINA -8% need drain per point. All of it is in `abOf()` / `abPow()` in `main.c`.
 
-**DNA.** Big parts (LONG tail 60, HORNS 60, SPIKES 40, WINGS 120) are locked until bought with DNA. You can still look at a locked part (red, with a padlock): A buys it, and it comes off again when you leave the creator if you did not. DNA is earned by living: a met want pays its points, a skill level 15, a promotion 25, a birthday 50, the lifetime want 200. The Konami code makes every part free.
+**DNA.** Big parts (LONG tail 60, HORNS 60, SPIKES 40, WINGS 120, CLAWS 30, PINCERS 90, EYE STALKS 70) are locked until bought with DNA. You can still look at a locked part (red, with a padlock): A buys it, and it comes off again when you leave the creator if you did not. DNA is earned by living: a met want pays its points, a skill level 15, a promotion 25, a birthday 50, the lifetime want 200. The Konami code makes every part free.
 
 ### Tab 6: ASPIRE (Sims 2 Create-A-Sim)
 - **ASPIRATION**: FORTUNE, KNOWLEDGE, POPULARITY, PLEASURE or HOME. Babies and children always aspire to **GROW UP**; the one you pick starts when the creature becomes a teen (the row says TEEN).

@@ -25,7 +25,7 @@ NEARDUP = {"worthless_clouds"}    # songs whose near-identical samples are merge
 SHARED = {}                       # sample data already written for an earlier song: identical samples are stored once in the whole ROM
 OUT = "source/musicdata.h"
 TITLE = ("the_dipper_man", "tools/the_dipper_man.xm")
-GAIN = {"tree_swaying_action": 0.9, "amiga_music": 1.1, "earth_and_the_space_citizens": 2.0, "meltdown_in_mars_house": 1.8, "sunman_sunrise": 1.6, "gottcho_barracho": 1.85, "spanish_flexicode": 1.7, "gottcho_barracho_ii": 1.7, "mi_cora_zone": 1.5}   # louder/quieter per song (default 1.0), so every tracker song sits at a similar level
+GAIN = {"tree_swaying_action": 0.9, "amiga_music": 1.1, "earth_and_the_space_citizens": 2.0, "meltdown_in_mars_house": 1.8, "sunman_sunrise": 1.6, "gottcho_barracho": 1.85, "spanish_flexicode": 1.7, "gottcho_barracho_ii": 1.7, "mi_cora_zone": 1.5, "emergency_hitech": 1.6}   # louder/quieter per song (default 1.0), so every tracker song sits at a similar level
 LOOP_OVERRIDE = {"the_dipper_man": 4, "amiga_music": 0, "emergency_dance_floor": 0, "tree_swaying_action": 0}   # the title song plays its intro once, then loops from order 4 (others loop from the XM restart position)
 
 def make_ending(S):
@@ -477,7 +477,22 @@ def barracho_pan(pat, row, ch, i, n):
     if ch == 2: return 0.6 if (row // 4) % 2 else -0.6
     if ch == 3: return 0.55
     return flexicode_pan(pat, row, ch, i, n)
-OVERRIDES = {"the_dipper_man": title_pan, "worthless_clouds": clouds_pan, "spanish_flexicode": flexicode_pan, "gottcho_barracho_ii": barracho_pan}
+def hitech_pan(pat, row, ch, i, n):
+    """EMERGENCY ON THE DANCE FLOOR (hi-tech, tools/make_emergency_rework.py): kick, snare, bass and sub in the middle; the hat and
+       the glitch ticks ping-pong; the lead just left with its octave / echo flying the other way; the stabs spread wide; the arp and
+       the data blips sweep across the bar; zaps and fx swap sides."""
+    if ch in (0, 1, 4, 5): return 0.0
+    if ch == 2: return 0.55 if (row // 2) % 2 else -0.55
+    if ch == 3: return -0.8 if (row // 3) % 2 else 0.8
+    if ch == 6: return -0.15
+    if ch == 7: return 0.85 if (row // 6) % 2 == 0 else -0.85
+    if ch == 8: return 0.75 * np.sin(2 * np.pi * row / 48.0)
+    if ch in (9, 10, 11): return (-0.8, 0.0, 0.8)[ch - 9]
+    if ch == 12: return 0.0
+    if ch == 13: return 0.7 if (pat + row // 24) % 2 else -0.7
+    if ch == 15: return 0.85 * np.cos(2 * np.pi * row / 24.0)
+    return None
+OVERRIDES = {"the_dipper_man": title_pan, "emergency_hitech": hitech_pan, "worthless_clouds": clouds_pan, "spanish_flexicode": flexicode_pan, "gottcho_barracho_ii": barracho_pan}
 
 def design_pan(S, used, insts, sid=None):
     """Pan plan for one song. Returns pan(pat, row, ch, inst, note) -> bus.  Rules (a small 'mix engineer'):
