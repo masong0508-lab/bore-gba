@@ -32,7 +32,7 @@
 #define SLOT_SZ    2048
 #define SLOT_HDR   32
 #define SLOT_NAME  10
-#define SLOT_DIR   12352      // 'S' 'D' active-slot checksum   (4 bytes; the jukebox block before it ends at 12325)
+#define SLOT_DIR   12352      // 'S' 'D' active-slot checksum   (4 bytes; the jukebox block lives at 14336 now)
 #define SRAM_TEST  18432      // 16 spare bytes the SAVE TEST in the options writes to
 #define SLOT_HOUSE_READY 0
 _Static_assert(SLOT_BASE+SLOT_N*SLOT_SZ<=32768,"the slots do not fit in 32 KB of SRAM");

@@ -3,11 +3,11 @@
 //
 // The shuffled order is kept in SRAM, so the song set stays in the SAME shuffled order every time the game starts.
 // It is only re-rolled when you press SELECT in the jukebox, or when the number of songs changes (songs added / removed).
-#define JB_MAX 64          // most songs the jukebox can hold (the saved order needs 5+JB_MAX bytes at JB_OFF; must stop before AGE_OFF)
-#define JB_OFF 12288       // SRAM block: 'J' 'B' '1', song count, current slot, then the shuffled order
+#define JB_MAX 64          // most songs the jukebox can hold (the saved order needs 5+JB_MAX bytes at JB_OFF; must stop before SIM_OFF)
+#define JB_OFF 14336       // SRAM block: 'J' 'B' '1', song count, current slot, then the shuffled order (14336..16383 is a free gap between PERS_OFF 12432 and SIM_OFF 16384)
 static u8 sJb;             // jukebox mode (a setting, saved with the other settings): 0 SHUFFLE, 1 IN ORDER, 2 REPEAT ONE
-#if defined(AGE_OFF) && (JB_OFF+5+JB_MAX>AGE_OFF)
-#error JB_MAX is too big: the saved shuffle order would run into the creature growth data at AGE_OFF
+#if JB_OFF+5+JB_MAX>16384
+#error JB_MAX is too big: the saved shuffle order would run into the life save at SIM_OFF (16384)
 #endif
 static u8 jbMap[JB_MAX];   // visible song number -> index into songs[] (hides the placeholder tunes)
 static u8 jbOrd[JB_MAX];   // the shuffled order: playlist slot -> song number

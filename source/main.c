@@ -1520,7 +1520,7 @@ static const char sramTag[] __attribute__((used)) = "SRAM_V113";   // tells emul
 #define OMSZ (OMW*OMW)
 #define LEG_X 13                // an old save is copied into the plaza at (13,22)
 #define LEG_Y 22
-#include "jukebox.h"   // playlist logic: shuffled order lives in SRAM at JB_OFF (12288), the mode is a setting
+#include "jukebox.h"   // playlist logic: shuffled order lives in SRAM at JB_OFF (14336), the mode is a setting
 // Songs named PLACEHOLDER... are hidden from the jukebox unless the title-screen debug code was entered (dbgOn).
 static int isDbgSong(int i){ if(songs[i].xm==&xm_gottcho_barracho||songs[i].xm==&xm_emergency_dance_floor||songs[i].xm==&xm_whistler_shuffle_old) return 1;   // the original GOTTCHO BARRACHO: a secret song
     const char*n=songs[i].name, *p="PLACEHOLDER"; while(*p){ if(*n++!=*p++) return 0; } return 1; }

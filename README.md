@@ -164,7 +164,7 @@ The GBA has 256 KB of EWRAM and 32 KB of IWRAM. Check the numbers with `arm-none
 | 0 | the room, "BM3" (4803 bytes; older 14 x 14 saves still load) |
 | 8192 | settings (16 bytes) |
 | 8448 | extended options (`opts.h`) |
-| 12288 | jukebox order and mode |
+| 14336 | jukebox order and mode |
 | 12352 | active room slot |
 | 12416 | life stage and days in it |
 | 12432 | persona: aspiration, lifetime want, traits, DNA, unlocked parts |
@@ -266,7 +266,7 @@ Main menu -> **JUKEBOX**. Opening it starts the song the playlist is on. The son
 | Select | re-roll the shuffle (saved; the playing song stays first) |
 | B | back to the menu |
 
-When a song ends the next one starts (REPEAT ONE replays it). **The shuffled order is saved in SRAM (offset 12288), so the song set comes back in the same shuffled order every time the game starts**, and the playlist carries on from the last song played. It is re-rolled only by SELECT, or automatically when the number of songs in `songs.h` changes. The mode is a normal setting (SETTINGS -> JUKEBOX).
+When a song ends the next one starts (REPEAT ONE replays it). **The shuffled order is saved in SRAM (offset 14336), so the song set comes back in the same shuffled order every time the game starts**, and the playlist carries on from the last song played. It is re-rolled only by SELECT, or automatically when the number of songs in `songs.h` changes. The mode is a normal setting (SETTINGS -> JUKEBOX).
 
 **Adding a tracker song (.xm):** copy it into `tools/`, add `SONG_XM(my_id,"MY SONG","tools/my_song.xm")` to `source/songs.h`, then run `python3 tools/xm2gba.py` (needs numpy + scipy) and commit the new `source/musicdata.h`. Tracker songs are tiny (tens of KB). The player handles up to 10 channels, 32 instruments, any pattern length, notes and the volume column; it ignores effects, panning, envelopes and note-off (the script warns if a song uses them). Speed/BPM must stay fixed in the song. `GAIN` in `tools/xm2gba.py` sets a song's loudness.
 
