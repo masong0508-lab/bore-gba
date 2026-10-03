@@ -92,8 +92,25 @@ Walls are drawn like The Sims: a wall tile is a **thin, tall panel** (24 px, 3 b
 - Saves: the map in SRAM already kept a byte per tile; room slots now use room format 2 (a byte for the floor and one for the wallpaper; format 1 slots still load).
 - **Credits**: the converted wallpapers are KHLVH's work (the "KHLVH 06162005" wallpaper set on ModTheSims); they are in this repo only as the shrunk 8 x 24 versions. Check the creator's terms before you distribute a ROM with them.
 
+## Chill pack (the PUFF PUFF PASS side of BORE)
+- **New furniture** in the room editor's ITEM tool and in the starter lounge's chill corner, baked like every item (ROM only):
+  - **WATER PIPE** ('G'): a green glass pipe.
+  - **LAVA LAMP** ('V'): purple fluid with orange blobs. It counts toward a nicer room.
+  - **BEANBAG** ('U'): four turns. It works as a sofa for COMFY, for you and for free will.
+- **Using the pipe** (R next to it):
+  - **Who can use it:** grown-ups, and late teens when **OPTIONS > PLAY > PIPE AGE** is LATE TEENS (the default; ADULTS ONLY turns it off). "Late" is the last quarter of the teen stage in whole days, so it follows OPTIONS > AGES (TEEN LASTS) and the AGING speed. For example, a 7-day teen stage at NORMAL opens it on days 6 and 7; with aging OFF or FOREVER a teen never gets there. A teen who is too young sees "NOT OLD ENOUGH YET", children "GROWN-UPS ONLY". The rule also covers the want and PUFF PUFF PASS. Household members keep no day count, so they still need to be adults.
+  - **CHILLED OUT** for two game hours: a mood boost (M_CHILL) and +1 STYLE, so tricks score more.
+  - **The munchies:** hunger drains twice as fast until it wears off.
+- **PUFF PUFF PASS:** a new social interaction for two grown-ups when the house has a water pipe. Free will uses it too. If you are in it, you chill out as well.
+- **4:20:** at 16:20 the HUD says "IT IS 4:20". The grown-ups in the house drift over to the pipe for the next hour, and PASS is what they pick when they talk.
+- **New want:** "PUFF PUFF PASS" (leaf icon) for grown-ups in a house with a pipe.
+
 ## Households (up to 10 Sims)
 **Pause menu -> HOUSEHOLD** moves in a premade family (original characters: THE GRINDERS, a skater family of three; THE MIDNIGHTS, a pale night-owl family; THE FRESHLYS, a young couple; THE NOVAS, a mother and her teen) or moves everyone out. A household is you plus up to 9 more Sims (`source/house.h`): ten on screen at once. Each one is a hardware sprite with its own palette and 1 KB of sprite memory, which uses 9 of the 16 KB of OBJ VRAM and 9 of the 16 palettes. Only one Sim plans a path per step, so ten cost no more CPU per frame than eight. The RELATIONSHIPS screen scrolls with UP and DOWN when more than seven live there.
+- **Create-A-Family:**
+  - **In the creator:** the DONE tab's **ADD TO FAMILY** puts a Sim with the look and persona on screen into the household and gives them a name. Change the look and add the next one, up to 10. **FAMILY** lists them: **EDIT** swaps one into the creator, so you become them and the Sim you were takes their place, and **MOVE OUT** removes one.
+  - **In play:** the pause menu's **HOUSEHOLD** has **INVITE A NEW SIM** (a made-up Sim) and **MOVE SOMEONE OUT**, and **SELECT on the RELATIONSHIPS screen** invites someone too.
+  - New members arrive as family: they already like everyone at home.
 - **A living day:**
   - **Work and school.** On weekdays the adults leave for work around 08:30 and the children and teens for school around 07:45. Each walks to the nearest way off the lot (a reachable tile on the map's border, or the spawn point if there is none) and is gone: no sprite, needs still draining. They walk back in at the end of the day (about 15:00 from school, 17:00 to 17:30 from work), hungry and tired, and the HUD says who left or came home.
   - **Night.** From 22:00 to 06:00, bed comes first, and a night in bed lasts until the night is over.
@@ -102,6 +119,7 @@ Walls are drawn like The Sims: a wall tile is a **thin, tall panel** (24 px, 3 b
 - **SELECT** (a tap, not SELECT+START) switches who you control: position, needs, look, persona and sprites trade places, and the camera jumps to the new Sim. Hand-built (block builder) creatures cannot switch yet.
 - **Free will**: the Sims you do not control look after themselves. Each kind of furniture advertises a need (fridge FOOD, toilet WC, bed REST, shower CLEAN, sofa COMFY) and wandering about gives FUN. A Sim scores them (how low the need is, squared, tilted by its traits: neat Sims shower sooner, lazy ones sit, playful ones roam), picks one of the two best, finds a path (breadth-first search on the 40x40 tiles, one Sim plans per step), walks there and uses it. **OPTIONS > PLAY > FREE WILL**: OFF / LOW (waits until needs are lower, thinks half as often) / HIGH.
 - **Walking animation.** Every Sim has a second, mid-stride frame for each view: legs half a block forward and back, arms swinging the other way. It alternates with the standing frame every 8 frames while the Sim walks (your Sim on foot, members following a path, passers-by), each one a little out of step.
+  - Claws and pincers swing with the hand they hang from.
   - It works for both creators: legs are the leg-shaped blocks and arms the arm-shaped ones, whether built from a look or by hand in the classic block builder.
   - Household sprites keep only the part that changes: OBJ tile rows 1..5, 640 bytes per view. Your Sim keeps a full second set (`spr4s`).
 - **Hardware sprites**: the other Sims are GBA sprites (OBJ, 32x64, 16 colours each with their own palette), so their moving costs no drawing; the CPU only draws their shadows and talk balloons into the room. Their four views are baked like yours, cut down to 15 colours (closest colours merged, the common ones kept exact), and only the view on show sits in sprite memory (1 KB each, copied in vblank). A window keeps them inside the room view (never over the HUD), menus and other screens hide them. Sprites always sit on top of the picture, so a Sim standing behind a full-height wall is drawn see-through (an x-ray blend) instead of in front of it. You stay drawn by the CPU (furniture in front of you covers you, the action cam can zoom you); SELECT swaps sprites both ways.

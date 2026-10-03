@@ -9,4 +9,5 @@
 // in bakeAll() in itembake.h, run tools/bake_items.sh, then draw it with blitItem(V_xxx,..) in items.h. NIV is the sprite count.
 enum { V_CRATE, V_FRIDGE, V_TOILET=V_FRIDGE+4, V_RAILU=V_TOILET+4, V_RAILV, V_DOOR, V_BOARD,
        V_KICKER, V_QPIPE=V_KICKER+4, V_LEDGEU=V_QPIPE+4, V_LEDGEV, V_BENCHU, V_BENCHV, V_BED, V_SHOWER=V_BED+4, V_SOFA=V_SHOWER+4,
-       V_LAUNCH=V_SOFA+4, V_FUNBOX=V_LAUNCH+4, V_BARREL, V_TRASH, V_PLANTER, V_PICNIC, V_JERSEYU, V_JERSEYV, V_MPAD, NIV };
+       V_LAUNCH=V_SOFA+4, V_FUNBOX=V_LAUNCH+4, V_BARREL, V_TRASH, V_PLANTER, V_PICNIC, V_JERSEYU, V_JERSEYV, V_MPAD,
+       V_PIPE, V_LAVA, V_BEANBAG, NIV=V_BEANBAG+4 };   // chill pack: water pipe, lava lamp, beanbag (4 turns)

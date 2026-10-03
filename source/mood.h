@@ -31,7 +31,7 @@
 #define MOOD_BORED      20    // fun below this = BORED (fewer points)
 #define MOOD_STOKED     80    // fun at/above this (and happy >= 60) = STOKED (more points, a touch faster)
 
-enum { M_TRICK, M_COMBO, M_GRIND_ON, M_LAUNCH, M_GOT_BOARD, M_EAT, M_RELIEVE, M_SLEEP, M_SHOWER, M_SOFA, M_WANT, M_SKILL, M_PAY, M_PROMO,      // good
+enum { M_TRICK, M_COMBO, M_GRIND_ON, M_LAUNCH, M_GOT_BOARD, M_EAT, M_RELIEVE, M_SLEEP, M_SHOWER, M_SOFA, M_WANT, M_SKILL, M_PAY, M_PROMO, M_CHILL,      // good
        M_BAIL, M_HURT, M_HURT_BIG, M_BUMP, M_ACCIDENT, M_FAINT, M_DIE, M_FEAR, M_PASSOUT, M_BROKE, M_DEMOTE, M_N };        // bad
 typedef struct { signed char fun, hap; } MoodRow;
 static const MoodRow moodTab[M_N]={
@@ -49,6 +49,7 @@ static const MoodRow moodTab[M_N]={
     { 6, 6},   // M_SKILL       skill level up (sims.h)
     { 4, 8},   // M_PAY         shift paid (sims.h)
     { 8,15},   // M_PROMO       promoted (sims.h)
+    { 8,10},   // M_CHILL       a puff on the water pipe, or one passed round (chilled out)
     {-6,-4},   // M_BAIL        bad landing
     {-4,-6},   // M_HURT        hurt badly enough to groan (OW)
     {-6,-12},  // M_HURT_BIG    close call

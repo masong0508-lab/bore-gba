@@ -57,6 +57,40 @@ static const IBox bxBoard[5]={
  {2,5,3,6,2,3,{&mBdWh,&mBdWh,&mBdWh,&mBdWh,&mBdWh}}, {5,5,6,6,2,3,{&mBdWh,&mBdWh,&mBdWh,&mBdWh,&mBdWh}},
  {2,1,6,7,3,4,{&mBdEdge,&mBdEdge,&mBdEdge,&mBdEdge,&mBdTop}} };
 
+// ---- chill pack: water pipe, lava lamp, beanbag ----
+// water pipe: a green glass base, a tall tube with a mouthpiece flare, a metal downstem and bowl on the side
+static const u16 pGl[5]={RGB(5,16,9),RGB(10,24,14),RGB(16,29,20),RGB(24,31,27),RGB(14,14,16)};
+MAT(mGlBase,pGl,4,5,"bbbb","bccb","bccb","bbbb","aaaa")
+MAT(mGlBaseT,pGl,4,4,"abba","bddb","bddb","abba")
+MAT(mGlTube,pGl,2,14,"dc","cc","cc","cb","cb","cb","cb","cb","cb","cb","cb","cb","cb","bb")
+MAT(mGlTubeT,pGl,2,2,"aa","aa")
+MAT(mGlStem,pGl,1,4,"e","e","e","e")
+static const IBox bxPipe[4]={
+ {2,2,6,6,0,5,{&mGlBase,&mGlBase,&mGlBase,&mGlBase,&mGlBaseT}},
+ {3,3,5,5,5,19,{&mGlTube,&mGlTube,&mGlTube,&mGlTube,&mGlTubeT}},
+ {2,2,6,6,19,20,{&mGlBase,&mGlBase,&mGlBase,&mGlBase,&mGlBaseT}},
+ {5,4,7,5,5,9,{&mGlStem,&mGlStem,&mGlStem,&mGlStem,&mGlStem}},
+};
+// lava lamp: a dark metal cone, a glass body of purple fluid with orange blobs, a metal cap
+static const u16 pLv[5]={RGB(6,6,9),RGB(12,12,15),RGB(14,4,20),RGB(31,15,4),RGB(31,26,10)};
+MAT(mLvMet,pLv,3,3,"bbb","bab","aaa")
+MAT(mLvBody,pLv,3,11,"ccc","cdc","ddc","ccc","ccc","cdd","cde","ccc","dcc","ddc","ccc")
+MAT(mLvTop,pLv,3,3,"bab","aaa","bab")
+static const IBox bxLava[3]={
+ {2,2,6,6,0,3,{&mLvMet,&mLvMet,&mLvMet,&mLvMet,&mLvTop}},
+ {3,3,6,6,3,14,{&mLvBody,&mLvBody,&mLvBody,&mLvBody,&mLvTop}},
+ {3,3,6,6,14,16,{&mLvMet,&mLvMet,&mLvMet,&mLvMet,&mLvTop}},
+};
+// beanbag: a squashy purple seat and a slouchy back (faces the open floor, like the sofa)
+static const u16 pBb[4]={RGB(10,4,14),RGB(17,8,22),RGB(23,12,27),RGB(27,18,30)};
+MAT(mBbS,pBb,6,5,"cccccc","ccdccc","bcccdb","bbbbbb","aaaaaa")
+MAT(mBbT,pBb,6,6,"bccccb","ccddcc","cdddcc","ccddcc","cccccc","bccccb")
+MAT(mBbBack,pBb,6,4,"cdcccc","cccddc","bccccb","bbbbbb")
+static const IBox bxBeanbag[2]={
+ {1,2,7,8,0,5,{&mBbS,&mBbS,&mBbS,&mBbS,&mBbT}},
+ {1,0,7,3,0,9,{&mBbBack,&mBbS,&mBbBack,&mBbS,&mBbT}},
+};
+
 #include "itemids.h"
 static u16 bakeBuf[NIV][IH][IW];
 static u16 itemTmp[IH][IW];
@@ -129,5 +163,6 @@ static void bakeAll(void){
     bakeOne(V_LEDGEU,bxLedgeU,1,0,12); bakeOne(V_LEDGEV,bxLedgeV,1,0,12); bakeOne(V_BENCHU,bxBenchU,3,0,12); bakeOne(V_BENCHV,bxBenchV,3,0,12);
     for(int r=0;r<4;r++) bakeOne(V_LAUNCH+r,bxLaunch,8,r,11);   // skate pack 2
     bakeOne(V_FUNBOX,bxFunbox,1,0,12); bakeOne(V_BARREL,bxBarrel,1,0,11); bakeOne(V_TRASH,bxTrashCan,2,0,11); bakeOne(V_PLANTER,bxPlanter,1,0,11);
+    bakeOne(V_PIPE,bxPipe,4,0,10); bakeOne(V_LAVA,bxLava,3,0,10); for(int r=0;r<4;r++) bakeOne(V_BEANBAG+r,bxBeanbag,2,r,11);   // chill pack
     bakeOne(V_PICNIC,bxPicnicTable,7,0,12); bakeOne(V_JERSEYU,bxJerseyU,3,0,12); bakeOne(V_JERSEYV,bxJerseyV,3,0,12); bakeOne(V_MPAD,bxManualPad,1,0,12);
 }

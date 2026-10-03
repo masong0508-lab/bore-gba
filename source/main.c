@@ -765,6 +765,7 @@ static int persValid(int asp,int ltw,const u8*tr){
 //   LONG TAIL = BALANCE (lands spins further off straight), HORNS = CHARGE (skating into a wall does not hurt),
 //   SPIKES = ARMOUR (falls and bails hurt less), WINGS = GLIDE (hold R in the air to float down).
 // DNA points are earned by living (wants met, skill, promotions, birthdays, the lifetime want) and unlock the bigger parts.
+static int lchill;   // steps left CHILLED OUT (a puff on the water pipe, or PUFF PUFF PASS): +1 STYLE, the munchies
 enum { AB_SPEED, AB_JUMP, AB_GRIP, AB_STYLE, AB_STAMINA, AB_N };
 static const char* const abNm[AB_N]={"SPEED","JUMP","GRIP","STYLE","STAMINA"};
 enum { PW_BALANCE=1, PW_CHARGE=2, PW_ARMOUR=4, PW_GLIDE=8, PW_CLAMP=16, PW_SENSE=32 };
@@ -789,7 +790,7 @@ static int abOf(int a){   // 0..5
       case AB_SPEED:   v+=(look[LK_HSTYLE]==3)-(look[LK_HSTYLE]==2)-(look[LK_BACK]==2); break;            // bald is quick, long hair and wings drag
       case AB_JUMP:    v+=(look[LK_BACK]==2)+(look[LK_EARS]==2); break;                                    // wings and big (bunny) ears
       case AB_GRIP:    v+=(look[LK_TAIL]!=0)+(look[LK_HORNS]==1)+(look[LK_CLAWS]!=0); break;              // a tail to steer with, claws to hold on
-      case AB_STYLE:   v+=(look[LK_EYES]==2)+(look[LK_MOUTH]==1)+(look[LK_HSTYLE]==1||look[LK_HSTYLE]==2||look[LK_HSTYLE]>=4)+(look[LK_HORNS]==1)-(look[LK_EYES]==0)+(look[LK_HAT]&&look[LK_HAT]!=5)+(look[LK_PATTERN]!=0)+(look[LK_ANTENNA]==1); break;   // hairdos, hats, body paint and feelers are stylish
+      case AB_STYLE:   v+=(look[LK_EYES]==2)+(look[LK_MOUTH]==1)+(look[LK_HSTYLE]==1||look[LK_HSTYLE]==2||look[LK_HSTYLE]>=4)+(look[LK_HORNS]==1)-(look[LK_EYES]==0)+(look[LK_HAT]&&look[LK_HAT]!=5)+(look[LK_PATTERN]!=0)+(look[LK_ANTENNA]==1)+(lchill>0); break;   // hairdos, hats, body paint and feelers are stylish
       case AB_STAMINA: v+=(look[LK_BACK]==1)+(look[LK_HORNS]==2)+(look[LK_HAT]==5); break;                  // a helmet is armour too                                  // armour plates and a thick skull
     }
     return v<0?0:v>5?5:v;
@@ -947,6 +948,11 @@ IWRAM_THUMB static void drawScene(int blink){
         if(!ci) continue;
         int u=2*x+1-W, w=2*z+1-D;
         if(strideK&&shape>=1&&shape<=3) w+=((x<W/2)==(shape==3))?strideK:-strideK;   // the walk: legs (shape 3) and arms (1, 2) swing, in either creator
+        else if(strideK&&shape>=4){   // claws, pincers (anything wedge-shaped hanging off a hand) swing with that arm
+            #define ARMV(yy,zz) ((yy)<H&&(zz)>=0&&((vox[yy][zz][x]>>4)==1||(vox[yy][zz][x]>>4)==2))
+            if(ARMV(y+1,z)||ARMV(y,z-1)||ARMV(y+1,z-1)) w+=(x<W/2)?-strideK:strideK;
+            #undef ARMV
+        }
         int sx,sy; projC(u,w,y+1,&sx,&sy);   // top-face centre
         int bw=(y<hyB&&shape<4)?(shape==1||shape==2?wk/2:wk):0;
         if(shape==1||shape==2){ int sg=u<0?1:-1, a2,b2, hg=HUG-wk; rotUW(sg,0,&a2,&b2); sx+=hg*(a2-b2); sy+=(hg*(a2+b2))/2; }   // hug the torso (a heavier torso pushes the arms out)
@@ -1372,7 +1378,7 @@ static void hurt(int sev,int kind){
 static int tileH(int tx,int ty){   // surface height in px (ramps: their highest point). Grind height is 6: rails, ledges and benches
     if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
     char c=lifeMap[ty][tx];
-    return (c=='#'||c=='F'||c=='W'||c=='H')?2*CC: (c=='X'||c=='Y')?10: (c=='w'||c=='T'||c=='S'||c=='C'||c=='O')?CC: (c=='='||c=='L'||c=='N'||c=='Z'||c=='K'||c=='J')?6: (c=='M')?3: isKicker(c)?KICKER_H: isLaunch(c)?LAUNCH_H: isQPipe(c)?qpH[7]: 0;   // pack 2: X funbox 10, Y trash can 10, O barrel 8, Z planter / K table / J jersey grind at 6, M manual pad 3
+    return (c=='#'||c=='F'||c=='W'||c=='H')?2*CC: (c=='X'||c=='Y')?10: (c=='w'||c=='T'||c=='S'||c=='C'||c=='O'||c=='G'||c=='V'||c=='U')?CC: (c=='='||c=='L'||c=='N'||c=='Z'||c=='K'||c=='J')?6: (c=='M')?3: isKicker(c)?KICKER_H: isLaunch(c)?LAUNCH_H: isQPipe(c)?qpH[7]: 0;   // pack 2: X funbox 10, Y trash can 10, O barrel 8, Z planter / K table / J jersey grind at 6, M manual pad 3
 }
 static int surfH(s32 fx,s32 fy){   // surface height at an exact position (1/256 tiles): same as tileH, but ramps slope
     int tx=(int)(fx>>8), ty=(int)(fy>>8); if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
@@ -1437,14 +1443,14 @@ static int numText(int x,int y,int n,u16 c){
 // lifeMap = what stands on each tile, floorMap = floor style under it, wallMap = wallpaper on it (for wall tiles).
 enum { T_ROOM, T_WALL, T_FLOOR, T_ITEM, T_ERASE, NTOOL };
 static int eTool, eAct, eAx, eAy, eFl, eWp, eOb;   // editor: tool, rectangle anchor set?, anchor tile, chosen floor / wallpaper / item
-#define NOBJ 25
+#define NOBJ 28
 #define OB_LAUNCH 17   // launch ramp turns like the kicker: '9'..'<'
 #define OB_KICKER 10   // palette slots whose char carries a turn (+eRot): kicker '1'..'4', quarter pipe '5'..'8'
 #define OB_QPIPE 11
 static int eRot;   // editor: which way the next ramp faces (0 S, 1 E, 2 N, 3 W)
-static const char palCh[NOBJ]={'.','w','W','#','=','F','T','D','B','P','1','5','L','N','S','H','C','9','X','O','Y','Z','K','J','M'};
-static const char* const palNm[NOBJ]={"CLEAR","LOW WALL","WALL","CRATE","RAIL","FRIDGE","TOILET","DOOR","BOARD","SPAWN","KICKER","Q PIPE","LEDGE","BENCH","BED","SHOWER","SOFA","LAUNCH","FUNBOX","BARREL","TRASH CAN","PLANTER","PICNIC","JERSEY","MANUAL PAD"};
-static const u16 palCol[NOBJ]={RGB(26,21,14),RGB(8,20,22),RGB(10,22,24),RGB(8,9,20),RGB(31,30,16),RGB(31,31,31),RGB(30,28,18),RGB(14,9,5),RGB(26,10,6),RGB(28,10,8),RGB(24,17,9),RGB(27,19,11),RGB(20,20,22),RGB(25,18,9),RGB(10,14,28),RGB(22,28,30),RGB(26,18,9),RGB(8,14,24),RGB(18,16,24),RGB(24,6,5),RGB(12,18,14),RGB(20,10,6),RGB(25,18,9),RGB(22,22,24),RGB(30,26,5)};
+static const char palCh[NOBJ]={'.','w','W','#','=','F','T','D','B','P','1','5','L','N','S','H','C','9','X','O','Y','Z','K','J','M','G','V','U'};
+static const char* const palNm[NOBJ]={"CLEAR","LOW WALL","WALL","CRATE","RAIL","FRIDGE","TOILET","DOOR","BOARD","SPAWN","KICKER","Q PIPE","LEDGE","BENCH","BED","SHOWER","SOFA","LAUNCH","FUNBOX","BARREL","TRASH CAN","PLANTER","PICNIC","JERSEY","MANUAL PAD","WATER PIPE","LAVA LAMP","BEANBAG"};
+static const u16 palCol[NOBJ]={RGB(26,21,14),RGB(8,20,22),RGB(10,22,24),RGB(8,9,20),RGB(31,30,16),RGB(31,31,31),RGB(30,28,18),RGB(14,9,5),RGB(26,10,6),RGB(28,10,8),RGB(24,17,9),RGB(27,19,11),RGB(20,20,22),RGB(25,18,9),RGB(10,14,28),RGB(22,28,30),RGB(26,18,9),RGB(8,14,24),RGB(18,16,24),RGB(24,6,5),RGB(12,18,14),RGB(20,10,6),RGB(25,18,9),RGB(22,22,24),RGB(30,26,5),RGB(10,24,14),RGB(24,8,26),RGB(18,8,22)};
 static signed char palLut[256]; static u8 palLutOk;   // tile char -> palette slot (or -1), built on first use: palIdx() runs for every tile of the minimap, so it must be O(1) even with 100+ items
 static int palIdx(char c){
     if(!palLutOk){ for(int i=0;i<256;i++) palLut[i]=-1; for(int i=NOBJ-1;i>=0;i--) palLut[(u8)palCh[i]]=(signed char)i;
@@ -1471,6 +1477,7 @@ static void mapGen(void){
     gPut(16,11,'F'); gPut(16,12,'F'); gPut(12,4,'#'); gPut(13,4,'#'); gPut(12,5,'#'); gPut(13,5,'#');
     gPut(5,12,'P'); gPut(7,14,'B');
     gPut(8,3,'H'); gPut(4,16,'S'); gPut(3,11,'C');                     // shower (bathroom), bed and sofa (lounge)
+    gPut(3,10,'V'); gPut(5,10,'G'); gPut(3,13,'U');                     // the chill corner: lava lamp, water pipe, beanbag
     // FACTORY: red brick, steel plate, oil-stained and hazard lanes, grate corner, crates and a rail
     gRoom(22,2,37,19,8,NWP+53); gBox(23,10,36,11,10); gBox(23,14,27,18,9); gBox(30,3,36,8,12);
     gPut(29,19,'D'); gPut(22,10,'D'); gPut(37,10,'D');
@@ -1666,7 +1673,7 @@ static void lifeInit(void){
     if(!(shapeMask()>>look[LK_SHAPE]&1)){ look[LK_SHAPE]=(u8)maskPick(shapeMask(),look[LK_SHAPE],NSHAPE); if(!custom) buildLook(); }
     mapScan(); hhStart();
     bakeSprites(); camSnap=1;
-    lfx=spx*256+128; lfy=spy*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote=""; lskate=0; lhave=(bdx<0); lfr=0; lvx=lvy=0; ldead=0; lmaxz=0; lplay=0; lbumpCd=0; lfood=100; lbl=0; lnear=0; moodReset(); simsReset(); sfxStop(); feelReset(0);
+    lfx=spx*256+128; lfy=spy*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote=""; lchill=0; lskate=0; lhave=(bdx<0); lfr=0; lvx=lvy=0; ldead=0; lmaxz=0; lplay=0; lbumpCd=0; lfood=100; lbl=0; lnear=0; moodReset(); simsReset(); sfxStop(); feelReset(0);
 }
 static int rampAvg, rampOn;   // px/step (8.8) the skater has been climbing a ramp, smoothed (heights are whole px, so single steps are lumpy); rampOn = rode a ramp last step
 // BABY: cannot be steered. A caretaker keeps the needs up and the baby toddles about by itself: stops now and then, picks a new way
@@ -1757,18 +1764,24 @@ static void lifeStep(u16 k,u16 pr,int fr){
         if(gGrow){ gGrow=0; setStage(stage+1); bakeSprites(); lnote=growNote[stage]; lnoteT=120; lstun=lstun>30?lstun:30; lsp=0; }
         { int fe=oFoodEvery(), we=oWcEvery();   // FOOD AND WC option
           if(fe&&lfr%fe==0&&lfood>0) lfood--;
+          if(lchill>0){ lchill--; if(fe&&lfr%fe==fe/2&&lfood>0) lfood--;   // the munchies: hunger twice as fast while chilled out
+              if(lchill==900&&lnoteT<=0){ lnote="THE MUNCHIES"; lnoteT=60; } if(!lchill&&lnoteT<=0){ lnote="BACK TO NORMAL"; lnoteT=40; } }
           if(we&&lfr%we==0&&lbl<100) lbl++; }
         if(lfood==0&&lfr%300==0){ lfood=15; lstun=120; lsp=0; lgrind=0; sfxPlay(SFX_GROAN); lnote="FAINTED FROM HUNGER"; lnoteT=90; moodEvent(M_FAINT); }
         if(lbl>=100){ lbl=0; lstun=90; lsp=0; lgrind=0; lscore=lscore>100?lscore-100:0; sfxPlay(SFX_CRY); lnote="ACCIDENT"; lnoteT=90; moodEvent(M_ACCIDENT); }
-        int nf=0, nt=0, nb=0, nh=0, nc=0;
+        int nf=0, nt=0, nb=0, nh=0, nc=0, np=0;
         for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++){ int tx=(lfx>>8)+dx, ty=(lfy>>8)+dy; if(tx<0||ty<0||tx>=MW||ty>=MH) continue;
-            char c=lifeMap[ty][tx]; if(c=='F') nf=1; if(c=='T') nt=1; if(c=='S') nb=1; if(c=='H') nh=1; if(c=='C') nc=1; }
-        lnear=nf?1:(nt?2:(nb?3:(nh?4:(nc?5:0))));   // 1 fridge, 2 toilet, 3 bed, 4 shower, 5 sofa
+            char c=lifeMap[ty][tx]; if(c=='F') nf=1; if(c=='T') nt=1; if(c=='S') nb=1; if(c=='H') nh=1; if(c=='C'||c=='U') nc=1; if(c=='G') np=1; }
+        lnear=nf?1:(nt?2:(nb?3:(nh?4:(np?6:(nc?5:0)))));   // 1 fridge, 2 toilet, 3 bed, 4 shower, 6 water pipe, 5 sofa or beanbag
         if((pr&K_R)&&lstun<=0&&lz<=fh&&!simAct&&hhSocR(lnear)) pr&=~K_R;   // next to a household Sim: the social menu (it offers the furniture too)
         if((pr&K_R)&&lnear&&lstun<=0&&lz<=fh){
             if(lnear==1){   // fridge: eat
                 if(lfood>=95){ lnote="FULL"; lnoteT=40; }
                 else { lfood+=35; if(lfood>100) lfood=100; lbl+=10; if(lbl>99) lbl=99; lstun=30; lsp=0; lnote="YUM"; lnoteT=50; moodEvent(M_EAT); }
+            } else if(lnear==6){   // the water pipe (grown-ups only): CHILLED OUT for two game hours
+                if(!pipeOk()){ lnote=stage==AG_TEEN&&xo[XO_PIPEAGE]?"NOT OLD ENOUGH YET":"GROWN-UPS ONLY"; lnoteT=50; }
+                else if(lchill>0){ lnote="STILL CHILLIN"; lnoteT=40; }
+                else { lchill=1800; lstun=80; lsp=0; lgrind=0; lnote="PUFF PUFF  CHILLED OUT"; lnoteT=80; moodEvent(M_CHILL); simEvent(SE_PIPE); }
             } else if(lnear>=3){ simBegin(lnear);   // bed / shower / sofa (sims.h)
             } else {        // toilet: relieve yourself
                 if(lbl<15){ lnote="LATER"; lnoteT=40; }
@@ -1948,7 +1961,7 @@ static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
             char c=cellAt(tx,ty); int ox,oy; rotXY(tx,ty,&ox,&oy);
             if(c=='.'&&(ed||lhave||ox!=BDX||oy!=BDY)) continue;   // plain floor: nothing stands there (but the board pickup might)
             if(c=='w'||c=='W') drawWall(tx,ty,sx,sy);
-            if(c=='#'||c=='F'||c=='T'||c=='='||c=='D'||c=='L'||c=='N'||c=='S'||c=='H'||c=='C'||c=='X'||c=='O'||c=='Y'||c=='Z'||c=='K'||c=='J'||c=='M'||isRamp(c)) drawItemTile(c,sx,sy,ox,oy);
+            if(c=='#'||c=='F'||c=='T'||c=='='||c=='D'||c=='L'||c=='N'||c=='S'||c=='H'||c=='C'||c=='X'||c=='O'||c=='Y'||c=='Z'||c=='K'||c=='J'||c=='M'||c=='G'||c=='V'||c=='U'||isRamp(c)) drawItemTile(c,sx,sy,ox,oy);
             if((ed&&c=='B')||(!ed&&!lhave&&ox==BDX&&oy==BDY)) blitItem(V_BOARD,sx,sy-(ed?0:((lfr>>4)&1)));   // the skateboard pickup, bobbing
             if(ed&&c=='P') drawSpawn(sx,sy+1);   // little person = spawn
         }
@@ -2484,7 +2497,7 @@ static void mapEditor(void){
 // L R change tab | UP DOWN pick a row | LEFT RIGHT change it | SELECT turns the creature | START jumps to DONE | B leaves.
 enum { TB_BODY, TB_FACE, TB_HAIR, TB_CLOTHES, TB_PARTS, TB_ASPIRE, TB_DONE, NTAB };
 enum { RK_PICK, RK_SWATCH, RK_ACT, RK_SLIDE, RK_PERS, RK_TRAIT };   // a row picks from named options, picks a colour, is a button, a slider, a persona choice or a trait
-enum { AC_PLAY, AC_MAP, AC_MENU, AC_RAND };
+enum { AC_PLAY, AC_MAP, AC_MENU, AC_RAND, AC_ADD, AC_FAM };
 enum { PS_ASP, PS_LTW, PS_SIGN };
 typedef struct { const char*lab,*sub; u8 kind,id,n; } Row;   // sub = second line of a button
 static const char* const tabNm[NTAB]={"BODY","FACE","HAIR","CLOTHES","PARTS","ASPIRE","DONE"};
@@ -2522,8 +2535,8 @@ static const Row tabRow[NTAB][TROWS]={
    {"PATTERN",0,RK_PICK,LK_PATTERN,5},{"PAINT",0,RK_PICK,LK_PATCOL,6}},
   {{"ASPIRATION",0,RK_PERS,PS_ASP,AS_PICK},{"LIFETIME WANT",0,RK_PERS,PS_LTW,2},{"SIGN",0,RK_PERS,PS_SIGN,12},
    {"NEAT",0,RK_TRAIT,TR_NEAT,11},{"OUTGOING",0,RK_TRAIT,TR_OUT,11},{"ACTIVE",0,RK_TRAIT,TR_ACT,11},{"PLAYFUL",0,RK_TRAIT,TR_PLAY,11},{"NICE",0,RK_TRAIT,TR_NICE,11}},
-  {{"GO LIVE LIFE!","PLAY IT NOW",RK_ACT,AC_PLAY,0},{"RANDOMIZE","ROLL THE DICE",RK_ACT,AC_RAND,0},{"EDIT MAP","BUILD ROOMS",RK_ACT,AC_MAP,0},{"MAIN MENU","LOOK IS KEPT",RK_ACT,AC_MENU,0}} };
-static const u8 tabN[NTAB]={6,15,5,5,7,8,4};
+  {{"GO LIVE LIFE!","PLAY IT NOW",RK_ACT,AC_PLAY,0},{"RANDOMIZE","ROLL THE DICE",RK_ACT,AC_RAND,0},{"ADD TO FAMILY","COPY THIS LOOK",RK_ACT,AC_ADD,0},{"FAMILY","EDIT OR MOVE OUT",RK_ACT,AC_FAM,0},{"EDIT MAP","BUILD ROOMS",RK_ACT,AC_MAP,0},{"MAIN MENU","LOOK IS KEPT",RK_ACT,AC_MENU,0}} };
+static const u8 tabN[NTAB]={6,15,5,5,7,8,6};
 static int tabNext(int t,int d){ return (t+d+NTAB)%NTAB; }
 
 // layout (the panel is x 124..239): tabs down the left edge, the card of rows beside them, key legend under both
@@ -2757,6 +2770,33 @@ static int buyPart(int id){   // A on a locked part: spend DNA on it. 1 = bought
 static int comboSS(u16 k,u16 pressed){ return (k&K_START)&&(k&K_SEL)&&(pressed&(K_START|K_SEL)); }
 #define NENT (NPARTS+5)   // classic list: the parts, then AGE, SHAPE (the four original body shapes), GO LIVE LIFE, EDIT MAP, MAIN MENU
 
+// ---- CREATE-A-FAMILY: the creator makes the whole household. ADD TO FAMILY puts a new Sim with the look on screen (and its persona) into
+// the household, then you can change the look and add the next one; FAMILY lists them: EDIT swaps one into the creator (you become them,
+// the Sim you were takes their place in the family) or MOVE OUT. ----
+static void famAdd(void){
+    if(custom){ toast("BLOCK-BUILT BODIES STAY YOURS"); return; }
+    hhLoad(); int m=hhAdd(look,stage,pAsp,pLtw,pTr);
+    if(m<0){ toast("THE HOUSE IS FULL"); return; }
+    hhSave(); static char t[28]; char*e=simCat(t,hhM[m].name); e=simCat(e," JOINS  "); e=simCatN(e,hhN+1); simCat(e," OF 10"); toast(t);
+}
+static void famMenu(void){
+    hhLoad(); if(!hhN){ toast("ONLY YOU SO FAR"); return; }
+    static char lb[HH_MAX][24]; const char* it[HH_MAX];
+    for(int m=0;m<hhN;m++){ char*e=simCat(lb[m],hhM[m].name); e=simCat(e,"  "); simCat(e,stageNm[hhM[m].stage<AG_N?hhM[m].stage:AG_ADULT]); it[m]=lb[m]; }
+    int m=menu("THE FAMILY",it,hhN); if(m<0) return;
+    static const char* const act[3]={"EDIT  PLAY AS THEM","MOVE OUT","BACK"}; int c=menu(hhM[m].name,act,3);
+    if(c==1){ static const char* const yn[2]={"YES  GOODBYE","NO"}; if(menu("ARE YOU SURE?",yn,2)==0){ hhRemove(m); hhSave(); toast("MOVED OUT"); } return; }
+    if(c!=0) return;
+    if(custom&&!confirmRebuild()) return;
+    HhSim*s=&hhM[m];   // swap: their look, age, persona, name and place in the relationships come to the creator, yours go to them
+    for(int i=0;i<LK_N;i++){ u8 t=look[i]; look[i]=s->look[i]; s->look[i]=t; }
+    { u8 t=stage; stage=s->stage; s->stage=t; } { u8 t=pAsp; pAsp=s->asp; s->asp=t; } { u8 t=pLtw; pLtw=s->ltw; s->ltw=t; }
+    for(int i=0;i<TR_N;i++){ u8 t=pTr[i]; pTr[i]=s->tr[i]; s->tr[i]=t; }
+    for(int i=0;i<10;i++){ char t=hhPName[i]; hhPName[i]=s->name[i]; s->name[i]=t; }
+    { int t=hhPUid; hhPUid=s->uid; s->uid=(u8)t; }
+    custom=0; ageDays=0; fixLook(); buildLook(); setColors(); ageSave(); persSave(); hhSave();
+    static char t[24]; simCat(simCat(t,"NOW EDITING "),hhPName); toast(t);
+}
 static void lookRandom(void){   // the dice (like Create-A-Sim): a whole new look and personality, only from what this stage and your unlocked parts allow
     static const u8 cnt[LK_N]={NSHAPE,NSW,NEYE,NMOUTH,3,NHAIR,NSW,NSW,NSW,9,9,9,3,3,3,6,6,3,4,3,6, 6,5,5,4,NSW, 9,9,9,9,9,9,9, 3,3,5,6};
     for(int id=0;id<LK_N;id++){
@@ -2795,6 +2835,8 @@ static int creatorNew(void){   // returns 1 when the secret code switched screen
                     case AC_PLAY:  lifeMode(0); if(gToMenu){ stageOn=0; return 0; } break;
                     case AC_MAP:   mapEditor(); break;
                     case AC_RAND:  lookRandom(); break;
+                    case AC_ADD:   famAdd(); break;
+                    case AC_FAM:   famMenu(); break;
                     default:       stageOn=0; return 0;   // MAIN MENU
                 }
                 prev=keyNow(); for(int i=0;i<10;i++) hold[i]=0; dirty=3;
