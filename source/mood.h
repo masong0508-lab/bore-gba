@@ -65,6 +65,7 @@ enum { MS_SAD, MS_BORED, MS_OK, MS_HAPPY, MS_STOKED };
 static int moodFun, moodHap, moodIdle, moodAir, moodSt;   // meters x256, steps since anything fun, steps airborne, last announced state
 static const char* const moodStName[5]={"SAD","BORED","OK","HAPPY","STOKED"};
 static int simsComfort(void); static int simsTop(int top); static void simsMood(int ev,int n); static int simsPts(int pts);   // sims.h (included after this file)
+static int simsAspMood(void); static int simsFunPct(void);
 static inline int moodClamp(int v){ return v<0?0:v>100*MOOD_ONE?100*MOOD_ONE:v; }
 static inline int moodFunPct(void){ return moodFun/MOOD_ONE; }
 static inline int moodHapPct(void){ return moodHap/MOOD_ONE; }
@@ -86,14 +87,15 @@ static void moodEventN(int ev,int n){
 static inline void moodEvent(int ev){ moodEventN(ev,1); }
 static void moodTick(void){   // once per logic step while alive
     moodIdle++;
-    int dec=MOOD_FUN_DECAY*(moodIdle>MOOD_BORED_AFTER?2:1);
+    int dec=MOOD_FUN_DECAY*(moodIdle>MOOD_BORED_AFTER?2:1)*simsFunPct()/100;   // PLAYFUL creatures get bored faster
     if(lskate&&lsp>=12) dec-=MOOD_CRUISE;                              // cruising: boredom creeps instead of running
     if(lgrind){ dec-=MOOD_GRIND; moodIdle=0; }
     if(lairF){ if(++moodAir>MOOD_AIR_MIN){ dec-=MOOD_AIRTIME; moodIdle=0; } } else moodAir=0;
     moodFun=moodClamp(moodFun-dec);
     int comfort=lfood<100-lbl?lfood:100-lbl;                            // 0..100: worst of hunger and bladder
     { int sc=simsComfort()+20; if(sc>100) sc=100; if(sc<comfort) comfort=sc; }   // ...and the sims.h needs (energy, hygiene, comfort), with some slack
-    int target=(comfort*MOOD_W_COMFORT+moodFunPct()*(100-MOOD_W_COMFORT))/100;
+    int target=(comfort*MOOD_W_COMFORT+moodFunPct()*(100-MOOD_W_COMFORT))/100+simsAspMood();   // the aspiration meter lifts (platinum) or sinks (failing) it
+    if(target<0) target=0; if(target>100) target=100;
     int t=target*MOOD_ONE;
     if(moodHap<t){ moodHap+=MOOD_HAP_UP; if(moodHap>t) moodHap=t; } else if(moodHap>t){ moodHap-=MOOD_HAP_DOWN; if(moodHap<t) moodHap=t; }
     moodHap=moodClamp(moodHap);

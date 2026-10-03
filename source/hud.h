@@ -27,6 +27,7 @@ static unsigned hudKeys[HK_N];
 #define HUD_NR 24
 static Rc hudRc[HUD_NR]; static int hudRcN;
 static void hudMark(int x,int y,int w,int h){ if(hudRcN<HUD_NR){ Rc*r=&hudRc[hudRcN++]; r->x0=(short)x; r->y0=(short)y; r->x1=(short)(x+w); r->y1=(short)(y+h); } }
+static unsigned hudHash(const char*t){ unsigned h=2166136261u; while(*t) h=(h^(unsigned char)*t++)*16777619u; return h|1u; }
 static int hudChg(int all,int k,unsigned v){ if(all||hudKeys[k]!=v){ hudKeys[k]=v; return 1; } return 0; }
 static u16 hudBgAt(int y){ return (y<HUD_TOPH)?((y&~0)<(HUD_TOPH/2)?HC_BG1:HC_BG0): (y-HUD_BOTY<HUD_BOTH/2?HC_BG1:HC_BG0); }
 static void hudClear(int x,int y,int w,int h){ for(int j=0;j<h;j++) rect(x,y+j,w,1,hudBgAt(y+j)); }
@@ -44,6 +45,7 @@ static int hudMsg(const char**txt,u16*col,int*pts){   // the message for the mid
     *pts=0;
     if(ldead){ *txt="PRESS A TO RESPAWN"; *col=RGB(31,12,8); return 1; }
     if(lnear&&!lcamF){ *txt=simAct?"A OR B GET UP":(lnear==1?"R OPEN FRIDGE":lnear==2?"R USE TOILET":lnear==3?"R SLEEP IN BED":lnear==4?"R TAKE A SHOWER":"R SIT ON SOFA"); *col=HC_GOLD; return 1; }
+    if(!lcamF&&!ldead&&lstun<=0){ int m=hhNearest(); if(m>=0){ static char b[24]; char*e=simCat(b,"R TALK TO "); simCat(e,hhM[m].name); if(lnoteT<=0){ *txt=b; *col=HC_GOLD; return 1; } } }   // a household Sim next to you
     if(lnoteT>0){ *txt=lnote; *col=WHITE; *pts=(lpts&&lnote[0]=='N')?lpts:0; return 1; }
     return 0;
 }
@@ -93,7 +95,7 @@ static void hudFace3(int x,int y,int st){   // the 7x7 mood face at 3x scale
     for(int j=0;j<7;j++)for(int i=0;i<7;i++){ char c=faceArt[st][j][i]; if(c=='.') continue; u16 col=c=='k'?RGB(4,3,6):skin[st]; rect(x+i*3,y+j*3,3,3,col); }
 }
 static u16 hudMoodCol(int st){ return st==MS_SAD?RGB(30,7,6): st==MS_BORED?RGB(29,19,4): st==MS_OK?RGB(18,27,8): st==MS_HAPPY?RGB(8,28,10): RGB(10,31,24); }
-static const char* const hudNeedNm[8]={"FOOD","REST","CLEAN","COMFY","WC","FUN","ROOM","MOOD"};
+static const char* const hudNeedNm[8]={"FOOD","REST","CLEAN","COMFY","WC","FUN","ROOM","SOCIAL"};   // (mood is the face)
 #define HUD_FX 31
 static void hudNeedPos(int i,int*x,int*y){ *x=HUD_FX+(i>>2)*66; *y=HUD_BOTY+4+(i&3)*6; }
 static void hudBotStatic(void){
@@ -105,40 +107,64 @@ static void hudBotUpdate(int all){
     int st=moodState();
     if(hudChg(all,HK_PORT,(unsigned)st)){   // portrait: a frame in the mood colour around the face
         rect(3,HUD_BOTY+4,24,24,hudMoodCol(st)); rect(4,HUD_BOTY+5,22,22,hudFaceBg[st]); hudFace3(5,HUD_BOTY+6,st); hudMark(3,HUD_BOTY+4,24,24); }
-    int v[8]={lfood,sNrg,sHyg,sCom,100-lbl,moodFunPct(),sRoom,moodHapPct()};
+    int v[8]={lfood,sNrg,sHyg,sCom,100-lbl,moodFunPct(),sRoom,sSoc};
     for(int i=0;i<8;i++){
         int q=hudBarPx(v[i])*4+(v[i]>=55?2:v[i]>=28?1:0);
         if(hudChg(all,HK_NEED+i,(unsigned)q)){ int x,y; hudNeedPos(i,&x,&y); hudBar(x+28,y+1,v[i],hudLvlCol(v[i])); hudMark(x+28,y+1,34,5); }
     }
     if(sHud>=1) return;   // slim: no aspiration or wants
     int rx=165;
-    // header: PERFORMANCE INFO option, else the aspiration level and the shift / age
-    unsigned hk=sShow?(unsigned)(lfpsV*1000+lloadV*10+sShow)+5000000u:(unsigned)(simLvl*100000+stage*10000+(simInShift()?shiftPts+1:0)*1+simQuota()*0);
+    // header: PERFORMANCE INFO option, else the aspiration and the shift (or the meter's zone)
+    int wish=simWishes();
+    unsigned hk=sShow?(unsigned)(lfpsV*1000+lloadV*10+sShow)+5000000u:(unsigned)(aspNow()*100000+simZone*10000+wish*5000+(simInShift()?shiftPts+1:0));
     if(!sShow&&simInShift()) hk=hk*31u+(unsigned)simQuota();
     if(hudChg(all,HK_HEAD,hk)){
-        hudClear(rx,HUD_BOTY+3,72,8); clipSet(rx,HUD_BOTY+3,rx+72,HUD_BOTY+11);
-        if(sShow){ int nx=numText(text(rx,HUD_BOTY+3,"FPS",HC_LABEL,1)+3,HUD_BOTY+3,lfpsV,HC_GOLD)+5; if(sShow==2) numText(text(nx,HUD_BOTY+3,"LOAD",HC_LABEL,1)+3,HUD_BOTY+3,lloadV,lloadV>=100?RGB(30,10,8):HC_GOLD); }
+        hudClear(rx,HUD_BOTY+2,72,8); clipSet(rx,HUD_BOTY+2,rx+72,HUD_BOTY+10);
+        if(sShow){ int nx=numText(text(rx,HUD_BOTY+2,"FPS",HC_LABEL,1)+3,HUD_BOTY+2,lfpsV,HC_GOLD)+5; if(sShow==2) numText(text(nx,HUD_BOTY+2,"LOAD",HC_LABEL,1)+3,HUD_BOTY+2,lloadV,lloadV>=100?RGB(30,10,8):HC_GOLD); }
+        else if(!wish) text(rx,HUD_BOTY+2,"BABY  NO WANTS YET",HC_DIM,1);
         else {
-            int nx=text(rx,HUD_BOTY+3,simLvl==0?"ASPIRING":simLvlNm[simLvl],HC_GOLD,1);
-            if(simInShift()){ char b[20]; int i=0; int n=shiftPts; char t[8]; int k=0; if(n==0) t[k++]='0'; while(n>0&&k<7){ t[k++]=(char)('0'+n%10); n/=10; } while(k>0) b[i++]=t[--k]; b[i++]='/'; n=simQuota(); k=0; while(n>0&&k<7){ t[k++]=(char)('0'+n%10); n/=10; } while(k>0) b[i++]=t[--k]; b[i]=0;
-                int w=tw(b,1); if(rx+72-w>nx+3) text(rx+72-w,HUD_BOTY+3,b,RGB(20,24,28),1); }
-            else if(stage<AG_ADULT){ int w=tw(stageNm[stage],1); if(rx+72-w>nx+3) text(rx+72-w,HUD_BOTY+3,stageNm[stage],HC_DIM,1); }
+            int nx=text(rx,HUD_BOTY+2,aspNm[aspNow()],HC_GOLD,1);
+            if(simInShift()){ char b[20]; char*e=simCatN(b,shiftPts); *e++='/'; simCatN(e,simQuota());
+                int w=tw(b,1); if(rx+72-w>nx+3) text(rx+72-w,HUD_BOTY+2,b,RGB(20,24,28),1); }
+            else { const char*z=simZoneNm[simZone]; int w=tw(z,1); if(rx+72-w>nx+3) text(rx+72-w,HUD_BOTY+2,z,simZoneCol(simZone),1); }
         }
-        clipAll(); hudMark(rx,HUD_BOTY+3,72,8);
+        clipAll(); hudMark(rx,HUD_BOTY+2,72,8);
     }
-    {   // aspiration progress
-        int lo=simLvl==0?0:simLvlAt[simLvl-1], hi=simLvl>=4?simLvlAt[3]:simLvlAt[simLvl];
-        int w=simLvl>=4?72:(simAsp-lo)*72/(hi-lo); if(w<0) w=0; if(w>72) w=72;
-        if(hudChg(all,HK_ASP,(unsigned)w*8u+(unsigned)simLvl)){ rect(rx,HUD_BOTY+12,72,3,HC_DARK); rect(rx,HUD_BOTY+13,w,1,HC_GOLD); rect(rx,HUD_BOTY+12,w,1,RGB(31,30,16)); hudMark(rx,HUD_BOTY+12,72,3); }
+    {   // the aspiration meter
+        int w=simMeter*72/1000;
+        if(hudChg(all,HK_ASP,(unsigned)w*8u+(unsigned)simZone+(unsigned)wish*4096u)){ hudClear(rx,HUD_BOTY+10,72,3); if(wish) simMeterBar(rx,HUD_BOTY+10,72,3); hudMark(rx,HUD_BOTY+10,72,3); }
     }
-    for(int s=0;s<2;s++){
-        const char*nm=0; u16 mk=RGB(10,26,10), tc=RGB(22,28,22);
-        if(xo[XO_WANTS]){
-            if(s==1&&simF>=0&&((simT/180)&1)){ nm=simFears[simF].name; mk=RGB(30,8,6); tc=RGB(30,18,16); }
-            else if(simW[s]>=0) nm=simWants[simW[s]].name;
+    // four wants and three fears as icon cells; the line under them spotlights one at a time, with its points
+    int show=xo[XO_WANTS]&&wish, n=0, at[SIM_WS+SIM_FS];
+    for(int s=0;s<SIM_WS;s++) if(simW[s]>=0) at[n++]=s;
+    for(int s=0;s<SIM_FS;s++) if(simF[s]>=0) at[n++]=SIM_WS+s;
+    int spot=n?at[(simT/150)%n]:-1;
+    unsigned ck=(unsigned)show;
+    for(int s=0;s<SIM_WS;s++) ck=ck*37u+(unsigned)(simW[s]+2);
+    for(int s=0;s<SIM_FS;s++) ck=ck*37u+(unsigned)(simF[s]+2);
+    ck=ck*17u+(unsigned)simLock*4u+(unsigned)(spot+1)*64u;
+    if(hudChg(all,HK_W0,ck)){
+        hudClear(rx,HUD_BOTY+14,72,9);
+        if(show){
+            for(int s=0;s<SIM_WS;s++) simCell(rx+s*10,HUD_BOTY+14,simW[s]>=0?simWants[simW[s]].icon:0,0,simLock>>s&1,simW[s]>=0);
+            for(int s=0;s<SIM_FS;s++) simCell(rx+43+s*10,HUD_BOTY+14,simF[s]>=0?simFears[simF[s]].icon:0,1,0,simF[s]>=0);
+            if(spot>=0){ int x=spot<SIM_WS?rx+spot*10:rx+43+(spot-SIM_WS)*10; rect(x+1,HUD_BOTY+22,7,1,WHITE); }   // the spotlit cell
         }
-        int y=HUD_BOTY+16+s*7;
-        if(hudChg(all,HK_W0+s,(unsigned)(uintptr_t)nm)){ hudClear(rx,y,72,7); if(nm){ rect(rx,y+1,3,5,mk); clipSet(rx,y,rx+72,y+7); text(rx+6,y,nm,tc,1); clipAll(); } hudMark(rx,y,72,7); }
+        hudMark(rx,HUD_BOTY+14,72,9);
+    }
+    {
+        const char*nm=0; int pts=0, fear=0;
+        if(show&&spot>=0){
+            if(spot<SIM_WS){ int i=simW[spot]; if(i>=0){ nm=simWantName(spot); pts=simWants[i].pts; } }
+            else { int i=simF[spot-SIM_WS]; if(i>=0){ nm=simFears[i].name; pts=simFears[i].pts; fear=1; } } }
+        unsigned nk=nm?hudHash(nm)*7u+(unsigned)fear:0;
+        if(hudChg(all,HK_W1,nk)){
+            hudClear(rx,HUD_BOTY+23,72,7);
+            if(nm){ char b[8]; b[0]=fear?'-':'+'; simCatN(b+1,pts); int pw=tw(b,1);
+                clipSet(rx,HUD_BOTY+23,rx+70-pw,HUD_BOTY+30); text(rx,HUD_BOTY+23,nm,fear?RGB(30,18,16):RGB(22,28,22),1); clipAll();
+                text(rx+72-pw,HUD_BOTY+23,b,fear?RGB(30,10,8):RGB(12,30,12),1); }
+            hudMark(rx,HUD_BOTY+23,72,7);
+        }
     }
 }
 // ---- over the head ----
@@ -147,9 +173,11 @@ static void hudBotUpdate(int all){
 static int hudOverlayWhat(const char**txt,int*alert){   // 0 none, 1 plumbob, 2 bubble
     *txt=0; *alert=0;
     if(lcamF>0||ldead||sHud>=2||!xo[XO_BUBBLE]) return 0;
+    if(hhBubT&&hhBubTxt){ *txt=hhBubTxt; return 2; }   // talking (house.h)
+    if(hhStill<30) return 0;   // nothing over your head while you move: it only pops up once you stand still for half a second
     const char*t=simsAlert();
     if(t){ *txt=t; *alert=1; return 2; }
-    if(xo[XO_BUBBLE]>=2){ int s=(simT/240)&1; if(simW[s]<0) s^=1; if(simW[s]>=0){ *txt=simWants[simW[s]].name; return 2; } }
+    if(xo[XO_BUBBLE]>=2&&simWishes()){ int s0=(simT/240)%SIM_WS; for(int i=0;i<SIM_WS;i++){ int s=(s0+i)%SIM_WS; if(simW[s]>=0){ *txt=simWantName(s); return 2; } } }   // the wants take turns
     return 1;
 }
 static int hudOverlayRc(int*x0,int*y0,int*x1,int*y1){
@@ -161,7 +189,7 @@ static int hudOverlayRc(int*x0,int*y0,int*x1,int*y1){
 }
 static unsigned hudOverlaySig(void){   // what the overlay is made of, apart from where it is (that is part of the rectangle)
     const char*t; int al; int k=hudOverlayWhat(&t,&al); if(!k) return 0;
-    return k==2?(unsigned)(uintptr_t)t*3u+(unsigned)al: 1u+(unsigned)moodState()*8u+(unsigned)(((lfr>>4)&1)*64);
+    return k==2?hudHash(t)*3u+(unsigned)al: 1u+(unsigned)moodState()*8u+(unsigned)(((lfr>>4)&1)*64);
 }
 static void hudOverlayDraw(void){
     const char*t; int al; int k=hudOverlayWhat(&t,&al); if(!k) return;

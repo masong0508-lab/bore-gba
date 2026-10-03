@@ -48,10 +48,10 @@ static void feelPush(u16 k,int rail){
     else { F.spd-=1+(F.spd>>F_COAST); }
     if(k&K_DOWN) F.spd-=F_BRAKE+1+(F.spd>>4);
     F.spd-=(fabsi(F.turn)*F.spd)>>14;                  // carving costs a little speed
-    if(rail&&F.spd<192) F.spd=192;                     // rails keep you rolling
+    { int fl=192+(abOf(AB_GRIP)-2)*16; if(rail&&F.spd<fl) F.spd=fl; }   // rails keep you rolling (GRIP ability: faster)
     if(F.spd<0) F.spd=0;
 }
-static inline int feelOllie(void){ F.jh=1; F.buf=0; F.coy=0; return F_OLLIE+(F.spd>>1); }
+static inline int feelOllie(void){ F.jh=1; F.buf=0; F.coy=0; return (F_OLLIE+(F.spd>>1))*abPct(AB_JUMP,6)/100; }   // JUMP ability: +-6% a point
 static void feelAir(u16 k,u16 pr,int nearGround){      // spin ramps up, A grabs, B flips; variable jump height
     int dir=((k&K_RIGHT)?1:0)-((k&K_LEFT)?1:0);
     if(dir){ F.spinV+=dir; if(F.spinV>F_SPIN_MAX) F.spinV=F_SPIN_MAX; if(F.spinV<-F_SPIN_MAX) F.spinV=-F_SPIN_MAX; }
@@ -61,7 +61,7 @@ static void feelAir(u16 k,u16 pr,int nearGround){      // spin ramps up, A grabs
     if(F.jh&&lvz>F_CUT&&!(k&K_B)) lvz=F_CUT;           // let go of B early = short hop
     if(pr&K_B){ if(nearGround&&lvz<0) F.buf=F_BUF; else if(!lflip){ lflip=1; lnote=(k&K_UP)?"HEELFLIP":"KICKFLIP"; lnoteT=40; } }
 }
-static int feelClean(void){ int a=fabsi(F.spin), h=(a+64)>>7, o=fabsi(a-h*128); return o<=F_LAND_TOL+(F.grab>12?12:0); }
+static int feelClean(void){ int a=fabsi(F.spin), h=(a+64)>>7, o=fabsi(a-h*128); return o<=F_LAND_TOL+(F.grab>12?12:0)+abBalance(); }   // a LONG TAIL balances
 static int feelHalfTurns(void){ return (fabsi(F.spin)+64)>>7; }
 static int feelGrabPts(void){ int g=F.grab>>2; return g>150?150:g; }
 static void feelLandReset(void){ F.spin=F.spinV=F.grab=0; F.jh=0; }
@@ -82,5 +82,5 @@ static void feelWalk(u16 k,u16 pr,int ongr){   // on foot: eased accel instead o
     lsp=(dx||dy)?spd:0;
     if(dx||dy){ int h=hdT[(dy>0)-(dy<0)+1][(dx>0)-(dx<0)+1]; if(h>=0) lhd=h; }
     if(pr&K_A) F.buf=F_BUF;
-    if(F.buf>0&&(ongr||(F.coy>0&&lvz<=0))){ lvz=0x300; F.buf=0; F.coy=0; }
+    if(F.buf>0&&(ongr||(F.coy>0&&lvz<=0))){ lvz=0x300*abPct(AB_JUMP,6)/100; F.buf=0; F.coy=0; }
 }

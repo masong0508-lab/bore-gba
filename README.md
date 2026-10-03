@@ -62,7 +62,7 @@ Main menu -> **OPTIONS** (also in the pause menu and the map menu). Eight pages:
 | B / Start | back (everything is saved) |
 A gold dot marks a row that is not at its normal value. The row under the cursor explains itself in two lines.
 - **PLAY**: NEEDS (off to brutal), FOOD AND WC, DAY LENGTH (3 / 6 / 12 / 24 min or stopped), CAREER on/off (off = no shifts, quota or bills), JOB QUOTA, BILLS, SCORE multiplier (x0.5 to x3), COMBO WINDOW, TOP SPEED (80 to 150 %), MOOD EFFECTS, HURT (normal / gentle / no death), AUTO SAVE LIFE.
-- **AUDIO**: SOUND, SFX VOLUME, MUSIC VOLUME, **GAME MUSIC** (off by default: the jukebox songs play in their shuffled order while you play, the next song starts when one ends, it fades to half volume while the pause menu (or anything opened from it) is up, and sound effects pause the music while they sound; mixing runs in an interrupt, so it costs some speed on slow devices), TITLE MUSIC, JUKEBOX MODE.
+- **AUDIO**: SOUND, SFX VOLUME, MUSIC VOLUME, **GAME MUSIC** (off by default: the jukebox songs play in their shuffled order while you play, the next song starts when one ends, it fades to half volume while the pause menu (or anything opened from it) is up, and sound effects play over the music; mixing runs in an interrupt, so it costs some speed on slow devices), TITLE MUSIC, JUKEBOX MODE.
 - **INPUT**: BUTTONS (swap A/B, L/R or both, on every screen), CURSOR REPEAT speed of the editor, BUTTON TEST (shows the keys the game sees).
 - **HUD**: INFO ON SCREEN, CLOCK (24 h / 12 h / hidden), THOUGHT BUBBLE, WANTS AND FEARS, ACTION CAM, ACCENT COLOUR (gold, mint, sky, pink, orange, lilac), MESSAGE TIME.
 - **ROOMS**: EDITOR MINIMAP, SAVE ON EXIT, ASK BEFORE RESET, SLOTS SAVE (room / room + person / all three), ASK IN SLOTS, SAVE MAP TO SLOT, BOOT LOADS PERSON.
@@ -82,6 +82,43 @@ The slot you saved to or loaded last is the **active slot**. With SAVE MAP TO SL
 
 **Format** (all in `source/slots.h`, made so a whole house can be added later without breaking any save): a 32 byte header (magic, version, kind ROOM or HOUSE, span = how many consecutive slots it covers, what it holds, payload length and checksum, map size, save counter, name) and then a list of tagged chunks (`R` room as run-length packed tiles, `C` person, `L` life, `H` reserved for the house plan). Readers skip tags they do not know. A house is KIND 1 with a span of several slots; the slot screen already lists, protects and deletes those. To add houses: write `houseSave()` / `houseLoad()` and set `SLOT_HOUSE_READY` to 1.
 
+## Walls (The Sims style) and 103 wallpapers
+Walls are drawn like The Sims: a wall tile is a **thin, tall panel** (24 px, 3 blocks) through the middle of the tile, joined to its neighbours into lines and corners, with the room's floor running under it. Only the face the camera sees is drawn, with the wallpaper on it and a light trim along the top. **Cutaway** (OPTIONS > VIDEO > WALLS): a wall segment that hides the inside of a room drops to a low stub, back walls stay full height. "Inside" is any floor you cannot reach from the edge of the map without crossing a full wall or a doorway (a one-tile gap in a wall); low walls ('w') are fences and never close a room. Collision is unchanged (a wall still fills its tile).
+- **Cheaper to draw**: a full wall tile now writes about 290 pixels (with the floor under it) against about 408 for the old wall block, a cut-away one about 118 against 272.
+- **Wallpapers**: the 14 old patterns plus **89 wallpapers converted from a Sims 2 custom-content set by KHLVH** (ModTheSims, 2005). `tools/make_wallpapers.py FOLDER` reads the `.package` files (DBPF, QFS decompression and the DXT textures in `tools/sims2tex.py`), shrinks each to one tile of wall (8 x 24), pre-shades it for both visible faces and writes `source/wallart.h` (66 KB, ROM only: **no RAM**), and a preview sheet `assets/preview/wallpapers.png`. The room editor's WALL tool (L/R, or SELECT+L/R in other tools) cycles through all 103 and shows the name. The default house uses PARLOR, OCEANIC and METAL DECK (reset the map to see them).
+- Saves: the map in SRAM already kept a byte per tile; room slots now use room format 2 (a byte for the floor and one for the wallpaper; format 1 slots still load).
+- **Credits**: the converted wallpapers are KHLVH's work (the "KHLVH 06162005" wallpaper set on ModTheSims); they are in this repo only as the shrunk 8 x 24 versions. Check the creator's terms before you distribute a ROM with them.
+
+## Households (up to 8 Sims)
+**Pause menu -> HOUSEHOLD** moves in a premade family (original characters: THE GRINDERS, a skater family of three; THE MIDNIGHTS, a pale night-owl family; THE FRESHLYS, a young couple) or moves everyone out. A household is you plus up to 7 more Sims (`source/house.h`).
+- **SELECT** (a tap, not SELECT+START) switches who you control: position, needs, look, persona and sprites trade places, and the camera jumps to the new Sim. Hand-built (block builder) creatures cannot switch yet.
+- **Free will**: the Sims you do not control look after themselves. Each kind of furniture advertises a need (fridge FOOD, toilet WC, bed REST, shower CLEAN, sofa COMFY) and wandering about gives FUN. A Sim scores them (how low the need is, squared, tilted by its traits: neat Sims shower sooner, lazy ones sit, playful ones roam), picks one of the two best, finds a path (breadth-first search on the 40x40 tiles, one Sim plans per step), walks there and uses it. **OPTIONS > PLAY > FREE WILL**: OFF / LOW (waits until needs are lower, thinks half as often) / HIGH.
+- **Hardware sprites**: the other Sims are GBA sprites (OBJ, 32x64, 16 colours each with their own palette), so their moving costs no drawing; the CPU only draws their shadows and talk balloons into the room. Their four views are baked like yours, cut down to 15 colours (closest colours merged, the common ones kept exact), and only the view on show sits in sprite memory (1 KB each, copied in vblank). A window keeps them inside the room view (never over the HUD), menus and other screens hide them. Sprites always sit on top of the picture, so a Sim standing behind a full-height wall is drawn see-through (an x-ray blend) instead of in front of it. You stay drawn by the CPU (furniture in front of you covers you, the action cam can zoom you); SELECT swaps sprites both ways.
+- **Social life** (Sims 2 style). A SOCIAL need (HUD bar, a LONELY alert; outgoing Sims get lonely faster). Every pair of Sims has a one-way DAILY and LIFETIME relationship (-100..100): daily changes fast and drifts back to lifetime every game hour, lifetime moves a third as much. Statuses: STRANGER, ACQUAINTANCE, FRIEND (daily 50+), BEST FRIEND (daily and lifetime 70+), DISLIKE, ENEMY (daily -50 or less), and the romance steps CRUSH, IN LOVE, STEADY.
+  - **R next to a household Sim** opens the social menu (the furniture you stand at is offered first): TALK, JOKE, COMPLIMENT, HIGH FIVE, HUG, SHOW A TRICK, FLIRT, KISS, GO STEADY, APOLOGIZE, ARGUE, INSULT, SLAP. What is on offer depends on the relationship (a hug needs daily 35, a kiss a crush, going steady being in love), age (romance only teen with teen or adult with adult/elder; no slapping for children) and mood.
+  - **Acceptance** = the interaction's base chance + half of how the other feels about you + their matching trait (playful for jokes, nice for compliments and hugs, outgoing for flirts) + their mood; shy Sims are wary of people they hardly know, and a Sim going steady with someone else turns flirts down. Accepted: both like each other more and fill SOCIAL (jokes and tricks also FUN). Rejected: you are embarrassed and like them a little less. Mean ones always land.
+  - **Free will socials**: lonely Sims (and idle ones, outgoing ones most) go and see someone: friends, crushes and partners first, strangers to say hello, and you. Grouchy Sims go looking for trouble. What they do follows the relationship: friends joke and hug, crushes flirt and kiss, couples in love ask to go steady, enemies argue and slap. They do it to you too.
+  - Balloons over heads show what is said (a word over yours, an icon over theirs), and the note line says what happened ("REX LAUGHED").
+  - Wants: TALK TO SOMEONE, MAKE A FRIEND, BEST FRIENDS, FIRST KISS, FALL IN LOVE, GO STEADY, GET A HUG, SHARE A LAUGH. Fears: BEING REJECTED, GETTING SLAPPED, A FIGHT, MAKING AN ENEMY, BEING LONELY.
+  - **Pause menu > HOUSEHOLD > RELATIONSHIPS**: how you feel about everyone and how they feel about you, daily and lifetime. A family that moves in already knows each other, and its first two adults are a couple.
+- **The thought bubble** only shows when you stand still (nothing flashes over your head while you walk), and by default only for urgent needs (OPTIONS > HUD > THOUGHT BUBBLE: ALL brings the wants back).
+- **For now** the aspiration meter, wants, job, cash and skill belong to the household (whoever you control uses them), and the household is saved in SRAM at 18448 (one household, not per room slot).
+- RAM: each member's baked sprites are 11 KB (EWRAM), the free will state about 150 bytes a Sim.
+
+## RAM budget (work RAM, not saves)
+The GBA has 256 KB of EWRAM and 32 KB of IWRAM. Check the numbers with `arm-none-eabi-size -A` on the object or ELF: `.sbss` is EWRAM, `.bss` + `.data` + `.iwram` are IWRAM (the stack shares what is left of IWRAM).
+| | EWRAM | IWRAM |
+|---|---|---|
+| before the audio rework | 237,000 B (90%) | 24,436 B |
+| after the audio rework | 113,000 B (43%) | 24,812 B |
+| with the 8-Sim household | 211,180 B (81%) | 25,452 B |
+| household on hardware sprites | 168,348 B (64%) | 25,096 B |
+| big users now | household sprite tiles `hhObj` 28 KB + bake buffer 11 KB, screen back buffer `fb` 76.8 KB, creature sprites `spr4` 11 KB, floor tiles `flTab` 8.6 KB, overlay `ovBuf` 5 KB, BFS queue + wall map 4.8 KB (wallpaper textures: ROM only) | mixer buffers, `irqStack` 1 KB, IWRAM code 14 KB |
+
+**Audio driver.** Sound effects used to be decoded whole into a 124 KB buffer (the longest clip is 15 s) and played on their own, pausing the music. Now an effect is one more voice in the interrupt-driven music mixer: it is decoded a few samples at a time straight from the ROM and resampled from 6554 Hz to the mixer's 18157 Hz (`sfxMix`), so it needs no buffer and plays over the game music. When nothing plays, the mixer switches itself off (`audStart` / `audStop`). The title screen used to borrow that buffer for a whole-screen copy of its backdrop; it now keeps only the two areas it repaints (the smoke and PRESS START), about 10 KB, inside `spr4` before any sprite is baked.
+
+**Room for more characters.** One baked character (4 views of 32 x 44 at 16 bits) is 11 KB, so the freed 124 KB holds about ten more at that size, or around twenty at 8 bits per pixel with a palette.
+
 ## Save memory map (32 KB SRAM)
 | Offset | What |
 |---|---|
@@ -90,8 +127,11 @@ The slot you saved to or loaded last is the **active slot**. With SAVE MAP TO SL
 | 8448 | extended options (`opts.h`) |
 | 12288 | jukebox order and mode |
 | 12352 | active room slot |
+| 12416 | life stage and days in it |
+| 12432 | persona: aspiration, lifetime want, traits, DNA, unlocked parts |
 | 16384 | the life (`sims.h`) |
 | 18432 | 16 spare bytes for SAVE MEMORY TEST |
+| 18448 | the household (up to 7 more Sims, `house.h`) |
 | 20480 | six room slots of 2048 bytes (to the end of SRAM) |
 
 ## Combos and the action cam
@@ -143,6 +183,8 @@ Meters are not saved to SRAM yet.
 ## Title music
 The title screen plays "The Dipper Man" (tools/the_dipper_man.xm). `python3 tools/xm2gba.py` converts the XM (and every other `SONG_XM` song listed in `source/songs.h`) to `source/musicdata.h`: note events per pattern (with per-note volume) plus the instrument samples that are actually used (8-bit, band-limited, down-sampled to the lowest rate that keeps them clean; the title song is about 70 KB in the ROM). A 10-voice mixer with linear interpolation plays it through Direct Sound B at 18157 Hz (exactly 304 samples per frame). The 7.7 s intro plays once, then the song loops from order 4; voices are never cut at the jump, so the last notes ring into the first ones. Music stops when you press START.
 
+**Sunman Sunrise**: `tools/make_sunman_rework.py` builds `tools/sunman_sunrise.xm`, a sunrise nu-disco rework of "The Dipper Man - Sunman" (the original is kept as `tools/the_dipper_man_sunman.xm`). The hook (both voices, note for note, an octave lower), its rhythm, the walking bass and the counter-line are the original's; the harmony (D/F# Gmaj7 Bbmaj7/A C | D C Bbmaj7#11 Gmaj7), the arrangement (bell intro, four-on-the-floor groove with pumping pads, arp, breakdown, last chorus a whole tone up) and every sound are new. 116 BPM, 3:04, 12 channels. Re-run the script, then `python3 tools/xm2gba.py`.
+
 **Meltdown in Mars (90s house mix)**: `tools/make_meltdown_house.py` builds `tools/meltdown_in_mars_house.xm` (126 BPM, about 6 minutes, 10 channels, all sounds synthesised), it is listed in `source/songs.h`, and `python3 tools/xm2gba.py` bakes it into `source/musicdata.h`. `python3 tools/preview_xm.py meltdown_in_mars_house tools/meltdown_in_mars_house.xm out.wav` renders it the way the GBA mixer will play it.
 
 ## Jukebox
@@ -169,14 +211,38 @@ The jukebox plays only on its own screen for now: music during gameplay needs a 
 The creature screen is now a character-creator: a live preview in a little house room (the game's own wallpaper and floor) on the left, a card of numbered tabs on the right.
 | Key | Action |
 |---|---|
-| L / R | change tab (1 BODY, 2 FACE, 3 HAIR, 4 CLOTHES, 5 BUILD, tick = DONE) |
+| L / R | change tab (1 BODY, 2 FACE, 3 HAIR, 4 CLOTHES, 5 PARTS, 6 ASPIRE, tick = DONE) |
 | Up / Down | pick a row |
 | Left / Right (or A) | change it: named options (shape, eyes, mouth, ears, hair style) or 8 colour swatches (skin, hair, top, bottom) |
 | Select | turn the creature (compass bottom left) |
 | Start | jump to DONE (GO LIVE LIFE, EDIT MAP, MAIN MENU) |
 | B | back to the main menu |
 
-Tab 5 opens the original block builder (legend with key caps; Select+Start returns). Changing shape, ears or hair style after hand-building asks before replacing your blocks.
+The old BUILD tab (block builder) is gone; the classic block screen is still behind the Konami code (START+SELECT in the creator). Changing shape, ears, hair style or a part after hand-building asks before replacing your blocks.
+
+**More looks** (all built from blocks, like the rest of the creature):
+- **HAIR tab**: STYLE (CROP, BOWL, LONG, BALD, SPIKY, AFRO, FLAT TOP, SIDE TAIL, BUN; babies only CROP and BALD), COLOUR, **BEARD** (NONE, BEARD, LONG BEARD: adults and elders pick it in the dice, the mouth sits on the beard), **HAT** (NONE, CAP, BEANIE, BAND, FEZ, HELMET) and **HAT COLOUR** (as the top, as the bottom, white, black, red, gold).
+- **CLOTHES tab**: TOP and BOTTOM colours, **TOP STYLE** (TEE, LONG SLEEVE, TANK, HOODIE with a hood behind the head), **BOTTOM STYLE** (PANTS, SHORTS, SKIRT) and **SHOES** (as the bottom, white, black, red, gold, as the top).
+- Hats and the new hairdos add STYLE; a helmet adds STAMINA.
+- **DONE tab > RANDOMIZE** (the Create-A-Sim dice): a whole new look, star sign and aspiration, only from what this life stage and your unlocked parts allow. Press it again for another.
+- Saved as person format 5 (older slots still load; the new looks start at their first option), households as 'H3' (an 'H2' household still loads).
+
+### Tab 5: PARTS (Spore style)
+Like the Spore creature editor, the body decides what the creature can do. Parts are built as blocks on the model:
+| Part | Options | Power |
+|---|---|---|
+| TAIL | NONE, STUB, LONG (furry, hair colour) | LONG = **BALANCE**: spins land clean further off straight |
+| HORNS | NONE, NUBS, HORNS (ivory, out of the sides of the head) | HORNS = **CHARGE**: skating into a wall does not hurt |
+| BACK | NONE, SPIKES, WINGS | SPIKES = **ARMOUR** (falls and bails hurt 30% less), WINGS = **GLIDE** (hold R in the air to float down) |
+
+Under the rows is the **ability chart**: SPEED, JUMP, GRIP, STYLE, STAMINA, 0 to 5 each (2 is normal). Shape, face, hair and parts move them (TALL is fast, BROAD tough, BIG HEAD stylish, bald is quick, wings help jumps but drag, a tail helps grip...). In play: SPEED +-5% top speed per point, JUMP +-6% ollie and hop, GRIP more grind points and faster rails, STYLE +-6% trick points, STAMINA -8% need drain per point. All of it is in `abOf()` / `abPow()` in `main.c`.
+
+**DNA.** Big parts (LONG tail 60, HORNS 60, SPIKES 40, WINGS 120) are locked until bought with DNA. You can still look at a locked part (red, with a padlock): A buys it, and it comes off again when you leave the creator if you did not. DNA is earned by living: a met want pays its points, a skill level 15, a promotion 25, a birthday 50, the lifetime want 200. The Konami code makes every part free.
+
+### Tab 6: ASPIRE (Sims 2 Create-A-Sim)
+- **ASPIRATION**: FORTUNE, KNOWLEDGE, POPULARITY, PLEASURE or HOME. Babies and children always aspire to **GROW UP**; the one you pick starts when the creature becomes a teen (the row says TEEN).
+- **LIFETIME**: one of two lifetime wants for that aspiration (BE A LEGEND / HAVE 3000 CASH, MAX SKATE SKILL / LAND 500 TRICKS, 20000 COMBO / GO PRO, MEET 100 WANTS / STOKED 20 MIN, 30 GOOD NIGHTS / PERFECT HOME).
+- **SIGN** and **TRAITS**: NEAT, OUTGOING, ACTIVE, PLAYFUL, NICE share 25 points (0 to 10 each). A sign deals out its set of points; moving a trait shows the sign that fits best. Traits tilt which wants and fears roll and change the life: neat creatures stay clean longer, active ones need the sofa less (lazy ones sink into it), playful ones get bored faster, outgoing ones get a thrill from banked combos and shy ones are embarrassed by bails, grouchy ones (NICE 3 or less) take a fear coming true twice as hard.
 
 ## Life sim layer (Sims 2, handheld edition)
 The life part of the game has a Sims 2 style loop on top of the skating. All the logic is in `source/sims.h` (art in `source/simart.h`, preview in `assets/preview/sims_furniture.png`); every tuning number is in the TUNING block at the top of `sims.h`. Everything except other people (social needs, relationships) is in.
@@ -193,12 +259,15 @@ The life part of the game has a Sims 2 style loop on top of the skating. All the
 
 **Thought bubble.** A thought bubble over the head shows the most urgent need (WC, EAT, ZZZ, STINKY, SIT), otherwise it alternates between your wants.
 
-**Wants and fears.** Two wants and one fear are always on show under the needs (green and red markers). Wants: snack, WC, nap, get clean, sofa, land a trick, trick combo, grind, get air, feel stoked, finish a shift, get promoted, learn a skill, nice room. Fears: bailing, accident, passing out, getting hurt, fainting, being broke, demotion. Meeting a want pays aspiration points and a mood lift; a fear coming true costs points. A want is only offered if the map has what it needs (no bed, no nap want). All of it hooks into the mood events, so every `moodEvent()` in the game feeds it.
+**Wants and fears (The Sims 2 way).** **Four wants and three fears** are on show at the bottom right of the HUD as icon cells (green wants, red fears, a gold edge on a locked want); the line under them spotlights one at a time with its points. They roll from the creature's **aspiration** pool first, a few from anywhere, tilted by its **traits**, and wants for a need get likelier as the need runs low. A want only rolls if the map and the creature can do it (no bed, no nap want; no job, no shift wants; GO GLIDING needs wings, CHARGE A WALL needs horns). Some carry a target that is set when they roll (HAVE 450 CASH, BANK A 2500 COMBO, GAIN 12 SKILL). **A real night's sleep rerolls them**, and so do a birthday and a new aspiration; one want can be **locked** so it survives. Babies have no wants.
+Wants: snack, WC, nap, get clean, sofa, land a trick, trick combo, 5 trick combo, grind, get air, bank a combo, feel stoked, feel great, finish a shift, ace a shift, get promoted, have cash, pay the bills, learn a skill, gain skill, nice room, grow up, go gliding, charge a wall. Fears: bailing, getting hurt, an accident, fainting, passing out, being broke, demotion, no pay today, being stinky, getting bored, feeling sad, dying, growing old, a shabby room.
 
-**Aspiration.** Points climb through BRONZE, SILVER, GOLD and PLATINUM (40 / 120 / 260 / 450). Each level slows the needs down; PLATINUM halves them.
+**Aspiration meter.** A met want adds its points x5 to the meter (0 to 1000) and the same points to **reward points**; a fear coming true takes its points x5 off. The meter drains slowly by itself (twice as fast when SAD). Zones: FAILING, LOW, OK, GOOD, GOLD, PLATINUM, shown in their colours in the HUD. Higher zones slow the needs (PLATINUM halves them) and lift the mood; LOW and FAILING sink it. At 0 the creature has an **aspiration failure**: a breakdown, then a therapist puts the meter back at LOW and rolls new wants. Meeting the **lifetime want** pays 500 reward points and keeps the meter in PLATINUM for good.
 
-**Saving.** Needs, cash, aspiration, clock, job level and progress, and skill are saved to SRAM (offset 16384) at every midnight, every payday, when you open the pause menu and when you leave the life game, with a checksum so a bad save is ignored. Dying only resets the needs: the life goes on. **Pause menu -> NEW LIFE** erases it and starts over.
+**Pause menu -> ASPIRATION.** The full panel: the meter, the lifetime want and its progress, the wants (UP/DOWN and A locks one) and fears with their points, reward points, DNA, sign and abilities. **R opens the aspiration rewards**: ENERGIZER (100, REST to full), THINKING CAP (150, the next skill level), MONEY TREE (300, pays 25 every midnight), ELIXIR OF LIFE (250, resets the days in the life stage).
 
-**Adding things.** A want or fear: add a `SE_` name, a row in `simWants` / `simFears`, and map the game event in `simsMood()` (or call `simEvent(SE_X)` yourself). A need: a variable (and in `simsSave`/`simsLoad`), a rate in `simsTick()`, a use in `simBegin()`, a bar in `simsHud()`. A piece of furniture: art in `simart.h`, a slot in `palCh`/`palNm`/`palCol` and a `drawItemTile` line.
+**Saving.** Needs, cash, the aspiration meter and reward points, the wants and fears (and the lock), clock, job level and progress, skill and the lifetime want counters are saved to SRAM (offset 16384, 52 bytes "SIM3"; an older 24 byte "SIM2" life still loads, its points become reward points) at every midnight, every payday, when you open the pause menu and when you leave the life game, with a checksum so a bad save is ignored. Dying only resets the needs: the life goes on. **Pause menu -> NEW LIFE** erases it and starts over.
+
+**Adding things.** A want or fear: add an `SE_` name if it needs a new event, a row **at the end** of `simWants` / `simFears` (rows are saved by index: name, event, points, furniture, icon, parameter, aspirations, trait, minimum, who), and map the game event in `simsMood()` (or call `simEvent(SE_X)` yourself). A need: a variable (and in `simsSave`/`simsLoad`), a rate in `simsTick()`, a use in `simBegin()`, a bar in `simsHud()`. A piece of furniture: art in `simart.h`, a slot in `palCh`/`palNm`/`palCol` and a `drawItemTile` line.
 
 **Not done yet:** SOCIAL need, other people to talk to, relationships.

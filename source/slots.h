@@ -1,7 +1,7 @@
 // slots.h - ROOM SLOTS: several named saves of a room, the person living in it and their life.
 //
 // WHAT A SLOT HOLDS      Chunks, each optional: ROOM (tiles, floors, wallpaper, run-length packed), PERSON (the creature: look, and
-//                        its hand-built blocks if any), LIFE (needs, cash, job, clock, skill: the same 24 bytes sims.h saves).
+//                        its hand-built blocks if any), LIFE (needs, cash, job, clock, skill: the same block sims.h saves: 52 bytes "SIM3", older slots 24 bytes "SIM2").
 // WHERE                  SRAM 20480.., SLOT_N slots of SLOT_SZ bytes (the old single room at 0, settings, jukebox and the life keep their places).
 // ACTIVE SLOT            The slot you saved to / loaded last. A tiny block at SLOT_DIR remembers it. Options use it:
 //                        SAVE MAP TO SLOT (the map editor's SAVE MAP also writes the active slot), BOOT LOADS PERSON.
@@ -15,7 +15,7 @@
 //         into the next slots' bytes, and the scan (slScan) skips the slots it covers.
 //  payload   a list of chunks:  tag(1) length(2) data ...  and a 0 tag at the end. Readers SKIP tags they do not know, so new
 //         chunk types can be added later. Tags: 'R' room, 'C' person, 'L' life, 'H' house plan (reserved).
-//  'R' chunk  room index(1) format(1 = runs) then runs of  count, tile, floor<<4|wallpaper.  A ROOM slot has room index 0.
+//  'R' chunk  room index(1) format(2 = runs) then runs of  count, tile, floor, wallpaper (format 1: count, tile, floor<<4|wallpaper).  A ROOM slot has room index 0.
 //  Every save is verified (checksum) before it is loaded, and the slot is invalidated while it is being written, so a power
 //  cut in the middle of a save can only lose that one slot, never corrupt another.
 //
@@ -36,7 +36,7 @@
 #define SRAM_TEST  18432      // 16 spare bytes the SAVE TEST in the options writes to
 #define SLOT_HOUSE_READY 0
 _Static_assert(SLOT_BASE+SLOT_N*SLOT_SZ<=32768,"the slots do not fit in 32 KB of SRAM");
-_Static_assert(NFL<=16&&NWP<=16,"a run stores floor and wallpaper in one byte (4 bits each)");
+_Static_assert(NWALL<=255&&NFL<=255,"a run stores the floor and the wallpaper in a byte each");
 
 enum { SLK_ROOM=0, SLK_HOUSE=1 };
 enum { SLH_ROOM=1, SLH_PERSON=2, SLH_LIFE=4 };                 // what a slot holds / what to load
@@ -66,27 +66,29 @@ static int slSumOf(volatile u8*p,int n){ u32 s1=0,s2=0; for(int i=0;i<n;i++){ s1
 // ---------- chunks: ROOM ----------
 static void slEncRoom(SlW*w){
     slwPut(w,0);   // room index: 0 = the one room of a ROOM slot (a house numbers its rooms)
-    slwPut(w,1);   // format 1: runs of (count, tile, floor<<4 | wallpaper)
-    int n=0; u8 t=0,f=0;
+    slwPut(w,2);   // format 2: runs of (count, tile, floor, wallpaper)  (format 1 packed floor<<4 | wallpaper: only 16 wallpapers)
+    int n=0; u8 t=0,f=0,p=0;
     for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){
-        u8 tt=(u8)lifeMap[y][x], ff=(u8)(((floorMap[y][x]&15)<<4)|(wallMap[y][x]&15));
-        if(n>0&&tt==t&&ff==f&&n<255){ n++; continue; }
-        if(n){ slwPut(w,n); slwPut(w,t); slwPut(w,f); }
-        n=1; t=tt; f=ff;
+        u8 tt=(u8)lifeMap[y][x], ff=floorMap[y][x], pp=wallMap[y][x];
+        if(n>0&&tt==t&&ff==f&&pp==p&&n<255){ n++; continue; }
+        if(n){ slwPut(w,n); slwPut(w,t); slwPut(w,f); slwPut(w,p); }
+        n=1; t=tt; f=ff; p=pp;
     }
-    if(n){ slwPut(w,n); slwPut(w,t); slwPut(w,f); }
+    if(n){ slwPut(w,n); slwPut(w,t); slwPut(w,f); slwPut(w,p); }
 }
 // returns 1 if fine (or a room index we do not use), 0 if broken. apply=1 writes the map.
 static int slDecRoom(SlR*c,int apply){
     int idx=slrGet(c), fmt=slrGet(c); if(c->bad) return 0;
     if(idx!=0) return 1;      // another room of a house: not used by a ROOM load
-    if(fmt!=1) return 0;
+    if(fmt!=1&&fmt!=2) return 0;
     int i=0;
+    if(apply) wDirty=1;
     while(c->pos<c->len){
-        int n=slrGet(c), t=slrGet(c), f=slrGet(c); if(c->bad||n==0) return 0;
-        if(palIdx((char)t)<0||(f>>4)>=NFL||(f&15)>=NWP) return 0;
+        int n=slrGet(c), t=slrGet(c), f=slrGet(c), p; if(c->bad||n==0) return 0;
+        if(fmt==1){ p=f&15; f>>=4; } else { p=slrGet(c); if(c->bad) return 0; }
+        if(palIdx((char)t)<0||f>=NFL||p>=NWALL) return 0;
         if(i+n>MSZ) return 0;
-        if(apply) for(int k=0;k<n;k++){ int y=(i+k)/MW, x=(i+k)%MW; lifeMap[y][x]=(char)t; floorMap[y][x]=(u8)(f>>4); wallMap[y][x]=(u8)(f&15); }
+        if(apply) for(int k=0;k<n;k++){ int y=(i+k)/MW, x=(i+k)%MW; lifeMap[y][x]=(char)t; floorMap[y][x]=(u8)f; wallMap[y][x]=(u8)p; }
         i+=n;
     }
     return i==MSZ;
@@ -103,9 +105,10 @@ static void slEncPlane(SlW*w,int plane){   // 0 = voxels, 1 = face sprite low by
     if(n){ slwPut(w,n); slwPut(w,cur); }
 }
 static void slEncPerson(SlW*w){
-    slwPut(w,3);                                            // format 3 (2 had no sliders: they read as 0 = the middle; 1 had no life stage: those people are adults)
+    slwPut(w,5);                                            // format 5 (4 had no hats, beards or clothes styles; 3 had no persona: it reads as the one already set; 2 had no sliders: they read as 0 = the middle; 1 had no life stage: those people are adults)
     for(int i=0;i<LK_N;i++) slwPut(w,look[i]);
     slwPut(w,stage); slwPut(w,ageDays);
+    slwPut(w,pAsp); slwPut(w,pLtw); for(int i=0;i<TR_N;i++) slwPut(w,pTr[i]);   // persona: aspiration, lifetime want, personality
     slwPut(w,custom?1:0);                                   // hand-built blocks: only then the blocks are stored (else buildLook() remakes them)
     if(custom){ slEncPlane(w,0); slEncPlane(w,1); slEncPlane(w,2); }
 }
@@ -116,12 +119,14 @@ static int slDecPlane(SlR*c,int plane){
     return 1;
 }
 static int slDecPerson(SlR*c,int apply){
-    int fmt=slrGet(c); if(c->bad||fmt<1||fmt>3) return 0;
-    u8 lk[LK_N]={0}; for(int i=0;i<(fmt>=3?LK_N:LK_BASE);i++) lk[i]=(u8)slrGet(c);
+    int fmt=slrGet(c); if(c->bad||fmt<1||fmt>5) return 0;
+    u8 lk[LK_N]={0}; for(int i=0;i<(fmt>=5?LK_N:fmt>=4?LK_N4:fmt>=3?LK_N3:LK_BASE);i++) lk[i]=(u8)slrGet(c);
     int stg=AG_ADULT, agd=0; if(fmt>=2){ stg=slrGet(c); agd=slrGet(c); }
     if(c->bad||stg>=AG_N) return 0;
+    int pa=pAsp, pl=pLtw; u8 pt[TR_N]; for(int i=0;i<TR_N;i++) pt[i]=pTr[i];
+    if(fmt>=4){ pa=slrGet(c); pl=slrGet(c); for(int i=0;i<TR_N;i++) pt[i]=(u8)slrGet(c); if(c->bad||!persValid(pa,pl,pt)) return 0; }
     int cu=slrGet(c); if(c->bad) return 0;
-    if(lk[LK_TONE]>=9||lk[LK_EARSZ]>=9||lk[LK_EARLF]>=9||lk[LK_SHAPE]>=NSHAPE||lk[LK_SKIN]>=NSW||lk[LK_EYES]>=3||lk[LK_MOUTH]>=3||lk[LK_EARS]>=3||lk[LK_HSTYLE]>=4||lk[LK_HCOL]>=NSW||lk[LK_TOP]>=NSW||lk[LK_BOT]>=NSW) return 0;
+    if(lk[LK_TONE]>=9||lk[LK_EARSZ]>=9||lk[LK_EARLF]>=9||lk[LK_SHAPE]>=NSHAPE||lk[LK_SKIN]>=NSW||lk[LK_EYES]>=3||lk[LK_MOUTH]>=3||lk[LK_EARS]>=3||lk[LK_HSTYLE]>=NHAIR||lk[LK_TAIL]>=3||lk[LK_HORNS]>=3||lk[LK_BACK]>=3||lk[LK_HAT]>=6||lk[LK_HATCOL]>=6||lk[LK_BEARD]>=3||lk[LK_TOPSTY]>=4||lk[LK_BOTSTY]>=3||lk[LK_SHOE]>=6||lk[LK_HCOL]>=NSW||lk[LK_TOP]>=NSW||lk[LK_BOT]>=NSW) return 0;
     if(cu>1) return 0;
     if(cu){
         if(!slDecPlane(c,0)||!slDecPlane(c,1)||!slDecPlane(c,2)) return 0;
@@ -133,6 +138,7 @@ static int slDecPerson(SlR*c,int apply){
     }
     if(apply){
         for(int i=0;i<LK_N;i++) look[i]=lk[i];
+        pAsp=(u8)pa; pLtw=(u8)pl; for(int i=0;i<TR_N;i++) pTr[i]=pt[i]; persSave();
         stage=(u8)stg; ageDays=(u8)agd; fixLook(); ageSave();
         buildLook();                                                   // also sets sty[] and custom=0
         if(cu){ u8*v=&vox[0][0][0]; u16*d=&dec[0][0][0]; for(int i=0;i<CNV;i++){ v[i]=slTmp[0][i]; d[i]=(u16)(slTmp[1][i]|(slTmp[2][i]<<8)); } custom=1; }
@@ -140,11 +146,12 @@ static int slDecPerson(SlR*c,int apply){
     }
     return 1;
 }
-// ---------- chunks: LIFE (24 bytes straight from the life block) ----------
-static void slEncLife(SlW*w){ slwPut(w,1); for(int i=0;i<SIM_BLOCK;i++) slwPut(w,SIM_SRAM[i]); }
+// ---------- chunks: LIFE (the life block straight from SRAM, SIM3 or the older SIM2) ----------
+static void slEncLife(SlW*w){ int n=simsVer(SIM_SRAM)==2?SIM_BLOCK2:SIM_BLOCK; slwPut(w,1); for(int i=0;i<n;i++) slwPut(w,SIM_SRAM[i]); }   // SRAM may still hold an older SIM2 life
 static int slDecLife(SlR*c,int apply){
-    if(c->len!=1+SIM_BLOCK||c->p[0]!=1) return 0;
+    if(c->len<1+4||c->p[0]!=1) return 0;
     volatile unsigned char*b=(volatile unsigned char*)(c->p+1);
+    int v=simsVer(b); if(c->len!=1+(v==3?SIM_BLOCK:SIM_BLOCK2)) return 0;   // SIM3 = 52 bytes, SIM2 = 24 bytes
     if(!simsCheck(b)) return 0;
     if(apply){ simsUnpack(b); simsSaveNow(); }
     return 1;
