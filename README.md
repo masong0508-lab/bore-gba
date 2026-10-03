@@ -105,8 +105,8 @@ Walls are drawn like The Sims: a wall tile is a **thin, tall panel** (24 px, 3 b
 - **4:20:** at 16:20 the HUD says "IT IS 4:20". The grown-ups in the house drift over to the pipe for the next hour, and PASS is what they pick when they talk.
 - **New want:** "PUFF PUFF PASS" (leaf icon) for grown-ups in a house with a pipe.
 
-## Households (up to 10 Sims)
-**Pause menu -> HOUSEHOLD** moves in a premade family (original characters: THE GRINDERS, a skater family of three; THE MIDNIGHTS, a pale night-owl family; THE FRESHLYS, a young couple; THE NOVAS, a mother and her teen) or moves everyone out. A household is you plus up to 9 more Sims (`source/house.h`): ten on screen at once. Each one is a hardware sprite with its own palette and 1 KB of sprite memory, which uses 9 of the 16 KB of OBJ VRAM and 9 of the 16 palettes. Only one Sim plans a path per step, so ten cost no more CPU per frame than eight. The RELATIONSHIPS screen scrolls with UP and DOWN when more than seven live there.
+## Households (up to 14 Sims)
+**Pause menu -> HOUSEHOLD** moves in a premade family (original characters: THE GRINDERS, a skater family of three; THE MIDNIGHTS, a pale night-owl family; THE FRESHLYS, a young couple; THE NOVAS, a mother and her teen) or moves everyone out. A household is you plus up to 13 more Sims (`source/house.h`, `HH_MAX`). Only the Sims in view hold a hardware sprite: OBJ VRAM (16 KB in the bitmap modes) and the OBJ palettes make 16 slots, a slot is 24 tiles (768 B, the 32x48 a Sim really fills, drawn as a 32x32 plus a 32x16 sprite) and its own palette, and `hhObjUpdate` hands slots out each frame, nearest the middle of the screen first, and takes them back when a Sim leaves the view, goes to work or school, or a passer-by walks off. So the number of Sims living in the house is limited by EWRAM (about 5.8 KB a member) and the SRAM block, not by sprites; if more than 16 are in view at once the farthest wait. A fresh sprite upload is limited to 5 per vblank, so a view turn shows the old view for a frame or two instead of overrunning vblank. Sims are in OAM in depth order, so the nearer one is drawn over the one behind. Only one Sim plans a path per step, so fourteen cost no more CPU per frame than eight. The RELATIONSHIPS screen scrolls with UP and DOWN when more than seven live there.
 - **Create-A-Family:**
   - **In the creator:** the DONE tab's **ADD TO FAMILY** puts a Sim with the look and persona on screen into the household and gives them a name. Change the look and add the next one, up to 10. **FAMILY** lists them: **EDIT** swaps one into the creator, so you become them and the Sim you were takes their place, and **MOVE OUT** removes one.
   - **In play:** the pause menu's **HOUSEHOLD** has **INVITE A NEW SIM** (a made-up Sim) and **MOVE SOMEONE OUT**, and **SELECT on the RELATIONSHIPS screen** invites someone too.
@@ -135,7 +135,7 @@ Walls are drawn like The Sims: a wall tile is a **thin, tall panel** (24 px, 3 b
 - RAM: each member's baked sprites are 11 KB (EWRAM), the free will state about 150 bytes a Sim.
 
 ## RAM budget (work RAM, not saves)
-The GBA has 256 KB of EWRAM and 32 KB of IWRAM. Check the numbers with `arm-none-eabi-size -A` on the object or ELF: `.sbss` is EWRAM, `.bss` + `.data` + `.iwram` are IWRAM (the stack shares what is left of IWRAM).
+The GBA has 256 KB of EWRAM and 32 KB of IWRAM. Every GitHub build prints the numbers in the job summary (`make size` does the same locally). By hand: `arm-none-eabi-size -A` on the object or ELF: `.sbss` is EWRAM, `.bss` + `.data` + `.iwram` are IWRAM (the stack shares what is left of IWRAM).
 | | EWRAM | IWRAM |
 |---|---|---|
 | before the audio rework | 237,000 B (90%) | 24,436 B |
@@ -146,6 +146,7 @@ The GBA has 256 KB of EWRAM and 32 KB of IWRAM. Check the numbers with `arm-none
 | after the IWRAM diet | 174,980 B (67%) | 20,496 B (12 KB left for the stack) |
 | 10-Sim household | 183,548 B (70%) | 20,752 B |
 | + routines, passers-by, Spore parts, walk frames | 240,800 B (92%) | 20,964 B |
+| 14-Sim household, 24-tile sprites, OBJ slots (`make size`) | 247,352 B (94%) | 22,324 B |
 | big users now | household sprite tiles `hhObj` 28 KB + bake buffer 11 KB, screen back buffer `fb` 76.8 KB, creature sprites `spr4` 11 KB, floor tiles `flTab` 8.6 KB, overlay `ovBuf` 5 KB, BFS queue + wall map 4.8 KB (wallpaper textures: ROM only) | mixer buffers, `irqStack` 1 KB, IWRAM code 14 KB |
 
 **IWRAM diet** (5.5 KB freed, the per-pixel hot paths untouched):
@@ -171,7 +172,7 @@ The GBA has 256 KB of EWRAM and 32 KB of IWRAM. Check the numbers with `arm-none
 | 5056 | jukebox order and mode |
 | 5136 | the life (`sims.h`) |
 | 5200 | 16 spare bytes for SAVE MEMORY TEST |
-| 5216 | the household (up to 9 more Sims, `house.h`; 1024 bytes reserved) |
+| 5216 | the household (up to 13 more Sims, `house.h`, format 'H6'; 2048 bytes reserved; 'H5' households load too) |
 | 8192 | **twelve** room slots of 2048 bytes (to the end of SRAM) |
 
 The full map, with the compile-time checks that keep the blocks from overlapping, is at the top of `source/slots.h`.

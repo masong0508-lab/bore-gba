@@ -35,7 +35,7 @@
 //     4992   .. 5007    active slot (SLOT_DIR)        5008 .. 5023   life stage (AGE_OFF)
 //     5024   .. 5055    persona (PERS_OFF)            5056 .. 5135   jukebox (JB_OFF)
 //     5136   .. 5199    the life (SIM_OFF)            5200 .. 5215   SAVE MEMORY TEST (SRAM_TEST)
-//     5216   .. 6100    the household (SL_HH_OFF; 1024 bytes are reserved)
+//     5216   .. 7263    the household (SL_HH_OFF; SL_HH_LEN = 2048 bytes are reserved; it used to be 1024)
 //     8192   .. 32767   SLOT_N room slots of SLOT_SZ bytes (twelve; layout 1 had six, from 20480, and its small blocks in between)
 // Layout 1 saves are carried over the first time the game starts (slMigrate): the old six slots keep their bytes and become slots 7 to 12.
 #define SLOT_BASE  8192
@@ -46,7 +46,8 @@
 #define SLOT_DIR   4992       // 'S' 'D' active-slot checksum   (4 bytes, 16 reserved)
 #define SRAM_TEST  5200       // 16 spare bytes the SAVE TEST in the options writes to
 #define SL_HH_OFF  5216       // the household block (house.h); SL_MIG_HH bytes are reserved for it
-#define SL_MIG_HH  1024
+#define SL_MIG_HH  1024       // what the layout 1 -> 2 upgrade copies (old households fit in it)
+#define SL_HH_LEN  2048       // what the household block may use now (5216..7263; nothing else lives up to SLOT_BASE)
 #define SL_MIG_TAG 4808
 #define SL_OLD_BASE 20480     // layout 1: the six slots started here
 #define SL_OLD_N    6
@@ -55,7 +56,7 @@ _Static_assert(SLOT_BASE+SLOT_N*SLOT_SZ<=32768,"the slots do not fit in 32 KB of
 _Static_assert(SL_OLD_BASE==SLOT_BASE+SL_OLD_N*SLOT_SZ,"the layout 1 slots must land on whole slots of the new bank");
 _Static_assert(3+MSZ*3<=SL_MIG_TAG,"the room being played must end before the layout marker");
 _Static_assert(SL_MIG_TAG+3<=SET_OFF&&SET_OFF+16<=OPT_OFF&&OPT_OFF+3+XO_N+1<=SLOT_DIR&&SLOT_DIR+4<=AGE_OFF&&AGE_OFF+5<=PERS_OFF,"the small SRAM blocks overlap (1)");
-_Static_assert(PERS_OFF+PERS_LEN<=JB_OFF&&JB_OFF+5+JB_MAX<=SIM_OFF&&SIM_OFF+SIM_BLOCK<=SRAM_TEST&&SRAM_TEST+16<=SL_HH_OFF&&SL_HH_OFF+SL_MIG_HH<=SLOT_BASE,"the small SRAM blocks overlap (2)");
+_Static_assert(PERS_OFF+PERS_LEN<=JB_OFF&&JB_OFF+5+JB_MAX<=SIM_OFF&&SIM_OFF+SIM_BLOCK<=SRAM_TEST&&SRAM_TEST+16<=SL_HH_OFF&&SL_HH_OFF+SL_HH_LEN<=SLOT_BASE&&SL_MIG_HH<=SL_HH_LEN,"the small SRAM blocks overlap (2)");
 _Static_assert(NWALL<=255&&NFL<=255,"a run stores the floor and the wallpaper in a byte each");
 
 enum { SLK_ROOM=0, SLK_HOUSE=1 };

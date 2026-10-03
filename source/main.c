@@ -1591,7 +1591,7 @@ static u16 keyNow(void){   // BUTTONS option: A/B and L/R can be swapped here, s
     if(b&2){ u16 l=k&K_L, r=k&K_R; k=(u16)((k&~(K_L|K_R))|(l?K_R:0)|(r?K_L:0)); }
     return k;
 }
-static void objHideAll(void){ for(int i=0;i<16;i++) ((volatile u16*)0x07000000)[i*4]=0x200; }   // household sprites off (menus, other screens)
+static void objHideAll(void){ for(int i=0;i<32;i++) ((volatile u16*)0x07000000)[i*4]=0x200; }   // household sprites off (menus, other screens)
 static void box(int x,int y,int w,int h){ objHideAll(); rect(x-1,y-1,w+2,h+2,GOLD); rect(x,y,w,h,RGB(3,4,7)); }
 static int menu(const char*title,const char*const*it,int n){   // UP/DOWN + A to choose, B or START to cancel (returns -1)
     int sel=0, w=116, h=26+n*10, x=(SW-w)/2, y=(SH-h)/2; u16 prev=keyNow();
@@ -2777,7 +2777,7 @@ static void famAdd(void){
     if(custom){ toast("BLOCK-BUILT BODIES STAY YOURS"); return; }
     hhLoad(); int m=hhAdd(look,stage,pAsp,pLtw,pTr);
     if(m<0){ toast("THE HOUSE IS FULL"); return; }
-    hhSave(); static char t[28]; char*e=simCat(t,hhM[m].name); e=simCat(e," JOINS  "); e=simCatN(e,hhN+1); simCat(e," OF 10"); toast(t);
+    hhSave(); static char t[28]; char*e=simCat(t,hhM[m].name); e=simCat(e," JOINS  "); e=simCatN(e,hhN+1); e=simCat(e," OF "); simCatN(e,HH_MAX+1); toast(t);
 }
 static void famMenu(void){
     hhLoad(); if(!hhN){ toast("ONLY YOU SO FAR"); return; }

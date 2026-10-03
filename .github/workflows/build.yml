@@ -17,6 +17,7 @@ jobs:
           export DEVKITARM=/opt/devkitpro/devkitARM
           export PATH=$DEVKITARM/bin:$DEVKITPRO/tools/bin:$PATH
           make
+          make size
       - uses: actions/upload-artifact@v4
         with:
           name: bore-gba

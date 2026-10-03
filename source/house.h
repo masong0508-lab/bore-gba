@@ -1,4 +1,4 @@
-// house.h - BORE households: up to 8 Sims living together. You control one (the player, main.c's life globals); the others look after
+// house.h - BORE households: up to 14 Sims living together. You control one (the player, main.c's life globals); the others look after
 // themselves with FREE WILL. SELECT (tap) in the life game switches who you control.
 // Include AFTER faceView / rotPos / tileH / lifeMap / bakeSprites / blit / menu / toast and BEFORE drawRoomRect.
 //
@@ -13,11 +13,13 @@
 //  FAMILIES  premade households (original characters) move in from the pause menu (HOUSEHOLD). Saved in SRAM at HH_OFF.
 //
 // TUNING
-#define HH_MAX     9       // members besides the player (10 Sims in all: each is its own hardware sprite, OAM 0..8, 1 KB of OBJ VRAM each)
+#define HH_MAX     13      // members besides the player (14 Sims in all). Only the Sims on screen hold a hardware sprite (OBJ slots, below), so this is
+                           // limited by EWRAM (about 5.8 KB a member) and the SRAM household block, not by sprites
 #define HH_THINK   90      // steps between a member's decisions (FREE WILL HIGH; LOW thinks half as often and lets needs sink lower)
 #define HH_PATH    96      // longest path a member remembers (steps between tiles)
 #define HH_USE     240     // steps a member spends using a piece of furniture
 #define HH_OFF     SL_HH_OFF   // SRAM: the household (slots.h keeps the map of SRAM)
+#define HH_MAXOLD  9           // households saved before 'H6' kept their relationships for 10 uids
 enum { HA_IDLE, HA_WALK, HA_USE, HA_WANDER, HA_SEEK, HA_SOC, HA_LEAVE, HA_AWAY };   // SEEK: walking to someone to talk to; SOC: in a conversation; LEAVE: off to work or school; AWAY: off the lot
 enum { HN_FOOD, HN_WC, HN_REST, HN_CLEAN, HN_COMFY, HN_FUN, HN_SOC, HN_N };
 static const char hnFurn[HN_N]={'F','T','S','H','C',0,0};   // what each need's furniture is (FUN: skate about; SOCIAL: find someone)
@@ -48,19 +50,33 @@ static u8 hhBubT; static const char* hhBubTxt;   // the word over your head duri
 #define OBJ_VRAM ((volatile u16*)0x06014000)   // OBJ tiles 512.. in the bitmap modes
 #define OBJ_PAL  ((volatile u16*)0x05000200)
 #define OAM      ((volatile u16*)0x07000000)
-static u8 hhObj[HH_MAX][4][1024] EWRAM_BSS;    // 4 views x 32x64 x 4bpp, tiles in 1D order
+#define OBJ_B 768                                // one view: 32 wide x 48 high (tile rows 0..5; the bake is 44 high) x 4bpp = 24 tiles, in 1D order
+static u8 hhObj[HH_MAX][4][OBJ_B] EWRAM_BSS;    // 4 views
 #define STR_B0 128                               // the stride frame: tile rows 1..5 of each view (bytes 128..767), the rest is as standing
 #define STR_BN 640
 static u8 hhObjS[HH_MAX][4][STR_BN] EWRAM_BSS;
 #define TW_N 2                                   // passers-by (townies): OAM, OBJ VRAM and palettes after the members'
-static u8 twObj[TW_N][4][1024] EWRAM_BSS, twObjS[TW_N][4][STR_BN] EWRAM_BSS; static u16 twPal[TW_N][16]; static signed char twObjV[TW_N];
+static u8 twObj[TW_N][4][OBJ_B] EWRAM_BSS, twObjS[TW_N][4][STR_BN] EWRAM_BSS; static u16 twPal[TW_N][16];
 static u16 hhPal[HH_MAX][16];                  // a palette per member (index 0 = clear)
 static u16 hhTmp[4][SPW*SPH] EWRAM_BSS;        // a 16-bit bake (one Sim) on its way to 4bpp, or back
-static signed char hhObjV[HH_MAX];             // the view in OBJ VRAM for each member (-1 = must copy)
 static u16 hhDist[MH*MW] EWRAM_BSS;
 #define hhQ bfsQ   // (main.c's shared search queue)   // BFS scratch, shared (one member plans per step)
 static int hhPlanNext;   // round robin: whose turn it is to plan
 static const signed char hhDx[4]={1,0,-1,0}, hhDy[4]={0,1,0,-1};
+
+// ---- OBJ slots: a Sim only holds sprite memory, an OAM entry pair and a palette while it is on screen ----
+// OBJ VRAM is 16 KB in the bitmap modes and there are 16 OBJ palettes, so there are 16 slots: slot s = tiles 512+24*s.. (24 tiles, the 32x48 a Sim
+// really uses) and palette s. hhObjUpdate hands slots to the Sims in view (nearest the middle of the screen first) and takes them back when a Sim
+// walks off, goes to work or school, or a passer-by leaves the map. Ids: members 0..HH_MAX-1, then the passers-by.
+#define OBJ_SLOTS 16
+#define HH_IDS    (HH_MAX+TW_N)
+#define UP_BUDGET 5                             // fresh sprite uploads per vblank (a full one is ~700 halfword writes); the rest wait a frame
+static signed char hhSlotOf[HH_IDS], hhSlotId[OBJ_SLOTS], hhSlotKey[OBJ_SLOTS];   // id -> slot, slot -> id, view*2+frame in the slot (-1: tiles not loaded)
+static u8 hhSlotOk;
+static void hhSlotsFree(void){ for(int i=0;i<HH_IDS;i++) hhSlotOf[i]=-1; for(int s=0;s<OBJ_SLOTS;s++){ hhSlotId[s]=-1; hhSlotKey[s]=-1; } hhSlotOk=1; }   // after anything that changes the baked sprites or who is who
+static inline const u8* hhTiles(int id,int v){ return id<HH_MAX?hhObj[id][v]:twObj[id-HH_MAX][v]; }
+static inline const u8* hhStrideB(int id,int v){ return id<HH_MAX?hhObjS[id][v]:twObjS[id-HH_MAX][v]; }
+static inline const u16* hhPalOf(int id){ return id<HH_MAX?hhPal[id]:twPal[id-HH_MAX]; }
 
 // ---- premade families (original characters) ----
 typedef struct { const char* name; u8 look[LK_TAIL]; u8 stage, asp, sign; } HhPre;   // looks without Spore parts; traits come from a sign
@@ -81,7 +97,7 @@ static const HhFam hhFams[]={
 #define HH_NFAM ((int)(sizeof(hhFams)/sizeof(hhFams[0])))
 
 // ---- 16-bit sprite <-> 15 colours + clear, 4bpp tiles ----
-static void hhQuant(u16 (*src)[SPW*SPH],u8 (*dst)[1024],u16*pal){
+static void hhQuant(u16 (*src)[SPW*SPH],u8 (*dst)[OBJ_B],u16*pal){
     static u16 col[256] EWRAM_BSS; static u32 cnt[256] EWRAM_BSS; int n=0;
     for(int v=0;v<4;v++)for(int i=0;i<SPW*SPH;i++){ u16 c=src[v][i]; if(c==SKY) continue; int k=0; while(k<n&&col[k]!=c) k++;
         if(k==n){ if(n==256) continue; col[n]=c; cnt[n]=0; n++; } cnt[k]++; }
@@ -95,7 +111,7 @@ static void hhQuant(u16 (*src)[SPW*SPH],u8 (*dst)[1024],u16*pal){
         cnt[ba]=w; col[bb]=col[n-1]; cnt[bb]=cnt[n-1]; n--; }
     pal[0]=0; for(int k=0;k<15;k++) pal[k+1]=k<n?col[k]:0;
     for(int v=0;v<4;v++){
-        for(int i=0;i<1024;i++) dst[v][i]=0;
+        for(int i=0;i<OBJ_B;i++) dst[v][i]=0;
         for(int y=0;y<SPH;y++)for(int x=0;x<SPW;x++){ u16 c=src[v][y*SPW+x]; if(c==SKY) continue;
             int best=1, bd=1<<30; for(int k=0;k<n;k++){ int dr=(c&31)-(col[k]&31), dg=((c>>5)&31)-((col[k]>>5)&31), db=((c>>10)&31)-((col[k]>>10)&31), d=dr*dr*3+dg*dg*4+db*db*2; if(d<bd){ bd=d; best=k+1; if(!d) break; } }
             int t=(y>>3)*4+(x>>3), o=t*32+(y&7)*4+((x&7)>>1); dst[v][o]|=(u8)(best<<((x&1)*4)); }
@@ -112,7 +128,7 @@ static void hhQuantS(u16 (*src)[SPW*SPH],u8 (*dst)[STR_BN],const u16*pal){   // 
 static void hhUnquantS(u8 (*src)[STR_BN],const u16*pal,u16 (*dst)[SPW*SPH]){   // a stride band back over a copy of the standing frame
     for(int v=0;v<4;v++)for(int y=STR_Y0;y<STR_Y1&&y<SPH;y++)for(int x=0;x<SPW;x++){ int t=(y>>3)*4+(x>>3), o=t*32+(y&7)*4+((x&7)>>1)-STR_B0, k=(src[v][o]>>((x&1)*4))&15; dst[v][y*SPW+x]=k?pal[k]:SKY; }
 }
-static void hhUnquant(u8 (*src)[1024],const u16*pal,u16 (*dst)[SPW*SPH]){   // back to 16-bit (when a member becomes the one you control)
+static void hhUnquant(u8 (*src)[OBJ_B],const u16*pal,u16 (*dst)[SPW*SPH]){   // back to 16-bit (when a member becomes the one you control)
     for(int v=0;v<4;v++)for(int y=0;y<SPH;y++)for(int x=0;x<SPW;x++){ int t=(y>>3)*4+(x>>3), o=t*32+(y&7)*4+((x&7)>>1), k=(src[v][o]>>((x&1)*4))&15; dst[v][y*SPW+x]=k?pal[k]:SKY; }
 }
 static void spBounds(void){   // the box that holds every opaque pixel of the player's four views (blits and redraw rectangles stay inside it)
@@ -136,12 +152,12 @@ static void hhBakeAll(void){
     for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ sv[y][z][x]=vox[y][z][x]; sd[y][z][x]=dec[y][z][x]; }
     for(int m=0;m<hhN;m++){
         for(int i=0;i<LK_N;i++) look[i]=hhM[m].look[i]; stage=hhM[m].stage;
-        buildLook(); setColors(); bakeInto(hhTmp); hhQuant(hhTmp,hhObj[m],hhPal[m]); hhObjV[m]=-1;
+        buildLook(); setColors(); bakeInto(hhTmp); hhQuant(hhTmp,hhObj[m],hhPal[m]);
         strideK=1; bakeInto(hhTmp); strideK=0; hhQuantS(hhTmp,hhObjS[m],hhPal[m]);
     }
     for(int k=0;k<TW_N;k++){   // two passers-by with made-up looks (new ones every time the life game starts)
         u8 st; hhRandLook(look,&st); stage=st; fixLook();
-        buildLook(); setColors(); bakeInto(hhTmp); hhQuant(hhTmp,twObj[k],twPal[k]); twObjV[k]=-1;
+        buildLook(); setColors(); bakeInto(hhTmp); hhQuant(hhTmp,twObj[k],twPal[k]);
         strideK=1; bakeInto(hhTmp); strideK=0; hhQuantS(hhTmp,twObjS[k],twPal[k]);
     }
     for(int i=0;i<LK_N;i++) look[i]=sl[i]; stage=sst;
@@ -149,8 +165,7 @@ static void hhBakeAll(void){
     custom=sc; setColors();
     bakeInto(spr4);   // the player (still drawn by the CPU, so walls and furniture in front cover it and the action cam can zoom it)
     strideK=1; bakeInto(spr4s); strideK=0; spBounds();   // the blit box holds both frames
-    for(int m=0;m<hhN;m++) for(int i=0;i<16;i++) OBJ_PAL[m*16+i]=hhPal[m][i];
-    for(int k=0;k<TW_N;k++) for(int i=0;i<16;i++) OBJ_PAL[(HH_MAX+k)*16+i]=twPal[k][i];
+    hhSlotsFree();   // new tiles and palettes: every slot is reloaded when its Sim is next on screen
 }
 // ---- where members can stand ----
 static int hhWalk(int x,int y){ if(x<0||y<0||x>=MW||y>=MH) return 0; char c=lifeMap[y][x]; return c!='w'&&c!='W'&&tileH(x,y)<=3; }
@@ -178,13 +193,13 @@ static int hhAdd(const u8*lk,int stg,int asp,int ltw,const u8*tr){   // a new me
     hhPlace(s,0);
     int a=s->uid;                                       // family: they know and like everyone at home already
     for(int u=0;u<HU_N;u++){ if(u==a) continue; relD[a][u]=relD[u][a]=40; relL[a][u]=relL[u][a]=50; relF[a][u]=relF[u][a]=0; }
-    hhObjV[hhN]=-1; return hhN++;
+    return hhN++;
 }
 static void hhRemove(int m){   // moves out: their sprites and relationships go with them
     if(m<0||m>=hhN) return;
     int a=hhM[m].uid; for(int u=0;u<HU_N;u++){ relD[a][u]=relD[u][a]=0; relL[a][u]=relL[u][a]=0; relF[a][u]=relF[u][a]=0; }
-    for(int k=m;k<hhN-1;k++){ hhM[k]=hhM[k+1]; for(int v=0;v<4;v++){ for(int i=0;i<1024;i++) hhObj[k][v][i]=hhObj[k+1][v][i]; for(int i=0;i<STR_BN;i++) hhObjS[k][v][i]=hhObjS[k+1][v][i]; } for(int i=0;i<16;i++) hhPal[k][i]=hhPal[k+1][i]; hhObjV[k]=-1; }
-    hhN--; for(int k=0;k<hhN;k++) for(int i=0;i<16;i++) OBJ_PAL[k*16+i]=hhPal[k][i];
+    for(int k=m;k<hhN-1;k++){ hhM[k]=hhM[k+1]; for(int v=0;v<4;v++){ for(int i=0;i<OBJ_B;i++) hhObj[k][v][i]=hhObj[k+1][v][i]; for(int i=0;i<STR_BN;i++) hhObjS[k][v][i]=hhObjS[k+1][v][i]; } for(int i=0;i<16;i++) hhPal[k][i]=hhPal[k+1][i]; }
+    hhN--; hhSlotsFree();
 }
 static void hhNew(HhSim*s,const HhPre*p){
     s->uid=(u8)hhFreeUid(); s->bubT=0;
@@ -289,7 +304,7 @@ static void twTick(int*planned){
             int a=hhEx[rnd8()%hhExN], b=hhEx[rnd8()%hhExN], ax=a%MW, ay=a/MW, bx=b%MW, by=b/MW;
             if((ax-bx)*(ax-bx)+(ay-by)*(ay-by)<100){ twWait[k]=30; continue; }   // somewhere worth walking to
             s->fx=ax*256+128; s->fy=ay*256+128; s->stage=AG_ADULT; hhGX=bx; hhGY=by; *planned=1;
-            if(hhPlan(s,1)>1){ twOn[k]=1; twObjV[k]=-1; } else twWait[k]=120;
+            if(hhPlan(s,1)>1){ twOn[k]=1; } else twWait[k]=120;
             continue;
         }
         if(s->pi>=s->pn){ twOn[k]=0; twWait[k]=(short)(600+(rnd8()<<4)); continue; }   // off the map: someone else comes by in a while
@@ -578,34 +593,64 @@ static int hhBehindAt(s32 fx,s32 fy){   // is a full-height wall in front of thi
         return 1; }
     return 0;
 }
-static void hhObjUpdate(void){   // in vblank: the members' sprites (OAM 0..6), their current view in OBJ VRAM, the window that clips them
+typedef struct { const HhSim*s; short x,y; int dd,dep; u8 id,key; } HhOv;   // a Sim in view: where its sprite goes, how far from the middle, how far back
+static void hhObjUpdate(void){   // in vblank: hand out OBJ slots, load what changed into OBJ VRAM, write OAM (a Sim is two entries: 32x32 over 32x16), set the window that clips them
+    volatile u16*oam=OAM; int i, nOam=0;
     *(volatile u16*)0x04000040=240; *(volatile u16*)0x04000044=(u16)((vpY0<<8)|vpY1);   // WIN0: the room view
     *(volatile u16*)0x04000048=0x34; *(volatile u16*)0x0400004A=0x04;                   // inside: BG2 + sprites + blend; outside: BG2 only
     *(volatile u16*)0x04000050=0x0400; *(volatile u16*)0x04000052=(6<<8)|10;            // see-through sprites blend 10/16 over the picture
-    for(int m=0;m<HH_MAX;m++){
-        volatile u16*o=OAM+m*4;
-        if(m>=hhN||lcamF>0||hhM[m].act==HA_AWAY){ o[0]=0x200; continue; }
-        int x=hhX[m]-16, y=hhY[m]-40-hhH[m];
-        if(x+32<=0||x>=SW||y+SPH<=vpY0||y>=vpY1){ o[0]=0x200; continue; }
-        { const HhSim*sm=&hhM[m]; int walk=(sm->act==HA_WALK||sm->act==HA_WANDER||sm->act==HA_SEEK||sm->act==HA_LEAVE)&&sm->pi<sm->pn;
-          int f=walk?((lfr+m*5)>>3)&1:0, key=hhV[m]*2+f;   // walking: standing / mid-stride, every 8 frames (each Sim a little out of step)
-          if(hhObjV[m]!=key){ int ov=hhObjV[m]; hhObjV[m]=(signed char)key; volatile u16*d=OBJ_VRAM+m*512;
-              if(ov<0||(ov>>1)!=hhV[m]){ const u16*s=(const u16*)hhObj[m][hhV[m]]; for(int i=0;i<512;i++) d[i]=s[i]; }
-              const u16*s=f?(const u16*)hhObjS[m][hhV[m]]:(const u16*)(hhObj[m][hhV[m]]+STR_B0); for(int i=0;i<STR_BN/2;i++) d[STR_B0/2+i]=s[i]; } }
-        o[0]=(u16)((y&255)|(hhBehindAt(hhM[m].fx,hhM[m].fy)?0x400:0)|0x8000); o[1]=(u16)((x&511)|0xC000); o[2]=(u16)((512+m*32)|(m<<12));
+    if(!hhSlotOk) hhSlotsFree();
+    if(lcamF>0){ for(i=0;i<2*OBJ_SLOTS;i++) oam[i*4]=0x200; return; }   // the action cam: all off, the slots stay as they are
+    // 1. who is in view
+    HhOv w[HH_IDS]; int n=0, cx=SW/2, cy=(vpY0+vpY1)/2; u8 vis[HH_IDS]; int ddOf[HH_IDS];
+    for(i=0;i<HH_IDS;i++) vis[i]=0;
+    for(int id=0;id<HH_IDS;id++){
+        const HhSim*s; int x,y,v,f,dep;
+        if(id<HH_MAX){
+            if(id>=hhN||hhM[id].act==HA_AWAY) continue;
+            s=&hhM[id]; x=hhX[id]-16; y=hhY[id]-40-hhH[id]; v=hhV[id]; dep=hhB[id];
+            int walk=(s->act==HA_WALK||s->act==HA_WANDER||s->act==HA_SEEK||s->act==HA_LEAVE)&&s->pi<s->pn;
+            f=walk?((lfr+id*5)>>3)&1:0;   // walking: standing / mid-stride, every 8 frames (each Sim a little out of step)
+        } else {
+            int k=id-HH_MAX; if(!twOn[k]) continue;
+            s=&hhTw[k]; s32 rx,ry; rotPos(s->fx,s->fy,&rx,&ry); v=faceView[(s->hd+4*cview)&15]; dep=(int)((rx>>8)+(ry>>8));
+            x=LOX+(int)((rx-ry)>>5)-16; y=LOY+(int)((rx+ry)>>6)-40-surfH(s->fx,s->fy);
+            f=((lfr+k*3)>>3)&1;   // passers-by are always walking
+        }
+        if(x+32<=0||x>=SW||y+SPH<=vpY0||y>=vpY1) continue;
+        HhOv*o=&w[n++]; o->s=s; o->x=(short)x; o->y=(short)y; o->id=(u8)id; o->key=(u8)(v*2+f); o->dep=dep;
+        int dx=x+16-cx, dy=y+40-cy; o->dd=(dx<0?-dx:dx)+(dy<0?-dy:dy); ddOf[id]=o->dd; vis[id]=1;
     }
-    for(int k=0;k<TW_N;k++){   // the passers-by: OAM, OBJ VRAM and palette right after the members'
-        int j=HH_MAX+k; volatile u16*o=OAM+j*4; const HhSim*s=&hhTw[k];
-        if(!twOn[k]||lcamF>0){ o[0]=0x200; continue; }
-        s32 rx,ry; rotPos(s->fx,s->fy,&rx,&ry); int v=faceView[(s->hd+4*cview)&15];
-        int x=LOX+(int)((rx-ry)>>5)-16, y=LOY+(int)((rx+ry)>>6)-40-surfH(s->fx,s->fy);
-        if(x+32<=0||x>=SW||y+SPH<=vpY0||y>=vpY1){ o[0]=0x200; continue; }
-        { int f=((lfr+k*3)>>3)&1, key=v*2+f;   // passers-by are always walking
-          if(twObjV[k]!=key){ int ov=twObjV[k]; twObjV[k]=(signed char)key; volatile u16*d=OBJ_VRAM+j*512;
-              if(ov<0||(ov>>1)!=v){ const u16*sp=(const u16*)twObj[k][v]; for(int i=0;i<512;i++) d[i]=sp[i]; }
-              const u16*sp=f?(const u16*)twObjS[k][v]:(const u16*)(twObj[k][v]+STR_B0); for(int i=0;i<STR_BN/2;i++) d[STR_B0/2+i]=sp[i]; } }
-        o[0]=(u16)((y&255)|(hhBehindAt(s->fx,s->fy)?0x400:0)|0x8000); o[1]=(u16)((x&511)|0xC000); o[2]=(u16)((512+j*32)|(j<<12));
+    // 2. slots: free the ones whose Sim left the view, then give the nearest newcomers a slot (if the view holds more Sims than slots, the farthest wait)
+    for(int sl=0;sl<OBJ_SLOTS;sl++){ int id=hhSlotId[sl]; if(id>=0&&!vis[id]){ hhSlotOf[id]=-1; hhSlotId[sl]=-1; hhSlotKey[sl]=-1; } }
+    for(i=1;i<n;i++){ HhOv t=w[i]; int j=i; while(j>0&&w[j-1].dd>t.dd){ w[j]=w[j-1]; j--; } w[j]=t; }   // nearest first (insertion sort, n <= 16)
+    for(i=0;i<n;i++){ int id=w[i].id; if(hhSlotOf[id]>=0) continue;
+        int sl=-1; for(int t=0;t<OBJ_SLOTS;t++) if(hhSlotId[t]<0){ sl=t; break; }
+        if(sl<0){ int fd=w[i].dd+24; for(int t=0;t<OBJ_SLOTS;t++){ int o=hhSlotId[t]; if(ddOf[o]>fd){ fd=ddOf[o]; sl=t; } }   // steal from the farthest, but only if it is clearly farther (no ping-pong)
+                  if(sl<0) continue; hhSlotOf[hhSlotId[sl]]=-1; }
+        hhSlotId[sl]=id; hhSlotOf[id]=(signed char)sl; hhSlotKey[sl]=-1;
+        const u16*pl=hhPalOf(id); for(int c=0;c<16;c++) OBJ_PAL[sl*16+c]=pl[c];
     }
+    // 3. depth order: the Sim nearest the camera gets the lowest OAM entry, so it is drawn over the ones behind it
+    int ord[HH_IDS], no=0;
+    for(i=0;i<n;i++) if(hhSlotOf[w[i].id]>=0) ord[no++]=i;
+    for(i=1;i<no;i++){ int t=ord[i], j=i; while(j>0&&w[ord[j-1]].dep<w[t].dep){ ord[j]=ord[j-1]; j--; } ord[j]=t; }
+    // 4. load what changed (a few fresh sprites per frame at most) and write OAM
+    int budget=UP_BUDGET;
+    for(int r=0;r<no;r++){ const HhOv*o=&w[ord[r]]; int id=o->id, sl=hhSlotOf[id], v=o->key>>1, f=o->key&1, key=o->key;
+        if(hhSlotKey[sl]!=key){
+            int ov=hhSlotKey[sl], full=ov<0||(ov>>1)!=v;
+            if(full&&budget<=0){ if(ov<0) continue; }   // no time left: a new sprite appears next frame, one that only turned keeps its old view for a frame or two
+            else { if(full) budget--;
+                volatile u16*d=OBJ_VRAM+sl*(OBJ_B/2); hhSlotKey[sl]=(signed char)key;
+                if(full){ const u16*sp=(const u16*)hhTiles(id,v); for(int k=0;k<OBJ_B/2;k++) d[k]=sp[k]; }
+                const u16*sp=f?(const u16*)hhStrideB(id,v):(const u16*)(hhTiles(id,v)+STR_B0); for(int k=0;k<STR_BN/2;k++) d[STR_B0/2+k]=sp[k]; } }
+        volatile u16*e=oam+nOam*4; int tile=512+sl*24, y=o->y, x=o->x, blend=hhBehindAt(o->s->fx,o->s->fy)?0x400:0;
+        e[0]=(u16)((y&255)|blend);         e[1]=(u16)((x&511)|0x8000); e[2]=(u16)(tile|(sl<<12));          // 32x32: tile rows 0..3
+        e[4]=(u16)(((y+32)&255)|blend|0x4000); e[5]=(u16)((x&511)|0x8000); e[6]=(u16)((tile+16)|(sl<<12)); // 32x16: tile rows 4..5
+        nOam+=2;
+    }
+    for(i=nOam;i<2*OBJ_SLOTS;i++) oam[i*4]=0x200;   // everything else off
 }
 static HhR hhOld[HH_MAX]; static unsigned hhOldSig[HH_MAX];
 static void hhSave(void);
@@ -620,34 +665,35 @@ static void hhInvite(void){   // a made-up Sim moves in (pause menu > HOUSEHOLD,
 
 static void hhLoad(void);
 static void hhStart(void){   // entering the life game: load the household and stand everyone somewhere free
-    hhLoad(); hhFindExits(); for(int k=0;k<TW_N;k++){ twOn[k]=0; twWait[k]=(short)(240+k*700); }
+    hhLoad(); hhSlotsFree(); hhFindExits(); for(int k=0;k<TW_N;k++){ twOn[k]=0; twWait[k]=(short)(240+k*700); }
     for(int m=0;m<hhN;m++){ hhPlace(&hhM[m],m); hhOld[m].x0=hhOld[m].x1=0; hhOldSig[m]=0xFFFFFFFFu; }
 }
 // ---- switching who you control ----
 static void hhSwap(HhSim*s);   // main.c: trades the player's position, needs, look and persona with s
 static void hhSwitch(void){
     if(!hhN) return;
+    static u8 ob[4][OBJ_B] EWRAM_BSS, obs[4][STR_BN] EWRAM_BSS;   // one buffer pair for the whole switch (the rotation below and the player's sprite after it never overlap)
     int f=0; while(f<hhN&&hhM[f].act==HA_AWAY) f++;
     if(f>=hhN){ lnote="EVERYONE IS OUT"; lnoteT=90; return; }
     while(f-->0){   // the ones at work or school go to the back of the line (with their sprites)
-        HhSim t=hhM[0]; static u8 o1[4][1024] EWRAM_BSS, o1s[4][STR_BN] EWRAM_BSS; u16 p1[16];
-        for(int v=0;v<4;v++){ for(int i=0;i<1024;i++) o1[v][i]=hhObj[0][v][i]; for(int i=0;i<STR_BN;i++) o1s[v][i]=hhObjS[0][v][i]; } for(int i=0;i<16;i++) p1[i]=hhPal[0][i];
-        for(int m=0;m<hhN-1;m++){ hhM[m]=hhM[m+1]; for(int v=0;v<4;v++){ for(int i=0;i<1024;i++) hhObj[m][v][i]=hhObj[m+1][v][i]; for(int i=0;i<STR_BN;i++) hhObjS[m][v][i]=hhObjS[m+1][v][i]; } for(int i=0;i<16;i++) hhPal[m][i]=hhPal[m+1][i]; }
-        hhM[hhN-1]=t; for(int v=0;v<4;v++){ for(int i=0;i<1024;i++) hhObj[hhN-1][v][i]=o1[v][i]; for(int i=0;i<STR_BN;i++) hhObjS[hhN-1][v][i]=o1s[v][i]; } for(int i=0;i<16;i++) hhPal[hhN-1][i]=p1[i];
+        HhSim t=hhM[0]; u16 p1[16];
+        for(int v=0;v<4;v++){ for(int i=0;i<OBJ_B;i++) ob[v][i]=hhObj[0][v][i]; for(int i=0;i<STR_BN;i++) obs[v][i]=hhObjS[0][v][i]; } for(int i=0;i<16;i++) p1[i]=hhPal[0][i];
+        for(int m=0;m<hhN-1;m++){ hhM[m]=hhM[m+1]; for(int v=0;v<4;v++){ for(int i=0;i<OBJ_B;i++) hhObj[m][v][i]=hhObj[m+1][v][i]; for(int i=0;i<STR_BN;i++) hhObjS[m][v][i]=hhObjS[m+1][v][i]; } for(int i=0;i<16;i++) hhPal[m][i]=hhPal[m+1][i]; }
+        hhM[hhN-1]=t; for(int v=0;v<4;v++){ for(int i=0;i<OBJ_B;i++) hhObj[hhN-1][v][i]=ob[v][i]; for(int i=0;i<STR_BN;i++) hhObjS[hhN-1][v][i]=obs[v][i]; } for(int i=0;i<16;i++) hhPal[hhN-1][i]=p1[i];
     }
     HhSim t=hhM[0]; for(int m=0;m<hhN-1;m++) hhM[m]=hhM[m+1];   // the player goes to the back of the line, the first member steps in
     hhSwap(&t); hhM[hhN-1]=t;
-    static u8 ob[4][1024] EWRAM_BSS, obs[4][STR_BN] EWRAM_BSS; u16 pl[16];
+    u16 pl[16];
     hhUnquant(hhObj[0],hhPal[0],hhTmp);   // the member you take over: back to a full 16-bit sprite
     hhQuant(spr4,ob,pl);                   // the one you leave: down to a hardware sprite
     hhQuantS(spr4s,obs,pl);
     for(int v=0;v<4;v++)for(int i=0;i<SPW*SPH;i++) spr4s[v][i]=hhTmp[v][i];
     hhUnquantS(hhObjS[0],hhPal[0],spr4s);
-    for(int m=0;m<hhN-1;m++){ for(int v=0;v<4;v++){ for(int i=0;i<1024;i++) hhObj[m][v][i]=hhObj[m+1][v][i]; for(int i=0;i<STR_BN;i++) hhObjS[m][v][i]=hhObjS[m+1][v][i]; } for(int i=0;i<16;i++) hhPal[m][i]=hhPal[m+1][i]; }
-    for(int v=0;v<4;v++){ for(int i=0;i<1024;i++) hhObj[hhN-1][v][i]=ob[v][i]; for(int i=0;i<STR_BN;i++) hhObjS[hhN-1][v][i]=obs[v][i]; } for(int i=0;i<16;i++) hhPal[hhN-1][i]=pl[i];
+    for(int m=0;m<hhN-1;m++){ for(int v=0;v<4;v++){ for(int i=0;i<OBJ_B;i++) hhObj[m][v][i]=hhObj[m+1][v][i]; for(int i=0;i<STR_BN;i++) hhObjS[m][v][i]=hhObjS[m+1][v][i]; } for(int i=0;i<16;i++) hhPal[m][i]=hhPal[m+1][i]; }
+    for(int v=0;v<4;v++){ for(int i=0;i<OBJ_B;i++) hhObj[hhN-1][v][i]=ob[v][i]; for(int i=0;i<STR_BN;i++) hhObjS[hhN-1][v][i]=obs[v][i]; } for(int i=0;i<16;i++) hhPal[hhN-1][i]=pl[i];
     for(int v=0;v<4;v++)for(int i=0;i<SPW*SPH;i++) spr4[v][i]=hhTmp[v][i];
     spBounds();
-    for(int m=0;m<hhN;m++){ hhObjV[m]=-1; for(int i=0;i<16;i++) OBJ_PAL[m*16+i]=hhPal[m][i]; }
+    hhSlotsFree();
 }
 
 // ---- saving (SRAM at HH_OFF): 'H' '2' count, your uid, then per member its look, stage, persona, name, needs and uid, then the
@@ -656,7 +702,7 @@ static void hhSwitch(void){
 #define HH_RELB (3*HU_N*HU_N)
 static void hhSave(void){
     volatile u8*m=(volatile u8*)0x0E000000+HH_OFF; int k=3; u8 sum=0x48;
-    m[0]='H'; m[1]='5'; m[2]=(u8)hhN; m[k++]=(u8)hhPUid;
+    m[0]='H'; m[1]='6'; m[2]=(u8)hhN; m[k++]=(u8)hhPUid;
     for(int i=0;i<hhN;i++){ const HhSim*s=&hhM[i];
         for(int j=0;j<LK_N;j++) m[k++]=s->look[j]; m[k++]=s->stage; m[k++]=s->asp; m[k++]=s->ltw;
         for(int j=0;j<TR_N;j++) m[k++]=s->tr[j]; for(int j=0;j<10;j++) m[k++]=(u8)s->name[j]; for(int j=0;j<HN_N;j++) m[k++]=s->need[j]; m[k++]=s->uid; }
@@ -666,21 +712,22 @@ static void hhSave(void){
 }
 static void hhLoad(void){
     volatile u8*m=(volatile u8*)0x0E000000+HH_OFF; u8 sum=0x48; hhN=0;
-    if(m[0]!='H'||m[1]<'2'||m[1]>'5'||m[2]>HH_MAX) return;
-    int nl=m[1]=='5'?LK_N:m[1]=='4'?LK_N6:m[1]=='3'?LK_N5:LK_N4, rec=HH_REC-LK_N+nl;   // 'H2' households were saved before the hats and clothes, 'H3' before the face details and sliders
-    int n=m[2], k=4+n*rec+HH_RELB; for(int i=2;i<k;i++) sum+=m[i]; if(m[k]!=sum) return;
-    if(m[3]>=HU_N) return;
+    if(m[0]!='H'||m[1]<'2'||m[1]>'6'||m[2]>HH_MAX) return;
+    int old=m[1]<'6', hu=old?HH_MAXOLD+1:HU_N;   // before 'H6' the relationships were kept for 10 uids
+    int nl=m[1]>='5'?LK_N:m[1]=='4'?LK_N6:m[1]=='3'?LK_N5:LK_N4, rec=HH_REC-LK_N+nl;   // 'H2' households were saved before the hats and clothes, 'H3' before the face details and sliders
+    int n=m[2], k=4+n*rec+3*hu*hu; for(int i=2;i<k;i++) sum+=m[i]; if(m[k]!=sum) return;
+    if(m[3]>=hu) return;
     k=4; hhPUid=m[3];
     for(int i=0;i<n;i++){ HhSim*s=&hhM[i];
         for(int j=0;j<LK_N;j++) s->look[j]=j<nl?m[k++]:0; s->stage=m[k++]; s->asp=m[k++]; s->ltw=m[k++];
         for(int j=0;j<TR_N;j++) s->tr[j]=m[k++]; for(int j=0;j<10;j++) s->name[j]=(char)m[k++]; s->name[9]=0; for(int j=0;j<HN_N;j++) s->need[j]=m[k++]; s->uid=m[k++];
-        if(s->stage>=AG_N||s->asp>=AS_PICK||s->uid>=HU_N) return;
+        if(s->stage>=AG_N||s->asp>=AS_PICK||s->uid>=hu) return;
         s->act=HA_IDLE; s->think=(short)(rnd8()&63); s->hd=0; s->bubT=0; }
-    for(int a=0;a<HU_N;a++)for(int b=0;b<HU_N;b++){ relD[a][b]=(signed char)m[k++]; relL[a][b]=(signed char)m[k++]; relF[a][b]=m[k++]; }
+    for(int a=0;a<HU_N;a++)for(int b=0;b<HU_N;b++){ if(a<hu&&b<hu){ relD[a][b]=(signed char)m[k++]; relL[a][b]=(signed char)m[k++]; relF[a][b]=m[k++]; } else relD[a][b]=relL[a][b]=0, relF[a][b]=0; }
     hhN=n;
 }
 _Static_assert(HH_OFF+4+HH_MAX*HH_REC+HH_RELB+1<=SLOT_BASE,"the household must fit before the room slots");
-_Static_assert(4+HH_MAX*HH_REC+HH_RELB+1<=SL_MIG_HH,"the household is bigger than the block the layout upgrade copies");
+_Static_assert(4+HH_MAX*HH_REC+HH_RELB+1<=SL_HH_LEN,"the household is bigger than the SRAM block reserved for it");
 
 // ---- the pause menu's HOUSEHOLD screen ----
 static void hhMenu(void){
@@ -688,7 +735,7 @@ static void hhMenu(void){
     it[n++]="RELATIONSHIPS";
     for(int f=0;f<HH_NFAM;f++){ char*e=lb[n]; const char*p="MOVE IN "; while(*p) *e++=*p++; p=hhFams[f].fam; while(*p) *e++=*p++; *e=0; it[n]=lb[n]; n++; }
     it[n++]="MOVE EVERYONE OUT"; it[n++]="INVITE A NEW SIM"; it[n++]="MOVE SOMEONE OUT";
-    char t[24]; { char*e=t; const char*p="HOUSEHOLD  "; while(*p) *e++=*p++; e+=numStr(e,hhN+1); p=" OF 10"; while(*p) *e++=*p++; *e=0; }
+    char t[24]; { char*e=t; const char*p="HOUSEHOLD  "; while(*p) *e++=*p++; e+=numStr(e,hhN+1); p=" OF "; while(*p) *e++=*p++; e+=numStr(e,HH_MAX+1); *e=0; }
     int c=menu(t,it,n); if(c<0) return;
     if(c==0){ relScreen(); return; }
     c--;
