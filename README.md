@@ -265,10 +265,15 @@ Like the Spore creature editor, the body decides what the creature can do. Parts
 | TAIL | NONE, STUB, LONG (furry, hair colour) | LONG = **BALANCE**: spins land clean further off straight |
 | HORNS | NONE, NUBS, HORNS (ivory, out of the sides of the head) | HORNS = **CHARGE**: skating into a wall does not hurt |
 | BACK | NONE, SPIKES, WINGS | SPIKES = **ARMOUR** (falls and bails hurt 30% less), WINGS = **GLIDE** (hold R in the air to float down) |
+| HANDS | NONE, CLAWS (ivory talons), PINCERS (red claws) | both add GRIP; PINCERS = **CLAMP**: grinds score 2 more points every tick |
+| ANTENNAE | NONE, FEELERS (a bead on each, in the paint colour), EYE STALKS | FEELERS add STYLE; EYE STALKS = **SENSE**: every DNA reward is a quarter bigger |
+| PATTERN + PAINT | NONE, STRIPES, SPOTS, BELLY, TIGER, in hair, red, gold, white, black or bottom colour | body paint over the skin and shirt (never the face); any pattern adds STYLE |
+
+The PARTS tab scrolls: three rows show above the ability chart. Saved as person format 7 and household H5; older saves still load.
 
 Under the rows is the **ability chart**: SPEED, JUMP, GRIP, STYLE, STAMINA, 0 to 5 each (2 is normal). Shape, face, hair and parts move them (TALL is fast, BROAD tough, BIG HEAD stylish, bald is quick, wings help jumps but drag, a tail helps grip...). In play: SPEED +-5% top speed per point, JUMP +-6% ollie and hop, GRIP more grind points and faster rails, STYLE +-6% trick points, STAMINA -8% need drain per point. All of it is in `abOf()` / `abPow()` in `main.c`.
 
-**DNA.** Big parts (LONG tail 60, HORNS 60, SPIKES 40, WINGS 120) are locked until bought with DNA. You can still look at a locked part (red, with a padlock): A buys it, and it comes off again when you leave the creator if you did not. DNA is earned by living: a met want pays its points, a skill level 15, a promotion 25, a birthday 50, the lifetime want 200. The Konami code makes every part free.
+**DNA.** Big parts (LONG tail 60, HORNS 60, SPIKES 40, WINGS 120, CLAWS 30, PINCERS 90, EYE STALKS 70) are locked until bought with DNA. You can still look at a locked part (red, with a padlock): A buys it, and it comes off again when you leave the creator if you did not. DNA is earned by living: a met want pays its points, a skill level 15, a promotion 25, a birthday 50, the lifetime want 200. The Konami code makes every part free.
 
 ### Tab 6: ASPIRE (Sims 2 Create-A-Sim)
 - **ASPIRATION**: FORTUNE, KNOWLEDGE, POPULARITY, PLEASURE or HOME. Babies and children always aspire to **GROW UP**; the one you pick starts when the creature becomes a teen (the row says TEEN).
