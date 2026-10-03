@@ -5,7 +5,9 @@
 The notes are read straight out of the .caustic file (its pattern chunks SPAT and the song sequence SEQN, see read_caustic below):
 the organ's F# minor riff with its 64th-note chromatic runs (F# | C# | B | F#, the B-C# turn, the long 8-bar version and its
 doubled take, the chord fall), the modular lead (F# B A B A, the C# answer, the D-E climb) and its octave pumps (B C# | D E | A B).
-New, in the spirit of the Prodigy, Moby and Aphex Twin: 135 BPM breakbeats (an Amen-style break, a four-to-the-floor kick under it in
+Second take: less busy and more syncopated (hats only on the offbeats, organ stabs on the a of 1 and the and of 3, acid runs only at
+the ends of phrases, the IDM licks every other beat), with a soft string bed under the drops.
+New, in the spirit of the Prodigy, Moby and Aphex Twin: 135 BPM breakbeats (a sparse, syncopated two-step break, kicks off the beat in
 the drops), the organ riff as an ACID line (three 303 samples: closed, long and an open accented one, picked per note), a hoover,
 organ stabs, a Moby-style piano / strings / "ahh" breakdown on the pumps, and an Aphex-style drill'n'bass section: every beat of the
 break is cut up (pitched snare ratchets, kick 32nds, 64th hat rolls, gaps, reverse swells), with the lead's licks stuttered on a bell.
@@ -139,11 +141,13 @@ for k, (mp, ch) in enumerate(((0, ('F#m', 'F#m')), (1, ('C#m', 'C#m')), (4, ('D'
     U['BIG%d' % k] = (5, 128 * k, mp, 0, ch); U['DBL%d' % k] = (7, 128 * k, mp, 0, ch)
 
 # ---------------------------------------------------------------- one 2-bar pattern
-AMEN = [dict(K=(0, 2, 10, 11), S=(4, 12), G=(7, 9, 15)), dict(K=(0, 2, 10), S=(4, 14), G=(7, 9, 12))]   # 16th steps, per bar
+AMEN = [dict(K=(0, 10), S=(4, 12), G=(7,)), dict(K=(0, 6, 11), S=(4, 12), G=(15,))]   # 16th steps, per bar: a sparse two-step, the kicks off the beat
 def build(p, uidx):
     P = [[(0, 0, 0)] * NCH for _ in range(ROWS)]
+    fd = p.get('fade')                                                                    # (from, to): every volume eased down across the pattern
     def put(r, ch, key, midi=None, vol=64, note=None):
-        if 0 <= r < ROWS and vol > 0:
+        if fd: vol = vol * (fd[0] + (fd[1] - fd[0]) * r / ROWS)
+        if 0 <= r < ROWS and vol >= 1:
             P[r][ch] = (note if note else xmn(midi, key) if midi is not None else 49, INST[key], 0x10 + max(1, min(64, int(vol))))
     def clear(r, chs):
         for ch in chs:
@@ -154,18 +158,17 @@ def build(p, uidx):
     for bar in (0, 64):
         a = AMEN[bar // 64]
         if d >= 1:
-            for s in range(0, 16, 2): put(bar + 4 * s, 3, 'hat', None, 26 if s % 4 == 2 else 16)
+            for s in (2, 6, 10, 14): put(bar + 4 * s, 3, 'hat', None, 24 if s in (6, 14) else 16)    # hats only on the offbeats
             for s in a['G']: put(bar + 4 * s, 2, 'ghost', None, 20)
         if d >= 2:
             for s in a['K']: put(bar + 4 * s, 0, 'kick', None, 58 if s == 0 else 46)
             for s in a['S']: put(bar + 4 * s, 1, 'snare', None, 58)
-        if d == 3:
-            for s in (0, 4, 8, 12): put(bar + 4 * s, 0, 'kick', None, 62)
-            for s in (2, 6, 10, 14): put(bar + 4 * s, 4, 'ohat', None, 24)
-            put(bar + 61, 3, 'hat', None, 14); put(bar + 62, 3, 'hat', None, 18)          # a 64th pickup into the bar
+        if d == 3:                                                                       # the drops: weight on the syncopations, not on every beat
+            put(bar, 0, 'kick', None, 62)
+            if bar: put(bar + 4 * 14, 4, 'ohat', None, 26); put(bar + 4 * 15 + 2, 0, 'kick', None, 40)   # a breath on the and of 4, a kick pushed into the bar
     if d == 4:                                                                           # drill'n'bass: every beat cut up
         for b in range(8):
-            r0 = b * RB; g = np.random.default_rng(uidx * 31 + b * 7 + p.get('seed', 0)); c = int(g.integers(0, 7))
+            r0 = b * RB; g = np.random.default_rng(uidx * 31 + b * 7 + p.get('seed', 0)); c = int(g.choice([0, 0, 0, 1, 2, 3, 4, 5, 6]))   # (plain beats between the cuts, so it breathes)
             if c == 1:                                                                    # pitched snare ratchet
                 k = int(g.choice([4, 6, 8])); sp = int(g.choice([1, 2]))
                 for j in range(k): put(r0 + 8 + j * sp, 1, 'snare', None, 22 + 4 * j, note=49 + j * int(g.choice([1, 2])))
@@ -195,6 +198,7 @@ def build(p, uidx):
         last = (-9, 0)
         for (s, l, m, v) in sorted(seg(ORGN, op, oo)):
             if s == last[0] or (m == last[1] and s - last[0] <= 2): continue              # mono; the doubled take's flams dropped
+            if l <= 1 and s < 112: continue                                               # the 64th runs only at the end of the phrase
             last = (s, m)
             if p.get('acid'):
                 key = 'acida' if v >= .95 and l >= 2 else 'acidl' if l >= 8 else 'acids'
@@ -207,8 +211,8 @@ def build(p, uidx):
         r0 = 64 * h
         if p.get('hoover'): put(r0, 7, 'hoover', ROOT[c] if ROOT[c] >= 40 else ROOT[c] + 12, p['hoover'])
         if p.get('organ'):
-            for s in (6, 10, 14):
-                for j, m in enumerate(CH[c][:1]): put(r0 + 4 * s, 7, 'organ', m + 12, p['organ'] - (s == 14) * 8)
+            for s in (3, 10):                                                             # the a of 1 and the and of 3: off the beat
+                for j, m in enumerate(CH[c][:1]): put(r0 + 4 * s, 7, 'organ', m + 12, p['organ'] - (s == 10) * 6)
         for key in ('piano', 'strings', 'vox'):
             if p.get(key):
                 for j, m in enumerate(CH[c]): put(r0 + (8 * j if key == 'piano' and p.get('roll_ch') else 0), 8 + j, key, m - (12 if key == 'strings' else 0), p[key] - 3 * j)
@@ -228,9 +232,9 @@ def build(p, uidx):
     if p.get('pumps'):                                                                    # the octave pumps on the bell / piano
         for (s, l, m, v) in seg(MDLR, mp if U[p['u']][2] in (6, 8, 9) else 6, 0): put(s, 13, p.get('psnd', 'bell'), m + 12, p['pumps'] * (.6 + .4 * v))
     if p.get('licks'):                                                                    # IDM: the little licks, on every beat, shifted
-        for b in range(8):
+        for b in range(1, 8, 2):                                                          # every other beat, pushed a 16th late
             lk = (2, 3, 12, 13)[(b + uidx) % 4]; sh = (0, 12, 7, 12, 0, -5, 12, 19)[b]
-            for (s, l, m, v) in seg(MDLR, lk, 0, RB): put(b * RB + s, 13, 'bell', m + sh, p['licks'] * (.6 + .4 * v))
+            for (s, l, m, v) in seg(MDLR, lk, 0, RB): put(b * RB + 4 + s, 13, 'bell', m + sh, p['licks'] * (.6 + .4 * v))
     if p.get('fall'):                                                                     # the organ's chord fall, on the last beat
         nts = sorted(seg(ORGN, 11, 0, RB))
         for (s, l, m, v) in nts:
@@ -243,7 +247,7 @@ def build(p, uidx):
 S = []
 def sec(units, **kw):
     for u in units: d = dict(kw); d['u'] = u; S.append(d)
-FULL = dict(drums=3, acid=50, sub=54, hoover=40, lead=48)
+FULL = dict(drums=3, acid=48, sub=54, hoover=40, lead=48, strings=20)   # (a soft string bed keeps the space wide with less going on)
 sec(['P1', 'P2', 'P3'], piano=42, strings=30, pumps=34, psnd='piano', sub=36)                               # intro: Moby
 sec(['P1', 'P2', 'P3'], piano=40, pianopump=30, strings=32, pumps=34, psnd='piano', sub=44, drums=1)
 S[-1].update(roll=52, riser=48)
@@ -259,7 +263,7 @@ sec(['A', 'B'], drums=4, acid=40, lead=40, stutter=1, seed=3)                   
 S[-1].update(roll=58, fall=50)
 sec(['BIG0', 'BIG1', 'BIG2', 'BIG3'], **dict(FULL, organ=36))                                                  # DROP 2: the long riff
 S[-4]['fx'] = ((0, 'impact', 64), (1, 'crash', 54))
-sec(['DBL0', 'DBL1', 'DBL2', 'DBL3'], **dict(FULL, organ=34, harm=1, acido=12, piano=30))
+sec(['DBL0', 'DBL1', 'DBL2', 'DBL3'], **dict(FULL, organ=34, harm=1, acido=12, piano=30, strings=0))
 S[-4]['fx'] = ((0, 'crash', 50),); S[-1]['fill'] = 1
 sec(['X0', 'X1', 'X0', 'X1', 'X0', 'X1'], drums=4, acid=46, sub=50, licks=40, strings=24)                      # IDM: drill'n'bass
 S[-6]['fx'] = ((0, 'impact', 56),)
@@ -267,12 +271,20 @@ for k in range(1, 6): S[-6 + k]['seed'] = k * 11
 S[-3]['lead'] = 38; S[-3]['stutter'] = 1
 sec(['P2', 'P3'], drums=4, strings=34, vox=30, licks=34, pumps=36, seed=97)
 S[-1].update(riser=52, roll=56, fall=50)
-sec(['A', 'B', 'C', 'D', 'E', 'E2'], **dict(FULL, organ=36, harm=1, piano=30))                                # FINAL
+sec(['A', 'B', 'C', 'D', 'E', 'E2'], **dict(FULL, organ=36, harm=1, piano=30, strings=0))                                # FINAL
 S[-6]['fx'] = ((0, 'impact', 64), (1, 'crash', 56))
 sec(['DBL0', 'DBL1', 'DBL2', 'DBL3', 'E', 'E2'], **dict(FULL, organ=36, harm=1, acido=12, strings=26))
 S[-6]['fx'] = ((0, 'crash', 52),); S[-1].update(fall=54, fill=1)
-sec(['P1', 'P2', 'P3'], piano=38, strings=32, vox=28, pumps=32, psnd='piano', sub=40)                         # outro
-S[-3]['fx'] = ((0, 'crash', 44),)
+# outro: a long fade (about 21 s) while the band plays off one by one: the break and the acid go first, then the sub and the lead,
+# the strings, the "ahh" and the piano pumps carry on and fade into nothing
+sec(['A', 'B'], drums=2, acid=40, sub=50, lead=40, strings=30, vox=24, organ=28)
+S[-2]['fx'] = ((0, 'crash', 44),); S[-2]['fade'] = (1.0, .9); S[-1]['fade'] = (.9, .8)
+sec(['P1', 'P2'], drums=1, sub=44, lead=36, lsnd='bell', strings=32, vox=28, pumps=30, psnd='piano')
+S[-2]['fade'] = (.8, .68); S[-1]['fade'] = (.68, .56)
+sec(['P3', 'P1'], strings=32, vox=28, piano=30, pumps=28, psnd='piano', sub=36)
+S[-2]['fade'] = (.56, .44); S[-1]['fade'] = (.44, .3)
+sec(['P2', 'P3'], strings=30, vox=26, pumps=26, psnd='bell')
+S[-2]['fade'] = (.3, .16); S[-1]['fade'] = (.16, .02)
 
 def main():
     F.I.clear(); F.I.update(I)
@@ -281,11 +293,7 @@ def main():
         P = build(sp, ui); key = F.pat_bytes(P)
         if key not in seen: seen[key] = len(pats); pats.append(P)
         order.append(seen[key])
-    end = [[(0, 0, 0)] * NCH for _ in range(ROWS)]                                          # the last hit: F# minor, ringing out
-    end[0][15] = (49, INST['impact'], 0x10 + 60); end[0][6] = (xmn(30, 'sub'), INST['sub'], 0x10 + 56)
-    end[0][7] = (xmn(42, 'hoover'), INST['hoover'], 0x10 + 44); end[0][5] = (xmn(42, 'acida'), INST['acida'], 0x10 + 44)
-    for j, m in enumerate(CH['F#m']): end[0][8 + j] = (xmn(m, 'strings') - 12, INST['strings'], 0x10 + 40)
-    end[0][11] = (xmn(66, 'lead'), INST['lead'], 0x10 + 42)
+    end = [[(0, 0, 0)] * NCH for _ in range(ROWS)]                                          # a bar of silence after the fade (the last notes ring out)
     pats.append(end); order.append(len(pats) - 1)
     hdr = b'Extended Module: ' + b'Hot Damn'[:20].ljust(20) + b'\x1a' + b'make_hotdamn_rework'.ljust(20, b'\0')[:20] + struct.pack('<H', 0x0104)
     hdr += struct.pack('<I', 276) + struct.pack('<8H', len(order), 0, NCH, len(pats), len(KEYS), 1, SPEED, BPM) + bytes(order).ljust(256, b'\0')
