@@ -3027,6 +3027,7 @@ int main(void){
     REG_WAITCNT=0x4317;  // ROM 3/1 waits + prefetch (power-on default is 4/2, no prefetch)
     logo_play();         // the DippInn Productions boot logo (source/logo.c, ~8 s; leaves a black screen, its DMA and sprites off)
     { volatile u16*io=(volatile u16*)0x04000000; for(int r=0x08/2;r<0x20/2;r++) io[r]=0; for(int r=0x40/2;r<0x56/2;r++) io[r]=0; }   // undo its BG control, scroll, windows and blend (BG2's affine registers are left alone: mode 3 needs them)
+    { static const u32 zero=0; REG_DMA3SAD=(u32)(uintptr_t)&zero; REG_DMA3DAD=VRAM_ADDR; REG_DMA3CNT=(SW*SH/2)|0x85000000u; }   // clear its tiles out of the bitmap (else mode 3 shows them as noise until the title is drawn)
     REG_DISPCNT=0x0403;  // mode 3, BG2 on
     initTables(); setColors(); settingsLoad(); optsLoad(); applyRom();
     lrng^=(u32)titleScreen()*2654435761u;   // time spent on the title seeds the random numbers (first shuffle)
