@@ -34,9 +34,12 @@ enum { K_A=1, K_B=2, K_SEL=4, K_START=8, K_RIGHT=16, K_LEFT=32, K_UP=64, K_DOWN=
 
 #define RGB(r,g,b) ((u16)((r)|((g)<<5)|((b)<<10)))
 static u16 fb[SW*SH] EWRAM_BSS;
-#define SFX_MAX 124000   // RAM for the decoded sound effect (also used as the title backdrop before the game starts)
-static u8 sfxRam[SFX_MAX] EWRAM_BSS;
-#define tfb ((u16*)sfxRam)   // pre-rendered title backdrop (only needed while the title screen shows)
+#define SPW 32   // baked at half size so the skater is ~2 tiles tall in the room
+#define SPH 44
+static u16 spr4[4][SPW*SPH] EWRAM_BSS;   // the creature's sprites, one per view (bakeSprites)
+// The title screen only has to repaint two small areas of its backdrop (the smoke and the PRESS START box), so it keeps just those, in
+// spr4: the title shows once at power on, before any sprite is baked. (This used to be a whole-screen copy inside a 124 KB sound buffer.)
+#define tfb (&spr4[0][0])
 
 // ---------- settings (kept in SRAM; the SETTINGS screen edits them) ----------
 static u8 sFps=1;    // frame rate: 0 = 60, 1 = 30, 2 = 20, 3 = 15 frames per second (game speed stays the same)
@@ -825,6 +828,19 @@ static void dmaRows(const u16*src,u32 dst,int w0,int w1,int y0,int y1){
 
 // ---------- title screen ----------
 #include "titleimg.h"
+#define SM_W0 76   // smoke stays inside columns 152..203, rows 0..89 (checked over its whole 128-frame loop)
+#define SM_W1 102
+#define SM_Y1 90
+#define TX_W0 47    // "PRESS START" box
+#define TX_W1 76   // (was 70, which cut "PRESS START" off at x=140)
+#define TX_Y0 141
+#define TX_Y1 147
+#define TB_TX ((SM_W1-SM_W0)*2*SM_Y1)   // where the PRESS START box starts in tfb
+_Static_assert(TB_TX+(TX_W1-TX_W0)*2*(TX_Y1-TX_Y0)<=4*SPW*SPH,"the title backdrop pieces must fit in spr4");
+static void titleKeep(int save,int w0,int w1,int y0,int y1,int at){   // copy a rectangle (32-bit columns w0..w1-1, rows y0..y1-1) fb <-> tfb+at
+    int w=(w1-w0)*2; u16*t=tfb+at;
+    for(int y=y0;y<y1;y++,t+=w){ u16*f=fb+y*SW+w0*2; if(save) for(int i=0;i<w;i++) t[i]=f[i]; else for(int i=0;i<w;i++) f[i]=t[i]; }
+}
 static void buildTitle(void){
     for(int y=0;y<80;y++)for(int x=0;x<120;x++){
         char c=titleArt[y][x]; u16 col=titlePal[c<='9'?c-'0':c-'a'+10];
@@ -836,7 +852,7 @@ static void buildTitle(void){
     text(10,10,"BORE",gold,5);
     text(12,40,"A VOXEL LIFE SIM",ink,1); text(11,39,"A VOXEL LIFE SIM",grn,1);
     text(14,126,"PUFF PUFF PASS THE CONTROLLER",RGB(16,22,12),1);
-    for(int i=0;i<SW*SH;i++) tfb[i]=fb[i];
+    titleKeep(1,SM_W0,SM_W1,0,SM_Y1,0); titleKeep(1,TX_W0,TX_W1,TX_Y0,TX_Y1,TB_TX);
 }
 static void smoke(int frame){
     static const signed char wob[16]={0,1,2,3,3,3,2,1,0,-1,-2,-3,-3,-3,-2,-1};
@@ -851,13 +867,6 @@ static void smoke(int frame){
         }
     }
 }
-#define SM_W0 76   // smoke stays inside columns 152..203, rows 0..89 (checked over its whole 128-frame loop)
-#define SM_W1 102
-#define SM_Y1 90
-#define TX_W0 47    // "PRESS START" box
-#define TX_W1 70
-#define TX_Y0 141
-#define TX_Y1 147
 // ---------- LIFE MODE: fixed isometric "sim" room + Tony-Hawk-style skating (placeholder) ----------
 // Pick "GO LIVE LIFE!" in the part list and press A. SELECT+START returns to the editor.
 // Controls: D-pad L/R steer (grounded) or spin (airborne) | hold A push | D-pad down brake | B ollie / kickflip in air
@@ -870,14 +879,11 @@ static void mapEditor(void);
 static int camX, camY, camSnap=1, camLastV;   // camera offset in px; the map's top corner is drawn at (120-camX, 24-camY)
 #define LOX (120-camX)   // screen x of the map's top corner
 #define LOY (24-camY)
-#define SPW 32   // baked at half size so the skater is ~2 tiles tall in the room
-#define SPH 44
 #define SPX0 (OXC-32)
 #define SPY0 (OYC-80)   // capture window top; feet sit at row 40 of the half-size sprite
 #define MAPNAME "THE MAN BASE"   // name of the (placeholder) map
 // w = low wall, W = wall, # = 2-block crate, = = grind rail, . = floor (the default map is built by mapGen below)
 static const short cosT[16]={256,237,181,98,0,-98,-181,-237,-256,-237,-181,-98,0,98,181,237};   // sin(a)=cosT[(a+12)&15]
-static u16 spr4[4][SPW*SPH] EWRAM_BSS;
 static int spBx0, spBx1, spBy0, spBy1;
 static s32 lfx,lfy,lz,lvz,lvx,lvy; static int lskate, lhave, lfr;   // lskate: 0 on foot, 1 skateboard; lhave: picked up the board
 static u8 floorMap[MH][MW] EWRAM_BSS, wallMap[MH][MW] EWRAM_BSS;   // floor style and wallpaper per tile
@@ -893,9 +899,9 @@ static int lmaxz, lplay, ldead, lbumpCd;   // peak height this jump, air sound p
 #include "mood.h"   // FUN + HAPPY meters: moodEvent(), moodTick(), moodTop(), moodPts()
 #include "sims.h"   // life-sim layer: energy/hygiene/comfort, wants and fears, aspiration. simsTick(), simBegin(), simsHud()
 
-// ---------- sound effects: 4-bit IMA-ADPCM @ 6554 Hz, decoded on the fly into RAM, played by Direct Sound A (DMA1 + Timer0) ----------
+// ---------- sound effects: 4-bit IMA-ADPCM @ 6554 Hz, mixed as one more voice by the music mixer (see the AUDIO notes further down) ----------
 // source/sfx/*.adp (made by tools/encode_sfx.py) are baked into the ROM with .incbin; paths are relative to the project root.
-// Timer1 counts Timer0 overflows = samples played, so a clip stops exactly at its end whatever the frame rate is.
+// No RAM buffer: the mixer decodes a few samples ahead each frame, straight from the ROM, and resamples them to the mixer rate.
 #define R_SNDCNT_L (*(volatile u16*)0x04000080)
 #define R_SNDCNT_H (*(volatile u16*)0x04000082)
 #define R_SNDCNT_X (*(volatile u16*)0x04000084)
@@ -906,7 +912,7 @@ static int lmaxz, lplay, ldead, lbumpCd;   // peak height this jump, air sound p
 #define R_TM0CNT  (*(volatile u16*)0x04000102)
 #define R_TM1D    (*(volatile u16*)0x04000104)
 #define R_TM1CNT  (*(volatile u16*)0x04000106)
-#define SFX_TIMER (65536-2560)   // 16777216/2560 = 6553.6 Hz
+#define SFX_STEP 23655   // 6553.6 Hz source samples per 18157 Hz mixer sample, 16.16 fixed point
 __asm__(".pushsection .rodata\n.balign 4\n"
  ".global sfx_hit\nsfx_hit:\n.incbin \"source/sfx/hit.adp\"\n.balign 4\n"
  ".global sfx_gasp\nsfx_gasp:\n.incbin \"source/sfx/gasp.adp\"\n.balign 4\n"
@@ -921,19 +927,13 @@ enum { SFX_BONK, SFX_HIT, SFX_GASP, SFX_SCREAM, SFX_CRY, SFX_GROAN, SFX_NEARLY, 
 static const u8* const sfxTab[SFX_N]={ sfx_hit,sfx_hit,sfx_gasp,sfx_scream,sfx_cry,sfx_groan,sfx_scream,sfx_scream,sfx_instant };
 static const u16 stepT[89]={7,8,9,10,11,12,13,14,16,17,19,21,23,25,28,31,34,37,41,45,50,55,60,66,73,80,88,97,107,118,130,143,157,173,190,209,230,253,279,307,337,371,408,449,494,544,598,658,724,796,876,963,1060,1166,1282,1411,1552,1707,1878,2066,2272,2499,2749,3024,3327,3660,4026,4428,4871,5358,5894,6484,7132,7845,8630,9493,10442,11487,12635,13899,15289,16818,18500,20350,22385,24623,27086,29794,32767};
 static const signed char idxT[8]={-1,-1,-1,-1,2,4,6,8};
-static const u8 *ssrc; static u32 sn, sdone, swraps; static int spred, sidx, sfxOn; static u16 slast;
-// GAME MUSIC (jukebox songs while playing) shares Timer0 and the sound FIFOs with the sound effects, so an effect ducks the music: the music
-// stops feeding the DMA (mDucked) while the effect plays, and sfxStop() hands the speakers back when the effect is over.
-static volatile int mDucked; static int gMusic;   // mDucked: music paused for an effect; gMusic: game music is switched on right now
-static void musResume(void);
-static void sfxStop(void){ R_DMA1CNT=0; R_TM0CNT=0; R_TM1CNT=0; sfxOn=0; if(mDucked){ mDucked=0; if(gMusic) musResume(); } }
-#define SM_W0 76   // smoke stays inside columns 152..203, rows 0..89 (checked over its whole 128-frame loop)
-#define SM_W1 102
-#define SM_Y1 90
-#define TX_W0 47    // "PRESS START" box
-#define TX_W1 70
-#define TX_Y0 141
-#define TX_Y1 147
+// The effect voice: ssrc/sn = the clip's nibbles and sample count, sPos + sFr/65536 = play position in clip samples, sRd = samples decoded so far,
+// sS0/sS1 = the two decoded samples around sPos (for interpolation), spred/sidx = the ADPCM decoder. sfxV is cleared by the mixer at the end.
+static const u8 *ssrc; static u32 sn, sPos, sFr, sRd; static int spred, sidx, sS0, sS1, sfxOn; static volatile int sfxV;
+static int gMusic;   // game music is switched on right now (an effect now plays over it instead of pausing it)
+static volatile int mOn, mPlay;   // mOn: the mixer interrupts and sound DMA are running; mPlay: a song is part of the mix
+static void audStart(void); static void audStop(void);
+static void sfxStop(void){ sfxV=0; sfxOn=0; if(mOn&&!mPlay) audStop(); }
 // ---------- tracker songs: note-based XM player (tools/xm2gba.py converts the .xm songs listed in songs.h) ----------
 // A song is stored as notes (pattern/row/channel events, each with its own volume) plus small instrument samples (8-bit,
 // band-limited and down-sampled in the converter). A 16-voice stereo mixer (each note has a pan bus, see tools/xm2gba.py) with linear interpolation renders 304 samples per frame
@@ -958,7 +958,7 @@ static MVoice mvc[MUS_VOICES];
 static s8 mbufL[2][MUS_N] __attribute__((aligned(4))), mbufR[2][MUS_N] __attribute__((aligned(4)));
 static s16 maccL[MUS_N], maccR[MUS_N];
 static s8 mDly[256]; static int mDp, mLp;   // pseudo-stereo for streamed songs: 256-sample (14 ms) delay line + a low-pass state that keeps the bass centred
-static int mOrd, mRow, mLeft, mFrac; static volatile int mCur, mOn, mFilled; static const XmSong*mSong;
+static int mOrd, mRow, mLeft, mFrac; static volatile int mCur, mFilled; static const XmSong*mSong;
 static volatile int mGain=256, mGainT=256;   // music loudness 256 = full; mGain glides to mGainT a little every frame (half while a menu is open)
 static int mKind, aTail; static volatile int mLaps, mDone;   // mKind 0 = tracker song, 1 = streamed ADPCM; mLaps = times the tracker song has wrapped; mDone = ADPCM song finished
 static int aSlow, aPrv, aPh; static const u8 *aSrc; static u32 aN, aPos; static int aPred, aIdx;   // ADPCM stream: data, sample count, position, decoder state
@@ -1031,13 +1031,35 @@ IWRAM_CODE static void adpMix(s8*out,s8*outR){
     mDp=dp; mLp=lp;
     if(p>=e&&i<MUS_N&&++aTail>=3) mDone=1;   // 2 buffers are in flight, so wait for the last real samples to be heard
 }
+IWRAM_CODE static void sfxMix(s8*outL,s8*outR){   // add the effect voice to a finished buffer (both sides), clipped
+    const u8*d=ssrc; u32 n=sn, ip=sPos, fr=sFr, rd=sRd; int pred=spred, idx=sidx, s0=sS0, s1=sS1, sh=8+oSfxShift();   // SFX VOLUME option
+    for(int i=0;i<MUS_N;i++){
+        if(ip>=n){ sfxV=0; break; }
+        while(rd<ip+2){   // decode up to the sample after ip (silence past the end)
+            s0=s1;
+            if(rd<n){ int v=d[rd>>1]; v=(rd&1)?(v>>4):(v&15);
+                int step=stepT[idx], diff=step>>3;
+                if(v&1) diff+=step>>2; if(v&2) diff+=step>>1; if(v&4) diff+=step;
+                pred+=(v&8)?-diff:diff; if(pred>32767) pred=32767; if(pred<-32768) pred=-32768;
+                idx+=idxT[v&7]; if(idx<0) idx=0; if(idx>88) idx=88; s1=pred; }
+            else s1=0;
+            rd++; }
+        int x=(s0+(((s1-s0)*(int)fr)>>16))>>sh;
+        int l=outL[i]+x, r=outR[i]+x;
+        outL[i]=(s8)(l>127?127:l<-128?-128:l); outR[i]=(s8)(r>127?127:r<-128?-128:r);
+        fr+=SFX_STEP; ip+=fr>>16; fr&=0xFFFF;
+    }
+    sPos=ip; sFr=fr; sRd=rd; spred=pred; sidx=idx; sS0=s0; sS1=s1;
+}
 IWRAM_CODE static void musMixAny(int b){
+    if(!mPlay){ for(int i=0;i<MUS_N;i++){ mbufL[b][i]=0; mbufR[b][i]=0; } if(sfxV) sfxMix(mbufL[b],mbufR[b]); return; }   // only an effect
     if(mKind) adpMix(mbufL[b],mbufR[b]); else musMix(mbufL[b],mbufR[b]);
     int sh=oMusShift();   // MUSIC VOLUME option: full, half, quarter, off
     if(sh>=8){ for(int i=0;i<MUS_N;i++){ mbufL[b][i]=0; mbufR[b][i]=0; } }
     else if(sh){ for(int i=0;i<MUS_N;i++){ mbufL[b][i]=(s8)(mbufL[b][i]>>sh); mbufR[b][i]=(s8)(mbufR[b][i]>>sh); } }
     if(mGain!=mGainT){ int g=mGain+((mGainT>mGain)?16:-16); if((mGainT>mGain)?g>mGainT:g<mGainT) g=mGainT; mGain=g; }   // fade: 16 steps of 1/16 per frame
     if(mGain<256){ int g=mGain; for(int i=0;i<MUS_N;i++){ mbufL[b][i]=(s8)((mbufL[b][i]*g)>>8); mbufR[b][i]=(s8)((mbufR[b][i]*g)>>8); } }
+    if(sfxV) sfxMix(mbufL[b],mbufR[b]);   // an effect plays on top of the song (it used to pause it)
 }
 // ---- Audio is driven by interrupts, NOT by the main loop ----
 // Old design: the main loop mixed one buffer per frame right after vsync. Any frame whose drawing ran long (jukebox list
@@ -1074,25 +1096,30 @@ __attribute__((used)) IWRAM_CODE void irqMain(void){
     }
 }
 static void irqOff(void){ R_IME=0; R_IE=0; R_DISPSTAT=0; R_IF=0xFFFF; }
-// Start a song: kind 0 = the tracker song xm, kind 1 = the ADPCM data in adp.
-static void musBegin(int kind,const u8*adp,const XmSong*xm){
-    irqOff(); mOn=0; R_DMA1CNT=0; R_DMA2CNT=0; R_TM0CNT=0;
-    sfxStop();
-    for(int i=0;i<MUS_VOICES;i++) mvc[i].d=0;
-    mOrd=0; mRow=0; mLeft=0; mFrac=0; mCur=0; mFilled=0; mLaps=0; mDone=0; aTail=0; mKind=kind; mSong=xm; mDp=0; mLp=0; for(int i=0;i<256;i++) mDly[i]=0;
-    if(kind){ aSrc=adp+4; aN=*(const u32*)adp; aSlow=(int)(aN>>31); aN&=0x7FFFFFFFu; aPrv=0; aPh=0; aPos=0; aPred=0; aIdx=0; }
-    musMixAny(0);   // buffer 0 is primed here and plays at the first vblank; the line-0 IRQ then renders buffer 1
+// AUDIO: one mixer for everything. While a song or an effect plays, the interrupts above run it; with neither, they are switched off.
+static void audStart(void){   // start the mixer (the caller has set up what plays)
+    irqOff(); R_DMA1CNT=0; R_DMA2CNT=0; R_TM0CNT=0;
+    mCur=0; musMixAny(0);   // buffer 0 is primed here and plays at the first vblank; the line-0 IRQ then renders buffer 1
     mFilled=1; mOn=1;
     R_SNDCNT_X=0x80; R_SNDCNT_L=0; R_SNDCNT_H=0x9A0C;   // stereo: Direct Sound A -> left only, B -> right only, both 100%, Timer0, FIFOs reset
     R_IRQVEC=(u32)(uintptr_t)irqEntry;
     R_DISPSTAT=0x0028;                // vblank IRQ (bit 3) + vcount IRQ (bit 5) at line 0
     R_IF=0xFFFF; R_IE=5; R_IME=1;
 }
+static void audStop(void){ irqOff(); mOn=0; R_DMA1CNT=0; R_DMA2CNT=0; R_TM0CNT=0; R_SNDCNT_H=0; }
+// Start a song: kind 0 = the tracker song xm, kind 1 = the ADPCM data in adp.
+static void musBegin(int kind,const u8*adp,const XmSong*xm){
+    irqOff(); mOn=0; R_DMA1CNT=0; R_DMA2CNT=0; R_TM0CNT=0;
+    sfxV=0; sfxOn=0;
+    for(int i=0;i<MUS_VOICES;i++) mvc[i].d=0;
+    mOrd=0; mRow=0; mLeft=0; mFrac=0; mCur=0; mFilled=0; mLaps=0; mDone=0; aTail=0; mKind=kind; mSong=xm; mDp=0; mLp=0; for(int i=0;i<256;i++) mDly[i]=0;
+    if(kind){ aSrc=adp+4; aN=*(const u32*)adp; aSlow=(int)(aN>>31); aN&=0x7FFFFFFFu; aPrv=0; aPh=0; aPos=0; aPred=0; aIdx=0; }
+    mPlay=1; audStart();
+}
 static void musStart(void){ musBegin(0,0,&xm_the_dipper_man); }   // the title music
 static void musKick(void){}   // (kept so old call sites still compile: the interrupts do this now)
 static void musFill(void){}
-static void musStop(void){ irqOff(); if(!mOn) return; mOn=0; R_DMA1CNT=0; R_DMA2CNT=0; R_TM0CNT=0; R_SNDCNT_H=0; }
-static void musResume(void){ R_SNDCNT_X=0x80; R_SNDCNT_L=0; R_SNDCNT_H=0x9A0C; mOn=1; }   // after an effect: the next vblank restarts the music DMA
+static void musStop(void){ mPlay=0; if(mOn&&!sfxV) audStop(); }   // an effect still sounding keeps the mixer going (sfxTick stops it after)
 // ---------- jukebox song table: built from source/songs.h (edit that file, not this) ----------
 // Pass 1 bakes every .adp into the ROM, pass 2 declares the data, pass 3 builds the table.
 #define SONG_XM(id,n,f)
@@ -1125,7 +1152,7 @@ static const u16 konSeq[11]={K_UP,K_UP,K_DOWN,K_DOWN,K_LEFT,K_RIGHT,K_LEFT,K_RIG
 static u8 konMsg;   // 1 = the code just locked the classic creator, 2 = unlocked (main shows a toast once the title is gone)
 static const u16 dbgSeq[10]={K_UP,K_UP,K_DOWN,K_DOWN,K_LEFT,K_LEFT,K_RIGHT,K_B,K_A,K_START};
 static int titleScreen(void){
-    buildTitle();                          // leaves the finished backdrop in both fb and tfb
+    buildTitle();                          // leaves the finished backdrop in fb, and the pieces it repaints in tfb
     vsync(); dmaRows(fb,VRAM_ADDR,0,ROW_W,0,SH);
     int shown=0, frame, dbgI=0, konI=0; u16 dbgPrev=(u16)(~REG_KEYINPUT)&0x3FF; if(xo[XO_TITLEMUS]) musStart();
     for(frame=0;;frame++){
@@ -1137,10 +1164,10 @@ static int titleScreen(void){
             else konI=(dp==konSeq[0])?1:0;
         }
         if(dk&K_START) break;
-        dmaRows(tfb,(u32)(uintptr_t)fb,SM_W0,SM_W1,0,SM_Y1);   // wipe last frame's smoke only
+        titleKeep(0,SM_W0,SM_W1,0,SM_Y1,0);   // wipe last frame's smoke only
         smoke(frame);
         int on=(frame>>4)&1, tx=(on!=shown);
-        if(tx){ dmaRows(tfb,(u32)(uintptr_t)fb,TX_W0,TX_W1,TX_Y0,TX_Y1); if(on) text(94,141,"PRESS START",RGB(31,31,31),1); shown=on; }
+        if(tx){ titleKeep(0,TX_W0,TX_W1,TX_Y0,TX_Y1,TB_TX); if(on) text(94,141,"PRESS START",RGB(31,31,31),1); shown=on; }
         vsync(); musKick();
         dmaRows(fb,VRAM_ADDR,SM_W0,SM_W1,0,SM_Y1);
         if(tx) dmaRows(fb,VRAM_ADDR,TX_W0,TX_W1,TX_Y0,TX_Y1);
@@ -1151,39 +1178,16 @@ static int titleScreen(void){
     return frame;   // how long the player sat on the title: stirs the random seed
 }
 
-IWRAM_CODE static void sfxDecode(int cnt){   // decode the next cnt samples into sfxRam (signed 8-bit)
-    u32 i=sdone, e=sdone+(u32)cnt; if(e>sn) e=sn;
-    int pred=spred, idx=sidx; signed char*out=(signed char*)sfxRam;
-    for(;i<e;i++){
-        int v=ssrc[i>>1]; v=(i&1)?(v>>4):(v&15);
-        int step=stepT[idx], diff=step>>3;
-        if(v&1) diff+=step>>2; if(v&2) diff+=step>>1; if(v&4) diff+=step;
-        pred+=(v&8)?-diff:diff; if(pred>32767) pred=32767; if(pred<-32768) pred=-32768;
-        idx+=idxT[v&7]; if(idx<0) idx=0; if(idx>88) idx=88;
-        out[i]=(signed char)(pred>>(8+oSfxShift()));   // SFX VOLUME option
-    }
-    spred=pred; sidx=idx; sdone=e;
-    if(sdone>=sn) for(int k=0;k<256;k++) out[sn+k]=0;   // silence after the end, so the DMA read-ahead plays nothing
+static void sfxPlay(int id){   // a new sound replaces whatever effect is playing; the song (if any) keeps going under it
+    if(!sSnd){ sfxStop(); return; }
+    const u8*b=sfxTab[id];
+    sfxV=0;   // (the interrupt does not touch the voice while sfxV is 0)
+    ssrc=b+4; sn=*(const u32*)b; sPos=0; sFr=0; sRd=0; spred=0; sidx=0; sS0=sS1=0;
+    sfxOn=1; sfxV=1;
+    if(!mOn) audStart();
 }
-static void sfxPlay(int id){   // a new sound replaces whatever is playing
-    sfxStop(); if(!sSnd) return;
-    if(gMusic&&mOn){ mOn=0; mDucked=1; R_DMA2CNT=0; }   // game music: pause it for the effect
-    const u8*b=sfxTab[id]; sn=*(const u32*)b; if(sn>SFX_MAX-256) sn=SFX_MAX-256;
-    ssrc=b+4; sdone=0; spred=0; sidx=0;
-    sfxDecode(1024);                             // a head start; sfxTick decodes the rest while it plays
-    R_SNDCNT_X=0x80; R_SNDCNT_L=0;
-    R_SNDCNT_H=0x0B04;                           // Direct Sound A: 100% vol, L+R, Timer0, reset FIFO
-    R_DMA1SAD=(u32)(uintptr_t)sfxRam; R_DMA1DAD=0x040000A0u;
-    R_DMA1CNT=0xB6400000u;                       // enable, FIFO timing, repeat, 32-bit, fixed dest
-    R_TM0D=SFX_TIMER; R_TM0CNT=0x80;
-    swraps=0; slast=0; R_TM1D=0; R_TM1CNT=0x84;  // Timer1 counts Timer0 overflows (samples played)
-    sfxOn=1;
-}
-static void sfxTick(void){   // call once per frame
-    if(!sfxOn) return;
-    u16 t=R_TM1D; if(t<slast) swraps++; slast=t;
-    if(sdone<sn) sfxDecode(512);
-    if(swraps*65536u+t>=sn) sfxStop();
+static void sfxTick(void){   // call once per frame: switch the mixer off once the last effect is over and no song plays
+    if(sfxOn&&!sfxV){ sfxOn=0; if(mOn&&!mPlay) audStop(); }
 }
 static u32 lrng=12345;
 static int rnd8(void){ lrng=lrng*1664525u+1013904223u; return (int)(lrng>>24); }
@@ -2012,12 +2016,12 @@ static void gmPlay(void){   // start the song in playlist slot gmPos (always the
 static void gmStart(void){
     if(gMusic||!xo[XO_GAMEMUS]||!sSnd||jbN<=0) return;
     gmPos=(rnd8()*jbN)>>8; if(gmPos>=jbN) gmPos=0;
-    gMusic=1; mDucked=0; mGain=mGainT=256; gmPlay();
+    gMusic=1; mGain=mGainT=256; gmPlay();
 }
-static void gmStop(void){ mGain=mGainT=256; if(!gMusic) return; gMusic=0; mDucked=0; musStop(); }
+static void gmStop(void){ mGain=mGainT=256; if(!gMusic) return; gMusic=0; musStop(); }
 static void gmSync(void){ if(xo[XO_GAMEMUS]&&sSnd) gmStart(); else gmStop(); }   // after the pause menu: the option or SOUND may have changed
 static void gmTick(void){   // once per frame: when the song is over, the next one in the shuffle
-    if(!gMusic||mDucked||sfxOn) return;
+    if(!gMusic||!mPlay) return;
     if(mKind?mDone:mLaps>=1){ gmPos=(gmPos+1)%jbN; gmPlay(); }
 }
 static void lifeModeRun(int ed);
@@ -2650,7 +2654,7 @@ static void jbHead(void){   // title, equalizer, mode, now playing, progress bar
     rect(8,31,22,9,RGB(6,16,8)); text(11,32,"NOW",JB_GREEN,1);
     if(!sSnd) text(36,32,"SOUND IS OFF IN SETTINGS",RGB(30,10,8),1);
     else text(36,32,songs[jbSong(jbPos)].name,WHITE,1);
-    int pct=!mOn?0:mKind?(int)(aPos/(aN/100+1)):mOrd*100/mSong->nord; if(pct>100) pct=100;
+    int pct=!mPlay?0:mKind?(int)(aPos/(aN/100+1)):mOrd*100/mSong->nord; if(pct>100) pct=100;
     int fw=pct*162/100; u16 gd=jbPlaying?RGB(8,22,8):RGB(10,12,18), gl=jbPlaying?RGB(14,30,12):RGB(14,16,22);
     rect(8,44,162,5,RGB(7,9,15)); rect(8,44,fw,5,gd); rect(8,44,fw,2,gl);
     if(fw>0&&jbPlaying) rect(8+fw-1,42,3,9,WHITE);

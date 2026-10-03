@@ -62,7 +62,7 @@ Main menu -> **OPTIONS** (also in the pause menu and the map menu). Eight pages:
 | B / Start | back (everything is saved) |
 A gold dot marks a row that is not at its normal value. The row under the cursor explains itself in two lines.
 - **PLAY**: NEEDS (off to brutal), FOOD AND WC, DAY LENGTH (3 / 6 / 12 / 24 min or stopped), CAREER on/off (off = no shifts, quota or bills), JOB QUOTA, BILLS, SCORE multiplier (x0.5 to x3), COMBO WINDOW, TOP SPEED (80 to 150 %), MOOD EFFECTS, HURT (normal / gentle / no death), AUTO SAVE LIFE.
-- **AUDIO**: SOUND, SFX VOLUME, MUSIC VOLUME, **GAME MUSIC** (off by default: the jukebox songs play in their shuffled order while you play, the next song starts when one ends, it fades to half volume while the pause menu (or anything opened from it) is up, and sound effects pause the music while they sound; mixing runs in an interrupt, so it costs some speed on slow devices), TITLE MUSIC, JUKEBOX MODE.
+- **AUDIO**: SOUND, SFX VOLUME, MUSIC VOLUME, **GAME MUSIC** (off by default: the jukebox songs play in their shuffled order while you play, the next song starts when one ends, it fades to half volume while the pause menu (or anything opened from it) is up, and sound effects play over the music; mixing runs in an interrupt, so it costs some speed on slow devices), TITLE MUSIC, JUKEBOX MODE.
 - **INPUT**: BUTTONS (swap A/B, L/R or both, on every screen), CURSOR REPEAT speed of the editor, BUTTON TEST (shows the keys the game sees).
 - **HUD**: INFO ON SCREEN, CLOCK (24 h / 12 h / hidden), THOUGHT BUBBLE, WANTS AND FEARS, ACTION CAM, ACCENT COLOUR (gold, mint, sky, pink, orange, lilac), MESSAGE TIME.
 - **ROOMS**: EDITOR MINIMAP, SAVE ON EXIT, ASK BEFORE RESET, SLOTS SAVE (room / room + person / all three), ASK IN SLOTS, SAVE MAP TO SLOT, BOOT LOADS PERSON.
@@ -81,6 +81,18 @@ Main menu (or pause menu, or map menu) -> **ROOM SLOTS**. Six named saves; each 
 The slot you saved to or loaded last is the **active slot**. With SAVE MAP TO SLOT on, the editor's SAVE MAP also writes it; with BOOT LOADS PERSON on (default) the person of the active slot comes back at power on. Loading is checked first (checksum, map size, every value) and only then applied, a save only touches its own slot, and a damaged slot is shown as DAMAGED instead of being loaded.
 
 **Format** (all in `source/slots.h`, made so a whole house can be added later without breaking any save): a 32 byte header (magic, version, kind ROOM or HOUSE, span = how many consecutive slots it covers, what it holds, payload length and checksum, map size, save counter, name) and then a list of tagged chunks (`R` room as run-length packed tiles, `C` person, `L` life, `H` reserved for the house plan). Readers skip tags they do not know. A house is KIND 1 with a span of several slots; the slot screen already lists, protects and deletes those. To add houses: write `houseSave()` / `houseLoad()` and set `SLOT_HOUSE_READY` to 1.
+
+## RAM budget (work RAM, not saves)
+The GBA has 256 KB of EWRAM and 32 KB of IWRAM. Check the numbers with `arm-none-eabi-size -A` on the object or ELF: `.sbss` is EWRAM, `.bss` + `.data` + `.iwram` are IWRAM (the stack shares what is left of IWRAM).
+| | EWRAM | IWRAM |
+|---|---|---|
+| before the audio rework | 237,000 B (90%) | 24,436 B |
+| now | 113,000 B (43%) | 24,812 B |
+| big users now | screen back buffer `fb` 76.8 KB, creature sprites `spr4` 11 KB, floor tiles `flTab` 8.6 KB, overlay `ovBuf` 5 KB | mixer buffers, `irqStack` 1 KB, IWRAM code 14 KB |
+
+**Audio driver.** Sound effects used to be decoded whole into a 124 KB buffer (the longest clip is 15 s) and played on their own, pausing the music. Now an effect is one more voice in the interrupt-driven music mixer: it is decoded a few samples at a time straight from the ROM and resampled from 6554 Hz to the mixer's 18157 Hz (`sfxMix`), so it needs no buffer and plays over the game music. When nothing plays, the mixer switches itself off (`audStart` / `audStop`). The title screen used to borrow that buffer for a whole-screen copy of its backdrop; it now keeps only the two areas it repaints (the smoke and PRESS START), about 10 KB, inside `spr4` before any sprite is baked.
+
+**Room for more characters.** One baked character (4 views of 32 x 44 at 16 bits) is 11 KB, so the freed 124 KB holds about ten more at that size, or around twenty at 8 bits per pixel with a palette.
 
 ## Save memory map (32 KB SRAM)
 | Offset | What |
