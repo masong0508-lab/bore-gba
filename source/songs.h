@@ -48,3 +48,6 @@ SONG_XM(mi_cora_zone,"MI CORA ZONE","tools/mi_cora_zone.xm")
 SONG_XM(excuses_house,"EXCUSES","tools/excuses_house.xm")
 // WHISTLER MAN: a steely half-time shuffle (the Purdie shuffle) rework of "The Dipper Man - Whistler Man" (tools/make_whistler_rework.py, about 5:37)
 SONG_XM(whistler_shuffle,"WHISTLER MAN","tools/whistler_shuffle.xm")
+// CYNICALLER MADNESS: a 172 BPM liquid / tech drum & bass rework of "The Dipper Man - Cynicaller Madness" on 64th-note rows
+// (tools/make_cynicaller_rework.py, about 4:05)
+SONG_XM(cynicaller_dnb,"CYNICALLER MADNESS","tools/cynicaller_dnb.xm")
