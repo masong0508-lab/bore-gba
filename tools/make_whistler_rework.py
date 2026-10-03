@@ -6,7 +6,7 @@ From the original (read out of the XM): the bass walk G | C | F | D, the horn dy
 (G D G D F C F C), the whistled tune (D G Bb G G G C C D Bb) and the trill lick (G A G  C D C  F G F  G A G). Its straight 16ths are
 swung into shuffle triplets: every eighth is three rows, its second 16th lands on the third row.
 New: the groove (the PURDIE SHUFFLE: hats on the 1st and 3rd triplet of every beat, the snare on 3 in half time, ghost notes on the
-middle triplets, kick on 1 and the pickups, triplet fills), the harmony (Gm9 | C9 | Fadd9 | D7#9, Rhodes voicings), a clav, a horn
+middle triplets, kick on 1 and the pickups, triplet fills), the harmony (Gm9 | C9 | Fadd9 | D9, Rhodes voicings), a clav, a horn
 section that swells, a breathy whistle with an echo, jazz-guitar fills, all 16 voices. About 5:36.
 Channels: 0 kick | 1 snare | 2 ghost snare | 3 hat | 4 open hat / tambourine | 5 bass | 6 7 8 rhodes | 9 clav | 10 11 horns
           12 whistle | 13 whistle echo / harmony | 14 guitar | 15 ride / crash.     6 rows a beat (triplet 16ths), 48-row patterns = 2 bars.
@@ -68,13 +68,18 @@ INST = {k: i + 1 for i, k in enumerate(KEYS)}
 # ---------------------------------------------------------------- the original's material, swung (16th k -> row 3*(k//2) + 2*(k%2))
 src = xm.parse(os.path.join(HERE, "the_dipper_man_whistler_man.xm"))
 def notes(pat, ch): return [(r, n + 11) for r, row in enumerate(src['pats'][pat]) for (n, i, v, e, ep) in [row[ch]] if 0 < n < 97]
-def sw(k): return 3 * (k // 2) + 2 * (k % 2)
+def sw(k): return 6 * (k // 4) + (0, 2, 4, 5)[k % 4]        # the shuffle grid the drums use: 1st, middle and 3rd triplet of the beat
 BASSL = notes(2, 2)                      # G C F D, one per half bar
 HORN1, HORN2 = notes(1, 3), notes(1, 4)  # the dyads
 ARP = notes(2, 1)                        # G D G D F C F C
 TUNE = notes(3, 2)                       # the whistled tune
 LICK = notes(5, 8)                       # the trill lick
-CHORDS = [(0, (58, 62, 65, 69)), (12, (64, 70, 74)), (24, (57, 60, 67)), (36, (54, 60, 65))]   # Gm9 | C9 | Fadd9 | D7#9 (rows)
+CHORDS = [(0, (58, 62, 65, 69)), (12, (64, 70, 74)), (24, (57, 60, 67)), (36, (54, 60, 64))]   # Gm9 | C9 | Fadd9 | D9 (rows)
+SAFE = [{7, 10, 2, 5, 9, 0}, {0, 4, 7, 10, 2, 9}, {5, 9, 0, 7, 2, 4}, {2, 6, 9, 0, 10, 4}]   # pitch classes that sit on Gm9 | C9 | Fadd9 | D9
+def under(m, row):
+    for iv in (3, 4, 5, 7, 8, 9):
+        if (m - iv) % 12 in SAFE[(row // 12) % 4]: return m - iv
+    return m - 12
 def xmn(m, key): g = I[key]['gen']; return 49 + (m - g) if g else 49
 
 def build(p):
@@ -88,7 +93,7 @@ def build(p):
             if t3 in (0, 4): put(r, 3 if not p.get('rideon') else 15, 'hat' if not p.get('rideon') else 'ride', None, (34 if t3 == 0 else 26) if not p.get('rideon') else 22)   # the shuffle: 1st and 3rd triplet
             if t3 == 2 and d >= 2: put(r, 3, 'hat', None, 10)                                    # the soft middle one
             if r % 24 == 12: put(r, 1, 'snare', None, 56)                                         # backbeat on 3 (half time)
-            if d >= 2 and t3 == 2 and r % 24 != 14: put(r, 2, 'ghost', None, 14 + (rng.random() < .3) * 6)   # ghost notes on the middle triplet
+            if d >= 2 and t3 == 2 and r % 24 != 14: put(r, 2, 'ghost', None, 20 if r % 24 == 8 else 14)   # ghost notes on the middle triplet
             if r % 24 in (0, 10, 16) or (d >= 3 and r % 24 == 22): put(r, 0, 'kick', None, 58 if r % 24 == 0 else 44)
             if d >= 3 and r % 24 == 20: put(r, 4, 'tamb', None, 22)
         if p.get('fill') and r >= 36 and t3 % 2 == 0: put(r, 1, 'snare', None, 20 + (r - 36) * 3)  # a triplet fill into the next section
@@ -96,14 +101,14 @@ def build(p):
     if p.get('bass'):
         for k, m in BASSL:
             r = sw(k); put(r, 5, 'bass', m - 12, p['bass'])
-            put(r + 4, 5, 'bass', m - 12 + 12, p['bass'] - 18); put(r + 9, 5, 'bass', m - 12 + 7, p['bass'] - 12)   # octave and fifth pickups
+            put(r + 4, 5, 'bass', m - 12 + 12, p['bass'] - 18); put(r + 10, 5, 'bass', m - 12 + 7, p['bass'] - 12)   # octave and fifth pickups
     if p.get('rhodes'):
         for r0, ch in CHORDS:
-            for off in (0, 7) if p.get('comp') else (0,):
-                for j, m in enumerate(ch[:3]): put(r0 + off, 6 + j, 'rhodes', m, p['rhodes'] - j * 3 - (8 if off else 0))
+            for off in (0, 4) if p.get('comp') else (0,):
+                for j, m in enumerate(ch[:3]): put(r0 + off, 6 + j, 'rhodes', m, p['rhodes'] - j * 3 - (10 if off else 0))
     if p.get('clav'):
-        for k, m in ARP: put(sw(k) + 1, 9, 'clav', m, p['clav'])
-        for k, m in ARP: put(sw(k) + 3, 9, 'clav', m + 12, p['clav'] - 14)
+        for k, m in ARP: put(sw(k), 9, 'clav', m, p['clav'])
+        for k, m in ARP: put(sw(k) + 4, 9, 'clav', m + 12, p['clav'] - 14)
     if p.get('horns'):
         for (k, m) in HORN1: put(sw(k), 10, 'horn', m, p['horns'])
         for (k, m) in HORN2: put(sw(k), 11, 'horn', m, p['horns'] - 6)
@@ -111,13 +116,13 @@ def build(p):
         o = p.get('oct', 0)
         for k, m in TUNE:
             put(sw(k), 12, 'whistle', m + o, p['tune'])
-            if p.get('harm'): put(sw(k), 13, 'whistle', m + o - (4 if (m % 12) in (2, 7, 10) else 3), p['tune'] - 12)   # a third under, Steely style
-            else: put(sw(k) + 5, 13, 'whistle', m + o, p['tune'] * .38)
+            if p.get('harm'): put(sw(k), 13, 'whistle', under(m, sw(k)) + o, p['tune'] - 12)   # a consonant third (or fourth) under, Steely style
+            else: put(sw(k) + 6, 13, 'whistle', m + o, p['tune'] * .38)
     if p.get('lick'):
         for k, m in LICK: put(sw(k), 14, 'guitar', m + p.get('lo', 0), p['lick'] - (k % 4) * 3)
-    if p.get('hits'):                                                   # bridge: the D7#9 hit, horns and Rhodes together
-        for r in (0, 9, 24, 33):
-            for j, m in enumerate((54, 60, 65)): put(r, 6 + j, 'rhodes', m, p['hits'])
+    if p.get('hits'):                                                   # bridge: the D9 hit, horns and Rhodes together
+        for r in (0, 10, 24, 34):
+            for j, m in enumerate((54, 60, 64)): put(r, 6 + j, 'rhodes', m, p['hits'])
             put(r, 10, 'horn', 66, p['hits']); put(r, 11, 'horn', 72, p['hits'] - 4)
     if p.get('teaser'):
         for k, m in TUNE[:4]: put(sw(k) + 24, 12, 'whistle', m, p['teaser'])
@@ -136,7 +141,7 @@ sec(8, rhodes=38, comp=1, bass=56, drums=3, clav=34, horns=52)                  
 sec(8, rhodes=38, comp=1, bass=56, drums=3, clav=30, tune=54); S[-8]['fx'] = ((0, 'crash', 50),)   # the whistled tune
 S[-1]['fill'] = 1
 sec(8, rhodes=42, comp=1, bass=54, drums=2, rideon=1, lick=46, lo=12)                   # solo: guitar licks over the ride
-sec(4, hits=50, drums=1, bass=50); S[-1]['fill'] = 1                                   # bridge: D7#9 hits
+sec(4, hits=50, drums=1, bass=50); S[-1]['fill'] = 1                                   # bridge: D9 hits
 sec(8, rhodes=38, comp=1, bass=58, drums=3, clav=30, tune=54, oct=12, harm=1); S[-8]['fx'] = ((0, 'crash', 54),)   # tune again, up, harmonised
 sec(8, rhodes=40, comp=1, bass=58, drums=3, horns=54, tune=50, lick=36); S[-1]['fill'] = 1   # shout chorus
 sec(8, rhodes=38, comp=1, bass=52, drums=2, clav=34, horns=40)                          # outro vamp
