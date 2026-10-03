@@ -743,12 +743,15 @@ static void buildLook(void){
     }
     {   // clothes: the arms are the columns with a hand (skin) at the row below the torso
         int ts=look[LK_TOPSTY], bs=look[LK_BOTSTY];
+        if(stage<AG_ADULT){ if(ts>=4) ts=0; if(bs>=3) bs=0; }   // whatever a save or a look says: only ADULT and ELDER are ever drawn bare
+        if(ts==4) for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++) if((vox[y][z][x]&15)==6) vox[y][z][x]=(u8)((vox[y][z][x]&0xF0)|1);   // BARE top: the top colour is skin (arms and hands already are)
         for(int x=0;x<W;x++)for(int z=0;z<D;z++){ if(ty-1<0||(vox[ty-1][z][x]&15)!=1) continue;
             if(ts==1||ts==3){ if((vox[ty][z][x]&15)==1) vox[ty][z][x]=(u8)((vox[ty][z][x]&0xF0)|6); }        // LONG SLEEVE / HOODIE: forearms in the top colour
             if(ts==2&&ty+1<H&&(vox[ty+1][z][x]&15)==6) vox[ty+1][z][x]=(u8)((vox[ty+1][z][x]&0xF0)|1); }      // TANK: bare shoulders
         if(ts==3&&hz>0&&look[LK_HSTYLE]!=2){ for(int x=hx;x<hx+hw;x++)for(int y=hy;y<top;y++) vb(x,y,hz-1,6); }   // HOODIE: the hood hangs behind the head
         for(int y=0;y<L&&y<ty;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ u8 v=vox[y][z][x]; if((v&15)!=7) continue;
             if(bs==1&&y>0&&y<L-1) vox[y][z][x]=(u8)((v&0xF0)|1);                                                   // SHORTS: bare shins
+            if(bs==3&&!(y==0&&look[LK_SHOE])) vox[y][z][x]=(u8)((v&0xF0)|1);                                       // BARE bottom: skin from the hips down (shoes, if any, stay on)
             if(y==0&&look[LK_SHOE]){ static const u8 shoeSlot[6]={7,2,3,4,8,6}; vox[y][z][x]=(u8)((v&0xF0)|shoeSlot[look[LK_SHOE]%6]); } }   // SHOES
         if(bs==2&&L>0){ int yk=L-1; for(int z=1;z<3&&z<D;z++){ vw(tx-1,yk,z,7,0,1,0,0); vw(tx+2,yk,z,7,1,0,0,0); } }                // SKIRT: flares out at the hips
     }
@@ -785,6 +788,7 @@ static void restyle(int kind){   // change the style of every eye (0) or mouth (
 static int maskPick(int mask,int v,int n){ for(int i=0;i<n;i++){ int j=(v+i)%n; if(mask>>j&1) return j; } return 0; }   // the option at or after v that is allowed
 static void fixLook(void){   // pull every choice into what this stage offers
     look[LK_SHAPE]=(u8)maskPick(shapeMask(),look[LK_SHAPE],NSHAPE);
+    if(stage<AG_ADULT){ if(look[LK_TOPSTY]>=4) look[LK_TOPSTY]=0; if(look[LK_BOTSTY]>=3) look[LK_BOTSTY]=0; }   // BARE is for adults and elders only
     look[LK_EARS]=(u8)maskPick(stMaskEars[stage],look[LK_EARS],3);
     look[LK_HSTYLE]=(u8)maskPick(stMaskHair[stage],look[LK_HSTYLE],NHAIR);
     static const u8 sw[4]={LK_SKIN,LK_HCOL,LK_TOP,LK_BOT};
@@ -1021,10 +1025,10 @@ __attribute__((noinline)) static void drawEars(int near){   // ROM, not inlined 
         }
     }
 }
-// The seat (BUTT slider, teens and up): two rounded cheeks in the bottom colour on the back of the hips, drawn as shaded domes so they
+// The seat (BUTT slider, teens and up): two rounded cheeks in the colour of the hips (the bottom clothes, or skin when they are bare) on the back of the hips, drawn as shaded domes so they
 // read at a glance from behind or the side: lit from above, a dark rim, the cleft where they meet and the crease under them. The slider
 // takes them from nearly flat to full and round (each notch both bulges them out and grows them a little, so no two notches look alike).
-__attribute__((noinline)) static void drawSeat(int x,int y,int u,int w,int rl){   // on the back of the top leg block (rl: that row's HEIGHT stretch)
+__attribute__((noinline)) static void drawSeat(int x,int y,int u,int w,int rl,int slot){   // on the back of the top leg block (rl: that row's HEIGHT stretch; slot: that block's colour slot)
     int sx,sy,ax,ay,bx,by; projC(u,w,y+1,&sx,&sy); projC(u+2,w,y+1,&ax,&ay); projC(u,w+2,y+1,&bx,&by);
     int xX=ax-sx, xY=ay-sy, zX=bx-sx, zY=by-sy;              // one block along x, along z (towards the front), on screen
     int p=slidePos(look[LK_BUTT]), side=(x==BX0+(stBW[stage]-2)/2)?-1:1;
@@ -1033,7 +1037,7 @@ __attribute__((noinline)) static void drawSeat(int x,int y,int u,int w,int rl){ 
     if(rxq<8) rxq=8; if(ry64<128) ry64=128;   // a little taller than wide, so they read round, not squashed                 // half width (64ths of a block), half height (px/64), bulge (64ths of a block)
     static const signed char cs[32]={64,63,59,53,45,36,24,12,0,-12,-24,-36,-45,-53,-59,-63,-64,-63,-59,-53,-45,-36,-24,-12,0,12,24,36,45,53,59,63};
     static const u8 dq[17]={64,64,63,62,62,60,58,56,53,50,46,41,36,30,22,13,0};   // the dome's height at ring r of 16
-    u16 b=base[7];
+    u16 b=base[(slot>=1&&slot<=8)?slot:7];   // the seat is the same colour as what covers the hips: the bottom colour, or skin when they are bare
     for(int ri=16;ri>=0;ri--){ int na=ri?32:1, d=dq[ri];
         for(int a=0;a<na;a++){
             int cu=cs[a]*ri/16, cv=cs[(a+24)&31]*ri/16;       // where on the disc (64ths), outer rings first so the middle of the dome lands on top
@@ -1093,7 +1097,7 @@ IWRAM_THUMB static void drawScene(int blink){
             int rl=y<liftL?liftK:y<liftL+liftTn?liftT:0;   // this row stretched (HEIGHT: the legs, TORSO: the torso)
             if(rl>0) cube(sx,sy+rl,ci,shape,f|1);   // a stretched row: its lower part first, then the block on top of it
             cube(sx,sy,ci,shape,rl>0?f|2:f); cubeDR=0;
-            if(decLook&&(stage>=AG_TEEN||sUnlock)&&liftL>0&&y==liftL-1&&z==1&&shape==3&&(x==BX0+(stBW[stage]-2)/2||x==BX0+stBW[stage]/2)) drawSeat(x,y,u,w,rl); }   // the seat, on the back of the top of the legs
+            if(decLook&&(stage>=AG_TEEN||sUnlock)&&liftL>0&&y==liftL-1&&z==1&&shape==3&&(x==BX0+(stBW[stage]-2)/2||x==BX0+stBW[stage]/2)) drawSeat(x,y,u,w,rl,raw&15); }   // the seat, on the back of the top of the legs
         u16 dc=dec[y][z][x]; int tint=0;
         if(gdec[y][z][x]&&blink){ dc=gdec[y][z][x]; tint=1; }
         if(dc&&fv>=0){ drawDeco(sx,sy,dc,fv,tint); if(decSpr(dc)-1>=NEYE){ nsx=sx; nsy=sy; ndc=dc; ntint=tint; } }
@@ -2692,8 +2696,8 @@ static const char* const hairNm[NHAIR]={"CROP","BOWL","LONG","BALD","SPIKY","AFR
 static const char* const hatNm[6]={"NONE","CAP","BEANIE","BAND","FEZ","HELMET"};
 static const char* const hatColNm[6]={"AS THE TOP","AS THE BOTTOM","WHITE","BLACK","RED","GOLD"};
 static const char* const beardNm[3]={"NONE","BEARD","LONG BEARD"};
-static const char* const topStyNm[4]={"TEE","LONG SLEEVE","TANK","HOODIE"};
-static const char* const botStyNm[3]={"PANTS","SHORTS","SKIRT"};
+static const char* const topStyNm[5]={"TEE","LONG SLEEVE","TANK","HOODIE","BARE"};   // BARE: adults only (see lkAllowed, fixLook and the clothes code in buildLook)
+static const char* const botStyNm[4]={"PANTS","SHORTS","SKIRT","BARE"};
 static const char* const shoeNm[6]={"AS THE BOTTOM","WHITE","BLACK","RED","GOLD","AS THE TOP"};
 #define LK_AGE LK_N   // the AGE row is not part of look[]: it picks the life stage
 static const char* const* const lookNm[LK_N+1]={shapeNm,0,eyeNm,mouthNm,earNm,hairNm,0,0,0,0,0,0,tailNm,hornNm,backNm,hatNm,hatColNm,beardNm,topStyNm,botStyNm,shoeNm,
@@ -2711,7 +2715,7 @@ static const Row tabRow[NTAB][TROWS]={
    {"MOUTH",0,RK_PICK,LK_MOUTH,NMOUTH},{"MOUTH WIDTH",0,RK_SLIDE,LK_MOUTHW,9},{"MOUTH HEIGHT",0,RK_SLIDE,LK_MOUTHHT,9},{"CHEEKS",0,RK_PICK,LK_CHEEK,5},
    {"EARS",0,RK_PICK,LK_EARS,3},{"EAR SIZE",0,RK_SLIDE,LK_EARSZ,9},{"EAR HEIGHT",0,RK_SLIDE,LK_EARLF,9}},
   {{"STYLE",0,RK_PICK,LK_HSTYLE,NHAIR},{"COLOUR",0,RK_SWATCH,LK_HCOL,NSW},{"HAIR TONE",0,RK_SLIDE,LK_HTONE,9},{"BEARD",0,RK_PICK,LK_BEARD,3},{"HAT",0,RK_PICK,LK_HAT,6},{"HAT COLOUR",0,RK_PICK,LK_HATCOL,6}},
-  {{"TOP",0,RK_SWATCH,LK_TOP,NSW},{"TOP TONE",0,RK_SLIDE,LK_TTONE,9},{"BOTTOM",0,RK_SWATCH,LK_BOT,NSW},{"BOTTOM TONE",0,RK_SLIDE,LK_BTONE,9},{"TOP STYLE",0,RK_PICK,LK_TOPSTY,4},{"BOTTOM STYLE",0,RK_PICK,LK_BOTSTY,3},{"SHOES",0,RK_PICK,LK_SHOE,6}},
+  {{"TOP",0,RK_SWATCH,LK_TOP,NSW},{"TOP TONE",0,RK_SLIDE,LK_TTONE,9},{"BOTTOM",0,RK_SWATCH,LK_BOT,NSW},{"BOTTOM TONE",0,RK_SLIDE,LK_BTONE,9},{"TOP STYLE",0,RK_PICK,LK_TOPSTY,5},{"BOTTOM STYLE",0,RK_PICK,LK_BOTSTY,4},{"SHOES",0,RK_PICK,LK_SHOE,6}},
   {{"TAIL",0,RK_PICK,LK_TAIL,3},{"HORNS",0,RK_PICK,LK_HORNS,3},{"BACK",0,RK_PICK,LK_BACK,3},{"HANDS",0,RK_PICK,LK_CLAWS,3},{"ANTENNAE",0,RK_PICK,LK_ANTENNA,3},
    {"PATTERN",0,RK_PICK,LK_PATTERN,7},{"PAINT",0,RK_PICK,LK_PATCOL,6},{"ANIMAL EARS",0,RK_PICK,LK_FEARS,5},{"MUZZLE",0,RK_PICK,LK_MUZZLE,4},{"FUR TAIL",0,RK_PICK,LK_FTAIL,4}},
   {{"ASPIRATION",0,RK_PERS,PS_ASP,AS_PICK},{"LIFETIME WANT",0,RK_PERS,PS_LTW,2},{"SIGN",0,RK_PERS,PS_SIGN,12},
@@ -2787,6 +2791,8 @@ static int lkAllowed(int id,int v){   // may this stage pick option v of row id?
       case LK_EARS:  return stMaskEars[stage]>>v&1;
       case LK_HSTYLE:return stMaskHair[stage]>>v&1;
       case LK_SKIN: case LK_HCOL: case LK_TOP: case LK_BOT: return v<stSwatches[stage];
+      case LK_TOPSTY: return v<4||stage>=AG_ADULT;   // BARE (nudity) is for ADULT and ELDER only: never a baby, child or teen
+      case LK_BOTSTY: return v<3||stage>=AG_ADULT;
       case LK_TAIL: case LK_HORNS: case LK_BACK: case LK_CLAWS: case LK_ANTENNA: return 1;   // every part can be looked at; a locked one is bought with DNA (or comes off when you leave)
       default: return 1;
     }

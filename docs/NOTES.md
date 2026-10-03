@@ -341,7 +341,7 @@ The old BUILD tab (block builder) is gone; the classic block screen is still beh
 
 **More looks** (all built from blocks, like the rest of the creature):
 - **HAIR tab**: STYLE (CROP, BOWL, LONG, BALD, SPIKY, AFRO, FLAT TOP, SIDE TAIL, BUN; babies only CROP and BALD), COLOUR, **BEARD** (NONE, BEARD, LONG BEARD: adults and elders pick it in the dice, the mouth sits on the beard), **HAT** (NONE, CAP, BEANIE, BAND, FEZ, HELMET) and **HAT COLOUR** (as the top, as the bottom, white, black, red, gold).
-- **CLOTHES tab**: TOP and BOTTOM colours, **TOP STYLE** (TEE, LONG SLEEVE, TANK, HOODIE with a hood behind the head), **BOTTOM STYLE** (PANTS, SHORTS, SKIRT) and **SHOES** (as the bottom, white, black, red, gold, as the top).
+- **CLOTHES tab**: TOP and BOTTOM colours, **TOP STYLE** (TEE, LONG SLEEVE, TANK, HOODIE with a hood behind the head, **BARE**), **BOTTOM STYLE** (PANTS, SHORTS, SKIRT, **BARE**) and **SHOES** (as the bottom, white, black, red, gold, as the top).
 - Hats and the new hairdos add STYLE; a helmet adds STAMINA.
 - **DONE tab > RANDOMIZE** (the Create-A-Sim dice): a whole new look, star sign and aspiration, only from what this life stage and your unlocked parts allow. Press it again for another.
 - **More face parts and real sliders** (person save format 6, household save H4; older saves still load):
@@ -360,7 +360,8 @@ The old BUILD tab (block builder) is gone; the classic block screen is still beh
   - HAIR: HAIR TONE.
   - CLOTHES: TOP TONE and BOTTOM TONE.
   - BUTT, BUTT HEIGHT and BUTT WIDTH: teens, adults and elders only; the rows are not offered to babies or children.
-- **The seat:** BUTT draws two shaded, rounded cheeks in the bottom colour on the back of the hips, with a cleft and a crease, from nearly flat to full.
+- **The seat:** BUTT draws two shaded, rounded cheeks on the back of the hips, with a cleft and a crease, from nearly flat to full. **They take the colour of the block they sit on**: the bottom colour in pants, shorts or a skirt, skin when the legs are bare (or a paint colour if that block is painted).
+- **BARE (nudity), adults and elders only:** BARE as TOP STYLE turns the top colour to skin, BARE as BOTTOM STYLE turns the legs and hips to skin (shoes stay on if chosen); both together is an unclothed figure, a plain skin-coloured voxel body with no anatomy, and the seat is skin too. It is never offered to a BABY, CHILD or TEEN (`lkAllowed`), `fixLook()` puts clothes back when the stage goes below ADULT, and `buildLook()` ignores BARE below ADULT whatever a save or a household member's look says. The dice (RANDOMIZE) and the made-up passers-by never pick it.
 - **Seventeen body types:**
   - AVERAGE, BROAD, BIG HEAD, STUBBY, SLIM, ATHLETIC and TALL were already there.
   - New: CHUBBY (soft belly), PEAR (wide hips), LANKY (long and thin, longer arms), STOCKY (short and wide), HUNCHED (head forward, a hump), POTBELLY, MUSCLE (heavy arms), PETITE, BARREL (deep chest) and DIGITIGRADE (animal legs with paws).
