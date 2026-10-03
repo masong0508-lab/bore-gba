@@ -46,7 +46,7 @@ enum { SLE_OK=0, SLE_EMPTY=-1, SLE_BAD=-2, SLE_BIG=-3, SLE_HOUSE=-4, SLE_FMT=-5,
 #define SLC_LIFE   'L'
 #define SLC_HOUSE  'H'
 #define CNV (H*D*W)                                            // voxels in the creature (192)
-#define SLOT_NSPR ((int)(sizeof(spr)/sizeof(spr[0])))
+#define SLOT_NSPR NSPR
 
 // ---------- byte writer (a counting dry run when p is 0) and reader ----------
 typedef struct { volatile u8*p; int pos,cap,over; u32 s1,s2; } SlW;
@@ -105,7 +105,7 @@ static void slEncPlane(SlW*w,int plane){   // 0 = voxels, 1 = face sprite low by
     if(n){ slwPut(w,n); slwPut(w,cur); }
 }
 static void slEncPerson(SlW*w){
-    slwPut(w,5);                                            // format 5 (4 had no hats, beards or clothes styles; 3 had no persona: it reads as the one already set; 2 had no sliders: they read as 0 = the middle; 1 had no life stage: those people are adults)
+    slwPut(w,6);                                            // format 6 (5 had no brows, nose, cheeks, glasses, eye colour or body / face sliders); format 5 (4 had no hats, beards or clothes styles; 3 had no persona: it reads as the one already set; 2 had no sliders: they read as 0 = the middle; 1 had no life stage: those people are adults)
     for(int i=0;i<LK_N;i++) slwPut(w,look[i]);
     slwPut(w,stage); slwPut(w,ageDays);
     slwPut(w,pAsp); slwPut(w,pLtw); for(int i=0;i<TR_N;i++) slwPut(w,pTr[i]);   // persona: aspiration, lifetime want, personality
@@ -119,21 +119,22 @@ static int slDecPlane(SlR*c,int plane){
     return 1;
 }
 static int slDecPerson(SlR*c,int apply){
-    int fmt=slrGet(c); if(c->bad||fmt<1||fmt>5) return 0;
-    u8 lk[LK_N]={0}; for(int i=0;i<(fmt>=5?LK_N:fmt>=4?LK_N4:fmt>=3?LK_N3:LK_BASE);i++) lk[i]=(u8)slrGet(c);
+    int fmt=slrGet(c); if(c->bad||fmt<1||fmt>6) return 0;
+    u8 lk[LK_N]={0}; for(int i=0;i<(fmt>=6?LK_N:fmt>=5?LK_N5:fmt>=4?LK_N4:fmt>=3?LK_N3:LK_BASE);i++) lk[i]=(u8)slrGet(c);
     int stg=AG_ADULT, agd=0; if(fmt>=2){ stg=slrGet(c); agd=slrGet(c); }
     if(c->bad||stg>=AG_N) return 0;
     int pa=pAsp, pl=pLtw; u8 pt[TR_N]; for(int i=0;i<TR_N;i++) pt[i]=pTr[i];
     if(fmt>=4){ pa=slrGet(c); pl=slrGet(c); for(int i=0;i<TR_N;i++) pt[i]=(u8)slrGet(c); if(c->bad||!persValid(pa,pl,pt)) return 0; }
     int cu=slrGet(c); if(c->bad) return 0;
-    if(lk[LK_TONE]>=9||lk[LK_EARSZ]>=9||lk[LK_EARLF]>=9||lk[LK_SHAPE]>=NSHAPE||lk[LK_SKIN]>=NSW||lk[LK_EYES]>=3||lk[LK_MOUTH]>=3||lk[LK_EARS]>=3||lk[LK_HSTYLE]>=NHAIR||lk[LK_TAIL]>=3||lk[LK_HORNS]>=3||lk[LK_BACK]>=3||lk[LK_HAT]>=6||lk[LK_HATCOL]>=6||lk[LK_BEARD]>=3||lk[LK_TOPSTY]>=4||lk[LK_BOTSTY]>=3||lk[LK_SHOE]>=6||lk[LK_HCOL]>=NSW||lk[LK_TOP]>=NSW||lk[LK_BOT]>=NSW) return 0;
+    if(lk[LK_TONE]>=9||lk[LK_EARSZ]>=9||lk[LK_EARLF]>=9||lk[LK_SHAPE]>=NSHAPE||lk[LK_SKIN]>=NSW||lk[LK_EYES]>=NEYE||lk[LK_MOUTH]>=NMOUTH||lk[LK_BROW]>=6||lk[LK_NOSE]>=5||lk[LK_CHEEK]>=5||lk[LK_GLASS]>=4||lk[LK_EYECOL]>=NSW||lk[LK_EARS]>=3||lk[LK_HSTYLE]>=NHAIR||lk[LK_TAIL]>=3||lk[LK_HORNS]>=3||lk[LK_BACK]>=3||lk[LK_HAT]>=6||lk[LK_HATCOL]>=6||lk[LK_BEARD]>=3||lk[LK_TOPSTY]>=4||lk[LK_BOTSTY]>=3||lk[LK_SHOE]>=6||lk[LK_HCOL]>=NSW||lk[LK_TOP]>=NSW||lk[LK_BOT]>=NSW) return 0;
+    for(int i=LK_HEIGHT;i<=LK_MOUTHHT;i++) if(lk[i]>=9) return 0;
     if(cu>1) return 0;
     if(cu){
         if(!slDecPlane(c,0)||!slDecPlane(c,1)||!slDecPlane(c,2)) return 0;
         for(int i=0;i<CNV;i++){
             int vx=slTmp[0][i], dc=slTmp[1][i]|(slTmp[2][i]<<8);
             if((vx&15)>8||(vx>>4)>11) return 0;                       // a colour slot and a shape that exist
-            if(dc&&((dc&7)<1||(dc&7)>SLOT_NSPR||(dc>>11))) return 0;  // a face sprite that exists
+            if(dc&&(decSpr(dc)<1||decSpr(dc)>SLOT_NSPR||(dc>>15))) return 0;  // a face sprite that exists
         }
     }
     if(apply){

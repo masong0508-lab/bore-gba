@@ -486,7 +486,7 @@ static void hhSwitch(void){
 #define HH_RELB (3*HU_N*HU_N)
 static void hhSave(void){
     volatile u8*m=(volatile u8*)0x0E000000+HH_OFF; int k=3; u8 sum=0x48;
-    m[0]='H'; m[1]='3'; m[2]=(u8)hhN; m[k++]=(u8)hhPUid;
+    m[0]='H'; m[1]='4'; m[2]=(u8)hhN; m[k++]=(u8)hhPUid;
     for(int i=0;i<hhN;i++){ const HhSim*s=&hhM[i];
         for(int j=0;j<LK_N;j++) m[k++]=s->look[j]; m[k++]=s->stage; m[k++]=s->asp; m[k++]=s->ltw;
         for(int j=0;j<TR_N;j++) m[k++]=s->tr[j]; for(int j=0;j<10;j++) m[k++]=(u8)s->name[j]; for(int j=0;j<HN_N;j++) m[k++]=s->need[j]; m[k++]=s->uid; }
@@ -496,8 +496,8 @@ static void hhSave(void){
 }
 static void hhLoad(void){
     volatile u8*m=(volatile u8*)0x0E000000+HH_OFF; u8 sum=0x48; hhN=0;
-    if(m[0]!='H'||(m[1]!='2'&&m[1]!='3')||m[2]>HH_MAX) return;
-    int nl=m[1]=='3'?LK_N:LK_N4, rec=HH_REC-LK_N+nl;   // 'H2' households were saved before the hats and clothes
+    if(m[0]!='H'||m[1]<'2'||m[1]>'4'||m[2]>HH_MAX) return;
+    int nl=m[1]=='4'?LK_N:m[1]=='3'?LK_N5:LK_N4, rec=HH_REC-LK_N+nl;   // 'H2' households were saved before the hats and clothes, 'H3' before the face details and sliders
     int n=m[2], k=4+n*rec+HH_RELB; for(int i=2;i<k;i++) sum+=m[i]; if(m[k]!=sum) return;
     if(m[3]>=HU_N) return;
     k=4; hhPUid=m[3];
