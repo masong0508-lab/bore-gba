@@ -1522,7 +1522,7 @@ static const char sramTag[] __attribute__((used)) = "SRAM_V113";   // tells emul
 #define LEG_Y 22
 #include "jukebox.h"   // playlist logic: shuffled order lives in SRAM at JB_OFF (12288), the mode is a setting
 // Songs named PLACEHOLDER... are hidden from the jukebox unless the title-screen debug code was entered (dbgOn).
-static int isDbgSong(int i){ if(songs[i].xm==&xm_gottcho_barracho||songs[i].xm==&xm_emergency_dance_floor) return 1;   // the original GOTTCHO BARRACHO: a secret song
+static int isDbgSong(int i){ if(songs[i].xm==&xm_gottcho_barracho||songs[i].xm==&xm_emergency_dance_floor||songs[i].xm==&xm_whistler_shuffle_old) return 1;   // the original GOTTCHO BARRACHO: a secret song
     const char*n=songs[i].name, *p="PLACEHOLDER"; while(*p){ if(*n++!=*p++) return 0; } return 1; }
 static void jbSetup(void){   // build the list of songs the jukebox shows, then load / make the playlist order
     int n=0; for(int i=0;i<NSONGS&&n<JB_MAX;i++) if(songs[i].xm!=&xm_the_dipper_man&&(dbgOn||!isDbgSong(i))) jbMap[n++]=(u8)i;   // THE DIPPER MAN is the title music only: never listed
