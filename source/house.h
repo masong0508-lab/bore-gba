@@ -13,7 +13,7 @@
 //  FAMILIES  premade households (original characters) move in from the pause menu (HOUSEHOLD). Saved in SRAM at HH_OFF.
 //
 // TUNING
-#define HH_MAX     7       // members besides the player (8 Sims in all)
+#define HH_MAX     9       // members besides the player (10 Sims in all: each is its own hardware sprite, OAM 0..8, 1 KB of OBJ VRAM each)
 #define HH_THINK   90      // steps between a member's decisions (FREE WILL HIGH; LOW thinks half as often and lets needs sink lower)
 #define HH_PATH    96      // longest path a member remembers (steps between tiles)
 #define HH_USE     240     // steps a member spends using a piece of furniture
@@ -70,6 +70,8 @@ static const HhFam hhFams[]={
                         {"WREN",   {0,0,0,0,1,1,0,7,7, 4,0,0},AG_TEEN, AS_PLEAS,10} }},
     {"THE FRESHLYS",2,{ {"BEN",   {0,3,1,1,1,0,1,4,3, 0,0,0},AG_ADULT,AS_FORTUNE,1},
                         {"BEA",   {4,3,2,1,1,2,2,6,0, 0,0,0},AG_ADULT,AS_PLEAS, 6} }},
+    {"THE NOVAS",2,{   {"JUNO",  {5,4,5,3,1,5,6,2,3, 0,0,0},AG_ADULT,AS_POP,    3},
+                        {"KIT",   {0,2,3,1,2,4,1,5,2, 0,0,0},AG_TEEN, AS_GROW,   8} }},
 };
 #define HH_NFAM ((int)(sizeof(hhFams)/sizeof(hhFams[0])))
 
@@ -406,17 +408,18 @@ static void relBar(int x,int y,int v){   // -100..100 around a centre line, gree
     int w=v*30/100; if(w>0) rect(x+31,y,w,4,RGB(8,26,8)); else if(w<0) rect(x+30+w,y,-w,4,RGB(28,8,6));
 }
 static void relScreen(void){
-    u16 prev=keyNow();
+    u16 prev=keyNow(); int top=0;   // seven rows fit: UP / DOWN scroll a bigger household
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; if(pr&(K_A|K_B|K_START)) return;
+        if((pr&K_DOWN)&&top+7<hhN) top++; if((pr&K_UP)&&top>0) top--;
         box(3,1,234,157); char t[28]; simCat(simCat(t,"RELATIONSHIPS OF "),hhPName); text(10,6,t,GOLD,1);
         text(84,16,"YOU TO THEM",DIMC,1); text(162,16,"THEM TO YOU",DIMC,1);
         if(!hhN) text(10,40,"NO ONE ELSE LIVES HERE",DIMC,1);
-        for(int m=0;m<hhN;m++){ int y=26+m*18, b=hhM[m].uid, a=hhPUid;
+        for(int m=top;m<hhN&&m<top+7;m++){ int y=26+(m-top)*18, b=hhM[m].uid, a=hhPUid;
             text(10,y,hhM[m].name,WHITE,1); text(10,y+8,relWord(a,b),(relF[a][b]&(RF_LOVE|RF_STEADY|RF_CRUSH))?RGB(31,14,20):relD[a][b]<=-20?RGB(30,10,8):RGB(16,26,16),1);
             relBar(84,y+1,relD[a][b]); relBar(84,y+8,relL[a][b]); relBar(162,y+1,relD[b][a]); relBar(162,y+8,relL[b][a]);
             if(relF[a][b]&RF_STEADY) simIcon(226,y+2,IC_HEART,RGB(31,14,20)); }
-        text(10,150,"TOP BAR DAILY  LOWER BAR LIFETIME",RGB(12,14,16),1);
+        text(10,150,hhN>7?"UP DOWN MORE  TOP DAILY  LOW LIFETIME":"TOP BAR DAILY  LOWER BAR LIFETIME",RGB(12,14,16),1);
         present();
     }
 }
@@ -517,7 +520,7 @@ static void hhMenu(void){
     it[n++]="RELATIONSHIPS";
     for(int f=0;f<HH_NFAM;f++){ char*e=lb[n]; const char*p="MOVE IN "; while(*p) *e++=*p++; p=hhFams[f].fam; while(*p) *e++=*p++; *e=0; it[n]=lb[n]; n++; }
     it[n++]="MOVE EVERYONE OUT";
-    char t[24]; { char*e=t; const char*p="HOUSEHOLD  "; while(*p) *e++=*p++; e+=numStr(e,hhN+1); p=" OF 8"; while(*p) *e++=*p++; *e=0; }
+    char t[24]; { char*e=t; const char*p="HOUSEHOLD  "; while(*p) *e++=*p++; e+=numStr(e,hhN+1); p=" OF 10"; while(*p) *e++=*p++; *e=0; }
     int c=menu(t,it,n); if(c<0) return;
     if(c==0){ relScreen(); return; }
     c--;
