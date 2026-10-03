@@ -208,6 +208,8 @@ The title screen plays "The Dipper Man" (tools/the_dipper_man.xm). `python3 tool
 
 **Mi Cora Zone**: `tools/mi_cora_zone.xm`, a rework of "The Dipper Man - Mi Cora Zone", built from the original's own samples. It runs intro, drop, hook, breakdown, second drop, half-time bridge, a final section lifted 2 semitones, and outro. 133 BPM, 2:50. The generator is not in the repo.
 
+**Emergency On The Dance Floor (hi-tech)**: `tools/make_emergency_rework.py` builds `tools/emergency_hitech.xm`. It reads the bass riff and lead line straight from the original at the original 181 BPM. The sounds are all new: an FM growl bass over a sine sub, a supersaw pluck lead with an octave shadow and a ping-pong echo, glassy FM arps, digital stabs, a vowel pad, a ring-modulated hat, glitch ticks, data blips, zaps, lasers and risers. It runs at 32nd-note resolution for ratchets and stutters, uses all 16 voices hand-panned (`hitech_pan`), and lasts 1:28. The earlier rework is now the secret song **EMERGENCY (ORIGINAL)**, which shows up after the title-screen code.
+
 **Meltdown in Mars (90s house mix)**: `tools/make_meltdown_house.py` builds `tools/meltdown_in_mars_house.xm` (126 BPM, about 6 minutes, 10 channels, all sounds synthesised), it is listed in `source/songs.h`, and `python3 tools/xm2gba.py` bakes it into `source/musicdata.h`. `python3 tools/preview_xm.py meltdown_in_mars_house tools/meltdown_in_mars_house.xm out.wav` renders it the way the GBA mixer will play it.
 
 ## Jukebox

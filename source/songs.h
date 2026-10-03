@@ -23,7 +23,10 @@ SONG_ADP(placeholder_c,"PLACEHOLDER C","source/music/placeholder_c.adp")
 // ---- songs added by tools/encode_song.py go below this line ----
 SONG_XM(earth_and_the_space_citizens,"EARTH AND THE SPACE CITIZENS","tools/earth_and_the_space_citizens.xm")
 SONG_XM(amiga_music,"AMIGA MUSIC","tools/amiga_music.xm")
-SONG_XM(emergency_dance_floor,"EMERGENCY ON THE DANCE FLOOR","tools/emergency_dance_floor.xm")
+// EMERGENCY ON THE DANCE FLOOR: the hi-tech rework (tools/make_emergency_rework.py). The earlier version is the secret one below.
+SONG_XM(emergency_hitech,"EMERGENCY ON THE DANCE FLOOR","tools/emergency_hitech.xm")
+// the earlier rework (xm2gba.py's make_dance): a SECRET song, hidden until the title-screen code (isDbgSong in main.c)
+SONG_XM(emergency_dance_floor,"EMERGENCY (ORIGINAL)","tools/emergency_dance_floor.xm")
 SONG_XM(tree_swaying_action,"TREE SWAYING ACTION","tools/tree_swaying_action.xm")
 SONG_XM(meltdown_in_mars_house,"MELTDOWN IN MARS","tools/meltdown_in_mars_house.xm")
 SONG_XM(worthless_clouds,"WORTHLESS CLOUDS","tools/worthless_clouds.xm")
