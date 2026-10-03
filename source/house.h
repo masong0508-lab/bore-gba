@@ -121,6 +121,15 @@ static void spBounds(void){   // the box that holds every opaque pixel of the pl
     if(spBx0>=spBx1){ spBx0=0; spBx1=SPW; spBy0=0; spBy1=SPH; }
 }
 // ---- baking: render a member's look with the creator's own code, then put the player's creature back ----
+static void hhRandLook(u8*lk,u8*stg){   // a made-up Sim: passers-by, and SELECT on the RELATIONSHIPS screen
+    static const u8 shp[6]={0,1,3,4,5,6}, sg[4]={AG_ADULT,AG_ADULT,AG_TEEN,AG_ELDER};
+    for(int i=0;i<LK_N;i++) lk[i]=0;
+    lk[LK_SHAPE]=shp[rnd8()%6]; lk[LK_SKIN]=(u8)(rnd8()%NSW); lk[LK_EYES]=(u8)(rnd8()%NEYE); lk[LK_MOUTH]=(u8)(rnd8()%NMOUTH);
+    lk[LK_EARS]=(u8)(1+(rnd8()&1)); lk[LK_HSTYLE]=(u8)(rnd8()%NHAIR); lk[LK_HCOL]=(u8)(rnd8()%NSW); lk[LK_TOP]=(u8)(rnd8()%NSW); lk[LK_BOT]=(u8)(rnd8()%NSW);
+    lk[LK_TOPSTY]=(u8)(rnd8()&3); lk[LK_HAT]=(rnd8()&3)==0?(u8)(1+rnd8()%5):0; lk[LK_GLASS]=(rnd8()&3)==0?(u8)(1+rnd8()%3):0;
+    lk[LK_BROW]=(u8)(rnd8()%6); lk[LK_EYECOL]=(u8)(rnd8()%NSW);
+    *stg=sg[rnd8()&3];
+}
 static void hhBakeAll(void){
     static u8 sv[H][D][W] EWRAM_BSS; static u16 sd[H][D][W] EWRAM_BSS; u8 sl[LK_N]; u8 sst=stage; int sc=custom;
     for(int i=0;i<LK_N;i++) sl[i]=look[i];
@@ -131,12 +140,7 @@ static void hhBakeAll(void){
         strideK=1; bakeInto(hhTmp); strideK=0; hhQuantS(hhTmp,hhObjS[m],hhPal[m]);
     }
     for(int k=0;k<TW_N;k++){   // two passers-by with made-up looks (new ones every time the life game starts)
-        static const u8 shp[6]={0,1,3,4,5,6}, stg[4]={AG_ADULT,AG_ADULT,AG_TEEN,AG_ELDER};
-        for(int i=0;i<LK_N;i++) look[i]=0;
-        look[LK_SHAPE]=shp[rnd8()%6]; look[LK_SKIN]=(u8)(rnd8()%NSW); look[LK_EYES]=(u8)(rnd8()%NEYE); look[LK_MOUTH]=(u8)(rnd8()%NMOUTH);
-        look[LK_EARS]=(u8)(1+(rnd8()&1)); look[LK_HSTYLE]=(u8)(rnd8()%NHAIR); look[LK_HCOL]=(u8)(rnd8()%NSW); look[LK_TOP]=(u8)(rnd8()%NSW); look[LK_BOT]=(u8)(rnd8()%NSW);
-        look[LK_TOPSTY]=(u8)(rnd8()&3); look[LK_HAT]=(rnd8()&3)==0?(u8)(1+rnd8()%5):0; look[LK_GLASS]=(rnd8()&3)==0?(u8)(1+rnd8()%3):0;
-        stage=stg[rnd8()&3]; fixLook();
+        u8 st; hhRandLook(look,&st); stage=st; fixLook();
         buildLook(); setColors(); bakeInto(hhTmp); hhQuant(hhTmp,twObj[k],twPal[k]); twObjV[k]=-1;
         strideK=1; bakeInto(hhTmp); strideK=0; hhQuantS(hhTmp,twObjS[k],twPal[k]);
     }
@@ -156,6 +160,32 @@ static void hhPlace(HhSim*s,int k){   // somewhere free near the spawn point, sp
     s->fx=spx*256+128; s->fy=spy*256+128; (void)k;
 }
 static int hhFreeUid(void);
+static const char* const hhNames[24]={"ALEX","SAM","JO","RILEY","MILO","NOVA","IVY","OTTO","LUNA","FINN","ZOE","RAY","SKYE","BO","CLEO","DEX","ARLO","JUDE","MAE","REMY","TESS","VIC","WREN","ZED"};
+static void hhPickName(char*out){   // a first name nobody in the house has yet
+    for(int t=0;t<48;t++){ const char*nm=hhNames[(rnd8()+t)%24]; int used=0; for(int i=0;nm[i]==hhPName[i];i++) if(!nm[i]){ used=1; break; }
+        for(int m=0;m<hhN&&!used;m++){ int i=0; while(nm[i]&&nm[i]==hhM[m].name[i]) i++; if(!nm[i]&&!hhM[m].name[i]) used=1; }
+        if(!used){ int i=0; for(;nm[i]&&i<9;i++) out[i]=nm[i]; out[i]=0; return; } }
+    out[0]='S'; out[1]='I'; out[2]='M'; out[3]=0;
+}
+static void hhPlace(HhSim*s,int k);
+static int hhAdd(const u8*lk,int stg,int asp,int ltw,const u8*tr){   // a new member of the family (CREATE-A-FAMILY): -1 when the house is full
+    if(hhN>=HH_MAX) return -1;
+    HhSim*s=&hhM[hhN]; s->uid=(u8)hhFreeUid(); s->bubT=0;
+    for(int i=0;i<LK_N;i++) s->look[i]=lk[i];
+    s->stage=(u8)stg; s->asp=(u8)asp; s->ltw=(u8)ltw; for(int i=0;i<TR_N;i++) s->tr[i]=tr[i];
+    hhPickName(s->name);
+    for(int k=0;k<HN_N;k++) s->need[k]=(u8)(70+(rnd8()&15)); s->act=HA_IDLE; s->think=(short)(rnd8()&63); s->hd=0;
+    hhPlace(s,0);
+    int a=s->uid;                                       // family: they know and like everyone at home already
+    for(int u=0;u<HU_N;u++){ if(u==a) continue; relD[a][u]=relD[u][a]=40; relL[a][u]=relL[u][a]=50; relF[a][u]=relF[u][a]=0; }
+    hhObjV[hhN]=-1; return hhN++;
+}
+static void hhRemove(int m){   // moves out: their sprites and relationships go with them
+    if(m<0||m>=hhN) return;
+    int a=hhM[m].uid; for(int u=0;u<HU_N;u++){ relD[a][u]=relD[u][a]=0; relL[a][u]=relL[u][a]=0; relF[a][u]=relF[u][a]=0; }
+    for(int k=m;k<hhN-1;k++){ hhM[k]=hhM[k+1]; for(int v=0;v<4;v++){ for(int i=0;i<1024;i++) hhObj[k][v][i]=hhObj[k+1][v][i]; for(int i=0;i<STR_BN;i++) hhObjS[k][v][i]=hhObjS[k+1][v][i]; } for(int i=0;i<16;i++) hhPal[k][i]=hhPal[k+1][i]; hhObjV[k]=-1; }
+    hhN--; for(int k=0;k<hhN;k++) for(int i=0;i<16;i++) OBJ_PAL[k*16+i]=hhPal[k][i];
+}
 static void hhNew(HhSim*s,const HhPre*p){
     s->uid=(u8)hhFreeUid(); s->bubT=0;
     for(int i=0;i<LK_N;i++) s->look[i]=i<LK_TAIL?p->look[i]:0;
@@ -495,11 +525,13 @@ static void relBar(int x,int y,int v){   // -100..100 around a centre line, gree
     rect(x,y,61,4,RGB(3,4,8)); rect(x+30,y-1,1,6,RGB(14,16,20));
     int w=v*30/100; if(w>0) rect(x+31,y,w,4,RGB(8,26,8)); else if(w<0) rect(x+30+w,y,-w,4,RGB(28,8,6));
 }
+static void hhInvite(void);   // (below, next to the redraw bookkeeping)
 static void relScreen(void){
     u16 prev=keyNow(); int top=0;   // seven rows fit: UP / DOWN scroll a bigger household
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; if(pr&(K_A|K_B|K_START)) return;
         if((pr&K_DOWN)&&top+7<hhN) top++; if((pr&K_UP)&&top>0) top--;
+        if(pr&K_SEL){ hhInvite(); prev=keyNow(); }   // SELECT: a new Sim moves in
         box(3,1,234,157); char t[28]; simCat(simCat(t,"RELATIONSHIPS OF "),hhPName); text(10,6,t,GOLD,1);
         text(84,16,"YOU TO THEM",DIMC,1); text(162,16,"THEM TO YOU",DIMC,1);
         if(!hhN) text(10,40,"NO ONE ELSE LIVES HERE",DIMC,1);
@@ -507,7 +539,7 @@ static void relScreen(void){
             text(10,y,hhM[m].name,WHITE,1); text(10,y+8,relWord(a,b),(relF[a][b]&(RF_LOVE|RF_STEADY|RF_CRUSH))?RGB(31,14,20):relD[a][b]<=-20?RGB(30,10,8):RGB(16,26,16),1);
             relBar(84,y+1,relD[a][b]); relBar(84,y+8,relL[a][b]); relBar(162,y+1,relD[b][a]); relBar(162,y+8,relL[b][a]);
             if(relF[a][b]&RF_STEADY) simIcon(226,y+2,IC_HEART,RGB(31,14,20)); }
-        text(10,150,hhN>7?"UP DOWN MORE  TOP DAILY  LOW LIFETIME":"TOP BAR DAILY  LOWER BAR LIFETIME",RGB(12,14,16),1);
+        text(10,150,hhN>7?"UP DOWN MORE  SELECT ADD A SIM":"TOP DAILY  LOW LIFETIME  SELECT ADD A SIM",RGB(12,14,16),1);
         present();
     }
 }
@@ -567,6 +599,15 @@ static void hhObjUpdate(void){   // in vblank: the members' sprites (OAM 0..6), 
     }
 }
 static HhR hhOld[HH_MAX]; static unsigned hhOldSig[HH_MAX];
+static void hhSave(void);
+static void hhInvite(void){   // a made-up Sim moves in (pause menu > HOUSEHOLD, or SELECT on the RELATIONSHIPS screen)
+    if(hhN>=HH_MAX){ toast("THE HOUSE IS FULL"); return; }
+    u8 lk[LK_N], st, tr[TR_N]; hhRandLook(lk,&st); for(int i=0;i<TR_N;i++) tr[i]=(u8)(rnd8()%11);
+    int m=hhAdd(lk,st,rnd8()%AS_PICK,rnd8()&1,tr); if(m<0) return;
+    for(int k=0;k<hhN;k++){ hhOld[k].x0=hhOld[k].x1=0; hhOldSig[k]=0xFFFFFFFFu; }
+    toast("PLEASE WAIT  MOVING IN"); hhBakeAll(); hhSave();
+    static char t[24]; char*e=simCat(t,hhM[m].name); simCat(e," MOVED IN"); toast(t);
+}
 
 static void hhLoad(void);
 static void hhStart(void){   // entering the life game: load the household and stand everyone somewhere free
@@ -636,11 +677,17 @@ static void hhMenu(void){
     static char lb[HH_NFAM+3][24]; const char* it[HH_NFAM+3]; int n=0;
     it[n++]="RELATIONSHIPS";
     for(int f=0;f<HH_NFAM;f++){ char*e=lb[n]; const char*p="MOVE IN "; while(*p) *e++=*p++; p=hhFams[f].fam; while(*p) *e++=*p++; *e=0; it[n]=lb[n]; n++; }
-    it[n++]="MOVE EVERYONE OUT";
+    it[n++]="MOVE EVERYONE OUT"; it[n++]="INVITE A NEW SIM"; it[n++]="MOVE SOMEONE OUT";
     char t[24]; { char*e=t; const char*p="HOUSEHOLD  "; while(*p) *e++=*p++; e+=numStr(e,hhN+1); p=" OF 10"; while(*p) *e++=*p++; *e=0; }
     int c=menu(t,it,n); if(c<0) return;
     if(c==0){ relScreen(); return; }
     c--;
+    if(c==HH_NFAM+1){ hhInvite(); return; }
+    if(c==HH_NFAM+2){ if(!hhN){ toast("NO ONE ELSE LIVES HERE"); return; }
+        const char* who[HH_MAX]; for(int m=0;m<hhN;m++) who[m]=hhM[m].name;
+        int m=menu("WHO MOVES OUT?",who,hhN); if(m<0) return;
+        static const char* const yn[2]={"YES  GOODBYE","NO"}; if(menu("ARE YOU SURE?",yn,2)!=0) return;
+        hhRemove(m); for(int k=0;k<hhN;k++){ hhOld[k].x0=hhOld[k].x1=0; hhOldSig[k]=0xFFFFFFFFu; } hhSave(); toast("MOVED OUT"); return; }
     if(c==HH_NFAM){ hhN=0; for(int a=0;a<HU_N;a++)for(int b=0;b<HU_N;b++){ relD[a][b]=relL[a][b]=0; relF[a][b]=0; } hhSave(); toast("ONLY YOU LIVE HERE NOW"); return; }
     const HhFam*F=&hhFams[c]; int add=0, first=hhN;
     for(int i=0;i<F->n&&hhN<HH_MAX;i++){ hhNew(&hhM[hhN],&F->m[i]); hhN++; add++; }
