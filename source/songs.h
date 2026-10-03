@@ -34,3 +34,6 @@ SONG_XM(sunman_sunrise,"SUNMAN SUNRISE","tools/sunman_sunrise.xm")
 // code UP UP DOWN DOWN LEFT LEFT RIGHT B A START is entered on the title screen, like the PLACEHOLDER songs
 // (see isDbgSong in main.c). Save the new version as a new file/id, do not overwrite tools/gottcho_barracho.xm.
 SONG_XM(gottcho_barracho,"GOTTCHO BARRACHO","tools/gottcho_barracho.xm")
+// AN ODE TO MEXICODE: a soft 16-channel rework of "The Dipper Man - An Ode to Mexicode" (tools/the_dipper_man_ode_to_mexicode.xm),
+// built by tools/make_mexicode_rework.py. Part one of a pair; "AN ODE TO THE SPANISH FLEXICODE" is its sequel.
+SONG_XM(ode_to_mexicode,"AN ODE TO MEXICODE","tools/ode_to_mexicode.xm")
