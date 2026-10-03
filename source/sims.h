@@ -224,7 +224,7 @@ static int simT;                             // steps since reset (drives the bu
 static int simMoney, simDay, simMin, simClkCr;   // cash, days since the start (0 = MON), minute of day, step counter towards a minute
 static int jobLvl, jobGood, jobBad, shiftPts, simLastScore, simNiceRoom;   // job level 0..5, good days towards promotion, strikes, points this shift
 static int skillPts, skillLvl;               // SKATING skill
-static char simClk[16], simMsg[24], simMsg2[24], simWTxt[SIM_WS][24];   // clock text, note buffers, want names with their parameter
+static char simClk[16], simMsg[24], simMsg2[24], simWTxt[SIM_WS][24] EWRAM_BSS;   // clock text, note buffers, want names with their parameter
 
 static int simRnd(void){ simRng=simRng*1664525u+1013904223u; return (int)(simRng>>24); }
 static void simQueue(const char* s){ simQ=s; simQT=240; }
