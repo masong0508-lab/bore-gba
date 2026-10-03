@@ -1,7 +1,7 @@
 // songs.h - THE JUKEBOX SONG LIST. Order here = the "IN ORDER" order. Up to 64 songs.
 //
 //   SONG_XM(id,"NAME","file")    a tracker song (.xm). id = any unique C name, file = the .xm in tools/. After adding one, run
-//                                python3 tools/xm2gba.py   to rebuild source/musicdata.h (the title music, THE DIPPER MAN, is one too)
+//                                python3 tools/xm2gba.py   to rebuild source/musicdata.h and source/music/xmdata.bin (the title music, THE DIPPER MAN, is one too)
 //   SONG_ADP(id,"NAME","file")   a streamed ADPCM song. id = any unique C name, NAME = capitals, digits, spaces, punctuation and the extended Latin letters
 //                                (no double quote or backslash; see "EXTENDED FONT" in README.md)
 //

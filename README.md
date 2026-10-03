@@ -65,7 +65,7 @@ Main menu -> **OPTIONS** (also in the pause menu and the map menu). Eight pages:
 | B / Start | back (everything is saved) |
 A gold dot marks a row that is not at its normal value. The row under the cursor explains itself in two lines.
 - **PLAY**: NEEDS (off to brutal), FOOD AND WC, DAY LENGTH (3 / 6 / 12 / 24 min or stopped), CAREER on/off (off = no shifts, quota or bills), JOB QUOTA, BILLS, SCORE multiplier (x0.5 to x3), COMBO WINDOW, TOP SPEED (80 to 150 %), MOOD EFFECTS, HURT (normal / gentle / no death), AUTO SAVE LIFE.
-- **AUDIO**: SOUND, SFX VOLUME, MUSIC VOLUME, **GAME MUSIC** (off by default: the jukebox songs play in their shuffled order while you play, the next song starts when one ends, it fades to half volume while the pause menu (or anything opened from it) is up, and sound effects play over the music; mixing runs in an interrupt, so it costs some speed on slow devices), TITLE MUSIC, JUKEBOX MODE.
+- **AUDIO**: SOUND, SFX VOLUME, MUSIC VOLUME, **GAME MUSIC** (off by default: random checked jukebox songs play while you play, another starts when one ends, it fades to half volume while the pause menu (or anything opened from it) is up, and sound effects play over the music; mixing runs in an interrupt, so it costs some speed on slow devices), TITLE MUSIC, **MENU MUSIC** (on by default: a random checked jukebox song plays in the main menus, see **Jukebox**).
 - **INPUT**: BUTTONS (swap A/B, L/R or both, on every screen), CURSOR REPEAT speed of the editor, BUTTON TEST (shows the keys the game sees).
 - **HUD**: INFO ON SCREEN, CLOCK (24 h / 12 h / hidden), THOUGHT BUBBLE, WANTS AND FEARS, ACTION CAM, ACCENT COLOUR (gold, mint, sky, pink, orange, lilac), MESSAGE TIME.
 - **ROOMS**: EDITOR MINIMAP, SAVE ON EXIT, ASK BEFORE RESET, SLOTS SAVE (room / room + person / all three), ASK IN SLOTS, SAVE MAP TO SLOT, BOOT LOADS PERSON.
@@ -174,7 +174,7 @@ The GBA has 256 KB of EWRAM and 32 KB of IWRAM. Every GitHub build prints the nu
 | 4992 | active room slot |
 | 5008 | life stage and days in it |
 | 5024 | persona: aspiration, lifetime want, traits, DNA, unlocked parts |
-| 5056 | jukebox order and mode |
+| 5056 | jukebox song on / off flags (playlist check boxes) |
 | 5136 | the life (`sims.h`) |
 | 5200 | 16 spare bytes for SAVE MEMORY TEST |
 | 5216 | the household (up to 13 more Sims, `house.h`, format 'H6'; 2048 bytes reserved; 'H5' households load too) |
@@ -231,6 +231,9 @@ Two new HUD bars under FOOD and WC, plus a face and a mood word (SAD, BORED, OK,
 - **Effects so far:** SAD cuts top speed by 15%, STOKED adds 6%; trick points are +25% when STOKED and -25% when BORED. The skater announces it when they slip into SAD, BORED or STOKED.
 - **Adding a mechanic:** add a name to `MoodEv` and a row to `moodTab`, call `moodEvent(M_X)` where it happens; per-step things go in `moodTick()`; things the mood changes go in the effect functions (`moodTop`, `moodPts`) at the bottom, or read `moodState()`.
 Meters are not saved to SRAM yet.
+
+## Music data format (compact, lossless)
+`python3 tools/xm2gba.py` writes two files: `source/musicdata.h` (about 80 KB of text: per song the order list, pattern lengths, voice table, pitch anchors and the XmSong struct, plus the `.incbin` lines) and `source/music/xmdata.bin` (every song's note events and every sample byte). Note events are a byte stream: runs of empty rows cost one byte, a row with notes is a count byte plus 3 bytes per note (voice index into a per-song table of channel / instrument / pan bus, note, volume). Each instrument stores one 32-bit pitch anchor instead of 96 playback steps; `xmStep()` in `main.c` rebuilds every step with integer maths and the converter checks that it equals the old table exactly (and keeps a fix-up list for the rare note that would differ; none do today). The samples are stored as they always were. This cut the ROM by about 500 KB and `musicdata.h` from 7.4 MB to 80 KB **with identical audio**: the old and new ROMs were run in an emulator and every mixed audio buffer of all 23 songs, one pass plus the loop point, hashed to the same values.
 
 ## Title music
 The title screen plays "The Dipper Man" (tools/the_dipper_man.xm). `python3 tools/xm2gba.py` converts the XM (and every other `SONG_XM` song listed in `source/songs.h`) to `source/musicdata.h`: note events per pattern (with per-note volume) plus the instrument samples that are actually used (8-bit, band-limited, down-sampled to the lowest rate that keeps them clean; the title song is about 70 KB in the ROM). A 10-voice mixer with linear interpolation plays it through Direct Sound B at 18157 Hz (exactly 304 samples per frame). The 7.7 s intro plays once, then the song loops from order 4; voices are never cut at the jump, so the last notes ring into the first ones. Music stops when you press START.
@@ -299,24 +302,28 @@ Strings in C may hold the characters directly (UTF-8): `text()` decodes them, an
 To change or add glyphs: edit the mark shapes, the glyph lists (`MARKED`, `LIGS`, `SMALL`) in `tools/font_ext.py`, run `python3 tools/make_font.py --extend` (it rebuilds every non-ASCII glyph from the plain ones, so the original glyphs are never touched) and commit `assets/font/` and `source/fontdata.h`. The `{code point, letter}` fallback table is generated from Unicode.
 
 ## Jukebox
-The artist of a song is shown at the right edge of its row and on the NOW line. They live in `source/artists.h` (`ARTIST("SONG NAME","Artist")`, the name as written in `songs.h`); a song with no line there shows no artist. Titles and artists may hold punctuation and real UTF-8 letters (see **Extended font** below).
-Main menu -> **JUKEBOX**. Opening it starts the song the playlist is on. The song list lives in `source/songs.h`.
+The **MUSIC PLAYER** (main menu -> JUKEBOX) has two tabs, switched with **L** and **R**:
+- **INTERACTIVE**: pick any song and play it; when it ends the next song on the list plays.
+- **PLAYLIST**: every song has a check box. **Only checked songs are ever picked at random**: when the jukebox opens, in the main menus (MENU MUSIC), for GAME MUSIC, and when a playlist song ends. SELECT checks / unchecks the song under the cursor. With nothing checked every song counts.
+
+**Opening the jukebox plays ONE random checked song** (never the one picked last) and puts the cursor on it. The list shows each song with its artist; a name too long for its column is cut with `..` and scrolls on the cursor row. Volume is the MUSIC VOLUME option (LEFT / RIGHT change it here too).
 | Key | Action |
 |---|---|
-| Up / Down | move the cursor through the playlist |
+| Up / Down | move the cursor (hold to scroll a long list) |
 | A | play the song under the cursor |
-| L / R | previous / next song |
+| L / R | INTERACTIVE / PLAYLIST tab |
+| Select | PLAYLIST tab: song on / off (the check box) |
+| Left / Right | music volume: quieter / louder |
 | Start | stop, or play the song under the cursor |
-| Left / Right | mode: SHUFFLE, IN ORDER, REPEAT ONE |
-| Select | re-roll the shuffle (saved; the playing song stays first) |
 | B | back to the menu |
 
-When a song ends the next one starts (REPEAT ONE replays it). **The shuffled order is saved in SRAM (offset 5056), so the song set comes back in the same shuffled order every time the game starts**, and the playlist carries on from the last song played. It is re-rolled only by SELECT, or automatically when the number of songs in `songs.h` changes. The mode is a normal setting (SETTINGS -> JUKEBOX).
+**Menu music.** Whenever a main menu is open one random checked song plays (OPTIONS > AUDIO > MENU MUSIC, on by default). It carries on through the quiet screens (OPTIONS, ROOM SLOTS, HOW TO PLAY) and stops when PLAY, MAKE CREATURE, BUILD ROOM or the jukebox opens; back at the menu a NEW random song starts. When a song ends, another random one follows.
 
-**Adding a tracker song (.xm):** copy it into `tools/`, add `SONG_XM(my_id,"MY SONG","tools/my_song.xm")` to `source/songs.h`, then run `python3 tools/xm2gba.py` (needs numpy + scipy) and commit the new `source/musicdata.h`. Tracker songs are tiny (tens of KB). The player handles up to 10 channels, 32 instruments, any pattern length, notes and the volume column; it ignores effects, panning, envelopes and note-off (the script warns if a song uses them). Speed/BPM must stay fixed in the song. `GAIN` in `tools/xm2gba.py` sets a song's loudness.
+The check boxes are saved in SRAM (offset 5056, 14 bytes): one bit per entry of `songs[]`, plus a hash of the song names. **Songs added at the end of `songs.h` come in checked**; the saved boxes are reset (everything checked) only if the songs in front of them were reordered, renamed or removed. The jukebox holds up to 64 songs (secret ones included) and scrolls. The artist of a song lives in `source/artists.h` (`ARTIST("SONG NAME","Artist")`, the name as written in `songs.h`); a song with no line there shows no artist. Titles and artists may hold punctuation and real UTF-8 letters (see **Extended font** below).
+
+**Adding a tracker song (.xm):** copy it into `tools/`, add `SONG_XM(my_id,"MY SONG","tools/my_song.xm")` to `source/songs.h`, then run `python3 tools/xm2gba.py` (needs numpy + scipy) and commit the new `source/musicdata.h` **and `source/music/xmdata.bin`** (the note events and samples of every song, pulled into the ROM with `.incbin`). A tracker song costs about 30 to 250 KB of ROM, mostly its samples. The player handles up to 10 channels, 32 instruments, any pattern length, notes and the volume column; it ignores effects, panning, envelopes and note-off (the script warns if a song uses them). Speed/BPM must stay fixed in the song. `GAIN` in `tools/xm2gba.py` sets a song's loudness.
 
 **Adding streamed songs:** `python3 tools/encode_song.py "my song.mp3"` (needs ffmpeg + numpy). It writes `source/music/<id>.adp` and adds a `SONG_ADP(...)` line to `source/songs.h`. Song spec: 4-bit IMA-ADPCM, mono, 18157 Hz, about 9 KB per second, up to 64 songs. Song titles use capitals, digits and spaces (the font has no punctuation). The three `PLACEHOLDER` songs and the tracker songs (`SONG_XM`) are there so shuffle can be heard from day one: delete the placeholder lines in `songs.h` and the files in `source/music/` when you add real songs.
-The jukebox plays only on its own screen for now: music during gameplay needs a vblank interrupt (game frames can run longer than a sound buffer).
 
 
 ## Creature creator (rebuilt)
