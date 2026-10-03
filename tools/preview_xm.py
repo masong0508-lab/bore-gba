@@ -8,8 +8,10 @@ import xm2gba as X
 from xm import parse
 sid, path, out = sys.argv[1:4]
 S = parse(path)
+for table in (X.DANCES, X.TREES, X.POPS, X.CLOUDS, X.ENDINGS):   # the same re-arrangements the converter applies, so the preview matches the ROM
+    if sid in table: table[sid](S)
 used = {i for o in S['order'] for r in S['pats'][o] for (n, i, v, e, ep) in r if n and n < 97}
-insts = X.convert_samples(S, used)
+insts = X.convert_samples(S, used, sid)
 rowsec = S['tempo'] * 2.5 / S['bpm']; M = X.MIXR
 total = int(sum(len(S['pats'][o]) for o in S['order']) * rowsec * M) + M * 4
 acc = np.zeros(total); cur = {}; pos = 0.0; clip_rows = 0

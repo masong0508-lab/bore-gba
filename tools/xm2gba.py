@@ -222,20 +222,193 @@ ENDINGS = {"amiga_music": make_ending}
 POPS = {"amiga_music": make_pop}
 
 def make_clouds(S):
-    """Extended version of WORTHLESS CLOUDS: the 65-order original (271 s) becomes the 140-order extended edit (~584 s, same 115 BPM).
-    Nothing new is composed: only the order list changes, so no samples are added or copied. The arrangement follows the loudness
-    arc of the extended mp3 (soft / mid / loud runs, measured per 2-bar pattern) and fills each run from the original's sections:
-      'S' soft  = the quiet verse (orders 4-11), 'M' mid = its second half (orders 8-11), 'L' loud = the whole loud body (orders 12-53,
-      played once in its original order, then again from the start), and the original's own ending (orders 54-64) closes the song.
-    Edit PLAN to re-arrange: (pool, number of 2-bar patterns).  The opening is the original intro + first verse bars (orders 0-7)."""
-    O = list(S['order'])
-    pools = {'S': O[4:12], 'M': O[8:12], 'L': O[12:54]}; cur = {'S': 4, 'M': 0, 'L': 0}
-    PLAN = [('S', 30), ('L', 4), ('S', 6), ('M', 1), ('L', 29), ('M', 5), ('L', 9), ('M', 1), ('S', 3), ('L', 9),
-            ('M', 6), ('L', 6), ('M', 2), ('S', 10)]
-    out = O[0:8]
-    for pool, n in PLAN:
-        for _ in range(n): out.append(pools[pool][cur[pool] % len(pools[pool])]); cur[pool] += 1
-    S['order'] = out + O[54:65]
+    """FUNK REWORK of WORTHLESS CLOUDS: the 65-order original (271 s) becomes a ~9.8 minute edit (115 BPM) that no longer loops its two
+    verse patterns: the song is rebuilt from the real harmony sections (patterns 10-24, in their original order), played about three times
+    with a different energy, drum feel and bass line every time round.  The tune is untouched: the lead (inst 7), the arpeggios (1, 9), the
+    pad (5) and the riff (4) are the original notes.  What is new:
+      * a syncopated FUNK BASS (ch12, a louder copy of inst 3 = instrument 20, one octave under the pad) that follows the chord roots (read
+        from the pad; root / 5th / b7 / octave only, so it can never clash), seven grooves, a turnaround on the last half bar of every pattern
+      * off-beat 'shell' STABS (ch13/14, a copy of inst 9 = instrument 17): the 5th and b7 of the chord, four rhythm styles
+      * funk KICKS (three syncopated patterns, sub pulse on the same hits) instead of four-on-the-floor; the peaks (energy 4) keep the
+        original house kick so the drops still pump; backbeat SNARE with GHOST notes; 16th HATS with accents and open hats
+        (copies of inst 14 / 15 = instruments 18 / 19)
+      * ENERGY 0-4 per pattern: 0 pad + melodies + a soft bass, 1 + soft hats, 2 + backbeat and stabs, 3 + ghost notes and full stabs,
+        4 = house kick on top of everything + crash.  Snare-roll FILLS lead into every louder part, and one layer sits out now and then.
+      * SWING: the song runs at 6 rows per 16th (speed 1) so off-beat 16ths sit 58 % late and the snare lays back a hair.
+    Everything is picked by seeded random numbers, so the build is repeatable.  Edit RUNS to change the arc: (kind, patterns)
+    with S soft / M mid / L loud."""
+    import copy, random
+    P = S['pats']; O = list(S['order']); Z = (0, 0, 0, 0, 0)
+    for p in P:
+        for r in p: r.extend([Z] * (16 - len(r)))
+    for k in (9, 14, 15, 3):                                   # copies of existing instruments: the new layers get their own pan / mix identity
+        S['insts'].append(dict(S['insts'][k - 1]))             # 17 stabs (copy of 9)  18 hats (14)  19 open hat / crash (15)  20 bass (3)
+    S['insts'][19]['samples'] = [dict(S['insts'][19]['samples'][0], vol=100)]   # the bass copy plays louder (identical sample data, stored once)
+    BASSI, STABI, HATI, OPENI = 20, 17, 18, 19
+    def put(p, r, ch, n, i, vol): p[r][ch] = (n, i, 0x10 + max(1, min(64, int(round(vol)))), 0, 0)
+    def rel(v): return (v - 0x10) / 64.0 if 0x10 <= v <= 0x50 else 1.0
+    def role(c):
+        n, i = c[0], c[1]
+        if not n or n >= 97: return None
+        return {7: 'lead', 1: 'arp', 9: 'ctr', 5: 'pad', 4: 'riff', 12: 'tick', 13: 'snare', 11: 'kick', 14: 'fill', 15: 'fill', 16: 'fill'}.get(i, ('pulse' if n == 61 else 'fill') if i == 10 else 'other')
+    def strip(p, roles, r0=0, r1=32):
+        for r in range(r0, r1):
+            for ch in range(16):
+                if role(p[r][ch]) in roles: p[r][ch] = Z
+    def scale(p, roles, f):
+        for r in range(32):
+            for ch in range(16):
+                n, i, v, _, _ = p[r][ch]
+                if role(p[r][ch]) in roles: p[r][ch] = (n, i, 0x10 + max(1, min(64, int(round(64 * rel(v) * f)))), 0, 0)
+    def roots(p):                                              # chord root (pitch class) of each half bar = the lowest pad note
+        out = []
+        for s in range(4):
+            pad = [c[0] for r in range(s * 8, s * 8 + 8) for c in p[r] if 0 < c[0] < 97 and c[1] == 5]
+            out.append((min(pad) - 1) % 12 if pad else None)
+        last = next((x for x in out if x is not None), 4)      # no pad (the drum / riff patterns): the song's home note, E
+        for s in range(4):
+            if out[s] is None: out[s] = last
+            last = out[s]
+        return out
+    def bnote(pc):                                             # bass register: the note with this pitch class nearest to note 45
+        best = None
+        for n in range(36, 58):
+            if (n - 1) % 12 == pc and (best is None or abs(n - 45) <= abs(best - 45)): best = n
+        return best
+    # (row in the half bar, semitones above the root, volume, length in rows)
+    BT = [[(0, 0, 64, 3), (3, 0, 42, 1), (6, 12, 50, 1)],
+          [(0, 0, 64, 2), (2, 0, 44, 1), (3, 7, 54, 1), (5, 10, 52, 2), (7, 7, 44, 1)],
+          [(0, 0, 64, 4), (5, 0, 48, 1), (6, 7, 54, 2)],
+          [(0, 0, 64, 1), (1, 12, 38, 1), (3, 0, 56, 1), (4, 0, 64, 2), (7, 7, 44, 1)],
+          [(0, 0, 64, 2), (3, 0, 50, 2), (6, 0, 56, 1), (7, 12, 40, 1)],
+          [(0, 0, 64, 6)],
+          [(0, 0, 64, 2), (2, 7, 50, 1), (4, 0, 60, 2), (7, 10, 48, 1)],
+          [(0, 0, 64, 1), (2, 12, 48, 1), (3, 0, 52, 1), (5, 7, 50, 1), (6, 0, 60, 1)]]
+    TURN = [(0, 0, 60, 1), (2, 0, 46, 1), (4, 7, 56, 1), (5, 10, 52, 1), (6, 12, 58, 1)]
+    GROOVES = [(0, 4), (2, 6), (3, 1), (7, 0), (4, 3), (1, 2), (5, 5)]   # first / second half bar of each bar; the last is the sparse whole-note root
+    SPARSE = [6, 6, 2, 6, 5, 6]                                  # the quiet levels: mostly the long root, sometimes a groove
+    def add_bass(p, rts, g, vol):
+        a, b = GROOVES[g]
+        for seg in range(4):
+            tpl = TURN if seg == 3 else BT[a if seg % 2 == 0 else b]
+            rn = bnote(rts[seg]) - 12; base = seg * 8
+            for j, (r, iv, v, ln) in enumerate(tpl):
+                put(p, base + r, 12, rn + iv, BASSI, v * vol)
+                end = base + (tpl[j + 1][0] if j + 1 < len(tpl) else 8); cut = min(base + r + ln, end)
+                if cut < 32 and (j + 1 == len(tpl) or cut < base + tpl[j + 1][0]) and cut > base + r: put(p, cut, 12, rn + iv, BASSI, 1)   # cut tick
+    KF = [(0, 7, 10, 16, 19, 26), (0, 3, 10, 14, 16, 22, 26), (0, 6, 10, 16, 18, 23, 26, 30)]
+    def add_kick(p, kch, k):
+        for r in KF[k]: put(p, r, kch, 49, 11, 64); put(p, r, 11, 61, 10, 38)
+    GHOST = [(7, 15, 23, 31), (3, 7, 9, 15, 25, 31), (7, 9, 15, 21, 23, 31)]
+    def add_snare(p, sch, rows, vol, ghost, gi):
+        for r in rows: put(p, r, sch, 56, 13, vol)
+        if ghost:
+            for r in GHOST[gi]:
+                if r not in rows: put(p, r, sch, 56, 13, 11)
+    HACC = [(34, 10, 24, 10, 30, 10, 24, 12), (30, 0, 22, 12, 30, 0, 22, 12), (36, 12, 0, 16, 28, 12, 20, 16)]
+    HOPEN = [(14, 30), (6, 22, 30), (15, 31)]
+    def add_hats(p, h, level):
+        taken = {r for r in range(32) if any(role(c) == 'fill' and c[1] in (14, 15) for c in p[r])}
+        for r in range(32):
+            if r in taken: continue
+            if level == 3:
+                if r % 4 == 2: put(p, r, 15, 49, HATI, 16)
+            elif level == 1:
+                if r % 2 == 0: put(p, r, 15, 49, HATI, 22 if r % 4 == 0 else 13)
+            else:
+                a = HACC[h][r % 8]
+                if a: put(p, r, 15, 56 if a > 22 else 49, HATI, a)
+        if level == 2:
+            for r in HOPEN[h]: put(p, r, 15, 56, OPENI, 30)
+    STAB = [(3, 6, 10, 14), (2, 5, 7, 10, 13), (6, 7, 14, 15), (0, 3, 8, 11, 14)]
+    def add_stabs(p, rts, st, level):
+        for bar in (0, 1):
+            rows = STAB[st] if level >= 2 else STAB[st][:2]
+            for j, r in enumerate(rows):
+                gr = bar * 16 + r; rn = bnote(rts[gr // 8]); v = 34 if j % 2 == 0 else 24
+                put(p, gr, 13, rn + 7, STABI, v); put(p, gr, 14, rn + 10, STABI, v - 4)
+    def add_fill(p):
+        strip(p, ('kick', 'pulse', 'tick', 'fill', 'snare'), 24, 32)
+        for r in range(24, 32):
+            for ch in (13, 14, 15): p[r][ch] = Z
+            if r < 28 and r % 2: continue
+            put(p, r, 8, 56, 13, 24 + (r - 24) * 5)
+    LV = {0: dict(strip=('kick', 'pulse', 'snare', 'tick', 'fill'), bass=0.55, hats=0, stab=0, snare=0, ghost=0, lead=0.85),
+          1: dict(strip=('kick', 'pulse', 'snare', 'tick'), bass=0.8, hats=1, stab=0, snare=0, ghost=0, lead=1.0),
+          2: dict(strip=('snare',), bass=0.9, hats=2, stab=1, snare=44, ghost=0, lead=1.0),
+          3: dict(strip=('snare',), bass=1.0, hats=2, stab=2, snare=56, ghost=1, lead=1.0),
+          4: dict(strip=('snare',), bass=1.0, hats=2, stab=2, snare=60, ghost=1, lead=1.0)}
+    cache = {}
+    def variant(src, e, pk, fill, crash, nolead):
+        feel = 'house' if e == 4 else 'funk'
+        key = (src, e, feel, tuple(sorted(pk.items())), fill, crash, nolead)
+        if key in cache: return cache[key]
+        p = copy.deepcopy(P[src]); lv = LV[e]; rts = roots(p)
+        snares = [(r, ch, p[r][ch]) for r in range(32) for ch in range(16) if role(p[r][ch]) == 'snare']
+        kicks = [(r, ch) for r in range(32) for ch in range(16) if role(p[r][ch]) == 'kick']
+        sch = snares[0][1] if snares else 8; kch = kicks[0][1] if kicks else 10
+        strip(p, lv['strip'])
+        if e >= 2 and feel == 'funk': strip(p, ('kick', 'pulse')); add_kick(p, kch, pk['K'])
+        if lv['snare']: add_snare(p, sch, sorted({r for r, _, _ in snares}) or [4, 12, 20, 28], lv['snare'], lv['ghost'], pk['GH'])
+        if lv['lead'] < 1: scale(p, ('lead',), lv['lead'])
+        if nolead: strip(p, ('lead',))
+        add_bass(p, rts, pk['G'] if e else SPARSE[pk['G']], lv['bass'])
+        hl = lv['hats']
+        if e == 0 and pk['H'] == 2: hl = 3                          # the quietest level still gets soft off-beat hats now and then
+        if e == 1 and pk['H'] == 1: hl = 3                          # level 1: eighth-note hats or off-beat hats only
+        if hl: add_hats(p, pk['H'], hl)
+        if e == 1 and pk['K'] == 1:                                 # level 1: a light kick on 1 and the 'and' of 3 now and then
+            for r in (0, 10, 16, 26): put(p, r, kch, 49, 11, 36); put(p, r, 11, 61, 10, 22)
+        stab = lv['stab'] if e >= 2 else (1 if (e == 1 and pk['S'] == 3) else 0)
+        if stab and (e >= 3 or pk['S'] % 2 == 1 or e == 1): add_stabs(p, rts, pk['S'], stab)
+        if pk['D']: strip(p, (pk['D'],))                            # one layer sits out this pattern
+        if fill: add_fill(p)
+        if crash: put(p, 0, 15, 49, OPENI, 48)
+        P.append(p); cache[key] = len(P) - 1
+        return cache[key]
+    BODY = O[12:54]; END = O[54:65]
+    RUNS = [('S', 26), ('L', 4), ('S', 6), ('M', 1), ('L', 29), ('M', 5), ('L', 9), ('M', 1), ('S', 3), ('L', 9), ('M', 6), ('L', 6), ('M', 2), ('S', 10)]
+    seq = [(8, 1), (8, 1), (8, 2), (8, 2), (9, 2), (9, 2), (9, 2), (9, 3)]   # opening: the drum loop, then the riff + lead, funk groove coming in
+    nrun = []                                                   # (pattern, energy, position in its run, run length)
+    pi = 0
+    for ri, (kind, cnt) in enumerate(RUNS):
+        for k in range(cnt):
+            if kind == 'S': e = 0 if (ri == 0 and k < 4) else (0 if (ri == len(RUNS) - 1 and k >= cnt - 2) else 1)
+            elif kind == 'M': e = 2
+            else: e = 4 if (cnt >= 6 and k >= cnt - 4) else 3
+            nrun.append((BODY[pi % len(BODY)], e, k, cnt)); pi += 1
+    es = [e for _, e in seq] + [x[1] for x in nrun] + [3] * 4          # the 4 patterns of the run-in to the ending (25-28) are energy 3
+    order = list(O[0:4])
+    allp = [(p_, e_, None, None) for p_, e_ in seq] + nrun
+    for idx, (p_, e_, k, cnt) in enumerate(allp):
+        rng = random.Random(1150 + idx // 4 * 7919)             # one set of picks per 4 patterns, so a phrase hangs together and the next one differs
+        g0, k0, s0, h0, gh0 = rng.randrange(6), rng.randrange(3), rng.randrange(4), rng.randrange(3), rng.randrange(3)
+        q = idx % 4                                              # place in the phrase: bass groove / kick pairs, stab / ghost styles walk on every pattern
+        pk = dict(G=(g0 + q // 2 + (q % 2 if e_ <= 1 else 0)) % 6, K=(k0 + q // 2) % 3, S=(s0 + q) % 4, H=(h0 + q % 2) % 3, GH=(gh0 + q) % 3)
+        dr = random.Random(31 * idx + 5)
+        pk['D'] = dr.choice(('riff', 'ctr', 'arp')) if (e_ <= 1 and dr.random() < 0.4) else (dr.choice(('riff', 'ctr', 'arp', 'tick')) if (e_ in (2, 3) and dr.random() < 0.2) else '')
+        nxt = es[idx + 1] if idx + 1 < len(es) else 3
+        fill = (e_ >= 1 and nxt > e_) or (e_ >= 2 and idx % 4 == 3)
+        crash = idx > 0 and e_ >= 3 and (es[idx - 1] < e_ or (idx - 1) % 4 == 3 and es[idx - 1] >= 2)
+        rr = random.Random(77 + idx)
+        nolead = e_ in (1, 2, 3) and k is not None and 0 < k < cnt - 1 and rr.random() < (0.2 if e_ == 1 else 0.12) and not fill
+        order.append(variant(p_, e_, pk, fill, crash, nolead))
+    for j, p_ in enumerate(END):
+        if p_ in (25, 26, 27, 28):
+            rng = random.Random(555 + j)
+            pk = dict(G=rng.randrange(6), K=rng.randrange(3), S=rng.randrange(4), H=rng.randrange(3), GH=rng.randrange(3), D='')
+            order.append(variant(p_, 3, pk, j == 3, j == 0, False))
+        else: order.append(p_)
+    # ---- timing: 6 rows per 16th (speed 1); every odd 16th sits 1 row late (58 % swing), the snare lays back 1 row ----
+    SUB, SWING = 6, 1
+    for pi_, p in enumerate(P):
+        q = [[Z] * 16 for _ in range(len(p) * SUB)]
+        for r, row in enumerate(p):
+            base = r * SUB + (SWING if r % 2 else 0)
+            for ch, c in enumerate(row):
+                if c[0]: q[base + (1 if c[1] == 13 and ch in (3, 8) else 0)][ch] = c
+        P[pi_] = q
+    S['tempo'] = 1; S['order'] = order
 
 CLOUDS = {"worthless_clouds": make_clouds}
 
@@ -279,7 +452,10 @@ def title_pan(pat, row, ch, i, n):
     if i == 14: return -W if row < 8 else W                               # hats cross the field once per bar
     if i == 13: return -0.35 if row < 8 else 0.35
     return None
-OVERRIDES = {"the_dipper_man": title_pan}
+def clouds_pan(pat, row, ch, i, n):
+    """WORTHLESS CLOUDS: the funk bass (instrument 20, a copy of 3) stays in the middle; everything else follows the automatic plan."""
+    return 0.0 if i == 20 else None
+OVERRIDES = {"the_dipper_man": title_pan, "worthless_clouds": clouds_pan}
 
 def design_pan(S, used, insts, sid=None):
     """Pan plan for one song. Returns pan(pat, row, ch, inst, note) -> bus.  Rules (a small 'mix engineer'):
@@ -393,7 +569,61 @@ def song_list():
     found = re.findall(r'^\s*SONG_XM\(\s*(\w+)\s*,\s*"[^"]*"\s*,\s*"([^"]+)"\s*\)', text, re.M)
     return [TITLE] + [s for s in found if s[0] != TITLE[0]]
 
-def convert_samples(S, used):
+# ---- BAR FIT: long chord / loop samples that were recorded as exactly one bar at some tempo ----
+# Amiga Music's three chord samples (instruments 1-3) are one-bar loops recorded at 120 BPM (exactly 4.000 s when played at C-5), but the
+# pop pass raises the song to 126 BPM (a bar is 3.81 s).  Played as they were, every chord hit ran 5 % slow against the drums and was
+# cut off 0.2 s early by the next bar's hit, mid-pulse.  So the converter time-stretches the first bar of each of those samples to the
+# song's real bar length (pitch unchanged), and keeps any real decaying tail that rings past the bar line.
+#   song -> (tempo the samples were recorded at, rows per bar, the instruments)
+FITBAR = {"amiga_music": (120.0, 32, (1, 2, 3))}
+
+def wsola_fit(x, n_out, fs, win_ms=36.0, tol_ms=6.0):
+    """Shrink / stretch x to exactly n_out samples WITHOUT changing its pitch (waveform-similarity overlap-add).  fs = the rate x is
+    played at (only used to size the window).  The attack at the very start is kept untouched (the first frame is not faded in), and
+    the frames are placed so that every pulse of the original lands at the same relative position in the result."""
+    x = np.asarray(x, float); n_in = len(x); win = int(fs * win_ms / 1000) // 4 * 4; ha = win // 2; tol = int(fs * tol_ms / 1000)
+    ratio = n_out / n_in; w = np.hanning(win + 1)[:win]; w1 = w.copy(); w1[:ha] = 1.0           # frame 0: no fade-in
+    nfr = int(np.ceil((n_out - win) / ha)) + 2
+    pad = np.concatenate([np.zeros(tol), x, np.zeros(win + 2 * tol + ha)])
+    out = np.zeros(nfr * ha + win); norm = np.zeros_like(out); prev = 0                         # prev = analysis start of the last frame
+    for k in range(nfr):
+        nom = int(round(k * ha / ratio))
+        if k == 0: a = 0
+        else:
+            nat = pad[tol + prev + ha: tol + prev + ha + win]                                   # what would naturally follow the last frame
+            best, a = -1e30, nom
+            lo, hi = max(-tol, -nom), tol
+            cand = np.arange(lo, hi + 1)
+            idx = tol + nom + cand[:, None] + np.arange(0, win, 2)[None, :]                     # every 2nd sample is plenty for the match
+            seg = pad[np.clip(idx, 0, len(pad) - 1)]; ref = nat[::2]
+            sc = (seg * ref).sum(1) / (np.sqrt((seg ** 2).sum(1) * (ref ** 2).sum()) + 1e-9)
+            a = nom + int(cand[int(np.argmax(sc))])
+        fr = pad[tol + a: tol + a + win] * (w1 if k == 0 else w)
+        out[k * ha: k * ha + win] += fr; norm[k * ha: k * ha + win] += (w1 if k == 0 else w); prev = a
+    norm[norm < 1e-6] = 1.0
+    return (out / norm)[:n_out]
+
+def fit_bar(x, bar_src, bar_dst, fc, keep_tail=0.1):
+    """x = one instrument's sample, fc = the rate (Hz) it plays at.  The first bar_src seconds are stretched to bar_dst seconds; what is
+    left after the bar line is kept as it is if it is a real tail (longer than keep_tail s), otherwise dropped (it is only the first
+    few ms of the next bar's hit, which the next hit replaces anyway)."""
+    n_src = int(round(bar_src * fc)); n_dst = int(round(bar_dst * fc))
+    if n_src > len(x): n_src = len(x)
+    bar = wsola_fit(x[:n_src], int(round(n_dst * n_src / int(round(bar_src * fc)))), fc)
+    rest = np.asarray(x[n_src:], float)
+    if len(rest) > keep_tail * fc:                                                                  # a real ring-out: join it on with a short crossfade
+        L = int(0.006 * fc); a = bar[-L:]; tol = int(0.004 * fc); best, d = -2, 0
+        for dd in range(-tol, tol + 1):
+            lo = n_src - L + dd
+            if lo < 0 or lo + L > len(x): continue
+            b = x[lo: lo + L]; sc = (a * b).sum() / (np.sqrt((a * a).sum() * (b * b).sum()) + 1e-9)
+            if sc > best: best, d = sc, dd
+        j = n_src + d; fo = np.linspace(1, 0, L)
+        return np.concatenate([bar[:-L], bar[-L:] * fo + x[j - L: j] * (1 - fo), x[j:]])
+    F = int(0.008 * fc); bar[-F:] *= 0.5 * (1 + np.cos(np.linspace(0, np.pi, F)))                   # tiny fade so the retrigger can not click
+    return bar
+
+def convert_samples(S, used, sid=None):
     """one entry per instrument: dict(q = samples incl. guard, pk, svol, steps) - or None for unused instruments"""
     insts = []; total = 0
     for k, I in enumerate(S['insts']):
@@ -402,6 +632,13 @@ def convert_samples(S, used):
         s = I['samples'][0]; x = np.array(s['data'])
         if s['type'] != 0: print("  WARNING: instrument %d has a looping sample (loops are not played)" % (k + 1))
         period = 7680 - (0 + s['rel']) * 64 - s['fine'] / 2 - 48 * 64; fc4 = 8363 * 2 ** ((4608 - period) / 768)
+        if sid in FITBAR and (k + 1) in FITBAR[sid][2]:               # one-bar chord loop: stretch it to this song's bar (see FITBAR)
+            src_bpm, rows, _ = FITBAR[sid]
+            nts = [n for o in S['order'] for r in S['pats'][o] for (n, i, v, e, ep) in r if i == k + 1 and 0 < n < 97]
+            fcp = fc4 * 2 ** ((int(np.median(nts)) - 49) / 12) if nts else fc4                        # the rate it is actually played at
+            bar_src = rows * S['tempo'] * 2.5 / src_bpm; bar_dst = rows * S['tempo'] * 2.5 / S['bpm']
+            n0 = len(x); x = fit_bar(x, bar_src, bar_dst, fcp)
+            print("  inst %2d fitted to the bar: %.3f s -> %.3f s (%d -> %d samples)" % (k + 1, bar_src, bar_dst, n0, len(x)))
         X = np.abs(np.fft.rfft(x)) ** 2; fr = np.fft.rfftfreq(len(x), 1 / fc4); ds = 1
         for d in (4, 2):
             if X[fr > 0.4 * fc4 / d].sum() / X.sum() < 0.004: ds = d; break
@@ -443,7 +680,7 @@ def convert(sid, path):
     if max(used, default=0) > 32: sys.exit("  ERROR: instrument numbers go up to 32")
     if eff: print("  WARNING: %d effect commands are ignored by the player" % eff)
     if offs: print("  WARNING: %d note-off keys are ignored by the player" % offs)
-    insts = convert_samples(S, used)
+    insts = convert_samples(S, used, sid)
     ninst = len(insts)
     panf = design_pan(S, used, insts, sid)
     # note events: u32  ch(4) | inst(5)<<4 | note(7)<<9 | volume(7)<<16 | pan bus(3)<<23   (volume = final voice volume, 64 = full sample level, up to 127 with GAIN)
