@@ -232,6 +232,21 @@ The title screen plays "The Dipper Man" (tools/the_dipper_man.xm). `python3 tool
 
 **Emergency On The Dance Floor (hi-tech)**: `tools/make_emergency_rework.py` builds `tools/emergency_hitech.xm`. It reads the bass riff and lead line straight from the original at the original 181 BPM. The sounds are all new: an FM growl bass over a sine sub, a supersaw pluck lead with an octave shadow and a ping-pong echo, glassy FM arps, digital stabs, a vowel pad, a ring-modulated hat, glitch ticks, data blips, zaps, lasers and risers. It runs at 32nd-note resolution for ratchets and stutters, uses all 16 voices hand-panned (`hitech_pan`), and lasts 1:28. The earlier rework is now the secret song **EMERGENCY (ORIGINAL)**, which shows up after the title-screen code.
 
+**Excuses (house)**: `tools/make_excuses_rework.py` builds `tools/excuses_house.xm` from "The Dipper Man - Excuses", an expansive house / ambient track. It runs 6:47 at 124 BPM.
+- **Kept from the original:** the F, Dm, Bb and C chord pairs, the climbing bass and the melody.
+- **New:**
+  - Deep house drums with offbeat open hats, a rolling bass and organ stabs.
+  - Pads that open from dark to bright over the song (three baked pad colours).
+  - A chiptune sine lead (a 4-bit stepped sine) and a glass-bell lead with ping-pong echoes.
+  - FM arps, an air texture, risers, swells and two long ambient breakdowns.
+- **Technical:** 32nd-note rows, all 16 voices (`excuses_pan`).
+
+**Whistler Man (shuffle)**: `tools/make_whistler_rework.py` builds `tools/whistler_shuffle.xm` from "The Dipper Man - Whistler Man", a steely jazz-rock take. It runs 5:37 at 100 BPM.
+- **Kept from the original:** the bass walk, horn dyads, arp, whistled tune and trill lick, with their straight 16ths swung into triplets.
+- **The groove is the Purdie shuffle:** hats on the first and third triplet of each beat, the snare on 3 in half time, ghost notes on the middle triplets, kick on 1 plus pickups, and triplet fills.
+- **Harmony and band:** Gm9 | C9 | Fadd9 | D7#9 on Rhodes, plus clav, a swelling horn section, a breathy whistle with an echo or a harmony a third under it, jazz-guitar licks, and a bridge of D7#9 hits.
+- **Technical:** all 16 voices, panned like a live band (`whistler_pan`).
+
 **Meltdown in Mars (90s house mix)**: `tools/make_meltdown_house.py` builds `tools/meltdown_in_mars_house.xm` (126 BPM, about 6 minutes, 10 channels, all sounds synthesised), it is listed in `source/songs.h`, and `python3 tools/xm2gba.py` bakes it into `source/musicdata.h`. `python3 tools/preview_xm.py meltdown_in_mars_house tools/meltdown_in_mars_house.xm out.wav` renders it the way the GBA mixer will play it.
 
 ## Jukebox
