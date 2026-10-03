@@ -231,6 +231,12 @@ The old BUILD tab (block builder) is gone; the classic block screen is still beh
 - **CLOTHES tab**: TOP and BOTTOM colours, **TOP STYLE** (TEE, LONG SLEEVE, TANK, HOODIE with a hood behind the head), **BOTTOM STYLE** (PANTS, SHORTS, SKIRT) and **SHOES** (as the bottom, white, black, red, gold, as the top).
 - Hats and the new hairdos add STYLE; a helmet adds STAMINA.
 - **DONE tab > RANDOMIZE** (the Create-A-Sim dice): a whole new look, star sign and aspiration, only from what this life stage and your unlocked parts allow. Press it again for another.
+- **More face parts and real sliders** (person save format 6, household save H4; older saves still load):
+  - **FACE tab** (it scrolls) has 9 eye styles and 9 mouths, plus EYE COLOUR, BROWS, GLASSES, NOSE and CHEEKS (blush, freckles, whiskers, scar).
+  - **Face sliders:** EYE SIZE, EYE SPACING, EYE HEIGHT, MOUTH WIDTH and MOUTH HEIGHT move and scale the face art on the block.
+  - **Body sliders:** HEIGHT draws the legs longer or shorter, and WEIGHT makes every block below the head wider or slimmer, pushing the arms out to match. The in-game sprite eases these off a step at a time if the creature would not fit its sprite box.
+  - **Ears** sit on the sides of the head in the same iso perspective as the blocks. The far ear only peeks out.
+  - **Fixes:** TALL no longer pushes the eyes up onto the hair (a normal head keeps a free layer above it, and TALL now draws longer legs instead of adding a block). ATHLETIC arms hang under the front of the wide chest instead of sticking out sideways.
 - Saved as person format 5 (older slots still load; the new looks start at their first option), households as 'H3' (an 'H2' household still loads).
 
 ### Tab 5: PARTS (Spore style)
