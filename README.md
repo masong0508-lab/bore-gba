@@ -3,6 +3,9 @@
 GBA voxel creature creator, the seed of a later life sim. Pseudo-3D isometric view, humanoid-friendly build space:
 **6 wide × 4 long × 8 high** blocks. Parts: HEAD, TORSO, ARM, LEG, EYE, MOUTH, EAR, HAIR, each in 3 sizes (S/M/L = 1×/2×/3× blocks).
 
+## Boot logo
+At power on the game plays the **DippInn Productions** logo, about 8 s long. It comes from `source/logo.c`, taken from the danny-steel project. It draws a dusk scene with parallax, then a grey scan line, then the text with a rope underline. All of it is drawn in code with tiled mode 0 and HBlank DMA, so it needs no image files. Its tables live in EWRAM. Press A or START to skip it. Afterwards the game resets the display registers and goes to the title screen.
+
 ## Controls
 | Key | Action |
 |---|---|
