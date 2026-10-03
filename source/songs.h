@@ -8,6 +8,9 @@
 // Easiest way to add a song:   python3 tools/encode_song.py "my song.mp3"
 // It writes source/music/<id>.adp and appends the SONG_ADP line below for you.
 //
+// HIDDEN SONGS: a song whose NAME ends in " (ORIGINAL)" (the old version of a song you reworked) or starts with PLACEHOLDER is hidden from the jukebox, the menu music
+// and the game music until the code UP UP DOWN DOWN LEFT LEFT RIGHT B A START is entered on the title screen. Nothing else to do: just name it that way.
+//
 // Song spec: 4-bit IMA-ADPCM, mono, 18157 Hz (the game's music rate), about 9 KB per second of music.
 // When this list changes size the saved shuffle is re-rolled automatically (next boot).
 

@@ -1685,9 +1685,14 @@ static const char sramTag[] __attribute__((used)) = "SRAM_V113";   // tells emul
 #define LEG_X 13                // an old save is copied into the plaza at (13,22)
 #define LEG_Y 22
 #include "jukebox.h"   // which songs may play (the playlist check boxes, saved in SRAM at JB_OFF = 5056) and picking one at random
-// Songs named PLACEHOLDER... are hidden from the jukebox unless the title-screen debug code was entered (dbgOn).
-static int isDbgSong(int i){ if(songs[i].xm==&xm_gottcho_barracho||songs[i].xm==&xm_emergency_dance_floor||songs[i].xm==&xm_whistler_shuffle_old||songs[i].xm==&xm_hotdamn_rave_old) return 1;   // the original GOTTCHO BARRACHO: a secret song
-    const char*n=songs[i].name, *p="PLACEHOLDER"; while(*p){ if(*n++!=*p++) return 0; } return 1; }
+// The SECRET songs: hidden from the jukebox, the menu music and the game music until the title-screen code (UP UP DOWN DOWN LEFT LEFT RIGHT B A START, dbgOn).
+// They are picked by NAME, so a new one needs no change here: the old version of a reworked song is named "... (ORIGINAL)" in songs.h, the test tunes "PLACEHOLDER ...".
+static int isDbgSong(int i){
+    const char*n=songs[i].name; int len=0; while(n[len]) len++;
+    static const char orig[]=" (ORIGINAL)"; int ol=(int)sizeof(orig)-1;
+    if(len>ol){ const char*t=n+len-ol; int k=0; while(k<ol&&t[k]==orig[k]) k++; if(k==ol) return 1; }
+    const char*p="PLACEHOLDER"; while(*p){ if(*n++!=*p++) return 0; } return 1;
+}
 static u16 jbNameHash(int upto){   // hash of the names of the first n songs: tells whether the saved on/off flags still belong to this list (jukebox.h)
     u32 h=2166136261u; for(int i=0;i<upto&&i<NSONGS;i++){ for(const char*p=songs[i].name;*p;p++) h=(h^(u8)*p)*16777619u; h=(h^0x7C)*16777619u; }
     return (u16)(h^(h>>16));
