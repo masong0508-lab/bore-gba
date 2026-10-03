@@ -387,12 +387,13 @@ static const char* relWord(int a,int b){   // how a sees b
     if(d>=70&&l>=70) return "BEST FRIEND"; if(d>=50) return "FRIEND"; if(d<=-50) return "ENEMY"; if(d<=-20) return "DISLIKE";
     if(d==0&&l==0) return "STRANGER"; return "ACQUAINTANCE";
 }
+static int uPipeOk(int u){ return u==hhPUid?pipeOk():uStage(u)>=AG_ADULT; }   // you: PIPE AGE applies; members: grown-ups (they keep no days-in-stage)
 static int socAllowed(int a,int b,int i){   // may a do interaction i to b now?
     const SocAct*S=&socT[i]; int d=relD[a][b];
     if(d<S->minD||d>S->maxD) return 0;
     if(!(S->fl&SA_KID)&&(uStage(a)<AG_TEEN||uStage(b)<AG_TEEN)) return 0;
     if((S->fl&SA_ROM)&&!romOk(a,b)) return 0;
-    if((S->fl&SA_PIPE)&&(uStage(a)<AG_ADULT||uStage(b)<AG_ADULT||!(simHave&SR_PIPE))) return 0;
+    if((S->fl&SA_PIPE)&&(!uPipeOk(a)||!uPipeOk(b)||!(simHave&SR_PIPE))) return 0;
     if((S->fl&SA_CRUSH)&&!(relF[a][b]&RF_CRUSH)) return 0;
     if((S->fl&SA_LOVE)&&(!(relF[a][b]&RF_LOVE)||(relF[a][b]&RF_STEADY))) return 0;
     if(i==SC_TRICK&&uStage(a)<AG_CHILD) return 0;

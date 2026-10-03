@@ -251,6 +251,16 @@ static int simIsNight(void){ return simMin>=SIM_NIGHT_FROM||simMin<SIM_NIGHT_TO;
 static int simWishes(void){ return stage!=AG_BABY; }   // babies have no wants or fears (and no aspiration meter)
 
 // ---- rolling wants and fears ----
+// ---- the water pipe: grown-ups, and (OPTIONS > PLAY > PIPE AGE: LATE TEENS) a teen in the last quarter of the teen stage. How long that
+// stage is comes from OPTIONS > AGES (TEEN LASTS, scaled by AGING), so the quarter moves with it: with aging OFF or FOREVER a teen never
+// gets there. ----
+static int pipeTeenOk(void){
+    static const u8 pct[4]={0,200,100,50};
+    if(stage!=AG_TEEN||xo[XO_PIPEAGE]!=1||!xo[XO_AGING]||!oStageDays(AG_TEEN)) return 0;
+    int need=oStageDays(AG_TEEN)*pct[xo[XO_AGING]]/100; if(need<1) need=1;
+    return (ageDays+1)*4>need*3;   // (in whole days: the day that started in the last quarter counts)
+}
+static int pipeOk(void){ return stage>=AG_ADULT||pipeTeenOk(); }
 static int simWho(int who){   // may this creature roll a wish with these WH_ flags?
     if((who&WH_JOB)&&!ojob()) return 0;
     if((who&WH_GROWS)&&(stage>=AG_ADULT||!xo[XO_AGING]||!oStageDays(stage))) return 0;
@@ -281,7 +291,7 @@ static int simPick(int want){   // a weighted random wish the creature and the r
     const SimWish*tab=want?simWants:simFears; int n=want?SIM_NW:SIM_NF, tot=0, wt[32];
     for(int i=0;i<n&&i<32;i++){
         const SimWish*w=&tab[i]; int v=0;
-        if((w->req&simHave)==w->req&&simWho(w->who)&&(w->ev!=SE_PIPE||stage>=AG_ADULT)&&!simOnShow(want,i)){ v=simWeight(w); if(want) v+=simNeedBoost(w->ev); }
+        if((w->req&simHave)==w->req&&simWho(w->who)&&(w->ev!=SE_PIPE||pipeOk())&&!simOnShow(want,i)){ v=simWeight(w); if(want) v+=simNeedBoost(w->ev); }
         wt[i]=v; tot+=v;
     }
     if(tot<=0) return -1;
@@ -539,7 +549,7 @@ static void ageTick(void){   // once per game day: each stage lasts the days set
 }
 static void simMinute(void){   // once per game minute
     simMin++;
-    if(simMin==16*60+20&&(simHave&SR_PIPE)&&stage>=AG_ADULT) simQueue("IT IS 4:20  PUFF PUFF PASS");   // the house gathers at the water pipe (house.h)
+    if(simMin==16*60+20&&(simHave&SR_PIPE)&&pipeOk()) simQueue("IT IS 4:20  PUFF PUFF PASS");   // the house gathers at the water pipe (house.h)
     if(simMin>=1440){   // midnight: new day, bills, autosave
         simMin=0; simDay++; if(simDay>30000) simDay=0;
         ageTick();

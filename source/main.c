@@ -1779,7 +1779,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
                 if(lfood>=95){ lnote="FULL"; lnoteT=40; }
                 else { lfood+=35; if(lfood>100) lfood=100; lbl+=10; if(lbl>99) lbl=99; lstun=30; lsp=0; lnote="YUM"; lnoteT=50; moodEvent(M_EAT); }
             } else if(lnear==6){   // the water pipe (grown-ups only): CHILLED OUT for two game hours
-                if(stage<AG_ADULT){ lnote="GROWN-UPS ONLY"; lnoteT=50; }
+                if(!pipeOk()){ lnote=stage==AG_TEEN&&xo[XO_PIPEAGE]?"NOT OLD ENOUGH YET":"GROWN-UPS ONLY"; lnoteT=50; }
                 else if(lchill>0){ lnote="STILL CHILLIN"; lnoteT=40; }
                 else { lchill=1800; lstun=80; lsp=0; lgrind=0; lnote="PUFF PUFF  CHILLED OUT"; lnoteT=80; moodEvent(M_CHILL); simEvent(SE_PIPE); }
             } else if(lnear>=3){ simBegin(lnear);   // bed / shower / sofa (sims.h)

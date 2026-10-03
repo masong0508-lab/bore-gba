@@ -97,7 +97,8 @@ Walls are drawn like The Sims: a wall tile is a **thin, tall panel** (24 px, 3 b
   - **WATER PIPE** ('G'): a green glass pipe.
   - **LAVA LAMP** ('V'): purple fluid with orange blobs. It counts toward a nicer room.
   - **BEANBAG** ('U'): four turns. It works as a sofa for COMFY, for you and for free will.
-- **Using the pipe** (R next to it; grown-ups only, so children and teens get "GROWN-UPS ONLY"):
+- **Using the pipe** (R next to it):
+  - **Who can use it:** grown-ups, and late teens when **OPTIONS > PLAY > PIPE AGE** is LATE TEENS (the default; ADULTS ONLY turns it off). "Late" is the last quarter of the teen stage in whole days, so it follows OPTIONS > AGES (TEEN LASTS) and the AGING speed. For example, a 7-day teen stage at NORMAL opens it on days 6 and 7; with aging OFF or FOREVER a teen never gets there. A teen who is too young sees "NOT OLD ENOUGH YET", children "GROWN-UPS ONLY". The rule also covers the want and PUFF PUFF PASS. Household members keep no day count, so they still need to be adults.
   - **CHILLED OUT** for two game hours: a mood boost (M_CHILL) and +1 STYLE, so tricks score more.
   - **The munchies:** hunger drains twice as fast until it wears off.
 - **PUFF PUFF PASS:** a new social interaction for two grown-ups when the house has a water pipe. Free will uses it too. If you are in it, you chill out as well.
