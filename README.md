@@ -116,8 +116,8 @@ The GBA has 256 KB of EWRAM and 32 KB of IWRAM. Check the numbers with `arm-none
 | after the audio rework | 113,000 B (43%) | 24,812 B |
 | with the 8-Sim household | 211,180 B (81%) | 25,452 B |
 | household on hardware sprites | 168,348 B (64%) | 25,096 B |
-| boot logo + face parts, before the IWRAM diet | 172,816 B | 26,060 B |
-| after the IWRAM diet | 176,780 B (67%) | 20,496 B (10.8 KB left for the stack) |
+| boot logo + face parts, before the IWRAM diet | 172,812 B (66%) | 26,060 B |
+| after the IWRAM diet | 174,980 B (67%) | 20,496 B (12 KB left for the stack) |
 | big users now | household sprite tiles `hhObj` 28 KB + bake buffer 11 KB, screen back buffer `fb` 76.8 KB, creature sprites `spr4` 11 KB, floor tiles `flTab` 8.6 KB, overlay `ovBuf` 5 KB, BFS queue + wall map 4.8 KB (wallpaper textures: ROM only) | mixer buffers, `irqStack` 1 KB, IWRAM code 14 KB |
 
 **IWRAM diet** (5.5 KB freed, the per-pixel hot paths untouched):
