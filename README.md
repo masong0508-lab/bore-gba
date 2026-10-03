@@ -37,7 +37,7 @@ The picker rows skip what a stage cannot have, the block builder only places ins
 
 In the life: the **BABY cannot be steered**: it toddles about by itself and a caretaker keeps its needs up. Child, teen and elder walk slower than an adult; the career (shifts, quota, bills) is for TEEN and ADULT only (an elder is retired). At midnight the days in the stage count up and the creature grows to the next stage (a "NOW A CHILD" note, and its sprites are re-baked). ELDER is the last stage.
 
-**OPTIONS > AGES** (its own page): **AGING** (OFF / SLOW / NORMAL / FAST: slow doubles the days of every stage, fast halves them, off keeps the age you picked) and how many game days each stage lasts: **BABY** (default 2), **CHILD** (3), **TEEN** (3), **ADULT** (7, or FOREVER to never grow old); each is 1, 2, 3, 5, 7, 10, 14, 21, 30 or 60 days. The stage is saved in the person (room slot format 2; format 1 slots load as adults) and also in SRAM at 12416 so growth survives a power cycle.
+**OPTIONS > AGES** (its own page): **AGING** (OFF / SLOW / NORMAL / FAST: slow doubles the days of every stage, fast halves them, off keeps the age you picked) and how many game days each stage lasts: **BABY** (default 2), **CHILD** (3), **TEEN** (3), **ADULT** (7, or FOREVER to never grow old); each is 1, 2, 3, 5, 7, 10, 14, 21, 30 or 60 days. The stage is saved in the person (room slot format 2; format 1 slots load as adults) and also in SRAM at 5008 so growth survives a power cycle.
 
 ## Main menu, room builder, settings
 Boot goes title -> **main menu** (PLAY, MAKE CREATURE, BUILD ROOM, JUKEBOX, SETTINGS, HOW TO PLAY). "MAIN MENU" is the last entry in the creature part list and in the pause menu.
@@ -74,7 +74,7 @@ A gold dot marks a row that is not at its normal value. The row under the cursor
 **Adding an option** takes four small steps (written at the top of `source/opts.h`): add a name at the *end* of the `XO_` enum, add its choice count and default to `xoCnt[]` / `xoDef[]`, read `xo[XO_X]` where the game uses it, and add an `XR(...)` row to a page table in `source/optscreen.h`. Options are one byte each, saved with a checksum and a range check per value, so an older save simply gets the defaults for options it does not have.
 
 ## Room slots
-Main menu (or pause menu, or map menu) -> **ROOM SLOTS**. Six named saves; each holds any of a **room** (walls, floors, wallpaper, items), the **person** (the creature, including hand built blocks) and the **life** (needs, cash, job, clock, skill). What a save stores is the SLOTS SAVE option.
+Main menu (or pause menu, or map menu) -> **ROOM SLOTS**. Twelve named saves (the list scrolls); each holds any of a **room** (walls, floors, wallpaper, items), the **person** (the creature, including hand built blocks) and the **life** (needs, cash, job, clock, skill). What a save stores is the SLOTS SAVE option.
 | Key | Action |
 |---|---|
 | Up / Down | pick a slot (the room is previewed on the right) |
@@ -131,7 +131,7 @@ Walls are drawn like The Sims: a wall tile is a **thin, tall panel** (24 px, 3 b
   - Wants: TALK TO SOMEONE, MAKE A FRIEND, BEST FRIENDS, FIRST KISS, FALL IN LOVE, GO STEADY, GET A HUG, SHARE A LAUGH. Fears: BEING REJECTED, GETTING SLAPPED, A FIGHT, MAKING AN ENEMY, BEING LONELY.
   - **Pause menu > HOUSEHOLD > RELATIONSHIPS**: how you feel about everyone and how they feel about you, daily and lifetime. A family that moves in already knows each other, and its first two adults are a couple.
 - **The thought bubble** only shows when you stand still (nothing flashes over your head while you walk), and by default only for urgent needs (OPTIONS > HUD > THOUGHT BUBBLE: ALL brings the wants back).
-- **For now** the aspiration meter, wants, job, cash and skill belong to the household (whoever you control uses them), and the household is saved in SRAM at 18448 (one household, not per room slot).
+- **For now** the aspiration meter, wants, job, cash and skill belong to the household (whoever you control uses them), and the household is saved in SRAM at 5216 (one household, not per room slot).
 - RAM: each member's baked sprites are 11 KB (EWRAM), the free will state about 150 bytes a Sim.
 
 ## RAM budget (work RAM, not saves)
@@ -158,20 +158,27 @@ The GBA has 256 KB of EWRAM and 32 KB of IWRAM. Check the numbers with `arm-none
 
 **Room for more characters.** One baked character (4 views of 32 x 44 at 16 bits) is 11 KB, so the freed 124 KB holds about ten more at that size, or around twenty at 8 bits per pixel with a palette.
 
-## Save memory map (32 KB SRAM)
+## Save memory map (32 KB SRAM), layout 2
 | Offset | What |
 |---|---|
-| 0 | the room, "BM3" (4803 bytes; older 14 x 14 saves still load) |
-| 8192 | settings (16 bytes) |
-| 8448 | extended options (`opts.h`) |
-| 14336 | jukebox order and mode |
-| 12352 | active room slot |
-| 12416 | life stage and days in it |
-| 12432 | persona: aspiration, lifetime want, traits, DNA, unlocked parts |
-| 16384 | the life (`sims.h`) |
-| 18432 | 16 spare bytes for SAVE MEMORY TEST |
-| 18448 | the household (up to 7 more Sims, `house.h`) |
-| 20480 | six room slots of 2048 bytes (to the end of SRAM) |
+| 0 | the room being played, "BM3" (4803 bytes; older 14 x 14 saves still load) |
+| 4808 | layout marker `LY2` (set once the upgrade below has run) |
+| 4864 | settings (16 bytes) |
+| 4896 | extended options (`opts.h`) |
+| 4992 | active room slot |
+| 5008 | life stage and days in it |
+| 5024 | persona: aspiration, lifetime want, traits, DNA, unlocked parts |
+| 5056 | jukebox order and mode |
+| 5136 | the life (`sims.h`) |
+| 5200 | 16 spare bytes for SAVE MEMORY TEST |
+| 5216 | the household (up to 9 more Sims, `house.h`; 1024 bytes reserved) |
+| 8192 | **twelve** room slots of 2048 bytes (to the end of SRAM) |
+
+The full map, with the compile-time checks that keep the blocks from overlapping, is at the top of `source/slots.h`.
+
+**Upgrading a layout 1 save.** Layout 1 had six slots from 20480 and the small blocks in between. The first start of this version copies the small blocks down (`slMigrate`, `slots.h`), moves the active-slot number on by six, writes the marker and only then clears the old blocks, so a power cut at any point loses nothing. The six old slots are never touched: their bytes are now **slots 7 to 12**, with the same names and contents.
+
+**Room format 3.** New saves store the tiles, floors and wallpapers as three separate runs lists (floors and wallpapers change far less often than furniture), about a quarter smaller than the old combined runs on a furnished room. Formats 1 and 2 still load. The default 40 x 40 map takes about 1.4 KB of a slot's 2 KB; a room covered in scattered furniture can still be too big (the game says TOO BIG FOR A SLOT and leaves the slot as it was). The slot screen preview now draws every room format (it used to draw only the oldest).
 
 ## Combos and the action cam
 Clean tricks (spins, kickflips) and rail grinds now **chain**: each one adds to the chain and the chain multiplier equals the number of tricks. Land the next trick within 2.5 s (grinding keeps it alive) or the chain banks its bonus (points x (tricks - 1)). A bail or a hit loses the chain. The HUD shows `COMBO X5 2500` while it runs.
@@ -182,7 +189,7 @@ The play map is now **40 x 40 tiles** (was 14 x 14), about 8x the floor space. T
 - **Camera**: in play the view follows the skater, eased so it stays steady, and stops at the map edges. The action cam still spins round the skater.
 - **Speed**: only the tiles on screen are drawn, so the bigger map costs far less than drawing all 1600 tiles. Use SETTINGS (AUTO TUNE) if your device needs it.
 - **Map editor**: a dead-zone camera scrolls only when the cursor nears the edge of the screen, and a **minimap** (top right) shows the whole map, the area on screen and the blinking cursor.
-- **Saves**: new maps save in a bigger SRAM block (settings moved to offset 8192). Older 14 x 14 saves and settings still load; an old room is placed into the plaza of the new map and re-saves in the new format.
+- **Saves**: new maps save in a bigger SRAM block (settings moved, now at offset 4864). Older 14 x 14 saves and settings still load; an old room is placed into the plaza of the new map and re-saves in the new format.
 
 ## Skate objects and ramps
 New skate-park pieces, all in the room editor's ITEM tool (L/R to pick, **Select+A turns a ramp** to face S / E / N / W):
@@ -266,7 +273,7 @@ Main menu -> **JUKEBOX**. Opening it starts the song the playlist is on. The son
 | Select | re-roll the shuffle (saved; the playing song stays first) |
 | B | back to the menu |
 
-When a song ends the next one starts (REPEAT ONE replays it). **The shuffled order is saved in SRAM (offset 14336), so the song set comes back in the same shuffled order every time the game starts**, and the playlist carries on from the last song played. It is re-rolled only by SELECT, or automatically when the number of songs in `songs.h` changes. The mode is a normal setting (SETTINGS -> JUKEBOX).
+When a song ends the next one starts (REPEAT ONE replays it). **The shuffled order is saved in SRAM (offset 5056), so the song set comes back in the same shuffled order every time the game starts**, and the playlist carries on from the last song played. It is re-rolled only by SELECT, or automatically when the number of songs in `songs.h` changes. The mode is a normal setting (SETTINGS -> JUKEBOX).
 
 **Adding a tracker song (.xm):** copy it into `tools/`, add `SONG_XM(my_id,"MY SONG","tools/my_song.xm")` to `source/songs.h`, then run `python3 tools/xm2gba.py` (needs numpy + scipy) and commit the new `source/musicdata.h`. Tracker songs are tiny (tens of KB). The player handles up to 10 channels, 32 instruments, any pattern length, notes and the volume column; it ignores effects, panning, envelopes and note-off (the script warns if a song uses them). Speed/BPM must stay fixed in the song. `GAIN` in `tools/xm2gba.py` sets a song's loudness.
 
@@ -344,7 +351,7 @@ Wants: snack, WC, nap, get clean, sofa, land a trick, trick combo, 5 trick combo
 
 **Pause menu -> ASPIRATION.** The full panel: the meter, the lifetime want and its progress, the wants (UP/DOWN and A locks one) and fears with their points, reward points, DNA, sign and abilities. **R opens the aspiration rewards**: ENERGIZER (100, REST to full), THINKING CAP (150, the next skill level), MONEY TREE (300, pays 25 every midnight), ELIXIR OF LIFE (250, resets the days in the life stage).
 
-**Saving.** Needs, cash, the aspiration meter and reward points, the wants and fears (and the lock), clock, job level and progress, skill and the lifetime want counters are saved to SRAM (offset 16384, 52 bytes "SIM3"; an older 24 byte "SIM2" life still loads, its points become reward points) at every midnight, every payday, when you open the pause menu and when you leave the life game, with a checksum so a bad save is ignored. Dying only resets the needs: the life goes on. **Pause menu -> NEW LIFE** erases it and starts over.
+**Saving.** Needs, cash, the aspiration meter and reward points, the wants and fears (and the lock), clock, job level and progress, skill and the lifetime want counters are saved to SRAM (offset 5136, 52 bytes "SIM3"; an older 24 byte "SIM2" life still loads, its points become reward points) at every midnight, every payday, when you open the pause menu and when you leave the life game, with a checksum so a bad save is ignored. Dying only resets the needs: the life goes on. **Pause menu -> NEW LIFE** erases it and starts over.
 
 **Adding things.** A want or fear: add an `SE_` name if it needs a new event, a row **at the end** of `simWants` / `simFears` (rows are saved by index: name, event, points, furniture, icon, parameter, aspirations, trait, minimum, who), and map the game event in `simsMood()` (or call `simEvent(SE_X)` yourself). A need: a variable (and in `simsSave`/`simsLoad`), a rate in `simsTick()`, a use in `simBegin()`, a bar in `simsHud()`. A piece of furniture: art in `simart.h`, a slot in `palCh`/`palNm`/`palCol` and a `drawItemTile` line.
 

@@ -17,7 +17,7 @@
 #define HH_THINK   90      // steps between a member's decisions (FREE WILL HIGH; LOW thinks half as often and lets needs sink lower)
 #define HH_PATH    96      // longest path a member remembers (steps between tiles)
 #define HH_USE     240     // steps a member spends using a piece of furniture
-#define HH_OFF     18448   // SRAM: the household (after SAVE MEMORY TEST's 16 bytes; slots start at 20480)
+#define HH_OFF     SL_HH_OFF   // SRAM: the household (slots.h keeps the map of SRAM)
 enum { HA_IDLE, HA_WALK, HA_USE, HA_WANDER, HA_SEEK, HA_SOC, HA_LEAVE, HA_AWAY };   // SEEK: walking to someone to talk to; SOC: in a conversation; LEAVE: off to work or school; AWAY: off the lot
 enum { HN_FOOD, HN_WC, HN_REST, HN_CLEAN, HN_COMFY, HN_FUN, HN_SOC, HN_N };
 static const char hnFurn[HN_N]={'F','T','S','H','C',0,0};   // what each need's furniture is (FUN: skate about; SOCIAL: find someone)
@@ -679,7 +679,8 @@ static void hhLoad(void){
     for(int a=0;a<HU_N;a++)for(int b=0;b<HU_N;b++){ relD[a][b]=(signed char)m[k++]; relL[a][b]=(signed char)m[k++]; relF[a][b]=m[k++]; }
     hhN=n;
 }
-_Static_assert(HH_OFF+4+HH_MAX*HH_REC+HH_RELB+1<=20480,"the household must fit before the room slots");
+_Static_assert(HH_OFF+4+HH_MAX*HH_REC+HH_RELB+1<=SLOT_BASE,"the household must fit before the room slots");
+_Static_assert(4+HH_MAX*HH_REC+HH_RELB+1<=SL_MIG_HH,"the household is bigger than the block the layout upgrade copies");
 
 // ---- the pause menu's HOUSEHOLD screen ----
 static void hhMenu(void){

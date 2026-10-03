@@ -331,9 +331,9 @@ static const char* simWantName(int s){   // the want in slot s, with its paramet
 }
 static const char* simFearName(int s){ return simF[s]<0?0:simFears[simF[s]].name; }
 
-// ---- saving (SRAM at SIM_OFF; main.c's map is 0..4802, settings 8192, jukebox 14336) ----
+// ---- saving (SRAM at SIM_OFF; main.c's map is 0..4802, the other small blocks sit in 4864..8191: see slots.h) ----
 #ifndef SIM_SRAM
-#define SIM_OFF 16384
+#define SIM_OFF 5136
 #define SIM_SRAM ((volatile unsigned char*)0x0E000000+SIM_OFF)
 #endif
 static void simPut16(volatile unsigned char*m,int i,int v){ m[i]=(unsigned char)(v&255); m[i+1]=(unsigned char)((v>>8)&255); }

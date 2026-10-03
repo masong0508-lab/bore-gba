@@ -4,7 +4,7 @@
 // The shuffled order is kept in SRAM, so the song set stays in the SAME shuffled order every time the game starts.
 // It is only re-rolled when you press SELECT in the jukebox, or when the number of songs changes (songs added / removed).
 #define JB_MAX 64          // most songs the jukebox can hold (the saved order needs 5+JB_MAX bytes at JB_OFF; must stop before SIM_OFF)
-#define JB_OFF 14336       // SRAM block: 'J' 'B' '1', song count, current slot, then the shuffled order (14336..16383 is a free gap between PERS_OFF 12432 and SIM_OFF 16384)
+#define JB_OFF 5056       // SRAM block: 'J' 'B' '1', song count, current slot, then the shuffled order (the small blocks sit together in 4864..8191: see slots.h)
 static u8 sJb;             // jukebox mode (a setting, saved with the other settings): 0 SHUFFLE, 1 IN ORDER, 2 REPEAT ONE
 #if JB_OFF+5+JB_MAX>16384
 #error JB_MAX is too big: the saved shuffle order would run into the life save at SIM_OFF (16384)
