@@ -4,11 +4,28 @@
 // Include AFTER px/shade/EWRAM_BSS/SW/SH/fb are defined.
 #include "itemids.h"
 #include "itemrom.h"
-static void blitItem(int k,int sx,int sy){
-    const u16*s=romSpr[k]; int x0=sx-IOX, y0=sy-IOY;   // sprites are read straight from the cartridge: no RAM
-    if(x0>SW||x0+IW<0||y0>SH||y0+IH<0) return;
-    for(int j=0;j<IH;j++){ int y=y0+j; if((unsigned)y>=SH) continue;
-        for(int i=0;i<IW;i++){ u16 c=s[j*IW+i]; if(c!=IKEY){ int x=x0+i; if((unsigned)x<SW) fb[y*SW+x]=c; } } }
+// Sprites are read straight from the cartridge (no RAM for the art). Only a tiny table in RAM: for every sprite row, the first opaque column and one
+// past the last, so the blit never touches the see-through margins. It also clips once per row, not once per pixel.
+static u8 itemSpan[NIV][IH][2] EWRAM_BSS;
+static void itemSpanInit(void){
+    for(int k=0;k<NIV;k++)for(int j=0;j<IH;j++){
+        const u16*s=romSpr[k]+j*IW; int a=IW,b=0;
+        for(int i=0;i<IW;i++) if(s[i]!=IKEY){ if(i<a) a=i; b=i+1; }
+        if(a>=b){ a=b=0; }
+        itemSpan[k][j][0]=(u8)a; itemSpan[k][j][1]=(u8)b;
+    }
+}
+IWRAM_CODE static void blitItem(int k,int sx,int sy){
+    int x0=sx-IOX, y0=sy-IOY;
+    int cx1=cX0+(int)cW, cy1=cY0+(int)cH;
+    if(x0>=cx1||x0+IW<=cX0||y0>=cy1||y0+IH<=cY0) return;
+    int j0=cY0-y0, j1=cy1-y0; if(j0<0) j0=0; if(j1>IH) j1=IH;
+    const u16*s=romSpr[k]; const u8*sp=itemSpan[k][j0];
+    for(int j=j0;j<j1;j++,sp+=2){
+        int a=sp[0], b=sp[1]; if(x0+a<cX0) a=cX0-x0; if(x0+b>cx1) b=cx1-x0; if(a>=b) continue;
+        const u16*q=s+j*IW+a; u16*d=&fb[(y0+j)*SW+x0+a];
+        for(int i=a;i<b;i++,q++,d++){ u16 c=*q; if(c!=IKEY) *d=c; }
+    }
 }
 static const char* const spawnArt[12]={"..hhh..",".hhhhh.",".hsssh.",".sssss.","..sss..",".rrrrr.","rrrrrrr","srrrrrs",".rrrrr.",".bb.bb.",".bb.bb.",".kk.kk."};
 static void drawSpawn(int sx,int sy){   // editor marker: a little standing person

@@ -155,12 +155,20 @@ static void setColors(void) {
 }
 
 // ---------- drawing ----------
-static inline __attribute__((always_inline)) void px(int x,int y,u16 c){ if((unsigned)x<SW && (unsigned)y<SH) fb[y*SW+x]=c; }
+// Clip rectangle: every drawing primitive stays inside it. The life scene is redrawn a rectangle at a time (see drawRoomRect), so the
+// rectangle is set around each piece of work and put back to the whole screen afterwards. cW / cH are unsigned so one compare tests a point.
+static int cX0=0, cY0=0; static unsigned cW=SW, cH=SH;
+static inline void clipSet(int x0,int y0,int x1,int y1){ cX0=x0; cY0=y0; cW=(unsigned)(x1-x0); cH=(unsigned)(y1-y0); }
+static inline void clipAll(void){ cX0=0; cY0=0; cW=SW; cH=SH; }
+static inline __attribute__((always_inline)) void px(int x,int y,u16 c){ if((unsigned)(x-cX0)<cW && (unsigned)(y-cY0)<cH) fb[y*SW+x]=c; }
 IWRAM_CODE static void vline(int x,int y0,int y1,u16 c){
-    if((unsigned)x>=SW) return; if(y0<0)y0=0; if(y1>=SH)y1=SH-1;
-    for(;y0<=y1;y0++) fb[y0*SW+x]=c;
+    if((unsigned)(x-cX0)>=cW) return; int ye=cY0+(int)cH-1; if(y0<cY0)y0=cY0; if(y1>ye)y1=ye;
+    u16*p=&fb[y0*SW+x]; for(;y0<=y1;y0++,p+=SW) *p=c;
 }
-IWRAM_CODE static void rect(int x,int y,int w,int h,u16 c){ for(int j=0;j<h;j++)for(int i=0;i<w;i++)px(x+i,y+j,c); }
+IWRAM_CODE static void rect(int x,int y,int w,int h,u16 c){
+    int x1=x+w, y1=y+h; if(x<cX0)x=cX0; if(y<cY0)y=cY0; if(x1>cX0+(int)cW)x1=cX0+(int)cW; if(y1>cY0+(int)cH)y1=cY0+(int)cH;
+    for(;y<y1;y++){ u16*p=&fb[y*SW+x]; for(int i=x;i<x1;i++) *p++=c; }
+}
 IWRAM_CODE static void line(int x0,int y0,int x1,int y1,u16 c){
     int dx=x1>x0?x1-x0:x0-x1, dy=y1>y0?y0-y1:y1-y0, sx=x0<x1?1:-1, sy=y0<y1?1:-1, e=dx+dy;
     for(;;){ px(x0,y0,c); if(x0==x1&&y0==y1)break; int e2=2*e;
@@ -208,7 +216,8 @@ IWRAM_CODE static void cube(int sx,int sy,int ci,int shape,int f){
     int r=rTab[shape], ch=shape==2?CC*7/10:CC; const u8*hhp=hhT[shape];
     if(shape) f&=3;
     u16 T=sT[ci], L=sL[ci], R=sR[ci], eT=shade(T,9), eL=shade(L,9), eR=shade(R,9);
-    for(int t=-r;t<=r;t++){
+    int t0=-r, t1=r; if(sx+t0<cX0) t0=cX0-sx; if(sx+t1>=cX0+(int)cW) t1=cX0+(int)cW-1-sx;
+    for(int t=t0;t<=t1;t++){
         int at=t<0?-t:t, hh=hhp[at], x=sx+t, yt=sy+hh, yb=yt+ch-1;
         u16 sc=t<0?L:R, ec=t<0?eL:eR;
         vline(x,yt,yb,sc);
@@ -254,12 +263,14 @@ static void bakeTex(void){   // needs hhT (filled by initTables)
 IWRAM_CODE static void wallBlock(int sx,int sy,int wp,int f){
     const u8*hhp=hhT[0]; int sl=9+wp;
     u16 T=sT[sl], eT=shade(T,9), eL=shade(sL[sl],9), eR=shade(sR[sl],9);
-    for(int t=-CA;t<=CA;t++){
-        int x=sx+t; if((unsigned)x>=SW) continue;
+    int t0=-CA, t1=CA; if(sx+t0<cX0) t0=cX0-sx; if(sx+t1>=cX0+(int)cW) t1=cX0+(int)cW-1-sx;
+    int ye=cY0+(int)cH-1;
+    for(int t=t0;t<=t1;t++){
+        int x=sx+t;
         int hh=hhp[t<0?-t:t], yt=sy+hh, yb=yt+CC-1;
         const u16*col=wpTab[wp][t<0?0:1][t<0?t+CA:(t&7)];
         u16 ec=t<0?eL:eR;
-        for(int y=yt,v=0;y<=yb;y++,v++) if((unsigned)y<SH) fb[y*SW+x]=col[v];
+        { int ya=yt<cY0?cY0:yt, yz=yb>ye?ye:yb; if(ya<=yz){ u16*d=&fb[ya*SW+x]; const u16*cp=col+(ya-yt); for(int y=ya;y<=yz;y++,d+=SW,cp++) *d=*cp; } }
         vline(x,sy-hh,sy+hh,T);
         if(!(f&1)){ px(x,yt+1,lite(col[1],19)); px(x,sy-hh,eT); }
         if(!(f&2)){ px(x,yb-1,shade(col[6],13)); px(x,yb,ec); }
@@ -268,20 +279,22 @@ IWRAM_CODE static void wallBlock(int sx,int sy,int wp,int f){
 }
 // One floor tile: copy the pre-sampled columns. tex = flTab[floor][odd][0][0].
 IWRAM_CODE static void floorTile(int sx,int sy,const u16*tex){   // one scanline span per row instead of one call per column
+    int xa=cX0, xz=cX0+(int)cW-1;
     for(int ry=-CB;ry<=CB;ry++,tex+=2*CA+1){
-        int y=sy+ry; if((unsigned)y>=SH) continue;
+        int y=sy+ry; if((unsigned)(y-cY0)>=cH) continue;
         int hw=rowHW[ry<0?-ry:ry], x0=sx-hw, x1=sx+hw; const u16*sp=tex+(CA-hw);
-        if(x0<0){ sp-=x0; x0=0; } if(x1>=SW) x1=SW-1;
+        if(x0<xa){ sp+=xa-x0; x0=xa; } if(x1>xz) x1=xz; if(x0>x1) continue;
         u16*d=&fb[y*SW+x0]; u16*e=&fb[y*SW+x1];
         while(d<=e) *d++=*sp++;
     }
 }
 
 IWRAM_CODE static void tileTop(int sx,int sy,u16 c){
+    int xa=cX0, xz=cX0+(int)cW-1;
     for(int ry=-CB;ry<=CB;ry++){
-        int y=sy+ry; if((unsigned)y>=SH) continue;
+        int y=sy+ry; if((unsigned)(y-cY0)>=cH) continue;
         int hw=rowHW[ry<0?-ry:ry], x0=sx-hw, x1=sx+hw;
-        if(x0<0) x0=0; if(x1>=SW) x1=SW-1;
+        if(x0<xa) x0=xa; if(x1>xz) x1=xz; if(x0>x1) continue;
         u16*d=&fb[y*SW+x0]; u16*e=&fb[y*SW+x1];
         while(d<=e) *d++=c;
     }
@@ -1030,8 +1043,10 @@ static void bakeSprites(void){   // render the built character once per view (4 
     noGrid=0; view=sv;
 }
 IWRAM_CODE static void blit(const u16*s,int x0,int y0){
-    for(int y=0;y<SPH;y++){ int yy=y0+y; if((unsigned)yy>=SH) continue;
-        for(int x=0;x<SPW;x++){ u16 c=s[y*SPW+x]; if(c!=SKY) px(x0+x,yy,c); } }
+    int ia=cX0-x0, ib=cX0+(int)cW-x0; if(ia<0) ia=0; if(ib>SPW) ib=SPW; if(ia>=ib) return;
+    for(int y=0;y<SPH;y++){ int yy=y0+y; if((unsigned)(yy-cY0)>=cH) continue;
+        const u16*sp=s+y*SPW+ia; u16*d=&fb[yy*SW+x0+ia];
+        for(int x=ia;x<ib;x++,sp++,d++){ u16 c=*sp; if(c!=SKY) *d=c; } }
 }
 static int numText(int x,int y,int n,u16 c){
     char b[10]; int i=9; b[i]=0; if(n<=0) b[--i]='0';
@@ -1222,6 +1237,7 @@ static const char* const mapHelp[12]={">BUILD A ROOM","ROOM TOOL  A CORNER  A BU
 
 // ---------- settings screen ----------
 static void drawRoom(int ed);
+static void itemSpanInit(void);
 // Timer2 (65536 Hz) is the clock for pacing, the speed meter and the load counter.
 #define R_TM2D   (*(volatile u16*)0x04000108)
 #define R_TM2CNT (*(volatile u16*)0x0400010A)
@@ -1260,6 +1276,7 @@ static void autoTune(void){
 static const signed char hdT[3][3]={{10,12,14},{8,-1,0},{6,4,2}};   // [sign dy+1][sign dx+1] -> heading (16 steps), -1 = keep
 #include "feel.h"
 static void lifeInit(void){
+    { static int spanDone; if(!spanDone){ spanDone=1; itemSpanInit(); } }
     mapScan(); bakeSprites(); camSnap=1;
     lfx=spx*256+128; lfy=spy*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote=""; lskate=0; lhave=(bdx<0); lfr=0; lvx=lvy=0; ldead=0; lmaxz=0; lplay=0; lbumpCd=0; lfood=100; lbl=0; lnear=0; moodReset(); simsReset(); sfxStop(); feelReset(0);
 }
