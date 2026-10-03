@@ -66,4 +66,7 @@ static void drawItemTile(char c,int sx,int sy,int x,int y){
     else if(c=='H') blitItem(V_SHOWER+((itemFacing(x,y)-cview)&3),sx,sy);
     else if(c=='C') blitItem(V_SOFA+((itemFacing(x,y)-cview)&3),sx,sy);
     else if(c=='D') blitItem(V_DOOR,sx,sy);
+    else if(c=='G') blitItem(V_PIPE,sx,sy);                                   // chill pack
+    else if(c=='V') blitItem(V_LAVA,sx,sy);
+    else if(c=='U') blitItem(V_BEANBAG+((itemFacing(x,y)-cview)&3),sx,sy);
 }

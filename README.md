@@ -92,6 +92,18 @@ Walls are drawn like The Sims: a wall tile is a **thin, tall panel** (24 px, 3 b
 - Saves: the map in SRAM already kept a byte per tile; room slots now use room format 2 (a byte for the floor and one for the wallpaper; format 1 slots still load).
 - **Credits**: the converted wallpapers are KHLVH's work (the "KHLVH 06162005" wallpaper set on ModTheSims); they are in this repo only as the shrunk 8 x 24 versions. Check the creator's terms before you distribute a ROM with them.
 
+## Chill pack (the PUFF PUFF PASS side of BORE)
+- **New furniture** in the room editor's ITEM tool and in the starter lounge's chill corner, baked like every item (ROM only):
+  - **WATER PIPE** ('G'): a green glass pipe.
+  - **LAVA LAMP** ('V'): purple fluid with orange blobs. It counts toward a nicer room.
+  - **BEANBAG** ('U'): four turns. It works as a sofa for COMFY, for you and for free will.
+- **Using the pipe** (R next to it; grown-ups only, so children and teens get "GROWN-UPS ONLY"):
+  - **CHILLED OUT** for two game hours: a mood boost (M_CHILL) and +1 STYLE, so tricks score more.
+  - **The munchies:** hunger drains twice as fast until it wears off.
+- **PUFF PUFF PASS:** a new social interaction for two grown-ups when the house has a water pipe. Free will uses it too. If you are in it, you chill out as well.
+- **4:20:** at 16:20 the HUD says "IT IS 4:20". The grown-ups in the house drift over to the pipe for the next hour, and PASS is what they pick when they talk.
+- **New want:** "PUFF PUFF PASS" (leaf icon) for grown-ups in a house with a pipe.
+
 ## Households (up to 10 Sims)
 **Pause menu -> HOUSEHOLD** moves in a premade family (original characters: THE GRINDERS, a skater family of three; THE MIDNIGHTS, a pale night-owl family; THE FRESHLYS, a young couple; THE NOVAS, a mother and her teen) or moves everyone out. A household is you plus up to 9 more Sims (`source/house.h`): ten on screen at once. Each one is a hardware sprite with its own palette and 1 KB of sprite memory, which uses 9 of the 16 KB of OBJ VRAM and 9 of the 16 palettes. Only one Sim plans a path per step, so ten cost no more CPU per frame than eight. The RELATIONSHIPS screen scrolls with UP and DOWN when more than seven live there.
 - **Create-A-Family:**

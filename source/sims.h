@@ -73,18 +73,19 @@ static const short simSkillAt[5]={12,35,70,120,200};      // skill points for sk
 static const char* const simDayNm[7]={"MON","TUE","WED","THU","FRI","SAT","SUN"};
 
 // furniture the room has (simsScan) and what a want needs
-enum { SR_FRIDGE=1, SR_TOILET=2, SR_BED=4, SR_SHOWER=8, SR_SOFA=16, SR_RAIL=32, SR_RAMP=64 };
+enum { SR_FRIDGE=1, SR_TOILET=2, SR_BED=4, SR_SHOWER=8, SR_SOFA=16, SR_RAIL=32, SR_RAMP=64, SR_PIPE=128 };
 // things that happen (wants and fears are both made of these)
 enum { SE_EAT, SE_PEE, SE_SLEEP, SE_SHOWER, SE_SOFA, SE_TRICK, SE_COMBO, SE_GRIND, SE_AIR, SE_SHOWOFF, SE_STOKED, SE_GREAT,
        SE_SHIFT, SE_ACE, SE_PROMO, SE_CASH, SE_BILLS, SE_SKILL, SE_PRACTICE, SE_ROOM, SE_GROWUP,
        SE_BAIL, SE_HURT, SE_ACCIDENT, SE_FAINT, SE_PASSOUT, SE_BROKE, SE_DEMOTE, SE_NOPAY, SE_STINKY, SE_BORED, SE_SAD, SE_DIE, SE_OLD, SE_SHABBY,
        SE_GLIDE, SE_CHARGE,
        SE_TALK, SE_FRIEND, SE_BFF, SE_KISS, SE_LOVE, SE_STEADY, SE_HUGGED, SE_LAUGH,   // social (house.h)
-       SE_REJECT, SE_SLAPPED, SE_FIGHT, SE_ENEMY, SE_LONELY, SE_N };   // (event numbers are not saved: they can be put in any order; table ROWS are saved by index)
+       SE_REJECT, SE_SLAPPED, SE_FIGHT, SE_ENEMY, SE_LONELY,
+       SE_PIPE, SE_N };   // SE_PIPE: a puff on the water pipe, or PUFF PUFF PASS   // (event numbers are not saved: they can be put in any order; table ROWS are saved by index)
 // icons (7x7, simIconArt): drawn in the HUD cells, the aspiration panel and the creator
 enum { IC_FOOD, IC_WC, IC_BED, IC_SHOWER, IC_SOFA, IC_BOARD, IC_COMBO, IC_RAIL, IC_AIR, IC_STAR, IC_BRIEF, IC_UP, IC_DOWN, IC_BOOK, IC_HOUSE,
        IC_COIN, IC_TROPHY, IC_CAKE, IC_HEART, IC_SKULL, IC_HURT, IC_PUDDLE, IC_SAD, IC_GLASS, IC_CANE, IC_STINK, IC_BAIL, IC_ZZZ,
-       IC_TALK, IC_HAND, IC_ANGRY, IC_N };
+       IC_TALK, IC_HAND, IC_ANGRY, IC_LEAF, IC_N };
 static const char* const simIconArt[IC_N][7]={
   {"...#...","..#....",".##.##.","#######","#######","#######",".##.##."},   // food (apple)
   {"###....","###....","###....","#######",".#####.","..###..","..###.."},   // wc
@@ -117,6 +118,7 @@ static const char* const simIconArt[IC_N][7]={
   {".#####.","#.....#","#.#.#.#","#.....#",".#####.","..#....",".#....."},   // talk (speech balloon)
   {"..#.#..",".##.##.",".##.##.","######.","######.",".#####.","..###.."},   // hand (high five)
   {"#.....#",".#...#.","..###..",".#.#.#.","#######","#.###.#",".#...#."},   // angry
+  {"...#...",".#.#.#.","#.###.#",".#####.","..###..","...#...","...#..."},   // leaf (chill)
 };
 static const unsigned char simAspIcon[AS_N]={IC_COIN,IC_BOOK,IC_TROPHY,IC_STAR,IC_HOUSE,IC_CAKE};
 // a wish's parameter: none, a cash target, a skill point target, a combo bank target (chosen when the wish rolls)
@@ -160,6 +162,7 @@ static const SimWish simWants[]={   // '#' in a name is replaced by the wish's p
     {"GO STEADY",      SE_STEADY, 50,0,        IC_HEART, WP_NONE, A(AS_HOME),                        TP(TR_NICE),0,WH_ROMANCE},
     {"GET A HUG",      SE_HUGGED, 12,0,        IC_HEART, WP_NONE, A(AS_HOME)|A(AS_GROW),             TP(TR_NICE),0,WH_SOCIAL},
     {"SHARE A LAUGH",  SE_LAUGH,  12,0,        IC_STAR,  WP_NONE, A(AS_PLEAS)|A(AS_POP),             TP(TR_PLAY),0,WH_SOCIAL},
+    {"PUFF PUFF PASS", SE_PIPE,   12,SR_PIPE, IC_LEAF,  WP_NONE, A(AS_PLEAS)|A(AS_POP),             TP(TR_PLAY),0,WH_ANY},     // grown-ups only (simWho2)
 };
 static const SimWish simFears[]={
     {"BAILING",        SE_BAIL,     8,0,IC_BAIL,  WP_NONE,A(AS_POP)|A(AS_GROW),          TN(TR_OUT), 0,WH_ANY},
@@ -236,7 +239,7 @@ static void simsScan(void){   // what does this map have?
     simHave=0;
     for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ char c=lifeMap[y][x];
         if(c=='F') simHave|=SR_FRIDGE; else if(c=='T') simHave|=SR_TOILET; else if(c=='S') simHave|=SR_BED;
-        else if(c=='H') simHave|=SR_SHOWER; else if(c=='C') simHave|=SR_SOFA;
+        else if(c=='H') simHave|=SR_SHOWER; else if(c=='C'||c=='U') simHave|=SR_SOFA; else if(c=='G') simHave|=SR_PIPE;
         else if(c=='='||c=='L'||c=='N'||c=='Z'||c=='K'||c=='J') simHave|=SR_RAIL; else if((c>='1'&&c<='<')) simHave|=SR_RAMP; }
 }
 static void simSkillCalc(void){ int l=0; for(int i=0;i<5;i++) if(skillPts>=simSkillAt[i]) l=i+1; skillLvl=l; }
@@ -278,7 +281,7 @@ static int simPick(int want){   // a weighted random wish the creature and the r
     const SimWish*tab=want?simWants:simFears; int n=want?SIM_NW:SIM_NF, tot=0, wt[32];
     for(int i=0;i<n&&i<32;i++){
         const SimWish*w=&tab[i]; int v=0;
-        if((w->req&simHave)==w->req&&simWho(w->who)&&!simOnShow(want,i)){ v=simWeight(w); if(want) v+=simNeedBoost(w->ev); }
+        if((w->req&simHave)==w->req&&simWho(w->who)&&(w->ev!=SE_PIPE||stage>=AG_ADULT)&&!simOnShow(want,i)){ v=simWeight(w); if(want) v+=simNeedBoost(w->ev); }
         wt[i]=v; tot+=v;
     }
     if(tot<=0) return -1;
@@ -536,6 +539,7 @@ static void ageTick(void){   // once per game day: each stage lasts the days set
 }
 static void simMinute(void){   // once per game minute
     simMin++;
+    if(simMin==16*60+20&&(simHave&SR_PIPE)&&stage>=AG_ADULT) simQueue("IT IS 4:20  PUFF PUFF PASS");   // the house gathers at the water pipe (house.h)
     if(simMin>=1440){   // midnight: new day, bills, autosave
         simMin=0; simDay++; if(simDay>30000) simDay=0;
         ageTick();
@@ -566,9 +570,9 @@ static void simRoomTick(int tx,int ty){
     int kinds=0, items=0;
     for(int y=ty-SIM_ROOM_R;y<=ty+SIM_ROOM_R;y++)for(int x=tx-SIM_ROOM_R;x<=tx+SIM_ROOM_R;x++){
         if(x<0||y<0||x>=MW||y>=MH) continue; char c=lifeMap[y][x]; int b=0;
-        if(c=='F') b=1; else if(c=='T') b=2; else if(c=='S') b=4; else if(c=='H') b=8; else if(c=='C') b=16;
+        if(c=='F') b=1; else if(c=='T') b=2; else if(c=='S') b=4; else if(c=='H') b=8; else if(c=='C'||c=='U') b=16; else if(c=='V'||c=='G') b=32;   // a lava lamp (or the pipe) makes it a den
         if(b){ kinds|=b; items++; } }
-    int k=0; for(int b=1;b<32;b<<=1) if(kinds&b) k++;
+    int k=0; for(int b=1;b<64;b<<=1) if(kinds&b) k++;
     int target=k*16+(items>5?5:items)*4; if(target>100) target=100;
     if(target>sRoom){ sRoom+=2; if(sRoom>target) sRoom=target; }
     else if(target<sRoom&&(simT%90)<30) sRoom--;       // sags slowly
