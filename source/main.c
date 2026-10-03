@@ -89,6 +89,7 @@ static const u8 stMaskShape[AG_N]={12,13,13,15,15}, stMaskEars[AG_N]={3,7,7,7,7}
 static const u8 stSwatches[AG_N]={4,6,8,8,8};       // how many colours of each row are on offer
 #define BX0 ((W-stBW[stage])/2)
 static u16 base[9+NWP], sT[9+NWP], sL[9+NWP], sR[9+NWP];   // slots 1..8 = body colours, 9.. = wallpaper average colours
+static u16 wpEdge[NWP][3];   // wall block outline colours (top, left face, right face): set by setColors
 static u16 dL[4], dR[4];   // face-sprite palette (k w r s) pre-shaded for the left / right cube face
 #define EDGE RGB(3,2,5)
 #define SKY  RGB(20,26,31)
@@ -149,7 +150,8 @@ static void setColors(void) {
     base[4]=RGB(29,12,16);    base[5]=hairTones[look[LK_HCOL]];
     base[6]=topTones[look[LK_TOP]]; base[7]=botTones[look[LK_BOT]]; base[8]=RGB(31,30,16);
     for (int i=1;i<9;i++){ sT[i]=base[i]; sL[i]=shade(base[i],12); sR[i]=shade(base[i],9); }
-    for (int i=0;i<NWP;i++){ int s=9+i; base[s]=wpAvg[i]; sT[s]=base[s]; sL[s]=shade(base[s],12); sR[s]=shade(base[s],9); }
+    for (int i=0;i<NWP;i++){ int s=9+i; base[s]=wpAvg[i]; sT[s]=base[s]; sL[s]=shade(base[s],12); sR[s]=shade(base[s],9);
+        wpEdge[i][0]=shade(sT[s],9); wpEdge[i][1]=shade(sL[s],9); wpEdge[i][2]=shade(sR[s],9); }
     u16 dc[4]={ base[3], base[2], base[4], shade(base[1],11) };   // k dark, w white, r red, s lid shadow
     for (int i=0;i<4;i++){ dL[i]=shade(dc[i],12); dR[i]=shade(dc[i],9); }
 }
@@ -158,6 +160,12 @@ static void setColors(void) {
 // Clip rectangle: every drawing primitive stays inside it. The life scene is redrawn a rectangle at a time (see drawRoomRect), so the
 // rectangle is set around each piece of work and put back to the whole screen afterwards. cW / cH are unsigned so one compare tests a point.
 static int cX0=0, cY0=0; static unsigned cW=SW, cH=SH;
+#ifdef SELFTEST
+static unsigned cntWB, cntFT, cntBI, cntTiles, cntWBcols;
+#define CNT(v) (v)++
+#else
+#define CNT(v)
+#endif
 static inline void clipSet(int x0,int y0,int x1,int y1){ cX0=x0; cY0=y0; cW=(unsigned)(x1-x0); cH=(unsigned)(y1-y0); }
 static inline void clipAll(void){ cX0=0; cY0=0; cW=SW; cH=SH; }
 static inline __attribute__((always_inline)) void px(int x,int y,u16 c){ if((unsigned)(x-cX0)<cW && (unsigned)(y-cY0)<cH) fb[y*SW+x]=c; }
@@ -190,9 +198,9 @@ IWRAM_CODE static int text(int x,int y,const char*s,u16 c,int sc){
     for(;*s;s++){
         int i=fIdx(*s); if(i<0){ x+=sp; continue; }
         int w=fw[i]; const u8*g=fp+fo[i];
-        for(int r=0;r<fh;r++){ int yy=y+r; if((unsigned)yy>=SH){ g+=w; continue; }
+        for(int r=0;r<fh;r++){ int yy=y+r; if((unsigned)(yy-cY0)>=cH){ g+=w; continue; }
             u16*d=&fb[yy*SW];
-            for(int q=0;q<w;q++){ int a=g[q]; if(!a) continue; int xx=x+q; if((unsigned)xx>=SW) continue;
+            for(int q=0;q<w;q++){ int a=g[q]; if(!a) continue; int xx=x+q; if((unsigned)(xx-cX0)>=cW) continue;
                 if(a>=8){ d[xx]=c; continue; }
                 u16 b=d[xx]; int ia=8-a;
                 int R=((b&31)*ia+cr*a)>>3, G=(((b>>5)&31)*ia+cg*a)>>3, B=(((b>>10)&31)*ia+cb*a)>>3;
@@ -230,6 +238,7 @@ IWRAM_CODE static void cube(int sx,int sy,int ci,int shape,int f){
 
 // ---------- textured walls and floors ----------
 static u16 wpTab[NWP][2][8][8] EWRAM_BSS;              // [wallpaper][0 left face / 1 right face][column][row], pre-shaded
+static u16 wpHi[NWP][2][8], wpLo[NWP][2][8];            // per column: the lit row under the top edge, and the shaded row above the bottom edge
 static u16 flTab[NFL][2][2*CB+1][2*CA+1] EWRAM_BSS;    // [floor][odd tile][row][column] pre-sampled onto the iso diamond (row-major: drawn as horizontal spans)
 static u8 rowHW[CB+1];   // rowHW[|y|] = half width of the diamond on that row
 static u16 flFlat[NFL][2];                             // plain-colour fallback ("floor patterns off")
@@ -241,7 +250,7 @@ static u16 avgTex(const Tex*t){
 static void bakeTex(void){   // needs hhT (filled by initTables)
     for(int w=0;w<NWP;w++){
         const Tex*t=&wpTex[w]; wpAvg[w]=avgTex(t);
-        for(int f=0;f<2;f++)for(int u=0;u<8;u++)for(int v=0;v<8;v++) wpTab[w][f][u][v]=shade(t->c[t->p[v][u]-'0'],f?9:12);
+        for(int f=0;f<2;f++)for(int u=0;u<8;u++){ for(int v=0;v<8;v++) wpTab[w][f][u][v]=shade(t->c[t->p[v][u]-'0'],f?9:12); wpHi[w][f][u]=lite(wpTab[w][f][u][1],19); wpLo[w][f][u]=shade(wpTab[w][f][u][6],13); }
     }
     for(int fl=0;fl<NFL;fl++){
         const Tex*t=&flTex[fl]; u16 av=avgTex(t); int vs=flVs[fl];
@@ -261,24 +270,35 @@ static void bakeTex(void){   // needs hhT (filled by initTables)
 // One wall block with its wallpaper on both faces. Same silhouette and outline as cube(); f as for cube().
 // The baseboard / crown lines come from cube's own edge rows, so they stay visible over the pattern.
 IWRAM_CODE static void wallBlock(int sx,int sy,int wp,int f){
+    CNT(cntWB);
     const u8*hhp=hhT[0]; int sl=9+wp;
-    u16 T=sT[sl], eT=shade(T,9), eL=shade(sL[sl],9), eR=shade(sR[sl],9);
+    u16 T=sT[sl], eT=wpEdge[wp][0], eL=wpEdge[wp][1], eR=wpEdge[wp][2];
     int t0=-CA, t1=CA; if(sx+t0<cX0) t0=cX0-sx; if(sx+t1>=cX0+(int)cW) t1=cX0+(int)cW-1-sx;
     int ye=cY0+(int)cH-1;
     for(int t=t0;t<=t1;t++){
-        int x=sx+t;
-        int hh=hhp[t<0?-t:t], yt=sy+hh, yb=yt+CC-1;
-        const u16*col=wpTab[wp][t<0?0:1][t<0?t+CA:(t&7)];
-        u16 ec=t<0?eL:eR;
-        { int ya=yt<cY0?cY0:yt, yz=yb>ye?ye:yb; if(ya<=yz){ u16*d=&fb[ya*SW+x]; const u16*cp=col+(ya-yt); for(int y=ya;y<=yz;y++,d+=SW,cp++) *d=*cp; } }
-        vline(x,sy-hh,sy+hh,T);
-        if(!(f&1)){ px(x,yt+1,lite(col[1],19)); px(x,sy-hh,eT); }
-        if(!(f&2)){ px(x,yb-1,shade(col[6],13)); px(x,yb,ec); }
-        if((t==-CA&&!(f&16))||(t==CA&&!(f&32))) vline(x,sy-hh,yb,ec);
+        int x=sx+t, hh=hhp[t<0?-t:t], ytop=sy-hh, yt=sy+hh, yb=yt+CC-1;
+        int face=t<0?0:1, u=t<0?t+CA:(t&7);
+        const u16*col=wpTab[wp][face][u]; u16 ec=t<0?eL:eR;
+        int edge=(t==-CA&&!(f&16))||(t==CA&&!(f&32));
+        if(ytop>=cY0&&yb<=ye){   // the whole column is inside the clip: no per-pixel tests
+            u16*d=&fb[ytop*SW+x];
+            if(edge){ for(int y=ytop;y<=yb;y++,d+=SW) *d=ec; continue; }
+            for(int k=yt-ytop;k>=0;k--,d+=SW) *d=T;
+            const u16*cp=col+1; for(int v=1;v<CC;v++,d+=SW,cp++) *d=*cp;
+            if(!(f&1)){ fb[(yt+1)*SW+x]=wpHi[wp][face][u]; fb[ytop*SW+x]=eT; }
+            if(!(f&2)){ fb[(yb-1)*SW+x]=wpLo[wp][face][u]; fb[yb*SW+x]=ec; }
+        } else {                 // partly outside: clip every piece
+            { int ya=yt<cY0?cY0:yt, yz=yb>ye?ye:yb; if(ya<=yz){ u16*d=&fb[ya*SW+x]; const u16*cp=col+(ya-yt); for(int y=ya;y<=yz;y++,d+=SW,cp++) *d=*cp; } }
+            vline(x,ytop,yt,T);
+            if(!(f&1)){ px(x,yt+1,wpHi[wp][face][u]); px(x,ytop,eT); }
+            if(!(f&2)){ px(x,yb-1,wpLo[wp][face][u]); px(x,yb,ec); }
+            if(edge) vline(x,ytop,yb,ec);
+        }
     }
 }
 // One floor tile: copy the pre-sampled columns. tex = flTab[floor][odd][0][0].
-IWRAM_CODE static void floorTile(int sx,int sy,const u16*tex){   // one scanline span per row instead of one call per column
+IWRAM_CODE static void floorTile(int sx,int sy,const u16*tex){
+    CNT(cntFT);   // one scanline span per row instead of one call per column
     int xa=cX0, xz=cX0+(int)cW-1;
     for(int ry=-CB;ry<=CB;ry++,tex+=2*CA+1){
         int y=sy+ry; if((unsigned)(y-cY0)>=cH) continue;
@@ -699,6 +719,7 @@ static int camX, camY, camSnap=1, camLastV;   // camera offset in px; the map's 
 // w = low wall, W = wall, # = 2-block crate, = = grind rail, . = floor (the default map is built by mapGen below)
 static const short cosT[16]={256,237,181,98,0,-98,-181,-237,-256,-237,-181,-98,0,98,181,237};   // sin(a)=cosT[(a+12)&15]
 static u16 spr4[4][SPW*SPH] EWRAM_BSS;
+static int spBx0, spBx1, spBy0, spBy1;
 static s32 lfx,lfy,lz,lvz,lvx,lvy; static int lskate, lhave, lfr;   // lskate: 0 on foot, 1 skateboard; lhave: picked up the board
 static u8 floorMap[MH][MW] EWRAM_BSS, wallMap[MH][MW] EWRAM_BSS;   // floor style and wallpaper per tile
 static int lfpsV;   // measured frames per second (shown when SHOW FPS is on)
@@ -1038,13 +1059,34 @@ static void bakeSprites(void){   // render the built character once per view (4 
     for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ ghost[y][z][x]=0; gdec[y][z][x]=0; }
     for(int v=0;v<4;v++){
         view=v; drawScene(0);
-        for(int y=0;y<SPH;y++)for(int x=0;x<SPW;x++) spr4[v][y*SPW+x]=fb[(SPY0+y*2)*SW+SPX0+x*2];
+        // half size: take the top left pixel of every 2x2, unless the block holds a very dark one (eyes, mouth, outline): those must survive the shrink
+        for(int y=0;y<SPH;y++)for(int x=0;x<SPW;x++){
+            const u16*b=&fb[(SPY0+y*2)*SW+SPX0+x*2]; u16 c=b[0]; int best=(c&31)+((c>>5)&31)+((c>>10)&31);
+            if(best>14&&c!=SKY){ const u16 q[3]={b[1],b[SW],b[SW+1]}; for(int k=0;k<3;k++){ int sm=(q[k]&31)+((q[k]>>5)&31)+((q[k]>>10)&31); if(sm<=11&&sm<best){ best=sm; c=q[k]; } } }
+            spr4[v][y*SPW+x]=c;
+        }
+        // seen from behind the head shows hair, not a face: repaint the head's skin in the hair colour so the way he is facing reads at a glance
+        if(!custom&&(v==1||v==2)){
+            int hx,hy,hz,hs; headBox(&hx,&hy,&hz,&hs);
+            int ax=SW,az=SH,bx=0,bz=0;   // head box on screen (full size)
+            for(int yy=hy;yy<hy+2*hs;yy++)for(int zz=hz;zz<hz+2*hs;zz++)for(int xx=hx;xx<hx+2*hs;xx++){
+                int sx,sy; projC(2*xx+1-W,2*zz+1-D,yy+1,&sx,&sy);
+                if(sx-CA<ax) ax=sx-CA; if(sx+CA>bx) bx=sx+CA; if(sy-CB<az) az=sy-CB; if(sy+CB+CC>bz) bz=sy+CB+CC; }
+            int x0=(ax-SPX0)/2, x1=(bx-SPX0)/2+1, y0=(az-SPY0)/2, y1=(bz-SPY0)/2+1;
+            for(int y=y0<0?0:y0;y<y1&&y<SPH;y++)for(int x=x0<0?0:x0;x<x1&&x<SPW;x++){
+                u16*c=&spr4[v][y*SPW+x];
+                if(*c==sT[1]) *c=sT[5]; else if(*c==sL[1]) *c=sL[5]; else if(*c==sR[1]) *c=sR[5]; }
+        }
     }
     noGrid=0; view=sv;
+    spBx0=SPW; spBx1=0; spBy0=SPH; spBy1=0;   // the box that holds every opaque pixel of all four views: blits and redraw rectangles stay inside it
+    for(int v=0;v<4;v++)for(int y=0;y<SPH;y++)for(int x=0;x<SPW;x++) if(spr4[v][y*SPW+x]!=SKY){
+        if(x<spBx0) spBx0=x; if(x+1>spBx1) spBx1=x+1; if(y<spBy0) spBy0=y; if(y+1>spBy1) spBy1=y+1; }
+    if(spBx0>=spBx1){ spBx0=0; spBx1=SPW; spBy0=0; spBy1=SPH; }
 }
 IWRAM_CODE static void blit(const u16*s,int x0,int y0){
-    int ia=cX0-x0, ib=cX0+(int)cW-x0; if(ia<0) ia=0; if(ib>SPW) ib=SPW; if(ia>=ib) return;
-    for(int y=0;y<SPH;y++){ int yy=y0+y; if((unsigned)(yy-cY0)>=cH) continue;
+    int ia=cX0-x0, ib=cX0+(int)cW-x0; if(ia<spBx0) ia=spBx0; if(ib>spBx1) ib=spBx1; if(ia>=ib) return;
+    for(int y=spBy0;y<spBy1;y++){ int yy=y0+y; if((unsigned)(yy-cY0)>=cH) continue;
         const u16*sp=s+y*SPW+ia; u16*d=&fb[yy*SW+x0+ia];
         for(int x=ia;x<ib;x++,sp++,d++){ u16 c=*sp; if(c!=SKY) *d=c; } }
 }
@@ -1411,13 +1453,15 @@ static int wpAt(int rx,int ry){ int tx,ty; rotXY(rx,ry,&tx,&ty); return wallMap[
 static int flAt(int rx,int ry){ int tx,ty; rotXY(rx,ry,&tx,&ty); return floorMap[ty][tx]; }
 static int isWallCh(char c){ return c=='w'||c=='W'; }
 // ---- camera: follows the player (play) or the cursor (editor); only the tiles on screen are drawn ----
+static int vpY0=0, vpY1=SH;   // rows of the screen the scene lives in (life mode keeps the HUD panels above and below; the editor uses it all)
 static void camClamp(int ed){
-    int xl=120-MH*CA, xh=120+MW*CA-SW, yl=24-(ed?20:0), yh=24+(MW+MH)*CB-SH+(ed?20:0);
+    int xl=120-MH*CA, xh=120+MW*CA-SW, yl=24-vpY0-(ed?20:0), yh=24+(MW+MH)*CB-vpY1+(ed?20:0);
     if(camX<xl) camX=xl; if(camX>xh) camX=xh; if(camY<yl) camY=yl; if(camY>yh) camY=yh;
 }
 static void camFollow(int snap){   // keep the skater near the middle of the screen, eased so it stays steady
     s32 rfx,rfy; rotPos(lfx+lvx*(lskate?14:10),lfy+lvy*(lskate?14:10),&rfx,&rfy);   // look ahead of the skater (a little less on foot)
-    int ox=camX, oy=camY; camX=(int)((rfx-rfy)>>5); camY=(int)((rfx+rfy)>>6)-76; camClamp(0);
+    int playY=vpY0+(vpY1-vpY0)*5/8;                                                  // screen row of the feet (100 on the full screen)
+    int ox=camX, oy=camY; camX=(int)((rfx-rfy)>>5); camY=(int)((rfx+rfy)>>6)-(playY-24); camClamp(0);
     int tx=camX, ty=camY; camX=ox; camY=oy;
     if(cview!=camLastV){ camLastV=cview; snap=1; }
     if(snap){ camX=tx; camY=ty; return; }
@@ -1425,12 +1469,15 @@ static void camFollow(int snap){   // keep the skater near the middle of the scr
     if(!sx) sx=(dx>0)-(dx<0); if(!sy) sy=(dy>0)-(dy<0);
     camX+=sx; camY+=sy;
 }
-static void bandRows(int*s0,int*s1){   // diagonals (tx+ty) that can touch the screen
-    int lo=(-LOY-CB-10)/CB-1, hi=(SH+2*CC+CB-LOY)/CB+1;
+static int fdiv(int a,int b){ return a>=0?a/b:-((-a+b-1)/b); }   // floor division, b > 0
+// The diagonals (tx+ty) and, on each, the tiles whose art can touch the rectangle x0..x1 / y0..y1 (a little generous: a tile's art reaches
+// 23 px above its centre, 5 below, 11 to each side). Drawing extra tiles is harmless, they are clipped.
+static void bandRows(int y0,int y1,int*s0,int*s1){
+    int lo=fdiv(y0-14-LOY,CB)-1, hi=fdiv(y1+26-LOY,CB)+1;
     if(lo<0) lo=0; if(hi>MW+MH-2) hi=MW+MH-2; *s0=lo; *s1=hi;
 }
-static void bandCols(int s,int*a,int*b){   // tx range of diagonal s that falls on screen
-    int kmin=(-2*CA-LOX)/CA-1, kmax=(SW+2*CA-LOX)/CA+1;
+static void bandCols(int s,int x0,int x1,int*a,int*b){
+    int kmin=fdiv(x0-12-LOX,CA)-1, kmax=fdiv(x1+12-LOX,CA)+1;
     int lo=(s+kmin)>>1, hi=(s+kmax+1)>>1, mn=s-(MH-1), mx=s<MW-1?s:MW-1;
     if(mn<0) mn=0; if(lo<mn) lo=mn; if(hi>mx) hi=mx; *a=lo; *b=hi;
 }
@@ -1465,32 +1512,55 @@ static void eRect(int*x0,int*y0,int*x1,int*y1){   // anchor..cursor as an ordere
 }
 #include "items.h"
 static int lpsx, lpsy;   // where the player is on screen (zoom centre)
-static void drawRoom(int ed){   // the room, drawn back to front; ed=1: editor view (no player, markers + cursor)
-    fillCols(0,ROW_W,RGB(4,5,8));
-    int s0,s1; bandRows(&s0,&s1);
-    for(int s=s0;s<=s1;s++){ int a,b; bandCols(s,&a,&b);
-        for(int tx=a;tx<=b;tx++){ int ty=s-tx; char c=cellAt(tx,ty); if(c=='w'||c=='W'||c=='#') continue;
-            int sx=LOX+(tx-ty)*CA, sy=LOY+(tx+ty+1)*CB;
-            { int fl=flAt(tx,ty), v=(tx^ty)&1; if(sFl) floorTile(sx,sy,&flTab[fl][v][0][0]); else tileTop(sx,sy,flFlat[fl][v]); } } }
+// Which of the 4 baked views to show for a heading (16 steps, 0 = +x, 4 = +y ...). View v has its face on: 0 down-left, 3 down-right, 2 up-right, 1 up-left.
+// The pad walks along the screen's up / down / left / right, which are the diagonals of the tile grid, so those four headings sit between two views:
+// they pick the one that reads right (down and left show the face, right shows the face, up shows the back).
+static const u8 faceView[16]={3,3,0,0,0,0,0,1,1,1,2,2,2,2,3,3};
+static int plX, plY, plZ, plFh, plV, plBob;   // feet on screen, height above the floor, floor height under the feet, which baked view
+static void playerCalc(void){
     s32 rfx,rfy; rotPos(lfx,lfy,&rfx,&rfy);
-    int ss=(int)((rfx>>8)+(rfy>>8)), psx=LOX+(int)((rfx-rfy)>>5), psy=LOY+(int)((rfx+rfy)>>6);
-    lpsx=psx; lpsy=psy-20;
-    for(int s=s0;s<=s1;s++){ int a,b; bandCols(s,&a,&b);
+    plX=LOX+(int)((rfx-rfy)>>5); plY=LOY+(int)((rfx+rfy)>>6);
+    plFh=surfH(lfx,lfy); plZ=(int)(lz>>8); plV=faceView[(lhd+lspin+4*cview)&15];
+    plBob=(!lskate&&plZ<=plFh&&(lvx|lvy)&&lstun<=2)?(int)((lfr>>3)&1):0;   // a little step bounce while he walks
+    lpsx=plX; lpsy=plY-20;
+}
+static void drawPlayerNow(void){
+    if(sShad){ rect(plX-3,plY-plFh-1,7,2,RGB(10,8,5)); rect(plX-1,plY-plFh-2,3,4,RGB(10,8,5)); }   // shadow
+    if(lskate){ rect(plX-6,plY-plZ-1,12,2,RGB(26,10,6)); rect(plX-5,plY-plZ+1,2,2,RGB(3,3,6)); rect(plX+3,plY-plZ+1,2,2,RGB(3,3,6)); }   // board under the feet
+    blit(spr4[plV],plX-16,plY-40-plZ-plBob);
+}
+// The room inside the rectangle x0..x1 / y0..y1 (end excluded), drawn back to front and clipped to it: the same pixels a whole-screen
+// draw would put there. ed=1: editor view (no player).
+static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
+    clipSet(x0,y0,x1,y1);
+    rect(x0,y0,x1-x0,y1-y0,RGB(4,5,8));
+    int s0,s1; bandRows(y0,y1,&s0,&s1);
+    for(int s=s0;s<=s1;s++){ int a,b; bandCols(s,x0,x1,&a,&b);
         for(int tx=a;tx<=b;tx++){ int ty=s-tx;
-            char c=cellAt(tx,ty); int sx=LOX+(tx-ty)*CA, sy=LOY+(tx+ty+1)*CB;
+            int sx=LOX+(tx-ty)*CA, sy=LOY+(tx+ty+1)*CB;
+            if(sx+CA<x0||sx-CA>=x1||sy+CB<y0||sy-CB>=y1) continue;   // the diamond does not reach the rectangle
+            CNT(cntTiles); char c=cellAt(tx,ty); if(c=='w'||c=='W'||c=='#') continue;
+            { int fl=flAt(tx,ty), v=(tx^ty)&1; if(sFl) floorTile(sx,sy,&flTab[fl][v][0][0]); else tileTop(sx,sy,flFlat[fl][v]); } } }
+    int ss=0; if(!ed){ s32 rfx,rfy; rotPos(lfx,lfy,&rfx,&rfy); ss=(int)((rfx>>8)+(rfy>>8)); }
+    for(int s=s0;s<=s1;s++){ int a,b; bandCols(s,x0,x1,&a,&b);
+        for(int tx=a;tx<=b;tx++){ int ty=s-tx;
+            int sx=LOX+(tx-ty)*CA, sy=LOY+(tx+ty+1)*CB;
+            if(sx+11<=x0||sx-11>=x1||sy+6<=y0||sy-24>=y1) continue;   // art (walls, items, the pickup) is at most 11 px to a side, 24 above and 5 below the centre
+            char c=cellAt(tx,ty); int ox,oy; rotXY(tx,ty,&ox,&oy);
+            if(c=='.'&&(ed||lhave||ox!=BDX||oy!=BDY)) continue;   // plain floor: nothing stands there (but the board pickup might)
             if(c=='w'||c=='W') drawWall(tx,ty,sx,sy);
-            int ox,oy; rotXY(tx,ty,&ox,&oy);
             if(c=='#'||c=='F'||c=='T'||c=='='||c=='D'||c=='L'||c=='N'||c=='S'||c=='H'||c=='C'||c=='X'||c=='O'||c=='Y'||c=='Z'||c=='K'||c=='J'||c=='M'||isRamp(c)) drawItemTile(c,sx,sy,ox,oy);
             if((ed&&c=='B')||(!ed&&!lhave&&ox==BDX&&oy==BDY)) blitItem(V_BOARD,sx,sy-(ed?0:((lfr>>4)&1)));   // the skateboard pickup, bobbing
             if(ed&&c=='P') drawSpawn(sx,sy+1);   // little person = spawn
         }
-        if(!ed&&s==ss){
-            int fhp=surfH(lfx,lfy), zp=(int)(lz>>8), vsel=((lhd+lspin+66+4*cview)>>2)&3;
-            if(sShad){ rect(psx-3,psy-fhp-1,7,2,RGB(10,8,5)); rect(psx-1,psy-fhp-2,3,4,RGB(10,8,5)); }   // shadow
-            if(lskate){ rect(psx-6,psy-zp-1,12,2,RGB(26,10,6)); rect(psx-5,psy-zp+1,2,2,RGB(3,3,6)); rect(psx+3,psy-zp+1,2,2,RGB(3,3,6)); }   // board under the feet
-            blit(spr4[vsel],psx-16,psy-40-zp);
-        }
+        if(!ed&&s==ss) drawPlayerNow();
     }
+    if(!ed&&ss>s1) drawPlayerNow();   // the feet are below the rectangle but the head is inside it: nothing in front can reach it, so draw last
+    clipAll();
+}
+static void drawRoom(int ed){   // the whole screen (editor, speed test)
+    if(!ed) playerCalc();
+    drawRoomRect(0,0,SW,SH,ed);
     if(ed){
         if(eAct&&eTool!=T_ITEM){   // preview of what the next A will build
             int x0,y0,x1,y1; eRect(&x0,&y0,&x1,&y1);
@@ -1507,11 +1577,11 @@ static void drawRoom(int ed){   // the room, drawn back to front; ed=1: editor v
 // Camera zoom: scale the finished picture up around (cx,cy) in place. zk = 256 / zoom. Source pixels are always nearer the
 // centre than their destination, so working outward from the centre never reads a pixel that was already overwritten.
 static short zxm[SW], zym[SH];
-IWRAM_CODE static void zoomFb(int cx,int cy,int zk){
+IWRAM_CODE static void zoomFb(int cx,int cy,int zk){   // only the scene rows (vpY0..vpY1-1) are zoomed: the HUD panels stay put
     for(int x=0;x<SW;x++) zxm[x]=(short)(cx+(((x-cx)*zk)>>8));
-    for(int y=0;y<SH;y++) zym[y]=(short)(cy+(((y-cy)*zk)>>8));
+    for(int y=vpY0;y<vpY1;y++) zym[y]=(short)(cy+(((y-cy)*zk)>>8));
     for(int pass=0;pass<2;pass++){
-        int y0=pass?0:SH-1, y1=pass?cy:cy-1, st=pass?1:-1;
+        int y0=pass?vpY0:vpY1-1, y1=pass?cy:cy-1, st=pass?1:-1;
         for(int y=y0;y!=y1;y+=st){
             u16*d=fb+y*SW; const u16*s=fb+zym[y]*SW;
             for(int x=SW-1;x>=cx;x--) d[x]=s[zxm[x]];
@@ -1530,42 +1600,176 @@ static void drawFace(int x,int y,int st){
     static const u16 skin[5]={RGB(14,18,28),RGB(22,22,20),RGB(30,26,8),RGB(26,30,10),RGB(31,20,6)};
     for(int j=0;j<7;j++)for(int i=0;i<7;i++){ char c=faceArt[st][j][i]; if(c=='.') continue; px(x+i,y+j,c=='k'?RGB(4,3,6):skin[st]); }
 }
-static void lifeDraw(void){
-    camFollow(camSnap||lcamF>0); camSnap=0;
-    drawRoom(0);
+#include "hud.h"
+// ---------- the life scene: scroll and patch ----------
+// Redrawing the whole room every picture is far too slow for the GBA. Instead the screen itself (VRAM) is the picture: when the camera moves it is slid
+// over by the camera's step (one DMA per row, during the vertical blank) and only what changed is drawn: the strip the slide uncovered, the rectangle
+// round the player (where he was and where he is) and a bobbing pickup. Each rectangle is drawn into fb at its own place on screen (clipped, so it is
+// the very same pixels a whole-screen draw would make) and copied to VRAM. fb therefore only holds the last patches, not the room.
+// What floats over the room (thought bubble, plumbob) is not part of the room: the pixels under it are saved before it is drawn and put back before
+// it moves, so it costs a copy, not a redraw of the room behind it.
+#define NRC 12
+static Rc rcs[NRC]; static int nrc;
+static int vpValid;                 // the screen holds the room as of pCamX/pCamY (cleared by anything that draws over it: menus, other screens)
+static int pCamX, pCamY;            // camera of the last picture
+static Rc actOld; static int actHas; static unsigned actSig;   // the player's rectangle last picture, and what it was made from
+static int pBob;                    // the board pickup's frame last picture (-1 = not shown)
+static int pHud=-1;
+#define OV_CAP 2600
+static u16 ovBuf[OV_CAP] EWRAM_BSS; // the room pixels under the overlay that is on screen
+static Rc ovRc; static int ovOn; static unsigned ovSig;
+static u16 lifeVs;                  // timer value when the picture was ready (before waiting for the vertical blank): the load meter counts work up to here
+#ifdef SELFTEST
+static int stBad, stPics, stFull, stArea, stRects, stMoved, stTop, stBot; static unsigned tRend, tOvl, tHud, tWait, tDma, tLogic; static volatile int stDbg[16];
+#define TMARK(v) { u16 n_=R_TM2D; v+=(u16)(n_-tm0); tm0=n_; }
+#endif
+static void rcAdd(int x0,int y0,int x1,int y1){
+    if(x0<0) x0=0; if(x1>SW) x1=SW; if(y0<vpY0) y0=vpY0; if(y1>vpY1) y1=vpY1; if(x0>=x1||y0>=y1) return;
+    for(int i=0;i<nrc;i++){ Rc*r=&rcs[i];
+        if(x0<=r->x1&&x1>=r->x0&&y0<=r->y1&&y1>=r->y0){
+            int bx0=x0<r->x0?x0:r->x0, by0=y0<r->y0?y0:r->y0, bx1=x1>r->x1?x1:r->x1, by1=y1>r->y1?y1:r->y1;
+            int ab=(bx1-bx0)*(by1-by0), aa=(x1-x0)*(y1-y0)+(r->x1-r->x0)*(r->y1-r->y0);
+            if(ab*2<=aa*3){ r->x0=(short)bx0; r->y0=(short)by0; r->x1=(short)bx1; r->y1=(short)by1; return; } } }
+    if(nrc<NRC){ Rc*r=&rcs[nrc++]; r->x0=(short)x0; r->y0=(short)y0; r->x1=(short)x1; r->y1=(short)y1; }
+    else { Rc*r=&rcs[0]; if(x0<r->x0) r->x0=(short)x0; if(y0<r->y0) r->y0=(short)y0; if(x1>r->x1) r->x1=(short)x1; if(y1>r->y1) r->y1=(short)y1; }
+}
+static int rcHit(const Rc*a,int x0,int y0,int x1,int y1){ return a->x0<x1&&a->x1>x0&&a->y0<y1&&a->y1>y0; }
+static void actorRc(Rc*r){   // everything the player puts on screen: sprite, shadow, board
+    int sx=plX-16, sy=plY-40-plZ-plBob;
+    int x0=sx+spBx0, x1=sx+spBx1, y0=sy+spBy0, y1=sy+spBy1;
+    if(sShad){ if(plX-3<x0) x0=plX-3; if(plX+4>x1) x1=plX+4; if(plY-plFh+2>y1) y1=plY-plFh+2; }
+    if(lskate){ if(plX-6<x0) x0=plX-6; if(plX+6>x1) x1=plX+6; if(plY-plZ+3>y1) y1=plY-plZ+3; }
+    r->x0=(short)x0; r->x1=(short)x1; r->y0=(short)y0; r->y1=(short)y1;
+}
+static unsigned actSigNow(void){ return (unsigned)(plX&0x3FF)|((unsigned)(plY&0x3FF)<<10)|((unsigned)(plZ&0x3F)<<20)|((unsigned)plV<<26)|((unsigned)lskate<<28)|((unsigned)sShad<<29)|((unsigned)(plFh&1)<<30)|((unsigned)plBob<<31); }
+// ---- getting pixels to the screen ----
+static void dmaRows16(u32 src,u32 dst,int w,int rows,int sstride,int dstride){   // rows of w halfwords, strides in halfwords
+    for(int j=0;j<rows;j++){ REG_DMA3SAD=src; REG_DMA3DAD=dst; REG_DMA3CNT=(u32)w|0x80000000u; src+=(u32)(sstride*2); dst+=(u32)(dstride*2); }
+}
+static void vramCopy(int x0,int y0,int x1,int y1){   // fb rectangle -> VRAM, one DMA per row (32 bit when the columns line up)
+    int wide=((x0|x1)&1)==0;
+    for(int y=y0;y<y1;y++){
+        int o=y*SW+x0;
+        REG_DMA3SAD=(u32)(uintptr_t)(fb+o); REG_DMA3DAD=VRAM_ADDR+(u32)(o*2);
+        REG_DMA3CNT=wide?(u32)((x1-x0)/2)|0x84000000u:(u32)(x1-x0)|0x80000000u;
+    }
+}
+static void vramScroll(int dx,int dy){   // the picture moves by (-dx,-dy) inside the scene rows: new(x,y)=old(x+dx,y+dy)
+    int w=SW-(dx<0?-dx:dx), sx0=dx>0?dx:0, dx0=dx>0?0:-dx;
+    int y0=dy>0?vpY0:vpY0-dy, y1=dy>0?vpY1-dy:vpY1;   // destination rows [y0,y1)
+    int back=(dy<0)||(dy==0&&dx<0);                    // copy order that never overwrites what is still to be read
+    for(int n=0,cnt=y1-y0;n<cnt;n++){
+        int y=back?y1-1-n:y0+n;
+        u32 src=VRAM_ADDR+(u32)(((y+dy)*SW+sx0)*2), dst=VRAM_ADDR+(u32)((y*SW+dx0)*2);
+        if(dy==0&&dx<0){ src+=(u32)((w-1)*2); dst+=(u32)((w-1)*2); REG_DMA3SAD=src; REG_DMA3DAD=dst; REG_DMA3CNT=(u32)w|(1u<<21)|(1u<<23)|0x80000000u; }
+        else { REG_DMA3SAD=src; REG_DMA3DAD=dst; REG_DMA3CNT=(u32)w|0x80000000u; }
+    }
+}
+// ---- the overlay (bubble / plumbob): save what is under it, draw it, put it back ----
+static void ovSaveVram(const Rc*r){ dmaRows16(VRAM_ADDR+(u32)((r->y0*SW+r->x0)*2),(u32)(uintptr_t)ovBuf,r->x1-r->x0,r->y1-r->y0,SW,r->x1-r->x0); }
+static void ovSaveFb(const Rc*r){ int w=r->x1-r->x0; for(int y=r->y0;y<r->y1;y++){ const u16*sp=fb+y*SW+r->x0; u16*d=ovBuf+(y-r->y0)*w; for(int x=0;x<w;x++) d[x]=sp[x]; } }
+static void ovToFb(const Rc*r){ dmaRows16((u32)(uintptr_t)ovBuf,(u32)(uintptr_t)(fb+r->y0*SW+r->x0),r->x1-r->x0,r->y1-r->y0,r->x1-r->x0,SW); }
+static void ovRestoreVram(const Rc*r){ dmaRows16((u32)(uintptr_t)ovBuf,VRAM_ADDR+(u32)((r->y0*SW+r->x0)*2),r->x1-r->x0,r->y1-r->y0,r->x1-r->x0,SW); }
+static int ovNow(Rc*r,unsigned*sig){   // is there an overlay, where (clamped to the scene and the buffer), and what it is made of
+    int x0,y0,x1,y1; if(!hudOverlayRc(&x0,&y0,&x1,&y1)) return 0;
+    *sig=hudOverlaySig()*31u+(unsigned)(x0+64)*7u+(unsigned)(y0+64)*131u+(unsigned)(x1+64);   // from the unclamped box: the overlay can sit partly off the scene
+    if(x0<0) x0=0; if(x1>SW) x1=SW; if(y0<vpY0) y0=vpY0; if(y1>vpY1) y1=vpY1; if(x0>=x1||y0>=y1||(x1-x0)*(y1-y0)>OV_CAP) return 0;
+    r->x0=(short)x0; r->y0=(short)y0; r->x1=(short)x1; r->y1=(short)y1;
+    return 1;
+}
+static void hudApplyLayout(void){ vpY0=HUD_TOPH; vpY1=sHud>=2?SH:HUD_BOTY; }
+static void liveInvalidate(void){ vpValid=0; }
+static void liveHud(int all){   // bring the panels up to date (into fb); the pieces that changed are listed in hudRc
+    hudRcN=0;
+    if(all||pHud!=sHud){ all=1; }
+    hudTopUpdate(all);
+    if(sHud<2) hudBotUpdate(all);
+    pHud=sHud;
+#ifdef SELFTEST
+    stTop+=hudRcN;
+#endif
+}
+static void liveFull(void){   // the whole scene and both panels, from scratch
+    drawRoomRect(0,vpY0,SW,vpY1,0);
+    Rc o; unsigned osg; ovOn=ovNow(&o,&osg);
+    if(ovOn){ ovSaveFb(&o); ovRc=o; ovSig=osg; clipSet(0,vpY0,SW,vpY1); hudOverlayDraw(); clipAll(); }
     if(lcamF>0){   // action cam: ease in, spin through all 4 views, ease out
         int f=lcamF, z=f<12?f:(f>CAM_LEN-12?CAM_LEN-f:12);   // 0..12 zoom amount
-        if(z>0){ int cx=lpsx<0?0:lpsx>=SW?SW-1:lpsx, cy=lpsy<0?0:lpsy>=SH?SH-1:lpsy; zoomFb(cx,cy,256-z*(CAM_ZOOM)/12); }
+        if(z>0){ int cx=lpsx<0?0:lpsx>=SW?SW-1:lpsx, cy=lpsy<vpY0?vpY0:lpsy>=vpY1?vpY1-1:lpsy; zoomFb(cx,cy,256-z*(CAM_ZOOM)/12); }
     }
-    u16 gold=GOLD, dim=DIMC, hint=RGB(12,14,16);
-    if(!lcamF&&!ldead&&sHud<2) simsBubble(lpsx,lpsy-16,RGB(6,6,10));   // thought bubble over the head (sims.h)
-    if(sHud<2){
-        simsClockDraw(150,2,dim,gold);
-        numText(text(2,2,"SCORE",dim,1)+3,2,lscore,gold);
-        text(150,10,"FOOD",dim,1); rect(180,10,lfood/2,5,lfood<20?RGB(28,8,6):RGB(10,24,8));
-        text(150,18,"WC",dim,1); rect(180,18,lbl/2,5,lbl>80?RGB(28,8,6):RGB(26,22,6));
-        text(150,26,"FUN",dim,1); rect(180,26,moodFunPct()/2,5,moodFunPct()<MOOD_BORED?RGB(28,8,6):RGB(8,22,28));
-        text(150,34,"HAPPY",dim,1); rect(180,34,moodHapPct()/2,5,moodHapPct()<MOOD_SAD?RGB(28,8,6):RGB(28,13,19));
-        drawFace(150,42,moodState()); text(160,43,moodStName[moodState()],gold,1);
-        simsHud(150,52,dim,gold);
+    liveHud(1);
+    if(sHud>=2) rect(0,vpY1,SW,SH-vpY1,RGB(0,0,0));
+    lifeVs=R_TM2D;
+    present();
+    pCamX=camX; pCamY=camY;
+    Rc r; actorRc(&r); actOld=r; actHas=1; actSig=actSigNow();
+    pBob=(!lhave)?((lfr>>4)&1):-1;
+    vpValid=(lcamF>0)?0:1;
+#ifdef SELFTEST
+    stFull++;
+#endif
+}
+static void liveBoardRc(void){   // the pickup's tile on screen
+    int sx=LOX+(BDX-BDY)*CA, sy=LOY+(BDX+BDY+1)*CB; rcAdd(sx-12,sy-26,sx+12,sy+7);
+}
+static void livePatch(int dx,int dy){
+#ifdef SELFTEST
+    u16 tm0=R_TM2D;
+#endif
+    nrc=0;
+    if(dx>0) rcAdd(SW-dx,vpY0,SW,vpY1); else if(dx<0) rcAdd(0,vpY0,-dx,vpY1);
+    if(dy>0) rcAdd(0,vpY1-dy,SW,vpY1); else if(dy<0) rcAdd(0,vpY0,SW,vpY0-dy);
+    Rc a; actorRc(&a); unsigned asg=actSigNow();
+    if(dx||dy||asg!=actSig){   // the player moved, turned or jumped (or the picture slid under him): redraw where he was and where he is
+        rcAdd(a.x0,a.y0,a.x1,a.y1);
+        if(actHas) rcAdd(actOld.x0-dx,actOld.y0-dy,actOld.x1-dx,actOld.y1-dy);
     }
-    if(sHud==0){
-        text(2,10,"SPEED",dim,1); rect(24,10,lsp,5,RGB(8,24,10));
-        text(2,139,MAPNAME,RGB(14,16,18),1);
-        text(60,2,lskate?"SKATE":(lsp>5?"RUN":"WALK"),gold,1);
-        text(2,146,lskate?"A PUSH B OLLIE DPAD STEER L WALK":(lhave?"DPAD WALK B RUN A HOP L SKATE":"DPAD WALK B RUN A HOP FIND A BOARD"),hint,1);
-        text(2,153,"START MENU",hint,1);
+    int bob=(!lhave)?((lfr>>4)&1):-1; if(bob!=pBob) liveBoardRc();
+    for(int i=0;i<nrc;i++) drawRoomRect(rcs[i].x0,rcs[i].y0,rcs[i].x1,rcs[i].y1,0);
+#ifdef SELFTEST
+    TMARK(tRend)
+    for(int i=0;i<nrc;i++) stArea+=(rcs[i].x1-rcs[i].x0)*(rcs[i].y1-rcs[i].y0); stRects+=nrc; if(dx||dy) stMoved++;
+#endif
+    // the overlay: is it the same as last picture, sitting on pixels that did not change?
+    Rc o; unsigned osg; int on=ovNow(&o,&osg);
+    int ovSame=on&&ovOn&&osg==ovSig&&!dx&&!dy;
+    if(ovSame) for(int i=0;i<nrc;i++) if(rcHit(&rcs[i],o.x0,o.y0,o.x1,o.y1)){ ovSame=0; break; }
+    liveHud(0);
+#ifdef SELFTEST
+    TMARK(tHud)
+#endif
+    lifeVs=R_TM2D;
+    vsync();
+#ifdef SELFTEST
+    TMARK(tWait)
+#endif
+    if(!ovSame&&ovOn) ovRestoreVram(&ovRc);              // old overlay off the screen, the room under it is back
+    if(dx||dy) vramScroll(dx,dy);
+    for(int i=0;i<nrc;i++) vramCopy(rcs[i].x0,rcs[i].y0,rcs[i].x1,rcs[i].y1);
+    if(on&&!ovSame){
+        ovSaveVram(&o); ovToFb(&o); clipSet(o.x0,o.y0,o.x1,o.y1); hudOverlayDraw(); clipAll(); vramCopy(o.x0,o.y0,o.x1,o.y1);
+        ovRc=o; ovSig=osg;
     }
-    if(lcamF>0){ rect(56,126,128,32,PANEL); text(72,130,"BIG COMBO",GOLD,2); numText(120-tw("0",1)*3/2,145,lcBank,WHITE); }   // banner at the bottom so it never covers the skater
-    else if(lcN>0&&sHud<2){ int x=text(2,32,"COMBO X",GOLD,1)+1; x=numText(x,32,lcN,WHITE)+4; numText(x,32,lcPts*lcN,gold); }
-    else if(lcBankT>0&&sHud<2){ numText(text(2,32,"COMBO",GOLD,1)+3,32,lcBank,WHITE); }
-    if(lnear&&!ldead&&!lcamF) text(2,132,simAct?"A OR B GET UP":(lnear==1?"R OPEN FRIDGE":lnear==2?"R USE TOILET":lnear==3?"R SLEEP IN BED":lnear==4?"R TAKE A SHOWER":"R SIT ON SOFA"),gold,1);   // prompts and alerts always show
-    if(ldead) text(2,25,"PRESS A TO RESPAWN",RGB(31,12,8),1);
-    if(lnoteT>0){ text(2,18,lnote,RGB(31,31,31),1); if(lpts&&lnote[0]=='N'){ numText(text(2,25,"+",gold,1)+1,25,lpts,gold); } }
-    if(sShow){   // performance counter, bottom right
-        numText(text(184,153,"FPS",dim,1)+3,153,lfpsV,gold);
-        if(sShow==2){ numText(text(184,146,"LOAD",dim,1)+3,146,lloadV,lloadV>=100?RGB(30,10,8):gold); }
+    ovOn=on;
+    for(int i=0;i<hudRcN;i++) vramCopy(hudRc[i].x0,hudRc[i].y0,hudRc[i].x1,hudRc[i].y1);
+#ifdef SELFTEST
+    TMARK(tDma)
+#endif
+    pCamX=camX; pCamY=camY; actOld=a; actHas=1; actSig=asg; pBob=bob;
+}
+static void lifeDraw(void){
+    camFollow(camSnap||lcamF>0); camSnap=0;
+    playerCalc();
+    int dx=camX-pCamX, dy=camY-pCamY;
+    if(!vpValid||lcamF>0||dx>40||dx<-40||dy>40||dy<-40) liveFull(); else livePatch(dx,dy);
+#ifdef SELFTEST
+    if(lcamF==0){   // draw the whole thing again and compare it with what is on the screen
+        stPics++; drawRoomRect(0,vpY0,SW,vpY1,0); { Rc o; unsigned sg; if(ovNow(&o,&sg)){ clipSet(0,vpY0,SW,vpY1); hudOverlayDraw(); clipAll(); } }
+        int bad=0, bx0=999, by0=999, bx1=-1, by1=-1; const volatile u16*v=(const volatile u16*)VRAM_ADDR;
+        for(int y=vpY0;y<vpY1;y++)for(int x=0;x<SW;x++) if(v[y*SW+x]!=fb[y*SW+x]){ bad++; if(x<bx0)bx0=x; if(x>bx1)bx1=x; if(y<by0)by0=y; if(y>by1)by1=y; }
+        if(bad){ stBad++; if(stBad==1){ stDbg[0]=bad; stDbg[1]=bx0; stDbg[2]=by0; stDbg[3]=bx1; stDbg[4]=by1; stDbg[5]=dx; stDbg[6]=dy; stDbg[7]=ovOn; stDbg[8]=ovRc.x0; stDbg[9]=ovRc.y0; stDbg[10]=ovRc.x1; stDbg[11]=ovRc.y1; stDbg[12]=plX; stDbg[13]=plY; stDbg[14]=stPics; } }
     }
+#endif
 }
 static void camStep(int steps,u16 k,u16 pr){   // action cam: the game holds still while the camera swings round the room
     lcamF+=steps;
@@ -1597,7 +1801,7 @@ static void gmTick(void){   // once per frame: when the song is over, the next o
 static void lifeModeRun(int ed);
 static void lifeMode(int ed){ gInPlay=1; lifeModeRun(ed); gInPlay=0; }   // gInPlay: some option actions are only allowed while playing / only outside it
 static void lifeModeRun(int ed){   // ed=1: test play started from the map editor
-    lifeInit(); lcamF=0; cview=0; lcN=lcPts=lcT=lcBank=lcBankT=lcamPend=0; u16 prev=keyNow(); gmStart();
+    lifeInit(); lcamF=0; cview=0; lcN=lcPts=lcT=lcBank=lcBankT=lcamPend=0; u16 prev=keyNow(); gmStart(); hudApplyLayout(); liveInvalidate(); camSnap=1;
     tmStart(); u16 tl=R_TM2D; int acc=0, fpsN=0, fr=0; u32 fpsT=0, workT=0; lfpsV=0; lloadV=0;
     for(;;){
         int need=(sFps+1)*TICKS_FRAME-100;
@@ -1608,24 +1812,25 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
         if((k&K_SEL)&&(k&K_START)) break;
         if(pr&K_START){   // pause menu
             mGainT=128; sfxStop(); simsSave();   // the music fades to half while a menu is open   // the pause menu is also a save point
+            liveInvalidate(); lifeDraw();          // a whole picture behind the menu (the screen itself only holds patches)
             int c=menu("PAUSED",ed?lifeItemsEd:lifeItems,ed?4:7);
             if(c==1) helpScreen("HOW TO PLAY",lifeHelp,16);
             else if(c==2) settingsScreen();
             else if(c==3&&!ed){ simsSaveNow(); if(slotScreen()) lifeInit(); }   // a slot was loaded: start again in the loaded room (the life was written first, so nothing is lost)
-            else if(c==4&&!ed){ mapEditor(); lifeInit(); }
+            else if(c==4&&!ed){ vpY0=0; vpY1=SH; mapEditor(); lifeInit(); }
             else if(c==5&&!ed){ if(menu("START A NEW LIFE",yesNoLife,2)==1){ simsNewLife(); moodReset(); lscore=0; simLastScore=0; lnote="NEW LIFE"; lnoteT=60; } }
             else if((c==3&&ed)||c==6){ if(c==6) gToMenu=1; break; }
-            mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=0; continue;
+            hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=0; continue;
         }
         if(lcamF>0) camStep(steps,k,pr);
         else {
             for(int s=0;s<steps;s++) lifeStep(k,s?0:pr,fr++);   // catch up if a frame took long; button presses count once
             if(lcamPend){ lcamPend=0; if(sCam){ lcamF=1; cview=0; } }
         }
-        gmTick(); lifeDraw(); workT+=(u16)(R_TM2D-w0); present();
+        gmTick(); lifeDraw(); workT+=(u16)(lifeVs-w0);
         fpsN++; if(fpsT>=65536){ lfpsV=fpsN; lloadV=(int)(workT/(u32)fpsN*100/(u32)((sFps+1)*TICKS_FRAME)); workT=0; fpsN=0; fpsT-=65536; }
     }
-    simsSave(); R_TM2CNT=0; gmStop(); sfxStop(); lcamF=0; cview=0;   // leaving the life game saves it
+    simsSave(); R_TM2CNT=0; gmStop(); sfxStop(); lcamF=0; cview=0; vpY0=0; vpY1=SH; clipAll(); liveInvalidate();   // leaving the life game saves it
     while((~REG_KEYINPUT)&0x3FF) vsync();   // wait for release so the caller doesn't see the exit keys
 }
 

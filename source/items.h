@@ -16,7 +16,7 @@ static void itemSpanInit(void){
     }
 }
 IWRAM_CODE static void blitItem(int k,int sx,int sy){
-    int x0=sx-IOX, y0=sy-IOY;
+    CNT(cntBI); int x0=sx-IOX, y0=sy-IOY;
     int cx1=cX0+(int)cW, cy1=cY0+(int)cH;
     if(x0>=cx1||x0+IW<=cX0||y0>=cy1||y0+IH<=cY0) return;
     int j0=cY0-y0, j1=cy1-y0; if(j0<0) j0=0; if(j1>IH) j1=IH;
