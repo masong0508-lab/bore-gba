@@ -80,9 +80,10 @@ static inline const u8* hhStrideB(int id,int v){ return id<HH_MAX?hhObjS[id][v]:
 static inline const u16* hhPalOf(int id){ return id<HH_MAX?hhPal[id]:twPal[id-HH_MAX]; }
 
 // ---- premade families (original characters) ----
-typedef struct { const char* name; u8 look[LK_TAIL]; u8 stage, asp, sign; } HhPre;   // looks without Spore parts; traits come from a sign
+typedef struct { const char* name; u8 look[LK_N]; u8 stage, asp, sign; u8 tr[TR_N]; } HhPre;   // the look (listed up to EARLF, or by name for the parts and sliders); traits come from a sign, or from tr when it is not all zeros
 typedef struct { const char* fam; u8 n; HhPre m[4]; } HhFam;
-//                     look: SHAPE SKIN EYES MOUTH EARS HSTYLE HCOL TOP BOT  TONE EARSZ EARLF
+#define SLV(e) ((u8)(((e)+9)%9))   // a slider notch (-4..4) as it is stored in a look (0 = the middle, 1..4 up, 5..8 down)
+//                     look: SHAPE SKIN EYES MOUTH EARS HSTYLE HCOL TOP BOT  TONE EARSZ EARLF   (a look can name any slot: [LK_HIPS]=3)
 static const HhFam hhFams[]={
     {"THE GRINDERS",3,{ {"REX", {5,2,2,1,1,0,0,1,1, 0,0,0},AG_ADULT,AS_POP,  0},
                         {"DEE", {4,1,1,1,1,2,3,3,0, 0,0,0},AG_ADULT,AS_FORTUNE,9},
@@ -94,6 +95,14 @@ static const HhFam hhFams[]={
                         {"BEA",   {4,3,2,1,1,2,2,6,0, 0,0,0},AG_ADULT,AS_PLEAS, 6} }},
     {"THE NOVAS",2,{   {"JUNO",  {5,4,5,3,1,5,6,2,3, 0,0,0},AG_ADULT,AS_POP,    3},
                         {"KIT",   {0,2,3,1,2,4,1,5,2, 0,0,0},AG_TEEN, AS_GROW,   8} }},
+    // GUMBALL WATTERSON (The Amazing World of Gumball), 12: a blue cat. Pear shaped (a slim top, wide hips, thin legs) and bare furred, with a pale
+    // muzzle and belly, pointed ears, a thin tail, a pink nose and three whiskers a side, big plain white eyes with tiny pupils set wide apart,
+    // and a big grin. Impulsive, a show-off and never tidy, so his personality is set by hand, not by a star sign.
+    {"THE WATTERSONS",1,{ {"GUMBALL",{ [LK_SHAPE]=SH_PEAR, [LK_SKIN]=5, [LK_EYES]=9, [LK_MOUTH]=1, [LK_HSTYLE]=3,
+                                       [LK_TOPSTY]=4, [LK_BOTSTY]=3, [LK_NOSE]=6, [LK_CHEEK]=5, [LK_PATTERN]=3, [LK_PATCOL]=6,
+                                       [LK_FEARS]=5, [LK_MUZZLE]=4, [LK_FTAIL]=4,
+                                       [LK_EYESZ]=SLV(1), [LK_EYESP]=SLV(0), [LK_MOUTHW]=SLV(2), [LK_HIPS]=SLV(3), [LK_WEIGHT]=SLV(-1) },
+                          AG_CHILD,AS_POP,0, {2,8,5,7,3} } }},
 };
 #define HH_NFAM ((int)(sizeof(hhFams)/sizeof(hhFams[0])))
 
@@ -207,8 +216,9 @@ static void hhRemove(int m){   // moves out: their sprites and relationships go 
 }
 static void hhNew(HhSim*s,const HhPre*p){
     s->uid=(u8)hhFreeUid(); s->bubT=0;
-    for(int i=0;i<LK_N;i++) s->look[i]=i<LK_TAIL?p->look[i]:0;
-    s->stage=p->stage; s->asp=p->asp; s->ltw=0; for(int i=0;i<TR_N;i++) s->tr[i]=signTr[p->sign][i];
+    for(int i=0;i<LK_N;i++) s->look[i]=p->look[i];
+    s->stage=p->stage; s->asp=p->asp; s->ltw=0; int ownTr=0; for(int i=0;i<TR_N;i++) ownTr|=p->tr[i];
+    for(int i=0;i<TR_N;i++) s->tr[i]=ownTr?p->tr[i]:signTr[p->sign][i];
     int i=0; for(;p->name[i]&&i<HH_NM-1;i++) s->name[i]=p->name[i]; s->name[i]=0; s->last[0]=0;
     for(int k=0;k<HN_N;k++) s->need[k]=(u8)(70+(rnd8()&15)); s->act=HA_IDLE; s->think=(short)(rnd8()&63); s->hd=0;
     hhPlace(s,0);
@@ -728,7 +738,7 @@ static void hhSwitch(void){
 #define HH_RELB (3*HU_N*HU_N)
 static void hhSave(void){
     volatile u8*m=(volatile u8*)0x0E000000+HH_OFF; int k=3; u8 sum=0x48;
-    m[0]='H'; m[1]='7'; m[2]=(u8)hhN; m[k++]=(u8)hhPUid;
+    m[0]='H'; m[1]='8'; m[2]=(u8)hhN; m[k++]=(u8)hhPUid;
     for(int j=0;j<HH_NM;j++) m[k++]=(u8)hhPName[j]; for(int j=0;j<HH_NM;j++) m[k++]=(u8)hhPLast[j];   // your own name
     for(int i=0;i<hhN;i++){ const HhSim*s=&hhM[i];
         for(int j=0;j<LK_N;j++) m[k++]=s->look[j]; m[k++]=s->stage; m[k++]=s->asp; m[k++]=s->ltw;
@@ -739,9 +749,9 @@ static void hhSave(void){
 }
 static void hhLoad(void){
     volatile u8*m=(volatile u8*)0x0E000000+HH_OFF; u8 sum=0x48; hhN=0;
-    if(m[0]!='H'||m[1]<'2'||m[1]>'7'||m[2]>HH_MAX) return;
+    if(m[0]!='H'||m[1]<'2'||m[1]>'8'||m[2]>HH_MAX) return;
     int old=m[1]<'6', hu=old?HH_MAXOLD+1:HU_N;   // before 'H6' the relationships were kept for 10 uids
-    int v7=m[1]>='7', nb=v7?2*HH_NM:10, nl=v7?LK_N:m[1]>='5'?LK_N7:m[1]=='4'?LK_N6:m[1]=='3'?LK_N5:LK_N4, rec=HH_REC-LK_N+nl-2*HH_NM+nb;   // 'H2' households were saved before the hats and clothes, 'H3' before the face details and sliders
+    int v7=m[1]>='7', nb=v7?2*HH_NM:10, nl=m[1]>='8'?LK_N:v7?LK_N8:m[1]>='5'?LK_N7:m[1]=='4'?LK_N6:m[1]=='3'?LK_N5:LK_N4, rec=HH_REC-LK_N+nl-2*HH_NM+nb;   // 'H2' households were saved before the hats and clothes, 'H3' before the face details and sliders, 'H7' before the HIPS slider
     int n=m[2], hb=v7?2*HH_NM:0, k=4+hb+n*rec+3*hu*hu; for(int i=2;i<k;i++) sum+=m[i]; if(m[k]!=sum) return;
     if(m[3]>=hu) return;
     k=4; hhPUid=m[3];
