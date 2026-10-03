@@ -5,7 +5,7 @@ Spec: mono, 18157 Hz (the game's music rate), about 9 KB per second.
 usage:  python3 tools/encode_song.py "my song.mp3" [other.wav ...]
         -> writes source/music/<id>.adp and appends a SONG_ADP line to source/songs.h (skipped if it is already there)
 
-The song title on screen is made from the file name (capitals / digits / spaces only, 30 characters max).
+The song title on screen is made from the file name (capitals, digits, spaces, punctuation and the extended Latin letters of the game font; 30 characters max).
 Edit the title in source/songs.h if you want it different. Run from the project root.
 Needs:  ffmpeg and numpy   (Termux: pkg install ffmpeg python-numpy)"""
 import sys, os, re, subprocess
@@ -27,17 +27,20 @@ def make_id(stem):
     i = re.sub(r"[^a-z0-9]+", "_", stem.lower()).strip("_") or "song"
     return ("s_" + i) if i[0].isdigit() else i
 
+TITLE_OK = "A-Z0-9 !+\\-.,:;'?/()=%&@#*_~$<>\\[\\]^\u00a1\u00bf\u00c0-\u024f\u00ab\u00bb\u00b0\u00b1\u00d7\u00f7\u00a3\u20ac\u00a5\u00a2\u00a7\u2022\u2026"   # what the on-screen font draws (extended Latin included), minus the double quote and backslash (they would break the C string)
 def make_title(stem):
-    t = re.sub(r"[^A-Z0-9]+", " ", stem.upper()).strip()
+    t = stem.upper().replace("\u2019", "'").replace("\u2018", "'").replace("\u2013", "-").replace("\u2014", "-")
+    t = re.sub(r"[^" + TITLE_OK + "]+", " ", t)         # anything the font cannot draw (emoji, other scripts ...) becomes a space
+    t = re.sub(r" {2,}", " ", t).strip()
     return (t or "SONG")[:30].strip()
 
 def add_line(sid, title, path):
-    text = open(SONGS_H).read() if os.path.exists(SONGS_H) else ""
+    text = open(SONGS_H, encoding="utf-8").read() if os.path.exists(SONGS_H) else ""
     if re.search(r"SONG_ADP\(\s*%s\s*," % re.escape(sid), text):
         print(f"  {SONGS_H} already lists '{sid}' - file replaced, list unchanged"); return
     n = len(re.findall(r"^\s*SONG_(?:XM|ADP)\(", text, re.M))
     if n >= MAX_SONGS: print(f"  WARNING: {n} songs already, the jukebox holds {MAX_SONGS}"); return
-    with open(SONGS_H, "a") as f:
+    with open(SONGS_H, "a", encoding="utf-8") as f:
         if text and not text.endswith("\n"): f.write("\n")
         f.write(f'SONG_ADP({sid},"{title}","{path}")\n')
     print(f"  added to {SONGS_H}: {title}")

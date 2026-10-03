@@ -695,7 +695,7 @@ def design_pan(S, used, insts, sid=None):
     return pan
 
 def song_list():
-    text = open(SONGS_H).read() if os.path.exists(SONGS_H) else ""
+    text = open(SONGS_H, encoding="utf-8").read() if os.path.exists(SONGS_H) else ""
     found = re.findall(r'^\s*SONG_XM\(\s*(\w+)\s*,\s*"[^"]*"\s*,\s*"([^"]+)"\s*\)', text, re.M)
     return [TITLE] + [s for s in found if s[0] != TITLE[0]]
 

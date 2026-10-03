@@ -2,8 +2,8 @@
 //
 //   SONG_XM(id,"NAME","file")    a tracker song (.xm). id = any unique C name, file = the .xm in tools/. After adding one, run
 //                                python3 tools/xm2gba.py   to rebuild source/musicdata.h (the title music, THE DIPPER MAN, is one too)
-//   SONG_ADP(id,"NAME","file")   a streamed ADPCM song. id = any unique C name, NAME = capitals / digits / spaces only
-//                                (the on-screen font has no punctuation), file = a .adp made by tools/encode_song.py
+//   SONG_ADP(id,"NAME","file")   a streamed ADPCM song. id = any unique C name, NAME = capitals, digits, spaces, punctuation and the extended Latin letters
+//                                (no double quote or backslash; see "EXTENDED FONT" in README.md)
 //
 // Easiest way to add a song:   python3 tools/encode_song.py "my song.mp3"
 // It writes source/music/<id>.adp and appends the SONG_ADP line below for you.

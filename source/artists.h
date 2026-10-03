@@ -1,0 +1,30 @@
+// artists.h - WHO MADE WHICH SONG, shown in the jukebox (right-aligned on the song's row and on the NOW line).
+//
+//   ARTIST("SONG NAME","Artist")     SONG NAME = the name exactly as it is written in source/songs.h
+//
+// A song with no line here simply shows no artist. Real UTF-8 works: the font (see "EXTENDED FONT" in README.md) draws punctuation, Latin-1 and
+// Latin Extended-A letters with their accents (Polish, Czech, Hungarian, Romanian, Turkish, Croatian ...), ss, ae, oe, o-slash, euro, pound and more.
+// Anything it still lacks falls back to the plain letter.
+ARTIST("SONG NAME","Artist")     SONG NAME = the name exactly as it is written in source/songs.h
+//
+// A song with no line here simply shows no artist. Punctuation and accents work (UTF-8): the font draws . , ' ! ? : ; - ( ) / & and lowercase accented
+// letters (a e i o u with acute / grave / circumflex / diaeresis, ã õ ñ ç, plus the inverted ¿ ¡). Capital accents show as the plain capital.
+ARTIST("AIM AND SHOOT","Singhs")
+ARTIST("AN ODE TO THE SPANISH FLEXICODE","Singhs")
+ARTIST("AMIGA MUSIC","DayBar")
+ARTIST("HOT DAMN","DayBar")
+ARTIST("HOT DAMN (ORIGINAL)","DayBar")
+ARTIST("MELTDOWN IN MARS","DayBar")
+ARTIST("EARTH AND THE SPACE CITIZENS","VaninBlack")
+ARTIST("EMERGENCY ON THE DANCE FLOOR","Sk9m")
+ARTIST("EMERGENCY (ORIGINAL)","Sk9m")
+ARTIST("SUNMAN SUNRISE","Sk9m")
+ARTIST("THE CYNICAL SYNDICATION","Sk9m")
+ARTIST("EXCUSES","Breno Orêian")
+ARTIST("TREE SWAYING ACTION","Breno Orêian")
+ARTIST("GOTTCHO BARRACHO","El B.D'ees")
+ARTIST("GOTTCHO BARRACHO (ORIGINAL)","El B.D'ees")
+ARTIST("MI CORA ZONE","El B.D'ees")
+ARTIST("WHISTLER MAN","Danny Steele")
+ARTIST("WHISTLER MAN (ORIGINAL)","Danny Steele")
+ARTIST("WORTHLESS CLOUDS","The Dipper Man")

@@ -288,7 +288,18 @@ The title screen plays "The Dipper Man" (tools/the_dipper_man.xm). `python3 tool
 
 **Meltdown in Mars (90s house mix)**: `tools/make_meltdown_house.py` builds `tools/meltdown_in_mars_house.xm` (126 BPM, about 6 minutes, 10 channels, all sounds synthesised), it is listed in `source/songs.h`, and `python3 tools/xm2gba.py` bakes it into `source/musicdata.h`. `python3 tools/preview_xm.py meltdown_in_mars_house tools/meltdown_in_mars_house.xm out.wav` renders it the way the GBA mixer will play it.
 
+## Extended font
+The game font (`assets/font/bore_font.png`, built into `source/fontdata.h` by `tools/make_font.py`) holds A-Z, 0-9, the ASCII punctuation (`! + - . , : ; ' ? / ( ) = > % & @ # * " _ ~ $ < [ ] ^ { } | \``  and backslash) and a-z, and now also, in all three sizes:
+- **Latin-1 and Latin Extended-A letters with their marks, capitals and lowercase**: acute, grave, circumflex, diaeresis, tilde, ring, caron, breve, dot, double acute, macron, ogonek, cedilla and comma below, plus the apostrophe of d', l', t'. That covers French, Spanish, Portuguese, German, the Nordic languages, Polish, Czech, Slovak, Hungarian, Romanian, Turkish, Croatian and the Baltic ones (`Å Ç É Ñ Ö Ü ą ć ę ł ń ś ź ż č ď ě ň ř š ť ů ž ő ű ğ ı İ ș ț` ...).
+- `ß æ Æ œ Œ ø Ø ł Ł đ Đ ¿ ¡ « » ‹ › ° ± × ÷ £ € ¥ ¢ § • … – —`.
+- Anything else with a mark (for example `Ĉ` or `Ŭ`) falls back to its plain letter, curly quotes to `'` and `"`; characters with no look-alike leave a gap.
+
+Strings in C may hold the characters directly (UTF-8): `text()` decodes them, and `tw()` measures them. A capital with a mark has its accent in extra rows above the capitals (`FTOP_s/m/l`, 2 / 4 / 8 rows): `text(x,y,...)` still means "the top of the capitals is at y", so nothing else on screen moved; glyphs with no ink up there skip those rows, so plain text costs what it always did. An accent on a capital at the very top of the screen is simply clipped.
+
+To change or add glyphs: edit the mark shapes, the glyph lists (`MARKED`, `LIGS`, `SMALL`) in `tools/font_ext.py`, run `python3 tools/make_font.py --extend` (it rebuilds every non-ASCII glyph from the plain ones, so the original glyphs are never touched) and commit `assets/font/` and `source/fontdata.h`. The `{code point, letter}` fallback table is generated from Unicode.
+
 ## Jukebox
+The artist of a song is shown at the right edge of its row and on the NOW line. They live in `source/artists.h` (`ARTIST("SONG NAME","Artist")`, the name as written in `songs.h`); a song with no line there shows no artist. Titles and artists may hold punctuation and real UTF-8 letters (see **Extended font** below).
 Main menu -> **JUKEBOX**. Opening it starts the song the playlist is on. The song list lives in `source/songs.h`.
 | Key | Action |
 |---|---|
