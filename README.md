@@ -273,6 +273,12 @@ The title screen plays "The Dipper Man" (tools/the_dipper_man.xm). `python3 tool
 - **Aphex Twin:** a drill'n'bass section where every beat of the break is cut up (pitched snare ratchets, kick 32nds, 64th hat rolls, gaps, reverse swells), with the lead's licks stuttered on a bell.
 - **Technical:** it uses 64th-note rows (speed 1, XM BPM 90) and all 16 voices (`hotdamn_pan`).
 
+**Aim and Shoot**: `tools/make_aimandshoot_rework.py` reads the Caustic sketch `tools/aimandshoot_v11.caustic` (81 BPM, 53 seconds) and builds `tools/aim_and_shoot.xm`, a complete 2:52 piece.
+- **From the sketch:** the pulsing ostinato (moved up a semitone to sit on the FM part's C#), the FM tune, its descending progression (C# B A G# | F# G# A B | E B E A D G#), its second line and its beatbox pattern.
+- **The colour:** Damascus, kept understated. The C# Hijaz mode is already in the sketch, so it is left to speak. A small takht plays it: oud, qanun, ney and a string section in unison and octaves. The oud and qanun ornament the tune a 64th ahead (heterophony), with tremolo on the long notes.
+- **The groove:** a modern half-time beat, with a quiet maqsum on the darbuka underneath. The ending resolves to C# major.
+- **Technical:** 64th-note rows at 81 BPM (speed 2, XM BPM 108) and all 16 voices (`aim_pan`).
+
 **Meltdown in Mars (90s house mix)**: `tools/make_meltdown_house.py` builds `tools/meltdown_in_mars_house.xm` (126 BPM, about 6 minutes, 10 channels, all sounds synthesised), it is listed in `source/songs.h`, and `python3 tools/xm2gba.py` bakes it into `source/musicdata.h`. `python3 tools/preview_xm.py meltdown_in_mars_house tools/meltdown_in_mars_house.xm out.wav` renders it the way the GBA mixer will play it.
 
 ## Jukebox

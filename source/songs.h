@@ -56,3 +56,6 @@ SONG_XM(cynicaller_dnb,"CYNICALLER MADNESS","tools/cynicaller_dnb.xm")
 // HOT DAMN: a 90s rave / IDM rework (breakbeats, acid, hoover, a Moby-style breakdown, drill'n'bass) of the Caustic project
 // "HoTdamn v050" (tools/hotdamn_v050.caustic, read by tools/make_hotdamn_rework.py, about 3:48)
 SONG_XM(hotdamn_rave,"HOT DAMN","tools/hotdamn_rave.xm")
+// AIM AND SHOOT: the Caustic sketch "Aimandshoot 430 2021 V11" grown into a full piece in C# Hijaz: oud, qanun, ney and strings on a
+// half-time groove with a quiet darbuka (tools/aimandshoot_v11.caustic, read by tools/make_aimandshoot_rework.py, about 2:52)
+SONG_XM(aim_and_shoot,"AIM AND SHOOT","tools/aim_and_shoot.xm")
