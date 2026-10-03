@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Builds tools/ode_to_mexicode.xm : "An Ode to Mexicode", a soft, wide 16-channel rework of "The Dipper Man - An Ode to Mexicode"
-(tools/the_dipper_man_ode_to_mexicode.xm).  Part one of a pair: "An Ode to the Spanish Flexicode" is its sequel and mirrors its frame
-(12/8, F Dorian / Db Lydian colours, the nylon figure, the bell call F Ab C Eb G at the start and the end).
+"""Builds tools/spanish_flexicode.xm : "An Ode to the Spanish Flexicode", a soft, wide 16-channel rework of "The Dipper Man - An Ode to Mexicode"
+(tools/the_dipper_man_ode_to_mexicode.xm).
 
-usage:  python3 tools/make_mexicode_rework.py        (run from the project root; needs numpy + scipy)
+usage:  python3 tools/make_flexicode_rework.py        (run from the project root; needs numpy + scipy)
 
 Kept from the original, note for note: the nylon stab figure (two voices, every eighth), the progression (Fm | Fm/C | Eb | Bb/D, and the
 Db | Eb | Db/F | Eb/G bridge), the bass riff, the main melody (F Ab Ab C Ab Ab G F F Eb F G Bb F Bb F...), both counter-lines, the bridge
@@ -20,7 +19,7 @@ from scipy import signal
 
 SR = 16726                       # a "relative note +12" sample plays at its natural pitch on C-4
 SR2 = 8363 * 2 ** (5 / 12)       # relative note +5 (11163 Hz) for softer sounds with little top end
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ode_to_mexicode.xm")
+OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "spanish_flexicode.xm")
 rng = np.random.default_rng(1810)
 BPM, SPEED, NCH, ROWS = 112, 6, 16, 24
 ROW = 2.5 * SPEED / BPM
@@ -125,7 +124,7 @@ MEL = {   # the original's tunes (the flute plays them; ch 5 and ch 3 of the ori
  'ME': L('0:Bb4 12:C5'),
  'MF': L('0:F4 6:A4 12:C5'),
 }
-CALL = L('0:F5 2:Ab5 4:C6 6:Eb6 12:G6')   # the bell call (Fm9 rising): shared with "An Ode to the Spanish Flexicode"
+CALL = L('0:F5 2:Ab5 4:C6 6:Eb6 12:G6')   # the bell call (Fm9 rising) that opens and closes the song
 CLAVE = (0, 4, 8, 10, 14, 18, 22)          # bembe: x.x.xx.x.x.x in eighths
 
 def build(p):
@@ -229,7 +228,7 @@ def main():
         if key not in seen: seen[key] = len(pats); pats.append(P)
         order.append(seen[key])
     tail = [[(0, 0, 0)] * NCH for _ in range(16)]; pats.append(tail); order.append(len(pats) - 1)
-    hdr = b'Extended Module: ' + b'An Ode to Mexicode'[:20].ljust(20) + b'\x1a' + b'make_mexicode_rework'.ljust(20, b'\0')[:20] + struct.pack('<H', 0x0104)
+    hdr = b'Extended Module: ' + b'Spanish Flexicode'[:20].ljust(20) + b'\x1a' + b'make_flexicode_rework'.ljust(20, b'\0')[:20] + struct.pack('<H', 0x0104)
     hdr += struct.pack('<I', 276) + struct.pack('<8H', len(order), 0, NCH, len(pats), len(KEYS), 1, SPEED, BPM) + bytes(order).ljust(256, b'\0')
     body = b''.join(pat_bytes(P) for P in pats) + b''.join(inst_bytes(k) for k in KEYS)
     open(OUT, 'wb').write(hdr + body)
