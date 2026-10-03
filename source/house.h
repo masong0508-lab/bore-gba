@@ -23,9 +23,10 @@
 enum { HA_IDLE, HA_WALK, HA_USE, HA_WANDER, HA_SEEK, HA_SOC, HA_LEAVE, HA_AWAY };   // SEEK: walking to someone to talk to; SOC: in a conversation; LEAVE: off to work or school; AWAY: off the lot
 enum { HN_FOOD, HN_WC, HN_REST, HN_CLEAN, HN_COMFY, HN_FUN, HN_SOC, HN_N };
 static const char hnFurn[HN_N]={'F','T','S','H','C',0,0};   // what each need's furniture is (FUN: skate about; SOCIAL: find someone)
+#define HH_NM 12   // a first or a last name: up to 11 characters (any the font has: capitals, lowercase, digits, symbols)
 typedef struct {
     u8 look[LK_N], stage, asp, ltw, tr[TR_N];
-    char name[10];
+    char name[HH_NM], last[HH_NM];   // first and last name
     s32 fx, fy;              // position in 1/256 tiles (like lfx, lfy)
     u8 hd, need[HN_N];       // heading (16 steps), needs 0..100 (WC here is 100 = empty bladder, like every other need: high is good)
     u8 act, use, pn, pi;     // action, need being refilled, path length, step along it
@@ -40,7 +41,7 @@ static HhSim hhM[HH_MAX] EWRAM_BSS; static int hhN;
 static signed char relD[HU_N][HU_N], relL[HU_N][HU_N]; static u8 relF[HU_N][HU_N];
 enum { RF_CRUSH=1, RF_LOVE=2, RF_STEADY=4, RF_KISSED=8, RF_FRIEND=16, RF_BFF=32, RF_ENEMY=64 };   // FRIEND/BFF/ENEMY: remembered so they fire once
 static int hhPUid;                         // the uid of the Sim you control
-static char hhPName[10]="YOU";             // the name of the Sim you control (premade Sims bring theirs)
+static char hhPName[HH_NM]="YOU", hhPLast[HH_NM]="";   // the first and last name of the Sim you control (premade Sims bring theirs)
 static u8 hhBubT; static const char* hhBubTxt;   // the word over your head during a social (shown by hud.h's bubble)
 // HARDWARE SPRITES: the members are GBA OBJ sprites (32x64, 16 colours each), so moving them costs no drawing: the CPU only draws their
 // shadow and talk balloons into the room. Their 4 views are baked like the player's, cut down to 15 colours + clear (hhQuant), and kept
@@ -169,9 +170,12 @@ static void hhBakeAll(void){
 }
 // ---- where members can stand ----
 static int hhWalk(int x,int y){ if(x<0||y<0||x>=MW||y>=MH) return 0; char c=lifeMap[y][x]; return c!='w'&&c!='W'&&tileH(x,y)<=3; }
-static void hhPlace(HhSim*s,int k){   // somewhere free near the spawn point, spread out a little
+static int hhTakenAt(int x,int y); static void hhTakenScan(const HhSim*self);
+static void hhPlace(HhSim*s,int k){   // somewhere free near the spawn point, spread out a little (never on someone else's tile)
+    s->act=HA_AWAY; hhTakenScan(s);
     for(int r=1;r<12;r++)for(int t=0;t<40;t++){ int x=spx+((rnd8()%(2*r+1))-r), y=spy+((rnd8()%(2*r+1))-r);
-        if(hhWalk(x,y)&&(x!=spx||y!=spy)){ s->fx=x*256+128; s->fy=y*256+128; return; } }
+        if(hhWalk(x,y)&&(x!=spx||y!=spy)&&!hhTakenAt(x,y)){ s->fx=x*256+128; s->fy=y*256+128; s->act=HA_IDLE; return; } }
+    s->act=HA_IDLE;
     s->fx=spx*256+128; s->fy=spy*256+128; (void)k;
 }
 static int hhFreeUid(void);
@@ -179,7 +183,7 @@ static const char* const hhNames[24]={"ALEX","SAM","JO","RILEY","MILO","NOVA","I
 static void hhPickName(char*out){   // a first name nobody in the house has yet
     for(int t=0;t<48;t++){ const char*nm=hhNames[(rnd8()+t)%24]; int used=0; for(int i=0;nm[i]==hhPName[i];i++) if(!nm[i]){ used=1; break; }
         for(int m=0;m<hhN&&!used;m++){ int i=0; while(nm[i]&&nm[i]==hhM[m].name[i]) i++; if(!nm[i]&&!hhM[m].name[i]) used=1; }
-        if(!used){ int i=0; for(;nm[i]&&i<9;i++) out[i]=nm[i]; out[i]=0; return; } }
+        if(!used){ int i=0; for(;nm[i]&&i<HH_NM-1;i++) out[i]=nm[i]; out[i]=0; return; } }
     out[0]='S'; out[1]='I'; out[2]='M'; out[3]=0;
 }
 static void hhPlace(HhSim*s,int k);
@@ -188,7 +192,7 @@ static int hhAdd(const u8*lk,int stg,int asp,int ltw,const u8*tr){   // a new me
     HhSim*s=&hhM[hhN]; s->uid=(u8)hhFreeUid(); s->bubT=0;
     for(int i=0;i<LK_N;i++) s->look[i]=lk[i];
     s->stage=(u8)stg; s->asp=(u8)asp; s->ltw=(u8)ltw; for(int i=0;i<TR_N;i++) s->tr[i]=tr[i];
-    hhPickName(s->name);
+    hhPickName(s->name); for(int i=0;i<HH_NM;i++) s->last[i]=hhPLast[i];   // family: your last name
     for(int k=0;k<HN_N;k++) s->need[k]=(u8)(70+(rnd8()&15)); s->act=HA_IDLE; s->think=(short)(rnd8()&63); s->hd=0;
     hhPlace(s,0);
     int a=s->uid;                                       // family: they know and like everyone at home already
@@ -205,7 +209,7 @@ static void hhNew(HhSim*s,const HhPre*p){
     s->uid=(u8)hhFreeUid(); s->bubT=0;
     for(int i=0;i<LK_N;i++) s->look[i]=i<LK_TAIL?p->look[i]:0;
     s->stage=p->stage; s->asp=p->asp; s->ltw=0; for(int i=0;i<TR_N;i++) s->tr[i]=signTr[p->sign][i];
-    int i=0; for(;p->name[i]&&i<9;i++) s->name[i]=p->name[i]; s->name[i]=0;
+    int i=0; for(;p->name[i]&&i<HH_NM-1;i++) s->name[i]=p->name[i]; s->name[i]=0; s->last[0]=0;
     for(int k=0;k<HN_N;k++) s->need[k]=(u8)(70+(rnd8()&15)); s->act=HA_IDLE; s->think=(short)(rnd8()&63); s->hd=0;
     hhPlace(s,0);
 }
@@ -214,14 +218,26 @@ static void hhNew(HhSim*s,const HhPre*p){
 static int hhGX, hhGY;   // hhPlan(s,1): walk next to this tile (a person)
 static int hhNextTo(int x,int y,char c){   // (a beanbag 'U' is as good as the sofa 'C')
     if(c==1){ int dx=x-hhGX, dy=y-hhGY; return (dx==0&&(dy==1||dy==-1))||(dy==0&&(dx==1||dx==-1)); } for(int d=0;d<4;d++){ int nx=x+hhDx[d], ny=y+hhDy[d]; if(nx>=0&&ny>=0&&nx<MW&&ny<MH&&(lifeMap[ny][nx]==c||(c=='C'&&lifeMap[ny][nx]=='U'))) return 1; } return 0; }
+static u16 hhTk[HH_MAX+1]; static int hhTkN;   // the tiles that are someone's spot (filled by hhTakenScan)
+static void hhTakenScan(const HhSim*self){   // the player's tile, and every other member's: where it stands, or where its walk ends
+    hhTkN=0; hhTk[hhTkN++]=(u16)((int)(lfy>>8)*MW+(int)(lfx>>8));
+    for(int m=0;m<hhN;m++){ const HhSim*o=&hhM[m]; if(o==self||o->act==HA_AWAY) continue;
+        int tx, ty, k;
+        if(o->gok){ tx=(int)(o->gx>>8); ty=(int)(o->gy>>8); k=o->pi+1; } else { tx=(int)(o->fx>>8); ty=(int)(o->fy>>8); k=o->pi; }
+        if(o->act==HA_WALK||o->act==HA_WANDER||o->act==HA_SEEK||o->act==HA_LEAVE) for(;k<o->pn;k++){ tx+=hhDx[o->path[k]]; ty+=hhDy[o->path[k]]; }
+        if(tx>=0&&ty>=0&&tx<MW&&ty<MH) hhTk[hhTkN++]=(u16)(ty*MW+tx); }
+}
+static int hhTakenAt(int x,int y){ int p=y*MW+x; for(int i=0;i<hhTkN;i++) if(hhTk[i]==p) return 1; return 0; }
+static int hhTaken(int x,int y,const HhSim*self){ hhTakenScan(self); return hhTakenAt(x,y); }
 static int hhPlan(HhSim*s,char c){   // fills s->path; returns its length+1 (1 = already there), 0 = no way
     int sx=(int)(s->fx>>8), sy=(int)(s->fy>>8); if(!hhWalk(sx,sy)) return 0;
     for(int i=0;i<MW*MH;i++) hhDist[i]=0xFFFF;
+    hhTakenScan(s);
     if(c==1&&((sx-hhGX)*(sx-hhGX)+(sy-hhGY)*(sy-hhGY))<=2) return 1;   // already next to them
     int qh=0, qt=0, goal=-1, pick=c?0:(rnd8()*4+rnd8())%400+40;   // wander: the pick-th tile the search reaches
     hhDist[sy*MW+sx]=0; hhQ[qt++]=(u16)(sy*MW+sx);
     while(qh<qt){ int p=hhQ[qh++], x=p%MW, y=p/MW;
-        if(c?hhNextTo(x,y,c):(qh>=pick)){ goal=p; break; }
+        if((c?hhNextTo(x,y,c):(qh>=pick))&&(c==1||!hhTakenAt(x,y))){ goal=p; break; }   // (a spot someone already has is skipped: no two Sims on one tile)
         if(hhDist[p]>=HH_PATH) continue;
         for(int d=0;d<4;d++){ int nx=x+hhDx[d], ny=y+hhDy[d], np=ny*MW+nx; if(hhWalk(nx,ny)&&hhDist[np]==0xFFFF){ hhDist[np]=(u16)(hhDist[p]+1); hhQ[qt++]=(u16)np; } } }
     if(goal<0) return 0;
@@ -285,7 +301,7 @@ static int hhSched(const HhSim*s,int*from,int*to){   // 1 work, 2 school (weekda
     if(s->stage==AG_CHILD||s->stage==AG_TEEN){ *from=8*60-15-(u%3)*5; *to=15*60+(u%4)*5; return 2; }
     return 0;
 }
-static char hhNoteB[28];
+static char hhNoteB[40];
 static void hhNote(const HhSim*s,const char*w){ if(lnoteT>0) return; char*e=simCat(hhNoteB,s->name); simCat(e,w); lnote=hhNoteB; lnoteT=110; }
 static void hhStepAlong(HhSim*s){   // one step along the path, tile centre to tile centre
     int d=s->path[s->pi];
@@ -350,6 +366,11 @@ static void hhTick(void){   // once per logic step in the life game
             hhStepAlong(s);
             continue;
         }
+        if(s->act==HA_IDLE&&(lfr&15)==(m&15)&&hhTaken((int)(s->fx>>8),(int)(s->fy>>8),s)){   // standing on someone: one step aside
+            int sx=(int)(s->fx>>8), sy=(int)(s->fy>>8), d0=rnd8()&3;
+            for(int k=0;k<4;k++){ int d=(d0+k)&3, nx=sx+hhDx[d], ny=sy+hhDy[d];
+                if(hhWalk(nx,ny)&&!hhTakenAt(nx,ny)){ s->path[0]=(u8)d; s->pn=1; s->pi=0; s->gok=0; s->act=HA_WANDER; s->use=HN_FUN; break; } }
+            if(s->act!=HA_IDLE) continue; }
         if(--s->think<=0&&!planned&&m==hhPlanNext%hhN){   // one plan per step (BFS is the costly part)
             hhDecide(s); planned=1; s->think=(short)(xo[XO_FREEWILL]==1?HH_THINK*2:HH_THINK)+(rnd8()&31);
         }
@@ -530,7 +551,7 @@ static int hhSocR(int useLabel){   // 1 = handled (a social, or the menu was clo
     int m=hhNearest(); if(m<0) return 0;
     HhSim*s=&hhM[m]; int b=s->uid, a=hhPUid;
     if(s->act==HA_USE){ lnote="THEY ARE BUSY"; lnoteT=50; return 0; }
-    static const char* it[SC_N+1]; static char tl[28]; int id[SC_N+1], n=0;
+    static const char* it[SC_N+1]; static char tl[40]; int id[SC_N+1], n=0;
     static const char* const useNm[6]={0,"USE THE FRIDGE","USE THE TOILET","SLEEP IN BED","TAKE A SHOWER","SIT ON SOFA"};
     if(useLabel>0&&useLabel<6){ it[n]=useNm[useLabel]; id[n++]=-1; }
     for(int i=0;i<SC_N;i++) if(socAllowed(a,b,i)){ it[n]=socT[i].name; id[n++]=i; }
@@ -556,7 +577,7 @@ static void relScreen(void){
         u16 k=keyNow(), pr=k&~prev; prev=k; if(pr&(K_A|K_B|K_START)) return;
         if((pr&K_DOWN)&&top+7<hhN) top++; if((pr&K_UP)&&top>0) top--;
         if(pr&K_SEL){ hhInvite(); prev=keyNow(); }   // SELECT: a new Sim moves in
-        box(3,1,234,157); char t[28]; simCat(simCat(t,"RELATIONSHIPS OF "),hhPName); text(10,6,t,GOLD,1);
+        box(3,1,234,157); char t[44]; { char*e=simCat(simCat(t,"RELATIONSHIPS OF "),hhPName); if(hhPLast[0]){ *e++=' '; simCat(e,hhPLast); } } text(10,6,t,GOLD,1);
         text(84,16,"YOU TO THEM",DIMC,1); text(162,16,"THEM TO YOU",DIMC,1);
         if(!hhN) text(10,40,"NO ONE ELSE LIVES HERE",DIMC,1);
         for(int m=top;m<hhN&&m<top+7;m++){ int y=26+(m-top)*18, b=hhM[m].uid, a=hhPUid;
@@ -591,7 +612,12 @@ static int hhBehindAt(s32 fx,s32 fy){   // is a full-height wall in front of thi
     for(int k=0;k<5;k++){ int wx=x+d[k][0], wy=y+d[k][1]; if(!wallAtR(wx,wy)||cellAt(wx,wy)!='W'||sWall==2) continue;
         if(sWall==1&&(wInAt(wx,wy-1)||wInAt(wx-1,wy))) continue;   // that wall is cut away
         return 1; }
+    for(int k=0;k<3;k++){ int wx=x+d[k][0], wy=y+d[k][1]; if(wx<0||wy<0||wx>=MW||wy>=MH) continue; char c=cellAt(wx,wy); if(c=='F'||c=='H'||c=='#') return 1; }   // tall furniture right in front (a fridge, a shower)
     return 0;
+}
+static int hhPlayerFront(int x,int y){   // is the player (drawn into the picture, so under every sprite) standing in front of this Sim's sprite?
+    s32 rx,ry; rotPos(lfx,lfy,&rx,&ry); int px=LOX+(int)((rx-ry)>>5), py=LOY+(int)((rx+ry)>>6), dx=px-(x+16);
+    return py>y+40&&dx>-22&&dx<22&&py<y+40+44;
 }
 typedef struct { const HhSim*s; short x,y; int dd,dep; u8 id,key; } HhOv;   // a Sim in view: where its sprite goes, how far from the middle, how far back
 static void hhObjUpdate(void){   // in vblank: hand out OBJ slots, load what changed into OBJ VRAM, write OAM (a Sim is two entries: 32x32 over 32x16), set the window that clips them
@@ -645,7 +671,7 @@ static void hhObjUpdate(void){   // in vblank: hand out OBJ slots, load what cha
                 volatile u16*d=OBJ_VRAM+sl*(OBJ_B/2); hhSlotKey[sl]=(signed char)key;
                 if(full){ const u16*sp=(const u16*)hhTiles(id,v); for(int k=0;k<OBJ_B/2;k++) d[k]=sp[k]; }
                 const u16*sp=f?(const u16*)hhStrideB(id,v):(const u16*)(hhTiles(id,v)+STR_B0); for(int k=0;k<STR_BN/2;k++) d[STR_B0/2+k]=sp[k]; } }
-        volatile u16*e=oam+nOam*4; int tile=512+sl*24, y=o->y, x=o->x, blend=hhBehindAt(o->s->fx,o->s->fy)?0x400:0;
+        volatile u16*e=oam+nOam*4; int tile=512+sl*24, y=o->y, x=o->x, blend=(hhBehindAt(o->s->fx,o->s->fy)||hhPlayerFront(x,y))?0x400:0;
         e[0]=(u16)((y&255)|blend);         e[1]=(u16)((x&511)|0x8000); e[2]=(u16)(tile|(sl<<12));          // 32x32: tile rows 0..3
         e[4]=(u16)(((y+32)&255)|blend|0x4000); e[5]=(u16)((x&511)|0x8000); e[6]=(u16)((tile+16)|(sl<<12)); // 32x16: tile rows 4..5
         nOam+=2;
@@ -660,7 +686,7 @@ static void hhInvite(void){   // a made-up Sim moves in (pause menu > HOUSEHOLD,
     int m=hhAdd(lk,st,rnd8()%AS_PICK,rnd8()&1,tr); if(m<0) return;
     for(int k=0;k<hhN;k++){ hhOld[k].x0=hhOld[k].x1=0; hhOldSig[k]=0xFFFFFFFFu; }
     toast("PLEASE WAIT  MOVING IN"); hhBakeAll(); hhSave();
-    static char t[24]; char*e=simCat(t,hhM[m].name); simCat(e," MOVED IN"); toast(t);
+    static char t[32]; char*e=simCat(t,hhM[m].name); simCat(e," MOVED IN"); toast(t);
 }
 
 static void hhLoad(void);
@@ -698,36 +724,38 @@ static void hhSwitch(void){
 
 // ---- saving (SRAM at HH_OFF): 'H' '2' count, your uid, then per member its look, stage, persona, name, needs and uid, then the
 // relationships (daily, lifetime, flags for every pair of uids); checksum last ----
-#define HH_REC (LK_N+3+TR_N+10+HN_N+1)
+#define HH_REC (LK_N+3+TR_N+2*HH_NM+HN_N+1)   // ('H6' and older held a 10-byte first name and no last name)
 #define HH_RELB (3*HU_N*HU_N)
 static void hhSave(void){
     volatile u8*m=(volatile u8*)0x0E000000+HH_OFF; int k=3; u8 sum=0x48;
-    m[0]='H'; m[1]='6'; m[2]=(u8)hhN; m[k++]=(u8)hhPUid;
+    m[0]='H'; m[1]='7'; m[2]=(u8)hhN; m[k++]=(u8)hhPUid;
+    for(int j=0;j<HH_NM;j++) m[k++]=(u8)hhPName[j]; for(int j=0;j<HH_NM;j++) m[k++]=(u8)hhPLast[j];   // your own name
     for(int i=0;i<hhN;i++){ const HhSim*s=&hhM[i];
         for(int j=0;j<LK_N;j++) m[k++]=s->look[j]; m[k++]=s->stage; m[k++]=s->asp; m[k++]=s->ltw;
-        for(int j=0;j<TR_N;j++) m[k++]=s->tr[j]; for(int j=0;j<10;j++) m[k++]=(u8)s->name[j]; for(int j=0;j<HN_N;j++) m[k++]=s->need[j]; m[k++]=s->uid; }
+        for(int j=0;j<TR_N;j++) m[k++]=s->tr[j]; for(int j=0;j<HH_NM;j++) m[k++]=(u8)s->name[j]; for(int j=0;j<HH_NM;j++) m[k++]=(u8)s->last[j]; for(int j=0;j<HN_N;j++) m[k++]=s->need[j]; m[k++]=s->uid; }
     for(int a=0;a<HU_N;a++)for(int b=0;b<HU_N;b++){ m[k++]=(u8)relD[a][b]; m[k++]=(u8)relL[a][b]; m[k++]=relF[a][b]; }
     for(int i=2;i<k;i++) sum+=m[i];
     m[k]=sum;
 }
 static void hhLoad(void){
     volatile u8*m=(volatile u8*)0x0E000000+HH_OFF; u8 sum=0x48; hhN=0;
-    if(m[0]!='H'||m[1]<'2'||m[1]>'6'||m[2]>HH_MAX) return;
+    if(m[0]!='H'||m[1]<'2'||m[1]>'7'||m[2]>HH_MAX) return;
     int old=m[1]<'6', hu=old?HH_MAXOLD+1:HU_N;   // before 'H6' the relationships were kept for 10 uids
-    int nl=m[1]>='5'?LK_N:m[1]=='4'?LK_N6:m[1]=='3'?LK_N5:LK_N4, rec=HH_REC-LK_N+nl;   // 'H2' households were saved before the hats and clothes, 'H3' before the face details and sliders
-    int n=m[2], k=4+n*rec+3*hu*hu; for(int i=2;i<k;i++) sum+=m[i]; if(m[k]!=sum) return;
+    int v7=m[1]>='7', nb=v7?2*HH_NM:10, nl=v7?LK_N:m[1]>='5'?LK_N7:m[1]=='4'?LK_N6:m[1]=='3'?LK_N5:LK_N4, rec=HH_REC-LK_N+nl-2*HH_NM+nb;   // 'H2' households were saved before the hats and clothes, 'H3' before the face details and sliders
+    int n=m[2], hb=v7?2*HH_NM:0, k=4+hb+n*rec+3*hu*hu; for(int i=2;i<k;i++) sum+=m[i]; if(m[k]!=sum) return;
     if(m[3]>=hu) return;
     k=4; hhPUid=m[3];
+    if(v7){ for(int j=0;j<HH_NM;j++) hhPName[j]=(char)m[k++]; for(int j=0;j<HH_NM;j++) hhPLast[j]=(char)m[k++]; hhPName[HH_NM-1]=hhPLast[HH_NM-1]=0; if(!hhPName[0]){ hhPName[0]='Y'; hhPName[1]='O'; hhPName[2]='U'; hhPName[3]=0; } }
     for(int i=0;i<n;i++){ HhSim*s=&hhM[i];
         for(int j=0;j<LK_N;j++) s->look[j]=j<nl?m[k++]:0; s->stage=m[k++]; s->asp=m[k++]; s->ltw=m[k++];
-        for(int j=0;j<TR_N;j++) s->tr[j]=m[k++]; for(int j=0;j<10;j++) s->name[j]=(char)m[k++]; s->name[9]=0; for(int j=0;j<HN_N;j++) s->need[j]=m[k++]; s->uid=m[k++];
+        for(int j=0;j<TR_N;j++) s->tr[j]=m[k++]; if(v7){ for(int j=0;j<HH_NM;j++) s->name[j]=(char)m[k++]; for(int j=0;j<HH_NM;j++) s->last[j]=(char)m[k++]; } else { for(int j=0;j<10;j++) s->name[j]=(char)m[k++]; s->last[0]=0; } s->name[HH_NM-1]=s->last[HH_NM-1]=0; s->name[9]=v7?s->name[9]:0; for(int j=0;j<HN_N;j++) s->need[j]=m[k++]; s->uid=m[k++];
         if(s->stage>=AG_N||s->asp>=AS_PICK||s->uid>=hu) return;
         s->act=HA_IDLE; s->think=(short)(rnd8()&63); s->hd=0; s->bubT=0; }
     for(int a=0;a<HU_N;a++)for(int b=0;b<HU_N;b++){ if(a<hu&&b<hu){ relD[a][b]=(signed char)m[k++]; relL[a][b]=(signed char)m[k++]; relF[a][b]=m[k++]; } else relD[a][b]=relL[a][b]=0, relF[a][b]=0; }
     hhN=n;
 }
-_Static_assert(HH_OFF+4+HH_MAX*HH_REC+HH_RELB+1<=SLOT_BASE,"the household must fit before the room slots");
-_Static_assert(4+HH_MAX*HH_REC+HH_RELB+1<=SL_HH_LEN,"the household is bigger than the SRAM block reserved for it");
+_Static_assert(HH_OFF+4+2*HH_NM+HH_MAX*HH_REC+HH_RELB+1<=SLOT_BASE,"the household must fit before the room slots");
+_Static_assert(4+2*HH_NM+HH_MAX*HH_REC+HH_RELB+1<=SL_HH_LEN,"the household is bigger than the SRAM block reserved for it");
 
 // ---- the pause menu's HOUSEHOLD screen ----
 static void hhMenu(void){
@@ -747,7 +775,10 @@ static void hhMenu(void){
         hhRemove(m); for(int k=0;k<hhN;k++){ hhOld[k].x0=hhOld[k].x1=0; hhOldSig[k]=0xFFFFFFFFu; } hhSave(); toast("MOVED OUT"); return; }
     if(c==HH_NFAM){ hhN=0; for(int a=0;a<HU_N;a++)for(int b=0;b<HU_N;b++){ relD[a][b]=relL[a][b]=0; relF[a][b]=0; } hhSave(); toast("ONLY YOU LIVE HERE NOW"); return; }
     const HhFam*F=&hhFams[c]; int add=0, first=hhN;
-    for(int i=0;i<F->n&&hhN<HH_MAX;i++){ hhNew(&hhM[hhN],&F->m[i]); hhN++; add++; }
+    for(int i=0;i<F->n&&hhN<HH_MAX;i++){ hhNew(&hhM[hhN],&F->m[i]);
+        { const char*f=F->fam; if(f[0]=='T'&&f[1]=='H'&&f[2]=='E'&&f[3]==' ') f+=4; int k=0; while(f[k]&&k<HH_NM-1){ hhM[hhN].last[k]=f[k]; k++; }   // THE MIDNIGHTS -> MIDNIGHT
+          if(k>1&&hhM[hhN].last[k-1]=='S') k--; hhM[hhN].last[k]=0; }
+        hhN++; add++; }
     for(int i=first;i<hhN;i++)for(int j=first;j<hhN;j++) if(i!=j){   // a family already knows and likes each other; couples (the first two adults) are in love
         int a=hhM[i].uid, b=hhM[j].uid; relD[a][b]=40; relL[a][b]=50; relF[a][b]=0;
         if(i<first+2&&j<first+2&&hhM[i].stage>=AG_ADULT&&hhM[j].stage>=AG_ADULT){ relD[a][b]=70; relL[a][b]=80; relF[a][b]=RF_CRUSH|RF_LOVE|RF_STEADY|RF_KISSED|RF_FRIEND|RF_BFF; } }
