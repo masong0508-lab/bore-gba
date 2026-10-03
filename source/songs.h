@@ -50,3 +50,6 @@ SONG_XM(excuses_house,"EXCUSES","tools/excuses_house.xm")
 SONG_XM(whistler_shuffle,"WHISTLER MAN","tools/whistler_shuffle.xm")
 // WHISTLER MAN (ORIGINAL): the first version of the rework, kept as a SECRET song, hidden until the title-screen code (isDbgSong in main.c)
 SONG_XM(whistler_shuffle_old,"WHISTLER MAN (ORIGINAL)","tools/whistler_shuffle_old.xm")
+// CYNICALLER MADNESS: a 172 BPM liquid / tech drum & bass rework of "The Dipper Man - Cynicaller Madness" on 64th-note rows
+// (tools/make_cynicaller_rework.py, about 4:05)
+SONG_XM(cynicaller_dnb,"CYNICALLER MADNESS","tools/cynicaller_dnb.xm")

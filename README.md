@@ -260,6 +260,12 @@ The title screen plays "The Dipper Man" (tools/the_dipper_man.xm). `python3 tool
 - **Second act:** after the original arrangement comes a build into a FINALE, where the lead is doubled an octave up on a free voice.
 - **Expanded ending:** the run-in plays first. The outro riff follows four times, stepping down from house to funk to groove to hats only. Then come a soft afterglow, the original coda, and a last hit that rings out.
 
+**Cynicaller Madness (drum & bass)**: `tools/make_cynicaller_rework.py` builds `tools/cynicaller_dnb.xm` from "The Dipper Man - Cynicaller Madness" (`tools/cynicaller_madness.xm`), a liquid / tech drum & bass track. It runs 4:06 at 172.5 BPM.
+- **From the original:** the Bm / F#m / Am / Em changes, the B F# A E bass walk, the lead, the falling counter-line and the echoing E of the outro.
+- **New:** a two-step break with flams, ghosts a 64th late and 64th hat ratchets; a reese bass over a sine sub; 32nd-note arps with 64th flurries; and snare rolls that speed up to 64ths.
+- **Arrangement:** two drops, a breakdown, a third drop with the lead an octave up in thirds, a glitch section that stutters the lead, and a final drop.
+- **Technical:** it uses 64th-note rows (speed 1, XM BPM 115, 16 rows a beat), all 16 voices (`cynic_pan`) and 88 KB of samples.
+
 **Meltdown in Mars (90s house mix)**: `tools/make_meltdown_house.py` builds `tools/meltdown_in_mars_house.xm` (126 BPM, about 6 minutes, 10 channels, all sounds synthesised), it is listed in `source/songs.h`, and `python3 tools/xm2gba.py` bakes it into `source/musicdata.h`. `python3 tools/preview_xm.py meltdown_in_mars_house tools/meltdown_in_mars_house.xm out.wav` renders it the way the GBA mixer will play it.
 
 ## Jukebox
