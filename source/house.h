@@ -41,7 +41,8 @@ static int hhPUid;                         // the uid of the Sim you control
 static char hhPName[10]="YOU";             // the name of the Sim you control (premade Sims bring theirs)
 static u8 hhBubT; static const char* hhBubTxt;   // the word over your head during a social (shown by hud.h's bubble)
 static u16 hhSpr[HH_MAX][4][SPW*SPH] EWRAM_BSS;   // baked sprites, one set per member
-static u16 hhDist[MH*MW] EWRAM_BSS; static u16 hhQ[MH*MW] EWRAM_BSS;   // BFS scratch, shared (one member plans per step)
+static u16 hhDist[MH*MW] EWRAM_BSS;
+#define hhQ bfsQ   // (main.c's shared search queue)   // BFS scratch, shared (one member plans per step)
 static int hhPlanNext;   // round robin: whose turn it is to plan
 static const signed char hhDx[4]={1,0,-1,0}, hhDy[4]={0,1,0,-1};
 

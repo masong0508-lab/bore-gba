@@ -15,7 +15,7 @@
 //         into the next slots' bytes, and the scan (slScan) skips the slots it covers.
 //  payload   a list of chunks:  tag(1) length(2) data ...  and a 0 tag at the end. Readers SKIP tags they do not know, so new
 //         chunk types can be added later. Tags: 'R' room, 'C' person, 'L' life, 'H' house plan (reserved).
-//  'R' chunk  room index(1) format(1 = runs) then runs of  count, tile, floor<<4|wallpaper.  A ROOM slot has room index 0.
+//  'R' chunk  room index(1) format(2 = runs) then runs of  count, tile, floor, wallpaper (format 1: count, tile, floor<<4|wallpaper).  A ROOM slot has room index 0.
 //  Every save is verified (checksum) before it is loaded, and the slot is invalidated while it is being written, so a power
 //  cut in the middle of a save can only lose that one slot, never corrupt another.
 //
@@ -36,7 +36,7 @@
 #define SRAM_TEST  18432      // 16 spare bytes the SAVE TEST in the options writes to
 #define SLOT_HOUSE_READY 0
 _Static_assert(SLOT_BASE+SLOT_N*SLOT_SZ<=32768,"the slots do not fit in 32 KB of SRAM");
-_Static_assert(NFL<=16&&NWP<=16,"a run stores floor and wallpaper in one byte (4 bits each)");
+_Static_assert(NWALL<=255&&NFL<=255,"a run stores the floor and the wallpaper in a byte each");
 
 enum { SLK_ROOM=0, SLK_HOUSE=1 };
 enum { SLH_ROOM=1, SLH_PERSON=2, SLH_LIFE=4 };                 // what a slot holds / what to load
@@ -66,27 +66,29 @@ static int slSumOf(volatile u8*p,int n){ u32 s1=0,s2=0; for(int i=0;i<n;i++){ s1
 // ---------- chunks: ROOM ----------
 static void slEncRoom(SlW*w){
     slwPut(w,0);   // room index: 0 = the one room of a ROOM slot (a house numbers its rooms)
-    slwPut(w,1);   // format 1: runs of (count, tile, floor<<4 | wallpaper)
-    int n=0; u8 t=0,f=0;
+    slwPut(w,2);   // format 2: runs of (count, tile, floor, wallpaper)  (format 1 packed floor<<4 | wallpaper: only 16 wallpapers)
+    int n=0; u8 t=0,f=0,p=0;
     for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){
-        u8 tt=(u8)lifeMap[y][x], ff=(u8)(((floorMap[y][x]&15)<<4)|(wallMap[y][x]&15));
-        if(n>0&&tt==t&&ff==f&&n<255){ n++; continue; }
-        if(n){ slwPut(w,n); slwPut(w,t); slwPut(w,f); }
-        n=1; t=tt; f=ff;
+        u8 tt=(u8)lifeMap[y][x], ff=floorMap[y][x], pp=wallMap[y][x];
+        if(n>0&&tt==t&&ff==f&&pp==p&&n<255){ n++; continue; }
+        if(n){ slwPut(w,n); slwPut(w,t); slwPut(w,f); slwPut(w,p); }
+        n=1; t=tt; f=ff; p=pp;
     }
-    if(n){ slwPut(w,n); slwPut(w,t); slwPut(w,f); }
+    if(n){ slwPut(w,n); slwPut(w,t); slwPut(w,f); slwPut(w,p); }
 }
 // returns 1 if fine (or a room index we do not use), 0 if broken. apply=1 writes the map.
 static int slDecRoom(SlR*c,int apply){
     int idx=slrGet(c), fmt=slrGet(c); if(c->bad) return 0;
     if(idx!=0) return 1;      // another room of a house: not used by a ROOM load
-    if(fmt!=1) return 0;
+    if(fmt!=1&&fmt!=2) return 0;
     int i=0;
+    if(apply) wDirty=1;
     while(c->pos<c->len){
-        int n=slrGet(c), t=slrGet(c), f=slrGet(c); if(c->bad||n==0) return 0;
-        if(palIdx((char)t)<0||(f>>4)>=NFL||(f&15)>=NWP) return 0;
+        int n=slrGet(c), t=slrGet(c), f=slrGet(c), p; if(c->bad||n==0) return 0;
+        if(fmt==1){ p=f&15; f>>=4; } else { p=slrGet(c); if(c->bad) return 0; }
+        if(palIdx((char)t)<0||f>=NFL||p>=NWALL) return 0;
         if(i+n>MSZ) return 0;
-        if(apply) for(int k=0;k<n;k++){ int y=(i+k)/MW, x=(i+k)%MW; lifeMap[y][x]=(char)t; floorMap[y][x]=(u8)(f>>4); wallMap[y][x]=(u8)(f&15); }
+        if(apply) for(int k=0;k<n;k++){ int y=(i+k)/MW, x=(i+k)%MW; lifeMap[y][x]=(char)t; floorMap[y][x]=(u8)f; wallMap[y][x]=(u8)p; }
         i+=n;
     }
     return i==MSZ;

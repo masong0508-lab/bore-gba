@@ -61,7 +61,10 @@ static const int camThr[4]={0,10000,5000,2000};
 #define CAM_LEN 84    // action cam length in game steps (1.4 s)
 #define CAM_ZOOM 62   // zoom in by 256/(256-62) = 1.3x
 static int lloadV;   // work per drawn frame as a percent of its time budget (PERFORMANCE INFO: DETAIL)
-#define NWP 14       // wallpapers
+#define NWP 14       // wallpapers: the old 8x8 patterns ...
+#define WALL_H 24     // (full wall height in px, 3 blocks: the textures in wallart.h are this tall)
+#include "wallart.h"  // ... and NWX textures from the KHLVH wallpaper set (ROM only), wallpapers NWP.. (see the walls section)
+#define NWALL (NWP+NWX)
 #define NFL 14       // floors
 #include "opts.h"   // extended options (xo[]): gameplay, input, audio, HUD and room options; also defines GOLD (the accent colour)
 
@@ -887,6 +890,7 @@ static const short cosT[16]={256,237,181,98,0,-98,-181,-237,-256,-237,-181,-98,0
 static int spBx0, spBx1, spBy0, spBy1;
 static s32 lfx,lfy,lz,lvz,lvx,lvy; static int lskate, lhave, lfr;   // lskate: 0 on foot, 1 skateboard; lhave: picked up the board
 static u8 floorMap[MH][MW] EWRAM_BSS, wallMap[MH][MW] EWRAM_BSS;   // floor style and wallpaper per tile
+static u8 wDirty;   // the map changed: the walls work out again which floor is inside a room (wallsScan)
 static int lfpsV;   // measured frames per second (shown when SHOW FPS is on)
 static char lifeMap[MH][MW+1] EWRAM_BSS;   // the room being played / edited (starts as mapDef, or the copy saved in SRAM)
 static int bdx=10, bdy=4, spx=3, spy=6;   // skateboard tile and spawn tile, found by mapScan (B and P tiles)
@@ -1290,17 +1294,18 @@ static void gLine(int x0,int y0,int x1,int y1,char c,int wp){ for(int y=y0;y<=y1
 static void gPut(int x,int y,char c){ lifeMap[y][x]=c; }
 static void gFree(int x,int y,char c){ if(x>=0&&y>=0&&x<MW&&y<MH&&lifeMap[y][x]=='.') lifeMap[y][x]=c; }   // put only onto empty floor
 static void mapGen(void){
+    wDirty=1;
     for(int y=0;y<MH;y++){ for(int x=0;x<MW;x++){ lifeMap[y][x]='.'; floorMap[y][x]=7; wallMap[y][x]=0; } lifeMap[y][MW]=0; }
     gLine(0,0,MW-1,0,'w',13); gLine(0,MH-1,MW-1,MH-1,'w',13); gLine(0,0,0,MH-1,'w',13); gLine(MW-1,0,MW-1,MH-1,'w',13);   // low wall round the edge
     // HOUSE: peach wallpaper, beige carpet, lino kitchen, pink-tile bathroom
-    gRoom(2,2,17,17,1,2); gBox(11,11,16,16,3);
-    gRoom(2,2,9,9,5,11); gPut(6,9,'D'); gPut(3,3,'T');
+    gRoom(2,2,17,17,1,NWP+61); gBox(11,11,16,16,3);   // (wallpapers NWP+n: the KHLVH set, wallart.h: PARLOR, OCEANIC, METAL DECK)
+    gRoom(2,2,9,9,5,NWP+57); gPut(6,9,'D'); gPut(3,3,'T');
     gPut(9,17,'D'); gPut(17,13,'D');
     gPut(16,11,'F'); gPut(16,12,'F'); gPut(12,4,'#'); gPut(13,4,'#'); gPut(12,5,'#'); gPut(13,5,'#');
     gPut(5,12,'P'); gPut(7,14,'B');
     gPut(8,3,'H'); gPut(4,16,'S'); gPut(3,11,'C');                     // shower (bathroom), bed and sofa (lounge)
     // FACTORY: red brick, steel plate, oil-stained and hazard lanes, grate corner, crates and a rail
-    gRoom(22,2,37,19,8,8); gBox(23,10,36,11,10); gBox(23,14,27,18,9); gBox(30,3,36,8,12);
+    gRoom(22,2,37,19,8,NWP+53); gBox(23,10,36,11,10); gBox(23,14,27,18,9); gBox(30,3,36,8,12);
     gPut(29,19,'D'); gPut(22,10,'D'); gPut(37,10,'D');
     gLine(24,13,29,13,'=',8);
     gPut(25,4,'#'); gPut(26,4,'#'); gPut(25,5,'#'); gPut(26,5,'#'); gPut(31,15,'#'); gPut(32,15,'#'); gPut(31,16,'#'); gPut(32,16,'#'); gPut(34,5,'#'); gPut(34,6,'#');
@@ -1326,6 +1331,7 @@ static void mapGen(void){
 }
 static void mapReset(void){ mapGen(); }
 static void mapScan(void){   // find the skateboard (B) and the spawn point (P); fall back to sane defaults
+    wDirty=1;
     int fx=-1, fy=-1; bdx=bdy=spx=spy=-1;
     for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ char c=lifeMap[y][x];
         if(c=='B'){ bdx=x; bdy=y; } if(c=='P'){ spx=x; spy=y; }
@@ -1356,10 +1362,11 @@ static int mapSaved(void){ volatile u8*m=SRAM_BASE; if(m[0]!='B'||m[1]!='M'||m[2
         if(m[3+i]!=(u8)lifeMap[y][x]||m[3+MSZ+i]!=floorMap[y][x]||m[3+2*MSZ+i]!=wallMap[y][x]) return 0; }
     return 1; }
 static int mapLoad(void){   // returns 1 if a valid saved map was loaded
+    wDirty=1;
     volatile u8*m=SRAM_BASE;
     if(m[0]!='B'||m[1]!='M') return 0;
     if(m[2]=='3'){
-        for(int i=0;i<MSZ;i++){ if(palIdx((char)m[3+i])<0||m[3+MSZ+i]>=NFL||m[3+2*MSZ+i]>=NWP) return 0; }
+        for(int i=0;i<MSZ;i++){ if(palIdx((char)m[3+i])<0||m[3+MSZ+i]>=NFL||m[3+2*MSZ+i]>=NWALL) return 0; }
         for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x;
             lifeMap[y][x]=(char)m[3+i]; floorMap[y][x]=m[3+MSZ+i]; wallMap[y][x]=m[3+2*MSZ+i]; }
         return 1; }
@@ -1373,7 +1380,7 @@ static int mapLoad(void){   // returns 1 if a valid saved map was loaded
     return 1; }
 static void mapPlace(int x,int y,char c){
     if(c=='B'||c=='P'){ for(int j=0;j<MH;j++)for(int i=0;i<MW;i++) if(lifeMap[j][i]==c) lifeMap[j][i]='.'; }
-    lifeMap[y][x]=c; if(c=='w'||c=='W') wallMap[y][x]=(u8)eWp; }
+    lifeMap[y][x]=c; if(c=='w'||c=='W') wallMap[y][x]=(u8)eWp; wDirty=1; }
 // extended options (opts.h): one byte each at OPT_OFF, 'X' 'O', count, values, checksum. A save with fewer options (older game) leaves the new ones at their defaults.
 #define OPT_OFF 8448
 static void optsSave(void){
@@ -1656,26 +1663,72 @@ static void bandCols(int s,int x0,int x1,int*a,int*b){
     int lo=(s+kmin)>>1, hi=(s+kmax+1)>>1, mn=s-(MH-1), mx=s<MW-1?s:MW-1;
     if(mn<0) mn=0; if(lo<mn) lo=mn; if(hi>mx) hi=mx; *a=lo; *b=hi;
 }
-static int tileOpen(int x,int y){   // in the map and not a wall / crate / fridge
-    if(x<0||y<0||x>=MW||y>=MH) return 0;
-    char c=cellAt(x,y); return !(c=='w'||c=='W'||c=='#'||c=='F'); }
-static int wallH(int tx,int ty){    // wall blocks DRAWN for this tile (the player still bumps into the full height)
-    if(cellAt(tx,ty)=='w'||sWall==2) return 1;
-    if(sWall==1&&(tileOpen(tx-1,ty)||tileOpen(tx,ty-1)||tileOpen(tx-1,ty-1))) return 1;   // faces the camera: cut it down
-    return 2;
+// ---------- walls (The Sims style) ----------
+// A wall tile is drawn as a thin, tall panel through the middle of the tile: half a segment towards every neighbouring wall tile, so walls
+// join up into lines and corners, with the floor of the room drawn under them. Only the side the camera sees is drawn (the wallpaper,
+// pre-shaded per face), with a light trim along the top. CUTAWAY (OPTIONS > VIDEO > WALLS): a segment that hides the inside of a room
+// behind it drops to a low stub, the others stay full height. "Inside" = floor that cannot be reached from the edge of the map without
+// crossing a wall or a doorway (a one-tile gap in a wall); wallsScan works it out again whenever the map changed (wDirty).
+// Wallpapers 0..NWP-1 are the old 8x8 patterns (tiled up the wall), NWP.. are the textures in wallart.h (8 x WALL_H, ROM only).
+#define WALL_CUT 5    // a cut-away segment
+#define WALL_LOW 8    // a low wall ('w')
+static u8 wInside[MH][MW] EWRAM_BSS; static u8 wDirty=1;
+static u16 bfsQ[MH*MW] EWRAM_BSS;   // one queue for every breadth-first search (the walls' flood here, the Sims' paths in house.h)
+static int wIsWall(int x,int y){ return x>=0&&y>=0&&x<MW&&y<MH&&lifeMap[y][x]=='W'; }   // rooms are closed by full walls (a low wall is a fence)
+static int wDoor(int x,int y){ return (wIsWall(x-1,y)&&wIsWall(x+1,y))||(wIsWall(x,y-1)&&wIsWall(x,y+1)); }
+static void wallsScan(void){   // flood the outside from the map edge; everything else that is not a wall is inside
+    u16*q=bfsQ; int qh=0, qt=0;
+    for(int y=0;y<MH;y++)for(int x=0;x<MW;x++) wInside[y][x]=1;
+    for(int y=0;y<MH;y++)for(int x=0;x<MW;x++) if((x==0||y==0||x==MW-1||y==MH-1)&&!wIsWall(x,y)){ wInside[y][x]=0; q[qt++]=(u16)(y*MW+x); }
+    while(qh<qt){ int p=q[qh++], x=p%MW, y=p/MW;
+        for(int d=0;d<4;d++){ int nx=x+(d==0)-(d==1), ny=y+(d==2)-(d==3); if(nx<0||ny<0||nx>=MW||ny>=MH||!wInside[ny][nx]) continue;
+            if(wIsWall(nx,ny)||wDoor(nx,ny)) continue; wInside[ny][nx]=0; q[qt++]=(u16)(ny*MW+nx); } }
+    wDirty=0;
 }
-static int wallJoin(int tx,int ty,int j,int wp){   // neighbour wall with the same wallpaper that reaches block j
-    if(tx<0||ty<0||tx>=MW||ty>=MH||!isWallCh(cellAt(tx,ty))) return 0;
-    return wallH(tx,ty)>=j&&wpAt(tx,ty)==wp; }
-static void drawWall(int tx,int ty,int sx,int sy){
-    int h=wallH(tx,ty), wp=wpAt(tx,ty);
-    for(int j=1;j<=h;j++){
-        int f=(j<h?1:0)|(j>1?2:0)|(wallJoin(tx-1,ty,j,wp)?16:0)|(wallJoin(tx,ty-1,j,wp)?32:0);
-        if(sWp) wallBlock(sx,sy-j*CC,wp,f); else cube(sx,sy-j*CC,9+wp,0,f);
+static int wInAt(int rx,int ry){ if(rx<0||ry<0||rx>=MW||ry>=MH) return 0; int tx,ty; rotXY(rx,ry,&tx,&ty); return wInside[ty][tx]&&!isWallCh(lifeMap[ty][tx]); }
+static int wallAtR(int rx,int ry){ return rx>=0&&ry>=0&&rx<MW&&ry<MH&&isWallCh(cellAt(rx,ry)); }
+static int wallFloorR(int rx,int ry){   // the floor to draw under a wall tile: a neighbour's (inside first)
+    static const signed char nd[4][2]={{0,1},{1,0},{0,-1},{-1,0}}; int best=-1;
+    for(int k=0;k<4;k++){ int x=rx+nd[k][0], y=ry+nd[k][1]; if(x<0||y<0||x>=MW||y>=MH||isWallCh(cellAt(x,y))) continue; if(wInAt(x,y)) return flAt(x,y); if(best<0) best=flAt(x,y); }
+    return best<0?flAt(rx,ry):best;
+}
+static const char* wpName(int wp){ return wp<NWP?wpTex[wp].nm:wxName[wp-NWP]; }
+static u16 wpAvgOf(int wp){ return wp<NWP?wpAvg[wp]:wxAvg[wp-NWP]; }
+// one segment of wall: columns xa..xb of a tile whose centre (on the floor) is sx,sy. dir 0 runs along x (the camera sees its +y face),
+// dir 1 along y (+x face). h = height in px. edge: bit 0 = column xa is an end or corner, bit 1 = column xb.
+IWRAM_CODE static void wallSeg(int sx,int sy,int xa,int xb,int dir,int h,int wp,int edge){
+    int ye=cY0+(int)cH-1, per, v0;
+    u16 av=wpAvgOf(wp), flat=shade(av,dir?9:12), trim=lite(av,20), dark=shade(av,6);
+    for(int x=xa;x<=xb;x++){
+        if((unsigned)(x-cX0)>=cW) continue;
+        int off=x-sx, base=dir?sy-(off>>1):sy+(off>>1), top=base-h, u=dir?(4-off)&7:(off+4)&7;
+        const u16*col; if(wp<NWP){ col=wpTab[wp][dir][u]; per=8; v0=0; } else { col=wxTex[wp-NWP][dir][u]; per=WALL_H; v0=WALL_H-h; }
+        int ya=top-1<cY0?cY0:top-1, yz=base>ye?ye:base; if(ya>yz) continue;
+        u16*d=&fb[ya*SW+x];
+        if(((edge&1)&&x==xa)||((edge&2)&&x==xb)){ for(int y=ya;y<=yz;y++,d+=SW) *d=dark; continue; }   // an end or a corner: an outline
+        for(int y=ya;y<=yz;y++,d+=SW){
+            if(y==top-1) *d=dark; else if(y==top) *d=trim;                 // the top of the wall: an outline and a light trim
+            else if(!sWp) *d=flat;
+            else { int v=v0+(y-top-1); if(per==8) v&=7; *d=col[v]; } }
     }
 }
+static void drawWall(int tx,int ty,int sx,int sy){   // tx,ty in screen-rotated tile coords
+    if(wDirty) wallsScan();
+    int low=cellAt(tx,ty)=='w', wp=wpAt(tx,ty); if(wp>=NWALL) wp=0;
+    int nxm=wallAtR(tx-1,ty), nxp=wallAtR(tx+1,ty), nym=wallAtR(tx,ty-1), nyp=wallAtR(tx,ty+1);
+    int hx=low?WALL_LOW:sWall==2?WALL_CUT:(sWall==1&&wInAt(tx,ty-1))?WALL_CUT:WALL_H;   // a wall along x hides what is at y-1
+    int hy=low?WALL_LOW:sWall==2?WALL_CUT:(sWall==1&&wInAt(tx-1,ty))?WALL_CUT:WALL_H;   // a wall along y hides what is at x-1
+    int cx=(nxm||nxp), cy=(nym||nyp), corner=cx&&cy;
+    if(!cx&&!cy){ wallSeg(sx,sy,sx-3,sx+3,0,hx,wp,3); return; }   // a lone pillar
+    if(nxm) wallSeg(sx,sy,sx-4,sx,0,hx,wp,corner?2:0);             // back halves first, then the front ones
+    if(nym) wallSeg(sx,sy,sx,sx+4,1,hy,wp,corner?1:0);
+    if(nxp) wallSeg(sx,sy,sx,sx+4,0,hx,wp,(corner?1:0)|(cy&&!nxm&&!nym?1:0));
+    if(nyp) wallSeg(sx,sy,sx-4,sx,1,hy,wp,corner?2:0);
+    if(cx&&!cy){ if(!nxm) wallSeg(sx,sy,sx,sx,0,hx,wp,1); if(!nxp) wallSeg(sx,sy,sx,sx,0,hx,wp,1); }   // a free end: a clean edge
+    if(cy&&!cx){ if(!nym) wallSeg(sx,sy,sx,sx,1,hy,wp,1); if(!nyp) wallSeg(sx,sy,sx,sx,1,hy,wp,1); }
+}
 static void tileMark(int tx,int ty,u16 cc){   // diamond outline on a tile (editor cursor / preview)
-    char c=lifeMap[ty][tx]; int hgt=isWallCh(c)?wallH(tx,ty)*CC:tileH(tx,ty);
+    char c=lifeMap[ty][tx]; int hgt=isWallCh(c)?0:tileH(tx,ty);
     int sx=LOX+(tx-ty)*CA, sy=LOY+(tx+ty+1)*CB-hgt;
     if(sx<-CA-1||sx>SW+CA||sy<-CB-2||sy>SH+CB+2) return;   // off screen
     for(int t=-CA;t<=CA;t++){ int at=t<0?-t:t, hh=hhT[0][at]; px(sx+t,sy-hh,cc); px(sx+t,sy-hh-1,cc); px(sx+t,sy+hh,cc); px(sx+t,sy+hh+1,cc); }
@@ -1716,8 +1769,8 @@ static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
         for(int tx=a;tx<=b;tx++){ int ty=s-tx;
             int sx=LOX+(tx-ty)*CA, sy=LOY+(tx+ty+1)*CB;
             if(sx+CA<x0||sx-CA>=x1||sy+CB<y0||sy-CB>=y1) continue;   // the diamond does not reach the rectangle
-            CNT(cntTiles); char c=cellAt(tx,ty); if(c=='w'||c=='W'||c=='#') continue;
-            { int fl=flAt(tx,ty), v=(tx^ty)&1; if(sFl) floorTile(sx,sy,&flTab[fl][v][0][0]); else tileTop(sx,sy,flFlat[fl][v]); } } }
+            CNT(cntTiles); char c=cellAt(tx,ty); if(c=='#') continue;
+            { int fl=(c=='w'||c=='W')?wallFloorR(tx,ty):flAt(tx,ty), v=(tx^ty)&1; if(sFl) floorTile(sx,sy,&flTab[fl][v][0][0]); else tileTop(sx,sy,flFlat[fl][v]); } } }   // (walls are thin now: the room's floor runs under them)
     int ss=0; if(!ed){ s32 rfx,rfy; rotPos(lfx,lfy,&rfx,&rfy); ss=(int)((rfx>>8)+(rfy>>8)); }
     for(int s=s0;s<=s1;s++){ int a,b; bandCols(s,x0,x1,&a,&b);
         for(int tx=a;tx<=b;tx++){ int ty=s-tx;
@@ -2112,12 +2165,17 @@ static const char* const toolHint[NTOOL][2]={
  {"A CORNER  A AGAIN FILLS THE AREA  B CANCEL","L R FLOOR  SEL TOOL  START MENU"},
  {"A PLACE  B ERASE  HOLD AND MOVE TO PAINT","L R ITEM  SEL+A TURN RAMP  SEL TOOL"},
  {"A CORNER  A AGAIN CLEARS THE AREA  B CANCEL","SEL TOOL  START MENU"} };
+static void texSwatch(const Tex*t,int x,int y);
+static void wallSwatch(int wp,int x,int y){   // 8x8: an old pattern, or a new wallpaper squeezed (every 3rd row)
+    if(wp<NWP){ texSwatch(&wpTex[wp],x,y); return; }
+    for(int r=0;r<8;r++)for(int u=0;u<8;u++) px(x+u,y+r,wxTex[wp-NWP][0][u][r*WALL_H/8]);
+}
 static void texSwatch(const Tex*t,int x,int y){   // the 8x8 pattern itself, 1:1
     rect(x-1,y-1,10,10,WHITE);
     for(int v=0;v<8;v++)for(int u=0;u<8;u++) px(x+u,y+v,t->c[t->p[v][u]-'0']);
 }
 static int eApply(void){   // second A of ROOM / WALL / FLOOR / ERASE. 0 = refused
-    int x0,y0,x1,y1; eRect(&x0,&y0,&x1,&y1);
+    int x0,y0,x1,y1; eRect(&x0,&y0,&x1,&y1); wDirty=1;
     if(eTool==T_ROOM){
         if(x1-x0<2||y1-y0<2) return 0;   // needs at least 3 x 3
         for(int y=y0;y<=y1;y++)for(int x=x0;x<=x1;x++){
@@ -2158,10 +2216,10 @@ static void drawEditorHud(const char*msg){
                 case 20:blitItem(V_TRASH,221,141);break; case 21:blitItem(V_PLANTER,221,141);break; case 22:blitItem(V_PICNIC,221,141);break;
                 case 23:blitItem(V_JERSEYU,221,141);break; case 24:blitItem(V_MPAD,221,141);break;
                 case 14:blitItem(V_BED,221,141);break; case 15:blitItem(V_SHOWER,221,141);break; case 16:blitItem(V_SOFA,221,141);break; default:drawSpawn(221,142); } }
-        if(eOb==1||eOb==2){ texSwatch(&wpTex[eWp],212,137); }
+        if(eOb==1||eOb==2){ wallSwatch(eWp,212,137); }
     } else if(eTool!=T_ERASE){
         if(eTool!=T_WALL){ text(2,139,"FLOOR",DIMC,1); texSwatch(&flTex[eFl],24,137); text(36,139,flTex[eFl].nm,WHITE,1); }
-        if(eTool!=T_FLOOR){ text(100,139,"WALL",DIMC,1); texSwatch(&wpTex[eWp],118,137); text(130,139,wpTex[eWp].nm,WHITE,1); }
+        if(eTool!=T_FLOOR){ text(100,139,"WALL",DIMC,1); wallSwatch(eWp,118,137); text(130,139,wpName(eWp),WHITE,1); }
     } else text(2,139,"CLEARS WALLS ITEMS AND FLOORS",DIMC,1);
     text(2,147,toolHint[eTool][0],RGB(12,14,16),1); text(2,153,toolHint[eTool][1],RGB(12,14,16),1);
 }
@@ -2209,9 +2267,9 @@ static void mapEditor(void){
         if(pr|rel) dirty=1;
         if(pr&(K_L|K_R)){
             int d=(pr&K_R)?1:-1;
-            if(k&K_SEL){ eWp=(eWp+d+NWP)%NWP; comboUsed=1; }
+            if(k&K_SEL){ eWp=(eWp+d+NWALL)%NWALL; comboUsed=1; }
             else if(eTool==T_ITEM) eOb=(eOb+d+NOBJ)%NOBJ;
-            else if(eTool==T_WALL) eWp=(eWp+d+NWP)%NWP;
+            else if(eTool==T_WALL) eWp=(eWp+d+NWALL)%NWALL;
             else if(eTool!=T_ERASE) eFl=(eFl+d+NFL)%NFL;
         }
         if(rel&K_SEL){ if(!comboUsed){ eTool=(eTool+1)%NTOOL; eAct=0; } comboUsed=0; }
