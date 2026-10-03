@@ -44,3 +44,7 @@ SONG_XM(spanish_flexicode,"AN ODE TO THE SPANISH FLEXICODE","tools/spanish_flexi
 // MI CORA ZONE = a rework of THE DIPPER MAN (133 BPM, 92 bars, about 2:50): intro, drop, hook, breakdown, second drop,
 // half-time bridge, key lift (+2 semitones) and outro. Built from the original sounds; the generator is not in the repo.
 SONG_XM(mi_cora_zone,"MI CORA ZONE","tools/mi_cora_zone.xm")
+// EXCUSES: an expansive house / ambient rework of "The Dipper Man - Excuses" (tools/make_excuses_rework.py, about 6:47)
+SONG_XM(excuses_house,"EXCUSES","tools/excuses_house.xm")
+// WHISTLER MAN: a steely half-time shuffle (the Purdie shuffle) rework of "The Dipper Man - Whistler Man" (tools/make_whistler_rework.py, about 5:37)
+SONG_XM(whistler_shuffle,"WHISTLER MAN","tools/whistler_shuffle.xm")

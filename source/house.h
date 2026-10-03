@@ -683,7 +683,7 @@ _Static_assert(HH_OFF+4+HH_MAX*HH_REC+HH_RELB+1<=20480,"the household must fit b
 
 // ---- the pause menu's HOUSEHOLD screen ----
 static void hhMenu(void){
-    static char lb[HH_NFAM+3][24]; const char* it[HH_NFAM+3]; int n=0;
+    static char lb[HH_NFAM+4][24]; const char* it[HH_NFAM+4]; int n=0;
     it[n++]="RELATIONSHIPS";
     for(int f=0;f<HH_NFAM;f++){ char*e=lb[n]; const char*p="MOVE IN "; while(*p) *e++=*p++; p=hhFams[f].fam; while(*p) *e++=*p++; *e=0; it[n]=lb[n]; n++; }
     it[n++]="MOVE EVERYONE OUT"; it[n++]="INVITE A NEW SIM"; it[n++]="MOVE SOMEONE OUT";
