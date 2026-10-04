@@ -35,7 +35,7 @@
 //     4992   .. 5007    active slot (SLOT_DIR)        5008 .. 5023   life stage (AGE_OFF)
 //     5024   .. 5055    persona (PERS_OFF)            5056 .. 5135   jukebox (JB_OFF)
 //     5136   .. 5199    the life (SIM_OFF)            5200 .. 5215   SAVE MEMORY TEST (SRAM_TEST)
-//     5216   .. 7263    the household (SL_HH_OFF; SL_HH_LEN = 2048 bytes are reserved; it used to be 1024)
+//     5216   .. 8191    the household (SL_HH_OFF; SL_HH_LEN = 2976 bytes are reserved; it was 1024, then 2048)
 //     8192   .. 32767   SLOT_N room slots of SLOT_SZ bytes (twelve; layout 1 had six, from 20480, and its small blocks in between)
 // Layout 1 saves are carried over the first time the game starts (slMigrate): the old six slots keep their bytes and become slots 7 to 12.
 #define SLOT_BASE  8192
@@ -47,7 +47,7 @@
 #define SRAM_TEST  5200       // 16 spare bytes the SAVE TEST in the options writes to
 #define SL_HH_OFF  5216       // the household block (house.h); SL_MIG_HH bytes are reserved for it
 #define SL_MIG_HH  1024       // what the layout 1 -> 2 upgrade copies (old households fit in it)
-#define SL_HH_LEN  2048       // what the household block may use now (5216..7263; nothing else lives up to SLOT_BASE)
+#define SL_HH_LEN  2976       // what the household block may use now (5216..8191; nothing else lives up to SLOT_BASE)
 #define SL_MIG_TAG 4808
 #define SL_OLD_BASE 20480     // layout 1: the six slots started here
 #define SL_OLD_N    6
@@ -171,7 +171,7 @@ static void slEncPlane(SlW*w,int plane){   // 0 = voxels, 1 = face sprite low by
     if(n){ slwPut(w,n); slwPut(w,cur); }
 }
 static void slEncPerson(SlW*w){
-    slwPut(w,9);                                            // format 9 (8 had no leg width, arm width, antenna, tail length / curl / thickness, horn size / spread / curve / height ear front-back / spread, head size, hand foot size, wing size or tail tip); format 8 (7 had no tone, brow / nose height, torso, arms or stance sliders); format 7 (6 had no claws, antennae or body paint); format 6 (5 had no brows, nose, cheeks, glasses, eye colour or body / face sliders); format 5 (4 had no hats, beards or clothes styles; 3 had no persona: it reads as the one already set; 2 had no sliders: they read as 0 = the middle; 1 had no life stage: those people are adults)
+    slwPut(w,10);   // format 10 adds neck, hip / waist / shoulder / thigh / calf width and 11 more tail, horn, wing, antenna and ear sliders;                                            // format 9 (8 had no leg width, arm width, antenna, tail length / curl / thickness, horn size / spread / curve / height ear front-back / spread, head size, hand foot size, wing size or tail tip); format 8 (7 had no tone, brow / nose height, torso, arms or stance sliders); format 7 (6 had no claws, antennae or body paint); format 6 (5 had no brows, nose, cheeks, glasses, eye colour or body / face sliders); format 5 (4 had no hats, beards or clothes styles; 3 had no persona: it reads as the one already set; 2 had no sliders: they read as 0 = the middle; 1 had no life stage: those people are adults)
     for(int i=0;i<LK_N;i++) slwPut(w,look[i]);
     slwPut(w,stage); slwPut(w,ageDays);
     slwPut(w,pAsp); slwPut(w,pLtw); for(int i=0;i<TR_N;i++) slwPut(w,pTr[i]);   // persona: aspiration, lifetime want, personality
@@ -185,8 +185,8 @@ static int slDecPlane(SlR*c,int plane){
     return 1;
 }
 static int slDecPerson(SlR*c,int apply){
-    int fmt=slrGet(c); if(c->bad||fmt<1||fmt>9) return 0;
-    u8 lk[LK_N]={0}; for(int i=0;i<(fmt>=9?LK_N:fmt>=8?LK_N8:fmt>=7?LK_N7:fmt>=6?LK_N6:fmt>=5?LK_N5:fmt>=4?LK_N4:fmt>=3?LK_N3:LK_BASE);i++) lk[i]=(u8)slrGet(c);
+    int fmt=slrGet(c); if(c->bad||fmt<1||fmt>10) return 0;
+    u8 lk[LK_N]={0}; for(int i=0;i<(fmt>=10?LK_N:fmt>=9?LK_N9:fmt>=8?LK_N8:fmt>=7?LK_N7:fmt>=6?LK_N6:fmt>=5?LK_N5:fmt>=4?LK_N4:fmt>=3?LK_N3:LK_BASE);i++) lk[i]=(u8)slrGet(c);
     int stg=AG_ADULT, agd=0; if(fmt>=2){ stg=slrGet(c); agd=slrGet(c); }
     if(c->bad||stg>=AG_N) return 0;
     int pa=pAsp, pl=pLtw; u8 pt[TR_N]; for(int i=0;i<TR_N;i++) pt[i]=pTr[i];
@@ -196,6 +196,7 @@ static int slDecPerson(SlR*c,int apply){
     for(int i=LK_HEIGHT;i<=LK_MOUTHHT;i++) if(lk[i]>=9) return 0;
     for(int i=LK_HTONE;i<=LK_STANCE;i++) if(lk[i]>=9) return 0;
     if(lk[LK_BUTT]>=9||lk[LK_BUTTH]>=9||lk[LK_BUTTW]>=9||lk[LK_LEGW]>=9||lk[LK_ARMW]>=9||lk[LK_ANTLEN]>=9||lk[LK_ANTSPR]>=9||lk[LK_ANTTIP]>=9||lk[LK_TAILLEN]>=9||lk[LK_HORNSZ]>=9||lk[LK_TAILCURL]>=9||lk[LK_TAILTHK]>=9||lk[LK_HORNSPR]>=9||lk[LK_HORNCRV]>=9||lk[LK_HORNHT]>=9||lk[LK_EARFWD]>=9||lk[LK_EARSPR]>=9||lk[LK_HEADSZ]>=9||lk[LK_HANDFT]>=9||lk[LK_WINGSZ]>=9||lk[LK_TAILTIP]>=7) return 0;
+    for(int i=LK_NECK;i<=LK_EARWID;i++) if(lk[i]>=9) return 0;
     if(lk[LK_CLAWS]>=3||lk[LK_ANTENNA]>=3||lk[LK_PATTERN]>=7||lk[LK_PATCOL]>=6) return 0;
     if(lk[LK_FEARS]>=5||lk[LK_MUZZLE]>=4||lk[LK_FTAIL]>=4) return 0;
     if(cu>1) return 0;

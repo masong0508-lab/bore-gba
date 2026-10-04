@@ -724,14 +724,16 @@ static void hhSwitch(void){
 
 // ---- saving (SRAM at HH_OFF): 'H' '2' count, your uid, then per member its look, stage, persona, name, needs and uid, then the
 // relationships (daily, lifetime, flags for every pair of uids); checksum last ----
-#define HH_REC (LK_N+3+TR_N+2*HH_NM+HN_N+1)   // ('H6' and older held a 10-byte first name and no last name)
+#define HH_REC (LKPK+3+TR_N+2*HH_NM+HN_N+1)   // ('H6' and older held a 10-byte first name and no last name)
 #define HH_RELB (3*HU_N*HU_N)
 static void hhSave(void){
     volatile u8*m=(volatile u8*)0x0E000000+HH_OFF; int k=3; u8 sum=0x48;
-    m[0]='H'; m[1]='8'; m[2]=(u8)hhN; m[k++]=(u8)hhPUid;
+    m[0]='H'; m[1]='9'; m[2]=(u8)hhN; m[k++]=(u8)hhPUid;
     for(int j=0;j<HH_NM;j++) m[k++]=(u8)hhPName[j]; for(int j=0;j<HH_NM;j++) m[k++]=(u8)hhPLast[j];   // your own name
     for(int i=0;i<hhN;i++){ const HhSim*s=&hhM[i];
-        for(int j=0;j<LK_N;j++) m[k++]=s->look[j]; m[k++]=s->stage; m[k++]=s->asp; m[k++]=s->ltw;
+        for(int j=0;j<LK_N;j++) if(!lkSlide(j)) m[k++]=s->look[j];   // 'H9': the picks as bytes, then the sliders (9 values) two to a byte
+        { int h=-1; for(int j=0;j<LK_N;j++) if(lkSlide(j)){ int v=s->look[j]&15; if(h<0) h=v; else { m[k++]=(u8)(h|(v<<4)); h=-1; } } if(h>=0) m[k++]=(u8)h; }
+        m[k++]=s->stage; m[k++]=s->asp; m[k++]=s->ltw;
         for(int j=0;j<TR_N;j++) m[k++]=s->tr[j]; for(int j=0;j<HH_NM;j++) m[k++]=(u8)s->name[j]; for(int j=0;j<HH_NM;j++) m[k++]=(u8)s->last[j]; for(int j=0;j<HN_N;j++) m[k++]=s->need[j]; m[k++]=s->uid; }
     for(int a=0;a<HU_N;a++)for(int b=0;b<HU_N;b++){ m[k++]=(u8)relD[a][b]; m[k++]=(u8)relL[a][b]; m[k++]=relF[a][b]; }
     for(int i=2;i<k;i++) sum+=m[i];
@@ -739,15 +741,18 @@ static void hhSave(void){
 }
 static void hhLoad(void){
     volatile u8*m=(volatile u8*)0x0E000000+HH_OFF; u8 sum=0x48; hhN=0;
-    if(m[0]!='H'||m[1]<'2'||m[1]>'8'||m[2]>HH_MAX) return;
+    if(m[0]!='H'||m[1]<'2'||m[1]>'9'||m[2]>HH_MAX) return;
     int old=m[1]<'6', hu=old?HH_MAXOLD+1:HU_N;   // before 'H6' the relationships were kept for 10 uids
-    int v7=m[1]>='7', nb=v7?2*HH_NM:10, nl=m[1]>='8'?LK_N:v7?LK_N8:m[1]>='5'?LK_N7:m[1]=='4'?LK_N6:m[1]=='3'?LK_N5:LK_N4, rec=HH_REC-LK_N+nl-2*HH_NM+nb;   // 'H2' households were saved before the hats and clothes, 'H3' before the face details and sliders
+    int v7=m[1]>='7', nb=v7?2*HH_NM:10, nl=m[1]>='9'?LKPK:m[1]>='8'?LK_N9:v7?LK_N8:m[1]>='5'?LK_N7:m[1]=='4'?LK_N6:m[1]=='3'?LK_N5:LK_N4, rec=HH_REC-LKPK+nl-2*HH_NM+nb;   // 'H2' households were saved before the hats and clothes, 'H3' before the face details and sliders
     int n=m[2], hb=v7?2*HH_NM:0, k=4+hb+n*rec+3*hu*hu; for(int i=2;i<k;i++) sum+=m[i]; if(m[k]!=sum) return;
     if(m[3]>=hu) return;
     k=4; hhPUid=m[3];
     if(v7){ for(int j=0;j<HH_NM;j++) hhPName[j]=(char)m[k++]; for(int j=0;j<HH_NM;j++) hhPLast[j]=(char)m[k++]; hhPName[HH_NM-1]=hhPLast[HH_NM-1]=0; if(!hhPName[0]){ hhPName[0]='Y'; hhPName[1]='O'; hhPName[2]='U'; hhPName[3]=0; } }
     for(int i=0;i<n;i++){ HhSim*s=&hhM[i];
-        for(int j=0;j<LK_N;j++) s->look[j]=j<nl?m[k++]:0; s->stage=m[k++]; s->asp=m[k++]; s->ltw=m[k++];
+        if(m[1]>='9'){ for(int j=0;j<LK_N;j++) s->look[j]=0; for(int j=0;j<LK_N;j++) if(!lkSlide(j)) s->look[j]=m[k++];
+          int h=-1; for(int j=0;j<LK_N;j++) if(lkSlide(j)){ if(h<0){ int b=m[k++]; s->look[j]=(u8)(b&15); h=b>>4; } else { s->look[j]=(u8)h; h=-1; } } }
+        else for(int j=0;j<LK_N;j++) s->look[j]=j<nl?m[k++]:0;
+        s->stage=m[k++]; s->asp=m[k++]; s->ltw=m[k++];
         for(int j=0;j<TR_N;j++) s->tr[j]=m[k++]; if(v7){ for(int j=0;j<HH_NM;j++) s->name[j]=(char)m[k++]; for(int j=0;j<HH_NM;j++) s->last[j]=(char)m[k++]; } else { for(int j=0;j<10;j++) s->name[j]=(char)m[k++]; s->last[0]=0; } s->name[HH_NM-1]=s->last[HH_NM-1]=0; s->name[9]=v7?s->name[9]:0; for(int j=0;j<HN_N;j++) s->need[j]=m[k++]; s->uid=m[k++];
         if(s->stage>=AG_N||s->asp>=AS_PICK||s->uid>=hu) return;
         s->act=HA_IDLE; s->think=(short)(rnd8()&63); s->hd=0; s->bubT=0; }
