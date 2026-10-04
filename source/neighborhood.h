@@ -31,6 +31,7 @@ static const char* const todNm[3]={"DAY","DUSK","NIGHT"};
 typedef struct { u8 on,x,y,w,h,kind,type; s8 slot; char name[NB_NAME+1]; u8 floors; u16 value; } NbLot;   // value: what it sells for
 typedef struct { char tag[4]; char name[NB_NAME+1]; u8 season,tod,home,cur,zoom,pad[3]; u8 cell[NB_H][NB_W]; NbLot lot[NB_LOTS]; } Town;
 static Town nbT EWRAM_BSS;
+static int nbWho(int li,char*nm); static int nbLives(int li); static int hhPlayAt(int li); static int hhNewAt(int li);   // households.h: who lives on a lot, playing them, new Sims
 static u8 nbOk;                  // nbT holds a town
 static int nbTS=-1;              // the slot nbT was loaded from (or -1: a new town, it gets a free slot)
 static Town nbTmp EWRAM_BSS;     // another town, read for the chooser's thumbnails
@@ -236,7 +237,7 @@ static void nbDrawLotModel(int i,int sx,int sy){   // HOOK: a lot's building (a 
     const NbLot*L=&nbT.lot[i]; int k=nbK, s=(L->w<L->h?L->w:L->h);
     static const u16 wallC[6]={RGB(28,26,20),RGB(18,23,28),RGB(29,22,18),RGB(20,25,18),RGB(26,26,26),RGB(27,24,14)}, roofC[6]={RGB(20,6,5),RGB(9,9,12),RGB(14,9,5),RGB(6,13,9),RGB(22,10,6),RGB(12,7,14)};
     if(L->kind==LKIND_RES){
-        if(L->slot<0&&nbT.cur!=i){   // FOR SALE
+        if(L->slot<0&&nbT.cur!=i&&!nbLives(i)){   // FOR SALE (a lot where a household lives shows their house)
             rect(sx,sy-6*k,1,6*k,nbTint(RGB(14,9,4))); rect(sx-2*k,sy-7*k,4*k+1,3*k,nbTint(WHITE)); rect(sx-2*k,sy-7*k,4*k+1,1,nbTint(RGB(28,4,4))); px(sx,sy-6*k,nbTint(RGB(28,4,4)));
             return; }
         int hw2=s*nbHw/2, wh=(3+3*L->floors)*k, c=i%6; u16 w=nbTint(wallC[c]);
@@ -314,7 +315,7 @@ static void nbPanel(int ccx,int ccy,int tool,int sub){
     if(tool==0&&li>=0){
         const NbLot*L=&nbT.lot[li]; text(4,135,L->name,WHITE,1);
         e=slCat(b,L->kind==LKIND_RES?"HOME LOT ":ctNm[L->type]); e=slCat(e,"  "); e=slNum(e,L->w*4); e=slCat(e," X "); slNum(e,L->h*4); text(84,135,b,DIMC,1);
-        if(li==nbT.home) e=slCat(b,"YOUR HOME  "); else if(L->kind==LKIND_COMM) e=slCat(b,"COMMUNITY  "); else if(L->slot<0&&nbT.cur!=li) e=slCat(b,"FOR SALE  "); else { e=slCat(b,"HOUSE "); e=slNum(e,L->floors); e=slCat(e,L->floors>1?" FLOORS  ":" FLOOR  "); }
+        if(li==nbT.home) e=slCat(b,"YOUR HOME  "); else if(L->kind==LKIND_COMM) e=slCat(b,"COMMUNITY  "); else if(nbWho(li,0)){ char f[24]; f[0]=0; nbWho(li,f); e=slCat(b,f); e=slCat(e,"  "); } else if(L->slot<0&&nbT.cur!=li) e=slCat(b,"FREE LOT  "); else { e=slCat(b,"HOUSE "); e=slNum(e,L->floors); e=slCat(e,L->floors>1?" FLOORS  ":" FLOOR  "); }
         nbMoney(e,L->value); text(4,145,b,GOLD,1);
         text(4,153,nbT.cur==li?"A  LOT MENU   YOU ARE HERE":"A  LOT MENU",RGB(12,14,16),1);
         return;
@@ -338,16 +339,24 @@ static int nbFree(int x,int y,int w,int h,int skip){   // can a lot go there?
 static int nbCash(int*have){ simsDefaults(); if(!simsLoad()){ *have=-1; return 0; } *have=simMoney; return 1; }   // the life's cash (0 = no life yet)
 static int nbLotMenu(int li){   // returns 1 when the screen should close (play started and asked for the main menu)
     NbLot*L=&nbT.lot[li]; const char*it[9]; int id[9], n=0;
-    enum { A_PLAY, A_BUILD, A_MOVE, A_RENAME, A_TYPE, A_BULL, A_DEL };
+    enum { A_PLAY, A_BUILD, A_MOVE, A_RENAME, A_TYPE, A_BULL, A_DEL, A_HH, A_NEWHH };
+    char who[24]; who[0]=0; int lives=L->kind==LKIND_RES&&nbWho(li,who);
+    static char ph[32]; if(lives){ char*e=slCat(ph,"PLAY "); slCat(e,who); it[n]=ph; id[n++]=A_HH; }   // (The Sims 2: play the household that lives there)
+    else if(L->kind==LKIND_RES&&li!=nbT.home){ it[n]="NEW HOUSEHOLD HERE"; id[n++]=A_NEWHH; }
     it[n]=L->kind==LKIND_COMM?"VISIT":li==nbT.home?"PLAY":"PLAY HERE"; id[n++]=A_PLAY;
     it[n]="BUILD"; id[n++]=A_BUILD;
-    if(L->kind==LKIND_RES&&li!=nbT.home){ it[n]="MOVE IN"; id[n++]=A_MOVE; }
+    if(L->kind==LKIND_RES&&li!=nbT.home&&!lives){ it[n]="MOVE IN"; id[n++]=A_MOVE; }
     it[n]="RENAME"; id[n++]=A_RENAME;
     if(L->kind==LKIND_COMM){ it[n]="CHANGE TYPE"; id[n++]=A_TYPE; }
     if(L->slot>=0||nbT.cur==li){ it[n]="BULLDOZE"; id[n++]=A_BULL; }
     it[n]="DELETE LOT"; id[n++]=A_DEL;
     int c=menu(L->name,it,n); if(c<0) return 0;
     switch(id[c]){
+        case A_HH: case A_NEWHH:   // another household: yours waits in the bank, theirs (or new Sims, made in the creator) plays this lot
+            if(!(id[c]==A_HH?hhPlayAt(li):hhNewAt(li))) return 0;
+            if(id[c]==A_NEWHH){ creatureEditor(); if(gToMenu) return 1; }
+            else { nbPlaying=1; lifeMode(0); nbPlaying=0; if(gToMenu) return 1; }
+            nbValueLive(li); nbStore(li); nbSave(); menuMusSync(); return 0;
         case A_PLAY: case A_BUILD:
             if(!nbGo(li)){ toast(nbErr); return 0; }
             if(id[c]==A_PLAY){ nbPlaying=1; lifeMode(0); nbPlaying=0; if(gToMenu) return 1; }
@@ -371,6 +380,7 @@ static int nbLotMenu(int li){   // returns 1 when the screen should close (play 
             nbSave(); toast("BULLDOZED"); return 0; }
         case A_DEL: {
             if(li==nbT.home){ toast("YOU LIVE HERE"); return 0; }
+            if(nbLives(li)){ toast("A HOUSEHOLD LIVES HERE"); return 0; }
             if(li==nbT.cur){ toast("GO TO ANOTHER LOT FIRST"); return 0; }
             const char*yn[2]={"NO","YES"}; if(menu("DELETE THIS LOT",yn,2)!=1) return 0;
             if(L->slot>=0) slDelete(L->slot);

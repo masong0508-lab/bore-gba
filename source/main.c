@@ -2283,6 +2283,7 @@ static u16 babyPad(void){
     if(--t<=0||still>10){ int r=rnd8(); dir=(r&3)==0?0:1+((r>>2)&7); t=40+(rnd8()&63); still=0; }
     return dm[dir];
 }
+static void phoneMenu(void); static void phTick(void);   // households.h: the PHONE, and the food it ordered
 static void lifeStep(u16 k,u16 pr,int fr){
     if(stage==AG_BABY&&!ldead){ k=babyPad(); pr=0; }   // uncontrollable stage: the pad is ignored (the pause menu still works)
     int fh=surfH(lfx,lfy)<<8;
@@ -2359,7 +2360,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
     if(!lhave&&lz<(8<<8)&&(lfx>>8)==BDX&&(lfy>>8)==BDY){ lhave=1; lnote="GOT A SKATEBOARD"; lnoteT=90; moodEvent(M_GOT_BOARD); }   // walk over it to pick it up
     if(!ldead){   // needs: hunger and bladder, then how they (and the skating) make the skater feel
         if(stage==AG_BABY){ if(lfood<70) lfood=70; if(lbl>30) lbl=30; if(sNrg<60) sNrg=60; if(sHyg<60) sHyg=60; if(sCom<60) sCom=60; }   // looked after
-        moodTick(); simsTick(pr,(int)(lfx>>8),(int)(lfy>>8)); hhTick();
+        moodTick(); simsTick(pr,(int)(lfx>>8),(int)(lfy>>8)); hhTick(); phTick();
         if(gGrow){ gGrow=0; setStage(stage+1); bakeSprites(); lnote=growNote[stage]; lnoteT=120; lstun=lstun>30?lstun:30; lsp=0; }
         { int fe=oFoodEvery(), we=oWcEvery();   // FOOD AND WC option
           if(fe&&lfr%fe==0&&lfood>0) lfood--;
@@ -2863,7 +2864,7 @@ static void camStep(int steps,u16 k,u16 pr){   // action cam: the game holds sti
     else { int f=lcamF; cview=(f<6||f>=60)?0:(f-6)/18+1; if(cview>3) cview=0; }
 }
 static int gToMenu;   // set when the player picks MAIN MENU in the pause menu, so every screen above returns to it
-static const char* const lifeItems[8]={"RESUME","ASPIRATION","HOUSEHOLD","OPTIONS","ROOM SLOTS","EDIT MAP","NEW LIFE","MAIN MENU"};
+static const char* const lifeItems[9]={"RESUME","ASPIRATION","HOUSEHOLD","PHONE","OPTIONS","ROOM SLOTS","EDIT MAP","NEW LIFE","MAIN MENU"};
 static void hhSwap(HhSim*s){   // trade places: the player becomes s, s becomes who the player was
     s32 x=lfx, y=lfy; lfx=s->fx; lfy=s->fy; s->fx=x; s->fy=y;
     { u8 h=(u8)(lhd&15); lhd=s->hd; s->hd=h; }
@@ -2940,7 +2941,7 @@ static void aspPanel(void){
         present();
     }
 }
-static const char* const lifeItemsNb[8]={"RESUME","ASPIRATION","HOUSEHOLD","OPTIONS","ROOM SLOTS","EDIT MAP","NEW LIFE","NEIGHBORHOOD"};
+static const char* const lifeItemsNb[9]={"RESUME","ASPIRATION","HOUSEHOLD","PHONE","OPTIONS","ROOM SLOTS","EDIT MAP","NEW LIFE","NEIGHBORHOOD"};
 static const char* const lifeItemsEd[3]={"RESUME","OPTIONS","BACK TO EDITOR"};
 // Timer2 (65536 Hz) is the clock (defined with the settings). The game logic always runs at 60 steps per second; the
 // frame rate setting only says how often the picture is redrawn, so lower rates save work without slowing the game.
@@ -2990,15 +2991,16 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
         if(pr&K_START){   // pause menu
             mGainT=128; sfxStop(); simsSave(); hhSave(); objHideAll(); REG_DISPCNT=0x0403;   // (no sprites over the menus, options or the editor)   // the music fades to half while a menu is open   // the pause menu is also a save point
             { u8 zz=xo[XO_ZOOM]; xo[XO_ZOOM]=0; hudApplyLayout(); camSnap=1; liveInvalidate(); lifeDraw(); xo[XO_ZOOM]=zz; }   // a whole picture behind the menu (the screen itself only holds patches), not zoomed
-            int c=menu("PAUSED",ed?lifeItemsEd:nbPlaying?lifeItemsNb:lifeItems,ed?3:8);
-            if(ed&&c>=1) c+=2;   // the test-play menu has no ASPIRATION or HOUSEHOLD entry
+            int c=menu("PAUSED",ed?lifeItemsEd:nbPlaying?lifeItemsNb:lifeItems,ed?3:9);
+            if(ed&&c>=1) c+=3;   // the test-play menu has no ASPIRATION, HOUSEHOLD or PHONE entry
             if(c==1) aspPanel();
             else if(c==2) hhMenu();
-            else if(c==3) settingsScreen();
-            else if(c==4&&!ed){ simsSaveNow(); hhSave(); if(slotScreen()) lifeInit(); }   // a slot was loaded: start again in the loaded room (the life was written first, so nothing is lost)
-            else if(c==5&&!ed){ vpFull(); mapEditor(); lifeInit(); }
-            else if(c==6&&!ed){ if(menu("START A NEW LIFE",yesNoLife,2)==1){ twKeep=0; simsNewLife(); moodReset(); lscore=0; simLastScore=0; lnote="NEW LIFE"; lnoteT=60; } }
-            else if((c==4&&ed)||c==7){ if(c==7&&!nbPlaying) gToMenu=1; break; }   // (from the neighborhood: back there)
+            else if(c==3) phoneMenu();
+            else if(c==4) settingsScreen();
+            else if(c==5&&!ed){ simsSaveNow(); hhSave(); if(slotScreen()) lifeInit(); }   // a slot was loaded: start again in the loaded room (the life was written first, so nothing is lost)
+            else if(c==6&&!ed){ vpFull(); mapEditor(); lifeInit(); }
+            else if(c==7&&!ed){ if(menu("START A NEW LIFE",yesNoLife,2)==1){ twKeep=0; simsNewLife(); moodReset(); lscore=0; simLastScore=0; lnote="NEW LIFE"; lnoteT=60; } }
+            else if((c==5&&ed)||c==8){ if(c==8&&!nbPlaying) gToMenu=1; break; }   // (from the neighborhood: back there)
             winFull(); REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=0; continue;
         }
         if(lcamF>0) camStep(steps,k,pr);
@@ -4027,6 +4029,7 @@ static void s3Pill(int x,int y,int w,int h,int on,const char*s){   // the focuse
 static void s3Round(int x,int y,int on,const char*glyph){ disc(x,y,7,on?RGB(4,10,2):RGB(3,7,16)); disc(x,y,6,on?RGB(14,27,6):RGB(9,16,27)); text(x-tw(glyph,1)/2+1,y-3,glyph,on?RGB(1,4,0):WHITE,1); }
 static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,RGB(8,14,26)); text((SW-tw(t,1))/2,152,t,RGB(26,29,31),1); }
 #include "neighborhood.h"   // THE NEIGHBORHOOD: a town of lots to live in, visit and build on (main menu)
+#include "households.h"     // THE TOWN'S HOUSEHOLDS: who lives where, the household bank, visitors, the phone
 // ---------- main menu (The Sims 3 look): a glossy panel over your town, lit for the time of day of your life's clock ----------
 #define MM_N 7
 static const char* const mmName[MM_N]={"Play","Create a Bore","Build Mode","Jukebox","Room Slots","Options","?"};
@@ -4124,16 +4127,19 @@ static int newGame(int slot){   // 1 = it started (and ended: back to the main m
 }
 
 // ---------- PLAY (The Sims 3 New Game panel): pick a town, then CONTINUE your life, VISIT the town, or a NEW GAME there ----------
-static void plDraw(const int*l,int n,int sel,int act,int foc,int tile){
+static void plDraw(const int*l,int n,int sel,int act,int foc,int tile,int full){   // full 0: only what the cursor changes (the dropdown, the tiles, the tip)
+    int ok=n&&nbRead(l[sel],&nbTmp);
+    if(full){
     s3Panel(8,16,224,124); text(22,24,"Play",RGB(3,9,20),1);
     s3Well(16,31,208,55);
     rect(20,35,74,47,RGB(3,8,18));
-    int ok=n&&nbRead(l[sel],&nbTmp); if(ok) nbThumb(&nbTmp,21,36,72,45);
+    if(ok) nbThumb(&nbTmp,21,36,72,45);
     text(100,34,"Select a Town:",RGB(3,9,20),1);
+    }
     s3Box(100,43,118,13,4,foc==0?RGB(12,20,31):RGB(8,14,27),foc==0?RGB(6,12,26):RGB(4,9,20));
-    if(foc==0){ rect(100,56,118,1,RGB(14,27,6)); }
+    rect(100,56,118,1,foc==0?RGB(14,27,6):RGB(23,29,31));
     text(106,46,ok?nbTmp.name:"NO TOWNS",WHITE,1); text(196,46,"<>",RGB(20,26,31),1);
-    if(ok){ int lots=0,homes=0,wat=0,sand=0; for(int i=0;i<NB_LOTS;i++) if(nbTmp.lot[i].on){ lots++; if(nbTmp.lot[i].kind==LKIND_RES&&nbTmp.lot[i].slot>=0) homes++; }
+    if(ok&&full){ int lots=0,homes=0,wat=0,sand=0; for(int i=0;i<NB_LOTS;i++) if(nbTmp.lot[i].on){ lots++; if(nbTmp.lot[i].kind==LKIND_RES&&nbTmp.lot[i].slot>=0) homes++; }
         for(int y=0;y<NB_H;y++)for(int x=0;x<NB_W;x++){ int g=NB_GR(nbTmp.cell[y][x]); wat+=g==NT_WATER; sand+=g==NT_SAND; }
         char b[40]; char*e=slNum(b,lots); e=slCat(e," LOTS  "); e=slNum(e,homes); slCat(e,homes==1?" HOUSE":" HOUSES");
         text(102,60,sand>100?"OUT IN THE DESERT":wat>40?"A TOWN BY THE WATER":"A QUIET GREEN SUBURB",RGB(3,9,20),1);
@@ -4142,12 +4148,12 @@ static void plDraw(const int*l,int n,int sel,int act,int foc,int tile){
     for(int i=0;i<2;i++){ int x=22+i*72, y=92, on=foc==1&&tile==i;
         s3Box(x,y,66,36,5,on?RGB(14,27,6):RGB(9,15,25),on?RGB(8,20,3):RGB(7,12,22)); s3Box(x+1,y+1,64,34,4,on?RGB(26,31,20):RGB(27,30,31),on?RGB(20,29,12):RGB(20,26,31));
         if(i==0) nbIsoBox(x+33,y+17,11,7,7,RGB(20,18,14),RGB(28,26,20),RGB(14,4,4),RGB(20,6,5));
-        else if(ok) nbThumb(&nbTmp,x+13,y+4,40,18);
+        else if(ok) nbThumb(&nbTmp,x+13,y+4,40,18);   // (small: cheap enough to draw again)
         text(x+33-tw(i?"Visit Town":"Continue",1)/2,y+25,i?"Visit Town":"Continue",RGB(2,5,11),1); }
     { int on=foc==1&&tile==2; disc(190,106,10,on?RGB(4,10,2):RGB(5,10,20)); disc(190,106,9,on?RGB(14,27,6):RGB(18,25,31)); rect(185,105,11,2,on?RGB(1,4,0):WHITE); rect(189,101,2,11,on?RGB(1,4,0):WHITE);
       text(190-tw("New Game",1)/2,119,"New Game",RGB(2,5,11),1); }
-    disc(120,140,9,RGB(3,8,19)); disc(120,140,7,RGB(10,18,30)); for(int d=0;d<2;d++){ line(116,140+d,119,143+d,WHITE); line(119,143+d,125,136+d,WHITE); }   // the check button (A)
-    mmLogo(SW/2-LOGO_SW/2,0);
+    if(full){ disc(120,140,9,RGB(3,8,19)); disc(120,140,7,RGB(10,18,30)); for(int d=0;d<2;d++){ line(116,140+d,119,143+d,WHITE); line(119,143+d,125,136+d,WHITE); }   // the check button (A)
+    mmLogo(SW/2-LOGO_SW/2,0); }
     if(foc==0) s3Tip("LEFT RIGHT TOWN  SELECT NEW  START RENAME");
     else if(tile==0) s3Tip("PLAY ON WHERE YOU LEFT OFF");
     else if(tile==1) s3Tip("THE TOWN MAP  LOTS  MOVE IN AND BUILD");
@@ -4156,17 +4162,17 @@ static void plDraw(const int*l,int n,int sel,int act,int foc,int tile){
 static void playScreen(void){
     int l[SLOT_MAX], n=nbFirstTowns(l);
     nbOk=nbLoad(); int act=nbTS, sel=0; for(int i=0;i<n;i++) if(l[i]==act) sel=i;
-    int foc=1, tile=0, dirty=1; u16 prev=keyNow();
+    int foc=1, tile=0, dirty=6; u16 prev=keyNow();
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k;
-        if(pr&K_UP){ foc=0; dirty=1; }
-        if(pr&K_DOWN){ foc=1; dirty=1; }
+        if(pr&K_UP){ foc=0; dirty|=1; }
+        if(pr&K_DOWN){ foc=1; dirty|=1; }
         int d=(pr&K_RIGHT)?1:(pr&K_LEFT)?-1:0, dt=(pr&K_R)?1:(pr&K_L)?-1:0;
-        if(foc==0&&d) dt=d; else if(d){ tile=(tile+3+d)%3; dirty=1; }
-        if(dt&&n){ sel=(sel+n+dt)%n; dirty=1; }
+        if(foc==0&&d) dt=d; else if(d){ tile=(tile+3+d)%3; dirty|=1; }
+        if(dt&&n){ sel=(sel+n+dt)%n; dirty|=4; }   // another town: its picture and description too
         if(pr&K_B) break;
         if(pr&K_A){
-            if(foc==0){ foc=1; dirty=1; }
+            if(foc==0){ foc=1; dirty|=1; }
             else if(tile==0){ lifeMode(0); break; }
             else if(tile==1&&n){ if(!nbSwitch(l[sel])){ nbOk=nbLoad(); toast(nbErr); } else { nbOk=1; neighborhoodScreen(); if(gToMenu) break; } }
             else if(tile==2){ if(newGame(n?l[sel]:-1)) break; }
@@ -4192,7 +4198,7 @@ static void playScreen(void){
                         slDelete(l[sel]); toast("NEIGHBORHOOD DELETED"); n=nbTownList(l,SLOT_MAX); if(sel>=n) sel=n-1; if(sel<0) sel=0; } } }
             nbOk=nbLoad(); act=nbTS; prev=keyNow(); dirty=2;
         }
-        if(dirty){ if(dirty&2) mmBackdrop(); plDraw(l,n,sel,act,foc,tile); present(); dirty=0; } else vsync();   // (the acid rainbow holds still here: the panel is too much to draw every frame)
+        if(dirty){ if(dirty&2) mmBackdrop(); plDraw(l,n,sel,act,foc,tile,(dirty&6)!=0); present(); dirty=0; } else vsync();   // (the acid rainbow holds still here: the panel is too much to draw every frame)
         uiTicks++; menuMusTick();
     }
     nbOk=nbLoad(); nbBounds();
@@ -4243,7 +4249,7 @@ int main(void){
     { volatile u16*io=(volatile u16*)0x04000000; for(int r=0x08/2;r<0x20/2;r++) io[r]=0; for(int r=0x40/2;r<0x56/2;r++) io[r]=0; }   // undo its BG control, scroll, windows and blend (BG2's affine registers are left alone: mode 3 needs them)
     { static volatile u32 zero; zero=0; REG_DMA3SAD=(u32)(uintptr_t)&zero; REG_DMA3DAD=VRAM_ADDR; REG_DMA3CNT=(SW*SH/2)|0x85000000u; }   // (the zero must sit in RAM: a DMA from cartridge ROM always steps its source, "fixed" or not, and used to paint ROM data on screen)   // clear its tiles out of the bitmap (else mode 3 shows them as noise until the title is drawn)
     REG_DISPCNT=0x0403;  // mode 3, BG2 on
-    initTables(); setColors(); svInit(); slInitN(); slMigrate(); chipGuard(); settingsLoad(); optsLoad(); applyRom();   // slMigrate: carries a layout 1 save over to layout 2 first (slots.h)
+    initTables(); setColors(); svInit(); slInitN(); slMigrate(); bkInit(); chipGuard(); settingsLoad(); optsLoad(); applyRom();   // slMigrate: carries a layout 1 save over to layout 2 first (slots.h)
     lrng^=(u32)titleScreen()*2654435761u;   // time spent on the title seeds the random numbers (first shuffle)
     if(konMsg) toast(konMsg==2?"DEBUG UNLOCKED":"DEBUG LOCKED");
     jbSetup();                              // load the saved shuffled order (or make a new one), placeholders hidden
