@@ -2670,6 +2670,17 @@ static int ovNow(Rc*r,unsigned*sig){   // is there an overlay, where (clamped to
 }
 static void hudApplyLayout(void){ vpY0=HUD_TOPH; vpY1=sHud>=2?SH:HUD_BOTY; }
 static void liveInvalidate(void){ vpValid=0; }
+// CLEAR CACHES (OPTIONS > VIDEO, last row): throws away everything that is only a speed-up copy and gets rebuilt on its own, so
+// a stale or glitched one is gone and the next frame starts clean. Nothing that is saved or that holds a Sim, a room or a song
+// is touched, and nothing is re-baked (that would cost more than it frees).
+static void cacheFlush(void){
+    wDirty=1;                                        // the walls' inside / outside map is worked out again
+    liveInvalidate();                                // the viewport cache: the next frame draws the whole room
+    hhSlotsFree();                                   // OBJ sprite slots: each Sim's tiles and palette are loaded again when it is next on screen
+    for(int i=0;i<MW*MH;i++) hhDist[i]=0xFFFF;       // the Sims' path-search scratch
+    sfxStop();                                       // sound effects still being mixed
+    REG_WAITCNT&=(u16)~0x4000; applyRom();           // cart prefetch off, then back on as the ROM SPEED option says: its buffer starts empty
+}
 static void liveHud(int all){   // bring the panels up to date (into fb); the pieces that changed are listed in hudRc
     hudRcN=0;
     if(all||pHud!=sHud){ all=1; }

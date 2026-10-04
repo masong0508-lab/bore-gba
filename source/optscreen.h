@@ -10,7 +10,8 @@
 // This file is included from main.c at the old SETTINGS screen's place: it needs presetNm/presetOf/setPreset/setDefaults/autoTune/
 // measureDraw/capLevel/costCache from there, slots.h for the confirm menus, and tmStart()/R_TM2CNT.
 enum { OR_VAR, OR_XO, OR_PRESET, OR_ACT };   // a plain u8 variable, an xo[] option, the preset, an action
-enum { OA_TUNE, OA_LIFESAVE, OA_LIFEERASE, OA_ROOMERASE, OA_SLOTSERASE, OA_ALLERASE, OA_SRAMTEST, OA_RESET, OA_BTNTEST };
+enum { OA_TUNE, OA_LIFESAVE, OA_LIFEERASE, OA_ROOMERASE, OA_SLOTSERASE, OA_ALLERASE, OA_SRAMTEST, OA_RESET, OA_BTNTEST, OA_CLEAN };
+static void cacheFlush(void);   // CLEAR CACHES (main.c, next to liveInvalidate: it needs the room, sprite-slot and path state)
 typedef struct { u8 kind, idx, n, def; u8*v; const char*nm; const char* const* lab; const char*d0; const char*d1; } OptRow;
 #define VR(var,n,def,nm,lab,d0,d1) {OR_VAR,0,n,def,&var,nm,lab,d0,d1}
 #define XR(i,nm,lab,d0,d1) {OR_XO,i,0,0,0,nm,lab,d0,d1}
@@ -42,7 +43,7 @@ static const OptRow pgVideo[]={
  VR(sShad,2,1,"SHADOWS",lbOnOff,"THE DARK SPOT UNDER YOUR FEET","OFF SAVES A LITTLE DRAWING"),
  VR(sShow,3,0,"PERFORMANCE INFO",lbShow,"SHOWS FPS WHILE YOU PLAY  DETAIL ALSO SHOWS","LOAD  100 MEANS A FRAME IS JUST FITTING"),
  VR(sNoWarn,2,0,"SPEED WARNING",lbWarn,"ON SHOWS TOO SLOW WHEN THE PICTURE","CANT KEEP UP  OFF HIDES THE WARNING"),
- VR(sRom,2,0,"ROM SPEED",lbRom,"FAST IS RIGHT FOR MOST CARTS AND EMULATORS","SAFE IF A FLASH CART FREEZES OR GLITCHES"),
+ VR(sRom,2,0,"ROM SPEED",lbRom,"FAST IS RIGHT FOR MOST CARTS AND EMULATORS","SAFE IF A FLASH CART FREEZES OR GLITCHES"), AR(OA_CLEAN,"CLEAR CACHES","DROPS WHAT THE GAME CAN REBUILD  RAM CACHES","AND ROM PREFETCH  SAFE  SAVES ARE NOT TOUCHED"),
 };
 static const OptRow pgPlay[]={
  XR(XO_NEED,"NEEDS",lbNeed,"HOW FAST REST CLEAN AND COMFY RUN DOWN","OFF FREEZES THEM  BRUTAL IS TWICE AS FAST"),
@@ -245,6 +246,7 @@ static void optAction(int a,int*remeasure){
         case OA_TUNE: autoTune(); costCache[costKey()]=(s16)sCost; *remeasure=0; break;
         case OA_RESET: if(menu("RESET ALL OPTIONS",slYesNo,2)==1){ optsDefaults(); setDefaults(); sTunedMsg=0; *remeasure=1; toast("OPTIONS RESET"); } break;
         case OA_BTNTEST: buttonTest(); break;
+        case OA_CLEAN: cacheFlush(); for(int i=0;i<24;i++) costCache[i]=0; sTunedMsg=0; *remeasure=1; toast("CACHES CLEARED"); break;   // the speed meter measures again by itself a moment later
         case OA_LIFESAVE:
             if(!gInPlay) toast("USE THIS FROM THE PAUSE MENU");
             else { simsSaveNow(); toast("LIFE SAVED"); } break;
