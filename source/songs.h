@@ -64,3 +64,6 @@ SONG_XM(hotdamn_rave_old,"HOT DAMN (ORIGINAL)","tools/hotdamn_rave_old.xm")
 // AIM AND SHOOT: the Caustic sketch "Aimandshoot 430 2021 V11" grown into a full piece in C# Hijaz: oud, qanun, ney and strings on a
 // half-time groove with a quiet darbuka (tools/aimandshoot_v11.caustic, read by tools/make_aimandshoot_rework.py, about 2:52)
 SONG_XM(aim_and_shoot,"AIM AND SHOOT","tools/aim_and_shoot.xm")
+// THE MAGIC ACT: a Singhs rework of "The Dipper Man - The Magic Act" (tools/the_dipper_man_the_magic_act.xm), built by tools/make_magicact_rework.py.
+// A suite in thirteen parts (about 6:47) where the original's arpeggio and hook keep coming back in a new mode, meter and colour.
+SONG_XM(magic_act,"THE MAGIC ACT","tools/magic_act.xm")

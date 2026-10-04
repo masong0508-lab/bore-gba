@@ -227,6 +227,30 @@ __asm__(".pushsection .rodata\n"
   ".global xm_aim_and_shoot_S14\nxm_aim_and_shoot_S14:\n.incbin \"source/music/xmdata.bin\",2334862,11039\n"
   ".global xm_aim_and_shoot_S15\nxm_aim_and_shoot_S15:\n.incbin \"source/music/xmdata.bin\",2345901,7481\n"
   ".global xm_aim_and_shoot_S16\nxm_aim_and_shoot_S16:\n.incbin \"source/music/xmdata.bin\",2353382,2759\n"
+  ".global xm_magic_act_ev\nxm_magic_act_ev:\n.incbin \"source/music/xmdata.bin\",2356141,32808\n"
+  ".global xm_magic_act_S4\nxm_magic_act_S4:\n.incbin \"source/music/xmdata.bin\",2388949,2254\n"
+  ".global xm_magic_act_S5\nxm_magic_act_S5:\n.incbin \"source/music/xmdata.bin\",2391203,2318\n"
+  ".global xm_magic_act_S6\nxm_magic_act_S6:\n.incbin \"source/music/xmdata.bin\",2393521,14489\n"
+  ".global xm_magic_act_S8\nxm_magic_act_S8:\n.incbin \"source/music/xmdata.bin\",2408010,6242\n"
+  ".global xm_magic_act_S10\nxm_magic_act_S10:\n.incbin \"source/music/xmdata.bin\",2414252,16617\n"
+  ".global xm_magic_act_S11\nxm_magic_act_S11:\n.incbin \"source/music/xmdata.bin\",2430869,16610\n"
+  ".global xm_magic_act_S12\nxm_magic_act_S12:\n.incbin \"source/music/xmdata.bin\",2447479,16561\n"
+  ".global xm_magic_act_S13\nxm_magic_act_S13:\n.incbin \"source/music/xmdata.bin\",2464040,13189\n"
+  ".global xm_magic_act_S14\nxm_magic_act_S14:\n.incbin \"source/music/xmdata.bin\",2477229,11260\n"
+  ".global xm_magic_act_S15\nxm_magic_act_S15:\n.incbin \"source/music/xmdata.bin\",2488489,21693\n"
+  ".global xm_magic_act_S16\nxm_magic_act_S16:\n.incbin \"source/music/xmdata.bin\",2510182,11099\n"
+  ".global xm_magic_act_S17\nxm_magic_act_S17:\n.incbin \"source/music/xmdata.bin\",2521281,12217\n"
+  ".global xm_magic_act_S18\nxm_magic_act_S18:\n.incbin \"source/music/xmdata.bin\",2533498,28893\n"
+  ".global xm_magic_act_S19\nxm_magic_act_S19:\n.incbin \"source/music/xmdata.bin\",2562391,40050\n"
+  ".global xm_magic_act_S20\nxm_magic_act_S20:\n.incbin \"source/music/xmdata.bin\",2602441,24458\n"
+  ".global xm_magic_act_S21\nxm_magic_act_S21:\n.incbin \"source/music/xmdata.bin\",2626899,15550\n"
+  ".global xm_magic_act_S22\nxm_magic_act_S22:\n.incbin \"source/music/xmdata.bin\",2642449,8446\n"
+  ".global xm_magic_act_S23\nxm_magic_act_S23:\n.incbin \"source/music/xmdata.bin\",2650895,10008\n"
+  ".global xm_magic_act_S24\nxm_magic_act_S24:\n.incbin \"source/music/xmdata.bin\",2660903,10003\n"
+  ".global xm_magic_act_S25\nxm_magic_act_S25:\n.incbin \"source/music/xmdata.bin\",2670906,20020\n"
+  ".global xm_magic_act_S26\nxm_magic_act_S26:\n.incbin \"source/music/xmdata.bin\",2690926,15556\n"
+  ".global xm_magic_act_S27\nxm_magic_act_S27:\n.incbin \"source/music/xmdata.bin\",2706482,54849\n"
+  ".global xm_magic_act_S28\nxm_magic_act_S28:\n.incbin \"source/music/xmdata.bin\",2761331,50128\n"
   ".popsection\n");
 extern const u8 xm_the_dipper_man_ev[];
 extern const s8 xm_the_dipper_man_S0[];
@@ -452,6 +476,30 @@ extern const s8 xm_aim_and_shoot_S13[];
 extern const s8 xm_aim_and_shoot_S14[];
 extern const s8 xm_aim_and_shoot_S15[];
 extern const s8 xm_aim_and_shoot_S16[];
+extern const u8 xm_magic_act_ev[];
+extern const s8 xm_magic_act_S4[];
+extern const s8 xm_magic_act_S5[];
+extern const s8 xm_magic_act_S6[];
+extern const s8 xm_magic_act_S8[];
+extern const s8 xm_magic_act_S10[];
+extern const s8 xm_magic_act_S11[];
+extern const s8 xm_magic_act_S12[];
+extern const s8 xm_magic_act_S13[];
+extern const s8 xm_magic_act_S14[];
+extern const s8 xm_magic_act_S15[];
+extern const s8 xm_magic_act_S16[];
+extern const s8 xm_magic_act_S17[];
+extern const s8 xm_magic_act_S18[];
+extern const s8 xm_magic_act_S19[];
+extern const s8 xm_magic_act_S20[];
+extern const s8 xm_magic_act_S21[];
+extern const s8 xm_magic_act_S22[];
+extern const s8 xm_magic_act_S23[];
+extern const s8 xm_magic_act_S24[];
+extern const s8 xm_magic_act_S25[];
+extern const s8 xm_magic_act_S26[];
+extern const s8 xm_magic_act_S27[];
+extern const s8 xm_magic_act_S28[];
 static const u32 xmT[12]={1073741824,1137589835,1205234447,1276901417,1352829926,1433273380,1518500250,1608794974,1704458901,1805811301,1913190429,2026954652};   // 2^(j/12) in Q30: with a per-instrument anchor this gives every note's playback step (see xmStep in main.c)
 // ---- the_dipper_man  (from tools/the_dipper_man.xm) ----
 static const u8 xm_the_dipper_man_order[89]={0,0,1,1,2,2,2,2,3,4,3,5,3,4,3,6,7,8,9,2,7,8,10,11,12,4,3,5,3,4,
@@ -1015,3 +1063,39 @@ static const u8 xm_aim_and_shoot_busL[7]={199,179,152,122,88,51,13,
 static const u8 xm_aim_and_shoot_busR[7]={13,51,88,122,152,179,199,
 };
 static const XmSong xm_aim_and_shoot={xm_aim_and_shoot_order,xm_aim_and_shoot_rows,xm_aim_and_shoot_patOff,xm_aim_and_shoot_ev,xm_aim_and_shoot_vt,xm_aim_and_shoot_anc,xm_aim_and_shoot_fx,xm_aim_and_shoot_len,xm_aim_and_shoot_data,xm_aim_and_shoot_busL,xm_aim_and_shoot_busR,29,0,840,154};
+// ---- magic_act  (from tools/magic_act.xm) ----
+static const u8 xm_magic_act_order[79]={0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,
+30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,
+60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,
+};
+static const u16 xm_magic_act_rows[79]={128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,
+128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,
+128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,96,
+};
+static const u32 xm_magic_act_patOff[79]={0,55,114,178,289,383,462,503,606,922,1396,1923,2429,3009,3743,4502,5252,5631,6016,6513,7122,7581,7849,8319,
+8910,9574,10016,10536,11092,11278,11408,11549,11764,12045,12466,12931,13395,13878,14362,14789,15348,16019,16663,17319,18104,18382,18460,18538,
+18616,18704,18966,19716,20420,21137,21851,22541,23229,23746,24059,24622,25244,25838,26515,27137,27709,28296,29012,29724,30311,30638,30781,31080,
+31383,31683,31978,32270,32539,32786,32807,
+};
+static const u16 xm_magic_act_vt[71]={1632,1469,975,3022,1819,2268,1803,2252,710,1601,2611,2675,1617,1058,1536,1042,
+1684,1205,824,1849,2874,1373,1835,2814,2775,2380,888,1913,2938,1931,2444,1876,
+1867,2791,920,1945,2970,1349,1357,1664,1245,1325,639,3006,904,1929,2954,1963,
+742,2759,2300,870,1189,1892,1381,2919,1899,2412,1389,1665,1908,1947,2460,1421,
+2316,655,2830,3011,2476,1851,2364,
+};
+static const u32 xm_magic_act_anc[29]={61819841,61819841,247279365,247279365,61819841,247279365,41259794,165039176,
+61819841,41259794,247279365,247279365,247279365,247279365,61819841,123639683,
+82519588,82519588,165039176,165039176,165039176,82519588,247279365,41259794,
+41259794,82519588,82519588,165039176,123639683,
+};
+static const u8 xm_magic_act_fx[1]={255,
+};
+static const u32 xm_magic_act_len[29]={1649,1435,1867,2884,2253,2317,14488,13357,6241,2211,16616,16609,16560,13188,11259,21692,11098,12216,28892,40049,24457,15549,8445,10007,
+10002,20019,15555,54848,50127,
+};
+static const s8* const xm_magic_act_data[29]={xm_aim_and_shoot_S0,xm_aim_and_shoot_S2,xm_aim_and_shoot_S3,xm_aim_and_shoot_S4,xm_magic_act_S4,xm_magic_act_S5,xm_magic_act_S6,xm_aim_and_shoot_S7,xm_magic_act_S8,xm_aim_and_shoot_S9,xm_magic_act_S10,xm_magic_act_S11,xm_magic_act_S12,xm_magic_act_S13,xm_magic_act_S14,xm_magic_act_S15,xm_magic_act_S16,xm_magic_act_S17,xm_magic_act_S18,xm_magic_act_S19,xm_magic_act_S20,xm_magic_act_S21,xm_magic_act_S22,xm_magic_act_S23,xm_magic_act_S24,xm_magic_act_S25,xm_magic_act_S26,xm_magic_act_S27,xm_magic_act_S28};
+static const u8 xm_magic_act_busL[7]={199,179,152,122,88,51,13,
+};
+static const u8 xm_magic_act_busR[7]={13,51,88,122,152,179,199,
+};
+static const XmSong xm_magic_act={xm_magic_act_order,xm_magic_act_rows,xm_magic_act_patOff,xm_magic_act_ev,xm_magic_act_vt,xm_magic_act_anc,xm_magic_act_fx,xm_magic_act_len,xm_magic_act_data,xm_magic_act_busL,xm_magic_act_busR,79,0,726,72};

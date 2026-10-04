@@ -7,6 +7,7 @@
 // Anything it still lacks falls back to the plain letter.
 ARTIST("AIM AND SHOOT","Singhs")
 ARTIST("AN ODE TO THE SPANISH FLEXICODE","Singhs")
+ARTIST("THE MAGIC ACT","Singhs")
 ARTIST("AMIGA MUSIC","DayBar")
 ARTIST("HOT DAMN","DayBar")
 ARTIST("HOT DAMN (ORIGINAL)","DayBar")
