@@ -302,6 +302,45 @@ __asm__(".pushsection .rodata\n"
   ".global xm_condensed_music_S20\nxm_condensed_music_S20:\n.incbin \"source/music/xmdata.bin\",3333169,20258\n"
   ".global xm_condensed_music_S21\nxm_condensed_music_S21:\n.incbin \"source/music/xmdata.bin\",3353427,30380\n"
   ".global xm_condensed_music_S22\nxm_condensed_music_S22:\n.incbin \"source/music/xmdata.bin\",3383807,15330\n"
+  ".global xm_cocaine_cola_ii_ev\nxm_cocaine_cola_ii_ev:\n.incbin \"source/music/xmdata.bin\",3399137,37169\n"
+  ".global xm_cocaine_cola_ii_S0\nxm_cocaine_cola_ii_S0:\n.incbin \"source/music/xmdata.bin\",3436306,2736\n"
+  ".global xm_cocaine_cola_ii_S1\nxm_cocaine_cola_ii_S1:\n.incbin \"source/music/xmdata.bin\",3439042,1182\n"
+  ".global xm_cocaine_cola_ii_S2\nxm_cocaine_cola_ii_S2:\n.incbin \"source/music/xmdata.bin\",3440224,1623\n"
+  ".global xm_cocaine_cola_ii_S3\nxm_cocaine_cola_ii_S3:\n.incbin \"source/music/xmdata.bin\",3441847,5467\n"
+  ".global xm_cocaine_cola_ii_S4\nxm_cocaine_cola_ii_S4:\n.incbin \"source/music/xmdata.bin\",3447314,6006\n"
+  ".global xm_cocaine_cola_ii_S5\nxm_cocaine_cola_ii_S5:\n.incbin \"source/music/xmdata.bin\",3453320,9027\n"
+  ".global xm_cocaine_cola_ii_S6\nxm_cocaine_cola_ii_S6:\n.incbin \"source/music/xmdata.bin\",3462347,6928\n"
+  ".global xm_cocaine_cola_ii_S7\nxm_cocaine_cola_ii_S7:\n.incbin \"source/music/xmdata.bin\",3469275,755\n"
+  ".global xm_cocaine_cola_ii_S8\nxm_cocaine_cola_ii_S8:\n.incbin \"source/music/xmdata.bin\",3470030,2129\n"
+  ".global xm_cocaine_cola_ii_S9\nxm_cocaine_cola_ii_S9:\n.incbin \"source/music/xmdata.bin\",3472159,11925\n"
+  ".global xm_cocaine_cola_ii_S10\nxm_cocaine_cola_ii_S10:\n.incbin \"source/music/xmdata.bin\",3484084,4247\n"
+  ".global xm_cocaine_cola_ii_S11\nxm_cocaine_cola_ii_S11:\n.incbin \"source/music/xmdata.bin\",3488331,2726\n"
+  ".global xm_cocaine_cola_ii_S12\nxm_cocaine_cola_ii_S12:\n.incbin \"source/music/xmdata.bin\",3491057,5127\n"
+  ".global xm_cocaine_cola_ii_S13\nxm_cocaine_cola_ii_S13:\n.incbin \"source/music/xmdata.bin\",3496184,3147\n"
+  ".global xm_cocaine_cola_ii_S14\nxm_cocaine_cola_ii_S14:\n.incbin \"source/music/xmdata.bin\",3499331,6677\n"
+  ".global xm_cocaine_cola_ii_S15\nxm_cocaine_cola_ii_S15:\n.incbin \"source/music/xmdata.bin\",3506008,12996\n"
+  ".global xm_cocaine_cola_ii_S16\nxm_cocaine_cola_ii_S16:\n.incbin \"source/music/xmdata.bin\",3519004,13730\n"
+  ".global xm_cocaine_cola_ii_S17\nxm_cocaine_cola_ii_S17:\n.incbin \"source/music/xmdata.bin\",3532734,32949\n"
+  ".global xm_cocaine_cola_ii_S18\nxm_cocaine_cola_ii_S18:\n.incbin \"source/music/xmdata.bin\",3565683,11803\n"
+  ".global xm_cocaine_cola_ii_S19\nxm_cocaine_cola_ii_S19:\n.incbin \"source/music/xmdata.bin\",3577486,3813\n"
+  ".global xm_cocaine_cola_ii_S20\nxm_cocaine_cola_ii_S20:\n.incbin \"source/music/xmdata.bin\",3581299,44074\n"
+  ".global xm_cocaine_cola_ii_S21\nxm_cocaine_cola_ii_S21:\n.incbin \"source/music/xmdata.bin\",3625373,44079\n"
+  ".global xm_cocaine_cola_ii_S22\nxm_cocaine_cola_ii_S22:\n.incbin \"source/music/xmdata.bin\",3669452,20890\n"
+  ".global xm_cocaine_cola_ii_S23\nxm_cocaine_cola_ii_S23:\n.incbin \"source/music/xmdata.bin\",3690342,41436\n"
+  ".global xm_cocaine_cola_ii_S24\nxm_cocaine_cola_ii_S24:\n.incbin \"source/music/xmdata.bin\",3731778,624\n"
+  ".global xm_cocaine_cola_ev\nxm_cocaine_cola_ev:\n.incbin \"source/music/xmdata.bin\",3732402,23611\n"
+  ".global xm_cocaine_cola_S0\nxm_cocaine_cola_S0:\n.incbin \"source/music/xmdata.bin\",3756013,1644\n"
+  ".global xm_cocaine_cola_S1\nxm_cocaine_cola_S1:\n.incbin \"source/music/xmdata.bin\",3757657,2495\n"
+  ".global xm_cocaine_cola_S2\nxm_cocaine_cola_S2:\n.incbin \"source/music/xmdata.bin\",3760152,7505\n"
+  ".global xm_cocaine_cola_S3\nxm_cocaine_cola_S3:\n.incbin \"source/music/xmdata.bin\",3767657,3913\n"
+  ".global xm_cocaine_cola_S4\nxm_cocaine_cola_S4:\n.incbin \"source/music/xmdata.bin\",3771570,3799\n"
+  ".global xm_cocaine_cola_S5\nxm_cocaine_cola_S5:\n.incbin \"source/music/xmdata.bin\",3775369,7097\n"
+  ".global xm_cocaine_cola_S6\nxm_cocaine_cola_S6:\n.incbin \"source/music/xmdata.bin\",3782466,9307\n"
+  ".global xm_cocaine_cola_S7\nxm_cocaine_cola_S7:\n.incbin \"source/music/xmdata.bin\",3791773,5491\n"
+  ".global xm_cocaine_cola_S8\nxm_cocaine_cola_S8:\n.incbin \"source/music/xmdata.bin\",3797264,10991\n"
+  ".global xm_cocaine_cola_S9\nxm_cocaine_cola_S9:\n.incbin \"source/music/xmdata.bin\",3808255,10996\n"
+  ".global xm_cocaine_cola_S10\nxm_cocaine_cola_S10:\n.incbin \"source/music/xmdata.bin\",3819251,22585\n"
+  ".global xm_cocaine_cola_S11\nxm_cocaine_cola_S11:\n.incbin \"source/music/xmdata.bin\",3841836,34982\n"
   ".popsection\n");
 extern const u8 xm_the_dipper_man_ev[];
 extern const s8 xm_the_dipper_man_S0[];
@@ -602,6 +641,45 @@ extern const s8 xm_condensed_music_S19[];
 extern const s8 xm_condensed_music_S20[];
 extern const s8 xm_condensed_music_S21[];
 extern const s8 xm_condensed_music_S22[];
+extern const u8 xm_cocaine_cola_ii_ev[];
+extern const s8 xm_cocaine_cola_ii_S0[];
+extern const s8 xm_cocaine_cola_ii_S1[];
+extern const s8 xm_cocaine_cola_ii_S2[];
+extern const s8 xm_cocaine_cola_ii_S3[];
+extern const s8 xm_cocaine_cola_ii_S4[];
+extern const s8 xm_cocaine_cola_ii_S5[];
+extern const s8 xm_cocaine_cola_ii_S6[];
+extern const s8 xm_cocaine_cola_ii_S7[];
+extern const s8 xm_cocaine_cola_ii_S8[];
+extern const s8 xm_cocaine_cola_ii_S9[];
+extern const s8 xm_cocaine_cola_ii_S10[];
+extern const s8 xm_cocaine_cola_ii_S11[];
+extern const s8 xm_cocaine_cola_ii_S12[];
+extern const s8 xm_cocaine_cola_ii_S13[];
+extern const s8 xm_cocaine_cola_ii_S14[];
+extern const s8 xm_cocaine_cola_ii_S15[];
+extern const s8 xm_cocaine_cola_ii_S16[];
+extern const s8 xm_cocaine_cola_ii_S17[];
+extern const s8 xm_cocaine_cola_ii_S18[];
+extern const s8 xm_cocaine_cola_ii_S19[];
+extern const s8 xm_cocaine_cola_ii_S20[];
+extern const s8 xm_cocaine_cola_ii_S21[];
+extern const s8 xm_cocaine_cola_ii_S22[];
+extern const s8 xm_cocaine_cola_ii_S23[];
+extern const s8 xm_cocaine_cola_ii_S24[];
+extern const u8 xm_cocaine_cola_ev[];
+extern const s8 xm_cocaine_cola_S0[];
+extern const s8 xm_cocaine_cola_S1[];
+extern const s8 xm_cocaine_cola_S2[];
+extern const s8 xm_cocaine_cola_S3[];
+extern const s8 xm_cocaine_cola_S4[];
+extern const s8 xm_cocaine_cola_S5[];
+extern const s8 xm_cocaine_cola_S6[];
+extern const s8 xm_cocaine_cola_S7[];
+extern const s8 xm_cocaine_cola_S8[];
+extern const s8 xm_cocaine_cola_S9[];
+extern const s8 xm_cocaine_cola_S10[];
+extern const s8 xm_cocaine_cola_S11[];
 static const u32 xmT[12]={1073741824,1137589835,1205234447,1276901417,1352829926,1433273380,1518500250,1608794974,1704458901,1805811301,1913190429,2026954652};   // 2^(j/12) in Q30: with a per-instrument anchor this gives every note's playback step (see xmStep in main.c)
 // ---- the_dipper_man  (from tools/the_dipper_man.xm) ----
 static const u8 xm_the_dipper_man_order[89]={0,0,1,1,2,2,2,2,3,4,3,5,3,4,3,6,7,8,9,2,7,8,10,11,12,4,3,5,3,4,
@@ -1297,3 +1375,97 @@ static const u8 xm_condensed_music_busL[7]={199,179,152,122,88,51,13,
 static const u8 xm_condensed_music_busR[7]={13,51,88,122,152,179,199,
 };
 static const XmSong xm_condensed_music={xm_condensed_music_order,xm_condensed_music_rows,xm_condensed_music_patOff,xm_condensed_music_ev,xm_condensed_music_vt,xm_condensed_music_anc,xm_condensed_music_fx,xm_condensed_music_len,xm_condensed_music_data,xm_condensed_music_busL,xm_condensed_music_busR,105,0,515,211};
+// ---- cocaine_cola_ii  (from tools/cocaine_cola_ii.xm) ----
+static const u8 xm_cocaine_cola_ii_order[221]={0,0,1,2,3,4,3,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,
+28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,
+58,59,60,61,32,32,32,62,36,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,
+84,85,86,87,88,89,90,91,92,93,94,95,94,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,
+113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140,141,142,
+143,144,145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170,171,172,
+173,174,175,176,177,178,179,180,181,182,183,184,185,186,187,188,189,190,191,192,193,194,195,196,197,198,199,200,201,202,
+203,204,205,206,207,208,209,210,211,212,213,
+};
+static const u16 xm_cocaine_cola_ii_rows[214]={96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,
+96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,
+96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,
+96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,
+96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,
+96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,
+96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,96,
+96,96,96,96,
+};
+static const u32 xm_cocaine_cola_ii_patOff[214]={0,20,46,87,209,319,432,563,682,807,970,1095,1214,1339,1505,1660,1806,1958,2151,2312,2467,2628,2830,3000,
+3173,3343,3571,3750,3923,4102,4327,4376,4425,4474,4533,4667,4792,4926,5069,5221,5364,5507,5694,5846,5992,6147,6337,6522,
+6704,6883,7125,7310,7492,7677,7920,8129,8344,8541,8798,9016,9225,9437,9680,9739,9864,10001,10144,10329,10505,10681,10909,11088,
+11261,11440,11665,11844,12020,12202,12389,12565,12735,12911,13086,13265,13441,13620,13845,13997,14137,14271,14399,14435,14474,14513,14562,14601,
+14640,14692,14737,14789,14831,14897,15034,15162,15311,15492,15680,15862,16044,16286,16471,16650,16832,17075,17284,17499,17690,17947,18165,18368,
+18592,18861,19052,19249,19437,19700,19897,20097,20297,20558,20776,21006,21212,21482,21712,21939,22169,22458,22664,22867,23064,23327,23545,23763,
+23963,24228,24434,24646,24849,25103,25312,25524,25733,25993,26205,26396,26587,26844,27050,27271,27474,27737,27943,28146,28349,28609,28833,29069,
+29296,29577,29774,29962,30144,30392,30592,30807,31004,31264,31455,31646,31828,32076,32276,32491,32688,32939,33085,33216,33350,33483,33551,33652,
+33715,33810,33876,33947,34007,34141,34338,34547,34735,34989,35171,35344,35523,35757,35927,36100,36273,36501,36677,36850,37035,37168,
+};
+static const u16 xm_cocaine_cola_ii_vt[33]={1536,298,3371,1552,166,133,3205,3238,2937,3155,2660,83,3188,351,1585,578,
+1569,3221,149,316,3389,3471,399,1903,2895,3417,2296,270,2841,2792,1207,2264,
+3271,
+};
+static const u32 xm_cocaine_cola_ii_anc[25]={81483472,81483472,81483472,81483472,162966944,325933887,325933887,325933887,
+325933887,325933887,325933887,81483472,162966944,162966944,162966944,162966944,
+81483472,325933887,81483472,81483472,162966944,325933887,162966944,325933887,
+325933887,
+};
+static const u8 xm_cocaine_cola_ii_fx[1]={255,
+};
+static const u32 xm_cocaine_cola_ii_len[25]={2735,1181,1622,5466,6005,9026,6927,754,2128,11924,4246,2725,5126,3146,6676,12995,13729,32948,11802,3812,44073,44078,20889,41435,
+623,
+};
+static const s8* const xm_cocaine_cola_ii_data[25]={xm_cocaine_cola_ii_S0,xm_cocaine_cola_ii_S1,xm_cocaine_cola_ii_S2,xm_cocaine_cola_ii_S3,xm_cocaine_cola_ii_S4,xm_cocaine_cola_ii_S5,xm_cocaine_cola_ii_S6,xm_cocaine_cola_ii_S7,xm_cocaine_cola_ii_S8,xm_cocaine_cola_ii_S9,xm_cocaine_cola_ii_S10,xm_cocaine_cola_ii_S11,xm_cocaine_cola_ii_S12,xm_cocaine_cola_ii_S13,xm_cocaine_cola_ii_S14,xm_cocaine_cola_ii_S15,xm_cocaine_cola_ii_S16,xm_cocaine_cola_ii_S17,xm_cocaine_cola_ii_S18,xm_cocaine_cola_ii_S19,xm_cocaine_cola_ii_S20,xm_cocaine_cola_ii_S21,xm_cocaine_cola_ii_S22,xm_cocaine_cola_ii_S23,xm_cocaine_cola_ii_S24};
+static const u8 xm_cocaine_cola_ii_busL[7]={199,178,152,122,87,51,13,
+};
+static const u8 xm_cocaine_cola_ii_busR[7]={13,51,88,122,153,179,199,
+};
+static const XmSong xm_cocaine_cola_ii={xm_cocaine_cola_ii_order,xm_cocaine_cola_ii_rows,xm_cocaine_cola_ii_patOff,xm_cocaine_cola_ii_ev,xm_cocaine_cola_ii_vt,xm_cocaine_cola_ii_anc,xm_cocaine_cola_ii_fx,xm_cocaine_cola_ii_len,xm_cocaine_cola_ii_data,xm_cocaine_cola_ii_busL,xm_cocaine_cola_ii_busR,221,0,378,69};
+// ---- cocaine_cola  (from tools/cocaine_cola.xm) ----
+static const u8 xm_cocaine_cola_order[221]={0,0,0,1,2,2,2,3,4,5,6,7,6,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,
+25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,
+55,56,57,58,59,29,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,
+84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,
+114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140,141,142,143,
+144,145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170,171,172,173,
+174,175,176,177,178,179,180,181,182,183,184,185,186,187,188,189,190,191,192,193,194,195,196,197,198,199,200,201,202,203,
+204,205,206,207,208,209,210,211,212,213,214,
+};
+static const u16 xm_cocaine_cola_rows[215]={16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,
+16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,
+16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,
+16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,
+16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,
+16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,
+16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,
+16,16,16,16,16,
+};
+static const u32 xm_cocaine_cola_patOff[215]={0,20,51,91,140,178,217,252,304,343,378,436,509,585,658,743,825,910,992,1092,1168,1250,1323,1411,
+1496,1581,1666,1754,1815,1876,1937,2001,2071,2144,2214,2299,2378,2457,2530,2618,2703,2788,2873,2967,3052,3158,3243,3364,
+3449,3546,3637,3749,3864,4003,4100,4227,4348,4472,4593,4723,4787,4848,4912,4982,5055,5125,5210,5289,5371,5447,5538,5623,
+5708,5793,5884,5969,6054,6139,6224,6309,6394,6485,6636,6730,6815,6942,7072,7277,7500,7708,7901,7953,8008,8060,8118,8173,
+8228,8283,8347,8408,8472,8530,8603,8679,8755,8834,8922,9004,9110,9195,9316,9401,9498,9583,9695,9810,9949,10040,10164,10285,
+10400,10521,10669,10748,10854,10933,11063,11142,11236,11321,11430,11536,11675,11766,11896,12017,12147,12268,12419,12570,12766,12950,13131,13318,
+13493,13656,13810,13985,14181,14371,14564,14745,14914,15095,15282,15451,15623,15792,15973,16124,16296,16447,16637,16806,16987,17153,17334,17515,
+17690,17868,18061,18215,18381,18544,18707,18861,18997,19148,19356,19501,19667,19797,19975,20144,20289,20446,20618,20739,20854,20984,21123,21229,
+21341,21440,21588,21709,21821,21936,22066,22229,22362,22492,22658,22749,22834,22916,23016,23092,23174,23247,23335,23420,23505,23593,23610,
+};
+static const u16 xm_cocaine_cola_vt[29]={1536,2065,51,3123,3106,34,598,614,102,3239,663,1704,119,151,2200,183,
+1656,2117,1688,1672,3193,3225,1144,2681,135,3209,169,1720,3257,
+};
+static const u32 xm_cocaine_cola_anc[12]={81483472,162966944,325933887,325933887,162966944,162966944,325933887,162966944,
+325933887,325933887,162966944,162966944,
+};
+static const u8 xm_cocaine_cola_fx[1]={255,
+};
+static const u32 xm_cocaine_cola_len[12]={1643,2494,7504,3912,3798,7096,9306,5490,10990,10995,22584,34981,
+};
+static const s8* const xm_cocaine_cola_data[12]={xm_cocaine_cola_S0,xm_cocaine_cola_S1,xm_cocaine_cola_S2,xm_cocaine_cola_S3,xm_cocaine_cola_S4,xm_cocaine_cola_S5,xm_cocaine_cola_S6,xm_cocaine_cola_S7,xm_cocaine_cola_S8,xm_cocaine_cola_S9,xm_cocaine_cola_S10,xm_cocaine_cola_S11};
+static const u8 xm_cocaine_cola_busL[7]={199,179,152,122,88,51,13,
+};
+static const u8 xm_cocaine_cola_busR[7]={13,51,88,122,153,179,199,
+};
+static const XmSong xm_cocaine_cola={xm_cocaine_cola_order,xm_cocaine_cola_rows,xm_cocaine_cola_patOff,xm_cocaine_cola_ev,xm_cocaine_cola_vt,xm_cocaine_cola_anc,xm_cocaine_cola_fx,xm_cocaine_cola_len,xm_cocaine_cola_data,xm_cocaine_cola_busL,xm_cocaine_cola_busR,221,0,2269,160};

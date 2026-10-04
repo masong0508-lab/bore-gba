@@ -306,6 +306,11 @@ tables, and `chipMix` (main.c) renders them live.
 - **Mix:** levelled against SUNMAN SUNRISE; a hand-made stereo plan (`condensed_pan` in xm2gba.py). 205 KB of samples.
 - **Remake:** `python3 tools/make_condensed_rework.py`, then `python3 tools/xm2gba.py`.
 
+## Cocaine Cola (`tools/make_cocaine_cola_rework.py`)
+- Committed on Oct 3 with its script and the stem transcription (`tools/cocaine_cola.xm`), but never added to `songs.h`, so it was not in the game.
+- **COCAINE COLA** is the rework (`tools/cocaine_cola_ii.xm`, 7:22). **COCAINE COLA (ORIGINAL)**, the transcription, is hidden.
+- Levels: GAIN 1.8 (rework) and 3.0 (original). No artist set yet (`source/artists.h`).
+
 ## Room builder HUD
 - The text at the top and bottom of BUILD ROOM sits on the room shaded to a quarter brightness (`edShadeBand`), so it reads on any floor.
 

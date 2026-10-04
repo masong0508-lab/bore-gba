@@ -76,3 +76,6 @@ SONG_XM(nursery_time,"NURSERY TIME","tools/nursery_time.xm")
 SONG_XM(tree_swaying_action_old,"TREE SWAYING ACTION (ORIGINAL)","tools/tree_swaying_action.xm")
 // CONDENSED MUSIC: a Sk9m UK garage rework of The Dipper Man - Condensed Music (tools/make_condensed_rework.py, from tools/the_dipper_man_condensed_music.xm)
 SONG_XM(condensed_music,"CONDENSED MUSIC","tools/condensed_music.xm")
+// COCAINE COLA: the rework (tools/make_cocaine_cola_rework.py) of the stem transcription tools/cocaine_cola.xm, which stays as the secret original
+SONG_XM(cocaine_cola_ii,"COCAINE COLA","tools/cocaine_cola_ii.xm")
+SONG_XM(cocaine_cola,"COCAINE COLA (ORIGINAL)","tools/cocaine_cola.xm")
