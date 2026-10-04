@@ -386,6 +386,14 @@ __asm__(".pushsection .rodata\n"
   ".global xm_closer_to_the_end_old_ev\nxm_closer_to_the_end_old_ev:\n.incbin \"source/music/xmdata.bin\",4279322,9192\n"
   ".global xm_closer_to_the_end_old_S11\nxm_closer_to_the_end_old_S11:\n.incbin \"source/music/xmdata.bin\",4288514,4940\n"
   ".global xm_closer_to_the_end_old_S12\nxm_closer_to_the_end_old_S12:\n.incbin \"source/music/xmdata.bin\",4293454,10966\n"
+  ".global xm_the_ticking_bomb_ev\nxm_the_ticking_bomb_ev:\n.incbin \"source/music/xmdata.bin\",4304420,3332\n"
+  ".global xm_the_ticking_bomb_S1\nxm_the_ticking_bomb_S1:\n.incbin \"source/music/xmdata.bin\",4307752,3570\n"
+  ".global xm_the_ticking_bomb_S2\nxm_the_ticking_bomb_S2:\n.incbin \"source/music/xmdata.bin\",4311322,874\n"
+  ".global xm_the_ticking_bomb_S3\nxm_the_ticking_bomb_S3:\n.incbin \"source/music/xmdata.bin\",4312196,1224\n"
+  ".global xm_the_ticking_bomb_S4\nxm_the_ticking_bomb_S4:\n.incbin \"source/music/xmdata.bin\",4313420,5673\n"
+  ".global xm_the_ticking_bomb_S6\nxm_the_ticking_bomb_S6:\n.incbin \"source/music/xmdata.bin\",4319093,5356\n"
+  ".global xm_the_ticking_bomb_S7\nxm_the_ticking_bomb_S7:\n.incbin \"source/music/xmdata.bin\",4324449,2676\n"
+  ".global xm_the_ticking_bomb_S13\nxm_the_ticking_bomb_S13:\n.incbin \"source/music/xmdata.bin\",4327125,21560\n"
   ".popsection\n");
 extern const u8 xm_the_dipper_man_ev[];
 extern const s8 xm_the_dipper_man_S0[];
@@ -770,6 +778,14 @@ extern const s8 xm_closer_to_the_end_S15[];
 extern const u8 xm_closer_to_the_end_old_ev[];
 extern const s8 xm_closer_to_the_end_old_S11[];
 extern const s8 xm_closer_to_the_end_old_S12[];
+extern const u8 xm_the_ticking_bomb_ev[];
+extern const s8 xm_the_ticking_bomb_S1[];
+extern const s8 xm_the_ticking_bomb_S2[];
+extern const s8 xm_the_ticking_bomb_S3[];
+extern const s8 xm_the_ticking_bomb_S4[];
+extern const s8 xm_the_ticking_bomb_S6[];
+extern const s8 xm_the_ticking_bomb_S7[];
+extern const s8 xm_the_ticking_bomb_S13[];
 static const u32 xmT[12]={1073741824,1137589835,1205234447,1276901417,1352829926,1433273380,1518500250,1608794974,1704458901,1805811301,1913190429,2026954652};   // 2^(j/12) in Q30: with a per-instrument anchor this gives every note's playback step (see xmStep in main.c)
 // ---- the_dipper_man  (from tools/the_dipper_man.xm) ----
 static const u8 xm_the_dipper_man_order[89]={0,0,1,1,2,2,2,2,3,4,3,5,3,4,3,6,7,8,9,2,7,8,10,11,12,4,3,5,3,4,
@@ -1655,3 +1671,28 @@ static const u8 xm_closer_to_the_end_old_busL[7]={234,210,179,143,103,60,15,
 static const u8 xm_closer_to_the_end_old_busR[7]={11,43,75,104,130,152,170,
 };
 static const XmSong xm_closer_to_the_end_old={xm_closer_to_the_end_old_order,xm_closer_to_the_end_old_rows,xm_closer_to_the_end_old_patOff,xm_closer_to_the_end_old_ev,xm_closer_to_the_end_old_vt,xm_closer_to_the_end_old_anc,xm_closer_to_the_end_old_fx,xm_closer_to_the_end_old_len,xm_closer_to_the_end_old_data,xm_closer_to_the_end_old_busL,xm_closer_to_the_end_old_busR,55,0,1080,198};
+// ---- the_ticking_bomb  (from tools/the_ticking_bomb.xm) ----
+static const u8 xm_the_ticking_bomb_order[61]={0,1,0,1,2,3,2,3,4,5,4,5,4,5,4,5,6,7,6,7,6,7,6,7,8,9,10,11,10,11,
+10,11,10,11,12,13,12,14,15,16,15,16,15,16,15,16,17,18,17,18,17,18,17,18,19,20,19,20,21,22,
+23,
+};
+static const u16 xm_the_ticking_bomb_rows[24]={32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,16,
+};
+static const u32 xm_the_ticking_bomb_patOff[24]={0,46,86,220,348,539,733,948,1166,1357,1566,1659,1761,1869,1986,2106,2321,2539,2742,2948,3103,3252,3295,3331,
+};
+static const u16 xm_the_ticking_bomb_vt[21]={613,2662,1759,1229,1160,1536,1620,2082,2217,563,1553,2236,1150,1690,2715,2631,
+638,2174,2686,1775,1662,
+};
+static const u32 xm_the_ticking_bomb_anc[15]={61819841,247279365,247279365,61819841,247279365,61819841,82519588,41259794,
+123639683,82519588,123639683,123639683,123639683,165039176,61819841,
+};
+static const u8 xm_the_ticking_bomb_fx[1]={255,
+};
+static const u32 xm_the_ticking_bomb_len[15]={1480,3569,873,1223,5672,3745,5355,2675,8259,4961,4135,10826,13333,21559,5824,
+};
+static const s8* const xm_the_ticking_bomb_data[15]={xm_gottcho_barracho_ii_S0,xm_the_ticking_bomb_S1,xm_the_ticking_bomb_S2,xm_the_ticking_bomb_S3,xm_the_ticking_bomb_S4,xm_gottcho_barracho_ii_S5,xm_the_ticking_bomb_S6,xm_the_ticking_bomb_S7,xm_gottcho_barracho_ii_S7,xm_gottcho_barracho_ii_S8,xm_gottcho_barracho_ii_S9,xm_gottcho_barracho_ii_S10,xm_gottcho_barracho_ii_S11,xm_the_ticking_bomb_S13,xm_gottcho_barracho_ii_S13};
+static const u8 xm_the_ticking_bomb_busL[7]={199,179,152,122,88,51,13,
+};
+static const u8 xm_the_ticking_bomb_busR[7]={13,51,88,122,152,179,199,
+};
+static const XmSong xm_the_ticking_bomb={xm_the_ticking_bomb_order,xm_the_ticking_bomb_rows,xm_the_ticking_bomb_patOff,xm_the_ticking_bomb_ev,xm_the_ticking_bomb_vt,xm_the_ticking_bomb_anc,xm_the_ticking_bomb_fx,xm_the_ticking_bomb_len,xm_the_ticking_bomb_data,xm_the_ticking_bomb_busL,xm_the_ticking_bomb_busR,61,0,1098,53};

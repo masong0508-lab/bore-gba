@@ -708,3 +708,6 @@ a fresh pre-made family or NEW HOUSEHOLD HERE end the story (`stOff`).
 - About 25 KB more EWRAM (spr4 / spr4s and the household tiles); the bake time hardly changes (the creature is drawn at full size as before).
 - Over your head: no plumbob any more, and the thought bubble only when it should: an urgent need for 3 seconds when it starts (again
   every 30 seconds while it lasts), with THOUGHT BUBBLE: ALL a want for 3 seconds every 45. Talking bubbles are as before.
+
+## THE TICKING BOMB (El B.D'ees)
+Latin house rework of The Dipper Man - The Ticking Bomb, built by tools/make_tickingbomb_rework.py (124 BPM). Keeps the offbeat riff, the A/D bass and the G-E-G stinger (a semitone down). Breakbeat under a house kick, congas and timbales, a low whine, and an 12-bar half-time downgroove after the fuse, then the blast back into house.
