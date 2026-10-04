@@ -13,7 +13,7 @@
 // HOOK       nbDrawLotModel() draws a lot's building as a small icon. A later version can draw the real house there (every floor of its slot).
 //
 // Needs before it: the map and floors (lifeMap, floorMap, wallMap, mapGen, gRoom, gBox, gPut, gLine, mapSave, mapScan, flHome, flBlankUpper,
-// flEnsure, flBuf, curFl), slots.h, lifeMode, mapEditor, the UI kit (box, menu, toast, helpScreen, text, rect, px, line, disc, present,
+// flEnsure, flPlaneAt, curFl), slots.h, lifeMode, mapEditor, the UI kit (box, menu, toast, helpScreen, text, rect, px, line, disc, present,
 // keyNow), sims.h (simsDefaults, simsLoad, simsSaveNow, simMoney).
 #define NB_W 24
 #define NB_H 24
@@ -52,8 +52,8 @@ static int nbItemValue(char c){
 }
 static void nbValueLive(int j){   // land (half a simoleon a tile) + everything built on every floor of the live map
     NbLot*L=&nbT.lot[j]; u32 v=(u32)L->w*L->h*8; int fl=1;
-    flEnsure(); flStoreAs(curFl);
-    for(int f=0;f<FLR_N;f++){ int any=0; for(int i=0;i<MSZ;i++){ char c=(char)flBuf[f][0][i]; v+=(u32)nbItemValue(c); if(f&&c!='.'&&c!='w') any=1; } if(any) fl=f+1; }
+    flEnsure();
+    for(int f=0;f<FLR_N;f++){ int any=0; for(int i=0;i<MSZ;i++){ char c=(char)flPlaneAt(f,0,i); v+=(u32)nbItemValue(c); if(f&&c!='.'&&c!='w') any=1; } if(any) fl=f+1; }
     L->value=(u16)(v>65535?65535:v); L->floors=(u8)fl;
 }
 static const char* nbErr;
@@ -95,13 +95,13 @@ static int nbGo(int i){   // make lot i the live map. 1 = done (nbErr says why n
     if(nbT.cur==i) return 1;
     box(60,64,120,24); text(76,72,"MOVING...",WHITE,1); present();
     ldShow("SAVING THE LOT YOU LEAVE",0,3);
-    if(nbT.cur<NB_LOTS&&nbT.lot[nbT.cur].on){ int e=nbStore(nbT.cur); if(e){ nbErr=e==SLE_NOROOM?"NO FREE SLOTS FOR THIS LOT":slErrMsg(e); return 0; } }
+    if(nbT.cur<NB_LOTS&&nbT.lot[nbT.cur].on){ int e=nbStore(nbT.cur); if(e){ nbErr=e==SLE_NOROOM?"NO FREE SLOTS FOR THIS LOT":slErrMsg(e); ldEnd(); return 0; } }
     ldShow("OPENING THE NEW LOT",1,3);
     NbLot*L=&nbT.lot[i]; int ok=0;
     if(L->slot>=0){ slScan(); if(slOwner[L->slot]==L->slot&&slI[L->slot].kind==SLK_HOUSE) ok=(houseLoad(L->slot)==SLE_OK); if(!ok) L->slot=-1; }
     if(!ok) nbTemplate(i);
     ldShow("SAVING THE TOWN",2,3);
-    nbT.cur=(u8)i; nbBounds(); nbSave(); twKeep=0; return 1;   // (another lot: other passers-by)
+    nbT.cur=(u8)i; nbBounds(); nbSave(); twKeep=0; ldEnd(); return 1;   // (another lot: other passers-by)   // (ldEnd: the loading screen is over, the music may come back)
 }
 
 // ---------- the town on the save chip ----------
@@ -392,14 +392,13 @@ static int nbNewLot(int x,int y,int w,int h){
     nbSave(); toast("LOT PLACED"); return 1;
 }
 static void nbTownMenu(int*quit){
-    static const char* const it[7]={"ZOOM","SEASON","TIME OF DAY","RENAME TOWN","HOW IT WORKS","ALL NEIGHBORHOODS","LEAVE"};
-    int c=menu("TOWN",it,7);
+    static const char* const it[6]={"ZOOM","SEASON","TIME OF DAY","RENAME TOWN","ALL NEIGHBORHOODS","LEAVE"};
+    int c=menu("TOWN",it,6);
     if(c==0) nbT.zoom^=1;
     else if(c==1) nbT.season=(u8)((nbT.season+1)&3);
     else if(c==2) nbT.tod=(u8)((nbT.tod+1)%3);
     else if(c==3){ char nm[SLOT_NAME+1]; for(int i=0;i<=NB_NAME;i++) nm[i]=nbT.name[i]; if(slEditName(nm)) for(int i=0;i<=NB_NAME;i++) nbT.name[i]=nm[i]; }
-    else if(c==4) helpScreen("NEIGHBORHOOD",nbHelp,16);
-    else if(c==5||c==6) *quit=1;
+    else if(c==4||c==5) *quit=1;
 }
 static void neighborhoodScreen(void){
     nbBounds();
@@ -463,11 +462,11 @@ static int nbSwitch(int s){   // make the town in slot s the one you live in (yo
     if(nbTS==s&&nbT.NB_ACT) return 1;
     if(nbLoad()){ if(nbT.cur<NB_LOTS&&nbT.lot[nbT.cur].on){ box(60,64,120,24); text(76,72,"PACKING UP...",WHITE,1); present();
             ldShow("PACKING UP YOUR LOT",0,3);
-            int e=nbStore(nbT.cur); if(e){ nbErr=e==SLE_NOROOM?"NO FREE SLOTS FOR YOUR LOT":slErrMsg(e); return 0; } }
+            int e=nbStore(nbT.cur); if(e){ nbErr=e==SLE_NOROOM?"NO FREE SLOTS FOR YOUR LOT":slErrMsg(e); ldEnd(); return 0; } }
         nbT.NB_ACT=0; nbSave(); }
-    if(!nbRead(s,&nbT)){ nbErr="THAT TOWN IS DAMAGED"; nbLoad(); return 0; }
+    if(!nbRead(s,&nbT)){ nbErr="THAT TOWN IS DAMAGED"; nbLoad(); ldEnd(); return 0; }
     nbTS=s; int want=nbT.cur<NB_LOTS&&nbT.lot[nbT.cur].on?nbT.cur:nbT.home; nbT.cur=255; nbT.NB_ACT=1;
-    if(!nbGo(want)){ nbSave(); return 0; }
+    if(!nbGo(want)){ nbSave(); ldEnd(); return 0; }
     return 1;
 }
 static int nbFirstTowns(int*l){   // the towns saved (their slots into l). The first time: three towns to start with (one on a 32 KB SRAM chip)

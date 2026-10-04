@@ -1174,7 +1174,8 @@ IWRAM_THUMB static void drawScene(int blink){
     drawEars(1); drawTail(1); drawWings(1); drawHorns(1); drawAntennae();
 }
 static volatile int mWantOff; static void audIdleStop(void);   // set by the mixer interrupt when nothing is left to play: vsync() then switches it off
-static void vsync(void){ while(REG_VCOUNT>=160); while(REG_VCOUNT<160); if(mWantOff) audIdleStop(); svTick(); }
+static void ldTick(void);   // loading.h: once per frame, lets the music come back after a loading screen
+static void vsync(void){ while(REG_VCOUNT>=160); while(REG_VCOUNT<160); if(mWantOff) audIdleStop(); svTick(); ldTick(); }
 static void present(void){
     vsync();
     REG_DMA3SAD=(u32)(uintptr_t)fb; REG_DMA3DAD=VRAM_ADDR;
@@ -1309,20 +1310,22 @@ __asm__(".pushsection .rodata\n.balign 4\n"
  ".global sfx_cry\nsfx_cry:\n.incbin \"source/sfx/cry.adp\"\n.balign 4\n"
  ".global sfx_groan\nsfx_groan:\n.incbin \"source/sfx/groan.adp\"\n.balign 4\n"
  ".global sfx_instant\nsfx_instant:\n.incbin \"source/sfx/instant.adp\"\n.balign 4\n"
+ ".global sfx_tick\nsfx_tick:\n.incbin \"source/sfx/tick.adp\"\n.balign 4\n"
  ".popsection\n");
-extern const u8 sfx_hit[],sfx_gasp[],sfx_scream[],sfx_cry[],sfx_groan[],sfx_instant[];
-enum { SFX_BONK, SFX_HIT, SFX_GASP, SFX_SCREAM, SFX_CRY, SFX_GROAN, SFX_NEARLY, SFX_DEATH, SFX_INSTANT, SFX_N };
+extern const u8 sfx_hit[],sfx_gasp[],sfx_scream[],sfx_cry[],sfx_groan[],sfx_instant[],sfx_tick[];
+enum { SFX_BONK, SFX_HIT, SFX_GASP, SFX_SCREAM, SFX_CRY, SFX_GROAN, SFX_NEARLY, SFX_DEATH, SFX_INSTANT, SFX_TICK, SFX_N };
 // effects that share a source file share one blob in the ROM
-static const u8* const sfxTab[SFX_N]={ sfx_hit,sfx_hit,sfx_gasp,sfx_scream,sfx_cry,sfx_groan,sfx_scream,sfx_scream,sfx_instant };
+static const u8* const sfxTab[SFX_N]={ sfx_hit,sfx_hit,sfx_gasp,sfx_scream,sfx_cry,sfx_groan,sfx_scream,sfx_scream,sfx_instant,sfx_tick };
 static const u16 stepT[89]={7,8,9,10,11,12,13,14,16,17,19,21,23,25,28,31,34,37,41,45,50,55,60,66,73,80,88,97,107,118,130,143,157,173,190,209,230,253,279,307,337,371,408,449,494,544,598,658,724,796,876,963,1060,1166,1282,1411,1552,1707,1878,2066,2272,2499,2749,3024,3327,3660,4026,4428,4871,5358,5894,6484,7132,7845,8630,9493,10442,11487,12635,13899,15289,16818,18500,20350,22385,24623,27086,29794,32767};
 static const signed char idxT[8]={-1,-1,-1,-1,2,4,6,8};
 // The effect voice: ssrc/sn = the clip's nibbles and sample count, sPos + sFr/65536 = play position in clip samples, sRd = samples decoded so far,
 // sS0/sS1 = the two decoded samples around sPos (for interpolation), spred/sidx = the ADPCM decoder. sfxV is cleared by the mixer at the end.
 static const u8 *ssrc; static u32 sn, sPos, sFr, sRd; static int spred, sidx, sS0, sS1, sfxOn; static volatile int sfxV;
+static volatile int sfxLoop, sfxFade=256, sfxFadeT=256;   // the effect voice can LOOP (the loading tick-tock) and has its own fade: sfxFade glides to sfxFadeT a little every frame (256 = full); a looping voice that has faded to 0 ends itself
 static int gMusic;   // game music is switched on right now (an effect now plays over it instead of pausing it)
 static volatile int mOn, mPlay;   // mOn: the mixer interrupts and sound DMA are running; mPlay: a song is part of the mix
 static void audStart(void); static void audStop(void);
-static void sfxStop(void){ sfxV=0; sfxOn=0; if(mOn&&!mPlay) audStop(); }
+static void sfxStop(void){ if(sfxLoop&&sfxV){ sfxFadeT=0; return; } sfxV=0; sfxOn=0; if(mOn&&!mPlay) audStop(); }   // (the loading tick-tock is never cut: it fades out and ends itself)
 // ---------- tracker songs: note-based XM player (tools/xm2gba.py converts the .xm songs listed in songs.h) ----------
 // A song is stored as notes (pattern/row/channel events, each with its own volume) plus small instrument samples (8-bit,
 // band-limited and down-sampled in the converter). A 16-voice stereo mixer (each note has a pan bus, see tools/xm2gba.py) with linear interpolation renders 304 samples per frame
@@ -1352,6 +1355,7 @@ static s8 mbufL[2][MUS_N] __attribute__((aligned(4))), mbufR[2][MUS_N] __attribu
 static s16 maccL[MUS_N], maccR[MUS_N];
 static s8 mDly[256] __attribute__((aligned(4))); static int mDp, mLp;   // pseudo-stereo for streamed songs: 256-sample (14 ms) delay line + a low-pass state that keeps the bass centred
 static int mOrd, mRow, mLeft, mFrac; static volatile int mCur, mFilled; static const XmSong*mSong;
+static volatile int ldG=256, ldGT=256; static volatile int ldHold, ldRel;   // LOADING: the song steps aside while a slow job runs (loading.h). ldG = its own gain (256 full) gliding to ldGT; at 0 the song is FROZEN, not mixed at all (that is the CPU the job gets back). ldHold = a song is stepped aside; ldRel = frames until it comes back
 static volatile int mGain=256, mGainT=256;   // music loudness 256 = full; mGain glides to mGainT a little every frame (half while a menu is open)
 static int mKind, aTail; static volatile int mLaps, mDone;   // mKind 0 = tracker song, 1 = streamed ADPCM; mLaps = times the tracker song has wrapped; mDone = ADPCM song finished
 static int aSlow, aPrv, aPh; static const u8 *aSrc; static u32 aN, aPos; static int aPred, aIdx;   // ADPCM stream: data, sample count, position, decoder state
@@ -1459,9 +1463,12 @@ IWRAM_CODE static void pseudoSt(s8*out,s8*outR){
     mDp=dp; mLp=lp;
 }
 IWRAM_CODE static void sfxMix(s8*outL,s8*outR){   // add the effect voice to a finished buffer (both sides), clipped
-    const u8*d=ssrc; u32 n=sn, ip=sPos, fr=sFr, rd=sRd; int pred=spred, idx=sidx, s0=sS0, s1=sS1, sgain=oSfxGain();   // SFX VOLUME and MASTER VOLUME options
+    int fg=sfxFade;   // the voice's own fade (loading tick-tock): 8/256 a frame up, 16/256 down
+    if(fg!=sfxFadeT){ fg+=(sfxFadeT>fg)?8:-16; if((sfxFadeT>sfxFade)?fg>sfxFadeT:fg<sfxFadeT) fg=sfxFadeT; sfxFade=fg;
+        if(fg==0&&sfxFadeT==0&&sfxLoop){ sfxV=0; sfxLoop=0; return; } }
+    const u8*d=ssrc; u32 n=sn, ip=sPos, fr=sFr, rd=sRd; int pred=spred, idx=sidx, s0=sS0, s1=sS1, sgain=(oSfxGain()*fg)>>8;   // SFX VOLUME and MASTER VOLUME options (x the voice's fade: 256 = unchanged)
     for(int i=0;i<MUS_N;i++){
-        if(ip>=n){ sfxV=0; break; }
+        if(ip>=n){ if(!sfxLoop){ sfxV=0; break; } ip=0; rd=0; pred=0; idx=0; s0=s1=0; }   // a looping voice starts over (decoder and all; the loop is silent at its ends)
         while(rd<ip+2){   // decode up to the sample after ip (silence past the end)
             s0=s1;
             if(rd<n){ int v=d[rd>>1]; v=(rd&1)?(v>>4):(v&15);
@@ -1556,6 +1563,7 @@ IWRAM_CODE static void deckSwap(MDeck*d){   // exchange the main deck (the globa
 }
 IWRAM_CODE static void musMixAny(int b){
     if(!mPlay&&!xfOn){ for(int i=0;i<MUS_N;i++){ mbufL[b][i]=0; mbufR[b][i]=0; } if(sfxV) sfxMix(mbufL[b],mbufR[b]); else mWantOff=1; return; }   // only an effect (or nothing: switch the mixer off)
+    if(ldG==0&&ldGT==0&&!xfOn){ for(int i=0;i<MUS_N;i++){ mbufL[b][i]=0; mbufR[b][i]=0; } if(sfxV) sfxMix(mbufL[b],mbufR[b]); return; }   // the song is stepped aside for a loading screen: frozen where it is, no decoding at all (only the tick-tock is mixed)
     if(mPlay){ if(mKind==2) chipMix(mbufL[b],mbufR[b]); else if(mKind) adpMix(mbufL[b],mbufR[b]); else musMix(mbufL[b],mbufR[b]); }
     else for(int i=0;i<MUS_N;i++){ mbufL[b][i]=0; mbufR[b][i]=0; }
     if(xfOn){   // blend the new song (main deck) with the old one
@@ -1572,6 +1580,8 @@ IWRAM_CODE static void musMixAny(int b){
     else if(mg0<256){ for(int i=0;i<MUS_N;i++){ mbufL[b][i]=(s8)((mbufL[b][i]*mg0)>>8); mbufR[b][i]=(s8)((mbufR[b][i]*mg0)>>8); } }
     if(mGain!=mGainT){ int g=mGain+((mGainT>mGain)?16:-16); if((mGainT>mGain)?g>mGainT:g<mGainT) g=mGainT; mGain=g; }   // fade: 16 steps of 1/16 per frame
     if(mGain<256){ int g=mGain; for(int i=0;i<MUS_N;i++){ mbufL[b][i]=(s8)((mbufL[b][i]*g)>>8); mbufR[b][i]=(s8)((mbufR[b][i]*g)>>8); } }
+    if(ldG!=ldGT){ int g=ldG+((ldGT>ldG)?6:-8); if((ldGT>ldG)?g>ldGT:g<ldGT) g=ldGT; ldG=g; }   // LOADING fade: out 8/256 a frame (~0.5 s), back in 6/256 (~0.7 s)
+    if(ldG<256){ int g=ldG; for(int i=0;i<MUS_N;i++){ mbufL[b][i]=(s8)((mbufL[b][i]*g)>>8); mbufR[b][i]=(s8)((mbufR[b][i]*g)>>8); } }
     if(sfxV) sfxMix(mbufL[b],mbufR[b]);   // an effect plays on top of the song (it used to pause it)
 }
 // ---- Audio is driven by interrupts, NOT by the main loop ----
@@ -1631,22 +1641,30 @@ static void deckInit(int kind,const u8*adp,const XmSong*xm){   // set the main d
         aPred=aPred0; aIdx=aIdx0; }
     mPlay=1;
 }
+// A song that is stepped aside for a loading screen (ldHold) and gets replaced or stopped by someone else is simply dropped: nothing of it comes back.
+static void ldDrop(void){
+    if(!ldHold) return;
+    u16 ime=R_IME; R_IME=0;
+    ldHold=0; ldRel=0; ldG=ldGT=256; xfOn=0; xdk.play=0; xdkG=256; mPlay=0;
+    R_IME=ime;
+}
 static void musBeginRaw(int kind,const u8*adp,const XmSong*xm){
     irqOff(); mOn=0; R_DMA1CNT=0; R_DMA2CNT=0; R_TM0CNT=0;
-    sfxV=0; sfxOn=0; mCur=0; mFilled=0;
+    sfxV=0; sfxOn=0; sfxLoop=0; mCur=0; mFilled=0;
     deckInit(kind,adp,xm); audStart();
 }
-static void musBegin(int kind,const u8*adp,const XmSong*xm){ xfOn=0; xdk.play=0; xdkG=256; musBeginRaw(kind,adp,xm); }   // a hard start: whatever played is cut
+static void musBegin(int kind,const u8*adp,const XmSong*xm){ ldDrop(); xfOn=0; xdk.play=0; xdkG=256; musBeginRaw(kind,adp,xm); }   // a hard start: whatever played is cut
 static void musStart(void){ musBegin(0,0,&xm_the_dipper_man); }   // the title music
 static void musKick(void){}   // (kept so old call sites still compile: the interrupts do this now)
 static void musFill(void){}
-static void musStop(void){ xfOn=0; xdk.play=0; xdkG=256; mPlay=0; if(mOn&&!sfxV) audStop(); }   // a hard stop. An effect still sounding keeps the mixer going (sfxTick stops it after)
+static void musStop(void){ ldDrop(); xfOn=0; xdk.play=0; xdkG=256; mPlay=0; if(mOn&&!sfxV) audStop(); }   // a hard stop. An effect still sounding keeps the mixer going (sfxTick stops it after)
 static void audIdleStop(void){ mWantOff=0; if(mOn&&!mPlay&&!xfOn&&!sfxV) audStop(); }
 // CROSSFADE to a new song: the one playing carries on under a falling gain while the new one rises (frames of 1/60 s). With nothing playing the song just fades in.
 #define XF_SONG 90   // song to song: 1.5 s
 #define XF_SCREEN 60 // from one screen's music to the next's
 #define XF_OUT 45    // out to silence
 static void musFadeTo(int kind,const u8*adp,const XmSong*xm,int frames){
+    ldDrop();
     if(!mOn){ xdk.play=0; xdkG=256; xfT=0; xfN=frames; xfOn=1; musBeginRaw(kind,adp,xm); return; }   // (xfOn is set before the first buffer is mixed)
     u16 ime=R_IME; R_IME=0;   // the sound interrupts must not run while the songs are swapped over
     int g=xfOn?xfGain(xfT,xfN>0?xfN:1):256;   // a crossfade still running: the song that was rising starts its fall from where it got to
@@ -1654,6 +1672,7 @@ static void musFadeTo(int kind,const u8*adp,const XmSong*xm,int frames){
     R_IME=ime;
 }
 static void musFadeOut(int frames){   // fade the playing song out to silence (the mixer switches itself off when it is done)
+    ldDrop();
     if(!mOn||!mPlay) return;
     u16 ime=R_IME; R_IME=0;
     int g=xfOn?xfGain(xfT,xfN>0?xfN:1):256;
@@ -1705,7 +1724,9 @@ static const char* songArtist(const Song*sg){
 }
 _Static_assert(sizeof(songs)/sizeof(songs[0])<=64,"the jukebox holds at most 64 songs, secret ones included (see source/songs.h and JB_MAX in jukebox.h)");
 // ---------- debug code: UP UP DOWN DOWN LEFT LEFT RIGHT B A START on the title screen ----------
-// Reveals the PLACEHOLDER test tunes in the jukebox for this session (they are hidden otherwise).
+// Reveals, for this session only (never saved): the PLACEHOLDER test tunes in the jukebox, the secret creator chiptunes, and everything that directly changes the HOUSEHOLD:
+// pause menu > HOUSEHOLD (MOVE IN A FAMILY, INVITE A NEW SIM, TRULY RANDOM SIM, MOVE SOMEONE OUT, MOVE EVERYONE OUT; without the code it is just RELATIONSHIPS), SELECT on RELATIONSHIPS,
+// the creator's ADD TO FAMILY and FAMILY (DONE tab), and SAVE / LOAD HOUSEHOLD in ROOM SLOTS.
 static u8 dbgOn;
 static void settingsSave(void);
 static const u16 konSeq[11]={K_UP,K_UP,K_DOWN,K_DOWN,K_LEFT,K_RIGHT,K_LEFT,K_RIGHT,K_B,K_A,K_START};   // UP UP DOWN DOWN LEFT RIGHT LEFT RIGHT B A START
@@ -1742,6 +1763,7 @@ static void sfxPlay(int id){   // a new sound replaces whatever effect is playin
     const u8*b=sfxTab[id];
     sfxV=0;   // (the interrupt does not touch the voice while sfxV is 0)
     ssrc=b+4; sn=*(const u32*)b; sPos=0; sFr=0; sRd=0; spred=0; sidx=0; sS0=sS1=0;
+    sfxLoop=0; sfxFade=sfxFadeT=256;
     sfxOn=1; sfxV=1;
     if(!mOn) audStart();
 }
@@ -1940,8 +1962,28 @@ static void mapScan(void){   // find the skateboard (B) and the spawn point (P);
 }
 static const char sramTag[] __attribute__((used)) = "FLASH1M_V103";   // tells emulators / flash carts to give the game 128 KB of flash (save.h)
 #define MSZ (MW*MH)
-#define FLR_N 3   // floors a house has (house slots, slots.h): the floor you stand on is the live map, the other floors wait in flBuf
-static u8 flBuf[FLR_N][3][MSZ] EWRAM_BSS; static int curFl; static u8 flArm, flInit;   // tiles, floors and wallpapers of every floor; which floor is live
+#define FLR_N 3   // floors a house has (house slots, slots.h): the floor you stand on is the live map, the other floors wait packed in flPool
+// FLOOR STORAGE. A floor is mostly empty floor, so the floors are kept run-length packed instead of as 3 x 1600 bytes each: flPool holds floor 0's
+// runs, then floor 1's, then floor 2's, back to back. One floor = three planes (tiles, floors, wallpapers), each a list of (count 1..255, value)
+// pairs that covers the whole map. flLen[f] = bytes the floor takes (0 = a blank floor, flBlank, which takes no room at all); flPl[f][p] = where
+// plane p starts inside it. The floor you stand on is the live map (lifeMap / floorMap / wallMap): its copy here is only the last one stored.
+// FL_POOL is big enough for every house the save slots can hold (4 slots, see the _Static_assert in slots.h). A floor that would not fit is not
+// stored: flStoreAs returns 0 and the old copy stays, flGo refuses the stairs.
+#define FL_POOL 8192
+static u8 flPool[FL_POOL] EWRAM_BSS; static u16 flLen[FLR_N] EWRAM_BSS, flPl[FLR_N][3] EWRAM_BSS; static int curFl; static u8 flArm, flInit;
+static int flOff(int f){ int o=0; for(int g=0;g<f;g++) o+=flLen[g]; return o; }   // where floor f's runs start (flOff(FLR_N) = bytes in use)
+static int flBlankV(int pl,int i){ int x=i%MW, y=i/MW, e=(x==0||y==0||x==MW-1||y==MH-1); return pl==0?(e?'w':'.'):pl==1?1:(e?13:0); }   // a blank floor: carpet and a low wall round the edge
+static u8 flCf[3] EWRAM_BSS; static int flCi[3] EWRAM_BSS, flCn[3] EWRAM_BSS, flCv[3] EWRAM_BSS; static const u8*flCq[3] EWRAM_BSS;   // one read cursor per plane (floor + 1, last cell, run left, value, next run)
+static int flGet(int f,int pl,int i){   // cell i of plane pl of stored floor f. Read a plane in order and it costs one step a cell
+    if(!flLen[f]) return flBlankV(pl,i);
+    if(flCf[pl]!=f+1||i<=flCi[pl]){ flCf[pl]=(u8)(f+1); flCq[pl]=flPool+flOff(f)+flPl[f][pl]; flCn[pl]=0; flCi[pl]=-1; }
+    while(flCi[pl]<i){ if(!flCn[pl]){ flCn[pl]=*flCq[pl]++; flCv[pl]=*flCq[pl]++; } flCn[pl]--; flCi[pl]++; }
+    return flCv[pl];
+}
+static int flPlaneAt(int f,int pl,int i){   // cell i of plane pl of floor f as it stands now: the live map for the floor you are on, else its stored copy
+    if(f==curFl){ int y=i/MW, x=i%MW; return pl==0?(u8)lifeMap[y][x]:pl==1?floorMap[y][x]:wallMap[y][x]; }
+    return flGet(f,pl,i);
+}
 #define SET_OFF 4864            // settings live here now (the big map takes bytes 0..4802)
 #define OMW 14                  // old 14x14 saves
 #define OMSZ (OMW*OMW)
@@ -1985,12 +2027,12 @@ static int jbUnlock(int bit){   // 1 when the song was locked and is now free (s
 // (bytes 0..4095 sit in flash sector 0 on their own, so mapSave erases that sector and writes it again: svRd / svWr, not pointers)
 static int mapSaved(void){ if(svRd(0)!='B'||svRd(1)!='M'||svRd(2)!='3') return 0;
     for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x;
-        if(curFl?(svRd(3+i)!=flBuf[0][0][i]||svRd(3+MSZ+i)!=flBuf[0][1][i]||svRd(3+2*MSZ+i)!=flBuf[0][2][i]):(svRd(3+i)!=(u8)lifeMap[y][x]||svRd(3+MSZ+i)!=floorMap[y][x]||svRd(3+2*MSZ+i)!=wallMap[y][x])) return 0; }
+        if(curFl?(svRd(3+i)!=flGet(0,0,i)||svRd(3+MSZ+i)!=flGet(0,1,i)||svRd(3+2*MSZ+i)!=flGet(0,2,i)):(svRd(3+i)!=(u8)lifeMap[y][x]||svRd(3+MSZ+i)!=floorMap[y][x]||svRd(3+2*MSZ+i)!=wallMap[y][x])) return 0; }
     return 1; }
 static void mapSave(void){
     if(mapSaved()) return;   // the same room: nothing to write (flash wears with every erase)
     svErase(0,SV_SEC); svWr(0,'B'); svWr(1,'M'); svWr(2,'3');
-    for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x; if(curFl){ svWr(3+i,flBuf[0][0][i]); svWr(3+MSZ+i,flBuf[0][1][i]); svWr(3+2*MSZ+i,flBuf[0][2][i]); } else { svWr(3+i,(u8)lifeMap[y][x]); svWr(3+MSZ+i,floorMap[y][x]); svWr(3+2*MSZ+i,wallMap[y][x]); } }   // (upstairs: the room kept in SRAM is still the ground floor)
+    for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x; if(curFl){ svWr(3+i,flGet(0,0,i)); svWr(3+MSZ+i,flGet(0,1,i)); svWr(3+2*MSZ+i,flGet(0,2,i)); } else { svWr(3+i,(u8)lifeMap[y][x]); svWr(3+MSZ+i,floorMap[y][x]); svWr(3+2*MSZ+i,wallMap[y][x]); } }   // (upstairs: the room kept in SRAM is still the ground floor)
     svCommit(); }
 static int mapLoad(void){   // returns 1 if a valid saved map was loaded
     wDirty=1;
@@ -2024,29 +2066,65 @@ static void mapPlace(int x,int y,char c){
     if(c=='B'||c=='P'){ for(int j=0;j<MH;j++)for(int i=0;i<MW;i++) if(lifeMap[j][i]==c) lifeMap[j][i]='.'; }
     lifeMap[y][x]=c; if(c=='w'||c=='W') wallMap[y][x]=(u8)eWp; wDirty=1; }
 
-// ---------- floors: the live map is the floor you are on; the others wait in flBuf. Stairs: '^' goes up, '~' comes down. House slots (slots.h) keep all of them ----------
+// ---------- floors: the live map is the floor you are on; the others wait packed in flPool. Stairs: '^' goes up, '~' comes down. House slots (slots.h) keep all of them ----------
 static void hhSlotsFree(void); static void liveInvalidate(void);
 static const char* const flNm[FLR_N]={"GROUND FLOOR","FLOOR 2","FLOOR 3"};
 static int flBd[4];   // the board pickup and the spawn tile of the ground floor while you are upstairs
-static void flStoreAs(int f){ for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x; flBuf[f][0][i]=(u8)lifeMap[y][x]; flBuf[f][1][i]=floorMap[y][x]; flBuf[f][2][i]=wallMap[y][x]; } }
-static void flLoad(int f){ for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x; lifeMap[y][x]=(char)flBuf[f][0][i]; floorMap[y][x]=flBuf[f][1][i]; wallMap[y][x]=flBuf[f][2][i]; } wDirty=1; }
-static void flBlank(int f){ for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x, e=(x==0||y==0||x==MW-1||y==MH-1); flBuf[f][0][i]=(u8)(e?'w':'.'); flBuf[f][1][i]=1; flBuf[f][2][i]=(u8)(e?13:0); } }   // an empty floor: carpet and a low wall round the edge
+static void flBlankLive(void);
+static int flLiveBlank(void){ for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int e=(x==0||y==0||x==MW-1||y==MH-1); if(lifeMap[y][x]!=(e?'w':'.')||floorMap[y][x]!=1||wallMap[y][x]!=(e?13:0)) return 0; } return 1; }
+static int flEnc(u8*out,u16*pl){   // the live map as runs: with out 0 only counts the bytes. pl gets where each plane starts
+    int n=0;
+    for(int p=0;p<3;p++){
+        int run=0, cur=0; if(pl) pl[p]=(u16)n;
+        for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){
+            int v=p==0?(u8)lifeMap[y][x]:p==1?floorMap[y][x]:wallMap[y][x];
+            if(run>0&&v==cur&&run<255){ run++; continue; }
+            if(run){ if(out){ out[n]=(u8)run; out[n+1]=(u8)cur; } n+=2; }
+            run=1; cur=v; }
+        if(run){ if(out){ out[n]=(u8)run; out[n+1]=(u8)cur; } n+=2; }
+    }
+    return n;
+}
+static void flResize(int f,int n){   // floor f's runs become n bytes long (the floors after it slide along). The caller has checked that n fits
+    int o=flOff(f), old=flLen[f], tail=flOff(FLR_N)-o-old;
+    if(n<old) for(int k=0;k<tail;k++) flPool[o+n+k]=flPool[o+old+k];
+    else if(n>old) for(int k=tail-1;k>=0;k--) flPool[o+n+k]=flPool[o+old+k];
+    flLen[f]=(u16)n; flCf[0]=flCf[1]=flCf[2]=0;
+}
+static int flStoreAs(int f){   // keep the live map as floor f. 1 = done; 0 = it does not fit in flPool (then floor f's old copy is untouched)
+    int n=flLiveBlank()?0:flEnc(0,0);
+    if(flOff(FLR_N)-flLen[f]+n>FL_POOL) return 0;
+    flResize(f,n); if(n) flEnc(flPool+flOff(f),flPl[f]);
+    return 1;
+}
+static void flLoad(int f){   // floor f becomes the live map
+    if(!flLen[f]){ flBlankLive(); return; }
+    const u8*q=flPool+flOff(f)+flPl[f][0];
+    for(int p=0;p<3;p++){ int x=0, y=0;
+        for(int left=MSZ;left>0;){ int c=*q++, v=*q++; if(c>left) c=left; left-=c;
+            while(c-->0){ if(p==0) lifeMap[y][x]=(char)v; else if(p==1) floorMap[y][x]=(u8)v; else wallMap[y][x]=(u8)v; if(++x==MW){ x=0; y++; } } } }
+    wDirty=1;
+}
+static void flBlank(int f){ flResize(f,0); }   // an empty floor: carpet and a low wall round the edge (it takes no room)
+static void flClear(void){ for(int f=0;f<FLR_N;f++) flLen[f]=0; flCf[0]=flCf[1]=flCf[2]=0; }   // every floor blank at once (a house is about to be loaded over them)
 static void flBlankLive(void){ for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int e=(x==0||y==0||x==MW-1||y==MH-1); lifeMap[y][x]=e?'w':'.'; floorMap[y][x]=1; wallMap[y][x]=(u8)(e?13:0); } wDirty=1; }
 static void flEnsure(void){ if(flInit) return; flInit=1; for(int f=1;f<FLR_N;f++) flBlank(f); }
-static void flGo(int n){   // make floor n the live map (the one you leave is kept)
-    if(n==curFl||n<0||n>=FLR_N) return;
-    flEnsure(); flStoreAs(curFl);
+static int flGoF(int n,int force){   // make floor n the live map (the one you leave is kept). 0 = it would not fit in flPool and nothing changed; with force the leaving floor falls back to its last stored copy
+    if(n==curFl||n<0||n>=FLR_N) return 1;
+    flEnsure(); if(!flStoreAs(curFl)&&!force) return 0;
     if(curFl==0){ flBd[0]=bdx; flBd[1]=bdy; flBd[2]=spx; flBd[3]=spy; }
     curFl=n; flLoad(n);
     if(n==0){ bdx=flBd[0]; bdy=flBd[1]; spx=flBd[2]; spy=flBd[3]; } else bdx=bdy=-1;   // no board pickup upstairs
     hhSlotsFree(); liveInvalidate(); camSnap=1;
+    return 1;
 }
-static void flHome(void){ flArm=0; flGo(0); }
+static int flGo(int n){ return flGoF(n,0); }
+static void flHome(void){ flArm=0; flGoF(0,1); }
 static void flBlankUpper(void){ flEnsure(); for(int f=1;f<FLR_N;f++) flBlank(f); }
 static void flStairs(int dir){   // you stepped on a stair tile: up (+1) or down (-1)
     int n=curFl+dir; if(n<0||n>=FLR_N){ lnote=dir>0?"NO FLOOR ABOVE":"NO FLOOR BELOW"; lnoteT=40; return; }
     int tx=(int)(lfx>>8), ty=(int)(lfy>>8); char want=dir>0?'~':'^';
-    flGo(n);
+    if(!flGo(n)){ lnote="TOO MUCH BUILT TO CLIMB"; lnoteT=60; return; }
     int fx=-1, fy=-1;
     for(int y=0;y<MH&&fx<0;y++)for(int x=0;x<MW;x++) if(lifeMap[y][x]==want){ fx=x; fy=y; break; }
     if(fx<0){ fx=tx; fy=ty; lifeMap[fy][fx]=want; wDirty=1; }   // no stairs there yet: they appear where you came from
@@ -2123,7 +2201,7 @@ static void toast(const char*msg){ int w=tw(msg,1)+16;
     box((SW-w)/2,66,w,22); text((SW-w)/2+8,74,msg,WHITE,1); for(int i=0,n=oToastLen();i<n;i++){ present(); } }
 static const char* const lifeHelp[16]={">ON FOOT","DPAD WALK  B RUN  A HOP","L GET ON THE BOARD","R USE FRIDGE TOILET BED SHOWER SOFA",">ON THE BOARD","A PUSH  DPAD STEER  B OLLIE","IN AIR DPAD SPINS  B KICKFLIP  R GLIDES",">KEEP YOURSELF GOING","WC IS THE TOILET BAR  HP UNDER THE FACE","A OR B GETS YOU UP FROM BED OR SOFA",">WORK  MON TO FRI 9 TO 5","TRICK POINTS BEAT THE QUOTA FOR PAY",">WANTS AND FEARS","WANTS FILL THE METER  FEARS DRAIN IT","A GOOD SLEEP ROLLS NEW WANTS AND FEARS","R BY A SIM TALK OR FIGHT  START MENU"};
 
-static const char* const creatureHelp[15]={">PICK YOUR LOOK","L R CHANGE TAB   UP DOWN PICK A ROW","LEFT RIGHT CHANGE IT  A ALSO STEPS","SELECT TURNS THE CREATURE ROUND",">THE TABS","1 BODY  2 FACE  3 HAIR  4 CLOTHES","5 PARTS  TAIL HORNS SPIKES WINGS","  PARTS GIVE POWERS  AND FIGHT BONUSES","  BIG PARTS COST DNA  A BUYS ONE","6 ASPIRE  ASPIRATION  LIFETIME WANT  SIGN","  AND TRAITS THAT SHARE 25 POINTS",">FINISH","START JUMPS TO THE DONE TAB","GO LIVE LIFE PLAYS YOUR CREATURE","LIVING EARNS DNA FOR NEW PARTS"};
+static const char* const creatureHelp[15]={">PICK YOUR LOOK","L R CHANGE TAB   UP DOWN PICK A ROW","LEFT RIGHT CHANGE IT  A ALSO STEPS","SELECT TURNS THE CREATURE ROUND",">THE TABS","1 BODY  2 FACE  3 HAIR  4 CLOTHES","5 PARTS  TAIL HORNS SPIKES WINGS","  PARTS GIVE POWERS  AND FIGHT BONUSES","  BIG PARTS COST JENES  A BUYS ONE","6 ASPIRE  ASPIRATION  LIFETIME WANT  SIGN","  AND TRAITS THAT SHARE 25 POINTS",">FINISH","START JUMPS TO THE DONE TAB","GO LIVE LIFE PLAYS YOUR CREATURE","LIVING EARNS DNA FOR NEW PARTS"};
 static const char* const mapHelp[14]={">BUILD A ROOM","ROOM TOOL  A CORNER  A BUILDS","WALL TOOL  A START  A DRAWS A LINE","FLOOR TOOL  A CORNER  A FILLS","ITEM TOOL  PLACE SINGLE TILES","ERASE TOOL  A CORNER  A CLEARS",">STYLES","L R PICK FLOOR OR ITEM","SEL+L R PICK WALLPAPER","SELECT TAP NEXT TOOL  B CANCELS",">KEEP IT","START OPENS PLAY TEST AND SAVE",">FLOORS","SEL+UP DOWN FLOOR  STAIRS ARE ITEMS"};
 
 // ---------- settings screen ----------
@@ -2648,6 +2726,17 @@ static int ovNow(Rc*r,unsigned*sig){   // is there an overlay, where (clamped to
 }
 static void hudApplyLayout(void){ vpY0=HUD_TOPH; vpY1=sHud>=2?SH:HUD_BOTY; }
 static void liveInvalidate(void){ vpValid=0; }
+// CLEAR CACHES (OPTIONS > VIDEO, last row): throws away everything that is only a speed-up copy and gets rebuilt on its own, so
+// a stale or glitched one is gone and the next frame starts clean. Nothing that is saved or that holds a Sim, a room or a song
+// is touched, and nothing is re-baked (that would cost more than it frees).
+static void cacheFlush(void){
+    wDirty=1;                                        // the walls' inside / outside map is worked out again
+    liveInvalidate();                                // the viewport cache: the next frame draws the whole room
+    hhSlotsFree();                                   // OBJ sprite slots: each Sim's tiles and palette are loaded again when it is next on screen
+    for(int i=0;i<MW*MH;i++) hhDist[i]=0xFFFF;       // the Sims' path-search scratch
+    sfxStop();                                       // sound effects still being mixed
+    REG_WAITCNT&=(u16)~0x4000; applyRom();           // cart prefetch off, then back on as the ROM SPEED option says: its buffer starts empty
+}
 static void liveHud(int all){   // bring the panels up to date (into fb); the pieces that changed are listed in hudRc
     hudRcN=0;
     if(all||pHud!=sHud){ all=1; }
@@ -2749,7 +2838,7 @@ static void camStep(int steps,u16 k,u16 pr){   // action cam: the game holds sti
     else { int f=lcamF; cview=(f<6||f>=60)?0:(f-6)/18+1; if(cview>3) cview=0; }
 }
 static int gToMenu;   // set when the player picks MAIN MENU in the pause menu, so every screen above returns to it
-static const char* const lifeItems[9]={"RESUME","ASPIRATION","HOUSEHOLD","HOW TO PLAY","OPTIONS","ROOM SLOTS","EDIT MAP","NEW LIFE","MAIN MENU"};
+static const char* const lifeItems[8]={"RESUME","ASPIRATION","HOUSEHOLD","OPTIONS","ROOM SLOTS","EDIT MAP","NEW LIFE","MAIN MENU"};
 static void hhSwap(HhSim*s){   // trade places: the player becomes s, s becomes who the player was
     s32 x=lfx, y=lfy; lfx=s->fx; lfy=s->fy; s->fx=x; s->fy=y;
     { u8 h=(u8)(lhd&15); lhd=s->hd; s->hd=h; }
@@ -2826,8 +2915,8 @@ static void aspPanel(void){
         present();
     }
 }
-static const char* const lifeItemsNb[9]={"RESUME","ASPIRATION","HOUSEHOLD","HOW TO PLAY","OPTIONS","ROOM SLOTS","EDIT MAP","NEW LIFE","NEIGHBORHOOD"};
-static const char* const lifeItemsEd[4]={"RESUME","HOW TO PLAY","OPTIONS","BACK TO EDITOR"};
+static const char* const lifeItemsNb[8]={"RESUME","ASPIRATION","HOUSEHOLD","OPTIONS","ROOM SLOTS","EDIT MAP","NEW LIFE","NEIGHBORHOOD"};
+static const char* const lifeItemsEd[3]={"RESUME","OPTIONS","BACK TO EDITOR"};
 // Timer2 (65536 Hz) is the clock (defined with the settings). The game logic always runs at 60 steps per second; the
 // frame rate setting only says how often the picture is redrawn, so lower rates save work without slowing the game.
 static const char* const yesNoLife[2]={"NO","YES ERASE IT"};
@@ -2872,16 +2961,15 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
         if(pr&K_START){   // pause menu
             mGainT=128; sfxStop(); simsSave(); hhSave(); objHideAll(); REG_DISPCNT=0x0403;   // (no sprites over the menus, options or the editor)   // the music fades to half while a menu is open   // the pause menu is also a save point
             liveInvalidate(); lifeDraw();          // a whole picture behind the menu (the screen itself only holds patches)
-            int c=menu("PAUSED",ed?lifeItemsEd:nbPlaying?lifeItemsNb:lifeItems,ed?4:9);
+            int c=menu("PAUSED",ed?lifeItemsEd:nbPlaying?lifeItemsNb:lifeItems,ed?3:8);
             if(ed&&c>=1) c+=2;   // the test-play menu has no ASPIRATION or HOUSEHOLD entry
             if(c==1) aspPanel();
             else if(c==2) hhMenu();
-            else if(c==3) helpScreen("HOW TO PLAY",lifeHelp,16);
-            else if(c==4) settingsScreen();
-            else if(c==5&&!ed){ simsSaveNow(); hhSave(); if(slotScreen()) lifeInit(); }   // a slot was loaded: start again in the loaded room (the life was written first, so nothing is lost)
-            else if(c==6&&!ed){ vpY0=0; vpY1=SH; mapEditor(); lifeInit(); }
-            else if(c==7&&!ed){ if(menu("START A NEW LIFE",yesNoLife,2)==1){ twKeep=0; simsNewLife(); moodReset(); lscore=0; simLastScore=0; lnote="NEW LIFE"; lnoteT=60; } }
-            else if((c==5&&ed)||c==8){ if(c==8&&!nbPlaying) gToMenu=1; break; }   // (from the neighborhood: back there)
+            else if(c==3) settingsScreen();
+            else if(c==4&&!ed){ simsSaveNow(); hhSave(); if(slotScreen()) lifeInit(); }   // a slot was loaded: start again in the loaded room (the life was written first, so nothing is lost)
+            else if(c==5&&!ed){ vpY0=0; vpY1=SH; mapEditor(); lifeInit(); }
+            else if(c==6&&!ed){ if(menu("START A NEW LIFE",yesNoLife,2)==1){ twKeep=0; simsNewLife(); moodReset(); lscore=0; simLastScore=0; lnote="NEW LIFE"; lnoteT=60; } }
+            else if((c==4&&ed)||c==7){ if(c==7&&!nbPlaying) gToMenu=1; break; }   // (from the neighborhood: back there)
             winFull(); REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=0; continue;
         }
         if(lcamF>0) camStep(steps,k,pr);
@@ -2900,7 +2988,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
 
 // ---------- map editor ----------
 // Tools: ROOM (two corners -> walls + floor + a door), WALL (a straight line), FLOOR (fill an area), ITEM (single tiles), ERASE (clear an area).
-static const char* const mapItems[7]={"PLAY TEST","SAVE MAP","ROOM SLOTS","OPTIONS","RESET MAP","HOW TO EDIT","BACK"};
+static const char* const mapItems[6]={"PLAY TEST","SAVE MAP","ROOM SLOTS","OPTIONS","RESET MAP","BACK"};
 static const char* const yesNo[2]={"NO","YES RESET"};
 static const char* const toolNm[NTOOL]={"ROOM","WALL","FLOOR","ITEM","ERASE"};
 static const char* const toolHint[NTOOL][2]={
@@ -3007,7 +3095,7 @@ static void mapEditor(void){
         int ux=tr[0]-tr[1], uy=tr[3]-tr[2];
         if((k&K_SEL)&&(tr[2]||tr[3])){   // SELECT + UP / DOWN: the floor above / below (stairs: the ^ and ~ items)
             int nf=curFl+(tr[2]?1:-1); comboUsed=1; ux=uy=0; dirty=1;
-            if(nf>=0&&nf<FLR_N){ flGo(nf); eAct=0; msg=flNm[nf]; msgT=60; } else { msg=nf<0?"NO FLOOR BELOW":"NO FLOOR ABOVE"; msgT=40; }
+            if(nf>=0&&nf<FLR_N){ if(flGo(nf)){ eAct=0; msg=flNm[nf]; msgT=60; } else { msg="TOO MUCH BUILT TO CHANGE FLOOR"; msgT=60; } } else { msg=nf<0?"NO FLOOR BELOW":"NO FLOOR ABOVE"; msgT=40; }
         }
         if(ux||uy){   // screen-relative like walking: up = away from the camera
             int dx=ux+uy, dy=uy-ux; dx=(dx>0)-(dx<0); dy=(dy>0)-(dy<0);
@@ -3034,7 +3122,7 @@ static void mapEditor(void){
         if(pr&K_B){ if(eAct) eAct=0; else mapPlace(ecx,ecy,'.'); }
         if(dsMsg){ msg=dsMsg; msgT=90; dsMsg=0; dirty=1; }
         if(pr&K_START){
-            int c=menu("MAP MENU",mapItems,7);
+            int c=menu("MAP MENU",mapItems,6);
             if(c==0){ mapScan(); lifeMode(1); }
             else if(c==1){ mapSave();
                 if(!mapSaved()) toast("SAVE NOT SUPPORTED HERE");
@@ -3043,8 +3131,7 @@ static void mapEditor(void){
             else if(c==2) slotScreen();
             else if(c==3) settingsScreen();
             else if(c==4){ if(!xo[XO_RESETASK]||menu("RESET THE MAP",yesNo,2)==1){ if(curFl) flBlankLive(); else if(!nbResetLot()) mapReset(); eAct=0; toast("MAP RESET"); } }
-            else if(c==5) helpScreen("HOW TO EDIT",mapHelp,14);
-            else if(c==6){ if(xo[XO_EDSAVE]) mapSave(); break; }
+            else if(c==5){ if(xo[XO_EDSAVE]) mapSave(); break; }
             prev=keyNow(); edCamSnap(); dirty=1; continue;
         }
         if(edCamStep()) dirty=1;
@@ -3061,10 +3148,10 @@ static void mapEditor(void){
 
 // ---------- creature creator ----------
 // Pick a look from numbered tabs (like a character creator): the body, the face, the hair, the clothes, Spore-style PARTS that change
-// what the creature can do, and (like Create-A-Sim) its ASPIRATION, lifetime want and personality.
+// what the creature can do, and (like Create-A-Bore) its ASPIRATION, lifetime want and personality.
 // L R change tab | UP DOWN pick a row | LEFT RIGHT change it | SELECT turns the creature | START jumps to DONE | B leaves.
 enum { TB_BODY, TB_FACE, TB_HAIR, TB_CLOTHES, TB_PARTS, TB_ASPIRE, TB_DONE, NTAB };
-enum { RK_PICK, RK_SWATCH, RK_ACT, RK_SLIDE, RK_PERS, RK_TRAIT };   // a row picks from named options, picks a colour, is a button, a slider, a persona choice or a trait
+enum { RK_PICK, RK_SWATCH, RK_ACT, RK_SLIDE, RK_PERS, RK_TRAIT, RK_DUO };   // RK_DUO: two buttons side by side in one row (LEFT RIGHT picks the side; id = left action, n = right action, lab/sub = what each side says it does)   // a row picks from named options, picks a colour, is a button, a slider, a persona choice or a trait
 enum { AC_PLAY, AC_MAP, AC_MENU, AC_RAND, AC_ADD, AC_FAM, AC_FNAME, AC_LNAME, AC_TRAND };
 enum { PS_ASP, PS_LTW, PS_SIGN };
 typedef struct { const char*lab,*sub; u8 kind,id,n; } Row;   // sub = second line of a button
@@ -3095,7 +3182,7 @@ _Static_assert(LK_N==86,"lookNm / lookCol / cnt need a slot for every look");
 static const u16* const lookCol[LK_N+1]={0,skinTones,0,0,0,0,hairTones,topTones,botTones,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,eyeTones,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 #define TROWS 32   // most rows a tab holds; the card shows 5 at a time and scrolls
 static const Row tabRow[NTAB][TROWS]={
-  {{"AGE",0,RK_PICK,LK_AGE,AG_N},{"SHAPE",0,RK_PICK,LK_SHAPE,NSHAPE},{"HEIGHT",0,RK_SLIDE,LK_HEIGHT,9},{"WEIGHT",0,RK_SLIDE,LK_WEIGHT,9},
+  {{"FIRST NAME","LAST NAME",RK_DUO,AC_FNAME,AC_LNAME},{"AGE",0,RK_PICK,LK_AGE,AG_N},{"SHAPE",0,RK_PICK,LK_SHAPE,NSHAPE},{"HEIGHT",0,RK_SLIDE,LK_HEIGHT,9},{"WEIGHT",0,RK_SLIDE,LK_WEIGHT,9},
    {"TORSO",0,RK_SLIDE,LK_TORSO,9},{"ARMS",0,RK_SLIDE,LK_ARMS,9},{"STANCE",0,RK_SLIDE,LK_STANCE,9},{"LEG WIDTH",0,RK_SLIDE,LK_LEGW,9},{"ARM WIDTH",0,RK_SLIDE,LK_ARMW,9},{"HEAD SIZE",0,RK_SLIDE,LK_HEADSZ,9},{"HAND FOOT SIZE",0,RK_SLIDE,LK_HANDFT,9},{"NECK LENGTH",0,RK_SLIDE,LK_NECK,9},{"HIP WIDTH",0,RK_SLIDE,LK_HIPW,9},{"WAIST WIDTH",0,RK_SLIDE,LK_WAISTW,9},{"SHOULDERS",0,RK_SLIDE,LK_SHOULW,9},{"THIGH WIDTH",0,RK_SLIDE,LK_THIGHW,9},{"CALF WIDTH",0,RK_SLIDE,LK_CALFW,9},
    {"SKIN",0,RK_SWATCH,LK_SKIN,NSW},{"SKIN TONE",0,RK_SLIDE,LK_TONE,9},{"BUTT",0,RK_SLIDE,LK_BUTT,9},{"BUTT HEIGHT",0,RK_SLIDE,LK_BUTTH,9},{"BUTT WIDTH",0,RK_SLIDE,LK_BUTTW,9}},   // (the BUTT rows last: cut from the tab below teen)
   {{"EYES",0,RK_PICK,LK_EYES,NEYE},{"EYE COLOUR",0,RK_SWATCH,LK_EYECOL,NSW},{"EYE SHADE",0,RK_SLIDE,LK_EYETONE,9},{"EYE SIZE",0,RK_SLIDE,LK_EYESZ,9},{"EYE SPACING",0,RK_SLIDE,LK_EYESP,9},
@@ -3114,9 +3201,9 @@ static const Row tabRow[NTAB][TROWS]={
    {"WING SPREAD",0,RK_SLIDE,LK_WINGSP,9},{"WING HEIGHT",0,RK_SLIDE,LK_WINGHT,9},{"ANT FRONT BACK",0,RK_SLIDE,LK_ANTFB,9},{"ANT GAP",0,RK_SLIDE,LK_ANTGAP,9}},
   {{"ASPIRATION",0,RK_PERS,PS_ASP,AS_PICK},{"LIFETIME WANT",0,RK_PERS,PS_LTW,2},{"SIGN",0,RK_PERS,PS_SIGN,12},
    {"NEAT",0,RK_TRAIT,TR_NEAT,11},{"OUTGOING",0,RK_TRAIT,TR_OUT,11},{"ACTIVE",0,RK_TRAIT,TR_ACT,11},{"PLAYFUL",0,RK_TRAIT,TR_PLAY,11},{"NICE",0,RK_TRAIT,TR_NICE,11}},
-  {{"GO LIVE LIFE!","PLAY IT NOW",RK_ACT,AC_PLAY,0},{"FIRST NAME",0,RK_ACT,AC_FNAME,0},{"LAST NAME",0,RK_ACT,AC_LNAME,0},{"RANDOMIZE","ROLL THE DICE",RK_ACT,AC_RAND,0},{"TRUE RANDOM","EVERYTHING ROLLS",RK_ACT,AC_TRAND,0},{"ADD TO FAMILY","COPY THIS LOOK",RK_ACT,AC_ADD,0},{"FAMILY","EDIT OR MOVE OUT",RK_ACT,AC_FAM,0},{"EDIT MAP","BUILD ROOMS",RK_ACT,AC_MAP,0},{"MAIN MENU","LOOK IS KEPT",RK_ACT,AC_MENU,0}} };
-static const u8 tabN0[NTAB]={22,21,6,7,31,8,9};
-static int tabRows(int t){ return tabN0[t]-(t==0&&stage<AG_TEEN&&!sUnlock?3:0); }   // babies and children: no BUTT rows
+  {{"GO LIVE LIFE!","PLAY IT NOW",RK_ACT,AC_PLAY,0},{"ROLL THE DICE","EVERYTHING ROLLS",RK_DUO,AC_RAND,AC_TRAND},{"EDIT MAP","BUILD ROOMS",RK_ACT,AC_MAP,0},{"MAIN MENU","LOOK IS KEPT",RK_ACT,AC_MENU,0},{"ADD TO FAMILY","COPY THIS LOOK",RK_ACT,AC_ADD,0},{"FAMILY","EDIT OR MOVE OUT",RK_ACT,AC_FAM,0}} };   // (the last two rows are the DEBUG CODE's: tabRows hides them without it)
+static const u8 tabN0[NTAB]={23,21,6,7,31,8,6};
+static int tabRows(int t){ return tabN0[t]-(t==0&&stage<AG_TEEN&&!sUnlock?3:0)-(t==6&&!dbgOn?2:0); }   // (DONE tab: ADD TO FAMILY and FAMILY are the last two rows and only show with the debug code)   // babies and children: no BUTT rows
 #define tabN(t) tabRows(t)
 static int tabNext(int t,int d){ return (t+d+NTAB)%NTAB; }
 
@@ -3205,7 +3292,7 @@ static void drawAbilities(int sel){   // PARTS tab: the Spore ability chart unde
         text(CDX+6,y,abNm[a],RGB(16,19,24),1);
         for(int q=0;q<10;q++) drawPip(CDX+48+q*4,y+1,3,4,q<v,1); }   // ten slots, like a Sims skill bar
     int y=y0+AB_N*6+2; char b[12]; numStr(b,pDna);
-    int x=text(CDX+6,y,"DNA",DIMC,1)+3; text(x,y,b,GOLD,1);
+    int x=text(CDX+6,y,"JENES",DIMC,1)+3; text(x,y,b,GOLD,1);
     const Row*r=&tabRow[TB_PARTS][sel]; int v=look[r->id];
     if(isPart(r->id)&&!partFree(r->id,v)){ numStr(b,partCost[partOf(r->id)][v]); int w=tw(b,1); text(CDX+CDW-6-w,y,b,RGB(31,12,8),1); text(CDX+CDW-9-w-tw("BUY",1),y,"BUY",RGB(31,12,8),1); }
     else if(isPart(r->id)){ int bit=partPow(r->id,v);
@@ -3243,17 +3330,51 @@ static void drawAspire(int sel){   // ASPIRE tab: aspiration, lifetime want and 
         for(int q=0;q<10;q++) drawPip(CDX+48+q*4,ty,3,5,q<pTr[t],f);   // ten slots per trait, as in The Sims
     }
 }
+static u8 duoHalf[NTAB];   // which side (0 left, 1 right) of the tab's duo row LEFT RIGHT has picked
+static const u16 pipMask[7]={0,16,257,273,325,341,365};   // die faces: bit = cell of a 3x3 grid (corners, centre, sides)
+static void drawDie(int x,int y,int n,u16 face,u16 pip){   // a little 12x12 die showing n
+    roundRect(x,y,12,12,RGB(3,4,9)); roundRect(x+1,y+1,10,10,face);
+    for(int c=0;c<9;c++) if(pipMask[n]>>c&1) rect(x+2+(c%3)*3,y+2+(c/3)*3,2,2,pip);
+}
+static void drawDuo(int tab,int y,int f,const Row*r){   // two half-width buttons in one row; the picked side lights up when the row is focused
+    for(int sd=0;sd<2;sd++){
+        int x=CDX+3+sd*43, on=f&&duoHalf[tab]==sd, act=sd?r->n:r->id; u16 face=on?RGB(31,31,29):RGB(23,25,28);
+        rect(x,y-2,42,17,on?FOCUS:f?RGB(7,11,21):RGB(5,8,16)); if(on) rect(x,y+13,42,2,GOLD);
+        if(act==AC_RAND) drawDie(x+15,y,5,face,RGB(3,4,9));   // RANDOMIZE: one die
+        else if(act==AC_TRAND){ drawDie(x+10,y+2,3,face,RGB(28,5,5)); drawDie(x+20,y-1,6,face,RGB(5,10,28)); }   // TRUE RANDOM: two tumbling dice with coloured pips
+        else {   // the name buttons: FIRST / LAST over the name (cut to fit)
+            char nb[HH_NM]; const char*nm=act==AC_FNAME?hhPName:(hhPLast[0]?hhPLast:"NONE"); int n=0;
+            while(nm[n]&&n<HH_NM-1){ nb[n]=nm[n]; n++; } nb[n]=0; while(n>0&&tw(nb,1)>36) nb[--n]=0;
+            text(x+4,y,act==AC_FNAME?"FIRST":"LAST",on?GOLD:DIMC,1); text(x+4,y+8,nb,on?WHITE:DIMC,1);
+        }
+    }
+}
+static void drawDoneRows(int sel){   // DONE tab: one slim line per button, the dice duo in the middle; the focused one explains itself underneath
+    int y=RW0-2;
+    for(int i=0;i<tabN(TB_DONE);i++){
+        const Row*r=&tabRow[TB_DONE][i];
+        if(r->kind==RK_DUO){ drawDuo(TB_DONE,y,i==sel,r); y+=19; continue; }
+        if(i==sel){ rect(CDX+3,y-2,CDW-6,11,FOCUS); rect(CDX+3,y-2,2,11,GOLD); }
+        else if(i==0) rect(CDX+3,y-2,CDW-6,11,RGB(5,8,16));
+        text(CDX+9,y,r->lab,i==sel?(i==0?GOLD:WHITE):(i==0?RGB(24,20,6):DIMC),1);
+        y+=12;
+    }
+    const Row*q=&tabRow[TB_DONE][sel]; const char*sb=q->kind==RK_DUO?(duoHalf[TB_DONE]?q->sub:q->lab):q->sub;
+    if(sb){ rect(CDX+5,CDY+CDH-14,CDW-10,1,GOLD2); text(CDX+CDW/2-tw(sb,1)/2,CDY+CDH-10,sb,DIMC,1); }
+}
 static void drawRowSet(int tab,int sel){
     if(tab==TB_ASPIRE){ drawAspire(sel); return; }
     if(tab==TB_PARTS) drawAbilities(sel);
+    if(tab==TB_DONE){ drawDoneRows(sel); return; }
     int vis=tab==TB_PARTS?3:5, first=sel>vis-1?sel-(vis-1):0;   // five rows fit on the card (three over the PARTS chart): it scrolls to keep the focused one in view
     if(first>0) tri(CDX+CDW/2-2,RW0-6,2,GOLD);
-    if(first+vis<tabN(tab)) tri(CDX+CDW/2-2,RW0+vis*RHT-3,3,GOLD);
+    if(first+vis<tabN(tab)) tri(CDX+CDW/2-2,RW0+vis*RHT-(vis>3?1:3),3,GOLD);   // (five rows: the arrow sits in the gap under the last row, not on its slider knob)
     for(int i=first;i<tabN(tab)&&i<first+vis;i++){
         const Row*r=&tabRow[tab][i]; int y=RW0+(i-first)*RHT, f=(i==sel);
+        if(r->kind==RK_DUO){ drawDuo(tab,y,f,r); continue; }
         if(r->kind==RK_ACT){
             rect(CDX+3,y-2,CDW-6,17,f?FOCUS:RGB(5,8,16)); if(f){ rect(CDX+3,y-2,2,17,GOLD); }
-            const char*sb=r->id==AC_FNAME?hhPName:r->id==AC_LNAME?(hhPLast[0]?hhPLast:"NONE"):r->sub;   // the name rows show the name
+            const char*sb=r->sub;
             text(CDX+9,y,r->lab,f?GOLD:WHITE,1); text(CDX+9,y+8,sb,f?WHITE:DIMC,1); continue;
         }
         if(f){ rect(CDX+3,y-2,CDW-6,RHT-1,FOCUS); rect(CDX+3,y-2,2,RHT-1,GOLD); }
@@ -3288,10 +3409,10 @@ static void drawCreatorPanel(int tab,int sel){
     drawIcon(CDX+6,CDY+6,tab,GOLD); text(CDX+20,CDY+4,tabNm[tab],GOLD,2);
     rect(CDX+5,CDY+20,CDW-10,1,GOLD2);
     drawRowSet(tab,sel);
-    const Row*rs=&tabRow[tab][sel]; int act=(rs->kind==RK_ACT), buy=rs->kind==RK_PICK&&isPart(rs->id)&&!partFree(rs->id,look[rs->id]), x;
+    const Row*rs=&tabRow[tab][sel]; int act=(rs->kind==RK_ACT||rs->kind==RK_DUO), buy=rs->kind==RK_PICK&&isPart(rs->id)&&!partFree(rs->id,look[rs->id]), x;
     x=kcap(128,132,"L"); x=kcap(x,132,"R"); x=klab(x,132,"TABS"); x=kcapAr(x,132,1); klab(x,132,"ROW");
     if(buy){ x=kcap(128,142,"A"); x=klab(x,142,"BUY"); x=kcapAr(x,142,0); klab(x,142,"CHANGE"); }
-    else { x=act?kcap(128,142,"A"):kcapAr(128,142,0); klab(x,142,act?"CHOOSE":"CHANGE"); }
+    else { x=act?kcap(128,142,"A"):kcapAr(128,142,0); x=klab(x,142,act?"CHOOSE":"CHANGE"); if(rs->kind==RK_DUO){ x=kcapAr(x,142,0); klab(x,142,"SIDE"); } }
     x=kcap(128,152,"START"); x=klab(x,152,"DONE"); x=kcap(x,152,"B"); klab(x,152,"BACK");
 }
 static void drawDial(void){   // the creature's compass: the needle points the way it faces on screen (view 0 = down-left, then clockwise)
@@ -3305,7 +3426,7 @@ static void drawDial(void){   // the creature's compass: the needle points the w
 }
 static void drawCreatorScene(void){
     stageOn=1; drawScene(0);
-    text(7,6,"MAKE CREATURE",RGB(3,3,6),1); text(6,5,"MAKE CREATURE",GOLD,1);
+    text(7,6,"CREATE A BORE",RGB(3,3,6),1); text(6,5,"CREATE A BORE",GOLD,1);
     drawDial();
 }
 
@@ -3345,8 +3466,8 @@ static void persStep(const Row*r,int d){
 }
 static int buyPart(int id){   // A on a locked part: spend DNA on it. 1 = bought
     int v=look[id], c=partCost[partOf(id)][v]; char t[24]; static const char* const it[2]={"YES  BUY IT","NO"};
-    if(pDna<c){ char*e=t; const char*p="NEED "; while(*p) *e++=*p++; e+=numStr(e,c); p=" DNA"; while(*p) *e++=*p++; *e=0; toast(t); return 0; }
-    { char*e=t; const char*p="SPEND "; while(*p) *e++=*p++; e+=numStr(e,c); p=" DNA?"; while(*p) *e++=*p++; *e=0; }
+    if(pDna<c){ char*e=t; const char*p="NEED "; while(*p) *e++=*p++; e+=numStr(e,c); p=" JENES"; while(*p) *e++=*p++; *e=0; toast(t); return 0; }
+    { char*e=t; const char*p="SPEND "; while(*p) *e++=*p++; e+=numStr(e,c); p=" JENES?"; while(*p) *e++=*p++; *e=0; }
     if(menu(t,it,2)!=0) return 0;
     pDna=(u16)(pDna-c); pUnl|=(u16)(1<<PARTBIT(partOf(id),v)); persSave(); return 1;
 }
@@ -3398,6 +3519,7 @@ static int nameEdit(char*nm,int max,const char*title,int mayEmpty){   // returns
     }
 }
 static void famAdd(void){
+    if(!dbgOn) return;   // (DEBUG CODE only: the row is hidden without it)
     if(!xo[XO_SIMUSER]){ toast("USER-MADE SIMS ARE OFF"); return; }
     if(custom){ toast("BLOCK-BUILT BODIES STAY YOURS"); return; }
     hhLoad(); int m=hhAdd(look,stage,pAsp,pLtw,pTr);
@@ -3405,6 +3527,7 @@ static void famAdd(void){
     hhSave(); static char t[36]; char*e=simCat(t,hhM[m].name); e=simCat(e," JOINS  "); e=simCatN(e,hhN+1); e=simCat(e," OF "); simCatN(e,HH_MAX+1); toast(t);
 }
 static void famMenu(void){
+    if(!dbgOn) return;   // (DEBUG CODE only)
     hhLoad(); if(!hhN){ toast("ONLY YOU SO FAR"); return; }
     static char lb[HH_MAX][32]; const char* it[HH_MAX];
     for(int m=0;m<hhN;m++){ char*e=simCat(lb[m],hhM[m].name); e=simCat(e,"  "); simCat(e,stageNm[hhM[m].stage<AG_N?hhM[m].stage:AG_ADULT]); it[m]=lb[m]; }
@@ -3423,7 +3546,7 @@ static void famMenu(void){
     static char t[32]; simCat(simCat(t,"NOW EDITING "),hhPName); toast(t);
 }
 static const u8 lkCnt[LK_N]={NSHAPE,NSW,NEYE,NMOUTH,3,NHAIR,NSW,NSW,NSW,9,9,9,3,3,3,6,6,3,4,3,6, 6,6,5,4,NSW, 9,9,9,9,9,9,9, 4,3,7,6, 9,9,9,9,9,9,9,9,9, 5,4,4, 9,9,9, 9,9,9,9,9,9,9, 9,9,9,9,9,9,9, 9,9,9,7};   // how many options each look row has (sliders: 9)
-static void lookRandom(void){   // the dice (like Create-A-Sim): a whole new look and personality, only from what this stage and your unlocked parts allow
+static void lookRandom(void){   // the dice (like Create-A-Bore): a whole new look and personality, only from what this stage and your unlocked parts allow
     const u8*cnt=lkCnt;
     for(int id=0;id<LK_N;id++){
         if(lkSlide(id)){ look[id]=(u8)slideVal(rnd8()%5+rnd8()%5); continue; }   // most land near the middle
@@ -3475,10 +3598,12 @@ static int creatorNew(void){   // returns 1 when the secret code switched screen
         if(pressed&K_B){ partsSettle(); stageOn=0; return 0; }
         const Row*r=&tabRow[tab][rs[tab]];
         int d=TRIG(K_RIGHT,4)?1:TRIG(K_LEFT,5)?-1:0;
-        if(r->kind==RK_ACT){
+        if(r->kind==RK_ACT||r->kind==RK_DUO){
+            int aid=r->id;
+            if(r->kind==RK_DUO){ if(d>0&&!duoHalf[tab]){ duoHalf[tab]=1; dirty|=2; } else if(d<0&&duoHalf[tab]){ duoHalf[tab]=0; dirty|=2; } if(duoHalf[tab]) aid=r->n; }   // LEFT RIGHT picks the side, A presses it
             if(pressed&K_A){
                 partsSettle();   // a part still locked comes off before the creature leaves the creator
-                switch(r->id){
+                switch(aid){
                     case AC_PLAY:  lifeMode(0); if(gToMenu){ stageOn=0; return 0; } break;
                     case AC_MAP:   mapEditor(); break;
                     case AC_RAND:  lookRandom(); break;
@@ -3854,8 +3979,8 @@ static void creatorMusStart(void){
 }
 
 // ---------- main menu ----------
-static const char* const guideItems[6]={"PLAYING","MAKE CREATURE","BUILD ROOMS","JUKEBOX","ROOM SLOTS","OPTIONS"};
 static const char* const jbHelp[15]={">PLAYING","UP DOWN PICK A SONG  A PLAYS IT","A ON THE PLAYING SONG STOPS IT","L R GO TO THE PREVIOUS OR NEXT SONG",">CHECK BOXES","SELECT CHECKS OR UNCHECKS A SONG","ONLY CHECKED SONGS ARE PICKED AT RANDOM:","HERE  IN THE MENUS  AND FOR GAME MUSIC",">PLAY MODE","START CHANGES IT:  SHUFFLE  IN ORDER  REPEAT","WHEN A SONG ENDS THE MODE PICKS THE NEXT",">OTHER","LEFT RIGHT CHANGE THE VOLUME","OPENING IT PLAYS ONE RANDOM CHECKED SONG","B GOES BACK TO THE MENU"};
+#include "acid.h"   // ACID RAINBOW: a live plasma, one of the main menu's backdrops
 // ---- the Sims 3 look: glossy rounded panels and pill buttons ----
 static u16 s3Mix(u16 a,u16 b,int t,int n){ if(n<=1) return a; int m=n-1;
     int r=(a&31)+((int)(b&31)-(int)(a&31))*t/m, g=((a>>5)&31)+((int)((b>>5)&31)-(int)((a>>5)&31))*t/m, c=((a>>10)&31)+((int)((b>>10)&31)-(int)((a>>10)&31))*t/m; return RGB(r,g,c); }
@@ -3900,8 +4025,55 @@ static void drawMainMenu(int sel,int full){
     s3Box(84,129,86,14,7,RGB(6,12,24),RGB(3,8,18)); s3Round(108,136,1,"A"); text(118,133,"Select",WHITE,1);
     mmLogo(SW/2-LOGO_SW/2,1); s3Tip(mmDesc[sel]);
 }
-static void howToPlay(void){ int g=menu("HOW TO PLAY",guideItems,6);
-    if(g==0) helpScreen("PLAYING",lifeHelp,16); else if(g==1) helpScreen("MAKE CREATURE",creatureHelp,15); else if(g==2) helpScreen("BUILD ROOMS",mapHelp,12); else if(g==3) helpScreen("JUKEBOX",jbHelp,15); else if(g==4) helpScreen("ROOM SLOTS",slotHelp,11); else if(g==5) helpScreen("OPTIONS",optHelp,11); }
+// ---------- HOW TO PLAY: a Sims 2 style control panel (main menu only) ----------
+// Glossy blue panels, rounded tabs along the top, a bobbing green plumbob next to the title, a scrolling text pane with a thumb,
+// and a button strip along the bottom.  L R (or LEFT RIGHT, or A) change the tab, UP DOWN scroll, B or START close.
+static void s2rr(int x,int y,int w,int h,u16 c){ rect(x+1,y,w-2,h,c); rect(x,y+1,w,h-2,c); }   // a rounded rectangle
+static void s2grad(int x,int y,int w,int h,int r0,int g0,int b0,int r1,int g1,int b1){        // a vertical gradient
+    for(int i=0;i<h;i++){ int t=h>1?i*256/(h-1):0; rect(x,y+i,w,1,RGB(r0+(r1-r0)*t/256,g0+(g1-g0)*t/256,b0+(b1-b0)*t/256)); } }
+static void s2plumbob(int cx,int y){   // the green diamond: dark left half, light right half, a glint
+    for(int i=0;i<7;i++){ int hw=i<4?i:6-i; rect(cx-hw,y+i*2,hw+1,2,i<3?RGB(3,20,6):RGB(2,14,4)); rect(cx+1,y+i*2,hw,2,i<3?RGB(14,31,16):RGB(8,26,10)); }
+    rect(cx+1,y+3,1,2,RGB(26,31,26)); }
+static void s2pill(int x,int y,int w,const char*s){ s2rr(x,y,w,11,RGB(10,20,30)); s2grad(x+1,y+1,w-2,9,6,15,25,3,9,17); text(x+(w-tw(s,1))/2,y+2,s,RGB(20,27,31),1); }
+static void howToPlay(void){
+    static const signed char bob[8]={0,1,2,2,1,0,-1,-1};
+    static const char* const tn[7]={"PLAY","MAKE","BUILD","MUSIC","SLOTS","OPTS","TOWN"};
+    static const char* const tt[7]={"PLAYING","CREATE A BORE","BUILD ROOMS","JUKEBOX","ROOM SLOTS","OPTIONS","NEIGHBORHOOD"};
+    const char* const* ln[7]={lifeHelp,creatureHelp,mapHelp,jbHelp,slotHelp,optHelp,nbHelp};
+    static const unsigned char nn[7]={16,15,14,15,13,12,16};
+    enum { VIS=13, LY=34, LH=104 };
+    int tab=0, sc=0; u32 cnt=0; u16 prev=keyNow();
+    for(;;){
+        u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
+        if(pr&(K_B|K_START)) return;
+        if(pr&(K_R|K_RIGHT|K_A)){ tab=(tab+1)%7; sc=0; }
+        if(pr&(K_L|K_LEFT)){ tab=(tab+6)%7; sc=0; }
+        int n=nn[tab], mx=n>VIS?n-VIS:0;
+        if((pr&K_DOWN)&&sc<mx) sc++;
+        if((pr&K_UP)&&sc>0) sc--;
+        objHideAll();
+        s2grad(0,0,SW,SH,1,4,10,2,9,17);                                       // the backdrop: deep Sims blue
+        for(int y=0;y<SH;y+=8) for(int x=(y&8)?4:0;x<SW;x+=8) rect(x,y,1,1,RGB(3,9,17));   // a faint diamond lattice
+        s2rr(1,1,238,158,RGB(10,20,30)); s2rr(2,2,236,156,RGB(2,6,13));        // the frame
+        s2grad(3,3,234,14,8,18,28,3,10,19); rect(3,17,234,1,RGB(14,26,31));    // the title bar
+        s2plumbob(11,2+bob[(cnt>>3)&7]); text(21,7,"HOW TO PLAY",WHITE,1);
+        { const char*t=tt[tab]; text(233-tw(t,1),7,t,RGB(17,29,31),1); }
+        for(int i=0;i<7;i++){ int x=4+i*33, on=i==tab;                          // the tabs
+            s2rr(x,19,32,12,on?RGB(16,27,31):RGB(7,14,22));
+            if(on) s2grad(x+1,20,30,11,10,22,31,5,14,25); else s2grad(x+1,20,30,11,3,9,18,2,6,13);
+            text(x+(32-tw(tn[i],1))/2,22,tn[i],on?WHITE:RGB(12,18,24),1); }
+        s2rr(3,31,234,113,RGB(10,20,30)); s2rr(4,32,232,111,RGB(2,6,13));      // the text pane
+        for(int i=0;i<VIS&&sc+i<n;i++){ const char*l=ln[tab][sc+i]; int y=LY+i*8;
+            if(l[0]=='>'){ s2grad(6,y-1,222,9,6,16,26,3,9,17); rect(9,y+2,3,3,RGB(8,28,10)); text(15,y,l+1,RGB(17,29,31),1); }
+            else text(11,y,l,RGB(27,30,31),1); }
+        rect(232,LY,4,LH,RGB(4,10,18));                                          // the scroll thumb
+        if(mx>0){ int th=LH*VIS/n; if(th<8) th=8; int ty=LY+(LH-th)*sc/mx; s2grad(232,ty,4,th,12,24,31,6,16,26); }
+        else s2grad(232,LY,4,LH,6,14,22,4,10,18);
+        s2pill(5,147,50,"L R TAB"); s2pill(59,147,86,"UP DOWN SCROLL"); s2pill(149,147,46,"B BACK");   // the button strip
+        { char pg[8]; pg[0]=(char)('1'+tab); pg[1]='/'; pg[2]='7'; pg[3]=0; s2rr(199,147,36,11,RGB(10,20,30)); s2rr(200,148,34,9,RGB(2,6,13)); text(199+(36-tw(pg,1))/2,149,pg,RGB(17,29,31),1); }
+        present();
+    }
+}
 
 // ---------- NEW GAME: a fresh life in the chosen town, started three ways (the story mode can start from here later) ----------
 static const char* const ngIt[3]={"CREATE A SIM","A PRE-MADE FAMILY","A TRULY RANDOM SIM"};
@@ -4022,6 +4194,7 @@ static void mainMenu(void){
 #ifdef CS_TEST
 u8* csTestP;
 #endif
+#include "chipguard.h"   // the save chip guard (warns when the save chip got smaller)
 int main(void){
 #ifdef CS_TEST
     { csTestP=(u8*)fb; csInit(chipsyn+chips[CS_TEST].off); static s8 l[MUS_N],r[MUS_N];
@@ -4034,7 +4207,7 @@ int main(void){
     { volatile u16*io=(volatile u16*)0x04000000; for(int r=0x08/2;r<0x20/2;r++) io[r]=0; for(int r=0x40/2;r<0x56/2;r++) io[r]=0; }   // undo its BG control, scroll, windows and blend (BG2's affine registers are left alone: mode 3 needs them)
     { static volatile u32 zero; zero=0; REG_DMA3SAD=(u32)(uintptr_t)&zero; REG_DMA3DAD=VRAM_ADDR; REG_DMA3CNT=(SW*SH/2)|0x85000000u; }   // (the zero must sit in RAM: a DMA from cartridge ROM always steps its source, "fixed" or not, and used to paint ROM data on screen)   // clear its tiles out of the bitmap (else mode 3 shows them as noise until the title is drawn)
     REG_DISPCNT=0x0403;  // mode 3, BG2 on
-    initTables(); setColors(); svInit(); slInitN(); slMigrate(); settingsLoad(); optsLoad(); applyRom();   // slMigrate: carries a layout 1 save over to layout 2 first (slots.h)
+    initTables(); setColors(); svInit(); slInitN(); slMigrate(); chipGuard(); settingsLoad(); optsLoad(); applyRom();   // slMigrate: carries a layout 1 save over to layout 2 first (slots.h)
     lrng^=(u32)titleScreen()*2654435761u;   // time spent on the title seeds the random numbers (first shuffle)
     if(konMsg) toast(konMsg==2?"DEBUG UNLOCKED":"DEBUG LOCKED");
     jbSetup();                              // load the saved shuffled order (or make a new one), placeholders hidden

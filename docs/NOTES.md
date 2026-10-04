@@ -40,7 +40,7 @@ In the life: the **BABY cannot be steered**: it toddles about by itself and a ca
 **OPTIONS > TIME > AGES** (a section of the TIME page): **AGING** (OFF / SLOW / NORMAL / FAST: slow doubles the days of every stage, fast halves them, off keeps the age you picked) and how many game days each stage lasts: **BABY** (default 2), **CHILD** (3), **TEEN** (3), **ADULT** (7, or FOREVER to never grow old); each is 1, 2, 3, 5, 7, 10, 14, 21, 30 or 60 days. The stage is saved in the person (room slot format 2; format 1 slots load as adults) and also in SRAM at 5008 so growth survives a power cycle.
 
 ## Main menu, room builder, settings
-Boot goes title -> **main menu** (PLAY, MAKE CREATURE, BUILD ROOM, JUKEBOX, SETTINGS, HOW TO PLAY). "MAIN MENU" is the last entry in the creature part list and in the pause menu.
+Boot goes title -> **main menu** (PLAY, CREATE A BORE, BUILD ROOM, JUKEBOX, SETTINGS, HOW TO PLAY). "MAIN MENU" is the last entry in the creature part list and in the pause menu.
 
 **Build Room** tools (Select taps to the next tool): ROOM (A corner, A again = walls + floor + doorway, min 3x3), WALL (straight line), FLOOR (fill area), ITEM (single tiles), ERASE (clear area). L/R picks floor (or item); Select+L/R picks wallpaper. 14 wallpapers and 14 floors, 90s house (floral, peach stripe, Memphis, wood panel, gingham, teal carpet, checker lino...) and factory (corrugated, red brick, cinder block, hazard, steel plate, grate, oil-stained concrete...). Floors, wallpaper and tiles are saved to SRAM.
 
@@ -445,7 +445,7 @@ The **MUSIC PLAYER** (main menu -> JUKEBOX) is one screen: a title bar (how many
 
 The play mode is saved in SRAM at 5076 (`'M'`, mode, mode xor 0x5A, inside the 80-byte jukebox block). **Song lengths** are worked out from the song data, never stored: a tracker song is the rows of its whole order list x samples per row, a streamed song is its sample count (x 3/2 when stored at 2/3 rate), all at 18157 Hz, rounded to the nearest second (`jbSecs()` in main.c). The elapsed time uses the same maths on the main deck's position.
 
-**Menu music.** Whenever a main menu is open one random checked song plays (OPTIONS > AUDIO > MENU MUSIC, on by default). It carries on through the quiet screens (OPTIONS, ROOM SLOTS, HOW TO PLAY) and stops when PLAY, MAKE CREATURE, BUILD ROOM or the jukebox opens; back at the menu a NEW random song starts. When a song ends, another random one follows.
+**Menu music.** Whenever a main menu is open one random checked song plays (OPTIONS > AUDIO > MENU MUSIC, on by default). It carries on through the quiet screens (OPTIONS, ROOM SLOTS, HOW TO PLAY) and stops when PLAY, CREATE A BORE, BUILD ROOM or the jukebox opens; back at the menu a NEW random song starts. When a song ends, another random one follows.
 
 **Locked songs (`source/unlocks.h`).** `UNLOCK("SONG NAME",bit)` keeps a song out of the jukebox, the menu music and the game music until its bit is set. The bits live in SRAM at 5072 (`'U' 'L'`, the bits, the bits xor 0x5A, inside the 80-byte jukebox block, so an old save just reads as all locked) and are set by `jbUnlock(bit)`, which rebuilds the list at once. WORTHLESS CLOUDS (`UL_CLOUDS`, defined in `sims.h`) unlocks when `simLtwCheck()` sees the lifetime want met: the HUD shows LIFETIME WANT MET, then SONG UNLOCKED. A life saved with its want already met unlocks it on the next check. ERASE EVERYTHING locks it again; the title-screen code shows it.
 
@@ -473,7 +473,7 @@ The old BUILD tab (block builder) is gone; the classic block screen is still beh
 - **HAIR tab**: STYLE (CROP, BOWL, LONG, BALD, SPIKY, AFRO, FLAT TOP, SIDE TAIL, BUN; babies only CROP and BALD), COLOUR, **BEARD** (NONE, BEARD, LONG BEARD: adults and elders pick it in the dice, the mouth sits on the beard), **HAT** (NONE, CAP, BEANIE, BAND, FEZ, HELMET) and **HAT COLOUR** (as the top, as the bottom, white, black, red, gold).
 - **CLOTHES tab**: TOP and BOTTOM colours, **TOP STYLE** (TEE, LONG SLEEVE, TANK, HOODIE with a hood behind the head, **BARE**), **BOTTOM STYLE** (PANTS, SHORTS, SKIRT, **BARE**) and **SHOES** (as the bottom, white, black, red, gold, as the top).
 - Hats and the new hairdos add STYLE; a helmet adds STAMINA.
-- **DONE tab > RANDOMIZE** (the Create-A-Sim dice): a whole new look, star sign and aspiration, only from what this life stage and your unlocked parts allow. Press it again for another.
+- **DONE tab > RANDOMIZE** (the Create-A-Bore dice): a whole new look, star sign and aspiration, only from what this life stage and your unlocked parts allow. Press it again for another.
 - **More face parts and real sliders** (person save format 6, household save H4; older saves still load):
   - **FACE tab** (it scrolls) has 9 eye styles and 9 mouths, plus EYE COLOUR, BROWS, GLASSES, NOSE and CHEEKS (blush, freckles, whiskers, scar).
   - **Face sliders:** EYE SIZE, EYE SPACING, EYE HEIGHT, MOUTH WIDTH and MOUTH HEIGHT move and scale the face art on the block.
@@ -565,7 +565,7 @@ Wants: snack, WC, nap, get clean, sofa, land a trick, trick combo, 5 trick combo
 **Pause menu -> ROOM SLOTS** (and the main menu's slot screen) can now keep several households. On an empty slot pick **SAVE HOUSEHOLD**; on a household slot pick **LOAD HOUSEHOLD** (replaces the Sims living with you and their relationships; your own look and life stay), **SAVE HOUSEHOLD** (overwrite it with the current one), **RENAME**, **COPY TO**, **INFO** or **DELETE**. They share the twelve room slots (slot KIND 2 in `source/slots.h`); a big household takes two neighbouring free slots. A household slot never becomes the active slot, and saving a room never overwrites one.
 
 ## Floors (three per house)
-A house has **three floors**. The floor you are on is the live map; the other two wait in memory (`flBuf`, `flGo` in `source/main.c`). Stairs are two items: **STAIRS UP** (`^`) and **STAIRS DOWN** (`~`), at the end of the item list. Step on `^` to go up and on `~` to come down; step off and on again to use them once more. If the other floor has no matching stairs yet, they appear where you came from. In the map editor **SELECT + UP / DOWN** changes the floor you are building on. Upstairs the household waits on the ground floor (Sims do not use stairs yet). The room kept in SRAM, and a ROOM slot, always hold the ground floor.
+A house has **three floors**. The floor you are on is the live map; the other two wait in memory (packed in `flPool`, `flGo` in `source/main.c`). Stairs are two items: **STAIRS UP** (`^`) and **STAIRS DOWN** (`~`), at the end of the item list. Step on `^` to go up and on `~` to come down; step off and on again to use them once more. If the other floor has no matching stairs yet, they appear where you came from. In the map editor **SELECT + UP / DOWN** changes the floor you are building on. Upstairs the household waits on the ground floor (Sims do not use stairs yet). The room kept in SRAM, and a ROOM slot, always hold the ground floor.
 **Saving:** in ROOM SLOTS an empty slot offers **SAVE HOUSE** (all three floors, 3 or 4 slots in a row, KIND 1 in `source/slots.h`); on a house slot **LOAD ALL** loads it (you start on the ground floor), **SAVE HOUSE** overwrites it. Floors upstairs that are not saved to a house slot are lost when the console is switched off. Loading a single room slot replaces the house with one floor (the upper floors are emptied).
 
 ## Sim filter (OPTIONS > PLAY)
@@ -577,6 +577,24 @@ Three on/off rows decide which kinds of Sims may be added: **PRE-MADE SIMS** (th
 ## Loading screen fix
 `ldShow` now switches the display window off while it is on screen (the game runs with window 0 on, and until the first game frame sets the window registers everything outside it is black, which hid the loading screen and made the game look frozen). `ldEnd()` puts the mode back; `hhBakeAll` calls it when the last Sim is baked. If you add `ldShow` to another slow job that runs in the game, call `ldEnd()` when it is done.
 `ldEnd` and the life game's start also set window 0 to the whole screen (`winFull`), so the loading screen stays up until the game's first frame replaces it (no black gap).
+
+## Loading screen sound (the music steps aside, a tick-tock takes its place)
+The music mixer runs in an interrupt and decoding a song is a big part of what slows the household bake down, so while a loading screen is up the song is simply not played.
+- **First `ldShow` of a job** (`source/loading.h`, `ldBegin`): the song fades out completely (about 0.5 s) while a quiet **tick-tock** fades in over the same 0.5 s. Once the song has reached silence it is **frozen**, not decoded at all (`musMixAny` skips it), so the job gets that CPU back. The song has its own gain for this (`ldG`/`ldGT` in `main.c`), so the pause menu's half volume, the MUSIC VOLUME slider and the crossfades are untouched.
+- **`ldEnd()`** (`ldBack`): the tick-tock fades out (about 0.25 s) and, `LD_GRACE` (8) frames later, the song comes back **from the exact spot it stopped at** (about 0.7 s fade in). A second loading screen inside those 8 frames cancels the comeback (PLAY from the neighbourhood loads the lot and then the household: one quiet stretch, not two dips).
+- **Someone else takes the music over** (PLAY starts the game music or silence, the jukebox opens, and so on): `musBegin` / `musFadeTo` / `musFadeOut` / `musStop` call `ldDrop()`, which throws the stepped-aside song away, so no menu song blips back just before the game music.
+- A job that forgets `ldEnd` is let go of after `LD_STALE` (90) normal frames without an `ldShow`. `nbGo` / `nbSwitch` (`neighborhood.h`) now call `ldEnd` on every way out.
+- With **SOUND off** there is no tick-tock; with no song playing there is nothing to step aside (the tick-tock still plays, it is an effect: SFX VOLUME and MASTER VOLUME scale it).
+- The tick-tock is `source/sfx/tick.adp`, made by `python3 tools/make_tick.py [preview.wav]`: one second, a TICK at 0.0 s and a lower, softer TOCK at 0.5 s, silent at both ends so it loops cleanly. The effect voice got two small features for it: **looping** (`sfxLoop`) and its **own fade** (`sfxFade`/`sfxFadeT`). `sfxStop()` never cuts a looping tick-tock, it asks it to fade out (`lifeInit` calls `sfxStop` right after the bake), and `sfxPlay` resets both, so every other effect behaves as before.
+- Tuning: fade speeds are the `8`, `6`, `8` / `16` in `musMixAny` and `sfxMix` (steps of 1/256 per frame), `LD_GRACE` and `LD_STALE` are at the top of `loading.h`.
+
+## Household changes are in the debug code
+Everything that directly changes who lives in the house now needs the **hidden debug code** (title screen: UP UP DOWN DOWN LEFT LEFT RIGHT B A START, `dbgOn` in `main.c`; it lasts until power off and is never saved, the same as the secret songs):
+- **Pause menu > HOUSEHOLD:** without the code it opens the **RELATIONSHIPS** screen directly (viewing is not changing). With the code you get the full menu: MOVE IN A FAMILY, INVITE A NEW SIM, TRULY RANDOM SIM, MOVE SOMEONE OUT, MOVE EVERYONE OUT.
+- **SELECT on RELATIONSHIPS** (invite a Sim) works only with the code, and the hint line under the list drops "SELECT ADD A SIM" without it.
+- **Creator, DONE tab:** ADD TO FAMILY and FAMILY are now the **last two rows** and are hidden (`tabRows`) without the code; `famAdd` / `famMenu` also refuse to run.
+- **ROOM SLOTS:** SAVE HOUSEHOLD and LOAD HOUSEHOLD are missing from a slot's menu without the code (a household slot can still be renamed, copied, inspected and deleted).
+- **Not gated:** the neighborhood's MOVE IN (it buys a lot with your cash and changes where you live, not who lives with you), SELECT to switch which household Sim you control, and the three PRE-MADE / USER-MADE / MADE-UP SIMS options (made-up Sims still walk past as passers-by). The lines above about ADD TO FAMILY, INVITE A NEW SIM and MOVE IN A FAMILY describe what the debug code unlocks.
 
 ## Faster loading (the household bake)
 Entering the game bakes every Sim into sprites: the creator's renderer draws each of 4 views at full size and halves them. Measured on the GBA a draw costs about 110 ms, so the number of draws is the loading time.
@@ -638,7 +656,14 @@ With the big "BORE" text gone the large font is no longer linked: the ROM is 186
 - The main menu is a glossy rounded panel with pill buttons (the focused one turns green), the cover logo on top, a round `?` (HOW TO PLAY)
   and an A SELECT footer. Behind it: your own town close up around a random lot (`nbDrawTown` tool -2), lit for the time of day of your
   life's clock (5-8 dawn, 8-17 day, 17-20 dusk, else night; no life yet: any). Dawn is a new light (`nbTint` tod 3), the menu only.
+  Or the ACID RAINBOW (`acid.h`, a live plasma): OPTIONS > HUD > MENU BACKDROP picks RANDOM (either, a new pick each visit), TOWN or ACID.
 - PLAY opens the New Game panel: the town picture, Select a Town (LEFT RIGHT / L R), a description, then CONTINUE (your life), VISIT TOWN
   (the old NEIGHBORHOOD chooser's job; SELECT makes a town, START renames or deletes one) and NEW GAME.
-- NEW GAME: a fresh life (cash, job, clock) and household in the chosen town, started as CREATE A SIM (the creator, then GO LIVE LIFE),
+- NEW GAME: a fresh life (cash, job, clock) and household in the chosen town, started as CREATE A BORE (the creator, then GO LIVE LIFE),
   A PRE-MADE FAMILY (you become its first Sim; `hhMoveIn` + `hhSwap`), or A TRULY RANDOM SIM. The story mode can hook in here.
+
+## Floors are packed in RAM (flPool)
+A house's floors used to sit in `flBuf`, 3 floors x 3 planes x 1600 bytes = 14,400 bytes of EWRAM. They are now run-length packed in `flPool` (8,192 bytes): each floor is three planes (tiles, floors, wallpapers) of (count, value) runs, the same runs a house save uses, one after the other. A blank floor costs nothing, an ordinary furnished floor a few hundred bytes. EWRAM: about 6 KB freed.
+- `flStoreAs(f)` packs the live map as floor `f` and returns 0 if it does not fit (the old copy stays). `flLoad(f)` unpacks it. `flGet(f, plane, i)` reads one cell of a stored floor (cheap when a plane is read in order), `flPlaneAt` reads the live map for the floor you are on.
+- `FL_POOL` holds every house the save slots can hold (a house is at most 4 slots, 8,160 bytes, and the packing is the same, so a saved house always loads: a `_Static_assert` in `slots.h` guards that). Only a floor plan too crowded to ever be saved can fill it: then the stairs say TOO MUCH BUILT TO CLIMB and you stay where you are, nothing is lost. Going home (`flHome`: starting play, a new lot, loading a house) always works: if the floor you leave does not fit, it goes back to its last stored copy.
+- Lowering `FL_POOL` frees more RAM but the `_Static_assert` will stop the build: a house near the 4-slot limit could then fail to load.

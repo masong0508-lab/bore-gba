@@ -701,7 +701,7 @@ static void relScreen(void){
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; if(pr&(K_A|K_B|K_START)) return;
         if((pr&K_DOWN)&&top+7<hhN) top++; if((pr&K_UP)&&top>0) top--;
-        if(pr&K_SEL){ hhInvite(); prev=keyNow(); }   // SELECT: a new Sim moves in
+        if((pr&K_SEL)&&dbgOn){ hhInvite(); prev=keyNow(); }   // SELECT: a new Sim moves in (DEBUG CODE only)
         box(3,1,234,157); char t[44]; { char*e=simCat(simCat(t,"RELATIONSHIPS OF "),hhPName); if(hhPLast[0]){ *e++=' '; simCat(e,hhPLast); } } text(10,6,t,GOLD,1);
         text(84,16,"YOU TO THEM",DIMC,1); text(162,16,"THEM TO YOU",DIMC,1);
         if(!hhN) text(10,40,"NO ONE ELSE LIVES HERE",DIMC,1);
@@ -709,7 +709,7 @@ static void relScreen(void){
             text(10,y,hhM[m].name,WHITE,1); text(10,y+8,relWord(a,b),(relF[a][b]&(RF_LOVE|RF_STEADY|RF_CRUSH))?RGB(31,14,20):relD[a][b]<=-20?RGB(30,10,8):RGB(16,26,16),1);
             relBar(84,y+1,relD[a][b]); relBar(84,y+8,relL[a][b]); relBar(162,y+1,relD[b][a]); relBar(162,y+8,relL[b][a]);
             if(relF[a][b]&RF_STEADY) simIcon(226,y+2,IC_HEART,RGB(31,14,20)); }
-        text(10,150,hhN>7?"UP DOWN MORE  SELECT ADD A SIM":"TOP DAILY  LOW LIFETIME  SELECT ADD A SIM",RGB(12,14,16),1);
+        text(10,150,dbgOn?(hhN>7?"UP DOWN MORE  SELECT ADD A SIM":"TOP DAILY  LOW LIFETIME  SELECT ADD A SIM"):(hhN>7?"UP DOWN MORE  A OR B BACK":"TOP DAILY  LOW LIFETIME"),RGB(12,14,16),1);
         present();
     }
 }
@@ -923,6 +923,7 @@ static int hhMoveIn(const HhFam*F){   // a pre-made family moves in (HOUSEHOLD, 
 // ---- the pause menu's HOUSEHOLD screen ----
 static void hhInviteTrue(void);
 static void hhMenu(void){
+    if(!dbgOn){ relScreen(); return; }   // moving in / out and every other change to the household is the DEBUG CODE's (title screen, see main.c): without it HOUSEHOLD is just the RELATIONSHIPS screen
     static const char* const it[6]={"RELATIONSHIPS","MOVE IN A FAMILY","INVITE A NEW SIM","TRULY RANDOM SIM","MOVE SOMEONE OUT","MOVE EVERYONE OUT"};
     char t[24]; { char*e=t; const char*p="HOUSEHOLD  "; while(*p) *e++=*p++; e+=numStr(e,hhN+1); p=" OF "; while(*p) *e++=*p++; e+=numStr(e,HH_MAX+1); *e=0; }
     int c=menu(t,it,6); if(c<0) return;

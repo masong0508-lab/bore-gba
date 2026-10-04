@@ -10,7 +10,8 @@
 // This file is included from main.c at the old SETTINGS screen's place: it needs presetNm/presetOf/setPreset/setDefaults/autoTune/
 // measureDraw/capLevel/costCache from there, slots.h for the confirm menus, and tmStart()/R_TM2CNT.
 enum { OR_VAR, OR_XO, OR_PRESET, OR_ACT };   // a plain u8 variable, an xo[] option, the preset, an action
-enum { OA_TUNE, OA_LIFESAVE, OA_LIFEERASE, OA_ROOMERASE, OA_SLOTSERASE, OA_ALLERASE, OA_SRAMTEST, OA_RESET, OA_BTNTEST };
+enum { OA_TUNE, OA_LIFESAVE, OA_LIFEERASE, OA_ROOMERASE, OA_SLOTSERASE, OA_ALLERASE, OA_SRAMTEST, OA_RESET, OA_BTNTEST, OA_CLEAN };
+static void cacheFlush(void);   // CLEAR CACHES (main.c, next to liveInvalidate: it needs the room, sprite-slot and path state)
 typedef struct { u8 kind, idx, n, def; u8*v; const char*nm; const char* const* lab; const char*d0; const char*d1; } OptRow;
 #define VR(var,n,def,nm,lab,d0,d1) {OR_VAR,0,n,def,&var,nm,lab,d0,d1}
 #define XR(i,nm,lab,d0,d1) {OR_XO,i,0,0,0,nm,lab,d0,d1}
@@ -42,7 +43,7 @@ static const OptRow pgVideo[]={
  VR(sShad,2,1,"SHADOWS",lbOnOff,"THE DARK SPOT UNDER YOUR FEET","OFF SAVES A LITTLE DRAWING"),
  VR(sShow,3,0,"PERFORMANCE INFO",lbShow,"SHOWS FPS WHILE YOU PLAY  DETAIL ALSO SHOWS","LOAD  100 MEANS A FRAME IS JUST FITTING"),
  VR(sNoWarn,2,0,"SPEED WARNING",lbWarn,"ON SHOWS TOO SLOW WHEN THE PICTURE","CANT KEEP UP  OFF HIDES THE WARNING"),
- VR(sRom,2,0,"ROM SPEED",lbRom,"FAST IS RIGHT FOR MOST CARTS AND EMULATORS","SAFE IF A FLASH CART FREEZES OR GLITCHES"),
+ VR(sRom,2,0,"ROM SPEED",lbRom,"FAST IS RIGHT FOR MOST CARTS AND EMULATORS","SAFE IF A FLASH CART FREEZES OR GLITCHES"), AR(OA_CLEAN,"DEBUG CLEAR CACHES","KONAMI DEBUG  NOT A REAL CACHE DELETER","IT WONT SPEED UP THE GAME  A TO READ MORE"),   // LAST row of the page: hidden until the Konami code is on (pgRows)
 };
 // ---- SIM: everything about your Sim, the household and the score, in sections (like TIME) ----
 static const OptRow pgSimNeeds[]={
@@ -147,7 +148,7 @@ static const OptSub timeSubs[]={
 };
 static const OptPage optPages[NOPG]={ PG("VIDEO",pgVideo), PGS("SIM",simSubs), PGS("TIME",timeSubs), PG("AUDIO",pgAudio), PG("INPUT",pgInput), PG("HUD",pgHud), PG("ROOMS",pgRooms), PG("DATA",pgData) };
 static int opPage, opFocus; static u8 opSel[NOPG][5], opSub[NOPG];   // opFocus: the cursor is on the section strip; opSel is kept per page and per section
-static const OptRow* pgRows(const OptPage*pg,int*n){ if(pg->ns){ const OptSub*u=&pg->sub[opSub[pg-optPages]]; *n=u->n; return u->r; } *n=pg->n; return pg->r; }
+static const OptRow* pgRows(const OptPage*pg,int*n){ if(pg->ns){ const OptSub*u=&pg->sub[opSub[pg-optPages]]; *n=u->n; return u->r; } *n=pg->n; if(pg->r==pgVideo&&!sUnlock) (*n)--; return pg->r; }   // DEBUG CLEAR CACHES (the last VIDEO row) only shows while the Konami code (sUnlock) is on
 static u8* pgSel(const OptPage*pg){ int i=(int)(pg-optPages); return &opSel[i][pg->ns?opSub[i]:0]; }
 
 static u8* rowVar(const OptRow*r){ return r->kind==OR_XO?&xo[r->idx]: r->v; }
@@ -261,6 +262,12 @@ static void optAction(int a,int*remeasure){
         case OA_TUNE: autoTune(); costCache[costKey()]=(s16)sCost; *remeasure=0; break;
         case OA_RESET: if(menu("RESET ALL OPTIONS",slYesNo,2)==1){ optsDefaults(); setDefaults(); sTunedMsg=0; *remeasure=1; toast("OPTIONS RESET"); } break;
         case OA_BTNTEST: buttonTest(); break;
+        case OA_CLEAN:{
+            if(!sUnlock) break;   // (the row is hidden without the Konami code; this is only a second lock)
+            static const char* const dis[11]={">NOT A REAL CACHE DELETER","THE GBA HAS NO CACHE PILE UP TO CLEAR","AND THE GAME KEEPS NO HIDDEN ASSETS IN RAM","IT ONLY DROPS SMALL SPEED UP COPIES THAT","THE GAME BUILDS AGAIN BY ITSELF",">WHAT IT CAN DO","FIX A GLITCHED SPRITE OR A STALE REDRAW",">WHAT IT CANNOT DO","RAISE YOUR FRAME RATE OR FREE UP RAM","FOR REAL SPEED USE FRAME RATE WALLS","WALLPAPER FLOORS AND SHADOWS"};
+            helpScreen("DEBUG CLEAR CACHES",dis,11);
+            if(menu("RUN IT ANYWAY",slYesNo,2)!=1) break; }
+            cacheFlush(); for(int i=0;i<24;i++) costCache[i]=0; sTunedMsg=0; *remeasure=1; toast("CACHES CLEARED"); break;   // the speed meter measures again by itself a moment later
         case OA_LIFESAVE:
             if(!gInPlay) toast("USE THIS FROM THE PAUSE MENU");
             else { simsSaveNow(); toast("LIFE SAVED"); } break;

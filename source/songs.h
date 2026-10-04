@@ -81,3 +81,8 @@ SONG_XM(cocaine_cola_ii,"COCAINE COLA","tools/cocaine_cola_ii.xm")
 SONG_XM(cocaine_cola,"COCAINE COLA (ORIGINAL)","tools/cocaine_cola.xm")
 // STAGED THE FULL PERFORMANCE: a DayBar hi-NRG rework of The Dipper Man - Staged the Full Performance (tools/make_staged_rework.py, from tools/the_dipper_man_staged.xm)
 SONG_XM(staged,"STAGED THE FULL PERFORMANCE","tools/staged.xm")
+
+// CLOSER TO THE END: a faster, harder Danny Steele prog rework of The Dipper Man - Closer to the End (tools/make_closer_rework.py, 140 BPM, from tools/the_dipper_man_closer_to_the_end.xm)
+SONG_XM(closer_to_the_end,"CLOSER TO THE END","tools/closer_to_the_end.xm")
+// CLOSER TO THE END (ORIGINAL): the first, slower version (tools/make_closer_old_rework.py): a SECRET song, hidden until the title-screen code (isDbgSong in main.c)
+SONG_XM(closer_to_the_end_old,"CLOSER TO THE END (ORIGINAL)","tools/closer_to_the_end_old.xm")
