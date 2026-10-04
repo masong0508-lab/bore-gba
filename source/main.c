@@ -1569,8 +1569,7 @@ static int titleScreen(void){
         if(tx) dmaRows(fb,VRAM_ADDR,TX_W0,TX_W1,TX_Y0,TX_Y1);
         musFill();
     }
-    musStop();
-    while((~REG_KEYINPUT)&K_START) vsync();   // wait for release so START doesn't also change size
+    while((~REG_KEYINPUT)&K_START) vsync();   // wait for release so START doesn't also change size   (the title song plays on: the main menu crossfades from it)
     return frame;   // how long the player sat on the title: stirs the random seed
 }
 
@@ -2541,20 +2540,24 @@ static const char* const lifeItemsEd[4]={"RESUME","HOW TO PLAY","OPTIONS","BACK 
 static const char* const yesNoLife[2]={"NO","YES ERASE IT"};
 // ---- game music: the jukebox songs in their shuffled order while you play (OPTIONS > AUDIO > GAME MUSIC) ----
 static int gmCur;   // visible number of the song that plays
-static void gmPlay(void){ const Song*sg=&songs[jbMap[gmCur]]; musBegin(sg->adp?1:0,sg->adp,sg->xm); }
-static void gmStart(void){   // a random checked song (OPTIONS > AUDIO > GAME MUSIC)
-    if(gMusic||!xo[XO_GAMEMUS]||!sSnd||jbN<=0) return;
-    gmCur=pickSong(); if(gmCur<0) return;
+static int menuOn, creOn, musCtx;   // who owns the music: the main menus' song, the creator's chiptune loop (musCtx = the screen the game was started from: 0 menu, 1 creator)
+static void creatorMusStart(void); static void menuMusStart(void);
+static void gmPlay(void){ const Song*sg=&songs[jbMap[gmCur]]; musFadeTo(sg->adp?1:0,sg->adp,sg->xm,XF_SONG); }
+static void gmStart(void){   // entering the game: crossfade into a random checked song (OPTIONS > AUDIO > GAME MUSIC), or fade out the last screen's music
+    if(gMusic) return;
+    menuOn=0; creOn=0;
+    if(!xo[XO_GAMEMUS]||!sSnd||jbN<=0){ musFadeOut(XF_OUT); return; }
+    gmCur=pickSong(); if(gmCur<0){ musFadeOut(XF_OUT); return; }
     gMusic=1; mGain=mGainT=256; gmPlay();
 }
-static void gmStop(void){ mGain=mGainT=256; if(!gMusic) return; gMusic=0; musStop(); }
-static void gmSync(void){ if(xo[XO_GAMEMUS]&&sSnd) gmStart(); else gmStop(); }   // after the pause menu: the option or SOUND may have changed
+static void gmStop(void){ mGain=mGainT=256; gMusic=0; }   // leaving the game: nothing is cut, the next screen's music crossfades over the song
+static void gmSync(void){ if(xo[XO_GAMEMUS]&&sSnd) gmStart(); else if(gMusic){ gMusic=0; musFadeOut(XF_OUT); } }   // after the pause menu: the option or SOUND may have changed
 static void gmTick(void){   // once per frame: when the song is over, another random one
     if(!gMusic||!mPlay) return;
-    if(mKind?mDone:mLaps>=1){ gmCur=pickSong(); if(gmCur<0){ gMusic=0; return; } gmPlay(); }
+    if(musNearEnd(XF_SONG)||(mKind?mDone:mLaps>=1)){ gmCur=pickSong(); if(gmCur<0){ gMusic=0; return; } gmPlay(); }   // the next song crossfades in before this one ends
 }
 static void lifeModeRun(int ed);
-static void lifeMode(int ed){ gInPlay=1; lifeModeRun(ed); gInPlay=0; }   // gInPlay: some option actions are only allowed while playing / only outside it
+static void lifeMode(int ed){ int back=musCtx; gInPlay=1; lifeModeRun(ed); gInPlay=0; if(!gToMenu){ if(back==1) creatorMusStart(); else menuMusStart(); } }   // back from the game: the screen it was started from gets its music back (a crossfade)   // gInPlay: some option actions are only allowed while playing / only outside it
 static void lifeModeRun(int ed){   // ed=1: test play started from the map editor
     objHideAll(); REG_DISPCNT=0x3443;   // mode 3 + sprites (1D tiles) + window 0 (the household's hardware sprites, house.h)
     lifeInit(); lcamF=0; cview=0; lcN=lcPts=lcT=lcBank=lcBankT=lcamPend=0; u16 prev=keyNow(); gmStart(); hudApplyLayout(); liveInvalidate(); camSnap=1;
@@ -3259,7 +3262,7 @@ static int creatorClassic(void){   // returns 1 when the secret code switched sc
 }
 
 
-static void creatureEditor(void){ for(;;){ int sw=(sUnlock&&sClassic)?creatorClassic():creatorNew(); if(!sw) break; } }   // main menu entry: the new creator, or the classic one once the code has been entered
+static void creatureEditor(void){ creatorMusStart(); for(;;){ int sw=(sUnlock&&sClassic)?creatorClassic():creatorNew(); if(!sw) break; } }   // main menu entry: the new creator, or the classic one once the code has been entered
 
 // ---------- jukebox: the MUSIC PLAYER ----------
 // Two tabs (L / R). INTERACTIVE: pick any song and play it; when it ends the next one in the list plays. PLAYLIST: every song has a check box
@@ -3293,7 +3296,7 @@ static void fillBox(int x0,int x1,int y0,int y1,u16 c){   // x0, x1 must be even
 static int numAt(int x,int y,int n,u16 c){ return numText(x,y,n,c); }
 static void jbStart(int v){   // play visible song v
     jbCur=v; if(!sSnd||v<0){ jbPlaying=0; return; }
-    const Song*sg=&songs[jbMap[v]]; musBegin(sg->adp?1:0,sg->adp,sg->xm); jbPlaying=1;
+    menuOn=0; creOn=0; const Song*sg=&songs[jbMap[v]]; musFadeTo(sg->adp?1:0,sg->adp,sg->xm,XF_SONG); jbPlaying=1;
 }
 static void jbOutline(int x,int y,int w,int h,u16 c){ rect(x,y,w,1,c); rect(x,y+h-1,w,1,c); rect(x,y,1,h,c); rect(x+w-1,y,1,h,c); }
 // text in a column w wide: as is when it fits; else cut with ".." (or, with a scroll offset >= 0, scrolled inside the column)
@@ -3396,8 +3399,8 @@ static void jukeboxScreen(void){
         if(pr&K_R){ if(jbTab!=1){ jbTab=1; dH=dL=dF=1; } }
         if((pr&K_SEL)&&jbTab){ jbToggle(cur); dL=1; if(jbCount()==0){ jbMsg="NONE CHECKED: ALL PLAY"; jbMsgT=90; dH=1; } }
         if(pr&(K_LEFT|K_RIGHT)){ int v=xo[XO_MUS]; if(pr&K_RIGHT){ if(v>0) v--; } else if(v<3) v++; xo[XO_MUS]=(u8)v; dH=1; }
-        if(pr&K_START){ if(jbPlaying){ musStop(); jbPlaying=0; } else jbStart(cur); dH=dF=dL=1; }
-        if(jbPlaying&&(mKind?mDone:mLaps>=1)){   // song over: INTERACTIVE goes on down the list, PLAYLIST picks another random checked song
+        if(pr&K_START){ if(jbPlaying){ musFadeOut(XF_OUT); jbPlaying=0; } else jbStart(cur); dH=dF=dL=1; }
+        if(jbPlaying&&(musNearEnd(XF_SONG)||(mKind?mDone:mLaps>=1))){   // song over: INTERACTIVE goes on down the list, PLAYLIST picks another random checked song
             int nx=jbTab?pickSong():(jbCur+1)%jbN; jbStart(nx); if(jbCur>=0) cur=jbCur; dH=dL=1; }
         if((fr&3)==0){ if(jbPlaying) dH=1; { int fw=tw(songs[jbMap[cur]].name,1); if(fw>JB_NW) dL=1; } }   // now playing bar + equalizer; a long name on the cursor row scrolls
         if(jbMsgT>0&&--jbMsgT==0) dH=1;
@@ -3408,21 +3411,48 @@ static void jukeboxScreen(void){
         vsync();
         if(y1>y0) dmaRows(fb,VRAM_ADDR,0,ROW_W,y0,y1);
     }
-    musStop(); jbPlaying=0; settingsSave();   // (the volume you set is an option: saved with the others)
+    jbPlaying=0; settingsSave();   // (the volume you set is an option: saved with the others; the song plays on, the main menu crossfades from it)
     while(keyNow()) vsync();
 }
 // ---------- main menu music ----------
 // One random checked jukebox song plays whenever a main menu is open (MENU MUSIC option). It carries on through the quiet screens (OPTIONS, ROOM SLOTS,
 // HOW TO PLAY), stops when the game, the creator, the room builder or the jukebox opens, and a NEW random song starts when you are back at the menu.
-static int menuOn;
 static void menuMusStart(void){
-    if(menuOn||!sSnd||!xo[XO_MENUMUS]||jbN<=0) return;
-    int v=pickSong(); if(v<0) return;
-    const Song*sg=&songs[jbMap[v]]; mGain=mGainT=256; musBegin(sg->adp?1:0,sg->adp,sg->xm); menuOn=1;
+    musCtx=0; if(menuOn) return;
+    creOn=0;
+    if(!sSnd||!xo[XO_MENUMUS]||jbN<=0){ musFadeOut(XF_OUT); return; }
+    int v=pickSong(); if(v<0){ musFadeOut(XF_OUT); return; }
+    const Song*sg=&songs[jbMap[v]]; mGain=mGainT=256; musFadeTo(sg->adp?1:0,sg->adp,sg->xm,XF_SONG); menuOn=1;   // crossfades from whatever played before
 }
-static void menuMusStop(void){ if(!menuOn) return; menuOn=0; musStop(); }
+static void menuMusStop(void){ if(!menuOn) return; menuOn=0; musFadeOut(XF_OUT); }
 static void menuMusSync(void){ if(sSnd&&xo[XO_MENUMUS]) menuMusStart(); else menuMusStop(); }   // after OPTIONS: SOUND or MENU MUSIC may have changed
-static void menuMusTick(void){ if(menuOn&&mPlay&&(mKind?mDone:mLaps>=1)){ menuOn=0; menuMusStart(); } }   // the song is over: another random one
+static void menuMusTick(void){ if(menuOn&&mPlay&&(musNearEnd(XF_SONG)||(mKind?mDone:mLaps>=1))){ menuOn=0; menuMusStart(); } }   // the song is nearly over: the next random one crossfades in
+// ---------- creator music: the chiptune loops (source/chips.h, made by tools/make_chiptunes.py and packed by tools/encode_chip.py) ----------
+// Looping ADPCM, one random loop each time the creator opens (the secret ones only after the title-screen code); entering from the menu or the game crossfades.
+#define CHIP(id,n,sec) ".global " #id "\n" #id ":\n.incbin \"source/music/" #id ".adp\"\n.balign 4\n"
+__asm__(".pushsection .rodata\n.balign 4\n"
+#include "chips.h"
+".popsection\n");
+#undef CHIP
+#define CHIP(id,n,sec) extern const u8 id[];
+#include "chips.h"
+#undef CHIP
+typedef struct { const char*name; const u8*adp; u8 secret; } Chip;
+#define CHIP(id,n,sec) {n,id,sec},
+static const Chip chips[]={
+#include "chips.h"
+};
+#undef CHIP
+#define NCHIPS ((int)(sizeof(chips)/sizeof(chips[0])))
+static int chipLast=-1;
+static void creatorMusStart(void){
+    musCtx=1; if(creOn) return;
+    menuOn=0;
+    int ok[NCHIPS], n=0; for(int i=0;i<NCHIPS;i++) if((dbgOn||!chips[i].secret)&&i!=chipLast) ok[n++]=i;
+    if(!sSnd||!xo[XO_CREMUS]||n==0){ musFadeOut(XF_OUT); return; }
+    lrng^=((u32)R_TM2D<<8^uiTicks)*2654435761u; int k=ok[(((unsigned)rnd8()<<8|(unsigned)rnd8())*(unsigned)n)>>16];
+    chipLast=k; mGain=mGainT=256; musFadeTo(1,chips[k].adp,0,XF_SONG); creOn=1;
+}
 
 // ---------- main menu ----------
 static const char* const mmName[7]={"PLAY","MAKE CREATURE","BUILD ROOM","ROOM SLOTS","JUKEBOX","OPTIONS","HOW TO PLAY"};
@@ -3456,16 +3486,16 @@ static void mainMenu(void){
         if(pr&K_UP){ sel=(sel+6)%7; dirty=1; }
         if(pr&(K_A|K_START)){
             int fresh=0;   // 1 = that screen stopped the menu song (or plays its own): a NEW random song starts when we are back
-            if(sel==0){ menuMusStop(); lifeMode(0); fresh=1; }
-            else if(sel==1){ menuMusStop(); creatureEditor(); fresh=1; }
-            else if(sel==2){ menuMusStop(); mapEditor(); fresh=1; }
+            if(sel==0){ lifeMode(0); fresh=1; }
+            else if(sel==1){ creatureEditor(); fresh=1; }
+            else if(sel==2) mapEditor();   // (the menu song plays on in the room builder)
             else if(sel==3) slotScreen();
-            else if(sel==4){ menuMusStop(); jukeboxScreen(); fresh=1; }
+            else if(sel==4){ jukeboxScreen(); fresh=1; }
             else if(sel==5) settingsScreen();
             else { int g=menu("HOW TO PLAY",guideItems,6);
                    if(g==0) helpScreen("PLAYING",lifeHelp,16); else if(g==1) helpScreen("MAKE CREATURE",creatureHelp,15); else if(g==2) helpScreen("BUILD ROOMS",mapHelp,12); else if(g==3) helpScreen("JUKEBOX",jbHelp,13); else if(g==4) helpScreen("ROOM SLOTS",slotHelp,11); else if(g==5) helpScreen("OPTIONS",optHelp,11); }
             gToMenu=0; prev=keyNow(); dirty=1;
-            if(fresh) menuMusStart(); else menuMusSync();   // (OPTIONS may have switched SOUND or MENU MUSIC)
+            (void)fresh; menuMusSync();   // the menu's song comes back (a crossfade) if the screen took the music; OPTIONS may have switched SOUND or MENU MUSIC
             continue;
         }
         if(dirty){ drawMainMenu(sel); present(); dirty=0; } else vsync();
