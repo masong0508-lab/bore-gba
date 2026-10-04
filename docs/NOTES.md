@@ -450,3 +450,6 @@ Wants: snack, WC, nap, get clean, sofa, land a trick, trick combo, 5 trick combo
 **Adding things.** A want or fear: add an `SE_` name if it needs a new event, a row **at the end** of `simWants` / `simFears` (rows are saved by index: name, event, points, furniture, icon, parameter, aspirations, trait, minimum, who), and map the game event in `simsMood()` (or call `simEvent(SE_X)` yourself). A need: a variable (and in `simsSave`/`simsLoad`), a rate in `simsTick()`, a use in `simBegin()`, a bar in `simsHud()`. A piece of furniture: art in `simart.h`, a slot in `palCh`/`palNm`/`palCol` and a `drawItemTile` line.
 
 **Not done yet:** SOCIAL need, other people to talk to, relationships.
+
+## Household slots
+**Pause menu -> ROOM SLOTS** (and the main menu's slot screen) can now keep several households. On an empty slot pick **SAVE HOUSEHOLD**; on a household slot pick **LOAD HOUSEHOLD** (replaces the Sims living with you and their relationships; your own look and life stay), **SAVE HOUSEHOLD** (overwrite it with the current one), **RENAME**, **COPY TO**, **INFO** or **DELETE**. They share the twelve room slots (slot KIND 2 in `source/slots.h`); a big household takes two neighbouring free slots. A household slot never becomes the active slot, and saving a room never overwrites one.

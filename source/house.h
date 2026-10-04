@@ -807,6 +807,16 @@ static void hhLoad(void){
     for(int a=0;a<HU_N;a++)for(int b=0;b<HU_N;b++){ if(a<hu&&b<hu){ relD[a][b]=(signed char)m[k++]; relL[a][b]=(signed char)m[k++]; relF[a][b]=m[k++]; } else relD[a][b]=relL[a][b]=0, relF[a][b]=0; }
     hhN=n;
 }
+// How many bytes the household block at m takes (its header, count, uids and checksum all check out), or 0 if it is not a good household
+// or does not fit in avail bytes. The household slots (slots.h) use it to copy a household in and out of SRAM without touching hhM.
+static int hhBlockLen(volatile u8*m,int avail){
+    if(avail<4||m[0]!='H'||m[1]<'2'||m[1]>'9'||m[2]>HH_MAX) return 0;
+    int old=m[1]<'6', hu=old?HH_MAXOLD+1:HU_N;
+    int v7=m[1]>='7', nb=v7?2*HH_NM:10, nl=m[1]>='9'?LKPK:m[1]>='8'?LK_N9:v7?LK_N8:m[1]>='5'?LK_N7:m[1]=='4'?LK_N6:m[1]=='3'?LK_N5:LK_N4, rec=HH_REC-LKPK+nl-2*HH_NM+nb;
+    int n=m[2], hb=v7?2*HH_NM:0, k=4+hb+n*rec+3*hu*hu; if(k+1>avail) return 0;
+    u8 sum=0x48; for(int i=2;i<k;i++) sum+=m[i]; if(m[k]!=sum||m[3]>=hu) return 0;
+    return k+1;
+}
 _Static_assert(HH_OFF+4+2*HH_NM+HH_MAX*HH_REC+HH_RELB+1<=SLOT_BASE,"the household must fit before the room slots");
 _Static_assert(4+2*HH_NM+HH_MAX*HH_REC+HH_RELB+1<=SL_HH_LEN,"the household is bigger than the SRAM block reserved for it");
 
