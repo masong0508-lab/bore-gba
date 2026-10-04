@@ -278,6 +278,30 @@ __asm__(".pushsection .rodata\n"
   ".global xm_nursery_time_S23\nxm_nursery_time_S23:\n.incbin \"source/music/xmdata.bin\",3149823,23230\n"
   ".global xm_nursery_time_S24\nxm_nursery_time_S24:\n.incbin \"source/music/xmdata.bin\",3173053,8332\n"
   ".global xm_tree_swaying_action_old_ev\nxm_tree_swaying_action_old_ev:\n.incbin \"source/music/xmdata.bin\",3181385,2468\n"
+  ".global xm_condensed_music_ev\nxm_condensed_music_ev:\n.incbin \"source/music/xmdata.bin\",3183853,10640\n"
+  ".global xm_condensed_music_S0\nxm_condensed_music_S0:\n.incbin \"source/music/xmdata.bin\",3194493,1473\n"
+  ".global xm_condensed_music_S1\nxm_condensed_music_S1:\n.incbin \"source/music/xmdata.bin\",3195966,5531\n"
+  ".global xm_condensed_music_S2\nxm_condensed_music_S2:\n.incbin \"source/music/xmdata.bin\",3201497,1080\n"
+  ".global xm_condensed_music_S3\nxm_condensed_music_S3:\n.incbin \"source/music/xmdata.bin\",3202577,726\n"
+  ".global xm_condensed_music_S4\nxm_condensed_music_S4:\n.incbin \"source/music/xmdata.bin\",3203303,5862\n"
+  ".global xm_condensed_music_S5\nxm_condensed_music_S5:\n.incbin \"source/music/xmdata.bin\",3209165,1272\n"
+  ".global xm_condensed_music_S6\nxm_condensed_music_S6:\n.incbin \"source/music/xmdata.bin\",3210437,2556\n"
+  ".global xm_condensed_music_S7\nxm_condensed_music_S7:\n.incbin \"source/music/xmdata.bin\",3212993,811\n"
+  ".global xm_condensed_music_S8\nxm_condensed_music_S8:\n.incbin \"source/music/xmdata.bin\",3213804,2649\n"
+  ".global xm_condensed_music_S9\nxm_condensed_music_S9:\n.incbin \"source/music/xmdata.bin\",3216453,4182\n"
+  ".global xm_condensed_music_S10\nxm_condensed_music_S10:\n.incbin \"source/music/xmdata.bin\",3220635,6687\n"
+  ".global xm_condensed_music_S11\nxm_condensed_music_S11:\n.incbin \"source/music/xmdata.bin\",3227322,6621\n"
+  ".global xm_condensed_music_S12\nxm_condensed_music_S12:\n.incbin \"source/music/xmdata.bin\",3233943,4541\n"
+  ".global xm_condensed_music_S13\nxm_condensed_music_S13:\n.incbin \"source/music/xmdata.bin\",3238484,21407\n"
+  ".global xm_condensed_music_S14\nxm_condensed_music_S14:\n.incbin \"source/music/xmdata.bin\",3259891,25990\n"
+  ".global xm_condensed_music_S15\nxm_condensed_music_S15:\n.incbin \"source/music/xmdata.bin\",3285881,8669\n"
+  ".global xm_condensed_music_S16\nxm_condensed_music_S16:\n.incbin \"source/music/xmdata.bin\",3294550,19913\n"
+  ".global xm_condensed_music_S17\nxm_condensed_music_S17:\n.incbin \"source/music/xmdata.bin\",3314463,1746\n"
+  ".global xm_condensed_music_S18\nxm_condensed_music_S18:\n.incbin \"source/music/xmdata.bin\",3316209,505\n"
+  ".global xm_condensed_music_S19\nxm_condensed_music_S19:\n.incbin \"source/music/xmdata.bin\",3316714,16455\n"
+  ".global xm_condensed_music_S20\nxm_condensed_music_S20:\n.incbin \"source/music/xmdata.bin\",3333169,20258\n"
+  ".global xm_condensed_music_S21\nxm_condensed_music_S21:\n.incbin \"source/music/xmdata.bin\",3353427,30380\n"
+  ".global xm_condensed_music_S22\nxm_condensed_music_S22:\n.incbin \"source/music/xmdata.bin\",3383807,15330\n"
   ".popsection\n");
 extern const u8 xm_the_dipper_man_ev[];
 extern const s8 xm_the_dipper_man_S0[];
@@ -554,6 +578,30 @@ extern const s8 xm_nursery_time_S22[];
 extern const s8 xm_nursery_time_S23[];
 extern const s8 xm_nursery_time_S24[];
 extern const u8 xm_tree_swaying_action_old_ev[];
+extern const u8 xm_condensed_music_ev[];
+extern const s8 xm_condensed_music_S0[];
+extern const s8 xm_condensed_music_S1[];
+extern const s8 xm_condensed_music_S2[];
+extern const s8 xm_condensed_music_S3[];
+extern const s8 xm_condensed_music_S4[];
+extern const s8 xm_condensed_music_S5[];
+extern const s8 xm_condensed_music_S6[];
+extern const s8 xm_condensed_music_S7[];
+extern const s8 xm_condensed_music_S8[];
+extern const s8 xm_condensed_music_S9[];
+extern const s8 xm_condensed_music_S10[];
+extern const s8 xm_condensed_music_S11[];
+extern const s8 xm_condensed_music_S12[];
+extern const s8 xm_condensed_music_S13[];
+extern const s8 xm_condensed_music_S14[];
+extern const s8 xm_condensed_music_S15[];
+extern const s8 xm_condensed_music_S16[];
+extern const s8 xm_condensed_music_S17[];
+extern const s8 xm_condensed_music_S18[];
+extern const s8 xm_condensed_music_S19[];
+extern const s8 xm_condensed_music_S20[];
+extern const s8 xm_condensed_music_S21[];
+extern const s8 xm_condensed_music_S22[];
 static const u32 xmT[12]={1073741824,1137589835,1205234447,1276901417,1352829926,1433273380,1518500250,1608794974,1704458901,1805811301,1913190429,2026954652};   // 2^(j/12) in Q30: with a per-instrument anchor this gives every note's playback step (see xmStep in main.c)
 // ---- the_dipper_man  (from tools/the_dipper_man.xm) ----
 static const u8 xm_the_dipper_man_order[89]={0,0,1,1,2,2,2,2,3,4,3,5,3,4,3,6,7,8,9,2,7,8,10,11,12,4,3,5,3,4,
@@ -1218,3 +1266,34 @@ static const u8 xm_tree_swaying_action_old_busL[7]={216,193,165,132,95,55,14,
 static const u8 xm_tree_swaying_action_old_busR[7]={12,47,81,112,141,165,184,
 };
 static const XmSong xm_tree_swaying_action_old={xm_tree_swaying_action_old_order,xm_tree_swaying_action_old_rows,xm_tree_swaying_action_old_patOff,xm_tree_swaying_action_old_ev,xm_tree_swaying_action_old_vt,xm_tree_swaying_action_old_anc,xm_tree_swaying_action_old_fx,xm_tree_swaying_action_old_len,xm_tree_swaying_action_old_data,xm_tree_swaying_action_old_busL,xm_tree_swaying_action_old_busR,33,0,4392,211};
+// ---- condensed_music  (from tools/condensed_music.xm) ----
+static const u8 xm_condensed_music_order[105]={0,1,0,2,3,4,5,6,7,8,7,8,7,8,7,8,7,8,7,8,7,8,7,9,10,11,12,13,12,14,
+12,15,12,11,12,13,12,14,12,15,16,17,18,17,18,17,18,17,18,17,18,17,18,17,18,17,19,20,21,22,
+23,24,25,26,27,28,29,30,29,31,29,32,33,34,33,35,33,36,33,32,37,38,39,40,39,38,39,41,42,43,
+44,45,44,46,44,47,48,49,48,49,50,51,52,53,54,
+};
+static const u16 xm_condensed_music_rows[55]={64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,
+64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,
+};
+static const u32 xm_condensed_music_patOff[55]={0,22,44,123,244,368,492,681,887,1099,1128,1388,1606,1863,2108,2335,2556,2807,3058,3306,3379,3416,3486,3541,
+3614,3657,3824,4039,4350,4616,4924,5217,5492,5764,6078,6350,6649,6930,7187,7426,7680,7922,8167,8484,8756,9070,9369,9650,
+9922,10134,10340,10420,10494,10601,10639,
+};
+static const u16 xm_condensed_music_vt[35]={710,1735,2760,1173,2863,1536,1785,732,2781,1107,2098,2810,2398,2382,1553,1636,
+678,1703,2728,1652,694,1719,2744,1769,2794,2366,1091,2414,2607,2827,2190,779,
+2843,795,558,
+};
+static const u32 xm_condensed_music_anc[23]={61819841,247279365,247279365,247279365,247279365,247279365,61819841,61819841,
+30909921,123639683,61819841,247279365,41259794,123639683,247279365,123639683,
+165039176,123639683,61819841,165039176,165039176,123639683,165039176,
+};
+static const u8 xm_condensed_music_fx[1]={255,
+};
+static const u32 xm_condensed_music_len[23]={1472,5530,1079,725,5861,1271,2555,810,2648,4181,6686,6620,4540,21406,25989,8668,19912,1745,504,16454,20257,30379,15329,
+};
+static const s8* const xm_condensed_music_data[23]={xm_condensed_music_S0,xm_condensed_music_S1,xm_condensed_music_S2,xm_condensed_music_S3,xm_condensed_music_S4,xm_condensed_music_S5,xm_condensed_music_S6,xm_condensed_music_S7,xm_condensed_music_S8,xm_condensed_music_S9,xm_condensed_music_S10,xm_condensed_music_S11,xm_condensed_music_S12,xm_condensed_music_S13,xm_condensed_music_S14,xm_condensed_music_S15,xm_condensed_music_S16,xm_condensed_music_S17,xm_condensed_music_S18,xm_condensed_music_S19,xm_condensed_music_S20,xm_condensed_music_S21,xm_condensed_music_S22};
+static const u8 xm_condensed_music_busL[7]={199,179,152,122,88,51,13,
+};
+static const u8 xm_condensed_music_busR[7]={13,51,88,122,152,179,199,
+};
+static const XmSong xm_condensed_music={xm_condensed_music_order,xm_condensed_music_rows,xm_condensed_music_patOff,xm_condensed_music_ev,xm_condensed_music_vt,xm_condensed_music_anc,xm_condensed_music_fx,xm_condensed_music_len,xm_condensed_music_data,xm_condensed_music_busL,xm_condensed_music_busR,105,0,515,211};

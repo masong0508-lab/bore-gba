@@ -292,6 +292,23 @@ tables, and `chipMix` (main.c) renders them live.
 - **TREE SWAYING ACTION (ORIGINAL)**, hidden, is the drum rework. Its breeze pad uses a smooth echo in the calm parts and a gated stutter echo in the
   drops and risers (`TREE_ECHO = 'mix'`).
 
+## Condensed Music (`tools/make_condensed_rework.py`)
+- **CONDENSED MUSIC** (Sk9m) reworks The Dipper Man's 58-second, two-channel PixiTracker sketch (`tools/the_dipper_man_condensed_music.xm`) into
+  3:10 of 2-step UK garage at 132 BPM.
+- **Kept, read straight out of the sketch:** the 3-3-2 riff (Db E . Db E . D), hook A (F Ab Db | C Bb G) answered by the riff, hook B
+  (Db . . . . Db F G | Ab G F Eb | C) with its turnaround and C/E - Db/F sting, the drumless F Eb C break, the tapped Eb F G run and the
+  ending (a low F with a dying snare roll).
+  - The sketch's lead sample sounds a semitone under its written notes, so everything is taken down one: you hear F minor in both.
+- **New:** the harmony (Dbmaj7 C7 | Fm, then Dbmaj7 Eb | Fm and Abmaj7 / C7b9), the form, and every sound:
+  - drums: 2-step kicks and swung 16ths (every second 16th is one 1/64-bar row late), four on the floor in the last choruses;
+  - an organ stab on the riff, Rhodes chords, a garage sub bass;
+  - a vowel lead with a dotted-8th echo, a glass pluck, strings, bells, blips and fx.
+- **Mix:** levelled against SUNMAN SUNRISE; a hand-made stereo plan (`condensed_pan` in xm2gba.py). 205 KB of samples.
+- **Remake:** `python3 tools/make_condensed_rework.py`, then `python3 tools/xm2gba.py`.
+
+## Room builder HUD
+- The text at the top and bottom of BUILD ROOM sits on the room shaded to a quarter brightness (`edShadeBand`), so it reads on any floor.
+
 ## Neighborhood (`source/neighborhood.h`)
 - **The town** is a 24 x 24 grid. Each cell has a terrain (grass, dirt, sand, water, plaza, road) and a decoration (tree, pine, bush, flowers, rock,
   lamp, bench, fountain).
