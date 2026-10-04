@@ -29,25 +29,29 @@ SPC = FS * OS // CR             # oversampled samples per control step (1600)
 MIXR = X.MIXR
 
 # the ten songs: id, xm file, title.  Options: win = (min, max) loop seconds, duty = (lead, harmony), lead = instrument number to force as the lead
-SONGS = [
-    ("amiga_music",            "tools/amiga_music.xm",            "AMIGA MUSIC",                {}),
-    ("emergency_hitech",       "tools/emergency_hitech.xm",       "EMERGENCY ON THE DANCE FLOOR", {}),
+SONGS = [      # the visible set (picked by ear; 9 of 10 so far)
     ("meltdown_in_mars_house", "tools/meltdown_in_mars_house.xm", "MELTDOWN IN MARS",           {}),
     ("sunman_sunrise",         "tools/sunman_sunrise.xm",         "SUNMAN SUNRISE",             {}),
     ("whistler_shuffle",       "tools/whistler_shuffle.xm",       "WHISTLER MAN",               {}),
     ("cynicaller_dnb",         "tools/cynicaller_dnb.xm",         "THE CYNICAL SYNDICATION",    {}),
-    ("hotdamn_rave",           "tools/hotdamn_rave.xm",           "HOT DAMN",                   {}),
     ("mi_cora_zone",           "tools/mi_cora_zone.xm",           "MI CORA ZONE",               {}),
     ("excuses_house",          "tools/excuses_house.xm",          "EXCUSES",                    {}),
     ("aim_and_shoot",          "tools/aim_and_shoot.xm",          "AIM AND SHOOT",              {}),
+    ("gottcho_barracho_ii",    "tools/gottcho_barracho_ii.xm",    "GOTTCHO BARRACHO",           {'v2': True}),
+    ("spanish_flexicode",      "tools/spanish_flexicode.xm",      "AN ODE TO THE SPANISH FLEXICODE", {'v2': True}),
 ]
-EXTRA = [   # more songs that can be rendered by naming them on the command line (these were too sparse for a loop, or less catchy)
-    ("tree_swaying_action",    "tools/tree_swaying_action.xm",    "TREE SWAYING ACTION",        {}),
-    ("earth_and_the_space_citizens", "tools/earth_and_the_space_citizens.xm", "EARTH AND THE SPACE CITIZENS", {}),
-    ("spanish_flexicode",      "tools/spanish_flexicode.xm",      "AN ODE TO THE SPANISH FLEXICODE", {}),
-    ("gottcho_barracho_ii",    "tools/gottcho_barracho_ii.xm",    "GOTTCHO BARRACHO",           {}),
-    ("worthless_clouds",       "tools/worthless_clouds.xm",       "WORTHLESS CLOUDS",           {}),
+SECRET = [     # the hidden set: for the title-screen code, like the (ORIGINAL) songs
+    ("amiga_music",            "tools/amiga_music.xm",            "AMIGA MUSIC",                {}),
+    ("emergency_hitech",       "tools/emergency_hitech.xm",       "EMERGENCY ON THE DANCE FLOOR", {}),
+    ("hotdamn_rave",           "tools/hotdamn_rave.xm",           "HOT DAMN",                   {}),
 ]
+CANDIDATES = [ # options for the one visible slot still open (v2 = the better pitch and role analysis)
+    ("worthless_clouds",       "tools/worthless_clouds.xm",       "WORTHLESS CLOUDS",           {'v2': True}),
+    ("the_dipper_man",         "tools/the_dipper_man.xm",         "THE DIPPER MAN (title song)", {'v2': True}),
+    ("tree_swaying_action",    "tools/tree_swaying_action.xm",    "TREE SWAYING ACTION",        {'v2': True}),
+    ("earth_and_the_space_citizens", "tools/earth_and_the_space_citizens.xm", "EARTH AND THE SPACE CITIZENS", {'v2': True}),
+]
+GROUPS = [('songs', SONGS), ('secret', SECRET), ('candidates', CANDIDATES)]
 
 # ---------------------------------------------------------------- reading a song
 def load(sid, path):
@@ -59,7 +63,7 @@ def load(sid, path):
         insts = X.convert_samples(S, used, sid)
     return S, insts
 
-def analyse(I, name, notes):
+def analyse(I, name, notes, v2=False):
     """what an instrument is: dict(role, f0 = sounding pitch at its median note, med, sec, env = loudness over the sample)"""
     q = I['q'][:-1].astype(float); st = np.array(I['steps']) / 65536.0
     med = int(np.median(notes)); rate = st[med - 1] * MIXR            # sample-frames consumed per second at the median note
@@ -75,7 +79,11 @@ def analyse(I, name, notes):
         k = kmin + int(np.argmax(ac[kmin:kmax])); strength = float(ac[k])
         for kk in range(kmin + 1, kmax - 1):
             if ac[kk] > 0.9 * strength and ac[kk] >= ac[kk - 1] and ac[kk] >= ac[kk + 1]: k = kk; break
+        if v2 and kmin < k < kmax - 1:                                              # v2: parabolic peak -> sub-sample lag, then snap to the nearest semitone (equal temperament)
+            y0, y1, y2 = ac[k - 1], ac[k], ac[k + 1]; den = y0 - 2 * y1 + y2
+            if den != 0: k = k + 0.5 * (y0 - y2) / den
         f0 = rate / k
+        if v2 and strength >= 0.6: f0 = 440.0 * 2 ** (round(12 * np.log2(f0 / 440.0)) / 12)
     nm = name.lower()
     tonal = strength >= 0.6 and (flat < 0.25 or cen < 400)
     if 'kick' in nm: role = 'kick'
@@ -83,7 +91,10 @@ def analyse(I, name, notes):
     elif 'open hat' in nm: role = 'ohat'
     elif 'hat' in nm: role = 'hat'
     elif 'crash' in nm or 'cymbal' in nm: role = 'crash'
+    elif v2 and ('rim' in nm.split() or 'tom' in nm.split() or 'clap' in nm): role = 'snare'
+    elif v2 and ('drop' in nm or 'swell' in nm): role = 'fx'
     elif 'riser' in nm or 'impact' in nm or 'laser' in nm or 'zap' in nm or 'sweep' in nm or 'fx' in nm: role = 'fx'
+    elif v2 and 'pad' in nm: role = 'pad'
     elif not tonal and cen > 3000 and sec >= 0.6: role = 'crash'
     elif not tonal and cen > 3000: role = 'ohat' if sec > 0.15 else 'hat'
     elif not tonal and cen < 260 and sec < 0.7 and distinct <= 2: role = 'kick'
@@ -354,7 +365,7 @@ def make(idx, sid, path, title, opts, out_dir, report):
         for r in S['pats'][o]:
             for ch, (n, i, v, e, ep) in enumerate(r):
                 if n and n < 97 and insts[i - 1]: ev.setdefault(i, []).append(n)
-    info = {i: analyse(insts[i - 1], S['insts'][i - 1]['name'], ev[i]) for i in ev}
+    info = {i: analyse(insts[i - 1], S['insts'][i - 1]['name'], ev[i], opts.get('v2', False)) for i in ev}
     if not any(a['role'] == 'bass' for a in info.values()):                          # no bass by pitch: the lowest tonal instrument that plays a lot is the bass
         low = [i for i, a in info.items() if a['role'] in ('lead', 'pad') and a['f0'] < 330 and len(ev[i]) >= 16]
         if low: info[min(low, key=lambda i: info[i]['f0'])]['role'] = 'bass'
@@ -380,11 +391,12 @@ def make(idx, sid, path, title, opts, out_dir, report):
 
 if __name__ == '__main__':
     args = sys.argv[1:]; out_dir = 'chiptune_out'
-    if args and not args[0] in [s[0] for s in SONGS + EXTRA]: out_dir = args.pop(0)
+    allids = [x[0] for _, g in GROUPS for x in g]
+    if args and args[0] not in allids: out_dir = args.pop(0)
     want = set(args); report = []
     print('chiptune loops -> %s' % out_dir)
-    for idx, (sid, path, title, opts) in enumerate(SONGS + EXTRA, 1):
-        if want and sid not in want: continue
-        if not want and idx > len(SONGS): break
-        print('%d. %s' % (idx, title)); make(idx, sid, path, title, opts, out_dir, report)
-    open(os.path.join(out_dir, 'chiptunes.txt'), 'w').write('\n'.join(report) + '\n')
+    for gname, group in GROUPS:
+        for idx, (sid, path, title, opts) in enumerate(group, 1):
+            if want and sid not in want: continue
+            print('%s %d. %s' % (gname, idx, title)); make(idx, sid, path, title, opts, os.path.join(out_dir, gname), report)
+    os.makedirs(out_dir, exist_ok=True); open(os.path.join(out_dir, 'chiptunes.txt'), 'w').write('\n'.join(report) + '\n')
