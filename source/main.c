@@ -2542,7 +2542,7 @@ static const char* const yesNoLife[2]={"NO","YES ERASE IT"};
 static int gmCur;   // visible number of the song that plays
 static int menuOn, creOn, musCtx;   // who owns the music: the main menus' song, the creator's chiptune loop (musCtx = the screen the game was started from: 0 menu, 1 creator)
 static void creatorMusStart(void); static void menuMusStart(void);
-static void gmPlay(void){ const Song*sg=&songs[jbMap[gmCur]]; musFadeTo(sg->adp?1:0,sg->adp,sg->xm,XF_SONG); }
+static void gmPlay(void){ const Song*sg=&songs[jbMap[gmCur]]; if(xo[XO_GAMEXF]) musFadeTo(sg->adp?1:0,sg->adp,sg->xm,XF_SONG); else musBegin(sg->adp?1:0,sg->adp,sg->xm); }   // OPTIONS > AUDIO > GAME CROSSFADE: off = a hard start
 static void gmStart(void){   // entering the game: crossfade into a random checked song (OPTIONS > AUDIO > GAME MUSIC), or fade out the last screen's music
     if(gMusic) return;
     menuOn=0; creOn=0;
@@ -2554,7 +2554,7 @@ static void gmStop(void){ mGain=mGainT=256; gMusic=0; }   // leaving the game: n
 static void gmSync(void){ if(xo[XO_GAMEMUS]&&sSnd) gmStart(); else if(gMusic){ gMusic=0; musFadeOut(XF_OUT); } }   // after the pause menu: the option or SOUND may have changed
 static void gmTick(void){   // once per frame: when the song is over, another random one
     if(!gMusic||!mPlay) return;
-    if(musNearEnd(XF_SONG)||(mKind?mDone:mLaps>=1)){ gmCur=pickSong(); if(gmCur<0){ gMusic=0; return; } gmPlay(); }   // the next song crossfades in before this one ends
+    if((xo[XO_GAMEXF]&&musNearEnd(XF_SONG))||(mKind?mDone:mLaps>=1)){ gmCur=pickSong(); if(gmCur<0){ gMusic=0; return; } gmPlay(); }   // crossfade on: the next song blends in before this one ends. Off: it starts right at the end
 }
 static void lifeModeRun(int ed);
 static void lifeMode(int ed){ int back=musCtx; gInPlay=1; lifeModeRun(ed); gInPlay=0; if(!gToMenu){ if(back==1) creatorMusStart(); else menuMusStart(); } }   // back from the game: the screen it was started from gets its music back (a crossfade)   // gInPlay: some option actions are only allowed while playing / only outside it
@@ -3294,9 +3294,11 @@ static void fillBox(int x0,int x1,int y0,int y1,u16 c){   // x0, x1 must be even
     for(int y=y0;y<y1;y++){ u32*row=(u32*)fb+y*ROW_W; for(int w=x0>>1;w<(x1>>1);w++) row[w]=v; }
 }
 static int numAt(int x,int y,int n,u16 c){ return numText(x,y,n,c); }
-static void jbStart(int v){   // play visible song v
+static void jbStart(int v,int fade){   // play visible song v. fade=1 (only when the jukebox opens): crossfade from the menu music. fade=0: the song starts at once, nothing is crossfaded
     jbCur=v; if(!sSnd||v<0){ jbPlaying=0; return; }
-    menuOn=0; creOn=0; const Song*sg=&songs[jbMap[v]]; musFadeTo(sg->adp?1:0,sg->adp,sg->xm,XF_SONG); jbPlaying=1;
+    menuOn=0; creOn=0; const Song*sg=&songs[jbMap[v]];
+    if(fade) musFadeTo(sg->adp?1:0,sg->adp,sg->xm,XF_SONG); else musBegin(sg->adp?1:0,sg->adp,sg->xm);
+    jbPlaying=1;
 }
 static void jbOutline(int x,int y,int w,int h,u16 c){ rect(x,y,w,1,c); rect(x,y+h-1,w,1,c); rect(x,y,1,h,c); rect(x+w-1,y,1,h,c); }
 // text in a column w wide: as is when it fits; else cut with ".." (or, with a scroll offset >= 0, scrolled inside the column)
@@ -3386,7 +3388,7 @@ static void jukeboxScreen(void){
     int cur=0, dH=1, dL=1, dF=1, fr=0, held=0; u16 prev=keyNow();
     jbMsgT=0; jbPlaying=0; jbCur=-1; jbTab=1;
     if(jbN<=0){ toast("NO SONGS"); return; }
-    if(sSnd){ jbStart(pickSong()); if(jbCur>=0) cur=jbCur; }              // opening the jukebox plays ONE random checked song
+    if(sSnd){ jbStart(pickSong(),1); if(jbCur>=0) cur=jbCur; }              // opening the jukebox plays ONE random checked song
     jbPaintAll(cur,0); vsync(); dmaRows(fb,VRAM_ADDR,0,ROW_W,0,SH); dH=dL=dF=0;
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; fr++; uiTicks++;
@@ -3394,14 +3396,14 @@ static void jukeboxScreen(void){
         int mv=0; if(pr&K_DOWN) mv=1; if(pr&K_UP) mv=-1;
         if(k&(K_UP|K_DOWN)){ if(++held>=22&&(held&3)==0) mv=(k&K_DOWN)?1:-1; } else held=0;   // hold to scroll through a long list
         if(mv){ cur=(cur+mv+jbN)%jbN; dL=1; }
-        if(pr&K_A){ jbStart(cur); dH=dL=dF=1; if(!sSnd){ jbMsg="SOUND IS OFF IN OPTIONS"; jbMsgT=60; } }
+        if(pr&K_A){ jbStart(cur,0); dH=dL=dF=1; if(!sSnd){ jbMsg="SOUND IS OFF IN OPTIONS"; jbMsgT=60; } }
         if(pr&K_L){ if(jbTab!=0){ jbTab=0; dH=dL=dF=1; } }
         if(pr&K_R){ if(jbTab!=1){ jbTab=1; dH=dL=dF=1; } }
         if((pr&K_SEL)&&jbTab){ jbToggle(cur); dL=1; if(jbCount()==0){ jbMsg="NONE CHECKED: ALL PLAY"; jbMsgT=90; dH=1; } }
         if(pr&(K_LEFT|K_RIGHT)){ int v=xo[XO_MUS]; if(pr&K_RIGHT){ if(v>0) v--; } else if(v<3) v++; xo[XO_MUS]=(u8)v; dH=1; }
-        if(pr&K_START){ if(jbPlaying){ musFadeOut(XF_OUT); jbPlaying=0; } else jbStart(cur); dH=dF=dL=1; }
-        if(jbPlaying&&(musNearEnd(XF_SONG)||(mKind?mDone:mLaps>=1))){   // song over: INTERACTIVE goes on down the list, PLAYLIST picks another random checked song
-            int nx=jbTab?pickSong():(jbCur+1)%jbN; jbStart(nx); if(jbCur>=0) cur=jbCur; dH=dL=1; }
+        if(pr&K_START){ if(jbPlaying){ musFadeOut(XF_OUT); jbPlaying=0; } else jbStart(cur,0); dH=dF=dL=1; }
+        if(jbPlaying&&(mKind?mDone:mLaps>=1)){   // song over (no crossfade: the next one starts right at the end): INTERACTIVE goes on down the list, PLAYLIST picks another random checked song
+            int nx=jbTab?pickSong():(jbCur+1)%jbN; jbStart(nx,0); if(jbCur>=0) cur=jbCur; dH=dL=1; }
         if((fr&3)==0){ if(jbPlaying) dH=1; { int fw=tw(songs[jbMap[cur]].name,1); if(fw>JB_NW) dL=1; } }   // now playing bar + equalizer; a long name on the cursor row scrolls
         if(jbMsgT>0&&--jbMsgT==0) dH=1;
         int y0=SH, y1=0;
@@ -3415,18 +3417,20 @@ static void jukeboxScreen(void){
     while(keyNow()) vsync();
 }
 // ---------- main menu music ----------
-// One random checked jukebox song plays whenever a main menu is open (MENU MUSIC option). It carries on through the quiet screens (OPTIONS, ROOM SLOTS,
-// HOW TO PLAY), stops when the game, the creator, the room builder or the jukebox opens, and a NEW random song starts when you are back at the menu.
+// GOTTCHO BARRACHO (the borracho rework) plays, and only it, whenever a main menu is open (MENU MUSIC option). It carries on through the quiet screens
+// (OPTIONS, ROOM SLOTS, HOW TO PLAY), stops when the game, the creator, the room builder or the jukebox opens, and crossfades back in when you return.
+// To use another song for the menu, change the xm_ name in menuSong().
+static const Song* menuSong(void){ for(int i=0;i<NSONGS;i++) if(songs[i].xm==&xm_gottcho_barracho_ii) return &songs[i]; return 0; }
 static void menuMusStart(void){
     musCtx=0; if(menuOn) return;
     creOn=0;
-    if(!sSnd||!xo[XO_MENUMUS]||jbN<=0){ musFadeOut(XF_OUT); return; }
-    int v=pickSong(); if(v<0){ musFadeOut(XF_OUT); return; }
-    const Song*sg=&songs[jbMap[v]]; mGain=mGainT=256; musFadeTo(sg->adp?1:0,sg->adp,sg->xm,XF_SONG); menuOn=1;   // crossfades from whatever played before
+    const Song*sg=menuSong();
+    if(!sSnd||!xo[XO_MENUMUS]||!sg){ musFadeOut(XF_OUT); return; }
+    mGain=mGainT=256; musFadeTo(sg->adp?1:0,sg->adp,sg->xm,XF_SONG); menuOn=1;   // crossfades from whatever played before
 }
 static void menuMusStop(void){ if(!menuOn) return; menuOn=0; musFadeOut(XF_OUT); }
 static void menuMusSync(void){ if(sSnd&&xo[XO_MENUMUS]) menuMusStart(); else menuMusStop(); }   // after OPTIONS: SOUND or MENU MUSIC may have changed
-static void menuMusTick(void){ if(menuOn&&mPlay&&(musNearEnd(XF_SONG)||(mKind?mDone:mLaps>=1))){ menuOn=0; menuMusStart(); } }   // the song is nearly over: the next random one crossfades in
+static void menuMusTick(void){ if(menuOn&&mPlay&&(musNearEnd(XF_SONG)||(mKind?mDone:mLaps>=1))){ menuOn=0; menuMusStart(); } }   // the song is nearly over: it crossfades into itself again
 // ---------- creator music: the chiptune loops (source/chips.h, made by tools/make_chiptunes.py and packed by tools/encode_chip.py) ----------
 // Looping ADPCM, one random loop each time the creator opens (the secret ones only after the title-screen code); entering from the menu or the game crossfades.
 #define CHIP(id,n,sec) ".global " #id "\n" #id ":\n.incbin \"source/music/" #id ".adp\"\n.balign 4\n"
@@ -3458,7 +3462,7 @@ static void creatorMusStart(void){
 static const char* const mmName[7]={"PLAY","MAKE CREATURE","BUILD ROOM","ROOM SLOTS","JUKEBOX","OPTIONS","HOW TO PLAY"};
 static const char* const mmDesc[7]={"WALK AND SKATE AROUND YOUR ROOM","DESIGN YOUR OWN VOXEL CHARACTER","BUILD WALLS AND LAY FLOORS AND WALLPAPER","SAVE AND LOAD ROOMS  PEOPLE AND LIVES","LISTEN  PICK  OR SHUFFLE THE SONGS","SPEED  GAMEPLAY  SOUND  BUTTONS AND MORE","LEARN THE CONTROLS"};
 static const char* const guideItems[6]={"PLAYING","MAKE CREATURE","BUILD ROOMS","JUKEBOX","ROOM SLOTS","OPTIONS"};
-static const char* const jbHelp[13]={">OPENING IT","ONE RANDOM CHECKED SONG STARTS PLAYING","L R SWITCH THE TWO TABS  LEFT RIGHT VOLUME",">INTERACTIVE","UP DOWN PICK A SONG  A PLAYS IT","WHEN IT ENDS THE NEXT ONE ON THE LIST PLAYS",">PLAYLIST","SELECT CHECKS OR UNCHECKS A SONG","ONLY CHECKED SONGS ARE PICKED AT RANDOM:","HERE  IN THE MENUS  AND FOR GAME MUSIC",">LEAVE","B GOES BACK TO THE MENU","START STOPS OR PLAYS THE SONG"};
+static const char* const jbHelp[13]={">OPENING IT","ONE RANDOM CHECKED SONG CROSSFADES IN","L R SWITCH THE TWO TABS  LEFT RIGHT VOLUME",">INTERACTIVE","UP DOWN PICK A SONG  A PLAYS IT","WHEN IT ENDS THE NEXT ONE STARTS AT ONCE",">PLAYLIST","SELECT CHECKS OR UNCHECKS A SONG","ONLY CHECKED SONGS ARE PICKED AT RANDOM:","HERE  IN THE MENUS  AND FOR GAME MUSIC",">LEAVE","B GOES BACK TO THE MENU","START STOPS OR PLAYS THE SONG"};
 static void drawMainMenu(int sel){
     for(int y=0;y<SH;y++){ u16 c=RGB(2+y/50,3+y/36,9+y/13); u32 v=c|((u32)c<<16), *row=(u32*)fb+y*ROW_W; for(int w=0;w<ROW_W;w++) row[w]=v; }
     u16 ink=RGB(4,3,6);
@@ -3479,7 +3483,7 @@ static void drawMainMenu(int sel){
 }
 static void mainMenu(void){
     int sel=0, dirty=1; u16 prev=keyNow();
-    menuMusStart();   // a random checked song plays while a main menu is open (MENU MUSIC option)
+    menuMusStart();   // GOTTCHO BARRACHO plays while a main menu is open (MENU MUSIC option)
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k;
         if(pr&K_DOWN){ sel=(sel+1)%7; dirty=1; }

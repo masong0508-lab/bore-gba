@@ -23,7 +23,7 @@ Every screen shows its own button hints. D-pad moves, **A** picks, **B** goes ba
 
 ## Music
 - **JUKEBOX** is a two-tab Music Player (**L / R**). *Playlist*: SELECT checks or unchecks songs, and only checked songs are picked at random. *Interactive*: pick any song and play it. Opening it plays **one random checked song**; LEFT / RIGHT change the volume.
-- **A random checked song also plays in the main menus** (OPTIONS > AUDIO > MENU MUSIC), and for GAME MUSIC while playing.
+- **GOTTCHO BARRACHO plays in the main menus** (OPTIONS > AUDIO > MENU MUSIC); opening the jukebox crossfades into its first song, after that every jukebox track starts directly with no crossfade. A random checked song still plays for GAME MUSIC while playing.
 - **Add a tracker song:** put the `.xm` in `tools/`, add a `SONG_XM(...)` line to `source/songs.h` (and a name in `source/artists.h`), run `python3 tools/xm2gba.py` (needs numpy and scipy), commit `source/musicdata.h` and `source/music/xmdata.bin`.
 - **Add a streamed song:** `python3 tools/encode_song.py "song.mp3"` (needs ffmpeg).
 - Songs are listed in `source/songs.h` (up to 64). Songs added at the end keep everyone's checkmarks.
