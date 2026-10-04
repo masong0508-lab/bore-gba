@@ -47,12 +47,13 @@ static int bkCheck(int i){ u32 o=bkOff(i); if(!bkOk(i)) return 0; int n=svRd(o+6
 static int bkPutMine(int i,u16 key,int lot){   // the household you play (kind 1) into record i. 1 = done
     simsSaveNow(); hhSave(); ageSave(); persSave();
     volatile u8*hh=SRAM_BASE+HH_OFF; int hl=hhBlockLen(hh,SL_HH_LEN); if(!hl) return 0;
-    if(BK_HDR+LK_N+5+PERS_LEN+SIM_BLOCK+2+hl>BK_SZ) return 0;
+    if(BK_HDR+LK_N+5+PERS_LEN+SIM_BLOCK+8+2+hl>BK_SZ) return 0;
     svErr=0; svErase(bkOff(i),BK_SZ); bkW=bkOff(i)+BK_HDR; bkSum=0;
     for(int k=0;k<LK_N;k++) bkPut8(look[k]);
     for(int k=0;k<5;k++) bkPut8(SRAM_BASE[AGE_OFF+k]);
     for(int k=0;k<PERS_LEN;k++) bkPut8(SRAM_BASE[PERS_OFF+k]);
     for(int k=0;k<SIM_BLOCK;k++) bkPut8(SIM_SRAM[k]);
+    for(int k=0;k<8;k++) bkPut8(SRAM_BASE[STORY_OFF+k]);   // (their story, story.h)
     bkPut8(hl); bkPut8(hl>>8); for(int k=0;k<hl;k++) bkPut8(hh[k]);
     bkHead(i,1,lot,key,hhPLast,hhPName,stage);
     return !svErr;
@@ -77,18 +78,20 @@ static int bkTake(int i){   // record i becomes the household you play (it leave
         for(int k=0;k<5;k++) SRAM_BASE[AGE_OFF+k]=svRd(p++);
         for(int k=0;k<PERS_LEN;k++) SRAM_BASE[PERS_OFF+k]=svRd(p++);
         for(int k=0;k<SIM_BLOCK;k++) SIM_SRAM[k]=svRd(p++);
+        for(int k=0;k<8;k++) SRAM_BASE[STORY_OFF+k]=svRd(p++);
         int hl=svRd(p)|svRd(p+1)<<8; p+=2; if(hl>SL_HH_LEN) return 0;
         for(int k=0;k<hl;k++) SRAM_BASE[HH_OFF+k]=svRd(p++);
         ageLoad(); persLoad(); hhLoad();
     } else {   // one Sim: a new life, a household of one
         pAsp=svRd(p++); pLtw=svRd(p++); for(int k=0;k<TR_N;k++) pTr[k]=svRd(p++);
         stage=svRd(bkOff(i)+34); bkName(i,1,hhPName); bkName(i,0,hhPLast);
-        simsNewLife(); hhN=0; hhRelClear();
+        simsNewLife(); hhN=0; hhRelClear(); stOff();
     }
     bkDel(i); hhAfterSwitch(); return 1;
 }
+static void stOff(void);   // story.h
 static void hhFresh(int f){   // pre-made family f moves in for the first time: a new life, you are its first Sim, the rest live with you
-    simsNewLife(); moodReset(); hhN=0; hhRelClear();
+    simsNewLife(); moodReset(); hhN=0; hhRelClear(); stOff();
     if(hhMoveIn(&hhFams[f])>0){ hhSwap(&hhM[0]); hhRemove(0); }
     hhAfterSwitch();
 }
@@ -157,7 +160,7 @@ static int hhNewAt(int li){   // NEIGHBORHOOD lot menu > NEW HOUSEHOLD HERE (a f
     if(!hhLeaveHome()) return 0;
     int old=nbT.home; nbT.home=(u8)li;
     if(!nbGo(li)){ nbT.home=(u8)old; nbSave(); toast(nbErr); return 0; }
-    simsNewLife(); moodReset(); hhN=0; hhRelClear(); hhPLast[0]=0; hhAfterSwitch(); nbSave();
+    simsNewLife(); moodReset(); hhN=0; hhRelClear(); hhPLast[0]=0; stOff(); hhAfterSwitch(); nbSave();
     return 1;
 }
 static int hhMoveOut(int m){   // member m moves out: to a free lot of the town if there is one (they live there and come to visit), else away
@@ -181,13 +184,13 @@ static void phTick(void){   // once per logic step in the life game
 }
 static void phInvite(void){   // someone from another household comes over (they take a free member place, like a visitor)
     int k=0, v=TW_V(0); if(v<hhN){ toast("NO ROOM FOR GUESTS"); return; }
-    const char* it[NB_LOTS+1]; static char nm[NB_LOTS][28]; int lot[NB_LOTS], n=0;
+    const char* it[NB_LOTS+1]; static char nm[NB_LOTS][28] EWRAM_BSS; int lot[NB_LOTS], n=0;
     if(nbOk) for(int li=0;li<NB_LOTS;li++){ char f[24]; f[0]=0; if(!nbWho(li,f)) continue; char*e=slCat(nm[n],f); e=slCat(e,"  "); slCat(e,nbT.lot[li].name); it[n]=nm[n]; lot[n++]=li; }
     if(!n){ toast("NOBODY ELSE LIVES IN TOWN YET"); return; }
     int c=menu("WHO DO YOU CALL",it,n); if(c<0) return;
     HhSim*s=&hhM[v]; nbSimFrom(lot[c],s,twFrom[k]);
     s->uid=255; s->bubT=0; s->hp=HP_MAX; s->act=HA_IDLE; s->pn=s->pi=0;
-    twHas[k]=1; twOn[k]=0; twWait[k]=90; hhKey[v]=0; twKeep=1;
+    twHas[k]=1;   // (a guest staying over counts for STORY MODE's HAVE A NEIGHBOR OVER: story.h watches twOn) twOn[k]=0; twWait[k]=90; hhKey[v]=0; twKeep=1;
     toast("PLEASE WAIT  THEY ARE ON THEIR WAY"); hhBakeAll();
     static char t[40]; char*e=simCat(t,s->name); simCat(e," IS COMING OVER"); toast(t);
 }

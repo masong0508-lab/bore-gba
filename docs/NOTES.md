@@ -689,3 +689,12 @@ A nod to the Master Controller mod for The Sims. The MASTER section only shows (
   and nothing floats. In the room the sprite bake still eases a giant down to fit its 32 x 44 sprite.
 - The box and the limits are read once into globals (`bxSync`, called by `buildLook` and `drawScene`): IWRAM is nearly full (code +
   .bss about 30.7 KB of 32 KB, the stack lives in the rest), and a check inlined into the drawing code was enough to crash the game.
+
+## STORY MODE (PLAY > NEW GAME > STORY MODE; pause menu > STORY)
+`source/story.h`. Three stories, each a start and six chapters the game checks by itself every second (`stTick`):
+- **ROOMMATES** (romance): you and a roommate you barely know: friends, in love, steady, a promotion, a child comes home.
+- **NEWLYWEDS**: you and your love (already steady): a promotion, save §1000, a child comes home, become your kid's friend, save §2500.
+- **SINGLE PARENT**: you and your kid (who takes after you): a promotion, your kid's friend, save §800, have a neighbor over, a second promotion.
+A chapter pays §250 and 25 jenes. The child who comes home mixes your look and your partner's (`stMixLook`). The creator opens first to
+make you. Saved at `STORY_OFF` (8 bytes after the options); the household bank keeps each household's story. NEW LIFE, another NEW GAME,
+a fresh pre-made family or NEW HOUSEHOLD HERE end the story (`stOff`).

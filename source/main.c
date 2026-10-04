@@ -2167,6 +2167,7 @@ static void flStairs(int dir){   // you stepped on a stair tile: up (+1) or down
 }
 // extended options (opts.h): one byte each at OPT_OFF, 'X' 'O', count, values, checksum. A save with fewer options (older game) leaves the new ones at their defaults.
 #define OPT_OFF 4896
+#define STORY_OFF 4968   // story.h: the STORY MODE block (8 bytes, after the options)
 static void optsSave(void){
     volatile u8*m=SRAM_BASE+OPT_OFF; unsigned sum=0x3C;
     for(int i=0;i<XO_N;i++){ m[3+i]=xo[i]; sum+=xo[i]; }
@@ -2306,6 +2307,7 @@ static u16 babyPad(void){
     return dm[dir];
 }
 static void phoneMenu(void); static void phTick(void);   // households.h: the PHONE, and the food it ordered
+static void storyScreen(void); static void stTick(void); static void stEnter(void); static void stOff(void);   // story.h
 static void lifeStep(u16 k,u16 pr,int fr){
     if(stage==AG_BABY&&!ldead){ k=babyPad(); pr=0; }   // uncontrollable stage: the pad is ignored (the pause menu still works)
     int fh=surfH(lfx,lfy)<<8;
@@ -2382,7 +2384,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
     if(!lhave&&lz<(8<<8)&&(lfx>>8)==BDX&&(lfy>>8)==BDY){ lhave=1; lnote="GOT A SKATEBOARD"; lnoteT=90; moodEvent(M_GOT_BOARD); }   // walk over it to pick it up
     if(!ldead){   // needs: hunger and bladder, then how they (and the skating) make the skater feel
         if(stage==AG_BABY){ if(lfood<70) lfood=70; if(lbl>30) lbl=30; if(sNrg<60) sNrg=60; if(sHyg<60) sHyg=60; if(sCom<60) sCom=60; }   // looked after
-        moodTick(); simsTick(pr,(int)(lfx>>8),(int)(lfy>>8)); hhTick(); phTick();
+        moodTick(); simsTick(pr,(int)(lfx>>8),(int)(lfy>>8)); hhTick(); phTick(); stTick();
         if(gGrow){ gGrow=0; setStage(stage+1); bakeSprites(); lnote=growNote[stage]; lnoteT=120; lstun=lstun>30?lstun:30; lsp=0; }
         { int fe=oFoodEvery(), we=oWcEvery();   // FOOD AND WC option
           if(fe&&lfr%fe==0&&lfood>0) lfood--;
@@ -2886,7 +2888,7 @@ static void camStep(int steps,u16 k,u16 pr){   // action cam: the game holds sti
     else { int f=lcamF; cview=(f<6||f>=60)?0:(f-6)/18+1; if(cview>3) cview=0; }
 }
 static int gToMenu;   // set when the player picks MAIN MENU in the pause menu, so every screen above returns to it
-static const char* const lifeItems[9]={"RESUME","ASPIRATION","HOUSEHOLD","PHONE","OPTIONS","ROOM SLOTS","EDIT MAP","NEW LIFE","MAIN MENU"};
+static const char* const lifeItems[10]={"RESUME","ASPIRATION","HOUSEHOLD","PHONE","STORY","OPTIONS","ROOM SLOTS","EDIT MAP","NEW LIFE","MAIN MENU"};
 static void hhSwap(HhSim*s){   // trade places: the player becomes s, s becomes who the player was
     s32 x=lfx, y=lfy; lfx=s->fx; lfy=s->fy; s->fx=x; s->fy=y;
     { u8 h=(u8)(lhd&15); lhd=s->hd; s->hd=h; }
@@ -2963,7 +2965,7 @@ static void aspPanel(void){
         present();
     }
 }
-static const char* const lifeItemsNb[9]={"RESUME","ASPIRATION","HOUSEHOLD","PHONE","OPTIONS","ROOM SLOTS","EDIT MAP","NEW LIFE","NEIGHBORHOOD"};
+static const char* const lifeItemsNb[10]={"RESUME","ASPIRATION","HOUSEHOLD","PHONE","STORY","OPTIONS","ROOM SLOTS","EDIT MAP","NEW LIFE","NEIGHBORHOOD"};
 static const char* const lifeItemsEd[3]={"RESUME","OPTIONS","BACK TO EDITOR"};
 // Timer2 (65536 Hz) is the clock (defined with the settings). The game logic always runs at 60 steps per second; the
 // frame rate setting only says how often the picture is redrawn, so lower rates save work without slowing the game.
@@ -2992,6 +2994,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
     objHideAll(); winFull(); REG_DISPCNT=0x3443;   // mode 3 + sprites (1D tiles) + window 0 (the household's hardware sprites, house.h)
     // (the passers-by of this lot are kept until you move to another lot or start a new life: twKeep, house.h)
     lifeInit(); lcamF=0; cview=0; lcN=lcPts=lcT=lcBank=lcBankT=lcamPend=0; u16 prev=keyNow(); gmStart(); hudApplyLayout(); liveInvalidate(); camSnap=1;
+    if(!ed) stEnter();   // STORY MODE: the chapter you are on, on the top bar
     tmStart(); u16 tl=R_TM2D; int acc=0, fpsN=0, fr=0; u32 fpsT=0, workT=0; lfpsV=0; lloadV=0;
     for(;;){
         int need=(sFps+1)*TICKS_FRAME-100;
@@ -3013,16 +3016,17 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
         if(pr&K_START){   // pause menu
             mGainT=128; sfxStop(); simsSave(); hhSave(); objHideAll(); REG_DISPCNT=0x0403;   // (no sprites over the menus, options or the editor)   // the music fades to half while a menu is open   // the pause menu is also a save point
             { u8 zz=xo[XO_ZOOM]; xo[XO_ZOOM]=0; hudApplyLayout(); camSnap=1; liveInvalidate(); lifeDraw(); xo[XO_ZOOM]=zz; }   // a whole picture behind the menu (the screen itself only holds patches), not zoomed
-            int c=menu("PAUSED",ed?lifeItemsEd:nbPlaying?lifeItemsNb:lifeItems,ed?3:9);
-            if(ed&&c>=1) c+=3;   // the test-play menu has no ASPIRATION, HOUSEHOLD or PHONE entry
+            int c=menu("PAUSED",ed?lifeItemsEd:nbPlaying?lifeItemsNb:lifeItems,ed?3:10);
+            if(ed&&c>=1) c+=4;   // the test-play menu has no ASPIRATION, HOUSEHOLD, PHONE or STORY entry
             if(c==1) aspPanel();
             else if(c==2) hhMenu();
             else if(c==3) phoneMenu();
-            else if(c==4) settingsScreen();
-            else if(c==5&&!ed){ simsSaveNow(); hhSave(); if(slotScreen()) lifeInit(); }   // a slot was loaded: start again in the loaded room (the life was written first, so nothing is lost)
-            else if(c==6&&!ed){ vpFull(); mapEditor(); lifeInit(); }
-            else if(c==7&&!ed){ if(menu("START A NEW LIFE",yesNoLife,2)==1){ twKeep=0; simsNewLife(); moodReset(); lscore=0; simLastScore=0; lnote="NEW LIFE"; lnoteT=60; } }
-            else if((c==5&&ed)||c==8){ if(c==8&&!nbPlaying) gToMenu=1; break; }   // (from the neighborhood: back there)
+            else if(c==4) storyScreen();
+            else if(c==5) settingsScreen();
+            else if(c==6&&!ed){ simsSaveNow(); hhSave(); if(slotScreen()) lifeInit(); }   // a slot was loaded: start again in the loaded room (the life was written first, so nothing is lost)
+            else if(c==7&&!ed){ vpFull(); mapEditor(); lifeInit(); }
+            else if(c==8&&!ed){ if(menu("START A NEW LIFE",yesNoLife,2)==1){ twKeep=0; simsNewLife(); moodReset(); lscore=0; simLastScore=0; stOff(); lnote="NEW LIFE"; lnoteT=60; } }
+            else if((c==6&&ed)||c==9){ if(c==9&&!nbPlaying) gToMenu=1; break; }   // (from the neighborhood: back there)
             winFull(); REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=0; continue;
         }
         if(lcamF>0) camStep(steps,k,pr);
@@ -4052,6 +4056,7 @@ static void s3Round(int x,int y,int on,const char*glyph){ disc(x,y,7,on?RGB(4,10
 static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,RGB(8,14,26)); text((SW-tw(t,1))/2,152,t,RGB(26,29,31),1); }
 #include "neighborhood.h"   // THE NEIGHBORHOOD: a town of lots to live in, visit and build on (main menu)
 #include "households.h"     // THE TOWN'S HOUSEHOLDS: who lives where, the household bank, visitors, the phone
+#include "story.h"          // STORY MODE: chapters with goals (NEW GAME > STORY MODE)
 // ---------- main menu (The Sims 3 look): a glossy panel over your town, lit for the time of day of your life's clock ----------
 #define MM_N 7
 static const char* const mmName[MM_N]={"Play","Create a Bore","Build Mode","Jukebox","Room Slots","Options","?"};
@@ -4132,18 +4137,21 @@ static void howToPlay(void){
 }
 
 // ---------- NEW GAME: a fresh life in the chosen town, started three ways (the story mode can start from here later) ----------
-static const char* const ngIt[3]={"CREATE A BORE","A PRE-MADE FAMILY","A TRULY RANDOM SIM"};
+static const char* const ngIt[4]={"CREATE A BORE","A PRE-MADE FAMILY","A TRULY RANDOM SIM","STORY MODE"};
 static int newGame(int slot){   // 1 = it started (and ended: back to the main menu)
-    int c=menu("HOW DO YOU START?",ngIt,3); if(c<0) return 0;
+    int c=menu("HOW DO YOU START?",ngIt,4); if(c<0) return 0;
+    int story=0; if(c==3){ story=storyPick(); if(!story) return 0; }
     int f=0; if(c==1){ const char* fm[HH_NFAM]; for(int i=0;i<HH_NFAM;i++) fm[i]=hhFams[i].fam; f=menu("WHICH FAMILY?",fm,HH_NFAM); if(f<0) return 0; }
     static const char* const yn[2]={"YES  NEW LIFE","NO"}; if(menu("START OVER?",yn,2)!=0) return 0;
     if(slot>=0){ if(!nbSwitch(slot)){ nbOk=nbLoad(); toast(nbErr); return 0; } nbOk=1; nbBounds(); }
     twKeep=0; simsNewLife(); moodReset(); lscore=0; simLastScore=0;
     hhN=0; for(int a=0;a<HU_N;a++)for(int b=0;b<HU_N;b++){ relD[a][b]=relL[a][b]=0; relF[a][b]=0; }   // the old household moves out
+    stOff();
     if(c==1&&hhMoveIn(&hhFams[f])>0){ hhSwap(&hhM[0]); hhRemove(0); }   // you are the family's first Sim (who you were leaves)
     else if(c==2) lookTrueRandomMe();
+    else if(c==3) storySetup(story);   // STORY MODE: who you live with, and chapter 1
     hhSave(); sprKey=0;
-    if(c==0) creatureEditor();   // make your Sim, then GO LIVE LIFE
+    if(c==0||c==3) creatureEditor();   // make your Sim, then GO LIVE LIFE
     else lifeMode(0);
     return 1;
 }
