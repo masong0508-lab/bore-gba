@@ -79,3 +79,5 @@ SONG_XM(condensed_music,"CONDENSED MUSIC","tools/condensed_music.xm")
 // COCAINE COLA: the rework (tools/make_cocaine_cola_rework.py) of the stem transcription tools/cocaine_cola.xm, which stays as the secret original
 SONG_XM(cocaine_cola_ii,"COCAINE COLA","tools/cocaine_cola_ii.xm")
 SONG_XM(cocaine_cola,"COCAINE COLA (ORIGINAL)","tools/cocaine_cola.xm")
+// STAGED THE FULL PERFORMANCE: a DayBar hi-NRG rework of The Dipper Man - Staged the Full Performance (tools/make_staged_rework.py, from tools/the_dipper_man_staged.xm)
+SONG_XM(staged,"STAGED THE FULL PERFORMANCE","tools/staged.xm")

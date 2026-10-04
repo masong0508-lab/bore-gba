@@ -341,6 +341,31 @@ __asm__(".pushsection .rodata\n"
   ".global xm_cocaine_cola_S9\nxm_cocaine_cola_S9:\n.incbin \"source/music/xmdata.bin\",3808255,10996\n"
   ".global xm_cocaine_cola_S10\nxm_cocaine_cola_S10:\n.incbin \"source/music/xmdata.bin\",3819251,22585\n"
   ".global xm_cocaine_cola_S11\nxm_cocaine_cola_S11:\n.incbin \"source/music/xmdata.bin\",3841836,34982\n"
+  ".global xm_staged_ev\nxm_staged_ev:\n.incbin \"source/music/xmdata.bin\",3876818,23422\n"
+  ".global xm_staged_S0\nxm_staged_S0:\n.incbin \"source/music/xmdata.bin\",3900240,1229\n"
+  ".global xm_staged_S1\nxm_staged_S1:\n.incbin \"source/music/xmdata.bin\",3901469,3991\n"
+  ".global xm_staged_S2\nxm_staged_S2:\n.incbin \"source/music/xmdata.bin\",3905460,2058\n"
+  ".global xm_staged_S3\nxm_staged_S3:\n.incbin \"source/music/xmdata.bin\",3907518,632\n"
+  ".global xm_staged_S4\nxm_staged_S4:\n.incbin \"source/music/xmdata.bin\",3908150,4886\n"
+  ".global xm_staged_S5\nxm_staged_S5:\n.incbin \"source/music/xmdata.bin\",3913036,4857\n"
+  ".global xm_staged_S6\nxm_staged_S6:\n.incbin \"source/music/xmdata.bin\",3917893,4106\n"
+  ".global xm_staged_S7\nxm_staged_S7:\n.incbin \"source/music/xmdata.bin\",3921999,639\n"
+  ".global xm_staged_S8\nxm_staged_S8:\n.incbin \"source/music/xmdata.bin\",3922638,3727\n"
+  ".global xm_staged_S9\nxm_staged_S9:\n.incbin \"source/music/xmdata.bin\",3926365,3246\n"
+  ".global xm_staged_S10\nxm_staged_S10:\n.incbin \"source/music/xmdata.bin\",3929611,8289\n"
+  ".global xm_staged_S11\nxm_staged_S11:\n.incbin \"source/music/xmdata.bin\",3937900,4556\n"
+  ".global xm_staged_S12\nxm_staged_S12:\n.incbin \"source/music/xmdata.bin\",3942456,19756\n"
+  ".global xm_staged_S13\nxm_staged_S13:\n.incbin \"source/music/xmdata.bin\",3962212,22005\n"
+  ".global xm_staged_S14\nxm_staged_S14:\n.incbin \"source/music/xmdata.bin\",3984217,7010\n"
+  ".global xm_staged_S15\nxm_staged_S15:\n.incbin \"source/music/xmdata.bin\",3991227,7468\n"
+  ".global xm_staged_S16\nxm_staged_S16:\n.incbin \"source/music/xmdata.bin\",3998695,23700\n"
+  ".global xm_staged_S17\nxm_staged_S17:\n.incbin \"source/music/xmdata.bin\",4022395,17557\n"
+  ".global xm_staged_S18\nxm_staged_S18:\n.incbin \"source/music/xmdata.bin\",4039952,13142\n"
+  ".global xm_staged_S19\nxm_staged_S19:\n.incbin \"source/music/xmdata.bin\",4053094,1613\n"
+  ".global xm_staged_S20\nxm_staged_S20:\n.incbin \"source/music/xmdata.bin\",4054707,30733\n"
+  ".global xm_staged_S21\nxm_staged_S21:\n.incbin \"source/music/xmdata.bin\",4085440,20499\n"
+  ".global xm_staged_S22\nxm_staged_S22:\n.incbin \"source/music/xmdata.bin\",4105939,15362\n"
+  ".global xm_staged_S23\nxm_staged_S23:\n.incbin \"source/music/xmdata.bin\",4121301,14144\n"
   ".popsection\n");
 extern const u8 xm_the_dipper_man_ev[];
 extern const s8 xm_the_dipper_man_S0[];
@@ -680,6 +705,31 @@ extern const s8 xm_cocaine_cola_S8[];
 extern const s8 xm_cocaine_cola_S9[];
 extern const s8 xm_cocaine_cola_S10[];
 extern const s8 xm_cocaine_cola_S11[];
+extern const u8 xm_staged_ev[];
+extern const s8 xm_staged_S0[];
+extern const s8 xm_staged_S1[];
+extern const s8 xm_staged_S2[];
+extern const s8 xm_staged_S3[];
+extern const s8 xm_staged_S4[];
+extern const s8 xm_staged_S5[];
+extern const s8 xm_staged_S6[];
+extern const s8 xm_staged_S7[];
+extern const s8 xm_staged_S8[];
+extern const s8 xm_staged_S9[];
+extern const s8 xm_staged_S10[];
+extern const s8 xm_staged_S11[];
+extern const s8 xm_staged_S12[];
+extern const s8 xm_staged_S13[];
+extern const s8 xm_staged_S14[];
+extern const s8 xm_staged_S15[];
+extern const s8 xm_staged_S16[];
+extern const s8 xm_staged_S17[];
+extern const s8 xm_staged_S18[];
+extern const s8 xm_staged_S19[];
+extern const s8 xm_staged_S20[];
+extern const s8 xm_staged_S21[];
+extern const s8 xm_staged_S22[];
+extern const s8 xm_staged_S23[];
 static const u32 xmT[12]={1073741824,1137589835,1205234447,1276901417,1352829926,1433273380,1518500250,1608794974,1704458901,1805811301,1913190429,2026954652};   // 2^(j/12) in Q30: with a per-instrument anchor this gives every note's playback step (see xmStep in main.c)
 // ---- the_dipper_man  (from tools/the_dipper_man.xm) ----
 static const u8 xm_the_dipper_man_order[89]={0,0,1,1,2,2,2,2,3,4,3,5,3,4,3,6,7,8,9,2,7,8,10,11,12,4,3,5,3,4,
@@ -1469,3 +1519,42 @@ static const u8 xm_cocaine_cola_busL[7]={199,179,152,122,88,51,13,
 static const u8 xm_cocaine_cola_busR[7]={13,51,88,122,153,179,199,
 };
 static const XmSong xm_cocaine_cola={xm_cocaine_cola_order,xm_cocaine_cola_rows,xm_cocaine_cola_patOff,xm_cocaine_cola_ev,xm_cocaine_cola_vt,xm_cocaine_cola_anc,xm_cocaine_cola_fx,xm_cocaine_cola_len,xm_cocaine_cola_data,xm_cocaine_cola_busL,xm_cocaine_cola_busR,221,0,2269,160};
+// ---- staged  (from tools/staged.xm) ----
+static const u8 xm_staged_order[211]={0,1,2,1,3,4,5,6,7,8,9,10,7,8,11,12,13,14,15,16,15,14,15,16,15,14,15,16,15,14,
+15,17,18,19,20,21,22,19,20,21,23,24,25,21,26,24,25,21,27,28,29,30,31,32,33,34,35,36,37,38,
+39,36,37,38,39,36,37,38,39,36,37,40,41,42,43,44,45,42,43,44,46,47,48,49,46,47,48,50,51,24,
+52,21,53,24,52,21,54,55,56,21,57,55,56,21,27,28,29,30,31,32,33,34,35,36,37,38,39,36,37,38,
+39,36,37,38,39,36,37,40,58,59,60,61,62,59,60,61,62,59,60,61,63,64,65,66,67,68,69,70,71,68,
+69,70,71,68,69,70,71,68,69,72,73,74,75,76,77,74,75,76,77,74,75,76,77,74,75,78,79,80,81,82,
+81,80,81,83,81,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,
+108,
+};
+static const u16 xm_staged_rows[109]={64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,
+64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,
+64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,
+64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,
+};
+static const u32 xm_staged_patOff[109]={0,37,57,88,139,179,230,318,473,619,774,955,1113,1326,1562,1792,2022,2287,2576,2815,3057,3296,3543,3779,
+4045,4257,4496,4759,4998,5228,5467,5697,5989,6272,6567,6930,7199,7471,7743,8032,8298,8611,8796,8976,9155,9366,9548,9778,
+10022,10249,10520,10850,11128,11376,11651,11902,12153,12401,12649,12728,12805,12884,12944,13020,13248,13479,13713,13980,14261,14548,14835,15124,
+15402,15715,16118,16527,16936,17339,17739,18166,18402,18632,18862,19112,19389,19619,19849,20099,20329,20559,20789,21066,21224,21382,21540,21698,
+21856,22014,22172,22374,22526,22678,22830,22982,23086,23190,23294,23398,23421,
+};
+static const u16 xm_staged_vt[37]={1536,1668,2283,1919,1091,2098,1173,1553,1871,1887,2670,2158,1646,1134,622,1652,
+678,1703,2728,1903,694,1719,2744,1753,2778,1569,1292,2861,1308,2877,1107,829,
+710,1735,2760,2299,813,
+};
+static const u32 xm_staged_anc[24]={61819841,247279365,247279365,247279365,247279365,247279365,123639683,61819841,
+61819841,247279365,82519588,165039176,123639683,247279365,165039176,61819841,
+165039176,165039176,165039176,123639683,123639683,165039176,165039176,165039176,
+};
+static const u8 xm_staged_fx[1]={255,
+};
+static const u32 xm_staged_len[24]={1228,3990,2057,631,4885,4856,4105,638,3726,3245,8288,4555,19755,22004,7009,7467,23699,17556,13141,1612,30732,20498,15361,14143,
+};
+static const s8* const xm_staged_data[24]={xm_staged_S0,xm_staged_S1,xm_staged_S2,xm_staged_S3,xm_staged_S4,xm_staged_S5,xm_staged_S6,xm_staged_S7,xm_staged_S8,xm_staged_S9,xm_staged_S10,xm_staged_S11,xm_staged_S12,xm_staged_S13,xm_staged_S14,xm_staged_S15,xm_staged_S16,xm_staged_S17,xm_staged_S18,xm_staged_S19,xm_staged_S20,xm_staged_S21,xm_staged_S22,xm_staged_S23};
+static const u8 xm_staged_busL[7]={199,179,152,122,88,51,13,
+};
+static const u8 xm_staged_busR[7]={13,51,88,122,152,179,199,
+};
+static const XmSong xm_staged={xm_staged_order,xm_staged_rows,xm_staged_patOff,xm_staged_ev,xm_staged_vt,xm_staged_anc,xm_staged_fx,xm_staged_len,xm_staged_data,xm_staged_busL,xm_staged_busR,211,0,521,193};
