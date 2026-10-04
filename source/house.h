@@ -728,7 +728,7 @@ static void hhSwitch(void){
 #define HH_RELB (3*HU_N*HU_N)
 static void hhSave(void){
     volatile u8*m=(volatile u8*)0x0E000000+HH_OFF; int k=3; u8 sum=0x48;
-    m[0]='H'; m[1]='7'; m[2]=(u8)hhN; m[k++]=(u8)hhPUid;
+    m[0]='H'; m[1]='8'; m[2]=(u8)hhN; m[k++]=(u8)hhPUid;
     for(int j=0;j<HH_NM;j++) m[k++]=(u8)hhPName[j]; for(int j=0;j<HH_NM;j++) m[k++]=(u8)hhPLast[j];   // your own name
     for(int i=0;i<hhN;i++){ const HhSim*s=&hhM[i];
         for(int j=0;j<LK_N;j++) m[k++]=s->look[j]; m[k++]=s->stage; m[k++]=s->asp; m[k++]=s->ltw;
@@ -739,9 +739,9 @@ static void hhSave(void){
 }
 static void hhLoad(void){
     volatile u8*m=(volatile u8*)0x0E000000+HH_OFF; u8 sum=0x48; hhN=0;
-    if(m[0]!='H'||m[1]<'2'||m[1]>'7'||m[2]>HH_MAX) return;
+    if(m[0]!='H'||m[1]<'2'||m[1]>'8'||m[2]>HH_MAX) return;
     int old=m[1]<'6', hu=old?HH_MAXOLD+1:HU_N;   // before 'H6' the relationships were kept for 10 uids
-    int v7=m[1]>='7', nb=v7?2*HH_NM:10, nl=v7?LK_N:m[1]>='5'?LK_N7:m[1]=='4'?LK_N6:m[1]=='3'?LK_N5:LK_N4, rec=HH_REC-LK_N+nl-2*HH_NM+nb;   // 'H2' households were saved before the hats and clothes, 'H3' before the face details and sliders
+    int v7=m[1]>='7', nb=v7?2*HH_NM:10, nl=m[1]>='8'?LK_N:v7?LK_N8:m[1]>='5'?LK_N7:m[1]=='4'?LK_N6:m[1]=='3'?LK_N5:LK_N4, rec=HH_REC-LK_N+nl-2*HH_NM+nb;   // 'H2' households were saved before the hats and clothes, 'H3' before the face details and sliders
     int n=m[2], hb=v7?2*HH_NM:0, k=4+hb+n*rec+3*hu*hu; for(int i=2;i<k;i++) sum+=m[i]; if(m[k]!=sum) return;
     if(m[3]>=hu) return;
     k=4; hhPUid=m[3];
