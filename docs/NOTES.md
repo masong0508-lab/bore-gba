@@ -667,3 +667,14 @@ A house's floors used to sit in `flBuf`, 3 floors x 3 planes x 1600 bytes = 14,4
 - `flStoreAs(f)` packs the live map as floor `f` and returns 0 if it does not fit (the old copy stays). `flLoad(f)` unpacks it. `flGet(f, plane, i)` reads one cell of a stored floor (cheap when a plane is read in order), `flPlaneAt` reads the live map for the floor you are on.
 - `FL_POOL` holds every house the save slots can hold (a house is at most 4 slots, 8,160 bytes, and the packing is the same, so a saved house always loads: a `_Static_assert` in `slots.h` guards that). Only a floor plan too crowded to ever be saved can fill it: then the stairs say TOO MUCH BUILT TO CLIMB and you stay where you are, nothing is lost. Going home (`flHome`: starting play, a new lot, loading a house) always works: if the floor you leave does not fit, it goes back to its last stored copy.
 - Lowering `FL_POOL` frees more RAM but the `_Static_assert` will stop the build: a house near the 4-slot limit could then fail to load.
+
+## Zoom (OPTIONS > VIDEO > ZOOM, SELECT + UP / DOWN while playing)
+- OFF, 1.5X or 2X. Zoomed, the room is drawn only in a window in the middle (`vpX0..vpX1`, `vpY0..vpY1`; 160 x 80 or 120 x 60 with
+  the panels on), so there is a half or a quarter as much to draw, and the GBA's own BG2 scaling stretches it over the room rows
+  (`sbY0..sbY1`). The HUD rows stay 1:1: an HBlank DMA (DMA0) writes every line's BG2PA..PD / BG2X / BG2Y from a table
+  (`source/zoomtab.h`, made by `tools/make_zoomtab.py`, copied to `zoomBuf` in EWRAM because DMA0 cannot read the cartridge); the
+  vblank IRQ starts it again every frame (`zoomArm`; the IRQ is switched on for it even with the sound off, `zoomIrq`).
+- Household Sims (sprites) are scaled by the hardware too: affine, double size, matrix 0 (`hhObjUpdate`), placed where their room
+  pixels are shown. WIN0 keeps them to the room rows.
+- Anything that is not a room picture (`present()` without `zoomKeep`: menus, messages) puts BG2 back to 1:1 at once (`zoomOff`); the
+  next room frame is a whole one again. The pause menu draws the room unzoomed behind it.

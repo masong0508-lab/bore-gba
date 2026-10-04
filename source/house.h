@@ -747,7 +747,7 @@ static int hhPlayerFront(int x,int y){   // is the player (drawn into the pictur
 typedef struct { const HhSim*s; short x,y; int dd,dep; u8 id,key; } HhOv;   // a Sim in view: where its sprite goes, how far from the middle, how far back
 static void hhObjUpdate(void){   // in vblank: hand out OBJ slots, load what changed into OBJ VRAM, write OAM (a Sim is two entries: 32x32 over 32x16), set the window that clips them
     volatile u16*oam=OAM; int i, nOam=0;
-    *(volatile u16*)0x04000040=240; *(volatile u16*)0x04000044=(u16)((vpY0<<8)|vpY1);   // WIN0: the room view
+    *(volatile u16*)0x04000040=240; *(volatile u16*)0x04000044=(u16)((sbY0<<8)|sbY1);   // WIN0: the room view (the room rows of the screen)
     *(volatile u16*)0x04000048=0x34; *(volatile u16*)0x0400004A=0x04;                   // inside: BG2 + sprites + blend; outside: BG2 only
     *(volatile u16*)0x04000050=0x0400; *(volatile u16*)0x04000052=(6<<8)|10;            // see-through sprites blend 10/16 over the picture
     if(!hhSlotOk) hhSlotsFree();
@@ -769,7 +769,7 @@ static void hhObjUpdate(void){   // in vblank: hand out OBJ slots, load what cha
             x=LOX+(int)((rx-ry)>>5)-16; y=LOY+(int)((rx+ry)>>6)-40-surfH(s->fx,s->fy);
             f=((lfr+k*3)>>3)&1;   // passers-by are always walking
         }
-        if(x+32<=0||x>=SW||y+SPH<=vpY0||y>=vpY1) continue;
+        if(x+32<=vpX0||x>=vpX1||y+SPH<=vpY0||y>=vpY1) continue;
         HhOv*o=&w[n++]; o->s=s; o->x=(short)x; o->y=(short)y; o->id=(u8)id; o->key=(u8)(v*2+f); o->dep=dep;
         int dx=x+16-cx, dy=y+40-cy; o->dd=(dx<0?-dx:dx)+(dy<0?-dy:dy); ddOf[id]=o->dd; vis[id]=1;
     }
@@ -798,11 +798,18 @@ static void hhObjUpdate(void){   // in vblank: hand out OBJ slots, load what cha
                 if(full){ const u16*sp=(const u16*)hhTiles(id,v); for(int k=0;k<OBJ_B/2;k++) d[k]=sp[k]; }
                 const u16*sp=f?(const u16*)hhStrideB(id,v):(const u16*)(hhTiles(id,v)+STR_B0); for(int k=0;k<STR_BN/2;k++) d[STR_B0/2+k]=sp[k]; } }
         volatile u16*e=oam+nOam*4; int tile=512+sl*24, y=o->y, x=o->x, blend=(hhBehindAt(o->s->fx,o->s->fy)||hhPlayerFront(x,y))?0x400:0;
+        if(zoomDma){   // ZOOM: scaled up by the hardware (affine, double size, matrix 0) and placed where its room pixels are on screen
+            int X=(x+16-vpX0)*zoomNum/zoomDen-32, Y=sbY0+(y+16-vpY0)*zoomNum/zoomDen-32, Y2=sbY0+(y+40-vpY0)*zoomNum/zoomDen-16;
+            e[0]=(u16)((Y&255)|blend|0x300);         e[1]=(u16)((X&511)|0x8000); e[2]=(u16)(tile|(sl<<12));
+            e[4]=(u16)((Y2&255)|blend|0x4000|0x300); e[5]=(u16)((X&511)|0x8000); e[6]=(u16)((tile+16)|(sl<<12));
+        } else {
         e[0]=(u16)((y&255)|blend);         e[1]=(u16)((x&511)|0x8000); e[2]=(u16)(tile|(sl<<12));          // 32x32: tile rows 0..3
         e[4]=(u16)(((y+32)&255)|blend|0x4000); e[5]=(u16)((x&511)|0x8000); e[6]=(u16)((tile+16)|(sl<<12)); // 32x16: tile rows 4..5
+        }
         nOam+=2;
     }
     for(i=nOam;i<2*OBJ_SLOTS;i++) oam[i*4]=0x200;   // everything else off
+    oam[3]=zoomPa; oam[7]=0; oam[11]=0; oam[15]=zoomPa;   // affine matrix 0 (the ZOOM's sprites): 1 / scale
 }
 static HhR hhOld[HH_MAX]; static unsigned hhOldSig[HH_MAX];
 static void hhSave(void);

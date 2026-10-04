@@ -1175,8 +1175,19 @@ IWRAM_THUMB static void drawScene(int blink){
 }
 static volatile int mWantOff; static void audIdleStop(void);   // set by the mixer interrupt when nothing is left to play: vsync() then switches it off
 static void ldTick(void);   // loading.h: once per frame, lets the music come back after a loading screen
+// ZOOM (OPTIONS > VIDEO > ZOOM, SELECT + UP / DOWN while playing): the room is drawn only in a window in the middle (vpX0..vpX1, vpY0..vpY1)
+// and BG2's own scaling stretches that window over the room rows; the HUD rows stay 1:1. An HBlank DMA writes every line's BG2 scaling
+// from zoomDma (4 words a line, zoomtab.h, copied to EWRAM: DMA0 cannot read the cartridge); the vblank IRQ starts it again every frame.
+static u8 zoomShow, zoomKeep, zoomNum=1, zoomDen=1; static u16 zoomPa=256; static const u32* zoomDma;   // zoomShow: the screen shows a zoomed room picture
+IWRAM_CODE static void zoomArm(void){   // in vblank: line 0's scaling now, then the DMA writes each next line's in HBlank
+    volatile u32*d0=(volatile u32*)0x040000B0, *bg=(volatile u32*)0x04000020; const u32*t=zoomDma;
+    d0[2]=0; bg[0]=t[0]; bg[1]=t[1]; bg[2]=t[2]; bg[3]=t[3];
+    d0[0]=(u32)(uintptr_t)(t+4); d0[1]=0x04000020u; d0[2]=4u|(3u<<21)|(1u<<25)|(1u<<26)|(2u<<28)|(1u<<31);   // 4 words, dest reload, repeat, 32 bit, HBlank, on
+}
+static void zoomOff(void){ volatile u32*d0=(volatile u32*)0x040000B0, *bg=(volatile u32*)0x04000020; zoomShow=0; d0[2]=0; bg[0]=0x100; bg[1]=0x1000000u; bg[2]=0; bg[3]=0; }   // BG2 back to 1:1
 static void vsync(void){ while(REG_VCOUNT>=160); while(REG_VCOUNT<160); if(mWantOff) audIdleStop(); svTick(); ldTick(); }
 static void present(void){
+    if(zoomShow&&!zoomKeep) zoomOff();   // anything but a room picture (menus, messages) is shown 1:1
     vsync();
     REG_DMA3SAD=(u32)(uintptr_t)fb; REG_DMA3DAD=VRAM_ADDR;
     REG_DMA3CNT=(SW*SH/2)|0x84000000u;
@@ -1603,6 +1614,7 @@ __attribute__((used)) IWRAM_CODE void irqMain(void){
     u16 f=R_IF;
     if(f&1){   // vblank: start the buffer that was filled last frame, in step with the screen
         R_IF=1;
+        if(zoomShow&&zoomDma) zoomArm();   // the ZOOM's per-line scaling, every frame
         if(mOn){
             if(!mFilled) mCur^=1;                      // (mix overran: replay the last buffer rather than a half-filled one)
             R_DMA1CNT=0; R_DMA2CNT=0; R_TM0CNT=0;
@@ -1618,7 +1630,8 @@ __attribute__((used)) IWRAM_CODE void irqMain(void){
         if(mOn&&!mFilled){ musMixAny(mCur); mFilled=1; }
     }
 }
-static void irqOff(void){ R_IME=0; R_IE=0; R_DISPSTAT=0; R_IF=0xFFFF; }
+static void zoomIrq(void){ R_IRQVEC=(u32)(uintptr_t)irqEntry; R_DISPSTAT|=0x0008; R_IE|=1; R_IME=1; }   // the vblank IRQ on (for the ZOOM, also without sound)
+static void irqOff(void){ R_IME=0; R_IE=0; R_DISPSTAT=0; R_IF=0xFFFF; if(zoomShow) zoomIrq(); }
 // AUDIO: one mixer for everything. While a song or an effect plays, the interrupts above run it; with neither, they are switched off.
 static void audStart(void){   // start the mixer (the caller has set up what plays)
     irqOff(); R_DMA1CNT=0; R_DMA2CNT=0; R_TM0CNT=0;
@@ -2199,7 +2212,7 @@ static void helpScreen(const char*title,const char*const*ln,int n){   // lines s
 }
 static void toast(const char*msg){ int w=tw(msg,1)+16;
     box((SW-w)/2,66,w,22); text((SW-w)/2+8,74,msg,WHITE,1); for(int i=0,n=oToastLen();i<n;i++){ present(); } }
-static const char* const lifeHelp[16]={">ON FOOT","DPAD WALK  B RUN  A HOP","L GET ON THE BOARD","R USE FRIDGE TOILET BED SHOWER SOFA",">ON THE BOARD","A PUSH  DPAD STEER  B OLLIE","IN AIR DPAD SPINS  B KICKFLIP  R GLIDES",">KEEP YOURSELF GOING","WC IS THE TOILET BAR  HP UNDER THE FACE","A OR B GETS YOU UP FROM BED OR SOFA",">WORK  MON TO FRI 9 TO 5","TRICK POINTS BEAT THE QUOTA FOR PAY",">WANTS AND FEARS","WANTS FILL THE METER  FEARS DRAIN IT","A GOOD SLEEP ROLLS NEW WANTS AND FEARS","R BY A SIM TALK OR FIGHT  START MENU"};
+static const char* const lifeHelp[17]={">ON FOOT","DPAD WALK  B RUN  A HOP","L GET ON THE BOARD","R USE FRIDGE TOILET BED SHOWER SOFA",">ON THE BOARD","A PUSH  DPAD STEER  B OLLIE","IN AIR DPAD SPINS  B KICKFLIP  R GLIDES",">KEEP YOURSELF GOING","WC IS THE TOILET BAR  HP UNDER THE FACE","A OR B GETS YOU UP FROM BED OR SOFA",">WORK  MON TO FRI 9 TO 5","TRICK POINTS BEAT THE QUOTA FOR PAY",">WANTS AND FEARS","WANTS FILL THE METER  FEARS DRAIN IT","A GOOD SLEEP ROLLS NEW WANTS AND FEARS","R BY A SIM TALK OR FIGHT  START MENU","SELECT+UP DOWN ZOOM IN OR OUT"};
 
 static const char* const creatureHelp[15]={">PICK YOUR LOOK","L R CHANGE TAB   UP DOWN PICK A ROW","LEFT RIGHT CHANGE IT  A ALSO STEPS","SELECT TURNS THE CREATURE ROUND",">THE TABS","1 BODY  2 FACE  3 HAIR  4 CLOTHES","5 PARTS  TAIL HORNS SPIKES WINGS","  PARTS GIVE POWERS  AND FIGHT BONUSES","  BIG PARTS COST JENES  A BUYS ONE","6 ASPIRE  ASPIRATION  LIFETIME WANT  SIGN","  AND TRAITS THAT SHARE 25 POINTS",">FINISH","START JUMPS TO THE DONE TAB","GO LIVE LIFE PLAYS YOUR CREATURE","LIVING EARNS DNA FOR NEW PARTS"};
 static const char* const mapHelp[14]={">BUILD A ROOM","ROOM TOOL  A CORNER  A BUILDS","WALL TOOL  A START  A DRAWS A LINE","FLOOR TOOL  A CORNER  A FILLS","ITEM TOOL  PLACE SINGLE TILES","ERASE TOOL  A CORNER  A CLEARS",">STYLES","L R PICK FLOOR OR ITEM","SEL+L R PICK WALLPAPER","SELECT TAP NEXT TOOL  B CANCELS",">KEEP IT","START OPENS PLAY TEST AND SAVE",">FLOORS","SEL+UP DOWN FLOOR  STAIRS ARE ITEMS"};
@@ -2406,9 +2419,9 @@ static int wpAt(int rx,int ry){ int tx,ty; rotXY(rx,ry,&tx,&ty); return wallMap[
 static int flAt(int rx,int ry){ int tx,ty; rotXY(rx,ry,&tx,&ty); return floorMap[ty][tx]; }
 static int isWallCh(char c){ return c=='w'||c=='W'; }
 // ---- camera: follows the player (play) or the cursor (editor); only the tiles on screen are drawn ----
-static int vpY0=0, vpY1=SH;   // rows of the screen the scene lives in (life mode keeps the HUD panels above and below; the editor uses it all)
+static int vpY0=0, vpY1=SH, vpX0=0, vpX1=SW, sbY0=0, sbY1=SH;   // vpX0..vpX1: the columns drawn (all, or the ZOOM window); sbY0..sbY1: the room rows of the screen   // rows of the screen the scene lives in (life mode keeps the HUD panels above and below; the editor uses it all)
 static void camClamp(int ed){
-    int xl=120-MH*CA, xh=120+MW*CA-SW, yl=24-vpY0-(ed?20:0), yh=24+(MW+MH)*CB-vpY1+(ed?20:0);
+    int xl=120-MH*CA-vpX0, xh=120+MW*CA-vpX1, yl=24-vpY0-(ed?20:0), yh=24+(MW+MH)*CB-vpY1+(ed?20:0);
     if(camX<xl) camX=xl; if(camX>xh) camX=xh; if(camY<yl) camY=yl; if(camY>yh) camY=yh;
 }
 static void camFollow(int snap){   // keep the skater near the middle of the screen, eased so it stays steady
@@ -2670,7 +2683,7 @@ static int stBad, stPics, stFull, stArea, stRects, stMoved, stTop, stBot; static
 #define TMARK(v) { u16 n_=R_TM2D; v+=(u16)(n_-tm0); tm0=n_; }
 #endif
 static void rcAdd(int x0,int y0,int x1,int y1){
-    if(x0<0) x0=0; if(x1>SW) x1=SW; if(y0<vpY0) y0=vpY0; if(y1>vpY1) y1=vpY1; if(x0>=x1||y0>=y1) return;
+    if(x0<vpX0) x0=vpX0; if(x1>vpX1) x1=vpX1; if(y0<vpY0) y0=vpY0; if(y1>vpY1) y1=vpY1; if(x0>=x1||y0>=y1) return;
     for(int i=0;i<nrc;i++){ Rc*r=&rcs[i];
         if(x0<=r->x1&&x1>=r->x0&&y0<=r->y1&&y1>=r->y0){
             int bx0=x0<r->x0?x0:r->x0, by0=y0<r->y0?y0:r->y0, bx1=x1>r->x1?x1:r->x1, by1=y1>r->y1?y1:r->y1;
@@ -2702,7 +2715,7 @@ static void vramCopy(int x0,int y0,int x1,int y1){   // fb rectangle -> VRAM, on
     }
 }
 static void vramScroll(int dx,int dy){   // the picture moves by (-dx,-dy) inside the scene rows: new(x,y)=old(x+dx,y+dy)
-    int w=SW-(dx<0?-dx:dx), sx0=dx>0?dx:0, dx0=dx>0?0:-dx;
+    int w=(vpX1-vpX0)-(dx<0?-dx:dx), sx0=vpX0+(dx>0?dx:0), dx0=vpX0+(dx>0?0:-dx);
     int y0=dy>0?vpY0:vpY0-dy, y1=dy>0?vpY1-dy:vpY1;   // destination rows [y0,y1)
     int back=(dy<0)||(dy==0&&dx<0);                    // copy order that never overwrites what is still to be read
     for(int n=0,cnt=y1-y0;n<cnt;n++){
@@ -2720,11 +2733,21 @@ static void ovRestoreVram(const Rc*r){ dmaRows16((u32)(uintptr_t)ovBuf,VRAM_ADDR
 static int ovNow(Rc*r,unsigned*sig){   // is there an overlay, where (clamped to the scene and the buffer), and what it is made of
     int x0,y0,x1,y1; if(!hudOverlayRc(&x0,&y0,&x1,&y1)) return 0;
     *sig=hudOverlaySig()*31u+(unsigned)(x0+64)*7u+(unsigned)(y0+64)*131u+(unsigned)(x1+64);   // from the unclamped box: the overlay can sit partly off the scene
-    if(x0<0) x0=0; if(x1>SW) x1=SW; if(y0<vpY0) y0=vpY0; if(y1>vpY1) y1=vpY1; if(x0>=x1||y0>=y1||(x1-x0)*(y1-y0)>OV_CAP) return 0;
+    if(x0<vpX0) x0=vpX0; if(x1>vpX1) x1=vpX1; if(y0<vpY0) y0=vpY0; if(y1>vpY1) y1=vpY1; if(x0>=x1||y0>=y1||(x1-x0)*(y1-y0)>OV_CAP) return 0;
     r->x0=(short)x0; r->y0=(short)y0; r->x1=(short)x1; r->y1=(short)y1;
     return 1;
 }
-static void hudApplyLayout(void){ vpY0=HUD_TOPH; vpY1=sHud>=2?SH:HUD_BOTY; }
+#include "zoomtab.h"
+static ZLn zoomBuf[ZT_N] EWRAM_BSS;   // the ZOOM table in use
+static void hudApplyLayout(void){   // the room rows between the HUD panels, and the ZOOM window inside them
+    sbY0=HUD_TOPH; sbY1=sHud>=2?SH:HUD_BOTY; vpX0=0; vpX1=SW; vpY0=sbY0; vpY1=sbY1; zoomDma=0; zoomNum=zoomDen=1; zoomPa=256;
+    int z=xo[XO_ZOOM], L=sHud>=2;
+    if(z>=1&&z<=2){ const u8*w=zoomWin[L][z-1]; vpX0=w[0]; vpX1=w[1]; vpY0=w[2]; vpY1=w[3];
+        for(int i=0;i<ZT_N;i++) zoomBuf[i]=zoomTab[L][z-1][i];
+        zoomDma=(const u32*)zoomBuf; zoomNum=(u8)(z==2?2:3); zoomDen=(u8)(z==2?1:2); zoomPa=zoomBuf[sbY0].pa; }
+    else if(zoomShow) zoomOff();   // (the DMA must not run on without a table)
+}
+static void vpFull(void){ vpX0=0; vpX1=SW; vpY0=0; vpY1=SH; sbY0=0; sbY1=SH; zoomOff(); }   // leaving the room view: the whole screen, 1:1
 static void liveInvalidate(void){ vpValid=0; }
 // CLEAR CACHES (OPTIONS > VIDEO, last row): throws away everything that is only a speed-up copy and gets rebuilt on its own, so
 // a stale or glitched one is gone and the next frame starts clean. Nothing that is saved or that holds a Sim, a room or a song
@@ -2748,17 +2771,18 @@ static void liveHud(int all){   // bring the panels up to date (into fb); the pi
 #endif
 }
 static void liveFull(void){   // the whole scene and both panels, from scratch
-    drawRoomRect(0,vpY0,SW,vpY1,0);
+    drawRoomRect(vpX0,vpY0,vpX1,vpY1,0);
     Rc o; unsigned osg; ovOn=ovNow(&o,&osg);
-    if(ovOn){ ovSaveFb(&o); ovRc=o; ovSig=osg; clipSet(0,vpY0,SW,vpY1); hudOverlayDraw(); clipAll(); }
+    if(ovOn){ ovSaveFb(&o); ovRc=o; ovSig=osg; clipSet(vpX0,vpY0,vpX1,vpY1); hudOverlayDraw(); clipAll(); }
     if(lcamF>0){   // action cam: ease in, spin through all 4 views, ease out
         int f=lcamF, z=f<12?f:(f>CAM_LEN-12?CAM_LEN-f:12);   // 0..12 zoom amount
-        if(z>0){ int cx=lpsx<0?0:lpsx>=SW?SW-1:lpsx, cy=lpsy<vpY0?vpY0:lpsy>=vpY1?vpY1-1:lpsy; zoomFb(cx,cy,256-z*(CAM_ZOOM)/12); }
+        if(z>0){ int cx=lpsx<vpX0?vpX0:lpsx>=vpX1?vpX1-1:lpsx, cy=lpsy<vpY0?vpY0:lpsy>=vpY1?vpY1-1:lpsy; zoomFb(cx,cy,256-z*(CAM_ZOOM)/12); }
     }
     liveHud(1);
-    if(sHud>=2) rect(0,vpY1,SW,SH-vpY1,RGB(0,0,0));
+    if(sHud>=2) rect(0,sbY1,SW,SH-sbY1,RGB(0,0,0));
     lifeVs=R_TM2D;
-    present(); hhObjUpdate();   // (the household sprites change in vblank, with the picture)
+    if(zoomDma){ zoomShow=1; zoomIrq(); } else if(zoomShow) zoomOff();   // a room picture: zoomed if the ZOOM is on (else BG2 back to 1:1 at once)
+    zoomKeep=1; present(); zoomKeep=0; hhObjUpdate();   // (the household sprites change in vblank, with the picture)
     pCamX=camX; pCamY=camY;
     Rc r; actorRc(&r); actOld=r; actHas=1; actSig=actSigNow();
     for(int m=0;m<hhN;m++){ hhRc(m,&hhOld[m]); hhOldSig[m]=hhSig(m); }
@@ -2776,8 +2800,8 @@ static void livePatch(int dx,int dy){
     u16 tm0=R_TM2D;
 #endif
     nrc=0;
-    if(dx>0) rcAdd(SW-dx,vpY0,SW,vpY1); else if(dx<0) rcAdd(0,vpY0,-dx,vpY1);
-    if(dy>0) rcAdd(0,vpY1-dy,SW,vpY1); else if(dy<0) rcAdd(0,vpY0,SW,vpY0-dy);
+    if(dx>0) rcAdd(vpX1-dx,vpY0,vpX1,vpY1); else if(dx<0) rcAdd(vpX0,vpY0,vpX0-dx,vpY1);
+    if(dy>0) rcAdd(vpX0,vpY1-dy,vpX1,vpY1); else if(dy<0) rcAdd(vpX0,vpY0,vpX1,vpY0-dy);
     Rc a; actorRc(&a); unsigned asg=actSigNow();
     if(dx||dy||asg!=actSig){   // the player moved, turned or jumped (or the picture slid under him): redraw where he was and where he is
         rcAdd(a.x0,a.y0,a.x1,a.y1);
@@ -2822,6 +2846,7 @@ static void lifeDraw(void){
     camFollow(camSnap||lcamF>0); camSnap=0;
     playerCalc();
     int dx=camX-pCamX, dy=camY-pCamY;
+    if(zoomDma&&!zoomShow) vpValid=0;   // a message or menu was shown 1:1 in between: a whole zoomed picture again
     if(!vpValid||lcamF>0||dx>40||dx<-40||dy>40||dy<-40) liveFull(); else livePatch(dx,dy);
 #ifdef SELFTEST
     if(lcamF==0){   // draw the whole thing again and compare it with what is on the screen
@@ -2954,20 +2979,24 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
         if((k&K_SEL)&&(k&K_START)) break;
         { static int selArm;   // SELECT tapped on its own (not SELECT+START, not during the action cam): control the next Sim of the household
           if((pr&K_SEL)&&!(k&K_START)&&lcamF==0) selArm=1; if(k&K_START) selArm=0;
+          if((k&K_SEL)&&(pr&(K_UP|K_DOWN))){ selArm=0;   // SELECT + UP / DOWN: zoom in / out (the ZOOM option)
+              int z=xo[XO_ZOOM]+((pr&K_UP)?1:-1); if(z>=0&&z<=2&&lcamF==0){ xo[XO_ZOOM]=(u8)z; optsSave(); hudApplyLayout(); liveInvalidate(); camSnap=1; }
+              lnote=xo[XO_ZOOM]==2?"ZOOM 2X":xo[XO_ZOOM]==1?"ZOOM 1.5X":"ZOOM OFF"; lnoteT=50; }
+          if(k&K_SEL){ k&=(u16)~(K_UP|K_DOWN); pr&=(u16)~(K_UP|K_DOWN); }   // (SELECT held: UP / DOWN do not walk)
           if(selArm&&!(k&K_SEL)){ selArm=0;
               if(!hhN){ lnote="NO ONE ELSE LIVES HERE"; lnoteT=60; }
               else if(custom){ lnote="HAND BUILT SIMS CANNOT SWITCH"; lnoteT=60; }
               else { hhSwitch(); lnote=hhPName; lnoteT=60; liveInvalidate(); camSnap=1; } } }
         if(pr&K_START){   // pause menu
             mGainT=128; sfxStop(); simsSave(); hhSave(); objHideAll(); REG_DISPCNT=0x0403;   // (no sprites over the menus, options or the editor)   // the music fades to half while a menu is open   // the pause menu is also a save point
-            liveInvalidate(); lifeDraw();          // a whole picture behind the menu (the screen itself only holds patches)
+            { u8 zz=xo[XO_ZOOM]; xo[XO_ZOOM]=0; hudApplyLayout(); camSnap=1; liveInvalidate(); lifeDraw(); xo[XO_ZOOM]=zz; }   // a whole picture behind the menu (the screen itself only holds patches), not zoomed
             int c=menu("PAUSED",ed?lifeItemsEd:nbPlaying?lifeItemsNb:lifeItems,ed?3:8);
             if(ed&&c>=1) c+=2;   // the test-play menu has no ASPIRATION or HOUSEHOLD entry
             if(c==1) aspPanel();
             else if(c==2) hhMenu();
             else if(c==3) settingsScreen();
             else if(c==4&&!ed){ simsSaveNow(); hhSave(); if(slotScreen()) lifeInit(); }   // a slot was loaded: start again in the loaded room (the life was written first, so nothing is lost)
-            else if(c==5&&!ed){ vpY0=0; vpY1=SH; mapEditor(); lifeInit(); }
+            else if(c==5&&!ed){ vpFull(); mapEditor(); lifeInit(); }
             else if(c==6&&!ed){ if(menu("START A NEW LIFE",yesNoLife,2)==1){ twKeep=0; simsNewLife(); moodReset(); lscore=0; simLastScore=0; lnote="NEW LIFE"; lnoteT=60; } }
             else if((c==4&&ed)||c==7){ if(c==7&&!nbPlaying) gToMenu=1; break; }   // (from the neighborhood: back there)
             winFull(); REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=0; continue;
@@ -2981,7 +3010,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
         fpsN++; if(fpsT>=65536){ lfpsV=fpsN; lloadV=(int)(workT/(u32)fpsN*100/(u32)((sFps+1)*TICKS_FRAME)); workT=0; fpsN=0; fpsT-=65536; }
     }
     objHideAll(); REG_DISPCNT=0x0403;
-    simsSave(); hhSave(); R_TM2CNT=0; gmStop(); sfxStop(); lcamF=0; cview=0; vpY0=0; vpY1=SH; clipAll(); liveInvalidate();   // leaving the life game saves it
+    simsSave(); hhSave(); R_TM2CNT=0; gmStop(); sfxStop(); lcamF=0; cview=0; vpFull(); clipAll(); liveInvalidate();   // leaving the life game saves it
     while((~REG_KEYINPUT)&0x3FF) vsync();   // wait for release so the caller doesn't see the exit keys
 }
 
@@ -4042,7 +4071,7 @@ static void howToPlay(void){
     static const char* const tn[7]={"PLAY","MAKE","BUILD","MUSIC","SLOTS","OPTS","TOWN"};
     static const char* const tt[7]={"PLAYING","CREATE A BORE","BUILD ROOMS","JUKEBOX","ROOM SLOTS","OPTIONS","NEIGHBORHOOD"};
     const char* const* ln[7]={lifeHelp,creatureHelp,mapHelp,jbHelp,slotHelp,optHelp,nbHelp};
-    static const unsigned char nn[7]={16,15,14,15,13,12,16};
+    static const unsigned char nn[7]={17,15,14,15,13,12,16};
     enum { VIS=13, LY=34, LH=104 };
     int tab=0, sc=0; u32 cnt=0; u16 prev=keyNow();
     for(;;){

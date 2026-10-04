@@ -351,7 +351,7 @@ static int nbLotMenu(int li){   // returns 1 when the screen should close (play 
         case A_PLAY: case A_BUILD:
             if(!nbGo(li)){ toast(nbErr); return 0; }
             if(id[c]==A_PLAY){ nbPlaying=1; lifeMode(0); nbPlaying=0; if(gToMenu) return 1; }
-            else { vpY0=0; vpY1=SH; mapEditor(); }
+            else { vpFull(); mapEditor(); }
             nbValueLive(li); nbStore(li); nbSave(); menuMusSync(); return 0;
         case A_MOVE: {
             int have; int price=L->value, sale=nbT.home<NB_LOTS&&nbT.lot[nbT.home].on?nbT.lot[nbT.home].value:0, net=price-sale;
