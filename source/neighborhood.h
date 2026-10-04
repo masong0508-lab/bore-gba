@@ -13,7 +13,7 @@
 // HOOK       nbDrawLotModel() draws a lot's building as a small icon. A later version can draw the real house there (every floor of its slot).
 //
 // Needs before it: the map and floors (lifeMap, floorMap, wallMap, mapGen, gRoom, gBox, gPut, gLine, mapSave, mapScan, flHome, flBlankUpper,
-// flEnsure, flBuf, curFl), slots.h, lifeMode, mapEditor, the UI kit (box, menu, toast, helpScreen, text, rect, px, line, disc, present,
+// flEnsure, flPlaneAt, curFl), slots.h, lifeMode, mapEditor, the UI kit (box, menu, toast, helpScreen, text, rect, px, line, disc, present,
 // keyNow), sims.h (simsDefaults, simsLoad, simsSaveNow, simMoney).
 #define NB_W 24
 #define NB_H 24
@@ -52,8 +52,8 @@ static int nbItemValue(char c){
 }
 static void nbValueLive(int j){   // land (half a simoleon a tile) + everything built on every floor of the live map
     NbLot*L=&nbT.lot[j]; u32 v=(u32)L->w*L->h*8; int fl=1;
-    flEnsure(); flStoreAs(curFl);
-    for(int f=0;f<FLR_N;f++){ int any=0; for(int i=0;i<MSZ;i++){ char c=(char)flBuf[f][0][i]; v+=(u32)nbItemValue(c); if(f&&c!='.'&&c!='w') any=1; } if(any) fl=f+1; }
+    flEnsure();
+    for(int f=0;f<FLR_N;f++){ int any=0; for(int i=0;i<MSZ;i++){ char c=(char)flPlaneAt(f,0,i); v+=(u32)nbItemValue(c); if(f&&c!='.'&&c!='w') any=1; } if(any) fl=f+1; }
     L->value=(u16)(v>65535?65535:v); L->floors=(u8)fl;
 }
 static const char* nbErr;

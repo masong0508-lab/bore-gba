@@ -119,7 +119,8 @@ static int slSumOf(volatile u8*p,int n){ u32 s1=0,s2=0; for(int i=0;i<n;i++){ s1
 //     map. Floors and wallpapers change far less often than the furniture, so each plane packs on its own: about a quarter smaller
 //     than format 2 on a furnished room (more rooms fit a slot). Formats 1 and 2 still load; new saves are format 3.
 static int slSrcF=-1, slWantRoom=0, slRoomIdx=0;   // house saves: the floor slEncRoom writes (-1: the ground floor as it stands), the room index slDecRoom reads, the index written
-static int slPlaneVal(int plane,int i){ int f=slSrcF>=0?slSrcF:curFl?0:-1; if(f>=0) return flBuf[f][plane][i]; int y=i/MW, x=i%MW; return plane==0?(u8)lifeMap[y][x]:plane==1?floorMap[y][x]:wallMap[y][x]; }
+static int slPlaneVal(int plane,int i){ return flPlaneAt(slSrcF>=0?slSrcF:0,plane,i); }   // (the floor you are on is read live, any other from flPool; -1 = the ground floor)
+_Static_assert(FL_POOL>=4*SLOT_SZ-SLOT_HDR,"flPool (main.c) must hold every house that fits 4 save slots, or a saved house could fail to load: raise FL_POOL, or lower the 4-slot limit in houseSave on purpose");
 static void slEncRoom(SlW*w){
     slwPut(w,slRoomIdx);   // room index: 0 = the one room of a ROOM slot, a house numbers its floors
     slwPut(w,3);
@@ -346,7 +347,7 @@ static int houseLoad(int slot){   // all floors are checked first; only then is 
     if(slSumOf(b,I.len)!=I.sum) return SLE_BAD;
     if(I.mw!=MW||I.mh!=MH) return SLE_SIZE;
     for(int f=0;f<FLR_N;f++){ slWantRoom=f; int e=slParse(b,I.len,SLH_ROOM,0); if(e){ slWantRoom=0; return e; } }
-    flEnsure(); flHome();
+    flEnsure(); flHome(); flClear();   // (every stored floor goes first: the new house always fits, whatever the old one took)
     for(int f=0;f<FLR_N;f++){ slWantRoom=f; flBlankLive(); slParse(b,I.len,SLH_ROOM,1); flStoreAs(f); }   // (a floor the save lacks stays empty)
     slWantRoom=0; flLoad(0); curFl=0;
     mapSave(); mapScan(); hhSlotsFree(); liveInvalidate(); camSnap=1;
@@ -354,7 +355,7 @@ static int houseLoad(int slot){   // all floors are checked first; only then is 
 }
 static int houseSave(int slot,const char*name){   // needs a fresh slScan (slOwner). A house takes 3 or 4 slots in a row
     SlInfo old; int had=slInfo(slot,&old); if(had&&old.kind!=SLK_HOUSE) return SLE_HOUSE;
-    flEnsure(); flStoreAs(curFl);
+    flEnsure();   // (the floor you are on is read live: slPlaneVal)
     SlW d; slwInit(&d,0,1<<20); slHouseBuild(&d);
     int span=(SLOT_HDR+d.pos+SLOT_SZ-1)/SLOT_SZ; if(span>4) return SLE_BIG;
     if(!slFits(slot,span)) return SLE_NOROOM;

@@ -1962,8 +1962,28 @@ static void mapScan(void){   // find the skateboard (B) and the spawn point (P);
 }
 static const char sramTag[] __attribute__((used)) = "FLASH1M_V103";   // tells emulators / flash carts to give the game 128 KB of flash (save.h)
 #define MSZ (MW*MH)
-#define FLR_N 3   // floors a house has (house slots, slots.h): the floor you stand on is the live map, the other floors wait in flBuf
-static u8 flBuf[FLR_N][3][MSZ] EWRAM_BSS; static int curFl; static u8 flArm, flInit;   // tiles, floors and wallpapers of every floor; which floor is live
+#define FLR_N 3   // floors a house has (house slots, slots.h): the floor you stand on is the live map, the other floors wait packed in flPool
+// FLOOR STORAGE. A floor is mostly empty floor, so the floors are kept run-length packed instead of as 3 x 1600 bytes each: flPool holds floor 0's
+// runs, then floor 1's, then floor 2's, back to back. One floor = three planes (tiles, floors, wallpapers), each a list of (count 1..255, value)
+// pairs that covers the whole map. flLen[f] = bytes the floor takes (0 = a blank floor, flBlank, which takes no room at all); flPl[f][p] = where
+// plane p starts inside it. The floor you stand on is the live map (lifeMap / floorMap / wallMap): its copy here is only the last one stored.
+// FL_POOL is big enough for every house the save slots can hold (4 slots, see the _Static_assert in slots.h). A floor that would not fit is not
+// stored: flStoreAs returns 0 and the old copy stays, flGo refuses the stairs.
+#define FL_POOL 8192
+static u8 flPool[FL_POOL] EWRAM_BSS; static u16 flLen[FLR_N] EWRAM_BSS, flPl[FLR_N][3] EWRAM_BSS; static int curFl; static u8 flArm, flInit;
+static int flOff(int f){ int o=0; for(int g=0;g<f;g++) o+=flLen[g]; return o; }   // where floor f's runs start (flOff(FLR_N) = bytes in use)
+static int flBlankV(int pl,int i){ int x=i%MW, y=i/MW, e=(x==0||y==0||x==MW-1||y==MH-1); return pl==0?(e?'w':'.'):pl==1?1:(e?13:0); }   // a blank floor: carpet and a low wall round the edge
+static u8 flCf[3] EWRAM_BSS; static int flCi[3] EWRAM_BSS, flCn[3] EWRAM_BSS, flCv[3] EWRAM_BSS; static const u8*flCq[3] EWRAM_BSS;   // one read cursor per plane (floor + 1, last cell, run left, value, next run)
+static int flGet(int f,int pl,int i){   // cell i of plane pl of stored floor f. Read a plane in order and it costs one step a cell
+    if(!flLen[f]) return flBlankV(pl,i);
+    if(flCf[pl]!=f+1||i<=flCi[pl]){ flCf[pl]=(u8)(f+1); flCq[pl]=flPool+flOff(f)+flPl[f][pl]; flCn[pl]=0; flCi[pl]=-1; }
+    while(flCi[pl]<i){ if(!flCn[pl]){ flCn[pl]=*flCq[pl]++; flCv[pl]=*flCq[pl]++; } flCn[pl]--; flCi[pl]++; }
+    return flCv[pl];
+}
+static int flPlaneAt(int f,int pl,int i){   // cell i of plane pl of floor f as it stands now: the live map for the floor you are on, else its stored copy
+    if(f==curFl){ int y=i/MW, x=i%MW; return pl==0?(u8)lifeMap[y][x]:pl==1?floorMap[y][x]:wallMap[y][x]; }
+    return flGet(f,pl,i);
+}
 #define SET_OFF 4864            // settings live here now (the big map takes bytes 0..4802)
 #define OMW 14                  // old 14x14 saves
 #define OMSZ (OMW*OMW)
@@ -2007,12 +2027,12 @@ static int jbUnlock(int bit){   // 1 when the song was locked and is now free (s
 // (bytes 0..4095 sit in flash sector 0 on their own, so mapSave erases that sector and writes it again: svRd / svWr, not pointers)
 static int mapSaved(void){ if(svRd(0)!='B'||svRd(1)!='M'||svRd(2)!='3') return 0;
     for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x;
-        if(curFl?(svRd(3+i)!=flBuf[0][0][i]||svRd(3+MSZ+i)!=flBuf[0][1][i]||svRd(3+2*MSZ+i)!=flBuf[0][2][i]):(svRd(3+i)!=(u8)lifeMap[y][x]||svRd(3+MSZ+i)!=floorMap[y][x]||svRd(3+2*MSZ+i)!=wallMap[y][x])) return 0; }
+        if(curFl?(svRd(3+i)!=flGet(0,0,i)||svRd(3+MSZ+i)!=flGet(0,1,i)||svRd(3+2*MSZ+i)!=flGet(0,2,i)):(svRd(3+i)!=(u8)lifeMap[y][x]||svRd(3+MSZ+i)!=floorMap[y][x]||svRd(3+2*MSZ+i)!=wallMap[y][x])) return 0; }
     return 1; }
 static void mapSave(void){
     if(mapSaved()) return;   // the same room: nothing to write (flash wears with every erase)
     svErase(0,SV_SEC); svWr(0,'B'); svWr(1,'M'); svWr(2,'3');
-    for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x; if(curFl){ svWr(3+i,flBuf[0][0][i]); svWr(3+MSZ+i,flBuf[0][1][i]); svWr(3+2*MSZ+i,flBuf[0][2][i]); } else { svWr(3+i,(u8)lifeMap[y][x]); svWr(3+MSZ+i,floorMap[y][x]); svWr(3+2*MSZ+i,wallMap[y][x]); } }   // (upstairs: the room kept in SRAM is still the ground floor)
+    for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x; if(curFl){ svWr(3+i,flGet(0,0,i)); svWr(3+MSZ+i,flGet(0,1,i)); svWr(3+2*MSZ+i,flGet(0,2,i)); } else { svWr(3+i,(u8)lifeMap[y][x]); svWr(3+MSZ+i,floorMap[y][x]); svWr(3+2*MSZ+i,wallMap[y][x]); } }   // (upstairs: the room kept in SRAM is still the ground floor)
     svCommit(); }
 static int mapLoad(void){   // returns 1 if a valid saved map was loaded
     wDirty=1;
@@ -2046,29 +2066,65 @@ static void mapPlace(int x,int y,char c){
     if(c=='B'||c=='P'){ for(int j=0;j<MH;j++)for(int i=0;i<MW;i++) if(lifeMap[j][i]==c) lifeMap[j][i]='.'; }
     lifeMap[y][x]=c; if(c=='w'||c=='W') wallMap[y][x]=(u8)eWp; wDirty=1; }
 
-// ---------- floors: the live map is the floor you are on; the others wait in flBuf. Stairs: '^' goes up, '~' comes down. House slots (slots.h) keep all of them ----------
+// ---------- floors: the live map is the floor you are on; the others wait packed in flPool. Stairs: '^' goes up, '~' comes down. House slots (slots.h) keep all of them ----------
 static void hhSlotsFree(void); static void liveInvalidate(void);
 static const char* const flNm[FLR_N]={"GROUND FLOOR","FLOOR 2","FLOOR 3"};
 static int flBd[4];   // the board pickup and the spawn tile of the ground floor while you are upstairs
-static void flStoreAs(int f){ for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x; flBuf[f][0][i]=(u8)lifeMap[y][x]; flBuf[f][1][i]=floorMap[y][x]; flBuf[f][2][i]=wallMap[y][x]; } }
-static void flLoad(int f){ for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x; lifeMap[y][x]=(char)flBuf[f][0][i]; floorMap[y][x]=flBuf[f][1][i]; wallMap[y][x]=flBuf[f][2][i]; } wDirty=1; }
-static void flBlank(int f){ for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x, e=(x==0||y==0||x==MW-1||y==MH-1); flBuf[f][0][i]=(u8)(e?'w':'.'); flBuf[f][1][i]=1; flBuf[f][2][i]=(u8)(e?13:0); } }   // an empty floor: carpet and a low wall round the edge
+static void flBlankLive(void);
+static int flLiveBlank(void){ for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int e=(x==0||y==0||x==MW-1||y==MH-1); if(lifeMap[y][x]!=(e?'w':'.')||floorMap[y][x]!=1||wallMap[y][x]!=(e?13:0)) return 0; } return 1; }
+static int flEnc(u8*out,u16*pl){   // the live map as runs: with out 0 only counts the bytes. pl gets where each plane starts
+    int n=0;
+    for(int p=0;p<3;p++){
+        int run=0, cur=0; if(pl) pl[p]=(u16)n;
+        for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){
+            int v=p==0?(u8)lifeMap[y][x]:p==1?floorMap[y][x]:wallMap[y][x];
+            if(run>0&&v==cur&&run<255){ run++; continue; }
+            if(run){ if(out){ out[n]=(u8)run; out[n+1]=(u8)cur; } n+=2; }
+            run=1; cur=v; }
+        if(run){ if(out){ out[n]=(u8)run; out[n+1]=(u8)cur; } n+=2; }
+    }
+    return n;
+}
+static void flResize(int f,int n){   // floor f's runs become n bytes long (the floors after it slide along). The caller has checked that n fits
+    int o=flOff(f), old=flLen[f], tail=flOff(FLR_N)-o-old;
+    if(n<old) for(int k=0;k<tail;k++) flPool[o+n+k]=flPool[o+old+k];
+    else if(n>old) for(int k=tail-1;k>=0;k--) flPool[o+n+k]=flPool[o+old+k];
+    flLen[f]=(u16)n; flCf[0]=flCf[1]=flCf[2]=0;
+}
+static int flStoreAs(int f){   // keep the live map as floor f. 1 = done; 0 = it does not fit in flPool (then floor f's old copy is untouched)
+    int n=flLiveBlank()?0:flEnc(0,0);
+    if(flOff(FLR_N)-flLen[f]+n>FL_POOL) return 0;
+    flResize(f,n); if(n) flEnc(flPool+flOff(f),flPl[f]);
+    return 1;
+}
+static void flLoad(int f){   // floor f becomes the live map
+    if(!flLen[f]){ flBlankLive(); return; }
+    const u8*q=flPool+flOff(f)+flPl[f][0];
+    for(int p=0;p<3;p++){ int x=0, y=0;
+        for(int left=MSZ;left>0;){ int c=*q++, v=*q++; if(c>left) c=left; left-=c;
+            while(c-->0){ if(p==0) lifeMap[y][x]=(char)v; else if(p==1) floorMap[y][x]=(u8)v; else wallMap[y][x]=(u8)v; if(++x==MW){ x=0; y++; } } } }
+    wDirty=1;
+}
+static void flBlank(int f){ flResize(f,0); }   // an empty floor: carpet and a low wall round the edge (it takes no room)
+static void flClear(void){ for(int f=0;f<FLR_N;f++) flLen[f]=0; flCf[0]=flCf[1]=flCf[2]=0; }   // every floor blank at once (a house is about to be loaded over them)
 static void flBlankLive(void){ for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int e=(x==0||y==0||x==MW-1||y==MH-1); lifeMap[y][x]=e?'w':'.'; floorMap[y][x]=1; wallMap[y][x]=(u8)(e?13:0); } wDirty=1; }
 static void flEnsure(void){ if(flInit) return; flInit=1; for(int f=1;f<FLR_N;f++) flBlank(f); }
-static void flGo(int n){   // make floor n the live map (the one you leave is kept)
-    if(n==curFl||n<0||n>=FLR_N) return;
-    flEnsure(); flStoreAs(curFl);
+static int flGoF(int n,int force){   // make floor n the live map (the one you leave is kept). 0 = it would not fit in flPool and nothing changed; with force the leaving floor falls back to its last stored copy
+    if(n==curFl||n<0||n>=FLR_N) return 1;
+    flEnsure(); if(!flStoreAs(curFl)&&!force) return 0;
     if(curFl==0){ flBd[0]=bdx; flBd[1]=bdy; flBd[2]=spx; flBd[3]=spy; }
     curFl=n; flLoad(n);
     if(n==0){ bdx=flBd[0]; bdy=flBd[1]; spx=flBd[2]; spy=flBd[3]; } else bdx=bdy=-1;   // no board pickup upstairs
     hhSlotsFree(); liveInvalidate(); camSnap=1;
+    return 1;
 }
-static void flHome(void){ flArm=0; flGo(0); }
+static int flGo(int n){ return flGoF(n,0); }
+static void flHome(void){ flArm=0; flGoF(0,1); }
 static void flBlankUpper(void){ flEnsure(); for(int f=1;f<FLR_N;f++) flBlank(f); }
 static void flStairs(int dir){   // you stepped on a stair tile: up (+1) or down (-1)
     int n=curFl+dir; if(n<0||n>=FLR_N){ lnote=dir>0?"NO FLOOR ABOVE":"NO FLOOR BELOW"; lnoteT=40; return; }
     int tx=(int)(lfx>>8), ty=(int)(lfy>>8); char want=dir>0?'~':'^';
-    flGo(n);
+    if(!flGo(n)){ lnote="TOO MUCH BUILT TO CLIMB"; lnoteT=60; return; }
     int fx=-1, fy=-1;
     for(int y=0;y<MH&&fx<0;y++)for(int x=0;x<MW;x++) if(lifeMap[y][x]==want){ fx=x; fy=y; break; }
     if(fx<0){ fx=tx; fy=ty; lifeMap[fy][fx]=want; wDirty=1; }   // no stairs there yet: they appear where you came from
@@ -3039,7 +3095,7 @@ static void mapEditor(void){
         int ux=tr[0]-tr[1], uy=tr[3]-tr[2];
         if((k&K_SEL)&&(tr[2]||tr[3])){   // SELECT + UP / DOWN: the floor above / below (stairs: the ^ and ~ items)
             int nf=curFl+(tr[2]?1:-1); comboUsed=1; ux=uy=0; dirty=1;
-            if(nf>=0&&nf<FLR_N){ flGo(nf); eAct=0; msg=flNm[nf]; msgT=60; } else { msg=nf<0?"NO FLOOR BELOW":"NO FLOOR ABOVE"; msgT=40; }
+            if(nf>=0&&nf<FLR_N){ if(flGo(nf)){ eAct=0; msg=flNm[nf]; msgT=60; } else { msg="TOO MUCH BUILT TO CHANGE FLOOR"; msgT=60; } } else { msg=nf<0?"NO FLOOR BELOW":"NO FLOOR ABOVE"; msgT=40; }
         }
         if(ux||uy){   // screen-relative like walking: up = away from the camera
             int dx=ux+uy, dy=uy-ux; dx=(dx>0)-(dx<0); dy=(dy>0)-(dy<0);
