@@ -12,7 +12,7 @@ LDFLAGS := -specs=gba.specs $(ARCH)
 
 all: $(TARGET).gba
 
-$(TARGET).elf: source/main.c source/logo.c $(wildcard source/*.h) $(wildcard source/sfx/*.adp) $(wildcard source/music/*.adp)
+$(TARGET).elf: source/main.c source/logo.c $(wildcard source/*.h) $(wildcard source/sfx/*.adp) $(wildcard source/music/*.adp) $(wildcard source/music/*.bin)
 	$(CC) $(CFLAGS) source/main.c source/logo.c $(LDFLAGS) -o $@
 
 $(TARGET).gba: $(TARGET).elf

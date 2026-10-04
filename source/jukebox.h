@@ -1,47 +1,40 @@
-// jukebox.h - the playlist side of the jukebox. No hardware in here (the player and screen live in main.c).
-// Needs before it: u8 / u32, rnd8(), SRAM_BASE.
+// jukebox.h - which songs the jukebox, the menus and the game music may play, and picking one at random. No hardware in here
+// (the player and screen live in main.c). Needs before it: u8 / u16, rnd8(), SRAM_BASE.
 //
-// The shuffled order is kept in SRAM, so the song set stays in the SAME shuffled order every time the game starts.
-// It is only re-rolled when you press SELECT in the jukebox, or when the number of songs changes (songs added / removed).
-#define JB_MAX 64          // most songs the jukebox can hold (the saved order needs 5+JB_MAX bytes at JB_OFF; must stop before SIM_OFF)
-#define JB_OFF 5056       // SRAM block: 'J' 'B' '1', song count, current slot, then the shuffled order (the small blocks sit together in 4864..8191: see slots.h)
-static u8 sJb;             // jukebox mode (a setting, saved with the other settings): 0 SHUFFLE, 1 IN ORDER, 2 REPEAT ONE
-#if JB_OFF+5+JB_MAX>16384
-#error JB_MAX is too big: the saved shuffle order would run into the life save at SIM_OFF (16384)
-#endif
-static u8 jbMap[JB_MAX];   // visible song number -> index into songs[] (hides the placeholder tunes)
-static u8 jbOrd[JB_MAX];   // the shuffled order: playlist slot -> song number
-static int jbN, jbPos;     // number of songs, playlist slot of the current song
-static const char* const jbModeNm[3]={"SHUFFLE","IN ORDER","REPEAT ONE"};
+// Every song has an on/off flag: the check box in the jukebox's PLAYLIST tab. Only songs that are ON are picked at random: when the jukebox opens,
+// when a main menu opens, when a playlist song ends, and for GAME MUSIC. The flags are saved in SRAM (JB_OFF). Songs added at the END of songs.h
+// come in switched on; the saved flags are dropped (everything on again) only if the songs in front of them changed.
+#define JB_MAX 64          // most songs the jukebox can hold (the flags need one bit each; songs.h may list up to this many, secret ones included)
+#define JB_OFF 5056        // SRAM block: 'J' 'B' '3', song count, hash of the song names (2 bytes), then one bit per song (1 = on). 14 bytes of the 80 reserved (slots.h)
+static u8 jbMap[JB_MAX];   // visible song number -> index into songs[] (hides the placeholder tunes and the secret ones)
+static u8 jbOn[JB_MAX];    // by songs[] index: 1 = may be picked at random
+static int jbN, jbAll;     // visible songs, songs in songs[]
+static u8 jbUl;                // unlocked songs (unlocks.h): a set bit = unlocked. Saved at JB_OFF+16: 'U' 'L', the bits, the bits xor 0x5A
+static u16 (*jbHashFn)(int);   // hash of the names of the first n songs (main.c): tells whether the saved flags still belong to this song list
 
-static int jbIdx(int slot){ return sJb==0 ? jbOrd[slot] : slot; }   // which visible song sits in a playlist slot
-static int jbSong(int slot){ return jbMap[jbIdx(slot)]; }          // the songs[] entry for that slot
-static int jbSlotOf(int song){ for(int i=0;i<jbN;i++) if(jbSong(i)==song) return i; return 0; }
 static void jbSave(void){
-    volatile u8*m=SRAM_BASE+JB_OFF; m[0]='J'; m[1]='B'; m[2]='1'; m[3]=(u8)jbN; m[4]=(u8)jbPos;
-    for(int i=0;i<jbN;i++) m[5+i]=jbOrd[i];
+    volatile u8*m=SRAM_BASE+JB_OFF; u16 h=jbHashFn(jbAll);
+    m[0]='J'; m[1]='B'; m[2]='3'; m[3]=(u8)jbAll; m[4]=(u8)h; m[5]=(u8)(h>>8);
+    for(int b=0;b<8;b++){ u8 v=0; for(int k=0;k<8;k++){ int i=b*8+k; if(i<jbAll&&jbOn[i]) v|=(u8)(1<<k); } m[6+b]=v; }
 }
-static int jbLoad(void){   // 1 = a saved order for exactly this many songs was found
-    volatile u8*m=SRAM_BASE+JB_OFF; u8 seen[JB_MAX];
-    if(m[0]!='J'||m[1]!='B'||m[2]!='1'||m[3]!=(u8)jbN||m[4]>=jbN) return 0;
-    for(int i=0;i<JB_MAX;i++) seen[i]=0;
-    for(int i=0;i<jbN;i++){ u8 v=m[5+i]; if(v>=jbN||seen[v]) return 0; seen[v]=1; }   // must be a real permutation
-    for(int i=0;i<jbN;i++) jbOrd[i]=m[5+i];
-    jbPos=m[4]; return 1;
+static void jbInit(int nAll,int nVis,u16 (*hash)(int)){   // call at boot (and after an erase), once the visible list jbMap[] is built
+    jbAll=nAll>JB_MAX?JB_MAX:nAll; jbN=nVis; jbHashFn=hash;
+    for(int i=0;i<JB_MAX;i++) jbOn[i]=1;
+    volatile u8*m=SRAM_BASE+JB_OFF; int n=m[3];
+    if(m[0]=='J'&&m[1]=='B'&&m[2]=='3'&&n<=jbAll&&(u16)(m[4]|(m[5]<<8))==hash(n))
+        for(int i=0;i<n;i++) jbOn[i]=(u8)((m[6+(i>>3)]>>(i&7))&1);   // songs added after the save stay on
 }
-static void jbShuffle(void){   // Fisher-Yates
-    for(int i=0;i<jbN;i++) jbOrd[i]=(u8)i;
-    for(int i=jbN-1;i>0;i--){ int j=(rnd8()*(i+1))>>8; u8 t=jbOrd[i]; jbOrd[i]=jbOrd[j]; jbOrd[j]=t; }
-}
-static void jbReshuffle(void){   // new random order, saved. The song that is playing stays first, the rest follow it.
-    int s=jbIdx(jbPos); sJb=0; jbShuffle();
-    for(int i=0;i<jbN;i++) if(jbOrd[i]==s){ u8 t=jbOrd[0]; jbOrd[0]=jbOrd[i]; jbOrd[i]=t; break; }
-    jbPos=0; jbSave();
-}
-static void jbSetMode(int m){   // change mode but keep the current song current
-    int s=jbSong(jbPos); sJb=(u8)m; jbPos=jbSlotOf(s); jbSave();
-}
-static void jbInit(int n){   // call once at boot, after the settings are loaded and the random seed has been stirred
-    jbN=n>JB_MAX?JB_MAX:n;
-    if(!jbLoad()){ jbShuffle(); jbPos=0; jbSave(); }
+static void jbUlSave(void){ volatile u8*m=SRAM_BASE+JB_OFF; m[16]='U'; m[17]='L'; m[18]=jbUl; m[19]=(u8)(jbUl^0x5A); }
+static void jbUlLoad(void){ volatile u8*m=SRAM_BASE+JB_OFF; jbUl=(m[16]=='U'&&m[17]=='L'&&(u8)(m[18]^0x5A)==m[19])?m[18]:0; }
+static int jbOnVis(int v){ return jbOn[jbMap[v]]; }
+static int jbCount(void){ int c=0; for(int i=0;i<jbN;i++) c+=jbOnVis(i); return c; }
+static void jbToggle(int v){ jbOn[jbMap[v]]^=1; jbSave(); }
+// A random visible song that is ON, never `avoid` (the one that just played) while there is another. With every song off, all of them count.
+static int jbPick(int avoid){
+    int any=(jbCount()==0), c=0;
+    for(int i=0;i<jbN;i++) if((any||jbOnVis(i))&&i!=avoid) c++;
+    if(c==0) return (avoid>=0&&avoid<jbN)?avoid:-1;                 // the only candidate is the one to avoid (or there is no song at all)
+    int r=(int)((((unsigned)rnd8()<<8|(unsigned)rnd8())*(unsigned)c)>>16);
+    for(int i=0;i<jbN;i++){ if(i==avoid||!(any||jbOnVis(i))) continue; if(r--==0) return i; }
+    return -1;
 }

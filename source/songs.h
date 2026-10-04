@@ -1,12 +1,15 @@
 // songs.h - THE JUKEBOX SONG LIST. Order here = the "IN ORDER" order. Up to 64 songs.
 //
 //   SONG_XM(id,"NAME","file")    a tracker song (.xm). id = any unique C name, file = the .xm in tools/. After adding one, run
-//                                python3 tools/xm2gba.py   to rebuild source/musicdata.h (the title music, THE DIPPER MAN, is one too)
+//                                python3 tools/xm2gba.py   to rebuild source/musicdata.h and source/music/xmdata.bin (the title music, THE DIPPER MAN, is one too)
 //   SONG_ADP(id,"NAME","file")   a streamed ADPCM song. id = any unique C name, NAME = capitals, digits, spaces, punctuation and the extended Latin letters
 //                                (no double quote or backslash; see "EXTENDED FONT" in README.md)
 //
 // Easiest way to add a song:   python3 tools/encode_song.py "my song.mp3"
 // It writes source/music/<id>.adp and appends the SONG_ADP line below for you.
+//
+// HIDDEN SONGS: a song whose NAME ends in " (ORIGINAL)" (the old version of a song you reworked) or starts with PLACEHOLDER is hidden from the jukebox, the menu music
+// and the game music until the code UP UP DOWN DOWN LEFT LEFT RIGHT B A START is entered on the title screen. Nothing else to do: just name it that way.
 //
 // Song spec: 4-bit IMA-ADPCM, mono, 18157 Hz (the game's music rate), about 9 KB per second of music.
 // When this list changes size the saved shuffle is re-rolled automatically (next boot).
@@ -61,3 +64,9 @@ SONG_XM(hotdamn_rave_old,"HOT DAMN (ORIGINAL)","tools/hotdamn_rave_old.xm")
 // AIM AND SHOOT: the Caustic sketch "Aimandshoot 430 2021 V11" grown into a full piece in C# Hijaz: oud, qanun, ney and strings on a
 // half-time groove with a quiet darbuka (tools/aimandshoot_v11.caustic, read by tools/make_aimandshoot_rework.py, about 2:52)
 SONG_XM(aim_and_shoot,"AIM AND SHOOT","tools/aim_and_shoot.xm")
+// THE MAGIC ACT: a Singhs rework of "The Dipper Man - The Magic Act" (tools/the_dipper_man_the_magic_act.xm), built by tools/make_magicact_rework.py.
+// A suite in thirteen parts (about 6:47) where the original's arpeggio and hook keep coming back in a new mode, meter and colour.
+SONG_XM(magic_act,"THE MAGIC ACT","tools/magic_act.xm")
+// NURSERY TIME: a Singhs rework of "The Dipper Man - Nursery Time" (tools/the_dipper_man_nursery_time.xm), built by tools/make_nursery_rework.py.
+// A music-box ditty that turns into a long, shifting metal / nu-groove suite built from the same tune (about 6:08).
+SONG_XM(nursery_time,"NURSERY TIME","tools/nursery_time.xm")

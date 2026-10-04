@@ -8,7 +8,7 @@
 // belongs to. HOW TO ADD A PAGE: add a row table, a line in optPages[] and raise NOPG.
 // This file is included from main.c at the old SETTINGS screen's place: it needs presetNm/presetOf/setPreset/setDefaults/autoTune/
 // measureDraw/capLevel/costCache from there, slots.h for the confirm menus, and tmStart()/R_TM2CNT.
-enum { OR_VAR, OR_XO, OR_JB, OR_PRESET, OR_ACT };   // a plain u8 variable, an xo[] option, the jukebox mode, the preset, an action
+enum { OR_VAR, OR_XO, OR_PRESET, OR_ACT };   // a plain u8 variable, an xo[] option, the preset, an action
 enum { OA_TUNE, OA_LIFESAVE, OA_LIFEERASE, OA_ROOMERASE, OA_SLOTSERASE, OA_ALLERASE, OA_SRAMTEST, OA_RESET, OA_BTNTEST };
 typedef struct { u8 kind, idx, n, def; u8*v; const char*nm; const char* const* lab; const char*d0; const char*d1; } OptRow;
 #define VR(var,n,def,nm,lab,d0,d1) {OR_VAR,0,n,def,&var,nm,lab,d0,d1}
@@ -68,10 +68,11 @@ static const OptRow pgAges[]={
 static const OptRow pgAudio[]={
  VR(sSnd,2,1,"SOUND",lbOnOff,"SOUND OFF SKIPS SOUND DECODING","SAVES A LITTLE SPEED AND BATTERY"),
  XR(XO_SFX,"SFX VOLUME",lbVol3,"LOUDNESS OF GRUNTS BONKS AND CRIES","QUARTER IS THE QUIETEST"),
- XR(XO_MUS,"MUSIC VOLUME",lbVol4,"THE TITLE MUSIC AND THE JUKEBOX","OFF SILENCES THEM"),
- XR(XO_GAMEMUS,"GAME MUSIC",lbOnOff,"JUKEBOX SONGS IN SHUFFLED ORDER WHILE YOU PLAY","MIXING COSTS SPEED  SOUND EFFECTS DUCK IT"),
+ XR(XO_MUS,"MUSIC VOLUME",lbVol4,"THE TITLE MUSIC  MENU MUSIC AND THE JUKEBOX","OFF SILENCES THEM  ALSO SET IN THE JUKEBOX"),
+ XR(XO_GAMEMUS,"GAME MUSIC",lbOnOff,"RANDOM CHECKED JUKEBOX SONGS WHILE YOU PLAY","MIXING COSTS SPEED  SOUND EFFECTS DUCK IT"),
  XR(XO_TITLEMUS,"TITLE MUSIC",lbOnOff,"PLAY THE DIPPER MAN ON THE TITLE SCREEN","OFF KEEPS THE TITLE QUIET"),
- {OR_JB,0,0,0,0,"JUKEBOX MODE",jbModeNm,"SHUFFLE PLAYS YOUR SAVED RANDOM SONG ORDER","IN ORDER  OR  REPEAT ONE SONG  OPEN FROM MENU"},
+ XR(XO_MENUMUS,"MENU MUSIC",lbOnOff,"A RANDOM CHECKED JUKEBOX SONG PLAYS IN THE","MAIN MENUS  OFF KEEPS THEM QUIET"),
+ XR(XO_CREMUS,"CREATOR MUSIC",lbOnOff,"A CHIPTUNE LOOP PLAYS IN THE CREATURE CREATOR","OFF KEEPS IT QUIET")
 };
 static const OptRow pgInput[]={
  XR(XO_BTN,"BUTTONS",lbBtn,"SWAP A AND B  OR L AND R  ON EVERY SCREEN","USE BUTTON TEST BELOW TO CHECK IT"),
@@ -111,9 +112,9 @@ typedef struct { const char*nm; const OptRow*r; u8 n; } OptPage;
 static const OptPage optPages[NOPG]={ PG("VIDEO",pgVideo), PG("PLAY",pgPlay), PG("AGES",pgAges), PG("AUDIO",pgAudio), PG("INPUT",pgInput), PG("HUD",pgHud), PG("ROOMS",pgRooms), PG("DATA",pgData) };
 static int opPage; static u8 opSel[NOPG];
 
-static u8* rowVar(const OptRow*r){ return r->kind==OR_XO?&xo[r->idx]: r->kind==OR_JB?&sJb: r->v; }
-static int rowN(const OptRow*r){ return r->kind==OR_XO?xoCnt[r->idx]: r->kind==OR_JB?3: r->n; }
-static int rowDef(const OptRow*r){ return r->kind==OR_XO?xoDef[r->idx]: r->kind==OR_JB?0: r->def; }
+static u8* rowVar(const OptRow*r){ return r->kind==OR_XO?&xo[r->idx]: r->v; }
+static int rowN(const OptRow*r){ return r->kind==OR_XO?xoCnt[r->idx]: r->n; }
+static int rowDef(const OptRow*r){ return r->kind==OR_XO?xoDef[r->idx]: r->def; }
 static int rowChanged(const OptRow*r){
     if(r->kind==OR_PRESET) return presetOf()!=1;
     if(r->kind==OR_ACT) return 0;
@@ -122,7 +123,6 @@ static int rowChanged(const OptRow*r){
 static int rowCostKey(const OptRow*r){ u8*v=r->v; return r->kind==OR_PRESET||(r->kind==OR_VAR&&(v==&sWall||v==&sWp||v==&sFl||v==&sShad)); }   // rows that change how much a frame costs
 static void rowSet(const OptRow*r,int val){   // one place for the side effects of a change
     u8*v=rowVar(r); if(!v) return;
-    if(r->kind==OR_JB){ jbSetMode(val); return; }
     *v=(u8)val; if(v==&sSnd&&!sSnd) sfxStop(); if(v==&sRom) applyRom();
 }
 static void rowChange(const OptRow*r,int d){

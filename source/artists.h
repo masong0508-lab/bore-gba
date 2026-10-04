@@ -7,6 +7,7 @@
 // Anything it still lacks falls back to the plain letter.
 ARTIST("AIM AND SHOOT","Singhs")
 ARTIST("AN ODE TO THE SPANISH FLEXICODE","Singhs")
+ARTIST("THE MAGIC ACT","Singhs")
 ARTIST("AMIGA MUSIC","DayBar")
 ARTIST("HOT DAMN","DayBar")
 ARTIST("HOT DAMN (ORIGINAL)","DayBar")
@@ -24,3 +25,4 @@ ARTIST("MI CORA ZONE","El B.D'ees")
 ARTIST("WHISTLER MAN","Danny Steele")
 ARTIST("WHISTLER MAN (ORIGINAL)","Danny Steele")
 ARTIST("WORTHLESS CLOUDS","The Dipper Man")
+ARTIST("NURSERY TIME","Singhs")

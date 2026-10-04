@@ -2,3 +2,4 @@ bore.elf
 bore.gba
 __pycache__/
 mem-report.md
+chiptune_out/
