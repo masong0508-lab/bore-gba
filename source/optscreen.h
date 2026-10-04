@@ -13,6 +13,7 @@ enum { OA_TUNE, OA_LIFESAVE, OA_LIFEERASE, OA_ROOMERASE, OA_SLOTSERASE, OA_ALLER
 typedef struct { u8 kind, idx, n, def; u8*v; const char*nm; const char* const* lab; const char*d0; const char*d1; } OptRow;
 #define VR(var,n,def,nm,lab,d0,d1) {OR_VAR,0,n,def,&var,nm,lab,d0,d1}
 #define XR(i,nm,lab,d0,d1) {OR_XO,i,0,0,0,nm,lab,d0,d1}
+#define SR(i,nm,d0,d1) XR(i,nm,lbPct,d0,d1)   // a slider row: 0..10 steps, drawn as a bar, LEFT / RIGHT stop at the ends
 #define AR(a,nm,d0,d1) {OR_ACT,a,0,0,0,nm,0,d0,d1}
 static u8 gInPlay;   // 1 while the life game runs (some actions only make sense, or are only safe, in one place)
 
@@ -25,8 +26,8 @@ static const char* const lbNeed[5]={"OFF","SLOW","NORMAL","FAST","BRUTAL"}, *con
     *const lbCombo[4]={"1.5 SEC","2.5 SEC","4 SEC","6 SEC"}, *const lbSpeed[4]={"80 %","100 %","125 %","150 %"},
     *const lbDays[10]={"1 DAY","2 DAYS","3 DAYS","5 DAYS","7 DAYS","10 DAYS","14 DAYS","21 DAYS","30 DAYS","60 DAYS"},
     *const lbDaysA[11]={"1 DAY","2 DAYS","3 DAYS","5 DAYS","7 DAYS","10 DAYS","14 DAYS","21 DAYS","30 DAYS","60 DAYS","FOREVER"}, *const lbAging[4]={"OFF","SLOW","NORMAL","FAST"}, *const lbHurt[3]={"NORMAL","GENTLE","NO DEATH"}, *const lbBubble[3]={"OFF","URGENT","ALL"}, *const lbShown[2]={"HIDDEN","SHOWN"};
-static const char* const lbVol4[4]={"FULL","HALF","QUARTER","OFF"}, *const lbVol3[3]={"FULL","HALF","QUARTER"},
-    *const lbBtn[4]={"NORMAL","A B SWAPPED","L R SWAPPED","BOTH SWAPPED"}, *const lbRep[3]={"SLOW","NORMAL","FAST"},
+static const char* const lbPct[11]={"0 %","10 %","20 %","30 %","40 %","50 %","60 %","70 %","80 %","90 %","100 %"};   // the volume sliders (rows made with SR)
+static const char* const lbBtn[4]={"NORMAL","A B SWAPPED","L R SWAPPED","BOTH SWAPPED"}, *const lbRep[3]={"SLOW","NORMAL","FAST"},
     *const lbClock[3]={"24 HOUR","12 HOUR","HIDDEN"}, *const lbToast[3]={"SHORT","NORMAL","LONG"},
     *const lbCont[3]={"ROOM","ROOM+PERSON","ALL THREE"};
 
@@ -67,8 +68,9 @@ static const OptRow pgAges[]={
 };
 static const OptRow pgAudio[]={
  VR(sSnd,2,1,"SOUND",lbOnOff,"SOUND OFF SKIPS SOUND DECODING","SAVES A LITTLE SPEED AND BATTERY"),
- XR(XO_SFX,"SFX VOLUME",lbVol3,"LOUDNESS OF GRUNTS BONKS AND CRIES","QUARTER IS THE QUIETEST"),
- XR(XO_MUS,"MUSIC VOLUME",lbVol4,"THE TITLE MUSIC  MENU MUSIC AND THE JUKEBOX","OFF SILENCES THEM  ALSO SET IN THE JUKEBOX"),
+ SR(XO_MASTER,"MASTER VOLUME","HOW LOUD EVERYTHING IS  MUSIC AND EFFECTS","ARE EACH SET BELOW  THEN SCALED BY THIS"),
+ SR(XO_MUSV,"MUSIC VOLUME","THE TITLE MUSIC  MENU MUSIC AND THE JUKEBOX","0 SILENCES THEM  ALSO SET IN THE JUKEBOX"),
+ SR(XO_SFXV,"SFX VOLUME","LOUDNESS OF GRUNTS BONKS AND CRIES","0 SILENCES THEM"),
  XR(XO_GAMEMUS,"GAME MUSIC",lbOnOff,"RANDOM CHECKED JUKEBOX SONGS WHILE YOU PLAY","MIXING COSTS SPEED  SOUND EFFECTS DUCK IT"),
  XR(XO_GAMEXF,"GAME CROSSFADE",lbOnOff,"GAME MUSIC BLENDS INTO THE NEXT SONG","OFF STARTS EACH SONG AT ONCE"),
  XR(XO_TITLEMUS,"TITLE MUSIC",lbOnOff,"PLAY THE DIPPER MAN ON THE TITLE SCREEN","OFF KEEPS THE TITLE QUIET"),
@@ -129,7 +131,9 @@ static void rowSet(const OptRow*r,int val){   // one place for the side effects 
 static void rowChange(const OptRow*r,int d){
     sTunedMsg=0;
     if(r->kind==OR_PRESET){ int p=presetOf(); p=(p==4)?(d>0?0:3):(p+d+4)%4; setPreset(p); return; }
-    int n=rowN(r); rowSet(r,(*rowVar(r)+d+n)%n);
+    int n=rowN(r);
+    if(r->lab==lbPct){ int v=*rowVar(r)+d; if(v<0) v=0; if(v>n-1) v=n-1; rowSet(r,v); return; }   // sliders stop at the ends
+    rowSet(r,(*rowVar(r)+d+n)%n);
 }
 static void rowReset(const OptRow*r){ sTunedMsg=0; if(r->kind==OR_PRESET) setPreset(1); else if(r->kind!=OR_ACT) rowSet(r,rowDef(r)); }
 static const char* rowVal(const OptRow*r){
@@ -180,7 +184,8 @@ static void drawOptions(void){
         else if(r->kind==OR_ACT){ int a=r->idx; vc=(a==OA_LIFEERASE||a==OA_ROOMERASE||a==OA_SLOTSERASE||a==OA_ALLERASE)?heat[2]:(i==sel?GOLD:DIMC); }
         else if(r->kind==OR_XO&&r->idx==XO_ACCENT) vc=GOLD;
         else if(ch) vc=GOLD;
-        text(124,y,rowVal(r),vc,1);
+        if(r->lab==lbPct){ int lv=*rowVar(r); for(int k=0;k<10;k++) rect(124+k*5,y+1,4,5,k<lv?vc:RGB(6,8,13)); text(178,y,rowVal(r),vc,1); }   // slider: ten bars and the percent
+        else text(124,y,rowVal(r),vc,1);
         if(ch) rect(214,y+1,3,3,GOLD);
     }
     if(top>0){ for(int k=0;k<3;k++) rect(227-k,y0+k,1+2*k,1,GOLD); }                              // more rows above

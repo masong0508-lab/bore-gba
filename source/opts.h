@@ -54,10 +54,13 @@ enum {
     XO_MENUMUS,   // AUDIO: a random jukebox song plays in the main menus (off / on)
     XO_CREMUS,    // AUDIO: a chiptune loop plays in the creature creator (off / on)
     XO_GAMEXF,    // AUDIO: GAME MUSIC crossfades into the next song (on) or starts it at once (off)
+    XO_MASTER,    // AUDIO: master volume slider, 0..10 (music and effects)
+    XO_MUSV,      // AUDIO: music volume slider, 0..10 (replaces XO_MUS, which is now unused: saves are stored by position)
+    XO_SFXV,      // AUDIO: sound effect volume slider, 0..10 (replaces XO_SFX, now unused)
     XO_N
 };
-static const u8 xoCnt[]={ 5,5,2,4,4,4,4,2,3,4,2,3,2,4,   4,3,   4,3,2,   3,6,3,   2,2,2,2,2,3,2, 4,10,10,10,11, 2, 3, 2, 2, 2, 2 };
-static const u8 xoDef[]={ 2,1,1,2,1,1,1,1,0,2,1,1,1,1,   0,1,   0,0,1,   0,0,1,   1,1,1,0,1,2,1, 2,1,2,2,4, 0, 2, 1, 1, 1, 1 };
+static const u8 xoCnt[]={ 5,5,2,4,4,4,4,2,3,4,2,3,2,4,   4,3,   4,3,2,   3,6,3,   2,2,2,2,2,3,2, 4,10,10,10,11, 2, 3, 2, 2, 2, 2, 11, 11, 11 };
+static const u8 xoDef[]={ 2,1,1,2,1,1,1,1,0,2,1,1,1,1,   0,1,   0,0,1,   0,0,1,   1,1,1,0,1,2,1, 2,1,2,2,4, 0, 2, 1, 1, 1, 1, 10, 10, 10 };
 _Static_assert(sizeof(xoCnt)==XO_N&&sizeof(xoDef)==XO_N,"xoCnt / xoDef must have one entry per XO_ name");
 static u8 xo[XO_N];
 static void optsDefaults(void){ for(int i=0;i<XO_N;i++) xo[i]=xoDef[i]; }
@@ -83,6 +86,9 @@ static inline int oWcEvery(void){ static const u16 t[4]={0,200,100,50}; return t
 static inline int oToastLen(void){ static const u8 t[3]={25,45,90}; return t[xo[XO_TOAST]]; }
 static inline int oRepDelay(void){ static const u8 t[3]={22,14,8}; return t[xo[XO_REPEAT]]; }       // frames held before the cursor repeats
 static inline int oRepMask(void){ static const u8 t[3]={7,3,1}; return t[xo[XO_REPEAT]]; }          // repeats when (held & mask) == 0
-static inline int oMusShift(void){ static const u8 t[4]={0,1,2,8}; return t[xo[XO_MUS]]; }          // 8 = silent
-static inline int oSfxShift(void){ return xo[XO_SFX]; }                                               // 0 full, 1 half, 2 quarter
+// Volume sliders: 0..10 steps on a curve that sounds even (a straight line would be too loud too early). Music and effects are each
+// multiplied with the master slider. The result is a gain 0..256 (256 = full): a sample is scaled by (sample*gain)>>8.
+static const u16 volTab[11]={0,8,17,28,42,60,84,114,150,198,256};
+static inline int oMusGain(void){ return (volTab[xo[XO_MUSV]]*volTab[xo[XO_MASTER]])>>8; }
+static inline int oSfxGain(void){ return (volTab[xo[XO_SFXV]]*volTab[xo[XO_MASTER]])>>8; }
 #define GOLD (accentTab[xo[XO_ACCENT]])

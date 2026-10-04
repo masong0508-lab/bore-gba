@@ -1352,7 +1352,7 @@ IWRAM_CODE static void adpMix(s8*out,s8*outR){
     if(p>=e&&i<MUS_N&&++aTail>=3) mDone=1;   // 2 buffers are in flight, so wait for the last real samples to be heard
 }
 IWRAM_CODE static void sfxMix(s8*outL,s8*outR){   // add the effect voice to a finished buffer (both sides), clipped
-    const u8*d=ssrc; u32 n=sn, ip=sPos, fr=sFr, rd=sRd; int pred=spred, idx=sidx, s0=sS0, s1=sS1, sh=8+oSfxShift();   // SFX VOLUME option
+    const u8*d=ssrc; u32 n=sn, ip=sPos, fr=sFr, rd=sRd; int pred=spred, idx=sidx, s0=sS0, s1=sS1, sgain=oSfxGain();   // SFX VOLUME and MASTER VOLUME options
     for(int i=0;i<MUS_N;i++){
         if(ip>=n){ sfxV=0; break; }
         while(rd<ip+2){   // decode up to the sample after ip (silence past the end)
@@ -1364,7 +1364,7 @@ IWRAM_CODE static void sfxMix(s8*outL,s8*outR){   // add the effect voice to a f
                 idx+=idxT[v&7]; if(idx<0) idx=0; if(idx>88) idx=88; s1=pred; }
             else s1=0;
             rd++; }
-        int x=(s0+(((s1-s0)*(int)fr)>>16))>>sh;
+        int x=((s0+(((s1-s0)*(int)fr)>>16))*sgain)>>16;
         int l=outL[i]+x, r=outR[i]+x;
         outL[i]=(s8)(l>127?127:l<-128?-128:l); outR[i]=(s8)(r>127?127:r<-128?-128:r);
         fr+=SFX_STEP; ip+=fr>>16; fr&=0xFFFF;
@@ -1405,9 +1405,9 @@ IWRAM_CODE static void musMixAny(int b){
         } else if(gi<256) for(int i=0;i<MUS_N;i++){ mbufL[b][i]=(s8)((mbufL[b][i]*gi)>>8); mbufR[b][i]=(s8)((mbufR[b][i]*gi)>>8); }
         if(++xfT>=xfN){ xfOn=0; xdk.play=0; xdkG=256; }
     }
-    int sh=oMusShift();   // MUSIC VOLUME option: full, half, quarter, off
-    if(sh>=8){ for(int i=0;i<MUS_N;i++){ mbufL[b][i]=0; mbufR[b][i]=0; } }
-    else if(sh){ for(int i=0;i<MUS_N;i++){ mbufL[b][i]=(s8)(mbufL[b][i]>>sh); mbufR[b][i]=(s8)(mbufR[b][i]>>sh); } }
+    int mg0=oMusGain();   // MUSIC VOLUME and MASTER VOLUME options (sliders, 0..256)
+    if(mg0==0){ for(int i=0;i<MUS_N;i++){ mbufL[b][i]=0; mbufR[b][i]=0; } }
+    else if(mg0<256){ for(int i=0;i<MUS_N;i++){ mbufL[b][i]=(s8)((mbufL[b][i]*mg0)>>8); mbufR[b][i]=(s8)((mbufR[b][i]*mg0)>>8); } }
     if(mGain!=mGainT){ int g=mGain+((mGainT>mGain)?16:-16); if((mGainT>mGain)?g>mGainT:g<mGainT) g=mGainT; mGain=g; }   // fade: 16 steps of 1/16 per frame
     if(mGain<256){ int g=mGain; for(int i=0;i<MUS_N;i++){ mbufL[b][i]=(s8)((mbufL[b][i]*g)>>8); mbufR[b][i]=(s8)((mbufR[b][i]*g)>>8); } }
     if(sfxV) sfxMix(mbufL[b],mbufR[b]);   // an effect plays on top of the song (it used to pause it)
@@ -1828,6 +1828,8 @@ static void optsLoad(void){
     int n=m[2]; unsigned sum=0x3C+n; for(int i=0;i<n;i++) sum+=m[3+i];
     if(m[3+n]!=(u8)sum) return;                                       // damaged: keep the defaults
     for(int i=0;i<n;i++) if(m[3+i]<xoCnt[i]) xo[i]=m[3+i];            // every value range checked
+    if(n>XO_MUS&&n<=XO_MUSV){ static const u8 mm[4]={10,5,2,0}; xo[XO_MUSV]=mm[xo[XO_MUS]]; }   // a save from before the sliders: keep its old volume (full, half, quarter, off)
+    if(n>XO_SFX&&n<=XO_SFXV){ static const u8 sm[3]={10,5,2}; xo[XO_SFXV]=sm[xo[XO_SFX]]; }
 }
 // settings (SRAM offset 8192)
 static void settingsSave(void){ optsSave();
@@ -3334,9 +3336,9 @@ static void jbPaintHead(int fr){
     rect(JB_PX0+1,JB_PY0+1,JB_PX1-JB_PX0-2,JB_HY1-JB_PY0-1,JB_BODY); rect(JB_PX0+1,JB_PY0+1,JB_PX1-JB_PX0-2,17,JB_HEAD);
     text(9,9,"MUSIC PLAYER",RGB(1,2,4),1); text(8,8,"MUSIC PLAYER",WHITE,1); text(9,8,"MUSIC PLAYER",WHITE,1);   // a little bold
     jbTabs();
-    int pct[4]={100,50,25,0}, fill[4]={10,5,3,0}, v=xo[XO_MUS];                         // VOLUME = the MUSIC VOLUME option
-    int x=text(8,25,"VOLUME",JB_DIM,1)+4; x=numAt(x,25,pct[v],WHITE); text(x,25,"%",WHITE,1);
-    for(int i=0;i<10;i++) rect(8+i*9,36,7,2,i<fill[v]?JB_BAR:RGB(6,8,13));
+    int v=xo[XO_MUSV];                                                                      // VOLUME = the MUSIC VOLUME slider
+    int x=text(8,25,"VOLUME",JB_DIM,1)+4; x=numAt(x,25,v*10,WHITE); text(x,25,"%",WHITE,1);
+    for(int i=0;i<10;i++) rect(8+i*9,36,7,2,i<v?JB_BAR:RGB(6,8,13));
     int nx=112, nw=122;                                                                    // NOW PLAYING
     if(!sSnd) text(nx,25,"SOUND IS OFF IN OPTIONS",RGB(30,12,8),1);
     else if(jbPlaying&&jbCur>=0){
@@ -3400,7 +3402,7 @@ static void jukeboxScreen(void){
         if(pr&K_L){ if(jbTab!=0){ jbTab=0; dH=dL=dF=1; } }
         if(pr&K_R){ if(jbTab!=1){ jbTab=1; dH=dL=dF=1; } }
         if((pr&K_SEL)&&jbTab){ jbToggle(cur); dL=1; if(jbCount()==0){ jbMsg="NONE CHECKED: ALL PLAY"; jbMsgT=90; dH=1; } }
-        if(pr&(K_LEFT|K_RIGHT)){ int v=xo[XO_MUS]; if(pr&K_RIGHT){ if(v>0) v--; } else if(v<3) v++; xo[XO_MUS]=(u8)v; dH=1; }
+        if(pr&(K_LEFT|K_RIGHT)){ int v=xo[XO_MUSV]; if(pr&K_RIGHT){ if(v<10) v++; } else if(v>0) v--; xo[XO_MUSV]=(u8)v; dH=1; }
         if(pr&K_START){ if(jbPlaying){ musFadeOut(XF_OUT); jbPlaying=0; } else jbStart(cur,0); dH=dF=dL=1; }
         if(jbPlaying&&(mKind?mDone:mLaps>=1)){   // song over (no crossfade: the next one starts right at the end): INTERACTIVE goes on down the list, PLAYLIST picks another random checked song
             int nx=jbTab?pickSong():(jbCur+1)%jbN; jbStart(nx,0); if(jbCur>=0) cur=jbCur; dH=dL=1; }
