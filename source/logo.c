@@ -1,4 +1,5 @@
-// DippInn logo sequence for Game Boy Advance (mode 0), ~8 s. (From the danny-steel project; in BORE it plays once at power on, before the title.)
+// DippInn logo sequence for Game Boy Advance (mode 0), ~8 s. (From the danny-steel projects - the sprite-intro version with the setting sun and the
+// climbing moon; in BORE it plays once at power on, before the title.)
 // DippInn logo sequence for Game Boy Advance (mode 0), ~6 s. Everything is drawn in code - no image files.
 //   Phase 1 (frames 0-160):   parallax dusk scene; per-scanline HBlank DMA drives foliage edge, sun circle, ridge sway
 //   Phase 2 (161-211):        grey screen + twisting scan line, cut to black
@@ -53,7 +54,7 @@ typedef struct { volatile u32 src, dst, cnt; } DmaRec;
 #define DCNT_BLANK 0x0080
 // BORE: between the phases the screen is switched to 'no layers' on a black backdrop instead of forced blank,
 // because forced blank shows WHITE on a GBA (a white flash while the next phase draws its tiles).
-#define BLACKOUT() do { BG_PAL[0] = 0; REG_DISPCNT = 0; } while (0)
+#define BLACKOUT() do { BG_PAL[0] = 0; REG_BLDCNT = 0xFF; REG_BLDY = 16; REG_DISPCNT = 0; } while (0)   // (the backdrop, faded to black too)
 #define BGCNT(prio, cb, sb) ((prio) | ((cb) << 2) | ((sb) << 8))   // 4bpp, 256x256
 
 /* ---------- artwork, drawn at startup ---------- */
@@ -77,6 +78,7 @@ typedef struct { volatile u32 src, dst, cnt; } DmaRec;
 #define OBJT_FAR0 0      // 3 shapes x 2 tiles (16x8)
 #define OBJT_NEAR0 6     // 3 shapes x 8 tiles (32x16)
 #define OBJT_MOON 30     // 4 tiles (16x16)
+#define OBJT_SUN 34      // 16 tiles (32x32): setting sun, OBJ palette bank 3
 
 #define LOGO_EWRAM __attribute__((section(".sbss"), aligned(4)))   /* BORE: its tables live in EWRAM, IWRAM is full */
 #define RGB15(r, g, b) ((u16)(((r) >> 3) | (((g) >> 3) << 5) | (((b) >> 3) << 10)))
@@ -129,7 +131,7 @@ static void build_ridge(volatile u32 *t) {
 }
 static void build_sprites(void) {                                  // clouds (3 shapes, far 1x / near 2x) + moon
     static const u8 CL[3][3][4] = {{{2,2,10,4},{0,4,14,4},{4,0,6,3}}, {{0,2,8,3},{3,0,7,3},{6,3,9,3}}, {{1,1,12,3},{0,3,16,4},{5,0,6,2}}};
-    volatile u32 *t = OBJ_TILES; zero32(t, 34 * 8);
+    volatile u32 *t = OBJ_TILES; zero32(t, 50 * 8);
     for (int i = 0; i < 3; i++) for (int k = 0; k < 3; k++) {
         const u8 *r = CL[i][k];
         rect(t, OBJT_FAR0 + i * 2, 2, r[0], r[1], r[2], r[3]);
@@ -137,6 +139,11 @@ static void build_sprites(void) {                                  // clouds (3 
     }
     for (int y = 0; y < 16; y++) for (int x = 0; x < 16; x++)
         if ((2 * x - 15) * (2 * x - 15) + (2 * y - 15) * (2 * y - 15) <= 108) px(t, OBJT_MOON + (y >> 3) * 2 + (x >> 3), x, y, 1);
+    for (int y = 0; y < 32; y++) for (int x = 0; x < 32; x++) {         // sun: bright core (1), orange rim (2), dithered glow (3)
+        int d = (2 * x - 31) * (2 * x - 31) + (2 * y - 31) * (2 * y - 31);     // 4 x squared distance from the centre
+        int c = d <= 196 ? 1 : d <= 324 ? 2 : (d <= 676 && ((x + y) & 1)) ? 3 : (d <= 900 && !(x & 1) && !(y & 1)) ? 3 : 0;
+        if (c) px(t, OBJT_SUN + (y >> 3) * 4 + (x >> 3), x, y, c);
+    }
 }
 
 static void gfx_scene(int sb_sky, int sb_fol, int sb_sun, int sb_ridge) {
@@ -153,6 +160,7 @@ static void gfx_scene(int sb_sky, int sb_fol, int sb_sun, int sb_ridge) {
     setpal(BG_PAL, 1, fol, 5); setpal(BG_PAL, 2, ridge, 3);
     static const u16 far_c[2] = {0, RGB15(0xc7, 0x7f, 0xb8)}, near_c[2] = {0, RGB15(0xe6, 0xdc, 0xf5)}, moon_c[2] = {0, RGB15(0x2a, 0x3f, 0x9a)};
     setpal(OBJ_PAL, 0, far_c, 2); setpal(OBJ_PAL, 1, near_c, 2); setpal(OBJ_PAL, 2, moon_c, 2);
+    static const u16 sun_c[4] = {0, RGB15(0xff, 0xf4, 0xaa), RGB15(0xff, 0xa8, 0x3c), RGB15(0xf0, 0x96, 0x6e)}; setpal(OBJ_PAL, 3, sun_c, 4);
 
     volatile u32 *t = BG_TILES(0); zero32(t, (T_RIDGE_BASE + 2) * 8);
     zero16(BG_MAP(sb_sky), 1024);
@@ -297,7 +305,9 @@ static void scene_oam(int tq) {
         int y = y0 + ((sin8((tq * 8342 >> 16) + ((x0 * 10430) >> 8)) * 3) >> 9);
         oam_set(9 + j, x, y, 1, 2, OBJT_NEAR0 + ((j + 1) % 3) * 8, 0, 1);
     }
-    oam_set(13, 150 - ((tq * 154) >> 16) - 8, 44, 0, 1, OBJT_MOON, 0, 2);
+    int ts = tq - 512;                                              // 0 .. ~1440 over the scene
+    oam_set(13, 150 - ((tq * 154) >> 16) - 8, 64 - ((ts * 57) >> 12), 0, 1, OBJT_MOON, 0, 2);          // moon climbs 20 px
+    oam_set(14, 64 - ((ts * 29) >> 12) - 16, 24 + ((ts * 358) >> 12) - 16, 0, 2, OBJT_SUN, 1, 3);      // sun sinks ~126 px (centre 56,24 -> 54,150), drifting down past the horizon
 }
 static void scene_init(void) {
     BLACKOUT();
