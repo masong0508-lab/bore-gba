@@ -2883,8 +2883,10 @@ static int eApply(void){   // second A of ROOM / WALL / FLOOR / ERASE. 0 = refus
     }
     return 1;
 }
+static void edShadeBand(int y0,int y1){ for(int i=y0*SW;i<y1*SW;i++){ u16 c=fb[i]; fb[i]=(u16)((c>>2)&0x1CE7); } }   // the room behind HUD text, at a quarter brightness
 static void drawEditorHud(const char*msg){
     int x=2;
+    edShadeBand(0,18); { int y0=eTool==T_ITEM?124:135; edShadeBand(y0,SH); rect(0,y0,SW,1,RGB(9,11,15)); }   // dark bands top and bottom: the text stays readable over any floor
     for(int i=0;i<NTOOL;i++){ int w=tw(toolNm[i],1)+4;
         rect(x,1,w,8,i==eTool?GOLD:RGB(3,4,7)); text(x+2,1,toolNm[i],i==eTool?RGB(4,3,6):DIMC,1); x+=w+1; }
     if(msg[0]) text(2,11,msg,WHITE,1);
@@ -2910,10 +2912,11 @@ static void drawEditorHud(const char*msg){
                 case 14:blitItem(V_BED,221,141);break; case 15:blitItem(V_SHOWER,221,141);break; case 16:blitItem(V_SOFA,221,141);break; case 25:blitItem(V_PIPE,221,141);break; case 26:blitItem(V_LAVA,221,141);break; case 27:blitItem(V_BEANBAG,221,141);break; case 28:case 29:drawStairs(221,141,eOb==28);break; case 30:blitItem(V_DEADSET,221,141);break; default:drawSpawn(221,142); } }
         if(eOb==1||eOb==2){ wallSwatch(eWp,212,137); }
     } else if(eTool!=T_ERASE){
-        if(eTool!=T_WALL){ text(2,139,"FLOOR",DIMC,1); texSwatch(&flTex[eFl],24,137); text(36,139,flTex[eFl].nm,WHITE,1); }
-        if(eTool!=T_FLOOR){ text(100,139,"WALL",DIMC,1); wallSwatch(eWp,118,137); text(130,139,wpName(eWp),WHITE,1); }
+        int xx=2;   // label, swatch, name: each placed after the one before, so nothing covers a label
+        if(eTool!=T_WALL){ xx=text(2,139,"FLOOR",DIMC,1)+3; texSwatch(&flTex[eFl],xx,137); xx=text(xx+12,139,flTex[eFl].nm,WHITE,1)+10; }
+        if(eTool!=T_FLOOR){ xx=text(xx,139,"WALL",DIMC,1)+3; wallSwatch(eWp,xx,137); text(xx+12,139,wpName(eWp),WHITE,1); }
     } else text(2,139,"CLEARS WALLS ITEMS AND FLOORS",DIMC,1);
-    text(2,147,toolHint[eTool][0],RGB(12,14,16),1); text(2,153,toolHint[eTool][1],RGB(12,14,16),1);
+    text(2,147,toolHint[eTool][0],RGB(16,18,21),1); text(2,153,toolHint[eTool][1],RGB(16,18,21),1);
 }
 static void edCamSnap(void){ camX=(ecx-ecy)*CA; camY=24+(ecx+ecy+1)*CB-80; camClamp(1); }
 static int edCamStep(void){   // dead-zone camera: the view only scrolls when the cursor nears the edge of the screen
