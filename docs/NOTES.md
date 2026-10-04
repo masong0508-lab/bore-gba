@@ -603,3 +603,10 @@ than 16 whole bits; shorter samples come out exactly as before. Checked in mGBA:
 
 ## Household kept on reload
 `hhLoad` refused a household holding a child or teen (their GROW UP aspiration is past the pickable ones), so the whole family vanished after the editor, a slot load or a power cycle. It now accepts every aspiration; the lifetime-want lookup falls back to learning for GROW UP.
+
+## Title logo = the cover logo
+The title screen and the main menu draw the logo of the cover art (`source/titlelogo.h`, made by `tools/make_logo.py`: gold bubble letters, outline and
+drop shadow, half-lidded eyes in the B and R, a leaf in the O, a lit joint on the E), full size on the title and half size in the menu (`logoSmallArt`,
+the same 2x2 reduction in the generator). The generator used to write `source/logo.h`, the name the boot logo took later, so the game never showed it.
+With the big "BORE" text gone the large font is no longer linked: the ROM is 186 KB smaller.
+

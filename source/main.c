@@ -1198,6 +1198,7 @@ static void dmaRows(const u16*src,u32 dst,int w0,int w1,int y0,int y1){
 
 // ---------- title screen ----------
 #include "titleimg.h"
+#include "titlelogo.h"   // the BORE logo of the cover art (gold bubble letters, eyes in the B and R, a leaf in the O, a joint on the E; tools/make_logo.py)
 #include "logo.h"
 #define SM_W0 76   // smoke stays inside columns 152..203, rows 0..89 (checked over its whole 128-frame loop)
 #define SM_W1 102
@@ -1218,10 +1219,10 @@ static void buildTitle(void){
         u16*o=&fb[(y*2)*SW+x*2]; o[0]=o[1]=o[SW]=o[SW+1]=col;
     }
     for(int y=118;y<SH;y++)for(int x=0;x<SW;x++){ u16 c=fb[y*SW+x]; fb[y*SW+x]=shade(c,7); }   // dim strip for the prompt
-    u16 ink=RGB(4,3,6), gold=RGB(31,27,6), grn=RGB(12,28,8);
-    for(int dy=-2;dy<=2;dy++)for(int dx=-2;dx<=2;dx++) text(10+dx,10+dy,"BORE",ink,5);   // outline
-    text(10,10,"BORE",gold,5);
-    text(12,40,"A VOXEL LIFE SIM",ink,1); text(11,39,"A VOXEL LIFE SIM",grn,1);
+    u16 ink=RGB(4,3,6), grn=RGB(12,28,8);
+    for(int y=0;y<LOGO_H;y++){ const char*r=logoArt[y]; u16*o=&fb[(y+2)*SW+4];   // the logo, top left (0 = see-through)
+        for(int x=0;x<LOGO_W;x++){ char c=r[x]; if(c!='0') o[x]=logoPal[(c<='9'?c-'0':c-'a'+10)-1]; } }
+    text(13,58,"A VOXEL LIFE SIM",ink,1); text(12,57,"A VOXEL LIFE SIM",grn,1);
     text(14,126,"PUFF PUFF PASS THE CONTROLLER",RGB(16,22,12),1);
     titleKeep(1,SM_W0,SM_W1,0,SM_Y1,0); titleKeep(1,TX_W0,TX_W1,TX_Y0,TX_Y1,TB_TX);
 }
@@ -3838,9 +3839,9 @@ static const char* const jbHelp[15]={">PLAYING","UP DOWN PICK A SONG  A PLAYS IT
 static void drawMainMenu(int sel){
     for(int y=0;y<SH;y++){ u16 c=RGB(2+y/50,3+y/36,9+y/13); u32 v=c|((u32)c<<16), *row=(u32*)fb+y*ROW_W; for(int w=0;w<ROW_W;w++) row[w]=v; }
     u16 ink=RGB(4,3,6);
-    for(int dy=-2;dy<=2;dy+=2)for(int dx=-2;dx<=2;dx+=2) text(14+dx,8+dy,"BORE",ink,5);
-    text(14,8,"BORE",GOLD,5);
-    text(16,38,"A VOXEL LIFE SIM",RGB(12,28,8),1);
+    for(int y=0;y<LOGO_SH;y++){ const char*r=logoSmallArt[y]; u16*o=&fb[(y+6)*SW+12];   // the cover logo at half size
+        for(int x=0;x<LOGO_SW;x++){ char c=r[x]; if(c!='0') o[x]=logoPal[(c<='9'?c-'0':c-'a'+10)-1]; } }
+    text(17,38,"A VOXEL LIFE SIM",ink,1); text(16,37,"A VOXEL LIFE SIM",RGB(12,28,8),1);
     // a little pile of voxels (back to front)
     { int ox=206, oy=92;
       cube(ox,oy,1,0,1); cube(ox,oy-CC,4,0,3); cube(ox,oy-2*CC,8,0,2);
