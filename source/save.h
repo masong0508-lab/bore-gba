@@ -95,6 +95,9 @@ static void svEraseAll(void){   // ERASE EVERYTHING: the whole chip (flash) or 3
 static u32 svSlotEnd(void){ return svType==SV_FLASH?svScr:32768; }   // the slots run up to here
 
 static void svInit(void){
+#ifdef SV_FORCE_SRAM
+    if(SVB[0x7FFF]|1){ svType=SV_SRAM; svSize=32768; svBase=SVB; return; }   // (test build: read first, so an emulator picks plain SRAM)
+#endif
     static const u8 ids[][3]={ {0xC2,0x09,2},{0x62,0x13,2},{0xC2,0x1C,1},{0x32,0x1B,1},{0xBF,0xD4,1} };   // maker, device, 1 = 64 KB 2 = 128 KB
     int kind=0;
     for(int pass=0;pass<2&&kind!=2;pass++){

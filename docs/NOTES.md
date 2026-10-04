@@ -307,6 +307,18 @@ tables, and `chipMix` (main.c) renders them live.
 - **Hook:** `nbDrawLotModel()` draws each lot's building as an icon. The real house can be drawn there later.
 - **Tested in mGBA:** the town draws in both zooms; visiting another lot saved YOUR PLACE as a 2-slot house and wrote the town slot.
 
+## Choose a neighborhood (the screen before the town)
+- **The screen:** main menu NEIGHBORHOOD opens a chooser with a panel of town thumbnails. Each thumbnail is an aerial view drawn from the town's save.
+  The picked town is drawn darkened behind the panel.
+  - A plays the town, LEFT / RIGHT choose, SELECT makes a new town, START renames or deletes one.
+- **Every town is its own TOWN slot.** One of them is yours (`pad[0]`): the live room is a lot there. Picking another town first stores your lot
+  there as a house slot, then opens the new town on its last lot (or its home lot).
+- **The first visit** makes three towns: BOREVILLE (where the room you already had becomes YOUR PLACE), MESA FLATS (desert) and PINE COVE (lakeside).
+  On a 32 KB SRAM chip it makes BOREVILLE only.
+  - SELECT makes a new town from a style: suburb, desert, lakeside, or empty land to build up yourself.
+- **Delete** removes a town and its house slots. It is refused for the town you live in.
+- **Test build:** `-DSV_FORCE_SRAM` makes the game use plain 32 KB SRAM, to test the fallback in an emulator.
+
 ## DeadSet 3Thousand VYBE (item `Q`)
 - **What it is:** a parody VR headset shown on a display bust. The sprite is hand-traced pixel art, not boxes (`dsArt` in `itembake.h`): a bearded
   mannequin with the headset strapped over its eyes, a blue light and a green shirt. A mirrored copy covers the other facing.
@@ -315,6 +327,7 @@ tables, and `chipMix` (main.c) renders them live.
 - **In play:** stand next to it and press **R** to JACK IN. You are frozen in VR for a few seconds, with a big FUN boost.
 - **Room score:** it counts as its own kind of item for the ROOM need.
 - **Where to find one:** the default house has one in the chill corner.
+- **Fix that came with it:** item sprites are set up at power on (`itemSpanInit`). The room builder showed no furniture until you had played once.
 
 ## Music data format (compact, lossless)
 `python3 tools/xm2gba.py` writes two files: `source/musicdata.h` (about 80 KB of text: per song the order list, pattern lengths, voice table, pitch anchors and the XmSong struct, plus the `.incbin` lines) and `source/music/xmdata.bin` (every song's note events and every sample byte). Note events are a byte stream: runs of empty rows cost one byte, a row with notes is a count byte plus 3 bytes per note (voice index into a per-song table of channel / instrument / pan bus, note, volume). Each instrument stores one 32-bit pitch anchor instead of 96 playback steps; `xmStep()` in `main.c` rebuilds every step with integer maths and the converter checks that it equals the old table exactly (and keeps a fix-up list for the rare note that would differ; none do today). The samples are stored as they always were. This cut the ROM by about 500 KB and `musicdata.h` from 7.4 MB to 80 KB **with identical audio**: the old and new ROMs were run in an emulator and every mixed audio buffer of all 23 songs, one pass plus the loop point, hashed to the same values.

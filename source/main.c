@@ -2129,7 +2129,6 @@ static const signed char hdT[3][3]={{10,12,14},{8,-1,0},{6,4,2}};   // [sign dy+
 #include "feel.h"
 static void hhStart(void); static void hhTick(void); static int hhSocR(int useLabel);   // house.h (included further down, next to the drawing it hooks into)
 static void lifeInit(void){
-    { static int spanDone; if(!spanDone){ spanDone=1; itemSpanInit(); } }
     if(!(shapeMask()>>look[LK_SHAPE]&1)){ look[LK_SHAPE]=(u8)maskPick(shapeMask(),look[LK_SHAPE],NSHAPE); if(!custom) buildLook(); }
     flHome(); mapScan(); hhStart();
     bakeSprites(); camSnap=1;
@@ -3810,7 +3809,7 @@ static void mainMenu(void){
         if(pr&(K_A|K_START)){
             int fresh=0;   // 1 = that screen stopped the menu song (or plays its own): a NEW random song starts when we are back
             if(sel==0){ lifeMode(0); fresh=1; }
-            else if(sel==1){ neighborhoodScreen(); fresh=1; }
+            else if(sel==1){ nbChooser(); fresh=1; }
             else if(sel==2){ creatureEditor(); fresh=1; }
             else if(sel==3) mapEditor();   // (the menu song plays on in the room builder)
             else if(sel==4){ slotScreen(); if(nbOk) nbBoot(); }   // (a slot screen can delete or replace the town)
@@ -3848,6 +3847,7 @@ int main(void){
     jbSetup();                              // load the saved shuffled order (or make a new one), placeholders hidden
     starter();
     mapReset(); mapLoad();   // default room, or the one saved to SRAM
+    itemSpanInit();          // item sprite spans (the room builder draws items too, so this cannot wait for the first PLAY)
     nbBoot();                // the town, if one was made (the room builder keeps to the lot you are on)
     slotBoot();              // BOOT LOADS PERSON option: the creature of the active room slot
     ageLoad();               // ...grown to the stage it had reached
