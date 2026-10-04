@@ -47,7 +47,7 @@ static u16 spr4s[4][SPW*SPH] EWRAM_BSS;  // the same with the legs mid-stride (w
 #define tfb (&spr4[0][0])
 
 // ---------- settings (kept in SRAM; the SETTINGS screen edits them) ----------
-static u8 sFps=1;    // frame rate: 0 = 60, 1 = 30, 2 = 20, 3 = 15 frames per second (game speed stays the same)
+static u8 sFps=0;    // frame rate: 0 = 60, 1 = 30, 2 = 20, 3 = 15 frames per second (game speed stays the same). 60 is a ceiling: a slow picture just takes two vblanks and the logic catches up
 static u8 sWall=1;   // walls: 0 full height, 1 cutaway (walls in front drop low), 2 all low
 static u8 sWp=1;     // wallpaper patterns on
 static u8 sFl=1;     // floor patterns on
@@ -230,7 +230,12 @@ IWRAM_CODE static void vline(int x,int y0,int y1,u16 c){
 }
 IWRAM_CODE static void rect(int x,int y,int w,int h,u16 c){
     int x1=x+w, y1=y+h; if(x<cX0)x=cX0; if(y<cY0)y=cY0; if(x1>cX0+(int)cW)x1=cX0+(int)cW; if(y1>cY0+(int)cH)y1=cY0+(int)cH;
-    for(;y<y1;y++){ u16*p=&fb[y*SW+x]; for(int i=x;i<x1;i++) *p++=c; }
+    if(x>=x1||y>=y1) return;
+    u32 cc=(u32)c|((u32)c<<16);   // two pixels a store
+    for(;y<y1;y++){ u16*p=&fb[y*SW+x]; int n=x1-x;
+        if((uintptr_t)p&2){ *p++=c; n--; }
+        u32*q=(u32*)p; for(int m=n>>1;m>0;m--) *q++=cc;
+        if(n&1) *(u16*)q=c; }
 }
 IWRAM_THUMB static void line(int x0,int y0,int x1,int y1,u16 c){
     int dx=x1>x0?x1-x0:x0-x1, dy=y1>y0?y0-y1:y1-y0, sx=x0<x1?1:-1, sy=y0<y1?1:-1, e=dx+dy;
@@ -2027,7 +2032,7 @@ static void optsLoad(void){
 }
 // settings (SRAM offset 8192)
 static void settingsSave(void){ optsSave();
-   volatile u8*m=SRAM_BASE+SET_OFF; m[0]='S'; m[1]='2'; m[2]=sFps; m[3]=sWall; m[4]=sWp; m[5]=sFl; m[6]=sSnd; m[7]=sShow; m[8]=sShad; m[9]=sHud; m[10]=sRom; m[11]=sCam; m[12]=0; m[13]=sNoWarn; m[14]=sClassic; m[15]=sUnlock; }
+   volatile u8*m=SRAM_BASE+SET_OFF; m[0]='S'; m[1]='2'; m[2]=sFps; m[3]=sWall; m[4]=sWp; m[5]=sFl; m[6]=sSnd; m[7]=sShow; m[8]=sShad; m[9]=sHud; m[10]=sRom; m[11]=sCam; m[12]=2; m[13]=sNoWarn; m[14]=sClassic; m[15]=sUnlock; }
 static void settingsLoad(void){ volatile u8*m=SRAM_BASE+SET_OFF;
     if(m[0]!='S'){ if(svType==SV_SRAM&&svRd(0)=='B'&&svRd(1)=='M'&&svRd(2)!='3') m=SRAM_BASE+640; else return; }   // old saves kept settings at 640
     if(m[0]!='S') return;
@@ -2035,7 +2040,8 @@ static void settingsLoad(void){ volatile u8*m=SRAM_BASE+SET_OFF;
         sFps=m[2]; sWall=m[3]; sWp=m[4]; sFl=m[5]; sSnd=m[6]; sShow=m[7]; return; }
     if(m[1]!='2'||m[2]>3||m[3]>2||m[4]>1||m[5]>1||m[6]>1||m[7]>2||m[8]>1||m[9]>2||m[10]>1) return;
     sCam=(m[11]<=3)?m[11]:1; sNoWarn=(m[13]==1)?1:0; sClassic=(m[14]==1)?1:0; sUnlock=(m[15]==1)?1:0; if(!sUnlock) sClassic=0;
-    sFps=m[2]; sWall=m[3]; sWp=m[4]; sFl=m[5]; sSnd=m[6]; sShow=m[7]; sShad=m[8]; sHud=m[9]; sRom=m[10]; }
+    sFps=m[2]; sWall=m[3]; sWp=m[4]; sFl=m[5]; sSnd=m[6]; sShow=m[7]; sShad=m[8]; sHud=m[9]; sRom=m[10];
+    if(m[12]<2&&sFps==1) sFps=0; }   // revision 2: default frame rate 30 -> 60 (a save that chose 20 or 15 keeps it)
 
 // ---------- small UI kit: one menu style, one help style, one toast ----------
 #define DIMC RGB(18,20,22)
@@ -2096,7 +2102,7 @@ static int pickSong(void){   // ONE random checked song (never the one picked la
 #define TICKS_FRAME 1097   // 65536 / 59.7275 Hz
 static void tmStart(void){ R_TM2CNT=0; R_TM2D=0; R_TM2CNT=0x82; }
 // graphics fields per preset: fps wall wallpaper floors shadows hud
-static const u8 presetTab[4][6]={ {0,0,1,1,1,0}, {1,1,1,1,1,0}, {1,2,0,0,0,1}, {2,2,0,0,0,1} };
+static const u8 presetTab[4][6]={ {0,0,1,1,1,0}, {0,1,1,1,1,0}, {1,2,0,0,0,1}, {2,2,0,0,0,1} };
 static const char* const presetNm[5]={"LOOKS","BALANCED","SPEED","BATTERY","CUSTOM"};
 static int sCost, sTunedMsg;   // measured cost of drawing one frame (timer ticks); 1 = just auto-tuned
 static int presetOf(void){
@@ -2113,12 +2119,13 @@ static int measureDraw(void){
     for(int i=0;i<3;i++) drawRoom(1);
     return (int)(u16)(R_TM2D-t0)/3;
 }
-static int capLevel(void){   // how many 60 Hz frames one picture really needs: 1 = holds 60 FPS ... 4 = 15 FPS (logic and copy get ~30%)
-    int c=sCost+TICKS_FRAME*3/10;
+static int capLevelC(int cost){   // how many 60 Hz frames one picture really needs: 1 = holds 60 FPS ... 4 = 15 FPS (logic and copy get ~30%)
+    int c=cost+TICKS_FRAME*3/10;
     return c<=TICKS_FRAME?1: c<=2*TICKS_FRAME?2: c<=3*TICKS_FRAME?3: 4;
 }
+static int capLevel(void){ return capLevelC(sCost); }
 static void autoTune(void){
-    int p; for(p=0;p<4;p++){ setPreset(p); sCost=measureDraw(); if(capLevel()<=sFps+1) break; }
+    int p; for(p=0;p<4;p++){ setPreset(p); sCost=measureDraw(); if(capLevelC(sCost*2/5)<=sFps+1) break; }   // (playing redraws patches, about 2/5 of this full-room cost)
     if(p==4){ setPreset(3); sCost=measureDraw(); }
     sTunedMsg=1;
 }
@@ -2446,6 +2453,10 @@ static void drawPlayerNow(void){
 }
 // The room inside the rectangle x0..x1 / y0..y1 (end excluded), drawn back to front and clipped to it: the same pixels a whole-screen
 // draw would put there. ed=1: editor view (no player).
+static inline int isItemCh(char c){
+    switch(c){ case '#': case 'F': case 'T': case '=': case 'D': case 'L': case 'N': case 'S': case 'H': case 'C': case 'X': case 'O': case 'Y': case 'Z': case 'K': case 'J': case 'M': case 'G': case 'V': case 'U': case 'Q': case '^': case '~': return 1; }
+    return isRamp(c);
+}
 static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
     clipSet(x0,y0,x1,y1);
     rect(x0,y0,x1-x0,y1-y0,RGB(4,5,8));
@@ -2461,10 +2472,11 @@ static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
         for(int tx=a;tx<=b;tx++){ int ty=s-tx;
             int sx=LOX+(tx-ty)*CA, sy=LOY+(tx+ty+1)*CB;
             if(sx+11<=x0||sx-11>=x1||sy+6<=y0||sy-24>=y1) continue;   // art (walls, items, the pickup) is at most 11 px to a side, 24 above and 5 below the centre
-            char c=cellAt(tx,ty); int ox,oy; rotXY(tx,ty,&ox,&oy);
-            if(c=='.'&&(ed||lhave||ox!=BDX||oy!=BDY)) continue;   // plain floor: nothing stands there (but the board pickup might)
+            char c=cellAt(tx,ty); if(c=='.'&&(ed||lhave)) continue;   // plain floor: nothing stands there (but the board pickup might)
+            int ox,oy; rotXY(tx,ty,&ox,&oy);
+            if(c=='.'&&(ox!=BDX||oy!=BDY)) continue;
             if(c=='w'||c=='W') drawWall(tx,ty,sx,sy);
-            if(c=='#'||c=='F'||c=='T'||c=='='||c=='D'||c=='L'||c=='N'||c=='S'||c=='H'||c=='C'||c=='X'||c=='O'||c=='Y'||c=='Z'||c=='K'||c=='J'||c=='M'||c=='G'||c=='V'||c=='U'||c=='Q'||c=='^'||c=='~'||isRamp(c)) drawItemTile(c,sx,sy,ox,oy);
+            if(isItemCh(c)) drawItemTile(c,sx,sy,ox,oy);
             if((ed&&c=='B')||(!ed&&!lhave&&ox==BDX&&oy==BDY)) blitItem(V_BOARD,sx,sy-(ed?0:((lfr>>4)&1)));   // the skateboard pickup, bobbing
             if(ed&&c=='P') drawSpawn(sx,sy+1);   // little person = spawn
         }
