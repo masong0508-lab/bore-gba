@@ -99,31 +99,48 @@ static const HhFam hhFams[]={
 #define HH_NFAM ((int)(sizeof(hhFams)/sizeof(hhFams[0])))
 
 // ---- 16-bit sprite <-> 15 colours + clear, 4bpp tiles ----
+// Colour lookups for the two quantisers: a small open-addressing hash from a 15-bit colour to a slot (key 0xFFFF = empty).
+// The sprites hold about 40 colours, so a lookup is one or two probes instead of a walk through the list.
+#define HQ_N 512
+static u16 hqKey[HQ_N] EWRAM_BSS; static u8 hqVal[HQ_N] EWRAM_BSS;
+static void hqClear(void){ for(int i=0;i<HQ_N;i++) hqKey[i]=0xFFFF; }
+static inline int hqSlot(u16 c){ int h=(int)(((u32)c*40503u)>>7)&(HQ_N-1); while(hqKey[h]!=0xFFFF&&hqKey[h]!=c) h=(h+1)&(HQ_N-1); return h; }
+static inline int hqDist(u16 a,u16 b){ int dr=(a&31)-(b&31), dg=((a>>5)&31)-((b>>5)&31), db=((a>>10)&31)-((b>>10)&31); return dr*dr*3+dg*dg*4+db*db*2; }
 static void hhQuant(u16 (*src)[SPW*SPH],u8 (*dst)[OBJ_B],u16*pal){
-    static u16 col[256] EWRAM_BSS; static u32 cnt[256] EWRAM_BSS; int n=0;
-    for(int v=0;v<4;v++)for(int i=0;i<SPW*SPH;i++){ u16 c=src[v][i]; if(c==SKY) continue; int k=0; while(k<n&&col[k]!=c) k++;
-        if(k==n){ if(n==256) continue; col[n]=c; cnt[n]=0; n++; } cnt[k]++; }
+    static u16 col[256] EWRAM_BSS, oc[256] EWRAM_BSS; static u32 cnt[256] EWRAM_BSS; static u8 ob[256] EWRAM_BSS; int n=0;
+    hqClear();
+    for(int v=0;v<4;v++)for(int i=0;i<SPW*SPH;i++){ u16 c=src[v][i]; if(c==SKY) continue; int h=hqSlot(c), k;
+        if(hqKey[h]==0xFFFF){ if(n==256) continue; hqKey[h]=c; hqVal[h]=(u8)n; col[n]=c; cnt[n]=0; k=n++; } else k=hqVal[h];
+        cnt[k]++; }
+    int n0=n; for(int k=0;k<n0;k++) oc[k]=col[k];   // the colours as found (hqVal points into this list)
     while(n>15){   // merge the two closest colours (weighted by how often they appear) until 15 are left
         int ba=0, bb=1, bd=1<<30;
-        for(int a=0;a<n;a++)for(int b=a+1;b<n;b++){ int dr=(col[a]&31)-(col[b]&31), dg=((col[a]>>5)&31)-((col[b]>>5)&31), db=((col[a]>>10)&31)-((col[b]>>10)&31);
-            int d=(dr*dr*3+dg*dg*4+db*db*2)*(int)(cnt[a]<cnt[b]?cnt[a]:cnt[b]); if(d<bd){ bd=d; ba=a; bb=b; } }
+        for(int a=0;a<n;a++)for(int b=a+1;b<n;b++){ int d=hqDist(col[a],col[b])*(int)(cnt[a]<cnt[b]?cnt[a]:cnt[b]); if(d<bd){ bd=d; ba=a; bb=b; } }
         u32 w=cnt[ba]+cnt[bb]; if(!w) w=1;
         int r=(int)(((col[ba]&31)*cnt[ba]+(col[bb]&31)*cnt[bb])/w), g=(int)((((col[ba]>>5)&31)*cnt[ba]+((col[bb]>>5)&31)*cnt[bb])/w), bl=(int)((((col[ba]>>10)&31)*cnt[ba]+((col[bb]>>10)&31)*cnt[bb])/w);
         if(cnt[bb]>cnt[ba]) col[ba]=col[bb]; else if(cnt[ba]==cnt[bb]) col[ba]=(u16)(r|(g<<5)|(bl<<10));   // keep the commoner one exact (faces stay crisp)
         cnt[ba]=w; col[bb]=col[n-1]; cnt[bb]=cnt[n-1]; n--; }
     pal[0]=0; for(int k=0;k<15;k++) pal[k+1]=k<n?col[k]:0;
+    for(int j=0;j<n0;j++){ u16 c=oc[j]; int best=1, bd=1<<30;   // the nearest palette entry, once per colour found (not once per pixel)
+        for(int k=0;k<n;k++){ int d=hqDist(c,col[k]); if(d<bd){ bd=d; best=k+1; if(!d) break; } } ob[j]=(u8)best; }
     for(int v=0;v<4;v++){
         for(int i=0;i<OBJ_B;i++) dst[v][i]=0;
         for(int y=0;y<SPH;y++)for(int x=0;x<SPW;x++){ u16 c=src[v][y*SPW+x]; if(c==SKY) continue;
-            int best=1, bd=1<<30; for(int k=0;k<n;k++){ int dr=(c&31)-(col[k]&31), dg=((c>>5)&31)-((col[k]>>5)&31), db=((c>>10)&31)-((col[k]>>10)&31), d=dr*dr*3+dg*dg*4+db*db*2; if(d<bd){ bd=d; best=k+1; if(!d) break; } }
+            int h=hqSlot(c), best;
+            if(hqKey[h]==c) best=ob[hqVal[h]];
+            else { int bd=1<<30; best=1; for(int k=0;k<n;k++){ int d=hqDist(c,col[k]); if(d<bd){ bd=d; best=k+1; if(!d) break; } } }   // (past 256 colours: not in the table)
             int t=(y>>3)*4+(x>>3), o=t*32+(y&7)*4+((x&7)>>1); dst[v][o]|=(u8)(best<<((x&1)*4)); }
     }
 }
 static void hhQuantS(u16 (*src)[SPW*SPH],u8 (*dst)[STR_BN],const u16*pal){   // the stride band, in the palette the standing frame chose
+    hqClear(); int used=0;
     for(int v=0;v<4;v++){
         for(int i=0;i<STR_BN;i++) dst[v][i]=0;
         for(int y=STR_Y0;y<STR_Y1&&y<SPH;y++)for(int x=0;x<SPW;x++){ u16 c=src[v][y*SPW+x]; if(c==SKY) continue;
-            int best=1, bd=1<<30; for(int k=1;k<16;k++){ int dr=(c&31)-(pal[k]&31), dg=((c>>5)&31)-((pal[k]>>5)&31), db=((c>>10)&31)-((pal[k]>>10)&31), d=dr*dr*3+dg*dg*4+db*db*2; if(d<bd){ bd=d; best=k; if(!d) break; } }
+            int h=hqSlot(c), best;
+            if(hqKey[h]==c) best=hqVal[h];
+            else { int bd=1<<30; best=1; for(int k=1;k<16;k++){ int d=hqDist(c,pal[k]); if(d<bd){ bd=d; best=k; if(!d) break; } }
+                   if(used<HQ_N*3/4){ hqKey[h]=c; hqVal[h]=(u8)best; used++; } }   // remembered: the next pixel of this colour is one lookup
             int t=(y>>3)*4+(x>>3), o=t*32+(y&7)*4+((x&7)>>1)-STR_B0; dst[v][o]|=(u8)(best<<((x&1)*4)); }
     }
 }
@@ -148,28 +165,48 @@ static void hhRandLook(u8*lk,u8*stg){   // a made-up Sim: passers-by, and SELECT
     lk[LK_BROW]=(u8)(rnd8()%6); lk[LK_EYECOL]=(u8)(rnd8()%NSW);
     *stg=sg[rnd8()&3];
 }
+// ---- bake cache: a sprite set is only baked again when something it is drawn from changed ----
+// The key is a hash of everything the bake reads: the voxels, the face sprites, the colour tables, the look, the age stage, the hand-built
+// flag, the unlock flag and every option. Equal key = an identical picture, so a Sim that did not change is not drawn again (coming back
+// from the editor, a slot, the pause menu, growing up ...). Keys follow their sprites when members move (hhRemove); hhSwitch drops them.
+static u32 hhKey[HH_MAX];   // per member: the key hhObj / hhObjS / hhPal were baked from (0 = unknown)
+static u8 twKeep;           // the passers-by already baked are kept (new faces when you move to another lot or start a new life)
+static void hkAdd(u32*h,const void*p,int n){ const u8*b=(const u8*)p; u32 x=*h; for(int i=0;i<n;i++) x=(x^b[i])*16777619u; *h=x; }
+static u32 bakeKey(void){   // call after buildLook() + setColors()
+    u32 h=2166136261u; u8 t[4]={stage,(u8)custom,sUnlock,0};
+    hkAdd(&h,vox,sizeof(vox)); hkAdd(&h,dec,sizeof(dec)); hkAdd(&h,sT,sizeof(sT)); hkAdd(&h,sL,sizeof(sL)); hkAdd(&h,sR,sizeof(sR));
+    hkAdd(&h,dL,sizeof(dL)); hkAdd(&h,dR,sizeof(dR)); hkAdd(&h,look,sizeof(look)); hkAdd(&h,t,4); hkAdd(&h,xo,sizeof(xo));
+    return h?h:1;
+}
 static void hhBakeAll(void){
     static u8 sv[H][D][W] EWRAM_BSS; static u16 sd[H][D][W] EWRAM_BSS; u8 sl[LK_N]; u8 sst=stage; int sc=custom;
+    int scratch=0;   // spr4 / spr4s were used to bake someone else: the player has to be baked again
     for(int i=0;i<LK_N;i++) sl[i]=look[i];
     for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ sv[y][z][x]=vox[y][z][x]; sd[y][z][x]=dec[y][z][x]; }
     for(int m=0;m<hhN;m++){
-        ldShow("GETTING THE SIMS READY",m,hhN+TW_N+1);
         for(int i=0;i<LK_N;i++) look[i]=hhM[m].look[i]; stage=hhM[m].stage;
-        buildLook(); setColors(); bakeInto(spr4); hhQuant(spr4,hhObj[m],hhPal[m]);
-        strideK=1; bakeInto(spr4s); strideK=0; hhQuantS(spr4s,hhObjS[m],hhPal[m]);
+        buildLook(); setColors(); u32 k=bakeKey(); if(k==hhKey[m]) continue;   // unchanged since the last bake
+        ldShow("GETTING THE SIMS READY",m,hhN+TW_N+1);
+        bakeInto(spr4); hhQuant(spr4,hhObj[m],hhPal[m]);
+        strideK=1; bakeInto(spr4s); strideK=0; hhQuantS(spr4s,hhObjS[m],hhPal[m]); hhKey[m]=k; scratch=1;
     }
-    for(int k=0;k<TW_N;k++){   // two passers-by with made-up looks (new ones every time the life game starts)
+    if(!twKeep) for(int k=0;k<TW_N;k++){   // two passers-by with made-up looks (new ones on another lot or in a new life)
         ldShow("GETTING THE TOWN READY",hhN+k,hhN+TW_N+1);
         u8 st; hhRandLook(look,&st); stage=st; fixLook();
         buildLook(); setColors(); bakeInto(spr4); hhQuant(spr4,twObj[k],twPal[k]);
-        strideK=1; bakeInto(spr4s); strideK=0; hhQuantS(spr4s,twObjS[k],twPal[k]);
+        strideK=1; bakeInto(spr4s); strideK=0; hhQuantS(spr4s,twObjS[k],twPal[k]); scratch=1;
     }
+    twKeep=1;
     for(int i=0;i<LK_N;i++) look[i]=sl[i]; stage=sst;
     for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ vox[y][z][x]=sv[y][z][x]; dec[y][z][x]=sd[y][z][x]; }
     custom=sc; setColors();
-    ldShow("ALMOST THERE",hhN+TW_N,hhN+TW_N+1);
-    bakeInto(spr4);   // the player (still drawn by the CPU, so walls and furniture in front cover it and the action cam can zoom it)
-    strideK=1; bakeInto(spr4s); strideK=0; spBounds();   // the blit box holds both frames
+    u32 pk=bakeKey();
+    if(scratch||pk!=sprKey){
+        ldShow("ALMOST THERE",hhN+TW_N,hhN+TW_N+1);
+        bakeInto(spr4);   // the player (still drawn by the CPU, so walls and furniture in front cover it and the action cam can zoom it)
+        strideK=1; bakeInto(spr4s); strideK=0; sprKey=pk;
+    }
+    spBounds();      // the blit box holds both frames
     ldEnd();         // the loading screen is over: the game's display mode (window 0 + sprites) comes back
     hhSlotsFree();   // new tiles and palettes: every slot is reloaded when its Sim is next on screen
 }
@@ -208,6 +245,7 @@ static void hhRemove(int m){   // moves out: their sprites and relationships go 
     if(m<0||m>=hhN) return;
     int a=hhM[m].uid; for(int u=0;u<HU_N;u++){ relD[a][u]=relD[u][a]=0; relL[a][u]=relL[u][a]=0; relF[a][u]=relF[u][a]=0; }
     for(int k=m;k<hhN-1;k++){ hhM[k]=hhM[k+1]; for(int v=0;v<4;v++){ for(int i=0;i<OBJ_B;i++) hhObj[k][v][i]=hhObj[k+1][v][i]; for(int i=0;i<STR_BN;i++) hhObjS[k][v][i]=hhObjS[k+1][v][i]; } for(int i=0;i<16;i++) hhPal[k][i]=hhPal[k+1][i]; }
+    for(int k=m;k<hhN-1;k++) hhKey[k]=hhKey[k+1]; hhKey[hhN-1]=0;   // the keys move with the sprites
     hhN--; hhSlotsFree();
 }
 static void hhNew(HhSim*s,const HhPre*p){
@@ -774,6 +812,7 @@ static void hhSwitch(void){
     for(int m=0;m<hhN-1;m++){ for(int v=0;v<4;v++){ for(int i=0;i<OBJ_B;i++) hhObj[m][v][i]=hhObj[m+1][v][i]; for(int i=0;i<STR_BN;i++) hhObjS[m][v][i]=hhObjS[m+1][v][i]; } for(int i=0;i<16;i++) hhPal[m][i]=hhPal[m+1][i]; }
     for(int v=0;v<4;v++){ for(int i=0;i<OBJ_B;i++) hhObj[hhN-1][v][i]=ob[v][i]; for(int i=0;i<STR_BN;i++) hhObjS[hhN-1][v][i]=obs[v][i]; } for(int i=0;i<16;i++) hhPal[hhN-1][i]=pl[i];
     spBounds();
+    for(int m=0;m<HH_MAX;m++) hhKey[m]=0; sprKey=0;   // sprites moved around and the player's came from a hardware sprite: bake them again next time
     hhSlotsFree();
 }
 
@@ -809,7 +848,7 @@ static void hhLoad(void){
         else for(int j=0;j<LK_N;j++) s->look[j]=j<nl?m[k++]:0;
         s->stage=m[k++]; s->asp=m[k++]; s->ltw=m[k++];
         for(int j=0;j<TR_N;j++) s->tr[j]=m[k++]; if(v7){ for(int j=0;j<HH_NM;j++) s->name[j]=(char)m[k++]; for(int j=0;j<HH_NM;j++) s->last[j]=(char)m[k++]; } else { for(int j=0;j<10;j++) s->name[j]=(char)m[k++]; s->last[0]=0; } s->name[HH_NM-1]=s->last[HH_NM-1]=0; s->name[9]=v7?s->name[9]:0; for(int j=0;j<HN_N;j++) s->need[j]=m[k++]; s->uid=m[k++];
-        if(s->stage>=AG_N||s->asp>=AS_PICK||s->uid>=hu) return;
+        if(s->stage>=AG_N||s->asp>=AS_N||s->uid>=hu) return;   // (AS_GROW, past AS_PICK, is the aspiration of the young)
         s->act=HA_IDLE; s->think=(short)(rnd8()&63); s->hd=0; s->bubT=0; s->hp=HP_MAX; }
     for(int a=0;a<HU_N;a++)for(int b=0;b<HU_N;b++){ if(a<hu&&b<hu){ relD[a][b]=(signed char)m[k++]; relL[a][b]=(signed char)m[k++]; relF[a][b]=m[k++]; } else relD[a][b]=relL[a][b]=0, relF[a][b]=0; }
     hhN=n;

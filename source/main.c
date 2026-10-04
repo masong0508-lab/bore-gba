@@ -40,6 +40,7 @@ static u16 fb[SW*SH] EWRAM_BSS;
 #define SPH 44
 static u16 spr4[4][SPW*SPH] EWRAM_BSS;   // the creature's sprites, one per view (bakeSprites)
 static u16 spr4s[4][SPW*SPH] EWRAM_BSS;  // the same with the legs mid-stride (walking alternates the two)
+static u32 sprKey;   // what spr4 / spr4s hold: the bake key of the player they were baked from (0 = something else, house.h)
 #define STR_Y0 8                         // the stride frame differs from the standing one only in half-size rows STR_Y0..STR_Y1-1
 #define STR_Y1 48                        // (OBJ tile rows 1..5: what household sprites keep a second copy of)
 // The title screen only has to repaint two small areas of its backdrop (the smoke and the PRESS START box), so it keeps just those, in
@@ -303,14 +304,15 @@ IWRAM_CODE static void cube(int sx,int sy,int ci,int shape,int f){
     if(cubeDR){ static u8 hv[CA+8]; r+=cubeDR; if(r<3) r=3; if(r>CA+6) r=CA+6; for(int a=0;a<=r;a++) hv[a]=(u8)((r/2)*(r-a)/r); hhp=hv; }
     if(shape) f&=3;
     u16 T=sT[ci], L=sL[ci], R=sR[ci], eT=shade(T,9), eL=shade(L,9), eR=shade(R,9);
+    u16 hiL=lite(L,19), hiR=lite(R,19), loL=shade(L,13), loR=shade(R,13);   // the lit rim and the shaded base, worked out once per block
     int t0=-r, t1=r; if(sx+t0<cX0) t0=cX0-sx; if(sx+t1>=cX0+(int)cW) t1=cX0+(int)cW-1-sx;
     for(int t=t0;t<=t1;t++){
         int at=t<0?-t:t, hh=hhp[at], x=sx+t, yt=sy+hh, yb=yt+ch-1;
         u16 sc=t<0?L:R, ec=t<0?eL:eR;
         vline(x,yt,yb,sc);
         vline(x,sy-hh,sy+hh,T);
-        if(!(f&1)){ px(x,yt+1,lite(sc,19)); px(x,sy-hh,eT); }
-        if(!(f&2)){ px(x,yb-1,shade(sc,13)); px(x,yb,ec); }
+        if(!(f&1)){ px(x,yt+1,t<0?hiL:hiR); px(x,sy-hh,eT); }
+        if(!(f&2)){ px(x,yb-1,t<0?loL:loR); px(x,yb,ec); }
         if((t==-r&&!(f&16))||(t==r&&!(f&32))) vline(x,sy-hh,yb,ec);
     }
 }
@@ -506,6 +508,7 @@ static int cx,cy,cz,part,size;
 #define OYC 121
 static int view=0;   // 0..3 = 90 degree turns
 static int noGrid=0;   // sprite baking draws the character without the floor grid
+static u8 bakeOn;      // bakeInto is drawing: only the capture window (the clip rectangle) is cleared and read
 static void rotUW(int u,int w,int*ru,int*rw){
     switch(view){ case 0:*ru=u;*rw=w;break; case 1:*ru=-w;*rw=u;break; case 2:*ru=-u;*rw=-w;break; default:*ru=w;*rw=-u; }
 }
@@ -1109,7 +1112,7 @@ __attribute__((noinline)) static void drawSeat(int x,int y,int u,int w,int rl,in
         } }
 }
 IWRAM_THUMB static void drawScene(int blink){
-    if(stageOn&&!noGrid) drawStage(); else fillCols(0,SCENE_W,SKY);
+    if(stageOn&&!noGrid) drawStage(); else if(bakeOn) rect(cX0,cY0,(int)cW,(int)cH,SKY); else fillCols(0,SCENE_W,SKY);
     // floor grid
     u16 gc=RGB(13,18,22); int a,b,c,d;
     if(!noGrid&&!stageOn) for(int i=BX0;i<=BX0+stBW[stage];i++){ projC(2*i-W,-D,0,&a,&b); projC(2*i-W,2*stBD[stage]-D,0,&c,&d); line(a,b,c,d,gc); }   // the grid shows only this stage's box
@@ -1691,7 +1694,7 @@ static const u16 konSeq[11]={K_UP,K_UP,K_DOWN,K_DOWN,K_LEFT,K_RIGHT,K_LEFT,K_RIG
 static u8 konMsg;   // 1 = the code just locked the classic creator, 2 = unlocked (main shows a toast once the title is gone)
 static const u16 dbgSeq[10]={K_UP,K_UP,K_DOWN,K_DOWN,K_LEFT,K_LEFT,K_RIGHT,K_B,K_A,K_START};
 static int titleScreen(void){
-    buildTitle();                          // leaves the finished backdrop in fb, and the pieces it repaints in tfb
+    sprKey=0; buildTitle();                // leaves the finished backdrop in fb, and the pieces it repaints in tfb (spr4: no sprite left in it)
     vsync(); dmaRows(fb,VRAM_ADDR,0,ROW_W,0,SH);
     int shown=0, frame, dbgI=0, konI=0; u16 dbgPrev=(u16)(~REG_KEYINPUT)&0x3FF; if(xo[XO_TITLEMUS]) musStart();
     for(frame=0;;frame++){
@@ -1765,16 +1768,51 @@ static int surfH(s32 fx,s32 fy){   // surface height at an exact position (1/256
     int tx=(int)(fx>>8), ty=(int)(fy>>8); if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
     char c=lifeMap[ty][tx]; return isRamp(c)?rampH(c,(int)fx,(int)fy):tileH(tx,ty);
 }
+static void bakeShrink(u16 (*spr4)[SPW*SPH],int v){   // view v, just drawn at full size in fb, into the half-size sprite set
+    // half size: take the top left pixel of every 2x2, unless the block holds a very dark one (eyes, mouth, outline): those must survive the shrink
+    for(int y=0;y<SPH;y++)for(int x=0;x<SPW;x++){
+        const u16*b=&fb[(SPY0+y*2)*SW+SPX0+x*2]; u16 c=b[0]; int best=(c&31)+((c>>5)&31)+((c>>10)&31);
+        if(best>14&&c!=SKY){ const u16 q[3]={b[1],b[SW],b[SW+1]}; for(int k=0;k<3;k++){ int sm=(q[k]&31)+((q[k]>>5)&31)+((q[k]>>10)&31); if(sm<=11&&sm<best){ best=sm; c=q[k]; } } }
+        spr4[v][y*SPW+x]=c;
+    }
+    // seen from behind the head shows hair, not a face: repaint the head's skin in the hair colour so the way he is facing reads at a glance
+    if(!custom&&(v==1||v==2)){
+        int hx,hy,hz,hs; headBox(&hx,&hy,&hz,&hs);
+        int ax=SW,az=SH,bx=0,bz=0;   // head box on screen (full size)
+        for(int yy=hy;yy<hy+2*hs;yy++)for(int zz=hz;zz<hz+2*hs;zz++)for(int xx=hx;xx<hx+2*hs;xx++){
+            int sx,sy; projC(2*xx+1-W,2*zz+1-D,yy+1,&sx,&sy);
+            if(sx-CA<ax) ax=sx-CA; if(sx+CA>bx) bx=sx+CA; if(sy-CB<az) az=sy-CB; if(sy+CB+CC>bz) bz=sy+CB+CC; }
+        int x0=(ax-SPX0)/2, x1=(bx-SPX0)/2+1, y0=(az-SPY0)/2, y1=(bz-SPY0)/2+1;
+        for(int y=y0<0?0:y0;y<y1&&y<SPH;y++)for(int x=x0<0?0:x0;x<x1&&x<SPW;x++){
+            u16*c=&spr4[v][y*SPW+x];
+            if(*c==sT[1]) *c=sT[5]; else if(*c==sL[1]) *c=sL[5]; else if(*c==sR[1]) *c=sR[5]; }
+    }
+}
+static int bakeClips(void){   // the drawing in fb reaches the two outer rows / columns of the capture window (the bake keeps every other pixel)
+    for(int x=0;x<SPW*2;x++) if(fb[SPY0*SW+SPX0+x]!=SKY||fb[(SPY0+1)*SW+SPX0+x]!=SKY) return 1;
+    for(int y=0;y<SPH*2;y++){ const u16*r=&fb[(SPY0+y)*SW+SPX0]; if(r[0]!=SKY||r[1]!=SKY||r[SPW*2-2]!=SKY||r[SPW*2-1]!=SKY) return 1; }
+    return 0;
+}
 static void bakeInto(u16 (*spr4)[SPW*SPH]){   // render the built character once per view (4 turns) into a sprite set, then just blit it
-    int sv=view; noGrid=1;
+    int sv=view; noGrid=1; bakeOn=1;
+    int ox=cX0, oy=cY0; unsigned ow=cW, oh=cH;   // draw only inside the capture window: nothing outside it is ever read
+    { int x0=SPX0>ox?SPX0:ox, y0=SPY0>oy?SPY0:oy, x1=SPX0+SPW*2, y1=SPY0+SPH*2;
+      if(x1>ox+(int)ow) x1=ox+(int)ow; if(y1>oy+(int)oh) y1=oy+(int)oh; if(x1<x0) x1=x0; if(y1<y0) y1=y0; clipSet(x0,y0,x1,y1); }
     for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ ghost[y][z][x]=0; gdec[y][z][x]=0; }
-    bakeCapH=99; bakeCapW=99; bakeCapT=99; bakeCapX=99; bakeCapL=99; bakeCapE=99; { view=0; drawScene(0); bakeCapE=exMax; bakeCapH=liftK; bakeCapW=bakeWk; bakeCapT=liftT; bakeCapX=armK>stanceK?armK:stanceK; bakeCapL=bakeSh; }   // the HEIGHT and WEIGHT sliders are eased off, a step at a time, until every view fits the sprite box
+    bakeCapH=99; bakeCapW=99; bakeCapT=99; bakeCapX=99; bakeCapL=99; bakeCapE=99; { view=0; drawScene(0); bakeCapE=exMax; bakeCapH=liftK; bakeCapW=bakeWk; bakeCapT=liftT; bakeCapX=armK>stanceK?armK:stanceK; bakeCapL=bakeSh; }   // the HEIGHT and WEIGHT sliders are eased off, a step at a time, until every view fits the capture window
+    // The caps start at the values the probe measured, which change nothing, so the probe picture IS the first round's view 0.
+    // Each view is shrunk as soon as it is drawn and found to fit, so a round that fits leaves all four done (nothing drawn twice).
+    // A round stops at the first view that sticks out, and the next round tests that view first: one drawing per failed round, not four.
+    // (Only WHETHER a round fits steers the caps, never which view failed, so the caps and the sprites come out exactly as before.)
+    int fit=0, first=0, cl=-1; u8 done=0;
     for(int tries=0;tries<24;tries++){
-        int cl=0;
-        for(int v=0;v<4&&!cl;v++){ view=v; drawScene(0);
-            for(int x=0;x<SPW*2&&!cl;x++) if(fb[SPY0*SW+SPX0+x]!=SKY||fb[(SPY0+1)*SW+SPX0+x]!=SKY) cl=1;   // the two outer rows / columns (the bake keeps every other pixel)
-            for(int y=0;y<SPH*2&&!cl;y++){ const u16*r=&fb[(SPY0+y)*SW+SPX0]; if(r[0]!=SKY||r[1]!=SKY||r[SPW*2-2]!=SKY||r[SPW*2-1]!=SKY) cl=1; } }
-        if(!cl) break;
+        cl=-1; done=0;
+        for(int j=0;j<4;j++){ int v=(first+j)&3;
+            if(tries||j){ view=v; drawScene(0); }
+            if(bakeClips()){ cl=v; break; }
+            bakeShrink(spr4,v); done|=(u8)(1<<v); }
+        if(cl<0){ fit=1; break; }
+        first=cl;
         if(bakeCapE>0&&(tries&3)==2) bakeCapE--;
         else if(bakeCapX>0&&(tries&1)) bakeCapX--;
         else if(bakeCapL>0&&(tries&1)) bakeCapL--;
@@ -1784,29 +1822,11 @@ static void bakeInto(u16 (*spr4)[SPW*SPH]){   // render the built character once
         else if(bakeCapX>0) bakeCapX--;
         else if(bakeCapL>0) bakeCapL--;
         else if(bakeCapE>0) bakeCapE--;
-        else break;
+        else { bakeShrink(spr4,cl); done|=(u8)(1<<cl); break; }   // nothing left to ease off: this round IS the final picture (view cl is still in fb)
+        cl=-1; done=0;   // the caps changed: nothing drawn so far counts
     }
-    for(int v=0;v<4;v++){
-        view=v; drawScene(0);
-        // half size: take the top left pixel of every 2x2, unless the block holds a very dark one (eyes, mouth, outline): those must survive the shrink
-        for(int y=0;y<SPH;y++)for(int x=0;x<SPW;x++){
-            const u16*b=&fb[(SPY0+y*2)*SW+SPX0+x*2]; u16 c=b[0]; int best=(c&31)+((c>>5)&31)+((c>>10)&31);
-            if(best>14&&c!=SKY){ const u16 q[3]={b[1],b[SW],b[SW+1]}; for(int k=0;k<3;k++){ int sm=(q[k]&31)+((q[k]>>5)&31)+((q[k]>>10)&31); if(sm<=11&&sm<best){ best=sm; c=q[k]; } } }
-            spr4[v][y*SPW+x]=c;
-        }
-        // seen from behind the head shows hair, not a face: repaint the head's skin in the hair colour so the way he is facing reads at a glance
-        if(!custom&&(v==1||v==2)){
-            int hx,hy,hz,hs; headBox(&hx,&hy,&hz,&hs);
-            int ax=SW,az=SH,bx=0,bz=0;   // head box on screen (full size)
-            for(int yy=hy;yy<hy+2*hs;yy++)for(int zz=hz;zz<hz+2*hs;zz++)for(int xx=hx;xx<hx+2*hs;xx++){
-                int sx,sy; projC(2*xx+1-W,2*zz+1-D,yy+1,&sx,&sy);
-                if(sx-CA<ax) ax=sx-CA; if(sx+CA>bx) bx=sx+CA; if(sy-CB<az) az=sy-CB; if(sy+CB+CC>bz) bz=sy+CB+CC; }
-            int x0=(ax-SPX0)/2, x1=(bx-SPX0)/2+1, y0=(az-SPY0)/2, y1=(bz-SPY0)/2+1;
-            for(int y=y0<0?0:y0;y<y1&&y<SPH;y++)for(int x=x0<0?0:x0;x<x1&&x<SPW;x++){
-                u16*c=&spr4[v][y*SPW+x];
-                if(*c==sT[1]) *c=sT[5]; else if(*c==sL[1]) *c=sL[5]; else if(*c==sR[1]) *c=sR[5]; }
-        }
-    }
+    if(!fit) for(int v=0;v<4;v++) if(!(done&(1<<v))){ view=v; drawScene(0); bakeShrink(spr4,v); }   // whatever the last caps still need
+    clipSet(ox,oy,ox+(int)ow,oy+(int)oh); bakeOn=0;
     noGrid=0; view=sv;
     spBx0=SPW; spBx1=0; spBy0=SPH; spBy1=0;   // the box that holds every opaque pixel of all four views: blits and redraw rectangles stay inside it
     for(int v=0;v<4;v++)for(int y=0;y<SPH;y++)for(int x=0;x<SPW;x++) if(spr4[v][y*SPW+x]!=SKY){
@@ -2814,7 +2834,8 @@ static void gmTick(void){   // once per frame: when the song is over, another ra
 static void lifeModeRun(int ed);
 static void lifeMode(int ed){ int back=musCtx; gInPlay=1; lifeModeRun(ed); gInPlay=0; if(!gToMenu){ if(back==1) creatorMusStart(); else menuMusStart(); } }   // back from the game: the screen it was started from gets its music back (a crossfade)   // gInPlay: some option actions are only allowed while playing / only outside it
 static void lifeModeRun(int ed){   // ed=1: test play started from the map editor
-    objHideAll(); REG_DISPCNT=0x3443;   // mode 3 + sprites (1D tiles) + window 0 (the household's hardware sprites, house.h)
+    objHideAll(); winFull(); REG_DISPCNT=0x3443;   // mode 3 + sprites (1D tiles) + window 0 (the household's hardware sprites, house.h)
+    // (the passers-by of this lot are kept until you move to another lot or start a new life: twKeep, house.h)
     lifeInit(); lcamF=0; cview=0; lcN=lcPts=lcT=lcBank=lcBankT=lcamPend=0; u16 prev=keyNow(); gmStart(); hudApplyLayout(); liveInvalidate(); camSnap=1;
     tmStart(); u16 tl=R_TM2D; int acc=0, fpsN=0, fr=0; u32 fpsT=0, workT=0; lfpsV=0; lloadV=0;
     for(;;){
@@ -2841,9 +2862,9 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
             else if(c==4) settingsScreen();
             else if(c==5&&!ed){ simsSaveNow(); hhSave(); if(slotScreen()) lifeInit(); }   // a slot was loaded: start again in the loaded room (the life was written first, so nothing is lost)
             else if(c==6&&!ed){ vpY0=0; vpY1=SH; mapEditor(); lifeInit(); }
-            else if(c==7&&!ed){ if(menu("START A NEW LIFE",yesNoLife,2)==1){ simsNewLife(); moodReset(); lscore=0; simLastScore=0; lnote="NEW LIFE"; lnoteT=60; } }
+            else if(c==7&&!ed){ if(menu("START A NEW LIFE",yesNoLife,2)==1){ twKeep=0; simsNewLife(); moodReset(); lscore=0; simLastScore=0; lnote="NEW LIFE"; lnoteT=60; } }
             else if((c==5&&ed)||c==8){ if(c==8&&!nbPlaying) gToMenu=1; break; }   // (from the neighborhood: back there)
-            REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=0; continue;
+            winFull(); REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=0; continue;
         }
         if(lcamF>0) camStep(steps,k,pr);
         else {
@@ -3183,7 +3204,7 @@ static void drawAspire(int sel){   // ASPIRE tab: aspiration, lifetime want and 
         text(CDX+9,y,lab[i],f?WHITE:DIMC,1);
         const char*nm; int cur, cnt;
         if(i==PS_ASP){ nm=aspNm[pAsp]; cur=pAsp; cnt=AS_PICK; }
-        else if(i==PS_LTW){ nm=simLtws[pAsp][pLtw].name; cur=pLtw; cnt=2; }
+        else if(i==PS_LTW){ nm=simLtw()->name; cur=pLtw; cnt=2; }
         else { cur=signOf(); nm=signNm[cur]; cnt=12; }
         if(i==PS_ASP&&stage<AG_TEEN) text(CDX+CDW-6-tw("TEEN",1),y,"TEEN",RGB(12,20,26),1);   // babies and children GROW UP first: this starts as a teen
         else { int k=numStr(b,cur+1); b[k]='/'; numStr(b+k+1,cnt); text(CDX+CDW-6-tw(b,1),y,b,f?DIMC:RGB(10,12,16),1); }

@@ -576,3 +576,16 @@ Three on/off rows decide which kinds of Sims may be added: **PRE-MADE SIMS** (th
 
 ## Loading screen fix
 `ldShow` now switches the display window off while it is on screen (the game runs with window 0 on, and until the first game frame sets the window registers everything outside it is black, which hid the loading screen and made the game look frozen). `ldEnd()` puts the mode back; `hhBakeAll` calls it when the last Sim is baked. If you add `ldShow` to another slow job that runs in the game, call `ldEnd()` when it is done.
+`ldEnd` and the life game's start also set window 0 to the whole screen (`winFull`), so the loading screen stays up until the game's first frame replaces it (no black gap).
+
+## Faster loading (the household bake)
+Entering the game bakes every Sim into sprites: the creator's renderer draws each of 4 views at full size and halves them. Measured on the GBA a draw costs about 110 ms, so the number of draws is the loading time.
+- **Each view is drawn once.** The fit check (eases the HEIGHT / WEIGHT sliders off until all four views fit the capture window) used to draw the views and then draw them all again for the sprites; now a view that fits is shrunk on the spot, the probe drawing doubles as the first check, a failed round tests the view that stuck out first (one drawing, not up to four), and when nothing is left to ease off the last round is kept. 9 draws per bake became 4 for a normal Sim.
+- **Only the capture window** is cleared and drawn (clip rectangle), and `cube()` works out its rim / base colours once per block.
+- **Colour reduction** (`hhQuant`, `hhQuantS`): a hash table instead of list walks, and each colour matched to the palette once instead of once per pixel (2x faster).
+- **Nothing is baked twice.** Each sprite set remembers a hash of everything its drawing reads (voxels, face sprites, colour tables, look, age, flags and every option, `bakeKey`); an unchanged Sim is skipped. Coming back from the editor, a slot, the pause menu, or pressing PLAY again is instant. The passers-by stay until you move to another lot or start a new life. `hhSwitch` drops the keys (the sprites move around); `hhRemove` moves them with the sprites.
+- All of it is exact: a test build baked 32 random Sims (every slider and part random) with the old and the new code and every sprite, tile and palette matched byte for byte.
+- Result (mGBA, fresh save): PLAY 9.2 s -> 4.4 s; PLAY again, or back from the editor: no loading screen at all.
+
+## Household kept on reload
+`hhLoad` refused a household holding a child or teen (their GROW UP aspiration is past the pickable ones), so the whole family vanished after the editor, a slot load or a power cycle. It now accepts every aspiration; the lifetime-want lookup falls back to learning for GROW UP.
