@@ -909,6 +909,17 @@ static int hhBlockLen(volatile u8*m,int avail){
 _Static_assert(HH_OFF+4+2*HH_NM+HH_MAX*HH_REC+HH_RELB+1<=SLOT_BASE,"the household must fit before the room slots");
 _Static_assert(4+2*HH_NM+HH_MAX*HH_REC+HH_RELB+1<=SL_HH_LEN,"the household is bigger than the SRAM block reserved for it");
 
+static int hhMoveIn(const HhFam*F){   // a pre-made family moves in (HOUSEHOLD, or a NEW GAME). Returns how many fit
+    int add=0, first=hhN;
+    for(int i=0;i<F->n&&hhN<HH_MAX;i++){ hhNew(&hhM[hhN],&F->m[i]);
+        { const char*f=F->fam; if(f[0]=='T'&&f[1]=='H'&&f[2]=='E'&&f[3]==' ') f+=4; int k=0; while(f[k]&&k<HH_NM-1){ hhM[hhN].last[k]=f[k]; k++; }   // THE MIDNIGHTS -> MIDNIGHT
+          if(k>1&&hhM[hhN].last[k-1]=='S') k--; hhM[hhN].last[k]=0; }
+        hhN++; add++; }
+    for(int i=first;i<hhN;i++)for(int j=first;j<hhN;j++) if(i!=j){   // a family already knows and likes each other; couples (the first two adults) are in love
+        int a=hhM[i].uid, b=hhM[j].uid; relD[a][b]=40; relL[a][b]=50; relF[a][b]=0;
+        if(i<first+2&&j<first+2&&hhM[i].stage>=AG_ADULT&&hhM[j].stage>=AG_ADULT){ relD[a][b]=70; relL[a][b]=80; relF[a][b]=RF_CRUSH|RF_LOVE|RF_STEADY|RF_KISSED|RF_FRIEND|RF_BFF; } }
+    return add;
+}
 // ---- the pause menu's HOUSEHOLD screen ----
 static void hhInviteTrue(void);
 static void hhMenu(void){
@@ -927,14 +938,7 @@ static void hhMenu(void){
     { const char* fm[HH_NFAM]; for(int f=0;f<HH_NFAM;f++) fm[f]=hhFams[f].fam;   // MOVE IN A FAMILY: the list of families
       c=menu("MOVE IN A FAMILY",fm,HH_NFAM); if(c<0) return; }
     if(!xo[XO_SIMPRE]){ toast("PRE-MADE SIMS ARE OFF"); return; }
-    const HhFam*F=&hhFams[c]; int add=0, first=hhN;
-    for(int i=0;i<F->n&&hhN<HH_MAX;i++){ hhNew(&hhM[hhN],&F->m[i]);
-        { const char*f=F->fam; if(f[0]=='T'&&f[1]=='H'&&f[2]=='E'&&f[3]==' ') f+=4; int k=0; while(f[k]&&k<HH_NM-1){ hhM[hhN].last[k]=f[k]; k++; }   // THE MIDNIGHTS -> MIDNIGHT
-          if(k>1&&hhM[hhN].last[k-1]=='S') k--; hhM[hhN].last[k]=0; }
-        hhN++; add++; }
-    for(int i=first;i<hhN;i++)for(int j=first;j<hhN;j++) if(i!=j){   // a family already knows and likes each other; couples (the first two adults) are in love
-        int a=hhM[i].uid, b=hhM[j].uid; relD[a][b]=40; relL[a][b]=50; relF[a][b]=0;
-        if(i<first+2&&j<first+2&&hhM[i].stage>=AG_ADULT&&hhM[j].stage>=AG_ADULT){ relD[a][b]=70; relL[a][b]=80; relF[a][b]=RF_CRUSH|RF_LOVE|RF_STEADY|RF_KISSED|RF_FRIEND|RF_BFF; } }
+    const HhFam*F=&hhFams[c]; int add=hhMoveIn(F);
     if(!add){ toast("THE HOUSE IS FULL"); return; }
     for(int m=0;m<hhN;m++){ hhOld[m].x0=hhOld[m].x1=0; hhOldSig[m]=0xFFFFFFFFu; }
     toast("PLEASE WAIT  MOVING IN"); hhBakeAll(); hhSave(); toast(add<F->n?"SOME DID NOT FIT":"WELCOME HOME");

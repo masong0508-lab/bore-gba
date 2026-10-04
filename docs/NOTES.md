@@ -633,3 +633,12 @@ With the big "BORE" text gone the large font is no longer linked: the ROM is 186
 - Creator, last tab: TRUE RANDOM does the same to you (your age stays) and rolls a new personality. RANDOMIZE keeps its gentler dice.
 - Passers-by keep the gentle `hhRandLook`: a fully random look bakes about three times slower.
 
+
+## Main menu and PLAY (The Sims 3 look)
+- The main menu is a glossy rounded panel with pill buttons (the focused one turns green), the cover logo on top, a round `?` (HOW TO PLAY)
+  and an A SELECT footer. Behind it: your own town close up around a random lot (`nbDrawTown` tool -2), lit for the time of day of your
+  life's clock (5-8 dawn, 8-17 day, 17-20 dusk, else night; no life yet: any). Dawn is a new light (`nbTint` tod 3), the menu only.
+- PLAY opens the New Game panel: the town picture, Select a Town (LEFT RIGHT / L R), a description, then CONTINUE (your life), VISIT TOWN
+  (the old NEIGHBORHOOD chooser's job; SELECT makes a town, START renames or deletes one) and NEW GAME.
+- NEW GAME: a fresh life (cash, job, clock) and household in the chosen town, started as CREATE A SIM (the creator, then GO LIVE LIFE),
+  A PRE-MADE FAMILY (you become its first Sim; `hhMoveIn` + `hhSwap`), or A TRULY RANDOM SIM. The story mode can hook in here.

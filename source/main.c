@@ -3854,52 +3854,167 @@ static void creatorMusStart(void){
 }
 
 // ---------- main menu ----------
-static const char* const mmName[8]={"PLAY","NEIGHBORHOOD","MAKE CREATURE","BUILD ROOM","ROOM SLOTS","JUKEBOX","OPTIONS","HOW TO PLAY"};
-static const char* const mmDesc[8]={"WALK AND SKATE AROUND YOUR ROOM","YOUR TOWN  PICK A LOT  BUILD AND MOVE IN","DESIGN YOUR OWN VOXEL CHARACTER","BUILD WALLS AND LAY FLOORS AND WALLPAPER","SAVE AND LOAD ROOMS  PEOPLE AND LIVES","LISTEN  PICK  OR SHUFFLE THE SONGS","SPEED  GAMEPLAY  SOUND  BUTTONS AND MORE","LEARN THE CONTROLS"};
 static const char* const guideItems[6]={"PLAYING","MAKE CREATURE","BUILD ROOMS","JUKEBOX","ROOM SLOTS","OPTIONS"};
 static const char* const jbHelp[15]={">PLAYING","UP DOWN PICK A SONG  A PLAYS IT","A ON THE PLAYING SONG STOPS IT","L R GO TO THE PREVIOUS OR NEXT SONG",">CHECK BOXES","SELECT CHECKS OR UNCHECKS A SONG","ONLY CHECKED SONGS ARE PICKED AT RANDOM:","HERE  IN THE MENUS  AND FOR GAME MUSIC",">PLAY MODE","START CHANGES IT:  SHUFFLE  IN ORDER  REPEAT","WHEN A SONG ENDS THE MODE PICKS THE NEXT",">OTHER","LEFT RIGHT CHANGE THE VOLUME","OPENING IT PLAYS ONE RANDOM CHECKED SONG","B GOES BACK TO THE MENU"};
-static void drawMainMenu(int sel){
-    for(int y=0;y<SH;y++){ u16 c=RGB(2+y/50,3+y/36,9+y/13); u32 v=c|((u32)c<<16), *row=(u32*)fb+y*ROW_W; for(int w=0;w<ROW_W;w++) row[w]=v; }
-    u16 ink=RGB(4,3,6);
-    for(int y=0;y<LOGO_SH;y++){ const char*r=logoSmallArt[y]; u16*o=&fb[(y+6)*SW+12];   // the cover logo at half size
-        for(int x=0;x<LOGO_SW;x++){ char c=r[x]; if(c!='0') o[x]=logoPal[(c<='9'?c-'0':c-'a'+10)-1]; } }
-    text(17,38,"A VOXEL LIFE SIM",ink,1); text(16,37,"A VOXEL LIFE SIM",RGB(12,28,8),1);
-    // a little pile of voxels (back to front)
-    { int ox=206, oy=92;
-      cube(ox,oy,1,0,1); cube(ox,oy-CC,4,0,3); cube(ox,oy-2*CC,8,0,2);
-      cube(ox+CA,oy+CB,6,0,0); cube(ox-CA,oy+CB,7,0,0); cube(ox,oy+2*CB,2,0,0); }
-    for(int i=0;i<8;i++){
-        int y=46+i*11;
-        if(i==sel){ rect(10,y-1,150,11,RGB(6,16,8)); rect(10,y-1,2,11,GOLD); text(16,y,">",WHITE,2); }
-        text(28,y,mmName[i],i==sel?WHITE:DIMC,2);
-    }
-    rect(0,134,SW,26,PANEL);
-    text(8,139,mmDesc[sel],WHITE,1); text(8,150,"UP DOWN CHOOSE  A OK",RGB(12,14,16),1);
+// ---- the Sims 3 look: glossy rounded panels and pill buttons ----
+static u16 s3Mix(u16 a,u16 b,int t,int n){ if(n<=1) return a; int m=n-1;
+    int r=(a&31)+((int)(b&31)-(int)(a&31))*t/m, g=((a>>5)&31)+((int)((b>>5)&31)-(int)((a>>5)&31))*t/m, c=((a>>10)&31)+((int)((b>>10)&31)-(int)((a>>10)&31))*t/m; return RGB(r,g,c); }
+static int s3Sq(int v){ int k=0; while((k+1)*(k+1)<=v) k++; return k; }
+static int s3In(int j,int h,int r){ int e=j<r?2*(r-j)-1:j>=h-r?2*(j-(h-r))+1:0; return e?r-s3Sq(4*r*r-e*e)/2:0; }   // how far row j of a rounded box is pulled in
+static void s3Box(int x,int y,int w,int h,int r,u16 top,u16 bot){ if(2*r>h) r=h/2; for(int j=0;j<h;j++){ int in=s3In(j,h,r); rect(x+in,y+j,w-2*in,1,s3Mix(top,bot,j,h)); } }
+static void s3Panel(int x,int y,int w,int h){ s3Box(x,y,w,h,12,RGB(3,8,19),RGB(2,5,13)); s3Box(x+2,y+2,w-4,h-4,10,RGB(23,29,31),RGB(13,22,31)); rect(x+12,y+3,w-24,1,RGB(29,31,31)); }
+static void s3Well(int x,int y,int w,int h){ s3Box(x,y,w,h,5,RGB(13,21,30),RGB(16,24,31)); s3Box(x+1,y+1,w-2,h-2,4,RGB(25,30,31),RGB(21,28,31)); }   // a sunken well (the town card, the tiles)
+static void s3Pill(int x,int y,int w,int h,int on,const char*s){   // the focused one is green, like the game's
+    s3Box(x,y,w,h,h/2,on?RGB(4,10,2):RGB(6,11,20),on?RGB(3,8,1):RGB(5,9,17));
+    s3Box(x+1,y+1,w-2,h-2,(h-2)/2,on?RGB(21,30,9):RGB(29,31,31),on?RGB(10,22,2):RGB(18,25,31));
+    s3Box(x+h/2,y+2,w-h,(h-4)/2,2,on?RGB(25,31,15):RGB(31,31,31),on?RGB(21,30,9):RGB(27,30,31));   // the gloss
+    text(x+(w-tw(s,1))/2,y+(h-6)/2,s,on?RGB(1,4,0):RGB(2,5,11),1);
 }
+static void s3Round(int x,int y,int on,const char*glyph){ disc(x,y,7,on?RGB(4,10,2):RGB(3,7,16)); disc(x,y,6,on?RGB(14,27,6):RGB(9,16,27)); text(x-tw(glyph,1)/2+1,y-3,glyph,on?RGB(1,4,0):WHITE,1); }
+static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,RGB(8,14,26)); text((SW-tw(t,1))/2,152,t,RGB(26,29,31),1); }
 #include "neighborhood.h"   // THE NEIGHBORHOOD: a town of lots to live in, visit and build on (main menu)
-static void mainMenu(void){
-    int sel=0, dirty=1; u16 prev=keyNow();
-    menuMusStart();   // GOTTCHO BARRACHO plays while a main menu is open (MENU MUSIC option)
+// ---------- main menu (The Sims 3 look): a glossy panel over your town, lit for the time of day of your life's clock ----------
+#define MM_N 7
+static const char* const mmName[MM_N]={"Play","Create a Sim","Build Mode","Jukebox","Room Slots","Options","?"};
+static const char* const mmDesc[MM_N]={"YOUR LIFE  YOUR TOWNS  OR A NEW GAME","DESIGN YOUR OWN VOXEL SIM","BUILD WALLS AND LAY FLOORS AND WALLPAPER","LISTEN  PICK  OR SHUFFLE THE SONGS","SAVE AND LOAD ROOMS  PEOPLE AND LIVES","SPEED  GAMEPLAY  SOUND  BUTTONS AND MORE","HOW TO PLAY  LEARN THE CONTROLS"};
+static u8 mmTod; static s8 mmLot=-1;
+static int mmPickTod(void){   // 5-8 dawn, 8-17 day, 17-20 dusk, else night (no life yet: any)
+    int m=simsCheck(SIM_SRAM)?simGet16(SIM_SRAM,16):-1; if(m<0) return rnd8()&3;
+    return m<300?2:m<480?3:m<1020?0:m<1200?1:2;
+}
+static void mmBackdrop(void){   // your town close up around a random lot (no town yet: BOREVILLE as it will look)
+    int had=nbOk; if(!had){ nbGen(NS_SUBURB,nsTown[NS_SUBURB]); nbT.cur=0; }
+    u8 st=nbT.tod, sz=nbT.zoom; nbT.tod=mmTod; nbT.zoom=1;
+    int on[NB_LOTS], n=0; for(int i=0;i<NB_LOTS;i++) if(nbT.lot[i].on) on[n++]=i;
+    int cx=NB_W/2, cy=NB_H/2;
+    if(n){ if(mmLot<0||!nbT.lot[(int)mmLot].on) mmLot=(s8)on[rnd8()%n]; const NbLot*L=&nbT.lot[(int)mmLot]; cx=L->x+L->w/2; cy=L->y+L->h/2; }
+    nbDrawTown(cx,cy,-2,0,0,0);
+    nbT.tod=st; nbT.zoom=sz; if(!had) nbT.tag[0]=0;
+}
+static void mmLogo(int x,int y){ for(int j=0;j<LOGO_SH;j++){ const char*r=logoSmallArt[j]; u16*o=&fb[(y+j)*SW+x]; for(int i=0;i<LOGO_SW;i++){ char c=r[i]; if(c!='0') o[i]=logoPal[(c<='9'?c-'0':c-'a'+10)-1]; } } }
+static void drawMainMenu(int sel,int full){
+    if(full) mmBackdrop();
+    s3Panel(60,20,120,128);
+    for(int i=0;i<6;i++) s3Pill(70,i?52+(i-1)*15:31,100,i?13:17,i==sel,mmName[i]);
+    s3Round(73,136,sel==6,"?");   // HOW TO PLAY
+    s3Box(84,129,86,14,7,RGB(6,12,24),RGB(3,8,18)); s3Round(108,136,1,"A"); text(118,133,"Select",WHITE,1);
+    mmLogo(SW/2-LOGO_SW/2,1); s3Tip(mmDesc[sel]);
+}
+static void howToPlay(void){ int g=menu("HOW TO PLAY",guideItems,6);
+    if(g==0) helpScreen("PLAYING",lifeHelp,16); else if(g==1) helpScreen("MAKE CREATURE",creatureHelp,15); else if(g==2) helpScreen("BUILD ROOMS",mapHelp,12); else if(g==3) helpScreen("JUKEBOX",jbHelp,15); else if(g==4) helpScreen("ROOM SLOTS",slotHelp,11); else if(g==5) helpScreen("OPTIONS",optHelp,11); }
+
+// ---------- NEW GAME: a fresh life in the chosen town, started three ways (the story mode can start from here later) ----------
+static const char* const ngIt[3]={"CREATE A SIM","A PRE-MADE FAMILY","A TRULY RANDOM SIM"};
+static int newGame(int slot){   // 1 = it started (and ended: back to the main menu)
+    int c=menu("HOW DO YOU START?",ngIt,3); if(c<0) return 0;
+    int f=0; if(c==1){ const char* fm[HH_NFAM]; for(int i=0;i<HH_NFAM;i++) fm[i]=hhFams[i].fam; f=menu("WHICH FAMILY?",fm,HH_NFAM); if(f<0) return 0; }
+    static const char* const yn[2]={"YES  NEW LIFE","NO"}; if(menu("START OVER?",yn,2)!=0) return 0;
+    if(slot>=0){ if(!nbSwitch(slot)){ nbOk=nbLoad(); toast(nbErr); return 0; } nbOk=1; nbBounds(); }
+    twKeep=0; simsNewLife(); moodReset(); lscore=0; simLastScore=0;
+    hhN=0; for(int a=0;a<HU_N;a++)for(int b=0;b<HU_N;b++){ relD[a][b]=relL[a][b]=0; relF[a][b]=0; }   // the old household moves out
+    if(c==1&&hhMoveIn(&hhFams[f])>0){ hhSwap(&hhM[0]); hhRemove(0); }   // you are the family's first Sim (who you were leaves)
+    else if(c==2) lookTrueRandomMe();
+    hhSave(); sprKey=0;
+    if(c==0) creatureEditor();   // make your Sim, then GO LIVE LIFE
+    else lifeMode(0);
+    return 1;
+}
+
+// ---------- PLAY (The Sims 3 New Game panel): pick a town, then CONTINUE your life, VISIT the town, or a NEW GAME there ----------
+static void plDraw(const int*l,int n,int sel,int act,int foc,int tile){
+    s3Panel(8,16,224,124); text(22,24,"Play",RGB(3,9,20),1);
+    s3Well(16,31,208,55);
+    rect(20,35,74,47,RGB(3,8,18));
+    int ok=n&&nbRead(l[sel],&nbTmp); if(ok) nbThumb(&nbTmp,21,36,72,45);
+    text(100,34,"Select a Town:",RGB(3,9,20),1);
+    s3Box(100,43,118,13,4,foc==0?RGB(12,20,31):RGB(8,14,27),foc==0?RGB(6,12,26):RGB(4,9,20));
+    if(foc==0){ rect(100,56,118,1,RGB(14,27,6)); }
+    text(106,46,ok?nbTmp.name:"NO TOWNS",WHITE,1); text(196,46,"<>",RGB(20,26,31),1);
+    if(ok){ int lots=0,homes=0,wat=0,sand=0; for(int i=0;i<NB_LOTS;i++) if(nbTmp.lot[i].on){ lots++; if(nbTmp.lot[i].kind==LKIND_RES&&nbTmp.lot[i].slot>=0) homes++; }
+        for(int y=0;y<NB_H;y++)for(int x=0;x<NB_W;x++){ int g=NB_GR(nbTmp.cell[y][x]); wat+=g==NT_WATER; sand+=g==NT_SAND; }
+        char b[40]; char*e=slNum(b,lots); e=slCat(e," LOTS  "); e=slNum(e,homes); slCat(e,homes==1?" HOUSE":" HOUSES");
+        text(102,60,sand>100?"OUT IN THE DESERT":wat>40?"A TOWN BY THE WATER":"A QUIET GREEN SUBURB",RGB(3,9,20),1);
+        text(102,69,b,RGB(5,12,22),1); text(102,78,l[sel]==act?"YOU LIVE HERE":seasNm[nbTmp.season&3],l[sel]==act?RGB(4,16,2):RGB(5,12,22),1); }
+    s3Well(16,89,208,42);
+    for(int i=0;i<2;i++){ int x=22+i*72, y=92, on=foc==1&&tile==i;
+        s3Box(x,y,66,36,5,on?RGB(14,27,6):RGB(9,15,25),on?RGB(8,20,3):RGB(7,12,22)); s3Box(x+1,y+1,64,34,4,on?RGB(26,31,20):RGB(27,30,31),on?RGB(20,29,12):RGB(20,26,31));
+        if(i==0) nbIsoBox(x+33,y+17,11,7,7,RGB(20,18,14),RGB(28,26,20),RGB(14,4,4),RGB(20,6,5));
+        else if(ok) nbThumb(&nbTmp,x+13,y+4,40,18);
+        text(x+33-tw(i?"Visit Town":"Continue",1)/2,y+25,i?"Visit Town":"Continue",RGB(2,5,11),1); }
+    { int on=foc==1&&tile==2; disc(190,106,10,on?RGB(4,10,2):RGB(5,10,20)); disc(190,106,9,on?RGB(14,27,6):RGB(18,25,31)); rect(185,105,11,2,on?RGB(1,4,0):WHITE); rect(189,101,2,11,on?RGB(1,4,0):WHITE);
+      text(190-tw("New Game",1)/2,119,"New Game",RGB(2,5,11),1); }
+    disc(120,140,9,RGB(3,8,19)); disc(120,140,7,RGB(10,18,30)); for(int d=0;d<2;d++){ line(116,140+d,119,143+d,WHITE); line(119,143+d,125,136+d,WHITE); }   // the check button (A)
+    mmLogo(SW/2-LOGO_SW/2,0);
+    if(foc==0) s3Tip("LEFT RIGHT TOWN  SELECT NEW  START RENAME");
+    else if(tile==0) s3Tip("PLAY ON WHERE YOU LEFT OFF");
+    else if(tile==1) s3Tip("THE TOWN MAP  LOTS  MOVE IN AND BUILD");
+    else s3Tip("A FRESH START IN THIS TOWN");
+}
+static void playScreen(void){
+    int l[SLOT_MAX], n=nbFirstTowns(l);
+    nbOk=nbLoad(); int act=nbTS, sel=0; for(int i=0;i<n;i++) if(l[i]==act) sel=i;
+    int foc=1, tile=0, dirty=1; u16 prev=keyNow();
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k;
-        if(pr&K_DOWN){ sel=(sel+1)%8; dirty=1; }
-        if(pr&K_UP){ sel=(sel+7)%8; dirty=1; }
+        if(pr&K_UP){ foc=0; dirty=1; }
+        if(pr&K_DOWN){ foc=1; dirty=1; }
+        int d=(pr&K_RIGHT)?1:(pr&K_LEFT)?-1:0, dt=(pr&K_R)?1:(pr&K_L)?-1:0;
+        if(foc==0&&d) dt=d; else if(d){ tile=(tile+3+d)%3; dirty=1; }
+        if(dt&&n){ sel=(sel+n+dt)%n; dirty=1; }
+        if(pr&K_B) break;
+        if(pr&K_A){
+            if(foc==0){ foc=1; dirty=1; }
+            else if(tile==0){ lifeMode(0); break; }
+            else if(tile==1&&n){ if(!nbSwitch(l[sel])){ nbOk=nbLoad(); toast(nbErr); } else { nbOk=1; neighborhoodScreen(); if(gToMenu) break; } }
+            else if(tile==2){ if(newGame(n?l[sel]:-1)) break; }
+            n=nbTownList(l,SLOT_MAX); act=nbTS; if(sel>=n) sel=n?n-1:0; prev=keyNow(); dirty=2;
+        }
+        if(pr&K_SEL){
+            int st=menu("A NEW NEIGHBORHOOD",nsNm,NS_N);
+            if(st>=0){ char nm[SLOT_NAME+1]; int i=0; for(;nsTown[st][i];i++) nm[i]=nsTown[st][i]; nm[i]=0;
+                if(slEditName(nm)){ nbGen(st,nm); nbTS=-1; int e=nbSave(); toast(e?"NO FREE SLOT FOR A TOWN":"NEIGHBORHOOD MADE"); }
+                nbOk=nbLoad(); n=nbTownList(l,SLOT_MAX); act=nbTS; }
+            prev=keyNow(); dirty=2;
+        }
+        if((pr&K_START)&&n&&nbRead(l[sel],&nbTmp)){
+            static const char* const it[2]={"RENAME","DELETE"};
+            int c=menu(nbTmp.name,it,2);
+            if(c==0&&nbRead(l[sel],&nbT)){ char nm[SLOT_NAME+1]; for(int i=0;i<=NB_NAME;i++) nm[i]=nbT.name[i];
+                if(slEditName(nm)){ for(int i=0;i<=NB_NAME;i++) nbT.name[i]=nm[i]; nbTS=l[sel]; nbSave(); } nbOk=nbLoad(); }
+            else if(c==1){
+                if(l[sel]==act) toast("YOU LIVE THERE");
+                else { const char*yn[2]={"NO","YES"};
+                    if(menu("DELETE IT AND ITS HOUSES",yn,2)==1&&nbRead(l[sel],&nbTmp)){
+                        for(int i=0;i<NB_LOTS;i++) if(nbTmp.lot[i].on&&nbTmp.lot[i].slot>=0) slDelete(nbTmp.lot[i].slot);
+                        slDelete(l[sel]); toast("NEIGHBORHOOD DELETED"); n=nbTownList(l,SLOT_MAX); if(sel>=n) sel=n-1; if(sel<0) sel=0; } } }
+            nbOk=nbLoad(); act=nbTS; prev=keyNow(); dirty=2;
+        }
+        if(dirty){ if(dirty&2){ mmLot=-1; mmTod=(u8)mmPickTod(); mmBackdrop(); } plDraw(l,n,sel,act,foc,tile); present(); dirty=0; } else vsync();
+        uiTicks++; menuMusTick();
+    }
+    nbOk=nbLoad(); nbBounds();
+}
+
+static void mainMenu(void){
+    int sel=0, dirty=3; u16 prev=keyNow();
+    menuMusStart();   // a random checked song plays while a main menu is open (MENU MUSIC option)
+    for(;;){
+        u16 k=keyNow(), pr=k&~prev; prev=k;
+        if(pr&K_DOWN){ sel=(sel+1)%MM_N; dirty|=1; }
+        if(pr&K_UP){ sel=(sel+MM_N-1)%MM_N; dirty|=1; }
         if(pr&(K_A|K_START)){
-            int fresh=0;   // 1 = that screen stopped the menu song (or plays its own): a NEW random song starts when we are back
-            if(sel==0){ lifeMode(0); fresh=1; }
-            else if(sel==1){ nbChooser(); fresh=1; }
-            else if(sel==2){ creatureEditor(); fresh=1; }
-            else if(sel==3) mapEditor();   // (the menu song plays on in the room builder)
+            if(sel==0) playScreen();
+            else if(sel==1) creatureEditor();
+            else if(sel==2) mapEditor();   // (the menu song plays on in the room builder)
+            else if(sel==3) jukeboxScreen();
             else if(sel==4){ slotScreen(); if(nbOk) nbBoot(); }   // (a slot screen can delete or replace the town)
-            else if(sel==5){ jukeboxScreen(); fresh=1; }
-            else if(sel==6) settingsScreen();
-            else { int g=menu("HOW TO PLAY",guideItems,6);
-                   if(g==0) helpScreen("PLAYING",lifeHelp,16); else if(g==1) helpScreen("MAKE CREATURE",creatureHelp,15); else if(g==2) helpScreen("BUILD ROOMS",mapHelp,12); else if(g==3) helpScreen("JUKEBOX",jbHelp,15); else if(g==4) helpScreen("ROOM SLOTS",slotHelp,11); else if(g==5) helpScreen("OPTIONS",optHelp,11); }
-            gToMenu=0; prev=keyNow(); dirty=1;
-            (void)fresh; menuMusSync();   // the menu's song comes back (a crossfade) if the screen took the music; OPTIONS may have switched SOUND or MENU MUSIC
+            else if(sel==5) settingsScreen();
+            else howToPlay();
+            gToMenu=0; prev=keyNow(); dirty=sel<=1||sel==4?3:2;   // back from a game: a new view and the time of day again
+            menuMusSync();   // the menu's song comes back (a crossfade) if the screen took the music; OPTIONS may have switched SOUND or MENU MUSIC
             continue;
         }
-        if(dirty){ drawMainMenu(sel); present(); dirty=0; } else vsync();
+        if(dirty){ if(dirty&1&&dirty&2){ mmTod=(u8)mmPickTod(); mmLot=-1; } drawMainMenu(sel,dirty&2); present(); dirty=0; } else vsync();
         uiTicks++; menuMusTick();
     }
 }
