@@ -624,3 +624,12 @@ With the big "BORE" text gone the large font is no longer linked: the ROM is 186
   tom fills, the riff stuttering on the last beat of a phrase, a soft sparkle arp in the last chorus, acid flicks.
 - Level matched to HOT DAMN; stereo plan `staged_pan` in xm2gba.py. Remake: `python3 tools/make_staged_rework.py`, then `python3 tools/xm2gba.py`.
 
+## Pre-made families and the true randomizer
+- Eight more pre-made families (THE STACKS, PIXELS, VOXELLS, LOWPOLYS, KICKFLIPS, BUFFERS, SPRITES, DIPPERS): the 32 random Sims the bake
+  test harness uses, now with their whole look (`HhPre.look` holds all `LK_N` values). They live in the ROM: no save space is used until
+  a family moves in.
+- Pause > HOUSEHOLD: MOVE IN A FAMILY opens the list of all twelve families; TRULY RANDOM SIM invites a Sim of any age from child to elder
+  with every slider (0-8, evenly), pick, part and colour rolled (`lookTrueRandom`; only unlocked parts, no beard on the young).
+- Creator, last tab: TRUE RANDOM does the same to you (your age stays) and rolls a new personality. RANDOMIZE keeps its gentler dice.
+- Passers-by keep the gentle `hhRandLook`: a fully random look bakes about three times slower.
+
