@@ -1267,6 +1267,7 @@ static int mOrd, mRow, mLeft, mFrac; static volatile int mCur, mFilled; static c
 static volatile int mGain=256, mGainT=256;   // music loudness 256 = full; mGain glides to mGainT a little every frame (half while a menu is open)
 static int mKind, aTail; static volatile int mLaps, mDone;   // mKind 0 = tracker song, 1 = streamed ADPCM; mLaps = times the tracker song has wrapped; mDone = ADPCM song finished
 static int aSlow, aPrv, aPh; static const u8 *aSrc; static u32 aN, aPos; static int aPred, aIdx;   // ADPCM stream: data, sample count, position, decoder state
+static int aLoop, aPred0, aIdx0;   // a looping stream (the creator's chiptunes): it wraps to the start with the decoder state it was encoded from
 // Playback step (16.16) of note nt (0..95) of instrument in: the instrument's anchor x 2^(nt/12) in integer maths (xmT = 2^(j/12) in Q30), plus the
 // converter's rare +-1 fix-ups, so every step is exactly what the old 96-entry table per instrument held (tools/xm2gba.py checks that).
 static u32 xmStep(const XmSong*s,int in,int nt){
@@ -1319,7 +1320,7 @@ IWRAM_CODE static void adpMix(s8*out,s8*outR){
     for(;i<MUS_N;i++){
         if(aSlow){
             ph+=2;
-            while(ph>=3&&p<e){ ph-=3; prv=pred;
+            while(ph>=3){ if(p>=e){ if(!aLoop) break; p=0; pred=aPred0; idx=aIdx0; } ph-=3; prv=pred;
                 int v=d[p>>1]; v=(p&1)?(v>>4):(v&15); p++;
                 int step=stepT[idx], diff=step>>3;
                 if(v&1) diff+=step>>2; if(v&2) diff+=step>>1; if(v&4) diff+=step;
@@ -1328,7 +1329,7 @@ IWRAM_CODE static void adpMix(s8*out,s8*outR){
             if(p>=e&&ph>=3) break;
             out[i]=(s8)((prv+(((pred-prv)*ph)/3))>>8);
         } else {
-            if(p>=e) break;
+            if(p>=e){ if(!aLoop) break; p=0; pred=aPred0; idx=aIdx0; }
             int v=d[p>>1]; v=(p&1)?(v>>4):(v&15); p++;
             int step=stepT[idx], diff=step>>3;
             if(v&1) diff+=step>>2; if(v&2) diff+=step>>1; if(v&4) diff+=step;
@@ -1376,7 +1377,7 @@ IWRAM_CODE static void sfxMix(s8*outL,s8*outR){   // add the effect voice to a f
 // rises, the old one falls. With no new song (fade out) the main deck is just silent. Asking for another crossfade while one runs drops the older song.
 typedef struct {
     const XmSong*song; int ord,row,left,frac; MVoice vc[MUS_VOICES]; int kind,tail,laps,done,play;
-    int aSlow,aPrv,aPh; const u8*aSrc; u32 aN,aPos; int aPred,aIdx; s8 dly[256]; int dp,lp;
+    int aSlow,aPrv,aPh; const u8*aSrc; u32 aN,aPos; int aPred,aIdx,aLoop,aPred0,aIdx0; s8 dly[256]; int dp,lp;
 } MDeck;
 static MDeck xdk EWRAM_BSS; static s8 xbufL[MUS_N] EWRAM_BSS, xbufR[MUS_N] EWRAM_BSS;
 static volatile int xfOn, xfT, xfN, xdkG=256;   // crossfade running, frames done, frames in all, the old song's gain when it was put aside (256 = full)
@@ -1385,7 +1386,7 @@ IWRAM_CODE static int xfGain(int t,int n){ int p=t*256/n; if(p<0) p=0; if(p>256)
 #define XSW(T,A,B) { T t_=A; A=B; B=t_; }
 IWRAM_CODE static void deckSwap(MDeck*d){   // exchange the main deck (the globals) with d
     XSW(const XmSong*,mSong,d->song) XSW(int,mOrd,d->ord) XSW(int,mRow,d->row) XSW(int,mLeft,d->left) XSW(int,mFrac,d->frac) XSW(int,mKind,d->kind) XSW(int,aTail,d->tail)
-    XSW(int,aSlow,d->aSlow) XSW(int,aPrv,d->aPrv) XSW(int,aPh,d->aPh) XSW(const u8*,aSrc,d->aSrc) XSW(u32,aN,d->aN) XSW(u32,aPos,d->aPos) XSW(int,aPred,d->aPred) XSW(int,aIdx,d->aIdx)
+    XSW(int,aSlow,d->aSlow) XSW(int,aPrv,d->aPrv) XSW(int,aPh,d->aPh) XSW(const u8*,aSrc,d->aSrc) XSW(u32,aN,d->aN) XSW(u32,aPos,d->aPos) XSW(int,aPred,d->aPred) XSW(int,aIdx,d->aIdx) XSW(int,aLoop,d->aLoop) XSW(int,aPred0,d->aPred0) XSW(int,aIdx0,d->aIdx0)
     XSW(int,mDp,d->dp) XSW(int,mLp,d->lp)
     { int t=mLaps; mLaps=d->laps; d->laps=t; t=mDone; mDone=d->done; d->done=t; t=mPlay; mPlay=d->play; d->play=t; }
     { u32*a=(u32*)mvc,*b=(u32*)d->vc; for(unsigned i=0;i<sizeof(mvc)/4;i++){ u32 t=a[i]; a[i]=b[i]; b[i]=t; } }
@@ -1461,7 +1462,10 @@ static void audStop(void){ irqOff(); mOn=0; R_DMA1CNT=0; R_DMA2CNT=0; R_TM0CNT=0
 static void deckInit(int kind,const u8*adp,const XmSong*xm){   // set the main deck up for a song (the sound hardware is not touched)
     for(int i=0;i<MUS_VOICES;i++) mvc[i].d=0;
     mOrd=0; mRow=0; mLeft=0; mFrac=0; mLaps=0; mDone=0; aTail=0; mKind=kind; mSong=xm; mDp=0; mLp=0; for(int i=0;i<256;i++) mDly[i]=0;
-    if(kind){ aSrc=adp+4; aN=*(const u32*)adp; aSlow=(int)(aN>>31); aN&=0x7FFFFFFFu; aPrv=0; aPh=0; aPos=0; aPred=0; aIdx=0; }
+    aLoop=0; aPred0=0; aIdx0=0;
+    if(kind){ u32 n0=*(const u32*)adp; aSlow=(int)(n0>>31); aLoop=(int)((n0>>30)&1); aN=n0&0x3FFFFFFFu; aSrc=adp+4; aPrv=0; aPh=0; aPos=0;
+        if(aLoop){ u32 st=((const u32*)adp)[1]; aSrc=adp+8; aPred0=(s16)(st&0xFFFF); aIdx0=(int)((st>>16)&0xFF); }   // loop header: count|bit 30, then pred | idx<<16
+        aPred=aPred0; aIdx=aIdx0; }
     mPlay=1;
 }
 static void musBeginRaw(int kind,const u8*adp,const XmSong*xm){
@@ -1496,7 +1500,7 @@ static void musFadeOut(int frames){   // fade the playing song out to silence (t
 // Will the song in the main deck be over within `frames` frames? (the menus start the next song's crossfade shortly before the end)
 static int musNearEnd(int frames){
     if(!mPlay) return 0;
-    if(mKind) return mDone||(aSlow?(long)(aN-aPos)*3/2:(long)(aN-aPos))<(long)frames*MUS_N;   // (a slow song stores 2 samples for every 3 it plays)
+    if(mKind) return !aLoop&&(mDone||(aSlow?(long)(aN-aPos)*3/2:(long)(aN-aPos))<(long)frames*MUS_N);   // (a slow song stores 2 samples for every 3 it plays; a loop never ends)
     const XmSong*s=mSong; long left=(long)s->rows[s->order[mOrd]]-mRow;
     for(int o=mOrd+1;o<s->nord;o++) left+=s->rows[s->order[o]];
     return left*s->rowN<(long)frames*MUS_N||mLaps>=1;
