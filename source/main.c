@@ -1257,6 +1257,11 @@ static int bdx=10, bdy=4, spx=3, spy=6;   // skateboard tile and spawn tile, fou
 #define BDY bdy
 static int lsp,lhd,lspin,lflip,lgrind,lscore,lstun,lairF,lpts,lnoteT,lglide; static const char*lnote;
 
+// SKATEBOARD ANIMATION: the board is drawn from these (set every picture by playerCalc, drawn by drawBoard under the sprite).
+//   bdA heading + spin (256 = a turn), bdPitch nose up / down in px (ollie), bdRoll the flip (kickflip / heelflip roll about the long axis),
+//   bdRaise a grab lifts it, bdSpk grind sparks; bFT / bFD count the flip (frames, +1 kickflip / -1 heelflip)
+#define BFLIP_LEN 16
+static int bFT, bFD, bFPrev, bdA, bdPitch, bdRoll, bdRaise, bdSpk;
 static int lfood, lbl, lnear;   // hunger (100 = full), bladder (100 = bursting), what is in reach (1 fridge, 2 toilet)
 static int lmaxz, lplay, ldead, lbumpCd;   // peak height this jump, air sound played, dead, bump cooldown
 // HEALTH (HP, 0..100): the life meter. hurt() (falls, bails, wall hits) and punches (house.h) take it down, it creeps back while fed and
@@ -2099,6 +2104,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
     }
     if(!air){ lmaxz=(int)(lz>>8); lplay=0; }
     lairF=air;
+    if(lflip&&lskate&&air){ if(!bFPrev) bFD=(k&K_UP)?-1:1; if(bFT<BFLIP_LEN) bFT++; bFPrev=1; } else { bFT=0; bFPrev=0; }   // the flip: one full roll in BFLIP_LEN steps, then it is flat again
     if(lgrind){ if(air||tileH(lfx>>8,lfy>>8)!=6) lgrind=0; else if((fr&3)==0){ int g=abGrindPts(); lscore+=g; lnote="GRIND"; lnoteT=10; lcPts+=g; lcT=oComboLen(); } }   // GRIP ability
     if(!lhave&&lz<(8<<8)&&(lfx>>8)==BDX&&(lfy>>8)==BDY){ lhave=1; lnote="GOT A SKATEBOARD"; lnoteT=90; moodEvent(M_GOT_BOARD); }   // walk over it to pick it up
     if(!ldead){   // needs: hunger and bladder, then how they (and the skating) make the skater feel
@@ -2278,11 +2284,49 @@ static void playerCalc(void){
     plFh=surfH(lfx,lfy); plZ=(int)(lz>>8); plV=faceView[(lhd+lspin+4*cview)&15];
     plBob=(!lskate&&plZ<=plFh&&(lvx|lvy)&&lstun<=2)?(int)((lfr>>3)&1):0;   // a little step bounce while he walks
     lpsx=plX; lpsy=plY-20;
+    if(lskate){   // the board
+        int air2=plZ>plFh, gp=F.grab>8?8:F.grab;
+        bdA=((F.angF>>4)+F.spin+64*cview)&255;                        // heading + the spin of the trick, turned with the camera
+        bdPitch=air2?(int)(lvz>>7):0; if(bdPitch>4) bdPitch=4; if(bdPitch<-3) bdPitch=-3;   // an ollie: nose up on the way up, nose down on the way down
+        if(air2&&F.grab>0) bdPitch+=gp/4;                              // a grab pulls it up and tips it
+        bdRaise=(air2&&F.grab>0)?gp*5/8:0;                             // ... towards the hand
+        bdRoll=(bFT>0&&bFT<BFLIP_LEN)?((bFD*bFT*256/BFLIP_LEN)&255):0; // kickflip / heelflip
+        bdSpk=lgrind?1+(lfr&3):0;                                      // grind sparks
+    } else { bdA=bdPitch=bdRoll=bdRaise=bdSpk=0; }
     hhCalc();
+}
+// The board: a real deck, about as long as the rider is wide (scaled by life stage), drawn as a flat slab in the room's isometric grid under the feet.
+// It points the way the rider faces and turns with spins, noses up and down in an ollie, rolls over for a KICKFLIP / HEELFLIP (the grip side is
+// the red top, the underside shows trucks and wheels), lifts to the hand in a grab and throws sparks on a grind.
+static void drawBoard(void){
+    static const u8 bdSc[AG_N]={70,85,95,100,100};
+    int sc=bdSc[stage<AG_N?stage:AG_ADULT], hl=270*sc/100, hw=56*sc/100;
+    int c=fcos(bdA), s=fsin(bdA), cr=fcos(bdRoll), sr=fsin(bdRoll);
+    int ex=((c-s)*hl)>>13, ey=((c+s)*hl)>>14;                         // nose offset on screen (map x -> 8,4 px per tile, y -> -8,4)
+    int pxv=((-s-c)*hw)>>13, pyv=((c-s)*hw)>>14;                      // across the deck
+    int lx=(pxv*cr)>>8, ly=((pyv*cr)>>8)-((2*sr)>>8);                 // the roll tips the across vector up out of the floor plane
+    int wx=(pxv*sr)>>8, wy=((pyv*sr)>>8)+((2*cr)>>8);                 // which way the wheels hang (2 px under a flat deck)
+    int cx=plX, cy=plY-plZ-bdRaise;
+    int nx=cx+ex, ny=cy+ey-bdPitch, tx=cx-ex, ty=cy-ey+(bdPitch+1)/2;   // nose / tail
+    int top=cr>=0;
+    u16 deck=top?RGB(27,9,6):RGB(9,9,12), edge=top?RGB(19,5,4):RGB(5,5,7), hi=top?RGB(31,24,9):RGB(14,14,18);
+    int wf=top?0:1;
+    for(int pass=0;pass<2;pass++){
+        if(pass==wf){   // wheels: two trucks, one pair at each end (under the deck when it is flat, over it when it is upside down)
+            for(int e=-1;e<=1;e+=2) for(int sd=-1;sd<=1;sd+=2){
+                int wxp=cx+ex*6*e/10+lx*sd+wx, wyp=cy+ey*6*e/10-(e>0?bdPitch:-(bdPitch+1)/2)*6/10+ly*sd+wy;
+                rect(wxp-1,wyp-1,2,2,RGB(25,24,20)); px(wxp-1,wyp-1,RGB(31,31,28)); }
+        } else {        // the deck: seven lines across, an edge line on each side, a stripe down the middle, a lighter nose
+            for(int k=-3;k<=3;k++){ int ox=lx*k/3, oy=ly*k/3; line(tx+ox,ty+oy,nx+ox,ny+oy,(k==-3||k==3)?edge:deck); }
+            line(tx+lx*3/3,ty+ly*3/3+1,nx+lx*3/3,ny+ly*3/3+1,edge); line(tx-lx*3/3,ty-ly*3/3+1,nx-lx*3/3,ny-ly*3/3+1,edge);   // the thickness
+            line(tx+(nx-tx)/5,ty+(ny-ty)/5,nx-(nx-tx)/5,ny-(ny-ty)/5,hi);
+            px(nx,ny,hi); px(nx+(lx>0?1:-1),ny,hi); }
+    }
+    if(bdSpk){ px(tx+bdSpk-2,ty-bdSpk,RGB(31,29,8)); px(tx-bdSpk,ty-(bdSpk>>1)-1,RGB(31,31,24)); px(tx+(bdSpk>>1),ty-bdSpk-2,RGB(31,20,4)); }
 }
 static void drawPlayerNow(void){
     if(sShad){ rect(plX-3,plY-plFh-1,7,2,RGB(10,8,5)); rect(plX-1,plY-plFh-2,3,4,RGB(10,8,5)); }   // shadow
-    if(lskate){ rect(plX-6,plY-plZ-1,12,2,RGB(26,10,6)); rect(plX-5,plY-plZ+1,2,2,RGB(3,3,6)); rect(plX+3,plY-plZ+1,2,2,RGB(3,3,6)); }   // board under the feet
+    if(lskate) drawBoard();   // board under the feet
     blit((plBob&&!lskate)?spr4s[plV]:spr4[plV],plX-16,plY-40-plZ-plBob);   // walking: the stride frame on the up-step
 }
 // The room inside the rectangle x0..x1 / y0..y1 (end excluded), drawn back to front and clipped to it: the same pixels a whole-screen
@@ -2396,10 +2440,11 @@ static void actorRc(Rc*r){   // everything the player puts on screen: sprite, sh
     int sx=plX-16, sy=plY-40-plZ-plBob;
     int x0=sx+spBx0, x1=sx+spBx1, y0=sy+spBy0, y1=sy+spBy1;
     if(sShad){ if(plX-3<x0) x0=plX-3; if(plX+4>x1) x1=plX+4; if(plY-plFh+2>y1) y1=plY-plFh+2; }
-    if(lskate){ if(plX-6<x0) x0=plX-6; if(plX+6>x1) x1=plX+6; if(plY-plZ+3>y1) y1=plY-plZ+3; }
+    if(lskate){ if(plX-19<x0) x0=plX-19; if(plX+20>x1) x1=plX+20; if(plY-plZ-17<y0) y0=plY-plZ-17; if(plY-plZ+14>y1) y1=plY-plZ+14; }   // the whole board, nose up, rolled or lifted
     r->x0=(short)x0; r->x1=(short)x1; r->y0=(short)y0; r->y1=(short)y1;
 }
-static unsigned actSigNow(void){ return (unsigned)(plX&0x3FF)|((unsigned)(plY&0x3FF)<<10)|((unsigned)(plZ&0x3F)<<20)|((unsigned)plV<<26)|((unsigned)lskate<<28)|((unsigned)sShad<<29)|((unsigned)(plFh&1)<<30)|((unsigned)plBob<<31); }
+static unsigned actSigBase(void){ return (unsigned)(plX&0x3FF)|((unsigned)(plY&0x3FF)<<10)|((unsigned)(plZ&0x3F)<<20)|((unsigned)plV<<26)|((unsigned)lskate<<28)|((unsigned)sShad<<29)|((unsigned)(plFh&1)<<30)|((unsigned)plBob<<31); }
+static unsigned actSigNow(void){ unsigned b=actSigBase(); if(lskate) b^=((unsigned)bdA|((unsigned)(bdPitch+4)<<8)|((unsigned)bdRaise<<12)|((unsigned)bdRoll<<16)|((unsigned)bdSpk<<24))*2654435761u; return b; }   // + the board's pose: any change redraws
 // ---- getting pixels to the screen ----
 static void dmaRows16(u32 src,u32 dst,int w,int rows,int sstride,int dstride){   // rows of w halfwords, strides in halfwords
     for(int j=0;j<rows;j++){ REG_DMA3SAD=src; REG_DMA3DAD=dst; REG_DMA3CNT=(u32)w|0x80000000u; src+=(u32)(sstride*2); dst+=(u32)(dstride*2); }
