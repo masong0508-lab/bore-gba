@@ -44,6 +44,10 @@ static int itemAlongU(int x,int y,char ch){   // rails / ledges / benches link u
     int ax=(x>0&&lifeMap[y][x-1]==ch)+(x<MW-1&&lifeMap[y][x+1]==ch), ay=(y>0&&lifeMap[y-1][x]==ch)+(y<MH-1&&lifeMap[y+1][x]==ch);
     int axisX=!(ay>0&&ax==0); return axisX?!(cview&1):(cview&1);
 }
+static void drawStairs(int sx,int sy,int up){   // steps drawn in code (no baked sprite): up = they rise, down = they sink into the floor
+    for(int i=0;i<4;i++){ int h=up?3+i*3:12-i*3; u16 top=up?RGB(27,25,21):RGB(15,14,12), side=up?RGB(19,17,14):RGB(8,8,7);
+        rect(sx-7+i*4,sy-h-1,4,2,top); rect(sx-7+i*4,sy-h+1,4,h,side); }
+}
 // draw the item standing on real tile (x,y); (sx,sy) = screen centre of the tile
 static void drawItemTile(char c,int sx,int sy,int x,int y){
     if(c=='#') blitItem(V_CRATE,sx,sy);
@@ -69,4 +73,5 @@ static void drawItemTile(char c,int sx,int sy,int x,int y){
     else if(c=='G') blitItem(V_PIPE,sx,sy);                                   // chill pack
     else if(c=='V') blitItem(V_LAVA,sx,sy);
     else if(c=='U') blitItem(V_BEANBAG+((itemFacing(x,y)-cview)&3),sx,sy);
+    else if(c=='^'||c=='~') drawStairs(sx,sy,c=='^');
 }

@@ -329,6 +329,7 @@ static void twTick(int*planned){
     }
 }
 static void hhTick(void){   // once per logic step in the life game
+    if(curFl) return;   // upstairs: the household waits on the ground floor
     if(hhBubT) hhBubT--;
     if(lvx||lvy||lsp||lairF||lgrind) hhStill=0; else if(hhStill<1000) hhStill++;
     int planned=0;
@@ -593,7 +594,7 @@ static void hhArrive(int m){   // a free-will Sim reached the one it wanted to s
     socDo(s->uid,b,socPick(s->uid,b));
 }
 // ---- you: R next to a household Sim opens the social menu (furniture you stand at is offered first) ----
-static int hhNearest(void){ int best=-1, bd=1<<30; for(int m=0;m<hhN;m++){ if(hhM[m].act==HA_AWAY) continue; s32 dx=hhM[m].fx-lfx, dy=hhM[m].fy-lfy; int d=(int)((dx*dx+dy*dy)>>8); if(d<bd){ bd=d; best=m; } } return bd<=(380*380>>8)?best:-1; }   // within 1.5 tiles
+static int hhNearest(void){ if(curFl) return -1; int best=-1, bd=1<<30; for(int m=0;m<hhN;m++){ if(hhM[m].act==HA_AWAY) continue; s32 dx=hhM[m].fx-lfx, dy=hhM[m].fy-lfy; int d=(int)((dx*dx+dy*dy)>>8); if(d<bd){ bd=d; best=m; } } return bd<=(380*380>>8)?best:-1; }   // within 1.5 tiles
 static void liveInvalidate(void);
 static int hhSocR(int useLabel){   // 1 = handled (a social, or the menu was closed), 0 = go on and use the furniture
     int m=hhNearest(); if(m<0) return 0;
@@ -675,6 +676,7 @@ static void hhObjUpdate(void){   // in vblank: hand out OBJ slots, load what cha
     *(volatile u16*)0x04000050=0x0400; *(volatile u16*)0x04000052=(6<<8)|10;            // see-through sprites blend 10/16 over the picture
     if(!hhSlotOk) hhSlotsFree();
     if(lcamF>0){ for(i=0;i<2*OBJ_SLOTS;i++) oam[i*4]=0x200; return; }   // the action cam: all off, the slots stay as they are
+    if(curFl){ for(i=0;i<2*OBJ_SLOTS;i++) oam[i*4]=0x200; hhSlotsFree(); return; }   // upstairs: no Sim sprites
     // 1. who is in view
     HhOv w[HH_IDS]; int n=0, cx=SW/2, cy=(vpY0+vpY1)/2; u8 vis[HH_IDS]; int ddOf[HH_IDS];
     for(i=0;i<HH_IDS;i++) vis[i]=0;

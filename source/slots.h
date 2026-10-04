@@ -53,7 +53,7 @@
 #define SL_MIG_TAG 4808
 #define SL_OLD_BASE 20480     // layout 1: the six slots started here
 #define SL_OLD_N    6
-#define SLOT_HOUSE_READY 0
+#define SLOT_HOUSE_READY 1
 _Static_assert(SLOT_BASE+SLOT_N*SLOT_SZ<=32768,"the slots do not fit in 32 KB of SRAM");
 _Static_assert(SL_OLD_BASE==SLOT_BASE+SL_OLD_N*SLOT_SZ,"the layout 1 slots must land on whole slots of the new bank");
 _Static_assert(3+MSZ*3<=SL_MIG_TAG,"the room being played must end before the layout marker");
@@ -112,9 +112,10 @@ static int slSumOf(volatile u8*p,int n){ u32 s1=0,s2=0; for(int i=0;i<n;i++){ s1
 // 3 = three planes one after the other, tiles then floors then wallpapers, each its own runs of (count, value) covering the whole
 //     map. Floors and wallpapers change far less often than the furniture, so each plane packs on its own: about a quarter smaller
 //     than format 2 on a furnished room (more rooms fit a slot). Formats 1 and 2 still load; new saves are format 3.
-static int slPlaneVal(int plane,int i){ int y=i/MW, x=i%MW; return plane==0?(u8)lifeMap[y][x]:plane==1?floorMap[y][x]:wallMap[y][x]; }
+static int slSrcF=-1, slWantRoom=0, slRoomIdx=0;   // house saves: the floor slEncRoom writes (-1: the ground floor as it stands), the room index slDecRoom reads, the index written
+static int slPlaneVal(int plane,int i){ int f=slSrcF>=0?slSrcF:curFl?0:-1; if(f>=0) return flBuf[f][plane][i]; int y=i/MW, x=i%MW; return plane==0?(u8)lifeMap[y][x]:plane==1?floorMap[y][x]:wallMap[y][x]; }
 static void slEncRoom(SlW*w){
-    slwPut(w,0);   // room index: 0 = the one room of a ROOM slot (a house numbers its rooms)
+    slwPut(w,slRoomIdx);   // room index: 0 = the one room of a ROOM slot, a house numbers its floors
     slwPut(w,3);
     for(int pl=0;pl<3;pl++){
         int n=0, cur=0;
@@ -143,7 +144,7 @@ static int slDecRoomPlane(SlR*c,int pl,int apply){
 // returns 1 if fine (or a room index we do not use), 0 if broken. apply=1 writes the map.
 static int slDecRoom(SlR*c,int apply){
     int idx=slrGet(c), fmt=slrGet(c); if(c->bad) return 0;
-    if(idx!=0) return 1;      // another room of a house: not used by a ROOM load
+    if(idx!=slWantRoom) return 1;      // another floor of a house: not wanted now
     if(fmt==3){
         for(int pl=0;pl<3;pl++) if(!slDecRoomPlane(c,pl,apply)) return 0;
         if(apply) wDirty=1;
@@ -317,8 +318,45 @@ static int slParse(volatile u8*body,int len,int mask,int apply){
     }
     return SLE_OK;
 }
-static int houseLoad(int slot){ (void)slot; return SLE_HOUSE; }                     // TODO (see HOUSES at the top of this file)
-static int houseSave(int slot,const char*name){ (void)slot; (void)name; return SLE_HOUSE; }   // TODO
+// ---------- houses: every floor as its own room chunk (index 0..FLR_N-1), then a small plan chunk (version, floor count) ----------
+static int slHouseBuild(SlW*w){
+    for(int f=0;f<FLR_N;f++){ slSrcF=f; slRoomIdx=f; slChunk(w,SLC_ROOM,slEncRoom); }
+    slSrcF=-1; slRoomIdx=0;
+    slwPut(w,SLC_HOUSE); slwPut16(w,2); slwPut(w,1); slwPut(w,FLR_N);
+    slwPut(w,0); return w->pos;
+}
+static int houseLoad(int slot){   // all floors are checked first; only then is anything replaced. You end up on the ground floor
+    SlInfo I; slLoadedMask=0; if(!slInfo(slot,&I)||I.kind!=SLK_HOUSE) return SLE_EMPTY;
+    volatile u8*b=SLB(slot)+SLOT_HDR;
+    if(slSumOf(b,I.len)!=I.sum) return SLE_BAD;
+    if(I.mw!=MW||I.mh!=MH) return SLE_SIZE;
+    for(int f=0;f<FLR_N;f++){ slWantRoom=f; int e=slParse(b,I.len,SLH_ROOM,0); if(e){ slWantRoom=0; return e; } }
+    flEnsure(); flHome();
+    for(int f=0;f<FLR_N;f++){ slWantRoom=f; flBlankLive(); slParse(b,I.len,SLH_ROOM,1); flStoreAs(f); }   // (a floor the save lacks stays empty)
+    slWantRoom=0; flLoad(0); curFl=0;
+    mapSave(); mapScan(); hhSlotsFree(); liveInvalidate(); camSnap=1;
+    return SLE_OK;
+}
+static int houseSave(int slot,const char*name){   // needs a fresh slScan (slOwner). A house takes 3 or 4 slots in a row
+    SlInfo old; int had=slInfo(slot,&old); if(had&&old.kind!=SLK_HOUSE) return SLE_HOUSE;
+    flEnsure(); flStoreAs(curFl);
+    SlW d; slwInit(&d,0,1<<20); slHouseBuild(&d);
+    int span=(SLOT_HDR+d.pos+SLOT_SZ-1)/SLOT_SZ; if(span>4) return SLE_BIG;
+    if(slot+span>SLOT_N) return SLE_NOROOM;
+    for(int k=0;k<span;k++) if(slOwner[slot+k]>=0&&slOwner[slot+k]!=slot) return SLE_NOROOM;
+    char nm[SLOT_NAME+1];
+    if(name){ int i=0; for(;name[i]&&i<SLOT_NAME;i++) nm[i]=name[i]; nm[i]=0; }
+    else if(had){ for(int i=0;i<=SLOT_NAME;i++) nm[i]=old.name[i]; }
+    else { const char*r="HOUSE "; int i=0; while(*r) nm[i++]=*r++; if(slot+1>=10) nm[i++]='1'; nm[i++]=(char)('0'+(slot+1)%10); nm[i]=0; }
+    volatile u8*m=SLB(slot); int oldspan=had?old.span:1;
+    m[0]=0; m[1]=0;
+    SlW w; slwInit(&w,m+SLOT_HDR,span*SLOT_SZ-SLOT_HDR); slHouseBuild(&w);
+    if(w.over) return SLE_BIG;
+    slHeader(slot,SLK_HOUSE,span,SLH_ROOM,w.pos,slwSum(&w),had?old.seq+1:1,nm);
+    for(int k=span;k<oldspan&&slot+k<SLOT_N;k++){ SLB(slot+k)[0]=0; SLB(slot+k)[1]=0; }
+    SlInfo chk; if(!slInfo(slot,&chk)||slSumOf(m+SLOT_HDR,chk.len)!=chk.sum) return SLE_NOSRAM;
+    return SLE_OK;
+}
 static int slLoad(int slot,int mask){
     SlInfo I; slLoadedMask=0;
     if(!slInfo(slot,&I)) return SLE_EMPTY;
@@ -327,8 +365,9 @@ static int slLoad(int slot,int mask){
     if(I.mw!=MW||I.mh!=MH) return SLE_SIZE;
     mask&=I.has; if(!mask) return SLE_NOPART;
     int e=slParse(SLB(slot)+SLOT_HDR,I.len,mask,0); if(e) return e;      // pass 1: check everything, change nothing
+    if(mask&SLH_ROOM) flHome();                                         // (back to the ground floor first)
     e=slParse(SLB(slot)+SLOT_HDR,I.len,mask,1); if(e) return e;          // pass 2: apply
-    if(slLoadedMask&SLH_ROOM){ mapSave(); mapScan(); }                  // the loaded room becomes the current room
+    if(slLoadedMask&SLH_ROOM){ flBlankUpper(); mapSave(); mapScan(); }   // a single room replaces the house: the upper floors are empty again                  // the loaded room becomes the current room
     slSetActive(slot);
     return SLE_OK;
 }
@@ -390,7 +429,7 @@ static void slotBoot(void){        // BOOT LOADS PERSON: the creature is not kep
 static int slotUsedBytes(void){ int n=0; for(int i=0;i<SLOT_N;i++) if(slOwner[i]==i) n+=SLOT_HDR+slI[i].len; return n; }
 static const char* slErrMsg(int e){
     switch(e){ case SLE_BIG: return "TOO BIG FOR A SLOT"; case SLE_BAD: return "SLOT IS DAMAGED"; case SLE_EMPTY: return "SLOT IS EMPTY";
-        case SLE_HOUSE: return "HOUSES COME LATER"; case SLE_NOROOM: return "NOT ENOUGH FREE SLOTS"; case SLE_SIZE: return "MAP SIZE DOES NOT MATCH"; case SLE_NOPART: return "THAT PART IS NOT SAVED";
+        case SLE_HOUSE: return "WRONG KIND OF SLOT"; case SLE_NOROOM: return "NOT ENOUGH FREE SLOTS"; case SLE_SIZE: return "MAP SIZE DOES NOT MATCH"; case SLE_NOPART: return "THAT PART IS NOT SAVED";
         case SLE_NOSRAM: return "SAVE NOT SUPPORTED HERE"; default: return "COULD NOT READ SLOT"; }
 }
 
@@ -405,7 +444,7 @@ static u8 slTb[MSZ] EWRAM_BSS;   // the tile plane of the room being previewed (
 static u16 slThumbCol(int t,int f){ if(t=='.') return shade(flFlat[f%NFL][0],10); int pi=palIdx((char)t); return pi>=0?palCol[pi]:0; }
 static void slThumb(int slot,int x0,int y0){   // the room of a slot at 1 pixel per tile, decoded straight from SRAM (all room formats)
     rect(x0-1,y0-1,MW+2,MH+2,RGB(3,4,7)); rect(x0,y0,MW,MH,RGB(6,7,10));
-    SlInfo*I=&slI[slot]; if(!I->ok||!slGood[slot]||I->kind!=SLK_ROOM||!(I->has&SLH_ROOM)) return;
+    SlInfo*I=&slI[slot]; if(!I->ok||!slGood[slot]||(I->kind!=SLK_ROOM&&I->kind!=SLK_HOUSE)||!(I->has&SLH_ROOM)) return;
     SlR r={SLB(slot)+SLOT_HDR,0,I->len,0};
     while(r.pos<r.len){
         int tag=slrGet(&r); if(!tag) break; int cl=slrGet16(&r); if(r.bad) return;
@@ -507,7 +546,7 @@ static void slInfoScreen(int s){
     for(int i=0;i<n;i++) slLp[i]=slLn[i];
     helpScreen("SLOT INFO",slLp,n);
 }
-enum { SA_SAVE, SA_LOADALL, SA_LOADROOM, SA_LOADPERSON, SA_RENAME, SA_COPY, SA_INFO, SA_DELETE, SA_SAVEHH, SA_LOADHH };
+enum { SA_SAVE, SA_LOADALL, SA_LOADROOM, SA_LOADPERSON, SA_RENAME, SA_COPY, SA_INFO, SA_DELETE, SA_SAVEHH, SA_LOADHH, SA_SAVEHOUSE };
 static char slCopyNm[SLOT_N][20] EWRAM_BSS; static const char* slCopyIt[SLOT_N];
 // A on a slot: the list of things you can do with it. Returns 1 if a slot was loaded (the caller must restart play).
 static int slActions(int s){
@@ -515,7 +554,7 @@ static int slActions(int s){
     if(own>=0&&own!=s){ toast("PART OF A BIG SAVE"); return 0; }
     int occ=(own==s), good=occ&&slGood[s], house=occ&&I->kind==SLK_HOUSE, hh=occ&&I->kind==SLK_HHOLD, conf=xo[XO_SLOTCONF], changed=0;
     const char*it[9]; int id[9], n=0;
-    if(!occ){ it[n]="SAVE HERE"; id[n++]=SA_SAVE; it[n]="SAVE HOUSEHOLD"; id[n++]=SA_SAVEHH; }
+    if(!occ){ it[n]="SAVE HERE"; id[n++]=SA_SAVE; it[n]="SAVE HOUSEHOLD"; id[n++]=SA_SAVEHH; it[n]="SAVE HOUSE"; id[n++]=SA_SAVEHOUSE; }
     else if(hh){
         if(good){ it[n]="LOAD HOUSEHOLD"; id[n++]=SA_LOADHH; }
         it[n]="SAVE HOUSEHOLD"; id[n++]=SA_SAVEHH;
@@ -526,8 +565,8 @@ static int slActions(int s){
         if(good){ it[n]="LOAD ALL"; id[n++]=SA_LOADALL;
             if(!house&&(I->has&SLH_ROOM)&&(I->has&~SLH_ROOM)){ it[n]="LOAD ROOM ONLY"; id[n++]=SA_LOADROOM; }
             if(!house&&(I->has&SLH_PERSON)&&(I->has&~SLH_PERSON)){ it[n]="LOAD PERSON ONLY"; id[n++]=SA_LOADPERSON; } }
-        if(!house){ it[n]="SAVE OVER IT"; id[n++]=SA_SAVE; }
-        if(good&&!house){ it[n]="RENAME"; id[n++]=SA_RENAME; it[n]="COPY TO"; id[n++]=SA_COPY; }
+        if(!house){ it[n]="SAVE OVER IT"; id[n++]=SA_SAVE; } else { it[n]="SAVE HOUSE"; id[n++]=SA_SAVEHOUSE; }
+        if(good){ it[n]="RENAME"; id[n++]=SA_RENAME; if(!house){ it[n]="COPY TO"; id[n++]=SA_COPY; } }
         it[n]="INFO"; id[n++]=SA_INFO; it[n]="DELETE"; id[n++]=SA_DELETE;
     }
     int c=menu(occ?(I->name[0]?I->name:"NO NAME"):"EMPTY SLOT",it,n); if(c<0) return 0;
@@ -536,6 +575,11 @@ static int slActions(int s){
             if(occ&&conf&&menu("OVERWRITE THIS SLOT",slYesNo,2)!=1) break;
             int e=slSave(s,slMaskOpt(),0);
             if(e) toast(slErrMsg(e)); else { slSetActive(s); toast("SLOT SAVED"); }
+        } break;
+        case SA_SAVEHOUSE:{
+            if(occ&&conf&&menu("OVERWRITE THIS SLOT",slYesNo,2)!=1) break;
+            int e=houseSave(s,0);
+            toast(e?slErrMsg(e):"HOUSE SAVED");
         } break;
         case SA_SAVEHH:{
             if(occ&&conf&&menu("OVERWRITE THIS SLOT",slYesNo,2)!=1) break;

@@ -1759,14 +1759,14 @@ static int numText(int x,int y,int n,u16 c){
 // lifeMap = what stands on each tile, floorMap = floor style under it, wallMap = wallpaper on it (for wall tiles).
 enum { T_ROOM, T_WALL, T_FLOOR, T_ITEM, T_ERASE, NTOOL };
 static int eTool, eAct, eAx, eAy, eFl, eWp, eOb;   // editor: tool, rectangle anchor set?, anchor tile, chosen floor / wallpaper / item
-#define NOBJ 28
+#define NOBJ 30
 #define OB_LAUNCH 17   // launch ramp turns like the kicker: '9'..'<'
 #define OB_KICKER 10   // palette slots whose char carries a turn (+eRot): kicker '1'..'4', quarter pipe '5'..'8'
 #define OB_QPIPE 11
 static int eRot;   // editor: which way the next ramp faces (0 S, 1 E, 2 N, 3 W)
-static const char palCh[NOBJ]={'.','w','W','#','=','F','T','D','B','P','1','5','L','N','S','H','C','9','X','O','Y','Z','K','J','M','G','V','U'};
-static const char* const palNm[NOBJ]={"CLEAR","LOW WALL","WALL","CRATE","RAIL","FRIDGE","TOILET","DOOR","BOARD","SPAWN","KICKER","Q PIPE","LEDGE","BENCH","BED","SHOWER","SOFA","LAUNCH","FUNBOX","BARREL","TRASH CAN","PLANTER","PICNIC","JERSEY","MANUAL PAD","WATER PIPE","LAVA LAMP","BEANBAG"};
-static const u16 palCol[NOBJ]={RGB(26,21,14),RGB(8,20,22),RGB(10,22,24),RGB(8,9,20),RGB(31,30,16),RGB(31,31,31),RGB(30,28,18),RGB(14,9,5),RGB(26,10,6),RGB(28,10,8),RGB(24,17,9),RGB(27,19,11),RGB(20,20,22),RGB(25,18,9),RGB(10,14,28),RGB(22,28,30),RGB(26,18,9),RGB(8,14,24),RGB(18,16,24),RGB(24,6,5),RGB(12,18,14),RGB(20,10,6),RGB(25,18,9),RGB(22,22,24),RGB(30,26,5),RGB(10,24,14),RGB(24,8,26),RGB(18,8,22)};
+static const char palCh[NOBJ]={'.','w','W','#','=','F','T','D','B','P','1','5','L','N','S','H','C','9','X','O','Y','Z','K','J','M','G','V','U','^','~'};
+static const char* const palNm[NOBJ]={"CLEAR","LOW WALL","WALL","CRATE","RAIL","FRIDGE","TOILET","DOOR","BOARD","SPAWN","KICKER","Q PIPE","LEDGE","BENCH","BED","SHOWER","SOFA","LAUNCH","FUNBOX","BARREL","TRASH CAN","PLANTER","PICNIC","JERSEY","MANUAL PAD","WATER PIPE","LAVA LAMP","BEANBAG","STAIRS UP","STAIRS DOWN"};
+static const u16 palCol[NOBJ]={RGB(26,21,14),RGB(8,20,22),RGB(10,22,24),RGB(8,9,20),RGB(31,30,16),RGB(31,31,31),RGB(30,28,18),RGB(14,9,5),RGB(26,10,6),RGB(28,10,8),RGB(24,17,9),RGB(27,19,11),RGB(20,20,22),RGB(25,18,9),RGB(10,14,28),RGB(22,28,30),RGB(26,18,9),RGB(8,14,24),RGB(18,16,24),RGB(24,6,5),RGB(12,18,14),RGB(20,10,6),RGB(25,18,9),RGB(22,22,24),RGB(30,26,5),RGB(10,24,14),RGB(24,8,26),RGB(18,8,22),RGB(24,22,18),RGB(12,11,10)};
 static signed char palLut[256]; static u8 palLutOk;   // tile char -> palette slot (or -1), built on first use: palIdx() runs for every tile of the minimap, so it must be O(1) even with 100+ items
 static int palIdx(char c){
     if(!palLutOk){ for(int i=0;i<256;i++) palLut[i]=-1; for(int i=NOBJ-1;i>=0;i--) palLut[(u8)palCh[i]]=(signed char)i;
@@ -1831,6 +1831,8 @@ static void mapScan(void){   // find the skateboard (B) and the spawn point (P);
 #define SRAM_BASE ((volatile u8*)0x0E000000)
 static const char sramTag[] __attribute__((used)) = "SRAM_V113";   // tells emulators / flash carts to give the game battery saves
 #define MSZ (MW*MH)
+#define FLR_N 3   // floors a house has (house slots, slots.h): the floor you stand on is the live map, the other floors wait in flBuf
+static u8 flBuf[FLR_N][3][MSZ] EWRAM_BSS; static int curFl; static u8 flArm, flInit;   // tiles, floors and wallpapers of every floor; which floor is live
 #define SET_OFF 4864            // settings live here now (the big map takes bytes 0..4802)
 #define OMW 14                  // old 14x14 saves
 #define OMSZ (OMW*OMW)
@@ -1872,10 +1874,10 @@ static int jbUnlock(int bit){   // 1 when the song was locked and is now free (s
 // SRAM layout: 0..2 "BM3", then MSZ bytes each of tiles, floors, wallpapers. Settings at SET_OFF (see settingsSave).
 // Old "BM1" / "BM2" saves (14x14, settings at 640) still load: the room is placed into the plaza of the new default map.
 static void mapSave(void){ volatile u8*m=SRAM_BASE; m[0]='B'; m[1]='M'; m[2]='3';
-    for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x; m[3+i]=(u8)lifeMap[y][x]; m[3+MSZ+i]=floorMap[y][x]; m[3+2*MSZ+i]=wallMap[y][x]; } }
+    for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x; if(curFl){ m[3+i]=flBuf[0][0][i]; m[3+MSZ+i]=flBuf[0][1][i]; m[3+2*MSZ+i]=flBuf[0][2][i]; } else { m[3+i]=(u8)lifeMap[y][x]; m[3+MSZ+i]=floorMap[y][x]; m[3+2*MSZ+i]=wallMap[y][x]; } } }   // (upstairs: the room kept in SRAM is still the ground floor)
 static int mapSaved(void){ volatile u8*m=SRAM_BASE; if(m[0]!='B'||m[1]!='M'||m[2]!='3') return 0;
     for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x;
-        if(m[3+i]!=(u8)lifeMap[y][x]||m[3+MSZ+i]!=floorMap[y][x]||m[3+2*MSZ+i]!=wallMap[y][x]) return 0; }
+        if(curFl?(m[3+i]!=flBuf[0][0][i]||m[3+MSZ+i]!=flBuf[0][1][i]||m[3+2*MSZ+i]!=flBuf[0][2][i]):(m[3+i]!=(u8)lifeMap[y][x]||m[3+MSZ+i]!=floorMap[y][x]||m[3+2*MSZ+i]!=wallMap[y][x])) return 0; }
     return 1; }
 static int mapLoad(void){   // returns 1 if a valid saved map was loaded
     wDirty=1;
@@ -1897,6 +1899,35 @@ static int mapLoad(void){   // returns 1 if a valid saved map was loaded
 static void mapPlace(int x,int y,char c){
     if(c=='B'||c=='P'){ for(int j=0;j<MH;j++)for(int i=0;i<MW;i++) if(lifeMap[j][i]==c) lifeMap[j][i]='.'; }
     lifeMap[y][x]=c; if(c=='w'||c=='W') wallMap[y][x]=(u8)eWp; wDirty=1; }
+
+// ---------- floors: the live map is the floor you are on; the others wait in flBuf. Stairs: '^' goes up, '~' comes down. House slots (slots.h) keep all of them ----------
+static void hhSlotsFree(void); static void liveInvalidate(void);
+static const char* const flNm[FLR_N]={"GROUND FLOOR","FLOOR 2","FLOOR 3"};
+static int flBd[4];   // the board pickup and the spawn tile of the ground floor while you are upstairs
+static void flStoreAs(int f){ for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x; flBuf[f][0][i]=(u8)lifeMap[y][x]; flBuf[f][1][i]=floorMap[y][x]; flBuf[f][2][i]=wallMap[y][x]; } }
+static void flLoad(int f){ for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x; lifeMap[y][x]=(char)flBuf[f][0][i]; floorMap[y][x]=flBuf[f][1][i]; wallMap[y][x]=flBuf[f][2][i]; } wDirty=1; }
+static void flBlank(int f){ for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x, e=(x==0||y==0||x==MW-1||y==MH-1); flBuf[f][0][i]=(u8)(e?'w':'.'); flBuf[f][1][i]=1; flBuf[f][2][i]=(u8)(e?13:0); } }   // an empty floor: carpet and a low wall round the edge
+static void flBlankLive(void){ for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int e=(x==0||y==0||x==MW-1||y==MH-1); lifeMap[y][x]=e?'w':'.'; floorMap[y][x]=1; wallMap[y][x]=(u8)(e?13:0); } wDirty=1; }
+static void flEnsure(void){ if(flInit) return; flInit=1; for(int f=1;f<FLR_N;f++) flBlank(f); }
+static void flGo(int n){   // make floor n the live map (the one you leave is kept)
+    if(n==curFl||n<0||n>=FLR_N) return;
+    flEnsure(); flStoreAs(curFl);
+    if(curFl==0){ flBd[0]=bdx; flBd[1]=bdy; flBd[2]=spx; flBd[3]=spy; }
+    curFl=n; flLoad(n);
+    if(n==0){ bdx=flBd[0]; bdy=flBd[1]; spx=flBd[2]; spy=flBd[3]; } else bdx=bdy=-1;   // no board pickup upstairs
+    hhSlotsFree(); liveInvalidate(); camSnap=1;
+}
+static void flHome(void){ flArm=0; flGo(0); }
+static void flBlankUpper(void){ flEnsure(); for(int f=1;f<FLR_N;f++) flBlank(f); }
+static void flStairs(int dir){   // you stepped on a stair tile: up (+1) or down (-1)
+    int n=curFl+dir; if(n<0||n>=FLR_N){ lnote=dir>0?"NO FLOOR ABOVE":"NO FLOOR BELOW"; lnoteT=40; return; }
+    int tx=(int)(lfx>>8), ty=(int)(lfy>>8); char want=dir>0?'~':'^';
+    flGo(n);
+    int fx=-1, fy=-1;
+    for(int y=0;y<MH&&fx<0;y++)for(int x=0;x<MW;x++) if(lifeMap[y][x]==want){ fx=x; fy=y; break; }
+    if(fx<0){ fx=tx; fy=ty; lifeMap[fy][fx]=want; wDirty=1; }   // no stairs there yet: they appear where you came from
+    lfx=fx*256+128; lfy=fy*256+128; lz=lvz=0; flArm=0; lnote=flNm[n]; lnoteT=60;
+}
 // extended options (opts.h): one byte each at OPT_OFF, 'X' 'O', count, values, checksum. A save with fewer options (older game) leaves the new ones at their defaults.
 #define OPT_OFF 4896
 static void optsSave(void){
@@ -1968,7 +1999,7 @@ static void toast(const char*msg){ int w=tw(msg,1)+16;
 static const char* const lifeHelp[16]={">ON FOOT","DPAD WALK  B RUN  A HOP","L GET ON THE BOARD","R USE FRIDGE TOILET BED SHOWER SOFA",">ON THE BOARD","A PUSH  DPAD STEER  B OLLIE","IN AIR DPAD SPINS  B KICKFLIP  R GLIDES",">KEEP YOURSELF GOING","WC IS THE TOILET BAR  HP UNDER THE FACE","A OR B GETS YOU UP FROM BED OR SOFA",">WORK  MON TO FRI 9 TO 5","TRICK POINTS BEAT THE QUOTA FOR PAY",">WANTS AND FEARS","WANTS FILL THE METER  FEARS DRAIN IT","A GOOD SLEEP ROLLS NEW WANTS AND FEARS","R BY A SIM TALK OR FIGHT  START MENU"};
 
 static const char* const creatureHelp[15]={">PICK YOUR LOOK","L R CHANGE TAB   UP DOWN PICK A ROW","LEFT RIGHT CHANGE IT  A ALSO STEPS","SELECT TURNS THE CREATURE ROUND",">THE TABS","1 BODY  2 FACE  3 HAIR  4 CLOTHES","5 PARTS  TAIL HORNS SPIKES WINGS","  PARTS GIVE POWERS  AND FIGHT BONUSES","  BIG PARTS COST DNA  A BUYS ONE","6 ASPIRE  ASPIRATION  LIFETIME WANT  SIGN","  AND TRAITS THAT SHARE 25 POINTS",">FINISH","START JUMPS TO THE DONE TAB","GO LIVE LIFE PLAYS YOUR CREATURE","LIVING EARNS DNA FOR NEW PARTS"};
-static const char* const mapHelp[12]={">BUILD A ROOM","ROOM TOOL  A CORNER  A BUILDS","WALL TOOL  A START  A DRAWS A LINE","FLOOR TOOL  A CORNER  A FILLS","ITEM TOOL  PLACE SINGLE TILES","ERASE TOOL  A CORNER  A CLEARS",">STYLES","L R PICK FLOOR OR ITEM","SEL+L R PICK WALLPAPER","SELECT TAP NEXT TOOL  B CANCELS",">KEEP IT","START OPENS PLAY TEST AND SAVE"};
+static const char* const mapHelp[14]={">BUILD A ROOM","ROOM TOOL  A CORNER  A BUILDS","WALL TOOL  A START  A DRAWS A LINE","FLOOR TOOL  A CORNER  A FILLS","ITEM TOOL  PLACE SINGLE TILES","ERASE TOOL  A CORNER  A CLEARS",">STYLES","L R PICK FLOOR OR ITEM","SEL+L R PICK WALLPAPER","SELECT TAP NEXT TOOL  B CANCELS",">KEEP IT","START OPENS PLAY TEST AND SAVE",">FLOORS","SEL+UP DOWN FLOOR  STAIRS ARE ITEMS"};
 
 // ---------- settings screen ----------
 static void drawRoom(int ed);
@@ -2019,7 +2050,7 @@ static void hhStart(void); static void hhTick(void); static int hhSocR(int useLa
 static void lifeInit(void){
     { static int spanDone; if(!spanDone){ spanDone=1; itemSpanInit(); } }
     if(!(shapeMask()>>look[LK_SHAPE]&1)){ look[LK_SHAPE]=(u8)maskPick(shapeMask(),look[LK_SHAPE],NSHAPE); if(!custom) buildLook(); }
-    mapScan(); hhStart();
+    flHome(); mapScan(); hhStart();
     bakeSprites(); camSnap=1;
     lfx=spx*256+128; lfy=spy*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote=""; lchill=0; lskate=0; lhave=(bdx<0); lfr=0; lvx=lvy=0; ldead=0; lmaxz=0; lplay=0; lbumpCd=0; lfood=100; lbl=0; lhp=HP_MAX; lnear=0; moodReset(); simsReset(); sfxStop(); feelReset(0);
 }
@@ -2038,6 +2069,8 @@ static u16 babyPad(void){
 static void lifeStep(u16 k,u16 pr,int fr){
     if(stage==AG_BABY&&!ldead){ k=babyPad(); pr=0; }   // uncontrollable stage: the pad is ignored (the pause menu still works)
     int fh=surfH(lfx,lfy)<<8;
+    { int tx=(int)(lfx>>8), ty=(int)(lfy>>8); char sc=(tx>=0&&ty>=0&&tx<MW&&ty<MH)?lifeMap[ty][tx]:'.';   // stairs: step on them to change floor (step off and on again to use them once more)
+      if(sc!='^'&&sc!='~') flArm=1; else if(flArm&&lz<=fh&&!ldead){ flArm=0; flStairs(sc=='^'?1:-1); return; } }
     if(ldead){   // dead: frozen until A
         lstun=2;
         if(pr&K_A){ ldead=0; lstun=0; lfx=spx*256+128; lfy=spy*256+128; lz=0; lvz=0; lskate=0; lsp=0; lgrind=0; lspin=0; lflip=0; lairF=0; lmaxz=0; lplay=0; lnoteT=0; lfood=100; lbl=0; lhp=HP_MAX; moodReset(); simsRespawn(); sfxStop(); feelReset(0); }
@@ -2349,14 +2382,14 @@ static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
             char c=cellAt(tx,ty); int ox,oy; rotXY(tx,ty,&ox,&oy);
             if(c=='.'&&(ed||lhave||ox!=BDX||oy!=BDY)) continue;   // plain floor: nothing stands there (but the board pickup might)
             if(c=='w'||c=='W') drawWall(tx,ty,sx,sy);
-            if(c=='#'||c=='F'||c=='T'||c=='='||c=='D'||c=='L'||c=='N'||c=='S'||c=='H'||c=='C'||c=='X'||c=='O'||c=='Y'||c=='Z'||c=='K'||c=='J'||c=='M'||c=='G'||c=='V'||c=='U'||isRamp(c)) drawItemTile(c,sx,sy,ox,oy);
+            if(c=='#'||c=='F'||c=='T'||c=='='||c=='D'||c=='L'||c=='N'||c=='S'||c=='H'||c=='C'||c=='X'||c=='O'||c=='Y'||c=='Z'||c=='K'||c=='J'||c=='M'||c=='G'||c=='V'||c=='U'||c=='^'||c=='~'||isRamp(c)) drawItemTile(c,sx,sy,ox,oy);
             if((ed&&c=='B')||(!ed&&!lhave&&ox==BDX&&oy==BDY)) blitItem(V_BOARD,sx,sy-(ed?0:((lfr>>4)&1)));   // the skateboard pickup, bobbing
             if(ed&&c=='P') drawSpawn(sx,sy+1);   // little person = spawn
         }
-        if(!ed&&hhN) hhDrawBand(s,s);
+        if(!ed&&hhN&&!curFl) hhDrawBand(s,s);
         if(!ed&&s==ss) drawPlayerNow();
     }
-    if(!ed&&hhN) hhDrawBand(s1+1,9999);
+    if(!ed&&hhN&&!curFl) hhDrawBand(s1+1,9999);
     if(!ed&&ss>s1) drawPlayerNow();   // the feet are below the rectangle but the head is inside it: nothing in front can reach it, so draw last
     clipAll();
 }
@@ -2791,7 +2824,7 @@ static void drawEditorHud(const char*msg){
                 case OB_LAUNCH:blitItem(V_LAUNCH+((eRot-cview)&3),221,141);break; case 18:blitItem(V_FUNBOX,221,141);break; case 19:blitItem(V_BARREL,221,141);break;
                 case 20:blitItem(V_TRASH,221,141);break; case 21:blitItem(V_PLANTER,221,141);break; case 22:blitItem(V_PICNIC,221,141);break;
                 case 23:blitItem(V_JERSEYU,221,141);break; case 24:blitItem(V_MPAD,221,141);break;
-                case 14:blitItem(V_BED,221,141);break; case 15:blitItem(V_SHOWER,221,141);break; case 16:blitItem(V_SOFA,221,141);break; default:drawSpawn(221,142); } }
+                case 14:blitItem(V_BED,221,141);break; case 15:blitItem(V_SHOWER,221,141);break; case 16:blitItem(V_SOFA,221,141);break; case 28:case 29:drawStairs(221,141,eOb==28);break; default:drawSpawn(221,142); } }
         if(eOb==1||eOb==2){ wallSwatch(eWp,212,137); }
     } else if(eTool!=T_ERASE){
         if(eTool!=T_WALL){ text(2,139,"FLOOR",DIMC,1); texSwatch(&flTex[eFl],24,137); text(36,139,flTex[eFl].nm,WHITE,1); }
@@ -2834,6 +2867,10 @@ static void mapEditor(void){
         int tr[4];
         for(int i=0;i<4;i++){ hold[i]=(k&dirK[i])?hold[i]+1:0; tr[i]=(hold[i]==1)||(hold[i]>oRepDelay()&&(hold[i]&oRepMask())==0); }
         int ux=tr[0]-tr[1], uy=tr[3]-tr[2];
+        if((k&K_SEL)&&(tr[2]||tr[3])){   // SELECT + UP / DOWN: the floor above / below (stairs: the ^ and ~ items)
+            int nf=curFl+(tr[2]?1:-1); comboUsed=1; ux=uy=0; dirty=1;
+            if(nf>=0&&nf<FLR_N){ flGo(nf); eAct=0; msg=flNm[nf]; msgT=60; } else { msg=nf<0?"NO FLOOR BELOW":"NO FLOOR ABOVE"; msgT=40; }
+        }
         if(ux||uy){   // screen-relative like walking: up = away from the camera
             int dx=ux+uy, dy=uy-ux; dx=(dx>0)-(dx<0); dy=(dy>0)-(dy<0);
             ecx+=dx; ecy+=dy; if(ecx<0)ecx=0; if(ecy<0)ecy=0; if(ecx>=MW)ecx=MW-1; if(ecy>=MH)ecy=MH-1;
@@ -2866,8 +2903,8 @@ static void mapEditor(void){
                 else toast("MAP SAVED"); }
             else if(c==2) slotScreen();
             else if(c==3) settingsScreen();
-            else if(c==4){ if(!xo[XO_RESETASK]||menu("RESET THE MAP",yesNo,2)==1){ mapReset(); eAct=0; toast("MAP RESET"); } }
-            else if(c==5) helpScreen("HOW TO EDIT",mapHelp,12);
+            else if(c==4){ if(!xo[XO_RESETASK]||menu("RESET THE MAP",yesNo,2)==1){ if(curFl) flBlankLive(); else mapReset(); eAct=0; toast("MAP RESET"); } }
+            else if(c==5) helpScreen("HOW TO EDIT",mapHelp,14);
             else if(c==6){ if(xo[XO_EDSAVE]) mapSave(); break; }
             prev=keyNow(); edCamSnap(); dirty=1; continue;
         }
