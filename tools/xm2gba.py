@@ -27,7 +27,7 @@ OUT = "source/musicdata.h"
 BIN = "source/music/xmdata.bin"   # every song's note events and sample data, pulled into the ROM with .incbin (keeps musicdata.h small and the ROM compact)
 BLOB = bytearray(); LABELS = []   # LABELS: (symbol, kind, offset, size) of each piece of BLOB; one .incbin line each in musicdata.h
 TITLE = ("the_dipper_man", "tools/the_dipper_man.xm")
-GAIN = {"tree_swaying_action": 0.9, "amiga_music": 1.1, "earth_and_the_space_citizens": 2.0, "meltdown_in_mars_house": 1.8, "sunman_sunrise": 1.6, "gottcho_barracho": 1.85, "spanish_flexicode": 1.7, "gottcho_barracho_ii": 1.7, "mi_cora_zone": 1.5, "emergency_hitech": 1.6, "excuses_house": 1.9, "whistler_shuffle": 2.2, "whistler_shuffle_old": 2.2, "worthless_clouds": 1.15, "cynicaller_dnb": 1.35, "hotdamn_rave": 1.5, "hotdamn_rave_old": 1.5, "aim_and_shoot": 2.15, "magic_act": 3.0}   # louder/quieter per song (default 1.0), so every tracker song sits at a similar level
+GAIN = {"tree_swaying_action": 0.9, "amiga_music": 1.1, "earth_and_the_space_citizens": 2.0, "meltdown_in_mars_house": 1.8, "sunman_sunrise": 1.6, "gottcho_barracho": 1.85, "spanish_flexicode": 1.7, "gottcho_barracho_ii": 1.7, "mi_cora_zone": 1.5, "emergency_hitech": 1.6, "excuses_house": 1.9, "whistler_shuffle": 2.2, "whistler_shuffle_old": 2.2, "worthless_clouds": 1.15, "cynicaller_dnb": 1.35, "hotdamn_rave": 1.5, "hotdamn_rave_old": 1.5, "aim_and_shoot": 2.15, "magic_act": 3.0, "nursery_time": 3.4}   # louder/quieter per song (default 1.0), so every tracker song sits at a similar level
 LOOP_OVERRIDE = {"the_dipper_man": 4, "amiga_music": 0, "emergency_dance_floor": 0, "tree_swaying_action": 0}   # the title song plays its intro once, then loops from order 4 (others loop from the XM restart position)
 
 def make_ending(S):
@@ -606,7 +606,13 @@ def magic_pan(pat, row, ch, i, n):
     if ch == 14: return 0.55
     if ch == 15: return -0.55
     return None
-OVERRIDES = {"magic_act": magic_pan, "the_dipper_man": title_pan, "excuses_house": excuses_pan, "whistler_shuffle": whistler_pan, "whistler_shuffle_old": whistler_pan, "emergency_hitech": hitech_pan, "worthless_clouds": clouds_pan, "cynicaller_dnb": cynic_pan, "hotdamn_rave": hotdamn_pan, "hotdamn_rave_old": hotdamn_pan, "aim_and_shoot": aim_pan, "spanish_flexicode": flexicode_pan, "gottcho_barracho_ii": barracho_pan}
+def nursery_pan(pat, row, ch, i, n):
+    """NURSERY TIME: kick, bass, snare, crash in the middle; hats right; toms left; twin rhythm guitars hard left / right; the clean guitar and
+       oud a pair; twin leads either side of centre; music box right, scratches and boings left."""
+    t = {1: 0.0, 2: 0.25, 3: 0.0, 5: -0.3, 6: -0.7, 7: 0.7, 8: -0.3, 9: 0.3, 11: -0.25, 12: 0.25, 13: -0.4, 14: 0.45, 15: -0.2}
+    return t.get(ch, 0.0 if ch in (0, 4, 10) else None)
+
+OVERRIDES = {"nursery_time": nursery_pan, "magic_act": magic_pan, "the_dipper_man": title_pan, "excuses_house": excuses_pan, "whistler_shuffle": whistler_pan, "whistler_shuffle_old": whistler_pan, "emergency_hitech": hitech_pan, "worthless_clouds": clouds_pan, "cynicaller_dnb": cynic_pan, "hotdamn_rave": hotdamn_pan, "hotdamn_rave_old": hotdamn_pan, "aim_and_shoot": aim_pan, "spanish_flexicode": flexicode_pan, "gottcho_barracho_ii": barracho_pan}
 
 def design_pan(S, used, insts, sid=None):
     """Pan plan for one song. Returns pan(pat, row, ch, inst, note) -> bus.  Rules (a small 'mix engineer'):

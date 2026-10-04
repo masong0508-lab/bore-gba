@@ -67,3 +67,6 @@ SONG_XM(aim_and_shoot,"AIM AND SHOOT","tools/aim_and_shoot.xm")
 // THE MAGIC ACT: a Singhs rework of "The Dipper Man - The Magic Act" (tools/the_dipper_man_the_magic_act.xm), built by tools/make_magicact_rework.py.
 // A suite in thirteen parts (about 6:47) where the original's arpeggio and hook keep coming back in a new mode, meter and colour.
 SONG_XM(magic_act,"THE MAGIC ACT","tools/magic_act.xm")
+// NURSERY TIME: a Singhs rework of "The Dipper Man - Nursery Time" (tools/the_dipper_man_nursery_time.xm), built by tools/make_nursery_rework.py.
+// A music-box ditty that turns into a long, shifting metal / nu-groove suite built from the same tune (about 6:08).
+SONG_XM(nursery_time,"NURSERY TIME","tools/nursery_time.xm")

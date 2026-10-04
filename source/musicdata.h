@@ -251,6 +251,32 @@ __asm__(".pushsection .rodata\n"
   ".global xm_magic_act_S26\nxm_magic_act_S26:\n.incbin \"source/music/xmdata.bin\",2690926,15556\n"
   ".global xm_magic_act_S27\nxm_magic_act_S27:\n.incbin \"source/music/xmdata.bin\",2706482,54849\n"
   ".global xm_magic_act_S28\nxm_magic_act_S28:\n.incbin \"source/music/xmdata.bin\",2761331,50128\n"
+  ".global xm_nursery_time_ev\nxm_nursery_time_ev:\n.incbin \"source/music/xmdata.bin\",2811459,30101\n"
+  ".global xm_nursery_time_S0\nxm_nursery_time_S0:\n.incbin \"source/music/xmdata.bin\",2841560,11640\n"
+  ".global xm_nursery_time_S1\nxm_nursery_time_S1:\n.incbin \"source/music/xmdata.bin\",2853200,4908\n"
+  ".global xm_nursery_time_S2\nxm_nursery_time_S2:\n.incbin \"source/music/xmdata.bin\",2858108,14916\n"
+  ".global xm_nursery_time_S3\nxm_nursery_time_S3:\n.incbin \"source/music/xmdata.bin\",2873024,1851\n"
+  ".global xm_nursery_time_S4\nxm_nursery_time_S4:\n.incbin \"source/music/xmdata.bin\",2874875,28882\n"
+  ".global xm_nursery_time_S5\nxm_nursery_time_S5:\n.incbin \"source/music/xmdata.bin\",2903757,1432\n"
+  ".global xm_nursery_time_S6\nxm_nursery_time_S6:\n.incbin \"source/music/xmdata.bin\",2905189,4889\n"
+  ".global xm_nursery_time_S7\nxm_nursery_time_S7:\n.incbin \"source/music/xmdata.bin\",2910078,796\n"
+  ".global xm_nursery_time_S8\nxm_nursery_time_S8:\n.incbin \"source/music/xmdata.bin\",2910874,6487\n"
+  ".global xm_nursery_time_S9\nxm_nursery_time_S9:\n.incbin \"source/music/xmdata.bin\",2917361,914\n"
+  ".global xm_nursery_time_S10\nxm_nursery_time_S10:\n.incbin \"source/music/xmdata.bin\",2918275,2476\n"
+  ".global xm_nursery_time_S11\nxm_nursery_time_S11:\n.incbin \"source/music/xmdata.bin\",2920751,5016\n"
+  ".global xm_nursery_time_S12\nxm_nursery_time_S12:\n.incbin \"source/music/xmdata.bin\",2925767,7100\n"
+  ".global xm_nursery_time_S13\nxm_nursery_time_S13:\n.incbin \"source/music/xmdata.bin\",2932867,7002\n"
+  ".global xm_nursery_time_S14\nxm_nursery_time_S14:\n.incbin \"source/music/xmdata.bin\",2939869,36553\n"
+  ".global xm_nursery_time_S15\nxm_nursery_time_S15:\n.incbin \"source/music/xmdata.bin\",2976422,36573\n"
+  ".global xm_nursery_time_S16\nxm_nursery_time_S16:\n.incbin \"source/music/xmdata.bin\",3012995,36633\n"
+  ".global xm_nursery_time_S17\nxm_nursery_time_S17:\n.incbin \"source/music/xmdata.bin\",3049628,28681\n"
+  ".global xm_nursery_time_S18\nxm_nursery_time_S18:\n.incbin \"source/music/xmdata.bin\",3078309,10781\n"
+  ".global xm_nursery_time_S19\nxm_nursery_time_S19:\n.incbin \"source/music/xmdata.bin\",3089090,2463\n"
+  ".global xm_nursery_time_S20\nxm_nursery_time_S20:\n.incbin \"source/music/xmdata.bin\",3091553,7427\n"
+  ".global xm_nursery_time_S21\nxm_nursery_time_S21:\n.incbin \"source/music/xmdata.bin\",3098980,2890\n"
+  ".global xm_nursery_time_S22\nxm_nursery_time_S22:\n.incbin \"source/music/xmdata.bin\",3101870,43372\n"
+  ".global xm_nursery_time_S23\nxm_nursery_time_S23:\n.incbin \"source/music/xmdata.bin\",3145242,23230\n"
+  ".global xm_nursery_time_S24\nxm_nursery_time_S24:\n.incbin \"source/music/xmdata.bin\",3168472,8332\n"
   ".popsection\n");
 extern const u8 xm_the_dipper_man_ev[];
 extern const s8 xm_the_dipper_man_S0[];
@@ -500,6 +526,32 @@ extern const s8 xm_magic_act_S25[];
 extern const s8 xm_magic_act_S26[];
 extern const s8 xm_magic_act_S27[];
 extern const s8 xm_magic_act_S28[];
+extern const u8 xm_nursery_time_ev[];
+extern const s8 xm_nursery_time_S0[];
+extern const s8 xm_nursery_time_S1[];
+extern const s8 xm_nursery_time_S2[];
+extern const s8 xm_nursery_time_S3[];
+extern const s8 xm_nursery_time_S4[];
+extern const s8 xm_nursery_time_S5[];
+extern const s8 xm_nursery_time_S6[];
+extern const s8 xm_nursery_time_S7[];
+extern const s8 xm_nursery_time_S8[];
+extern const s8 xm_nursery_time_S9[];
+extern const s8 xm_nursery_time_S10[];
+extern const s8 xm_nursery_time_S11[];
+extern const s8 xm_nursery_time_S12[];
+extern const s8 xm_nursery_time_S13[];
+extern const s8 xm_nursery_time_S14[];
+extern const s8 xm_nursery_time_S15[];
+extern const s8 xm_nursery_time_S16[];
+extern const s8 xm_nursery_time_S17[];
+extern const s8 xm_nursery_time_S18[];
+extern const s8 xm_nursery_time_S19[];
+extern const s8 xm_nursery_time_S20[];
+extern const s8 xm_nursery_time_S21[];
+extern const s8 xm_nursery_time_S22[];
+extern const s8 xm_nursery_time_S23[];
+extern const s8 xm_nursery_time_S24[];
 static const u32 xmT[12]={1073741824,1137589835,1205234447,1276901417,1352829926,1433273380,1518500250,1608794974,1704458901,1805811301,1913190429,2026954652};   // 2^(j/12) in Q30: with a per-instrument anchor this gives every note's playback step (see xmStep in main.c)
 // ---- the_dipper_man  (from tools/the_dipper_man.xm) ----
 static const u8 xm_the_dipper_man_order[89]={0,0,1,1,2,2,2,2,3,4,3,5,3,4,3,6,7,8,9,2,7,8,10,11,12,4,3,5,3,4,
@@ -1099,3 +1151,37 @@ static const u8 xm_magic_act_busL[7]={199,179,152,122,88,51,13,
 static const u8 xm_magic_act_busR[7]={13,51,88,122,152,179,199,
 };
 static const XmSong xm_magic_act={xm_magic_act_order,xm_magic_act_rows,xm_magic_act_patOff,xm_magic_act_ev,xm_magic_act_vt,xm_magic_act_anc,xm_magic_act_fx,xm_magic_act_len,xm_magic_act_data,xm_magic_act_busL,xm_magic_act_busR,79,0,726,72};
+// ---- nursery_time  (from tools/nursery_time.xm) ----
+static const u8 xm_nursery_time_order[73]={0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,
+30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,51,53,54,55,54,56,57,
+58,59,60,61,62,63,64,65,66,67,68,69,70,
+};
+static const u16 xm_nursery_time_rows[71]={128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,
+128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,
+128,128,128,128,128,128,128,128,128,128,2,
+};
+static const u32 xm_nursery_time_patOff[71]={0,142,355,679,1118,1549,1985,2442,2902,3447,3811,4182,4561,5171,5788,6382,6728,7046,7448,7881,8334,8813,9403,9990,
+10639,11442,12320,13393,14252,14524,14823,15131,15411,15610,15945,16256,16537,16685,17155,17442,18158,18583,18838,19087,19479,19915,20445,21062,
+21691,22290,22767,23010,23277,23591,23905,24172,24486,24651,24772,25163,25553,25947,26862,27836,28780,29730,29978,30049,30080,30098,30100,
+};
+static const u16 xm_nursery_time_vt[49]={2057,1546,1213,1197,1616,1588,2162,1633,582,2631,1096,2178,1067,2076,1173,2574,
+710,2775,1857,1652,630,2679,1144,2169,1658,1147,2172,1421,2686,1987,1648,1649,
+1651,1141,1149,1151,1840,1891,1828,742,2807,1365,1291,2418,2316,1304,1445,2457,
+1461,
+};
+static const u32 xm_nursery_time_anc[29]={123639683,123639683,247279365,61819841,165039176,61819841,247279365,247279365,
+247279365,123639683,61819841,247279365,247279365,247279365,247279365,247279365,
+247279365,247279365,123639683,123639683,247279365,61819841,247279365,247279365,
+247279365,247279365,61819841,247279365,165039176,
+};
+static const u8 xm_nursery_time_fx[1]={255,
+};
+static const u32 xm_nursery_time_len[29]={11639,4907,14915,1850,28881,1431,4888,795,6486,913,2475,5015,7099,7001,36552,36572,36632,28680,10780,2462,7426,2889,43371,23229,
+8331,16609,1435,1867,13357,
+};
+static const s8* const xm_nursery_time_data[29]={xm_nursery_time_S0,xm_nursery_time_S1,xm_nursery_time_S2,xm_nursery_time_S3,xm_nursery_time_S4,xm_nursery_time_S5,xm_nursery_time_S6,xm_nursery_time_S7,xm_nursery_time_S8,xm_nursery_time_S9,xm_nursery_time_S10,xm_nursery_time_S11,xm_nursery_time_S12,xm_nursery_time_S13,xm_nursery_time_S14,xm_nursery_time_S15,xm_nursery_time_S16,xm_nursery_time_S17,xm_nursery_time_S18,xm_nursery_time_S19,xm_nursery_time_S20,xm_nursery_time_S21,xm_nursery_time_S22,xm_nursery_time_S23,xm_nursery_time_S24,xm_magic_act_S11,xm_aim_and_shoot_S2,xm_aim_and_shoot_S3,xm_aim_and_shoot_S7};
+static const u8 xm_nursery_time_busL[7]={199,179,152,122,88,51,13,
+};
+static const u8 xm_nursery_time_busR[7]={13,51,88,122,152,179,199,
+};
+static const XmSong xm_nursery_time={xm_nursery_time_order,xm_nursery_time_rows,xm_nursery_time_patOff,xm_nursery_time_ev,xm_nursery_time_vt,xm_nursery_time_anc,xm_nursery_time_fx,xm_nursery_time_len,xm_nursery_time_data,xm_nursery_time_busL,xm_nursery_time_busR,73,0,726,72};

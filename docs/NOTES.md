@@ -296,6 +296,8 @@ The title screen plays "The Dipper Man" (tools/the_dipper_man.xm). `python3 tool
 - **The colour:** the Singhs takht (oud, qanun, ney, duduk, strings, frame drum, a quiet darbuka, riq) with an otherworldly layer (choir, glass bowl, an ondes-like sine, gong, tanpura, metallophone, crystal), and no music-box twinkle.
 - **Technical:** 0.04 s rows (speed 2, XM BPM 125), with a pulse of 8, 12, 16 or 24 rows for the metric changes; all 16 voices (`magic_pan`); 29 instruments, of which the drums and bass are Aim and Shoot's own samples (stored once in ROM). Every build checks that each pitched note belongs to its bar's scale or chord. Re-running the script gives a byte-identical file.
 
+**Nursery Time**: `tools/make_nursery_rework.py` builds `tools/nursery_time.xm` (a Singhs track, about 6 minutes, 16 channels, all synthesised): the original music-box ditty is a chalkboard techno-diddy that turns into hard rock, thrash, nu-groove, a Hijaz break, a solo, an anthem and false endings, all from the original tune. Listed in `source/songs.h`; `python3 tools/xm2gba.py` bakes it.
+
 **Meltdown in Mars (90s house mix)**: `tools/make_meltdown_house.py` builds `tools/meltdown_in_mars_house.xm` (126 BPM, about 6 minutes, 10 channels, all sounds synthesised), it is listed in `source/songs.h`, and `python3 tools/xm2gba.py` bakes it into `source/musicdata.h`. `python3 tools/preview_xm.py meltdown_in_mars_house tools/meltdown_in_mars_house.xm out.wav` renders it the way the GBA mixer will play it.
 
 ## Extended font
