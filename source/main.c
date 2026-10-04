@@ -3915,8 +3915,10 @@ static void creatorMusStart(void){
 static const char* const mmName[8]={"PLAY","NEIGHBORHOOD","CREATE A BORE","BUILD ROOM","ROOM SLOTS","JUKEBOX","OPTIONS","HOW TO PLAY"};
 static const char* const mmDesc[8]={"WALK AND SKATE AROUND YOUR ROOM","YOUR TOWN  PICK A LOT  BUILD AND MOVE IN","DESIGN YOUR OWN VOXEL CHARACTER","BUILD WALLS AND LAY FLOORS AND WALLPAPER","SAVE AND LOAD ROOMS  PEOPLE AND LIVES","LISTEN  PICK  OR SHUFFLE THE SONGS","SPEED  GAMEPLAY  SOUND  BUTTONS AND MORE","LEARN THE CONTROLS"};
 static const char* const jbHelp[15]={">PLAYING","UP DOWN PICK A SONG  A PLAYS IT","A ON THE PLAYING SONG STOPS IT","L R GO TO THE PREVIOUS OR NEXT SONG",">CHECK BOXES","SELECT CHECKS OR UNCHECKS A SONG","ONLY CHECKED SONGS ARE PICKED AT RANDOM:","HERE  IN THE MENUS  AND FOR GAME MUSIC",">PLAY MODE","START CHANGES IT:  SHUFFLE  IN ORDER  REPEAT","WHEN A SONG ENDS THE MODE PICKS THE NEXT",">OTHER","LEFT RIGHT CHANGE THE VOLUME","OPENING IT PLAYS ONE RANDOM CHECKED SONG","B GOES BACK TO THE MENU"};
+#include "acid.h"   // ACID RAINBOW: the main menu's live plasma backdrop
 static void drawMainMenu(int sel){
-    for(int y=0;y<SH;y++){ u16 c=RGB(2+y/50,3+y/36,9+y/13); u32 v=c|((u32)c<<16), *row=(u32*)fb+y*ROW_W; for(int w=0;w<ROW_W;w++) row[w]=v; }
+    acidBg(acT);   // the acid rainbow backdrop (acid.h); dark plaques below keep the text readable on it
+    rect(8,34,104,11,RGB(2,1,5)); rect(8,43,148,93,RGB(2,1,5));
     u16 ink=RGB(4,3,6);
     for(int y=0;y<LOGO_SH;y++){ const char*r=logoSmallArt[y]; u16*o=&fb[(y+6)*SW+12];   // the cover logo at half size
         for(int x=0;x<LOGO_SW;x++){ char c=r[x]; if(c!='0') o[x]=logoPal[(c<='9'?c-'0':c-'a'+10)-1]; } }
@@ -3987,6 +3989,7 @@ static void howToPlay(void){
 static void mainMenu(void){
     int sel=0, dirty=1; u16 prev=keyNow();
     menuMusStart();   // GOTTCHO BARRACHO plays while a main menu is open (MENU MUSIC option)
+    acidInit();
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k;
         if(pr&K_DOWN){ sel=(sel+1)%8; dirty=1; }
@@ -4005,7 +4008,7 @@ static void mainMenu(void){
             (void)fresh; menuMusSync();   // the menu's song comes back (a crossfade) if the screen took the music; OPTIONS may have switched SOUND or MENU MUSIC
             continue;
         }
-        if(dirty){ drawMainMenu(sel); present(); dirty=0; } else vsync();
+        drawMainMenu(sel); present(); dirty=0; acT+=2;   // redrawn every frame: the backdrop moves
         uiTicks++; menuMusTick();
     }
 }
