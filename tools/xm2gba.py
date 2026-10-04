@@ -219,7 +219,50 @@ def make_tree(S):
     order += [RT, ST]                                                        # I: riser, then the hard stop
     S['order'] = order
 
-TREES = {"tree_swaying_action": make_tree}
+# The breeze pad (instruments 1 + 2, a 5.5 s stereo swell) is played every 8 rows on the same two channels, so each note is cut off by the
+# next one while it is still at ~90 % level.  TREE_ECHO picks how its echo works ('' = as before; the game uses 'mix'):
+#   'smooth'  every other note moves to channels 14/15, so each one rings 16 rows under the next, plus one echo 3 rows later at 45 % on
+#             channels 10-13 (also ping-ponged): the cut is gone.  The stinger silences all of them so the ending stays a hard stop.
+#   'gated'   the echo IS the cut: each note repeats 2, 4 and 6 rows later at 55 / 30 / 15 % on its own channel, every repeat chopping the
+#             one before (a stuttering, gated echo).
+#   'mix'     both, by section: smooth in the intro, the layers, the breakdowns and the bridge; gated in the drops, the key-change
+#             finale and the two risers.  A smooth section's ringing tails carry on into the gated drop that follows.
+TREE_ECHO = 'mix'
+def tree_echo(S, mode, per=None):
+    """mode for every pattern, or per = {pattern: mode} (patterns not in it: mode)"""
+    PADS = (1, 2); pats = S['pats']; stinger = S['order'][-1]; whole = mode
+    for p in pats:
+        for j, r in enumerate(p): p[j] = list(r) + [(0, 0, 0, 0, 0)] * (16 - len(r))
+    def scaled(cell, f): n, i, v, e, ep = cell; rel = (v - 0x10) if 0x10 <= v <= 0x50 else 64; return (n, i, 0x10 + max(1, int(round(rel * f))), 0, 0)
+    for k, p in enumerate(pats):
+        mode = (per or {}).get(k, whole)
+        if k == stinger:
+            for ch in (0, 1, 10, 11, 12, 13, 14, 15): p[0][ch] = (80, 11, 0x11, 0, 0)         # a silent short hit stops each pad voice: hard stop
+            continue
+        if mode == 'smooth':
+            for ch in (0, 1):
+                rows = [r for r in range(len(p)) if p[r][ch][0] and p[r][ch][0] < 97 and p[r][ch][1] in PADS]
+                for idx, r in enumerate(rows):
+                    cell = p[r][ch]; dst = ch if idx % 2 == 0 else ch + 14
+                    if dst != ch: p[r][dst] = cell; p[r][ch] = (0, 0, 0, 0, 0)
+                    er = r + 3; ech = (10 if idx % 2 == 0 else 12) + ch
+                    if er < len(p): p[er][ech] = scaled(cell, 0.45)
+        elif mode == 'gated':
+            for ch in (0, 1):
+                rows = [r for r in range(len(p)) if p[r][ch][0] and p[r][ch][0] < 97 and p[r][ch][1] in PADS]
+                for r in rows:
+                    cell = p[r][ch]
+                    for dr, f in ((2, 0.55), (4, 0.30), (6, 0.15)):
+                        if r + dr < len(p) and not p[r + dr][ch][0]: p[r + dr] = list(p[r + dr]); p[r + dr][ch] = scaled(cell, f)
+
+def make_tree_echo(S):
+    make_tree(S)
+    if TREE_ECHO == 'mix':
+        b = len(S['pats']) - 8                                    # make_tree appends G1 G2 G3 BD RS T3 RT ST
+        tree_echo(S, 'smooth', {b + 2: 'gated', b + 4: 'gated', b + 5: 'gated', b + 6: 'gated'})   # G3 drops, RS riser, T3 finale, RT riser
+    elif TREE_ECHO: tree_echo(S, TREE_ECHO)
+
+TREES = {"tree_swaying_action": make_tree_echo}
 ENDINGS = {"amiga_music": make_ending}
 POPS = {"amiga_music": make_pop}
 
