@@ -13,7 +13,7 @@ Power on, then START on the title screen. The **main menu** has:
 |---|---|
 | PLAY | live in your room: needs, wants, job, skating |
 | NEIGHBORHOOD | choose a town (or make one), then pick a lot to play, build or move into; paint land, lay roads, plant trees, add lots (START = town menu) |
-| MAKE CREATURE | build a voxel person (body, face, hair, clothes, parts, life stage) |
+| CREATE A BORE | build a voxel person (body, face, hair, clothes, parts, life stage) |
 | BUILD ROOM | draw walls, floors, wallpaper and items |
 | ROOM SLOTS | save and load rooms, people and lives |
 | JUKEBOX | the Music Player (below) |

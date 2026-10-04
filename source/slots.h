@@ -570,10 +570,10 @@ static int slActions(int s){
     if(own>=0&&own!=s){ toast("PART OF A BIG SAVE"); return 0; }
     int occ=(own==s), good=occ&&slGood[s], house=occ&&I->kind==SLK_HOUSE, hh=occ&&I->kind==SLK_HHOLD, conf=xo[XO_SLOTCONF], changed=0;
     const char*it[9]; int id[9], n=0;
-    if(!occ){ it[n]="SAVE HERE"; id[n++]=SA_SAVE; it[n]="SAVE HOUSEHOLD"; id[n++]=SA_SAVEHH; it[n]="SAVE HOUSE"; id[n++]=SA_SAVEHOUSE; }
+    if(!occ){ it[n]="SAVE HERE"; id[n++]=SA_SAVE; if(dbgOn){ it[n]="SAVE HOUSEHOLD"; id[n++]=SA_SAVEHH; } it[n]="SAVE HOUSE"; id[n++]=SA_SAVEHOUSE; }
     else if(hh){
-        if(good){ it[n]="LOAD HOUSEHOLD"; id[n++]=SA_LOADHH; }
-        it[n]="SAVE HOUSEHOLD"; id[n++]=SA_SAVEHH;
+        if(good&&dbgOn){ it[n]="LOAD HOUSEHOLD"; id[n++]=SA_LOADHH; }
+        if(dbgOn){ it[n]="SAVE HOUSEHOLD"; id[n++]=SA_SAVEHH; }
         if(good&&I->span==1){ it[n]="RENAME"; id[n++]=SA_RENAME; it[n]="COPY TO FREE SLOT"; id[n++]=SA_COPY; }
         it[n]="INFO"; id[n++]=SA_INFO; it[n]="DELETE"; id[n++]=SA_DELETE;
     }

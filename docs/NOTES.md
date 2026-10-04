@@ -40,7 +40,7 @@ In the life: the **BABY cannot be steered**: it toddles about by itself and a ca
 **OPTIONS > TIME > AGES** (a section of the TIME page): **AGING** (OFF / SLOW / NORMAL / FAST: slow doubles the days of every stage, fast halves them, off keeps the age you picked) and how many game days each stage lasts: **BABY** (default 2), **CHILD** (3), **TEEN** (3), **ADULT** (7, or FOREVER to never grow old); each is 1, 2, 3, 5, 7, 10, 14, 21, 30 or 60 days. The stage is saved in the person (room slot format 2; format 1 slots load as adults) and also in SRAM at 5008 so growth survives a power cycle.
 
 ## Main menu, room builder, settings
-Boot goes title -> **main menu** (PLAY, MAKE CREATURE, BUILD ROOM, JUKEBOX, SETTINGS, HOW TO PLAY). "MAIN MENU" is the last entry in the creature part list and in the pause menu.
+Boot goes title -> **main menu** (PLAY, CREATE A BORE, BUILD ROOM, JUKEBOX, SETTINGS, HOW TO PLAY). "MAIN MENU" is the last entry in the creature part list and in the pause menu.
 
 **Build Room** tools (Select taps to the next tool): ROOM (A corner, A again = walls + floor + doorway, min 3x3), WALL (straight line), FLOOR (fill area), ITEM (single tiles), ERASE (clear area). L/R picks floor (or item); Select+L/R picks wallpaper. 14 wallpapers and 14 floors, 90s house (floral, peach stripe, Memphis, wood panel, gingham, teal carpet, checker lino...) and factory (corrugated, red brick, cinder block, hazard, steel plate, grate, oil-stained concrete...). Floors, wallpaper and tiles are saved to SRAM.
 
@@ -445,7 +445,7 @@ The **MUSIC PLAYER** (main menu -> JUKEBOX) is one screen: a title bar (how many
 
 The play mode is saved in SRAM at 5076 (`'M'`, mode, mode xor 0x5A, inside the 80-byte jukebox block). **Song lengths** are worked out from the song data, never stored: a tracker song is the rows of its whole order list x samples per row, a streamed song is its sample count (x 3/2 when stored at 2/3 rate), all at 18157 Hz, rounded to the nearest second (`jbSecs()` in main.c). The elapsed time uses the same maths on the main deck's position.
 
-**Menu music.** Whenever a main menu is open one random checked song plays (OPTIONS > AUDIO > MENU MUSIC, on by default). It carries on through the quiet screens (OPTIONS, ROOM SLOTS, HOW TO PLAY) and stops when PLAY, MAKE CREATURE, BUILD ROOM or the jukebox opens; back at the menu a NEW random song starts. When a song ends, another random one follows.
+**Menu music.** Whenever a main menu is open one random checked song plays (OPTIONS > AUDIO > MENU MUSIC, on by default). It carries on through the quiet screens (OPTIONS, ROOM SLOTS, HOW TO PLAY) and stops when PLAY, CREATE A BORE, BUILD ROOM or the jukebox opens; back at the menu a NEW random song starts. When a song ends, another random one follows.
 
 **Locked songs (`source/unlocks.h`).** `UNLOCK("SONG NAME",bit)` keeps a song out of the jukebox, the menu music and the game music until its bit is set. The bits live in SRAM at 5072 (`'U' 'L'`, the bits, the bits xor 0x5A, inside the 80-byte jukebox block, so an old save just reads as all locked) and are set by `jbUnlock(bit)`, which rebuilds the list at once. WORTHLESS CLOUDS (`UL_CLOUDS`, defined in `sims.h`) unlocks when `simLtwCheck()` sees the lifetime want met: the HUD shows LIFETIME WANT MET, then SONG UNLOCKED. A life saved with its want already met unlocks it on the next check. ERASE EVERYTHING locks it again; the title-screen code shows it.
 
@@ -473,7 +473,7 @@ The old BUILD tab (block builder) is gone; the classic block screen is still beh
 - **HAIR tab**: STYLE (CROP, BOWL, LONG, BALD, SPIKY, AFRO, FLAT TOP, SIDE TAIL, BUN; babies only CROP and BALD), COLOUR, **BEARD** (NONE, BEARD, LONG BEARD: adults and elders pick it in the dice, the mouth sits on the beard), **HAT** (NONE, CAP, BEANIE, BAND, FEZ, HELMET) and **HAT COLOUR** (as the top, as the bottom, white, black, red, gold).
 - **CLOTHES tab**: TOP and BOTTOM colours, **TOP STYLE** (TEE, LONG SLEEVE, TANK, HOODIE with a hood behind the head, **BARE**), **BOTTOM STYLE** (PANTS, SHORTS, SKIRT, **BARE**) and **SHOES** (as the bottom, white, black, red, gold, as the top).
 - Hats and the new hairdos add STYLE; a helmet adds STAMINA.
-- **DONE tab > RANDOMIZE** (the Create-A-Sim dice): a whole new look, star sign and aspiration, only from what this life stage and your unlocked parts allow. Press it again for another.
+- **DONE tab > RANDOMIZE** (the Create-A-Bore dice): a whole new look, star sign and aspiration, only from what this life stage and your unlocked parts allow. Press it again for another.
 - **More face parts and real sliders** (person save format 6, household save H4; older saves still load):
   - **FACE tab** (it scrolls) has 9 eye styles and 9 mouths, plus EYE COLOUR, BROWS, GLASSES, NOSE and CHEEKS (blush, freckles, whiskers, scar).
   - **Face sliders:** EYE SIZE, EYE SPACING, EYE HEIGHT, MOUTH WIDTH and MOUTH HEIGHT move and scale the face art on the block.
@@ -587,6 +587,14 @@ The music mixer runs in an interrupt and decoding a song is a big part of what s
 - With **SOUND off** there is no tick-tock; with no song playing there is nothing to step aside (the tick-tock still plays, it is an effect: SFX VOLUME and MASTER VOLUME scale it).
 - The tick-tock is `source/sfx/tick.adp`, made by `python3 tools/make_tick.py [preview.wav]`: one second, a TICK at 0.0 s and a lower, softer TOCK at 0.5 s, silent at both ends so it loops cleanly. The effect voice got two small features for it: **looping** (`sfxLoop`) and its **own fade** (`sfxFade`/`sfxFadeT`). `sfxStop()` never cuts a looping tick-tock, it asks it to fade out (`lifeInit` calls `sfxStop` right after the bake), and `sfxPlay` resets both, so every other effect behaves as before.
 - Tuning: fade speeds are the `8`, `6`, `8` / `16` in `musMixAny` and `sfxMix` (steps of 1/256 per frame), `LD_GRACE` and `LD_STALE` are at the top of `loading.h`.
+
+## Household changes are in the debug code
+Everything that directly changes who lives in the house now needs the **hidden debug code** (title screen: UP UP DOWN DOWN LEFT LEFT RIGHT B A START, `dbgOn` in `main.c`; it lasts until power off and is never saved, the same as the secret songs):
+- **Pause menu > HOUSEHOLD:** without the code it opens the **RELATIONSHIPS** screen directly (viewing is not changing). With the code you get the full menu: MOVE IN A FAMILY, INVITE A NEW SIM, TRULY RANDOM SIM, MOVE SOMEONE OUT, MOVE EVERYONE OUT.
+- **SELECT on RELATIONSHIPS** (invite a Sim) works only with the code, and the hint line under the list drops "SELECT ADD A SIM" without it.
+- **Creator, DONE tab:** ADD TO FAMILY and FAMILY are now the **last two rows** and are hidden (`tabRows`) without the code; `famAdd` / `famMenu` also refuse to run.
+- **ROOM SLOTS:** SAVE HOUSEHOLD and LOAD HOUSEHOLD are missing from a slot's menu without the code (a household slot can still be renamed, copied, inspected and deleted).
+- **Not gated:** the neighborhood's MOVE IN (it buys a lot with your cash and changes where you live, not who lives with you), SELECT to switch which household Sim you control, and the three PRE-MADE / USER-MADE / MADE-UP SIMS options (made-up Sims still walk past as passers-by). The lines above about ADD TO FAMILY, INVITE A NEW SIM and MOVE IN A FAMILY describe what the debug code unlocks.
 
 ## Faster loading (the household bake)
 Entering the game bakes every Sim into sprites: the creator's renderer draws each of 4 views at full size and halves them. Measured on the GBA a draw costs about 110 ms, so the number of draws is the loading time.
