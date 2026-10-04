@@ -108,6 +108,16 @@ static inline int lkSlide(int id){ return (id>=LK_BASE&&id<=LK_EARLF)||(id>=LK_H
 static inline int slidePos(int v){ return (v+4)%9; }      // 0..8 left to right, the middle (stored 0) is 4
 static inline int slideVal(int p){ return (p+5)%9; }
 static inline int slideEff(int v){ return slidePos(v)-4; }   // -4..4
+// MASTER CONTROLLER (OPTIONS > SIM > MASTER, only with the debug code: sUnlock from the title's Konami code, or dbgOn): a nod to the mod for The Sims.
+// DOUBLE SLIDERS: the SIZE sliders (heights, widths, sizes, lengths, colour tones) go twice as far a notch. The sliders that PLACE a part (spread,
+// height on the head, front / back) keep their range, so ears, horns, antennae and arms never come loose from the body. LIMIT BREAK: every
+// age builds in the adult box and the HEIGHT / TORSO / NECK stretch may go much further: taller than the 8 block box, drawn as stretched rows,
+// so the body stays in one piece (the sprite bake still eases a giant down to fit its 32 x 44 box in the room).
+static u8 dbgOn;   // (the title-screen debug code, set further down)
+static inline int mcOn(void){ return sUnlock||dbgOn; }
+static inline int mcDbl(void){ return mcOn()&&xo[XO_MCSLIDE]; }
+static inline int mcBig(void){ return mcOn()&&xo[XO_MCBOX]; }
+__attribute__((noinline)) static int slideEffS(int v){ int e=slidePos(v)-4; return mcDbl()?2*e:e; }   // a SIZE slider (in ROM, out of line: the drawing code in IWRAM stays small)
 static u8 look[LK_N];
 // ---- life stages ----  BABY (cannot be steered, walks about by itself), CHILD, TEEN, ADULT, ELDER (the last stage, slower and stooped). The creator's room to build in is smaller
 // when young and grows with the age: a box of stBW x stBD x stBH blocks centred on the floor, a biggest block size and a list of looks
@@ -118,6 +128,11 @@ static u8 ageDays;          // game days lived in this stage (grows the creature
 static const char* const stageNm[AG_N]={"BABY","CHILD","TEEN","ADULT","ELDER"};
 static const u8 stBW[AG_N]={4,4,6,6,6}, stBD[AG_N]={4,4,4,4,4}, stBH[AG_N]={5,6,7,8,7};   // build box (width is always even: parts mirror around its centre)
 static const u8 stMaxSz[AG_N]={2,2,3,3,3};          // biggest block size S/M/L the builder offers
+static u8 bxSt, bxBig, bxLift=6;   // bxSync: the stage whose build box is used, LIMIT BREAK on, the most the HEIGHT stretch may add
+#define BXW stBW[bxSt]   // this life stage's build box and biggest block (MASTER CONTROLLER LIMIT BREAK: the adult's, for every age)
+#define BXH stBH[bxSt]
+#define BXD stBD[bxSt]
+#define BXS stMaxSz[bxSt]
 static const u8 stLegs[AG_N]={0,1,2,3,2};   // (an elder is stooped: a block lower than an adult)           // leg blocks showing under the torso before the shape trims them
 static const u8 stSpd[AG_N]={50,80,95,100,70};       // walking speed in percent
 // allowed looks per stage: bit n set = option n may be picked. Shape: AVERAGE BROAD BIG-HEAD STUBBY SLIM ATHLETIC TALL. Ears: NONE SMALL BIG. Hair: CROP BOWL LONG BALD.
@@ -134,7 +149,7 @@ static const u8 stMaskEars[AG_N]={3,7,7,7,7};
 static const u16 stMaskHair[AG_N]={9,11|0x1F0,15|0x1F0,15|0x1F0,15|0x1F0};
 static inline int shapeMask(void){ int m=(int)stMaskShape[stage]; if(!sUnlock) m&=~4; return m; }
 static const u8 stSwatches[AG_N]={4,6,8,8,8};       // how many colours of each row are on offer
-#define BX0 ((W-stBW[stage])/2)
+#define BX0 ((W-BXW)/2)
 static u16 base[9+NWP], sT[9+NWP], sL[9+NWP], sR[9+NWP];   // slots 1..8 = body colours, 9.. = wallpaper average colours
 static u16 wpEdge[NWP][3];   // wall block outline colours (top, left face, right face): set by setColors
 static u16 dL[9], dR[9];   // face-sprite palette (k w r s i b g h l) pre-shaded for the left / right cube face
@@ -198,16 +213,16 @@ static u16 toneBy(u16 c,int e){   // a tone slider: darker to the left, lighter 
     return c;
 }
 static void setColors(void) {
-    base[1]=toneBy(skinTones[look[LK_SKIN]],slideEff(look[LK_TONE]));   // skin tone
+    base[1]=toneBy(skinTones[look[LK_SKIN]],slideEffS(look[LK_TONE]));   // skin tone
     base[2]=RGB(31,31,31); base[3]=RGB(3,3,6);
-    base[4]=RGB(29,12,16);    base[5]=toneBy(hairTones[look[LK_HCOL]],slideEff(look[LK_HTONE]));
-    base[6]=toneBy(topTones[look[LK_TOP]],slideEff(look[LK_TTONE])); base[7]=toneBy(botTones[look[LK_BOT]],slideEff(look[LK_BTONE])); base[8]=RGB(31,30,16);
+    base[4]=RGB(29,12,16);    base[5]=toneBy(hairTones[look[LK_HCOL]],slideEffS(look[LK_HTONE]));
+    base[6]=toneBy(topTones[look[LK_TOP]],slideEffS(look[LK_TTONE])); base[7]=toneBy(botTones[look[LK_BOT]],slideEffS(look[LK_BTONE])); base[8]=RGB(31,30,16);
     for (int i=1;i<9;i++){ sT[i]=base[i]; sL[i]=shade(base[i],12); sR[i]=shade(base[i],9); }
     for (int i=0;i<NWP;i++){ int s=9+i; base[s]=wpAvg[i]; sT[s]=base[s]; sL[s]=shade(base[s],12); sR[s]=shade(base[s],9);
         wpEdge[i][0]=shade(sT[s],9); wpEdge[i][1]=shade(sL[s],9); wpEdge[i][2]=shade(sR[s],9); }
     u16 sk=base[1], bl=RGB(((sk&31)+31)/2,(((sk>>5)&31)+8)/2,(((sk>>10)&31)+12)/2);
     u16 dc[9]={ base[3], base[2], base[4], shade(base[1],11),        // k dark, w white, r red, s lid shadow (also the nose and freckles)
-                toneBy(eyeTones[look[LK_EYECOL]%NSW],slideEff(look[LK_EYETONE])), bl, RGB(6,6,8),         // i iris, b blush, g glasses frame
+                toneBy(eyeTones[look[LK_EYECOL]%NSW],slideEffS(look[LK_EYETONE])), bl, RGB(6,6,8),         // i iris, b blush, g glasses frame
                 shade(base[5],10), RGB(4,5,9) };                       // h brows (the hair colour, darker), l dark lenses
     for (int i=0;i<9;i++){ dL[i]=shade(dc[i],12); dR[i]=shade(dc[i],9); }
 }
@@ -463,10 +478,10 @@ __attribute__((noinline)) static void drawDeco(int sx,int sy,u16 code,int face,i
     int sh=0, sv=0, kx=64, ky=64, br=0, gl=0, no=0, ch=0, bsh=0, nsh=0;   // shift (px), scale (64 = 1x), details
     if(decLook){
         // every notch of a face slider moves the art by a pixel, or grows its footprint by two (per voxel size): no two notches look the same
-        if(eye){ int e=slideEff(look[LK_EYESZ])*sz, gw; e=e>0?2*e:e<0?e-sz:0; gw=wp+e; int gh=hp+e; if(gw<1) gw=1; if(gh<1) gh=1; kx=64*gw/wp; ky=64*gh/hp;
+        if(eye){ int e=slideEffS(look[LK_EYESZ])*sz, gw; e=e>0?2*e:e<0?e-sz:0; gw=wp+e; int gh=hp+e; if(gw<1) gw=1; if(gh<1) gh=1; kx=64*gw/wp; ky=64*gh/hp;
                  sh=slideEff(look[LK_EYESP])*sz; if(fl) sh=-sh; sv=slideEff(look[LK_EYEHT])*sz;
                  br=look[LK_BROW]; gl=look[LK_GLASS]; bsh=slideEff(look[LK_BROWHT])*sz; }
-        else { int gw=wp+slideEff(look[LK_MOUTHW])*sz*3; if(gw<1) gw=1; kx=64*gw/wp; sv=slideEff(look[LK_MOUTHHT])*sz; no=look[LK_NOSE]; ch=look[LK_CHEEK]; nsh=slideEff(look[LK_NOSEHT])*sz; }
+        else { int gw=wp+slideEffS(look[LK_MOUTHW])*sz*3; if(gw<1) gw=1; kx=64*gw/wp; sv=slideEff(look[LK_MOUTHHT])*sz; no=look[LK_NOSE]; ch=look[LK_CHEEK]; nsh=slideEff(look[LK_NOSEHT])*sz; }
     }
     int M=decLook?(eye?4:7):0, pc=wp/2, qc=hp/2;
     int lc0=(ci?-1:0)-M, lr0=(cj?-1:0)-M, lc1=CA-1+M, lr1=CC-2+M;
@@ -585,7 +600,7 @@ static void apply(int x0,int y0,int z0,int flip,int act,int pi,int s){
       for(int a=0;a<s;a++)for(int b=0;b<s;b++)for(int c=0;c<s;c++){
         int X=p->c[i][0]*s+a; if(flip) X=p->w*s-1-X;
         int x=x0+X, y=y0+p->c[i][1]*s+b, z=z0+p->c[i][2]*s+c;
-        if(x<BX0||x>=BX0+stBW[stage]||y<0||y>=stBH[stage]||z<0||z>=stBD[stage]) continue;   // outside this life stage's build box
+        if(x<BX0||x>=BX0+BXW||y<0||y>=BXH||z<0||z>=BXD) continue;   // outside this life stage's build box
         if(act==0) ghost[y][z][x]=1; else if(act==1) vox[y][z][x]=p->c[i][3]; else { vox[y][z][x]=0; dec[y][z][x]=0; }
       }
 }
@@ -595,7 +610,7 @@ static void applyDeco(int x0,int y0,int act,int pi,int s,int flip){
     int id=SPRID(parts[pi].dk-1), fw=spr[id].wc*s;   // footprint: fw cells wide, s cells tall
     for(int j=0;j<s;j++)for(int i=0;i<fw;i++){
         int x=x0+i, y=y0+s-1-j;
-        if(x<BX0||x>=BX0+stBW[stage]||y<0||y>=stBH[stage]) continue;
+        if(x<BX0||x>=BX0+BXW||y<0||y>=BXH) continue;
         if(act==2){ for(int z=0;z<D;z++) dec[y][z][x]=0; continue; }
         int z=snapZ(x,y); if(z<0) continue;
         u16 code=(u16)(decSprBits(id+1)|(i<<3)|(j<<6)|((s-1)<<8)|(flip<<10));
@@ -615,8 +630,8 @@ static void doPart(int act,int pi,int s,int x,int y,int z){
 static void clampCursor(void){
     if(part>=NPARTS) return;   // "GO LIVE LIFE!" entry has no cursor
     const Part*p=&parts[part];
-    if(size>stMaxSz[stage]) size=stMaxSz[stage];
-    int mx=BX0+stBW[stage]-p->w*size, my=stBH[stage]-p->h*size, mz=stBD[stage]-p->d*size;
+    if(size>BXS) size=BXS;
+    int mx=BX0+BXW-p->w*size, my=BXH-p->h*size, mz=BXD-p->d*size;
     if(mx<BX0)mx=BX0; if(my<0)my=0; if(mz<0)mz=0;
     if(cx>mx)cx=mx; if(cy>my)cy=my; if(cz>mz)cz=mz;
     if(cx<BX0)cx=BX0; if(cy<0)cy=0; if(cz<0)cz=0;
@@ -630,29 +645,29 @@ __attribute__((noinline)) static void bodyPlan(int*L,int*T,int*hs){   // legs sh
     int sh=look[LK_SHAPE]; *hs=(sh==2)?2:1;
     int l=stLegs[stage], t=2, ht=2*(*hs);
     if((sh==SH_BIGHEAD||sh==SH_STUBBY||sh==SH_STOCKY||sh==SH_PETITE)&&l>0) l--;   // BIG HEAD, STUBBY, STOCKY and PETITE: legs one block shorter
-    int room=stBH[stage]-(*hs==1);                        // a normal head keeps a layer free above it for the hair (else the hair eats its top row, eyes and all)
+    int room=BXH-(*hs==1);                        // a normal head keeps a layer free above it for the hair (else the hair eats its top row, eyes and all)
     while(l+t+ht>room&&l>0) l--;                          // too tall for the box: shorten the legs, then the torso
     if(l+t+ht>room) t=1;
     *L=l; *T=t;
 }
 static void headBox(int*hx,int*hy,int*hz,int*hs){   // where the head sits (and how many blocks per head cell) for each body shape
     int L,T; bodyPlan(&L,&T,hs);
-    *hx=BX0+(stBW[stage]-2*(*hs))/2; *hy=L+T; *hz=(stBD[stage]-2*(*hs))/2;
-    if(look[LK_SHAPE]==SH_HUNCH&&*hz+2*(*hs)<stBD[stage]) (*hz)++;   // HUNCHED: the head pushed forward of the shoulders
+    *hx=BX0+(BXW-2*(*hs))/2; *hy=L+T; *hz=(BXD-2*(*hs))/2;
+    if(look[LK_SHAPE]==SH_HUNCH&&*hz+2*(*hs)<BXD) (*hz)++;   // HUNCHED: the head pushed forward of the shoulders
 }
 static void hairW(int x,int y,int z,int xp,int xm,int zp,int zm){   // one hair block; the flags say which sides slope away (grid space)
-    if(x<BX0||x>=BX0+stBW[stage]||y<0||y>=stBH[stage]||z<0||z>=stBD[stage]) return;
+    if(x<BX0||x>=BX0+BXW||y<0||y>=BXH||z<0||z>=BXD) return;
     int nx=xp+xm, nz=zp+zm, m=0;
     if(nx+nz==1) m=xp?10:zp?12:xm?5:3;
     else if(nx==1&&nz==1) m=1<<((xp?1:0)+(zp?2:0));
     for(int i=0;i<8;i++) if(wMask[i]==m&&m){ vox[y][z][x]=(u8)(5|((4+i)<<4)); return; }
     vox[y][z][x]=5;
 }
-static void vb(int x,int y,int z,int v){ if(x<BX0||x>=BX0+stBW[stage]||y<0||y>=stBH[stage]||z<0||z>=stBD[stage]) return; vox[y][z][x]=(u8)v; }
+static void vb(int x,int y,int z,int v){ if(x<BX0||x>=BX0+BXW||y<0||y>=BXH||z<0||z>=BXD) return; vox[y][z][x]=(u8)v; }
 // Spore parts (the PARTS tab): a TAIL behind the hips, HORNS on the sides of the head, SPIKES or WINGS on the back. The back of the
 // creature is z=0 (faces look towards +z). vw() is one block with a wedge top that slopes away on the sides flagged (grid space).
 static void vw(int x,int y,int z,int col,int xp,int xm,int zp,int zm){
-    if(x<BX0||x>=BX0+stBW[stage]||y<0||y>=stBH[stage]||z<0||z>=stBD[stage]) return;
+    if(x<BX0||x>=BX0+BXW||y<0||y>=BXH||z<0||z>=BXD) return;
     int nx=xp+xm, nz=zp+zm, m=0;
     if(nx+nz==1) m=xp?10:zp?12:xm?5:3;
     else if(nx==1&&nz==1) m=1<<((xp?1:0)+(zp?2:0));
@@ -668,11 +683,13 @@ static void sporeParts(int tx,int ty,int hx,int hy,int hz,int hw,int hh,int top)
     }   // (WINGS are a sprite now: drawWings)
     (void)horns;
 }
+static void bxSync(void){ bxSt=(u8)(mcBig()?AG_ADULT:stage); bxBig=(u8)mcBig(); bxLift=(u8)(bxBig?18:mcDbl()?10:6); }   // (MASTER CONTROLLER: read once, not in the drawing code)
 static void buildLook(void){
+    bxSync();
     for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ vox[y][z][x]=0; dec[y][z][x]=0; }
     sty[0]=look[LK_EYES]; sty[1]=look[LK_MOUTH];
     int L,T,hs0; bodyPlan(&L,&T,&hs0);
-    int tx=BX0+(stBW[stage]-2)/2, ty=L+T-2;                      // torso: left column and bottom row (the bottom row is clipped when T is 1)
+    int tx=BX0+(BXW-2)/2, ty=L+T-2;                      // torso: left column and bottom row (the bottom row is clipped when T is 1)
     int sh=look[LK_SHAPE];
     if(sh==1&&stage==AG_ADULT){                                  // BROAD: torso and legs two blocks wider each side
         doPart(1,3,1,1,0,1); doPart(1,3,1,2,0,1);
@@ -704,7 +721,7 @@ static void buildLook(void){
     int hw=2*hs, hh=2*hs, hd=2*hs;
     doPart(1,0,hs,hx,hy,hz);                                     // head
     // ears are sprites now (drawEars in drawScene), not blocks
-    int st=look[LK_HSTYLE], top=(stBH[stage]-(hy+hh)>=1)?hy+hh:hy+hh-1;    // hair: a cap on the head, or in place of its top layer when the head touches the ceiling
+    int st=look[LK_HSTYLE], top=(BXH-(hy+hh)>=1)?hy+hh:hy+hh-1;    // hair: a cap on the head, or in place of its top layer when the head touches the ceiling
     if(st!=3){
         // every style starts with the same dome: the outer edges of the cap are wedges that slope away, down to the head's top
         for(int z=hz;z<hz+hd;z++)for(int x=hx;x<hx+hw;x++) hairW(x,top,z,x==hx+hw-1,x==hx,z==hz+hd-1,z==hz);
@@ -733,7 +750,7 @@ static void buildLook(void){
         for(int x=hx;x<hx+hw;x++){ u8 v=vox[hy][zf][x]; if(v) vox[hy][zf][x]=(u8)((v&0xF0)|5);
             if(look[LK_BEARD]==2&&hy>0){ u8 c=vox[hy-1][zf][x];
                 if(c&&((c&15)==6||(c&15)==1)) vox[hy-1][zf][x]=(u8)((c&0xF0)|5);
-                else if(!c&&zf+1<stBD[stage]) vw(x,hy-1,zf,5,0,0,1,0); } } }
+                else if(!c&&zf+1<BXD) vw(x,hy-1,zf,5,0,0,1,0); } } }
     {   // FURRY: animal ears out of the top corners of the head (fur = the hair colour), a muzzle on the lower face, a fur tail
         int fe=look[LK_FEARS], mz=look[LK_MUZZLE], zb=hz, zf=hz+hd-1;
         for(int sd=0;sd<2;sd++){ int x=sd?hx+hw:hx-1, xp=sd, xm=!sd;   // just outside the head, at the hair line, at the back
@@ -741,13 +758,13 @@ static void buildLook(void){
             if(fe==2){ vw(x,top,zb,5,xp,xm,0,1); if(top>0) vw(x,top-1,zb,5,0,0,0,0); vw(x,top,zb+1<zf+1?zb+1:zb,5,xp,xm,0,0); }   // FOX: bigger, deeper
             if(fe==3){ for(int y=top-1;y<=top;y++) if(y>=0) vw(x,y,zb,5,0,0,0,y==top); }          // BUNNY: tall and upright
             if(fe==4) vw(x,top,zb,5,0,0,0,1); }                                                    // BEAR: round
-        if(mz&&zf+1<stBD[stage]) for(int x=hx;x<hx+hw;x++){                                         // the muzzle: the mouth goes onto its front
+        if(mz&&zf+1<BXD) for(int x=hx;x<hx+hw;x++){                                         // the muzzle: the mouth goes onto its front
             if(mz==1) vw(x,hy,zf+1,1,0,0,1,0);                                                      // SNOUT: sloping down to the nose
             if(mz==2) vb(x,hy,zf+1,1);                                                              // MUZZLE: square
             if(mz==3) vw(x,hy,zf+1,8,x==hx+hw-1,x==hx,1,0); }                                       // BEAK: gold, pointed
         int ft=look[LK_FTAIL], yb=L;
         if(ft==1) for(int x=tx;x<tx+2;x++){ vb(x,yb,0,5); if(yb>0) vw(x,yb-1,0,2,x==tx+1,x==tx,0,1); }   // FOX: bushy, with a white tip
-        if(ft==2){ vb(tx,yb,0,5); if(yb+1<stBH[stage]) vw(tx,yb+1,0,5,0,0,0,1); }                 // CAT: thin, curling up
+        if(ft==2){ vb(tx,yb,0,5); if(yb+1<BXH) vw(tx,yb+1,0,5,0,0,0,1); }                 // CAT: thin, curling up
         if(ft==3) vw(tx+1,yb,0,2,1,1,0,1);                                                          // BUNNY: a white puff
     }
     {   // clothes: the arms are the columns with a hand (skin) at the row below the torso
@@ -806,11 +823,11 @@ static void fixLook(void){   // pull every choice into what this stage offers
 }
 static void clipCustom(void){   // hand-built blocks outside the stage's box are cut off
     for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++)
-        if(x<BX0||x>=BX0+stBW[stage]||y>=stBH[stage]||z>=stBD[stage]){ vox[y][z][x]=0; dec[y][z][x]=0; }
+        if(x<BX0||x>=BX0+BXW||y>=BXH||z>=BXD){ vox[y][z][x]=0; dec[y][z][x]=0; }
 }
 static void ageSave(void);
 static void setStage(int n){   // new stage: the look is fitted to it; a look-built creature is rebuilt, hand-built blocks stay (cut to size)
-    stage=(u8)n; ageDays=0; fixLook(); if(size>stMaxSz[stage]) size=stMaxSz[stage];
+    stage=(u8)n; ageDays=0; fixLook(); if(size>BXS) size=BXS;
     if(custom) clipCustom(); else buildLook();
     setColors(); ageSave();
 }
@@ -887,7 +904,7 @@ static inline int isPart(int id){ return (id>=LK_TAIL&&id<=LK_BACK)||id==LK_CLAW
 static inline int partOf(int id){ return id==LK_CLAWS?3:id==LK_ANTENNA?4:id-LK_TAIL; }   // 0 tail, 1 horns, 2 back, 3 claws, 4 antennae
 static int partFree(int id,int v){ int p=partOf(id); return !partCost[p][v]||sUnlock||(pUnl>>PARTBIT(p,v)&1); }   // Konami: every part is free
 static int abOf10(int a){   // 0..10, like a Sims skill bar: every part counts double, the body sliders add the odd points between
-    int v=4+2*abShape[look[LK_SHAPE]<NSHAPE?look[LK_SHAPE]:0][a], hgt=slideEff(look[LK_HEIGHT]), wgt=slideEff(look[LK_WEIGHT]), tor=slideEff(look[LK_TORSO]),
+    int v=4+2*abShape[look[LK_SHAPE]<NSHAPE?look[LK_SHAPE]:0][a], hgt=slideEffS(look[LK_HEIGHT]), wgt=slideEffS(look[LK_WEIGHT]), tor=slideEffS(look[LK_TORSO]),
         arm=slideEff(look[LK_ARMS]), stn=slideEff(look[LK_STANCE]);
     switch(a){
       case AB_SPEED:   v+=(hgt>=2)-(wgt>=2)+(wgt<=-2); break;          // long legs and a light frame are quick
@@ -998,14 +1015,14 @@ __attribute__((noinline)) static void drawStage(void){   // ROM: the creator roo
 // ---- ANTENNAE: FEELERS (thin, a bead on top) or EYE STALKS (thicker, an eye on each), drawn from the top of the head like the ears ----
 __attribute__((noinline)) static void drawAntennae(void){
     int an=look[LK_ANTENNA]; if(!an||custom) return;
-    int hx,hy,hz,hs; headBox(&hx,&hy,&hz,&hs); int hw=2*hs, hd=2*hs, hh=2*hs, ty=((stBH[stage]-(hy+hh)>=1)?hy+hh:hy+hh-1)+1;   // just above the hair (or the head)
+    int hx,hy,hz,hs; headBox(&hx,&hy,&hz,&hs); int hw=2*hs, hd=2*hs, hh=2*hs, ty=((BXH-(hy+hh)>=1)?hy+hh:hy+hh-1)+1;   // just above the hair (or the head)
     static const u8 pcs[6]={5,4,8,2,3,7}; u16 col=shade(sL[1],an==1?14:12), tip=sT[an==1?pcs[look[LK_PATCOL]%6]:2];
     for(int sd=0;sd<2;sd++){
         int u=2*hx+(sd?2*hw-1:1)-W+(sd?1:-1)*(slideEff(look[LK_ANTGAP])/2), w=2*hz+2*hd-1-D-slideEff(look[LK_ANTFB])*hs;   // ANT GAP: wider / closer; ANT FRONT BACK                        // the front corners of the head's top
         int x0,y0,x1,y1,a,b; projC(u,w,ty,&x0,&y0); rotUW(sd?1:-1,0,&a,&b); int lean=(a-b)*(2+slideEff(look[LK_ANTSPR]));   // ANT SPREAD: how far they lean out
-        int len=(an==1?11:12)*hs+slideEff(look[LK_ANTLEN])*2*hs; if(len<3) len=3; x1=x0+lean;   // ANT LENGTH: two pixels a notch y1=y0-len;
+        int len=(an==1?11:12)*hs+slideEffS(look[LK_ANTLEN])*2*hs; if(len<3) len=3; x1=x0+lean;   // ANT LENGTH: two pixels a notch y1=y0-len;
         line(x0,y0,x1,y1,col); if(an==2){ line(x0+1,y0,x1+1,y1,col); }
-        int ts=slideEff(look[LK_ANTTIP])/2;   // ANT TIP: the bead / eye grows a pixel every two notches
+        int ts=slideEffS(look[LK_ANTTIP])/2;   // ANT TIP: the bead / eye grows a pixel every two notches
         if(an==1){ int r=1+ts; if(r<0) r=0; rect(x1-r,y1-r,2*r+1,2*r+1,tip); px(x1-r,y1-r,lite(tip,19)); }
         else { int R=2+ts; if(R<1) R=1; rect(x1-R,y1-R,2*R+1,2*R+1,RGB(3,3,6)); rect(x1-R+1,y1-R+1,2*R-1,2*R-1,RGB(31,31,31)); px(x1,y1,RGB(3,3,6)); }
     }
@@ -1014,12 +1031,12 @@ __attribute__((noinline)) static void drawAntennae(void){
 __attribute__((noinline)) static void drawTail(int near){   // STUB (a short wedge) or LONG (droops); TAIL LENGTH: a half block a notch
     int tl=look[LK_TAIL]; if(!tl||custom) return;
     int L,T,hs; bodyPlan(&L,&T,&hs);
-    int u=2*(BX0+(stBW[stage]-2)/2)+2-W, w=-D, x0,y0; projC(u,w,L+1,&x0,&y0); y0+=(CC+liftT)/2; y0-=slideEff(look[LK_TAILHT])*2; if(T<=1) y0+=neckK;   // TAIL HEIGHT: two pixels a notch   // the middle of the back of the hips (the TORSO slider stretches that row: liftT px)
+    int u=2*(BX0+(BXW-2)/2)+2-W, w=-D, x0,y0; projC(u,w,L+1,&x0,&y0); y0+=(CC+liftT)/2; y0-=slideEff(look[LK_TAILHT])*2; if(T<=1) y0+=neckK;   // TAIL HEIGHT: two pixels a notch   // the middle of the back of the hips (the TORSO slider stretches that row: liftT px)
     int ua,ub; rotUW(0,-2,&ua,&ub); int bx=(ua-ub)*CA/2, by=(ua+ub)*CB/2;                  // px per block going backwards
     x0+=bx*bakeWk/(2*CA); y0+=by*bakeWk/(2*CA);   // WEIGHT: a heavier body is fatter front to back too, so the root moves out with its back face
     if((by>0)!=near) return;                                                                  // pointing away from you: behind the body
-    int n=(tl==1?4:7)+slideEff(look[LK_TAILLEN]); if(n<2) n=2;
-    u16 col=shade(sT[5],13), dk=shade(sT[5],8); int cu=slideEff(look[LK_TAILCURL]), tk=slideEff(look[LK_TAILTHK])/2, sway=slideEff(look[LK_TAILSW]), tipn=n+(slideEff(look[LK_TAILTL])*(n+2))/4;   // TAIL SWAY: leans left / right on the screen; TAIL TIP LEN: how much of the tail is the tip colour
+    int n=(tl==1?4:7)+slideEffS(look[LK_TAILLEN]); if(n<2) n=2;
+    u16 col=shade(sT[5],13), dk=shade(sT[5],8); int cu=slideEff(look[LK_TAILCURL]), tk=slideEffS(look[LK_TAILTHK])/2, sway=slideEff(look[LK_TAILSW]), tipn=n+(slideEffS(look[LK_TAILTL])*(n+2))/4;   // TAIL SWAY: leans left / right on the screen; TAIL TIP LEN: how much of the tail is the tip colour
       // TAIL CURL: negative droops, positive curls up; TAIL THICKNESS: a pixel every two notches
     static const u8 tipSlot[7]={0,2,4,8,3,6,7}; int tpS=tipSlot[look[LK_TAILTIP]%7]; u16 tpc=tpS?shade(sT[tpS],13):col;   // TAIL TIP: the last quarter in another colour
     for(int j=0;j<=4*n;j++){
@@ -1029,15 +1046,15 @@ __attribute__((noinline)) static void drawTail(int near){   // STUB (a short wed
 }
 __attribute__((noinline)) static void drawHorns(int near){   // NUBS or HORNS, one on each side of the head; HORN SIZE: 20% a notch
     int hn=look[LK_HORNS]; if(!hn||custom) return;
-    int hx,hy,hz,hs; headBox(&hx,&hy,&hz,&hs); int hw=2*hs, hd=2*hs, hh=2*hs, top=(stBH[stage]-(hy+hh)>=1)?hy+hh:hy+hh-1;
-    int len=(hn==1?5:11)*hs*(10+slideEff(look[LK_HORNSZ])*2)/10; if(len<2) len=2;
+    int hx,hy,hz,hs; headBox(&hx,&hy,&hz,&hs); int hw=2*hs, hd=2*hs, hh=2*hs, top=(BXH-(hy+hh)>=1)?hy+hh:hy+hh-1;
+    int len=(hn==1?5:11)*hs*(10+slideEffS(look[LK_HORNSZ])*2)/10; if(len<2) len=2;
     u16 col=shade(sT[8],13), tip=lite(sT[8],18); int ho=6+slideEff(look[LK_HORNSPR]), cv=4+slideEff(look[LK_HORNCRV]);   // HORN SPREAD: how far out they lean; HORN CURVE: how much the tip bends back in
     for(int sd=-1;sd<=1;sd+=2){
         int a,b; rotUW(sd,0,&a,&b); if(((a+b)>0)!=near) continue;
         int sx=(a-b)>0?1:-1, u=2*hx+hw-W+sd*(hw+1), w=2*(hz+hd-1)+1-D-slideEff(look[LK_HORNFB])*hs, x0,y0; projC(u,w,top+1,&x0,&y0);   // HORN FWD BACK: along the head
              y0+=CC/2-2*hs*slideEff(look[LK_HORNHT]); x0+=sx*headK;   // HORN HEIGHT: up or down the side of the head
         for(int i=0;i<=len;i++){
-            int x=x0+sx*((i*ho)/4-(i*i*cv)/(4*(len+1))), t=2+(len-i)*hs/len+slideEff(look[LK_HORNTH])/2; if(t<1) t=1;   // HORN THICKNESS   // out, then curving back in; thick at the root, a point at the tip
+            int x=x0+sx*((i*ho)/4-(i*i*cv)/(4*(len+1))), t=2+(len-i)*hs/len+slideEffS(look[LK_HORNTH])/2; if(t<1) t=1;   // HORN THICKNESS   // out, then curving back in; thick at the root, a point at the tip
             rect(x-t/2,y0-i,t,1,i==len?tip:col);
         }
     }
@@ -1045,11 +1062,11 @@ __attribute__((noinline)) static void drawHorns(int near){   // NUBS or HORNS, o
 __attribute__((noinline)) static void drawWings(int near){   // WINGS: a feathered fan off each shoulder blade; WING SIZE: 20% a notch
     if(look[LK_BACK]!=2||custom) return;
     int L,T,hs; bodyPlan(&L,&T,&hs);
-    int u=2*(BX0+(stBW[stage]-2)/2)+2-W, w=-D, x0,y0; projC(u,w,L+T,&x0,&y0); y0+=CC/2+liftT/2+neckK;
+    int u=2*(BX0+(BXW-2)/2)+2-W, w=-D, x0,y0; projC(u,w,L+T,&x0,&y0); y0+=CC/2+liftT/2+neckK;
     int ua,ub; rotUW(0,-2,&ua,&ub); int bx=(ua-ub)*CA/2, by=(ua+ub)*CB/2;
     if((by>0)!=near) return;
     x0+=bx*bakeWk/(2*CA); y0+=by*bakeWk/(2*CA);
-    int span=(14+4*hs)*(10+slideEff(look[LK_WINGSZ])*2)/10; if(span<4) span=4;
+    int span=(14+4*hs)*(10+slideEffS(look[LK_WINGSZ])*2)/10; if(span<4) span=4;
     int wsp=slideEff(look[LK_WINGSP])*2; if(wsp<-2) wsp=-2; y0-=slideEff(look[LK_WINGHT])*2;   // WING SPREAD: out from the back; WING HEIGHT: up the back
     int a,b; rotUW(1,0,&a,&b); int rs=(a-b)>0?1:-1;
     for(int sd=-1;sd<=1;sd+=2) for(int k=0;k<=span;k++){
@@ -1060,9 +1077,9 @@ __attribute__((noinline)) static void drawWings(int near){   // WINGS: a feather
 __attribute__((noinline)) static void drawEars(int near){   // ROM, not inlined into the IWRAM drawScene
     int es=look[LK_EARS]; if(!es||custom) return;
     int hx,hy,hz,hs; headBox(&hx,&hy,&hz,&hs);
-    int hw=2*hs, hd=2*hs, f=10+slideEff(look[LK_EARSZ])*2;                       // ear size slider: 20% smaller or bigger per step
+    int hw=2*hs, hd=2*hs, f=10+slideEffS(look[LK_EARSZ])*2;                       // ear size slider: 20% smaller or bigger per step
     int ry=((es==1?5:9)+(hs-1)*(es==1?2:4))*f/10, rz=((es==1?4:5)+(hs-1)*2)*f/10;  // half height and half depth in px; BIG ears are tall
-    rz=rz*(10+slideEff(look[LK_EARWID])*2)/10; if(ry<1) ry=1; if(rz<1) rz=1;   // EAR WIDTH: along the head
+    rz=rz*(10+slideEffS(look[LK_EARWID])*2)/10; if(ry<1) ry=1; if(rz<1) rz=1;   // EAR WIDTH: along the head
     for(int sd=-1;sd<=1;sd+=2){
         int a,b; rotUW(sd,0,&a,&b); int vis=(a+b)>0;                              // this side's face turns towards the camera
         if(vis!=near) continue;
@@ -1092,9 +1109,9 @@ __attribute__((noinline)) static void drawEars(int near){   // ROM, not inlined 
 __attribute__((noinline)) static void drawSeat(int x,int y,int u,int w,int rl,int slot){   // on the back of the top leg block (rl: that row's HEIGHT stretch; slot: that block's colour slot)
     int sx,sy,ax,ay,bx,by; projC(u,w,y+1,&sx,&sy); projC(u+2,w,y+1,&ax,&ay); projC(u,w+2,y+1,&bx,&by);
     int xX=ax-sx, xY=ay-sy, zX=bx-sx, zY=by-sy;              // one block along x, along z (towards the front), on screen
-    int p=slidePos(look[LK_BUTT]), side=(x==BX0+(stBW[stage]-2)/2)?-1:1;
+    int p=slidePos(look[LK_BUTT]), side=(x==BX0+(BXW-2)/2)?-1:1;
     int cx=sx-zX/2-side*xX/10, cy=sy+(CC+rl)/2-zY/2-side*xY/10;   // the back face of the block, a little high (up into the hips), nudged in to meet its twin
-    int rxq=30+p+8*slideEff(look[LK_BUTTW]), ry64=(CC+rl)*(40+2*p)+64*slideEff(look[LK_BUTTH]), bul=8+7*p;   // BUTT WIDTH / HEIGHT: a pixel a notch
+    int rxq=30+p+8*slideEffS(look[LK_BUTTW]), ry64=(CC+rl)*(40+2*p)+64*slideEff(look[LK_BUTTH]), bul=8+7*p;   // BUTT WIDTH / HEIGHT: a pixel a notch
     if(rxq<8) rxq=8; if(ry64<128) ry64=128;   // a little taller than wide, so they read round, not squashed                 // half width (64ths of a block), half height (px/64), bulge (64ths of a block)
     static const signed char cs[32]={64,63,59,53,45,36,24,12,0,-12,-24,-36,-45,-53,-59,-63,-64,-63,-59,-53,-45,-36,-24,-12,0,12,24,36,45,53,59,63};
     static const u8 dq[17]={64,64,63,62,62,60,58,56,53,50,46,41,36,30,22,13,0};   // the dome's height at ring r of 16
@@ -1111,22 +1128,24 @@ __attribute__((noinline)) static void drawSeat(int x,int y,int u,int w,int rl,in
             px(X,Y,c); px(X+1,Y,c);
         } }
 }
+static void bxSync(void);
 IWRAM_THUMB static void drawScene(int blink){
+    bxSync();   // (the bake swaps the stage between Sims without building the look again)
     if(stageOn&&!noGrid) drawStage(); else if(bakeOn) rect(cX0,cY0,(int)cW,(int)cH,SKY); else fillCols(0,SCENE_W,SKY);
     // floor grid
     u16 gc=RGB(13,18,22); int a,b,c,d;
-    if(!noGrid&&!stageOn) for(int i=BX0;i<=BX0+stBW[stage];i++){ projC(2*i-W,-D,0,&a,&b); projC(2*i-W,2*stBD[stage]-D,0,&c,&d); line(a,b,c,d,gc); }   // the grid shows only this stage's box
-    if(!noGrid&&!stageOn) for(int j=0;j<=stBD[stage];j++){ projC(2*BX0-W,2*j-D,0,&a,&b); projC(2*(BX0+stBW[stage])-W,2*j-D,0,&c,&d); line(a,b,c,d,gc); }
+    if(!noGrid&&!stageOn) for(int i=BX0;i<=BX0+BXW;i++){ projC(2*i-W,-D,0,&a,&b); projC(2*i-W,2*BXD-D,0,&c,&d); line(a,b,c,d,gc); }   // the grid shows only this stage's box
+    if(!noGrid&&!stageOn) for(int j=0;j<=BXD;j++){ projC(2*BX0-W,2*j-D,0,&a,&b); projC(2*(BX0+BXW)-W,2*j-D,0,&c,&d); line(a,b,c,d,gc); }
     int fv=view==0?0:view==3?1:-1;   // which cube face shows the +Z (front) face, -1 = turned away
     // the body sliders (a look-built creature only): HEIGHT stretches the leg rows, WEIGHT widens (or slims) every block below the head
     int wk=0, hyB=H; decLook=!custom;
     int shA=0, shL=0;   // the body type's extra width for the arms and legs (the torso's goes into wk)
     if(decLook){ int L,T,hs; bodyPlan(&L,&T,&hs); liftL=L; const signed char*sd=shpDraw[look[LK_SHAPE]<NSHAPE?look[LK_SHAPE]:0];
-        liftK=slideEff(look[LK_HEIGHT])+((look[LK_SHAPE]==6&&stage>=AG_TEEN)?3:0)+sd[3]; if(liftK<-4) liftK=-4; if(liftK>6) liftK=6;   // TALL: longer legs (drawn taller, so the hair keeps its room)
-        wk=slideEff(look[LK_WEIGHT])+sd[0]; shA=sd[1]+slideEff(look[LK_ARMW])/2; shL=sd[2]+slideEff(look[LK_LEGW])/2; hyB=L+T;   // LEG WIDTH: half a pixel a notch (-2..+2), on top of the body type's legs
-        headK=slideEff(look[LK_HEADSZ]); handK=slideEff(look[LK_HANDFT]);   // HEAD SIZE: px added to the head's half width; HAND FOOT SIZE: the same for the hands and the feet
-        liftTn=T; liftT=slideEff(look[LK_TORSO]); armK=slideEff(look[LK_ARMS]); stanceK=slideEff(look[LK_STANCE]);   // TORSO px per torso row, ARMS and STANCE spread
-        neckK=slideEff(look[LK_NECK]); if(neckK<-2) neckK=-2; exHip=slideEff(look[LK_HIPW]); exWst=slideEff(look[LK_WAISTW]); exSho=slideEff(look[LK_SHOULW]); exThi=slideEff(look[LK_THIGHW]); exCal=slideEff(look[LK_CALFW]);
+        liftK=slideEffS(look[LK_HEIGHT])+((look[LK_SHAPE]==6&&stage>=AG_TEEN)?3:0)+sd[3]; if(liftK<-4) liftK=-4; if(liftK>bxLift) liftK=bxLift;   // TALL: longer legs (drawn taller, so the hair keeps its room)
+        wk=slideEffS(look[LK_WEIGHT])+sd[0]; shA=sd[1]+slideEffS(look[LK_ARMW])/2; shL=sd[2]+slideEffS(look[LK_LEGW])/2; hyB=L+T;   // LEG WIDTH: half a pixel a notch (-2..+2), on top of the body type's legs
+        headK=slideEffS(look[LK_HEADSZ]); handK=slideEffS(look[LK_HANDFT]);   // HEAD SIZE: px added to the head's half width; HAND FOOT SIZE: the same for the hands and the feet
+        liftTn=T; liftT=slideEffS(look[LK_TORSO]); if(liftT<-4) liftT=-4; if(bxBig&&liftT>0) liftT+=liftT/2; armK=slideEff(look[LK_ARMS]); stanceK=slideEff(look[LK_STANCE]);   // TORSO px per torso row, ARMS and STANCE spread
+        neckK=slideEffS(look[LK_NECK]); if(neckK<-2) neckK=-2; if(bxBig&&neckK>0) neckK+=neckK/2; exHip=slideEffS(look[LK_HIPW]); exWst=slideEffS(look[LK_WAISTW]); exSho=slideEffS(look[LK_SHOULW]); exThi=slideEffS(look[LK_THIGHW]); exCal=slideEffS(look[LK_CALFW]);
         { int m=neckK<0?-neckK:neckK; int e[5]={exHip,exWst,exSho,exThi,exCal}; for(int q=0;q<5;q++){ int a=e[q]<0?-e[q]:e[q]; if(a>m) m=a; } exMax=m; }
         if(noGrid){ if(liftK>bakeCapH) liftK=bakeCapH; if(wk>bakeCapW) wk=bakeCapW; if(liftT>bakeCapT) liftT=bakeCapT;
                     if(armK>bakeCapX) armK=bakeCapX; if(stanceK>bakeCapX) stanceK=bakeCapX; if(shA>bakeCapL) shA=bakeCapL; if(shL>bakeCapL) shL=bakeCapL; } if(noGrid){ neckK=EXC(neckK); exHip=EXC(exHip); exWst=EXC(exWst); exSho=EXC(exSho); exThi=EXC(exThi); exCal=EXC(exCal); } bakeWk=wk; bakeSh=shA>shL?shA:shL; }   // a sprite bake: only as tall / wide as its box holds
@@ -1163,9 +1182,9 @@ IWRAM_THUMB static void drawScene(int blink){
         else { cubeDR=bw;
             int rl=y<liftL?liftK:y<liftL+liftTn?liftT:0;   // this row stretched (HEIGHT: the legs, TORSO: the torso)
             if(y==liftL+liftTn-1&&neckK>0) rl+=neckK;   // NECK LENGTH: the top torso row is stretched and the head sits that much higher
-            if(rl>0) cube(sx,sy+rl,ci,shape,f|1);   // a stretched row: its lower part first, then the block on top of it
+            for(int o=rl;o>0;o-=CC) cube(sx,sy+o,ci,shape,f|1);   // a stretched row: its lower part first (a block every CC pixels, so a long stretch has no gaps), then the block on top of it
             cube(sx,sy,ci,shape,rl>0?f|2:f); cubeDR=0;
-            if(decLook&&(stage>=AG_TEEN||sUnlock)&&liftL>0&&y==liftL-1&&z==1&&shape==3&&(x==BX0+(stBW[stage]-2)/2||x==BX0+stBW[stage]/2)) drawSeat(x,y,u,w,rl,raw&15); }   // the seat, on the back of the top of the legs
+            if(decLook&&(stage>=AG_TEEN||sUnlock)&&liftL>0&&y==liftL-1&&z==1&&shape==3&&(x==BX0+(BXW-2)/2||x==BX0+BXW/2)) drawSeat(x,y,u,w,rl,raw&15); }   // the seat, on the back of the top of the legs
         u16 dc=dec[y][z][x]; int tint=0;
         if(gdec[y][z][x]&&blink){ dc=gdec[y][z][x]; tint=1; }
         if(dc&&fv>=0){ drawDeco(sx,sy,dc,fv,tint); if(decSpr(dc)-1>=NEYE){ nsx=sx; nsy=sy; ndc=dc; ntint=tint; } }
@@ -3681,7 +3700,7 @@ IWRAM_CODE static void drawClassicPanel(void){
     const char*sn[3]={"S","M","L"};
     for(int i=0;i<3;i++){
         int x=156+i*16; rect(x,103,12,9,i==size-1?RGB(6,16,8):RGB(2,3,5));
-        text(x+4,105,sn[i],i<stMaxSz[stage]?RGB(31,31,31):RGB(8,9,11),1);
+        text(x+4,105,sn[i],i<BXS?RGB(31,31,31):RGB(8,9,11),1);
     }
     text(130,115,"X",RGB(18,20,22),1); num(136,115,cx,RGB(31,31,31));
     text(148,115,"Y",RGB(18,20,22),1); num(154,115,cy,RGB(31,31,31));
@@ -3738,7 +3757,7 @@ static int creatorClassic(void){   // returns 1 when the secret code switched sc
             if(pressed&K_B){ if(part<NPARTS){ doPart(2,part,size,cx,cy,cz); custom=1; } dirty=1; }
         }
         if(released&K_SEL){ if(!comboUsed){ part=(part+1)%NENT; dirty=1; } comboUsed=0; }
-        if(pressed&K_START){ size=size%stMaxSz[stage]+1; dirty=1; }
+        if(pressed&K_START){ size=size%BXS+1; dirty=1; }
         clampCursor();
         if(dirty) frame=16;   // restart blink with the ghost visible
         int blink=(frame>>4)&1;

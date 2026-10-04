@@ -69,6 +69,11 @@ static const OptRow pgSimSims[]={
  XR(XO_SIMUSER,"USER-MADE SIMS",lbOnOff,"SIMS YOU MAKE IN THE CREATOR AND ADD","TO THE FAMILY  OFF BLOCKS ADDING THEM"),
  XR(XO_SIMRAND,"MADE-UP SIMS",lbOnOff,"RANDOM SIMS THAT MOVE IN OR WALK PAST","OFF MEANS NONE OF THEM SHOW UP"),
 };
+static const char* const lbMcSl[2]={"NORMAL","DOUBLE"}, *const lbMcBox[2]={"BY AGE","LIMIT BREAK"};
+static const OptRow pgSimMaster[]={   // MASTER CONTROLLER: only with the debug code (the section is hidden without it, and has no effect)
+ XR(XO_MCSLIDE,"SIZE SLIDERS",lbMcSl,"DOUBLE  EVERY SIZE TONE AND LENGTH SLIDER","GOES TWICE AS FAR  PARTS STAY ATTACHED"),
+ XR(XO_MCBOX,"BODY BOX",lbMcBox,"LIMIT BREAK  EVERY AGE GETS THE ADULT BOX","AND ADULTS STRETCH PAST 8 BLOCKS TALL"),
+};
 static const OptRow pgSimMind[]={
  XR(XO_BUBBLE,"THOUGHT BUBBLE",lbBubble,"THE BUBBLE OVER YOUR HEAD","URGENT SHOWS ONLY NEEDS  ALL ADDS WANTS"),
  XR(XO_WANTS,"WANTS AND FEARS",lbShown,"THE WANT AND FEAR CELLS IN THE HUD","THEY STILL COUNT WHEN HIDDEN"),
@@ -142,6 +147,7 @@ static const OptSub simSubs[]={
  SUB("SCORE",pgSimScore,"TRICK SCORES  YOUR TOP SPEED AND THE","ACTION CAM AFTER A BIG COMBO"),
  SUB("SIMS",pgSimSims,"WHO MOVES IN OR WALKS PAST AND HOW","THE OTHERS LOOK AFTER THEMSELVES"),
  SUB("MIND",pgSimMind,"THE THOUGHT BUBBLE AND THE WANTS AND","FEARS IN THE HUD"),
+ SUB("MASTER",pgSimMaster,"A NOD TO THE MASTER CONTROLLER MOD","DEBUG CODE ONLY  EXTREME SIM SLIDERS"),   // (keep it last: pgNs hides it)
 };
 static const OptSub timeSubs[]={
  SUB("DAY",pgTimeDay,"HOW LONG A GAME DAY IS AND HOW THE","CLOCK SHOWS IT"),
@@ -150,7 +156,9 @@ static const OptSub timeSubs[]={
 };
 static const OptPage optPages[NOPG]={ PG("VIDEO",pgVideo), PGS("SIM",simSubs), PGS("TIME",timeSubs), PG("AUDIO",pgAudio), PG("INPUT",pgInput), PG("HUD",pgHud), PG("ROOMS",pgRooms), PG("DATA",pgData) };
 static int opPage, opFocus; static u8 opSel[NOPG][5], opSub[NOPG];   // opFocus: the cursor is on the section strip; opSel is kept per page and per section
-static const OptRow* pgRows(const OptPage*pg,int*n){ if(pg->ns){ const OptSub*u=&pg->sub[opSub[pg-optPages]]; *n=u->n; return u->r; } *n=pg->n; if(pg->r==pgVideo&&!sUnlock) (*n)--; return pg->r; }   // DEBUG CLEAR CACHES (the last VIDEO row) only shows while the Konami code (sUnlock) is on
+static int pgNs(const OptPage*pg);
+static const OptRow* pgRows(const OptPage*pg,int*n){ if(pg->ns){ if(opSub[pg-optPages]>=pgNs(pg)) opSub[pg-optPages]=0; const OptSub*u=&pg->sub[opSub[pg-optPages]]; *n=u->n; return u->r; } *n=pg->n; if(pg->r==pgVideo&&!sUnlock) (*n)--; return pg->r; }   // DEBUG CLEAR CACHES (the last VIDEO row) only shows while the Konami code (sUnlock) is on
+static int pgNs(const OptPage*pg){ return pg->ns-((pg->sub==simSubs&&!mcOn())?1:0); }   // sections shown (SIM's MASTER only with the debug code)
 static u8* pgSel(const OptPage*pg){ int i=(int)(pg-optPages); return &opSel[i][pg->ns?opSub[i]:0]; }
 
 static u8* rowVar(const OptRow*r){ return r->kind==OR_XO?&xo[r->idx]: r->v; }
@@ -203,7 +211,7 @@ static void drawOptions(void){
     const OptPage*pg=&optPages[opPage]; int nr; const OptRow*rows=pgRows(pg,&nr); int sel=*pgSel(pg), y0=19, vis=11, foc=(pg->ns&&opFocus);
     if(pg->ns){   // the section strip: DAY | AGES | TIMERS. UP from the top row puts the cursor on it, LEFT / RIGHT switch, DOWN goes back to the rows
         int x=8, cs=opSub[opPage];
-        for(int u=0;u<pg->ns;u++){ const OptSub*su=&pg->sub[u]; int w=tw(su->nm,1)+12, on=(u==cs), chg=0;
+        for(int u=0;u<pgNs(pg);u++){ const OptSub*su=&pg->sub[u]; int w=tw(su->nm,1)+12, on=(u==cs), chg=0;
             for(int q=0;q<su->n;q++) if(rowChanged(&su->r[q])) chg=1;
             rect(x,17,w,11,on?(foc?GOLD:RGB(10,13,19)):RGB(4,5,9));
             if(on&&!foc) rect(x,27,w,1,GOLD);
@@ -302,7 +310,7 @@ static void settingsScreen(void){   // the OPTIONS screen (the name stays so eve
         if(pr&(K_L|K_R)){ opPage=(opPage+((pr&K_R)?1:NOPG-1))%NOPG; opFocus=0; dirty=1; if(opPage==0){ int c=costCache[costKey()]; if(c){ sCost=c; remeasure=0; } else remeasure=1; } }
         const OptPage*pg=&optPages[opPage]; int nr; const OptRow*rows=pgRows(pg,&nr); u8*sel=pgSel(pg);
         if(pg->ns&&opFocus){   // on the section strip: LEFT / RIGHT (or A) switch the section, DOWN / UP go back to the rows
-            if(pr&(K_LEFT|K_RIGHT|K_A)){ opSub[opPage]=(u8)((opSub[opPage]+((pr&K_LEFT)?pg->ns-1:1))%pg->ns); dirty=1; }
+            if(pr&(K_LEFT|K_RIGHT|K_A)){ int ns=pgNs(pg); opSub[opPage]=(u8)((opSub[opPage]+((pr&K_LEFT)?ns-1:1))%ns); dirty=1; }
             if(pr&(K_DOWN|K_UP)){ opFocus=0; rows=pgRows(pg,&nr); sel=pgSel(pg); *sel=(pr&K_DOWN)?0:(u8)(nr-1); dirty=1; }
         } else {
             if(pr&K_DOWN){ if(pg->ns&&*sel==nr-1) opFocus=1; else *sel=(u8)((*sel+1)%nr); dirty=1; }

@@ -678,3 +678,14 @@ A house's floors used to sit in `flBuf`, 3 floors x 3 planes x 1600 bytes = 14,4
   pixels are shown. WIN0 keeps them to the room rows.
 - Anything that is not a room picture (`present()` without `zoomKeep`: menus, messages) puts BG2 back to 1:1 at once (`zoomOff`); the
   next room frame is a whole one again. The pause menu draws the room unzoomed behind it.
+
+## MASTER CONTROLLER (OPTIONS > SIM > MASTER, debug code only)
+A nod to the Master Controller mod for The Sims. The MASTER section only shows (and only works) after the title's Konami code
+(`sUnlock`) or the debug code (`dbgOn`): `mcOn()`.
+- **SIZE SLIDERS: DOUBLE.** Every SIZE slider (heights, widths, sizes, lengths, colour tones: `slideEffS`) goes twice as far a notch.
+  The sliders that PLACE a part (ear spread, horn height, antenna gap, arm spread, ...) keep their range, so parts never come loose.
+- **BODY BOX: LIMIT BREAK.** Every age builds in the adult box, and the HEIGHT / TORSO / NECK stretch may go much further (`bxLift`),
+  so an adult can stand well past the 8 block box. A stretched row is filled with a block every CC pixels, so a long stretch has no gap
+  and nothing floats. In the room the sprite bake still eases a giant down to fit its 32 x 44 sprite.
+- The box and the limits are read once into globals (`bxSync`, called by `buildLook` and `drawScene`): IWRAM is nearly full (code +
+  .bss about 30.7 KB of 32 KB, the stack lives in the rest), and a check inlined into the drawing code was enough to crash the game.
