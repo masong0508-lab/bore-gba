@@ -460,11 +460,12 @@ static void simsMood(int ev,int n){
             if(pTr[TR_OUT]>=7) moodFun=moodClamp(moodFun+4*MOOD_ONE);   // outgoing: showing off is a thrill
             break;
         case M_GRIND_ON: simEvent(SE_GRIND); simSkillAdd(1); break;    case M_LAUNCH: simEvent(SE_AIR); break;
-        case M_EAT: simEvent(SE_EAT); break;           case M_RELIEVE: simEvent(SE_PEE); break;
+        case M_EAT: simEvent(SE_EAT); hpHeal(5); break;           case M_RELIEVE: simEvent(SE_PEE); break;
         case M_BAIL: simEvent(SE_BAIL); if(pTr[TR_OUT]<=3) moodHap=moodClamp(moodHap-3*MOOD_ONE); break;   // shy: bailing is embarrassing
         case M_HURT: case M_HURT_BIG: simEvent(SE_HURT); break;
         case M_ACCIDENT: simEvent(SE_ACCIDENT); break; case M_FAINT: simEvent(SE_FAINT); break;
         case M_PASSOUT: simEvent(SE_PASSOUT); break;   case M_DIE: simEvent(SE_DIE); break;
+        case M_SLEEP: hpHeal(40); break;   // a night in bed heals
         default: break;   // M_SLEEP/M_SHOWER/M_SOFA/M_WANT/M_FEAR/M_SKILL/M_PAY/M_PROMO/M_BROKE/M_DEMOTE are raised by sims.h itself
     }
 }
@@ -475,7 +476,7 @@ static int simsFunPct(void){ return 70+pTr[TR_PLAY]*6; }                       /
 static int simsTop(int top){ if(sNrg<SIM_LOW) top-=top*SIM_SLEEPY_TOP/100; return top*stSpd[stage]/100*abPct(AB_SPEED,5)/100; }   // too tired: slower; SPEED ability +-5% a point
 static int simsPts(int pts){ pts+=pts*skillLvl*8/100; return pts*abPct(AB_STYLE,6)/100; }   // SKATING skill: +8% trick points per level; STYLE ability +-6% a point
 static const char* simsAlert(void){   // most urgent need, or 0
-    if(lbl>80) return "WC";
+    if(lbl>80) return "NEED THE TOILET";   // (WC)
     if(lfood<SIM_LOW) return "EAT";
     if(sNrg<SIM_LOW) return "ZZZ";
     if(sHyg<SIM_LOW) return "STINKY";

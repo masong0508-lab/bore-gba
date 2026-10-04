@@ -31,6 +31,7 @@ typedef struct {
     u8 hd, need[HN_N];       // heading (16 steps), needs 0..100 (WC here is 100 = empty bladder, like every other need: high is good)
     u8 act, use, pn, pi;     // action, need being refilled, path length, step along it
     u8 gok; s32 gx, gy;      // the tile centre this step walks to (fixed when the step starts)
+    u8 hp;                   // health 0..100 (not saved: everyone comes back at 100). Punches take it, it creeps back (hhTick)
     u8 uid, tgt, bub, bubT;  // who this is (relationships are kept by uid), who it is going to talk to (uid), balloon icon and time
     short think, t;          // steps to the next decision, steps left in the action
     u8 path[HH_PATH];        // directions: 0 +x, 1 +y, 2 -x, 3 -y
@@ -189,7 +190,7 @@ static void hhPickName(char*out){   // a first name nobody in the house has yet
 static void hhPlace(HhSim*s,int k);
 static int hhAdd(const u8*lk,int stg,int asp,int ltw,const u8*tr){   // a new member of the family (CREATE-A-FAMILY): -1 when the house is full
     if(hhN>=HH_MAX) return -1;
-    HhSim*s=&hhM[hhN]; s->uid=(u8)hhFreeUid(); s->bubT=0;
+    HhSim*s=&hhM[hhN]; s->uid=(u8)hhFreeUid(); s->bubT=0; s->hp=HP_MAX;
     for(int i=0;i<LK_N;i++) s->look[i]=lk[i];
     s->stage=(u8)stg; s->asp=(u8)asp; s->ltw=(u8)ltw; for(int i=0;i<TR_N;i++) s->tr[i]=tr[i];
     hhPickName(s->name); for(int i=0;i<HH_NM;i++) s->last[i]=hhPLast[i];   // family: your last name
@@ -206,7 +207,7 @@ static void hhRemove(int m){   // moves out: their sprites and relationships go 
     hhN--; hhSlotsFree();
 }
 static void hhNew(HhSim*s,const HhPre*p){
-    s->uid=(u8)hhFreeUid(); s->bubT=0;
+    s->uid=(u8)hhFreeUid(); s->bubT=0; s->hp=HP_MAX;
     for(int i=0;i<LK_N;i++) s->look[i]=i<LK_TAIL?p->look[i]:0;
     s->stage=p->stage; s->asp=p->asp; s->ltw=0; for(int i=0;i<TR_N;i++) s->tr[i]=signTr[p->sign][i];
     int i=0; for(;p->name[i]&&i<HH_NM-1;i++) s->name[i]=p->name[i]; s->name[i]=0; s->last[0]=0;
@@ -341,6 +342,7 @@ static void hhTick(void){   // once per logic step in the life game
         if(we&&lfr%(we*2)==0&&s->need[HN_WC]>0) s->need[HN_WC]--;
         if(lfr%300==m*7){ for(int n=HN_REST;n<HN_N;n++) if(s->need[n]>0) s->need[n]--; }
         if(s->bubT) s->bubT--;
+        if(s->hp<HP_MAX&&lfr%HP_REGEN==(m*11)%HP_REGEN) s->hp++;   // health creeps back (knocked out Sims wake at 30)
         if(lfr%(150-s->tr[TR_OUT]*8)==0&&s->need[HN_SOC]>0) s->need[HN_SOC]--;   // lonely sooner when outgoing
         if(s->act==HA_SOC){ if(--s->t<=0){ s->act=HA_IDLE; s->think=(short)(HH_THINK/2); } continue; }   // standing in a conversation
         if(!xo[XO_FREEWILL]){ if(s->act==HA_AWAY) s->fx=hhExX*256+128, s->fy=hhExY*256+128; s->act=HA_IDLE; continue; }
@@ -388,7 +390,7 @@ static void hhTick(void){   // once per logic step in the life game
 // lifetime over the hours, so friendships need keeping up.
 enum { SA_ROM=1, SA_MEAN=2, SA_CRUSH=4, SA_LOVE=8, SA_KID=16, SA_PIPE=32 };   // SA_PIPE: grown-ups, with a water pipe in the house
 typedef struct { const char* name; signed char dA,lA,dR,lR; u8 soc,fun; signed char minD,maxD; u8 base,tr,fl,icA,icR; const char*say,*yes,*no; } SocAct;
-enum { SC_TALK, SC_JOKE, SC_COMPL, SC_HIGH5, SC_HUG, SC_TRICK, SC_FLIRT, SC_KISS, SC_STEADY, SC_SORRY, SC_ARGUE, SC_INSULT, SC_SLAP, SC_PASS, SC_N };
+enum { SC_TALK, SC_JOKE, SC_COMPL, SC_HIGH5, SC_HUG, SC_TRICK, SC_FLIRT, SC_KISS, SC_STEADY, SC_SORRY, SC_ARGUE, SC_INSULT, SC_SLAP, SC_PUNCH, SC_PASS, SC_N };
 static const SocAct socT[SC_N]={
   //  name           dA  lA  dR  lR soc fun minD maxD base trait   flags                icon yes  icon no     you say  they did        they did not
     {"TALK",          3,  1, -2,  0, 22,  0,-100, 100, 85,TR_OUT, SA_KID,              IC_TALK, IC_BAIL, "BLAH BLAH","CHATTED",     "IGNORED YOU"},
@@ -404,6 +406,7 @@ static const SocAct socT[SC_N]={
     {"ARGUE",        -8, -3,  0,  0,  6,  0,-100, 100,100,TR_NICE,SA_MEAN|SA_KID,      IC_ANGRY,IC_ANGRY,"GRR",     "ARGUED BACK",   ""},
     {"INSULT",      -10, -4,  0,  0,  4,  0,-100,  30,100,TR_NICE,SA_MEAN|SA_KID,      IC_SAD,  IC_SAD,  "LOSER",   "LOOKS HURT",    ""},
     {"SLAP",        -16, -6,  0,  0,  4,  0,-100, -20,100,TR_NICE,SA_MEAN,             IC_HURT, IC_HURT, "SMACK",   "GOT SLAPPED",   ""},
+    {"PUNCH",       -20, -8,  0,  0,  4,  0,-100,   0,100,TR_NICE,SA_MEAN,             IC_HURT, IC_HURT, "TAKE THAT","GOT PUNCHED",  ""},   // teens and up; neutral or worse; takes HP (fightHit)
     {"PUFF PUFF PASS", 6,  2, -3,  0, 14, 14, -10, 100, 80,TR_PLAY,SA_PIPE,             IC_LEAF, IC_BAIL, "PASS IT", "TOOK A HIT",    "PASSED"},
 };
 static int hhFreeUid(void){ for(int u=0;u<HU_N;u++){ if(u==hhPUid) continue; int k=0; for(int m=0;m<hhN;m++) if(hhM[m].uid==u) k=1; if(!k) return u; } return 0; }
@@ -459,8 +462,16 @@ static void socNote(int a,int b,int i,int ok){   // what you read when you are p
     const SocAct*S=&socT[i]; char*e=simMsg2;
     if(a==hhPUid){ e=simCat(e,uName(b)); *e++=' '; e=simCat(e,ok?S->yes:S->no); }
     else { e=simCat(e,uName(a)); *e++=' '; const char*w=S->name; char lw[16]; int k=0; for(;w[k]&&k<15;k++) lw[k]=w[k]; lw[k]=0;
-        e=simCat(e,(S->fl&SA_MEAN)?(i==SC_SLAP?"SLAPPED YOU":i==SC_ARGUE?"PICKED A FIGHT":"INSULTED YOU"):i==SC_TALK?"CAME TO CHAT":i==SC_FLIRT?"FLIRTS WITH YOU":i==SC_KISS?"KISSED YOU":i==SC_HUG?"HUGS YOU":i==SC_STEADY?"ASKS YOU OUT":lw); }
+        e=simCat(e,(S->fl&SA_MEAN)?(i==SC_PUNCH?"PUNCHED YOU":i==SC_SLAP?"SLAPPED YOU":i==SC_ARGUE?"PICKED A FIGHT":"INSULTED YOU"):i==SC_TALK?"CAME TO CHAT":i==SC_FLIRT?"FLIRTS WITH YOU":i==SC_KISS?"KISSED YOU":i==SC_HUG?"HUGS YOU":i==SC_STEADY?"ASKS YOU OUT":lw); }
     lnote=simMsg2; lnoteT=110;
+}
+// ---- FIGHTING: PUNCH takes HP from the one hit. Damage 14..26, more from active (TR_ACT) Sims. Nobody dies in a fight: at 0 HP the Sim is
+// knocked out (a household Sim lies still for 10 s and wakes at 30 HP; you wake at 25, see fightHurt in main.c). ----
+static void fightHit(int a,int b){
+    int dmg=14+(uTr(a,TR_ACT)>>1)+(rnd8()>>5);
+    int m=hhMemOf(b);
+    if(m<0){ fightHurt(dmg); return; }
+    HhSim*t=&hhM[m]; if(t->hp>dmg) t->hp=(u8)(t->hp-dmg); else { t->hp=30; t->act=HA_SOC; t->t=600; t->bub=IC_SKULL; t->bubT=120; hhNote(t," IS KNOCKED OUT"); }
 }
 // a does interaction i to b. Returns 1 if it was accepted (mean ones: 1 = it landed)
 static int socDo(int a,int b,int i){
@@ -478,9 +489,14 @@ static int socDo(int a,int b,int i){
         relD[b][a]=(signed char)clampR(relD[b][a]+S->dA); relL[b][a]=(signed char)clampR(relL[b][a]+S->lA);
         relD[a][b]=(signed char)clampR(relD[a][b]+S->dA/2);
         needAdd(b,HN_SOC,-S->soc); needAdd(a,HN_SOC,S->soc); if(uTr(a,TR_NICE)<=3) needAdd(a,HN_FUN,8);   // grouchy Sims enjoy it a little
-        hhSay(b,S->icR,i==SC_SLAP?"OW":i==SC_ARGUE?"GRR":"HEY");
-        if(b==hhPUid){ simEvent(i==SC_SLAP?SE_SLAPPED:SE_FIGHT); moodEventN(M_FEAR,i==SC_SLAP?2:1); }
-        if(a==hhPUid&&i==SC_ARGUE) simEvent(SE_FIGHT);
+        hhSay(b,S->icR,i==SC_PUNCH?"OOF":i==SC_SLAP?"OW":i==SC_ARGUE?"GRR":"HEY");
+        if(i==SC_PUNCH){   // the blow lands, and a Sim that is not out cold hits back (grouchy ones nearly always)
+            fightHit(a,b);
+            int bm=hhMemOf(b);
+            if(bm>=0&&hhM[bm].t<500&&(rnd8()*100>>8)<70-uTr(b,TR_NICE)*5) fightHit(b,a);
+        }
+        if(b==hhPUid){ simEvent((i==SC_SLAP||i==SC_PUNCH)?SE_SLAPPED:SE_FIGHT); moodEventN(M_FEAR,(i==SC_SLAP||i==SC_PUNCH)?2:1); }
+        if(a==hhPUid&&(i==SC_ARGUE||i==SC_PUNCH)) simEvent(SE_FIGHT);
     } else if(ok){
         relD[b][a]=(signed char)clampR(relD[b][a]+S->dA); relL[b][a]=(signed char)clampR(relL[b][a]+S->lA);
         relD[a][b]=(signed char)clampR(relD[a][b]+S->dA*2/3); relL[a][b]=(signed char)clampR(relL[a][b]+S->lA*2/3);
@@ -523,7 +539,7 @@ static void hhSeek(HhSim*s){   // pick someone to go and see: friends most, enem
 }
 static int socPick(int a,int b){   // what a free-will Sim says to b
     int d=relD[a][b], nice=uTr(a,TR_NICE), r=rnd8();
-    if(d<-30||(nice<=2&&r<40)){ if(socAllowed(a,b,SC_SLAP)&&r<70) return SC_SLAP; return (r&1)?SC_ARGUE:SC_INSULT; }
+    if(d<-30||(nice<=2&&r<40)){ if(d<-30&&socAllowed(a,b,SC_PUNCH)&&r<50) return SC_PUNCH; if(socAllowed(a,b,SC_SLAP)&&r<70) return SC_SLAP; return (r&1)?SC_ARGUE:SC_INSULT; }
     if(d<-5&&nice>=6&&socAllowed(a,b,SC_SORRY)) return SC_SORRY;
     if(socAllowed(a,b,SC_STEADY)&&r<90) return SC_STEADY;
     if(socAllowed(a,b,SC_KISS)&&r<120) return SC_KISS;
@@ -555,7 +571,7 @@ static int hhSocR(int useLabel){   // 1 = handled (a social, or the menu was clo
     static const char* const useNm[6]={0,"USE THE FRIDGE","USE THE TOILET","SLEEP IN BED","TAKE A SHOWER","SIT ON SOFA"};
     if(useLabel>0&&useLabel<6){ it[n]=useNm[useLabel]; id[n++]=-1; }
     for(int i=0;i<SC_N;i++) if(socAllowed(a,b,i)){ it[n]=socT[i].name; id[n++]=i; }
-    { char*e=simCat(tl,s->name); *e++=' '; *e++=' '; simCat(e,relWord(a,b)); }
+    { char*e=simCat(tl,s->name); *e++=' '; *e++=' '; e=simCat(e,relWord(a,b)); e=simCat(e,"  HP "); simCatN(e,s->hp); }
     int c=menu(tl,it,n); liveInvalidate();
     while((~REG_KEYINPUT)&0x3FF) vsync();
     if(c<0) return 1;
@@ -755,7 +771,7 @@ static void hhLoad(void){
         s->stage=m[k++]; s->asp=m[k++]; s->ltw=m[k++];
         for(int j=0;j<TR_N;j++) s->tr[j]=m[k++]; if(v7){ for(int j=0;j<HH_NM;j++) s->name[j]=(char)m[k++]; for(int j=0;j<HH_NM;j++) s->last[j]=(char)m[k++]; } else { for(int j=0;j<10;j++) s->name[j]=(char)m[k++]; s->last[0]=0; } s->name[HH_NM-1]=s->last[HH_NM-1]=0; s->name[9]=v7?s->name[9]:0; for(int j=0;j<HN_N;j++) s->need[j]=m[k++]; s->uid=m[k++];
         if(s->stage>=AG_N||s->asp>=AS_PICK||s->uid>=hu) return;
-        s->act=HA_IDLE; s->think=(short)(rnd8()&63); s->hd=0; s->bubT=0; }
+        s->act=HA_IDLE; s->think=(short)(rnd8()&63); s->hd=0; s->bubT=0; s->hp=HP_MAX; }
     for(int a=0;a<HU_N;a++)for(int b=0;b<HU_N;b++){ if(a<hu&&b<hu){ relD[a][b]=(signed char)m[k++]; relL[a][b]=(signed char)m[k++]; relF[a][b]=m[k++]; } else relD[a][b]=relL[a][b]=0, relF[a][b]=0; }
     hhN=n;
 }

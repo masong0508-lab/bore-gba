@@ -1257,6 +1257,13 @@ static int lsp,lhd,lspin,lflip,lgrind,lscore,lstun,lairF,lpts,lnoteT,lglide; sta
 
 static int lfood, lbl, lnear;   // hunger (100 = full), bladder (100 = bursting), what is in reach (1 fridge, 2 toilet)
 static int lmaxz, lplay, ldead, lbumpCd;   // peak height this jump, air sound played, dead, bump cooldown
+// HEALTH (HP, 0..100): the life meter. hurt() (falls, bails, wall hits) and punches (house.h) take it down, it creeps back while fed and
+// standing, a meal gives a little and a night in bed a lot. At 0 from a fall you die; a punch only ever knocks you out (see fightHurt).
+#define HP_MAX 100
+#define HP_REGEN 90   // steps per +1 HP (1.5 s) while fed and not stunned: empty to full in about 2.5 minutes
+static int lhp=HP_MAX;
+static void hpHeal(int n){ lhp+=n; if(lhp>HP_MAX) lhp=HP_MAX; }
+static void hpLose(int n){ lhp-=n; if(lhp<0) lhp=0; if(xo[XO_HURT]==2&&lhp<1) lhp=1; }   // HURT option NO DEATH: a fall can never empty it
 #include "mood.h"   // FUN + HAPPY meters: moodEvent(), moodTick(), moodTop(), moodPts()
 #include "sims.h"   // life-sim layer: energy/hygiene/comfort, wants and fears, aspiration. simsTick(), simBegin(), simsHud()
 
@@ -1650,14 +1657,24 @@ static void hurt(int sev,int kind){
     if(abPow()&PW_ARMOUR) sev=sev*7/10;                                    // SPIKES: armour plates take the edge off
     if(xo[XO_HURT]==1) sev/=2; else if(xo[XO_HURT]==2&&sev>=30) sev=29;   // HURT option: GENTLE halves it, NO DEATH keeps a fall survivable
     if(sev>=30) moodEvent(M_HURT_BIG); else if(sev>=18) moodEvent(M_HURT); else if(kind==2) moodEvent(M_BUMP);   // (40+ is death: die() logs it)
+    hpLose(sev>=40?HP_MAX:kind==2?sev:sev*3/2);                                                     // HEALTH: a wall hit costs sev, a fall or bail 1.5 x sev
     if(sev>=40) die(SFX_INSTANT);                                                                   // instant death
     else if(sev>=30){                                                                                // life or death
-        if(rnd8()<128){ lstun=240; lsp=0; lgrind=0; sfxPlay(SFX_NEARLY); lnote="CLOSE CALL"; lnoteT=120; }
+        if(rnd8()<128){ if(lhp>15) lhp=15; lstun=240; lsp=0; lgrind=0; sfxPlay(SFX_NEARLY); lnote="CLOSE CALL"; lnoteT=120; }
         else die(SFX_DEATH);
     }
     else if(sev>=18){ lstun=150; lsp=0; lgrind=0; sfxPlay(SFX_GROAN); lnote="OW"; lnoteT=90; }     // groaning, struggling up
     else if(kind==1){ lstun=60; sfxPlay(SFX_CRY); }                                                  // minor bail: crying
     else if(kind==2){ lstun=20; sfxPlay(SFX_HIT); lnote="OOF"; lnoteT=30; }                          // grunts and hits
+    if(!ldead&&lhp<=0) die(SFX_DEATH);                                                              // the meter ran out (hits add up)
+}
+// A punch lands on the one you control (house.h calls this). Fights never kill: at 0 HP you are knocked out for 4 s and get up at 25.
+static void fightHurt(int dmg){
+    if(abPow()&PW_ARMOUR) dmg=dmg*7/10;                                    // SPIKES help here too
+    if(xo[XO_HURT]==1) dmg/=2;                                              // GENTLE
+    lhp-=dmg; lsp=0; lgrind=0; sfxPlay(SFX_HIT);
+    if(lhp<=0){ lhp=25; lstun=240; sfxPlay(SFX_GROAN); lnote="KNOCKED OUT"; lnoteT=120; moodEvent(M_HURT_BIG); }
+    else { if(lstun<30) lstun=30; lnote="OW"; lnoteT=40; }
 }
 
 #include "ramps.h"
@@ -1942,7 +1959,7 @@ static void helpScreen(const char*title,const char*const*ln,int n){   // lines s
 }
 static void toast(const char*msg){ int w=tw(msg,1)+16;
     box((SW-w)/2,66,w,22); text((SW-w)/2+8,74,msg,WHITE,1); for(int i=0,n=oToastLen();i<n;i++){ present(); } }
-static const char* const lifeHelp[16]={">ON FOOT","DPAD WALK  B RUN  A HOP","L GET ON THE BOARD","R USE FRIDGE TOILET BED SHOWER SOFA",">ON THE BOARD","A PUSH  DPAD STEER  B OLLIE","IN AIR DPAD SPINS  B KICKFLIP  R GLIDES",">KEEP YOURSELF GOING","FOOD WC REST CLEAN COMFY ROOM BARS","A OR B GETS YOU UP FROM BED OR SOFA",">WORK  MON TO FRI 9 TO 5","TRICK POINTS BEAT THE QUOTA FOR PAY",">WANTS AND FEARS","WANTS FILL THE METER  FEARS DRAIN IT","A GOOD SLEEP ROLLS NEW WANTS AND FEARS","START MENU  ASPIRATION  LOCK AND REWARDS"};
+static const char* const lifeHelp[16]={">ON FOOT","DPAD WALK  B RUN  A HOP","L GET ON THE BOARD","R USE FRIDGE TOILET BED SHOWER SOFA",">ON THE BOARD","A PUSH  DPAD STEER  B OLLIE","IN AIR DPAD SPINS  B KICKFLIP  R GLIDES",">KEEP YOURSELF GOING","WC IS THE TOILET BAR  HP UNDER THE FACE","A OR B GETS YOU UP FROM BED OR SOFA",">WORK  MON TO FRI 9 TO 5","TRICK POINTS BEAT THE QUOTA FOR PAY",">WANTS AND FEARS","WANTS FILL THE METER  FEARS DRAIN IT","A GOOD SLEEP ROLLS NEW WANTS AND FEARS","R BY A SIM TALK OR FIGHT  START MENU"};
 
 static const char* const creatureHelp[15]={">PICK YOUR LOOK","L R CHANGE TAB   UP DOWN PICK A ROW","LEFT RIGHT CHANGE IT  A ALSO STEPS","SELECT TURNS THE CREATURE ROUND",">THE TABS","1 BODY  2 FACE  3 HAIR  4 CLOTHES","5 PARTS  TAIL HORNS SPIKES WINGS","  PARTS GIVE ABILITIES AND POWERS","  BIG PARTS COST DNA  A BUYS ONE","6 ASPIRE  ASPIRATION  LIFETIME WANT  SIGN","  AND TRAITS THAT SHARE 25 POINTS",">FINISH","START JUMPS TO THE DONE TAB","GO LIVE LIFE PLAYS YOUR CREATURE","LIVING EARNS DNA FOR NEW PARTS"};
 static const char* const mapHelp[12]={">BUILD A ROOM","ROOM TOOL  A CORNER  A BUILDS","WALL TOOL  A START  A DRAWS A LINE","FLOOR TOOL  A CORNER  A FILLS","ITEM TOOL  PLACE SINGLE TILES","ERASE TOOL  A CORNER  A CLEARS",">STYLES","L R PICK FLOOR OR ITEM","SEL+L R PICK WALLPAPER","SELECT TAP NEXT TOOL  B CANCELS",">KEEP IT","START OPENS PLAY TEST AND SAVE"};
@@ -1998,7 +2015,7 @@ static void lifeInit(void){
     if(!(shapeMask()>>look[LK_SHAPE]&1)){ look[LK_SHAPE]=(u8)maskPick(shapeMask(),look[LK_SHAPE],NSHAPE); if(!custom) buildLook(); }
     mapScan(); hhStart();
     bakeSprites(); camSnap=1;
-    lfx=spx*256+128; lfy=spy*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote=""; lchill=0; lskate=0; lhave=(bdx<0); lfr=0; lvx=lvy=0; ldead=0; lmaxz=0; lplay=0; lbumpCd=0; lfood=100; lbl=0; lnear=0; moodReset(); simsReset(); sfxStop(); feelReset(0);
+    lfx=spx*256+128; lfy=spy*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote=""; lchill=0; lskate=0; lhave=(bdx<0); lfr=0; lvx=lvy=0; ldead=0; lmaxz=0; lplay=0; lbumpCd=0; lfood=100; lbl=0; lhp=HP_MAX; lnear=0; moodReset(); simsReset(); sfxStop(); feelReset(0);
 }
 static int rampAvg, rampOn;   // px/step (8.8) the skater has been climbing a ramp, smoothed (heights are whole px, so single steps are lumpy); rampOn = rode a ramp last step
 // BABY: cannot be steered. A caretaker keeps the needs up and the baby toddles about by itself: stops now and then, picks a new way
@@ -2017,7 +2034,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
     int fh=surfH(lfx,lfy)<<8;
     if(ldead){   // dead: frozen until A
         lstun=2;
-        if(pr&K_A){ ldead=0; lstun=0; lfx=spx*256+128; lfy=spy*256+128; lz=0; lvz=0; lskate=0; lsp=0; lgrind=0; lspin=0; lflip=0; lairF=0; lmaxz=0; lplay=0; lnoteT=0; lfood=100; lbl=0; moodReset(); simsRespawn(); sfxStop(); feelReset(0); }
+        if(pr&K_A){ ldead=0; lstun=0; lfx=spx*256+128; lfy=spy*256+128; lz=0; lvz=0; lskate=0; lsp=0; lgrind=0; lspin=0; lflip=0; lairF=0; lmaxz=0; lplay=0; lnoteT=0; lfood=100; lbl=0; lhp=HP_MAX; moodReset(); simsRespawn(); sfxStop(); feelReset(0); }
     }
     if(lstun>0){ lstun--; lsp=0; lvx=lvy=0; }
     else {
@@ -2092,6 +2109,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
           if(lchill>0){ lchill--; if(fe&&lfr%fe==fe/2&&lfood>0) lfood--;   // the munchies: hunger twice as fast while chilled out
               if(lchill==900&&lnoteT<=0){ lnote="THE MUNCHIES"; lnoteT=60; } if(!lchill&&lnoteT<=0){ lnote="BACK TO NORMAL"; lnoteT=40; } }
           if(we&&lfr%we==0&&lbl<100) lbl++; }
+        if(lhp<HP_MAX&&lfood>=25&&lstun<=0&&lfr%HP_REGEN==0) lhp++;   // HEALTH creeps back while you are fed and on your feet
         if(lfood==0&&lfr%300==0){ lfood=15; lstun=120; lsp=0; lgrind=0; sfxPlay(SFX_GROAN); lnote="FAINTED FROM HUNGER"; lnoteT=90; moodEvent(M_FAINT); }
         if(lbl>=100){ lbl=0; lstun=90; lsp=0; lgrind=0; lscore=lscore>100?lscore-100:0; sfxPlay(SFX_CRY); lnote="ACCIDENT"; lnoteT=90; moodEvent(M_ACCIDENT); }
         int nf=0, nt=0, nb=0, nh=0, nc=0, np=0;
@@ -2529,7 +2547,8 @@ static void hhSwap(HhSim*s){   // trade places: the player becomes s, s becomes 
       v=sNrg; sNrg=s->need[HN_REST]; s->need[HN_REST]=(u8)v;
       v=sHyg; sHyg=s->need[HN_CLEAN]; s->need[HN_CLEAN]=(u8)v;
       v=sCom; sCom=s->need[HN_COMFY]; s->need[HN_COMFY]=(u8)v;
-      v=moodFunPct(); moodFun=s->need[HN_FUN]*MOOD_ONE; s->need[HN_FUN]=(u8)v; }
+      v=moodFunPct(); moodFun=s->need[HN_FUN]*MOOD_ONE; s->need[HN_FUN]=(u8)v;
+      v=lhp; lhp=s->hp; s->hp=(u8)v; }
     for(int i=0;i<LK_N;i++){ u8 t=look[i]; look[i]=s->look[i]; s->look[i]=t; }
     { u8 t=stage; stage=s->stage; s->stage=t; t=pAsp; pAsp=s->asp; s->asp=t; t=pLtw; pLtw=s->ltw; s->ltw=t; }
     for(int i=0;i<TR_N;i++){ u8 t=pTr[i]; pTr[i]=s->tr[i]; s->tr[i]=t; }
