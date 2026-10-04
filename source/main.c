@@ -3084,8 +3084,8 @@ static void mapEditor(void){
 // what the creature can do, and (like Create-A-Bore) its ASPIRATION, lifetime want and personality.
 // L R change tab | UP DOWN pick a row | LEFT RIGHT change it | SELECT turns the creature | START jumps to DONE | B leaves.
 enum { TB_BODY, TB_FACE, TB_HAIR, TB_CLOTHES, TB_PARTS, TB_ASPIRE, TB_DONE, NTAB };
-enum { RK_PICK, RK_SWATCH, RK_ACT, RK_SLIDE, RK_PERS, RK_TRAIT };   // a row picks from named options, picks a colour, is a button, a slider, a persona choice or a trait
-enum { AC_PLAY, AC_MAP, AC_MENU, AC_RAND, AC_ADD, AC_FAM, AC_FNAME, AC_LNAME, AC_TRAND, AC_NAME };
+enum { RK_PICK, RK_SWATCH, RK_ACT, RK_SLIDE, RK_PERS, RK_TRAIT, RK_DUO };   // RK_DUO: two buttons side by side in one row (LEFT RIGHT picks the side; id = left action, n = right action, lab/sub = what each side says it does)   // a row picks from named options, picks a colour, is a button, a slider, a persona choice or a trait
+enum { AC_PLAY, AC_MAP, AC_MENU, AC_RAND, AC_ADD, AC_FAM, AC_FNAME, AC_LNAME, AC_TRAND };
 enum { PS_ASP, PS_LTW, PS_SIGN };
 typedef struct { const char*lab,*sub; u8 kind,id,n; } Row;   // sub = second line of a button
 static const char* const tabNm[NTAB]={"BODY","FACE","HAIR","CLOTHES","PARTS","ASPIRE","DONE"};
@@ -3115,7 +3115,7 @@ _Static_assert(LK_N==86,"lookNm / lookCol / cnt need a slot for every look");
 static const u16* const lookCol[LK_N+1]={0,skinTones,0,0,0,0,hairTones,topTones,botTones,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,eyeTones,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 #define TROWS 32   // most rows a tab holds; the card shows 5 at a time and scrolls
 static const Row tabRow[NTAB][TROWS]={
-  {{"NAME",0,RK_ACT,AC_NAME,0},{"AGE",0,RK_PICK,LK_AGE,AG_N},{"SHAPE",0,RK_PICK,LK_SHAPE,NSHAPE},{"HEIGHT",0,RK_SLIDE,LK_HEIGHT,9},{"WEIGHT",0,RK_SLIDE,LK_WEIGHT,9},
+  {{"FIRST NAME","LAST NAME",RK_DUO,AC_FNAME,AC_LNAME},{"AGE",0,RK_PICK,LK_AGE,AG_N},{"SHAPE",0,RK_PICK,LK_SHAPE,NSHAPE},{"HEIGHT",0,RK_SLIDE,LK_HEIGHT,9},{"WEIGHT",0,RK_SLIDE,LK_WEIGHT,9},
    {"TORSO",0,RK_SLIDE,LK_TORSO,9},{"ARMS",0,RK_SLIDE,LK_ARMS,9},{"STANCE",0,RK_SLIDE,LK_STANCE,9},{"LEG WIDTH",0,RK_SLIDE,LK_LEGW,9},{"ARM WIDTH",0,RK_SLIDE,LK_ARMW,9},{"HEAD SIZE",0,RK_SLIDE,LK_HEADSZ,9},{"HAND FOOT SIZE",0,RK_SLIDE,LK_HANDFT,9},{"NECK LENGTH",0,RK_SLIDE,LK_NECK,9},{"HIP WIDTH",0,RK_SLIDE,LK_HIPW,9},{"WAIST WIDTH",0,RK_SLIDE,LK_WAISTW,9},{"SHOULDERS",0,RK_SLIDE,LK_SHOULW,9},{"THIGH WIDTH",0,RK_SLIDE,LK_THIGHW,9},{"CALF WIDTH",0,RK_SLIDE,LK_CALFW,9},
    {"SKIN",0,RK_SWATCH,LK_SKIN,NSW},{"SKIN TONE",0,RK_SLIDE,LK_TONE,9},{"BUTT",0,RK_SLIDE,LK_BUTT,9},{"BUTT HEIGHT",0,RK_SLIDE,LK_BUTTH,9},{"BUTT WIDTH",0,RK_SLIDE,LK_BUTTW,9}},   // (the BUTT rows last: cut from the tab below teen)
   {{"EYES",0,RK_PICK,LK_EYES,NEYE},{"EYE COLOUR",0,RK_SWATCH,LK_EYECOL,NSW},{"EYE SHADE",0,RK_SLIDE,LK_EYETONE,9},{"EYE SIZE",0,RK_SLIDE,LK_EYESZ,9},{"EYE SPACING",0,RK_SLIDE,LK_EYESP,9},
@@ -3134,8 +3134,8 @@ static const Row tabRow[NTAB][TROWS]={
    {"WING SPREAD",0,RK_SLIDE,LK_WINGSP,9},{"WING HEIGHT",0,RK_SLIDE,LK_WINGHT,9},{"ANT FRONT BACK",0,RK_SLIDE,LK_ANTFB,9},{"ANT GAP",0,RK_SLIDE,LK_ANTGAP,9}},
   {{"ASPIRATION",0,RK_PERS,PS_ASP,AS_PICK},{"LIFETIME WANT",0,RK_PERS,PS_LTW,2},{"SIGN",0,RK_PERS,PS_SIGN,12},
    {"NEAT",0,RK_TRAIT,TR_NEAT,11},{"OUTGOING",0,RK_TRAIT,TR_OUT,11},{"ACTIVE",0,RK_TRAIT,TR_ACT,11},{"PLAYFUL",0,RK_TRAIT,TR_PLAY,11},{"NICE",0,RK_TRAIT,TR_NICE,11}},
-  {{"GO LIVE LIFE!","PLAY IT NOW",RK_ACT,AC_PLAY,0},{"RANDOMIZE","ROLL THE DICE",RK_ACT,AC_RAND,0},{"TRUE RANDOM","EVERYTHING ROLLS",RK_ACT,AC_TRAND,0},{"EDIT MAP","BUILD ROOMS",RK_ACT,AC_MAP,0},{"MAIN MENU","LOOK IS KEPT",RK_ACT,AC_MENU,0},{"ADD TO FAMILY","COPY THIS LOOK",RK_ACT,AC_ADD,0},{"FAMILY","EDIT OR MOVE OUT",RK_ACT,AC_FAM,0}} };   // (the last two rows are the DEBUG CODE's: tabRows hides them without it)
-static const u8 tabN0[NTAB]={23,21,6,7,31,8,7};
+  {{"GO LIVE LIFE!","PLAY IT NOW",RK_ACT,AC_PLAY,0},{"ROLL THE DICE","EVERYTHING ROLLS",RK_DUO,AC_RAND,AC_TRAND},{"EDIT MAP","BUILD ROOMS",RK_ACT,AC_MAP,0},{"MAIN MENU","LOOK IS KEPT",RK_ACT,AC_MENU,0},{"ADD TO FAMILY","COPY THIS LOOK",RK_ACT,AC_ADD,0},{"FAMILY","EDIT OR MOVE OUT",RK_ACT,AC_FAM,0}} };   // (the last two rows are the DEBUG CODE's: tabRows hides them without it)
+static const u8 tabN0[NTAB]={23,21,6,7,31,8,6};
 static int tabRows(int t){ return tabN0[t]-(t==0&&stage<AG_TEEN&&!sUnlock?3:0)-(t==6&&!dbgOn?2:0); }   // (DONE tab: ADD TO FAMILY and FAMILY are the last two rows and only show with the debug code)   // babies and children: no BUTT rows
 #define tabN(t) tabRows(t)
 static int tabNext(int t,int d){ return (t+d+NTAB)%NTAB; }
@@ -3263,14 +3263,36 @@ static void drawAspire(int sel){   // ASPIRE tab: aspiration, lifetime want and 
         for(int q=0;q<10;q++) drawPip(CDX+48+q*4,ty,3,5,q<pTr[t],f);   // ten slots per trait, as in The Sims
     }
 }
-static void drawDoneRows(int sel){   // DONE tab: one slim line per button (all seven fit, no scrolling); the focused one explains itself underneath
-    for(int i=0;i<tabN(TB_DONE);i++){
-        const Row*r=&tabRow[TB_DONE][i]; int y=RW0-2+i*12, f=(i==sel);
-        if(f){ rect(CDX+3,y-2,CDW-6,11,FOCUS); rect(CDX+3,y-2,2,11,GOLD); }
-        else if(i==0) rect(CDX+3,y-2,CDW-6,11,RGB(5,8,16));
-        text(CDX+9,y,r->lab,f?(i==0?GOLD:WHITE):(i==0?RGB(24,20,6):DIMC),1);
+static u8 duoHalf[NTAB];   // which side (0 left, 1 right) of the tab's duo row LEFT RIGHT has picked
+static const u16 pipMask[7]={0,16,257,273,325,341,365};   // die faces: bit = cell of a 3x3 grid (corners, centre, sides)
+static void drawDie(int x,int y,int n,u16 face,u16 pip){   // a little 12x12 die showing n
+    roundRect(x,y,12,12,RGB(3,4,9)); roundRect(x+1,y+1,10,10,face);
+    for(int c=0;c<9;c++) if(pipMask[n]>>c&1) rect(x+2+(c%3)*3,y+2+(c/3)*3,2,2,pip);
+}
+static void drawDuo(int tab,int y,int f,const Row*r){   // two half-width buttons in one row; the picked side lights up when the row is focused
+    for(int sd=0;sd<2;sd++){
+        int x=CDX+3+sd*43, on=f&&duoHalf[tab]==sd, act=sd?r->n:r->id; u16 face=on?RGB(31,31,29):RGB(23,25,28);
+        rect(x,y-2,42,17,on?FOCUS:f?RGB(7,11,21):RGB(5,8,16)); if(on) rect(x,y+13,42,2,GOLD);
+        if(act==AC_RAND) drawDie(x+15,y,5,face,RGB(3,4,9));   // RANDOMIZE: one die
+        else if(act==AC_TRAND){ drawDie(x+10,y+2,3,face,RGB(28,5,5)); drawDie(x+20,y-1,6,face,RGB(5,10,28)); }   // TRUE RANDOM: two tumbling dice with coloured pips
+        else {   // the name buttons: FIRST / LAST over the name (cut to fit)
+            char nb[HH_NM]; const char*nm=act==AC_FNAME?hhPName:(hhPLast[0]?hhPLast:"NONE"); int n=0;
+            while(nm[n]&&n<HH_NM-1){ nb[n]=nm[n]; n++; } nb[n]=0; while(n>0&&tw(nb,1)>36) nb[--n]=0;
+            text(x+4,y,act==AC_FNAME?"FIRST":"LAST",on?GOLD:DIMC,1); text(x+4,y+8,nb,on?WHITE:DIMC,1);
+        }
     }
-    const char*sb=tabRow[TB_DONE][sel].sub;
+}
+static void drawDoneRows(int sel){   // DONE tab: one slim line per button, the dice duo in the middle; the focused one explains itself underneath
+    int y=RW0-2;
+    for(int i=0;i<tabN(TB_DONE);i++){
+        const Row*r=&tabRow[TB_DONE][i];
+        if(r->kind==RK_DUO){ drawDuo(TB_DONE,y,i==sel,r); y+=19; continue; }
+        if(i==sel){ rect(CDX+3,y-2,CDW-6,11,FOCUS); rect(CDX+3,y-2,2,11,GOLD); }
+        else if(i==0) rect(CDX+3,y-2,CDW-6,11,RGB(5,8,16));
+        text(CDX+9,y,r->lab,i==sel?(i==0?GOLD:WHITE):(i==0?RGB(24,20,6):DIMC),1);
+        y+=12;
+    }
+    const Row*q=&tabRow[TB_DONE][sel]; const char*sb=q->kind==RK_DUO?(duoHalf[TB_DONE]?q->sub:q->lab):q->sub;
     if(sb){ rect(CDX+5,CDY+CDH-14,CDW-10,1,GOLD2); text(CDX+CDW/2-tw(sb,1)/2,CDY+CDH-10,sb,DIMC,1); }
 }
 static void drawRowSet(int tab,int sel){
@@ -3282,12 +3304,10 @@ static void drawRowSet(int tab,int sel){
     if(first+vis<tabN(tab)) tri(CDX+CDW/2-2,RW0+vis*RHT-3,3,GOLD);
     for(int i=first;i<tabN(tab)&&i<first+vis;i++){
         const Row*r=&tabRow[tab][i]; int y=RW0+(i-first)*RHT, f=(i==sel);
+        if(r->kind==RK_DUO){ drawDuo(tab,y,f,r); continue; }
         if(r->kind==RK_ACT){
             rect(CDX+3,y-2,CDW-6,17,f?FOCUS:RGB(5,8,16)); if(f){ rect(CDX+3,y-2,2,17,GOLD); }
-            char nb[26]; const char*sb=r->sub;
-            if(r->id==AC_NAME){ char*e=nb; for(const char*q=hhPName;*q;) *e++=*q++; if(hhPLast[0]){ *e++=' '; for(const char*q=hhPLast;*q;) *e++=*q++; } *e=0;   // the NAME row shows "FIRST LAST"
-                while(e>nb&&tw(nb,1)>CDW-16) *--e=0;   // (too wide for the card: the tail is cut)
-                sb=nb; }
+            const char*sb=r->sub;
             text(CDX+9,y,r->lab,f?GOLD:WHITE,1); text(CDX+9,y+8,sb,f?WHITE:DIMC,1); continue;
         }
         if(f){ rect(CDX+3,y-2,CDW-6,RHT-1,FOCUS); rect(CDX+3,y-2,2,RHT-1,GOLD); }
@@ -3322,10 +3342,10 @@ static void drawCreatorPanel(int tab,int sel){
     drawIcon(CDX+6,CDY+6,tab,GOLD); text(CDX+20,CDY+4,tabNm[tab],GOLD,2);
     rect(CDX+5,CDY+20,CDW-10,1,GOLD2);
     drawRowSet(tab,sel);
-    const Row*rs=&tabRow[tab][sel]; int act=(rs->kind==RK_ACT), buy=rs->kind==RK_PICK&&isPart(rs->id)&&!partFree(rs->id,look[rs->id]), x;
+    const Row*rs=&tabRow[tab][sel]; int act=(rs->kind==RK_ACT||rs->kind==RK_DUO), buy=rs->kind==RK_PICK&&isPart(rs->id)&&!partFree(rs->id,look[rs->id]), x;
     x=kcap(128,132,"L"); x=kcap(x,132,"R"); x=klab(x,132,"TABS"); x=kcapAr(x,132,1); klab(x,132,"ROW");
     if(buy){ x=kcap(128,142,"A"); x=klab(x,142,"BUY"); x=kcapAr(x,142,0); klab(x,142,"CHANGE"); }
-    else { x=act?kcap(128,142,"A"):kcapAr(128,142,0); klab(x,142,act?"CHOOSE":"CHANGE"); }
+    else { x=act?kcap(128,142,"A"):kcapAr(128,142,0); x=klab(x,142,act?"CHOOSE":"CHANGE"); if(rs->kind==RK_DUO){ x=kcapAr(x,142,0); klab(x,142,"SIDE"); } }
     x=kcap(128,152,"START"); x=klab(x,152,"DONE"); x=kcap(x,152,"B"); klab(x,152,"BACK");
 }
 static void drawDial(void){   // the creature's compass: the needle points the way it faces on screen (view 0 = down-left, then clockwise)
@@ -3511,17 +3531,20 @@ static int creatorNew(void){   // returns 1 when the secret code switched screen
         if(pressed&K_B){ partsSettle(); stageOn=0; return 0; }
         const Row*r=&tabRow[tab][rs[tab]];
         int d=TRIG(K_RIGHT,4)?1:TRIG(K_LEFT,5)?-1:0;
-        if(r->kind==RK_ACT){
+        if(r->kind==RK_ACT||r->kind==RK_DUO){
+            int aid=r->id;
+            if(r->kind==RK_DUO){ if(d>0&&!duoHalf[tab]){ duoHalf[tab]=1; dirty|=2; } else if(d<0&&duoHalf[tab]){ duoHalf[tab]=0; dirty|=2; } if(duoHalf[tab]) aid=r->n; }   // LEFT RIGHT picks the side, A presses it
             if(pressed&K_A){
                 partsSettle();   // a part still locked comes off before the creature leaves the creator
-                switch(r->id){
+                switch(aid){
                     case AC_PLAY:  lifeMode(0); if(gToMenu){ stageOn=0; return 0; } break;
                     case AC_MAP:   mapEditor(); break;
                     case AC_RAND:  lookRandom(); break;
                     case AC_TRAND: lookTrueRandomMe(); break;
                     case AC_ADD:   famAdd(); break;
                     case AC_FAM:   famMenu(); break;
-                    case AC_NAME:  if(nameEdit(hhPName,HH_NM-1,"FIRST NAME",0)){ nameEdit(hhPLast,HH_NM-1,"LAST NAME",1); hhSave(); } break;   // first name, then the last (START keeps what is there)
+                    case AC_FNAME: if(nameEdit(hhPName,HH_NM-1,"FIRST NAME",0)) hhSave(); break;
+                    case AC_LNAME: if(nameEdit(hhPLast,HH_NM-1,"LAST NAME",1)) hhSave(); break;
                     default:       stageOn=0; return 0;   // MAIN MENU
                 }
                 prev=keyNow(); for(int i=0;i<10;i++) hold[i]=0; dirty=3;
