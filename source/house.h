@@ -170,6 +170,7 @@ static void hhBakeAll(void){
     ldShow("ALMOST THERE",hhN+TW_N,hhN+TW_N+1);
     bakeInto(spr4);   // the player (still drawn by the CPU, so walls and furniture in front cover it and the action cam can zoom it)
     strideK=1; bakeInto(spr4s); strideK=0; spBounds();   // the blit box holds both frames
+    ldEnd();         // the loading screen is over: the game's display mode (window 0 + sprites) comes back
     hhSlotsFree();   // new tiles and palettes: every slot is reloaded when its Sim is next on screen
 }
 // ---- where members can stand ----

@@ -573,3 +573,6 @@ Three on/off rows decide which kinds of Sims may be added: **PRE-MADE SIMS** (th
 
 ## Loading screen
 `source/loading.h` gives `ldShow("MESSAGE", done, total)`: a full loading screen with a progress bar and percent, one frame per call. It runs while the household is baked (entering the life game, moving in, growing up: one step per Sim) and while you move between lots or towns in the neighborhood. To use it in a slow job, call it between the steps with the number of steps done so far. It cannot move *inside* one flash write, so a single big step still holds the bar for that long.
+
+## Loading screen fix
+`ldShow` now switches the display window off while it is on screen (the game runs with window 0 on, and until the first game frame sets the window registers everything outside it is black, which hid the loading screen and made the game look frozen). `ldEnd()` puts the mode back; `hhBakeAll` calls it when the last Sim is baked. If you add `ldShow` to another slow job that runs in the game, call `ldEnd()` when it is done.
