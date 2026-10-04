@@ -16,7 +16,7 @@ typedef struct { u8 kind, idx, n, def; u8*v; const char*nm; const char* const* l
 #define XR(i,nm,lab,d0,d1) {OR_XO,i,0,0,0,nm,lab,d0,d1}
 #define SR(i,nm,d0,d1) XR(i,nm,lbPct,d0,d1)   // a slider row: 0..10 steps, drawn as a bar, LEFT / RIGHT stop at the ends
 #define AR(a,nm,d0,d1) {OR_ACT,a,0,0,0,nm,0,d0,d1}
-static u8 gInPlay;   // 1 while the life game runs (some actions only make sense, or are only safe, in one place)
+// gInPlay (main.c): 1 while the life game runs (some actions only make sense, or are only safe, in one place)
 
 static const char* const lbFps[4]={"60 FPS","30 FPS","20 FPS","15 FPS"}, *const lbWalls[3]={"FULL","CUTAWAY","LOW"}, *const lbPat[2]={"PLAIN","PATTERNS"},
     *const lbOnOff[2]={"OFF","ON"}, *const lbFree[3]={"OFF","LOW","HIGH"}, *const lbPipe[2]={"ADULTS ONLY","LATE TEENS"}, *const lbShow[3]={"OFF","FPS","DETAIL"}, *const lbWarn[2]={"ON","OFF"}, *const lbRom[2]={"FAST","SAFE"},

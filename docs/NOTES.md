@@ -307,6 +307,15 @@ tables, and `chipMix` (main.c) renders them live.
 - **Hook:** `nbDrawLotModel()` draws each lot's building as an icon. The real house can be drawn there later.
 - **Tested in mGBA:** the town draws in both zooms; visiting another lot saved YOUR PLACE as a 2-slot house and wrote the town slot.
 
+## DeadSet 3Thousand VYBE (item `Q`)
+- **What it is:** a parody VR headset shown on a display bust. The sprite is hand-traced pixel art, not boxes (`dsArt` in `itembake.h`): a bearded
+  mannequin with the headset strapped over its eyes, a blue light and a green shirt. A mirrored copy covers the other facing.
+- **Price:** **5000**. Placing one in the room builder takes it from the life's cash (free before any life is saved); removing it sells it back.
+  It also counts 5000 toward a lot's value in the neighborhood.
+- **In play:** stand next to it and press **R** to JACK IN. You are frozen in VR for a few seconds, with a big FUN boost.
+- **Room score:** it counts as its own kind of item for the ROOM need.
+- **Where to find one:** the default house has one in the chill corner.
+
 ## Music data format (compact, lossless)
 `python3 tools/xm2gba.py` writes two files: `source/musicdata.h` (about 80 KB of text: per song the order list, pattern lengths, voice table, pitch anchors and the XmSong struct, plus the `.incbin` lines) and `source/music/xmdata.bin` (every song's note events and every sample byte). Note events are a byte stream: runs of empty rows cost one byte, a row with notes is a count byte plus 3 bytes per note (voice index into a per-song table of channel / instrument / pan bus, note, volume). Each instrument stores one 32-bit pitch anchor instead of 96 playback steps; `xmStep()` in `main.c` rebuilds every step with integer maths and the converter checks that it equals the old table exactly (and keeps a fix-up list for the rare note that would differ; none do today). The samples are stored as they always were. This cut the ROM by about 500 KB and `musicdata.h` from 7.4 MB to 80 KB **with identical audio**: the old and new ROMs were run in an emulator and every mixed audio buffer of all 23 songs, one pass plus the loop point, hashed to the same values.
 

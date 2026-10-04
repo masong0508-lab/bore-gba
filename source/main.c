@@ -1237,6 +1237,7 @@ static void smoke(int frame){
 typedef int32_t s32;
 static void lifeMode(int ed);
 static void mapEditor(void);
+static u8 gInPlay;   // 1 while the life game runs (some actions only make sense, or are only safe, in one place)
 static int edX0=0, edY0=0, edX1=9999, edY1=9999;   // where the room builder's cursor may go (neighborhood.h narrows it to the lot you are on)
 static int nbPlaying;   // the game was started from the neighborhood: its pause menu goes back there
 static int nbResetLot(void);
@@ -1753,7 +1754,7 @@ static void fightHurt(int dmg){
 static int tileH(int tx,int ty){   // surface height in px (ramps: their highest point). Grind height is 6: rails, ledges and benches
     if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
     char c=lifeMap[ty][tx];
-    return (c=='#'||c=='F'||c=='W'||c=='H')?2*CC: (c=='X'||c=='Y')?10: (c=='w'||c=='T'||c=='S'||c=='C'||c=='O'||c=='G'||c=='V'||c=='U')?CC: (c=='='||c=='L'||c=='N'||c=='Z'||c=='K'||c=='J')?6: (c=='M')?3: isKicker(c)?KICKER_H: isLaunch(c)?LAUNCH_H: isQPipe(c)?qpH[7]: 0;   // pack 2: X funbox 10, Y trash can 10, O barrel 8, Z planter / K table / J jersey grind at 6, M manual pad 3
+    return (c=='#'||c=='F'||c=='W'||c=='H')?2*CC: (c=='X'||c=='Y')?10: (c=='w'||c=='T'||c=='S'||c=='C'||c=='O'||c=='G'||c=='V'||c=='U'||c=='Q')?CC: (c=='='||c=='L'||c=='N'||c=='Z'||c=='K'||c=='J')?6: (c=='M')?3: isKicker(c)?KICKER_H: isLaunch(c)?LAUNCH_H: isQPipe(c)?qpH[7]: 0;   // pack 2: X funbox 10, Y trash can 10, O barrel 8, Z planter / K table / J jersey grind at 6, M manual pad 3
 }
 static int surfH(s32 fx,s32 fy){   // surface height at an exact position (1/256 tiles): same as tileH, but ramps slope
     int tx=(int)(fx>>8), ty=(int)(fy>>8); if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
@@ -1825,14 +1826,14 @@ static int numText(int x,int y,int n,u16 c){
 // lifeMap = what stands on each tile, floorMap = floor style under it, wallMap = wallpaper on it (for wall tiles).
 enum { T_ROOM, T_WALL, T_FLOOR, T_ITEM, T_ERASE, NTOOL };
 static int eTool, eAct, eAx, eAy, eFl, eWp, eOb;   // editor: tool, rectangle anchor set?, anchor tile, chosen floor / wallpaper / item
-#define NOBJ 30
+#define NOBJ 31
 #define OB_LAUNCH 17   // launch ramp turns like the kicker: '9'..'<'
 #define OB_KICKER 10   // palette slots whose char carries a turn (+eRot): kicker '1'..'4', quarter pipe '5'..'8'
 #define OB_QPIPE 11
 static int eRot;   // editor: which way the next ramp faces (0 S, 1 E, 2 N, 3 W)
-static const char palCh[NOBJ]={'.','w','W','#','=','F','T','D','B','P','1','5','L','N','S','H','C','9','X','O','Y','Z','K','J','M','G','V','U','^','~'};
-static const char* const palNm[NOBJ]={"CLEAR","LOW WALL","WALL","CRATE","RAIL","FRIDGE","TOILET","DOOR","BOARD","SPAWN","KICKER","Q PIPE","LEDGE","BENCH","BED","SHOWER","SOFA","LAUNCH","FUNBOX","BARREL","TRASH CAN","PLANTER","PICNIC","JERSEY","MANUAL PAD","WATER PIPE","LAVA LAMP","BEANBAG","STAIRS UP","STAIRS DOWN"};
-static const u16 palCol[NOBJ]={RGB(26,21,14),RGB(8,20,22),RGB(10,22,24),RGB(8,9,20),RGB(31,30,16),RGB(31,31,31),RGB(30,28,18),RGB(14,9,5),RGB(26,10,6),RGB(28,10,8),RGB(24,17,9),RGB(27,19,11),RGB(20,20,22),RGB(25,18,9),RGB(10,14,28),RGB(22,28,30),RGB(26,18,9),RGB(8,14,24),RGB(18,16,24),RGB(24,6,5),RGB(12,18,14),RGB(20,10,6),RGB(25,18,9),RGB(22,22,24),RGB(30,26,5),RGB(10,24,14),RGB(24,8,26),RGB(18,8,22),RGB(24,22,18),RGB(12,11,10)};
+static const char palCh[NOBJ]={'.','w','W','#','=','F','T','D','B','P','1','5','L','N','S','H','C','9','X','O','Y','Z','K','J','M','G','V','U','^','~','Q'};
+static const char* const palNm[NOBJ]={"CLEAR","LOW WALL","WALL","CRATE","RAIL","FRIDGE","TOILET","DOOR","BOARD","SPAWN","KICKER","Q PIPE","LEDGE","BENCH","BED","SHOWER","SOFA","LAUNCH","FUNBOX","BARREL","TRASH CAN","PLANTER","PICNIC","JERSEY","MANUAL PAD","WATER PIPE","LAVA LAMP","BEANBAG","STAIRS UP","STAIRS DOWN","DEADSET 3THOUSAND VYBE"};
+static const u16 palCol[NOBJ]={RGB(26,21,14),RGB(8,20,22),RGB(10,22,24),RGB(8,9,20),RGB(31,30,16),RGB(31,31,31),RGB(30,28,18),RGB(14,9,5),RGB(26,10,6),RGB(28,10,8),RGB(24,17,9),RGB(27,19,11),RGB(20,20,22),RGB(25,18,9),RGB(10,14,28),RGB(22,28,30),RGB(26,18,9),RGB(8,14,24),RGB(18,16,24),RGB(24,6,5),RGB(12,18,14),RGB(20,10,6),RGB(25,18,9),RGB(22,22,24),RGB(30,26,5),RGB(10,24,14),RGB(24,8,26),RGB(18,8,22),RGB(24,22,18),RGB(12,11,10),RGB(6,20,31)};
 static signed char palLut[256]; static u8 palLutOk;   // tile char -> palette slot (or -1), built on first use: palIdx() runs for every tile of the minimap, so it must be O(1) even with 100+ items
 static int palIdx(char c){
     if(!palLutOk){ for(int i=0;i<256;i++) palLut[i]=-1; for(int i=NOBJ-1;i>=0;i--) palLut[(u8)palCh[i]]=(signed char)i;
@@ -1859,7 +1860,7 @@ static void mapGen(void){
     gPut(16,11,'F'); gPut(16,12,'F'); gPut(12,4,'#'); gPut(13,4,'#'); gPut(12,5,'#'); gPut(13,5,'#');
     gPut(5,12,'P'); gPut(7,14,'B');
     gPut(8,3,'H'); gPut(4,16,'S'); gPut(3,11,'C');                     // shower (bathroom), bed and sofa (lounge)
-    gPut(3,10,'V'); gPut(5,10,'G'); gPut(3,13,'U');                     // the chill corner: lava lamp, water pipe, beanbag
+    gPut(3,10,'V'); gPut(5,10,'G'); gPut(3,13,'U'); gPut(6,12,'Q');   // + the DeadSet 3Thousand VYBE                     // the chill corner: lava lamp, water pipe, beanbag
     // FACTORY: red brick, steel plate, oil-stained and hazard lanes, grate corner, crates and a rail
     gRoom(22,2,37,19,8,NWP+53); gBox(23,10,36,11,10); gBox(23,14,27,18,9); gBox(30,3,36,8,12);
     gPut(29,19,'D'); gPut(22,10,'D'); gPut(37,10,'D');
@@ -1966,7 +1967,17 @@ static int mapLoad(void){   // returns 1 if a valid saved map was loaded
         lifeMap[Y][X]=(char)m(3+i); floorMap[Y][X]=v2?m(3+OMSZ+i):0; wallMap[Y][X]=v2?m(3+2*OMSZ+i):0; }
     #undef m
     return 1; }
+#define DS_PRICE 5000
+static const char* dsMsg;   // set when the DeadSet could not be bought (the room builder shows it)
+static int dsPay(int amt){  // the life's cash buys (amt>0) or sells back (amt<0); before any life is saved it is free
+    if(!gInPlay){ simsDefaults(); if(!simsLoad()) return 1; }
+    if(amt>0&&simMoney<amt){ dsMsg="THE DEADSET COSTS 5000"; return 0; }
+    simMoney-=amt; if(simMoney>9999) simMoney=9999; if(!gInPlay) simsSaveNow(); return 1;
+}
 static void mapPlace(int x,int y,char c){
+    char old=lifeMap[y][x];
+    if(c=='Q'&&old!='Q'&&!dsPay(DS_PRICE)) return;   // the DeadSet 3Thousand VYBE costs 5000
+    if(old=='Q'&&c!='Q') dsPay(-DS_PRICE);            // and sells back for the same
     if(c=='B'||c=='P'){ for(int j=0;j<MH;j++)for(int i=0;i<MW;i++) if(lifeMap[j][i]==c) lifeMap[j][i]='.'; }
     lifeMap[y][x]=c; if(c=='w'||c=='W') wallMap[y][x]=(u8)eWp; wDirty=1; }
 
@@ -2222,15 +2233,17 @@ static void lifeStep(u16 k,u16 pr,int fr){
         if(lhp<HP_MAX&&lfood>=25&&lstun<=0&&lfr%HP_REGEN==0) lhp++;   // HEALTH creeps back while you are fed and on your feet
         if(lfood==0&&lfr%300==0){ lfood=15; lstun=120; lsp=0; lgrind=0; sfxPlay(SFX_GROAN); lnote="FAINTED FROM HUNGER"; lnoteT=90; moodEvent(M_FAINT); }
         if(lbl>=100){ lbl=0; lstun=90; lsp=0; lgrind=0; lscore=lscore>100?lscore-100:0; sfxPlay(SFX_CRY); lnote="ACCIDENT"; lnoteT=90; moodEvent(M_ACCIDENT); }
-        int nf=0, nt=0, nb=0, nh=0, nc=0, np=0;
+        int nf=0, nt=0, nb=0, nh=0, nc=0, np=0, nq=0;
         for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++){ int tx=(lfx>>8)+dx, ty=(lfy>>8)+dy; if(tx<0||ty<0||tx>=MW||ty>=MH) continue;
-            char c=lifeMap[ty][tx]; if(c=='F') nf=1; if(c=='T') nt=1; if(c=='S') nb=1; if(c=='H') nh=1; if(c=='C'||c=='U') nc=1; if(c=='G') np=1; }
-        lnear=nf?1:(nt?2:(nb?3:(nh?4:(np?6:(nc?5:0)))));   // 1 fridge, 2 toilet, 3 bed, 4 shower, 6 water pipe, 5 sofa or beanbag
+            char c=lifeMap[ty][tx]; if(c=='F') nf=1; if(c=='T') nt=1; if(c=='S') nb=1; if(c=='H') nh=1; if(c=='C'||c=='U') nc=1; if(c=='G') np=1; if(c=='Q') nq=1; }
+        lnear=nf?1:(nt?2:(nb?3:(nh?4:(np?6:(nq?7:(nc?5:0))))));   // 7 the DeadSet   // 1 fridge, 2 toilet, 3 bed, 4 shower, 6 water pipe, 5 sofa or beanbag
         if((pr&K_R)&&lstun<=0&&lz<=fh&&!simAct&&hhSocR(lnear)) pr&=~K_R;   // next to a household Sim: the social menu (it offers the furniture too)
         if((pr&K_R)&&lnear&&lstun<=0&&lz<=fh){
             if(lnear==1){   // fridge: eat
                 if(lfood>=95){ lnote="FULL"; lnoteT=40; }
                 else { lfood+=35; if(lfood>100) lfood=100; lbl+=10; if(lbl>99) lbl=99; lstun=30; lsp=0; lnote="YUM"; lnoteT=50; moodEvent(M_EAT); }
+            } else if(lnear==7){   // the DeadSet 3Thousand VYBE: strap it on and vanish into virtual reality for a while
+                lstun=150; lsp=0; lgrind=0; lnote="JACKED IN  VYBE 3000"; lnoteT=150; moodEvent(M_CHILL); moodEvent(M_COMBO);
             } else if(lnear==6){   // the water pipe (grown-ups only): CHILLED OUT for two game hours
                 if(!pipeOk()){ lnote=stage==AG_TEEN&&xo[XO_PIPEAGE]?"NOT OLD ENOUGH YET":"GROWN-UPS ONLY"; lnoteT=50; }
                 else if(lchill>0){ lnote="STILL CHILLIN"; lnoteT=40; }
@@ -2452,7 +2465,7 @@ static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
             char c=cellAt(tx,ty); int ox,oy; rotXY(tx,ty,&ox,&oy);
             if(c=='.'&&(ed||lhave||ox!=BDX||oy!=BDY)) continue;   // plain floor: nothing stands there (but the board pickup might)
             if(c=='w'||c=='W') drawWall(tx,ty,sx,sy);
-            if(c=='#'||c=='F'||c=='T'||c=='='||c=='D'||c=='L'||c=='N'||c=='S'||c=='H'||c=='C'||c=='X'||c=='O'||c=='Y'||c=='Z'||c=='K'||c=='J'||c=='M'||c=='G'||c=='V'||c=='U'||c=='^'||c=='~'||isRamp(c)) drawItemTile(c,sx,sy,ox,oy);
+            if(c=='#'||c=='F'||c=='T'||c=='='||c=='D'||c=='L'||c=='N'||c=='S'||c=='H'||c=='C'||c=='X'||c=='O'||c=='Y'||c=='Z'||c=='K'||c=='J'||c=='M'||c=='G'||c=='V'||c=='U'||c=='Q'||c=='^'||c=='~'||isRamp(c)) drawItemTile(c,sx,sy,ox,oy);
             if((ed&&c=='B')||(!ed&&!lhave&&ox==BDX&&oy==BDY)) blitItem(V_BOARD,sx,sy-(ed?0:((lfr>>4)&1)));   // the skateboard pickup, bobbing
             if(ed&&c=='P') drawSpawn(sx,sy+1);   // little person = spawn
         }
@@ -2895,7 +2908,7 @@ static void drawEditorHud(const char*msg){
                 case OB_LAUNCH:blitItem(V_LAUNCH+((eRot-cview)&3),221,141);break; case 18:blitItem(V_FUNBOX,221,141);break; case 19:blitItem(V_BARREL,221,141);break;
                 case 20:blitItem(V_TRASH,221,141);break; case 21:blitItem(V_PLANTER,221,141);break; case 22:blitItem(V_PICNIC,221,141);break;
                 case 23:blitItem(V_JERSEYU,221,141);break; case 24:blitItem(V_MPAD,221,141);break;
-                case 14:blitItem(V_BED,221,141);break; case 15:blitItem(V_SHOWER,221,141);break; case 16:blitItem(V_SOFA,221,141);break; case 28:case 29:drawStairs(221,141,eOb==28);break; default:drawSpawn(221,142); } }
+                case 14:blitItem(V_BED,221,141);break; case 15:blitItem(V_SHOWER,221,141);break; case 16:blitItem(V_SOFA,221,141);break; case 25:blitItem(V_PIPE,221,141);break; case 26:blitItem(V_LAVA,221,141);break; case 27:blitItem(V_BEANBAG,221,141);break; case 28:case 29:drawStairs(221,141,eOb==28);break; case 30:blitItem(V_DEADSET,221,141);break; default:drawSpawn(221,142); } }
         if(eOb==1||eOb==2){ wallSwatch(eWp,212,137); }
     } else if(eTool!=T_ERASE){
         if(eTool!=T_WALL){ text(2,139,"FLOOR",DIMC,1); texSwatch(&flTex[eFl],24,137); text(36,139,flTex[eFl].nm,WHITE,1); }
@@ -2965,6 +2978,7 @@ static void mapEditor(void){
             else { msg="ROOM NEEDS 3 X 3 OR BIGGER"; msgT=70; }
         }
         if(pr&K_B){ if(eAct) eAct=0; else mapPlace(ecx,ecy,'.'); }
+        if(dsMsg){ msg=dsMsg; msgT=90; dsMsg=0; dirty=1; }
         if(pr&K_START){
             int c=menu("MAP MENU",mapItems,7);
             if(c==0){ mapScan(); lifeMode(1); }

@@ -91,6 +91,37 @@ static const IBox bxBeanbag[2]={
  {1,0,7,3,0,9,{&mBbBack,&mBbS,&mBbBack,&mBbS,&mBbT}},
 };
 
+// ---- DeadSet 3Thousand VYBE: a parody VR headset on a display bust (hand-traced pixel art, not boxes; the bust faces right, mirrored for the other way) ----
+static const u16 pDs[15]={RGB(3,3,4),RGB(5,5,7),RGB(13,13,15),RGB(6,20,31),RGB(28,21,16),RGB(22,15,11),RGB(13,7,3),RGB(19,11,5),RGB(6,4,3),RGB(6,18,8),RGB(4,12,5),RGB(12,12,14),RGB(20,20,23),RGB(27,15,13),RGB(31,31,31)};
+static const char*const dsArt[28]={
+ "......aaaaaa.........",
+ ".....aiiiiiiaa.......",
+ "....aibbbbbbbia......",
+ "...aiiiiiiibbbia.....",
+ "...aiiiiiiiibbba.....",
+ "..aiiiiiiiibbbbbba...",
+ "..aiifeiiibbccccbba..",
+ "..aiifeeiibcbbbbdcba.",
+ "..aiifeeeibcbbbobbcba",
+ "..aiieeeeebbccccccbba",
+ "..aiieeeeeebbbbbbbbe.",
+ "...aieeeeeeeeeeeeeen.",
+ "...aiheeeeeeeeeeefna.",
+ "...ahhgeeeeefhhhnna..",
+ "...ahhhghheehhghhha..",
+ "...ahghhhhghhhhhhga..",
+ "....ahhhhghhhhghha...",
+ "....aghhhhhhghhga....",
+ "..aaajghhghhhhgjaa...",
+ ".ajjjjjghhhhhgjjjja..",
+ "ajjjjjjjgggggjjjjjja.",
+ "akjjjjjjjjjjjjjjjjka.",
+ ".akkkjjjjjjjjjjkkka..",
+ "..aaakkkkkkkkkkaa....",
+ ".......alllla........",
+ "....aallmmmllllaa....",
+ "...almmmmmmmmmlla....",
+ "....aallllllllaa....."};
 #include "itemids.h"
 static u16 bakeBuf[NIV][IH][IW];
 static u16 itemTmp[IH][IW];
@@ -153,6 +184,9 @@ static void bakeOne(int k,const IBox*b,int n,int r,int nsh){
     u16 (*d)[IW]=bakeBuf[k]; for(int y=0;y<IH;y++)for(int x=0;x<IW;x++) d[y][x]=IKEY;
     drawObj(d,b,n,r,0); if(nsh<16) outlineSpr(d,nsh);
 }
+static void bakePix(int k,const char*const*rows,const u16*pal,int mirror){   // pixel art straight into a sprite
+    for(int y=0;y<IH;y++)for(int x=0;x<IW;x++){ char c=rows[y][mirror?IW-1-x:x]; bakeBuf[k][y][x]=c=='.'?IKEY:pal[c-'a']; }
+}
 static void bakeAll(void){
     bakeOne(V_CRATE,bxCrate,1,0,11);
     for(int r=0;r<4;r++){ bakeOne(V_FRIDGE+r,bxFridge,1,r,11); bakeOne(V_TOILET+r,bxToilet,3,r,11);
@@ -164,5 +198,6 @@ static void bakeAll(void){
     for(int r=0;r<4;r++) bakeOne(V_LAUNCH+r,bxLaunch,8,r,11);   // skate pack 2
     bakeOne(V_FUNBOX,bxFunbox,1,0,12); bakeOne(V_BARREL,bxBarrel,1,0,11); bakeOne(V_TRASH,bxTrashCan,2,0,11); bakeOne(V_PLANTER,bxPlanter,1,0,11);
     bakeOne(V_PIPE,bxPipe,4,0,10); bakeOne(V_LAVA,bxLava,3,0,10); for(int r=0;r<4;r++) bakeOne(V_BEANBAG+r,bxBeanbag,2,r,11);   // chill pack
+    bakePix(V_DEADSET,dsArt,pDs,0); bakePix(V_DEADSET+1,dsArt,pDs,1);   // the DeadSet
     bakeOne(V_PICNIC,bxPicnicTable,7,0,12); bakeOne(V_JERSEYU,bxJerseyU,3,0,12); bakeOne(V_JERSEYV,bxJerseyV,3,0,12); bakeOne(V_MPAD,bxManualPad,1,0,12);
 }
