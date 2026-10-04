@@ -383,14 +383,13 @@ static int nbNewLot(int x,int y,int w,int h){
     nbSave(); toast("LOT PLACED"); return 1;
 }
 static void nbTownMenu(int*quit){
-    static const char* const it[7]={"ZOOM","SEASON","TIME OF DAY","RENAME TOWN","HOW IT WORKS","ALL NEIGHBORHOODS","LEAVE"};
-    int c=menu("TOWN",it,7);
+    static const char* const it[6]={"ZOOM","SEASON","TIME OF DAY","RENAME TOWN","ALL NEIGHBORHOODS","LEAVE"};
+    int c=menu("TOWN",it,6);
     if(c==0) nbT.zoom^=1;
     else if(c==1) nbT.season=(u8)((nbT.season+1)&3);
     else if(c==2) nbT.tod=(u8)((nbT.tod+1)%3);
     else if(c==3){ char nm[SLOT_NAME+1]; for(int i=0;i<=NB_NAME;i++) nm[i]=nbT.name[i]; if(slEditName(nm)) for(int i=0;i<=NB_NAME;i++) nbT.name[i]=nm[i]; }
-    else if(c==4) helpScreen("NEIGHBORHOOD",nbHelp,16);
-    else if(c==5||c==6) *quit=1;
+    else if(c==4||c==5) *quit=1;
 }
 static void neighborhoodScreen(void){
     nbBounds();

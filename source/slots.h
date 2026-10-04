@@ -523,7 +523,7 @@ static void slDraw(int sel){
     char b[40]; char*e=slNum(b,cnt); e=slCat(e," OF "); e=slNum(e,SLOT_N); e=slCat(e," SLOTS USED   "); e=slSize(e,used); e=slCat(e," OF "); slSize(e,tot);
     text(12,112,b,DIMC,1); rect(12,121,150,4,RGB(8,10,14)); rect(12,121,used*150/tot,4,GOLD);
     text(12,132,"UP DOWN PICK A SLOT   A OPTIONS",WHITE,1);
-    text(12,141,"B BACK   SELECT HELP",DIMC,1);
+    text(12,141,"B BACK",DIMC,1);
     { char cb[32]; slCat(slCat(cb,"SAVE CHIP  "),svName()); text(12,150,cb,RGB(12,14,16),1); }
 }
 
@@ -635,7 +635,6 @@ static int slotScreen(void){   // returns 1 if something was loaded
         if(pr&K_DOWN){ sel=(sel+1)%SLOT_N; dirty=1; }
         if(pr&K_UP){ sel=(sel+SLOT_N-1)%SLOT_N; dirty=1; }
         if(pr&(K_B|K_START)) break;
-        if(pr&K_SEL){ helpScreen("ROOM SLOTS",slotHelp,13); prev=keyNow(); dirty=1; }
         if(pr&K_A){ changed|=slActions(sel); slScan(); prev=keyNow(); dirty=1; }
         if(dirty){ slDraw(sel); present(); dirty=0; } else vsync();
     }

@@ -2771,7 +2771,7 @@ static void camStep(int steps,u16 k,u16 pr){   // action cam: the game holds sti
     else { int f=lcamF; cview=(f<6||f>=60)?0:(f-6)/18+1; if(cview>3) cview=0; }
 }
 static int gToMenu;   // set when the player picks MAIN MENU in the pause menu, so every screen above returns to it
-static const char* const lifeItems[9]={"RESUME","ASPIRATION","HOUSEHOLD","HOW TO PLAY","OPTIONS","ROOM SLOTS","EDIT MAP","NEW LIFE","MAIN MENU"};
+static const char* const lifeItems[8]={"RESUME","ASPIRATION","HOUSEHOLD","OPTIONS","ROOM SLOTS","EDIT MAP","NEW LIFE","MAIN MENU"};
 static void hhSwap(HhSim*s){   // trade places: the player becomes s, s becomes who the player was
     s32 x=lfx, y=lfy; lfx=s->fx; lfy=s->fy; s->fx=x; s->fy=y;
     { u8 h=(u8)(lhd&15); lhd=s->hd; s->hd=h; }
@@ -2848,8 +2848,8 @@ static void aspPanel(void){
         present();
     }
 }
-static const char* const lifeItemsNb[9]={"RESUME","ASPIRATION","HOUSEHOLD","HOW TO PLAY","OPTIONS","ROOM SLOTS","EDIT MAP","NEW LIFE","NEIGHBORHOOD"};
-static const char* const lifeItemsEd[4]={"RESUME","HOW TO PLAY","OPTIONS","BACK TO EDITOR"};
+static const char* const lifeItemsNb[8]={"RESUME","ASPIRATION","HOUSEHOLD","OPTIONS","ROOM SLOTS","EDIT MAP","NEW LIFE","NEIGHBORHOOD"};
+static const char* const lifeItemsEd[3]={"RESUME","OPTIONS","BACK TO EDITOR"};
 // Timer2 (65536 Hz) is the clock (defined with the settings). The game logic always runs at 60 steps per second; the
 // frame rate setting only says how often the picture is redrawn, so lower rates save work without slowing the game.
 static const char* const yesNoLife[2]={"NO","YES ERASE IT"};
@@ -2894,16 +2894,15 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
         if(pr&K_START){   // pause menu
             mGainT=128; sfxStop(); simsSave(); hhSave(); objHideAll(); REG_DISPCNT=0x0403;   // (no sprites over the menus, options or the editor)   // the music fades to half while a menu is open   // the pause menu is also a save point
             liveInvalidate(); lifeDraw();          // a whole picture behind the menu (the screen itself only holds patches)
-            int c=menu("PAUSED",ed?lifeItemsEd:nbPlaying?lifeItemsNb:lifeItems,ed?4:9);
+            int c=menu("PAUSED",ed?lifeItemsEd:nbPlaying?lifeItemsNb:lifeItems,ed?3:8);
             if(ed&&c>=1) c+=2;   // the test-play menu has no ASPIRATION or HOUSEHOLD entry
             if(c==1) aspPanel();
             else if(c==2) hhMenu();
-            else if(c==3) helpScreen("HOW TO PLAY",lifeHelp,16);
-            else if(c==4) settingsScreen();
-            else if(c==5&&!ed){ simsSaveNow(); hhSave(); if(slotScreen()) lifeInit(); }   // a slot was loaded: start again in the loaded room (the life was written first, so nothing is lost)
-            else if(c==6&&!ed){ vpY0=0; vpY1=SH; mapEditor(); lifeInit(); }
-            else if(c==7&&!ed){ if(menu("START A NEW LIFE",yesNoLife,2)==1){ twKeep=0; simsNewLife(); moodReset(); lscore=0; simLastScore=0; lnote="NEW LIFE"; lnoteT=60; } }
-            else if((c==5&&ed)||c==8){ if(c==8&&!nbPlaying) gToMenu=1; break; }   // (from the neighborhood: back there)
+            else if(c==3) settingsScreen();
+            else if(c==4&&!ed){ simsSaveNow(); hhSave(); if(slotScreen()) lifeInit(); }   // a slot was loaded: start again in the loaded room (the life was written first, so nothing is lost)
+            else if(c==5&&!ed){ vpY0=0; vpY1=SH; mapEditor(); lifeInit(); }
+            else if(c==6&&!ed){ if(menu("START A NEW LIFE",yesNoLife,2)==1){ twKeep=0; simsNewLife(); moodReset(); lscore=0; simLastScore=0; lnote="NEW LIFE"; lnoteT=60; } }
+            else if((c==4&&ed)||c==7){ if(c==7&&!nbPlaying) gToMenu=1; break; }   // (from the neighborhood: back there)
             winFull(); REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=0; continue;
         }
         if(lcamF>0) camStep(steps,k,pr);
@@ -2922,7 +2921,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
 
 // ---------- map editor ----------
 // Tools: ROOM (two corners -> walls + floor + a door), WALL (a straight line), FLOOR (fill an area), ITEM (single tiles), ERASE (clear an area).
-static const char* const mapItems[7]={"PLAY TEST","SAVE MAP","ROOM SLOTS","OPTIONS","RESET MAP","HOW TO EDIT","BACK"};
+static const char* const mapItems[6]={"PLAY TEST","SAVE MAP","ROOM SLOTS","OPTIONS","RESET MAP","BACK"};
 static const char* const yesNo[2]={"NO","YES RESET"};
 static const char* const toolNm[NTOOL]={"ROOM","WALL","FLOOR","ITEM","ERASE"};
 static const char* const toolHint[NTOOL][2]={
@@ -3056,7 +3055,7 @@ static void mapEditor(void){
         if(pr&K_B){ if(eAct) eAct=0; else mapPlace(ecx,ecy,'.'); }
         if(dsMsg){ msg=dsMsg; msgT=90; dsMsg=0; dirty=1; }
         if(pr&K_START){
-            int c=menu("MAP MENU",mapItems,7);
+            int c=menu("MAP MENU",mapItems,6);
             if(c==0){ mapScan(); lifeMode(1); }
             else if(c==1){ mapSave();
                 if(!mapSaved()) toast("SAVE NOT SUPPORTED HERE");
@@ -3065,8 +3064,7 @@ static void mapEditor(void){
             else if(c==2) slotScreen();
             else if(c==3) settingsScreen();
             else if(c==4){ if(!xo[XO_RESETASK]||menu("RESET THE MAP",yesNo,2)==1){ if(curFl) flBlankLive(); else if(!nbResetLot()) mapReset(); eAct=0; toast("MAP RESET"); } }
-            else if(c==5) helpScreen("HOW TO EDIT",mapHelp,14);
-            else if(c==6){ if(xo[XO_EDSAVE]) mapSave(); break; }
+            else if(c==5){ if(xo[XO_EDSAVE]) mapSave(); break; }
             prev=keyNow(); edCamSnap(); dirty=1; continue;
         }
         if(edCamStep()) dirty=1;
@@ -3880,7 +3878,6 @@ static void creatorMusStart(void){
 // ---------- main menu ----------
 static const char* const mmName[8]={"PLAY","NEIGHBORHOOD","CREATE A BORE","BUILD ROOM","ROOM SLOTS","JUKEBOX","OPTIONS","HOW TO PLAY"};
 static const char* const mmDesc[8]={"WALK AND SKATE AROUND YOUR ROOM","YOUR TOWN  PICK A LOT  BUILD AND MOVE IN","DESIGN YOUR OWN VOXEL CHARACTER","BUILD WALLS AND LAY FLOORS AND WALLPAPER","SAVE AND LOAD ROOMS  PEOPLE AND LIVES","LISTEN  PICK  OR SHUFFLE THE SONGS","SPEED  GAMEPLAY  SOUND  BUTTONS AND MORE","LEARN THE CONTROLS"};
-static const char* const guideItems[6]={"PLAYING","CREATE A BORE","BUILD ROOMS","JUKEBOX","ROOM SLOTS","OPTIONS"};
 static const char* const jbHelp[15]={">PLAYING","UP DOWN PICK A SONG  A PLAYS IT","A ON THE PLAYING SONG STOPS IT","L R GO TO THE PREVIOUS OR NEXT SONG",">CHECK BOXES","SELECT CHECKS OR UNCHECKS A SONG","ONLY CHECKED SONGS ARE PICKED AT RANDOM:","HERE  IN THE MENUS  AND FOR GAME MUSIC",">PLAY MODE","START CHANGES IT:  SHUFFLE  IN ORDER  REPEAT","WHEN A SONG ENDS THE MODE PICKS THE NEXT",">OTHER","LEFT RIGHT CHANGE THE VOLUME","OPENING IT PLAYS ONE RANDOM CHECKED SONG","B GOES BACK TO THE MENU"};
 static void drawMainMenu(int sel){
     for(int y=0;y<SH;y++){ u16 c=RGB(2+y/50,3+y/36,9+y/13); u32 v=c|((u32)c<<16), *row=(u32*)fb+y*ROW_W; for(int w=0;w<ROW_W;w++) row[w]=v; }
@@ -3901,6 +3898,56 @@ static void drawMainMenu(int sel){
     text(8,139,mmDesc[sel],WHITE,1); text(8,150,"UP DOWN CHOOSE  A OK",RGB(12,14,16),1);
 }
 #include "neighborhood.h"   // THE NEIGHBORHOOD: a town of lots to live in, visit and build on (main menu)
+
+// ---------- HOW TO PLAY: a Sims 2 style control panel (main menu only) ----------
+// Glossy blue panels, rounded tabs along the top, a bobbing green plumbob next to the title, a scrolling text pane with a thumb,
+// and a button strip along the bottom.  L R (or LEFT RIGHT, or A) change the tab, UP DOWN scroll, B or START close.
+static void s2rr(int x,int y,int w,int h,u16 c){ rect(x+1,y,w-2,h,c); rect(x,y+1,w,h-2,c); }   // a rounded rectangle
+static void s2grad(int x,int y,int w,int h,int r0,int g0,int b0,int r1,int g1,int b1){        // a vertical gradient
+    for(int i=0;i<h;i++){ int t=h>1?i*256/(h-1):0; rect(x,y+i,w,1,RGB(r0+(r1-r0)*t/256,g0+(g1-g0)*t/256,b0+(b1-b0)*t/256)); } }
+static void s2plumbob(int cx,int y){   // the green diamond: dark left half, light right half, a glint
+    for(int i=0;i<7;i++){ int hw=i<4?i:6-i; rect(cx-hw,y+i*2,hw+1,2,i<3?RGB(3,20,6):RGB(2,14,4)); rect(cx+1,y+i*2,hw,2,i<3?RGB(14,31,16):RGB(8,26,10)); }
+    rect(cx+1,y+3,1,2,RGB(26,31,26)); }
+static void s2pill(int x,int y,int w,const char*s){ s2rr(x,y,w,11,RGB(10,20,30)); s2grad(x+1,y+1,w-2,9,6,15,25,3,9,17); text(x+(w-tw(s,1))/2,y+2,s,RGB(20,27,31),1); }
+static void howToPlay(void){
+    static const signed char bob[8]={0,1,2,2,1,0,-1,-1};
+    static const char* const tn[7]={"PLAY","MAKE","BUILD","MUSIC","SLOTS","OPTS","TOWN"};
+    static const char* const tt[7]={"PLAYING","CREATE A BORE","BUILD ROOMS","JUKEBOX","ROOM SLOTS","OPTIONS","NEIGHBORHOOD"};
+    const char* const* ln[7]={lifeHelp,creatureHelp,mapHelp,jbHelp,slotHelp,optHelp,nbHelp};
+    static const unsigned char nn[7]={16,15,14,15,13,12,16};
+    enum { VIS=13, LY=34, LH=104 };
+    int tab=0, sc=0; u32 cnt=0; u16 prev=keyNow();
+    for(;;){
+        u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
+        if(pr&(K_B|K_START)) return;
+        if(pr&(K_R|K_RIGHT|K_A)){ tab=(tab+1)%7; sc=0; }
+        if(pr&(K_L|K_LEFT)){ tab=(tab+6)%7; sc=0; }
+        int n=nn[tab], mx=n>VIS?n-VIS:0;
+        if((pr&K_DOWN)&&sc<mx) sc++;
+        if((pr&K_UP)&&sc>0) sc--;
+        objHideAll();
+        s2grad(0,0,SW,SH,1,4,10,2,9,17);                                       // the backdrop: deep Sims blue
+        for(int y=0;y<SH;y+=8) for(int x=(y&8)?4:0;x<SW;x+=8) rect(x,y,1,1,RGB(3,9,17));   // a faint diamond lattice
+        s2rr(1,1,238,158,RGB(10,20,30)); s2rr(2,2,236,156,RGB(2,6,13));        // the frame
+        s2grad(3,3,234,14,8,18,28,3,10,19); rect(3,17,234,1,RGB(14,26,31));    // the title bar
+        s2plumbob(11,2+bob[(cnt>>3)&7]); text(21,7,"HOW TO PLAY",WHITE,1);
+        { const char*t=tt[tab]; text(233-tw(t,1),7,t,RGB(17,29,31),1); }
+        for(int i=0;i<7;i++){ int x=4+i*33, on=i==tab;                          // the tabs
+            s2rr(x,19,32,12,on?RGB(16,27,31):RGB(7,14,22));
+            if(on) s2grad(x+1,20,30,11,10,22,31,5,14,25); else s2grad(x+1,20,30,11,3,9,18,2,6,13);
+            text(x+(32-tw(tn[i],1))/2,22,tn[i],on?WHITE:RGB(12,18,24),1); }
+        s2rr(3,31,234,113,RGB(10,20,30)); s2rr(4,32,232,111,RGB(2,6,13));      // the text pane
+        for(int i=0;i<VIS&&sc+i<n;i++){ const char*l=ln[tab][sc+i]; int y=LY+i*8;
+            if(l[0]=='>'){ s2grad(6,y-1,222,9,6,16,26,3,9,17); rect(9,y+2,3,3,RGB(8,28,10)); text(15,y,l+1,RGB(17,29,31),1); }
+            else text(11,y,l,RGB(27,30,31),1); }
+        rect(232,LY,4,LH,RGB(4,10,18));                                          // the scroll thumb
+        if(mx>0){ int th=LH*VIS/n; if(th<8) th=8; int ty=LY+(LH-th)*sc/mx; s2grad(232,ty,4,th,12,24,31,6,16,26); }
+        else s2grad(232,LY,4,LH,6,14,22,4,10,18);
+        s2pill(5,147,50,"L R TAB"); s2pill(59,147,86,"UP DOWN SCROLL"); s2pill(149,147,46,"B BACK");   // the button strip
+        { char pg[8]; pg[0]=(char)('1'+tab); pg[1]='/'; pg[2]='7'; pg[3]=0; s2rr(199,147,36,11,RGB(10,20,30)); s2rr(200,148,34,9,RGB(2,6,13)); text(199+(36-tw(pg,1))/2,149,pg,RGB(17,29,31),1); }
+        present();
+    }
+}
 static void mainMenu(void){
     int sel=0, dirty=1; u16 prev=keyNow();
     menuMusStart();   // GOTTCHO BARRACHO plays while a main menu is open (MENU MUSIC option)
@@ -3917,8 +3964,7 @@ static void mainMenu(void){
             else if(sel==4){ slotScreen(); if(nbOk) nbBoot(); }   // (a slot screen can delete or replace the town)
             else if(sel==5){ jukeboxScreen(); fresh=1; }
             else if(sel==6) settingsScreen();
-            else { int g=menu("HOW TO PLAY",guideItems,6);
-                   if(g==0) helpScreen("PLAYING",lifeHelp,16); else if(g==1) helpScreen("CREATE A BORE",creatureHelp,15); else if(g==2) helpScreen("BUILD ROOMS",mapHelp,12); else if(g==3) helpScreen("JUKEBOX",jbHelp,15); else if(g==4) helpScreen("ROOM SLOTS",slotHelp,11); else if(g==5) helpScreen("OPTIONS",optHelp,11); }
+            else howToPlay();
             gToMenu=0; prev=keyNow(); dirty=1;
             (void)fresh; menuMusSync();   // the menu's song comes back (a crossfade) if the screen took the music; OPTIONS may have switched SOUND or MENU MUSIC
             continue;
