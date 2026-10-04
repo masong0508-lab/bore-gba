@@ -587,5 +587,11 @@ Entering the game bakes every Sim into sprites: the creator's renderer draws eac
 - All of it is exact: a test build baked 32 random Sims (every slider and part random) with the old and the new code and every sprite, tile and palette matched byte for byte.
 - Result (mGBA, fresh save): PLAY 9.2 s -> 4.4 s; PLAY again, or back from the editor: no loading screen at all.
 
+## Long samples play to the end
+The music mixer kept each voice's position and length as 16.16 numbers, so a sample longer than 65535 frames (3.6 s) wrapped to a short length and
+stopped early: TREE SWAYING ACTION's pads (72 k frames) played only their first 6.7 k, which made it sound chopped, and a long sample each in
+EMERGENCY ON THE DANCE FLOOR and EXCUSES was cut too. Each voice now moves its data pointer forward as it plays (`MVoice`), so pos never needs more
+than 16 whole bits; shorter samples come out exactly as before. Checked in mGBA: Tree follows the preview render (envelope correlation 0.995).
+
 ## Household kept on reload
 `hhLoad` refused a household holding a child or teen (their GROW UP aspiration is past the pickable ones), so the whole family vanished after the editor, a slot load or a power cycle. It now accepts every aspiration; the lifetime-want lookup falls back to learning for GROW UP.

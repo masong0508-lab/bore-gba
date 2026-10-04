@@ -1341,7 +1341,8 @@ typedef struct {            // one converted tracker song (generated into musicd
 #define R_DMA2CNT (*(volatile u32*)0x040000D0)
 #define MUS_N 304   // samples per frame at 18157 Hz (924 cycles each = exactly one frame)
 #define MUS_VOICES 16   // tracker channels the mixer can play at once
-typedef struct { const s8*d; u32 pos,step,len; int vl,vr; } MVoice;   // vl / vr = note volume x left / right pan-bus gain
+typedef struct { const s8*d; u32 pos,step,len; int vl,vr; } MVoice;   // vl / vr = note volume x left / right pan-bus gain; len = samples left from d
+// (d moves forward as a note plays, so pos (16.16) never needs more than 16 whole bits: samples longer than 65535 frames play to the end)
 static MVoice mvc[MUS_VOICES];
 // STEREO: Direct Sound A plays the left buffers, Direct Sound B the right ones; both are fed by Timer0 and restarted together at vblank.
 static s8 mbufL[2][MUS_N] __attribute__((aligned(4))), mbufR[2][MUS_N] __attribute__((aligned(4)));
@@ -1372,7 +1373,7 @@ static void musTrigger(void){
     while(n--){ u32 w=e[0]|((u32)e[1]<<8)|((u32)e[2]<<16); e+=3;
         u32 t=s->vt[(w&255)|((w>>22)<<8)]; int ch=t&15, in=(t>>4)&31, nt=(w>>8)&127, vol=(w>>15)&127;   // channel, instrument, note, voice volume
         int bus=(t>>9)&7; if(bus>6) bus=3;   // pan bus 0 = hard left .. 3 = centre .. 6 = hard right
-        MVoice*v=&mvc[ch]; v->d=s->data[in]; v->pos=0; v->step=xmStep(s,in,nt); v->len=s->len[in]<<16; v->vl=vol*s->busL[bus]; v->vr=vol*s->busR[bus]; }
+        MVoice*v=&mvc[ch]; v->d=s->data[in]; v->pos=0; v->step=xmStep(s,in,nt); v->len=s->len[in]; v->vl=vol*s->busL[bus]; v->vr=vol*s->busR[bus]; }
 }
 IWRAM_CODE static void musMix(s8*outL,s8*outR){
     int done=0;
@@ -1383,7 +1384,9 @@ IWRAM_CODE static void musMix(s8*outL,s8*outR){
         s16*a=maccL+done; s16*b=maccR+done;
         for(int i=0;i<n;i++){ a[i]=0; b[i]=0; }
         for(int vi=0;vi<MUS_VOICES;vi++){ MVoice*v=&mvc[vi]; if(!v->d) continue;
-            u32 pos=v->pos, st=v->step, len=v->len; const s8*d=v->d; int vl=v->vl, vr=v->vr, i=0;
+            u32 pos=v->pos, st=v->step; const s8*d=v->d; int vl=v->vl, vr=v->vr, i=0;
+            if(pos>>16){ u32 k=pos>>16; d+=k; v->len-=k; pos&=0xFFFF; v->d=d; }   // keep pos small (see MVoice)
+            u32 len=(v->len>0xFFFF?0xFFFFu:v->len)<<16;   // a frame moves a note far less than 65535 samples, so the cap never stops one early
             for(;i<n;i++){
                 if(pos>=len){ v->d=0; break; }
                 int ix=(int)(pos>>16), fr=(int)((pos>>8)&255), x0=d[ix], x1=d[ix+1];
