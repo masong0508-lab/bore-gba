@@ -16,6 +16,7 @@ typedef uint8_t u8; typedef uint16_t u16; typedef uint32_t u32;
 #define IWRAM_CODE __attribute__((section(".iwram"), target("arm"), long_call))
 #define IWRAM_THUMB __attribute__((section(".iwram"), long_call))   // fast RAM, Thumb code: about 2/3 the size of ARM, for work that is not the per-pixel hot path
 #define REG_WAITCNT (*(volatile u16*)0x04000204)
+#include "save.h"   // the save chip: 128 KB flash, or 32 KB SRAM as the fallback (SRAM_BASE, svRd / svWr / svErase / svCommit)
 
 #define SW 240
 #define SH 160
@@ -806,9 +807,9 @@ static void setStage(int n){   // new stage: the look is fitted to it; a look-bu
     setColors(); ageSave();
 }
 #define AGE_OFF 5008   // SRAM: 'A' 'G', stage, days in the stage, checksum (the creature itself is only kept in room slots, so its growth is remembered here)
-static void ageSave(void){ volatile u8*m=(volatile u8*)0x0E000000+AGE_OFF; m[0]='A'; m[1]='G'; m[2]=stage; m[3]=ageDays; m[4]=(u8)(0x47+stage+ageDays); }
+static void ageSave(void){ volatile u8*m=SRAM_BASE+AGE_OFF; m[0]='A'; m[1]='G'; m[2]=stage; m[3]=ageDays; m[4]=(u8)(0x47+stage+ageDays); }
 static void ageLoad(void){   // at power on, after the person came back from its slot: the grown-up stage wins over the stage the slot was saved at
-    volatile u8*m=(volatile u8*)0x0E000000+AGE_OFF;
+    volatile u8*m=SRAM_BASE+AGE_OFF;
     if(m[0]!='A'||m[1]!='G'||m[2]>=AG_N||m[4]!=(u8)(0x47+m[2]+m[3])) return;
     ageDays=m[3];
     if(m[2]!=stage){ stage=m[2]; fixLook(); if(custom) clipCustom(); else buildLook(); setColors(); }
@@ -912,14 +913,14 @@ static void partsSettle(void){   // leaving the creator: a part that was only be
 #define PERS_OFF 5024   // SRAM: 'P' 'S', aspiration, lifetime want, five traits, DNA (2), unlocked parts (2), checksum
 #define PERS_LEN (4+TR_N+5)
 static void persSave(void){
-    volatile u8*m=(volatile u8*)0x0E000000+PERS_OFF; u8 sum=0x50;
+    volatile u8*m=SRAM_BASE+PERS_OFF; u8 sum=0x50;
     m[0]='P'; m[1]='S'; m[2]=pAsp; m[3]=pLtw; for(int i=0;i<TR_N;i++) m[4+i]=pTr[i];
     m[4+TR_N]=(u8)pDna; m[5+TR_N]=(u8)(pDna>>8); m[6+TR_N]=(u8)pUnl; m[7+TR_N]=(u8)(pUnl>>8);
     for(int i=2;i<PERS_LEN-1;i++) sum+=m[i];
     m[PERS_LEN-1]=sum;
 }
 static void persLoad(void){   // at power on, after the person of the active slot came back (the last edit wins: both are written together)
-    volatile u8*m=(volatile u8*)0x0E000000+PERS_OFF; u8 tr[TR_N], sum=0x50;
+    volatile u8*m=SRAM_BASE+PERS_OFF; u8 tr[TR_N], sum=0x50;
     if(m[0]!='P'||m[1]!='S') return;
     for(int i=2;i<PERS_LEN-1;i++) sum+=m[i];
     for(int i=0;i<TR_N;i++) tr[i]=m[4+i];
@@ -1165,7 +1166,7 @@ IWRAM_THUMB static void drawScene(int blink){
     drawEars(1); drawTail(1); drawWings(1); drawHorns(1); drawAntennae();
 }
 static volatile int mWantOff; static void audIdleStop(void);   // set by the mixer interrupt when nothing is left to play: vsync() then switches it off
-static void vsync(void){ while(REG_VCOUNT>=160); while(REG_VCOUNT<160); if(mWantOff) audIdleStop(); }
+static void vsync(void){ while(REG_VCOUNT>=160); while(REG_VCOUNT<160); if(mWantOff) audIdleStop(); svTick(); }
 static void present(void){
     vsync();
     REG_DMA3SAD=(u32)(uintptr_t)fb; REG_DMA3DAD=VRAM_ADDR;
@@ -1828,8 +1829,7 @@ static void mapScan(void){   // find the skateboard (B) and the spawn point (P);
         if(fx<0&&c=='.'){ fx=x; fy=y; } }
     if(spx<0){ if(fx<0){ lifeMap[1][1]='P'; fx=fy=1; } spx=fx; spy=fy; }
 }
-#define SRAM_BASE ((volatile u8*)0x0E000000)
-static const char sramTag[] __attribute__((used)) = "SRAM_V113";   // tells emulators / flash carts to give the game battery saves
+static const char sramTag[] __attribute__((used)) = "FLASH1M_V103";   // tells emulators / flash carts to give the game 128 KB of flash (save.h)
 #define MSZ (MW*MH)
 #define FLR_N 3   // floors a house has (house slots, slots.h): the floor you stand on is the live map, the other floors wait in flBuf
 static u8 flBuf[FLR_N][3][MSZ] EWRAM_BSS; static int curFl; static u8 flArm, flInit;   // tiles, floors and wallpapers of every floor; which floor is live
@@ -1873,28 +1873,33 @@ static int jbUnlock(int bit){   // 1 when the song was locked and is now free (s
 }
 // SRAM layout: 0..2 "BM3", then MSZ bytes each of tiles, floors, wallpapers. Settings at SET_OFF (see settingsSave).
 // Old "BM1" / "BM2" saves (14x14, settings at 640) still load: the room is placed into the plaza of the new default map.
-static void mapSave(void){ volatile u8*m=SRAM_BASE; m[0]='B'; m[1]='M'; m[2]='3';
-    for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x; if(curFl){ m[3+i]=flBuf[0][0][i]; m[3+MSZ+i]=flBuf[0][1][i]; m[3+2*MSZ+i]=flBuf[0][2][i]; } else { m[3+i]=(u8)lifeMap[y][x]; m[3+MSZ+i]=floorMap[y][x]; m[3+2*MSZ+i]=wallMap[y][x]; } } }   // (upstairs: the room kept in SRAM is still the ground floor)
-static int mapSaved(void){ volatile u8*m=SRAM_BASE; if(m[0]!='B'||m[1]!='M'||m[2]!='3') return 0;
+// (bytes 0..4095 sit in flash sector 0 on their own, so mapSave erases that sector and writes it again: svRd / svWr, not pointers)
+static int mapSaved(void){ if(svRd(0)!='B'||svRd(1)!='M'||svRd(2)!='3') return 0;
     for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x;
-        if(curFl?(m[3+i]!=flBuf[0][0][i]||m[3+MSZ+i]!=flBuf[0][1][i]||m[3+2*MSZ+i]!=flBuf[0][2][i]):(m[3+i]!=(u8)lifeMap[y][x]||m[3+MSZ+i]!=floorMap[y][x]||m[3+2*MSZ+i]!=wallMap[y][x])) return 0; }
+        if(curFl?(svRd(3+i)!=flBuf[0][0][i]||svRd(3+MSZ+i)!=flBuf[0][1][i]||svRd(3+2*MSZ+i)!=flBuf[0][2][i]):(svRd(3+i)!=(u8)lifeMap[y][x]||svRd(3+MSZ+i)!=floorMap[y][x]||svRd(3+2*MSZ+i)!=wallMap[y][x])) return 0; }
     return 1; }
+static void mapSave(void){
+    if(mapSaved()) return;   // the same room: nothing to write (flash wears with every erase)
+    svErase(0,SV_SEC); svWr(0,'B'); svWr(1,'M'); svWr(2,'3');
+    for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x; if(curFl){ svWr(3+i,flBuf[0][0][i]); svWr(3+MSZ+i,flBuf[0][1][i]); svWr(3+2*MSZ+i,flBuf[0][2][i]); } else { svWr(3+i,(u8)lifeMap[y][x]); svWr(3+MSZ+i,floorMap[y][x]); svWr(3+2*MSZ+i,wallMap[y][x]); } }   // (upstairs: the room kept in SRAM is still the ground floor)
+    svCommit(); }
 static int mapLoad(void){   // returns 1 if a valid saved map was loaded
     wDirty=1;
-    volatile u8*m=SRAM_BASE;
-    if(m[0]!='B'||m[1]!='M') return 0;
-    if(m[2]=='3'){
-        for(int i=0;i<MSZ;i++){ if(palIdx((char)m[3+i])<0||m[3+MSZ+i]>=NFL||m[3+2*MSZ+i]>=NWALL) return 0; }
+    #define m(k) svRd(k)
+    if(m(0)!='B'||m(1)!='M') return 0;
+    if(m(2)=='3'){
+        for(int i=0;i<MSZ;i++){ if(palIdx((char)m(3+i))<0||m(3+MSZ+i)>=NFL||m(3+2*MSZ+i)>=NWALL) return 0; }
         for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x;
-            lifeMap[y][x]=(char)m[3+i]; floorMap[y][x]=m[3+MSZ+i]; wallMap[y][x]=m[3+2*MSZ+i]; }
+            lifeMap[y][x]=(char)m(3+i); floorMap[y][x]=m(3+MSZ+i); wallMap[y][x]=m(3+2*MSZ+i); }
         return 1; }
-    if(m[2]!='1'&&m[2]!='2') return 0;
-    int v2=(m[2]=='2');
-    for(int i=0;i<OMSZ;i++){ if(palIdx((char)m[3+i])<0) return 0; if(v2&&(m[3+OMSZ+i]>=NFL||m[3+2*OMSZ+i]>=NWP)) return 0; }
+    if(m(2)!='1'&&m(2)!='2') return 0;
+    int v2=(m(2)=='2');
+    for(int i=0;i<OMSZ;i++){ if(palIdx((char)m(3+i))<0) return 0; if(v2&&(m(3+OMSZ+i)>=NFL||m(3+2*OMSZ+i)>=NWP)) return 0; }
     mapReset();
     for(int y=0;y<MH;y++)for(int x=0;x<MW;x++) if(lifeMap[y][x]=='B'||lifeMap[y][x]=='P') lifeMap[y][x]='.';   // the old room brings its own
     for(int y=0;y<OMW;y++)for(int x=0;x<OMW;x++){ int i=y*OMW+x, X=LEG_X+x, Y=LEG_Y+y;
-        lifeMap[Y][X]=(char)m[3+i]; floorMap[Y][X]=v2?m[3+OMSZ+i]:0; wallMap[Y][X]=v2?m[3+2*OMSZ+i]:0; }
+        lifeMap[Y][X]=(char)m(3+i); floorMap[Y][X]=v2?m(3+OMSZ+i):0; wallMap[Y][X]=v2?m(3+2*OMSZ+i):0; }
+    #undef m
     return 1; }
 static void mapPlace(int x,int y,char c){
     if(c=='B'||c=='P'){ for(int j=0;j<MH;j++)for(int i=0;i<MW;i++) if(lifeMap[j][i]==c) lifeMap[j][i]='.'; }
@@ -1948,7 +1953,7 @@ static void optsLoad(void){
 static void settingsSave(void){ optsSave();
    volatile u8*m=SRAM_BASE+SET_OFF; m[0]='S'; m[1]='2'; m[2]=sFps; m[3]=sWall; m[4]=sWp; m[5]=sFl; m[6]=sSnd; m[7]=sShow; m[8]=sShad; m[9]=sHud; m[10]=sRom; m[11]=sCam; m[12]=0; m[13]=sNoWarn; m[14]=sClassic; m[15]=sUnlock; }
 static void settingsLoad(void){ volatile u8*m=SRAM_BASE+SET_OFF;
-    if(m[0]!='S'){ volatile u8*o=SRAM_BASE; if(o[0]=='B'&&o[1]=='M'&&o[2]!='3') m=SRAM_BASE+640; else return; }   // old saves kept settings at 640
+    if(m[0]!='S'){ if(svType==SV_SRAM&&svRd(0)=='B'&&svRd(1)=='M'&&svRd(2)!='3') m=SRAM_BASE+640; else return; }   // old saves kept settings at 640
     if(m[0]!='S') return;
     if(m[1]=='1'){ if(m[2]>2||m[3]>2||m[4]>1||m[5]>1||m[6]>1||m[7]>1) return;   // older save: fewer settings
         sFps=m[2]; sWall=m[3]; sWp=m[4]; sFl=m[5]; sSnd=m[6]; sShow=m[7]; return; }
@@ -2024,7 +2029,7 @@ static int presetOf(void){
     return 4;
 }
 static void setPreset(int p){ const u8*t=presetTab[p]; sFps=t[0]; sWall=t[1]; sWp=t[2]; sFl=t[3]; sShad=t[4]; sHud=t[5]; }
-static void applyRom(void){ REG_WAITCNT=sRom?0x0000:0x4317; }
+static void applyRom(void){ REG_WAITCNT=sRom?0x0003:0x4317; }   // (bits 0-1 = 3: the save chip gets 8 waits, which flash needs)
 static void setDefaults(void){ setPreset(1); sCam=1; sSnd=1; sRom=0; sShow=0; sNoWarn=0; applyRom(); }
 // Time to draw the room once (timer ticks), averaged over 3 draws. Uses the editor view so it never touches the game state.
 static int measureDraw(void){
@@ -3754,7 +3759,7 @@ int main(void){
     { volatile u16*io=(volatile u16*)0x04000000; for(int r=0x08/2;r<0x20/2;r++) io[r]=0; for(int r=0x40/2;r<0x56/2;r++) io[r]=0; }   // undo its BG control, scroll, windows and blend (BG2's affine registers are left alone: mode 3 needs them)
     { static const u32 zero=0; REG_DMA3SAD=(u32)(uintptr_t)&zero; REG_DMA3DAD=VRAM_ADDR; REG_DMA3CNT=(SW*SH/2)|0x85000000u; }   // clear its tiles out of the bitmap (else mode 3 shows them as noise until the title is drawn)
     REG_DISPCNT=0x0403;  // mode 3, BG2 on
-    initTables(); setColors(); slMigrate(); settingsLoad(); optsLoad(); applyRom();   // slMigrate: carries a layout 1 save over to layout 2 first (slots.h)
+    initTables(); setColors(); svInit(); slInitN(); slMigrate(); settingsLoad(); optsLoad(); applyRom();   // slMigrate: carries a layout 1 save over to layout 2 first (slots.h)
     lrng^=(u32)titleScreen()*2654435761u;   // time spent on the title seeds the random numbers (first shuffle)
     if(konMsg) toast(konMsg==2?"DEBUG UNLOCKED":"DEBUG LOCKED");
     jbSetup();                              // load the saved shuffled order (or make a new one), placeholders hidden

@@ -60,7 +60,7 @@ static u8 hhObjS[HH_MAX][4][STR_BN] EWRAM_BSS;
 #define TW_N 2                                   // passers-by (townies): OAM, OBJ VRAM and palettes after the members'
 static u8 twObj[TW_N][4][OBJ_B] EWRAM_BSS, twObjS[TW_N][4][STR_BN] EWRAM_BSS; static u16 twPal[TW_N][16];
 static u16 hhPal[HH_MAX][16];                  // a palette per member (index 0 = clear)
-static u16 hhTmp[4][SPW*SPH] EWRAM_BSS;        // a 16-bit bake (one Sim) on its way to 4bpp, or back
+// (the 16-bit bake of a member on its way to 4bpp uses the player's own spr4 / spr4s: they are baked again right after)
 static u16 hhDist[MH*MW] EWRAM_BSS;
 #define hhQ bfsQ   // (main.c's shared search queue)   // BFS scratch, shared (one member plans per step)
 static int hhPlanNext;   // round robin: whose turn it is to plan
@@ -154,13 +154,13 @@ static void hhBakeAll(void){
     for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ sv[y][z][x]=vox[y][z][x]; sd[y][z][x]=dec[y][z][x]; }
     for(int m=0;m<hhN;m++){
         for(int i=0;i<LK_N;i++) look[i]=hhM[m].look[i]; stage=hhM[m].stage;
-        buildLook(); setColors(); bakeInto(hhTmp); hhQuant(hhTmp,hhObj[m],hhPal[m]);
-        strideK=1; bakeInto(hhTmp); strideK=0; hhQuantS(hhTmp,hhObjS[m],hhPal[m]);
+        buildLook(); setColors(); bakeInto(spr4); hhQuant(spr4,hhObj[m],hhPal[m]);
+        strideK=1; bakeInto(spr4s); strideK=0; hhQuantS(spr4s,hhObjS[m],hhPal[m]);
     }
     for(int k=0;k<TW_N;k++){   // two passers-by with made-up looks (new ones every time the life game starts)
         u8 st; hhRandLook(look,&st); stage=st; fixLook();
-        buildLook(); setColors(); bakeInto(hhTmp); hhQuant(hhTmp,twObj[k],twPal[k]);
-        strideK=1; bakeInto(hhTmp); strideK=0; hhQuantS(hhTmp,twObjS[k],twPal[k]);
+        buildLook(); setColors(); bakeInto(spr4); hhQuant(spr4,twObj[k],twPal[k]);
+        strideK=1; bakeInto(spr4s); strideK=0; hhQuantS(spr4s,twObjS[k],twPal[k]);
     }
     for(int i=0;i<LK_N;i++) look[i]=sl[i]; stage=sst;
     for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ vox[y][z][x]=sv[y][z][x]; dec[y][z][x]=sd[y][z][x]; }
@@ -760,14 +760,13 @@ static void hhSwitch(void){
     HhSim t=hhM[0]; for(int m=0;m<hhN-1;m++) hhM[m]=hhM[m+1];   // the player goes to the back of the line, the first member steps in
     hhSwap(&t); hhM[hhN-1]=t;
     u16 pl[16];
-    hhUnquant(hhObj[0],hhPal[0],hhTmp);   // the member you take over: back to a full 16-bit sprite
     hhQuant(spr4,ob,pl);                   // the one you leave: down to a hardware sprite
     hhQuantS(spr4s,obs,pl);
-    for(int v=0;v<4;v++)for(int i=0;i<SPW*SPH;i++) spr4s[v][i]=hhTmp[v][i];
+    hhUnquant(hhObj[0],hhPal[0],spr4);     // the member you take over: back to a full 16-bit sprite
+    for(int v=0;v<4;v++)for(int i=0;i<SPW*SPH;i++) spr4s[v][i]=spr4[v][i];
     hhUnquantS(hhObjS[0],hhPal[0],spr4s);
     for(int m=0;m<hhN-1;m++){ for(int v=0;v<4;v++){ for(int i=0;i<OBJ_B;i++) hhObj[m][v][i]=hhObj[m+1][v][i]; for(int i=0;i<STR_BN;i++) hhObjS[m][v][i]=hhObjS[m+1][v][i]; } for(int i=0;i<16;i++) hhPal[m][i]=hhPal[m+1][i]; }
     for(int v=0;v<4;v++){ for(int i=0;i<OBJ_B;i++) hhObj[hhN-1][v][i]=ob[v][i]; for(int i=0;i<STR_BN;i++) hhObjS[hhN-1][v][i]=obs[v][i]; } for(int i=0;i<16;i++) hhPal[hhN-1][i]=pl[i];
-    for(int v=0;v<4;v++)for(int i=0;i<SPW*SPH;i++) spr4[v][i]=hhTmp[v][i];
     spBounds();
     hhSlotsFree();
 }
@@ -777,7 +776,7 @@ static void hhSwitch(void){
 #define HH_REC (LKPK+3+TR_N+2*HH_NM+HN_N+1)   // ('H6' and older held a 10-byte first name and no last name)
 #define HH_RELB (3*HU_N*HU_N)
 static void hhSave(void){
-    volatile u8*m=(volatile u8*)0x0E000000+HH_OFF; int k=3; u8 sum=0x48;
+    volatile u8*m=SRAM_BASE+HH_OFF; int k=3; u8 sum=0x48;
     m[0]='H'; m[1]='9'; m[2]=(u8)hhN; m[k++]=(u8)hhPUid;
     for(int j=0;j<HH_NM;j++) m[k++]=(u8)hhPName[j]; for(int j=0;j<HH_NM;j++) m[k++]=(u8)hhPLast[j];   // your own name
     for(int i=0;i<hhN;i++){ const HhSim*s=&hhM[i];
@@ -790,7 +789,7 @@ static void hhSave(void){
     m[k]=sum;
 }
 static void hhLoad(void){
-    volatile u8*m=(volatile u8*)0x0E000000+HH_OFF; u8 sum=0x48; hhN=0;
+    volatile u8*m=SRAM_BASE+HH_OFF; u8 sum=0x48; hhN=0;
     if(m[0]!='H'||m[1]<'2'||m[1]>'9'||m[2]>HH_MAX) return;
     int old=m[1]<'6', hu=old?HH_MAXOLD+1:HU_N;   // before 'H6' the relationships were kept for 10 uids
     int v7=m[1]>='7', nb=v7?2*HH_NM:10, nl=m[1]>='9'?LKPK:m[1]>='8'?LK_N9:v7?LK_N8:m[1]>='5'?LK_N7:m[1]=='4'?LK_N6:m[1]=='3'?LK_N5:LK_N4, rec=HH_REC-LKPK+nl-2*HH_NM+nb;   // 'H2' households were saved before the hats and clothes, 'H3' before the face details and sliders
