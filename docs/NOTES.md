@@ -698,3 +698,13 @@ A nod to the Master Controller mod for The Sims. The MASTER section only shows (
 A chapter pays §250 and 25 jenes. The child who comes home mixes your look and your partner's (`stMixLook`). The creator opens first to
 make you. Saved at `STORY_OFF` (8 bytes after the options); the household bank keeps each household's story. NEW LIFE, another NEW GAME,
 a fresh pre-made family or NEW HOUSEHOLD HERE end the story (`stOff`).
+
+## Sprites: 32 x 60, models at 0.4 size; the bubble over your head
+- The Sims in the room are baked at 0.4 size (5 screen pixels to 2: `bakeShrink` keeps the top left pixel of every 2-3 pixel cell, or
+  its darkest pixel when that is very dark, so eyes and outlines survive), a little smaller than the old half size.
+- The sprite box grew from 32 x 44 to 32 x 60 (`SPH`, feet on row `SPF` 56): tall Sims and MASTER CONTROLLER giants have room. The bake
+  draws the creature lower (`OYCB`, `oycV`) so the 80 x 150 capture window fits on the screen. Household Sims are one tall 32 x 64
+  hardware sprite (32 tiles, `OBJ_B` 1024) instead of 32 x 32 over 32 x 16; 8 sprite slots (a household is 8 Sims).
+- About 25 KB more EWRAM (spr4 / spr4s and the household tiles); the bake time hardly changes (the creature is drawn at full size as before).
+- Over your head: no plumbob any more, and the thought bubble only when it should: an urgent need for 3 seconds when it starts (again
+  every 30 seconds while it lasts), with THOUGHT BUBBLE: ALL a want for 3 seconds every 45. Talking bubbles are as before.

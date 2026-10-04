@@ -36,13 +36,14 @@ enum { K_A=1, K_B=2, K_SEL=4, K_START=8, K_RIGHT=16, K_LEFT=32, K_UP=64, K_DOWN=
 
 #define RGB(r,g,b) ((u16)((r)|((g)<<5)|((b)<<10)))
 static u16 fb[SW*SH] EWRAM_BSS;
-#define SPW 32   // baked at half size so the skater is ~2 tiles tall in the room
-#define SPH 44
+#define SPW 32   // the Sims in the room: baked at 0.4 size (5 screen pixels to 2), so the skater is a little under 2 tiles tall
+#define SPH 60   // and the sprite has room above for tall Sims and MASTER CONTROLLER giants (a 32 x 64 hardware sprite for the household)
+#define SPF 56   // the row the feet stand on in a sprite
 static u16 spr4[4][SPW*SPH] EWRAM_BSS;   // the creature's sprites, one per view (bakeSprites)
 static u16 spr4s[4][SPW*SPH] EWRAM_BSS;  // the same with the legs mid-stride (walking alternates the two)
 static u32 sprKey;   // what spr4 / spr4s hold: the bake key of the player they were baked from (0 = something else, house.h)
 #define STR_Y0 8                         // the stride frame differs from the standing one only in half-size rows STR_Y0..STR_Y1-1
-#define STR_Y1 48                        // (OBJ tile rows 1..5: what household sprites keep a second copy of)
+#define STR_Y1 64                        // (OBJ tile rows 1..7: what household sprites keep a second copy of)
 // The title screen only has to repaint two small areas of its backdrop (the smoke and the PRESS START box), so it keeps just those, in
 // spr4: the title shows once at power on, before any sprite is baked. (This used to be a whole-screen copy inside a 124 KB sound buffer.)
 #define tfb (&spr4[0][0])
@@ -520,7 +521,8 @@ __attribute__((noinline)) static void drawDeco(int sx,int sy,u16 code,int face,i
 
 static int cx,cy,cz,part,size;
 #define OXC 60
-#define OYC 121
+static int oycV=121;   // where the creator draws the creature's feet (the sprite bake moves it down: bakeInto)
+#define OYC oycV
 static int view=0;   // 0..3 = 90 degree turns
 static int noGrid=0;   // sprite baking draws the character without the floor grid
 static u8 bakeOn;      // bakeInto is drawing: only the capture window (the clip rectangle) is cleared and read
@@ -1286,8 +1288,9 @@ static int nbResetLot(void);
 static int camX, camY, camSnap=1, camLastV;   // camera offset in px; the map's top corner is drawn at (120-camX, 24-camY)
 #define LOX (120-camX)   // screen x of the map's top corner
 #define LOY (24-camY)
-#define SPX0 (OXC-32)
-#define SPY0 (OYC-80)   // capture window top; feet sit at row 40 of the half-size sprite
+#define OYCB 148            // the bake draws the feet here, so the capture window (80 x 150: SPW x SPH at 5 to 2) fits on the screen
+#define SPX0 (OXC-40)
+#define SPY0 (OYCB-SPF*5/2)   // capture window top; the feet land on row SPF of the sprite
 #define MAPNAME "THE MAN BASE"   // name of the (placeholder) map
 // w = low wall, W = wall, # = 2-block crate, = = grind rail, . = floor (the default map is built by mapGen below)
 static const short cosT[16]={256,237,181,98,0,-98,-181,-237,-256,-237,-181,-98,0,98,181,237};   // sin(a)=cosT[(a+12)&15]
@@ -1840,13 +1843,14 @@ static int surfH(s32 fx,s32 fy){   // surface height at an exact position (1/256
     int tx=(int)(fx>>8), ty=(int)(fy>>8); if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
     char c=lifeMap[ty][tx]; return isRamp(c)?rampH(c,(int)fx,(int)fy):tileH(tx,ty);
 }
-static void bakeShrink(u16 (*spr4)[SPW*SPH],int v){   // view v, just drawn at full size in fb, into the half-size sprite set
-    // half size: take the top left pixel of every 2x2, unless the block holds a very dark one (eyes, mouth, outline): those must survive the shrink
-    for(int y=0;y<SPH;y++)for(int x=0;x<SPW;x++){
-        const u16*b=&fb[(SPY0+y*2)*SW+SPX0+x*2]; u16 c=b[0]; int best=(c&31)+((c>>5)&31)+((c>>10)&31);
-        if(best>14&&c!=SKY){ const u16 q[3]={b[1],b[SW],b[SW+1]}; for(int k=0;k<3;k++){ int sm=(q[k]&31)+((q[k]>>5)&31)+((q[k]>>10)&31); if(sm<=11&&sm<best){ best=sm; c=q[k]; } } }
-        spr4[v][y*SPW+x]=c;
-    }
+static void bakeShrink(u16 (*spr4)[SPW*SPH],int v){   // view v, just drawn at full size in fb, into the sprite set at 0.4 size
+    // every sprite pixel covers 2 or 3 screen pixels each way: take the top left one, unless the cell holds a very dark one (eyes, mouth,
+    // outline): those must survive the shrink
+    for(int y=0;y<SPH;y++){ int sy0=(y*5)>>1, sy1=((y+1)*5)>>1;
+        for(int x=0;x<SPW;x++){ int sx0=(x*5)>>1, sx1=((x+1)*5)>>1;
+            u16 c=fb[(SPY0+sy0)*SW+SPX0+sx0]; int best=(c&31)+((c>>5)&31)+((c>>10)&31);
+            if(best>14&&c!=SKY) for(int yy=sy0;yy<sy1;yy++){ const u16*r=&fb[(SPY0+yy)*SW+SPX0]; for(int xx=sx0;xx<sx1;xx++){ u16 q=r[xx]; int sm=(q&31)+((q>>5)&31)+((q>>10)&31); if(sm<=11&&sm<best){ best=sm; c=q; } } }
+            spr4[v][y*SPW+x]=c; } }
     // seen from behind the head shows hair, not a face: repaint the head's skin in the hair colour so the way he is facing reads at a glance
     if(!custom&&(v==1||v==2)){
         int hx,hy,hz,hs; headBox(&hx,&hy,&hz,&hs);
@@ -1854,21 +1858,21 @@ static void bakeShrink(u16 (*spr4)[SPW*SPH],int v){   // view v, just drawn at f
         for(int yy=hy;yy<hy+2*hs;yy++)for(int zz=hz;zz<hz+2*hs;zz++)for(int xx=hx;xx<hx+2*hs;xx++){
             int sx,sy; projC(2*xx+1-W,2*zz+1-D,yy+1,&sx,&sy);
             if(sx-CA<ax) ax=sx-CA; if(sx+CA>bx) bx=sx+CA; if(sy-CB<az) az=sy-CB; if(sy+CB+CC>bz) bz=sy+CB+CC; }
-        int x0=(ax-SPX0)/2, x1=(bx-SPX0)/2+1, y0=(az-SPY0)/2, y1=(bz-SPY0)/2+1;
+        int x0=(ax-SPX0)*2/5, x1=(bx-SPX0)*2/5+1, y0=(az-SPY0)*2/5, y1=(bz-SPY0)*2/5+1;
         for(int y=y0<0?0:y0;y<y1&&y<SPH;y++)for(int x=x0<0?0:x0;x<x1&&x<SPW;x++){
             u16*c=&spr4[v][y*SPW+x];
             if(*c==sT[1]) *c=sT[5]; else if(*c==sL[1]) *c=sL[5]; else if(*c==sR[1]) *c=sR[5]; }
     }
 }
 static int bakeClips(void){   // the drawing in fb reaches the two outer rows / columns of the capture window (the bake keeps every other pixel)
-    for(int x=0;x<SPW*2;x++) if(fb[SPY0*SW+SPX0+x]!=SKY||fb[(SPY0+1)*SW+SPX0+x]!=SKY) return 1;
-    for(int y=0;y<SPH*2;y++){ const u16*r=&fb[(SPY0+y)*SW+SPX0]; if(r[0]!=SKY||r[1]!=SKY||r[SPW*2-2]!=SKY||r[SPW*2-1]!=SKY) return 1; }
+    for(int x=0;x<SPW*5/2;x++) if(fb[SPY0*SW+SPX0+x]!=SKY||fb[(SPY0+1)*SW+SPX0+x]!=SKY) return 1;
+    for(int y=0;y<SPH*5/2;y++){ const u16*r=&fb[(SPY0+y)*SW+SPX0]; if(r[0]!=SKY||r[1]!=SKY||r[SPW*5/2-2]!=SKY||r[SPW*5/2-1]!=SKY) return 1; }
     return 0;
 }
 static void bakeInto(u16 (*spr4)[SPW*SPH]){   // render the built character once per view (4 turns) into a sprite set, then just blit it
-    int sv=view; noGrid=1; bakeOn=1;
+    int sv=view; noGrid=1; bakeOn=1; oycV=OYCB;   // (drawn lower than in the creator: the tall capture window fits on the screen)
     int ox=cX0, oy=cY0; unsigned ow=cW, oh=cH;   // draw only inside the capture window: nothing outside it is ever read
-    { int x0=SPX0>ox?SPX0:ox, y0=SPY0>oy?SPY0:oy, x1=SPX0+SPW*2, y1=SPY0+SPH*2;
+    { int x0=SPX0>ox?SPX0:ox, y0=SPY0>oy?SPY0:oy, x1=SPX0+SPW*5/2, y1=SPY0+SPH*5/2;
       if(x1>ox+(int)ow) x1=ox+(int)ow; if(y1>oy+(int)oh) y1=oy+(int)oh; if(x1<x0) x1=x0; if(y1<y0) y1=y0; clipSet(x0,y0,x1,y1); }
     for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ ghost[y][z][x]=0; gdec[y][z][x]=0; }
     bakeCapH=99; bakeCapW=99; bakeCapT=99; bakeCapX=99; bakeCapL=99; bakeCapE=99; { view=0; drawScene(0); bakeCapE=exMax; bakeCapH=liftK; bakeCapW=bakeWk; bakeCapT=liftT; bakeCapX=armK>stanceK?armK:stanceK; bakeCapL=bakeSh; }   // the HEIGHT and WEIGHT sliders are eased off, a step at a time, until every view fits the capture window
@@ -1898,7 +1902,7 @@ static void bakeInto(u16 (*spr4)[SPW*SPH]){   // render the built character once
         cl=-1; done=0;   // the caps changed: nothing drawn so far counts
     }
     if(!fit) for(int v=0;v<4;v++) if(!(done&(1<<v))){ view=v; drawScene(0); bakeShrink(spr4,v); }   // whatever the last caps still need
-    clipSet(ox,oy,ox+(int)ow,oy+(int)oh); bakeOn=0;
+    clipSet(ox,oy,ox+(int)ow,oy+(int)oh); bakeOn=0; oycV=121;
     noGrid=0; view=sv;
     spBx0=SPW; spBx1=0; spBy0=SPH; spBy1=0;   // the box that holds every opaque pixel of all four views: blits and redraw rectangles stay inside it
     for(int v=0;v<4;v++)for(int y=0;y<SPH;y++)for(int x=0;x<SPW;x++) if(spr4[v][y*SPW+x]!=SKY){
@@ -2604,7 +2608,7 @@ static void drawBoard(void){
 static void drawPlayerNow(void){
     if(sShad){ rect(plX-3,plY-plFh-1,7,2,RGB(10,8,5)); rect(plX-1,plY-plFh-2,3,4,RGB(10,8,5)); }   // shadow
     if(lskate) drawBoard();   // board under the feet
-    blit((plBob&&!lskate)?spr4s[plV]:spr4[plV],plX-16,plY-40-plZ-plBob);   // walking: the stride frame on the up-step
+    blit((plBob&&!lskate)?spr4s[plV]:spr4[plV],plX-16,plY-SPF-plZ-plBob);   // walking: the stride frame on the up-step
 }
 // The room inside the rectangle x0..x1 / y0..y1 (end excluded), drawn back to front and clipped to it: the same pixels a whole-screen
 // draw would put there. ed=1: editor view (no player).
@@ -2719,7 +2723,7 @@ static void rcAdd(int x0,int y0,int x1,int y1){
 }
 static int rcHit(const Rc*a,int x0,int y0,int x1,int y1){ return a->x0<x1&&a->x1>x0&&a->y0<y1&&a->y1>y0; }
 static void actorRc(Rc*r){   // everything the player puts on screen: sprite, shadow, board
-    int sx=plX-16, sy=plY-40-plZ-plBob;
+    int sx=plX-16, sy=plY-SPF-plZ-plBob;
     int x0=sx+spBx0, x1=sx+spBx1, y0=sy+spBy0, y1=sy+spBy1;
     if(sShad){ if(plX-3<x0) x0=plX-3; if(plX+4>x1) x1=plX+4; if(plY-plFh+2>y1) y1=plY-plFh+2; }
     if(lskate){ if(plX-19<x0) x0=plX-19; if(plX+20>x1) x1=plX+20; if(plY-plZ-17<y0) y0=plY-plZ-17; if(plY-plZ+14>y1) y1=plY-plZ+14; }   // the whole board, nose up, rolled or lifted

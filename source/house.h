@@ -53,10 +53,10 @@ static u8 hhBubT; static const char* hhBubTxt;   // the word over your head duri
 #define OBJ_VRAM ((volatile u16*)0x06014000)   // OBJ tiles 512.. in the bitmap modes
 #define OBJ_PAL  ((volatile u16*)0x05000200)
 #define OAM      ((volatile u16*)0x07000000)
-#define OBJ_B 768                                // one view: 32 wide x 48 high (tile rows 0..5; the bake is 44 high) x 4bpp = 24 tiles, in 1D order
+#define OBJ_B 1024                               // one view: 32 wide x 64 high (tile rows 0..7; the bake is 60 high) x 4bpp = 32 tiles, in 1D order
 static u8 hhObj[HH_MAX][4][OBJ_B] EWRAM_BSS;    // 4 views
-#define STR_B0 128                               // the stride frame: tile rows 1..5 of each view (bytes 128..767), the rest is as standing
-#define STR_BN 640
+#define STR_B0 128                               // the stride frame: tile rows 1..7 of each view (bytes 128..1023), the rest is as standing
+#define STR_BN 896
 static u8 hhObjS[HH_MAX][4][STR_BN] EWRAM_BSS;
 #define TW_N 2                                   // passers-by (townies): OAM, OBJ VRAM and palettes after the members'
 #define TW_V(k) (HH_MAX-1-(k))                    // VISITORS (the old passers-by): visitor k lives in the empty member place TW_V(k) - its HhSim, sprites
@@ -72,7 +72,7 @@ static const signed char hhDx[4]={1,0,-1,0}, hhDy[4]={0,1,0,-1};
 // OBJ VRAM is 16 KB in the bitmap modes and there are 16 OBJ palettes, so there are 16 slots: slot s = tiles 512+24*s.. (24 tiles, the 32x48 a Sim
 // really uses) and palette s. hhObjUpdate hands slots to the Sims in view (nearest the middle of the screen first) and takes them back when a Sim
 // walks off, goes to work or school, or a passer-by leaves the map. Ids: members 0..HH_MAX-1, then the passers-by.
-#define OBJ_SLOTS 16
+#define OBJ_SLOTS 8   // (a household is 8 Sims: never more than 7 sprites on screen)
 #define HH_IDS    HH_MAX
 #define UP_BUDGET 5                             // fresh sprite uploads per vblank (a full one is ~700 halfword writes); the rest wait a frame
 static signed char hhSlotOf[HH_IDS], hhSlotId[OBJ_SLOTS], hhSlotKey[OBJ_SLOTS];   // id -> slot, slot -> id, view*2+frame in the slot (-1: tiles not loaded)
@@ -756,14 +756,14 @@ static void hhCalc(void){   // (the places above hhN that hold a visitor too)
 static void hhDrawBand(int s0,int s1){   // the members whose band is in s0..s1
     for(int m=0;m<hhN;m++){ if(hhB[m]<s0||hhB[m]>s1||hhM[m].act==HA_AWAY) continue;
         if(sShad) rect(hhX[m]-3,hhY[m]-hhH[m]-1,7,2,RGB(10,8,5));   // (the Sim itself is a hardware sprite: hhObjUpdate)
-        if(hhM[m].bubT){ int bx=hhX[m]-5, by=hhY[m]-hhH[m]-56; rect(bx,by,11,10,RGB(14,16,22)); rect(bx+1,by+1,9,8,WHITE);   // a balloon with an icon (Sims style)
+        if(hhM[m].bubT){ int bx=hhX[m]-5, by=hhY[m]-hhH[m]-50; rect(bx,by,11,10,RGB(14,16,22)); rect(bx+1,by+1,9,8,WHITE);   // a balloon with an icon (Sims style)
             simIcon(bx+2,by+1,hhM[m].bub,hhM[m].bub==IC_HEART?RGB(28,6,12):hhM[m].bub==IC_ANGRY||hhM[m].bub==IC_HURT?RGB(26,4,4):RGB(4,4,10)); px(hhX[m],by+10,RGB(14,16,22)); } }
 }
 typedef struct { short x0,y0,x1,y1; } HhR;   // (hud.h's Rc comes later in main.c)
 static void hhRc(int m,HhR*r){   // what a member puts INTO the picture: only its shadow (and a balloon); the body is a hardware sprite
     if(hhM[m].act==HA_AWAY){ r->x0=r->x1=r->y0=r->y1=0; return; }   // off the lot: nothing
     r->x0=(short)(hhX[m]-3); r->x1=(short)(hhX[m]+4); r->y0=(short)(hhY[m]-hhH[m]-1); r->y1=(short)(hhY[m]-hhH[m]+1);
-    if(hhM[m].bubT){ int by=hhY[m]-hhH[m]-56; if(r->y0>by) r->y0=(short)by; if(r->x0>hhX[m]-5) r->x0=(short)(hhX[m]-5); if(r->x1<hhX[m]+6) r->x1=(short)(hhX[m]+6); } }
+    if(hhM[m].bubT){ int by=hhY[m]-hhH[m]-50; if(r->y0>by) r->y0=(short)by; if(r->x0>hhX[m]-5) r->x0=(short)(hhX[m]-5); if(r->x1<hhX[m]+6) r->x1=(short)(hhX[m]+6); } }
 static unsigned hhSig(int m){ return (unsigned)(hhX[m]&0x3FF)|((unsigned)(hhY[m]&0x3FF)<<10)|((unsigned)(hhH[m]&15)<<22)|((unsigned)(hhM[m].bubT?1+(hhM[m].bub&31):0)<<26)^(hhM[m].act==HA_AWAY?0x80000000u:0); }
 static int hhBehindAt(s32 fx,s32 fy){   // is a full-height wall in front of this spot (towards the camera)? then a Sim there is drawn see-through
     s32 rx,ry; rotPos(fx,fy,&rx,&ry); int x=(int)(rx>>8), y=(int)(ry>>8);
@@ -776,7 +776,7 @@ static int hhBehindAt(s32 fx,s32 fy){   // is a full-height wall in front of thi
 }
 static int hhPlayerFront(int x,int y){   // is the player (drawn into the picture, so under every sprite) standing in front of this Sim's sprite?
     s32 rx,ry; rotPos(lfx,lfy,&rx,&ry); int px=LOX+(int)((rx-ry)>>5), py=LOY+(int)((rx+ry)>>6), dx=px-(x+16);
-    return py>y+40&&dx>-22&&dx<22&&py<y+40+44;
+    return py>y+SPF&&dx>-22&&dx<22&&py<y+SPF+44;
 }
 typedef struct { const HhSim*s; short x,y; int dd,dep; u8 id,key; } HhOv;   // a Sim in view: where its sprite goes, how far from the middle, how far back
 static void hhObjUpdate(void){   // in vblank: hand out OBJ slots, load what changed into OBJ VRAM, write OAM (a Sim is two entries: 32x32 over 32x16), set the window that clips them
@@ -793,11 +793,11 @@ static void hhObjUpdate(void){   // in vblank: hand out OBJ slots, load what cha
     for(int id=0;id<HH_IDS;id++){
         const HhSim*s; int x,y,v,f,dep;
         if(id>=hhN){ int k=HH_MAX-1-id; if(k>=TW_N||!twHas[k]||!twOn[k]) continue;   // a visitor
-            s=&hhM[id]; x=hhX[id]-16; y=hhY[id]-40-hhH[id]; v=hhV[id]; dep=hhB[id];
+            s=&hhM[id]; x=hhX[id]-16; y=hhY[id]-SPF-hhH[id]; v=hhV[id]; dep=hhB[id];
             f=twOn[k]!=2?((lfr+k*3)>>3)&1:0;   // walking in or out: stepping; staying: standing
         } else {
             if(hhM[id].act==HA_AWAY) continue;
-            s=&hhM[id]; x=hhX[id]-16; y=hhY[id]-40-hhH[id]; v=hhV[id]; dep=hhB[id];
+            s=&hhM[id]; x=hhX[id]-16; y=hhY[id]-SPF-hhH[id]; v=hhV[id]; dep=hhB[id];
             int walk=(s->act==HA_WALK||s->act==HA_WANDER||s->act==HA_SEEK||s->act==HA_LEAVE)&&s->pi<s->pn;
             f=walk?((lfr+id*5)>>3)&1:0;   // walking: standing / mid-stride, every 8 frames (each Sim a little out of step)
         }
@@ -829,16 +829,12 @@ static void hhObjUpdate(void){   // in vblank: hand out OBJ slots, load what cha
                 volatile u16*d=OBJ_VRAM+sl*(OBJ_B/2); hhSlotKey[sl]=(signed char)key;
                 if(full){ const u16*sp=(const u16*)hhTiles(id,v); for(int k=0;k<OBJ_B/2;k++) d[k]=sp[k]; }
                 const u16*sp=f?(const u16*)hhStrideB(id,v):(const u16*)(hhTiles(id,v)+STR_B0); for(int k=0;k<STR_BN/2;k++) d[STR_B0/2+k]=sp[k]; } }
-        volatile u16*e=oam+nOam*4; int tile=512+sl*24, y=o->y, x=o->x, blend=(hhBehindAt(o->s->fx,o->s->fy)||hhPlayerFront(x,y))?0x400:0;
-        if(zoomDma){   // ZOOM: scaled up by the hardware (affine, double size, matrix 0) and placed where its room pixels are on screen
-            int X=(x+16-vpX0)*zoomNum/zoomDen-32, Y=sbY0+(y+16-vpY0)*zoomNum/zoomDen-32, Y2=sbY0+(y+40-vpY0)*zoomNum/zoomDen-16;
-            e[0]=(u16)((Y&255)|blend|0x300);         e[1]=(u16)((X&511)|0x8000); e[2]=(u16)(tile|(sl<<12));
-            e[4]=(u16)((Y2&255)|blend|0x4000|0x300); e[5]=(u16)((X&511)|0x8000); e[6]=(u16)((tile+16)|(sl<<12));
-        } else {
-        e[0]=(u16)((y&255)|blend);         e[1]=(u16)((x&511)|0x8000); e[2]=(u16)(tile|(sl<<12));          // 32x32: tile rows 0..3
-        e[4]=(u16)(((y+32)&255)|blend|0x4000); e[5]=(u16)((x&511)|0x8000); e[6]=(u16)((tile+16)|(sl<<12)); // 32x16: tile rows 4..5
-        }
-        nOam+=2;
+        volatile u16*e=oam+nOam*4; int tile=512+sl*32, y=o->y, x=o->x, blend=(hhBehindAt(o->s->fx,o->s->fy)||hhPlayerFront(x,y))?0x400:0;
+        if(zoomDma){   // ZOOM: scaled up by the hardware (affine, double size: a 64 x 128 box, matrix 0) and placed where its room pixels are on screen
+            int X=(x+16-vpX0)*zoomNum/zoomDen-32, Y=sbY0+(y+32-vpY0)*zoomNum/zoomDen-64;
+            e[0]=(u16)((Y&255)|blend|0x8000|0x300); e[1]=(u16)((X&511)|0xC000); e[2]=(u16)(tile|(sl<<12));
+        } else { e[0]=(u16)((y&255)|blend|0x8000); e[1]=(u16)((x&511)|0xC000); e[2]=(u16)(tile|(sl<<12)); }   // one tall 32 x 64 sprite
+        nOam++;
     }
     for(i=nOam;i<2*OBJ_SLOTS;i++) oam[i*4]=0x200;   // everything else off
     oam[3]=zoomPa; oam[7]=0; oam[11]=0; oam[15]=zoomPa;   // affine matrix 0 (the ZOOM's sprites): 1 / scale
