@@ -485,7 +485,7 @@ static const char* simsAlert(void){   // most urgent need, or 0
     return 0;
 }
 // lifetime want: progress towards the goal of the chosen one
-static const SimLtw* simLtw(void){ return &simLtws[pAsp][pLtw]; }
+static const SimLtw* simLtw(void){ return &simLtws[pAsp<AS_PICK?pAsp:AS_KNOW][pLtw&1]; }   // GROW UP (a child or teen you switched to) has no table row: learning stands in
 static int simLtwVal(void){
     switch(simLtw()->kind){
       case LT_JOB: return jobLvl;           case LT_CASH: return simMoney;     case LT_SKILL: return skillLvl;

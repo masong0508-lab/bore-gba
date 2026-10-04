@@ -17,6 +17,14 @@ bg = X.bus_gains(panf.trim); GL = [g[0] / 128.0 for g in bg]; GR = [g[1] / 128.0
 rowsec = S['tempo'] * 2.5 / S['bpm']; M = X.MIXR
 total = int(sum(len(S['pats'][o]) for o in S['order']) * rowsec * M) + M * 4
 accL = np.zeros(total); accR = np.zeros(total); cur = {}; pos = 0.0; clip_rows = 0
+DK = (31 / 32) ** np.arange(400)                                      # the mixer's declick offset: x(31/32) a sample (main.c: MVoice ol / orr)
+def declick(ch, t0, w, b):   # a new note cuts the old one: the jump between them is added and fades out, as the game does
+    oL = oR = 0.0
+    if ch in cur:
+        start, ow, ob = cur[ch]; k = t0 - start
+        if 0 <= k < len(ow): oL = ow[k] * GL[ob]; oR = ow[k] * GR[ob]
+    jL = oL - w[0] * GL[b]; jR = oR - w[0] * GR[b]; n = min(len(DK), total - t0)
+    if n > 0: accL[t0:t0 + n] += jL * DK[:n]; accR[t0:t0 + n] += jR * DK[:n]
 def stop(ch, upto):
     if ch in cur:
         start, w, b = cur.pop(ch); n = min(len(w), upto - start)
@@ -28,15 +36,16 @@ for o in S['order']:
             if n and n < 97 and insts[i - 1]:
                 I = insts[i - 1]; rel = (v - 0x10) / 64 if 0x10 <= v <= 0x50 else 1.0
                 vol = min(127, max(1, int(round(I['svol'] * I['pk'] * rel * X.GAIN.get(sid, 1.0)))))
-                stop(ch, t0)
                 q = I['q'].astype(float); st = I['steps'][n - 1] / 65536.0
                 ln = int((len(q) - 1) / st); idx = np.arange(ln) * st
-                w = np.interp(idx, np.arange(len(q)), q) * vol / 64.0
-                cur[ch] = (t0, w, panf(o, ri, ch, i, n))
+                w = np.interp(idx, np.arange(len(q)), q) * vol / 64.0; b = panf(o, ri, ch, i, n)
+                declick(ch, t0, w, b); stop(ch, t0)
+                cur[ch] = (t0, w, b)
         pos += rowsec * M
 for ch in list(cur): stop(ch, total)
-y = np.stack([accL, accR], 1) / 4.0                                   # the mixer's >>2, then each side clipped to 8 bits like the FIFOs
-peak = np.abs(y).max(); clipped = (np.abs(y) > 127).mean() * 100
-y = np.clip(np.round(y), -128, 127)
-print("duration %.1f s  peak %.0f/127  rms %.1f  clipped samples %.3f%%  (stereo)" % (len(y) / M, peak, np.sqrt((y ** 2).mean()), clipped))
+y = np.floor(np.stack([accL, accR], 1) / 4.0)                         # the mixer's >>2, then the soft limit to the 8-bit range (main.c: softClip)
+peak = np.abs(y).max(); clipped = (np.abs(y) > 96).mean() * 100
+d = np.maximum(y - 96, 0); e = np.maximum(-96 - y, 0)
+y = np.where(y > 96, 96 + np.floor(d * 31 / (d + 31)), np.where(y < -96, -96 - np.floor(e * 32 / (e + 32)), y))
+print("duration %.1f s  peak %.0f/127  rms %.1f  samples in the soft limit %.3f%%  (stereo)" % (len(y) / M, peak, np.sqrt((y ** 2).mean()), clipped))
 w = wave.open(out, 'wb'); w.setnchannels(2); w.setsampwidth(2); w.setframerate(M); w.writeframes((y * 256).astype('<i2').tobytes()); w.close()

@@ -101,7 +101,7 @@ static int nbGo(int i){   // make lot i the live map. 1 = done (nbErr says why n
     if(L->slot>=0){ slScan(); if(slOwner[L->slot]==L->slot&&slI[L->slot].kind==SLK_HOUSE) ok=(houseLoad(L->slot)==SLE_OK); if(!ok) L->slot=-1; }
     if(!ok) nbTemplate(i);
     ldShow("SAVING THE TOWN",2,3);
-    nbT.cur=(u8)i; nbBounds(); nbSave(); return 1;
+    nbT.cur=(u8)i; nbBounds(); nbSave(); twKeep=0; return 1;   // (another lot: other passers-by)
 }
 
 // ---------- the town on the save chip ----------

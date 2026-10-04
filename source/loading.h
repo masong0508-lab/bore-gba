@@ -4,7 +4,7 @@
 // Needs before it: REG_DISPCNT, rect, text, tw, box, present, numStr, GOLD, SW, SH. Costs one frame (vsync) per call.
 // The game's display mode has WINDOW 0 on (house.h): outside the window only what WINOUT allows shows, and before the first game
 // frame sets those registers that is NOTHING, so a loading screen drawn then stays invisible (pure black). ldShow switches the
-// window off (plain mode 3 bitmap) and remembers the old mode; ldEnd puts it back.
+// window off (plain mode 3 bitmap) and remembers the old mode; ldEnd puts it back (with a full-screen window, so no black gap).
 static u16 ldKeep;   // the display mode ldShow found with the window on (0 = nothing to put back)
 static void ldShow(const char*msg,int done,int total){
     { u16 d=REG_DISPCNT; if(d&0x2000){ ldKeep=d; REG_DISPCNT=0x0403; } }
@@ -19,4 +19,8 @@ static void ldShow(const char*msg,int done,int total){
     text(120-tw("PLEASE WAIT",1)/2,101,"PLEASE WAIT",DIMC,1);
     present();
 }
-static void ldEnd(void){ if(ldKeep){ REG_DISPCNT=ldKeep; ldKeep=0; } }
+static void winFull(void){   // window 0 over the whole screen with the game's settings, so turning the game's mode on never blacks out the
+    *(volatile u16*)0x04000040=240; *(volatile u16*)0x04000044=160;   // picture (the first game frame narrows it to the room view, house.h)
+    *(volatile u16*)0x04000048=0x34; *(volatile u16*)0x0400004A=0x04;
+}
+static void ldEnd(void){ if(ldKeep){ winFull(); REG_DISPCNT=ldKeep; ldKeep=0; } }   // the loading screen stays up until the game's first frame replaces it
