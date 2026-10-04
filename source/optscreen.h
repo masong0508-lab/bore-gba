@@ -1,6 +1,7 @@
-// optscreen.h - the OPTIONS screen (settingsScreen). Eight pages, every row is one choice or one action.
+// optscreen.h - the OPTIONS screen (settingsScreen). Eight pages, every row is one choice or one action. TIME is made of three sections (DAY, AGES, TIMERS).
 //
 //   L / R  change page        UP / DOWN  pick a row        LEFT / RIGHT (or A)  change it
+//   TIME page: UP from its top row (or DOWN from its last) puts the cursor on the section strip, LEFT / RIGHT switch section, DOWN goes back
 //   SELECT  put the row back to its normal value           B or START  back (everything is saved)
 //   A gold dot on the right of a row means it is not at its normal value.
 //
@@ -46,25 +47,32 @@ static const OptRow pgVideo[]={
 static const OptRow pgPlay[]={
  XR(XO_NEED,"NEEDS",lbNeed,"HOW FAST REST CLEAN AND COMFY RUN DOWN","OFF FREEZES THEM  BRUTAL IS TWICE AS FAST"),
  XR(XO_HUNGER,"FOOD AND WC",lbHunger,"HOW FAST HUNGER AND THE BLADDER BUILD","OFF MEANS NO ACCIDENTS AND NO FAINTING"),
- XR(XO_DAY,"DAY LENGTH",lbDay,"REAL MINUTES IN ONE GAME DAY  STOPPED","FREEZES THE CLOCK  SLEEP NO LONGER SKIPS TIME"),
  XR(XO_JOB,"CAREER",lbOnOff,"OFF REMOVES SHIFTS QUOTAS PAY AND BILLS","A FREE PLAY LIFE WITH NO WORK"),
  XR(XO_QUOTA,"JOB QUOTA",lbQuota,"TRICK POINTS NEEDED IN A SHIFT","EASY 60  NORMAL 100  HARD 150  INSANE 200"),
  XR(XO_BILLS,"BILLS",lbBills,"WHAT THE BILL AT MIDNIGHT COSTS","NONE  HALF  NORMAL  OR DOUBLE"),
  XR(XO_SCORE,"SCORE",lbScore,"MULTIPLIES EVERY TRICK AND GRIND SCORE","QUOTAS AND PAY FOLLOW THE SCORE"),
- XR(XO_COMBO,"COMBO WINDOW",lbCombo,"TIME YOU HAVE TO LAND THE NEXT TRICK","BEFORE THE CHAIN IS BANKED"),
  XR(XO_SPEED,"TOP SPEED",lbSpeed,"HOW FAST YOU WALK RUN AND SKATE","80 TO 150 % OF NORMAL"),
  XR(XO_FREEWILL,"FREE WILL",lbFree,"SIMS YOU DO NOT CONTROL LOOK AFTER","THEMSELVES  LOW WAITS LONGER  OFF STANDS"),
- XR(XO_PIPEAGE,"PIPE AGE",lbPipe,"WHO MAY USE THE WATER PIPE  LATE TEENS IS","THE LAST QUARTER OF THE TEEN YEARS (AGES)"),
  XR(XO_MOODFX,"MOOD EFFECTS",lbOnOff,"SAD SLOWS YOU  STOKED SPEEDS YOU UP AND MOOD","CHANGES TRICK POINTS  OFF IGNORES MOOD"),
  XR(XO_HURT,"HURT",lbHurt,"GENTLE HALVES FALL DAMAGE","NO DEATH MEANS A FALL CAN NEVER KILL"),
  XR(XO_AUTOSAVE,"AUTO SAVE LIFE",lbOnOff,"SAVES AT MIDNIGHT PAYDAY AND THE PAUSE MENU","OFF  ONLY SLOTS AND SAVE LIFE NOW SAVE IT"),
 };
-static const OptRow pgAges[]={
+// ---- TIME: everything about time, in three sections (UP from the top row picks the section strip, LEFT / RIGHT switch it) ----
+static const OptRow pgTimeDay[]={
+ XR(XO_DAY,"DAY LENGTH",lbDay,"REAL MINUTES IN ONE GAME DAY  STOPPED","FREEZES THE CLOCK  SLEEP NO LONGER SKIPS TIME"),
+ XR(XO_CLOCK,"CLOCK",lbClock,"HOW THE GAME CLOCK IS SHOWN","24 HOUR  12 HOUR  OR HIDDEN"),
+};
+static const OptRow pgTimeAges[]={
  XR(XO_AGING,"AGING",lbAging,"OFF STAYS AT THE AGE YOU PICKED  SLOW DOUBLES","EVERY STAGE BELOW  FAST HALVES THEM"),
  XR(XO_AGEB,"BABY LASTS",lbDays,"GAME DAYS AS A BABY  THE ONE STAGE YOU","CANNOT STEER"),
  XR(XO_AGEC,"CHILD LASTS",lbDays,"GAME DAYS AS A CHILD","BEFORE GROWING INTO A TEEN"),
  XR(XO_AGET,"TEEN LASTS",lbDays,"GAME DAYS AS A TEEN","THE CAREER STARTS AT THIS STAGE"),
  XR(XO_AGEA,"ADULT LASTS",lbDaysA,"GAME DAYS AS AN ADULT BEFORE BECOMING AN","ELDER  FOREVER NEVER GROWS OLD"),
+ XR(XO_PIPEAGE,"PIPE AGE",lbPipe,"WHO MAY USE THE WATER PIPE  LATE TEENS IS","THE LAST QUARTER OF THE TEEN YEARS"),
+};
+static const OptRow pgTimeTimers[]={
+ XR(XO_COMBO,"COMBO WINDOW",lbCombo,"TIME YOU HAVE TO LAND THE NEXT TRICK","BEFORE THE CHAIN IS BANKED"),
+ XR(XO_TOAST,"MESSAGE TIME",lbToast,"HOW LONG POP UP MESSAGES STAY ON SCREEN","SHORT  NORMAL  LONG"),
 };
 static const OptRow pgAudio[]={
  VR(sSnd,2,1,"SOUND",lbOnOff,"SOUND OFF SKIPS SOUND DECODING","SAVES A LITTLE SPEED AND BATTERY"),
@@ -84,12 +92,10 @@ static const OptRow pgInput[]={
 };
 static const OptRow pgHud[]={
  VR(sHud,3,0,"INFO ON SCREEN",lbHud,"FULL SHOWS ALL  SLIM KEEPS SCORE AND BARS","OFF HIDES ALL OF IT  ALERTS STILL SHOW"),
- XR(XO_CLOCK,"CLOCK",lbClock,"HOW THE GAME CLOCK IS SHOWN","24 HOUR  12 HOUR  OR HIDDEN"),
  XR(XO_BUBBLE,"THOUGHT BUBBLE",lbBubble,"THE BUBBLE OVER YOUR HEAD","URGENT SHOWS ONLY NEEDS  ALL ADDS WANTS"),
  XR(XO_WANTS,"WANTS AND FEARS",lbShown,"THE WANT AND FEAR CELLS IN THE HUD","THEY STILL COUNT WHEN HIDDEN"),
  VR(sCam,4,1,"ACTION CAM",lbCam,"AFTER A BIG COMBO THE CAMERA ZOOMS AND SPINS","ALL 4 VIEWS  PICK HOW BIG A COMBO TRIGGERS IT"),
  XR(XO_ACCENT,"ACCENT COLOUR",accentNm,"COLOUR OF MENUS HEADINGS AND HUD NUMBERS","SEE IT CHANGE RIGHT HERE"),
- XR(XO_TOAST,"MESSAGE TIME",lbToast,"HOW LONG POP UP MESSAGES STAY ON SCREEN","SHORT  NORMAL  LONG"),
 };
 static const OptRow pgRooms[]={
  XR(XO_MINI,"EDITOR MINIMAP",lbOnOff,"THE SMALL MAP IN THE ROOM BUILDER","OFF GIVES A CLEARER VIEW"),
@@ -109,11 +115,21 @@ static const OptRow pgData[]={
  AR(OA_SRAMTEST,"SAVE MEMORY TEST","CHECKS THAT THIS CART OR EMULATOR KEEPS","SAVES  A GOOD FIRST TEST ON NEW HARDWARE"),
  AR(OA_RESET,"RESET ALL OPTIONS","PUTS EVERY OPTION BACK TO NORMAL","PRESS A"),
 };
-typedef struct { const char*nm; const OptRow*r; u8 n; } OptPage;
+typedef struct { const char*nm; const OptRow*r; u8 n; const char*d0; const char*d1; } OptSub;   // a section of a page with sections
+typedef struct { const char*nm; const OptRow*r; u8 n; const OptSub*sub; u8 ns; } OptPage;   // ns > 0: the page is made of sections (sub[]), r / n are unused
 #define NOPG 8
-#define PG(nm,t) {nm,t,(u8)(sizeof(t)/sizeof(t[0]))}
-static const OptPage optPages[NOPG]={ PG("VIDEO",pgVideo), PG("PLAY",pgPlay), PG("AGES",pgAges), PG("AUDIO",pgAudio), PG("INPUT",pgInput), PG("HUD",pgHud), PG("ROOMS",pgRooms), PG("DATA",pgData) };
-static int opPage; static u8 opSel[NOPG];
+#define PG(nm,t) {nm,t,(u8)(sizeof(t)/sizeof(t[0])),0,0}
+#define PGS(nm,t) {nm,0,0,t,(u8)(sizeof(t)/sizeof(t[0]))}
+#define SUB(nm,t,d0,d1) {nm,t,(u8)(sizeof(t)/sizeof(t[0])),d0,d1}
+static const OptSub timeSubs[]={
+ SUB("DAY",pgTimeDay,"HOW LONG A GAME DAY IS AND HOW THE","CLOCK SHOWS IT"),
+ SUB("AGES",pgTimeAges,"HOW FAST EVERY LIFE STAGE PASSES AND WHO","MAY USE THE WATER PIPE"),
+ SUB("TIMERS",pgTimeTimers,"HOW LONG THE COMBO CHAIN WAITS AND HOW","LONG POP UP MESSAGES STAY"),
+};
+static const OptPage optPages[NOPG]={ PG("VIDEO",pgVideo), PG("PLAY",pgPlay), PGS("TIME",timeSubs), PG("AUDIO",pgAudio), PG("INPUT",pgInput), PG("HUD",pgHud), PG("ROOMS",pgRooms), PG("DATA",pgData) };
+static int opPage, opFocus; static u8 opSel[NOPG][4], opSub[NOPG];   // opFocus: the cursor is on the section strip; opSel is kept per page and per section
+static const OptRow* pgRows(const OptPage*pg,int*n){ if(pg->ns){ const OptSub*u=&pg->sub[opSub[pg-optPages]]; *n=u->n; return u->r; } *n=pg->n; return pg->r; }
+static u8* pgSel(const OptPage*pg){ int i=(int)(pg-optPages); return &opSel[i][pg->ns?opSub[i]:0]; }
 
 static u8* rowVar(const OptRow*r){ return r->kind==OR_XO?&xo[r->idx]: r->v; }
 static int rowN(const OptRow*r){ return r->kind==OR_XO?xoCnt[r->idx]: r->n; }
@@ -162,7 +178,18 @@ static void drawOptions(void){
     for(int i=0;i<NOPG;i++){ int x=4+i*29;   // the page tabs
         if(i==opPage){ rect(x,4,28,10,GOLD); text(x+2,6,optPages[i].nm,RGB(4,3,6),1); } else text(x+2,6,optPages[i].nm,DIMC,1); }
     rect(6,15,228,1,RGB(10,12,16));
-    const OptPage*pg=&optPages[opPage]; int sel=opSel[opPage], y0=19, vis=11;
+    const OptPage*pg=&optPages[opPage]; int nr; const OptRow*rows=pgRows(pg,&nr); int sel=*pgSel(pg), y0=19, vis=11, foc=(pg->ns&&opFocus);
+    if(pg->ns){   // the section strip: DAY | AGES | TIMERS. UP from the top row puts the cursor on it, LEFT / RIGHT switch, DOWN goes back to the rows
+        int x=8, cs=opSub[opPage];
+        for(int u=0;u<pg->ns;u++){ const OptSub*su=&pg->sub[u]; int w=tw(su->nm,1)+12, on=(u==cs), chg=0;
+            for(int q=0;q<su->n;q++) if(rowChanged(&su->r[q])) chg=1;
+            rect(x,17,w,11,on?(foc?GOLD:RGB(10,13,19)):RGB(4,5,9));
+            if(on&&!foc) rect(x,27,w,1,GOLD);
+            text(x+6,19,su->nm,on?(foc?RGB(4,3,6):WHITE):DIMC,1);
+            if(chg) rect(x+w-4,19,2,2,(on&&foc)?RGB(4,3,6):GOLD);
+            x+=w+3; }
+        if(foc) text(x+4,19,"< >",GOLD,1);
+        y0=31; vis=9; }
     if(opPage==0){   // the speed meter: how much of the frame the picture needs. 60 / 30 / 20 marks show which frame rate it can hold.
         int cap=capLevel(), want=sFps+1, fill=sCost*100/(3*TICKS_FRAME); if(fill>100) fill=100;
         u16 mc=cap==1?heat[0]:cap<=2?heat[1]:heat[2];
@@ -174,14 +201,14 @@ static void drawOptions(void){
         else { text(168,19,cap==1?"HOLDS 60 FPS":cap==2?"HOLDS 30 FPS":cap==3?"HOLDS 20 FPS":"HOLDS 15 FPS",heat[0],1); text(168,26,sTunedMsg?"TUNED FOR YOU":"SMOOTH",sTunedMsg?heat[0]:DIMC,1); }
         y0=37; vis=9;
     }
-    int top=sel-vis/2; if(top>pg->n-vis) top=pg->n-vis; if(top<0) top=0;
-    for(int n=0;n<vis&&top+n<pg->n;n++){
-        int i=top+n, y=y0+n*9; const OptRow*r=&pg->r[i];
-        if(i==sel){ rect(8,y-2,212,9,RGB(6,16,8)); text(12,y,">",WHITE,1); }
-        text(20,y,r->nm,i==sel?WHITE:DIMC,1);
-        int ch=rowChanged(r); u16 vc=i==sel?WHITE:DIMC;
+    int top=sel-vis/2; if(top>nr-vis) top=nr-vis; if(top<0) top=0;
+    for(int n=0;n<vis&&top+n<nr;n++){
+        int i=top+n, y=y0+n*9; const OptRow*r=&rows[i]; int cs=(i==sel&&!foc);   // (no row is lit while the cursor is on the strip)
+        if(cs){ rect(8,y-2,212,9,RGB(6,16,8)); text(12,y,">",WHITE,1); }
+        text(20,y,r->nm,cs?WHITE:DIMC,1);
+        int ch=rowChanged(r); u16 vc=cs?WHITE:DIMC;
         if(opPage==0&&rowHeat(r)<3) vc=heat[rowHeat(r)];
-        else if(r->kind==OR_ACT){ int a=r->idx; vc=(a==OA_LIFEERASE||a==OA_ROOMERASE||a==OA_SLOTSERASE||a==OA_ALLERASE)?heat[2]:(i==sel?GOLD:DIMC); }
+        else if(r->kind==OR_ACT){ int a=r->idx; vc=(a==OA_LIFEERASE||a==OA_ROOMERASE||a==OA_SLOTSERASE||a==OA_ALLERASE)?heat[2]:(cs?GOLD:DIMC); }
         else if(r->kind==OR_XO&&r->idx==XO_ACCENT) vc=GOLD;
         else if(ch) vc=GOLD;
         if(r->lab==lbPct){ int lv=*rowVar(r); for(int k=0;k<10;k++) rect(124+k*5,y+1,4,5,k<lv?vc:RGB(6,8,13)); text(178,y,rowVal(r),vc,1); }   // slider: ten bars and the percent
@@ -189,9 +216,10 @@ static void drawOptions(void){
         if(ch) rect(214,y+1,3,3,GOLD);
     }
     if(top>0){ for(int k=0;k<3;k++) rect(227-k,y0+k,1+2*k,1,GOLD); }                              // more rows above
-    if(top+vis<pg->n){ for(int k=0;k<3;k++) rect(227-k,y0+vis*9-4+(2-k),1+2*k,1,GOLD); }        // more rows below
-    text(12,122,pg->r[sel].d0,WHITE,1); text(12,129,pg->r[sel].d1,DIMC,1);
-    text(12,139,"L R PAGE  UP DOWN ROW  LEFT RIGHT CHANGE",RGB(14,16,20),1);
+    if(top+vis<nr){ for(int k=0;k<3;k++) rect(227-k,y0+vis*9-4+(2-k),1+2*k,1,GOLD); }        // more rows below
+    if(foc){ const OptSub*su=&pg->sub[opSub[opPage]]; text(12,122,su->d0,WHITE,1); text(12,129,su->d1,DIMC,1); }
+    else{ text(12,122,rows[sel].d0,WHITE,1); text(12,129,rows[sel].d1,DIMC,1); }
+    text(12,139,foc?"LEFT RIGHT SECTION  DOWN ROWS  L R PAGE":pg->ns?"L R PAGE  UP DOWN ROW  UP AT TOP SECTION":"L R PAGE  UP DOWN ROW  LEFT RIGHT CHANGE",RGB(14,16,20),1);
     if(opPage==0){ text(12,148,"GREEN FAST",heat[0],1); text(68,148,"YELLOW MID",heat[1],1); text(124,148,"RED SLOW",heat[2],1); text(172,148,"B BACK",RGB(12,14,16),1); }
     else text(12,148,"SELECT RESETS ROW  B BACK  DOT = CHANGED",RGB(12,14,16),1);
 }
@@ -237,25 +265,32 @@ static void optAction(int a,int*remeasure){
 }
 
 static void settingsScreen(void){   // the OPTIONS screen (the name stays so every caller keeps working)
-    int dirty=1, remeasure=1, idle=0; u16 prev=keyNow(); tmStart(); sTunedMsg=0;
+    int dirty=1, remeasure=1, idle=0; u16 prev=keyNow(); tmStart(); sTunedMsg=0; opFocus=0;
     for(int i=0;i<24;i++) costCache[i]=0;
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k;
-        if(pr&(K_L|K_R)){ opPage=(opPage+((pr&K_R)?1:NOPG-1))%NOPG; dirty=1; if(opPage==0){ int c=costCache[costKey()]; if(c){ sCost=c; remeasure=0; } else remeasure=1; } }
-        const OptPage*pg=&optPages[opPage]; u8*sel=&opSel[opPage];
-        if(pr&K_DOWN){ *sel=(u8)((*sel+1)%pg->n); dirty=1; }
-        if(pr&K_UP){ *sel=(u8)((*sel+pg->n-1)%pg->n); dirty=1; }
-        const OptRow*r=&pg->r[*sel];
-        if(r->kind==OR_ACT){ if(pr&K_A){ optAction(r->idx,&remeasure); prev=keyNow(); dirty=1; } }
-        else {
-            int d=((pr&K_RIGHT)?1:0)-((pr&K_LEFT)?1:0); if(pr&K_A) d=1;
-            if(d) rowChange(r,d); else if(pr&K_SEL) { rowReset(r); d=1; }
-            if(d){ dirty=1; idle=0;
-                if(rowCostKey(r)){ int c=costCache[costKey()]; if(c){ sCost=c; remeasure=0; } else remeasure=1; } }
+        if(pr&(K_L|K_R)){ opPage=(opPage+((pr&K_R)?1:NOPG-1))%NOPG; opFocus=0; dirty=1; if(opPage==0){ int c=costCache[costKey()]; if(c){ sCost=c; remeasure=0; } else remeasure=1; } }
+        const OptPage*pg=&optPages[opPage]; int nr; const OptRow*rows=pgRows(pg,&nr); u8*sel=pgSel(pg);
+        if(pg->ns&&opFocus){   // on the section strip: LEFT / RIGHT (or A) switch the section, DOWN / UP go back to the rows
+            if(pr&(K_LEFT|K_RIGHT|K_A)){ opSub[opPage]=(u8)((opSub[opPage]+((pr&K_LEFT)?pg->ns-1:1))%pg->ns); dirty=1; }
+            if(pr&(K_DOWN|K_UP)){ opFocus=0; rows=pgRows(pg,&nr); sel=pgSel(pg); *sel=(pr&K_DOWN)?0:(u8)(nr-1); dirty=1; }
+        } else {
+            if(pr&K_DOWN){ if(pg->ns&&*sel==nr-1) opFocus=1; else *sel=(u8)((*sel+1)%nr); dirty=1; }
+            if(pr&K_UP){ if(pg->ns&&*sel==0) opFocus=1; else *sel=(u8)((*sel+nr-1)%nr); dirty=1; }
+            if(!opFocus){
+                const OptRow*r=&rows[*sel];
+                if(r->kind==OR_ACT){ if(pr&K_A){ optAction(r->idx,&remeasure); prev=keyNow(); dirty=1; } }
+                else {
+                    int d=((pr&K_RIGHT)?1:0)-((pr&K_LEFT)?1:0); if(pr&K_A) d=1;
+                    if(d) rowChange(r,d); else if(pr&K_SEL) { rowReset(r); d=1; }
+                    if(d){ dirty=1; idle=0;
+                        if(rowCostKey(r)){ int c=costCache[costKey()]; if(c){ sCost=c; remeasure=0; } else remeasure=1; } }
+                }
+            }
         }
         if(pr&(K_B|K_START)){ settingsSave(); R_TM2CNT=0; return; }
         if(dirty){ drawOptions(); present(); dirty=0; idle=0; }
         else { vsync(); if(remeasure&&opPage==0&&++idle>=20){ sCost=measureDraw(); costCache[costKey()]=(s16)sCost; remeasure=0; dirty=1; } }
     }
 }
-static const char* const optHelp[12]={">OPTIONS",">PAGES  L AND R","VIDEO  SPEED AND LOOKS   PLAY  THE LIFE SIM","AGES  HOW LONG EACH LIFE STAGE LASTS",">ROWS","UP DOWN PICK  LEFT RIGHT CHANGE","SELECT PUTS A ROW BACK TO NORMAL","A GOLD DOT MARKS A CHANGED ROW",">SAFE TO TRY","RESET ALL OPTIONS IS ON THE DATA PAGE","B OR START GOES BACK AND SAVES",""};
+static const char* const optHelp[12]={">OPTIONS",">PAGES  L AND R","VIDEO  SPEED AND LOOKS   PLAY  THE LIFE SIM","TIME  SECTIONS  UP AT THE TOP ROW PICKS ONE",">ROWS","UP DOWN PICK  LEFT RIGHT CHANGE","SELECT PUTS A ROW BACK TO NORMAL","A GOLD DOT MARKS A CHANGED ROW",">SAFE TO TRY","RESET ALL OPTIONS IS ON THE DATA PAGE","B OR START GOES BACK AND SAVES",""};

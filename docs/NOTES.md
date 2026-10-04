@@ -37,7 +37,7 @@ The picker rows skip what a stage cannot have, the block builder only places ins
 
 In the life: the **BABY cannot be steered**: it toddles about by itself and a caretaker keeps its needs up. Child, teen and elder walk slower than an adult; the career (shifts, quota, bills) is for TEEN and ADULT only (an elder is retired). At midnight the days in the stage count up and the creature grows to the next stage (a "NOW A CHILD" note, and its sprites are re-baked). ELDER is the last stage.
 
-**OPTIONS > AGES** (its own page): **AGING** (OFF / SLOW / NORMAL / FAST: slow doubles the days of every stage, fast halves them, off keeps the age you picked) and how many game days each stage lasts: **BABY** (default 2), **CHILD** (3), **TEEN** (3), **ADULT** (7, or FOREVER to never grow old); each is 1, 2, 3, 5, 7, 10, 14, 21, 30 or 60 days. The stage is saved in the person (room slot format 2; format 1 slots load as adults) and also in SRAM at 5008 so growth survives a power cycle.
+**OPTIONS > TIME > AGES** (a section of the TIME page): **AGING** (OFF / SLOW / NORMAL / FAST: slow doubles the days of every stage, fast halves them, off keeps the age you picked) and how many game days each stage lasts: **BABY** (default 2), **CHILD** (3), **TEEN** (3), **ADULT** (7, or FOREVER to never grow old); each is 1, 2, 3, 5, 7, 10, 14, 21, 30 or 60 days. The stage is saved in the person (room slot format 2; format 1 slots load as adults) and also in SRAM at 5008 so growth survives a power cycle.
 
 ## Main menu, room builder, settings
 Boot goes title -> **main menu** (PLAY, MAKE CREATURE, BUILD ROOM, JUKEBOX, SETTINGS, HOW TO PLAY). "MAIN MENU" is the last entry in the creature part list and in the pause menu.
@@ -55,7 +55,7 @@ Boot goes title -> **main menu** (PLAY, MAKE CREATURE, BUILD ROOM, JUKEBOX, SETT
 - RESET ALL
 
 ## Options (the SETTINGS screen, rebuilt)
-Main menu -> **OPTIONS** (also in the pause menu and the map menu). Eight pages: **VIDEO** (the old settings: preset, auto tune, frame rate, walls, wallpaper, floors, shadows, performance info, ROM speed), **PLAY**, **AGES**, **AUDIO**, **INPUT**, **HUD**, **ROOMS**, **DATA**.
+Main menu -> **OPTIONS** (also in the pause menu and the map menu). Eight pages: **VIDEO** (the old settings: preset, auto tune, frame rate, walls, wallpaper, floors, shadows, performance info, ROM speed), **PLAY**, **TIME**, **AUDIO**, **INPUT**, **HUD**, **ROOMS**, **DATA**.
 | Key | Action |
 |---|---|
 | L / R | change page |
@@ -64,10 +64,11 @@ Main menu -> **OPTIONS** (also in the pause menu and the map menu). Eight pages:
 | Select | put the row back to its normal value |
 | B / Start | back (everything is saved) |
 A gold dot marks a row that is not at its normal value. The row under the cursor explains itself in two lines.
-- **PLAY**: NEEDS (off to brutal), FOOD AND WC, DAY LENGTH (3 / 6 / 12 / 24 min or stopped), CAREER on/off (off = no shifts, quota or bills), JOB QUOTA, BILLS, SCORE multiplier (x0.5 to x3), COMBO WINDOW, TOP SPEED (80 to 150 %), MOOD EFFECTS, HURT (normal / gentle / no death), AUTO SAVE LIFE.
+- **PLAY**: NEEDS (off to brutal), FOOD AND WC, CAREER on/off (off = no shifts, quota or bills), JOB QUOTA, BILLS, SCORE multiplier (x0.5 to x3), TOP SPEED (80 to 150 %), MOOD EFFECTS, HURT (normal / gentle / no death), AUTO SAVE LIFE, FREE WILL. (PIPE AGE moved to TIME > AGES.)
+- **TIME**: everything about time, in three sections. UP from the top row (or DOWN from the last row) puts the cursor on the section strip, LEFT / RIGHT (or A) switch section, DOWN or UP goes back to the rows. A gold dot on a section tab means a row inside it is not at its normal value. **DAY**: DAY LENGTH (3 / 6 / 12 / 24 min or stopped), CLOCK (24 h / 12 h / hidden). **AGES**: AGING plus BABY / CHILD / TEEN / ADULT LASTS (see Life stages) and PIPE AGE. **TIMERS**: COMBO WINDOW (1.5 to 6 s) and MESSAGE TIME.
 - **AUDIO**: SOUND, SFX VOLUME, MUSIC VOLUME, **GAME MUSIC** (off by default: random checked jukebox songs play while you play, another starts when one ends, it fades to half volume while the pause menu (or anything opened from it) is up, and sound effects play over the music; mixing runs in an interrupt, so it costs some speed on slow devices), TITLE MUSIC, **MENU MUSIC** (on by default: a random checked jukebox song plays in the main menus, see **Jukebox**).
 - **INPUT**: BUTTONS (swap A/B, L/R or both, on every screen), CURSOR REPEAT speed of the editor, BUTTON TEST (shows the keys the game sees).
-- **HUD**: INFO ON SCREEN, CLOCK (24 h / 12 h / hidden), THOUGHT BUBBLE, WANTS AND FEARS, ACTION CAM, ACCENT COLOUR (gold, mint, sky, pink, orange, lilac), MESSAGE TIME.
+- **HUD**: INFO ON SCREEN, THOUGHT BUBBLE, WANTS AND FEARS, ACTION CAM, ACCENT COLOUR (gold, mint, sky, pink, orange, lilac).
 - **ROOMS**: EDITOR MINIMAP, SAVE ON EXIT, ASK BEFORE RESET, SLOTS SAVE (room / room + person / all three), ASK IN SLOTS, SAVE MAP TO SLOT, BOOT LOADS PERSON.
 - **DATA**: SAVE LIFE NOW, ERASE LIFE, ERASE SAVED MAP, ERASE ALL SLOTS, ERASE EVERYTHING (main menu only, asks twice), SAVE MEMORY TEST (checks the cart or emulator keeps saves), RESET ALL OPTIONS.
 
@@ -98,7 +99,7 @@ Walls are drawn like The Sims: a wall tile is a **thin, tall panel** (24 px, 3 b
   - **LAVA LAMP** ('V'): purple fluid with orange blobs. It counts toward a nicer room.
   - **BEANBAG** ('U'): four turns. It works as a sofa for COMFY, for you and for free will.
 - **Using the pipe** (R next to it):
-  - **Who can use it:** grown-ups, and late teens when **OPTIONS > PLAY > PIPE AGE** is LATE TEENS (the default; ADULTS ONLY turns it off). "Late" is the last quarter of the teen stage in whole days, so it follows OPTIONS > AGES (TEEN LASTS) and the AGING speed. For example, a 7-day teen stage at NORMAL opens it on days 6 and 7; with aging OFF or FOREVER a teen never gets there. A teen who is too young sees "NOT OLD ENOUGH YET", children "GROWN-UPS ONLY". The rule also covers the want and PUFF PUFF PASS. Household members keep no day count, so they still need to be adults.
+  - **Who can use it:** grown-ups, and late teens when **OPTIONS > TIME > AGES > PIPE AGE** is LATE TEENS (the default; ADULTS ONLY turns it off). "Late" is the last quarter of the teen stage in whole days, so it follows OPTIONS > TIME > AGES (TEEN LASTS) and the AGING speed. For example, a 7-day teen stage at NORMAL opens it on days 6 and 7; with aging OFF or FOREVER a teen never gets there. A teen who is too young sees "NOT OLD ENOUGH YET", children "GROWN-UPS ONLY". The rule also covers the want and PUFF PUFF PASS. Household members keep no day count, so they still need to be adults.
   - **CHILLED OUT** for two game hours: a mood boost (M_CHILL) and +1 STYLE, so tricks score more.
   - **The munchies:** hunger drains twice as fast until it wears off.
 - **PUFF PUFF PASS:** a new social interaction for two grown-ups when the house has a water pipe. Free will uses it too. If you are in it, you chill out as well.
@@ -174,7 +175,7 @@ The GBA has 256 KB of EWRAM and 32 KB of IWRAM. Every GitHub build prints the nu
 | 4992 | active room slot |
 | 5008 | life stage and days in it |
 | 5024 | persona: aspiration, lifetime want, traits, DNA, unlocked parts |
-| 5056 | jukebox song on / off flags (playlist check boxes) |
+| 5056 | jukebox song on / off flags (check boxes), unlock bits (5072), play mode (5076) |
 | 5136 | the life (`sims.h`) |
 | 5200 | 16 spare bytes for SAVE MEMORY TEST |
 | 5216 | the household (up to 13 more Sims, `house.h`, format 'H6'; 2048 bytes reserved; 'H5' households load too) |
@@ -320,20 +321,20 @@ Strings in C may hold the characters directly (UTF-8): `text()` decodes them, an
 To change or add glyphs: edit the mark shapes, the glyph lists (`MARKED`, `LIGS`, `SMALL`) in `tools/font_ext.py`, run `python3 tools/make_font.py --extend` (it rebuilds every non-ASCII glyph from the plain ones, so the original glyphs are never touched) and commit `assets/font/` and `source/fontdata.h`. The `{code point, letter}` fallback table is generated from Unicode.
 
 ## Jukebox
-The **MUSIC PLAYER** (main menu -> JUKEBOX) has two tabs, switched with **L** and **R**:
-- **INTERACTIVE**: pick any song and play it; when it ends the next song on the list plays.
-- **PLAYLIST**: every song has a check box. **Only checked songs are ever picked at random**: when the jukebox opens, in the main menus (MENU MUSIC), for GAME MUSIC, and when a playlist song ends. SELECT checks / unchecks the song under the cursor. With nothing checked every song counts.
+The **MUSIC PLAYER** (main menu -> JUKEBOX) is one screen: a title bar (how many songs are checked, volume), a **NOW PLAYING card** (state, play mode, song, artist, elapsed / total time, progress bar, equalizer) and one song list. Each row shows a **check box**, the song name, its artist and its **length** (m:ss). **Only checked songs are ever picked at random**: when the jukebox opens, in the main menus (MENU MUSIC), for GAME MUSIC, and in SHUFFLE mode when a song ends. With nothing checked every song counts.
 
-**Opening the jukebox plays ONE random checked song** (never the one picked last) and puts the cursor on it. The list shows each song with its artist; a name too long for its column is cut with `..` and scrolls on the cursor row. Volume is the MUSIC VOLUME option (LEFT / RIGHT change it here too).
+**Opening the jukebox plays ONE random checked song** (never the one picked last) and puts the cursor on it. A name too long for its column is cut with `..` and scrolls on the cursor row. Volume is the MUSIC VOLUME option (LEFT / RIGHT change it here too).
 | Key | Action |
 |---|---|
 | Up / Down | move the cursor (hold to scroll a long list) |
-| A | play the song under the cursor |
-| L / R | INTERACTIVE / PLAYLIST tab |
-| Select | PLAYLIST tab: song on / off (the check box) |
+| A | play the song under the cursor; A on the song that is playing stops it |
+| L / R | previous song (the ones played before, else the one above) / next song (by the mode) |
+| Select | check / uncheck the song (the check box) |
+| Start | play mode: **SHUFFLE** (random checked song) -> **IN ORDER** (next checked song down the list) -> **REPEAT** (same song) |
 | Left / Right | music volume: quieter / louder |
-| Start | stop, or play the song under the cursor |
 | B | back to the menu |
+
+The play mode is saved in SRAM at 5076 (`'M'`, mode, mode xor 0x5A, inside the 80-byte jukebox block). **Song lengths** are worked out from the song data, never stored: a tracker song is the rows of its whole order list x samples per row, a streamed song is its sample count (x 3/2 when stored at 2/3 rate), all at 18157 Hz, rounded to the nearest second (`jbSecs()` in main.c). The elapsed time uses the same maths on the main deck's position.
 
 **Menu music.** Whenever a main menu is open one random checked song plays (OPTIONS > AUDIO > MENU MUSIC, on by default). It carries on through the quiet screens (OPTIONS, ROOM SLOTS, HOW TO PLAY) and stops when PLAY, MAKE CREATURE, BUILD ROOM or the jukebox opens; back at the menu a NEW random song starts. When a song ends, another random one follows.
 

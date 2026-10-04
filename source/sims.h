@@ -254,7 +254,7 @@ static int simWishes(void){ return stage!=AG_BABY; }   // babies have no wants o
 
 // ---- rolling wants and fears ----
 // ---- the water pipe: grown-ups, and (OPTIONS > PLAY > PIPE AGE: LATE TEENS) a teen in the last quarter of the teen stage. How long that
-// stage is comes from OPTIONS > AGES (TEEN LASTS, scaled by AGING), so the quarter moves with it: with aging OFF or FOREVER a teen never
+// stage is comes from OPTIONS > TIME > AGES (TEEN LASTS, scaled by AGING), so the quarter moves with it: with aging OFF or FOREVER a teen never
 // gets there. ----
 static int pipeTeenOk(void){
     static const u8 pct[4]={0,200,100,50};
@@ -546,7 +546,7 @@ static void simShiftEnd(void){   // 17:00 on a workday
     simEventV(SE_CASH,simMoney);
     shiftPts=0; simsSave();
 }
-static void ageTick(void){   // once per game day: each stage lasts the days set on OPTIONS > AGES (the AGING option scales them); the life loop does the growing
+static void ageTick(void){   // once per game day: each stage lasts the days set on OPTIONS > TIME > AGES (the AGING option scales them); the life loop does the growing
     static const u8 pct[4]={0,200,100,50};
     if(stage>=AG_ELDER||!xo[XO_AGING]||!oStageDays(stage)) return;   // an elder is the last stage; OFF or FOREVER never grows
     int need=oStageDays(stage)*pct[xo[XO_AGING]]/100; if(need<1) need=1;

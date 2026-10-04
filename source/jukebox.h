@@ -1,14 +1,15 @@
 // jukebox.h - which songs the jukebox, the menus and the game music may play, and picking one at random. No hardware in here
 // (the player and screen live in main.c). Needs before it: u8 / u16, rnd8(), SRAM_BASE.
 //
-// Every song has an on/off flag: the check box in the jukebox's PLAYLIST tab. Only songs that are ON are picked at random: when the jukebox opens,
-// when a main menu opens, when a playlist song ends, and for GAME MUSIC. The flags are saved in SRAM (JB_OFF). Songs added at the END of songs.h
+// Every song has an on/off flag: the check box on its row in the jukebox. Only songs that are ON are picked at random: when the jukebox opens,
+// when a main menu opens, when a song ends in SHUFFLE mode, and for GAME MUSIC. The flags are saved in SRAM (JB_OFF). Songs added at the END of songs.h
 // come in switched on; the saved flags are dropped (everything on again) only if the songs in front of them changed.
 #define JB_MAX 64          // most songs the jukebox can hold (the flags need one bit each; songs.h may list up to this many, secret ones included)
 #define JB_OFF 5056        // SRAM block: 'J' 'B' '3', song count, hash of the song names (2 bytes), then one bit per song (1 = on). 14 bytes of the 80 reserved (slots.h)
 static u8 jbMap[JB_MAX];   // visible song number -> index into songs[] (hides the placeholder tunes and the secret ones)
 static u8 jbOn[JB_MAX];    // by songs[] index: 1 = may be picked at random
 static int jbN, jbAll;     // visible songs, songs in songs[]
+static u8 jbMode;              // play mode: 0 SHUFFLE (random checked song), 1 IN ORDER (next checked song down the list), 2 REPEAT. Saved at JB_OFF+20: 'M', mode, mode xor 0x5A
 static u8 jbUl;                // unlocked songs (unlocks.h): a set bit = unlocked. Saved at JB_OFF+16: 'U' 'L', the bits, the bits xor 0x5A
 static u16 (*jbHashFn)(int);   // hash of the names of the first n songs (main.c): tells whether the saved flags still belong to this song list
 
@@ -26,6 +27,8 @@ static void jbInit(int nAll,int nVis,u16 (*hash)(int)){   // call at boot (and a
 }
 static void jbUlSave(void){ volatile u8*m=SRAM_BASE+JB_OFF; m[16]='U'; m[17]='L'; m[18]=jbUl; m[19]=(u8)(jbUl^0x5A); }
 static void jbUlLoad(void){ volatile u8*m=SRAM_BASE+JB_OFF; jbUl=(m[16]=='U'&&m[17]=='L'&&(u8)(m[18]^0x5A)==m[19])?m[18]:0; }
+static void jbModeSave(void){ volatile u8*m=SRAM_BASE+JB_OFF; m[20]='M'; m[21]=jbMode; m[22]=(u8)(jbMode^0x5A); }
+static void jbModeLoad(void){ volatile u8*m=SRAM_BASE+JB_OFF; jbMode=(m[20]=='M'&&m[21]<3&&(u8)(m[21]^0x5A)==m[22])?m[21]:0; }
 static int jbOnVis(int v){ return jbOn[jbMap[v]]; }
 static int jbCount(void){ int c=0; for(int i=0;i<jbN;i++) c+=jbOnVis(i); return c; }
 static void jbToggle(int v){ jbOn[jbMap[v]]^=1; jbSave(); }

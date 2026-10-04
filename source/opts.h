@@ -44,7 +44,7 @@ enum {
     XO_SLOTCONT,  // what a slot saves: ROOM, ROOM + PERSON, ALL (room, person, life)
     XO_SLOTBOOT,  // at power on, the person of the active slot is loaded (the creature is not kept anywhere else)
     XO_AGING,     // how fast the life stages pass: OFF SLOW NORMAL FAST (slow doubles the days of every stage, fast halves them)
-    XO_AGEB,      // OPTIONS > AGES: days as a BABY  (see oStageDays)
+    XO_AGEB,      // OPTIONS > TIME > AGES: days as a BABY  (see oStageDays)
     XO_AGEC,      // days as a CHILD
     XO_AGET,      // days as a TEEN
     XO_AGEA,      // days as an ADULT (the last choice is FOREVER: never grows old)
