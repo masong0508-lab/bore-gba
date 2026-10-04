@@ -95,13 +95,13 @@ static int nbGo(int i){   // make lot i the live map. 1 = done (nbErr says why n
     if(nbT.cur==i) return 1;
     box(60,64,120,24); text(76,72,"MOVING...",WHITE,1); present();
     ldShow("SAVING THE LOT YOU LEAVE",0,3);
-    if(nbT.cur<NB_LOTS&&nbT.lot[nbT.cur].on){ int e=nbStore(nbT.cur); if(e){ nbErr=e==SLE_NOROOM?"NO FREE SLOTS FOR THIS LOT":slErrMsg(e); return 0; } }
+    if(nbT.cur<NB_LOTS&&nbT.lot[nbT.cur].on){ int e=nbStore(nbT.cur); if(e){ nbErr=e==SLE_NOROOM?"NO FREE SLOTS FOR THIS LOT":slErrMsg(e); ldEnd(); return 0; } }
     ldShow("OPENING THE NEW LOT",1,3);
     NbLot*L=&nbT.lot[i]; int ok=0;
     if(L->slot>=0){ slScan(); if(slOwner[L->slot]==L->slot&&slI[L->slot].kind==SLK_HOUSE) ok=(houseLoad(L->slot)==SLE_OK); if(!ok) L->slot=-1; }
     if(!ok) nbTemplate(i);
     ldShow("SAVING THE TOWN",2,3);
-    nbT.cur=(u8)i; nbBounds(); nbSave(); twKeep=0; return 1;   // (another lot: other passers-by)
+    nbT.cur=(u8)i; nbBounds(); nbSave(); twKeep=0; ldEnd(); return 1;   // (another lot: other passers-by)   // (ldEnd: the loading screen is over, the music may come back)
 }
 
 // ---------- the town on the save chip ----------
@@ -454,11 +454,11 @@ static int nbSwitch(int s){   // make the town in slot s the one you live in (yo
     if(nbTS==s&&nbT.NB_ACT) return 1;
     if(nbLoad()){ if(nbT.cur<NB_LOTS&&nbT.lot[nbT.cur].on){ box(60,64,120,24); text(76,72,"PACKING UP...",WHITE,1); present();
             ldShow("PACKING UP YOUR LOT",0,3);
-            int e=nbStore(nbT.cur); if(e){ nbErr=e==SLE_NOROOM?"NO FREE SLOTS FOR YOUR LOT":slErrMsg(e); return 0; } }
+            int e=nbStore(nbT.cur); if(e){ nbErr=e==SLE_NOROOM?"NO FREE SLOTS FOR YOUR LOT":slErrMsg(e); ldEnd(); return 0; } }
         nbT.NB_ACT=0; nbSave(); }
-    if(!nbRead(s,&nbT)){ nbErr="THAT TOWN IS DAMAGED"; nbLoad(); return 0; }
+    if(!nbRead(s,&nbT)){ nbErr="THAT TOWN IS DAMAGED"; nbLoad(); ldEnd(); return 0; }
     nbTS=s; int want=nbT.cur<NB_LOTS&&nbT.lot[nbT.cur].on?nbT.cur:nbT.home; nbT.cur=255; nbT.NB_ACT=1;
-    if(!nbGo(want)){ nbSave(); return 0; }
+    if(!nbGo(want)){ nbSave(); ldEnd(); return 0; }
     return 1;
 }
 static void nbChooserDraw(const int*l,int n,int sel,int act){

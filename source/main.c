@@ -1174,7 +1174,8 @@ IWRAM_THUMB static void drawScene(int blink){
     drawEars(1); drawTail(1); drawWings(1); drawHorns(1); drawAntennae();
 }
 static volatile int mWantOff; static void audIdleStop(void);   // set by the mixer interrupt when nothing is left to play: vsync() then switches it off
-static void vsync(void){ while(REG_VCOUNT>=160); while(REG_VCOUNT<160); if(mWantOff) audIdleStop(); svTick(); }
+static void ldTick(void);   // loading.h: once per frame, lets the music come back after a loading screen
+static void vsync(void){ while(REG_VCOUNT>=160); while(REG_VCOUNT<160); if(mWantOff) audIdleStop(); svTick(); ldTick(); }
 static void present(void){
     vsync();
     REG_DMA3SAD=(u32)(uintptr_t)fb; REG_DMA3DAD=VRAM_ADDR;
@@ -1309,20 +1310,22 @@ __asm__(".pushsection .rodata\n.balign 4\n"
  ".global sfx_cry\nsfx_cry:\n.incbin \"source/sfx/cry.adp\"\n.balign 4\n"
  ".global sfx_groan\nsfx_groan:\n.incbin \"source/sfx/groan.adp\"\n.balign 4\n"
  ".global sfx_instant\nsfx_instant:\n.incbin \"source/sfx/instant.adp\"\n.balign 4\n"
+ ".global sfx_tick\nsfx_tick:\n.incbin \"source/sfx/tick.adp\"\n.balign 4\n"
  ".popsection\n");
-extern const u8 sfx_hit[],sfx_gasp[],sfx_scream[],sfx_cry[],sfx_groan[],sfx_instant[];
-enum { SFX_BONK, SFX_HIT, SFX_GASP, SFX_SCREAM, SFX_CRY, SFX_GROAN, SFX_NEARLY, SFX_DEATH, SFX_INSTANT, SFX_N };
+extern const u8 sfx_hit[],sfx_gasp[],sfx_scream[],sfx_cry[],sfx_groan[],sfx_instant[],sfx_tick[];
+enum { SFX_BONK, SFX_HIT, SFX_GASP, SFX_SCREAM, SFX_CRY, SFX_GROAN, SFX_NEARLY, SFX_DEATH, SFX_INSTANT, SFX_TICK, SFX_N };
 // effects that share a source file share one blob in the ROM
-static const u8* const sfxTab[SFX_N]={ sfx_hit,sfx_hit,sfx_gasp,sfx_scream,sfx_cry,sfx_groan,sfx_scream,sfx_scream,sfx_instant };
+static const u8* const sfxTab[SFX_N]={ sfx_hit,sfx_hit,sfx_gasp,sfx_scream,sfx_cry,sfx_groan,sfx_scream,sfx_scream,sfx_instant,sfx_tick };
 static const u16 stepT[89]={7,8,9,10,11,12,13,14,16,17,19,21,23,25,28,31,34,37,41,45,50,55,60,66,73,80,88,97,107,118,130,143,157,173,190,209,230,253,279,307,337,371,408,449,494,544,598,658,724,796,876,963,1060,1166,1282,1411,1552,1707,1878,2066,2272,2499,2749,3024,3327,3660,4026,4428,4871,5358,5894,6484,7132,7845,8630,9493,10442,11487,12635,13899,15289,16818,18500,20350,22385,24623,27086,29794,32767};
 static const signed char idxT[8]={-1,-1,-1,-1,2,4,6,8};
 // The effect voice: ssrc/sn = the clip's nibbles and sample count, sPos + sFr/65536 = play position in clip samples, sRd = samples decoded so far,
 // sS0/sS1 = the two decoded samples around sPos (for interpolation), spred/sidx = the ADPCM decoder. sfxV is cleared by the mixer at the end.
 static const u8 *ssrc; static u32 sn, sPos, sFr, sRd; static int spred, sidx, sS0, sS1, sfxOn; static volatile int sfxV;
+static volatile int sfxLoop, sfxFade=256, sfxFadeT=256;   // the effect voice can LOOP (the loading tick-tock) and has its own fade: sfxFade glides to sfxFadeT a little every frame (256 = full); a looping voice that has faded to 0 ends itself
 static int gMusic;   // game music is switched on right now (an effect now plays over it instead of pausing it)
 static volatile int mOn, mPlay;   // mOn: the mixer interrupts and sound DMA are running; mPlay: a song is part of the mix
 static void audStart(void); static void audStop(void);
-static void sfxStop(void){ sfxV=0; sfxOn=0; if(mOn&&!mPlay) audStop(); }
+static void sfxStop(void){ if(sfxLoop&&sfxV){ sfxFadeT=0; return; } sfxV=0; sfxOn=0; if(mOn&&!mPlay) audStop(); }   // (the loading tick-tock is never cut: it fades out and ends itself)
 // ---------- tracker songs: note-based XM player (tools/xm2gba.py converts the .xm songs listed in songs.h) ----------
 // A song is stored as notes (pattern/row/channel events, each with its own volume) plus small instrument samples (8-bit,
 // band-limited and down-sampled in the converter). A 16-voice stereo mixer (each note has a pan bus, see tools/xm2gba.py) with linear interpolation renders 304 samples per frame
@@ -1352,6 +1355,7 @@ static s8 mbufL[2][MUS_N] __attribute__((aligned(4))), mbufR[2][MUS_N] __attribu
 static s16 maccL[MUS_N], maccR[MUS_N];
 static s8 mDly[256] __attribute__((aligned(4))); static int mDp, mLp;   // pseudo-stereo for streamed songs: 256-sample (14 ms) delay line + a low-pass state that keeps the bass centred
 static int mOrd, mRow, mLeft, mFrac; static volatile int mCur, mFilled; static const XmSong*mSong;
+static volatile int ldG=256, ldGT=256; static volatile int ldHold, ldRel;   // LOADING: the song steps aside while a slow job runs (loading.h). ldG = its own gain (256 full) gliding to ldGT; at 0 the song is FROZEN, not mixed at all (that is the CPU the job gets back). ldHold = a song is stepped aside; ldRel = frames until it comes back
 static volatile int mGain=256, mGainT=256;   // music loudness 256 = full; mGain glides to mGainT a little every frame (half while a menu is open)
 static int mKind, aTail; static volatile int mLaps, mDone;   // mKind 0 = tracker song, 1 = streamed ADPCM; mLaps = times the tracker song has wrapped; mDone = ADPCM song finished
 static int aSlow, aPrv, aPh; static const u8 *aSrc; static u32 aN, aPos; static int aPred, aIdx;   // ADPCM stream: data, sample count, position, decoder state
@@ -1459,9 +1463,12 @@ IWRAM_CODE static void pseudoSt(s8*out,s8*outR){
     mDp=dp; mLp=lp;
 }
 IWRAM_CODE static void sfxMix(s8*outL,s8*outR){   // add the effect voice to a finished buffer (both sides), clipped
-    const u8*d=ssrc; u32 n=sn, ip=sPos, fr=sFr, rd=sRd; int pred=spred, idx=sidx, s0=sS0, s1=sS1, sgain=oSfxGain();   // SFX VOLUME and MASTER VOLUME options
+    int fg=sfxFade;   // the voice's own fade (loading tick-tock): 8/256 a frame up, 16/256 down
+    if(fg!=sfxFadeT){ fg+=(sfxFadeT>fg)?8:-16; if((sfxFadeT>sfxFade)?fg>sfxFadeT:fg<sfxFadeT) fg=sfxFadeT; sfxFade=fg;
+        if(fg==0&&sfxFadeT==0&&sfxLoop){ sfxV=0; sfxLoop=0; return; } }
+    const u8*d=ssrc; u32 n=sn, ip=sPos, fr=sFr, rd=sRd; int pred=spred, idx=sidx, s0=sS0, s1=sS1, sgain=(oSfxGain()*fg)>>8;   // SFX VOLUME and MASTER VOLUME options (x the voice's fade: 256 = unchanged)
     for(int i=0;i<MUS_N;i++){
-        if(ip>=n){ sfxV=0; break; }
+        if(ip>=n){ if(!sfxLoop){ sfxV=0; break; } ip=0; rd=0; pred=0; idx=0; s0=s1=0; }   // a looping voice starts over (decoder and all; the loop is silent at its ends)
         while(rd<ip+2){   // decode up to the sample after ip (silence past the end)
             s0=s1;
             if(rd<n){ int v=d[rd>>1]; v=(rd&1)?(v>>4):(v&15);
@@ -1556,6 +1563,7 @@ IWRAM_CODE static void deckSwap(MDeck*d){   // exchange the main deck (the globa
 }
 IWRAM_CODE static void musMixAny(int b){
     if(!mPlay&&!xfOn){ for(int i=0;i<MUS_N;i++){ mbufL[b][i]=0; mbufR[b][i]=0; } if(sfxV) sfxMix(mbufL[b],mbufR[b]); else mWantOff=1; return; }   // only an effect (or nothing: switch the mixer off)
+    if(ldG==0&&ldGT==0&&!xfOn){ for(int i=0;i<MUS_N;i++){ mbufL[b][i]=0; mbufR[b][i]=0; } if(sfxV) sfxMix(mbufL[b],mbufR[b]); return; }   // the song is stepped aside for a loading screen: frozen where it is, no decoding at all (only the tick-tock is mixed)
     if(mPlay){ if(mKind==2) chipMix(mbufL[b],mbufR[b]); else if(mKind) adpMix(mbufL[b],mbufR[b]); else musMix(mbufL[b],mbufR[b]); }
     else for(int i=0;i<MUS_N;i++){ mbufL[b][i]=0; mbufR[b][i]=0; }
     if(xfOn){   // blend the new song (main deck) with the old one
@@ -1572,6 +1580,8 @@ IWRAM_CODE static void musMixAny(int b){
     else if(mg0<256){ for(int i=0;i<MUS_N;i++){ mbufL[b][i]=(s8)((mbufL[b][i]*mg0)>>8); mbufR[b][i]=(s8)((mbufR[b][i]*mg0)>>8); } }
     if(mGain!=mGainT){ int g=mGain+((mGainT>mGain)?16:-16); if((mGainT>mGain)?g>mGainT:g<mGainT) g=mGainT; mGain=g; }   // fade: 16 steps of 1/16 per frame
     if(mGain<256){ int g=mGain; for(int i=0;i<MUS_N;i++){ mbufL[b][i]=(s8)((mbufL[b][i]*g)>>8); mbufR[b][i]=(s8)((mbufR[b][i]*g)>>8); } }
+    if(ldG!=ldGT){ int g=ldG+((ldGT>ldG)?6:-8); if((ldGT>ldG)?g>ldGT:g<ldGT) g=ldGT; ldG=g; }   // LOADING fade: out 8/256 a frame (~0.5 s), back in 6/256 (~0.7 s)
+    if(ldG<256){ int g=ldG; for(int i=0;i<MUS_N;i++){ mbufL[b][i]=(s8)((mbufL[b][i]*g)>>8); mbufR[b][i]=(s8)((mbufR[b][i]*g)>>8); } }
     if(sfxV) sfxMix(mbufL[b],mbufR[b]);   // an effect plays on top of the song (it used to pause it)
 }
 // ---- Audio is driven by interrupts, NOT by the main loop ----
@@ -1631,22 +1641,30 @@ static void deckInit(int kind,const u8*adp,const XmSong*xm){   // set the main d
         aPred=aPred0; aIdx=aIdx0; }
     mPlay=1;
 }
+// A song that is stepped aside for a loading screen (ldHold) and gets replaced or stopped by someone else is simply dropped: nothing of it comes back.
+static void ldDrop(void){
+    if(!ldHold) return;
+    u16 ime=R_IME; R_IME=0;
+    ldHold=0; ldRel=0; ldG=ldGT=256; xfOn=0; xdk.play=0; xdkG=256; mPlay=0;
+    R_IME=ime;
+}
 static void musBeginRaw(int kind,const u8*adp,const XmSong*xm){
     irqOff(); mOn=0; R_DMA1CNT=0; R_DMA2CNT=0; R_TM0CNT=0;
-    sfxV=0; sfxOn=0; mCur=0; mFilled=0;
+    sfxV=0; sfxOn=0; sfxLoop=0; mCur=0; mFilled=0;
     deckInit(kind,adp,xm); audStart();
 }
-static void musBegin(int kind,const u8*adp,const XmSong*xm){ xfOn=0; xdk.play=0; xdkG=256; musBeginRaw(kind,adp,xm); }   // a hard start: whatever played is cut
+static void musBegin(int kind,const u8*adp,const XmSong*xm){ ldDrop(); xfOn=0; xdk.play=0; xdkG=256; musBeginRaw(kind,adp,xm); }   // a hard start: whatever played is cut
 static void musStart(void){ musBegin(0,0,&xm_the_dipper_man); }   // the title music
 static void musKick(void){}   // (kept so old call sites still compile: the interrupts do this now)
 static void musFill(void){}
-static void musStop(void){ xfOn=0; xdk.play=0; xdkG=256; mPlay=0; if(mOn&&!sfxV) audStop(); }   // a hard stop. An effect still sounding keeps the mixer going (sfxTick stops it after)
+static void musStop(void){ ldDrop(); xfOn=0; xdk.play=0; xdkG=256; mPlay=0; if(mOn&&!sfxV) audStop(); }   // a hard stop. An effect still sounding keeps the mixer going (sfxTick stops it after)
 static void audIdleStop(void){ mWantOff=0; if(mOn&&!mPlay&&!xfOn&&!sfxV) audStop(); }
 // CROSSFADE to a new song: the one playing carries on under a falling gain while the new one rises (frames of 1/60 s). With nothing playing the song just fades in.
 #define XF_SONG 90   // song to song: 1.5 s
 #define XF_SCREEN 60 // from one screen's music to the next's
 #define XF_OUT 45    // out to silence
 static void musFadeTo(int kind,const u8*adp,const XmSong*xm,int frames){
+    ldDrop();
     if(!mOn){ xdk.play=0; xdkG=256; xfT=0; xfN=frames; xfOn=1; musBeginRaw(kind,adp,xm); return; }   // (xfOn is set before the first buffer is mixed)
     u16 ime=R_IME; R_IME=0;   // the sound interrupts must not run while the songs are swapped over
     int g=xfOn?xfGain(xfT,xfN>0?xfN:1):256;   // a crossfade still running: the song that was rising starts its fall from where it got to
@@ -1654,6 +1672,7 @@ static void musFadeTo(int kind,const u8*adp,const XmSong*xm,int frames){
     R_IME=ime;
 }
 static void musFadeOut(int frames){   // fade the playing song out to silence (the mixer switches itself off when it is done)
+    ldDrop();
     if(!mOn||!mPlay) return;
     u16 ime=R_IME; R_IME=0;
     int g=xfOn?xfGain(xfT,xfN>0?xfN:1):256;
@@ -1742,6 +1761,7 @@ static void sfxPlay(int id){   // a new sound replaces whatever effect is playin
     const u8*b=sfxTab[id];
     sfxV=0;   // (the interrupt does not touch the voice while sfxV is 0)
     ssrc=b+4; sn=*(const u32*)b; sPos=0; sFr=0; sRd=0; spred=0; sidx=0; sS0=sS1=0;
+    sfxLoop=0; sfxFade=sfxFadeT=256;
     sfxOn=1; sfxV=1;
     if(!mOn) audStart();
 }
