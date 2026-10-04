@@ -1198,6 +1198,7 @@ static void dmaRows(const u16*src,u32 dst,int w0,int w1,int y0,int y1){
 
 // ---------- title screen ----------
 #include "titleimg.h"
+#include "titlelogo.h"   // the BORE logo of the cover art (gold bubble letters, eyes in the B and R, a leaf in the O, a joint on the E; tools/make_logo.py)
 #include "logo.h"
 #define SM_W0 76   // smoke stays inside columns 152..203, rows 0..89 (checked over its whole 128-frame loop)
 #define SM_W1 102
@@ -1218,10 +1219,10 @@ static void buildTitle(void){
         u16*o=&fb[(y*2)*SW+x*2]; o[0]=o[1]=o[SW]=o[SW+1]=col;
     }
     for(int y=118;y<SH;y++)for(int x=0;x<SW;x++){ u16 c=fb[y*SW+x]; fb[y*SW+x]=shade(c,7); }   // dim strip for the prompt
-    u16 ink=RGB(4,3,6), gold=RGB(31,27,6), grn=RGB(12,28,8);
-    for(int dy=-2;dy<=2;dy++)for(int dx=-2;dx<=2;dx++) text(10+dx,10+dy,"BORE",ink,5);   // outline
-    text(10,10,"BORE",gold,5);
-    text(12,40,"A VOXEL LIFE SIM",ink,1); text(11,39,"A VOXEL LIFE SIM",grn,1);
+    u16 ink=RGB(4,3,6), grn=RGB(12,28,8);
+    for(int y=0;y<LOGO_H;y++){ const char*r=logoArt[y]; u16*o=&fb[(y+2)*SW+4];   // the logo, top left (0 = see-through)
+        for(int x=0;x<LOGO_W;x++){ char c=r[x]; if(c!='0') o[x]=logoPal[(c<='9'?c-'0':c-'a'+10)-1]; } }
+    text(13,58,"A VOXEL LIFE SIM",ink,1); text(12,57,"A VOXEL LIFE SIM",grn,1);
     text(14,126,"PUFF PUFF PASS THE CONTROLLER",RGB(16,22,12),1);
     titleKeep(1,SM_W0,SM_W1,0,SM_Y1,0); titleKeep(1,TX_W0,TX_W1,TX_Y0,TX_Y1,TB_TX);
 }
@@ -3064,7 +3065,7 @@ static void mapEditor(void){
 // L R change tab | UP DOWN pick a row | LEFT RIGHT change it | SELECT turns the creature | START jumps to DONE | B leaves.
 enum { TB_BODY, TB_FACE, TB_HAIR, TB_CLOTHES, TB_PARTS, TB_ASPIRE, TB_DONE, NTAB };
 enum { RK_PICK, RK_SWATCH, RK_ACT, RK_SLIDE, RK_PERS, RK_TRAIT };   // a row picks from named options, picks a colour, is a button, a slider, a persona choice or a trait
-enum { AC_PLAY, AC_MAP, AC_MENU, AC_RAND, AC_ADD, AC_FAM, AC_FNAME, AC_LNAME };
+enum { AC_PLAY, AC_MAP, AC_MENU, AC_RAND, AC_ADD, AC_FAM, AC_FNAME, AC_LNAME, AC_TRAND };
 enum { PS_ASP, PS_LTW, PS_SIGN };
 typedef struct { const char*lab,*sub; u8 kind,id,n; } Row;   // sub = second line of a button
 static const char* const tabNm[NTAB]={"BODY","FACE","HAIR","CLOTHES","PARTS","ASPIRE","DONE"};
@@ -3113,8 +3114,8 @@ static const Row tabRow[NTAB][TROWS]={
    {"WING SPREAD",0,RK_SLIDE,LK_WINGSP,9},{"WING HEIGHT",0,RK_SLIDE,LK_WINGHT,9},{"ANT FRONT BACK",0,RK_SLIDE,LK_ANTFB,9},{"ANT GAP",0,RK_SLIDE,LK_ANTGAP,9}},
   {{"ASPIRATION",0,RK_PERS,PS_ASP,AS_PICK},{"LIFETIME WANT",0,RK_PERS,PS_LTW,2},{"SIGN",0,RK_PERS,PS_SIGN,12},
    {"NEAT",0,RK_TRAIT,TR_NEAT,11},{"OUTGOING",0,RK_TRAIT,TR_OUT,11},{"ACTIVE",0,RK_TRAIT,TR_ACT,11},{"PLAYFUL",0,RK_TRAIT,TR_PLAY,11},{"NICE",0,RK_TRAIT,TR_NICE,11}},
-  {{"GO LIVE LIFE!","PLAY IT NOW",RK_ACT,AC_PLAY,0},{"FIRST NAME",0,RK_ACT,AC_FNAME,0},{"LAST NAME",0,RK_ACT,AC_LNAME,0},{"RANDOMIZE","ROLL THE DICE",RK_ACT,AC_RAND,0},{"ADD TO FAMILY","COPY THIS LOOK",RK_ACT,AC_ADD,0},{"FAMILY","EDIT OR MOVE OUT",RK_ACT,AC_FAM,0},{"EDIT MAP","BUILD ROOMS",RK_ACT,AC_MAP,0},{"MAIN MENU","LOOK IS KEPT",RK_ACT,AC_MENU,0}} };
-static const u8 tabN0[NTAB]={22,21,6,7,31,8,8};
+  {{"GO LIVE LIFE!","PLAY IT NOW",RK_ACT,AC_PLAY,0},{"FIRST NAME",0,RK_ACT,AC_FNAME,0},{"LAST NAME",0,RK_ACT,AC_LNAME,0},{"RANDOMIZE","ROLL THE DICE",RK_ACT,AC_RAND,0},{"TRUE RANDOM","EVERYTHING ROLLS",RK_ACT,AC_TRAND,0},{"ADD TO FAMILY","COPY THIS LOOK",RK_ACT,AC_ADD,0},{"FAMILY","EDIT OR MOVE OUT",RK_ACT,AC_FAM,0},{"EDIT MAP","BUILD ROOMS",RK_ACT,AC_MAP,0},{"MAIN MENU","LOOK IS KEPT",RK_ACT,AC_MENU,0}} };
+static const u8 tabN0[NTAB]={22,21,6,7,31,8,9};
 static int tabRows(int t){ return tabN0[t]-(t==0&&stage<AG_TEEN&&!sUnlock?3:0); }   // babies and children: no BUTT rows
 #define tabN(t) tabRows(t)
 static int tabNext(int t,int d){ return (t+d+NTAB)%NTAB; }
@@ -3421,8 +3422,9 @@ static void famMenu(void){
     custom=0; ageDays=0; fixLook(); buildLook(); setColors(); ageSave(); persSave(); hhSave();
     static char t[32]; simCat(simCat(t,"NOW EDITING "),hhPName); toast(t);
 }
+static const u8 lkCnt[LK_N]={NSHAPE,NSW,NEYE,NMOUTH,3,NHAIR,NSW,NSW,NSW,9,9,9,3,3,3,6,6,3,4,3,6, 6,6,5,4,NSW, 9,9,9,9,9,9,9, 4,3,7,6, 9,9,9,9,9,9,9,9,9, 5,4,4, 9,9,9, 9,9,9,9,9,9,9, 9,9,9,9,9,9,9, 9,9,9,7};   // how many options each look row has (sliders: 9)
 static void lookRandom(void){   // the dice (like Create-A-Sim): a whole new look and personality, only from what this stage and your unlocked parts allow
-    static const u8 cnt[LK_N]={NSHAPE,NSW,NEYE,NMOUTH,3,NHAIR,NSW,NSW,NSW,9,9,9,3,3,3,6,6,3,4,3,6, 6,6,5,4,NSW, 9,9,9,9,9,9,9, 4,3,7,6, 9,9,9,9,9,9,9,9,9, 5,4,4, 9,9,9, 9,9,9,9,9,9,9, 9,9,9,9,9,9,9, 9,9,9,7};
+    const u8*cnt=lkCnt;
     for(int id=0;id<LK_N;id++){
         if(lkSlide(id)){ look[id]=(u8)slideVal(rnd8()%5+rnd8()%5); continue; }   // most land near the middle
         for(int t=0;t<20;t++){ int v=rnd8()%cnt[id];
@@ -3432,6 +3434,26 @@ static void lookRandom(void){   // the dice (like Create-A-Sim): a whole new loo
             if(id==LK_BEARD&&stage<AG_ADULT) v=0;
             if(lkAllowed(id,v)){ look[id]=(u8)v; break; } }
     }
+    setSign(rnd8()%12); pAsp=(u8)(rnd8()%AS_PICK); pLtw=(u8)(rnd8()&1); persSave();
+    custom=0; fixLook(); buildLook(); setColors();
+}
+// TRUE RANDOM: every slider (0-8, evenly), every pick, part and colour at random, nothing nudged towards the middle - only what the age
+// allows (lkAllowed, fixLook) and no beard on the young. *stg: a stage from child to elder is rolled when it comes in as 255, else kept.
+static void lookTrueRandom(u8*lk,u8*stg){
+    u8 sl[LK_N], ss=stage; for(int i=0;i<LK_N;i++) sl[i]=look[i];
+    if(*stg==255) *stg=(u8)(AG_CHILD+rnd8()%(AG_N-AG_CHILD));
+    stage=*stg;
+    for(int id=0;id<LK_N;id++){
+        if(lkSlide(id)){ look[id]=(u8)(rnd8()%9); continue; }
+        int v=0; for(int t=0;t<20;t++){ v=rnd8()%lkCnt[id]; if(lkAllowed(id,v)&&(!isPart(id)||partFree(id,v))) break; v=0; }   // never a part you have not unlocked
+        if(id==LK_BEARD&&stage<AG_ADULT) v=0;
+        look[id]=(u8)v;
+    }
+    fixLook(); for(int i=0;i<LK_N;i++) lk[i]=look[i];
+    for(int i=0;i<LK_N;i++) look[i]=sl[i]; stage=ss;
+}
+static void lookTrueRandomMe(void){   // the creator's TRUE RANDOM row: the same for you (your age stays), and a new personality
+    u8 lk[LK_N], st=stage; lookTrueRandom(lk,&st); for(int i=0;i<LK_N;i++) look[i]=lk[i];
     setSign(rnd8()%12); pAsp=(u8)(rnd8()%AS_PICK); pLtw=(u8)(rnd8()&1); persSave();
     custom=0; fixLook(); buildLook(); setColors();
 }
@@ -3460,6 +3482,7 @@ static int creatorNew(void){   // returns 1 when the secret code switched screen
                     case AC_PLAY:  lifeMode(0); if(gToMenu){ stageOn=0; return 0; } break;
                     case AC_MAP:   mapEditor(); break;
                     case AC_RAND:  lookRandom(); break;
+                    case AC_TRAND: lookTrueRandomMe(); break;
                     case AC_ADD:   famAdd(); break;
                     case AC_FAM:   famMenu(); break;
                     case AC_FNAME: if(nameEdit(hhPName,HH_NM-1,"FIRST NAME",0)) hhSave(); break;
@@ -3838,9 +3861,9 @@ static const char* const jbHelp[15]={">PLAYING","UP DOWN PICK A SONG  A PLAYS IT
 static void drawMainMenu(int sel){
     for(int y=0;y<SH;y++){ u16 c=RGB(2+y/50,3+y/36,9+y/13); u32 v=c|((u32)c<<16), *row=(u32*)fb+y*ROW_W; for(int w=0;w<ROW_W;w++) row[w]=v; }
     u16 ink=RGB(4,3,6);
-    for(int dy=-2;dy<=2;dy+=2)for(int dx=-2;dx<=2;dx+=2) text(14+dx,8+dy,"BORE",ink,5);
-    text(14,8,"BORE",GOLD,5);
-    text(16,38,"A VOXEL LIFE SIM",RGB(12,28,8),1);
+    for(int y=0;y<LOGO_SH;y++){ const char*r=logoSmallArt[y]; u16*o=&fb[(y+6)*SW+12];   // the cover logo at half size
+        for(int x=0;x<LOGO_SW;x++){ char c=r[x]; if(c!='0') o[x]=logoPal[(c<='9'?c-'0':c-'a'+10)-1]; } }
+    text(17,38,"A VOXEL LIFE SIM",ink,1); text(16,37,"A VOXEL LIFE SIM",RGB(12,28,8),1);
     // a little pile of voxels (back to front)
     { int ox=206, oy=92;
       cube(ox,oy,1,0,1); cube(ox,oy-CC,4,0,3); cube(ox,oy-2*CC,8,0,2);

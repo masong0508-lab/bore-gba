@@ -603,3 +603,33 @@ than 16 whole bits; shorter samples come out exactly as before. Checked in mGBA:
 
 ## Household kept on reload
 `hhLoad` refused a household holding a child or teen (their GROW UP aspiration is past the pickable ones), so the whole family vanished after the editor, a slot load or a power cycle. It now accepts every aspiration; the lifetime-want lookup falls back to learning for GROW UP.
+
+## Title logo = the cover logo
+The title screen and the main menu draw the logo of the cover art (`source/titlelogo.h`, made by `tools/make_logo.py`: gold bubble letters, outline and
+drop shadow, half-lidded eyes in the B and R, a leaf in the O, a lit joint on the E), full size on the title and half size in the menu (`logoSmallArt`,
+the same 2x2 reduction in the generator). The generator used to write `source/logo.h`, the name the boot logo took later, so the game never showed it.
+With the big "BORE" text gone the large font is no longer linked: the ROM is 186 KB smaller.
+
+## Staged The Full Performance (`tools/make_staged_rework.py`)
+- **STAGED THE FULL PERFORMANCE** (DayBar) reworks The Dipper Man's 2-minute, 12-channel shuffle into 6:28 of hi-NRG in the manner of Divine's
+  "You Think You're a Man": 130 BPM four on the floor, an octave-bouncing 16th bass, claps, open hats on the offbeats, Simmons toms,
+  orchestra hits, synth brass and chimes, with DayBar's things on top (an acid line and a hoover in the dub, a piano / strings / "ahh"
+  breakdown, risers, reverse swells, impacts).
+- **Kept, read out of the XM** (a semitone down: its samples play flat, so you hear D minor; the shuffle's triplets go to the 16ths 0, 1, 3):
+  the pulse riff (D F D F | Bb D C E), the chords (Dm F Gm Am), the intro bass (D C Bb | Bb C D), melodies A and B, the breakdown climb
+  (G/B C Dm C G/B) and the ending (low D under a minor-sixth chord).
+- **Form:** intro, riff, verse, pre-chorus, chorus, dub, verse, pre-chorus, chorus, breakdown, two choruses a whole tone up, then the outro
+  back in D minor fading out over 24 bars.
+- **32nds and 64ths** (rows are 64ths): hat ratchets at phrase ends, snare rolls that speed up from 16ths to 64ths into a section, Simmons
+  tom fills, the riff stuttering on the last beat of a phrase, a soft sparkle arp in the last chorus, acid flicks.
+- Level matched to HOT DAMN; stereo plan `staged_pan` in xm2gba.py. Remake: `python3 tools/make_staged_rework.py`, then `python3 tools/xm2gba.py`.
+
+## Pre-made families and the true randomizer
+- Eight more pre-made families (THE STACKS, PIXELS, VOXELLS, LOWPOLYS, KICKFLIPS, BUFFERS, SPRITES, DIPPERS): the 32 random Sims the bake
+  test harness uses, now with their whole look (`HhPre.look` holds all `LK_N` values). They live in the ROM: no save space is used until
+  a family moves in.
+- Pause > HOUSEHOLD: MOVE IN A FAMILY opens the list of all twelve families; TRULY RANDOM SIM invites a Sim of any age from child to elder
+  with every slider (0-8, evenly), pick, part and colour rolled (`lookTrueRandom`; only unlocked parts, no beard on the young).
+- Creator, last tab: TRUE RANDOM does the same to you (your age stays) and rolls a new personality. RANDOMIZE keeps its gentler dice.
+- Passers-by keep the gentle `hhRandLook`: a fully random look bakes about three times slower.
+
