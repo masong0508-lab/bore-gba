@@ -503,9 +503,10 @@ static void slDraw(int sel){
             char b[40]; char*e=b; *e=0;
             if(!slGood[i]) e=slCat(e,"DAMAGED");
             else if(I->kind==SLK_HOUSE) e=slCat(e,"HOUSE");
+            else if(I->kind==SLK_TOWN) e=slCat(e,"NEIGHBORHOOD");
             else if(I->kind==SLK_HHOLD){ e=slCat(e,"HOUSEHOLD "); e=slNum(e,SLB(i)[SLOT_HDR+2]+1); e=slCat(e," SIMS"); *e=0; }
             else { if(I->has&SLH_ROOM) e=slCat(e,"ROOM "); if(I->has&SLH_PERSON) e=slCat(e,"PERSON "); if(I->has&SLH_LIFE) e=slCat(e,"LIFE "); }
-            if(I->kind!=SLK_HHOLD){ e=slCat(e," "); slSize(e,SLOT_HDR+I->len); }
+            if(I->kind!=SLK_HHOLD&&I->kind!=SLK_TOWN){ e=slCat(e," "); slSize(e,SLOT_HDR+I->len); }
             text(28,y+7,b,i==sel?RGB(22,25,28):RGB(11,13,18),1);
             if(act==i) text(116,y,"ACTIVE",GOLD,1);
         }
@@ -515,7 +516,7 @@ static void slDraw(int sel){
     if(slOwner[sel]==sel&&slGood[sel]){
         SlInfo*I=&slI[sel]; char b[24]; char*e=slCat(b,"SAVED "); e=slNum(e,I->seq); slCat(e,I->seq==1?" TIME":" TIMES");
         text(158,64,b,DIMC,1);
-        text(158,72,I->kind==SLK_HOUSE?"A HOUSE":I->kind==SLK_HHOLD?"A HOUSEHOLD":"ONE ROOM",DIMC,1);
+        text(158,72,I->kind==SLK_HOUSE?"A HOUSE":I->kind==SLK_HHOLD?"A HOUSEHOLD":I->kind==SLK_TOWN?"THE TOWN":"ONE ROOM",DIMC,1);
     } else if(slOwner[sel]<0) text(158,64,"A FREE SLOT",DIMC,1);
     // bottom: how full the slots are
     int used=slotUsedBytes(), tot=SLOT_N*SLOT_SZ, cnt=0; for(int i=0;i<SLOT_N;i++) if(slOwner[i]>=0) cnt++;
@@ -553,7 +554,7 @@ static char slLn[9][30] EWRAM_BSS; static const char* slLp[9];
 static void slInfoScreen(int s){
     SlInfo*I=&slI[s]; int n=0; char*e;
     slLn[n][0]='>'; slCat(slLn[n]+1,I->name[0]?I->name:"NO NAME"); n++;
-    e=slCat(slLn[n],"KIND   "); slCat(e,I->kind==SLK_HOUSE?"HOUSE":I->kind==SLK_HHOLD?"HOUSEHOLD":"ROOM"); n++;
+    e=slCat(slLn[n],"KIND   "); slCat(e,I->kind==SLK_HOUSE?"HOUSE":I->kind==SLK_HHOLD?"HOUSEHOLD":I->kind==SLK_TOWN?"NEIGHBORHOOD":"ROOM"); n++;
     e=slCat(slLn[n],"SIZE   "); e=slSize(e,SLOT_HDR+I->len); e=slCat(e," OF "); slSize(e,SLOT_SZ*I->span); n++;
     e=slCat(slLn[n],"SAVED  "); e=slNum(e,I->seq); slCat(e,I->seq==1?" TIME":" TIMES"); n++;
     e=slCat(slLn[n],"MAP    "); e=slNum(e,I->mw); e=slCat(e," X "); slNum(e,I->mh); n++;

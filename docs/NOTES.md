@@ -292,6 +292,21 @@ tables, and `chipMix` (main.c) renders them live.
 - **TREE SWAYING ACTION (ORIGINAL)**, hidden, is the drum rework. Its breeze pad uses a smooth echo in the calm parts and a gated stutter echo in the
   drops and risers (`TREE_ECHO = 'mix'`).
 
+## Neighborhood (`source/neighborhood.h`)
+- **The town** is a 24 x 24 grid. Each cell has a terrain (grass, dirt, sand, water, plaza, road) and a decoration (tree, pine, bush, flowers, rock,
+  lamp, bench, fountain).
+- **Lots:** up to 16, from 4 to 10 cells a side. A cell is 4 x 4 room tiles, so lots run from 16 x 16 to 40 x 40.
+  - **Residential**, one of which is your HOME, or **community**: park, skate park, plaza, lounge, or old town (the default map).
+- **The live room always belongs to one lot.** Going to another lot stores this one as a HOUSE slot with all its floors, named after the lot. It then
+  loads the other lot's slot, or builds that lot's starting layout.
+- **The room builder** keeps its cursor inside the lot, and RESET rebuilds the lot's layout.
+- **MOVE IN** pays the lot's value (land plus everything built on it) and gets back your old home's value, from the life's cash.
+- **Tools** (L / R): LOTS, PAINT, ROADS, DECOR, NEW LOT. SELECT picks the kind, A applies, and holding A paints. B goes back.
+- **START** opens the town menu: zoom, season, time of day, rename, help, a new town.
+- **Saved** in a TOWN slot (kind 3). The first town is BOREVILLE: your place, four empty lots and five community lots.
+- **Hook:** `nbDrawLotModel()` draws each lot's building as an icon. The real house can be drawn there later.
+- **Tested in mGBA:** the town draws in both zooms; visiting another lot saved YOUR PLACE as a 2-slot house and wrote the town slot.
+
 ## Music data format (compact, lossless)
 `python3 tools/xm2gba.py` writes two files: `source/musicdata.h` (about 80 KB of text: per song the order list, pattern lengths, voice table, pitch anchors and the XmSong struct, plus the `.incbin` lines) and `source/music/xmdata.bin` (every song's note events and every sample byte). Note events are a byte stream: runs of empty rows cost one byte, a row with notes is a count byte plus 3 bytes per note (voice index into a per-song table of channel / instrument / pan bus, note, volume). Each instrument stores one 32-bit pitch anchor instead of 96 playback steps; `xmStep()` in `main.c` rebuilds every step with integer maths and the converter checks that it equals the old table exactly (and keeps a fix-up list for the rare note that would differ; none do today). The samples are stored as they always were. This cut the ROM by about 500 KB and `musicdata.h` from 7.4 MB to 80 KB **with identical audio**: the old and new ROMs were run in an emulator and every mixed audio buffer of all 23 songs, one pass plus the loop point, hashed to the same values.
 

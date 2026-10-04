@@ -1237,6 +1237,9 @@ static void smoke(int frame){
 typedef int32_t s32;
 static void lifeMode(int ed);
 static void mapEditor(void);
+static int edX0=0, edY0=0, edX1=9999, edY1=9999;   // where the room builder's cursor may go (neighborhood.h narrows it to the lot you are on)
+static int nbPlaying;   // the game was started from the neighborhood: its pause menu goes back there
+static int nbResetLot(void);
 #define MW 40
 #define MH 40    // keep MH == MW: the 4-way action cam rotates the square map
 static int camX, camY, camSnap=1, camLastV;   // camera offset in px; the map's top corner is drawn at (120-camX, 24-camY)
@@ -2760,6 +2763,7 @@ static void aspPanel(void){
         present();
     }
 }
+static const char* const lifeItemsNb[9]={"RESUME","ASPIRATION","HOUSEHOLD","HOW TO PLAY","OPTIONS","ROOM SLOTS","EDIT MAP","NEW LIFE","NEIGHBORHOOD"};
 static const char* const lifeItemsEd[4]={"RESUME","HOW TO PLAY","OPTIONS","BACK TO EDITOR"};
 // Timer2 (65536 Hz) is the clock (defined with the settings). The game logic always runs at 60 steps per second; the
 // frame rate setting only says how often the picture is redrawn, so lower rates save work without slowing the game.
@@ -2804,7 +2808,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
         if(pr&K_START){   // pause menu
             mGainT=128; sfxStop(); simsSave(); hhSave(); objHideAll(); REG_DISPCNT=0x0403;   // (no sprites over the menus, options or the editor)   // the music fades to half while a menu is open   // the pause menu is also a save point
             liveInvalidate(); lifeDraw();          // a whole picture behind the menu (the screen itself only holds patches)
-            int c=menu("PAUSED",ed?lifeItemsEd:lifeItems,ed?4:9);
+            int c=menu("PAUSED",ed?lifeItemsEd:nbPlaying?lifeItemsNb:lifeItems,ed?4:9);
             if(ed&&c>=1) c+=2;   // the test-play menu has no ASPIRATION or HOUSEHOLD entry
             if(c==1) aspPanel();
             else if(c==2) hhMenu();
@@ -2813,7 +2817,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
             else if(c==5&&!ed){ simsSaveNow(); hhSave(); if(slotScreen()) lifeInit(); }   // a slot was loaded: start again in the loaded room (the life was written first, so nothing is lost)
             else if(c==6&&!ed){ vpY0=0; vpY1=SH; mapEditor(); lifeInit(); }
             else if(c==7&&!ed){ if(menu("START A NEW LIFE",yesNoLife,2)==1){ simsNewLife(); moodReset(); lscore=0; simLastScore=0; lnote="NEW LIFE"; lnoteT=60; } }
-            else if((c==5&&ed)||c==8){ if(c==8) gToMenu=1; break; }
+            else if((c==5&&ed)||c==8){ if(c==8&&!nbPlaying) gToMenu=1; break; }   // (from the neighborhood: back there)
             REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=0; continue;
         }
         if(lcamF>0) camStep(steps,k,pr);
@@ -2928,7 +2932,7 @@ static void miniMap(void){   // whole map at 1 px per tile, top right: colours b
 static void mapEditor(void){
     int hold[4]={0}, comboUsed=0, dirty=1, lastBl=-1, msgT=0; const char*msg=""; u16 prev=keyNow();
     static const u16 dirK[4]={K_RIGHT,K_LEFT,K_UP,K_DOWN};
-    eAct=0; edCamSnap();
+    eAct=0; if(ecx<edX0)ecx=edX0; if(ecy<edY0)ecy=edY0; if(ecx>edX1)ecx=edX1; if(ecy>edY1)ecy=edY1; edCamSnap();
     for(efr=0;;efr++){
         u16 k=keyNow(), pr=k&~prev, rel=prev&~k; prev=k;
         int tr[4];
@@ -2940,7 +2944,7 @@ static void mapEditor(void){
         }
         if(ux||uy){   // screen-relative like walking: up = away from the camera
             int dx=ux+uy, dy=uy-ux; dx=(dx>0)-(dx<0); dy=(dy>0)-(dy<0);
-            ecx+=dx; ecy+=dy; if(ecx<0)ecx=0; if(ecy<0)ecy=0; if(ecx>=MW)ecx=MW-1; if(ecy>=MH)ecy=MH-1;
+            ecx+=dx; ecy+=dy; if(ecx<edX0)ecx=edX0; if(ecy<edY0)ecy=edY0; if(ecx>edX1)ecx=edX1; if(ecy>edY1)ecy=edY1; if(ecx>=MW)ecx=MW-1; if(ecy>=MH)ecy=MH-1;
             if(eTool==T_ITEM){ if(k&K_A) mapPlace(ecx,ecy,edObjCh()); else if(k&K_B) mapPlace(ecx,ecy,'.'); }
             dirty=1;
         }
@@ -2970,7 +2974,7 @@ static void mapEditor(void){
                 else toast("MAP SAVED"); }
             else if(c==2) slotScreen();
             else if(c==3) settingsScreen();
-            else if(c==4){ if(!xo[XO_RESETASK]||menu("RESET THE MAP",yesNo,2)==1){ if(curFl) flBlankLive(); else mapReset(); eAct=0; toast("MAP RESET"); } }
+            else if(c==4){ if(!xo[XO_RESETASK]||menu("RESET THE MAP",yesNo,2)==1){ if(curFl) flBlankLive(); else if(!nbResetLot()) mapReset(); eAct=0; toast("MAP RESET"); } }
             else if(c==5) helpScreen("HOW TO EDIT",mapHelp,14);
             else if(c==6){ if(xo[XO_EDSAVE]) mapSave(); break; }
             prev=keyNow(); edCamSnap(); dirty=1; continue;
@@ -3759,8 +3763,8 @@ static void creatorMusStart(void){
 }
 
 // ---------- main menu ----------
-static const char* const mmName[7]={"PLAY","MAKE CREATURE","BUILD ROOM","ROOM SLOTS","JUKEBOX","OPTIONS","HOW TO PLAY"};
-static const char* const mmDesc[7]={"WALK AND SKATE AROUND YOUR ROOM","DESIGN YOUR OWN VOXEL CHARACTER","BUILD WALLS AND LAY FLOORS AND WALLPAPER","SAVE AND LOAD ROOMS  PEOPLE AND LIVES","LISTEN  PICK  OR SHUFFLE THE SONGS","SPEED  GAMEPLAY  SOUND  BUTTONS AND MORE","LEARN THE CONTROLS"};
+static const char* const mmName[8]={"PLAY","NEIGHBORHOOD","MAKE CREATURE","BUILD ROOM","ROOM SLOTS","JUKEBOX","OPTIONS","HOW TO PLAY"};
+static const char* const mmDesc[8]={"WALK AND SKATE AROUND YOUR ROOM","YOUR TOWN  PICK A LOT  BUILD AND MOVE IN","DESIGN YOUR OWN VOXEL CHARACTER","BUILD WALLS AND LAY FLOORS AND WALLPAPER","SAVE AND LOAD ROOMS  PEOPLE AND LIVES","LISTEN  PICK  OR SHUFFLE THE SONGS","SPEED  GAMEPLAY  SOUND  BUTTONS AND MORE","LEARN THE CONTROLS"};
 static const char* const guideItems[6]={"PLAYING","MAKE CREATURE","BUILD ROOMS","JUKEBOX","ROOM SLOTS","OPTIONS"};
 static const char* const jbHelp[15]={">PLAYING","UP DOWN PICK A SONG  A PLAYS IT","A ON THE PLAYING SONG STOPS IT","L R GO TO THE PREVIOUS OR NEXT SONG",">CHECK BOXES","SELECT CHECKS OR UNCHECKS A SONG","ONLY CHECKED SONGS ARE PICKED AT RANDOM:","HERE  IN THE MENUS  AND FOR GAME MUSIC",">PLAY MODE","START CHANGES IT:  SHUFFLE  IN ORDER  REPEAT","WHEN A SONG ENDS THE MODE PICKS THE NEXT",">OTHER","LEFT RIGHT CHANGE THE VOLUME","OPENING IT PLAYS ONE RANDOM CHECKED SONG","B GOES BACK TO THE MENU"};
 static void drawMainMenu(int sel){
@@ -3773,29 +3777,31 @@ static void drawMainMenu(int sel){
     { int ox=206, oy=92;
       cube(ox,oy,1,0,1); cube(ox,oy-CC,4,0,3); cube(ox,oy-2*CC,8,0,2);
       cube(ox+CA,oy+CB,6,0,0); cube(ox-CA,oy+CB,7,0,0); cube(ox,oy+2*CB,2,0,0); }
-    for(int i=0;i<7;i++){
-        int y=47+i*12;
-        if(i==sel){ rect(10,y-2,150,12,RGB(6,16,8)); rect(10,y-2,2,12,GOLD); text(16,y,">",WHITE,2); }
+    for(int i=0;i<8;i++){
+        int y=46+i*11;
+        if(i==sel){ rect(10,y-1,150,11,RGB(6,16,8)); rect(10,y-1,2,11,GOLD); text(16,y,">",WHITE,2); }
         text(28,y,mmName[i],i==sel?WHITE:DIMC,2);
     }
     rect(0,134,SW,26,PANEL);
     text(8,139,mmDesc[sel],WHITE,1); text(8,150,"UP DOWN CHOOSE  A OK",RGB(12,14,16),1);
 }
+#include "neighborhood.h"   // THE NEIGHBORHOOD: a town of lots to live in, visit and build on (main menu)
 static void mainMenu(void){
     int sel=0, dirty=1; u16 prev=keyNow();
     menuMusStart();   // GOTTCHO BARRACHO plays while a main menu is open (MENU MUSIC option)
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k;
-        if(pr&K_DOWN){ sel=(sel+1)%7; dirty=1; }
-        if(pr&K_UP){ sel=(sel+6)%7; dirty=1; }
+        if(pr&K_DOWN){ sel=(sel+1)%8; dirty=1; }
+        if(pr&K_UP){ sel=(sel+7)%8; dirty=1; }
         if(pr&(K_A|K_START)){
             int fresh=0;   // 1 = that screen stopped the menu song (or plays its own): a NEW random song starts when we are back
             if(sel==0){ lifeMode(0); fresh=1; }
-            else if(sel==1){ creatureEditor(); fresh=1; }
-            else if(sel==2) mapEditor();   // (the menu song plays on in the room builder)
-            else if(sel==3) slotScreen();
-            else if(sel==4){ jukeboxScreen(); fresh=1; }
-            else if(sel==5) settingsScreen();
+            else if(sel==1){ neighborhoodScreen(); fresh=1; }
+            else if(sel==2){ creatureEditor(); fresh=1; }
+            else if(sel==3) mapEditor();   // (the menu song plays on in the room builder)
+            else if(sel==4){ slotScreen(); if(nbOk) nbBoot(); }   // (a slot screen can delete or replace the town)
+            else if(sel==5){ jukeboxScreen(); fresh=1; }
+            else if(sel==6) settingsScreen();
             else { int g=menu("HOW TO PLAY",guideItems,6);
                    if(g==0) helpScreen("PLAYING",lifeHelp,16); else if(g==1) helpScreen("MAKE CREATURE",creatureHelp,15); else if(g==2) helpScreen("BUILD ROOMS",mapHelp,12); else if(g==3) helpScreen("JUKEBOX",jbHelp,15); else if(g==4) helpScreen("ROOM SLOTS",slotHelp,11); else if(g==5) helpScreen("OPTIONS",optHelp,11); }
             gToMenu=0; prev=keyNow(); dirty=1;
@@ -3828,6 +3834,7 @@ int main(void){
     jbSetup();                              // load the saved shuffled order (or make a new one), placeholders hidden
     starter();
     mapReset(); mapLoad();   // default room, or the one saved to SRAM
+    nbBoot();                // the town, if one was made (the room builder keeps to the lot you are on)
     slotBoot();              // BOOT LOADS PERSON option: the creature of the active room slot
     ageLoad();               // ...grown to the stage it had reached
     persLoad();              // ...with its aspiration, personality, DNA and unlocked parts
