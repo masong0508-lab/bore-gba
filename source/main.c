@@ -3301,7 +3301,7 @@ static void drawRowSet(int tab,int sel){
     if(tab==TB_DONE){ drawDoneRows(sel); return; }
     int vis=tab==TB_PARTS?3:5, first=sel>vis-1?sel-(vis-1):0;   // five rows fit on the card (three over the PARTS chart): it scrolls to keep the focused one in view
     if(first>0) tri(CDX+CDW/2-2,RW0-6,2,GOLD);
-    if(first+vis<tabN(tab)) tri(CDX+CDW/2-2,RW0+vis*RHT-3,3,GOLD);
+    if(first+vis<tabN(tab)) tri(CDX+CDW/2-2,RW0+vis*RHT-(vis>3?1:3),3,GOLD);   // (five rows: the arrow sits in the gap under the last row, not on its slider knob)
     for(int i=first;i<tabN(tab)&&i<first+vis;i++){
         const Row*r=&tabRow[tab][i]; int y=RW0+(i-first)*RHT, f=(i==sel);
         if(r->kind==RK_DUO){ drawDuo(tab,y,f,r); continue; }
