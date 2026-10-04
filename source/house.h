@@ -467,8 +467,25 @@ static void socNote(int a,int b,int i,int ok){   // what you read when you are p
 }
 // ---- FIGHTING: PUNCH takes HP from the one hit. Damage 14..26, more from active (TR_ACT) Sims. Nobody dies in a fight: at 0 HP the Sim is
 // knocked out (a household Sim lies still for 10 s and wakes at 30 HP; you wake at 25, see fightHurt in main.c). ----
+// What a Sim is made of (its creator parts and sliders; lk = its look, yours is the global `look`) decides how it fights:
+//   HITS HARDER  horns (NUBS +2, HORNS +6: a HEADBUTT), claws (CLAWS +2, PINCERS +6: a PINCH), a long tail +3, a heavy build (WEIGHT) up to +4, big hands (HAND SIZE) up to +3
+//   TAKES LESS   SPIKES -30% (and they prick the one that hits: 4 HP back), a helmet -15%, a thick skull (HORNS) -10%, a heavy build 1% a notch
+//   DODGES       EYE STALKS 20%, WINGS 15%, a long tail 5%
+static const u8* fkLook(int u){ int m=hhMemOf(u); return m<0?look:hhM[m].look; }
+static int fkAtk(const u8*lk){
+    int d=(lk[LK_HORNS]==2?6:lk[LK_HORNS]==1?2:0)+(lk[LK_CLAWS]==2?6:lk[LK_CLAWS]==1?2:0)+(lk[LK_TAIL]==2?3:0), h=slideEff(lk[LK_HANDFT]);
+    return d+slideEff(lk[LK_WEIGHT])+(h>3?3:h<-3?-3:h);
+}
+static int fkTaken(const u8*lk){ int p=100-(lk[LK_BACK]==1?30:0)-(lk[LK_HAT]==5?15:0)-(lk[LK_HORNS]==2?10:0)-slideEff(lk[LK_WEIGHT]); return p<30?30:p; }   // percent of a blow that gets through
+static int fkDodge(const u8*lk){ return (lk[LK_ANTENNA]==2?20:0)+(lk[LK_BACK]==2?15:0)+(lk[LK_TAIL]==2?5:0); }
+static const char* fkMove(int u,const char*def){ const u8*lk=fkLook(u); return lk[LK_HORNS]==2?"HEADBUTT":lk[LK_CLAWS]==2?"PINCH":def; }   // what the blow is called
+static void fkLose(int u,int n){ int m=hhMemOf(u); if(m<0){ lhp-=n; if(lhp<1) lhp=1; } else { int v=hhM[m].hp-n; hhM[m].hp=(u8)(v<1?1:v); } }   // recoil never knocks anyone out
 static void fightHit(int a,int b){
-    int dmg=14+(uTr(a,TR_ACT)>>1)+(rnd8()>>5);
+    const u8*la=fkLook(a), *lb=fkLook(b);
+    if((rnd8()*100>>8)<fkDodge(lb)){ hhSay(b,IC_BAIL,"DODGED"); return; }   // eye stalks see it coming, wings flap clear
+    int dmg=14+(uTr(a,TR_ACT)>>1)+(rnd8()>>5)+fkAtk(la);
+    dmg=dmg*fkTaken(lb)/100; if(dmg<1) dmg=1;
+    if(lb[LK_BACK]==1&&dmg>3){ fkLose(a,4); if(a==hhPUid&&lnoteT<=0){ lnote="OUCH  SPIKES"; lnoteT=40; } }   // spikes prick the one that hits them
     int m=hhMemOf(b);
     if(m<0){ fightHurt(dmg); return; }
     HhSim*t=&hhM[m]; if(t->hp>dmg) t->hp=(u8)(t->hp-dmg); else { t->hp=30; t->act=HA_SOC; t->t=600; t->bub=IC_SKULL; t->bubT=120; hhNote(t," IS KNOCKED OUT"); }
@@ -484,7 +501,7 @@ static int socDo(int a,int b,int i){
         c=c<5?5:c>95?95:c; ok=(rnd8()*100>>8)<c;
     }
     hhFreeze(a,80); hhFreeze(b,80);
-    hhSay(a,S->icA,S->say);
+    hhSay(a,S->icA,i==SC_PUNCH?fkMove(a,S->say):S->say);
     if(S->fl&SA_MEAN){
         relD[b][a]=(signed char)clampR(relD[b][a]+S->dA); relL[b][a]=(signed char)clampR(relL[b][a]+S->lA);
         relD[a][b]=(signed char)clampR(relD[a][b]+S->dA/2);
@@ -570,7 +587,7 @@ static int hhSocR(int useLabel){   // 1 = handled (a social, or the menu was clo
     static const char* it[SC_N+1]; static char tl[40]; int id[SC_N+1], n=0;
     static const char* const useNm[6]={0,"USE THE FRIDGE","USE THE TOILET","SLEEP IN BED","TAKE A SHOWER","SIT ON SOFA"};
     if(useLabel>0&&useLabel<6){ it[n]=useNm[useLabel]; id[n++]=-1; }
-    for(int i=0;i<SC_N;i++) if(socAllowed(a,b,i)){ it[n]=socT[i].name; id[n++]=i; }
+    for(int i=0;i<SC_N;i++) if(socAllowed(a,b,i)){ it[n]=i==SC_PUNCH?fkMove(a,"PUNCH"):socT[i].name; id[n++]=i; }
     { char*e=simCat(tl,s->name); *e++=' '; *e++=' '; e=simCat(e,relWord(a,b)); e=simCat(e,"  HP "); simCatN(e,s->hp); }
     int c=menu(tl,it,n); liveInvalidate();
     while((~REG_KEYINPUT)&0x3FF) vsync();
