@@ -283,13 +283,13 @@ tables, and `chipMix` (main.c) renders them live.
 - **Remake:** `python3 tools/chip_synth.py [preview_dir]`.
 
 ## Tree Swaying Action
-- **TREE SWAYING ACTION** is the ambient version (`make_tree_eno`, xm2gba.py): a semitone down and Eno-like, all generated from the song's own pad,
+- **TREE-AGE IN ACTION** (renamed from TREE SWAYING ACTION; the jukebox hashes it by its old name, so checkmarks stay) is the ambient version (`make_tree_eno`, xm2gba.py): a semitone down and Eno-like, all generated from the song's own pad,
   pluck and bass.
   - Swells, wandering 2-4 note phrases that sometimes come back changed, rare bass and bells, chords that drift.
   - About 11 minutes, then a 1.5-minute fade.
   - Every note has a **reverb trail** of quieter, spaced repeats. An allocator gives each note the channel whose tail has died away, using the real
     sample envelopes; only 12 of 1,213 notes take over a tail louder than -30 dB.
-- **TREE SWAYING ACTION (ORIGINAL)**, hidden, is the drum rework. Its breeze pad uses a smooth echo in the calm parts and a gated stutter echo in the
+- **TREE-AGE IN ACTION (ORIGINAL)**, hidden, is the drum rework. Its breeze pad uses a smooth echo in the calm parts and a gated stutter echo in the
   drops and risers (`TREE_ECHO = 'mix'`).
 
 ## Condensed Music (`tools/make_condensed_rework.py`)

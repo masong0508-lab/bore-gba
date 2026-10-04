@@ -417,9 +417,9 @@ static void neighborhoodScreen(void){
     static const u16 dirK[4]={K_RIGHT,K_LEFT,K_UP,K_DOWN};
     while(!quit){
         u16 k=keyNow(), pr=k&~prev; prev=k;
-        int tr[4]; for(int i=0;i<4;i++){ hold[i]=(k&dirK[i])?hold[i]+1:0; tr[i]=(hold[i]==1)||(hold[i]>oRepDelay()&&(hold[i]&oRepMask())==0); }
+        int tr[4], fast=0; for(int i=0;i<4;i++){ hold[i]=(k&dirK[i])?hold[i]+1:0; tr[i]=(hold[i]==1)||hold[i]>3; if(hold[i]>12) fast=1; }   // (a pass is a whole redraw: held, the cursor steps every pass, and two cells after a while)
         int ux=tr[0]-tr[1], uy=tr[3]-tr[2];
-        if(ux||uy){ int dx=ux+uy, dy=uy-ux; dx=(dx>0)-(dx<0); dy=(dy>0)-(dy<0); ccx+=dx; ccy+=dy;   // screen-relative, like the room builder
+        if(ux||uy){ int dx=ux+uy, dy=uy-ux; dx=(dx>0)-(dx<0); dy=(dy>0)-(dy<0); ccx+=dx<<fast; ccy+=dy<<fast;   // screen-relative, like the room builder
             if(ccx<0)ccx=0; if(ccy<0)ccy=0; if(ccx>=NB_W)ccx=NB_W-1; if(ccy>=NB_H)ccy=NB_H-1; dirty=1; }
         if(pr&K_R){ tool=(tool+1)%5; dirty=1; } if(pr&K_L){ tool=(tool+4)%5; dirty=1; }
         if(pr&K_SEL){ int n=tool==1?NT_ROAD:tool==3?DC_N:tool==4?6:1; sub[tool]=(sub[tool]+1)%n; dirty=1; }

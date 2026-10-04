@@ -2012,7 +2012,10 @@ static int isDbgSong(int i){
     const char*p="PLACEHOLDER"; while(*p){ if(*n++!=*p++) return 0; } return 1;
 }
 static u16 jbNameHash(int upto){   // hash of the names of the first n songs: tells whether the saved on/off flags still belong to this list (jukebox.h)
-    u32 h=2166136261u; for(int i=0;i<upto&&i<NSONGS;i++){ for(const char*p=songs[i].name;*p;p++) h=(h^(u8)*p)*16777619u; h=(h^0x7C)*16777619u; }
+    static const char* const was[2][2]={{"TREE-AGE IN ACTION","TREE SWAYING ACTION"},{"TREE-AGE IN ACTION (ORIGINAL)","TREE SWAYING ACTION (ORIGINAL)"}};   // renamed songs count by their old names (the checkmarks stay)
+    u32 h=2166136261u; for(int i=0;i<upto&&i<NSONGS;i++){ const char*nm=songs[i].name;
+        for(int r=0;r<2;r++){ const char*x=was[r][0],*y=nm; while(*x&&*x==*y){x++;y++;} if(!*x&&!*y) nm=was[r][1]; }
+        for(const char*p=nm;*p;p++) h=(h^(u8)*p)*16777619u; h=(h^0x7C)*16777619u; }
     return (u16)(h^(h>>16));
 }
 // Songs that start LOCKED (source/unlocks.h): hidden until their bit is set in jbUl (a lifetime want met, see sims.h), or the title-screen code is entered.

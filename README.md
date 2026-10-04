@@ -29,7 +29,7 @@ Every screen shows its own button hints. D-pad moves, **A** picks, **B** goes ba
 - **Add a streamed song:** `python3 tools/encode_song.py "song.mp3"` (needs ffmpeg).
 - Songs are listed in `source/songs.h` (up to 64). Songs added at the end keep everyone's checkmarks.
 - **Creator music** is 12 chiptune loops the game plays **live** from note data (`tools/chip_synth.py`; 152 KB instead of 1.5 MB of recordings).
-- **TREE SWAYING ACTION** is now a 13-minute ambient piece; the drum version is the hidden TREE SWAYING ACTION (ORIGINAL).
+- **TREE-AGE IN ACTION** (renamed from TREE SWAYING ACTION) is a 13-minute ambient piece; the drum version is the hidden TREE-AGE IN ACTION (ORIGINAL).
 - **New:** CONDENSED MUSIC by Sk9m (a UK garage rework of The Dipper Man - Condensed Music), COCAINE COLA (its original hidden) and STAGED THE FULL PERFORMANCE by DayBar, a hi-NRG rework (see docs/NOTES.md).
 - **Locked and hidden songs:** WORTHLESS CLOUDS starts locked and unlocks for good when a Sim meets their **lifetime want**. Songs named `... (ORIGINAL)` stay hidden. The title code (UP UP DOWN DOWN LEFT LEFT RIGHT B A START) shows both. To lock another song, add one line to `source/unlocks.h`.
 
