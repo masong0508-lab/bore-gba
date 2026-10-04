@@ -756,11 +756,12 @@ static void buildLook(void){
         if(bs==2&&L>0){ int yk=L-1; for(int z=1;z<3&&z<D;z++){ vw(tx-1,yk,z,7,0,1,0,0); vw(tx+2,yk,z,7,1,0,0,0); } }                // SKIRT: flares out at the hips
     }
     sporeParts(tx,ty,hx,hy,hz,hw,hh,top);                               // tail, horns, spikes or wings (before the face: sprites snap to the front block)
-    {   // HANDS: CLAWS (an ivory talon pointing forward out of each hand) or PINCERS (a red claw in front of and under each hand)
+    {   // HANDS: CLAWS (an ivory talon pointing forward out of each hand), PINCERS (a red claw in front of and under each hand) or BLADES (a white blade forward and down)
         int cl=look[LK_CLAWS];
         if(cl) for(int y=1;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ u8 v=vox[y][z][x]; if((v&15)!=1||(v>>4)!=2) continue;   // a hand block
             if(cl==1){ if(z+1<D&&!vox[y][z+1][x]) vw(x,y,z+1,8,0,0,1,0); else if(!vox[y-1][z][x]) vw(x,y-1,z,8,0,0,1,0); }
-            else { if(z+1<D&&!vox[y][z+1][x]) vw(x,y,z+1,4,0,0,1,0); if(z+1<D&&!vox[y-1][z+1][x]) vw(x,y-1,z+1,4,0,0,1,0); } }
+            else if(cl==2){ if(z+1<D&&!vox[y][z+1][x]) vw(x,y,z+1,4,0,0,1,0); if(z+1<D&&!vox[y-1][z+1][x]) vw(x,y-1,z+1,4,0,0,1,0); }
+            else { if(z+1<D&&!vox[y][z+1][x]) vw(x,y,z+1,2,0,0,1,0); if(!vox[y-1][z][x]) vw(x,y-1,z,2,0,0,1,0); } }   // BLADES: a white blade out of the front AND under each hand
     }
     {   // PATTERN: Spore-style body paint over the skin (and the shirt for stripes and a belly), in a colour slot the creature has
         static const u8 pcs[6]={5,4,8,2,3,7}; int pt=look[LK_PATTERN], pc=pcs[look[LK_PATCOL]%6];
@@ -857,24 +858,25 @@ static int persValid(int asp,int ltw,const u8*tr){
 static int lchill;   // steps left CHILLED OUT (a puff on the water pipe, or PUFF PUFF PASS): +1 STYLE, the munchies
 enum { AB_SPEED, AB_JUMP, AB_GRIP, AB_STYLE, AB_STAMINA, AB_N };
 static const char* const abNm[AB_N]={"SPEED","JUMP","GRIP","STYLE","STAMINA"};
-enum { PW_BALANCE=1, PW_CHARGE=2, PW_ARMOUR=4, PW_GLIDE=8, PW_CLAMP=16, PW_SENSE=32 };
+enum { PW_BALANCE=1, PW_CHARGE=2, PW_ARMOUR=4, PW_GLIDE=8, PW_CLAMP=16, PW_SENSE=32, PW_SLASH=64 };
 static const char* const tailNm[3]={"NONE","STUB","LONG"};
 static const char* const hornNm[3]={"NONE","NUBS","HORNS"};
 static const char* const backNm[3]={"NONE","SPIKES","WINGS"};
-static const char* const clawNm[3]={"NONE","CLAWS","PINCERS"};
+static const char* const clawNm[4]={"NONE","CLAWS","PINCERS","BLADES"};
 static const char* const antNm[3]={"NONE","FEELERS","EYE STALKS"};
 static const char* const patNm[7]={"NONE","STRIPES","SPOTS","BELLY","TIGER","SOCKS","MASK"};
 static const char* const patColNm[6]={"AS THE HAIR","RED","GOLD","WHITE","BLACK","AS THE BOTTOM"};
 #define NPART 5   // the parts DNA can buy: TAIL, HORNS, BACK, CLAWS, ANTENNAE (unlock bits part*3+option, 15 of pUnl's 16)
-static const short partCost[NPART][3]={{0,0,60},{0,0,60},{0,40,120},{0,30,90},{0,0,70}};   // DNA to unlock each option
+static const short partCost[NPART][4]={{0,0,60,0},{0,0,60,0},{0,40,120,0},{0,30,90,110},{0,0,70,0}};   // DNA to unlock each option
 static const signed char abShape[NSHAPE][AB_N]={   // ability changes (SPEED JUMP GRIP STYLE STAMINA) per body type, in half bars
     {0,0,0,0,0},{-1,-1,1,0,2},{-1,0,0,2,0},{0,-1,2,0,1},{1,1,0,0,-1},{1,1,0,0,0},{2,1,-1,0,-1},   // AVERAGE BROAD BIG-HEAD STUBBY SLIM ATHLETIC TALL
     {-1,-1,1,0,1},{0,-1,1,1,0},{1,1,-1,0,-1},{-1,-1,2,0,2},{-1,0,1,1,0},                          // CHUBBY PEAR LANKY STOCKY HUNCHED
     {-1,-1,0,1,1},{0,0,2,1,1},{1,1,0,1,-1},{-1,0,1,0,2},{1,2,0,1,0} };                           // POTBELLY MUSCLE PETITE BARREL DIGITIGRADE
+#define PARTBIT(p,v) ((v)<3?(p)*3+(v):15)   // unlock bit of option v of part p (BLADES, the 4th hand, takes the one spare bit 15)
 static u16 pDna, pUnl;   // DNA points to spend; unlocked parts (bit = part*3 + option)
 static inline int isPart(int id){ return (id>=LK_TAIL&&id<=LK_BACK)||id==LK_CLAWS||id==LK_ANTENNA; }
 static inline int partOf(int id){ return id==LK_CLAWS?3:id==LK_ANTENNA?4:id-LK_TAIL; }   // 0 tail, 1 horns, 2 back, 3 claws, 4 antennae
-static int partFree(int id,int v){ int p=partOf(id); return !partCost[p][v]||sUnlock||(pUnl>>(p*3+v)&1); }   // Konami: every part is free
+static int partFree(int id,int v){ int p=partOf(id); return !partCost[p][v]||sUnlock||(pUnl>>PARTBIT(p,v)&1); }   // Konami: every part is free
 static int abOf10(int a){   // 0..10, like a Sims skill bar: every part counts double, the body sliders add the odd points between
     int v=4+2*abShape[look[LK_SHAPE]<NSHAPE?look[LK_SHAPE]:0][a], hgt=slideEff(look[LK_HEIGHT]), wgt=slideEff(look[LK_WEIGHT]), tor=slideEff(look[LK_TORSO]),
         arm=slideEff(look[LK_ARMS]), stn=slideEff(look[LK_STANCE]);
@@ -896,9 +898,9 @@ static int abOf10(int a){   // 0..10, like a Sims skill bar: every part counts d
 }
 static int abOf(int a){ return (abOf10(a)+1)/2; }   // 0..5: what the game reads
 static int abPow(void){ return (look[LK_TAIL]==2?PW_BALANCE:0)|(look[LK_HORNS]==2?PW_CHARGE:0)|(look[LK_BACK]==1?PW_ARMOUR:0)|(look[LK_BACK]==2?PW_GLIDE:0)
-                              |(look[LK_CLAWS]==2?PW_CLAMP:0)|(look[LK_ANTENNA]==2?PW_SENSE:0); }
-// PINCERS = CLAMP (grinds score 2 more points each tick), EYE STALKS = SENSE (every DNA reward is a quarter bigger)
-static int partPow(int id,int v){ return id==LK_TAIL?PW_BALANCE:id==LK_HORNS?PW_CHARGE:id==LK_BACK?(v==1?PW_ARMOUR:PW_GLIDE):id==LK_CLAWS?PW_CLAMP:PW_SENSE; }
+                              |(look[LK_CLAWS]==2?PW_CLAMP:0)|(look[LK_CLAWS]==3?PW_SLASH:0)|(look[LK_ANTENNA]==2?PW_SENSE:0); }
+// PINCERS = CLAMP (grinds score 2 more points each tick), BLADES = SLASH (a blow cuts through a quarter of the armour), EYE STALKS = SENSE (every DNA reward is a quarter bigger)
+static int partPow(int id,int v){ return id==LK_TAIL?PW_BALANCE:id==LK_HORNS?PW_CHARGE:id==LK_BACK?(v==1?PW_ARMOUR:PW_GLIDE):id==LK_CLAWS?(v==3?PW_SLASH:PW_CLAMP):PW_SENSE; }
 static inline int abPct(int a,int step){ return 100+(abOf10(a)-4)*step/2; }   // percent for an ability, 100 at 4 of 10
 static int abGrindPts(void){ static const u8 t[6]={1,2,3,4,5,6}; return t[abOf(AB_GRIP)]+((abPow()&PW_CLAMP)?2:0); }   // grind points every 4 steps (3 was the old fixed value)
 static int abBalance(void){ return (abPow()&PW_BALANCE)?10:0; }
@@ -923,7 +925,7 @@ static void persLoad(void){   // at power on, after the person of the active slo
     for(int i=0;i<TR_N;i++) tr[i]=m[4+i];
     if(m[PERS_LEN-1]!=sum||!persValid(m[2],m[3],tr)) return;
     pAsp=m[2]; pLtw=m[3]; for(int i=0;i<TR_N;i++) pTr[i]=tr[i];
-    pDna=(u16)(m[4+TR_N]|(m[5+TR_N]<<8)); pUnl=(u16)((m[6+TR_N]|(m[7+TR_N]<<8))&0x7FFF);
+    pDna=(u16)(m[4+TR_N]|(m[5+TR_N]<<8)); pUnl=(u16)((m[6+TR_N]|(m[7+TR_N]<<8))&0xFFFF);
     if(pDna>9999) pDna=9999;
 }
 // ---------- scene ----------
@@ -2882,7 +2884,7 @@ static const Row tabRow[NTAB][TROWS]={
    {"EARS",0,RK_PICK,LK_EARS,3},{"EAR SIZE",0,RK_SLIDE,LK_EARSZ,9},{"EAR HEIGHT",0,RK_SLIDE,LK_EARLF,9},{"EAR FRONT BACK",0,RK_SLIDE,LK_EARFWD,9},{"EAR SPREAD",0,RK_SLIDE,LK_EARSPR,9},{"EAR WIDTH",0,RK_SLIDE,LK_EARWID,9}},
   {{"STYLE",0,RK_PICK,LK_HSTYLE,NHAIR},{"COLOUR",0,RK_SWATCH,LK_HCOL,NSW},{"HAIR TONE",0,RK_SLIDE,LK_HTONE,9},{"BEARD",0,RK_PICK,LK_BEARD,3},{"HAT",0,RK_PICK,LK_HAT,6},{"HAT COLOUR",0,RK_PICK,LK_HATCOL,6}},
   {{"TOP",0,RK_SWATCH,LK_TOP,NSW},{"TOP TONE",0,RK_SLIDE,LK_TTONE,9},{"BOTTOM",0,RK_SWATCH,LK_BOT,NSW},{"BOTTOM TONE",0,RK_SLIDE,LK_BTONE,9},{"TOP STYLE",0,RK_PICK,LK_TOPSTY,5},{"BOTTOM STYLE",0,RK_PICK,LK_BOTSTY,4},{"SHOES",0,RK_PICK,LK_SHOE,6}},
-  {{"TAIL",0,RK_PICK,LK_TAIL,3},{"HORNS",0,RK_PICK,LK_HORNS,3},{"BACK",0,RK_PICK,LK_BACK,3},{"HANDS",0,RK_PICK,LK_CLAWS,3},{"ANTENNAE",0,RK_PICK,LK_ANTENNA,3},
+  {{"TAIL",0,RK_PICK,LK_TAIL,3},{"HORNS",0,RK_PICK,LK_HORNS,3},{"BACK",0,RK_PICK,LK_BACK,3},{"HANDS",0,RK_PICK,LK_CLAWS,4},{"ANTENNAE",0,RK_PICK,LK_ANTENNA,3},
    {"PATTERN",0,RK_PICK,LK_PATTERN,7},{"PAINT",0,RK_PICK,LK_PATCOL,6},{"ANIMAL EARS",0,RK_PICK,LK_FEARS,5},{"MUZZLE",0,RK_PICK,LK_MUZZLE,4},{"FUR TAIL",0,RK_PICK,LK_FTAIL,4},
    {"ANT LENGTH",0,RK_SLIDE,LK_ANTLEN,9},{"ANT SPREAD",0,RK_SLIDE,LK_ANTSPR,9},{"ANT TIP SIZE",0,RK_SLIDE,LK_ANTTIP,9},
    {"TAIL LENGTH",0,RK_SLIDE,LK_TAILLEN,9},{"TAIL CURL",0,RK_SLIDE,LK_TAILCURL,9},{"TAIL THICKNESS",0,RK_SLIDE,LK_TAILTHK,9},{"TAIL TIP",0,RK_PICK,LK_TAILTIP,7},{"WING SIZE",0,RK_SLIDE,LK_WINGSZ,9},
@@ -2974,7 +2976,7 @@ static int lkCount(int id,int n,int*rank){   // options on offer, and the 1-base
     return c;
 }
 static void drawPip(int x,int y,int w,int h,int on,int f){ rect(x,y,w,h,on?(f?GOLD:RGB(20,17,6)):RGB(4,6,12)); }
-static const char* const powNm[6]={"BALANCE","CHARGE","ARMOUR","GLIDE","CLAMP","SENSE"};
+static const char* const powNm[7]={"BALANCE","CHARGE","ARMOUR","GLIDE","CLAMP","SENSE","SLASH"};
 static void drawAbilities(int sel){   // PARTS tab: the Spore ability chart under the part rows, then DNA and the focused part's cost or power
     int y0=RW0+3*RHT-2, pw=abPow();
     rect(CDX+5,y0-2,CDW-10,1,GOLD2);
@@ -3122,7 +3124,7 @@ static int buyPart(int id){   // A on a locked part: spend DNA on it. 1 = bought
     if(pDna<c){ char*e=t; const char*p="NEED "; while(*p) *e++=*p++; e+=numStr(e,c); p=" DNA"; while(*p) *e++=*p++; *e=0; toast(t); return 0; }
     { char*e=t; const char*p="SPEND "; while(*p) *e++=*p++; e+=numStr(e,c); p=" DNA?"; while(*p) *e++=*p++; *e=0; }
     if(menu(t,it,2)!=0) return 0;
-    pDna=(u16)(pDna-c); pUnl|=(u16)(1<<(partOf(id)*3+v)); persSave(); return 1;
+    pDna=(u16)(pDna-c); pUnl|=(u16)(1<<PARTBIT(partOf(id),v)); persSave(); return 1;
 }
 
 // ---------- the secret classic creator ----------
@@ -3196,7 +3198,7 @@ static void famMenu(void){
     static char t[32]; simCat(simCat(t,"NOW EDITING "),hhPName); toast(t);
 }
 static void lookRandom(void){   // the dice (like Create-A-Sim): a whole new look and personality, only from what this stage and your unlocked parts allow
-    static const u8 cnt[LK_N]={NSHAPE,NSW,NEYE,NMOUTH,3,NHAIR,NSW,NSW,NSW,9,9,9,3,3,3,6,6,3,4,3,6, 6,6,5,4,NSW, 9,9,9,9,9,9,9, 3,3,7,6, 9,9,9,9,9,9,9,9,9, 5,4,4, 9,9,9, 9,9,9,9,9,9,9, 9,9,9,9,9,9,9, 9,9,9,7};
+    static const u8 cnt[LK_N]={NSHAPE,NSW,NEYE,NMOUTH,3,NHAIR,NSW,NSW,NSW,9,9,9,3,3,3,6,6,3,4,3,6, 6,6,5,4,NSW, 9,9,9,9,9,9,9, 4,3,7,6, 9,9,9,9,9,9,9,9,9, 5,4,4, 9,9,9, 9,9,9,9,9,9,9, 9,9,9,9,9,9,9, 9,9,9,7};
     for(int id=0;id<LK_N;id++){
         if(lkSlide(id)){ look[id]=(u8)slideVal(rnd8()%5+rnd8()%5); continue; }   // most land near the middle
         for(int t=0;t<20;t++){ int v=rnd8()%cnt[id];

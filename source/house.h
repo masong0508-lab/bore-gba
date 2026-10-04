@@ -468,23 +468,33 @@ static void socNote(int a,int b,int i,int ok){   // what you read when you are p
 // ---- FIGHTING: PUNCH takes HP from the one hit. Damage 14..26, more from active (TR_ACT) Sims. Nobody dies in a fight: at 0 HP the Sim is
 // knocked out (a household Sim lies still for 10 s and wakes at 30 HP; you wake at 25, see fightHurt in main.c). ----
 // What a Sim is made of (its creator parts and sliders; lk = its look, yours is the global `look`) decides how it fights:
-//   HITS HARDER  horns (NUBS +2, HORNS +6: a HEADBUTT), claws (CLAWS +2, PINCERS +6: a PINCH), a long tail +3, a heavy build (WEIGHT) up to +4, big hands (HAND SIZE) up to +3
-//   TAKES LESS   SPIKES -30% (and they prick the one that hits: 4 HP back), a helmet -15%, a thick skull (HORNS) -10%, a heavy build 1% a notch
-//   DODGES       EYE STALKS 20%, WINGS 15%, a long tail 5%
+//   HITS HARDER  horns (NUBS +2, HORNS +6: a HEADBUTT; HORN SIZE and HORN THICKNESS add -2..+2, a big head +2 more on a headbutt),
+//                claws (CLAWS +2: a SCRATCH, PINCERS +6: a PINCH, BLADES +5: a SLASH that cuts through a quarter of the armour),
+//                a tail (STUB +1, LONG +3, and TAIL LENGTH / THICKNESS -2..+2 on a long one), broad SHOULDERS up to +2,
+//                a heavy build (WEIGHT) up to +4, big hands (HAND FOOT SIZE) up to +3
+//   TAKES LESS   SPIKES -30% (and they prick the one that hits: 4 HP back), a helmet -15%, a thick skull (HORNS) -10% and a big head up to 4% more, a heavy build 1% a notch
+//   DODGES       EYE STALKS 20% (+ ANT LENGTH), FEELERS 8% (+ ANT LENGTH), WINGS 15% (+ WING SIZE), a long tail 5% (+ TAIL LENGTH)
 static const u8* fkLook(int u){ int m=hhMemOf(u); return m<0?look:hhM[m].look; }
 static int fkAtk(const u8*lk){
-    int d=(lk[LK_HORNS]==2?6:lk[LK_HORNS]==1?2:0)+(lk[LK_CLAWS]==2?6:lk[LK_CLAWS]==1?2:0)+(lk[LK_TAIL]==2?3:0), h=slideEff(lk[LK_HANDFT]);
+    int cl=lk[LK_CLAWS], hn=lk[LK_HORNS], tl=lk[LK_TAIL];
+    int d=(hn==2?6:hn==1?2:0)+(cl==3?5:cl==2?6:cl==1?2:0)+(tl==2?3:tl==1?1:0), h=slideEff(lk[LK_HANDFT]);
+    if(hn){ int hs=(slideEff(lk[LK_HORNSZ])+slideEff(lk[LK_HORNTH]))/3; d+=hs; if(hn==2&&slideEff(lk[LK_HEADSZ])>0) d+=slideEff(lk[LK_HEADSZ])/2; }   // bigger, thicker horns on a bigger head
+    if(tl==2) d+=(slideEff(lk[LK_TAILLEN])+slideEff(lk[LK_TAILTHK]))/3;                                                                              // a long, thick tail whips harder
+    if(slideEff(lk[LK_SHOULW])>0) d+=slideEff(lk[LK_SHOULW])/2;                                                                                       // broad shoulders
     return d+slideEff(lk[LK_WEIGHT])+(h>3?3:h<-3?-3:h);
 }
-static int fkTaken(const u8*lk){ int p=100-(lk[LK_BACK]==1?30:0)-(lk[LK_HAT]==5?15:0)-(lk[LK_HORNS]==2?10:0)-slideEff(lk[LK_WEIGHT]); return p<30?30:p; }   // percent of a blow that gets through
-static int fkDodge(const u8*lk){ return (lk[LK_ANTENNA]==2?20:0)+(lk[LK_BACK]==2?15:0)+(lk[LK_TAIL]==2?5:0); }
-static const char* fkMove(int u,const char*def){ const u8*lk=fkLook(u); return lk[LK_HORNS]==2?"HEADBUTT":lk[LK_CLAWS]==2?"PINCH":def; }   // what the blow is called
+static int fkTaken(const u8*lk){ int hd=slideEff(lk[LK_HEADSZ]); int p=100-(lk[LK_BACK]==1?30:0)-(lk[LK_HAT]==5?15:0)-(lk[LK_HORNS]==2?10+(hd>0?hd:0):0)-slideEff(lk[LK_WEIGHT]); return p<30?30:p; }   // percent of a blow that gets through
+static int fkDodge(const u8*lk){
+    int d=(lk[LK_ANTENNA]==2?20+2*slideEff(lk[LK_ANTLEN]):lk[LK_ANTENNA]==1?8+slideEff(lk[LK_ANTLEN]):0)+(lk[LK_BACK]==2?15+2*slideEff(lk[LK_WINGSZ]):0)+(lk[LK_TAIL]==2?5+slideEff(lk[LK_TAILLEN])/2:0);
+    return d<0?0:d>60?60:d;
+}
+static const char* fkMove(int u,const char*def){ const u8*lk=fkLook(u); return lk[LK_HORNS]==2?"HEADBUTT":lk[LK_CLAWS]==3?"SLASH":lk[LK_CLAWS]==2?"PINCH":lk[LK_CLAWS]==1?"SCRATCH":def; }   // what the blow is called
 static void fkLose(int u,int n){ int m=hhMemOf(u); if(m<0){ lhp-=n; if(lhp<1) lhp=1; } else { int v=hhM[m].hp-n; hhM[m].hp=(u8)(v<1?1:v); } }   // recoil never knocks anyone out
 static void fightHit(int a,int b){
     const u8*la=fkLook(a), *lb=fkLook(b);
     if((rnd8()*100>>8)<fkDodge(lb)){ hhSay(b,IC_BAIL,"DODGED"); return; }   // eye stalks see it coming, wings flap clear
     int dmg=14+(uTr(a,TR_ACT)>>1)+(rnd8()>>5)+fkAtk(la);
-    dmg=dmg*fkTaken(lb)/100; if(dmg<1) dmg=1;
+    { int tk=fkTaken(lb); if(la[LK_CLAWS]==3) tk+=(100-tk)/4; dmg=dmg*tk/100; } if(dmg<1) dmg=1;   // BLADES cut through a quarter of the armour
     if(lb[LK_BACK]==1&&dmg>3){ fkLose(a,4); if(a==hhPUid&&lnoteT<=0){ lnote="OUCH  SPIKES"; lnoteT=40; } }   // spikes prick the one that hits them
     int m=hhMemOf(b);
     if(m<0){ fightHurt(dmg); return; }

@@ -197,7 +197,7 @@ static int slDecPerson(SlR*c,int apply){
     for(int i=LK_HTONE;i<=LK_STANCE;i++) if(lk[i]>=9) return 0;
     if(lk[LK_BUTT]>=9||lk[LK_BUTTH]>=9||lk[LK_BUTTW]>=9||lk[LK_LEGW]>=9||lk[LK_ARMW]>=9||lk[LK_ANTLEN]>=9||lk[LK_ANTSPR]>=9||lk[LK_ANTTIP]>=9||lk[LK_TAILLEN]>=9||lk[LK_HORNSZ]>=9||lk[LK_TAILCURL]>=9||lk[LK_TAILTHK]>=9||lk[LK_HORNSPR]>=9||lk[LK_HORNCRV]>=9||lk[LK_HORNHT]>=9||lk[LK_EARFWD]>=9||lk[LK_EARSPR]>=9||lk[LK_HEADSZ]>=9||lk[LK_HANDFT]>=9||lk[LK_WINGSZ]>=9||lk[LK_TAILTIP]>=7) return 0;
     for(int i=LK_NECK;i<=LK_EARWID;i++) if(lk[i]>=9) return 0;
-    if(lk[LK_CLAWS]>=3||lk[LK_ANTENNA]>=3||lk[LK_PATTERN]>=7||lk[LK_PATCOL]>=6) return 0;
+    if(lk[LK_CLAWS]>=4||lk[LK_ANTENNA]>=3||lk[LK_PATTERN]>=7||lk[LK_PATCOL]>=6) return 0;
     if(lk[LK_FEARS]>=5||lk[LK_MUZZLE]>=4||lk[LK_FTAIL]>=4) return 0;
     if(cu>1) return 0;
     if(cu){
