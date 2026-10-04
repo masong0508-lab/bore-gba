@@ -22,6 +22,16 @@ jobs:
         with:
           name: bore-gba
           path: bore.gba
+      - name: Publish the latest build of main as the "Latest build" release
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest build
+          body: The newest bore.gba built from main. Download bore.gba below and open it in mGBA, Pizza Boy, a PSP emulator or a flash cart.
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          files: bore.gba
       - name: Publish release on tag
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
