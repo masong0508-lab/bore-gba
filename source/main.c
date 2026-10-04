@@ -90,14 +90,14 @@ enum { LK_SHAPE, LK_SKIN, LK_EYES, LK_MOUTH, LK_EARS, LK_HSTYLE, LK_HCOL, LK_TOP
        LK_CLAWS, LK_ANTENNA, LK_PATTERN, LK_PATCOL,                    // more Spore parts and body paint (format 7)
        LK_HTONE, LK_TTONE, LK_BTONE, LK_EYETONE, LK_BROWHT, LK_NOSEHT, LK_TORSO, LK_ARMS, LK_STANCE,   // more sliders (format 8)
        LK_FEARS, LK_MUZZLE, LK_FTAIL, LK_BUTT, LK_BUTTH, LK_BUTTW,
-       LK_LEGW, LK_ARMW, LK_ANTLEN, LK_ANTSPR, LK_ANTTIP, LK_N };   // animal (furry) ears, a muzzle, a fur tail (format 8); LK_BUTT: a slider, the seat (teens and up); LK_LEGW: leg width slider (format 9)
+       LK_LEGW, LK_ARMW, LK_ANTLEN, LK_ANTSPR, LK_ANTTIP, LK_TAILLEN, LK_HORNSZ, LK_N };   // animal (furry) ears, a muzzle, a fur tail (format 8); LK_BUTT: a slider, the seat (teens and up); LK_LEGW: leg width slider (format 9)
 #define LK_N8 (LK_BUTTW+1)   // looks a person format 8 slot holds
 #define LK_N7 (LK_PATCOL+1)   // looks a person format 7 slot holds
 #define LK_N6 (LK_MOUTHHT+1)   // looks a person format 6 slot holds
 #define LK_N5 (LK_SHOE+1)    // looks a person format 5 slot holds
 #define LK_N4 (LK_BACK+1)    // looks a person format 4 slot holds   // LK_TONE, LK_EARSZ, LK_EARLF are sliders: 0 = middle, then 1..4 up, 5..8 down (see slidePos)
 #define LK_N3 (LK_EARLF+1)   // looks a person format 3 slot holds (the Spore parts TAIL, HORNS, BACK came with format 4)
-static inline int lkSlide(int id){ return (id>=LK_BASE&&id<=LK_EARLF)||(id>=LK_HEIGHT&&id<=LK_MOUTHHT)||(id>=LK_HTONE&&id<=LK_STANCE)||(id>=LK_BUTT&&id<=LK_ANTTIP); }
+static inline int lkSlide(int id){ return (id>=LK_BASE&&id<=LK_EARLF)||(id>=LK_HEIGHT&&id<=LK_MOUTHHT)||(id>=LK_HTONE&&id<=LK_STANCE)||(id>=LK_BUTT&&id<=LK_HORNSZ); }
 static inline int slidePos(int v){ return (v+4)%9; }      // 0..8 left to right, the middle (stored 0) is 4
 static inline int slideVal(int p){ return (p+5)%9; }
 static inline int slideEff(int v){ return slidePos(v)-4; }   // -4..4
@@ -645,9 +645,7 @@ static void vw(int x,int y,int z,int col,int xp,int xm,int zp,int zm){
 }
 static void sporeParts(int tx,int ty,int hx,int hy,int hz,int hw,int hh,int top){   // tx,ty = torso left column, bottom row; hx..hh = the head; top = the hair layer
     int tail=look[LK_TAIL], horns=look[LK_HORNS], back=look[LK_BACK];
-    if(tail){                                                    // a furry tail in the hair colour: STUB is a wedge off the hips, LONG droops one more block
-        for(int x=tx;x<tx+2;x++){ vw(x,ty,0,5,x==tx+1,x==tx,0,tail==1); if(tail==2) vw(x,ty-1,0,5,x==tx+1,x==tx,0,1); }
-    }
+    // the tail and the horns are sprites now (drawTail / drawHorns): their length and size are sliders, and they cost no blocks
     if(back==1){                                                 // SPIKES: a ridge of wedges down the back, in the hair colour
         for(int x=tx;x<tx+2;x++){ vw(x,ty+1,0,5,x==tx+1,x==tx,0,1); if(!tail) vw(x,ty,0,5,x==tx+1,x==tx,0,1); }
         if(look[LK_HSTYLE]!=2&&hz>0) for(int x=hx;x<hx+hw;x++) vw(x,hy+hh-1,hz-1,5,x==hx+hw-1,x==hx,0,1);   // and up the back of the head (LONG hair is there already)
@@ -655,11 +653,7 @@ static void sporeParts(int tx,int ty,int hx,int hy,int hz,int hw,int hh,int top)
         for(int x=tx-2;x<tx+4;x++){ if(x>=tx&&x<tx+2) continue; int out=x<tx?x==tx-2:x==tx+3;
             vw(x,ty+1,0,2,out&&x>tx,out&&x<tx,0,0); if(!out) vw(x,ty,0,2,x>tx,x<tx,0,1); }
     }
-    if(horns){                                                   // ivory, out of the sides of the head at the hair line: NUBS one block, HORNS two (the tips slope away)
-        int zf=hz+hw-1;                                          // the front row of the head (it is as deep as it is wide)
-        if(horns==1){ vw(hx-1,top,zf,8,0,1,0,0); vw(hx+hw,top,zf,8,1,0,0,0); }
-        else { vw(hx-1,top,zf,8,0,0,0,0); vw(hx+hw,top,zf,8,0,0,0,0); vw(hx-2,top,zf,8,0,1,0,0); vw(hx+hw+1,top,zf,8,1,0,0,0); }
-    }
+    (void)horns;
 }
 static void buildLook(void){
     for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ vox[y][z][x]=0; dec[y][z][x]=0; }
@@ -1001,6 +995,35 @@ __attribute__((noinline)) static void drawAntennae(void){
         else { int R=2+ts; if(R<1) R=1; rect(x1-R,y1-R,2*R+1,2*R+1,RGB(3,3,6)); rect(x1-R+1,y1-R+1,2*R-1,2*R-1,RGB(31,31,31)); px(x1,y1,RGB(3,3,6)); }
     }
 }
+// ---- TAIL and HORNS: sprites, so their length / size are sliders and they take no blocks (and no RAM: they are drawn each frame) ----
+__attribute__((noinline)) static void drawTail(int near){   // STUB (a short wedge) or LONG (droops); TAIL LENGTH: a half block a notch
+    int tl=look[LK_TAIL]; if(!tl||custom) return;
+    int L,T,hs; bodyPlan(&L,&T,&hs);
+    int u=2*(BX0+(stBW[stage]-2)/2)+2-W, w=-D, x0,y0; projC(u,w,L+1,&x0,&y0); y0+=(CC+liftT)/2;   // the middle of the back of the hips (the TORSO slider stretches that row: liftT px)
+    int ua,ub; rotUW(0,-2,&ua,&ub); int bx=(ua-ub)*CA/2, by=(ua+ub)*CB/2;                  // px per block going backwards
+    x0+=bx*bakeWk/(2*CA); y0+=by*bakeWk/(2*CA);   // WEIGHT: a heavier body is fatter front to back too, so the root moves out with its back face
+    if((by>0)!=near) return;                                                                  // pointing away from you: behind the body
+    int n=(tl==1?4:7)+slideEff(look[LK_TAILLEN]); if(n<2) n=2;
+    u16 col=shade(sT[5],13), dk=shade(sT[5],8);
+    for(int j=0;j<=4*n;j++){
+        int x=x0+bx*j/8, y=y0+by*j/8+(tl==2?j*j/96:j/8), t=1+(4*n-j)*(hs+1)/(4*n)+(bakeWk>0?bakeWk/4:0);   // and a bit thicker on a heavy body
+        rect(x-t/2,y-t/2,t,t,col); if(near&&j>4) px(x,y+t/2,dk);
+    }
+}
+__attribute__((noinline)) static void drawHorns(int near){   // NUBS or HORNS, one on each side of the head; HORN SIZE: 20% a notch
+    int hn=look[LK_HORNS]; if(!hn||custom) return;
+    int hx,hy,hz,hs; headBox(&hx,&hy,&hz,&hs); int hw=2*hs, hd=2*hs, hh=2*hs, top=(stBH[stage]-(hy+hh)>=1)?hy+hh:hy+hh-1;
+    int len=(hn==1?5:11)*hs*(10+slideEff(look[LK_HORNSZ])*2)/10; if(len<2) len=2;
+    u16 col=shade(sT[8],13), tip=lite(sT[8],18);
+    for(int sd=-1;sd<=1;sd+=2){
+        int a,b; rotUW(sd,0,&a,&b); if(((a+b)>0)!=near) continue;
+        int sx=(a-b)>0?1:-1, u=2*hx+hw-W+sd*(hw+1), w=2*(hz+hd-1)+1-D, x0,y0; projC(u,w,top+1,&x0,&y0); y0+=CC/2;
+        for(int i=0;i<=len;i++){
+            int x=x0+sx*((i*3)/2-(i*i)/(len+1)), t=2+(len-i)*hs/len;   // out, then curving back in; thick at the root, a point at the tip
+            rect(x-t/2,y0-i,t,1,i==len?tip:col);
+        }
+    }
+}
 __attribute__((noinline)) static void drawEars(int near){   // ROM, not inlined into the IWRAM drawScene
     int es=look[LK_EARS]; if(!es||custom) return;
     int hx,hy,hz,hs; headBox(&hx,&hy,&hz,&hs);
@@ -1070,7 +1093,7 @@ IWRAM_THUMB static void drawScene(int blink){
         if(noGrid){ if(liftK>bakeCapH) liftK=bakeCapH; if(wk>bakeCapW) wk=bakeCapW; if(liftT>bakeCapT) liftT=bakeCapT;
                     if(armK>bakeCapX) armK=bakeCapX; if(stanceK>bakeCapX) stanceK=bakeCapX; if(shA>bakeCapL) shA=bakeCapL; if(shL>bakeCapL) shL=bakeCapL; } bakeWk=wk; bakeSh=shA>shL?shA:shL; }   // a sprite bake: only as tall / wide as its box holds
     else liftK=liftT=armK=stanceK=0;
-    drawEars(0);
+    drawEars(0); drawTail(0); drawHorns(0);
     int nsx=0, nsy=0, ntint=0; u16 ndc=0;   // where the mouth sprite went (for a raised nose)
     // voxels (back to front)
     for(int y=0;y<H;y++)for(int i=0;i<W*D;i++){
@@ -1106,7 +1129,7 @@ IWRAM_THUMB static void drawScene(int blink){
         if(dc&&fv>=0){ drawDeco(sx,sy,dc,fv,tint); if(decSpr(dc)-1>=NEYE){ nsx=sx; nsy=sy; ndc=dc; ntint=tint; } }
     }
     if(ndc&&decLook&&look[LK_NOSE]&&slideEff(look[LK_NOSEHT])>0){ decNose=1; drawDeco(nsx,nsy,ndc,fv,ntint); decNose=0; }   // a raised nose, over the block above the mouth
-    drawEars(1); drawAntennae();
+    drawEars(1); drawTail(1); drawHorns(1); drawAntennae();
 }
 static volatile int mWantOff; static void audIdleStop(void);   // set by the mixer interrupt when nothing is left to play: vsync() then switches it off
 static void vsync(void){ while(REG_VCOUNT>=160); while(REG_VCOUNT<160); if(mWantOff) audIdleStop(); }
@@ -2792,9 +2815,9 @@ static const char* const botStyNm[4]={"PANTS","SHORTS","SKIRT","BARE"};
 static const char* const shoeNm[6]={"AS THE BOTTOM","WHITE","BLACK","RED","GOLD","AS THE TOP"};
 #define LK_AGE LK_N   // the AGE row is not part of look[]: it picks the life stage
 static const char* const* const lookNm[LK_N+1]={shapeNm,0,eyeNm,mouthNm,earNm,hairNm,0,0,0,0,0,0,tailNm,hornNm,backNm,hatNm,hatColNm,beardNm,topStyNm,botStyNm,shoeNm,
-                                                browNm,noseNm,cheekNm,glassNm,0,0,0,0,0,0,0,0,clawNm,antNm,patNm,patColNm,0,0,0,0,0,0,0,0,0,fearNm,muzNm,ftailNm,0,0,0,0,0,0,0,0,stageNm};
-_Static_assert(LK_N==57,"lookNm / lookCol / cnt need a slot for every look");
-static const u16* const lookCol[LK_N+1]={0,skinTones,0,0,0,0,hairTones,topTones,botTones,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,eyeTones,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+                                                browNm,noseNm,cheekNm,glassNm,0,0,0,0,0,0,0,0,clawNm,antNm,patNm,patColNm,0,0,0,0,0,0,0,0,0,fearNm,muzNm,ftailNm,0,0,0,0,0,0,0,0,0,0,stageNm};
+_Static_assert(LK_N==59,"lookNm / lookCol / cnt need a slot for every look");
+static const u16* const lookCol[LK_N+1]={0,skinTones,0,0,0,0,hairTones,topTones,botTones,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,eyeTones,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 #define TROWS 18   // most rows a tab holds; the card shows 5 at a time and scrolls
 static const Row tabRow[NTAB][TROWS]={
   {{"AGE",0,RK_PICK,LK_AGE,AG_N},{"SHAPE",0,RK_PICK,LK_SHAPE,NSHAPE},{"HEIGHT",0,RK_SLIDE,LK_HEIGHT,9},{"WEIGHT",0,RK_SLIDE,LK_WEIGHT,9},
@@ -2809,11 +2832,12 @@ static const Row tabRow[NTAB][TROWS]={
   {{"TOP",0,RK_SWATCH,LK_TOP,NSW},{"TOP TONE",0,RK_SLIDE,LK_TTONE,9},{"BOTTOM",0,RK_SWATCH,LK_BOT,NSW},{"BOTTOM TONE",0,RK_SLIDE,LK_BTONE,9},{"TOP STYLE",0,RK_PICK,LK_TOPSTY,5},{"BOTTOM STYLE",0,RK_PICK,LK_BOTSTY,4},{"SHOES",0,RK_PICK,LK_SHOE,6}},
   {{"TAIL",0,RK_PICK,LK_TAIL,3},{"HORNS",0,RK_PICK,LK_HORNS,3},{"BACK",0,RK_PICK,LK_BACK,3},{"HANDS",0,RK_PICK,LK_CLAWS,3},{"ANTENNAE",0,RK_PICK,LK_ANTENNA,3},
    {"PATTERN",0,RK_PICK,LK_PATTERN,7},{"PAINT",0,RK_PICK,LK_PATCOL,6},{"ANIMAL EARS",0,RK_PICK,LK_FEARS,5},{"MUZZLE",0,RK_PICK,LK_MUZZLE,4},{"FUR TAIL",0,RK_PICK,LK_FTAIL,4},
-   {"ANT LENGTH",0,RK_SLIDE,LK_ANTLEN,9},{"ANT SPREAD",0,RK_SLIDE,LK_ANTSPR,9},{"ANT TIP SIZE",0,RK_SLIDE,LK_ANTTIP,9}},
+   {"ANT LENGTH",0,RK_SLIDE,LK_ANTLEN,9},{"ANT SPREAD",0,RK_SLIDE,LK_ANTSPR,9},{"ANT TIP SIZE",0,RK_SLIDE,LK_ANTTIP,9},
+   {"TAIL LENGTH",0,RK_SLIDE,LK_TAILLEN,9},{"HORN SIZE",0,RK_SLIDE,LK_HORNSZ,9}},
   {{"ASPIRATION",0,RK_PERS,PS_ASP,AS_PICK},{"LIFETIME WANT",0,RK_PERS,PS_LTW,2},{"SIGN",0,RK_PERS,PS_SIGN,12},
    {"NEAT",0,RK_TRAIT,TR_NEAT,11},{"OUTGOING",0,RK_TRAIT,TR_OUT,11},{"ACTIVE",0,RK_TRAIT,TR_ACT,11},{"PLAYFUL",0,RK_TRAIT,TR_PLAY,11},{"NICE",0,RK_TRAIT,TR_NICE,11}},
   {{"GO LIVE LIFE!","PLAY IT NOW",RK_ACT,AC_PLAY,0},{"FIRST NAME",0,RK_ACT,AC_FNAME,0},{"LAST NAME",0,RK_ACT,AC_LNAME,0},{"RANDOMIZE","ROLL THE DICE",RK_ACT,AC_RAND,0},{"ADD TO FAMILY","COPY THIS LOOK",RK_ACT,AC_ADD,0},{"FAMILY","EDIT OR MOVE OUT",RK_ACT,AC_FAM,0},{"EDIT MAP","BUILD ROOMS",RK_ACT,AC_MAP,0},{"MAIN MENU","LOOK IS KEPT",RK_ACT,AC_MENU,0}} };
-static const u8 tabN0[NTAB]={14,18,6,7,13,8,8};
+static const u8 tabN0[NTAB]={14,18,6,7,15,8,8};
 static int tabRows(int t){ return tabN0[t]-(t==0&&stage<AG_TEEN&&!sUnlock?3:0); }   // babies and children: no BUTT rows
 #define tabN(t) tabRows(t)
 static int tabNext(int t,int d){ return (t+d+NTAB)%NTAB; }
@@ -3117,7 +3141,7 @@ static void famMenu(void){
     static char t[32]; simCat(simCat(t,"NOW EDITING "),hhPName); toast(t);
 }
 static void lookRandom(void){   // the dice (like Create-A-Sim): a whole new look and personality, only from what this stage and your unlocked parts allow
-    static const u8 cnt[LK_N]={NSHAPE,NSW,NEYE,NMOUTH,3,NHAIR,NSW,NSW,NSW,9,9,9,3,3,3,6,6,3,4,3,6, 6,6,5,4,NSW, 9,9,9,9,9,9,9, 3,3,7,6, 9,9,9,9,9,9,9,9,9, 5,4,4, 9,9,9, 9,9,9,9,9};
+    static const u8 cnt[LK_N]={NSHAPE,NSW,NEYE,NMOUTH,3,NHAIR,NSW,NSW,NSW,9,9,9,3,3,3,6,6,3,4,3,6, 6,6,5,4,NSW, 9,9,9,9,9,9,9, 3,3,7,6, 9,9,9,9,9,9,9,9,9, 5,4,4, 9,9,9, 9,9,9,9,9,9,9};
     for(int id=0;id<LK_N;id++){
         if(lkSlide(id)){ look[id]=(u8)slideVal(rnd8()%5+rnd8()%5); continue; }   // most land near the middle
         for(int t=0;t<20;t++){ int v=rnd8()%cnt[id];
