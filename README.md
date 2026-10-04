@@ -12,6 +12,7 @@ Power on, then START on the title screen. The **main menu** has:
 | Entry | What it does |
 |---|---|
 | PLAY | live in your room: needs, wants, job, skating |
+| NEIGHBORHOOD | your town: pick a lot, play, build, move in; paint land, lay roads, plant trees, add lots (START = town menu) |
 | MAKE CREATURE | build a voxel person (body, face, hair, clothes, parts, life stage) |
 | BUILD ROOM | draw walls, floors, wallpaper and items |
 | ROOM SLOTS | save and load rooms, people and lives |
@@ -27,6 +28,8 @@ Every screen shows its own button hints. D-pad moves, **A** picks, **B** goes ba
 - **Add a tracker song:** put the `.xm` in `tools/`, add a `SONG_XM(...)` line to `source/songs.h` (and a name in `source/artists.h`), run `python3 tools/xm2gba.py` (needs numpy and scipy), commit `source/musicdata.h` and `source/music/xmdata.bin`.
 - **Add a streamed song:** `python3 tools/encode_song.py "song.mp3"` (needs ffmpeg).
 - Songs are listed in `source/songs.h` (up to 64). Songs added at the end keep everyone's checkmarks.
+- **Creator music** is 12 chiptune loops the game plays **live** from note data (`tools/chip_synth.py`; 152 KB instead of 1.5 MB of recordings).
+- **TREE SWAYING ACTION** is now a 13-minute ambient piece; the drum version is the hidden TREE SWAYING ACTION (ORIGINAL).
 - **Locked and hidden songs:** WORTHLESS CLOUDS starts locked and unlocks for good when a Sim meets their **lifetime want**. Songs named `... (ORIGINAL)` stay hidden. The title code (UP UP DOWN DOWN LEFT LEFT RIGHT B A START) shows both. To lock another song, add one line to `source/unlocks.h`.
 
 ## Where things are
@@ -39,4 +42,4 @@ Every screen shows its own button hints. D-pad moves, **A** picks, **B** goes ba
 | `docs/NOTES.md` | the full technical notes (memory maps, save layout, every feature) |
 | `docs/NEXT.md` | what to build next |
 
-Saves live in cartridge SRAM (32 KB); the layout is in `docs/NOTES.md`.
+**Saves:** 128 KB flash (58 room slots). Carts without flash fall back to 32 KB SRAM (12 slots). Older saves carry over. Layout: `docs/NOTES.md`.

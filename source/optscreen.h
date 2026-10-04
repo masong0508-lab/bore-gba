@@ -245,22 +245,24 @@ static void optAction(int a,int*remeasure){
         case OA_LIFESAVE:
             if(!gInPlay) toast("USE THIS FROM THE PAUSE MENU");
             else { simsSaveNow(); toast("LIFE SAVED"); } break;
-        case OA_LIFEERASE: if(menu("ERASE THE SAVED LIFE",slYesNo,2)==1){ SIM_SRAM[0]=0; toast("SAVED LIFE ERASED"); } break;
-        case OA_ROOMERASE: if(menu("ERASE THE SAVED MAP",slYesNo,2)==1){ SRAM_BASE[0]=0; toast("SAVED MAP ERASED"); } break;
+        case OA_LIFEERASE: if(menu("ERASE THE SAVED LIFE",slYesNo,2)==1){ SIM_SRAM[0]=0; svCommit(); toast("SAVED LIFE ERASED"); } break;
+        case OA_ROOMERASE: if(menu("ERASE THE SAVED MAP",slYesNo,2)==1){ svWr(0,0); toast("SAVED MAP ERASED"); } break;
         case OA_SLOTSERASE: if(menu("ERASE ALL ROOM SLOTS",slYesNo,2)==1){ slEraseAll(); toast("ALL SLOTS ERASED"); } break;
         case OA_ALLERASE:
             if(gInPlay){ toast("USE THIS FROM THE MAIN MENU"); break; }
             if(menu("ERASE ALL SAVE MEMORY",slYesNo,2)==1 && menu("REALLY ERASE EVERYTHING",slYesNo,2)==1){
-                volatile u8*m=SRAM_BASE; for(int i=0;i<32768;i++) m[i]=0;
+                svEraseAll();
                 optsDefaults(); setDefaults(); settingsSave(); mapReset(); for(int i=0;i<LK_N;i++) look[i]=0; stage=AG_ADULT; ageDays=0; starter(); setColors(); jbSetup(); *remeasure=1;
                 toast("EVERYTHING ERASED"); }
             break;
         case OA_SRAMTEST:{
-            volatile u8*m=SRAM_BASE+SRAM_TEST; int ok=1;
+            volatile u8*m=SRAM_BASE+SRAM_TEST; int ok=1; svErr=0;
             for(int i=0;i<16;i++) m[i]=(u8)(i*37+0x5A);
-            for(int i=0;i<16;i++) if(m[i]!=(u8)(i*37+0x5A)) ok=0;
+            svCommit(); for(int i=0;i<16;i++) if(svChip(SRAM_TEST+i)!=(u8)(i*37+0x5A)) ok=0;   // read back from the chip itself
             for(int i=0;i<16;i++) m[i]=0;
-            toast(ok?"SAVE MEMORY WORKS":"NO SAVE MEMORY HERE"); } break;
+            svCommit(); if(svErr) ok=0;
+            static char tb[32]; char*e=tb; for(const char*p=svName();*p;) *e++=*p++; for(const char*p=" WORKS";*p;) *e++=*p++; *e=0;
+            toast(ok?tb:"NO SAVE MEMORY HERE"); } break;
     }
 }
 

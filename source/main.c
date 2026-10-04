@@ -16,6 +16,7 @@ typedef uint8_t u8; typedef uint16_t u16; typedef uint32_t u32;
 #define IWRAM_CODE __attribute__((section(".iwram"), target("arm"), long_call))
 #define IWRAM_THUMB __attribute__((section(".iwram"), long_call))   // fast RAM, Thumb code: about 2/3 the size of ARM, for work that is not the per-pixel hot path
 #define REG_WAITCNT (*(volatile u16*)0x04000204)
+#include "save.h"   // the save chip: 128 KB flash, or 32 KB SRAM as the fallback (SRAM_BASE, svRd / svWr / svErase / svCommit)
 
 #define SW 240
 #define SH 160
@@ -806,9 +807,9 @@ static void setStage(int n){   // new stage: the look is fitted to it; a look-bu
     setColors(); ageSave();
 }
 #define AGE_OFF 5008   // SRAM: 'A' 'G', stage, days in the stage, checksum (the creature itself is only kept in room slots, so its growth is remembered here)
-static void ageSave(void){ volatile u8*m=(volatile u8*)0x0E000000+AGE_OFF; m[0]='A'; m[1]='G'; m[2]=stage; m[3]=ageDays; m[4]=(u8)(0x47+stage+ageDays); }
+static void ageSave(void){ volatile u8*m=SRAM_BASE+AGE_OFF; m[0]='A'; m[1]='G'; m[2]=stage; m[3]=ageDays; m[4]=(u8)(0x47+stage+ageDays); }
 static void ageLoad(void){   // at power on, after the person came back from its slot: the grown-up stage wins over the stage the slot was saved at
-    volatile u8*m=(volatile u8*)0x0E000000+AGE_OFF;
+    volatile u8*m=SRAM_BASE+AGE_OFF;
     if(m[0]!='A'||m[1]!='G'||m[2]>=AG_N||m[4]!=(u8)(0x47+m[2]+m[3])) return;
     ageDays=m[3];
     if(m[2]!=stage){ stage=m[2]; fixLook(); if(custom) clipCustom(); else buildLook(); setColors(); }
@@ -912,14 +913,14 @@ static void partsSettle(void){   // leaving the creator: a part that was only be
 #define PERS_OFF 5024   // SRAM: 'P' 'S', aspiration, lifetime want, five traits, DNA (2), unlocked parts (2), checksum
 #define PERS_LEN (4+TR_N+5)
 static void persSave(void){
-    volatile u8*m=(volatile u8*)0x0E000000+PERS_OFF; u8 sum=0x50;
+    volatile u8*m=SRAM_BASE+PERS_OFF; u8 sum=0x50;
     m[0]='P'; m[1]='S'; m[2]=pAsp; m[3]=pLtw; for(int i=0;i<TR_N;i++) m[4+i]=pTr[i];
     m[4+TR_N]=(u8)pDna; m[5+TR_N]=(u8)(pDna>>8); m[6+TR_N]=(u8)pUnl; m[7+TR_N]=(u8)(pUnl>>8);
     for(int i=2;i<PERS_LEN-1;i++) sum+=m[i];
     m[PERS_LEN-1]=sum;
 }
 static void persLoad(void){   // at power on, after the person of the active slot came back (the last edit wins: both are written together)
-    volatile u8*m=(volatile u8*)0x0E000000+PERS_OFF; u8 tr[TR_N], sum=0x50;
+    volatile u8*m=SRAM_BASE+PERS_OFF; u8 tr[TR_N], sum=0x50;
     if(m[0]!='P'||m[1]!='S') return;
     for(int i=2;i<PERS_LEN-1;i++) sum+=m[i];
     for(int i=0;i<TR_N;i++) tr[i]=m[4+i];
@@ -1165,7 +1166,7 @@ IWRAM_THUMB static void drawScene(int blink){
     drawEars(1); drawTail(1); drawWings(1); drawHorns(1); drawAntennae();
 }
 static volatile int mWantOff; static void audIdleStop(void);   // set by the mixer interrupt when nothing is left to play: vsync() then switches it off
-static void vsync(void){ while(REG_VCOUNT>=160); while(REG_VCOUNT<160); if(mWantOff) audIdleStop(); }
+static void vsync(void){ while(REG_VCOUNT>=160); while(REG_VCOUNT<160); if(mWantOff) audIdleStop(); svTick(); }
 static void present(void){
     vsync();
     REG_DMA3SAD=(u32)(uintptr_t)fb; REG_DMA3DAD=VRAM_ADDR;
@@ -1236,6 +1237,9 @@ static void smoke(int frame){
 typedef int32_t s32;
 static void lifeMode(int ed);
 static void mapEditor(void);
+static int edX0=0, edY0=0, edX1=9999, edY1=9999;   // where the room builder's cursor may go (neighborhood.h narrows it to the lot you are on)
+static int nbPlaying;   // the game was started from the neighborhood: its pause menu goes back there
+static int nbResetLot(void);
 #define MW 40
 #define MH 40    // keep MH == MW: the 4-way action cam rotates the square map
 static int camX, camY, camSnap=1, camLastV;   // camera offset in px; the map's top corner is drawn at (120-camX, 24-camY)
@@ -1384,6 +1388,7 @@ IWRAM_CODE static void musMix(s8*outL,s8*outR){
 }
 // Streamed ADPCM song (source/music/*.adp from tools/encode_song.py): 4-bit IMA-ADPCM, 18157 Hz, so one frame = 304 samples.
 // Same format as the sound effects: u32 sample count, then nibbles (low first). Decoded straight into the DMA buffer.
+IWRAM_CODE static void pseudoSt(s8*out,s8*outR);
 IWRAM_CODE static void adpMix(s8*out,s8*outR){
     // bit 31 of the sample count = song stored at 2/3 rate (12105 Hz): every 2 stored samples become 3 output samples (linear interpolation)
     u32 p=aPos, e=aN; int pred=aPred, idx=aIdx, i=0; const u8*d=aSrc;
@@ -1411,16 +1416,19 @@ IWRAM_CODE static void adpMix(s8*out,s8*outR){
     }
     for(;i<MUS_N;i++) out[i]=0;
     aPos=p; aPred=pred; aIdx=idx; aPrv=prv; aPh=ph;
-    // Pseudo-stereo (complementary comb): L = 0.75x + 0.5z, R = 0.75x - 0.5z, where z is the high part of x delayed by 14 ms. L+R is exactly the
-    // original mono signal (so it also sounds right on the GBA's mono speaker); the ears get different comb patterns = width.
-    // The one-pole low-pass is subtracted from z so bass and kick stay in the middle.
+    pseudoSt(out,outR);
+    if(p>=e&&i<MUS_N&&++aTail>=3) mDone=1;   // 2 buffers are in flight, so wait for the last real samples to be heard
+}
+// Pseudo-stereo for a mono stream (complementary comb): L = 0.75x + 0.5z, R = 0.75x - 0.5z, where z is the high part of x delayed by 14 ms. L+R is
+// exactly the original mono signal (so it also sounds right on the GBA's mono speaker); the ears get different comb patterns = width.
+// The one-pole low-pass is subtracted from z so bass and kick stay in the middle.
+IWRAM_CODE static void pseudoSt(s8*out,s8*outR){
     int dp=mDp, lp=mLp;
     for(int k=0;k<MUS_N;k++){ int x=out[k], z=mDly[dp]; mDly[dp]=(s8)x; dp=(dp+1)&255;
         lp+=(z*16-lp)>>3; int h=z-(lp>>4);                 // lp holds the low-passed delayed signal x16
         int l=(x*12+h*8)>>4, r=(x*12-h*8)>>4;
         out[k]=(s8)(l>127?127:l<-128?-128:l); outR[k]=(s8)(r>127?127:r<-128?-128:r); }
     mDp=dp; mLp=lp;
-    if(p>=e&&i<MUS_N&&++aTail>=3) mDone=1;   // 2 buffers are in flight, so wait for the last real samples to be heard
 }
 IWRAM_CODE static void sfxMix(s8*outL,s8*outR){   // add the effect voice to a finished buffer (both sides), clipped
     const u8*d=ssrc; u32 n=sn, ip=sPos, fr=sFr, rd=sRd; int pred=spred, idx=sidx, s0=sS0, s1=sS1, sgain=oSfxGain();   // SFX VOLUME and MASTER VOLUME options
@@ -1442,13 +1450,69 @@ IWRAM_CODE static void sfxMix(s8*outL,s8*outR){   // add the effect voice to a f
     }
     sPos=ip; sFr=fr; sRd=rd; spred=pred; sidx=idx; sS0=s0; sS1=s1;
 }
+// ---- the creator's chiptune loops, played LIVE from note data (tools/chip_synth.py, which also holds an exact twin of chipMix) ----
+// Four NES-style voices: two pulses and a triangle read 256-step wave tables that hold exactly the harmonics below 7.5 kHz for their pitch,
+// the noise reads a band-limited recording of the NES noise at the drum's clock; two tables then apply the NES APU's non-linear mixer, a one-
+// pole 40 Hz low cut follows, and the loop's gain. The note data changes the voices 120 times a second (a flags byte per step, see chip_synth.py).
+#include "chipsyn.h"
+__asm__(".pushsection .rodata\n.balign 4\n.global chipsyn\nchipsyn:\n.incbin \"source/music/chipsyn.bin\"\n.balign 4\n.popsection\n");
+extern const u8 chipsyn[];
+static const u32 csNzOff[CS_NNZ]=CS_NZ, csTabOff[3]=CS_TAB; static const u8 csHmin[3]=CS_HMIN, csHmax[3]=CS_HMAX;
+typedef struct { const u8*s,*d; int nl,step,rep,acc,left; u32 ph[3],inc[3]; const s8*tab[3]; int lv[3],nlv,np,lp,g; const s8*nb; } CSyn;
+static CSyn csy;   // the main deck's synth (deckSwap trades it with the other deck's)
+static const s8* csTab(int v,u32 inc){ int h=inc?(int)(CS_KH/inc):127; if(h<1) h=1; if(h>127) h=127; if(h<csHmin[v]) h=csHmin[v]; if(h>csHmax[v]) h=csHmax[v];
+    return (const s8*)(chipsyn+csTabOff[v]+(u32)(h-csHmin[v])*256); }
+static void csInit(const u8*loop){   // header: u16 steps, u16 0, s32 low-cut state the loop starts from, u32 gain (Q20); then the steps
+    CSyn*c=&csy; c->s=loop+12; c->d=c->s; c->nl=*(const u16*)loop; c->lp=*(const int*)(loop+4); c->g=(int)*(const u32*)(loop+8);
+    c->step=0; c->rep=0; c->acc=0; c->left=0; c->nlv=0; c->np=0; c->nb=(const s8*)(chipsyn+csNzOff[0]);
+    for(int v=0;v<3;v++){ c->ph[v]=0; c->inc[v]=0; c->lv[v]=0; c->tab[v]=csTab(v,0); }
+}
+__attribute__((noinline,long_call)) static void csStep(CSyn*c){   // the next control step (ROM, called from chipMix)
+    if(c->step>=c->nl){ c->step=0; c->d=c->s; c->rep=0; }   // the loop starts again (the voices just carry on)
+    c->step++;
+    if(c->rep) c->rep--;
+    else { int fl=*c->d++;
+        if(fl&0x80) c->rep=fl&0x7F;
+        else { for(int v=0;v<3;v++){
+                   if(fl&(1<<(2*v))){ int cd=c->d[0]|(c->d[1]<<8); c->d+=2; c->inc[v]=cd?(u32)(((unsigned long long)csInc[cd>>8]*csFine[cd&255])>>15):0; c->tab[v]=csTab(v,c->inc[v]); }
+                   if(fl&(2<<(2*v))) c->lv[v]=*c->d++; }
+               if(fl&0x40){ int b=*c->d++; c->nlv=b&15; c->nb=(const s8*)(chipsyn+csNzOff[b>>4]); } } }
+    int t=c->acc+37; c->left=151+(t>=120); c->acc=t>=120?t-120:t;   // 18157/120 = 151 r 37: 151 or 152 samples a step, exact on average
+}
+IWRAM_CODE static void chipMix(s8*out,s8*outR){   // in passes over maccL / maccR (free while this runs): few live values, no spills
+    CSyn*c=&csy; int i=0;
+    while(i<MUS_N){
+        if(!c->left) csStep(c);
+        int n=MUS_N-i; if(n>c->left) n=c->left;
+        s16*P=maccL+i,*U=maccR+i;
+        { u32 ph=c->ph[0],in=c->inc[0]; const s8*t=c->tab[0]; int l=c->lv[0];                        // pulse 1
+          if(l){ _Pragma("GCC unroll 2") for(int k=0;k<n;k++){ ph+=in; P[k]=(s16)(t[ph>>24]*l); } } else { for(int k=0;k<n;k++) P[k]=0; ph+=in*(u32)n; } c->ph[0]=ph; }
+        { u32 ph=c->ph[1],in=c->inc[1]; const s8*t=c->tab[1]; int l=c->lv[1];                        // pulse 2
+          if(l){ _Pragma("GCC unroll 2") for(int k=0;k<n;k++){ ph+=in; P[k]=(s16)(P[k]+t[ph>>24]*l); } } else ph+=in*(u32)n; c->ph[1]=ph; }
+        { u32 ph=c->ph[2],in=c->inc[2]; const s8*t=c->tab[2];                                        // triangle (level x the APU weight)
+          if(c->lv[2]){ _Pragma("GCC unroll 2") for(int k=0;k<n;k++){ ph+=in; U[k]=(s16)((t[ph>>24]*CS_TRIMUL)>>4); } } else { for(int k=0;k<n;k++) U[k]=0; ph+=in*(u32)n; } c->ph[2]=ph; }
+        { int np=c->np, l=c->nlv; const s8*nb=c->nb;                                                  // noise
+          if(l){ _Pragma("GCC unroll 2") for(int k=0;k<n;k++){ U[k]=(s16)(U[k]+nb[np]*l); np=(np+1)&(CS_NB-1); } } else np=(np+n)&(CS_NB-1); c->np=np; }
+        c->left-=n; i+=n;
+    }
+    { const s16*PM=(const s16*)(chipsyn+CS_PM),*TM=(const s16*)(chipsyn+CS_TM); int lp=c->lp, g=c->g;   // the APU mixer, the low cut, the gain
+      _Pragma("GCC unroll 2") for(int k=0;k<MUS_N;k++){
+          int x4=(PM[(maccL[k]+CS_POFF)>>2]+TM[(maccR[k]+CS_UOFF)>>2])<<4; lp+=((x4-lp)*CS_HPK)>>16;   // (the tables cover every value a voice can make)
+          int y=(int)(((long long)(x4-lp)*g)>>20); out[k]=(s8)(y>127?127:y<-128?-128:y); }
+      c->lp=lp; }
+#ifdef CS_TEST
+    { extern u8* csTestP; for(int k=0;k<MUS_N;k++) *csTestP++=(u8)out[k]; }   // (test build: the mono output, before the pseudo-stereo)
+#endif
+    pseudoSt(out,outR);
+}
+
 // ---- CROSSFADE: a second deck ----
 // Everything a song keeps between frames (musMix / adpMix state) can be put aside in xdk and a new song started in the globals. While xfOn the interrupt
 // mixes BOTH songs every frame (the old one by swapping its state in and out for a moment) and blends them equal-power over xfN frames: the new song
 // rises, the old one falls. With no new song (fade out) the main deck is just silent. Asking for another crossfade while one runs drops the older song.
 typedef struct {
     const XmSong*song; int ord,row,left,frac; MVoice vc[MUS_VOICES]; int kind,tail,laps,done,play;
-    int aSlow,aPrv,aPh; const u8*aSrc; u32 aN,aPos; int aPred,aIdx,aLoop,aPred0,aIdx0; s8 dly[256]; int dp,lp;
+    int aSlow,aPrv,aPh; const u8*aSrc; u32 aN,aPos; int aPred,aIdx,aLoop,aPred0,aIdx0; s8 dly[256]; int dp,lp; CSyn cs;
 } MDeck;
 static MDeck xdk EWRAM_BSS; static s8 xbufL[MUS_N] EWRAM_BSS, xbufR[MUS_N] EWRAM_BSS;
 static volatile int xfOn, xfT, xfN, xdkG=256;   // crossfade running, frames done, frames in all, the old song's gain when it was put aside (256 = full)
@@ -1458,19 +1522,19 @@ IWRAM_CODE static int xfGain(int t,int n){ int p=t*256/n; if(p<0) p=0; if(p>256)
 IWRAM_CODE static void deckSwap(MDeck*d){   // exchange the main deck (the globals) with d
     XSW(const XmSong*,mSong,d->song) XSW(int,mOrd,d->ord) XSW(int,mRow,d->row) XSW(int,mLeft,d->left) XSW(int,mFrac,d->frac) XSW(int,mKind,d->kind) XSW(int,aTail,d->tail)
     XSW(int,aSlow,d->aSlow) XSW(int,aPrv,d->aPrv) XSW(int,aPh,d->aPh) XSW(const u8*,aSrc,d->aSrc) XSW(u32,aN,d->aN) XSW(u32,aPos,d->aPos) XSW(int,aPred,d->aPred) XSW(int,aIdx,d->aIdx) XSW(int,aLoop,d->aLoop) XSW(int,aPred0,d->aPred0) XSW(int,aIdx0,d->aIdx0)
-    XSW(int,mDp,d->dp) XSW(int,mLp,d->lp)
+    XSW(int,mDp,d->dp) XSW(int,mLp,d->lp) XSW(CSyn,csy,d->cs)
     { int t=mLaps; mLaps=d->laps; d->laps=t; t=mDone; mDone=d->done; d->done=t; t=mPlay; mPlay=d->play; d->play=t; }
     { u32*a=(u32*)mvc,*b=(u32*)d->vc; for(unsigned i=0;i<sizeof(mvc)/4;i++){ u32 t=a[i]; a[i]=b[i]; b[i]=t; } }
     { u32*a=(u32*)mDly,*b=(u32*)d->dly; for(int i=0;i<64;i++){ u32 t=a[i]; a[i]=b[i]; b[i]=t; } }
 }
 IWRAM_CODE static void musMixAny(int b){
     if(!mPlay&&!xfOn){ for(int i=0;i<MUS_N;i++){ mbufL[b][i]=0; mbufR[b][i]=0; } if(sfxV) sfxMix(mbufL[b],mbufR[b]); else mWantOff=1; return; }   // only an effect (or nothing: switch the mixer off)
-    if(mPlay){ if(mKind) adpMix(mbufL[b],mbufR[b]); else musMix(mbufL[b],mbufR[b]); }
+    if(mPlay){ if(mKind==2) chipMix(mbufL[b],mbufR[b]); else if(mKind) adpMix(mbufL[b],mbufR[b]); else musMix(mbufL[b],mbufR[b]); }
     else for(int i=0;i<MUS_N;i++){ mbufL[b][i]=0; mbufR[b][i]=0; }
     if(xfOn){   // blend the new song (main deck) with the old one
         int n=xfN>0?xfN:1, gi=xfGain(xfT,n), go=(xfGain(n-xfT,n)*xdkG)>>8;
         if(xdk.play){
-            deckSwap(&xdk); if(mKind) adpMix(xbufL,xbufR); else musMix(xbufL,xbufR); deckSwap(&xdk);
+            deckSwap(&xdk); if(mKind==2) chipMix(xbufL,xbufR); else if(mKind) adpMix(xbufL,xbufR); else musMix(xbufL,xbufR); deckSwap(&xdk);
             for(int i=0;i<MUS_N;i++){ int l=(mbufL[b][i]*gi+xbufL[i]*go)>>8, r=(mbufR[b][i]*gi+xbufR[i]*go)>>8;
                 mbufL[b][i]=(s8)(l>127?127:l<-128?-128:l); mbufR[b][i]=(s8)(r>127?127:r<-128?-128:r); }
         } else if(gi<256) for(int i=0;i<MUS_N;i++){ mbufL[b][i]=(s8)((mbufL[b][i]*gi)>>8); mbufR[b][i]=(s8)((mbufR[b][i]*gi)>>8); }
@@ -1529,12 +1593,13 @@ static void audStart(void){   // start the mixer (the caller has set up what pla
     R_IF=0xFFFF; R_IE=5; R_IME=1;
 }
 static void audStop(void){ irqOff(); mOn=0; R_DMA1CNT=0; R_DMA2CNT=0; R_TM0CNT=0; R_SNDCNT_H=0; }
-// Start a song: kind 0 = the tracker song xm, kind 1 = the ADPCM data in adp.
+// Start a song: kind 0 = the tracker song xm, kind 1 = the ADPCM data in adp, kind 2 = a chiptune loop (synth data in adp).
 static void deckInit(int kind,const u8*adp,const XmSong*xm){   // set the main deck up for a song (the sound hardware is not touched)
     for(int i=0;i<MUS_VOICES;i++) mvc[i].d=0;
     mOrd=0; mRow=0; mLeft=0; mFrac=0; mLaps=0; mDone=0; aTail=0; mKind=kind; mSong=xm; mDp=0; mLp=0; for(int i=0;i<256;i++) mDly[i]=0;
     aLoop=0; aPred0=0; aIdx0=0;
-    if(kind){ u32 n0=*(const u32*)adp; aSlow=(int)(n0>>31); aLoop=(int)((n0>>30)&1); aN=n0&0x3FFFFFFFu; aSrc=adp+4; aPrv=0; aPh=0; aPos=0;
+    if(kind==2) csInit(adp);
+    else if(kind){ u32 n0=*(const u32*)adp; aSlow=(int)(n0>>31); aLoop=(int)((n0>>30)&1); aN=n0&0x3FFFFFFFu; aSrc=adp+4; aPrv=0; aPh=0; aPos=0;
         if(aLoop){ u32 st=((const u32*)adp)[1]; aSrc=adp+8; aPred0=(s16)(st&0xFFFF); aIdx0=(int)((st>>16)&0xFF); }   // loop header: count|bit 30, then pred | idx<<16
         aPred=aPred0; aIdx=aIdx0; }
     mPlay=1;
@@ -1571,6 +1636,7 @@ static void musFadeOut(int frames){   // fade the playing song out to silence (t
 // Will the song in the main deck be over within `frames` frames? (the menus start the next song's crossfade shortly before the end)
 static int musNearEnd(int frames){
     if(!mPlay) return 0;
+    if(mKind==2) return 0;   // a chiptune loop never ends
     if(mKind) return !aLoop&&(mDone||(aSlow?(long)(aN-aPos)*3/2:(long)(aN-aPos))<(long)frames*MUS_N);   // (a slow song stores 2 samples for every 3 it plays; a loop never ends)
     const XmSong*s=mSong; long left=(long)s->rows[s->order[mOrd]]-mRow;
     for(int o=mOrd+1;o<s->nord;o++) left+=s->rows[s->order[o]];
@@ -1828,8 +1894,7 @@ static void mapScan(void){   // find the skateboard (B) and the spawn point (P);
         if(fx<0&&c=='.'){ fx=x; fy=y; } }
     if(spx<0){ if(fx<0){ lifeMap[1][1]='P'; fx=fy=1; } spx=fx; spy=fy; }
 }
-#define SRAM_BASE ((volatile u8*)0x0E000000)
-static const char sramTag[] __attribute__((used)) = "SRAM_V113";   // tells emulators / flash carts to give the game battery saves
+static const char sramTag[] __attribute__((used)) = "FLASH1M_V103";   // tells emulators / flash carts to give the game 128 KB of flash (save.h)
 #define MSZ (MW*MH)
 #define FLR_N 3   // floors a house has (house slots, slots.h): the floor you stand on is the live map, the other floors wait in flBuf
 static u8 flBuf[FLR_N][3][MSZ] EWRAM_BSS; static int curFl; static u8 flArm, flInit;   // tiles, floors and wallpapers of every floor; which floor is live
@@ -1873,28 +1938,33 @@ static int jbUnlock(int bit){   // 1 when the song was locked and is now free (s
 }
 // SRAM layout: 0..2 "BM3", then MSZ bytes each of tiles, floors, wallpapers. Settings at SET_OFF (see settingsSave).
 // Old "BM1" / "BM2" saves (14x14, settings at 640) still load: the room is placed into the plaza of the new default map.
-static void mapSave(void){ volatile u8*m=SRAM_BASE; m[0]='B'; m[1]='M'; m[2]='3';
-    for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x; if(curFl){ m[3+i]=flBuf[0][0][i]; m[3+MSZ+i]=flBuf[0][1][i]; m[3+2*MSZ+i]=flBuf[0][2][i]; } else { m[3+i]=(u8)lifeMap[y][x]; m[3+MSZ+i]=floorMap[y][x]; m[3+2*MSZ+i]=wallMap[y][x]; } } }   // (upstairs: the room kept in SRAM is still the ground floor)
-static int mapSaved(void){ volatile u8*m=SRAM_BASE; if(m[0]!='B'||m[1]!='M'||m[2]!='3') return 0;
+// (bytes 0..4095 sit in flash sector 0 on their own, so mapSave erases that sector and writes it again: svRd / svWr, not pointers)
+static int mapSaved(void){ if(svRd(0)!='B'||svRd(1)!='M'||svRd(2)!='3') return 0;
     for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x;
-        if(curFl?(m[3+i]!=flBuf[0][0][i]||m[3+MSZ+i]!=flBuf[0][1][i]||m[3+2*MSZ+i]!=flBuf[0][2][i]):(m[3+i]!=(u8)lifeMap[y][x]||m[3+MSZ+i]!=floorMap[y][x]||m[3+2*MSZ+i]!=wallMap[y][x])) return 0; }
+        if(curFl?(svRd(3+i)!=flBuf[0][0][i]||svRd(3+MSZ+i)!=flBuf[0][1][i]||svRd(3+2*MSZ+i)!=flBuf[0][2][i]):(svRd(3+i)!=(u8)lifeMap[y][x]||svRd(3+MSZ+i)!=floorMap[y][x]||svRd(3+2*MSZ+i)!=wallMap[y][x])) return 0; }
     return 1; }
+static void mapSave(void){
+    if(mapSaved()) return;   // the same room: nothing to write (flash wears with every erase)
+    svErase(0,SV_SEC); svWr(0,'B'); svWr(1,'M'); svWr(2,'3');
+    for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x; if(curFl){ svWr(3+i,flBuf[0][0][i]); svWr(3+MSZ+i,flBuf[0][1][i]); svWr(3+2*MSZ+i,flBuf[0][2][i]); } else { svWr(3+i,(u8)lifeMap[y][x]); svWr(3+MSZ+i,floorMap[y][x]); svWr(3+2*MSZ+i,wallMap[y][x]); } }   // (upstairs: the room kept in SRAM is still the ground floor)
+    svCommit(); }
 static int mapLoad(void){   // returns 1 if a valid saved map was loaded
     wDirty=1;
-    volatile u8*m=SRAM_BASE;
-    if(m[0]!='B'||m[1]!='M') return 0;
-    if(m[2]=='3'){
-        for(int i=0;i<MSZ;i++){ if(palIdx((char)m[3+i])<0||m[3+MSZ+i]>=NFL||m[3+2*MSZ+i]>=NWALL) return 0; }
+    #define m(k) svRd(k)
+    if(m(0)!='B'||m(1)!='M') return 0;
+    if(m(2)=='3'){
+        for(int i=0;i<MSZ;i++){ if(palIdx((char)m(3+i))<0||m(3+MSZ+i)>=NFL||m(3+2*MSZ+i)>=NWALL) return 0; }
         for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x;
-            lifeMap[y][x]=(char)m[3+i]; floorMap[y][x]=m[3+MSZ+i]; wallMap[y][x]=m[3+2*MSZ+i]; }
+            lifeMap[y][x]=(char)m(3+i); floorMap[y][x]=m(3+MSZ+i); wallMap[y][x]=m(3+2*MSZ+i); }
         return 1; }
-    if(m[2]!='1'&&m[2]!='2') return 0;
-    int v2=(m[2]=='2');
-    for(int i=0;i<OMSZ;i++){ if(palIdx((char)m[3+i])<0) return 0; if(v2&&(m[3+OMSZ+i]>=NFL||m[3+2*OMSZ+i]>=NWP)) return 0; }
+    if(m(2)!='1'&&m(2)!='2') return 0;
+    int v2=(m(2)=='2');
+    for(int i=0;i<OMSZ;i++){ if(palIdx((char)m(3+i))<0) return 0; if(v2&&(m(3+OMSZ+i)>=NFL||m(3+2*OMSZ+i)>=NWP)) return 0; }
     mapReset();
     for(int y=0;y<MH;y++)for(int x=0;x<MW;x++) if(lifeMap[y][x]=='B'||lifeMap[y][x]=='P') lifeMap[y][x]='.';   // the old room brings its own
     for(int y=0;y<OMW;y++)for(int x=0;x<OMW;x++){ int i=y*OMW+x, X=LEG_X+x, Y=LEG_Y+y;
-        lifeMap[Y][X]=(char)m[3+i]; floorMap[Y][X]=v2?m[3+OMSZ+i]:0; wallMap[Y][X]=v2?m[3+2*OMSZ+i]:0; }
+        lifeMap[Y][X]=(char)m(3+i); floorMap[Y][X]=v2?m(3+OMSZ+i):0; wallMap[Y][X]=v2?m(3+2*OMSZ+i):0; }
+    #undef m
     return 1; }
 static void mapPlace(int x,int y,char c){
     if(c=='B'||c=='P'){ for(int j=0;j<MH;j++)for(int i=0;i<MW;i++) if(lifeMap[j][i]==c) lifeMap[j][i]='.'; }
@@ -1948,7 +2018,7 @@ static void optsLoad(void){
 static void settingsSave(void){ optsSave();
    volatile u8*m=SRAM_BASE+SET_OFF; m[0]='S'; m[1]='2'; m[2]=sFps; m[3]=sWall; m[4]=sWp; m[5]=sFl; m[6]=sSnd; m[7]=sShow; m[8]=sShad; m[9]=sHud; m[10]=sRom; m[11]=sCam; m[12]=0; m[13]=sNoWarn; m[14]=sClassic; m[15]=sUnlock; }
 static void settingsLoad(void){ volatile u8*m=SRAM_BASE+SET_OFF;
-    if(m[0]!='S'){ volatile u8*o=SRAM_BASE; if(o[0]=='B'&&o[1]=='M'&&o[2]!='3') m=SRAM_BASE+640; else return; }   // old saves kept settings at 640
+    if(m[0]!='S'){ if(svType==SV_SRAM&&svRd(0)=='B'&&svRd(1)=='M'&&svRd(2)!='3') m=SRAM_BASE+640; else return; }   // old saves kept settings at 640
     if(m[0]!='S') return;
     if(m[1]=='1'){ if(m[2]>2||m[3]>2||m[4]>1||m[5]>1||m[6]>1||m[7]>1) return;   // older save: fewer settings
         sFps=m[2]; sWall=m[3]; sWp=m[4]; sFl=m[5]; sSnd=m[6]; sShow=m[7]; return; }
@@ -2024,7 +2094,7 @@ static int presetOf(void){
     return 4;
 }
 static void setPreset(int p){ const u8*t=presetTab[p]; sFps=t[0]; sWall=t[1]; sWp=t[2]; sFl=t[3]; sShad=t[4]; sHud=t[5]; }
-static void applyRom(void){ REG_WAITCNT=sRom?0x0000:0x4317; }
+static void applyRom(void){ REG_WAITCNT=sRom?0x0003:0x4317; }   // (bits 0-1 = 3: the save chip gets 8 waits, which flash needs)
 static void setDefaults(void){ setPreset(1); sCam=1; sSnd=1; sRom=0; sShow=0; sNoWarn=0; applyRom(); }
 // Time to draw the room once (timer ticks), averaged over 3 draws. Uses the editor view so it never touches the game state.
 static int measureDraw(void){
@@ -2693,6 +2763,7 @@ static void aspPanel(void){
         present();
     }
 }
+static const char* const lifeItemsNb[9]={"RESUME","ASPIRATION","HOUSEHOLD","HOW TO PLAY","OPTIONS","ROOM SLOTS","EDIT MAP","NEW LIFE","NEIGHBORHOOD"};
 static const char* const lifeItemsEd[4]={"RESUME","HOW TO PLAY","OPTIONS","BACK TO EDITOR"};
 // Timer2 (65536 Hz) is the clock (defined with the settings). The game logic always runs at 60 steps per second; the
 // frame rate setting only says how often the picture is redrawn, so lower rates save work without slowing the game.
@@ -2737,7 +2808,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
         if(pr&K_START){   // pause menu
             mGainT=128; sfxStop(); simsSave(); hhSave(); objHideAll(); REG_DISPCNT=0x0403;   // (no sprites over the menus, options or the editor)   // the music fades to half while a menu is open   // the pause menu is also a save point
             liveInvalidate(); lifeDraw();          // a whole picture behind the menu (the screen itself only holds patches)
-            int c=menu("PAUSED",ed?lifeItemsEd:lifeItems,ed?4:9);
+            int c=menu("PAUSED",ed?lifeItemsEd:nbPlaying?lifeItemsNb:lifeItems,ed?4:9);
             if(ed&&c>=1) c+=2;   // the test-play menu has no ASPIRATION or HOUSEHOLD entry
             if(c==1) aspPanel();
             else if(c==2) hhMenu();
@@ -2746,7 +2817,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
             else if(c==5&&!ed){ simsSaveNow(); hhSave(); if(slotScreen()) lifeInit(); }   // a slot was loaded: start again in the loaded room (the life was written first, so nothing is lost)
             else if(c==6&&!ed){ vpY0=0; vpY1=SH; mapEditor(); lifeInit(); }
             else if(c==7&&!ed){ if(menu("START A NEW LIFE",yesNoLife,2)==1){ simsNewLife(); moodReset(); lscore=0; simLastScore=0; lnote="NEW LIFE"; lnoteT=60; } }
-            else if((c==5&&ed)||c==8){ if(c==8) gToMenu=1; break; }
+            else if((c==5&&ed)||c==8){ if(c==8&&!nbPlaying) gToMenu=1; break; }   // (from the neighborhood: back there)
             REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=0; continue;
         }
         if(lcamF>0) camStep(steps,k,pr);
@@ -2861,7 +2932,7 @@ static void miniMap(void){   // whole map at 1 px per tile, top right: colours b
 static void mapEditor(void){
     int hold[4]={0}, comboUsed=0, dirty=1, lastBl=-1, msgT=0; const char*msg=""; u16 prev=keyNow();
     static const u16 dirK[4]={K_RIGHT,K_LEFT,K_UP,K_DOWN};
-    eAct=0; edCamSnap();
+    eAct=0; if(ecx<edX0)ecx=edX0; if(ecy<edY0)ecy=edY0; if(ecx>edX1)ecx=edX1; if(ecy>edY1)ecy=edY1; edCamSnap();
     for(efr=0;;efr++){
         u16 k=keyNow(), pr=k&~prev, rel=prev&~k; prev=k;
         int tr[4];
@@ -2873,7 +2944,7 @@ static void mapEditor(void){
         }
         if(ux||uy){   // screen-relative like walking: up = away from the camera
             int dx=ux+uy, dy=uy-ux; dx=(dx>0)-(dx<0); dy=(dy>0)-(dy<0);
-            ecx+=dx; ecy+=dy; if(ecx<0)ecx=0; if(ecy<0)ecy=0; if(ecx>=MW)ecx=MW-1; if(ecy>=MH)ecy=MH-1;
+            ecx+=dx; ecy+=dy; if(ecx<edX0)ecx=edX0; if(ecy<edY0)ecy=edY0; if(ecx>edX1)ecx=edX1; if(ecy>edY1)ecy=edY1; if(ecx>=MW)ecx=MW-1; if(ecy>=MH)ecy=MH-1;
             if(eTool==T_ITEM){ if(k&K_A) mapPlace(ecx,ecy,edObjCh()); else if(k&K_B) mapPlace(ecx,ecy,'.'); }
             dirty=1;
         }
@@ -2903,7 +2974,7 @@ static void mapEditor(void){
                 else toast("MAP SAVED"); }
             else if(c==2) slotScreen();
             else if(c==3) settingsScreen();
-            else if(c==4){ if(!xo[XO_RESETASK]||menu("RESET THE MAP",yesNo,2)==1){ if(curFl) flBlankLive(); else mapReset(); eAct=0; toast("MAP RESET"); } }
+            else if(c==4){ if(!xo[XO_RESETASK]||menu("RESET THE MAP",yesNo,2)==1){ if(curFl) flBlankLive(); else if(!nbResetLot()) mapReset(); eAct=0; toast("MAP RESET"); } }
             else if(c==5) helpScreen("HOW TO EDIT",mapHelp,14);
             else if(c==6){ if(xo[XO_EDSAVE]) mapSave(); break; }
             prev=keyNow(); edCamSnap(); dirty=1; continue;
@@ -3672,18 +3743,10 @@ static void menuMusStart(void){
 static void menuMusStop(void){ if(!menuOn) return; menuOn=0; musFadeOut(XF_OUT); }
 static void menuMusSync(void){ if(sSnd&&xo[XO_MENUMUS]) menuMusStart(); else menuMusStop(); }   // after OPTIONS: SOUND or MENU MUSIC may have changed
 static void menuMusTick(void){ if(menuOn&&mPlay&&(musNearEnd(XF_SONG)||(mKind?mDone:mLaps>=1))){ menuOn=0; menuMusStart(); } }   // the song is nearly over: it crossfades into itself again
-// ---------- creator music: the chiptune loops (source/chips.h, made by tools/make_chiptunes.py and packed by tools/encode_chip.py) ----------
-// Looping ADPCM, one random loop each time the creator opens (the secret ones only after the title-screen code); entering from the menu or the game crossfades.
-#define CHIP(id,n,sec) ".global " #id "\n" #id ":\n.incbin \"source/music/" #id ".adp\"\n.balign 4\n"
-__asm__(".pushsection .rodata\n.balign 4\n"
-#include "chips.h"
-".popsection\n");
-#undef CHIP
-#define CHIP(id,n,sec) extern const u8 id[];
-#include "chips.h"
-#undef CHIP
-typedef struct { const char*name; const u8*adp; u8 secret; } Chip;
-#define CHIP(id,n,sec) {n,id,sec},
+// ---------- creator music: the chiptune loops (source/chips.h: voiced by tools/make_chiptunes.py, stored as synth data by tools/chip_synth.py) ----------
+// Played live by chipMix, one random loop each time the creator opens (the secret ones only after the title-screen code); entering from the menu or the game crossfades.
+typedef struct { const char*name; u32 off; u8 secret; } Chip;
+#define CHIP(id,n,sec,off) {n,off,sec},
 static const Chip chips[]={
 #include "chips.h"
 };
@@ -3696,12 +3759,12 @@ static void creatorMusStart(void){
     int ok[NCHIPS], n=0; for(int i=0;i<NCHIPS;i++) if((dbgOn||!chips[i].secret)&&i!=chipLast) ok[n++]=i;
     if(!sSnd||!xo[XO_CREMUS]||n==0){ musFadeOut(XF_OUT); return; }
     lrng^=((u32)R_TM2D<<8^uiTicks)*2654435761u; int k=ok[(((unsigned)rnd8()<<8|(unsigned)rnd8())*(unsigned)n)>>16];
-    chipLast=k; mGain=mGainT=256; musFadeTo(1,chips[k].adp,0,XF_SONG); creOn=1;
+    chipLast=k; mGain=mGainT=256; musFadeTo(2,chipsyn+chips[k].off,0,XF_SONG); creOn=1;
 }
 
 // ---------- main menu ----------
-static const char* const mmName[7]={"PLAY","MAKE CREATURE","BUILD ROOM","ROOM SLOTS","JUKEBOX","OPTIONS","HOW TO PLAY"};
-static const char* const mmDesc[7]={"WALK AND SKATE AROUND YOUR ROOM","DESIGN YOUR OWN VOXEL CHARACTER","BUILD WALLS AND LAY FLOORS AND WALLPAPER","SAVE AND LOAD ROOMS  PEOPLE AND LIVES","LISTEN  PICK  OR SHUFFLE THE SONGS","SPEED  GAMEPLAY  SOUND  BUTTONS AND MORE","LEARN THE CONTROLS"};
+static const char* const mmName[8]={"PLAY","NEIGHBORHOOD","MAKE CREATURE","BUILD ROOM","ROOM SLOTS","JUKEBOX","OPTIONS","HOW TO PLAY"};
+static const char* const mmDesc[8]={"WALK AND SKATE AROUND YOUR ROOM","YOUR TOWN  PICK A LOT  BUILD AND MOVE IN","DESIGN YOUR OWN VOXEL CHARACTER","BUILD WALLS AND LAY FLOORS AND WALLPAPER","SAVE AND LOAD ROOMS  PEOPLE AND LIVES","LISTEN  PICK  OR SHUFFLE THE SONGS","SPEED  GAMEPLAY  SOUND  BUTTONS AND MORE","LEARN THE CONTROLS"};
 static const char* const guideItems[6]={"PLAYING","MAKE CREATURE","BUILD ROOMS","JUKEBOX","ROOM SLOTS","OPTIONS"};
 static const char* const jbHelp[15]={">PLAYING","UP DOWN PICK A SONG  A PLAYS IT","A ON THE PLAYING SONG STOPS IT","L R GO TO THE PREVIOUS OR NEXT SONG",">CHECK BOXES","SELECT CHECKS OR UNCHECKS A SONG","ONLY CHECKED SONGS ARE PICKED AT RANDOM:","HERE  IN THE MENUS  AND FOR GAME MUSIC",">PLAY MODE","START CHANGES IT:  SHUFFLE  IN ORDER  REPEAT","WHEN A SONG ENDS THE MODE PICKS THE NEXT",">OTHER","LEFT RIGHT CHANGE THE VOLUME","OPENING IT PLAYS ONE RANDOM CHECKED SONG","B GOES BACK TO THE MENU"};
 static void drawMainMenu(int sel){
@@ -3714,29 +3777,31 @@ static void drawMainMenu(int sel){
     { int ox=206, oy=92;
       cube(ox,oy,1,0,1); cube(ox,oy-CC,4,0,3); cube(ox,oy-2*CC,8,0,2);
       cube(ox+CA,oy+CB,6,0,0); cube(ox-CA,oy+CB,7,0,0); cube(ox,oy+2*CB,2,0,0); }
-    for(int i=0;i<7;i++){
-        int y=47+i*12;
-        if(i==sel){ rect(10,y-2,150,12,RGB(6,16,8)); rect(10,y-2,2,12,GOLD); text(16,y,">",WHITE,2); }
+    for(int i=0;i<8;i++){
+        int y=46+i*11;
+        if(i==sel){ rect(10,y-1,150,11,RGB(6,16,8)); rect(10,y-1,2,11,GOLD); text(16,y,">",WHITE,2); }
         text(28,y,mmName[i],i==sel?WHITE:DIMC,2);
     }
     rect(0,134,SW,26,PANEL);
     text(8,139,mmDesc[sel],WHITE,1); text(8,150,"UP DOWN CHOOSE  A OK",RGB(12,14,16),1);
 }
+#include "neighborhood.h"   // THE NEIGHBORHOOD: a town of lots to live in, visit and build on (main menu)
 static void mainMenu(void){
     int sel=0, dirty=1; u16 prev=keyNow();
     menuMusStart();   // GOTTCHO BARRACHO plays while a main menu is open (MENU MUSIC option)
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k;
-        if(pr&K_DOWN){ sel=(sel+1)%7; dirty=1; }
-        if(pr&K_UP){ sel=(sel+6)%7; dirty=1; }
+        if(pr&K_DOWN){ sel=(sel+1)%8; dirty=1; }
+        if(pr&K_UP){ sel=(sel+7)%8; dirty=1; }
         if(pr&(K_A|K_START)){
             int fresh=0;   // 1 = that screen stopped the menu song (or plays its own): a NEW random song starts when we are back
             if(sel==0){ lifeMode(0); fresh=1; }
-            else if(sel==1){ creatureEditor(); fresh=1; }
-            else if(sel==2) mapEditor();   // (the menu song plays on in the room builder)
-            else if(sel==3) slotScreen();
-            else if(sel==4){ jukeboxScreen(); fresh=1; }
-            else if(sel==5) settingsScreen();
+            else if(sel==1){ neighborhoodScreen(); fresh=1; }
+            else if(sel==2){ creatureEditor(); fresh=1; }
+            else if(sel==3) mapEditor();   // (the menu song plays on in the room builder)
+            else if(sel==4){ slotScreen(); if(nbOk) nbBoot(); }   // (a slot screen can delete or replace the town)
+            else if(sel==5){ jukeboxScreen(); fresh=1; }
+            else if(sel==6) settingsScreen();
             else { int g=menu("HOW TO PLAY",guideItems,6);
                    if(g==0) helpScreen("PLAYING",lifeHelp,16); else if(g==1) helpScreen("MAKE CREATURE",creatureHelp,15); else if(g==2) helpScreen("BUILD ROOMS",mapHelp,12); else if(g==3) helpScreen("JUKEBOX",jbHelp,15); else if(g==4) helpScreen("ROOM SLOTS",slotHelp,11); else if(g==5) helpScreen("OPTIONS",optHelp,11); }
             gToMenu=0; prev=keyNow(); dirty=1;
@@ -3748,18 +3813,28 @@ static void mainMenu(void){
     }
 }
 
+#ifdef CS_TEST
+u8* csTestP;
+#endif
 int main(void){
+#ifdef CS_TEST
+    { csTestP=(u8*)fb; csInit(chipsyn+chips[CS_TEST].off); static s8 l[MUS_N],r[MUS_N];
+      REG_WAITCNT=0x4317; volatile u16*t=(volatile u16*)0x04000108; t[1]=0; t[3]=0; t[0]=0; t[2]=0; t[3]=0x84; t[1]=0x80;   // timer 2 + 3 cascaded: cycles
+      for(int f=0;f<100;f++) chipMix(l,r);
+      u32 cyc=t[0]|((u32)t[2]<<16); ((u32*)fb)[32000/4]=cyc; for(;;); }   // test build (-DCS_TEST=n): 100 frames of loop n at fb, then the cycles they took
+#endif
     REG_WAITCNT=0x4317;  // ROM 3/1 waits + prefetch (power-on default is 4/2, no prefetch)
     logo_play();         // the DippInn Productions boot logo (source/logo.c, ~8 s; leaves a black screen, its DMA and sprites off)
     { volatile u16*io=(volatile u16*)0x04000000; for(int r=0x08/2;r<0x20/2;r++) io[r]=0; for(int r=0x40/2;r<0x56/2;r++) io[r]=0; }   // undo its BG control, scroll, windows and blend (BG2's affine registers are left alone: mode 3 needs them)
     { static const u32 zero=0; REG_DMA3SAD=(u32)(uintptr_t)&zero; REG_DMA3DAD=VRAM_ADDR; REG_DMA3CNT=(SW*SH/2)|0x85000000u; }   // clear its tiles out of the bitmap (else mode 3 shows them as noise until the title is drawn)
     REG_DISPCNT=0x0403;  // mode 3, BG2 on
-    initTables(); setColors(); slMigrate(); settingsLoad(); optsLoad(); applyRom();   // slMigrate: carries a layout 1 save over to layout 2 first (slots.h)
+    initTables(); setColors(); svInit(); slInitN(); slMigrate(); settingsLoad(); optsLoad(); applyRom();   // slMigrate: carries a layout 1 save over to layout 2 first (slots.h)
     lrng^=(u32)titleScreen()*2654435761u;   // time spent on the title seeds the random numbers (first shuffle)
     if(konMsg) toast(konMsg==2?"DEBUG UNLOCKED":"DEBUG LOCKED");
     jbSetup();                              // load the saved shuffled order (or make a new one), placeholders hidden
     starter();
     mapReset(); mapLoad();   // default room, or the one saved to SRAM
+    nbBoot();                // the town, if one was made (the room builder keeps to the lot you are on)
     slotBoot();              // BOOT LOADS PERSON option: the creature of the active room slot
     ageLoad();               // ...grown to the stage it had reached
     persLoad();              // ...with its aspiration, personality, DNA and unlocked parts

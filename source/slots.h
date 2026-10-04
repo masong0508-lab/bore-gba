@@ -41,7 +41,10 @@
 //     8192   .. 32767   SLOT_N room slots of SLOT_SZ bytes (twelve; layout 1 had six, from 20480, and its small blocks in between)
 // Layout 1 saves are carried over the first time the game starts (slMigrate): the old six slots keep their bytes and become slots 7 to 12.
 #define SLOT_BASE  8192
-#define SLOT_N     12
+#define SLOT_N0    12         // slots on 32 KB SRAM
+#define SLOT_MAX   58         // slots on 128 KB flash (8192 .. 126975; the last 4 KB are save.h's scratch sector). 64 KB flash: 26
+static int slN=SLOT_N0;       // how many this save chip holds (slInitN, at power on)
+#define SLOT_N slN
 #define SLOT_SZ    2048
 #define SLOT_HDR   32
 #define SLOT_NAME  10
@@ -54,14 +57,15 @@
 #define SL_OLD_BASE 20480     // layout 1: the six slots started here
 #define SL_OLD_N    6
 #define SLOT_HOUSE_READY 1
-_Static_assert(SLOT_BASE+SLOT_N*SLOT_SZ<=32768,"the slots do not fit in 32 KB of SRAM");
+_Static_assert(SLOT_BASE+SLOT_N0*SLOT_SZ<=32768,"the slots do not fit in 32 KB of SRAM");
+_Static_assert(SLOT_BASE+SLOT_MAX*SLOT_SZ<=131072-4096,"the slots do not fit in 128 KB of flash");
 _Static_assert(SL_OLD_BASE==SLOT_BASE+SL_OLD_N*SLOT_SZ,"the layout 1 slots must land on whole slots of the new bank");
 _Static_assert(3+MSZ*3<=SL_MIG_TAG,"the room being played must end before the layout marker");
 _Static_assert(SL_MIG_TAG+3<=SET_OFF&&SET_OFF+16<=OPT_OFF&&OPT_OFF+3+XO_N+1<=SLOT_DIR&&SLOT_DIR+4<=AGE_OFF&&AGE_OFF+5<=PERS_OFF,"the small SRAM blocks overlap (1)");
 _Static_assert(PERS_OFF+PERS_LEN<=JB_OFF&&JB_OFF+5+JB_MAX<=SIM_OFF&&SIM_OFF+SIM_BLOCK<=SRAM_TEST&&SRAM_TEST+16<=SL_HH_OFF&&SL_HH_OFF+SL_HH_LEN<=SLOT_BASE&&SL_MIG_HH<=SL_HH_LEN,"the small SRAM blocks overlap (2)");
 _Static_assert(NWALL<=255&&NFL<=255,"a run stores the floor and the wallpaper in a byte each");
 
-enum { SLK_ROOM=0, SLK_HOUSE=1, SLK_HHOLD=2 };
+enum { SLK_ROOM=0, SLK_HOUSE=1, SLK_HHOLD=2, SLK_TOWN=3 };
 enum { SLH_ROOM=1, SLH_PERSON=2, SLH_LIFE=4 };                 // what a slot holds / what to load
 enum { SLE_OK=0, SLE_EMPTY=-1, SLE_BAD=-2, SLE_BIG=-3, SLE_HOUSE=-4, SLE_FMT=-5, SLE_SIZE=-6, SLE_NOPART=-7, SLE_NOSRAM=-8, SLE_NOROOM=-9 };
 static int hhBlockLen(volatile u8*m,int avail); static void hhSave(void); static void hhLoad(void);   // house.h (included further down)
@@ -79,25 +83,27 @@ static int hhBlockLen(volatile u8*m,int avail); static void hhSave(void); static
 //   six (the old slots are now slots 7 to 12)   3 write the marker   4 only then clear the old blocks.
 // The six old slots at 20480.. are never touched: their bytes simply are slots 7 to 12 now.
 typedef struct { u16 from, to, len; } SlMove;
+#define SLO(s) (SLOT_BASE+(u32)(s)*SLOT_SZ)   // where slot s starts in the save memory
+static void slInitN(void){ int n=(int)((svSlotEnd()-SLOT_BASE)/SLOT_SZ); slN=n>SLOT_MAX?SLOT_MAX:n; }
 static void slMigrate(void){
     volatile u8*m=SRAM_BASE;
     if(m[SL_MIG_TAG]=='L'&&m[SL_MIG_TAG+1]=='Y'&&m[SL_MIG_TAG+2]==2) return;
     static const SlMove mv[]={ {8192,SET_OFF,16}, {8448,OPT_OFF,96}, {12352,SLOT_DIR,16}, {12416,AGE_OFF,16}, {12432,PERS_OFF,32},
                                {14336,JB_OFF,80}, {16384,SIM_OFF,64}, {18448,SL_HH_OFF,SL_MIG_HH} };
-    for(unsigned k=0;k<sizeof(mv)/sizeof(mv[0]);k++) for(int i=0;i<mv[k].len;i++) m[mv[k].to+i]=m[mv[k].from+i];
+    for(unsigned k=0;k<sizeof(mv)/sizeof(mv[0]);k++) for(int i=0;i<mv[k].len;i++) svWr(mv[k].to+i,svRd(mv[k].from+i));
     volatile u8*d=m+SLOT_DIR;
     if(d[0]=='S'&&d[1]=='D'&&d[2]<SL_OLD_N&&d[3]==(u8)(0x5D+d[2])){ d[2]=(u8)(d[2]+SL_OLD_N); d[3]=(u8)(0x5D+d[2]); }
     else { for(int i=0;i<4;i++) d[i]=0; }
     m[SL_MIG_TAG]='L'; m[SL_MIG_TAG+1]='Y'; m[SL_MIG_TAG+2]=2;
-    for(int i=SLOT_BASE;i<SL_OLD_BASE;i++) m[i]=0;
+    svErase(SLOT_BASE,SL_OLD_BASE-SLOT_BASE); svCommit();
 }
 
 // ---------- byte writer (a counting dry run when p is 0) and reader ----------
-typedef struct { volatile u8*p; int pos,cap,over; u32 s1,s2; } SlW;
-static void slwInit(SlW*w,volatile u8*p,int cap){ w->p=p; w->pos=0; w->cap=cap; w->over=0; w->s1=w->s2=0; }
+typedef struct { u32 off; int pos,cap,over; u32 s1,s2; } SlW;   // off: where in the save memory it writes (0 = only count)
+static void slwInit(SlW*w,u32 off,int cap){ w->off=off; w->pos=0; w->cap=cap; w->over=0; w->s1=w->s2=0; }
 static void slwPut(SlW*w,int b){
     if(w->pos>=w->cap){ w->over=1; return; }
-    b&=255; if(w->p) w->p[w->pos]=(u8)b; w->pos++;
+    b&=255; if(w->off) svWr(w->off+(u32)w->pos,b); w->pos++;
     w->s1+=(u32)b; if(w->s1>=255) w->s1-=255; w->s2+=w->s1; if(w->s2>=255) w->s2-=255;   // Fletcher-16
 }
 static void slwPut16(SlW*w,int v){ slwPut(w,v&255); slwPut(w,(v>>8)&255); }
@@ -246,8 +252,12 @@ static int slBuild(SlW*w,int mask){
 
 // ---------- header, scan ----------
 typedef struct { u8 ok,kind,span,has,mw,mh; u16 len,sum,seq; char name[SLOT_NAME+1]; } SlInfo;
-static SlInfo slI[SLOT_N] EWRAM_BSS; static s8 slOwner[SLOT_N]; static u8 slGood[SLOT_N];   // per slot: header, which head covers it (-1 none), payload checksum ok
-#define SLB(s) (SRAM_BASE+SLOT_BASE+(s)*SLOT_SZ)
+static SlInfo slI[SLOT_MAX] EWRAM_BSS; static s8 slOwner[SLOT_MAX]; static u8 slGood[SLOT_MAX];   // per slot: header, which head covers it (-1 none), payload checksum ok
+#define SLB(s) svPtr(SLO(s))   // read pointer (save.h)
+// A save of span slots must fit, and must not run over the 64 KB bank boundary of a 128 KB chip (read pointers stay in one bank)
+static int slFits(int slot,int span){ return slot>=0&&span>=1&&slot+span<=SLOT_N&&(SLO(slot)>>16)==((SLO(slot+span)-1)>>16); }
+static void slOpen(int slot,int span){ svErr=0; svErase(SLO(slot),(u32)span*SLOT_SZ); }   // erased = empty (reads 0xFF) until the header goes in last
+static int slVerify(int slot);
 static int slInfo(int slot,SlInfo*I){
     volatile u8*m=SLB(slot); I->ok=0;
     if(m[0]!='S'||m[1]!='V'||m[2]!=1) return 0;
@@ -255,7 +265,7 @@ static int slInfo(int slot,SlInfo*I){
     I->kind=m[3]; I->span=m[4]; I->has=m[5]; I->len=(u16)(m[6]|(m[7]<<8)); I->sum=(u16)(m[8]|(m[9]<<8)); I->mw=m[10]; I->mh=m[11]; I->seq=(u16)(m[12]|(m[13]<<8));
     int e=SLOT_NAME; for(int i=0;i<SLOT_NAME;i++){ char c=(char)m[16+i]; I->name[i]=((c>='A'&&c<='Z')||(c>='0'&&c<='9'))?c:' '; }
     while(e>0&&I->name[e-1]==' ') e--; I->name[e]=0;
-    if(I->kind>SLK_HHOLD||I->span<1||slot+I->span>SLOT_N||I->len>I->span*SLOT_SZ-SLOT_HDR) return 0;
+    if(I->kind>SLK_TOWN||!slFits(slot,I->span)||I->len>I->span*SLOT_SZ-SLOT_HDR) return 0;
     I->ok=1; return 1;
 }
 static void slScan(void){
@@ -274,16 +284,19 @@ static int slActive(void){   // the active slot, or -1
     return m[2];
 }
 static void slSetActive(int s){ volatile u8*m=SRAM_BASE+SLOT_DIR; m[0]='S'; m[1]='D'; m[2]=(u8)s; m[3]=(u8)(0x5D+s); }
+static void slHdrWrite(int slot,const u8*m){ u32 o=SLO(slot); for(int i=2;i<SLOT_HDR;i++) svWr(o+i,m[i]); svWr(o,m[0]); svWr(o+1,m[1]); }   // the magic goes in last
 static void slHeader(int slot,int kind,int span,int has,int len,int sum,int seq,const char*name){
-    volatile u8*m=SLB(slot);
-    for(int i=2;i<SLOT_HDR;i++) m[i]=0;
+    u8 m[SLOT_HDR];
+    for(int i=0;i<SLOT_HDR;i++) m[i]=0;
     m[2]=1; m[3]=(u8)kind; m[4]=(u8)span; m[5]=(u8)has; m[6]=(u8)(len&255); m[7]=(u8)(len>>8); m[8]=(u8)(sum&255); m[9]=(u8)(sum>>8);
     m[10]=MW; m[11]=MH; m[12]=(u8)(seq&255); m[13]=(u8)(seq>>8);
     for(int i=0;i<SLOT_NAME;i++){ char c=name[i]; if(!c){ for(;i<SLOT_NAME;i++) m[16+i]=' '; break; } m[16+i]=(u8)c; }
-    m[0]='S'; m[1]='V';                                   // the magic goes in last: until now the slot read as empty
+    m[0]='S'; m[1]='V';                                   // (written last by slHdrWrite: until then the slot reads as empty)
     u8 hs=0x5B; for(int i=0;i<31;i++) hs=(u8)(hs+m[i]); m[31]=hs;
+    slHdrWrite(slot,m);
 }
-static void slDefaultName(int slot,char*d){ const char*r="ROOM "; int i=0; while(*r) d[i++]=*r++; d[i++]=(char)('1'+slot); d[i]=0; }
+static void slNameN(char*d,const char*pre,int n){ while(*pre) *d++=*pre++; if(n>=10) *d++=(char)('0'+n/10); *d++=(char)('0'+n%10); *d=0; }
+static void slDefaultName(int slot,char*d){ slNameN(d,"ROOM ",slot+1); }
 
 // ---------- save / load / delete / copy / rename ----------
 static int slMaskOpt(void){ static const u8 t[3]={SLH_ROOM,SLH_ROOM|SLH_PERSON,SLH_ROOM|SLH_PERSON|SLH_LIFE}; return t[xo[XO_SLOTCONT]]; }
@@ -297,11 +310,13 @@ static int slSave(int slot,int mask,const char*name){
     if((mask&SLH_LIFE)&&!simsCheck(SIM_SRAM)) mask&=~SLH_LIFE;       // no life has been played yet: nothing to store
     SlW d; slwInit(&d,0,1<<20); slBuild(&d,mask);
     if(d.pos>SLOT_SZ-SLOT_HDR) return SLE_BIG;                       // checked BEFORE touching the slot
-    volatile u8*m=SLB(slot);
-    m[0]=0; m[1]=0;                                                  // empty while we write
-    SlW w; slwInit(&w,m+SLOT_HDR,SLOT_SZ-SLOT_HDR); slBuild(&w,mask);
+    slOpen(slot,1);                                                  // empty while we write
+    SlW w; slwInit(&w,SLO(slot)+SLOT_HDR,SLOT_SZ-SLOT_HDR); slBuild(&w,mask);
     slHeader(slot,SLK_ROOM,1,mask,w.pos,slwSum(&w),had?old.seq+1:1,nm);
-    SlInfo chk; if(!slInfo(slot,&chk)||slSumOf(m+SLOT_HDR,chk.len)!=chk.sum) return SLE_NOSRAM;   // read it back: no battery RAM here?
+    return slVerify(slot);
+}
+static int slVerify(int slot){   // read it back: no save memory here?
+    SlInfo chk; if(svErr||!slInfo(slot,&chk)||slSumOf(SLB(slot)+SLOT_HDR,chk.len)!=chk.sum) return SLE_NOSRAM;
     return SLE_OK;
 }
 static int slLoadedMask;   // what the last slLoad really changed
@@ -342,20 +357,19 @@ static int houseSave(int slot,const char*name){   // needs a fresh slScan (slOwn
     flEnsure(); flStoreAs(curFl);
     SlW d; slwInit(&d,0,1<<20); slHouseBuild(&d);
     int span=(SLOT_HDR+d.pos+SLOT_SZ-1)/SLOT_SZ; if(span>4) return SLE_BIG;
-    if(slot+span>SLOT_N) return SLE_NOROOM;
+    if(!slFits(slot,span)) return SLE_NOROOM;
     for(int k=0;k<span;k++) if(slOwner[slot+k]>=0&&slOwner[slot+k]!=slot) return SLE_NOROOM;
     char nm[SLOT_NAME+1];
     if(name){ int i=0; for(;name[i]&&i<SLOT_NAME;i++) nm[i]=name[i]; nm[i]=0; }
     else if(had){ for(int i=0;i<=SLOT_NAME;i++) nm[i]=old.name[i]; }
-    else { const char*r="HOUSE "; int i=0; while(*r) nm[i++]=*r++; if(slot+1>=10) nm[i++]='1'; nm[i++]=(char)('0'+(slot+1)%10); nm[i]=0; }
-    volatile u8*m=SLB(slot); int oldspan=had?old.span:1;
-    m[0]=0; m[1]=0;
-    SlW w; slwInit(&w,m+SLOT_HDR,span*SLOT_SZ-SLOT_HDR); slHouseBuild(&w);
+    else slNameN(nm,"HOUSE ",slot+1);
+    int oldspan=had?old.span:1;
+    slOpen(slot,span);
+    SlW w; slwInit(&w,SLO(slot)+SLOT_HDR,span*SLOT_SZ-SLOT_HDR); slHouseBuild(&w);
     if(w.over) return SLE_BIG;
     slHeader(slot,SLK_HOUSE,span,SLH_ROOM,w.pos,slwSum(&w),had?old.seq+1:1,nm);
-    for(int k=span;k<oldspan&&slot+k<SLOT_N;k++){ SLB(slot+k)[0]=0; SLB(slot+k)[1]=0; }
-    SlInfo chk; if(!slInfo(slot,&chk)||slSumOf(m+SLOT_HDR,chk.len)!=chk.sum) return SLE_NOSRAM;
-    return SLE_OK;
+    for(int k=span;k<oldspan&&slot+k<SLOT_N;k++){ svWr(SLO(slot+k),0); svWr(SLO(slot+k)+1,0); }
+    return slVerify(slot);
 }
 static int slLoad(int slot,int mask){
     SlInfo I; slLoadedMask=0;
@@ -378,20 +392,19 @@ static int slSaveHH(int slot,const char*name){   // name 0: keep the slot's name
     SlInfo old; int had=slInfo(slot,&old); if(had&&old.kind!=SLK_HHOLD) return SLE_HOUSE;
     volatile u8*b=SL_HHBLK; int len=hhBlockLen(b,SL_HH_LEN); if(!len) return SLE_BAD;
     int span=(SLOT_HDR+len+SLOT_SZ-1)/SLOT_SZ;
-    if(slot+span>SLOT_N) return SLE_NOROOM;
+    if(!slFits(slot,span)) return SLE_NOROOM;
     for(int k=0;k<span;k++) if(slOwner[slot+k]>=0&&slOwner[slot+k]!=slot) return SLE_NOROOM;   // the slots it runs into must be free (or its own)
     char nm[SLOT_NAME+1];
     if(name){ int i=0; for(;name[i]&&i<SLOT_NAME;i++) nm[i]=name[i]; nm[i]=0; }
     else if(had){ for(int i=0;i<=SLOT_NAME;i++) nm[i]=old.name[i]; }
-    else { const char*r="FAMILY "; int i=0; while(*r) nm[i++]=*r++; if(slot+1>=10) nm[i++]='1'; nm[i++]=(char)('0'+(slot+1)%10); nm[i]=0; }
-    volatile u8*m=SLB(slot); int oldspan=had?old.span:1;
-    m[0]=0; m[1]=0;                                                  // empty while we write
-    for(int i=0;i<len;i++) m[SLOT_HDR+i]=b[i];
-    int sum=slSumOf(m+SLOT_HDR,len);
+    else slNameN(nm,"FAMILY ",slot+1);
+    int oldspan=had?old.span:1;
+    slOpen(slot,span);                                               // empty while we write
+    for(int i=0;i<len;i++) svWr(SLO(slot)+SLOT_HDR+(u32)i,b[i]);
+    int sum=slSumOf(b,len);
     slHeader(slot,SLK_HHOLD,span,0,len,sum,had?old.seq+1:1,nm);
-    for(int k=span;k<oldspan&&slot+k<SLOT_N;k++){ SLB(slot+k)[0]=0; SLB(slot+k)[1]=0; }   // it shrank: free the slot it no longer needs
-    SlInfo chk; if(!slInfo(slot,&chk)||slSumOf(m+SLOT_HDR,chk.len)!=chk.sum) return SLE_NOSRAM;
-    return SLE_OK;
+    for(int k=span;k<oldspan&&slot+k<SLOT_N;k++){ svWr(SLO(slot+k),0); svWr(SLO(slot+k)+1,0); }   // it shrank: free the slot it no longer needs
+    return slVerify(slot);
 }
 static int slLoadHH(int slot){   // checks the stored household first and only then replaces the one in SRAM
     SlInfo I; if(!slInfo(slot,&I)||I.kind!=SLK_HHOLD) return SLE_EMPTY;
@@ -399,24 +412,26 @@ static int slLoadHH(int slot){   // checks the stored household first and only t
     if(slSumOf(s,I.len)!=I.sum) return SLE_BAD;
     int len=hhBlockLen(s,I.len); if(!len) return SLE_FMT;
     volatile u8*d=SL_HHBLK; for(int i=0;i<len;i++) d[i]=s[i];
-    hhLoad();   // hhM and the relationships now match SRAM again (so the next SAVE HOUSEHOLD cannot write an old one)
+    svCommit(); hhLoad();   // hhM and the relationships now match SRAM again (so the next SAVE HOUSEHOLD cannot write an old one)
     return SLE_OK;
 }
 static void slDelete(int slot){
-    SLB(slot)[0]=0; SLB(slot)[1]=0;
+    svWr(SLO(slot),0); svWr(SLO(slot)+1,0);                          // (on flash: bits only go to 0, no erase needed)
     volatile u8*d=SRAM_BASE+SLOT_DIR; if(d[0]=='S'&&d[2]==(u8)slot) d[0]=0;   // it was the active slot: there is none now
+    svCommit();
 }
-static void slEraseAll(void){ volatile u8*m=SRAM_BASE+SLOT_BASE; for(int i=0;i<SLOT_N*SLOT_SZ;i++) m[i]=0; volatile u8*d=SRAM_BASE+SLOT_DIR; for(int i=0;i<4;i++) d[i]=0; }
+static void slEraseAll(void){ svErase(SLOT_BASE,(u32)SLOT_N*SLOT_SZ); volatile u8*d=SRAM_BASE+SLOT_DIR; for(int i=0;i<4;i++) d[i]=0; svCommit(); }
 static int slCopy(int src,int dst){   // span 1 only; byte for byte, magic last
     SlInfo I; if(!slInfo(src,&I)) return SLE_EMPTY; if(I.span!=1) return SLE_HOUSE;
-    volatile u8*a=SLB(src),*b=SLB(dst); int n=SLOT_HDR+I.len;
-    b[0]=0; b[1]=0; for(int i=2;i<n;i++) b[i]=a[i]; b[0]='S'; b[1]='V';
-    return SLE_OK;
+    int n=SLOT_HDR+I.len; u32 a=SLO(src), b=SLO(dst);
+    slOpen(dst,1); for(int i=2;i<n;i++) svWr(b+(u32)i,svRd(a+(u32)i)); svWr(b,'S'); svWr(b+1,'V');
+    return slVerify(dst);
 }
 static void slRename(int slot,const char*name){
-    SlInfo I; if(!slInfo(slot,&I)) return; volatile u8*m=SLB(slot);
+    SlInfo I; if(!slInfo(slot,&I)) return; u8 m[SLOT_HDR]; for(int i=0;i<SLOT_HDR;i++) m[i]=svRd(SLO(slot)+(u32)i);
     for(int i=0;i<SLOT_NAME;i++){ char c=name[i]; if(!c){ for(;i<SLOT_NAME;i++) m[16+i]=' '; break; } m[16+i]=(u8)c; }
     u8 hs=0x5B; for(int i=0;i<31;i++) hs=(u8)(hs+m[i]); m[31]=hs;
+    svErase(SLO(slot),SLOT_HDR); slHdrWrite(slot,m);   // (flash: the header is erased on its own; the rest of the sector is kept)
 }
 static int slotSyncActive(void){   // SAVE MAP TO SLOT: write the room into the active slot too
     int a=slActive(); if(a<0) return 0;
@@ -440,7 +455,8 @@ static char* slSize(char*d,int n){   // 812B  or  1.4K
     if(n<1000) { d=slNum(d,n); return slCat(d,"B"); }
     d=slNum(d,n/1024); *d++='.'; d=slNum(d,(n%1024)*10/1024); return slCat(d,"K");
 }
-static u8 slTb[MSZ] EWRAM_BSS;   // the tile plane of the room being previewed (format 3)
+static u16 bfsQ[MH*MW] EWRAM_BSS;   // (main.c: the search queue, free while a slot is previewed)
+#define slTb ((u8*)bfsQ)            // the tile plane of the room being previewed (format 3)
 static u16 slThumbCol(int t,int f){ if(t=='.') return shade(flFlat[f%NFL][0],10); int pi=palIdx((char)t); return pi>=0?palCol[pi]:0; }
 static void slThumb(int slot,int x0,int y0){   // the room of a slot at 1 pixel per tile, decoded straight from SRAM (all room formats)
     rect(x0-1,y0-1,MW+2,MH+2,RGB(3,4,7)); rect(x0,y0,MW,MH,RGB(6,7,10));
@@ -487,9 +503,10 @@ static void slDraw(int sel){
             char b[40]; char*e=b; *e=0;
             if(!slGood[i]) e=slCat(e,"DAMAGED");
             else if(I->kind==SLK_HOUSE) e=slCat(e,"HOUSE");
+            else if(I->kind==SLK_TOWN) e=slCat(e,"NEIGHBORHOOD");
             else if(I->kind==SLK_HHOLD){ e=slCat(e,"HOUSEHOLD "); e=slNum(e,SLB(i)[SLOT_HDR+2]+1); e=slCat(e," SIMS"); *e=0; }
             else { if(I->has&SLH_ROOM) e=slCat(e,"ROOM "); if(I->has&SLH_PERSON) e=slCat(e,"PERSON "); if(I->has&SLH_LIFE) e=slCat(e,"LIFE "); }
-            if(I->kind!=SLK_HHOLD){ e=slCat(e," "); slSize(e,SLOT_HDR+I->len); }
+            if(I->kind!=SLK_HHOLD&&I->kind!=SLK_TOWN){ e=slCat(e," "); slSize(e,SLOT_HDR+I->len); }
             text(28,y+7,b,i==sel?RGB(22,25,28):RGB(11,13,18),1);
             if(act==i) text(116,y,"ACTIVE",GOLD,1);
         }
@@ -499,7 +516,7 @@ static void slDraw(int sel){
     if(slOwner[sel]==sel&&slGood[sel]){
         SlInfo*I=&slI[sel]; char b[24]; char*e=slCat(b,"SAVED "); e=slNum(e,I->seq); slCat(e,I->seq==1?" TIME":" TIMES");
         text(158,64,b,DIMC,1);
-        text(158,72,I->kind==SLK_HOUSE?"A HOUSE":I->kind==SLK_HHOLD?"A HOUSEHOLD":"ONE ROOM",DIMC,1);
+        text(158,72,I->kind==SLK_HOUSE?"A HOUSE":I->kind==SLK_HHOLD?"A HOUSEHOLD":I->kind==SLK_TOWN?"THE TOWN":"ONE ROOM",DIMC,1);
     } else if(slOwner[sel]<0) text(158,64,"A FREE SLOT",DIMC,1);
     // bottom: how full the slots are
     int used=slotUsedBytes(), tot=SLOT_N*SLOT_SZ, cnt=0; for(int i=0;i<SLOT_N;i++) if(slOwner[i]>=0) cnt++;
@@ -507,7 +524,7 @@ static void slDraw(int sel){
     text(12,112,b,DIMC,1); rect(12,121,150,4,RGB(8,10,14)); rect(12,121,used*150/tot,4,GOLD);
     text(12,132,"UP DOWN PICK A SLOT   A OPTIONS",WHITE,1);
     text(12,141,"B BACK   SELECT HELP",DIMC,1);
-    text(12,150,"SAVES ARE ONLY WRITTEN BY YOU HERE",RGB(12,14,16),1);
+    { char cb[32]; slCat(slCat(cb,"SAVE CHIP  "),svName()); text(12,150,cb,RGB(12,14,16),1); }
 }
 
 static const char slChars[]=" ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -537,7 +554,7 @@ static char slLn[9][30] EWRAM_BSS; static const char* slLp[9];
 static void slInfoScreen(int s){
     SlInfo*I=&slI[s]; int n=0; char*e;
     slLn[n][0]='>'; slCat(slLn[n]+1,I->name[0]?I->name:"NO NAME"); n++;
-    e=slCat(slLn[n],"KIND   "); slCat(e,I->kind==SLK_HOUSE?"HOUSE":I->kind==SLK_HHOLD?"HOUSEHOLD":"ROOM"); n++;
+    e=slCat(slLn[n],"KIND   "); slCat(e,I->kind==SLK_HOUSE?"HOUSE":I->kind==SLK_HHOLD?"HOUSEHOLD":I->kind==SLK_TOWN?"NEIGHBORHOOD":"ROOM"); n++;
     e=slCat(slLn[n],"SIZE   "); e=slSize(e,SLOT_HDR+I->len); e=slCat(e," OF "); slSize(e,SLOT_SZ*I->span); n++;
     e=slCat(slLn[n],"SAVED  "); e=slNum(e,I->seq); slCat(e,I->seq==1?" TIME":" TIMES"); n++;
     e=slCat(slLn[n],"MAP    "); e=slNum(e,I->mw); e=slCat(e," X "); slNum(e,I->mh); n++;
@@ -547,7 +564,6 @@ static void slInfoScreen(int s){
     helpScreen("SLOT INFO",slLp,n);
 }
 enum { SA_SAVE, SA_LOADALL, SA_LOADROOM, SA_LOADPERSON, SA_RENAME, SA_COPY, SA_INFO, SA_DELETE, SA_SAVEHH, SA_LOADHH, SA_SAVEHOUSE };
-static char slCopyNm[SLOT_N][20] EWRAM_BSS; static const char* slCopyIt[SLOT_N];
 // A on a slot: the list of things you can do with it. Returns 1 if a slot was loaded (the caller must restart play).
 static int slActions(int s){
     int own=slOwner[s]; SlInfo*I=&slI[s];
@@ -558,7 +574,7 @@ static int slActions(int s){
     else if(hh){
         if(good){ it[n]="LOAD HOUSEHOLD"; id[n++]=SA_LOADHH; }
         it[n]="SAVE HOUSEHOLD"; id[n++]=SA_SAVEHH;
-        if(good&&I->span==1){ it[n]="RENAME"; id[n++]=SA_RENAME; it[n]="COPY TO"; id[n++]=SA_COPY; }
+        if(good&&I->span==1){ it[n]="RENAME"; id[n++]=SA_RENAME; it[n]="COPY TO FREE SLOT"; id[n++]=SA_COPY; }
         it[n]="INFO"; id[n++]=SA_INFO; it[n]="DELETE"; id[n++]=SA_DELETE;
     }
     else {
@@ -566,7 +582,7 @@ static int slActions(int s){
             if(!house&&(I->has&SLH_ROOM)&&(I->has&~SLH_ROOM)){ it[n]="LOAD ROOM ONLY"; id[n++]=SA_LOADROOM; }
             if(!house&&(I->has&SLH_PERSON)&&(I->has&~SLH_PERSON)){ it[n]="LOAD PERSON ONLY"; id[n++]=SA_LOADPERSON; } }
         if(!house){ it[n]="SAVE OVER IT"; id[n++]=SA_SAVE; } else { it[n]="SAVE HOUSE"; id[n++]=SA_SAVEHOUSE; }
-        if(good){ it[n]="RENAME"; id[n++]=SA_RENAME; if(!house){ it[n]="COPY TO"; id[n++]=SA_COPY; } }
+        if(good){ it[n]="RENAME"; id[n++]=SA_RENAME; if(!house){ it[n]="COPY TO FREE SLOT"; id[n++]=SA_COPY; } }
         it[n]="INFO"; id[n++]=SA_INFO; it[n]="DELETE"; id[n++]=SA_DELETE;
     }
     int c=menu(occ?(I->name[0]?I->name:"NO NAME"):"EMPTY SLOT",it,n); if(c<0) return 0;
@@ -600,19 +616,16 @@ static int slActions(int s){
         } break;
         case SA_RENAME:{ char nm[SLOT_NAME+1]; for(int i=0;i<=SLOT_NAME;i++) nm[i]=I->name[i]; if(slEditName(nm)) slRename(s,nm); } break;
         case SA_COPY:{
-            for(int i=0;i<SLOT_N;i++){ char*e=slNum(slCopyNm[i],i+1); e=slCat(e," "); slCat(e,slOwner[i]==i?(slI[i].name[0]?slI[i].name:"NO NAME"):slOwner[i]<0?"EMPTY":"HOUSE"); slCopyIt[i]=slCopyNm[i]; }
-            int d=menu("COPY TO WHICH SLOT",slCopyIt,SLOT_N); if(d<0) break;
-            if(d==s){ toast("THAT IS THE SAME SLOT"); break; }
-            if(slOwner[d]>=0&&slI[slOwner[d]].span>1){ toast("A HOUSE IS IN THE WAY"); break; }
-            if(slOwner[d]>=0&&conf&&menu("OVERWRITE THAT SLOT",slYesNo,2)!=1) break;
-            int e=slCopy(s,d); toast(e?slErrMsg(e):"COPIED");
+            int d=-1; for(int i=0;i<SLOT_N;i++) if(slOwner[i]<0){ d=i; break; }
+            if(d<0){ toast("NO FREE SLOT"); break; }
+            int e=slCopy(s,d); static char cm[24]; slNum(slCat(cm,"COPIED TO SLOT "),d+1); toast(e?slErrMsg(e):cm);
         } break;
         case SA_INFO: slInfoScreen(s); break;
         case SA_DELETE: if(!conf||menu("DELETE THIS SLOT",slYesNo,2)==1){ slDelete(s); toast("SLOT DELETED"); } break;
     }
     return changed;
 }
-static const char* const slotHelp[14]={">ROOM SLOTS","TWELVE NAMED SAVES OF A ROOM","A ON A SLOT OPENS ITS LIST",">WHAT A SLOT HOLDS","ROOM  WALLS FLOORS ITEMS","PERSON  YOUR CREATURE  LIFE  CASH AND CLOCK","HOUSEHOLD  THE SIMS LIVING WITH YOU","SAVE HOUSEHOLD GOES IN ANY FREE SLOT","OPTIONS PICK WHAT SAVING STORES",">GOOD TO KNOW","LOADING MAKES THAT ROOM THE CURRENT ONE","THE ACTIVE SLOT IS THE LAST YOU USED","HOUSES WILL SHARE THIS SCREEN LATER"};
+static const char* const slotHelp[14]={">ROOM SLOTS","NAMED SAVES OF ROOMS AND HOUSES","A ON A SLOT OPENS ITS LIST",">WHAT A SLOT HOLDS","ROOM  WALLS FLOORS ITEMS","PERSON  YOUR CREATURE  LIFE  CASH AND CLOCK","HOUSEHOLD  THE SIMS LIVING WITH YOU","SAVE HOUSEHOLD GOES IN ANY FREE SLOT","OPTIONS PICK WHAT SAVING STORES",">GOOD TO KNOW","LOADING MAKES THAT ROOM THE CURRENT ONE","THE ACTIVE SLOT IS THE LAST YOU USED","128 KB FLASH HOLDS 58 SLOTS  SRAM 12"};
 static int slotScreen(void){   // returns 1 if something was loaded
     int sel=0, dirty=1, changed=0; u16 prev=keyNow();
     slScan();

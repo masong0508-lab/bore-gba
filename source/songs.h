@@ -30,6 +30,8 @@ SONG_XM(amiga_music,"AMIGA MUSIC","tools/amiga_music.xm")
 SONG_XM(emergency_hitech,"EMERGENCY ON THE DANCE FLOOR","tools/emergency_hitech.xm")
 // the earlier rework (xm2gba.py's make_dance): a SECRET song, hidden until the title-screen code (isDbgSong in main.c)
 SONG_XM(emergency_dance_floor,"EMERGENCY (ORIGINAL)","tools/emergency_dance_floor.xm")
+// TREE SWAYING ACTION: the ambient version (xm2gba.py make_tree_eno): a semitone down, no drums, generated from the song's own pad, pluck and
+// bass, about 13 minutes ending in a slow fade. The drum rework with the breeze echo is the secret TREE SWAYING ACTION (ORIGINAL) at the end.
 SONG_XM(tree_swaying_action,"TREE SWAYING ACTION","tools/tree_swaying_action.xm")
 SONG_XM(meltdown_in_mars_house,"MELTDOWN IN MARS","tools/meltdown_in_mars_house.xm")
 SONG_XM(worthless_clouds,"WORTHLESS CLOUDS","tools/worthless_clouds.xm")
@@ -70,3 +72,5 @@ SONG_XM(magic_act,"THE MAGIC ACT","tools/magic_act.xm")
 // NURSERY TIME: a Singhs rework of "The Dipper Man - Nursery Time" (tools/the_dipper_man_nursery_time.xm), built by tools/make_nursery_rework.py.
 // A music-box ditty that turns into a long, shifting metal / nu-groove suite built from the same tune (about 6:08).
 SONG_XM(nursery_time,"NURSERY TIME","tools/nursery_time.xm")
+// TREE SWAYING ACTION (ORIGINAL): the drum rework (make_tree + the smooth / gated breeze echo), kept as a SECRET song (isDbgSong in main.c)
+SONG_XM(tree_swaying_action_old,"TREE SWAYING ACTION (ORIGINAL)","tools/tree_swaying_action.xm")
