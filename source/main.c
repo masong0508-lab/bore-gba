@@ -3358,6 +3358,7 @@ static int nameEdit(char*nm,int max,const char*title,int mayEmpty){   // returns
     }
 }
 static void famAdd(void){
+    if(!xo[XO_SIMUSER]){ toast("USER-MADE SIMS ARE OFF"); return; }
     if(custom){ toast("BLOCK-BUILT BODIES STAY YOURS"); return; }
     hhLoad(); int m=hhAdd(look,stage,pAsp,pLtw,pTr);
     if(m<0){ toast("THE HOUSE IS FULL"); return; }

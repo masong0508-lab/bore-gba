@@ -314,6 +314,7 @@ static void hhStepAlong(HhSim*s){   // one step along the path, tile centre to t
 }
 static HhSim hhTw[TW_N] EWRAM_BSS; static short twWait[TW_N]={240,900}; static u8 twOn[TW_N];
 static void twTick(int*planned){
+    if(!xo[XO_SIMRAND]){ for(int k=0;k<TW_N;k++) twOn[k]=0; return; }   // MADE-UP SIMS off: no passers-by
     for(int k=0;k<TW_N;k++){ HhSim*s=&hhTw[k];
         if(!twOn[k]){
             if(twWait[k]>0){ twWait[k]--; continue; }
@@ -731,6 +732,7 @@ static void hhObjUpdate(void){   // in vblank: hand out OBJ slots, load what cha
 static HhR hhOld[HH_MAX]; static unsigned hhOldSig[HH_MAX];
 static void hhSave(void);
 static void hhInvite(void){   // a made-up Sim moves in (pause menu > HOUSEHOLD, or SELECT on the RELATIONSHIPS screen)
+    if(!xo[XO_SIMRAND]){ toast("MADE-UP SIMS ARE OFF"); return; }
     if(hhN>=HH_MAX){ toast("THE HOUSE IS FULL"); return; }
     u8 lk[LK_N], st, tr[TR_N]; hhRandLook(lk,&st); for(int i=0;i<TR_N;i++) tr[i]=(u8)(rnd8()%11);
     int m=hhAdd(lk,st,rnd8()%AS_PICK,rnd8()&1,tr); if(m<0) return;
@@ -838,6 +840,7 @@ static void hhMenu(void){
         static const char* const yn[2]={"YES  GOODBYE","NO"}; if(menu("ARE YOU SURE?",yn,2)!=0) return;
         hhRemove(m); for(int k=0;k<hhN;k++){ hhOld[k].x0=hhOld[k].x1=0; hhOldSig[k]=0xFFFFFFFFu; } hhSave(); toast("MOVED OUT"); return; }
     if(c==HH_NFAM){ hhN=0; for(int a=0;a<HU_N;a++)for(int b=0;b<HU_N;b++){ relD[a][b]=relL[a][b]=0; relF[a][b]=0; } hhSave(); toast("ONLY YOU LIVE HERE NOW"); return; }
+    if(!xo[XO_SIMPRE]){ toast("PRE-MADE SIMS ARE OFF"); return; }
     const HhFam*F=&hhFams[c]; int add=0, first=hhN;
     for(int i=0;i<F->n&&hhN<HH_MAX;i++){ hhNew(&hhM[hhN],&F->m[i]);
         { const char*f=F->fam; if(f[0]=='T'&&f[1]=='H'&&f[2]=='E'&&f[3]==' ') f+=4; int k=0; while(f[k]&&k<HH_NM-1){ hhM[hhN].last[k]=f[k]; k++; }   // THE MIDNIGHTS -> MIDNIGHT
