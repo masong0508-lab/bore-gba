@@ -10,7 +10,8 @@
 // This file is included from main.c at the old SETTINGS screen's place: it needs presetNm/presetOf/setPreset/setDefaults/autoTune/
 // measureDraw/capLevel/costCache from there, slots.h for the confirm menus, and tmStart()/R_TM2CNT.
 enum { OR_VAR, OR_XO, OR_PRESET, OR_ACT };   // a plain u8 variable, an xo[] option, the preset, an action
-enum { OA_TUNE, OA_LIFESAVE, OA_LIFEERASE, OA_ROOMERASE, OA_SLOTSERASE, OA_ALLERASE, OA_SRAMTEST, OA_RESET, OA_BTNTEST };
+enum { OA_TUNE, OA_LIFESAVE, OA_LIFEERASE, OA_ROOMERASE, OA_SLOTSERASE, OA_ALLERASE, OA_SRAMTEST, OA_RESET, OA_BTNTEST, OA_CLEAN };
+static void cacheFlush(void);   // CLEAR CACHES (main.c, next to liveInvalidate: it needs the room, sprite-slot and path state)
 typedef struct { u8 kind, idx, n, def; u8*v; const char*nm; const char* const* lab; const char*d0; const char*d1; } OptRow;
 #define VR(var,n,def,nm,lab,d0,d1) {OR_VAR,0,n,def,&var,nm,lab,d0,d1}
 #define XR(i,nm,lab,d0,d1) {OR_XO,i,0,0,0,nm,lab,d0,d1}
@@ -30,7 +31,7 @@ static const char* const lbNeed[5]={"OFF","SLOW","NORMAL","FAST","BRUTAL"}, *con
 static const char* const lbPct[11]={"0 %","10 %","20 %","30 %","40 %","50 %","60 %","70 %","80 %","90 %","100 %"};   // the volume sliders (rows made with SR)
 static const char* const lbBtn[4]={"NORMAL","A B SWAPPED","L R SWAPPED","BOTH SWAPPED"}, *const lbRep[3]={"SLOW","NORMAL","FAST"},
     *const lbClock[3]={"24 HOUR","12 HOUR","HIDDEN"}, *const lbToast[3]={"SHORT","NORMAL","LONG"},
-    *const lbCont[3]={"ROOM","ROOM+PERSON","ALL THREE"};
+    *const lbCont[3]={"ROOM","ROOM+PERSON","ALL THREE"}, *const lbZoom[3]={"OFF","1.5X","2X"}, *const lbMenuBg[3]={"RANDOM","TOWN","ACID RAINBOW"};
 
 static const OptRow pgVideo[]={
  {OR_PRESET,0,0,0,0,"PRESET",0,"LOOKS BALANCED SPEED BATTERY  ONE TAP SETUP","CHANGING ANYTHING BELOW MAKES IT CUSTOM"},
@@ -42,23 +43,40 @@ static const OptRow pgVideo[]={
  VR(sShad,2,1,"SHADOWS",lbOnOff,"THE DARK SPOT UNDER YOUR FEET","OFF SAVES A LITTLE DRAWING"),
  VR(sShow,3,0,"PERFORMANCE INFO",lbShow,"SHOWS FPS WHILE YOU PLAY  DETAIL ALSO SHOWS","LOAD  100 MEANS A FRAME IS JUST FITTING"),
  VR(sNoWarn,2,0,"SPEED WARNING",lbWarn,"ON SHOWS TOO SLOW WHEN THE PICTURE","CANT KEEP UP  OFF HIDES THE WARNING"),
- VR(sRom,2,0,"ROM SPEED",lbRom,"FAST IS RIGHT FOR MOST CARTS AND EMULATORS","SAFE IF A FLASH CART FREEZES OR GLITCHES"),
+ XR(XO_ZOOM,"ZOOM",lbZoom,"A CLOSER VIEW WHILE YOU PLAY  ONLY THAT PART","IS DRAWN SO IT RUNS FASTER  SELECT+UP DOWN"),
+ VR(sRom,2,0,"ROM SPEED",lbRom,"FAST IS RIGHT FOR MOST CARTS AND EMULATORS","SAFE IF A FLASH CART FREEZES OR GLITCHES"), AR(OA_CLEAN,"DEBUG CLEAR CACHES","KONAMI DEBUG  NOT A REAL CACHE DELETER","IT WONT SPEED UP THE GAME  A TO READ MORE"),   // LAST row of the page: hidden until the Konami code is on (pgRows)
 };
-static const OptRow pgPlay[]={
+// ---- SIM: everything about your Sim, the household and the score, in sections (like TIME) ----
+static const OptRow pgSimNeeds[]={
  XR(XO_NEED,"NEEDS",lbNeed,"HOW FAST REST CLEAN AND COMFY RUN DOWN","OFF FREEZES THEM  BRUTAL IS TWICE AS FAST"),
  XR(XO_HUNGER,"FOOD AND WC",lbHunger,"HOW FAST HUNGER AND THE BLADDER BUILD","OFF MEANS NO ACCIDENTS AND NO FAINTING"),
+ XR(XO_MOODFX,"MOOD EFFECTS",lbOnOff,"SAD SLOWS YOU  STOKED SPEEDS YOU UP AND MOOD","CHANGES TRICK POINTS  OFF IGNORES MOOD"),
+ XR(XO_HURT,"HURT",lbHurt,"GENTLE HALVES FALL DAMAGE","NO DEATH MEANS A FALL CAN NEVER KILL"),
+};
+static const OptRow pgSimJob[]={
  XR(XO_JOB,"CAREER",lbOnOff,"OFF REMOVES SHIFTS QUOTAS PAY AND BILLS","A FREE PLAY LIFE WITH NO WORK"),
  XR(XO_QUOTA,"JOB QUOTA",lbQuota,"TRICK POINTS NEEDED IN A SHIFT","EASY 60  NORMAL 100  HARD 150  INSANE 200"),
  XR(XO_BILLS,"BILLS",lbBills,"WHAT THE BILL AT MIDNIGHT COSTS","NONE  HALF  NORMAL  OR DOUBLE"),
+};
+static const OptRow pgSimScore[]={
  XR(XO_SCORE,"SCORE",lbScore,"MULTIPLIES EVERY TRICK AND GRIND SCORE","QUOTAS AND PAY FOLLOW THE SCORE"),
  XR(XO_SPEED,"TOP SPEED",lbSpeed,"HOW FAST YOU WALK RUN AND SKATE","80 TO 150 % OF NORMAL"),
+ VR(sCam,4,1,"ACTION CAM",lbCam,"AFTER A BIG COMBO THE CAMERA ZOOMS AND SPINS","ALL 4 VIEWS  PICK HOW BIG A COMBO TRIGGERS IT"),
+};
+static const OptRow pgSimSims[]={
  XR(XO_FREEWILL,"FREE WILL",lbFree,"SIMS YOU DO NOT CONTROL LOOK AFTER","THEMSELVES  LOW WAITS LONGER  OFF STANDS"),
  XR(XO_SIMPRE,"PRE-MADE SIMS",lbOnOff,"THE FAMILIES THAT MOVE IN FROM THE","HOUSEHOLD MENU  OFF BLOCKS THEM"),
  XR(XO_SIMUSER,"USER-MADE SIMS",lbOnOff,"SIMS YOU MAKE IN THE CREATOR AND ADD","TO THE FAMILY  OFF BLOCKS ADDING THEM"),
  XR(XO_SIMRAND,"MADE-UP SIMS",lbOnOff,"RANDOM SIMS THAT MOVE IN OR WALK PAST","OFF MEANS NONE OF THEM SHOW UP"),
- XR(XO_MOODFX,"MOOD EFFECTS",lbOnOff,"SAD SLOWS YOU  STOKED SPEEDS YOU UP AND MOOD","CHANGES TRICK POINTS  OFF IGNORES MOOD"),
- XR(XO_HURT,"HURT",lbHurt,"GENTLE HALVES FALL DAMAGE","NO DEATH MEANS A FALL CAN NEVER KILL"),
- XR(XO_AUTOSAVE,"AUTO SAVE LIFE",lbOnOff,"SAVES AT MIDNIGHT PAYDAY AND THE PAUSE MENU","OFF  ONLY SLOTS AND SAVE LIFE NOW SAVE IT"),
+};
+static const char* const lbMcSl[2]={"NORMAL","DOUBLE"}, *const lbMcBox[2]={"BY AGE","LIMIT BREAK"};
+static const OptRow pgSimMaster[]={   // MASTER CONTROLLER: only with the debug code (the section is hidden without it, and has no effect)
+ XR(XO_MCSLIDE,"SIZE SLIDERS",lbMcSl,"DOUBLE  EVERY SIZE TONE AND LENGTH SLIDER","GOES TWICE AS FAR  PARTS STAY ATTACHED"),
+ XR(XO_MCBOX,"BODY BOX",lbMcBox,"LIMIT BREAK  EVERY AGE GETS THE ADULT BOX","AND ADULTS STRETCH PAST 8 BLOCKS TALL"),
+};
+static const OptRow pgSimMind[]={
+ XR(XO_BUBBLE,"THOUGHT BUBBLE",lbBubble,"THE BUBBLE OVER YOUR HEAD","URGENT SHOWS ONLY NEEDS  ALL ADDS WANTS"),
+ XR(XO_WANTS,"WANTS AND FEARS",lbShown,"THE WANT AND FEAR CELLS IN THE HUD","THEY STILL COUNT WHEN HIDDEN"),
 };
 // ---- TIME: everything about time, in three sections (UP from the top row picks the section strip, LEFT / RIGHT switch it) ----
 static const OptRow pgTimeDay[]={
@@ -95,9 +113,7 @@ static const OptRow pgInput[]={
 };
 static const OptRow pgHud[]={
  VR(sHud,3,0,"INFO ON SCREEN",lbHud,"FULL SHOWS ALL  SLIM KEEPS SCORE AND BARS","OFF HIDES ALL OF IT  ALERTS STILL SHOW"),
- XR(XO_BUBBLE,"THOUGHT BUBBLE",lbBubble,"THE BUBBLE OVER YOUR HEAD","URGENT SHOWS ONLY NEEDS  ALL ADDS WANTS"),
- XR(XO_WANTS,"WANTS AND FEARS",lbShown,"THE WANT AND FEAR CELLS IN THE HUD","THEY STILL COUNT WHEN HIDDEN"),
- VR(sCam,4,1,"ACTION CAM",lbCam,"AFTER A BIG COMBO THE CAMERA ZOOMS AND SPINS","ALL 4 VIEWS  PICK HOW BIG A COMBO TRIGGERS IT"),
+ XR(XO_MENUBG,"MENU BACKDROP",lbMenuBg,"BEHIND THE MAIN MENU  YOUR TOWN AT THE TIME","OF DAY  THE ACID RAINBOW  OR EITHER"),
  XR(XO_ACCENT,"ACCENT COLOUR",accentNm,"COLOUR OF MENUS HEADINGS AND HUD NUMBERS","SEE IT CHANGE RIGHT HERE"),
 };
 static const OptRow pgRooms[]={
@@ -110,6 +126,7 @@ static const OptRow pgRooms[]={
  XR(XO_SLOTBOOT,"BOOT LOADS PERSON",lbOnOff,"AT POWER ON THE CREATURE OF THE ACTIVE","SLOT COMES BACK  THE ROOM IS NOT CHANGED"),
 };
 static const OptRow pgData[]={
+ XR(XO_AUTOSAVE,"AUTO SAVE LIFE",lbOnOff,"SAVES AT MIDNIGHT PAYDAY AND THE PAUSE MENU","OFF  ONLY SLOTS AND SAVE LIFE NOW SAVE IT"),
  AR(OA_LIFESAVE,"SAVE LIFE NOW","WRITES THE CURRENT LIFE TO SAVE MEMORY","USE IT FROM THE PAUSE MENU WHILE PLAYING"),
  AR(OA_LIFEERASE,"ERASE LIFE","DELETES THE SAVED LIFE  CASH JOB AND CLOCK","THE NEXT PLAY STARTS A NEW ONE"),
  AR(OA_ROOMERASE,"ERASE SAVED MAP","DELETES THE AUTO SAVED MAP  SLOTS STAY","THE DEFAULT MAP RETURNS AT NEXT POWER ON"),
@@ -124,14 +141,24 @@ typedef struct { const char*nm; const OptRow*r; u8 n; const OptSub*sub; u8 ns; }
 #define PG(nm,t) {nm,t,(u8)(sizeof(t)/sizeof(t[0])),0,0}
 #define PGS(nm,t) {nm,0,0,t,(u8)(sizeof(t)/sizeof(t[0]))}
 #define SUB(nm,t,d0,d1) {nm,t,(u8)(sizeof(t)/sizeof(t[0])),d0,d1}
+static const OptSub simSubs[]={
+ SUB("NEEDS",pgSimNeeds,"HOW FAST NEEDS RUN DOWN  MOOD AND HOW","MUCH A FALL HURTS"),
+ SUB("JOB",pgSimJob,"THE CAREER  ITS QUOTA AND THE BILLS","AT MIDNIGHT"),
+ SUB("SCORE",pgSimScore,"TRICK SCORES  YOUR TOP SPEED AND THE","ACTION CAM AFTER A BIG COMBO"),
+ SUB("SIMS",pgSimSims,"WHO MOVES IN OR WALKS PAST AND HOW","THE OTHERS LOOK AFTER THEMSELVES"),
+ SUB("MIND",pgSimMind,"THE THOUGHT BUBBLE AND THE WANTS AND","FEARS IN THE HUD"),
+ SUB("MASTER",pgSimMaster,"A NOD TO THE MASTER CONTROLLER MOD","DEBUG CODE ONLY  EXTREME SIM SLIDERS"),   // (keep it last: pgNs hides it)
+};
 static const OptSub timeSubs[]={
  SUB("DAY",pgTimeDay,"HOW LONG A GAME DAY IS AND HOW THE","CLOCK SHOWS IT"),
  SUB("AGES",pgTimeAges,"HOW FAST EVERY LIFE STAGE PASSES AND WHO","MAY USE THE WATER PIPE"),
  SUB("TIMERS",pgTimeTimers,"HOW LONG THE COMBO CHAIN WAITS AND HOW","LONG POP UP MESSAGES STAY"),
 };
-static const OptPage optPages[NOPG]={ PG("VIDEO",pgVideo), PG("PLAY",pgPlay), PGS("TIME",timeSubs), PG("AUDIO",pgAudio), PG("INPUT",pgInput), PG("HUD",pgHud), PG("ROOMS",pgRooms), PG("DATA",pgData) };
-static int opPage, opFocus; static u8 opSel[NOPG][4], opSub[NOPG];   // opFocus: the cursor is on the section strip; opSel is kept per page and per section
-static const OptRow* pgRows(const OptPage*pg,int*n){ if(pg->ns){ const OptSub*u=&pg->sub[opSub[pg-optPages]]; *n=u->n; return u->r; } *n=pg->n; return pg->r; }
+static const OptPage optPages[NOPG]={ PG("VIDEO",pgVideo), PGS("SIM",simSubs), PGS("TIME",timeSubs), PG("AUDIO",pgAudio), PG("INPUT",pgInput), PG("HUD",pgHud), PG("ROOMS",pgRooms), PG("DATA",pgData) };
+static int opPage, opFocus; static u8 opSel[NOPG][5], opSub[NOPG];   // opFocus: the cursor is on the section strip; opSel is kept per page and per section
+static int pgNs(const OptPage*pg);
+static const OptRow* pgRows(const OptPage*pg,int*n){ if(pg->ns){ if(opSub[pg-optPages]>=pgNs(pg)) opSub[pg-optPages]=0; const OptSub*u=&pg->sub[opSub[pg-optPages]]; *n=u->n; return u->r; } *n=pg->n; if(pg->r==pgVideo&&!sUnlock) (*n)--; return pg->r; }   // DEBUG CLEAR CACHES (the last VIDEO row) only shows while the Konami code (sUnlock) is on
+static int pgNs(const OptPage*pg){ return pg->ns-((pg->sub==simSubs&&!mcOn())?1:0); }   // sections shown (SIM's MASTER only with the debug code)
 static u8* pgSel(const OptPage*pg){ int i=(int)(pg-optPages); return &opSel[i][pg->ns?opSub[i]:0]; }
 
 static u8* rowVar(const OptRow*r){ return r->kind==OR_XO?&xo[r->idx]: r->v; }
@@ -184,7 +211,7 @@ static void drawOptions(void){
     const OptPage*pg=&optPages[opPage]; int nr; const OptRow*rows=pgRows(pg,&nr); int sel=*pgSel(pg), y0=19, vis=11, foc=(pg->ns&&opFocus);
     if(pg->ns){   // the section strip: DAY | AGES | TIMERS. UP from the top row puts the cursor on it, LEFT / RIGHT switch, DOWN goes back to the rows
         int x=8, cs=opSub[opPage];
-        for(int u=0;u<pg->ns;u++){ const OptSub*su=&pg->sub[u]; int w=tw(su->nm,1)+12, on=(u==cs), chg=0;
+        for(int u=0;u<pgNs(pg);u++){ const OptSub*su=&pg->sub[u]; int w=tw(su->nm,1)+12, on=(u==cs), chg=0;
             for(int q=0;q<su->n;q++) if(rowChanged(&su->r[q])) chg=1;
             rect(x,17,w,11,on?(foc?GOLD:RGB(10,13,19)):RGB(4,5,9));
             if(on&&!foc) rect(x,27,w,1,GOLD);
@@ -245,6 +272,12 @@ static void optAction(int a,int*remeasure){
         case OA_TUNE: autoTune(); costCache[costKey()]=(s16)sCost; *remeasure=0; break;
         case OA_RESET: if(menu("RESET ALL OPTIONS",slYesNo,2)==1){ optsDefaults(); setDefaults(); sTunedMsg=0; *remeasure=1; toast("OPTIONS RESET"); } break;
         case OA_BTNTEST: buttonTest(); break;
+        case OA_CLEAN:{
+            if(!sUnlock) break;   // (the row is hidden without the Konami code; this is only a second lock)
+            static const char* const dis[11]={">NOT A REAL CACHE DELETER","THE GBA HAS NO CACHE PILE UP TO CLEAR","AND THE GAME KEEPS NO HIDDEN ASSETS IN RAM","IT ONLY DROPS SMALL SPEED UP COPIES THAT","THE GAME BUILDS AGAIN BY ITSELF",">WHAT IT CAN DO","FIX A GLITCHED SPRITE OR A STALE REDRAW",">WHAT IT CANNOT DO","RAISE YOUR FRAME RATE OR FREE UP RAM","FOR REAL SPEED USE FRAME RATE WALLS","WALLPAPER FLOORS AND SHADOWS"};
+            helpScreen("DEBUG CLEAR CACHES",dis,11);
+            if(menu("RUN IT ANYWAY",slYesNo,2)!=1) break; }
+            cacheFlush(); for(int i=0;i<24;i++) costCache[i]=0; sTunedMsg=0; *remeasure=1; toast("CACHES CLEARED"); break;   // the speed meter measures again by itself a moment later
         case OA_LIFESAVE:
             if(!gInPlay) toast("USE THIS FROM THE PAUSE MENU");
             else { simsSaveNow(); toast("LIFE SAVED"); } break;
@@ -277,7 +310,7 @@ static void settingsScreen(void){   // the OPTIONS screen (the name stays so eve
         if(pr&(K_L|K_R)){ opPage=(opPage+((pr&K_R)?1:NOPG-1))%NOPG; opFocus=0; dirty=1; if(opPage==0){ int c=costCache[costKey()]; if(c){ sCost=c; remeasure=0; } else remeasure=1; } }
         const OptPage*pg=&optPages[opPage]; int nr; const OptRow*rows=pgRows(pg,&nr); u8*sel=pgSel(pg);
         if(pg->ns&&opFocus){   // on the section strip: LEFT / RIGHT (or A) switch the section, DOWN / UP go back to the rows
-            if(pr&(K_LEFT|K_RIGHT|K_A)){ opSub[opPage]=(u8)((opSub[opPage]+((pr&K_LEFT)?pg->ns-1:1))%pg->ns); dirty=1; }
+            if(pr&(K_LEFT|K_RIGHT|K_A)){ int ns=pgNs(pg); opSub[opPage]=(u8)((opSub[opPage]+((pr&K_LEFT)?ns-1:1))%ns); dirty=1; }
             if(pr&(K_DOWN|K_UP)){ opFocus=0; rows=pgRows(pg,&nr); sel=pgSel(pg); *sel=(pr&K_DOWN)?0:(u8)(nr-1); dirty=1; }
         } else {
             if(pr&K_DOWN){ if(pg->ns&&*sel==nr-1) opFocus=1; else *sel=(u8)((*sel+1)%nr); dirty=1; }

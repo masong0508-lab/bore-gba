@@ -366,6 +366,34 @@ __asm__(".pushsection .rodata\n"
   ".global xm_staged_S21\nxm_staged_S21:\n.incbin \"source/music/xmdata.bin\",4085440,20499\n"
   ".global xm_staged_S22\nxm_staged_S22:\n.incbin \"source/music/xmdata.bin\",4105939,15362\n"
   ".global xm_staged_S23\nxm_staged_S23:\n.incbin \"source/music/xmdata.bin\",4121301,14144\n"
+  ".global xm_closer_to_the_end_ev\nxm_closer_to_the_end_ev:\n.incbin \"source/music/xmdata.bin\",4135445,12413\n"
+  ".global xm_closer_to_the_end_S0\nxm_closer_to_the_end_S0:\n.incbin \"source/music/xmdata.bin\",4147858,1223\n"
+  ".global xm_closer_to_the_end_S1\nxm_closer_to_the_end_S1:\n.incbin \"source/music/xmdata.bin\",4149081,4905\n"
+  ".global xm_closer_to_the_end_S2\nxm_closer_to_the_end_S2:\n.incbin \"source/music/xmdata.bin\",4153986,1012\n"
+  ".global xm_closer_to_the_end_S3\nxm_closer_to_the_end_S3:\n.incbin \"source/music/xmdata.bin\",4154998,14946\n"
+  ".global xm_closer_to_the_end_S4\nxm_closer_to_the_end_S4:\n.incbin \"source/music/xmdata.bin\",4169944,19986\n"
+  ".global xm_closer_to_the_end_S5\nxm_closer_to_the_end_S5:\n.incbin \"source/music/xmdata.bin\",4189930,1637\n"
+  ".global xm_closer_to_the_end_S6\nxm_closer_to_the_end_S6:\n.incbin \"source/music/xmdata.bin\",4191567,2909\n"
+  ".global xm_closer_to_the_end_S7\nxm_closer_to_the_end_S7:\n.incbin \"source/music/xmdata.bin\",4194476,18257\n"
+  ".global xm_closer_to_the_end_S8\nxm_closer_to_the_end_S8:\n.incbin \"source/music/xmdata.bin\",4212733,9428\n"
+  ".global xm_closer_to_the_end_S9\nxm_closer_to_the_end_S9:\n.incbin \"source/music/xmdata.bin\",4222161,5498\n"
+  ".global xm_closer_to_the_end_S10\nxm_closer_to_the_end_S10:\n.incbin \"source/music/xmdata.bin\",4227659,6618\n"
+  ".global xm_closer_to_the_end_S11\nxm_closer_to_the_end_S11:\n.incbin \"source/music/xmdata.bin\",4234277,4876\n"
+  ".global xm_closer_to_the_end_S12\nxm_closer_to_the_end_S12:\n.incbin \"source/music/xmdata.bin\",4239153,5510\n"
+  ".global xm_closer_to_the_end_S13\nxm_closer_to_the_end_S13:\n.incbin \"source/music/xmdata.bin\",4244663,5814\n"
+  ".global xm_closer_to_the_end_S14\nxm_closer_to_the_end_S14:\n.incbin \"source/music/xmdata.bin\",4250477,20025\n"
+  ".global xm_closer_to_the_end_S15\nxm_closer_to_the_end_S15:\n.incbin \"source/music/xmdata.bin\",4270502,8820\n"
+  ".global xm_closer_to_the_end_old_ev\nxm_closer_to_the_end_old_ev:\n.incbin \"source/music/xmdata.bin\",4279322,9192\n"
+  ".global xm_closer_to_the_end_old_S11\nxm_closer_to_the_end_old_S11:\n.incbin \"source/music/xmdata.bin\",4288514,4940\n"
+  ".global xm_closer_to_the_end_old_S12\nxm_closer_to_the_end_old_S12:\n.incbin \"source/music/xmdata.bin\",4293454,10966\n"
+  ".global xm_the_ticking_bomb_ev\nxm_the_ticking_bomb_ev:\n.incbin \"source/music/xmdata.bin\",4304420,3332\n"
+  ".global xm_the_ticking_bomb_S1\nxm_the_ticking_bomb_S1:\n.incbin \"source/music/xmdata.bin\",4307752,3570\n"
+  ".global xm_the_ticking_bomb_S2\nxm_the_ticking_bomb_S2:\n.incbin \"source/music/xmdata.bin\",4311322,874\n"
+  ".global xm_the_ticking_bomb_S3\nxm_the_ticking_bomb_S3:\n.incbin \"source/music/xmdata.bin\",4312196,1224\n"
+  ".global xm_the_ticking_bomb_S4\nxm_the_ticking_bomb_S4:\n.incbin \"source/music/xmdata.bin\",4313420,5673\n"
+  ".global xm_the_ticking_bomb_S6\nxm_the_ticking_bomb_S6:\n.incbin \"source/music/xmdata.bin\",4319093,5356\n"
+  ".global xm_the_ticking_bomb_S7\nxm_the_ticking_bomb_S7:\n.incbin \"source/music/xmdata.bin\",4324449,2676\n"
+  ".global xm_the_ticking_bomb_S13\nxm_the_ticking_bomb_S13:\n.incbin \"source/music/xmdata.bin\",4327125,21560\n"
   ".popsection\n");
 extern const u8 xm_the_dipper_man_ev[];
 extern const s8 xm_the_dipper_man_S0[];
@@ -730,6 +758,34 @@ extern const s8 xm_staged_S20[];
 extern const s8 xm_staged_S21[];
 extern const s8 xm_staged_S22[];
 extern const s8 xm_staged_S23[];
+extern const u8 xm_closer_to_the_end_ev[];
+extern const s8 xm_closer_to_the_end_S0[];
+extern const s8 xm_closer_to_the_end_S1[];
+extern const s8 xm_closer_to_the_end_S2[];
+extern const s8 xm_closer_to_the_end_S3[];
+extern const s8 xm_closer_to_the_end_S4[];
+extern const s8 xm_closer_to_the_end_S5[];
+extern const s8 xm_closer_to_the_end_S6[];
+extern const s8 xm_closer_to_the_end_S7[];
+extern const s8 xm_closer_to_the_end_S8[];
+extern const s8 xm_closer_to_the_end_S9[];
+extern const s8 xm_closer_to_the_end_S10[];
+extern const s8 xm_closer_to_the_end_S11[];
+extern const s8 xm_closer_to_the_end_S12[];
+extern const s8 xm_closer_to_the_end_S13[];
+extern const s8 xm_closer_to_the_end_S14[];
+extern const s8 xm_closer_to_the_end_S15[];
+extern const u8 xm_closer_to_the_end_old_ev[];
+extern const s8 xm_closer_to_the_end_old_S11[];
+extern const s8 xm_closer_to_the_end_old_S12[];
+extern const u8 xm_the_ticking_bomb_ev[];
+extern const s8 xm_the_ticking_bomb_S1[];
+extern const s8 xm_the_ticking_bomb_S2[];
+extern const s8 xm_the_ticking_bomb_S3[];
+extern const s8 xm_the_ticking_bomb_S4[];
+extern const s8 xm_the_ticking_bomb_S6[];
+extern const s8 xm_the_ticking_bomb_S7[];
+extern const s8 xm_the_ticking_bomb_S13[];
 static const u32 xmT[12]={1073741824,1137589835,1205234447,1276901417,1352829926,1433273380,1518500250,1608794974,1704458901,1805811301,1913190429,2026954652};   // 2^(j/12) in Q30: with a per-instrument anchor this gives every note's playback step (see xmStep in main.c)
 // ---- the_dipper_man  (from tools/the_dipper_man.xm) ----
 static const u8 xm_the_dipper_man_order[89]={0,0,1,1,2,2,2,2,3,4,3,5,3,4,3,6,7,8,9,2,7,8,10,11,12,4,3,5,3,4,
@@ -1558,3 +1614,85 @@ static const u8 xm_staged_busL[7]={199,179,152,122,88,51,13,
 static const u8 xm_staged_busR[7]={13,51,88,122,152,179,199,
 };
 static const XmSong xm_staged={xm_staged_order,xm_staged_rows,xm_staged_patOff,xm_staged_ev,xm_staged_vt,xm_staged_anc,xm_staged_fx,xm_staged_len,xm_staged_data,xm_staged_busL,xm_staged_busR,211,0,521,193};
+// ---- closer_to_the_end  (from tools/closer_to_the_end.xm) ----
+static const u8 xm_closer_to_the_end_order[73]={0,1,2,3,4,5,6,7,8,9,10,4,11,12,13,14,12,15,16,17,18,19,20,21,18,19,22,21,23,24,
+23,24,25,26,27,28,29,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,
+52,53,54,55,56,57,58,59,60,61,62,63,64,
+};
+static const u16 xm_closer_to_the_end_rows[65]={48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,42,42,48,48,48,48,60,
+60,60,48,48,48,48,48,48,48,48,72,72,72,72,72,72,72,72,48,48,48,48,48,48,48,48,48,48,48,48,
+48,48,48,48,16,
+};
+static const u32 xm_closer_to_the_end_patOff[65]={0,90,180,282,387,519,651,783,931,1089,1247,1389,1566,1740,1914,2088,2262,2436,2624,2867,3107,3335,3571,3799,
+3987,4175,4370,4565,4760,4999,5232,5465,5712,5939,6135,6359,6571,6795,6991,7215,7439,7656,7857,8074,8267,8501,8713,8947,
+9148,9268,9388,9508,9677,9964,10248,10520,10800,11081,11359,11637,11929,12049,12172,12292,12412,
+};
+static const u16 xm_closer_to_the_end_vt[35]={119,1769,2680,631,3192,133,3206,1536,50,2660,1709,1710,34,3122,3106,3089,
+17,1619,156,3229,668,67,220,3293,2148,186,3259,732,717,205,698,3276,
+2764,2781,1273,
+};
+static const u32 xm_closer_to_the_end_anc[16]={61819841,247279365,247279365,247279365,247279365,61819841,61819841,247279365,
+82519588,82519588,82519588,247279365,82519588,123639683,247279365,82519588,
+};
+static const u8 xm_closer_to_the_end_fx[1]={255,
+};
+static const u32 xm_closer_to_the_end_len[16]={1222,4904,1011,14945,19985,1636,2908,18256,9427,5497,6617,4875,5509,5813,20024,8819,
+};
+static const s8* const xm_closer_to_the_end_data[16]={xm_closer_to_the_end_S0,xm_closer_to_the_end_S1,xm_closer_to_the_end_S2,xm_closer_to_the_end_S3,xm_closer_to_the_end_S4,xm_closer_to_the_end_S5,xm_closer_to_the_end_S6,xm_closer_to_the_end_S7,xm_closer_to_the_end_S8,xm_closer_to_the_end_S9,xm_closer_to_the_end_S10,xm_closer_to_the_end_S11,xm_closer_to_the_end_S12,xm_closer_to_the_end_S13,xm_closer_to_the_end_S14,xm_closer_to_the_end_S15};
+static const u8 xm_closer_to_the_end_busL[7]={237,212,181,145,104,61,15,
+};
+static const u8 xm_closer_to_the_end_busR[7]={11,43,74,102,128,150,168,
+};
+static const XmSong xm_closer_to_the_end={xm_closer_to_the_end_order,xm_closer_to_the_end_rows,xm_closer_to_the_end_patOff,xm_closer_to_the_end_ev,xm_closer_to_the_end_vt,xm_closer_to_the_end_anc,xm_closer_to_the_end_fx,xm_closer_to_the_end_len,xm_closer_to_the_end_data,xm_closer_to_the_end_busL,xm_closer_to_the_end_busR,73,0,648,119};
+// ---- closer_to_the_end_old  (from tools/closer_to_the_end_old.xm) ----
+static const u8 xm_closer_to_the_end_old_order[55]={0,1,2,3,4,5,6,7,8,9,10,4,11,12,13,14,12,15,16,17,18,19,18,19,20,21,22,23,24,25,
+26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,
+};
+static const u16 xm_closer_to_the_end_old_rows[51]={48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,42,42,48,48,48,48,48,48,48,48,48,48,
+48,48,72,72,72,72,72,72,72,72,48,48,48,48,48,48,48,48,48,48,16,
+};
+static const u32 xm_closer_to_the_end_old_patOff[51]={0,90,180,282,387,519,651,783,931,1069,1207,1339,1501,1660,1819,1978,2137,2296,2471,2659,2847,3042,3237,3432,
+3656,3845,4015,4201,4387,4573,4743,4929,5115,5307,5493,5685,5868,6085,6286,6503,6696,6983,7267,7539,7819,8100,8378,8656,
+8948,9068,9191,
+};
+static const u16 xm_closer_to_the_end_old_vt[31]={119,1769,2680,631,3192,133,3206,1536,50,2660,1709,1710,34,3122,3106,3089,
+17,1619,1180,579,732,2148,186,3259,698,204,716,249,2765,220,3277,
+};
+static const u32 xm_closer_to_the_end_old_anc[16]={61819841,247279365,247279365,247279365,247279365,61819841,61819841,247279365,
+82519588,82519588,82519588,247279365,165039176,123639683,247279365,82519588,
+};
+static const u8 xm_closer_to_the_end_old_fx[1]={255,
+};
+static const u32 xm_closer_to_the_end_old_len[16]={1222,4904,1011,14945,19985,1636,2908,18256,9427,5497,6617,4939,10965,5813,20024,8819,
+};
+static const s8* const xm_closer_to_the_end_old_data[16]={xm_closer_to_the_end_S0,xm_closer_to_the_end_S1,xm_closer_to_the_end_S2,xm_closer_to_the_end_S3,xm_closer_to_the_end_S4,xm_closer_to_the_end_S5,xm_closer_to_the_end_S6,xm_closer_to_the_end_S7,xm_closer_to_the_end_S8,xm_closer_to_the_end_S9,xm_closer_to_the_end_S10,xm_closer_to_the_end_old_S11,xm_closer_to_the_end_old_S12,xm_closer_to_the_end_S13,xm_closer_to_the_end_S14,xm_closer_to_the_end_S15};
+static const u8 xm_closer_to_the_end_old_busL[7]={234,210,179,143,103,60,15,
+};
+static const u8 xm_closer_to_the_end_old_busR[7]={11,43,75,104,130,152,170,
+};
+static const XmSong xm_closer_to_the_end_old={xm_closer_to_the_end_old_order,xm_closer_to_the_end_old_rows,xm_closer_to_the_end_old_patOff,xm_closer_to_the_end_old_ev,xm_closer_to_the_end_old_vt,xm_closer_to_the_end_old_anc,xm_closer_to_the_end_old_fx,xm_closer_to_the_end_old_len,xm_closer_to_the_end_old_data,xm_closer_to_the_end_old_busL,xm_closer_to_the_end_old_busR,55,0,1080,198};
+// ---- the_ticking_bomb  (from tools/the_ticking_bomb.xm) ----
+static const u8 xm_the_ticking_bomb_order[61]={0,1,0,1,2,3,2,3,4,5,4,5,4,5,4,5,6,7,6,7,6,7,6,7,8,9,10,11,10,11,
+10,11,10,11,12,13,12,14,15,16,15,16,15,16,15,16,17,18,17,18,17,18,17,18,19,20,19,20,21,22,
+23,
+};
+static const u16 xm_the_ticking_bomb_rows[24]={32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,16,
+};
+static const u32 xm_the_ticking_bomb_patOff[24]={0,46,86,220,348,539,733,948,1166,1357,1566,1659,1761,1869,1986,2106,2321,2539,2742,2948,3103,3252,3295,3331,
+};
+static const u16 xm_the_ticking_bomb_vt[21]={613,2662,1759,1229,1160,1536,1620,2082,2217,563,1553,2236,1150,1690,2715,2631,
+638,2174,2686,1775,1662,
+};
+static const u32 xm_the_ticking_bomb_anc[15]={61819841,247279365,247279365,61819841,247279365,61819841,82519588,41259794,
+123639683,82519588,123639683,123639683,123639683,165039176,61819841,
+};
+static const u8 xm_the_ticking_bomb_fx[1]={255,
+};
+static const u32 xm_the_ticking_bomb_len[15]={1480,3569,873,1223,5672,3745,5355,2675,8259,4961,4135,10826,13333,21559,5824,
+};
+static const s8* const xm_the_ticking_bomb_data[15]={xm_gottcho_barracho_ii_S0,xm_the_ticking_bomb_S1,xm_the_ticking_bomb_S2,xm_the_ticking_bomb_S3,xm_the_ticking_bomb_S4,xm_gottcho_barracho_ii_S5,xm_the_ticking_bomb_S6,xm_the_ticking_bomb_S7,xm_gottcho_barracho_ii_S7,xm_gottcho_barracho_ii_S8,xm_gottcho_barracho_ii_S9,xm_gottcho_barracho_ii_S10,xm_gottcho_barracho_ii_S11,xm_the_ticking_bomb_S13,xm_gottcho_barracho_ii_S13};
+static const u8 xm_the_ticking_bomb_busL[7]={199,179,152,122,88,51,13,
+};
+static const u8 xm_the_ticking_bomb_busR[7]={13,51,88,122,152,179,199,
+};
+static const XmSong xm_the_ticking_bomb={xm_the_ticking_bomb_order,xm_the_ticking_bomb_rows,xm_the_ticking_bomb_patOff,xm_the_ticking_bomb_ev,xm_the_ticking_bomb_vt,xm_the_ticking_bomb_anc,xm_the_ticking_bomb_fx,xm_the_ticking_bomb_len,xm_the_ticking_bomb_data,xm_the_ticking_bomb_busL,xm_the_ticking_bomb_busR,61,0,1098,53};

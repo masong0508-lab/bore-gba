@@ -30,9 +30,9 @@ SONG_XM(amiga_music,"AMIGA MUSIC","tools/amiga_music.xm")
 SONG_XM(emergency_hitech,"EMERGENCY ON THE DANCE FLOOR","tools/emergency_hitech.xm")
 // the earlier rework (xm2gba.py's make_dance): a SECRET song, hidden until the title-screen code (isDbgSong in main.c)
 SONG_XM(emergency_dance_floor,"EMERGENCY (ORIGINAL)","tools/emergency_dance_floor.xm")
-// TREE SWAYING ACTION: the ambient version (xm2gba.py make_tree_eno): a semitone down, no drums, generated from the song's own pad, pluck and
-// bass, about 13 minutes ending in a slow fade. The drum rework with the breeze echo is the secret TREE SWAYING ACTION (ORIGINAL) at the end.
-SONG_XM(tree_swaying_action,"TREE SWAYING ACTION","tools/tree_swaying_action.xm")
+// TREE-AGE IN ACTION (TREE SWAYING ACTION until it was renamed): the ambient version (xm2gba.py make_tree_eno): a semitone down, no drums, generated from the song's own pad, pluck and
+// bass, about 13 minutes ending in a slow fade. The drum rework with the breeze echo is the secret TREE-AGE IN ACTION (ORIGINAL) at the end.
+SONG_XM(tree_swaying_action,"TREE-AGE IN ACTION","tools/tree_swaying_action.xm")
 SONG_XM(meltdown_in_mars_house,"MELTDOWN IN MARS","tools/meltdown_in_mars_house.xm")
 SONG_XM(worthless_clouds,"WORTHLESS CLOUDS","tools/worthless_clouds.xm")
 SONG_XM(sunman_sunrise,"SUNMAN SUNRISE","tools/sunman_sunrise.xm")
@@ -72,8 +72,8 @@ SONG_XM(magic_act,"THE MAGIC ACT","tools/magic_act.xm")
 // NURSERY TIME: a Singhs rework of "The Dipper Man - Nursery Time" (tools/the_dipper_man_nursery_time.xm), built by tools/make_nursery_rework.py.
 // A music-box ditty that turns into a long, shifting metal / nu-groove suite built from the same tune (about 6:08).
 SONG_XM(nursery_time,"NURSERY TIME","tools/nursery_time.xm")
-// TREE SWAYING ACTION (ORIGINAL): the drum rework (make_tree + the smooth / gated breeze echo), kept as a SECRET song (isDbgSong in main.c)
-SONG_XM(tree_swaying_action_old,"TREE SWAYING ACTION (ORIGINAL)","tools/tree_swaying_action.xm")
+// TREE-AGE IN ACTION (ORIGINAL): the drum rework (make_tree + the smooth / gated breeze echo), kept as a SECRET song (isDbgSong in main.c)
+SONG_XM(tree_swaying_action_old,"TREE-AGE IN ACTION (ORIGINAL)","tools/tree_swaying_action.xm")
 // CONDENSED MUSIC: a Sk9m UK garage rework of The Dipper Man - Condensed Music (tools/make_condensed_rework.py, from tools/the_dipper_man_condensed_music.xm)
 SONG_XM(condensed_music,"CONDENSED MUSIC","tools/condensed_music.xm")
 // COCAINE COLA: the rework (tools/make_cocaine_cola_rework.py) of the stem transcription tools/cocaine_cola.xm, which stays as the secret original
@@ -81,3 +81,10 @@ SONG_XM(cocaine_cola_ii,"COCAINE COLA","tools/cocaine_cola_ii.xm")
 SONG_XM(cocaine_cola,"COCAINE COLA (ORIGINAL)","tools/cocaine_cola.xm")
 // STAGED THE FULL PERFORMANCE: a DayBar hi-NRG rework of The Dipper Man - Staged the Full Performance (tools/make_staged_rework.py, from tools/the_dipper_man_staged.xm)
 SONG_XM(staged,"STAGED THE FULL PERFORMANCE","tools/staged.xm")
+
+// CLOSER TO THE END: a faster, harder Danny Steele prog rework of The Dipper Man - Closer to the End (tools/make_closer_rework.py, 140 BPM, from tools/the_dipper_man_closer_to_the_end.xm)
+SONG_XM(closer_to_the_end,"CLOSER TO THE END","tools/closer_to_the_end.xm")
+// CLOSER TO THE END (ORIGINAL): the first, slower version (tools/make_closer_old_rework.py): a SECRET song, hidden until the title-screen code (isDbgSong in main.c)
+SONG_XM(closer_to_the_end_old,"CLOSER TO THE END (ORIGINAL)","tools/closer_to_the_end_old.xm")
+// THE TICKING BOMB: an El B.D'ees Latin house rework of The Dipper Man - The Ticking Bomb (tools/make_tickingbomb_rework.py, 124 BPM with a half-time downgroove, from tools/the_dipper_man_ticking_bomb.xm)
+SONG_XM(the_ticking_bomb,"THE TICKING BOMB","tools/the_ticking_bomb.xm")

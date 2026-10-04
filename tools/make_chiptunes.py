@@ -48,7 +48,7 @@ SECRET = [     # the hidden set: for the title-screen code, like the (ORIGINAL) 
 CANDIDATES = [ # options for the one visible slot still open (v2 = the better pitch and role analysis)
     ("worthless_clouds",       "tools/worthless_clouds.xm",       "WORTHLESS CLOUDS",           {'v2': True}),
     ("the_dipper_man",         "tools/the_dipper_man.xm",         "THE DIPPER MAN (title song)", {'v2': True}),
-    ("tree_swaying_action",    "tools/tree_swaying_action.xm",    "TREE SWAYING ACTION",        {'v2': True}),
+    ("tree_swaying_action",    "tools/tree_swaying_action.xm",    "TREE-AGE IN ACTION",        {'v2': True}),
     ("earth_and_the_space_citizens", "tools/earth_and_the_space_citizens.xm", "EARTH AND THE SPACE CITIZENS", {'v2': True}),
 ]
 GROUPS = [('songs', SONGS), ('secret', SECRET), ('candidates', CANDIDATES)]
