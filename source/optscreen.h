@@ -43,7 +43,7 @@ static const OptRow pgVideo[]={
  VR(sShad,2,1,"SHADOWS",lbOnOff,"THE DARK SPOT UNDER YOUR FEET","OFF SAVES A LITTLE DRAWING"),
  VR(sShow,3,0,"PERFORMANCE INFO",lbShow,"SHOWS FPS WHILE YOU PLAY  DETAIL ALSO SHOWS","LOAD  100 MEANS A FRAME IS JUST FITTING"),
  VR(sNoWarn,2,0,"SPEED WARNING",lbWarn,"ON SHOWS TOO SLOW WHEN THE PICTURE","CANT KEEP UP  OFF HIDES THE WARNING"),
- VR(sRom,2,0,"ROM SPEED",lbRom,"FAST IS RIGHT FOR MOST CARTS AND EMULATORS","SAFE IF A FLASH CART FREEZES OR GLITCHES"), AR(OA_CLEAN,"CLEAR CACHES","DROPS WHAT THE GAME CAN REBUILD  RAM CACHES","AND ROM PREFETCH  SAFE  SAVES ARE NOT TOUCHED"),
+ VR(sRom,2,0,"ROM SPEED",lbRom,"FAST IS RIGHT FOR MOST CARTS AND EMULATORS","SAFE IF A FLASH CART FREEZES OR GLITCHES"), AR(OA_CLEAN,"CLEAR CACHES","NOT A REAL RAM OR ROM CACHE DELETER","IT WONT SPEED UP THE GAME  A TO READ MORE"),
 };
 static const OptRow pgPlay[]={
  XR(XO_NEED,"NEEDS",lbNeed,"HOW FAST REST CLEAN AND COMFY RUN DOWN","OFF FREEZES THEM  BRUTAL IS TWICE AS FAST"),
@@ -246,7 +246,11 @@ static void optAction(int a,int*remeasure){
         case OA_TUNE: autoTune(); costCache[costKey()]=(s16)sCost; *remeasure=0; break;
         case OA_RESET: if(menu("RESET ALL OPTIONS",slYesNo,2)==1){ optsDefaults(); setDefaults(); sTunedMsg=0; *remeasure=1; toast("OPTIONS RESET"); } break;
         case OA_BTNTEST: buttonTest(); break;
-        case OA_CLEAN: cacheFlush(); for(int i=0;i<24;i++) costCache[i]=0; sTunedMsg=0; *remeasure=1; toast("CACHES CLEARED"); break;   // the speed meter measures again by itself a moment later
+        case OA_CLEAN:{
+            static const char* const dis[11]={">NOT A REAL CACHE DELETER","THE GBA HAS NO CACHE PILE UP TO CLEAR","AND THE GAME KEEPS NO HIDDEN ASSETS IN RAM","IT ONLY DROPS SMALL SPEED UP COPIES THAT","THE GAME BUILDS AGAIN BY ITSELF",">WHAT IT CAN DO","FIX A GLITCHED SPRITE OR A STALE REDRAW",">WHAT IT CANNOT DO","RAISE YOUR FRAME RATE OR FREE UP RAM","FOR REAL SPEED USE FRAME RATE WALLS","WALLPAPER FLOORS AND SHADOWS"};
+            helpScreen("CLEAR CACHES",dis,11);
+            if(menu("RUN IT ANYWAY",slYesNo,2)!=1) break; }
+            cacheFlush(); for(int i=0;i<24;i++) costCache[i]=0; sTunedMsg=0; *remeasure=1; toast("CACHES CLEARED"); break;   // the speed meter measures again by itself a moment later
         case OA_LIFESAVE:
             if(!gInPlay) toast("USE THIS FROM THE PAUSE MENU");
             else { simsSaveNow(); toast("LIFE SAVED"); } break;
