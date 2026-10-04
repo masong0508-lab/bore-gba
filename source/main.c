@@ -4000,14 +4000,16 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "neighborhood.h"   // THE NEIGHBORHOOD: a town of lots to live in, visit and build on (main menu)
 // ---------- main menu (The Sims 3 look): a glossy panel over your town, lit for the time of day of your life's clock ----------
 #define MM_N 7
-static const char* const mmName[MM_N]={"Play","Create a Sim","Build Mode","Jukebox","Room Slots","Options","?"};
-static const char* const mmDesc[MM_N]={"YOUR LIFE  YOUR TOWNS  OR A NEW GAME","DESIGN YOUR OWN VOXEL SIM","BUILD WALLS AND LAY FLOORS AND WALLPAPER","LISTEN  PICK  OR SHUFFLE THE SONGS","SAVE AND LOAD ROOMS  PEOPLE AND LIVES","SPEED  GAMEPLAY  SOUND  BUTTONS AND MORE","HOW TO PLAY  LEARN THE CONTROLS"};
-static u8 mmTod; static s8 mmLot=-1;
+static const char* const mmName[MM_N]={"Play","Create a Bore","Build Mode","Jukebox","Room Slots","Options","?"};
+static const char* const mmDesc[MM_N]={"YOUR LIFE  YOUR TOWNS  OR A NEW GAME","DESIGN YOUR OWN VOXEL CHARACTER","BUILD WALLS AND LAY FLOORS AND WALLPAPER","LISTEN  PICK  OR SHUFFLE THE SONGS","SAVE AND LOAD ROOMS  PEOPLE AND LIVES","SPEED  GAMEPLAY  SOUND  BUTTONS AND MORE","HOW TO PLAY  LEARN THE CONTROLS"};
+static u8 mmTod, mmAcid; static s8 mmLot=-1;   // the time of day, and the acid rainbow in place of the town (picked on each visit)
 static int mmPickTod(void){   // 5-8 dawn, 8-17 day, 17-20 dusk, else night (no life yet: any)
     int m=simsCheck(SIM_SRAM)?simGet16(SIM_SRAM,16):-1; if(m<0) return rnd8()&3;
     return m<300?2:m<480?3:m<1020?0:m<1200?1:2;
 }
-static void mmBackdrop(void){   // your town close up around a random lot (no town yet: BOREVILLE as it will look)
+static void mmPick(void){ mmTod=(u8)mmPickTod(); mmLot=-1; mmAcid=(u8)(xo[XO_MENUBG]==2||(xo[XO_MENUBG]==0&&(rnd8()&1))); }   // a new view (MENU BACKDROP option)
+static void mmBackdrop(void){   // your town close up around a random lot (no town yet: BOREVILLE as it will look), or the acid rainbow
+    if(mmAcid){ acidBg(acT); return; }
     int had=nbOk; if(!had){ nbGen(NS_SUBURB,nsTown[NS_SUBURB]); nbT.cur=0; }
     u8 st=nbT.tod, sz=nbT.zoom; nbT.tod=mmTod; nbT.zoom=1;
     int on[NB_LOTS], n=0; for(int i=0;i<NB_LOTS;i++) if(nbT.lot[i].on) on[n++]=i;
@@ -4076,7 +4078,7 @@ static void howToPlay(void){
 }
 
 // ---------- NEW GAME: a fresh life in the chosen town, started three ways (the story mode can start from here later) ----------
-static const char* const ngIt[3]={"CREATE A SIM","A PRE-MADE FAMILY","A TRULY RANDOM SIM"};
+static const char* const ngIt[3]={"CREATE A BORE","A PRE-MADE FAMILY","A TRULY RANDOM SIM"};
 static int newGame(int slot){   // 1 = it started (and ended: back to the main menu)
     int c=menu("HOW DO YOU START?",ngIt,3); if(c<0) return 0;
     int f=0; if(c==1){ const char* fm[HH_NFAM]; for(int i=0;i<HH_NFAM;i++) fm[i]=hhFams[i].fam; f=menu("WHICH FAMILY?",fm,HH_NFAM); if(f<0) return 0; }
@@ -4139,7 +4141,7 @@ static void playScreen(void){
             else if(tile==0){ lifeMode(0); break; }
             else if(tile==1&&n){ if(!nbSwitch(l[sel])){ nbOk=nbLoad(); toast(nbErr); } else { nbOk=1; neighborhoodScreen(); if(gToMenu) break; } }
             else if(tile==2){ if(newGame(n?l[sel]:-1)) break; }
-            n=nbTownList(l,SLOT_MAX); act=nbTS; if(sel>=n) sel=n?n-1:0; prev=keyNow(); dirty=2;
+            n=nbTownList(l,SLOT_MAX); act=nbTS; if(sel>=n) sel=n?n-1:0; prev=keyNow(); dirty=2; mmPick();
         }
         if(pr&K_SEL){
             int st=menu("A NEW NEIGHBORHOOD",nsNm,NS_N);
@@ -4161,7 +4163,7 @@ static void playScreen(void){
                         slDelete(l[sel]); toast("NEIGHBORHOOD DELETED"); n=nbTownList(l,SLOT_MAX); if(sel>=n) sel=n-1; if(sel<0) sel=0; } } }
             nbOk=nbLoad(); act=nbTS; prev=keyNow(); dirty=2;
         }
-        if(dirty){ if(dirty&2){ mmLot=-1; mmTod=(u8)mmPickTod(); mmBackdrop(); } plDraw(l,n,sel,act,foc,tile); present(); dirty=0; } else vsync();
+        if(dirty){ if(dirty&2) mmBackdrop(); plDraw(l,n,sel,act,foc,tile); present(); dirty=0; } else vsync();   // (the acid rainbow holds still here: the panel is too much to draw every frame)
         uiTicks++; menuMusTick();
     }
     nbOk=nbLoad(); nbBounds();
@@ -4170,6 +4172,7 @@ static void playScreen(void){
 static void mainMenu(void){
     int sel=0, dirty=3; u16 prev=keyNow();
     menuMusStart();   // a random checked song plays while a main menu is open (MENU MUSIC option)
+    acidInit(); mmPick();
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k;
         if(pr&K_DOWN){ sel=(sel+1)%MM_N; dirty|=1; }
@@ -4182,11 +4185,15 @@ static void mainMenu(void){
             else if(sel==4){ slotScreen(); if(nbOk) nbBoot(); }   // (a slot screen can delete or replace the town)
             else if(sel==5) settingsScreen();
             else howToPlay();
-            gToMenu=0; prev=keyNow(); dirty=sel<=1||sel==4?3:2;   // back from a game: a new view and the time of day again
+            gToMenu=0; prev=keyNow(); dirty=2; if(sel<=1||sel==4||sel==5) mmPick();   // back from a game (or OPTIONS): a new view and the time of day again
             menuMusSync();   // the menu's song comes back (a crossfade) if the screen took the music; OPTIONS may have switched SOUND or MENU MUSIC
             continue;
         }
-        if(dirty){ if(dirty&1&&dirty&2){ mmTod=(u8)mmPickTod(); mmLot=-1; } drawMainMenu(sel,dirty&2); present(); dirty=0; } else vsync();
+        if(dirty){ drawMainMenu(sel,dirty&2); present(); dirty=0; }
+        else if(mmAcid){   // the acid rainbow moves: only the plasma around the panel is worked out again and copied (the panel stays put on screen)
+            acT+=2; acidRect(acT,0,60,0,10); acidRect(acT,0,15,10,74); acidRect(acT,45,60,10,74); acidRect(acT,0,60,74,75); mmLogo(SW/2-LOGO_SW/2,1);
+            vsync(); vramCopy(0,0,SW,20); vramCopy(0,20,60,148); vramCopy(180,20,SW,148); vramCopy(0,148,SW,150); }
+        else vsync();
         uiTicks++; menuMusTick();
     }
 }

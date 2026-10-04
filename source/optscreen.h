@@ -31,7 +31,7 @@ static const char* const lbNeed[5]={"OFF","SLOW","NORMAL","FAST","BRUTAL"}, *con
 static const char* const lbPct[11]={"0 %","10 %","20 %","30 %","40 %","50 %","60 %","70 %","80 %","90 %","100 %"};   // the volume sliders (rows made with SR)
 static const char* const lbBtn[4]={"NORMAL","A B SWAPPED","L R SWAPPED","BOTH SWAPPED"}, *const lbRep[3]={"SLOW","NORMAL","FAST"},
     *const lbClock[3]={"24 HOUR","12 HOUR","HIDDEN"}, *const lbToast[3]={"SHORT","NORMAL","LONG"},
-    *const lbCont[3]={"ROOM","ROOM+PERSON","ALL THREE"};
+    *const lbCont[3]={"ROOM","ROOM+PERSON","ALL THREE"}, *const lbZoom[3]={"OFF","1.5X","2X"}, *const lbMenuBg[3]={"RANDOM","TOWN","ACID RAINBOW"};
 
 static const OptRow pgVideo[]={
  {OR_PRESET,0,0,0,0,"PRESET",0,"LOOKS BALANCED SPEED BATTERY  ONE TAP SETUP","CHANGING ANYTHING BELOW MAKES IT CUSTOM"},
@@ -43,6 +43,7 @@ static const OptRow pgVideo[]={
  VR(sShad,2,1,"SHADOWS",lbOnOff,"THE DARK SPOT UNDER YOUR FEET","OFF SAVES A LITTLE DRAWING"),
  VR(sShow,3,0,"PERFORMANCE INFO",lbShow,"SHOWS FPS WHILE YOU PLAY  DETAIL ALSO SHOWS","LOAD  100 MEANS A FRAME IS JUST FITTING"),
  VR(sNoWarn,2,0,"SPEED WARNING",lbWarn,"ON SHOWS TOO SLOW WHEN THE PICTURE","CANT KEEP UP  OFF HIDES THE WARNING"),
+ XR(XO_ZOOM,"ZOOM",lbZoom,"A CLOSER VIEW WHILE YOU PLAY  ONLY THAT PART","IS DRAWN SO IT RUNS FASTER  SELECT+UP DOWN"),
  VR(sRom,2,0,"ROM SPEED",lbRom,"FAST IS RIGHT FOR MOST CARTS AND EMULATORS","SAFE IF A FLASH CART FREEZES OR GLITCHES"), AR(OA_CLEAN,"DEBUG CLEAR CACHES","KONAMI DEBUG  NOT A REAL CACHE DELETER","IT WONT SPEED UP THE GAME  A TO READ MORE"),   // LAST row of the page: hidden until the Konami code is on (pgRows)
 };
 // ---- SIM: everything about your Sim, the household and the score, in sections (like TIME) ----
@@ -107,6 +108,7 @@ static const OptRow pgInput[]={
 };
 static const OptRow pgHud[]={
  VR(sHud,3,0,"INFO ON SCREEN",lbHud,"FULL SHOWS ALL  SLIM KEEPS SCORE AND BARS","OFF HIDES ALL OF IT  ALERTS STILL SHOW"),
+ XR(XO_MENUBG,"MENU BACKDROP",lbMenuBg,"BEHIND THE MAIN MENU  YOUR TOWN AT THE TIME","OF DAY  THE ACID RAINBOW  OR EITHER"),
  XR(XO_ACCENT,"ACCENT COLOUR",accentNm,"COLOUR OF MENUS HEADINGS AND HUD NUMBERS","SEE IT CHANGE RIGHT HERE"),
 };
 static const OptRow pgRooms[]={
