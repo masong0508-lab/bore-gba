@@ -1764,9 +1764,25 @@ static u16 jbNameHash(int upto){   // hash of the names of the first n songs: te
     u32 h=2166136261u; for(int i=0;i<upto&&i<NSONGS;i++){ for(const char*p=songs[i].name;*p;p++) h=(h^(u8)*p)*16777619u; h=(h^0x7C)*16777619u; }
     return (u16)(h^(h>>16));
 }
-static void jbSetup(void){   // build the list of songs the jukebox shows, then load the on/off flags
-    int n=0; for(int i=0;i<NSONGS&&n<JB_MAX;i++) if(songs[i].xm!=&xm_the_dipper_man&&(dbgOn||!isDbgSong(i))) jbMap[n++]=(u8)i;   // THE DIPPER MAN is the title music only: never listed
+// Songs that start LOCKED (source/unlocks.h): hidden until their bit is set in jbUl (a lifetime want met, see sims.h), or the title-screen code is entered.
+typedef struct { const char*song; u8 bit; } UnlockRow;
+#define UNLOCK(s_,b_) {s_,(u8)(b_)},
+static const UnlockRow unlockRows[]={
+#include "unlocks.h"
+{0,0}};
+#undef UNLOCK
+static int isLockedSong(int i){
+    for(const UnlockRow*r=unlockRows;r->song;r++){ const char*x=r->song,*y=songs[i].name; while(*x&&*x==*y){x++;y++;} if(!*x&&!*y) return !(jbUl&r->bit); }
+    return 0;
+}
+static void jbSetup(void){   // build the list of songs the jukebox shows (no secret and no locked ones), then load the on/off flags
+    jbUlLoad();
+    int n=0; for(int i=0;i<NSONGS&&n<JB_MAX;i++) if(songs[i].xm!=&xm_the_dipper_man&&(dbgOn||(!isDbgSong(i)&&!isLockedSong(i)))) jbMap[n++]=(u8)i;   // THE DIPPER MAN is the title music only: never listed
     jbInit(NSONGS,n,jbNameHash);
+}
+static int jbUnlock(int bit){   // 1 when the song was locked and is now free (saved for good; the list is rebuilt so it shows up at once)
+    if(jbUl&bit) return 0;
+    jbUl|=(u8)bit; jbUlSave(); jbSetup(); return 1;
 }
 // SRAM layout: 0..2 "BM3", then MSZ bytes each of tiles, floors, wallpapers. Settings at SET_OFF (see settingsSave).
 // Old "BM1" / "BM2" saves (14x14, settings at 640) still load: the room is placed into the plaza of the new default map.

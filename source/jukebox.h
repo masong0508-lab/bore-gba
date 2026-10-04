@@ -9,6 +9,7 @@
 static u8 jbMap[JB_MAX];   // visible song number -> index into songs[] (hides the placeholder tunes and the secret ones)
 static u8 jbOn[JB_MAX];    // by songs[] index: 1 = may be picked at random
 static int jbN, jbAll;     // visible songs, songs in songs[]
+static u8 jbUl;                // unlocked songs (unlocks.h): a set bit = unlocked. Saved at JB_OFF+16: 'U' 'L', the bits, the bits xor 0x5A
 static u16 (*jbHashFn)(int);   // hash of the names of the first n songs (main.c): tells whether the saved flags still belong to this song list
 
 static void jbSave(void){
@@ -23,6 +24,8 @@ static void jbInit(int nAll,int nVis,u16 (*hash)(int)){   // call at boot (and a
     if(m[0]=='J'&&m[1]=='B'&&m[2]=='3'&&n<=jbAll&&(u16)(m[4]|(m[5]<<8))==hash(n))
         for(int i=0;i<n;i++) jbOn[i]=(u8)((m[6+(i>>3)]>>(i&7))&1);   // songs added after the save stay on
 }
+static void jbUlSave(void){ volatile u8*m=SRAM_BASE+JB_OFF; m[16]='U'; m[17]='L'; m[18]=jbUl; m[19]=(u8)(jbUl^0x5A); }
+static void jbUlLoad(void){ volatile u8*m=SRAM_BASE+JB_OFF; jbUl=(m[16]=='U'&&m[17]=='L'&&(u8)(m[18]^0x5A)==m[19])?m[18]:0; }
 static int jbOnVis(int v){ return jbOn[jbMap[v]]; }
 static int jbCount(void){ int c=0; for(int i=0;i<jbN;i++) c+=jbOnVis(i); return c; }
 static void jbToggle(int v){ jbOn[jbMap[v]]^=1; jbSave(); }

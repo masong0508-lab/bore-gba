@@ -27,6 +27,7 @@ Every screen shows its own button hints. D-pad moves, **A** picks, **B** goes ba
 - **Add a tracker song:** put the `.xm` in `tools/`, add a `SONG_XM(...)` line to `source/songs.h` (and a name in `source/artists.h`), run `python3 tools/xm2gba.py` (needs numpy and scipy), commit `source/musicdata.h` and `source/music/xmdata.bin`.
 - **Add a streamed song:** `python3 tools/encode_song.py "song.mp3"` (needs ffmpeg).
 - Songs are listed in `source/songs.h` (up to 64). Songs added at the end keep everyone's checkmarks.
+- **Locked and hidden songs:** WORTHLESS CLOUDS starts locked and unlocks for good when a Sim meets their **lifetime want**. Songs named `... (ORIGINAL)` stay hidden. The title code (UP UP DOWN DOWN LEFT LEFT RIGHT B A START) shows both. To lock another song, add one line to `source/unlocks.h`.
 
 ## Where things are
 | Path | What |
