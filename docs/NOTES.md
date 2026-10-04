@@ -593,5 +593,13 @@ stopped early: TREE SWAYING ACTION's pads (72 k frames) played only their first 
 EMERGENCY ON THE DANCE FLOOR and EXCUSES was cut too. Each voice now moves its data pointer forward as it plays (`MVoice`), so pos never needs more
 than 16 whole bits; shorter samples come out exactly as before. Checked in mGBA: Tree follows the preview render (envelope correlation 0.995).
 
+## Smoother sound (declick + soft limit)
+- **Declick:** a new note on a channel used to cut the old one mid-wave, and the jump is a click (Sunman Sunrise had 833 audible ones, Hot Damn
+  2,702, The Cynical Syndication 6,839). The jump is now kept as an offset on the voice (`MVoice.ol / orr`) that is added to the mix and fades out
+  over ~2 ms, so the wave never steps.
+- **Soft limit:** the mix used to be cut flat at the 8-bit edge on loud peaks (a crackle). Past +-96 it now bends towards the edge
+  (`softClip`: 96 + d*R/(d+R), slope 1 at the knee); sound effects on top of a song use it too.
+- `tools/preview_xm.py` does both, so previews still match the game (mGBA capture vs preview: envelope correlation 0.98).
+
 ## Household kept on reload
 `hhLoad` refused a household holding a child or teen (their GROW UP aspiration is past the pickable ones), so the whole family vanished after the editor, a slot load or a power cycle. It now accepts every aspiration; the lifetime-want lookup falls back to learning for GROW UP.

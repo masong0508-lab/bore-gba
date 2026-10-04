@@ -1341,8 +1341,10 @@ typedef struct {            // one converted tracker song (generated into musicd
 #define R_DMA2CNT (*(volatile u32*)0x040000D0)
 #define MUS_N 304   // samples per frame at 18157 Hz (924 cycles each = exactly one frame)
 #define MUS_VOICES 16   // tracker channels the mixer can play at once
-typedef struct { const s8*d; u32 pos,step,len; int vl,vr; } MVoice;   // vl / vr = note volume x left / right pan-bus gain; len = samples left from d
+typedef struct { const s8*d; u32 pos,step,len; int vl,vr,ol,orr; } MVoice;   // vl / vr = note volume x left / right pan-bus gain; len = samples left from d
 // (d moves forward as a note plays, so pos (16.16) never needs more than 16 whole bits: samples longer than 65535 frames play to the end)
+// ol / orr: DECLICK. A new note on a channel used to cut the old one mid-wave (a click). The jump between the old note's level and the new one's
+// first sample is kept as an offset (x32) that is added to the mix and fades out over ~2 ms, so the wave never steps.
 static MVoice mvc[MUS_VOICES];
 // STEREO: Direct Sound A plays the left buffers, Direct Sound B the right ones; both are fed by Timer0 and restarted together at vblank.
 static s8 mbufL[2][MUS_N] __attribute__((aligned(4))), mbufR[2][MUS_N] __attribute__((aligned(4)));
@@ -1373,7 +1375,18 @@ static void musTrigger(void){
     while(n--){ u32 w=e[0]|((u32)e[1]<<8)|((u32)e[2]<<16); e+=3;
         u32 t=s->vt[(w&255)|((w>>22)<<8)]; int ch=t&15, in=(t>>4)&31, nt=(w>>8)&127, vol=(w>>15)&127;   // channel, instrument, note, voice volume
         int bus=(t>>9)&7; if(bus>6) bus=3;   // pan bus 0 = hard left .. 3 = centre .. 6 = hard right
-        MVoice*v=&mvc[ch]; v->d=s->data[in]; v->pos=0; v->step=xmStep(s,in,nt); v->len=s->len[in]; v->vl=vol*s->busL[bus]; v->vr=vol*s->busR[bus]; }
+        MVoice*v=&mvc[ch]; int vl=vol*s->busL[bus], vr=vol*s->busR[bus];
+        { int oL=0, oR=0;   // where the old note is right now
+          if(v->d&&(v->pos>>16)<v->len){ const s8*d=v->d; int ix=(int)(v->pos>>16), fr=(int)((v->pos>>8)&255), x=d[ix]*256+(d[ix+1]-d[ix])*fr; oL=(x*v->vl)>>21; oR=(x*v->vr)>>21; }
+          int x0=s->data[in][0]*256; v->ol+=(oL-((x0*vl)>>21))<<5; v->orr+=(oR-((x0*vr)>>21))<<5; }
+        v->d=s->data[in]; v->pos=0; v->step=xmStep(s,in,nt); v->len=s->len[in]; v->vl=vl; v->vr=vr; }
+}
+// SOFT LIMIT: past +-96 the output bends smoothly towards the 8-bit edge instead of being cut flat there (a flat cut crackles). The curve is
+// 96 + d*R/(d+R) (d = how far past 96, R = room left), so its slope is 1 at the knee and it never quite reaches the edge. tools/preview_xm.py: the same.
+static inline __attribute__((always_inline)) int softClip(int x){
+    if(x>96){ int d=x-96; return 96+d*31/(d+31); }
+    if(x<-96){ int d=-96-x; return -96-d*32/(d+32); }
+    return x;
 }
 IWRAM_CODE static void musMix(s8*outL,s8*outR){
     int done=0;
@@ -1393,10 +1406,12 @@ IWRAM_CODE static void musMix(s8*outL,s8*outR){
                 int x=x0*256+(x1-x0)*fr;                      // one interpolated sample, 16-bit scale
                 a[i]=(s16)(a[i]+((x*vl)>>21)); b[i]=(s16)(b[i]+((x*vr)>>21)); pos+=st; }   // (>>21 = the old >>14 with the 1/128 bus gain folded in)
             v->pos=pos; }
+        for(int vi=0;vi<MUS_VOICES;vi++){ MVoice*v=&mvc[vi]; int ol=v->ol, orr=v->orr; if(!(ol|orr)) continue;   // declick offsets fading out
+            for(int i=0;i<n;i++){ a[i]=(s16)(a[i]+(ol>>5)); b[i]=(s16)(b[i]+(orr>>5)); ol-=ol>>5; orr-=orr>>5; }
+            if(ol>-32&&ol<32) ol=0; if(orr>-32&&orr<32) orr=0; v->ol=ol; v->orr=orr; }
         mLeft-=n; done+=n;
     }
-    for(int i=0;i<MUS_N;i++){ int x=maccL[i]>>2, y=maccR[i]>>2;
-        outL[i]=(s8)(x>127?127:x<-128?-128:x); outR[i]=(s8)(y>127?127:y<-128?-128:y); }
+    for(int i=0;i<MUS_N;i++) outL[i]=(s8)softClip(maccL[i]>>2), outR[i]=(s8)softClip(maccR[i]>>2);
 }
 // Streamed ADPCM song (source/music/*.adp from tools/encode_song.py): 4-bit IMA-ADPCM, 18157 Hz, so one frame = 304 samples.
 // Same format as the sound effects: u32 sample count, then nibbles (low first). Decoded straight into the DMA buffer.
@@ -1456,8 +1471,7 @@ IWRAM_CODE static void sfxMix(s8*outL,s8*outR){   // add the effect voice to a f
             else s1=0;
             rd++; }
         int x=((s0+(((s1-s0)*(int)fr)>>16))*sgain)>>16;
-        int l=outL[i]+x, r=outR[i]+x;
-        outL[i]=(s8)(l>127?127:l<-128?-128:l); outR[i]=(s8)(r>127?127:r<-128?-128:r);
+        outL[i]=(s8)softClip(outL[i]+x); outR[i]=(s8)softClip(outR[i]+x);   // (the soft limit: an effect over a loud song bends, never cuts)
         fr+=SFX_STEP; ip+=fr>>16; fr&=0xFFFF;
     }
     sPos=ip; sFr=fr; sRd=rd; spred=pred; sidx=idx; sS0=s0; sS1=s1;
@@ -1607,7 +1621,7 @@ static void audStart(void){   // start the mixer (the caller has set up what pla
 static void audStop(void){ irqOff(); mOn=0; R_DMA1CNT=0; R_DMA2CNT=0; R_TM0CNT=0; R_SNDCNT_H=0; }
 // Start a song: kind 0 = the tracker song xm, kind 1 = the ADPCM data in adp, kind 2 = a chiptune loop (synth data in adp).
 static void deckInit(int kind,const u8*adp,const XmSong*xm){   // set the main deck up for a song (the sound hardware is not touched)
-    for(int i=0;i<MUS_VOICES;i++) mvc[i].d=0;
+    for(int i=0;i<MUS_VOICES;i++){ mvc[i].d=0; mvc[i].ol=mvc[i].orr=0; }
     mOrd=0; mRow=0; mLeft=0; mFrac=0; mLaps=0; mDone=0; aTail=0; mKind=kind; mSong=xm; mDp=0; mLp=0; for(int i=0;i<256;i++) mDly[i]=0;
     aLoop=0; aPred0=0; aIdx0=0;
     if(kind==2) csInit(adp);
