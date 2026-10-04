@@ -585,9 +585,9 @@ static void simRoomTick(int tx,int ty){
     int kinds=0, items=0;
     for(int y=ty-SIM_ROOM_R;y<=ty+SIM_ROOM_R;y++)for(int x=tx-SIM_ROOM_R;x<=tx+SIM_ROOM_R;x++){
         if(x<0||y<0||x>=MW||y>=MH) continue; char c=lifeMap[y][x]; int b=0;
-        if(c=='F') b=1; else if(c=='T') b=2; else if(c=='S') b=4; else if(c=='H') b=8; else if(c=='C'||c=='U') b=16; else if(c=='V'||c=='G') b=32;   // a lava lamp (or the pipe) makes it a den
+        if(c=='F') b=1; else if(c=='T') b=2; else if(c=='S') b=4; else if(c=='H') b=8; else if(c=='C'||c=='U') b=16; else if(c=='V'||c=='G') b=32; else if(c=='Q') b=64;   // a lava lamp (or the pipe) makes it a den
         if(b){ kinds|=b; items++; } }
-    int k=0; for(int b=1;b<64;b<<=1) if(kinds&b) k++;
+    int k=0; for(int b=1;b<128;b<<=1) if(kinds&b) k++;
     int target=k*16+(items>5?5:items)*4; if(target>100) target=100;
     if(target>sRoom){ sRoom+=2; if(sRoom>target) sRoom=target; }
     else if(target<sRoom&&(simT%90)<30) sRoom--;       // sags slowly
