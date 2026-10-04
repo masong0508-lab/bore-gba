@@ -1385,6 +1385,7 @@ IWRAM_CODE static void musMix(s8*outL,s8*outR){
 }
 // Streamed ADPCM song (source/music/*.adp from tools/encode_song.py): 4-bit IMA-ADPCM, 18157 Hz, so one frame = 304 samples.
 // Same format as the sound effects: u32 sample count, then nibbles (low first). Decoded straight into the DMA buffer.
+IWRAM_CODE static void pseudoSt(s8*out,s8*outR);
 IWRAM_CODE static void adpMix(s8*out,s8*outR){
     // bit 31 of the sample count = song stored at 2/3 rate (12105 Hz): every 2 stored samples become 3 output samples (linear interpolation)
     u32 p=aPos, e=aN; int pred=aPred, idx=aIdx, i=0; const u8*d=aSrc;
@@ -1412,16 +1413,19 @@ IWRAM_CODE static void adpMix(s8*out,s8*outR){
     }
     for(;i<MUS_N;i++) out[i]=0;
     aPos=p; aPred=pred; aIdx=idx; aPrv=prv; aPh=ph;
-    // Pseudo-stereo (complementary comb): L = 0.75x + 0.5z, R = 0.75x - 0.5z, where z is the high part of x delayed by 14 ms. L+R is exactly the
-    // original mono signal (so it also sounds right on the GBA's mono speaker); the ears get different comb patterns = width.
-    // The one-pole low-pass is subtracted from z so bass and kick stay in the middle.
+    pseudoSt(out,outR);
+    if(p>=e&&i<MUS_N&&++aTail>=3) mDone=1;   // 2 buffers are in flight, so wait for the last real samples to be heard
+}
+// Pseudo-stereo for a mono stream (complementary comb): L = 0.75x + 0.5z, R = 0.75x - 0.5z, where z is the high part of x delayed by 14 ms. L+R is
+// exactly the original mono signal (so it also sounds right on the GBA's mono speaker); the ears get different comb patterns = width.
+// The one-pole low-pass is subtracted from z so bass and kick stay in the middle.
+IWRAM_CODE static void pseudoSt(s8*out,s8*outR){
     int dp=mDp, lp=mLp;
     for(int k=0;k<MUS_N;k++){ int x=out[k], z=mDly[dp]; mDly[dp]=(s8)x; dp=(dp+1)&255;
         lp+=(z*16-lp)>>3; int h=z-(lp>>4);                 // lp holds the low-passed delayed signal x16
         int l=(x*12+h*8)>>4, r=(x*12-h*8)>>4;
         out[k]=(s8)(l>127?127:l<-128?-128:l); outR[k]=(s8)(r>127?127:r<-128?-128:r); }
     mDp=dp; mLp=lp;
-    if(p>=e&&i<MUS_N&&++aTail>=3) mDone=1;   // 2 buffers are in flight, so wait for the last real samples to be heard
 }
 IWRAM_CODE static void sfxMix(s8*outL,s8*outR){   // add the effect voice to a finished buffer (both sides), clipped
     const u8*d=ssrc; u32 n=sn, ip=sPos, fr=sFr, rd=sRd; int pred=spred, idx=sidx, s0=sS0, s1=sS1, sgain=oSfxGain();   // SFX VOLUME and MASTER VOLUME options
@@ -1443,13 +1447,69 @@ IWRAM_CODE static void sfxMix(s8*outL,s8*outR){   // add the effect voice to a f
     }
     sPos=ip; sFr=fr; sRd=rd; spred=pred; sidx=idx; sS0=s0; sS1=s1;
 }
+// ---- the creator's chiptune loops, played LIVE from note data (tools/chip_synth.py, which also holds an exact twin of chipMix) ----
+// Four NES-style voices: two pulses and a triangle read 256-step wave tables that hold exactly the harmonics below 7.5 kHz for their pitch,
+// the noise reads a band-limited recording of the NES noise at the drum's clock; two tables then apply the NES APU's non-linear mixer, a one-
+// pole 40 Hz low cut follows, and the loop's gain. The note data changes the voices 120 times a second (a flags byte per step, see chip_synth.py).
+#include "chipsyn.h"
+__asm__(".pushsection .rodata\n.balign 4\n.global chipsyn\nchipsyn:\n.incbin \"source/music/chipsyn.bin\"\n.balign 4\n.popsection\n");
+extern const u8 chipsyn[];
+static const u32 csNzOff[CS_NNZ]=CS_NZ, csTabOff[3]=CS_TAB; static const u8 csHmin[3]=CS_HMIN, csHmax[3]=CS_HMAX;
+typedef struct { const u8*s,*d; int nl,step,rep,acc,left; u32 ph[3],inc[3]; const s8*tab[3]; int lv[3],nlv,np,lp,g; const s8*nb; } CSyn;
+static CSyn csy;   // the main deck's synth (deckSwap trades it with the other deck's)
+static const s8* csTab(int v,u32 inc){ int h=inc?(int)(CS_KH/inc):127; if(h<1) h=1; if(h>127) h=127; if(h<csHmin[v]) h=csHmin[v]; if(h>csHmax[v]) h=csHmax[v];
+    return (const s8*)(chipsyn+csTabOff[v]+(u32)(h-csHmin[v])*256); }
+static void csInit(const u8*loop){   // header: u16 steps, u16 0, s32 low-cut state the loop starts from, u32 gain (Q20); then the steps
+    CSyn*c=&csy; c->s=loop+12; c->d=c->s; c->nl=*(const u16*)loop; c->lp=*(const int*)(loop+4); c->g=(int)*(const u32*)(loop+8);
+    c->step=0; c->rep=0; c->acc=0; c->left=0; c->nlv=0; c->np=0; c->nb=(const s8*)(chipsyn+csNzOff[0]);
+    for(int v=0;v<3;v++){ c->ph[v]=0; c->inc[v]=0; c->lv[v]=0; c->tab[v]=csTab(v,0); }
+}
+__attribute__((noinline,long_call)) static void csStep(CSyn*c){   // the next control step (ROM, called from chipMix)
+    if(c->step>=c->nl){ c->step=0; c->d=c->s; c->rep=0; }   // the loop starts again (the voices just carry on)
+    c->step++;
+    if(c->rep) c->rep--;
+    else { int fl=*c->d++;
+        if(fl&0x80) c->rep=fl&0x7F;
+        else { for(int v=0;v<3;v++){
+                   if(fl&(1<<(2*v))){ int cd=c->d[0]|(c->d[1]<<8); c->d+=2; c->inc[v]=cd?(u32)(((unsigned long long)csInc[cd>>8]*csFine[cd&255])>>15):0; c->tab[v]=csTab(v,c->inc[v]); }
+                   if(fl&(2<<(2*v))) c->lv[v]=*c->d++; }
+               if(fl&0x40){ int b=*c->d++; c->nlv=b&15; c->nb=(const s8*)(chipsyn+csNzOff[b>>4]); } } }
+    int t=c->acc+37; c->left=151+(t>=120); c->acc=t>=120?t-120:t;   // 18157/120 = 151 r 37: 151 or 152 samples a step, exact on average
+}
+IWRAM_CODE static void chipMix(s8*out,s8*outR){   // in passes over maccL / maccR (free while this runs): few live values, no spills
+    CSyn*c=&csy; int i=0;
+    while(i<MUS_N){
+        if(!c->left) csStep(c);
+        int n=MUS_N-i; if(n>c->left) n=c->left;
+        s16*P=maccL+i,*U=maccR+i;
+        { u32 ph=c->ph[0],in=c->inc[0]; const s8*t=c->tab[0]; int l=c->lv[0];                        // pulse 1
+          if(l){ _Pragma("GCC unroll 2") for(int k=0;k<n;k++){ ph+=in; P[k]=(s16)(t[ph>>24]*l); } } else { for(int k=0;k<n;k++) P[k]=0; ph+=in*(u32)n; } c->ph[0]=ph; }
+        { u32 ph=c->ph[1],in=c->inc[1]; const s8*t=c->tab[1]; int l=c->lv[1];                        // pulse 2
+          if(l){ _Pragma("GCC unroll 2") for(int k=0;k<n;k++){ ph+=in; P[k]=(s16)(P[k]+t[ph>>24]*l); } } else ph+=in*(u32)n; c->ph[1]=ph; }
+        { u32 ph=c->ph[2],in=c->inc[2]; const s8*t=c->tab[2];                                        // triangle (level x the APU weight)
+          if(c->lv[2]){ _Pragma("GCC unroll 2") for(int k=0;k<n;k++){ ph+=in; U[k]=(s16)((t[ph>>24]*CS_TRIMUL)>>4); } } else { for(int k=0;k<n;k++) U[k]=0; ph+=in*(u32)n; } c->ph[2]=ph; }
+        { int np=c->np, l=c->nlv; const s8*nb=c->nb;                                                  // noise
+          if(l){ _Pragma("GCC unroll 2") for(int k=0;k<n;k++){ U[k]=(s16)(U[k]+nb[np]*l); np=(np+1)&(CS_NB-1); } } else np=(np+n)&(CS_NB-1); c->np=np; }
+        c->left-=n; i+=n;
+    }
+    { const s16*PM=(const s16*)(chipsyn+CS_PM),*TM=(const s16*)(chipsyn+CS_TM); int lp=c->lp, g=c->g;   // the APU mixer, the low cut, the gain
+      _Pragma("GCC unroll 2") for(int k=0;k<MUS_N;k++){
+          int x4=(PM[(maccL[k]+CS_POFF)>>2]+TM[(maccR[k]+CS_UOFF)>>2])<<4; lp+=((x4-lp)*CS_HPK)>>16;   // (the tables cover every value a voice can make)
+          int y=(int)(((long long)(x4-lp)*g)>>20); out[k]=(s8)(y>127?127:y<-128?-128:y); }
+      c->lp=lp; }
+#ifdef CS_TEST
+    { extern u8* csTestP; for(int k=0;k<MUS_N;k++) *csTestP++=(u8)out[k]; }   // (test build: the mono output, before the pseudo-stereo)
+#endif
+    pseudoSt(out,outR);
+}
+
 // ---- CROSSFADE: a second deck ----
 // Everything a song keeps between frames (musMix / adpMix state) can be put aside in xdk and a new song started in the globals. While xfOn the interrupt
 // mixes BOTH songs every frame (the old one by swapping its state in and out for a moment) and blends them equal-power over xfN frames: the new song
 // rises, the old one falls. With no new song (fade out) the main deck is just silent. Asking for another crossfade while one runs drops the older song.
 typedef struct {
     const XmSong*song; int ord,row,left,frac; MVoice vc[MUS_VOICES]; int kind,tail,laps,done,play;
-    int aSlow,aPrv,aPh; const u8*aSrc; u32 aN,aPos; int aPred,aIdx,aLoop,aPred0,aIdx0; s8 dly[256]; int dp,lp;
+    int aSlow,aPrv,aPh; const u8*aSrc; u32 aN,aPos; int aPred,aIdx,aLoop,aPred0,aIdx0; s8 dly[256]; int dp,lp; CSyn cs;
 } MDeck;
 static MDeck xdk EWRAM_BSS; static s8 xbufL[MUS_N] EWRAM_BSS, xbufR[MUS_N] EWRAM_BSS;
 static volatile int xfOn, xfT, xfN, xdkG=256;   // crossfade running, frames done, frames in all, the old song's gain when it was put aside (256 = full)
@@ -1459,19 +1519,19 @@ IWRAM_CODE static int xfGain(int t,int n){ int p=t*256/n; if(p<0) p=0; if(p>256)
 IWRAM_CODE static void deckSwap(MDeck*d){   // exchange the main deck (the globals) with d
     XSW(const XmSong*,mSong,d->song) XSW(int,mOrd,d->ord) XSW(int,mRow,d->row) XSW(int,mLeft,d->left) XSW(int,mFrac,d->frac) XSW(int,mKind,d->kind) XSW(int,aTail,d->tail)
     XSW(int,aSlow,d->aSlow) XSW(int,aPrv,d->aPrv) XSW(int,aPh,d->aPh) XSW(const u8*,aSrc,d->aSrc) XSW(u32,aN,d->aN) XSW(u32,aPos,d->aPos) XSW(int,aPred,d->aPred) XSW(int,aIdx,d->aIdx) XSW(int,aLoop,d->aLoop) XSW(int,aPred0,d->aPred0) XSW(int,aIdx0,d->aIdx0)
-    XSW(int,mDp,d->dp) XSW(int,mLp,d->lp)
+    XSW(int,mDp,d->dp) XSW(int,mLp,d->lp) XSW(CSyn,csy,d->cs)
     { int t=mLaps; mLaps=d->laps; d->laps=t; t=mDone; mDone=d->done; d->done=t; t=mPlay; mPlay=d->play; d->play=t; }
     { u32*a=(u32*)mvc,*b=(u32*)d->vc; for(unsigned i=0;i<sizeof(mvc)/4;i++){ u32 t=a[i]; a[i]=b[i]; b[i]=t; } }
     { u32*a=(u32*)mDly,*b=(u32*)d->dly; for(int i=0;i<64;i++){ u32 t=a[i]; a[i]=b[i]; b[i]=t; } }
 }
 IWRAM_CODE static void musMixAny(int b){
     if(!mPlay&&!xfOn){ for(int i=0;i<MUS_N;i++){ mbufL[b][i]=0; mbufR[b][i]=0; } if(sfxV) sfxMix(mbufL[b],mbufR[b]); else mWantOff=1; return; }   // only an effect (or nothing: switch the mixer off)
-    if(mPlay){ if(mKind) adpMix(mbufL[b],mbufR[b]); else musMix(mbufL[b],mbufR[b]); }
+    if(mPlay){ if(mKind==2) chipMix(mbufL[b],mbufR[b]); else if(mKind) adpMix(mbufL[b],mbufR[b]); else musMix(mbufL[b],mbufR[b]); }
     else for(int i=0;i<MUS_N;i++){ mbufL[b][i]=0; mbufR[b][i]=0; }
     if(xfOn){   // blend the new song (main deck) with the old one
         int n=xfN>0?xfN:1, gi=xfGain(xfT,n), go=(xfGain(n-xfT,n)*xdkG)>>8;
         if(xdk.play){
-            deckSwap(&xdk); if(mKind) adpMix(xbufL,xbufR); else musMix(xbufL,xbufR); deckSwap(&xdk);
+            deckSwap(&xdk); if(mKind==2) chipMix(xbufL,xbufR); else if(mKind) adpMix(xbufL,xbufR); else musMix(xbufL,xbufR); deckSwap(&xdk);
             for(int i=0;i<MUS_N;i++){ int l=(mbufL[b][i]*gi+xbufL[i]*go)>>8, r=(mbufR[b][i]*gi+xbufR[i]*go)>>8;
                 mbufL[b][i]=(s8)(l>127?127:l<-128?-128:l); mbufR[b][i]=(s8)(r>127?127:r<-128?-128:r); }
         } else if(gi<256) for(int i=0;i<MUS_N;i++){ mbufL[b][i]=(s8)((mbufL[b][i]*gi)>>8); mbufR[b][i]=(s8)((mbufR[b][i]*gi)>>8); }
@@ -1530,12 +1590,13 @@ static void audStart(void){   // start the mixer (the caller has set up what pla
     R_IF=0xFFFF; R_IE=5; R_IME=1;
 }
 static void audStop(void){ irqOff(); mOn=0; R_DMA1CNT=0; R_DMA2CNT=0; R_TM0CNT=0; R_SNDCNT_H=0; }
-// Start a song: kind 0 = the tracker song xm, kind 1 = the ADPCM data in adp.
+// Start a song: kind 0 = the tracker song xm, kind 1 = the ADPCM data in adp, kind 2 = a chiptune loop (synth data in adp).
 static void deckInit(int kind,const u8*adp,const XmSong*xm){   // set the main deck up for a song (the sound hardware is not touched)
     for(int i=0;i<MUS_VOICES;i++) mvc[i].d=0;
     mOrd=0; mRow=0; mLeft=0; mFrac=0; mLaps=0; mDone=0; aTail=0; mKind=kind; mSong=xm; mDp=0; mLp=0; for(int i=0;i<256;i++) mDly[i]=0;
     aLoop=0; aPred0=0; aIdx0=0;
-    if(kind){ u32 n0=*(const u32*)adp; aSlow=(int)(n0>>31); aLoop=(int)((n0>>30)&1); aN=n0&0x3FFFFFFFu; aSrc=adp+4; aPrv=0; aPh=0; aPos=0;
+    if(kind==2) csInit(adp);
+    else if(kind){ u32 n0=*(const u32*)adp; aSlow=(int)(n0>>31); aLoop=(int)((n0>>30)&1); aN=n0&0x3FFFFFFFu; aSrc=adp+4; aPrv=0; aPh=0; aPos=0;
         if(aLoop){ u32 st=((const u32*)adp)[1]; aSrc=adp+8; aPred0=(s16)(st&0xFFFF); aIdx0=(int)((st>>16)&0xFF); }   // loop header: count|bit 30, then pred | idx<<16
         aPred=aPred0; aIdx=aIdx0; }
     mPlay=1;
@@ -1572,6 +1633,7 @@ static void musFadeOut(int frames){   // fade the playing song out to silence (t
 // Will the song in the main deck be over within `frames` frames? (the menus start the next song's crossfade shortly before the end)
 static int musNearEnd(int frames){
     if(!mPlay) return 0;
+    if(mKind==2) return 0;   // a chiptune loop never ends
     if(mKind) return !aLoop&&(mDone||(aSlow?(long)(aN-aPos)*3/2:(long)(aN-aPos))<(long)frames*MUS_N);   // (a slow song stores 2 samples for every 3 it plays; a loop never ends)
     const XmSong*s=mSong; long left=(long)s->rows[s->order[mOrd]]-mRow;
     for(int o=mOrd+1;o<s->nord;o++) left+=s->rows[s->order[o]];
@@ -3677,18 +3739,10 @@ static void menuMusStart(void){
 static void menuMusStop(void){ if(!menuOn) return; menuOn=0; musFadeOut(XF_OUT); }
 static void menuMusSync(void){ if(sSnd&&xo[XO_MENUMUS]) menuMusStart(); else menuMusStop(); }   // after OPTIONS: SOUND or MENU MUSIC may have changed
 static void menuMusTick(void){ if(menuOn&&mPlay&&(musNearEnd(XF_SONG)||(mKind?mDone:mLaps>=1))){ menuOn=0; menuMusStart(); } }   // the song is nearly over: it crossfades into itself again
-// ---------- creator music: the chiptune loops (source/chips.h, made by tools/make_chiptunes.py and packed by tools/encode_chip.py) ----------
-// Looping ADPCM, one random loop each time the creator opens (the secret ones only after the title-screen code); entering from the menu or the game crossfades.
-#define CHIP(id,n,sec) ".global " #id "\n" #id ":\n.incbin \"source/music/" #id ".adp\"\n.balign 4\n"
-__asm__(".pushsection .rodata\n.balign 4\n"
-#include "chips.h"
-".popsection\n");
-#undef CHIP
-#define CHIP(id,n,sec) extern const u8 id[];
-#include "chips.h"
-#undef CHIP
-typedef struct { const char*name; const u8*adp; u8 secret; } Chip;
-#define CHIP(id,n,sec) {n,id,sec},
+// ---------- creator music: the chiptune loops (source/chips.h: voiced by tools/make_chiptunes.py, stored as synth data by tools/chip_synth.py) ----------
+// Played live by chipMix, one random loop each time the creator opens (the secret ones only after the title-screen code); entering from the menu or the game crossfades.
+typedef struct { const char*name; u32 off; u8 secret; } Chip;
+#define CHIP(id,n,sec,off) {n,off,sec},
 static const Chip chips[]={
 #include "chips.h"
 };
@@ -3701,7 +3755,7 @@ static void creatorMusStart(void){
     int ok[NCHIPS], n=0; for(int i=0;i<NCHIPS;i++) if((dbgOn||!chips[i].secret)&&i!=chipLast) ok[n++]=i;
     if(!sSnd||!xo[XO_CREMUS]||n==0){ musFadeOut(XF_OUT); return; }
     lrng^=((u32)R_TM2D<<8^uiTicks)*2654435761u; int k=ok[(((unsigned)rnd8()<<8|(unsigned)rnd8())*(unsigned)n)>>16];
-    chipLast=k; mGain=mGainT=256; musFadeTo(1,chips[k].adp,0,XF_SONG); creOn=1;
+    chipLast=k; mGain=mGainT=256; musFadeTo(2,chipsyn+chips[k].off,0,XF_SONG); creOn=1;
 }
 
 // ---------- main menu ----------
@@ -3753,7 +3807,16 @@ static void mainMenu(void){
     }
 }
 
+#ifdef CS_TEST
+u8* csTestP;
+#endif
 int main(void){
+#ifdef CS_TEST
+    { csTestP=(u8*)fb; csInit(chipsyn+chips[CS_TEST].off); static s8 l[MUS_N],r[MUS_N];
+      REG_WAITCNT=0x4317; volatile u16*t=(volatile u16*)0x04000108; t[1]=0; t[3]=0; t[0]=0; t[2]=0; t[3]=0x84; t[1]=0x80;   // timer 2 + 3 cascaded: cycles
+      for(int f=0;f<100;f++) chipMix(l,r);
+      u32 cyc=t[0]|((u32)t[2]<<16); ((u32*)fb)[32000/4]=cyc; for(;;); }   // test build (-DCS_TEST=n): 100 frames of loop n at fb, then the cycles they took
+#endif
     REG_WAITCNT=0x4317;  // ROM 3/1 waits + prefetch (power-on default is 4/2, no prefetch)
     logo_play();         // the DippInn Productions boot logo (source/logo.c, ~8 s; leaves a black screen, its DMA and sprites off)
     { volatile u16*io=(volatile u16*)0x04000000; for(int r=0x08/2;r<0x20/2;r++) io[r]=0; for(int r=0x40/2;r<0x56/2;r++) io[r]=0; }   // undo its BG control, scroll, windows and blend (BG2's affine registers are left alone: mode 3 needs them)

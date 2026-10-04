@@ -13,8 +13,8 @@
 //
 // Which chip: the first touch of the save memory must be a flash command (mGBA picks the save type from the first access), so svInit
 // asks for the flash ID first. A known ID = flash; anything else = SRAM. Asking writes two bytes on an SRAM chip (0x2AAA, 0x5555, inside
-// slots 2 and 7): svWr keeps a copy of those two bytes (SV_BK) and svInit puts them back. A 64 KB ID is asked to switch banks once, which
-// turns mGBA's 64 KB flash into 128 KB (a real 64 KB chip ignores it). Atmel 64 KB chips (page writes) are not supported.
+// slots 2 and 7): svWr keeps a copy of those two bytes (SV_BK) and svInit puts them back. A 64 KB ID is asked to switch to bank 1 and back,
+// which turns mGBA's 64 KB flash into 128 KB (a real 64 KB chip ignores it). Atmel 64 KB chips (page writes) are not supported.
 enum { SV_SRAM=1, SV_FLASH=2 };
 #define SV_SEC   4096u
 #define SV_LOW0  4096u      // the RAM copy covers SV_LOW0 .. SV_LOW0+SV_LOWN-1 (flash only)
@@ -102,7 +102,7 @@ static void svInit(void){
         flCmd(0xF0); SVB[0x5555]=0xF0; svWaitFrames(2);
         kind=0; for(unsigned i=0;i<sizeof(ids)/sizeof(ids[0]);i++) if(ids[i][0]==m&&ids[i][1]==d) kind=ids[i][2];
         if(kind!=1) break;
-        flBankRaw(0); flCmd(0xF0); svWaitFrames(1);   // a 64 KB answer: try a bank switch (mGBA then gives the full 128 KB)
+        flBankRaw(1); flBankRaw(0); flCmd(0xF0); svWaitFrames(1);   // a 64 KB answer: try a switch to bank 1 and back (mGBA then gives the full 128 KB)
     }
     if(!kind){   // SRAM: put back the two bytes the question wrote over
         svType=SV_SRAM; svSize=32768; svBase=SVB;

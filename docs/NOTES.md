@@ -165,6 +165,28 @@ The GBA has 256 KB of EWRAM and 32 KB of IWRAM. Every GitHub build prints the nu
 
 **Room for more characters.** One baked character (4 views of 32 x 44 at 16 bits) is 11 KB, so the freed 124 KB holds about ten more at that size, or around twenty at 8 bits per pixel with a palette.
 
+## Save memory: 128 KB flash, 32 KB SRAM as the fallback (`source/save.h`)
+The ROM asks for **FLASH1M** (128 KB). At power on `svInit` sends the flash ID command first (mGBA picks the save type from the first access), and a
+64 KB answer is asked to switch to bank 1 and back, which turns mGBA's 64 KB flash into 128 KB. A known flash ID means flash; anything else is
+treated as **32 KB SRAM**, which works exactly as before. (Asking writes two bytes of an SRAM chip, at 0x2AAA and 0x5555; `svWr` keeps a copy of
+them at 4840 and `svInit` puts them back.)
+- Flash bytes can only be **programmed** from 0xFF, and only whole 4 KB sectors can be **erased**. So **sector 0** (0..4095) holds only the head of the
+  room being played, and `mapSave` rewrites it when the room changed. **Sector 1** (4096..8191, the small blocks below) lives in RAM (`svLow`, 4 KB).
+  All the old `SRAM_BASE+offset` code reaches it unchanged, and `svCommit` writes it back when it differs. `svTick`, called from `vsync`, compares 128
+  bytes a frame, so a change reaches the chip within half a second even without a commit.
+- **Slots** (8192 up) are erased (`slOpen` / `svErase`), then written byte by byte (`svWr`), header last. Two slots share a sector, so erasing one
+  first copies its neighbour to the **scratch sector** (the last 4 KB) and back. Deleting a slot only clears bits, so no erase is needed. A save
+  spanning several slots never crosses the 64 KB bank line (`slFits`), so read pointers (`svPtr`) stay valid.
+- **Slots per chip:** 58 on 128 KB, 26 on 64 KB, 12 on SRAM. **Old saves carry over**: on mGBA a 32 KB SRAM save becomes the first 32 KB of the flash,
+  so every block and slot is where the game expects it (tested).
+- **Tested in mGBA:**
+  - 128 KB detected; save, copy and save-over on two slots sharing a sector (the scratch sector used, the neighbour intact).
+  - A slot in bank 1 (slot 58) works.
+  - The active slot and the other cached blocks survive a power cycle.
+  - An old 32 KB save opens with its slot intact.
+  - Every slot header and checksum was checked straight from the `.sav`.
+- **Not supported:** Atmel 64 KB flash chips, which use page writes.
+
 ## Save memory map (32 KB SRAM), layout 2
 | Offset | What |
 |---|---|
@@ -179,7 +201,7 @@ The GBA has 256 KB of EWRAM and 32 KB of IWRAM. Every GitHub build prints the nu
 | 5136 | the life (`sims.h`) |
 | 5200 | 16 spare bytes for SAVE MEMORY TEST |
 | 5216 | the household (up to 13 more Sims, `house.h`, format 'H6'; 2048 bytes reserved; 'H5' households load too) |
-| 8192 | **twelve** room slots of 2048 bytes (to the end of SRAM) |
+| 8192 | room slots of 2048 bytes: **twelve** on SRAM, **58** on 128 KB flash (to 126975; the last 4 KB are the scratch sector) |
 
 The full map, with the compile-time checks that keep the blocks from overlapping, is at the top of `source/slots.h`.
 
@@ -241,6 +263,34 @@ Meters are not saved to SRAM yet.
 **Fighting.** Next to a household Sim press **R**: teens and up get **PUNCH** (when the Sim feels neutral or worse about you). 14 to 26 damage (more from active Sims); the target hits back 20 to 70% of the time. Free-will Sims that dislike someone (daily score under -30) punch too. Nobody dies in a fight: at 0 HP a household Sim is knocked out for 10 s and wakes at 30, you are out for 4 s and wake at 25. Code: `PUNCH` row and `fightHit()` in house.h, `HhSim.hp` (not saved), `fightHurt()` in main.c, the bar in hud.h (`HK_HP`).
 
 **Creator parts in a fight.** What a Sim is made of decides how it fights, for you and for every household Sim (`fkAtk`, `fkTaken`, `fkDodge`, `fkMove` in house.h read the Sim's own look): HITS HARDER with HORNS (+6, the blow is a HEADBUTT; NUBS +2), PINCERS (+6, a PINCH; CLAWS +2), a LONG tail (+3), a heavy build (WEIGHT slider, up to +4) and big hands (HAND SIZE, up to +3). TAKES LESS with SPIKES (-30%, and the one who hits you loses 4 HP), a helmet (-15%), a thick skull (HORNS, -10%) and a heavy build (1% a notch, never below 30%). DODGES with EYE STALKS (20%), WINGS (15%) and a LONG tail (5%). The menu entry reads HEADBUTT or PINCH when you have those parts.
+
+## Creator chiptunes, played live (`tools/chip_synth.py`)
+The 12 creator loops used to be 1,519 KB of ADPCM recordings. They are now **152 KB**: the note data that `make_chiptunes.py` voices plus shared
+tables, and `chipMix` (main.c) renders them live.
+- **What the 152 KB holds:**
+  - 256-step wave tables for the two pulses and the triangle, one per harmonic count, so a note has exactly the harmonics below 7.5 kHz (the band
+    the recordings were cut to).
+  - A band-limited recording of the NES noise for each drum.
+  - Two tables for the APU's non-linear mixer.
+- **How `chipMix` renders:** a 40 Hz low cut, then the loop's gain. The creator loops are now **23 % quieter** (`VOL = 0.77`). The data is a flags
+  byte per 1/120 s step, 4 to 7 KB per loop.
+- **Checks:**
+  - `chip_synth.py` holds an exact integer twin of `chipMix`. A test build (`-DCS_TEST=n`) renders 100 frames on the GBA, and they match the twin
+    byte for byte.
+  - Matched by spectrum, the melody and harmony voices sit closer to the approved renders than the old ADPCM did. The drums are noise, so they are
+    compared by ear.
+- **Cost:** 18 % of a frame while a loop plays, 4.5 % of it the pseudo-stereo that the ADPCM loops paid too. `chipMix` is 1.6 KB of IWRAM.
+- **Remake:** `python3 tools/chip_synth.py [preview_dir]`.
+
+## Tree Swaying Action
+- **TREE SWAYING ACTION** is the ambient version (`make_tree_eno`, xm2gba.py): a semitone down and Eno-like, all generated from the song's own pad,
+  pluck and bass.
+  - Swells, wandering 2-4 note phrases that sometimes come back changed, rare bass and bells, chords that drift.
+  - About 11 minutes, then a 1.5-minute fade.
+  - Every note has a **reverb trail** of quieter, spaced repeats. An allocator gives each note the channel whose tail has died away, using the real
+    sample envelopes; only 12 of 1,213 notes take over a tail louder than -30 dB.
+- **TREE SWAYING ACTION (ORIGINAL)**, hidden, is the drum rework. Its breeze pad uses a smooth echo in the calm parts and a gated stutter echo in the
+  drops and risers (`TREE_ECHO = 'mix'`).
 
 ## Music data format (compact, lossless)
 `python3 tools/xm2gba.py` writes two files: `source/musicdata.h` (about 80 KB of text: per song the order list, pattern lengths, voice table, pitch anchors and the XmSong struct, plus the `.incbin` lines) and `source/music/xmdata.bin` (every song's note events and every sample byte). Note events are a byte stream: runs of empty rows cost one byte, a row with notes is a count byte plus 3 bytes per note (voice index into a per-song table of channel / instrument / pan bus, note, volume). Each instrument stores one 32-bit pitch anchor instead of 96 playback steps; `xmStep()` in `main.c` rebuilds every step with integer maths and the converter checks that it equals the old table exactly (and keeps a fix-up list for the rare note that would differ; none do today). The samples are stored as they always were. This cut the ROM by about 500 KB and `musicdata.h` from 7.4 MB to 80 KB **with identical audio**: the old and new ROMs were run in an emulator and every mixed audio buffer of all 23 songs, one pass plus the loop point, hashed to the same values.
