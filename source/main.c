@@ -2129,6 +2129,7 @@ static void autoTune(void){
     if(p==4){ setPreset(3); sCost=measureDraw(); }
     sTunedMsg=1;
 }
+#include "loading.h"    // LOADING screen with a progress bar (ldShow)
 #include "slots.h"      // ROOM SLOTS: named saves of the room, the person and the life (header made ready for houses)
 #include "optscreen.h"  // OPTIONS: seven pages of settings (replaces the old SETTINGS screen; settingsScreen() keeps its name)
 

@@ -94,10 +94,13 @@ static int nbSave(void);
 static int nbGo(int i){   // make lot i the live map. 1 = done (nbErr says why not)
     if(nbT.cur==i) return 1;
     box(60,64,120,24); text(76,72,"MOVING...",WHITE,1); present();
+    ldShow("SAVING THE LOT YOU LEAVE",0,3);
     if(nbT.cur<NB_LOTS&&nbT.lot[nbT.cur].on){ int e=nbStore(nbT.cur); if(e){ nbErr=e==SLE_NOROOM?"NO FREE SLOTS FOR THIS LOT":slErrMsg(e); return 0; } }
+    ldShow("OPENING THE NEW LOT",1,3);
     NbLot*L=&nbT.lot[i]; int ok=0;
     if(L->slot>=0){ slScan(); if(slOwner[L->slot]==L->slot&&slI[L->slot].kind==SLK_HOUSE) ok=(houseLoad(L->slot)==SLE_OK); if(!ok) L->slot=-1; }
     if(!ok) nbTemplate(i);
+    ldShow("SAVING THE TOWN",2,3);
     nbT.cur=(u8)i; nbBounds(); nbSave(); return 1;
 }
 
@@ -450,6 +453,7 @@ static void nbThumb(const Town*t,int x0,int y0,int w,int h){   // the whole town
 static int nbSwitch(int s){   // make the town in slot s the one you live in (your lot there becomes the live room). 1 = done
     if(nbTS==s&&nbT.NB_ACT) return 1;
     if(nbLoad()){ if(nbT.cur<NB_LOTS&&nbT.lot[nbT.cur].on){ box(60,64,120,24); text(76,72,"PACKING UP...",WHITE,1); present();
+            ldShow("PACKING UP YOUR LOT",0,3);
             int e=nbStore(nbT.cur); if(e){ nbErr=e==SLE_NOROOM?"NO FREE SLOTS FOR YOUR LOT":slErrMsg(e); return 0; } }
         nbT.NB_ACT=0; nbSave(); }
     if(!nbRead(s,&nbT)){ nbErr="THAT TOWN IS DAMAGED"; nbLoad(); return 0; }

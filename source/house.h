@@ -153,11 +153,13 @@ static void hhBakeAll(void){
     for(int i=0;i<LK_N;i++) sl[i]=look[i];
     for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ sv[y][z][x]=vox[y][z][x]; sd[y][z][x]=dec[y][z][x]; }
     for(int m=0;m<hhN;m++){
+        ldShow("GETTING THE SIMS READY",m,hhN+TW_N+1);
         for(int i=0;i<LK_N;i++) look[i]=hhM[m].look[i]; stage=hhM[m].stage;
         buildLook(); setColors(); bakeInto(spr4); hhQuant(spr4,hhObj[m],hhPal[m]);
         strideK=1; bakeInto(spr4s); strideK=0; hhQuantS(spr4s,hhObjS[m],hhPal[m]);
     }
     for(int k=0;k<TW_N;k++){   // two passers-by with made-up looks (new ones every time the life game starts)
+        ldShow("GETTING THE TOWN READY",hhN+k,hhN+TW_N+1);
         u8 st; hhRandLook(look,&st); stage=st; fixLook();
         buildLook(); setColors(); bakeInto(spr4); hhQuant(spr4,twObj[k],twPal[k]);
         strideK=1; bakeInto(spr4s); strideK=0; hhQuantS(spr4s,twObjS[k],twPal[k]);
@@ -165,6 +167,7 @@ static void hhBakeAll(void){
     for(int i=0;i<LK_N;i++) look[i]=sl[i]; stage=sst;
     for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ vox[y][z][x]=sv[y][z][x]; dec[y][z][x]=sd[y][z][x]; }
     custom=sc; setColors();
+    ldShow("ALMOST THERE",hhN+TW_N,hhN+TW_N+1);
     bakeInto(spr4);   // the player (still drawn by the CPU, so walls and furniture in front cover it and the action cam can zoom it)
     strideK=1; bakeInto(spr4s); strideK=0; spBounds();   // the blit box holds both frames
     hhSlotsFree();   // new tiles and palettes: every slot is reloaded when its Sim is next on screen

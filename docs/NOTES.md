@@ -570,3 +570,6 @@ A house has **three floors**. The floor you are on is the live map; the other tw
 
 ## Sim filter (OPTIONS > PLAY)
 Three on/off rows decide which kinds of Sims may be added: **PRE-MADE SIMS** (the MOVE IN families), **USER-MADE SIMS** (made in the creator, added with ADD TO FAMILY) and **MADE-UP SIMS** (INVITE A NEW SIM, SELECT on the RELATIONSHIPS screen, and the passers-by). All are ON by default, so nothing changes until you switch one off. Turning a kind off only blocks adding more of it (with a short message): Sims already in the household stay and play as before.
+
+## Loading screen
+`source/loading.h` gives `ldShow("MESSAGE", done, total)`: a full loading screen with a progress bar and percent, one frame per call. It runs while the household is baked (entering the life game, moving in, growing up: one step per Sim) and while you move between lots or towns in the neighborhood. To use it in a slow job, call it between the steps with the number of steps done so far. It cannot move *inside* one flash write, so a single big step still holds the bar for that long.
