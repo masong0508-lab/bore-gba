@@ -90,14 +90,14 @@ enum { LK_SHAPE, LK_SKIN, LK_EYES, LK_MOUTH, LK_EARS, LK_HSTYLE, LK_HCOL, LK_TOP
        LK_CLAWS, LK_ANTENNA, LK_PATTERN, LK_PATCOL,                    // more Spore parts and body paint (format 7)
        LK_HTONE, LK_TTONE, LK_BTONE, LK_EYETONE, LK_BROWHT, LK_NOSEHT, LK_TORSO, LK_ARMS, LK_STANCE,   // more sliders (format 8)
        LK_FEARS, LK_MUZZLE, LK_FTAIL, LK_BUTT, LK_BUTTH, LK_BUTTW,
-       LK_LEGW, LK_ARMW, LK_ANTLEN, LK_ANTSPR, LK_ANTTIP, LK_TAILLEN, LK_HORNSZ, LK_N };   // animal (furry) ears, a muzzle, a fur tail (format 8); LK_BUTT: a slider, the seat (teens and up); LK_LEGW: leg width slider (format 9)
+       LK_LEGW, LK_ARMW, LK_ANTLEN, LK_ANTSPR, LK_ANTTIP, LK_TAILLEN, LK_HORNSZ, LK_TAILCURL, LK_TAILTHK, LK_HORNSPR, LK_HORNCRV, LK_HORNHT, LK_EARFWD, LK_EARSPR, LK_N };   // animal (furry) ears, a muzzle, a fur tail (format 8); LK_BUTT: a slider, the seat (teens and up); LK_LEGW: leg width slider (format 9)
 #define LK_N8 (LK_BUTTW+1)   // looks a person format 8 slot holds
 #define LK_N7 (LK_PATCOL+1)   // looks a person format 7 slot holds
 #define LK_N6 (LK_MOUTHHT+1)   // looks a person format 6 slot holds
 #define LK_N5 (LK_SHOE+1)    // looks a person format 5 slot holds
 #define LK_N4 (LK_BACK+1)    // looks a person format 4 slot holds   // LK_TONE, LK_EARSZ, LK_EARLF are sliders: 0 = middle, then 1..4 up, 5..8 down (see slidePos)
 #define LK_N3 (LK_EARLF+1)   // looks a person format 3 slot holds (the Spore parts TAIL, HORNS, BACK came with format 4)
-static inline int lkSlide(int id){ return (id>=LK_BASE&&id<=LK_EARLF)||(id>=LK_HEIGHT&&id<=LK_MOUTHHT)||(id>=LK_HTONE&&id<=LK_STANCE)||(id>=LK_BUTT&&id<=LK_HORNSZ); }
+static inline int lkSlide(int id){ return (id>=LK_BASE&&id<=LK_EARLF)||(id>=LK_HEIGHT&&id<=LK_MOUTHHT)||(id>=LK_HTONE&&id<=LK_STANCE)||(id>=LK_BUTT&&id<=LK_EARSPR); }
 static inline int slidePos(int v){ return (v+4)%9; }      // 0..8 left to right, the middle (stored 0) is 4
 static inline int slideVal(int p){ return (p+5)%9; }
 static inline int slideEff(int v){ return slidePos(v)-4; }   // -4..4
@@ -1004,9 +1004,9 @@ __attribute__((noinline)) static void drawTail(int near){   // STUB (a short wed
     x0+=bx*bakeWk/(2*CA); y0+=by*bakeWk/(2*CA);   // WEIGHT: a heavier body is fatter front to back too, so the root moves out with its back face
     if((by>0)!=near) return;                                                                  // pointing away from you: behind the body
     int n=(tl==1?4:7)+slideEff(look[LK_TAILLEN]); if(n<2) n=2;
-    u16 col=shade(sT[5],13), dk=shade(sT[5],8);
+    u16 col=shade(sT[5],13), dk=shade(sT[5],8); int cu=slideEff(look[LK_TAILCURL]), tk=slideEff(look[LK_TAILTHK])/2;   // TAIL CURL: negative droops, positive curls up; TAIL THICKNESS: a pixel every two notches
     for(int j=0;j<=4*n;j++){
-        int x=x0+bx*j/8, y=y0+by*j/8+(tl==2?j*j/96:j/8), t=1+(4*n-j)*(hs+1)/(4*n)+(bakeWk>0?bakeWk/4:0);   // and a bit thicker on a heavy body
+        int x=x0+bx*j/8, y=y0+by*j/8+(tl==2?j*j*(10-3*cu)/960:j*(2-cu)/16), t=1+(4*n-j)*(hs+1)/(4*n)+tk+(bakeWk>0?bakeWk/4:0); if(t<1) t=1;   // and a bit thicker on a heavy body
         rect(x-t/2,y-t/2,t,t,col); if(near&&j>4) px(x,y+t/2,dk);
     }
 }
@@ -1014,12 +1014,12 @@ __attribute__((noinline)) static void drawHorns(int near){   // NUBS or HORNS, o
     int hn=look[LK_HORNS]; if(!hn||custom) return;
     int hx,hy,hz,hs; headBox(&hx,&hy,&hz,&hs); int hw=2*hs, hd=2*hs, hh=2*hs, top=(stBH[stage]-(hy+hh)>=1)?hy+hh:hy+hh-1;
     int len=(hn==1?5:11)*hs*(10+slideEff(look[LK_HORNSZ])*2)/10; if(len<2) len=2;
-    u16 col=shade(sT[8],13), tip=lite(sT[8],18);
+    u16 col=shade(sT[8],13), tip=lite(sT[8],18); int ho=6+slideEff(look[LK_HORNSPR]), cv=4+slideEff(look[LK_HORNCRV]);   // HORN SPREAD: how far out they lean; HORN CURVE: how much the tip bends back in
     for(int sd=-1;sd<=1;sd+=2){
         int a,b; rotUW(sd,0,&a,&b); if(((a+b)>0)!=near) continue;
-        int sx=(a-b)>0?1:-1, u=2*hx+hw-W+sd*(hw+1), w=2*(hz+hd-1)+1-D, x0,y0; projC(u,w,top+1,&x0,&y0); y0+=CC/2;
+        int sx=(a-b)>0?1:-1, u=2*hx+hw-W+sd*(hw+1), w=2*(hz+hd-1)+1-D, x0,y0; projC(u,w,top+1,&x0,&y0); y0+=CC/2-2*hs*slideEff(look[LK_HORNHT]);   // HORN HEIGHT: up or down the side of the head
         for(int i=0;i<=len;i++){
-            int x=x0+sx*((i*3)/2-(i*i)/(len+1)), t=2+(len-i)*hs/len;   // out, then curving back in; thick at the root, a point at the tip
+            int x=x0+sx*((i*ho)/4-(i*i*cv)/(4*(len+1))), t=2+(len-i)*hs/len;   // out, then curving back in; thick at the root, a point at the tip
             rect(x-t/2,y0-i,t,1,i==len?tip:col);
         }
     }
@@ -1040,6 +1040,8 @@ __attribute__((noinline)) static void drawEars(int near){   // ROM, not inlined 
         cyp-=(2*hs*CC*9)/20+slideEff(look[LK_EARLF]);                           // a little above the middle of the head's side
         int ua,ub; rotUW(0,2,&ua,&ub);                                           // screen step for one block of depth (along z)
         int dzx=(ua-ub)*CA/2, dzy=(ua+ub)*CB/2;                                  // px per block along the face
+        { int sp=slideEff(look[LK_EARSPR]), fw=slideEff(look[LK_EARFWD]);        // EAR SPREAD: out from the head (a pixel a notch); EAR FRONT BACK: a quarter block a notch along the face
+          cxp+=(a-b)*sp+fw*dzx/4; cyp+=(a+b)*sp/2+fw*dzy/4; }
         int lft=(a-b)<0; u16 fill=shade(lft?sL[1]:sR[1],15), pit=shade(lft?sL[1]:sR[1],11), edge=shade(sT[1],5);
         int n=4*rz;                                                              // sample the oval finely enough to leave no holes
         for(int iy=-4*ry;iy<=4*ry;iy++)for(int iz=-n;iz<=n;iz++){
@@ -2815,10 +2817,10 @@ static const char* const botStyNm[4]={"PANTS","SHORTS","SKIRT","BARE"};
 static const char* const shoeNm[6]={"AS THE BOTTOM","WHITE","BLACK","RED","GOLD","AS THE TOP"};
 #define LK_AGE LK_N   // the AGE row is not part of look[]: it picks the life stage
 static const char* const* const lookNm[LK_N+1]={shapeNm,0,eyeNm,mouthNm,earNm,hairNm,0,0,0,0,0,0,tailNm,hornNm,backNm,hatNm,hatColNm,beardNm,topStyNm,botStyNm,shoeNm,
-                                                browNm,noseNm,cheekNm,glassNm,0,0,0,0,0,0,0,0,clawNm,antNm,patNm,patColNm,0,0,0,0,0,0,0,0,0,fearNm,muzNm,ftailNm,0,0,0,0,0,0,0,0,0,0,stageNm};
-_Static_assert(LK_N==59,"lookNm / lookCol / cnt need a slot for every look");
-static const u16* const lookCol[LK_N+1]={0,skinTones,0,0,0,0,hairTones,topTones,botTones,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,eyeTones,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-#define TROWS 18   // most rows a tab holds; the card shows 5 at a time and scrolls
+                                                browNm,noseNm,cheekNm,glassNm,0,0,0,0,0,0,0,0,clawNm,antNm,patNm,patColNm,0,0,0,0,0,0,0,0,0,fearNm,muzNm,ftailNm,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,stageNm};
+_Static_assert(LK_N==66,"lookNm / lookCol / cnt need a slot for every look");
+static const u16* const lookCol[LK_N+1]={0,skinTones,0,0,0,0,hairTones,topTones,botTones,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,eyeTones,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+#define TROWS 24   // most rows a tab holds; the card shows 5 at a time and scrolls
 static const Row tabRow[NTAB][TROWS]={
   {{"AGE",0,RK_PICK,LK_AGE,AG_N},{"SHAPE",0,RK_PICK,LK_SHAPE,NSHAPE},{"HEIGHT",0,RK_SLIDE,LK_HEIGHT,9},{"WEIGHT",0,RK_SLIDE,LK_WEIGHT,9},
    {"TORSO",0,RK_SLIDE,LK_TORSO,9},{"ARMS",0,RK_SLIDE,LK_ARMS,9},{"STANCE",0,RK_SLIDE,LK_STANCE,9},{"LEG WIDTH",0,RK_SLIDE,LK_LEGW,9},{"ARM WIDTH",0,RK_SLIDE,LK_ARMW,9},
@@ -2827,17 +2829,18 @@ static const Row tabRow[NTAB][TROWS]={
    {"EYE HEIGHT",0,RK_SLIDE,LK_EYEHT,9},{"BROWS",0,RK_PICK,LK_BROW,6},{"BROW HEIGHT",0,RK_SLIDE,LK_BROWHT,9},{"GLASSES",0,RK_PICK,LK_GLASS,4},{"NOSE",0,RK_PICK,LK_NOSE,6},
    {"NOSE HEIGHT",0,RK_SLIDE,LK_NOSEHT,9},
    {"MOUTH",0,RK_PICK,LK_MOUTH,NMOUTH},{"MOUTH WIDTH",0,RK_SLIDE,LK_MOUTHW,9},{"MOUTH HEIGHT",0,RK_SLIDE,LK_MOUTHHT,9},{"CHEEKS",0,RK_PICK,LK_CHEEK,5},
-   {"EARS",0,RK_PICK,LK_EARS,3},{"EAR SIZE",0,RK_SLIDE,LK_EARSZ,9},{"EAR HEIGHT",0,RK_SLIDE,LK_EARLF,9}},
+   {"EARS",0,RK_PICK,LK_EARS,3},{"EAR SIZE",0,RK_SLIDE,LK_EARSZ,9},{"EAR HEIGHT",0,RK_SLIDE,LK_EARLF,9},{"EAR FRONT BACK",0,RK_SLIDE,LK_EARFWD,9},{"EAR SPREAD",0,RK_SLIDE,LK_EARSPR,9}},
   {{"STYLE",0,RK_PICK,LK_HSTYLE,NHAIR},{"COLOUR",0,RK_SWATCH,LK_HCOL,NSW},{"HAIR TONE",0,RK_SLIDE,LK_HTONE,9},{"BEARD",0,RK_PICK,LK_BEARD,3},{"HAT",0,RK_PICK,LK_HAT,6},{"HAT COLOUR",0,RK_PICK,LK_HATCOL,6}},
   {{"TOP",0,RK_SWATCH,LK_TOP,NSW},{"TOP TONE",0,RK_SLIDE,LK_TTONE,9},{"BOTTOM",0,RK_SWATCH,LK_BOT,NSW},{"BOTTOM TONE",0,RK_SLIDE,LK_BTONE,9},{"TOP STYLE",0,RK_PICK,LK_TOPSTY,5},{"BOTTOM STYLE",0,RK_PICK,LK_BOTSTY,4},{"SHOES",0,RK_PICK,LK_SHOE,6}},
   {{"TAIL",0,RK_PICK,LK_TAIL,3},{"HORNS",0,RK_PICK,LK_HORNS,3},{"BACK",0,RK_PICK,LK_BACK,3},{"HANDS",0,RK_PICK,LK_CLAWS,3},{"ANTENNAE",0,RK_PICK,LK_ANTENNA,3},
    {"PATTERN",0,RK_PICK,LK_PATTERN,7},{"PAINT",0,RK_PICK,LK_PATCOL,6},{"ANIMAL EARS",0,RK_PICK,LK_FEARS,5},{"MUZZLE",0,RK_PICK,LK_MUZZLE,4},{"FUR TAIL",0,RK_PICK,LK_FTAIL,4},
    {"ANT LENGTH",0,RK_SLIDE,LK_ANTLEN,9},{"ANT SPREAD",0,RK_SLIDE,LK_ANTSPR,9},{"ANT TIP SIZE",0,RK_SLIDE,LK_ANTTIP,9},
-   {"TAIL LENGTH",0,RK_SLIDE,LK_TAILLEN,9},{"HORN SIZE",0,RK_SLIDE,LK_HORNSZ,9}},
+   {"TAIL LENGTH",0,RK_SLIDE,LK_TAILLEN,9},{"TAIL CURL",0,RK_SLIDE,LK_TAILCURL,9},{"TAIL THICKNESS",0,RK_SLIDE,LK_TAILTHK,9},
+   {"HORN SIZE",0,RK_SLIDE,LK_HORNSZ,9},{"HORN SPREAD",0,RK_SLIDE,LK_HORNSPR,9},{"HORN CURVE",0,RK_SLIDE,LK_HORNCRV,9},{"HORN HEIGHT",0,RK_SLIDE,LK_HORNHT,9}},
   {{"ASPIRATION",0,RK_PERS,PS_ASP,AS_PICK},{"LIFETIME WANT",0,RK_PERS,PS_LTW,2},{"SIGN",0,RK_PERS,PS_SIGN,12},
    {"NEAT",0,RK_TRAIT,TR_NEAT,11},{"OUTGOING",0,RK_TRAIT,TR_OUT,11},{"ACTIVE",0,RK_TRAIT,TR_ACT,11},{"PLAYFUL",0,RK_TRAIT,TR_PLAY,11},{"NICE",0,RK_TRAIT,TR_NICE,11}},
   {{"GO LIVE LIFE!","PLAY IT NOW",RK_ACT,AC_PLAY,0},{"FIRST NAME",0,RK_ACT,AC_FNAME,0},{"LAST NAME",0,RK_ACT,AC_LNAME,0},{"RANDOMIZE","ROLL THE DICE",RK_ACT,AC_RAND,0},{"ADD TO FAMILY","COPY THIS LOOK",RK_ACT,AC_ADD,0},{"FAMILY","EDIT OR MOVE OUT",RK_ACT,AC_FAM,0},{"EDIT MAP","BUILD ROOMS",RK_ACT,AC_MAP,0},{"MAIN MENU","LOOK IS KEPT",RK_ACT,AC_MENU,0}} };
-static const u8 tabN0[NTAB]={14,18,6,7,15,8,8};
+static const u8 tabN0[NTAB]={14,20,6,7,20,8,8};
 static int tabRows(int t){ return tabN0[t]-(t==0&&stage<AG_TEEN&&!sUnlock?3:0); }   // babies and children: no BUTT rows
 #define tabN(t) tabRows(t)
 static int tabNext(int t,int d){ return (t+d+NTAB)%NTAB; }
@@ -3141,7 +3144,7 @@ static void famMenu(void){
     static char t[32]; simCat(simCat(t,"NOW EDITING "),hhPName); toast(t);
 }
 static void lookRandom(void){   // the dice (like Create-A-Sim): a whole new look and personality, only from what this stage and your unlocked parts allow
-    static const u8 cnt[LK_N]={NSHAPE,NSW,NEYE,NMOUTH,3,NHAIR,NSW,NSW,NSW,9,9,9,3,3,3,6,6,3,4,3,6, 6,6,5,4,NSW, 9,9,9,9,9,9,9, 3,3,7,6, 9,9,9,9,9,9,9,9,9, 5,4,4, 9,9,9, 9,9,9,9,9,9,9};
+    static const u8 cnt[LK_N]={NSHAPE,NSW,NEYE,NMOUTH,3,NHAIR,NSW,NSW,NSW,9,9,9,3,3,3,6,6,3,4,3,6, 6,6,5,4,NSW, 9,9,9,9,9,9,9, 3,3,7,6, 9,9,9,9,9,9,9,9,9, 5,4,4, 9,9,9, 9,9,9,9,9,9,9, 9,9,9,9,9,9,9};
     for(int id=0;id<LK_N;id++){
         if(lkSlide(id)){ look[id]=(u8)slideVal(rnd8()%5+rnd8()%5); continue; }   // most land near the middle
         for(int t=0;t<20;t++){ int v=rnd8()%cnt[id];

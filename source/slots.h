@@ -171,7 +171,7 @@ static void slEncPlane(SlW*w,int plane){   // 0 = voxels, 1 = face sprite low by
     if(n){ slwPut(w,n); slwPut(w,cur); }
 }
 static void slEncPerson(SlW*w){
-    slwPut(w,9);                                            // format 9 (8 had no leg width, arm width, antenna, tail length or horn size sliders); format 8 (7 had no tone, brow / nose height, torso, arms or stance sliders); format 7 (6 had no claws, antennae or body paint); format 6 (5 had no brows, nose, cheeks, glasses, eye colour or body / face sliders); format 5 (4 had no hats, beards or clothes styles; 3 had no persona: it reads as the one already set; 2 had no sliders: they read as 0 = the middle; 1 had no life stage: those people are adults)
+    slwPut(w,9);                                            // format 9 (8 had no leg width, arm width, antenna, tail length / curl / thickness, horn size / spread / curve / height or ear front-back / spread sliders); format 8 (7 had no tone, brow / nose height, torso, arms or stance sliders); format 7 (6 had no claws, antennae or body paint); format 6 (5 had no brows, nose, cheeks, glasses, eye colour or body / face sliders); format 5 (4 had no hats, beards or clothes styles; 3 had no persona: it reads as the one already set; 2 had no sliders: they read as 0 = the middle; 1 had no life stage: those people are adults)
     for(int i=0;i<LK_N;i++) slwPut(w,look[i]);
     slwPut(w,stage); slwPut(w,ageDays);
     slwPut(w,pAsp); slwPut(w,pLtw); for(int i=0;i<TR_N;i++) slwPut(w,pTr[i]);   // persona: aspiration, lifetime want, personality
@@ -195,7 +195,7 @@ static int slDecPerson(SlR*c,int apply){
     if(lk[LK_TONE]>=9||lk[LK_EARSZ]>=9||lk[LK_EARLF]>=9||lk[LK_SHAPE]>=NSHAPE||lk[LK_SKIN]>=NSW||lk[LK_EYES]>=NEYE||lk[LK_MOUTH]>=NMOUTH||lk[LK_BROW]>=6||lk[LK_NOSE]>=6||lk[LK_CHEEK]>=5||lk[LK_GLASS]>=4||lk[LK_EYECOL]>=NSW||lk[LK_EARS]>=3||lk[LK_HSTYLE]>=NHAIR||lk[LK_TAIL]>=3||lk[LK_HORNS]>=3||lk[LK_BACK]>=3||lk[LK_HAT]>=6||lk[LK_HATCOL]>=6||lk[LK_BEARD]>=3||lk[LK_TOPSTY]>=5||lk[LK_BOTSTY]>=4||lk[LK_SHOE]>=6||lk[LK_HCOL]>=NSW||lk[LK_TOP]>=NSW||lk[LK_BOT]>=NSW) return 0;
     for(int i=LK_HEIGHT;i<=LK_MOUTHHT;i++) if(lk[i]>=9) return 0;
     for(int i=LK_HTONE;i<=LK_STANCE;i++) if(lk[i]>=9) return 0;
-    if(lk[LK_BUTT]>=9||lk[LK_BUTTH]>=9||lk[LK_BUTTW]>=9||lk[LK_LEGW]>=9||lk[LK_ARMW]>=9||lk[LK_ANTLEN]>=9||lk[LK_ANTSPR]>=9||lk[LK_ANTTIP]>=9||lk[LK_TAILLEN]>=9||lk[LK_HORNSZ]>=9) return 0;
+    if(lk[LK_BUTT]>=9||lk[LK_BUTTH]>=9||lk[LK_BUTTW]>=9||lk[LK_LEGW]>=9||lk[LK_ARMW]>=9||lk[LK_ANTLEN]>=9||lk[LK_ANTSPR]>=9||lk[LK_ANTTIP]>=9||lk[LK_TAILLEN]>=9||lk[LK_HORNSZ]>=9||lk[LK_TAILCURL]>=9||lk[LK_TAILTHK]>=9||lk[LK_HORNSPR]>=9||lk[LK_HORNCRV]>=9||lk[LK_HORNHT]>=9||lk[LK_EARFWD]>=9||lk[LK_EARSPR]>=9) return 0;
     if(lk[LK_CLAWS]>=3||lk[LK_ANTENNA]>=3||lk[LK_PATTERN]>=7||lk[LK_PATCOL]>=6) return 0;
     if(lk[LK_FEARS]>=5||lk[LK_MUZZLE]>=4||lk[LK_FTAIL]>=4) return 0;
     if(cu>1) return 0;
