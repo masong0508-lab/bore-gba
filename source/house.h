@@ -490,15 +490,20 @@ static int fkDodge(const u8*lk){
 }
 static const char* fkMove(int u,const char*def){ const u8*lk=fkLook(u); return lk[LK_HORNS]==2?"HEADBUTT":lk[LK_CLAWS]==3?"SLASH":lk[LK_CLAWS]==2?"PINCH":lk[LK_CLAWS]==1?"SCRATCH":def; }   // what the blow is called
 static void fkLose(int u,int n){ int m=hhMemOf(u); if(m<0){ lhp-=n; if(lhp<1) lhp=1; } else { int v=hhM[m].hp-n; hhM[m].hp=(u8)(v<1?1:v); } }   // recoil never knocks anyone out
+static char fkB[28];   // what the one who lands a blow reads: "CRIT SLASH 27"
 static void fightHit(int a,int b){
     const u8*la=fkLook(a), *lb=fkLook(b);
     if((rnd8()*100>>8)<fkDodge(lb)){ hhSay(b,IC_BAIL,"DODGED"); return; }   // eye stalks see it coming, wings flap clear
     int dmg=14+(uTr(a,TR_ACT)>>1)+(rnd8()>>5)+fkAtk(la);
     { int tk=fkTaken(lb); if(la[LK_CLAWS]==3) tk+=(100-tk)/4; dmg=dmg*tk/100; } if(dmg<1) dmg=1;   // BLADES cut through a quarter of the armour
+    int crit=(rnd8()*100>>8)<8+(la[LK_CLAWS]==3?10:0)+(uTr(a,TR_ACT)>>2);   // a CRITICAL HIT: one blow in twelve or so (BLADES and active Sims more) lands half as hard again
+    if(crit){ dmg=dmg*3/2; hhSay(b,IC_BAIL,"CRIT"); }
     if(lb[LK_BACK]==1&&dmg>3){ fkLose(a,4); if(a==hhPUid&&lnoteT<=0){ lnote="OUCH  SPIKES"; lnoteT=40; } }   // spikes prick the one that hits them
     int m=hhMemOf(b);
     if(m<0){ fightHurt(dmg); return; }
-    HhSim*t=&hhM[m]; if(t->hp>dmg) t->hp=(u8)(t->hp-dmg); else { t->hp=30; t->act=HA_SOC; t->t=600; t->bub=IC_SKULL; t->bubT=120; hhNote(t," IS KNOCKED OUT"); }
+    HhSim*t=&hhM[m]; if(t->hp>dmg){ t->hp=(u8)(t->hp-dmg);
+        if(a==hhPUid&&lnoteT<=0){ char*e=fkB; if(crit) e=simCat(e,"CRIT "); e=simCat(e,fkMove(a,"PUNCH")); *e++=' '; simCatN(e,dmg); lnote=fkB; lnoteT=45; } }   // you see how hard it landed
+    else { t->hp=30; t->act=HA_SOC; t->t=600; t->bub=IC_SKULL; t->bubT=120; hhNote(t," IS KNOCKED OUT"); }
 }
 // a does interaction i to b. Returns 1 if it was accepted (mean ones: 1 = it landed)
 static int socDo(int a,int b,int i){

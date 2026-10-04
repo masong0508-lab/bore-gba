@@ -1675,7 +1675,7 @@ static void fightHurt(int dmg){
     if(xo[XO_HURT]==1) dmg/=2;                                              // GENTLE
     lhp-=dmg; lsp=0; lgrind=0; sfxPlay(SFX_HIT);
     if(lhp<=0){ lhp=25; lstun=240; sfxPlay(SFX_GROAN); lnote="KNOCKED OUT"; lnoteT=120; moodEvent(M_HURT_BIG); }
-    else { if(lstun<30) lstun=30; lnote="OW"; lnoteT=40; }
+    else { static char fhB[16]; char*e=simCat(fhB,dmg>=30?"OUCH ":"OW "); *e++='-'; simCatN(e,dmg); if(lstun<30) lstun=30; lnote=fhB; lnoteT=40; }   // and how much
 }
 
 #include "ramps.h"
@@ -2988,7 +2988,10 @@ static void drawAbilities(int sel){   // PARTS tab: the Spore ability chart unde
     const Row*r=&tabRow[TB_PARTS][sel]; int v=look[r->id];
     if(isPart(r->id)&&!partFree(r->id,v)){ numStr(b,partCost[partOf(r->id)][v]); int w=tw(b,1); text(CDX+CDW-6-w,y,b,RGB(31,12,8),1); text(CDX+CDW-9-w-tw("BUY",1),y,"BUY",RGB(31,12,8),1); }
     else if(isPart(r->id)){ int bit=partPow(r->id,v);
-        if(v&&(pw&bit)){ int q=0; while(!(bit>>q&1)) q++; const char*nm=powNm[q]; text(CDX+CDW-6-tw(nm,1),y,nm,RGB(12,30,24),1); } }
+        if(v&&(pw&bit)){ int q=0; while(!(bit>>q&1)) q++; const char*nm=powNm[q]; text(CDX+CDW-6-tw(nm,1),y,nm,RGB(12,30,24),1); }
+        else if(v){ char c[12]; c[0]=0;   // no power: say what it does in a fight
+            if(v==1&&(r->id==LK_HORNS||r->id==LK_CLAWS)) simCatN(simCat(c,"HIT +"),2); else if(v==1&&r->id==LK_TAIL) simCatN(simCat(c,"HIT +"),1); else if(v==1&&r->id==LK_ANTENNA) simCatN(simCat(c,"DODGE "),8);
+            if(c[0]) text(CDX+CDW-6-tw(c,1),y,c,RGB(30,22,10),1); } }
 }
 static void drawAspire(int sel){   // ASPIRE tab: aspiration, lifetime want and sign as rows, then the personality as five tracks of ten pips
     static const char* const lab[3]={"ASPIRATION","LIFETIME","SIGN"};
