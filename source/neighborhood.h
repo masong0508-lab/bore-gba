@@ -32,6 +32,9 @@ typedef struct { u8 on,x,y,w,h,kind,type; s8 slot; char name[NB_NAME+1]; u8 floo
 typedef struct { char tag[4]; char name[NB_NAME+1]; u8 season,tod,home,cur,zoom,pad[3]; u8 cell[NB_H][NB_W]; NbLot lot[NB_LOTS]; } Town;
 static Town nbT EWRAM_BSS;
 static u8 nbOk;                  // nbT holds a town
+static int nbTS=-1;              // the slot nbT was loaded from (or -1: a new town, it gets a free slot)
+static Town nbTmp EWRAM_BSS;     // another town, read for the chooser's thumbnails
+#define NB_ACT pad[0]            // 1 = the live room belongs to this town (its lot cur)
 #define NB_GR(c) ((c)&7)
 #define NB_DC(c) ((c)>>3)
 
@@ -99,21 +102,27 @@ static int nbGo(int i){   // make lot i the live map. 1 = done (nbErr says why n
 }
 
 // ---------- the town on the save chip ----------
-static int nbSlot(void){ slScan(); for(int i=0;i<SLOT_N;i++) if(slOwner[i]==i&&slI[i].kind==SLK_TOWN&&slGood[i]) return i; return -1; }
-static int nbLoad(void){
-    int s=nbSlot(); if(s<0||slI[s].len!=sizeof(Town)) return 0;
-    volatile u8*b=SLB(s)+SLOT_HDR; u8*d=(u8*)&nbT; for(unsigned i=0;i<sizeof(Town);i++) d[i]=b[i];
-    if(nbT.tag[0]!='T'||nbT.tag[1]!='W'||nbT.tag[2]!='N'||nbT.tag[3]!='1') return 0;
-    nbT.name[NB_NAME]=0; for(int i=0;i<NB_LOTS;i++) nbT.lot[i].name[NB_NAME]=0;
+static int nbTownList(int*l,int max){ slScan(); int n=0; for(int i=0;i<SLOT_N&&n<max;i++) if(slOwner[i]==i&&slI[i].kind==SLK_TOWN&&slGood[i]&&slI[i].len==sizeof(Town)) l[n++]=i; return n; }
+static int nbRead(int s,Town*t){   // a town from its slot (1 = ok)
+    volatile u8*b=SLB(s)+SLOT_HDR; u8*d=(u8*)t; for(unsigned i=0;i<sizeof(Town);i++) d[i]=b[i];
+    if(t->tag[0]!='T'||t->tag[1]!='W'||t->tag[2]!='N'||t->tag[3]!='1') return 0;
+    t->name[NB_NAME]=0; for(int i=0;i<NB_LOTS;i++) t->lot[i].name[NB_NAME]=0;
     return 1;
 }
+static int nbLoad(void){   // the town the live room belongs to (or the first one)
+    int l[SLOT_MAX], n=nbTownList(l,SLOT_MAX), pick=-1;
+    for(int i=0;i<n&&pick<0;i++){ if(nbRead(l[i],&nbTmp)&&nbTmp.NB_ACT) pick=l[i]; }
+    if(pick<0&&n) pick=l[0];
+    if(pick<0||!nbRead(pick,&nbT)) return 0;
+    nbT.NB_ACT=1; nbTS=pick; return 1;
+}
 static int nbSave(void){
-    int s=nbSlot(); SlInfo old; int had=s>=0&&slInfo(s,&old);
-    if(s<0) for(int i=0;i<SLOT_N;i++) if(slOwner[i]<0){ s=i; break; }
+    slScan(); int s=nbTS; SlInfo old; int had=s>=0&&slOwner[s]==s&&slInfo(s,&old)&&old.kind==SLK_TOWN;
+    if(!had){ s=-1; for(int i=0;i<SLOT_N;i++) if(slOwner[i]<0){ s=i; break; } }
     if(s<0) return SLE_NOROOM;
     slOpen(s,1); const u8*d=(const u8*)&nbT; for(unsigned i=0;i<sizeof(Town);i++) svWr(SLO(s)+SLOT_HDR+i,d[i]);
     slHeader(s,SLK_TOWN,1,0,(int)sizeof(Town),slSumOf((volatile u8*)d,(int)sizeof(Town)),had?old.seq+1:1,nbT.name);
-    return slVerify(s);
+    nbTS=s; return slVerify(s);
 }
 _Static_assert(sizeof(Town)<=SLOT_SZ-SLOT_HDR,"the town must fit one slot");
 
@@ -122,37 +131,51 @@ static void nbLotAdd(int i,const char*nm,int x,int y,int w,int h,int kind,int ty
     NbLot*L=&nbT.lot[i]; L->on=1; L->x=(u8)x; L->y=(u8)y; L->w=(u8)w; L->h=(u8)h; L->kind=(u8)kind; L->type=(u8)type; L->slot=-1; L->floors=1;
     int k=0; for(;nm[k]&&k<NB_NAME;k++) L->name[k]=nm[k]; L->name[k]=0; L->value=(u16)(w*h*8);
 }
-static void nbNew(void){
+enum { NS_SUBURB, NS_DESERT, NS_LAKE, NS_EMPTY, NS_N };
+static const char* const nsNm[NS_N]={"GREEN SUBURB","DESERT TOWN","LAKESIDE","EMPTY LAND"};
+static const char* const nsTown[NS_N]={"BOREVILLE","MESA FLATS","PINE COVE","NEW TOWN"};
+static void nbGen(int style,const char*name){   // a new town in nbT (not saved). Its live lot is none yet (cur 255): going there builds the home lot
     u8*z=(u8*)&nbT; for(unsigned i=0;i<sizeof(Town);i++) z[i]=0;
     nbT.tag[0]='T'; nbT.tag[1]='W'; nbT.tag[2]='N'; nbT.tag[3]='1';
-    { const char*n="BOREVILLE"; int k=0; for(;n[k];k++) nbT.name[k]=n[k]; }
-    nbT.season=1; nbT.tod=0; nbT.zoom=0; nbT.home=0; nbT.cur=0;
+    { int k=0; for(;name[k]&&k<NB_NAME;k++) nbT.name[k]=name[k]; }
+    nbT.season=(u8)(style==NS_LAKE?2:1); nbT.home=0; nbT.cur=255;
     for(int i=0;i<NB_LOTS;i++) nbT.lot[i].slot=-1;
-    for(int y=0;y<NB_H;y++)for(int x=0;x<NB_W;x++) nbT.cell[y][x]=(u8)((x==11||y==11)?NT_ROAD:NT_GRASS);
-    nbLotAdd(0,"YOUR PLACE",0,0,10,10,LKIND_RES,0);        // the room you have been building: your home
-    nbLotAdd(1,"MAPLE 2",12,0,4,4,LKIND_RES,0);            // empty lots of every size
-    nbLotAdd(2,"MAPLE 4",17,0,6,6,LKIND_RES,0);
-    nbLotAdd(3,"OAK 1",12,5,5,5,LKIND_RES,0);
-    nbLotAdd(4,"OAK 3",18,7,5,4,LKIND_RES,0);
-    nbLotAdd(5,"TOWN PARK",0,12,6,6,LKIND_COMM,CT_PARK);
-    nbLotAdd(6,"CHILL SPOT",7,12,4,4,LKIND_COMM,CT_LOUNGE);
-    nbLotAdd(7,"MAIN SQUARE",7,17,4,4,LKIND_COMM,CT_PLAZA);
-    nbLotAdd(8,"SKATE PARK",0,19,7,5,LKIND_COMM,CT_SKATE);
-    nbLotAdd(9,"OLD TOWN",13,13,10,10,LKIND_COMM,CT_OLDTOWN);
-    for(int y=21;y<NB_H;y++)for(int x=8;x<11;x++) if(x+y>=30) nbT.cell[y][x]=NT_WATER;   // a pond
-    u32 r=0x2F6E2B1u;
+    int rx=11, ry=11, base=style==NS_DESERT?NT_SAND:NT_GRASS;
+    if(style==NS_DESERT){ rx=8; ry=15; } else if(style==NS_LAKE){ rx=5; ry=13; } else if(style==NS_EMPTY){ rx=-1; ry=12; }
+    for(int y=0;y<NB_H;y++)for(int x=0;x<NB_W;x++) nbT.cell[y][x]=(u8)((x==rx||y==ry)?NT_ROAD:base);
+    if(style==NS_SUBURB){
+        nbLotAdd(0,"YOUR PLACE",0,0,10,10,LKIND_RES,0); nbLotAdd(1,"MAPLE 2",12,0,4,4,LKIND_RES,0); nbLotAdd(2,"MAPLE 4",17,0,6,6,LKIND_RES,0);
+        nbLotAdd(3,"OAK 1",12,5,5,5,LKIND_RES,0); nbLotAdd(4,"OAK 3",18,7,5,4,LKIND_RES,0); nbLotAdd(5,"TOWN PARK",0,12,6,6,LKIND_COMM,CT_PARK);
+        nbLotAdd(6,"CHILL SPOT",7,12,4,4,LKIND_COMM,CT_LOUNGE); nbLotAdd(7,"MAIN SQUARE",7,17,4,4,LKIND_COMM,CT_PLAZA);
+        nbLotAdd(8,"SKATE PARK",0,19,7,5,LKIND_COMM,CT_SKATE); nbLotAdd(9,"OLD TOWN",13,13,10,10,LKIND_COMM,CT_OLDTOWN);
+        for(int y=21;y<NB_H;y++)for(int x=8;x<11;x++) if(x+y>=30) nbT.cell[y][x]=NT_WATER;   // a pond
+    } else if(style==NS_DESERT){
+        nbLotAdd(0,"YOUR PLACE",1,1,6,6,LKIND_RES,0); nbLotAdd(1,"MESA 1",10,1,5,5,LKIND_RES,0); nbLotAdd(2,"MESA 3",16,1,4,4,LKIND_RES,0);
+        nbLotAdd(3,"MESA 5",20,1,4,6,LKIND_RES,0); nbLotAdd(4,"CACTUS 2",10,8,6,5,LKIND_RES,0); nbLotAdd(5,"DRY CREEK",0,8,7,6,LKIND_COMM,CT_SKATE);
+        nbLotAdd(6,"OASIS",17,9,5,5,LKIND_COMM,CT_LOUNGE); nbLotAdd(7,"OLD MINE",10,16,10,8,LKIND_COMM,CT_OLDTOWN); nbLotAdd(8,"TOWN PLAZA",1,17,6,6,LKIND_COMM,CT_PLAZA);
+        for(int y=17;y<21;y++)for(int x=21;x<24;x++) nbT.cell[y][x]=NT_WATER;   // the oasis spring
+        for(int y=0;y<NB_H;y++)for(int x=0;x<NB_W;x++) if(nbT.cell[y][x]==NT_SAND&&((x*7+y*3)%11)==0) nbT.cell[y][x]=NT_DIRT;
+    } else if(style==NS_LAKE){
+        nbLotAdd(0,"YOUR PLACE",0,0,5,5,LKIND_RES,0); nbLotAdd(1,"SHORE 1",6,0,6,4,LKIND_RES,0); nbLotAdd(2,"SHORE 3",6,6,5,5,LKIND_RES,0);
+        nbLotAdd(3,"BIRCH 2",0,6,4,6,LKIND_RES,0); nbLotAdd(4,"HARBOR PARK",0,15,5,6,LKIND_COMM,CT_PARK); nbLotAdd(5,"BOARDWALK",14,15,6,4,LKIND_COMM,CT_PLAZA);
+        nbLotAdd(6,"CABIN",20,15,4,4,LKIND_COMM,CT_LOUNGE); nbLotAdd(7,"OLD DOCKS",6,17,8,5,LKIND_COMM,CT_OLDTOWN); nbLotAdd(8,"RIDGE SKATE",14,20,6,4,LKIND_COMM,CT_SKATE);
+        for(int y=0;y<NB_H;y++)for(int x=0;x<NB_W;x++) if(nbAt(x,y)<0&&nbT.cell[y][x]!=NT_ROAD&&(x-17)*(x-17)+(y-6)*(y-6)*3/2<34) nbT.cell[y][x]=NT_WATER;   // the lake
+    } else nbLotAdd(0,"YOUR PLACE",2,3,6,6,LKIND_RES,0);
+    u32 r=0x2F6E2B1u+(u32)style*7919u; int dens=style==NS_EMPTY?25:style==NS_DESERT?45:70;
     for(int y=0;y<NB_H;y++)for(int x=0;x<NB_W;x++){
         r=r*1103515245u+12345u; int v=(int)(r>>16)&255;
         if(nbAt(x,y)>=0) continue;
         u8 t=nbT.cell[y][x];
-        if(t==NT_ROAD){ if(((x==11&&(y%4)==2)||(y==11&&(x%4)==2))&&!(x==11&&y==11)) nbT.cell[y][x]=(u8)(NT_PLAZA|(DC_LAMP<<3)); continue; }   // street lamps
-        if(t==NT_WATER) continue;
-        if(v<70) nbT.cell[y][x]|=(u8)((v<30?DC_TREE:v<45?DC_PINE:v<58?DC_BUSH:DC_FLOWER)<<3);
+        if(t==NT_ROAD){ if(((x==rx&&(y%4)==2)||(y==ry&&(x%4)==2))&&!(x==rx&&y==ry)) nbT.cell[y][x]=(u8)(NT_PLAZA|(DC_LAMP<<3)); continue; }   // street lamps
+        if(t==NT_WATER){ continue; }
+        if(v<dens){ int d;
+            if(style==NS_DESERT) d=v<12?DC_TREE:v<30?DC_ROCK:DC_BUSH;
+            else if(style==NS_LAKE) d=v<38?DC_PINE:v<52?DC_TREE:v<62?DC_ROCK:DC_BUSH;
+            else d=v<30?DC_TREE:v<45?DC_PINE:v<58?DC_BUSH:DC_FLOWER;
+            nbT.cell[y][x]|=(u8)(d<<3); }
     }
-    nbT.cell[22][7]=(u8)(NT_SAND); nbT.cell[23][7]=(u8)(NT_SAND|(DC_ROCK<<3)); nbT.cell[20][9]=(u8)(NT_GRASS|(DC_BENCH<<3));
-    nbT.cell[10][4]=(u8)(NT_PLAZA|(DC_FOUNTAIN<<3));
+    if(style==NS_SUBURB){ nbT.cell[22][7]=(u8)(NT_SAND); nbT.cell[23][7]=(u8)(NT_SAND|(DC_ROCK<<3)); nbT.cell[20][9]=(u8)(NT_GRASS|(DC_BENCH<<3)); nbT.cell[10][4]=(u8)(NT_PLAZA|(DC_FOUNTAIN<<3)); }
 }
-
 // ---------- drawing ----------
 static int nbHw, nbHh, nbOx, nbOy, nbK;   // half width / height of a cell, where cell (0,0) is, the object scale
 static u16 nbLit(u16 c,int d){ int r=(c&31)+d, g=((c>>5)&31)+d, b=((c>>10)&31)+d; r=r<0?0:r>31?31:r; g=g<0?0:g>31?31:g; b=b<0?0:b>31?31:b; return RGB(r,g,b); }
@@ -229,7 +252,7 @@ static void nbDrawLotModel(int i,int sx,int sy){   // HOOK: a lot's building (a 
     }
 }
 static void nbDrawTown(int ccx,int ccy,int tool,int ghostW,int ghostH,int ghostOk){
-    if(nbT.zoom){ nbHw=8; nbHh=4; nbK=2; nbOx=120-(ccx-ccy)*nbHw; nbOy=62-(ccx+ccy)*nbHh; }
+    if(nbT.zoom&&tool>=0){ nbHw=8; nbHh=4; nbK=2; nbOx=120-(ccx-ccy)*nbHw; nbOy=62-(ccx+ccy)*nbHh; }
     else { nbHw=4; nbHh=2; nbK=1; nbOx=120; nbOy=20; }
     u16 sky=nbT.tod==2?RGB(1,1,4):nbT.tod==1?RGB(10,6,8):RGB(4,7,12);
     clipAll(); fillCols(0,ROW_W,sky); clipSet(0,12,SW,122);
@@ -256,6 +279,7 @@ static void nbDrawTown(int ccx,int ccy,int tool,int ghostW,int ghostH,int ghostO
             if(li==nbT.home){ rect(mx-1,my-(16+3*L->floors)*nbK,3,3,GOLD); px(mx,my-(17+3*L->floors)*nbK,WHITE); }   // home: a gold marker over it
         }
     }
+    if(tool<0){ clipAll(); return; }   // (the chooser's backdrop: no cursor)
     int sx,sy; nbPos(ccx,ccy,&sx,&sy);   // the cursor
     if(tool==4) nbOutline(ccx,ccy,ghostW,ghostH,ghostOk?RGB(8,30,8):RGB(31,6,6));
     else { int li=nbAt(ccx,ccy); if(tool==0&&li>=0){ const NbLot*L=&nbT.lot[li]; nbOutline(L->x,L->y,L->w,L->h,GOLD); nbOutline(L->x,L->y,L->w,L->h,(uiTicks&16)?WHITE:GOLD); } }
@@ -356,19 +380,16 @@ static int nbNewLot(int x,int y,int w,int h){
     nbSave(); toast("LOT PLACED"); return 1;
 }
 static void nbTownMenu(int*quit){
-    static const char* const it[7]={"ZOOM","SEASON","TIME OF DAY","RENAME TOWN","HOW IT WORKS","START A NEW TOWN","LEAVE"};
+    static const char* const it[7]={"ZOOM","SEASON","TIME OF DAY","RENAME TOWN","HOW IT WORKS","ALL NEIGHBORHOODS","LEAVE"};
     int c=menu("TOWN",it,7);
     if(c==0) nbT.zoom^=1;
     else if(c==1) nbT.season=(u8)((nbT.season+1)&3);
     else if(c==2) nbT.tod=(u8)((nbT.tod+1)%3);
     else if(c==3){ char nm[SLOT_NAME+1]; for(int i=0;i<=NB_NAME;i++) nm[i]=nbT.name[i]; if(slEditName(nm)) for(int i=0;i<=NB_NAME;i++) nbT.name[i]=nm[i]; }
     else if(c==4) helpScreen("NEIGHBORHOOD",nbHelp,16);
-    else if(c==5){ const char*yn[2]={"NO","YES"};
-        if(menu("A NEW TOWN  HOUSES STAY IN SLOTS",yn,2)==1){ int cur=nbT.cur<NB_LOTS&&nbT.lot[nbT.cur].on; if(cur) nbStore(nbT.cur); nbNew(); nbBounds(); toast("A NEW TOWN"); } }
-    else if(c==6) *quit=1;
+    else if(c==5||c==6) *quit=1;
 }
 static void neighborhoodScreen(void){
-    if(!nbOk){ nbOk=nbLoad(); if(!nbOk){ nbNew(); nbOk=1; } nbSave(); }
     nbBounds();
     int ccx=nbT.lot[nbT.home].on?nbT.lot[nbT.home].x+nbT.lot[nbT.home].w/2:5, ccy=nbT.lot[nbT.home].on?nbT.lot[nbT.home].y+nbT.lot[nbT.home].h/2:5;
     int tool=0, sub[5]={0,0,0,1,2}, hold[4]={0}, dirty=1, quit=0, played=0; u16 prev=keyNow();
@@ -404,6 +425,100 @@ static void neighborhoodScreen(void){
         uiTicks++; menuMusTick();
     }
     if(played) nbSave();
+    while((~REG_KEYINPUT)&0x3FF) vsync();
+}
+// ---------- CHOOSE A NEIGHBORHOOD (the screen before the town: one thumbnail per town, made new from a style) ----------
+static u16 nbThumbCol(const Town*t,int cx,int cy){
+    for(int i=0;i<NB_LOTS;i++){ const NbLot*L=&t->lot[i]; if(!L->on||cx<L->x||cy<L->y||cx>=L->x+L->w||cy>=L->y+L->h) continue;
+        int mx=cx-L->x, my=cy-L->y, mid=mx>=L->w/2-1&&mx<=L->w/2&&my>=L->h/2-1&&my<=L->h/2;
+        if(L->kind==LKIND_COMM) return mid?RGB(12,12,14):RGB(19,19,18);
+        if(mid&&(L->slot>=0||(t->NB_ACT&&t->cur==i))) return RGB(22,6,5);   // a house: its roof
+        return mid&&L->slot<0?RGB(29,29,29):t->season==3?RGB(28,29,31):RGB(11,22,8); }
+    u8 c=t->cell[cy][cx]; int g=NB_GR(c), d=NB_DC(c);
+    if(d==DC_TREE||d==DC_PINE||d==DC_BUSH) return t->season==2?RGB(22,12,4):t->season==3?RGB(24,25,27):RGB(4,13,4);
+    switch(g){ case NT_ROAD: return RGB(7,7,8); case NT_WATER: return t->season==3?RGB(22,26,30):RGB(6,13,25); case NT_SAND: return RGB(27,24,15);
+        case NT_DIRT: return RGB(16,11,6); case NT_PLAZA: return RGB(19,19,18);
+        default: { static const u16 gs[4]={RGB(10,21,8),RGB(8,18,5),RGB(17,16,6),RGB(27,28,30)}; return gs[t->season&3]; } }
+}
+static void nbThumb(const Town*t,int x0,int y0,int w,int h){   // the whole town, iso, w x h pixels
+    rect(x0,y0,w,h,RGB(4,6,12));
+    for(int py=0;py<h;py++)for(int px_=0;px_<w;px_++){
+        int X2=(2*px_-w)*NB_W*2/w, Y2=py*NB_W*4/h;   // twice (cx-cy) and twice (cx+cy)
+        int cx=(X2+Y2)/4, cy=(Y2-X2)/4; if(X2+Y2<0||Y2-X2<0||cx>=NB_W||cy>=NB_H) continue;
+        px(x0+px_,y0+py,nbThumbCol(t,cx,cy)); }
+}
+static int nbSwitch(int s){   // make the town in slot s the one you live in (your lot there becomes the live room). 1 = done
+    if(nbTS==s&&nbT.NB_ACT) return 1;
+    if(nbLoad()){ if(nbT.cur<NB_LOTS&&nbT.lot[nbT.cur].on){ box(60,64,120,24); text(76,72,"PACKING UP...",WHITE,1); present();
+            int e=nbStore(nbT.cur); if(e){ nbErr=e==SLE_NOROOM?"NO FREE SLOTS FOR YOUR LOT":slErrMsg(e); return 0; } }
+        nbT.NB_ACT=0; nbSave(); }
+    if(!nbRead(s,&nbT)){ nbErr="THAT TOWN IS DAMAGED"; nbLoad(); return 0; }
+    nbTS=s; int want=nbT.cur<NB_LOTS&&nbT.lot[nbT.cur].on?nbT.cur:nbT.home; nbT.cur=255; nbT.NB_ACT=1;
+    if(!nbGo(want)){ nbSave(); return 0; }
+    return 1;
+}
+static void nbChooserDraw(const int*l,int n,int sel,int act){
+    if(n&&nbRead(l[sel],&nbT)){ int z=nbT.zoom; nbT.zoom=0; nbDrawTown(0,0,-1,0,0,0); nbT.zoom=z; }   // the picked town, from the air, dimmed behind the panel
+    else { clipAll(); fillCols(0,ROW_W,RGB(4,7,12)); }
+    for(int i=0;i<SW*SH;i++){ u16 c=fb[i]; fb[i]=(u16)(((c>>1)&0x3DEF)); }
+    rect(14,15,212,128,RGB(16,20,28)); rect(16,17,208,124,RGB(8,11,20)); rect(16,17,208,14,RGB(11,15,26));
+    { const char*t="CHOOSE A NEIGHBORHOOD TO PLAY"; text(120-tw(t,1)/2,21,t,GOLD,1); }
+    int first=sel-1; if(first>n-3) first=n-3; if(first<0) first=0;
+    for(int j=0;j<3&&first+j<n;j++){ int i=first+j, x=26+j*64, y=40;
+        rect(x-2,y-2,60,40,i==sel?GOLD:RGB(14,17,24)); if(i==sel) rect(x-1,y-1,58,38,GOLD);
+        if(nbRead(l[i],&nbTmp)){ nbThumb(&nbTmp,x,y,56,36);
+            text(x+28-tw(nbTmp.name,1)/2,y+40,nbTmp.name,i==sel?WHITE:DIMC,1);
+            if(l[i]==act) text(x+28-tw("YOU LIVE HERE",1)/2,y+49,"YOU LIVE HERE",RGB(12,28,8),1); } }
+    if(first>0) text(18,56,"<",WHITE,2); if(first+3<n) text(214,56,">",WHITE,2);
+    if(n&&nbRead(l[sel],&nbTmp)){ int lots=0,homes=0; for(int i=0;i<NB_LOTS;i++) if(nbTmp.lot[i].on){ lots++; if(nbTmp.lot[i].kind==LKIND_RES&&nbTmp.lot[i].slot>=0) homes++; }
+        char b[40]; char*e=slNum(b,lots); e=slCat(e," LOTS  "); e=slNum(e,homes); e=slCat(e,homes==1?" HOUSE  ":" HOUSES  "); slCat(e,seasNm[nbTmp.season&3]); text(120-tw(b,1)/2,102,b,DIMC,1); }
+    text(24,116,"A PLAY   SELECT NEW TOWN   START OPTIONS",WHITE,1);
+    text(24,126,"LEFT RIGHT CHOOSE   B BACK",DIMC,1);
+    blitItem(V_DEADSET,224,150);   // the DeadSet looks on
+}
+static void nbChooser(void){   // main menu NEIGHBORHOOD
+    int l[SLOT_MAX], n=nbTownList(l,SLOT_MAX);
+    if(!n){   // the first visit: three towns to start with (one on a 32 KB SRAM chip)
+        nbGen(NS_SUBURB,nsTown[NS_SUBURB]); nbT.cur=0; nbT.NB_ACT=1; nbTS=-1; nbSave();   // (the room you have is YOUR PLACE in BOREVILLE)
+        if(SLOT_N>=26){ int keep=nbTS; for(int st=NS_DESERT;st<=NS_LAKE;st++){ nbGen(st,nsTown[st]); nbTS=-1; nbSave(); } nbTS=keep; }
+        n=nbTownList(l,SLOT_MAX);
+    }
+    nbOk=nbLoad(); int act=nbTS, sel=0; for(int i=0;i<n;i++) if(l[i]==act) sel=i;
+    int dirty=1; u16 prev=keyNow();
+    for(;;){
+        u16 k=keyNow(), pr=k&~prev; prev=k;
+        if(pr&(K_RIGHT|K_R)){ if(sel<n-1){ sel++; dirty=1; } }
+        if(pr&(K_LEFT|K_L)){ if(sel>0){ sel--; dirty=1; } }
+        if(pr&K_B) break;
+        if((pr&K_A)&&n){
+            if(!nbSwitch(l[sel])){ nbOk=nbLoad(); toast(nbErr); }
+            else { nbOk=1; neighborhoodScreen(); if(gToMenu) return; }
+            n=nbTownList(l,SLOT_MAX); act=nbTS; prev=keyNow(); dirty=1;
+        }
+        if(pr&K_SEL){
+            int st=menu("A NEW NEIGHBORHOOD",nsNm,NS_N);
+            if(st>=0){ char nm[SLOT_NAME+1]; int i=0; for(;nsTown[st][i];i++) nm[i]=nsTown[st][i]; nm[i]=0;
+                if(slEditName(nm)){ nbGen(st,nm); nbTS=-1; int e=nbSave(); toast(e?"NO FREE SLOT FOR A TOWN":"NEIGHBORHOOD MADE"); }
+                nbOk=nbLoad(); n=nbTownList(l,SLOT_MAX); act=nbTS; }
+            prev=keyNow(); dirty=1;
+        }
+        if((pr&K_START)&&n){
+            static const char* const it[2]={"RENAME","DELETE"};
+            int c=menu(nbTmp.name,it,2);
+            if(c==0&&nbRead(l[sel],&nbT)){ char nm[SLOT_NAME+1]; for(int i=0;i<=NB_NAME;i++) nm[i]=nbT.name[i];
+                if(slEditName(nm)){ for(int i=0;i<=NB_NAME;i++) nbT.name[i]=nm[i]; nbTS=l[sel]; nbSave(); } nbOk=nbLoad(); }
+            else if(c==1){
+                if(l[sel]==act) toast("YOU LIVE THERE");
+                else { const char*yn[2]={"NO","YES"};
+                    if(menu("DELETE IT AND ITS HOUSES",yn,2)==1&&nbRead(l[sel],&nbTmp)){
+                        for(int i=0;i<NB_LOTS;i++) if(nbTmp.lot[i].on&&nbTmp.lot[i].slot>=0) slDelete(nbTmp.lot[i].slot);
+                        slDelete(l[sel]); toast("NEIGHBORHOOD DELETED"); n=nbTownList(l,SLOT_MAX); if(sel>=n) sel=n-1; if(sel<0) sel=0; } } }
+            nbOk=nbLoad(); act=nbTS; prev=keyNow(); dirty=1;
+        }
+        if(dirty){ nbChooserDraw(l,n,sel,act); present(); dirty=0; } else vsync();
+        uiTicks++; menuMusTick();
+    }
+    nbOk=nbLoad(); nbBounds();
     while((~REG_KEYINPUT)&0x3FF) vsync();
 }
 static int nbResetLot(void){ if(!nbOk||nbT.cur>=NB_LOTS||!nbT.lot[nbT.cur].on) return 0; nbTemplate(nbT.cur); return 1; }   // the room builder's RESET on a lot
