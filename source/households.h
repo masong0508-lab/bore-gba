@@ -42,7 +42,7 @@ static void bkHead(int i,int kind,int lot,u16 key,const char*last,const char*fir
     for(int k=0;k<HH_NM;k++){ svWr(o+22+k,k<HH_NM-1?first[k]:0); if(!first[k]) break; }
     svWr(o+34,stage); svWr(o+35,LK_N); svWr(o,'H'); svWr(o+1,'B');   // byte 35: how many looks the record holds (older records have another value there: LK_N10)
 }
-static int bkNl(int v){ return v==LK_N?LK_N:v==LK_N11?LK_N11:LK_N10; }   // looks a bank record holds, from its byte 35
+static int bkNl(int v){ return v==LK_N?LK_N:v==LK_N12?LK_N12:v==LK_N11?LK_N11:LK_N10; }   // looks a bank record holds, from its byte 35
 static int bkCheck(int i){ u32 o=bkOff(i); if(!bkOk(i)) return 0; int n=svRd(o+6)|svRd(o+7)<<8; if(n>BK_SZ-BK_HDR) return 0;
     u16 s=0; for(int k=0;k<n;k++) s=(u16)(s+svRd(o+BK_HDR+k)); return s==(u16)(svRd(o+8)|svRd(o+9)<<8); }
 static int bkPutMine(int i,u16 key,int lot){   // the household you play (kind 1) into record i. 1 = done
