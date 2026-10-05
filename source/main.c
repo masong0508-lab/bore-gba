@@ -3319,7 +3319,7 @@ static void mapEditor(void){
 // L R change tab | UP DOWN pick a row | LEFT RIGHT change it | SELECT turns the creature | START jumps to DONE | B leaves.
 enum { TB_BODY, TB_FACE, TB_HAIR, TB_CLOTHES, TB_PARTS, TB_ASPIRE, TB_DONE, NTAB };
 enum { RK_PICK, RK_SWATCH, RK_ACT, RK_SLIDE, RK_PERS, RK_TRAIT, RK_DUO };   // RK_DUO: two buttons side by side in one row (LEFT RIGHT picks the side; id = left action, n = right action, lab/sub = what each side says it does)   // a row picks from named options, picks a colour, is a button, a slider, a persona choice or a trait
-enum { AC_PLAY, AC_MAP, AC_MENU, AC_RAND, AC_ADD, AC_FAM, AC_FNAME, AC_LNAME, AC_TRAND };
+enum { AC_PLAY, AC_MAP, AC_MENU, AC_RAND, AC_ADD, AC_FAM, AC_FNAME, AC_LNAME, AC_TRAND, AC_HOUSE };
 enum { PS_ASP, PS_LTW, PS_SIGN };
 typedef struct { const char*lab,*sub; u8 kind,id,n; } Row;   // sub = second line of a button
 static const char* const tabNm[NTAB]={"BODY","FACE","HAIR","CLOTHES","PARTS","ASPIRE","DONE"};
@@ -3369,9 +3369,9 @@ static const Row tabRow[NTAB][TROWS]={
    {"TAIL TAPER",0,RK_SLIDE,LK_TAILTAPER,9},{"TAIL FLUFF",0,RK_SLIDE,LK_TAILFLUF,9},{"TAIL WAVE",0,RK_SLIDE,LK_TAILWAVE,9},{"TAIL TIP SHADE",0,RK_SLIDE,LK_TIPTONE,9},{"HORN TIP",0,RK_SLIDE,LK_HORNTIP,9},{"WING DROOP",0,RK_SLIDE,LK_WINGDROOP,9},{"WING SHADE",0,RK_SLIDE,LK_WINGTONE,9}},
   {{"ASPIRATION",0,RK_PERS,PS_ASP,AS_PICK},{"LIFETIME WANT",0,RK_PERS,PS_LTW,2},{"SIGN",0,RK_PERS,PS_SIGN,12},
    {"NEAT",0,RK_TRAIT,TR_NEAT,11},{"OUTGOING",0,RK_TRAIT,TR_OUT,11},{"ACTIVE",0,RK_TRAIT,TR_ACT,11},{"PLAYFUL",0,RK_TRAIT,TR_PLAY,11},{"NICE",0,RK_TRAIT,TR_NICE,11}},
-  {{"GO LIVE LIFE!","PLAY IT NOW",RK_ACT,AC_PLAY,0},{"ROLL THE DICE","EVERYTHING ROLLS",RK_DUO,AC_RAND,AC_TRAND},{"EDIT MAP","BUILD ROOMS",RK_ACT,AC_MAP,0},{"MAIN MENU","LOOK IS KEPT",RK_ACT,AC_MENU,0},{"ADD TO FAMILY","COPY THIS LOOK",RK_ACT,AC_ADD,0},{"FAMILY","EDIT OR MOVE OUT",RK_ACT,AC_FAM,0}} };   // (the last two rows are the DEBUG CODE's: tabRows hides them without it)
-static const u8 tabN0[NTAB]={31,21,6,7,40,8,6};
-static int tabRows(int t){ return tabN0[t]-(t==0&&stage<AG_TEEN&&!sUnlock?3:0)-(t==6&&!dbgOn?2:0); }   // (DONE tab: ADD TO FAMILY and FAMILY are the last two rows and only show with the debug code)   // babies and children: no BUTT rows
+  {{"GO LIVE LIFE!","PLAY IT NOW",RK_ACT,AC_PLAY,0},{"ROLL THE DICE","EVERYTHING ROLLS",RK_DUO,AC_RAND,AC_TRAND},{"EDIT MAP","BUILD ROOMS",RK_ACT,AC_MAP,0},{"MAIN MENU","LOOK IS KEPT",RK_ACT,AC_MENU,0},{"HOUSEHOLD","FAMILY AND KIN",RK_ACT,AC_HOUSE,0}} };   // (HOUSEHOLD: hhcreate.h. It holds ADD TO FAMILY, FAMILY and the relations)
+static const u8 tabN0[NTAB]={31,21,6,7,40,8,5};
+static int tabRows(int t){ return tabN0[t]-(t==0&&stage<AG_TEEN&&!sUnlock?3:0); }   // babies and children: no BUTT rows
 #define tabN(t) tabRows(t)
 static int tabNext(int t,int d){ return (t+d+NTAB)%NTAB; }
 
@@ -3707,7 +3707,6 @@ static void famAdd(void){
     hhSave(); static char t[36]; char*e=simCat(t,hhM[m].name); e=simCat(e," JOINS  "); e=simCatN(e,hhN+1); e=simCat(e," OF "); simCatN(e,HH_MAX+1); toast(t);
 }
 static void famMenu(void){
-    if(!dbgOn) return;   // (DEBUG CODE only)
     hhLoad(); if(!hhN){ toast("ONLY YOU SO FAR"); return; }
     static char lb[HH_MAX][32]; const char* it[HH_MAX];
     for(int m=0;m<hhN;m++){ char*e=simCat(lb[m],hhM[m].name); e=simCat(e,"  "); simCat(e,stageNm[hhM[m].stage<AG_N?hhM[m].stage:AG_ADULT]); it[m]=lb[m]; }
@@ -3725,6 +3724,7 @@ static void famMenu(void){
     custom=0; ageDays=0; fixLook(); buildLook(); setColors(); ageSave(); persSave(); hhSave();
     static char t[32]; simCat(simCat(t,"NOW EDITING "),hhPName); toast(t);
 }
+#include "hhcreate.h"   // CREATE-A-HOUSEHOLD: the DONE tab's HOUSEHOLD row (add Sims, who is whose mother / sister / roommate)
 static const u8 lkCnt[LK_N]={NSHAPE,NSKIN,NEYE,NMOUTH,3,NHAIR,NSW,NSW,NSW,9,9,9,3,3,3,6,6,3,4,3,6, 6,6,5,4,NSW, 9,9,9,9,9,9,9, 4,3,7,6, 9,9,9,9,9,9,9,9,9, 5,4,4, 9,9,9, 9,9,9,9,9,9,9, 9,9,9,9,9,9,9, 9,9,9,7, 9,9,9, 9};   // how many options each look row has (sliders: 9)
 static void lookRandom(void){   // the dice (like Create-A-Bore): a whole new look and personality, only from what this stage and your unlocked parts allow
     const u8*cnt=lkCnt;
@@ -3790,6 +3790,7 @@ static int creatorNew(void){   // returns 1 when the secret code switched screen
                     case AC_TRAND: lookTrueRandomMe(); break;
                     case AC_ADD:   famAdd(); break;
                     case AC_FAM:   famMenu(); break;
+                    case AC_HOUSE: hcMenu(); break;
                     case AC_FNAME: if(nameEdit(hhPName,HH_NM-1,"FIRST NAME",0)) hhSave(); break;
                     case AC_LNAME: if(nameEdit(hhPLast,HH_NM-1,"LAST NAME",1)) hhSave(); break;
                     default:       stageOn=0; return 0;   // MAIN MENU
@@ -4268,7 +4269,7 @@ static int newGame(int slot){   // 1 = it started (and ended: back to the main m
     static const char* const yn[2]={"YES  NEW LIFE","NO"}; if(menu("START OVER?",yn,2)!=0) return 0;
     if(slot>=0){ if(!nbSwitch(slot)){ nbOk=nbLoad(); toast(nbErr); return 0; } nbOk=1; nbBounds(); }
     twKeep=0; simsNewLife(); moodReset(); lscore=0; simLastScore=0;
-    hhN=0; for(int a=0;a<HU_N;a++)for(int b=0;b<HU_N;b++){ relD[a][b]=relL[a][b]=0; relF[a][b]=0; }   // the old household moves out
+    hhN=0; for(int a=0;a<HU_N;a++)for(int b=0;b<HU_N;b++){ relD[a][b]=relL[a][b]=0; relF[a][b]=0; } kinClear();   // the old household moves out
     stOff();
     if(c==1&&hhMoveIn(&hhFams[f])>0){ hhSwap(&hhM[0]); hhRemove(0); }   // you are the family's first Sim (who you were leaves)
     else if(c==2) lookTrueRandomMe();
