@@ -15,7 +15,7 @@ the converter makes - the ambient TREE-AGE, Worthless Clouds, the Amiga ending..
   - MASTER: glue compression, a gentle tilt towards a common tonal balance, mono below 120 Hz, -14 LUFS integrated, -1 dBTP true peak.
     A song that loops in the game (no written ending) plays once through, goes round again and fades out.
 """
-import os, sys, re, io, json, math, subprocess, contextlib, fractions, importlib
+import os, sys, re, io, json, math, subprocess, contextlib, fractions, importlib, collections
 import numpy as np
 from scipy import signal
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
@@ -226,21 +226,29 @@ def song_plan(S, used, lo, panf, pans, snd, sid):
     last = max((e[0] for e in ev), default=0.0)
     return dict(ev=ev, t_end=t_end, last=last, rowsec=rowsec, loop=loop, again=lambda t0: pass_events(S['order'][loop:] * 3, t0))
 
-def make_ir(seed=7, length=3.4, pre=0.021):
+SPACE = {   # how much hall a song gets (1 = the full hall; under 0.6 a small room instead).  Dance tracks are kept dry and close; the title
+             # song nearly dry; CONDENSED MUSIC and STAGED carry reverb in their own sounds already.  The ambient and acoustic pieces keep the hall.
+    'the_dipper_man': 0.25, 'condensed_music': 0.3, 'staged': 0.3, 'emergency_hitech': 0.4, 'emergency_dance_floor': 0.4, 'hotdamn_rave': 0.4,
+    'hotdamn_rave_old': 0.4, 'amiga_music': 0.4, 'cynicaller_dnb': 0.45, 'meltdown_in_mars_house': 0.45, 'mi_cora_zone': 0.45,
+    'closer_to_the_end': 0.5, 'closer_to_the_end_old': 0.5, 'sunman_sunrise': 0.5, 'the_ticking_bomb': 0.5, 'cocaine_cola_ii': 0.5,
+    'cocaine_cola': 0.5, 'gottcho_barracho': 0.55, 'earth_and_the_space_citizens': 0.6, 'tree_swaying_action_old': 0.6, 'excuses_house': 0.8,
+}
+def make_ir(seed=7, length=3.4, pre=0.021, rt=1.0):
     """a stereo hall: decorrelated noise, frequency-dependent decay (lows 2.6 s, mids 2.1 s, highs 0.8 s), early reflections"""
     g = np.random.default_rng(seed); n = int(length * FS); t = np.arange(n) / FS
     bands = [(20, 200, 2.6), (200, 800, 2.3), (800, 2500, 2.0), (2500, 6000, 1.4), (6000, 12000, 0.9), (12000, 20000, 0.55)]
     ir = np.zeros((2, n))
     for c in range(2):
         w = g.standard_normal(n)
-        for f0, f1, rt in bands:
-            sos = signal.butter(2, [f0, f1], 'band', fs=FS, output='sos'); ir[c] += signal.sosfilt(sos, w) * np.exp(-6.9 * t / rt)
+        for f0, f1, rt_ in bands:
+            sos = signal.butter(2, [f0, f1], 'band', fs=FS, output='sos'); ir[c] += signal.sosfilt(sos, w) * np.exp(-6.9 * t / (rt_ * rt))
         ir[c] *= np.minimum(1, t / 0.035) ** 1.5                                 # the diffuse field builds up over the first 35 ms
         for k in range(10):                                                     # early reflections, different on each side
             d = int(FS * g.uniform(0.006, 0.075)); ir[c, d] += g.choice([-1, 1]) * 0.9 * np.exp(-d / FS / 0.05)
         ir[c] /= np.sqrt((ir[c] ** 2).sum())
     return np.concatenate([np.zeros((2, int(pre * FS))), ir], axis=1)
 
+ITD = 0.00035   # seconds: the far side's delay for a sound panned all the way (an ear's distance; with the level difference it places a sound clearly)
 def render_mix(plan, snd, panf, sid, extra=None, fade=None):
     """the multitrack mix: every note resampled to 48 kHz, cut by the next note on its channel (4 ms fade), low-cut under its own
     bottom, placed with an equal-power pan, summed into its role's bus; buses get ducking / widening; one hall for everything"""
@@ -256,6 +264,13 @@ def render_mix(plan, snd, panf, sid, extra=None, fade=None):
     nxt = {}; cut = [None] * len(ev)
     for k in range(len(ev) - 1, -1, -1):
         ch = ev[k][1]; cut[k] = nxt.get(ch); nxt[ch] = ev[k][0]
+    # MOTION: a busy line of short notes that the plan leaves in the middle (an arp, an acid line, a pulse) swings slowly across the
+    # field instead (one sweep across every 4 s, each such line in its own phase).  Long notes (a lead, a pad) stay where they are.
+    swing = set(); st = collections.defaultdict(list)
+    for k, e in enumerate(ev):
+        if cut[k] is not None: st[e[2]].append((cut[k] - e[0], abs(e[5])))
+    for i, v in st.items():
+        if len(v) >= 200 and role[i] == 'mel' and np.median([a for a, b in v]) < 0.22 and np.mean([b for a, b in v]) < 0.15: swing.add(i)
     total = (max(e[0] for e in ev) if ev else 0) + 12.0
     if fade: total = min(total, fade[1])
     N = int(total * FS) + FS
@@ -294,11 +309,15 @@ def render_mix(plan, snd, panf, sid, extra=None, fade=None):
                 if m > 0: y[c:] *= fo[:m]
           L = min(L, N - s0); y = y[:L]
         R = ROLES[role[i]]; p = max(-1.0, min(1.0, pan * R['ps']))
-        if role[i] in ('mel', 'pad', 'perc', 'fx'): p = math.copysign(abs(p) ** 0.85, p)      # (the plan's in-between places opened out a little)
+        if role[i] == 'pad': p += 0.18 * math.sin(2 * math.pi * t / 9.0 + i)                # pads drift slowly across the field
+        if i in swing: p = 0.5 * math.sin(2 * math.pi * t / 8.0 + 1.7 * i)                  # (MOTION, above)
+        if role[i] in ('mel', 'pad', 'perc', 'fx', 'hat'): p = math.copysign(min(1.0, abs(p)) ** 0.6, p)   # the plan's places opened out
         th = (p + 1) * np.pi / 4; gl, gr = np.cos(th) * amp, np.sin(th) * amp
         b = bus.get(role[i])
         if b is None: b = bus[role[i]] = np.zeros((2, N), np.float32)
-        b[0, s0:s0 + L] += gl * y; b[1, s0:s0 + L] += gr * y
+        dl = int(round(abs(p) * ITD * FS)) if role[i] not in ('kick', 'bass', 'boom') else 0   # the far ear hears it a little later
+        if p >= 0: b[1, s0:s0 + L] += gr * y; e0 = min(N, s0 + dl + L); b[0, s0 + dl:e0] += gl * y[:e0 - s0 - dl]
+        else: b[0, s0:s0 + L] += gl * y; e0 = min(N, s0 + dl + L); b[1, s0 + dl:e0] += gr * y[:e0 - s0 - dl]
         sl = R['send']
         if sl: send[0, s0:s0 + L] += gl * sl * y; send[1, s0:s0 + L] += gr * sl * y
     # bus processing
@@ -319,8 +338,9 @@ def render_mix(plan, snd, panf, sid, extra=None, fade=None):
             sd = np.zeros_like(m); sd[d:] = m[:-d]; sd = signal.sosfilt(signal.butter(2, 350, 'high', fs=FS, output='sos'), sd).astype(np.float32)
             b[0] += R['widen'] * sd; b[1] -= R['widen'] * sd
     mix = sum(bus.values()) if bus else np.zeros((2, N), np.float32)
-    ir = make_ir()
-    wet = np.stack([signal.oaconvolve(send[c], ir[c])[:N] for c in range(2)])
+    sp = SPACE.get(sid, 1.0)
+    ir = make_ir() if sp >= 0.6 else make_ir(length=1.8, pre=0.012, rt=0.5)   # (a dry song: a smaller, shorter room as well as less of it)
+    wet = np.stack([signal.oaconvolve(send[c], ir[c])[:N] for c in range(2)]) * sp
     wet = signal.sosfilt(signal.butter(2, 230, 'high', fs=FS, output='sos'), wet)
     wet = signal.sosfilt(signal.butter(2, 8500, 'low', fs=FS, output='sos'), wet)
     mix = mix + wet.astype(np.float32)
@@ -420,9 +440,9 @@ def mono_bass(x, fc=110.0):
     side = signal.sosfilt(signal.butter(4, fc, 'high', fs=FS, output='sos'), side)
     return np.stack([mid + side, mid - side]).astype(np.float32)
 
-def stereo(x, want=0.28, most=1.45):
+def stereo(x, want=0.36, most=1.5):
     """the stereo picture: (1) left / right levels evened out (a mix that leans to one side is trimmed, as the game's converter does);
-    (2) a narrow mix is opened up: its side signal above 250 Hz is raised (at most +3.2 dB) until side / mid reaches `want`"""
+    (2) a narrow mix is opened up: its side signal above 250 Hz is raised (at most +3.5 dB) until side / mid reaches `want`"""
     l, r = float((x[0].astype(np.float64) ** 2).mean()), float((x[1].astype(np.float64) ** 2).mean())
     k = (l / (r + 1e-20)) ** 0.25; x = np.stack([x[0] / k, x[1] * k])
     mid = (x[0] + x[1]) * 0.5; side = (x[0] - x[1]) * 0.5
@@ -430,7 +450,10 @@ def stereo(x, want=0.28, most=1.45):
     mh = signal.sosfilt(signal.butter(2, 250, 'high', fs=FS, output='sos'), mid)
     w = np.sqrt((sh ** 2).mean() / ((mh ** 2).mean() + 1e-20)); g = float(np.clip(want / (w + 1e-9), 1.0, most))
     side = side + (g - 1) * sh
-    return np.stack([mid + side, mid - side]).astype(np.float32), dict(trim_db=float(20 * np.log10(k)), width_hi=float(w), side_gain_db=float(20 * np.log10(g)))
+    # (3) and never so wide that it thins out in mono: side / mid at most 0.69 (a left / right correlation of 0.35 or more)
+    q = float(np.sqrt((side.astype(np.float64) ** 2).mean() / ((mid.astype(np.float64) ** 2).mean() + 1e-20))); cap = 1.0
+    if q > 0.69: cap = 0.69 / q; side = side * cap
+    return np.stack([mid + side, mid - side]).astype(np.float32), dict(trim_db=float(20 * np.log10(k)), width_hi=float(w), side_gain_db=float(20 * np.log10(g * cap)))
 
 def master(mix, fade=None, target=-14.0, hifi=True, tail_db=-66):
     rep = {}

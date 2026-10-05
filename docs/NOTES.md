@@ -759,3 +759,11 @@ Every Sim has a GENDER: FEMALE, MALE or NONBINARY. It's `look[LK_SEX]`, the last
     - They are in equal temperament (the stems' tunings disagreed by up to 40 cents) and level-matched to the sounds they replace. The transcription's B-7 cut marks are treated as note ends.
     - The six drum hits that came from the recording are rebuilt too (tambora, tarola, cymbals), coloured by each recorded hit's own spectrum and envelope.
     - Its chords still match the old version second by second (0.93 median).
+- **Space and panning (studio renders).**
+  - **Reverb per song (`SPACE`):** the title song gets a quarter of the hall, in a small short room. Dance tracks get 0.3–0.5. CONDENSED MUSIC and STAGED get 0.3, as they carry reverb of their own. The ambient and acoustic pieces keep the full hall.
+  - **Panning:**
+    - The plan's places are opened out (|p|^0.6) for melodic parts, pads, percussion, effects and hats; kick, bass and snare stay centred.
+    - The far ear hears each panned note up to 0.35 ms later, so it is placed clearly.
+    - Pads drift (±0.18 over 9 s).
+    - Busy short-note lines the plan leaves in the middle (arps, acid lines, pulses) swing ±0.5 every 8 s.
+  - **Width:** narrow mixes are lifted to side/mid 0.36 above 250 Hz, and no mix is wider than side/mid 0.69 (a left/right correlation of at least 0.35, so nothing thins out in mono).
