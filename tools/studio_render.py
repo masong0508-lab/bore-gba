@@ -85,6 +85,7 @@ def match(lo, rate_lo, hi, rate_hi):
 # ================================================================ a song, read the way the game reads it
 import xm2gba as X
 from xm import parse
+import studio_rebuild as RB
 
 def quiet(f, *a, **k):
     with contextlib.redirect_stdout(io.StringIO()): return f(*a, **k)
@@ -142,7 +143,7 @@ def sounds(sid, S, used, cache, path=None):
         if b is not None and cur is not None and cur.get(ins['name']) != s['data']: b = None
         if b is not None: out[i] = dict(x=np.asarray(b['x'], float), rate=b['rate'], src='hifi', name=ins['name'], vol=s['vol'])
         else: out[i] = dict(x=x, rate=rate, src='sample', name=ins['name'], vol=s['vol'])
-        if out[i]['src'] == 'sample' and str(i) in up:                  # a better copy of this recording in another module: it takes over, lined
+        if out[i]['src'] == 'sample' and str(i) in up:   # (checked before the top end is rebuilt below)                  # a better copy of this recording in another module: it takes over, lined
             u = up[str(i)]; import sample_match as SM                      # up to the sample and level-matched (sample_match.py worked both out)
             y = np.asarray(SM.read_any(open(u['source'], 'rb').read())[u['sample']]['x'], float); k = int(round(u['start']))
             y = y[k:] if k >= 0 else np.concatenate([np.zeros(-k), y])
@@ -152,13 +153,24 @@ def sounds(sid, S, used, cache, path=None):
             nts = [n for o in S['order'] for r in S['pats'][o] for (n, ii, v, e, ep) in r if ii == i and 0 < n < 97]
             d = out[i]; fcp = d['rate'] * 2 ** ((int(np.median(nts)) - 49) / 12) if nts else d['rate']
             d['x'] = quiet(X.fit_bar, d['x'], rows * S['tempo'] * 2.5 / src_bpm, rows * S['tempo'] * 2.5 / S['bpm'], fcp)
+    rb = RB.REBUILD.get(os.path.basename(path), {}) if path else {}
+    for i, d in out.items():
+        if i in rb:                                                          # rebuilt as a new instrument (studio_rebuild.py)
+            kind, nm = rb[i]
+            if kind.startswith('drum:'): out[i] = dict(x=RB.drum(kind[5:], d['x'], d['rate']), rate=float(RB.FS), src='rebuilt', name=nm, vol=d['vol'])
+            else:                                                            # played note by note; as loud as the sound it replaces (at C-4)
+                syn = RB.instrument(kind); ref = np.asarray(d['x'], float)[:int(d['rate'] * 0.3)]; y = syn(60, 0.3, 1.0)[:int(RB.FS * 0.3)]
+                g = float(np.sqrt((ref ** 2).mean() / ((y.astype(float) ** 2).mean() + 1e-20)))
+                out[i] = dict(synth=syn, gain=g, src='rebuilt', name=nm, vol=d['vol'], x=d['x'], rate=d['rate'])
+        elif d['src'] in ('sample', 'archive') and sid not in GEN:           # a recorded sound: its missing octaves rebuilt
+            d['x'], d['rate'] = RB.bwe(d['x'], d['rate']); d['src'] += '+top'
     return out
 
 # ================================================================ roles: which bus an instrument goes to
-ROLE_WORDS = [('boom', r'drop|impact|boom|sub ?hit'), ('kick', r'kick|bass ?drum|\bbd\b'),
+ROLE_WORDS = [('boom', r'drop|impact|boom|sub ?hit'), ('kick', r'kick|bass ?drum|\bbd\b|tambora'),
               ('perc', r'tom|conga|bongo|timbale|darbuka|\bdum\b|frame|\bdaf\b|wood|clave|perc|tabla|djembe|log'),
-              ('snare', r'snare|clap|rim|ghost|crack|\btek\b|chalk|knock|snap'),
-              ('hat', r'hat|shaker|ride|crash|cymbal|\bcym|tamb|cowbell|\briq\b|tick|bell tree|chime'),
+              ('snare', r'snare|clap|rim|ghost|crack|\btek\b|chalk|knock|snap|tarola'),
+              ('hat', r'hat|shaker|ride|crash|cymbal|\bcym|\btamb\b|tambourine|cowbell|\briq\b|tick|bell tree|chime|platillo'),
               ('fx', r'swell|riser|reverse|zap|noise|sweep|whoosh|swoosh|glitch|scratch'),
               ('bass', r'bass|\bsub\b|reese|808|bubble'),
               ('pad', r'pad|string|choir|\booh\b|\bahh?\b|\boo\b|organ|hammond|mellotron|\bair\b|texture|tanpura|drone|ondes|breath|wash')]
@@ -239,7 +251,7 @@ def render_mix(plan, snd, panf, sid, extra=None, fade=None):
     role = {}
     for i, d in snd.items():
         dur = len(d['x']) / d['rate']; cls = info.get(i, {}).get('cls', 'mel')
-        role[i] = role_of(d['name'], cls, dur, d['src'] == 'hifi' or not re.match(r'\s*(sound|sample|inst)?\s*\d*\s*$', d['name'].lower()))
+        role[i] = role_of(d['name'], cls, dur, d['src'] in ('hifi', 'rebuilt') or not re.match(r'\s*((sound|sample|inst)?\s*\d*|[0-9a-f]{3,8})\s*$', d['name'].lower()))   # ('Sound 3', '5d10': no real name)
     # each note's length: until the next note on the same channel
     nxt = {}; cut = [None] * len(ev)
     for k in range(len(ev) - 1, -1, -1):
@@ -251,8 +263,18 @@ def render_mix(plan, snd, panf, sid, extra=None, fade=None):
     cache = {}; lowc = {}
     F4 = int(0.004 * FS); fo = (0.5 * (1 + np.cos(np.linspace(0, np.pi, F4)))).astype(np.float32)
     for k, (t, ch, i, n, amp, pan) in enumerate(ev):
-        key = (i, n)
-        if key not in cache:
+        d = snd[i]
+        if 'synth' in d:                                                     # a rebuilt instrument: this note, this long, at this strength
+            if n >= 96 and amp < 0.05: continue                              # (the transcription's cut marks: silence, no note)
+            dur = (cut[k] - t) if cut[k] is not None else 1.0; vel = min(1.0, amp / max(d['vol'] / 64, 1e-3))
+            key = (i, n, int(round(dur * 50)), int(round(vel * 4)), k % 3)
+            if key not in cache: cache[key] = d['synth'](n + 11, dur, vel) * d['gain']
+            y = cache[key]; s0 = int(round(t * FS))
+            if s0 >= N: continue
+            L = min(len(y), N - s0); y = y[:L]
+        else:
+            key = (i, n)
+        if 'synth' not in d and key not in cache:
             d = snd[i]; rate = d['rate'] * 2 ** ((n - 49) / 12)
             y = to_rate(d['x'], FS / rate)
             if i not in lowc: lowc[i] = low_edge(d['x'], d['rate'])
@@ -261,15 +283,16 @@ def render_mix(plan, snd, panf, sid, extra=None, fade=None):
             if abs(y[0]) > 0.03: y[:32] *= np.sin(np.linspace(0, np.pi / 2, 32)) ** 2      # a recorded sample that starts mid-wave
             if len(y) > 192 and abs(y[-96:]).max() > 1e-3: y[-96:] *= np.cos(np.linspace(0, np.pi / 2, 96)) ** 2   # ...or stops mid-wave
             cache[key] = y.astype(np.float32)
-        y = cache[key]; s0 = int(round(t * FS))
-        if s0 >= N: continue
-        L = len(y)
-        if cut[k] is not None:
+        if 'synth' not in d:
+          y = cache[key]; s0 = int(round(t * FS))
+          if s0 >= N: continue
+          L = len(y)
+          if cut[k] is not None:
             c = int(round(cut[k] * FS)) - s0
             if c < L:
                 L = min(L, c + F4); y = y[:L].copy(); m = L - c
                 if m > 0: y[c:] *= fo[:m]
-        L = min(L, N - s0); y = y[:L]
+          L = min(L, N - s0); y = y[:L]
         R = ROLES[role[i]]; p = max(-1.0, min(1.0, pan * R['ps']))
         if role[i] in ('mel', 'pad', 'perc', 'fx'): p = math.copysign(abs(p) ** 0.85, p)      # (the plan's in-between places opened out a little)
         th = (p + 1) * np.pi / 4; gl, gr = np.cos(th) * amp, np.sin(th) * amp
@@ -289,7 +312,7 @@ def render_mix(plan, snd, panf, sid, extra=None, fade=None):
         key_env = np.interp(np.arange(N), np.arange(nb) * blk + blk / 2, g).astype(np.float32)
     for r, b in bus.items():
         R = ROLES[r]
-        if R['duck'] and kick is not None:
+        if R['duck'] and kick is not None and sid not in RB.NODUCK:
             b *= (10 ** (-R['duck'] * key_env / 20)).astype(np.float32)
         if R['widen']:                                                              # mono-safe width: a delayed, high-passed copy added
             m = (b[0] + b[1]) * 0.5; d = int(0.011 * FS)                            # to one side and taken from the other
@@ -606,8 +629,11 @@ def pack(outdir, only=None):
                             '-bits_per_raw_sample', '24', '-compression_level', '8', '-c:v', 'png', '-disposition:v', 'attached_pic']
                            + meta + [os.path.join(flac_dir, disc, base + '.flac')], check=True)
             m, sec = divmod(int(round(rep['secs'])), 60)
-            na = sum(1 for v in rep.get('sounds', {}).values() if v == 'archive')
-            how = 'hi-fi re-synthesis' if rep.get('hifi') else ('chip voices in stereo' if sid.startswith('chip_') else 'original samples' + (', %d from better copies' % na if na else ''))
+            sv = list(rep.get('sounds', {}).values()); na = sum(v.startswith('archive') for v in sv); nr = sv.count('rebuilt')
+            if rep.get('hifi'): how = 'hi-fi re-synthesis'
+            elif sid.startswith('chip_'): how = 'chip voices in stereo'
+            elif nr: how = 'rebuilt as a banda (%d new instruments), the rest restored' % nr
+            else: how = 'original samples, top end restored' + (', %d from better copies' % na if na else '')
             lines.append('  %d-%02d  %-42s %-22s %2d:%02d  %s%s' % (dn, tn, t, art, m, sec, how, ('  (' + note + ')') if note else ''))
             print(lines[-1], flush=True)
     open(os.path.join(rel, 'TRACKLIST.txt'), 'w', encoding='utf-8').write('\n'.join(lines) + '\n')

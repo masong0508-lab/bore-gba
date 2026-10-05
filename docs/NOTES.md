@@ -752,3 +752,10 @@ Every Sim has a GENDER: FEMALE, MALE or NONBINARY. It's `look[LK_SEX]`, the last
     - **Tree-Age in Action** (both versions): the pluck moves from 2 kHz to 8 kHz.
     - **Gottcho Barracho (Original):** the same sub-bass.
   - The one source not already in the repo was added as `tools/the_dipper_man_another_cigarette.xm`.
+- **Rebuilt sounds (`tools/studio_rebuild.py`), for the songs built on recorded samples.** The game keeps its own samples.
+  - **Top end restored:** every recorded sound gets back the octaves above its old ceiling. Its top octave is moved up 1–3 octaves (the analytic signal to the 2nd/4th/8th power: harmonic tones stay harmonic, noise stays noise) and laid in at the level its own spectral slope predicts (falling 6–15 dB per octave). Nothing below the old ceiling changes. The tracks end up within about 1.5 dB of the master's tonal balance curve up to 12.5 kHz.
+  - **Gottcho Barracho (Original), rebuilt as a banda:** its tune is El Menchón (Banda MS), and its pitched sounds were cut from that recording's stems.
+    - The stems are replaced by synthesized instruments playing the same notes: tuba, alto horns (a trombone below them), and two trumpets with a clarinet (a trombone below their range). They are additive brass with the brass bloom, a scoop into each note and vibrato on held notes.
+    - They are in equal temperament (the stems' tunings disagreed by up to 40 cents) and level-matched to the sounds they replace. The transcription's B-7 cut marks are treated as note ends.
+    - The six drum hits that came from the recording are rebuilt too (tambora, tarola, cymbals), coloured by each recorded hit's own spectrum and envelope.
+    - Its chords still match the old version second by second (0.93 median).
