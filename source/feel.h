@@ -9,18 +9,22 @@
 #define F_BRAKE   4     // brake: spd -= 5 + spd>>4
 #define F_TURN_LO 56    // turn rate at standstill (1/16 unit/frame, ~300 deg/s)
 #define F_TURN_HI 28    // ...at top speed (~150 deg/s)
-#define F_TURN_ACC 10   // turn rate ramp per frame (steering has weight, no snapping)
+#define F_TURN_ACC 14   // turn rate ramp per frame (steering has weight, no snapping). Was 10: a touch quicker to bite
 #define F_GRIP    2     // velocity chases heading by 1/4 per frame (1<<2): slight slide in turns
-#define F_BUF     6     // jump input buffer (frames before landing)
-#define F_COY     5     // coyote time (frames after leaving a ledge)
+#define F_BUF     8     // jump input buffer (frames before landing). Was 6
+#define F_COY     6     // coyote time (frames after leaving a ledge). Was 5
 #define F_OLLIE   0x2C0 // ollie base vz (+spd/2): tap = hop, hold = full
 #define F_CUT     0x240 // releasing B early caps upward speed here (variable jump height)
-#define F_SPIN_MAX 6    // air spin rate (256/360 units per frame)
+#define F_SPIN_MAX 7    // air spin rate (256/360 units per frame). Was 6
+#define F_SPIN_ACC 2    // spin ramps up this much per frame while you hold LEFT / RIGHT in the air (was 1: it took 6 frames to get going)
+#define F_SPIN_BRK 2    // ...and dies away this fast when you let go (was 1: it kept coasting past where you wanted to stop)
 #define F_WALK    8     // on foot: walk speed (1/256 tile per step, adult; the life stage scales it). Was 5 = 1.2 tiles/s
 #define F_RUN     16    // on foot: run speed with B. Was 10
 #define F_WACC    2     // on foot: velocity closes 1/F_WACC of the gap to the target each step (was 3): quick start AND quick stop
 #define F_WKICK   2     // on foot: from standstill the first step already moves at target/F_WKICK (was 1 unit = under a pixel, felt dead)
-#define F_LAND_TOL 36   // land clean within +-36 (~50 deg) of a 180 multiple; +12 while grabbing
+#define F_LAND_TOL 40   // land clean within +-40 (~56 deg) of a 180 multiple; +12 while grabbing. Was 36
+#define F_SKETCH   14   // ...and up to this much further out you still land, but SKETCHY: speed drops and the trick is worth half. Only beyond that is it a bail
+#define F_PERFECT  10   // within +-10 (~14 deg): a PERFECT landing, +25% points and the bright landing sound
 static const short sinQ[65]={0,6,13,19,25,31,38,44,50,56,62,68,74,80,86,92,98,104,109,115,121,126,132,137,142,147,152,157,162,167,172,177,181,185,190,194,198,202,206,209,213,216,220,223,226,229,231,234,237,239,241,243,245,247,248,250,251,252,253,254,255,255,256,256,256};
 static inline int fsin(int a){ int s=1; a&=255; if(a>=128){ a-=128; s=-1; } if(a>64) a=128-a; return s*sinQ[a]; }
 static inline int fcos(int a){ return fsin(a+64); }
@@ -54,14 +58,28 @@ static void feelPush(u16 k,int rail){
 static inline int feelOllie(void){ F.jh=1; F.buf=0; F.coy=0; return (F_OLLIE+(F.spd>>1))*abPct(AB_JUMP,6)/100; }   // JUMP ability: +-6% a point
 static void feelAir(u16 k,u16 pr,int nearGround){      // spin ramps up, A grabs, B flips; variable jump height
     int dir=((k&K_RIGHT)?1:0)-((k&K_LEFT)?1:0);
-    if(dir){ F.spinV+=dir; if(F.spinV>F_SPIN_MAX) F.spinV=F_SPIN_MAX; if(F.spinV<-F_SPIN_MAX) F.spinV=-F_SPIN_MAX; }
-    else if(F.spinV>0) F.spinV--; else if(F.spinV<0) F.spinV++;
+    if(dir){ F.spinV+=dir*F_SPIN_ACC; if(F.spinV>F_SPIN_MAX) F.spinV=F_SPIN_MAX; if(F.spinV<-F_SPIN_MAX) F.spinV=-F_SPIN_MAX; }
+    else if(F.spinV>0){ F.spinV-=F_SPIN_BRK; if(F.spinV<0) F.spinV=0; } else if(F.spinV<0){ F.spinV+=F_SPIN_BRK; if(F.spinV>0) F.spinV=0; }
     F.spin+=F.spinV;
     if(k&K_A){ if(F.grab<600) F.grab++; }
     if(F.jh&&lvz>F_CUT&&!(k&K_B)) lvz=F_CUT;           // let go of B early = short hop
     if(pr&K_B){ if(nearGround&&lvz<0) F.buf=F_BUF; else if(!lflip){ lflip=1; lnote=(k&K_UP)?"HEELFLIP":"KICKFLIP"; lnoteT=40; } }
 }
-static int feelClean(void){ int a=fabsi(F.spin), h=(a+64)>>7, o=fabsi(a-h*128); return o<=F_LAND_TOL+(F.grab>12?12:0)+abBalance(); }   // a LONG TAIL balances
+static int feelOff(int spin){ int a=fabsi(spin), h=(a+64)>>7; return fabsi(a-h*128); }   // how far a spin angle is from the nearest half turn (0..64)
+static int feelTol(void){ return F_LAND_TOL+(F.grab>12?12:0)+abBalance(); }               // a LONG TAIL balances
+// LANDING GRADE for a spin angle: 3 PERFECT, 2 clean, 1 SKETCHY (you land, but slow and for half points), 0 BAIL
+static int feelGradeAt(int spin){ int o=feelOff(spin), t=feelTol(); return o<=F_PERFECT?3: o<=t?2: o<=t+F_SKETCH?1: 0; }
+static int feelGrade(void){ return feelGradeAt(F.spin); }
+static int feelClean(void){ return feelGrade()>0; }   // not a bail
+// What the landing would be if you let go of LEFT / RIGHT now: the spin keeps coasting while it brakes, until the board touches down.
+// (Drives the green / yellow / red mark under the skater and the gasp. Same gravity and brake as lifeStep / feelAir.)
+static int feelPredGrade(void){
+    int sp=F.spin, v=F.spinV; s32 z=lz, vz=lvz, fh=(s32)surfH(lfx,lfy)<<8;
+    for(int i=0;i<48&&z>fh;i++){
+        if(v>0){ v-=F_SPIN_BRK; if(v<0) v=0; } else if(v<0){ v+=F_SPIN_BRK; if(v>0) v=0; }
+        sp+=v; z+=vz; vz-=0x40; if(z<=fh&&vz<=0) break; }
+    return feelGradeAt(sp);
+}
 static int feelHalfTurns(void){ return (fabsi(F.spin)+64)>>7; }
 static int feelGrabPts(void){ int g=F.grab>>2; return g>150?150:g; }
 static void feelLandReset(void){ F.spin=F.spinV=F.grab=0; F.jh=0; }

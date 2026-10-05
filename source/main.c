@@ -1384,6 +1384,7 @@ static int bdx=10, bdy=4, spx=3, spy=6;   // skateboard tile and spawn tile, fou
 #define BDX bdx
 #define BDY bdy
 static int lsp,lhd,lspin,lflip,lgrind,lscore,lstun,lairF,lpts,lnoteT,lglide; static const char*lnote;
+static char lnBuf[24]; static u8 lnPerf; static int lLand, lLandD;   // lnBuf: the name of the trick just landed ("KICK 360 GRAB"); lLand: frames of landing crouch left, lLandD: how far the fall was
 static int stModal; static void stRunModal(void);   // story.h: a chapter card is waiting (1 chapter intro, 2 chapter done); lifeModeRun shows it like the pause menu
 static int tutOn;   // 1 while the tutorial runs (tutorial.h): nobody dies, like the Sims 2 tutorial neighborhood
 
@@ -1428,12 +1429,16 @@ __asm__(".pushsection .rodata\n.balign 4\n"
  ".global sfx_groan\nsfx_groan:\n.incbin \"source/sfx/groan.adp\"\n.balign 4\n"
  ".global sfx_instant\nsfx_instant:\n.incbin \"source/sfx/instant.adp\"\n.balign 4\n"
  ".global sfx_tick\nsfx_tick:\n.incbin \"source/sfx/tick.adp\"\n.balign 4\n"
+ ".global sfx_pop\nsfx_pop:\n.incbin \"source/sfx/pop.adp\"\n.balign 4\n"
+ ".global sfx_land\nsfx_land:\n.incbin \"source/sfx/land.adp\"\n.balign 4\n"
+ ".global sfx_stick\nsfx_stick:\n.incbin \"source/sfx/stick.adp\"\n.balign 4\n"
+ ".global sfx_grind\nsfx_grind:\n.incbin \"source/sfx/grind.adp\"\n.balign 4\n"
  ".popsection\n");
-extern const u8 sfx_hit[],sfx_gasp[],sfx_scream[],sfx_cry[],sfx_groan[],sfx_instant[],sfx_tick[];
-enum { SFX_BONK, SFX_HIT, SFX_GASP, SFX_SCREAM, SFX_CRY, SFX_GROAN, SFX_NEARLY, SFX_DEATH, SFX_INSTANT, SFX_TICK, SFX_VOICE0, SFX_N=SFX_VOICE0+VOICE_N };
+extern const u8 sfx_hit[],sfx_gasp[],sfx_scream[],sfx_cry[],sfx_groan[],sfx_instant[],sfx_tick[],sfx_pop[],sfx_land[],sfx_stick[],sfx_grind[];
+enum { SFX_BONK, SFX_HIT, SFX_GASP, SFX_SCREAM, SFX_CRY, SFX_GROAN, SFX_NEARLY, SFX_DEATH, SFX_INSTANT, SFX_TICK, SFX_POP, SFX_LAND, SFX_STICK, SFX_GRIND, SFX_VOICE0, SFX_N=SFX_VOICE0+VOICE_N };   // POP ollie, LAND a landing, STICK a trick landed, GRIND a rail caught (tools/make_skate_sfx.py)
 #define VS(v) (SFX_VOICE0+(v))   // a voice clip's sound id (V_xxx from voices.h)
 // effects that share a source file share one blob in the ROM
-static const u8* const sfxTab[SFX_N]={ sfx_hit,sfx_hit,sfx_gasp,sfx_scream,sfx_cry,sfx_groan,sfx_scream,sfx_scream,sfx_instant,sfx_tick, VOICE_TAB };
+static const u8* const sfxTab[SFX_N]={ sfx_hit,sfx_hit,sfx_gasp,sfx_scream,sfx_cry,sfx_groan,sfx_scream,sfx_scream,sfx_instant,sfx_tick,sfx_pop,sfx_land,sfx_stick,sfx_grind, VOICE_TAB };
 static const u16 stepT[89]={7,8,9,10,11,12,13,14,16,17,19,21,23,25,28,31,34,37,41,45,50,55,60,66,73,80,88,97,107,118,130,143,157,173,190,209,230,253,279,307,337,371,408,449,494,544,598,658,724,796,876,963,1060,1166,1282,1411,1552,1707,1878,2066,2272,2499,2749,3024,3327,3660,4026,4428,4871,5358,5894,6484,7132,7845,8630,9493,10442,11487,12635,13899,15289,16818,18500,20350,22385,24623,27086,29794,32767};
 static const signed char idxT[8]={-1,-1,-1,-1,2,4,6,8};
 // The effect voice: ssrc/sn = the clip's nibbles and sample count, sPos + sFr/65536 = play position in clip samples, sRd = samples decoded so far,
@@ -1917,6 +1922,7 @@ static void voxEvent(int ev,int v){   // sims.h calls this for every life event 
     }
 }
 
+#define BAIL_STUN 34   // frames you lie there after an ordinary bail (was 45, then 60 in hurt()): back on the board in about half a second
 // Getting hurt. sev grows with fall height, speed and a bad landing. kind: 0 clean landing, 1 bail, 2 wall hit.
 static void die(int snd){ if(tutOn){ lhp=HP_MAX; lstun=60; lsp=0; lgrind=0; lnote="TUTORIAL  NO DYING"; lnoteT=90; return; }   // (tutorial.h)
     moodEvent(M_DIE); ldead=1; lstun=2; lsp=0; lgrind=0; sfxPlay(snd); lnote="YOU DIED"; lnoteT=0x7fff; }
@@ -1931,7 +1937,7 @@ static void hurt(int sev,int kind){
         else die(SFX_DEATH);
     }
     else if(sev>=18){ lstun=150; lsp=0; lgrind=0; sfxPlay(SFX_GROAN); lnote="OW"; lnoteT=90; }     // groaning, struggling up
-    else if(kind==1){ lstun=60; voxPlay((rnd8()&1)?V_cry:V_cry_after_bad_event); }                                                  // minor bail: crying
+    else if(kind==1){ lstun=BAIL_STUN; voxPlay((rnd8()&1)?V_cry:V_cry_after_bad_event); }                                                  // minor bail: crying
     else if(kind==2){ lstun=20; sfxPlay(SFX_HIT); lnote="OOF"; lnoteT=30; }                          // grunts and hits
     if(!ldead&&lhp<=0) die(SFX_DEATH);                                                              // the meter ran out (hits add up)
 }
@@ -2362,7 +2368,7 @@ static void helpScreen(const char*title,const char*const*ln,int n){   // lines s
 }
 static void toast(const char*msg){ int w=tw(msg,1)+16;
     box((SW-w)/2,66,w,22); text((SW-w)/2+8,74,msg,WHITE,1); for(int i=0,n=oToastLen();i<n;i++){ present(); } }
-static const char* const lifeHelp[17]={">ON FOOT","DPAD WALK  B RUN  A HOP","L GET ON THE BOARD","R USE FRIDGE TOILET BED SHOWER SOFA",">ON THE BOARD","A PUSH  DPAD STEER  B OLLIE","IN AIR DPAD SPINS  B KICKFLIP  R GLIDES",">KEEP YOURSELF GOING","WC IS THE TOILET BAR  HP UNDER THE FACE","A OR B GETS YOU UP FROM BED OR SOFA",">WORK  PICK A CAREER ON THE PHONE","TRICK POINTS BEAT THE QUOTA FOR PAY",">WANTS AND FEARS","WANTS FILL THE METER  FEARS DRAIN IT","A GOOD SLEEP ROLLS NEW WANTS AND FEARS","R BY A SIM TALK OR FIGHT  START MENU","SELECT+UP DOWN ZOOM IN OR OUT"};
+static const char* const lifeHelp[18]={">ON FOOT","DPAD WALK  B RUN  A HOP","L GET ON THE BOARD","R USE FRIDGE TOILET BED SHOWER SOFA",">ON THE BOARD","A PUSH  DPAD STEER  B OLLIE","IN AIR DPAD SPINS  B KICKFLIP  R GLIDES","GREEN MARK = SAFE LANDING  RED = BAIL",">KEEP YOURSELF GOING","WC IS THE TOILET BAR  HP UNDER THE FACE","A OR B GETS YOU UP FROM BED OR SOFA",">WORK  PICK A CAREER ON THE PHONE","TRICK POINTS BEAT THE QUOTA FOR PAY",">WANTS AND FEARS","WANTS FILL THE METER  FEARS DRAIN IT","A GOOD SLEEP ROLLS NEW WANTS AND FEARS","R BY A SIM TALK OR FIGHT  START MENU","SELECT+UP DOWN ZOOM IN OR OUT"};
 
 static const char* const creatureHelp[15]={">PICK YOUR LOOK","L R CHANGE TAB   UP DOWN PICK A ROW","LEFT RIGHT CHANGE IT  A ALSO STEPS","SELECT TURNS THE CREATURE ROUND",">THE TABS","1 BODY  2 FACE  3 HAIR  4 CLOTHES","5 PARTS  TAIL HORNS SPIKES WINGS","  PARTS GIVE POWERS  AND FIGHT BONUSES","  BIG PARTS COST JENES  A BUYS ONE","6 ASPIRE  ASPIRATION  LIFETIME WANT  SIGN","  AND TRAITS THAT SHARE 25 POINTS",">FINISH","START JUMPS TO THE DONE TAB","GO LIVE LIFE PLAYS YOUR CREATURE","LIVING EARNS DNA FOR NEW PARTS"};
 static const char* const mapHelp[14]={">BUILD A ROOM","ROOM TOOL  A CORNER  A BUILDS","WALL TOOL  A START  A DRAWS A LINE","FLOOR TOOL  A CORNER  A FILLS","ITEM TOOL  PLACE SINGLE TILES","ERASE TOOL  A CORNER  A CLEARS",">STYLES","L R PICK FLOOR OR ITEM","SEL+L R PICK WALLPAPER","SELECT TAP NEXT TOOL  B CANCELS",">KEEP IT","START OPENS PLAY TEST AND SAVE",">FLOORS","SEL+UP DOWN FLOOR  STAIRS ARE ITEMS"};
@@ -2414,6 +2420,15 @@ static void autoTune(void){
 
 static const signed char hdT[3][3]={{10,12,14},{8,-1,0},{6,4,2}};   // [sign dy+1][sign dx+1] -> heading (16 steps), -1 = keep
 #include "feel.h"
+// The name of the trick just landed, into lnBuf (and lnote): "KICKFLIP", "HEEL 540", "180 GRAB", ... A PERFECT landing shows it in gold (lnPerf, hud.h).
+static void trickName(int hs,int grab,int perfect){
+    char*p=lnBuf; const char*q;
+    if(lflip){ q=hs?(bFD<0?"HEEL ":"KICK "):(bFD<0?"HEELFLIP ":"KICKFLIP "); while(*q) *p++=*q++; }
+    if(hs){ int d=hs*180; if(d>=1000) *p++=(char)('0'+d/1000%10); *p++=(char)('0'+d/100%10); *p++=(char)('0'+d/10%10); *p++='0'; *p++=' '; }
+    if(grab&&!(lflip&&hs)){ q="GRAB "; while(*q) *p++=*q++; }   // (a flip and a spin already fill the top bar)
+    if(p==lnBuf){ q="NICE "; while(*q) *p++=*q++; }
+    p[-1]=0; lnote=lnBuf; lnPerf=(u8)perfect;
+}
 static void hhStart(void); static void hhTick(void); static int hhSocR(int useLabel);   // house.h (included further down, next to the drawing it hooks into)
 static void lifeInit(void){
     if(!(shapeMask()>>look[LK_SHAPE]&1)){ look[LK_SHAPE]=(u8)maskPick(shapeMask(),look[LK_SHAPE],NSHAPE); if(!custom) buildLook(); }
@@ -2454,7 +2469,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
         if(lskate){
             if(lz<=fh||(F.coy>0&&lvz<=0)){                     // on the ground (or a rail), incl. coyote frames
                 feelSteer(k); feelPush(k,lgrind);
-                if(F.buf>0){ lvz=feelOllie(); lgrind=0; }      // ollie (buffered, variable height)
+                if(F.buf>0){ lvz=feelOllie(); lgrind=0; sfxPlay(SFX_POP); }      // ollie (buffered, variable height) with its pop
             } else feelAir(k,pr,(lz-fh)<(8<<8));               // airborne
             feelVel(); lspin=F.spin>>4;
         } else {
@@ -2471,9 +2486,10 @@ static void lifeStep(u16 k,u16 pr,int fr){
         lsp=(lsp*2)/3;
         if(lbumpCd==0&&sp0b>=(lskate?12:10)){ lbumpCd=40;   // skating into a wall hurts, running into one bonks
             if(lskate&&(abPow()&PW_CHARGE)){ sfxPlay(SFX_HIT); lnote="HORNS FIRST"; lnoteT=30; simEvent(SE_CHARGE); }   // HORNS: charge the wall, no harm done
-            else if(lskate) hurt(sp0b+(rnd8()>>4),2); else sfxPlay(SFX_BONK); }
+            else if(lskate) hurt(sp0b*2/3+(rnd8()>>5),2); else sfxPlay(SFX_BONK); }   // (was speed + 0..15: a full speed wall was a coin flip for dying. Now 8..23, worst case a short OW)
     }
     if(lbumpCd>0) lbumpCd--;
+    if(lLand>0) lLand--;
     fh=surfH(lfx,lfy)<<8;
     int wasOn=rampOn, onRamp=lskate&&isRamp(lifeMap[lfy>>8][lfx>>8]); rampOn=0;
     if(lz<=fh&&onRamp){ int rise=lz<fh?(int)(fh-lz):0; rampAvg=(rampAvg*3+rise)>>2; rampOn=1; }   // riding a ramp: remember how fast we are climbing
@@ -2489,18 +2505,24 @@ static void lifeStep(u16 k,u16 pr,int fr){
         int zz=(int)(lz>>8); if(zz>lmaxz) lmaxz=zz;
         if(!lplay&&lvz<0){ int hi=lmaxz-(int)(fh>>8);
             if(hi>=34){ voxPlay(V_shriek); lplay=1; }                 // falling from way up
-            else if(!feelClean()&&hi>=10){ sfxPlay(SFX_GASP); lplay=1; }   // landing is going wrong
+            else if(hi>=10&&F.spin&&feelPredGrade()==0){ sfxPlay(SFX_GASP); lplay=1; }   // landing is going wrong (judged from where the spin will end up, not where it is now)
         }
     }
     if(lairF&&!air){                                   // just landed
-        int pts=feelHalfTurns()*180+(lflip?100:0)+feelGrabPts();
-        int drop=lmaxz-(int)(lz>>8), sp0=lsp, bail=!feelClean();
-        if(bail){ lnote="BAIL"; lnoteT=60; lsp=0; lstun=45; lgrind=0; moodEvent(M_BAIL); }
+        int g=feelGrade(), hs=feelHalfTurns(), gb=F.grab>=12, onRail=lskate&&tileH(lfx>>8,lfy>>8)==6;
+        if(onRail&&g<2) g=2;                           // a rail catches the board whatever the angle: no bail for a crooked grind
+        int pts=hs*180+(lflip?100:0)+feelGrabPts();
+        int drop=lmaxz-(int)(lz>>8), sp0=lsp, bail=(g==0);
+        lLand=7; lLandD=drop;                          // the landing crouch (playerCalc)
+        if(bail){ lnote="BAIL"; lnoteT=60; lsp=0; lstun=BAIL_STUN; lgrind=0; moodEvent(M_BAIL); }
         else{
-            if(pts){ pts=moodPts(pts); lscore+=pts; lpts=pts; lnote="NICE"; lnoteT=60; lcN++; lcPts+=pts; lcT=oComboLen(); moodEvent(M_TRICK); }
-            if(lskate&&tileH(lfx>>8,lfy>>8)==6){ lgrind=1; lnote="GRIND"; lnoteT=30; lcN++; lcT=oComboLen(); moodEvent(M_GRIND_ON); }
+            if(g==1){ F.spd=F.spd*3/5; lsp=F.spd>>4; pts/=2; lnote="SKETCHY"; lnoteT=40; }   // landed, but crooked: you lose speed and the trick is worth half
+            else if(g==3&&pts) pts+=pts/4;                                                      // PERFECT: +25%
+            if(pts){ pts=moodPts(pts); lscore+=pts; lpts=pts; if(g!=1) trickName(hs,gb,g==3); lnoteT=60; lcN++; lcPts+=pts; lcT=oComboLen(); moodEvent(M_TRICK); }
+            if(onRail){ lgrind=1; lnote="GRIND"; lnoteT=30; lcN++; lcT=oComboLen(); moodEvent(M_GRIND_ON); sfxPlay(SFX_GRIND); }
+            else sfxPlay((pts&&g!=1)?SFX_STICK:SFX_LAND);   // the landing is heard: a thud, or the bright one for a trick
         }
-        if(bail) hurt(drop/2+sp0+(rnd8()>>5),1);        // bad landing: harder/faster/higher = worse
+        if(bail){ int sv=drop/3+sp0/3+(rnd8()>>6); if(drop<30&&sv>15) sv=15; hurt(sv,1); }   // bad landing: harder/faster/higher = worse (was drop/2+speed: a fast bail was OW + 2.5 s down, or even death)
         else if(drop>24) hurt(drop-24+(rnd8()>>5),0);   // big drops hurt even landed clean
         lspin=0; lflip=0; feelLandReset();
     }
@@ -2686,12 +2708,15 @@ static int lpsx, lpsy;   // where the player is on screen (zoom centre)
 static const u8 faceView[16]={3,3,0,0,0,0,0,1,1,1,2,2,2,2,3,3};
 #include "house.h"   // households: up to 7 more Sims with free will, SELECT switches who you control
 static int plX, plY, plZ, plFh, plV, plBob;   // feet on screen, height above the floor, floor height under the feet, which baked view
+static int plDip, plMk;   // plDip: px the skater crouches for a few frames after a landing; plMk: the landing mark under a spinning skater (0 none, 1 red = bail, 2 yellow = sketchy, 3 green = clean, 4 bright = perfect)
 static void playerCalc(void){
     s32 rfx,rfy; rotPos(lfx,lfy,&rfx,&rfy);
     plX=LOX+(int)((rfx-rfy)>>5); plY=LOY+(int)((rfx+rfy)>>6);
     plFh=surfH(lfx,lfy); plZ=(int)(lz>>8); plV=faceView[(lhd+lspin+4*cview)&15];
     plBob=(!lskate&&plZ<=plFh&&(lvx|lvy)&&lstun<=2)?(int)((lfr>>3)&1):0;   // a little step bounce while he walks
     lpsx=plX; lpsy=plY-20;
+    plDip=(lskate&&lLand>0&&plZ<=plFh)?(lLand>4?(lLandD>=10?3:2):1):0;   // landing crouch: the harder the drop the lower, easing back up over 7 frames
+    plMk=0; if(lskate&&plZ>plFh&&(F.spinV||F.spin>=20||F.spin<=-20)){ int g=feelPredGrade(); plMk=g==0?1:g==1?2:g==2?3:4; }   // spinning: will it land?
     if(lskate){   // the board
         int air2=plZ>plFh, gp=F.grab>8?8:F.grab;
         bdA=((F.angF>>4)+F.spin+64*cview)&255;                        // heading + the spin of the trick, turned with the camera
@@ -2734,8 +2759,11 @@ static void drawBoard(void){
 }
 static void drawPlayerNow(void){
     if(sShad){ rect(plX-3,plY-plFh-1,7,2,RGB(10,8,5)); rect(plX-1,plY-plFh-2,3,4,RGB(10,8,5)); }   // shadow
+    if(plMk){   // the landing mark: a bar under the shadow, red / yellow / green, wider when it is a perfect landing
+        u16 mc=plMk==1?RGB(30,8,6):plMk==2?RGB(30,26,6):plMk==3?RGB(8,27,11):RGB(14,31,16); int w=plMk==4?6:4;
+        rect(plX-w,plY-plFh+2,2*w+1,2,mc); }
     if(lskate) drawBoard();   // board under the feet
-    blit((plBob&&!lskate)?spr4s[plV]:spr4[plV],plX-16,plY-SPF-plZ-plBob);   // walking: the stride frame on the up-step
+    blit((plBob&&!lskate)?spr4s[plV]:spr4[plV],plX-16,plY-SPF-plZ-plBob+plDip);   // walking: the stride frame on the up-step
 }
 // The room inside the rectangle x0..x1 / y0..y1 (end excluded), drawn back to front and clipped to it: the same pixels a whole-screen
 // draw would put there. ed=1: editor view (no player).
@@ -2850,14 +2878,15 @@ static void rcAdd(int x0,int y0,int x1,int y1){
 }
 static int rcHit(const Rc*a,int x0,int y0,int x1,int y1){ return a->x0<x1&&a->x1>x0&&a->y0<y1&&a->y1>y0; }
 static void actorRc(Rc*r){   // everything the player puts on screen: sprite, shadow, board
-    int sx=plX-16, sy=plY-SPF-plZ-plBob;
+    int sx=plX-16, sy=plY-SPF-plZ-plBob+plDip;
     int x0=sx+spBx0, x1=sx+spBx1, y0=sy+spBy0, y1=sy+spBy1;
     if(sShad){ if(plX-3<x0) x0=plX-3; if(plX+4>x1) x1=plX+4; if(plY-plFh+2>y1) y1=plY-plFh+2; }
+    if(plMk){ if(plX-7<x0) x0=plX-7; if(plX+8>x1) x1=plX+8; if(plY-plFh+4>y1) y1=plY-plFh+4; }   // the landing mark on the floor
     if(lskate){ if(plX-19<x0) x0=plX-19; if(plX+20>x1) x1=plX+20; if(plY-plZ-17<y0) y0=plY-plZ-17; if(plY-plZ+14>y1) y1=plY-plZ+14; }   // the whole board, nose up, rolled or lifted
     r->x0=(short)x0; r->x1=(short)x1; r->y0=(short)y0; r->y1=(short)y1;
 }
 static unsigned actSigBase(void){ return (unsigned)(plX&0x3FF)|((unsigned)(plY&0x3FF)<<10)|((unsigned)(plZ&0x3F)<<20)|((unsigned)plV<<26)|((unsigned)lskate<<28)|((unsigned)sShad<<29)|((unsigned)(plFh&1)<<30)|((unsigned)plBob<<31); }
-static unsigned actSigNow(void){ unsigned b=actSigBase(); if(lskate) b^=((unsigned)bdA|((unsigned)(bdPitch+4)<<8)|((unsigned)bdRaise<<12)|((unsigned)bdRoll<<16)|((unsigned)bdSpk<<24))*2654435761u; return b; }   // + the board's pose: any change redraws
+static unsigned actSigNow(void){ unsigned b=actSigBase(); if(lskate) b^=((unsigned)bdA|((unsigned)(bdPitch+4)<<8)|((unsigned)bdRaise<<12)|((unsigned)bdRoll<<16)|((unsigned)bdSpk<<24)|((unsigned)plDip<<27)|((unsigned)plMk<<29))*2654435761u; return b; }   // + the board's pose: any change redraws
 // ---- getting pixels to the screen ----
 static void dmaRows16(u32 src,u32 dst,int w,int rows,int sstride,int dstride){   // rows of w halfwords, strides in halfwords
     for(int j=0;j<rows;j++){ REG_DMA3SAD=src; REG_DMA3DAD=dst; REG_DMA3CNT=(u32)w|0x80000000u; src+=(u32)(sstride*2); dst+=(u32)(dstride*2); }
@@ -4317,7 +4346,7 @@ static void howToPlay(void){
     static const char* const tn[7]={"PLAY","MAKE","BUILD","MUSIC","PLANS","OPTS","TOWN"};
     static const char* const tt[7]={"PLAYING","CREATE A BORE","BUILD ROOMS","TOUKEBOX","BLUEPRINTS","OPTIONS","NEIGHBORHOOD"};
     const char* const* ln[7]={lifeHelp,creatureHelp,mapHelp,jbHelp,slotHelp,optHelp,nbHelp};
-    static const unsigned char nn[7]={17,15,14,15,13,12,16};
+    static const unsigned char nn[7]={18,15,14,15,13,12,16};
     enum { VIS=13, LY=34, LH=104 };
     int tab=0, sc=0; u32 cnt=0; u16 prev=keyNow();
     for(;;){

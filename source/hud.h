@@ -46,7 +46,7 @@ static int hudMsg(const char**txt,u16*col,int*pts){   // the message for the mid
     if(ldead){ *txt="PRESS A TO RESPAWN"; *col=RGB(31,12,8); return 1; }
     if(lnear&&!lcamF){ *txt=simAct?"A OR B GET UP":(lnear==1?"R OPEN FRIDGE":lnear==2?"R USE TOILET":lnear==3?"R SLEEP IN BED":lnear==4?"R TAKE A SHOWER":lnear==6?(pipeOk()?"R PUFF THE PIPE":"GROWN-UPS ONLY"):lnear==7?"R JACK IN":lnear==8?"R USE THE PHONE":"R SIT ON SOFA"); *col=HC_GOLD; return 1; }
     if(!lcamF&&!ldead&&lstun<=0){ int m=hhNearest(); if(m>=0){ static char b[24]; char*e=simCat(b,"R TALK TO "); simCat(e,hhM[m].name); if(lnoteT<=0){ *txt=b; *col=HC_GOLD; return 1; } } }   // a household Sim next to you
-    if(lnoteT>0){ *txt=lnote; *col=WHITE; *pts=(lpts&&lnote[0]=='N')?lpts:0; return 1; }
+    if(lnoteT>0){ *txt=lnote; *col=(lnote==lnBuf&&lnPerf)?HC_GOLD:WHITE; *pts=(lpts&&lnote==lnBuf)?lpts:0; return 1; }
     return 0;
 }
 static void hudTopStatic(void){
@@ -60,7 +60,7 @@ static void hudTopUpdate(int all){
     // the middle: prompt > note > combo > hint
     const char*t; u16 c; int pts; int has=hudMsg(&t,&c,&pts); char b[24]; int cn=0; int n2=0;
     unsigned mk;
-    if(has) mk=(unsigned)(uintptr_t)t*7u+(unsigned)pts;
+    if(has) mk=hudHash(t)*7u+(unsigned)pts;   // (hash of the text: a trick name reuses one buffer)
     else if(lcamF>0) mk=1;
     else if(lcN>0) mk=2u+(unsigned)(lcN*1000+lcPts*lcN)*4u;
     else if(lcBankT>0) mk=3u+(unsigned)lcBank*4u;
