@@ -22,6 +22,10 @@ static const StCh* const stChs[STY_N]={0,stRoom,stWed,stPar};
 static const u8 stLen[STY_N]={0,6,6,6};
 static const char* const stNm[STY_N]={"","ROOMMATES","NEWLYWEDS","SINGLE PARENT"};
 static const char* const stAbout[STY_N]={"","A NEW ROOMMATE  AND MAYBE MORE","JUST MARRIED  A FAMILY TO START","YOU AND YOUR KID  ON YOUR OWN"};
+static const char* const stTag[STY_N]={"","ROMANCE","ROMANCE AND FAMILY","FAMILY"};
+static const char* const stBlurb[STY_N][3]={{0,0,0},{"YOU MOVE IN WITH SOMEONE","YOU BARELY KNOW  FRIENDS","FIRST  THEN MAYBE LOVE"},
+    {"JUST MARRIED AND IN LOVE","SAVE UP  CLIMB THE CAREER","AND START A FAMILY"},{"YOU AND YOUR KID ON YOUR","OWN  MAKE THE MONEY WORK","AND LET THE NEIGHBORS IN"}};
+static u8 stShown;   // the chapter whose card was shown last (id*16+chapter+1): a card once per chapter
 static u8 stId, stCh, stPart=255, stKid=255, stKidDay=255, stGuest;   // the story, its chapter, your partner and your kid (uids), the day the promised child comes, a guest came
 static u8 stSum(volatile u8*m){ return (u8)(0x53+m[2]+m[3]*3+m[4]*5+m[5]*7+m[6]*11); }
 static void stSave(void){ volatile u8*m=SRAM_BASE+STORY_OFF; m[0]='S'; m[1]='Y'; m[2]=stId; m[3]=(u8)(stCh|(stGuest?0x80:0)); m[4]=stPart; m[5]=stKid; m[6]=stKidDay; m[7]=stSum(m); }
@@ -79,20 +83,115 @@ static void stTick(void){   // once per logic step in the life game: is this cha
         stKidHome(); stKidDay=255;
     } else if(!stDone(c)) return;
     simMoney+=250; if(simMoney>9999) simMoney=9999; dnaAdd(25); persSave(); simsSave();
-    { static char t[40]; char*e=slCat(t,"CHAPTER DONE  "); slCat(e,"+\xC2\xA7" "250  +25 JENES"); toast(t); }
-    stCh++; stSave(); stAnnounce();
-    if(stChs[stId][stCh].goal==SG_END) toast("THE END  YOUR STORY GOES ON");
+    stCh++; stSave(); stAnnounce(); stShown=(u8)(stId*16+stCh+1); stModal=2;   // the CHAPTER COMPLETE card (stRunModal)
 }
-static void stEnter(void){ stLoad(); if(stId) stAnnounce(); }   // entering the life game: the current goal on the top bar
-static void storyScreen(void){   // pause menu > STORY
-    static char ln[10][40] EWRAM_BSS; const char* L[10]; int n=0;   // (EWRAM: IWRAM holds the stack)
-    if(!stId){ static const char* const none[3]={">NO STORY","START ONE FROM THE MAIN MENU","PLAY > NEW GAME > STORY MODE"}; helpScreen("STORY",none,3); return; }
-    { char*e=slCat(ln[n],">"); slCat(e,stNm[stId]); L[n]=ln[n]; n++; }
-    for(int i=0;i<stLen[stId]&&n<10;i++){ char*e=slCat(ln[n],i<stCh?"DONE  ":i==stCh?"NOW   ":"      "); slCat(e,stChs[stId][i].nm); L[n]=ln[n]; n++; }
-    helpScreen("STORY",L,n);
+static void stEnter(void){ stLoad(); if(stId){ stAnnounce(); if(stShown!=(u8)(stId*16+stCh+1)){ stShown=(u8)(stId*16+stCh+1); stModal=1; } } }   // (a chapter card once per chapter and power on)   // entering the life game: the current goal on the top bar
+// ---- the look: Sims 2 / Life Stories panels (the pieces live in main.c next to HOW TO PLAY) ----
+static void s2rr(int x,int y,int w,int h,u16 c); static void s2grad(int x,int y,int w,int h,int r0,int g0,int b0,int r1,int g1,int b1);
+static void s2plumbob(int cx,int y); static void s2pill(int x,int y,int w,const char*s);
+static void stBack(const char*title,int cnt){   // the backdrop, the frame, the title bar with the bobbing plumbob
+    static const signed char bob[8]={0,1,2,2,1,0,-1,-1};
+    objHideAll();
+    s2grad(0,0,SW,SH,1,4,10,2,9,17);
+    for(int y=0;y<SH;y+=8) for(int x=(y&8)?4:0;x<SW;x+=8) rect(x,y,1,1,RGB(3,9,17));
+    s2rr(1,1,238,158,RGB(10,20,30)); s2rr(2,2,236,156,RGB(2,6,13));
+    s2grad(3,3,234,14,8,18,28,3,10,19); rect(3,17,234,1,RGB(14,26,31));
+    s2plumbob(11,2+bob[(cnt>>3)&7]); text(21,7,title,WHITE,1);
 }
-// NEW GAME > STORY MODE: pick a story; the household starts as the story says (the creator opens next to make you)
-static int storyPick(void){ const char* it[STY_N-1]; for(int i=1;i<STY_N;i++) it[i-1]=stNm[i]; int c=menu("WHICH STORY?",it,STY_N-1); return c<0?0:c+1; }
+static void stIcon(int s,int x,int y,int sc,u16 c){   // a little picture per story: a heart, a ring, a parent with a kid (9 x 8 pixels, drawn big)
+    static const char* const pic[STY_N][8]={{0},
+      {".XX...XX.","XXXX.XXXX","XXXXXXXXX","XXXXXXXXX",".XXXXXXX.","..XXXXX..","...XXX...","....X...."},
+      {"....X....","...XXX...","....X....","..XXXXX..",".X.....X.",".X.....X.",".X.....X.","..XXXXX.."},
+      {".XX......",".XX......","XXXX.....","XXXX.XX..",".XX..XX..",".XX.XXXX.",".XX..XX..","XXXX.X.X."}};
+    for(int r=0;r<8;r++) for(int q=0;q<9;q++) if(pic[s][r][q]=='X') rect(x+q*sc,y+r*sc,sc,sc,c);
+}
+static void stSparkle(u32 cnt,int x0,int y0,int w,int h){   // a few twinkling pixels (a cheap celebration)
+    for(int i=0;i<10;i++){ u32 h1=(u32)(i*2654435761u)>>8; int x=x0+(int)(h1%(u32)w), y=y0+(int)((h1>>9)%(u32)h); int ph=(int)((cnt>>2)+(u32)i*5)&15;
+        if(ph<4){ u16 c=ph<2?RGB(31,30,18):RGB(24,22,8); rect(x,y,1,1,c); if(ph==1){ rect(x-1,y,3,1,c); rect(x,y-1,1,3,c); } } }
+}
+// the chapter goal's progress as text (only the goals that have a number)
+static int stProg(const StCh*c,char*b){
+    int v=-1, of=c->arg;
+    if(c->goal==SG_MONEY) v=simMoney;
+    else if(c->goal==SG_JOB) v=jobLvl;
+    else return 0;
+    if(v>of) v=of;
+    char*e=slNum(b,v); e=slCat(e," OF "); slNum(e,of); return 1;
+}
+static void storyScreen(void){   // pause menu > STORY: the story journal, a chapter timeline
+    u16 prev=keyNow(); u32 cnt=0;
+    for(;;){
+        u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
+        if(pr&(K_A|K_B|K_START)) return;
+        stBack(stId?"STORY JOURNAL":"STORY",(int)cnt);
+        if(!stId){
+            s2rr(8,24,224,60,RGB(10,20,30)); s2rr(9,25,222,58,RGB(2,6,13));
+            text(16,32,"NO STORY RIGHT NOW",GOLD,1); text(16,46,"START ONE FROM THE MAIN MENU",WHITE,1); text(16,56,"PLAY  NEW GAME  STORY MODE",RGB(17,29,31),1);
+            text(16,70,"THREE STORIES  SIX CHAPTERS EACH",RGB(20,24,28),1);
+        } else {
+            int n=stLen[stId];
+            stIcon(stId,9,21,2,RGB(31,20,22));   // the story's picture, its name and kind, and how far you are
+            text(32,21,stNm[stId],GOLD,1); text(32,30,stTag[stId],RGB(17,29,31),1);
+            { char b[24]; char*e=slCat(b,"CHAPTER "); e=slNum(e,stCh+1); e=slCat(e," OF "); slNum(e,n); text(233-tw(b,1),21,b,WHITE,1);
+              int bw=84, fx=233-bw; rect(fx-1,31,bw+2,7,RGB(14,26,31)); rect(fx,32,bw,5,RGB(3,5,9)); int f=bw*stCh/(n>1?n-1:1); if(f>bw) f=bw; if(f>0){ s2grad(fx,32,f,5,10,26,12,6,18,8); rect(fx,32,f,1,RGB(18,31,20)); } }
+            for(int i=0;i<n;i++){ int y=44+i*13, st=i<stCh?2:i==stCh?1:0; const StCh*c=&stChs[stId][i];
+                if(i+1<n) rect(14,y+9,2,4,st==2?RGB(8,26,10):RGB(7,14,22));   // the line down to the next chapter
+                if(st==2){ rect(10,y+1,10,8,RGB(5,18,7)); rect(11,y+2,8,6,RGB(8,26,10)); text(12,y+2,"+",WHITE,1); }   // done: a green tick
+                else if(st==1){ int g=(cnt>>3)&1; rect(10,y+1,10,8,g?RGB(31,26,6):RGB(24,19,3)); rect(11,y+2,8,6,RGB(3,5,9)); rect(13,y+4,4,2,GOLD); }   // now: a gold blinking ring
+                else { rect(10,y+1,10,8,RGB(7,14,22)); rect(11,y+2,8,6,RGB(2,6,13)); }
+                if(st==1){ s2grad(23,y,208,11,6,16,26,3,9,17); }
+                text(25,y+2,c->nm,st==2?RGB(10,22,12):st==1?WHITE:RGB(12,18,24),1);
+                if(st==1){ char b[16]; if(stProg(c,b)) text(231-tw(b,1),y+2,b,GOLD,1); } }
+        }
+        s2pill(5,147,60,"A OR B BACK");
+        if(stId){ char b[34]; char*e=slCat(b,"EARNED "); e=slNum(e,stCh*250); slCat(e," SIMOLEONS"); s2pill(69,147,tw(b,1)+10,b); }
+        present();
+    }
+}
+// the chapter cards: CHAPTER n (a chapter starts) and CHAPTER COMPLETE (a chapter was done). Shown by lifeModeRun like the pause menu.
+static void stRunModal(void){
+    int kind=stModal; stModal=0; if(!stId) return;
+    u16 prev=keyNow(); u32 cnt=0; const StCh*c=&stChs[stId][stCh];
+    int end=c->goal==SG_END;
+    for(;;){
+        u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
+        if(pr&(K_A|K_B|K_START)) return;
+        stBack(kind==2?"CHAPTER COMPLETE":"YOUR STORY",(int)cnt);
+        s2rr(8,22,224,116,RGB(16,27,31)); s2rr(9,23,222,114,RGB(2,6,13)); s2grad(10,24,220,112,3,9,19,1,4,10);
+        stIcon(stId,16,32,4,RGB(31,20,22));
+        text(60,30,stNm[stId],GOLD,1); text(60,40,stTag[stId],RGB(17,29,31),1);
+        { char b[24]; char*e=slCat(b,kind==2?"CHAPTER ":"CHAPTER "); e=slNum(e,kind==2?stCh:stCh+1); text(60,52,b,WHITE,2); }
+        if(kind==2){ text(60,70,"DONE  +250 SIMOLEONS  +25 JENES",RGB(10,28,12),1); stSparkle(cnt,12,26,216,100); }
+        rect(14,84,212,1,RGB(14,26,31));
+        text(16,90,kind==2?(end?"THE END":"NEXT CHAPTER"):(end?"THE END":"YOUR GOAL"),GOLD,1);
+        text(16,102,end?(kind==2?"YOUR STORY GOES ON  KEEP PLAYING":"YOUR STORY GOES ON  KEEP PLAYING"):c->nm,WHITE,1);
+        if(!end){ char b[16]; if(stProg(c,b)) text(16,112,b,RGB(20,26,31),1); }
+        s2pill(5,147,40,"A OK");
+        present();
+    }
+}
+// NEW GAME > STORY MODE: pick a story on a story card (LEFT RIGHT to flip through them, A to start)
+static int storyPick(void){
+    int sel=1; u16 prev=keyNow(); u32 cnt=0;
+    for(;;){
+        u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
+        if(pr&(K_RIGHT|K_R)) sel=sel%(STY_N-1)+1;
+        if(pr&(K_LEFT|K_L)) sel=(sel+STY_N-3)%(STY_N-1)+1;
+        if(pr&K_A) return sel;
+        if(pr&(K_B|K_START)) return 0;
+        stBack("WHICH STORY?",(int)cnt);
+        s2rr(8,21,224,126,RGB(16,27,31)); s2rr(9,22,222,124,RGB(2,6,13)); s2grad(10,23,220,122,3,9,19,1,4,10);
+        s2rr(14,27,44,40,RGB(10,20,30)); s2grad(15,28,42,38,7,16,26,3,8,16); stIcon(sel,18+((cnt>>4)&1),33,4,RGB(31,20,22));   // the story's picture (it beats slowly)
+        text(64,28,stNm[sel],GOLD,2); text(64,46,stTag[sel],RGB(17,29,31),1);
+        for(int i=0;i<3;i++) text(64,56+i*9,stBlurb[sel][i],WHITE,1);
+        rect(14,72,212,1,RGB(14,26,31)); text(16,76,"THE CHAPTERS",RGB(17,29,31),1);
+        for(int i=0;i<stLen[sel];i++){ char b[44]; char*e=slNum(b,i+1); e=slCat(e,"  "); slCat(e,stChs[sel][i].nm); text(16,86+i*8,b,i==stLen[sel]-1?GOLD:RGB(24,27,30),1); }
+        for(int i=1;i<STY_N;i++){ int x=108+(i-1)*12; s2rr(x,136,8,4,i==sel?GOLD:RGB(7,14,22)); }   // which of the stories this is
+        text(14,134,"<",GOLD,1); text(223,134,">",GOLD,1);
+        s2pill(5,147,66,"LEFT RIGHT STORY"); s2pill(75,147,40,"A START"); s2pill(119,147,40,"B BACK");
+        present();
+    }
+}
 static void storySetup(int s){   // after the new life is set up and the old household has gone
     stId=(u8)s; stCh=0; stPart=stKid=stKidDay=255; stGuest=0;
     u8 lk[LK_N], st;

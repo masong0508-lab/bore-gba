@@ -1372,6 +1372,7 @@ static int bdx=10, bdy=4, spx=3, spy=6;   // skateboard tile and spawn tile, fou
 #define BDX bdx
 #define BDY bdy
 static int lsp,lhd,lspin,lflip,lgrind,lscore,lstun,lairF,lpts,lnoteT,lglide; static const char*lnote;
+static int stModal; static void stRunModal(void);   // story.h: a chapter card is waiting (1 chapter intro, 2 chapter done); lifeModeRun shows it like the pause menu
 static int tutOn;   // 1 while the tutorial runs (tutorial.h): nobody dies, like the Sims 2 tutorial neighborhood
 
 // SKATEBOARD ANIMATION: the board is drawn from these (set every picture by playerCalc, drawn by drawBoard under the sprite).
@@ -3107,7 +3108,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
     objHideAll(); winFull(); REG_DISPCNT=0x3443;   // mode 3 + sprites (1D tiles) + window 0 (the household's hardware sprites, house.h)
     // (the passers-by of this lot are kept until you move to another lot or start a new life: twKeep, house.h)
     lifeInit(); lcamF=0; cview=0; lcN=lcPts=lcT=lcBank=lcBankT=lcamPend=0; u16 prev=keyNow(); gmStart(); hudApplyLayout(); liveInvalidate(); camSnap=1;
-    if(!ed) stEnter();   // STORY MODE: the chapter you are on, on the top bar
+    stModal=0; if(!ed) stEnter();   // (the chapter card of the story waits for the first frame)
     tutOn=0; tutModal=TM_NONE;   // the tutorial: replay now, or offer it once (first PLAY, not in the test play of the editor)
     if(!ed){ if(xo[XO_TUTOR]==2) tutBegin(); else if(xo[XO_TUTOR]==0&&!tutAsked){ tutAsked=1; tutModal=TM_OFFER; } }
     tmStart(); u16 tl=R_TM2D; int acc=0, fpsN=0, fr=0; u32 fpsT=0, workT=0; lfpsV=0; lloadV=0;
@@ -3146,10 +3147,10 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
             winFull(); REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=0; continue;
         }
         if(!ed&&lcamF==0){ tutTick(k,pr);
-            if(tutModal){   // a tutorial pop-up: the game holds still behind it, like the pause menu
+            if(tutModal||stModal){   // a tutorial pop-up: the game holds still behind it, like the pause menu
                 mGainT=128; sfxStop(); objHideAll(); REG_DISPCNT=0x0403;
                 { u8 zz=xo[XO_ZOOM]; xo[XO_ZOOM]=0; hudApplyLayout(); camSnap=1; liveInvalidate(); lifeDraw(); xo[XO_ZOOM]=zz; }
-                tutRunModal();
+                if(stModal) stRunModal(); else tutRunModal();
                 winFull(); REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=0; continue;
             } }
         if(lcamF>0) camStep(steps,k,pr);
@@ -3160,7 +3161,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
         gmTick(); lifeDraw(); workT+=(u16)(lifeVs-w0);
         fpsN++; if(fpsT>=65536){ lfpsV=fpsN; lloadV=(int)(workT/(u32)fpsN*100/(u32)((sFps+1)*TICKS_FRAME)); workT=0; fpsN=0; fpsT-=65536; }
     }
-    tutOn=0; tutModal=TM_NONE;
+    tutOn=0; tutModal=TM_NONE; stModal=0;
     objHideAll(); REG_DISPCNT=0x0403;
     simsSave(); hhSave(); R_TM2CNT=0; gmStop(); sfxStop(); lcamF=0; cview=0; vpFull(); clipAll(); liveInvalidate();   // leaving the life game saves it
     while((~REG_KEYINPUT)&0x3FF) vsync();   // wait for release so the caller doesn't see the exit keys
