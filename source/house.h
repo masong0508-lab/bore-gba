@@ -85,10 +85,24 @@ static inline const u8* hhStrideB(int id,int v){ return hhObjS[id][v]; }
 static inline const u16* hhPalOf(int id){ return hhPal[id]; }
 
 // ---- premade families (original characters) ----
-typedef struct { const char* name; u8 look[LK_N]; u8 stage, asp, sign, sex; } HhPre;   // the whole look (the first families only set the base picks); traits come from a sign
-typedef struct { const char* fam; u8 n; HhPre m[4]; } HhFam;
+typedef struct { const char* name; u8 look[LK_N]; u8 stage, asp, sign, sex; u8 tr[TR_N]; } HhPre;   // the whole look (the first families only set the base picks); traits come from a sign, or from tr when it is not all zeros
+#define SLV(e) ((u8)(((e)+9)%9))   // a slider notch (-4..4) as a look stores it
+typedef struct { const char* fam; u8 n; HhPre m[5]; } HhFam;
 //                     look: SHAPE SKIN EYES MOUTH EARS HSTYLE HCOL TOP BOT  TONE EARSZ EARLF
 static const HhFam hhFams[]={
+    // THE WATTERSONS (The Amazing World of Gumball), a fan tribute. Nicole and Richard first (a family's first two adults are the couple).
+    // Personalities are set by hand (NEAT OUTGOING ACTIVE PLAYFUL NICE, 25 points), not from a sign.
+    {"THE WATTERSONS",5,{
+        {"NICOLE",  { [LK_SHAPE]=SH_SLIM, [LK_SKIN]=5, [LK_EYES]=8, [LK_MOUTH]=1, [LK_HSTYLE]=3, [LK_HCOL]=6, [LK_TOP]=6, [LK_BOT]=1,
+                      [LK_NOSE]=6, [LK_FEARS]=1, [LK_FTAIL]=2, [LK_HEIGHT]=SLV(1) }, AG_ADULT,AS_FORTUNE,0,SX_FEMALE, {8,4,8,2,3} },   // a blue cat: tough, driven, short fused
+        {"RICHARD", { [LK_SHAPE]=SH_CHUBBY, [LK_SKIN]=7, [LK_EYES]=1, [LK_MOUTH]=3, [LK_HSTYLE]=3, [LK_HCOL]=7, [LK_TOP]=6, [LK_BOT]=3,
+                      [LK_NOSE]=1, [LK_FEARS]=3, [LK_FTAIL]=3, [LK_WEIGHT]=SLV(3) }, AG_ADULT,AS_PLEAS,0,SX_MALE, {1,7,0,9,8} },        // a big pink rabbit: lazy and sweet
+        {"GUMBALL", { [LK_SHAPE]=SH_PEAR, [LK_SKIN]=5, [LK_EYES]=9, [LK_MOUTH]=3, [LK_HSTYLE]=3, [LK_HCOL]=6, [LK_TOP]=2, [LK_TTONE]=SLV(-3), [LK_BOT]=3,
+                      [LK_NOSE]=6, [LK_CHEEK]=5, [LK_FEARS]=1, [LK_FTAIL]=2, [LK_EYESZ]=SLV(1), [LK_MOUTHW]=SLV(2) }, AG_CHILD,AS_POP,0,SX_MALE, {2,8,5,7,3} },   // a blue cat, 12: TOON eyes, whiskers, brown sweater
+        {"DARWIN",  { [LK_SHAPE]=SH_STUBBY, [LK_SKIN]=7, [LK_TONE]=SLV(2), [LK_EYES]=3, [LK_MOUTH]=1, [LK_HSTYLE]=3, [LK_HCOL]=3, [LK_TOP]=2, [LK_BOT]=2,
+                      [LK_FTAIL]=1, [LK_EYESZ]=SLV(2) }, AG_CHILD,AS_POP,0,SX_MALE, {3,6,4,5,7} },          // the goldfish who grew legs: big eyes, a fin of a tail
+        {"ANAIS",   { [LK_SHAPE]=SH_PETITE, [LK_SKIN]=7, [LK_EYES]=5, [LK_MOUTH]=1, [LK_HSTYLE]=3, [LK_HCOL]=7, [LK_TOP]=2, [LK_BOT]=2,
+                      [LK_NOSE]=1, [LK_FEARS]=3, [LK_FTAIL]=3 }, AG_CHILD,AS_KNOW,0,SX_FEMALE, {7,3,3,4,8} } }},   // the little pink rabbit genius: orange dress
     {"THE GRINDERS",3,{ {"REX", {5,2,2,1,1,0,0,1,1, 0,0,0},AG_ADULT,AS_POP,  0,SX_MALE},
                         {"DEE", {4,1,1,1,1,2,3,3,0, 0,0,0},AG_ADULT,AS_FORTUNE,9,SX_FEMALE},
                         {"PIP", {0,1,2,2,2,1,3,2,5, 0,0,0},AG_CHILD,AS_GROW,  2,SX_FEMALE} }},
@@ -303,7 +317,7 @@ static void hhRemove(int m){   // moves out: their sprites and relationships go 
 static void hhNew(HhSim*s,const HhPre*p){
     s->uid=(u8)hhFreeUid(); s->bubT=0; s->hp=HP_MAX;
     for(int i=0;i<LK_N;i++) s->look[i]=p->look[i]; s->look[LK_SEX]=p->sex;
-    s->stage=p->stage; s->asp=p->asp; s->ltw=0; for(int i=0;i<TR_N;i++) s->tr[i]=signTr[p->sign][i];
+    s->stage=p->stage; s->asp=p->asp; s->ltw=0; { int own=0; for(int i=0;i<TR_N;i++) own|=p->tr[i]; for(int i=0;i<TR_N;i++) s->tr[i]=own?p->tr[i]:signTr[p->sign][i]; }
     int i=0; for(;p->name[i]&&i<HH_NM-1;i++) s->name[i]=p->name[i]; s->name[i]=0; s->last[0]=0;
     for(int k=0;k<HN_N;k++) s->need[k]=(u8)(70+(rnd8()&15)); s->act=HA_IDLE; s->think=(short)(rnd8()&63); s->hd=0;
     hhPlace(s,0);

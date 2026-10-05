@@ -839,3 +839,10 @@ and source/voices.h (X-macro list, ROM blobs, V_<name> ids). They play on the on
 `voxChain(a,b,c)` plays three in a row (the pipe: lighter, inhale, cough). Who plays what: `voxEvent` (main.c, called from sims.h simEventV) for life events, `voxSoc` (house.h) for socials,
 and spots in main.c: falls (shriek), bails (cry), instant death (die of shock), fights (lets fight / losing / lost / win), hunger and bladder nags, sleep (snore), new wants (thinking).
 Family life: PROPOSE plays the serenade (good on a yes, bad on a not yet); TRY FOR A BABY plays yahoo on a yes (getting ready to woohoo) or nah on a no.
+## THE WATTERSONS (pre-made family, a fan tribute) and the cat parts
+Ported from the old Gumball commit (`claude/loving-newton-i2hh4z`, 0d6eda7) onto the current code, without its save-format changes:
+- **New creator options** (appended, so saves keep their meaning): eyes TOON (big plain white ovals, a tiny pupil; its sprite id sits after the mouths so saved mouth ids stay put), nose CAT (a pink triangle), cheeks CAT WHISKERS (three a side).
+- Already in the game since then, so not re-added: CAT / BUNNY ears and tails, BARE clothes (adults only), the HIP WIDTH slider.
+- Pre-mades can now set their own personality (`HhPre.tr`, 25 points) instead of a sign, and a family can have 5 Sims.
+- **HOUSEHOLD > MOVE IN A FAMILY > THE WATTERSONS:** NICOLE (blue cat) and RICHARD (big pink rabbit), married; GUMBALL (blue cat, TOON eyes, whiskers, brown sweater), DARWIN (the goldfish with legs, big eyes, a fin tail) and ANAIS (little pink rabbit genius).
+- Not ported: the old commit's light-fur colour slot and LIGHT muzzle. They would have shifted the wallpaper colour slots, and saved rooms check those. With no orange skin yet, Darwin uses the salmon swatch, lightened.
