@@ -711,3 +711,17 @@ a fresh pre-made family or NEW HOUSEHOLD HERE end the story (`stOff`).
 
 ## THE TICKING BOMB (El B.D'ees)
 Latin house rework of The Dipper Man - The Ticking Bomb, built by tools/make_tickingbomb_rework.py (124 BPM). Keeps the offbeat riff, the A/D bass and the G-E-G stinger (a semitone down). Breakbeat under a house kick, congas and timbales, a low whine, and an 12-bar half-time downgroove after the fuse, then the blast back into house.
+
+## Studio renders (soundtrack release)
+`python3 tools/studio_render.py OUTDIR` renders every tracker song and creator chiptune for a soundtrack release. `python3 tools/studio_render.py --pack OUTDIR` then builds the album: 3 discs, tagged LAME V0 MP3s and 24-bit FLACs, a cover made from the title logo, a track list, and zip parts of about 23 MB for sending.
+- **Same music as the game.** Songs are read through xm2gba.py, so the converter's own arrangements are the ones rendered (the ambient TREE-AGE, Worthless Clouds, the Amiga ending, the bar-fitted chord loops). The notes, volumes and pan choreography are the game's.
+- **Hi-fi sounds.** Songs built by a generator script are re-synthesised at 4x the rate. `BORE_HIFI=4` scales every `SR*` constant in make_flexicode / condensed / staged / sunman / meltdown / cocaine_cola; the scripts built on the flexicode palette follow it. At the default (1) every generator still writes byte-identical XMs. Songs built on recorded samples play those samples directly: no 8-bit re-quantising, no down-sampling. Every note is resampled with a long Kaiser-windowed sinc.
+- **Mix.** Each instrument goes to a role bus (kick, boom, bass, perc, snare, hat, fx, pad, mel). Each note gets a low cut kept under its own bottom, and a new note on a channel cuts the old one with a 4 ms fade. Bass and pads duck under the kick, and pads are widened with a mono-safe delayed side signal. All roles share one stereo hall (frequency-dependent decay) at different send levels.
+- **Panning.** Continuous instead of 7 buses. It is xm2gba's design_pan with the rounding taken out, so each song's hand-made choreography is followed exactly. In-between positions open out a little, and kick and bass stay centred.
+- **Master.**
+  - Bass mono below 110 Hz, and left/right levels evened out.
+  - The high side signal is raised on narrow mixes.
+  - A gentle tilt EQ: 35 % of the way to -4.5 dB/oct, at most 2 dB.
+  - Glue compression (1–2 dB).
+  - -14 LUFS (quiet pieces lower, and the limiter never works more than 4 dB), with a -1 dBTP true-peak limiter.
+- **Chiptunes.** Rendered from the same control tracks the game plays, by make_chiptunes' 48 kHz renderer with no 7.5 kHz limit. Each voice gets its own place in the stereo field and there is a small room reverb. Each plays 3 times with no seams and fades out on the 4th.

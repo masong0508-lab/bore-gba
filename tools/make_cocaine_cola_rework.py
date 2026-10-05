@@ -26,7 +26,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(HERE, "cocaine_cola.xm")
 OUT = os.path.join(HERE, "cocaine_cola_ii.xm")
 BPM, SPEED, ROWS, NCH = 120, 1, 96, 16
-SR = 22050
+HIFI = int(os.environ.get('BORE_HIFI', '1'))   # 1 = the game's sample rates; tools/studio_render.py sets 4 to synthesise every sound at 4x the rate
+SR = 22050 * HIFI
 rng = np.random.default_rng(120)
 
 # =============================================================== sound design

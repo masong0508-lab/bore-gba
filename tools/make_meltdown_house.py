@@ -13,9 +13,10 @@ import struct, os, sys
 import numpy as np
 from scipy import signal
 
-SR = 16726          # sample rate of a "relative note +12" XM sample (plays at its natural pitch on note C-4)
-SR2 = 8363 * 2 ** (5 / 12)    # relative note +5: 11163 Hz, for sounds with no energy above ~5 kHz (stabs, lead, crash) - 1/3 smaller than SR
-SR3 = 8363 / 2                 # relative note -12: 4182 Hz, for the riser (a dark noise sweep)
+HIFI = int(os.environ.get('BORE_HIFI', '1'))   # 1 = the game's sample rates; tools/studio_render.py sets 4 to synthesise every sound at 4x the rate
+SR = 16726 * HIFI   # sample rate of a "relative note +12" XM sample (plays at its natural pitch on note C-4)
+SR2 = 8363 * 2 ** (5 / 12) * HIFI # relative note +5: 11163 Hz, for sounds with no energy above ~5 kHz (stabs, lead, crash) - 1/3 smaller than SR
+SR3 = 8363 / 2 * HIFI          # relative note -12: 4182 Hz, for the riser (a dark noise sweep)
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "meltdown_in_mars_house.xm")
 rng = np.random.default_rng(1990)
 BPM, SPEED, NCH, ROWS = 126, 6, 10, 64

@@ -29,7 +29,8 @@ import xm
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(HERE, "the_dipper_man_staged.xm")
 OUT = os.path.join(HERE, "staged.xm")
-SR = 16726; SR2 = 8363 * 2 ** (5 / 12); SR0 = 8363
+HIFI = int(os.environ.get('BORE_HIFI', '1'))   # 1 = the game's sample rates; tools/studio_render.py sets 4 to synthesise every sound at 4x the rate
+SR = 16726 * HIFI; SR2 = 8363 * 2 ** (5 / 12) * HIFI; SR0 = 8363 * HIFI
 BPM_XM, SPEED, NCH, ROWS = 87, 1, 16, 64
 BAR = ROWS * SPEED * 2.5 / BPM_XM; BEAT = BAR / 4
 rng = np.random.default_rng(1984)

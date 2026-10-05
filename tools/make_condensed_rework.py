@@ -28,9 +28,10 @@ import xm
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(HERE, "the_dipper_man_condensed_music.xm")
 OUT = os.path.join(HERE, "condensed_music.xm")
-SR = 16726                       # a "relative note +12" sample plays at its natural pitch on C-4
-SR2 = 8363 * 2 ** (5 / 12)       # relative note +5 (11163 Hz) for sounds with little top end
-SR0 = 8363                       # relative note 0, for long dark sounds
+HIFI = int(os.environ.get('BORE_HIFI', '1'))   # 1 = the game's sample rates; tools/studio_render.py sets 4 to synthesise every sound at 4x the rate
+SR = 16726 * HIFI                # a "relative note +12" sample plays at its natural pitch on C-4
+SR2 = 8363 * 2 ** (5 / 12) * HIFI # relative note +5 (11163 Hz) for sounds with little top end
+SR0 = 8363 * HIFI                # relative note 0, for long dark sounds
 BPM_XM, SPEED, NCH, ROWS = 88, 1, 16, 64
 BAR = ROWS * SPEED * 2.5 / BPM_XM          # 1.818 s
 BEAT = BAR / 4

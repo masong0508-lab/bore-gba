@@ -17,8 +17,9 @@ import struct, os
 import numpy as np
 from scipy import signal
 
-SR = 16726                       # a "relative note +12" sample plays at its natural pitch on C-4
-SR2 = 8363 * 2 ** (5 / 12)       # relative note +5 (11163 Hz) for softer sounds with little top end
+HIFI = int(os.environ.get('BORE_HIFI', '1'))   # 1 = the game's sample rates; tools/studio_render.py sets 4 to synthesise every sound at 4x the rate
+SR = 16726 * HIFI                # a "relative note +12" sample plays at its natural pitch on C-4
+SR2 = 8363 * 2 ** (5 / 12) * HIFI # relative note +5 (11163 Hz) for softer sounds with little top end
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "spanish_flexicode.xm")
 rng = np.random.default_rng(1810)
 BPM, SPEED, NCH, ROWS = 112, 6, 16, 24
