@@ -74,5 +74,6 @@ static void drawItemTile(char c,int sx,int sy,int x,int y){
     else if(c=='V') blitItem(V_LAVA,sx,sy);
     else if(c=='U') blitItem(V_BEANBAG+((itemFacing(x,y)-cview)&3),sx,sy);
     else if(c=='Q') blitItem(V_DEADSET+(((itemFacing(x,y)-cview)&3)>=2),sx,sy);   // the DeadSet 3Thousand VYBE
+    else if(c=='I') blitItem(V_PHONE,sx,sy);                                   // the telephone (R: the phone menu)
     else if(c=='^'||c=='~') drawStairs(sx,sy,c=='^');
 }

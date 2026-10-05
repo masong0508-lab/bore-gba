@@ -757,7 +757,7 @@ static int hhSocR(int useLabel){   // 1 = handled (a social, or the menu was clo
     if(s->act==HA_USE){ lnote="THEY ARE BUSY"; lnoteT=50; return 0; }
     static const char* it[SC_N+1]; static char tl[40]; int id[SC_N+1], n=0;
     static const char* const useNm[6]={0,"USE THE FRIDGE","USE THE TOILET","SLEEP IN BED","TAKE A SHOWER","SIT ON SOFA"};
-    if(useLabel>0&&useLabel<6){ it[n]=useNm[useLabel]; id[n++]=-1; }
+    if((useLabel>0&&useLabel<6)||useLabel==8){ it[n]=useLabel==8?"USE THE PHONE":useNm[useLabel]; id[n++]=-1; }
     for(int i=0;i<SC_N;i++) if(socAllowed(a,b,i)){ it[n]=i==SC_PUNCH?fkMove(a,"PUNCH"):socT[i].name; id[n++]=i; }
     { char*e=simCat(tl,s->name); *e++=' '; *e++=' '; e=simCat(e,relWord(a,b)); e=simCat(e,"  HP "); simCatN(e,s->hp); }
     int c=menu(tl,it,n); liveInvalidate();

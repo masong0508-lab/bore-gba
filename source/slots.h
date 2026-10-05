@@ -489,10 +489,11 @@ static void slThumb(int slot,int x0,int y0){   // the room of a slot at 1 pixel 
     }
 }
 #define SL_ROWS 6
+static int slLocked(int i){ int o=slOwner[i]; return o>=0&&(slI[o].kind==SLK_PLAYER||slI[o].kind==SLK_TOWN); }   // saves that SAVE GAME and the town keep for you: shown, never picked
 static int slTop(int sel){ int t=sel-2; if(t>SLOT_N-SL_ROWS) t=SLOT_N-SL_ROWS; if(t<0) t=0; return t; }   // first slot shown: the cursor sits near the middle of the six rows
 static void slDraw(int sel){
     fillCols(0,ROW_W,RGB(3,4,8));
-    box(3,1,234,157); text(12,6,"ROOM SLOTS",GOLD,1);
+    box(3,1,234,157); text(12,6,"BLUEPRINTS",GOLD,1);
     int act=slActive();
     text(100,6,act>=0?"ACTIVE SLOT":"NO ACTIVE SLOT",DIMC,1); if(act>=0){ char nb[4]; slNum(nb,act+1); text(160,6,nb,GOLD,1); }
     int top=slTop(sel);
@@ -502,7 +503,8 @@ static void slDraw(int sel){
         if(i==sel){ rect(8,y-2,142,14,RGB(6,16,8)); rect(8,y-2,2,14,GOLD); }
         char nb[4]; slNum(nb,i+1); text(13,y+2,nb,i==sel?GOLD:DIMC,1);
         u16 nc=i==sel?WHITE:DIMC;
-        if(slOwner[i]<0) text(28,y,"EMPTY",i==sel?RGB(20,23,26):RGB(9,11,15),1);
+        if(slLocked(i)){ text(28,y,slI[slOwner[i]].kind==SLK_TOWN?"THE TOWN":"PLAYER SAVE",RGB(9,11,15),1); text(28,y+7,"KEPT BY SAVE GAME",RGB(7,9,13),1); }
+        else if(slOwner[i]<0) text(28,y,"EMPTY",i==sel?RGB(20,23,26):RGB(9,11,15),1);
         else if(slOwner[i]!=i) text(28,y,"PART OF A BIG SAVE",RGB(14,16,22),1);
         else {
             text(28,y,I->name[0]?I->name:"NO NAME",slGood[i]?nc:RGB(30,10,8),1);
@@ -634,15 +636,16 @@ static int slActions(int s){
     }
     return changed;
 }
-static const char* const slotHelp[14]={">ROOM SLOTS","NAMED SAVES OF ROOMS AND HOUSES","A ON A SLOT OPENS ITS LIST",">WHAT A SLOT HOLDS","ROOM  WALLS FLOORS ITEMS","PERSON  YOUR CREATURE  LIFE  CASH AND CLOCK","HOUSEHOLD  THE SIMS LIVING WITH YOU","SAVE HOUSEHOLD GOES IN ANY FREE SLOT","OPTIONS PICK WHAT SAVING STORES",">GOOD TO KNOW","LOADING MAKES THAT ROOM THE CURRENT ONE","THE ACTIVE SLOT IS THE LAST YOU USED","128 KB FLASH HOLDS 58 SLOTS  SRAM 12"};
+static const char* const slotHelp[14]={">BLUEPRINTS","ROOMS AND HOUSES TO KEEP AND REUSE","A ON A SLOT OPENS ITS LIST",">WHAT A SLOT HOLDS","ROOM  WALLS FLOORS ITEMS","PERSON  YOUR CREATURE  LIFE  CASH AND CLOCK","HOUSEHOLD  THE SIMS LIVING WITH YOU","SAVE HOUSEHOLD GOES IN ANY FREE SLOT","OPTIONS PICK WHAT SAVING STORES",">YOUR LIFE IS SAVED WITH SAVE GAME","LOADING MAKES THAT ROOM THE CURRENT ONE","THE ACTIVE SLOT IS THE LAST YOU USED","128 KB FLASH HOLDS 58 SLOTS  SRAM 12"};
 static int slotScreen(void){   // returns 1 if something was loaded
     int sel=0, dirty=1, changed=0; u16 prev=keyNow();
     slScan();
     { int a=slActive(); if(a>=0) sel=a; }   // open on the slot you used last
+    for(int t=0;t<SLOT_N&&slLocked(sel);t++) sel=(sel+1)%SLOT_N;
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k;
-        if(pr&K_DOWN){ sel=(sel+1)%SLOT_N; dirty=1; }
-        if(pr&K_UP){ sel=(sel+SLOT_N-1)%SLOT_N; dirty=1; }
+        if(pr&K_DOWN){ for(int t=0;t<SLOT_N;t++){ sel=(sel+1)%SLOT_N; if(!slLocked(sel)) break; } dirty=1; }
+        if(pr&K_UP){ for(int t=0;t<SLOT_N;t++){ sel=(sel+SLOT_N-1)%SLOT_N; if(!slLocked(sel)) break; } dirty=1; }
         if(pr&(K_B|K_START)) break;
         if(pr&K_A){ changed|=slActions(sel); slScan(); prev=keyNow(); dirty=1; }
         if(dirty){ slDraw(sel); present(); dirty=0; } else vsync();

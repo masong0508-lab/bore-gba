@@ -1937,7 +1937,7 @@ static void fightHurt(int dmg){
 static int tileH(int tx,int ty){   // surface height in px (ramps: their highest point). Grind height is 6: rails, ledges and benches
     if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
     char c=lifeMap[ty][tx];
-    return (c=='#'||c=='F'||c=='W'||c=='H')?2*CC: (c=='X'||c=='Y')?10: (c=='w'||c=='T'||c=='S'||c=='C'||c=='O'||c=='G'||c=='V'||c=='U'||c=='Q')?CC: (c=='='||c=='L'||c=='N'||c=='Z'||c=='K'||c=='J')?6: (c=='M')?3: isKicker(c)?KICKER_H: isLaunch(c)?LAUNCH_H: isQPipe(c)?qpH[7]: 0;   // pack 2: X funbox 10, Y trash can 10, O barrel 8, Z planter / K table / J jersey grind at 6, M manual pad 3
+    return (c=='#'||c=='F'||c=='W'||c=='H')?2*CC: (c=='X'||c=='Y')?10: (c=='w'||c=='T'||c=='S'||c=='C'||c=='O'||c=='G'||c=='V'||c=='U'||c=='Q')?CC: (c=='='||c=='L'||c=='N'||c=='Z'||c=='K'||c=='J'||c=='I')?6: (c=='M')?3: isKicker(c)?KICKER_H: isLaunch(c)?LAUNCH_H: isQPipe(c)?qpH[7]: 0;   // pack 2: X funbox 10, Y trash can 10, O barrel 8, Z planter / K table / J jersey grind at 6, M manual pad 3
 }
 static int surfH(s32 fx,s32 fy){   // surface height at an exact position (1/256 tiles): same as tileH, but ramps slope
     int tx=(int)(fx>>8), ty=(int)(fy>>8); if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
@@ -2027,14 +2027,14 @@ static int numText(int x,int y,int n,u16 c){
 // lifeMap = what stands on each tile, floorMap = floor style under it, wallMap = wallpaper on it (for wall tiles).
 enum { T_ROOM, T_WALL, T_FLOOR, T_ITEM, T_ERASE, NTOOL };
 static int eTool, eAct, eAx, eAy, eFl, eWp, eOb;   // editor: tool, rectangle anchor set?, anchor tile, chosen floor / wallpaper / item
-#define NOBJ 31
+#define NOBJ 32
 #define OB_LAUNCH 17   // launch ramp turns like the kicker: '9'..'<'
 #define OB_KICKER 10   // palette slots whose char carries a turn (+eRot): kicker '1'..'4', quarter pipe '5'..'8'
 #define OB_QPIPE 11
 static int eRot;   // editor: which way the next ramp faces (0 S, 1 E, 2 N, 3 W)
-static const char palCh[NOBJ]={'.','w','W','#','=','F','T','D','B','P','1','5','L','N','S','H','C','9','X','O','Y','Z','K','J','M','G','V','U','^','~','Q'};
-static const char* const palNm[NOBJ]={"CLEAR","LOW WALL","WALL","CRATE","RAIL","FRIDGE","TOILET","DOOR","BOARD","SPAWN","KICKER","Q PIPE","LEDGE","BENCH","BED","SHOWER","SOFA","LAUNCH","FUNBOX","BARREL","TRASH CAN","PLANTER","PICNIC","JERSEY","MANUAL PAD","WATER PIPE","LAVA LAMP","BEANBAG","STAIRS UP","STAIRS DOWN","DEADSET 3THOUSAND VYBE"};
-static const u16 palCol[NOBJ]={RGB(26,21,14),RGB(8,20,22),RGB(10,22,24),RGB(8,9,20),RGB(31,30,16),RGB(31,31,31),RGB(30,28,18),RGB(14,9,5),RGB(26,10,6),RGB(28,10,8),RGB(24,17,9),RGB(27,19,11),RGB(20,20,22),RGB(25,18,9),RGB(10,14,28),RGB(22,28,30),RGB(26,18,9),RGB(8,14,24),RGB(18,16,24),RGB(24,6,5),RGB(12,18,14),RGB(20,10,6),RGB(25,18,9),RGB(22,22,24),RGB(30,26,5),RGB(10,24,14),RGB(24,8,26),RGB(18,8,22),RGB(24,22,18),RGB(12,11,10),RGB(6,20,31)};
+static const char palCh[NOBJ]={'.','w','W','#','=','F','T','D','B','P','1','5','L','N','S','H','C','9','X','O','Y','Z','K','J','M','G','V','U','^','~','Q','I'};
+static const char* const palNm[NOBJ]={"CLEAR","LOW WALL","WALL","CRATE","RAIL","FRIDGE","TOILET","DOOR","BOARD","SPAWN","KICKER","Q PIPE","LEDGE","BENCH","BED","SHOWER","SOFA","LAUNCH","FUNBOX","BARREL","TRASH CAN","PLANTER","PICNIC","JERSEY","MANUAL PAD","WATER PIPE","LAVA LAMP","BEANBAG","STAIRS UP","STAIRS DOWN","DEADSET 3THOUSAND VYBE","PHONE"};
+static const u16 palCol[NOBJ]={RGB(26,21,14),RGB(8,20,22),RGB(10,22,24),RGB(8,9,20),RGB(31,30,16),RGB(31,31,31),RGB(30,28,18),RGB(14,9,5),RGB(26,10,6),RGB(28,10,8),RGB(24,17,9),RGB(27,19,11),RGB(20,20,22),RGB(25,18,9),RGB(10,14,28),RGB(22,28,30),RGB(26,18,9),RGB(8,14,24),RGB(18,16,24),RGB(24,6,5),RGB(12,18,14),RGB(20,10,6),RGB(25,18,9),RGB(22,22,24),RGB(30,26,5),RGB(10,24,14),RGB(24,8,26),RGB(18,8,22),RGB(24,22,18),RGB(12,11,10),RGB(6,20,31),RGB(26,6,6)};
 static signed char palLut[256]; static u8 palLutOk;   // tile char -> palette slot (or -1), built on first use: palIdx() runs for every tile of the minimap, so it must be O(1) even with 100+ items
 static int palIdx(char c){
     if(!palLutOk){ for(int i=0;i<256;i++) palLut[i]=-1; for(int i=NOBJ-1;i>=0;i--) palLut[(u8)palCh[i]]=(signed char)i;
@@ -2061,7 +2061,7 @@ static void mapGen(void){
     gPut(16,11,'F'); gPut(16,12,'F'); gPut(12,4,'#'); gPut(13,4,'#'); gPut(12,5,'#'); gPut(13,5,'#');
     gPut(5,12,'P'); gPut(7,14,'B');
     gPut(8,3,'H'); gPut(4,16,'S'); gPut(3,11,'C');                     // shower (bathroom), bed and sofa (lounge)
-    gPut(3,10,'V'); gPut(5,10,'G'); gPut(3,13,'U'); gPut(6,12,'Q');   // + the DeadSet 3Thousand VYBE                     // the chill corner: lava lamp, water pipe, beanbag
+    gPut(3,10,'V'); gPut(5,10,'G'); gPut(3,13,'U'); gPut(6,12,'Q'); gPut(8,12,'I');   // + the DeadSet 3Thousand VYBE                     // the chill corner: lava lamp, water pipe, beanbag
     // FACTORY: red brick, steel plate, oil-stained and hazard lanes, grate corner, crates and a rail
     gRoom(22,2,37,19,8,NWP+53); gBox(23,10,36,11,10); gBox(23,14,27,18,9); gBox(30,3,36,8,12);
     gPut(29,19,'D'); gPut(22,10,'D'); gPut(37,10,'D');
@@ -2507,10 +2507,10 @@ static void lifeStep(u16 k,u16 pr,int fr){
         { static u8 vxH, vxP; if(lfood<SIM_LOW){ if(!vxH){ vxH=1; voxNag(V_im_hungryrururyry); } } else if(lfood>=40) vxH=0;   // the hunger and the bladder speak up once each time they run low
           if(lbl>=80){ if(!vxP){ vxP=1; voxNag(V_need_to_pee); } } else if(lbl<50) vxP=0; }
         if(lbl>=100){ lbl=0; lstun=90; lsp=0; lgrind=0; lscore=lscore>100?lscore-100:0; sfxPlay(SFX_CRY); lnote="ACCIDENT"; lnoteT=90; moodEvent(M_ACCIDENT); }
-        int nf=0, nt=0, nb=0, nh=0, nc=0, np=0, nq=0;
+        int nf=0, nt=0, nb=0, nh=0, nc=0, np=0, nq=0, nph=0;
         for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++){ int tx=(lfx>>8)+dx, ty=(lfy>>8)+dy; if(tx<0||ty<0||tx>=MW||ty>=MH) continue;
-            char c=lifeMap[ty][tx]; if(c=='F') nf=1; if(c=='T') nt=1; if(c=='S') nb=1; if(c=='H') nh=1; if(c=='C'||c=='U') nc=1; if(c=='G') np=1; if(c=='Q') nq=1; }
-        lnear=nf?1:(nt?2:(nb?3:(nh?4:(np?6:(nq?7:(nc?5:0))))));   // 7 the DeadSet   // 1 fridge, 2 toilet, 3 bed, 4 shower, 6 water pipe, 5 sofa or beanbag
+            char c=lifeMap[ty][tx]; if(c=='F') nf=1; if(c=='T') nt=1; if(c=='S') nb=1; if(c=='H') nh=1; if(c=='C'||c=='U') nc=1; if(c=='G') np=1; if(c=='Q') nq=1; if(c=='I') nph=1; }
+        lnear=nf?1:(nt?2:(nb?3:(nh?4:(np?6:(nq?7:(nph?8:(nc?5:0)))))));   // 7 the DeadSet   // 1 fridge, 2 toilet, 3 bed, 4 shower, 6 water pipe, 5 sofa or beanbag
         if((pr&K_R)&&lstun<=0&&lz<=fh&&!simAct&&hhSocR(lnear)) pr&=~K_R;   // next to a household Sim: the social menu (it offers the furniture too)
         if((pr&K_R)&&lnear&&lstun<=0&&lz<=fh){
             if(lnear==1){   // fridge: eat
@@ -2522,6 +2522,8 @@ static void lifeStep(u16 k,u16 pr,int fr){
                 if(!pipeOk()){ lnote=stage==AG_TEEN&&xo[XO_PIPEAGE]?"NOT OLD ENOUGH YET":"GROWN-UPS ONLY"; lnoteT=50; }
                 else if(lchill>0){ lnote="STILL CHILLIN"; lnoteT=40; }
                 else { lchill=1800; lstun=80; lsp=0; lgrind=0; lnote="PUFF PUFF  CHILLED OUT"; lnoteT=80; moodEvent(M_CHILL); simEvent(SE_PIPE); }
+            } else if(lnear==8){   // the telephone: invite someone, order food, pick a career
+                phoneMenu(); liveInvalidate(); camSnap=1; while((~REG_KEYINPUT)&0x3FF) vsync();
             } else if(lnear>=3){ simBegin(lnear);   // bed / shower / sofa (sims.h)
             } else {        // toilet: relieve yourself
                 if(lbl<15){ lnote="LATER"; lnoteT=40; }
@@ -2722,7 +2724,7 @@ static void drawPlayerNow(void){
 // The room inside the rectangle x0..x1 / y0..y1 (end excluded), drawn back to front and clipped to it: the same pixels a whole-screen
 // draw would put there. ed=1: editor view (no player).
 static inline int isItemCh(char c){
-    switch(c){ case '#': case 'F': case 'T': case '=': case 'D': case 'L': case 'N': case 'S': case 'H': case 'C': case 'X': case 'O': case 'Y': case 'Z': case 'K': case 'J': case 'M': case 'G': case 'V': case 'U': case 'Q': case '^': case '~': return 1; }
+    switch(c){ case '#': case 'F': case 'T': case '=': case 'D': case 'L': case 'N': case 'S': case 'H': case 'C': case 'X': case 'O': case 'Y': case 'Z': case 'K': case 'J': case 'M': case 'G': case 'V': case 'U': case 'Q': case 'I': case '^': case '~': return 1; }
     return isRamp(c);
 }
 static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
@@ -3001,7 +3003,6 @@ static void camStep(int steps,u16 k,u16 pr){   // action cam: the game holds sti
     else { int f=lcamF; cview=(f<6||f>=60)?0:(f-6)/18+1; if(cview>3) cview=0; }
 }
 static int gToMenu;   // set when the player picks MAIN MENU in the pause menu, so every screen above returns to it
-static const char* const lifeItems[11]={"RESUME","SAVE GAME","ASPIRATION","HOUSEHOLD","PHONE","STORY","OPTIONS","ROOM SLOTS","EDIT MAP","NEW LIFE","MAIN MENU"};
 static void hhSwap(HhSim*s){   // trade places: the player becomes s, s becomes who the player was
     s32 x=lfx, y=lfy; lfx=s->fx; lfy=s->fy; s->fx=x; s->fy=y;
     { u8 h=(u8)(lhd&15); lhd=s->hd; s->hd=h; }
@@ -3078,11 +3079,64 @@ static void aspPanel(void){
         present();
     }
 }
-static const char* const lifeItemsNb[11]={"RESUME","SAVE GAME","ASPIRATION","HOUSEHOLD","PHONE","STORY","OPTIONS","ROOM SLOTS","EDIT MAP","NEW LIFE","NEIGHBORHOOD"};
-static const char* const lifeItemsEd[3]={"RESUME","OPTIONS","BACK TO EDITOR"};
 // Timer2 (65536 Hz) is the clock (defined with the settings). The game logic always runs at 60 steps per second; the
 // frame rate setting only says how often the picture is redrawn, so lower rates save work without slowing the game.
 static const char* const yesNoLife[2]={"NO","YES ERASE IT"};
+// ---- the PAUSE PANEL: Sims style (plumbob, household funds, one icon tile per screen) instead of a plain list ----
+// The phone is no longer a menu entry: it is a real item in the house (palette PHONE, tile 'I'): R next to it. A house without one gets one (phoneEnsure).
+enum { PM_RESUME, PM_SAVE, PM_WANTS, PM_FAMILY, PM_STORY, PM_OPTS, PM_BUILD, PM_QUIT };
+static const char* const pmArt[8][9]={
+ {"..#......","..###....","..#####..","..#######","..#######","..#####..","..###....","..#......","........."},   // resume
+ {"#########","#.#####.#","#.#####.#","#.......#","#.ooooo.#","#.ooooo.#","#.ooooo.#","#.ooooo.#","#########"},   // save (a disk)
+ {"....#....","....#....","...###...","#########",".#######.","..#####..","..##.##..",".##...##.",".#.....#."},   // wants (a star)
+ {".##...##.",".##...##.","####.####","####.####","####.####",".##...##.",".##...##.",".##...##.",".#.#.#.#."},   // family
+ {"#########","#.......#","#.#####.#","#.......#","#.#####.#","#.......#","#.####..#","#.......#","#########"},   // story (a book)
+ {"..#.#.#..",".#######.","#########","###...###","###...###","#########",".#######.","..#.#.#..","........."},   // options (a cog)
+ {"....#....","...###...","..#####..",".#######.","#########",".##...##.",".##.o.##.",".##.o.##.",".#######."},   // build (a house)
+ {"#######..","#.....#.#","#.....##.","#...#####","#.....##.","#.....#.#","#.....#..","#######..","........."}}; // quit (door and arrow)
+static const u16 pmCol[8]={RGB(10,28,10),RGB(10,20,31),RGB(31,26,6),RGB(31,16,22),RGB(22,16,30),RGB(22,24,26),RGB(30,20,8),RGB(30,10,8)};
+static const char* const pmNm[8]={"RESUME","SAVE","WANTS","FAMILY","STORY","OPTIONS","BUILD","QUIT"};
+static const char* const pmTitle[8]={"RESUME","SAVE GAME","ASPIRATION","HOUSEHOLD","STORY","OPTIONS","BUILD AND HOUSES","MAIN MENU"};
+static const char* const pmDesc[8]={"BACK TO YOUR LIFE","SAVES YOU AND YOUR HOUSE","WANTS  FEARS  REWARD SHOP","WHO LIVES HERE  HOW THEY FEEL","YOUR CHAPTERS","SETTINGS  SOUND  CONTROLS","EDIT MAP  BLUEPRINTS  NEW LIFE","SAVES AND LEAVES"};
+static int pauseMenu(int mode){   // mode 0 life, 1 from the neighborhood, 2 test play from the editor. Returns a PM_ number, or -1 (resume)
+    static const u8 full[8]={0,1,2,3,4,5,6,7}, edl[3]={PM_RESUME,PM_OPTS,PM_QUIT};
+    const u8*ids=mode==2?edl:full; int n=mode==2?3:8, sel=0; u16 prev=keyNow(); u32 t=0;
+    for(;;){
+        u16 k=keyNow(), pr=k&~prev; prev=k; t++;
+        if(pr&K_RIGHT) sel=(sel+1)%n;
+        if(pr&K_LEFT) sel=(sel+n-1)%n;
+        if((pr&K_DOWN)&&sel+4<n) sel+=4;
+        if((pr&K_UP)&&sel>=4) sel-=4;
+        if(pr&K_A) return ids[sel]==PM_RESUME?-1:ids[sel];
+        if(pr&(K_B|K_START)) return -1;
+        box(6,4,228,152);
+        rect(7,5,226,17,RGB(5,12,24)); rect(7,21,226,1,GOLD);
+        { int by=6+(int)((t>>4)&1);   // the plumbob floats
+          for(int i=0;i<9;i++){ int w=i<5?2*i+1:2*(8-i)+1; rect(15+4-w/2,by+i,w,1,i<4?RGB(14,31,14):RGB(6,24,8)); } }
+        text(30,9,mode==2?"TEST PLAY PAUSED":"PAUSED",GOLD,1);
+        if(mode!=2){ char b[12]; char*e=b; *e++=(char)0xC2; *e++=(char)0xA7; numStr(e,simMoney); text(228-tw(b,1),9,b,RGB(14,30,14),1); }
+        for(int i=0;i<n;i++){ int id=ids[i], x=10+(i&3)*56, y=27+(i>>2)*43, on=(i==sel);
+            rect(x-1,y-1,54,40,on?GOLD:RGB(10,16,30)); rect(x,y,52,38,on?RGB(6,18,10):RGB(7,10,20));
+            u16 col=on?pmCol[id]:(u16)((pmCol[id]>>1)&0x3DEF); int ib=(on&&((t>>4)&1))?-1:0;
+            for(int r=0;r<9;r++)for(int q=0;q<9;q++){ char ch=pmArt[id][r][q]; if(ch!='.') rect(x+17+q*2,y+5+r*2+ib,2,2,ch=='o'?WHITE:col); }
+            const char*nm=(id==PM_QUIT&&mode==1)?"TOWN":(id==PM_QUIT&&mode==2)?"EDITOR":pmNm[id];
+            text(x+(52-tw(nm,1))/2,y+28,nm,on?WHITE:DIMC,1); }
+        { int id=ids[sel]; const char*ti=pmTitle[id], *ds=pmDesc[id];
+          if(id==PM_QUIT&&mode==1){ ti="NEIGHBORHOOD"; ds="BACK TO THE TOWN"; } else if(id==PM_QUIT&&mode==2){ ti="BACK TO EDITOR"; ds="LEAVE THE TEST PLAY"; }
+          rect(7,113,226,1,RGB(10,16,30)); text(12,118,ti,GOLD,1); text(12,128,ds,RGB(22,25,28),1); }
+        text(12,142,"LEFT RIGHT UP DOWN PICK  A OK  B BACK",RGB(12,14,16),1);
+        present();
+    }
+}
+static const char* const buildItems[3]={"EDIT MAP","BLUEPRINTS","NEW LIFE"};
+static void phoneEnsure(void){   // a house must have a phone (careers, food and visitors live there now): when the map has none, one goes on the free tile nearest the spawn
+    for(int y=0;y<MH;y++)for(int x=0;x<MW;x++) if(lifeMap[y][x]=='I') return;
+    for(int r=1;r<=8;r++)for(int dy=-r;dy<=r;dy++)for(int dx=-r;dx<=r;dx++){
+        if((dx<0?-dx:dx)!=r&&(dy<0?-dy:dy)!=r) continue;
+        int x=spx+dx, y=spy+dy; if(x<1||y<1||x>=MW-1||y>=MH-1) continue;
+        if(lifeMap[y][x]=='.'){ lifeMap[y][x]='I'; return; } }
+}
+
 // ---- game music: the jukebox songs in their shuffled order while you play (OPTIONS > AUDIO > GAME MUSIC) ----
 static int gmCur;   // visible number of the song that plays
 static int menuOn, creOn, musCtx;   // who owns the music: the main menus' song, the creator's chiptune loop (musCtx = the screen the game was started from: 0 menu, 1 creator)
@@ -3107,7 +3161,7 @@ static void lifeMode(int ed){ int back=musCtx; gInPlay=1; lifeModeRun(ed); gInPl
 static void lifeModeRun(int ed){   // ed=1: test play started from the map editor
     objHideAll(); winFull(); REG_DISPCNT=0x3443;   // mode 3 + sprites (1D tiles) + window 0 (the household's hardware sprites, house.h)
     // (the passers-by of this lot are kept until you move to another lot or start a new life: twKeep, house.h)
-    lifeInit(); lcamF=0; cview=0; lcN=lcPts=lcT=lcBank=lcBankT=lcamPend=0; u16 prev=keyNow(); gmStart(); hudApplyLayout(); liveInvalidate(); camSnap=1;
+    lifeInit(); if(!ed) phoneEnsure(); lcamF=0; cview=0; lcN=lcPts=lcT=lcBank=lcBankT=lcamPend=0; u16 prev=keyNow(); gmStart(); hudApplyLayout(); liveInvalidate(); camSnap=1;
     stModal=0; if(!ed) stEnter();   // (the chapter card of the story waits for the first frame)
     tutOn=0; tutModal=TM_NONE;   // the tutorial: replay now, or offer it once (first PLAY, not in the test play of the editor)
     if(!ed){ if(xo[XO_TUTOR]==2) tutBegin(); else if(xo[XO_TUTOR]==0&&!tutAsked){ tutAsked=1; tutModal=TM_OFFER; } }
@@ -3133,18 +3187,18 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
             tutSawPause=1;   // (the tutorial's pause menu lesson)
             mGainT=128; sfxStop(); simsSave(); hhSave(); objHideAll(); REG_DISPCNT=0x0403;   // (no sprites over the menus, options or the editor)   // the music fades to half while a menu is open   // the pause menu is also a save point
             { u8 zz=xo[XO_ZOOM]; xo[XO_ZOOM]=0; hudApplyLayout(); camSnap=1; liveInvalidate(); lifeDraw(); xo[XO_ZOOM]=zz; }   // a whole picture behind the menu (the screen itself only holds patches), not zoomed
-            int c=menu("PAUSED",ed?lifeItemsEd:nbPlaying?lifeItemsNb:lifeItems,ed?3:11);
-            if(!ed&&c>=1){ if(c==1){ if(!sgPid) toast("PICK A PLAYER ON THE PLAY SCREEN"); else { int se=sgSave(); toast(se?slErrMsg(se):"GAME SAVED"); } c=0; } else c--; }   // SAVE GAME sits second in the list; the other entries keep their numbers
-            if(ed&&c>=1) c+=4;   // the test-play menu has no ASPIRATION, HOUSEHOLD, PHONE or STORY entry
-            if(c==1) aspPanel();
-            else if(c==2) hhMenu();
-            else if(c==3) phoneMenu();
-            else if(c==4) storyScreen();
-            else if(c==5){ settingsScreen(); if(!ed&&xo[XO_TUTOR]==2) tutBegin(); }
-            else if(c==6&&!ed){ simsSaveNow(); hhSave(); if(slotScreen()) lifeInit(); }   // a slot was loaded: start again in the loaded room (the life was written first, so nothing is lost)
-            else if(c==7&&!ed){ vpFull(); mapEditor(); lifeInit(); }
-            else if(c==8&&!ed){ if(menu("START A NEW LIFE",yesNoLife,2)==1){ twKeep=0; simsNewLife(); moodReset(); lscore=0; simLastScore=0; stOff(); lnote="NEW LIFE"; lnoteT=60; } }
-            else if((c==6&&ed)||c==9){ if(c==9&&!nbPlaying) gToMenu=1; break; }   // (from the neighborhood: back there)
+            int c=pauseMenu(ed?2:nbPlaying?1:0);
+            if(c==PM_SAVE){ if(!sgPid) toast("PICK A PLAYER ON THE PLAY SCREEN"); else { int se=sgSave(); toast(se?slErrMsg(se):"GAME SAVED"); } }
+            else if(c==PM_WANTS) aspPanel();
+            else if(c==PM_FAMILY) hhMenu();
+            else if(c==PM_STORY) storyScreen();
+            else if(c==PM_OPTS){ settingsScreen(); if(!ed&&xo[XO_TUTOR]==2) tutBegin(); }
+            else if(c==PM_BUILD){   // EDIT MAP, BLUEPRINTS (the old room slots) and NEW LIFE share one entry
+                int b=menu("BUILD AND HOUSES",buildItems,3);
+                if(b==0){ vpFull(); mapEditor(); lifeInit(); }
+                else if(b==1){ simsSaveNow(); hhSave(); if(slotScreen()){ lifeInit(); phoneEnsure(); } }   // a blueprint was loaded: start again in the loaded room (the life was written first, so nothing is lost)
+                else if(b==2){ if(menu("START A NEW LIFE",yesNoLife,2)==1){ twKeep=0; simsNewLife(); moodReset(); lscore=0; simLastScore=0; stOff(); lnote="NEW LIFE"; lnoteT=60; } } }
+            else if(c==PM_QUIT){ if(!ed&&!nbPlaying) gToMenu=1; break; }   // (from the neighborhood: back there)
             winFull(); REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=0; continue;
         }
         if(!ed&&lcamF==0){ tutTick(k,pr);
@@ -3171,7 +3225,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
 
 // ---------- map editor ----------
 // Tools: ROOM (two corners -> walls + floor + a door), WALL (a straight line), FLOOR (fill an area), ITEM (single tiles), ERASE (clear an area).
-static const char* const mapItems[6]={"PLAY TEST","SAVE MAP","ROOM SLOTS","OPTIONS","RESET MAP","BACK"};
+static const char* const mapItems[6]={"PLAY TEST","SAVE MAP","BLUEPRINTS","OPTIONS","RESET MAP","BACK"};
 static const char* const yesNo[2]={"NO","YES RESET"};
 static const char* const toolNm[NTOOL]={"ROOM","WALL","FLOOR","ITEM","ERASE"};
 static const char* const toolHint[NTOOL][2]={
@@ -4239,8 +4293,8 @@ static void s2plumbob(int cx,int y){   // the green diamond: dark left half, lig
 static void s2pill(int x,int y,int w,const char*s){ s2rr(x,y,w,11,RGB(10,20,30)); s2grad(x+1,y+1,w-2,9,6,15,25,3,9,17); text(x+(w-tw(s,1))/2,y+2,s,RGB(20,27,31),1); }
 static void howToPlay(void){
     static const signed char bob[8]={0,1,2,2,1,0,-1,-1};
-    static const char* const tn[7]={"PLAY","MAKE","BUILD","MUSIC","SLOTS","OPTS","TOWN"};
-    static const char* const tt[7]={"PLAYING","CREATE A BORE","BUILD ROOMS","TOUKEBOX","ROOM SLOTS","OPTIONS","NEIGHBORHOOD"};
+    static const char* const tn[7]={"PLAY","MAKE","BUILD","MUSIC","PLANS","OPTS","TOWN"};
+    static const char* const tt[7]={"PLAYING","CREATE A BORE","BUILD ROOMS","TOUKEBOX","BLUEPRINTS","OPTIONS","NEIGHBORHOOD"};
     const char* const* ln[7]={lifeHelp,creatureHelp,mapHelp,jbHelp,slotHelp,optHelp,nbHelp};
     static const unsigned char nn[7]={17,15,14,15,13,12,16};
     enum { VIS=13, LY=34, LH=104 };

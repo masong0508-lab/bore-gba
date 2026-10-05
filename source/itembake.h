@@ -187,6 +187,37 @@ static void bakeOne(int k,const IBox*b,int n,int r,int nsh){
 static void bakePix(int k,const char*const*rows,const u16*pal,int mirror){   // pixel art straight into a sprite
     for(int y=0;y<IH;y++)for(int x=0;x<IW;x++){ char c=rows[y][mirror?IW-1-x:x]; bakeBuf[k][y][x]=c=='.'?IKEY:pal[c-'a']; }
 }
+// ---- the telephone: a nightstand with a phone on it (pixel art) ----
+static const u16 pPh[8]={RGB(3,2,5),RGB(27,19,10),RGB(15,9,5),RGB(20,13,7),RGB(26,6,6),RGB(31,15,12),RGB(8,8,11),RGB(31,31,28)};   // outline, top, left, right, phone, highlight, handset, dial
+static const char*const phArt[IH]={
+ ".....................",
+ ".....................",
+ ".....................",
+ ".....................",
+ ".....................",
+ ".....................",
+ ".....................",
+ ".....................",
+ ".....................",
+ "......aaaaaaaaa......",
+ ".....aggggggggga.....",
+ ".....agfffffffga.....",
+ "....aabeeeeeeebaa....",
+ "..aabbeeehhheeebbaa..",
+ ".abbbbbbbbbbbbbbbbba.",
+ ".accbbbbbbbbbbbbbdda.",
+ ".accccbbbbbbbbbdddda.",
+ ".accccccbbbbbdddddda.",
+ ".accccccccbddddccdda.",
+ ".acccccccccddchdddda.",
+ ".acccccccccdcddccdda.",
+ ".acccccccccddccdddda.",
+ "..aacccccccdcddddaa..",
+ "....aacccccddddaa....",
+ "......aacccddaa......",
+ "........aacaa........",
+ "..........a..........",
+ "....................."};
 static void bakeAll(void){
     bakeOne(V_CRATE,bxCrate,1,0,11);
     for(int r=0;r<4;r++){ bakeOne(V_FRIDGE+r,bxFridge,1,r,11); bakeOne(V_TOILET+r,bxToilet,3,r,11);
@@ -200,4 +231,5 @@ static void bakeAll(void){
     bakeOne(V_PIPE,bxPipe,4,0,10); bakeOne(V_LAVA,bxLava,3,0,10); for(int r=0;r<4;r++) bakeOne(V_BEANBAG+r,bxBeanbag,2,r,11);   // chill pack
     bakePix(V_DEADSET,dsArt,pDs,0); bakePix(V_DEADSET+1,dsArt,pDs,1);   // the DeadSet
     bakeOne(V_PICNIC,bxPicnicTable,7,0,12); bakeOne(V_JERSEYU,bxJerseyU,3,0,12); bakeOne(V_JERSEYV,bxJerseyV,3,0,12); bakeOne(V_MPAD,bxManualPad,1,0,12);
+    bakePix(V_PHONE,phArt,pPh,0);   // the telephone
 }
