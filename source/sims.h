@@ -232,6 +232,32 @@ static int simT;                             // steps since reset (drives the bu
 static int simMoney, simDay, simMin, simClkCr;   // cash, days since the start (0 = MON), minute of day, step counter towards a minute
 static int jobLvl, jobGood, jobBad, shiftPts, simLastScore, simNiceRoom;   // job level 0..5, good days towards promotion, strikes, points this shift
 static int skillPts, skillLvl;               // SKATING skill
+// ---- CAREER TRACKS (career.h has the screen): the tracks of The Sims 2 / 4, scaled to the shift and quota game ----
+// A track = a name, nine titles (levels 0..2 are shared, 3..5 differ by BRANCH A or B), a top level (part-time tracks stop at 2), and how it
+// plays: quota / pay in %, work days a week, hours, good shifts to go up, bad shifts to go down, the double quota bonus, teen access, a perk.
+// Saved in the job level byte of the life: bits 0-2 level, 3-5 track, 6 branch B, 7 branch chosen (an old save reads as track 0).
+enum { JT_ENT, JT_SLACK, JT_ATH, JT_BUS, JT_CRIM, JT_MIL, JT_EDU, JT_FOOD, JT_N };
+enum { JP_NONE, JP_TRAIN, JP_FINE, JP_BARRACKS, JP_MEAL };   // +1 skill per good shift / a bad shift costs 40 / bills halved / a good shift fills FOOD
+typedef struct { const char*nm; const char*lv[9]; u8 top,quota,pay,days,from,to,good,bad,bonus,teen,perk; } JobTr;
+static const JobTr jobTr[JT_N]={
+ {"ENTERTAINMENT",{"EXTRA","BUSKER","ACT","STUNTMAN","HEADLINER","SUPERSTAR","COMEDIAN","TALK HOST","ICON"},                 5,100,100,5, 9,17,3,3,30,0,JP_NONE},
+ {"SLACKER",       {"SOFA TESTER","DOG WALKER","CADDY","GOLF PRO","CLUB PRO","HALL OF FAME","STREAMER","INFLUENCER","VIRAL STAR"},5, 60, 70,4,11,16,4,3,20,0,JP_NONE},
+ {"ATHLETIC",      {"WATER BOY","BENCH WARMER","ROOKIE","STARTER","ALL STAR","MVP","ASST COACH","HEAD COACH","TEAM OWNER"},     5,130,140,5, 8,16,3,3,40,0,JP_TRAIN},
+ {"BUSINESS",      {"MAIL ROOM","ASSISTANT","ANALYST","MANAGER","DIRECTOR","TYCOON","INVESTOR","BROKER","MOGUL"},               5,120,130,5, 9,18,3,2,50,0,JP_NONE},
+ {"CRIMINAL",      {"PICKPOCKET","LOOKOUT","SAFE CRACKER","FIXER","ENFORCER","KINGPIN","HACKER","MASTERMIND","PHANTOM"},       5,140,160,5,18,23,2,2,60,0,JP_FINE},
+ {"MILITARY",      {"RECRUIT","PRIVATE","SERGEANT","LIEUTENANT","CAPTAIN","GENERAL","COVERT OP","SPY MASTER","GHOST"},          5,110,120,6, 6,14,3,4,20,0,JP_BARRACKS},
+ {"EDUCATION",     {"TEACH AIDE","SUB TEACHER","TEACHER","HEAD OF YEAR","PRINCIPAL","DEAN","PROFESSOR","RESEARCHER","CHANCELLOR"},5, 80, 90,5, 8,15,4,5,25,0,JP_NONE},
+ {"FAST FOOD",     {"DISH PIT","FRY COOK","SHIFT LEAD",0,0,0,0,0,0},                                                               2, 50, 60,5,15,19,3,3,10,1,JP_MEAL},
+};   // (FAST FOOD is the part-time job: teens may take it, it tops out at level 2)
+static int jobTrack, jobBr, jobChosen;   // the track, the branch (0 A, 1 B), the branch has been picked
+static int jobFriends(void);             // career.h: how many friends you have in the house (promotions from level 3 want one)
+static inline const JobTr* jobT(void){ return &jobTr[jobTrack]; }
+static const char* jobTitleOf(int t,int lvl,int br){ return jobTr[t].lv[lvl<3?lvl:lvl+3*br]; }
+static const char* jobTitle(void){ return jobTitleOf(jobTrack,jobLvl,jobBr); }
+static int jobQuotaOf(int t,int lvl,int br){ return (SIM_QUOTA0+SIM_QUOTA_LVL*lvl)*jobTr[t].quota/100*((br&&lvl>=3)?135:100)/100; }   // before the QUOTA option
+static int jobPayOf(int t,int lvl,int br){ return (SIM_PAY0+SIM_PAY_LVL*lvl)*jobTr[t].pay/100*((br&&lvl>=3)?125:100)/100; }
+static int jobNeedSkill(int lvl){ return lvl/2; }                // a promotion from this level wants this skill level ...
+static int jobNeedFriend(int lvl){ return lvl>=3; }              // ... and from level 3 on one friend in the house
 static char simClk[16], simMsg[40], simMsg2[40], simWTxt[SIM_WS][24] EWRAM_BSS;   // clock text, note buffers, want names with their parameter
 
 static int simRnd(void){ simRng=simRng*1664525u+1013904223u; return (int)(simRng>>24); }
@@ -250,9 +276,12 @@ static void simsScan(void){   // what does this map have?
 }
 static void simSkillCalc(void){ int l=0; for(int i=0;i<5;i++) if(skillPts>=simSkillAt[i]) l=i+1; skillLvl=l; }
 static int simZoneOf(int m){ int z=0; for(int i=0;i<5;i++) if(m>=simZoneAt[i]) z=i+1; return z; }
-static int simWorkday(void){ return (simDay%7)<5; }
-static int simInShift(void){ return ojob()&&simWorkday()&&simMin>=SIM_WORK_FROM&&simMin<SIM_WORK_TO; }
-static int simQuota(void){ return (SIM_QUOTA0+SIM_QUOTA_LVL*jobLvl)*oQuotaPct()/100; }
+static int simWorkday(void){ return (simDay%7)<5; }   // (school and the other Sims' jobs)
+static int simJobDay(void){ return (simDay%7)<jobT()->days; }   // your own work days: the track's
+static int simJobFrom(void){ return jobT()->from*60; }
+static int simJobTo(void){ return jobT()->to*60; }
+static int simInShift(void){ return ojob()&&simJobDay()&&simMin>=simJobFrom()&&simMin<simJobTo(); }
+static int simQuota(void){ return jobQuotaOf(jobTrack,jobLvl,jobBr)*oQuotaPct()/100; }
 static int simIsNight(void){ return simMin>=SIM_NIGHT_FROM||simMin<SIM_NIGHT_TO; }
 static int simWishes(void){ return stage!=AG_BABY; }   // babies have no wants or fears (and no aspiration meter)
 
@@ -354,7 +383,7 @@ static void simsPack(volatile unsigned char*m){   // write the life into any SIM
     m[0]='S'; m[1]='I'; m[2]='M'; m[3]='3';
     m[4]=(unsigned char)sNrg; m[5]=(unsigned char)sHyg; m[6]=(unsigned char)sCom; m[7]=(unsigned char)sRoom;
     simPut16(m,8,simMoney); simPut16(m,10,simAsp); simPut16(m,12,simDone); simPut16(m,14,simDay); simPut16(m,16,simMin);
-    m[18]=(unsigned char)jobLvl; m[19]=(unsigned char)jobGood; m[20]=(unsigned char)jobBad; simPut16(m,21,skillPts);
+    m[18]=(unsigned char)(jobLvl|(jobTrack<<3)|(jobBr<<6)|(jobChosen<<7)); m[19]=(unsigned char)jobGood; m[20]=(unsigned char)jobBad; simPut16(m,21,skillPts);
     simPut16(m,23,simMeter); m[25]=(unsigned char)simFlags; simPut16(m,26,simTricks); simPut16(m,28,simBestCombo); simPut16(m,30,simStokedS);
     m[32]=(unsigned char)simNights; m[33]=(unsigned char)(simAspUsed<0?255:simAspUsed);
     for(int s=0;s<SIM_WS;s++){ m[34+s]=(unsigned char)(simW[s]+1); simPut16(m,42+s*2,simWP[s]); }
@@ -371,7 +400,7 @@ static int simsCheck(volatile unsigned char*m){   // 1 = the buffer holds a vali
     if(!v) return 0;
     for(int i=4;i<last;i++) sum+=m[i];
     if(m[last]!=(unsigned char)sum) return 0;
-    if(m[4]>100||m[5]>100||m[6]>100||m[7]>100||m[18]>5||simGet16(m,16)>=1440) return 0;
+    if(m[4]>100||m[5]>100||m[6]>100||m[7]>100||(m[18]&7)>5||((m[18]>>3)&7)>=JT_N||simGet16(m,16)>=1440) return 0;
     if(v==3){
         if(simGet16(m,23)>1000||m[41]>15||(m[33]>=AS_N&&m[33]!=255)) return 0;
         for(int s=0;s<SIM_WS;s++) if(m[34+s]>SIM_NW) return 0;
@@ -383,7 +412,10 @@ static int simsUnpack(volatile unsigned char*m){   // 1 = a valid life was read 
     if(!simsCheck(m)) return 0;
     sNrg=m[4]; sHyg=m[5]; sCom=m[6]; sRoom=m[7];
     simMoney=simGet16(m,8); simAsp=simGet16(m,10); simDone=simGet16(m,12); simDay=simGet16(m,14); simMin=simGet16(m,16);
-    jobLvl=m[18]; jobGood=m[19]; jobBad=m[20]; skillPts=simGet16(m,21);
+    jobLvl=m[18]&7; jobTrack=(m[18]>>3)&7; jobBr=(m[18]>>6)&1; jobChosen=(m[18]>>7)&1; jobGood=m[19]; jobBad=m[20]; skillPts=simGet16(m,21);
+    if(jobTrack>=JT_N){ jobTrack=0; }
+    if(jobLvl>jobT()->top){ jobLvl=jobT()->top; }
+    if(jobT()->top<3){ jobBr=0; jobChosen=0; }
     if(simsVer(m)==3){
         simMeter=simGet16(m,23); simFlags=m[25]; simTricks=simGet16(m,26); simBestCombo=simGet16(m,28); simStokedS=simGet16(m,30);
         simNights=m[32]; simAspUsed=m[33]==255?-1:m[33];
@@ -400,7 +432,7 @@ static int simsLoad(void){ return simsUnpack(SIM_SRAM); }   // 1 = loaded a vali
 
 static void simsDefaults(void){   // a brand new life (nothing is written to SRAM)
     sNrg=100; sHyg=100; sCom=80; sRoom=40; sSoc=70; simMoney=SIM_CASH0; simAsp=0; simDone=0; simDay=0; simMin=480;
-    jobLvl=0; jobGood=0; jobBad=0; skillPts=0;
+    jobLvl=0; jobGood=0; jobBad=0; skillPts=0; jobTrack=0; jobBr=0; jobChosen=0;
     simMeter=SIM_METER0; simFlags=0; simTricks=simBestCombo=simStokedS=simNights=0; simAspUsed=-1; simLock=0;
     for(int s=0;s<SIM_WS;s++){ simW[s]=-1; simWP[s]=0; } for(int s=0;s<SIM_FS;s++) simF[s]=-1;
 }
@@ -539,13 +571,25 @@ static const char* simBuy(int r){   // returns the note to show
 }
 
 // ---- clock and career ----
-static void simShiftEnd(void){   // 17:00 on a workday
-    int q=simQuota(), p=shiftPts, pay=0;
-    if(p>=q){ pay=SIM_PAY0+SIM_PAY_LVL*jobLvl+(p>=2*q?30:0); jobBad=0;
-        if(++jobGood>=3){ jobGood=0; if(jobLvl<5){ jobLvl++; dnaAdd(SIM_DNA_PROMO); moodEvent(M_PROMO); simEvent(SE_PROMO); simQueue("PROMOTED"); } } }
-    else if(p>=q/2){ pay=(SIM_PAY0+SIM_PAY_LVL*jobLvl)/2; }
-    else { if(++jobBad>=3){ jobBad=0; jobGood=0; if(jobLvl>0){ jobLvl--; moodEvent(M_DEMOTE); simEvent(SE_DEMOTE); simQueue("DEMOTED"); } } }
-    if(pay>0){ simMoney+=pay; if(simMoney>9999) simMoney=9999; moodEvent(M_PAY); simMsgPay(p>=q?"SHIFT PAID ":"HALF PAY ",pay); simQueue(simMsg); }
+static char jobMsg[32];
+static void jobPromote(void){   // enough good shifts: a promotion, if the track has a level left and you have the skill and the friend for it
+    const JobTr*t=jobT();
+    if(jobLvl>=t->top){ if(!simQ) simQueue("TOP OF TRACK  TRANSFER ON PHONE"); return; }
+    if(skillLvl<jobNeedSkill(jobLvl)){ char*e=simCat(jobMsg,"PROMOTION NEEDS SKILL "); simCatN(e,jobNeedSkill(jobLvl)); simQueue(jobMsg); jobGood=t->good-1; return; }
+    if(jobNeedFriend(jobLvl)&&jobFriends()<1){ simQueue("PROMOTION NEEDS A FRIEND"); jobGood=t->good-1; return; }
+    jobLvl++; dnaAdd(SIM_DNA_PROMO); moodEvent(M_PROMO); simEvent(SE_PROMO);
+    if(jobLvl==3&&t->top>=3&&!jobChosen) simQueue("PROMOTED  PICK A BRANCH ON PHONE"); else simQueue("PROMOTED");
+}
+static void simShiftEnd(void){   // the end of a shift on a work day (the track's hours)
+    const JobTr*t=jobT(); int q=simQuota(), p=shiftPts, pay=0, base=jobPayOf(jobTrack,jobLvl,jobBr);
+    if(p>=q){ pay=base+(p>=2*q?t->bonus:0); jobBad=0;
+        if(t->perk==JP_TRAIN) simSkillAdd(1);                 // ATHLETIC: the training pays off
+        if(t->perk==JP_MEAL){ lfood+=30; if(lfood>100) lfood=100; }   // FAST FOOD: the staff meal
+        if(++jobGood>=t->good){ jobGood=0; jobPromote(); } }
+    else if(p>=q/2){ pay=base/2; }
+    else { if(t->perk==JP_FINE){ simMoney-=40; if(simMoney<0) simMoney=0; }   // CRIMINAL: a bad night costs you
+        if(++jobBad>=t->bad){ jobBad=0; jobGood=0; if(jobLvl>0){ jobLvl--; if(jobLvl<3) jobChosen=0; moodEvent(M_DEMOTE); simEvent(SE_DEMOTE); simQueue("DEMOTED"); } } }
+    if(pay>0){ simMoney+=pay; if(simMoney>9999) simMoney=9999; moodEvent(M_PAY); simMsgPay(p>=q?"SHIFT PAID ":"HALF PAY ",pay); simQPush(simMsg); }
     else { simEvent(SE_NOPAY); if(!simQ) simQueue("NO PAY TODAY"); }
     if(p>=q/2) simEvent(SE_SHIFT);
     if(p>=2*q) simEvent(SE_ACE);
@@ -565,15 +609,15 @@ static void simMinute(void){   // once per game minute
         simMin=0; simDay++; if(simDay>30000) simDay=0;
         ageTick();
         if(simFlags&SF_TREE){ simMoney+=SIM_TREE_PAY; if(simMoney>9999) simMoney=9999; }   // the money tree
-        int bill=ojob()?SIM_BILLS*oBillsPct()/100:0;   // no career = no bills; BILLS option scales them
+        int bill=ojob()?SIM_BILLS*oBillsPct()/100:0; if(jobT()->perk==JP_BARRACKS) bill/=2;   // MILITARY: the barracks   // no career = no bills; BILLS option scales them
         if(bill>0){ if(simMoney>=bill){ simMoney-=bill; simEvent(SE_BILLS); }
             else { simMoney=0; moodEvent(M_BROKE); simEvent(SE_BROKE); simQueue("BILLS UNPAID"); } }
         simEventV(SE_CASH,simMoney);
         simsSave();
     }
-    if(ojob()&&simMin==SIM_WORK_FROM-60&&simWorkday()&&!simQ) simQueue("WORK AT 9");
-    if(ojob()&&simMin==SIM_WORK_FROM&&simWorkday()){ shiftPts=0; if(!simQ) simQueue("SHIFT STARTS"); }
-    if(ojob()&&simMin==SIM_WORK_TO&&simWorkday()) simShiftEnd();
+    if(ojob()&&simMin==simJobFrom()-60&&simJobDay()&&!simQ){ char*e=simCat(jobMsg,"WORK AT "); simCatN(e,jobT()->from); simQueue(jobMsg); }
+    if(ojob()&&simMin==simJobFrom()&&simJobDay()){ shiftPts=0; if(!simQ) simQueue("SHIFT STARTS"); }
+    if(ojob()&&simMin==simJobTo()&&simJobDay()) simShiftEnd();
 }
 static const char* simsClock(void){   // "MON 14:05"
     int h=simMin/60, m=simMin%60, i=0; const char*d=simDayNm[simDay%7];
