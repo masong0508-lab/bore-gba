@@ -50,7 +50,7 @@ static int bkCheck(int i){ u32 o=bkOff(i); if(!bkOk(i)) return 0; int n=svRd(o+6
 static int bkPutMine(int i,u16 key,int lot){   // the household you play (kind 1) into record i. 1 = done
     simsSaveNow(); hhSave(); ageSave(); persSave();
     volatile u8*hh=SRAM_BASE+HH_OFF; int hl=hhBlockLen(hh,SL_HH_LEN); if(!hl) return 0;
-    if(BK_HDR+LK_N+5+PERS_LEN+SIM_BLOCK+8+2+hl>BK_SZ) return 0;
+    if(BK_HDR+LK_N+5+PERS_LEN+SIM_BLOCK+8+2+hl+16>BK_SZ) return 0;
     svErr=0; svErase(bkOff(i),BK_SZ); bkW=bkOff(i)+BK_HDR; bkSum=0;
     for(int k=0;k<LK_N;k++) bkPut8(look[k]);
     for(int k=0;k<5;k++) bkPut8(SRAM_BASE[AGE_OFF+k]);
@@ -58,6 +58,7 @@ static int bkPutMine(int i,u16 key,int lot){   // the household you play (kind 1
     for(int k=0;k<SIM_BLOCK;k++) bkPut8(SIM_SRAM[k]);
     for(int k=0;k<8;k++) bkPut8(SRAM_BASE[STORY_OFF+k]);   // (their story, story.h)
     bkPut8(hl); bkPut8(hl>>8); for(int k=0;k<hl;k++) bkPut8(hh[k]);
+    for(int k=0;k<16;k++) bkPut8(SRAM_BASE[FAM_OFF+k]);   // (their family: ages, a baby on the way; family.h. Older records end before it)
     bkHead(i,1,lot,key,hhPLast,hhPName,stage);
     return !svErr;
 }
@@ -84,6 +85,8 @@ static int bkTake(int i){   // record i becomes the household you play (it leave
         for(int k=0;k<8;k++) SRAM_BASE[STORY_OFF+k]=svRd(p++);
         int hl=svRd(p)|svRd(p+1)<<8; p+=2; if(hl>SL_HH_LEN) return 0;
         for(int k=0;k<hl;k++) SRAM_BASE[HH_OFF+k]=svRd(p++);
+        { int n=svRd(bkOff(i)+6)|svRd(bkOff(i)+7)<<8; int left=n-(int)(p-bkOff(i)-BK_HDR);   // the family block, if the record has one
+          for(int k=0;k<16;k++) SRAM_BASE[FAM_OFF+k]=left>=16?svRd(p++):0; }
         ageLoad(); persLoad(); hhLoad();
     } else {   // one Sim: a new life, a household of one
         pAsp=svRd(p++); pLtw=svRd(p++); for(int k=0;k<TR_N;k++) pTr[k]=svRd(p++);

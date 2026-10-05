@@ -124,8 +124,8 @@ Walls are drawn like The Sims: a wall tile is a **thin, tall panel** (24 px, 3 b
   - It works for both creators: legs are the leg-shaped blocks and arms the arm-shaped ones, whether built from a look or by hand in the classic block builder.
   - Household sprites keep only the part that changes: OBJ tile rows 1..5, 640 bytes per view. Your Sim keeps a full second set (`spr4s`).
 - **Hardware sprites**: the other Sims are GBA sprites (OBJ, 32x64, 16 colours each with their own palette), so their moving costs no drawing; the CPU only draws their shadows and talk balloons into the room. Their four views are baked like yours, cut down to 15 colours (closest colours merged, the common ones kept exact), and only the view on show sits in sprite memory (1 KB each, copied in vblank). A window keeps them inside the room view (never over the HUD), menus and other screens hide them. Sprites always sit on top of the picture, so a Sim standing behind a full-height wall is drawn see-through (an x-ray blend) instead of in front of it. You stay drawn by the CPU (furniture in front of you covers you, the action cam can zoom you); SELECT swaps sprites both ways.
-- **Social life** (Sims 2 style). A SOCIAL need (HUD bar, a LONELY alert; outgoing Sims get lonely faster). Every pair of Sims has a one-way DAILY and LIFETIME relationship (-100..100): daily changes fast and drifts back to lifetime every game hour, lifetime moves a third as much. Statuses: STRANGER, ACQUAINTANCE, FRIEND (daily 50+), BEST FRIEND (daily and lifetime 70+), DISLIKE, ENEMY (daily -50 or less), and the romance steps CRUSH, IN LOVE, STEADY.
-  - **R next to a household Sim** opens the social menu (the furniture you stand at is offered first): TALK, JOKE, COMPLIMENT, HIGH FIVE, HUG, SHOW A TRICK, FLIRT, KISS, GO STEADY, APOLOGIZE, ARGUE, INSULT, SLAP. What is on offer depends on the relationship (a hug needs daily 35, a kiss a crush, going steady being in love), age (romance only teen with teen or adult with adult/elder; no slapping for children) and mood.
+- **Social life** (Sims 2 style). A SOCIAL need (HUD bar, a LONELY alert; outgoing Sims get lonely faster). Every pair of Sims has a one-way DAILY and LIFETIME relationship (-100..100): daily changes fast and drifts back to lifetime every game hour, lifetime moves a third as much. Statuses: STRANGER, ACQUAINTANCE, FRIEND (daily 50+), BEST FRIEND (daily and lifetime 70+), DISLIKE, ENEMY (daily -50 or less), and the romance steps CRUSH, IN LOVE, STEADY, MARRIED (see FAMILY LIFE).
+  - **R next to a household Sim** opens the social menu (the furniture you stand at is offered first): TALK, JOKE, COMPLIMENT, HIGH FIVE, HUG, SHOW A TRICK, FLIRT, KISS, GO STEADY, PROPOSE, TRY FOR A BABY, APOLOGIZE, ARGUE, INSULT, SLAP. What is on offer depends on the relationship (a hug needs daily 35, a kiss a crush, going steady being in love), age (romance only teen with teen or adult with adult/elder; no slapping for children) and mood.
   - **Acceptance** = the interaction's base chance + half of how the other feels about you + their matching trait (playful for jokes, nice for compliments and hugs, outgoing for flirts) + their mood; shy Sims are wary of people they hardly know, and a Sim going steady with someone else turns flirts down. Accepted: both like each other more and fill SOCIAL (jokes and tricks also FUN). Rejected: you are embarrassed and like them a little less. Mean ones always land.
   - **Free will socials**: lonely Sims (and idle ones, outgoing ones most) go and see someone: friends, crushes and partners first, strangers to say hello, and you. Grouchy Sims go looking for trouble. What they do follows the relationship: friends joke and hug, crushes flirt and kiss, couples in love ask to go steady, enemies argue and slap. They do it to you too.
   - Balloons over heads show what is said (a word over yours, an icon over theirs), and the note line says what happened ("REX LAUGHED").
@@ -194,6 +194,8 @@ them at 4840 and `svInit` puts them back.)
 | 4808 | layout marker `LY2` (set once the upgrade below has run) |
 | 4864 | settings (16 bytes) |
 | 4896 | extended options (`opts.h`) |
+| 4968 | story mode (`story.h`, 8 bytes) |
+| 4976 | family: ages, a baby on the way (`family.h`, 16 bytes) |
 | 4992 | active room slot |
 | 5008 | life stage and days in it |
 | 5024 | persona: aspiration, lifetime want, traits, DNA, unlocked parts |
@@ -739,8 +741,8 @@ Every Sim has a GENDER: FEMALE, MALE or NONBINARY. It's `look[LK_SEX]`, the last
   - The child who comes home is a surprise ("YOUR DAUGHTER MAE IS HOME").
   - Chapters name who they are about (BECOME FRIENDS WITH YOUR SON), and the STORY screen lists your spouse / roommate / kid.
 - **Saves:**
-  - A saved person is format 11 (format 10 is read too).
-  - A household is 'H;' ('H9' / 'H:' are read and converted).
+  - A saved person is format 13 (formats 1 to 12 are read too).
+  - A household is 'H=' ('H9' to 'H<' are read and converted).
   - A bank record stores its look length at header byte 35.
   - A Sim from an older save gets a gender from `sexGuess`: a beard means male, otherwise a hash of the look, so the same Sim always gets the same one.
 - **IWRAM:** the longer look shifted IWRAM variables, and the mixer needed a few more address loads. Three text buffers moved to EWRAM to pay for it, so IWRAM use ends up 180 bytes lower than before.
@@ -767,3 +769,41 @@ Every Sim has a GENDER: FEMALE, MALE or NONBINARY. It's `look[LK_SEX]`, the last
     - Pads drift (±0.18 over 9 s).
     - Busy short-note lines the plan leaves in the middle (arps, acid lines, pulses) swing ±0.5 every 8 s.
   - **Width:** narrow mixes are lifted to side/mid 0.36 above 250 Hz, and no mix is wider than side/mid 0.69 (a left/right correlation of at least 0.35, so nothing thins out in mono).
+## FAMILY LIFE (`source/family.h`)
+Households now marry, have babies and grow up.
+- **PROPOSE** (social): two adults going steady. A yes marries them.
+  - The relationship becomes WIFE / HUSBAND / SPOUSE (`RF_MARRIED`).
+  - The one who was asked takes the asker's last name.
+  - Free-will Sims propose too, to each other and to you.
+  - Pre-made couples and the NEWLYWEDS story start married.
+- **TRY FOR A BABY** (social): a married or steady couple of adults (not elders).
+  - It needs room in the house and no baby already on the way.
+  - A yes means a baby arrives 3 days later at midnight.
+  - The baby is a mix of both parents (`stMixLook`), with a gender of its own.
+  - Only you can ask; free-will Sims never try for a baby on their own.
+- **TWINS** (OPTIONS > SIM > SIMS > TWINS): NEVER / SOMETIMES (1 in 6, the default) / OFTEN (1 in 3) / ALWAYS.
+  - Twins come only when the house has room for two.
+  - Half are identical (one look, one gender) and half are fraternal (each a mix and gender of their own).
+  - Twins start out close (daily 60, friends).
+- **Everyone grows up.** Members age at midnight the way you do (`ageTick`), using the days on OPTIONS > TIME > AGES scaled by AGING.
+  - A member who grows up has their look fitted to the new stage.
+  - At teen they get an aspiration of their own.
+  - The days lived in a stage go with each Sim when SELECT swaps who you play.
+- **Babies** are looked after: their needs never sink below 60. They crawl about, go and see people and only coo (TALK). They stay home on workdays.
+- **Messages.** A birth ("IT'S A GIRL  MAE IS BORN", "IDENTICAL TWINS  OTTO AND IVY") and a birthday ("BO IS A CHILD NOW") show over the game, then the new sprites bake.
+  - The story's "YOUR SON ... IS HOME" now shows before its bake too; after it, the toast landed on the loading screen.
+- **Pause menu > HOUSEHOLD > FAMILY:** everyone with their age and gender, who is married to whom, the days until the baby, and the TWINS setting.
+- **Save:** `FAM_OFF` 4976, 16 bytes. `hhSave` writes it and `hhLoad` reads it:
+  - `'F' 'Y'`
+  - each member's days in their stage (by place in the household)
+  - the days until the baby, and its parents (0 = you, 1.. = members by place)
+  - the checksum and size of the household it belongs to
+  - a checksum.
+  - A household from a slot or an older bank record that does not match starts fresh (no ages, no baby).
+  - The household bank stores the block after the household (older records end before it).
+- **Tested in mGBA:**
+  - PROPOSE: MARRIED was set both ways and survived a reset.
+  - TRY FOR A BABY: the baby was due in 3 days. A single baby was born (OFTEN). With ALWAYS, both identical twins (same look) and fraternal twins (37 of 100 looks different) came, depending on timing.
+  - A baby with its days poked to full grew into a CHILD with the GROW UP aspiration.
+  - The FAMILY screen listed everyone.
+  - After a reset the household, its ages and the marriage were all back.

@@ -50,8 +50,8 @@ static void stKidHome(void){   // the promised child moves in: a mix of you and 
     int m=stAddSim(lk,AG_CHILD,hhPLast); if(m<0){ toast("THE HOUSE IS FULL  NO ROOM FOR A CHILD"); return; }
     stRel(hhPUid,hhM[m].uid,50,40,RF_FRIEND); if(p>=0) stRel(hhM[p].uid,hhM[m].uid,50,40,RF_FRIEND);
     for(int k=0;k<hhN;k++){ hhOld[k].x0=hhOld[k].x1=0; hhOldSig[k]=0xFFFFFFFFu; }
-    toast("PLEASE WAIT  YOUR CHILD IS COMING HOME"); hhBakeAll(); hhSave(); liveInvalidate();
-    static char t[44] EWRAM_BSS; char*e=simCat(t,"YOUR "); e=simCat(e,sexWord(SW_KID,lk[LK_SEX])); e=simCat(e," "); e=simCat(e,hhM[m].name); simCat(e," IS HOME"); toast(t);
+    static char t[44] EWRAM_BSS; char*e=simCat(t,"YOUR "); e=simCat(e,sexWord(SW_KID,lk[LK_SEX])); e=simCat(e," "); e=simCat(e,hhM[m].name); simCat(e," IS HOME");
+    toast(t); hhBakeAll(); hhSave(); liveInvalidate();   // (the news before the bake, over the game: after it, it would land on the loading screen)
     stKid=hhM[m].uid;   // (the kid goals are about this child)
 }
 static int stDone(const StCh*c){   // is the chapter's goal met?
@@ -120,7 +120,7 @@ static void storySetup(int s){   // after the new life is set up and the old hou
     if(s==STY_ROOM){ st=AG_ADULT; lookTrueRandom(lk,&st); if(stWant<SX_N) lk[LK_SEX]=stWant; char l[HH_NM]; famLast(&hhFams[rnd8()%HH_NFAM],l);
         int m=stAddSim(lk,AG_ADULT,l); if(m>=0){ stRel(hhPUid,hhM[m].uid,10,0,0); stPart=hhM[m].uid; } }
     else if(s==STY_WED){ st=AG_ADULT; lookTrueRandom(lk,&st); if(stWant<SX_N) lk[LK_SEX]=stWant;
-        int m=stAddSim(lk,AG_ADULT,hhPLast); if(m>=0){ stRel(hhPUid,hhM[m].uid,70,80,RF_CRUSH|RF_LOVE|RF_STEADY|RF_KISSED|RF_FRIEND|RF_BFF); stPart=hhM[m].uid; } }
+        int m=stAddSim(lk,AG_ADULT,hhPLast); if(m>=0){ stRel(hhPUid,hhM[m].uid,70,80,RF_CRUSH|RF_LOVE|RF_STEADY|RF_KISSED|RF_FRIEND|RF_BFF|RF_MARRIED); stPart=hhM[m].uid; } }
     else { stMixLook(lk,look,look,AG_CHILD); lk[LK_SEX]=stWant<SX_N?stWant:sexRoll();   // your kid takes after you
         int m=stAddSim(lk,AG_CHILD,hhPLast); if(m>=0){ stRel(hhPUid,hhM[m].uid,40,30,0); stKid=hhM[m].uid; } }
     hhSave(); stSave();

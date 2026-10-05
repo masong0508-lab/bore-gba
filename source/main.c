@@ -2216,6 +2216,7 @@ static void flStairs(int dir){   // you stepped on a stair tile: up (+1) or down
 // extended options (opts.h): one byte each at OPT_OFF, 'X' 'O', count, values, checksum. A save with fewer options (older game) leaves the new ones at their defaults.
 #define OPT_OFF 4896
 #define STORY_OFF 4968   // story.h: the STORY MODE block (8 bytes, after the options)
+#define FAM_OFF   4976   // family.h: the FAMILY block (16 bytes, after the story)
 static void optsSave(void){
     volatile u8*m=SRAM_BASE+OPT_OFF; unsigned sum=0x3C;
     for(int i=0;i<XO_N;i++){ m[3+i]=xo[i]; sum+=xo[i]; }
@@ -2953,6 +2954,7 @@ static void hhSwap(HhSim*s){   // trade places: the player becomes s, s becomes 
     for(int i=0;i<TR_N;i++){ u8 t=pTr[i]; pTr[i]=s->tr[i]; s->tr[i]=t; }
     for(int i=0;i<HH_NM;i++){ char t=hhPName[i]; hhPName[i]=s->name[i]; s->name[i]=t; t=hhPLast[i]; hhPLast[i]=s->last[i]; s->last[i]=t; }
     { int u=hhPUid; hhPUid=s->uid; s->uid=(u8)u; int v=sSoc; sSoc=s->need[HN_SOC]; s->need[HN_SOC]=(u8)v; s->bubT=0; hhBubT=0; }
+    { u8 t=ageDays; ageDays=famAge[hhPUid]; famAge[s->uid]=t; }   // the days lived in this stage go with each Sim (family.h)
     s->act=HA_IDLE; s->think=30; s->gok=0;
     lz=lvz=0; lsp=0; lskate=0; lgrind=0; lstun=0; lairF=0; feelReset(lhd);
     buildLook(); setColors(); ageSave(); persSave();
@@ -3649,6 +3651,7 @@ static void famMenu(void){
     for(int i=0;i<TR_N;i++){ u8 t=pTr[i]; pTr[i]=s->tr[i]; s->tr[i]=t; }
     for(int i=0;i<HH_NM;i++){ char t=hhPName[i]; hhPName[i]=s->name[i]; s->name[i]=t; t=hhPLast[i]; hhPLast[i]=s->last[i]; s->last[i]=t; }
     { int t=hhPUid; hhPUid=s->uid; s->uid=(u8)t; }
+    famAge[s->uid]=ageDays;   // (yours go with you to them)
     custom=0; ageDays=0; fixLook(); buildLook(); setColors(); ageSave(); persSave(); hhSave();
     static char t[32]; simCat(simCat(t,"NOW EDITING "),hhPName); toast(t);
 }
@@ -4109,6 +4112,7 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "neighborhood.h"   // THE NEIGHBORHOOD: a town of lots to live in, visit and build on (main menu)
 #include "households.h"     // THE TOWN'S HOUSEHOLDS: who lives where, the household bank, visitors, the phone
 #include "story.h"          // STORY MODE: chapters with goals (NEW GAME > STORY MODE)
+#include "family.h"         // FAMILY LIFE: weddings, babies and twins, a household that grows up
 // ---------- main menu (The Sims 3 look): a glossy panel over your town, lit for the time of day of your life's clock ----------
 #define MM_N 7
 static const char* const mmName[MM_N]={"Play","Create a Bore","Build Mode","Toukebox","Room Slots","Options","?"};
