@@ -3001,7 +3001,7 @@ static void camStep(int steps,u16 k,u16 pr){   // action cam: the game holds sti
     else { int f=lcamF; cview=(f<6||f>=60)?0:(f-6)/18+1; if(cview>3) cview=0; }
 }
 static int gToMenu;   // set when the player picks MAIN MENU in the pause menu, so every screen above returns to it
-static const char* const lifeItems[10]={"RESUME","ASPIRATION","HOUSEHOLD","PHONE","STORY","OPTIONS","ROOM SLOTS","EDIT MAP","NEW LIFE","MAIN MENU"};
+static const char* const lifeItems[11]={"RESUME","SAVE GAME","ASPIRATION","HOUSEHOLD","PHONE","STORY","OPTIONS","ROOM SLOTS","EDIT MAP","NEW LIFE","MAIN MENU"};
 static void hhSwap(HhSim*s){   // trade places: the player becomes s, s becomes who the player was
     s32 x=lfx, y=lfy; lfx=s->fx; lfy=s->fy; s->fx=x; s->fy=y;
     { u8 h=(u8)(lhd&15); lhd=s->hd; s->hd=h; }
@@ -3078,7 +3078,7 @@ static void aspPanel(void){
         present();
     }
 }
-static const char* const lifeItemsNb[10]={"RESUME","ASPIRATION","HOUSEHOLD","PHONE","STORY","OPTIONS","ROOM SLOTS","EDIT MAP","NEW LIFE","NEIGHBORHOOD"};
+static const char* const lifeItemsNb[11]={"RESUME","SAVE GAME","ASPIRATION","HOUSEHOLD","PHONE","STORY","OPTIONS","ROOM SLOTS","EDIT MAP","NEW LIFE","NEIGHBORHOOD"};
 static const char* const lifeItemsEd[3]={"RESUME","OPTIONS","BACK TO EDITOR"};
 // Timer2 (65536 Hz) is the clock (defined with the settings). The game logic always runs at 60 steps per second; the
 // frame rate setting only says how often the picture is redrawn, so lower rates save work without slowing the game.
@@ -3133,7 +3133,8 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
             tutSawPause=1;   // (the tutorial's pause menu lesson)
             mGainT=128; sfxStop(); simsSave(); hhSave(); objHideAll(); REG_DISPCNT=0x0403;   // (no sprites over the menus, options or the editor)   // the music fades to half while a menu is open   // the pause menu is also a save point
             { u8 zz=xo[XO_ZOOM]; xo[XO_ZOOM]=0; hudApplyLayout(); camSnap=1; liveInvalidate(); lifeDraw(); xo[XO_ZOOM]=zz; }   // a whole picture behind the menu (the screen itself only holds patches), not zoomed
-            int c=menu("PAUSED",ed?lifeItemsEd:nbPlaying?lifeItemsNb:lifeItems,ed?3:10);
+            int c=menu("PAUSED",ed?lifeItemsEd:nbPlaying?lifeItemsNb:lifeItems,ed?3:11);
+            if(!ed&&c>=1){ if(c==1){ if(!sgPid) toast("PICK A PLAYER ON THE PLAY SCREEN"); else { int se=sgSave(); toast(se?slErrMsg(se):"GAME SAVED"); } c=0; } else c--; }   // SAVE GAME sits second in the list; the other entries keep their numbers
             if(ed&&c>=1) c+=4;   // the test-play menu has no ASPIRATION, HOUSEHOLD, PHONE or STORY entry
             if(c==1) aspPanel();
             else if(c==2) hhMenu();
@@ -4284,13 +4285,14 @@ static int newGame(int slot){   // 1 = it started (and ended: back to the main m
     int f=0; if(c==1){ const char* fm[HH_NFAM]; for(int i=0;i<HH_NFAM;i++) fm[i]=hhFams[i].fam; f=menu("WHICH FAMILY?",fm,HH_NFAM); if(f<0) return 0; }
     static const char* const yn[2]={"YES  NEW LIFE","NO"}; if(menu("START OVER?",yn,2)!=0) return 0;
     if(slot>=0){ if(!nbSwitch(slot)){ nbOk=nbLoad(); toast(nbErr); return 0; } nbOk=1; nbBounds(); }
+    if(sgWant){ sgPickHome(); sgPid=sgWant; sgWant=0; } else sgPid=0;   // a NEW PLAYER gets a home lot and a save file of their own; a new life started elsewhere belongs to no save file
     twKeep=0; simsNewLife(); moodReset(); lscore=0; simLastScore=0;
     hhN=0; for(int a=0;a<HU_N;a++)for(int b=0;b<HU_N;b++){ relD[a][b]=relL[a][b]=0; relF[a][b]=0; } kinClear();   // the old household moves out
     stOff();
     if(c==1&&hhMoveIn(&hhFams[f])>0){ hhSwap(&hhM[0]); hhRemove(0); }   // you are the family's first Sim (who you were leaves)
     else if(c==2) lookTrueRandomMe();
     else if(c==3) storySetup(story);   // STORY MODE: who you live with, and chapter 1
-    hhSave(); sprKey=0;
+    hhSave(); sprKey=0; if(sgPid) sgSave();   // (the save file exists from the first minute)
     if(c==0||c==3) creatureEditor();   // make your Sim, then GO LIVE LIFE
     else lifeMode(0);
     return 1;
@@ -4374,6 +4376,7 @@ static void playScreen(void){
     nbOk=nbLoad(); nbBounds();
 }
 
+#include "savegame.h"    // PLAYERS: a save file per player, picked on the PLAY screen
 static void mainMenu(void){
     int sel=0, dirty=3; u16 prev=keyNow();
     menuMusStart();   // a random checked song plays while a main menu is open (MENU MUSIC option)
@@ -4383,7 +4386,7 @@ static void mainMenu(void){
         if(pr&K_DOWN){ sel=(sel+1)%MM_N; dirty|=1; }
         if(pr&K_UP){ sel=(sel+MM_N-1)%MM_N; dirty|=1; }
         if(pr&(K_A|K_START)){
-            if(sel==0) playScreen();
+            if(sel==0) playerScreen();
             else if(sel==1) creatureEditor();
             else if(sel==2) mapEditor();   // (the menu song plays on in the room builder)
             else if(sel==3) jukeboxScreen();
