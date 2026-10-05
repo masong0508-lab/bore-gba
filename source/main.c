@@ -2088,7 +2088,8 @@ static int jbDreamMet(int asp,int ltw){   // a lifetime dream was met (every lif
     if(asp<0||asp>=AS_PICK) return 0;
     u16 b=(u16)(1<<(asp*2+(ltw&1))); if(!(jbDr&b)){ jbDr|=b; jbDrSave(); }
     int n=0; for(int i=0;i<2*AS_PICK;i++) n+=(jbDr>>i)&1;
-    return n*2>=2*AS_PICK&&jbUnlock(UL_CLOSER);
+    if(n*2<2*AS_PICK) return 0;
+    int a=jbUnlock(UL_CLOSER), t=jbUnlock(UL_TREE); return a|t;   // half of the dreams: CLOSER TO THE END and TREE-AGE IN ACTION
 }
 // SRAM layout: 0..2 "BM3", then MSZ bytes each of tiles, floors, wallpapers. Settings at SET_OFF (see settingsSave).
 // Old "BM1" / "BM2" saves (14x14, settings at 640) still load: the room is placed into the plaza of the new default map.

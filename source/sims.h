@@ -60,6 +60,7 @@
 #define SIM_LTW_PTS    500    // reward points for the lifetime want
 #define UL_CLOUDS      1      // unlock bit: the song WORTHLESS CLOUDS (unlocks.h) comes with the first lifetime want you meet
 #define UL_CLOSER      2      // unlock bit: the song CLOSER TO THE END comes once half of all the lifetime dreams have been met (jbDreamMet, main.c)
+#define UL_TREE        4      // unlock bit: the song TREE-AGE IN ACTION comes with the fifth lifetime dream (jbDreamMet, main.c)
 static int jbDreamMet(int asp,int ltw);   // (main.c) records a met dream; 1 = it reached half of them and a song was unlocked
 static int jbUnlock(int bit);   // (main.c) sets an unlock bit for good and rebuilds the jukebox list; 1 = it was locked before
 #define SIM_GOOD_SLEEP 300    // steps of sleep (5 game hours: sleep runs the clock fast) that count as a real night: wants reroll on waking
