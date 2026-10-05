@@ -23,6 +23,7 @@ static const u8 stLen[STY_N]={0,6,6,6};
 static const char* const stNm[STY_N]={"","ROOMMATES","NEWLYWEDS","SINGLE PARENT"};
 static const char* const stAbout[STY_N]={"","A NEW ROOMMATE  AND MAYBE MORE","JUST MARRIED  A FAMILY TO START","YOU AND YOUR KID  ON YOUR OWN"};
 static u8 stId, stCh, stPart=255, stKid=255, stKidDay=255, stGuest;   // the story, its chapter, your partner and your kid (uids), the day the promised child comes, a guest came
+static u8 stWant=255;   // NEW GAME > STORY MODE: the gender asked for your roommate / spouse / kid (255 = SURPRISE ME)
 static u8 stSum(volatile u8*m){ return (u8)(0x53+m[2]+m[3]*3+m[4]*5+m[5]*7+m[6]*11); }
 static void stSave(void){ volatile u8*m=SRAM_BASE+STORY_OFF; m[0]='S'; m[1]='Y'; m[2]=stId; m[3]=(u8)(stCh|(stGuest?0x80:0)); m[4]=stPart; m[5]=stKid; m[6]=stKidDay; m[7]=stSum(m); }
 static void stLoad(void){ volatile u8*m=SRAM_BASE+STORY_OFF; stId=0; stCh=0; stPart=stKid=stKidDay=255; stGuest=0;
@@ -45,11 +46,12 @@ static void stRel(int a,int b,int d,int l,u8 f){ relD[a][b]=relD[b][a]=(signed c
 static void stKidHome(void){   // the promised child moves in: a mix of you and your partner (or a look of their own)
     int p=stMember(stPart); u8 lk[LK_N];
     if(p>=0) stMixLook(lk,look,hhM[p].look,AG_CHILD); else { u8 st=AG_CHILD; lookTrueRandom(lk,&st); }
+    lk[LK_SEX]=sexRoll();   // (a girl, a boy or neither: a surprise)
     int m=stAddSim(lk,AG_CHILD,hhPLast); if(m<0){ toast("THE HOUSE IS FULL  NO ROOM FOR A CHILD"); return; }
     stRel(hhPUid,hhM[m].uid,50,40,RF_FRIEND); if(p>=0) stRel(hhM[p].uid,hhM[m].uid,50,40,RF_FRIEND);
     for(int k=0;k<hhN;k++){ hhOld[k].x0=hhOld[k].x1=0; hhOldSig[k]=0xFFFFFFFFu; }
     toast("PLEASE WAIT  YOUR CHILD IS COMING HOME"); hhBakeAll(); hhSave(); liveInvalidate();
-    static char t[40]; char*e=simCat(t,hhM[m].name); simCat(e," IS HOME"); toast(t);
+    static char t[44] EWRAM_BSS; char*e=simCat(t,"YOUR "); e=simCat(e,sexWord(SW_KID,lk[LK_SEX])); e=simCat(e," "); e=simCat(e,hhM[m].name); simCat(e," IS HOME"); toast(t);
     stKid=hhM[m].uid;   // (the kid goals are about this child)
 }
 static int stDone(const StCh*c){   // is the chapter's goal met?
@@ -66,7 +68,14 @@ static int stDone(const StCh*c){   // is the chapter's goal met?
     }
     return 0;
 }
-static void stAnnounce(void){ static char t[44]; char*e=slCat(t,"CHAPTER "); e=slNum(e,stCh+1); e=slCat(e,"  "); slCat(e,stChs[stId][stCh].nm); lnote=t; lnoteT=240; }
+static int stSexOf(int uid){ int m=stMember(uid); return m<0?SX_NB:hhM[m].look[LK_SEX]; }
+static void stChName(int i,char*d){   // a chapter's goal in words, naming who it is about once they live with you
+    const StCh*c=&stChs[stId][i];
+    if(c->goal==SG_KIDFRIEND&&stMember(stKid)>=0){ char*e=slCat(d,"BECOME FRIENDS WITH YOUR "); slCat(e,sexWord(SW_KID,stSexOf(stKid))); return; }
+    if(c->goal==SG_FRIEND&&stMember(stPart)>=0){ char*e=slCat(d,"BECOME FRIENDS WITH "); slCat(e,hhM[stMember(stPart)].name); return; }
+    slCat(d,c->nm);
+}
+static void stAnnounce(void){ static char t[48] EWRAM_BSS; char*e=slCat(t,"CHAPTER "); e=slNum(e,stCh+1); e=slCat(e,"  "); stChName(stCh,e); lnote=t; lnoteT=240; }
 static void stTick(void){   // once per logic step in the life game: is this chapter done?
     static u8 cnt; if(!stId||++cnt<60) return; cnt=0;
     if(stCh>=stLen[stId]) return;
@@ -79,28 +88,40 @@ static void stTick(void){   // once per logic step in the life game: is this cha
         stKidHome(); stKidDay=255;
     } else if(!stDone(c)) return;
     simMoney+=250; if(simMoney>9999) simMoney=9999; dnaAdd(25); persSave(); simsSave();
-    { static char t[40]; char*e=slCat(t,"CHAPTER DONE  "); slCat(e,"+\xC2\xA7" "250  +25 JENES"); toast(t); }
+    { static char t[40] EWRAM_BSS; char*e=slCat(t,"CHAPTER DONE  "); slCat(e,"+\xC2\xA7" "250  +25 JENES"); toast(t); }
     stCh++; stSave(); stAnnounce();
     if(stChs[stId][stCh].goal==SG_END) toast("THE END  YOUR STORY GOES ON");
 }
 static void stEnter(void){ stLoad(); if(stId) stAnnounce(); }   // entering the life game: the current goal on the top bar
 static void storyScreen(void){   // pause menu > STORY
-    static char ln[10][40] EWRAM_BSS; const char* L[10]; int n=0;   // (EWRAM: IWRAM holds the stack)
+    static char ln[10][48] EWRAM_BSS; const char* L[10]; int n=0;   // (EWRAM: IWRAM holds the stack)
     if(!stId){ static const char* const none[3]={">NO STORY","START ONE FROM THE MAIN MENU","PLAY > NEW GAME > STORY MODE"}; helpScreen("STORY",none,3); return; }
     { char*e=slCat(ln[n],">"); slCat(e,stNm[stId]); L[n]=ln[n]; n++; }
-    for(int i=0;i<stLen[stId]&&n<10;i++){ char*e=slCat(ln[n],i<stCh?"DONE  ":i==stCh?"NOW   ":"      "); slCat(e,stChs[stId][i].nm); L[n]=ln[n]; n++; }
+    for(int i=0;i<stLen[stId]&&n<10;i++){ char*e=slCat(ln[n],i<stCh?"DONE  ":i==stCh?"NOW   ":"      "); stChName(i,e); L[n]=ln[n]; n++; }
+    { int p=stMember(stPart); if(p>=0&&n<10){   // who is in your story: YOUR WIFE  VESPER, YOUR ROOMMATE  ALEX (your GIRLFRIEND once you go steady)
+        int sx=hhM[p].look[LK_SEX]; const char*w=stId==STY_WED?sexWord(SW_SPOUSE,sx):(relF[hhPUid][hhM[p].uid]&RF_STEADY)?sexWord(SW_DATE,sx):"ROOMMATE";
+        char*e=slCat(ln[n],"YOUR "); e=slCat(e,w); e=slCat(e,"  "); slCat(e,hhM[p].name); L[n]=ln[n]; n++; } }
+    { int k=stMember(stKid); if(k>=0&&n<10){ char*e=slCat(ln[n],"YOUR "); e=slCat(e,sexWord(SW_KID,hhM[k].look[LK_SEX])); e=slCat(e,"  "); slCat(e,hhM[k].name); L[n]=ln[n]; n++; } }
     helpScreen("STORY",L,n);
 }
 // NEW GAME > STORY MODE: pick a story; the household starts as the story says (the creator opens next to make you)
-static int storyPick(void){ const char* it[STY_N-1]; for(int i=1;i<STY_N;i++) it[i-1]=stNm[i]; int c=menu("WHICH STORY?",it,STY_N-1); return c<0?0:c+1; }
+static int storyPick(void){   // the story, then who shares it: a woman, a man, nonbinary, or a surprise (0 = backed out)
+    const char* it[STY_N-1]; for(int i=1;i<STY_N;i++) it[i-1]=stNm[i]; int c=menu("WHICH STORY?",it,STY_N-1); if(c<0) return 0;
+    static const char* const room[4]={"A WOMAN","A MAN","NONBINARY","SURPRISE ME"};
+    static const char* const wed[4]={"A WIFE","A HUSBAND","A SPOUSE","SURPRISE ME"};
+    static const char* const kid[4]={"A DAUGHTER","A SON","A CHILD","SURPRISE ME"};
+    static const char* const ask[STY_N]={"","YOUR ROOMMATE IS","YOU MARRIED","YOUR KID IS"};
+    int w=menu(ask[c+1],c+1==STY_ROOM?room:c+1==STY_WED?wed:kid,4); if(w<0) return 0;
+    stWant=(u8)(w<SX_N?w:255); return c+1;
+}
 static void storySetup(int s){   // after the new life is set up and the old household has gone
     stId=(u8)s; stCh=0; stPart=stKid=stKidDay=255; stGuest=0;
     u8 lk[LK_N], st;
-    if(s==STY_ROOM){ st=AG_ADULT; lookTrueRandom(lk,&st); char l[HH_NM]; famLast(&hhFams[rnd8()%HH_NFAM],l);
+    if(s==STY_ROOM){ st=AG_ADULT; lookTrueRandom(lk,&st); if(stWant<SX_N) lk[LK_SEX]=stWant; char l[HH_NM]; famLast(&hhFams[rnd8()%HH_NFAM],l);
         int m=stAddSim(lk,AG_ADULT,l); if(m>=0){ stRel(hhPUid,hhM[m].uid,10,0,0); stPart=hhM[m].uid; } }
-    else if(s==STY_WED){ st=AG_ADULT; lookTrueRandom(lk,&st);
+    else if(s==STY_WED){ st=AG_ADULT; lookTrueRandom(lk,&st); if(stWant<SX_N) lk[LK_SEX]=stWant;
         int m=stAddSim(lk,AG_ADULT,hhPLast); if(m>=0){ stRel(hhPUid,hhM[m].uid,70,80,RF_CRUSH|RF_LOVE|RF_STEADY|RF_KISSED|RF_FRIEND|RF_BFF); stPart=hhM[m].uid; } }
-    else { stMixLook(lk,look,look,AG_CHILD);   // your kid takes after you
+    else { stMixLook(lk,look,look,AG_CHILD); lk[LK_SEX]=stWant<SX_N?stWant:sexRoll();   // your kid takes after you
         int m=stAddSim(lk,AG_CHILD,hhPLast); if(m>=0){ stRel(hhPUid,hhM[m].uid,40,30,0); stKid=hhM[m].uid; } }
     hhSave(); stSave();
 }

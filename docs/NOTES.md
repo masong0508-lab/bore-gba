@@ -725,3 +725,22 @@ Latin house rework of The Dipper Man - The Ticking Bomb, built by tools/make_tic
   - Glue compression (1–2 dB).
   - -14 LUFS (quiet pieces lower, and the limiter never works more than 4 dB), with a -1 dBTP true-peak limiter.
 - **Chiptunes.** Rendered from the same control tracks the game plays, by make_chiptunes' 48 kHz renderer with no 7.5 kHz limit. Each voice gets its own place in the stereo field and there is a small room reverb. Each plays 3 times with no seams and fades out on the 4th.
+
+## Genders
+Every Sim has a GENDER: FEMALE, MALE or NONBINARY. It's `look[LK_SEX]`, the last look, so it travels with the look everywhere: the creator, saved people, households, the household bank, pre-mades, visitors and story children.
+- **Creator:** a GENDER row under AGE. The dice keep your gender; TRUE RANDOM rolls it.
+- **New Sims:** random ones are 45 % female, 45 % male and 10 % nonbinary (`sexRoll`). Every pre-made Sim has one set in `hhFams` (`HhPre.sex`).
+- **What it changes:** only words, never what a Sim may wear, do or love.
+  - `sexWord`: WIFE / HUSBAND / SPOUSE, DAUGHTER / SON / CHILD, GIRLFRIEND / BOYFRIEND / PARTNER, SHE / HE / THEY and so on.
+  - `whoWord`: GIRL, TEEN BOY, ELDER WOMAN…
+  - The relationships screen calls a steady partner GIRLFRIEND / BOYFRIEND / PARTNER.
+- **Story mode:** after the story, NEW GAME asks who shares it.
+  - YOUR ROOMMATE IS / YOU MARRIED / YOUR KID IS, each with a woman/man/nonbinary choice or SURPRISE ME.
+  - The child who comes home is a surprise ("YOUR DAUGHTER MAE IS HOME").
+  - Chapters name who they are about (BECOME FRIENDS WITH YOUR SON), and the STORY screen lists your spouse / roommate / kid.
+- **Saves:**
+  - A saved person is format 11 (format 10 is read too).
+  - A household is 'H;' ('H9' / 'H:' are read and converted).
+  - A bank record stores its look length at header byte 35.
+  - A Sim from an older save gets a gender from `sexGuess`: a beard means male, otherwise a hash of the look, so the same Sim always gets the same one.
+- **IWRAM:** the longer look shifted IWRAM variables, and the mixer needed a few more address loads. Three text buffers moved to EWRAM to pay for it, so IWRAM use ends up 180 bytes lower than before.

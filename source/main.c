@@ -95,10 +95,13 @@ enum { LK_SHAPE, LK_SKIN, LK_EYES, LK_MOUTH, LK_EARS, LK_HSTYLE, LK_HCOL, LK_TOP
        LK_FEARS, LK_MUZZLE, LK_FTAIL, LK_BUTT, LK_BUTTH, LK_BUTTW,
        LK_LEGW, LK_ARMW, LK_ANTLEN, LK_ANTSPR, LK_ANTTIP, LK_TAILLEN, LK_HORNSZ, LK_TAILCURL, LK_TAILTHK, LK_HORNSPR, LK_HORNCRV, LK_HORNHT, LK_EARFWD, LK_EARSPR, LK_HEADSZ, LK_HANDFT, LK_WINGSZ, LK_TAILTIP,
        LK_NECK, LK_HIPW, LK_WAISTW, LK_SHOULW, LK_THIGHW, LK_CALFW, LK_TAILHT, LK_TAILSW, LK_TAILTL, LK_HORNFB, LK_HORNTH, LK_WINGSP, LK_WINGHT, LK_ANTFB, LK_ANTGAP, LK_EARWID,   // format 10: neck, body widths, more tail / horn / wing / antenna / ear sliders (appended: older saves keep their positions)
+       LK_SEX,                         // format 11: GENDER (SX_FEMALE, SX_MALE, SX_NB); a Sim from an older save gets one from sexGuess
        LK_N };   // animal (furry) ears, a muzzle, a fur tail (format 8); LK_BUTT: a slider, the seat (teens and up); LK_LEGW: leg width slider (format 9)
+#define LK_N10 (LK_EARWID+1)   // looks a person format 10 slot (and an 'H9' / 'H:' household) holds
 #define LK_N9 (LK_TAILTIP+1)   // looks a person format 9 slot (and an 'H8' household) holds
 #define LK_NSL ((LK_EARLF-LK_BASE+1)+(LK_MOUTHHT-LK_HEIGHT+1)+(LK_STANCE-LK_HTONE+1)+(LK_WINGSZ-LK_BUTT+1)+(LK_EARWID-LK_NECK+1))   // how many looks are sliders (9 values each)
 #define LKPK ((LK_N-LK_NSL)+(LK_NSL+1)/2)   // bytes a look takes in the household save: sliders are packed two to a byte
+#define LKPK10 ((LK_N10-LK_NSL)+(LK_NSL+1)/2)   // (an 'H9' / 'H:' household's, before GENDER)
 #define LK_N8 (LK_BUTTW+1)   // looks a person format 8 slot holds
 #define LK_N7 (LK_PATCOL+1)   // looks a person format 7 slot holds
 #define LK_N6 (LK_MOUTHHT+1)   // looks a person format 6 slot holds
@@ -127,6 +130,14 @@ enum { AG_BABY, AG_CHILD, AG_TEEN, AG_ADULT, AG_ELDER, AG_N };
 static u8 stage=AG_ADULT;   // current life stage
 static u8 ageDays;          // game days lived in this stage (grows the creature when it reaches the days set on the OPTIONS > TIME > AGES section, saved with the person)
 static const char* const stageNm[AG_N]={"BABY","CHILD","TEEN","ADULT","ELDER"};
+enum { SX_FEMALE, SX_MALE, SX_NB, SX_N };   // GENDER (look[LK_SEX]): it changes the words (WIFE / HUSBAND / SPOUSE, SHE / HE / THEY), never what a Sim may wear, do or love
+enum { SW_WHO, SW_SPOUSE, SW_KID, SW_PARENT, SW_SIB, SW_DATE, SW_THEY, SW_THEM, SW_THEIR, SW_N };
+static const char* const sexWords[SW_N][SX_N]={ {"WOMAN","MAN","ADULT"},{"WIFE","HUSBAND","SPOUSE"},{"DAUGHTER","SON","CHILD"},{"MOM","DAD","PARENT"},
+    {"SISTER","BROTHER","SIBLING"},{"GIRLFRIEND","BOYFRIEND","PARTNER"},{"SHE","HE","THEY"},{"HER","HIM","THEM"},{"HER","HIS","THEIR"} };
+static const char* sexWord(int w,int sx){ return sexWords[w][sx<SX_N?sx:SX_NB]; }
+static const char* whoWord(int stg,int sx){   // REX  MAN, PIP  GIRL, WREN  TEEN: what the household lists call someone
+    static const char* const w[AG_N][SX_N]={{"BABY GIRL","BABY BOY","BABY"},{"GIRL","BOY","CHILD"},{"TEEN GIRL","TEEN BOY","TEEN"},{"WOMAN","MAN","ADULT"},{"ELDER WOMAN","ELDER MAN","ELDER"}};
+    return w[stg<AG_N?stg:AG_ADULT][sx<SX_N?sx:SX_NB]; }
 static const u8 stBW[AG_N]={4,4,6,6,6}, stBD[AG_N]={4,4,4,4,4}, stBH[AG_N]={5,6,7,8,7};   // build box (width is always even: parts mirror around its centre)
 static const u8 stMaxSz[AG_N]={2,2,3,3,3};          // biggest block size S/M/L the builder offers
 static u8 bxSt, bxBig, bxLift=6;   // bxSync: the stage whose build box is used, LIMIT BREAK on, the most the HEIGHT stretch may add
@@ -1807,6 +1818,9 @@ static void sfxTick(void){   // call once per frame: switch the mixer off once t
 }
 static u32 lrng=12345;
 static int rnd8(void){ lrng=lrng*1664525u+1013904223u; return (int)(lrng>>24); }
+static u8 sexRoll(void){ int r=rnd8()%20; return (u8)(r<9?SX_FEMALE:r<18?SX_MALE:SX_NB); }   // a new Sim's gender: 45 % / 45 % / 10 %
+static u8 sexGuess(const u8*lk){   // a Sim from a save made before GENDER: a beard says male, else the look decides (the same Sim always gets the same)
+    if(lk[LK_BEARD]) return SX_MALE; u32 h=2166136261u; for(int i=0;i<LK_N10;i++) h=(h^lk[i])*16777619u; return (u8)(((h>>7)&1)?SX_MALE:SX_FEMALE); }
 
 // Getting hurt. sev grows with fall height, speed and a bad landing. kind: 0 clean landing, 1 bail, 2 wall hit.
 static void die(int snd){ moodEvent(M_DIE); ldead=1; lstun=2; lsp=0; lgrind=0; sfxPlay(snd); lnote="YOU DIED"; lnoteT=0x7fff; }
@@ -3236,14 +3250,15 @@ static const char* const topStyNm[5]={"TEE","LONG SLEEVE","TANK","HOODIE","BARE"
 static const char* const botStyNm[4]={"PANTS","SHORTS","SKIRT","BARE"};
 static const char* const tipNm[7]={"NONE","WHITE","RED","GOLD","BLACK","AS THE TOP","AS THE BOTTOM"};   // TAIL TIP colours (colour slots 5.. see tipSlot)
 static const char* const shoeNm[6]={"AS THE BOTTOM","WHITE","BLACK","RED","GOLD","AS THE TOP"};
+static const char* const sexNm[SX_N]={"FEMALE","MALE","NONBINARY"};
 #define LK_AGE LK_N   // the AGE row is not part of look[]: it picks the life stage
 static const char* const* const lookNm[LK_N+1]={shapeNm,0,eyeNm,mouthNm,earNm,hairNm,0,0,0,0,0,0,tailNm,hornNm,backNm,hatNm,hatColNm,beardNm,topStyNm,botStyNm,shoeNm,
-                                                browNm,noseNm,cheekNm,glassNm,0,0,0,0,0,0,0,0,clawNm,antNm,patNm,patColNm,0,0,0,0,0,0,0,0,0,fearNm,muzNm,ftailNm,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,tipNm,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,stageNm};
-_Static_assert(LK_N==86,"lookNm / lookCol / cnt need a slot for every look");
-static const u16* const lookCol[LK_N+1]={0,skinTones,0,0,0,0,hairTones,topTones,botTones,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,eyeTones,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+                                                browNm,noseNm,cheekNm,glassNm,0,0,0,0,0,0,0,0,clawNm,antNm,patNm,patColNm,0,0,0,0,0,0,0,0,0,fearNm,muzNm,ftailNm,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,tipNm,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,sexNm,stageNm};
+_Static_assert(LK_N==87,"lookNm / lookCol / cnt need a slot for every look");
+static const u16* const lookCol[LK_N+1]={0,skinTones,0,0,0,0,hairTones,topTones,botTones,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,eyeTones,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 #define TROWS 32   // most rows a tab holds; the card shows 5 at a time and scrolls
 static const Row tabRow[NTAB][TROWS]={
-  {{"FIRST NAME","LAST NAME",RK_DUO,AC_FNAME,AC_LNAME},{"AGE",0,RK_PICK,LK_AGE,AG_N},{"SHAPE",0,RK_PICK,LK_SHAPE,NSHAPE},{"HEIGHT",0,RK_SLIDE,LK_HEIGHT,9},{"WEIGHT",0,RK_SLIDE,LK_WEIGHT,9},
+  {{"FIRST NAME","LAST NAME",RK_DUO,AC_FNAME,AC_LNAME},{"AGE",0,RK_PICK,LK_AGE,AG_N},{"GENDER",0,RK_PICK,LK_SEX,SX_N},{"SHAPE",0,RK_PICK,LK_SHAPE,NSHAPE},{"HEIGHT",0,RK_SLIDE,LK_HEIGHT,9},{"WEIGHT",0,RK_SLIDE,LK_WEIGHT,9},
    {"TORSO",0,RK_SLIDE,LK_TORSO,9},{"ARMS",0,RK_SLIDE,LK_ARMS,9},{"STANCE",0,RK_SLIDE,LK_STANCE,9},{"LEG WIDTH",0,RK_SLIDE,LK_LEGW,9},{"ARM WIDTH",0,RK_SLIDE,LK_ARMW,9},{"HEAD SIZE",0,RK_SLIDE,LK_HEADSZ,9},{"HAND FOOT SIZE",0,RK_SLIDE,LK_HANDFT,9},{"NECK LENGTH",0,RK_SLIDE,LK_NECK,9},{"HIP WIDTH",0,RK_SLIDE,LK_HIPW,9},{"WAIST WIDTH",0,RK_SLIDE,LK_WAISTW,9},{"SHOULDERS",0,RK_SLIDE,LK_SHOULW,9},{"THIGH WIDTH",0,RK_SLIDE,LK_THIGHW,9},{"CALF WIDTH",0,RK_SLIDE,LK_CALFW,9},
    {"SKIN",0,RK_SWATCH,LK_SKIN,NSW},{"SKIN TONE",0,RK_SLIDE,LK_TONE,9},{"BUTT",0,RK_SLIDE,LK_BUTT,9},{"BUTT HEIGHT",0,RK_SLIDE,LK_BUTTH,9},{"BUTT WIDTH",0,RK_SLIDE,LK_BUTTW,9}},   // (the BUTT rows last: cut from the tab below teen)
   {{"EYES",0,RK_PICK,LK_EYES,NEYE},{"EYE COLOUR",0,RK_SWATCH,LK_EYECOL,NSW},{"EYE SHADE",0,RK_SLIDE,LK_EYETONE,9},{"EYE SIZE",0,RK_SLIDE,LK_EYESZ,9},{"EYE SPACING",0,RK_SLIDE,LK_EYESP,9},
@@ -3590,8 +3605,8 @@ static void famAdd(void){
 static void famMenu(void){
     if(!dbgOn) return;   // (DEBUG CODE only)
     hhLoad(); if(!hhN){ toast("ONLY YOU SO FAR"); return; }
-    static char lb[HH_MAX][32]; const char* it[HH_MAX];
-    for(int m=0;m<hhN;m++){ char*e=simCat(lb[m],hhM[m].name); e=simCat(e,"  "); simCat(e,stageNm[hhM[m].stage<AG_N?hhM[m].stage:AG_ADULT]); it[m]=lb[m]; }
+    static char lb[HH_MAX][32] EWRAM_BSS; const char* it[HH_MAX];   // (EWRAM: IWRAM holds the stack)
+    for(int m=0;m<hhN;m++){ char*e=simCat(lb[m],hhM[m].name); e=simCat(e,"  "); simCat(e,whoWord(hhM[m].stage,hhM[m].look[LK_SEX])); it[m]=lb[m]; }
     int m=menu("THE FAMILY",it,hhN); if(m<0) return;
     static const char* const act[3]={"EDIT  PLAY AS THEM","MOVE OUT","BACK"}; int c=menu(hhM[m].name,act,3);
     if(c==1){ static const char* const yn[2]={"YES  GOODBYE","NO"}; if(menu("ARE YOU SURE?",yn,2)==0){ hhRemove(m); hhSave(); toast("MOVED OUT"); } return; }
@@ -3606,11 +3621,12 @@ static void famMenu(void){
     custom=0; ageDays=0; fixLook(); buildLook(); setColors(); ageSave(); persSave(); hhSave();
     static char t[32]; simCat(simCat(t,"NOW EDITING "),hhPName); toast(t);
 }
-static const u8 lkCnt[LK_N]={NSHAPE,NSW,NEYE,NMOUTH,3,NHAIR,NSW,NSW,NSW,9,9,9,3,3,3,6,6,3,4,3,6, 6,6,5,4,NSW, 9,9,9,9,9,9,9, 4,3,7,6, 9,9,9,9,9,9,9,9,9, 5,4,4, 9,9,9, 9,9,9,9,9,9,9, 9,9,9,9,9,9,9, 9,9,9,7};   // how many options each look row has (sliders: 9)
+static const u8 lkCnt[LK_N]={NSHAPE,NSW,NEYE,NMOUTH,3,NHAIR,NSW,NSW,NSW,9,9,9,3,3,3,6,6,3,4,3,6, 6,6,5,4,NSW, 9,9,9,9,9,9,9, 4,3,7,6, 9,9,9,9,9,9,9,9,9, 5,4,4, 9,9,9, 9,9,9,9,9,9,9, 9,9,9,9,9,9,9, 9,9,9,7, [LK_SEX]=SX_N};   // how many options each look row has (sliders: 9)
 static void lookRandom(void){   // the dice (like Create-A-Bore): a whole new look and personality, only from what this stage and your unlocked parts allow
     const u8*cnt=lkCnt;
     for(int id=0;id<LK_N;id++){
         if(lkSlide(id)){ look[id]=(u8)slideVal(rnd8()%5+rnd8()%5); continue; }   // most land near the middle
+        if(id==LK_SEX) continue;   // (the dice keep your gender; TRUE RANDOM rolls it too)
         for(int t=0;t<20;t++){ int v=rnd8()%cnt[id];
             if(isPart(id)&&(!partFree(id,v)||(rnd8()&1))) v=0;
             if((id==LK_PATTERN||id==LK_FEARS||id==LK_MUZZLE||id==LK_FTAIL||id==LK_TAILTIP)&&(rnd8()%3)) v=0;   // parts: half the time none, never a locked one (and the animal bits now and then)
@@ -3631,6 +3647,7 @@ static void lookTrueRandom(u8*lk,u8*stg){
         if(lkSlide(id)){ look[id]=(u8)(rnd8()%9); continue; }
         int v=0; for(int t=0;t<20;t++){ v=rnd8()%lkCnt[id]; if(lkAllowed(id,v)&&(!isPart(id)||partFree(id,v))) break; v=0; }   // never a part you have not unlocked
         if(id==LK_BEARD&&stage<AG_ADULT) v=0;
+        if(id==LK_SEX) v=sexRoll();
         look[id]=(u8)v;
     }
     fixLook(); for(int i=0;i<LK_N;i++) lk[i]=look[i];
