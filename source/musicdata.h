@@ -278,122 +278,139 @@ __asm__(".pushsection .rodata\n"
   ".global xm_nursery_time_S23\nxm_nursery_time_S23:\n.incbin \"source/music/xmdata.bin\",3149823,23230\n"
   ".global xm_nursery_time_S24\nxm_nursery_time_S24:\n.incbin \"source/music/xmdata.bin\",3173053,8332\n"
   ".global xm_tree_swaying_action_old_ev\nxm_tree_swaying_action_old_ev:\n.incbin \"source/music/xmdata.bin\",3181385,2468\n"
-  ".global xm_condensed_music_ev\nxm_condensed_music_ev:\n.incbin \"source/music/xmdata.bin\",3183853,10640\n"
-  ".global xm_condensed_music_S0\nxm_condensed_music_S0:\n.incbin \"source/music/xmdata.bin\",3194493,1473\n"
-  ".global xm_condensed_music_S1\nxm_condensed_music_S1:\n.incbin \"source/music/xmdata.bin\",3195966,5531\n"
-  ".global xm_condensed_music_S2\nxm_condensed_music_S2:\n.incbin \"source/music/xmdata.bin\",3201497,1080\n"
-  ".global xm_condensed_music_S3\nxm_condensed_music_S3:\n.incbin \"source/music/xmdata.bin\",3202577,726\n"
-  ".global xm_condensed_music_S4\nxm_condensed_music_S4:\n.incbin \"source/music/xmdata.bin\",3203303,5862\n"
-  ".global xm_condensed_music_S5\nxm_condensed_music_S5:\n.incbin \"source/music/xmdata.bin\",3209165,1272\n"
-  ".global xm_condensed_music_S6\nxm_condensed_music_S6:\n.incbin \"source/music/xmdata.bin\",3210437,2556\n"
-  ".global xm_condensed_music_S7\nxm_condensed_music_S7:\n.incbin \"source/music/xmdata.bin\",3212993,811\n"
-  ".global xm_condensed_music_S8\nxm_condensed_music_S8:\n.incbin \"source/music/xmdata.bin\",3213804,2649\n"
-  ".global xm_condensed_music_S9\nxm_condensed_music_S9:\n.incbin \"source/music/xmdata.bin\",3216453,4182\n"
-  ".global xm_condensed_music_S10\nxm_condensed_music_S10:\n.incbin \"source/music/xmdata.bin\",3220635,6687\n"
-  ".global xm_condensed_music_S11\nxm_condensed_music_S11:\n.incbin \"source/music/xmdata.bin\",3227322,6621\n"
-  ".global xm_condensed_music_S12\nxm_condensed_music_S12:\n.incbin \"source/music/xmdata.bin\",3233943,4541\n"
-  ".global xm_condensed_music_S13\nxm_condensed_music_S13:\n.incbin \"source/music/xmdata.bin\",3238484,21407\n"
-  ".global xm_condensed_music_S14\nxm_condensed_music_S14:\n.incbin \"source/music/xmdata.bin\",3259891,25990\n"
-  ".global xm_condensed_music_S15\nxm_condensed_music_S15:\n.incbin \"source/music/xmdata.bin\",3285881,8669\n"
-  ".global xm_condensed_music_S16\nxm_condensed_music_S16:\n.incbin \"source/music/xmdata.bin\",3294550,19913\n"
-  ".global xm_condensed_music_S17\nxm_condensed_music_S17:\n.incbin \"source/music/xmdata.bin\",3314463,1746\n"
-  ".global xm_condensed_music_S18\nxm_condensed_music_S18:\n.incbin \"source/music/xmdata.bin\",3316209,505\n"
-  ".global xm_condensed_music_S19\nxm_condensed_music_S19:\n.incbin \"source/music/xmdata.bin\",3316714,16455\n"
-  ".global xm_condensed_music_S20\nxm_condensed_music_S20:\n.incbin \"source/music/xmdata.bin\",3333169,20258\n"
-  ".global xm_condensed_music_S21\nxm_condensed_music_S21:\n.incbin \"source/music/xmdata.bin\",3353427,30380\n"
-  ".global xm_condensed_music_S22\nxm_condensed_music_S22:\n.incbin \"source/music/xmdata.bin\",3383807,15330\n"
-  ".global xm_cocaine_cola_ii_ev\nxm_cocaine_cola_ii_ev:\n.incbin \"source/music/xmdata.bin\",3399137,37169\n"
-  ".global xm_cocaine_cola_ii_S0\nxm_cocaine_cola_ii_S0:\n.incbin \"source/music/xmdata.bin\",3436306,2736\n"
-  ".global xm_cocaine_cola_ii_S1\nxm_cocaine_cola_ii_S1:\n.incbin \"source/music/xmdata.bin\",3439042,1182\n"
-  ".global xm_cocaine_cola_ii_S2\nxm_cocaine_cola_ii_S2:\n.incbin \"source/music/xmdata.bin\",3440224,1623\n"
-  ".global xm_cocaine_cola_ii_S3\nxm_cocaine_cola_ii_S3:\n.incbin \"source/music/xmdata.bin\",3441847,5467\n"
-  ".global xm_cocaine_cola_ii_S4\nxm_cocaine_cola_ii_S4:\n.incbin \"source/music/xmdata.bin\",3447314,6006\n"
-  ".global xm_cocaine_cola_ii_S5\nxm_cocaine_cola_ii_S5:\n.incbin \"source/music/xmdata.bin\",3453320,9027\n"
-  ".global xm_cocaine_cola_ii_S6\nxm_cocaine_cola_ii_S6:\n.incbin \"source/music/xmdata.bin\",3462347,6928\n"
-  ".global xm_cocaine_cola_ii_S7\nxm_cocaine_cola_ii_S7:\n.incbin \"source/music/xmdata.bin\",3469275,755\n"
-  ".global xm_cocaine_cola_ii_S8\nxm_cocaine_cola_ii_S8:\n.incbin \"source/music/xmdata.bin\",3470030,2129\n"
-  ".global xm_cocaine_cola_ii_S9\nxm_cocaine_cola_ii_S9:\n.incbin \"source/music/xmdata.bin\",3472159,11925\n"
-  ".global xm_cocaine_cola_ii_S10\nxm_cocaine_cola_ii_S10:\n.incbin \"source/music/xmdata.bin\",3484084,4247\n"
-  ".global xm_cocaine_cola_ii_S11\nxm_cocaine_cola_ii_S11:\n.incbin \"source/music/xmdata.bin\",3488331,2726\n"
-  ".global xm_cocaine_cola_ii_S12\nxm_cocaine_cola_ii_S12:\n.incbin \"source/music/xmdata.bin\",3491057,5127\n"
-  ".global xm_cocaine_cola_ii_S13\nxm_cocaine_cola_ii_S13:\n.incbin \"source/music/xmdata.bin\",3496184,3147\n"
-  ".global xm_cocaine_cola_ii_S14\nxm_cocaine_cola_ii_S14:\n.incbin \"source/music/xmdata.bin\",3499331,6677\n"
-  ".global xm_cocaine_cola_ii_S15\nxm_cocaine_cola_ii_S15:\n.incbin \"source/music/xmdata.bin\",3506008,12996\n"
-  ".global xm_cocaine_cola_ii_S16\nxm_cocaine_cola_ii_S16:\n.incbin \"source/music/xmdata.bin\",3519004,13730\n"
-  ".global xm_cocaine_cola_ii_S17\nxm_cocaine_cola_ii_S17:\n.incbin \"source/music/xmdata.bin\",3532734,32949\n"
-  ".global xm_cocaine_cola_ii_S18\nxm_cocaine_cola_ii_S18:\n.incbin \"source/music/xmdata.bin\",3565683,11803\n"
-  ".global xm_cocaine_cola_ii_S19\nxm_cocaine_cola_ii_S19:\n.incbin \"source/music/xmdata.bin\",3577486,3813\n"
-  ".global xm_cocaine_cola_ii_S20\nxm_cocaine_cola_ii_S20:\n.incbin \"source/music/xmdata.bin\",3581299,44074\n"
-  ".global xm_cocaine_cola_ii_S21\nxm_cocaine_cola_ii_S21:\n.incbin \"source/music/xmdata.bin\",3625373,44079\n"
-  ".global xm_cocaine_cola_ii_S22\nxm_cocaine_cola_ii_S22:\n.incbin \"source/music/xmdata.bin\",3669452,20890\n"
-  ".global xm_cocaine_cola_ii_S23\nxm_cocaine_cola_ii_S23:\n.incbin \"source/music/xmdata.bin\",3690342,41436\n"
-  ".global xm_cocaine_cola_ii_S24\nxm_cocaine_cola_ii_S24:\n.incbin \"source/music/xmdata.bin\",3731778,624\n"
-  ".global xm_cocaine_cola_ev\nxm_cocaine_cola_ev:\n.incbin \"source/music/xmdata.bin\",3732402,23611\n"
-  ".global xm_cocaine_cola_S0\nxm_cocaine_cola_S0:\n.incbin \"source/music/xmdata.bin\",3756013,1644\n"
-  ".global xm_cocaine_cola_S1\nxm_cocaine_cola_S1:\n.incbin \"source/music/xmdata.bin\",3757657,2495\n"
-  ".global xm_cocaine_cola_S2\nxm_cocaine_cola_S2:\n.incbin \"source/music/xmdata.bin\",3760152,7505\n"
-  ".global xm_cocaine_cola_S3\nxm_cocaine_cola_S3:\n.incbin \"source/music/xmdata.bin\",3767657,3913\n"
-  ".global xm_cocaine_cola_S4\nxm_cocaine_cola_S4:\n.incbin \"source/music/xmdata.bin\",3771570,3799\n"
-  ".global xm_cocaine_cola_S5\nxm_cocaine_cola_S5:\n.incbin \"source/music/xmdata.bin\",3775369,7097\n"
-  ".global xm_cocaine_cola_S6\nxm_cocaine_cola_S6:\n.incbin \"source/music/xmdata.bin\",3782466,9307\n"
-  ".global xm_cocaine_cola_S7\nxm_cocaine_cola_S7:\n.incbin \"source/music/xmdata.bin\",3791773,5491\n"
-  ".global xm_cocaine_cola_S8\nxm_cocaine_cola_S8:\n.incbin \"source/music/xmdata.bin\",3797264,10991\n"
-  ".global xm_cocaine_cola_S9\nxm_cocaine_cola_S9:\n.incbin \"source/music/xmdata.bin\",3808255,10996\n"
-  ".global xm_cocaine_cola_S10\nxm_cocaine_cola_S10:\n.incbin \"source/music/xmdata.bin\",3819251,22585\n"
-  ".global xm_cocaine_cola_S11\nxm_cocaine_cola_S11:\n.incbin \"source/music/xmdata.bin\",3841836,34982\n"
-  ".global xm_staged_ev\nxm_staged_ev:\n.incbin \"source/music/xmdata.bin\",3876818,23422\n"
-  ".global xm_staged_S0\nxm_staged_S0:\n.incbin \"source/music/xmdata.bin\",3900240,1229\n"
-  ".global xm_staged_S1\nxm_staged_S1:\n.incbin \"source/music/xmdata.bin\",3901469,3991\n"
-  ".global xm_staged_S2\nxm_staged_S2:\n.incbin \"source/music/xmdata.bin\",3905460,2058\n"
-  ".global xm_staged_S3\nxm_staged_S3:\n.incbin \"source/music/xmdata.bin\",3907518,632\n"
-  ".global xm_staged_S4\nxm_staged_S4:\n.incbin \"source/music/xmdata.bin\",3908150,4886\n"
-  ".global xm_staged_S5\nxm_staged_S5:\n.incbin \"source/music/xmdata.bin\",3913036,4857\n"
-  ".global xm_staged_S6\nxm_staged_S6:\n.incbin \"source/music/xmdata.bin\",3917893,4106\n"
-  ".global xm_staged_S7\nxm_staged_S7:\n.incbin \"source/music/xmdata.bin\",3921999,639\n"
-  ".global xm_staged_S8\nxm_staged_S8:\n.incbin \"source/music/xmdata.bin\",3922638,3727\n"
-  ".global xm_staged_S9\nxm_staged_S9:\n.incbin \"source/music/xmdata.bin\",3926365,3246\n"
-  ".global xm_staged_S10\nxm_staged_S10:\n.incbin \"source/music/xmdata.bin\",3929611,8289\n"
-  ".global xm_staged_S11\nxm_staged_S11:\n.incbin \"source/music/xmdata.bin\",3937900,4556\n"
-  ".global xm_staged_S12\nxm_staged_S12:\n.incbin \"source/music/xmdata.bin\",3942456,19756\n"
-  ".global xm_staged_S13\nxm_staged_S13:\n.incbin \"source/music/xmdata.bin\",3962212,22005\n"
-  ".global xm_staged_S14\nxm_staged_S14:\n.incbin \"source/music/xmdata.bin\",3984217,7010\n"
-  ".global xm_staged_S15\nxm_staged_S15:\n.incbin \"source/music/xmdata.bin\",3991227,7468\n"
-  ".global xm_staged_S16\nxm_staged_S16:\n.incbin \"source/music/xmdata.bin\",3998695,23700\n"
-  ".global xm_staged_S17\nxm_staged_S17:\n.incbin \"source/music/xmdata.bin\",4022395,17557\n"
-  ".global xm_staged_S18\nxm_staged_S18:\n.incbin \"source/music/xmdata.bin\",4039952,13142\n"
-  ".global xm_staged_S19\nxm_staged_S19:\n.incbin \"source/music/xmdata.bin\",4053094,1613\n"
-  ".global xm_staged_S20\nxm_staged_S20:\n.incbin \"source/music/xmdata.bin\",4054707,30733\n"
-  ".global xm_staged_S21\nxm_staged_S21:\n.incbin \"source/music/xmdata.bin\",4085440,20499\n"
-  ".global xm_staged_S22\nxm_staged_S22:\n.incbin \"source/music/xmdata.bin\",4105939,15362\n"
-  ".global xm_staged_S23\nxm_staged_S23:\n.incbin \"source/music/xmdata.bin\",4121301,14144\n"
-  ".global xm_closer_to_the_end_ev\nxm_closer_to_the_end_ev:\n.incbin \"source/music/xmdata.bin\",4135445,12413\n"
-  ".global xm_closer_to_the_end_S0\nxm_closer_to_the_end_S0:\n.incbin \"source/music/xmdata.bin\",4147858,1223\n"
-  ".global xm_closer_to_the_end_S1\nxm_closer_to_the_end_S1:\n.incbin \"source/music/xmdata.bin\",4149081,4905\n"
-  ".global xm_closer_to_the_end_S2\nxm_closer_to_the_end_S2:\n.incbin \"source/music/xmdata.bin\",4153986,1012\n"
-  ".global xm_closer_to_the_end_S3\nxm_closer_to_the_end_S3:\n.incbin \"source/music/xmdata.bin\",4154998,14946\n"
-  ".global xm_closer_to_the_end_S4\nxm_closer_to_the_end_S4:\n.incbin \"source/music/xmdata.bin\",4169944,19986\n"
-  ".global xm_closer_to_the_end_S5\nxm_closer_to_the_end_S5:\n.incbin \"source/music/xmdata.bin\",4189930,1637\n"
-  ".global xm_closer_to_the_end_S6\nxm_closer_to_the_end_S6:\n.incbin \"source/music/xmdata.bin\",4191567,2909\n"
-  ".global xm_closer_to_the_end_S7\nxm_closer_to_the_end_S7:\n.incbin \"source/music/xmdata.bin\",4194476,18257\n"
-  ".global xm_closer_to_the_end_S8\nxm_closer_to_the_end_S8:\n.incbin \"source/music/xmdata.bin\",4212733,9428\n"
-  ".global xm_closer_to_the_end_S9\nxm_closer_to_the_end_S9:\n.incbin \"source/music/xmdata.bin\",4222161,5498\n"
-  ".global xm_closer_to_the_end_S10\nxm_closer_to_the_end_S10:\n.incbin \"source/music/xmdata.bin\",4227659,6618\n"
-  ".global xm_closer_to_the_end_S11\nxm_closer_to_the_end_S11:\n.incbin \"source/music/xmdata.bin\",4234277,4876\n"
-  ".global xm_closer_to_the_end_S12\nxm_closer_to_the_end_S12:\n.incbin \"source/music/xmdata.bin\",4239153,5510\n"
-  ".global xm_closer_to_the_end_S13\nxm_closer_to_the_end_S13:\n.incbin \"source/music/xmdata.bin\",4244663,5814\n"
-  ".global xm_closer_to_the_end_S14\nxm_closer_to_the_end_S14:\n.incbin \"source/music/xmdata.bin\",4250477,20025\n"
-  ".global xm_closer_to_the_end_S15\nxm_closer_to_the_end_S15:\n.incbin \"source/music/xmdata.bin\",4270502,8820\n"
-  ".global xm_closer_to_the_end_old_ev\nxm_closer_to_the_end_old_ev:\n.incbin \"source/music/xmdata.bin\",4279322,9192\n"
-  ".global xm_closer_to_the_end_old_S11\nxm_closer_to_the_end_old_S11:\n.incbin \"source/music/xmdata.bin\",4288514,4940\n"
-  ".global xm_closer_to_the_end_old_S12\nxm_closer_to_the_end_old_S12:\n.incbin \"source/music/xmdata.bin\",4293454,10966\n"
-  ".global xm_the_ticking_bomb_ev\nxm_the_ticking_bomb_ev:\n.incbin \"source/music/xmdata.bin\",4304420,3332\n"
-  ".global xm_the_ticking_bomb_S1\nxm_the_ticking_bomb_S1:\n.incbin \"source/music/xmdata.bin\",4307752,3570\n"
-  ".global xm_the_ticking_bomb_S2\nxm_the_ticking_bomb_S2:\n.incbin \"source/music/xmdata.bin\",4311322,874\n"
-  ".global xm_the_ticking_bomb_S3\nxm_the_ticking_bomb_S3:\n.incbin \"source/music/xmdata.bin\",4312196,1224\n"
-  ".global xm_the_ticking_bomb_S4\nxm_the_ticking_bomb_S4:\n.incbin \"source/music/xmdata.bin\",4313420,5673\n"
-  ".global xm_the_ticking_bomb_S6\nxm_the_ticking_bomb_S6:\n.incbin \"source/music/xmdata.bin\",4319093,5356\n"
-  ".global xm_the_ticking_bomb_S7\nxm_the_ticking_bomb_S7:\n.incbin \"source/music/xmdata.bin\",4324449,2676\n"
-  ".global xm_the_ticking_bomb_S13\nxm_the_ticking_bomb_S13:\n.incbin \"source/music/xmdata.bin\",4327125,21560\n"
+  ".global xm_tree_fast_ev\nxm_tree_fast_ev:\n.incbin \"source/music/xmdata.bin\",3183853,6497\n"
+  ".global xm_tree_fast_S0\nxm_tree_fast_S0:\n.incbin \"source/music/xmdata.bin\",3190350,1148\n"
+  ".global xm_tree_fast_S1\nxm_tree_fast_S1:\n.incbin \"source/music/xmdata.bin\",3191498,4018\n"
+  ".global xm_tree_fast_S2\nxm_tree_fast_S2:\n.incbin \"source/music/xmdata.bin\",3195516,821\n"
+  ".global xm_tree_fast_S3\nxm_tree_fast_S3:\n.incbin \"source/music/xmdata.bin\",3196337,8247\n"
+  ".global xm_tree_fast_S4\nxm_tree_fast_S4:\n.incbin \"source/music/xmdata.bin\",3204584,1920\n"
+  ".global xm_tree_fast_S5\nxm_tree_fast_S5:\n.incbin \"source/music/xmdata.bin\",3206504,1649\n"
+  ".global xm_tree_fast_S6\nxm_tree_fast_S6:\n.incbin \"source/music/xmdata.bin\",3208153,3320\n"
+  ".global xm_tree_fast_S7\nxm_tree_fast_S7:\n.incbin \"source/music/xmdata.bin\",3211473,5534\n"
+  ".global xm_tree_fast_S8\nxm_tree_fast_S8:\n.incbin \"source/music/xmdata.bin\",3217007,15397\n"
+  ".global xm_tree_fast_S9\nxm_tree_fast_S9:\n.incbin \"source/music/xmdata.bin\",3232404,8317\n"
+  ".global xm_tree_fast_S10\nxm_tree_fast_S10:\n.incbin \"source/music/xmdata.bin\",3240721,8868\n"
+  ".global xm_tree_fast_S11\nxm_tree_fast_S11:\n.incbin \"source/music/xmdata.bin\",3249589,8858\n"
+  ".global xm_tree_fast_S12\nxm_tree_fast_S12:\n.incbin \"source/music/xmdata.bin\",3258447,8852\n"
+  ".global xm_tree_fast_S13\nxm_tree_fast_S13:\n.incbin \"source/music/xmdata.bin\",3267299,3022\n"
+  ".global xm_tree_fast_S14\nxm_tree_fast_S14:\n.incbin \"source/music/xmdata.bin\",3270321,7434\n"
+  ".global xm_tree_fast_old_ev\nxm_tree_fast_old_ev:\n.incbin \"source/music/xmdata.bin\",3277755,3116\n"
+  ".global xm_condensed_music_ev\nxm_condensed_music_ev:\n.incbin \"source/music/xmdata.bin\",3280871,10640\n"
+  ".global xm_condensed_music_S0\nxm_condensed_music_S0:\n.incbin \"source/music/xmdata.bin\",3291511,1473\n"
+  ".global xm_condensed_music_S1\nxm_condensed_music_S1:\n.incbin \"source/music/xmdata.bin\",3292984,5531\n"
+  ".global xm_condensed_music_S2\nxm_condensed_music_S2:\n.incbin \"source/music/xmdata.bin\",3298515,1080\n"
+  ".global xm_condensed_music_S3\nxm_condensed_music_S3:\n.incbin \"source/music/xmdata.bin\",3299595,726\n"
+  ".global xm_condensed_music_S4\nxm_condensed_music_S4:\n.incbin \"source/music/xmdata.bin\",3300321,5862\n"
+  ".global xm_condensed_music_S5\nxm_condensed_music_S5:\n.incbin \"source/music/xmdata.bin\",3306183,1272\n"
+  ".global xm_condensed_music_S6\nxm_condensed_music_S6:\n.incbin \"source/music/xmdata.bin\",3307455,2556\n"
+  ".global xm_condensed_music_S7\nxm_condensed_music_S7:\n.incbin \"source/music/xmdata.bin\",3310011,811\n"
+  ".global xm_condensed_music_S8\nxm_condensed_music_S8:\n.incbin \"source/music/xmdata.bin\",3310822,2649\n"
+  ".global xm_condensed_music_S9\nxm_condensed_music_S9:\n.incbin \"source/music/xmdata.bin\",3313471,4182\n"
+  ".global xm_condensed_music_S10\nxm_condensed_music_S10:\n.incbin \"source/music/xmdata.bin\",3317653,6687\n"
+  ".global xm_condensed_music_S11\nxm_condensed_music_S11:\n.incbin \"source/music/xmdata.bin\",3324340,6621\n"
+  ".global xm_condensed_music_S12\nxm_condensed_music_S12:\n.incbin \"source/music/xmdata.bin\",3330961,4541\n"
+  ".global xm_condensed_music_S13\nxm_condensed_music_S13:\n.incbin \"source/music/xmdata.bin\",3335502,21407\n"
+  ".global xm_condensed_music_S14\nxm_condensed_music_S14:\n.incbin \"source/music/xmdata.bin\",3356909,25990\n"
+  ".global xm_condensed_music_S15\nxm_condensed_music_S15:\n.incbin \"source/music/xmdata.bin\",3382899,8669\n"
+  ".global xm_condensed_music_S16\nxm_condensed_music_S16:\n.incbin \"source/music/xmdata.bin\",3391568,19913\n"
+  ".global xm_condensed_music_S17\nxm_condensed_music_S17:\n.incbin \"source/music/xmdata.bin\",3411481,1746\n"
+  ".global xm_condensed_music_S18\nxm_condensed_music_S18:\n.incbin \"source/music/xmdata.bin\",3413227,505\n"
+  ".global xm_condensed_music_S19\nxm_condensed_music_S19:\n.incbin \"source/music/xmdata.bin\",3413732,16455\n"
+  ".global xm_condensed_music_S20\nxm_condensed_music_S20:\n.incbin \"source/music/xmdata.bin\",3430187,20258\n"
+  ".global xm_condensed_music_S21\nxm_condensed_music_S21:\n.incbin \"source/music/xmdata.bin\",3450445,30380\n"
+  ".global xm_condensed_music_S22\nxm_condensed_music_S22:\n.incbin \"source/music/xmdata.bin\",3480825,15330\n"
+  ".global xm_cocaine_cola_ii_ev\nxm_cocaine_cola_ii_ev:\n.incbin \"source/music/xmdata.bin\",3496155,37169\n"
+  ".global xm_cocaine_cola_ii_S0\nxm_cocaine_cola_ii_S0:\n.incbin \"source/music/xmdata.bin\",3533324,2736\n"
+  ".global xm_cocaine_cola_ii_S1\nxm_cocaine_cola_ii_S1:\n.incbin \"source/music/xmdata.bin\",3536060,1182\n"
+  ".global xm_cocaine_cola_ii_S2\nxm_cocaine_cola_ii_S2:\n.incbin \"source/music/xmdata.bin\",3537242,1623\n"
+  ".global xm_cocaine_cola_ii_S3\nxm_cocaine_cola_ii_S3:\n.incbin \"source/music/xmdata.bin\",3538865,5467\n"
+  ".global xm_cocaine_cola_ii_S4\nxm_cocaine_cola_ii_S4:\n.incbin \"source/music/xmdata.bin\",3544332,6006\n"
+  ".global xm_cocaine_cola_ii_S5\nxm_cocaine_cola_ii_S5:\n.incbin \"source/music/xmdata.bin\",3550338,9027\n"
+  ".global xm_cocaine_cola_ii_S6\nxm_cocaine_cola_ii_S6:\n.incbin \"source/music/xmdata.bin\",3559365,6928\n"
+  ".global xm_cocaine_cola_ii_S7\nxm_cocaine_cola_ii_S7:\n.incbin \"source/music/xmdata.bin\",3566293,755\n"
+  ".global xm_cocaine_cola_ii_S8\nxm_cocaine_cola_ii_S8:\n.incbin \"source/music/xmdata.bin\",3567048,2129\n"
+  ".global xm_cocaine_cola_ii_S9\nxm_cocaine_cola_ii_S9:\n.incbin \"source/music/xmdata.bin\",3569177,11925\n"
+  ".global xm_cocaine_cola_ii_S10\nxm_cocaine_cola_ii_S10:\n.incbin \"source/music/xmdata.bin\",3581102,4247\n"
+  ".global xm_cocaine_cola_ii_S11\nxm_cocaine_cola_ii_S11:\n.incbin \"source/music/xmdata.bin\",3585349,2726\n"
+  ".global xm_cocaine_cola_ii_S12\nxm_cocaine_cola_ii_S12:\n.incbin \"source/music/xmdata.bin\",3588075,5127\n"
+  ".global xm_cocaine_cola_ii_S13\nxm_cocaine_cola_ii_S13:\n.incbin \"source/music/xmdata.bin\",3593202,3147\n"
+  ".global xm_cocaine_cola_ii_S14\nxm_cocaine_cola_ii_S14:\n.incbin \"source/music/xmdata.bin\",3596349,6677\n"
+  ".global xm_cocaine_cola_ii_S15\nxm_cocaine_cola_ii_S15:\n.incbin \"source/music/xmdata.bin\",3603026,12996\n"
+  ".global xm_cocaine_cola_ii_S16\nxm_cocaine_cola_ii_S16:\n.incbin \"source/music/xmdata.bin\",3616022,13730\n"
+  ".global xm_cocaine_cola_ii_S17\nxm_cocaine_cola_ii_S17:\n.incbin \"source/music/xmdata.bin\",3629752,32949\n"
+  ".global xm_cocaine_cola_ii_S18\nxm_cocaine_cola_ii_S18:\n.incbin \"source/music/xmdata.bin\",3662701,11803\n"
+  ".global xm_cocaine_cola_ii_S19\nxm_cocaine_cola_ii_S19:\n.incbin \"source/music/xmdata.bin\",3674504,3813\n"
+  ".global xm_cocaine_cola_ii_S20\nxm_cocaine_cola_ii_S20:\n.incbin \"source/music/xmdata.bin\",3678317,44074\n"
+  ".global xm_cocaine_cola_ii_S21\nxm_cocaine_cola_ii_S21:\n.incbin \"source/music/xmdata.bin\",3722391,44079\n"
+  ".global xm_cocaine_cola_ii_S22\nxm_cocaine_cola_ii_S22:\n.incbin \"source/music/xmdata.bin\",3766470,20890\n"
+  ".global xm_cocaine_cola_ii_S23\nxm_cocaine_cola_ii_S23:\n.incbin \"source/music/xmdata.bin\",3787360,41436\n"
+  ".global xm_cocaine_cola_ii_S24\nxm_cocaine_cola_ii_S24:\n.incbin \"source/music/xmdata.bin\",3828796,624\n"
+  ".global xm_cocaine_cola_ev\nxm_cocaine_cola_ev:\n.incbin \"source/music/xmdata.bin\",3829420,23611\n"
+  ".global xm_cocaine_cola_S0\nxm_cocaine_cola_S0:\n.incbin \"source/music/xmdata.bin\",3853031,1644\n"
+  ".global xm_cocaine_cola_S1\nxm_cocaine_cola_S1:\n.incbin \"source/music/xmdata.bin\",3854675,2495\n"
+  ".global xm_cocaine_cola_S2\nxm_cocaine_cola_S2:\n.incbin \"source/music/xmdata.bin\",3857170,7505\n"
+  ".global xm_cocaine_cola_S3\nxm_cocaine_cola_S3:\n.incbin \"source/music/xmdata.bin\",3864675,3913\n"
+  ".global xm_cocaine_cola_S4\nxm_cocaine_cola_S4:\n.incbin \"source/music/xmdata.bin\",3868588,3799\n"
+  ".global xm_cocaine_cola_S5\nxm_cocaine_cola_S5:\n.incbin \"source/music/xmdata.bin\",3872387,7097\n"
+  ".global xm_cocaine_cola_S6\nxm_cocaine_cola_S6:\n.incbin \"source/music/xmdata.bin\",3879484,9307\n"
+  ".global xm_cocaine_cola_S7\nxm_cocaine_cola_S7:\n.incbin \"source/music/xmdata.bin\",3888791,5491\n"
+  ".global xm_cocaine_cola_S8\nxm_cocaine_cola_S8:\n.incbin \"source/music/xmdata.bin\",3894282,10991\n"
+  ".global xm_cocaine_cola_S9\nxm_cocaine_cola_S9:\n.incbin \"source/music/xmdata.bin\",3905273,10996\n"
+  ".global xm_cocaine_cola_S10\nxm_cocaine_cola_S10:\n.incbin \"source/music/xmdata.bin\",3916269,22585\n"
+  ".global xm_cocaine_cola_S11\nxm_cocaine_cola_S11:\n.incbin \"source/music/xmdata.bin\",3938854,34982\n"
+  ".global xm_staged_ev\nxm_staged_ev:\n.incbin \"source/music/xmdata.bin\",3973836,23422\n"
+  ".global xm_staged_S0\nxm_staged_S0:\n.incbin \"source/music/xmdata.bin\",3997258,1229\n"
+  ".global xm_staged_S1\nxm_staged_S1:\n.incbin \"source/music/xmdata.bin\",3998487,3991\n"
+  ".global xm_staged_S2\nxm_staged_S2:\n.incbin \"source/music/xmdata.bin\",4002478,2058\n"
+  ".global xm_staged_S3\nxm_staged_S3:\n.incbin \"source/music/xmdata.bin\",4004536,632\n"
+  ".global xm_staged_S4\nxm_staged_S4:\n.incbin \"source/music/xmdata.bin\",4005168,4886\n"
+  ".global xm_staged_S5\nxm_staged_S5:\n.incbin \"source/music/xmdata.bin\",4010054,4857\n"
+  ".global xm_staged_S6\nxm_staged_S6:\n.incbin \"source/music/xmdata.bin\",4014911,4106\n"
+  ".global xm_staged_S7\nxm_staged_S7:\n.incbin \"source/music/xmdata.bin\",4019017,639\n"
+  ".global xm_staged_S8\nxm_staged_S8:\n.incbin \"source/music/xmdata.bin\",4019656,3727\n"
+  ".global xm_staged_S9\nxm_staged_S9:\n.incbin \"source/music/xmdata.bin\",4023383,3246\n"
+  ".global xm_staged_S10\nxm_staged_S10:\n.incbin \"source/music/xmdata.bin\",4026629,8289\n"
+  ".global xm_staged_S11\nxm_staged_S11:\n.incbin \"source/music/xmdata.bin\",4034918,4556\n"
+  ".global xm_staged_S12\nxm_staged_S12:\n.incbin \"source/music/xmdata.bin\",4039474,19756\n"
+  ".global xm_staged_S13\nxm_staged_S13:\n.incbin \"source/music/xmdata.bin\",4059230,22005\n"
+  ".global xm_staged_S14\nxm_staged_S14:\n.incbin \"source/music/xmdata.bin\",4081235,7010\n"
+  ".global xm_staged_S15\nxm_staged_S15:\n.incbin \"source/music/xmdata.bin\",4088245,7468\n"
+  ".global xm_staged_S16\nxm_staged_S16:\n.incbin \"source/music/xmdata.bin\",4095713,23700\n"
+  ".global xm_staged_S17\nxm_staged_S17:\n.incbin \"source/music/xmdata.bin\",4119413,17557\n"
+  ".global xm_staged_S18\nxm_staged_S18:\n.incbin \"source/music/xmdata.bin\",4136970,13142\n"
+  ".global xm_staged_S19\nxm_staged_S19:\n.incbin \"source/music/xmdata.bin\",4150112,1613\n"
+  ".global xm_staged_S20\nxm_staged_S20:\n.incbin \"source/music/xmdata.bin\",4151725,30733\n"
+  ".global xm_staged_S21\nxm_staged_S21:\n.incbin \"source/music/xmdata.bin\",4182458,20499\n"
+  ".global xm_staged_S22\nxm_staged_S22:\n.incbin \"source/music/xmdata.bin\",4202957,15362\n"
+  ".global xm_staged_S23\nxm_staged_S23:\n.incbin \"source/music/xmdata.bin\",4218319,14144\n"
+  ".global xm_closer_to_the_end_ev\nxm_closer_to_the_end_ev:\n.incbin \"source/music/xmdata.bin\",4232463,12413\n"
+  ".global xm_closer_to_the_end_S0\nxm_closer_to_the_end_S0:\n.incbin \"source/music/xmdata.bin\",4244876,1223\n"
+  ".global xm_closer_to_the_end_S1\nxm_closer_to_the_end_S1:\n.incbin \"source/music/xmdata.bin\",4246099,4905\n"
+  ".global xm_closer_to_the_end_S2\nxm_closer_to_the_end_S2:\n.incbin \"source/music/xmdata.bin\",4251004,1012\n"
+  ".global xm_closer_to_the_end_S3\nxm_closer_to_the_end_S3:\n.incbin \"source/music/xmdata.bin\",4252016,14946\n"
+  ".global xm_closer_to_the_end_S4\nxm_closer_to_the_end_S4:\n.incbin \"source/music/xmdata.bin\",4266962,19986\n"
+  ".global xm_closer_to_the_end_S5\nxm_closer_to_the_end_S5:\n.incbin \"source/music/xmdata.bin\",4286948,1637\n"
+  ".global xm_closer_to_the_end_S6\nxm_closer_to_the_end_S6:\n.incbin \"source/music/xmdata.bin\",4288585,2909\n"
+  ".global xm_closer_to_the_end_S7\nxm_closer_to_the_end_S7:\n.incbin \"source/music/xmdata.bin\",4291494,18257\n"
+  ".global xm_closer_to_the_end_S8\nxm_closer_to_the_end_S8:\n.incbin \"source/music/xmdata.bin\",4309751,9428\n"
+  ".global xm_closer_to_the_end_S9\nxm_closer_to_the_end_S9:\n.incbin \"source/music/xmdata.bin\",4319179,5498\n"
+  ".global xm_closer_to_the_end_S10\nxm_closer_to_the_end_S10:\n.incbin \"source/music/xmdata.bin\",4324677,6618\n"
+  ".global xm_closer_to_the_end_S11\nxm_closer_to_the_end_S11:\n.incbin \"source/music/xmdata.bin\",4331295,4876\n"
+  ".global xm_closer_to_the_end_S12\nxm_closer_to_the_end_S12:\n.incbin \"source/music/xmdata.bin\",4336171,5510\n"
+  ".global xm_closer_to_the_end_S13\nxm_closer_to_the_end_S13:\n.incbin \"source/music/xmdata.bin\",4341681,5814\n"
+  ".global xm_closer_to_the_end_S14\nxm_closer_to_the_end_S14:\n.incbin \"source/music/xmdata.bin\",4347495,20025\n"
+  ".global xm_closer_to_the_end_S15\nxm_closer_to_the_end_S15:\n.incbin \"source/music/xmdata.bin\",4367520,8820\n"
+  ".global xm_closer_to_the_end_old_ev\nxm_closer_to_the_end_old_ev:\n.incbin \"source/music/xmdata.bin\",4376340,9192\n"
+  ".global xm_closer_to_the_end_old_S11\nxm_closer_to_the_end_old_S11:\n.incbin \"source/music/xmdata.bin\",4385532,4940\n"
+  ".global xm_closer_to_the_end_old_S12\nxm_closer_to_the_end_old_S12:\n.incbin \"source/music/xmdata.bin\",4390472,10966\n"
+  ".global xm_the_ticking_bomb_ev\nxm_the_ticking_bomb_ev:\n.incbin \"source/music/xmdata.bin\",4401438,3332\n"
+  ".global xm_the_ticking_bomb_S1\nxm_the_ticking_bomb_S1:\n.incbin \"source/music/xmdata.bin\",4404770,3570\n"
+  ".global xm_the_ticking_bomb_S2\nxm_the_ticking_bomb_S2:\n.incbin \"source/music/xmdata.bin\",4408340,874\n"
+  ".global xm_the_ticking_bomb_S3\nxm_the_ticking_bomb_S3:\n.incbin \"source/music/xmdata.bin\",4409214,1224\n"
+  ".global xm_the_ticking_bomb_S4\nxm_the_ticking_bomb_S4:\n.incbin \"source/music/xmdata.bin\",4410438,5673\n"
+  ".global xm_the_ticking_bomb_S6\nxm_the_ticking_bomb_S6:\n.incbin \"source/music/xmdata.bin\",4416111,5356\n"
+  ".global xm_the_ticking_bomb_S7\nxm_the_ticking_bomb_S7:\n.incbin \"source/music/xmdata.bin\",4421467,2676\n"
+  ".global xm_the_ticking_bomb_S13\nxm_the_ticking_bomb_S13:\n.incbin \"source/music/xmdata.bin\",4424143,21560\n"
   ".popsection\n");
 extern const u8 xm_the_dipper_man_ev[];
 extern const s8 xm_the_dipper_man_S0[];
@@ -670,6 +687,23 @@ extern const s8 xm_nursery_time_S22[];
 extern const s8 xm_nursery_time_S23[];
 extern const s8 xm_nursery_time_S24[];
 extern const u8 xm_tree_swaying_action_old_ev[];
+extern const u8 xm_tree_fast_ev[];
+extern const s8 xm_tree_fast_S0[];
+extern const s8 xm_tree_fast_S1[];
+extern const s8 xm_tree_fast_S2[];
+extern const s8 xm_tree_fast_S3[];
+extern const s8 xm_tree_fast_S4[];
+extern const s8 xm_tree_fast_S5[];
+extern const s8 xm_tree_fast_S6[];
+extern const s8 xm_tree_fast_S7[];
+extern const s8 xm_tree_fast_S8[];
+extern const s8 xm_tree_fast_S9[];
+extern const s8 xm_tree_fast_S10[];
+extern const s8 xm_tree_fast_S11[];
+extern const s8 xm_tree_fast_S12[];
+extern const s8 xm_tree_fast_S13[];
+extern const s8 xm_tree_fast_S14[];
+extern const u8 xm_tree_fast_old_ev[];
 extern const u8 xm_condensed_music_ev[];
 extern const s8 xm_condensed_music_S0[];
 extern const s8 xm_condensed_music_S1[];
@@ -1450,6 +1484,60 @@ static const u8 xm_tree_swaying_action_old_busL[7]={216,193,165,132,95,55,14,
 static const u8 xm_tree_swaying_action_old_busR[7]={12,47,81,112,141,165,184,
 };
 static const XmSong xm_tree_swaying_action_old={xm_tree_swaying_action_old_order,xm_tree_swaying_action_old_rows,xm_tree_swaying_action_old_patOff,xm_tree_swaying_action_old_ev,xm_tree_swaying_action_old_vt,xm_tree_swaying_action_old_anc,xm_tree_swaying_action_old_fx,xm_tree_swaying_action_old_len,xm_tree_swaying_action_old_data,xm_tree_swaying_action_old_busL,xm_tree_swaying_action_old_busR,33,0,4392,211};
+// ---- tree_fast  (from tools/tree_fast.xm) ----
+static const u8 xm_tree_fast_order[125]={0,1,2,1,0,1,2,1,3,4,5,4,3,4,5,4,6,7,8,9,6,10,8,9,6,7,8,9,6,10,
+8,9,11,12,13,12,11,12,13,12,14,15,16,17,14,15,16,17,14,15,16,17,14,15,16,17,18,19,20,21,
+18,22,20,23,18,19,20,21,18,22,20,23,24,25,26,25,24,25,26,25,27,28,29,30,27,31,29,32,27,28,
+29,30,27,31,29,32,33,34,35,36,33,37,35,38,33,34,35,36,33,37,35,38,39,40,41,40,39,40,41,40,
+39,40,41,40,42,
+};
+static const u16 xm_tree_fast_rows[43]={32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,
+32,32,32,32,32,32,32,32,32,32,32,32,16,
+};
+static const u32 xm_tree_fast_patOff[43]={0,76,152,228,368,508,648,830,991,1164,1322,1489,1565,1641,1717,1833,1949,2065,2176,2379,2561,2755,2934,3122,
+3310,3395,3480,3565,3789,4007,4228,4443,4664,4885,5109,5327,5548,5763,5984,6205,6302,6399,6496,
+};
+static const u16 xm_tree_fast_vt[29]={117,2678,3207,1211,136,3190,699,629,1536,2660,67,3139,1689,170,1691,3122,
+17,50,3089,711,218,2779,739,1251,3291,34,3106,1619,730,
+};
+static const u32 xm_tree_fast_anc[15]={61819841,247279365,247279365,247279365,247279365,61819841,61819841,41259794,
+165039176,123639683,82519588,82519588,82519588,41259794,247279365,
+};
+static const u8 xm_tree_fast_fx[1]={255,
+};
+static const u32 xm_tree_fast_len[15]={1147,4017,820,8246,1919,1648,3319,5533,15396,8316,8867,8857,8851,3021,7433,
+};
+static const s8* const xm_tree_fast_data[15]={xm_tree_fast_S0,xm_tree_fast_S1,xm_tree_fast_S2,xm_tree_fast_S3,xm_tree_fast_S4,xm_tree_fast_S5,xm_tree_fast_S6,xm_tree_fast_S7,xm_tree_fast_S8,xm_tree_fast_S9,xm_tree_fast_S10,xm_tree_fast_S11,xm_tree_fast_S12,xm_tree_fast_S13,xm_tree_fast_S14};
+static const u8 xm_tree_fast_busL[7]={204,183,156,125,90,52,13,
+};
+static const u8 xm_tree_fast_busR[7]={13,50,86,119,149,175,195,
+};
+static const XmSong xm_tree_fast={xm_tree_fast_order,xm_tree_fast_rows,xm_tree_fast_patOff,xm_tree_fast_ev,xm_tree_fast_vt,xm_tree_fast_anc,xm_tree_fast_fx,xm_tree_fast_len,xm_tree_fast_data,xm_tree_fast_busL,xm_tree_fast_busR,125,0,1080,198};
+// ---- tree_fast_old  (from tools/tree_fast_old.xm) ----
+static const u8 xm_tree_fast_old_order[65]={0,1,2,1,0,1,2,1,3,4,5,4,3,4,5,4,6,7,8,9,6,10,8,9,6,7,8,9,6,10,
+8,9,11,12,13,12,11,12,13,12,14,15,16,17,14,18,16,19,14,15,16,17,14,18,16,19,20,21,22,21,
+20,21,22,21,23,
+};
+static const u16 xm_tree_fast_old_rows[24]={32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,16,
+};
+static const u32 xm_tree_fast_old_patOff[24]={0,76,152,228,368,508,648,830,991,1164,1322,1489,1565,1641,1717,1920,2102,2296,2475,2663,2851,2939,3027,3115,
+};
+static const u16 xm_tree_fast_old_vt[22]={3189,630,135,1211,3208,118,2677,1536,2660,67,3139,1689,682,1691,3122,17,
+50,3089,34,3106,699,1619,
+};
+static const u32 xm_tree_fast_old_anc[12]={61819841,247279365,247279365,247279365,247279365,61819841,61819841,41259794,
+165039176,123639683,82519588,82519588,
+};
+static const u8 xm_tree_fast_old_fx[1]={255,
+};
+static const u32 xm_tree_fast_old_len[12]={1147,4017,820,8246,1919,1648,3319,5533,15396,8316,8867,8857,
+};
+static const s8* const xm_tree_fast_old_data[12]={xm_tree_fast_S0,xm_tree_fast_S1,xm_tree_fast_S2,xm_tree_fast_S3,xm_tree_fast_S4,xm_tree_fast_S5,xm_tree_fast_S6,xm_tree_fast_S7,xm_tree_fast_S8,xm_tree_fast_S9,xm_tree_fast_S10,xm_tree_fast_S11};
+static const u8 xm_tree_fast_old_busL[7]={200,179,153,122,88,51,13,
+};
+static const u8 xm_tree_fast_old_busR[7]={13,51,87,121,152,178,198,
+};
+static const XmSong xm_tree_fast_old={xm_tree_fast_old_order,xm_tree_fast_old_rows,xm_tree_fast_old_patOff,xm_tree_fast_old_ev,xm_tree_fast_old_vt,xm_tree_fast_old_anc,xm_tree_fast_old_fx,xm_tree_fast_old_len,xm_tree_fast_old_data,xm_tree_fast_old_busL,xm_tree_fast_old_busR,65,0,1080,198};
 // ---- condensed_music  (from tools/condensed_music.xm) ----
 static const u8 xm_condensed_music_order[105]={0,1,0,2,3,4,5,6,7,8,7,8,7,8,7,8,7,8,7,8,7,8,7,9,10,11,12,13,12,14,
 12,15,12,11,12,13,12,14,12,15,16,17,18,17,18,17,18,17,18,17,18,17,18,17,18,17,19,20,21,22,
