@@ -79,7 +79,10 @@ static int lloadV;   // work per drawn frame as a percent of its time budget (PE
 // ---------- palette ----------
 // Colour rows of the creature creator: 8 swatches each. Swatch 0 of every row is the starter creature's colour.
 #define NSW 8
-static const u16 skinTones[NSW] = { RGB(30,23,17), RGB(24,16,10), RGB(19,12,7), RGB(13,8,5), RGB(14,26,10), RGB(10,19,29), RGB(22,13,27), RGB(31,17,19) };
+#define NSKIN 24   // skin colours: the first 8 are the old ones (saves keep their looks), then more natural tones from palest to darkest, then fantasy colours
+static const u16 skinTones[NSKIN] = { RGB(30,23,17), RGB(24,16,10), RGB(19,12,7), RGB(13,8,5), RGB(14,26,10), RGB(10,19,29), RGB(22,13,27), RGB(31,17,19),
+    RGB(31,27,22), RGB(29,21,15), RGB(27,19,12), RGB(23,15,9), RGB(20,15,9), RGB(16,10,6), RGB(10,6,4), RGB(7,4,3),
+    RGB(31,26,6), RGB(31,14,6), RGB(28,6,6), RGB(8,25,24), RGB(20,28,12), RGB(16,16,30), RGB(18,18,20), RGB(28,28,29) };
 static const u16 hairTones[NSW] = { RGB(5,3,2), RGB(14,8,4), RGB(27,21,6), RGB(28,8,4), RGB(21,21,22), RGB(10,22,12), RGB(8,12,28), RGB(30,14,22) };
 static const u16 topTones[NSW]  = { RGB(8,20,22), RGB(28,8,6), RGB(30,24,6), RGB(10,24,8), RGB(8,10,26), RGB(22,10,26), RGB(30,30,30), RGB(5,5,8) };
 static const u16 eyeTones[NSW]  = { RGB(3,3,6), RGB(12,7,3), RGB(15,13,5), RGB(6,17,8), RGB(7,13,26), RGB(15,17,19), RGB(24,5,5), RGB(17,8,24) };   // dark, brown, hazel, green, blue, grey, red, violet
@@ -836,8 +839,8 @@ static void fixLook(void){   // pull every choice into what this stage offers
     if(stage<AG_ADULT){ if(look[LK_TOPSTY]>=4) look[LK_TOPSTY]=0; if(look[LK_BOTSTY]>=3) look[LK_BOTSTY]=0; }   // BARE is for adults and elders only
     look[LK_EARS]=(u8)maskPick(stMaskEars[stage],look[LK_EARS],3);
     look[LK_HSTYLE]=(u8)maskPick(stMaskHair[stage],look[LK_HSTYLE],NHAIR);
-    static const u8 sw[4]={LK_SKIN,LK_HCOL,LK_TOP,LK_BOT};
-    for(int i=0;i<4;i++) if(look[sw[i]]>=stSwatches[stage]) look[sw[i]]=(u8)(look[sw[i]]%stSwatches[stage]);
+    static const u8 sw[3]={LK_HCOL,LK_TOP,LK_BOT};   // (every skin colour is on offer at every age)
+    for(int i=0;i<3;i++) if(look[sw[i]]>=stSwatches[stage]) look[sw[i]]=(u8)(look[sw[i]]%stSwatches[stage]);
 }
 static void clipCustom(void){   // hand-built blocks outside the stage's box are cut off
     for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++)
@@ -3325,7 +3328,7 @@ static const u16* const lookCol[LK_N+1]={0,skinTones,0,0,0,0,hairTones,topTones,
 static const Row tabRow[NTAB][TROWS]={
   {{"FIRST NAME","LAST NAME",RK_DUO,AC_FNAME,AC_LNAME},{"AGE",0,RK_PICK,LK_AGE,AG_N},{"SHAPE",0,RK_PICK,LK_SHAPE,NSHAPE},{"HEIGHT",0,RK_SLIDE,LK_HEIGHT,9},{"WEIGHT",0,RK_SLIDE,LK_WEIGHT,9},
    {"TORSO",0,RK_SLIDE,LK_TORSO,9},{"ARMS",0,RK_SLIDE,LK_ARMS,9},{"STANCE",0,RK_SLIDE,LK_STANCE,9},{"LEG WIDTH",0,RK_SLIDE,LK_LEGW,9},{"ARM WIDTH",0,RK_SLIDE,LK_ARMW,9},{"HEAD SIZE",0,RK_SLIDE,LK_HEADSZ,9},{"HAND FOOT SIZE",0,RK_SLIDE,LK_HANDFT,9},{"NECK LENGTH",0,RK_SLIDE,LK_NECK,9},{"NECK WIDTH",0,RK_SLIDE,LK_NECKW,9},{"HIP WIDTH",0,RK_SLIDE,LK_HIPW,9},{"WAIST WIDTH",0,RK_SLIDE,LK_WAISTW,9},{"SHOULDERS",0,RK_SLIDE,LK_SHOULW,9},{"THIGH WIDTH",0,RK_SLIDE,LK_THIGHW,9},{"CALF WIDTH",0,RK_SLIDE,LK_CALFW,9},{"CHEST",0,RK_SLIDE,LK_CHESTW,9},{"BELLY",0,RK_SLIDE,LK_BELLYW,9},{"UPPER ARM",0,RK_SLIDE,LK_UARMW,9},{"FOREARM",0,RK_SLIDE,LK_FARMW,9},{"JAW WIDTH",0,RK_SLIDE,LK_JAWW,9},{"HAND SIZE",0,RK_SLIDE,LK_HANDSZ,9},{"FOOT SIZE",0,RK_SLIDE,LK_FOOTSZ,9},
-   {"SKIN",0,RK_SWATCH,LK_SKIN,NSW},{"SKIN TONE",0,RK_SLIDE,LK_TONE,9},{"BUTT",0,RK_SLIDE,LK_BUTT,9},{"BUTT HEIGHT",0,RK_SLIDE,LK_BUTTH,9},{"BUTT WIDTH",0,RK_SLIDE,LK_BUTTW,9}},   // (the BUTT rows last: cut from the tab below teen)
+   {"SKIN",0,RK_SWATCH,LK_SKIN,NSKIN},{"SKIN TONE",0,RK_SLIDE,LK_TONE,9},{"BUTT",0,RK_SLIDE,LK_BUTT,9},{"BUTT HEIGHT",0,RK_SLIDE,LK_BUTTH,9},{"BUTT WIDTH",0,RK_SLIDE,LK_BUTTW,9}},   // (the BUTT rows last: cut from the tab below teen)
   {{"EYES",0,RK_PICK,LK_EYES,NEYE},{"EYE COLOUR",0,RK_SWATCH,LK_EYECOL,NSW},{"EYE SHADE",0,RK_SLIDE,LK_EYETONE,9},{"EYE SIZE",0,RK_SLIDE,LK_EYESZ,9},{"EYE SPACING",0,RK_SLIDE,LK_EYESP,9},
    {"EYE HEIGHT",0,RK_SLIDE,LK_EYEHT,9},{"BROWS",0,RK_PICK,LK_BROW,6},{"BROW HEIGHT",0,RK_SLIDE,LK_BROWHT,9},{"GLASSES",0,RK_PICK,LK_GLASS,4},{"NOSE",0,RK_PICK,LK_NOSE,6},
    {"NOSE HEIGHT",0,RK_SLIDE,LK_NOSEHT,9},
@@ -3413,7 +3416,8 @@ static int lkAllowed(int id,int v){   // may this stage pick option v of row id?
       case LK_SHAPE: return shapeMask()>>v&1;
       case LK_EARS:  return stMaskEars[stage]>>v&1;
       case LK_HSTYLE:return stMaskHair[stage]>>v&1;
-      case LK_SKIN: case LK_HCOL: case LK_TOP: case LK_BOT: return v<stSwatches[stage];
+      case LK_SKIN: return v<NSKIN;
+      case LK_HCOL: case LK_TOP: case LK_BOT: return v<stSwatches[stage];
       case LK_TOPSTY: return v<4||stage>=AG_ADULT;   // BARE (nudity) is for ADULT and ELDER only: never a baby, child or teen
       case LK_BOTSTY: return v<3||stage>=AG_ADULT;
       case LK_TAIL: case LK_HORNS: case LK_BACK: case LK_CLAWS: case LK_ANTENNA: return 1;   // every part can be looked at; a locked one is bought with DNA (or comes off when you leave)
@@ -3530,7 +3534,7 @@ static void drawRowSet(int tab,int sel){
             tri(CDX+3,y+10,0,ink); tri(CDX+CDW-6,y+10,1,ink);
             continue;
         }
-        { char b[4]={(char)('0'+rk),'/',(char)('0'+cnt),0}; text(CDX+CDW-6-tw(b,1),y,b,f?DIMC:RGB(10,12,16),1); }
+        { char b[10]; char*e=b; e+=numStr(e,rk); *e++='/'; e+=numStr(e,cnt); *e=0; text(CDX+CDW-6-tw(b,1),y,b,f?DIMC:RGB(10,12,16),1); }   // (two digits for the long colour rows)
         if(r->kind==RK_PICK){
             const char*nm=lookName(r->id,cur); int mx=CDX+CDW/2, lk=isPart(r->id)&&!partFree(r->id,cur);
             tri(CDX+9,y+9,0,f?GOLD:RGB(10,12,16)); tri(CDX+CDW-12,y+9,1,f?GOLD:RGB(10,12,16));
@@ -3538,10 +3542,21 @@ static void drawRowSet(int tab,int sel){
             if(lk){ int lx=mx+tw(nm,1)/2+3; rect(lx,y+11,5,4,RGB(28,10,8)); rect(lx+1,y+9,3,2,RGB(28,10,8)); px(lx+2,y+10,f?FOCUS:CARD); }   // a little padlock
         } else {
             const u16*pal=lookCol[r->id];
-            for(int q=0;q<cnt;q++){
-                int x=CDX+8+q*10, on=(q==look[r->id]);
-                if(on){ rect(x-1,y+8,11,11,f?WHITE:RGB(16,18,22)); }
-                rect(x,y+9,9,9,pal[q]);
+            if(cnt<=8){
+                for(int q=0;q<cnt;q++){
+                    int x=CDX+8+q*10, on=(q==look[r->id]);
+                    if(on){ rect(x-1,y+8,11,11,f?WHITE:RGB(16,18,22)); }
+                    rect(x,y+9,9,9,pal[q]);
+                }
+            } else {   // a long colour row (SKIN): seven swatches scroll along it with the pick, arrows show there is more to either side
+                int w0=look[r->id]-3; if(w0<0) w0=0; if(w0>cnt-7) w0=cnt-7;
+                u16 ink=f?GOLD:RGB(10,12,16);
+                for(int q=0;q<7;q++){
+                    int x=CDX+11+q*10, on=(w0+q==look[r->id]);
+                    if(on){ rect(x-1,y+8,11,11,f?WHITE:RGB(16,18,22)); }
+                    rect(x,y+9,9,9,pal[w0+q]);
+                }
+                if(w0>0) tri(CDX+3,y+13,0,ink); if(w0<cnt-7) tri(CDX+CDW-6,y+13,1,ink);
             }
         }
     }
@@ -3687,7 +3702,7 @@ static void famMenu(void){
     custom=0; ageDays=0; fixLook(); buildLook(); setColors(); ageSave(); persSave(); hhSave();
     static char t[32]; simCat(simCat(t,"NOW EDITING "),hhPName); toast(t);
 }
-static const u8 lkCnt[LK_N]={NSHAPE,NSW,NEYE,NMOUTH,3,NHAIR,NSW,NSW,NSW,9,9,9,3,3,3,6,6,3,4,3,6, 6,6,5,4,NSW, 9,9,9,9,9,9,9, 4,3,7,6, 9,9,9,9,9,9,9,9,9, 5,4,4, 9,9,9, 9,9,9,9,9,9,9, 9,9,9,9,9,9,9, 9,9,9,7, 9,9,9, 9};   // how many options each look row has (sliders: 9)
+static const u8 lkCnt[LK_N]={NSHAPE,NSKIN,NEYE,NMOUTH,3,NHAIR,NSW,NSW,NSW,9,9,9,3,3,3,6,6,3,4,3,6, 6,6,5,4,NSW, 9,9,9,9,9,9,9, 4,3,7,6, 9,9,9,9,9,9,9,9,9, 5,4,4, 9,9,9, 9,9,9,9,9,9,9, 9,9,9,9,9,9,9, 9,9,9,7, 9,9,9, 9};   // how many options each look row has (sliders: 9)
 static void lookRandom(void){   // the dice (like Create-A-Bore): a whole new look and personality, only from what this stage and your unlocked parts allow
     const u8*cnt=lkCnt;
     for(int id=0;id<LK_N;id++){
@@ -3816,7 +3831,7 @@ static int creatorClassic(void){   // returns 1 when the secret code switched sc
         if(sUnlock&&comboSS(k,pressed)){ sClassic=0; settingsSave(); return 1; }
         int sel=k&K_SEL;
         if(sel){
-            if(pressed&K_A){ look[LK_SKIN]=(look[LK_SKIN]+1)%NSW; setColors(); comboUsed=1; dirty=1; }
+            if(pressed&K_A){ look[LK_SKIN]=(look[LK_SKIN]+1)%NSKIN; setColors(); comboUsed=1; dirty=1; }
             if(pressed&K_B){ look[LK_HCOL]=(look[LK_HCOL]+1)%NSW; setColors(); comboUsed=1; dirty=1; }
             if(pressed&K_R){ part=(part+1)%NENT; comboUsed=1; dirty=1; }
             if(pressed&K_L){ part=(part+NENT-1)%NENT; comboUsed=1; dirty=1; }
