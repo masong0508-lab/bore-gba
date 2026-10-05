@@ -29,14 +29,16 @@ GEN = {             # song id -> the generator script that built it (its sounds 
     'spanish_flexicode': 'make_flexicode_rework', 'hotdamn_rave': 'make_hotdamn_rework', 'magic_act': 'make_magicact_rework',
     'nursery_time': 'make_nursery_rework', 'staged': 'make_staged_rework', 'sunman_sunrise': 'make_sunman_rework',
     'the_ticking_bomb': 'make_tickingbomb_rework', 'whistler_shuffle': 'make_whistler_rework', 'meltdown_in_mars_house': 'make_meltdown_house',
-    # the first versions of two reworks: their instruments are looked up by name in the current generator, and used where they still match
-    'hotdamn_rave_old': 'make_hotdamn_rework', 'whistler_shuffle_old': 'make_whistler_rework',
+    # the first versions of two reworks.  WHISTLER MAN (ORIGINAL) is the generator as it was at commit 55e5e50 (it rebuilds that .xm byte for
+    # byte); HOT DAMN (ORIGINAL)'s sounds are all still the current generator's, which is checked sound by sound (see sounds())
+    'hotdamn_rave_old': 'make_hotdamn_rework', 'whistler_shuffle_old': 'make_whistler_rework@55e5e50',
 }
 
 # ================================================================ the generators' sounds at HIFI x the rate (one process per generator)
 def dump_bank(modname, out):
     """(runs in its own process, BORE_HIFI set) import the generator - its module code synthesises every instrument - and save them"""
-    mod = importlib.import_module(modname)
+    if os.environ.get('BORE_GENDIR'): sys.path.insert(0, os.environ['BORE_GENDIR'])          # an older version of a generator, from git
+    mod = importlib.import_module(modname.split('@')[0])
     I = mod.I; keys = getattr(mod, 'ORDER_KEYS', None) or mod.KEYS
     arrs = {}; meta = []
     for k in keys:
@@ -46,9 +48,15 @@ def dump_bank(modname, out):
     np.savez(out, meta=json.dumps(meta), **arrs)
 
 def bank(modname, cache):
-    out = os.path.join(cache, modname + '.npz')
+    out = os.path.join(cache, modname.replace('@', '_at_') + '.npz')
     if not os.path.exists(out):
         env = dict(os.environ, BORE_HIFI=str(HIFI))
+        if '@' in modname:                                                   # 'script@commit': that version of the script, run beside the song files
+            name, rev = modname.split('@'); d = os.path.join(cache, 'gen_' + rev); os.makedirs(d, exist_ok=True)
+            open(os.path.join(d, name + '.py'), 'w').write(subprocess.run(['git', 'show', '%s:tools/%s.py' % (rev, name)], capture_output=True, text=True, check=True).stdout)
+            for f in os.listdir(HERE):
+                if f.endswith(('.xm', '.caustic')) and not os.path.exists(os.path.join(d, f)): os.symlink(os.path.join(HERE, f), os.path.join(d, f))
+            env['BORE_GENDIR'] = d
         r = subprocess.run([sys.executable, os.path.abspath(__file__), '--bank', modname, out], env=env, capture_output=True, text=True)
         if r.returncode: sys.exit("bank %s failed:\n%s" % (modname, r.stderr[-3000:]))
     z = np.load(out); meta = json.loads(str(z['meta']))
@@ -118,7 +126,8 @@ def sounds(sid, S, used, cache):
     byname = {}
     for b in B: byname.setdefault(b['name'], b)
     cur = None
-    if sid.endswith('_old') and sid[:-4] in dict(X.song_list()):     # an old version: only the sounds that are still identical to the new one's
+    if sid.endswith('_old') and sid[:-4] in dict(X.song_list()) and GEN.get(sid) == GEN.get(sid[:-4]):   # an old version made with the NEW
+        # song's generator: only the sounds that are still identical to the new song's
         cur = {ins['name']: ins['samples'][0]['data'] for ins in parse(dict(X.song_list())[sid[:-4]])['insts'] if ins['samples']}
     for i in sorted(used):
         ins = S['insts'][i - 1]
@@ -562,23 +571,30 @@ def album(outdir):
         d3.append(('chip_' + sid, title + ' (CHIPTUNE)', artist.get(title, 'BORE'), 'creator menu loop' + (', secret' if secret else '')))
     return [('Disc 1 - Jukebox', d1), ('Disc 2 - Secrets and Originals', d2), ('Disc 3 - Creator Chiptunes', d3)]
 
-def pack(outdir):
+def pack(outdir, only=None):
+    """the whole album, or (only = some song ids) just those tracks again: their files are replaced and so are the zip parts holding them"""
     import zipfile, shutil
-    rel = os.path.join(outdir, 'BORE Studio Edition'); shutil.rmtree(rel, ignore_errors=True); os.makedirs(rel)
+    rel = os.path.join(outdir, 'BORE Studio Edition')
+    if not only: shutil.rmtree(rel, ignore_errors=True)
+    os.makedirs(rel, exist_ok=True)
     cover = os.path.join(rel, 'cover.png'); make_cover(cover)
     lines = [ALBUM, '48 kHz / 24-bit masters (FLAC) and LAME V0 MP3s.  Loudness -14 LUFS (quiet pieces lower), true peak -1 dBTP.', '']
-    flac_dir = os.path.join(outdir, 'BORE Studio Edition (FLAC)'); shutil.rmtree(flac_dir, ignore_errors=True)
+    flac_dir = os.path.join(outdir, 'BORE Studio Edition (FLAC)')
+    if not only: shutil.rmtree(flac_dir, ignore_errors=True)
+    changed = []
     for dn, (disc, items) in enumerate(album(outdir), 1):
-        lines += ['', disc]; os.makedirs(os.path.join(rel, disc)); os.makedirs(os.path.join(flac_dir, disc))
+        lines += ['', disc]; os.makedirs(os.path.join(rel, disc), exist_ok=True); os.makedirs(os.path.join(flac_dir, disc), exist_ok=True)
         for tn, (sid, name, art, note) in enumerate(items, 1):
             wav = os.path.join(outdir, 'wav', sid + '.wav'); rep = json.load(open(os.path.join(outdir, 'wav', sid + '.json')))
             t = title_case(name); base = '%d-%02d %s' % (dn, tn, re.sub(r'[\\/:*?"<>|]', '', t))
             meta = ['-metadata', 'title=' + t, '-metadata', 'artist=' + art, '-metadata', 'album=' + ALBUM, '-metadata', 'album_artist=BORE',
                     '-metadata', 'track=%d/%d' % (tn, len(items)), '-metadata', 'disc=%d/3' % dn, '-metadata', 'genre=Soundtrack', '-metadata', 'date=2026']
-            subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', wav, '-i', cover, '-map', '0:a', '-map', '1:v', '-c:a', 'libmp3lame', '-q:a', '0',
+            if not only or sid in only:
+              changed.append(os.path.join(rel, disc, base + '.mp3'))
+              subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', wav, '-i', cover, '-map', '0:a', '-map', '1:v', '-c:a', 'libmp3lame', '-q:a', '0',
                             '-compression_level', '0', '-c:v', 'mjpeg', '-vf', 'scale=600:600', '-disposition:v', 'attached_pic', '-id3v2_version', '3']
                            + meta + [os.path.join(rel, disc, base + '.mp3')], check=True)
-            subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', wav, '-i', cover, '-map', '0:a', '-map', '1:v', '-c:a', 'flac', '-sample_fmt', 's32',
+              subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', wav, '-i', cover, '-map', '0:a', '-map', '1:v', '-c:a', 'flac', '-sample_fmt', 's32',
                             '-bits_per_raw_sample', '24', '-compression_level', '8', '-c:v', 'png', '-disposition:v', 'attached_pic']
                            + meta + [os.path.join(flac_dir, disc, base + '.flac')], check=True)
             m, sec = divmod(int(round(rep['secs'])), 60)
@@ -586,7 +602,16 @@ def pack(outdir):
             print(lines[-1], flush=True)
     open(os.path.join(rel, 'TRACKLIST.txt'), 'w', encoding='utf-8').write('\n'.join(lines) + '\n')
     shutil.copy(cover, flac_dir); shutil.copy(os.path.join(rel, 'TRACKLIST.txt'), flac_dir)
-    return zip_parts(outdir)
+    if not only: return zip_parts(outdir)
+    import glob                                                              # just the parts holding a changed track, rewritten in place
+    out = []
+    for zn in sorted(glob.glob(os.path.join(outdir, 'BORE Studio Edition part * of *.zip'))):
+        with zipfile.ZipFile(zn) as z: names = z.namelist()
+        if not any(os.path.relpath(c, outdir) in names for c in changed + [os.path.join(rel, 'TRACKLIST.txt')]): continue
+        with zipfile.ZipFile(zn, 'w', zipfile.ZIP_STORED) as z:
+            for n in names: z.write(os.path.join(outdir, n), n)
+        out.append(zn)
+    return out
 
 def zip_parts(outdir, most=23e6):
     """the MP3 album in zip parts small enough to send (at most ~23 MB each, whole tracks only, packed first-fit by size); unzipped
@@ -617,7 +642,7 @@ if __name__ == '__main__' and len(sys.argv) > 2 and sys.argv[1] == '--zip':
     sys.exit(0)
 
 if __name__ == '__main__' and len(sys.argv) > 2 and sys.argv[1] == '--pack':
-    for z in pack(sys.argv[2]): print(z, os.path.getsize(z) // 1048576, 'MB')
+    for z in pack(sys.argv[2], set(sys.argv[3:]) or None): print(z, os.path.getsize(z) // 1048576, 'MB')
     sys.exit(0)
 
 if __name__ == '__main__':
