@@ -143,18 +143,19 @@ static void sgAdopt(void){   // the first time: the life already on the cart bec
 }
 
 // ---------- the PLAYERS screen ----------
+#define SG_ROWS(n) ((n)+2+(dbgOn?1:0))   // the TEST MAP row only exists with the debug code on
 static void sgDraw(const int*l,int n,int sel){
     fillCols(0,ROW_W,RGB(3,4,8));
     box(3,1,234,157); text(12,6,"PLAYERS",GOLD,1);
-    int top=sel-2; if(top>n+2-6) top=n+2-6; if(top<0) top=0;
-    for(int i=top;i<top+6&&i<n+2;i++){
+    int top=sel-2; if(top>SG_ROWS(n)-6) top=SG_ROWS(n)-6; if(top<0) top=0;
+    for(int i=top;i<top+6&&i<SG_ROWS(n);i++){
         int y=18+(i-top)*15;
         if(i==sel){ rect(8,y-2,222,14,RGB(6,16,8)); rect(8,y-2,2,14,GOLD); }
         u16 nc=i==sel?WHITE:DIMC;
         if(i<n){ const SlInfo*I=&slI[l[i]]; char b[40]; char*e=slCat(b,"SAVED "); e=slNum(e,I->seq); slCat(e,I->seq==1?" TIME":" TIMES");
             text(16,y,I->name[0]?I->name:"NO NAME",nc,1); text(16,y+7,b,i==sel?RGB(22,25,28):RGB(11,13,18),1);
             if(sgPid==I->pid) text(190,y,"PLAYING",GOLD,1); }
-        else text(16,y+2,i==n?"NEW PLAYER":"NEIGHBORHOODS",nc,1);
+        else text(16,y+2,i==n?"NEW PLAYER":i==n+1?"NEIGHBORHOODS":"TEST MAP",nc,1);
     }
     text(12,112,"UP DOWN PICK  A OPEN  B BACK",WHITE,1);
     text(12,125,"EVERY PLAYER HAS A SAVE FILE OF THEIR OWN",DIMC,1);
@@ -195,15 +196,16 @@ static void playerScreen(void){
     int n=sgList(l), sel=0, dirty=1; u16 prev=keyNow();
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k;
-        if(pr&K_DOWN){ sel=(sel+1)%(n+2); dirty=1; }
-        if(pr&K_UP){ sel=(sel+n+1)%(n+2); dirty=1; }
+        if(pr&K_DOWN){ sel=(sel+1)%SG_ROWS(n); dirty=1; }
+        if(pr&K_UP){ sel=(sel+SG_ROWS(n)-1)%SG_ROWS(n); dirty=1; }
         if(pr&K_B) break;
         if(pr&K_A){
             if(sel==n+1) playScreen();   // the neighborhoods: make, rename, delete, visit
             else if(sel==n) sgNewPlayer();
+            else if(sel==n+2){ if(sgPid){ int e=sgSave(); if(e) toast(slErrMsg(e)); } newGame(nbOk?nbTS:-1); }   // SECRET (debug code): the old NEW GAME on the old assigned lot, the TEST MAP. The life belongs to no player
             else sgPlayerMenu(l[sel]);
             if(gToMenu) break;
-            n=sgList(l); if(sel>n+1) sel=n+1;
+            n=sgList(l); if(sel>=SG_ROWS(n)) sel=SG_ROWS(n)-1;
             prev=keyNow(); dirty=1; mmPick();
         }
         if(dirty){ sgDraw(l,n,sel); present(); dirty=0; } else vsync();

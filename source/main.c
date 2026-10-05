@@ -4347,7 +4347,7 @@ static void playScreen(void){
             if(foc==0){ foc=1; dirty|=1; }
             else if(tile==0){ lifeMode(0); break; }
             else if(tile==1&&n){ if(!nbSwitch(l[sel])){ nbOk=nbLoad(); toast(nbErr); } else { nbOk=1; neighborhoodScreen(); if(gToMenu) break; } }
-            else if(tile==2){ if(newGame(n?l[sel]:-1)) break; }
+            else if(tile==2){ if(!dbgOn) toast("USE NEW PLAYER ON THE PLAYERS SCREEN"); else if(newGame(n?l[sel]:-1)) break; }   // (the old new game on the old lot is a secret: debug code)
             n=nbTownList(l,SLOT_MAX); act=nbTS; if(sel>=n) sel=n?n-1:0; prev=keyNow(); dirty=2; mmPick();
         }
         if(pr&K_SEL){
