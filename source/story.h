@@ -9,8 +9,9 @@
 // The household bank (households.h) keeps it with the household, so every household has its own story.
 // Needs before it: house.h (hhM, hhAdd, relF), sims.h (simMoney, jobLvl, simDay), households.h, lookTrueRandom, the UI kit.
 _Static_assert(OPT_OFF+3+XO_N+1<=STORY_OFF&&STORY_OFF+8<=SLOT_DIR,"the story block overlaps the options or the slot directory");
-enum { STY_NONE, STY_ROOM, STY_WED, STY_PARENT, STY_N };
-enum { SG_FRIEND, SG_LOVE, SG_STEADY, SG_JOB, SG_MONEY, SG_KID, SG_KIDFRIEND, SG_GUEST, SG_END };
+enum { STY_NONE, STY_ROOM, STY_WED, STY_PARENT, STY_SKATE, STY_HOUSE, STY_FRIEND, STY_RAGS, STY_N };   // (new stories go at the END: the saved story number stays valid)
+enum { SG_FRIEND, SG_LOVE, SG_STEADY, SG_JOB, SG_MONEY, SG_KID, SG_KIDFRIEND, SG_GUEST, SG_END,
+    SG_SKILL, SG_TRICKS, SG_WANTS, SG_HOUSE, SG_FRIENDS, SG_BFF };   // (the last six: skill level, tricks landed, wants fulfilled, Sims in the house, friends in the house, a best friend)
 typedef struct { const char* nm; u8 goal; u16 arg; } StCh;
 static const StCh stRoom[]={ {"BECOME FRIENDS WITH YOUR ROOMMATE",SG_FRIEND,0}, {"FALL IN LOVE",SG_LOVE,0}, {"GO STEADY",SG_STEADY,0},
     {"GET A PROMOTION",SG_JOB,1}, {"A CHILD COMES HOME",SG_KID,0}, {"THE END  A FAMILY OF YOUR OWN",SG_END,0} };
@@ -18,13 +19,24 @@ static const StCh stWed[]={ {"GET A PROMOTION",SG_JOB,1}, {"SAVE 1000 SIMOLEONS"
     {"BECOME YOUR KID'S FRIEND",SG_KIDFRIEND,0}, {"SAVE 2500 SIMOLEONS",SG_MONEY,2500}, {"THE END  HAPPY EVER AFTER",SG_END,0} };
 static const StCh stPar[]={ {"GET A PROMOTION",SG_JOB,1}, {"BECOME YOUR KID'S FRIEND",SG_KIDFRIEND,0}, {"SAVE 800 SIMOLEONS",SG_MONEY,800},
     {"HAVE A NEIGHBOR OVER",SG_GUEST,0}, {"GET ANOTHER PROMOTION",SG_JOB,2}, {"THE END  YOU MADE IT WORK",SG_END,0} };
-static const StCh* const stChs[STY_N]={0,stRoom,stWed,stPar};
-static const u8 stLen[STY_N]={0,6,6,6};
-static const char* const stNm[STY_N]={"","ROOMMATES","NEWLYWEDS","SINGLE PARENT"};
+static const StCh stSkate[]={ {"LAND 20 TRICKS",SG_TRICKS,20}, {"REACH SKILL LEVEL 2",SG_SKILL,2}, {"GET A PROMOTION",SG_JOB,1},
+    {"LAND 150 TRICKS",SG_TRICKS,150}, {"REACH SKILL LEVEL 4",SG_SKILL,4}, {"THE END  A TRUE SKATER",SG_END,0} };
+static const StCh stHouse[]={ {"BECOME FRIENDS WITH A HOUSEMATE",SG_FRIEND,0}, {"MAKE 3 FRIENDS",SG_FRIENDS,3}, {"FILL THE HOUSE WITH 4 SIMS",SG_HOUSE,4},
+    {"GET A PROMOTION",SG_JOB,1}, {"SAVE 1500 SIMOLEONS",SG_MONEY,1500}, {"THE END  A HOUSE FULL OF LIFE",SG_END,0} };
+static const StCh stFriend[]={ {"MAKE A BEST FRIEND",SG_BFF,0}, {"MAKE 2 FRIENDS",SG_FRIENDS,2}, {"HAVE A NEIGHBOR OVER",SG_GUEST,0},
+    {"FULFIL 5 WANTS",SG_WANTS,5}, {"SAVE 500 SIMOLEONS",SG_MONEY,500}, {"THE END  FRIENDS FOR LIFE",SG_END,0} };
+static const StCh stRags[]={ {"SAVE 300 SIMOLEONS",SG_MONEY,300}, {"GET A PROMOTION",SG_JOB,1}, {"SAVE 1000 SIMOLEONS",SG_MONEY,1000},
+    {"GET ANOTHER PROMOTION",SG_JOB,2}, {"SAVE 3000 SIMOLEONS",SG_MONEY,3000}, {"THE END  RICH AT LAST",SG_END,0} };
+static const StCh* const stChs[STY_N]={0,stRoom,stWed,stPar,stSkate,stHouse,stFriend,stRags};
+static const u8 stLen[STY_N]={0,6,6,6,6,6,6,6};   // (6 each: the story card and the journal have room for six rows)
+static const char* const stNm[STY_N]={"","ROOMMATES","NEWLYWEDS","SINGLE PARENT","SKATE LIFE","HOUSEFULL","BEST FRIENDS","RAGS TO RICHES"};
+static int stRew(int ch){ return 250+ch*50; }   // the pay of a chapter rises with the story: 250, 300, 350 ...
 static const char* const stAbout[STY_N]={"","A NEW ROOMMATE  AND MAYBE MORE","JUST MARRIED  A FAMILY TO START","YOU AND YOUR KID  ON YOUR OWN"};
-static const char* const stTag[STY_N]={"","ROMANCE","ROMANCE AND FAMILY","FAMILY"};
+static const char* const stTag[STY_N]={"","ROMANCE","ROMANCE AND FAMILY","FAMILY","SKILL AND CAREER","FRIENDSHIP AND HOME","FRIENDSHIP","MONEY AND CAREER"};
 static const char* const stBlurb[STY_N][3]={{0,0,0},{"YOU MOVE IN WITH SOMEONE","YOU BARELY KNOW  FRIENDS","FIRST  THEN MAYBE LOVE"},
-    {"JUST MARRIED AND IN LOVE","SAVE UP  CLIMB THE CAREER","AND START A FAMILY"},{"YOU AND YOUR KID ON YOUR","OWN  MAKE THE MONEY WORK","AND LET THE NEIGHBORS IN"}};
+    {"JUST MARRIED AND IN LOVE","SAVE UP  CLIMB THE CAREER","AND START A FAMILY"},{"YOU AND YOUR KID ON YOUR","OWN  MAKE THE MONEY WORK","AND LET THE NEIGHBORS IN"},
+    {"NOBODY HERE BUT YOU AND","A BOARD  LAND TRICKS  LEARN","THE SKILL  MAKE IT PAY"},{"A BUSY SHARED HOUSE  MAKE","FRIENDS  FILL THE ROOMS","AND KEEP THE BILLS PAID"},
+    {"TWO NEW HOUSEMATES  ONE","TRUE BEST FRIEND  AND A","NEIGHBOR TO HAVE OVER"},{"YOU START WITH ALMOST","NOTHING  WORK  SAVE  GET","PROMOTED  AND GET RICH"}};
 static u8 stShown;   // the chapter whose card was shown last (id*16+chapter+1): a card once per chapter
 static u8 stId, stCh, stPart=255, stKid=255, stKidDay=255, stGuest;   // the story, its chapter, your partner and your kid (uids), the day the promised child comes, a guest came
 static u8 stSum(volatile u8*m){ return (u8)(0x53+m[2]+m[3]*3+m[4]*5+m[5]*7+m[6]*11); }
@@ -56,6 +68,14 @@ static void stKidHome(void){   // the promised child moves in: a mix of you and 
     static char t[40]; char*e=simCat(t,hhM[m].name); simCat(e," IS HOME"); toast(t);
     stKid=hhM[m].uid;   // (the kid goals are about this child)
 }
+static int stValue(const StCh*c){   // the number a goal counts (-1: the goal has none)
+    switch(c->goal){
+        case SG_MONEY: return simMoney;      case SG_JOB: return jobLvl;      case SG_SKILL: return skillLvl;
+        case SG_TRICKS: return simTricks;    case SG_WANTS: return simDone;   case SG_HOUSE: return hhN+1;
+        case SG_FRIENDS: { int me=hhPUid, n=0; for(int u=0;u<HU_N;u++) if(u!=me&&(relF[me][u]&RF_FRIEND)) n++; return n; }
+    }
+    return -1;
+}
 static int stDone(const StCh*c){   // is the chapter's goal met?
     int me=hhPUid, p=stMember(stPart), pu=p>=0?hhM[p].uid:-1;
     switch(c->goal){
@@ -67,6 +87,8 @@ static int stDone(const StCh*c){   // is the chapter's goal met?
         case SG_KID: return 0;   // (an event: stTick brings the child home a day after the chapter starts)
         case SG_KIDFRIEND: { int k=stMember(stKid); return k>=0&&(relF[me][hhM[k].uid]&RF_FRIEND); }
         case SG_GUEST: return stGuest;
+        case SG_BFF: return pu>=0&&(relF[me][pu]&RF_BFF);
+        case SG_SKILL: case SG_TRICKS: case SG_WANTS: case SG_HOUSE: case SG_FRIENDS: { int v=stValue(c); return v>=(int)c->arg; }
     }
     return 0;
 }
@@ -82,7 +104,7 @@ static void stTick(void){   // once per logic step in the life game: is this cha
         if((u8)simDay!=stKidDay) return;
         stKidHome(); stKidDay=255;
     } else if(!stDone(c)) return;
-    simMoney+=250; if(simMoney>9999) simMoney=9999; dnaAdd(25); persSave(); simsSave();
+    simMoney+=stRew(stCh); if(simMoney>9999) simMoney=9999; dnaAdd(25); persSave(); simsSave();
     stCh++; stSave(); stAnnounce(); stShown=(u8)(stId*16+stCh+1); stModal=2;   // the CHAPTER COMPLETE card (stRunModal)
 }
 static void stEnter(void){ stLoad(); if(stId){ stAnnounce(); if(stShown!=(u8)(stId*16+stCh+1)){ stShown=(u8)(stId*16+stCh+1); stModal=1; } } }   // (a chapter card once per chapter and power on)   // entering the life game: the current goal on the top bar
@@ -102,7 +124,11 @@ static void stIcon(int s,int x,int y,int sc,u16 c){   // a little picture per st
     static const char* const pic[STY_N][8]={{0},
       {".XX...XX.","XXXX.XXXX","XXXXXXXXX","XXXXXXXXX",".XXXXXXX.","..XXXXX..","...XXX...","....X...."},
       {"....X....","...XXX...","....X....","..XXXXX..",".X.....X.",".X.....X.",".X.....X.","..XXXXX.."},
-      {".XX......",".XX......","XXXX.....","XXXX.XX..",".XX..XX..",".XX.XXXX.",".XX..XX..","XXXX.X.X."}};
+      {".XX......",".XX......","XXXX.....","XXXX.XX..",".XX..XX..",".XX.XXXX.",".XX..XX..","XXXX.X.X."},
+      {".........",".........","XXXXXXXXX",".XXXXXXX.",".........",".XX...XX.",".XX...XX.","........."},
+      {"....X....","...XXX...","..XXXXX..",".XXXXXXX.","XXXXXXXXX","XX.XXX.XX","XX.XXX.XX","XXXXXXXXX"},
+      {".XX...XX.",".XX...XX.","XXXX.XXXX","XXXX.XXXX",".XX...XX.",".XX...XX.",".X.X.X.X.",".X.X.X.X."},
+      {"..XXXXX..",".XXXXXXX.","XXXX.XXXX","XXX...XXX","XXXX.XXXX","XXXXXXXXX",".XXXXXXX.","..XXXXX.."}};
     for(int r=0;r<8;r++) for(int q=0;q<9;q++) if(pic[s][r][q]=='X') rect(x+q*sc,y+r*sc,sc,sc,c);
 }
 static void stSparkle(u32 cnt,int x0,int y0,int w,int h){   // a few twinkling pixels (a cheap celebration)
@@ -111,10 +137,7 @@ static void stSparkle(u32 cnt,int x0,int y0,int w,int h){   // a few twinkling p
 }
 // the chapter goal's progress as text (only the goals that have a number)
 static int stProg(const StCh*c,char*b){
-    int v=-1, of=c->arg;
-    if(c->goal==SG_MONEY) v=simMoney;
-    else if(c->goal==SG_JOB) v=jobLvl;
-    else return 0;
+    int v=stValue(c), of=c->arg; if(v<0) return 0;
     if(v>of) v=of;
     char*e=slNum(b,v); e=slCat(e," OF "); slNum(e,of); return 1;
 }
@@ -144,7 +167,7 @@ static void storyScreen(void){   // pause menu > STORY: the story journal, a cha
                 if(st==1){ char b[16]; if(stProg(c,b)) text(231-tw(b,1),y+2,b,GOLD,1); } }
         }
         s2pill(5,147,60,"A OR B BACK");
-        if(stId){ char b[34]; char*e=slCat(b,"EARNED "); e=slNum(e,stCh*250); slCat(e," SIMOLEONS"); s2pill(69,147,tw(b,1)+10,b); }
+        if(stId){ char b[34]; int tot=0; for(int i=0;i<stCh;i++) tot+=stRew(i); char*e=slCat(b,"EARNED "); e=slNum(e,tot); slCat(e," SIMOLEONS"); s2pill(69,147,tw(b,1)+10,b); }
         present();
     }
 }
@@ -161,7 +184,7 @@ static void stRunModal(void){
         stIcon(stId,16,32,4,RGB(31,20,22));
         text(60,30,stNm[stId],GOLD,1); text(60,40,stTag[stId],RGB(17,29,31),1);
         { char b[24]; char*e=slCat(b,kind==2?"CHAPTER ":"CHAPTER "); e=slNum(e,kind==2?stCh:stCh+1); text(60,52,b,WHITE,2); }
-        if(kind==2){ text(60,70,"DONE  +250 SIMOLEONS  +25 JENES",RGB(10,28,12),1); stSparkle(cnt,12,26,216,100); }
+        if(kind==2){ char b[40]; char*e=slCat(b,"DONE  +"); e=slNum(e,stRew(stCh-1)); slCat(e," SIMOLEONS  +25 JENES"); text(60,70,b,RGB(10,28,12),1); stSparkle(cnt,12,26,216,100); }
         rect(14,84,212,1,RGB(14,26,31));
         text(16,90,kind==2?(end?"THE END":"NEXT CHAPTER"):(end?"THE END":"YOUR GOAL"),GOLD,1);
         text(16,102,end?(kind==2?"YOUR STORY GOES ON  KEEP PLAYING":"YOUR STORY GOES ON  KEEP PLAYING"):c->nm,WHITE,1);
@@ -194,12 +217,20 @@ static int storyPick(void){
 }
 static void storySetup(int s){   // after the new life is set up and the old household has gone
     stId=(u8)s; stCh=0; stPart=stKid=stKidDay=255; stGuest=0;
-    u8 lk[LK_N], st;
-    if(s==STY_ROOM){ st=AG_ADULT; lookTrueRandom(lk,&st); char l[HH_NM]; famLast(&hhFams[rnd8()%HH_NFAM],l);
-        int m=stAddSim(lk,AG_ADULT,l); if(m>=0){ stRel(hhPUid,hhM[m].uid,10,0,0); stPart=hhM[m].uid; } }
-    else if(s==STY_WED){ st=AG_ADULT; lookTrueRandom(lk,&st);
-        int m=stAddSim(lk,AG_ADULT,hhPLast); if(m>=0){ stRel(hhPUid,hhM[m].uid,70,80,RF_CRUSH|RF_LOVE|RF_STEADY|RF_KISSED|RF_FRIEND|RF_BFF); stPart=hhM[m].uid; } }
-    else { stMixLook(lk,look,look,AG_CHILD);   // your kid takes after you
-        int m=stAddSim(lk,AG_CHILD,hhPLast); if(m>=0){ stRel(hhPUid,hhM[m].uid,40,30,0); stKid=hhM[m].uid; } }
+    u8 lk[LK_N], st; int m;
+    switch(s){
+    case STY_ROOM: st=AG_ADULT; lookTrueRandom(lk,&st); { char l[HH_NM]; famLast(&hhFams[rnd8()%HH_NFAM],l);
+        m=stAddSim(lk,AG_ADULT,l); if(m>=0){ stRel(hhPUid,hhM[m].uid,10,0,0); stPart=hhM[m].uid; } } break;
+    case STY_WED: st=AG_ADULT; lookTrueRandom(lk,&st);
+        m=stAddSim(lk,AG_ADULT,hhPLast); if(m>=0){ stRel(hhPUid,hhM[m].uid,70,80,RF_CRUSH|RF_LOVE|RF_STEADY|RF_KISSED|RF_FRIEND|RF_BFF); stPart=hhM[m].uid; } break;
+    case STY_PARENT: stMixLook(lk,look,look,AG_CHILD);   // your kid takes after you
+        m=stAddSim(lk,AG_CHILD,hhPLast); if(m>=0){ stRel(hhPUid,hhM[m].uid,40,30,0); stKid=hhM[m].uid; } break;
+    case STY_SKATE: break;   // just you and a board
+    case STY_RAGS: simMoney=100; break;   // you start with almost nothing
+    case STY_HOUSE: case STY_FRIEND:   // housemates who are not friends yet (BEST FRIENDS: two of them)
+        for(int i=0;i<(s==STY_FRIEND?2:1);i++){ st=AG_ADULT; lookTrueRandom(lk,&st); char l[HH_NM]; famLast(&hhFams[rnd8()%HH_NFAM],l);
+            m=stAddSim(lk,AG_ADULT,l); if(m>=0){ stRel(hhPUid,hhM[m].uid,20,0,0); if(!i) stPart=hhM[m].uid; } }
+        break;
+    }
     hhSave(); stSave();
 }
