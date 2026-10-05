@@ -157,13 +157,15 @@ static const u8 stLegs[AG_N]={0,1,2,3,2};   // (an elder is stooped: a block low
 static const u8 stSpd[AG_N]={50,80,95,100,70};       // walking speed in percent
 // allowed looks per stage: bit n set = option n may be picked. Shape: AVERAGE BROAD BIG-HEAD STUBBY SLIM ATHLETIC TALL. Ears: NONE SMALL BIG. Hair: CROP BOWL LONG BALD.
 // BIG HEAD (bit 2) is only on offer while the Konami code is switched on (see shapeMask).
-#define NSHAPE 17   // + CHUBBY PEAR LANKY STOCKY HUNCHED POTBELLY MUSCLE PETITE BARREL DIGITIGRADE (7..16)
-enum { SH_AVG, SH_BROAD, SH_BIGHEAD, SH_STUBBY, SH_SLIM, SH_ATHL, SH_TALL, SH_CHUBBY, SH_PEAR, SH_LANKY, SH_STOCKY, SH_HUNCH, SH_POT, SH_MUSCLE, SH_PETITE, SH_BARREL, SH_DIGI };
+#define NSHAPE 23   // + CHUBBY PEAR LANKY STOCKY HUNCHED POTBELLY MUSCLE PETITE BARREL DIGITIGRADE (7..16), then the humanoid builds V-SHAPE CURVY RUNNER SOFT POWER LONG LEGS (17..22)
+enum { SH_AVG, SH_BROAD, SH_BIGHEAD, SH_STUBBY, SH_SLIM, SH_ATHL, SH_TALL, SH_CHUBBY, SH_PEAR, SH_LANKY, SH_STOCKY, SH_HUNCH, SH_POT, SH_MUSCLE, SH_PETITE, SH_BARREL, SH_DIGI, SH_VSHAPE, SH_CURVY, SH_RUNNER, SH_SOFT, SH_POWER, SH_LONGLEG };
+#define SHALL ((1u<<NSHAPE)-1)
+#define SHHUM (SHB(SH_VSHAPE)|SHB(SH_CURVY)|SHB(SH_SOFT)|SHB(SH_POWER))   // the new humanoid builds a baby can have too (no legs to run on)
 #define SHB(n) (1u<<(n))
 static const u32 stMaskShape[AG_N]={   // every age gets a real choice of bodies (a baby has no legs to speak of, so no LANKY or DIGITIGRADE)
-    SHB(SH_BIGHEAD)|SHB(SH_STUBBY)|SHB(SH_CHUBBY)|SHB(SH_PEAR)|SHB(SH_STOCKY)|SHB(SH_POT)|SHB(SH_PETITE)|SHB(SH_BARREL)|SHB(SH_MUSCLE),
-    13|SHB(SH_CHUBBY)|SHB(SH_PEAR)|SHB(SH_LANKY)|SHB(SH_STOCKY)|SHB(SH_HUNCH)|SHB(SH_POT)|SHB(SH_MUSCLE)|SHB(SH_PETITE)|SHB(SH_BARREL)|SHB(SH_DIGI),
-    0x1FFFF&~SHB(SH_BROAD), 0x1FFFF, 0x1FFFF };
+    SHB(SH_BIGHEAD)|SHB(SH_STUBBY)|SHB(SH_CHUBBY)|SHB(SH_PEAR)|SHB(SH_STOCKY)|SHB(SH_POT)|SHB(SH_PETITE)|SHB(SH_BARREL)|SHB(SH_MUSCLE)|SHHUM,
+    13|SHB(SH_CHUBBY)|SHB(SH_PEAR)|SHB(SH_LANKY)|SHB(SH_STOCKY)|SHB(SH_HUNCH)|SHB(SH_POT)|SHB(SH_MUSCLE)|SHB(SH_PETITE)|SHB(SH_BARREL)|SHB(SH_DIGI)|SHHUM|SHB(SH_RUNNER)|SHB(SH_LONGLEG),
+    SHALL&~SHB(SH_BROAD), SHALL, SHALL };
 static const u8 stMaskEars[AG_N]={3,7,7,7,7};
 #define NHAIR 9   // CROP BOWL LONG BALD + SPIKY AFRO FLAT TOP SIDE TAIL BUN
 static const u16 stMaskHair[AG_N]={9,11|0x1F0,15|0x1F0,15|0x1F0,15|0x1F0};
@@ -554,7 +556,12 @@ static int headK, handK, liftK, liftL, liftT, liftTn, armK, stanceK, bakeCapH=99
    // strideK: legs (shape 3) half a block forward / back, arms the other way   // HEIGHT slider: every one of the first liftL rows (the legs) is liftK px taller
 static const signed char shpDraw[NSHAPE][4]={   // per body type, drawn: torso width, arm width, leg width (px added to the block's half width), leg lift (px per leg row)
     {0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},
-    {2,1,1,0},{-1,-1,2,0},{-2,-1,-1,2},{3,2,2,0},{0,0,0,-1},{1,-1,-1,0},{2,3,1,0},{-2,-1,-1,-1},{1,0,0,0},{0,0,1,0} };
+    {2,1,1,0},{-1,-1,2,0},{-2,-1,-1,2},{3,2,2,0},{0,0,0,-1},{1,-1,-1,0},{2,3,1,0},{-2,-1,-1,-1},{1,0,0,0},{0,0,1,0},
+    {1,0,0,0},{1,0,1,0},{-1,-1,-1,1},{1,1,0,0},{2,2,1,0},{0,-1,0,3} };   // V-SHAPE CURVY RUNNER SOFT POWER LONG LEGS
+// the humanoid builds also shape the body rows themselves (px added on top of the sliders): hip row, waist (every torso row), shoulder row, thigh, calf, chest
+static const signed char shpEx[NSHAPE][6]={
+    {0},{0},{0},{0},{0},{0},{0},{0},{0},{0},{0},{0},{0},{0},{0},{0},{0},
+    {-1,0,3,0,0,0},{3,0,1,0,0,2},{0,-1,0,-1,0,-1},{1,2,0,1,0,1},{1,0,3,2,1,2},{0,0,0,-1,-1,0} };   // V-SHAPE CURVY RUNNER SOFT POWER LONG LEGS
 static void projC(int u,int w,int yy,int*ox,int*oy){
     int a,b; rotUW(u,w,&a,&b); *ox=OXC+(a-b)*CA/2; *oy=OYC+(a+b)*CB/2-yy*CC-liftK*(yy<liftL?yy:liftL)-liftT*(yy<liftL?0:yy-liftL<liftTn?yy-liftL:liftTn)-(yy>=liftL+liftTn?neckK:0);
 }
@@ -918,7 +925,8 @@ static const short partCost[NPART][4]={{0,0,60,0},{0,0,60,0},{0,40,120,0},{0,30,
 static const signed char abShape[NSHAPE][AB_N]={   // ability changes (SPEED JUMP GRIP STYLE STAMINA) per body type, in half bars
     {0,0,0,0,0},{-1,-1,1,0,2},{-1,0,0,2,0},{0,-1,2,0,1},{1,1,0,0,-1},{1,1,0,0,0},{2,1,-1,0,-1},   // AVERAGE BROAD BIG-HEAD STUBBY SLIM ATHLETIC TALL
     {-1,-1,1,0,1},{0,-1,1,1,0},{1,1,-1,0,-1},{-1,-1,2,0,2},{-1,0,1,1,0},                          // CHUBBY PEAR LANKY STOCKY HUNCHED
-    {-1,-1,0,1,1},{0,0,2,1,1},{1,1,0,1,-1},{-1,0,1,0,2},{1,2,0,1,0} };                           // POTBELLY MUSCLE PETITE BARREL DIGITIGRADE
+    {-1,-1,0,1,1},{0,0,2,1,1},{1,1,0,1,-1},{-1,0,1,0,2},{1,2,0,1,0},                             // POTBELLY MUSCLE PETITE BARREL DIGITIGRADE
+    {1,1,0,1,0},{0,0,0,2,1},{2,1,-1,0,1},{-1,0,0,1,1},{0,-1,2,0,1},{1,2,-1,1,0} };               // V-SHAPE CURVY RUNNER SOFT POWER LONG LEGS
 #define PARTBIT(p,v) ((v)<3?(p)*3+(v):15)   // unlock bit of option v of part p (BLADES, the 4th hand, takes the one spare bit 15)
 static u16 pDna, pUnl;   // DNA points to spend; unlocked parts (bit = part*3 + option)
 static inline int isPart(int id){ return (id>=LK_TAIL&&id<=LK_BACK)||id==LK_CLAWS||id==LK_ANTENNA; }
@@ -1189,6 +1197,7 @@ IWRAM_THUMB static void drawScene(int blink){
         liftTn=T; liftT=slideEffS(look[LK_TORSO]); if(liftT<-4) liftT=-4; if(bxBig&&liftT>0) liftT+=liftT/2; armK=slideEff(look[LK_ARMS]); stanceK=slideEff(look[LK_STANCE]);   // TORSO px per torso row, ARMS and STANCE spread
         neckK=slideEffS(look[LK_NECK]); if(neckK<-2) neckK=-2; if(bxBig&&neckK>0) neckK+=neckK/2; exHip=slideEffS(look[LK_HIPW]); exWst=slideEffS(look[LK_WAISTW]); exSho=slideEffS(look[LK_SHOULW]); exThi=slideEffS(look[LK_THIGHW]); exCal=slideEffS(look[LK_CALFW]);
         exJaw=slideEffS(look[LK_JAWW]); exHnd=slideEffS(look[LK_HANDSZ]); exFt=slideEffS(look[LK_FOOTSZ]); exChe=slideEffS(look[LK_CHESTW]); exBel=slideEffS(look[LK_BELLYW]); exUAr=slideEffS(look[LK_UARMW]); exFAr=slideEffS(look[LK_FARMW]);   // CHEST, BELLY (torso rows), UPPER ARM, FOREARM width
+        { const signed char*se=shpEx[look[LK_SHAPE]<NSHAPE?look[LK_SHAPE]:0]; exHip+=se[0]; exWst+=se[1]; exSho+=se[2]; exThi+=se[3]; exCal+=se[4]; exChe+=se[5]; }   // the body type's own build (V-SHAPE, CURVY, POWER...)
         { int m=neckK<0?-neckK:neckK; int e[12]={exHip,exWst,exSho,exThi,exCal,exChe,exBel,exUAr,exFAr,exJaw,exHnd,exFt}; for(int q=0;q<12;q++){ int a=e[q]<0?-e[q]:e[q]; if(a>m) m=a; } exMax=m; }
         if(noGrid){ if(liftK>bakeCapH) liftK=bakeCapH; if(wk>bakeCapW) wk=bakeCapW; if(liftT>bakeCapT) liftT=bakeCapT;
                     if(armK>bakeCapX) armK=bakeCapX; if(stanceK>bakeCapX) stanceK=bakeCapX; if(shA>bakeCapL) shA=bakeCapL; if(shL>bakeCapL) shL=bakeCapL; } if(noGrid){ neckK=EXC(neckK); exHip=EXC(exHip); exWst=EXC(exWst); exSho=EXC(exSho); exThi=EXC(exThi); exCal=EXC(exCal); exChe=EXC(exChe); exBel=EXC(exBel); exUAr=EXC(exUAr); exFAr=EXC(exFAr); exJaw=EXC(exJaw); exHnd=EXC(exHnd); exFt=EXC(exFt); } bakeWk=wk; bakeSh=shA>shL?shA:shL; }   // a sprite bake: only as tall / wide as its box holds
@@ -3300,7 +3309,7 @@ enum { AC_PLAY, AC_MAP, AC_MENU, AC_RAND, AC_ADD, AC_FAM, AC_FNAME, AC_LNAME, AC
 enum { PS_ASP, PS_LTW, PS_SIGN };
 typedef struct { const char*lab,*sub; u8 kind,id,n; } Row;   // sub = second line of a button
 static const char* const tabNm[NTAB]={"BODY","FACE","HAIR","CLOTHES","PARTS","ASPIRE","DONE"};
-static const char* const shapeNm[NSHAPE]={"AVERAGE","BROAD","BIG HEAD","STUBBY","SLIM","ATHLETIC","TALL","CHUBBY","PEAR","LANKY","STOCKY","HUNCHED","POTBELLY","MUSCLE","PETITE","BARREL","DIGITIGRADE"};
+static const char* const shapeNm[NSHAPE]={"AVERAGE","BROAD","BIG HEAD","STUBBY","SLIM","ATHLETIC","TALL","CHUBBY","PEAR","LANKY","STOCKY","HUNCHED","POTBELLY","MUSCLE","PETITE","BARREL","DIGITIGRADE","V-SHAPE","CURVY","RUNNER","SOFT","POWER","LONG LEGS"};
 static const char* const eyeNm[NEYE]={"SLEEPY","ROUND","HAPPY","WIDE","ANGRY","CUTE","CAT","DOT","LASHES"};
 static const char* const mouthNm[NMOUTH]={"FLAT","SMILE","OH","GRIN","SMIRK","FROWN","TONGUE","FANGS","KITTY"};
 static const char* const browNm[6]={"NONE","THIN","THICK","ANGRY","WORRIED","UNIBROW"};

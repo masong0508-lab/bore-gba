@@ -192,9 +192,9 @@ static void spBounds(void){   // the box that holds every opaque pixel of the pl
 }
 // ---- baking: render a member's look with the creator's own code, then put the player's creature back ----
 static void hhRandLook(u8*lk,u8*stg){   // a made-up Sim: passers-by, and SELECT on the RELATIONSHIPS screen
-    static const u8 shp[6]={0,1,3,4,5,6}, sg[4]={AG_ADULT,AG_ADULT,AG_TEEN,AG_ELDER};
+    static const u8 shp[12]={0,1,3,4,5,6,17,18,19,20,21,22}, sg[4]={AG_ADULT,AG_ADULT,AG_TEEN,AG_ELDER};
     for(int i=0;i<LK_N;i++) lk[i]=0;
-    lk[LK_SHAPE]=shp[rnd8()%6]; lk[LK_SKIN]=(u8)(rnd8()%NSKIN); lk[LK_EYES]=(u8)(rnd8()%NEYE); lk[LK_MOUTH]=(u8)(rnd8()%NMOUTH);
+    lk[LK_SHAPE]=shp[rnd8()%12]; lk[LK_SKIN]=(u8)(rnd8()%NSKIN); lk[LK_EYES]=(u8)(rnd8()%NEYE); lk[LK_MOUTH]=(u8)(rnd8()%NMOUTH);
     lk[LK_EARS]=(u8)(1+(rnd8()&1)); lk[LK_HSTYLE]=(u8)(rnd8()%NHAIR); lk[LK_HCOL]=(u8)(rnd8()%NSW); lk[LK_TOP]=(u8)(rnd8()%NSW); lk[LK_BOT]=(u8)(rnd8()%NSW);
     lk[LK_TOPSTY]=(u8)(rnd8()&3); lk[LK_HAT]=(rnd8()&3)==0?(u8)(1+rnd8()%5):0; lk[LK_GLASS]=(rnd8()&3)==0?(u8)(1+rnd8()%3):0;
     lk[LK_BROW]=(u8)(rnd8()%6); lk[LK_EYECOL]=(u8)(rnd8()%NSW);
