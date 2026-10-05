@@ -121,7 +121,7 @@ static void famDay(void){   // midnight (simMinute, after your own birthday): ev
     if(grew||born){
         for(int k=0;k<hhN;k++){ hhOld[k].x0=hhOld[k].x1=0; hhOldSig[k]=0xFFFFFFFFu; }
         hhBakeAll();   // (the new faces first: the notices show them)
-        if(born){ if(famBornMine) voxPlay(V_yahoo); famNotice(famT,famL1,famL2,famBorn,famBornN); }   // (your voice: a whoop)
+        if(born) famNotice(famT,famL1,famL2,famBorn,famBornN);
         if(grew){ int m=hhMemOf(gu[0]);
             if(grew==1&&m>=0){ char*e=simCat(famL1,hhM[m].name); *e++=' '; simCat(e,famGrewW[hhM[m].stage]); famNotice("HAPPY BIRTHDAY!",famL1,famGrewL2[hhM[m].stage],gu,1); }
             else famNotice("HAPPY BIRTHDAYS!","THE FAMILY GREW UP","A YEAR OLDER  A NEW LOOK",gu,grew); }

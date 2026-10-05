@@ -650,8 +650,8 @@ static void voxSoc(int a,int b,int i,int ok){
         case SC_FLIRT: voxPlay(ok?(ya?V_flirt:V_flirt_2):V_nah); break;
         case SC_KISS: voxPlay(ok?V_flirt_2:(ya?V_burst_crying:V_nah)); break;
         case SC_STEADY: voxPlay(ok?V_serenade_good:V_serenade_bad); break;              // BE MINE: a serenade, good or bad
-        case SC_PROPOSE: voxPlay(ok?V_yahoo:V_serenade_bad); break;                     // a yes is a whoop, a not yet the sad serenade (family.h)
-        case SC_BABY: voxPlay(ok?V_flirt_2:V_nah); break;
+        case SC_PROPOSE: voxPlay(ok?V_serenade_good:V_serenade_bad); break;             // popping the question: the serenade, good or bad (family.h)
+        case SC_BABY: voxPlay(ok?V_yahoo:V_nah); break;                                  // yahoo: getting ready to woohoo
         default: break;   // PUFF PUFF PASS: the pipe sounds come from voxEvent
     }
 }

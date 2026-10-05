@@ -838,4 +838,4 @@ The Sim you control talks. 43 clips (tools/voices_src/*.wav, cleaned and trimmed
 and source/voices.h (X-macro list, ROM blobs, V_<name> ids). They play on the one effect voice, so the newest sound wins. `voxPlay(V_x)` always plays, `voxNag(V_x)` only when nothing else sounds,
 `voxChain(a,b,c)` plays three in a row (the pipe: lighter, inhale, cough). Who plays what: `voxEvent` (main.c, called from sims.h simEventV) for life events, `voxSoc` (house.h) for socials,
 and spots in main.c: falls (shriek), bails (cry), instant death (die of shock), fights (lets fight / losing / lost / win), hunger and bladder nags, sleep (snore), new wants (thinking).
-Family life (merged with the Sims look): PROPOSE whoops (yahoo) on a yes and plays the sad serenade on a not yet, TRY FOR A BABY flirts (flirt 2) or says nah, and a baby of yours brings a whoop when its notice opens.
+Family life: PROPOSE plays the serenade (good on a yes, bad on a not yet); TRY FOR A BABY plays yahoo on a yes (getting ready to woohoo) or nah on a no.
