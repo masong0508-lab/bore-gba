@@ -744,3 +744,11 @@ Every Sim has a GENDER: FEMALE, MALE or NONBINARY. It's `look[LK_SEX]`, the last
   - A bank record stores its look length at header byte 35.
   - A Sim from an older save gets a gender from `sexGuess`: a beard means male, otherwise a hash of the look, so the same Sim always gets the same one.
 - **IWRAM:** the longer look shifted IWRAM variables, and the mixer needed a few more address loads. Three text buffers moved to EWRAM to pay for it, so IWRAM use ends up 180 bytes lower than before.
+- **Better copies of recorded sounds.** The songs built on recorded samples were compared against all 29 of The Dipper Man's modules on the Mod Archive (artist 91731) with `tools/sample_match.py`.
+  - 18 of the 29 are byte-identical to modules already in `tools/`.
+  - Most of these songs' sounds exist nowhere at a higher rate.
+  - Five do, and `tools/sample_upgrades.json` maps them, lined up to the sample and level-matched; `studio_render.py` plays those copies in their place:
+    - **Amiga Music:** 2 leads at 2–4 kHz move to 8 kHz copies, and a sub-bass moves to a 16 kHz copy.
+    - **Tree-Age in Action** (both versions): the pluck moves from 2 kHz to 8 kHz.
+    - **Gottcho Barracho (Original):** the same sub-bass.
+  - The one source not already in the repo was added as `tools/the_dipper_man_another_cigarette.xm`.

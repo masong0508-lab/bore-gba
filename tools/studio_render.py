@@ -120,9 +120,12 @@ def read_song(sid, path):
     return S, used, lo, panf, pans
 
 # ================================================================ the sounds of a song: hi-fi where a generator made them, else the recorded ones
-def sounds(sid, S, used, cache):
-    """instrument number -> dict(x = float samples, rate = rate at C-4 (note 49), src = 'hifi' / 'sample', name)"""
+UPGRADES = os.path.join(HERE, 'sample_upgrades.json')   # better copies of recorded sounds, found by tools/sample_match.py
+def sounds(sid, S, used, cache, path=None):
+    """instrument number -> dict(x = float samples, rate = rate at C-4 (note 49), src = 'hifi' / 'sample' / 'archive', name)"""
     out = {}; B = bank(GEN[sid], cache) if sid in GEN else []
+    try: up = json.load(open(UPGRADES)).get(os.path.basename(path), {}) if path else {}
+    except OSError: up = {}
     byname = {}
     for b in B: byname.setdefault(b['name'], b)
     cur = None
@@ -139,6 +142,11 @@ def sounds(sid, S, used, cache):
         if b is not None and cur is not None and cur.get(ins['name']) != s['data']: b = None
         if b is not None: out[i] = dict(x=np.asarray(b['x'], float), rate=b['rate'], src='hifi', name=ins['name'], vol=s['vol'])
         else: out[i] = dict(x=x, rate=rate, src='sample', name=ins['name'], vol=s['vol'])
+        if out[i]['src'] == 'sample' and str(i) in up:                  # a better copy of this recording in another module: it takes over, lined
+            u = up[str(i)]; import sample_match as SM                      # up to the sample and level-matched (sample_match.py worked both out)
+            y = np.asarray(SM.read_any(open(u['source'], 'rb').read())[u['sample']]['x'], float); k = int(round(u['start']))
+            y = y[k:] if k >= 0 else np.concatenate([np.zeros(-k), y])
+            out[i] = dict(x=y * u['gain'], rate=float(u['rate']), src='archive', name=ins['name'], vol=s['vol'])
         if sid in X.FITBAR and i in X.FITBAR[sid][2]:                # Amiga Music's one-bar chord loops, fitted to the song's bar as the game does
             src_bpm, rows, _ = X.FITBAR[sid]
             nts = [n for o in S['order'] for r in S['pats'][o] for (n, ii, v, e, ep) in r if ii == i and 0 < n < 97]
@@ -438,7 +446,7 @@ def write_wav(path, x):
 
 def render_song(sid, path, outdir, cache):
     S, used, lo, panf, pans = read_song(sid, path)
-    snd = sounds(sid, S, used, cache)
+    snd = sounds(sid, S, used, cache, path)
     plan = song_plan(S, used, lo, panf, pans, snd, sid)
     ev = plan['ev']; T = plan['t_end']
     act = lambda a, b: sum(e[4] for e in ev if a <= e[0] < b) / max(1e-9, b - a)
@@ -598,7 +606,9 @@ def pack(outdir, only=None):
                             '-bits_per_raw_sample', '24', '-compression_level', '8', '-c:v', 'png', '-disposition:v', 'attached_pic']
                            + meta + [os.path.join(flac_dir, disc, base + '.flac')], check=True)
             m, sec = divmod(int(round(rep['secs'])), 60)
-            lines.append('  %d-%02d  %-42s %-22s %2d:%02d  %s%s' % (dn, tn, t, art, m, sec, 'hi-fi re-synthesis' if rep.get('hifi') else ('chip voices in stereo' if sid.startswith('chip_') else 'original samples'), ('  (' + note + ')') if note else ''))
+            na = sum(1 for v in rep.get('sounds', {}).values() if v == 'archive')
+            how = 'hi-fi re-synthesis' if rep.get('hifi') else ('chip voices in stereo' if sid.startswith('chip_') else 'original samples' + (', %d from better copies' % na if na else ''))
+            lines.append('  %d-%02d  %-42s %-22s %2d:%02d  %s%s' % (dn, tn, t, art, m, sec, how, ('  (' + note + ')') if note else ''))
             print(lines[-1], flush=True)
     open(os.path.join(rel, 'TRACKLIST.txt'), 'w', encoding='utf-8').write('\n'.join(lines) + '\n')
     shutil.copy(cover, flac_dir); shutil.copy(os.path.join(rel, 'TRACKLIST.txt'), flac_dir)

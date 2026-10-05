@@ -1,0 +1,63 @@
+{
+ "amiga_music.xm": {
+  "4": {
+   "source": "tools/cynicaller_madness.xm",
+   "sample": 3,
+   "name": "Sound 3 / Sound 3",
+   "score": 0.991,
+   "rate": 8363.0,
+   "start": -32.0,
+   "gain": 0.9788,
+   "top_from": 1029,
+   "top_to": 4030
+  },
+  "5": {
+   "source": "tools/the_dipper_man_closer_to_the_end.xm",
+   "sample": 6,
+   "name": "Sound 4 / Sound 4",
+   "score": 0.996,
+   "rate": 8363.0,
+   "start": -33.0,
+   "gain": 0.9888,
+   "top_from": 1506,
+   "top_to": 4000
+  },
+  "11": {
+   "source": "tools/the_dipper_man_another_cigarette.xm",
+   "sample": 10,
+   "name": "Sound 10 / Sound 10",
+   "score": 0.998,
+   "rate": 16726.0,
+   "start": 3.0,
+   "gain": 0.999,
+   "top_from": 539,
+   "top_to": 621
+  }
+ },
+ "tree_swaying_action.xm": {
+  "3": {
+   "source": "tools/the_dipper_man_another_cigarette.xm",
+   "sample": 3,
+   "name": "Sound 3 / Sound 3",
+   "score": 0.999,
+   "rate": 8363.0,
+   "start": 2.0,
+   "gain": 0.9967,
+   "top_from": 1045,
+   "top_to": 4177
+  }
+ },
+ "gottcho_barracho.xm": {
+  "7": {
+   "source": "tools/the_dipper_man_another_cigarette.xm",
+   "sample": 10,
+   "name": "Sound 10 / Sound 10",
+   "score": 0.998,
+   "rate": 16726.0,
+   "start": 3.0,
+   "gain": 0.999,
+   "top_from": 539,
+   "top_to": 621
+  }
+ }
+}

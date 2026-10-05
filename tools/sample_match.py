@@ -142,6 +142,8 @@ def sources(paths):
 
 # ================================================================ comparing two sounds
 GRID = 2 ** np.arange(-11, -1 + 1e-9, 1 / 48)        # cycles per sample, 1/48 octave apart (2^-11 .. 0.5)
+def lead(x):
+    nz = np.nonzero(np.abs(x) > 2e-3)[0]; return int(nz[0]) if len(nz) else 0   # where the sound starts (after its silence)
 def trim(x):
     a = np.abs(x); nz = np.nonzero(a > 2e-3)[0]
     return x[nz[0]:nz[-1] + 1] if len(nz) else x[:0]
@@ -155,7 +157,7 @@ def logspec(x):
     lp = 10 * np.log10(np.interp(GRID, f, p) + 1e-14)
     return lp
 
-def shift_fit(lg, la, top_g, max_oct=4):
+def shift_fit(lg, la, top_g, max_oct=3):
     """the shift (in 1/48 octaves) of a's spectrum that best lines it up with g's, over the bins where g has something (log power, Pearson)"""
     best = []; ok_g = lg > lg.max() - 55
     for s in range(-48 * max_oct, 48 * max_oct + 1):
@@ -202,7 +204,8 @@ def compare(g, a, shifts=None):
             sg, sy = gg[g0:g0 + m], yy[y0:y0 + m]; den = np.sqrt((sg * sg).sum() * (sy * sy).sum())
             sc = float(abs((sg * sy).sum()) / den) if den > 0 else 0.0
             sc *= min(1.0, m / len(gg)) ** 0.5                                # (a copy that covers only part of the sound counts less)
-            if best is None or sc > best['score']: best = dict(score=sc, ratio=r, lag=L)
+            gain = float(np.sqrt((sg * sg).sum() / max((sy * sy).sum(), 1e-20)))   # what brings the source copy to the song's level
+            if best is None or sc > best['score']: best = dict(score=sc, ratio=r, lag=L, gain=gain if (sg * sy).sum() >= 0 else -gain)
     return best
 
 # ================================================================ the songs' sounds, and the search
@@ -216,41 +219,65 @@ def song_sounds(sid, path):
                         bits=8 if np.allclose(np.round(x * 128), x * 128, atol=1e-6) else 16))
     return out
 
+SRC = []
+def match_song(args):
+    """every sound of one song against every source sample: (song, report lines, upgrades)"""
+    sid, path = args; lines = []; found = {}
+    for g in song_sounds(sid, path):
+        gx = g['_x'] = trim(g['x'])
+        if len(gx) < 64: continue
+        g['_spec'] = logspec(gx)
+        pre = []                                                          # stage 1: the spectra (cheap), stage 2: the waveforms of the best 8
+        for w, k, s in SRC:
+            if s['_spec'] is None or os.path.abspath(w.split('#')[0]) == os.path.abspath(path): continue    # (not the song's own file)
+            sh = shift_fit(g['_spec'], s['_spec'], 0.45)
+            if sh and sh[0][0] >= 0.6: pre.append((sh[0][0], w, k, s, sh))
+        pre.sort(key=lambda r: -r[0]); res = []
+        for c, w, k, s, sh in pre[:8]:
+            m = compare(g, s, sh)
+            if m and m['score'] > 0.5: res.append((m['score'], w, k, s, m))
+        res.sort(key=lambda r: -r[0])
+        if not res: lines.append('  inst %2d %-22s  no match' % (g['inst'], g['name'][:22])); continue
+        # the best copy: the most similar one, but among copies that are about as similar (within 0.03) the one with the most top end
+        tops = []
+        for sc, w, k, s, m in res[:6]:
+            rate_new = g['rate'] / m['ratio']
+            if rate_new > 48000: continue                                    # (a stretch past the output rate is no copy of this sound)
+            tops.append((band_edge(s['_x']) * rate_new, sc, w, k, s, m, rate_new))
+        if not tops: lines.append('  inst %2d %-22s  no match' % (g['inst'], g['name'][:22])); continue
+        top_g = band_edge(gx) * g['rate']; best_sc = max(t[1] for t in tops)
+        ta, sc, w, k, s, m, rate_new = max((t for t in tops if t[1] >= best_sc - 0.03), key=lambda t: t[0])
+        better = sc >= 0.85 and ta > top_g * 1.15
+        lines.append('  inst %2d %-22s  %.2f  %-44s #%-2d %-22s  %5.0f Hz -> %5.0f Hz at C-4,  top end %5.0f -> %5.0f Hz  %s' % (
+            g['inst'], g['name'][:22], sc, os.path.basename(w)[:44], k, s['name'][:22], g['rate'], rate_new, top_g, ta, 'UPGRADE' if better else ''))
+        if better:
+            # where the song's sample (untrimmed) begins in the source's: the lag is between the trimmed copies, the source's stretched
+            start = (m['lag'] - lead(g['x'])) / m['ratio'] + lead(s['x'])
+            found[str(g['inst'])] = dict(source=os.path.relpath(w.split('#')[0]) + ('#' + w.split('#')[1] if '#' in w else ''), sample=k, name=s['name'],
+                score=round(sc, 3), rate=round(rate_new, 3), start=round(start, 2), gain=round(m['gain'], 4), top_from=round(top_g), top_to=round(ta))
+    return sid, lines, found
+
 def main():
+    global SRC
     args = [a for a in sys.argv[1:] if not a.startswith('--')]; write = '--write' in sys.argv
     if not args: sys.exit(__doc__)
     table = dict((a, c) for a, b, c in re.findall(r'^SONG_XM\((\w+),"([^"]+)","([^"]+)"\)', open('source/songs.h').read(), re.M))
-    src = list(sources(args)); print('%d samples in %d sources' % (len(src), len(set(w for w, k, s in src))))
-    for w, k, s in src:
+    SRC = list(sources(args)); print('%d samples in %d sources' % (len(SRC), len(set(w for w, k, s in SRC))), flush=True)
+    for w, k, s in SRC:
         s['_x'] = trim(s['x']); s['_spec'] = logspec(s['_x']) if len(s['_x']) >= 64 else None
+    import multiprocessing as mp
     found = {}
-    for sid in SONGS:
-        print('\n' + sid)
-        for g in song_sounds(sid, table[sid]):
-            gx = g['_x'] = trim(g['x'])
-            if len(gx) < 64: continue
-            g['_spec'] = logspec(gx)
-            pre = []                                                          # stage 1: the spectra (cheap), stage 2: the waveforms of the best 8
-            for w, k, s in src:
-                if s['_spec'] is None or os.path.abspath(w.split('#')[0]) == os.path.abspath(table[sid]): continue    # (not the song's own file)
-                sh = shift_fit(g['_spec'], s['_spec'], 0.45)
-                if sh and sh[0][0] >= 0.6: pre.append((sh[0][0], w, k, s, sh))
-            pre.sort(key=lambda r: -r[0]); res = []
-            for c, w, k, s, sh in pre[:8]:
-                m = compare(g, s, sh)
-                if m and m['score'] > 0.5: res.append((m['score'], w, k, s, m))
-            res.sort(key=lambda r: -r[0])
-            if not res: print('  inst %2d %-22s  no match' % (g['inst'], g['name'][:22])); continue
-            sc, w, k, s, m = res[0]
-            # what the source copy would give: its top end once played at the song's pitch (Hz), against the song's own
-            top_g = band_edge(gx) * g['rate']; rate_new = g['rate'] / m['ratio']; top_a = band_edge(trim(s['x'])) * rate_new
-            better = sc >= 0.85 and (top_a > top_g * 1.15 or (s['bits'] == 16 and g['bits'] == 8))
-            print('  inst %2d %-22s  %.2f  %-40s #%-2d %-20s  %5d Hz %2d-bit -> %5d Hz %2d-bit  top end %5.0f -> %5.0f Hz  %s' % (
-                g['inst'], g['name'][:22], sc, os.path.basename(w)[:40], k, s['name'][:20], g['rate'], g['bits'], rate_new * len(s['x']) / max(1, len(s['x'])),
-                s['bits'], top_g, top_a, 'UPGRADE' if better else ''))
-            if better:
-                found.setdefault(sid, {})[str(g['inst'])] = dict(source=os.path.relpath(w.split('#')[0]) + ('#' + w.split('#')[1] if '#' in w else ''),
-                    sample=k, name=s['name'], score=round(sc, 3), rate=rate_new, start=max(0, int(round(m['lag'] / m['ratio']))), top_from=round(top_g), top_to=round(top_a))
+    import hashlib, glob
+    repo = {hashlib.md5(open(f, 'rb').read()).hexdigest(): os.path.relpath(f) for f in glob.glob(os.path.join(HERE, '*.xm'))}
+    with mp.get_context('fork').Pool(int(os.environ.get('MATCH_JOBS', '4'))) as pool:
+        for sid, lines, f in pool.imap(match_song, [(sid, table[sid]) for sid in SONGS]):
+            print('\n' + sid); print('\n'.join(lines), flush=True)
+            for u in f.values():
+                if '#' not in u['source']:
+                    h = hashlib.md5(open(u['source'], 'rb').read()).hexdigest()
+                    if h in repo: u['source'] = repo[h]
+                    else: print('  (the source %s is not in tools/: copy it there to keep the upgrade)' % u['source'])
+            if f: found[os.path.basename(table[sid])] = f
     print('\nupgrades found: %d sounds in %d songs' % (sum(len(v) for v in found.values()), len(found)))
     if write:
         json.dump(found, open(OUT, 'w'), indent=1); print('wrote', OUT)
