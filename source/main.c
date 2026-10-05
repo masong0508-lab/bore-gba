@@ -675,6 +675,7 @@ static int custom;   // 1 once the block builder has placed or erased something 
 __attribute__((noinline)) static void bodyPlan(int*L,int*T,int*hs){   // legs showing, torso blocks showing, head scale: the body that fits this stage's box
     int sh=look[LK_SHAPE]; *hs=(sh==2)?2:1;
     int l=stLegs[stage], t=2, ht=2*(*hs);
+    if(stage==AG_BABY){ l=1; t=1; }   // BABY: a big head on a tiny body: stubby legs, ONE block of torso (the head is half the height)
     if((sh==SH_BIGHEAD||sh==SH_STUBBY||sh==SH_STOCKY||sh==SH_PETITE||sh==SH_TODDLER)&&l>0) l--;   // BIG HEAD, STUBBY, STOCKY and PETITE: legs one block shorter
     int room=BXH-(*hs==1);                        // a normal head keeps a layer free above it for the hair (else the hair eats its top row, eyes and all)
     while(l+t+ht>room&&l>0) l--;                          // too tall for the box: shorten the legs, then the torso
@@ -722,7 +723,12 @@ static void buildLook(void){
     int L,T,hs0; bodyPlan(&L,&T,&hs0);
     int tx=BX0+(BXW-2)/2, ty=L+T-2;                      // torso: left column and bottom row (the bottom row is clipped when T is 1)
     int sh=look[LK_SHAPE];
-    if(sh==1&&stage==AG_ADULT){                                  // BROAD: torso and legs two blocks wider each side
+    if(stage==AG_BABY){                                          // BABY: stubby legs under one block of torso, little arms, and the big head above
+        if(L>0) doPart(1,3,1,tx,L-3,1);                           // the legs (one block: the rows below the floor are cut off)
+        for(int z=1;z<3;z++)for(int x=tx;x<tx+2;x++) vb(x,L,z,6);
+        int sl=(look[LK_TOPSTY]==1||look[LK_TOPSTY]==3)?6:1;       // sleeves only for LONG SLEEVE and HOODIE
+        for(int x=tx-1;x<tx+3;x+=3){ vb(x,L,1,sl|(1<<4)); if(L>0) vb(x,L-1,1,1|(2<<4)); }   // an arm hangs beside the body, with a little hand
+    } else if(sh==1&&stage==AG_ADULT){                                  // BROAD: torso and legs two blocks wider each side
         doPart(1,3,1,1,0,1); doPart(1,3,1,2,0,1);
         doPart(1,1,1,1,3,1); doPart(1,1,1,3,3,1); doPart(1,2,1,0,2,1);
     } else if(sh==4&&stage>=AG_TEEN){                            // SLIM: a one block deep torso
@@ -1197,8 +1203,8 @@ IWRAM_THUMB static void drawScene(int blink){
     int shA=0, shL=0;   // the body type's extra width for the arms and legs (the torso's goes into wk)
     if(decLook){ int L,T,hs; bodyPlan(&L,&T,&hs); liftL=L; const signed char*sd=shpDraw[look[LK_SHAPE]<NSHAPE?look[LK_SHAPE]:0];
         liftK=slideEffS(look[LK_HEIGHT])+((look[LK_SHAPE]==6&&stage>=AG_TEEN)?3:0)+sd[3]; if(liftK<-4) liftK=-4; if(liftK>bxLift) liftK=bxLift;   // TALL: longer legs (drawn taller, so the hair keeps its room)
-        wk=slideEffS(look[LK_WEIGHT])+sd[0]-(stage==AG_BABY?1:0); shA=sd[1]+slideEffS(look[LK_ARMW])/2; shL=sd[2]+slideEffS(look[LK_LEGW])/2; hyB=L+T;   // LEG WIDTH: half a pixel a notch (-2..+2), on top of the body type's legs
-        headK=slideEffS(look[LK_HEADSZ])+(stage==AG_BABY?3:stage==AG_CHILD?1:0); handK=slideEffS(look[LK_HANDFT]);   // HEAD SIZE: px added to the head's half width; HAND FOOT SIZE: the same for the hands and the feet
+        wk=slideEffS(look[LK_WEIGHT])+sd[0]; shA=sd[1]+slideEffS(look[LK_ARMW])/2; shL=sd[2]+slideEffS(look[LK_LEGW])/2; hyB=L+T;   // LEG WIDTH: half a pixel a notch (-2..+2), on top of the body type's legs
+        headK=slideEffS(look[LK_HEADSZ])+(stage==AG_BABY?2:stage==AG_CHILD?1:0); handK=slideEffS(look[LK_HANDFT]);   // HEAD SIZE: px added to the head's half width; HAND FOOT SIZE: the same for the hands and the feet
         liftTn=T; liftT=slideEffS(look[LK_TORSO]); if(liftT<-4) liftT=-4; if(bxBig&&liftT>0) liftT+=liftT/2; armK=slideEff(look[LK_ARMS]); stanceK=slideEff(look[LK_STANCE]);   // TORSO px per torso row, ARMS and STANCE spread
         neckK=slideEffS(look[LK_NECK]); if(neckK<-2) neckK=-2; if(bxBig&&neckK>0) neckK+=neckK/2; exHip=slideEffS(look[LK_HIPW]); exWst=slideEffS(look[LK_WAISTW]); exSho=slideEffS(look[LK_SHOULW]); exThi=slideEffS(look[LK_THIGHW]); exCal=slideEffS(look[LK_CALFW]);
         exJaw=slideEffS(look[LK_JAWW]); exHnd=slideEffS(look[LK_HANDSZ]); exFt=slideEffS(look[LK_FOOTSZ]); exChe=slideEffS(look[LK_CHESTW]); exBel=slideEffS(look[LK_BELLYW]); exUAr=slideEffS(look[LK_UARMW]); exFAr=slideEffS(look[LK_FARMW]);   // CHEST, BELLY (torso rows), UPPER ARM, FOREARM width
