@@ -9,11 +9,14 @@ OBJCOPY := arm-none-eabi-objcopy
 ARCH    := -mthumb -mthumb-interwork
 CFLAGS  := $(ARCH) -O2 -Wall -fno-strict-aliasing -ffunction-sections
 LDFLAGS := -specs=gba.specs $(ARCH)
+STACK_EWRAM := 8192                       # the stack sits in the top of EWRAM (main.c: main() stub); statics must stay below it
+EWRAM_STATIC_MAX := $(shell echo $$((262144-8192)))
 
 all: $(TARGET).gba
 
 $(TARGET).elf: source/main.c source/logo.c $(wildcard source/*.h) $(wildcard source/sfx/*.adp) $(wildcard source/music/*.adp) $(wildcard source/music/*.bin)
 	$(CC) $(CFLAGS) source/main.c source/logo.c $(LDFLAGS) -o $@
+	@arm-none-eabi-size -A $@ | awk -v lim=$(EWRAM_STATIC_MAX) '$$1==".sbss"||$$1==".ewram"{e+=$$2} END{ if(e>lim){ printf("ERROR: EWRAM statics %d B > %d B: the top %d KB of EWRAM is the stack (see main.c)\n",e,lim,$(STACK_EWRAM)/1024); exit 1 } }'
 
 $(TARGET).gba: $(TARGET).elf
 	$(OBJCOPY) -O binary $< $@
