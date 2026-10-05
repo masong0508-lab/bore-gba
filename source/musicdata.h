@@ -411,6 +411,15 @@ __asm__(".pushsection .rodata\n"
   ".global xm_the_ticking_bomb_S6\nxm_the_ticking_bomb_S6:\n.incbin \"source/music/xmdata.bin\",4416111,5356\n"
   ".global xm_the_ticking_bomb_S7\nxm_the_ticking_bomb_S7:\n.incbin \"source/music/xmdata.bin\",4421467,2676\n"
   ".global xm_the_ticking_bomb_S13\nxm_the_ticking_bomb_S13:\n.incbin \"source/music/xmdata.bin\",4424143,21560\n"
+  ".global xm_youre_winner_ev\nxm_youre_winner_ev:\n.incbin \"source/music/xmdata.bin\",4445703,25618\n"
+  ".global xm_youre_winner_S0\nxm_youre_winner_S0:\n.incbin \"source/music/xmdata.bin\",4471321,1314\n"
+  ".global xm_youre_winner_S1\nxm_youre_winner_S1:\n.incbin \"source/music/xmdata.bin\",4472635,3943\n"
+  ".global xm_youre_winner_S2\nxm_youre_winner_S2:\n.incbin \"source/music/xmdata.bin\",4476578,1033\n"
+  ".global xm_youre_winner_S3\nxm_youre_winner_S3:\n.incbin \"source/music/xmdata.bin\",4477611,26679\n"
+  ".global xm_youre_winner_S4\nxm_youre_winner_S4:\n.incbin \"source/music/xmdata.bin\",4504290,9182\n"
+  ".global xm_youre_winner_S5\nxm_youre_winner_S5:\n.incbin \"source/music/xmdata.bin\",4513472,36752\n"
+  ".global xm_youre_winner_S6\nxm_youre_winner_S6:\n.incbin \"source/music/xmdata.bin\",4550224,13350\n"
+  ".global xm_youre_winner_S7\nxm_youre_winner_S7:\n.incbin \"source/music/xmdata.bin\",4563574,20025\n"
   ".popsection\n");
 extern const u8 xm_the_dipper_man_ev[];
 extern const s8 xm_the_dipper_man_S0[];
@@ -820,6 +829,15 @@ extern const s8 xm_the_ticking_bomb_S4[];
 extern const s8 xm_the_ticking_bomb_S6[];
 extern const s8 xm_the_ticking_bomb_S7[];
 extern const s8 xm_the_ticking_bomb_S13[];
+extern const u8 xm_youre_winner_ev[];
+extern const s8 xm_youre_winner_S0[];
+extern const s8 xm_youre_winner_S1[];
+extern const s8 xm_youre_winner_S2[];
+extern const s8 xm_youre_winner_S3[];
+extern const s8 xm_youre_winner_S4[];
+extern const s8 xm_youre_winner_S5[];
+extern const s8 xm_youre_winner_S6[];
+extern const s8 xm_youre_winner_S7[];
 static const u32 xmT[12]={1073741824,1137589835,1205234447,1276901417,1352829926,1433273380,1518500250,1608794974,1704458901,1805811301,1913190429,2026954652};   // 2^(j/12) in Q30: with a per-instrument anchor this gives every note's playback step (see xmStep in main.c)
 // ---- the_dipper_man  (from tools/the_dipper_man.xm) ----
 static const u8 xm_the_dipper_man_order[89]={0,0,1,1,2,2,2,2,3,4,3,5,3,4,3,6,7,8,9,2,7,8,10,11,12,4,3,5,3,4,
@@ -1784,3 +1802,45 @@ static const u8 xm_the_ticking_bomb_busL[7]={199,179,152,122,88,51,13,
 static const u8 xm_the_ticking_bomb_busR[7]={13,51,88,122,152,179,199,
 };
 static const XmSong xm_the_ticking_bomb={xm_the_ticking_bomb_order,xm_the_ticking_bomb_rows,xm_the_ticking_bomb_patOff,xm_the_ticking_bomb_ev,xm_the_ticking_bomb_vt,xm_the_ticking_bomb_anc,xm_the_ticking_bomb_fx,xm_the_ticking_bomb_len,xm_the_ticking_bomb_data,xm_the_ticking_bomb_busL,xm_the_ticking_bomb_busR,61,0,1098,53};
+// ---- youre_winner  (from tools/youre_winner.xm) ----
+static const u8 xm_youre_winner_order[200]={0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,
+30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,
+60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,
+90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,
+120,121,122,123,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140,141,142,143,144,145,146,147,148,149,
+150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170,171,172,173,174,175,176,177,178,179,
+180,181,182,183,184,185,186,187,188,189,190,191,192,193,194,195,196,197,198,198,
+};
+static const u16 xm_youre_winner_rows[199]={24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,
+24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,
+24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,
+24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,
+24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,
+24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,
+24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,
+};
+static const u32 xm_youre_winner_patOff[199]={0,40,82,145,200,234,279,315,354,400,448,522,605,679,753,837,917,999,1067,1189,1292,1386,1484,1602,
+1715,1817,1931,2070,2205,2348,2501,2644,2758,2885,2998,3114,3220,3320,3413,3543,3656,3755,3910,4037,4172,4304,4456,4565,
+4683,4798,4957,5102,5245,5384,5542,5660,5819,5951,6107,6225,6348,6474,6627,6794,6938,7086,7272,7433,7567,7723,7885,7969,
+8061,8160,8234,8345,8462,8581,8693,8840,8989,9112,9271,9423,9560,9695,9881,10022,10151,10297,10450,10593,10726,10879,11053,11193,
+11324,11443,11593,11737,11879,12012,12192,12332,12453,12599,12772,12926,13077,13221,13407,13571,13685,13791,13947,14061,14175,14280,14438,14560,
+14675,14824,14958,15075,15225,15362,15527,15667,15777,15903,16059,16218,16367,16499,16648,16788,16920,17049,17211,17348,17499,17642,17810,17951,
+18079,18215,18380,18554,18707,18853,19033,19191,19334,19493,19682,19837,19989,20174,20381,20549,20678,20800,20937,21078,21213,21368,21530,21680,
+21823,21964,22108,22255,22379,22500,22647,22803,22940,23057,23207,23366,23506,23655,23802,23954,24101,24247,24400,24550,24691,24825,24987,25133,
+25262,25369,25465,25529,25572,25607,25617,
+};
+static const u16 xm_youre_winner_vt[17]={3191,2168,1657,634,614,1656,1145,122,1536,3106,34,3089,17,563,1604,2679,
+2645,
+};
+static const u32 xm_youre_winner_anc[8]={61819841,247279365,247279365,247279365,61819841,247279365,82519588,82519588,
+};
+static const u8 xm_youre_winner_fx[1]={255,
+};
+static const u32 xm_youre_winner_len[8]={1313,3942,1032,26678,9181,36751,13349,20024,
+};
+static const s8* const xm_youre_winner_data[8]={xm_youre_winner_S0,xm_youre_winner_S1,xm_youre_winner_S2,xm_youre_winner_S3,xm_youre_winner_S4,xm_youre_winner_S5,xm_youre_winner_S6,xm_youre_winner_S7};
+static const u8 xm_youre_winner_busL[7]={199,179,153,122,88,51,13,
+};
+static const u8 xm_youre_winner_busR[7]={13,51,88,122,152,179,199,
+};
+static const XmSong xm_youre_winner={xm_youre_winner_order,xm_youre_winner_rows,xm_youre_winner_patOff,xm_youre_winner_ev,xm_youre_winner_vt,xm_youre_winner_anc,xm_youre_winner_fx,xm_youre_winner_len,xm_youre_winner_data,xm_youre_winner_busL,xm_youre_winner_busR,200,0,1389,145};
