@@ -10,6 +10,7 @@ static u8 jbMap[JB_MAX];   // visible song number -> index into songs[] (hides t
 static u8 jbOn[JB_MAX];    // by songs[] index: 1 = may be picked at random
 static int jbN, jbAll;     // visible songs, songs in songs[]
 static u8 jbMode;              // play mode: 0 SHUFFLE (random checked song), 1 IN ORDER (next checked song down the list), 2 REPEAT. Saved at JB_OFF+20: 'M', mode, mode xor 0x5A
+static u16 jbDr;               // lifetime dreams ever met: bit asp*2+want (10 of them). Saved at JB_OFF+24: 'D' 'R', low byte, high byte, check
 static u8 jbUl;                // unlocked songs (unlocks.h): a set bit = unlocked. Saved at JB_OFF+16: 'U' 'L', the bits, the bits xor 0x5A
 static u16 (*jbHashFn)(int);   // hash of the names of the first n songs (main.c): tells whether the saved flags still belong to this song list
 
@@ -26,7 +27,9 @@ static void jbInit(int nAll,int nVis,u16 (*hash)(int)){   // call at boot (and a
         for(int i=0;i<n;i++) jbOn[i]=(u8)((m[6+(i>>3)]>>(i&7))&1);   // songs added after the save stay on
 }
 static void jbUlSave(void){ volatile u8*m=SRAM_BASE+JB_OFF; m[16]='U'; m[17]='L'; m[18]=jbUl; m[19]=(u8)(jbUl^0x5A); }
-static void jbUlLoad(void){ volatile u8*m=SRAM_BASE+JB_OFF; jbUl=(m[16]=='U'&&m[17]=='L'&&(u8)(m[18]^0x5A)==m[19])?m[18]:0; }
+static void jbUlLoad(void){ volatile u8*m=SRAM_BASE+JB_OFF; jbUl=(m[16]=='U'&&m[17]=='L'&&(u8)(m[18]^0x5A)==m[19])?m[18]:0;
+    jbDr=(m[24]=='D'&&m[25]=='R'&&(u8)(m[26]^m[27]^0x5A)==m[28]&&m[27]<4)?(u16)(m[26]|(m[27]<<8)):0; }
+static void jbDrSave(void){ volatile u8*m=SRAM_BASE+JB_OFF; m[24]='D'; m[25]='R'; m[26]=(u8)jbDr; m[27]=(u8)(jbDr>>8); m[28]=(u8)(m[26]^m[27]^0x5A); }
 static void jbModeSave(void){ volatile u8*m=SRAM_BASE+JB_OFF; m[20]='M'; m[21]=jbMode; m[22]=(u8)(jbMode^0x5A); }
 static void jbModeLoad(void){ volatile u8*m=SRAM_BASE+JB_OFF; jbMode=(m[20]=='M'&&m[21]<3&&(u8)(m[21]^0x5A)==m[22])?m[21]:0; }
 static int jbOnVis(int v){ return jbOn[jbMap[v]]; }
