@@ -354,7 +354,7 @@ IWRAM_CODE static void cube(int sx,int sy,int ci,int shape,int f){
 
 // ---------- textured walls and floors ----------
 static u16 wpTab[NWP][2][8][8] EWRAM_BSS;              // [wallpaper][0 left face / 1 right face][column][row], pre-shaded
-static u16 wpHi[NWP][2][8], wpLo[NWP][2][8];            // per column: the lit row under the top edge, and the shaded row above the bottom edge
+static u16 wpHi[NWP][2][8] EWRAM_BSS, wpLo[NWP][2][8] EWRAM_BSS;   // (EWRAM: IWRAM is kept for the stack)            // per column: the lit row under the top edge, and the shaded row above the bottom edge
 static u16 flTab[NFL][2][2*CB+1][2*CA+1] EWRAM_BSS;    // [floor][odd tile][row][column] pre-sampled onto the iso diamond (row-major: drawn as horizontal spans)
 static u8 rowHW[CB+1];   // rowHW[|y|] = half width of the diamond on that row
 static u16 flFlat[NFL][2];                             // plain-colour fallback ("floor patterns off")
@@ -2007,7 +2007,7 @@ static int eRot;   // editor: which way the next ramp faces (0 S, 1 E, 2 N, 3 W)
 static const char palCh[NOBJ]={'.','w','W','#','=','F','T','D','B','P','1','5','L','N','S','H','C','9','X','O','Y','Z','K','J','M','G','V','U','^','~','Q'};
 static const char* const palNm[NOBJ]={"CLEAR","LOW WALL","WALL","CRATE","RAIL","FRIDGE","TOILET","DOOR","BOARD","SPAWN","KICKER","Q PIPE","LEDGE","BENCH","BED","SHOWER","SOFA","LAUNCH","FUNBOX","BARREL","TRASH CAN","PLANTER","PICNIC","JERSEY","MANUAL PAD","WATER PIPE","LAVA LAMP","BEANBAG","STAIRS UP","STAIRS DOWN","DEADSET 3THOUSAND VYBE"};
 static const u16 palCol[NOBJ]={RGB(26,21,14),RGB(8,20,22),RGB(10,22,24),RGB(8,9,20),RGB(31,30,16),RGB(31,31,31),RGB(30,28,18),RGB(14,9,5),RGB(26,10,6),RGB(28,10,8),RGB(24,17,9),RGB(27,19,11),RGB(20,20,22),RGB(25,18,9),RGB(10,14,28),RGB(22,28,30),RGB(26,18,9),RGB(8,14,24),RGB(18,16,24),RGB(24,6,5),RGB(12,18,14),RGB(20,10,6),RGB(25,18,9),RGB(22,22,24),RGB(30,26,5),RGB(10,24,14),RGB(24,8,26),RGB(18,8,22),RGB(24,22,18),RGB(12,11,10),RGB(6,20,31)};
-static signed char palLut[256]; static u8 palLutOk;   // tile char -> palette slot (or -1), built on first use: palIdx() runs for every tile of the minimap, so it must be O(1) even with 100+ items
+static signed char palLut[256] EWRAM_BSS; static u8 palLutOk;   // tile char -> palette slot (or -1), built on first use: palIdx() runs for every tile of the minimap, so it must be O(1) even with 100+ items
 static int palIdx(char c){
     if(!palLutOk){ for(int i=0;i<256;i++) palLut[i]=-1; for(int i=NOBJ-1;i>=0;i--) palLut[(u8)palCh[i]]=(signed char)i;
         for(int r=0;r<4;r++){ palLut[(u8)('1'+r)]=OB_KICKER; palLut[(u8)('5'+r)]=OB_QPIPE; palLut[(u8)('9'+r)]=OB_LAUNCH; } palLutOk=1; }
@@ -3920,7 +3920,7 @@ static void creatureEditor(void){ creatorMusStart(); for(;;){ int sw=(sUnlock&&s
 static int jbPlaying, jbCur=-1, jbMsgT;   // jbCur = visible number of the song that plays (or played last)
 static const char*jbMsg; static u8 jbEq[8];
 static u8 jbHist[8]; static int jbHN;      // the songs played before this one (L goes back through them)
-static u16 jbLenC[JB_MAX];                 // length of each songs[] entry in seconds + 1 (0 = not worked out yet)
+static u16 jbLenC[JB_MAX] EWRAM_BSS;                 // length of each songs[] entry in seconds + 1 (0 = not worked out yet)
 static const char* const jbModeName[3]={"SHUFFLE","IN ORDER","REPEAT"};
 static const char* const jbModeInfo[3]={"RANDOM CHECKED SONGS","CHECKED SONGS DOWN THE LIST","THE SAME SONG AGAIN AND AGAIN"};
 static void fillBox(int x0,int x1,int y0,int y1,u16 c){   // x0, x1 must be even (32-bit stores)
