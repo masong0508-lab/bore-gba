@@ -3101,7 +3101,7 @@ static void aspPanel(void){
 // Timer2 (65536 Hz) is the clock (defined with the settings). The game logic always runs at 60 steps per second; the
 // frame rate setting only says how often the picture is redrawn, so lower rates save work without slowing the game.
 static const char* const yesNoLife[2]={"NO","YES ERASE IT"};
-// ---- the PAUSE PANEL: Sims style (plumbob, household funds, one icon tile per screen) instead of a plain list ----
+// ---- the PAUSE PANEL: Sims style (household funds, one icon tile per screen) instead of a plain list ----
 // The phone is no longer a menu entry: it is a real item in the house (palette PHONE, tile 'I'): R next to it. A house without one gets one (phoneEnsure).
 enum { PM_RESUME, PM_SAVE, PM_WANTS, PM_FAMILY, PM_STORY, PM_OPTS, PM_BUILD, PM_QUIT };
 static const char* const pmArt[8][9]={
@@ -3129,14 +3129,12 @@ static int pauseMenu(int mode){   // mode 0 life, 1 from the neighborhood, 2 tes
         if((pr&K_UP)&&sel>=4) sel-=4;
         if(pr&K_A) return ids[sel]==PM_RESUME?-1:ids[sel];
         if(pr&(K_B|K_START)) return -1;
-        { int bb=(int)((t>>4)&1); if(sel!=ps||bb!=lastB) dirty=1; lastB=bb; }   // redraw when the cursor moves or the plumbob / icon bob changes (a few times a second), not every frame
+        { int bb=(int)((t>>4)&1); if(sel!=ps||bb!=lastB) dirty=1; lastB=bb; }   // redraw when the cursor moves or the icon bob changes (a few times a second), not every frame
         if(!dirty){ vsync(); continue; }
         dirty=0;
         box(6,4,228,152);
         rect(7,5,226,17,RGB(5,12,24)); rect(7,21,226,1,GOLD);
-        { int by=6+(int)((t>>4)&1);   // the plumbob floats
-          for(int i=0;i<9;i++){ int w=i<5?2*i+1:2*(8-i)+1; rect(15+4-w/2,by+i,w,1,i<4?RGB(14,31,14):RGB(6,24,8)); } }
-        text(30,9,mode==2?"TEST PLAY PAUSED":"PAUSED",GOLD,1);
+        text(12,9,mode==2?"TEST PLAY PAUSED":"PAUSED",GOLD,1);
         if(mode!=2){ char b[12]; char*e=b; *e++=(char)0xC2; *e++=(char)0xA7; numStr(e,simMoney); text(228-tw(b,1),9,b,RGB(14,30,14),1); }
         for(int i=0;i<n;i++){ int id=ids[i], x=10+(i&3)*56, y=27+(i>>2)*43, on=(i==sel);
             rect(x-1,y-1,54,40,on?GOLD:RGB(10,16,30)); rect(x,y,52,38,on?RGB(6,18,10):RGB(7,10,20));
