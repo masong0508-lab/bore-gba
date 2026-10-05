@@ -182,7 +182,7 @@ static void slEncPlane(SlW*w,int plane){   // 0 = voxels, 1 = face sprite low by
     if(n){ slwPut(w,n); slwPut(w,cur); }
 }
 static void slEncPerson(SlW*w){
-    slwPut(w,13);   // format 13 adds jaw width, hand size and foot size; format 12 adds tail taper / fluff / wave / tip shade, horn tip and wing droop / shade; format 11 adds chest, belly, upper arm and forearm width and tail / horn shade; format 10 adds neck, hip / waist / shoulder / thigh / calf width and 11 more tail, horn, wing, antenna and ear sliders;                                            // format 9 (8 had no leg width, arm width, antenna, tail length / curl / thickness, horn size / spread / curve / height ear front-back / spread, head size, hand foot size, wing size or tail tip); format 8 (7 had no tone, brow / nose height, torso, arms or stance sliders); format 7 (6 had no claws, antennae or body paint); format 6 (5 had no brows, nose, cheeks, glasses, eye colour or body / face sliders); format 5 (4 had no hats, beards or clothes styles; 3 had no persona: it reads as the one already set; 2 had no sliders: they read as 0 = the middle; 1 had no life stage: those people are adults)
+    slwPut(w,14);   // format 14 adds neck width; format 13 adds jaw width, hand size and foot size; format 12 adds tail taper / fluff / wave / tip shade, horn tip and wing droop / shade; format 11 adds chest, belly, upper arm and forearm width and tail / horn shade; format 10 adds neck, hip / waist / shoulder / thigh / calf width and 11 more tail, horn, wing, antenna and ear sliders;                                            // format 9 (8 had no leg width, arm width, antenna, tail length / curl / thickness, horn size / spread / curve / height ear front-back / spread, head size, hand foot size, wing size or tail tip); format 8 (7 had no tone, brow / nose height, torso, arms or stance sliders); format 7 (6 had no claws, antennae or body paint); format 6 (5 had no brows, nose, cheeks, glasses, eye colour or body / face sliders); format 5 (4 had no hats, beards or clothes styles; 3 had no persona: it reads as the one already set; 2 had no sliders: they read as 0 = the middle; 1 had no life stage: those people are adults)
     for(int i=0;i<LK_N;i++) slwPut(w,look[i]);
     slwPut(w,stage); slwPut(w,ageDays);
     slwPut(w,pAsp); slwPut(w,pLtw); for(int i=0;i<TR_N;i++) slwPut(w,pTr[i]);   // persona: aspiration, lifetime want, personality
@@ -196,8 +196,8 @@ static int slDecPlane(SlR*c,int plane){
     return 1;
 }
 static int slDecPerson(SlR*c,int apply){
-    int fmt=slrGet(c); if(c->bad||fmt<1||fmt>13) return 0;
-    u8 lk[LK_N]={0}; for(int i=0;i<(fmt>=13?LK_N:fmt>=12?LK_N12:fmt>=11?LK_N11:fmt>=10?LK_N10:fmt>=9?LK_N9:fmt>=8?LK_N8:fmt>=7?LK_N7:fmt>=6?LK_N6:fmt>=5?LK_N5:fmt>=4?LK_N4:fmt>=3?LK_N3:LK_BASE);i++) lk[i]=(u8)slrGet(c);
+    int fmt=slrGet(c); if(c->bad||fmt<1||fmt>14) return 0;
+    u8 lk[LK_N]={0}; for(int i=0;i<(fmt>=14?LK_N:fmt>=13?LK_N13:fmt>=12?LK_N12:fmt>=11?LK_N11:fmt>=10?LK_N10:fmt>=9?LK_N9:fmt>=8?LK_N8:fmt>=7?LK_N7:fmt>=6?LK_N6:fmt>=5?LK_N5:fmt>=4?LK_N4:fmt>=3?LK_N3:LK_BASE);i++) lk[i]=(u8)slrGet(c);
     int stg=AG_ADULT, agd=0; if(fmt>=2){ stg=slrGet(c); agd=slrGet(c); }
     if(c->bad||stg>=AG_N) return 0;
     int pa=pAsp, pl=pLtw; u8 pt[TR_N]; for(int i=0;i<TR_N;i++) pt[i]=pTr[i];
@@ -210,7 +210,7 @@ static int slDecPerson(SlR*c,int apply){
     for(int i=LK_NECK;i<=LK_EARWID;i++) if(lk[i]>=9) return 0;
     for(int i=LK_CHESTW;i<=LK_HORNTONE;i++) if(lk[i]>=9) return 0;
     for(int i=LK_TAILTAPER;i<=LK_WINGTONE;i++) if(lk[i]>=9) return 0;
-    for(int i=LK_JAWW;i<=LK_FOOTSZ;i++) if(lk[i]>=9) return 0;
+    for(int i=LK_JAWW;i<=LK_NECKW;i++) if(lk[i]>=9) return 0;
     if(lk[LK_CLAWS]>=4||lk[LK_ANTENNA]>=3||lk[LK_PATTERN]>=7||lk[LK_PATCOL]>=6) return 0;
     if(lk[LK_FEARS]>=5||lk[LK_MUZZLE]>=4||lk[LK_FTAIL]>=4) return 0;
     if(cu>1) return 0;
