@@ -157,14 +157,15 @@ static const u8 stLegs[AG_N]={0,1,2,3,2};   // (an elder is stooped: a block low
 static const u8 stSpd[AG_N]={50,80,95,100,70};       // walking speed in percent
 // allowed looks per stage: bit n set = option n may be picked. Shape: AVERAGE BROAD BIG-HEAD STUBBY SLIM ATHLETIC TALL. Ears: NONE SMALL BIG. Hair: CROP BOWL LONG BALD.
 // BIG HEAD (bit 2) is only on offer while the Konami code is switched on (see shapeMask).
-#define NSHAPE 23   // + CHUBBY PEAR LANKY STOCKY HUNCHED POTBELLY MUSCLE PETITE BARREL DIGITIGRADE (7..16), then the humanoid builds V-SHAPE CURVY RUNNER SOFT POWER LONG LEGS (17..22)
-enum { SH_AVG, SH_BROAD, SH_BIGHEAD, SH_STUBBY, SH_SLIM, SH_ATHL, SH_TALL, SH_CHUBBY, SH_PEAR, SH_LANKY, SH_STOCKY, SH_HUNCH, SH_POT, SH_MUSCLE, SH_PETITE, SH_BARREL, SH_DIGI, SH_VSHAPE, SH_CURVY, SH_RUNNER, SH_SOFT, SH_POWER, SH_LONGLEG };
-#define SHALL ((1u<<NSHAPE)-1)
+#define NSHAPE 29   // + CHUBBY PEAR LANKY STOCKY HUNCHED POTBELLY MUSCLE PETITE BARREL DIGITIGRADE (7..16), then the humanoid builds V-SHAPE CURVY RUNNER SOFT POWER LONG LEGS (17..22), then the kids' builds PUDGY TODDLER SPROUT SPORTY BELL STURDY (23..28)
+enum { SH_AVG, SH_BROAD, SH_BIGHEAD, SH_STUBBY, SH_SLIM, SH_ATHL, SH_TALL, SH_CHUBBY, SH_PEAR, SH_LANKY, SH_STOCKY, SH_HUNCH, SH_POT, SH_MUSCLE, SH_PETITE, SH_BARREL, SH_DIGI, SH_VSHAPE, SH_CURVY, SH_RUNNER, SH_SOFT, SH_POWER, SH_LONGLEG, SH_PUDGY, SH_TODDLER, SH_SPROUT, SH_SPORTY, SH_BELL, SH_STURDY };
+#define SHKID (SHB(SH_PUDGY)|SHB(SH_TODDLER)|SHB(SH_SPROUT)|SHB(SH_SPORTY)|SHB(SH_BELL)|SHB(SH_STURDY))   // the builds made for babies and children (a baby has no legs to lengthen: no SPROUT)
+#define SHALL (((1u<<NSHAPE)-1)&~SHKID)   // everything a teen, adult or elder may pick
 #define SHHUM (SHB(SH_VSHAPE)|SHB(SH_CURVY)|SHB(SH_SOFT)|SHB(SH_POWER)|SHB(SH_LONGLEG))   // the adult-frame builds: teens and up, and a baby or child only with the debug code
 #define SHB(n) (1u<<(n))
 static const u32 stMaskShape[AG_N]={   // every age gets a real choice of bodies (a baby has no legs to speak of, so no LANKY or DIGITIGRADE)
-    SHB(SH_BIGHEAD)|SHB(SH_STUBBY)|SHB(SH_CHUBBY)|SHB(SH_PEAR)|SHB(SH_STOCKY)|SHB(SH_POT)|SHB(SH_PETITE)|SHB(SH_BARREL)|SHB(SH_MUSCLE),
-    13|SHB(SH_CHUBBY)|SHB(SH_PEAR)|SHB(SH_LANKY)|SHB(SH_STOCKY)|SHB(SH_HUNCH)|SHB(SH_POT)|SHB(SH_MUSCLE)|SHB(SH_PETITE)|SHB(SH_BARREL)|SHB(SH_DIGI)|SHB(SH_RUNNER),
+    SHB(SH_BIGHEAD)|SHB(SH_STUBBY)|SHB(SH_CHUBBY)|SHB(SH_PEAR)|SHB(SH_STOCKY)|SHB(SH_POT)|SHB(SH_PETITE)|SHB(SH_BARREL)|SHB(SH_MUSCLE)|(SHKID&~SHB(SH_SPROUT)),
+    13|SHB(SH_CHUBBY)|SHB(SH_PEAR)|SHB(SH_LANKY)|SHB(SH_STOCKY)|SHB(SH_HUNCH)|SHB(SH_POT)|SHB(SH_MUSCLE)|SHB(SH_PETITE)|SHB(SH_BARREL)|SHB(SH_DIGI)|SHB(SH_RUNNER)|SHKID,
     SHALL&~SHB(SH_BROAD), SHALL, SHALL };
 static const u8 stMaskEars[AG_N]={3,7,7,7,7};
 #define NHAIR 9   // CROP BOWL LONG BALD + SPIKY AFRO FLAT TOP SIDE TAIL BUN
@@ -557,11 +558,13 @@ static int headK, handK, liftK, liftL, liftT, liftTn, armK, stanceK, bakeCapH=99
 static const signed char shpDraw[NSHAPE][4]={   // per body type, drawn: torso width, arm width, leg width (px added to the block's half width), leg lift (px per leg row)
     {0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},
     {2,1,1,0},{-1,-1,2,0},{-2,-1,-1,2},{3,2,2,0},{0,0,0,-1},{1,-1,-1,0},{2,3,1,0},{-2,-1,-1,-1},{1,0,0,0},{0,0,1,0},
-    {1,0,0,0},{1,0,1,0},{-1,-1,-1,1},{1,1,0,0},{2,2,1,0},{0,-1,0,3} };   // V-SHAPE CURVY RUNNER SOFT POWER LONG LEGS
+    {1,0,0,0},{1,0,1,0},{-1,-1,-1,1},{1,1,0,0},{2,2,1,0},{0,-1,0,3},
+    {3,1,1,0},{1,-1,0,-1},{-1,-1,-1,2},{1,1,0,0},{1,0,1,0},{2,2,2,0} };   // V-SHAPE CURVY RUNNER SOFT POWER LONG LEGS, then PUDGY TODDLER SPROUT SPORTY BELL STURDY
 // the humanoid builds also shape the body rows themselves (px added on top of the sliders): hip row, waist (every torso row), shoulder row, thigh, calf, chest
 static const signed char shpEx[NSHAPE][6]={
     {0},{0},{0},{0},{0},{0},{0},{0},{0},{0},{0},{0},{0},{0},{0},{0},{0},
-    {-1,0,3,0,0,0},{3,0,1,0,0,2},{0,-1,0,-1,0,-1},{1,2,0,1,0,1},{1,0,3,2,1,2},{0,0,0,-1,-1,0} };   // V-SHAPE CURVY RUNNER SOFT POWER LONG LEGS
+    {-1,0,3,0,0,0},{3,0,1,0,0,2},{0,-1,0,-1,0,-1},{1,2,0,1,0,1},{1,0,3,2,1,2},{0,0,0,-1,-1,0},
+    {1,1,0,0,0,1},{0},{0,-1,0,-1,0,0},{0,0,2,0,0,1},{3,0,-1,1,0,0},{0,1,1,1,1,0} };   // ... PUDGY TODDLER SPROUT SPORTY BELL STURDY
 static void projC(int u,int w,int yy,int*ox,int*oy){
     int a,b; rotUW(u,w,&a,&b); *ox=OXC+(a-b)*CA/2; *oy=OYC+(a+b)*CB/2-yy*CC-liftK*(yy<liftL?yy:liftL)-liftT*(yy<liftL?0:yy-liftL<liftTn?yy-liftL:liftTn)-(yy>=liftL+liftTn?neckK:0);
 }
@@ -672,7 +675,7 @@ static int custom;   // 1 once the block builder has placed or erased something 
 __attribute__((noinline)) static void bodyPlan(int*L,int*T,int*hs){   // legs showing, torso blocks showing, head scale: the body that fits this stage's box
     int sh=look[LK_SHAPE]; *hs=(sh==2)?2:1;
     int l=stLegs[stage], t=2, ht=2*(*hs);
-    if((sh==SH_BIGHEAD||sh==SH_STUBBY||sh==SH_STOCKY||sh==SH_PETITE)&&l>0) l--;   // BIG HEAD, STUBBY, STOCKY and PETITE: legs one block shorter
+    if((sh==SH_BIGHEAD||sh==SH_STUBBY||sh==SH_STOCKY||sh==SH_PETITE||sh==SH_TODDLER)&&l>0) l--;   // BIG HEAD, STUBBY, STOCKY and PETITE: legs one block shorter
     int room=BXH-(*hs==1);                        // a normal head keeps a layer free above it for the hair (else the hair eats its top row, eyes and all)
     while(l+t+ht>room&&l>0) l--;                          // too tall for the box: shorten the legs, then the torso
     if(l+t+ht>room) t=1;
@@ -926,7 +929,8 @@ static const signed char abShape[NSHAPE][AB_N]={   // ability changes (SPEED JUM
     {0,0,0,0,0},{-1,-1,1,0,2},{-1,0,0,2,0},{0,-1,2,0,1},{1,1,0,0,-1},{1,1,0,0,0},{2,1,-1,0,-1},   // AVERAGE BROAD BIG-HEAD STUBBY SLIM ATHLETIC TALL
     {-1,-1,1,0,1},{0,-1,1,1,0},{1,1,-1,0,-1},{-1,-1,2,0,2},{-1,0,1,1,0},                          // CHUBBY PEAR LANKY STOCKY HUNCHED
     {-1,-1,0,1,1},{0,0,2,1,1},{1,1,0,1,-1},{-1,0,1,0,2},{1,2,0,1,0},                             // POTBELLY MUSCLE PETITE BARREL DIGITIGRADE
-    {1,1,0,1,0},{0,0,0,2,1},{2,1,-1,0,1},{-1,0,0,1,1},{0,-1,2,0,1},{1,2,-1,1,0} };               // V-SHAPE CURVY RUNNER SOFT POWER LONG LEGS
+    {1,1,0,1,0},{0,0,0,2,1},{2,1,-1,0,1},{-1,0,0,1,1},{0,-1,2,0,1},{1,2,-1,1,0},
+    {-1,-1,0,1,1},{0,0,1,1,0},{1,1,-1,0,0},{1,1,0,0,1},{0,-1,1,1,0},{-1,0,1,0,2} };   // PUDGY TODDLER SPROUT SPORTY BELL STURDY
 #define PARTBIT(p,v) ((v)<3?(p)*3+(v):15)   // unlock bit of option v of part p (BLADES, the 4th hand, takes the one spare bit 15)
 static u16 pDna, pUnl;   // DNA points to spend; unlocked parts (bit = part*3 + option)
 static inline int isPart(int id){ return (id>=LK_TAIL&&id<=LK_BACK)||id==LK_CLAWS||id==LK_ANTENNA; }
@@ -3309,7 +3313,7 @@ enum { AC_PLAY, AC_MAP, AC_MENU, AC_RAND, AC_ADD, AC_FAM, AC_FNAME, AC_LNAME, AC
 enum { PS_ASP, PS_LTW, PS_SIGN };
 typedef struct { const char*lab,*sub; u8 kind,id,n; } Row;   // sub = second line of a button
 static const char* const tabNm[NTAB]={"BODY","FACE","HAIR","CLOTHES","PARTS","ASPIRE","DONE"};
-static const char* const shapeNm[NSHAPE]={"AVERAGE","BROAD","BIG HEAD","STUBBY","SLIM","ATHLETIC","TALL","CHUBBY","PEAR","LANKY","STOCKY","HUNCHED","POTBELLY","MUSCLE","PETITE","BARREL","DIGITIGRADE","V-SHAPE","CURVY","RUNNER","SOFT","POWER","LONG LEGS"};
+static const char* const shapeNm[NSHAPE]={"AVERAGE","BROAD","BIG HEAD","STUBBY","SLIM","ATHLETIC","TALL","CHUBBY","PEAR","LANKY","STOCKY","HUNCHED","POTBELLY","MUSCLE","PETITE","BARREL","DIGITIGRADE","V-SHAPE","CURVY","RUNNER","SOFT","POWER","LONG LEGS","PUDGY","TODDLER","SPROUT","SPORTY","BELL","STURDY"};
 static const char* const eyeNm[NEYE]={"SLEEPY","ROUND","HAPPY","WIDE","ANGRY","CUTE","CAT","DOT","LASHES"};
 static const char* const mouthNm[NMOUTH]={"FLAT","SMILE","OH","GRIN","SMIRK","FROWN","TONGUE","FANGS","KITTY"};
 static const char* const browNm[6]={"NONE","THIN","THICK","ANGRY","WORRIED","UNIBROW"};
