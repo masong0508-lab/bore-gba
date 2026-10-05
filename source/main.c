@@ -3912,7 +3912,7 @@ static int jbLab(int x,int y,const char*t){ return text(x,y,t,RGB(22,25,29),1)+7
 static void jbPaintHead(int fr){
     rect(JB_PX0+1,JB_PY0+1,JB_PX1-JB_PX0-2,JB_HY1-JB_PY0-1,JB_BODY); rect(JB_PX0+1,JB_PY0+1,JB_PX1-JB_PX0-2,15,JB_HEAD);
     // title bar: name, how many songs are checked, volume
-    text(9,8,"JUKEBOX",RGB(1,2,4),1); text(8,7,"JUKEBOX",WHITE,1); text(9,7,"JUKEBOX",WHITE,1);   // a little bold
+    text(9,8,"TOUKEBOX",RGB(1,2,4),1); text(8,7,"TOUKEBOX",WHITE,1); text(9,7,"TOUKEBOX",WHITE,1);   // a little bold
     int x=numAt(62,8,jbCount(),JB_DIM); x=numAt(text(x,8," OF ",JB_DIM,1),8,jbN,JB_DIM); text(x,8," CHECKED",JB_DIM,1);
     int v=xo[XO_MUSV]; jbSpeaker(148,8,v?WHITE:JB_DIM);
     for(int i=0;i<10;i++){ int h=2+i*6/9; rect(160+i*7,15-h,5,h,i<v?JB_BAR:RGB(6,8,13)); }
@@ -4087,7 +4087,7 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "story.h"          // STORY MODE: chapters with goals (NEW GAME > STORY MODE)
 // ---------- main menu (The Sims 3 look): a glossy panel over your town, lit for the time of day of your life's clock ----------
 #define MM_N 7
-static const char* const mmName[MM_N]={"Play","Create a Bore","Build Mode","Jukebox","Room Slots","Options","?"};
+static const char* const mmName[MM_N]={"Play","Create a Bore","Build Mode","Toukebox","Room Slots","Options","?"};
 static const char* const mmDesc[MM_N]={"YOUR LIFE  YOUR TOWNS  OR A NEW GAME","DESIGN YOUR OWN VOXEL CHARACTER","BUILD WALLS AND LAY FLOORS AND WALLPAPER","LISTEN  PICK  OR SHUFFLE THE SONGS","SAVE AND LOAD ROOMS  PEOPLE AND LIVES","SPEED  GAMEPLAY  SOUND  BUTTONS AND MORE","HOW TO PLAY  LEARN THE CONTROLS"};
 static u8 mmTod, mmAcid; static s8 mmLot=-1;   // the time of day, and the acid rainbow in place of the town (picked on each visit)
 static int mmPickTod(void){   // 5-8 dawn, 8-17 day, 17-20 dusk, else night (no life yet: any)
@@ -4127,7 +4127,7 @@ static void s2pill(int x,int y,int w,const char*s){ s2rr(x,y,w,11,RGB(10,20,30))
 static void howToPlay(void){
     static const signed char bob[8]={0,1,2,2,1,0,-1,-1};
     static const char* const tn[7]={"PLAY","MAKE","BUILD","MUSIC","SLOTS","OPTS","TOWN"};
-    static const char* const tt[7]={"PLAYING","CREATE A BORE","BUILD ROOMS","JUKEBOX","ROOM SLOTS","OPTIONS","NEIGHBORHOOD"};
+    static const char* const tt[7]={"PLAYING","CREATE A BORE","BUILD ROOMS","TOUKEBOX","ROOM SLOTS","OPTIONS","NEIGHBORHOOD"};
     const char* const* ln[7]={lifeHelp,creatureHelp,mapHelp,jbHelp,slotHelp,optHelp,nbHelp};
     static const unsigned char nn[7]={17,15,14,15,13,12,16};
     enum { VIS=13, LY=34, LH=104 };
