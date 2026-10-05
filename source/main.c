@@ -501,10 +501,10 @@ __attribute__((noinline)) static void drawDeco(int sx,int sy,u16 code,int face,i
     int sh=0, sv=0, kx=64, ky=64, br=0, gl=0, no=0, ch=0, bsh=0, nsh=0;   // shift (px), scale (64 = 1x), details
     if(decLook){
         // every notch of a face slider moves the art by a pixel, or grows its footprint by two (per voxel size): no two notches look the same
-        if(eye){ int e=slideEffS(look[LK_EYESZ])*sz, gw; e=e>0?2*e:e<0?e-sz:0; gw=wp+e; int gh=hp+e; if(gw<1) gw=1; if(gh<1) gh=1; kx=64*gw/wp; ky=64*gh/hp;
+        if(eye){ int e=(slideEffS(look[LK_EYESZ])+(stage==AG_BABY?1:0))*sz, gw; e=e>0?2*e:e<0?e-sz:0; gw=wp+e; int gh=hp+e; if(gw<1) gw=1; if(gh<1) gh=1; kx=64*gw/wp; ky=64*gh/hp;
                  sh=slideEff(look[LK_EYESP])*sz; if(fl) sh=-sh; sv=slideEff(look[LK_EYEHT])*sz;
                  br=look[LK_BROW]; gl=look[LK_GLASS]; bsh=slideEff(look[LK_BROWHT])*sz; }
-        else { int gw=wp+slideEffS(look[LK_MOUTHW])*sz*3; if(gw<1) gw=1; kx=64*gw/wp; sv=slideEff(look[LK_MOUTHHT])*sz; no=look[LK_NOSE]; ch=look[LK_CHEEK]; nsh=slideEff(look[LK_NOSEHT])*sz; }
+        else { int gw=wp+(slideEffS(look[LK_MOUTHW])-(stage==AG_BABY?1:0))*sz*3; if(gw<1) gw=1; kx=64*gw/wp; sv=slideEff(look[LK_MOUTHHT])*sz; no=look[LK_NOSE]; ch=look[LK_CHEEK]; nsh=slideEff(look[LK_NOSEHT])*sz; }
     }
     int M=decLook?(eye?4:7):0, pc=wp/2, qc=hp/2;
     int lc0=(ci?-1:0)-M, lr0=(cj?-1:0)-M, lc1=CA-1+M, lr1=CC-2+M;
@@ -859,6 +859,7 @@ static void clipCustom(void){   // hand-built blocks outside the stage's box are
 static void ageSave(void);
 static void setStage(int n){   // new stage: the look is fitted to it; a look-built creature is rebuilt, hand-built blocks stay (cut to size)
     stage=(u8)n; ageDays=0; fixLook(); if(size>BXS) size=BXS;
+    if(n==AG_BABY&&!look[LK_CHEEK]) look[LK_CHEEK]=1;   // a new baby starts with rosy cheeks (pick NONE again if you like)
     if(custom) clipCustom(); else buildLook();
     setColors(); ageSave();
 }
@@ -1196,8 +1197,8 @@ IWRAM_THUMB static void drawScene(int blink){
     int shA=0, shL=0;   // the body type's extra width for the arms and legs (the torso's goes into wk)
     if(decLook){ int L,T,hs; bodyPlan(&L,&T,&hs); liftL=L; const signed char*sd=shpDraw[look[LK_SHAPE]<NSHAPE?look[LK_SHAPE]:0];
         liftK=slideEffS(look[LK_HEIGHT])+((look[LK_SHAPE]==6&&stage>=AG_TEEN)?3:0)+sd[3]; if(liftK<-4) liftK=-4; if(liftK>bxLift) liftK=bxLift;   // TALL: longer legs (drawn taller, so the hair keeps its room)
-        wk=slideEffS(look[LK_WEIGHT])+sd[0]; shA=sd[1]+slideEffS(look[LK_ARMW])/2; shL=sd[2]+slideEffS(look[LK_LEGW])/2; hyB=L+T;   // LEG WIDTH: half a pixel a notch (-2..+2), on top of the body type's legs
-        headK=slideEffS(look[LK_HEADSZ]); handK=slideEffS(look[LK_HANDFT]);   // HEAD SIZE: px added to the head's half width; HAND FOOT SIZE: the same for the hands and the feet
+        wk=slideEffS(look[LK_WEIGHT])+sd[0]-(stage==AG_BABY?1:0); shA=sd[1]+slideEffS(look[LK_ARMW])/2; shL=sd[2]+slideEffS(look[LK_LEGW])/2; hyB=L+T;   // LEG WIDTH: half a pixel a notch (-2..+2), on top of the body type's legs
+        headK=slideEffS(look[LK_HEADSZ])+(stage==AG_BABY?3:stage==AG_CHILD?1:0); handK=slideEffS(look[LK_HANDFT]);   // HEAD SIZE: px added to the head's half width; HAND FOOT SIZE: the same for the hands and the feet
         liftTn=T; liftT=slideEffS(look[LK_TORSO]); if(liftT<-4) liftT=-4; if(bxBig&&liftT>0) liftT+=liftT/2; armK=slideEff(look[LK_ARMS]); stanceK=slideEff(look[LK_STANCE]);   // TORSO px per torso row, ARMS and STANCE spread
         neckK=slideEffS(look[LK_NECK]); if(neckK<-2) neckK=-2; if(bxBig&&neckK>0) neckK+=neckK/2; exHip=slideEffS(look[LK_HIPW]); exWst=slideEffS(look[LK_WAISTW]); exSho=slideEffS(look[LK_SHOULW]); exThi=slideEffS(look[LK_THIGHW]); exCal=slideEffS(look[LK_CALFW]);
         exJaw=slideEffS(look[LK_JAWW]); exHnd=slideEffS(look[LK_HANDSZ]); exFt=slideEffS(look[LK_FOOTSZ]); exChe=slideEffS(look[LK_CHESTW]); exBel=slideEffS(look[LK_BELLYW]); exUAr=slideEffS(look[LK_UARMW]); exFAr=slideEffS(look[LK_FARMW]);   // CHEST, BELLY (torso rows), UPPER ARM, FOREARM width
