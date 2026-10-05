@@ -42,6 +42,7 @@ static void bkHead(int i,int kind,int lot,u16 key,const char*last,const char*fir
     for(int k=0;k<HH_NM;k++){ svWr(o+22+k,k<HH_NM-1?first[k]:0); if(!first[k]) break; }
     svWr(o+34,stage); svWr(o+35,LK_N); svWr(o,'H'); svWr(o+1,'B');   // byte 35: how many looks the record holds (older records have another value there: LK_N10)
 }
+static int bkNl(int v){ return v==LK_N?LK_N:v==LK_N11?LK_N11:LK_N10; }   // looks a bank record holds, from its byte 35
 static int bkCheck(int i){ u32 o=bkOff(i); if(!bkOk(i)) return 0; int n=svRd(o+6)|svRd(o+7)<<8; if(n>BK_SZ-BK_HDR) return 0;
     u16 s=0; for(int k=0;k<n;k++) s=(u16)(s+svRd(o+BK_HDR+k)); return s==(u16)(svRd(o+8)|svRd(o+9)<<8); }
 static int bkPutMine(int i,u16 key,int lot){   // the household you play (kind 1) into record i. 1 = done
@@ -73,7 +74,7 @@ static void hhAfterSwitch(void){   // a different household is the one you play:
 static int bkTake(int i){   // record i becomes the household you play (it leaves the bank). 1 = done
     if(!bkCheck(i)) return 0;
     u32 p=bkOff(i)+BK_HDR; int kind=svRd(bkOff(i)+2);
-    { int nl=svRd(bkOff(i)+35)==LK_N?LK_N:LK_N10; for(int k=0;k<LK_N;k++) look[k]=k<nl?svRd(p++):0; }
+    { int nl=bkNl(svRd(bkOff(i)+35)); for(int k=0;k<LK_N;k++) look[k]=k<nl?svRd(p++):0; }
     if(kind==1){
         for(int k=0;k<5;k++) SRAM_BASE[AGE_OFF+k]=svRd(p++);
         for(int k=0;k<PERS_LEN;k++) SRAM_BASE[PERS_OFF+k]=svRd(p++);
@@ -128,7 +129,7 @@ static int nbVisitor(HhSim*s,char*from,int skip){   // a Sim of another househol
 static void nbSimFrom(int li,HhSim*s,char*from){   // a Sim of the household on lot li (someone lives there) into s; the lot's name into from
     { int k=0; for(;nbT.lot[li].name[k]&&k<11;k++) from[k]=nbT.lot[li].name[k]; from[k]=0; }
     int b=bkFind(nbKey(&nbT),li);
-    if(b>=0){ u32 o=bkOff(b), p=o+BK_HDR; { int nl=svRd(o+35)==LK_N?LK_N:LK_N10; for(int k=0;k<LK_N;k++) s->look[k]=k<nl?svRd(p+k):0; }
+    if(b>=0){ u32 o=bkOff(b), p=o+BK_HDR; { int nl=bkNl(svRd(o+35)); for(int k=0;k<LK_N;k++) s->look[k]=k<nl?svRd(p+k):0; }
         s->stage=svRd(o+34); if(s->stage>=AG_N) s->stage=AG_ADULT; s->asp=AS_FORTUNE; for(int k=0;k<TR_N;k++) s->tr[k]=5;
         bkName(b,1,s->name); bkName(b,0,s->last); return; }
     const HhFam*F=&hhFams[nbFamOf(&nbT,li)]; hhNew(s,&F->m[rnd8()%F->n]); famLast(F,s->last);
