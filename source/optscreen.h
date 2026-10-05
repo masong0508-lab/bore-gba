@@ -28,6 +28,7 @@ static const char* const lbNeed[5]={"OFF","SLOW","NORMAL","FAST","BRUTAL"}, *con
     *const lbCombo[4]={"1.5 SEC","2.5 SEC","4 SEC","6 SEC"}, *const lbSpeed[4]={"80 %","100 %","125 %","150 %"},
     *const lbDays[10]={"1 DAY","2 DAYS","3 DAYS","5 DAYS","7 DAYS","10 DAYS","14 DAYS","21 DAYS","30 DAYS","60 DAYS"},
     *const lbDaysA[11]={"1 DAY","2 DAYS","3 DAYS","5 DAYS","7 DAYS","10 DAYS","14 DAYS","21 DAYS","30 DAYS","60 DAYS","FOREVER"}, *const lbAging[4]={"OFF","SLOW","NORMAL","FAST"}, *const lbHurt[3]={"NORMAL","GENTLE","NO DEATH"}, *const lbBubble[3]={"OFF","URGENT","ALL"}, *const lbShown[2]={"HIDDEN","SHOWN"};
+static const char* const lbTut[3]={"OFFER","DONE","REPLAY"};
 static const char* const lbPct[11]={"0 %","10 %","20 %","30 %","40 %","50 %","60 %","70 %","80 %","90 %","100 %"};   // the volume sliders (rows made with SR)
 static const char* const lbBtn[4]={"NORMAL","A B SWAPPED","L R SWAPPED","BOTH SWAPPED"}, *const lbRep[3]={"SLOW","NORMAL","FAST"},
     *const lbClock[3]={"24 HOUR","12 HOUR","HIDDEN"}, *const lbToast[3]={"SHORT","NORMAL","LONG"},
@@ -90,6 +91,7 @@ static const OptRow pgTimeAges[]={
  XR(XO_AGET,"TEEN LASTS",lbDays,"GAME DAYS AS A TEEN","THE CAREER STARTS AT THIS STAGE"),
  XR(XO_AGEA,"ADULT LASTS",lbDaysA,"GAME DAYS AS AN ADULT BEFORE BECOMING AN","ELDER  FOREVER NEVER GROWS OLD"),
  XR(XO_PIPEAGE,"PIPE AGE",lbPipe,"WHO MAY USE THE WATER PIPE  LATE TEENS IS","THE LAST QUARTER OF THE TEEN YEARS"),
+ XR(XO_TUTOR,"TUTORIAL",lbTut,"OFFER ASKS ONCE AT YOUR FIRST PLAY  DONE IS QUIET","REPLAY STARTS THE LESSONS WHEN YOU PLAY"),
 };
 static const OptRow pgTimeTimers[]={
  XR(XO_COMBO,"COMBO WINDOW",lbCombo,"TIME YOU HAVE TO LAND THE NEXT TRICK","BEFORE THE CHAIN IS BANKED"),
