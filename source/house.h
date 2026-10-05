@@ -614,9 +614,32 @@ static void fightHit(int a,int b){
     if(m<0){ fightHurt(dmg); return; }
     HhSim*t=&hhM[m]; if(t->hp>dmg){ t->hp=(u8)(t->hp-dmg);
         if(a==hhPUid&&lnoteT<=0){ char*e=fkB; if(crit) e=simCat(e,"CRIT "); e=simCat(e,fkMove(a,"PUNCH")); *e++=' '; simCatN(e,dmg); lnote=fkB; lnoteT=45; } }   // you see how hard it landed
-    else { t->hp=30; t->act=HA_SOC; t->t=600; t->bub=IC_SKULL; t->bubT=120; hhNote(t," IS KNOCKED OUT"); }
+    else { t->hp=30; t->act=HA_SOC; t->t=600; t->bub=IC_SKULL; t->bubT=120; hhNote(t," IS KNOCKED OUT"); if(a==hhPUid) voxPlay(V_win_the_fight); }
 }
 // a does interaction i to b. Returns 1 if it was accepted (mean ones: 1 = it landed)
+// The voice of the Sim you control in a social (you are a or b). One clip at a time; the newest wins.
+static void voxSoc(int a,int b,int i,int ok){
+    int ya=(a==hhPUid), yb=(b==hhPUid); if(!ya&&!yb) return;
+    const SocAct*S=&socT[i]; int rom=((relF[a][b]|relF[b][a])&(RF_CRUSH|RF_LOVE|RF_STEADY))!=0, r=rnd8()&1;
+    if(S->fl&SA_MEAN){   // a fight: you start it, or you are the one it is aimed at
+        if(ya) voxPlay((i==SC_ARGUE||i==SC_PUNCH)?V_lets_fight:V_amgry); else voxPlay(r?V_angered:V_amgry);
+        return; }
+    switch(i){
+        case SC_TALK: case SC_COMPL: case SC_SORRY: voxPlay(ok?V_agree:(r?V_not_agree:V_disagree)); break;
+        case SC_HIGH5: voxPlay(ok?(r?V_yeha:V_yahoo):V_nah); break;
+        case SC_TRICK: voxPlay(ok?V_yahoo:V_nah); break;
+        case SC_HUG: if(!ok) voxPlay(V_nah); break;
+        case SC_JOKE:
+            if(rom&&ok) voxPlay(r?V_naughty_joke:V_naughty_jokw_2);                        // a joke between two who fancy each other
+            else if(ya) voxPlay(ok?V_joke_good:V_joke_not_land);                           // you tell it
+            else voxPlay(ok?(r?V_laughing:V_laughing_2):V_laughing_small_or_not);          // you hear it
+            break;
+        case SC_FLIRT: voxPlay(ok?(ya?V_flirt:V_flirt_2):V_nah); break;
+        case SC_KISS: voxPlay(ok?V_flirt_2:(ya?V_burst_crying:V_nah)); break;
+        case SC_STEADY: voxPlay(ok?V_serenade_good:V_serenade_bad); break;              // BE MINE: a serenade, good or bad
+        default: break;   // PUFF PUFF PASS: the pipe sounds come from voxEvent
+    }
+}
 static int socDo(int a,int b,int i){
     const SocAct*S=&socT[i]; int ok;
     if(S->fl&SA_MEAN) ok=1;
@@ -659,6 +682,7 @@ static int socDo(int a,int b,int i){
     }
     relMilestones(a,b); relMilestones(b,a);
     socNote(a,b,i,ok);
+    voxSoc(a,b,i,ok);
     return ok;
 }
 static void relTick(void){   // every game hour (900 steps): daily scores drift one step back towards lifetime

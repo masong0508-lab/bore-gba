@@ -444,6 +444,7 @@ static void simDread(int s){   // the fear in slot s came true
 }
 // something happened (v = how much of it: tricks in a combo, a combo's points, cash, skill points): pay a want, or let a fear come true
 static void simEventV(int ev,int v){
+    voxEvent(ev,v);   // the voice of the Sim you control (main.c)
     if(!simWishes()) return;
     for(int s=0;s<SIM_WS;s++) if(simW[s]>=0&&simWants[simW[s]].ev==ev&&v>=simWP[s]) simMeet(s);
     for(int s=0;s<SIM_FS;s++) if(simF[s]>=0&&simFears[simF[s]].ev==ev) simDread(s);
@@ -620,7 +621,7 @@ static void simStateTick(void){
 // ---- using furniture ----
 // kind: 3 bed, 4 shower, 5 sofa (the lnear values). Returns 1 if the skater started.
 static int simBegin(int kind){
-    if(kind==3){ if(sNrg>=95){ lnote="NOT TIRED"; lnoteT=40; return 0; } simAct=1; simActT=900; lnote="ZZZ"; lnoteT=40; }
+    if(kind==3){ if(sNrg>=95){ lnote="NOT TIRED"; lnoteT=40; return 0; } simAct=1; simActT=900; lnote="ZZZ"; lnoteT=40; voxPlay(V_snoore); }
     else if(kind==4){ if(sHyg>=95){ lnote="ALREADY CLEAN"; lnoteT=40; return 0; } simAct=2; simActT=420; lnote="SPLASH"; lnoteT=40; }
     else if(kind==5){ if(sCom>=95){ lnote="COMFY ALREADY"; lnoteT=40; return 0; } simAct=3; simActT=480; lnote="AHH SOFA"; lnoteT=40; }
     else return 0;
@@ -631,7 +632,7 @@ static void simEnd(void){
         moodEvent(M_SLEEP); simEvent(SE_SLEEP);
         if(simActN>=SIM_GOOD_SLEEP){   // a real night's sleep: a fresh set of wants and fears, like waking up in The Sims
             if(sNrg>=90&&simNights<255) simNights++;
-            simReroll(); simQueue("NEW WANTS AND FEARS");
+            simReroll(); simQueue("NEW WANTS AND FEARS"); voxPlay(V_reading_or_thinking);
         }
     }
     else if(simAct==2){ moodEvent(M_SHOWER); simEvent(SE_SHOWER); }

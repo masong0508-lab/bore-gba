@@ -1342,6 +1342,8 @@ static int lmaxz, lplay, ldead, lbumpCd;   // peak height this jump, air sound p
 static int lhp=HP_MAX;
 static void hpHeal(int n){ lhp+=n; if(lhp>HP_MAX) lhp=HP_MAX; }
 static void hpLose(int n){ lhp-=n; if(lhp<0) lhp=0; if(xo[XO_HURT]==2&&lhp<1) lhp=1; }   // HURT option NO DEATH: a fall can never empty it
+#include "voices.h"   // the voice clips of the Sim you control (tools/encode_voices.py)
+static void voxPlay(int v); static void voxNag(int v); static void voxChain(int a,int b,int c); static void voxEvent(int ev,int v);   // (defined after sfxPlay)
 #include "mood.h"   // FUN + HAPPY meters: moodEvent(), moodTick(), moodTop(), moodPts()
 #include "sims.h"   // life-sim layer: energy/hygiene/comfort, wants and fears, aspiration. simsTick(), simBegin(), simsHud()
 
@@ -1369,9 +1371,10 @@ __asm__(".pushsection .rodata\n.balign 4\n"
  ".global sfx_tick\nsfx_tick:\n.incbin \"source/sfx/tick.adp\"\n.balign 4\n"
  ".popsection\n");
 extern const u8 sfx_hit[],sfx_gasp[],sfx_scream[],sfx_cry[],sfx_groan[],sfx_instant[],sfx_tick[];
-enum { SFX_BONK, SFX_HIT, SFX_GASP, SFX_SCREAM, SFX_CRY, SFX_GROAN, SFX_NEARLY, SFX_DEATH, SFX_INSTANT, SFX_TICK, SFX_N };
+enum { SFX_BONK, SFX_HIT, SFX_GASP, SFX_SCREAM, SFX_CRY, SFX_GROAN, SFX_NEARLY, SFX_DEATH, SFX_INSTANT, SFX_TICK, SFX_VOICE0, SFX_N=SFX_VOICE0+VOICE_N };
+#define VS(v) (SFX_VOICE0+(v))   // a voice clip's sound id (V_xxx from voices.h)
 // effects that share a source file share one blob in the ROM
-static const u8* const sfxTab[SFX_N]={ sfx_hit,sfx_hit,sfx_gasp,sfx_scream,sfx_cry,sfx_groan,sfx_scream,sfx_scream,sfx_instant,sfx_tick };
+static const u8* const sfxTab[SFX_N]={ sfx_hit,sfx_hit,sfx_gasp,sfx_scream,sfx_cry,sfx_groan,sfx_scream,sfx_scream,sfx_instant,sfx_tick, VOICE_TAB };
 static const u16 stepT[89]={7,8,9,10,11,12,13,14,16,17,19,21,23,25,28,31,34,37,41,45,50,55,60,66,73,80,88,97,107,118,130,143,157,173,190,209,230,253,279,307,337,371,408,449,494,544,598,658,724,796,876,963,1060,1166,1282,1411,1552,1707,1878,2066,2272,2499,2749,3024,3327,3660,4026,4428,4871,5358,5894,6484,7132,7845,8630,9493,10442,11487,12635,13899,15289,16818,18500,20350,22385,24623,27086,29794,32767};
 static const signed char idxT[8]={-1,-1,-1,-1,2,4,6,8};
 // The effect voice: ssrc/sn = the clip's nibbles and sample count, sPos + sFr/65536 = play position in clip samples, sRd = samples decoded so far,
@@ -1381,7 +1384,7 @@ static volatile int sfxLoop, sfxFade=256, sfxFadeT=256;   // the effect voice ca
 static int gMusic;   // game music is switched on right now (an effect now plays over it instead of pausing it)
 static volatile int mOn, mPlay;   // mOn: the mixer interrupts and sound DMA are running; mPlay: a song is part of the mix
 static void audStart(void); static void audStop(void);
-static void sfxStop(void){ if(sfxLoop&&sfxV){ sfxFadeT=0; return; } sfxV=0; sfxOn=0; if(mOn&&!mPlay) audStop(); }   // (the loading tick-tock is never cut: it fades out and ends itself)
+static void sfxStop(void){ vxQn=0; if(sfxLoop&&sfxV){ sfxFadeT=0; return; } sfxV=0; sfxOn=0; if(mOn&&!mPlay) audStop(); }   // (the loading tick-tock is never cut: it fades out and ends itself)
 // ---------- tracker songs: note-based XM player (tools/xm2gba.py converts the .xm songs listed in songs.h) ----------
 // A song is stored as notes (pattern/row/channel events, each with its own volume) plus small instrument samples (8-bit,
 // band-limited and down-sampled in the converter). A 16-voice stereo mixer (each note has a pan bus, see tools/xm2gba.py) with linear interpolation renders 304 samples per frame
@@ -1818,6 +1821,7 @@ static int titleScreen(void){
 
 static void sfxPlay(int id){   // a new sound replaces whatever effect is playing; the song (if any) keeps going under it
     if(!sSnd){ sfxStop(); return; }
+    vxQn=0;   // (a new sound drops the clips waiting behind the old one)
     const u8*b=sfxTab[id];
     sfxV=0;   // (the interrupt does not touch the voice while sfxV is 0)
     ssrc=b+4; sn=*(const u32*)b; sPos=0; sFr=0; sRd=0; spred=0; sidx=0; sS0=sS1=0;
@@ -1826,10 +1830,33 @@ static void sfxPlay(int id){   // a new sound replaces whatever effect is playin
     if(!mOn) audStart();
 }
 static void sfxTick(void){   // call once per frame: switch the mixer off once the last effect is over and no song plays
+    if(!sfxV&&vxQn>0){ int v=vxQ[0], n=vxQn-1; vxQ[0]=vxQ[1]; voxPlay(v); vxQn=n; }   // the next clip of a chain (lighter, inhale, cough)
     if(sfxOn&&!sfxV){ sfxOn=0; if(mOn&&!mPlay) audStop(); }
 }
 static u32 lrng=12345;
 static int rnd8(void){ lrng=lrng*1664525u+1013904223u; return (int)(lrng>>24); }
+// ---- voices: the Sim you control talks. voxPlay: always; voxNag: only when nothing else is sounding; voxChain: three clips one after the other ----
+static void voxPlay(int v){ sfxPlay(VS(v)); }
+static void voxNag(int v){ if(!sfxV&&!vxQn) voxPlay(v); }
+static void voxChain(int a,int b,int c){ voxPlay(a); vxQ[0]=(signed char)b; vxQ[1]=(signed char)c; vxQn=2; }
+static void voxEvent(int ev,int v){   // sims.h calls this for every life event (simEventV); the socials speak from house.h (voxSoc)
+    switch(ev){
+        case SE_SHIFT: voxPlay(V_finished); break;                                   // FINISH A SHIFT
+        case SE_ACE: case SE_PROMO: case SE_GROWUP: voxPlay(V_yahoo); break;        // ace a shift, get promoted, grow up
+        case SE_SKILL: voxPlay(V_yeha); break;                                       // skill up
+        case SE_COMBO: if(v>=5) voxPlay(V_yeha); break;                              // a 5 trick combo
+        case SE_ACCIDENT: voxPlay(V_peed_self); break;
+        case SE_FAINT: voxPlay(V_death_of_hunger); break;                            // fainted from hunger
+        case SE_PASSOUT: voxPlay(V_snoore); break;
+        case SE_SAD: voxNag(V_cry); break;
+        case SE_DEMOTE: case SE_BROKE: case SE_NOPAY: voxPlay(V_cry_after_bad_advent_2); break;
+        case SE_BORED: voxNag(V_hey_i_need_something_h); break;
+        case SE_LONELY: voxNag(V_needs_something); break;
+        case SE_STINKY: voxNag(V_sniiize_2); break;
+        case SE_PIPE: voxChain(V_lighter_spark,V_spark_inhale,(rnd8()&1)?V_after_smoke_cough:V_after_smoke_cough_2); break;   // spark, inhale, cough
+        default: break;
+    }
+}
 
 // Getting hurt. sev grows with fall height, speed and a bad landing. kind: 0 clean landing, 1 bail, 2 wall hit.
 static void die(int snd){ moodEvent(M_DIE); ldead=1; lstun=2; lsp=0; lgrind=0; sfxPlay(snd); lnote="YOU DIED"; lnoteT=0x7fff; }
@@ -1838,22 +1865,24 @@ static void hurt(int sev,int kind){
     if(xo[XO_HURT]==1) sev/=2; else if(xo[XO_HURT]==2&&sev>=30) sev=29;   // HURT option: GENTLE halves it, NO DEATH keeps a fall survivable
     if(sev>=30) moodEvent(M_HURT_BIG); else if(sev>=18) moodEvent(M_HURT); else if(kind==2) moodEvent(M_BUMP);   // (40+ is death: die() logs it)
     hpLose(sev>=40?HP_MAX:kind==2?sev:sev*3/2);                                                     // HEALTH: a wall hit costs sev, a fall or bail 1.5 x sev
-    if(sev>=40) die(SFX_INSTANT);                                                                   // instant death
+    if(sev>=40) die(VS(V_die_of_shock));                                                                   // instant death
     else if(sev>=30){                                                                                // life or death
         if(rnd8()<128){ if(lhp>15) lhp=15; lstun=240; lsp=0; lgrind=0; sfxPlay(SFX_NEARLY); lnote="CLOSE CALL"; lnoteT=120; }
         else die(SFX_DEATH);
     }
     else if(sev>=18){ lstun=150; lsp=0; lgrind=0; sfxPlay(SFX_GROAN); lnote="OW"; lnoteT=90; }     // groaning, struggling up
-    else if(kind==1){ lstun=60; sfxPlay(SFX_CRY); }                                                  // minor bail: crying
+    else if(kind==1){ lstun=60; voxPlay((rnd8()&1)?V_cry:V_cry_after_bad_event); }                                                  // minor bail: crying
     else if(kind==2){ lstun=20; sfxPlay(SFX_HIT); lnote="OOF"; lnoteT=30; }                          // grunts and hits
     if(!ldead&&lhp<=0) die(SFX_DEATH);                                                              // the meter ran out (hits add up)
 }
 // A punch lands on the one you control (house.h calls this). Fights never kill: at 0 HP you are knocked out for 4 s and get up at 25.
 static void fightHurt(int dmg){
     if(xo[XO_HURT]==1) dmg/=2;                                              // GENTLE
+    static u8 vxLosing; if(lhp>=60) vxLosing=0;
     lhp-=dmg; lsp=0; lgrind=0; sfxPlay(SFX_HIT);
-    if(lhp<=0){ lhp=25; lstun=240; sfxPlay(SFX_GROAN); lnote="KNOCKED OUT"; lnoteT=120; moodEvent(M_HURT_BIG); }
-    else { static char fhB[16]; char*e=simCat(fhB,dmg>=30?"OUCH ":"OW "); *e++='-'; simCatN(e,dmg); if(lstun<30) lstun=30; lnote=fhB; lnoteT=40; }   // and how much
+    if(lhp<=0){ lhp=25; lstun=240; sfxPlay(SFX_GROAN); voxPlay(V_lost_the_fight); lnote="KNOCKED OUT"; lnoteT=120; moodEvent(M_HURT_BIG); }
+    else { if(lhp<35&&!vxLosing){ vxLosing=1; voxPlay(V_losing_the_fight); }   // still on your feet, but losing
+        static char fhB[16]; char*e=simCat(fhB,dmg>=30?"OUCH ":"OW "); *e++='-'; simCatN(e,dmg); if(lstun<30) lstun=30; lnote=fhB; lnoteT=40; }   // and how much
 }
 
 #include "ramps.h"
@@ -2395,7 +2424,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
     if(air){
         int zz=(int)(lz>>8); if(zz>lmaxz) lmaxz=zz;
         if(!lplay&&lvz<0){ int hi=lmaxz-(int)(fh>>8);
-            if(hi>=34){ sfxPlay(SFX_SCREAM); lplay=1; }                 // falling from way up
+            if(hi>=34){ voxPlay(V_shriek); lplay=1; }                 // falling from way up
             else if(!feelClean()&&hi>=10){ sfxPlay(SFX_GASP); lplay=1; }   // landing is going wrong
         }
     }
@@ -2427,6 +2456,8 @@ static void lifeStep(u16 k,u16 pr,int fr){
           if(we&&lfr%we==0&&lbl<100) lbl++; }
         if(lhp<HP_MAX&&lfood>=25&&lstun<=0&&lfr%HP_REGEN==0) lhp++;   // HEALTH creeps back while you are fed and on your feet
         if(lfood==0&&lfr%300==0){ lfood=15; lstun=120; lsp=0; lgrind=0; sfxPlay(SFX_GROAN); lnote="FAINTED FROM HUNGER"; lnoteT=90; moodEvent(M_FAINT); }
+        { static u8 vxH, vxP; if(lfood<SIM_LOW){ if(!vxH){ vxH=1; voxNag(V_im_hungryrururyry); } } else if(lfood>=40) vxH=0;   // the hunger and the bladder speak up once each time they run low
+          if(lbl>=80){ if(!vxP){ vxP=1; voxNag(V_need_to_pee); } } else if(lbl<50) vxP=0; }
         if(lbl>=100){ lbl=0; lstun=90; lsp=0; lgrind=0; lscore=lscore>100?lscore-100:0; sfxPlay(SFX_CRY); lnote="ACCIDENT"; lnoteT=90; moodEvent(M_ACCIDENT); }
         int nf=0, nt=0, nb=0, nh=0, nc=0, np=0, nq=0;
         for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++){ int tx=(lfx>>8)+dx, ty=(lfy>>8)+dy; if(tx<0||ty<0||tx>=MW||ty>=MH) continue;

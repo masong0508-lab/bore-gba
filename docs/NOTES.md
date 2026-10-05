@@ -711,3 +711,9 @@ a fresh pre-made family or NEW HOUSEHOLD HERE end the story (`stOff`).
 
 ## THE TICKING BOMB (El B.D'ees)
 Latin house rework of The Dipper Man - The Ticking Bomb, built by tools/make_tickingbomb_rework.py (124 BPM). Keeps the offbeat riff, the A/D bass and the G-E-G stinger (a semitone down). Breakbeat under a house kick, congas and timbales, a low whine, and an 12-bar half-time downgroove after the fuse, then the blast back into house.
+
+## VOICES
+The Sim you control talks. 43 clips (tools/voices_src/*.wav, cleaned and trimmed) are encoded by `python3 tools/encode_voices.py` into source/sfx/v_*.adp (4-bit ADPCM, 6554 Hz, 296 KB)
+and source/voices.h (X-macro list, ROM blobs, V_<name> ids). They play on the one effect voice, so the newest sound wins. `voxPlay(V_x)` always plays, `voxNag(V_x)` only when nothing else sounds,
+`voxChain(a,b,c)` plays three in a row (the pipe: lighter, inhale, cough). Who plays what: `voxEvent` (main.c, called from sims.h simEventV) for life events, `voxSoc` (house.h) for socials,
+and spots in main.c: falls (shriek), bails (cry), instant death (die of shock), fights (lets fight / losing / lost / win), hunger and bladder nags, sleep (snore), new wants (thinking).
