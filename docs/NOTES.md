@@ -825,8 +825,17 @@ The household screens look like The Sims instead of a plain list.
   - More than 8 choices are grouped as Friendly... / Romance... / Mean..., and a group with only one choice shows that choice directly.
   - A banner across the top shows their name, how you stand ("HUSBAND" in pink), HP, and your daily and lifetime bars.
   - Labels are in sentence case ("Try for a baby").
-- **Portraits** (`simPortrait`): a Sim's head and shoulders at 2x, read straight from the baked sprite (yours from `spr4`, members' from their 4-bit OBJ tiles). View 0 is the one that faces the screen. The frame centres on the face, about 5/16 of the way down the Sim. Behind it is pink, blue or mint by gender.
+- **Portraits** (`simPortrait`): a Sim's head and shoulders at 2x, read straight from the baked sprite (yours from `spr4`, members' from their 4-bit OBJ tiles). View 0 is the one that faces the screen. Behind it is pink, blue or mint by gender.
+  - The frame centres on the face: 5/16 of the way down the Sim, but never lower than a normal adult's face line (12 rows) plus the HEAD SIZE slider.
+  - That covers the whole sprite range. The tallest normal Sim bakes 40 px tall; with the MASTER CONTROLLER's double sliders and limit-break box it reaches 55 px of the 60 px bake (one 32 x 64 hardware sprite). The extra height is legs, torso and neck, so the face line stays put.
+  - Measured in mGBA: HEIGHT, TORSO and NECK at the top and the TALL shape gave 40 px normally and 55 px with the codes, and both portraits show the head and shoulders.
 - **RELATIONSHIPS:** a glass row per Sim with their face, the word ("WIFE", "BEST FRIEND"), Sims 2 bars both ways, and a ring or a heart.
 - **FAMILY:** cards with faces, moods, rings and hearts. Four or fewer Sims get tall cards in the middle, with how you stand. The picked Sim is described below (married to, days to grow up, bars), with BABY IN N DAYS and the TWINS setting as pills.
 - **Notices** (`famNotice`): a confetti backdrop and a glass panel ("IT'S A GIRL!", "TWINS!", "HAPPY BIRTHDAY!", "WELCOME HOME!") with the new faces, their names on pills, two lines and a green OK. Press A to go on.
 - **Memory:** IWRAM ends up 24 bytes lower than before (the old social menu's static lists are gone). EWRAM grew by about 50 bytes.
+## VOICES
+The Sim you control talks. 43 clips (tools/voices_src/*.wav, cleaned and trimmed) are encoded by `python3 tools/encode_voices.py` into source/sfx/v_*.adp (4-bit ADPCM, 6554 Hz, 296 KB)
+and source/voices.h (X-macro list, ROM blobs, V_<name> ids). They play on the one effect voice, so the newest sound wins. `voxPlay(V_x)` always plays, `voxNag(V_x)` only when nothing else sounds,
+`voxChain(a,b,c)` plays three in a row (the pipe: lighter, inhale, cough). Who plays what: `voxEvent` (main.c, called from sims.h simEventV) for life events, `voxSoc` (house.h) for socials,
+and spots in main.c: falls (shriek), bails (cry), instant death (die of shock), fights (lets fight / losing / lost / win), hunger and bladder nags, sleep (snore), new wants (thinking).
+Family life (merged with the Sims look): PROPOSE whoops (yahoo) on a yes and plays the sad serenade on a not yet, TRY FOR A BABY flirts (flirt 2) or says nah, and a baby of yours brings a whoop when its notice opens.

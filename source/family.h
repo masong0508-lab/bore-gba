@@ -79,7 +79,7 @@ static void famNotice(const char*title,const char*l1,const char*l2,const int*us,
     while((~REG_KEYINPUT)&0x3FF) vsync();   // (the game must not see the A)
 }
 static char famT[24] EWRAM_BSS, famL1[48] EWRAM_BSS, famL2[40] EWRAM_BSS;
-static int famBorn[2], famBornN, famBornSame;   // who was just born (uids), and whether they are identical twins
+static int famBorn[2], famBornN, famBornSame, famBornMine;   // who was just born (uids), whether they are identical twins, whether you are a parent
 static int famBirth(void){   // the due day: one baby, or two. 1 = someone was born
     int pa=famPa, pb=famPb; famDue=famPa=famPb=255; famBornN=0;
     if(pa==255&&pb==255) return 0;
@@ -97,7 +97,7 @@ static int famBirth(void){   // the due day: one baby, or two. 1 = someone was b
     if(m2>=0){ simCat(famT,same?"IDENTICAL TWINS!":"TWINS!"); char*e=simCat(famL1,hhM[m1].name); e=simCat(e," AND "); e=simCat(e,hhM[m2].name); simCat(e," ARE BORN"); }
     else { int sx=hhM[m1].look[LK_SEX]; simCat(famT,sx==SX_FEMALE?"IT'S A GIRL!":sx==SX_MALE?"IT'S A BOY!":"A NEW BABY!"); simCat(simCat(famL1,hhM[m1].name)," IS BORN"); }
     { char*e=simCat(famL2,"WELCOME TO THE "); e=simCat(e,famLastOf(pa!=255?pa:pb)[0]?famLastOf(pa!=255?pa:pb):"FAMILY"); if(famLastOf(pa!=255?pa:pb)[0]) simCat(e," FAMILY"); }
-    if(pa==hhPUid||pb==hhPUid) moodEvent(M_WANT);
+    famBornMine=pa==hhPUid||pb==hhPUid; if(famBornMine) moodEvent(M_WANT);
     return 1;
 }
 static const char* const famGrewW[AG_N]={"","IS A CHILD NOW","IS A TEEN NOW","IS ALL GROWN UP","IS AN ELDER NOW"};
@@ -121,7 +121,7 @@ static void famDay(void){   // midnight (simMinute, after your own birthday): ev
     if(grew||born){
         for(int k=0;k<hhN;k++){ hhOld[k].x0=hhOld[k].x1=0; hhOldSig[k]=0xFFFFFFFFu; }
         hhBakeAll();   // (the new faces first: the notices show them)
-        if(born) famNotice(famT,famL1,famL2,famBorn,famBornN);
+        if(born){ if(famBornMine) voxPlay(V_yahoo); famNotice(famT,famL1,famL2,famBorn,famBornN); }   // (your voice: a whoop)
         if(grew){ int m=hhMemOf(gu[0]);
             if(grew==1&&m>=0){ char*e=simCat(famL1,hhM[m].name); *e++=' '; simCat(e,famGrewW[hhM[m].stage]); famNotice("HAPPY BIRTHDAY!",famL1,famGrewL2[hhM[m].stage],gu,1); }
             else famNotice("HAPPY BIRTHDAYS!","THE FAMILY GREW UP","A YEAR OLDER  A NEW LOOK",gu,grew); }
