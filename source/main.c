@@ -1190,6 +1190,9 @@ __attribute__((noinline)) static void drawNeck(int hyB){
     cube(sx,top,1,0,2); cubeDR=0;
 }
 static void bxSync(void);
+// DEBUG CODE (title screen): HEIGHT also works for a BABY. A baby has one leg row (none for BIG HEAD / STUBBY / STOCKY / PETITE / TODDLER), so the leg stretch
+// does little; with the debug code on, the slider stretches the baby's torso row as well. Out of line (ROM) so the IWRAM drawing code stays small.
+__attribute__((noinline)) static int babyTall(void){ if(stage!=AG_BABY||!dbgOn) return 0; int h=slideEffS(look[LK_HEIGHT]); return h<-4?-4:h>bxLift?bxLift:h; }
 IWRAM_THUMB static void drawScene(int blink){
     bxSync();   // (the bake swaps the stage between Sims without building the look again)
     if(stageOn&&!noGrid) drawStage(); else if(bakeOn) rect(cX0,cY0,(int)cW,(int)cH,SKY); else fillCols(0,SCENE_W,SKY);
@@ -1205,7 +1208,7 @@ IWRAM_THUMB static void drawScene(int blink){
         liftK=slideEffS(look[LK_HEIGHT])+((look[LK_SHAPE]==6&&stage>=AG_TEEN)?3:0)+sd[3]; if(liftK<-4) liftK=-4; if(liftK>bxLift) liftK=bxLift;   // TALL: longer legs (drawn taller, so the hair keeps its room)
         wk=slideEffS(look[LK_WEIGHT])+sd[0]; shA=sd[1]+slideEffS(look[LK_ARMW])/2; shL=sd[2]+slideEffS(look[LK_LEGW])/2; hyB=L+T;   // LEG WIDTH: half a pixel a notch (-2..+2), on top of the body type's legs
         headK=slideEffS(look[LK_HEADSZ])+(stage==AG_BABY?2:stage==AG_CHILD?1:0); handK=slideEffS(look[LK_HANDFT]);   // HEAD SIZE: px added to the head's half width; HAND FOOT SIZE: the same for the hands and the feet
-        liftTn=T; liftT=slideEffS(look[LK_TORSO]); if(liftT<-4) liftT=-4; if(bxBig&&liftT>0) liftT+=liftT/2; armK=slideEff(look[LK_ARMS]); stanceK=slideEff(look[LK_STANCE]);   // TORSO px per torso row, ARMS and STANCE spread
+        liftTn=T; liftT=slideEffS(look[LK_TORSO])+babyTall(); if(liftT<-4) liftT=-4; if(bxBig&&liftT>0) liftT+=liftT/2; armK=slideEff(look[LK_ARMS]); stanceK=slideEff(look[LK_STANCE]);   // TORSO px per torso row, ARMS and STANCE spread
         neckK=slideEffS(look[LK_NECK]); if(neckK<-2) neckK=-2; if(bxBig&&neckK>0) neckK+=neckK/2; exHip=slideEffS(look[LK_HIPW]); exWst=slideEffS(look[LK_WAISTW]); exSho=slideEffS(look[LK_SHOULW]); exThi=slideEffS(look[LK_THIGHW]); exCal=slideEffS(look[LK_CALFW]);
         exJaw=slideEffS(look[LK_JAWW]); exHnd=slideEffS(look[LK_HANDSZ]); exFt=slideEffS(look[LK_FOOTSZ]); exChe=slideEffS(look[LK_CHESTW]); exBel=slideEffS(look[LK_BELLYW]); exUAr=slideEffS(look[LK_UARMW]); exFAr=slideEffS(look[LK_FARMW]);   // CHEST, BELLY (torso rows), UPPER ARM, FOREARM width
         { const signed char*se=shpEx[look[LK_SHAPE]<NSHAPE?look[LK_SHAPE]:0]; exHip+=se[0]; exWst+=se[1]; exSho+=se[2]; exThi+=se[3]; exCal+=se[4]; exChe+=se[5]; }   // the body type's own build (V-SHAPE, CURVY, POWER...)

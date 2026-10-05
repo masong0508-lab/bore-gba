@@ -1,0 +1,19 @@
+--- source/main.c	2026-10-05 13:22:10.000000000 -0500
++++ source/main.c	2026-10-05 13:49:54.741010345 -0500
+@@ -4387,7 +4387,15 @@
+ u8* csTestP;
+ #endif
+ #include "chipguard.h"   // the save chip guard (warns when the save chip got smaller)
+-int main(void){
++// THE STACK LIVES IN EWRAM. IWRAM (32 KB) is almost all code + .bss (about 31 KB), which left the stack only ~1.5 KB (a different compiler version
++// made it ~0.7 KB) while PLAY alone needs ~2.6 KB: the stack then ran over the globals at the top of .bss (slN got a saved pointer, a loop ran
++// 50 million times, START on the title froze). main() is only this stub: it points sp at the top 8 KB of EWRAM (8-byte aligned) and enters boreMain.
++// The Makefile fails the build if EWRAM statics ever grow into those 8 KB (STACK_EWRAM). Interrupts use their own stack (irqStack, IWRAM), the BIOS its own.
++int boreMain(void);
++__attribute__((naked, used)) int main(void){
++    __asm__ volatile("ldr r0,=0x02040000\n\tmov sp,r0\n\tldr r1,=boreMain\n\tbx r1\n\t.ltorg\n");
++}
++int boreMain(void){
+ #ifdef CS_TEST
+     { csTestP=(u8*)fb; csInit(chipsyn+chips[CS_TEST].off); static s8 l[MUS_N],r[MUS_N];
+       REG_WAITCNT=0x4317; volatile u16*t=(volatile u16*)0x04000108; t[1]=0; t[3]=0; t[0]=0; t[2]=0; t[3]=0x84; t[1]=0x80;   // timer 2 + 3 cascaded: cycles
