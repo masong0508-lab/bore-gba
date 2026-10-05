@@ -160,16 +160,16 @@ static const u8 stSpd[AG_N]={50,80,95,100,70};       // walking speed in percent
 #define NSHAPE 23   // + CHUBBY PEAR LANKY STOCKY HUNCHED POTBELLY MUSCLE PETITE BARREL DIGITIGRADE (7..16), then the humanoid builds V-SHAPE CURVY RUNNER SOFT POWER LONG LEGS (17..22)
 enum { SH_AVG, SH_BROAD, SH_BIGHEAD, SH_STUBBY, SH_SLIM, SH_ATHL, SH_TALL, SH_CHUBBY, SH_PEAR, SH_LANKY, SH_STOCKY, SH_HUNCH, SH_POT, SH_MUSCLE, SH_PETITE, SH_BARREL, SH_DIGI, SH_VSHAPE, SH_CURVY, SH_RUNNER, SH_SOFT, SH_POWER, SH_LONGLEG };
 #define SHALL ((1u<<NSHAPE)-1)
-#define SHHUM (SHB(SH_VSHAPE)|SHB(SH_CURVY)|SHB(SH_SOFT)|SHB(SH_POWER))   // the new humanoid builds a baby can have too (no legs to run on)
+#define SHHUM (SHB(SH_VSHAPE)|SHB(SH_CURVY)|SHB(SH_SOFT)|SHB(SH_POWER)|SHB(SH_LONGLEG))   // the adult-frame builds: teens and up, and a baby or child only with the debug code
 #define SHB(n) (1u<<(n))
 static const u32 stMaskShape[AG_N]={   // every age gets a real choice of bodies (a baby has no legs to speak of, so no LANKY or DIGITIGRADE)
-    SHB(SH_BIGHEAD)|SHB(SH_STUBBY)|SHB(SH_CHUBBY)|SHB(SH_PEAR)|SHB(SH_STOCKY)|SHB(SH_POT)|SHB(SH_PETITE)|SHB(SH_BARREL)|SHB(SH_MUSCLE)|SHHUM,
-    13|SHB(SH_CHUBBY)|SHB(SH_PEAR)|SHB(SH_LANKY)|SHB(SH_STOCKY)|SHB(SH_HUNCH)|SHB(SH_POT)|SHB(SH_MUSCLE)|SHB(SH_PETITE)|SHB(SH_BARREL)|SHB(SH_DIGI)|SHHUM|SHB(SH_RUNNER)|SHB(SH_LONGLEG),
+    SHB(SH_BIGHEAD)|SHB(SH_STUBBY)|SHB(SH_CHUBBY)|SHB(SH_PEAR)|SHB(SH_STOCKY)|SHB(SH_POT)|SHB(SH_PETITE)|SHB(SH_BARREL)|SHB(SH_MUSCLE),
+    13|SHB(SH_CHUBBY)|SHB(SH_PEAR)|SHB(SH_LANKY)|SHB(SH_STOCKY)|SHB(SH_HUNCH)|SHB(SH_POT)|SHB(SH_MUSCLE)|SHB(SH_PETITE)|SHB(SH_BARREL)|SHB(SH_DIGI)|SHB(SH_RUNNER),
     SHALL&~SHB(SH_BROAD), SHALL, SHALL };
 static const u8 stMaskEars[AG_N]={3,7,7,7,7};
 #define NHAIR 9   // CROP BOWL LONG BALD + SPIKY AFRO FLAT TOP SIDE TAIL BUN
 static const u16 stMaskHair[AG_N]={9,11|0x1F0,15|0x1F0,15|0x1F0,15|0x1F0};
-static inline int shapeMask(void){ int m=(int)stMaskShape[stage]; if(!sUnlock) m&=~4; return m; }
+static inline int shapeMask(void){ int m=(int)stMaskShape[stage]; if(!sUnlock) m&=~4; else if(stage<AG_TEEN) m|=(int)SHHUM; return m; }   // BIG HEAD, and V-SHAPE / CURVY / SOFT / POWER / LONG LEGS below teen, are only on offer with the debug code
 static const u8 stSwatches[AG_N]={4,6,8,8,8};       // how many colours of each row are on offer
 #define BX0 ((W-BXW)/2)
 static u16 base[9+NWP], sT[9+NWP], sL[9+NWP], sR[9+NWP];   // slots 1..8 = body colours, 9.. = wallpaper average colours
