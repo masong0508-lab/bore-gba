@@ -230,7 +230,10 @@ static void twPick(void){   // who comes by while you are on this lot: Sims from
         if(v<hhN||!xo[XO_SIMPRE]) continue;
         HhSim*s=&hhM[v]; int f=nbVisitor(s,twFrom[k],f0); if(f==-2) continue; f0=f;
         s->uid=255; s->bubT=0; s->hp=HP_MAX; s->ltw=0; s->act=HA_IDLE; s->think=0; s->hd=0; s->pn=s->pi=0; for(int q=0;q<HN_N;q++) s->need[q]=80;
-        twHas[k]=1; }
+        twHas[k]=1;
+        for(int u=HU_N-1;u>=0;u--){ int used=u==hhPUid; for(int m=0;m<hhN&&!used;m++) used=hhM[m].uid==u;   // a uid of their own while they visit, so you can talk to them
+            for(int j=0;j<k&&!used;j++) used=twHas[j]&&hhM[TW_V(j)].uid==u;
+            if(!used){ s->uid=(u8)u; for(int w=0;w<HU_N;w++){ relD[u][w]=relD[w][u]=0; relL[u][w]=relL[w][u]=0; relF[u][w]=relF[w][u]=0; } break; } } }   // (strangers: nothing carried over)
 }
 static void twDrop(int place){ for(int k=0;k<TW_N;k++) if(TW_V(k)==place){ twHas[k]=0; twOn[k]=0; hhKey[place]=0; } }   // a member moves into a visitor's place
 static void hkAdd(u32*h,const void*p,int n){ const u8*b=(const u8*)p; u32 x=*h; for(int i=0;i<n;i++) x=(x^b[i])*16777619u; *h=x; }
@@ -543,9 +546,14 @@ static const SocAct socT[SC_N]={
     {"PROPOSE",      16, 12,-14, -6, 24,  6,  75, 100, 60,TR_NICE,SA_ROM|SA_WED,       IC_HEART,IC_BAIL, "MARRY ME","SAID YES",      "SAID NOT YET"},   // adults going steady: a wedding (family.h)
     {"TRY FOR A BABY",8,  4, -6, -2, 20, 10,  60, 100, 70,TR_NICE,SA_ROM|SA_FAM,       IC_HEART,IC_BAIL, "A BABY?", "WANTS ONE TOO", "NOT NOW"},        // a couple: maybe a baby in 3 days (family.h)
 };
-static int hhFreeUid(void){ for(int u=0;u<HU_N;u++){ if(u==hhPUid) continue; int k=0; for(int m=0;m<hhN;m++) if(hhM[m].uid==u) k=1; if(!k) return u; } return 0; }
+static int hhFreeUid(void){ for(int u=0;u<HU_N;u++){ if(u==hhPUid) continue; int k=0; for(int m=0;m<hhN;m++) if(hhM[m].uid==u) k=1;
+        for(int t=0;t<TW_N;t++) if(twHas[t]&&TW_V(t)>=hhN&&hhM[TW_V(t)].uid==u) k=1;   // (a visitor's uid is taken while they are here)
+        if(!k) return u; } return 0; }
 static int hhOthers(void){ return hhN>0; }
-static int hhMemOf(int uid){ for(int m=0;m<hhN;m++) if(hhM[m].uid==uid) return m; return -1; }   // -1: the player (or nobody)
+static int hhMemOf(int uid){ for(int m=0;m<hhN;m++) if(hhM[m].uid==uid) return m;   // -1: the player (or nobody)
+    if(uid>=0&&uid<HU_N) for(int k=0;k<TW_N;k++){ int v=TW_V(k); if(twHas[k]&&v>=hhN&&hhM[v].uid==uid) return v; }   // a visitor (their place)
+    return -1; }
+static int uHome(int u){ if(u==hhPUid) return 1; for(int m=0;m<hhN;m++) if(hhM[m].uid==u) return 1; return 0; }   // you or a member (not a visitor)
 static int uStage(int u){ int m=hhMemOf(u); return m<0?stage:hhM[m].stage; }
 static int uSex(int u){ int m=hhMemOf(u); return m<0?look[LK_SEX]:hhM[m].look[LK_SEX]; }   // GENDER (SX_*)
 static int uTr(int u,int t){ int m=hhMemOf(u); return m<0?pTr[t]:hhM[m].tr[t]; }
@@ -572,6 +580,7 @@ static int socAllowed(int a,int b,int i){   // may a do interaction i to b now?
     if((S->fl&SA_CRUSH)&&!(relF[a][b]&RF_CRUSH)) return 0;
     if((S->fl&SA_LOVE)&&(!(relF[a][b]&RF_LOVE)||(relF[a][b]&RF_STEADY))) return 0;
     if(i==SC_TRICK&&uStage(a)<AG_CHILD) return 0;
+    if((S->fl&(SA_WED|SA_FAM))&&(!uHome(a)||!uHome(b))) return 0;   // weddings and babies: only with someone who lives here
     if((S->fl&SA_WED)&&(!(relF[a][b]&RF_STEADY)||(relF[a][b]&RF_MARRIED)||uStage(a)<AG_ADULT||uStage(b)<AG_ADULT)) return 0;
     if((S->fl&SA_FAM)&&(!(relF[a][b]&(RF_STEADY|RF_MARRIED))||uStage(a)!=AG_ADULT||uStage(b)!=AG_ADULT||famDue!=255||hhN>=HH_MAX)) return 0;
     return 1;
@@ -761,7 +770,11 @@ static void hhArrive(int m){   // a free-will Sim reached the one it wanted to s
     socDo(s->uid,b,socPick(s->uid,b));
 }
 // ---- you: R next to a household Sim opens the social menu (furniture you stand at is offered first) ----
-static int hhNearest(void){ if(curFl) return -1; int best=-1, bd=1<<30; for(int m=0;m<hhN;m++){ if(hhM[m].act==HA_AWAY) continue; s32 dx=hhM[m].fx-lfx, dy=hhM[m].fy-lfy; int d=(int)((dx*dx+dy*dy)>>8); if(d<bd){ bd=d; best=m; } } return bd<=(380*380>>8)?best:-1; }   // within 1.5 tiles
+static int hhNearest(void){ if(curFl) return -1; int best=-1, bd=1<<30;   // a member or a visitor on the lot, within 1.5 tiles
+    for(int m=0;m<HH_MAX;m++){
+        if(m>=hhN){ int k=HH_MAX-1-m; if(k<0||k>=TW_N||!twHas[k]||!twOn[k]||hhM[m].uid>=HU_N) continue; }
+        if(hhM[m].act==HA_AWAY) continue; s32 dx=hhM[m].fx-lfx, dy=hhM[m].fy-lfy; int d=(int)((dx*dx+dy*dy)>>8); if(d<bd){ bd=d; best=m; } }
+    return bd<=(380*380>>8)?best:-1; }
 static void liveInvalidate(void);
 // ---- PORTRAITS: a Sim's head and shoulders in a round frame, from its baked sprite at 2x (the pie menu, FAMILY, birth notices) ----
 #define HH_FACE 0   // the view that looks out of the screen

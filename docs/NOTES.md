@@ -846,3 +846,9 @@ Ported from the old Gumball commit (`claude/loving-newton-i2hh4z`, 0d6eda7) onto
 - Pre-mades can now set their own personality (`HhPre.tr`, 25 points) instead of a sign, and a family can have 5 Sims.
 - **HOUSEHOLD > MOVE IN A FAMILY > THE WATTERSONS:** NICOLE (blue cat) and RICHARD (big pink rabbit), married; GUMBALL (blue cat, TOON eyes, whiskers, brown sweater), DARWIN (the goldfish with legs, big eyes, a fin tail) and ANAIS (little pink rabbit genius).
 - Not ported: the old commit's light-fur colour slot and LIGHT muzzle. They would have shifted the wallpaper colour slots, and saved rooms check those. With no orange skin yet, Darwin uses the salmon swatch, lightened.
+## Talking to visitors
+Sims from the town's other households who drop by (`twPick` / `twTick`) can now be talked to like household members: R next to one opens the pie menu.
+- While they visit they hold a spare uid (the highest one nobody at home uses), starting as STRANGERS: nothing carries over between visits.
+- `hhMemOf` finds them, so names, faces, moods, balloons and punches work. `hhFreeUid` skips their uid, so a new member never collides with one.
+- PROPOSE and TRY FOR A BABY stay household-only (`uHome`).
+- A full house (8 uids in use) leaves no uid for a visitor; they then just walk by as before.
