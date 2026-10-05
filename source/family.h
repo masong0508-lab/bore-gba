@@ -55,9 +55,33 @@ static int famBaby(const u8*lk,int pa,int pb){   // one baby moves in: its place
     if(pa!=255) stRel(pa,u,60,50,RF_FRIEND); if(pb!=255) stRel(pb,u,60,50,RF_FRIEND);   // and the parents love them
     return m;
 }
-static char famMsg[48] EWRAM_BSS;
+// ---- NOTICES: a birth or a birthday stops the game for a Sims dialog: a confetti backdrop, a glass panel with the plumbob in its
+// title bar, the Sims it is about in round portraits (pink, blue or mint behind them by gender) with their names, two lines, an OK.
+// It shows after the new sprites are baked, so the portraits are the new faces. ----
+static void famNotice(const char*title,const char*l1,const char*l2,const int*us,int n){
+    u16 prev=keyNow(); u32 fr=0; if(n>4) n=4;
+    objHideAll(); suBackdrop();
+    { static const u16 cf[6]={RGB(31,26,10),RGB(31,16,24),RGB(14,28,31),RGB(16,31,14),RGB(31,20,10),RGB(24,18,31)};   // confetti
+      for(int i=0;i<70;i++){ int x=4+rnd8()*232/256, y=4+rnd8()*152/256; rect(x,y,2+(i&1),2,cf[i%6]); } }
+    s3Box(16,20,208,124,10,RGB(15,24,31),RGB(8,15,26)); s3Box(17,21,206,122,9,RGB(5,11,22),RGB(2,5,13));
+    int gap=n>1?184/n:0, x0=120-gap*(n-1)/2;
+    for(int k=0;k<n;k++){ int u=us[k], cx=x0+k*gap, mm=hhMemOf(u); u16 a,b; sexBg(uSex(u),&a,&b);
+        simPortrait(cx,64,n>2?17:21,u,a,b,RGB(29,31,31));
+        const char*nm=mm<0?hhPName:hhM[mm].name; int w=tw(nm,1)+14; s3Pill(cx-w/2,n>2?84:88,w,11,0,nm); }
+    text(120-tw(l1,1)/2,105,l1,WHITE,1); if(l2&&l2[0]) text(120-tw(l2,1)/2,115,l2,RGB(17,29,31),1);
+    s3Pill(96,127,48,13,1,"OK");
+    for(;;){
+        u16 k=keyNow(), pr=k&~prev; prev=k; fr++;
+        if(pr&(K_A|K_B|K_START)) break;
+        suTitleBar(18,22,204,title,fr);
+        present();
+    }
+    while((~REG_KEYINPUT)&0x3FF) vsync();   // (the game must not see the A)
+}
+static char famT[24] EWRAM_BSS, famL1[48] EWRAM_BSS, famL2[40] EWRAM_BSS;
+static int famBorn[2], famBornN, famBornSame;   // who was just born (uids), and whether they are identical twins
 static int famBirth(void){   // the due day: one baby, or two. 1 = someone was born
-    int pa=famPa, pb=famPb; famDue=famPa=famPb=255;
+    int pa=famPa, pb=famPb; famDue=famPa=famPb=255; famBornN=0;
     if(pa==255&&pb==255) return 0;
     u8 la[LK_N], lb[LK_N], lk[LK_N];
     famLookOf(pa!=255?pa:pb,la); famLookOf(pb!=255?pb:pa,lb);
@@ -68,47 +92,90 @@ static int famBirth(void){   // the due day: one baby, or two. 1 = someone was b
     int m2=-1;
     if(two){ if(!same){ stMixLook(lk,la,lb,AG_BABY); lk[LK_SEX]=sexRoll(); }   // fraternal: a mix of their own; identical: the same look and gender
         m2=famBaby(lk,pa,pb); }
-    if(m2>=0){ int a=hhM[m1].uid, b=hhM[m2].uid; stRel(a,b,60,60,RF_FRIEND); }   // twins: close from the start
-    char*e=famMsg;
-    if(m2>=0){ e=simCat(e,same?"IDENTICAL TWINS  ":"TWINS  "); e=simCat(e,hhM[m1].name); e=simCat(e," AND "); e=simCat(e,hhM[m2].name); }
-    else { int sx=hhM[m1].look[LK_SEX]; e=simCat(e,sx==SX_FEMALE?"IT'S A GIRL  ":sx==SX_MALE?"IT'S A BOY  ":"A NEW BABY  "); e=simCat(e,hhM[m1].name); e=simCat(e," IS BORN"); }
+    famBorn[famBornN++]=hhM[m1].uid; famBornSame=same&&m2>=0;
+    if(m2>=0){ int a=hhM[m1].uid, b=hhM[m2].uid; stRel(a,b,60,60,RF_FRIEND); famBorn[famBornN++]=b; }   // twins: close from the start
+    if(m2>=0){ simCat(famT,same?"IDENTICAL TWINS!":"TWINS!"); char*e=simCat(famL1,hhM[m1].name); e=simCat(e," AND "); e=simCat(e,hhM[m2].name); simCat(e," ARE BORN"); }
+    else { int sx=hhM[m1].look[LK_SEX]; simCat(famT,sx==SX_FEMALE?"IT'S A GIRL!":sx==SX_MALE?"IT'S A BOY!":"A NEW BABY!"); simCat(simCat(famL1,hhM[m1].name)," IS BORN"); }
+    { char*e=simCat(famL2,"WELCOME TO THE "); e=simCat(e,famLastOf(pa!=255?pa:pb)[0]?famLastOf(pa!=255?pa:pb):"FAMILY"); if(famLastOf(pa!=255?pa:pb)[0]) simCat(e," FAMILY"); }
     if(pa==hhPUid||pb==hhPUid) moodEvent(M_WANT);
     return 1;
 }
 static const char* const famGrewW[AG_N]={"","IS A CHILD NOW","IS A TEEN NOW","IS ALL GROWN UP","IS AN ELDER NOW"};
-static char famGrowB[40] EWRAM_BSS;
+static const char* const famGrewL2[AG_N]={"","OFF TO SCHOOL ON WEEKDAYS","OLD ENOUGH FOR AN ASPIRATION","OFF TO WORK ON WEEKDAYS","A LIFE WELL LIVED"};
 static void famGrow(HhSim*s){   // a member's birthday: the next stage, the look fitted to it
     u8 sl[LK_N], ss=stage; for(int i=0;i<LK_N;i++){ sl[i]=look[i]; look[i]=s->look[i]; }
     stage=(u8)(s->stage+1); fixLook(); for(int i=0;i<LK_N;i++) s->look[i]=look[i]; s->stage=stage;
     for(int i=0;i<LK_N;i++) look[i]=sl[i]; stage=ss;
     if(s->stage>=AG_TEEN&&s->asp>=AS_PICK) s->asp=(u8)(rnd8()%AS_PICK);   // old enough for an aspiration of their own
-    char*e=simCat(famGrowB,s->name); *e++=' '; simCat(e,famGrewW[s->stage]);
 }
 static void famDay(void){   // midnight (simMinute, after your own birthday): everyone else grows, and the baby may come
     static const u8 pct[4]={0,200,100,50};
-    int grew=0, born=0;
+    int grew=0, born=0, gu[HH_MAX];
     for(int m=0;m<hhN;m++){ HhSim*s=&hhM[m]; int u=s->uid;
         if(s->stage>=AG_ELDER||!xo[XO_AGING]||!oStageDays(s->stage)){ famAge[u]=0; continue; }   // OFF or FOREVER: nobody grows
         int need=oStageDays(s->stage)*pct[xo[XO_AGING]]/100; if(need<1) need=1;
         if(famAge[u]<255) famAge[u]++;
         if(famAge[u]<need) continue;
-        famAge[u]=0; famGrow(s); grew++; }
+        famAge[u]=0; famGrow(s); gu[grew++]=u; }
     if(famDue!=255){ if(famDue>0) famDue--; if(!famDue) born=famBirth(); }
     if(grew||born){
-        if(born) toast(famMsg); if(grew) toast(grew==1?famGrowB:"BIRTHDAYS  THE FAMILY GREW UP");   // (before the bake, over the game: after it they would land on the loading screen)
         for(int k=0;k<hhN;k++){ hhOld[k].x0=hhOld[k].x1=0; hhOldSig[k]=0xFFFFFFFFu; }
-        hhBakeAll(); liveInvalidate();
+        hhBakeAll();   // (the new faces first: the notices show them)
+        if(born) famNotice(famT,famL1,famL2,famBorn,famBornN);
+        if(grew){ int m=hhMemOf(gu[0]);
+            if(grew==1&&m>=0){ char*e=simCat(famL1,hhM[m].name); *e++=' '; simCat(e,famGrewW[hhM[m].stage]); famNotice("HAPPY BIRTHDAY!",famL1,famGrewL2[hhM[m].stage],gu,1); }
+            else famNotice("HAPPY BIRTHDAYS!","THE FAMILY GREW UP","A YEAR OLDER  A NEW LOOK",gu,grew); }
+        hhSlotsFree(); liveInvalidate();
     }
     hhSave();   // (and the family block with it)
 }
-static void famScreen(void){   // pause menu > HOUSEHOLD > FAMILY: who is married, the baby on the way, everyone's age
-    static char ln[12][40] EWRAM_BSS; const char* L[12]; int n=0;
-    { char*e=slCat(ln[n],">"); slCat(e,hhPLast[0]?hhPLast:"YOUR FAMILY"); L[n]=ln[n]; n++; }
-    for(int m=-1;m<hhN&&n<10;m++){ int u=m<0?hhPUid:hhM[m].uid, st=uStage(u), sx=uSex(u);
-        char*e=slCat(ln[n],uName(u)); e=slCat(e,"  "); e=slCat(e,whoWord(st,sx));
-        for(int v=0;v<HU_N;v++) if(v!=u&&(relF[u][v]&RF_MARRIED)&&(v==hhPUid||hhMemOf(v)>=0)){ e=slCat(e,"  MARRIED TO "); slCat(e,uName(v)); break; }
-        L[n]=ln[n]; n++; }
-    if(famDue!=255&&n<12){ char*e=slCat(ln[n],"A BABY IN "); e=slNum(e,famDue); slCat(e,famDue==1?" DAY":" DAYS"); L[n]=ln[n]; n++; }
-    if(n<12){ static const char* const twn[4]={"TWINS NEVER","TWINS SOMETIMES","TWINS OFTEN","TWINS ALWAYS"}; L[n++]=twn[xo[XO_TWINS]]; }
-    helpScreen("FAMILY",L,n);
+// ---- pause menu > HOUSEHOLD > FAMILY: The Sims 2's family panel. A card for each Sim (their face, name and age, a ring when married,
+// a heart when going steady, YOU on yours), the picked one described below with how you two get on, and the family's news ----
+static int famDaysLeft(int u){   // game days until u grows up (-1: never)
+    static const u8 pct[4]={0,200,100,50}; int st=uStage(u);
+    if(st>=AG_ELDER||!xo[XO_AGING]||!oStageDays(st)) return -1;
+    int need=oStageDays(st)*pct[xo[XO_AGING]]/100; if(need<1) need=1; int had=u==hhPUid?ageDays:famAge[u]; return need>had?need-had:1; }
+static int famPartner(int u,u8 flag){ for(int v=0;v<HU_N;v++) if(v!=u&&(relF[u][v]&flag)&&(v==hhPUid||hhMemOf(v)>=0)) return v; return -1; }
+static void famScreen(void){
+    int us[HU_N], n=0; us[n++]=hhPUid; for(int m=0;m<hhN;m++) us[n++]=hhM[m].uid;
+    int sel=0, dirty=1; u32 fr=0; u16 prev=keyNow();
+    static char t[40] EWRAM_BSS, d1[48] EWRAM_BSS, d2[40] EWRAM_BSS;
+    { char*e=t; if(hhPLast[0]){ e=simCat(e,"THE "); e=simCat(e,hhPLast); simCat(e," FAMILY"); } else simCat(e,"YOUR FAMILY"); }
+    for(;;){
+        u16 k=keyNow(), pr=k&~prev; prev=k; fr++;
+        if(pr&(K_B|K_START|K_A)) return;
+        if(pr&K_RIGHT){ sel=(sel+1)%n; dirty=1; } if(pr&K_LEFT){ sel=(sel+n-1)%n; dirty=1; }
+        if((pr&K_DOWN)&&sel+4<n){ sel+=4; dirty=1; } if((pr&K_UP)&&sel>=4){ sel-=4; dirty=1; }
+        if(dirty){ dirty=0; objHideAll(); suBackdrop();
+            { char c[12]; char*e=c; e+=numStr(e,n); simCat(e,n==1?" SIM":" SIMS"); text(233-tw(c,1),7,c,RGB(17,29,31),1); }
+            int big=n<=4, ch=big?102:51, pr=big?21:13;   // four or fewer: tall cards with bigger faces, how they feel and how you stand
+            int x0=big?(SW-(n*57-2))/2:6;   // (a small family stands in the middle)
+            for(int i=0;i<n;i++){ int u=us[i], x=x0+(i&3)*57, y=19+(i>>2)*54, on=i==sel, cx=x+27; u16 a,b; sexBg(uSex(u),&a,&b);
+                if(on) s3Box(x-2,y-2,59,ch+4,7,RGB(28,31,18),RGB(16,29,8));   // the picked card glows green
+                s3Box(x,y,55,ch,6,RGB(14,23,31),RGB(7,14,25)); s3Box(x+1,y+1,53,ch-2,5,on?RGB(7,15,27):RGB(5,11,22),on?RGB(3,8,17):RGB(2,5,13));
+                if(big) suBob(cx,y+4,moodOf(u),0);
+                simPortrait(cx,big?y+40:y+17,pr,u,a,b,on?RGB(25,31,16):RGB(23,29,31));
+                if(famPartner(u,RF_MARRIED)>=0) suRing(x+8,y+7); else if(famPartner(u,RF_STEADY)>=0) suHeart(x+8,y+7);
+                if(u==hhPUid){ s2rr(x+38,y+3,15,8,RGB(16,29,8)); text(x+39,y+4,"YOU",RGB(1,4,0),1); }
+                int ty=big?y+67:y+34; const char*nm=uName(u); text(cx-tw(nm,1)/2,ty,nm,WHITE,1);
+                const char*w=whoWord(uStage(u),uSex(u)); text(cx-tw(w,1)/2,ty+8,w,RGB(17,29,31),1);
+                if(big){ const char*r=u==hhPUid?"THAT'S YOU":relWord(hhPUid,u); u16 rc=(u!=hhPUid&&(relF[hhPUid][u]&(RF_MARRIED|RF_STEADY|RF_LOVE|RF_CRUSH)))?RGB(31,19,26):RGB(24,28,31);
+                    text(cx-tw(r,1)/2,ty+19,r,rc,1); } }
+            { int u=us[sel], p=famPartner(u,RF_MARRIED), q=p<0?famPartner(u,RF_STEADY):-1, dl=famDaysLeft(u);   // the picked one, described
+              s2rr(3,124,234,21,RGB(10,20,30)); s2rr(4,125,232,19,RGB(2,6,13));
+              char*e=simCat(d1,uName(u));
+              if(p>=0){ e=simCat(e,"  MARRIED TO "); simCat(e,p==hhPUid?"YOU":uName(p)); }
+              else if(q>=0){ e=simCat(e,"  GOING STEADY WITH "); simCat(e,q==hhPUid?"YOU":uName(q)); }
+              text(9,127,d1,WHITE,1);
+              e=d2; if(dl<0) e=simCat(e,uStage(u)>=AG_ELDER?"AN ELDER":"NOT AGING"); else { e=simCat(e,"GROWS UP IN "); e+=numStr(e,dl); simCat(e,dl==1?" DAY":" DAYS"); }
+              text(9,136,d2,RGB(17,29,31),1);
+              if(u!=hhPUid){ text(140,127,"DAILY",RGB(17,29,31),1); suRelBar(172,127,60,relD[hhPUid][u]); text(140,136,"LIFE",RGB(17,29,31),1); suRelBar(172,136,60,relL[hhPUid][u]); } }
+            s2pill(5,147,62,"DPAD PICK"); s2pill(70,147,46,"B BACK");
+            { static const char* const twn[4]={"TWINS NEVER","TWINS SOMETIMES","TWINS OFTEN","TWINS ALWAYS"}; const char*tt=twn[xo[XO_TWINS]]; int w=tw(tt,1)+12; s2pill(235-w,147,w,tt);
+              if(famDue!=255){ char bb[20]; char*e=simCat(bb,"BABY IN "); e+=numStr(e,famDue); simCat(e,famDue==1?" DAY":" DAYS");
+                int w2=tw(bb,1)+12, x2=232-w-w2; s3Box(x2,147,w2,11,5,RGB(31,22,27),RGB(26,12,20)); text(x2+6,149,bb,RGB(12,1,7),1); } }
+        }
+        suTitleBar(3,3,234,t,fr); { char c[12]; char*e=c; e+=numStr(e,n); simCat(e,n==1?" SIM":" SIMS"); text(233-tw(c,1),7,c,RGB(17,29,31),1); }
+        present();
+    }
 }

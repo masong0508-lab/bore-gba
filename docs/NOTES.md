@@ -790,9 +790,8 @@ Households now marry, have babies and grow up.
   - At teen they get an aspiration of their own.
   - The days lived in a stage go with each Sim when SELECT swaps who you play.
 - **Babies** are looked after: their needs never sink below 60. They crawl about, go and see people and only coo (TALK). They stay home on workdays.
-- **Messages.** A birth ("IT'S A GIRL  MAE IS BORN", "IDENTICAL TWINS  OTTO AND IVY") and a birthday ("BO IS A CHILD NOW") show over the game, then the new sprites bake.
-  - The story's "YOUR SON ... IS HOME" now shows before its bake too; after it, the toast landed on the loading screen.
-- **Pause menu > HOUSEHOLD > FAMILY:** everyone with their age and gender, who is married to whom, the days until the baby, and the TWINS setting.
+- **Notices.** After the new sprites bake, a birth ("IT'S A GIRL!", "IDENTICAL TWINS!") or a birthday ("HAPPY BIRTHDAY!  BO IS A CHILD NOW") stops the game for a Sims dialog with the new faces (see THE SIMS LOOK). The story's child coming home gets one too ("WELCOME HOME!").
+- **Pause menu > HOUSEHOLD > FAMILY:** a card per Sim with their face, age and gender, a ring or a heart, who is married to whom, days until they grow up, the baby on the way and the TWINS setting.
 - **Save:** `FAM_OFF` 4976, 16 bytes. `hhSave` writes it and `hhLoad` reads it:
   - `'F' 'Y'`
   - each member's days in their stage (by place in the household)
@@ -807,3 +806,27 @@ Households now marry, have babies and grow up.
   - A baby with its days poked to full grew into a CHILD with the GROW UP aspiration.
   - The FAMILY screen listed everyone.
   - After a reset the household, its ages and the marriage were all back.
+## THE SIMS LOOK (`source/simui.h`)
+The household screens look like The Sims instead of a plain list.
+- **The kit** (`simui.h`, included before the UI kit in `main.c`):
+  - The Sims 3 glossy rounded boxes and pills (`s3*`), and The Sims 2 deep blue gradients, frame, lattice backdrop and plumbob (`s2*`). These moved here from the main menu code.
+  - `suBob`: the plumbob in green, yellow or red (mood), big or small.
+  - `suDim`: the world dims to navy behind a dialog. Dimming again settles on the navy, never on black.
+  - `suBgSave` / `suBgLoad` / `suBgRect`: the pie menu's backdrop is the world as a navy picture, kept at 4 bits a pixel in VRAM past the mode 3 screen (over the household sprite tiles, which menus hide; `hhSlotsFree` uploads them again). The menu can wipe what it drew without a second frame buffer, which EWRAM has no room for.
+  - `suBubble` (glass bubbles tinted by kind), `suRelBar` (Sims 2 relationship bars), `suTitleBar`, `suBackdrop`, `suRing`, `suHeart`.
+- **Every menu** (`menu`): the world dims; a glass panel has a title bar with a bobbing plumbob, the row you are on is a green pill, and A OK / B BACK sit as pills. Menus of more than 11 rows now scroll (the 42-family list used to run off the screen).
+- **Every help page** (`helpScreen`, STORY too): the How to Play frame, with headings as lit bars.
+- **Every panel** (`box`: loading screen, options and so on): a light blue rim on deep blue glass with rounded corners.
+- **Pop-up messages** (`toast`): a dark glass pill with the plumbob.
+- **The pie menu** (R next to a household Sim, `socPie` in `house.h`), as in The Sims:
+  - Their face is in the middle of the pie, in a round frame, with their plumbob over it in their mood's colour.
+  - Choices sit around it in glass bubbles: white-blue for friendly, pink for romance, red for mean, gold for using the furniture. They pop out one per frame, with a spoke from the face to each bubble.
+  - The DPAD points (diagonals too), L and R step round, A picks, B goes back or closes.
+  - More than 8 choices are grouped as Friendly... / Romance... / Mean..., and a group with only one choice shows that choice directly.
+  - A banner across the top shows their name, how you stand ("HUSBAND" in pink), HP, and your daily and lifetime bars.
+  - Labels are in sentence case ("Try for a baby").
+- **Portraits** (`simPortrait`): a Sim's head and shoulders at 2x, read straight from the baked sprite (yours from `spr4`, members' from their 4-bit OBJ tiles). View 0 is the one that faces the screen. The frame centres on the face, about 5/16 of the way down the Sim. Behind it is pink, blue or mint by gender.
+- **RELATIONSHIPS:** a glass row per Sim with their face, the word ("WIFE", "BEST FRIEND"), Sims 2 bars both ways, and a ring or a heart.
+- **FAMILY:** cards with faces, moods, rings and hearts. Four or fewer Sims get tall cards in the middle, with how you stand. The picked Sim is described below (married to, days to grow up, bars), with BABY IN N DAYS and the TWINS setting as pills.
+- **Notices** (`famNotice`): a confetti backdrop and a glass panel ("IT'S A GIRL!", "TWINS!", "HAPPY BIRTHDAY!", "WELCOME HOME!") with the new faces, their names on pills, two lines and a green OK. Press A to go on.
+- **Memory:** IWRAM ends up 24 bytes lower than before (the old social menu's static lists are gone). EWRAM grew by about 50 bytes.

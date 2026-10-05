@@ -723,44 +723,118 @@ static void hhArrive(int m){   // a free-will Sim reached the one it wanted to s
 // ---- you: R next to a household Sim opens the social menu (furniture you stand at is offered first) ----
 static int hhNearest(void){ if(curFl) return -1; int best=-1, bd=1<<30; for(int m=0;m<hhN;m++){ if(hhM[m].act==HA_AWAY) continue; s32 dx=hhM[m].fx-lfx, dy=hhM[m].fy-lfy; int d=(int)((dx*dx+dy*dy)>>8); if(d<bd){ bd=d; best=m; } } return bd<=(380*380>>8)?best:-1; }   // within 1.5 tiles
 static void liveInvalidate(void);
+// ---- PORTRAITS: a Sim's head and shoulders in a round frame, from its baked sprite at 2x (the pie menu, FAMILY, birth notices) ----
+#define HH_FACE 0   // the view that looks out of the screen
+static int hhPix(int m,int v,int x,int y){   // a pixel of a baked Sim (m<0: you), -1 = clear
+    if((unsigned)x>=SPW||(unsigned)y>=SPH) return -1;
+    if(m<0){ u16 c=spr4[v][y*SPW+x]; return c==SKY?-1:c; }
+    int t=(y>>3)*4+(x>>3), o=t*32+(y&7)*4+((x&7)>>1), k=(hhObj[m][v][o]>>((x&1)*4))&15; return k?hhPal[m][k]:-1;
+}
+static void simPortrait(int cx,int cy,int r,int u,u16 bg0,u16 bg1,u16 rim){   // u: the uid (you or a member)
+    int m=hhMemOf(u), v=HH_FACE, y0=-1, yb=0, hx0=SPW, hx1=-1;
+    for(int y=0;y<SPH;y++) for(int x=0;x<SPW;x++) if(hhPix(m,v,x,y)>=0){ if(y0<0) y0=y; yb=y; if(y<y0+6){ if(x<hx0) hx0=x; if(x>hx1) hx1=x; } }
+    int hc=(hx0+hx1+1)/2, fy=y0+(yb-y0)*5/16, R2=(r+2)*(r+2), R1=(r+1)*(r+1), R0=r*r;   // fy: about where the face is (the frame centres on it)
+    for(int dy=-r-2;dy<=r+2;dy++) for(int dx=-r-2;dx<=r+2;dx++){ int d=dx*dx+dy*dy; if(d>R2) continue;
+        if(d>R0){ px(cx+dx,cy+dy,d>R1?RGB(2,5,11):rim); continue; }   // the rim, and a dark edge round it
+        int c=y0<0?-1:hhPix(m,v,hc+((dx+64)>>1)-32,fy+((dy+64)>>1)-32);
+        px(cx+dx,cy+dy,c>=0?(u16)c:s3Mix(bg0,bg1,dy+r,2*r+1)); }
+}
+static void sexBg(int sx,u16*a,u16*b){   // a portrait's backdrop: pink, blue or mint by gender
+    if(sx==SX_FEMALE){ *a=RGB(31,25,28); *b=RGB(25,13,21); } else if(sx==SX_MALE){ *a=RGB(22,28,31); *b=RGB(9,17,30); } else { *a=RGB(24,31,25); *b=RGB(10,23,15); } }
+static int moodOf(int u){ int v=uMood(u); return v>=55?0:v>=30?1:2; }   // the plumbob's colour: green, yellow, red
+// ---- the PIE MENU (R next to a household Sim), as in The Sims: their face in the middle with the plumbob over it (its colour is their
+// mood), what you can do in glass bubbles round it, the world gone navy behind. More than 8 choices are grouped (Friendly...,
+// Romance..., Mean...): A on a group opens it, B goes back. The DPAD points at a bubble (diagonals too), L and R step round,
+// A picks, B or START close. ----
+static const signed char pieSin[32]={0,25,49,71,90,106,117,125,127,125,117,106,90,71,49,25,0,-25,-49,-71,-90,-106,-117,-125,-127,-125,-117,-106,-90,-71,-49,-25};
+enum { PIE_CX=120, PIE_CY=90, PIE_R=19, PIE_RX=80, PIE_RY=46 };
+static char pieLab[SC_N+2][20] EWRAM_BSS;
+static void pieCase(char*d,const char*s){ int i=0; for(;s[i]&&i<19;i++){ char c=s[i]; d[i]=(i&&c>='A'&&c<='Z')?(char)(c+32):c; } d[i]=0; }   // TRY FOR A BABY -> Try for a baby
+static int pieAng(int k,int n){ return (k*64+n)/(2*n)&31; }   // the direction (of 32, 0 = up, clockwise) of bubble k of n
+static void piePos(int k,int n,int*x,int*y){ int a=pieAng(k,n); *x=PIE_CX+pieSin[a]*PIE_RX/127; *y=PIE_CY-pieSin[(a+8)&31]*PIE_RY/127; }
+static int socPie(int m,int useLabel){   // the social picked (SC_), -1 = use the furniture, -2 = closed
+    HhSim*s=&hhM[m]; int a=hhPUid, b=s->uid;
+    static const char* const useNm[6]={0,"Use the fridge","Use the toilet","Sleep in bed","Take a shower","Sit on the sofa"};
+    static const char* const grpNm[3]={"Friendly...","Romance...","Mean..."};
+    const char* nm[SC_N+2]; signed char id[SC_N+2]; u8 tn[SC_N+2]; int n=0;
+    if(useLabel>0&&useLabel<6){ nm[n]=useNm[useLabel]; id[n]=-1; tn[n]=SU_USE; n++; }
+    for(int i=0;i<SC_N;i++) if(socAllowed(a,b,i)){ pieCase(pieLab[n],i==SC_PUNCH?fkMove(a,"PUNCH"):socT[i].name); nm[n]=pieLab[n]; id[n]=(signed char)i;
+        tn[n]=(u8)((socT[i].fl&SA_MEAN)?SU_MEAN:(socT[i].fl&SA_ROM)?SU_ROM:SU_FRIEND); n++; }
+    int ring[SC_N+2], rn=0, grp=-1, sel=0, redraw=1, shown=0; u32 fr=0; u16 prev=keyNow();
+    #define PIE_RING() do{ rn=0; \
+        if(grp>=0){ for(int i=0;i<n;i++) if(tn[i]==grp) ring[rn++]=i; } \
+        else if(n<=8){ for(int i=0;i<n;i++) ring[rn++]=i; } \
+        else { for(int i=0;i<n;i++) if(tn[i]==SU_USE) ring[rn++]=i; \
+            for(int g=0;g<3;g++){ int c=0, last=0; for(int i=0;i<n;i++) if(tn[i]==g){ c++; last=i; } if(c==1) ring[rn++]=last; else if(c>1) ring[rn++]=100+g; } } }while(0)
+    PIE_RING();
+    char nmB[HH_NM]; { int k=0; for(;s->name[k]&&k<HH_NM-1;k++) nmB[k]=s->name[k]; nmB[k]=0; }
+    objHideAll(); suBgSave();
+    for(;;){
+        u16 k=keyNow(), pr=k&~prev; prev=k; fr++;
+        if(pr&(K_UP|K_DOWN|K_LEFT|K_RIGHT)){   // point: the bubble nearest the way the DPAD (diagonals too) points
+            int dx=((k&K_RIGHT)?1:0)-((k&K_LEFT)?1:0), dy=((k&K_DOWN)?1:0)-((k&K_UP)?1:0);
+            static const signed char dirA[3][3]={{28,0,4},{24,-1,8},{20,16,12}}; int want=dirA[dy+1][dx+1];
+            if(want>=0){ int bd=99; for(int i=0;i<rn;i++){ int d=(pieAng(i,rn)-want)&31; if(d>16) d=32-d; if(d<bd){ bd=d; sel=i; } } } }
+        if(pr&K_R) sel=(sel+1)%rn;
+        if(pr&K_L) sel=(sel+rn-1)%rn;
+        if(pr&K_START) return -2;
+        if(pr&K_B){ if(grp<0) return -2; int g=grp; grp=-1; PIE_RING(); sel=0; for(int i=0;i<rn;i++) if(ring[i]==100+g) sel=i; redraw=1; }
+        if(pr&K_A){ int r=ring[sel]; if(r<100) return id[r]; grp=r-100; PIE_RING(); sel=0; redraw=1; }
+        if(redraw){ redraw=0; shown=0; suBgLoad();
+            // the banner: their name, how you stand with them, your daily and lifetime scores
+            s3Box(4,3,232,25,7,RGB(14,23,31),RGB(7,14,25)); s3Box(5,4,230,23,6,RGB(5,11,22),RGB(2,5,13)); rect(11,4,218,1,RGB(13,21,30));
+            text(12,6,nmB,WHITE,2);
+            { u8 f=relF[a][b]; const char*w=relWord(a,b); u16 c=(f&(RF_MARRIED|RF_STEADY|RF_LOVE|RF_CRUSH))?RGB(31,19,26):relD[a][b]<=-20?RGB(31,14,11):RGB(17,29,31);
+              int x=text(12,19,w,c,1); x=text(x+6,19,"HP",RGB(14,20,27),1); char hp[6]; int q=0; int v=s->hp; if(v>=100) hp[q++]='1'; if(v>=10) hp[q++]=(char)('0'+(v/10)%10); hp[q++]=(char)('0'+v%10); hp[q]=0; text(x+3,19,hp,WHITE,1); }
+            text(148,8,"DAILY",RGB(17,29,31),1); suRelBar(178,8,54,relD[a][b]);
+            text(148,18,"LIFE",RGB(17,29,31),1); suRelBar(178,18,54,relL[a][b]);
+            simPortrait(PIE_CX,PIE_CY,PIE_R,b,RGB(20,28,31),RGB(9,18,30),RGB(25,30,31));
+            s2pill(5,147,46,"A PICK"); s2pill(54,147,50,grp<0?"B CLOSE":"B BACK"); s2pill(107,147,66,"DPAD POINT"); s2pill(176,147,59,"L R TURN"); }
+        if(shown<rn) shown++;   // the bubbles pop out one a frame
+        for(int i=0;i<shown;i++){ int bx,by; piePos(i,rn,&bx,&by); int on=i==sel;
+            for(int f=6;f<=11;f++){ int qx=PIE_CX+(bx-PIE_CX)*f/16, qy=PIE_CY+(by-PIE_CY)*f/16; rect(qx,qy,2,2,on?RGB(18,31,10):RGB(9,14,24)); }   // the spoke
+            int r=ring[i]; suBubble(bx,by,r>=100?grpNm[r-100]:nm[r],r>=100?SU_CAT:tn[r],on); }
+        { int py=PIE_CY-PIE_R-18; suBgRect(PIE_CX-8,py-2,18,19); suBob(PIE_CX,py+suBobY[(fr>>3)&7],moodOf(b),1); }   // their plumbob
+        present();
+    }
+    #undef PIE_RING
+}
 static int hhSocR(int useLabel){   // 1 = handled (a social, or the menu was closed), 0 = go on and use the furniture
     int m=hhNearest(); if(m<0) return 0;
     HhSim*s=&hhM[m]; int b=s->uid, a=hhPUid;
     if(s->act==HA_USE){ lnote="THEY ARE BUSY"; lnoteT=50; return 0; }
-    static const char* it[SC_N+1]; static char tl[40]; int id[SC_N+1], n=0;
-    static const char* const useNm[6]={0,"USE THE FRIDGE","USE THE TOILET","SLEEP IN BED","TAKE A SHOWER","SIT ON SOFA"};
-    if(useLabel>0&&useLabel<6){ it[n]=useNm[useLabel]; id[n++]=-1; }
-    for(int i=0;i<SC_N;i++) if(socAllowed(a,b,i)){ it[n]=i==SC_PUNCH?fkMove(a,"PUNCH"):socT[i].name; id[n++]=i; }
-    { char*e=simCat(tl,s->name); *e++=' '; *e++=' '; e=simCat(e,relWord(a,b)); e=simCat(e,"  HP "); simCatN(e,s->hp); }
-    int c=menu(tl,it,n); liveInvalidate();
+    int c=socPie(m,useLabel); hhSlotsFree(); liveInvalidate();   // (the pie kept its backdrop over the sprite tiles: upload them again)
     while((~REG_KEYINPUT)&0x3FF) vsync();
-    if(c<0) return 1;
-    if(id[c]<0) return 0;
+    if(c==-2) return 1;
+    if(c==-1) return 0;
     int px=(int)(lfx>>8), py=(int)(lfy>>8), sx=(int)(s->fx>>8), sy=(int)(s->fy>>8);
     s->hd=(u8)(px>sx?0:px<sx?8:py>sy?4:12); lhd=(s->hd+8)&15;
-    socDo(a,b,id[c]);
+    socDo(a,b,c);
     return 1;
 }
 // ---- the RELATIONSHIPS screen (pause menu > HOUSEHOLD): how you feel about everyone, and how they feel about you ----
-static void relBar(int x,int y,int v){   // -100..100 around a centre line, green above 0, red below
-    rect(x,y,61,4,RGB(3,4,8)); rect(x+30,y-1,1,6,RGB(14,16,20));
-    int w=v*30/100; if(w>0) rect(x+31,y,w,4,RGB(8,26,8)); else if(w<0) rect(x+30+w,y,-w,4,RGB(28,8,6));
-}
 static void hhInvite(void);   // (below, next to the redraw bookkeeping)
-static void relScreen(void){
-    u16 prev=keyNow(); int top=0;   // seven rows fit: UP / DOWN scroll a bigger household
+static void relScreen(void){   // The Sims 2's relationship panel: a glass row for each Sim with their face, how you see each other, the bars
+    u16 prev=keyNow(); int top=0, dirty=1; u32 fr=0;   // six rows fit: UP / DOWN scroll a bigger household
+    char t[44]; { char*e=simCat(t,"RELATIONSHIPS"); if(hhPLast[0]){ e=simCat(e,"  THE "); e=simCat(e,hhPLast); simCat(e," FAMILY"); } }
     for(;;){
-        u16 k=keyNow(), pr=k&~prev; prev=k; if(pr&(K_A|K_B|K_START)) return;
-        if((pr&K_DOWN)&&top+7<hhN) top++; if((pr&K_UP)&&top>0) top--;
-        if((pr&K_SEL)&&dbgOn){ hhInvite(); prev=keyNow(); }   // SELECT: a new Sim moves in (DEBUG CODE only)
-        box(3,1,234,157); char t[44]; { char*e=simCat(simCat(t,"RELATIONSHIPS OF "),hhPName); if(hhPLast[0]){ *e++=' '; simCat(e,hhPLast); } } text(10,6,t,GOLD,1);
-        text(84,16,"YOU TO THEM",DIMC,1); text(162,16,"THEM TO YOU",DIMC,1);
-        if(!hhN) text(10,40,"NO ONE ELSE LIVES HERE",DIMC,1);
-        for(int m=top;m<hhN&&m<top+7;m++){ int y=26+(m-top)*18, b=hhM[m].uid, a=hhPUid;
-            text(10,y,hhM[m].name,WHITE,1); text(10,y+8,relWord(a,b),(relF[a][b]&(RF_LOVE|RF_STEADY|RF_CRUSH))?RGB(31,14,20):relD[a][b]<=-20?RGB(30,10,8):RGB(16,26,16),1);
-            relBar(84,y+1,relD[a][b]); relBar(84,y+8,relL[a][b]); relBar(162,y+1,relD[b][a]); relBar(162,y+8,relL[b][a]);
-            if(relF[a][b]&RF_STEADY) simIcon(226,y+2,IC_HEART,RGB(31,14,20)); }
-        text(10,150,dbgOn?(hhN>7?"UP DOWN MORE  SELECT ADD A SIM":"TOP DAILY  LOW LIFETIME  SELECT ADD A SIM"):(hhN>7?"UP DOWN MORE  A OR B BACK":"TOP DAILY  LOW LIFETIME"),RGB(12,14,16),1);
+        u16 k=keyNow(), pr=k&~prev; prev=k; fr++; if(pr&(K_A|K_B|K_START)) return;
+        if((pr&K_DOWN)&&top+6<hhN){ top++; dirty=1; } if((pr&K_UP)&&top>0){ top--; dirty=1; }
+        if((pr&K_SEL)&&dbgOn){ hhInvite(); prev=keyNow(); dirty=1; }   // SELECT: a new Sim moves in (DEBUG CODE only)
+        if(dirty){ dirty=0; objHideAll(); suBackdrop();
+            text(96,20,"YOU TO THEM",RGB(17,29,31),1); text(162,20,"THEM TO YOU",RGB(17,29,31),1);
+            if(!hhN) text(12,40,"NO ONE ELSE LIVES HERE",RGB(17,29,31),1);
+            for(int m=top;m<hhN&&m<top+6;m++){ int y=29+(m-top)*19, b=hhM[m].uid, a=hhPUid; u16 c0,c1; sexBg(uSex(b),&c0,&c1);
+                s3Box(4,y,232,18,6,RGB(12,21,30),RGB(7,14,25)); s3Box(5,y+1,230,16,5,RGB(5,11,22),RGB(2,5,13));
+                simPortrait(15,y+9,6,b,c0,c1,RGB(23,29,31));
+                text(26,y+2,hhM[m].name,WHITE,1);
+                text(26,y+10,relWord(a,b),(relF[a][b]&(RF_LOVE|RF_STEADY|RF_CRUSH|RF_MARRIED))?RGB(31,19,26):relD[a][b]<=-20?RGB(31,14,11):RGB(17,29,31),1);
+                suRelBar(96,y+3,58,relD[a][b]); suRelBar(96,y+10,58,relL[a][b]); suRelBar(162,y+3,58,relD[b][a]); suRelBar(162,y+10,58,relL[b][a]);
+                if(relF[a][b]&RF_MARRIED) suRing(227,y+9); else if(relF[a][b]&RF_STEADY) suHeart(227,y+9); }
+            int x=5; if(hhN>6){ s2pill(x,147,70,"UP DOWN MORE"); x+=73; } s2pill(x,147,46,"B BACK"); x+=49;
+            if(dbgOn) s2pill(x,147,74,"SELECT ADD SIM");
+            text(234-tw("TOP DAILY  LOW LIFE",1),149,"TOP DAILY  LOW LIFE",RGB(12,20,28),1); }
+        suTitleBar(3,3,234,t,fr);
         present();
     }
 }

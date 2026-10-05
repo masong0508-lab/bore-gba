@@ -43,6 +43,7 @@ static int stAddSim(const u8*lk,int stg,const char*last){   // someone moves in 
     return m;
 }
 static void stRel(int a,int b,int d,int l,u8 f){ relD[a][b]=relD[b][a]=(signed char)d; relL[a][b]=relL[b][a]=(signed char)l; relF[a][b]=relF[b][a]=f; }
+static void famNotice(const char*title,const char*l1,const char*l2,const int*us,int n);   // family.h
 static void stKidHome(void){   // the promised child moves in: a mix of you and your partner (or a look of their own)
     int p=stMember(stPart); u8 lk[LK_N];
     if(p>=0) stMixLook(lk,look,hhM[p].look,AG_CHILD); else { u8 st=AG_CHILD; lookTrueRandom(lk,&st); }
@@ -51,7 +52,7 @@ static void stKidHome(void){   // the promised child moves in: a mix of you and 
     stRel(hhPUid,hhM[m].uid,50,40,RF_FRIEND); if(p>=0) stRel(hhM[p].uid,hhM[m].uid,50,40,RF_FRIEND);
     for(int k=0;k<hhN;k++){ hhOld[k].x0=hhOld[k].x1=0; hhOldSig[k]=0xFFFFFFFFu; }
     static char t[44] EWRAM_BSS; char*e=simCat(t,"YOUR "); e=simCat(e,sexWord(SW_KID,lk[LK_SEX])); e=simCat(e," "); e=simCat(e,hhM[m].name); simCat(e," IS HOME");
-    toast(t); hhBakeAll(); hhSave(); liveInvalidate();   // (the news before the bake, over the game: after it, it would land on the loading screen)
+    hhBakeAll(); { int u=hhM[m].uid; famNotice("WELCOME HOME!",t,"A MIX OF THE TWO OF YOU",&u,1); } hhSave(); hhSlotsFree(); liveInvalidate();   // (a Sims notice with the child's new face)
     stKid=hhM[m].uid;   // (the kid goals are about this child)
 }
 static int stDone(const StCh*c){   // is the chapter's goal met?

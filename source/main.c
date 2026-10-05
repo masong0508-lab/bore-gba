@@ -2254,36 +2254,52 @@ static u16 keyNow(void){   // BUTTONS option: A/B and L/R can be swapped here, s
     return k;
 }
 static void objHideAll(void){ for(int i=0;i<32;i++) ((volatile u16*)0x07000000)[i*4]=0x200; }   // household sprites off (menus, other screens)
-static void box(int x,int y,int w,int h){ objHideAll(); rect(x-1,y-1,w+2,h+2,GOLD); rect(x,y,w,h,RGB(3,4,7)); }
+#include "simui.h"   // the Sims look: glossy panels, pills, the plumbob, the dimmed world, pie bubbles
+static void box(int x,int y,int w,int h){ objHideAll();   // a Sims 2 panel: a light blue rim, deep blue glass, a lit top edge
+    s3Box(x-1,y-1,w+2,h+2,4,RGB(15,24,31),RGB(8,15,26)); s3Box(x,y,w,h,3,RGB(5,11,21),RGB(2,5,12)); rect(x+3,y,w-6,1,RGB(11,19,29)); }
 static int menu(const char*title,const char*const*it,int n){   // UP/DOWN + A to choose, B or START to cancel (returns -1)
-    int sel=0, w=116, h=26+n*10, x=(SW-w)/2, y=(SH-h)/2; u16 prev=keyNow();
+    // The Sims 2 look: the world dims, a glass panel with a title bar and the plumbob, the row you are on is a green pill.
+    // More than 11 rows scroll (the arrows on the right say there is more).
+    int w=tw(title,1)+30; for(int i=0;i<n;i++){ int v=tw(it[i],1)+30; if(v>w) w=v; } if(w<120) w=120; if(w>230) w=230;
+    int vis=n<11?n:11, h=19+vis*11+16, x=(SW-w)/2, y=(SH-h)/2, sel=0, top=0; u32 fr=0; u16 prev=keyNow();
+    objHideAll(); suDim();
     for(;;){
-        u16 k=keyNow(), pr=k&~prev; prev=k;
+        u16 k=keyNow(), pr=k&~prev; prev=k; fr++;
         if(pr&K_DOWN) sel=(sel+1)%n;
         if(pr&K_UP) sel=(sel+n-1)%n;
         if(pr&K_A) return sel;
         if(pr&(K_B|K_START)) return -1;
-        box(x,y,w,h); text(x+6,y+5,title,GOLD,1);
-        for(int i=0;i<n;i++){ int yy=y+16+i*10;
-            if(i==sel){ rect(x+3,yy-2,w-6,9,RGB(6,16,8)); text(x+6,yy,">",WHITE,1); }
-            text(x+13,yy,it[i],i==sel?WHITE:DIMC,1); }
-        text(x+6,y+h-9,"A OK  B BACK",RGB(12,14,16),1);
+        if(sel<top) top=sel; if(sel>=top+vis) top=sel-vis+1;
+        box(x,y,w,h); suTitleBar(x+1,y+1,w-2,title,fr);
+        for(int i=0;i<vis;i++){ int r=top+i, yy=y+18+i*11;
+            if(r==sel){ s3Pill(x+4,yy,w-8,10,1,""); text(x+12,yy+2,it[r],RGB(1,4,0),1); }
+            else text(x+12,yy+2,it[r],RGB(24,28,31),1); }
+        if(top>0) for(int j=0;j<3;j++) rect(x+w-8-j,y+19+j,1+2*j,1,RGB(17,29,31));                 // more above
+        if(top+vis<n) for(int j=0;j<3;j++) rect(x+w-8-j,y+h-19-j,1+2*j,1,RGB(17,29,31));          // more below
+        s2pill(x+4,y+h-14,38,"A OK"); s2pill(x+45,y+h-14,46,"B BACK");
         present();
     }
 }
-static void helpScreen(const char*title,const char*const*ln,int n){   // lines starting with > are headings
-    u16 prev=keyNow();
+static void helpScreen(const char*title,const char*const*ln,int n){   // lines starting with > are headings (a Sims 2 info panel)
+    u16 prev=keyNow(); u32 fr=0;
+    objHideAll(); suBackdrop();
+    s2rr(3,19,234,127,RGB(10,20,30)); s2rr(4,20,232,125,RGB(2,6,13));   // the text pane
+    for(int i=0;i<n&&i<15;i++){ const char*l=ln[i]; int yy=23+i*8;
+        if(l[0]=='>'){ s2grad(6,yy-1,228,9,6,16,26,3,9,17); rect(9,yy+2,3,3,RGB(8,28,10)); text(15,yy,l+1,RGB(17,29,31),1); }
+        else text(13,yy,l,RGB(27,30,31),1); }
+    s2pill(5,147,60,"A CLOSE");
     for(;;){
-        u16 k=keyNow(), pr=k&~prev; prev=k;
+        u16 k=keyNow(), pr=k&~prev; prev=k; fr++;
         if(pr&(K_A|K_B|K_START)) return;
-        box(3,1,234,157); text(14,10,title,GOLD,1);
-        for(int i=0;i<n;i++){ const char*l=ln[i]; if(l[0]=='>') text(14,22+i*8,l+1,GOLD,1); else text(18,22+i*8,l,WHITE,1); }
-        text(14,144,"PRESS A TO CLOSE",DIMC,1);
+        suTitleBar(3,3,234,title,fr);
         present();
     }
 }
-static void toast(const char*msg){ int w=tw(msg,1)+16;
-    box((SW-w)/2,66,w,22); text((SW-w)/2+8,74,msg,WHITE,1); for(int i=0,n=oToastLen();i<n;i++){ present(); } }
+static void toast(const char*msg){   // a Sims notification: a dark glass pill with the plumbob
+    int w=tw(msg,1)+30; if(w>236) w=236; int x=(SW-w)/2;
+    objHideAll(); s3Box(x-1,63,w+2,26,9,RGB(16,25,31),RGB(8,15,26)); s3Box(x,64,w,24,8,RGB(6,12,23),RGB(2,5,12)); rect(x+9,65,w-18,1,RGB(14,22,31));
+    suBob(x+12,71,0,0); text(x+21,73,msg,WHITE,1);
+    for(int i=0,n=oToastLen();i<n;i++){ present(); } }
 static const char* const lifeHelp[17]={">ON FOOT","DPAD WALK  B RUN  A HOP","L GET ON THE BOARD","R USE FRIDGE TOILET BED SHOWER SOFA",">ON THE BOARD","A PUSH  DPAD STEER  B OLLIE","IN AIR DPAD SPINS  B KICKFLIP  R GLIDES",">KEEP YOURSELF GOING","WC IS THE TOILET BAR  HP UNDER THE FACE","A OR B GETS YOU UP FROM BED OR SOFA",">WORK  MON TO FRI 9 TO 5","TRICK POINTS BEAT THE QUOTA FOR PAY",">WANTS AND FEARS","WANTS FILL THE METER  FEARS DRAIN IT","A GOOD SLEEP ROLLS NEW WANTS AND FEARS","R BY A SIM TALK OR FIGHT  START MENU","SELECT+UP DOWN ZOOM IN OR OUT"};
 
 static const char* const creatureHelp[15]={">PICK YOUR LOOK","L R CHANGE TAB   UP DOWN PICK A ROW","LEFT RIGHT CHANGE IT  A ALSO STEPS","SELECT TURNS THE CREATURE ROUND",">THE TABS","1 BODY  2 FACE  3 HAIR  4 CLOTHES","5 PARTS  TAIL HORNS SPIKES WINGS","  PARTS GIVE POWERS  AND FIGHT BONUSES","  BIG PARTS COST JENES  A BUYS ONE","6 ASPIRE  ASPIRATION  LIFETIME WANT  SIGN","  AND TRAITS THAT SHARE 25 POINTS",">FINISH","START JUMPS TO THE DONE TAB","GO LIVE LIFE PLAYS YOUR CREATURE","LIVING EARNS DNA FOR NEW PARTS"};
@@ -4094,21 +4110,7 @@ static void creatorMusStart(void){
 static const char* const jbHelp[15]={">PLAYING","UP DOWN PICK A SONG  A PLAYS IT","A ON THE PLAYING SONG STOPS IT","L R GO TO THE PREVIOUS OR NEXT SONG",">CHECK BOXES","SELECT CHECKS OR UNCHECKS A SONG","ONLY CHECKED SONGS ARE PICKED AT RANDOM:","HERE  IN THE MENUS  AND FOR GAME MUSIC",">PLAY MODE","START CHANGES IT:  SHUFFLE  IN ORDER  REPEAT","WHEN A SONG ENDS THE MODE PICKS THE NEXT",">OTHER","LEFT RIGHT CHANGE THE VOLUME","OPENING IT PLAYS ONE RANDOM CHECKED SONG","B GOES BACK TO THE MENU"};
 #include "acid.h"   // ACID RAINBOW: a live plasma, one of the main menu's backdrops
 // ---- the Sims 3 look: glossy rounded panels and pill buttons ----
-static u16 s3Mix(u16 a,u16 b,int t,int n){ if(n<=1) return a; int m=n-1;
-    int r=(a&31)+((int)(b&31)-(int)(a&31))*t/m, g=((a>>5)&31)+((int)((b>>5)&31)-(int)((a>>5)&31))*t/m, c=((a>>10)&31)+((int)((b>>10)&31)-(int)((a>>10)&31))*t/m; return RGB(r,g,c); }
-static int s3Sq(int v){ int k=0; while((k+1)*(k+1)<=v) k++; return k; }
-static int s3In(int j,int h,int r){ int e=j<r?2*(r-j)-1:j>=h-r?2*(j-(h-r))+1:0; return e?r-s3Sq(4*r*r-e*e)/2:0; }   // how far row j of a rounded box is pulled in
-static void s3Box(int x,int y,int w,int h,int r,u16 top,u16 bot){ if(2*r>h) r=h/2; for(int j=0;j<h;j++){ int in=s3In(j,h,r); rect(x+in,y+j,w-2*in,1,s3Mix(top,bot,j,h)); } }
-static void s3Panel(int x,int y,int w,int h){ s3Box(x,y,w,h,12,RGB(3,8,19),RGB(2,5,13)); s3Box(x+2,y+2,w-4,h-4,10,RGB(23,29,31),RGB(13,22,31)); rect(x+12,y+3,w-24,1,RGB(29,31,31)); }
-static void s3Well(int x,int y,int w,int h){ s3Box(x,y,w,h,5,RGB(13,21,30),RGB(16,24,31)); s3Box(x+1,y+1,w-2,h-2,4,RGB(25,30,31),RGB(21,28,31)); }   // a sunken well (the town card, the tiles)
-static void s3Pill(int x,int y,int w,int h,int on,const char*s){   // the focused one is green, like the game's
-    s3Box(x,y,w,h,h/2,on?RGB(4,10,2):RGB(6,11,20),on?RGB(3,8,1):RGB(5,9,17));
-    s3Box(x+1,y+1,w-2,h-2,(h-2)/2,on?RGB(21,30,9):RGB(29,31,31),on?RGB(10,22,2):RGB(18,25,31));
-    s3Box(x+h/2,y+2,w-h,(h-4)/2,2,on?RGB(25,31,15):RGB(31,31,31),on?RGB(21,30,9):RGB(27,30,31));   // the gloss
-    text(x+(w-tw(s,1))/2,y+(h-6)/2,s,on?RGB(1,4,0):RGB(2,5,11),1);
-}
 static void s3Round(int x,int y,int on,const char*glyph){ disc(x,y,7,on?RGB(4,10,2):RGB(3,7,16)); disc(x,y,6,on?RGB(14,27,6):RGB(9,16,27)); text(x-tw(glyph,1)/2+1,y-3,glyph,on?RGB(1,4,0):WHITE,1); }
-static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,RGB(8,14,26)); text((SW-tw(t,1))/2,152,t,RGB(26,29,31),1); }
 #include "neighborhood.h"   // THE NEIGHBORHOOD: a town of lots to live in, visit and build on (main menu)
 #include "households.h"     // THE TOWN'S HOUSEHOLDS: who lives where, the household bank, visitors, the phone
 #include "story.h"          // STORY MODE: chapters with goals (NEW GAME > STORY MODE)
@@ -4145,13 +4147,6 @@ static void drawMainMenu(int sel,int full){
 // ---------- HOW TO PLAY: a Sims 2 style control panel (main menu only) ----------
 // Glossy blue panels, rounded tabs along the top, a bobbing green plumbob next to the title, a scrolling text pane with a thumb,
 // and a button strip along the bottom.  L R (or LEFT RIGHT, or A) change the tab, UP DOWN scroll, B or START close.
-static void s2rr(int x,int y,int w,int h,u16 c){ rect(x+1,y,w-2,h,c); rect(x,y+1,w,h-2,c); }   // a rounded rectangle
-static void s2grad(int x,int y,int w,int h,int r0,int g0,int b0,int r1,int g1,int b1){        // a vertical gradient
-    for(int i=0;i<h;i++){ int t=h>1?i*256/(h-1):0; rect(x,y+i,w,1,RGB(r0+(r1-r0)*t/256,g0+(g1-g0)*t/256,b0+(b1-b0)*t/256)); } }
-static void s2plumbob(int cx,int y){   // the green diamond: dark left half, light right half, a glint
-    for(int i=0;i<7;i++){ int hw=i<4?i:6-i; rect(cx-hw,y+i*2,hw+1,2,i<3?RGB(3,20,6):RGB(2,14,4)); rect(cx+1,y+i*2,hw,2,i<3?RGB(14,31,16):RGB(8,26,10)); }
-    rect(cx+1,y+3,1,2,RGB(26,31,26)); }
-static void s2pill(int x,int y,int w,const char*s){ s2rr(x,y,w,11,RGB(10,20,30)); s2grad(x+1,y+1,w-2,9,6,15,25,3,9,17); text(x+(w-tw(s,1))/2,y+2,s,RGB(20,27,31),1); }
 static void howToPlay(void){
     static const signed char bob[8]={0,1,2,2,1,0,-1,-1};
     static const char* const tn[7]={"PLAY","MAKE","BUILD","MUSIC","SLOTS","OPTS","TOWN"};
