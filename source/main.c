@@ -2084,6 +2084,12 @@ static int jbUnlock(int bit){   // 1 when the song was locked and is now free (s
     if(jbUl&bit) return 0;
     jbUl|=(u8)bit; jbUlSave(); jbSetup(); return 1;
 }
+static int jbDreamMet(int asp,int ltw){   // a lifetime dream was met (every life counts, saved for good): 1 when it was the one that reached half of all of them, and CLOSER TO THE END comes free
+    if(asp<0||asp>=AS_PICK) return 0;
+    u16 b=(u16)(1<<(asp*2+(ltw&1))); if(!(jbDr&b)){ jbDr|=b; jbDrSave(); }
+    int n=0; for(int i=0;i<2*AS_PICK;i++) n+=(jbDr>>i)&1;
+    return n*2>=2*AS_PICK&&jbUnlock(UL_CLOSER);
+}
 // SRAM layout: 0..2 "BM3", then MSZ bytes each of tiles, floors, wallpapers. Settings at SET_OFF (see settingsSave).
 // Old "BM1" / "BM2" saves (14x14, settings at 640) still load: the room is placed into the plaza of the new default map.
 // (bytes 0..4095 sit in flash sector 0 on their own, so mapSave erases that sector and writes it again: svRd / svWr, not pointers)

@@ -59,6 +59,8 @@
 #define SIM_THERAPY    300    // where the therapist leaves the meter after an aspiration failure
 #define SIM_LTW_PTS    500    // reward points for the lifetime want
 #define UL_CLOUDS      1      // unlock bit: the song WORTHLESS CLOUDS (unlocks.h) comes with the first lifetime want you meet
+#define UL_CLOSER      2      // unlock bit: the song CLOSER TO THE END comes once half of all the lifetime dreams have been met (jbDreamMet, main.c)
+static int jbDreamMet(int asp,int ltw);   // (main.c) records a met dream; 1 = it reached half of them and a song was unlocked
 static int jbUnlock(int bit);   // (main.c) sets an unlock bit for good and rebuilds the jukebox list; 1 = it was locked before
 #define SIM_GOOD_SLEEP 300    // steps of sleep (5 game hours: sleep runs the clock fast) that count as a real night: wants reroll on waking
 #define SIM_TREE_PAY   25     // the MONEY TREE pays this every midnight
@@ -224,7 +226,7 @@ enum { SF_LTW=1, SF_TREE=2, SF_HOME=4 };     // lifetime want met, owns a money 
 static int simTricks, simBestCombo, simStokedS, simNights;   // lifetime want counters: tricks landed, best combo banked, seconds stoked, good nights
 static int simHave, simPrevMood, simEdges, simStokedCr, simDrainCr;   // SR_ mask of furniture; last mood state; edge flags; counters
 static unsigned simRng=12345u;
-static const char* simQ, *simQ2; static int simQT;   // a note waiting for the note line to be free, and the one after it
+static const char* simQ, *simQ2, *simQ3; static int simQT;   // a note waiting for the note line to be free, and the one after it
 static int simT;                             // steps since reset (drives the bubble)
 static int simMoney, simDay, simMin, simClkCr;   // cash, days since the start (0 = MON), minute of day, step counter towards a minute
 static int jobLvl, jobGood, jobBad, shiftPts, simLastScore, simNiceRoom;   // job level 0..5, good days towards promotion, strikes, points this shift
@@ -232,7 +234,8 @@ static int skillPts, skillLvl;               // SKATING skill
 static char simClk[16], simMsg[40], simMsg2[40], simWTxt[SIM_WS][24] EWRAM_BSS;   // clock text, note buffers, want names with their parameter
 
 static int simRnd(void){ simRng=simRng*1664525u+1013904223u; return (int)(simRng>>24); }
-static void simQueue(const char* s){ simQ=s; simQ2=0; simQT=240; }
+static void simQueue(const char* s){ simQ=s; simQ2=0; simQ3=0; simQT=240; }
+static void simQPush(const char* s){ if(!simQ){ simQ=s; simQT=240; } else if(!simQ2) simQ2=s; else if(!simQ3) simQ3=s; }   // after the notes already waiting (three fit)
 static char* simCat(char*d,const char*s){ while(*s) *d++=*s++; *d=0; return d; }
 static char* simCatN(char*d,int n){ char t[8]; int k=0; if(n<0) n=0; if(n==0) t[k++]='0'; while(n>0&&k<7){ t[k++]=(char)('0'+n%10); n/=10; } while(k>0) *d++=t[--k]; *d=0; return d; }
 static void simMsgPay(const char* pre,int n){ simCatN(simCat(simMsg,pre),n); }   // "SHIFT PAID 110" into simMsg
@@ -402,7 +405,7 @@ static void simsDefaults(void){   // a brand new life (nothing is written to SRA
 }
 static void simsTransient(void){
     simCrN=simCrH=simCrC=0; simAct=simActT=simActN=0; for(int s=0;s<SIM_WS+SIM_FS;s++) simSlotT[s]=0;
-    simPrevMood=-1; simEdges=0; simStokedCr=0; simDrainCr=0; simQ=0; simQ2=0; simQT=0; simT=0; simClkCr=0; shiftPts=0; simLastScore=lscore; simNiceRoom=0;
+    simPrevMood=-1; simEdges=0; simStokedCr=0; simDrainCr=0; simQ=0; simQ2=0; simQ3=0; simQT=0; simT=0; simClkCr=0; shiftPts=0; simLastScore=lscore; simNiceRoom=0;
     simSkillCalc(); simsScan(); simZone=simZoneOf(simMeter);
     for(int s=0;s<SIM_WS;s++) if(simW[s]>=0&&((simWants[simW[s]].req&simHave)!=simWants[simW[s]].req||!simWho(simWants[simW[s]].who))){ simW[s]=-1; simLock&=~(1<<s); }   // a different room, or a stage that cannot
     for(int s=0;s<SIM_FS;s++) if(simF[s]>=0&&!simWho(simFears[simF[s]].who)) simF[s]=-1;
@@ -494,12 +497,13 @@ static int simLtwVal(void){
     }
 }
 static void simLtwCheck(void){
-    if(simFlags&SF_LTW){ if(jbUnlock(UL_CLOUDS)) simQueue("SONG UNLOCKED"); return; }   // (a life that met its want before songs could be unlocked gets it now)
+    if(simFlags&SF_LTW){ if(jbUnlock(UL_CLOUDS)) simQueue("SONG UNLOCKED"); if(jbDreamMet(pAsp,pLtw)){ simQPush("MORE SCOOBY STUFF TO FIND"); simQPush("TOUCH GRASS TO FIND IT"); } return; }   // (a life that met its want before songs could be unlocked gets it now)
     if(stage<AG_TEEN) return;   // the lifetime want starts with the chosen aspiration
     if(simLtwVal()<simLtw()->goal) return;
     simFlags|=SF_LTW; simAsp+=SIM_LTW_PTS; if(simAsp>9999) simAsp=9999; simMeterAdd(1000); dnaAdd(SIM_DNA_LTW);
     moodEvent(M_PROMO); simQueue("LIFETIME WANT MET");
-    if(jbUnlock(UL_CLOUDS)) simQ2="SONG UNLOCKED";   // the dream pays with a song
+    if(jbUnlock(UL_CLOUDS)) simQPush("SONG UNLOCKED");   // the dream pays with a song
+    if(jbDreamMet(pAsp,pLtw)){ simQPush("MORE SCOOBY STUFF TO FIND"); simQPush("TOUCH GRASS TO FIND IT"); }   // half of all the dreams met: a secret song (no song name, go and look)
 }
 static void simZoneTick(void){   // the meter drains; say it when the zone changes; a meter at 0 is an aspiration failure
     if(!simWishes()) return;
@@ -670,7 +674,7 @@ static void simsTick(unsigned pr,int tx,int ty){
     }
     for(int s=0;s<SIM_WS+SIM_FS;s++) if(simSlotT[s]>0) simSlotT[s]--;
     simFill();
-    if(simQ){ if(lnoteT<=0){ lnote=simQ; lnoteT=60; simQ=simQ2; simQ2=0; simQT=240; } else if(--simQT<=0){ simQ=0; simQ2=0; } }
+    if(simQ){ if(lnoteT<=0){ lnote=simQ; lnoteT=60; simQ=simQ2; simQ2=simQ3; simQ3=0; simQT=240; } else if(--simQT<=0){ simQ=0; simQ2=0; simQ3=0; } }
 }
 
 // ---- drawing helpers (hud.h and the aspiration panel use them) ----
