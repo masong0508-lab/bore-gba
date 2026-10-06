@@ -66,7 +66,7 @@ static int cview;    // the view being drawn (0..3, quarter turns): vbase, plus 
 static int vbase;    // the view the player chose with SELECT + L / R (like turning the camera in a Sims game); it stays until it is turned again
 static int lcN, lcPts, lcT, lcBank, lcBankT, lcamPend, lcamF;   // combo chain: tricks, points, time left, banked total + display time, cam queued, cam frame
 #define SPEC_MAX 1000
-static int lspec; static u8 lspecOn;
+static int lspec; static u8 lspecOn, lsw, lskl;
 static void specLose(void);
 static u8 sCam=1;    // action cam after a big combo: 0 off, 1 over 10000, 2 over 5000, 3 over 2000
 static const int camThr[4]={0,10000,5000,2000};
@@ -1950,6 +1950,13 @@ static void specLose(void){ if(lspecOn&&!ldead&&lnoteT<=0){ lnote="SPECIAL LOST"
 static void specAdd(int n){
     if(ldead) return;
     lspec+=n; if(lspec>=SPEC_MAX){ lspec=SPEC_MAX; if(!lspecOn){ lspecOn=1; lnote="SPECIAL"; lnoteT=60; lnPerf=1; sfxPlay(SFX_STICK); voxPlay(V_yahoo); } } }
+static void sktAward(void){
+    static char b[8] EWRAM_BSS; static const char L[]="SKATE"; int i;
+    if(ldead) return;
+    lskl++;
+    if(lskl>=5){ lskl=0; lscore+=500; specAdd(SPEC_MAX); lnote="SKATE  +500"; lnoteT=90; return; }
+    for(i=0;i<lskl;i++) b[i]=L[i];
+    b[i]=0; lnote=b; lnoteT=50; }
 static void hurt(int sev,int kind){
     specLose();
     if(abPow()&PW_ARMOUR) sev=sev*7/10;                                    // SPIKES: armour plates take the edge off
@@ -2492,12 +2499,13 @@ static void trickName(int hs,int grab,int perfect){
     if(p==lnBuf){ q="NICE "; while(*q) *p++=*q++; }
     p[-1]=0; lnote=lnBuf; lnPerf=(u8)perfect;
 }
+static void swName(void){ int n=0; while(lnBuf[n]) n++; if(n>15) return; for(int i=n;i>=0;i--) lnBuf[i+7]=lnBuf[i]; const char*q="SWITCH "; for(int i=0;i<7;i++) lnBuf[i]=q[i]; }
 static void hhStart(void); static void hhTick(void); static int hhSocR(int useLabel);   // house.h (included further down, next to the drawing it hooks into)
 static void lifeInit(void){
     if(!(shapeMask()>>look[LK_SHAPE]&1)){ look[LK_SHAPE]=(u8)maskPick(shapeMask(),look[LK_SHAPE],NSHAPE); if(!custom) buildLook(); }
     flHome(); mapScan(); hhStart();
     bakeSprites(); camSnap=1;
-    lfx=spx*256+128; lfy=spy*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote=""; lchill=0; lskate=0; lhave=(bdx<0); lfr=0; lvx=lvy=0; ldead=0; lmaxz=0; lplay=0; lbumpCd=0; lfood=100; lbl=0; lhp=HP_MAX; lnear=0; lspec=0; lspecOn=0; moodReset(); simsReset(); sfxStop(); feelReset(0);
+    lfx=spx*256+128; lfy=spy*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote=""; lchill=0; lskate=0; lhave=(bdx<0); lfr=0; lvx=lvy=0; ldead=0; lmaxz=0; lplay=0; lbumpCd=0; lfood=100; lbl=0; lhp=HP_MAX; lnear=0; lspec=0; lspecOn=0; lsw=0; lskl=0; moodReset(); simsReset(); sfxStop(); feelReset(0);
 }
 static int rampAvg, rampOn;   // px/step (8.8) the skater has been climbing a ramp, smoothed (heights are whole px, so single steps are lumpy); rampOn = rode a ramp last step
 // BABY: cannot be steered. A caretaker keeps the needs up and the baby toddles about by itself: stops now and then, picks a new way
@@ -2582,12 +2590,13 @@ static void lifeStep(u16 k,u16 pr,int fr){
         else{
             if(g==1){ F.spd=F.spd*3/5; lsp=F.spd>>4; pts/=2; lnote="SKETCHY"; lnoteT=40; }   // landed, but crooked: you lose speed and the trick is worth half
             else if(g==3&&pts) pts+=pts/4;                                                      // PERFECT: +25%
-            if(pts){ if(hs||lflip||gb) pts=pts*(100+skLvl(SK_AIR)*4)/100; skGain(SK_AIR,(hs>=2?2:hs?1:0)+(lflip?1:0)+(gb?1:0)); skGain(SK_BAL,g==3?2:g==2?1:0); pts=moodPts(pts); if(lspecOn) pts*=2; lscore+=pts; lpts=pts; if(g!=1) trickName(hs,gb,g==3); lnoteT=60; lcN++; lcPts+=pts; lcT=oComboLen(); moodEvent(M_TRICK); specAdd(60+pts/(lspecOn?8:4)); }
+            if(pts){ if(hs||lflip||gb) pts=pts*(100+skLvl(SK_AIR)*4)/100; skGain(SK_AIR,(hs>=2?2:hs?1:0)+(lflip?1:0)+(gb?1:0)); skGain(SK_BAL,g==3?2:g==2?1:0); pts=moodPts(pts); if(lsw) pts+=pts/4; if(lspecOn) pts*=2; lscore+=pts; lpts=pts; if(g!=1){ trickName(hs,gb,g==3); if(lsw) swName(); } lnoteT=60; lcN++; lcPts+=pts; lcT=oComboLen(); moodEvent(M_TRICK); specAdd(60+pts/(lspecOn?8:4)); }
             if(onRail){ lgrind=1; skGain(SK_GRIND,1); lnote="GRIND"; lnoteT=30; lcN++; lcT=oComboLen(); moodEvent(M_GRIND_ON); sfxPlay(SFX_GRIND); specAdd(60); }
             else sfxPlay((pts&&g!=1)?SFX_STICK:SFX_LAND);   // the landing is heard: a thud, or the bright one for a trick
         }
         if(bail){ int sv=drop/3+sp0/3+(rnd8()>>6); if(drop<30&&sv>15) sv=15; sv-=sv*skLvl(SK_BAL)*6/100; hurt(sv,1); }   // bad landing: harder/faster/higher = worse (was drop/2+speed: a fast bail was OW + 2.5 s down, or even death)
         else if(drop>24) hurt(drop-24+(rnd8()>>5),0);   // big drops hurt even landed clean
+        if(!bail&&(hs&1)) lsw^=1;
         lspin=0; lflip=0; feelLandReset();
     }
     if(!air){ lmaxz=(int)(lz>>8); lplay=0; }
@@ -2644,6 +2653,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
             lcBank=tot; lcBankT=120;
             if(lcN>=2&&sCam&&tot>camThr[sCam]) lcamPend=1;
             if(lcN>=2) moodEventN(M_COMBO,lcN-1);
+            if(lcN>=3) sktAward();
             lcN=0; lcPts=0;
         }
     }

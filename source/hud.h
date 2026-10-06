@@ -23,7 +23,7 @@ typedef struct { short x0,y0,x1,y1; } Rc;
 // The panels are drawn in pieces: each piece remembers what it last showed (hudKeys) and is redrawn, and handed to the screen copy (hudRc), only
 // when that changed. The first draw after anything covered the screen (all=1) draws every piece.
 static int fxWxHud(void); static void fxWxIcon(int x,int y);   // fx.h
-enum { HK_SCORE, HK_CASH, HK_MSG, HK_CLOCK, HK_NEED, HK_PORT=HK_NEED+8, HK_HEAD, HK_ASP, HK_W0, HK_W1, HK_HP, HK_SPEC, HK_N };
+enum { HK_SCORE, HK_CASH, HK_MSG, HK_CLOCK, HK_NEED, HK_PORT=HK_NEED+8, HK_HEAD, HK_ASP, HK_W0, HK_W1, HK_HP, HK_SPEC, HK_SKT, HK_N };
 static unsigned hudKeys[HK_N] EWRAM_BSS;
 #define HUD_NR 24
 static Rc hudRc[HUD_NR] EWRAM_BSS; static int hudRcN;
@@ -66,8 +66,12 @@ static void hudTopUpdate(int all){
             hudMark(3,HUD_TOPH-2,58,2);
         }
     }
-    if(hudChg(all,HK_CASH,(unsigned)simMoney)){ hudClear(62,0,40,HUD_TOPH-1);
-        rect(63,3,5,5,HC_GOLD); rect(64,4,3,3,RGB(24,19,3)); rect(64,3,3,1,RGB(31,30,16)); numText(71,1,simMoney,HC_GOLD); hudMark(62,0,40,HUD_TOPH-1); }
+    if(hudChg(all,HK_SKT,(unsigned)lskl)){
+        for(int i=0;i<5;i++) rect(64+i*7,HUD_TOPH-2,6,2,i<lskl?HC_GOLD:HC_DARK);
+        hudMark(62,HUD_TOPH-2,40,2);
+    }
+    if(hudChg(all,HK_CASH,(unsigned)simMoney)){ hudClear(62,0,40,HUD_TOPH-2);
+        rect(63,3,5,5,HC_GOLD); rect(64,4,3,3,RGB(24,19,3)); rect(64,3,3,1,RGB(31,30,16)); numText(71,1,simMoney,HC_GOLD); hudMark(62,0,40,HUD_TOPH-2); }
     // the middle: prompt > note > combo > hint
     const char*t; u16 c; int pts; int has=hudMsg(&t,&c,&pts); char b[24]; int cn=0; int n2=0;
     unsigned mk;
