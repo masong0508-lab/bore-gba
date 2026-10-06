@@ -92,6 +92,22 @@ static int stDone(const StCh*c){   // is the chapter's goal met?
     }
     return 0;
 }
+// STORY MISSIONS (roadmap #4): every story chapter finished, in any life, is counted once for good (the same chapter again adds nothing). The END card of a story is not a mission,
+// so a story has 5. Half of all of them (the missions of every story in the game) unlock CLOSER TO THE END and TREE-AGE IN ACTION.
+// Lives in story.h (it needs STY_N). Saved in the jukebox block at JB_OFF+40: 'M' 'S', 8 bytes (a bit per mission: story-1 * 5 + chapter, room for 12 stories), the bytes xor 0x5A (appended; nothing moved).
+#define SM_PER 5
+static int jbStoryDone(int story,int ch){   // 1 when this mission was the one that reached half of them and songs came free
+    if(story<1||story>=STY_N||ch<0||ch>=SM_PER) return 0;
+    volatile u8*m=SRAM_BASE+JB_OFF+40; u8 v[8]; u8 x=0x5A;
+    for(int i=0;i<8;i++){ v[i]=(m[0]=='M'&&m[1]=='S')?m[2+i]:0; x^=v[i]; }
+    if(m[0]=='M'&&m[1]=='S'&&m[10]!=x) for(int i=0;i<8;i++) v[i]=0;   // a damaged block starts again
+    int b=(story-1)*SM_PER+ch; if(b<64) v[b>>3]|=(u8)(1<<(b&7));
+    x=0x5A; for(int i=0;i<8;i++) x^=v[i];
+    m[0]='M'; m[1]='S'; for(int i=0;i<8;i++) m[2+i]=v[i]; m[10]=x;
+    int n=0; for(int i=0;i<(STY_N-1)*SM_PER&&i<64;i++) n+=(v[i>>3]>>(i&7))&1;
+    if(n*2<(STY_N-1)*SM_PER) return 0;
+    int a=jbUnlock(UL_CLOSER), t=jbUnlock(UL_TREE); return a|t;
+}
 static void stAnnounce(void){ static char t[44]; char*e=slCat(t,"CHAPTER "); e=slNum(e,stCh+1); e=slCat(e,"  "); slCat(e,stChs[stId][stCh].nm); lnote=t; lnoteT=240; }
 static void stTick(void){   // once per logic step in the life game: is this chapter done?
     static u8 cnt; if(!stId||++cnt<60) return; cnt=0;
@@ -105,6 +121,7 @@ static void stTick(void){   // once per logic step in the life game: is this cha
         stKidHome(); stKidDay=255;
     } else if(!stDone(c)) return;
     simMoney+=stRew(stCh); if(simMoney>9999) simMoney=9999; dnaAdd(25); persSave(); simsSave();
+    if(jbStoryDone(stId,stCh)){ simQPush("MORE SCOOBY STUFF TO FIND"); simQPush("TOUCH GRASS TO FIND IT"); }   // half of all the story missions: secret songs (no names, go and look)
     stCh++; stSave(); stAnnounce(); stShown=(u8)(stId*16+stCh+1); stModal=2;   // the CHAPTER COMPLETE card (stRunModal)
 }
 static void stEnter(void){ stLoad(); if(stId){ stAnnounce(); if(stShown!=(u8)(stId*16+stCh+1)){ stShown=(u8)(stId*16+stCh+1); stModal=1; } } }   // (a chapter card once per chapter and power on)   // entering the life game: the current goal on the top bar
