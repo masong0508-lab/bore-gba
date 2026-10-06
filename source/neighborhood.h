@@ -29,7 +29,8 @@ static const char* const ctNm[CT_N]={"PARK","SKATE PARK","PLAZA","LOUNGE","OLD T
 static const char* const seasNm[4]={"SPRING","SUMMER","FALL","WINTER"};
 static const char* const todNm[3]={"DAY","DUSK","NIGHT"};
 typedef struct { u8 on,x,y,w,h,kind,type; s8 slot; char name[NB_NAME+1]; u8 floors; u16 value; } NbLot;   // value: what it sells for
-typedef struct { char tag[4]; char name[NB_NAME+1]; u8 season,tod,home,cur,zoom,pad[3]; u8 cell[NB_H][NB_W]; NbLot lot[NB_LOTS]; } Town;
+typedef struct { char tag[4]; char name[NB_NAME+1]; u8 season,tod,home,cur,zoom,pad[3]; u8 cell[NB_H][NB_W]; NbLot lot[NB_LOTS]; u8 roof[NB_LOTS][5]; } Town;   // roof (APPENDED, older towns have none: zeros = the old automatic roof): per lot [0] style (low nibble: PYRAMID FLAT HIP SHED) + colour (high nibble: 0 auto, 1-8 palette, 9 custom), [1] height 0 auto / 1-15, [2] overhang 0-7, [3..4] custom RGB555
+#define NB_TOWN_V1 ((unsigned)__builtin_offsetof(Town,roof))   // the size of a town saved before roofs existed: still loads, its roofs are all automatic
 static Town nbT EWRAM_BSS;
 static int nbWho(int li,char*nm); static int nbLives(int li); static int hhPlayAt(int li); static int hhNewAt(int li);   // households.h: who lives on a lot, playing them, new Sims
 static u8 nbOk;                  // nbT holds a town
@@ -106,9 +107,10 @@ static int nbGo(int i){   // make lot i the live map. 1 = done (nbErr says why n
 }
 
 // ---------- the town on the save chip ----------
-static int nbTownList(int*l,int max){ slScan(); int n=0; for(int i=0;i<SLOT_N&&n<max;i++) if(slOwner[i]==i&&slI[i].kind==SLK_TOWN&&slGood[i]&&slI[i].len==sizeof(Town)) l[n++]=i; return n; }
+static int nbTownList(int*l,int max){ slScan(); int n=0; for(int i=0;i<SLOT_N&&n<max;i++) if(slOwner[i]==i&&slI[i].kind==SLK_TOWN&&slGood[i]&&(slI[i].len==sizeof(Town)||slI[i].len==NB_TOWN_V1)) l[n++]=i; return n; }
 static int nbRead(int s,Town*t){   // a town from its slot (1 = ok)
-    volatile u8*b=SLB(s)+SLOT_HDR; u8*d=(u8*)t; for(unsigned i=0;i<sizeof(Town);i++) d[i]=b[i];
+    volatile u8*b=SLB(s)+SLOT_HDR; u8*d=(u8*)t; unsigned n=slI[s].len; if(n>sizeof(Town)) n=sizeof(Town);
+    for(unsigned i=0;i<sizeof(Town);i++) d[i]=i<n?b[i]:0;   // (an older, shorter town: the roofs after its end are zero = automatic)
     if(t->tag[0]!='T'||t->tag[1]!='W'||t->tag[2]!='N'||t->tag[3]!='1') return 0;
     t->name[NB_NAME]=0; for(int i=0;i<NB_LOTS;i++) t->lot[i].name[NB_NAME]=0;
     return 1;
@@ -132,7 +134,7 @@ _Static_assert(sizeof(Town)<=SLOT_SZ-SLOT_HDR,"the town must fit one slot");
 
 // ---------- a new town ----------
 static void nbLotAdd(int i,const char*nm,int x,int y,int w,int h,int kind,int type){
-    NbLot*L=&nbT.lot[i]; L->on=1; L->x=(u8)x; L->y=(u8)y; L->w=(u8)w; L->h=(u8)h; L->kind=(u8)kind; L->type=(u8)type; L->slot=-1; L->floors=1;
+    NbLot*L=&nbT.lot[i]; L->on=1; L->x=(u8)x; L->y=(u8)y; L->w=(u8)w; L->h=(u8)h; L->kind=(u8)kind; L->type=(u8)type; L->slot=-1; L->floors=1; for(int q=0;q<5;q++) nbT.roof[i][q]=0;
     int k=0; for(;nm[k]&&k<NB_NAME;k++) L->name[k]=nm[k]; L->name[k]=0; L->value=(u16)(w*h*8);
 }
 enum { NS_SUBURB, NS_DESERT, NS_LAKE, NS_EMPTY, NS_N };
@@ -230,21 +232,47 @@ static void nbIsoBox(int bx,int by,int hw2,int wh,int roofH,u16 wl,u16 wr,u16 rl
     for(int x=bx-hw2;x<=bx+hw2;x++){
         int dx=x<bx?bx-x:x-bx, yb=by+(hw2-dx)/2, yt=yb-wh, ya=by-wh-roofH+roofH*dx/(hw2?hw2:1);
         if(wh>0) rect(x,yt,1,wh,x<bx?wl:wr);
-        if(yt>ya) rect(x,ya,1,yt-ya,x<bx?rl:rr);
+        if(roofH>0&&yt>ya) rect(x,ya,1,yt-ya,x<bx?rl:rr);
     }
+}
+// ---- ROOFS: every house roof is described by 5 bytes (Town.roof), all zero = the old automatic pyramid ----
+static const u16 nbRoofAuto[6]={RGB(20,6,5),RGB(9,9,12),RGB(14,9,5),RGB(6,13,9),RGB(22,10,6),RGB(12,7,14)};   // by lot number, as before
+static const u16 nbRoofPal[8]={RGB(20,6,5),RGB(9,9,12),RGB(14,9,5),RGB(6,13,9),RGB(24,12,6),RGB(12,7,14),RGB(6,10,20),RGB(24,21,8)};
+static const char* const nbRoofStNm[4]={"PYRAMID","FLAT","HIP","SHED"};
+static const char* const nbRoofColNm[10]={"AUTO","RED","SLATE","BROWN","GREEN","CLAY","PURPLE","BLUE","THATCH","CUSTOM"};
+static u16 nbRoofBase(int i){ const u8*R=nbT.roof[i]; int c=R[0]>>4; if(c==0||c>9) return nbRoofAuto[i%6]; if(c==9) return (u16)((R[3]|(R[4]<<8))&0x7FFF); return nbRoofPal[c-1]; }
+// A roof over a box: bx,by = the front corner, hw2 = half width of the walls, wh = wall height, st = style, rh = roof height, ov = overhang (all in pixels)
+static void nbRoofDraw(int bx,int by,int hw2,int wh,int st,int rh,int ov,u16 rl,u16 rr){
+    int hr=hw2+ov; if(hr<1) hr=1;
+    for(int x=bx-hr;x<=bx+hr;x++){
+        int dx=x<bx?bx-x:x-bx, yt=by+(hr-dx)/2-wh, ya; u16 c=x<bx?rl:rr;
+        if(st==1){   // FLAT: a lid with a rim
+            ya=by-wh-rh-(hr-dx)/2; if(yt-rh>ya) rect(x,ya,1,yt-rh-ya,nbLit(c,2)); rect(x,yt-rh,1,rh,c); continue; }
+        if(st==2){ int h=rh*(hr-dx)*2/hr; if(h>rh) h=rh; ya=by-wh-h; }   // HIP: a flat ridge, sloping ends
+        else if(st==3) ya=by-wh-(hr-dx)/2-rh*(bx+hr-x)/(2*hr);          // SHED: one slope, high on the left
+        else ya=by-wh-rh+rh*dx/hr;                                       // PYRAMID
+        if(yt>ya) rect(x,ya,1,yt-ya,c);
+    }
+}
+static void nbDrawHouse(int i,int sx,int sy){   // a lot's house: walls, windows, door and its roof (also the ROOF editor's preview)
+    const NbLot*L=&nbT.lot[i]; int k=nbK, s=(L->w<L->h?L->w:L->h);
+    static const u16 wallC[6]={RGB(28,26,20),RGB(18,23,28),RGB(29,22,18),RGB(20,25,18),RGB(26,26,26),RGB(27,24,14)};
+    int hw2=s*nbHw/2, wh=(3+3*L->floors)*k, c=i%6; u16 w=nbTint(wallC[c]);
+    const u8*R=nbT.roof[i]; int st=R[0]&15; if(st>3) st=0;
+    int rh=R[1]?R[1]*k:(st==1?2*k:hw2/2+2*k), ov=(R[2]&7)*k; u16 base=nbRoofBase(i);
+    nbIsoBox(sx,sy,hw2,wh,0,nbTint(nbLit(wallC[c],-5)),w,0,0);
+    nbRoofDraw(sx,sy,hw2,wh,st,rh,ov,nbTint(nbLit(base,-3)),nbTint(base));
+    u16 win=nbT.tod==2?RGB(31,28,12):nbTint(RGB(12,18,24));
+    for(int f=0;f<L->floors;f++){ int y=sy+hw2/4-(3+3*f)*k-k; px(sx+hw2/3,y,win); px(sx+2*hw2/3,y-k,win); px(sx-hw2/3,y,win); px(sx-2*hw2/3,y-k,win); }
+    rect(sx+hw2/2,sy+hw2/4-2*k,k,2*k,nbTint(RGB(10,6,3)));   // the door
 }
 static void nbDrawLotModel(int i,int sx,int sy){   // HOOK: a lot's building (a small icon now; the real house can be drawn here later)
     const NbLot*L=&nbT.lot[i]; int k=nbK, s=(L->w<L->h?L->w:L->h);
-    static const u16 wallC[6]={RGB(28,26,20),RGB(18,23,28),RGB(29,22,18),RGB(20,25,18),RGB(26,26,26),RGB(27,24,14)}, roofC[6]={RGB(20,6,5),RGB(9,9,12),RGB(14,9,5),RGB(6,13,9),RGB(22,10,6),RGB(12,7,14)};
     if(L->kind==LKIND_RES){
         if(L->slot<0&&nbT.cur!=i&&!nbLives(i)){   // FOR SALE (a lot where a household lives shows their house)
             rect(sx,sy-6*k,1,6*k,nbTint(RGB(14,9,4))); rect(sx-2*k,sy-7*k,4*k+1,3*k,nbTint(WHITE)); rect(sx-2*k,sy-7*k,4*k+1,1,nbTint(RGB(28,4,4))); px(sx,sy-6*k,nbTint(RGB(28,4,4)));
             return; }
-        int hw2=s*nbHw/2, wh=(3+3*L->floors)*k, c=i%6; u16 w=nbTint(wallC[c]);
-        nbIsoBox(sx,sy,hw2,wh,hw2/2+2*k,nbTint(nbLit(wallC[c],-5)),w,nbTint(nbLit(roofC[c],-3)),nbTint(roofC[c]));
-        u16 win=nbT.tod==2?RGB(31,28,12):nbTint(RGB(12,18,24));
-        for(int f=0;f<L->floors;f++){ int y=sy+hw2/4-(3+3*f)*k-k; px(sx+hw2/3,y,win); px(sx+2*hw2/3,y-k,win); px(sx-hw2/3,y,win); px(sx-2*hw2/3,y-k,win); }
-        rect(sx+hw2/2,sy+hw2/4-2*k,k,2*k,nbTint(RGB(10,6,3)));   // the door
+        nbDrawHouse(i,sx,sy);
         return;
     }
     switch(L->type){
@@ -337,14 +365,58 @@ static int nbFree(int x,int y,int w,int h,int skip){   // can a lot go there?
     return 1;
 }
 static int nbCash(int*have){ simsDefaults(); if(!simsLoad()){ *have=-1; return 0; } *have=simMoney; return 1; }   // the life's cash (0 = no life yet)
+// ---- ROOF EDITOR (lot menu > ROOF): pick a style and colour, set the height and overhang, or mix your own colour. A saves, B cancels ----
+static char* nbItoa(char*e,int v){ if(v>=10) *e++=(char)('0'+v/10); *e++=(char)('0'+v%10); *e=0; return e; }
+static int nbRoofEdit(int li){   // 1 = saved
+    NbLot*L=&nbT.lot[li]; u8*R=nbT.roof[li]; u8 old[5]; for(int q=0;q<5;q++) old[q]=R[q];
+    int sel=0, shw=nbHw, shh=nbHh, sk=nbK, dirty=1; u16 prev=keyNow();
+    static const char* const lab[7]={"STYLE","COLOR","HEIGHT","OVERHANG","RED","GREEN","BLUE"};
+    for(;;){
+        u16 k=keyNow(), pr=k&~prev; prev=k;
+        int cc=R[0]>>4, rows=cc==9?7:4; if(sel>=rows) sel=rows-1;
+        int d=(pr&K_RIGHT)?1:(pr&K_LEFT)?-1:0, big=(pr&K_R)?4:(pr&K_L)?-4:0;
+        if(pr&K_UP){ sel=(sel+rows-1)%rows; dirty=1; }
+        if(pr&K_DOWN){ sel=(sel+1)%rows; dirty=1; }
+        if(pr&K_B||pr&K_START){ for(int q=0;q<5;q++) R[q]=old[q]; nbHw=shw; nbHh=shh; nbK=sk; return 0; }
+        if(pr&K_A){ nbHw=shw; nbHh=shh; nbK=sk; nbSave(); toast("ROOF SAVED"); return 1; }
+        if(d||big){
+            dirty=1; int st=R[0]&15;
+            if(sel==0){ st=(st+d+4)%4; R[0]=(u8)((R[0]&0xF0)|st); }
+            else if(sel==1){ u16 cur=nbRoofBase(li); cc=(cc+d+10)%10; R[0]=(u8)((cc<<4)|(R[0]&15)); if(cc==9&&!(R[3]|R[4])){ R[3]=(u8)(cur&255); R[4]=(u8)(cur>>8); } }
+            else if(sel==2) R[1]=(u8)((R[1]+d+16)%16);
+            else if(sel==3) R[2]=(u8)((R[2]+d+8)%8);
+            else { int sh=5*(sel-4); u16 c=(u16)((R[3]|(R[4]<<8))&0x7FFF); int v=(c>>sh)&31; v+=d+big; if(v<0) v=0; if(v>31) v=31; c=(u16)((c&~(31<<sh))|(v<<sh)); R[3]=(u8)(c&255); R[4]=(u8)(c>>8); }
+        }
+        if(!dirty){ vsync(); continue; }
+        dirty=0; objHideAll();
+        nbSky(); rect(0,92,SW,68,nbTint(RGB(8,18,6)));
+        nbHw=8; nbHh=4; nbK=2; nbDrawHouse(li,120,74);
+        rect(0,102,SW,58,RGB(3,4,7)); rect(0,102,SW,1,GOLD);
+        { char t[24]; char*e=t; const char*h="ROOF  "; while(*h) *e++=*h++; for(int q=0;L->name[q]&&q<NB_NAME;q++) *e++=L->name[q]; *e=0; text(6,106,t,GOLD,1); }
+        for(int r=0;r<rows;r++){
+            int x=r<4?6:128, y=r<4?116+(r)*9:116+(r-4)*9; char v[16]; v[0]=0; int st=R[0]&15, c9=R[0]>>4;
+            if(r==0){ const char*q=nbRoofStNm[st>3?0:st]; int z=0; for(;q[z];z++) v[z]=q[z]; v[z]=0; }
+            else if(r==1){ const char*q=nbRoofColNm[c9>9?0:c9]; int z=0; for(;q[z];z++) v[z]=q[z]; v[z]=0; }
+            else if(r==2){ if(R[1]) nbItoa(v,R[1]); else { const char*q="AUTO"; int z=0; for(;q[z];z++) v[z]=q[z]; v[z]=0; } }
+            else if(r==3) nbItoa(v,R[2]&7);
+            else { u16 c=(u16)((R[3]|(R[4]<<8))&0x7FFF); nbItoa(v,(c>>(5*(r-4)))&31); }
+            if(r==sel) rect(x-2,y-1,r<4?118:104,9,RGB(6,18,10));
+            text(x,y,lab[r],r==sel?GOLD:WHITE,1); text(x+(r<4?64:44),y,v,r==sel?WHITE:RGB(22,25,28),1);
+        }
+        if(rows==7) rect(214,116,20,20,nbRoofBase(li));
+        text(6,152,"UP DOWN PICK  LEFT RIGHT SET  A SAVE  B BACK",RGB(12,14,16),1);
+        present();
+    }
+}
 static int nbLotMenu(int li){   // returns 1 when the screen should close (play started and asked for the main menu)
-    NbLot*L=&nbT.lot[li]; const char*it[9]; int id[9], n=0;
-    enum { A_PLAY, A_BUILD, A_MOVE, A_RENAME, A_TYPE, A_BULL, A_DEL, A_HH, A_NEWHH };
+    NbLot*L=&nbT.lot[li]; const char*it[10]; int id[10], n=0;
+    enum { A_PLAY, A_BUILD, A_MOVE, A_RENAME, A_TYPE, A_BULL, A_DEL, A_HH, A_NEWHH, A_ROOF };
     char who[24]; who[0]=0; int lives=L->kind==LKIND_RES&&nbWho(li,who);
     static char ph[32] EWRAM_BSS; if(lives){ char*e=slCat(ph,"PLAY "); slCat(e,who); it[n]=ph; id[n++]=A_HH; }   // (The Sims 2: play the household that lives there)
     else if(L->kind==LKIND_RES&&li!=nbT.home){ it[n]="NEW HOUSEHOLD HERE"; id[n++]=A_NEWHH; }
     it[n]=L->kind==LKIND_COMM?"VISIT":li==nbT.home?"PLAY":"PLAY HERE"; id[n++]=A_PLAY;
     it[n]="BUILD"; id[n++]=A_BUILD;
+    if(L->kind==LKIND_RES){ it[n]="ROOF"; id[n++]=A_ROOF; }   // size, shape and colour your own roof
     if(L->kind==LKIND_RES&&li!=nbT.home&&!lives){ it[n]="MOVE IN"; id[n++]=A_MOVE; }
     it[n]="RENAME"; id[n++]=A_RENAME;
     if(L->kind==LKIND_COMM){ it[n]="CHANGE TYPE"; id[n++]=A_TYPE; }
@@ -371,6 +443,7 @@ static int nbLotMenu(int li){   // returns 1 when the screen should close (play 
                 simMoney-=net; if(simMoney>9999) simMoney=9999; simsSaveNow();
             }
             nbT.home=(u8)li; nbSave(); toast("WELCOME HOME"); return 0; }
+        case A_ROOF: nbRoofEdit(li); return 0;
         case A_RENAME: { char nm[SLOT_NAME+1]; for(int i=0;i<=NB_NAME;i++) nm[i]=L->name[i]; if(slEditName(nm)){ for(int i=0;i<=NB_NAME;i++) L->name[i]=nm[i]; if(L->slot>=0) slRename(L->slot,nm); nbSave(); } return 0; }
         case A_TYPE: { int t=menu("WHAT KIND OF PLACE",ctNm,CT_N); if(t<0||t==L->type) return 0; L->type=(u8)t; if(L->slot<0&&nbT.cur==li) nbTemplate(li); nbSave(); return 0; }
         case A_BULL: {
