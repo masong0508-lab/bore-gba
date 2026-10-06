@@ -754,10 +754,34 @@ static void hhArrive(int m){   // a free-will Sim reached the one it wanted to s
     socDo(s->uid,b,socPick(s->uid,b));
 }
 // ---- you: R next to a household Sim opens the social menu (furniture you stand at is offered first) ----
-static int hhNearest(void){ if(curFl) return -1; int best=-1, bd=1<<30; for(int m=0;m<hhN;m++){ if(hhM[m].act==HA_AWAY) continue; s32 dx=hhM[m].fx-lfx, dy=hhM[m].fy-lfy; int d=(int)((dx*dx+dy*dy)>>8); if(d<bd){ bd=d; best=m; } } return bd<=(380*380>>8)?best:-1; }   // within 1.5 tiles
+static int hhVisitorHere(int m){ if(m<hhN) return 0; int k=HH_MAX-1-m; return k>=0&&k<TW_N&&twHas[k]&&twOn[k]; }   // slot m (past the household) holds a neighbour on the lot
+static int hhNearest(void){ if(curFl) return -1; int best=-1, bd=1<<30; for(int m=0;m<HH_MAX;m++){ if(m<hhN){ if(hhM[m].act==HA_AWAY) continue; } else if(!hhVisitorHere(m)) continue; s32 dx=hhM[m].fx-lfx, dy=hhM[m].fy-lfy; int d=(int)((dx*dx+dy*dy)>>8); if(d<bd){ bd=d; best=m; } } return bd<=(380*380>>8)?best:-1; }   // within 1.5 tiles (household Sims and the neighbours who drop by)
 static void liveInvalidate(void);
+static int hhVisitorTalk(int m,int useLabel){   // R next to a neighbour who dropped by: TALK / JOKE / COMPLIMENT / HIGH FIVE (needs and mood only: visitors are not in the relationship tables)
+    HhSim*s=&hhM[m];
+    static const char* it[6] EWRAM_BSS; static char tl[32] EWRAM_BSS, nt[28] EWRAM_BSS; int id[6], cat[6], n=0;
+    static const char* const useNm[6]={0,"USE THE FRIDGE","USE THE TOILET","SLEEP IN BED","TAKE A SHOWER","SIT ON SOFA"};
+    static const char* const vn[4]={"TALK","JOKE","COMPLIMENT","HIGH FIVE"}; static const u8 vcat[4]={0,1,0,0};
+    if((useLabel>0&&useLabel<6)||useLabel>=8){ it[n]=useLabel==8?"USE THE PHONE":useLabel>=9?"TUNE THE RADIO":useNm[useLabel]; cat[n]=4; id[n++]=-1; }
+    for(int i=0;i<4;i++){ it[n]=vn[i]; cat[n]=vcat[i]; id[n++]=i; }
+    { char*e=simCat(tl,s->name); simCat(e,"  NEIGHBOR"); }
+    int c=pieCats(tl,it,cat,n); liveInvalidate();
+    while((~REG_KEYINPUT)&0x3FF) vsync();
+    if(c<0) return 1;
+    if(id[c]<0) return 0;
+    int px=(int)(lfx>>8), py=(int)(lfy>>8), sx=(int)(s->fx>>8), sy=(int)(s->fy>>8);
+    s->hd=(u8)(px>sx?0:px<sx?8:py>sy?4:12); lhd=(s->hd+8)&15;
+    int i=id[c], gain=i==1?10:i==0?8:6;
+    needAdd(hhPUid,HN_SOC,gain); if(i==1) needAdd(hhPUid,HN_FUN,8);
+    simEvent(SE_TALK); if(i==1) simEvent(SE_LAUGH); moodEvent(M_WANT);
+    voxPlay(i==3?V_yeha:i==1?V_joke_good:V_agree);
+    { char*e=simCat(nt,s->name); simCat(e,i==1?" LAUGHED":i==2?" SAYS THANKS":i==3?" HIGH FIVES":" CHATTED"); }
+    lnote=nt; lnoteT=60;
+    return 1;
+}
 static int hhSocR(int useLabel){   // 1 = handled (a social, or the menu was closed), 0 = go on and use the furniture
     int m=hhNearest(); if(m<0) return 0;
+    if(m>=hhN) return hhVisitorTalk(m,useLabel);   // a neighbour: they keep no relationship slot, so their own small menu
     HhSim*s=&hhM[m]; int b=s->uid, a=hhPUid;
     if(s->act==HA_USE){ lnote="THEY ARE BUSY"; lnoteT=50; return 0; }
     static const char* it[SC_N+1]; static char tl[40] EWRAM_BSS; int id[SC_N+1], cat[SC_N+1], n=0;   // (cat: the pie's category, 0 FRIENDLY 1 FUN 2 ROMANTIC 3 MEAN 4 USE)
