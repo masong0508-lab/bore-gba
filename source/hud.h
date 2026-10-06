@@ -23,7 +23,7 @@ typedef struct { short x0,y0,x1,y1; } Rc;
 // The panels are drawn in pieces: each piece remembers what it last showed (hudKeys) and is redrawn, and handed to the screen copy (hudRc), only
 // when that changed. The first draw after anything covered the screen (all=1) draws every piece.
 static int fxWxHud(void); static void fxWxIcon(int x,int y);   // fx.h
-enum { HK_SCORE, HK_CASH, HK_MSG, HK_CLOCK, HK_NEED, HK_PORT=HK_NEED+8, HK_HEAD, HK_ASP, HK_W0, HK_W1, HK_HP, HK_N };
+enum { HK_SCORE, HK_CASH, HK_MSG, HK_CLOCK, HK_NEED, HK_PORT=HK_NEED+8, HK_HEAD, HK_ASP, HK_W0, HK_W1, HK_HP, HK_SPEC, HK_N };
 static unsigned hudKeys[HK_N] EWRAM_BSS;
 #define HUD_NR 24
 static Rc hudRc[HUD_NR] EWRAM_BSS; static int hudRcN;
@@ -55,7 +55,17 @@ static void hudTopStatic(void){
 }
 static void hudTopUpdate(int all){
     if(all) hudTopStatic();
-    if(hudChg(all,HK_SCORE,(unsigned)lscore)){ hudClear(3,0,58,HUD_TOPH-1); numText(text(4,1,"SCORE",HC_LABEL,1)+3,1,lscore,WHITE); hudMark(3,0,58,HUD_TOPH-1); }
+    if(hudChg(all,HK_SCORE,(unsigned)lscore)){ hudClear(3,0,58,HUD_TOPH-2); numText(text(4,1,"SCORE",HC_LABEL,1)+3,1,lscore,WHITE); hudMark(3,0,58,HUD_TOPH-2); }
+    {
+        int w=(lspec*56)/SPEC_MAX; unsigned sk=(unsigned)w*4u+(unsigned)(lspecOn?2u+((lfr>>3)&1u):0u);
+        if(hudChg(all,HK_SPEC,sk)){
+            if(w<=0&&!lspecOn){ rect(3,HUD_TOPH-2,58,1,hudBgAt(HUD_TOPH-2)); rect(3,HUD_TOPH-1,58,1,HC_EDGE); }
+            else { rect(3,HUD_TOPH-2,58,2,HC_DARK);
+                u16 col=lspecOn?(((lfr>>3)&1)?RGB(31,30,10):RGB(31,13,4)):RGB(31,19,4);
+                if(w>0){ rect(4,HUD_TOPH-2,w,2,col); rect(4,HUD_TOPH-2,w,1,lite(col,22)); } }
+            hudMark(3,HUD_TOPH-2,58,2);
+        }
+    }
     if(hudChg(all,HK_CASH,(unsigned)simMoney)){ hudClear(62,0,40,HUD_TOPH-1);
         rect(63,3,5,5,HC_GOLD); rect(64,4,3,3,RGB(24,19,3)); rect(64,3,3,1,RGB(31,30,16)); numText(71,1,simMoney,HC_GOLD); hudMark(62,0,40,HUD_TOPH-1); }
     // the middle: prompt > note > combo > hint
@@ -65,14 +75,17 @@ static void hudTopUpdate(int all){
     else if(lcamF>0) mk=1;
     else if(lcN>0) mk=2u+(unsigned)(lcN*1000+lcPts*lcN)*4u;
     else if(lcBankT>0) mk=3u+(unsigned)lcBank*4u;
+    else if(lspecOn) mk=6u;
     else if(sHud==0) mk=5u+(unsigned)(lskate*2+lhave)*8u;
     else mk=0;
+    if(lspecOn) mk^=0x5A5A5A5Au;
     if(hudChg(all,HK_MSG,mk)){
         hudClear(102,0,78,HUD_TOPH-1); clipSet(102,0,180,HUD_TOPH-1);
         if(!has){
             if(lcamF>0){ t="BIG COMBO"; c=GOLD; has=1; }
-            else if(lcN>0){ const char*p="COMBO X"; while(*p) b[cn++]=*p++; int n=lcN; if(n>=10) b[cn++]=(char)('0'+n/10%10); b[cn++]=(char)('0'+n%10); b[cn]=0; t=b; c=GOLD; has=1; n2=lcPts*lcN; }
+            else if(lcN>0){ const char*p=lspecOn?"SPECIAL X":"COMBO X"; while(*p) b[cn++]=*p++; int n=lcN; if(n>=10) b[cn++]=(char)('0'+n/10%10); b[cn++]=(char)('0'+n%10); b[cn]=0; t=b; c=GOLD; has=1; n2=lcPts*lcN; }
             else if(lcBankT>0){ t="COMBO"; c=GOLD; has=1; n2=lcBank; }
+            else if(lspecOn){ t="SPECIAL"; c=GOLD; has=1; }
             else if(sHud==0){ t=lskate?"A PUSH  B OLLIE  L WALK":(lhave?"B RUN  A HOP  L SKATE":"B RUN  A HOP"); c=HC_DIM; has=1; }
         }
         if(has&&t){ int x=text(104,1,t,c,1); if(pts) numText(text(x+3,1,"+",GOLD,1)+1,1,pts,GOLD); else if(n2) numText(x+3,1,n2,WHITE); }

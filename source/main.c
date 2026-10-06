@@ -65,6 +65,9 @@ static u8 sShow=0;   // performance counter: 0 off, 1 fps, 2 fps + load
 static int cview;    // the view being drawn (0..3, quarter turns): vbase, plus the extra turn while the action cam spins; always 0 in the editor
 static int vbase;    // the view the player chose with SELECT + L / R (like turning the camera in a Sims game); it stays until it is turned again
 static int lcN, lcPts, lcT, lcBank, lcBankT, lcamPend, lcamF;   // combo chain: tricks, points, time left, banked total + display time, cam queued, cam frame
+#define SPEC_MAX 1000
+static int lspec; static u8 lspecOn;
+static void specLose(void);
 static u8 sCam=1;    // action cam after a big combo: 0 off, 1 over 10000, 2 over 5000, 3 over 2000
 static const int camThr[4]={0,10000,5000,2000};
 #define CAM_LEN 84    // action cam length in game steps (1.4 s)
@@ -1942,8 +1945,13 @@ static void fxGhostBorn(int why); static void fxTick(void); static void fxPlaySt
 static const char* const deathNote[6]={"YOU DIED","DIED OF SHOCK","GRAVITY WON","MET A WALL AT SPEED","DIED OF HUNGER","ONE HIT TOO MANY"};
 static void die(int snd,int why){ if(tutOn){ lhp=HP_MAX; lstun=60; lsp=0; lgrind=0; lnote="TUTORIAL  NO DYING"; lnoteT=90; return; }   // (tutorial.h)
     if(why==4||(why==5&&lfood<10)) why=4;   // hit points ran out while starving: say so
-    lbailT=0; moodEvent(M_DIE); fxGhostBorn(why); ldead=1; lstun=2; lsp=0; lgrind=0; sfxPlay(snd); lnote=deathNote[why>5?0:why]; lnoteT=0x7fff; }
+    specLose(); lbailT=0; moodEvent(M_DIE); fxGhostBorn(why); ldead=1; lstun=2; lsp=0; lgrind=0; sfxPlay(snd); lnote=deathNote[why>5?0:why]; lnoteT=0x7fff; }
+static void specLose(void){ if(lspecOn&&!ldead&&lnoteT<=0){ lnote="SPECIAL LOST"; lnoteT=40; } lspec=0; lspecOn=0; }
+static void specAdd(int n){
+    if(ldead) return;
+    lspec+=n; if(lspec>=SPEC_MAX){ lspec=SPEC_MAX; if(!lspecOn){ lspecOn=1; lnote="SPECIAL"; lnoteT=60; lnPerf=1; sfxPlay(SFX_STICK); voxPlay(V_yahoo); } } }
 static void hurt(int sev,int kind){
+    specLose();
     if(abPow()&PW_ARMOUR) sev=sev*7/10;                                    // SPIKES: armour plates take the edge off
     if(xo[XO_HURT]==1) sev/=2; else if(xo[XO_HURT]==2&&sev>=30) sev=29;   // HURT option: GENTLE halves it, NO DEATH keeps a fall survivable
     if(sev>=30) moodEvent(M_HURT_BIG); else if(sev>=18) moodEvent(M_HURT); else if(kind==2) moodEvent(M_BUMP);   // (40+ is death: die() logs it)
@@ -2489,7 +2497,7 @@ static void lifeInit(void){
     if(!(shapeMask()>>look[LK_SHAPE]&1)){ look[LK_SHAPE]=(u8)maskPick(shapeMask(),look[LK_SHAPE],NSHAPE); if(!custom) buildLook(); }
     flHome(); mapScan(); hhStart();
     bakeSprites(); camSnap=1;
-    lfx=spx*256+128; lfy=spy*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote=""; lchill=0; lskate=0; lhave=(bdx<0); lfr=0; lvx=lvy=0; ldead=0; lmaxz=0; lplay=0; lbumpCd=0; lfood=100; lbl=0; lhp=HP_MAX; lnear=0; moodReset(); simsReset(); sfxStop(); feelReset(0);
+    lfx=spx*256+128; lfy=spy*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote=""; lchill=0; lskate=0; lhave=(bdx<0); lfr=0; lvx=lvy=0; ldead=0; lmaxz=0; lplay=0; lbumpCd=0; lfood=100; lbl=0; lhp=HP_MAX; lnear=0; lspec=0; lspecOn=0; moodReset(); simsReset(); sfxStop(); feelReset(0);
 }
 static int rampAvg, rampOn;   // px/step (8.8) the skater has been climbing a ramp, smoothed (heights are whole px, so single steps are lumpy); rampOn = rode a ramp last step
 // BABY: cannot be steered. A caretaker keeps the needs up and the baby toddles about by itself: stops now and then, picks a new way
@@ -2570,12 +2578,12 @@ static void lifeStep(u16 k,u16 pr,int fr){
         int pts=hs*180+(lflip?100:0)+feelGrabPts();
         int drop=lmaxz-(int)(lz>>8), sp0=lsp, bail=(g==0);
         lLand=7; lLandD=drop;                          // the landing crouch (playerCalc)
-        if(bail){ lnote="BAIL"; lnoteT=60; lsp=0; lstun=BAIL_STUN; lbailT=BAIL_STUN; lgrind=0; moodEvent(M_BAIL); }
+        if(bail){ specLose(); lnote="BAIL"; lnoteT=60; lsp=0; lstun=BAIL_STUN; lbailT=BAIL_STUN; lgrind=0; moodEvent(M_BAIL); }
         else{
             if(g==1){ F.spd=F.spd*3/5; lsp=F.spd>>4; pts/=2; lnote="SKETCHY"; lnoteT=40; }   // landed, but crooked: you lose speed and the trick is worth half
             else if(g==3&&pts) pts+=pts/4;                                                      // PERFECT: +25%
-            if(pts){ if(hs||lflip||gb) pts=pts*(100+skLvl(SK_AIR)*4)/100; skGain(SK_AIR,(hs>=2?2:hs?1:0)+(lflip?1:0)+(gb?1:0)); skGain(SK_BAL,g==3?2:g==2?1:0); pts=moodPts(pts); lscore+=pts; lpts=pts; if(g!=1) trickName(hs,gb,g==3); lnoteT=60; lcN++; lcPts+=pts; lcT=oComboLen(); moodEvent(M_TRICK); }
-            if(onRail){ lgrind=1; skGain(SK_GRIND,1); lnote="GRIND"; lnoteT=30; lcN++; lcT=oComboLen(); moodEvent(M_GRIND_ON); sfxPlay(SFX_GRIND); }
+            if(pts){ if(hs||lflip||gb) pts=pts*(100+skLvl(SK_AIR)*4)/100; skGain(SK_AIR,(hs>=2?2:hs?1:0)+(lflip?1:0)+(gb?1:0)); skGain(SK_BAL,g==3?2:g==2?1:0); pts=moodPts(pts); if(lspecOn) pts*=2; lscore+=pts; lpts=pts; if(g!=1) trickName(hs,gb,g==3); lnoteT=60; lcN++; lcPts+=pts; lcT=oComboLen(); moodEvent(M_TRICK); specAdd(60+pts/(lspecOn?8:4)); }
+            if(onRail){ lgrind=1; skGain(SK_GRIND,1); lnote="GRIND"; lnoteT=30; lcN++; lcT=oComboLen(); moodEvent(M_GRIND_ON); sfxPlay(SFX_GRIND); specAdd(60); }
             else sfxPlay((pts&&g!=1)?SFX_STICK:SFX_LAND);   // the landing is heard: a thud, or the bright one for a trick
         }
         if(bail){ int sv=drop/3+sp0/3+(rnd8()>>6); if(drop<30&&sv>15) sv=15; sv-=sv*skLvl(SK_BAL)*6/100; hurt(sv,1); }   // bad landing: harder/faster/higher = worse (was drop/2+speed: a fast bail was OW + 2.5 s down, or even death)
@@ -2585,7 +2593,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
     if(!air){ lmaxz=(int)(lz>>8); lplay=0; }
     lairF=air;
     if(lflip&&lskate&&air){ if(!bFPrev) bFD=(k&K_UP)?-1:1; if(bFT<BFLIP_LEN) bFT++; bFPrev=1; } else { bFT=0; bFPrev=0; }   // the flip: one full roll in BFLIP_LEN steps, then it is flat again
-    if(lgrind){ if(air||tileH(lfx>>8,lfy>>8)!=6) lgrind=0; else if((fr&3)==0){ int g=abGrindPts()+skLvl(SK_GRIND)/2; lscore+=g; lnote="GRIND"; lnoteT=10; lcPts+=g; lcT=oComboLen(); } }   // GRIP ability
+    if(lgrind){ if(air||tileH(lfx>>8,lfy>>8)!=6) lgrind=0; else if((fr&3)==0){ int g=abGrindPts()+skLvl(SK_GRIND)/2; if(lspecOn) g*=2; lscore+=g; lnote="GRIND"; lnoteT=10; lcPts+=g; lcT=oComboLen(); specAdd(4); } }   // GRIP ability
     if(!lhave&&lz<(8<<8)&&(lfx>>8)==BDX&&(lfy>>8)==BDY){ lhave=1; lnote="GOT A SKATEBOARD"; lnoteT=90; moodEvent(M_GOT_BOARD); }   // walk over it to pick it up
     fxTick();   // ghosts and weather (fx.h): every step, also while you lie dead
     if(!ldead){   // needs: hunger and bladder, then how they (and the skating) make the skater feel
@@ -2639,6 +2647,8 @@ static void lifeStep(u16 k,u16 pr,int fr){
             lcN=0; lcPts=0;
         }
     }
+    if(lspecOn){ lspec-=2; if(lspec<=0){ lspec=0; lspecOn=0; if(lnoteT<=0){ lnote="SPECIAL OVER"; lnoteT=40; } } }
+    else if(lspec>0&&lcN==0&&!lgrind&&!air&&(lfr&3)==0) lspec--;
     if(lcBankT>0) lcBankT--;
     lfr++;
     if(lnoteT>0) lnoteT--;
