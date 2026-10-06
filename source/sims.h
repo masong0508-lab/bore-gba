@@ -584,13 +584,19 @@ static void jobPromote(void){   // enough good shifts: a promotion, if the track
     jobLvl++; dnaAdd(SIM_DNA_PROMO); moodEvent(M_PROMO); simEvent(SE_PROMO);
     if(jobLvl==3&&t->top>=3&&!jobChosen) simQueue("PROMOTED  PICK A BRANCH ON PHONE"); else simQueue("PROMOTED");
 }
-// CAMEO (roadmap #3): DAYBAR, your own made-up synth-pop duo: two very obviously gay men in matching sparkly outfits.
-// After a good shift (about 1 in 6) they turn up with a catchphrase. Rename them in simCameoNm; add lines to simCameoLn (each note under 30 letters).
+// CAMEO (roadmap #3): DAYBAR, your own made-up synth-pop duo: two very obviously gay men in matching sparkly outfits, and SK9M, a bass-music
+// act with a very loud agent. After a good shift (about 1 in 6) one of them turns up with a catchphrase (a coin toss decides who). Rename
+// them in simCameoNm / simSk9mNm; add lines to simCameoLn / simSk9mLn (each note under 30 letters). Sk9m's first two lines are his catchphrase
+// (it names him: only three notes fit after a pay note), the others are one note each after his name.
 static const char* const simCameoNm="DAYBAR STROLL IN";
 static const char* const simCameoLn[5]={"TWO BOYS ONE KEYTAR DARLING","WE MATCH ON PURPOSE","LOVE IS A KEY CHANGE","FABULOUS IS A WORK ETHIC","MORE SHINE DARLING"};
-static void simCameo(void){   // a good shift: the duo and one of their lines, after the pay note (uses the spare note slots)
+static const char* const simSk9mNm="SK9M ROLLS UP";
+static const char* const simSk9mLn[6]={"SK9M  IM KIND OF A BIG DEAL","YEAHHHH","THE DROP IS THE PLAN","BASS WILL NOT BE DENIED","WOBBLE FIRST ASK LATER","STILL KIND OF A BIG DEAL"};
+static void simCameo(void){   // a good shift: the duo (or Sk9m) and one of their lines, after the pay note (uses the spare note slots)
     if(simRnd()%6) return;
-    simQPush(simCameoNm); simQPush(simCameoLn[simRnd()%5]);
+    if(simRnd()&1){ simQPush(simCameoNm); simQPush(simCameoLn[simRnd()%5]); return; }
+    int r=simRnd()%5;   // the catchphrase is the favourite (2 of 5): it names him and fills both free notes, "SK9M  IM KIND OF A BIG DEAL" then "YEAHHHH"
+    if(r<2){ simQPush(simSk9mLn[0]); simQPush(simSk9mLn[1]); } else { simQPush(simSk9mNm); simQPush(simSk9mLn[r]); }
 }
 static void simShiftEnd(void){   // the end of a shift on a work day (the track's hours)
     const JobTr*t=jobT(); int q=simQuota(), p=shiftPts, pay=0, jenes=0, base=jobPayOf(jobTrack,jobLvl,jobBr);
@@ -649,7 +655,7 @@ static void simRoomTick(int tx,int ty){
     int kinds=0, items=0;
     for(int y=ty-SIM_ROOM_R;y<=ty+SIM_ROOM_R;y++)for(int x=tx-SIM_ROOM_R;x<=tx+SIM_ROOM_R;x++){
         if(x<0||y<0||x>=MW||y>=MH) continue; char c=lifeMap[y][x]; int b=0;
-        if(c=='F') b=1; else if(c=='T') b=2; else if(c=='S') b=4; else if(c=='H') b=8; else if(c=='C'||c=='U') b=16; else if(c=='V'||c=='G') b=32; else if(c=='Q') b=64;   // a lava lamp (or the pipe) makes it a den
+        if(c=='F') b=1; else if(c=='T') b=2; else if(c=='S') b=4; else if(c=='H') b=8; else if(c=='C'||c=='U') b=16; else if(c=='V'||c=='G') b=32; else if(c=='Q'||c=='R'||c=='A') b=64;   // a lava lamp (or the pipe) makes it a den
         if(b){ kinds|=b; items++; } }
     int k=0; for(int b=1;b<128;b<<=1) if(kinds&b) k++;
     int target=k*16+(items>5?5:items)*4; if(target>100) target=100;

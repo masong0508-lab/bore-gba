@@ -1,5 +1,7 @@
 # What to build next (notes from playing THPS3 / THPS4 on GBA)
 
+**Status (checked against the source):** none of the table's "next steps" exist yet: no SPECIAL meter, no collectibles, no VIEW TRICKS, no wallride or halfpipe, no stance tracking, no timed run, no bail flicker. What does exist and helps: story mode (`story.h`) hands out chapter goals like THPS4's, neighbors visit and welcome you (`twTick`), a radio and sound system play the jukebox in the room, and the aspiration wants and fears act as a goal list. For the Sims-side wishlist see `WISHLIST_EFFORT.md`.
+
 Observed by playing the carts in an emulator; nothing was copied from them. These are design targets for BORE, sized for the GBA.
 
 ## What the THPS GBA games do that BORE can match
@@ -25,6 +27,6 @@ Observed by playing the carts in an emulator; nothing was copied from them. Thes
 6. Wallride, switch stance, manuals on the MANUAL PAD.
 
 ## GBA limits to respect
-- EWRAM 256 KB (113 KB used now), IWRAM 32 KB (about 25 KB used, the rest is the stack). One baked character = 11 KB at 16 bits per pixel; 8 bits plus a palette halves that.
+- EWRAM 256 KB (113 KB when this was written; the 32 x 60 sprites and household tiles added about 25 KB since: see NOTES), IWRAM 32 KB (about 30.7 KB used by code + .bss; the stack lives in the rest, so new code must stay out of IWRAM). One baked character = 11 KB at 16 bits per pixel; 8 bits plus a palette halves that.
 - The game draws in mode 3 (one 240x160 bitmap, the CPU draws everything). Each extra character on screen costs draw time: keep NPC sprites small and cull anything off screen. Check DRAW COST in OPTIONS > VIDEO after each addition.
 - The ROM is about 3 MB now; carts go to 32 MB, so ROM space is not the problem, RAM and draw time are.

@@ -218,6 +218,66 @@ static const char*const phArt[IH]={
  "........aacaa........",
  "..........a..........",
  "....................."};
+// sound pack: RADIO (a boombox, tile 'R') and SOUND SYSTEM (a speaker tower with an amp, tile 'A'), hand-drawn pixel art
+static const u16 pSnd[10]={RGB(3,3,5),RGB(23,23,25),RGB(14,15,18),RGB(9,10,13),RGB(5,5,8),RGB(18,18,22),RGB(31,25,6),RGB(31,6,6),RGB(8,30,12),RGB(8,8,10)};   // outline, top, front, side, speaker, cone shine, gold, red, green, handle
+static const char*const rdArt[IH]={
+ ".....................",
+ ".....................",
+ ".....................",
+ ".....................",
+ ".....................",
+ "..................a..",
+ ".................aja.",
+ ".................aja.",
+ "................aja..",
+ "................aja..",
+ "...............aja...",
+ ".......aaaaaaaaaja...",
+ "......ajjjjjjjjja....",
+ "......ajjjjjjjjja....",
+ ".....aajaaaaaaajaa...",
+ "....abbbbbbbbbbbbba..",
+ "....abbbbbbbbbbbbba..",
+ "...acccccccccccccaba.",
+ "...acceeeggggeeecdda.",
+ "...aceeeeecceeeeedda.",
+ "...aeefeeeeeefeeeeda.",
+ "...aeeefeeeeeefeeeda.",
+ "...aeeeeeeeeeeeeeeda.",
+ "...aceeeeehieeeeedda.",
+ "...acceeecccceeecdda.",
+ "...acccccccccccccaa..",
+ "....aaaaaaaaaaaaa....",
+ "....................."};
+static const char*const syArt[IH]={
+ ".....................",
+ ".....................",
+ "......aaaaaaaaaaa....",
+ ".....abbbbbbbbbbba...",
+ ".....abbbbbbbbbbba...",
+ "....acccccccccccaba..",
+ "....aceeeeeeeeecdda..",
+ "....acegggffffecdda..",
+ "....acefhfffifecdda..",
+ "....aceeeeeeeeecdda..",
+ "....acccceeeccccdda..",
+ "....acccefeeecccdda..",
+ "....accceeeeecccdda..",
+ "....accceeeeecccdda..",
+ "....acccceeeccccdda..",
+ "....acccccccccccdda..",
+ "....acccceeeccccdda..",
+ "....accceeeeecccdda..",
+ "....acceefffeeccdda..",
+ "....aceefffffeecdda..",
+ "....aceeffeffeecdda..",
+ "....aceefffffeecdda..",
+ "....acceefffeeccdda..",
+ "....accceeeeecccdda..",
+ "....acccceeeccccdda..",
+ "....acccccccccccaa...",
+ ".....aaaaaaaaaaa.....",
+ "....................."};
 static void bakeAll(void){
     bakeOne(V_CRATE,bxCrate,1,0,11);
     for(int r=0;r<4;r++){ bakeOne(V_FRIDGE+r,bxFridge,1,r,11); bakeOne(V_TOILET+r,bxToilet,3,r,11);
@@ -232,4 +292,5 @@ static void bakeAll(void){
     bakePix(V_DEADSET,dsArt,pDs,0); bakePix(V_DEADSET+1,dsArt,pDs,1);   // the DeadSet
     bakeOne(V_PICNIC,bxPicnicTable,7,0,12); bakeOne(V_JERSEYU,bxJerseyU,3,0,12); bakeOne(V_JERSEYV,bxJerseyV,3,0,12); bakeOne(V_MPAD,bxManualPad,1,0,12);
     bakePix(V_PHONE,phArt,pPh,0);   // the telephone
+    bakePix(V_RADIO,rdArt,pSnd,0); bakePix(V_STEREO,syArt,pSnd,0);   // sound pack
 }

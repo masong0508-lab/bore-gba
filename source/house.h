@@ -226,6 +226,7 @@ static void hhRandLook(u8*lk,u8*stg){   // a made-up Sim: passers-by, and SELECT
 // from the editor, a slot, the pause menu, growing up ...). Keys follow their sprites when members move (hhRemove); hhSwitch drops them.
 static u32 hhKey[HH_MAX];   // per member: the key hhObj / hhObjS / hhPal were baked from (0 = unknown)
 static u8 twKeep;           // the visitors already picked are kept (new faces when you move to another lot or start a new life)
+static u8 twWel[TW_N];      // visitor k is the WELCOME visit: the first neighbour of a new home rings the bell soon after you move in (twPick), at night too, and brings a gift
 static u8 twHas[TW_N], twOn[TW_N]; static short twWait[TW_N]={240,900}; static char twFrom[TW_N][12];   // visitor k: set up, on the lot (1 coming, 2 staying, 3 going), the lot they live on
 static int nbVisitor(HhSim*s,char*from,int not);   // households.h: a Sim of another household of the town (s), the lot it lives on; not = a family to skip
 static void twPick(void){   // who comes by while you are on this lot: Sims from the town's other households
@@ -235,6 +236,8 @@ static void twPick(void){   // who comes by while you are on this lot: Sims from
         HhSim*s=&hhM[v]; int f=nbVisitor(s,twFrom[k],f0); if(f==-2) continue; f0=f;
         s->uid=255; s->bubT=0; s->hp=HP_MAX; s->ltw=0; s->act=HA_IDLE; s->think=0; s->hd=0; s->pn=s->pi=0; for(int q=0;q<HN_N;q++) s->need[q]=80;
         twHas[k]=1; }
+    for(int k=0;k<TW_N;k++) twWel[k]=0;
+    for(int k=0;k<TW_N;k++) if(twHas[k]){ twWel[k]=1; twWait[k]=180; break; }   // SCRIPTED ARRIVAL: the first neighbour walks in about 3 seconds after you move in
 }
 static void twDrop(int place){ for(int k=0;k<TW_N;k++) if(TW_V(k)==place){ twHas[k]=0; twOn[k]=0; hhKey[place]=0; } }   // a member moves into a visitor's place
 static void hkAdd(u32*h,const void*p,int n){ const u8*b=(const u8*)p; u32 x=*h; for(int i=0;i<n;i++) x=(x^b[i])*16777619u; *h=x; }
@@ -436,12 +439,13 @@ static void twTick(int*planned){   // VISITORS: someone from another household w
     for(int k=0;k<TW_N;k++){ int v=TW_V(k); if(!twHas[k]||v<hhN){ twOn[k]=0; continue; } HhSim*s=&hhM[v];
         if(!twOn[k]){
             if(twWait[k]>0){ twWait[k]--; continue; }
-            if(*planned||simIsNight()){ twWait[k]=60; continue; }
+            if(*planned||(simIsNight()&&!twWel[k])){ twWait[k]=60; continue; }
             int a=twFar(); if(a<0){ twWait[k]=120; continue; } s->fx=(a%MW)*256+128; s->fy=(a/MW)*256+128; *planned=1;
             hhGX=(int)(lfx>>8); hhGY=(int)(lfy>>8);
             if(hhPlan(s,1)>1){ twOn[k]=1; s->act=HA_WALK;   // walking in, over to you
                 char*e=twMsg; for(const char*p=s->name;*p;) *e++=*p++; *e++=' '; for(const char*p=s->last;*p;) *e++=*p++;
-                if(twFrom[k][0]){ const char*p=" FROM "; while(*p) *e++=*p++; for(p=twFrom[k];*p;) *e++=*p++; } else { const char*p=" DROPS BY"; while(*p) *e++=*p++; } *e=0;
+                if(twWel[k]){ const char*p=" SAYS WELCOME"; while(*p) *e++=*p++; }   // (the welcome visit)
+                else if(twFrom[k][0]){ const char*p=" FROM "; while(*p) *e++=*p++; for(p=twFrom[k];*p;) *e++=*p++; } else { const char*p=" DROPS BY"; while(*p) *e++=*p++; } *e=0;
                 lnote=twMsg; lnoteT=90; }
             else twWait[k]=120;
             continue;
@@ -452,7 +456,8 @@ static void twTick(int*planned){   // VISITORS: someone from another household w
             if(hhPlan(s,1)>1){ twOn[k]=3; s->act=HA_WALK; } else twWait[k]=60;
             continue; }
         if(s->pi>=s->pn){
-            if(twOn[k]==1){ twOn[k]=2; s->act=HA_IDLE; twWait[k]=(short)(360+(rnd8()<<2)); }   // there: stays 6 to 23 seconds
+            if(twOn[k]==1){ twOn[k]=2; s->act=HA_IDLE; twWait[k]=(short)(360+(rnd8()<<2));
+                if(twWel[k]){ twWel[k]=0; simMoney+=25; if(simMoney>9999) simMoney=9999; moodEvent(M_PAY); lnote="WELCOME GIFT  25"; lnoteT=90; } }   // there: the housewarming gift   // there: stays 6 to 23 seconds
             else { twOn[k]=0; twWait[k]=(short)(900+(rnd8()<<4)); }                      // gone: the next visit in a while
             continue; }
         hhStepAlong(s);
@@ -757,7 +762,7 @@ static int hhSocR(int useLabel){   // 1 = handled (a social, or the menu was clo
     if(s->act==HA_USE){ lnote="THEY ARE BUSY"; lnoteT=50; return 0; }
     static const char* it[SC_N+1]; static char tl[40]; int id[SC_N+1], n=0;
     static const char* const useNm[6]={0,"USE THE FRIDGE","USE THE TOILET","SLEEP IN BED","TAKE A SHOWER","SIT ON SOFA"};
-    if((useLabel>0&&useLabel<6)||useLabel==8){ it[n]=useLabel==8?"USE THE PHONE":useNm[useLabel]; id[n++]=-1; }
+    if((useLabel>0&&useLabel<6)||useLabel>=8){ it[n]=useLabel==8?"USE THE PHONE":useLabel>=9?"TUNE THE RADIO":useNm[useLabel]; id[n++]=-1; }
     for(int i=0;i<SC_N;i++) if(socAllowed(a,b,i)){ it[n]=i==SC_PUNCH?fkMove(a,"PUNCH"):socT[i].name; id[n++]=i; }
     { char*e=simCat(tl,s->name); *e++=' '; *e++=' '; e=simCat(e,relWord(a,b)); e=simCat(e,"  HP "); simCatN(e,s->hp); }
     int c=menu(tl,it,n); liveInvalidate();

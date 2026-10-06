@@ -1924,22 +1924,25 @@ static void voxEvent(int ev,int v){   // sims.h calls this for every life event 
 
 #define BAIL_STUN 34   // frames you lie there after an ordinary bail (was 45, then 60 in hurt()): back on the board in about half a second
 // Getting hurt. sev grows with fall height, speed and a bad landing. kind: 0 clean landing, 1 bail, 2 wall hit.
-static void die(int snd){ if(tutOn){ lhp=HP_MAX; lstun=60; lsp=0; lgrind=0; lnote="TUTORIAL  NO DYING"; lnoteT=90; return; }   // (tutorial.h)
-    moodEvent(M_DIE); ldead=1; lstun=2; lsp=0; lgrind=0; sfxPlay(snd); lnote="YOU DIED"; lnoteT=0x7fff; }
+// DEATH VARIANTS: what killed you decides the note on the dead screen (and a few the sound). why: 0 plain, 1 shock, 2 gravity, 3 a wall, 4 hunger, 5 worn out
+static const char* const deathNote[6]={"YOU DIED","DIED OF SHOCK","GRAVITY WON","MET A WALL AT SPEED","DIED OF HUNGER","ONE HIT TOO MANY"};
+static void die(int snd,int why){ if(tutOn){ lhp=HP_MAX; lstun=60; lsp=0; lgrind=0; lnote="TUTORIAL  NO DYING"; lnoteT=90; return; }   // (tutorial.h)
+    if(why==4||(why==5&&lfood<10)) why=4;   // hit points ran out while starving: say so
+    moodEvent(M_DIE); ldead=1; lstun=2; lsp=0; lgrind=0; sfxPlay(snd); lnote=deathNote[why>5?0:why]; lnoteT=0x7fff; }
 static void hurt(int sev,int kind){
     if(abPow()&PW_ARMOUR) sev=sev*7/10;                                    // SPIKES: armour plates take the edge off
     if(xo[XO_HURT]==1) sev/=2; else if(xo[XO_HURT]==2&&sev>=30) sev=29;   // HURT option: GENTLE halves it, NO DEATH keeps a fall survivable
     if(sev>=30) moodEvent(M_HURT_BIG); else if(sev>=18) moodEvent(M_HURT); else if(kind==2) moodEvent(M_BUMP);   // (40+ is death: die() logs it)
     hpLose(sev>=40?HP_MAX:kind==2?sev:sev*3/2);                                                     // HEALTH: a wall hit costs sev, a fall or bail 1.5 x sev
-    if(sev>=40) die(VS(V_die_of_shock));                                                                   // instant death
+    if(sev>=40) die(kind==2?SFX_DEATH:kind==0?SFX_SCREAM:VS(V_die_of_shock),kind==2?3:kind==0?2:1);                                                                   // instant death
     else if(sev>=30){                                                                                // life or death
         if(rnd8()<128){ if(lhp>15) lhp=15; lstun=240; lsp=0; lgrind=0; sfxPlay(SFX_NEARLY); lnote="CLOSE CALL"; lnoteT=120; }
-        else die(SFX_DEATH);
+        else die(kind==2?SFX_DEATH:SFX_SCREAM,kind==2?3:2);
     }
     else if(sev>=18){ lstun=150; lsp=0; lgrind=0; sfxPlay(SFX_GROAN); lnote="OW"; lnoteT=90; }     // groaning, struggling up
     else if(kind==1){ lstun=BAIL_STUN; voxPlay((rnd8()&1)?V_cry:V_cry_after_bad_event); }                                                  // minor bail: crying
     else if(kind==2){ lstun=20; sfxPlay(SFX_HIT); lnote="OOF"; lnoteT=30; }                          // grunts and hits
-    if(!ldead&&lhp<=0) die(SFX_DEATH);                                                              // the meter ran out (hits add up)
+    if(!ldead&&lhp<=0) die(SFX_DEATH,5);                                                              // the meter ran out (hits add up)
 }
 // A punch lands on the one you control (house.h calls this). Fights never kill: at 0 HP you are knocked out for 4 s and get up at 25.
 static void fightHurt(int dmg){
@@ -1955,7 +1958,7 @@ static void fightHurt(int dmg){
 static int tileH(int tx,int ty){   // surface height in px (ramps: their highest point). Grind height is 6: rails, ledges and benches
     if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
     char c=lifeMap[ty][tx];
-    return (c=='#'||c=='F'||c=='W'||c=='H')?2*CC: (c=='X'||c=='Y')?10: (c=='w'||c=='T'||c=='S'||c=='C'||c=='O'||c=='G'||c=='V'||c=='U'||c=='Q')?CC: (c=='='||c=='L'||c=='N'||c=='Z'||c=='K'||c=='J'||c=='I')?6: (c=='M')?3: isKicker(c)?KICKER_H: isLaunch(c)?LAUNCH_H: isQPipe(c)?qpH[7]: 0;   // pack 2: X funbox 10, Y trash can 10, O barrel 8, Z planter / K table / J jersey grind at 6, M manual pad 3
+    return (c=='#'||c=='F'||c=='W'||c=='H')?2*CC: (c=='X'||c=='Y')?10: (c=='w'||c=='T'||c=='S'||c=='C'||c=='O'||c=='G'||c=='V'||c=='U'||c=='Q'||c=='A')?CC: (c=='='||c=='L'||c=='N'||c=='Z'||c=='K'||c=='J'||c=='I'||c=='R')?6: (c=='M')?3: isKicker(c)?KICKER_H: isLaunch(c)?LAUNCH_H: isQPipe(c)?qpH[7]: 0;   // pack 2: X funbox 10, Y trash can 10, O barrel 8, Z planter / K table / J jersey grind at 6, M manual pad 3
 }
 static int surfH(s32 fx,s32 fy){   // surface height at an exact position (1/256 tiles): same as tileH, but ramps slope
     int tx=(int)(fx>>8), ty=(int)(fy>>8); if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
@@ -2045,14 +2048,14 @@ static int numText(int x,int y,int n,u16 c){
 // lifeMap = what stands on each tile, floorMap = floor style under it, wallMap = wallpaper on it (for wall tiles).
 enum { T_ROOM, T_WALL, T_FLOOR, T_ITEM, T_ERASE, NTOOL };
 static int eTool, eAct, eAx, eAy, eFl, eWp, eOb;   // editor: tool, rectangle anchor set?, anchor tile, chosen floor / wallpaper / item
-#define NOBJ 32
+#define NOBJ 34
 #define OB_LAUNCH 17   // launch ramp turns like the kicker: '9'..'<'
 #define OB_KICKER 10   // palette slots whose char carries a turn (+eRot): kicker '1'..'4', quarter pipe '5'..'8'
 #define OB_QPIPE 11
 static int eRot;   // editor: which way the next ramp faces (0 S, 1 E, 2 N, 3 W)
-static const char palCh[NOBJ]={'.','w','W','#','=','F','T','D','B','P','1','5','L','N','S','H','C','9','X','O','Y','Z','K','J','M','G','V','U','^','~','Q','I'};
-static const char* const palNm[NOBJ]={"CLEAR","LOW WALL","WALL","CRATE","RAIL","FRIDGE","TOILET","DOOR","BOARD","SPAWN","KICKER","Q PIPE","LEDGE","BENCH","BED","SHOWER","SOFA","LAUNCH","FUNBOX","BARREL","TRASH CAN","PLANTER","PICNIC","JERSEY","MANUAL PAD","WATER PIPE","LAVA LAMP","BEANBAG","STAIRS UP","STAIRS DOWN","DEADSET 3THOUSAND VYBE","PHONE"};
-static const u16 palCol[NOBJ]={RGB(26,21,14),RGB(8,20,22),RGB(10,22,24),RGB(8,9,20),RGB(31,30,16),RGB(31,31,31),RGB(30,28,18),RGB(14,9,5),RGB(26,10,6),RGB(28,10,8),RGB(24,17,9),RGB(27,19,11),RGB(20,20,22),RGB(25,18,9),RGB(10,14,28),RGB(22,28,30),RGB(26,18,9),RGB(8,14,24),RGB(18,16,24),RGB(24,6,5),RGB(12,18,14),RGB(20,10,6),RGB(25,18,9),RGB(22,22,24),RGB(30,26,5),RGB(10,24,14),RGB(24,8,26),RGB(18,8,22),RGB(24,22,18),RGB(12,11,10),RGB(6,20,31),RGB(26,6,6)};
+static const char palCh[NOBJ]={'.','w','W','#','=','F','T','D','B','P','1','5','L','N','S','H','C','9','X','O','Y','Z','K','J','M','G','V','U','^','~','Q','I','R','A'};
+static const char* const palNm[NOBJ]={"CLEAR","LOW WALL","WALL","CRATE","RAIL","FRIDGE","TOILET","DOOR","BOARD","SPAWN","KICKER","Q PIPE","LEDGE","BENCH","BED","SHOWER","SOFA","LAUNCH","FUNBOX","BARREL","TRASH CAN","PLANTER","PICNIC","JERSEY","MANUAL PAD","WATER PIPE","LAVA LAMP","BEANBAG","STAIRS UP","STAIRS DOWN","DEADSET 3THOUSAND VYBE","PHONE","RADIO","SOUND SYSTEM"};
+static const u16 palCol[NOBJ]={RGB(26,21,14),RGB(8,20,22),RGB(10,22,24),RGB(8,9,20),RGB(31,30,16),RGB(31,31,31),RGB(30,28,18),RGB(14,9,5),RGB(26,10,6),RGB(28,10,8),RGB(24,17,9),RGB(27,19,11),RGB(20,20,22),RGB(25,18,9),RGB(10,14,28),RGB(22,28,30),RGB(26,18,9),RGB(8,14,24),RGB(18,16,24),RGB(24,6,5),RGB(12,18,14),RGB(20,10,6),RGB(25,18,9),RGB(22,22,24),RGB(30,26,5),RGB(10,24,14),RGB(24,8,26),RGB(18,8,22),RGB(24,22,18),RGB(12,11,10),RGB(6,20,31),RGB(26,6,6),RGB(20,20,22),RGB(12,13,16)};
 static signed char palLut[256]; static u8 palLutOk;   // tile char -> palette slot (or -1), built on first use: palIdx() runs for every tile of the minimap, so it must be O(1) even with 100+ items
 static int palIdx(char c){
     if(!palLutOk){ for(int i=0;i<256;i++) palLut[i]=-1; for(int i=NOBJ-1;i>=0;i--) palLut[(u8)palCh[i]]=(signed char)i;
@@ -2377,6 +2380,7 @@ static void itemSpanInit(void);
 // Timer2 (65536 Hz) is the clock for pacing, the speed meter and the load counter.
 #define R_TM2D   (*(volatile u16*)0x04000108)
 #define R_TM2CNT (*(volatile u16*)0x0400010A)
+static void radioTune(int sys);   // (the radio and sound system items: defined with the game music, below)
 static int jbLast=-1;   // the last song picked at random anywhere (menus, jukebox, game music): the next pick avoids it
 static u32 uiTicks;     // counts frames in the menus: how long you sat there stirs the random numbers
 static int pickSong(void){   // ONE random checked song (never the one picked last): visible song number, or -1 when there are no songs
@@ -2543,10 +2547,10 @@ static void lifeStep(u16 k,u16 pr,int fr){
         { static u8 vxH, vxP; if(lfood<SIM_LOW){ if(!vxH){ vxH=1; voxNag(V_im_hungryrururyry); } } else if(lfood>=40) vxH=0;   // the hunger and the bladder speak up once each time they run low
           if(lbl>=80){ if(!vxP){ vxP=1; voxNag(V_need_to_pee); } } else if(lbl<50) vxP=0; }
         if(lbl>=100){ lbl=0; lstun=90; lsp=0; lgrind=0; lscore=lscore>100?lscore-100:0; sfxPlay(SFX_CRY); lnote="ACCIDENT"; lnoteT=90; moodEvent(M_ACCIDENT); }
-        int nf=0, nt=0, nb=0, nh=0, nc=0, np=0, nq=0, nph=0;
+        int nf=0, nt=0, nb=0, nh=0, nc=0, np=0, nq=0, nph=0, nrd=0, nsy=0;
         for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++){ int tx=(lfx>>8)+dx, ty=(lfy>>8)+dy; if(tx<0||ty<0||tx>=MW||ty>=MH) continue;
-            char c=lifeMap[ty][tx]; if(c=='F') nf=1; if(c=='T') nt=1; if(c=='S') nb=1; if(c=='H') nh=1; if(c=='C'||c=='U') nc=1; if(c=='G') np=1; if(c=='Q') nq=1; if(c=='I') nph=1; }
-        lnear=nf?1:(nt?2:(nb?3:(nh?4:(np?6:(nq?7:(nph?8:(nc?5:0)))))));   // 7 the DeadSet   // 1 fridge, 2 toilet, 3 bed, 4 shower, 6 water pipe, 5 sofa or beanbag
+            char c=lifeMap[ty][tx]; if(c=='F') nf=1; if(c=='T') nt=1; if(c=='S') nb=1; if(c=='H') nh=1; if(c=='C'||c=='U') nc=1; if(c=='G') np=1; if(c=='Q') nq=1; if(c=='I') nph=1; if(c=='R') nrd=1; if(c=='A') nsy=1; }
+        lnear=nf?1:(nt?2:(nb?3:(nh?4:(np?6:(nq?7:(nph?8:(nrd?9:(nsy?10:(nc?5:0)))))))));   // 7 the DeadSet   // 1 fridge, 2 toilet, 3 bed, 4 shower, 6 water pipe, 5 sofa or beanbag
         if((pr&K_R)&&lstun<=0&&lz<=fh&&!simAct&&hhSocR(lnear)) pr&=~K_R;   // next to a household Sim: the social menu (it offers the furniture too)
         if((pr&K_R)&&lnear&&lstun<=0&&lz<=fh){
             if(lnear==1){   // fridge: eat
@@ -2560,6 +2564,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
                 else { lchill=1800; lstun=80; lsp=0; lgrind=0; lnote="PUFF PUFF  CHILLED OUT"; lnoteT=80; moodEvent(M_CHILL); simEvent(SE_PIPE); }
             } else if(lnear==8){   // the telephone: invite someone, order food, pick a career
                 phoneMenu(); liveInvalidate(); camSnap=1; while((~REG_KEYINPUT)&0x3FF) vsync();
+            } else if(lnear==9||lnear==10){ radioTune(lnear==10);   // the radio / the sound system (sound pack): next station
             } else if(lnear>=3){ simBegin(lnear);   // bed / shower / sofa (sims.h)
             } else {        // toilet: relieve yourself
                 if(lbl<15){ lnote="LATER"; lnoteT=40; }
@@ -2766,7 +2771,7 @@ static void drawPlayerNow(void){
 // The room inside the rectangle x0..x1 / y0..y1 (end excluded), drawn back to front and clipped to it: the same pixels a whole-screen
 // draw would put there. ed=1: editor view (no player).
 static inline int isItemCh(char c){
-    switch(c){ case '#': case 'F': case 'T': case '=': case 'D': case 'L': case 'N': case 'S': case 'H': case 'C': case 'X': case 'O': case 'Y': case 'Z': case 'K': case 'J': case 'M': case 'G': case 'V': case 'U': case 'Q': case 'I': case '^': case '~': return 1; }
+    switch(c){ case '#': case 'F': case 'T': case '=': case 'D': case 'L': case 'N': case 'S': case 'H': case 'C': case 'X': case 'O': case 'Y': case 'Z': case 'K': case 'J': case 'M': case 'G': case 'V': case 'U': case 'Q': case 'I': case 'R': case 'A': case '^': case '~': return 1; }
     return isRamp(c);
 }
 static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
@@ -3187,6 +3192,7 @@ static void phoneEnsure(void){   // a house must have a phone (careers, food and
 
 // ---- game music: the jukebox songs in their shuffled order while you play (OPTIONS > AUDIO > GAME MUSIC) ----
 static int gmCur;   // visible number of the song that plays
+static u8 radioSt;   // 0 = off, else the tuned station + 1
 static int menuOn, creOn, musCtx;   // who owns the music: the main menus' song, the creator's chiptune loop (musCtx = the screen the game was started from: 0 menu, 1 creator)
 static void creatorMusStart(void); static void menuMusStart(void);
 static void gmPlay(void){ const Song*sg=&songs[jbMap[gmCur]]; if(xo[XO_GAMEXF]) musFadeTo(sg->adp?1:0,sg->adp,sg->xm,XF_SONG); else musBegin(sg->adp?1:0,sg->adp,sg->xm); }   // OPTIONS > AUDIO > GAME CROSSFADE: off = a hard start
@@ -3197,11 +3203,43 @@ static void gmStart(void){   // entering the game: crossfade into a random check
     gmCur=pickSong(); if(gmCur<0){ musFadeOut(XF_OUT); return; }
     gMusic=1; mGain=mGainT=256; gmPlay();
 }
-static void gmStop(void){ mGain=mGainT=256; gMusic=0; }   // leaving the game: nothing is cut, the next screen's music crossfades over the song
-static void gmSync(void){ if(xo[XO_GAMEMUS]&&sSnd) gmStart(); else if(gMusic){ gMusic=0; musFadeOut(XF_OUT); } }   // after the pause menu: the option or SOUND may have changed
+static void gmStop(void){ mGain=mGainT=256; gMusic=0; radioSt=0; }   // leaving the game: nothing is cut, the next screen's music crossfades over the song
+static void gmSync(void){ if(xo[XO_GAMEMUS]&&sSnd) gmStart(); else if(gMusic&&!(radioSt&&sSnd)){ gMusic=0; radioSt=0; musFadeOut(XF_OUT); } }   // (a tuned radio keeps playing)   // after the pause menu: the option or SOUND may have changed
+// ---- RADIO and SOUND SYSTEM (items 'R' and 'A', sound pack): R next to one tunes the next station; every station is a slice of the jukebox ----
+// A station plays the visible (unlocked, not secret) songs of one artist, one after the other at random; ALL SONGS FM is the whole jukebox. After the
+// last station the radio goes off and the normal GAME MUSIC comes back. Leaving the game switches the radio off (gmStop).
+static const struct { const char*nm; const char*art; } radioStn[]={{"ALL SONGS FM",0},{"DAYBAR FM","DayBar"},{"SK9M BASS RADIO","Sk9m"},{"DANNY STEELE FM","Danny"},{"BRENO FM","Breno"},{"SINGHS RADIO","Singh"}};
+#define RADIO_N 6
+static int radioMatch(int st,int v){   // does visible song v belong to station st (the artist's name starts with the station's key)
+    const char*k=radioStn[st].art; if(!k) return 1;
+    const char*a=songArtist(&songs[jbMap[v]]); if(!a) return 0;
+    while(*k&&*k==*a){ k++; a++; } return !*k;
+}
+static int radioPick(int st){   // a random song of the station, never the one that plays while there is another; -1 = none
+    int c=0; for(int v=0;v<jbN;v++) if(radioMatch(st,v)&&v!=gmCur) c++;
+    int any=(c==0); if(any) for(int v=0;v<jbN;v++) if(radioMatch(st,v)) c++;
+    if(c==0) return -1;
+    lrng^=((u32)R_TM2D<<8^uiTicks)*2654435761u;
+    int r=(int)((((unsigned)rnd8()<<8|(unsigned)rnd8())*(unsigned)c)>>16);
+    for(int v=0;v<jbN;v++){ if(!radioMatch(st,v)||(!any&&v==gmCur)) continue; if(r--==0) return v; }
+    return -1;
+}
+static int gmPick(void){ if(radioSt){ int v=radioPick(radioSt-1); if(v>=0){ jbLast=v; return v; } } return pickSong(); }   // the next song: the station's, else a random checked one
+static void radioTune(int sys){   // R at the radio (sys=0) or the sound system (sys=1)
+    if(!sSnd||jbN<=0){ lnote="SOUND IS OFF"; lnoteT=50; return; }
+    int st=radioSt;   // next station that has a song to play; past the last one: off
+    do{ st++; } while(st<=RADIO_N&&radioPick(st-1)<0);
+    lstun=20; lsp=0; lgrind=0;
+    if(st>RADIO_N){ radioSt=0; lnote="RADIO OFF"; lnoteT=60;
+        if(xo[XO_GAMEMUS]){ gMusic=0; gmStart(); } else { gMusic=0; musFadeOut(XF_OUT); }   // back to the normal game music (or silence)
+        return; }
+    int v=radioPick(st-1); radioSt=(u8)st; gmCur=v; jbLast=v; gMusic=1; mGain=mGainT=256; gmPlay();
+    lnote=radioStn[st-1].nm; lnoteT=70;
+    if(sys){ moodEvent(M_CHILL); }   // the big speakers feel better than the little radio
+}
 static void gmTick(void){   // once per frame: when the song is over, another random one
     if(!gMusic||!mPlay) return;
-    if((xo[XO_GAMEXF]&&musNearEnd(XF_SONG))||(mKind?mDone:mLaps>=1)){ gmCur=pickSong(); if(gmCur<0){ gMusic=0; return; } gmPlay(); }   // crossfade on: the next song blends in before this one ends. Off: it starts right at the end
+    if((xo[XO_GAMEXF]&&musNearEnd(XF_SONG))||(mKind?mDone:mLaps>=1)){ gmCur=gmPick(); if(gmCur<0){ gMusic=0; return; } gmPlay(); }   // crossfade on: the next song blends in before this one ends. Off: it starts right at the end
 }
 #include "tutorial.h"   // the TUTORIAL: pop-up lessons in the Sims 2 style (tutTick / tutRunModal, called from lifeModeRun)
 static void lifeModeRun(int ed);
@@ -3334,7 +3372,7 @@ static void drawEditorHud(const char*msg){
                 case OB_LAUNCH:blitItem(V_LAUNCH+((eRot-cview)&3),221,141);break; case 18:blitItem(V_FUNBOX,221,141);break; case 19:blitItem(V_BARREL,221,141);break;
                 case 20:blitItem(V_TRASH,221,141);break; case 21:blitItem(V_PLANTER,221,141);break; case 22:blitItem(V_PICNIC,221,141);break;
                 case 23:blitItem(V_JERSEYU,221,141);break; case 24:blitItem(V_MPAD,221,141);break;
-                case 14:blitItem(V_BED,221,141);break; case 15:blitItem(V_SHOWER,221,141);break; case 16:blitItem(V_SOFA,221,141);break; case 25:blitItem(V_PIPE,221,141);break; case 26:blitItem(V_LAVA,221,141);break; case 27:blitItem(V_BEANBAG,221,141);break; case 28:case 29:drawStairs(221,141,eOb==28);break; case 30:blitItem(V_DEADSET,221,141);break; default:drawSpawn(221,142); } }
+                case 14:blitItem(V_BED,221,141);break; case 15:blitItem(V_SHOWER,221,141);break; case 16:blitItem(V_SOFA,221,141);break; case 25:blitItem(V_PIPE,221,141);break; case 26:blitItem(V_LAVA,221,141);break; case 27:blitItem(V_BEANBAG,221,141);break; case 28:case 29:drawStairs(221,141,eOb==28);break; case 30:blitItem(V_DEADSET,221,141);break; case 31:blitItem(V_PHONE,221,141);break; case 32:blitItem(V_RADIO,221,141);break; case 33:blitItem(V_STEREO,221,141);break; default:drawSpawn(221,142); } }
         if(eOb==1||eOb==2){ wallSwatch(eWp,212,137); }
     } else if(eTool!=T_ERASE){
         int xx=2;   // label, swatch, name: each placed after the one before, so nothing covers a label
