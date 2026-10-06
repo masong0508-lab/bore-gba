@@ -737,9 +737,10 @@ static void simsTick(unsigned pr,int tx,int ty){
     }
     // the clock: sleeping runs it one game minute per step
     int spm=oStepsMin();   // DAY LENGTH option (0 = the clock is stopped)
-    if(spm>0){ simClkCr+=(simAct==1)?spm:1; while(simClkCr>=spm){ simClkCr-=spm; simMinute(); } }
+    if(spm>0){ simClkCr+=(simAct==1)?spm:1; while(simClkCr>=spm){ simClkCr-=spm; simMinute(); sgDirty=1; } }
     // the day's quota counts trick points scored during the shift
     if(lscore>simLastScore&&simInShift()) shiftPts+=lscore-simLastScore;
+    if(lscore!=simLastScore) sgDirty=1;   // (progress since the last save file: MANUAL saving asks before it is thrown away)
     simLastScore=lscore;
     if(simT%30==0){ simRoomTick(tx,ty); simStateTick(); }
     if(sNrg==0&&simAct==0){ sNrg=25; lstun=300; lsp=0; lgrind=0; lnote="PASSED OUT"; lnoteT=90; moodEvent(M_PASSOUT); }   // like the old FAINT, from tiredness

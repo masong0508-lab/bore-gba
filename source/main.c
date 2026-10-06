@@ -75,6 +75,9 @@ static int lloadV;   // work per drawn frame as a percent of its time budget (PE
 #define NWALL (NWP+NWX)
 #define NFL 14       // floors
 #include "opts.h"   // extended options (xo[]): gameplay, input, audio, HUD and room options; also defines GOLD (the accent colour)
+#define sgManual() (xo[XO_SAVEMODE]!=0)   // OPTIONS > DATA > SAVING: 1 = MANUAL
+static u8 sgDirty EWRAM_BSS, sgDiscard EWRAM_BSS;   // sgDirty: the player in play changed since the last save file. sgDiscard: quit without saving (the file is loaded again when play ends)
+static int sgAsk(int cancel);   // savegame.h: SAVE / QUIT WITHOUT SAVING (/ KEEP PLAYING). 0 = stay, 1 = saved or nothing to save, 2 = throw the progress away
 
 
 // ---------- palette ----------
@@ -3321,7 +3324,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
                 if(b==0){ vpFull(); mapEditor(); lifeInit(); }
                 else if(b==1){ simsSaveNow(); hhSave(); if(slotScreen()){ lifeInit(); phoneEnsure(); } }   // a blueprint was loaded: start again in the loaded room (the life was written first, so nothing is lost)
                 else if(b==2){ if(menu("START A NEW LIFE",yesNoLife,2)==1){ twKeep=0; simsNewLife(); moodReset(); lscore=0; simLastScore=0; stOff(); lnote="NEW LIFE"; lnoteT=60; } } }
-            else if(c==PM_QUIT){ if(!ed&&!nbPlaying) gToMenu=1; break; }   // (from the neighborhood: back there)
+            else if(c==PM_QUIT){ int go=1; if(!ed&&!nbPlaying){ if(sgPid&&sgManual()){ int r=sgAsk(1); if(r==0) go=0; else if(r==2) sgDiscard=1; } if(go) gToMenu=1; } if(go) break; }   // (from the neighborhood: back there)   // MANUAL saving: quitting with unsaved progress asks first
             winFull(); REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=0; continue;
         }
         if(!ed&&lcamF==0){ tutTick(k,pr);

@@ -62,7 +62,7 @@ static int sgHomeOf(int slot){   // the home lot kept in a player's file (the 'P
     volatile u8*b=SLB(slot)+SLOT_HDR;
     return (b[0]==SLC_PLACE&&b[3]==1)?b[4]:255;
 }
-static int sgSave(void){   // the player in play into a fresh copy of their file. SLE_OK or an error (the old copy is untouched then)
+static int sgSaveI(void){   // the player in play into a fresh copy of their file. SLE_OK or an error (the old copy is untouched then)
     if(!sgPid) return SLE_EMPTY;
     simsSaveNow(); hhSave(); ageSave(); persSave(); stSave(); slScan();
     int old=sgFind(sgPid);
@@ -100,6 +100,9 @@ static int sgParse(volatile u8*body,int len,int apply){   // apply 0: check ever
     }
     return (gotP&&gotC)?SLE_OK:SLE_FMT;
 }
+static int sgSave(void){   // sgSaveI under a loading screen (flash writes are slow); clears the unsaved flag
+    ldShow("SAVING GAME",0,2); int e=sgSaveI(); ldShow("SAVING GAME",2,2); ldEnd(); if(!e) sgDirty=0; return e;
+}
 static void sgEnterTown(void){   // the player's town and lot become the live ones
     int l[SLOT_MAX], n=nbTownList(l,SLOT_MAX), pick=-1;
     for(int i=0;i<n;i++) if(l[i]==sgPlSlot&&nbRead(l[i],&nbTmp)&&nbKey(&nbTmp)==sgPlKey) pick=l[i];
@@ -120,7 +123,7 @@ static int sgLoadPlayer(int slot){   // 0 = the player is in play now, else a SL
     skReset(); sgParse(b,I.len,1);   // (a file from before the skills has no 'K' chunk: they start at zero)
     svCommit(); hhLoad(); stLoad(); ageLoad();
     twKeep=0; sprKey=0; for(int m=0;m<HH_MAX;m++) hhKey[m]=0; hhSlotsFree(); moodReset(); lscore=0; simLastScore=0;
-    sgPid=I.pid;
+    sgPid=I.pid; sgDirty=0;
     sgEnterTown();
     return SLE_OK;
 }
@@ -171,13 +174,36 @@ static void sgDraw(const int*l,int n,int sel){
     text(12,134,"AND LIVES ON A LOT OF THE SHARED TOWN",DIMC,1);
     text(12,143,"PAUSE  SAVE GAME SAVES AT ONCE",DIMC,1);
 }
-static void sgLeaveSave(void){ if(sgPid){ int e=sgSave(); toast(e?slErrMsg(e):"GAME SAVED"); } }   // leaving play saves the player
+// SAVING (OPTIONS > DATA): AUTO saves the player when play is left, as it always did. MANUAL (the default) saves only on PAUSE > SAVE GAME: leaving play with
+// unsaved progress asks (SAVE, or QUIT WITHOUT SAVING, which loads the last save file again), and a power cut or reset loses everything since the last
+// save (PLAY loads the player from the file, never from the live copy). sgDirty is set by simsTick (a game minute or a score) and cleared by a save or a load.
+static int sgReload(void){ slScan(); int s=sgFind(sgPid); if(s<0) return SLE_EMPTY; return sgLoadPlayer(s); }   // the last save file replaces the live player
+static int sgAsk(int cancel){
+    if(!sgPid||!sgDirty) return 1;
+    static const char* const it3[3]={"SAVE AND QUIT","QUIT WITHOUT SAVING","KEEP PLAYING"}, *const it2[2]={"SAVE","QUIT WITHOUT SAVING"};
+    for(;;){
+        int c=cancel?menu("YOU HAVE UNSAVED PROGRESS",it3,3):menu("YOU HAVE UNSAVED PROGRESS",it2,2);
+        if(c<0||(cancel&&c==2)){ if(cancel) return 0; continue; }   // (B or KEEP PLAYING; after the fact there is no staying: ask again)
+        if(c==0){ int e=sgSave(); if(!e){ toast("GAME SAVED"); return 1; } toast(slErrMsg(e)); return cancel?0:1; }
+        if(menu("LOSE YOUR PROGRESS?",slYesNo,2)==1) return 2;
+    }
+}
+static void sgBeforeLeave(void){   // another player (or a new one) is about to load: the one in play is saved (AUTO) or asked about (MANUAL)
+    if(!sgPid) return;
+    if(!sgManual()){ int e=sgSave(); if(e) toast(slErrMsg(e)); } else sgAsk(0);
+}
+static void sgLeaveSave(void){   // play was left
+    if(!sgPid) return;
+    if(!sgManual()){ int e=sgSave(); toast(e?slErrMsg(e):"GAME SAVED"); return; }
+    int r=sgDiscard?2:sgAsk(0); sgDiscard=0;
+    if(r==2){ int e=sgReload(); toast(e?slErrMsg(e):"BACK TO YOUR LAST SAVE"); }
+}
 static void sgPlayerMenu(int slot,int c0){   // c0: -1 asks (CONTINUE / NEIGHBORHOOD / DELETE), else that choice at once (A on a player = CONTINUE)
     static const char* const it[3]={"CONTINUE","NEIGHBORHOOD","DELETE PLAYER"};
     int pid=slI[slot].pid, c=c0>=0?c0:menu(slI[slot].name[0]?slI[slot].name:"PLAYER",it,3); if(c<0) return;
     if(c==2){ if(menu("DELETE THIS PLAYER",slYesNo,2)==1){ sgDeletePid(pid); toast("PLAYER DELETED"); } return; }
     if(sgPid!=pid){
-        if(sgPid){ int e=sgSave(); if(e) toast(slErrMsg(e)); }   // the player who was in play is saved before the next one loads
+        sgBeforeLeave();   // the player who was in play is saved before the next one loads
         slScan(); int s=sgFind(pid); if(s<0){ toast("SAVE FILE IS DAMAGED"); return; }
         box(60,64,120,24); text(76,72,"LOADING...",WHITE,1); present();
         int e=sgLoadPlayer(s); if(e){ toast(slErrMsg(e)); return; }
@@ -192,7 +218,7 @@ static void sgNewPlayer(void){
     static char tn[16][NB_NAME+1] EWRAM_BSS; const char* nm[16];
     for(int i=0;i<n;i++){ nbRead(l[i],&nbTmp); int k=0; for(;nbTmp.name[k]&&k<NB_NAME;k++) tn[i][k]=nbTmp.name[k]; tn[i][k]=0; nm[i]=tn[i]; }
     int c=n==1?0:menu("WHICH NEIGHBORHOOD",nm,n); if(c<0) return;   // (one town: nothing to ask)
-    if(sgPid){ int e=sgSave(); if(e) toast(slErrMsg(e)); }
+    sgBeforeLeave();
     slScan(); int pid=sgNewPid(); if(!pid){ toast("TOO MANY PLAYERS"); return; }
     sgWant=(u8)pid;
     int started=newGame(l[c]);   // (it gives the new player a home lot and the number above, then a fresh life)
@@ -212,7 +238,7 @@ static void playerScreen(void){
         if(pr&(K_A|K_START)){   // A on a player plays at once; START opens the player menu (neighborhood, delete)
             if(sel==n+1) playScreen();   // the neighborhoods: make, rename, delete, visit
             else if(sel==n) sgNewPlayer();
-            else if(sel==n+2){ if(sgPid){ int e=sgSave(); if(e) toast(slErrMsg(e)); } newGame(nbOk?nbTS:-1); }   // SECRET (debug code): the old NEW GAME on the old assigned lot, the TEST MAP. The life belongs to no player
+            else if(sel==n+2){ sgBeforeLeave(); newGame(nbOk?nbTS:-1); }   // SECRET (debug code): the old NEW GAME on the old assigned lot, the TEST MAP. The life belongs to no player
             else sgPlayerMenu(l[sel],(pr&K_START)?-1:0);
             if(gToMenu) break;
             n=sgList(l); if(sel>=SG_ROWS(n)) sel=SG_ROWS(n)-1;

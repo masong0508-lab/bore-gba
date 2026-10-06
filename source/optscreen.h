@@ -27,7 +27,7 @@ static const char* const lbNeed[5]={"OFF","SLOW","NORMAL","FAST","BRUTAL"}, *con
     *const lbQuota[4]={"EASY","NORMAL","HARD","INSANE"}, *const lbScore[4]={"X0.5","X1","X2","X3"},
     *const lbCombo[4]={"1.5 SEC","2.5 SEC","4 SEC","6 SEC"}, *const lbSpeed[4]={"80 %","100 %","125 %","150 %"},
     *const lbDays[10]={"1 DAY","2 DAYS","3 DAYS","5 DAYS","7 DAYS","10 DAYS","14 DAYS","21 DAYS","30 DAYS","60 DAYS"},
-    *const lbDaysA[11]={"1 DAY","2 DAYS","3 DAYS","5 DAYS","7 DAYS","10 DAYS","14 DAYS","21 DAYS","30 DAYS","60 DAYS","FOREVER"}, *const lbAging[4]={"OFF","SLOW","NORMAL","FAST"}, *const lbHurt[3]={"NORMAL","GENTLE","NO DEATH"}, *const lbBubble[3]={"OFF","URGENT","ALL"}, *const lbShown[2]={"HIDDEN","SHOWN"};
+    *const lbDaysA[11]={"1 DAY","2 DAYS","3 DAYS","5 DAYS","7 DAYS","10 DAYS","14 DAYS","21 DAYS","30 DAYS","60 DAYS","FOREVER"}, *const lbAging[4]={"OFF","SLOW","NORMAL","FAST"}, *const lbHurt[3]={"NORMAL","GENTLE","NO DEATH"}, *const lbBubble[3]={"OFF","URGENT","ALL"}, *const lbShown[2]={"HIDDEN","SHOWN"}, *const lbSaveMode[2]={"AUTO","MANUAL"};
 static const char* const lbTut[3]={"OFFER","DONE","REPLAY"};
 static const char* const lbWeather[7]={"AUTO","CLEAR","CLOUDY","FOG","RAIN","STORM","SNOW"}, *const lbGhost[3]={"OFF","ON","HAUNTED"};
 static const char* const lbPct[11]={"0 %","10 %","20 %","30 %","40 %","50 %","60 %","70 %","80 %","90 %","100 %"};   // the volume sliders (rows made with SR)
@@ -132,6 +132,7 @@ static const OptRow pgRooms[]={
  XR(XO_SLOTBOOT,"BOOT LOADS PERSON",lbOnOff,"AT POWER ON THE CREATURE OF THE ACTIVE","SLOT COMES BACK  THE ROOM IS NOT CHANGED"),
 };
 static const OptRow pgData[]={
+ XR(XO_SAVEMODE,"SAVING",lbSaveMode,"AUTO  LEAVING PLAY SAVES YOUR PLAYER","MANUAL  ONLY SAVE GAME KEEPS PROGRESS  QUIT ASKS"),
  XR(XO_AUTOSAVE,"AUTO SAVE LIFE",lbOnOff,"SAVES AT MIDNIGHT PAYDAY AND THE PAUSE MENU","OFF  ONLY SLOTS AND SAVE LIFE NOW SAVE IT"),
  AR(OA_LIFESAVE,"SAVE LIFE NOW","WRITES THE CURRENT LIFE TO SAVE MEMORY","USE IT FROM THE PAUSE MENU WHILE PLAYING"),
  AR(OA_LIFEERASE,"ERASE LIFE","DELETES THE SAVED LIFE  CASH JOB AND CLOCK","THE NEXT PLAY STARTS A NEW ONE"),
