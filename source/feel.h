@@ -47,7 +47,7 @@ static void feelSteer(u16 k){
     F.turn+=d; F.angF=(F.angF+F.turn)&4095;
 }
 static void feelPush(u16 k,int rail){
-    int top=moodTop(F_TOP);                             // mood: SAD drags the top speed, STOKED adds a touch
+    int top=moodTop(F_TOP); if(lspecOn) top+=top/8;                             // mood: SAD drags the top speed, STOKED adds a touch
     if(k&K_A){ if(F.spd<top) F.spd+=((top-F.spd)>>F_PUSHDIV)+1; }
     else { F.spd-=1+(F.spd>>F_COAST); }
     if(k&K_DOWN) F.spd-=F_BRAKE+1+(F.spd>>4);
@@ -55,7 +55,7 @@ static void feelPush(u16 k,int rail){
     { int fl=192+(abOf(AB_GRIP)-2)*16; if(rail&&F.spd<fl) F.spd=fl; }   // rails keep you rolling (GRIP ability: faster)
     if(F.spd<0) F.spd=0;
 }
-static inline int feelOllie(void){ F.jh=1; F.buf=0; F.coy=0; return (F_OLLIE+(F.spd>>1))*abPct(AB_JUMP,6)/100; }   // JUMP ability: +-6% a point
+static inline int feelOllie(void){ F.jh=1; F.buf=0; F.coy=0; return (F_OLLIE+(F.spd>>1)+(lspecOn?0x80:0))*abPct(AB_JUMP,6)/100; }   // JUMP ability: +-6% a point
 static void feelAir(u16 k,u16 pr,int nearGround){      // spin ramps up, A grabs, B flips; variable jump height
     int dir=((k&K_RIGHT)?1:0)-((k&K_LEFT)?1:0);
     if(dir){ F.spinV+=dir*F_SPIN_ACC; if(F.spinV>F_SPIN_MAX) F.spinV=F_SPIN_MAX; if(F.spinV<-F_SPIN_MAX) F.spinV=-F_SPIN_MAX; }
