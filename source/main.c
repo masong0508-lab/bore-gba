@@ -2103,6 +2103,7 @@ static void mapGen(void){
     gPut(5,12,'P'); gPut(7,14,'B');
     gPut(8,3,'H'); gPut(4,16,'S'); gPut(3,11,'C');                     // shower (bathroom), bed and sofa (lounge)
     gPut(3,10,'V'); gPut(5,10,'G'); gPut(3,13,'U'); gPut(6,12,'Q'); gPut(8,12,'I');   // + the DeadSet 3Thousand VYBE                     // the chill corner: lava lamp, water pipe, beanbag
+    gFree(9,12,'R'); gFree(9,14,'A');                                  // the RADIO and the SOUND SYSTEM in the lounge: stand next to one and press R to tune a station (only onto empty floor)
     // FACTORY: red brick, steel plate, oil-stained and hazard lanes, grate corner, crates and a rail
     gRoom(22,2,37,19,8,NWP+53); gBox(23,10,36,11,10); gBox(23,14,27,18,9); gBox(30,3,36,8,12);
     gPut(29,19,'D'); gPut(22,10,'D'); gPut(37,10,'D');
