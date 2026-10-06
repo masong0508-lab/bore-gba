@@ -62,7 +62,8 @@ static u8 sUnlock=0;  // 1 = the Konami code was entered on the title screen: ST
 static u8 sClassic=0; // 1 = the secret classic creature screen (toggled with UP UP DOWN DOWN in the creator)
 static u8 sNoWarn=0; // 1 = hide the TOO SLOW FOR THIS FRAME RATE warning in settings
 static u8 sShow=0;   // performance counter: 0 off, 1 fps, 2 fps + load
-static int cview;    // room view while the action cam spins (0..3, quarter turns); always 0 in the editor
+static int cview;    // the view being drawn (0..3, quarter turns): vbase, plus the extra turn while the action cam spins; always 0 in the editor
+static int vbase;    // the view the player chose with SELECT + L / R (like turning the camera in a Sims game); it stays until it is turned again
 static int lcN, lcPts, lcT, lcBank, lcBankT, lcamPend, lcamF;   // combo chain: tricks, points, time left, banked total + display time, cam queued, cam frame
 static u8 sCam=1;    // action cam after a big combo: 0 off, 1 over 10000, 2 over 5000, 3 over 2000
 static const int camThr[4]={0,10000,5000,2000};
@@ -2406,7 +2407,7 @@ static void helpScreen(const char*title,const char*const*ln,int n){   // lines s
 }
 static void toast(const char*msg){ int w=tw(msg,1)+16;
     box((SW-w)/2,66,w,22); text((SW-w)/2+8,74,msg,WHITE,1); for(int i=0,n=oToastLen();i<n;i++){ present(); } }
-static const char* const lifeHelp[19]={">ON FOOT","DPAD WALK  B RUN  A HOP","L GET ON THE BOARD","R USE FRIDGE TOILET BED SHOWER SOFA",">ON THE BOARD","A PUSH  DPAD STEER  B OLLIE","IN AIR DPAD SPINS  B KICKFLIP  R GLIDES","GREEN MARK = SAFE LANDING  RED = BAIL",">KEEP YOURSELF GOING","WC IS THE TOILET BAR  HP UNDER THE FACE","A OR B GETS YOU UP FROM BED OR SOFA",">WORK  PICK A CAREER ON THE PHONE","TRICK POINTS BEAT THE QUOTA FOR PAY",">WANTS AND FEARS","WANTS FILL THE METER  FEARS DRAIN IT","A GOOD SLEEP ROLLS NEW WANTS AND FEARS","R BY A SIM TALK OR FIGHT  START MENU","SELECT+UP DOWN ZOOM IN OR OUT","SELECT+R SPINS THE CAMERA ROUND"};
+static const char* const lifeHelp[19]={">ON FOOT","DPAD WALK  B RUN  A HOP","L GET ON THE BOARD","R USE FRIDGE TOILET BED SHOWER SOFA",">ON THE BOARD","A PUSH  DPAD STEER  B OLLIE","IN AIR DPAD SPINS  B KICKFLIP  R GLIDES","GREEN MARK = SAFE LANDING  RED = BAIL",">KEEP YOURSELF GOING","WC IS THE TOILET BAR  HP UNDER THE FACE","A OR B GETS YOU UP FROM BED OR SOFA",">WORK  PICK A CAREER ON THE PHONE","TRICK POINTS BEAT THE QUOTA FOR PAY",">WANTS AND FEARS","WANTS FILL THE METER  FEARS DRAIN IT","A GOOD SLEEP ROLLS NEW WANTS AND FEARS","R BY A SIM TALK OR FIGHT  START MENU","SELECT+UP DOWN ZOOM IN OR OUT","SELECT+L R TURN THE VIEW"};
 
 static const char* const creatureHelp[15]={">PICK YOUR LOOK","L R CHANGE TAB   UP DOWN PICK A ROW","LEFT RIGHT CHANGE IT  A ALSO STEPS","SELECT TURNS THE CREATURE ROUND",">THE TABS","1 BODY  2 FACE  3 HAIR  4 CLOTHES","5 PARTS  TAIL HORNS SPIKES WINGS","  PARTS GIVE POWERS  AND FIGHT BONUSES","  BIG PARTS COST JENES  A BUYS ONE","6 ASPIRE  ASPIRATION  LIFETIME WANT  SIGN","  AND TRAITS THAT SHARE 25 POINTS",">FINISH","START JUMPS TO THE DONE TAB","GO LIVE LIFE PLAYS YOUR CREATURE","LIVING EARNS DNA FOR NEW PARTS"};
 static const char* const mapHelp[14]={">BUILD A ROOM","ROOM TOOL  A CORNER  A BUILDS","WALL TOOL  A START  A DRAWS A LINE","FLOOR TOOL  A CORNER  A FILLS","ITEM TOOL  PLACE SINGLE TILES","ERASE TOOL  A CORNER  A CLEARS",">STYLES","L R PICK FLOOR OR ITEM","SEL+L R PICK WALLPAPER","SELECT TAP NEXT TOOL  B CANCELS",">KEEP IT","START OPENS PLAY TEST AND SAVE",">FLOORS","SEL+UP DOWN FLOOR  STAIRS ARE ITEMS"};
@@ -3100,8 +3101,8 @@ static void lifeDraw(void){
 }
 static void camStep(int steps,u16 k,u16 pr){   // action cam: the game holds still while the camera swings round the room
     lcamF+=steps;
-    if(((k&K_SEL)&&(pr&K_SEL))||lcamF>=CAM_LEN){ lcamF=0; cview=0; lcBankT=120; }
-    else { int f=lcamF; cview=(f<6||f>=60)?0:(f-6)/18+1; if(cview>3) cview=0; }
+    if(((k&K_SEL)&&(pr&K_SEL))||lcamF>=CAM_LEN){ lcamF=0; cview=vbase; lcBankT=120; }
+    else { int f=lcamF, t=(f<6||f>=60)?0:(f-6)/18+1; if(t>3) t=0; cview=(vbase+t)&3; }
 }
 static int gToMenu;   // set when the player picks MAIN MENU in the pause menu, so every screen above returns to it
 static void hhSwap(HhSim*s){   // trade places: the player becomes s, s becomes who the player was
@@ -3299,7 +3300,7 @@ static void lifeMode(int ed){ int back=musCtx; gInPlay=1; lifeModeRun(ed); gInPl
 static void lifeModeRun(int ed){   // ed=1: test play started from the map editor
     objHideAll(); winFull(); REG_DISPCNT=0x3443; fxPlayStart();   // mode 3 + sprites (1D tiles) + window 0 (the household's hardware sprites, house.h)
     // (the passers-by of this lot are kept until you move to another lot or start a new life: twKeep, house.h)
-    lifeInit(); if(!ed) phoneEnsure(); lcamF=0; cview=0; lcN=lcPts=lcT=lcBank=lcBankT=lcamPend=0; u16 prev=keyNow(); gmStart(); hudApplyLayout(); liveInvalidate(); camSnap=1;
+    lifeInit(); if(!ed) phoneEnsure(); lcamF=0; vbase=cview=0; lcN=lcPts=lcT=lcBank=lcBankT=lcamPend=0; u16 prev=keyNow(); gmStart(); hudApplyLayout(); liveInvalidate(); camSnap=1;
     stModal=0; if(!ed) stEnter();   // (the chapter card of the story waits for the first frame)
     tutOn=0; tutModal=TM_NONE;   // the tutorial: replay now, or offer it once (first PLAY, not in the test play of the editor)
     if(!ed){ if(xo[XO_TUTOR]==2) tutBegin(); else if(xo[XO_TUTOR]==0&&!tutAsked){ tutAsked=1; tutModal=TM_OFFER; } }
@@ -3316,8 +3317,9 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
           if((k&K_SEL)&&(pr&(K_UP|K_DOWN))){ selArm=0;   // SELECT + UP / DOWN: zoom in / out (the ZOOM option)
               int z=xo[XO_ZOOM]+((pr&K_UP)?1:-1); if(z>=0&&z<=4&&lcamF==0){ xo[XO_ZOOM]=(u8)z; optsSave(); hudApplyLayout(); liveInvalidate(); camSnap=1; }
               { static const char* const zn[5]={"ZOOM OFF","ZOOM 1.25X","ZOOM 1.5X","ZOOM 1.7X","ZOOM 2X"}; lnote=zn[xo[XO_ZOOM]]; } lnoteT=50; }
-          if((k&K_SEL)&&(pr&K_R)){ selArm=0; if(lcamF==0&&!ldead&&!lcamPend){ lcamPend=2; } }   // SELECT + R: spin the camera round the room right now (macro key; works even with ACTION CAM set to OFF)
-          if(k&K_SEL){ k&=(u16)~(K_UP|K_DOWN|K_R); pr&=(u16)~(K_UP|K_DOWN|K_R); }   // (SELECT held: UP / DOWN do not walk, R does not interact)
+          if((k&K_SEL)&&(pr&(K_L|K_R))){ selArm=0;   // SELECT + L / R: turn the view a quarter turn left / right and keep it (not during the action cam)
+              if(lcamF==0){ vbase=(vbase+((pr&K_R)?1:3))&3; cview=vbase; liveInvalidate(); camSnap=1; { static const char* const vn[4]={"VIEW 1","VIEW 2","VIEW 3","VIEW 4"}; lnote=vn[vbase]; } lnoteT=40; } }
+          if(k&K_SEL){ k&=(u16)~(K_UP|K_DOWN|K_L|K_R); pr&=(u16)~(K_UP|K_DOWN|K_L|K_R); }   // (SELECT held: UP / DOWN do not walk, L / R do not swap the board or interact)
           if(selArm&&!(k&K_SEL)){ selArm=0;
               if(!hhN){ lnote="NO ONE ELSE LIVES HERE"; lnoteT=60; }
               else if(custom){ lnote="HAND BUILT SIMS CANNOT SWITCH"; lnoteT=60; }
@@ -3334,30 +3336,30 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
             else if(c==PM_OPTS){ settingsScreen(); if(!ed&&xo[XO_TUTOR]==2) tutBegin(); }
             else if(c==PM_BUILD){   // EDIT MAP, BLUEPRINTS (the old room slots) and NEW LIFE share one entry
                 int b=menu("BUILD AND HOUSES",buildItems,3);
-                if(b==0){ vpFull(); mapEditor(); lifeInit(); }
+                if(b==0){ cview=0; vpFull(); mapEditor(); lifeInit(); cview=vbase; }
                 else if(b==1){ simsSaveNow(); hhSave(); if(slotScreen()){ lifeInit(); phoneEnsure(); } }   // a blueprint was loaded: start again in the loaded room (the life was written first, so nothing is lost)
                 else if(b==2){ if(menu("START A NEW LIFE",yesNoLife,2)==1){ twKeep=0; simsNewLife(); moodReset(); lscore=0; simLastScore=0; stOff(); lnote="NEW LIFE"; lnoteT=60; } } }
             else if(c==PM_QUIT){ int go=1; if(!ed&&!nbPlaying){ if(sgPid&&sgManual()){ int r=sgAsk(1); if(r==0) go=0; else if(r==2) sgDiscard=1; } if(go) gToMenu=1; } if(go) break; }   // (from the neighborhood: back there)   // MANUAL saving: quitting with unsaved progress asks first
-            winFull(); REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=0; continue;
+            winFull(); REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=vbase; continue;
         }
         if(!ed&&lcamF==0){ tutTick(k,pr);
             if(tutModal||stModal){   // a tutorial pop-up: the game holds still behind it, like the pause menu
                 mGainT=128; sfxStop(); objHideAll(); REG_DISPCNT=0x0403;
                 { u8 zz=xo[XO_ZOOM]; xo[XO_ZOOM]=0; hudApplyLayout(); camSnap=1; liveInvalidate(); lifeDraw(); xo[XO_ZOOM]=zz; }
                 if(stModal) stRunModal(); else tutRunModal();
-                winFull(); REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=0; continue;
+                winFull(); REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=vbase; continue;
             } }
         if(lcamF>0) camStep(steps,k,pr);
         else {
             for(int s=0;s<steps;s++) lifeStep(k,s?0:pr,fr++);   // catch up if a frame took long; button presses count once
-            if(lcamPend){ int by=lcamPend; lcamPend=0; if(sCam||by==2){ lcamF=1; cview=0; } }   // (1 = a big combo, only with ACTION CAM on; 2 = SELECT + R, always)
+            if(lcamPend){ lcamPend=0; if(sCam){ lcamF=1; cview=vbase; } }
         }
         gmTick(); lifeDraw(); workT+=(u16)(lifeVs-w0);
         fpsN++; if(fpsT>=65536){ lfpsV=fpsN; lloadV=(int)(workT/(u32)fpsN*100/(u32)((sFps+1)*TICKS_FRAME)); workT=0; fpsN=0; fpsT-=65536; }
     }
     tutOn=0; tutModal=TM_NONE; stModal=0;
     objHideAll(); REG_DISPCNT=0x0403;
-    simsSave(); hhSave(); R_TM2CNT=0; gmStop(); sfxStop(); lcamF=0; cview=0; vpFull(); clipAll(); liveInvalidate();   // leaving the life game saves it
+    simsSave(); hhSave(); R_TM2CNT=0; gmStop(); sfxStop(); lcamF=0; vbase=cview=0; vpFull(); clipAll(); liveInvalidate();   // leaving the life game saves it
     while((~REG_KEYINPUT)&0x3FF) vsync();   // wait for release so the caller doesn't see the exit keys
 }
 

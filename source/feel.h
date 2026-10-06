@@ -92,7 +92,8 @@ static void feelVel(void){   // velocity chases heading*speed (grip), exact sub-
 static inline int wEase(int e){ int s=e/F_WACC; return s?s:(e>0)-(e<0); }   // ease step, never stalls below 1 unit
 static void feelWalk(u16 k,u16 pr,int ongr){   // on foot: eased accel instead of instant speed, hop with buffer + coyote
     int ux=((k&K_RIGHT)?1:0)-((k&K_LEFT)?1:0), uy=((k&K_DOWN)?1:0)-((k&K_UP)?1:0);
-    int dx=ux+uy, dy=uy-ux, spd=(k&K_B)?F_RUN:F_WALK; spd=spd*stSpd[stage]/100; if(spd<2) spd=2; if(ux&&uy) spd=(spd*3)/4;   // the life stage scales the pace
+    int dx=ux+uy, dy=uy-ux, spd=(k&K_B)?F_RUN:F_WALK;
+    if(cview){ int t=dx; if(cview==1){ dx=dy; dy=-t; } else if(cview==2){ dx=-dx; dy=-dy; } else { dx=-dy; dy=t; } }   // the view is turned (SELECT + L / R): the D-pad still means "up the screen" spd=spd*stSpd[stage]/100; if(spd<2) spd=2; if(ux&&uy) spd=(spd*3)/4;   // the life stage scales the pace
     int tx=dx*spd, ty=dy*spd;
     if((tx||ty)&&!lvx&&!lvy){ lvx=tx/F_WKICK; lvy=ty/F_WKICK; }   // standing start: visible movement on the very first step
     int ex=tx-lvx, ey=ty-lvy;

@@ -22,7 +22,7 @@ Power on, then START on the title screen. The **main menu** has:
 
 Every screen shows its own button hints. D-pad moves, **A** picks, **B** goes back.
 
-In the game: **SELECT + R** spins the camera round the room on demand (the ACTION CAM, even if its option is off; press SELECT again to skip it). **SELECT + UP / DOWN** zooms. A tap of **SELECT** switches Sim.
+In the game: **SELECT + L / R** turns the view a quarter turn left / right and keeps it (like turning the camera in a Sims game; the D-pad still means up the screen). **SELECT + UP / DOWN** zooms. A tap of **SELECT** switches Sim. The ACTION CAM still spins the room after a big combo.
 
 ## Music
 - **JUKEBOX** is a Music Player: a NOW PLAYING card (song, artist, elapsed / total time, progress bar) above one song list that shows every song's **length**. A plays a song (A on the playing song stops it), **L / R** skip to the previous / next song, SELECT checks or unchecks a song (only checked songs are picked at random), **START** changes the play mode (*Shuffle*, *In order*, *Repeat*; saved), LEFT / RIGHT change the volume. Opening it plays **one random checked song**.
