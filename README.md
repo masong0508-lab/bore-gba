@@ -43,6 +43,6 @@ Every screen shows its own button hints. D-pad moves, **A** picks, **B** goes ba
 | `docs/NOTES.md` | the full technical notes (memory maps, save layout, every feature) |
 | `docs/NEXT.md` | what to build next |
 
-**New items:** a RADIO and a SOUND SYSTEM (R next to one tunes a station made of one artist's songs; see docs/NOTES.md, Sound pack). Older: the DeadSet 3Thousand VYBE (5000), a parody VR headset on a display bust. Stand next to it and press R to jack in.
+**New items:** a RADIO and a SOUND SYSTEM (R next to one tunes a station by genre (HOUSE & DANCE, BREAKS & BASS, CHILL & WORLD, LATIN, ROCK & PROG, HIP HOP, or ALL SONGS; genres live in source/genres.h); see docs/NOTES.md, Sound pack). Older: the DeadSet 3Thousand VYBE (5000), a parody VR headset on a display bust. Stand next to it and press R to jack in.
 
 **Saves:** 128 KB flash (58 room slots). Carts without flash fall back to 32 KB SRAM (12 slots). Older saves carry over. Layout: `docs/NOTES.md`.

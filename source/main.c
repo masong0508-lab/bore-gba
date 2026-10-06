@@ -1844,6 +1844,18 @@ static const char* songArtist(const Song*sg){
     for(const ArtistRow*r=artistRows;r->song;r++){ const char*x=r->song,*y=sg->name; while(*x&&*x==*y){x++;y++;} if(!*x&&!*y) return r->artist; }
     return 0;
 }
+// genres (source/genres.h): a bit mask per song, looked up by the song's name; a song without a line has no genre (only ALL SONGS FM plays it)
+enum { G_HOUSE=1, G_BREAKS=2, G_CHILL=4, G_LATIN=8, G_ROCK=16, G_WORLD=32, G_HIPHOP=64 };
+typedef struct { const char*song; u8 g; } GenreRow;
+#define GENRE(s,g) {s,(u8)(g)},
+static const GenreRow genreRows[]={
+#include "genres.h"
+{0,0}};
+#undef GENRE
+static int songGenre(const Song*sg){
+    for(const GenreRow*r=genreRows;r->song;r++){ const char*x=r->song,*y=sg->name; while(*x&&*x==*y){x++;y++;} if(!*x&&!*y) return r->g; }
+    return 0;
+}
 _Static_assert(sizeof(songs)/sizeof(songs[0])<=64,"the jukebox holds at most 64 songs, secret ones included (see source/songs.h and JB_MAX in jukebox.h)");
 // ---------- debug code: UP UP DOWN DOWN LEFT LEFT RIGHT B A START on the title screen ----------
 // Reveals, for this session only (never saved): the PLACEHOLDER test tunes in the jukebox, the secret creator chiptunes, and everything that directly changes the HOUSEHOLD:
@@ -3246,14 +3258,13 @@ static void gmStart(void){   // entering the game: crossfade into a random check
 static void gmStop(void){ mGain=mGainT=256; gMusic=0; radioSt=0; }   // leaving the game: nothing is cut, the next screen's music crossfades over the song
 static void gmSync(void){ if(xo[XO_GAMEMUS]&&sSnd) gmStart(); else if(gMusic&&!(radioSt&&sSnd)){ gMusic=0; radioSt=0; musFadeOut(XF_OUT); } }   // (a tuned radio keeps playing)   // after the pause menu: the option or SOUND may have changed
 // ---- RADIO and SOUND SYSTEM (items 'R' and 'A', sound pack): R next to one tunes the next station; every station is a slice of the jukebox ----
-// A station plays the visible (unlocked, not secret) songs of one artist, one after the other at random; ALL SONGS FM is the whole jukebox. After the
-// last station the radio goes off and the normal GAME MUSIC comes back. Leaving the game switches the radio off (gmStop).
-static const struct { const char*nm; const char*art; } radioStn[]={{"ALL SONGS FM",0},{"DAYBAR FM","DayBar"},{"SK9M BASS RADIO","Sk9m"},{"DANNY STEELE FM","Danny"},{"BRENO FM","Breno"},{"SINGHS RADIO","Singh"}};
-#define RADIO_N 6
-static int radioMatch(int st,int v){   // does visible song v belong to station st (the artist's name starts with the station's key)
-    const char*k=radioStn[st].art; if(!k) return 1;
-    const char*a=songArtist(&songs[jbMap[v]]); if(!a) return 0;
-    while(*k&&*k==*a){ k++; a++; } return !*k;
+// A station plays the visible (unlocked, not secret) songs of one GENRE (source/genres.h), one after the other at random; ALL SONGS FM is the whole jukebox.
+// After the last station the radio goes off and the normal GAME MUSIC comes back. Leaving the game switches the radio off (gmStop).
+static const struct { const char*nm; u8 gen; } radioStn[]={{"ALL SONGS FM",0},{"HOUSE & DANCE FM",G_HOUSE},{"BREAKS & BASS FM",G_BREAKS},{"CHILL & WORLD FM",G_CHILL|G_WORLD},{"LATIN RADIO",G_LATIN},{"ROCK & PROG FM",G_ROCK},{"HIP HOP FM",G_HIPHOP}};
+#define RADIO_N 7
+static int radioMatch(int st,int v){   // does visible song v belong to station st (it has at least one of the station's genres; gen 0 = every song)
+    int k=radioStn[st].gen; if(!k) return 1;
+    return (songGenre(&songs[jbMap[v]])&k)!=0;
 }
 static int radioPick(int st){   // a random song of the station, never the one that plays while there is another; -1 = none
     int c=0; for(int v=0;v<jbN;v++) if(radioMatch(st,v)&&v!=gmCur) c++;
