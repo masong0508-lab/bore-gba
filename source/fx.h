@@ -222,8 +222,23 @@ static int fxSpot(int i){   // a spot on screen, outdoors, for particle i
 }
 #define WX_FALL  9      // rain: steps in the air (7 px a step from 63 px up), then 4 of splash
 #define WX_SNOWL 50     // snow: steps in the air (4 px per 3 steps from 66 px up)
+// ---- DAY AND NIGHT: the room dims by the hour (OPTIONS > TIME > DAY > NIGHT), on top of the weather ----
+static u8 dnSnap EWRAM_BSS, dnPh EWRAM_BSS;   // jump to the right light at the start of play / the sky phase the windows were last drawn for
+static int dnNight(void){   // 0 .. 11: how much the picture is darkened outdoors right now (BLDY steps), eased between the hours
+    static const u8 h[24]={8,8,8,8,7,5,3,1,0,0,0,0,0,0,0,0,0,1,2,4,6,7,8,8};   // the night fraction of each hour, out of 8
+    static const u8 mx[4]={0,4,7,10};   // SOFT / NORMAL / DEEP: the darkest the night gets
+    int hr=simMin/60, mn=simMin%60, a=h[hr%24], b=h[(hr+1)%24];
+    return ((a*(60-mn)+b*mn)*mx[xo[XO_NIGHT]&3])/480;
+}
+static int fxLvlTarget(void){   // the room dimming x16 wanted now: weather + night (indoors the weather counts half and the lamps keep most of the night away)
+    static const signed char dim[6]={0,2,-4,3,5,-2};
+    int out=fxOut(), w=dim[wx]*16, n=dnNight()*16; if(!out) w/=2; if(curFl) w=0; if(!out) n/=4;
+    int t=w+n; return t>176?176:t;
+}
 static void wxMinute(void){   // once a game minute
     wx=wxNow();
+    { int ph=todPhase(); if(ph!=dnPh){ dnPh=(u8)ph; liveInvalidate(); } }   // the windows' glass changes with the sky
+    if(lnoteT==0&&!ldead){ if(simMin==360) { lnote="SUNRISE"; lnoteT=50; } else if(simMin==1110) { lnote="SUNSET"; lnoteT=50; } }
     if(wx==WX_STORM&&wxThT<=0) wxThT=(short)(300+rnd8()*4);
     if((wx==WX_RAIN||wx==WX_STORM||wx==WX_SNOW)&&!ldead&&fxOut()&&++fxSoak>=25){ fxSoak=0; moodEvent(M_SOAKED); lnote=wx==WX_SNOW?"FREEZING":"SOAKED"; lnoteT=60; }
 }
@@ -236,10 +251,10 @@ static void wxTick(void){
     if(wx==WX_STORM){ if(--wxThT<=0){ wxFlash=12; wxBoom=(short)(10+rnd8()%50); wxThT=(short)(400+rnd8()*5); } }
     if(wxFlash) wxFlash=(u8)(wxFlash>8?wxFlash-1:wxFlash>0?wxFlash-(fxT&1):0);
     if(wxBoom>0&&--wxBoom==0) sfxPlay(SFX_THUNDER);
-    // the dimming eases to its target (half as strong indoors)
-    static const signed char dim[6]={0,2,-4,3,5,-2};
-    int t=dim[wx]*16; if(!fxOut()) t/=2; if(curFl) t=0;
-    if(wxLvl<t) wxLvl++; else if(wxLvl>t) wxLvl--;
+    // the dimming eases to its target (half as strong indoors; jumps there on the first step of play)
+    int t=fxLvlTarget();
+    if(dnSnap){ dnSnap=0; wxLvl=(s16)t; }
+    else if(wxLvl<t) wxLvl++; else if(wxLvl>t) wxLvl--;
 }
 static void fxLight(void){   // in vblank, after hhObjUpdate set BLDCNT for the sprites: darken (3) or brighten (2) the picture and the opaque sprites
     volatile u16*bldcnt=(volatile u16*)0x04000050; volatile u16*bldy=(volatile u16*)0x04000054;
@@ -256,7 +271,7 @@ static void fxTick(void){
     fxGhostTick(); wxTick(); npcTick();
 }
 static void fxPlayStart(void){   // play begins (or returns from a menu): reload the art, pick the weather, raise a ghost if the house is HAUNTED
-    fxVramOk=0; fxT=0; fxLastMin=-1; wxN=0; wxFlash=0; wxBoom=0; wxThT=0; wxLvl=0; wx=wxNow(); fxSoak=0;
+    fxVramOk=0; fxT=0; fxLastMin=-1; wxN=0; wxFlash=0; wxBoom=0; wxThT=0; wxLvl=0; wx=wxNow(); fxSoak=0; dnSnap=1; dnPh=(u8)todPhase();
     for(int i=0;i<WX_N;i++) wxPh[i]=255;
     npcPlayStart();
     if(xo[XO_GHOSTS]==2&&fxGN==0){ int hx=(int)(lfx>>8)+3, hy=(int)(lfy>>8)+2; if(hx>MW-2) hx=MW-2; if(hy>MH-2) hy=MH-2;

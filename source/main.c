@@ -2354,6 +2354,7 @@ static void flStairs(int dir){   // you stepped on a stair tile: up (+1) or down
 // extended options (opts.h): one byte each at OPT_OFF, 'X' 'O', count, values, checksum. A save with fewer options (older game) leaves the new ones at their defaults.
 #define OPT_OFF 4896
 #define STORY_OFF 4968   // story.h: the STORY MODE block (8 bytes, after the options)
+_Static_assert(OPT_OFF+3+XO_N+1<=STORY_OFF,"too many options: the options block would run into the STORY block");
 static void optsSave(void){
     volatile u8*m=SRAM_BASE+OPT_OFF; unsigned sum=0x3C;
     for(int i=0;i<XO_N;i++){ m[3+i]=xo[i]; sum+=xo[i]; }
@@ -2762,14 +2763,18 @@ static const char* wpName(int wp){ return wp<NWP?wpTex[wp].nm:wp<NWP+NWX?wxName[
 static u16 wpAvgOf(int wp){ return wp<NWP?wpAvg[wp]:wp<NWP+NWX?wxAvg[wp-NWP]:winWall[wp-NWP-NWX]; }
 // One column (u 0..7) of a window wall, WALL_H rows from the top, drawn here instead of read from a texture. WINDOW: white frame, bars, sky glass.
 // DARK WINDOW: dark wood and night glass. STRIP WINDOW: no side frames, so a row of them is one long band of glass.
+static int todPhase(void){ int m=simMin; return (m>=420&&m<1020)?0:(m>=300&&m<1200)?1:2; }   // the sky by the hour: 0 day (7:00-17:00), 1 dawn / dusk (5-7, 17-20), 2 night
 static __attribute__((noinline)) void winCol(int k,int dir,int u,u16*o){
     int sh=dir?9:12; u16 wall=shade(winWall[k],sh);
-    u16 fr=k==1?shade(RGB(9,6,4),sh):shade(RGB(29,29,28),sh), gl=k==1?shade(RGB(5,10,14),sh):shade(RGB(12,22,30),sh), gl2=k==1?shade(RGB(9,16,20),sh):shade(RGB(20,28,31),sh);
+    int ph=todPhase(); u16 g0,g1;   // the glass shows the sky of the hour: blue day, orange dusk, a dark night with stars
+    if(k==1){ g0=ph==0?RGB(5,10,14):ph==1?RGB(14,7,5):RGB(2,3,7); g1=ph==0?RGB(9,16,20):ph==1?RGB(20,11,6):RGB(24,24,18); }
+    else    { g0=ph==0?RGB(12,22,30):ph==1?RGB(28,15,8):RGB(3,5,12); g1=ph==0?RGB(20,28,31):ph==1?RGB(31,23,13):RGB(28,28,22); }
+    u16 fr=k==1?shade(RGB(9,6,4),sh):shade(RGB(29,29,28),sh), gl=shade(g0,sh), gl2=shade(g1,sh);
     for(int v=0;v<WALL_H;v++){
         u16 c=wall; int in=k==2?(v>=6&&v<=17):(u>=1&&u<=6&&v>=5&&v<=18);
         if(in){ int edge=k==2?(v==6||v==17):(u==1||u==6||v==5||v==18);
             int bar=k==2?(u==0):(u==3||v==11);
-            c=(edge||bar)?fr:(((u+v)%7==0)?gl2:gl); }
+            c=(edge||bar)?fr:((ph==2?((u*5+v*3)%13==0):((u+v)%7==0))?gl2:gl); }
         else if(v==19&&k!=2) c=fr;   // the sill
         o[v]=c;
     }

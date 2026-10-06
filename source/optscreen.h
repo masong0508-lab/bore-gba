@@ -29,7 +29,7 @@ static const char* const lbNeed[5]={"OFF","SLOW","NORMAL","FAST","BRUTAL"}, *con
     *const lbDays[10]={"1 DAY","2 DAYS","3 DAYS","5 DAYS","7 DAYS","10 DAYS","14 DAYS","21 DAYS","30 DAYS","60 DAYS"},
     *const lbDaysA[11]={"1 DAY","2 DAYS","3 DAYS","5 DAYS","7 DAYS","10 DAYS","14 DAYS","21 DAYS","30 DAYS","60 DAYS","FOREVER"}, *const lbAging[4]={"OFF","SLOW","NORMAL","FAST"}, *const lbHurt[3]={"NORMAL","GENTLE","NO DEATH"}, *const lbBubble[3]={"OFF","URGENT","ALL"}, *const lbShown[2]={"HIDDEN","SHOWN"}, *const lbSaveMode[2]={"AUTO","MANUAL"};
 static const char* const lbTut[3]={"OFFER","DONE","REPLAY"};
-static const char* const lbWeather[7]={"AUTO","CLEAR","CLOUDY","FOG","RAIN","STORM","SNOW"}, *const lbGhost[3]={"OFF","ON","HAUNTED"};
+static const char* const lbNight[4]={"OFF","SOFT","NORMAL","DEEP"}, *const lbWeather[7]={"AUTO","CLEAR","CLOUDY","FOG","RAIN","STORM","SNOW"}, *const lbGhost[3]={"OFF","ON","HAUNTED"};
 static const char* const lbPct[11]={"0 %","10 %","20 %","30 %","40 %","50 %","60 %","70 %","80 %","90 %","100 %"};   // the volume sliders (rows made with SR)
 static const char* const lbBtn[4]={"NORMAL","A B SWAPPED","L R SWAPPED","BOTH SWAPPED"}, *const lbRep[3]={"SLOW","NORMAL","FAST"},
     *const lbClock[3]={"24 HOUR","12 HOUR","HIDDEN"}, *const lbToast[3]={"SHORT","NORMAL","LONG"},
@@ -86,6 +86,7 @@ static const OptRow pgTimeDay[]={
  XR(XO_DAY,"DAY LENGTH",lbDay,"REAL MINUTES IN ONE GAME DAY  STOPPED","FREEZES THE CLOCK  SLEEP NO LONGER SKIPS TIME"),
  XR(XO_CLOCK,"CLOCK",lbClock,"HOW THE GAME CLOCK IS SHOWN","24 HOUR  12 HOUR  OR HIDDEN"),
  XR(XO_WEATHER,"WEATHER",lbWeather,"AUTO FOLLOWS THE SEASON AND THE DAY  OR","FORCES ONE KIND  RAIN FALLS OUTDOORS ONLY"),
+ XR(XO_NIGHT,"NIGHT",lbNight,"HOW DARK THE ROOM GETS AT NIGHT  LAMPS KEEP","INDOORS BRIGHT  OFF KEEPS EVERY HOUR LIT"),
 };
 static const OptRow pgTimeAges[]={
  XR(XO_AGING,"AGING",lbAging,"OFF KEEPS THE AGE YOU PICKED  SLOW DOUBLES","EVERY STAGE BELOW  FAST HALVES THEM"),
