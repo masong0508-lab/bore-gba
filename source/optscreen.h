@@ -52,7 +52,7 @@ static const OptRow pgVideo[]={
 static const OptRow pgSimNeeds[]={
  XR(XO_NEED,"NEEDS",lbNeed,"HOW FAST REST CLEAN AND COMFY RUN DOWN","OFF FREEZES THEM  BRUTAL IS TWICE AS FAST"),
  XR(XO_HUNGER,"FOOD AND WC",lbHunger,"HOW FAST HUNGER AND THE BLADDER BUILD","OFF MEANS NO ACCIDENTS AND NO FAINTING"),
- XR(XO_MOODFX,"MOOD EFFECTS",lbOnOff,"SAD SLOWS YOU  STOKED SPEEDS YOU UP AND MOOD","CHANGES TRICK POINTS  OFF IGNORES MOOD"),
+ XR(XO_MOODFX,"MOOD EFFECTS",lbOnOff,"SAD SLOWS YOU  STOKED SPEEDS YOU UP AND","MOOD CHANGES TRICK POINTS  OFF IGNORES IT"),
  XR(XO_HURT,"HURT",lbHurt,"GENTLE HALVES FALL DAMAGE","NO DEATH MEANS A FALL CAN NEVER KILL"),
 };
 static const OptRow pgSimJob[]={
@@ -63,7 +63,7 @@ static const OptRow pgSimJob[]={
 static const OptRow pgSimScore[]={
  XR(XO_SCORE,"SCORE",lbScore,"MULTIPLIES EVERY TRICK AND GRIND SCORE","QUOTAS AND PAY FOLLOW THE SCORE"),
  XR(XO_SPEED,"TOP SPEED",lbSpeed,"HOW FAST YOU WALK RUN AND SKATE","80 TO 150 % OF NORMAL"),
- VR(sCam,4,1,"ACTION CAM",lbCam,"AFTER A BIG COMBO THE CAMERA ZOOMS AND SPINS","ALL 4 VIEWS  PICK HOW BIG A COMBO TRIGGERS IT"),
+ VR(sCam,4,1,"ACTION CAM",lbCam,"A BIG COMBO ZOOMS AND SPINS THE CAMERA","ALL 4 VIEWS  PICK HOW BIG A COMBO TRIGGERS IT"),
 };
 static const OptRow pgSimSims[]={
  XR(XO_FREEWILL,"FREE WILL",lbFree,"SIMS YOU DO NOT CONTROL LOOK AFTER","THEMSELVES  LOW WAITS LONGER  OFF STANDS"),
@@ -88,13 +88,13 @@ static const OptRow pgTimeDay[]={
  XR(XO_WEATHER,"WEATHER",lbWeather,"AUTO FOLLOWS THE SEASON AND THE DAY  OR","FORCES ONE KIND  RAIN FALLS OUTDOORS ONLY"),
 };
 static const OptRow pgTimeAges[]={
- XR(XO_AGING,"AGING",lbAging,"OFF STAYS AT THE AGE YOU PICKED  SLOW DOUBLES","EVERY STAGE BELOW  FAST HALVES THEM"),
+ XR(XO_AGING,"AGING",lbAging,"OFF KEEPS THE AGE YOU PICKED  SLOW DOUBLES","EVERY STAGE BELOW  FAST HALVES THEM"),
  XR(XO_AGEB,"BABY LASTS",lbDays,"GAME DAYS AS A BABY  THE ONE STAGE YOU","CANNOT STEER"),
  XR(XO_AGEC,"CHILD LASTS",lbDays,"GAME DAYS AS A CHILD","BEFORE GROWING INTO A TEEN"),
  XR(XO_AGET,"TEEN LASTS",lbDays,"GAME DAYS AS A TEEN","THE CAREER STARTS AT THIS STAGE"),
  XR(XO_AGEA,"ADULT LASTS",lbDaysA,"GAME DAYS AS AN ADULT BEFORE BECOMING AN","ELDER  FOREVER NEVER GROWS OLD"),
  XR(XO_PIPEAGE,"PIPE AGE",lbPipe,"WHO MAY USE THE WATER PIPE  LATE TEENS IS","THE LAST QUARTER OF THE TEEN YEARS"),
- XR(XO_TUTOR,"TUTORIAL",lbTut,"OFFER ASKS ONCE AT YOUR FIRST PLAY  DONE IS QUIET","REPLAY STARTS THE LESSONS WHEN YOU PLAY"),
+ XR(XO_TUTOR,"TUTORIAL",lbTut,"OFFER ASKS ONCE AT YOUR FIRST PLAY","DONE IS QUIET  REPLAY STARTS THE LESSONS"),
 };
 static const OptRow pgTimeTimers[]={
  XR(XO_COMBO,"COMBO WINDOW",lbCombo,"TIME YOU HAVE TO LAND THE NEXT TRICK","BEFORE THE CHAIN IS BANKED"),
@@ -105,11 +105,11 @@ static const OptRow pgAudio[]={
  SR(XO_MASTER,"MASTER VOLUME","HOW LOUD EVERYTHING IS  MUSIC AND EFFECTS","ARE EACH SET BELOW  THEN SCALED BY THIS"),
  SR(XO_MUSV,"MUSIC VOLUME","THE TITLE MUSIC  MENU MUSIC AND THE TOUKEBOX","0 SILENCES THEM  ALSO SET IN THE TOUKEBOX"),
  SR(XO_SFXV,"SFX VOLUME","LOUDNESS OF GRUNTS BONKS AND CRIES","0 SILENCES THEM"),
- XR(XO_GAMEMUS,"GAME MUSIC",lbOnOff,"RANDOM CHECKED TOUKEBOX SONGS WHILE YOU PLAY","MIXING COSTS SPEED  SOUND EFFECTS DUCK IT"),
+ XR(XO_GAMEMUS,"GAME MUSIC",lbOnOff,"RANDOM TOUKEBOX SONGS WHILE YOU PLAY","MIXING COSTS SPEED  SOUND EFFECTS DUCK IT"),
  XR(XO_GAMEXF,"GAME CROSSFADE",lbOnOff,"GAME MUSIC BLENDS INTO THE NEXT SONG","OFF STARTS EACH SONG AT ONCE"),
  XR(XO_TITLEMUS,"TITLE MUSIC",lbOnOff,"PLAY THE DIPPER MAN ON THE TITLE SCREEN","OFF KEEPS THE TITLE QUIET"),
  XR(XO_MENUMUS,"MENU MUSIC",lbOnOff,"GOTTCHO BARRACHO PLAYS IN THE","MAIN MENUS  OFF KEEPS THEM QUIET"),
- XR(XO_CREMUS,"CREATOR MUSIC",lbOnOff,"A CHIPTUNE LOOP PLAYS IN THE CREATURE CREATOR","OFF KEEPS IT QUIET")
+ XR(XO_CREMUS,"CREATOR MUSIC",lbOnOff,"A CHIPTUNE LOOP PLAYS IN THE CREATOR","OFF KEEPS IT QUIET")
 };
 static const OptRow pgInput[]={
  XR(XO_BTN,"BUTTONS",lbBtn,"SWAP A AND B  OR L AND R  ON EVERY SCREEN","USE BUTTON TEST BELOW TO CHECK IT"),
@@ -132,7 +132,7 @@ static const OptRow pgRooms[]={
  XR(XO_SLOTBOOT,"BOOT LOADS PERSON",lbOnOff,"AT POWER ON THE CREATURE OF THE ACTIVE","SLOT COMES BACK  THE ROOM IS NOT CHANGED"),
 };
 static const OptRow pgData[]={
- XR(XO_SAVEMODE,"SAVING",lbSaveMode,"AUTO  LEAVING PLAY SAVES YOUR PLAYER","MANUAL  ONLY SAVE GAME KEEPS PROGRESS  QUIT ASKS"),
+ XR(XO_SAVEMODE,"SAVING",lbSaveMode,"AUTO  LEAVING PLAY SAVES YOUR PLAYER","MANUAL  ONLY SAVE GAME KEEPS PROGRESS"),
  XR(XO_AUTOSAVE,"AUTO SAVE LIFE",lbOnOff,"SAVES AT MIDNIGHT PAYDAY AND THE PAUSE MENU","OFF  ONLY SLOTS AND SAVE LIFE NOW SAVE IT"),
  AR(OA_LIFESAVE,"SAVE LIFE NOW","WRITES THE CURRENT LIFE TO SAVE MEMORY","USE IT FROM THE PAUSE MENU WHILE PLAYING"),
  AR(OA_LIFEERASE,"ERASE LIFE","DELETES THE SAVED LIFE  CASH JOB AND CLOCK","THE NEXT PLAY STARTS A NEW ONE"),
@@ -208,57 +208,99 @@ static int rowHeat(const OptRow*r){   // VIDEO page colours: 0 light (green), 1 
 static s16 costCache[24] EWRAM_BSS;   // draw cost per walls/wallpaper/floors/shadows combo, 0 = not measured yet
 static inline int costKey(void){ return sWall*8+sWp*4+sFl*2+sShad; }
 
+// ---- the look: the Sims 3 style of the main menu (glossy rounded panels, green focus, icon tabs, switches and sliders) ----
+// s3Box / s3Panel / s3Pill / s3Tip / disc live further down in main.c (the main menu draws with them too).
+static u16 s3Mix(u16 a,u16 b,int t,int n); static void s3Box(int x,int y,int w,int h,int r,u16 top,u16 bot); static void s3Panel(int x,int y,int w,int h);
+static void s3Pill(int x,int y,int w,int h,int on,const char*s); static void s3Tip(const char*t);
+#define OPN RGB(2,5,11)        // navy ink on the light panel
+#define OPF RGB(1,4,0)         // dark green ink on the focused (green) row
+static const char* const opIcon[NOPG][7]={   // the page tabs, 7 x 7: VIDEO monitor, SIMU a person, TIME clock, AUDIO speaker, INPUT d-pad, HUD frame, ROOMS house, DATA disk
+ {"#######","#.....#","#.....#","#.....#","#######","..###..",".#####."},
+ {"..###..",".#####.",".#####.","..###..",".#####.","#######","#######"},
+ {".#####.","#..#..#","#..#..#","#..##.#","#.....#","#.....#",".#####."},
+ {"...#...","..##.#.","####..#","####..#","..##.#.","...#...","......."},
+ {"..###..","..###..","#######","#######","#######","..###..","..###.."},
+ {"#######","#######","#.....#","#.###.#","#.....#","#.##..#","#######"},
+ {"...#...","..###..",".#####.","#######",".##.##.",".##.##.",".#####."},
+ {"#######","#.###.#","#.###.#","#.....#","#.###.#","#.###.#","#######"} };
+static const char* const opTitle[NOPG]={"VIDEO AND SPEED","THE SIM","TIME","SOUND","BUTTONS","ON SCREEN","ROOMS","SAVING AND DATA"};
+static int pgAnyChanged(const OptPage*pg){
+    if(pg->ns){ for(int u=0;u<pg->ns;u++) for(int q=0;q<pg->sub[u].n;q++) if(rowChanged(&pg->sub[u].r[q])) return 1; return 0; }
+    for(int q=0;q<pg->n;q++) if(rowChanged(&pg->r[q])) return 1; return 0;
+}
+static void opSwitch(int x,int y,int on,int foc){   // 22 x 8: a switch, green when on
+    s3Box(x,y,22,8,4,foc?RGB(2,8,1):RGB(4,8,16),foc?RGB(1,5,0):RGB(3,6,13));
+    s3Box(x+1,y+1,20,6,3,on?RGB(14,28,6):RGB(14,19,26),on?RGB(8,21,3):RGB(10,15,22));
+    s3Box(on?x+13:x+1,y+1,8,6,3,RGB(31,31,31),RGB(21,27,31));
+}
+static void opSlider(int x,int y,int lv,int foc){   // 10 steps over 60 px: a groove, a green fill and a round knob
+    s3Box(x,y+3,60,3,1,foc?RGB(2,8,1):RGB(4,8,16),foc?RGB(1,5,0):RGB(8,13,22));
+    if(lv>0) s3Box(x+1,y+3,lv*5+4,3,1,RGB(18,30,8),RGB(8,21,3));
+    int kx=x+lv*5; s3Box(kx,y,9,8,3,RGB(3,7,15),RGB(3,7,15)); s3Box(kx+1,y+1,7,6,2,RGB(31,31,31),RGB(18,25,31));
+}
+static void opValueBox(int x,int y,int w,const char*v,int foc){   // a sunken value box, < > at the ends while its row is lit
+    s3Box(x,y,w,8,4,foc?RGB(2,8,1):RGB(4,8,16),foc?RGB(1,5,0):RGB(8,13,22));
+    s3Box(x+1,y+1,w-2,6,3,RGB(31,31,31),RGB(22,28,31));
+    text(x+(w-tw(v,1))/2,y+2,v,OPN,1);
+    if(foc){ text(x+3,y+2,"<",OPF,1); text(x+w-7,y+2,">",OPF,1); }
+}
 static void drawOptions(void){
     static const u16 heat[4]={ RGB(12,28,10), RGB(31,26,6), RGB(30,10,8), RGB(22,24,26) };
-    fillCols(0,ROW_W,RGB(3,4,8));
-    box(4,2,232,156);
-    for(int i=0;i<NOPG;i++){ int x=4+i*29;   // the page tabs
-        if(i==opPage){ rect(x,4,28,10,GOLD); text(x+2,6,optPages[i].nm,RGB(4,3,6),1); } else text(x+2,6,optPages[i].nm,DIMC,1); }
-    rect(6,15,228,1,RGB(10,12,16));
-    const OptPage*pg=&optPages[opPage]; int nr; const OptRow*rows=pgRows(pg,&nr); int sel=*pgSel(pg), y0=19, vis=11, foc=(pg->ns&&opFocus);
-    if(pg->ns){   // the section strip: DAY | AGES | TIMERS. UP from the top row puts the cursor on it, LEFT / RIGHT switch, DOWN goes back to the rows
-        int x=8, cs=opSub[opPage];
-        for(int u=0;u<pgNs(pg);u++){ const OptSub*su=&pg->sub[u]; int w=tw(su->nm,1)+12, on=(u==cs), chg=0;
+    objHideAll();
+    for(int y=0;y<SH;y++) rect(0,y,SW,1,s3Mix(RGB(2,5,12),RGB(5,11,24),y,SH));   // the night-blue backdrop
+    s3Panel(2,1,236,148);
+    s3Box(74,0,92,13,6,RGB(3,8,19),RGB(2,5,13)); text(120-tw("OPTIONS",1)/2,3,"OPTIONS",RGB(26,29,31),1);   // the title cap on the top edge
+    for(int i=0;i<NOPG;i++){ int x=13+i*27;   // the icon tabs (a gold dot: something on that page is not at its normal value)
+        s3Pill(x,15,25,14,i==opPage,"");
+        for(int r=0;r<7;r++)for(int q=0;q<7;q++) if(opIcon[i][r][q]=='#') px(x+9+q,18+r,i==opPage?OPF:OPN);
+        if(pgAnyChanged(&optPages[i])) rect(x+20,17,2,2,RGB(31,20,2)); }
+    const OptPage*pg=&optPages[opPage]; int nr; const OptRow*rows=pgRows(pg,&nr); int sel=*pgSel(pg), y0=47, vis=7, foc=(pg->ns&&opFocus);
+    text(12,34,opTitle[opPage],OPN,1);   // the page header with its rule, like the Sims 3 options
+    if(pg->ns){   // the sections (DAY | AGES | TIMERS): small pills on the right of the header. UP from the top row picks them, LEFT / RIGHT switch
+        int x=226, cs=opSub[opPage];
+        for(int u=pgNs(pg)-1;u>=0;u--){ const OptSub*su=&pg->sub[u]; int w=tw(su->nm,1)+10, chg=0; x-=w;
             for(int q=0;q<su->n;q++) if(rowChanged(&su->r[q])) chg=1;
-            rect(x,17,w,11,on?(foc?GOLD:RGB(10,13,19)):RGB(4,5,9));
-            if(on&&!foc) rect(x,27,w,1,GOLD);
-            text(x+6,19,su->nm,on?(foc?RGB(4,3,6):WHITE):DIMC,1);
-            if(chg) rect(x+w-4,19,2,2,(on&&foc)?RGB(4,3,6):GOLD);
-            x+=w+3; }
-        if(foc) text(x+4,19,"< >",GOLD,1);
-        y0=31; vis=9; }
-    if(opPage==0){   // the speed meter: how much of the frame the picture needs. 60 / 30 / 20 marks show which frame rate it can hold.
+            if(u==cs&&!foc){ s3Box(x,31,w,10,5,RGB(3,8,19),RGB(2,5,13)); text(x+5,33,su->nm,RGB(26,29,31),1); }
+            else s3Pill(x,31,w,10,u==cs&&foc,su->nm);
+            if(chg) rect(x+w-4,32,2,2,RGB(31,20,2));
+            x-=2; }
+    }
+    rect(10,43,220,1,OPN); rect(10,44,220,1,RGB(29,31,31));
+    if(opPage==0){   // the speed meter in a dark well: how much of the frame the picture needs. 60 / 30 / 20 marks show which frame rate it can hold.
         int cap=capLevel(), want=sFps+1, fill=sCost*100/(3*TICKS_FRAME); if(fill>100) fill=100;
         u16 mc=cap==1?heat[0]:cap<=2?heat[1]:heat[2];
-        text(12,19,"DRAW COST",DIMC,1);
-        rect(60,19,100,5,RGB(8,10,14)); rect(60,19,fill,5,mc);
-        static const int mk[3]={23,57,90}; static const char* const ml[3]={"60","30","20"};
-        for(int i=0;i<3;i++){ rect(60+mk[i],18,1,7,WHITE); text(60+mk[i]-3,26,ml[i],DIMC,1); }
-        if(cap>want){ if(!sNoWarn){ text(168,19,"TOO SLOW FOR",heat[2],1); text(168,26,"THIS FRAME RATE",heat[2],1); } }
-        else { text(168,19,cap==1?"HOLDS 60 FPS":cap==2?"HOLDS 30 FPS":cap==3?"HOLDS 20 FPS":"HOLDS 15 FPS",heat[0],1); text(168,26,sTunedMsg?"TUNED FOR YOU":"SMOOTH",sTunedMsg?heat[0]:DIMC,1); }
-        y0=37; vis=9;
+        s3Box(8,47,218,17,5,RGB(3,8,19),RGB(2,5,13));
+        text(13,50,"DRAW COST",RGB(18,24,30),1);
+        rect(62,50,88,5,RGB(8,10,14)); rect(62,50,fill*88/100,5,mc);
+        static const int mk[3]={20,50,79}; static const char* const ml[3]={"60","30","20"};
+        for(int i=0;i<3;i++){ rect(62+mk[i],49,1,7,WHITE); text(62+mk[i]-3,56,ml[i],RGB(18,24,30),1); }
+        if(cap>want){ if(!sNoWarn){ text(157,49,"TOO SLOW FOR",heat[2],1); text(157,56,"THIS FRAME RATE",heat[2],1); } }
+        else { text(157,49,cap==1?"HOLDS 60 FPS":cap==2?"HOLDS 30 FPS":cap==3?"HOLDS 20 FPS":"HOLDS 15 FPS",heat[0],1); text(157,56,sTunedMsg?"TUNED FOR YOU":"SMOOTH",sTunedMsg?heat[0]:RGB(18,24,30),1); }
+        y0=67; vis=5;
     }
     int top=sel-vis/2; if(top>nr-vis) top=nr-vis; if(top<0) top=0;
     for(int n=0;n<vis&&top+n<nr;n++){
-        int i=top+n, y=y0+n*9; const OptRow*r=&rows[i]; int cs=(i==sel&&!foc);   // (no row is lit while the cursor is on the strip)
-        if(cs){ rect(8,y-2,212,9,RGB(6,16,8)); text(12,y,">",WHITE,1); }
-        text(20,y,r->nm,cs?WHITE:DIMC,1);
-        int ch=rowChanged(r); u16 vc=cs?WHITE:DIMC;
-        if(opPage==0&&rowHeat(r)<3) vc=heat[rowHeat(r)];
-        else if(r->kind==OR_ACT){ int a=r->idx; vc=(a==OA_LIFEERASE||a==OA_ROOMERASE||a==OA_SLOTSERASE||a==OA_ALLERASE)?heat[2]:(cs?GOLD:DIMC); }
-        else if(r->kind==OR_XO&&r->idx==XO_ACCENT) vc=GOLD;
-        else if(ch) vc=GOLD;
-        if(r->lab==lbPct){ int lv=*rowVar(r); for(int k=0;k<10;k++) rect(124+k*5,y+1,4,5,k<lv?vc:RGB(6,8,13)); text(178,y,rowVal(r),vc,1); }   // slider: ten bars and the percent
-        else text(124,y,rowVal(r),vc,1);
-        if(ch) rect(214,y+1,3,3,GOLD);
+        int i=top+n, y=y0+n*11; const OptRow*r=&rows[i]; int cs=(i==sel&&!foc), ch=rowChanged(r);   // (no row is lit while the cursor is on the sections)
+        if(cs){ s3Box(9,y,216,10,5,RGB(4,10,2),RGB(3,8,1)); s3Box(10,y+1,214,8,4,RGB(21,30,9),RGB(10,22,2)); s3Box(14,y+1,206,3,1,RGB(25,31,15),RGB(21,30,9)); }
+        else rect(12,y+10,210,1,RGB(17,24,30));
+        u16 ink=cs?OPF:OPN;
+        if(ch) rect(11,y+4,2,2,cs?RGB(24,12,0):RGB(31,20,2));
+        text(16,y+2,r->nm,ink,1);
+        if(opPage==0&&rowHeat(r)<3){ u16 hc=heat[rowHeat(r)]; s3Box(116,y+2,6,6,3,RGB(2,5,11),RGB(2,5,11)); s3Box(117,y+3,4,4,2,hc,hc); }   // an LED: green fast, yellow mid, red slow
+        if(r->kind==OR_ACT){ int a=r->idx, bad=(a==OA_LIFEERASE||a==OA_ROOMERASE||a==OA_SLOTSERASE||a==OA_ALLERASE);
+            s3Box(163,y+1,58,8,4,bad?RGB(12,2,2):RGB(4,8,16),bad?RGB(8,1,1):RGB(3,6,13));
+            s3Box(164,y+2,56,6,3,bad?RGB(31,18,14):RGB(31,31,31),bad?RGB(27,8,6):RGB(18,25,31));
+            text(163+(58-tw("PRESS A",1))/2,y+3,"PRESS A",bad?RGB(10,1,1):OPN,1); }
+        else if(r->lab==lbPct){ int lv=*rowVar(r); opSlider(127,y+1,lv,cs); text(221-tw(rowVal(r),1),y+2,rowVal(r),ink,1); }
+        else if(r->kind!=OR_PRESET&&rowN(r)==2){ opSwitch(199,y+1,*rowVar(r)==1,cs); text(194-tw(rowVal(r),1),y+2,rowVal(r),ink,1); }
+        else opValueBox(125,y+1,96,rowVal(r),cs);
     }
-    if(top>0){ for(int k=0;k<3;k++) rect(227-k,y0+k,1+2*k,1,GOLD); }                              // more rows above
-    if(top+vis<nr){ for(int k=0;k<3;k++) rect(227-k,y0+vis*9-4+(2-k),1+2*k,1,GOLD); }        // more rows below
-    if(foc){ const OptSub*su=&pg->sub[opSub[opPage]]; text(12,122,su->d0,WHITE,1); text(12,129,su->d1,DIMC,1); }
-    else{ text(12,122,rows[sel].d0,WHITE,1); text(12,129,rows[sel].d1,DIMC,1); }
-    text(12,139,foc?"LEFT RIGHT SECTION  DOWN ROWS  L R PAGE":pg->ns?"L R PAGE  UP DOWN ROW  UP AT TOP SECTION":"L R PAGE  UP DOWN ROW  LEFT RIGHT CHANGE",RGB(14,16,20),1);
-    if(opPage==0){ text(12,148,"GREEN FAST",heat[0],1); text(68,148,"YELLOW MID",heat[1],1); text(124,148,"RED SLOW",heat[2],1); text(172,148,"B BACK",RGB(12,14,16),1); }
-    else text(12,148,"SELECT RESETS ROW  B BACK  DOT = CHANGED",RGB(12,14,16),1);
+    if(nr>vis){ int th=(vis*11-1)*vis/nr; if(th<8) th=8; int ty=y0+((vis*11-1)-th)*top/(nr-vis);   // the scroll thumb
+        s3Box(229,y0,3,vis*11-1,1,RGB(4,8,16),RGB(8,13,22)); s3Box(229,ty,3,th,1,RGB(31,31,31),RGB(18,25,31)); }
+    s3Box(8,126,224,19,5,RGB(3,8,19),RGB(2,5,13));   // the description well
+    if(foc){ const OptSub*su=&pg->sub[opSub[opPage]]; text(13,129,su->d0,RGB(26,29,31),1); text(13,137,su->d1,RGB(15,21,28),1); }
+    else{ text(13,129,rows[sel].d0,RGB(26,29,31),1); text(13,137,rows[sel].d1,RGB(15,21,28),1); }
+    s3Tip(foc?"LEFT RIGHT SECTION  DOWN ROWS  L R PAGE  B BACK":pg->ns?"L R PAGE  UP AT TOP FOR SECTIONS  B BACK":"L R PAGE  < > CHANGE  SELECT RESET  B BACK");
 }
 
 static void buttonTest(void){
