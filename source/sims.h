@@ -69,6 +69,9 @@ static int jbUnlock(int bit);   // (main.c) sets an unlock bit for good and rebu
 #define SIM_DNA_PROMO  25
 #define SIM_DNA_BDAY   50     // (the BIRTHDAY note says the number)
 #define SIM_DNA_LTW    200
+#define SIM_DNA_SHIFT  8      // jenes for a good shift (the quota met); a double-quota shift pays SIM_DNA_ACE more
+#define SIM_DNA_ACE    8
+#define SIM_DNA_TRICKS 1      // jenes for every 5th trick landed (the creator's locked sliders and parts are bought with them)
 static const short simZoneAt[5]={100,300,500,700,900};               // meter where LOW, OK, GOOD, GOLD and PLATINUM start
 static const char* const simZoneNm[6]={"FAILING","LOW","OK","GOOD","GOLD","PLATINUM"};
 static const unsigned char simDecayPct[6]={110,100,100,90,75,50};   // need decay in each zone
@@ -265,6 +268,7 @@ static void simQueue(const char* s){ simQ=s; simQ2=0; simQ3=0; simQT=240; }
 static void simQPush(const char* s){ if(!simQ){ simQ=s; simQT=240; } else if(!simQ2) simQ2=s; else if(!simQ3) simQ3=s; }   // after the notes already waiting (three fit)
 static char* simCat(char*d,const char*s){ while(*s) *d++=*s++; *d=0; return d; }
 static char* simCatN(char*d,int n){ char t[8]; int k=0; if(n<0) n=0; if(n==0) t[k++]='0'; while(n>0&&k<7){ t[k++]=(char)('0'+n%10); n/=10; } while(k>0) *d++=t[--k]; *d=0; return d; }
+static int simStrLen(const char*s){ int n=0; while(s[n]) n++; return n; }
 static void simMsgPay(const char* pre,int n){ simCatN(simCat(simMsg,pre),n); }   // "SHIFT PAID 110" into simMsg
 
 static void simsScan(void){   // what does this map have?
@@ -490,7 +494,7 @@ static void simSkillAdd(int n){
 // mood.h calls this from every moodEvent: the game events that wants, fears and skill care about
 static void simsMood(int ev,int n){
     switch(ev){
-        case M_TRICK: simEvent(SE_TRICK); simSkillAdd(1); if(simTricks<65535) simTricks++; break;
+        case M_TRICK: simEvent(SE_TRICK); simSkillAdd(1); if(simTricks<65535) simTricks++; if(simTricks%5==0){ dnaAdd(SIM_DNA_TRICKS); if(!simQ) simQueue("+1 JENE"); } break;
         case M_COMBO:   // n = tricks - 1; lcBank holds the points the chain banked
             simEventV(SE_COMBO,n+1); simEventV(SE_SHOWOFF,lcBank); simSkillAdd(1);
             if(lcBank>simBestCombo) simBestCombo=lcBank>65535?65535:lcBank;
@@ -589,15 +593,16 @@ static void simCameo(void){   // a good shift: the duo and one of their lines, a
     simQPush(simCameoNm); simQPush(simCameoLn[simRnd()%5]);
 }
 static void simShiftEnd(void){   // the end of a shift on a work day (the track's hours)
-    const JobTr*t=jobT(); int q=simQuota(), p=shiftPts, pay=0, base=jobPayOf(jobTrack,jobLvl,jobBr);
+    const JobTr*t=jobT(); int q=simQuota(), p=shiftPts, pay=0, jenes=0, base=jobPayOf(jobTrack,jobLvl,jobBr);
     if(p>=q){ pay=base+(p>=2*q?t->bonus:0); jobBad=0;
         if(t->perk==JP_TRAIN) simSkillAdd(1);                 // ATHLETIC: the training pays off
         if(t->perk==JP_MEAL){ lfood+=30; if(lfood>100) lfood=100; }   // FAST FOOD: the staff meal
+        jenes=SIM_DNA_SHIFT+(p>=2*q?SIM_DNA_ACE:0); dnaAdd(jenes);   // a good shift earns jenes too
         if(++jobGood>=t->good){ jobGood=0; jobPromote(); } }
     else if(p>=q/2){ pay=base/2; }
     else { if(t->perk==JP_FINE){ simMoney-=40; if(simMoney<0) simMoney=0; }   // CRIMINAL: a bad night costs you
         if(++jobBad>=t->bad){ jobBad=0; jobGood=0; if(jobLvl>0){ jobLvl--; if(jobLvl<3) jobChosen=0; moodEvent(M_DEMOTE); simEvent(SE_DEMOTE); simQueue("DEMOTED"); } } }
-    if(pay>0){ simMoney+=pay; if(simMoney>9999) simMoney=9999; moodEvent(M_PAY); simMsgPay(p>=q?"SHIFT PAID ":"HALF PAY ",pay); simQPush(simMsg); }
+    if(pay>0){ simMoney+=pay; if(simMoney>9999) simMoney=9999; moodEvent(M_PAY); simMsgPay(p>=q?"SHIFT PAID ":"HALF PAY ",pay); if(jenes) simCat(simCatN(simCat(simMsg+simStrLen(simMsg),"  +"),jenes)," JENES"); simQPush(simMsg); }
     else { simEvent(SE_NOPAY); if(!simQ) simQueue("NO PAY TODAY"); }
     if(p>=q) simCameo();
     if(p>=q/2) simEvent(SE_SHIFT);
