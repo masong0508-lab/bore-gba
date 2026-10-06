@@ -2846,8 +2846,12 @@ IWRAM_CODE static void zoomFb(int cx,int cy,int zk){   // only the scene rows (v
         int y0=pass?vpY0:vpY1-1, y1=pass?cy:cy-1, st=pass?1:-1;
         for(int y=y0;y!=y1;y+=st){
             u16*d=fb+y*SW; const u16*s=fb+zym[y]*SW;
-            for(int x=SW-1;x>=cx;x--) d[x]=s[zxm[x]];
-            for(int x=0;x<cx;x++) d[x]=s[zxm[x]];
+            int x=SW-1;
+            for(;x-3>=cx;x-=4){ u16 a=s[zxm[x]],b=s[zxm[x-1]],c=s[zxm[x-2]],e=s[zxm[x-3]]; d[x]=a; d[x-1]=b; d[x-2]=c; d[x-3]=e; }
+            for(;x>=cx;x--) d[x]=s[zxm[x]];
+            x=0;
+            for(;x+3<cx;x+=4){ u16 a=s[zxm[x]],b=s[zxm[x+1]],c=s[zxm[x+2]],e=s[zxm[x+3]]; d[x]=a; d[x+1]=b; d[x+2]=c; d[x+3]=e; }
+            for(;x<cx;x++) d[x]=s[zxm[x]];
         }
     }
 }
