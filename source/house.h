@@ -577,7 +577,7 @@ static int socAllowed(int a,int b,int i){   // may a do interaction i to b now?
 }
 static void needAdd(int u,int n,int v){   // a need of anyone (n: HN_SOC or HN_FUN)
     int m=hhMemOf(u);
-    if(m<0){ if(n==HN_SOC){ sSoc+=v; if(sSoc>100) sSoc=100; if(sSoc<0) sSoc=0; } else moodFun=moodClamp(moodFun+v*MOOD_ONE); return; }
+    if(m<0){ if(n==HN_SOC){ if(v>0){ v+=v*skLvl(SK_CHARM)*10/100; skGain(SK_CHARM,1); } sSoc+=v; if(sSoc>100) sSoc=100; if(sSoc<0) sSoc=0; } else moodFun=moodClamp(moodFun+v*MOOD_ONE); return; }
     int x=hhM[m].need[n]+v; hhM[m].need[n]=(u8)(x<0?0:x>100?100:x);
 }
 static void relMilestones(int a,int b){   // statuses that just started: notes and (for you) wants and fears
@@ -760,9 +760,9 @@ static void liveInvalidate(void);
 static int hhVisitorTalk(int m,int useLabel){   // R next to a neighbour who dropped by: TALK / JOKE / COMPLIMENT / HIGH FIVE (needs and mood only: visitors are not in the relationship tables)
     HhSim*s=&hhM[m];
     static const char* it[6] EWRAM_BSS; static char tl[32] EWRAM_BSS, nt[28] EWRAM_BSS; int id[6], cat[6], n=0;
-    static const char* const useNm[6]={0,"USE THE FRIDGE","USE THE TOILET","SLEEP IN BED","TAKE A SHOWER","SIT ON SOFA"};
+    static const char* const useNm[6]={0,"USE THE FRIDGE","USE THE TOILET","SLEEP IN BED","TAKE A SHOWER","SIT ON SOFA"}; static const char* const useNm2[5]={"WATCH TV","READ A BOOK","MAKE COFFEE","FEED THE FISH","RUN ON TREADMILL"};
     static const char* const vn[4]={"TALK","JOKE","COMPLIMENT","HIGH FIVE"}; static const u8 vcat[4]={0,1,0,0};
-    if((useLabel>0&&useLabel<6)||useLabel>=8){ it[n]=useLabel==8?"USE THE PHONE":useLabel>=9?"TUNE THE RADIO":useNm[useLabel]; cat[n]=4; id[n++]=-1; }
+    if((useLabel>0&&useLabel<6)||useLabel>=8){ it[n]=useLabel==8?"USE THE PHONE":useLabel>=11?useNm2[useLabel-11]:useLabel>=9?"TUNE THE RADIO":useNm[useLabel]; cat[n]=4; id[n++]=-1; }
     for(int i=0;i<4;i++){ it[n]=vn[i]; cat[n]=vcat[i]; id[n++]=i; }
     { char*e=simCat(tl,s->name); simCat(e,"  NEIGHBOR"); }
     int c=pieCats(tl,it,cat,n); liveInvalidate();
@@ -785,9 +785,9 @@ static int hhSocR(int useLabel){   // 1 = handled (a social, or the menu was clo
     HhSim*s=&hhM[m]; int b=s->uid, a=hhPUid;
     if(s->act==HA_USE){ lnote="THEY ARE BUSY"; lnoteT=50; return 0; }
     static const char* it[SC_N+1]; static char tl[40] EWRAM_BSS; int id[SC_N+1], cat[SC_N+1], n=0;   // (cat: the pie's category, 0 FRIENDLY 1 FUN 2 ROMANTIC 3 MEAN 4 USE)
-    static const char* const useNm[6]={0,"USE THE FRIDGE","USE THE TOILET","SLEEP IN BED","TAKE A SHOWER","SIT ON SOFA"};
+    static const char* const useNm[6]={0,"USE THE FRIDGE","USE THE TOILET","SLEEP IN BED","TAKE A SHOWER","SIT ON SOFA"}; static const char* const useNm2[5]={"WATCH TV","READ A BOOK","MAKE COFFEE","FEED THE FISH","RUN ON TREADMILL"};
     static const u8 socCat[SC_N]={0,1,0,0,0,1,2,2,2,0,3,3,3,3,1};   // TALK JOKE COMPL HIGH5 HUG TRICK FLIRT KISS STEADY SORRY ARGUE INSULT SLAP PUNCH PASS
-    if((useLabel>0&&useLabel<6)||useLabel>=8){ it[n]=useLabel==8?"USE THE PHONE":useLabel>=9?"TUNE THE RADIO":useNm[useLabel]; cat[n]=4; id[n++]=-1; }
+    if((useLabel>0&&useLabel<6)||useLabel>=8){ it[n]=useLabel==8?"USE THE PHONE":useLabel>=11?useNm2[useLabel-11]:useLabel>=9?"TUNE THE RADIO":useNm[useLabel]; cat[n]=4; id[n++]=-1; }
     for(int i=0;i<SC_N;i++) if(socAllowed(a,b,i)){ it[n]=i==SC_PUNCH?fkMove(a,"PUNCH"):socT[i].name; cat[n]=socCat[i]; id[n++]=i; }
     { char*e=simCat(tl,s->name); *e++=' '; *e++=' '; e=simCat(e,relWord(a,b)); e=simCat(e,"  HP "); simCatN(e,s->hp); }
     if(!n){ lnote="NOTHING TO DO HERE"; lnoteT=50; return 1; }

@@ -16,6 +16,7 @@
 #define SLC_DNA    'D'
 #define SLC_FAMILY 'F'
 #define SLC_STORY  'Y'
+#define SLC_SKILLS 'K'   // skills.h: the skill points of this player (SK_N bytes)
 #define SLC_GHOST  'G'   // fx.h: the ghosts of this life (12 bytes, the same block as in the life in SRAM)
 static void fxGhostSave(volatile unsigned char*m); static void fxGhostLoad(volatile unsigned char*m); static void fxGhostClear(void);
 static void sgEncGhost(SlW*w){ unsigned char t[12]; fxGhostSave(t); for(int i=0;i<12;i++) slwPut(w,t[i]); }
@@ -26,6 +27,7 @@ static void sgEncPlace(SlW*w){
 }
 static void sgEncDna(SlW*w){ slwPut16(w,pDna); slwPut16(w,pUnl); }
 static void sgEncFamily(SlW*w){ volatile u8*b=SL_HHBLK; int n=hhBlockLen(b,SL_HH_LEN); for(int i=0;i<n;i++) slwPut(w,b[i]); }
+static void sgEncSkills(SlW*w){ for(int i=0;i<SK_N;i++) slwPut(w,skPts[i]); }
 static void sgEncStory(SlW*w){ volatile u8*m=SRAM_BASE+STORY_OFF; for(int i=0;i<8;i++) slwPut(w,m[i]); }
 static int sgBuild(SlW*w){
     slChunk(w,SLC_PLACE,sgEncPlace); slChunk(w,SLC_PERSON,slEncPerson);
@@ -34,6 +36,7 @@ static int sgBuild(SlW*w){
     if(hhBlockLen(SL_HHBLK,SL_HH_LEN)) slChunk(w,SLC_FAMILY,sgEncFamily);
     slChunk(w,SLC_STORY,sgEncStory);
     slChunk(w,SLC_GHOST,sgEncGhost);
+    slChunk(w,SLC_SKILLS,sgEncSkills);
     slwPut(w,0); return w->pos;
 }
 // all the players (the newest copy of each) into l: their slots. Scans the slots.
@@ -92,6 +95,7 @@ static int sgParse(volatile u8*body,int len,int apply){   // apply 0: check ever
         else if(tag==SLC_FAMILY){ int n=hhBlockLen(c.p,cl); if(!n||n!=cl) return SLE_FMT; if(apply){ volatile u8*d=SL_HHBLK; for(int i=0;i<n;i++) d[i]=c.p[i]; } }
         else if(tag==SLC_STORY){ if(cl!=8||c.p[0]!='S'||c.p[1]!='Y') return SLE_FMT; if(apply){ volatile u8*d=SRAM_BASE+STORY_OFF; for(int i=0;i<8;i++) d[i]=c.p[i]; } }
         else if(tag==SLC_GHOST){ if(cl!=12) return SLE_FMT; if(apply){ fxGhostLoad(c.p); fxGhostSave(SIM_SRAM+SIM_BLOCK); } }
+        else if(tag==SLC_SKILLS){ if(cl!=SK_N) return SLE_FMT; if(apply){ for(int i=0;i<SK_N;i++) skPts[i]=c.p[i]; skSave(); } }
         // anything else: a later version's chunk, skipped on purpose
     }
     return (gotP&&gotC)?SLE_OK:SLE_FMT;
@@ -113,7 +117,7 @@ static int sgLoadPlayer(int slot){   // 0 = the player is in play now, else a SL
     volatile u8*b=SLB(slot)+SLOT_HDR;
     if(slSumOf(b,I.len)!=I.sum) return SLE_BAD;
     int e=sgParse(b,I.len,0); if(e) return e;
-    sgParse(b,I.len,1);
+    skReset(); sgParse(b,I.len,1);   // (a file from before the skills has no 'K' chunk: they start at zero)
     svCommit(); hhLoad(); stLoad(); ageLoad();
     twKeep=0; sprKey=0; for(int m=0;m<HH_MAX;m++) hhKey[m]=0; hhSlotsFree(); moodReset(); lscore=0; simLastScore=0;
     sgPid=I.pid;

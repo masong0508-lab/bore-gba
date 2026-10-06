@@ -49,7 +49,7 @@ static int nbAt(int cx,int cy){ for(int i=0;i<NB_LOTS;i++){ const NbLot*L=&nbT.l
 static int nbItemValue(char c){
     switch(c){ case '.': case 'P': return 0; case 'W': return 4; case 'w': return 2; case 'D': return 15; case 'F': return 60; case 'T': return 30; case 'S': return 50;
         case 'H': return 40; case 'C': return 35; case 'B': return 12; case 'N': return 15; case 'Y': return 20; case 'V': return 12; case 'G': return 9; case 'U': return 15;
-        case 'Q': return 5000; case 'A': return 150; case 'R': return 40; case 'K': return 4; case 'Z': return 6; case '=': return 8; case '#': return 5; case '^': case '~': return 30; default: return (c>='1'&&c<='9')||c=='X'||c=='L'||c=='O'||c=='J'||c=='M'?25:5; }
+        case 'Q': return 5000; case 'A': return 150; case 'R': return 40; case 'v': return 120; case 'b': return 90; case 'c': return 60; case 'q': return 150; case 'm': return 130; case 'K': return 4; case 'Z': return 6; case '=': return 8; case '#': return 5; case '^': case '~': return 30; default: return (c>='1'&&c<='9')||c=='X'||c=='L'||c=='O'||c=='J'||c=='M'?25:5; }
 }
 static void nbValueLive(int j){   // land (half a simoleon a tile) + everything built on every floor of the live map
     NbLot*L=&nbT.lot[j]; u32 v=(u32)L->w*L->h*8; int fl=1;

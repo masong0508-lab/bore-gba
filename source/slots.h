@@ -35,6 +35,7 @@
 //     4808   .. 4810    layout marker 'L' 'Y' 2 (slMigrate)
 //     4864   .. 4879    settings (SET_OFF)            4896 .. 4991   extended options (OPT_OFF)
 //     4992   .. 5007    active slot (SLOT_DIR)        5008 .. 5023   life stage (AGE_OFF)
+//     5014   .. 5023    skills (SK_OFF, skills.h)
 //     5024   .. 5055    persona (PERS_OFF)            5056 .. 5135   jukebox (JB_OFF)
 //     5136   .. 5199    the life (SIM_OFF)            5200 .. 5215   SAVE MEMORY TEST (SRAM_TEST)
 //     5216   .. 8191    the household (SL_HH_OFF; SL_HH_LEN = 2976 bytes are reserved; it was 1024, then 2048)

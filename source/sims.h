@@ -81,7 +81,12 @@ static const short simSkillAt[5]={12,35,70,120,200};      // skill points for sk
 static const char* const simDayNm[7]={"MON","TUE","WED","THU","FRI","SAT","SUN"};
 
 // furniture the room has (simsScan) and what a want needs
-enum { SR_FRIDGE=1, SR_TOILET=2, SR_BED=4, SR_SHOWER=8, SR_SOFA=16, SR_RAIL=32, SR_RAMP=64, SR_PIPE=128 };
+enum { SR_FRIDGE=1, SR_TOILET=2, SR_BED=4, SR_SHOWER=8, SR_SOFA=16, SR_RAIL=32, SR_RAMP=64, SR_PIPE=128, SR_TV=256, SR_BOOK=512, SR_FISH=1024, SR_RUN=2048 };
+enum { SK_COOK, SK_LOGIC, SK_BODY, SK_CHARM, SK_CREAT,   // life skills
+       SK_GRIND, SK_AIR, SK_BAL,                          // skater skills (SKATING itself is skillPts)
+       SK_N };
+#define SK_LIFE 5
+static int skLvl(int k); static void skGain(int k,int n); static void skReset(void); static void skSave(void); static int skTop(int top);   // skills.h (included much later)
 // things that happen (wants and fears are both made of these)
 enum { SE_EAT, SE_PEE, SE_SLEEP, SE_SHOWER, SE_SOFA, SE_TRICK, SE_COMBO, SE_GRIND, SE_AIR, SE_SHOWOFF, SE_STOKED, SE_GREAT,
        SE_SHIFT, SE_ACE, SE_PROMO, SE_CASH, SE_BILLS, SE_SKILL, SE_PRACTICE, SE_ROOM, SE_GROWUP,
@@ -89,7 +94,7 @@ enum { SE_EAT, SE_PEE, SE_SLEEP, SE_SHOWER, SE_SOFA, SE_TRICK, SE_COMBO, SE_GRIN
        SE_GLIDE, SE_CHARGE,
        SE_TALK, SE_FRIEND, SE_BFF, SE_KISS, SE_LOVE, SE_STEADY, SE_HUGGED, SE_LAUGH,   // social (house.h)
        SE_REJECT, SE_SLAPPED, SE_FIGHT, SE_ENEMY, SE_LONELY,
-       SE_PIPE, SE_N };   // SE_PIPE: a puff on the water pipe, or PUFF PUFF PASS   // (event numbers are not saved: they can be put in any order; table ROWS are saved by index)
+       SE_PIPE, SE_TV, SE_READ, SE_FISH, SE_RUN, SE_N };   // SE_PIPE: a puff on the water pipe, or PUFF PUFF PASS; SE_TV .. SE_RUN: the home pack (skills.h)   // (event numbers are not saved: they can be put in any order; table ROWS are saved by index)
 // icons (7x7, simIconArt): drawn in the HUD cells, the aspiration panel and the creator
 enum { IC_FOOD, IC_WC, IC_BED, IC_SHOWER, IC_SOFA, IC_BOARD, IC_COMBO, IC_RAIL, IC_AIR, IC_STAR, IC_BRIEF, IC_UP, IC_DOWN, IC_BOOK, IC_HOUSE,
        IC_COIN, IC_TROPHY, IC_CAKE, IC_HEART, IC_SKULL, IC_HURT, IC_PUDDLE, IC_SAD, IC_GLASS, IC_CANE, IC_STINK, IC_BAIL, IC_ZZZ,
@@ -136,7 +141,7 @@ enum { WH_ANY=0, WH_JOB=1, WH_GROWS=2, WH_OLDING=4, WH_LEARN=8, WH_WINGS=16, WH_
 #define A(x) (1<<(x))
 #define TP(t) ((t)+1)    // trait: high values favour it
 #define TN(t) (-(t)-1)   // trait: low values favour it
-typedef struct { const char* name; unsigned char ev, pts, req, icon, par, asp; signed char tr; unsigned char minv, who; } SimWish;
+typedef struct { const char* name; unsigned char ev, pts; unsigned short req; unsigned char icon, par, asp; signed char tr; unsigned char minv, who; } SimWish;
 static const SimWish simWants[]={   // '#' in a name is replaced by the wish's parameter
     {"HAVE A SNACK",   SE_EAT,     8,SR_FRIDGE,IC_FOOD,  WP_NONE, A(AS_PLEAS)|A(AS_GROW)|A(AS_HOME), 0,         0,WH_ANY},
     {"USE THE WC",     SE_PEE,     5,SR_TOILET,IC_WC,    WP_NONE, A(AS_HOME)|A(AS_GROW),             TP(TR_NEAT),0,WH_ANY},
@@ -171,6 +176,10 @@ static const SimWish simWants[]={   // '#' in a name is replaced by the wish's p
     {"GET A HUG",      SE_HUGGED, 12,0,        IC_HEART, WP_NONE, A(AS_HOME)|A(AS_GROW),             TP(TR_NICE),0,WH_SOCIAL},
     {"SHARE A LAUGH",  SE_LAUGH,  12,0,        IC_STAR,  WP_NONE, A(AS_PLEAS)|A(AS_POP),             TP(TR_PLAY),0,WH_SOCIAL},
     {"PUFF PUFF PASS", SE_PIPE,   12,SR_PIPE, IC_LEAF,  WP_NONE, A(AS_PLEAS)|A(AS_POP),             TP(TR_PLAY),0,WH_ANY},     // grown-ups only (simWho2)
+    {"WATCH TV",       SE_TV,      8,SR_TV,   IC_SOFA,  WP_NONE, A(AS_PLEAS)|A(AS_HOME),             TN(TR_ACT), 0,WH_ANY},     // home pack (skills.h)
+    {"READ A BOOK",    SE_READ,   12,SR_BOOK, IC_BOOK,  WP_NONE, A(AS_KNOW)|A(AS_GROW),              TN(TR_OUT), 0,WH_ANY},
+    {"FEED THE FISH",  SE_FISH,    8,SR_FISH, IC_FOOD,  WP_NONE, A(AS_HOME)|A(AS_GROW),              TP(TR_NICE),0,WH_ANY},
+    {"WORK OUT",       SE_RUN,    12,SR_RUN,  IC_UP,    WP_NONE, A(AS_GROW)|A(AS_POP),               TP(TR_ACT), 0,WH_ANY},
 };
 static const SimWish simFears[]={
     {"BAILING",        SE_BAIL,     8,0,IC_BAIL,  WP_NONE,A(AS_POP)|A(AS_GROW),          TN(TR_OUT), 0,WH_ANY},
@@ -276,6 +285,7 @@ static void simsScan(void){   // what does this map have?
     for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ char c=lifeMap[y][x];
         if(c=='F') simHave|=SR_FRIDGE; else if(c=='T') simHave|=SR_TOILET; else if(c=='S') simHave|=SR_BED;
         else if(c=='H') simHave|=SR_SHOWER; else if(c=='C'||c=='U') simHave|=SR_SOFA; else if(c=='G') simHave|=SR_PIPE;
+        else if(c=='v') simHave|=SR_TV; else if(c=='b') simHave|=SR_BOOK; else if(c=='q') simHave|=SR_FISH; else if(c=='m') simHave|=SR_RUN;
         else if(c=='='||c=='L'||c=='N'||c=='Z'||c=='K'||c=='J') simHave|=SR_RAIL; else if((c>='1'&&c<='<')) simHave|=SR_RAMP; }
 }
 static void simSkillCalc(void){ int l=0; for(int i=0;i<5;i++) if(skillPts>=simSkillAt[i]) l=i+1; skillLvl=l; }
@@ -396,7 +406,7 @@ static void simsPack(volatile unsigned char*m){   // write the life into any SIM
     for(int i=4;i<=50;i++) sum+=m[i];
     m[51]=(unsigned char)sum;
 }
-static void fxGhostSave(volatile unsigned char*m); static void simsSaveNow(void){ simsPack(SIM_SRAM); fxGhostSave(SIM_SRAM+SIM_BLOCK); persSave(); }   // the persona too: its DNA is earned here
+static void fxGhostSave(volatile unsigned char*m); static void simsSaveNow(void){ simsPack(SIM_SRAM); fxGhostSave(SIM_SRAM+SIM_BLOCK); persSave(); skSave(); }   // the persona too: its DNA is earned here
 static void simsSave(void){ if(xo[XO_AUTOSAVE]) simsSaveNow(); }   // AUTO SAVE LIFE option: off = only slots / SAVE LIFE NOW write it
 static int simsVer(volatile unsigned char*m){ return (m[0]=='S'&&m[1]=='I'&&m[2]=='M')?(m[3]=='3'?3:m[3]=='2'?2:0):0; }
 static int simsCheck(volatile unsigned char*m){   // 1 = the buffer holds a valid life, SIM3 or SIM2 (nothing is changed)
@@ -436,7 +446,7 @@ static void fxGhostLoad(volatile unsigned char*m); static int simsLoad(void){ in
 
 static void fxGhostClear(void); static void simsDefaults(void){ fxGhostClear();   // a brand new life (nothing is written to SRAM)
     sNrg=100; sHyg=100; sCom=80; sRoom=40; sSoc=70; simMoney=SIM_CASH0; simAsp=0; simDone=0; simDay=0; simMin=480;
-    jobLvl=0; jobGood=0; jobBad=0; skillPts=0; jobTrack=0; jobBr=0; jobChosen=0;
+    jobLvl=0; jobGood=0; jobBad=0; skillPts=0; jobTrack=0; jobBr=0; jobChosen=0; skReset();
     simMeter=SIM_METER0; simFlags=0; simTricks=simBestCombo=simStokedS=simNights=0; simAspUsed=-1; simLock=0;
     for(int s=0;s<SIM_WS;s++){ simW[s]=-1; simWP[s]=0; } for(int s=0;s<SIM_FS;s++) simF[s]=-1;
 }
@@ -514,8 +524,8 @@ static inline int simMin3(int a,int b,int c){ return a<b?(a<c?a:c):(b<c?b:c); }
 static int simsComfort(void){ return (sNrg*25+sHyg*20+sCom*20+sRoom*15+sSoc*20)/100; } // blended, used by the HAPPY target in mood.h
 static int simsAspMood(void){ return simWishes()?simZoneMood[simZone]:0; }     // the aspiration zone lifts or sinks the HAPPY target
 static int simsFunPct(void){ return 70+pTr[TR_PLAY]*6; }                       // playful creatures get bored faster (FUN drains 70..130%)
-static int simsTop(int top){ if(sNrg<SIM_LOW) top-=top*SIM_SLEEPY_TOP/100; return top*stSpd[stage]/100*abPct(AB_SPEED,5)/100; }   // too tired: slower; SPEED ability +-5% a point
-static int simsPts(int pts){ pts+=pts*skillLvl*8/100; return pts*abPct(AB_STYLE,6)/100; }   // SKATING skill: +8% trick points per level; STYLE ability +-6% a point
+static int simsTop(int top){ if(sNrg<SIM_LOW) top-=top*SIM_SLEEPY_TOP/100; return skTop(top*stSpd[stage]/100*abPct(AB_SPEED,5)/100); }   // too tired: slower; SPEED ability +-5% a point
+static int simsPts(int pts){ pts+=pts*skillLvl*8/100; pts+=pts*skLvl(SK_CREAT)*2/100; return pts*abPct(AB_STYLE,6)/100; }   // SKATING skill: +8% trick points per level; STYLE ability +-6% a point
 static const char* simsAlert(void){   // most urgent need, or 0
     if(lbl>80) return "NEED THE TOILET";   // (WC)
     if(lfood<SIM_LOW) return "EAT";
@@ -629,7 +639,7 @@ static void simMinute(void){   // once per game minute
         simMin=0; simDay++; if(simDay>30000) simDay=0;
         ageTick();
         if(simFlags&SF_TREE){ simMoney+=SIM_TREE_PAY; if(simMoney>9999) simMoney=9999; }   // the money tree
-        int bill=ojob()?SIM_BILLS*oBillsPct()/100:0; if(jobT()->perk==JP_BARRACKS) bill/=2;   // MILITARY: the barracks   // no career = no bills; BILLS option scales them
+        int bill=ojob()?SIM_BILLS*oBillsPct()/100:0; if(jobT()->perk==JP_BARRACKS) bill/=2; bill-=bill*skLvl(SK_LOGIC)*5/100;   // MILITARY: the barracks   // no career = no bills; BILLS option scales them
         if(bill>0){ if(simMoney>=bill){ simMoney-=bill; simEvent(SE_BILLS); }
             else { simMoney=0; moodEvent(M_BROKE); simEvent(SE_BROKE); simQueue("BILLS UNPAID"); } }
         simEventV(SE_CASH,simMoney);
@@ -655,9 +665,9 @@ static void simRoomTick(int tx,int ty){
     int kinds=0, items=0;
     for(int y=ty-SIM_ROOM_R;y<=ty+SIM_ROOM_R;y++)for(int x=tx-SIM_ROOM_R;x<=tx+SIM_ROOM_R;x++){
         if(x<0||y<0||x>=MW||y>=MH) continue; char c=lifeMap[y][x]; int b=0;
-        if(c=='F') b=1; else if(c=='T') b=2; else if(c=='S') b=4; else if(c=='H') b=8; else if(c=='C'||c=='U') b=16; else if(c=='V'||c=='G') b=32; else if(c=='Q'||c=='R'||c=='A') b=64;   // a lava lamp (or the pipe) makes it a den
+        if(c=='F') b=1; else if(c=='T') b=2; else if(c=='S') b=4; else if(c=='H') b=8; else if(c=='C'||c=='U') b=16; else if(c=='V'||c=='G') b=32; else if(c=='Q'||c=='R'||c=='A') b=64; else if(c=='v') b=128; else if(c=='b') b=256; else if(c=='q') b=512; else if(c=='c'||c=='m') b=1024;   // a lava lamp (or the pipe) makes it a den; home pack: TV, books, fish, coffee or a treadmill each add a kind
         if(b){ kinds|=b; items++; } }
-    int k=0; for(int b=1;b<128;b<<=1) if(kinds&b) k++;
+    int k=0; for(int b=1;b<2048;b<<=1) if(kinds&b) k++;
     int target=k*16+(items>5?5:items)*4; if(target>100) target=100;
     if(target>sRoom){ sRoom+=2; if(sRoom>target) sRoom=target; }
     else if(target<sRoom&&(simT%90)<30) sRoom--;       // sags slowly

@@ -40,6 +40,8 @@ static const IBox bxToilet[3]={
 #include "skateart.h"
 // ---- bed, shower, sofa: the life-sim furniture ----
 #include "simart.h"
+// ---- home pack: TV, bookshelf, coffee maker, aquarium, treadmill ----
+#include "homeart.h"
 
 // ---- door mat / threshold ----
 static const u16 pDr[4]={RGB(8,5,3),RGB(18,11,6),RGB(24,16,8),RGB(28,20,10)};
@@ -293,4 +295,6 @@ static void bakeAll(void){
     bakeOne(V_PICNIC,bxPicnicTable,7,0,12); bakeOne(V_JERSEYU,bxJerseyU,3,0,12); bakeOne(V_JERSEYV,bxJerseyV,3,0,12); bakeOne(V_MPAD,bxManualPad,1,0,12);
     bakePix(V_PHONE,phArt,pPh,0);   // the telephone
     bakePix(V_RADIO,rdArt,pSnd,0); bakePix(V_STEREO,syArt,pSnd,0);   // sound pack
+    for(int r=0;r<4;r++){ bakeOne(V_TV+r,bxTv,5,r,11); bakeOne(V_SHELF+r,bxShelf,1,r,11); bakeOne(V_TREAD+r,bxTread,5,r,11); }   // home pack
+    bakeOne(V_COFFEE,bxCoffee,4,0,11); bakeOne(V_AQUA,bxAqua,3,0,11);
 }

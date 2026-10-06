@@ -77,5 +77,10 @@ static void drawItemTile(char c,int sx,int sy,int x,int y){
     else if(c=='I') blitItem(V_PHONE,sx,sy);                                   // the telephone (R: the phone menu)
     else if(c=='R') blitItem(V_RADIO,sx,sy);                                   // the radio (R: tune a station)
     else if(c=='A') blitItem(V_STEREO,sx,sy);                                  // the sound system (R: crank it)
+    else if(c=='v') blitItem(V_TV+((itemFacing(x,y)-cview)&3),sx,sy);          // home pack: the TV (R: next channel)
+    else if(c=='b') blitItem(V_SHELF+((itemFacing(x,y)-cview)&3),sx,sy);       // the bookshelf (R: read)
+    else if(c=='c') blitItem(V_COFFEE,sx,sy);                                   // the coffee maker (R: a cup)
+    else if(c=='q') blitItem(V_AQUA,sx,sy);                                     // the aquarium (R: feed the fish)
+    else if(c=='m') blitItem(V_TREAD+((itemFacing(x,y)-cview)&3),sx,sy);       // the treadmill (R: a run)
     else if(c=='^'||c=='~') drawStairs(sx,sy,c=='^');
 }

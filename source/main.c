@@ -1962,7 +1962,7 @@ static void fightHurt(int dmg){
 static int tileH(int tx,int ty){   // surface height in px (ramps: their highest point). Grind height is 6: rails, ledges and benches
     if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
     char c=lifeMap[ty][tx];
-    return (c=='#'||c=='F'||c=='W'||c=='H')?2*CC: (c=='X'||c=='Y')?10: (c=='w'||c=='T'||c=='S'||c=='C'||c=='O'||c=='G'||c=='V'||c=='U'||c=='Q'||c=='A')?CC: (c=='='||c=='L'||c=='N'||c=='Z'||c=='K'||c=='J'||c=='I'||c=='R')?6: (c=='M')?3: isKicker(c)?KICKER_H: isLaunch(c)?LAUNCH_H: isQPipe(c)?qpH[7]: 0;   // pack 2: X funbox 10, Y trash can 10, O barrel 8, Z planter / K table / J jersey grind at 6, M manual pad 3
+    return (c=='#'||c=='F'||c=='W'||c=='H')?2*CC: (c=='X'||c=='Y')?10: (c=='b')?2*CC: (c=='m')?5: (c=='w'||c=='T'||c=='S'||c=='C'||c=='O'||c=='G'||c=='V'||c=='U'||c=='Q'||c=='A'||c=='v'||c=='c'||c=='q')?CC: (c=='='||c=='L'||c=='N'||c=='Z'||c=='K'||c=='J'||c=='I'||c=='R')?6: (c=='M')?3: isKicker(c)?KICKER_H: isLaunch(c)?LAUNCH_H: isQPipe(c)?qpH[7]: 0;   // pack 2: X funbox 10, Y trash can 10, O barrel 8, Z planter / K table / J jersey grind at 6, M manual pad 3
 }
 static int surfH(s32 fx,s32 fy){   // surface height at an exact position (1/256 tiles): same as tileH, but ramps slope
     int tx=(int)(fx>>8), ty=(int)(fy>>8); if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
@@ -2052,14 +2052,14 @@ static int numText(int x,int y,int n,u16 c){
 // lifeMap = what stands on each tile, floorMap = floor style under it, wallMap = wallpaper on it (for wall tiles).
 enum { T_ROOM, T_WALL, T_FLOOR, T_ITEM, T_ERASE, NTOOL };
 static int eTool, eAct, eAx, eAy, eFl, eWp, eOb;   // editor: tool, rectangle anchor set?, anchor tile, chosen floor / wallpaper / item
-#define NOBJ 34
+#define NOBJ 39
 #define OB_LAUNCH 17   // launch ramp turns like the kicker: '9'..'<'
 #define OB_KICKER 10   // palette slots whose char carries a turn (+eRot): kicker '1'..'4', quarter pipe '5'..'8'
 #define OB_QPIPE 11
 static int eRot;   // editor: which way the next ramp faces (0 S, 1 E, 2 N, 3 W)
-static const char palCh[NOBJ]={'.','w','W','#','=','F','T','D','B','P','1','5','L','N','S','H','C','9','X','O','Y','Z','K','J','M','G','V','U','^','~','Q','I','R','A'};
-static const char* const palNm[NOBJ]={"CLEAR","LOW WALL","WALL","CRATE","RAIL","FRIDGE","TOILET","DOOR","BOARD","SPAWN","KICKER","Q PIPE","LEDGE","BENCH","BED","SHOWER","SOFA","LAUNCH","FUNBOX","BARREL","TRASH CAN","PLANTER","PICNIC","JERSEY","MANUAL PAD","WATER PIPE","LAVA LAMP","BEANBAG","STAIRS UP","STAIRS DOWN","DEADSET 3THOUSAND VYBE","PHONE","RADIO","SOUND SYSTEM"};
-static const u16 palCol[NOBJ]={RGB(26,21,14),RGB(8,20,22),RGB(10,22,24),RGB(8,9,20),RGB(31,30,16),RGB(31,31,31),RGB(30,28,18),RGB(14,9,5),RGB(26,10,6),RGB(28,10,8),RGB(24,17,9),RGB(27,19,11),RGB(20,20,22),RGB(25,18,9),RGB(10,14,28),RGB(22,28,30),RGB(26,18,9),RGB(8,14,24),RGB(18,16,24),RGB(24,6,5),RGB(12,18,14),RGB(20,10,6),RGB(25,18,9),RGB(22,22,24),RGB(30,26,5),RGB(10,24,14),RGB(24,8,26),RGB(18,8,22),RGB(24,22,18),RGB(12,11,10),RGB(6,20,31),RGB(26,6,6),RGB(20,20,22),RGB(12,13,16)};
+static const char palCh[NOBJ]={'.','w','W','#','=','F','T','D','B','P','1','5','L','N','S','H','C','9','X','O','Y','Z','K','J','M','G','V','U','^','~','Q','I','R','A','v','b','c','q','m'};
+static const char* const palNm[NOBJ]={"CLEAR","LOW WALL","WALL","CRATE","RAIL","FRIDGE","TOILET","DOOR","BOARD","SPAWN","KICKER","Q PIPE","LEDGE","BENCH","BED","SHOWER","SOFA","LAUNCH","FUNBOX","BARREL","TRASH CAN","PLANTER","PICNIC","JERSEY","MANUAL PAD","WATER PIPE","LAVA LAMP","BEANBAG","STAIRS UP","STAIRS DOWN","DEADSET 3THOUSAND VYBE","PHONE","RADIO","SOUND SYSTEM","TV","BOOKSHELF","COFFEE MAKER","AQUARIUM","TREADMILL"};
+static const u16 palCol[NOBJ]={RGB(26,21,14),RGB(8,20,22),RGB(10,22,24),RGB(8,9,20),RGB(31,30,16),RGB(31,31,31),RGB(30,28,18),RGB(14,9,5),RGB(26,10,6),RGB(28,10,8),RGB(24,17,9),RGB(27,19,11),RGB(20,20,22),RGB(25,18,9),RGB(10,14,28),RGB(22,28,30),RGB(26,18,9),RGB(8,14,24),RGB(18,16,24),RGB(24,6,5),RGB(12,18,14),RGB(20,10,6),RGB(25,18,9),RGB(22,22,24),RGB(30,26,5),RGB(10,24,14),RGB(24,8,26),RGB(18,8,22),RGB(24,22,18),RGB(12,11,10),RGB(6,20,31),RGB(26,6,6),RGB(20,20,22),RGB(12,13,16),RGB(8,14,26),RGB(18,11,5),RGB(22,12,4),RGB(6,18,28),RGB(14,14,18)};
 static signed char palLut[256] EWRAM_BSS; static u8 palLutOk;   // tile char -> palette slot (or -1), built on first use: palIdx() runs for every tile of the minimap, so it must be O(1) even with 100+ items
 static int palIdx(char c){
     if(!palLutOk){ for(int i=0;i<256;i++) palLut[i]=-1; for(int i=NOBJ-1;i>=0;i--) palLut[(u8)palCh[i]]=(signed char)i;
@@ -2071,9 +2071,9 @@ static char edObjCh(void){ char c=palCh[eOb]; return (eOb==OB_KICKER||eOb==OB_QP
 #define DS_PRICE 5000
 #define NCAT 7
 static const char* const catNm[NCAT]={"SEAT","HOME","TECH","SKATE","DECOR","WALLS","MISC"};
-static const u8 catN[NCAT]={4,4,6,10,2,5,3};
-static const u8 catItems[NCAT][10]={ {13,16,27,22}, {5,6,14,15}, {31,32,33,30,26,25}, {3,4,10,11,12,17,18,19,23,24}, {20,21}, {1,2,7,28,29}, {0,8,9} };
-static const u16 palPrice[NOBJ]={0,3,6,10,15,150,90,12,0,0,30,60,20,40,140,110,120,45,50,10,5,10,80,15,10,30,25,60,40,40,DS_PRICE,50,40,200};
+static const u8 catN[NCAT]={4,6,7,10,4,5,3};
+static const u8 catItems[NCAT][10]={ {13,16,27,22}, {5,6,14,15,36,38}, {31,32,33,30,26,25,34}, {3,4,10,11,12,17,18,19,23,24}, {20,21,35,37}, {1,2,7,28,29}, {0,8,9} };
+static const u16 palPrice[NOBJ]={0,3,6,10,15,150,90,12,0,0,30,60,20,40,140,110,120,45,50,10,5,10,80,15,10,30,25,60,40,40,DS_PRICE,50,40,200,120,90,60,150,130};
 static int edCatOf(int idx,int*pos){ for(int c=0;c<NCAT;c++) for(int j=0;j<catN[c];j++) if(catItems[c][j]==idx){ if(pos) *pos=j; return c; } if(pos) *pos=0; return 0; }
 static void edItemStep(int d){ int p, c=edCatOf(eOb,&p); p=(p+d+catN[c])%catN[c]; eOb=catItems[c][p]; }   // L / R: the next item of this category
 static void edCatStep(int d){ int c=(edCatOf(eOb,0)+d+NCAT)%NCAT; eOb=catItems[c][0]; }                  // SELECT + L / R: the next category
@@ -2410,6 +2410,7 @@ static void itemSpanInit(void);
 // Timer2 (65536 Hz) is the clock for pacing, the speed meter and the load counter.
 #define R_TM2D   (*(volatile u16*)0x04000108)
 #define R_TM2CNT (*(volatile u16*)0x0400010A)
+static void homeUse(int k); static void homeTick(void); static void homeMusic(void); static void skillsScreen(void); static void skLoad(void);   // skills.h: skills and the home pack items
 static void radioTune(int sys);   // (the radio and sound system items: defined with the game music, below)
 static int jbLast=-1;   // the last song picked at random anywhere (menus, jukebox, game music): the next pick avoids it
 static u32 uiTicks;     // counts frames in the menus: how long you sat there stirs the random numbers
@@ -2550,23 +2551,23 @@ static void lifeStep(u16 k,u16 pr,int fr){
         else{
             if(g==1){ F.spd=F.spd*3/5; lsp=F.spd>>4; pts/=2; lnote="SKETCHY"; lnoteT=40; }   // landed, but crooked: you lose speed and the trick is worth half
             else if(g==3&&pts) pts+=pts/4;                                                      // PERFECT: +25%
-            if(pts){ pts=moodPts(pts); lscore+=pts; lpts=pts; if(g!=1) trickName(hs,gb,g==3); lnoteT=60; lcN++; lcPts+=pts; lcT=oComboLen(); moodEvent(M_TRICK); }
-            if(onRail){ lgrind=1; lnote="GRIND"; lnoteT=30; lcN++; lcT=oComboLen(); moodEvent(M_GRIND_ON); sfxPlay(SFX_GRIND); }
+            if(pts){ if(hs||lflip||gb) pts=pts*(100+skLvl(SK_AIR)*4)/100; skGain(SK_AIR,(hs>=2?2:hs?1:0)+(lflip?1:0)+(gb?1:0)); skGain(SK_BAL,g==3?2:g==2?1:0); pts=moodPts(pts); lscore+=pts; lpts=pts; if(g!=1) trickName(hs,gb,g==3); lnoteT=60; lcN++; lcPts+=pts; lcT=oComboLen(); moodEvent(M_TRICK); }
+            if(onRail){ lgrind=1; skGain(SK_GRIND,1); lnote="GRIND"; lnoteT=30; lcN++; lcT=oComboLen(); moodEvent(M_GRIND_ON); sfxPlay(SFX_GRIND); }
             else sfxPlay((pts&&g!=1)?SFX_STICK:SFX_LAND);   // the landing is heard: a thud, or the bright one for a trick
         }
-        if(bail){ int sv=drop/3+sp0/3+(rnd8()>>6); if(drop<30&&sv>15) sv=15; hurt(sv,1); }   // bad landing: harder/faster/higher = worse (was drop/2+speed: a fast bail was OW + 2.5 s down, or even death)
+        if(bail){ int sv=drop/3+sp0/3+(rnd8()>>6); if(drop<30&&sv>15) sv=15; sv-=sv*skLvl(SK_BAL)*6/100; hurt(sv,1); }   // bad landing: harder/faster/higher = worse (was drop/2+speed: a fast bail was OW + 2.5 s down, or even death)
         else if(drop>24) hurt(drop-24+(rnd8()>>5),0);   // big drops hurt even landed clean
         lspin=0; lflip=0; feelLandReset();
     }
     if(!air){ lmaxz=(int)(lz>>8); lplay=0; }
     lairF=air;
     if(lflip&&lskate&&air){ if(!bFPrev) bFD=(k&K_UP)?-1:1; if(bFT<BFLIP_LEN) bFT++; bFPrev=1; } else { bFT=0; bFPrev=0; }   // the flip: one full roll in BFLIP_LEN steps, then it is flat again
-    if(lgrind){ if(air||tileH(lfx>>8,lfy>>8)!=6) lgrind=0; else if((fr&3)==0){ int g=abGrindPts(); lscore+=g; lnote="GRIND"; lnoteT=10; lcPts+=g; lcT=oComboLen(); } }   // GRIP ability
+    if(lgrind){ if(air||tileH(lfx>>8,lfy>>8)!=6) lgrind=0; else if((fr&3)==0){ int g=abGrindPts()+skLvl(SK_GRIND)/2; lscore+=g; lnote="GRIND"; lnoteT=10; lcPts+=g; lcT=oComboLen(); } }   // GRIP ability
     if(!lhave&&lz<(8<<8)&&(lfx>>8)==BDX&&(lfy>>8)==BDY){ lhave=1; lnote="GOT A SKATEBOARD"; lnoteT=90; moodEvent(M_GOT_BOARD); }   // walk over it to pick it up
     fxTick();   // ghosts and weather (fx.h): every step, also while you lie dead
     if(!ldead){   // needs: hunger and bladder, then how they (and the skating) make the skater feel
         if(stage==AG_BABY){ if(lfood<70) lfood=70; if(lbl>30) lbl=30; if(sNrg<60) sNrg=60; if(sHyg<60) sHyg=60; if(sCom<60) sCom=60; }   // looked after
-        moodTick(); simsTick(pr,(int)(lfx>>8),(int)(lfy>>8)); hhTick(); phTick(); stTick();
+        moodTick(); simsTick(pr,(int)(lfx>>8),(int)(lfy>>8)); hhTick(); phTick(); stTick(); homeTick();
         if(gGrow){ gGrow=0; setStage(stage+1); bakeSprites(); lnote=growNote[stage]; lnoteT=120; lstun=lstun>30?lstun:30; lsp=0; }
         { int fe=oFoodEvery(), we=oWcEvery();   // FOOD AND WC option
           if(fe&&lfr%fe==0&&lfood>0) lfood--;
@@ -2578,15 +2579,15 @@ static void lifeStep(u16 k,u16 pr,int fr){
         { static u8 vxH, vxP; if(lfood<SIM_LOW){ if(!vxH){ vxH=1; voxNag(V_im_hungryrururyry); } } else if(lfood>=40) vxH=0;   // the hunger and the bladder speak up once each time they run low
           if(lbl>=80){ if(!vxP){ vxP=1; voxNag(V_need_to_pee); } } else if(lbl<50) vxP=0; }
         if(lbl>=100){ lbl=0; lstun=90; lsp=0; lgrind=0; lscore=lscore>100?lscore-100:0; sfxPlay(SFX_CRY); lnote="ACCIDENT"; lnoteT=90; moodEvent(M_ACCIDENT); }
-        int nf=0, nt=0, nb=0, nh=0, nc=0, np=0, nq=0, nph=0, nrd=0, nsy=0;
+        int nf=0, nt=0, nb=0, nh=0, nc=0, np=0, nq=0, nph=0, nrd=0, nsy=0, ntv=0, nbk=0, ncf=0, naq=0, ntm=0;
         for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++){ int tx=(lfx>>8)+dx, ty=(lfy>>8)+dy; if(tx<0||ty<0||tx>=MW||ty>=MH) continue;
-            char c=lifeMap[ty][tx]; if(c=='F') nf=1; if(c=='T') nt=1; if(c=='S') nb=1; if(c=='H') nh=1; if(c=='C'||c=='U') nc=1; if(c=='G') np=1; if(c=='Q') nq=1; if(c=='I') nph=1; if(c=='R') nrd=1; if(c=='A') nsy=1; }
-        lnear=nf?1:(nt?2:(nb?3:(nh?4:(np?6:(nq?7:(nph?8:(nrd?9:(nsy?10:(nc?5:0)))))))));   // 7 the DeadSet   // 1 fridge, 2 toilet, 3 bed, 4 shower, 6 water pipe, 5 sofa or beanbag
+            char c=lifeMap[ty][tx]; if(c=='F') nf=1; if(c=='T') nt=1; if(c=='S') nb=1; if(c=='H') nh=1; if(c=='C'||c=='U') nc=1; if(c=='G') np=1; if(c=='Q') nq=1; if(c=='I') nph=1; if(c=='R') nrd=1; if(c=='A') nsy=1; if(c=='v') ntv=1; if(c=='b') nbk=1; if(c=='c') ncf=1; if(c=='q') naq=1; if(c=='m') ntm=1; }
+        lnear=nf?1:(nt?2:(nb?3:(nh?4:(np?6:(nq?7:(nph?8:(nrd?9:(nsy?10:(ntv?11:(nbk?12:(ncf?13:(naq?14:(ntm?15:(nc?5:0))))))))))))));   // 7 the DeadSet   // 1 fridge, 2 toilet, 3 bed, 4 shower, 6 water pipe, 5 sofa or beanbag
         if((pr&K_R)&&lstun<=0&&lz<=fh&&!simAct&&hhSocR(lnear)) pr&=~K_R;   // next to a household Sim: the social menu (it offers the furniture too)
         if((pr&K_R)&&lnear&&lstun<=0&&lz<=fh){
             if(lnear==1){   // fridge: eat
                 if(lfood>=95){ lnote="FULL"; lnoteT=40; }
-                else { lfood+=35; if(lfood>100) lfood=100; lbl+=10; if(lbl>99) lbl=99; lstun=30; lsp=0; lnote="YUM"; lnoteT=50; moodEvent(M_EAT); }
+                else { lfood+=35+skLvl(SK_COOK)*4; if(lfood>100) lfood=100; skGain(SK_COOK,1); lbl+=10; if(lbl>99) lbl=99; lstun=30; lsp=0; lnote="YUM"; lnoteT=50; moodEvent(M_EAT); }
             } else if(lnear==7){   // the DeadSet 3Thousand VYBE: strap it on and vanish into virtual reality for a while
                 lstun=150; lsp=0; lgrind=0; lnote="JACKED IN  VYBE 3000"; lnoteT=150; moodEvent(M_CHILL); moodEvent(M_COMBO);
             } else if(lnear==6){   // the water pipe (grown-ups only): CHILLED OUT for two game hours
@@ -2596,6 +2597,8 @@ static void lifeStep(u16 k,u16 pr,int fr){
             } else if(lnear==8){   // the telephone: invite someone, order food, pick a career
                 phoneMenu(); liveInvalidate(); camSnap=1; while((~REG_KEYINPUT)&0x3FF) vsync();
             } else if(lnear==9||lnear==10){ radioTune(lnear==10);   // the radio / the sound system (sound pack): next station
+                homeMusic();
+            } else if(lnear>=11){ homeUse(lnear);   // the home pack: TV, bookshelf, coffee maker, aquarium, treadmill (skills.h)
             } else if(lnear>=3){ simBegin(lnear);   // bed / shower / sofa (sims.h)
             } else {        // toilet: relieve yourself
                 if(lbl<15){ lnote="LATER"; lnoteT=40; }
@@ -2802,7 +2805,7 @@ static void drawPlayerNow(void){
 // The room inside the rectangle x0..x1 / y0..y1 (end excluded), drawn back to front and clipped to it: the same pixels a whole-screen
 // draw would put there. ed=1: editor view (no player).
 static inline int isItemCh(char c){
-    switch(c){ case '#': case 'F': case 'T': case '=': case 'D': case 'L': case 'N': case 'S': case 'H': case 'C': case 'X': case 'O': case 'Y': case 'Z': case 'K': case 'J': case 'M': case 'G': case 'V': case 'U': case 'Q': case 'I': case 'R': case 'A': case '^': case '~': return 1; }
+    switch(c){ case '#': case 'F': case 'T': case '=': case 'D': case 'L': case 'N': case 'S': case 'H': case 'C': case 'X': case 'O': case 'Y': case 'Z': case 'K': case 'J': case 'M': case 'G': case 'V': case 'U': case 'Q': case 'I': case 'R': case 'A': case 'v': case 'b': case 'c': case 'q': case 'm': case '^': case '~': return 1; }
     return isRamp(c);
 }
 static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
@@ -3191,7 +3194,7 @@ static const char* const pmArt[8][9]={
 static const u16 pmCol[8]={RGB(10,28,10),RGB(10,20,31),RGB(31,26,6),RGB(31,16,22),RGB(22,16,30),RGB(22,24,26),RGB(30,20,8),RGB(30,10,8)};
 static const char* const pmNm[8]={"RESUME","SAVE","WANTS","FAMILY","STORY","OPTIONS","BUILD","QUIT"};
 static const char* const pmTitle[8]={"RESUME","SAVE GAME","ASPIRATION","HOUSEHOLD","STORY","OPTIONS","BUILD AND HOUSES","MAIN MENU"};
-static const char* const pmDesc[8]={"BACK TO YOUR LIFE","SAVES YOU AND YOUR HOUSE","WANTS  FEARS  REWARD SHOP","WHO LIVES HERE  HOW THEY FEEL","YOUR CHAPTERS","SETTINGS  SOUND  CONTROLS","EDIT MAP  BLUEPRINTS  NEW LIFE","SAVES AND LEAVES"};
+static const char* const pmDesc[8]={"BACK TO YOUR LIFE","SAVES YOU AND YOUR HOUSE","WANTS  FEARS  REWARDS  SKILLS","WHO LIVES HERE  HOW THEY FEEL","YOUR CHAPTERS","SETTINGS  SOUND  CONTROLS","EDIT MAP  BLUEPRINTS  NEW LIFE","SAVES AND LEAVES"};
 static int pauseMenu(int mode){   // mode 0 life, 1 from the neighborhood, 2 test play from the editor. Returns a PM_ number, or -1 (resume)
     static const u8 full[8]={0,1,2,3,4,5,6,7}, edl[3]={PM_RESUME,PM_OPTS,PM_QUIT};
     const u8*ids=mode==2?edl:full; int n=mode==2?3:8, sel=0, dirty=1, lastB=-1; u16 prev=keyNow(); u32 t=0;
@@ -3318,7 +3321,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
             { u8 zz=xo[XO_ZOOM]; xo[XO_ZOOM]=0; hudApplyLayout(); camSnap=1; liveInvalidate(); lifeDraw(); xo[XO_ZOOM]=zz; }   // a whole picture behind the menu (the screen itself only holds patches), not zoomed
             int c=pauseMenu(ed?2:nbPlaying?1:0);
             if(c==PM_SAVE){ if(!sgPid) toast("PICK A PLAYER ON THE PLAY SCREEN"); else { int se=sgSave(); toast(se?slErrMsg(se):"GAME SAVED"); } }
-            else if(c==PM_WANTS) aspPanel();
+            else if(c==PM_WANTS){ static const char* const wsm[2]={"WANTS  FEARS  REWARDS","SKILLS"}; int w=menu("WANTS AND SKILLS",wsm,2); if(w==0) aspPanel(); else if(w==1) skillsScreen(); }
             else if(c==PM_FAMILY) hhMenu();
             else if(c==PM_STORY) storyScreen();
             else if(c==PM_OPTS){ settingsScreen(); if(!ed&&xo[XO_TUTOR]==2) tutBegin(); }
@@ -3433,7 +3436,8 @@ static void drawEditorHud(const char*msg){
                 case OB_LAUNCH:blitItem(V_LAUNCH+((eRot-cview)&3),221,141);break; case 18:blitItem(V_FUNBOX,221,141);break; case 19:blitItem(V_BARREL,221,141);break;
                 case 20:blitItem(V_TRASH,221,141);break; case 21:blitItem(V_PLANTER,221,141);break; case 22:blitItem(V_PICNIC,221,141);break;
                 case 23:blitItem(V_JERSEYU,221,141);break; case 24:blitItem(V_MPAD,221,141);break;
-                case 14:blitItem(V_BED,221,141);break; case 15:blitItem(V_SHOWER,221,141);break; case 16:blitItem(V_SOFA,221,141);break; case 25:blitItem(V_PIPE,221,141);break; case 26:blitItem(V_LAVA,221,141);break; case 27:blitItem(V_BEANBAG,221,141);break; case 28:case 29:drawStairs(221,141,eOb==28);break; case 30:blitItem(V_DEADSET,221,141);break; case 31:blitItem(V_PHONE,221,141);break; case 32:blitItem(V_RADIO,221,141);break; case 33:blitItem(V_STEREO,221,141);break; default:drawSpawn(221,142); } }
+                case 14:blitItem(V_BED,221,141);break; case 15:blitItem(V_SHOWER,221,141);break; case 16:blitItem(V_SOFA,221,141);break; case 25:blitItem(V_PIPE,221,141);break; case 26:blitItem(V_LAVA,221,141);break; case 27:blitItem(V_BEANBAG,221,141);break; case 28:case 29:drawStairs(221,141,eOb==28);break; case 30:blitItem(V_DEADSET,221,141);break; case 31:blitItem(V_PHONE,221,141);break; case 32:blitItem(V_RADIO,221,141);break; case 33:blitItem(V_STEREO,221,141);break;
+                case 34:blitItem(V_TV,221,141);break; case 35:blitItem(V_SHELF,221,141);break; case 36:blitItem(V_COFFEE,221,141);break; case 37:blitItem(V_AQUA,221,141);break; case 38:blitItem(V_TREAD,221,141);break; default:drawSpawn(221,142); } }
         if(eOb==1||eOb==2){ wallSwatch(eWp,212,137); }
     } else if(eTool!=T_ERASE){
         int xx=2;   // label, swatch, name: each placed after the one before, so nothing covers a label
@@ -4450,6 +4454,7 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "fx.h"             // GHOSTS and WEATHER: hardware sprites on the spare OBJ slots (see the top of the file)
 #include "story.h"          // STORY MODE: chapters with goals (NEW GAME > STORY MODE)
 #include "career.h"         // CAREER TRACKS: the screen on the phone (the tracks are in sims.h)
+#include "skills.h"         // SKILLS (life and skater) and the home pack items: TV, bookshelf, coffee maker, aquarium, treadmill
 // ---------- main menu (The Sims 3 look): a glossy panel over your town, lit for the time of day of your life's clock ----------
 #define MM_N 7
 static const char* const mmName[MM_N]={"Play","Create a Bore","Build Mode","Toukebox","Room Slots","Options","?"};
@@ -4696,6 +4701,7 @@ int boreMain(void){
     slotBoot();              // BOOT LOADS PERSON option: the creature of the active room slot
     ageLoad();               // ...grown to the stage it had reached
     persLoad();              // ...with its aspiration, personality, DNA and unlocked parts
+    skLoad();                // ...and its skills
     hhLoad();                // ...and the household, which holds your first and last name
     mainMenu();
     return 0;
