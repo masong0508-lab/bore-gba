@@ -7,7 +7,7 @@ TARGET  := bore
 CC      := arm-none-eabi-gcc
 OBJCOPY := arm-none-eabi-objcopy
 ARCH    := -mthumb -mthumb-interwork
-CFLAGS  := $(ARCH) -O2 -Wall -fno-strict-aliasing -ffunction-sections
+CFLAGS  := $(ARCH) -O2 -Wall -fno-strict-aliasing -ffunction-sections -mcpu=arm7tdmi -mtune=arm7tdmi -fomit-frame-pointer -fno-unwind-tables -fno-asynchronous-unwind-tables
 LDFLAGS := -specs=gba.specs $(ARCH)
 STACK_EWRAM := 8192                       # the stack sits in the top of EWRAM (main.c: main() stub); statics must stay below it
 EWRAM_STATIC_MAX := $(shell echo $$((262144-8192)))

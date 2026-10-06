@@ -4628,6 +4628,7 @@ int boreMain(void){
       u32 cyc=t[0]|((u32)t[2]<<16); ((u32*)fb)[32000/4]=cyc; for(;;); }   // test build (-DCS_TEST=n): 100 frames of loop n at fb, then the cycles they took
 #endif
     REG_WAITCNT=0x4317;  // ROM 3/1 waits + prefetch (power-on default is 4/2, no prefetch)
+    *(volatile unsigned int*)0x04000800=0x0E000020;   // EWRAM 1 wait state (faster fb, sprites, stack)
     logo_play();         // the DippInn Productions boot logo (source/logo.c, ~8 s; leaves a black screen, its DMA and sprites off)
     { volatile u16*io=(volatile u16*)0x04000000; for(int r=0x08/2;r<0x20/2;r++) io[r]=0; for(int r=0x40/2;r<0x56/2;r++) io[r]=0; }   // undo its BG control, scroll, windows and blend (BG2's affine registers are left alone: mode 3 needs them)
     { static volatile u32 zero; zero=0; REG_DMA3SAD=(u32)(uintptr_t)&zero; REG_DMA3DAD=VRAM_ADDR; REG_DMA3CNT=(SW*SH/2)|0x85000000u; }   // (the zero must sit in RAM: a DMA from cartridge ROM always steps its source, "fixed" or not, and used to paint ROM data on screen)   // clear its tiles out of the bitmap (else mode 3 shows them as noise until the title is drawn)
