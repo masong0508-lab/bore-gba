@@ -258,7 +258,7 @@ static int slBuild(SlW*w,int mask){
 
 // ---------- header, scan ----------
 typedef struct { u8 ok,kind,span,has,mw,mh; u16 len,sum,seq; char name[SLOT_NAME+1]; u8 pid; } SlInfo;   // pid: which player a save file belongs to
-static SlInfo slI[SLOT_MAX] EWRAM_BSS; static s8 slOwner[SLOT_MAX]; static u8 slGood[SLOT_MAX];   // per slot: header, which head covers it (-1 none), payload checksum ok
+static SlInfo slI[SLOT_MAX] EWRAM_BSS; static s8 slOwner[SLOT_MAX] EWRAM_BSS; static u8 slGood[SLOT_MAX] EWRAM_BSS;   // per slot: header, which head covers it (-1 none), payload checksum ok
 #define SLB(s) svPtr(SLO(s))   // read pointer (save.h)
 // A save of span slots must fit, and must not run over the 64 KB bank boundary of a 128 KB chip (read pointers stay in one bank)
 static int slFits(int slot,int span){ return slot>=0&&span>=1&&slot+span<=SLOT_N&&(SLO(slot)>>16)==((SLO(slot+span)-1)>>16); }

@@ -24,9 +24,9 @@ typedef struct { short x0,y0,x1,y1; } Rc;
 // when that changed. The first draw after anything covered the screen (all=1) draws every piece.
 static int fxWxHud(void); static void fxWxIcon(int x,int y);   // fx.h
 enum { HK_SCORE, HK_CASH, HK_MSG, HK_CLOCK, HK_NEED, HK_PORT=HK_NEED+8, HK_HEAD, HK_ASP, HK_W0, HK_W1, HK_HP, HK_N };
-static unsigned hudKeys[HK_N];
+static unsigned hudKeys[HK_N] EWRAM_BSS;
 #define HUD_NR 24
-static Rc hudRc[HUD_NR]; static int hudRcN;
+static Rc hudRc[HUD_NR] EWRAM_BSS; static int hudRcN;
 static void hudMark(int x,int y,int w,int h){ if(hudRcN<HUD_NR){ Rc*r=&hudRc[hudRcN++]; r->x0=(short)x; r->y0=(short)y; r->x1=(short)(x+w); r->y1=(short)(y+h); } }
 static unsigned hudHash(const char*t){ unsigned h=2166136261u; while(*t) h=(h^(unsigned char)*t++)*16777619u; return h|1u; }
 static int hudChg(int all,int k,unsigned v){ if(all||hudKeys[k]!=v){ hudKeys[k]=v; return 1; } return 0; }

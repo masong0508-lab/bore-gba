@@ -203,7 +203,7 @@ static int rowHeat(const OptRow*r){   // VIDEO page colours: 0 light (green), 1 
     if(v==&sShow) return sShow==2?1:0;
     return 3;
 }
-static s16 costCache[24];   // draw cost per walls/wallpaper/floors/shadows combo, 0 = not measured yet
+static s16 costCache[24] EWRAM_BSS;   // draw cost per walls/wallpaper/floors/shadows combo, 0 = not measured yet
 static inline int costKey(void){ return sWall*8+sWp*4+sFl*2+sShad; }
 
 static void drawOptions(void){

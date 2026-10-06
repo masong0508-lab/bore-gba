@@ -6,8 +6,8 @@
 // come in switched on; the saved flags are dropped (everything on again) only if the songs in front of them changed.
 #define JB_MAX 64          // most songs the jukebox can hold (the flags need one bit each; songs.h may list up to this many, secret ones included)
 #define JB_OFF 5056        // SRAM block: 'J' 'B' '3', song count, hash of the song names (2 bytes), then one bit per song (1 = on). 14 bytes of the 80 reserved (slots.h)
-static u8 jbMap[JB_MAX];   // visible song number -> index into songs[] (hides the placeholder tunes and the secret ones)
-static u8 jbOn[JB_MAX];    // by songs[] index: 1 = may be picked at random
+static u8 jbMap[JB_MAX] EWRAM_BSS;   // visible song number -> index into songs[] (hides the placeholder tunes and the secret ones)
+static u8 jbOn[JB_MAX] EWRAM_BSS;    // by songs[] index: 1 = may be picked at random
 static int jbN, jbAll;     // visible songs, songs in songs[]
 static u8 jbMode;              // play mode: 0 SHUFFLE (random checked song), 1 IN ORDER (next checked song down the list), 2 REPEAT. Saved at JB_OFF+20: 'M', mode, mode xor 0x5A
 static u16 jbDr;               // lifetime dreams ever met: bit asp*2+want (10 of them). Saved at JB_OFF+24: 'D' 'R', low byte, high byte, check

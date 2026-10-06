@@ -40,7 +40,7 @@ typedef struct {
 static HhSim hhM[HH_MAX] EWRAM_BSS; static int hhN;
 // ---- relationships (Sims 2 style): for every pair a DAILY and a LIFETIME score, -100..100, kept by uid and one-way (how a feels about b) ----
 #define HU_N (HH_MAX+1)
-static signed char relD[HU_N][HU_N], relL[HU_N][HU_N]; static u8 relF[HU_N][HU_N];
+static signed char relD[HU_N][HU_N] EWRAM_BSS, relL[HU_N][HU_N] EWRAM_BSS; static u8 relF[HU_N][HU_N] EWRAM_BSS;
 enum { RF_CRUSH=1, RF_LOVE=2, RF_STEADY=4, RF_KISSED=8, RF_FRIEND=16, RF_BFF=32, RF_ENEMY=64 };   // FRIEND/BFF/ENEMY: remembered so they fire once
 // ---- KIN (CREATE-A-HOUSEHOLD, hhcreate.h): what each Sim IS to each other Sim. kin[a][b] = what a is TO b (a is b's MOTHER). Kept by uid like the
 // relationships, saved right after them in the household block ('H?'), so room slots and the household bank carry it along. Roles from KN_MOTHER up
@@ -81,7 +81,7 @@ static u8 hhObjS[HH_MAX][4][STR_BN] EWRAM_BSS;
 #define TW_N 2                                   // passers-by (townies): OAM, OBJ VRAM and palettes after the members'
 #define TW_V(k) (HH_MAX-1-(k))                    // VISITORS (the old passers-by): visitor k lives in the empty member place TW_V(k) - its HhSim, sprites
                                                  // and palette are that place's - so they take no RAM of their own and only come while the house has room
-static u16 hhPal[HH_MAX][16];                  // a palette per member (index 0 = clear)
+static u16 hhPal[HH_MAX][16] EWRAM_BSS;                  // a palette per member (index 0 = clear)
 // (the 16-bit bake of a member on its way to 4bpp uses the player's own spr4 / spr4s: they are baked again right after)
 static u16 hhDist[MH*MW] EWRAM_BSS;
 #define hhQ bfsQ   // (main.c's shared search queue)   // BFS scratch, shared (one member plans per step)
@@ -416,7 +416,7 @@ static int hhSched(const HhSim*s,int*from,int*to){   // 1 work, 2 school (weekda
     if(s->stage==AG_CHILD||s->stage==AG_TEEN){ *from=8*60-15-(u%3)*5; *to=15*60+(u%4)*5; return 2; }
     return 0;
 }
-static char hhNoteB[40];
+static char hhNoteB[40] EWRAM_BSS;
 static void hhNote(const HhSim*s,const char*w){ if(lnoteT>0) return; char*e=simCat(hhNoteB,s->name); simCat(e,w); lnote=hhNoteB; lnoteT=110; }
 static void hhStepAlong(HhSim*s){   // one step along the path, tile centre to tile centre
     int d=s->path[s->pi];
@@ -426,7 +426,7 @@ static void hhStepAlong(HhSim*s){   // one step along the path, tile centre to t
     else { s->fy+=hhDy[d]*sp; if((hhDy[d]>0&&s->fy>=s->gy)||(hhDy[d]<0&&s->fy<=s->gy)){ s->fy=s->gy; s->pi++; s->gok=0; } }
     s->hd=(u8)(d*4);
 }
-static char twMsg[40];   // "ROXY STACK FROM MAPLE 2 DROPS BY"
+static char twMsg[40] EWRAM_BSS;   // "ROXY STACK FROM MAPLE 2 DROPS BY"
 static int twFar(void){   // where a visitor comes from / goes to: a way off the lot, or (walls all round) somewhere walkable well away from you. -1 = nowhere
     if(hhExN>0) return hhEx[rnd8()%hhExN];
     int px=(int)(lfx>>8), py=(int)(lfy>>8);
@@ -895,7 +895,7 @@ static void fxObjUpdate(void); static void hhObjUpdate0(void){   // in vblank: h
     oam[3]=zoomPa; oam[7]=0; oam[11]=0; oam[15]=zoomPa;   // affine matrix 0 (the ZOOM's sprites): 1 / scale
 }
 static void hhObjUpdate(void){ hhObjUpdate0(); fxObjUpdate(); }   // fx.h: the ghosts and the weather are sprites too
-static HhR hhOld[HH_MAX]; static unsigned hhOldSig[HH_MAX];
+static HhR hhOld[HH_MAX] EWRAM_BSS; static unsigned hhOldSig[HH_MAX] EWRAM_BSS;
 static void hhSave(void);
 static void hhInvite(void){   // a made-up Sim moves in (pause menu > HOUSEHOLD, or SELECT on the RELATIONSHIPS screen)
     if(!xo[XO_SIMRAND]){ toast("MADE-UP SIMS ARE OFF"); return; }

@@ -2060,7 +2060,7 @@ static int eRot;   // editor: which way the next ramp faces (0 S, 1 E, 2 N, 3 W)
 static const char palCh[NOBJ]={'.','w','W','#','=','F','T','D','B','P','1','5','L','N','S','H','C','9','X','O','Y','Z','K','J','M','G','V','U','^','~','Q','I','R','A'};
 static const char* const palNm[NOBJ]={"CLEAR","LOW WALL","WALL","CRATE","RAIL","FRIDGE","TOILET","DOOR","BOARD","SPAWN","KICKER","Q PIPE","LEDGE","BENCH","BED","SHOWER","SOFA","LAUNCH","FUNBOX","BARREL","TRASH CAN","PLANTER","PICNIC","JERSEY","MANUAL PAD","WATER PIPE","LAVA LAMP","BEANBAG","STAIRS UP","STAIRS DOWN","DEADSET 3THOUSAND VYBE","PHONE","RADIO","SOUND SYSTEM"};
 static const u16 palCol[NOBJ]={RGB(26,21,14),RGB(8,20,22),RGB(10,22,24),RGB(8,9,20),RGB(31,30,16),RGB(31,31,31),RGB(30,28,18),RGB(14,9,5),RGB(26,10,6),RGB(28,10,8),RGB(24,17,9),RGB(27,19,11),RGB(20,20,22),RGB(25,18,9),RGB(10,14,28),RGB(22,28,30),RGB(26,18,9),RGB(8,14,24),RGB(18,16,24),RGB(24,6,5),RGB(12,18,14),RGB(20,10,6),RGB(25,18,9),RGB(22,22,24),RGB(30,26,5),RGB(10,24,14),RGB(24,8,26),RGB(18,8,22),RGB(24,22,18),RGB(12,11,10),RGB(6,20,31),RGB(26,6,6),RGB(20,20,22),RGB(12,13,16)};
-static signed char palLut[256]; static u8 palLutOk;   // tile char -> palette slot (or -1), built on first use: palIdx() runs for every tile of the minimap, so it must be O(1) even with 100+ items
+static signed char palLut[256] EWRAM_BSS; static u8 palLutOk;   // tile char -> palette slot (or -1), built on first use: palIdx() runs for every tile of the minimap, so it must be O(1) even with 100+ items
 static int palIdx(char c){
     if(!palLutOk){ for(int i=0;i<256;i++) palLut[i]=-1; for(int i=NOBJ-1;i>=0;i--) palLut[(u8)palCh[i]]=(signed char)i;
         for(int r=0;r<4;r++){ palLut[(u8)('1'+r)]=OB_KICKER; palLut[(u8)('5'+r)]=OB_QPIPE; palLut[(u8)('9'+r)]=OB_LAUNCH; } palLutOk=1; }
@@ -2871,7 +2871,7 @@ static void drawFace(int x,int y,int st){
 // What floats over the room (thought bubble, plumbob) is not part of the room: the pixels under it are saved before it is drawn and put back before
 // it moves, so it costs a copy, not a redraw of the room behind it.
 #define NRC 28   // (room for the household's Sims: each can add its old and new rectangle)
-static Rc rcs[NRC]; static int nrc;
+static Rc rcs[NRC] EWRAM_BSS; static int nrc;
 static int vpValid;                 // the screen holds the room as of pCamX/pCamY (cleared by anything that draws over it: menus, other screens)
 static int pCamX, pCamY;            // camera of the last picture
 static Rc actOld; static int actHas; static unsigned actSig;   // the player's rectangle last picture, and what it was made from
@@ -4151,7 +4151,7 @@ static void creatureEditor(void){ creatorMusStart(); for(;;){ int sw=(sUnlock&&s
 static int jbPlaying, jbCur=-1, jbMsgT;   // jbCur = visible number of the song that plays (or played last)
 static const char*jbMsg; static u8 jbEq[8];
 static u8 jbHist[8]; static int jbHN;      // the songs played before this one (L goes back through them)
-static u16 jbLenC[JB_MAX];                 // length of each songs[] entry in seconds + 1 (0 = not worked out yet)
+static u16 jbLenC[JB_MAX] EWRAM_BSS;                 // length of each songs[] entry in seconds + 1 (0 = not worked out yet)
 static const char* const jbModeName[3]={"SHUFFLE","IN ORDER","REPEAT"};
 static const char* const jbModeInfo[3]={"RANDOM CHECKED SONGS","CHECKED SONGS DOWN THE LIST","THE SAME SONG AGAIN AND AGAIN"};
 static void fillBox(int x0,int x1,int y0,int y1,u16 c){   // x0, x1 must be even (32-bit stores)

@@ -261,7 +261,7 @@ static int jobQuotaOf(int t,int lvl,int br){ return (SIM_QUOTA0+SIM_QUOTA_LVL*lv
 static int jobPayOf(int t,int lvl,int br){ return (SIM_PAY0+SIM_PAY_LVL*lvl)*jobTr[t].pay/100*((br&&lvl>=3)?125:100)/100; }
 static int jobNeedSkill(int lvl){ return lvl/2; }                // a promotion from this level wants this skill level ...
 static int jobNeedFriend(int lvl){ return lvl>=3; }              // ... and from level 3 on one friend in the house
-static char simClk[16], simMsg[40], simMsg2[40], simWTxt[SIM_WS][24] EWRAM_BSS;   // clock text, note buffers, want names with their parameter
+static char simClk[16], simMsg[40] EWRAM_BSS, simMsg2[40] EWRAM_BSS, simWTxt[SIM_WS][24] EWRAM_BSS;   // clock text, note buffers, want names with their parameter
 
 static int simRnd(void){ simRng=simRng*1664525u+1013904223u; return (int)(simRng>>24); }
 static void simQueue(const char* s){ simQ=s; simQ2=0; simQ3=0; simQT=240; }
