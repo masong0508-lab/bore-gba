@@ -11,7 +11,7 @@ static const char* const jobPerkTx[5]={"","+1 SKILL EACH GOOD SHIFT","A BAD SHIF
 static int jobAllowed(int t){ return stage>=AG_ADULT||jobTr[t].teen; }
 static int jobStartLvl(int t){ int l=jobLvl>=5?2:jobLvl>=3?1:0; return l>jobTr[t].top?jobTr[t].top:l; }
 static void jobBranchMenu(void){   // the first visit after reaching level 3: pick the branch
-    static char a[28], b[28]; char*e=simCat(a,jobTitleOf(jobTrack,3,0)); simCat(e,"  STEADY"); e=simCat(b,jobTitleOf(jobTrack,3,1)); simCat(e,"  HIGH PAY");
+    static char a[28] EWRAM_BSS, b[28] EWRAM_BSS; char*e=simCat(a,jobTitleOf(jobTrack,3,0)); simCat(e,"  STEADY"); e=simCat(b,jobTitleOf(jobTrack,3,1)); simCat(e,"  HIGH PAY");
     const char* it[2]={a,b}; int c=menu("PICK A BRANCH",it,2); if(c<0) return;
     jobBr=c; jobChosen=1; simsSave(); toast(c?"BRANCH B  HIGH PAY  HIGH QUOTA":"BRANCH A  STEADY");
 }
@@ -27,9 +27,9 @@ static void careerScreen(void){
         if(pr&K_A){
             if(me){ if(jobLvl>=3&&t->top>=3) jobBranchMenu(); }
             else if(!ok) toast("ADULTS ONLY");
-            else { static char q[40]; char*e=simCat(q,"JOIN "); simCat(e,t->nm); static const char* const yn[2]={"YES  TRANSFER","NO"};
+            else { static char q[40] EWRAM_BSS; char*e=simCat(q,"JOIN "); simCat(e,t->nm); static const char* const yn[2]={"YES  TRANSFER","NO"};
                 if(menu(q,yn,2)==0){ int nlv=jobStartLvl(sel); jobTrack=sel; jobLvl=nlv; jobBr=0; jobChosen=0; jobGood=jobBad=0; shiftPts=0; simsSave();
-                    static char m[40]; char*e2=simCat(m,"NEW JOB  "); simCat(e2,jobTitle()); toast(m); } }
+                    static char m[40] EWRAM_BSS; char*e2=simCat(m,"NEW JOB  "); simCat(e2,jobTitle()); toast(m); } }
             prev=keyNow(); continue;
         }
         if(!pr&&(cnt>>3)==lt){ vsync(); continue; }   // idle: the picture on the screen is still right (the whole backdrop used to be redrawn every frame, so taps landed between polls and were lost)

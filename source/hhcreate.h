@@ -100,7 +100,7 @@ static int hcRelate(int a,int b){   // ask what a is to b (and what b is to a), 
         if(!hcStageOk(ra,uStage(a),uStage(b))||!hcStageOk(rb,uStage(b),uStage(a))){ toast("THEIR AGES DO NOT FIT"); return 0; }
     }
     hcSetKin(a,b,ra,rb);
-    if(ra){ static char q[40]; char*e=simCat(q,kinNm[ra]); e=simCat(e,"  AND  "); simCat(e,kinNm[rb]); toast(q); } else toast("NO RELATION");
+    if(ra){ static char q[40] EWRAM_BSS; char*e=simCat(q,kinNm[ra]); e=simCat(e,"  AND  "); simCat(e,kinNm[rb]); toast(q); } else toast("NO RELATION");
     return 1;
 }
 static void hcAfterAdd(int nu){   // the new Sim nu: who is it related to?
@@ -117,7 +117,7 @@ static void hcAdd(void){   // ADD THIS SIM
     hhSave();
     nameEdit(hhM[m].name,HH_NM-1,"NAME THIS SIM",0); hhSave();
     hcAfterAdd(hhM[m].uid);
-    static char t[36]; char*e=simCat(t,hhM[m].name); e=simCat(e," JOINS  "); e=simCatN(e,hhN+1); e=simCat(e," OF "); simCatN(e,HH_MAX+1); toast(t);
+    static char t[36] EWRAM_BSS; char*e=simCat(t,hhM[m].name); e=simCat(e," JOINS  "); e=simCatN(e,hhN+1); e=simCat(e," OF "); simCatN(e,HH_MAX+1); toast(t);
 }
 static void hcSet(void){   // SET A RELATION: two Sims, then the picker
     const char* lb[HH_MAX+1]; int uid[HH_MAX+1]; int n=hcRoster(lb,uid,-1);

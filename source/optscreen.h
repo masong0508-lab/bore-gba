@@ -302,7 +302,7 @@ static void optAction(int a,int*remeasure){
             svCommit(); for(int i=0;i<16;i++) if(svChip(SRAM_TEST+i)!=(u8)(i*37+0x5A)) ok=0;   // read back from the chip itself
             for(int i=0;i<16;i++) m[i]=0;
             svCommit(); if(svErr) ok=0;
-            static char tb[32]; char*e=tb; for(const char*p=svName();*p;) *e++=*p++; for(const char*p=" WORKS";*p;) *e++=*p++; *e=0;
+            static char tb[32] EWRAM_BSS; char*e=tb; for(const char*p=svName();*p;) *e++=*p++; for(const char*p=" WORKS";*p;) *e++=*p++; *e=0;
             toast(ok?tb:"NO SAVE MEMORY HERE"); } break;
     }
 }

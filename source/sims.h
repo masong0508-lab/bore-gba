@@ -575,7 +575,7 @@ static const char* simBuy(int r){   // returns the note to show
 }
 
 // ---- clock and career ----
-static char jobMsg[32];
+static char jobMsg[32] EWRAM_BSS;
 static void jobPromote(void){   // enough good shifts: a promotion, if the track has a level left and you have the skill and the friend for it
     const JobTr*t=jobT();
     if(jobLvl>=t->top){ if(!simQ) simQueue("TOP OF TRACK  TRANSFER ON PHONE"); return; }

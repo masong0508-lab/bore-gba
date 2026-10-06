@@ -46,7 +46,7 @@ static int hudMsg(const char**txt,u16*col,int*pts){   // the message for the mid
     *pts=0;
     if(ldead){ *txt="PRESS A TO RESPAWN"; *col=RGB(31,12,8); return 1; }
     if(lnear&&!lcamF){ *txt=simAct?"A OR B GET UP":(lnear==1?"R OPEN FRIDGE":lnear==2?"R USE TOILET":lnear==3?"R SLEEP IN BED":lnear==4?"R TAKE A SHOWER":lnear==6?(pipeOk()?"R PUFF THE PIPE":"GROWN-UPS ONLY"):lnear==7?"R JACK IN":lnear==8?"R USE THE PHONE":lnear==9?"R TUNE THE RADIO":lnear==10?"R TUNE THE STEREO":"R SIT ON SOFA"); *col=HC_GOLD; return 1; }
-    if(!lcamF&&!ldead&&lstun<=0){ int m=hhNearest(); if(m>=0){ static char b[24]; char*e=simCat(b,"R TALK TO "); simCat(e,hhM[m].name); if(lnoteT<=0){ *txt=b; *col=HC_GOLD; return 1; } } }   // a household Sim next to you
+    if(!lcamF&&!ldead&&lstun<=0){ int m=hhNearest(); if(m>=0){ static char b[24] EWRAM_BSS; char*e=simCat(b,"R TALK TO "); simCat(e,hhM[m].name); if(lnoteT<=0){ *txt=b; *col=HC_GOLD; return 1; } } }   // a household Sim next to you
     if(lnoteT>0){ *txt=lnote; *col=(lnote==lnBuf&&lnPerf)?HC_GOLD:WHITE; *pts=(lpts&&lnote==lnBuf)?lpts:0; return 1; }
     return 0;
 }

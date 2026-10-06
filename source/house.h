@@ -627,7 +627,7 @@ static int fkDodge(const u8*lk){
 }
 static const char* fkMove(int u,const char*def){ const u8*lk=fkLook(u); return lk[LK_HORNS]==2?"HEADBUTT":lk[LK_CLAWS]==3?"SLASH":lk[LK_CLAWS]==2?"PINCH":lk[LK_CLAWS]==1?"SCRATCH":def; }   // what the blow is called
 static void fkLose(int u,int n){ int m=hhMemOf(u); if(m<0){ lhp-=n; if(lhp<1) lhp=1; } else { int v=hhM[m].hp-n; hhM[m].hp=(u8)(v<1?1:v); } }   // recoil never knocks anyone out
-static char fkB[28];   // what the one who lands a blow reads: "CRIT SLASH 27"
+static char fkB[28] EWRAM_BSS;   // what the one who lands a blow reads: "CRIT SLASH 27"
 static void fightHit(int a,int b){
     const u8*la=fkLook(a), *lb=fkLook(b);
     if((rnd8()*100>>8)<fkDodge(lb)){ hhSay(b,IC_BAIL,"DODGED"); return; }   // eye stalks see it coming, wings flap clear
@@ -760,7 +760,7 @@ static int hhSocR(int useLabel){   // 1 = handled (a social, or the menu was clo
     int m=hhNearest(); if(m<0) return 0;
     HhSim*s=&hhM[m]; int b=s->uid, a=hhPUid;
     if(s->act==HA_USE){ lnote="THEY ARE BUSY"; lnoteT=50; return 0; }
-    static const char* it[SC_N+1]; static char tl[40]; int id[SC_N+1], cat[SC_N+1], n=0;   // (cat: the pie's category, 0 FRIENDLY 1 FUN 2 ROMANTIC 3 MEAN 4 USE)
+    static const char* it[SC_N+1]; static char tl[40] EWRAM_BSS; int id[SC_N+1], cat[SC_N+1], n=0;   // (cat: the pie's category, 0 FRIENDLY 1 FUN 2 ROMANTIC 3 MEAN 4 USE)
     static const char* const useNm[6]={0,"USE THE FRIDGE","USE THE TOILET","SLEEP IN BED","TAKE A SHOWER","SIT ON SOFA"};
     static const u8 socCat[SC_N]={0,1,0,0,0,1,2,2,2,0,3,3,3,3,1};   // TALK JOKE COMPL HIGH5 HUG TRICK FLIRT KISS STEADY SORRY ARGUE INSULT SLAP PUNCH PASS
     if((useLabel>0&&useLabel<6)||useLabel>=8){ it[n]=useLabel==8?"USE THE PHONE":useLabel>=9?"TUNE THE RADIO":useNm[useLabel]; cat[n]=4; id[n++]=-1; }
@@ -904,7 +904,7 @@ static void hhInvite(void){   // a made-up Sim moves in (pause menu > HOUSEHOLD,
     int m=hhAdd(lk,st,rnd8()%AS_PICK,rnd8()&1,tr); if(m<0) return;
     for(int k=0;k<hhN;k++){ hhOld[k].x0=hhOld[k].x1=0; hhOldSig[k]=0xFFFFFFFFu; }
     toast("PLEASE WAIT  MOVING IN"); hhBakeAll(); hhSave();
-    static char t[32]; char*e=simCat(t,hhM[m].name); simCat(e," MOVED IN"); toast(t);
+    static char t[32] EWRAM_BSS; char*e=simCat(t,hhM[m].name); simCat(e," MOVED IN"); toast(t);
 }
 
 static void lookTrueRandom(u8*lk,u8*stg);   // main.c: every slider, part and colour at random
@@ -915,7 +915,7 @@ static void hhInviteTrue(void){   // a truly random Sim moves in: any age from c
     int m=hhAdd(lk,st,st<AG_ADULT?AS_GROW:rnd8()%AS_PICK,rnd8()&1,tr); if(m<0) return;
     for(int k=0;k<hhN;k++){ hhOld[k].x0=hhOld[k].x1=0; hhOldSig[k]=0xFFFFFFFFu; }
     toast("PLEASE WAIT  MOVING IN"); hhBakeAll(); hhSave();
-    static char t[32]; char*e=simCat(t,hhM[m].name); simCat(e," MOVED IN"); toast(t);
+    static char t[32] EWRAM_BSS; char*e=simCat(t,hhM[m].name); simCat(e," MOVED IN"); toast(t);
 }
 static void hhLoad(void);
 static void hhStart(void){   // entering the life game: load the household and stand everyone somewhere free

@@ -65,7 +65,7 @@ static void stKidHome(void){   // the promised child moves in: a mix of you and 
     stRel(hhPUid,hhM[m].uid,50,40,RF_FRIEND); if(p>=0) stRel(hhM[p].uid,hhM[m].uid,50,40,RF_FRIEND);
     for(int k=0;k<hhN;k++){ hhOld[k].x0=hhOld[k].x1=0; hhOldSig[k]=0xFFFFFFFFu; }
     toast("PLEASE WAIT  YOUR CHILD IS COMING HOME"); hhBakeAll(); hhSave(); liveInvalidate();
-    static char t[40]; char*e=simCat(t,hhM[m].name); simCat(e," IS HOME"); toast(t);
+    static char t[40] EWRAM_BSS; char*e=simCat(t,hhM[m].name); simCat(e," IS HOME"); toast(t);
     stKid=hhM[m].uid;   // (the kid goals are about this child)
 }
 static int stValue(const StCh*c){   // the number a goal counts (-1: the goal has none)
@@ -108,7 +108,7 @@ static int jbStoryDone(int story,int ch){   // 1 when this mission was the one t
     if(n*2<(STY_N-1)*SM_PER) return 0;
     int a=jbUnlock(UL_CLOSER), t=jbUnlock(UL_TREE); return a|t;
 }
-static void stAnnounce(void){ static char t[44]; char*e=slCat(t,"CHAPTER "); e=slNum(e,stCh+1); e=slCat(e,"  "); slCat(e,stChs[stId][stCh].nm); lnote=t; lnoteT=240; }
+static void stAnnounce(void){ static char t[44] EWRAM_BSS; char*e=slCat(t,"CHAPTER "); e=slNum(e,stCh+1); e=slCat(e,"  "); slCat(e,stChs[stId][stCh].nm); lnote=t; lnoteT=240; }
 static void stTick(void){   // once per logic step in the life game: is this chapter done?
     static u8 cnt; if(!stId||++cnt<60) return; cnt=0;
     if(stCh>=stLen[stId]) return;

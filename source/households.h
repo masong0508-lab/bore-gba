@@ -170,7 +170,7 @@ static int hhMoveOut(int m){   // member m moves out: to a free lot of the town 
     int r=lot>=0?bkFree():-1, there=0;
     if(r>=0&&bkPutSim(r,nbKey(&nbT),lot,&hhM[m])) there=1;
     hhRemove(m); for(int k=0;k<hhN;k++){ hhOld[k].x0=hhOld[k].x1=0; hhOldSig[k]=0xFFFFFFFFu; } hhSave();
-    if(there){ static char t[40]; char*e=slCat(t,"THEY LIVE ON "); slCat(e,nbT.lot[lot].name); toast(t); nbSave(); } else toast("MOVED OUT OF TOWN");
+    if(there){ static char t[40] EWRAM_BSS; char*e=slCat(t,"THEY LIVE ON "); slCat(e,nbT.lot[lot].name); toast(t); nbSave(); } else toast("MOVED OUT OF TOWN");
     return 1;
 }
 
@@ -193,7 +193,7 @@ static void phInvite(void){   // someone from another household comes over (they
     s->uid=255; s->bubT=0; s->hp=HP_MAX; s->act=HA_IDLE; s->pn=s->pi=0;
     twHas[k]=1;   // (a guest staying over counts for STORY MODE's HAVE A NEIGHBOR OVER: story.h watches twOn) twOn[k]=0; twWait[k]=90; hhKey[v]=0; twKeep=1;
     toast("PLEASE WAIT  THEY ARE ON THEIR WAY"); hhBakeAll();
-    static char t[40]; char*e=simCat(t,s->name); simCat(e," IS COMING OVER"); toast(t);
+    static char t[40] EWRAM_BSS; char*e=simCat(t,s->name); simCat(e," IS COMING OVER"); toast(t);
 }
 static void careerScreen(void);   // career.h
 static void phoneMenu(void){   // pause menu > PHONE

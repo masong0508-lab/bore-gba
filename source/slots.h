@@ -628,7 +628,7 @@ static int slActions(int s){
         case SA_COPY:{
             int d=-1; for(int i=0;i<SLOT_N;i++) if(slOwner[i]<0){ d=i; break; }
             if(d<0){ toast("NO FREE SLOT"); break; }
-            int e=slCopy(s,d); static char cm[24]; slNum(slCat(cm,"COPIED TO SLOT "),d+1); toast(e?slErrMsg(e):cm);
+            int e=slCopy(s,d); static char cm[24] EWRAM_BSS; slNum(slCat(cm,"COPIED TO SLOT "),d+1); toast(e?slErrMsg(e):cm);
         } break;
         case SA_INFO: slInfoScreen(s); break;
         case SA_DELPL: if(!conf||menu("DELETE THIS PLAYER",slYesNo,2)==1){ sgDeletePid(I->pid); toast("PLAYER DELETED"); } break;

@@ -341,7 +341,7 @@ static int nbLotMenu(int li){   // returns 1 when the screen should close (play 
     NbLot*L=&nbT.lot[li]; const char*it[9]; int id[9], n=0;
     enum { A_PLAY, A_BUILD, A_MOVE, A_RENAME, A_TYPE, A_BULL, A_DEL, A_HH, A_NEWHH };
     char who[24]; who[0]=0; int lives=L->kind==LKIND_RES&&nbWho(li,who);
-    static char ph[32]; if(lives){ char*e=slCat(ph,"PLAY "); slCat(e,who); it[n]=ph; id[n++]=A_HH; }   // (The Sims 2: play the household that lives there)
+    static char ph[32] EWRAM_BSS; if(lives){ char*e=slCat(ph,"PLAY "); slCat(e,who); it[n]=ph; id[n++]=A_HH; }   // (The Sims 2: play the household that lives there)
     else if(L->kind==LKIND_RES&&li!=nbT.home){ it[n]="NEW HOUSEHOLD HERE"; id[n++]=A_NEWHH; }
     it[n]=L->kind==LKIND_COMM?"VISIT":li==nbT.home?"PLAY":"PLAY HERE"; id[n++]=A_PLAY;
     it[n]="BUILD"; id[n++]=A_BUILD;

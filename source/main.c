@@ -1385,7 +1385,7 @@ static int bdx=10, bdy=4, spx=3, spy=6;   // skateboard tile and spawn tile, fou
 #define BDX bdx
 #define BDY bdy
 static int lsp,lhd,lspin,lflip,lgrind,lscore,lstun,lairF,lpts,lnoteT,lglide; static const char*lnote;
-static char lnBuf[24]; static u8 lnPerf; static int lLand, lLandD;   // lnBuf: the name of the trick just landed ("KICK 360 GRAB"); lLand: frames of landing crouch left, lLandD: how far the fall was
+static char lnBuf[24] EWRAM_BSS; static u8 lnPerf; static int lLand, lLandD;   // lnBuf: the name of the trick just landed ("KICK 360 GRAB"); lLand: frames of landing crouch left, lLandD: how far the fall was
 static int stModal; static void stRunModal(void);   // story.h: a chapter card is waiting (1 chapter intro, 2 chapter done); lifeModeRun shows it like the pause menu
 static int tutOn;   // 1 while the tutorial runs (tutorial.h): nobody dies, like the Sims 2 tutorial neighborhood
 
@@ -1677,9 +1677,9 @@ typedef struct {
 static MDeck xdk EWRAM_BSS; static s8 xbufL[MUS_N] EWRAM_BSS, xbufR[MUS_N] EWRAM_BSS;
 static volatile int xfOn, xfT, xfN, xdkG=256;   // crossfade running, frames done, frames in all, the old song's gain when it was put aside (256 = full)
 static const u16 xfCurve[17]={0,25,50,74,98,121,142,162,181,198,213,226,237,245,251,255,256};   // sin(90 deg x k/16) x 256: equal power
-IWRAM_ARM static int xfGain(int t,int n){ int p=t*256/n; if(p<0) p=0; if(p>256) p=256; int i=p>>4, f=p&15, a=xfCurve[i], c=xfCurve[i<16?i+1:16]; return a+(((c-a)*f)>>4); }
+static int xfGain(int t,int n){ int p=t*256/n; if(p<0) p=0; if(p>256) p=256; int i=p>>4, f=p&15, a=xfCurve[i], c=xfCurve[i<16?i+1:16]; return a+(((c-a)*f)>>4); }
 #define XSW(T,A,B) { T t_=A; A=B; B=t_; }
-IWRAM_ARM static void deckSwap(MDeck*d){   // exchange the main deck (the globals) with d
+static void deckSwap(MDeck*d){   // exchange the main deck (the globals) with d
     XSW(const XmSong*,mSong,d->song) XSW(int,mOrd,d->ord) XSW(int,mRow,d->row) XSW(int,mLeft,d->left) XSW(int,mFrac,d->frac) XSW(int,mKind,d->kind) XSW(int,aTail,d->tail)
     XSW(int,aSlow,d->aSlow) XSW(int,aPrv,d->aPrv) XSW(int,aPh,d->aPh) XSW(const u8*,aSrc,d->aSrc) XSW(u32,aN,d->aN) XSW(u32,aPos,d->aPos) XSW(int,aPred,d->aPred) XSW(int,aIdx,d->aIdx) XSW(int,aLoop,d->aLoop) XSW(int,aPred0,d->aPred0) XSW(int,aIdx0,d->aIdx0)
     XSW(int,mDp,d->dp) XSW(int,mLp,d->lp) XSW(CSyn,csy,d->cs)
@@ -1955,7 +1955,7 @@ static void fightHurt(int dmg){
     lhp-=dmg; lsp=0; lgrind=0; sfxPlay(SFX_HIT);
     if(lhp<=0){ lhp=25; lstun=240; sfxPlay(SFX_GROAN); voxPlay(V_lost_the_fight); lnote="KNOCKED OUT"; lnoteT=120; moodEvent(M_HURT_BIG); }
     else { if(lhp<35&&!vxLosing){ vxLosing=1; voxPlay(V_losing_the_fight); }   // still on your feet, but losing
-        static char fhB[16]; char*e=simCat(fhB,dmg>=30?"OUCH ":"OW "); *e++='-'; simCatN(e,dmg); if(lstun<30) lstun=30; lnote=fhB; lnoteT=40; }   // and how much
+        static char fhB[16] EWRAM_BSS; char*e=simCat(fhB,dmg>=30?"OUCH ":"OW "); *e++='-'; simCatN(e,dmg); if(lstun<30) lstun=30; lnote=fhB; lnoteT=40; }   // and how much
 }
 
 #include "ramps.h"
@@ -3917,7 +3917,7 @@ static void famAdd(void){
     if(custom){ toast("BLOCK-BUILT BODIES STAY YOURS"); return; }
     hhLoad(); int m=hhAdd(look,stage,pAsp,pLtw,pTr);
     if(m<0){ toast("THE HOUSE IS FULL"); return; }
-    hhSave(); static char t[36]; char*e=simCat(t,hhM[m].name); e=simCat(e," JOINS  "); e=simCatN(e,hhN+1); e=simCat(e," OF "); simCatN(e,HH_MAX+1); toast(t);
+    hhSave(); static char t[36] EWRAM_BSS; char*e=simCat(t,hhM[m].name); e=simCat(e," JOINS  "); e=simCatN(e,hhN+1); e=simCat(e," OF "); simCatN(e,HH_MAX+1); toast(t);
 }
 static void famMenu(void){
     hhLoad(); if(!hhN){ toast("ONLY YOU SO FAR"); return; }
@@ -3935,7 +3935,7 @@ static void famMenu(void){
     for(int i=0;i<HH_NM;i++){ char t=hhPName[i]; hhPName[i]=s->name[i]; s->name[i]=t; t=hhPLast[i]; hhPLast[i]=s->last[i]; s->last[i]=t; }
     { int t=hhPUid; hhPUid=s->uid; s->uid=(u8)t; }
     custom=0; ageDays=0; fixLook(); buildLook(); setColors(); ageSave(); persSave(); hhSave();
-    static char t[32]; simCat(simCat(t,"NOW EDITING "),hhPName); toast(t);
+    static char t[32] EWRAM_BSS; simCat(simCat(t,"NOW EDITING "),hhPName); toast(t);
 }
 #include "hhcreate.h"   // CREATE-A-HOUSEHOLD: the DONE tab's HOUSEHOLD row (add Sims, who is whose mother / sister / roommate)
 static const u8 lkCnt[LK_N]={NSHAPE,NSKIN,NEYE,NMOUTH,3,NHAIR,NSW,NSW,NSW,9,9,9,3,3,3,6,6,3,4,3,6, 6,6,5,4,NSW, 9,9,9,9,9,9,9, 4,3,7,6, 9,9,9,9,9,9,9,9,9, 5,4,4, 9,9,9, 9,9,9,9,9,9,9, 9,9,9,9,9,9,9, 9,9,9,7, 9,9,9, 9};   // how many options each look row has (sliders: 9)
