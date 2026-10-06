@@ -720,3 +720,6 @@ The Sim you control talks. 43 clips (tools/voices_src/*.wav, cleaned and trimmed
 and source/voices.h (X-macro list, ROM blobs, V_<name> ids). They play on the one effect voice, so the newest sound wins. `voxPlay(V_x)` always plays, `voxNag(V_x)` only when nothing else sounds,
 `voxChain(a,b,c)` plays three in a row (the pipe: lighter, inhale, cough). Who plays what: `voxEvent` (main.c, called from sims.h simEventV) for life events, `voxSoc` (house.h) for socials,
 and spots in main.c: falls (shriek), bails (cry), instant death (die of shock), fights (lets fight / losing / lost / win), hunger and bladder nags, sleep (snore), new wants (thinking).
+
+## Slider locks (roadmap #5)
+Most creator sliders start locked and are bought in six packs with jenes (BODY SHAPE 40, BODY DETAIL 80, BUTT 50, FACE DETAIL 40, EAR SLIDERS 30, PART SLIDERS 60): press A on a locked slider. Free essentials: HEIGHT, WEIGHT, SKIN TONE, EYE SIZE, EYE SHADE, HAIR / TOP / BOTTOM tone. The Konami code (sUnlock) opens everything. Looks keep the values they already hold (old saves carry over); the lock only stops editing, and ROLL THE DICE / TRUE RANDOM for you leave a locked slider in the middle. Saved in the jukebox block at JB_OFF+32: 'S' 'K', the pack bits, the bits xor 0x5A (appended; nothing moved, nothing resized). Code: "SLIDER LOCKS" above the creator in main.c.

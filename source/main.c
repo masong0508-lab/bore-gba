@@ -3433,6 +3433,41 @@ static void mapEditor(void){
 }
 
 
+// ---------- SLIDER LOCKS (roadmap #5) ----------
+// Most creator sliders start LOCKED and are bought in packs with jenes (A on a locked slider, like a part). The ESSENTIALS stay free:
+// HEIGHT, WEIGHT, SKIN TONE, EYE SIZE, EYE SHADE and the HAIR / TOP / BOTTOM tones. The Konami code (sUnlock) opens everything.
+// A look keeps whatever its sliders already hold (old saves and Sims made before this carry over untouched); a lock only stops EDITING, and the
+// dice (ROLL THE DICE / TRUE RANDOM, for you) leave a locked slider in the middle.
+// Saved for good, for every life, in the jukebox block: JB_OFF+32 'S' 'K', the unlocked packs (one bit each), the bits xor 0x5A (appended: nothing moved).
+// Add a pack: raise NSLK (8 at most for the one byte), add a name and a cost below and the sliders to slkPack().
+#define NSLK 6
+static const char* const slkNm[NSLK]={"BODY SHAPE","BODY DETAIL","BUTT","FACE DETAIL","EAR SLIDERS","PART SLIDERS"};
+static const short slkCost[NSLK]={40,80,50,40,30,60};   // jenes (pDna) for each pack
+static u8 slkUl;   // unlocked packs
+static void slkSave(void){ volatile u8*m=SRAM_BASE+JB_OFF; m[32]='S'; m[33]='K'; m[34]=slkUl; m[35]=(u8)(slkUl^0x5A); }
+static void slkLoad(void){ volatile u8*m=SRAM_BASE+JB_OFF; slkUl=(m[32]=='S'&&m[33]=='K'&&(u8)(m[34]^0x5A)==m[35])?(u8)(m[34]&((1<<NSLK)-1)):0; }
+static int slkPack(int id){   // which pack a slider is in: -1 = an essential (always free) or not a slider
+    switch(id){
+      case LK_HEIGHT: case LK_WEIGHT: case LK_TONE: case LK_EYESZ: case LK_EYETONE: case LK_HTONE: case LK_TTONE: case LK_BTONE: return -1;
+      case LK_TORSO: case LK_ARMS: case LK_STANCE: case LK_LEGW: case LK_ARMW: case LK_HEADSZ: case LK_HANDFT: return 0;
+      case LK_NECK: case LK_NECKW: case LK_HIPW: case LK_WAISTW: case LK_SHOULW: case LK_THIGHW: case LK_CALFW: case LK_CHESTW: case LK_BELLYW:
+      case LK_UARMW: case LK_FARMW: case LK_JAWW: case LK_HANDSZ: case LK_FOOTSZ: return 1;
+      case LK_BUTT: case LK_BUTTH: case LK_BUTTW: return 2;
+      case LK_EYESP: case LK_EYEHT: case LK_BROWHT: case LK_NOSEHT: case LK_MOUTHW: case LK_MOUTHHT: return 3;
+      case LK_EARSZ: case LK_EARLF: case LK_EARFWD: case LK_EARSPR: case LK_EARWID: return 4;
+      default: return lkSlide(id)?5:-1;   // every other slider is a part slider (ANT, TAIL, HORN, WING)
+    }
+}
+static int slkFree(int id){ int p=slkPack(id); return p<0||sUnlock||(slkUl>>p&1); }
+static void slkMiddle(void){ for(int id=0;id<LK_N;id++) if(lkSlide(id)&&!slkFree(id)) look[id]=0; }   // (0 = the middle notch)
+static int slkBuy(int id){   // A on a locked slider: spend jenes on its pack. 1 = bought
+    int p=slkPack(id), c=slkCost[p]; char t[32]; static const char* const it[2]={"YES  UNLOCK IT","NO"};
+    if(pDna<c){ char*e=t; const char*q="NEED "; while(*q) *e++=*q++; e+=numStr(e,c); q=" JENES"; while(*q) *e++=*q++; *e=0; toast(t); return 0; }
+    { char*e=t; const char*q=slkNm[p]; while(*q) *e++=*q++; *e++=' '; e+=numStr(e,c); q=" JENES?"; while(*q) *e++=*q++; *e=0; }
+    if(menu(t,it,2)!=0) return 0;
+    pDna=(u16)(pDna-c); slkUl|=(u8)(1<<p); slkSave(); persSave(); return 1;
+}
+
 // ---------- creature creator ----------
 // Pick a look from numbered tabs (like a character creator): the body, the face, the hair, the clothes, Spore-style PARTS that change
 // what the creature can do, and (like Create-A-Bore) its ASPIRATION, lifetime want and personality.
@@ -3670,6 +3705,11 @@ static void drawRowSet(int tab,int sel){
         text(CDX+9,y,r->lab,f?WHITE:DIMC,1);
         int cur=r->id==LK_AGE?stage:look[r->id], rk, cnt=lkCount(r->id,r->n,&rk);
         if(r->kind==RK_SLIDE){   // a slider: a track with a notch for each step and a knob on the current one
+            if(!slkFree(r->id)){   // locked: the pack's price where the knob would be, a padlock after it (A buys the pack)
+                char b[14]; numStr(b,slkCost[slkPack(r->id)]); u16 lc=RGB(28,10,8);
+                int x=text(CDX+11,y+10,b,lc,1)+3; x=text(x,y+10,"JENES",lc,1)+4;
+                rect(x,y+11,5,4,lc); rect(x+1,y+9,3,2,lc); px(x+2,y+10,f?FOCUS:CARD);
+                continue; }
             int pos=slidePos(look[r->id]); u16 ink=f?GOLD:RGB(10,12,16);
             rect(CDX+11,y+12,65,1,f?DIMC:RGB(8,10,16));
             for(int q=0;q<9;q++) rect(CDX+11+q*8,y+(q==4?9:10),1,q==4?7:5,f?DIMC:RGB(8,10,16));
@@ -3709,9 +3749,10 @@ static void drawCreatorPanel(int tab,int sel){
     drawIcon(CDX+6,CDY+6,tab,GOLD); text(CDX+20,CDY+4,tabNm[tab],GOLD,2);
     rect(CDX+5,CDY+20,CDW-10,1,GOLD2);
     drawRowSet(tab,sel);
-    const Row*rs=&tabRow[tab][sel]; int act=(rs->kind==RK_ACT||rs->kind==RK_DUO), buy=rs->kind==RK_PICK&&isPart(rs->id)&&!partFree(rs->id,look[rs->id]), x;
+    const Row*rs=&tabRow[tab][sel]; int act=(rs->kind==RK_ACT||rs->kind==RK_DUO), buy=rs->kind==RK_PICK&&isPart(rs->id)&&!partFree(rs->id,look[rs->id]), lkS=rs->kind==RK_SLIDE&&!slkFree(rs->id), x;
     x=kcap(128,132,"L"); x=kcap(x,132,"R"); x=klab(x,132,"TABS"); x=kcapAr(x,132,1); klab(x,132,"ROW");
     if(buy){ x=kcap(128,142,"A"); x=klab(x,142,"BUY"); x=kcapAr(x,142,0); klab(x,142,"CHANGE"); }
+    else if(lkS){ x=kcap(128,142,"A"); klab(x,142,"UNLOCK THE PACK"); }
     else { x=act?kcap(128,142,"A"):kcapAr(128,142,0); x=klab(x,142,act?"CHOOSE":"CHANGE"); if(rs->kind==RK_DUO){ x=kcapAr(x,142,0); klab(x,142,"SIDE"); } }
     x=kcap(128,152,"START"); x=klab(x,152,"DONE"); x=kcap(x,152,"B"); klab(x,152,"BACK");
 }
@@ -3849,7 +3890,7 @@ static const u8 lkCnt[LK_N]={NSHAPE,NSKIN,NEYE,NMOUTH,3,NHAIR,NSW,NSW,NSW,9,9,9,
 static void lookRandom(void){   // the dice (like Create-A-Bore): a whole new look and personality, only from what this stage and your unlocked parts allow
     const u8*cnt=lkCnt;
     for(int id=0;id<LK_N;id++){
-        if(lkSlide(id)){ look[id]=(u8)slideVal(rnd8()%5+rnd8()%5); continue; }   // most land near the middle
+        if(lkSlide(id)){ look[id]=slkFree(id)?(u8)slideVal(rnd8()%5+rnd8()%5):0; continue; }   // most land near the middle (a locked slider stays in the middle)
         for(int t=0;t<20;t++){ int v=rnd8()%cnt[id];
             if(isPart(id)&&(!partFree(id,v)||(rnd8()&1))) v=0;
             if((id==LK_PATTERN||id==LK_FEARS||id==LK_MUZZLE||id==LK_FTAIL||id==LK_TAILTIP)&&(rnd8()%3)) v=0;   // parts: half the time none, never a locked one (and the animal bits now and then)
@@ -3876,13 +3917,13 @@ static void lookTrueRandom(u8*lk,u8*stg){
     for(int i=0;i<LK_N;i++) look[i]=sl[i]; stage=ss;
 }
 static void lookTrueRandomMe(void){   // the creator's TRUE RANDOM row: the same for you (your age stays), and a new personality
-    u8 lk[LK_N], st=stage; lookTrueRandom(lk,&st); for(int i=0;i<LK_N;i++) look[i]=lk[i];
+    slkLoad(); u8 lk[LK_N], st=stage; lookTrueRandom(lk,&st); for(int i=0;i<LK_N;i++) look[i]=lk[i]; slkMiddle();   // (a locked slider stays in the middle)
     setSign(rnd8()%12); pAsp=(u8)(rnd8()%AS_PICK); pLtw=(u8)(rnd8()&1); persSave();
     custom=0; fixLook(); buildLook(); setColors();
 }
 #define TRIG(m,i) ((pressed&(m))||(hold[i]>14&&(hold[i]&3)==0))   // pressed now, or held long enough to repeat
 static int creatorNew(void){   // returns 1 when the secret code switched screens, 0 when leaving
-    int tab=0, rs[NTAB]={0}, dirty=3, hold[10]={0}; u16 prev=keyNow();
+    int tab=0, rs[NTAB]={0}, dirty=3, hold[10]={0}; u16 prev=keyNow(); slkLoad();
     if(!(shapeMask()>>look[LK_SHAPE]&1)){ look[LK_SHAPE]=(u8)maskPick(shapeMask(),look[LK_SHAPE],NSHAPE); if(!custom) buildLook(); }   // BIG HEAD goes away when the Konami code is off
     for(;;){
         u16 k=keyNow(), pressed=k&~prev; prev=k;
@@ -3921,6 +3962,8 @@ static int creatorNew(void){   // returns 1 when the secret code switched screen
             if(d||(pressed&K_A)){ persStep(r,d?d:1); prev=keyNow(); for(int i=0;i<10;i++) hold[i]=0; dirty|=2; }
         } else if((pressed&K_A)&&isPart(r->id)&&!partFree(r->id,look[r->id])){
             buyPart(r->id); prev=keyNow(); for(int i=0;i<10;i++) hold[i]=0; dirty=3;
+        } else if(r->kind==RK_SLIDE&&!slkFree(r->id)){   // a locked slider: only A (buy the pack) does anything
+            if(pressed&K_A){ slkBuy(r->id); prev=keyNow(); for(int i=0;i<10;i++) hold[i]=0; dirty=3; }
         } else if(d||(pressed&K_A)){
             lookStep(r->id,r->n,d?d:1); prev=keyNow(); for(int i=0;i<10;i++) hold[i]=0; dirty=3;
         }
