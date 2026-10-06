@@ -159,10 +159,12 @@ static int stProg(const StCh*c,char*b){
     char*e=slNum(b,v); e=slCat(e," OF "); slNum(e,of); return 1;
 }
 static void storyScreen(void){   // pause menu > STORY: the story journal, a chapter timeline
-    u16 prev=keyNow(); u32 cnt=0;
+    u16 prev=keyNow(); u32 cnt=0, lt=~0u;
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
         if(pr&(K_A|K_B|K_START)) return;
+        if(!pr&&(cnt>>3)==lt){ vsync(); continue; }   // idle: the picture on the screen is still right (the whole backdrop used to be redrawn every frame, so taps landed between polls and were lost)
+        lt=cnt>>3;
         stBack(stId?"STORY JOURNAL":"STORY",(int)cnt);
         if(!stId){
             s2rr(8,24,224,60,RGB(10,20,30)); s2rr(9,25,222,58,RGB(2,6,13));
@@ -212,14 +214,16 @@ static void stRunModal(void){
 }
 // NEW GAME > STORY MODE: pick a story on a story card (LEFT RIGHT to flip through them, A to start)
 static int storyPick(void){
-    int sel=1; u16 prev=keyNow(); u32 cnt=0;
+    int sel=1; u16 prev=keyNow(); u32 cnt=0, lt=~0u;
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
-        if(pr&(K_RIGHT|K_R)) sel=sel%(STY_N-1)+1;
-        if(pr&(K_LEFT|K_L)) sel=(sel+STY_N-3)%(STY_N-1)+1;
+        if(pr&(K_RIGHT|K_R|K_DOWN)) sel=sel%(STY_N-1)+1;
+        if(pr&(K_LEFT|K_L|K_UP)) sel=(sel+STY_N-3)%(STY_N-1)+1;
         if(pr&K_A) return sel;
         if(pr&(K_B|K_START)) return 0;
-        stBack("WHICH STORY?",(int)cnt);
+        if(!pr&&(cnt>>3)==lt){ vsync(); continue; }   // idle: the picture on the screen is still right (the whole backdrop used to be redrawn every frame, so taps landed between polls and were lost)
+        int full=(cnt>>3)!=lt; lt=cnt>>3;
+        if(full) stBack("WHICH STORY?",(int)cnt);   // the backdrop and title bar only when the plumbob moves: a flip redraws just the card (it paints over the old one)
         s2rr(8,21,224,126,RGB(16,27,31)); s2rr(9,22,222,124,RGB(2,6,13)); s2grad(10,23,220,122,3,9,19,1,4,10);
         s2rr(14,27,44,40,RGB(10,20,30)); s2grad(15,28,42,38,7,16,26,3,8,16); stIcon(sel,18+((cnt>>4)&1),33,4,RGB(31,20,22));   // the story's picture (it beats slowly)
         text(64,28,stNm[sel],GOLD,2); text(64,46,stTag[sel],RGB(17,29,31),1);

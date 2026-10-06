@@ -16,7 +16,7 @@ static void jobBranchMenu(void){   // the first visit after reaching level 3: pi
     jobBr=c; jobChosen=1; simsSave(); toast(c?"BRANCH B  HIGH PAY  HIGH QUOTA":"BRANCH A  STEADY");
 }
 static void careerScreen(void){
-    int sel=jobTrack; u16 prev=keyNow(); u32 cnt=0;
+    int sel=jobTrack; u16 prev=keyNow(); u32 cnt=0, lt=~0u;
     if(jobLvl>=3&&jobT()->top>=3&&!jobChosen) jobBranchMenu();
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
@@ -32,6 +32,8 @@ static void careerScreen(void){
                     static char m[40]; char*e2=simCat(m,"NEW JOB  "); simCat(e2,jobTitle()); toast(m); } }
             prev=keyNow(); continue;
         }
+        if(!pr&&(cnt>>3)==lt){ vsync(); continue; }   // idle: the picture on the screen is still right (the whole backdrop used to be redrawn every frame, so taps landed between polls and were lost)
+        lt=cnt>>3;
         stBack("CAREER",(int)cnt);
         s2rr(6,20,228,108,RGB(16,27,31)); s2rr(7,21,226,106,RGB(2,6,13)); s2grad(8,22,224,104,3,9,19,1,4,10);
         text(14,26,t->nm,GOLD,2);

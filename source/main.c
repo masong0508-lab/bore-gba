@@ -2338,9 +2338,10 @@ static u16 keyNow(void){   // BUTTONS option: A/B and L/R can be swapped here, s
 static void objHideAll(void){ for(int i=0;i<32;i++) ((volatile u16*)0x07000000)[i*4]=0x200; }   // household sprites off (menus, other screens)
 static void box(int x,int y,int w,int h){ objHideAll(); rect(x-1,y-1,w+2,h+2,GOLD); rect(x,y,w,h,RGB(3,4,7)); }
 static int menu(const char*title,const char*const*it,int n){   // UP/DOWN + A to choose, B or START to cancel (returns -1)
-    int sel=0, w=116, h=26+n*10, x=(SW-w)/2, y=(SH-h)/2, dirty=1; u16 prev=keyNow();
+    int sel=0, w=116, h=26+n*10, x=(SW-w)/2, y=(SH-h)/2, dirty=1, hold=0; u16 prev=keyNow();
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k;
+        if(k&(K_UP|K_DOWN)){ if(++hold>24&&hold%6==0) pr|=k&(K_UP|K_DOWN); } else hold=0;   // hold UP or DOWN to run down a long list
         if(pr&K_DOWN){ sel=(sel+1)%n; dirty=1; }
         if(pr&K_UP){ sel=(sel+n-1)%n; dirty=1; }
         if(pr&K_A) return sel;
@@ -4428,7 +4429,7 @@ static void howToPlay(void){
     const char* const* ln[7]={lifeHelp,creatureHelp,mapHelp,jbHelp,slotHelp,optHelp,nbHelp};
     static const unsigned char nn[7]={18,15,14,15,13,12,16};
     enum { VIS=13, LY=34, LH=104 };
-    int tab=0, sc=0; u32 cnt=0; u16 prev=keyNow();
+    int tab=0, sc=0; u32 cnt=0, lt=~0u; u16 prev=keyNow();
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
         if(pr&(K_B|K_START)) return;
@@ -4437,6 +4438,8 @@ static void howToPlay(void){
         int n=nn[tab], mx=n>VIS?n-VIS:0;
         if((pr&K_DOWN)&&sc<mx) sc++;
         if((pr&K_UP)&&sc>0) sc--;
+        if(!pr&&(cnt>>3)==lt){ vsync(); continue; }   // idle: the picture on the screen is still right (the whole backdrop used to be redrawn every frame, so taps landed between polls and were lost)
+        lt=cnt>>3;
         objHideAll();
         s2grad(0,0,SW,SH,1,4,10,2,9,17);                                       // the backdrop: deep Sims blue
         for(int y=0;y<SH;y+=8) for(int x=(y&8)?4:0;x<SW;x+=8) rect(x,y,1,1,RGB(3,9,17));   // a faint diamond lattice
@@ -4467,7 +4470,7 @@ static int newGame(int slot){   // 1 = it started (and ended: back to the main m
     int c=menu("HOW DO YOU START?",ngIt,4); if(c<0) return 0;
     int story=0; if(c==3){ story=storyPick(); if(!story) return 0; }
     int f=0; if(c==1){ const char* fm[HH_NFAM]; for(int i=0;i<HH_NFAM;i++) fm[i]=hhFams[i].fam; f=menu("WHICH FAMILY?",fm,HH_NFAM); if(f<0) return 0; }
-    static const char* const yn[2]={"YES  NEW LIFE","NO"}; if(menu("START OVER?",yn,2)!=0) return 0;
+    static const char* const yn[2]={"YES  NEW LIFE","NO"}; if(!sgWant&&menu("START OVER?",yn,2)!=0) return 0;   // (a NEW PLAYER has nothing to start over: the player in play was saved first)
     if(slot>=0){ if(!nbSwitch(slot)){ nbOk=nbLoad(); toast(nbErr); return 0; } nbOk=1; nbBounds(); }
     if(sgWant){ sgPickHome(); sgPid=sgWant; sgWant=0; } else sgPid=0;   // a NEW PLAYER gets a home lot and a save file of their own; a new life started elsewhere belongs to no save file
     twKeep=0; simsNewLife(); moodReset(); lscore=0; simLastScore=0;

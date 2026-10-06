@@ -157,15 +157,15 @@ static void sgDraw(const int*l,int n,int sel){
             if(sgPid==I->pid) text(190,y,"PLAYING",GOLD,1); }
         else text(16,y+2,i==n?"NEW PLAYER":i==n+1?"NEIGHBORHOODS":"TEST MAP",nc,1);
     }
-    text(12,112,"UP DOWN PICK  A OPEN  B BACK",WHITE,1);
+    text(12,112,"UP DOWN PICK  A PLAY  START MORE",WHITE,1);
     text(12,125,"EVERY PLAYER HAS A SAVE FILE OF THEIR OWN",DIMC,1);
     text(12,134,"AND LIVES ON A LOT OF THE SHARED TOWN",DIMC,1);
     text(12,143,"PAUSE  SAVE GAME SAVES AT ONCE",DIMC,1);
 }
 static void sgLeaveSave(void){ if(sgPid){ int e=sgSave(); toast(e?slErrMsg(e):"GAME SAVED"); } }   // leaving play saves the player
-static void sgPlayerMenu(int slot){
+static void sgPlayerMenu(int slot,int c0){   // c0: -1 asks (CONTINUE / NEIGHBORHOOD / DELETE), else that choice at once (A on a player = CONTINUE)
     static const char* const it[3]={"CONTINUE","NEIGHBORHOOD","DELETE PLAYER"};
-    int pid=slI[slot].pid, c=menu(slI[slot].name[0]?slI[slot].name:"PLAYER",it,3); if(c<0) return;
+    int pid=slI[slot].pid, c=c0>=0?c0:menu(slI[slot].name[0]?slI[slot].name:"PLAYER",it,3); if(c<0) return;
     if(c==2){ if(menu("DELETE THIS PLAYER",slYesNo,2)==1){ sgDeletePid(pid); toast("PLAYER DELETED"); } return; }
     if(sgPid!=pid){
         if(sgPid){ int e=sgSave(); if(e) toast(slErrMsg(e)); }   // the player who was in play is saved before the next one loads
@@ -182,7 +182,7 @@ static void sgNewPlayer(void){
     if(!n){ toast("MAKE A NEIGHBORHOOD FIRST"); return; }
     static char tn[16][NB_NAME+1] EWRAM_BSS; const char* nm[16];
     for(int i=0;i<n;i++){ nbRead(l[i],&nbTmp); int k=0; for(;nbTmp.name[k]&&k<NB_NAME;k++) tn[i][k]=nbTmp.name[k]; tn[i][k]=0; nm[i]=tn[i]; }
-    int c=menu("WHICH NEIGHBORHOOD",nm,n); if(c<0) return;
+    int c=n==1?0:menu("WHICH NEIGHBORHOOD",nm,n); if(c<0) return;   // (one town: nothing to ask)
     if(sgPid){ int e=sgSave(); if(e) toast(slErrMsg(e)); }
     slScan(); int pid=sgNewPid(); if(!pid){ toast("TOO MANY PLAYERS"); return; }
     sgWant=(u8)pid;
@@ -194,16 +194,17 @@ static void playerScreen(void){
     int l[SLOT_MAX]; nbFirstTowns(l); nbOk=nbLoad(); nbBounds();
     sgAdopt();
     int n=sgList(l), sel=0, dirty=1; u16 prev=keyNow();
+    for(int i=0;i<n;i++) if(sgPid&&slI[l[i]].pid==sgPid) sel=i;   // the cursor starts on the player already in play
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k;
         if(pr&K_DOWN){ sel=(sel+1)%SG_ROWS(n); dirty=1; }
         if(pr&K_UP){ sel=(sel+SG_ROWS(n)-1)%SG_ROWS(n); dirty=1; }
         if(pr&K_B) break;
-        if(pr&K_A){
+        if(pr&(K_A|K_START)){   // A on a player plays at once; START opens the player menu (neighborhood, delete)
             if(sel==n+1) playScreen();   // the neighborhoods: make, rename, delete, visit
             else if(sel==n) sgNewPlayer();
             else if(sel==n+2){ if(sgPid){ int e=sgSave(); if(e) toast(slErrMsg(e)); } newGame(nbOk?nbTS:-1); }   // SECRET (debug code): the old NEW GAME on the old assigned lot, the TEST MAP. The life belongs to no player
-            else sgPlayerMenu(l[sel]);
+            else sgPlayerMenu(l[sel],(pr&K_START)?-1:0);
             if(gToMenu) break;
             n=sgList(l); if(sel>=SG_ROWS(n)) sel=SG_ROWS(n)-1;
             prev=keyNow(); dirty=1; mmPick();
