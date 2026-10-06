@@ -22,6 +22,7 @@
 typedef struct { short x0,y0,x1,y1; } Rc;
 // The panels are drawn in pieces: each piece remembers what it last showed (hudKeys) and is redrawn, and handed to the screen copy (hudRc), only
 // when that changed. The first draw after anything covered the screen (all=1) draws every piece.
+static int fxWxHud(void); static void fxWxIcon(int x,int y);   // fx.h
 enum { HK_SCORE, HK_CASH, HK_MSG, HK_CLOCK, HK_NEED, HK_PORT=HK_NEED+8, HK_HEAD, HK_ASP, HK_W0, HK_W1, HK_HP, HK_N };
 static unsigned hudKeys[HK_N];
 #define HUD_NR 24
@@ -77,13 +78,14 @@ static void hudTopUpdate(int all){
         if(has&&t){ int x=text(104,1,t,c,1); if(pts) numText(text(x+3,1,"+",GOLD,1)+1,1,pts,GOLD); else if(n2) numText(x+3,1,n2,WHITE); }
         clipAll(); hudMark(102,0,78,HUD_TOPH-1);
     }
-    if(hudChg(all,HK_CLOCK,(unsigned)simMin*8u+(unsigned)simInShift()*4u+(unsigned)xo[XO_CLOCK]+(unsigned)(simIsNight()?64:0)*100000u)){
+    if(hudChg(all,HK_CLOCK,(unsigned)simMin*8u+(unsigned)simInShift()*4u+(unsigned)xo[XO_CLOCK]+(unsigned)(simIsNight()?64:0)*100000u+(unsigned)fxWxHud()*10000000u)){
         hudClear(182,0,56,HUD_TOPH-1);
         if(xo[XO_CLOCK]!=2){
             const char*ck=simsClock(); int w=tw(ck,1); int xx=SW-4-w;
             text(xx,1,ck,simInShift()?HC_GOLD:RGB(22,25,29),1);
             if(simIsNight()){ rect(184,2,5,6,RGB(22,24,31)); rect(185,2,4,6,HC_BG0); rect(184,3,3,4,RGB(22,24,31)); }       // moon
             else { rect(185,3,4,4,RGB(31,27,6)); rect(184,4,6,2,RGB(31,27,6)); }                                           // sun
+            fxWxIcon(184,2);   // (replaces the sun or moon while it is not clear)
         }
         hudMark(182,0,56,HUD_TOPH-1);
     }

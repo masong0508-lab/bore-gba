@@ -1434,12 +1434,14 @@ __asm__(".pushsection .rodata\n.balign 4\n"
  ".global sfx_land\nsfx_land:\n.incbin \"source/sfx/land.adp\"\n.balign 4\n"
  ".global sfx_stick\nsfx_stick:\n.incbin \"source/sfx/stick.adp\"\n.balign 4\n"
  ".global sfx_grind\nsfx_grind:\n.incbin \"source/sfx/grind.adp\"\n.balign 4\n"
+ ".global sfx_thunder\nsfx_thunder:\n.incbin \"source/sfx/thunder.adp\"\n.balign 4\n"
+ ".global sfx_ghost\nsfx_ghost:\n.incbin \"source/sfx/ghost.adp\"\n.balign 4\n"
  ".popsection\n");
-extern const u8 sfx_hit[],sfx_gasp[],sfx_scream[],sfx_cry[],sfx_groan[],sfx_instant[],sfx_tick[],sfx_pop[],sfx_land[],sfx_stick[],sfx_grind[];
-enum { SFX_BONK, SFX_HIT, SFX_GASP, SFX_SCREAM, SFX_CRY, SFX_GROAN, SFX_NEARLY, SFX_DEATH, SFX_INSTANT, SFX_TICK, SFX_POP, SFX_LAND, SFX_STICK, SFX_GRIND, SFX_VOICE0, SFX_N=SFX_VOICE0+VOICE_N };   // POP ollie, LAND a landing, STICK a trick landed, GRIND a rail caught (tools/make_skate_sfx.py)
+extern const u8 sfx_hit[],sfx_gasp[],sfx_scream[],sfx_cry[],sfx_groan[],sfx_instant[],sfx_tick[],sfx_pop[],sfx_land[],sfx_stick[],sfx_grind[],sfx_thunder[],sfx_ghost[];
+enum { SFX_BONK, SFX_HIT, SFX_GASP, SFX_SCREAM, SFX_CRY, SFX_GROAN, SFX_NEARLY, SFX_DEATH, SFX_INSTANT, SFX_TICK, SFX_POP, SFX_LAND, SFX_STICK, SFX_GRIND, SFX_THUNDER, SFX_GHOST, SFX_VOICE0, SFX_N=SFX_VOICE0+VOICE_N };   // POP ollie, LAND a landing, STICK a trick landed, GRIND a rail caught (tools/make_skate_sfx.py)
 #define VS(v) (SFX_VOICE0+(v))   // a voice clip's sound id (V_xxx from voices.h)
 // effects that share a source file share one blob in the ROM
-static const u8* const sfxTab[SFX_N]={ sfx_hit,sfx_hit,sfx_gasp,sfx_scream,sfx_cry,sfx_groan,sfx_scream,sfx_scream,sfx_instant,sfx_tick,sfx_pop,sfx_land,sfx_stick,sfx_grind, VOICE_TAB };
+static const u8* const sfxTab[SFX_N]={ sfx_hit,sfx_hit,sfx_gasp,sfx_scream,sfx_cry,sfx_groan,sfx_scream,sfx_scream,sfx_instant,sfx_tick,sfx_pop,sfx_land,sfx_stick,sfx_grind,sfx_thunder,sfx_ghost, VOICE_TAB };
 static const u16 stepT[89]={7,8,9,10,11,12,13,14,16,17,19,21,23,25,28,31,34,37,41,45,50,55,60,66,73,80,88,97,107,118,130,143,157,173,190,209,230,253,279,307,337,371,408,449,494,544,598,658,724,796,876,963,1060,1166,1282,1411,1552,1707,1878,2066,2272,2499,2749,3024,3327,3660,4026,4428,4871,5358,5894,6484,7132,7845,8630,9493,10442,11487,12635,13899,15289,16818,18500,20350,22385,24623,27086,29794,32767};
 static const signed char idxT[8]={-1,-1,-1,-1,2,4,6,8};
 // The effect voice: ssrc/sn = the clip's nibbles and sample count, sPos + sFr/65536 = play position in clip samples, sRd = samples decoded so far,
@@ -1926,10 +1928,11 @@ static void voxEvent(int ev,int v){   // sims.h calls this for every life event 
 #define BAIL_STUN 34   // frames you lie there after an ordinary bail (was 45, then 60 in hurt()): back on the board in about half a second
 // Getting hurt. sev grows with fall height, speed and a bad landing. kind: 0 clean landing, 1 bail, 2 wall hit.
 // DEATH VARIANTS: what killed you decides the note on the dead screen (and a few the sound). why: 0 plain, 1 shock, 2 gravity, 3 a wall, 4 hunger, 5 worn out
+static void fxGhostBorn(int why); static void fxTick(void); static void fxPlayStart(void);   // fx.h: ghosts and weather
 static const char* const deathNote[6]={"YOU DIED","DIED OF SHOCK","GRAVITY WON","MET A WALL AT SPEED","DIED OF HUNGER","ONE HIT TOO MANY"};
 static void die(int snd,int why){ if(tutOn){ lhp=HP_MAX; lstun=60; lsp=0; lgrind=0; lnote="TUTORIAL  NO DYING"; lnoteT=90; return; }   // (tutorial.h)
     if(why==4||(why==5&&lfood<10)) why=4;   // hit points ran out while starving: say so
-    moodEvent(M_DIE); ldead=1; lstun=2; lsp=0; lgrind=0; sfxPlay(snd); lnote=deathNote[why>5?0:why]; lnoteT=0x7fff; }
+    moodEvent(M_DIE); fxGhostBorn(why); ldead=1; lstun=2; lsp=0; lgrind=0; sfxPlay(snd); lnote=deathNote[why>5?0:why]; lnoteT=0x7fff; }
 static void hurt(int sev,int kind){
     if(abPow()&PW_ARMOUR) sev=sev*7/10;                                    // SPIKES: armour plates take the edge off
     if(xo[XO_HURT]==1) sev/=2; else if(xo[XO_HURT]==2&&sev>=30) sev=29;   // HURT option: GENTLE halves it, NO DEATH keeps a fall survivable
@@ -2335,7 +2338,7 @@ static u16 keyNow(void){   // BUTTONS option: A/B and L/R can be swapped here, s
     if(b&2){ u16 l=k&K_L, r=k&K_R; k=(u16)((k&~(K_L|K_R))|(l?K_R:0)|(r?K_L:0)); }
     return k;
 }
-static void objHideAll(void){ for(int i=0;i<32;i++) ((volatile u16*)0x07000000)[i*4]=0x200; }   // household sprites off (menus, other screens)
+static void objHideAll(void){ for(int i=0;i<128;i++) ((volatile u16*)0x07000000)[i*4]=0x200; *(volatile u16*)0x04000050=0x0400; *(volatile u16*)0x04000054=0; }   /* all 128 OAM entries (fx.h uses 16..58), and no weather dimming behind a menu */    // household sprites off (menus, other screens)
 static void box(int x,int y,int w,int h){ objHideAll(); rect(x-1,y-1,w+2,h+2,GOLD); rect(x,y,w,h,RGB(3,4,7)); }
 static int menu(const char*title,const char*const*it,int n){   // UP/DOWN + A to choose, B or START to cancel (returns -1). Long lists scroll (L R jump a page).
     if(n<=0) return -1;
@@ -2545,6 +2548,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
     if(lflip&&lskate&&air){ if(!bFPrev) bFD=(k&K_UP)?-1:1; if(bFT<BFLIP_LEN) bFT++; bFPrev=1; } else { bFT=0; bFPrev=0; }   // the flip: one full roll in BFLIP_LEN steps, then it is flat again
     if(lgrind){ if(air||tileH(lfx>>8,lfy>>8)!=6) lgrind=0; else if((fr&3)==0){ int g=abGrindPts(); lscore+=g; lnote="GRIND"; lnoteT=10; lcPts+=g; lcT=oComboLen(); } }   // GRIP ability
     if(!lhave&&lz<(8<<8)&&(lfx>>8)==BDX&&(lfy>>8)==BDY){ lhave=1; lnote="GOT A SKATEBOARD"; lnoteT=90; moodEvent(M_GOT_BOARD); }   // walk over it to pick it up
+    fxTick();   // ghosts and weather (fx.h): every step, also while you lie dead
     if(!ldead){   // needs: hunger and bladder, then how they (and the skating) make the skater feel
         if(stage==AG_BABY){ if(lfood<70) lfood=70; if(lbl>30) lbl=30; if(sNrg<60) sNrg=60; if(sHyg<60) sHyg=60; if(sCom<60) sCom=60; }   // looked after
         moodTick(); simsTick(pr,(int)(lfx>>8),(int)(lfy>>8)); hhTick(); phTick(); stTick();
@@ -3257,7 +3261,7 @@ static void gmTick(void){   // once per frame: when the song is over, another ra
 static void lifeModeRun(int ed);
 static void lifeMode(int ed){ int back=musCtx; gInPlay=1; lifeModeRun(ed); gInPlay=0; if(!gToMenu){ if(back==1) creatorMusStart(); else menuMusStart(); } }   // back from the game: the screen it was started from gets its music back (a crossfade)   // gInPlay: some option actions are only allowed while playing / only outside it
 static void lifeModeRun(int ed){   // ed=1: test play started from the map editor
-    objHideAll(); winFull(); REG_DISPCNT=0x3443;   // mode 3 + sprites (1D tiles) + window 0 (the household's hardware sprites, house.h)
+    objHideAll(); winFull(); REG_DISPCNT=0x3443; fxPlayStart();   // mode 3 + sprites (1D tiles) + window 0 (the household's hardware sprites, house.h)
     // (the passers-by of this lot are kept until you move to another lot or start a new life: twKeep, house.h)
     lifeInit(); if(!ed) phoneEnsure(); lcamF=0; cview=0; lcN=lcPts=lcT=lcBank=lcBankT=lcamPend=0; u16 prev=keyNow(); gmStart(); hudApplyLayout(); liveInvalidate(); camSnap=1;
     stModal=0; if(!ed) stEnter();   // (the chapter card of the story waits for the first frame)
@@ -4391,6 +4395,7 @@ static void s3Round(int x,int y,int on,const char*glyph){ disc(x,y,7,on?RGB(4,10
 static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,RGB(8,14,26)); text((SW-tw(t,1))/2,152,t,RGB(26,29,31),1); }
 #include "neighborhood.h"   // THE NEIGHBORHOOD: a town of lots to live in, visit and build on (main menu)
 #include "households.h"     // THE TOWN'S HOUSEHOLDS: who lives where, the household bank, visitors, the phone
+#include "fx.h"             // GHOSTS and WEATHER: hardware sprites on the spare OBJ slots (see the top of the file)
 #include "story.h"          // STORY MODE: chapters with goals (NEW GAME > STORY MODE)
 #include "career.h"         // CAREER TRACKS: the screen on the phone (the tracks are in sims.h)
 // ---------- main menu (The Sims 3 look): a glossy panel over your town, lit for the time of day of your life's clock ----------

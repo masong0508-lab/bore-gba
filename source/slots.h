@@ -241,7 +241,7 @@ static int slDecLife(SlR*c,int apply){
     volatile unsigned char*b=(volatile unsigned char*)(c->p+1);
     int v=simsVer(b); if(c->len!=1+(v==3?SIM_BLOCK:SIM_BLOCK2)) return 0;   // SIM3 = 52 bytes, SIM2 = 24 bytes
     if(!simsCheck(b)) return 0;
-    if(apply){ simsUnpack(b); simsSaveNow(); }
+    if(apply){ simsUnpack(b); fxGhostClear(); simsSaveNow(); }   /* a life that is loaded brings its own ghosts (savegame.h 'G') or none */
     return 1;
 }
 static void slChunk(SlW*w,int tag,void(*enc)(SlW*)){   // a chunk: its length first (measured by a dry run), then the data

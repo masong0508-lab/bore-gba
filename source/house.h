@@ -834,7 +834,7 @@ static int hhPlayerFront(int x,int y){   // is the player (drawn into the pictur
     return py>y+SPF&&dx>-22&&dx<22&&py<y+SPF+44;
 }
 typedef struct { const HhSim*s; short x,y; int dd,dep; u8 id,key; } HhOv;   // a Sim in view: where its sprite goes, how far from the middle, how far back
-static void hhObjUpdate(void){   // in vblank: hand out OBJ slots, load what changed into OBJ VRAM, write OAM (a Sim is two entries: 32x32 over 32x16), set the window that clips them
+static void fxObjUpdate(void); static void hhObjUpdate0(void){   // in vblank: hand out OBJ slots, load what changed into OBJ VRAM, write OAM (a Sim is two entries: 32x32 over 32x16), set the window that clips them
     volatile u16*oam=OAM; int i, nOam=0;
     *(volatile u16*)0x04000040=240; *(volatile u16*)0x04000044=(u16)((sbY0<<8)|sbY1);   // WIN0: the room view (the room rows of the screen)
     *(volatile u16*)0x04000048=0x34; *(volatile u16*)0x0400004A=0x04;                   // inside: BG2 + sprites + blend; outside: BG2 only
@@ -894,6 +894,7 @@ static void hhObjUpdate(void){   // in vblank: hand out OBJ slots, load what cha
     for(i=nOam;i<2*OBJ_SLOTS;i++) oam[i*4]=0x200;   // everything else off
     oam[3]=zoomPa; oam[7]=0; oam[11]=0; oam[15]=zoomPa;   // affine matrix 0 (the ZOOM's sprites): 1 / scale
 }
+static void hhObjUpdate(void){ hhObjUpdate0(); fxObjUpdate(); }   // fx.h: the ghosts and the weather are sprites too
 static HhR hhOld[HH_MAX]; static unsigned hhOldSig[HH_MAX];
 static void hhSave(void);
 static void hhInvite(void){   // a made-up Sim moves in (pause menu > HOUSEHOLD, or SELECT on the RELATIONSHIPS screen)

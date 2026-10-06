@@ -16,6 +16,9 @@
 #define SLC_DNA    'D'
 #define SLC_FAMILY 'F'
 #define SLC_STORY  'Y'
+#define SLC_GHOST  'G'   // fx.h: the ghosts of this life (12 bytes, the same block as in the life in SRAM)
+static void fxGhostSave(volatile unsigned char*m); static void fxGhostLoad(volatile unsigned char*m); static void fxGhostClear(void);
+static void sgEncGhost(SlW*w){ unsigned char t[12]; fxGhostSave(t); for(int i=0;i<12;i++) slwPut(w,t[i]); }
 static int sgPlHome EWRAM_BSS, sgPlCur EWRAM_BSS, sgPlSlot EWRAM_BSS; static u16 sgPlKey EWRAM_BSS;   // what the last parse read from a 'P' chunk
 
 static void sgEncPlace(SlW*w){
@@ -30,6 +33,7 @@ static int sgBuild(SlW*w){
     slChunk(w,SLC_DNA,sgEncDna);
     if(hhBlockLen(SL_HHBLK,SL_HH_LEN)) slChunk(w,SLC_FAMILY,sgEncFamily);
     slChunk(w,SLC_STORY,sgEncStory);
+    slChunk(w,SLC_GHOST,sgEncGhost);
     slwPut(w,0); return w->pos;
 }
 // all the players (the newest copy of each) into l: their slots. Scans the slots.
@@ -87,6 +91,7 @@ static int sgParse(volatile u8*body,int len,int apply){   // apply 0: check ever
         else if(tag==SLC_DNA){ if(cl!=4) return SLE_FMT; if(apply){ pDna=(u16)(c.p[0]|(c.p[1]<<8)); if(pDna>9999) pDna=9999; pUnl=(u16)(c.p[2]|(c.p[3]<<8)); persSave(); } }
         else if(tag==SLC_FAMILY){ int n=hhBlockLen(c.p,cl); if(!n||n!=cl) return SLE_FMT; if(apply){ volatile u8*d=SL_HHBLK; for(int i=0;i<n;i++) d[i]=c.p[i]; } }
         else if(tag==SLC_STORY){ if(cl!=8||c.p[0]!='S'||c.p[1]!='Y') return SLE_FMT; if(apply){ volatile u8*d=SRAM_BASE+STORY_OFF; for(int i=0;i<8;i++) d[i]=c.p[i]; } }
+        else if(tag==SLC_GHOST){ if(cl!=12) return SLE_FMT; if(apply){ fxGhostLoad(c.p); fxGhostSave(SIM_SRAM+SIM_BLOCK); } }
         // anything else: a later version's chunk, skipped on purpose
     }
     return (gotP&&gotC)?SLE_OK:SLE_FMT;

@@ -396,7 +396,7 @@ static void simsPack(volatile unsigned char*m){   // write the life into any SIM
     for(int i=4;i<=50;i++) sum+=m[i];
     m[51]=(unsigned char)sum;
 }
-static void simsSaveNow(void){ simsPack(SIM_SRAM); persSave(); }   // the persona too: its DNA is earned here
+static void fxGhostSave(volatile unsigned char*m); static void simsSaveNow(void){ simsPack(SIM_SRAM); fxGhostSave(SIM_SRAM+SIM_BLOCK); persSave(); }   // the persona too: its DNA is earned here
 static void simsSave(void){ if(xo[XO_AUTOSAVE]) simsSaveNow(); }   // AUTO SAVE LIFE option: off = only slots / SAVE LIFE NOW write it
 static int simsVer(volatile unsigned char*m){ return (m[0]=='S'&&m[1]=='I'&&m[2]=='M')?(m[3]=='3'?3:m[3]=='2'?2:0):0; }
 static int simsCheck(volatile unsigned char*m){   // 1 = the buffer holds a valid life, SIM3 or SIM2 (nothing is changed)
@@ -432,9 +432,9 @@ static int simsUnpack(volatile unsigned char*m){   // 1 = a valid life was read 
     }
     return 1;
 }
-static int simsLoad(void){ return simsUnpack(SIM_SRAM); }   // 1 = loaded a valid save
+static void fxGhostLoad(volatile unsigned char*m); static int simsLoad(void){ int r=simsUnpack(SIM_SRAM); if(r) fxGhostLoad(SIM_SRAM+SIM_BLOCK); return r; }   // 1 = loaded a valid save
 
-static void simsDefaults(void){   // a brand new life (nothing is written to SRAM)
+static void fxGhostClear(void); static void simsDefaults(void){ fxGhostClear();   // a brand new life (nothing is written to SRAM)
     sNrg=100; sHyg=100; sCom=80; sRoom=40; sSoc=70; simMoney=SIM_CASH0; simAsp=0; simDone=0; simDay=0; simMin=480;
     jobLvl=0; jobGood=0; jobBad=0; skillPts=0; jobTrack=0; jobBr=0; jobChosen=0;
     simMeter=SIM_METER0; simFlags=0; simTricks=simBestCombo=simStokedS=simNights=0; simAspUsed=-1; simLock=0;

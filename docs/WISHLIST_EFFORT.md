@@ -41,3 +41,7 @@ Windows and outside decor, TV channels, mirrors, pets, police and jail, new game
 
 ## RAM warning
 IWRAM is nearly full (code + .bss about 30.7 KB of 32 KB; a check inlined into hot drawing code once crashed the game). New code should not be `IWRAM_CODE`. The sound pack adds no IWRAM and about 112 bytes of EWRAM (the item span table), plus about 1.2 KB of ROM for two sprites.
+
+## Added with fx.h (ghosts and weather)
+- **Ghosts that stick around after death** (was L): done for the player's own death. Household Sims cannot die yet, so they never leave a ghost. *Untested on hardware.*
+- **Weather in play** (was XL, "Seasons: missing weather"): clear / cloudy / fog / rain / storm / snow, rolled from the season; mood and light effects, thunder. Missing: Sims seeking shelter, wet-ground skating, holidays. *Untested on hardware.*

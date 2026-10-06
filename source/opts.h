@@ -65,10 +65,12 @@ enum {
     XO_MCSLIDE,   // SIM > MASTER (debug code only, a nod to The Sims' Master Controller): the size sliders go twice as far: NORMAL / DOUBLE
     XO_MCBOX,     // SIM > MASTER: every age builds in the adult box (6 x 4 x 8) and taller adults stretch further: BY AGE / LIMIT BREAK
     XO_TUTOR,     // PLAY: the tutorial: OFFER (asks once at the first PLAY), DONE, REPLAY (starts it at the next PLAY / when you leave the pause menu options)
+    XO_WEATHER,   // TIME > DAY: AUTO (follows the season and the day), or force CLEAR / CLOUDY / FOG / RAIN / STORM / SNOW (fx.h)
+    XO_GHOSTS,    // SIM > BORES: OFF / ON (a ghost stays where you die) / HAUNTED (one is always around) (fx.h)
     XO_N
 };
-static const u8 xoCnt[]={ 5,5,2,4,4,4,4,2,3,4,2,3,2,4,   4,3,   4,3,2,   3,6,3,   2,2,2,2,2,3,2, 4,10,10,10,11, 2, 3, 2, 2, 2, 2, 11, 11, 11, 2, 2, 2, 3, 3, 2, 2, 3 };
-static const u8 xoDef[]={ 2,1,1,2,1,1,1,1,0,2,1,1,1,1,   0,1,   0,0,1,   0,0,1,   1,1,1,0,1,2,1, 2,1,2,2,4, 0, 2, 1, 1, 1, 1, 10, 10, 10, 1, 1, 1, 0, 0, 0, 0, 0 };
+static const u8 xoCnt[]={ 5,5,2,4,4,4,4,2,3,4,2,3,2,4,   4,3,   4,3,2,   3,6,3,   2,2,2,2,2,3,2, 4,10,10,10,11, 2, 3, 2, 2, 2, 2, 11, 11, 11, 2, 2, 2, 3, 3, 2, 2, 3, 7, 3 };
+static const u8 xoDef[]={ 2,1,1,2,1,1,1,1,0,2,1,1,1,1,   0,1,   0,0,1,   0,0,1,   1,1,1,0,1,2,1, 2,1,2,2,4, 0, 2, 1, 1, 1, 1, 10, 10, 10, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1 };
 _Static_assert(sizeof(xoCnt)==XO_N&&sizeof(xoDef)==XO_N,"xoCnt / xoDef must have one entry per XO_ name");
 static u8 xo[XO_N];
 static void optsDefaults(void){ for(int i=0;i<XO_N;i++) xo[i]=xoDef[i]; }
