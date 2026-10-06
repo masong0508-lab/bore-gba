@@ -2507,6 +2507,23 @@ static void lifeInit(void){
     bakeSprites(); camSnap=1;
     lfx=spx*256+128; lfy=spy*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote=""; lchill=0; lskate=0; lhave=(bdx<0); lfr=0; lvx=lvy=0; ldead=0; lmaxz=0; lplay=0; lbumpCd=0; lfood=100; lbl=0; lhp=HP_MAX; lnear=0; lspec=0; lspecOn=0; lsw=0; lskl=0; lstrk=0; moodReset(); simsReset(); sfxStop(); feelReset(0);
 }
+static char rampCh; static s32 rampX, rampY; static u8 lqp;
+static void qpGrav(void){
+    if(lz>((s32)surfH(lfx,lfy)<<8)) return;
+    char c=lifeMap[lfy>>8][lfx>>8]; if(!isQPipe(c)) return;
+    int d=c-'5', ux=d==1?-1:d==3?1:0, uy=d==0?-1:d==2?1:0;
+    int a=F.angF>>4, dot=fcos(a)*ux+fsin(a)*uy;
+    F.spd-=(dot*3)/256; if(F.spd<0) F.spd=0;
+    if(F.spd<=8&&dot>0&&surfH(lfx,lfy)>=4){ F.angF=(F.angF+2048)&4095; F.fvx=-F.fvx; F.fvy=-F.fvy; F.spd=32; F.turn=0; lnote="ROLL BACK"; lnoteT=30; }
+}
+static int qpOut(void){
+    int vz=0x3C0+(F.spd>>1), d=rampCh-'5';
+    if(d&1) F.fvx=-F.fvx; else F.fvy=-F.fvy;
+    int bx=F.fvx, by=F.fvy;
+    if(bx||by){ int best=0, bd=-999999; for(int a=0;a<256;a+=2){ int dp=fcos(a)*bx+fsin(a)*by; if(dp>bd){ bd=dp; best=a; } } F.angF=best<<4; }
+    F.spd/=8; F.fvx/=8; F.fvy/=8; F.rx=F.ry=0; F.turn=0;
+    lfx=rampX; lfy=rampY; lqp=1; return vz;
+}
 static int rampAvg, rampOn;   // px/step (8.8) the skater has been climbing a ramp, smoothed (heights are whole px, so single steps are lumpy); rampOn = rode a ramp last step
 // BABY: cannot be steered. A caretaker keeps the needs up and the baby toddles about by itself: stops now and then, picks a new way
 // every second or two, and turns round when it walks into something.
@@ -2540,7 +2557,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
         feelSync(); feelTick(lz<=fh,(pr&K_B)!=0&&lskate&&(lz<=fh||F.coy>0));
         if(lskate){
             if(lz<=fh||(F.coy>0&&lvz<=0)){                     // on the ground (or a rail), incl. coyote frames
-                feelSteer(k); feelPush(k,lgrind);
+                feelSteer(k); feelPush(k,lgrind); qpGrav();
                 if(F.buf>0){ lvz=feelOllie(); lgrind=0; sfxPlay(SFX_POP); }      // ollie (buffered, variable height) with its pop
             } else feelAir(k,pr,(lz-fh)<(8<<8));               // airborne
             feelVel(); lspin=F.spin>>4;
@@ -2564,10 +2581,10 @@ static void lifeStep(u16 k,u16 pr,int fr){
     if(lLand>0) lLand--;
     fh=surfH(lfx,lfy)<<8;
     int wasOn=rampOn, onRamp=lskate&&isRamp(lifeMap[lfy>>8][lfx>>8]); rampOn=0;
-    if(lz<=fh&&onRamp){ int rise=lz<fh?(int)(fh-lz):0; rampAvg=(rampAvg*3+rise)>>2; rampOn=1; }   // riding a ramp: remember how fast we are climbing
+    if(lz<=fh&&onRamp){ int rise=lz<fh?(int)(fh-lz):0; rampAvg=(rampAvg*3+rise)>>2; rampOn=1; rampCh=lifeMap[lfy>>8][lfx>>8]; rampX=lfx; rampY=lfy; }   // riding a ramp: remember how fast we are climbing
     if(lz<fh){ lz=fh; if(lvz<0) lvz=0; }
     else if(lz>fh&&wasOn&&!onRamp&&lskate&&lvz<=0&&(lz-fh)<(16<<8)){   // rolled off the lip: launch with the climb speed
-        int v=rampAvg*F_RAMP_BOOST; if(v>F_RAMP_MAX) v=F_RAMP_MAX; if(v>0){ lvz=v; lnote="AIR"; lnoteT=20; moodEvent(M_LAUNCH); } }
+        int v=rampAvg*F_RAMP_BOOST; if(v>F_RAMP_MAX) v=F_RAMP_MAX; if(isQPipe(rampCh)&&v>0) v=qpOut(); if(v>0){ lvz=v; lnote="AIR"; lnoteT=20; moodEvent(M_LAUNCH); } }
     if(!rampOn) rampAvg=0;
     if(lz>fh||lvz>0){ lz+=lvz; lvz-=0x40;   // gravity
         if((abPow()&PW_GLIDE)&&(k&K_R)&&lvz<0){ lvz+=0x2C; if(lvz<-0xC0) lvz=-0xC0; if(!lglide){ lnote="GLIDE"; lnoteT=30; simEvent(SE_GLIDE); } lglide=1; } else lglide=0;   // WINGS: hold R to float down
@@ -2576,7 +2593,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
     if(air){
         int zz=(int)(lz>>8); if(zz>lmaxz) lmaxz=zz;
         if(!lplay&&lvz<0){ int hi=lmaxz-(int)(fh>>8);
-            if(hi>=34){ voxPlay(V_shriek); lplay=1; }                 // falling from way up
+            if(hi>=34+(lqp?40:0)){ voxPlay(V_shriek); lplay=1; }                 // falling from way up
             else if(hi>=10&&F.spin&&feelPredGrade()==0){ sfxPlay(SFX_GASP); lplay=1; }   // landing is going wrong (judged from where the spin will end up, not where it is now)
         }
     }
@@ -2584,7 +2601,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
         int g=feelGrade(), hs=feelHalfTurns(), gb=F.grab>=12, onRail=lskate&&tileH(lfx>>8,lfy>>8)==6;
         if(onRail&&g<2) g=2;                           // a rail catches the board whatever the angle: no bail for a crooked grind
         int pts=hs*180+(lflip?100:0)+feelGrabPts();
-        int drop=lmaxz-(int)(lz>>8), sp0=lsp, bail=(g==0);
+        int drop=lmaxz-(int)(lz>>8), sp0=lsp, bail=(g==0); if(isRamp(lifeMap[lfy>>8][lfx>>8])) drop/=2;
         lLand=7; lLandD=drop; if(bail||(pts&&g!=3)) lstrk=0; if(pts&&!bail&&drop>=20) pts+=drop*3;                          // the landing crouch (playerCalc)
         if(bail){ specLose(); lnote="BAIL"; lnoteT=60; lsp=0; lstun=BAIL_STUN; lbailT=BAIL_STUN; lgrind=0; moodEvent(M_BAIL); }
         else{
@@ -2599,7 +2616,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
         if(!bail&&(hs&1)) lsw^=1;
         lspin=0; lflip=0; feelLandReset();
     }
-    if(!air){ lmaxz=(int)(lz>>8); lplay=0; }
+    if(!air){ lmaxz=(int)(lz>>8); lplay=0; lqp=0; }
     lairF=air;
     if(lflip&&lskate&&air){ if(!bFPrev) bFD=(k&K_UP)?-1:1; if(bFT<BFLIP_LEN) bFT++; bFPrev=1; } else { bFT=0; bFPrev=0; }   // the flip: one full roll in BFLIP_LEN steps, then it is flat again
     if(lgrind){ if(air||tileH(lfx>>8,lfy>>8)!=6) lgrind=0; else if((fr&3)==0){ int g=abGrindPts()+skLvl(SK_GRIND)/2; if(lspecOn) g*=2; lscore+=g; lnote="GRIND"; lnoteT=10; lcPts+=g; lcT=oComboLen(); specAdd(4); } }   // GRIP ability
