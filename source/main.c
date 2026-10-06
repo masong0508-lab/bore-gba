@@ -1379,6 +1379,7 @@ static char lifeMap[MH][MW+1] EWRAM_BSS;   // the room being played / edited (st
 static int bdx=10, bdy=4, spx=3, spy=6;   // skateboard tile and spawn tile, found by mapScan (B and P tiles)
 #define BDX bdx
 #define BDY bdy
+static int lbailT;   // frames of bail flicker left (the skater blinks while getting up)
 static int lsp,lhd,lspin,lflip,lgrind,lscore,lstun,lairF,lpts,lnoteT,lglide; static const char*lnote;
 static char lnBuf[24] EWRAM_BSS; static u8 lnPerf; static int lLand, lLandD;   // lnBuf: the name of the trick just landed ("KICK 360 GRAB"); lLand: frames of landing crouch left, lLandD: how far the fall was
 static int tvClip; static void tvClipRun(int ch);   // skills.h / tvclip.h: the TV asks for a clip (channel + 1); lifeModeRun plays it like a pause menu
@@ -1940,7 +1941,7 @@ static void fxGhostBorn(int why); static void fxTick(void); static void fxPlaySt
 static const char* const deathNote[6]={"YOU DIED","DIED OF SHOCK","GRAVITY WON","MET A WALL AT SPEED","DIED OF HUNGER","ONE HIT TOO MANY"};
 static void die(int snd,int why){ if(tutOn){ lhp=HP_MAX; lstun=60; lsp=0; lgrind=0; lnote="TUTORIAL  NO DYING"; lnoteT=90; return; }   // (tutorial.h)
     if(why==4||(why==5&&lfood<10)) why=4;   // hit points ran out while starving: say so
-    moodEvent(M_DIE); fxGhostBorn(why); ldead=1; lstun=2; lsp=0; lgrind=0; sfxPlay(snd); lnote=deathNote[why>5?0:why]; lnoteT=0x7fff; }
+    lbailT=0; moodEvent(M_DIE); fxGhostBorn(why); ldead=1; lstun=2; lsp=0; lgrind=0; sfxPlay(snd); lnote=deathNote[why>5?0:why]; lnoteT=0x7fff; }
 static void hurt(int sev,int kind){
     if(abPow()&PW_ARMOUR) sev=sev*7/10;                                    // SPIKES: armour plates take the edge off
     if(xo[XO_HURT]==1) sev/=2; else if(xo[XO_HURT]==2&&sev>=30) sev=29;   // HURT option: GENTLE halves it, NO DEATH keeps a fall survivable
@@ -1952,7 +1953,7 @@ static void hurt(int sev,int kind){
         else die(kind==2?SFX_DEATH:SFX_SCREAM,kind==2?3:2);
     }
     else if(sev>=18){ lstun=150; lsp=0; lgrind=0; sfxPlay(SFX_GROAN); lnote="OW"; lnoteT=90; }     // groaning, struggling up
-    else if(kind==1){ lstun=BAIL_STUN; voxPlay((rnd8()&1)?V_cry:V_cry_after_bad_event); }                                                  // minor bail: crying
+    else if(kind==1){ lstun=BAIL_STUN; lbailT=BAIL_STUN; voxPlay((rnd8()&1)?V_cry:V_cry_after_bad_event); }                                                  // minor bail: crying
     else if(kind==2){ lstun=20; sfxPlay(SFX_HIT); lnote="OOF"; lnoteT=30; }                          // grunts and hits
     if(!ldead&&lhp<=0) die(SFX_DEATH,5);                                                              // the meter ran out (hits add up)
 }
@@ -2419,7 +2420,7 @@ static void itemSpanInit(void);
 // Timer2 (65536 Hz) is the clock for pacing, the speed meter and the load counter.
 #define R_TM2D   (*(volatile u16*)0x04000108)
 #define R_TM2CNT (*(volatile u16*)0x0400010A)
-static void homeUse(int k); static void homeTick(void); static void homeMusic(void); static void skillsScreen(void); static void skLoad(void);   // skills.h: skills and the home pack items
+static void homeUse(int k); static void homeTick(void); static void homeMusic(void); static void skillsScreen(void); static void tricksScreen(void); static void skLoad(void);   // skills.h: skills and the home pack items
 static void radioTune(int sys);   // (the radio and sound system items: defined with the game music, below)
 static int jbLast=-1;   // the last song picked at random anywhere (menus, jukebox, game music): the next pick avoids it
 static u32 uiTicks;     // counts frames in the menus: how long you sat there stirs the random numbers
@@ -2501,6 +2502,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
         lstun=2;
         if(pr&K_A){ ldead=0; lstun=0; lfx=spx*256+128; lfy=spy*256+128; lz=0; lvz=0; lskate=0; lsp=0; lgrind=0; lspin=0; lflip=0; lairF=0; lmaxz=0; lplay=0; lnoteT=0; lfood=100; lbl=0; lhp=HP_MAX; moodReset(); simsRespawn(); sfxStop(); feelReset(0); }
     }
+    if(lbailT>0) lbailT--;
     if(lstun>0){ lstun--; lsp=0; lvx=lvy=0; }
     else {
         if((pr&K_L)&&!lhave){ lnote="FIND A BOARD"; lnoteT=40; }
@@ -2556,7 +2558,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
         int pts=hs*180+(lflip?100:0)+feelGrabPts();
         int drop=lmaxz-(int)(lz>>8), sp0=lsp, bail=(g==0);
         lLand=7; lLandD=drop;                          // the landing crouch (playerCalc)
-        if(bail){ lnote="BAIL"; lnoteT=60; lsp=0; lstun=BAIL_STUN; lgrind=0; moodEvent(M_BAIL); }
+        if(bail){ lnote="BAIL"; lnoteT=60; lsp=0; lstun=BAIL_STUN; lbailT=BAIL_STUN; lgrind=0; moodEvent(M_BAIL); }
         else{
             if(g==1){ F.spd=F.spd*3/5; lsp=F.spd>>4; pts/=2; lnote="SKETCHY"; lnoteT=40; }   // landed, but crooked: you lose speed and the trick is worth half
             else if(g==3&&pts) pts+=pts/4;                                                      // PERFECT: +25%
@@ -2809,6 +2811,7 @@ static void drawPlayerNow(void){
         u16 mc=plMk==1?RGB(30,8,6):plMk==2?RGB(30,26,6):plMk==3?RGB(8,27,11):RGB(14,31,16); int w=plMk==4?6:4;
         rect(plX-w,plY-plFh+2,2*w+1,2,mc); }
     if(lskate) drawBoard();   // board under the feet
+    if(lbailT>0&&((lbailT>>1)&1)) return;   // BAIL FLICKER: the skater blinks (every other 2 frames) while getting up
     blit((plBob&&!lskate)?spr4s[plV]:spr4[plV],plX-16,plY-SPF-plZ-plBob+plDip);   // walking: the stride frame on the up-step
 }
 // The room inside the rectangle x0..x1 / y0..y1 (end excluded), drawn back to front and clipped to it: the same pixels a whole-screen
@@ -3331,7 +3334,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
             { u8 zz=xo[XO_ZOOM]; xo[XO_ZOOM]=0; hudApplyLayout(); camSnap=1; liveInvalidate(); lifeDraw(); xo[XO_ZOOM]=zz; }   // a whole picture behind the menu (the screen itself only holds patches), not zoomed
             int c=pauseMenu(ed?2:nbPlaying?1:0);
             if(c==PM_SAVE){ if(!sgPid) toast("PICK A PLAYER ON THE PLAY SCREEN"); else { int se=sgSave(); toast(se?slErrMsg(se):"GAME SAVED"); } }
-            else if(c==PM_WANTS){ static const char* const wsm[2]={"WANTS  FEARS  REWARDS","SKILLS"}; int w=menu("WANTS AND SKILLS",wsm,2); if(w==0) aspPanel(); else if(w==1) skillsScreen(); }
+            else if(c==PM_WANTS){ static const char* const wsm[3]={"WANTS  FEARS  REWARDS","SKILLS","VIEW TRICKS"}; int w=menu("WANTS AND SKILLS",wsm,3); if(w==0) aspPanel(); else if(w==1) skillsScreen(); else if(w==2) tricksScreen(); }
             else if(c==PM_FAMILY) hhMenu();
             else if(c==PM_STORY) storyScreen();
             else if(c==PM_OPTS){ settingsScreen(); if(!ed&&xo[XO_TUTOR]==2) tutBegin(); }
