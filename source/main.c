@@ -4445,7 +4445,8 @@ static void s3Round(int x,int y,int on,const char*glyph){ disc(x,y,7,on?RGB(4,10
 static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,RGB(8,14,26)); text((SW-tw(t,1))/2,152,t,RGB(26,29,31),1); }
 #include "neighborhood.h"   // THE NEIGHBORHOOD: a town of lots to live in, visit and build on (main menu)
 #include "households.h"     // THE TOWN'S HOUSEHOLDS: who lives where, the household bank, visitors, the phone
-#include "fx.h"             // GHOSTS and WEATHER: hardware sprites on the spare OBJ slots (see the top of the file)
+#include "fx.h"
+#include "npc.h"             // AI SKATERS and POLICE: hardware sprites on the last spare OBJ tiles (see the top of npc.h)             // GHOSTS and WEATHER: hardware sprites on the spare OBJ slots (see the top of the file)
 #include "story.h"          // STORY MODE: chapters with goals (NEW GAME > STORY MODE)
 #include "career.h"         // CAREER TRACKS: the screen on the phone (the tracks are in sims.h)
 #include "skills.h"         // SKILLS (life and skater) and the home pack items: TV, bookshelf, coffee maker, aquarium, treadmill

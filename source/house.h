@@ -62,6 +62,7 @@ static const u8 kinInv[KN_N][3]={   // if a is the role, what b may be (the firs
     {KN_NIECE,KN_NEPHEW,0}, {KN_NIECE,KN_NEPHEW,0}, {KN_AUNT,KN_UNCLE,0}, {KN_AUNT,KN_UNCLE,0}, {KN_COUSIN,0,0},
     {KN_STEPDAU,KN_STEPSON,0}, {KN_STEPDAU,KN_STEPSON,0}, {KN_STEPMOM,KN_STEPDAD,0}, {KN_STEPMOM,KN_STEPDAD,0} };
 static inline int kinRom(int r){ return r==KN_PARTNER||r==KN_WIFE||r==KN_HUSBAND; }
+static void copCrime(int n); static void copTick(int*planned);   // npc.h: the police
 static int hhPUid;                         // the uid of the Sim you control
 static char hhPName[HH_NM]="YOU", hhPLast[HH_NM]="";   // the first and last name of the Sim you control (premade Sims bring theirs)
 static u8 hhBubT; static const char* hhBubTxt;   // the word over your head during a social (shown by hud.h's bubble)
@@ -469,6 +470,7 @@ static void hhTick(void){   // once per logic step in the life game
     if(lvx||lvy||lsp||lairF||lgrind) hhStill=0; else if(hhStill<1000) hhStill++;
     int planned=0;
     if(xo[XO_FREEWILL]) twTick(&planned);
+    copTick(&planned);   // npc.h: the police (a cop comes after you when you hurt Sims)
     if(!hhN) return;
     relTick();
     int fe=oFoodEvery(), we=oWcEvery();
@@ -630,6 +632,7 @@ static void fkLose(int u,int n){ int m=hhMemOf(u); if(m<0){ lhp-=n; if(lhp<1) lh
 static char fkB[28] EWRAM_BSS;   // what the one who lands a blow reads: "CRIT SLASH 27"
 static void fightHit(int a,int b){
     const u8*la=fkLook(a), *lb=fkLook(b);
+    if(a==hhPUid) copCrime(1);   // hitting someone is a crime (npc.h)
     if((rnd8()*100>>8)<fkDodge(lb)){ hhSay(b,IC_BAIL,"DODGED"); return; }   // eye stalks see it coming, wings flap clear
     int dmg=14+(uTr(a,TR_ACT)>>1)+(rnd8()>>5)+fkAtk(la);
     { int tk=fkTaken(lb); if(la[LK_CLAWS]==3) tk+=(100-tk)/4; dmg=dmg*tk/100; } if(dmg<1) dmg=1;   // BLADES cut through a quarter of the armour
@@ -640,7 +643,7 @@ static void fightHit(int a,int b){
     if(m<0){ fightHurt(dmg); return; }
     HhSim*t=&hhM[m]; if(t->hp>dmg){ t->hp=(u8)(t->hp-dmg);
         if(a==hhPUid&&lnoteT<=0){ char*e=fkB; if(crit) e=simCat(e,"CRIT "); e=simCat(e,fkMove(a,"PUNCH")); *e++=' '; simCatN(e,dmg); lnote=fkB; lnoteT=45; } }   // you see how hard it landed
-    else { t->hp=30; t->act=HA_SOC; t->t=600; t->bub=IC_SKULL; t->bubT=120; hhNote(t," IS KNOCKED OUT"); if(a==hhPUid) voxPlay(V_win_the_fight); }
+    else { t->hp=30; t->act=HA_SOC; t->t=600; t->bub=IC_SKULL; t->bubT=120; hhNote(t," IS KNOCKED OUT"); if(a==hhPUid){ voxPlay(V_win_the_fight); copCrime(2); } }
 }
 // a does interaction i to b. Returns 1 if it was accepted (mean ones: 1 = it landed)
 // The voice of the Sim you control in a social (you are a or b). One clip at a time; the newest wins.

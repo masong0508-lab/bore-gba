@@ -21,6 +21,7 @@
 //           snow slowly soaks your mood (SOAKED).  The clock in the HUD shows the weather.  OPTIONS > TIME > DAY > WEATHER: AUTO or force one.
 // Not drawn while the ZOOM is on, the action cam plays, or you are upstairs.  Untested on hardware: build it and look.
 
+static void npcTick(void); static void npcPlayStart(void); static void npcObjUpdate(void);   // npc.h: AI skaters and police
 #define FX_SLOT  8
 #define FX_TILE  (512+FX_SLOT*32)     // first tile number of the slot
 #define FX_OAM0  (2*OBJ_SLOTS)        // first OAM entry after the household's
@@ -252,11 +253,12 @@ static void fxLight(void){   // in vblank, after hhObjUpdate set BLDCNT for the 
 static void fxTick(void){
     fxT++;
     if(simMin!=fxLastMin){ fxLastMin=simMin; wxMinute(); }
-    fxGhostTick(); wxTick();
+    fxGhostTick(); wxTick(); npcTick();
 }
 static void fxPlayStart(void){   // play begins (or returns from a menu): reload the art, pick the weather, raise a ghost if the house is HAUNTED
     fxVramOk=0; fxT=0; fxLastMin=-1; wxN=0; wxFlash=0; wxBoom=0; wxThT=0; wxLvl=0; wx=wxNow(); fxSoak=0;
     for(int i=0;i<WX_N;i++) wxPh[i]=255;
+    npcPlayStart();
     if(xo[XO_GHOSTS]==2&&fxGN==0){ int hx=(int)(lfx>>8)+3, hy=(int)(lfy>>8)+2; if(hx>MW-2) hx=MW-2; if(hy>MH-2) hy=MH-2;
         FxGhost*g=&fxG[fxGN++]; g->hx=(u8)hx; g->hy=(u8)hy; g->why=0; g->fx=hx*256+128; g->fy=hy*256+128; g->tx=(s16)g->fx; g->ty=(s16)g->fy; g->age=255; g->cd=120; g->face=0; }
 }
@@ -284,6 +286,7 @@ static void fxObjUpdate(void){
         else { int h=63-ph*7; if(h<0){ if(ph>=WX_FALL+4) continue; x=sx-4; y=sy-8; tile=T_SPLASH; } else { x=sx-4+h/8; y=sy-h-8; tile=T_RAIN; } }
         if(x+8<=vpX0||x>=vpX1||y+8<=sbY0||y>=sbY1) continue;
         e[0]=(u16)((y&255)|0x400); e[1]=(u16)(x&511); e[2]=(u16)(tile|(FX_PALW<<12)); }
+    npcObjUpdate();   // the AI skaters and the cop
 }
 
 // ---- the HUD (hud.h): a tiny weather sign over the sun / moon of the clock ----
