@@ -580,6 +580,14 @@ static void jobPromote(void){   // enough good shifts: a promotion, if the track
     jobLvl++; dnaAdd(SIM_DNA_PROMO); moodEvent(M_PROMO); simEvent(SE_PROMO);
     if(jobLvl==3&&t->top>=3&&!jobChosen) simQueue("PROMOTED  PICK A BRANCH ON PHONE"); else simQueue("PROMOTED");
 }
+// CAMEO (roadmap #3): DAYBAR, your own made-up synth-pop duo: two very obviously gay men in matching sparkly outfits.
+// After a good shift (about 1 in 6) they turn up with a catchphrase. Rename them in simCameoNm; add lines to simCameoLn (each note under 30 letters).
+static const char* const simCameoNm="DAYBAR STROLL IN";
+static const char* const simCameoLn[5]={"TWO BOYS ONE KEYTAR DARLING","WE MATCH ON PURPOSE","LOVE IS A KEY CHANGE","FABULOUS IS A WORK ETHIC","MORE SHINE DARLING"};
+static void simCameo(void){   // a good shift: the duo and one of their lines, after the pay note (uses the spare note slots)
+    if(simRnd()%6) return;
+    simQPush(simCameoNm); simQPush(simCameoLn[simRnd()%5]);
+}
 static void simShiftEnd(void){   // the end of a shift on a work day (the track's hours)
     const JobTr*t=jobT(); int q=simQuota(), p=shiftPts, pay=0, base=jobPayOf(jobTrack,jobLvl,jobBr);
     if(p>=q){ pay=base+(p>=2*q?t->bonus:0); jobBad=0;
@@ -591,6 +599,7 @@ static void simShiftEnd(void){   // the end of a shift on a work day (the track'
         if(++jobBad>=t->bad){ jobBad=0; jobGood=0; if(jobLvl>0){ jobLvl--; if(jobLvl<3) jobChosen=0; moodEvent(M_DEMOTE); simEvent(SE_DEMOTE); simQueue("DEMOTED"); } } }
     if(pay>0){ simMoney+=pay; if(simMoney>9999) simMoney=9999; moodEvent(M_PAY); simMsgPay(p>=q?"SHIFT PAID ":"HALF PAY ",pay); simQPush(simMsg); }
     else { simEvent(SE_NOPAY); if(!simQ) simQueue("NO PAY TODAY"); }
+    if(p>=q) simCameo();
     if(p>=q/2) simEvent(SE_SHIFT);
     if(p>=2*q) simEvent(SE_ACE);
     simEventV(SE_CASH,simMoney);
