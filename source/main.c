@@ -128,7 +128,7 @@ static inline int lkSlide(int id){ return (id>=LK_BASE&&id<=LK_EARLF)||(id>=LK_H
 static inline int slidePos(int v){ return (v+4)%9; }      // 0..8 left to right, the middle (stored 0) is 4
 static inline int slideVal(int p){ return (p+5)%9; }
 static inline int slideEff(int v){ return slidePos(v)-4; }   // -4..4
-// MASTER CONTROLLER (OPTIONS > SIM > MASTER, only with the debug code: sUnlock from the title's Konami code, or dbgOn): a nod to the mod for The Sims.
+// MASTER CONTROLLER (OPTIONS > SIMU > CHEAT, only with the debug code: sUnlock from the title's Konami code, or dbgOn): a debug cheat console for extreme body sliders.
 // DOUBLE SLIDERS: the SIZE sliders (heights, widths, sizes, lengths, colour tones) go twice as far a notch. The sliders that PLACE a part (spread,
 // height on the head, front / back) keep their range, so ears, horns, antennae and arms never come loose from the body. LIMIT BREAK: every
 // age builds in the adult box and the HEIGHT / TORSO / NECK stretch may go much further: taller than the 8 block box, drawn as stretched rows,
@@ -1253,7 +1253,7 @@ IWRAM_THUMB static void drawScene(int blink){
         if(y<hyB&&(shape==2||(shape==3&&y==0))) bw+=handK;   // bigger or smaller hands and feet
         if(y<hyB&&shape==2) bw+=exHnd; else if(y<hyB&&shape==3&&y==0) bw+=exFt;   // HAND SIZE and FOOT SIZE on their own
         if(y==hyB&&shape<4) bw+=exJaw;   // JAW WIDTH: the bottom row of the head
-        if(y<hyB&&shape==0) bw+=exWst+(y==liftL?exHip:0)+(y==hyB-1?exSho:0)+((y==hyB-2&&y>liftL)?exChe:0)+((y==liftL+1&&y<hyB-1)?exBel:0);   // WAIST, HIP and SHOULDER width (the torso only), CHEST (the row under the shoulders) and BELLY (the row over the hips)
+        if(y<hyB&&shape==0) bw+=exWst+(y==liftL?exHip:0)+(y==hyB-1?exSho:0)+(((y==hyB-2&&y>liftL)||(hyB-liftL<3&&y==hyB-1))?exChe:0)+(((hyB-liftL>=3&&y==liftL+1&&y<hyB-1)||(hyB-liftL<3&&y==liftL))?exBel:0);   // WAIST, HIP and SHOULDER width (the torso only), CHEST (the row under the shoulders) and BELLY (the row over the hips; on the usual 2 row torso: CHEST is the shoulder row and BELLY the hip row, else these sliders did nothing)
         else if(y<hyB&&(shape==1||shape==2)) bw+=(y>=(liftL+hyB)/2)?exUAr:exFAr;   // UPPER ARM (the top half of the arm) and FOREARM width
         else if(y<hyB&&shape==3) bw+=(y>=liftL/2)?exThi:exCal;                 // THIGH (upper half of the legs) and CALF (lower half) width
         if(shape==1||shape==2){ int sg=u<0?1:-1, a2,b2, hg=HUG-wk-armK-exWst-exSho; rotUW(sg,0,&a2,&b2); sx+=hg*(a2-b2); sy+=(hg*(a2+b2))/2; }   // hug the torso (a heavier torso, or the ARMS slider, pushes the arms out)

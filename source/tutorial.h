@@ -6,7 +6,7 @@
 //     the room or any save, so it cannot damage anything. Nobody dies while it runs (die() in main.c checks tutOn).
 //   * A lesson = a pop-up card (A go, B skip the lesson, SELECT end the tutorial), then a short goal line in the top bar of the HUD.
 //     When the goal is done, "GOOD JOB" and the next card. A lesson you cannot finish for 45 seconds offers a way out.
-//   * First PLAY ever (XO_TUTOR = OFFER): one question "NEW HERE?". Later: OPTIONS > SIMS > TUTORIAL > REPLAY (starts at once from the pause menu).
+//   * First PLAY ever (XO_TUTOR = OFFER): one question "NEW HERE?". Later: OPTIONS > SIMU > BORES > TUTORIAL > REPLAY (starts at once from the pause menu).
 //   * HOW TO ADD A LESSON: add a TutStep to tutSteps[] (and a goal in tutGoalDone() if it is a new kind of task).
 // Included from main.c just before lifeModeRun(); the loop there calls tutTick() each frame and runs tutRunModal() when tutModal is set.
 enum { TG_INFO, TG_WALK, TG_RUN, TG_HOP, TG_BOARD, TG_OLLIE, TG_FRIDGE, TG_PAUSE };

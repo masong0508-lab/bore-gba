@@ -71,7 +71,7 @@ static const OptRow pgSimSims[]={
  XR(XO_SIMRAND,"MADE-UP SIMS",lbOnOff,"RANDOM SIMS THAT MOVE IN OR WALK PAST","OFF MEANS NONE OF THEM SHOW UP"),
 };
 static const char* const lbMcSl[2]={"NORMAL","DOUBLE"}, *const lbMcBox[2]={"BY AGE","LIMIT BREAK"};
-static const OptRow pgSimMaster[]={   // MASTER CONTROLLER: only with the debug code (the section is hidden without it, and has no effect)
+static const OptRow pgSimMaster[]={   // CHEAT console (debug code only) (the section is hidden without it, and has no effect)
  XR(XO_MCSLIDE,"SIZE SLIDERS",lbMcSl,"DOUBLE  EVERY SIZE TONE AND LENGTH SLIDER","GOES TWICE AS FAR  PARTS STAY ATTACHED"),
  XR(XO_MCBOX,"BODY BOX",lbMcBox,"LIMIT BREAK  EVERY AGE GETS THE ADULT BOX","AND ADULTS STRETCH PAST 8 BLOCKS TALL"),
 };
@@ -147,16 +147,16 @@ static const OptSub simSubs[]={
  SUB("NEEDS",pgSimNeeds,"HOW FAST NEEDS RUN DOWN  MOOD AND HOW","MUCH A FALL HURTS"),
  SUB("JOB",pgSimJob,"THE CAREER  ITS QUOTA AND THE BILLS","AT MIDNIGHT"),
  SUB("SCORE",pgSimScore,"TRICK SCORES  YOUR TOP SPEED AND THE","ACTION CAM AFTER A BIG COMBO"),
- SUB("SIMS",pgSimSims,"WHO MOVES IN OR WALKS PAST AND HOW","THE OTHERS LOOK AFTER THEMSELVES"),
+ SUB("BORES",pgSimSims,"WHO MOVES IN OR WALKS PAST AND HOW","THE OTHERS LOOK AFTER THEMSELVES"),
  SUB("MIND",pgSimMind,"THE THOUGHT BUBBLE AND THE WANTS AND","FEARS IN THE HUD"),
- SUB("MASTER",pgSimMaster,"A NOD TO THE MASTER CONTROLLER MOD","DEBUG CODE ONLY  EXTREME SIM SLIDERS"),   // (keep it last: pgNs hides it)
+ SUB("CHEAT",pgSimMaster,"DEBUG CHEAT CONSOLE  EXTREME BODY SLIDERS","AND A BIGGER BODY BOX  DEBUG CODE ONLY"),   // (keep it last: pgNs hides it)
 };
 static const OptSub timeSubs[]={
  SUB("DAY",pgTimeDay,"HOW LONG A GAME DAY IS AND HOW THE","CLOCK SHOWS IT"),
  SUB("AGES",pgTimeAges,"HOW FAST EVERY LIFE STAGE PASSES AND WHO","MAY USE THE WATER PIPE"),
  SUB("TIMERS",pgTimeTimers,"HOW LONG THE COMBO CHAIN WAITS AND HOW","LONG POP UP MESSAGES STAY"),
 };
-static const OptPage optPages[NOPG]={ PG("VIDEO",pgVideo), PGS("SIM",simSubs), PGS("TIME",timeSubs), PG("AUDIO",pgAudio), PG("INPUT",pgInput), PG("HUD",pgHud), PG("ROOMS",pgRooms), PG("DATA",pgData) };
+static const OptPage optPages[NOPG]={ PG("VIDEO",pgVideo), PGS("SIMU",simSubs), PGS("TIME",timeSubs), PG("AUDIO",pgAudio), PG("INPUT",pgInput), PG("HUD",pgHud), PG("ROOMS",pgRooms), PG("DATA",pgData) };
 static int opPage, opFocus; static u8 opSel[NOPG][5], opSub[NOPG];   // opFocus: the cursor is on the section strip; opSel is kept per page and per section
 static int pgNs(const OptPage*pg);
 static const OptRow* pgRows(const OptPage*pg,int*n){ if(pg->ns){ if(opSub[pg-optPages]>=pgNs(pg)) opSub[pg-optPages]=0; const OptSub*u=&pg->sub[opSub[pg-optPages]]; *n=u->n; return u->r; } *n=pg->n; if(pg->r==pgVideo&&!sUnlock) (*n)--; return pg->r; }   // DEBUG CLEAR CACHES (the last VIDEO row) only shows while the Konami code (sUnlock) is on
