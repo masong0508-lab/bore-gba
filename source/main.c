@@ -13,7 +13,8 @@ typedef uint8_t u8; typedef uint16_t u16; typedef uint32_t u32;
 #define VRAM_ADDR 0x06000000u
 #define EWRAM_BSS __attribute__((section(".sbss"), aligned(4)))
 // Hot loops run as ARM code from IWRAM (32-bit, zero-wait bus) instead of Thumb from the 16-bit ROM bus.
-#define IWRAM_CODE __attribute__((section(".iwram"), target("arm"), long_call))
+#define IWRAM_CODE __attribute__((section(".iwram"), long_call))
+#define IWRAM_ARM __attribute__((section(".iwram"), target("arm"), long_call))
 #define IWRAM_THUMB __attribute__((section(".iwram"), long_call))   // fast RAM, Thumb code: about 2/3 the size of ARM, for work that is not the per-pixel hot path
 #define REG_WAITCNT (*(volatile u16*)0x04000204)
 #include "save.h"   // the save chip: 128 KB flash, or 32 KB SRAM as the fallback (SRAM_BASE, svRd / svWr / svErase / svCommit)
@@ -1280,7 +1281,7 @@ static void ldTick(void);   // loading.h: once per frame, lets the music come ba
 // and BG2's own scaling stretches that window over the room rows; the HUD rows stay 1:1. An HBlank DMA writes every line's BG2 scaling
 // from zoomDma (4 words a line, zoomtab.h, copied to EWRAM: DMA0 cannot read the cartridge); the vblank IRQ starts it again every frame.
 static u8 zoomShow, zoomKeep, zoomNum=1, zoomDen=1; static u16 zoomPa=256; static const u32* zoomDma;   // zoomShow: the screen shows a zoomed room picture
-IWRAM_CODE static void zoomArm(void){   // in vblank: line 0's scaling now, then the DMA writes each next line's in HBlank
+IWRAM_ARM static void zoomArm(void){   // in vblank: line 0's scaling now, then the DMA writes each next line's in HBlank
     volatile u32*d0=(volatile u32*)0x040000B0, *bg=(volatile u32*)0x04000020; const u32*t=zoomDma;
     d0[2]=0; bg[0]=t[0]; bg[1]=t[1]; bg[2]=t[2]; bg[3]=t[3];
     d0[0]=(u32)(uintptr_t)(t+4); d0[1]=0x04000020u; d0[2]=4u|(3u<<21)|(1u<<25)|(1u<<26)|(2u<<28)|(1u<<31);   // 4 words, dest reload, repeat, 32 bit, HBlank, on
@@ -1516,7 +1517,7 @@ static inline __attribute__((always_inline)) int softClip(int x){
     if(x<-96){ int d=-96-x; return -96-d*32/(d+32); }
     return x;
 }
-IWRAM_CODE static void musMix(s8*outL,s8*outR){
+IWRAM_ARM static void musMix(s8*outL,s8*outR){
     int done=0;
     while(done<MUS_N){
         if(mLeft==0){ musTrigger(); mFrac+=mSong->rfr; mLeft=mSong->rowN+(mFrac>>8); mFrac&=255;
@@ -1543,8 +1544,8 @@ IWRAM_CODE static void musMix(s8*outL,s8*outR){
 }
 // Streamed ADPCM song (source/music/*.adp from tools/encode_song.py): 4-bit IMA-ADPCM, 18157 Hz, so one frame = 304 samples.
 // Same format as the sound effects: u32 sample count, then nibbles (low first). Decoded straight into the DMA buffer.
-IWRAM_CODE static void pseudoSt(s8*out,s8*outR);
-IWRAM_CODE static void adpMix(s8*out,s8*outR){
+IWRAM_ARM static void pseudoSt(s8*out,s8*outR);
+IWRAM_ARM static void adpMix(s8*out,s8*outR){
     // bit 31 of the sample count = song stored at 2/3 rate (12105 Hz): every 2 stored samples become 3 output samples (linear interpolation)
     u32 p=aPos, e=aN; int pred=aPred, idx=aIdx, i=0; const u8*d=aSrc;
     int prv=aPrv, ph=aPh;
@@ -1577,7 +1578,7 @@ IWRAM_CODE static void adpMix(s8*out,s8*outR){
 // Pseudo-stereo for a mono stream (complementary comb): L = 0.75x + 0.5z, R = 0.75x - 0.5z, where z is the high part of x delayed by 14 ms. L+R is
 // exactly the original mono signal (so it also sounds right on the GBA's mono speaker); the ears get different comb patterns = width.
 // The one-pole low-pass is subtracted from z so bass and kick stay in the middle.
-IWRAM_CODE static void pseudoSt(s8*out,s8*outR){
+IWRAM_ARM static void pseudoSt(s8*out,s8*outR){
     int dp=mDp, lp=mLp;
     for(int k=0;k<MUS_N;k++){ int x=out[k], z=mDly[dp]; mDly[dp]=(s8)x; dp=(dp+1)&255;
         lp+=(z*16-lp)>>3; int h=z-(lp>>4);                 // lp holds the low-passed delayed signal x16
@@ -1585,7 +1586,7 @@ IWRAM_CODE static void pseudoSt(s8*out,s8*outR){
         out[k]=(s8)(l>127?127:l<-128?-128:l); outR[k]=(s8)(r>127?127:r<-128?-128:r); }
     mDp=dp; mLp=lp;
 }
-IWRAM_CODE static void sfxMix(s8*outL,s8*outR){   // add the effect voice to a finished buffer (both sides), clipped
+IWRAM_ARM static void sfxMix(s8*outL,s8*outR){   // add the effect voice to a finished buffer (both sides), clipped
     int fg=sfxFade;   // the voice's own fade (loading tick-tock): 8/256 a frame up, 16/256 down
     if(fg!=sfxFadeT){ fg+=(sfxFadeT>fg)?8:-16; if((sfxFadeT>sfxFade)?fg>sfxFadeT:fg<sfxFadeT) fg=sfxFadeT; sfxFade=fg;
         if(fg==0&&sfxFadeT==0&&sfxLoop){ sfxV=0; sfxLoop=0; return; } }
@@ -1636,7 +1637,7 @@ __attribute__((noinline,long_call)) static void csStep(CSyn*c){   // the next co
                if(fl&0x40){ int b=*c->d++; c->nlv=b&15; c->nb=(const s8*)(chipsyn+csNzOff[b>>4]); } } }
     int t=c->acc+37; c->left=151+(t>=120); c->acc=t>=120?t-120:t;   // 18157/120 = 151 r 37: 151 or 152 samples a step, exact on average
 }
-IWRAM_CODE static void chipMix(s8*out,s8*outR){   // in passes over maccL / maccR (free while this runs): few live values, no spills
+IWRAM_ARM static void chipMix(s8*out,s8*outR){   // in passes over maccL / maccR (free while this runs): few live values, no spills
     CSyn*c=&csy; int i=0;
     while(i<MUS_N){
         if(!c->left) csStep(c);
@@ -1674,9 +1675,9 @@ typedef struct {
 static MDeck xdk EWRAM_BSS; static s8 xbufL[MUS_N] EWRAM_BSS, xbufR[MUS_N] EWRAM_BSS;
 static volatile int xfOn, xfT, xfN, xdkG=256;   // crossfade running, frames done, frames in all, the old song's gain when it was put aside (256 = full)
 static const u16 xfCurve[17]={0,25,50,74,98,121,142,162,181,198,213,226,237,245,251,255,256};   // sin(90 deg x k/16) x 256: equal power
-IWRAM_CODE static int xfGain(int t,int n){ int p=t*256/n; if(p<0) p=0; if(p>256) p=256; int i=p>>4, f=p&15, a=xfCurve[i], c=xfCurve[i<16?i+1:16]; return a+(((c-a)*f)>>4); }
+IWRAM_ARM static int xfGain(int t,int n){ int p=t*256/n; if(p<0) p=0; if(p>256) p=256; int i=p>>4, f=p&15, a=xfCurve[i], c=xfCurve[i<16?i+1:16]; return a+(((c-a)*f)>>4); }
 #define XSW(T,A,B) { T t_=A; A=B; B=t_; }
-IWRAM_CODE static void deckSwap(MDeck*d){   // exchange the main deck (the globals) with d
+IWRAM_ARM static void deckSwap(MDeck*d){   // exchange the main deck (the globals) with d
     XSW(const XmSong*,mSong,d->song) XSW(int,mOrd,d->ord) XSW(int,mRow,d->row) XSW(int,mLeft,d->left) XSW(int,mFrac,d->frac) XSW(int,mKind,d->kind) XSW(int,aTail,d->tail)
     XSW(int,aSlow,d->aSlow) XSW(int,aPrv,d->aPrv) XSW(int,aPh,d->aPh) XSW(const u8*,aSrc,d->aSrc) XSW(u32,aN,d->aN) XSW(u32,aPos,d->aPos) XSW(int,aPred,d->aPred) XSW(int,aIdx,d->aIdx) XSW(int,aLoop,d->aLoop) XSW(int,aPred0,d->aPred0) XSW(int,aIdx0,d->aIdx0)
     XSW(int,mDp,d->dp) XSW(int,mLp,d->lp) XSW(CSyn,csy,d->cs)
@@ -1684,7 +1685,7 @@ IWRAM_CODE static void deckSwap(MDeck*d){   // exchange the main deck (the globa
     { u32*a=(u32*)mvc,*b=(u32*)d->vc; for(unsigned i=0;i<sizeof(mvc)/4;i++){ u32 t=a[i]; a[i]=b[i]; b[i]=t; } }
     { u32*a=(u32*)mDly,*b=(u32*)d->dly; for(int i=0;i<64;i++){ u32 t=a[i]; a[i]=b[i]; b[i]=t; } }
 }
-IWRAM_CODE static void musMixAny(int b){
+IWRAM_ARM static void musMixAny(int b){
     if(!mPlay&&!xfOn){ for(int i=0;i<MUS_N;i++){ mbufL[b][i]=0; mbufR[b][i]=0; } if(sfxV) sfxMix(mbufL[b],mbufR[b]); else mWantOff=1; return; }   // only an effect (or nothing: switch the mixer off)
     if(ldG==0&&ldGT==0&&!xfOn){ for(int i=0;i<MUS_N;i++){ mbufL[b][i]=0; mbufR[b][i]=0; } if(sfxV) sfxMix(mbufL[b],mbufR[b]); return; }   // the song is stepped aside for a loading screen: frozen where it is, no decoding at all (only the tick-tock is mixed)
     if(mPlay){ if(mKind==2) chipMix(mbufL[b],mbufR[b]); else if(mKind) adpMix(mbufL[b],mbufR[b]); else musMix(mbufL[b],mbufR[b]); }
@@ -1722,7 +1723,7 @@ extern void irqEntry(void);
 __asm__(".pushsection .iwram,\"ax\",%progbits\n.arm\n.align 2\n.global irqEntry\nirqEntry:\n"
         "  push {r4-r11,lr}\n  mov r4,sp\n  ldr r0,=irqStack+1024\n  mov sp,r0\n  bl irqMain\n  mov sp,r4\n  pop {r4-r11,lr}\n  bx lr\n"
         ".ltorg\n.popsection\n");
-__attribute__((used)) IWRAM_CODE void irqMain(void){
+__attribute__((used)) IWRAM_ARM void irqMain(void){
     u16 f=R_IF;
     if(f&1){   // vblank: start the buffer that was filled last frame, in step with the screen
         R_IF=1;
