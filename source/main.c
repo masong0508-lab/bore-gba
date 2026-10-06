@@ -2337,25 +2337,35 @@ static u16 keyNow(void){   // BUTTONS option: A/B and L/R can be swapped here, s
 }
 static void objHideAll(void){ for(int i=0;i<32;i++) ((volatile u16*)0x07000000)[i*4]=0x200; }   // household sprites off (menus, other screens)
 static void box(int x,int y,int w,int h){ objHideAll(); rect(x-1,y-1,w+2,h+2,GOLD); rect(x,y,w,h,RGB(3,4,7)); }
-static int menu(const char*title,const char*const*it,int n){   // UP/DOWN + A to choose, B or START to cancel (returns -1)
-    int sel=0, w=116, h=26+n*10, x=(SW-w)/2, y=(SH-h)/2, dirty=1, hold=0; u16 prev=keyNow();
+static int menu(const char*title,const char*const*it,int n){   // UP/DOWN + A to choose, B or START to cancel (returns -1). Long lists scroll (L R jump a page).
+    if(n<=0) return -1;
+    int vis=n>9?9:n, w=tw(title,1)+40; for(int i=0;i<n;i++){ int q=tw(it[i],1)+30; if(q>w) w=q; } if(w<116) w=116; if(w>232) w=232;   // as wide as its longest line
+    int h=32+vis*10, x=(SW-w)/2, y=(SH-h)/2, sel=0, top=0, dirty=1, hold=0; u16 prev=keyNow();
+    for(int g=1;g<3;g++){ int gh=h*g/3; box(x,(SH-gh)/2,w,gh); present(); }   // it opens (it only grows, so nothing needs wiping)
+    sfxPlay(SFX_POP);
     for(;;){
-        u16 k=keyNow(), pr=k&~prev; prev=k;
+        u16 k=keyNow(), pr=k&~prev; prev=k; int ps=sel;
         if(k&(K_UP|K_DOWN)){ if(++hold>24&&hold%6==0) pr|=k&(K_UP|K_DOWN); } else hold=0;   // hold UP or DOWN to run down a long list
-        if(pr&K_DOWN){ sel=(sel+1)%n; dirty=1; }
-        if(pr&K_UP){ sel=(sel+n-1)%n; dirty=1; }
-        if(pr&K_A) return sel;
+        if(pr&K_DOWN) sel=(sel+1)%n;
+        if(pr&K_UP) sel=(sel+n-1)%n;
+        if(pr&K_R){ sel+=vis; if(sel>=n) sel=n-1; }
+        if(pr&K_L){ sel-=vis; if(sel<0) sel=0; }
+        if(sel!=ps){ dirty=1; sfxPlay(SFX_TICK); if(sel<top) top=sel; if(sel>=top+vis) top=sel-vis+1; }
+        if(pr&K_A){ sfxPlay(SFX_POP); return sel; }
         if(pr&(K_B|K_START)) return -1;
-        if(!dirty){ vsync(); continue; }   // nothing moved: the picture on the screen is still right (a redraw is a whole text pass plus a full copy)
+        if(!dirty){ vsync(); continue; }   // nothing moved: the picture on the screen is still right
         dirty=0;
-        box(x,y,w,h); text(x+6,y+5,title,GOLD,1);
-        for(int i=0;i<n;i++){ int yy=y+16+i*10;
-            if(i==sel){ rect(x+3,yy-2,w-6,9,RGB(6,16,8)); text(x+6,yy,">",WHITE,1); }
-            text(x+13,yy,it[i],i==sel?WHITE:DIMC,1); }
+        box(x,y,w,h); rect(x,y,w,13,RGB(5,12,24)); rect(x,y+13,w,1,GOLD); text(x+6,y+4,title,GOLD,1);
+        if(n>vis){ char c[12]; char*e=c; e+=numStr(e,sel+1); *e++='/'; numStr(e,n); text(x+w-6-tw(c,1),y+4,c,DIMC,1); }   // 3/12
+        for(int j=0;j<vis;j++){ int i=top+j, yy=y+17+j*10;
+            if(i==sel){ rect(x+3,yy-2,w-6-(n>vis?5:0),10,RGB(6,16,8)); rect(x+3,yy-2,2,10,GOLD); text(x+8,yy,">",WHITE,1); }
+            text(x+16,yy,it[i],i==sel?WHITE:DIMC,1); }
+        if(n>vis){ int th=vis*10*vis/n; if(th<6) th=6; rect(x+w-5,y+15,2,vis*10,RGB(8,12,22)); rect(x+w-5,y+15+(vis*10-th)*top/(n-vis),2,th,GOLD); }   // scroll bar
         text(x+6,y+h-9,"A OK  B BACK",RGB(12,14,16),1);
         present();
     }
 }
+#include "pie.h"   // the pie menu: contextual interaction (house.h: hhSocR)
 static void helpScreen(const char*title,const char*const*ln,int n){   // lines starting with > are headings
     u16 prev=keyNow(); int dirty=1;
     for(;;){

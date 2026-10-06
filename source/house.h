@@ -760,12 +760,14 @@ static int hhSocR(int useLabel){   // 1 = handled (a social, or the menu was clo
     int m=hhNearest(); if(m<0) return 0;
     HhSim*s=&hhM[m]; int b=s->uid, a=hhPUid;
     if(s->act==HA_USE){ lnote="THEY ARE BUSY"; lnoteT=50; return 0; }
-    static const char* it[SC_N+1]; static char tl[40]; int id[SC_N+1], n=0;
+    static const char* it[SC_N+1]; static char tl[40]; int id[SC_N+1], cat[SC_N+1], n=0;   // (cat: the pie's category, 0 FRIENDLY 1 FUN 2 ROMANTIC 3 MEAN 4 USE)
     static const char* const useNm[6]={0,"USE THE FRIDGE","USE THE TOILET","SLEEP IN BED","TAKE A SHOWER","SIT ON SOFA"};
-    if((useLabel>0&&useLabel<6)||useLabel>=8){ it[n]=useLabel==8?"USE THE PHONE":useLabel>=9?"TUNE THE RADIO":useNm[useLabel]; id[n++]=-1; }
-    for(int i=0;i<SC_N;i++) if(socAllowed(a,b,i)){ it[n]=i==SC_PUNCH?fkMove(a,"PUNCH"):socT[i].name; id[n++]=i; }
+    static const u8 socCat[SC_N]={0,1,0,0,0,1,2,2,2,0,3,3,3,3,1};   // TALK JOKE COMPL HIGH5 HUG TRICK FLIRT KISS STEADY SORRY ARGUE INSULT SLAP PUNCH PASS
+    if((useLabel>0&&useLabel<6)||useLabel>=8){ it[n]=useLabel==8?"USE THE PHONE":useLabel>=9?"TUNE THE RADIO":useNm[useLabel]; cat[n]=4; id[n++]=-1; }
+    for(int i=0;i<SC_N;i++) if(socAllowed(a,b,i)){ it[n]=i==SC_PUNCH?fkMove(a,"PUNCH"):socT[i].name; cat[n]=socCat[i]; id[n++]=i; }
     { char*e=simCat(tl,s->name); *e++=' '; *e++=' '; e=simCat(e,relWord(a,b)); e=simCat(e,"  HP "); simCatN(e,s->hp); }
-    int c=menu(tl,it,n); liveInvalidate();
+    if(!n){ lnote="NOTHING TO DO HERE"; lnoteT=50; return 1; }
+    int c=pieCats(tl,it,cat,n); liveInvalidate();   // the PIE MENU (pie.h): the Sims way
     while((~REG_KEYINPUT)&0x3FF) vsync();
     if(c<0) return 1;
     if(id[c]<0) return 0;

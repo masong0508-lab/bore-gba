@@ -742,3 +742,8 @@ After a good shift (`simCameo`, sims.h): a 1 in 6 chance, then a coin toss betwe
 ## Welcome visit (scripted arrival)
 `twPick` (house.h) marks the first neighbour `twWel` and sets his wait to 3 seconds, so on every new lot or new life someone walks in soon after you arrive. The welcome ignores the night rule, says "<NAME> SAYS WELCOME" and pays a housewarming gift of §25 on arrival. Later visits are as before.
 
+
+## Pie menu + scrolling menu (IWRAM safe)
+- `source/pie.h`: Sims-style pie menu. Social interactions (R next to a Sim) show a ring of up to 8 chips; D-pad picks by direction (two keys = diagonal), L R step round, A confirms, B backs out. More than 8 interactions go in two levels (FRIENDLY / FUN / ROMANTIC / MEAN / USE), B steps back up.
+- `menu()` now opens with a short grow animation, sizes to its longest line, scrolls long lists (scroll bar, n/m counter, L R page) and plays tick/pop sounds.
+- IWRAM: pie.h is ROM code with no statics (arrays live on the EWRAM stack); the static symbol set (names + sizes) is identical to before. The Makefile now fails the build if `.bss + .data + .iwram` > `IWRAM_MAX` (32512 B), printing the figure on every build.
