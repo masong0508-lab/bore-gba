@@ -308,7 +308,7 @@ static void slDefaultName(int slot,char*d){ slNameN(d,"ROOM ",slot+1); }
 // ---------- save / load / delete / copy / rename ----------
 static int slMaskOpt(void){ static const u8 t[3]={SLH_ROOM,SLH_ROOM|SLH_PERSON,SLH_ROOM|SLH_PERSON|SLH_LIFE}; return t[xo[XO_SLOTCONT]]; }
 // name = 0: keep the name the slot has (or ROOM n for an empty slot). Returns SLE_OK or an error and leaves the slot as it was on SLE_BIG.
-static int slSave(int slot,int mask,const char*name){
+static int slSaveI(int slot,int mask,const char*name){
     SlInfo old; int had=slInfo(slot,&old); char nm[SLOT_NAME+1];
     if(name) { int i=0; for(;name[i]&&i<SLOT_NAME;i++) nm[i]=name[i]; nm[i]=0; }
     else if(had&&old.kind==SLK_ROOM){ for(int i=0;i<=SLOT_NAME;i++) nm[i]=old.name[i]; }
@@ -321,6 +321,9 @@ static int slSave(int slot,int mask,const char*name){
     SlW w; slwInit(&w,SLO(slot)+SLOT_HDR,SLOT_SZ-SLOT_HDR); slBuild(&w,mask);
     slHeader(slot,SLK_ROOM,1,mask,w.pos,slwSum(&w),had?old.seq+1:1,nm);
     return slVerify(slot);
+}
+static int slSave(int slot,int mask,const char*name){   // flash writes are slow: a loading screen covers them
+    ldShow("SAVING",0,2); int e=slSaveI(slot,mask,name); ldShow("SAVING",2,2); ldEnd(); return e;
 }
 static int slVerify(int slot){   // read it back: no save memory here?
     SlInfo chk; if(svErr||!slInfo(slot,&chk)||slSumOf(SLB(slot)+SLOT_HDR,chk.len)!=chk.sum) return SLE_NOSRAM;
@@ -395,7 +398,7 @@ static int slLoad(int slot,int mask){
 // ---------- household slots: the Sims living with you, kept like a room slot (SAVE HOUSEHOLD / LOAD HOUSEHOLD in the slot's menu) ----------
 // slSaveHH stores the household block that hhSave last wrote to SRAM (call hhSave first); slLoadHH puts a stored one back there (call hhLoad after).
 #define SL_HHBLK (SRAM_BASE+SL_HH_OFF)
-static int slSaveHH(int slot,const char*name){   // name 0: keep the slot's name (or FAMILY n). Needs slScan to be fresh (slOwner).
+static int slSaveHHI(int slot,const char*name){   // name 0: keep the slot's name (or FAMILY n). Needs slScan to be fresh (slOwner).
     SlInfo old; int had=slInfo(slot,&old); if(had&&old.kind!=SLK_HHOLD) return SLE_HOUSE;
     volatile u8*b=SL_HHBLK; int len=hhBlockLen(b,SL_HH_LEN); if(!len) return SLE_BAD;
     int span=(SLOT_HDR+len+SLOT_SZ-1)/SLOT_SZ;
@@ -413,6 +416,9 @@ static int slSaveHH(int slot,const char*name){   // name 0: keep the slot's name
     for(int k=span;k<oldspan&&slot+k<SLOT_N;k++){ svWr(SLO(slot+k),0); svWr(SLO(slot+k)+1,0); }   // it shrank: free the slot it no longer needs
     return slVerify(slot);
 }
+static int slSaveHH(int slot,const char*name){
+    ldShow("SAVING THE HOUSEHOLD",0,2); int e=slSaveHHI(slot,name); ldShow("SAVING THE HOUSEHOLD",2,2); ldEnd(); return e;
+}
 static int slLoadHH(int slot){   // checks the stored household first and only then replaces the one in SRAM
     SlInfo I; if(!slInfo(slot,&I)||I.kind!=SLK_HHOLD) return SLE_EMPTY;
     volatile u8*s=SLB(slot)+SLOT_HDR;
@@ -427,7 +433,7 @@ static void slDelete(int slot){
     volatile u8*d=SRAM_BASE+SLOT_DIR; if(d[0]=='S'&&d[2]==(u8)slot) d[0]=0;   // it was the active slot: there is none now
     svCommit();
 }
-static void slEraseAll(void){ svErase(SLOT_BASE,(u32)SLOT_N*SLOT_SZ); volatile u8*d=SRAM_BASE+SLOT_DIR; for(int i=0;i<4;i++) d[i]=0; svCommit(); }
+static void slEraseAll(void){ ldShow("ERASING THE SLOTS",0,2); svErase(SLOT_BASE,(u32)SLOT_N*SLOT_SZ); volatile u8*d=SRAM_BASE+SLOT_DIR; for(int i=0;i<4;i++) d[i]=0; svCommit(); ldShow("ERASING THE SLOTS",2,2); ldEnd(); }
 static int slCopy(int src,int dst){   // span 1 only; byte for byte, magic last
     SlInfo I; if(!slInfo(src,&I)) return SLE_EMPTY; if(I.span!=1) return SLE_HOUSE;
     int n=SLOT_HDR+I.len; u32 a=SLO(src), b=SLO(dst);

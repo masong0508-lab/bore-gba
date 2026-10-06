@@ -364,7 +364,7 @@ IWRAM_CODE static void cube(int sx,int sy,int ci,int shape,int f){
 // ---------- textured walls and floors ----------
 static u16 wpTab[NWP][2][8][8] EWRAM_BSS;              // [wallpaper][0 left face / 1 right face][column][row], pre-shaded
 static u16 wpHi[NWP][2][8], wpLo[NWP][2][8];            // per column: the lit row under the top edge, and the shaded row above the bottom edge
-static u16 flTab[NFL][2][2*CB+1][2*CA+1] EWRAM_BSS;    // [floor][odd tile][row][column] pre-sampled onto the iso diamond (row-major: drawn as horizontal spans)
+#include "fltab.h"   // flTab[floor][odd tile][row][column]: pre-sampled onto the iso diamond, now baked into ROM (tools/gen_fltab.c) instead of 8.5 KB of EWRAM
 static u8 rowHW[CB+1];   // rowHW[|y|] = half width of the diamond on that row
 static u16 flFlat[NFL][2];                             // plain-colour fallback ("floor patterns off")
 static u16 avgTex(const Tex*t){
@@ -380,16 +380,7 @@ static void bakeTex(void){   // needs hhT (filled by initTables)
     for(int fl=0;fl<NFL;fl++){
         const Tex*t=&flTex[fl]; u16 av=avgTex(t); int vs=flVs[fl];
         flFlat[fl][0]=av; flFlat[fl][1]=shade(av,vs);
-        for(int var=0;var<2;var++)for(int tt=-CA;tt<=CA;tt++){
-            int hh=hhT[0][tt<0?-tt:tt];
-            for(int y=-hh;y<=hh;y++){
-                int X=tt*CB+y*CA+CA*CB, Y=y*CA-tt*CB+CA*CB;      // tile-space position, 0..2*CA*CB
-                int ta=X*8/(2*CA*CB), tb=Y*8/(2*CA*CB);
-                if(ta<0)ta=0; if(ta>7)ta=7; if(tb<0)tb=0; if(tb>7)tb=7;
-                u16 c=t->c[t->p[tb][ta]-'0']; if(var) c=shade(c,vs);
-                flTab[fl][var][y+CB][tt+CA]=c;
-            }
-        }
+        // (flTab is in ROM now: see fltab.h)
     }
 }
 // One wall block with its wallpaper on both faces. Same silhouette and outline as cube(); f as for cube().
