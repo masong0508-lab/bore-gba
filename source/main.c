@@ -2844,14 +2844,21 @@ IWRAM_CODE static void zoomFb(int cx,int cy,int zk){   // only the scene rows (v
     for(int y=vpY0;y<vpY1;y++) zym[y]=(short)(cy+(((y-cy)*zk)>>8));
     for(int pass=0;pass<2;pass++){
         int y0=pass?vpY0:vpY1-1, y1=pass?cy:cy-1, st=pass?1:-1;
+        int prevY=-1, prevS=-1;   // the row done just before and the source row it was made from
         for(int y=y0;y!=y1;y+=st){
             u16*d=fb+y*SW; const u16*s=fb+zym[y]*SW;
-            int x=SW-1;
-            for(;x-3>=cx;x-=4){ u16 a=s[zxm[x]],b=s[zxm[x-1]],c=s[zxm[x-2]],e=s[zxm[x-3]]; d[x]=a; d[x-1]=b; d[x-2]=c; d[x-3]=e; }
-            for(;x>=cx;x--) d[x]=s[zxm[x]];
-            x=0;
-            for(;x+3<cx;x+=4){ u16 a=s[zxm[x]],b=s[zxm[x+1]],c=s[zxm[x+2]],e=s[zxm[x+3]]; d[x]=a; d[x+1]=b; d[x+2]=c; d[x+3]=e; }
-            for(;x<cx;x++) d[x]=s[zxm[x]];
+            if(zym[y]==prevS){   // same source row as the row before: the zoomed row is already there, copy it (8 words per round) instead of gathering 240 pixels
+                const u32*q=(const u32*)(fb+prevY*SW); u32*o=(u32*)d;
+                for(int i=0;i<SW/16;i++){ u32 a=q[0],b=q[1],c=q[2],e=q[3],f=q[4],g=q[5],h=q[6],j=q[7]; q+=8; o[0]=a; o[1]=b; o[2]=c; o[3]=e; o[4]=f; o[5]=g; o[6]=h; o[7]=j; o+=8; }
+            } else {
+                int x=SW-1;   // right half, outer edge inwards: two pixels per store (x stays odd, so the pair (x-1,x) is word aligned; both are read before either is written)
+                for(;x-1>=cx;x-=2){ u32 a=s[zxm[x-1]], b=s[zxm[x]]; *(u32*)(d+x-1)=a|(b<<16); }
+                for(;x>=cx;x--) d[x]=s[zxm[x]];
+                x=0;      // left half, outer edge inwards: the pair (x,x+1) with x even
+                for(;x+1<cx;x+=2){ u32 a=s[zxm[x]], b=s[zxm[x+1]]; *(u32*)(d+x)=a|(b<<16); }
+                for(;x<cx;x++) d[x]=s[zxm[x]];
+            }
+            prevY=y; prevS=zym[y];
         }
     }
 }
