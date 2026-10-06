@@ -77,12 +77,13 @@ static void homeUse(int k){   // R at a home pack item: lnear 11 TV, 12 bookshel
     if(stage==AG_BABY){ lnote="TOO YOUNG"; lnoteT=40; return; }
     lsp=0; lgrind=0;
     if(k==11){
-        static const char* const tvN[4]={"SKATE VIDEO","COMEDY NIGHT","THE NEWS","HORROR FLICK"};
-        int ch=hmTv&3, sofa=hmNear(3,'C')||hmNear(3,'U'); hmTv=(u8)((hmTv+1)&3);
+        static const char* const tvN[5]={"MACHINI-TV","SKATE VIDEO","COMEDY NIGHT","THE NEWS","HORROR FLICK"};   // channel 0 plays a 3 second clip (tvclip.h)
+        int ch=hmTv%5, sofa=hmNear(3,'C')||hmNear(3,'U'); hmTv=(u8)((hmTv+1)%5);
         lstun=90; hmNeed(&sCom,sofa?30:12);
-        if(ch==0){ simSkillAdd(1); skGain(SK_CREAT,1); }
-        else if(ch==1){ simEvent(SE_LAUGH); voxPlay(V_laughing); moodEvent(M_SOFA); }
-        else if(ch==2){ skGain(SK_LOGIC,1); }
+        if(ch==0){ tvClip=1; simEvent(SE_LAUGH); moodEvent(M_SOFA); }
+        else if(ch==1){ simSkillAdd(1); skGain(SK_CREAT,1); }
+        else if(ch==2){ simEvent(SE_LAUGH); voxPlay(V_laughing); moodEvent(M_SOFA); }
+        else if(ch==3){ skGain(SK_LOGIC,1); }
         else { sfxPlay(SFX_GASP); hmNeed(&lbl,15); moodEvent(M_SPOOK); }
         if(simMin>=SIM_NIGHT_FROM||simMin<SIM_NIGHT_TO) hmNeed(&sNrg,-8);
         simEvent(SE_TV);

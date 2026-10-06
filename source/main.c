@@ -1381,6 +1381,7 @@ static int bdx=10, bdy=4, spx=3, spy=6;   // skateboard tile and spawn tile, fou
 #define BDY bdy
 static int lsp,lhd,lspin,lflip,lgrind,lscore,lstun,lairF,lpts,lnoteT,lglide; static const char*lnote;
 static char lnBuf[24] EWRAM_BSS; static u8 lnPerf; static int lLand, lLandD;   // lnBuf: the name of the trick just landed ("KICK 360 GRAB"); lLand: frames of landing crouch left, lLandD: how far the fall was
+static int tvClip; static void tvClipRun(int ch);   // skills.h / tvclip.h: the TV asks for a clip (channel + 1); lifeModeRun plays it like a pause menu
 static int stModal; static void stRunModal(void);   // story.h: a chapter card is waiting (1 chapter intro, 2 chapter done); lifeModeRun shows it like the pause menu
 static int tutOn;   // 1 while the tutorial runs (tutorial.h): nobody dies, like the Sims 2 tutorial neighborhood
 
@@ -3349,6 +3350,11 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
                 if(stModal) stRunModal(); else tutRunModal();
                 winFull(); REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=vbase; continue;
             } }
+        if(tvClip&&lcamF==0){   // the TV: a 3 second clip takes the screen, the game holds still behind it
+            int tc=tvClip-1; tvClip=0; mGainT=128; sfxStop(); objHideAll(); REG_DISPCNT=0x0403;
+            tvClipRun(tc);
+            winFull(); REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=vbase; continue;
+        }
         if(lcamF>0) camStep(steps,k,pr);
         else {
             for(int s=0;s<steps;s++) lifeStep(k,s?0:pr,fr++);   // catch up if a frame took long; button presses count once
@@ -4464,6 +4470,7 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "npc.h"             // AI SKATERS and POLICE: hardware sprites on the last spare OBJ tiles (see the top of npc.h)             // GHOSTS and WEATHER: hardware sprites on the spare OBJ slots (see the top of the file)
 #include "story.h"          // STORY MODE: chapters with goals (NEW GAME > STORY MODE)
 #include "career.h"         // CAREER TRACKS: the screen on the phone (the tracks are in sims.h)
+#include "tvclip.h"       // the TV's 3 second clips (tvClipRun)
 #include "skills.h"         // SKILLS (life and skater) and the home pack items: TV, bookshelf, coffee maker, aquarium, treadmill
 // ---------- main menu (The Sims 3 look): a glossy panel over your town, lit for the time of day of your life's clock ----------
 #define MM_N 7

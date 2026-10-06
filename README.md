@@ -47,4 +47,6 @@ In the game: **SELECT + L / R** turns the view a quarter turn left / right and k
 
 **New items:** a RADIO and a SOUND SYSTEM (R next to one tunes a station by genre (HOUSE & DANCE, BREAKS & BASS, CHILL & WORLD, LATIN, ROCK & PROG, HIP HOP, or ALL SONGS; genres live in source/genres.h); see docs/NOTES.md, Sound pack). Older: the DeadSet 3Thousand VYBE (5000), a parody VR headset on a display bust. Stand next to it and press R to jack in.
 
+**TV:** R at the TV changes channel. MACHINI-TV is the first one and plays a 3 second clip (drawn by code, no video in the ROM; A or B skips it). More channels get their own clips later (source/tvclip.h).
+
 **Saves:** 128 KB flash (58 room slots). Carts without flash fall back to 32 KB SRAM (12 slots). Older saves carry over. Layout: `docs/NOTES.md`.
