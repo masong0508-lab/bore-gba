@@ -3192,7 +3192,7 @@ static void phoneEnsure(void){   // a house must have a phone (careers, food and
 
 // ---- game music: the jukebox songs in their shuffled order while you play (OPTIONS > AUDIO > GAME MUSIC) ----
 static int gmCur;   // visible number of the song that plays
-static u8 radioSt;   // 0 = off, else the tuned station + 1
+static u8 radioSt EWRAM_BSS;   // 0 = off, else the tuned station + 1
 static int menuOn, creOn, musCtx;   // who owns the music: the main menus' song, the creator's chiptune loop (musCtx = the screen the game was started from: 0 menu, 1 creator)
 static void creatorMusStart(void); static void menuMusStart(void);
 static void gmPlay(void){ const Song*sg=&songs[jbMap[gmCur]]; if(xo[XO_GAMEXF]) musFadeTo(sg->adp?1:0,sg->adp,sg->xm,XF_SONG); else musBegin(sg->adp?1:0,sg->adp,sg->xm); }   // OPTIONS > AUDIO > GAME CROSSFADE: off = a hard start
@@ -4011,7 +4011,7 @@ static int creatorNew(void){   // returns 1 when the secret code switched screen
     }
 }
 
-IWRAM_CODE static void drawClassicPanel(void){
+__attribute__((noinline)) static void drawClassicPanel(void){
     fillCols(SCENE_W,ROW_W,PANEL);
     text(130,5,"BORE",RGB(31,26,6),2);
     text(130,17,"VOXEL DEMO",RGB(14,16,18),1);
