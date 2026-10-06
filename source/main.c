@@ -66,7 +66,7 @@ static int cview;    // the view being drawn (0..3, quarter turns): vbase, plus 
 static int vbase;    // the view the player chose with SELECT + L / R (like turning the camera in a Sims game); it stays until it is turned again
 static int lcN, lcPts, lcT, lcBank, lcBankT, lcamPend, lcamF;   // combo chain: tricks, points, time left, banked total + display time, cam queued, cam frame
 #define SPEC_MAX 1000
-static int lspec; static u8 lspecOn, lsw, lskl;
+static int lspec; static u8 lspecOn, lsw, lskl, lstrk;
 static void specLose(void);
 static u8 sCam=1;    // action cam after a big combo: 0 off, 1 over 10000, 2 over 5000, 3 over 2000
 static const int camThr[4]={0,10000,5000,2000};
@@ -2505,7 +2505,7 @@ static void lifeInit(void){
     if(!(shapeMask()>>look[LK_SHAPE]&1)){ look[LK_SHAPE]=(u8)maskPick(shapeMask(),look[LK_SHAPE],NSHAPE); if(!custom) buildLook(); }
     flHome(); mapScan(); hhStart();
     bakeSprites(); camSnap=1;
-    lfx=spx*256+128; lfy=spy*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote=""; lchill=0; lskate=0; lhave=(bdx<0); lfr=0; lvx=lvy=0; ldead=0; lmaxz=0; lplay=0; lbumpCd=0; lfood=100; lbl=0; lhp=HP_MAX; lnear=0; lspec=0; lspecOn=0; lsw=0; lskl=0; moodReset(); simsReset(); sfxStop(); feelReset(0);
+    lfx=spx*256+128; lfy=spy*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote=""; lchill=0; lskate=0; lhave=(bdx<0); lfr=0; lvx=lvy=0; ldead=0; lmaxz=0; lplay=0; lbumpCd=0; lfood=100; lbl=0; lhp=HP_MAX; lnear=0; lspec=0; lspecOn=0; lsw=0; lskl=0; lstrk=0; moodReset(); simsReset(); sfxStop(); feelReset(0);
 }
 static int rampAvg, rampOn;   // px/step (8.8) the skater has been climbing a ramp, smoothed (heights are whole px, so single steps are lumpy); rampOn = rode a ramp last step
 // BABY: cannot be steered. A caretaker keeps the needs up and the baby toddles about by itself: stops now and then, picks a new way
@@ -2585,12 +2585,12 @@ static void lifeStep(u16 k,u16 pr,int fr){
         if(onRail&&g<2) g=2;                           // a rail catches the board whatever the angle: no bail for a crooked grind
         int pts=hs*180+(lflip?100:0)+feelGrabPts();
         int drop=lmaxz-(int)(lz>>8), sp0=lsp, bail=(g==0);
-        lLand=7; lLandD=drop;                          // the landing crouch (playerCalc)
+        lLand=7; lLandD=drop; if(bail||(pts&&g!=3)) lstrk=0; if(pts&&!bail&&drop>=20) pts+=drop*3;                          // the landing crouch (playerCalc)
         if(bail){ specLose(); lnote="BAIL"; lnoteT=60; lsp=0; lstun=BAIL_STUN; lbailT=BAIL_STUN; lgrind=0; moodEvent(M_BAIL); }
         else{
             if(g==1){ F.spd=F.spd*3/5; lsp=F.spd>>4; pts/=2; lnote="SKETCHY"; lnoteT=40; }   // landed, but crooked: you lose speed and the trick is worth half
-            else if(g==3&&pts) pts+=pts/4;                                                      // PERFECT: +25%
-            if(pts){ if(hs||lflip||gb) pts=pts*(100+skLvl(SK_AIR)*4)/100; skGain(SK_AIR,(hs>=2?2:hs?1:0)+(lflip?1:0)+(gb?1:0)); skGain(SK_BAL,g==3?2:g==2?1:0); pts=moodPts(pts); if(lsw) pts+=pts/4; if(lspecOn) pts*=2; lscore+=pts; lpts=pts; if(g!=1){ trickName(hs,gb,g==3); if(lsw) swName(); } lnoteT=60; lcN++; lcPts+=pts; lcT=oComboLen(); moodEvent(M_TRICK); specAdd(60+pts/(lspecOn?8:4)); }
+            else if(g==3&&pts){ pts+=pts/4; if(lstrk<5) lstrk++; pts+=pts*lstrk/10; }                                                      // PERFECT: +25%
+            if(pts){ if(hs||lflip||gb) pts=pts*(100+skLvl(SK_AIR)*4)/100; skGain(SK_AIR,(hs>=2?2:hs?1:0)+(lflip?1:0)+(gb?1:0)); skGain(SK_BAL,g==3?2:g==2?1:0); pts=moodPts(pts); if(lsw) pts+=pts/4; if(lspecOn) pts*=2; lscore+=pts; lpts=pts; if(g!=1){ trickName(hs,gb,g==3); if(lsw) swName(); if(g==3&&lstrk>=2){ int n=0; while(lnBuf[n]) n++; if(n<20){ lnBuf[n++]=' '; lnBuf[n++]='X'; lnBuf[n++]=(char)('0'+lstrk); lnBuf[n]=0; } } } lnoteT=60; lcN++; lcPts+=pts; lcT=oComboLen(); moodEvent(M_TRICK); specAdd(60+pts/(lspecOn?8:4)); }
             if(onRail){ lgrind=1; skGain(SK_GRIND,1); lnote="GRIND"; lnoteT=30; lcN++; lcT=oComboLen(); moodEvent(M_GRIND_ON); sfxPlay(SFX_GRIND); specAdd(60); }
             else sfxPlay((pts&&g!=1)?SFX_STICK:SFX_LAND);   // the landing is heard: a thud, or the bright one for a trick
         }
