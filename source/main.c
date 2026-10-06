@@ -73,6 +73,7 @@ static int lloadV;   // work per drawn frame as a percent of its time budget (PE
 #define NWP 14       // wallpapers: the old 8x8 patterns ...
 #define WALL_H 24     // (full wall height in px, 3 blocks: the textures in wallart.h are this tall)
 #include "wallart.h"  // ... and NWX textures from the KHLVH wallpaper set (ROM only), wallpapers NWP.. (see the walls section)
+#define NWIN 3         // WINDOWS are their own items (palette: WINDOW 'E', DARK WINDOW 'e', STRIP WINDOW 'f'), not wallpapers. They are drawn by code as wall pieces (see winCol): no ROM art, no RAM
 #define NWALL (NWP+NWX)
 #define NFL 14       // floors
 #include "opts.h"   // extended options (xo[]): gameplay, input, audio, HUD and room options; also defines GOLD (the accent colour)
@@ -1967,11 +1968,12 @@ static void fightHurt(int dmg){
         static char fhB[16] EWRAM_BSS; char*e=simCat(fhB,dmg>=30?"OUCH ":"OW "); *e++='-'; simCatN(e,dmg); if(lstun<30) lstun=30; lnote=fhB; lnoteT=40; }   // and how much
 }
 
+static inline int isWinCh(char c){ return c=='E'||c=='e'||c=='f'; }   // the window items: a wall piece you can see through (drawn as a wall, blocks like a full wall)
 #include "ramps.h"
 static int tileH(int tx,int ty){   // surface height in px (ramps: their highest point). Grind height is 6: rails, ledges and benches
     if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
     char c=lifeMap[ty][tx];
-    return (c=='#'||c=='F'||c=='W'||c=='H')?2*CC: (c=='X'||c=='Y')?10: (c=='b')?2*CC: (c=='m')?5: (c=='w'||c=='T'||c=='S'||c=='C'||c=='O'||c=='G'||c=='V'||c=='U'||c=='Q'||c=='A'||c=='v'||c=='c'||c=='q')?CC: (c=='='||c=='L'||c=='N'||c=='Z'||c=='K'||c=='J'||c=='I'||c=='R')?6: (c=='M')?3: isKicker(c)?KICKER_H: isLaunch(c)?LAUNCH_H: isQPipe(c)?qpH[7]: 0;   // pack 2: X funbox 10, Y trash can 10, O barrel 8, Z planter / K table / J jersey grind at 6, M manual pad 3
+    return (c=='#'||c=='F'||c=='W'||c=='H'||isWinCh(c))?2*CC: (c=='X'||c=='Y')?10: (c=='b')?2*CC: (c=='m')?5: (c=='w'||c=='T'||c=='S'||c=='C'||c=='O'||c=='G'||c=='V'||c=='U'||c=='Q'||c=='A'||c=='v'||c=='c'||c=='q')?CC: (c=='='||c=='L'||c=='N'||c=='Z'||c=='K'||c=='J'||c=='I'||c=='R')?6: (c=='M')?3: isKicker(c)?KICKER_H: isLaunch(c)?LAUNCH_H: isQPipe(c)?qpH[7]: 0;   // pack 2: X funbox 10, Y trash can 10, O barrel 8, Z planter / K table / J jersey grind at 6, M manual pad 3
 }
 static int surfH(s32 fx,s32 fy){   // surface height at an exact position (1/256 tiles): same as tileH, but ramps slope
     int tx=(int)(fx>>8), ty=(int)(fy>>8); if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
@@ -2061,14 +2063,14 @@ static int numText(int x,int y,int n,u16 c){
 // lifeMap = what stands on each tile, floorMap = floor style under it, wallMap = wallpaper on it (for wall tiles).
 enum { T_ROOM, T_WALL, T_FLOOR, T_ITEM, T_ERASE, NTOOL };
 static int eTool, eAct, eAx, eAy, eFl, eWp, eOb;   // editor: tool, rectangle anchor set?, anchor tile, chosen floor / wallpaper / item
-#define NOBJ 39
+#define NOBJ 42
 #define OB_LAUNCH 17   // launch ramp turns like the kicker: '9'..'<'
 #define OB_KICKER 10   // palette slots whose char carries a turn (+eRot): kicker '1'..'4', quarter pipe '5'..'8'
 #define OB_QPIPE 11
 static int eRot;   // editor: which way the next ramp faces (0 S, 1 E, 2 N, 3 W)
-static const char palCh[NOBJ]={'.','w','W','#','=','F','T','D','B','P','1','5','L','N','S','H','C','9','X','O','Y','Z','K','J','M','G','V','U','^','~','Q','I','R','A','v','b','c','q','m'};
-static const char* const palNm[NOBJ]={"CLEAR","LOW WALL","WALL","CRATE","RAIL","FRIDGE","TOILET","DOOR","BOARD","SPAWN","KICKER","Q PIPE","LEDGE","BENCH","BED","SHOWER","SOFA","LAUNCH","FUNBOX","BARREL","TRASH CAN","PLANTER","PICNIC","JERSEY","MANUAL PAD","WATER PIPE","LAVA LAMP","BEANBAG","STAIRS UP","STAIRS DOWN","DEADSET 3THOUSAND VYBE","PHONE","RADIO","SOUND SYSTEM","TV","BOOKSHELF","COFFEE MAKER","AQUARIUM","TREADMILL"};
-static const u16 palCol[NOBJ]={RGB(26,21,14),RGB(8,20,22),RGB(10,22,24),RGB(8,9,20),RGB(31,30,16),RGB(31,31,31),RGB(30,28,18),RGB(14,9,5),RGB(26,10,6),RGB(28,10,8),RGB(24,17,9),RGB(27,19,11),RGB(20,20,22),RGB(25,18,9),RGB(10,14,28),RGB(22,28,30),RGB(26,18,9),RGB(8,14,24),RGB(18,16,24),RGB(24,6,5),RGB(12,18,14),RGB(20,10,6),RGB(25,18,9),RGB(22,22,24),RGB(30,26,5),RGB(10,24,14),RGB(24,8,26),RGB(18,8,22),RGB(24,22,18),RGB(12,11,10),RGB(6,20,31),RGB(26,6,6),RGB(20,20,22),RGB(12,13,16),RGB(8,14,26),RGB(18,11,5),RGB(22,12,4),RGB(6,18,28),RGB(14,14,18)};
+static const char palCh[NOBJ]={'.','w','W','#','=','F','T','D','B','P','1','5','L','N','S','H','C','9','X','O','Y','Z','K','J','M','G','V','U','^','~','Q','I','R','A','v','b','c','q','m','E','e','f'};
+static const char* const palNm[NOBJ]={"CLEAR","LOW WALL","WALL","CRATE","RAIL","FRIDGE","TOILET","DOOR","BOARD","SPAWN","KICKER","Q PIPE","LEDGE","BENCH","BED","SHOWER","SOFA","LAUNCH","FUNBOX","BARREL","TRASH CAN","PLANTER","PICNIC","JERSEY","MANUAL PAD","WATER PIPE","LAVA LAMP","BEANBAG","STAIRS UP","STAIRS DOWN","DEADSET 3THOUSAND VYBE","PHONE","RADIO","SOUND SYSTEM","TV","BOOKSHELF","COFFEE MAKER","AQUARIUM","TREADMILL","WINDOW","DARK WINDOW","STRIP WINDOW"};
+static const u16 palCol[NOBJ]={RGB(26,21,14),RGB(8,20,22),RGB(10,22,24),RGB(8,9,20),RGB(31,30,16),RGB(31,31,31),RGB(30,28,18),RGB(14,9,5),RGB(26,10,6),RGB(28,10,8),RGB(24,17,9),RGB(27,19,11),RGB(20,20,22),RGB(25,18,9),RGB(10,14,28),RGB(22,28,30),RGB(26,18,9),RGB(8,14,24),RGB(18,16,24),RGB(24,6,5),RGB(12,18,14),RGB(20,10,6),RGB(25,18,9),RGB(22,22,24),RGB(30,26,5),RGB(10,24,14),RGB(24,8,26),RGB(18,8,22),RGB(24,22,18),RGB(12,11,10),RGB(6,20,31),RGB(26,6,6),RGB(20,20,22),RGB(12,13,16),RGB(8,14,26),RGB(18,11,5),RGB(22,12,4),RGB(6,18,28),RGB(14,14,18),RGB(12,22,30),RGB(5,10,14),RGB(20,28,31)};
 static signed char palLut[256] EWRAM_BSS; static u8 palLutOk;   // tile char -> palette slot (or -1), built on first use: palIdx() runs for every tile of the minimap, so it must be O(1) even with 100+ items
 static int palIdx(char c){
     if(!palLutOk){ for(int i=0;i<256;i++) palLut[i]=-1; for(int i=NOBJ-1;i>=0;i--) palLut[(u8)palCh[i]]=(signed char)i;
@@ -2080,9 +2082,9 @@ static char edObjCh(void){ char c=palCh[eOb]; return (eOb==OB_KICKER||eOb==OB_QP
 #define DS_PRICE 5000
 #define NCAT 7
 static const char* const catNm[NCAT]={"SEAT","HOME","TECH","SKATE","DECOR","WALLS","MISC"};
-static const u8 catN[NCAT]={4,6,7,10,4,5,3};
-static const u8 catItems[NCAT][10]={ {13,16,27,22}, {5,6,14,15,36,38}, {31,32,33,30,26,25,34}, {3,4,10,11,12,17,18,19,23,24}, {20,21,35,37}, {1,2,7,28,29}, {0,8,9} };
-static const u16 palPrice[NOBJ]={0,3,6,10,15,150,90,12,0,0,30,60,20,40,140,110,120,45,50,10,5,10,80,15,10,30,25,60,40,40,DS_PRICE,50,40,200,120,90,60,150,130};
+static const u8 catN[NCAT]={4,6,7,10,4,8,3};
+static const u8 catItems[NCAT][10]={ {13,16,27,22}, {5,6,14,15,36,38}, {31,32,33,30,26,25,34}, {3,4,10,11,12,17,18,19,23,24}, {20,21,35,37}, {1,2,7,28,29,39,40,41}, {0,8,9} };
+static const u16 palPrice[NOBJ]={0,3,6,10,15,150,90,12,0,0,30,60,20,40,140,110,120,45,50,10,5,10,80,15,10,30,25,60,40,40,DS_PRICE,50,40,200,120,90,60,150,130,35,45,60};
 static int edCatOf(int idx,int*pos){ for(int c=0;c<NCAT;c++) for(int j=0;j<catN[c];j++) if(catItems[c][j]==idx){ if(pos) *pos=j; return c; } if(pos) *pos=0; return 0; }
 static void edItemStep(int d){ int p, c=edCatOf(eOb,&p); p=(p+d+catN[c])%catN[c]; eOb=catItems[c][p]; }   // L / R: the next item of this category
 static void edCatStep(int d){ int c=(edCatOf(eOb,0)+d+NCAT)%NCAT; eOb=catItems[c][0]; }                  // SELECT + L / R: the next category
@@ -2256,6 +2258,7 @@ static int edPay(int net){   // net > 0 buys, net < 0 sells back. 0 = refused
 static int edAffordable(char c,char old){ int n=edCost(c)-edSell(old); return n<=0||!edCharged()||simMoney>=n; }
 static void mapPlace(int x,int y,char c){
     char old=lifeMap[y][x];
+    if(isWinCh(c)&&old!='W'&&old!='w'&&!isWinCh(old)){ dsMsg="WINDOWS GO IN A WALL"; return; }   // (a window is a wall piece: it replaces a bit of wall)
     if(c!=old){ int net=edCost(c)-edSell(old); if(net&&!edPay(net)) return; }   // buying costs; replacing or removing sells the old one back (half)
     if(c=='B'||c=='P'){ for(int j=0;j<MH;j++)for(int i=0;i<MW;i++) if(lifeMap[j][i]==c) lifeMap[j][i]='.'; }
     lifeMap[y][x]=c; if(c=='w'||c=='W') wallMap[y][x]=(u8)eWp; wDirty=1; }
@@ -2315,6 +2318,15 @@ static int flGoF(int n,int force){   // make floor n the live map (the one you l
 static int flGo(int n){ return flGoF(n,0); }
 static void flHome(void){ flArm=0; flGoF(0,1); }
 static void flBlankUpper(void){ flEnsure(); for(int f=1;f<FLR_N;f++) flBlank(f); }
+static int pkHome=-1;   // FLOOR PEEK (SELECT + A / B in play): the floor you really stand on while you look at another one (-1 = not peeking)
+static const char* const pkNm[FLR_N]={"PEEK  GROUND FLOOR","PEEK  FLOOR 2","PEEK  FLOOR 3"};
+static void peekEnd(void){ if(pkHome>=0){ int h=pkHome; pkHome=-1; flGoF(h,1); lnote=flNm[h]; lnoteT=40; liveInvalidate(); camSnap=1; } }
+static void peekStep(int d){   // one floor up (+1) or down (-1) just to look: you stand still, nothing happens in the world, and going back to your own floor ends it
+    int nf=curFl+d; if(nf<0||nf>=FLR_N){ lnote=nf<0?"NO FLOOR BELOW":"NO FLOOR ABOVE"; lnoteT=40; return; }
+    int home=pkHome<0?curFl:pkHome;
+    if(!flGo(nf)){ lnote="TOO MUCH BUILT TO PEEK"; lnoteT=60; return; }
+    if(nf==home){ pkHome=-1; lnote=flNm[nf]; lnoteT=40; } else { pkHome=home; lnote=pkNm[nf]; lnoteT=0x7fff; }
+}
 static void flStairs(int dir){   // you stepped on a stair tile: up (+1) or down (-1)
     int n=curFl+dir; if(n<0||n>=FLR_N){ lnote=dir>0?"NO FLOOR ABOVE":"NO FLOOR BELOW"; lnoteT=40; return; }
     int tx=(int)(lfx>>8), ty=(int)(lfy>>8); char want=dir>0?'~':'^';
@@ -2643,7 +2655,7 @@ static void rotPos(s32 x,s32 y,s32*rx,s32*ry){   // same for a position in 1/256
 static char cellAt(int rx,int ry){ int tx,ty; rotXY(rx,ry,&tx,&ty); return lifeMap[ty][tx]; }
 static int wpAt(int rx,int ry){ int tx,ty; rotXY(rx,ry,&tx,&ty); return wallMap[ty][tx]; }
 static int flAt(int rx,int ry){ int tx,ty; rotXY(rx,ry,&tx,&ty); return floorMap[ty][tx]; }
-static int isWallCh(char c){ return c=='w'||c=='W'; }
+static int isWallCh(char c){ return c=='w'||c=='W'||isWinCh(c); }
 // ---- camera: follows the player (play) or the cursor (editor); only the tiles on screen are drawn ----
 static int vpY0=0, vpY1=SH, vpX0=0, vpX1=SW, sbY0=0, sbY1=SH;   // vpX0..vpX1: the columns drawn (all, or the ZOOM window); sbY0..sbY1: the room rows of the screen   // rows of the screen the scene lives in (life mode keeps the HUD panels above and below; the editor uses it all)
 static void camClamp(int ed){
@@ -2684,7 +2696,7 @@ static void bandCols(int s,int x0,int x1,int*a,int*b){
 #define WALL_LOW 8    // a low wall ('w')
 static u8 wInside[MH][MW] EWRAM_BSS; static u8 wDirty=1;
 static u16 bfsQ[MH*MW] EWRAM_BSS;   // one queue for every breadth-first search (the walls' flood here, the Sims' paths in house.h)
-static int wIsWall(int x,int y){ return x>=0&&y>=0&&x<MW&&y<MH&&lifeMap[y][x]=='W'; }   // rooms are closed by full walls (a low wall is a fence)
+static int wIsWall(int x,int y){ return x>=0&&y>=0&&x<MW&&y<MH&&(lifeMap[y][x]=='W'||isWinCh(lifeMap[y][x])); }   // rooms are closed by full walls (a low wall is a fence)
 static int wDoor(int x,int y){ return (wIsWall(x-1,y)&&wIsWall(x+1,y))||(wIsWall(x,y-1)&&wIsWall(x,y+1)); }
 static void wallsScan(void){   // flood the outside from the map edge; everything else that is not a wall is inside
     u16*q=bfsQ; int qh=0, qt=0;
@@ -2702,17 +2714,33 @@ static int wallFloorR(int rx,int ry){   // the floor to draw under a wall tile: 
     for(int k=0;k<4;k++){ int x=rx+nd[k][0], y=ry+nd[k][1]; if(x<0||y<0||x>=MW||y>=MH||isWallCh(cellAt(x,y))) continue; if(wInAt(x,y)) return flAt(x,y); if(best<0) best=flAt(x,y); }
     return best<0?flAt(rx,ry):best;
 }
-static const char* wpName(int wp){ return wp<NWP?wpTex[wp].nm:wxName[wp-NWP]; }
-static u16 wpAvgOf(int wp){ return wp<NWP?wpAvg[wp]:wxAvg[wp-NWP]; }
+static const char* const winNm[NWIN]={"WINDOW","DARK WINDOW","STRIP WINDOW"};   // (wall style NWP+NWX+k inside wallSeg = window k)
+static const u16 winWall[NWIN]={RGB(26,24,20),RGB(17,16,15),RGB(24,24,22)};   // the plaster round the glass
+static const char* wpName(int wp){ return wp<NWP?wpTex[wp].nm:wp<NWP+NWX?wxName[wp-NWP]:winNm[wp-NWP-NWX]; }
+static u16 wpAvgOf(int wp){ return wp<NWP?wpAvg[wp]:wp<NWP+NWX?wxAvg[wp-NWP]:winWall[wp-NWP-NWX]; }
+// One column (u 0..7) of a window wall, WALL_H rows from the top, drawn here instead of read from a texture. WINDOW: white frame, bars, sky glass.
+// DARK WINDOW: dark wood and night glass. STRIP WINDOW: no side frames, so a row of them is one long band of glass.
+static __attribute__((noinline)) void winCol(int k,int dir,int u,u16*o){
+    int sh=dir?9:12; u16 wall=shade(winWall[k],sh);
+    u16 fr=k==1?shade(RGB(9,6,4),sh):shade(RGB(29,29,28),sh), gl=k==1?shade(RGB(5,10,14),sh):shade(RGB(12,22,30),sh), gl2=k==1?shade(RGB(9,16,20),sh):shade(RGB(20,28,31),sh);
+    for(int v=0;v<WALL_H;v++){
+        u16 c=wall; int in=k==2?(v>=6&&v<=17):(u>=1&&u<=6&&v>=5&&v<=18);
+        if(in){ int edge=k==2?(v==6||v==17):(u==1||u==6||v==5||v==18);
+            int bar=k==2?(u==0):(u==3||v==11);
+            c=(edge||bar)?fr:(((u+v)%7==0)?gl2:gl); }
+        else if(v==19&&k!=2) c=fr;   // the sill
+        o[v]=c;
+    }
+}
 // one segment of wall: columns xa..xb of a tile whose centre (on the floor) is sx,sy. dir 0 runs along x (the camera sees its +y face),
 // dir 1 along y (+x face). h = height in px. edge: bit 0 = column xa is an end or corner, bit 1 = column xb.
 IWRAM_CODE static void wallSeg(int sx,int sy,int xa,int xb,int dir,int h,int wp,int edge){
-    int ye=cY0+(int)cH-1, per, v0;
+    int ye=cY0+(int)cH-1, per, v0; u16 wb[WALL_H];
     u16 av=wpAvgOf(wp), flat=shade(av,dir?9:12), trim=lite(av,20), dark=shade(av,6);
     for(int x=xa;x<=xb;x++){
         if((unsigned)(x-cX0)>=cW) continue;
         int off=x-sx, base=dir?sy-(off>>1):sy+(off>>1), top=base-h, u=dir?(4-off)&7:(off+4)&7;
-        const u16*col; if(wp<NWP){ col=wpTab[wp][dir][u]; per=8; v0=0; } else { col=wxTex[wp-NWP][dir][u]; per=WALL_H; v0=WALL_H-h; }
+        const u16*col; if(wp<NWP){ col=wpTab[wp][dir][u]; per=8; v0=0; } else if(wp<NWP+NWX){ col=wxTex[wp-NWP][dir][u]; per=WALL_H; v0=WALL_H-h; } else { winCol(wp-NWP-NWX,dir,u,wb); col=wb; per=WALL_H; v0=WALL_H-h; }
         int ya=top-1<cY0?cY0:top-1, yz=base>ye?ye:base; if(ya>yz) continue;
         u16*d=&fb[ya*SW+x];
         if(((edge&1)&&x==xa)||((edge&2)&&x==xb)){ for(int y=ya;y<=yz;y++,d+=SW) *d=dark; continue; }   // an end or a corner: an outline
@@ -2725,6 +2753,7 @@ IWRAM_CODE static void wallSeg(int sx,int sy,int xa,int xb,int dir,int h,int wp,
 static void drawWall(int tx,int ty,int sx,int sy){   // tx,ty in screen-rotated tile coords
     if(wDirty) wallsScan();
     int low=cellAt(tx,ty)=='w', wp=wpAt(tx,ty); if(wp>=NWALL) wp=0;
+    { char wc=cellAt(tx,ty); if(isWinCh(wc)) wp=NWP+NWX+(wc=='E'?0:wc=='e'?1:2); }   // a window item
     int nxm=wallAtR(tx-1,ty), nxp=wallAtR(tx+1,ty), nym=wallAtR(tx,ty-1), nyp=wallAtR(tx,ty+1);
     int hx=low?WALL_LOW:sWall==2?WALL_CUT:(sWall==1&&wInAt(tx,ty-1))?WALL_CUT:WALL_H;   // a wall along x hides what is at y-1
     int hy=low?WALL_LOW:sWall==2?WALL_CUT:(sWall==1&&wInAt(tx-1,ty))?WALL_CUT:WALL_H;   // a wall along y hides what is at x-1
@@ -2829,7 +2858,7 @@ static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
             int sx=LOX+(tx-ty)*CA, sy=LOY+(tx+ty+1)*CB;
             if(sx+CA<x0||sx-CA>=x1||sy+CB<y0||sy-CB>=y1) continue;   // the diamond does not reach the rectangle
             CNT(cntTiles); char c=cellAt(tx,ty); if(c=='#') continue;
-            { int fl=(c=='w'||c=='W')?wallFloorR(tx,ty):flAt(tx,ty), v=(tx^ty)&1; if(sFl) floorTile(sx,sy,&flTab[fl][v][0][0]); else tileTop(sx,sy,flFlat[fl][v]); } } }   // (walls are thin now: the room's floor runs under them)
+            { int fl=isWallCh(c)?wallFloorR(tx,ty):flAt(tx,ty), v=(tx^ty)&1; if(sFl) floorTile(sx,sy,&flTab[fl][v][0][0]); else tileTop(sx,sy,flFlat[fl][v]); } } }   // (walls are thin now: the room's floor runs under them)
     int ss=0; if(!ed){ s32 rfx,rfy; rotPos(lfx,lfy,&rfx,&rfy); ss=(int)((rfx>>8)+(rfy>>8)); }
     for(int s=s0;s<=s1;s++){ int a,b; bandCols(s,x0,x1,&a,&b);
         for(int tx=a;tx<=b;tx++){ int ty=s-tx;
@@ -2838,7 +2867,7 @@ static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
             char c=cellAt(tx,ty); if(c=='.'&&(ed||lhave)) continue;   // plain floor: nothing stands there (but the board pickup might)
             int ox,oy; rotXY(tx,ty,&ox,&oy);
             if(c=='.'&&(ox!=BDX||oy!=BDY)) continue;
-            if(c=='w'||c=='W') drawWall(tx,ty,sx,sy);
+            if(isWallCh(c)) drawWall(tx,ty,sx,sy);
             if(isItemCh(c)) drawItemTile(c,sx,sy,ox,oy);
             if((ed&&c=='B')||(!ed&&!lhave&&ox==BDX&&oy==BDY)) blitItem(V_BOARD,sx,sy-(ed?0:((lfr>>4)&1)));   // the skateboard pickup, bobbing
             if(ed&&c=='P') drawSpawn(sx,sy+1);   // little person = spawn
@@ -3304,7 +3333,7 @@ static void lifeMode(int ed){ int back=musCtx; gInPlay=1; lifeModeRun(ed); gInPl
 static void lifeModeRun(int ed){   // ed=1: test play started from the map editor
     objHideAll(); winFull(); REG_DISPCNT=0x3443; fxPlayStart();   // mode 3 + sprites (1D tiles) + window 0 (the household's hardware sprites, house.h)
     // (the passers-by of this lot are kept until you move to another lot or start a new life: twKeep, house.h)
-    lifeInit(); if(!ed) phoneEnsure(); lcamF=0; vbase=cview=0; lcN=lcPts=lcT=lcBank=lcBankT=lcamPend=0; u16 prev=keyNow(); gmStart(); hudApplyLayout(); liveInvalidate(); camSnap=1;
+    pkHome=-1; lifeInit(); if(!ed) phoneEnsure(); lcamF=0; vbase=cview=0; lcN=lcPts=lcT=lcBank=lcBankT=lcamPend=0; u16 prev=keyNow(); gmStart(); hudApplyLayout(); liveInvalidate(); camSnap=1;
     stModal=0; if(!ed) stEnter();   // (the chapter card of the story waits for the first frame)
     tutOn=0; tutModal=TM_NONE;   // the tutorial: replay now, or offer it once (first PLAY, not in the test play of the editor)
     if(!ed){ if(xo[XO_TUTOR]==2) tutBegin(); else if(xo[XO_TUTOR]==0&&!tutAsked){ tutAsked=1; tutModal=TM_OFFER; } }
@@ -3315,7 +3344,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
         u16 w0=R_TM2D;
         int steps=(acc+110)/TICKS_FRAME; if(steps>6){ steps=6; acc=0; } else acc-=steps*TICKS_FRAME;
         u16 k=keyNow(), pr=k&~prev; prev=k;
-        if((k&K_SEL)&&(k&K_START)) break;
+        if((k&K_SEL)&&(k&K_START)){ peekEnd(); break; }
         { static int selArm;   // SELECT tapped on its own (not SELECT+START, not during the action cam): control the next Sim of the household
           if((pr&K_SEL)&&!(k&K_START)&&lcamF==0) selArm=1; if(k&K_START) selArm=0;
           if((k&K_SEL)&&(pr&(K_UP|K_DOWN))){ selArm=0;   // SELECT + UP / DOWN: zoom in / out (the ZOOM option)
@@ -3323,11 +3352,13 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
               { static const char* const zn[5]={"ZOOM OFF","ZOOM 1.25X","ZOOM 1.5X","ZOOM 1.7X","ZOOM 2X"}; lnote=zn[xo[XO_ZOOM]]; } lnoteT=50; }
           if((k&K_SEL)&&(pr&(K_L|K_R))){ selArm=0;   // SELECT + L / R: turn the view a quarter turn left / right and keep it (not during the action cam)
               if(lcamF==0){ vbase=(vbase+((pr&K_R)?1:3))&3; cview=vbase; liveInvalidate(); camSnap=1; { static const char* const vn[4]={"VIEW 1","VIEW 2","VIEW 3","VIEW 4"}; lnote=vn[vbase]; } lnoteT=40; } }
-          if(k&K_SEL){ k&=(u16)~(K_UP|K_DOWN|K_L|K_R); pr&=(u16)~(K_UP|K_DOWN|K_L|K_R); }   // (SELECT held: UP / DOWN do not walk, L / R do not swap the board or interact)
+          if((k&K_SEL)&&(pr&(K_A|K_B))&&lcamF==0){ selArm=0; peekStep((pr&K_A)?1:-1); }   // SELECT + A / B: look at the floor above / below (the FLOOR PEEK macro)
+          if(k&K_SEL){ k&=(u16)~(K_UP|K_DOWN|K_L|K_R|K_A|K_B); pr&=(u16)~(K_UP|K_DOWN|K_L|K_R|K_A|K_B); }   // (SELECT held: UP / DOWN do not walk, L / R do not swap the board or interact)
           if(selArm&&!(k&K_SEL)){ selArm=0;
               if(!hhN){ lnote="NO ONE ELSE LIVES HERE"; lnoteT=60; }
               else if(custom){ lnote="HAND BUILT SIMS CANNOT SWITCH"; lnoteT=60; }
               else { hhSwitch(); lnote=hhPName; lnoteT=60; liveInvalidate(); camSnap=1; } } }
+        if(pr&K_START) peekEnd();   // (the pause menu saves the house: be back on your own floor first)
         if(pr&K_START){   // pause menu
             tutSawPause=1;   // (the tutorial's pause menu lesson)
             mGainT=128; sfxStop(); simsSave(); hhSave(); objHideAll(); REG_DISPCNT=0x0403;   // (no sprites over the menus, options or the editor)   // the music fades to half while a menu is open   // the pause menu is also a save point
@@ -3360,7 +3391,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
         }
         if(lcamF>0) camStep(steps,k,pr);
         else {
-            for(int s=0;s<steps;s++) lifeStep(k,s?0:pr,fr++);   // catch up if a frame took long; button presses count once
+            if(pkHome<0) for(int s=0;s<steps;s++) lifeStep(k,s?0:pr,fr++);   // catch up if a frame took long; button presses count once   (peeking at another floor: the world holds still)
             if(lcamPend){ lcamPend=0; if(sCam){ lcamF=1; cview=vbase; } }
         }
         gmTick(); lifeDraw(); workT+=(u16)(lifeVs-w0);
@@ -3388,6 +3419,7 @@ static const char* const toolHint[NTOOL][2]={
 static void texSwatch(const Tex*t,int x,int y);
 static void wallSwatch(int wp,int x,int y){   // 8x8: an old pattern, or a new wallpaper squeezed (every 3rd row)
     if(wp<NWP){ texSwatch(&wpTex[wp],x,y); return; }
+    if(wp>=NWP+NWX){ u16 wb[WALL_H]; for(int u=0;u<8;u++){ winCol(wp-NWP-NWX,0,u,wb); for(int r=0;r<8;r++) px(x+u,y+r,wb[2+r*2]); } return; }
     for(int r=0;r<8;r++)for(int u=0;u<8;u++) px(x+u,y+r,wxTex[wp-NWP][0][u][r*WALL_H/8]);
 }
 static void texSwatch(const Tex*t,int x,int y){   // the 8x8 pattern itself, 1:1
@@ -3455,7 +3487,7 @@ static void drawEditorHud(const char*msg){
                 case 20:blitItem(V_TRASH,221,141);break; case 21:blitItem(V_PLANTER,221,141);break; case 22:blitItem(V_PICNIC,221,141);break;
                 case 23:blitItem(V_JERSEYU,221,141);break; case 24:blitItem(V_MPAD,221,141);break;
                 case 14:blitItem(V_BED,221,141);break; case 15:blitItem(V_SHOWER,221,141);break; case 16:blitItem(V_SOFA,221,141);break; case 25:blitItem(V_PIPE,221,141);break; case 26:blitItem(V_LAVA,221,141);break; case 27:blitItem(V_BEANBAG,221,141);break; case 28:case 29:drawStairs(221,141,eOb==28);break; case 30:blitItem(V_DEADSET,221,141);break; case 31:blitItem(V_PHONE,221,141);break; case 32:blitItem(V_RADIO,221,141);break; case 33:blitItem(V_STEREO,221,141);break;
-                case 34:blitItem(V_TV,221,141);break; case 35:blitItem(V_SHELF,221,141);break; case 36:blitItem(V_COFFEE,221,141);break; case 37:blitItem(V_AQUA,221,141);break; case 38:blitItem(V_TREAD,221,141);break; default:drawSpawn(221,142); } }
+                case 34:blitItem(V_TV,221,141);break; case 35:blitItem(V_SHELF,221,141);break; case 36:blitItem(V_COFFEE,221,141);break; case 37:blitItem(V_AQUA,221,141);break; case 38:blitItem(V_TREAD,221,141);break; case 39:case 40:case 41:{ u16 wb[WALL_H]; for(int u=0;u<8;u++){ winCol(eOb-39,0,u,wb); for(int r=0;r<12;r++) px(215+u+(u>3),136+r,wb[3+r*2]); } break; } default:drawSpawn(221,142); } }
         if(eOb==1||eOb==2){ wallSwatch(eWp,212,137); }
     } else if(eTool!=T_ERASE){
         int xx=2;   // label, swatch, name: each placed after the one before, so nothing covers a label

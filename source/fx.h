@@ -214,7 +214,7 @@ static int fxSpot(int i){   // a spot on screen, outdoors, for particle i
     int px=(int)(lfx>>8), py=(int)(lfy>>8);
     for(int a=0;a<4;a++){
         int tx=px-14+rnd8()%29, ty=py-14+rnd8()%29; if(tx<1||ty<1||tx>=MW-1||ty>=MH-1) continue;
-        if(wInside[ty][tx]||lifeMap[ty][tx]=='W') continue;
+        if(wInside[ty][tx]||lifeMap[ty][tx]=='W'||isWinCh(lifeMap[ty][tx])) continue;
         int sx,sy; fxScreen(tx*256+128,ty*256+128,&sx,&sy);
         if(sx<vpX0-6||sx>vpX1+6||sy<sbY0+8||sy>sbY1+4) continue;
         wxTx[i]=(u8)tx; wxTy[i]=(u8)ty; wxPh[i]=(u8)(rnd8()&7); return 1; }

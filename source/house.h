@@ -850,7 +850,7 @@ static unsigned hhSig(int m){ return (unsigned)(hhX[m]&0x3FF)|((unsigned)(hhY[m]
 static int hhBehindAt(s32 fx,s32 fy){   // is a full-height wall in front of this spot (towards the camera)? then a Sim there is drawn see-through
     s32 rx,ry; rotPos(fx,fy,&rx,&ry); int x=(int)(rx>>8), y=(int)(ry>>8);
     static const signed char d[5][2]={{1,0},{0,1},{1,1},{2,1},{1,2}};
-    for(int k=0;k<5;k++){ int wx=x+d[k][0], wy=y+d[k][1]; if(!wallAtR(wx,wy)||cellAt(wx,wy)!='W'||sWall==2) continue;
+    for(int k=0;k<5;k++){ int wx=x+d[k][0], wy=y+d[k][1]; if(!wallAtR(wx,wy)||(cellAt(wx,wy)!='W'&&!isWinCh(cellAt(wx,wy)))||sWall==2) continue;
         if(sWall==1&&(wInAt(wx,wy-1)||wInAt(wx-1,wy))) continue;   // that wall is cut away
         return 1; }
     for(int k=0;k<3;k++){ int wx=x+d[k][0], wy=y+d[k][1]; if(wx<0||wy<0||wx>=MW||wy>=MH) continue; char c=cellAt(wx,wy); if(c=='F'||c=='H'||c=='#') return 1; }   // tall furniture right in front (a fridge, a shower)
