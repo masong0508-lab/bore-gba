@@ -2957,9 +2957,9 @@ static ZLn zoomBuf[ZT_N] EWRAM_BSS;   // the ZOOM table in use
 static void hudApplyLayout(void){   // the room rows between the HUD panels, and the ZOOM window inside them
     sbY0=HUD_TOPH; sbY1=sHud>=2?SH:HUD_BOTY; vpX0=0; vpX1=SW; vpY0=sbY0; vpY1=sbY1; zoomDma=0; zoomNum=zoomDen=1; zoomPa=256;
     int z=xo[XO_ZOOM], L=sHud>=2;
-    if(z>=1&&z<=2){ const u8*w=zoomWin[L][z-1]; vpX0=w[0]; vpX1=w[1]; vpY0=w[2]; vpY1=w[3];
+    if(z>=1&&z<=4){ const u8*w=zoomWin[L][z-1]; vpX0=w[0]; vpX1=w[1]; vpY0=w[2]; vpY1=w[3];
         for(int i=0;i<ZT_N;i++) zoomBuf[i]=zoomTab[L][z-1][i];
-        zoomDma=(const u32*)zoomBuf; zoomNum=(u8)(z==2?2:3); zoomDen=(u8)(z==2?1:2); zoomPa=zoomBuf[sbY0].pa; }
+        zoomDma=(const u32*)zoomBuf; zoomNum=zoomND[z-1][0]; zoomDen=zoomND[z-1][1]; zoomPa=zoomBuf[sbY0].pa; }
     else if(zoomShow) zoomOff();   // (the DMA must not run on without a table)
 }
 static void vpFull(void){ vpX0=0; vpX1=SW; vpY0=0; vpY1=SH; sbY0=0; sbY1=SH; zoomOff(); }   // leaving the room view: the whole screen, 1:1
@@ -3289,8 +3289,8 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
         { static int selArm;   // SELECT tapped on its own (not SELECT+START, not during the action cam): control the next Sim of the household
           if((pr&K_SEL)&&!(k&K_START)&&lcamF==0) selArm=1; if(k&K_START) selArm=0;
           if((k&K_SEL)&&(pr&(K_UP|K_DOWN))){ selArm=0;   // SELECT + UP / DOWN: zoom in / out (the ZOOM option)
-              int z=xo[XO_ZOOM]+((pr&K_UP)?1:-1); if(z>=0&&z<=2&&lcamF==0){ xo[XO_ZOOM]=(u8)z; optsSave(); hudApplyLayout(); liveInvalidate(); camSnap=1; }
-              lnote=xo[XO_ZOOM]==2?"ZOOM 2X":xo[XO_ZOOM]==1?"ZOOM 1.5X":"ZOOM OFF"; lnoteT=50; }
+              int z=xo[XO_ZOOM]+((pr&K_UP)?1:-1); if(z>=0&&z<=4&&lcamF==0){ xo[XO_ZOOM]=(u8)z; optsSave(); hudApplyLayout(); liveInvalidate(); camSnap=1; }
+              { static const char* const zn[5]={"ZOOM OFF","ZOOM 1.25X","ZOOM 1.5X","ZOOM 1.7X","ZOOM 2X"}; lnote=zn[xo[XO_ZOOM]]; } lnoteT=50; }
           if(k&K_SEL){ k&=(u16)~(K_UP|K_DOWN); pr&=(u16)~(K_UP|K_DOWN); }   // (SELECT held: UP / DOWN do not walk)
           if(selArm&&!(k&K_SEL)){ selArm=0;
               if(!hhN){ lnote="NO ONE ELSE LIVES HERE"; lnoteT=60; }
