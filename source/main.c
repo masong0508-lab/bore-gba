@@ -66,7 +66,7 @@ static int cview;    // the view being drawn (0..3, quarter turns): vbase, plus 
 static int vbase;    // the view the player chose with SELECT + L / R (like turning the camera in a Sims game); it stays until it is turned again
 static int lcN, lcPts, lcT, lcBank, lcBankT, lcamPend, lcamF;   // combo chain: tricks, points, time left, banked total + display time, cam queued, cam frame
 #define SPEC_MAX 1000
-static int lspec; static u8 lspecOn, lsw, lskl, lstrk;
+static int lspec; static u8 lspecOn, lsw, lskl, lstrk, lman;
 static void specLose(void);
 static u8 sCam=1;    // action cam after a big combo: 0 off, 1 over 10000, 2 over 5000, 3 over 2000
 static const int camThr[4]={0,10000,5000,2000};
@@ -2574,7 +2574,8 @@ static void lifeStep(u16 k,u16 pr,int fr){
     if(bump){
         lsp=(lsp*2)/3;
         if(lbumpCd==0&&sp0b>=(lskate?12:10)){ lbumpCd=40;   // skating into a wall hurts, running into one bonks
-            if(lskate&&(abPow()&PW_CHARGE)){ sfxPlay(SFX_HIT); lnote="HORNS FIRST"; lnoteT=30; simEvent(SE_CHARGE); }   // HORNS: charge the wall, no harm done
+            if(lskate&&(k&K_R)){ int wp=150+skLvl(SK_AIR)*5; if(lspecOn) wp*=2; lscore+=wp; lcN++; lcPts+=wp; lcT=oComboLen(); lvz=0x2A0; lnote="WALL TAP"; lnoteT=40; sfxPlay(SFX_POP); specAdd(50); moodEvent(M_TRICK); }
+            else if(lskate&&(abPow()&PW_CHARGE)){ sfxPlay(SFX_HIT); lnote="HORNS FIRST"; lnoteT=30; simEvent(SE_CHARGE); }   // HORNS: charge the wall, no harm done
             else if(lskate) hurt(sp0b*2/3+(rnd8()>>5),2); else sfxPlay(SFX_BONK); }   // (was speed + 0..15: a full speed wall was a coin flip for dying. Now 8..23, worst case a short OW)
     }
     if(lbumpCd>0) lbumpCd--;
@@ -2619,6 +2620,10 @@ static void lifeStep(u16 k,u16 pr,int fr){
     if(!air){ lmaxz=(int)(lz>>8); lplay=0; lqp=0; }
     lairF=air;
     if(lflip&&lskate&&air){ if(!bFPrev) bFD=(k&K_UP)?-1:1; if(bFT<BFLIP_LEN) bFT++; bFPrev=1; } else { bFT=0; bFPrev=0; }   // the flip: one full roll in BFLIP_LEN steps, then it is flat again
+    if(lskate&&!air&&lstun<=0&&!ldead&&(k&K_R)&&lsp>=8&&lifeMap[lfy>>8][lfx>>8]=='M'){
+        if(!lman){ lman=1; lnote="MANUAL"; lnoteT=30; if(lcN==0) lcN=1; }
+        if((fr&7)==0){ int g=40+skLvl(SK_BAL)*2; if(lspecOn) g*=2; lscore+=g; lcPts+=g; lcT=oComboLen(); skGain(SK_BAL,1); specAdd(8); }
+    } else lman=0;
     if(lgrind){ if(air||tileH(lfx>>8,lfy>>8)!=6) lgrind=0; else if((fr&3)==0){ int g=abGrindPts()+skLvl(SK_GRIND)/2; if(lspecOn) g*=2; lscore+=g; lnote="GRIND"; lnoteT=10; lcPts+=g; lcT=oComboLen(); specAdd(4); } }   // GRIP ability
     if(!lhave&&lz<(8<<8)&&(lfx>>8)==BDX&&(lfy>>8)==BDY){ lhave=1; lnote="GOT A SKATEBOARD"; lnoteT=90; moodEvent(M_GOT_BOARD); }   // walk over it to pick it up
     fxTick();   // ghosts and weather (fx.h): every step, also while you lie dead
@@ -2665,7 +2670,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
     }
     if(lcN>0){
         if(lstun>0||ldead){ lcN=0; lcPts=0; lcT=0; }                      // a bail or hit loses the chain
-        else if(!air&&!lgrind&&--lcT<=0){                                  // chain over: bank the multiplier bonus
+        else if(!air&&!lgrind&&!lman&&--lcT<=0){                                  // chain over: bank the multiplier bonus
             int tot=lcPts*lcN; if(lcN>=2) lscore+=lcPts*(lcN-1);
             lcBank=tot; lcBankT=120;
             if(lcN>=2&&sCam&&tot>camThr[sCam]) lcamPend=1;

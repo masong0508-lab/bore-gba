@@ -141,7 +141,7 @@ static void skillsScreen(void){
 
 // pause menu > WANTS > VIEW TRICKS: the trick controls on one page (text only; the same moves the tutorial teaches)
 static void tricksScreen(void){
-    static const char* const ln[]={"L  STEP ON OR OFF THE BOARD","A  PUSH  (ON FOOT: HOP)","DPAD  STEER  (IN THE AIR: SPIN)","B  OLLIE  (IN THE AIR: KICKFLIP)","RAILS  LAND ON ONE TO GRIND","LAND ON GREEN  RED IS A BAIL","BAILS MAKE YOU BLINK AND LIE DOWN","BIG COMBOS TRIGGER THE ACTION CAM"};
+    static const char* const ln[]={"L  STEP ON OR OFF THE BOARD","A  PUSH  (ON FOOT: HOP)","DPAD  STEER  (IN THE AIR: SPIN)","B  OLLIE  (IN THE AIR: KICKFLIP)","RAILS  LAND ON ONE TO GRIND","LAND ON GREEN  RED IS A BAIL","R ON A MANUAL PAD  MANUAL","R INTO A WALL  WALL TAP"};
     u16 prev=keyNow(); u32 cnt=0;
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
