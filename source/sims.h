@@ -89,6 +89,7 @@ enum { SK_COOK, SK_LOGIC, SK_BODY, SK_CHARM, SK_CREAT,   // life skills
        SK_N };
 #define SK_LIFE 5
 static void copDay(void);   // npc.h: the cops that remember you may raid at midnight
+static void prDay(void);   // prison.h: a day off the sentence
 static int skLvl(int k); static void skGain(int k,int n); static void skReset(void); static void skSave(void); static int skTop(int top);   // skills.h (included much later)
 // things that happen (wants and fears are both made of these)
 enum { SE_EAT, SE_PEE, SE_SLEEP, SE_SHOWER, SE_SOFA, SE_TRICK, SE_COMBO, SE_GRIND, SE_AIR, SE_SHOWOFF, SE_STOKED, SE_GREAT,
@@ -678,7 +679,7 @@ static void simMinute(void){   // once per game minute
     if(simMin==16*60+20&&(simHave&SR_PIPE)&&pipeOk()) simQueue("IT IS 4:20  PUFF PUFF PASS");   // the house gathers at the water pipe (house.h)
     if(simMin>=1440){   // midnight: new day, bills, autosave
         simMin=0; simDay++; if(simDay>30000) simDay=0;
-        ageTick(); copDay();
+        ageTick(); copDay(); prDay();
         if(simFlags&SF_TREE){ simMoney+=SIM_TREE_PAY; if(simMoney>9999) simMoney=9999; }   // the money tree
         int bill=ojob()?SIM_BILLS*oBillsPct()/100:0; if(jobT()->perk==JP_BARRACKS) bill/=2; bill-=bill*skLvl(SK_LOGIC)*5/100;   // MILITARY: the barracks   // no career = no bills; BILLS option scales them
         if(bill>0){ if(simMoney>=bill){ simMoney-=bill; simEvent(SE_BILLS); }

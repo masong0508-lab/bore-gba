@@ -1371,6 +1371,8 @@ static void mapEditor(void);
 static u8 gInPlay;   // 1 while the life game runs (some actions only make sense, or are only safe, in one place)
 static int edX0=0, edY0=0, edX1=9999, edY1=9999;   // where the room builder's cursor may go (neighborhood.h narrows it to the lot you are on)
 static int nbPlaying;   // the game was started from the neighborhood: its pause menu goes back there
+static u8 prEd, prGo;   // prison.h: prEd = test play from the editor (no sentences there); prGo = the live lot must change (1 to the prison, 2 home) at the end of this step
+static int prShown(void); static int prIn(void); static void prApply(int ed); static void prSelect(void); static int prLifeSwitch(int code); static void prisonScreen(void); static void prClear(void);   // prison.h
 static int nbResetLot(void);
 static int nbFlagOk(void); static int nbFlagsOn(void);   // neighborhood.h: flags are a town-build tool, they only work on community lots
 static int nbBarred(void);   // neighborhood.h: 1 while the live lot is a COMMUNITY lot you are only visiting: building is locked there, you build it from the town view
@@ -3418,7 +3420,7 @@ static int pauseMenu(int mode){   // mode 0 life, 1 from the neighborhood, 2 tes
             rect(x-1,y-1,54,40,on?GOLD:RGB(10,16,30)); rect(x,y,52,38,on?RGB(6,18,10):RGB(7,10,20));
             u16 col=on?pmCol[id]:(u16)((pmCol[id]>>1)&0x3DEF); int ib=(on&&((t>>4)&1))?-1:0;
             for(int r=0;r<9;r++)for(int q=0;q<9;q++){ char ch=pmArt[id][r][q]; if(ch!='.') rect(x+17+q*2,y+5+r*2+ib,2,2,ch=='o'?WHITE:col); }
-            const char*nm=(id==PM_QUIT&&mode==1)?"TOWN":(id==PM_QUIT&&mode==2)?"EDITOR":pmNm[id];
+            const char*nm=(id==PM_STORY&&prShown())?"PRISON":(id==PM_QUIT&&mode==1)?"TOWN":(id==PM_QUIT&&mode==2)?"EDITOR":pmNm[id];
             text(x+(52-tw(nm,1))/2,y+28,nm,on?WHITE:DIMC,1); }
         { int id=ids[sel]; const char*ti=pmTitle[id], *ds=pmDesc[id];
           if(id==PM_BUILD&&mode!=2&&nbBarred()) ds="NO BUILDING WHILE VISITING";   // (a community lot is built from the town view)
@@ -3501,7 +3503,7 @@ static void lifeMode(int ed){ int back=musCtx; gInPlay=1; lifeModeRun(ed); gInPl
 static void lifeModeRun(int ed){   // ed=1: test play started from the map editor
     objHideAll(); winFull(); REG_DISPCNT=0x3443; fxPlayStart();   // mode 3 + sprites (1D tiles) + window 0 (the household's hardware sprites, house.h)
     // (the passers-by of this lot are kept until you move to another lot or start a new life: twKeep, house.h)
-    pkHome=-1; lifeInit(); if(!ed) phoneEnsure(); lcamF=0; vbase=cview=0; lcN=lcPts=lcT=lcBank=lcBankT=lcamPend=0; lcNmN=0; u16 prev=keyNow(); gmStart(); hudApplyLayout(); liveInvalidate(); camSnap=1;
+    pkHome=-1; prEd=(u8)ed; lifeInit(); prApply(ed); if(!ed) phoneEnsure(); lcamF=0; vbase=cview=0; lcN=lcPts=lcT=lcBank=lcBankT=lcamPend=0; lcNmN=0; u16 prev=keyNow(); gmStart(); hudApplyLayout(); liveInvalidate(); camSnap=1;
     stModal=0; if(!ed) stEnter();   // (the chapter card of the story waits for the first frame)
     trnOn=trnDone=0;   // (no timed run carries over)
     tutOn=0; tutModal=TM_NONE;   // the tutorial: replay now, or offer it once (first PLAY, not in the test play of the editor)
@@ -3527,6 +3529,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
           if(selArm&&!(k&K_SEL)){ selArm=0;
               if(!hhN){ lnote="NO ONE ELSE LIVES HERE"; lnoteT=60; }
               else if(custom){ lnote="HAND BUILT SIMS CANNOT SWITCH"; lnoteT=60; }
+              else if(prIn()) prSelect();   // prison.h: out of the cell, home as the next Sim
               else { hhSwitch(); lnote=hhPName; lnoteT=60; liveInvalidate(); camSnap=1; } } }
         if(pr&K_START) peekEnd();   // (the pause menu saves the house: be back on your own floor first)
         if(pr&K_START){   // pause menu
@@ -3537,13 +3540,13 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
             if(c==PM_SAVE){ if(!sgPid) toast("PICK A PLAYER ON THE PLAY SCREEN"); else { int se=sgSave(); toast(se?slErrMsg(se):"GAME SAVED"); } }
             else if(c==PM_WANTS){ const char* wsm[5]={"WANTS  FEARS  REWARDS","SKILLS","VIEW TRICKS","VIEW GOALS",trnLabel()}; int w=menu("WANTS AND SKILLS",wsm,5); if(w==0) aspPanel(); else if(w==1) skillsScreen(); else if(w==2) tricksScreen(); else if(w==3) goalsScreen(); else if(w==4) trnPick(); }
             else if(c==PM_FAMILY) hhMenu();
-            else if(c==PM_STORY) storyScreen();
+            else if(c==PM_STORY){ if(prShown()) prisonScreen(); else storyScreen(); }   // (while a sentence runs the STORY tile is the PRISON)
             else if(c==PM_OPTS){ settingsScreen(); if(!ed&&xo[XO_TUTOR]==2) tutBegin(); }
             else if(c==PM_BUILD){   // EDIT MAP, BLUEPRINTS (the old room slots) and NEW LIFE share one entry
                 int b=menu("BUILD AND HOUSES",buildItems,3);
                 if(b==0){ if(edGate()){ cview=0; vpFull(); mapEditor(); lifeInit(); cview=vbase; } }
                 else if(b==1){ simsSaveNow(); hhSave(); if(slotScreen()){ lifeInit(); phoneEnsure(); } }   // a blueprint was loaded: start again in the loaded room (the life was written first, so nothing is lost)
-                else if(b==2){ if(menu("START A NEW LIFE",yesNoLife,2)==1){ twKeep=0; simsNewLife(); moodReset(); lscore=0; simLastScore=0; trnOn=0; stOff(); lnote="NEW LIFE"; lnoteT=60; } } }
+                else if(b==2){ if(menu("START A NEW LIFE",yesNoLife,2)==1){ twKeep=0; simsNewLife(); prClear(); moodReset(); lscore=0; simLastScore=0; trnOn=0; stOff(); lnote="NEW LIFE"; lnoteT=60; } } }
             else if(c==PM_QUIT){ int go=1; if(!ed&&!nbPlaying){ if(sgPid&&sgManual()){ int r=sgAsk(1); if(r==0) go=0; else if(r==2) sgDiscard=1; } if(go) gToMenu=1; } if(go) break; }   // (from the neighborhood: back there)   // MANUAL saving: quitting with unsaved progress asks first
             winFull(); REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=vbase; continue;
         }
@@ -3570,6 +3573,10 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
             if(pkHome<0) for(int s=0;s<steps;s++) lifeStep(k,s?0:pr,fr++);   // catch up if a frame took long; button presses count once   (peeking at another floor: the world holds still)
             if(lcamPend){ lcamPend=0; if(sCam){ lcamF=1; cview=vbase; } }
         }
+        if(prGo&&!ed){   // prison.h: busted (to the cell), released or switched (home): the live lot changes
+            int pc=prGo; prGo=0; lcamF=0; peekEnd(); mGainT=128; sfxStop();
+            if(prLifeSwitch(pc)){ winFull(); REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=vbase; continue; }
+            winFull(); REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; }
         gmTick(); lifeDraw(); workT+=(u16)(lifeVs-w0);
         fpsN++; if(fpsT>=65536){ lfpsV=fpsN; lloadV=(int)(workT/(u32)fpsN*100/(u32)((sFps+1)*TICKS_FRAME)); workT=0; fpsN=0; fpsT-=65536; }
     }
@@ -4694,6 +4701,7 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "households.h"     // THE TOWN'S HOUSEHOLDS: who lives where, the household bank, visitors, the phone
 #include "fx.h"
 #include "npc.h"             // AI SKATERS and POLICE: hardware sprites on the last spare OBJ tiles (see the top of npc.h)             // GHOSTS and WEATHER: hardware sprites on the spare OBJ slots (see the top of the file)
+#include "prison.h"         // PRISON: when the cops catch you, the sentence depends on your record; you serve it in a prison of the town
 #include "story.h"          // STORY MODE: chapters with goals (NEW GAME > STORY MODE)
 #include "career.h"         // CAREER TRACKS: the screen on the phone (the tracks are in sims.h)
 #include "tvclip.h"       // the TV's 3 second clips (tvClipRun)
@@ -4789,7 +4797,7 @@ static int newGame(int slot){   // 1 = it started (and ended: back to the main m
     static const char* const yn[2]={"YES  NEW LIFE","NO"}; if(!sgWant&&menu("START OVER?",yn,2)!=0) return 0;   // (a NEW PLAYER has nothing to start over: the player in play was saved first)
     if(slot>=0){ if(!nbSwitch(slot)){ nbOk=nbLoad(); toast(nbErr); return 0; } nbOk=1; nbBounds(); }
     if(sgWant){ sgPickHome(); sgPid=sgWant; sgWant=0; } else sgPid=0;   // a NEW PLAYER gets a home lot and a save file of their own; a new life started elsewhere belongs to no save file
-    twKeep=0; simsNewLife(); moodReset(); lscore=0; simLastScore=0;
+    twKeep=0; simsNewLife(); prClear(); moodReset(); lscore=0; simLastScore=0;
     hhN=0; for(int a=0;a<HU_N;a++)for(int b=0;b<HU_N;b++){ relD[a][b]=relL[a][b]=0; relF[a][b]=0; } kinClear();   // the old household moves out
     stOff();
     if(c==1&&hhMoveIn(&hhFams[f])>0){ hhSwap(&hhM[0]); hhRemove(0); }   // you are the family's first Sim (who you were leaves)

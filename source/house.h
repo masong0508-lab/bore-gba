@@ -63,6 +63,7 @@ static const u8 kinInv[KN_N][3]={   // if a is the role, what b may be (the firs
     {KN_STEPDAU,KN_STEPSON,0}, {KN_STEPDAU,KN_STEPSON,0}, {KN_STEPMOM,KN_STEPDAD,0}, {KN_STEPMOM,KN_STEPDAD,0} };
 static inline int kinRom(int r){ return r==KN_PARTNER||r==KN_WIFE||r==KN_HUSBAND; }
 static void copCrime(int n); static void copTick(int*planned);   // npc.h: the police
+static int prHeld(const HhSim*s); static int prHere(void); static void prSave(void); static int prSwitchHook(int m);   // prison.h
 static int hhPUid;                         // the uid of the Sim you control
 static char hhPName[HH_NM]="YOU", hhPLast[HH_NM]="";   // the first and last name of the Sim you control (premade Sims bring theirs)
 static u8 hhBubT; static const char* hhBubTxt;   // the word over your head during a social (shown by hud.h's bubble)
@@ -544,6 +545,7 @@ static void hhTick(void){   // once per logic step in the life game
         if(s->bubT) s->bubT--;
         if(s->hp<HP_MAX&&lfr%HP_REGEN==(m*11)%HP_REGEN) s->hp++;   // health creeps back (knocked out Sims wake at 30)
         if(lfr%(150-s->tr[TR_OUT]*8)==0&&s->need[HN_SOC]>0) s->need[HN_SOC]--;   // lonely sooner when outgoing
+        if(prHeld(s)){ s->act=HA_AWAY; continue; }   // prison.h: the prisoner is out while you are at home, everyone else while you are in the cell
         if(s->act==HA_SOC){ if(--s->t<=0){ s->act=HA_IDLE; s->think=(short)(HH_THINK/2); } continue; }   // standing in a conversation
         if(!xo[XO_FREEWILL]){ if(s->act==HA_AWAY) s->fx=hhExX*256+128, s->fy=hhExY*256+128; s->act=HA_IDLE; continue; }
         { int fr=0, to=0, k=hhSched(s,&fr,&to), due=k&&simMin>=fr&&simMin<to;   // the day's routine
@@ -1021,6 +1023,7 @@ static void hhSwitch(void){   // SELECT: control the next Sim of the household w
 }
 static void hhSwitchTo(int m){   // pause menu > HOUSEHOLD > SWITCH TO A SIM: control member m (the ones before it go to the back of the line, as SELECT does)
     if(m<0||m>=hhN) return;
+    if(prSwitchHook(m)) return;   // prison.h: between the cell and home
     if(hhM[m].act==HA_AWAY){ toast("THEY ARE OUT RIGHT NOW"); return; }
     if(custom){ toast("HAND BUILT SIMS CANNOT SWITCH"); return; }
     hhSwitchFrom(m);
@@ -1066,6 +1069,7 @@ static void hhSave(void){
     for(int a=0;a<HU_N;a++)for(int b=0;b<HU_N;b++) m[k++]=kin[a][b];
     for(int i=2;i<k;i++) sum+=m[i];
     m[k]=sum;
+    prSave();   // prison.h: who is doing time is kept as a place in this household (a load gives the uids out again)
 }
 static int hhUidsOf(int ver){ return ver<'6'?HH_MAXOLD+1:ver<=':'-1?HH_MAX9+1:HU_N; }   // uids a saved household kept relationships for
 static void hhLoad(void){
@@ -1126,7 +1130,7 @@ static void hhInviteTrue(void); static int hhMoveOut(int m);   // households.h
 static void hhSwitchMenu(void){   // pick the Sim you control
     if(!hhN){ toast("NO ONE ELSE LIVES HERE"); return; }
     static char nm[HH_MAX][HH_NM+8] EWRAM_BSS; const char* who[HH_MAX];
-    for(int m=0;m<hhN;m++){ char*e=simCat(nm[m],hhM[m].name); if(hhM[m].act==HA_AWAY) simCat(e,"  OUT"); who[m]=nm[m]; }
+    for(int m=0;m<hhN;m++){ char*e=simCat(nm[m],hhM[m].name); if(hhM[m].act==HA_AWAY) simCat(e,prHeld(&hhM[m])?(prHere()?"  AT HOME":"  IN PRISON"):"  OUT"); who[m]=nm[m]; }
     int m=menu("WHO DO YOU PLAY",who,hhN); if(m<0) return;
     hhSwitchTo(m); lnote=hhPName; lnoteT=60;
 }

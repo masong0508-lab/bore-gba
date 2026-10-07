@@ -22,10 +22,10 @@
 enum { NT_GRASS, NT_DIRT, NT_SAND, NT_WATER, NT_PLAZA, NT_ROAD, NT_N };
 enum { DC_NONE, DC_TREE, DC_PINE, DC_BUSH, DC_FLOWER, DC_ROCK, DC_LAMP, DC_BENCH, DC_FOUNTAIN, DC_N };
 enum { LKIND_RES, LKIND_COMM };
-enum { CT_PARK, CT_SKATE, CT_PLAZA, CT_LOUNGE, CT_OLDTOWN, CT_BOTH, CT_N };   // CT_BOTH: a park and a skate park in one (what a community flag and a skate flag together make)
+enum { CT_PARK, CT_SKATE, CT_PLAZA, CT_LOUNGE, CT_OLDTOWN, CT_BOTH, CT_PRISON, CT_N };   // CT_BOTH: a park and a skate park in one (what a community flag and a skate flag together make)
 static const char* const ntNm[NT_N]={"GRASS","DIRT","SAND","WATER","PLAZA","ROAD"};
 static const char* const dcNm[DC_N]={"CLEAR","TREE","PINE","BUSH","FLOWERS","ROCK","LAMP","BENCH","FOUNTAIN"};
-static const char* const ctNm[CT_N]={"PARK","SKATE PARK","PLAZA","LOUNGE","OLD TOWN","PARK + SKATE"};
+static const char* const ctNm[CT_N]={"PARK","SKATE PARK","PLAZA","LOUNGE","OLD TOWN","PARK + SKATE","PRISON"};
 static const char* const seasNm[4]={"SPRING","SUMMER","FALL","WINTER"};
 static const char* const todNm[3]={"DAY","DUSK","NIGHT"};
 typedef struct { u8 on,x,y,w,h,kind,type; s8 slot; char name[NB_NAME+1]; u8 floors; u16 value; } NbLot;   // value: what it sells for
@@ -66,6 +66,7 @@ static void nbValueLive(int j){   // land (half a simoleon a tile) + everything 
     L->value=(u16)(v>65535?65535:v); L->floors=(u8)fl;
 }
 static const char* nbErr;
+static void prisonBuild(int x0,int y0,int x1,int y1);   // prison.h: the compound of a PRISON lot
 static void nbTemplate(int i){   // a lot's starting layout: the land, the street in front, and what its kind brings
     NbLot*L=&nbT.lot[i]; flEnsure(); flHome();
     if(L->kind==LKIND_COMM&&L->type==CT_OLDTOWN) mapGen();
@@ -85,6 +86,7 @@ static void nbTemplate(int i){   // a lot's starting layout: the land, the stree
             else if(L->type==CT_PLAZA){ gBox(x0,y0,x1,y1,3); for(int x=x0+1;x<=x1-1;x+=3){ gPut(x,y0+1,'Z'); gPut(x,y1-1,'Z'); } gPut(cx-2,(y0+y1)/2,'N'); gPut(cx+2,(y0+y1)/2,'N'); gPut(cx,(y0+y1)/2-2,'K'); }
             else if(L->type==CT_LOUNGE){ int rx0=x0+1, ry0=y0+1, rx1=x1-1, ry1=y1-3; gRoom(rx0,ry0,rx1,ry1,2,NWP+57); gPut(cx,ry1,'D');
                 gPut(rx0+1,ry0+1,'V'); gPut(rx1-1,ry0+1,'V'); gPut(rx0+2,ry0+2,'U'); gPut(rx1-2,ry0+2,'U'); gPut(cx,ry0+2,'G'); gPut(rx0+1,ry1-1,'C'); gPut(rx1-1,ry1-1,'C'); }
+            else if(L->type==CT_PRISON) prisonBuild(x0,y0,x1,y1);
         }
         gPut(cx,y1-1,'P'); if(lifeMap[y1-1][cx+1]=='.') gPut(cx+1,y1-1,'B');   // you arrive at the front, your board beside you
     }
@@ -299,6 +301,7 @@ static void nbDrawLotModel(int i,int sx,int sy){   // HOOK: a lot's building (a 
         case CT_BOTH: { int sk=nbK; nbK=k+1; nbDecor(DC_TREE,sx+k*s/2,sy-k); nbK=sk; for(int i2=0;i2<3*k;i2++){ int h=(3*k-i2)*(3*k-i2)/(3*k); rect(sx-3*k+i2-k,sy-h,1,h+1,nbTint(RGB(20,20,22))); rect(sx+k-i2,sy-h,1,h+1,nbTint(RGB(17,17,19))); } rect(sx-4*k,sy,4*k,1,nbTint(RGB(28,10,6))); break; }
         case CT_SKATE: for(int i2=0;i2<4*k;i2++){ int h=(4*k-i2)*(4*k-i2)/(4*k); rect(sx-3*k+i2,sy-h,1,h+1,nbTint(RGB(20,20,22))); rect(sx+3*k-i2,sy-h,1,h+1,nbTint(RGB(17,17,19))); } rect(sx-3*k,sy,6*k,1,nbTint(RGB(28,10,6))); break;
         case CT_PLAZA: { int sk=nbK; nbK=k+1; nbDecor(DC_FOUNTAIN,sx,sy); nbK=sk; break; }
+        case CT_PRISON: { int hw2=s*nbHw/2; nbIsoBox(sx,sy,hw2,4*k,hw2/2,nbTint(RGB(13,13,14)),nbTint(RGB(18,18,19)),nbTint(RGB(8,8,9)),nbTint(RGB(11,11,12))); rect(sx-hw2/2,sy-5*k,hw2,k,nbTint(RGB(25,6,5))); rect(sx+hw2/3,sy-9*k,2*k,5*k,nbTint(RGB(10,10,11))); break; }   // a grey block with a red stripe and a watch tower
         case CT_LOUNGE: { int hw2=s*nbHw/2; nbIsoBox(sx,sy,hw2,5*k,hw2/3,nbTint(RGB(12,6,16)),nbTint(RGB(17,9,22)),nbTint(RGB(6,4,8)),nbTint(RGB(9,6,12))); rect(sx-k,sy-6*k,2*k+1,k,nbT.tod?RGB(31,8,26):nbTint(RGB(24,8,20))); break; }
         default: { int hw2=s*nbHw/3; nbIsoBox(sx,sy,hw2,7*k,k,nbTint(RGB(14,14,15)),nbTint(RGB(18,18,19)),nbTint(RGB(9,9,10)),nbTint(RGB(12,12,13)));   // old town: a factory with a chimney
             rect(sx+hw2/2,sy-12*k,2*k,6*k,nbTint(RGB(16,7,5))); px(sx+hw2/2,sy-13*k,nbTint(RGB(24,24,24))); px(sx+hw2/2+k,sy-14*k,nbTint(RGB(22,22,22))); break; }

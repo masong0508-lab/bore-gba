@@ -146,6 +146,7 @@ static int hhLeaveHome(void){   // the household you play goes into the bank, on
     return 1;
 }
 static int hhPlayAt(int li){   // NEIGHBORHOOD lot menu > PLAY THE ...: you play the household of lot li (yours waits in the bank). 1 = the game was played
+    if(prShown()){ toast("SERVE YOUR TIME FIRST"); return 0; }   // (prison.h: the sentence belongs to this household)
     char nm[24]; nm[0]=0; int who=nbWho(li,nm); if(!who) return 0;
     { char q[32]; char*e=slCat(q,"PLAY "); slCat(e,nm); const char*yn[2]={"YES","NO"}; if(menu(q,yn,2)!=0) return 0; }
     int b=who==1?bkFind(nbKey(&nbT),li):-1, f=who==2?nbFamOf(&nbT,li):-1;
@@ -157,6 +158,7 @@ static int hhPlayAt(int li){   // NEIGHBORHOOD lot menu > PLAY THE ...: you play
     nbSave(); return 1;
 }
 static int hhNewAt(int li){   // NEIGHBORHOOD lot menu > NEW HOUSEHOLD HERE (a free lot): new Sims, made in the creator. 1 = done
+    if(prShown()){ toast("SERVE YOUR TIME FIRST"); return 0; }
     { const char*yn[2]={"YES","NO"}; if(menu("NEW SIMS ON THIS LOT",yn,2)!=0) return 0; }
     if(!hhLeaveHome()) return 0;
     int old=nbT.home; nbT.home=(u8)li;

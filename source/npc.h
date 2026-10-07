@@ -231,7 +231,9 @@ static int copSpawn(void){   // one more cop walks in from a way off the lot
 }
 static void copPlaceAgain(int i){ int a=twFar(); if(a<0) return; HhSim*c=&copS[i]; c->fx=(a%MW)*256+128; c->fy=(a/MW)*256+128; c->pn=c->pi=0; c->gok=0; }
 static void copStart(int max,int fast,int wait){ copSt=1; copN=0; copMax=(u8)(max>COP_MAX?COP_MAX:max); copFast=(u8)fast; copT=(short)wait; copTry=0; copRT=0; copTired=0; }
+static int prNote(int n); static int prBook(void);   // prison.h
 static void copCrime(int n){   // called when you hurt someone
+    if(prNote(n)) return;   // prison.h: the record grows (in the prison itself: more days, and no cops)
     if(copCool>0||copSt) return;
     copHeat=(u8)(copHeat+n>9?9:copHeat+n);
     if(copHeat>=3&&(int)rnd8()<150+copWant*15){ copStart(1+(copWant>=2)+(copWant>=4),0,300+rnd8()); lnote="SOMEONE CALLED THE COPS"; lnoteT=90; }   // "there is a chance": not every crime is seen
@@ -243,8 +245,10 @@ static void copDay(void){   // once a night (sims.h, midnight): the cops that re
     else if((rnd8()&3)==0) copWant--;            // and they forget a little
 }
 static void copArrest(void){
+    int jail=prBook();   // prison.h: the rap sheet decides the sentence (before the stars are cleared). 1 = off to the prison
     int fine=simMoney>=50?50:simMoney; simMoney-=fine; copHeat=0; copWant=0; copRaid=0; copSt=3; copT=600; for(int i=0;i<copN;i++) copS[i].act=HA_IDLE;
     moodEvent(M_HURT_BIG); sfxPlay(SFX_HIT); lsp=0; lgrind=0; lscore-=lscore/4;
+    if(jail){ copSt=0; copN=0; lnote="BUSTED  OFF TO PRISON"; lnoteT=90; return; }   // (no 10 second hold: the cell it is)
     simCatN(simCat(copMsg,"BUSTED  JAIL "),10); lnote=copMsg; lnoteT=90;
 }
 static void copEscape(void){   // you reached the way out: the cops lose you, but they remember
