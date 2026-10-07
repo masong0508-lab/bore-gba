@@ -442,10 +442,11 @@ static int hhTilt(const HhSim*s,int n){   // traits: neat Sims shower sooner, la
 static void hhSeek(HhSim*s);   // social: pick someone and walk over (below)
 static int hhUseT(const HhSim*s){ return (s->use==HN_REST&&simIsNight())?HH_USE*5:HH_USE; }   // a night in bed is a long one
 static int hhHasStairs(void){ for(int y=0;y<MH;y++)for(int x=0;x<MW;x++) if(lifeMap[y][x]=='^') return 1; return 0; }   // a way up on the ground floor
+static int hhElse(int n){ if(!xo[XO_MULTIFL]||!hhHasStairs()) return 0; for(int f=1;f<FLR_N;f++) if(hhCen[f]&(1<<n)) return 1; return 0; }   // floors step 3: this need's furniture is on a floor above
 static void hhDecide(HhSim*s){
     int best[2]={-1,-1}, bs[2]={0,0}, low=xo[XO_FREEWILL]==1?35:55;   // LOW free will waits until needs are lower
     for(int n=0;n<HN_N;n++){
-        if(hnFurn[n]&&!(simHave&(n==HN_FOOD?SR_FRIDGE:n==HN_WC?SR_TOILET:n==HN_REST?SR_BED:n==HN_CLEAN?SR_SHOWER:SR_SOFA))) continue;   // no such furniture
+        if(hnFurn[n]&&!(simHave&(n==HN_FOOD?SR_FRIDGE:n==HN_WC?SR_TOILET:n==HN_REST?SR_BED:n==HN_CLEAN?SR_SHOWER:SR_SOFA))&&!hhElse(n)) continue;   // no such furniture on this floor or above
         if(n==HN_SOC&&hhN<1) continue;
         int v=s->need[n]; if(n==HN_REST&&simIsNight()) v=v>45?v-45:0;   // night: bedtime comes first
         if(v>=low+30) continue;
@@ -461,6 +462,7 @@ static void hhDecide(HhSim*s){
         int r=hhPlan(s,'^'); if(r>=1){ if(r==1){ s->pn=s->pi=0; s->gok=0; } s->act=HA_STAIR; s->use=HN_FUN; return; } }
     if(n<0&&hhN>0&&(rnd8()*100>>8)<25+s->tr[TR_OUT]*5){ hhSeek(s); return; }   // nothing pressing: go and see someone (outgoing Sims more often)
     if(n<0){ if(hhPlan(s,0)>1){ s->act=HA_WANDER; s->use=HN_FUN; } else s->act=HA_IDLE; return; }
+    if(hnFurn[n]&&!(hhCen[0]&(1<<n))&&hhElse(n)){ int q=hhPlan(s,'^'); if(q>=1){ if(q==1){ s->pn=s->pi=0; s->gok=0; } s->act=HA_STAIR; s->use=(u8)n; } else s->act=HA_IDLE; return; }   // floors step 3: not on this floor: up the stairs
     int r=hhPlan(s,hnFurn[n]?hnFurn[n]:0);
     if(r==1&&hnFurn[n]){ s->act=HA_USE; s->use=(u8)n; s->t=hhUseT(s); }
     else if(r>1){ s->act=hnFurn[n]?HA_WALK:HA_WANDER; s->use=(u8)n; }
@@ -574,7 +576,7 @@ static void hhTick(void){   // once per logic step in the life game
             else { if(!xo[XO_FREEWILL]&&hhUp[m]>1) hhUp[m]=1;
                 if(hhUp[m]>1){ hhUp[m]--; continue; }
                 if(hhTaken((int)(s->fx>>8),(int)(s->fy>>8),s)){ hhUp[m]=30; continue; }
-                hhUp[m]=0; s->act=HA_IDLE; s->think=20; s->gok=0; s->pn=s->pi=0; hhNote(s," CAME DOWNSTAIRS"); continue; } }
+                hhUp[m]=0; hhFl[m]=0; if(xo[XO_MULTIFL]&&s->use<HN_FUN) s->need[s->use]=100; s->act=HA_IDLE; s->think=20; s->gok=0; s->pn=s->pi=0; hhNote(s," CAME DOWNSTAIRS"); continue; } }
         if(s->act==HA_SOC){ if(--s->t<=0){ s->act=HA_IDLE; s->think=(short)(HH_THINK/2); } continue; }   // standing in a conversation
         if(!xo[XO_FREEWILL]){ if(s->act==HA_AWAY) s->fx=hhExX*256+128, s->fy=hhExY*256+128; s->act=HA_IDLE; continue; }
         { int fr=0, to=0, k=hhSched(s,&fr,&to), due=k&&simMin>=fr&&simMin<to;   // the day's routine
@@ -594,7 +596,7 @@ static void hhTick(void){   // once per logic step in the life game
         }
         if(s->act==HA_WALK||s->act==HA_WANDER||s->act==HA_SEEK||s->act==HA_LEAVE||s->act==HA_STAIR){   // follow the path, tile centre to tile centre
             if(s->pi>=s->pn&&s->act==HA_SEEK){ hhArrive(m); continue; }
-            if(s->pi>=s->pn&&s->act==HA_STAIR){ s->act=HA_AWAY; hhUp[m]=(u16)(600+(rnd8()<<3)); hhNote(s," WENT UPSTAIRS"); continue; }
+            if(s->pi>=s->pn&&s->act==HA_STAIR){ s->act=HA_AWAY; hhUp[m]=(u16)(xo[XO_MULTIFL]&&s->use<HN_FUN?hhUseT(s)+90:600+(rnd8()<<3)); if(xo[XO_MULTIFL]) hhFl[m]=1; hhNote(s," WENT UPSTAIRS"); continue; }
             if(s->pi>=s->pn&&s->act==HA_LEAVE){ s->act=HA_AWAY; hhNote(s,s->use==2?" WENT TO SCHOOL":" LEFT FOR WORK"); continue; }
             if(s->pi>=s->pn){ if(s->act==HA_WALK){ s->act=HA_USE; s->t=hhUseT(s); } else { s->act=HA_IDLE; if(s->need[HN_FUN]<90) s->need[HN_FUN]+=10; } continue; }
             hhStepAlong(s);
