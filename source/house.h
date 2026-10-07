@@ -353,6 +353,7 @@ static void hhBakeAll(void){
 static int hhWalk(int x,int y){ if(x<0||y<0||x>=MW||y>=MH) return 0; char c=lifeMap[y][x]; return c!='w'&&c!='W'&&tileH(x,y)<=3; }
 static int hhTakenAt(int x,int y); static void hhTakenScan(const HhSim*self);
 static void hhPlace(HhSim*s,int k){   // somewhere free near the spawn point, spread out a little (never on someone else's tile)
+    if(s>=hhM&&s<hhM+HH_MAX){ hhFl[s-hhM]=xo[XO_MULTIFL]?(u8)curFl:0; hhUp[s-hhM]=0; }
     s->act=HA_AWAY; hhTakenScan(s);
     for(int r=1;r<12;r++)for(int t=0;t<40;t++){ int x=spx+((rnd8()%(2*r+1))-r), y=spy+((rnd8()%(2*r+1))-r);
         if(hhWalk(x,y)&&(x!=spx||y!=spy)&&!hhTakenAt(x,y)){ s->fx=x*256+128; s->fy=y*256+128; s->act=HA_IDLE; return; } }
@@ -386,11 +387,11 @@ static void hhRemove(int m){   // moves out: their sprites and relationships go 
     if(m<0||m>=hhN) return;
     int a=hhM[m].uid; for(int u=0;u<HU_N;u++){ relD[a][u]=relD[u][a]=0; relL[a][u]=relL[u][a]=0; relF[a][u]=relF[u][a]=0; kin[a][u]=kin[u][a]=0; }
     hhSprFree(m);   // their sprites go back to the pool; the others only move their descriptors
-    for(int k=m;k<hhN-1;k++){ hhM[k]=hhM[k+1]; hhSp[k]=hhSp[k+1]; for(int i=0;i<16;i++) hhPal[k][i]=hhPal[k+1][i]; }
+    for(int k=m;k<hhN-1;k++){ hhM[k]=hhM[k+1]; hhFl[k]=hhFl[k+1]; hhUp[k]=hhUp[k+1]; hhSp[k]=hhSp[k+1]; for(int i=0;i<16;i++) hhPal[k][i]=hhPal[k+1][i]; }
     if(hhN-1>m){ HhSpr*z=&hhSp[hhN-1]; for(int v=0;v<4;v++) z->sm[v]=z->dm[v]=0; z->off=0; z->len=0; }   // (no second descriptor for the same block)
     for(int k=m;k<hhN-1;k++) hhKey[k]=hhKey[k+1];
     hhKey[hhN-1]=0;   // the keys move with the sprites
-    hhN--; hhSlotsFree();
+    hhFl[hhN-1]=0; hhUp[hhN-1]=0; hhN--; hhSlotsFree();
 }
 static void hhNew(HhSim*s,const HhPre*p){
     s->uid=(u8)hhFreeUid(); s->bubT=0; s->hp=HP_MAX;
@@ -441,8 +442,8 @@ static int hhTilt(const HhSim*s,int n){   // traits: neat Sims shower sooner, la
 }
 static void hhSeek(HhSim*s);   // social: pick someone and walk over (below)
 static int hhUseT(const HhSim*s){ return (s->use==HN_REST&&simIsNight())?HH_USE*5:HH_USE; }   // a night in bed is a long one
-static int hhHasStairs(void){ for(int y=0;y<MH;y++)for(int x=0;x<MW;x++) if(lifeMap[y][x]=='^') return 1; return 0; }   // a way up on the ground floor
-static int hhElse(int n){ if(!xo[XO_MULTIFL]||!hhHasStairs()) return 0; for(int f=1;f<FLR_N;f++) if(hhCen[f]&(1<<n)) return 1; return 0; }   // floors step 3: this need's furniture is on a floor above
+static int hhHasStairs(void){ if(curFl>=FLR_N-1) return 0; for(int y=0;y<MH;y++)for(int x=0;x<MW;x++) if(lifeMap[y][x]=='^') return 1; return 0; }   // a way up on the ground floor
+static int hhElse(int n){ if(!xo[XO_MULTIFL]||!hhHasStairs()) return 0; for(int f=curFl+1;f<FLR_N;f++) if(hhCen[f]&(1<<n)) return 1; return 0; }   // floors step 3: this need's furniture is on a floor above
 static void hhDecide(HhSim*s){
     int best[2]={-1,-1}, bs[2]={0,0}, low=xo[XO_FREEWILL]==1?35:55;   // LOW free will waits until needs are lower
     for(int n=0;n<HN_N;n++){
@@ -462,7 +463,7 @@ static void hhDecide(HhSim*s){
         int r=hhPlan(s,'^'); if(r>=1){ if(r==1){ s->pn=s->pi=0; s->gok=0; } s->act=HA_STAIR; s->use=HN_FUN; return; } }
     if(n<0&&hhN>0&&(rnd8()*100>>8)<25+s->tr[TR_OUT]*5){ hhSeek(s); return; }   // nothing pressing: go and see someone (outgoing Sims more often)
     if(n<0){ if(hhPlan(s,0)>1){ s->act=HA_WANDER; s->use=HN_FUN; } else s->act=HA_IDLE; return; }
-    if(hnFurn[n]&&!(hhCen[0]&(1<<n))&&hhElse(n)){ int q=hhPlan(s,'^'); if(q>=1){ if(q==1){ s->pn=s->pi=0; s->gok=0; } s->act=HA_STAIR; s->use=(u8)n; } else s->act=HA_IDLE; return; }   // floors step 3: not on this floor: up the stairs
+    if(hnFurn[n]&&!(hhCen[curFl]&(1<<n))&&hhElse(n)){ int q=hhPlan(s,'^'); if(q>=1){ if(q==1){ s->pn=s->pi=0; s->gok=0; } s->act=HA_STAIR; s->use=(u8)n; } else s->act=HA_IDLE; return; }   // floors step 3: not on this floor: up the stairs
     int r=hhPlan(s,hnFurn[n]?hnFurn[n]:0);
     if(r==1&&hnFurn[n]){ s->act=HA_USE; s->use=(u8)n; s->t=hhUseT(s); }
     else if(r>1){ s->act=hnFurn[n]?HA_WALK:HA_WANDER; s->use=(u8)n; }
@@ -551,14 +552,23 @@ static void hhCensus(void){   // which need furniture each floor has (bit = need
             if(c=='F') b|=1<<HN_FOOD; else if(c=='T') b|=1<<HN_WC; else if(c=='S') b|=1<<HN_REST; else if(c=='H') b|=1<<HN_CLEAN; else if(c=='C'||c=='U') b|=1<<HN_COMFY; }
         hhCen[f]=b; }
 }
+static void hhStairSpot(HhSim*s,char c){   // floors step 4: stand on a free tile next to the stairs c ('^' up, '~' down), where a Sim arrives from another floor
+    int sx=-1, sy=-1;
+    for(int y=0;y<MH&&sx<0;y++)for(int x=0;x<MW;x++) if(lifeMap[y][x]==c){ sx=x; sy=y; break; }
+    if(sx<0){ sx=(int)(lfx>>8); sy=(int)(lfy>>8); }
+    hhTakenScan(s);
+    for(int r=1;r<6;r++)for(int dy=-r;dy<=r;dy++)for(int dx=-r;dx<=r;dx++){ if((dx<0?-dx:dx)!=r&&(dy<0?-dy:dy)!=r) continue;
+        int x=sx+dx, y=sy+dy; if(hhWalk(x,y)&&!hhTakenAt(x,y)){ s->fx=x*256+128; s->fy=y*256+128; return; } }
+    s->fx=sx*256+128; s->fy=sy*256+128;
+}
 static void hhTick(void){   // once per logic step in the life game
     if(xo[XO_MULTIFL]){ if(hhCenT) hhCenT--; else hhCensus(); }   // floors step 2: keep the per-floor furniture census fresh
-    if(curFl) return;   // upstairs: the household waits on the ground floor
+    if(curFl&&!xo[XO_MULTIFL]) return;   // upstairs: the household waits on the ground floor (SIMS ON FLOORS: the Sims up here carry on)
     if(hhBubT) hhBubT--;
     if(lvx||lvy||lsp||lairF||lgrind) hhStill=0; else if(hhStill<1000) hhStill++;
     int planned=0;
-    if(xo[XO_FREEWILL]) twTick(&planned);
-    copTick(&planned);   // npc.h: the police (a cop comes after you when you hurt Sims)
+    if(xo[XO_FREEWILL]&&!curFl) twTick(&planned);
+    if(!curFl) copTick(&planned);   // npc.h: the police (a cop comes after you when you hurt Sims)
     if(!hhN) return;
     relTick();
     int fe=oFoodEvery(), we=oWcEvery();
@@ -571,12 +581,17 @@ static void hhTick(void){   // once per logic step in the life game
         if(s->hp<HP_MAX&&lfr%HP_REGEN==(m*11)%HP_REGEN) s->hp++;   // health creeps back (knocked out Sims wake at 30)
         if(lfr%(150-s->tr[TR_OUT]*8)==0&&s->need[HN_SOC]>0) s->need[HN_SOC]--;   // lonely sooner when outgoing
         if(prHeld(s)){ s->act=HA_AWAY; continue; }   // prison.h: the prisoner is out while you are at home, everyone else while you are in the cell
+        if(xo[XO_MULTIFL]){   // floors step 4: Sims who are not on your floor wait (parked), the ones whose floor you came to step out of the stairs
+            if(hhFl[m]!=curFl){
+                if(s->act!=HA_AWAY){ s->act=HA_AWAY; s->use=HN_FUN; hhUp[m]=(u16)(300+(rnd8()<<2)); }   // you left their floor: they stay there a while
+                if(curFl) continue; }
+            else if(s->act==HA_AWAY&&hhUp[m]){ if(s->use<HN_FUN) s->need[s->use]=100; s->use=HN_FUN; hhUp[m]=0; hhStairSpot(s,curFl?'~':'^'); s->act=HA_IDLE; s->think=20; s->gok=0; s->pn=s->pi=0; continue; } }
         if(hhUp[m]){   // upstairs: gone from the ground floor until the time is up, then back down the stairs (waits if someone stands there)
             if(s->act!=HA_AWAY){ hhUp[m]=0; }
             else { if(!xo[XO_FREEWILL]&&hhUp[m]>1) hhUp[m]=1;
                 if(hhUp[m]>1){ hhUp[m]--; continue; }
                 if(hhTaken((int)(s->fx>>8),(int)(s->fy>>8),s)){ hhUp[m]=30; continue; }
-                hhUp[m]=0; hhFl[m]=0; if(xo[XO_MULTIFL]&&s->use<HN_FUN) s->need[s->use]=100; s->act=HA_IDLE; s->think=20; s->gok=0; s->pn=s->pi=0; hhNote(s," CAME DOWNSTAIRS"); continue; } }
+                hhUp[m]=0; if(hhFl[m]){ hhFl[m]=0; hhStairSpot(s,'^'); } if(xo[XO_MULTIFL]&&s->use<HN_FUN) s->need[s->use]=100; s->act=HA_IDLE; s->think=20; s->gok=0; s->pn=s->pi=0; hhNote(s," CAME DOWNSTAIRS"); continue; } }
         if(s->act==HA_SOC){ if(--s->t<=0){ s->act=HA_IDLE; s->think=(short)(HH_THINK/2); } continue; }   // standing in a conversation
         if(!xo[XO_FREEWILL]){ if(s->act==HA_AWAY) s->fx=hhExX*256+128, s->fy=hhExY*256+128; s->act=HA_IDLE; continue; }
         { int fr=0, to=0, k=hhSched(s,&fr,&to), due=k&&simMin>=fr&&simMin<to;   // the day's routine
@@ -584,6 +599,7 @@ static void hhTick(void){   // once per logic step in the life game
               s->fx=hhExX*256+128; s->fy=hhExY*256+128; s->act=HA_IDLE; s->think=20; s->gok=0;   // home again: walks in from the edge
               static const u8 dn[HN_N]={25,15,20,15,10,20,0}; for(int n=0;n<HN_N;n++) s->need[n]=(u8)(s->need[n]>dn[n]?s->need[n]-dn[n]:0);
               hhNote(s,s->use==2?" IS BACK FROM SCHOOL":" IS HOME FROM WORK"); continue; }
+          if(due&&curFl&&s->act!=HA_AWAY){ s->act=HA_AWAY; hhFl[m]=0; hhUp[m]=0; s->use=(u8)k; hhNote(s,k==2?" WENT TO SCHOOL":" LEFT FOR WORK"); continue; }
           if(due&&s->act!=HA_LEAVE&&!planned){   // time to go: walk to the way off (one search per step, like every plan)
               s->use=(u8)k; hhGX=hhExX; hhGY=hhExY; planned=1;
               int r=hhPlan(s,1); if(r>1) s->act=HA_LEAVE; else { s->act=HA_AWAY; hhNote(s,k==2?" WENT TO SCHOOL":" LEFT FOR WORK"); }
@@ -596,7 +612,7 @@ static void hhTick(void){   // once per logic step in the life game
         }
         if(s->act==HA_WALK||s->act==HA_WANDER||s->act==HA_SEEK||s->act==HA_LEAVE||s->act==HA_STAIR){   // follow the path, tile centre to tile centre
             if(s->pi>=s->pn&&s->act==HA_SEEK){ hhArrive(m); continue; }
-            if(s->pi>=s->pn&&s->act==HA_STAIR){ s->act=HA_AWAY; hhUp[m]=(u16)(xo[XO_MULTIFL]&&s->use<HN_FUN?hhUseT(s)+90:600+(rnd8()<<3)); if(xo[XO_MULTIFL]) hhFl[m]=1; hhNote(s," WENT UPSTAIRS"); continue; }
+            if(s->pi>=s->pn&&s->act==HA_STAIR){ s->act=HA_AWAY; hhUp[m]=(u16)(xo[XO_MULTIFL]&&s->use<HN_FUN?hhUseT(s)+90:600+(rnd8()<<3)); if(xo[XO_MULTIFL]) hhFl[m]=(u8)(curFl+1); hhNote(s," WENT UPSTAIRS"); continue; }
             if(s->pi>=s->pn&&s->act==HA_LEAVE){ s->act=HA_AWAY; hhNote(s,s->use==2?" WENT TO SCHOOL":" LEFT FOR WORK"); continue; }
             if(s->pi>=s->pn){ if(s->act==HA_WALK){ s->act=HA_USE; s->t=hhUseT(s); } else { s->act=HA_IDLE; if(s->need[HN_FUN]<90) s->need[HN_FUN]+=10; } continue; }
             hhStepAlong(s);
@@ -861,8 +877,8 @@ static void hhArrive(int m){   // a free-will Sim reached the one it wanted to s
     socDo(s->uid,b,socPick(s->uid,b));
 }
 // ---- you: R next to a household Sim opens the social menu (furniture you stand at is offered first) ----
-static int hhVisitorHere(int m){ if(m<hhN) return 0; int k=HH_MAX-1-m; return k>=0&&k<TW_N&&twHas[k]&&twOn[k]; }   // slot m (past the household) holds a neighbour on the lot
-static int hhNearest(void){ if(curFl) return -1; int best=-1, bd=1<<30; for(int m=0;m<HH_MAX;m++){ if(m<hhN){ if(hhM[m].act==HA_AWAY) continue; } else if(!hhVisitorHere(m)) continue; s32 dx=hhM[m].fx-lfx, dy=hhM[m].fy-lfy; int d=(int)((dx*dx+dy*dy)>>8); if(d<bd){ bd=d; best=m; } } return bd<=(380*380>>8)?best:-1; }   // within 1.5 tiles (household Sims and the neighbours who drop by)
+static int hhVisitorHere(int m){ if(m<hhN||curFl) return 0; int k=HH_MAX-1-m; return k>=0&&k<TW_N&&twHas[k]&&twOn[k]; }   // slot m (past the household) holds a neighbour on the lot
+static int hhNearest(void){ if(xo[XO_MULTIFL]?pkHome>=0:curFl) return -1; int best=-1, bd=1<<30; for(int m=0;m<HH_MAX;m++){ if(m<hhN){ if(hhM[m].act==HA_AWAY) continue; } else if(!hhVisitorHere(m)) continue; s32 dx=hhM[m].fx-lfx, dy=hhM[m].fy-lfy; int d=(int)((dx*dx+dy*dy)>>8); if(d<bd){ bd=d; best=m; } } return bd<=(380*380>>8)?best:-1; }   // within 1.5 tiles (household Sims and the neighbours who drop by)
 static void liveInvalidate(void);
 static int hhVisitorTalk(int m,int useLabel){   // R next to a neighbour who dropped by: TALK / JOKE / COMPLIMENT / HIGH FIVE (needs and mood only: visitors are not in the relationship tables)
     HhSim*s=&hhM[m];
@@ -937,7 +953,7 @@ static void relScreen(void){
 // ---- drawing: like the player, inside drawRoomRect's back-to-front walk. hhCalc (once a picture) works out where everyone is ----
 static int hhX[HH_MAX], hhY[HH_MAX], hhB[HH_MAX], hhV[HH_MAX], hhH[HH_MAX];   // feet on screen, band (tile x+y), view, floor height
 static void hhCalc(void){   // (the places above hhN that hold a visitor too)
-    for(int m=0;m<HH_MAX;m++){ if(m>=hhN){ int k=HH_MAX-1-m; if(k>=TW_N||!twHas[k]||!twOn[k]) continue; } const HhSim*s=&hhM[m]; s32 rx,ry; rotPos(s->fx,s->fy,&rx,&ry);
+    for(int m=0;m<HH_MAX;m++){ if(m>=hhN){ int k=HH_MAX-1-m; if(k>=TW_N||!twHas[k]||!twOn[k]||curFl) continue; } const HhSim*s=&hhM[m]; s32 rx,ry; rotPos(s->fx,s->fy,&rx,&ry);
         hhX[m]=LOX+(int)((rx-ry)>>5); hhY[m]=LOY+(int)((rx+ry)>>6); hhB[m]=(int)((rx>>8)+(ry>>8)); hhV[m]=faceView[(s->hd+4*cview)&15]; hhH[m]=surfH(s->fx,s->fy); }
 }
 static void hhDrawBand(int s0,int s1){   // the members whose band is in s0..s1
@@ -973,13 +989,13 @@ static void fxObjUpdate(void); static void hhObjUpdate0(void){   // in vblank: h
     *(volatile u16*)0x04000050=0x0400; *(volatile u16*)0x04000052=(6<<8)|10;            // see-through sprites blend 10/16 over the picture
     if(!hhSlotOk) hhSlotsFree();
     if(lcamF>0){ for(i=0;i<2*OBJ_SLOTS;i++) oam[i*4]=0x200; return; }   // the action cam: all off, the slots stay as they are
-    if(curFl){ for(i=0;i<2*OBJ_SLOTS;i++) oam[i*4]=0x200; hhSlotsFree(); return; }   // upstairs: no Sim sprites
+    if(xo[XO_MULTIFL]?pkHome>=0:curFl){ for(i=0;i<2*OBJ_SLOTS;i++) oam[i*4]=0x200; hhSlotsFree(); return; }   // upstairs: no Sim sprites
     // 1. who is in view
     HhOv w[HH_IDS]; int n=0, cx=SW/2, cy=(vpY0+vpY1)/2; u8 vis[HH_IDS]; int ddOf[HH_IDS];
     for(i=0;i<HH_IDS;i++) vis[i]=0;
     for(int id=0;id<HH_IDS;id++){
         const HhSim*s; int x,y,v,f,dep;
-        if(id>=hhN){ int k=HH_MAX-1-id; if(k>=TW_N||!twHas[k]||!twOn[k]) continue;   // a visitor
+        if(id>=hhN){ int k=HH_MAX-1-id; if(k>=TW_N||!twHas[k]||!twOn[k]||curFl) continue;   // a visitor
             s=&hhM[id]; x=hhX[id]-16; y=hhY[id]-SPF-hhH[id]; v=hhV[id]; dep=hhB[id];
             f=twOn[k]!=2?((lfr+k*3)>>3)&1:0;   // walking in or out: stepping; staying: standing
         } else {
@@ -1076,10 +1092,10 @@ static void hhSwitchFrom(int f){   // the first f members go to the back of the 
         HhSim t=hhM[0]; HhSpr s0=hhSp[0]; u16 p1[16];
         for(int i=0;i<16;i++) p1[i]=hhPal[0][i];
         for(int m=0;m<hhN-1;m++){ hhM[m]=hhM[m+1]; hhSp[m]=hhSp[m+1]; for(int i=0;i<16;i++) hhPal[m][i]=hhPal[m+1][i]; }
-        hhM[hhN-1]=t; hhSp[hhN-1]=s0; for(int i=0;i<16;i++) hhPal[hhN-1][i]=p1[i];
+        hhM[hhN-1]=t; hhSp[hhN-1]=s0; { u8 a=hhFl[0]; u16 b=hhUp[0]; for(int m=0;m<hhN-1;m++){ hhFl[m]=hhFl[m+1]; hhUp[m]=hhUp[m+1]; } hhFl[hhN-1]=a; hhUp[hhN-1]=b; } for(int i=0;i<16;i++) hhPal[hhN-1][i]=p1[i];
     }
     HhSim t=hhM[0]; for(int m=0;m<hhN-1;m++) hhM[m]=hhM[m+1];   // the player goes to the back of the line, the first member steps in
-    hhSwap(&t); hhM[hhN-1]=t;
+    hhSwap(&t); hhM[hhN-1]=t; for(int m=0;m<hhN-1;m++){ hhFl[m]=hhFl[m+1]; hhUp[m]=hhUp[m+1]; } hhFl[hhN-1]=xo[XO_MULTIFL]?(u8)curFl:0; hhUp[hhN-1]=0;
     u16 pl[16];
     hhQuant(spr4,HH_MAX,pl);               // the one you leave: down to a hardware sprite (in the spare descriptor: the member stepping in is still in the pool)
     hhQuantS(spr4s,HH_MAX,pl);

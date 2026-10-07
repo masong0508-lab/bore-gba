@@ -3090,10 +3090,10 @@ static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
             if((c=='a'||c=='k')&&(nbFlagsOn()||(ed&&nbFlagOk()))) drawFlag(sx,sy+1,c=='k',(int)(lfr>>3));   // a flag on a pole (blue = community, orange = skate); it waves in play too
         }
         if(cln) for(int i=0;i<CL_N;i++) if(cls[i]==s){ int sx=LOX+(clr[i][0]-clr[i][1])*CA, sy=LOY+(clr[i][0]+clr[i][1]+1)*CB; if(sx+11>x0&&sx-11<x1&&sy+6>y0&&sy-24<y1) clDraw(i,sx,sy); }
-        if(!ed&&hhN&&!curFl) hhDrawBand(s,s);
+        if(!ed&&hhN&&(xo[XO_MULTIFL]?pkHome<0:!curFl)) hhDrawBand(s,s);
         if(!ed&&s==ss) drawPlayerNow();
     }
-    if(!ed&&hhN&&!curFl) hhDrawBand(s1+1,9999);
+    if(!ed&&hhN&&(xo[XO_MULTIFL]?pkHome<0:!curFl)) hhDrawBand(s1+1,9999);
     if(!ed&&ss>s1) drawPlayerNow();   // the feet are below the rectangle but the head is inside it: nothing in front can reach it, so draw last
     clipAll();
 }
