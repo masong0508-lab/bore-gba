@@ -443,7 +443,9 @@ static int hhTilt(const HhSim*s,int n){   // traits: neat Sims shower sooner, la
 static void hhSeek(HhSim*s);   // social: pick someone and walk over (below)
 static int hhUseT(const HhSim*s){ return (s->use==HN_REST&&simIsNight())?HH_USE*5:HH_USE; }   // a night in bed is a long one
 static int hhHasStairs(void){ if(curFl>=FLR_N-1) return 0; for(int y=0;y<MH;y++)for(int x=0;x<MW;x++) if(lifeMap[y][x]=='^') return 1; return 0; }   // a way up on the ground floor
-static int hhElse(int n){ if(!xo[XO_MULTIFL]||!hhHasStairs()) return 0; for(int f=curFl+1;f<FLR_N;f++) if(hhCen[f]&(1<<n)) return 1; return 0; }   // floors step 3: this need's furniture is on a floor above
+static int hhHasCh(char c){ for(int y=0;y<MH;y++)for(int x=0;x<MW;x++) if(lifeMap[y][x]==c) return 1; return 0; }
+static int hhFloorFor(int n){ for(int d=1;d<FLR_N;d++){ int u=curFl+d, w=curFl-d; if(u<FLR_N&&(hhCen[u]&(1<<n))) return u; if(w>=0&&(hhCen[w]&(1<<n))) return w; } return -1; }   // floors step 5: the nearest other floor with need n's furniture
+static int hhElse(int n){ if(!xo[XO_MULTIFL]) return 0; int g=hhFloorFor(n); if(g<0) return 0; return hhHasCh(g>curFl?'^':'~')?(g>curFl?1:-1):0; }   // +1 the furniture is up the stairs, -1 down the stairs, 0 no way
 static void hhDecide(HhSim*s){
     int best[2]={-1,-1}, bs[2]={0,0}, low=xo[XO_FREEWILL]==1?35:55;   // LOW free will waits until needs are lower
     for(int n=0;n<HN_N;n++){
@@ -463,7 +465,7 @@ static void hhDecide(HhSim*s){
         int r=hhPlan(s,'^'); if(r>=1){ if(r==1){ s->pn=s->pi=0; s->gok=0; } s->act=HA_STAIR; s->use=HN_FUN; return; } }
     if(n<0&&hhN>0&&(rnd8()*100>>8)<25+s->tr[TR_OUT]*5){ hhSeek(s); return; }   // nothing pressing: go and see someone (outgoing Sims more often)
     if(n<0){ if(hhPlan(s,0)>1){ s->act=HA_WANDER; s->use=HN_FUN; } else s->act=HA_IDLE; return; }
-    if(hnFurn[n]&&!(hhCen[curFl]&(1<<n))&&hhElse(n)){ int q=hhPlan(s,'^'); if(q>=1){ if(q==1){ s->pn=s->pi=0; s->gok=0; } s->act=HA_STAIR; s->use=(u8)n; } else s->act=HA_IDLE; return; }   // floors step 3: not on this floor: up the stairs
+    if(hnFurn[n]&&!(hhCen[curFl]&(1<<n))&&hhElse(n)){ int q=hhPlan(s,hhElse(n)>0?'^':'~'); if(q>=1){ if(q==1){ s->pn=s->pi=0; s->gok=0; } s->act=HA_STAIR; s->use=(u8)n; } else s->act=HA_IDLE; return; }   // floors step 3: not on this floor: up the stairs
     int r=hhPlan(s,hnFurn[n]?hnFurn[n]:0);
     if(r==1&&hnFurn[n]){ s->act=HA_USE; s->use=(u8)n; s->t=hhUseT(s); }
     else if(r>1){ s->act=hnFurn[n]?HA_WALK:HA_WANDER; s->use=(u8)n; }
@@ -612,7 +614,7 @@ static void hhTick(void){   // once per logic step in the life game
         }
         if(s->act==HA_WALK||s->act==HA_WANDER||s->act==HA_SEEK||s->act==HA_LEAVE||s->act==HA_STAIR){   // follow the path, tile centre to tile centre
             if(s->pi>=s->pn&&s->act==HA_SEEK){ hhArrive(m); continue; }
-            if(s->pi>=s->pn&&s->act==HA_STAIR){ s->act=HA_AWAY; hhUp[m]=(u16)(xo[XO_MULTIFL]&&s->use<HN_FUN?hhUseT(s)+90:600+(rnd8()<<3)); if(xo[XO_MULTIFL]) hhFl[m]=(u8)(curFl+1); hhNote(s," WENT UPSTAIRS"); continue; }
+            if(s->pi>=s->pn&&s->act==HA_STAIR){ s->act=HA_AWAY; hhUp[m]=(u16)(xo[XO_MULTIFL]&&s->use<HN_FUN?hhUseT(s)+90:600+(rnd8()<<3)); if(xo[XO_MULTIFL]){ int g=s->use<HN_FUN?hhFloorFor(s->use):-1; hhFl[m]=(u8)((g>=0&&g<curFl)||curFl+1>=FLR_N?curFl-1:curFl+1); } hhNote(s,xo[XO_MULTIFL]&&hhFl[m]<curFl?" WENT DOWNSTAIRS":" WENT UPSTAIRS"); continue; }
             if(s->pi>=s->pn&&s->act==HA_LEAVE){ s->act=HA_AWAY; hhNote(s,s->use==2?" WENT TO SCHOOL":" LEFT FOR WORK"); continue; }
             if(s->pi>=s->pn){ if(s->act==HA_WALK){ s->act=HA_USE; s->t=hhUseT(s); } else { s->act=HA_IDLE; if(s->need[HN_FUN]<90) s->need[HN_FUN]+=10; } continue; }
             hhStepAlong(s);
