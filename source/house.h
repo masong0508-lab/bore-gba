@@ -21,7 +21,7 @@
 #define HH_USE     240     // steps a member spends using a piece of furniture
 #define HH_OFF     SL_HH_OFF   // SRAM: the household (slots.h keeps the map of SRAM)
 #define HH_MAXOLD  9           // households saved before 'H6' kept their relationships for 10 uids
-enum { HA_IDLE, HA_WALK, HA_USE, HA_WANDER, HA_SEEK, HA_SOC, HA_LEAVE, HA_AWAY };   // SEEK: walking to someone to talk to; SOC: in a conversation; LEAVE: off to work or school; AWAY: off the lot
+enum { HA_IDLE, HA_WALK, HA_USE, HA_WANDER, HA_SEEK, HA_SOC, HA_LEAVE, HA_AWAY, HA_STAIR };   // SEEK: walking to someone to talk to; SOC: in a conversation; LEAVE: off to work or school; AWAY: off the lot; STAIR: walking to the stairs to go up (hhUp)
 enum { HN_FOOD, HN_WC, HN_REST, HN_CLEAN, HN_COMFY, HN_FUN, HN_SOC, HN_N };
 static const char hnFurn[HN_N]={'F','T','S','H','C',0,0};   // what each need's furniture is (FUN: skate about; SOCIAL: find someone)
 #define HH_NM 12   // a first or a last name: up to 11 characters (any the font has: capitals, lowercase, digits, symbols)
@@ -38,6 +38,7 @@ typedef struct {
     u8 path[HH_PATH];        // directions: 0 +x, 1 +y, 2 -x, 3 -y
 } HhSim;
 static HhSim hhM[HH_MAX] EWRAM_BSS; static int hhN;
+static u16 hhUp[HH_MAX] EWRAM_BSS;   // steps a Sim still spends UPSTAIRS (act is HA_AWAY meanwhile, so nothing draws or picks it); 0 = not upstairs
 // ---- relationships (Sims 2 style): for every pair a DAILY and a LIFETIME score, -100..100, kept by uid and one-way (how a feels about b) ----
 #define HU_N (HH_MAX+1)
 static signed char relD[HU_N][HU_N] EWRAM_BSS, relL[HU_N][HU_N] EWRAM_BSS; static u8 relF[HU_N][HU_N] EWRAM_BSS;
@@ -410,7 +411,7 @@ static void hhTakenScan(const HhSim*self){   // the player's tile, and every oth
     for(int m=0;m<hhN;m++){ const HhSim*o=&hhM[m]; if(o==self||o->act==HA_AWAY) continue;
         int tx, ty, k;
         if(o->gok){ tx=(int)(o->gx>>8); ty=(int)(o->gy>>8); k=o->pi+1; } else { tx=(int)(o->fx>>8); ty=(int)(o->fy>>8); k=o->pi; }
-        if(o->act==HA_WALK||o->act==HA_WANDER||o->act==HA_SEEK||o->act==HA_LEAVE) for(;k<o->pn;k++){ tx+=hhDx[o->path[k]]; ty+=hhDy[o->path[k]]; }
+        if(o->act==HA_WALK||o->act==HA_WANDER||o->act==HA_SEEK||o->act==HA_LEAVE||o->act==HA_STAIR) for(;k<o->pn;k++){ tx+=hhDx[o->path[k]]; ty+=hhDy[o->path[k]]; }
         if(tx>=0&&ty>=0&&tx<MW&&ty<MH) hhTk[hhTkN++]=(u16)(ty*MW+tx); }
 }
 static int hhTakenAt(int x,int y){ int p=y*MW+x; for(int i=0;i<hhTkN;i++) if(hhTk[i]==p) return 1; return 0; }
@@ -439,6 +440,7 @@ static int hhTilt(const HhSim*s,int n){   // traits: neat Sims shower sooner, la
 }
 static void hhSeek(HhSim*s);   // social: pick someone and walk over (below)
 static int hhUseT(const HhSim*s){ return (s->use==HN_REST&&simIsNight())?HH_USE*5:HH_USE; }   // a night in bed is a long one
+static int hhHasStairs(void){ for(int y=0;y<MH;y++)for(int x=0;x<MW;x++) if(lifeMap[y][x]=='^') return 1; return 0; }   // a way up on the ground floor
 static void hhDecide(HhSim*s){
     int best[2]={-1,-1}, bs[2]={0,0}, low=xo[XO_FREEWILL]==1?35:55;   // LOW free will waits until needs are lower
     for(int n=0;n<HN_N;n++){
@@ -454,6 +456,8 @@ static void hhDecide(HhSim*s){
         int t420=simMin>=16*60+20&&simMin<17*60+20;
         if((t420&&rnd8()<200)||(n==HN_FUN&&(rnd8()&1))){ int r=hhPlan(s,'G'); if(r==1){ s->act=HA_USE; s->use=HN_FUN; s->t=HH_USE; s->bub=IC_LEAF; s->bubT=90; return; } if(r>1){ s->act=HA_WALK; s->use=HN_FUN; return; } } }
     if(n==HN_SOC){ hhSeek(s); return; }
+    if(n<0&&rnd8()<30&&hhHasStairs()){   // nothing pressing: sometimes up the stairs for a while
+        int r=hhPlan(s,'^'); if(r>=1){ if(r==1){ s->pn=s->pi=0; s->gok=0; } s->act=HA_STAIR; s->use=HN_FUN; return; } }
     if(n<0&&hhN>0&&(rnd8()*100>>8)<25+s->tr[TR_OUT]*5){ hhSeek(s); return; }   // nothing pressing: go and see someone (outgoing Sims more often)
     if(n<0){ if(hhPlan(s,0)>1){ s->act=HA_WANDER; s->use=HN_FUN; } else s->act=HA_IDLE; return; }
     int r=hhPlan(s,hnFurn[n]?hnFurn[n]:0);
@@ -555,6 +559,12 @@ static void hhTick(void){   // once per logic step in the life game
         if(s->hp<HP_MAX&&lfr%HP_REGEN==(m*11)%HP_REGEN) s->hp++;   // health creeps back (knocked out Sims wake at 30)
         if(lfr%(150-s->tr[TR_OUT]*8)==0&&s->need[HN_SOC]>0) s->need[HN_SOC]--;   // lonely sooner when outgoing
         if(prHeld(s)){ s->act=HA_AWAY; continue; }   // prison.h: the prisoner is out while you are at home, everyone else while you are in the cell
+        if(hhUp[m]){   // upstairs: gone from the ground floor until the time is up, then back down the stairs (waits if someone stands there)
+            if(s->act!=HA_AWAY){ hhUp[m]=0; }
+            else { if(!xo[XO_FREEWILL]&&hhUp[m]>1) hhUp[m]=1;
+                if(hhUp[m]>1){ hhUp[m]--; continue; }
+                if(hhTaken((int)(s->fx>>8),(int)(s->fy>>8),s)){ hhUp[m]=30; continue; }
+                hhUp[m]=0; s->act=HA_IDLE; s->think=20; s->gok=0; s->pn=s->pi=0; hhNote(s," CAME DOWNSTAIRS"); continue; } }
         if(s->act==HA_SOC){ if(--s->t<=0){ s->act=HA_IDLE; s->think=(short)(HH_THINK/2); } continue; }   // standing in a conversation
         if(!xo[XO_FREEWILL]){ if(s->act==HA_AWAY) s->fx=hhExX*256+128, s->fy=hhExY*256+128; s->act=HA_IDLE; continue; }
         { int fr=0, to=0, k=hhSched(s,&fr,&to), due=k&&simMin>=fr&&simMin<to;   // the day's routine
@@ -572,8 +582,9 @@ static void hhTick(void){   // once per logic step in the life game
             if(--s->t<=0||(s->need[s->use]>=100&&!(s->use==HN_REST&&simIsNight()))){ s->act=HA_IDLE; s->think=(short)(HH_THINK/2); }
             continue;
         }
-        if(s->act==HA_WALK||s->act==HA_WANDER||s->act==HA_SEEK||s->act==HA_LEAVE){   // follow the path, tile centre to tile centre
+        if(s->act==HA_WALK||s->act==HA_WANDER||s->act==HA_SEEK||s->act==HA_LEAVE||s->act==HA_STAIR){   // follow the path, tile centre to tile centre
             if(s->pi>=s->pn&&s->act==HA_SEEK){ hhArrive(m); continue; }
+            if(s->pi>=s->pn&&s->act==HA_STAIR){ s->act=HA_AWAY; hhUp[m]=(u16)(600+(rnd8()<<3)); hhNote(s," WENT UPSTAIRS"); continue; }
             if(s->pi>=s->pn&&s->act==HA_LEAVE){ s->act=HA_AWAY; hhNote(s,s->use==2?" WENT TO SCHOOL":" LEFT FOR WORK"); continue; }
             if(s->pi>=s->pn){ if(s->act==HA_WALK){ s->act=HA_USE; s->t=hhUseT(s); } else { s->act=HA_IDLE; if(s->need[HN_FUN]<90) s->need[HN_FUN]+=10; } continue; }
             hhStepAlong(s);
@@ -962,7 +973,7 @@ static void fxObjUpdate(void); static void hhObjUpdate0(void){   // in vblank: h
         } else {
             if(hhM[id].act==HA_AWAY) continue;
             s=&hhM[id]; x=hhX[id]-16; y=hhY[id]-SPF-hhH[id]; v=hhV[id]; dep=hhB[id];
-            int walk=(s->act==HA_WALK||s->act==HA_WANDER||s->act==HA_SEEK||s->act==HA_LEAVE)&&s->pi<s->pn;
+            int walk=(s->act==HA_WALK||s->act==HA_WANDER||s->act==HA_SEEK||s->act==HA_LEAVE||s->act==HA_STAIR)&&s->pi<s->pn;
             f=walk?((lfr+id*5)>>3)&1:0;   // walking: standing / mid-stride, every 8 frames (each Sim a little out of step)
         }
         if(x+32<=vpX0||x>=vpX1||y+SPH<=vpY0||y>=vpY1) continue;
@@ -1157,7 +1168,7 @@ static void hhInviteTrue(void); static int hhMoveOut(int m);   // households.h
 static void hhSwitchMenu(void){   // pick the Sim you control
     if(!hhN){ toast("NO ONE ELSE LIVES HERE"); return; }
     static char nm[HH_MAX][HH_NM+8] EWRAM_BSS; const char* who[HH_MAX];
-    for(int m=0;m<hhN;m++){ char*e=simCat(nm[m],hhM[m].name); if(hhM[m].act==HA_AWAY) simCat(e,prHeld(&hhM[m])?(prHere()?"  AT HOME":"  IN PRISON"):"  OUT"); who[m]=nm[m]; }
+    for(int m=0;m<hhN;m++){ char*e=simCat(nm[m],hhM[m].name); if(hhM[m].act==HA_AWAY) simCat(e,prHeld(&hhM[m])?(prHere()?"  AT HOME":"  IN PRISON"):hhUp[m]?"  UPSTAIRS":"  OUT"); who[m]=nm[m]; }
     int m=menu("WHO DO YOU PLAY",who,hhN); if(m<0) return;
     hhSwitchTo(m); lnote=hhPName; lnoteT=60;
 }
