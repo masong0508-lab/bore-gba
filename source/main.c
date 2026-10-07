@@ -2596,6 +2596,7 @@ static void hhStart(void); static void hhTick(void); static int hhSocR(int useLa
 // Nothing is saved and no map tile is used: lifeInit scatters them over empty floor every run (a new spot each time), so they cost a few bytes of EWRAM
 // and no sprite art (they are drawn in code). A letter counts like a combo letter (sktAward: five make SKATE). Only on lots that have something to skate.
 static int tgFound(void); static void tgMark(void); static void tgSeen(void); static void tgPump(void); static void goalsScreen(void);   // goals.h: the tape stays found per lot, VIEW GOALS
+static s32 lgx0 EWRAM_BSS, lgy0 EWRAM_BSS; static void tgGap(int tiles);   // goals.h: the GAP goal; lgx0 / lgy0 = where the jump in the air began
 #define CL_N 6   // 0..4 = S K A T E, 5 = the hidden tape
 static u8 clTook EWRAM_BSS, clReal EWRAM_BSS;   // LOT CLEARED: the ones really taken, and the ones that were placed (all taken = a 500 bonus)
 static u8 clx[CL_N] EWRAM_BSS, cly[CL_N] EWRAM_BSS, clGot EWRAM_BSS, clLive EWRAM_BSS;   // tile of each one; a bit per one taken; 1 = this lot has them
@@ -2753,9 +2754,11 @@ static void lifeStep(u16 k,u16 pr,int fr){
         if(bail){ int sv=drop/3+sp0/3+(rnd8()>>6); if(drop<30&&sv>15) sv=15; sv-=sv*skLvl(SK_BAL)*6/100; hurt(sv,1); }   // bad landing: harder/faster/higher = worse (was drop/2+speed: a fast bail was OW + 2.5 s down, or even death)
         else if(drop>24) hurt(drop-24+(rnd8()>>5),0);   // big drops hurt even landed clean
         if(!bail&&(hs&1)) lsw^=1;
+        if(!bail&&g>=2&&lskate){ int gx=(int)((lfx-lgx0)>>8), gy=(int)((lfy-lgy0)>>8); if(gx<0) gx=-gx; if(gy<0) gy=-gy; tgGap(gx>gy?gx:gy); }   // GAP goal: a clean landing, how far did the jump carry you
         lspin=0; lflip=0; feelLandReset();
     }
     if(!air){ lmaxz=(int)(lz>>8); lplay=0; lqp=0; }
+    if(air&&!lairF){ lgx0=lfx; lgy0=lfy; }   // GAP goal: where the jump began
     lairF=air;
     if(lflip&&lskate&&air){ if(!bFPrev) bFD=(k&K_UP)?-1:1; if(bFT<BFLIP_LEN) bFT++; bFPrev=1; } else { bFT=0; bFPrev=0; }   // the flip: one full roll in BFLIP_LEN steps, then it is flat again
     if(lskate&&!air&&lstun<=0&&!ldead&&(k&K_R)&&lsp>=8&&lifeMap[lfy>>8][lfx>>8]=='M'){

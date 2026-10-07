@@ -5,7 +5,7 @@
 // VIEW GOALS (PAUSE > WANTS) lists them for the lot you stand on, the TIMED RUN best, and the totals of the town.
 // SRAM: TG_OFF, 39 bytes in the free gap after the timed run block: 'G' 'V', then TG_N entries (the newest town first, the oldest falls off):
 //       town key (nbKey) and five 16 bit lot masks: tape found, lots played that have goals, SKATE done, CLEAR done, SCORE done; then a checksum.
-// Not built yet: goals that unlock parts or maps (the pay is cash for now), a gap or wallride goal (needs wallride). The intro flyover (introFly) is at the end.
+// Not built yet: goals that unlock parts or maps (the pay is cash for now), a wallride goal (needs wallride); the GAP bonus goal is in (gpLoad). The intro flyover (introFly) is at the end.
 // Needs before it: nbOk, nbT, nbKey, NB_LOTS (neighborhood.h, households.h), stBack (story.h), clLive / clTook / clReal / clGot / CL_ON (main.c),
 // trnBestGet (timedrun.h), simMoney, simCat / simCatN, the UI kit.
 #define TG_OFF 4825
@@ -61,6 +61,40 @@ static void tgDone(int bit){   // a goal was reached on the lot in play (nothing
     simMoney+=pay; if(simMoney>9999) simMoney=9999;
     tgPend=tgMsg;
 }
+// ---- the GAP goal (phase 1): a bonus goal outside the four that make LOT MASTERED (so old saves and the +300 stay as they were) ----
+// One jump on the board that carries you GP_NEED tiles from where you took off (main.c keeps the takeoff spot: lgx0 / lgy0) and lands without a bail.
+// SRAM: GP_OFF, 15 bytes in the free gap between the story block and the slot directory: 'G' '2', then GP_N entries of (town key, 16 bit lot mask), the newest town first, then a checksum.
+#define GP_OFF  4976
+#define GP_N    3
+#define GP_LEN  15
+#define GP_NEED 5     // tiles (the two kickers that face each other in the rail park are 5 apart)
+#define GP_PAY  120
+_Static_assert(STORY_OFF+8<=GP_OFF&&GP_OFF+GP_LEN<=SLOT_DIR&&GP_LEN==3+GP_N*4,"the gap goal block must sit between the story block and the slot directory");
+static u16 gpKey[GP_N] EWRAM_BSS, gpM[GP_N] EWRAM_BSS;
+static void gpLoad(void){
+    volatile u8*m=SRAM_BASE+GP_OFF; unsigned sum=0x47; int ok=(m[0]=='G'&&m[1]=='2');
+    for(int i=2;i<GP_LEN-1;i++) sum+=m[i];
+    if(ok&&m[GP_LEN-1]!=(u8)sum) ok=0;
+    for(int i=0;i<GP_N;i++){ int o=2+i*4; gpKey[i]=ok?(u16)(m[o]|(m[o+1]<<8)):0; gpM[i]=ok?(u16)(m[o+2]|(m[o+3]<<8)):0; }
+}
+static void gpSave(void){
+    volatile u8*m=SRAM_BASE+GP_OFF; unsigned sum=0x47;
+    for(int i=0;i<GP_N;i++){ int o=2+i*4; m[o]=(u8)gpKey[i]; m[o+1]=(u8)(gpKey[i]>>8); m[o+2]=(u8)gpM[i]; m[o+3]=(u8)(gpM[i]>>8); }
+    for(int i=2;i<GP_LEN-1;i++) sum+=m[i];
+    m[GP_LEN-1]=(u8)sum; m[0]='G'; m[1]='2';
+}
+static int gpAt(u16 key){ for(int i=0;i<GP_N;i++) if(gpM[i]&&gpKey[i]==key) return i; return -1; }
+static int gpDone(int lot){ gpLoad(); int i=gpAt(tgKeyNow()); return i>=0&&(gpM[i]>>lot&1); }   // the gap goal of a lot of the town in play
+static void tgGap(int tiles){   // a clean landing `tiles` from the takeoff spot (main.c, lifeStep)
+    if(tiles<GP_NEED||!CL_ON||gpDone(tgLotNow())) return;
+    u16 key=tgKeyNow(), b=(u16)(1u<<tgLotNow()); int at=gpAt(key); u16 m=b;
+    if(at>=0) m|=gpM[at]; else at=GP_N-1;
+    for(int i=at;i>0;i--){ gpKey[i]=gpKey[i-1]; gpM[i]=gpM[i-1]; }
+    gpKey[0]=key; gpM[0]=m; gpSave();
+    simCatN(simCat(tgMsg,"GAP GOAL  +"),GP_PAY);
+    simMoney+=GP_PAY; if(simMoney>9999) simMoney=9999;
+    tgPend=tgMsg;
+}
 static void tgMark(void){ tgDone(TGF_TAPE); }   // the tape of the lot in play was just taken
 static void tgPump(void){ if(tgPend&&lnoteT<=0){ lnote=tgPend; lnoteT=100; tgPend=0; sfxPlay(SFX_STICK); } }   // (from clTick, every step)
 static void goalsScreen(void){
@@ -79,10 +113,11 @@ static void goalsScreen(void){
         if(!live){ text(10,36,"NOTHING TO SKATE HERE",lab,1); text(10,48,"BUILD A RAMP OR RAIL FOR GOALS",no,1); }
         else {
             for(int g=0;g<4;g++){ int d=have>>g&1; text(10,34+g*12,gn[g],lab,1); text(230-tw(d?"DONE":"NOT YET",1),34+g*12,d?"DONE":"NOT YET",d?ok:no,1); }
-            int all=have==15; text(10,86,"ALL FOUR  LOT MASTERED  +300",lab,1); text(230-tw(all?"DONE":"NOT YET",1),86,all?"DONE":"NOT YET",all?GOLD:no,1);
+            int gd=gpDone(lot); text(10,82,"JUMP A 5 TILE GAP  +120",lab,1); text(230-tw(gd?"DONE":"NOT YET",1),82,gd?"DONE":"NOT YET",gd?ok:no,1);   // the bonus goal (not one of the four)
+            int all=have==15; text(10,94,"ALL FOUR  LOT MASTERED  +300",lab,1); text(230-tw(all?"DONE":"NOT YET",1),94,all?"DONE":"NOT YET",all?GOLD:no,1);
         }
-        text(10,98,"TIMED RUN  HIGH SCORE",lab,1); if(best) numText(190,98,best,GOLD); else text(230-tw("NONE",1),98,"NONE",no,1);
-        { char*e=simCatN(b,tapes); e=simCat(e," OF "); simCatN(e,lots); text(10,112,"TAPES FOUND IN TOWN",lab,1); text(230-tw(b,1),112,b,tapes&&tapes==lots?ok:WHITE,1); }
+        text(10,104,"TIMED RUN  HIGH SCORE",lab,1); if(best) numText(190,104,best,GOLD); else text(230-tw("NONE",1),104,"NONE",no,1);
+        { char*e=simCatN(b,tapes); e=simCat(e," OF "); simCatN(e,lots); text(10,114,"TAPES FOUND IN TOWN",lab,1); text(230-tw(b,1),114,b,tapes&&tapes==lots?ok:WHITE,1); }
         { char*e=simCatN(b,mast); e=simCat(e," OF "); simCatN(e,lots); text(10,124,"LOTS MASTERED",lab,1); text(230-tw(b,1),124,b,mast&&mast==lots?GOLD:WHITE,1); }
         text(10,134,"ONLY LOTS YOU HAVE SKATED COUNT",no,1);
         text(10,144,"A OR B BACK",RGB(12,14,16),1);
