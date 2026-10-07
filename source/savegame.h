@@ -17,7 +17,6 @@
 #define SLC_FAMILY 'F'
 #define SLC_STORY  'Y'
 #define SLC_SKILLS 'K'   // skills.h: the skill points of this player (SK_N bytes)
-#define SLC_STATS  'T'   // lifestats.h: the lifetime stats of this player (LS_N x 4 bytes)
 #define SLC_GHOST  'G'   // fx.h: the ghosts of this life (12 bytes, the same block as in the life in SRAM)
 static void fxGhostSave(volatile unsigned char*m); static void fxGhostLoad(volatile unsigned char*m); static void fxGhostClear(void);
 static void sgEncGhost(SlW*w){ unsigned char t[12]; fxGhostSave(t); for(int i=0;i<12;i++) slwPut(w,t[i]); }

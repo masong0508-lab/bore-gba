@@ -77,6 +77,7 @@ static int hhBlockLen(volatile u8*m,int avail); static void hhSave(void); static
 #define SLC_PERSON 'C'
 #define SLC_LIFE   'L'
 #define SLC_HOUSE  'H'
+#define SLC_STATS  'T'   // lifestats.h: the lifetime stats of this player (LS_N x 4 bytes); here because statscreen.h needs it before savegame.h
 #define CNV (H*D*W)                                            // voxels in the creature (192)
 #define SLOT_NSPR NSPR
 
