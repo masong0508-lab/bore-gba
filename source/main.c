@@ -1363,6 +1363,8 @@ static u8 gInPlay;   // 1 while the life game runs (some actions only make sense
 static int edX0=0, edY0=0, edX1=9999, edY1=9999;   // where the room builder's cursor may go (neighborhood.h narrows it to the lot you are on)
 static int nbPlaying;   // the game was started from the neighborhood: its pause menu goes back there
 static int nbResetLot(void);
+static int nbBarred(void);   // neighborhood.h: 1 while the live lot is a COMMUNITY lot you are only visiting: building is locked there, you build it from the town view
+static u8 udOn EWRAM_BSS; static int udCashD EWRAM_BSS; static void udRec(int x,int y);   // undo.h: the room builder records every tile it changes (udOn only while the builder is open)
 #define MW 40
 #define MH 40    // keep MH == MW: the 4-way action cam rotates the square map
 static int camX, camY, camSnap=1, camLastV;   // camera offset in px; the map's top corner is drawn at (120-camX, 24-camY)
@@ -2268,15 +2270,15 @@ static int edSell(char c){ return c=='Q'?DS_PRICE:edCost(c)/2; }   // selling gi
 static int edPay(int net){   // net > 0 buys, net < 0 sells back. 0 = refused
     if(!net||!edCharged()) return 1;
     if(net>0&&simMoney<net){ dsMsg=net>=DS_PRICE?"THE DEADSET COSTS 5000":"NOT ENOUGH CASH"; return 0; }
-    simMoney-=net; if(simMoney>9999) simMoney=9999; if(simMoney<0) simMoney=0; edCashDirty=1; return 1;
+    simMoney-=net; if(simMoney>9999) simMoney=9999; if(simMoney<0) simMoney=0; edCashDirty=1; if(udOn) udCashD+=net; return 1;
 }
 static int edAffordable(char c,char old){ int n=edCost(c)-edSell(old); return n<=0||!edCharged()||simMoney>=n; }
 static void mapPlace(int x,int y,char c){
     char old=lifeMap[y][x];
     if(isWinCh(c)&&old!='W'&&old!='w'&&!isWinCh(old)){ dsMsg="WINDOWS GO IN A WALL"; return; }   // (a window is a wall piece: it replaces a bit of wall)
     if(c!=old){ int net=edCost(c)-edSell(old); if(net&&!edPay(net)) return; }   // buying costs; replacing or removing sells the old one back (half)
-    if(c=='B'||c=='P'){ for(int j=0;j<MH;j++)for(int i=0;i<MW;i++) if(lifeMap[j][i]==c) lifeMap[j][i]='.'; }
-    lifeMap[y][x]=c; if(c=='w'||c=='W') wallMap[y][x]=(u8)eWp; wDirty=1; }
+    if(c=='B'||c=='P'){ for(int j=0;j<MH;j++)for(int i=0;i<MW;i++) if(lifeMap[j][i]==c){ udRec(i,j); lifeMap[j][i]='.'; } }   // (the old board / spawn is a change too: undo puts it back)
+    udRec(x,y); lifeMap[y][x]=c; if(c=='w'||c=='W') wallMap[y][x]=(u8)eWp; wDirty=1; }
 
 // ---------- floors: the live map is the floor you are on; the others wait packed in flPool. Stairs: '^' goes up, '~' comes down. House slots (slots.h) keep all of them ----------
 static void hhSlotsFree(void); static void liveInvalidate(void);
@@ -2437,10 +2439,11 @@ static void helpScreen(const char*title,const char*const*ln,int n){   // lines s
 }
 static void toast(const char*msg){ int w=tw(msg,1)+16;
     box((SW-w)/2,66,w,22); text((SW-w)/2+8,74,msg,WHITE,1); for(int i=0,n=oToastLen();i<n;i++){ present(); } }
+static int edGate(void){ if(!nbBarred()) return 1; toast("COMMUNITY LOT  BUILD IN THE TOWN"); return 0; }   // every way into the room builder asks first: a community lot can only be built from the neighborhood view
 static const char* const lifeHelp[19]={">ON FOOT","DPAD WALK  B RUN  A HOP","L GET ON THE BOARD","R USE FRIDGE TOILET BED SHOWER SOFA",">ON THE BOARD","A PUSH  DPAD STEER  B OLLIE","IN AIR DPAD SPINS  B KICKFLIP  R GLIDES","GREEN MARK = SAFE LANDING  RED = BAIL",">KEEP YOURSELF GOING","WC IS THE TOILET BAR  HP UNDER THE FACE","A OR B GETS YOU UP FROM BED OR SOFA",">WORK  PICK A CAREER ON THE PHONE","TRICK POINTS BEAT THE QUOTA FOR PAY",">WANTS AND FEARS","WANTS FILL THE METER  FEARS DRAIN IT","A GOOD SLEEP ROLLS NEW WANTS AND FEARS","R BY A SIM TALK OR FIGHT  START MENU","SELECT+UP DOWN ZOOM IN OR OUT","SELECT+L R TURN THE VIEW"};
 
 static const char* const creatureHelp[15]={">PICK YOUR LOOK","L R CHANGE TAB   UP DOWN PICK A ROW","LEFT RIGHT CHANGE IT  A ALSO STEPS","SELECT TURNS THE CREATURE ROUND",">THE TABS","1 BODY  2 FACE  3 HAIR  4 CLOTHES","5 PARTS  TAIL HORNS SPIKES WINGS","  PARTS GIVE POWERS  AND FIGHT BONUSES","  BIG PARTS COST JENES  A BUYS ONE","6 ASPIRE  ASPIRATION  LIFETIME WANT  SIGN","  AND TRAITS THAT SHARE 25 POINTS",">FINISH","START JUMPS TO THE DONE TAB","GO LIVE LIFE PLAYS YOUR CREATURE","LIVING EARNS DNA FOR NEW PARTS"};
-static const char* const mapHelp[14]={">BUILD A ROOM","ROOM TOOL  A CORNER  A BUILDS","WALL TOOL  A START  A DRAWS A LINE","FLOOR TOOL  A CORNER  A FILLS","ITEM TOOL  PLACE SINGLE TILES","ERASE TOOL  A CORNER  A CLEARS",">STYLES","L R PICK FLOOR OR ITEM","SEL+L R PICK WALLPAPER","SELECT TAP NEXT TOOL  B CANCELS",">KEEP IT","START OPENS PLAY TEST AND SAVE",">FLOORS","SEL+UP DOWN FLOOR  STAIRS ARE ITEMS"};
+static const char* const mapHelp[17]={">BUILD A ROOM","ROOM TOOL  A CORNER  A BUILDS","WALL TOOL  A START  A DRAWS A LINE","FLOOR TOOL  A CORNER  A FILLS","ITEM TOOL  PLACE SINGLE TILES","ERASE TOOL  A CORNER  A CLEARS",">STYLES","L R PICK FLOOR OR ITEM","SEL+L R PICK WALLPAPER","SELECT TAP NEXT TOOL  B CANCELS",">KEEP IT","START OPENS PLAY TEST AND SAVE",">FLOORS","SEL+UP DOWN FLOOR  STAIRS ARE ITEMS",">UNDO AND REDO","SEL+B UNDO  SEL+START REDO","ALSO IN THE MAP MENU (START)"};
 
 // ---------- settings screen ----------
 static void drawRoom(int ed);
@@ -3300,7 +3303,7 @@ static int pauseMenu(int mode){   // mode 0 life, 1 from the neighborhood, 2 tes
         dirty=0;
         box(6,4,228,152);
         rect(7,5,226,17,RGB(5,12,24)); rect(7,21,226,1,GOLD);
-        text(12,9,mode==2?"TEST PLAY PAUSED":"PAUSED",GOLD,1);
+        text(12,9,mode==2?"TEST PLAY PAUSED":nbBarred()?"PAUSED  VISITING":"PAUSED",GOLD,1);
         if(mode!=2){ char b[12]; char*e=b; *e++=(char)0xC2; *e++=(char)0xA7; numStr(e,simMoney); text(228-tw(b,1),9,b,RGB(14,30,14),1); }
         for(int i=0;i<n;i++){ int id=ids[i], x=10+(i&3)*56, y=27+(i>>2)*43, on=(i==sel);
             rect(x-1,y-1,54,40,on?GOLD:RGB(10,16,30)); rect(x,y,52,38,on?RGB(6,18,10):RGB(7,10,20));
@@ -3309,6 +3312,7 @@ static int pauseMenu(int mode){   // mode 0 life, 1 from the neighborhood, 2 tes
             const char*nm=(id==PM_QUIT&&mode==1)?"TOWN":(id==PM_QUIT&&mode==2)?"EDITOR":pmNm[id];
             text(x+(52-tw(nm,1))/2,y+28,nm,on?WHITE:DIMC,1); }
         { int id=ids[sel]; const char*ti=pmTitle[id], *ds=pmDesc[id];
+          if(id==PM_BUILD&&mode!=2&&nbBarred()) ds="NO BUILDING WHILE VISITING";   // (a community lot is built from the town view)
           if(id==PM_QUIT&&mode==1){ ti="NEIGHBORHOOD"; ds="BACK TO THE TOWN"; } else if(id==PM_QUIT&&mode==2){ ti="BACK TO EDITOR"; ds="LEAVE THE TEST PLAY"; }
           rect(7,113,226,1,RGB(10,16,30)); text(12,118,ti,GOLD,1); text(12,128,ds,RGB(22,25,28),1); }
         text(12,142,"LEFT RIGHT UP DOWN PICK  A OK  B BACK",RGB(12,14,16),1);
@@ -3418,7 +3422,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
             else if(c==PM_OPTS){ settingsScreen(); if(!ed&&xo[XO_TUTOR]==2) tutBegin(); }
             else if(c==PM_BUILD){   // EDIT MAP, BLUEPRINTS (the old room slots) and NEW LIFE share one entry
                 int b=menu("BUILD AND HOUSES",buildItems,3);
-                if(b==0){ cview=0; vpFull(); mapEditor(); lifeInit(); cview=vbase; }
+                if(b==0){ if(edGate()){ cview=0; vpFull(); mapEditor(); lifeInit(); cview=vbase; } }
                 else if(b==1){ simsSaveNow(); hhSave(); if(slotScreen()){ lifeInit(); phoneEnsure(); } }   // a blueprint was loaded: start again in the loaded room (the life was written first, so nothing is lost)
                 else if(b==2){ if(menu("START A NEW LIFE",yesNoLife,2)==1){ twKeep=0; simsNewLife(); moodReset(); lscore=0; simLastScore=0; stOff(); lnote="NEW LIFE"; lnoteT=60; } } }
             else if(c==PM_QUIT){ int go=1; if(!ed&&!nbPlaying){ if(sgPid&&sgManual()){ int r=sgAsk(1); if(r==0) go=0; else if(r==2) sgDiscard=1; } if(go) gToMenu=1; } if(go) break; }   // (from the neighborhood: back there)   // MANUAL saving: quitting with unsaved progress asks first
@@ -3451,9 +3455,11 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
 }
 
 
+#include "undo.h"   // UNDO / REDO for the room builder (SELECT + B / SELECT + START, and the MAP MENU)
 // ---------- map editor ----------
 // Tools: ROOM (two corners -> walls + floor + a door), WALL (a straight line), FLOOR (fill an area), ITEM (single tiles), ERASE (clear an area).
-static const char* const mapItems[6]={"PLAY TEST","SAVE MAP","BLUEPRINTS","OPTIONS","RESET MAP","BACK"};
+enum { MI_TEST, MI_SAVE, MI_UNDO, MI_REDO, MI_PLANS, MI_OPTS, MI_RESET, MI_BACK, MI_N };
+static char mapUndoNm[12] EWRAM_BSS, mapRedoNm[12] EWRAM_BSS;   // "UNDO 3" / "REDO 1": the steps left, in the MAP MENU
 static const char* const yesNo[2]={"NO","YES RESET"};
 static const char* const toolNm[NTOOL]={"ROOM","WALL","FLOOR","BUY","SELL"};
 static const u8 toolNext[NTOOL]={T_WALL,T_FLOOR,T_ERASE,T_ROOM,T_ITEM};   // SELECT: BUILD tools (room, wall, floor, sell), then BUY, then round again
@@ -3481,22 +3487,21 @@ static int eNet(int x0,int y0,int x1,int y1){   // what the ROOM / WALL / SELL r
         if(n!=o) net+=edCost(n)-edSell(o); }
     return net;
 }
-static int eApply(void){   // second A of ROOM / WALL / FLOOR / ERASE. 0 = refused
+static int eApply(void){   // second A of ROOM / WALL / FLOOR / ERASE. 0 = refused. (edSet records every tile for UNDO)
     int x0,y0,x1,y1; eRect(&x0,&y0,&x1,&y1);
     if(eTool==T_ROOM&&(x1-x0<2||y1-y0<2)) return 0;   // needs at least 3 x 3
     { int net=eNet(x0,y0,x1,y1); if(net&&!edPay(net)) return 0; }   // (not enough cash: dsMsg says so)
     wDirty=1;
-    if(eTool==T_ROOM){
-        for(int y=y0;y<=y1;y++)for(int x=x0;x<=x1;x++){
-            floorMap[y][x]=(u8)eFl;
-            if(x==x0||x==x1||y==y0||y==y1){ lifeMap[y][x]='W'; wallMap[y][x]=(u8)eWp; }
-            else if(isWallCh(lifeMap[y][x])) lifeMap[y][x]='.';   // old walls inside are cleared, furniture stays
+    for(int y=y0;y<=y1;y++)for(int x=x0;x<=x1;x++){
+        if(eTool==T_ROOM){
+            int edge=(x==x0||x==x1||y==y0||y==y1);
+            char o=lifeMap[y][x], n=edge?'W':isWallCh(o)?'.':o;   // old walls inside are cleared, furniture stays
+            if(y==y1&&x==(x0+x1)/2) n='D';                       // doorway in the front wall; move or remove it with the ITEM tool
+            edSet(x,y,n,eFl,edge?eWp:-1);
         }
-        lifeMap[y1][(x0+x1)/2]='D';   // doorway in the front wall; move or remove it with the ITEM tool
-    } else for(int y=y0;y<=y1;y++)for(int x=x0;x<=x1;x++){
-        if(eTool==T_WALL){ lifeMap[y][x]='W'; wallMap[y][x]=(u8)eWp; }
-        else if(eTool==T_FLOOR) floorMap[y][x]=(u8)eFl;
-        else { lifeMap[y][x]='.'; floorMap[y][x]=0; wallMap[y][x]=0; }
+        else if(eTool==T_WALL) edSet(x,y,'W',-1,eWp);
+        else if(eTool==T_FLOOR) edSet(x,y,-1,eFl,-1);
+        else edSet(x,y,'.',0,0);
     }
     return 1;
 }
@@ -3517,6 +3522,9 @@ static void drawEditorHud(const char*msg){
             else { int xx=numText(text(2,11,"SIZE",GOLD,1)+3,11,w,WHITE)+3; xx=text(xx,11,"X",GOLD,1)+3; numText(xx,11,h,WHITE); } }
         else text(2,11,"PICK A START POINT",GOLD,1);
     }
+    if(!msg[0]&&(udCur||udNA>udCur)){   // UNDO / REDO: how many steps there are (SELECT + B / SELECT + START)
+        static char ub[24] EWRAM_BSS; char*e=ub; const char*q="UNDO "; while(*q) *e++=*q++; e+=numStr(e,udCur); q="  REDO "; while(*q) *e++=*q++; e+=numStr(e,udNA-udCur); *e=0;
+        text((xo[XO_MINI]?SW-MW-8:SW-3)-tw(ub,1),11,ub,DIMC,1); }
     if(eTool==T_ITEM){
         { int cc=edCatOf(eOb,0), xx=2;   // the category tabs, then this category's items
           for(int c=0;c<NCAT;c++){ int w=tw(catNm[c],1)+4; rect(xx,102,w,8,c==cc?GOLD:RGB(3,4,7)); text(xx+2,102,catNm[c],c==cc?RGB(4,3,6):DIMC,1); xx+=w+1; }
@@ -3579,6 +3587,7 @@ static void mapEditor(void){
     int hold[4]={0}, comboUsed=0, dirty=1, lastBl=-1, msgT=0; const char*msg=""; u16 prev=keyNow();
     static const u16 dirK[4]={K_RIGHT,K_LEFT,K_UP,K_DOWN};
     edTried=0; edLife=0; edCashDirty=0; if(xo[XO_BUYCOST]&&!gInPlay) edLoadLife();   // the life's cash, for the prices
+    udClear(); udOn=1;   // a fresh UNDO history for this visit to the builder
     eAct=0; if(ecx<edX0)ecx=edX0; if(ecy<edY0)ecy=edY0; if(ecx>edX1)ecx=edX1; if(ecy>edY1)ecy=edY1; edCamSnap();
     for(efr=0;;efr++){
         u16 k=keyNow(), pr=k&~prev, rel=prev&~k; prev=k;
@@ -3586,9 +3595,11 @@ static void mapEditor(void){
         for(int i=0;i<4;i++){ hold[i]=(k&dirK[i])?hold[i]+1:0; tr[i]=(hold[i]==1)||(hold[i]>oRepDelay()&&(hold[i]&oRepMask())==0); }
         int ux=tr[0]-tr[1], uy=tr[3]-tr[2];
         if((k&K_SEL)&&(tr[2]||tr[3])){   // SELECT + UP / DOWN: the floor above / below (stairs: the ^ and ~ items)
-            int nf=curFl+(tr[2]?1:-1); comboUsed=1; ux=uy=0; dirty=1;
+            int nf=curFl+(tr[2]?1:-1); comboUsed=1; ux=uy=0; dirty=1; udEnd();
             if(nf>=0&&nf<FLR_N){ if(flGo(nf)){ eAct=0; msg=flNm[nf]; msgT=60; } else { msg="TOO MUCH BUILT TO CHANGE FLOOR"; msgT=60; } } else { msg=nf<0?"NO FLOOR BELOW":"NO FLOOR ABOVE"; msgT=40; }
         }
+        if((k&K_SEL)&&(pr&K_B)){ comboUsed=1; eAct=0; msg=udUndo(); msgT=50; dirty=1; pr&=(u16)~K_B; }       // SELECT + B: UNDO
+        if((k&K_SEL)&&(pr&K_START)){ comboUsed=1; eAct=0; msg=udRedo(); msgT=50; dirty=1; pr&=(u16)~K_START; }   // SELECT + START: REDO (the MAP MENU has both too)
         if(ux||uy){   // screen-relative like walking: up = away from the camera
             int dx=ux+uy, dy=uy-ux; dx=(dx>0)-(dx<0); dy=(dy>0)-(dy<0);
             ecx+=dx; ecy+=dy; if(ecx<edX0)ecx=edX0; if(ecy<edY0)ecy=edY0; if(ecx>edX1)ecx=edX1; if(ecy>edY1)ecy=edY1; if(ecx>=MW)ecx=MW-1; if(ecy>=MH)ecy=MH-1;
@@ -3614,18 +3625,25 @@ static void mapEditor(void){
         if(pr&K_B){ if(eAct) eAct=0; else { int m0=simMoney; mapPlace(ecx,ecy,'.'); if(xo[XO_BUYCOST]&&simMoney>m0){ msg="SOLD"; msgT=30; } } }
         if(dsMsg){ msg=dsMsg; msgT=90; dsMsg=0; dirty=1; }
         if(pr&K_START){
-            int c=menu("MAP MENU",mapItems,6);
-            if(c==0){ edCashSave(); mapScan(); lifeMode(1); }
-            else if(c==1){ edCashSave(); mapSave();
+            udEnd();
+            const char*mi[MI_N]; { int nu=udCur, nr=udNA-udCur; char*e=mapUndoNm; const char*q="UNDO"; while(*q) *e++=*q++; if(nu){ *e++=' '; e+=numStr(e,nu); } *e=0;
+                e=mapRedoNm; q="REDO"; while(*q) *e++=*q++; if(nr){ *e++=' '; e+=numStr(e,nr); } *e=0; }
+            mi[MI_TEST]="PLAY TEST"; mi[MI_SAVE]="SAVE MAP"; mi[MI_UNDO]=mapUndoNm; mi[MI_REDO]=mapRedoNm; mi[MI_PLANS]="BLUEPRINTS"; mi[MI_OPTS]="OPTIONS"; mi[MI_RESET]="RESET MAP"; mi[MI_BACK]="BACK";
+            int c=menu("MAP MENU",mi,MI_N);
+            if(c==MI_TEST){ edCashSave(); mapScan(); lifeMode(1); }
+            else if(c==MI_UNDO||c==MI_REDO){ eAct=0; const char*r=c==MI_UNDO?udUndo():udRedo(); toast(r); }
+            else if(c==MI_SAVE){ edCashSave(); mapSave();
                 if(!mapSaved()) toast("SAVE NOT SUPPORTED HERE");
                 else if(xo[XO_SLOTSYNC]&&slotSyncActive()) toast("MAP AND SLOT SAVED");   // MAP SAVE TO SLOT option
                 else toast("MAP SAVED"); }
-            else if(c==2) slotScreen();
-            else if(c==3){ settingsScreen(); if(xo[XO_BUYCOST]&&!gInPlay) edLoadLife(); }
-            else if(c==4){ if(!xo[XO_RESETASK]||menu("RESET THE MAP",yesNo,2)==1){ if(curFl) flBlankLive(); else if(!nbResetLot()) mapReset(); eAct=0; toast("MAP RESET"); } }
-            else if(c==5){ edCashSave(); if(xo[XO_EDSAVE]) mapSave(); break; }
+            else if(c==MI_PLANS){ if(slotScreen()) udClear(); }   // (a loaded blueprint replaces the room: the old steps no longer fit it)
+            else if(c==MI_OPTS){ settingsScreen(); if(xo[XO_BUYCOST]&&!gInPlay) edLoadLife(); }
+            else if(c==MI_RESET){ if(!xo[XO_RESETASK]||menu("RESET THE MAP",yesNo,2)==1){ if(curFl) flBlankLive(); else if(!nbResetLot()) mapReset(); eAct=0; udClear(); toast("MAP RESET"); } }
+            else if(c==MI_BACK){ udEnd(); edCashSave(); if(xo[XO_EDSAVE]) mapSave(); break; }
             prev=keyNow(); edCamSnap(); dirty=1; continue;
         }
+        if(!(k&(K_A|K_B))) udEnd();   // a step = everything between pressing A (or B) and letting go
+        if(udBig){ udBig=0; msg="TOO BIG TO UNDO  HISTORY CLEARED"; msgT=90; dirty=1; }
         if(edCamStep()) dirty=1;
         if(msgT>0&&--msgT==0){ msg=""; dirty=1; }
         int bl=(efr>>3)&1;   // the editor only redraws when something changed or the cursor blinks
@@ -3634,6 +3652,7 @@ static void mapEditor(void){
             present(); dirty=0; lastBl=bl;
         } else vsync();
     }
+    udEnd(); udOn=0;   // (every way out of the loop ends up here: the history stays only while the builder is open)
     while((~REG_KEYINPUT)&0x3FF) vsync();
 }
 
@@ -4151,7 +4170,7 @@ static int creatorNew(void){   // returns 1 when the secret code switched screen
                 partsSettle();   // a part still locked comes off before the creature leaves the creator
                 switch(aid){
                     case AC_PLAY:  lifeMode(0); if(gToMenu){ stageOn=0; return 0; } break;
-                    case AC_MAP:   mapEditor(); break;
+                    case AC_MAP:   if(edGate()) mapEditor(); break;
                     case AC_RAND:  lookRandom(); break;
                     case AC_TRAND: lookTrueRandomMe(); break;
                     case AC_ADD:   famAdd(); break;
@@ -4245,7 +4264,7 @@ static int creatorClassic(void){   // returns 1 when the secret code switched sc
             }
             if((pressed&K_A)&&part!=NPARTS&&part!=NPARTS+1){
                 if(part==NPARTS+2){ lifeMode(0); if(gToMenu) return 0; }
-                else if(part==NPARTS+3) mapEditor();
+                else if(part==NPARTS+3){ if(edGate()) mapEditor(); }
                 else if(part==NPARTS+4) return 0;   // MAIN MENU
                 else { doPart(1,part,size,cx,cy,cz); custom=1; }
                 prev=keyNow(); dirty=1;
@@ -4598,7 +4617,7 @@ static void howToPlay(void){
     static const char* const tn[7]={"PLAY","MAKE","BUILD","MUSIC","PLANS","OPTS","TOWN"};
     static const char* const tt[7]={"PLAYING","CREATE A BORE","BUILD ROOMS","TOUKEBOX","BLUEPRINTS","OPTIONS","NEIGHBORHOOD"};
     const char* const* ln[7]={lifeHelp,creatureHelp,mapHelp,jbHelp,slotHelp,optHelp,nbHelp};
-    static const unsigned char nn[7]={19,15,14,15,13,12,16};
+    static const unsigned char nn[7]={19,15,17,15,13,12,20};
     enum { VIS=13, LY=34, LH=104 };
     int tab=0, sc=0; u32 cnt=0, lt=~0u; u16 prev=keyNow();
     for(;;){
@@ -4746,7 +4765,7 @@ static void mainMenu(void){
         if(pr&(K_A|K_START)){
             if(sel==0) playerScreen();
             else if(sel==1) creatureEditor();
-            else if(sel==2) mapEditor();   // (the menu song plays on in the room builder)
+            else if(sel==2){ if(edGate()) mapEditor(); }   // (the menu song plays on in the room builder)
             else if(sel==3) jukeboxScreen();
             else if(sel==4){ slotScreen(); if(nbOk) nbBoot(); }   // (a slot screen can delete or replace the town)
             else if(sel==5) settingsScreen();

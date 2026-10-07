@@ -70,7 +70,7 @@ enum { SLK_ROOM=0, SLK_HOUSE=1, SLK_HHOLD=2, SLK_TOWN=3, SLK_PLAYER=4 };   // SL
 static u8 sgPid EWRAM_BSS, sgWant EWRAM_BSS, slHPid EWRAM_BSS;   // player in play (0 none) / a new player about to start / extra header byte for the next slHeader
 static int sgSave(void); static int sgDeletePid(int pid); static void sgPickHome(void);   // savegame.h
 enum { SLH_ROOM=1, SLH_PERSON=2, SLH_LIFE=4 };                 // what a slot holds / what to load
-enum { SLE_OK=0, SLE_EMPTY=-1, SLE_BAD=-2, SLE_BIG=-3, SLE_HOUSE=-4, SLE_FMT=-5, SLE_SIZE=-6, SLE_NOPART=-7, SLE_NOSRAM=-8, SLE_NOROOM=-9 };
+enum { SLE_OK=0, SLE_EMPTY=-1, SLE_BAD=-2, SLE_BIG=-3, SLE_HOUSE=-4, SLE_FMT=-5, SLE_SIZE=-6, SLE_NOPART=-7, SLE_NOSRAM=-8, SLE_NOROOM=-9, SLE_VISIT=-10 };
 static int hhBlockLen(volatile u8*m,int avail); static void hhSave(void); static void hhLoad(void);   // house.h (included further down)
 #define SLC_ROOM   'R'
 #define SLC_PERSON 'C'
@@ -384,6 +384,7 @@ static int houseSave(int slot,const char*name){   // needs a fresh slScan (slOwn
 static int slLoad(int slot,int mask){
     SlInfo I; slLoadedMask=0;
     if(!slInfo(slot,&I)) return SLE_EMPTY;
+    if((I.kind==SLK_HOUSE||(mask&SLH_ROOM))&&nbBarred()) return SLE_VISIT;   // loading a room or a house over a community lot you are visiting would be building it
     if(I.kind!=SLK_ROOM) return (I.kind==SLK_HOUSE&&SLOT_HOUSE_READY)?houseLoad(slot):SLE_HOUSE;   // (a household slot loads with slLoadHH)
     if(slSumOf(SLB(slot)+SLOT_HDR,I.len)!=I.sum) return SLE_BAD;
     if(I.mw!=MW||I.mh!=MH) return SLE_SIZE;
@@ -458,7 +459,7 @@ static int slotUsedBytes(void){ int n=0; for(int i=0;i<SLOT_N;i++) if(slOwner[i]
 static const char* slErrMsg(int e){
     switch(e){ case SLE_BIG: return "TOO BIG FOR A SLOT"; case SLE_BAD: return "SLOT IS DAMAGED"; case SLE_EMPTY: return "SLOT IS EMPTY";
         case SLE_HOUSE: return "WRONG KIND OF SLOT"; case SLE_NOROOM: return "NOT ENOUGH FREE SLOTS"; case SLE_SIZE: return "MAP SIZE DOES NOT MATCH"; case SLE_NOPART: return "THAT PART IS NOT SAVED";
-        case SLE_NOSRAM: return "SAVE NOT SUPPORTED HERE"; default: return "COULD NOT READ SLOT"; }
+        case SLE_NOSRAM: return "SAVE NOT SUPPORTED HERE"; case SLE_VISIT: return "NO BUILDING WHILE VISITING"; default: return "COULD NOT READ SLOT"; }
 }
 
 // ---------- the screen ----------

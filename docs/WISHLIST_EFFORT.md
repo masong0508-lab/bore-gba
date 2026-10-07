@@ -15,6 +15,9 @@ but not run in an emulator: build it (GitHub Actions) and play it before trustin
 8. **Death variants** (M). The dead screen now says why: DIED OF SHOCK, GRAVITY WON, MET A WALL AT SPEED, DIED OF HUNGER, ONE HIT TOO MANY (plain YOU DIED stays as the fallback). Falls scream (SFX_SCREAM); wall deaths use the death sound. Ghosts are NOT done: see below. *Untested on hardware.*
 9. **Scripted neighbor arrival at move-in** (M-L). The first neighbor (`twWel`) walks in about 3 seconds after you move to a lot or start a life, even at night, says "<NAME> SAYS WELCOME", and brings a housewarming gift of 25. Needs PRE-MADE SIMS and FREE WILL on, like every visit. *Untested on hardware.*
 
+10. **Undo / redo in the room builder** (M). `source/undo.h`: SELECT + B / SELECT + START and two MAP MENU entries, 3 steps, cash refunded and charged again. See NOTES, *Undo and redo*. *Logic tested on a PC, untested on hardware.*
+11. **Community lots are visited, not built** (M). Building a lot you are visiting is locked everywhere (pause menu, main menu, creator, blueprint loading); community lots are built only from the town view, and MAKE COMMUNITY / MAKE RESIDENTIAL switches a lot's kind. See NOTES, *Community lots: visiting and building*. *Untested on hardware.*
+
 ## Partly done
 - **Multi-floor**: 3 floors with stairs, packed in `flPool`. Missing: Sims using stairs, the 3-floor render toggle and focus key.
 - **Seasons**: the town map draws four seasons (`nbT.season`). Missing: weather, holidays, any effect while playing.

@@ -329,6 +329,23 @@ tables, and `chipMix` (main.c) renders them live.
 - **Hook:** `nbDrawLotModel()` draws each lot's building as an icon. The real house can be drawn there later.
 - **Tested in mGBA:** the town draws in both zooms; visiting another lot saved YOUR PLACE as a 2-slot house and wrote the town slot.
 
+## Undo and redo (`source/undo.h`)
+- **Keys:** SELECT + B = UNDO, SELECT + START = REDO (in the room builder). The MAP MENU lists UNDO n and REDO n too, and the builder shows `UNDO n  REDO n` at the top right when there is something to step through.
+- **A step** = everything between pressing A / B and letting go (`udEnd` runs when both are up, before a menu, before a floor change and when the builder closes). A tile put back exactly as it was is not a step.
+- **How:** before a tile changes, `udRec(x, y)` stores its three bytes (item char, floor, wallpaper) packed in a u32 (11 bits position, 4 floor, 8 wallpaper, 8 item). UNDO swaps the stored tiles with the live ones, in reverse order; REDO swaps them again, in order. Only recorded tiles are touched, so a play test in between cannot corrupt the history. Callers: `mapPlace` (BUY / SELL, including the old board / spawn tile it clears), `eApply` through `edSet` (ROOM, WALL, FLOOR, SELL area).
+- **Money:** `edPay` adds what it charged to `udCashD`; the step keeps it. UNDO refunds it, REDO charges it. A step that cannot be paid for is refused (`NOT ENOUGH CASH TO UNDO / REDO`). No purse (the builder is free) means nothing to settle.
+- **Floors:** a step remembers its floor; UNDO / REDO on another floor goes there first (`flGo`), and refuses if the floor pool cannot hold the change.
+- **Limits:** `UD_ACT` 3 steps (you can undo three times), `UD_REC` 1,000 tiles. The oldest steps fall off. One step bigger than `UD_REC` (a 40 x 40 fill) clears the history and shows TOO BIG TO UNDO. Cleared on RESET MAP, after a blueprint loads, and when the builder opens.
+- **Memory:** about 4.2 KB EWRAM (`udR` 4,000 B, `udA` 136 B, a few bytes of flags and two 12 B menu labels). No IWRAM. The last measured build had about 6.6 KB of EWRAM free: run `make size` and lower `UD_REC` if it is tight.
+- **Tested:** the logic (steps, redo cut-off, cash refunds, refused undo, repeated tiles, the 16-step and 1,000-tile limits, floors) in a host-side C harness. **Not run on the GBA or in an emulator.**
+
+## Community lots: visiting and building
+- **The rule:** while the live room is a community lot, nothing may build it except the town view. `nbBarred()` (`neighborhood.h`) is true when the town is loaded, the live lot (`nbT.cur`) is a community lot and `nbEditPass` is not set. The town view's BUILD sets `nbEditPass` around its `mapEditor()` call; nothing else does.
+- **What it blocks** (all with the toast COMMUNITY LOT BUILD IN THE TOWN, `edGate()` in `main.c`): the pause menu's BUILD > EDIT MAP, BUILD ROOM in the main menu, the creator's BUILD button and its BUILD ROOM row. Loading a room or a house slot over the lot says NO BUILDING WHILE VISITING (`SLE_VISIT` in `slLoad`; loading a Sim only is still fine, and BLUEPRINTS can still save). The pause panel shows PAUSED VISITING and the BUILD tile reads NO BUILDING WHILE VISITING.
+- **Staying on a community lot:** after VISIT the live lot stays the community lot until you play another one (as before), so BUILD ROOM in the main menu keeps saying no until you PLAY your home from the neighborhood. A later version could send you home when the visit ends.
+- **MAKE COMMUNITY / MAKE RESIDENTIAL** (lot menu): any lot that is not your HOME and has no household. Making one a community lot asks for the kind (park, skate park, plaza, lounge, old town). An empty live lot gets the starting layout of its new kind; a lot with something built keeps it. Saved with the town.
+- **Not done:** per-lot opening hours, community lots with their own rules, an automatic walk home. **Untested on hardware.**
+
 ## Choose a neighborhood (the screen before the town)
 - **The screen:** main menu NEIGHBORHOOD opens a chooser with a panel of town thumbnails. Each thumbnail is an aerial view drawn from the town's save.
   The picked town is drawn darkened behind the panel.

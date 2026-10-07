@@ -24,6 +24,11 @@ Every screen shows its own button hints. D-pad moves, **A** picks, **B** goes ba
 
 In the game: **SELECT + L / R** turns the view a quarter turn left / right and keeps it (like turning the camera in a Sims game; the D-pad still means up the screen). **SELECT + UP / DOWN** zooms. A tap of **SELECT** switches Sim. The ACTION CAM still spins the room after a big combo.
 
+## Building
+In the room builder (BUILD ROOM, the pause menu's EDIT MAP, or BUILD on a lot in the town): **SELECT + B is UNDO and SELECT + START is REDO**. Both are also in the MAP MENU (START), which shows how many steps are left. A step is everything between pressing A (or B) and letting go: a whole room, a wall line, a floor fill or a held-down stroke of items. Undo gives back what the step cost and redo charges it again. It keeps the last 3 steps, so you can undo three times (up to 1,000 tiles in all) and is cleared when you leave the builder, reset the map or load a blueprint. Details: `docs/NOTES.md`, *Undo and redo*.
+
+**Community lots** (park, skate park, plaza, lounge, old town) are visited, not built, while you stand in them: the pause menu's EDIT MAP, BUILD ROOM in the main menu, the creator's BUILD button and loading a blueprint over the lot all say no, and the pause panel says VISITING. Build a community lot from the **town view** (A on the lot, then BUILD), like the Sims neighbourhood screen. Any lot that is not your home and has no household can be switched with **MAKE COMMUNITY / MAKE RESIDENTIAL** in the same menu.
+
 ## Music
 - **JUKEBOX** is a Music Player: a NOW PLAYING card (song, artist, elapsed / total time, progress bar) above one song list that shows every song's **length**. A plays a song (A on the playing song stops it), **L / R** skip to the previous / next song, SELECT checks or unchecks a song (only checked songs are picked at random), **START** changes the play mode (*Shuffle*, *In order*, *Repeat*; saved), LEFT / RIGHT change the volume. Opening it plays **one random checked song**.
 - **GOTTCHO BARRACHO plays in the main menus** (OPTIONS > AUDIO > MENU MUSIC); opening the jukebox crossfades into its first song, after that every jukebox track starts directly with no crossfade. A random checked song still plays for GAME MUSIC while playing.

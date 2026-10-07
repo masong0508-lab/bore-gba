@@ -46,6 +46,11 @@ static void nbBounds(void){   // the room builder's cursor stays on the live lot
     edX0=0; edY0=0; edX1=MW-1; edY1=MH-1;
     if(nbOk&&nbT.cur<NB_LOTS&&nbT.lot[nbT.cur].on) nbRect(&nbT.lot[nbT.cur],&edX0,&edY0,&edX1,&edY1);
 }
+static u8 nbEditPass;   // 1 only while the town view's BUILD opens a lot: the one way into a community lot's room builder
+static int nbBarred(void){   // 1 = the live room is a COMMUNITY lot and you got there by visiting it. Like the Sims, a community lot is built from the neighborhood view, never while you are standing in it:
+    // the builder, the pause menu's EDIT MAP, BUILD ROOM in the main menu, the creator's BUILD button and loading a blueprint over it all say no
+    return nbOk&&!nbEditPass&&nbT.cur<NB_LOTS&&nbT.lot[nbT.cur].on&&nbT.lot[nbT.cur].kind==LKIND_COMM;
+}
 static int nbAt(int cx,int cy){ for(int i=0;i<NB_LOTS;i++){ const NbLot*L=&nbT.lot[i]; if(L->on&&cx>=L->x&&cy>=L->y&&cx<L->x+L->w&&cy<L->y+L->h) return i; } return -1; }
 static int nbItemValue(char c){
     switch(c){ case '.': case 'P': return 0; case 'W': return 4; case 'w': return 2; case 'D': return 15; case 'F': return 60; case 'T': return 30; case 'S': return 50;
@@ -410,7 +415,7 @@ static int nbRoofEdit(int li){   // 1 = saved
 }
 static int nbLotMenu(int li){   // returns 1 when the screen should close (play started and asked for the main menu)
     NbLot*L=&nbT.lot[li]; const char*it[10]; int id[10], n=0;
-    enum { A_PLAY, A_BUILD, A_MOVE, A_RENAME, A_TYPE, A_BULL, A_DEL, A_HH, A_NEWHH, A_ROOF };
+    enum { A_PLAY, A_BUILD, A_MOVE, A_RENAME, A_TYPE, A_BULL, A_DEL, A_HH, A_NEWHH, A_ROOF, A_CONV };
     char who[24]; who[0]=0; int lives=L->kind==LKIND_RES&&nbWho(li,who);
     static char ph[32] EWRAM_BSS; if(lives){ char*e=slCat(ph,"PLAY "); slCat(e,who); it[n]=ph; id[n++]=A_HH; }   // (The Sims 2: play the household that lives there)
     else if(L->kind==LKIND_RES&&li!=nbT.home){ it[n]="NEW HOUSEHOLD HERE"; id[n++]=A_NEWHH; }
@@ -420,6 +425,7 @@ static int nbLotMenu(int li){   // returns 1 when the screen should close (play 
     if(L->kind==LKIND_RES&&li!=nbT.home&&!lives){ it[n]="MOVE IN"; id[n++]=A_MOVE; }
     it[n]="RENAME"; id[n++]=A_RENAME;
     if(L->kind==LKIND_COMM){ it[n]="CHANGE TYPE"; id[n++]=A_TYPE; }
+    if(li!=nbT.home&&!lives){ it[n]=L->kind==LKIND_COMM?"MAKE RESIDENTIAL":"MAKE COMMUNITY"; id[n++]=A_CONV; }   // any lot can be a home or a public place (not yours, and not one a household lives on)
     if(L->slot>=0||nbT.cur==li){ it[n]="BULLDOZE"; id[n++]=A_BULL; }
     it[n]="DELETE LOT"; id[n++]=A_DEL;
     int c=menu(L->name,it,n); if(c<0) return 0;
@@ -432,7 +438,7 @@ static int nbLotMenu(int li){   // returns 1 when the screen should close (play 
         case A_PLAY: case A_BUILD:
             if(!nbGo(li)){ toast(nbErr); return 0; }
             if(id[c]==A_PLAY){ nbPlaying=1; lifeMode(0); nbPlaying=0; if(gToMenu) return 1; }
-            else { vpFull(); mapEditor(); }
+            else { nbEditPass=1; vpFull(); mapEditor(); nbEditPass=0; }   // (the only way to build a community lot)
             nbValueLive(li); nbStore(li); nbSave(); menuMusSync(); return 0;
         case A_MOVE: {
             int have; int price=L->value, sale=nbT.home<NB_LOTS&&nbT.lot[nbT.home].on?nbT.lot[nbT.home].value:0, net=price-sale;
@@ -443,6 +449,14 @@ static int nbLotMenu(int li){   // returns 1 when the screen should close (play 
                 simMoney-=net; if(simMoney>9999) simMoney=9999; simsSaveNow();
             }
             nbT.home=(u8)li; nbSave(); toast("WELCOME HOME"); return 0; }
+        case A_CONV: {
+            int toComm=L->kind==LKIND_RES;
+            if(nbLives(li)){ toast("A HOUSEHOLD LIVES HERE"); return 0; }
+            int t=0; if(toComm){ t=menu("WHAT KIND OF PLACE",ctNm,CT_N); if(t<0) return 0; }
+            else { const char*yn[2]={"NO","YES"}; if(menu("MAKE IT A HOME LOT",yn,2)!=1) return 0; }
+            L->kind=(u8)(toComm?LKIND_COMM:LKIND_RES); L->type=(u8)(toComm?t:0);
+            if(L->slot<0&&nbT.cur==li) nbTemplate(li);   // (empty and live: it gets the starting layout of its new kind; a lot with a layout keeps what is built)
+            nbSave(); toast(toComm?"NOW A COMMUNITY LOT":"NOW A HOME LOT"); return 0; }
         case A_ROOF: nbRoofEdit(li); return 0;
         case A_RENAME: { char nm[SLOT_NAME+1]; for(int i=0;i<=NB_NAME;i++) nm[i]=L->name[i]; if(slEditName(nm)){ for(int i=0;i<=NB_NAME;i++) L->name[i]=nm[i]; if(L->slot>=0) slRename(L->slot,nm); nbSave(); } return 0; }
         case A_TYPE: { int t=menu("WHAT KIND OF PLACE",ctNm,CT_N); if(t<0||t==L->type) return 0; L->type=(u8)t; if(L->slot<0&&nbT.cur==li) nbTemplate(li); nbSave(); return 0; }
@@ -461,9 +475,9 @@ static int nbLotMenu(int li){   // returns 1 when the screen should close (play 
     }
     return 0;
 }
-static const char* const nbHelp[16]={">THE NEIGHBORHOOD","EVERY LOT IS A PLACE TO LIVE OR VISIT","THE ROOM YOU PLAY IS THE LOT YOU ARE ON",">LOTS TOOL","A ON A LOT  PLAY BUILD MOVE IN RENAME",
+static const char* const nbHelp[20]={">THE NEIGHBORHOOD","EVERY LOT IS A PLACE TO LIVE OR VISIT","THE ROOM YOU PLAY IS THE LOT YOU ARE ON",">LOTS TOOL","A ON A LOT  PLAY BUILD MOVE IN RENAME",
     "MOVE IN BUYS IT AND SELLS YOUR OLD HOME","BULLDOZE CLEARS IT  DELETE REMOVES IT",">BUILD THE TOWN","L R CHANGE THE TOOL  SELECT ITS KIND","PAINT GROUND  LAY ROADS  PLANT DECOR",
-    "NEW LOT  PICK A SIZE AND A KIND",">TOWN MENU  START","ZOOM  SEASON  TIME OF DAY  RENAME",">SAVING","HOUSES GO IN BLUEPRINTS","THE TOWN SAVES WHEN YOU LEAVE"};
+    "NEW LOT  PICK A SIZE AND A KIND",">TOWN MENU  START","ZOOM  SEASON  TIME OF DAY  RENAME",">SAVING","HOUSES GO IN BLUEPRINTS","THE TOWN SAVES WHEN YOU LEAVE",">COMMUNITY LOTS","VISIT PLAYS  YOU CANNOT BUILD THERE","BUILD IT FROM THIS SCREEN INSTEAD","MAKE COMMUNITY  MAKE RESIDENTIAL"};
 static int nbNewLot(int x,int y,int w,int h){
     int i=0; while(i<NB_LOTS&&nbT.lot[i].on) i++;
     if(i>=NB_LOTS){ toast("THE TOWN IS FULL"); return 0; }
