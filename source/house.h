@@ -157,15 +157,11 @@ static const HhFam hhFams[]={
 // ---- 16-bit sprite <-> 15 colours + clear, 4bpp tiles ----
 // Colour lookups for the two quantisers: a small open-addressing hash from a 15-bit colour to a slot (key 0xFFFF = empty).
 // The sprites hold about 40 colours, so a lookup is one or two probes instead of a walk through the list.
-#define HQ_N 512
-static u16 hqKey[HQ_N] EWRAM_BSS; static u8 hqVal[HQ_N] EWRAM_BSS;
-static void hqClear(void){ for(int i=0;i<HQ_N;i++) hqKey[i]=0xFFFF; }
-static inline int hqSlot(u16 c){ int h=(int)(((u32)c*40503u)>>7)&(HQ_N-1); while(hqKey[h]!=0xFFFF&&hqKey[h]!=c) h=(h+1)&(HQ_N-1); return h; }
-static inline int hqDist(u16 a,u16 b){ int dr=(a&31)-(b&31), dg=((a>>5)&31)-((b>>5)&31), db=((a>>10)&31)-((b>>10)&31); return dr*dr*3+dg*dg*4+db*db*2; }
-static void hhQuant(u16 (*src)[SPW*SPH],u8 (*dst)[OBJ_B],u16*pal){
+// (the hash helpers hqKey / hqVal / hqClear / hqSlot / hqDist are in main.c, next to the sprite palette they also serve)
+static void hhQuant(u8 (*src)[SPW*SPH],u8 (*dst)[OBJ_B],u16*pal){
     static u16 col[256] EWRAM_BSS, oc[256] EWRAM_BSS; static u32 cnt[256] EWRAM_BSS; static u8 ob[256] EWRAM_BSS; int n=0;
     hqClear();
-    for(int v=0;v<4;v++)for(int i=0;i<SPW*SPH;i++){ u16 c=src[v][i]; if(c==SKY) continue; int h=hqSlot(c), k;
+    for(int v=0;v<4;v++)for(int i=0;i<SPW*SPH;i++){ u16 c=spC(src[v][i]); if(c==SKY) continue; int h=hqSlot(c), k;
         if(hqKey[h]==0xFFFF){ if(n==256) continue; hqKey[h]=c; hqVal[h]=(u8)n; col[n]=c; cnt[n]=0; k=n++; } else k=hqVal[h];
         cnt[k]++; }
     int n0=n; for(int k=0;k<n0;k++) oc[k]=col[k];   // the colours as found (hqVal points into this list)
@@ -181,18 +177,18 @@ static void hhQuant(u16 (*src)[SPW*SPH],u8 (*dst)[OBJ_B],u16*pal){
         for(int k=0;k<n;k++){ int d=hqDist(c,col[k]); if(d<bd){ bd=d; best=k+1; if(!d) break; } } ob[j]=(u8)best; }
     for(int v=0;v<4;v++){
         for(int i=0;i<OBJ_B;i++) dst[v][i]=0;
-        for(int y=0;y<SPH;y++)for(int x=0;x<SPW;x++){ u16 c=src[v][y*SPW+x]; if(c==SKY) continue;
+        for(int y=0;y<SPH;y++)for(int x=0;x<SPW;x++){ u16 c=spC(src[v][y*SPW+x]); if(c==SKY) continue;
             int h=hqSlot(c), best;
             if(hqKey[h]==c) best=ob[hqVal[h]];
             else { int bd=1<<30; best=1; for(int k=0;k<n;k++){ int d=hqDist(c,col[k]); if(d<bd){ bd=d; best=k+1; if(!d) break; } } }   // (past 256 colours: not in the table)
             int t=(y>>3)*4+(x>>3), o=t*32+(y&7)*4+((x&7)>>1); dst[v][o]|=(u8)(best<<((x&1)*4)); }
     }
 }
-static void hhQuantS(u16 (*src)[SPW*SPH],u8 (*dst)[STR_BN],const u16*pal){   // the stride band, in the palette the standing frame chose
+static void hhQuantS(u8 (*src)[SPW*SPH],u8 (*dst)[STR_BN],const u16*pal){   // the stride band, in the palette the standing frame chose
     hqClear(); int used=0;
     for(int v=0;v<4;v++){
         for(int i=0;i<STR_BN;i++) dst[v][i]=0;
-        for(int y=STR_Y0;y<STR_Y1&&y<SPH;y++)for(int x=0;x<SPW;x++){ u16 c=src[v][y*SPW+x]; if(c==SKY) continue;
+        for(int y=STR_Y0;y<STR_Y1&&y<SPH;y++)for(int x=0;x<SPW;x++){ u16 c=spC(src[v][y*SPW+x]); if(c==SKY) continue;
             int h=hqSlot(c), best;
             if(hqKey[h]==c) best=hqVal[h];
             else { int bd=1<<30; best=1; for(int k=1;k<16;k++){ int d=hqDist(c,pal[k]); if(d<bd){ bd=d; best=k; if(!d) break; } }
@@ -200,15 +196,16 @@ static void hhQuantS(u16 (*src)[SPW*SPH],u8 (*dst)[STR_BN],const u16*pal){   // 
             int t=(y>>3)*4+(x>>3), o=t*32+(y&7)*4+((x&7)>>1)-STR_B0; dst[v][o]|=(u8)(best<<((x&1)*4)); }
     }
 }
-static void hhUnquantS(u8 (*src)[STR_BN],const u16*pal,u16 (*dst)[SPW*SPH]){   // a stride band back over a copy of the standing frame
-    for(int v=0;v<4;v++)for(int y=STR_Y0;y<STR_Y1&&y<SPH;y++)for(int x=0;x<SPW;x++){ int t=(y>>3)*4+(x>>3), o=t*32+(y&7)*4+((x&7)>>1)-STR_B0, k=(src[v][o]>>((x&1)*4))&15; dst[v][y*SPW+x]=k?pal[k]:SKY; }
+static void hhUnquantS(u8 (*src)[STR_BN],const u16*pal,u8 (*dst)[SPW*SPH]){   // a stride band back over a copy of the standing frame
+    for(int v=0;v<4;v++)for(int y=STR_Y0;y<STR_Y1&&y<SPH;y++)for(int x=0;x<SPW;x++){ int t=(y>>3)*4+(x>>3), o=t*32+(y&7)*4+((x&7)>>1)-STR_B0, k=(src[v][o]>>((x&1)*4))&15; dst[v][y*SPW+x]=(u8)k; }   // (the sprite palette is the member's own: see hhUnquant)
 }
-static void hhUnquant(u8 (*src)[OBJ_B],const u16*pal,u16 (*dst)[SPW*SPH]){   // back to 16-bit (when a member becomes the one you control)
-    for(int v=0;v<4;v++)for(int y=0;y<SPH;y++)for(int x=0;x<SPW;x++){ int t=(y>>3)*4+(x>>3), o=t*32+(y&7)*4+((x&7)>>1), k=(src[v][o]>>((x&1)*4))&15; dst[v][y*SPW+x]=k?pal[k]:SKY; }
+static void hhUnquant(u8 (*src)[OBJ_B],const u16*pal,u8 (*dst)[SPW*SPH]){   // back to full sprites (when a member becomes the one you control): the 15 colours become the sprite palette
+    sprPal[0]=SKY; for(int k=1;k<16;k++) sprPal[k]=pal[k]; sprN=16;
+    for(int v=0;v<4;v++)for(int y=0;y<SPH;y++)for(int x=0;x<SPW;x++){ int t=(y>>3)*4+(x>>3), o=t*32+(y&7)*4+((x&7)>>1), k=(src[v][o]>>((x&1)*4))&15; dst[v][y*SPW+x]=(u8)k; }
 }
 static void spBounds(void){   // the box that holds every opaque pixel of the player's four views (blits and redraw rectangles stay inside it)
     spBx0=SPW; spBx1=0; spBy0=SPH; spBy1=0;
-    for(int v=0;v<8;v++)for(int y=0;y<SPH;y++)for(int x=0;x<SPW;x++) if((v<4?spr4[v]:spr4s[v-4])[y*SPW+x]!=SKY){ if(x<spBx0) spBx0=x; if(x+1>spBx1) spBx1=x+1; if(y<spBy0) spBy0=y; if(y+1>spBy1) spBy1=y+1; }
+    for(int v=0;v<8;v++)for(int y=0;y<SPH;y++)for(int x=0;x<SPW;x++) if(sprBuf[v][y*SPW+x]){ if(x<spBx0) spBx0=x; if(x+1>spBx1) spBx1=x+1; if(y<spBy0) spBy0=y; if(y+1>spBy1) spBy1=y+1; }
     if(spBx0>=spBx1){ spBx0=0; spBx1=SPW; spBy0=0; spBy1=SPH; }
 }
 // ---- baking: render a member's look with the creator's own code, then put the player's creature back ----

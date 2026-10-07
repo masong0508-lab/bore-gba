@@ -40,14 +40,19 @@ static u16 fb[SW*SH] EWRAM_BSS;
 #define SPW 32   // the Sims in the room: baked at 0.4 size (5 screen pixels to 2), so the skater is a little under 2 tiles tall
 #define SPH 60   // and the sprite has room above for tall Sims and MASTER CONTROLLER giants (a 32 x 64 hardware sprite for the household)
 #define SPF 56   // the row the feet stand on in a sprite
-static u16 spr4[4][SPW*SPH] EWRAM_BSS;   // the creature's sprites, one per view (bakeSprites)
-static u16 spr4s[4][SPW*SPH] EWRAM_BSS;  // the same with the legs mid-stride (walking alternates the two)
+// The player's sprites are 8-bit PALETTE INDICES (0 = see-through), not 16-bit colours: half the RAM. One palette (sprPal, up to 255 colours,
+// built while baking: sprIdx) serves all eight sprites. sprBuf[0..3] = spr4 (one per view), sprBuf[4..7] = spr4s (legs mid-stride: walking alternates).
+static u8 sprBuf[8][SPW*SPH] EWRAM_BSS;
+#define spr4  (sprBuf)
+#define spr4s (sprBuf+4)
+static u16 sprPal[256]; static int sprN=1;   // (IWRAM: blit reads it for every pixel)
+#define spC(i) ((i)?sprPal[i]:SKY)           // palette index -> colour (0 = SKY, the see-through colour)
 static u32 sprKey;   // what spr4 / spr4s hold: the bake key of the player they were baked from (0 = something else, house.h)
 #define STR_Y0 8                         // the stride frame differs from the standing one only in half-size rows STR_Y0..STR_Y1-1
 #define STR_Y1 64                        // (OBJ tile rows 1..7: what household sprites keep a second copy of)
 // The title screen only has to repaint two small areas of its backdrop (the smoke and the PRESS START box), so it keeps just those, in
 // spr4: the title shows once at power on, before any sprite is baked. (This used to be a whole-screen copy inside a 124 KB sound buffer.)
-#define tfb (&spr4[0][0])
+#define tfb ((u16*)&sprBuf[0][0])   // (16-bit view of the whole sprite buffer: 15 KB)
 
 // ---------- settings (kept in SRAM; the SETTINGS screen edits them) ----------
 static u8 sFps=0;    // frame rate: 0 = 60, 1 = 30, 2 = 20, 3 = 15 frames per second (game speed stays the same). 60 is a ceiling: a slow picture just takes two vblanks and the logic catches up
@@ -1996,14 +2001,28 @@ static int surfH(s32 fx,s32 fy){   // surface height at an exact position (1/256
     int tx=(int)(fx>>8), ty=(int)(fy>>8); if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
     char c=lifeMap[ty][tx]; return isRamp(c)?rampH(c,(int)fx,(int)fy):tileH(tx,ty);
 }
-static void bakeShrink(u16 (*spr4)[SPW*SPH],int v){   // view v, just drawn at full size in fb, into the sprite set at 0.4 size
+// Colour lookups for the sprite palette and the two quantisers (house.h): a small open-addressing hash from a 15-bit colour to a slot (key 0xFFFF = empty).
+// The sprites hold about 40 colours, so a lookup is one or two probes instead of a walk through the list.
+#define HQ_N 512
+static u16 hqKey[HQ_N] EWRAM_BSS; static u8 hqVal[HQ_N] EWRAM_BSS;
+static void hqClear(void){ for(int i=0;i<HQ_N;i++) hqKey[i]=0xFFFF; }
+static inline int hqSlot(u16 c){ int h=(int)(((u32)c*40503u)>>7)&(HQ_N-1); while(hqKey[h]!=0xFFFF&&hqKey[h]!=c) h=(h+1)&(HQ_N-1); return h; }
+static inline int hqDist(u16 a,u16 b){ int dr=(a&31)-(b&31), dg=((a>>5)&31)-((b>>5)&31), db=((a>>10)&31)-((b>>10)&31); return dr*dr*3+dg*dg*4+db*db*2; }
+static void sprHashBuild(void){ hqClear(); sprPal[0]=SKY; for(int k=1;k<sprN;k++){ int h=hqSlot(sprPal[k]); hqKey[h]=sprPal[k]; hqVal[h]=(u8)k; } }   // the palette so far -> the hash (a bake after another bake's quantiser run)
+static int sprIdx(u16 c){   // the palette index of colour c (a new colour is added; past 255 colours: the nearest one); SKY = 0
+    if(c==SKY) return 0;
+    int h=hqSlot(c); if(hqKey[h]==c) return hqVal[h];
+    if(sprN<256){ hqKey[h]=c; hqVal[h]=(u8)sprN; sprPal[sprN]=c; return sprN++; }
+    int best=1, bd=1<<30; for(int k=1;k<sprN;k++){ int d=hqDist(c,sprPal[k]); if(d<bd){ bd=d; best=k; if(!d) break; } } return best;
+}
+static void bakeShrink(u8 (*ss)[SPW*SPH],int v){   // view v, just drawn at full size in fb, into the sprite set at 0.4 size
     // every sprite pixel covers 2 or 3 screen pixels each way: take the top left one, unless the cell holds a very dark one (eyes, mouth,
     // outline): those must survive the shrink
     for(int y=0;y<SPH;y++){ int sy0=(y*5)>>1, sy1=((y+1)*5)>>1;
         for(int x=0;x<SPW;x++){ int sx0=(x*5)>>1, sx1=((x+1)*5)>>1;
             u16 c=fb[(SPY0+sy0)*SW+SPX0+sx0]; int best=(c&31)+((c>>5)&31)+((c>>10)&31);
             if(best>14&&c!=SKY) for(int yy=sy0;yy<sy1;yy++){ const u16*r=&fb[(SPY0+yy)*SW+SPX0]; for(int xx=sx0;xx<sx1;xx++){ u16 q=r[xx]; int sm=(q&31)+((q>>5)&31)+((q>>10)&31); if(sm<=11&&sm<best){ best=sm; c=q; } } }
-            spr4[v][y*SPW+x]=c; } }
+            ss[v][y*SPW+x]=(u8)sprIdx(c); } }
     // seen from behind the head shows hair, not a face: repaint the head's skin in the hair colour so the way he is facing reads at a glance
     if(!custom&&(v==1||v==2)){
         int hx,hy,hz,hs; headBox(&hx,&hy,&hz,&hs);
@@ -2013,8 +2032,8 @@ static void bakeShrink(u16 (*spr4)[SPW*SPH],int v){   // view v, just drawn at f
             if(sx-CA<ax) ax=sx-CA; if(sx+CA>bx) bx=sx+CA; if(sy-CB<az) az=sy-CB; if(sy+CB+CC>bz) bz=sy+CB+CC; }
         int x0=(ax-SPX0)*2/5, x1=(bx-SPX0)*2/5+1, y0=(az-SPY0)*2/5, y1=(bz-SPY0)*2/5+1;
         for(int y=y0<0?0:y0;y<y1&&y<SPH;y++)for(int x=x0<0?0:x0;x<x1&&x<SPW;x++){
-            u16*c=&spr4[v][y*SPW+x];
-            if(*c==sT[1]) *c=sT[5]; else if(*c==sL[1]) *c=sL[5]; else if(*c==sR[1]) *c=sR[5]; }
+            u8*c=&ss[v][y*SPW+x]; u16 q=spC(*c);
+            if(q==sT[1]) *c=(u8)sprIdx(sT[5]); else if(q==sL[1]) *c=(u8)sprIdx(sL[5]); else if(q==sR[1]) *c=(u8)sprIdx(sR[5]); }
     }
 }
 static int bakeClips(void){   // the drawing in fb reaches the two outer rows / columns of the capture window (the bake keeps every other pixel)
@@ -2022,7 +2041,9 @@ static int bakeClips(void){   // the drawing in fb reaches the two outer rows / 
     for(int y=0;y<SPH*5/2;y++){ const u16*r=&fb[(SPY0+y)*SW+SPX0]; if(r[0]!=SKY||r[1]!=SKY||r[SPW*5/2-2]!=SKY||r[SPW*5/2-1]!=SKY) return 1; }
     return 0;
 }
-static void bakeInto(u16 (*spr4)[SPW*SPH]){   // render the built character once per view (4 turns) into a sprite set, then just blit it
+static void bakeInto(u8 (*ss)[SPW*SPH]){   // render the built character once per view (4 turns) into a sprite set, then just blit it
+    if(!strideK) sprN=1;   // a new sprite set starts a new palette; the stride frames (strideK) add to the standing frames' palette
+    sprHashBuild();
     int sv=view; noGrid=1; bakeOn=1; oycV=OYCB;   // (drawn lower than in the creator: the tall capture window fits on the screen)
     int ox=cX0, oy=cY0; unsigned ow=cW, oh=cH;   // draw only inside the capture window: nothing outside it is ever read
     { int x0=SPX0>ox?SPX0:ox, y0=SPY0>oy?SPY0:oy, x1=SPX0+SPW*5/2, y1=SPY0+SPH*5/2;
@@ -2039,7 +2060,7 @@ static void bakeInto(u16 (*spr4)[SPW*SPH]){   // render the built character once
         for(int j=0;j<4;j++){ int v=(first+j)&3;
             if(tries||j){ view=v; drawScene(0); }
             if(bakeClips()){ cl=v; break; }
-            bakeShrink(spr4,v); done|=(u8)(1<<v); }
+            bakeShrink(ss,v); done|=(u8)(1<<v); }
         if(cl<0){ fit=1; break; }
         first=cl;
         if(bakeCapE>0&&(tries&3)==2) bakeCapE--;
@@ -2051,24 +2072,24 @@ static void bakeInto(u16 (*spr4)[SPW*SPH]){   // render the built character once
         else if(bakeCapX>0) bakeCapX--;
         else if(bakeCapL>0) bakeCapL--;
         else if(bakeCapE>0) bakeCapE--;
-        else { bakeShrink(spr4,cl); done|=(u8)(1<<cl); break; }   // nothing left to ease off: this round IS the final picture (view cl is still in fb)
+        else { bakeShrink(ss,cl); done|=(u8)(1<<cl); break; }   // nothing left to ease off: this round IS the final picture (view cl is still in fb)
         cl=-1; done=0;   // the caps changed: nothing drawn so far counts
     }
-    if(!fit) for(int v=0;v<4;v++) if(!(done&(1<<v))){ view=v; drawScene(0); bakeShrink(spr4,v); }   // whatever the last caps still need
+    if(!fit) for(int v=0;v<4;v++) if(!(done&(1<<v))){ view=v; drawScene(0); bakeShrink(ss,v); }   // whatever the last caps still need
     clipSet(ox,oy,ox+(int)ow,oy+(int)oh); bakeOn=0; oycV=121;
     noGrid=0; view=sv;
     spBx0=SPW; spBx1=0; spBy0=SPH; spBy1=0;   // the box that holds every opaque pixel of all four views: blits and redraw rectangles stay inside it
-    for(int v=0;v<4;v++)for(int y=0;y<SPH;y++)for(int x=0;x<SPW;x++) if(spr4[v][y*SPW+x]!=SKY){
+    for(int v=0;v<4;v++)for(int y=0;y<SPH;y++)for(int x=0;x<SPW;x++) if(ss[v][y*SPW+x]){
         if(x<spBx0) spBx0=x; if(x+1>spBx1) spBx1=x+1; if(y<spBy0) spBy0=y; if(y+1>spBy1) spBy1=y+1; }
     if(spBx0>=spBx1){ spBx0=0; spBx1=SPW; spBy0=0; spBy1=SPH; }
 }
 static void hhBakeAll(void);
 static void bakeSprites(void){ hhBakeAll(); }   // the player and every household member (house.h)
-IWRAM_CODE static void blit(const u16*s,int x0,int y0){
+IWRAM_CODE static void blit(const u8*s,int x0,int y0){
     int ia=cX0-x0, ib=cX0+(int)cW-x0; if(ia<spBx0) ia=spBx0; if(ib>spBx1) ib=spBx1; if(ia>=ib) return;
     for(int y=spBy0;y<spBy1;y++){ int yy=y0+y; if((unsigned)(yy-cY0)>=cH) continue;
-        const u16*sp=s+y*SPW+ia; u16*d=&fb[yy*SW+x0+ia];
-        for(int x=ia;x<ib;x++,sp++,d++){ u16 c=*sp; if(c!=SKY) *d=c; } }
+        const u8*sp=s+y*SPW+ia; u16*d=&fb[yy*SW+x0+ia];
+        for(int x=ia;x<ib;x++,sp++,d++){ u8 c=*sp; if(c) *d=sprPal[c]; } }
 }
 static int numStr(char*b,int n){ char t[8]; int k=0, i=0; if(n<=0) t[k++]='0'; while(n>0&&k<7){ t[k++]=(char)('0'+n%10); n/=10; } while(k>0) b[i++]=t[--k]; b[i]=0; return i; }   // n as text into b; returns its length
 static int numText(int x,int y,int n,u16 c){
