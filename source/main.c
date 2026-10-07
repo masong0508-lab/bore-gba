@@ -2542,6 +2542,7 @@ static void hhStart(void); static void hhTick(void); static int hhSocR(int useLa
 // ---- COLLECTIBLES (like THPS): the letters S K A T E and one hidden tape float over the floor of a skate lot. Touch one to take it. ----
 // Nothing is saved and no map tile is used: lifeInit scatters them over empty floor every run (a new spot each time), so they cost a few bytes of EWRAM
 // and no sprite art (they are drawn in code). A letter counts like a combo letter (sktAward: five make SKATE). Only on lots that have something to skate.
+static int tgFound(void); static void tgMark(void); static void goalsScreen(void);   // goals.h: the tape stays found per lot, VIEW GOALS
 #define CL_N 6   // 0..4 = S K A T E, 5 = the hidden tape
 static u8 clTook EWRAM_BSS, clReal EWRAM_BSS;   // LOT CLEARED: the ones really taken, and the ones that were placed (all taken = a 500 bonus)
 static u8 clx[CL_N] EWRAM_BSS, cly[CL_N] EWRAM_BSS, clGot EWRAM_BSS, clLive EWRAM_BSS;   // tile of each one; a bit per one taken; 1 = this lot has them
@@ -2562,6 +2563,7 @@ static void clPlace(void){
         }
         if(!ok) clGot|=(u8)(1<<i);   // no room for it: it counts as already taken
     }
+    if(tgFound()) clGot|=32;   // its tape was taken on an earlier visit: it does not come back
     clReal=(u8)(~clGot&63); clTook=0; clLive=1;
 }
 static void clTick(void){
@@ -2573,7 +2575,7 @@ static void clTick(void){
         if(dx>0xB0||dy>0xB0) continue;
         clGot|=(u8)(1<<i);
         if(i<5){ lscore+=100; specAdd(60); moodEvent(M_TRICK); sfxPlay(SFX_POP); sktAward(); simEvent(SE_LETTER); }   // sktAward writes the note (S, SK, ...) and pays the SKATE bonus at five
-        else { lscore+=1000; specAdd(SPEC_MAX/2); moodEvent(M_TRICK); sfxPlay(SFX_STICK); voxPlay(V_yahoo); lnote="SECRET TAPE  +1000"; lnoteT=100; simEvent(SE_TAPE); }
+        else { lscore+=1000; specAdd(SPEC_MAX/2); moodEvent(M_TRICK); sfxPlay(SFX_STICK); voxPlay(V_yahoo); lnote="SECRET TAPE  +1000"; lnoteT=100; simEvent(SE_TAPE); tgMark(); }
         clTook|=(u8)(1<<i);
         if(clReal&&clTook==clReal){ lscore+=500; specAdd(SPEC_MAX); sfxPlay(SFX_STICK); lnote="LOT CLEARED  +500"; lnoteT=110; }   // every letter and the tape of this lot
     }
@@ -3523,7 +3525,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
             { u8 zz=xo[XO_ZOOM]; xo[XO_ZOOM]=0; hudApplyLayout(); camSnap=1; liveInvalidate(); lifeDraw(); xo[XO_ZOOM]=zz; }   // a whole picture behind the menu (the screen itself only holds patches), not zoomed
             int c=pauseMenu(ed?2:nbPlaying?1:0);
             if(c==PM_SAVE){ if(!sgPid) toast("PICK A PLAYER ON THE PLAY SCREEN"); else { int se=sgSave(); toast(se?slErrMsg(se):"GAME SAVED"); } }
-            else if(c==PM_WANTS){ const char* wsm[4]={"WANTS  FEARS  REWARDS","SKILLS","VIEW TRICKS",trnLabel()}; int w=menu("WANTS AND SKILLS",wsm,4); if(w==0) aspPanel(); else if(w==1) skillsScreen(); else if(w==2) tricksScreen(); else if(w==3) trnPick(); }
+            else if(c==PM_WANTS){ const char* wsm[5]={"WANTS  FEARS  REWARDS","SKILLS","VIEW TRICKS","VIEW GOALS",trnLabel()}; int w=menu("WANTS AND SKILLS",wsm,5); if(w==0) aspPanel(); else if(w==1) skillsScreen(); else if(w==2) tricksScreen(); else if(w==3) goalsScreen(); else if(w==4) trnPick(); }
             else if(c==PM_FAMILY) hhMenu();
             else if(c==PM_STORY) storyScreen();
             else if(c==PM_OPTS){ settingsScreen(); if(!ed&&xo[XO_TUTOR]==2) tutBegin(); }
@@ -4686,6 +4688,7 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "career.h"         // CAREER TRACKS: the screen on the phone (the tracks are in sims.h)
 #include "tvclip.h"       // the TV's 3 second clips (tvClipRun)
 #include "skills.h"         // SKILLS (life and skater) and the home pack items: TV, bookshelf, coffee maker, aquarium, treadmill
+#include "goals.h"          // VIEW GOALS and the tape count per lot (the tape stays found)
 // ---------- main menu (The Sims 3 look): a glossy panel over your town, lit for the time of day of your life's clock ----------
 #define MM_N 7
 static const char* const mmName[MM_N]={"Play","Create a Bore","Build Mode","Toukebox","Room Slots","Options","?"};
