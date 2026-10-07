@@ -90,7 +90,7 @@ static void homeUse(int k){   // R at a home pack item: lnear 11 TV, 12 bookshel
         simCat(simCat(hmMsg,tvN[ch]),sofa?"  COUCH BONUS":""); lnote=hmMsg; lnoteT=70;
     } else if(k==12){
         if(hmBook>=3){ lnote="NO MORE BOOKS TODAY"; lnoteT=50; return; }
-        int g=3-hmBook; if(hmCoffee>0) g++;
+        int g=3-hmBook; if(hmCoffee>0) g++; if(prIn()) g++;   // the prison library counts extra
         lstun=100; hmNeed(&sNrg,-3); hmNeed(&sCom,6); skGain(SK_LOGIC,g); hmBook++;
         simEvent(SE_READ); lnote=hmCoffee>0?"READ A BOOK  STUDY BUZZ":"READ A BOOK"; lnoteT=60;
     } else if(k==13){
@@ -105,7 +105,7 @@ static void homeUse(int k){   // R at a home pack item: lnear 11 TV, 12 bookshel
         if(sNrg<25){ lnote="TOO TIRED TO RUN"; lnoteT=50; return; }
         if(hmRuns>=3){ lnote="JELLY LEGS  TRY TOMORROW"; lnoteT=60; return; }
         hmRuns++; lstun=150; lfood-=12; hmNeed(&sHyg,-20); hmNeed(&sNrg,-15); lbl+=5; if(lbl>99) lbl=99;
-        skGain(SK_BODY,2); hpHeal(8); moodEvent(M_SOFA); simEvent(SE_RUN); lnote="WORKED OUT"; lnoteT=60;
+        skGain(SK_BODY,prIn()?3:2); hpHeal(8); moodEvent(M_SOFA); simEvent(SE_RUN); lnote="WORKED OUT"; lnoteT=60;
     }
 }
 // ---- the SKILLS screen (pause menu > WANTS > SKILLS) ----

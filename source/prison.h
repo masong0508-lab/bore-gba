@@ -19,6 +19,7 @@
 #define PR_LIFE 0xFFFF
 #define PR_BAIL 40   // simoleons per day of sentence bought off (PAY BAIL)
 static u16 prDays EWRAM_BSS, prTot EWRAM_BSS, prRec EWRAM_BSS;   // days left (PR_LIFE = life), the sentence as given, the record not yet punished
+static u8 prVisit EWRAM_BSS, prGTry EWRAM_BSS;   // a family visit is due today; the guards were tried this stay
 static u8 prW1 EWRAM_BSS, prCon EWRAM_BSS, prGood EWRAM_BSS, prTrouble EWRAM_BSS, prCardOn EWRAM_BSS, prInit EWRAM_BSS;   // who is inside (uid + 1, 0 = nobody), convictions, clean days in a row, trouble today, show the booking card
 
 static u8 prSum(const volatile u8*m){ u8 x=0xA7; for(int i=2;i<11;i++) x^=m[i]; return x; }
@@ -116,12 +117,56 @@ static void prDay(void){   // sims.h, every midnight
     if(!prDays||!prW1) return;
     if(!prNorm()){ prDays=prTot=0; prW1=0; prGood=0; prSave(); return; }   // (the one doing time moved out: nobody to keep inside)
     if(prDays!=PR_LIFE){
-        prDays--;
+        prDays--; if(hhN>0&&(rnd8()%3)==0) prVisit=1; else prVisit=0;
         if(prTrouble) prGood=0; else if(prTot>=14&&++prGood>=7&&prDays>1){ prGood=0; prDays--; }   // a clean week earns a day off for good behavior
         prTrouble=0;
         if(!prDays){ prRelease(); return; }
     }
     prSave();
+}
+
+// ---------- guards, visitors and the escape (not saved) ----------
+// GUARDS    While you serve time 2 guards (3 for a long sentence) walk the yard (the cop sprites, copSt 5, the visitor path code). They also lower your escape odds when close.
+// VISITS    Each midnight there is a 1 in 3 chance someone of your household is due; in the afternoon they drop by: comfort and social up, a little fun.
+// ESCAPE    Pause menu > PRISON > ESCAPE: BODY helps, guards within 8 tiles hurt. Out: you are home, WANTED +2, and the cops may raid. Caught: days added and a stun.
+static int prGuardsNear(void){
+    int px=(int)(lfx>>8), py=(int)(lfy>>8), n=0;
+    if(copSt==5) for(int i=0;i<copN;i++){ int dx=px-(int)(copS[i].fx>>8), dy=py-(int)(copS[i].fy>>8); if(fxAbs(dx)+fxAbs(dy)<=8) n++; }
+    return n;
+}
+static void prGuardSpawn(void){
+    int x0,y0,x1,y1; const NbLot*L=&nbT.lot[nbT.cur]; nbRect(L,&x0,&y0,&x1,&y1);
+    int want=(prTot>=140)?3:2; if(want>COP_MAX) want=COP_MAX;
+    copN=0; copSt=0;
+    for(int t=0;t<200&&copN<want;t++){
+        int x=x0+1+(int)(((u32)rnd8()<<8|rnd8())%(unsigned)(x1-x0-1)), y=y0+1+(int)(((u32)rnd8()<<8|rnd8())%(unsigned)(y1-y0-1));
+        if(!hhWalk(x,y)||fxAbs(x-(int)(lfx>>8))+fxAbs(y-(int)(lfy>>8))<6) continue;
+        HhSim*c=&copS[copN]; c->fx=x*256+128; c->fy=y*256+128; c->pn=c->pi=0; c->gok=0; c->stage=AG_ADULT; c->act=HA_WALK; c->hd=0; copRp[copN]=(u8)(20*copN); copN++; }
+    if(copN) copSt=5;
+}
+static void prVisitNow(void){
+    prVisit=0; if(hhN<1) return;
+    int m=(int)(rnd8()%(unsigned)hhN); static char t[40] EWRAM_BSS; char*e=slCat(t,hhM[m].name); slCat(e,"  VISITS YOU");
+    sCom+=10; if(sCom>100) sCom=100; sSoc+=25; if(sSoc>100) sSoc=100; moodEvent(M_SOFA); simEvent(SE_TALK); sfxPlay(SFX_GASP); lnote=t; lnoteT=110;
+}
+static int prGuardTick(int*planned){   // npc.h copTick: 1 = you are doing time, the cops stay out
+    if(!prIn()){ prGTry=0; if(copSt==5){ copSt=0; copN=0; } return 0; }
+    if(copSt!=5){ if(!prGTry){ prGTry=1; prGuardSpawn(); } if(copSt!=5) return 1; }
+    for(int i=0;i<copN;i++){ HhSim*c=&copS[i];
+        if(c->pi>=c->pn){ if(copRp[i]<60) copRp[i]++; if(copRp[i]>=60&&!*planned){ *planned=1; copRp[i]=0; hhPlan(c,0); } }
+        else hhStepAlong(c); }
+    if(prVisit&&simMin>=720&&simMin<1080&&!lstun) prVisitNow();
+    return 1;
+}
+static int prEscape(void){   // 1 = out (the main loop takes you home)
+    int odds=25+skLvl(SK_BODY)*8-prGuardsNear()*15; if(odds<5) odds=5; if(odds>80) odds=80;
+    if((int)(rnd8()*100/256)<odds){
+        prDays=prTot=0; prW1=0; prGood=0; prTrouble=0; prCardOn=0; prSave();
+        copWant=(u8)(copWant+2>6?6:copWant+2); copRaid=1; copCool=0; copHeat=0; skGain(SK_BODY,3);
+        lnote="YOU ESCAPED  THEY WILL COME FOR YOU"; lnoteT=120; prGo=2; return 1; }
+    if(prDays!=PR_LIFE){ int a=prTot/6<5?5:prTot/6; prDays=(u16)(prDays+a>60000?60000:prDays+a); if(prTot<prDays) prTot=prDays; }
+    prTrouble=1; lstun=120; lsp=0; lgrind=0; moodEvent(M_HURT_BIG); sfxPlay(SFX_HIT); prSave();
+    lnote="CAUGHT ON THE FENCE  DAYS ADDED"; lnoteT=110; return 0;
 }
 
 // ---------- switching between the cell and home ----------
@@ -198,15 +243,17 @@ static void prServe(int days){   // skip days in the cell: the clock runs to mid
 }
 static void prisonScreen(void){   // pause menu > PRISON (the STORY tile while a sentence runs)
     for(;;){
-        const char*it[4]; int id[4], n=0;
+        const char*it[5]; int id[5], n=0;
         it[n]="PRISON RECORD"; id[n++]=0;
         if(prIn()){ it[n]="SERVE TIME"; id[n++]=1; }
         if(prIn()&&prDays!=PR_LIFE){ it[n]="PAY BAIL"; id[n++]=3; }
+        if(prIn()){ it[n]="ESCAPE ATTEMPT"; id[n++]=4; }
         it[n]="STORY JOURNAL"; id[n++]=2;
         int c=menu("PRISON",it,n); if(c<0) return;
         if(id[c]==0) prRecord();
         else if(id[c]==1){ static const char* const sv[3]={"SKIP 1 DAY","SKIP 7 DAYS","SKIP 30 DAYS"}; static const u8 dn[3]={1,7,30}; int s=menu("SERVE TIME",sv,3); if(s>=0){ prServe(dn[s]); return; } }
         else if(id[c]==3){ if(prBail()) return; }
+        else if(id[c]==4){ prEscape(); return; }
         else storyScreen();
     }
 }

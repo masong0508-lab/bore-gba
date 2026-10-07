@@ -13,7 +13,7 @@
 #define NPC_OAM0 59
 #define NPC_PALC 12
 #define NPC_PALS 13
-#define SK_N     3
+#define NPC_SKN  3   // (was SK_N: that name is the skill count in sims.h)
 #define NPC_PARK 6
 static const char npcArt[4][32][17]={
  {
@@ -160,10 +160,7 @@ static const u16 npcPal[4][8]={   // 0 clear, 1 outline, 2 skin, 3 hair / hat, 4
     {0,RGB(3,2,4),RGB(23,16,10),RGB(3,3,4),RGB(6,22,10),RGB(14,14,18),RGB(26,22,6),RGB(30,30,30)},
     {0,RGB(3,2,4),RGB(17,11,7),RGB(26,22,4),RGB(8,10,28),RGB(6,8,14),RGB(20,8,22),RGB(30,30,30)} };
 typedef struct { s32 fx, fy; u8 tx, ty, air, face, wait, tries; } NpcSk;
-static NpcSk npcSk[SK_N] EWRAM_BSS; static u8 npcSkN EWRAM_BSS, npcVramOk EWRAM_BSS;
-static HhSim copS EWRAM_BSS;                                   // the cop walks like a visitor: its path, position and speed are an HhSim's
-static u8 copSt EWRAM_BSS, copHeat EWRAM_BSS, copTry EWRAM_BSS, copRp EWRAM_BSS; static u16 copHT EWRAM_BSS, copCool EWRAM_BSS; static short copT EWRAM_BSS;
-static char copMsg[20] EWRAM_BSS;                              // copSt: 0 none, 1 called (waiting), 2 running at you, 3 holding you, 4 walking away
+static NpcSk npcSk[NPC_SKN] EWRAM_BSS; static u8 npcSkN EWRAM_BSS, npcVramOk EWRAM_BSS;
 
 static void npcUpload(void){   // in vblank
     for(int f=0;f<4;f++){
@@ -197,11 +194,11 @@ static void npcSkTick(NpcSk*k){
 }
 static void npcSkSpawn(void){
     npcSkN=0; int n=0; for(int y=0;y<MH;y++) for(int x=0;x<MW;x++) if(npcObjCh(lifeMap[y][x])) n++;
-    if(FLG(1)&&n){   // SKATE FLAGS (main.c): each one spawns a skater (up to SK_N), even on a lot with only a few things to skate
-        for(int f=0;f<FLG(1)&&npcSkN<SK_N;f++){ NpcSk*k=&npcSk[npcSkN++]; k->fx=flgX[1][f]*256+128; k->fy=flgY[1][f]*256+128; k->air=0; k->face=0; k->wait=(u8)(20*npcSkN); k->tries=0; npcAim(k); }
+    if(FLG(1)&&n){   // SKATE FLAGS (main.c): each one spawns a skater (up to NPC_SKN), even on a lot with only a few things to skate
+        for(int f=0;f<FLG(1)&&npcSkN<NPC_SKN;f++){ NpcSk*k=&npcSk[npcSkN++]; k->fx=flgX[1][f]*256+128; k->fy=flgY[1][f]*256+128; k->air=0; k->face=0; k->wait=(u8)(20*npcSkN); k->tries=0; npcAim(k); }
         return; }
     if(n<NPC_PARK) return;
-    for(int t=0;t<200&&npcSkN<SK_N;t++){
+    for(int t=0;t<200&&npcSkN<NPC_SKN;t++){
         int x=(int)(((u32)rnd8()<<8|rnd8())%MW), y=(int)(((u32)rnd8()<<8|rnd8())%MH);
         if(!hhWalk(x,y)||fxAbs(x-(int)(lfx>>8))+fxAbs(y-(int)(lfy>>8))<4) continue;
         NpcSk*k=&npcSk[npcSkN++]; k->fx=x*256+128; k->fy=y*256+128; k->air=0; k->face=0; k->wait=(u8)(20*npcSkN); k->tries=0; npcAim(k); }
@@ -231,7 +228,7 @@ static int copSpawn(void){   // one more cop walks in from a way off the lot
 }
 static void copPlaceAgain(int i){ int a=twFar(); if(a<0) return; HhSim*c=&copS[i]; c->fx=(a%MW)*256+128; c->fy=(a/MW)*256+128; c->pn=c->pi=0; c->gok=0; }
 static void copStart(int max,int fast,int wait){ copSt=1; copN=0; copMax=(u8)(max>COP_MAX?COP_MAX:max); copFast=(u8)fast; copT=(short)wait; copTry=0; copRT=0; copTired=0; }
-static int prNote(int n); static int prBook(void);   // prison.h
+static int prNote(int n); static int prBook(void); static int prGuardTick(int*planned);   // prison.h
 static void copCrime(int n){   // called when you hurt someone
     if(prNote(n)) return;   // prison.h: the record grows (in the prison itself: more days, and no cops)
     if(copCool>0||copSt) return;
@@ -256,6 +253,7 @@ static void copEscape(void){   // you reached the way out: the cops lose you, bu
     lnote="YOU GOT AWAY  THEY REMEMBER"; lnoteT=100;
 }
 static void copTick(int*planned){   // once per logic step (hhTick)
+    if(prGuardTick(planned)) return;   // prison.h: in your cell the guards walk the yard and no cops come
     if(copHeat&&++copHT>=600){ copHT=0; copHeat--; }
     if(copCool) copCool--;
     if(ldead){ if(copSt) copSt=0; copN=0; return; }
@@ -312,10 +310,10 @@ static void npcObjUpdate(void){
     for(int ci=0;ci<COP_MAX;ci++){ volatile u16*e=oam+(ci?NPC_OAM0+3+ci:NPC_OAM0)*4; e[0]=0x200;   // the cops: 59, then 63 and 64 (60..62 are the skaters)
       if(hide||copSt<2||ci>=copN||copS[ci].act==HA_AWAY) continue;
       const HhSim*c=&copS[ci]; int sx,sy; fxScreen(c->fx,c->fy,&sx,&sy); int x=sx-8, y=sy-30;
-      int fr=(copSt==2||copSt==4)&&(((fxT>>3)+ci)&1)?1:0;
+      int fr=(copSt==2||copSt==4||(copSt==5&&c->pi<c->pn))&&(((fxT>>3)+ci)&1)?1:0;
       if(x+16<=vpX0||x>=vpX1||y+32<=sbY0||y>=sbY1) continue;
       e[0]=(u16)((y&255)|0x8000); e[1]=(u16)((x&511)|0x8000|((c->hd==4||c->hd==8)?0x1000:0)); e[2]=(u16)((NPC_TILE+fr*8)|(NPC_PALC<<12)); }
-    for(i=0;i<SK_N;i++){ volatile u16*e=oam+(NPC_OAM0+1+i)*4; e[0]=0x200;
+    for(i=0;i<NPC_SKN;i++){ volatile u16*e=oam+(NPC_OAM0+1+i)*4; e[0]=0x200;
         if(hide||i>=npcSkN) continue;
         const NpcSk*k=&npcSk[i]; int sx,sy; fxScreen(k->fx,k->fy,&sx,&sy);
         int a=k->air, h=a?a*(26-a)/10:0, x=sx-8, y=sy-30-h;
