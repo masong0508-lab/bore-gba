@@ -208,61 +208,109 @@ static void npcSkSpawn(void){
 }
 
 // ---- police ----
+// A crime (punching Sims) may send the cops (copCrime: about 6 times in 10 once the heat is 3, a little likelier with every WANTED star). The cops walk in
+// from the way off the lot (a community flag or an exit) and RUN at you at the pace you run at (2 steps of a walk each logic step = F_RUN): they get NO speed
+// boost, so your BODY skill (skTop) makes you faster than them. They catch you because the chase tires you out (every ~1.5 s of chase costs a point of energy,
+// BODY slows that down) and because BACKUP keeps coming (one more cop every 15 s, up to copMax). To get away, reach the lot's way out (the flags / exits where visitors
+// come in): "YOU GOT AWAY". But they remember you: each escape adds a WANTED star (copWant, up to 6), and every midnight there is a small chance (about 5% a star)
+// that the cops RAID your home lot, with more cops the more stars you have. Being BUSTED clears the stars. Not saved (a new session starts clean).
+#define COP_MAX 3
+static HhSim copS[COP_MAX] EWRAM_BSS;                          // the cops walk like visitors: path, position and speed are an HhSim's. copS[0] leads
+static u8 copN EWRAM_BSS, copMax EWRAM_BSS, copFast EWRAM_BSS, copRp[COP_MAX] EWRAM_BSS;   // cops on the lot, most this chase, raid (backup comes quickly), replan counters
+static u8 copSt EWRAM_BSS, copHeat EWRAM_BSS, copTry EWRAM_BSS, copWant EWRAM_BSS, copRaid EWRAM_BSS; static u16 copHT EWRAM_BSS, copCool EWRAM_BSS, copRT EWRAM_BSS, copTired EWRAM_BSS; static short copT EWRAM_BSS;
+static char copMsg[20] EWRAM_BSS;                              // copSt: 0 none, 1 called (waiting), 2 running at you, 3 holding you, 4 walking away
+static int copHome(void){ return !nbOk||nbT.cur==nbT.home; }    // you are on your own lot
+static int copAtExit(int px,int py){   // you are on or next to a way out of the lot (where visitors come in)
+    if(FLG(0)){ for(int f=0;f<flgN[0];f++){ int dx=px-flgX[0][f], dy=py-flgY[0][f]; if(dx>=-1&&dx<=1&&dy>=-1&&dy<=1) return 1; } return 0; }
+    for(int i=0;i<hhExN;i++){ int dx=px-hhEx[i]%MW, dy=py-hhEx[i]/MW; if(dx>=-1&&dx<=1&&dy>=-1&&dy<=1) return 1; }
+    return 0;
+}
+static int copSpawn(void){   // one more cop walks in from a way off the lot
+    if(copN>=COP_MAX||copN>=copMax) return 0; int a=twFar(); if(a<0) return 0;
+    HhSim*c=&copS[copN]; c->fx=(a%MW)*256+128; c->fy=(a/MW)*256+128; c->pn=c->pi=0; c->gok=0; c->stage=AG_ADULT; c->act=HA_WALK; c->hd=0; copRp[copN]=45; copN++; return 1;
+}
+static void copPlaceAgain(int i){ int a=twFar(); if(a<0) return; HhSim*c=&copS[i]; c->fx=(a%MW)*256+128; c->fy=(a/MW)*256+128; c->pn=c->pi=0; c->gok=0; }
+static void copStart(int max,int fast,int wait){ copSt=1; copN=0; copMax=(u8)(max>COP_MAX?COP_MAX:max); copFast=(u8)fast; copT=(short)wait; copTry=0; copRT=0; copTired=0; }
 static void copCrime(int n){   // called when you hurt someone
     if(copCool>0||copSt) return;
     copHeat=(u8)(copHeat+n>9?9:copHeat+n);
-    if(copHeat>=3){ copSt=1; copT=300+rnd8(); lnote="SOMEONE CALLED THE COPS"; lnoteT=90; }
+    if(copHeat>=3&&(int)rnd8()<150+copWant*15){ copStart(1+(copWant>=2)+(copWant>=4),0,300+rnd8()); lnote="SOMEONE CALLED THE COPS"; lnoteT=90; }   // "there is a chance": not every crime is seen
 }
-static void copPlace(void){ int a=twFar(); if(a<0) return; copS.fx=(a%MW)*256+128; copS.fy=(a/MW)*256+128; copS.pn=copS.pi=0; copS.gok=0; }
+static void copDay(void){   // once a night (sims.h, midnight): the cops that remember you may raid your home
+    if(copHeat) copHeat--;
+    if(!copWant||copRaid) return;
+    if((int)rnd8()<4+copWant*8) copRaid=1;      // a remote chance: about 5% with one star, 20% with six
+    else if((rnd8()&3)==0) copWant--;            // and they forget a little
+}
 static void copArrest(void){
-    int fine=simMoney>=50?50:simMoney; simMoney-=fine; copHeat=0; copSt=3; copT=600; copS.act=HA_IDLE;
+    int fine=simMoney>=50?50:simMoney; simMoney-=fine; copHeat=0; copWant=0; copRaid=0; copSt=3; copT=600; for(int i=0;i<copN;i++) copS[i].act=HA_IDLE;
     moodEvent(M_HURT_BIG); sfxPlay(SFX_HIT); lsp=0; lgrind=0; lscore-=lscore/4;
     simCatN(simCat(copMsg,"BUSTED  JAIL "),10); lnote=copMsg; lnoteT=90;
+}
+static void copEscape(void){   // you reached the way out: the cops lose you, but they remember
+    copSt=0; copN=0; copHeat=0; copCool=1800; if(copWant<6) copWant++;
+    lnote="YOU GOT AWAY  THEY REMEMBER"; lnoteT=100;
 }
 static void copTick(int*planned){   // once per logic step (hhTick)
     if(copHeat&&++copHT>=600){ copHT=0; copHeat--; }
     if(copCool) copCool--;
-    if(ldead){ if(copSt) copSt=0; return; }
-    int px=(int)(lfx>>8), py=(int)(lfy>>8), cx=(int)(copS.fx>>8), cy=(int)(copS.fy>>8), ddx=px-cx, ddy=py-cy;
+    if(ldead){ if(copSt) copSt=0; copN=0; return; }
+    if(copRaid&&!copSt&&!copCool&&copHome()){ copRaid=0; copStart(1+(copWant+1)/2,1,150); lnote="POLICE AT YOUR DOOR"; lnoteT=100; }   // more cops the more they remember
+    int px=(int)(lfx>>8), py=(int)(lfy>>8), i;
     switch(copSt){
     case 1:
         if(--copT>0) break;
-        copPlace(); copS.stage=AG_ADULT; copS.act=HA_WALK; copS.hd=0; copTry=0; copRp=45; copSt=2; lnote="POLICE  FREEZE"; lnoteT=80; break;
-    case 2:
-        if(ddx*ddx+ddy*ddy<=2){ copArrest(); break; }
-        if(copS.pi>=copS.pn||++copRp>=45){
-            if(!*planned){ *planned=1; copRp=0; hhGX=px; hhGY=py; int r=hhPlan(&copS,1);
-                if(r==1){ copArrest(); break; }
-                if(r==0){ if(++copTry>=4){ copSt=0; copHeat=0; } else copPlace(); } } }
-        if(copS.pi<copS.pn){ hhStepAlong(&copS); if(copS.pi<copS.pn) hhStepAlong(&copS); }   // he runs
+        if(copSpawn()){ copSt=2; copRT=copFast?700:0; lnote="POLICE  FREEZE"; lnoteT=80; } else copSt=0;
         break;
+    case 2: {
+        int caught=0;
+        for(i=0;i<copN;i++){ int ddx=px-(int)(copS[i].fx>>8), ddy=py-(int)(copS[i].fy>>8); if(ddx*ddx+ddy*ddy<=2){ caught=1; break; } }
+        if(caught){ copArrest(); break; }
+        if(copAtExit(px,py)){ copEscape(); break; }
+        if(copN<copMax&&++copRT>=900){ copRT=0; if(copSpawn()){ lnote="MORE COPS ARE COMING"; lnoteT=60; } }   // backup: more of them, never faster
+        if(++copTired>=(unsigned)(90+30*skLvl(SK_BODY))){ copTired=0; if(sNrg>0) sNrg--; }   // the chase wears you out (an athlete lasts longer): a tired Sim is slower
+        for(i=0;i<copN;i++){ HhSim*c=&copS[i];
+            if(c->pi>=c->pn||++copRp[i]>=45){
+                if(!*planned){ *planned=1; copRp[i]=0; hhGX=px; hhGY=py; int r=hhPlan(c,1);
+                    if(r==1){ copArrest(); break; }
+                    if(r==0){ if(++copTry>=4){ copSt=0; copN=0; copHeat=0; break; } else copPlaceAgain(i); } } }
+            if(c->pi<c->pn){ hhStepAlong(c); if(c->pi<c->pn) hhStepAlong(c); }   // he runs, at your running pace
+        }
+        break; }
     case 3:
         if(lstun<2) lstun=2; lsp=0; lgrind=0;
         copT--;
         if(copT%60==0&&copT>0){ simCatN(simCat(copMsg,"BUSTED  JAIL "),copT/60); lnote=copMsg; lnoteT=90; }
-        if(copT<=0){ copSt=4; copT=1200; copCool=3600; copHeat=0; lnote="RELEASED  BEHAVE"; lnoteT=90;
-            int a=twFar(); if(a>=0){ hhGX=a%MW; hhGY=a/MW; *planned=1; if(hhPlan(&copS,1)>1){ copS.act=HA_WALK; break; } }
-            copSt=0; }
+        if(copT<=0){ copSt=4; copT=1200; copCool=3600; copHeat=0; lnote="RELEASED  BEHAVE";  lnoteT=90;
+            for(i=0;i<copN;i++){ copS[i].pn=copS[i].pi=0; copS[i].gok=0; copS[i].act=HA_IDLE; } }
         break;
-    case 4:
-        if(--copT<=0||copS.pi>=copS.pn){ copSt=0; break; }
-        hhStepAlong(&copS); break;
+    case 4: {
+        int left=0;
+        if(--copT<=0){ copSt=0; copN=0; break; }
+        for(i=0;i<copN;i++){ HhSim*c=&copS[i]; if(c->act==HA_AWAY) continue;
+            if(c->pn==0){ if(!*planned){ int a=twFar(); *planned=1; if(a>=0){ hhGX=a%MW; hhGY=a/MW; if(hhPlan(c,1)>1){ c->act=HA_WALK; left=1; continue; } } c->act=HA_AWAY; } else left=1; continue; }
+            if(c->pi>=c->pn){ c->act=HA_AWAY; continue; }
+            hhStepAlong(c); left=1; }
+        if(!left) { copSt=0; copN=0; }
+        break; }
     default: break; }
 }
 
 // ---- per step / play start / vblank (fx.h calls these) ----
 static void npcTick(void){ for(int i=0;i<npcSkN;i++) npcSkTick(&npcSk[i]); }
 static void npcPlayStart(void){
-    npcVramOk=0; if(copSt&&copSt!=3) copSt=0;
+    npcVramOk=0; if(copSt&&copSt!=3){ copSt=0; copN=0; }
     npcSkSpawn();
 }
 static void npcObjUpdate(void){
     volatile u16*oam=OAM; if(!npcVramOk){ npcUpload(); npcVramOk=1; }
     int hide=(lcamF>0)||curFl||zoomDma, i;
-    { volatile u16*e=oam+NPC_OAM0*4; e[0]=0x200;
-      if(!hide&&copSt>=2){ int sx,sy; fxScreen(copS.fx,copS.fy,&sx,&sy); int x=sx-8, y=sy-30;
-        int fr=(copSt==2||copSt==4)&&((fxT>>3)&1)?1:0;
-        if(!(x+16<=vpX0||x>=vpX1||y+32<=sbY0||y>=sbY1)){ e[0]=(u16)((y&255)|0x8000); e[1]=(u16)((x&511)|0x8000|((copS.hd==4||copS.hd==8)?0x1000:0)); e[2]=(u16)((NPC_TILE+fr*8)|(NPC_PALC<<12)); } } }
+    for(int ci=0;ci<COP_MAX;ci++){ volatile u16*e=oam+(ci?NPC_OAM0+3+ci:NPC_OAM0)*4; e[0]=0x200;   // the cops: 59, then 63 and 64 (60..62 are the skaters)
+      if(hide||copSt<2||ci>=copN||copS[ci].act==HA_AWAY) continue;
+      const HhSim*c=&copS[ci]; int sx,sy; fxScreen(c->fx,c->fy,&sx,&sy); int x=sx-8, y=sy-30;
+      int fr=(copSt==2||copSt==4)&&(((fxT>>3)+ci)&1)?1:0;
+      if(x+16<=vpX0||x>=vpX1||y+32<=sbY0||y>=sbY1) continue;
+      e[0]=(u16)((y&255)|0x8000); e[1]=(u16)((x&511)|0x8000|((c->hd==4||c->hd==8)?0x1000:0)); e[2]=(u16)((NPC_TILE+fr*8)|(NPC_PALC<<12)); }
     for(i=0;i<SK_N;i++){ volatile u16*e=oam+(NPC_OAM0+1+i)*4; e[0]=0x200;
         if(hide||i>=npcSkN) continue;
         const NpcSk*k=&npcSk[i]; int sx,sy; fxScreen(k->fx,k->fy,&sx,&sy);
