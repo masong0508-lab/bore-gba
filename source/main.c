@@ -2542,7 +2542,7 @@ static void hhStart(void); static void hhTick(void); static int hhSocR(int useLa
 // ---- COLLECTIBLES (like THPS): the letters S K A T E and one hidden tape float over the floor of a skate lot. Touch one to take it. ----
 // Nothing is saved and no map tile is used: lifeInit scatters them over empty floor every run (a new spot each time), so they cost a few bytes of EWRAM
 // and no sprite art (they are drawn in code). A letter counts like a combo letter (sktAward: five make SKATE). Only on lots that have something to skate.
-static int tgFound(void); static void tgMark(void); static void goalsScreen(void);   // goals.h: the tape stays found per lot, VIEW GOALS
+static int tgFound(void); static void tgMark(void); static void tgSeen(void); static void goalsScreen(void);   // goals.h: the tape stays found per lot, VIEW GOALS
 #define CL_N 6   // 0..4 = S K A T E, 5 = the hidden tape
 static u8 clTook EWRAM_BSS, clReal EWRAM_BSS;   // LOT CLEARED: the ones really taken, and the ones that were placed (all taken = a 500 bonus)
 static u8 clx[CL_N] EWRAM_BSS, cly[CL_N] EWRAM_BSS, clGot EWRAM_BSS, clLive EWRAM_BSS;   // tile of each one; a bit per one taken; 1 = this lot has them
@@ -2551,6 +2551,7 @@ static void clPlace(void){
     int i, n=0, x, y, t; clGot=0; clLive=0;
     for(y=0;y<MH;y++)for(x=0;x<MW;x++){ char c=lifeMap[y][x]; if(c=='='||c=='L'||c=='N'||c=='J'||c=='X'||c=='M'||isRamp(c)||isKicker(c)||isQPipe(c)) n++; }
     if(!n) return;   // nothing to skate here: no collectibles
+    tgSeen();   // this lot has a tape: it counts in the town's tape total (goals.h)
     for(i=0;i<CL_N;i++){
         int ok=0;
         for(t=0;t<300&&!ok;t++){
