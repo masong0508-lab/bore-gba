@@ -1081,7 +1081,7 @@ __attribute__((noinline)) static void drawAntennae(void){
     for(int sd=0;sd<2;sd++){
         int u=2*hx+(sd?2*hw-1:1)-W+(sd?1:-1)*(slideEff(look[LK_ANTGAP])/2), w=2*hz+2*hd-1-D-slideEff(look[LK_ANTFB])*hs;   // ANT GAP: wider / closer; ANT FRONT BACK                        // the front corners of the head's top
         int x0,y0,x1,y1,a,b; projC(u,w,ty,&x0,&y0); rotUW(sd?1:-1,0,&a,&b); int lean=(a-b)*(2+slideEff(look[LK_ANTSPR]));   // ANT SPREAD: how far they lean out
-        int len=(an==1?11:12)*hs+slideEffS(look[LK_ANTLEN])*2*hs; if(len<3) len=3; x1=x0+lean;   // ANT LENGTH: two pixels a notch y1=y0-len;
+        int len=(an==1?11:12)*hs+slideEffS(look[LK_ANTLEN])*2*hs; if(len<3) len=3; x1=x0+lean; y1=y0-len;   // ANT LENGTH: two pixels a notch
         line(x0,y0,x1,y1,col); if(an==2){ line(x0+1,y0,x1+1,y1,col); }
         int ts=slideEffS(look[LK_ANTTIP])/2;   // ANT TIP: the bead / eye grows a pixel every two notches
         if(an==1){ int r=1+ts; if(r<0) r=0; rect(x1-r,y1-r,2*r+1,2*r+1,tip); px(x1-r,y1-r,lite(tip,19)); }
