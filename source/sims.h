@@ -318,6 +318,11 @@ static int simWorkday(void){ return (simDay%7)<5; }   // (school and the other S
 static int simJobDay(void){ return (simDay%7)<jobT()->days; }   // your own work days: the track's
 static int simJobFrom(void){ return jobT()->from*60; }
 static int simJobTo(void){ return jobT()->to*60; }
+static int simAtWork(void){   // 0: no WORK MARKER on this map (a normal job's minutes count anywhere), 1: there is one and you are away from it, 2: you stand on or next to one
+    int n=0, px=(int)(lfx>>8), py=(int)(lfy>>8);
+    for(int y=0;y<MH;y++) for(int x=0;x<MW;x++) if(lifeMap[y][x]=='x'){ n=1; if(x>=px-1&&x<=px+1&&y>=py-1&&y<=py+1) return 2; }
+    return n;
+}
 static int simInShift(void){ return ojob()&&simJobDay()&&simMin>=simJobFrom()&&simMin<simJobTo(); }
 static int simQuota(void){ int q=jobQuotaOf(jobTrack,jobLvl,jobBr); return jobTrack==JT_SKATE?q*oQuotaPct()/100:q; }   // (the SKATER QUOTA option is for the skater job only)
 static int simIsNight(void){ return simMin>=SIM_NIGHT_FROM||simMin<SIM_NIGHT_TO; }
@@ -666,8 +671,9 @@ static void ageTick(void){   // once per game day: each stage lasts the days set
 }
 static void simMinute(void){   // once per game minute
     simMin++;
-    if(simMin==simJobFrom()&&simInShift()&&!ldead) simQueue(jobFlav[jobTrack]);   // clocking in: a line for the job
-    if(jobTrack!=JT_SKATE&&simInShift()&&!simAct&&!ldead) shiftPts+=(moodState()==MS_STOKED)?2:1;   // a normal job: work minutes (see jobQuotaOf)
+    if(simMin==simJobFrom()&&simInShift()&&!ldead) simQueue((jobTrack!=JT_SKATE&&simAtWork()==1)?"GO TO YOUR WORK MARKER":jobFlav[jobTrack]);
+    else if(simMin%30==0&&jobTrack!=JT_SKATE&&simInShift()&&!simAct&&!ldead&&lnoteT<=0&&simAtWork()==1){ lnote="NOT AT WORK  FIND THE MARKER"; lnoteT=60; }   // a nudge every half hour   // clocking in: a line for the job
+    if(jobTrack!=JT_SKATE&&simInShift()&&!simAct&&!ldead&&simAtWork()!=1) shiftPts+=(moodState()==MS_STOKED)?2:1;   // a normal job: work minutes (see jobQuotaOf)
     if(simMin==16*60+20&&(simHave&SR_PIPE)&&pipeOk()) simQueue("IT IS 4:20  PUFF PUFF PASS");   // the house gathers at the water pipe (house.h)
     if(simMin>=1440){   // midnight: new day, bills, autosave
         simMin=0; simDay++; if(simDay>30000) simDay=0;

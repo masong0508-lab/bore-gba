@@ -31,6 +31,11 @@ static void drawFlag(int sx,int sy,int skate,int t){   // a flag on a pole, draw
     px(sx-1,sy+1,foot); px(sx,sy+1,foot); px(sx+1,sy+1,foot);
     for(int i=0;i<9;i++){ int w=(i<3?0:(((t+i/2)&3)>>1)); for(int j=0;j<6;j++){ u16 c=(j==2||j==3)?mark:cloth; px(sx+1+i,sy-16+j+w,c); } }
 }
+static void drawWork(int sx,int sy,int t){   // WORK MARKER: a gold diamond pad (it blinks) with a little briefcase on it
+    u16 gold=RGB(31,24,4), lite=RGB(31,29,12), dark=RGB(11,7,1), pad=((t>>2)&1)?lite:gold;
+    for(int j=-3;j<=3;j++){ int w=(3-(j<0?-j:j))*3+1; rect(sx-w,sy+j,2*w+1,1,pad); px(sx-w,sy+j,dark); px(sx+w,sy+j,dark); }
+    rect(sx-3,sy-6,7,5,dark); rect(sx-2,sy-5,5,3,gold); rect(sx-1,sy-7,3,1,dark); px(sx,sy-4,dark);
+}
 // which way an item faces (world dir 0=S(+y) 1=E(+x) 2=N(-y) 3=W(-x)): away from a wall, toward open floor
 static int itemOpen(int x,int y){ if(x<0||y<0||x>=MW||y>=MH) return 0; char c=lifeMap[y][x]; return c=='.'||c=='D'||c=='B'||c=='P'; }
 static int itemFacing(int x,int y){
