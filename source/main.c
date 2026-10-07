@@ -3232,7 +3232,7 @@ static void hhSwap(HhSim*s){   // trade places: the player becomes s, s becomes 
 // ---- the ASPIRATION panel (pause menu): the Sims 2 wants and fears panel, the lifetime want, the reward shop, and the creature's Spore side ----
 // UP DOWN pick a want | A lock it (one at a time: a locked want survives the reroll when you wake up) | R aspiration rewards | B back
 static void aspRewards(void){
-    static char rb[RW_N][24]; const char* it[RW_N];
+    static char rb[RW_N][24] EWRAM_BSS; const char* it[RW_N];
     for(;;){
         for(int r=0;r<RW_N;r++){ char*e=rb[r]; const char*p=simRewNm[r]; while(*p) *e++=*p++; *e++=' '; *e++=' '; e+=numStr(e,simRewCost[r]); *e=0; it[r]=rb[r]; }
         char t[24]; { char*e=t; const char*p="REWARDS  POINTS "; while(*p) *e++=*p++; numStr(e,simAsp); }
@@ -4114,7 +4114,7 @@ static void famAdd(void){
 }
 static void famMenu(void){
     hhLoad(); if(!hhN){ toast("ONLY YOU SO FAR"); return; }
-    static char lb[HH_MAX][32]; const char* it[HH_MAX];
+    static char lb[HH_MAX][32] EWRAM_BSS; const char* it[HH_MAX];
     for(int m=0;m<hhN;m++){ char*e=simCat(lb[m],hhM[m].name); e=simCat(e,"  "); simCat(e,stageNm[hhM[m].stage<AG_N?hhM[m].stage:AG_ADULT]); it[m]=lb[m]; }
     int m=menu("THE FAMILY",it,hhN); if(m<0) return;
     static const char* const act[3]={"EDIT  PLAY AS THEM","MOVE OUT","BACK"}; int c=menu(hhM[m].name,act,3);

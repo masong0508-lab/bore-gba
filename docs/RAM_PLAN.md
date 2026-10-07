@@ -8,7 +8,7 @@ Pointer-holding structs count a little high on the host, so trust the CI table f
 | symbol | bytes | what it is |
 |---|---|---|
 | fb | 76,800 | the 240x160 16-bit frame buffer (mode 3) |
-| hhObj + hhObjS | 53,760 | baked 4bpp hardware sprites for 7 household members (4 views + stride frames) |
+| hhObj + hhObjS (now hhPool) | 53,760 -> 30,720 | baked 4bpp hardware sprites for 7 household members, only the tiles that hold a pixel |
 | spr4 + spr4s | 30,720 | the player's 16-bit baked sprites (CPU drawn) |
 | flPool | 8,192 | packed floors of the house |
 | ob / obs (in hhSwitchFrom) | 7,680 | scratch for switching Sims |
@@ -29,12 +29,24 @@ Pointer-holding structs count a little high on the host, so trust the CI table f
    When you switch to a household member, their 15 colours become the palette (`hhUnquant`). Past 255 colours a new colour snaps to the nearest one.
    The title screen still borrows the same buffer (`tfb`). The hash helpers (`hqKey` ...) moved from house.h to main.c.
 
+3. **Household sprites live in a trimmed pool (about 32 KB of EWRAM saved).** `hhObj` + `hhObjS` (53,760 B of fixed 32-tile views) are gone.
+   `hhPool[30720]` holds, per member, only the 8x8 tiles that contain a pixel: a 32-bit mask per view says which of the 32 tiles exist
+   (`HhSpr.sm`), and the walking frame keeps only the tiles that differ from standing (`HhSpr.dm`, the legs). A member's block is
+   `[standing views 0..3][walking tiles of views 0..3]`. `hhUpTiles` writes the tiles to OBJ VRAM (empty ones as zeros), so what is on screen is byte-identical;
+   OAM, the blend bits and the window (the x-ray look) were not touched. Moving members (SELECT switch, move out) only moves the 36-byte descriptors;
+   `hhSprFree` keeps the pool packed. This also removed the 7.7 KB `ob/obs` scratch of `hhSwitchFrom` (the player goes into the spare descriptor `hhSp[HH_MAX]`),
+   and the 2.3 KB `col/oc/cnt/ob` statics of `hhQuant` now live on `hhDist` (path-finding scratch, always refilled before a search; `HhQs`).
+   If the pool is ever full, a view that does not fit is left empty (no crash): raise `SP_POOL` in house.h if you see a Sim with a missing view.
+   Host test: 4,000 random bake / rebake / move-out / switch steps compared byte for byte against the old layout, peak use 26,976 of 30,720 B.
+4. **IWRAM:** three cold menu buffers (`rb`, `lb`, the interaction menu `it`) moved to EWRAM (about 450 B). IWRAM is almost all hot code (mixers, blit, cube / wall drawing) and the
+   audio mixer's buffers, so it is not touched further without a speed cost.
+
 ## Next, in order of payoff (not done yet: each needs testing on an emulator)
 | # | idea | saves | risk |
 |---|---|---|---|
-| 1 | **Shrink hhObj/hhObjS with transparent-row trimming.** The sprite is 32x64 but the bake is only 60 high and the creature is narrow: store each view as only its used tile rows (plus first/last row numbers) in one shared pool, and copy only those rows into OBJ VRAM (hhObjUpdate already copies per slot, in vblank). Typical Sims use about 60% of the box | about 15-20 KB | medium: touches hhQuant, hhUnquant, hhObjUpdate, the switch code |
-| 2 | **Stride frame as a delta.** hhObjS is 25 KB; only the legs/bob rows differ from standing. Store just the changed tile rows | about 10 KB | medium, same code as 1 |
-| 3 | **One shared scratch pool** (`static u8 pool[8192]` + `#define` views) for buffers that are never live together: hhSwitchFrom `ob/obs` (7.7 KB), hhQuant `col/oc/cnt/ob` (2.3 KB), `udR` (builder only, cleared on entry), `nbTmp`. Each user needs a check that nothing else running at the same time uses the pool | 10-12 KB | medium: aliasing bugs show up only at run time, so add an `assert`-style owner byte per user |
+| 1 | ~~Shrink hhObj/hhObjS with transparent-row trimming.~~ done (tile level, see above). The sprite is 32x64 but the bake is only 60 high and the creature is narrow: store each view as only its used tile rows (plus first/last row numbers) in one shared pool, and copy only those rows into OBJ VRAM (hhObjUpdate already copies per slot, in vblank). Typical Sims use about 60% of the box | about 15-20 KB | medium: touches hhQuant, hhUnquant, hhObjUpdate, the switch code |
+| 2 | ~~Stride frame as a delta.~~ done. hhObjS is 25 KB; only the legs/bob rows differ from standing. Store just the changed tile rows | about 10 KB | medium, same code as 1 |
+| 3 | **One shared scratch pool (the rest of it)** for buffers that are never live together: `udR` (builder only, cleared on entry), `nbTmp` (`ob/obs` and the hhQuant tables are done). Each user needs a check that nothing else running at the same time uses the pool | 10-12 KB | medium: aliasing bugs show up only at run time, so add an `assert`-style owner byte per user |
 | 4 | **Drop `zoomBuf`** and point the zoom DMA straight at `zoomTab` in ROM (it is only read). ROM waits are 3/1 in the FAST mode, about the same as EWRAM, but ROM SPEED = SAFE is 4/2 without prefetch, so test the zoom in both | 2.6 KB | low-medium |
 | 5 | **wpTab pre-shaded at build time** (3.5 KB + 0.9 KB IWRAM): bake in a PC-side tool like bake_items | about 4 KB | low, but needs a new generator |
 | 6 | ~~Player sprite to 8bpp + palette~~ done (see above). Going further: the player as a hardware sprite like the Sims (walls in front need the x-ray trick, the zoom does not scale OBJ) | 15 KB more | high |

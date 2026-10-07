@@ -75,10 +75,16 @@ static u8 hhBubT; static const char* hhBubTxt;   // the word over your head duri
 #define OBJ_PAL  ((volatile u16*)0x05000200)
 #define OAM      ((volatile u16*)0x07000000)
 #define OBJ_B 1024                               // one view: 32 wide x 64 high (tile rows 0..7; the bake is 60 high) x 4bpp = 32 tiles, in 1D order
-static u8 hhObj[HH_MAX][4][OBJ_B] EWRAM_BSS;    // 4 views
-#define STR_B0 128                               // the stride frame: tile rows 1..7 of each view (bytes 128..1023), the rest is as standing
-#define STR_BN 896
-static u8 hhObjS[HH_MAX][4][STR_BN] EWRAM_BSS;
+// SPRITE POOL: a member's 4 views used to be 4 KB (+3.5 KB for the walking frame) each, empty tiles and all. Now only the tiles that hold a pixel are
+// kept, in one shared pool: per view a 32-bit mask says which of the 32 tiles (8x8, 32 bytes, in 1D order) exist, and the walking frame keeps only the
+// tiles that differ from standing (the legs). A member's block in the pool is [standing views 0..3][walking tiles of views 0..3]. Moving members around
+// (switching, moving out) only moves the small descriptors; the bytes stay. Index HH_MAX is a spare descriptor (the player on his way into the pool).
+#define SP_POOL 30720
+#define STR_T0 4                                 // the walking frame can differ from standing in tile rows 1..7 (tiles 4..31)
+typedef struct { u32 sm[4], dm[4]; u16 off, len; } HhSpr;   // sm: standing tiles kept, dm: walking tiles kept; where the block is and how long
+static u8 hhPool[SP_POOL] EWRAM_BSS;
+static HhSpr hhSp[HH_MAX+1] EWRAM_BSS;
+static int hhPoolTop;                            // the blocks are packed: the pool is used up to here
 #define TW_N 2                                   // passers-by (townies): OAM, OBJ VRAM and palettes after the members'
 #define TW_V(k) (HH_MAX-1-(k))                    // VISITORS (the old passers-by): visitor k lives in the empty member place TW_V(k) - its HhSim, sprites
                                                  // and palette are that place's - so they take no RAM of their own and only come while the house has room
@@ -99,8 +105,36 @@ static const signed char hhDx[4]={1,0,-1,0}, hhDy[4]={0,1,0,-1};
 static signed char hhSlotOf[HH_IDS], hhSlotId[OBJ_SLOTS], hhSlotKey[OBJ_SLOTS];   // id -> slot, slot -> id, view*2+frame in the slot (-1: tiles not loaded)
 static u8 hhSlotOk;
 static void hhSlotsFree(void){ for(int i=0;i<HH_IDS;i++) hhSlotOf[i]=-1; for(int s=0;s<OBJ_SLOTS;s++){ hhSlotId[s]=-1; hhSlotKey[s]=-1; } hhSlotOk=1; }   // after anything that changes the baked sprites or who is who
-static inline const u8* hhTiles(int id,int v){ return hhObj[id][v]; }
-static inline const u8* hhStrideB(int id,int v){ return hhObjS[id][v]; }
+static inline int hhPop(u32 x){ int n=0; while(x){ x&=x-1; n++; } return n; }
+static void hhSprFree(int m){   // give a member's block back: everything above it slides down, so the pool stays packed
+    HhSpr*s=&hhSp[m]; int off=s->off, len=s->len;
+    if(len){ for(int i=off;i<hhPoolTop-len;i++) hhPool[i]=hhPool[i+len];
+             for(int k=0;k<=HH_MAX;k++) if(k!=m&&hhSp[k].len&&hhSp[k].off>off) hhSp[k].off=(u16)(hhSp[k].off-len);
+             hhPoolTop-=len; }
+    for(int v=0;v<4;v++) s->sm[v]=s->dm[v]=0; s->off=0; s->len=0;
+}
+static void hhSprBegin(int m){ hhSprFree(m); hhSp[m].off=(u16)hhPoolTop; }   // a new block grows at the top of the pool
+static const u8* hhStTile(int m,int v,int t){   // the standing tile t of view v, or 0 when it is empty
+    const HhSpr*s=&hhSp[m]; if(!((s->sm[v]>>t)&1)) return 0;
+    int n=0; for(int w=0;w<v;w++) n+=hhPop(s->sm[w]);
+    n+=hhPop(s->sm[v]&((1u<<t)-1)); return hhPool+s->off+n*32;
+}
+// the tiles of view v (standing, or the walking frame when f) go into OBJ VRAM at d, from tile t0 on (STR_T0: only what the walking frame changes)
+static void hhUpTiles(volatile u16*d,int id,int v,int f,int t0){
+    const HhSpr*s=&hhSp[id]; u32 sm=s->sm[v], dm=f?s->dm[v]:0; int ns=0, nd=0;
+    for(int w=0;w<4;w++) ns+=hhPop(s->sm[w]);
+    for(int w=0;w<v;w++) nd+=hhPop(s->dm[w]);
+    const u8*sp=hhPool+s->off; for(int w=0;w<v;w++) sp+=32*hhPop(s->sm[w]);
+    const u8*dp=hhPool+s->off+32*ns+32*nd;
+    for(int t=0;t<32;t++){
+        int hs=(sm>>t)&1, hd=(dm>>t)&1; const u16*src=0;
+        if(hd) src=(const u16*)dp; else if(hs) src=(const u16*)sp;
+        if(hs) sp+=32; if(hd) dp+=32;
+        if(t<t0) continue;
+        volatile u16*q=d+t*16;
+        if(src){ for(int k=0;k<16;k++) q[k]=src[k]; } else { for(int k=0;k<16;k++) q[k]=0; }
+    }
+}
 static inline const u16* hhPalOf(int id){ return hhPal[id]; }
 
 // ---- premade families (original characters) ----
@@ -158,8 +192,19 @@ static const HhFam hhFams[]={
 // Colour lookups for the two quantisers: a small open-addressing hash from a 15-bit colour to a slot (key 0xFFFF = empty).
 // The sprites hold about 40 colours, so a lookup is one or two probes instead of a walk through the list.
 // (the hash helpers hqKey / hqVal / hqClear / hqSlot / hqDist are in main.c, next to the sprite palette they also serve)
-static void hhQuant(u8 (*src)[SPW*SPH],u8 (*dst)[OBJ_B],u16*pal){
-    static u16 col[256] EWRAM_BSS, oc[256] EWRAM_BSS; static u32 cnt[256] EWRAM_BSS; static u8 ob[256] EWRAM_BSS; int n=0;
+// scratch for the quantisers, on the path-finding table (hhDist is always filled again before a search, and nothing searches while a Sim is baked)
+typedef struct { u16 col[256], oc[256], cnt[256]; u8 ob[256]; u8 tv[OBJ_B]; } HhQs;   // tv: one view as 32 tiles
+_Static_assert(sizeof(HhQs)<=sizeof(hhDist),"HhQs must fit on hhDist");
+#define hhQs (*(HhQs*)hhDist)
+static void hhPutTiles(int m,u32 mk,const u8*tv,int stride,int v){   // append the tiles in mk (from tv, 32 bytes each) to member m's block; too full: nothing is kept
+    int n=hhPop(mk);
+    if(hhPoolTop+n*32>SP_POOL){ mk=0; n=0; }
+    else { u8*d=hhPool+hhPoolTop; for(int t=0;t<32;t++) if((mk>>t)&1){ const u8*q=tv+t*32; for(int i=0;i<32;i++) *d++=q[i]; }
+           hhPoolTop+=n*32; hhSp[m].len=(u16)(hhSp[m].len+n*32); }
+    if(stride) hhSp[m].dm[v]=mk; else hhSp[m].sm[v]=mk;
+}
+static void hhQuant(u8 (*src)[SPW*SPH],int m,u16*pal){   // the 4 standing views of the sprite set into member m's block (m = HH_MAX: the spare)
+    u16*col=hhQs.col, *oc=hhQs.oc, *cnt=hhQs.cnt; u8*ob=hhQs.ob; u8*tv=hhQs.tv; int n=0;
     hqClear();
     for(int v=0;v<4;v++)for(int i=0;i<SPW*SPH;i++){ u16 c=spC(src[v][i]); if(c==SKY) continue; int h=hqSlot(c), k;
         if(hqKey[h]==0xFFFF){ if(n==256) continue; hqKey[h]=c; hqVal[h]=(u8)n; col[n]=c; cnt[n]=0; k=n++; } else k=hqVal[h];
@@ -168,40 +213,57 @@ static void hhQuant(u8 (*src)[SPW*SPH],u8 (*dst)[OBJ_B],u16*pal){
     while(n>15){   // merge the two closest colours (weighted by how often they appear) until 15 are left
         int ba=0, bb=1, bd=1<<30;
         for(int a=0;a<n;a++)for(int b=a+1;b<n;b++){ int d=hqDist(col[a],col[b])*(int)(cnt[a]<cnt[b]?cnt[a]:cnt[b]); if(d<bd){ bd=d; ba=a; bb=b; } }
-        u32 w=cnt[ba]+cnt[bb]; if(!w) w=1;
-        int r=(int)(((col[ba]&31)*cnt[ba]+(col[bb]&31)*cnt[bb])/w), g=(int)((((col[ba]>>5)&31)*cnt[ba]+((col[bb]>>5)&31)*cnt[bb])/w), bl=(int)((((col[ba]>>10)&31)*cnt[ba]+((col[bb]>>10)&31)*cnt[bb])/w);
+        u32 w=(u32)cnt[ba]+cnt[bb]; if(!w) w=1;
+        int r=(int)(((col[ba]&31)*(u32)cnt[ba]+(col[bb]&31)*(u32)cnt[bb])/w), g=(int)((((col[ba]>>5)&31)*(u32)cnt[ba]+((col[bb]>>5)&31)*(u32)cnt[bb])/w), bl=(int)((((col[ba]>>10)&31)*(u32)cnt[ba]+((col[bb]>>10)&31)*(u32)cnt[bb])/w);
         if(cnt[bb]>cnt[ba]) col[ba]=col[bb]; else if(cnt[ba]==cnt[bb]) col[ba]=(u16)(r|(g<<5)|(bl<<10));   // keep the commoner one exact (faces stay crisp)
-        cnt[ba]=w; col[bb]=col[n-1]; cnt[bb]=cnt[n-1]; n--; }
+        cnt[ba]=(u16)w; col[bb]=col[n-1]; cnt[bb]=cnt[n-1]; n--; }
     pal[0]=0; for(int k=0;k<15;k++) pal[k+1]=k<n?col[k]:0;
     for(int j=0;j<n0;j++){ u16 c=oc[j]; int best=1, bd=1<<30;   // the nearest palette entry, once per colour found (not once per pixel)
         for(int k=0;k<n;k++){ int d=hqDist(c,col[k]); if(d<bd){ bd=d; best=k+1; if(!d) break; } } ob[j]=(u8)best; }
+    hhSprBegin(m);
     for(int v=0;v<4;v++){
-        for(int i=0;i<OBJ_B;i++) dst[v][i]=0;
+        for(int i=0;i<OBJ_B;i++) tv[i]=0;
         for(int y=0;y<SPH;y++)for(int x=0;x<SPW;x++){ u16 c=spC(src[v][y*SPW+x]); if(c==SKY) continue;
             int h=hqSlot(c), best;
             if(hqKey[h]==c) best=ob[hqVal[h]];
             else { int bd=1<<30; best=1; for(int k=0;k<n;k++){ int d=hqDist(c,col[k]); if(d<bd){ bd=d; best=k+1; if(!d) break; } } }   // (past 256 colours: not in the table)
-            int t=(y>>3)*4+(x>>3), o=t*32+(y&7)*4+((x&7)>>1); dst[v][o]|=(u8)(best<<((x&1)*4)); }
+            int t=(y>>3)*4+(x>>3), o=t*32+(y&7)*4+((x&7)>>1); tv[o]|=(u8)(best<<((x&1)*4)); }
+        u32 mk=0; for(int t=0;t<32;t++){ const u8*q=tv+t*32; for(int i=0;i<32;i++) if(q[i]){ mk|=1u<<t; break; } }   // the tiles that hold a pixel
+        hhPutTiles(m,mk,tv,0,v);
     }
 }
-static void hhQuantS(u8 (*src)[SPW*SPH],u8 (*dst)[STR_BN],const u16*pal){   // the stride band, in the palette the standing frame chose
-    hqClear(); int used=0;
+static void hhQuantS(u8 (*src)[SPW*SPH],int m,const u16*pal){   // the walking frame, in the palette the standing frame chose: only the tiles that differ from standing are kept
+    u8*tv=hhQs.tv; hqClear(); int used=0;
     for(int v=0;v<4;v++){
-        for(int i=0;i<STR_BN;i++) dst[v][i]=0;
+        for(int i=0;i<OBJ_B;i++) tv[i]=0;
         for(int y=STR_Y0;y<STR_Y1&&y<SPH;y++)for(int x=0;x<SPW;x++){ u16 c=spC(src[v][y*SPW+x]); if(c==SKY) continue;
             int h=hqSlot(c), best;
             if(hqKey[h]==c) best=hqVal[h];
             else { int bd=1<<30; best=1; for(int k=1;k<16;k++){ int d=hqDist(c,pal[k]); if(d<bd){ bd=d; best=k; if(!d) break; } }
                    if(used<HQ_N*3/4){ hqKey[h]=c; hqVal[h]=(u8)best; used++; } }   // remembered: the next pixel of this colour is one lookup
-            int t=(y>>3)*4+(x>>3), o=t*32+(y&7)*4+((x&7)>>1)-STR_B0; dst[v][o]|=(u8)(best<<((x&1)*4)); }
+            int t=(y>>3)*4+(x>>3), o=t*32+(y&7)*4+((x&7)>>1); tv[o]|=(u8)(best<<((x&1)*4)); }
+        u32 mk=0;   // tile row 0 is as standing; below it, keep a tile only if it is not what standing has there
+        for(int t=STR_T0;t<32;t++){ const u8*a=tv+t*32, *b=hhStTile(m,v,t); int df=0; for(int i=0;i<32;i++) if(a[i]!=(b?b[i]:0)){ df=1; break; } if(df) mk|=1u<<t; }
+        hhPutTiles(m,mk,tv,1,v);
     }
 }
-static void hhUnquantS(u8 (*src)[STR_BN],const u16*pal,u8 (*dst)[SPW*SPH]){   // a stride band back over a copy of the standing frame
-    for(int v=0;v<4;v++)for(int y=STR_Y0;y<STR_Y1&&y<SPH;y++)for(int x=0;x<SPW;x++){ int t=(y>>3)*4+(x>>3), o=t*32+(y&7)*4+((x&7)>>1)-STR_B0, k=(src[v][o]>>((x&1)*4))&15; dst[v][y*SPW+x]=(u8)k; }   // (the sprite palette is the member's own: see hhUnquant)
+// one view of member m as a full 32-tile picture in out: the standing frame, or (f) the walking frame
+static void hhViewImg(int m,int v,int f,u8*out){
+    for(int i=0;i<OBJ_B;i++) out[i]=0;
+    for(int t=0;t<32;t++){ const u8*q=hhStTile(m,v,t); if(q) for(int i=0;i<32;i++) out[t*32+i]=q[i]; }
+    if(f){ const HhSpr*s=&hhSp[m]; int ns=0, nd=0; for(int w=0;w<4;w++) ns+=hhPop(s->sm[w]); for(int w=0;w<v;w++) nd+=hhPop(s->dm[w]);
+           const u8*dp=hhPool+s->off+32*ns+32*nd;
+           for(int t=0;t<32;t++) if((s->dm[v]>>t)&1){ for(int i=0;i<32;i++) out[t*32+i]=dp[i]; dp+=32; } }
 }
-static void hhUnquant(u8 (*src)[OBJ_B],const u16*pal,u8 (*dst)[SPW*SPH]){   // back to full sprites (when a member becomes the one you control): the 15 colours become the sprite palette
-    sprPal[0]=SKY; for(int k=1;k<16;k++) sprPal[k]=pal[k]; sprN=16;
-    for(int v=0;v<4;v++)for(int y=0;y<SPH;y++)for(int x=0;x<SPW;x++){ int t=(y>>3)*4+(x>>3), o=t*32+(y&7)*4+((x&7)>>1), k=(src[v][o]>>((x&1)*4))&15; dst[v][y*SPW+x]=(u8)k; }
+static void hhUnquantS(int m,const u16*pal,u8 (*dst)[SPW*SPH]){   // the walking frame back over a copy of the standing frame
+    (void)pal; u8*tv=hhQs.tv;
+    for(int v=0;v<4;v++){ hhViewImg(m,v,1,tv);
+        for(int y=STR_Y0;y<STR_Y1&&y<SPH;y++)for(int x=0;x<SPW;x++){ int t=(y>>3)*4+(x>>3), o=t*32+(y&7)*4+((x&7)>>1), k=(tv[o]>>((x&1)*4))&15; dst[v][y*SPW+x]=(u8)k; } }   // (the sprite palette is the member's own: see hhUnquant)
+}
+static void hhUnquant(int m,const u16*pal,u8 (*dst)[SPW*SPH]){   // back to full sprites (when a member becomes the one you control): the 15 colours become the sprite palette
+    sprPal[0]=SKY; for(int k=1;k<16;k++) sprPal[k]=pal[k]; sprN=16; u8*tv=hhQs.tv;
+    for(int v=0;v<4;v++){ hhViewImg(m,v,0,tv);
+        for(int y=0;y<SPH;y++)for(int x=0;x<SPW;x++){ int t=(y>>3)*4+(x>>3), o=t*32+(y&7)*4+((x&7)>>1), k=(tv[o]>>((x&1)*4))&15; dst[v][y*SPW+x]=(u8)k; } }
 }
 static void spBounds(void){   // the box that holds every opaque pixel of the player's four views (blits and redraw rectangles stay inside it)
     spBx0=SPW; spBx1=0; spBy0=SPH; spBy1=0;
@@ -222,7 +284,7 @@ static void hhRandLook(u8*lk,u8*stg){   // a made-up Sim: passers-by, and SELECT
 // The key is a hash of everything the bake reads: the voxels, the face sprites, the colour tables, the look, the age stage, the hand-built
 // flag, the unlock flag and every option. Equal key = an identical picture, so a Sim that did not change is not drawn again (coming back
 // from the editor, a slot, the pause menu, growing up ...). Keys follow their sprites when members move (hhRemove); hhSwitch drops them.
-static u32 hhKey[HH_MAX];   // per member: the key hhObj / hhObjS / hhPal were baked from (0 = unknown)
+static u32 hhKey[HH_MAX];   // per member: the key the pool block and hhPal were baked from (0 = unknown)
 static u8 twKeep;           // the visitors already picked are kept (new faces when you move to another lot or start a new life)
 static u8 twWel[TW_N];      // visitor k is the WELCOME visit: the first neighbour of a new home rings the bell soon after you move in (twPick), at night too, and brings a gift
 static u8 twHas[TW_N], twOn[TW_N]; static short twWait[TW_N]={240,900}; static char twFrom[TW_N][12];   // visitor k: set up, on the lot (1 coming, 2 staying, 3 going), the lot they live on
@@ -254,8 +316,8 @@ static void hhBakeAll(void){
         for(int i=0;i<LK_N;i++) look[i]=hhM[m].look[i]; stage=hhM[m].stage;
         buildLook(); setColors(); u32 k=bakeKey(); if(k==hhKey[m]) continue;   // unchanged since the last bake
         ldShow("GETTING THE SIMS READY",m,hhN+TW_N+1);
-        bakeInto(spr4); hhQuant(spr4,hhObj[m],hhPal[m]);
-        strideK=1; bakeInto(spr4s); strideK=0; hhQuantS(spr4s,hhObjS[m],hhPal[m]); hhKey[m]=k; scratch=1;
+        bakeInto(spr4); hhQuant(spr4,m,hhPal[m]);
+        strideK=1; bakeInto(spr4s); strideK=0; hhQuantS(spr4s,m,hhPal[m]); hhKey[m]=k; scratch=1;
     }
     if(!twKeep) twPick();   // who visits (new faces on another lot or in a new life)
     twKeep=1;
@@ -263,8 +325,8 @@ static void hhBakeAll(void){
         for(int i=0;i<LK_N;i++) look[i]=hhM[v].look[i]; stage=hhM[v].stage;
         buildLook(); setColors(); u32 kk=bakeKey(); if(kk==hhKey[v]) continue;
         ldShow("GETTING THE NEIGHBORS READY",hhN+k,hhN+TW_N+1);
-        bakeInto(spr4); hhQuant(spr4,hhObj[v],hhPal[v]);
-        strideK=1; bakeInto(spr4s); strideK=0; hhQuantS(spr4s,hhObjS[v],hhPal[v]); hhKey[v]=kk; scratch=1;
+        bakeInto(spr4); hhQuant(spr4,v,hhPal[v]);
+        strideK=1; bakeInto(spr4s); strideK=0; hhQuantS(spr4s,v,hhPal[v]); hhKey[v]=kk; scratch=1;
     }
     for(int i=0;i<LK_N;i++) look[i]=sl[i]; stage=sst;
     for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ vox[y][z][x]=sv[y][z][x]; dec[y][z][x]=sd[y][z][x]; }
@@ -314,7 +376,9 @@ static int hhAdd(const u8*lk,int stg,int asp,int ltw,const u8*tr){   // a new me
 static void hhRemove(int m){   // moves out: their sprites and relationships go with them
     if(m<0||m>=hhN) return;
     int a=hhM[m].uid; for(int u=0;u<HU_N;u++){ relD[a][u]=relD[u][a]=0; relL[a][u]=relL[u][a]=0; relF[a][u]=relF[u][a]=0; kin[a][u]=kin[u][a]=0; }
-    for(int k=m;k<hhN-1;k++){ hhM[k]=hhM[k+1]; for(int v=0;v<4;v++){ for(int i=0;i<OBJ_B;i++) hhObj[k][v][i]=hhObj[k+1][v][i]; for(int i=0;i<STR_BN;i++) hhObjS[k][v][i]=hhObjS[k+1][v][i]; } for(int i=0;i<16;i++) hhPal[k][i]=hhPal[k+1][i]; }
+    hhSprFree(m);   // their sprites go back to the pool; the others only move their descriptors
+    for(int k=m;k<hhN-1;k++){ hhM[k]=hhM[k+1]; hhSp[k]=hhSp[k+1]; for(int i=0;i<16;i++) hhPal[k][i]=hhPal[k+1][i]; }
+    if(hhN-1>m){ HhSpr*z=&hhSp[hhN-1]; for(int v=0;v<4;v++) z->sm[v]=z->dm[v]=0; z->off=0; z->len=0; }   // (no second descriptor for the same block)
     for(int k=m;k<hhN-1;k++) hhKey[k]=hhKey[k+1]; hhKey[hhN-1]=0;   // the keys move with the sprites
     hhN--; hhSlotsFree();
 }
@@ -784,7 +848,7 @@ static int hhSocR(int useLabel){   // 1 = handled (a social, or the menu was clo
     if(m>=hhN) return hhVisitorTalk(m,useLabel);   // a neighbour: they keep no relationship slot, so their own small menu
     HhSim*s=&hhM[m]; int b=s->uid, a=hhPUid;
     if(s->act==HA_USE){ lnote="THEY ARE BUSY"; lnoteT=50; return 0; }
-    static const char* it[SC_N+1]; static char tl[40] EWRAM_BSS; int id[SC_N+1], cat[SC_N+1], n=0;   // (cat: the pie's category, 0 FRIENDLY 1 FUN 2 ROMANTIC 3 MEAN 4 USE)
+    static const char* it[SC_N+1] EWRAM_BSS; static char tl[40] EWRAM_BSS; int id[SC_N+1], cat[SC_N+1], n=0;   // (cat: the pie's category, 0 FRIENDLY 1 FUN 2 ROMANTIC 3 MEAN 4 USE)
     static const char* const useNm[6]={0,"USE THE FRIDGE","USE THE TOILET","SLEEP IN BED","TAKE A SHOWER","SIT ON SOFA"}; static const char* const useNm2[5]={"WATCH TV","READ A BOOK","MAKE COFFEE","FEED THE FISH","RUN ON TREADMILL"};
     static const u8 socCat[SC_N]={0,1,0,0,0,1,2,2,2,0,3,3,3,3,1};   // TALK JOKE COMPL HIGH5 HUG TRICK FLIRT KISS STEADY SORRY ARGUE INSULT SLAP PUNCH PASS
     if((useLabel>0&&useLabel<6)||useLabel>=8){ it[n]=useLabel==8?"USE THE PHONE":useLabel>=11?useNm2[useLabel-11]:useLabel>=9?"TUNE THE RADIO":useNm[useLabel]; cat[n]=4; id[n++]=-1; }
@@ -906,8 +970,7 @@ static void fxObjUpdate(void); static void hhObjUpdate0(void){   // in vblank: h
             if(full&&budget<=0){ if(ov<0) continue; }   // no time left: a new sprite appears next frame, one that only turned keeps its old view for a frame or two
             else { if(full) budget--;
                 volatile u16*d=OBJ_VRAM+sl*(OBJ_B/2); hhSlotKey[sl]=(signed char)key;
-                if(full){ const u16*sp=(const u16*)hhTiles(id,v); for(int k=0;k<OBJ_B/2;k++) d[k]=sp[k]; }
-                const u16*sp=f?(const u16*)hhStrideB(id,v):(const u16*)(hhTiles(id,v)+STR_B0); for(int k=0;k<STR_BN/2;k++) d[STR_B0/2+k]=sp[k]; } }
+                hhUpTiles(d,id,v,f,full?0:STR_T0); } }   // the whole view, or only the tiles the walking frame can change
         volatile u16*e=oam+nOam*4; int tile=512+sl*32, y=o->y, x=o->x, blend=(hhBehindAt(o->s->fx,o->s->fy)||hhPlayerFront(x,y))?0x400:0;
         if(zoomDma){   // ZOOM: scaled up by the hardware (affine, double size: a 64 x 128 box, matrix 0) and placed where its room pixels are on screen
             int X=(x+16-vpX0)*zoomNum/zoomDen-32, Y=sbY0+(y+32-vpY0)*zoomNum/zoomDen-64;
@@ -962,23 +1025,24 @@ static void hhSwitchTo(int m){   // pause menu > HOUSEHOLD > SWITCH TO A SIM: co
     hhSwitchFrom(m);
 }
 static void hhSwitchFrom(int f){   // the first f members go to the back of the line, then you trade places with the one in front
-    static u8 ob[4][OBJ_B] EWRAM_BSS, obs[4][STR_BN] EWRAM_BSS;   // one buffer pair for the whole switch (the rotation below and the player's sprite after it never overlap)
-    while(f-->0){   // (with their sprites)
-        HhSim t=hhM[0]; u16 p1[16];
-        for(int v=0;v<4;v++){ for(int i=0;i<OBJ_B;i++) ob[v][i]=hhObj[0][v][i]; for(int i=0;i<STR_BN;i++) obs[v][i]=hhObjS[0][v][i]; } for(int i=0;i<16;i++) p1[i]=hhPal[0][i];
-        for(int m=0;m<hhN-1;m++){ hhM[m]=hhM[m+1]; for(int v=0;v<4;v++){ for(int i=0;i<OBJ_B;i++) hhObj[m][v][i]=hhObj[m+1][v][i]; for(int i=0;i<STR_BN;i++) hhObjS[m][v][i]=hhObjS[m+1][v][i]; } for(int i=0;i<16;i++) hhPal[m][i]=hhPal[m+1][i]; }
-        hhM[hhN-1]=t; for(int v=0;v<4;v++){ for(int i=0;i<OBJ_B;i++) hhObj[hhN-1][v][i]=ob[v][i]; for(int i=0;i<STR_BN;i++) hhObjS[hhN-1][v][i]=obs[v][i]; } for(int i=0;i<16;i++) hhPal[hhN-1][i]=p1[i];
+    while(f-->0){   // (with their sprites: only the descriptors move, the pool bytes stay where they are)
+        HhSim t=hhM[0]; HhSpr s0=hhSp[0]; u16 p1[16];
+        for(int i=0;i<16;i++) p1[i]=hhPal[0][i];
+        for(int m=0;m<hhN-1;m++){ hhM[m]=hhM[m+1]; hhSp[m]=hhSp[m+1]; for(int i=0;i<16;i++) hhPal[m][i]=hhPal[m+1][i]; }
+        hhM[hhN-1]=t; hhSp[hhN-1]=s0; for(int i=0;i<16;i++) hhPal[hhN-1][i]=p1[i];
     }
     HhSim t=hhM[0]; for(int m=0;m<hhN-1;m++) hhM[m]=hhM[m+1];   // the player goes to the back of the line, the first member steps in
     hhSwap(&t); hhM[hhN-1]=t;
     u16 pl[16];
-    hhQuant(spr4,ob,pl);                   // the one you leave: down to a hardware sprite
-    hhQuantS(spr4s,obs,pl);
-    hhUnquant(hhObj[0],hhPal[0],spr4);     // the member you take over: back to a full 16-bit sprite
+    hhQuant(spr4,HH_MAX,pl);               // the one you leave: down to a hardware sprite (in the spare descriptor: the member stepping in is still in the pool)
+    hhQuantS(spr4s,HH_MAX,pl);
+    hhUnquant(0,hhPal[0],spr4);            // the member you take over: back to a full sprite
     for(int v=0;v<4;v++)for(int i=0;i<SPW*SPH;i++) spr4s[v][i]=spr4[v][i];
-    hhUnquantS(hhObjS[0],hhPal[0],spr4s);
-    for(int m=0;m<hhN-1;m++){ for(int v=0;v<4;v++){ for(int i=0;i<OBJ_B;i++) hhObj[m][v][i]=hhObj[m+1][v][i]; for(int i=0;i<STR_BN;i++) hhObjS[m][v][i]=hhObjS[m+1][v][i]; } for(int i=0;i<16;i++) hhPal[m][i]=hhPal[m+1][i]; }
-    for(int v=0;v<4;v++){ for(int i=0;i<OBJ_B;i++) hhObj[hhN-1][v][i]=ob[v][i]; for(int i=0;i<STR_BN;i++) hhObjS[hhN-1][v][i]=obs[v][i]; } for(int i=0;i<16;i++) hhPal[hhN-1][i]=pl[i];
+    hhUnquantS(0,hhPal[0],spr4s);
+    hhSprFree(0);                          // (their block is no longer needed)
+    for(int m=0;m<hhN-1;m++){ hhSp[m]=hhSp[m+1]; for(int i=0;i<16;i++) hhPal[m][i]=hhPal[m+1][i]; }
+    hhSp[hhN-1]=hhSp[HH_MAX]; for(int i=0;i<16;i++) hhPal[hhN-1][i]=pl[i];
+    { HhSpr*z=&hhSp[HH_MAX]; for(int v=0;v<4;v++) z->sm[v]=z->dm[v]=0; z->off=0; z->len=0; }   // the spare is empty again
     spBounds();
     for(int m=0;m<HH_MAX;m++) hhKey[m]=0; sprKey=0;   // sprites moved around and the player's came from a hardware sprite: bake them again next time
     hhSlotsFree();
