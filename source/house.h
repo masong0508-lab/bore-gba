@@ -1203,20 +1203,31 @@ static void hhStart(void){   // entering the life game: load the household and s
 // ---- switching who you control ----
 static void hhSwap(HhSim*s);   // main.c: trades the player's position, needs, look and persona with s
 static void hhSwitchFrom(int f);
+static int hhOnOtherFloor(int m){ return xo[XO_MULTIFL]&&hhM[m].act==HA_AWAY&&hhUp[m]>0&&hhFl[m]<FLR_N&&hhFl[m]!=curFl&&!prHeld(&hhM[m]); }   // floors fix: parked on another floor (not out at work): you can still switch to them, you go to their floor
 static void hhSwitch(void){   // SELECT: control the next Sim of the household who is at home
     if(!hhN) return;
     int f=0; while(f<hhN&&hhM[f].act==HA_AWAY) f++;
+    if(f>=hhN){ f=0; while(f<hhN&&!hhOnOtherFloor(f)) f++; }   // nobody else on this floor: a Sim parked on another floor (you go to them)
     if(f>=hhN){ lnote="EVERYONE IS OUT"; lnoteT=90; return; }
     hhSwitchFrom(f);
 }
 static void hhSwitchTo(int m){   // pause menu > HOUSEHOLD > SWITCH TO A SIM: control member m (the ones before it go to the back of the line, as SELECT does)
     if(m<0||m>=hhN) return;
     if(prSwitchHook(m)) return;   // prison.h: between the cell and home
-    if(hhM[m].act==HA_AWAY){ toast("THEY ARE OUT RIGHT NOW"); return; }
+    if(hhM[m].act==HA_AWAY&&!hhOnOtherFloor(m)){ toast("THEY ARE OUT RIGHT NOW"); return; }
     if(custom){ toast("HAND BUILT SIMS CANNOT SWITCH"); return; }
     hhSwitchFrom(m);
 }
 static void hhSwitchFrom(int f){   // the first f members go to the back of the line, then you trade places with the one in front
+    int swX=-1, swY=-1, swFrom; if(pkHome>=0) peekEnd(); swFrom=curFl;   // (looking at another floor: back on your own first)
+    if(f>=0&&f<hhN&&hhOnOtherFloor(f)){   // floors fix: switching to a Sim parked on another floor. You go to their floor first (nothing changes if it will not fit) and arrive at the stairs, as when you climb them
+        int tf=hhFl[f], tx=(int)(lfx>>8), ty=(int)(lfy>>8), fd=-1; char from=tf>curFl?'^':'~', want=tf>curFl?'~':'^';
+        for(int y=0;y<MH&&fd<0;y++)for(int x=0;x<MW;x++) if(lifeMap[y][x]==from){ tx=x; ty=y; fd=y; break; }
+        if(!flGo(tf)){ toast("TOO MUCH BUILT TO CHANGE FLOOR"); return; }
+        swX=tx; swY=ty; fd=-1;
+        for(int y=0;y<MH&&fd<0;y++)for(int x=0;x<MW;x++) if(lifeMap[y][x]==want){ swX=x; swY=y; fd=y; break; }
+        if(lifeMap[swY][swX]!=want){ lifeMap[swY][swX]=want; wDirty=1; }   // no stairs there yet: they appear where you came from (as flStairs does)
+    }
     while(f-->0){   // (with their sprites: only the descriptors move, the pool bytes stay where they are)
         HhSim t=hhM[0]; HhSpr s0=hhSp[0]; u16 p1[16];
         for(int i=0;i<16;i++) p1[i]=hhPal[0][i];
@@ -1224,7 +1235,7 @@ static void hhSwitchFrom(int f){   // the first f members go to the back of the 
         hhM[hhN-1]=t; hhSp[hhN-1]=s0; { u8 a=hhFl[0]; u16 b=hhUp[0]; for(int m=0;m<hhN-1;m++){ hhFl[m]=hhFl[m+1]; hhUp[m]=hhUp[m+1]; } hhFl[hhN-1]=a; hhUp[hhN-1]=b; } for(int i=0;i<16;i++) hhPal[hhN-1][i]=p1[i];
     }
     HhSim t=hhM[0]; for(int m=0;m<hhN-1;m++) hhM[m]=hhM[m+1];   // the player goes to the back of the line, the first member steps in
-    hhSwap(&t); hhM[hhN-1]=t; for(int m=0;m<hhN-1;m++){ hhFl[m]=hhFl[m+1]; hhUp[m]=hhUp[m+1]; } hhFl[hhN-1]=xo[XO_MULTIFL]?(u8)curFl:0; hhUp[hhN-1]=0;
+    hhSwap(&t); hhM[hhN-1]=t; for(int m=0;m<hhN-1;m++){ hhFl[m]=hhFl[m+1]; hhUp[m]=hhUp[m+1]; } hhFl[hhN-1]=xo[XO_MULTIFL]?(u8)swFrom:0; hhUp[hhN-1]=0;
     u16 pl[16];
     hhQuant(spr4,HH_MAX,pl);               // the one you leave: down to a hardware sprite (in the spare descriptor: the member stepping in is still in the pool)
     hhQuantS(spr4s,HH_MAX,pl);
@@ -1238,6 +1249,7 @@ static void hhSwitchFrom(int f){   // the first f members go to the back of the 
     spBounds();
     for(int m=0;m<HH_MAX;m++) hhKey[m]=0;
     sprKey=0;   // sprites moved around and the player's came from a hardware sprite: bake them again next time
+    if(swX>=0){ lfx=swX*256+128; lfy=swY*256+128; lz=lvz=0; flArm=0; lnote=flNm[curFl]; lnoteT=60; camSnap=1; liveInvalidate(); }   // floors fix: you arrive at the stairs of the Sim's floor
     hhSlotsFree();
 }
 
