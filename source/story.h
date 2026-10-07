@@ -101,7 +101,6 @@ static int stDone(const StCh*c){   // is the chapter's goal met?
 // so a story has 5. Half of all of them (the missions of every story in the game) unlock CLOSER TO THE END and TREE-AGE IN ACTION.
 // Lives in story.h (it needs STY_N). Saved in the jukebox block at JB_OFF+40: 'M' 'S', 8 bytes (a bit per mission: story-1 * 5 + chapter, room for 12 stories), the bytes xor 0x5A (appended; nothing moved).
 #define SM_PER 5
-#define SM_NEED 18
 static int jbStoryCount(int story){   // how many missions of a story are done (read only; 0 when the block is missing or damaged)
     if(story<1||story>=STY_N) return 0;
     volatile u8*m=SRAM_BASE+JB_OFF+40; if(m[0]!='M'||m[1]!='S') return 0;
@@ -117,7 +116,7 @@ static int jbStoryDone(int story,int ch){   // 1 when this mission was the one t
     x=0x5A; for(int i=0;i<8;i++) x^=v[i];
     m[0]='M'; m[1]='S'; for(int i=0;i<8;i++) m[2+i]=v[i]; m[10]=x;
     int n=0; for(int i=0;i<(STY_N-1)*SM_PER&&i<64;i++) n+=(v[i>>3]>>(i&7))&1;
-    if(n<SM_NEED) return 0;   // (half of the 35 missions of the first seven stories: the newer stories add missions, not a higher bar)
+    if(n*2<(STY_N-1)*SM_PER) return 0;   // half of ALL the missions: it grows with every story added (8 stories = 40 missions = 20 needed)
     int a=jbUnlock(UL_CLOSER), t=jbUnlock(UL_TREE); return a|t;
 }
 static void stAnnounce(void){ static char t[44] EWRAM_BSS; char*e=slCat(t,"CHAPTER "); e=slNum(e,stCh+1); e=slCat(e,"  "); slCat(e,stChs[stId][stCh].nm); lnote=t; lnoteT=240; }
