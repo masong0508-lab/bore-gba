@@ -564,6 +564,23 @@ static void hhStairSpot(HhSim*s,char c){   // floors step 4: stand on a free til
         int x=sx+dx, y=sy+dy; if(hhWalk(x,y)&&!hhTakenAt(x,y)){ s->fx=x*256+128; s->fy=y*256+128; return; } }
     s->fx=sx*256+128; s->fy=sy*256+128;
 }
+// ---- floors step 8: a Sim on a floor you are not on still lives (coarsely, no walking): when its timer ends it counts the need it was serving as done if its floor has the
+// furniture, then looks after its worst need: furniture here = it uses it; furniture on another floor = one floor toward it; nothing pressing = drifts down to the ground floor.
+// A Sim that reaches the floor you are on steps out of the stairs (the sync block in hhTick). hhUp is the timer and also the "parked" mark, so every branch leaves it at 2 or more.
+static const char* hhWhere(int m){ static const char*const t[]={"  GROUND","  FLOOR 2","  FLOOR 3"}; return xo[XO_MULTIFL]&&hhFl[m]<3?t[hhFl[m]]:"  UPSTAIRS"; }
+static void hhOffStep(int m){
+    HhSim*s=&hhM[m]; int f=hhFl[m], any=0, low=xo[XO_FREEWILL]==1?35:55, best=-1, bv=101;
+    for(int g=0;g<FLR_N;g++) any|=hhCen[g];
+    if(s->use<HN_FUN&&(hhCen[f]&(1<<s->use))) s->need[s->use]=100;   // it used the furniture while it waited
+    for(int n=0;n<HN_FUN;n++){ int v=s->need[n]; if(!(any&(1<<n))) continue; if(n==HN_REST&&simIsNight()) v=v>45?v-45:0; if(v<low+30&&v<bv){ bv=v; best=n; } }
+    if(best>=0){ s->use=(u8)best;
+        if(hhCen[f]&(1<<best)){ hhUp[m]=(u16)(hhUseT(s)+2); return; }   // here: it uses it
+        int g=-1; for(int d=1;d<FLR_N&&g<0;d++){ if(f+d<FLR_N&&(hhCen[f+d]&(1<<best))) g=f+1; else if(f-d>=0&&(hhCen[f-d]&(1<<best))) g=f-1; }
+        if(g>=0){ hhFl[m]=(u8)g; hhUp[m]=90; return; } }   // one floor toward it
+    s->use=HN_FUN;
+    if(f>0){ hhFl[m]=(u8)(f-1); hhUp[m]=90; return; }   // nothing pressing: drifts back down
+    hhUp[m]=60;   // on the ground floor while you are upstairs: waits for you
+}
 static void hhTick(void){   // once per logic step in the life game
     if(xo[XO_MULTIFL]){ if(hhCenT) hhCenT--; else hhCensus(); }   // floors step 2: keep the per-floor furniture census fresh
     if(curFl&&!xo[XO_MULTIFL]) return;   // upstairs: the household waits on the ground floor (SIMS ON FLOORS: the Sims up here carry on)
@@ -587,8 +604,9 @@ static void hhTick(void){   // once per logic step in the life game
         if(xo[XO_MULTIFL]){   // floors step 4: Sims who are not on your floor wait (parked), the ones whose floor you came to step out of the stairs
             if(hhFl[m]!=curFl){
                 if(s->act!=HA_AWAY){ s->act=HA_AWAY; s->use=HN_FUN; hhUp[m]=(u16)(300+(rnd8()<<2)); }   // you left their floor: they stay there a while
-                if(curFl) continue; }
-            else if(s->act==HA_AWAY&&hhUp[m]){ if(s->use<HN_FUN) s->need[s->use]=100; s->use=HN_FUN; hhUp[m]=0; hhStairSpot(s,curFl?'~':'^'); s->act=HA_IDLE; s->think=20; s->gok=0; s->pn=s->pi=0; continue; } }
+                if(hhUp[m]>1) hhUp[m]--; else if(hhUp[m]) hhOffStep(m);   // floors step 8: a Sim on another floor lives coarsely (hhOffStep)
+                continue; }
+            else if(s->act==HA_AWAY&&hhUp[m]){ s->use=HN_FUN; hhUp[m]=0; hhStairSpot(s,curFl?'~':'^'); s->act=HA_IDLE; s->think=20; s->gok=0; s->pn=s->pi=0; continue; } }
         if(hhUp[m]){   // upstairs: gone from the ground floor until the time is up, then back down the stairs (waits if someone stands there)
             if(s->act!=HA_AWAY){ hhUp[m]=0; }
             else { if(!xo[XO_FREEWILL]&&hhUp[m]>1) hhUp[m]=1;
@@ -1201,7 +1219,7 @@ static void hhInviteTrue(void); static int hhMoveOut(int m);   // households.h
 static void hhSwitchMenu(void){   // pick the Sim you control
     if(!hhN){ toast("NO ONE ELSE LIVES HERE"); return; }
     static char nm[HH_MAX][HH_NM+8] EWRAM_BSS; const char* who[HH_MAX];
-    for(int m=0;m<hhN;m++){ char*e=simCat(nm[m],hhM[m].name); if(hhM[m].act==HA_AWAY) simCat(e,prHeld(&hhM[m])?(prHere()?"  AT HOME":"  IN PRISON"):hhUp[m]?"  UPSTAIRS":"  OUT"); who[m]=nm[m]; }
+    for(int m=0;m<hhN;m++){ char*e=simCat(nm[m],hhM[m].name); if(hhM[m].act==HA_AWAY) simCat(e,prHeld(&hhM[m])?(prHere()?"  AT HOME":"  IN PRISON"):hhUp[m]?hhWhere(m):"  OUT"); who[m]=nm[m]; }
     int m=menu("WHO DO YOU PLAY",who,hhN); if(m<0) return;
     hhSwitchTo(m); lnote=hhPName; lnoteT=60;
 }
