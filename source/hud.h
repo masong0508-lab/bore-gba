@@ -50,6 +50,20 @@ static int hudMsg(const char**txt,u16*col,int*pts){   // the message for the mid
     if(lnoteT>0){ *txt=lnote; *col=(lnote==lnBuf&&lnPerf)?HC_GOLD:WHITE; *pts=(lpts&&lnote==lnBuf)?lpts:0; return 1; }
     return 0;
 }
+// The combo string for the middle of the top bar: the newest trick names of the chain that fit in maxw pixels, older ones become "..", then the multiplier.
+static char hudCb[128] EWRAM_BSS;
+static int hudComboBuild(int first,const char*suf){
+    char*e=hudCb; if(first>0){ *e++='.'; *e++='.'; *e++=' '; }
+    for(int k=first;k<lcNmN;k++){ if(k>first){ *e++=' '; *e++='+'; *e++=' '; } const char*p=lcNm[k]; while(*p) *e++=*p++; }
+    while(*suf) *e++=*suf++; *e=0; return tw(hudCb,1);
+}
+static const char* hudComboStr(int maxw){
+    char suf[8]; int sn=0; if(lcN>=2){ suf[sn++]=' '; suf[sn++]=' '; suf[sn++]='X'; if(lcN>=10) suf[sn++]=(char)('0'+lcN/10%10); suf[sn++]=(char)('0'+lcN%10); } suf[sn]=0;   // (x2 and up)
+    int first=lcNmN-1;   // (the newest name always stays)
+    for(int i=lcNmN-2;i>=0;i--){ if(hudComboBuild(i,suf)>maxw) break; first=i; }
+    hudComboBuild(first,suf); return hudCb;
+}
+static unsigned hudComboKey(void){ unsigned h=(unsigned)lcN*2654435761u+lcNmN; for(int k=0;k<lcNmN;k++) h=h*31u+hudHash(lcNm[k]); return h; }
 static void hudTopStatic(void){
     for(int y=0;y<HUD_TOPH-1;y++) rect(0,y,SW,1,hudBgAt(y)); rect(0,HUD_TOPH-1,SW,1,HC_EDGE);
 }
@@ -77,6 +91,7 @@ static void hudTopUpdate(int all){
     unsigned mk;
     if(has) mk=hudHash(t)*7u+(unsigned)pts;   // (hash of the text: a trick name reuses one buffer)
     else if(lcamF>0) mk=1;
+    else if(lcN>0&&lcNmN>0) mk=2u+hudComboKey()*4u;   // the chain: the trick names and the multiplier
     else if(lcN>0) mk=2u+(unsigned)(lcN*1000+lcPts*lcN)*4u;
     else if(lcBankT>0) mk=3u+(unsigned)lcBank*4u;
     else if(lspecOn) mk=6u;
@@ -87,6 +102,7 @@ static void hudTopUpdate(int all){
         hudClear(102,0,78,HUD_TOPH-1); clipSet(102,0,180,HUD_TOPH-1);
         if(!has){
             if(lcamF>0){ t="BIG COMBO"; c=GOLD; has=1; }
+            else if(lcN>0&&lcNmN>0){ t=hudComboStr(76); c=lspecOn?RGB(31,27,9):GOLD; has=1; }
             else if(lcN>0){ const char*p=lspecOn?"SPECIAL X":"COMBO X"; while(*p) b[cn++]=*p++; int n=lcN; if(n>=10) b[cn++]=(char)('0'+n/10%10); b[cn++]=(char)('0'+n%10); b[cn]=0; t=b; c=GOLD; has=1; n2=lcPts*lcN; }
             else if(lcBankT>0){ t="COMBO"; c=GOLD; has=1; n2=lcBank; }
             else if(lspecOn){ t="SPECIAL"; c=GOLD; has=1; }

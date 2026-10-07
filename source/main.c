@@ -1392,6 +1392,17 @@ static int bdx=10, bdy=4, spx=3, spy=6;   // skateboard tile and spawn tile, fou
 #define BDY bdy
 static int lbailT;   // frames of bail flicker left (the skater blinks while getting up)
 static int lsp,lhd,lspin,lflip,lgrind,lscore,lstun,lairF,lpts,lnoteT,lglide; static const char*lnote;
+// COMBO STRING: the names of the tricks in the running chain, oldest first (hud.h shows the newest ones that fit in the top bar: "KICKFLIP + 360 + GRIND  X3")
+#define LC_NM 6
+static char lcNm[LC_NM][16] EWRAM_BSS; static u8 lcNmN;   // lcNmN: names kept (the oldest drop out when the chain is longer than LC_NM)
+static void lcAdd(const char*s){   // "SWITCH " is written "SW " here, and the perfect-streak " X3" at the end is left off
+    if(lcNmN>=LC_NM){ for(int k=1;k<LC_NM;k++) for(int i=0;i<16;i++) lcNm[k-1][i]=lcNm[k][i]; lcNmN=LC_NM-1; }
+    char*d=lcNm[lcNmN]; int n=0;
+    if(s[0]=='S'&&s[1]=='W'&&s[2]=='I'&&s[3]=='T'&&s[4]=='C'&&s[5]=='H'&&s[6]==' '){ d[n++]='S'; d[n++]='W'; d[n++]=' '; s+=7; }
+    for(;*s&&n<15;s++){ if(s[0]==' '&&s[1]=='X') break; d[n++]=*s; }
+    while(n>0&&d[n-1]==' ') n--;
+    d[n]=0; if(n) lcNmN++;
+}
 static char lnBuf[24] EWRAM_BSS; static u8 lnPerf; static int lLand, lLandD;   // lnBuf: the name of the trick just landed ("KICK 360 GRAB"); lLand: frames of landing crouch left, lLandD: how far the fall was
 static int tvClip; static void tvClipRun(int ch);   // skills.h / tvclip.h: the TV asks for a clip (channel + 1); lifeModeRun plays it like a pause menu
 static int stModal; static void stRunModal(void);   // story.h: a chapter card is waiting (1 chapter intro, 2 chapter done); lifeModeRun shows it like the pause menu
@@ -2599,7 +2610,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
     if(bump){
         lsp=(lsp*2)/3;
         if(lbumpCd==0&&sp0b>=(lskate?12:10)){ lbumpCd=40;   // skating into a wall hurts, running into one bonks
-            if(lskate&&(k&K_R)){ int wp=150+skLvl(SK_AIR)*5; if(lspecOn) wp*=2; lscore+=wp; lcN++; lcPts+=wp; lcT=oComboLen(); lvz=0x2A0; lnote="WALL TAP"; lnoteT=40; sfxPlay(SFX_POP); specAdd(50); moodEvent(M_TRICK); }
+            if(lskate&&(k&K_R)){ int wp=150+skLvl(SK_AIR)*5; if(lspecOn) wp*=2; lscore+=wp; lcAdd("WALL TAP"); lcN++; lcPts+=wp; lcT=oComboLen(); lvz=0x2A0; lnote="WALL TAP"; lnoteT=40; sfxPlay(SFX_POP); specAdd(50); moodEvent(M_TRICK); }
             else if(lskate&&(abPow()&PW_CHARGE)){ sfxPlay(SFX_HIT); lnote="HORNS FIRST"; lnoteT=30; simEvent(SE_CHARGE); }   // HORNS: charge the wall, no harm done
             else if(lskate) hurt(sp0b*2/3+(rnd8()>>5),2); else sfxPlay(SFX_BONK); }   // (was speed + 0..15: a full speed wall was a coin flip for dying. Now 8..23, worst case a short OW)
     }
@@ -2633,8 +2644,8 @@ static void lifeStep(u16 k,u16 pr,int fr){
         else{
             if(g==1){ F.spd=F.spd*3/5; lsp=F.spd>>4; pts/=2; lnote="SKETCHY"; lnoteT=40; }   // landed, but crooked: you lose speed and the trick is worth half
             else if(g==3&&pts){ pts+=pts/4; if(lstrk<5) lstrk++; pts+=pts*lstrk/10; }                                                      // PERFECT: +25%
-            if(pts){ if(hs||lflip||gb) pts=pts*(100+skLvl(SK_AIR)*4)/100; skGain(SK_AIR,(hs>=2?2:hs?1:0)+(lflip?1:0)+(gb?1:0)); skGain(SK_BAL,g==3?2:g==2?1:0); pts=moodPts(pts); if(lsw) pts+=pts/4; if(lspecOn) pts*=2; lscore+=pts; lpts=pts; if(g!=1){ trickName(hs,gb,g==3); if(lsw) swName(); if(g==3&&lstrk>=2){ int n=0; while(lnBuf[n]) n++; if(n<20){ lnBuf[n++]=' '; lnBuf[n++]='X'; lnBuf[n++]=(char)('0'+lstrk); lnBuf[n]=0; } } } lnoteT=60; lcN++; lcPts+=pts; lcT=oComboLen(); moodEvent(M_TRICK); specAdd(60+pts/(lspecOn?8:4)); }
-            if(onRail){ lgrind=1; skGain(SK_GRIND,1); lnote="GRIND"; lnoteT=30; lcN++; lcT=oComboLen(); moodEvent(M_GRIND_ON); sfxPlay(SFX_GRIND); specAdd(60); }
+            if(pts){ if(hs||lflip||gb) pts=pts*(100+skLvl(SK_AIR)*4)/100; skGain(SK_AIR,(hs>=2?2:hs?1:0)+(lflip?1:0)+(gb?1:0)); skGain(SK_BAL,g==3?2:g==2?1:0); pts=moodPts(pts); if(lsw) pts+=pts/4; if(lspecOn) pts*=2; lscore+=pts; lpts=pts; if(g!=1){ trickName(hs,gb,g==3); if(lsw) swName(); if(g==3&&lstrk>=2){ int n=0; while(lnBuf[n]) n++; if(n<20){ lnBuf[n++]=' '; lnBuf[n++]='X'; lnBuf[n++]=(char)('0'+lstrk); lnBuf[n]=0; } } } lnoteT=60; lcAdd(g!=1?lnBuf:"SKETCHY"); lcN++; lcPts+=pts; lcT=oComboLen(); moodEvent(M_TRICK); specAdd(60+pts/(lspecOn?8:4)); }
+            if(onRail){ lgrind=1; skGain(SK_GRIND,1); lnote="GRIND"; lnoteT=30; lcAdd("GRIND"); lcN++; lcT=oComboLen(); moodEvent(M_GRIND_ON); sfxPlay(SFX_GRIND); specAdd(60); }
             else sfxPlay((pts&&g!=1)?SFX_STICK:SFX_LAND);   // the landing is heard: a thud, or the bright one for a trick
         }
         if(bail){ int sv=drop/3+sp0/3+(rnd8()>>6); if(drop<30&&sv>15) sv=15; sv-=sv*skLvl(SK_BAL)*6/100; hurt(sv,1); }   // bad landing: harder/faster/higher = worse (was drop/2+speed: a fast bail was OW + 2.5 s down, or even death)
@@ -2646,7 +2657,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
     lairF=air;
     if(lflip&&lskate&&air){ if(!bFPrev) bFD=(k&K_UP)?-1:1; if(bFT<BFLIP_LEN) bFT++; bFPrev=1; } else { bFT=0; bFPrev=0; }   // the flip: one full roll in BFLIP_LEN steps, then it is flat again
     if(lskate&&!air&&lstun<=0&&!ldead&&(k&K_R)&&lsp>=8&&lifeMap[lfy>>8][lfx>>8]=='M'){
-        if(!lman){ lman=1; lnote="MANUAL"; lnoteT=30; if(lcN==0) lcN=1; }
+        if(!lman){ lman=1; lnote="MANUAL"; lnoteT=30; if(lcN==0) lcN=1; lcAdd("MANUAL"); }
         if((fr&7)==0){ int g=40+skLvl(SK_BAL)*2; if(lspecOn) g*=2; lscore+=g; lcPts+=g; lcT=oComboLen(); skGain(SK_BAL,1); specAdd(8); }
     } else lman=0;
     if(lgrind){ if(air||tileH(lfx>>8,lfy>>8)!=6) lgrind=0; else if((fr&3)==0){ int g=abGrindPts()+skLvl(SK_GRIND)/2; if(lspecOn) g*=2; lscore+=g; lnote="GRIND"; lnoteT=10; lcPts+=g; lcT=oComboLen(); specAdd(4); } }   // GRIP ability
@@ -2694,14 +2705,14 @@ static void lifeStep(u16 k,u16 pr,int fr){
         }
     }
     if(lcN>0){
-        if(lstun>0||ldead){ lcN=0; lcPts=0; lcT=0; }                      // a bail or hit loses the chain
+        if(lstun>0||ldead){ lcN=0; lcPts=0; lcT=0; lcNmN=0; }                      // a bail or hit loses the chain
         else if(!air&&!lgrind&&!lman&&--lcT<=0){                                  // chain over: bank the multiplier bonus
             int tot=lcPts*lcN; if(lcN>=2) lscore+=lcPts*(lcN-1);
             lcBank=tot; lcBankT=120;
             if(lcN>=2&&sCam&&tot>camThr[sCam]) lcamPend=1;
             if(lcN>=2) moodEventN(M_COMBO,lcN-1);
             if(lcN>=3) sktAward();
-            lcN=0; lcPts=0;
+            lcN=0; lcPts=0; lcNmN=0;
         }
     }
     if(lspecOn){ lspec-=2; if(lspec<=0){ lspec=0; lspecOn=0; if(lnoteT<=0){ lnote="SPECIAL OVER"; lnoteT=40; } } }
@@ -3405,7 +3416,7 @@ static void lifeMode(int ed){ int back=musCtx; gInPlay=1; lifeModeRun(ed); gInPl
 static void lifeModeRun(int ed){   // ed=1: test play started from the map editor
     objHideAll(); winFull(); REG_DISPCNT=0x3443; fxPlayStart();   // mode 3 + sprites (1D tiles) + window 0 (the household's hardware sprites, house.h)
     // (the passers-by of this lot are kept until you move to another lot or start a new life: twKeep, house.h)
-    pkHome=-1; lifeInit(); if(!ed) phoneEnsure(); lcamF=0; vbase=cview=0; lcN=lcPts=lcT=lcBank=lcBankT=lcamPend=0; u16 prev=keyNow(); gmStart(); hudApplyLayout(); liveInvalidate(); camSnap=1;
+    pkHome=-1; lifeInit(); if(!ed) phoneEnsure(); lcamF=0; vbase=cview=0; lcN=lcPts=lcT=lcBank=lcBankT=lcamPend=0; lcNmN=0; u16 prev=keyNow(); gmStart(); hudApplyLayout(); liveInvalidate(); camSnap=1;
     stModal=0; if(!ed) stEnter();   // (the chapter card of the story waits for the first frame)
     tutOn=0; tutModal=TM_NONE;   // the tutorial: replay now, or offer it once (first PLAY, not in the test play of the editor)
     if(!ed){ if(xo[XO_TUTOR]==2) tutBegin(); else if(xo[XO_TUTOR]==0&&!tutAsked){ tutAsked=1; tutModal=TM_OFFER; } }
