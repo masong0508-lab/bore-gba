@@ -2537,11 +2537,48 @@ static void trickName(int hs,int grab,int perfect){
 }
 static void swName(void){ int n=0; while(lnBuf[n]) n++; if(n>15) return; for(int i=n;i>=0;i--) lnBuf[i+7]=lnBuf[i]; const char*q="SWITCH "; for(int i=0;i<7;i++) lnBuf[i]=q[i]; }
 static void hhStart(void); static void hhTick(void); static int hhSocR(int useLabel);   // house.h (included further down, next to the drawing it hooks into)
+// ---- COLLECTIBLES (like THPS): the letters S K A T E and one hidden tape float over the floor of a skate lot. Touch one to take it. ----
+// Nothing is saved and no map tile is used: lifeInit scatters them over empty floor every run (a new spot each time), so they cost a few bytes of EWRAM
+// and no sprite art (they are drawn in code). A letter counts like a combo letter (sktAward: five make SKATE). Only on lots that have something to skate.
+#define CL_N 6   // 0..4 = S K A T E, 5 = the hidden tape
+static u8 clx[CL_N] EWRAM_BSS, cly[CL_N] EWRAM_BSS, clGot EWRAM_BSS, clLive EWRAM_BSS;   // tile of each one; a bit per one taken; 1 = this lot has them
+#define CL_ON (clLive&&!tutOn&&!curFl)
+static void clPlace(void){
+    int i, n=0, x, y, t; clGot=0; clLive=0;
+    for(y=0;y<MH;y++)for(x=0;x<MW;x++){ char c=lifeMap[y][x]; if(c=='='||c=='L'||c=='N'||c=='J'||c=='X'||c=='M'||isRamp(c)||isKicker(c)||isQPipe(c)) n++; }
+    if(!n) return;   // nothing to skate here: no collectibles
+    for(i=0;i<CL_N;i++){
+        int ok=0;
+        for(t=0;t<300&&!ok;t++){
+            x=2+rnd8()%(MW-4); y=2+rnd8()%(MH-4);
+            if(lifeMap[y][x]!='.'||(x==spx&&y==spy)||(x==bdx&&y==bdy)) continue;
+            int dx=x-spx, dy=y-spy; if((dx<0?-dx:dx)+(dy<0?-dy:dy)<3) continue;   // not on top of the spawn
+            for(int j=0;j<i;j++){ int ex=x-clx[j], ey=y-cly[j]; if((ex<0?-ex:ex)+(ey<0?-ey:ey)<3) goto next; }   // spread out
+            if(i==5){ int w=0; if(lifeMap[y][x-1]!='.') w++; if(lifeMap[y][x+1]!='.') w++; if(lifeMap[y-1][x]!='.') w++; if(lifeMap[y+1][x]!='.') w++; if(!w&&t<250) continue; }   // the tape hides next to something (a wall, a rail)
+            clx[i]=(u8)x; cly[i]=(u8)y; ok=1; next:;
+        }
+        if(!ok) clGot|=(u8)(1<<i);   // no room for it: it counts as already taken
+    }
+    clLive=1;
+}
+static void clTick(void){
+    if(!CL_ON||ldead||lz>(30<<8)) return;
+    for(int i=0;i<CL_N;i++){
+        if(clGot>>i&1) continue;
+        s32 dx=lfx-(s32)(clx[i]*256+128), dy=lfy-(s32)(cly[i]*256+128);
+        if(dx<0) dx=-dx; if(dy<0) dy=-dy;
+        if(dx>0xB0||dy>0xB0) continue;
+        clGot|=(u8)(1<<i);
+        if(i<5){ lscore+=100; specAdd(60); moodEvent(M_TRICK); sfxPlay(SFX_POP); sktAward(); }   // sktAward writes the note (S, SK, ...) and pays the SKATE bonus at five
+        else { lscore+=1000; specAdd(SPEC_MAX/2); moodEvent(M_TRICK); sfxPlay(SFX_STICK); voxPlay(V_yahoo); lnote="SECRET TAPE  +1000"; lnoteT=100; }
+    }
+}
 static void lifeInit(void){
     if(!(shapeMask()>>look[LK_SHAPE]&1)){ look[LK_SHAPE]=(u8)maskPick(shapeMask(),look[LK_SHAPE],NSHAPE); if(!custom) buildLook(); }
     flHome(); mapScan(); hhStart();
     bakeSprites(); camSnap=1;
     lfx=spx*256+128; lfy=spy*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote=""; lchill=0; lskate=0; lhave=(bdx<0); lfr=0; lvx=lvy=0; ldead=0; lmaxz=0; lplay=0; lbumpCd=0; lfood=100; lbl=0; lhp=HP_MAX; lnear=0; lspec=0; lspecOn=0; lsw=0; lskl=0; lstrk=0; moodReset(); simsReset(); sfxStop(); feelReset(0);
+    clPlace(); if(CL_ON&&!(clGot&32)){ lnote="FIND THE HIDDEN TAPE"; lnoteT=90; }   // (collectibles: see clPlace)
 }
 static char rampCh; static s32 rampX, rampY; static u8 lqp;
 static void qpGrav(void){
@@ -2662,6 +2699,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
     } else lman=0;
     if(lgrind){ if(air||tileH(lfx>>8,lfy>>8)!=6) lgrind=0; else if((fr&3)==0){ int g=abGrindPts()+skLvl(SK_GRIND)/2; if(lspecOn) g*=2; lscore+=g; lnote="GRIND"; lnoteT=10; lcPts+=g; lcT=oComboLen(); specAdd(4); } }   // GRIP ability
     if(!lhave&&lz<(8<<8)&&(lfx>>8)==BDX&&(lfy>>8)==BDY){ lhave=1; lnote="GOT A SKATEBOARD"; lnoteT=90; moodEvent(M_GOT_BOARD); }   // walk over it to pick it up
+    clTick();   // letters and the tape
     fxTick();   // ghosts and weather (fx.h): every step, also while you lie dead
     if(!ldead){   // needs: hunger and bladder, then how they (and the skating) make the skater feel
         if(stage==AG_BABY){ if(lfood<70) lfood=70; if(lbl>30) lbl=30; if(sNrg<60) sNrg=60; if(sHyg<60) sHyg=60; if(sCom<60) sCom=60; }   // looked after
@@ -2931,6 +2969,21 @@ static inline int isItemCh(char c){
     switch(c){ case '#': case 'F': case 'T': case '=': case 'D': case 'L': case 'N': case 'S': case 'H': case 'C': case 'X': case 'O': case 'Y': case 'Z': case 'K': case 'J': case 'M': case 'G': case 'V': case 'U': case 'Q': case 'I': case 'R': case 'A': case 'v': case 'b': case 'c': case 'q': case 'm': case '^': case '~': return 1; }
     return isRamp(c);
 }
+// a collectible floating over tile centre (sx,sy): a spinning gold tag with its letter, or the tape (a little cassette)
+static void clDraw(int i,int sx,int sy){
+    static const signed char bob[4]={0,1,2,1}; static const char* const lt[5]={"S","K","A","T","E"};
+    int b=bob[(lfr>>3)&3], y=sy-17-b;
+    rect(sx-3,sy-1,7,2,RGB(2,3,5));   // shadow on the floor
+    if(i<5){
+        static const u8 wd[4]={9,7,3,7}; int w=wd[((lfr>>2)+i)&3], x=sx-w/2;   // the tag turns
+        rect(x-1,y-1,w+2,11,RGB(9,6,1)); rect(x,y,w,9,((lfr>>3)&1)?RGB(31,28,8):RGB(31,22,4));
+        if(w>=7) text(sx-2,y+1,lt[i],RGB(9,6,1),1);
+    } else {
+        rect(sx-6,y-1,13,9,RGB(4,4,6)); rect(sx-5,y,11,7,RGB(22,22,26)); rect(sx-4,y+1,9,3,RGB(31,24,6));
+        rect(sx-3,y+2,2,2,RGB(4,4,6)); rect(sx+2,y+2,2,2,RGB(4,4,6));   // the reels
+        if((lfr>>3)&1) px(sx+5,y-2,WHITE);   // a glint
+    }
+}
 static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
     clipSet(x0,y0,x1,y1);
     rect(x0,y0,x1-x0,y1-y0,RGB(4,5,8));
@@ -2941,6 +2994,11 @@ static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
             if(sx+CA<x0||sx-CA>=x1||sy+CB<y0||sy-CB>=y1) continue;   // the diamond does not reach the rectangle
             CNT(cntTiles); char c=cellAt(tx,ty); if(c=='#') continue;
             { int fl=isWallCh(c)?wallFloorR(tx,ty):flAt(tx,ty), v=(tx^ty)&1; if(sFl) floorTile(sx,sy,&flTab[fl][v][0][0]); else tileTop(sx,sy,flFlat[fl][v]); } } }   // (walls are thin now: the room's floor runs under them)
+    int cls[CL_N], cln=0;   // collectibles: the screen diagonal (rx+ry) of each one still there, -1 = none; clr: its screen tile
+    static int clr[CL_N][2] EWRAM_BSS;
+    for(int i=0;i<CL_N;i++){ cls[i]=-1; if(ed||!CL_ON||(clGot>>i&1)) continue; int tx=clx[i], ty=cly[i], rx, ry;
+        switch(cview){ case 0:rx=tx;ry=ty;break; case 1:rx=MW-1-ty;ry=tx;break; case 2:rx=MW-1-tx;ry=MH-1-ty;break; default:rx=ty;ry=MH-1-tx; }
+        clr[i][0]=rx; clr[i][1]=ry; cls[i]=rx+ry; cln++; }
     int ss=0; if(!ed){ s32 rfx,rfy; rotPos(lfx,lfy,&rfx,&rfy); ss=(int)((rfx>>8)+(rfy>>8)); }
     for(int s=s0;s<=s1;s++){ int a,b; bandCols(s,x0,x1,&a,&b);
         for(int tx=a;tx<=b;tx++){ int ty=s-tx;
@@ -2954,6 +3012,7 @@ static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
             if((ed&&c=='B')||(!ed&&!lhave&&ox==BDX&&oy==BDY)) blitItem(V_BOARD,sx,sy-(ed?0:((lfr>>4)&1)));   // the skateboard pickup, bobbing
             if(ed&&c=='P') drawSpawn(sx,sy+1);   // little person = spawn
         }
+        if(cln) for(int i=0;i<CL_N;i++) if(cls[i]==s){ int sx=LOX+(clr[i][0]-clr[i][1])*CA, sy=LOY+(clr[i][0]+clr[i][1]+1)*CB; if(sx+11>x0&&sx-11<x1&&sy+6>y0&&sy-24<y1) clDraw(i,sx,sy); }
         if(!ed&&hhN&&!curFl) hhDrawBand(s,s);
         if(!ed&&s==ss) drawPlayerNow();
     }
@@ -3317,7 +3376,7 @@ static const char* const pmArt[8][9]={
 static const u16 pmCol[8]={RGB(10,28,10),RGB(10,20,31),RGB(31,26,6),RGB(31,16,22),RGB(22,16,30),RGB(22,24,26),RGB(30,20,8),RGB(30,10,8)};
 static const char* const pmNm[8]={"RESUME","SAVE","WANTS","FAMILY","STORY","OPTIONS","BUILD","QUIT"};
 static const char* const pmTitle[8]={"RESUME","SAVE GAME","ASPIRATION","HOUSEHOLD","STORY","OPTIONS","BUILD AND HOUSES","MAIN MENU"};
-static const char* const pmDesc[8]={"BACK TO YOUR LIFE","SAVES YOU AND YOUR HOUSE","WANTS  FEARS  REWARDS  SKILLS","WHO LIVES HERE  HOW THEY FEEL","YOUR CHAPTERS","SETTINGS  SOUND  CONTROLS","EDIT MAP  BLUEPRINTS  NEW LIFE","SAVES AND LEAVES"};
+static const char* const pmDesc[8]={"BACK TO YOUR LIFE","SAVES YOU AND YOUR HOUSE","WANTS  FEARS  SKILLS  TRICKS","WHO LIVES HERE  HOW THEY FEEL","YOUR CHAPTERS","SETTINGS  SOUND  CONTROLS","EDIT MAP  BLUEPRINTS  NEW LIFE","SAVES AND LEAVES"};
 static int pauseMenu(int mode){   // mode 0 life, 1 from the neighborhood, 2 test play from the editor. Returns a PM_ number, or -1 (resume)
     static const u8 full[8]={0,1,2,3,4,5,6,7}, edl[3]={PM_RESUME,PM_OPTS,PM_QUIT};
     const u8*ids=mode==2?edl:full; int n=mode==2?3:8, sel=0, dirty=1, lastB=-1; u16 prev=keyNow(); u32 t=0;

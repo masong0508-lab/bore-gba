@@ -141,7 +141,7 @@ static void skillsScreen(void){
 
 // pause menu > WANTS > VIEW TRICKS: the trick controls on one page (text only; the same moves the tutorial teaches)
 static void tricksScreen(void){
-    static const char* const ln[]={"L  STEP ON OR OFF THE BOARD","A  PUSH  (ON FOOT: HOP)","DPAD  STEER  (IN THE AIR: SPIN)","B  OLLIE  (IN THE AIR: KICKFLIP)","RAILS  LAND ON ONE TO GRIND","LAND ON GREEN  RED IS A BAIL","R ON A MANUAL PAD  MANUAL","R INTO A WALL  WALL TAP"};
+    static const char* const ln[]={"L  STEP ON OR OFF THE BOARD","A  PUSH  (ON FOOT: HOP)","DPAD  STEER  (IN THE AIR: SPIN)","B  OLLIE  (IN THE AIR: KICKFLIP)","RAILS  LAND ON ONE TO GRIND","LAND ON GREEN  RED IS A BAIL","R ON A MANUAL PAD  MANUAL","R INTO A WALL  WALL TAP","TOUCH S K A T E  FIVE = BONUS","FIND THE TAPE  +1000"};
     u16 prev=keyNow(); u32 cnt=0;
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
@@ -149,7 +149,7 @@ static void tricksScreen(void){
         if(cnt&7){ vsync(); continue; }
         stBack("TRICKS",(int)cnt);
         text(10,21,"SKATE CONTROLS",GOLD,1);
-        for(int i=0;i<8;i++) text(10,34+i*12,ln[i],i<5?WHITE:RGB(17,29,31),1);
+        for(int i=0;i<10;i++) text(10,34+i*10,ln[i],i<5?WHITE:i<8?RGB(17,29,31):GOLD,1);
         text(10,142,"A OR B BACK",RGB(12,14,16),1);
         present();
     }

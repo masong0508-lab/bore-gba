@@ -1,6 +1,6 @@
 # What to build next (notes from playing THPS3 / THPS4 on GBA)
 
-**Status (checked against the source, updated with the combo string):** the SPECIAL meter (`lspec`, top bar under the score), the SKATE letters (`lskl`, `sktAward`), SWITCH tricks (`lsw`), manuals, wall taps and the combo chain (`lcN`) exist, and the top bar now shows the **combo string**: the names of the tricks in the running chain, newest last, with the multiplier (`lcAdd` in main.c keeps the names, `hudComboStr` in hud.h fits them in the middle of the top bar). Not built yet: collectibles in the level (hidden tape), VIEW TRICKS, halfpipe, timed run, bail flicker, a goals list per map. What does exist and helps: story mode (`story.h`) hands out chapter goals like THPS4's, neighbors visit and welcome you (`twTick`), a radio and sound system play the jukebox in the room, and the aspiration wants and fears act as a goal list. For the Sims-side wishlist see `WISHLIST_EFFORT.md`.
+**Status (checked against the source, updated with the combo string):** the SPECIAL meter (`lspec`, top bar under the score), the SKATE letters (`lskl`, `sktAward`), SWITCH tricks (`lsw`), manuals, wall taps and the combo chain (`lcN`) exist, and the top bar now shows the **combo string**: the names of the tricks in the running chain, newest last, with the multiplier (`lcAdd` in main.c keeps the names, `hudComboStr` in hud.h fits them in the middle of the top bar). **Collectibles are in** (`clPlace` / `clTick` / `clDraw` in main.c): the letters S K A T E and one hidden tape float over empty floor on any lot that has something to skate; they are scattered again every run, drawn in code, saved nowhere. A letter feeds `sktAward` (five = SKATE bonus), the tape pays 1000. **VIEW TRICKS** is in the pause menu under WANTS (`tricksScreen`, skills.h). Not built yet: wants for collecting ("COLLECT S-K-A-T-E"), a tape count saved per map, halfpipe, timed run, bail flicker, a goals list per map. What does exist and helps: story mode (`story.h`) hands out chapter goals like THPS4's, neighbors visit and welcome you (`twTick`), a radio and sound system play the jukebox in the room, and the aspiration wants and fears act as a goal list. For the Sims-side wishlist see `WISHLIST_EFFORT.md`.
 
 Observed by playing the carts in an emulator; nothing was copied from them. These are design targets for BORE, sized for the GBA.
 
@@ -20,7 +20,7 @@ Observed by playing the carts in an emulator; nothing was copied from them. Thes
 
 ## Order to build it in
 1. **Special meter + trick names on screen + combo string** (cheap, all HUD; biggest "feels like THPS" win).
-2. **Collectibles** (SKATE letters, tape) as item tiles; hook them into wants ("COLLECT S-K-A-T-E").
+2. ~~**Collectibles** (SKATE letters, tape)~~ done as runtime pickups; still to do: hook them into wants ("COLLECT S-K-A-T-E") and keep a tape count per map.
 3. **NPCs**: bake 2 to 4 extra sprite sets from creator looks (reuse `bakeSprites`), place them on the map, simple idle/wander, R to talk: they give a goal (THPS4 style) and count as SOCIAL for the Sims side.
 4. **Goals list per map** + level intro flyover.
 5. **Timed run mode** (2:00, high score / pro score / sick score).
