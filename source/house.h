@@ -39,6 +39,7 @@ typedef struct {
 } HhSim;
 static HhSim hhM[HH_MAX] EWRAM_BSS; static int hhN;
 static u16 hhUp[HH_MAX] EWRAM_BSS;   // steps a Sim still spends UPSTAIRS (act is HA_AWAY meanwhile, so nothing draws or picks it); 0 = not upstairs
+static u8 hhFl[HH_MAX] EWRAM_BSS; static u8 hhCen[FLR_N] EWRAM_BSS; static u16 hhCenT;   // floors step 2: the floor each Sim is on (0 = ground), and per floor which need furniture it has
 // ---- relationships (Sims 2 style): for every pair a DAILY and a LIFETIME score, -100..100, kept by uid and one-way (how a feels about b) ----
 #define HU_N (HH_MAX+1)
 static signed char relD[HU_N][HU_N] EWRAM_BSS, relL[HU_N][HU_N] EWRAM_BSS; static u8 relF[HU_N][HU_N] EWRAM_BSS;
@@ -540,7 +541,16 @@ static void twTick(int*planned){   // VISITORS: someone from another household w
         hhStepAlong(s);
     }
 }
+// ---- SIMS ON FLOORS (floors step 2): where each Sim is, and what each floor has ----
+static void hhCensus(void){   // which need furniture each floor has (bit = need number). flPlaneAt reads the live map for this floor and the packed copy for the others
+    hhCenT=300;
+    for(int f=0;f<FLR_N;f++){ u8 b=0;
+        for(int i=0;i<MSZ;i++){ int c=flPlaneAt(f,0,i);
+            if(c=='F') b|=1<<HN_FOOD; else if(c=='T') b|=1<<HN_WC; else if(c=='S') b|=1<<HN_REST; else if(c=='H') b|=1<<HN_CLEAN; else if(c=='C'||c=='U') b|=1<<HN_COMFY; }
+        hhCen[f]=b; }
+}
 static void hhTick(void){   // once per logic step in the life game
+    if(xo[XO_MULTIFL]){ if(hhCenT) hhCenT--; else hhCensus(); }   // floors step 2: keep the per-floor furniture census fresh
     if(curFl) return;   // upstairs: the household waits on the ground floor
     if(hhBubT) hhBubT--;
     if(lvx||lvy||lsp||lairF||lgrind) hhStill=0; else if(hhStill<1000) hhStill++;
@@ -1039,6 +1049,7 @@ static void hhInviteTrue(void){   // a truly random Sim moves in: any age from c
 }
 static void hhLoad(void);
 static void hhStart(void){   // entering the life game: load the household and stand everyone somewhere free
+    for(int m=0;m<HH_MAX;m++) hhFl[m]=0; hhCenT=0;   // floors step 2: everyone starts on the ground floor
     hhLoad(); hhSlotsFree(); hhFindExits(); for(int k=0;k<TW_N;k++){ twOn[k]=0; twWait[k]=(short)(240+k*700); }
     for(int m=0;m<hhN;m++){ hhPlace(&hhM[m],m); hhOld[m].x0=hhOld[m].x1=0; hhOldSig[m]=0xFFFFFFFFu; }
 }
