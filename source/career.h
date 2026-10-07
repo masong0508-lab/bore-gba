@@ -3,7 +3,7 @@
 //   LEFT / RIGHT (or L / R)  flip through the tracks     A  transfer to the one on screen (asks first)     B  back
 //   Level 3 of a track splits into BRANCH A (steady) and BRANCH B (high pay and a higher quota): the first visit after the promotion asks.
 //   A transfer keeps part of your level (level 5 -> 2, 3 or 4 -> 1, else 0): the top of a track moves you on.
-//   Teens may only take the part-time track (FAST FOOD). Promotions want skill (jobNeedSkill) and, from level 3, a friend (jobNeedFriend).
+//   Teens may only take the part-time track (FAST FOOD). Promotions want the track's skill (jobSk: SKATING for PRO SKATER, a life skill for the rest; jobNeedSkill) and, from level 3, a friend (jobNeedFriend).
 // Needs before it: sims.h (jobTr, jobTrack ...), house.h (relF, hhPUid), story.h (stBack: the backdrop with the plumbob).
 static int jobFriends(void){ int me=hhPUid, n=0; for(int u=0;u<HU_N;u++) if(u!=me&&(relF[me][u]&RF_FRIEND)) n++; return n; }
 static const char* const jobPerkNm[5]={"","TRAINING","FINES","BARRACKS","STAFF MEAL"};
@@ -43,7 +43,7 @@ static void careerScreen(void){
           e=slNum(slCat(b,"HOURS "),t->from); e=slCat(e," TO "); slNum(e,t->to); text(14,y,b,WHITE,1); y+=9;
           e=slNum(b,t->days); slCat(e," DAYS A WEEK"); text(14,y,b,WHITE,1); y+=9;
           e=slNum(slCat(b,"PAY "),jobPayOf(sel,0,0)); e=slCat(e," TO "); slNum(e,jobPayOf(sel,t->top,0)); text(14,y,b,WHITE,1); y+=9;
-          e=slNum(slCat(b,"QUOTA "),jobQuotaOf(sel,0,0)); e=slCat(e," TO "); slNum(e,jobQuotaOf(sel,t->top,0)); text(14,y,b,WHITE,1); y+=9;
+          e=slNum(slCat(b,sel==JT_SKATE?"TRICK QUOTA ":"WORK MIN "),jobQuotaOf(sel,0,0)); e=slCat(e," TO "); slNum(e,jobQuotaOf(sel,t->top,0)); text(14,y,b,WHITE,1); y+=9;
           e=slNum(slCat(b,"UP AFTER "),t->good); slCat(e," GOOD"); text(14,y,b,RGB(10,28,12),1); y+=9;
           e=slNum(slCat(b,"DOWN AFTER "),t->bad); slCat(e," BAD"); text(14,y,b,RGB(31,14,10),1); }
         for(int l=0;l<nl;l++){ int y=46+l*9, here=me&&l==jobLvl;   // the ladder (the branch you are on, or branch A)
@@ -55,7 +55,7 @@ static void careerScreen(void){
         else text(14,108,"NO PERK",RGB(12,18,24),1);
         { char b[48]; char*e;
           if(me){ if(jobLvl>=t->top) e=simCat(b,"TOP OF THE TRACK  TRANSFER FOR MORE");
-              else { e=simCat(b,"NEXT LEVEL  SKILL "); e=simCatN(e,jobNeedSkill(jobLvl)); if(jobNeedFriend(jobLvl)) simCat(e,"  1 FRIEND"); }
+              else { e=simCat(simCat(b,"NEXT LEVEL  "),jobSkName(jobTrack)); e=simCat(e," "); e=simCatN(e,jobNeedSkill(jobLvl)); if(jobNeedFriend(jobLvl)) simCat(e,"  1 FRIEND"); }
               text(14,117,b,RGB(24,27,30),1); }
           else if(!ok) text(14,117,"ONLY GROWN UPS CAN TAKE THIS",RGB(31,14,10),1);
           else { e=simCat(b,"A TRANSFER  YOU START AT "); simCat(e,jobTitleOf(sel,jobStartLvl(sel),0)); text(14,117,b,RGB(24,27,30),1); } }

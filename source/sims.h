@@ -7,7 +7,7 @@
 //            ROOM rises when you stand among furniture (fridge, toilet, bed, shower, sofa) and sags in an empty place.
 //            Everything feeds the HAPPY meter (mood.h -> simsComfort()).
 //  CLOCK     see SIM_STEPS_MIN. A week is MON..SUN, the game starts MON 08:00. Sleeping runs the clock fast.
-//  CAREER    Pro skater, Mon-Fri 09:00-17:00. Trick points you score during the shift count towards the day's QUOTA. At 17:00 you are paid:
+//  CAREER    PRO SKATER (the default job), the only one with a trick-point QUOTA: trick points you score during the shift count towards the day's QUOTA. Every other job counts work minutes instead (jobQuotaOf). At 17:00 you are paid:
 //            full quota = full pay (and a step towards promotion), half quota = half pay, less = nothing and a strike. 3 good days = promotion,
 //            3 strikes = demotion. Bills are taken at midnight; if you cannot pay, that is a fear coming true.
 //  SKILL     SKATING skill 0..5, trained by tricks, combos and grinds; each level adds 8% to trick points.
@@ -248,7 +248,7 @@ static int skillPts, skillLvl;               // SKATING skill
 // A track = a name, nine titles (levels 0..2 are shared, 3..5 differ by BRANCH A or B), a top level (part-time tracks stop at 2), and how it
 // plays: quota / pay in %, work days a week, hours, good shifts to go up, bad shifts to go down, the double quota bonus, teen access, a perk.
 // Saved in the job level byte of the life: bits 0-2 level, 3-5 track, 6 branch B, 7 branch chosen (an old save reads as track 0).
-enum { JT_ENT, JT_SLACK, JT_ATH, JT_BUS, JT_CRIM, JT_MIL, JT_EDU, JT_FOOD, JT_N };
+enum { JT_ENT, JT_SLACK, JT_ATH, JT_BUS, JT_CRIM, JT_MIL, JT_EDU, JT_FOOD, JT_SKATE, JT_N };   // JT_SKATE (the dedicated skater job) is track 8: its high bit lives in the lock byte, see simsPack
 enum { JP_NONE, JP_TRAIN, JP_FINE, JP_BARRACKS, JP_MEAL };   // +1 skill per good shift / a bad shift costs 40 / bills halved / a good shift fills FOOD
 typedef struct { const char*nm; const char*lv[9]; u8 top,quota,pay,days,from,to,good,bad,bonus,teen,perk; } JobTr;
 static const JobTr jobTr[JT_N]={
@@ -260,13 +260,25 @@ static const JobTr jobTr[JT_N]={
  {"MILITARY",      {"RECRUIT","PRIVATE","SERGEANT","LIEUTENANT","CAPTAIN","GENERAL","COVERT OP","SPY MASTER","GHOST"},          5,110,120,6, 6,14,3,4,20,0,JP_BARRACKS},
  {"EDUCATION",     {"TEACH AIDE","SUB TEACHER","TEACHER","HEAD OF YEAR","PRINCIPAL","DEAN","PROFESSOR","RESEARCHER","CHANCELLOR"},5, 80, 90,5, 8,15,4,5,25,0,JP_NONE},
  {"FAST FOOD",     {"DISH PIT","FRY COOK","SHIFT LEAD",0,0,0,0,0,0},                                                               2, 50, 60,5,15,19,3,3,10,1,JP_MEAL},
+ {"PRO SKATER",    {"SKATE RAT","STREET KID","AMATEUR","PRO","TEAM RIDER","LEGEND","SPONSORED","TOUR STAR","ICON"},                 5,100,110,5,10,18,3,3,40,0,JP_NONE},
 };   // (FAST FOOD is the part-time job: teens may take it, it tops out at level 2)
 static int jobTrack, jobBr, jobChosen;   // the track, the branch (0 A, 1 B), the branch has been picked
 static int jobFriends(void);             // career.h: how many friends you have in the house (promotions from level 3 want one)
 static inline const JobTr* jobT(void){ return &jobTr[jobTrack]; }
 static const char* jobTitleOf(int t,int lvl,int br){ return jobTr[t].lv[lvl<3?lvl:lvl+3*br]; }
 static const char* jobTitle(void){ return jobTitleOf(jobTrack,jobLvl,jobBr); }
-static int jobQuotaOf(int t,int lvl,int br){ return (SIM_QUOTA0+SIM_QUOTA_LVL*lvl)*jobTr[t].quota/100*((br&&lvl>=3)?135:100)/100; }   // before the QUOTA option
+// THE QUOTA DEPENDS ON THE JOB. PRO SKATER is the only job paid in trick points (the SKATER QUOTA option scales it). Every other job is a normal job
+// that has nothing to do with skating: its quota is WORK MINUTES. A game minute at work counts 1 while you are up and about (not asleep, washing,
+// sitting or dead) and 2 while you are STOKED; the quota is a share of the shift (about 55% to 90%, more at higher levels and in branch B).
+static int jobQuotaOf(int t,int lvl,int br){
+    if(t==JT_SKATE) return (SIM_QUOTA0+SIM_QUOTA_LVL*lvl)*jobTr[t].quota/100*((br&&lvl>=3)?135:100)/100;   // before the SKATER QUOTA option
+    int pc=(55+3*lvl)*jobTr[t].quota/100*((br&&lvl>=3)?110:100)/100; if(pc>90) pc=90; if(pc<30) pc=30;
+    return ((int)jobTr[t].to-(int)jobTr[t].from)*60*pc/100; }
+// the skill a track's promotions want: PRO SKATER wants the SKATING skill, a normal job wants a life skill (SK_N stands for SKATING)
+static const u8 jobSk[JT_N]={SK_CREAT,SK_CHARM,SK_BODY,SK_LOGIC,SK_CHARM,SK_BODY,SK_LOGIC,SK_COOK,SK_N};
+static const char* const jobSkNm[6]={"COOKING","LOGIC","BODY","CHARISMA","CREATIVITY","SKATING"};
+static const char* jobSkName(int t){ return jobSkNm[jobSk[t]==SK_N?5:jobSk[t]]; }
+static int jobSkLvl(int t){ return jobSk[t]==SK_N?skillLvl:skLvl(jobSk[t]); }
 static int jobPayOf(int t,int lvl,int br){ return (SIM_PAY0+SIM_PAY_LVL*lvl)*jobTr[t].pay/100*((br&&lvl>=3)?125:100)/100; }
 static int jobNeedSkill(int lvl){ return lvl/2; }                // a promotion from this level wants this skill level ...
 static int jobNeedFriend(int lvl){ return lvl>=3; }              // ... and from level 3 on one friend in the house
@@ -295,7 +307,7 @@ static int simJobDay(void){ return (simDay%7)<jobT()->days; }   // your own work
 static int simJobFrom(void){ return jobT()->from*60; }
 static int simJobTo(void){ return jobT()->to*60; }
 static int simInShift(void){ return ojob()&&simJobDay()&&simMin>=simJobFrom()&&simMin<simJobTo(); }
-static int simQuota(void){ return jobQuotaOf(jobTrack,jobLvl,jobBr)*oQuotaPct()/100; }
+static int simQuota(void){ int q=jobQuotaOf(jobTrack,jobLvl,jobBr); return jobTrack==JT_SKATE?q*oQuotaPct()/100:q; }   // (the SKATER QUOTA option is for the skater job only)
 static int simIsNight(void){ return simMin>=SIM_NIGHT_FROM||simMin<SIM_NIGHT_TO; }
 static int simWishes(void){ return stage!=AG_BABY; }   // babies have no wants or fears (and no aspiration meter)
 
@@ -397,12 +409,12 @@ static void simsPack(volatile unsigned char*m){   // write the life into any SIM
     m[0]='S'; m[1]='I'; m[2]='M'; m[3]='3';
     m[4]=(unsigned char)sNrg; m[5]=(unsigned char)sHyg; m[6]=(unsigned char)sCom; m[7]=(unsigned char)sRoom;
     simPut16(m,8,simMoney); simPut16(m,10,simAsp); simPut16(m,12,simDone); simPut16(m,14,simDay); simPut16(m,16,simMin);
-    m[18]=(unsigned char)(jobLvl|(jobTrack<<3)|(jobBr<<6)|(jobChosen<<7)); m[19]=(unsigned char)jobGood; m[20]=(unsigned char)jobBad; simPut16(m,21,skillPts);
+    m[18]=(unsigned char)(jobLvl|((jobTrack&7)<<3)|(jobBr<<6)|(jobChosen<<7)); m[19]=(unsigned char)jobGood; m[20]=(unsigned char)jobBad; simPut16(m,21,skillPts);
     simPut16(m,23,simMeter); m[25]=(unsigned char)simFlags; simPut16(m,26,simTricks); simPut16(m,28,simBestCombo); simPut16(m,30,simStokedS);
     m[32]=(unsigned char)simNights; m[33]=(unsigned char)(simAspUsed<0?255:simAspUsed);
     for(int s=0;s<SIM_WS;s++){ m[34+s]=(unsigned char)(simW[s]+1); simPut16(m,42+s*2,simWP[s]); }
     for(int s=0;s<SIM_FS;s++) m[38+s]=(unsigned char)(simF[s]+1);
-    m[41]=(unsigned char)simLock; m[50]=(unsigned char)(sSoc+1);   // (0 in an older SIM3 = not saved yet)
+    m[41]=(unsigned char)(simLock|((jobTrack>>3)<<7)); m[50]=(unsigned char)(sSoc+1);   // (0 in an older SIM3 = not saved yet)
     for(int i=4;i<=50;i++) sum+=m[i];
     m[51]=(unsigned char)sum;
 }
@@ -416,7 +428,7 @@ static int simsCheck(volatile unsigned char*m){   // 1 = the buffer holds a vali
     if(m[last]!=(unsigned char)sum) return 0;
     if(m[4]>100||m[5]>100||m[6]>100||m[7]>100||(m[18]&7)>5||((m[18]>>3)&7)>=JT_N||simGet16(m,16)>=1440) return 0;
     if(v==3){
-        if(simGet16(m,23)>1000||m[41]>15||(m[33]>=AS_N&&m[33]!=255)) return 0;
+        if(simGet16(m,23)>1000||(m[41]&0x7F)>15||(((m[41]>>7)&1)&&((m[18]>>3)&7)!=0)||(m[33]>=AS_N&&m[33]!=255)) return 0;
         for(int s=0;s<SIM_WS;s++) if(m[34+s]>SIM_NW) return 0;
         for(int s=0;s<SIM_FS;s++) if(m[38+s]>SIM_NF) return 0;
     }
@@ -427,6 +439,7 @@ static int simsUnpack(volatile unsigned char*m){   // 1 = a valid life was read 
     sNrg=m[4]; sHyg=m[5]; sCom=m[6]; sRoom=m[7];
     simMoney=simGet16(m,8); simAsp=simGet16(m,10); simDone=simGet16(m,12); simDay=simGet16(m,14); simMin=simGet16(m,16);
     jobLvl=m[18]&7; jobTrack=(m[18]>>3)&7; jobBr=(m[18]>>6)&1; jobChosen=(m[18]>>7)&1; jobGood=m[19]; jobBad=m[20]; skillPts=simGet16(m,21);
+    if(simsVer(m)==3&&(m[41]&0x80)) jobTrack|=8;   // PRO SKATER (track 8): the high bit is in the lock byte
     if(jobTrack>=JT_N){ jobTrack=0; }
     if(jobLvl>jobT()->top){ jobLvl=jobT()->top; }
     if(jobT()->top<3){ jobBr=0; jobChosen=0; }
@@ -435,7 +448,7 @@ static int simsUnpack(volatile unsigned char*m){   // 1 = a valid life was read 
         simNights=m[32]; simAspUsed=m[33]==255?-1:m[33];
         for(int s=0;s<SIM_WS;s++){ simW[s]=m[34+s]-1; simWP[s]=simGet16(m,42+s*2); }
         for(int s=0;s<SIM_FS;s++) simF[s]=m[38+s]-1;
-        simLock=m[41]; sSoc=m[50]?(m[50]>101?70:m[50]-1):70;
+        simLock=m[41]&15; sSoc=m[50]?(m[50]>101?70:m[50]-1):70;
     } else {   // SIM2: the old points carry over as reward points, the rest starts fresh
         simMeter=SIM_METER0; simFlags=0; simTricks=simBestCombo=simStokedS=simNights=0; simAspUsed=-1; simLock=0;
         for(int s=0;s<SIM_WS;s++){ simW[s]=-1; simWP[s]=0; } for(int s=0;s<SIM_FS;s++) simF[s]=-1;
@@ -446,7 +459,7 @@ static void fxGhostLoad(volatile unsigned char*m); static int simsLoad(void){ in
 
 static void fxGhostClear(void); static void simsDefaults(void){ fxGhostClear();   // a brand new life (nothing is written to SRAM)
     sNrg=100; sHyg=100; sCom=80; sRoom=40; sSoc=70; simMoney=SIM_CASH0; simAsp=0; simDone=0; simDay=0; simMin=480;
-    jobLvl=0; jobGood=0; jobBad=0; skillPts=0; jobTrack=0; jobBr=0; jobChosen=0; skReset();
+    jobLvl=0; jobGood=0; jobBad=0; skillPts=0; jobTrack=JT_SKATE; jobBr=0; jobChosen=0; skReset();
     simMeter=SIM_METER0; simFlags=0; simTricks=simBestCombo=simStokedS=simNights=0; simAspUsed=-1; simLock=0;
     for(int s=0;s<SIM_WS;s++){ simW[s]=-1; simWP[s]=0; } for(int s=0;s<SIM_FS;s++) simF[s]=-1;
 }
@@ -589,7 +602,7 @@ static char jobMsg[32] EWRAM_BSS;
 static void jobPromote(void){   // enough good shifts: a promotion, if the track has a level left and you have the skill and the friend for it
     const JobTr*t=jobT();
     if(jobLvl>=t->top){ if(!simQ) simQueue("TOP OF TRACK  TRANSFER ON PHONE"); return; }
-    if(skillLvl<jobNeedSkill(jobLvl)){ char*e=simCat(jobMsg,"PROMOTION NEEDS SKILL "); simCatN(e,jobNeedSkill(jobLvl)); simQueue(jobMsg); jobGood=t->good-1; return; }
+    if(jobSkLvl(jobTrack)<jobNeedSkill(jobLvl)){ char*e=simCat(simCat(jobMsg,"PROMOTION NEEDS "),jobSkName(jobTrack)); e=simCat(e," "); simCatN(e,jobNeedSkill(jobLvl)); simQueue(jobMsg); jobGood=t->good-1; return; }
     if(jobNeedFriend(jobLvl)&&jobFriends()<1){ simQueue("PROMOTION NEEDS A FRIEND"); jobGood=t->good-1; return; }
     jobLvl++; dnaAdd(SIM_DNA_PROMO); moodEvent(M_PROMO); simEvent(SE_PROMO);
     if(jobLvl==3&&t->top>=3&&!jobChosen) simQueue("PROMOTED  PICK A BRANCH ON PHONE"); else simQueue("PROMOTED");
@@ -634,6 +647,7 @@ static void ageTick(void){   // once per game day: each stage lasts the days set
 }
 static void simMinute(void){   // once per game minute
     simMin++;
+    if(jobTrack!=JT_SKATE&&simInShift()&&!simAct&&!ldead) shiftPts+=(moodState()==MS_STOKED)?2:1;   // a normal job: work minutes (see jobQuotaOf)
     if(simMin==16*60+20&&(simHave&SR_PIPE)&&pipeOk()) simQueue("IT IS 4:20  PUFF PUFF PASS");   // the house gathers at the water pipe (house.h)
     if(simMin>=1440){   // midnight: new day, bills, autosave
         simMin=0; simDay++; if(simDay>30000) simDay=0;
@@ -739,7 +753,7 @@ static void simsTick(unsigned pr,int tx,int ty){
     int spm=oStepsMin();   // DAY LENGTH option (0 = the clock is stopped)
     if(spm>0){ simClkCr+=(simAct==1)?spm:1; while(simClkCr>=spm){ simClkCr-=spm; simMinute(); sgDirty=1; } }
     // the day's quota counts trick points scored during the shift
-    if(lscore>simLastScore&&simInShift()) shiftPts+=lscore-simLastScore;
+    if(lscore>simLastScore&&simInShift()&&jobTrack==JT_SKATE) shiftPts+=lscore-simLastScore;   // only the skater job is paid in trick points
     if(lscore!=simLastScore) sgDirty=1;   // (progress since the last save file: MANUAL saving asks before it is thrown away)
     simLastScore=lscore;
     if(simT%30==0){ simRoomTick(tx,ty); simStateTick(); }
