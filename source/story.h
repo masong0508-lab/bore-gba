@@ -9,9 +9,9 @@
 // The household bank (households.h) keeps it with the household, so every household has its own story.
 // Needs before it: house.h (hhM, hhAdd, relF), sims.h (simMoney, jobLvl, simDay), households.h, lookTrueRandom, the UI kit.
 _Static_assert(OPT_OFF+3+XO_N+1<=STORY_OFF&&STORY_OFF+8<=SLOT_DIR,"the story block overlaps the options or the slot directory");
-enum { STY_NONE, STY_ROOM, STY_WED, STY_PARENT, STY_SKATE, STY_HOUSE, STY_FRIEND, STY_RAGS, STY_CLIMB, STY_TOWN, STY_N };   // (new stories go at the END: the saved story number stays valid)
+enum { STY_NONE, STY_ROOM, STY_WED, STY_PARENT, STY_SKATE, STY_HOUSE, STY_FRIEND, STY_RAGS, STY_CLIMB, STY_TOWN, STY_SECOND, STY_N };   // (new stories go at the END: the saved story number stays valid)
 enum { SG_FRIEND, SG_LOVE, SG_STEADY, SG_JOB, SG_MONEY, SG_KID, SG_KIDFRIEND, SG_GUEST, SG_END,
-    SG_SKILL, SG_TRICKS, SG_WANTS, SG_HOUSE, SG_FRIENDS, SG_BFF };   // (the last six: skill level, tricks landed, wants fulfilled, Sims in the house, friends in the house, a best friend)
+    SG_SKILL, SG_TRICKS, SG_WANTS, SG_HOUSE, SG_FRIENDS, SG_BFF, SG_DAYS };   // (the last seven: skill level, tricks landed, wants fulfilled, Sims in the house, friends in the house, a best friend, days since the chapter began)
 typedef struct { const char* nm; u8 goal; u16 arg; } StCh;
 static const StCh stRoom[]={ {"BECOME FRIENDS WITH YOUR ROOMMATE",SG_FRIEND,0}, {"FALL IN LOVE",SG_LOVE,0}, {"GO STEADY",SG_STEADY,0},
     {"GET A PROMOTION",SG_JOB,1}, {"A CHILD COMES HOME",SG_KID,0}, {"THE END  A FAMILY OF YOUR OWN",SG_END,0} };
@@ -31,17 +31,20 @@ static const StCh stClimb[]={ {"GET A PROMOTION",SG_JOB,1}, {"SAVE 600 SIMOLEONS
     {"GET ANOTHER PROMOTION",SG_JOB,2}, {"REACH SKILL LEVEL 3",SG_SKILL,3}, {"THE END  TOP OF THE LADDER",SG_END,0} };
 static const StCh stTown[]={ {"BECOME FRIENDS WITH A HOUSEMATE",SG_FRIEND,0}, {"MAKE 2 FRIENDS",SG_FRIENDS,2}, {"HAVE A NEIGHBOR OVER",SG_GUEST,0},
     {"FILL THE HOUSE WITH 3 SIMS",SG_HOUSE,3}, {"FULFIL 8 WANTS",SG_WANTS,8}, {"THE END  YOU BELONG HERE",SG_END,0} };
-static const StCh* const stChs[STY_N]={0,stRoom,stWed,stPar,stSkate,stHouse,stFriend,stRags,stClimb,stTown};
-static const u8 stLen[STY_N]={0,6,6,6,6,6,6,6,6,6};   // (6 each: the story card and the journal have room for six rows)
-static const char* const stNm[STY_N]={"","ROOMMATES","NEWLYWEDS","SINGLE PARENT","SKATE LIFE","HOUSEFULL","BEST FRIENDS","RAGS TO RICHES","CAREER CLIMBER","NEW IN TOWN"};
+static const StCh stSecond[]={ {"BECOME FRIENDS AGAIN",SG_FRIEND,0}, {"FALL BACK IN LOVE",SG_LOVE,0}, {"GO STEADY AGAIN",SG_STEADY,0},
+    {"SURVIVE 14 MORE DAYS",SG_DAYS,14}, {"SAVE 800 SIMOLEONS",SG_MONEY,800}, {"THE END  WORTH FIXING",SG_END,0} };
+static const StCh* const stChs[STY_N]={0,stRoom,stWed,stPar,stSkate,stHouse,stFriend,stRags,stClimb,stTown,stSecond};
+static const u8 stLen[STY_N]={0,6,6,6,6,6,6,6,6,6,6};   // (6 each: the story card and the journal have room for six rows)
+static const char* const stNm[STY_N]={"","ROOMMATES","NEWLYWEDS","SINGLE PARENT","SKATE LIFE","HOUSEFULL","BEST FRIENDS","RAGS TO RICHES","CAREER CLIMBER","NEW IN TOWN","SECOND CHANCE"};
 static int stRew(int ch){ return 250+ch*50; }   // the pay of a chapter rises with the story: 250, 300, 350 ...
 static const char* const stAbout[STY_N]={"","A NEW ROOMMATE  AND MAYBE MORE","JUST MARRIED  A FAMILY TO START","YOU AND YOUR KID  ON YOUR OWN"};
-static const char* const stTag[STY_N]={"","ROMANCE","ROMANCE AND FAMILY","FAMILY","SKILL AND CAREER","FRIENDSHIP AND HOME","FRIENDSHIP","MONEY AND CAREER","CAREER AND SKILL","FRIENDSHIP AND TOWN"};
+static const char* const stTag[STY_N]={"","ROMANCE","ROMANCE AND FAMILY","FAMILY","SKILL AND CAREER","FRIENDSHIP AND HOME","FRIENDSHIP","MONEY AND CAREER","CAREER AND SKILL","FRIENDSHIP AND TOWN","ROMANCE AND REPAIR"};
 static const char* const stBlurb[STY_N][3]={{0,0,0},{"YOU MOVE IN WITH SOMEONE","YOU BARELY KNOW  FRIENDS","FIRST  THEN MAYBE LOVE"},
     {"JUST MARRIED AND IN LOVE","SAVE UP  CLIMB THE CAREER","AND START A FAMILY"},{"YOU AND YOUR KID ON YOUR","OWN  MAKE THE MONEY WORK","AND LET THE NEIGHBORS IN"},
     {"NOBODY HERE BUT YOU AND","A BOARD  LAND TRICKS  LEARN","THE SKILL  MAKE IT PAY"},{"A BUSY SHARED HOUSE  MAKE","FRIENDS  FILL THE ROOMS","AND KEEP THE BILLS PAID"},
     {"TWO NEW HOUSEMATES  ONE","TRUE BEST FRIEND  AND A","NEIGHBOR TO HAVE OVER"},{"YOU START WITH ALMOST","NOTHING  WORK  SAVE  GET","PROMOTED  AND GET RICH"},
-    {"A JOB WITH A FUTURE  WORK","HARD  LEARN A SKILL  AND","CLIMB THE LADDER"},{"YOU JUST MOVED IN  KNOW","NOBODY  MEET THE NEIGHBORS","AND MAKE THE PLACE YOURS"}};
+    {"A JOB WITH A FUTURE  WORK","HARD  LEARN A SKILL  AND","CLIMB THE LADDER"},{"YOU JUST MOVED IN  KNOW","NOBODY  MEET THE NEIGHBORS","AND MAKE THE PLACE YOURS"},
+    {"YOU WERE CLOSE ONCE  NOW","THEY BARELY LOOK AT YOU","FIX WHAT YOU BROKE"}};
 static u8 stShown;   // the chapter whose card was shown last (id*16+chapter+1): a card once per chapter
 static u8 stId, stCh, stPart=255, stKid=255, stKidDay=255, stGuest;   // the story, its chapter, your partner and your kid (uids), the day the promised child comes, a guest came
 static u8 stSum(volatile u8*m){ return (u8)(0x53+m[2]+m[3]*3+m[4]*5+m[5]*7+m[6]*11); }
@@ -77,6 +80,7 @@ static int stValue(const StCh*c){   // the number a goal counts (-1: the goal ha
     switch(c->goal){
         case SG_MONEY: return simMoney;      case SG_JOB: return jobLvl;      case SG_SKILL: return skillLvl;
         case SG_TRICKS: return simTricks;    case SG_WANTS: return simDone;   case SG_HOUSE: return hhN+1;
+        case SG_DAYS: return stKidDay==255?0:((simDay&255)-stKidDay)&255;   // (the day the chapter began lives in stKidDay: no story has both this goal and a child)
         case SG_FRIENDS: { int me=hhPUid, n=0; for(int u=0;u<HU_N;u++) if(u!=me&&(relF[me][u]&RF_FRIEND)) n++; return n; }
     }
     return -1;
@@ -93,7 +97,7 @@ static int stDone(const StCh*c){   // is the chapter's goal met?
         case SG_KIDFRIEND: { int k=stMember(stKid); return k>=0&&(relF[me][hhM[k].uid]&RF_FRIEND); }
         case SG_GUEST: return stGuest;
         case SG_BFF: return pu>=0&&(relF[me][pu]&RF_BFF);
-        case SG_SKILL: case SG_TRICKS: case SG_WANTS: case SG_HOUSE: case SG_FRIENDS: { int v=stValue(c); return v>=(int)c->arg; }
+        case SG_SKILL: case SG_TRICKS: case SG_WANTS: case SG_HOUSE: case SG_FRIENDS: case SG_DAYS: { int v=stValue(c); return v>=(int)c->arg; }
     }
     return 0;
 }
@@ -116,7 +120,7 @@ static int jbStoryDone(int story,int ch){   // 1 when this mission was the one t
     x=0x5A; for(int i=0;i<8;i++) x^=v[i];
     m[0]='M'; m[1]='S'; for(int i=0;i<8;i++) m[2+i]=v[i]; m[10]=x;
     int n=0; for(int i=0;i<(STY_N-1)*SM_PER&&i<64;i++) n+=(v[i>>3]>>(i&7))&1;
-    if(n*2<(STY_N-1)*SM_PER) return 0;   // half of ALL the missions: it grows with every story added (8 stories = 40 missions = 20 needed)
+    if(n*2<(STY_N-1)*SM_PER) return 0;   // half of ALL the missions: it grows with every story added (10 stories = 50 missions = 25 needed)
     int a=jbUnlock(UL_CLOSER), t=jbUnlock(UL_TREE); return a|t;
 }
 static void stAnnounce(void){ static char t[44] EWRAM_BSS; char*e=slCat(t,"CHAPTER "); e=slNum(e,stCh+1); e=slCat(e,"  "); slCat(e,stChs[stId][stCh].nm); lnote=t; lnoteT=240; }
@@ -126,6 +130,7 @@ static void stTick(void){   // once per logic step in the life game: is this cha
     for(int k=0;k<TW_N;k++) if(twOn[k]==2) stGuest=1;   // a neighbor is staying over (HAVE A NEIGHBOR OVER)
     const StCh*c=&stChs[stId][stCh];
     if(c->goal==SG_END) return;
+    if(c->goal==SG_DAYS&&stKidDay==255){ u8 b=(u8)(simDay&255); stKidDay=b==255?254:b; stSave(); return; }   // the clock starts when the chapter does
     if(c->goal==SG_KID){   // a day after the chapter starts the child comes home
         if(stKidDay==255){ stKidDay=(u8)((simDay+1)&255); stSave(); return; }
         if((u8)simDay!=stKidDay) return;
@@ -133,6 +138,7 @@ static void stTick(void){   // once per logic step in the life game: is this cha
     } else if(!stDone(c)) return;
     simMoney+=stRew(stCh); if(simMoney>9999) simMoney=9999; dnaAdd(25); persSave(); simsSave();
     if(jbStoryDone(stId,stCh)){ simQPush("MORE SCOOBY STUFF TO FIND"); simQPush("TOUCH GRASS TO FIND IT"); }   // half of all the story missions: secret songs (no names, go and look)
+    if(c->goal==SG_DAYS) stKidDay=255;
     stCh++; stSave(); stAnnounce(); stShown=(u8)(stId*16+stCh+1); stModal=2;   // the CHAPTER COMPLETE card (stRunModal)
 }
 static void stEnter(void){ stLoad(); if(stId){ stAnnounce(); if(stShown!=(u8)(stId*16+stCh+1)){ stShown=(u8)(stId*16+stCh+1); stModal=1; } } }   // (a chapter card once per chapter and power on)   // entering the life game: the current goal on the top bar
@@ -158,7 +164,8 @@ static void stIcon(int s,int x,int y,int sc,u16 c){   // a little picture per st
       {".XX...XX.",".XX...XX.","XXXX.XXXX","XXXX.XXXX",".XX...XX.",".XX...XX.",".X.X.X.X.",".X.X.X.X."},
       {"..XXXXX..",".XXXXXXX.","XXXX.XXXX","XXX...XXX","XXXX.XXXX","XXXXXXXXX",".XXXXXXX.","..XXXXX.."},
       {"......XX.","......XX.","....XXXX.","....XX...","..XXXX...","..XX.....","XXXX.....","XXXX....."},
-      {"XXXXXXX..","XXXXXXXX.","XXXXXXX..","....X....","....X....","....X....","....X....","...XXX..."}};
+      {"XXXXXXX..","XXXXXXXX.","XXXXXXX..","....X....","....X....","....X....","....X....","...XXX..."},
+      {".XX...XX.","XXXX.XXXX","XXXXX.XXX","XXXX.XXXX",".XXX.XXX.","..XX.XX..","...XXX...","....X...."}};   // SECOND CHANCE: a cracked heart
     for(int r=0;r<8;r++) for(int q=0;q<9;q++) if(pic[s][r][q]=='X') rect(x+q*sc,y+r*sc,sc,sc,c);
 }
 static void stSparkle(u32 cnt,int x0,int y0,int w,int h){   // a few twinkling pixels (a cheap celebration)
@@ -182,7 +189,7 @@ static void storyScreen(void){   // pause menu > STORY: the story journal, a cha
         if(!stId){
             s2rr(8,24,224,60,RGB(10,20,30)); s2rr(9,25,222,58,RGB(2,6,13));
             text(16,32,"NO STORY RIGHT NOW",GOLD,1); text(16,46,"START ONE FROM THE MAIN MENU",WHITE,1); text(16,56,"PLAY  NEW GAME  STORY MODE",RGB(17,29,31),1);
-            text(16,70,"NINE STORIES  SIX CHAPTERS EACH",RGB(20,24,28),1);
+            text(16,70,"TEN STORIES  SIX CHAPTERS EACH",RGB(20,24,28),1);
         } else {
             int n=stLen[stId];
             stIcon(stId,9,21,2,RGB(31,20,22));   // the story's picture, its name and kind, and how far you are
@@ -265,6 +272,8 @@ static void storySetup(int s){   // after the new life is set up and the old hou
         m=stAddSim(lk,AG_CHILD,hhPLast); if(m>=0){ stRel(hhPUid,hhM[m].uid,40,30,0); stKid=hhM[m].uid; } break;
     case STY_SKATE: break;   // just you and a board
     case STY_RAGS: simMoney=100; break;   // you start with almost nothing
+    case STY_SECOND: st=AG_ADULT; lookTrueRandom(lk,&st);   // someone you fell out with (they start cold)
+        m=stAddSim(lk,AG_ADULT,hhPLast); if(m>=0){ stRel(hhPUid,hhM[m].uid,-20,-10,0); stPart=hhM[m].uid; } break;
     case STY_CLIMB: break;   // just you and a job to climb
     case STY_HOUSE: case STY_FRIEND: case STY_TOWN:   // housemates who are not friends yet (BEST FRIENDS: two of them)
         for(int i=0;i<(s==STY_FRIEND?2:1);i++){ st=AG_ADULT; lookTrueRandom(lk,&st); char l[HH_NM]; famLast(&hhFams[rnd8()%HH_NFAM],l);

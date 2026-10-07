@@ -61,7 +61,8 @@ static void careerScreen(void){
           else { e=simCat(b,"A TRANSFER  YOU START AT "); simCat(e,jobTitleOf(sel,jobStartLvl(sel),0)); text(14,117,b,RGB(24,27,30),1); } }
         for(int i=0;i<JT_N;i++) s2rr(86+i*9,131,6,4,i==sel?GOLD:i==jobTrack?RGB(10,26,12):RGB(7,14,22));   // which track this is (green: yours)
         text(14,129,"<",GOLD,1); text(223,129,">",GOLD,1);
-        s2pill(5,147,66,"LEFT RIGHT TRACK"); s2pill(75,147,me?(jobLvl>=3&&t->top>=3?58:30):52,me?(jobLvl>=3&&t->top>=3?"A BRANCH":"A OK"):"A TRANSFER"); s2pill(75+(me?(jobLvl>=3&&t->top>=3?62:34):56),147,40,"B BACK");
+        { int br=me&&jobLvl>=3&&t->top>=3; const char*a=me?(br?"A BRANCH":"A OK"):"A TRANSFER"; int x=5, w=tw("LEFT RIGHT TRACK",1)+10;   // buttons as wide as their words
+          s2pill(x,147,w,"LEFT RIGHT TRACK"); x+=w+4; w=tw(a,1)+10; s2pill(x,147,w,a); x+=w+4; s2pill(x,147,tw("B BACK",1)+10,"B BACK"); }
         present();
     }
 }
