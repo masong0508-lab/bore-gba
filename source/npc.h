@@ -1,7 +1,7 @@
 // npc.h - AI SKATERS and POLICE: two small NPC systems on hardware sprites (no frame buffer, no baked characters).
 //
 //  * ART: 4 frames of 16 x 32 in ROM (npcArt: cop standing, cop stepping, skater rolling, skater in the air), uploaded to OBJ tiles 800.. (8 tiles a frame),
-//    OBJ palettes 12 (cop) and 13..15 (the three skaters). OAM entries 59..62. fx.h owns tiles 768..799, palettes 8..11 and OAM 16..58; the household
+//    OBJ palettes 12 (cop) and 13..15 (the three skaters). OAM entries 59..62 (and 63.. for cops 2 and up, see COP_MAX). fx.h owns tiles 768..799, palettes 8..11 and OAM 16..58; the household
 //    owns tiles 512..767, palettes 0..7 and OAM 0..15. Nothing here is saved.
 //  * AI SKATERS: on a map with at least NPC_PARK skate objects (kickers, quarter pipes, launch ramps, funboxes, rails, ledges, jersey barriers, manual
 //    pads) up to 3 skaters roll from object to object and hop beside each one. They cost about 90 bytes of EWRAM and no drawing time.
@@ -211,8 +211,11 @@ static void npcSkSpawn(void){
 // BODY slows that down) and because BACKUP keeps coming (one more cop every 15 s, up to copMax). To get away, reach the lot's way out (the flags / exits where visitors
 // come in): "YOU GOT AWAY". But they remember you: each escape adds a WANTED star (copWant, up to 6), and every midnight there is a small chance (about 5% a star)
 // that the cops RAID your home lot, with more cops the more stars you have. Being BUSTED clears the stars. Not saved (a new session starts clean).
-#define COP_MAX 3
-static HhSim copS[COP_MAX] EWRAM_BSS;                          // the cops walk like visitors: path, position and speed are an HhSim's. copS[0] leads
+#define COP_CAP 5    // the most cops a chase or a raid ever sends (what the game asks for is clamped to this)
+#define COP_MAX 20   // HARD LIMIT: the size of every cop array and the OAM entries set aside (cop 0 = 59, cop n = 62+n: 63..81). Never exceeded, whatever COP_CAP says.
+_Static_assert(COP_CAP<=COP_MAX,"COP_CAP can not be above the hard limit COP_MAX");
+_Static_assert(NPC_OAM0+3+COP_MAX-1<128,"the cops' OAM entries run past the 128 the GBA has");
+static HhSim copS[COP_MAX] EWRAM_BSS;                          // the cops walk like visitors: path, position and speed are an HhSim's. copS[0] leads (about 190 bytes of EWRAM each: COP_MAX of them are always reserved)
 static u8 copN EWRAM_BSS, copMax EWRAM_BSS, copFast EWRAM_BSS, copRp[COP_MAX] EWRAM_BSS;   // cops on the lot, most this chase, raid (backup comes quickly), replan counters
 static u8 copSt EWRAM_BSS, copHeat EWRAM_BSS, copTry EWRAM_BSS, copWant EWRAM_BSS, copRaid EWRAM_BSS; static u16 copHT EWRAM_BSS, copCool EWRAM_BSS, copRT EWRAM_BSS, copTired EWRAM_BSS; static short copT EWRAM_BSS;
 static char copMsg[20] EWRAM_BSS;                              // copSt: 0 none, 1 called (waiting), 2 running at you, 3 holding you, 4 walking away
@@ -223,18 +226,18 @@ static int copAtExit(int px,int py){   // you are on or next to a way out of the
     return 0;
 }
 static int copSpawn(void){   // one more cop walks in from a way off the lot
-    if(copN>=COP_MAX||copN>=copMax) return 0;
+    if(copN>=COP_MAX||copN>=COP_CAP||copN>=copMax) return 0;
     int a=twFar(); if(a<0) return 0;
     HhSim*c=&copS[copN]; c->fx=(a%MW)*256+128; c->fy=(a/MW)*256+128; c->pn=c->pi=0; c->gok=0; c->stage=AG_ADULT; c->act=HA_WALK; c->hd=0; copRp[copN]=45; copN++; return 1;
 }
 static void copPlaceAgain(int i){ int a=twFar(); if(a<0) return; HhSim*c=&copS[i]; c->fx=(a%MW)*256+128; c->fy=(a/MW)*256+128; c->pn=c->pi=0; c->gok=0; }
-static void copStart(int max,int fast,int wait){ copSt=1; copN=0; copMax=(u8)(max>COP_MAX?COP_MAX:max); copFast=(u8)fast; copT=(short)wait; copTry=0; copRT=0; copTired=0; }
+static void copStart(int max,int fast,int wait){ copSt=1; copN=0; copMax=(u8)(max>COP_CAP?COP_CAP:max<1?1:max); if(copMax>COP_MAX) copMax=COP_MAX; copFast=(u8)fast; copT=(short)wait; copTry=0; copRT=0; copTired=0; }
 static int prNote(int n); static int prBook(void); static int prGuardTick(int*planned); static const HhSim* prVisSprite(void);   // prison.h
 static void copCrime(int n){   // called when you hurt someone
     if(prNote(n)) return;   // prison.h: the record grows (in the prison itself: more days, and no cops)
     if(copCool>0||copSt) return;
     copHeat=(u8)(copHeat+n>9?9:copHeat+n);
-    if(copHeat>=3&&(int)rnd8()<150+copWant*15){ copStart(1+(copWant>=2)+(copWant>=4),0,300+rnd8()); lnote="SOMEONE CALLED THE COPS"; lnoteT=90; }   // "there is a chance": not every crime is seen
+    if(copHeat>=3&&(int)rnd8()<150+copWant*15){ copStart(1+(copWant>=2)+(copWant>=4)+(copWant>=6),0,300+rnd8()); lnote="SOMEONE CALLED THE COPS"; lnoteT=90; }   // "there is a chance": not every crime is seen
 }
 static void copDay(void){   // once a night (sims.h, midnight): the cops that remember you may raid your home
     if(copHeat) copHeat--;
@@ -258,7 +261,7 @@ static void copTick(int*planned){   // once per logic step (hhTick)
     if(copHeat&&++copHT>=600){ copHT=0; copHeat--; }
     if(copCool) copCool--;
     if(ldead){ if(copSt) copSt=0; copN=0; return; }
-    if(copRaid&&!copSt&&!copCool&&copHome()){ copRaid=0; copStart(1+(copWant+1)/2,1,150); lnote="POLICE AT YOUR DOOR"; lnoteT=100; }   // more cops the more they remember
+    if(copRaid&&!copSt&&!copCool&&copHome()){ copRaid=0; copStart(1+(copWant+1)/2+(copWant>=6),1,150); lnote="POLICE AT YOUR DOOR"; lnoteT=100; }   // more cops the more they remember (1 star: 2 cops ... 6 stars: COP_CAP)
     int px=(int)(lfx>>8), py=(int)(lfy>>8), i;
     switch(copSt){
     case 1:
@@ -272,13 +275,20 @@ static void copTick(int*planned){   // once per logic step (hhTick)
         if(copAtExit(px,py)){ copEscape(); break; }
         if(copN<copMax&&++copRT>=900){ copRT=0; if(copSpawn()){ lnote="MORE COPS ARE COMING"; lnoteT=60; } }   // backup: more of them, never faster
         if(++copTired>=(unsigned)(90+30*skLvl(SK_BODY))){ copTired=0; if(sNrg>0) sNrg--; }   // the chase wears you out (an athlete lasts longer): a tired Sim is slower
+        // PLANNING: the game allows one search per logic step (the shared *planned flag), so the cop that is MOST OVERDUE goes first (a cop with no path left
+        // before one that is merely due), not simply the lowest number: with many cops the last ones are never starved. A cop close to you re-plans sooner
+        // (every 12 + 2 per tile away, up to 45 steps): that is where it matters, and a search that ends next to you is cheap.
+        for(i=0;i<copN;i++) if(copRp[i]<255) copRp[i]++;
+        if(!*planned){ int best=-1, bw=-1;
+            for(i=0;i<copN;i++){ const HhSim*c=&copS[i]; int w;
+                if(c->pi>=c->pn) w=1000+copRp[i];   // out of path: needs one now
+                else { int ddx=px-(int)(c->fx>>8), ddy=py-(int)(c->fy>>8), iv=12+2*((ddx<0?-ddx:ddx)+(ddy<0?-ddy:ddy)); if(iv>45) iv=45; w=(int)copRp[i]-iv; if(w<0) continue; }
+                if(w>bw){ bw=w; best=i; } }
+            if(best>=0){ HhSim*c=&copS[best]; *planned=1; copRp[best]=0; hhGX=px; hhGY=py; int r=hhPlan(c,1);
+                if(r==1){ copArrest(); break; }
+                if(r==0){ if(++copTry>=4){ copSt=0; copN=0; copHeat=0; break; } else copPlaceAgain(best); } } }
         for(i=0;i<copN;i++){ HhSim*c=&copS[i];
-            if(c->pi>=c->pn||++copRp[i]>=45){
-                if(!*planned){ *planned=1; copRp[i]=0; hhGX=px; hhGY=py; int r=hhPlan(c,1);
-                    if(r==1){ copArrest(); break; }
-                    if(r==0){ if(++copTry>=4){ copSt=0; copN=0; copHeat=0; break; } else copPlaceAgain(i); } } }
-            if(c->pi<c->pn){ hhStepAlong(c); if(c->pi<c->pn) hhStepAlong(c); }   // he runs, at your running pace
-        }
+            if(c->pi<c->pn){ hhStepAlong(c); if(c->pi<c->pn) hhStepAlong(c); } }   // he runs, at your running pace
         break; }
     case 3:
         if(lstun<2) lstun=2;
@@ -309,7 +319,7 @@ static void npcPlayStart(void){
 static void npcObjUpdate(void){
     volatile u16*oam=OAM; if(!npcVramOk){ npcUpload(); npcVramOk=1; }
     int hide=(lcamF>0)||curFl||zoomDma, i;
-    for(int ci=0;ci<COP_MAX;ci++){ volatile u16*e=oam+(ci?NPC_OAM0+3+ci:NPC_OAM0)*4; e[0]=0x200;   // the cops: 59, then 63 and 64 (60..62 are the skaters)
+    for(int ci=0;ci<COP_MAX;ci++){ volatile u16*e=oam+(ci?NPC_OAM0+3+ci:NPC_OAM0)*4; e[0]=0x200;   // the cops: 59, then 63.. up to 81 (60..62 are the skaters; 65..81 were unclaimed)
       if(hide||copSt<2||ci>=copN||copS[ci].act==HA_AWAY) continue;
       const HhSim*c=&copS[ci]; int sx,sy; fxScreen(c->fx,c->fy,&sx,&sy); int x=sx-8, y=sy-30;
       int fr=(copSt==2||copSt==4||(copSt==5&&c->pi<c->pn))&&(((fxT>>3)+ci)&1)?1:0;

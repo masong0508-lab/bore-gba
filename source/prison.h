@@ -137,7 +137,7 @@ static int prGuardsNear(void){
 }
 static void prGuardSpawn(void){
     int x0,y0,x1,y1; const NbLot*L=&nbT.lot[nbT.cur]; nbRect(L,&x0,&y0,&x1,&y1);
-    int want=(prTot>=140)?3:2; if(want>COP_MAX) want=COP_MAX;
+    int want=(prTot>=140)?3:2; if(want>COP_CAP) want=COP_CAP;
     copN=0; copSt=0;
     for(int t=0;t<200&&copN<want;t++){
         int x=x0+1+(int)(((u32)rnd8()<<8|rnd8())%(unsigned)(x1-x0-1)), y=y0+1+(int)(((u32)rnd8()<<8|rnd8())%(unsigned)(y1-y0-1));
