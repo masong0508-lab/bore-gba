@@ -57,3 +57,6 @@ In the room builder (BUILD ROOM, the pause menu's EDIT MAP, or BUILD on a lot in
 **Wants:** wants met soon after each other make a **STREAK** (5 more points each, up to +20); a want nobody meets for about 3 minutes is swapped for a new one unless you locked it; there are four lifetime wants per aspiration (pick yours on the ASPIRE tab) and new wants for switch tricks, wall taps, manuals, the radio and 8 trick combos.
 
 **Saves:** 128 KB flash (58 room slots). Carts without flash fall back to 32 KB SRAM (12 slots). Older saves carry over. Layout: `docs/NOTES.md`.
+
+**Lot flags:** in BUILD (MISC) place a **COMMUNITY FLAG** (visitors come and go there) and/or a **SKATE FLAG** (a skater starts there). Building a lot with flags makes it a community lot: skate flags = SKATE PARK, community flags = PARK, both = PARK + SKATE. When a lot opens, the camera now flies over its open goals first (A / B / START skips).
+

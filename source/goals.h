@@ -5,7 +5,7 @@
 // VIEW GOALS (PAUSE > WANTS) lists them for the lot you stand on, the TIMED RUN best, and the totals of the town.
 // SRAM: TG_OFF, 39 bytes in the free gap after the timed run block: 'G' 'V', then TG_N entries (the newest town first, the oldest falls off):
 //       town key (nbKey) and five 16 bit lot masks: tape found, lots played that have goals, SKATE done, CLEAR done, SCORE done; then a checksum.
-// Not built yet: goals that unlock parts or maps (the pay is cash for now), a gap or wallride goal (needs wallride), the intro flyover.
+// Not built yet: goals that unlock parts or maps (the pay is cash for now), a gap or wallride goal (needs wallride). The intro flyover (introFly) is at the end.
 // Needs before it: nbOk, nbT, nbKey, NB_LOTS (neighborhood.h, households.h), stBack (story.h), clLive / clTook / clReal / clGot / CL_ON (main.c),
 // trnBestGet (timedrun.h), simMoney, simCat / simCatN, the UI kit.
 #define TG_OFF 4825
@@ -88,4 +88,28 @@ static void goalsScreen(void){
         text(10,144,"A OR B BACK",RGB(12,14,16),1);
         present();
     }
+}
+// ---- the INTRO FLYOVER (roadmap #4): when a lot opens, the camera pans to the goal spots, each with a banner in the top bar ----
+// It only visits the goals that are still open on this lot (the saved goal bits, tgHave): the tape spot if the tape is not found, the first and last
+// letter if SKATE is not done, then back to you (with the score goal when that is open). Any of A, B, START skips it. The world holds still meanwhile.
+// camFollow looks at flyX / flyY instead of the skater while flyOn is set (main.c).
+static void introFly(void){
+    if(!CL_ON||tutOn||tutModal!=TM_NONE||stModal||tgHave==15) return;
+    s32 sx[4], sy[4]; const char* tx[4]; int n=0;
+    if(!(tgHave&TGF_TAPE)&&!(clGot&32)){ sx[n]=clx[5]*256+128; sy[n]=cly[5]*256+128; tx[n++]="FIND THE HIDDEN TAPE"; }
+    if(!(tgHave&TGF_SKATE)){
+        if(!(clGot&1)){ sx[n]=clx[0]*256+128; sy[n]=cly[0]*256+128; tx[n++]="SKATE  FIRST LETTER"; }
+        if(!(clGot&16)){ sx[n]=clx[4]*256+128; sy[n]=cly[4]*256+128; tx[n++]="SKATE  LAST LETTER"; } }
+    if(!n) return;
+    sx[n]=lfx; sy[n]=lfy; tx[n++]=(tgHave&TGF_SCORE)?"GOOD LUCK":"SCORE 2000 FOR A GOAL";
+    u16 prev=keyNow(); int skip=0; flyOn=1; flyX=lfx; flyY=lfy; camSnap=1; lifeDraw();   // (first picture: at the skater)
+    for(int i=0;i<n&&!skip;i++){
+        flyX=sx[i]; flyY=sy[i]; lnote=tx[i]; lnoteT=200;
+        for(int f=0;f<80&&!skip;f++){
+            u16 k=keyNow(), pr=k&~prev; prev=k; if(pr&(K_A|K_B|K_START)) skip=1;
+            vsync(); gmTick(); lifeDraw();
+        }
+    }
+    flyOn=0; camSnap=1; lnote=""; lnoteT=0;
+    if(skip) while((~REG_KEYINPUT)&0x3FF) vsync();
 }

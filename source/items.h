@@ -25,6 +25,12 @@ static void drawSpawn(int sx,int sy){   // editor marker: a little standing pers
     for(int j=0;j<12;j++)for(int i=0;i<7;i++){ char c=spawnArt[j][i]; if(c=='.') continue;
         u16 col=c=='h'?RGB(10,6,3):c=='s'?RGB(30,23,17):c=='r'?RGB(28,8,7):c=='b'?RGB(7,9,20):RGB(3,3,5); px(sx-3+i,sy-11+j,col); }
 }
+static void drawFlag(int sx,int sy,int skate,int t){   // a flag on a pole, drawn in code: blue with a white stripe = COMMUNITY, orange with a dark stripe = SKATE; the cloth ripples
+    u16 pole=RGB(26,26,28), cloth=skate?RGB(31,17,3):RGB(5,19,28), mark=skate?RGB(6,5,8):RGB(31,31,31), foot=RGB(10,10,12);
+    for(int j=0;j<17;j++) px(sx,sy-16+j,pole);
+    px(sx-1,sy+1,foot); px(sx,sy+1,foot); px(sx+1,sy+1,foot);
+    for(int i=0;i<9;i++){ int w=(i<3?0:(((t+i/2)&3)>>1)); for(int j=0;j<6;j++){ u16 c=(j==2||j==3)?mark:cloth; px(sx+1+i,sy-16+j+w,c); } }
+}
 // which way an item faces (world dir 0=S(+y) 1=E(+x) 2=N(-y) 3=W(-x)): away from a wall, toward open floor
 static int itemOpen(int x,int y){ if(x<0||y<0||x>=MW||y>=MH) return 0; char c=lifeMap[y][x]; return c=='.'||c=='D'||c=='B'||c=='P'; }
 static int itemFacing(int x,int y){

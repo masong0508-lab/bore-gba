@@ -22,10 +22,10 @@
 enum { NT_GRASS, NT_DIRT, NT_SAND, NT_WATER, NT_PLAZA, NT_ROAD, NT_N };
 enum { DC_NONE, DC_TREE, DC_PINE, DC_BUSH, DC_FLOWER, DC_ROCK, DC_LAMP, DC_BENCH, DC_FOUNTAIN, DC_N };
 enum { LKIND_RES, LKIND_COMM };
-enum { CT_PARK, CT_SKATE, CT_PLAZA, CT_LOUNGE, CT_OLDTOWN, CT_N };
+enum { CT_PARK, CT_SKATE, CT_PLAZA, CT_LOUNGE, CT_OLDTOWN, CT_BOTH, CT_N };   // CT_BOTH: a park and a skate park in one (what a community flag and a skate flag together make)
 static const char* const ntNm[NT_N]={"GRASS","DIRT","SAND","WATER","PLAZA","ROAD"};
 static const char* const dcNm[DC_N]={"CLEAR","TREE","PINE","BUSH","FLOWERS","ROCK","LAMP","BENCH","FOUNTAIN"};
-static const char* const ctNm[CT_N]={"PARK","SKATE PARK","PLAZA","LOUNGE","OLD TOWN"};
+static const char* const ctNm[CT_N]={"PARK","SKATE PARK","PLAZA","LOUNGE","OLD TOWN","PARK + SKATE"};
 static const char* const seasNm[4]={"SPRING","SUMMER","FALL","WINTER"};
 static const char* const todNm[3]={"DAY","DUSK","NIGHT"};
 typedef struct { u8 on,x,y,w,h,kind,type; s8 slot; char name[NB_NAME+1]; u8 floors; u16 value; } NbLot;   // value: what it sells for
@@ -76,9 +76,10 @@ static void nbTemplate(int i){   // a lot's starting layout: the land, the stree
           lifeMap[y][MW]=0; }
         int cx=(x0+x1)/2;
         if(L->kind==LKIND_COMM){
-            if(L->type==CT_PARK){ for(int y=y0+2;y<=y1-2;y+=3)for(int x=x0+2;x<=x1-2;x+=4) gPut(x,y,(x/4+y/3)&1?'Z':'N'); gPut(cx-1,(y0+y1)/2,'Y'); gPut(cx+2,(y0+y1)/2,'K'); }
-            else if(L->type==CT_SKATE){ gBox(x0,y0,x1,y1,12); gLine(x0+2,y0+2,x1-2,y0+2,'=',0); gPut(x0+2,y1-3,'1'); gPut(x1-2,y1-3,'3');
-                for(int x=x0+3;x<=x1-3;x++) gPut(x,y0+1,'5'); gPut(cx,(y0+y1)/2,'X'); gPut(cx+1,(y0+y1)/2,'X'); gPut(cx,(y0+y1)/2+1,'9'); gPut(x0+1,(y0+y1)/2,'L'); gPut(x1-1,(y0+y1)/2,'M'); }
+            if(L->type==CT_PARK){ for(int y=y0+2;y<=y1-2;y+=3)for(int x=x0+2;x<=x1-2;x+=4) gPut(x,y,(x/4+y/3)&1?'Z':'N'); gPut(cx-1,(y0+y1)/2,'Y'); gPut(cx+2,(y0+y1)/2,'K'); gPut(x0+1,y0+1,'a'); }   // (a community flag: visitors come and go there)
+            else if(L->type==CT_SKATE||L->type==CT_BOTH){ gBox(x0,y0,x1,y1,12); gLine(x0+2,y0+2,x1-2,y0+2,'=',0); gPut(x0+2,y1-3,'1'); gPut(x1-2,y1-3,'3');
+                for(int x=x0+3;x<=x1-3;x++) gPut(x,y0+1,'5'); gPut(cx,(y0+y1)/2,'X'); gPut(cx+1,(y0+y1)/2,'X'); gPut(cx,(y0+y1)/2+1,'9'); gPut(x0+1,(y0+y1)/2,'L'); gPut(x1-1,(y0+y1)/2,'M'); gPut(x0+1,y0+1,'k');   // (a skate flag: a skater starts there)
+                if(L->type==CT_BOTH){ gPut(x1-1,y0+1,'a'); for(int x=x0+3;x<=x1-3;x+=5){ gFree(x,y1-1,(x/5)&1?'Z':'N'); } gFree(cx-3,y1-3,'K'); gFree(x1-3,y1-4,'Y'); } }   // + a community flag, benches, planters and a picnic table
             else if(L->type==CT_PLAZA){ gBox(x0,y0,x1,y1,3); for(int x=x0+1;x<=x1-1;x+=3){ gPut(x,y0+1,'Z'); gPut(x,y1-1,'Z'); } gPut(cx-2,(y0+y1)/2,'N'); gPut(cx+2,(y0+y1)/2,'N'); gPut(cx,(y0+y1)/2-2,'K'); }
             else if(L->type==CT_LOUNGE){ int rx0=x0+1, ry0=y0+1, rx1=x1-1, ry1=y1-3; gRoom(rx0,ry0,rx1,ry1,2,NWP+57); gPut(cx,ry1,'D');
                 gPut(rx0+1,ry0+1,'V'); gPut(rx1-1,ry0+1,'V'); gPut(rx0+2,ry0+2,'U'); gPut(rx1-2,ry0+2,'U'); gPut(cx,ry0+2,'G'); gPut(rx0+1,ry1-1,'C'); gPut(rx1-1,ry1-1,'C'); }
@@ -87,6 +88,17 @@ static void nbTemplate(int i){   // a lot's starting layout: the land, the stree
     }
     flBlankUpper(); mapSave(); mapScan(); hhSlotsFree(); liveInvalidate(); camSnap=1;
     L->floors=1; nbValueLive(i);
+}
+static void nbFlagSync(int j){   // the flags on the live lot j (main.c, FLAGS) say what kind of place it is. No flags: nothing changes
+    NbLot*L=&nbT.lot[j]; int f=0, conv=0;
+    for(int y=0;y<MH;y++) for(int x=0;x<MW;x++){ char c=lifeMap[y][x]; if(c=='a') f|=1; else if(c=='k') f|=2; }
+    if(!f) return;
+    if(L->kind==LKIND_RES){   // a free lot becomes a community lot; a home or a lot where a household lives stays one (the flags are only decoration there)
+        if(j==nbT.home||nbLives(j)){ toast("FLAGS NEED A FREE LOT"); return; }
+        L->kind=LKIND_COMM; L->type=CT_PARK; conv=1; }
+    int t=f==3?CT_BOTH:f==2?CT_SKATE:(L->type==CT_SKATE||L->type==CT_BOTH)?CT_PARK:L->type;   // (community flags alone: a skate park turns into a park, any other kind stays)
+    if(t==L->type&&!conv) return;
+    L->type=(u8)t; char q[24]; slCat(slCat(q,"NOW  "),ctNm[t]); toast(q);
 }
 static int nbStore(int j){   // the live map into lot j's house slot (keeps the slot it had when it still fits, else finds a free run)
     NbLot*L=&nbT.lot[j]; nbValueLive(j); slScan();
@@ -282,6 +294,7 @@ static void nbDrawLotModel(int i,int sx,int sy){   // HOOK: a lot's building (a 
     }
     switch(L->type){
         case CT_PARK: { int sk=nbK; nbK=k+1; nbDecor(DC_TREE,sx-k*s/2,sy); nbDecor(DC_TREE,sx+k*s/2,sy-k); nbK=sk; nbDecor(DC_BENCH,sx,sy+k); break; }
+        case CT_BOTH: { int sk=nbK; nbK=k+1; nbDecor(DC_TREE,sx+k*s/2,sy-k); nbK=sk; for(int i2=0;i2<3*k;i2++){ int h=(3*k-i2)*(3*k-i2)/(3*k); rect(sx-3*k+i2-k,sy-h,1,h+1,nbTint(RGB(20,20,22))); rect(sx+k-i2,sy-h,1,h+1,nbTint(RGB(17,17,19))); } rect(sx-4*k,sy,4*k,1,nbTint(RGB(28,10,6))); break; }
         case CT_SKATE: for(int i2=0;i2<4*k;i2++){ int h=(4*k-i2)*(4*k-i2)/(4*k); rect(sx-3*k+i2,sy-h,1,h+1,nbTint(RGB(20,20,22))); rect(sx+3*k-i2,sy-h,1,h+1,nbTint(RGB(17,17,19))); } rect(sx-3*k,sy,6*k,1,nbTint(RGB(28,10,6))); break;
         case CT_PLAZA: { int sk=nbK; nbK=k+1; nbDecor(DC_FOUNTAIN,sx,sy); nbK=sk; break; }
         case CT_LOUNGE: { int hw2=s*nbHw/2; nbIsoBox(sx,sy,hw2,5*k,hw2/3,nbTint(RGB(12,6,16)),nbTint(RGB(17,9,22)),nbTint(RGB(6,4,8)),nbTint(RGB(9,6,12))); rect(sx-k,sy-6*k,2*k+1,k,nbT.tod?RGB(31,8,26):nbTint(RGB(24,8,20))); break; }
@@ -439,6 +452,7 @@ static int nbLotMenu(int li){   // returns 1 when the screen should close (play 
             if(!nbGo(li)){ toast(nbErr); return 0; }
             if(id[c]==A_PLAY){ nbPlaying=1; lifeMode(0); nbPlaying=0; if(gToMenu) return 1; }
             else { nbEditPass=1; vpFull(); mapEditor(); nbEditPass=0; }   // (the only way to build a community lot)
+            if(id[c]==A_BUILD) nbFlagSync(li);   // (flags placed while building set what kind of place the lot is)
             nbValueLive(li); nbStore(li); nbSave(); menuMusSync(); return 0;
         case A_MOVE: {
             int have; int price=L->value, sale=nbT.home<NB_LOTS&&nbT.lot[nbT.home].on?nbT.lot[nbT.home].value:0, net=price-sale;

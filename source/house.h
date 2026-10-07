@@ -490,6 +490,7 @@ static void hhStepAlong(HhSim*s){   // one step along the path, tile centre to t
 }
 static char twMsg[40] EWRAM_BSS;   // "ROXY STACK FROM MAPLE 2 DROPS BY"
 static int twFar(void){   // where a visitor comes from / goes to: a way off the lot, or (walls all round) somewhere walkable well away from you. -1 = nowhere
+    if(flgN[0]){ int f=rnd8()%flgN[0]; return flgY[0][f]*MW+flgX[0][f]; }   // a COMMUNITY FLAG on the lot: visitors walk in from it and out to it (main.c, FLAGS)
     if(hhExN>0) return hhEx[rnd8()%hhExN];
     int px=(int)(lfx>>8), py=(int)(lfy>>8);
     for(int t=0;t<60;t++){ int x=(int)(((u32)rnd8()<<8|rnd8())%MW), y=(int)(((u32)rnd8()<<8|rnd8())%MH), d=(x>px?x-px:px-x)+(y>py?y-py:py-y);

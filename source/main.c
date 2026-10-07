@@ -1373,6 +1373,7 @@ static int nbBarred(void);   // neighborhood.h: 1 while the live lot is a COMMUN
 static u8 udOn EWRAM_BSS; static int udCashD EWRAM_BSS; static void udRec(int x,int y);   // undo.h: the room builder records every tile it changes (udOn only while the builder is open)
 #define MW 40
 #define MH 40    // keep MH == MW: the 4-way action cam rotates the square map
+static int flyOn EWRAM_BSS; static s32 flyX EWRAM_BSS, flyY EWRAM_BSS;   // goals.h introFly: the camera looks here instead of at the skater
 static int camX, camY, camSnap=1, camLastV;   // camera offset in px; the map's top corner is drawn at (120-camX, 24-camY)
 #define LOX (120-camX)   // screen x of the map's top corner
 #define LOY (24-camY)
@@ -2115,14 +2116,14 @@ static int numText(int x,int y,int n,u16 c){
 // lifeMap = what stands on each tile, floorMap = floor style under it, wallMap = wallpaper on it (for wall tiles).
 enum { T_ROOM, T_WALL, T_FLOOR, T_ITEM, T_ERASE, NTOOL };
 static int eTool, eAct, eAx, eAy, eFl, eWp, eOb;   // editor: tool, rectangle anchor set?, anchor tile, chosen floor / wallpaper / item
-#define NOBJ 42
+#define NOBJ 44   // (the last two: the COMMUNITY FLAG 'a' and the SKATE FLAG 'k', drawn by code, see FLAGS below)
 #define OB_LAUNCH 17   // launch ramp turns like the kicker: '9'..'<'
 #define OB_KICKER 10   // palette slots whose char carries a turn (+eRot): kicker '1'..'4', quarter pipe '5'..'8'
 #define OB_QPIPE 11
 static int eRot;   // editor: which way the next ramp faces (0 S, 1 E, 2 N, 3 W)
-static const char palCh[NOBJ]={'.','w','W','#','=','F','T','D','B','P','1','5','L','N','S','H','C','9','X','O','Y','Z','K','J','M','G','V','U','^','~','Q','I','R','A','v','b','c','q','m','E','e','f'};
-static const char* const palNm[NOBJ]={"CLEAR","LOW WALL","WALL","CRATE","RAIL","FRIDGE","TOILET","DOOR","BOARD","SPAWN","KICKER","Q PIPE","LEDGE","BENCH","BED","SHOWER","SOFA","LAUNCH","FUNBOX","BARREL","TRASH CAN","PLANTER","PICNIC","JERSEY","MANUAL PAD","WATER PIPE","LAVA LAMP","BEANBAG","STAIRS UP","STAIRS DOWN","DEADSET 3THOUSAND VYBE","PHONE","RADIO","SOUND SYSTEM","TV","BOOKSHELF","COFFEE MAKER","AQUARIUM","TREADMILL","WINDOW","DARK WINDOW","STRIP WINDOW"};
-static const u16 palCol[NOBJ]={RGB(26,21,14),RGB(8,20,22),RGB(10,22,24),RGB(8,9,20),RGB(31,30,16),RGB(31,31,31),RGB(30,28,18),RGB(14,9,5),RGB(26,10,6),RGB(28,10,8),RGB(24,17,9),RGB(27,19,11),RGB(20,20,22),RGB(25,18,9),RGB(10,14,28),RGB(22,28,30),RGB(26,18,9),RGB(8,14,24),RGB(18,16,24),RGB(24,6,5),RGB(12,18,14),RGB(20,10,6),RGB(25,18,9),RGB(22,22,24),RGB(30,26,5),RGB(10,24,14),RGB(24,8,26),RGB(18,8,22),RGB(24,22,18),RGB(12,11,10),RGB(6,20,31),RGB(26,6,6),RGB(20,20,22),RGB(12,13,16),RGB(8,14,26),RGB(18,11,5),RGB(22,12,4),RGB(6,18,28),RGB(14,14,18),RGB(12,22,30),RGB(5,10,14),RGB(20,28,31)};
+static const char palCh[NOBJ]={'.','w','W','#','=','F','T','D','B','P','1','5','L','N','S','H','C','9','X','O','Y','Z','K','J','M','G','V','U','^','~','Q','I','R','A','v','b','c','q','m','E','e','f','a','k'};
+static const char* const palNm[NOBJ]={"CLEAR","LOW WALL","WALL","CRATE","RAIL","FRIDGE","TOILET","DOOR","BOARD","SPAWN","KICKER","Q PIPE","LEDGE","BENCH","BED","SHOWER","SOFA","LAUNCH","FUNBOX","BARREL","TRASH CAN","PLANTER","PICNIC","JERSEY","MANUAL PAD","WATER PIPE","LAVA LAMP","BEANBAG","STAIRS UP","STAIRS DOWN","DEADSET 3THOUSAND VYBE","PHONE","RADIO","SOUND SYSTEM","TV","BOOKSHELF","COFFEE MAKER","AQUARIUM","TREADMILL","WINDOW","DARK WINDOW","STRIP WINDOW","COMMUNITY FLAG","SKATE FLAG"};
+static const u16 palCol[NOBJ]={RGB(26,21,14),RGB(8,20,22),RGB(10,22,24),RGB(8,9,20),RGB(31,30,16),RGB(31,31,31),RGB(30,28,18),RGB(14,9,5),RGB(26,10,6),RGB(28,10,8),RGB(24,17,9),RGB(27,19,11),RGB(20,20,22),RGB(25,18,9),RGB(10,14,28),RGB(22,28,30),RGB(26,18,9),RGB(8,14,24),RGB(18,16,24),RGB(24,6,5),RGB(12,18,14),RGB(20,10,6),RGB(25,18,9),RGB(22,22,24),RGB(30,26,5),RGB(10,24,14),RGB(24,8,26),RGB(18,8,22),RGB(24,22,18),RGB(12,11,10),RGB(6,20,31),RGB(26,6,6),RGB(20,20,22),RGB(12,13,16),RGB(8,14,26),RGB(18,11,5),RGB(22,12,4),RGB(6,18,28),RGB(14,14,18),RGB(12,22,30),RGB(5,10,14),RGB(20,28,31),RGB(6,24,28),RGB(31,18,4)};
 static signed char palLut[256] EWRAM_BSS; static u8 palLutOk;   // tile char -> palette slot (or -1), built on first use: palIdx() runs for every tile of the minimap, so it must be O(1) even with 100+ items
 static int palIdx(char c){
     if(!palLutOk){ for(int i=0;i<256;i++) palLut[i]=-1; for(int i=NOBJ-1;i>=0;i--) palLut[(u8)palCh[i]]=(signed char)i;
@@ -2134,9 +2135,9 @@ static char edObjCh(void){ char c=palCh[eOb]; return (eOb==OB_KICKER||eOb==OB_QP
 #define DS_PRICE 5000
 #define NCAT 7
 static const char* const catNm[NCAT]={"SEAT","HOME","TECH","SKATE","DECOR","WALLS","MISC"};
-static const u8 catN[NCAT]={4,6,7,10,4,8,3};
-static const u8 catItems[NCAT][10]={ {13,16,27,22}, {5,6,14,15,36,38}, {31,32,33,30,26,25,34}, {3,4,10,11,12,17,18,19,23,24}, {20,21,35,37}, {1,2,7,28,29,39,40,41}, {0,8,9} };
-static const u16 palPrice[NOBJ]={0,3,6,10,15,150,90,12,0,0,30,60,20,40,140,110,120,45,50,10,5,10,80,15,10,30,25,60,40,40,DS_PRICE,50,40,200,120,90,60,150,130,35,45,60};
+static const u8 catN[NCAT]={4,6,7,10,4,8,5};
+static const u8 catItems[NCAT][10]={ {13,16,27,22}, {5,6,14,15,36,38}, {31,32,33,30,26,25,34}, {3,4,10,11,12,17,18,19,23,24}, {20,21,35,37}, {1,2,7,28,29,39,40,41}, {0,8,9,42,43} };
+static const u16 palPrice[NOBJ]={0,3,6,10,15,150,90,12,0,0,30,60,20,40,140,110,120,45,50,10,5,10,80,15,10,30,25,60,40,40,DS_PRICE,50,40,200,120,90,60,150,130,35,45,60,0,0};
 static int edCatOf(int idx,int*pos){ for(int c=0;c<NCAT;c++) for(int j=0;j<catN[c];j++) if(catItems[c][j]==idx){ if(pos) *pos=j; return c; } if(pos) *pos=0; return 0; }
 static void edItemStep(int d){ int p, c=edCatOf(eOb,&p); p=(p+d+catN[c])%catN[c]; eOb=catItems[c][p]; }   // L / R: the next item of this category
 static void edCatStep(int d){ int c=(edCatOf(eOb,0)+d+NCAT)%NCAT; eOb=catItems[c][0]; }                  // SELECT + L / R: the next category
@@ -2187,11 +2188,18 @@ static void mapGen(void){
     for(int x=17;x<=20;x++) gFree(x,26,'M');
 }
 static void mapReset(void){ mapGen(); }
-static void mapScan(void){   // find the skateboard (B) and the spawn point (P); fall back to sane defaults
+// ---- FLAGS (lot designation): the COMMUNITY FLAG 'a' and the SKATE FLAG 'k' are spawn markers you place in the room builder (MISC) ----
+// A community flag is where visitors walk in from (and out to); a skate flag is where the AI skaters start (they then roll between the skate objects).
+// In the neighborhood, building a lot with flags on it sets what kind of place it is: skate flags = SKATE PARK, community flags = a community lot
+// (PARK unless it already is another kind), both = PARK + SKATE. Up to FLG_MAX of each count (mapScan finds them); nothing is saved apart from the tiles.
+#define FLG_MAX 4
+static u8 flgN[2] EWRAM_BSS, flgX[2][FLG_MAX] EWRAM_BSS, flgY[2][FLG_MAX] EWRAM_BSS;   // [0] community, [1] skate
+static void mapScan(void){   // find the skateboard (B), the spawn point (P) and the flags (a, k); fall back to sane defaults
     wDirty=1;
-    int fx=-1, fy=-1; bdx=bdy=spx=spy=-1;
+    int fx=-1, fy=-1; bdx=bdy=spx=spy=-1; flgN[0]=flgN[1]=0;
     for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ char c=lifeMap[y][x];
         if(c=='B'){ bdx=x; bdy=y; } if(c=='P'){ spx=x; spy=y; }
+        if((c=='a'||c=='k')&&flgN[c=='k']<FLG_MAX){ int t=c=='k'; flgX[t][flgN[t]]=(u8)x; flgY[t][flgN[t]++]=(u8)y; }
         if(fx<0&&c=='.'){ fx=x; fy=y; } }
     if(spx<0){ if(fx<0){ lifeMap[1][1]='P'; fx=fy=1; } spx=fx; spy=fy; }
 }
@@ -2791,7 +2799,7 @@ static void camClamp(int ed){
     if(camX<xl) camX=xl; if(camX>xh) camX=xh; if(camY<yl) camY=yl; if(camY>yh) camY=yh;
 }
 static void camFollow(int snap){   // keep the skater near the middle of the screen, eased so it stays steady
-    s32 rfx,rfy; rotPos(lfx+lvx*(lskate?14:10),lfy+lvy*(lskate?14:10),&rfx,&rfy);   // look ahead of the skater (a little less on foot)
+    s32 rfx,rfy; rotPos(flyOn?flyX:lfx+lvx*(lskate?14:10),flyOn?flyY:lfy+lvy*(lskate?14:10),&rfx,&rfy);   // look ahead of the skater (a little less on foot)
     int playY=vpY0+(vpY1-vpY0)*5/8;                                                  // screen row of the feet (100 on the full screen)
     int ox=camX, oy=camY; camX=(int)((rfx-rfy)>>5); camY=(int)((rfx+rfy)>>6)-(playY-24); camClamp(0);
     int tx=camX, ty=camY; camX=ox; camY=oy;
@@ -3023,6 +3031,7 @@ static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
             if(isItemCh(c)) drawItemTile(c,sx,sy,ox,oy);
             if((ed&&c=='B')||(!ed&&!lhave&&ox==BDX&&oy==BDY)) blitItem(V_BOARD,sx,sy-(ed?0:((lfr>>4)&1)));   // the skateboard pickup, bobbing
             if(ed&&c=='P') drawSpawn(sx,sy+1);   // little person = spawn
+            if(c=='a'||c=='k') drawFlag(sx,sy+1,c=='k',(int)(lfr>>3));   // a flag on a pole (blue = community, orange = skate); it waves in play too
         }
         if(cln) for(int i=0;i<CL_N;i++) if(cls[i]==s){ int sx=LOX+(clr[i][0]-clr[i][1])*CA, sy=LOY+(clr[i][0]+clr[i][1]+1)*CB; if(sx+11>x0&&sx-11<x1&&sy+6>y0&&sy-24<y1) clDraw(i,sx,sy); }
         if(!ed&&hhN&&!curFl) hhDrawBand(s,s);
@@ -3490,7 +3499,7 @@ static void gmTick(void){   // once per frame: when the song is over, another ra
 }
 #include "timedrun.h"   // TIMED RUN: a 2:00 score attack with a high score (PAUSE > WANTS)
 #include "tutorial.h"   // the TUTORIAL: pop-up lessons in the Sims 2 style (tutTick / tutRunModal, called from lifeModeRun)
-static void lifeModeRun(int ed);
+static void lifeModeRun(int ed); static void introFly(void);   // goals.h
 static void lifeMode(int ed){ int back=musCtx; gInPlay=1; lifeModeRun(ed); gInPlay=0; if(!gToMenu){ if(back==1) creatorMusStart(); else menuMusStart(); } }   // back from the game: the screen it was started from gets its music back (a crossfade)   // gInPlay: some option actions are only allowed while playing / only outside it
 static void lifeModeRun(int ed){   // ed=1: test play started from the map editor
     objHideAll(); winFull(); REG_DISPCNT=0x3443; fxPlayStart();   // mode 3 + sprites (1D tiles) + window 0 (the household's hardware sprites, house.h)
@@ -3500,6 +3509,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
     trnOn=trnDone=0;   // (no timed run carries over)
     tutOn=0; tutModal=TM_NONE;   // the tutorial: replay now, or offer it once (first PLAY, not in the test play of the editor)
     if(!ed){ if(xo[XO_TUTOR]==2) tutBegin(); else if(xo[XO_TUTOR]==0&&!tutAsked){ tutAsked=1; tutModal=TM_OFFER; } }
+    if(!ed) introFly();   // the lot's goals: the camera pans to them first (skippable)
     tmStart(); u16 tl=R_TM2D; int acc=0, fpsN=0, fr=0; u32 fpsT=0, workT=0; lfpsV=0; lloadV=0;
     for(;;){
         int need=(sFps+1)*TICKS_FRAME-100;

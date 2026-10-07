@@ -197,6 +197,9 @@ static void npcSkTick(NpcSk*k){
 }
 static void npcSkSpawn(void){
     npcSkN=0; int n=0; for(int y=0;y<MH;y++) for(int x=0;x<MW;x++) if(npcObjCh(lifeMap[y][x])) n++;
+    if(flgN[1]&&n){   // SKATE FLAGS (main.c): each one spawns a skater (up to SK_N), even on a lot with only a few things to skate
+        for(int f=0;f<flgN[1]&&npcSkN<SK_N;f++){ NpcSk*k=&npcSk[npcSkN++]; k->fx=flgX[1][f]*256+128; k->fy=flgY[1][f]*256+128; k->air=0; k->face=0; k->wait=(u8)(20*npcSkN); k->tries=0; npcAim(k); }
+        return; }
     if(n<NPC_PARK) return;
     for(int t=0;t<200&&npcSkN<SK_N;t++){
         int x=(int)(((u32)rnd8()<<8|rnd8())%MW), y=(int)(((u32)rnd8()<<8|rnd8())%MH);
