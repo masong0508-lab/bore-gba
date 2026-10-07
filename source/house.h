@@ -40,6 +40,7 @@ typedef struct {
 static HhSim hhM[HH_MAX] EWRAM_BSS; static int hhN;
 static u16 hhUp[HH_MAX] EWRAM_BSS;   // steps a Sim still spends UPSTAIRS (act is HA_AWAY meanwhile, so nothing draws or picks it); 0 = not upstairs
 static u8 hhFl[HH_MAX] EWRAM_BSS; static u8 hhCen[FLR_N] EWRAM_BSS; static u16 hhCenT;   // floors step 2: the floor each Sim is on (0 = ground), and per floor which need furniture it has
+static u8 hhFlLd[HH_MAX] EWRAM_BSS;   // floors step 7: the floor each member was saved on (hhLoad), put back by hhStart
 // ---- relationships (Sims 2 style): for every pair a DAILY and a LIFETIME score, -100..100, kept by uid and one-way (how a feels about b) ----
 #define HU_N (HH_MAX+1)
 static signed char relD[HU_N][HU_N] EWRAM_BSS, relL[HU_N][HU_N] EWRAM_BSS; static u8 relF[HU_N][HU_N] EWRAM_BSS;
@@ -1072,6 +1073,7 @@ static void hhStart(void){   // entering the life game: load the household and s
     for(int m=0;m<HH_MAX;m++){ hhFl[m]=0; hhUp[m]=0; } hhCenT=0;   // floors step 2: everyone starts on the ground floor
     hhLoad(); hhSlotsFree(); hhFindExits(); for(int k=0;k<TW_N;k++){ twOn[k]=0; twWait[k]=(short)(240+k*700); }
     for(int m=0;m<hhN;m++){ hhPlace(&hhM[m],m); hhOld[m].x0=hhOld[m].x1=0; hhOldSig[m]=0xFFFFFFFFu; }
+    if(xo[XO_MULTIFL]&&!curFl) for(int m=0;m<hhN;m++) if(hhFlLd[m]>0&&hhFlLd[m]<FLR_N){ hhFl[m]=hhFlLd[m]; hhM[m].act=HA_AWAY; hhM[m].use=HN_FUN; hhUp[m]=(u16)(300+(rnd8()<<2)); }   // floors step 7: whoever was upstairs when you saved still is
 }
 // ---- switching who you control ----
 static void hhSwap(HhSim*s);   // main.c: trades the player's position, needs, look and persona with s
@@ -1126,7 +1128,7 @@ static void hhSave(void){
     for(int i=0;i<hhN;i++){ const HhSim*s=&hhM[i];
         for(int j=0;j<LK_N;j++) if(!lkSlide(j)) m[k++]=s->look[j];   // 'H9': the picks as bytes, then the sliders (9 values) two to a byte
         { int h=-1; for(int j=0;j<LK_N;j++) if(lkSlide(j)){ int v=s->look[j]&15; if(h<0) h=v; else { m[k++]=(u8)(h|(v<<4)); h=-1; } } if(h>=0) m[k++]=(u8)h; }
-        m[k++]=s->stage; m[k++]=s->asp; m[k++]=s->ltw;
+        m[k++]=(u8)(s->stage|((xo[XO_MULTIFL]&&hhFl[i]<FLR_N?hhFl[i]:0)<<6)); m[k++]=s->asp; m[k++]=s->ltw;
         for(int j=0;j<TR_N;j++) m[k++]=s->tr[j];
         for(int j=0;j<HH_NM;j++) m[k++]=(u8)s->name[j];
         for(int j=0;j<HH_NM;j++) m[k++]=(u8)s->last[j];
@@ -1140,7 +1142,7 @@ static void hhSave(void){
 }
 static int hhUidsOf(int ver){ return ver<'6'?HH_MAXOLD+1:ver<=':'-1?HH_MAX9+1:HU_N; }   // uids a saved household kept relationships for
 static void hhLoad(void){
-    volatile u8*m=SRAM_BASE+HH_OFF; u8 sum=0x48; hhN=0;
+    volatile u8*m=SRAM_BASE+HH_OFF; u8 sum=0x48; hhN=0; for(int j=0;j<HH_MAX;j++) hhFlLd[j]=0;
     if(m[0]!='H'||m[1]<'2'||m[1]>'?'||m[2]>(m[1]>=':'?HH_MAX:HH_MAX9)) return;
     int hu=hhUidsOf(m[1]);   // before 'H6': 10 uids; 'H6'..'H9': 14; 'H:': 8
     int v7=m[1]>='7', nb=v7?2*HH_NM:10, nl=m[1]>='>'?LKPK:m[1]>='='?LKPK13:m[1]>='<'?LKPK12:m[1]>=';'?LKPK11:m[1]>='9'?LKPK10:m[1]>='8'?LK_N9:v7?LK_N8:m[1]>='5'?LK_N7:m[1]=='4'?LK_N6:m[1]=='3'?LK_N5:LK_N4, rec=HH_REC-LKPK+nl-2*HH_NM+nb;   // 'H2' households were saved before the hats and clothes, 'H3' before the face details and sliders
@@ -1154,7 +1156,7 @@ static void hhLoad(void){
         if(m[1]>='9'){ int lim=m[1]>='>'?LK_N:m[1]>='='?LK_N13:m[1]>='<'?LK_N12:m[1]>=';'?LK_N11:LK_N10; for(int j=0;j<LK_N;j++) s->look[j]=0; for(int j=0;j<lim;j++) if(!lkSlide(j)) s->look[j]=m[k++];   // 'H:' and older: no format 11 looks
           int h=-1; for(int j=0;j<lim;j++) if(lkSlide(j)){ if(h<0){ int b=m[k++]; s->look[j]=(u8)(b&15); h=b>>4; } else { s->look[j]=(u8)h; h=-1; } } }
         else for(int j=0;j<LK_N;j++) s->look[j]=j<nl?m[k++]:0;
-        s->stage=m[k++]; s->asp=m[k++]; s->ltw=m[k++];
+        { int sg=m[k++]; if(i<HH_MAX) hhFlLd[i]=(u8)(sg>>6); s->stage=(u8)(sg&63); } s->asp=m[k++]; s->ltw=m[k++];
         for(int j=0;j<TR_N;j++) s->tr[j]=m[k++];
         if(v7){ for(int j=0;j<HH_NM;j++) s->name[j]=(char)m[k++]; for(int j=0;j<HH_NM;j++) s->last[j]=(char)m[k++]; } else { for(int j=0;j<10;j++) s->name[j]=(char)m[k++]; s->last[0]=0; s->name[9]=0; } s->name[HH_NM-1]=s->last[HH_NM-1]=0;
         for(int j=0;j<HN_N;j++){ s->need[j]=m[k++]; if(s->need[j]>100) s->need[j]=70; } s->uid=m[k++];
