@@ -191,12 +191,14 @@ static void hudBotUpdate(int all){
     for(int s=0;s<SIM_WS;s++) ck=ck*37u+(unsigned)(simW[s]+2);
     for(int s=0;s<SIM_FS;s++) ck=ck*37u+(unsigned)(simF[s]+2);
     ck=ck*17u+(unsigned)simLock*4u+(unsigned)(spot+1)*64u;
+    ck=ck*29u+simProgKey();
     if(hudChg(all,HK_W0,ck)){
         hudClear(rx,HUD_BOTY+14,72,9);
         if(show){
             for(int s=0;s<SIM_WS;s++) simCell(rx+s*10,HUD_BOTY+14,simW[s]>=0?simWants[simW[s]].icon:0,0,simLock>>s&1,simW[s]>=0);
             for(int s=0;s<SIM_FS;s++) simCell(rx+43+s*10,HUD_BOTY+14,simF[s]>=0?simFears[simF[s]].icon:0,1,0,simF[s]>=0);
             if(spot>=0){ int x=spot<SIM_WS?rx+spot*10:rx+43+(spot-SIM_WS)*10; rect(x+1,HUD_BOTY+22,7,1,WHITE); }   // the spotlit cell
+            simProgDraw(rx,HUD_BOTY+22);
         }
         hudMark(rx,HUD_BOTY+14,72,9);
     }
@@ -232,7 +234,7 @@ static int hudOverlayWhat(const char**txt,int*alert){   // 0 none, 2 bubble (1, 
     bubLast=0;
     if(xo[XO_BUBBLE]>=2&&simWishes()){
         if(lfr-wantAt>=2700) wantAt=lfr;
-        if(lfr-wantAt<180){ int s0=(wantAt/180)%SIM_WS; for(int i=0;i<SIM_WS;i++){ int s=(s0+i)%SIM_WS; if(simW[s]>=0){ *txt=simWantName(s); return 2; } } } }
+        if(lfr-wantAt<180){ int s0=(wantAt/180)%SIM_WS; for(int i=0;i<SIM_WS;i++){ int s=(s0+i)%SIM_WS; if(simW[s]>=0){ *txt=simWantBubble(s); return 2; } } } }
     return 0;
 }
 static int hudOverlayRc(int*x0,int*y0,int*x1,int*y1){

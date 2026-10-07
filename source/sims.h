@@ -411,6 +411,31 @@ static const char* simWantName(int s){   // the want in slot s, with its paramet
     return simWTxt[s];
 }
 static const char* simFearName(int s){ return simF[s]<0?0:simFears[simF[s]].name; }
+// ---- WANT PROGRESS: the wants that have a number to watch (HAVE # CASH, TRICK COMBOS, BANK # COMBO) show how far along they are ----
+// 1 = the want in slot s has a number: cur of goal (the combo wants read the chain you are on right now). Used by the HUD cells, the thought bubble and MY SIM.
+static int simWantProg(int s,int*cur,int*goal){
+    if(s<0||s>=SIM_WS||simW[s]<0||!simWishes()) return 0;
+    int g=simWP[s], c;
+    switch(simWants[simW[s]].ev){
+        case SE_CASH:    c=simMoney; break;
+        case SE_COMBO:   c=lcN; break;                 // tricks in the chain on now (0 when there is none)
+        case SE_SHOWOFF: c=lcN>0?lcPts*lcN:0; break;   // what the chain would bank right now
+        default: return 0;
+    }
+    if(g<=0) return 0;
+    if(c>g) c=g;
+    if(c<0) c=0;
+    *cur=c; *goal=g; return 1;
+}
+static int simProgPx(int s,int n){ int c, g; if(!simWantProg(s,&c,&g)) return 0; int w=(int)((long)c*n/g); return (w<1&&c>0)?1:w; }   // 0..n pixels of progress (a bar n pixels wide)
+static unsigned simProgKey(void){ unsigned k=0; for(int s=0;s<SIM_WS;s++) k=k*9u+(unsigned)simProgPx(s,7); return k; }   // changes when any cell's line moves (the HUD redraws then)
+static void simProgDraw(int rx,int y){ for(int s=0;s<SIM_WS;s++){ int w=simProgPx(s,7); if(w>0) rect(rx+s*10+1,y,w,1,RGB(10,31,10)); } }   // the line under each want cell, green on the cell's bottom edge
+static const char* simWantBubble(int s){   // the want for the thought bubble, with "312/450" after it when it has a number
+    static char pb[40] EWRAM_BSS; int c, g; const char*n=simWantName(s);
+    if(!n||!simWantProg(s,&c,&g)) return n;
+    { char*e=simCat(pb,n); e=simCat(e,"  "); e=simCatN(e,c); *e++='/'; simCatN(e,g); }
+    return pb;
+}
 
 // ---- saving (SRAM at SIM_OFF; main.c's map is 0..4802, the other small blocks sit in 4864..8191: see slots.h) ----
 #ifndef SIM_SRAM

@@ -2,7 +2,7 @@
 //   L / R (or LEFT / RIGHT) change the tab, and the game remembers the last one:  SIM  WANTS  JOB  SKILLS  PEOPLE  STUFF  MORE
 //   SIM     name, money, life stage (and the day of it), mood, aspiration and its meter, the eight needs, the five personality traits, the five
 //           abilities, the zodiac sign and the DNA points.
-//   WANTS   the aspiration meter, the lifetime want, the wants and fears (A locks a want, SELECT opens the REWARD SHOP).
+//   WANTS   the aspiration meter, the lifetime want, the wants (a bar when a want has a number: cash, combos) and fears (A locks a want, SELECT opens the REWARD SHOP).
 //   JOB     the title, track and level, the pay of a shift, the hours, the work days of the week (today is marked), how this shift is going (work done
 //           against the quota), good and bad shifts in a row, and what the next promotion needs (the skill, a friend). A changes track.
 //   SKILLS  the same bars as the old SKILLS screen, and what each skill does.
@@ -97,6 +97,7 @@ static void msWants(int cur){
         if(f){ rect(8,y-2,224,11,RGB(6,16,8)); rect(8,y-2,2,11,GOLD); }
         simCell(14,y-1,on?simWants[simW[s]].icon:0,0,lk,on);
         if(on){ char p[8]; p[0]='+'; numStr(p+1,simWants[simW[s]].pts); int x=228-tw(p,1); text(28,y,simWantName(s),f?WHITE:RGB(22,28,22),1); text(x,y,p,RGB(12,30,12),1);
+            { int c, g; if(simWantProg(s,&c,&g)){ int w=c*44/g; rect(114,y+2,44,4,RGB(3,5,9)); if(w>0) rect(114,y+2,w,4,c>=g?GOLD:RGB(10,28,12)); } }   // a want with a number: how far along
             if(lk) text(x-6-tw("LOCKED",1),y,"LOCKED",GOLD,1); }
         else text(28,y,"...",DIMC,1); }
     for(int s=0;s<SIM_FS;s++){ int y=111+s*10, on=simF[s]>=0;
