@@ -2371,6 +2371,18 @@ static void mapPlace(int x,int y,char c){
 // ---------- floors: the live map is the floor you are on; the others wait packed in flPool. Stairs: '^' goes up, '~' comes down. House slots (slots.h) keep all of them ----------
 static void hhSlotsFree(void); static void liveInvalidate(void);
 static const char* const flNm[FLR_N]={"GROUND FLOOR","FLOOR 2","FLOOR 3"};
+static u8 flFade EWRAM_BSS;   // floors render 2: the fade in after a floor change, 16 = black down to 0 (fx.h fxLight puts it on the picture, 2 a frame)
+static void flSlab(int x0,int y0,int x1,int y1){   // floors render 2: an upper floor is a slab, not a bare diamond: a lit left face and a darker right face under the two front edges of the map, so you can see you are up in the air
+    if(!curFl) return;
+    const int T=6; int lx=LOX-MH*CA, ly=LOY+MH*CB, bx=LOX+(MW-MH)*CA, by=LOY+(MW+MH)*CB, rx=LOX+MW*CA;
+    if(ly-1>=y1||by+T<=y0) return;
+    int xa=x0>lx?x0:lx, xb=x1<rx?x1:rx;
+    for(int x=xa;x<xb;x++){
+        int t=x<bx?ly+((x-lx)>>1):by-((x-bx)>>1);   // the top of the slab in this column: the map's front edge
+        if(t-1>=y1||t+T<=y0) continue;
+        rect(x,t-1,1,T+1,x<bx?RGB(9,10,14):RGB(5,6,9)); rect(x,t+T-1,1,1,RGB(2,3,5));   // (starts one row high: the floor tiles drawn after it cover the overlap)
+    }
+}
 static const u16 flBack[FLR_N]={RGB(4,5,8),RGB(5,9,16),RGB(7,13,22)};   // floors render 1: the colour behind the map, a little lighter and bluer the higher you are (a sky), so each floor looks different
 static int flBd[4];   // the board pickup and the spawn tile of the ground floor while you are upstairs
 static void flBlankLive(void);
@@ -2418,6 +2430,7 @@ static int flGoF(int n,int force){   // make floor n the live map (the one you l
     if(curFl==0){ flBd[0]=bdx; flBd[1]=bdy; flBd[2]=spx; flBd[3]=spy; }
     curFl=n; flLoad(n);
     if(n==0){ bdx=flBd[0]; bdy=flBd[1]; spx=flBd[2]; spy=flBd[3]; } else bdx=bdy=-1;   // no board pickup upstairs
+    flFade=16;   // floors render 2: fade in from black (fx.h fxLight)
     hhSlotsFree(); liveInvalidate(); camSnap=1;
     return 1;
 }
@@ -3070,7 +3083,7 @@ static void clDraw(int i,int sx,int sy){
 }
 static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
     clipSet(x0,y0,x1,y1);
-    rect(x0,y0,x1-x0,y1-y0,flBack[curFl]);
+    rect(x0,y0,x1-x0,y1-y0,flBack[curFl]); flSlab(x0,y0,x1,y1);
     int s0,s1; bandRows(y0,y1,&s0,&s1);
     for(int s=s0;s<=s1;s++){ int a,b; bandCols(s,x0,x1,&a,&b);
         for(int tx=a;tx<=b;tx++){ int ty=s-tx;

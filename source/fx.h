@@ -258,6 +258,7 @@ static void wxTick(void){
 }
 static void fxLight(void){   // in vblank, after hhObjUpdate set BLDCNT for the sprites: darken (3) or brighten (2) the picture and the opaque sprites
     volatile u16*bldcnt=(volatile u16*)0x04000050; volatile u16*bldy=(volatile u16*)0x04000054;
+    if(flFade){ int lv=wxLvl>15?(wxLvl>>4):0, b=flFade>lv?flFade:lv; *bldcnt=0x0400|0x14|0xC0; *bldy=(u16)b; flFade=(u8)(flFade>2?flFade-2:0); return; }   // floors render 2: the fade in after a floor change (it never goes darker than the night)
     if(wxFlash){ *bldcnt=0x0400|0x14|0x80; *bldy=wxFlash; }
     else if(wxLvl>15){ *bldcnt=0x0400|0x14|0xC0; *bldy=(u16)(wxLvl>>4); }
     else if(wxLvl<-15){ *bldcnt=0x0400|0x14|0x80; *bldy=(u16)((-wxLvl)>>4); }
@@ -271,7 +272,7 @@ static void fxTick(void){
     fxGhostTick(); wxTick(); npcTick();
 }
 static void fxPlayStart(void){   // play begins (or returns from a menu): reload the art, pick the weather, raise a ghost if the house is HAUNTED
-    fxVramOk=0; fxT=0; fxLastMin=-1; wxN=0; wxFlash=0; wxBoom=0; wxThT=0; wxLvl=0; wx=wxNow(); fxSoak=0; dnSnap=1; dnPh=(u8)todPhase();
+    flFade=0; fxVramOk=0; fxT=0; fxLastMin=-1; wxN=0; wxFlash=0; wxBoom=0; wxThT=0; wxLvl=0; wx=wxNow(); fxSoak=0; dnSnap=1; dnPh=(u8)todPhase();
     for(int i=0;i<WX_N;i++) wxPh[i]=255;
     npcPlayStart();
     if(xo[XO_GHOSTS]==2&&fxGN==0){ int hx=(int)(lfx>>8)+3, hy=(int)(lfy>>8)+2; if(hx>MW-2) hx=MW-2; if(hy>MH-2) hy=MH-2;

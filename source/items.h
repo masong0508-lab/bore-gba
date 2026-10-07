@@ -51,6 +51,10 @@ static int itemAlongU(int x,int y,char ch){   // rails / ledges / benches link u
 static void drawStairs(int sx,int sy,int up){   // steps drawn in code (no baked sprite): up = they rise, down = they sink into the floor
     for(int i=0;i<4;i++){ int h=up?3+i*3:12-i*3; u16 top=up?RGB(27,25,21):RGB(15,14,12), side=up?RGB(19,17,14):RGB(8,8,7);
         rect(sx-7+i*4,sy-h-1,4,2,top); rect(sx-7+i*4,sy-h+1,4,h,side); }
+    { u16 ac=up?RGB(31,26,6):RGB(20,26,31); int ay=sy-23;   // floors render 2: an arrow over the steps, gold up and blue down, on a dark plate
+      rect(sx-4,ay-1,9,8,RGB(3,4,6));
+      if(up){ rect(sx-1,ay,3,1,ac); rect(sx-2,ay+1,5,1,ac); rect(sx-3,ay+2,7,1,ac); rect(sx-1,ay+3,3,3,ac); }
+      else { rect(sx-1,ay,3,3,ac); rect(sx-3,ay+3,7,1,ac); rect(sx-2,ay+4,5,1,ac); rect(sx-1,ay+5,3,1,ac); } }
 }
 // draw the item standing on real tile (x,y); (sx,sy) = screen centre of the tile
 static void drawItemTile(char c,int sx,int sy,int x,int y){
