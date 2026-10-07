@@ -133,10 +133,7 @@ static void hudTopUpdate(int all){
 }
 // ---- bottom panel ----
 static const u16 hudFaceBg[5]={RGB(6,8,16),RGB(9,9,12),RGB(8,11,16),RGB(9,13,14),RGB(12,12,10)};
-static void hudFace3(int x,int y,int st){   // the 7x7 mood face at 3x scale
-    static const u16 skin[5]={RGB(14,18,28),RGB(22,22,20),RGB(30,26,8),RGB(26,30,10),RGB(31,20,6)};
-    for(int j=0;j<7;j++)for(int i=0;i<7;i++){ char c=faceArt[st][j][i]; if(c=='.') continue; u16 col=c=='k'?RGB(4,3,6):skin[st]; rect(x+i*3,y+j*3,3,3,col); }
-}
+#include "hudface.h"   // the Sim's own face as the mood portrait (hudFaceDraw, hudFaceKey)
 static u16 hudMoodCol(int st){ return st==MS_SAD?RGB(30,7,6): st==MS_BORED?RGB(29,19,4): st==MS_OK?RGB(18,27,8): st==MS_HAPPY?RGB(8,28,10): RGB(10,31,24); }
 static const char* const hudNeedNm[8]={"FOOD","REST","CLEAN","COMFY","WC","FUN","ROOM","SOCIAL"};   // (mood is the face). WC = water closet, the toilet: its bar is the bladder, full = fine
 // HEALTH (HP) is the 2 px bar under the face, not one of the eight needs
@@ -149,8 +146,8 @@ static void hudBotStatic(void){
 static void hudBotUpdate(int all){
     if(all) hudBotStatic();
     int st=moodState();
-    if(hudChg(all,HK_PORT,(unsigned)st)){   // portrait: a frame in the mood colour around the face
-        rect(3,HUD_BOTY+4,24,24,hudMoodCol(st)); rect(4,HUD_BOTY+5,22,22,hudFaceBg[st]); hudFace3(5,HUD_BOTY+6,st); hudMark(3,HUD_BOTY+4,24,24); }
+    if(hudChg(all,HK_PORT,hudFaceKey(st))){   // portrait: a frame in the mood colour around the face
+        rect(3,HUD_BOTY+4,24,24,hudMoodCol(st)); rect(4,HUD_BOTY+5,22,22,hudFaceBg[st]); hudFaceDraw(4,HUD_BOTY+5,st); hudMark(3,HUD_BOTY+4,24,24); }
     {   // HEALTH: a 2 px bar under the portrait (full width = 100 HP), green / yellow / red like the needs
         int w=(lhp*61)>>8; if(w>24) w=24; unsigned hk=(unsigned)w*4u+(unsigned)(lhp>=55?2:lhp>=28?1:0)+(unsigned)(lhp<=0?1000:0);
         if(hudChg(all,HK_HP,hk)){ rect(3,HUD_BOTY+28,24,2,HC_DARK); if(w>0) rect(3,HUD_BOTY+28,w,2,hudLvlCol(lhp)); hudMark(3,HUD_BOTY+28,24,2); }
