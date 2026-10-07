@@ -537,7 +537,7 @@ static void simMeet(int s){   // the want in slot s came true
     int pts=w->pts;
     simStrk=(simStrkT>0&&simStrk<9)?simStrk+1:1; simStrkT=SIM_STRK_WIN;   // a STREAK: wants met soon after each other pay 5 more points each (up to +20)
     if(simStrk>=2) pts+=(simStrk<5?simStrk-1:4)*5;
-    simAsp+=pts; if(simAsp>9999) simAsp=9999; if(simDone<9999) simDone++; dnaAdd(pts);   // Spore: living earns DNA
+    simAsp+=pts; if(simAsp>9999) simAsp=9999; if(simDone<9999) simDone++; lsAdd(LS_WANTS,1); dnaAdd(pts);   // Spore: living earns DNA
     simMeterAdd(pts*SIM_METER_K);
     simW[s]=-1; simLock&=~(1<<s); simSlotT[s]=SIM_WANT_GAP;
     moodEvent(M_WANT); { char*e=simCatN(simCat(simMsg2,"WANT MET +"),pts); if(simStrk>=2) simCatN(simCat(e,"  STREAK X"),simStrk); } simQueue(simMsg2);

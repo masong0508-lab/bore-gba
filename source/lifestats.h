@@ -2,9 +2,10 @@
 // One set per player: it is kept in RAM (ls[]), mirrored to SRAM at LS_OFF (the tail of the household area, see the assert in statscreen.h) and written into
 // the player's save file as a 'T' chunk (savegame.h). Saved with the life (simsSaveNow). Include BEFORE mood.h; the screen is in statscreen.h.
 // Time counts game steps (60 a second) from lifeStep, so menus and loading screens do not count.
-#define LS_OFF 8144
-#define LS_N 10
-enum { LS_SCORE, LS_SECS, LS_TRICKS, LS_BESTCOMBO, LS_BESTTRICK, LS_BAILS, LS_DEATHS, LS_DAYS, LS_LIVES, LS_COMBOS };
+#define LS_OFF 8120
+#define LS_N 17
+enum { LS_SCORE, LS_SECS, LS_TRICKS, LS_BESTCOMBO, LS_BESTTRICK, LS_BAILS, LS_DEATHS, LS_DAYS, LS_LIVES, LS_COMBOS,
+       LS_WANTS, LS_PROMOS, LS_AIRS, LS_GRINDS, LS_MEALS, LS_BOARDSECS, LS_GRINDSECS };   // (add new ones at the END and raise LS_N; LS_OFF must keep LS_OFF+3+4*LS_N <= 8192)
 static u32 ls[LS_N] EWRAM_BSS; static u8 lsSub EWRAM_BSS, lsInit EWRAM_BSS, lsDirty EWRAM_BSS;
 static void lsLoad(void){
     volatile u8*m=SRAM_BASE+LS_OFF; unsigned sum=0x4C; lsInit=1; lsSub=0;
@@ -25,7 +26,8 @@ static void lsSave(void){
 static void lsReset(void){ lsInit=1; lsSub=0; for(int i=0;i<LS_N;i++) ls[i]=0; lsDirty=1; lsSave(); }   // a new player starts from zero
 static void lsAdd(int k,u32 n){ lsEnsure(); u32 v=ls[k]+n; ls[k]=v<ls[k]?0xFFFFFFFFu:v; lsDirty=1; }
 static void lsMax(int k,u32 n){ lsEnsure(); if(n>ls[k]){ ls[k]=n; lsDirty=1; } }
-static void lsTick(void){ if(++lsSub>=60){ lsSub=0; lsAdd(LS_SECS,1); } }   // from lifeStep: one game step
+static void lsTick(void){ if(++lsSub>=60){ lsSub=0; lsAdd(LS_SECS,1); if(lskate&&!ldead) lsAdd(LS_BOARDSECS,1); if(lgrind) lsAdd(LS_GRINDSECS,1); } }   // from lifeStep: one game step
 static void lsEvent(int ev){   // from simsMood: tricks, combos, bails, deaths
-    switch(ev){ case M_TRICK: lsAdd(LS_TRICKS,1); break; case M_BAIL: lsAdd(LS_BAILS,1); break; case M_DIE: lsAdd(LS_DEATHS,1); break; default: break; }
+    switch(ev){ case M_TRICK: lsAdd(LS_TRICKS,1); break; case M_BAIL: lsAdd(LS_BAILS,1); break; case M_DIE: lsAdd(LS_DEATHS,1); break;
+        case M_PROMO: lsAdd(LS_PROMOS,1); break; case M_LAUNCH: lsAdd(LS_AIRS,1); break; case M_GRIND_ON: lsAdd(LS_GRINDS,1); break; case M_EAT: lsAdd(LS_MEALS,1); break; default: break; }
 }

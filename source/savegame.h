@@ -99,7 +99,7 @@ static int sgParse(volatile u8*body,int len,int apply){   // apply 0: check ever
         else if(tag==SLC_STORY){ if(cl!=8||c.p[0]!='S'||c.p[1]!='Y') return SLE_FMT; if(apply){ volatile u8*d=SRAM_BASE+STORY_OFF; for(int i=0;i<8;i++) d[i]=c.p[i]; } }
         else if(tag==SLC_GHOST){ if(cl!=12) return SLE_FMT; if(apply){ fxGhostLoad(c.p); fxGhostSave(SIM_SRAM+SIM_BLOCK); } }
         else if(tag==SLC_SKILLS){ if(cl!=SK_N) return SLE_FMT; if(apply){ for(int i=0;i<SK_N;i++) skPts[i]=c.p[i]; skSave(); } }
-        else if(tag==SLC_STATS){ if(cl!=4*LS_N) return SLE_FMT; if(apply){ for(int i=0;i<LS_N;i++) ls[i]=(u32)c.p[4*i]|((u32)c.p[4*i+1]<<8)|((u32)c.p[4*i+2]<<16)|((u32)c.p[4*i+3]<<24); lsInit=1; lsDirty=1; lsSave(); } }
+        else if(tag==SLC_STATS){ if(cl<4||cl%4||cl>4*LS_N) return SLE_FMT; if(apply){ for(int i=0;i<cl/4;i++) ls[i]=(u32)c.p[4*i]|((u32)c.p[4*i+1]<<8)|((u32)c.p[4*i+2]<<16)|((u32)c.p[4*i+3]<<24); lsInit=1; lsDirty=1; lsSave(); } }
         // anything else: a later version's chunk, skipped on purpose
     }
     return (gotP&&gotC)?SLE_OK:SLE_FMT;
