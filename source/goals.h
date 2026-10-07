@@ -1,72 +1,91 @@
-// goals.h - VIEW GOALS (roadmap #2 and #3, first slice) and the tape count per lot.
-// The hidden tape now stays found: the lots you took it on are remembered (a 16 bit mask of the town's lots), and it does not come back there.
-// VIEW GOALS (PAUSE > WANTS) lists the goals of the lot you stand on: the tape, the S K A T E letters and LOT CLEARED of this run, the score,
-// the TIMED RUN best, and how many lots of the town have had their tape found.
-// SRAM: TG_OFF, 33 bytes in the free gap after the timed run block: 'G' 'U', then TG_N entries of (town key, lots with the tape found,
-//       lots played that have a tape; 16 bits each), newest first (the oldest town falls off the end), then a checksum. A town is found by its name key (households.h nbKey).
-// Needs before it: nbOk, nbT, nbKey, NB_LOTS (neighborhood.h, households.h), stBack (story.h), clLive / clTook / clReal / clGot (main.c),
-// trnBestGet (timedrun.h), the UI kit.
-#define TG_OFF 4826
-#define TG_N   5
-#define TG_LEN 33
-_Static_assert(TRN_OFF+TRN_LEN<=TG_OFF&&TG_OFF+TG_LEN<=SET_OFF,"the goals block must sit between the timed run block and the settings");
-static u16 tgKey[TG_N] EWRAM_BSS, tgFnd[TG_N] EWRAM_BSS, tgQual[TG_N] EWRAM_BSS;   // (a copy of the block; tgLoad fills it) town key / lots with the tape found / lots played that have a tape
+// goals.h - the GOALS of a lot (roadmap #2 and #3): four goals per lot, saved per town, each paid once.
+//   TAPE   take the hidden tape (+50)         SKATE  spell S K A T E (+100)       CLEAR  LOT CLEARED, every letter and the tape of a run (+100)
+//   SCORE  reach TG_SCORE points in one run (+150)       all four on a lot = LOT MASTERED (+300 more)
+// The tape also stays found: it does not come back on a lot where it was taken. Only lots with something to skate have goals (clLive).
+// VIEW GOALS (PAUSE > WANTS) lists them for the lot you stand on, the TIMED RUN best, and the totals of the town.
+// SRAM: TG_OFF, 39 bytes in the free gap after the timed run block: 'G' 'V', then TG_N entries (the newest town first, the oldest falls off):
+//       town key (nbKey) and five 16 bit lot masks: tape found, lots played that have goals, SKATE done, CLEAR done, SCORE done; then a checksum.
+// Not built yet: goals that unlock parts or maps (the pay is cash for now), a gap or wallride goal (needs wallride), the intro flyover.
+// Needs before it: nbOk, nbT, nbKey, NB_LOTS (neighborhood.h, households.h), stBack (story.h), clLive / clTook / clReal / clGot / CL_ON (main.c),
+// trnBestGet (timedrun.h), simMoney, simCat / simCatN, the UI kit.
+#define TG_OFF 4825
+#define TG_N   3
+#define TG_LEN 39
+#define TGF_TAPE  1
+#define TGF_SKATE 2
+#define TGF_CLEAR 4
+#define TGF_SCORE 8
+#define TG_MASTER 300   // the bonus for all four
+_Static_assert(TRN_OFF+TRN_LEN<=TG_OFF&&TG_OFF+TG_LEN<=SET_OFF&&TG_LEN==3+TG_N*12,"the goals block must sit between the timed run block and the settings");
+static const u8 tgPay[4]={50,100,100,150};
+static const u8 tgIx[4]={0,2,3,4};   // goal -> its mask (1 is 'lots played')
+static u16 tgKey[TG_N] EWRAM_BSS, tgM[TG_N][5] EWRAM_BSS;   // a copy of the block (tgLoad fills it)
+static u8 tgHave EWRAM_BSS;   // the goals done on the lot in play (bits TGF_*), read when the lot opens
+static const char* tgPend EWRAM_BSS; static char tgMsg[28] EWRAM_BSS;   // a goal note waits until the note line is free
 static void tgLoad(void){
-    volatile u8*m=SRAM_BASE+TG_OFF; unsigned sum=0x4F; int ok=(m[0]=='G'&&m[1]=='U');
+    volatile u8*m=SRAM_BASE+TG_OFF; unsigned sum=0x50; int ok=(m[0]=='G'&&m[1]=='V');
     for(int i=2;i<TG_LEN-1;i++) sum+=m[i];
     if(ok&&m[TG_LEN-1]!=(u8)sum) ok=0;
-    for(int i=0;i<TG_N;i++){ int o=2+i*6; tgKey[i]=ok?(u16)(m[o]|(m[o+1]<<8)):0; tgFnd[i]=ok?(u16)(m[o+2]|(m[o+3]<<8)):0; tgQual[i]=ok?(u16)(m[o+4]|(m[o+5]<<8)):0; }
+    for(int i=0;i<TG_N;i++){ int o=2+i*12; tgKey[i]=ok?(u16)(m[o]|(m[o+1]<<8)):0; for(int k=0;k<5;k++) tgM[i][k]=ok?(u16)(m[o+2+k*2]|(m[o+3+k*2]<<8)):0; }
 }
 static void tgSave(void){
-    volatile u8*m=SRAM_BASE+TG_OFF; unsigned sum=0x4F;
-    for(int i=0;i<TG_N;i++){ int o=2+i*6; m[o]=(u8)tgKey[i]; m[o+1]=(u8)(tgKey[i]>>8); m[o+2]=(u8)tgFnd[i]; m[o+3]=(u8)(tgFnd[i]>>8); m[o+4]=(u8)tgQual[i]; m[o+5]=(u8)(tgQual[i]>>8); }
+    volatile u8*m=SRAM_BASE+TG_OFF; unsigned sum=0x50;
+    for(int i=0;i<TG_N;i++){ int o=2+i*12; m[o]=(u8)tgKey[i]; m[o+1]=(u8)(tgKey[i]>>8); for(int k=0;k<5;k++){ m[o+2+k*2]=(u8)tgM[i][k]; m[o+3+k*2]=(u8)(tgM[i][k]>>8); } }
     for(int i=2;i<TG_LEN-1;i++) sum+=m[i];
-    m[TG_LEN-1]=(u8)sum; m[0]='G'; m[1]='U';
+    m[TG_LEN-1]=(u8)sum; m[0]='G'; m[1]='V';
 }
 static u16 tgKeyNow(void){ return nbOk?nbKey(&nbT):0; }
 static int tgLotNow(void){ return (nbOk&&nbT.cur<NB_LOTS)?nbT.cur:0; }
-static int tgAt(u16 key){ for(int i=0;i<TG_N;i++) if((tgFnd[i]||tgQual[i])&&tgKey[i]==key) return i; return -1; }
-static int tgFound(void){ tgLoad(); int i=tgAt(tgKeyNow()); return i>=0&&(tgFnd[i]>>tgLotNow()&1); }   // the tape of the lot in play was taken before
-static void tgTouch(u16 addFound,u16 addQual){   // remember bits for the town in play (its entry moves to the front; the oldest town falls off)
-    tgLoad(); u16 key=tgKeyNow(); int at=tgAt(key); u16 f=addFound, q=addQual;
-    if(at>=0){ f|=tgFnd[at]; q|=tgQual[at]; } else at=TG_N-1;
-    for(int i=at;i>0;i--){ tgKey[i]=tgKey[i-1]; tgFnd[i]=tgFnd[i-1]; tgQual[i]=tgQual[i-1]; }
-    tgKey[0]=key; tgFnd[0]=f; tgQual[0]=q; tgSave();
+static int tgAt(u16 key){ for(int i=0;i<TG_N;i++){ if(tgKey[i]!=key) continue; for(int k=0;k<5;k++) if(tgM[i][k]) return i; } return -1; }
+static int tgBitsOf(int i,int lot){ int h=0; for(int g=0;g<4;g++) if(tgM[i][tgIx[g]]>>lot&1) h|=1<<g; return h; }   // the goals done on a lot of entry i
+static int tgFound(void){ return tgHave&TGF_TAPE; }   // (tgSeen read it when the lot opened)
+static void tgTouch(int j,u16 b){   // set a bit of mask j (and 'played') for the town in play; its entry moves to the front
+    tgLoad(); u16 key=tgKeyNow(); int at=tgAt(key); u16 m[5]={0,0,0,0,0};
+    if(at>=0){ for(int k=0;k<5;k++) m[k]=tgM[at][k]; } else at=TG_N-1;
+    m[j]|=b; m[1]|=b;
+    for(int i=at;i>0;i--){ tgKey[i]=tgKey[i-1]; for(int k=0;k<5;k++) tgM[i][k]=tgM[i-1][k]; }
+    tgKey[0]=key; for(int k=0;k<5;k++) tgM[0][k]=m[k]; tgSave();
 }
-static void tgMark(void){ u16 b=(u16)(1u<<tgLotNow()); tgTouch(b,b); }   // the tape of the lot in play was just taken
-static void tgSeen(void){   // the lot in play has things to skate (so it has a tape): it counts towards the town's total
+static void tgSeen(void){   // the lot in play has things to skate, so it has goals: count it, and read which are done
     u16 b=(u16)(1u<<tgLotNow()); tgLoad(); int i=tgAt(tgKeyNow());
-    if(i>=0&&(tgQual[i]&b)) return;
-    tgTouch(0,b);
+    tgHave=(u8)(i>=0?tgBitsOf(i,tgLotNow()):0);
+    if(i>=0&&(tgM[i][1]&b)) return;
+    tgTouch(1,b);
 }
-static int tgBits(unsigned v){ int n=0; while(v){ n+=(int)(v&1); v>>=1; } return n; }
+static void tgDone(int bit){   // a goal was reached on the lot in play (nothing happens when it was done before)
+    if(!CL_ON||(tgHave&bit)) return;
+    int g=bit==TGF_TAPE?0:bit==TGF_SKATE?1:bit==TGF_CLEAR?2:3, pay=tgPay[g];
+    tgHave|=(u8)bit; tgTouch(tgIx[g],(u16)(1u<<tgLotNow()));
+    char*e=simCat(tgMsg,"GOAL DONE  +");
+    if(tgHave==15){ pay+=TG_MASTER; simCatN(simCat(tgMsg,"LOT MASTERED  +"),pay); } else simCatN(e,pay);
+    simMoney+=pay; if(simMoney>9999) simMoney=9999;
+    tgPend=tgMsg;
+}
+static void tgMark(void){ tgDone(TGF_TAPE); }   // the tape of the lot in play was just taken
+static void tgPump(void){ if(tgPend&&lnoteT<=0){ lnote=tgPend; lnoteT=100; tgPend=0; sfxPlay(SFX_STICK); } }   // (from clTick, every step)
 static void goalsScreen(void){
     static char b[12] EWRAM_BSS;
-    tgLoad();
-    int lots=0, tapes=0, ti=tgAt(tgKeyNow());
-    if(nbOk&&ti>=0){ for(int i=0;i<NB_LOTS;i++) if(nbT.lot[i].on&&(tgQual[ti]>>i&1)){ lots++; if(tgFnd[ti]>>i&1) tapes++; } }   // only lots you have played count: others may have nothing to skate
-    int live=clLive!=0, tape=tgFound()||(clTook&32)!=0, nl=tgBits(clTook&31), cleared=live&&clReal&&clTook==clReal;
-    int best=trnBestGet(); u16 prev=keyNow(); u32 cnt=0;
+    static const char* const gn[4]={"FIND THE HIDDEN TAPE  +50","SPELL S K A T E  +100","CLEAR THE LOT  +100","SCORE 2000 IN A RUN  +150"};
+    tgLoad(); int ti=tgAt(tgKeyNow()), lots=0, tapes=0, mast=0, lot=tgLotNow();
+    if(nbOk&&ti>=0){ for(int i=0;i<NB_LOTS;i++) if(nbT.lot[i].on&&(tgM[ti][1]>>i&1)){ lots++; int h=tgBitsOf(ti,i); if(h&TGF_TAPE) tapes++; if(h==15) mast++; } }
+    int live=clLive!=0, have=ti>=0?tgBitsOf(ti,lot):0, best=trnBestGet(); u16 prev=keyNow(); u32 cnt=0;
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
         if(pr&(K_B|K_START|K_A)) return;
         if(cnt&7){ vsync(); continue; }
         stBack("GOALS",(int)cnt);
-        text(10,21,nbOk&&nbT.cur<NB_LOTS&&nbT.lot[nbT.cur].on?nbT.lot[nbT.cur].name:"THIS LOT",GOLD,1);
         const u16 lab=RGB(22,25,28), ok=RGB(14,30,14), no=RGB(12,14,16);
+        text(10,21,nbOk&&nbT.cur<NB_LOTS&&nbT.lot[nbT.cur].on?nbT.lot[nbT.cur].name:"THIS LOT",GOLD,1);
         if(!live){ text(10,36,"NOTHING TO SKATE HERE",lab,1); text(10,48,"BUILD A RAMP OR RAIL FOR GOALS",no,1); }
         else {
-            text(10,36,"FIND THE HIDDEN TAPE",lab,1); text(230-tw(tape?"DONE":"NOT YET",1),36,tape?"DONE":"NOT YET",tape?ok:no,1);
-            char*e=b; *e++=(char)('0'+nl); *e++=' '; *e++='O'; *e++='F'; *e++=' '; *e++='5'; *e=0;
-            text(10,48,"COLLECT S K A T E",lab,1); text(230-tw(b,1),48,b,nl==5?ok:no,1);
-            text(10,60,"CLEAR THE LOT  +500",lab,1); text(230-tw(cleared?"DONE":"NOT YET",1),60,cleared?"DONE":"NOT YET",cleared?ok:no,1);
-            text(10,72,"SCORE THIS RUN",lab,1); numText(230-12*3,72,lscore,WHITE);
+            for(int g=0;g<4;g++){ int d=have>>g&1; text(10,34+g*12,gn[g],lab,1); text(230-tw(d?"DONE":"NOT YET",1),34+g*12,d?"DONE":"NOT YET",d?ok:no,1); }
+            int all=have==15; text(10,86,"ALL FOUR  LOT MASTERED  +300",lab,1); text(230-tw(all?"DONE":"NOT YET",1),86,all?"DONE":"NOT YET",all?GOLD:no,1);
         }
-        text(10,92,"TIMED RUN  HIGH SCORE",lab,1); if(best) numText(230-12*3,92,best,GOLD); else text(230-tw("NONE",1),92,"NONE",no,1);
-        text(10,108,"TAPES FOUND IN TOWN",lab,1);
-        { char*e=simCatN(b,tapes); *e++=' '; *e++='O'; *e++='F'; *e++=' '; e=simCatN(e,lots); text(230-tw(b,1),108,b,tapes&&tapes==lots?ok:WHITE,1); }
-        text(10,124,"ONLY LOTS YOU HAVE SKATED COUNT",no,1); text(10,134,"A FOUND TAPE DOES NOT COME BACK",no,1);
-        text(10,146,"A OR B BACK",RGB(12,14,16),1);
+        text(10,98,"TIMED RUN  HIGH SCORE",lab,1); if(best) numText(190,98,best,GOLD); else text(230-tw("NONE",1),98,"NONE",no,1);
+        { char*e=simCatN(b,tapes); e=simCat(e," OF "); simCatN(e,lots); text(10,112,"TAPES FOUND IN TOWN",lab,1); text(230-tw(b,1),112,b,tapes&&tapes==lots?ok:WHITE,1); }
+        { char*e=simCatN(b,mast); e=simCat(e," OF "); simCatN(e,lots); text(10,124,"LOTS MASTERED",lab,1); text(230-tw(b,1),124,b,mast&&mast==lots?GOLD:WHITE,1); }
+        text(10,134,"ONLY LOTS YOU HAVE SKATED COUNT",no,1);
+        text(10,144,"A OR B BACK",RGB(12,14,16),1);
         present();
     }
 }

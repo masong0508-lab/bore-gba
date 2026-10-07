@@ -1970,11 +1970,12 @@ static void specLose(void){ if(lspecOn&&!ldead&&lnoteT<=0){ lnote="SPECIAL LOST"
 static void specAdd(int n){
     if(ldead) return;
     lspec+=n; if(lspec>=SPEC_MAX){ lspec=SPEC_MAX; if(!lspecOn){ lspecOn=1; lnote="SPECIAL"; lnoteT=60; lnPerf=1; sfxPlay(SFX_STICK); voxPlay(V_yahoo); } } }
+static void tgDone(int bit);   // goals.h
 static void sktAward(void){
     static char b[8] EWRAM_BSS; static const char L[]="SKATE"; int i;
     if(ldead) return;
     lskl++;
-    if(lskl>=5){ lskl=0; lscore+=500; specAdd(SPEC_MAX); lnote="SKATE  +500"; lnoteT=90; return; }
+    if(lskl>=5){ lskl=0; lscore+=500; specAdd(SPEC_MAX); lnote="SKATE  +500"; lnoteT=90; tgDone(2); return; }
     for(i=0;i<lskl;i++) b[i]=L[i];
     b[i]=0; lnote=b; lnoteT=50; }
 static void hurt(int sev,int kind){
@@ -2542,7 +2543,7 @@ static void hhStart(void); static void hhTick(void); static int hhSocR(int useLa
 // ---- COLLECTIBLES (like THPS): the letters S K A T E and one hidden tape float over the floor of a skate lot. Touch one to take it. ----
 // Nothing is saved and no map tile is used: lifeInit scatters them over empty floor every run (a new spot each time), so they cost a few bytes of EWRAM
 // and no sprite art (they are drawn in code). A letter counts like a combo letter (sktAward: five make SKATE). Only on lots that have something to skate.
-static int tgFound(void); static void tgMark(void); static void tgSeen(void); static void goalsScreen(void);   // goals.h: the tape stays found per lot, VIEW GOALS
+static int tgFound(void); static void tgMark(void); static void tgSeen(void); static void tgPump(void); static void goalsScreen(void);   // goals.h: the tape stays found per lot, VIEW GOALS
 #define CL_N 6   // 0..4 = S K A T E, 5 = the hidden tape
 static u8 clTook EWRAM_BSS, clReal EWRAM_BSS;   // LOT CLEARED: the ones really taken, and the ones that were placed (all taken = a 500 bonus)
 static u8 clx[CL_N] EWRAM_BSS, cly[CL_N] EWRAM_BSS, clGot EWRAM_BSS, clLive EWRAM_BSS;   // tile of each one; a bit per one taken; 1 = this lot has them
@@ -2568,6 +2569,7 @@ static void clPlace(void){
     clReal=(u8)(~clGot&63); clTook=0; clLive=1;
 }
 static void clTick(void){
+    tgPump(); if(CL_ON&&lscore>=2000) tgDone(8);   // goals (goals.h): SCORE 2000 in a run, and a goal note waiting for the note line
     if(!CL_ON||ldead||lz>(30<<8)) return;
     for(int i=0;i<CL_N;i++){
         if(clGot>>i&1) continue;
@@ -2578,7 +2580,7 @@ static void clTick(void){
         if(i<5){ lscore+=100; specAdd(60); moodEvent(M_TRICK); sfxPlay(SFX_POP); sktAward(); simEvent(SE_LETTER); }   // sktAward writes the note (S, SK, ...) and pays the SKATE bonus at five
         else { lscore+=1000; specAdd(SPEC_MAX/2); moodEvent(M_TRICK); sfxPlay(SFX_STICK); voxPlay(V_yahoo); lnote="SECRET TAPE  +1000"; lnoteT=100; simEvent(SE_TAPE); tgMark(); }
         clTook|=(u8)(1<<i);
-        if(clReal&&clTook==clReal){ lscore+=500; specAdd(SPEC_MAX); sfxPlay(SFX_STICK); lnote="LOT CLEARED  +500"; lnoteT=110; }   // every letter and the tape of this lot
+        if(clReal&&clTook==clReal){ lscore+=500; specAdd(SPEC_MAX); sfxPlay(SFX_STICK); lnote="LOT CLEARED  +500"; lnoteT=110; tgDone(4); }   // every letter and the tape of this lot
     }
 }
 static void lifeInit(void){
