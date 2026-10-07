@@ -89,6 +89,12 @@ static void nbTemplate(int i){   // a lot's starting layout: the land, the stree
                 gPut(rx0+1,ry0+1,'V'); gPut(rx1-1,ry0+1,'V'); gPut(rx0+2,ry0+2,'U'); gPut(rx1-2,ry0+2,'U'); gPut(cx,ry0+2,'G'); gPut(rx0+1,ry1-1,'C'); gPut(rx1-1,ry1-1,'C'); }
             else if(L->type==CT_PRISON) prisonBuild(x0,y0,x1,y1);
         }
+        if(L->kind==LKIND_COMM){   // sound pack: a RADIO / SOUND SYSTEM on the community lots (only onto empty floor; R next to one tunes a station)
+            int my=(y0+y1)/2;
+            if(L->type==CT_LOUNGE){ gFree(cx-1,y0+2,'A'); gFree(cx+1,y0+2,'R'); }
+            else if(L->type==CT_PLAZA||L->type==CT_PARK) gFree(cx,my+1,'R');
+            else if(L->type==CT_SKATE||L->type==CT_BOTH) gFree(x0+1,y1-2,'R');
+        }
         gPut(cx,y1-1,'P'); if(lifeMap[y1-1][cx+1]=='.') gPut(cx+1,y1-1,'B');   // you arrive at the front, your board beside you
     }
     flBlankUpper(); mapSave(); mapScan(); hhSlotsFree(); liveInvalidate(); camSnap=1;

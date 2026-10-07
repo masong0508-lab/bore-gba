@@ -748,7 +748,7 @@ Two room items at the END of the item list (palette slots 32 and 33, so old room
 - **R next to one** (`lnear` 9 / 10, `radioTune` in main.c) tunes the next station. Stations (`radioStn`): ALL SONGS FM, DAYBAR FM, SK9M BASS RADIO, DANNY STEELE FM, BRENO FM, SINGHS RADIO. A station plays the visible (unlocked, non-secret) songs whose artist name starts with its key, at random, never the same song twice in a row; after the last station the radio goes OFF and the normal GAME MUSIC comes back. A station with no visible song is skipped.
 - It rides on the game-music player: `gmPick` (instead of `pickSong`) chooses the next song while `radioSt` is set, `gmSync` leaves a tuned radio alone when the pause menu closes, `gmStop` switches it off when you leave the game. To add a station, add a row to `radioStn` and raise `RADIO_N`.
 - The sound system also gives a CHILL mood event. Both count as furniture for the ROOM need (the "den" bit with the DeadSet, lamp and pipe), cost §40 / §150 in the town's house value, and show in the build room palette with a preview.
-- Not in the default house yet (an existing map keeps its layout): place them with the ITEM tool.
+- They stand in the default house's lounge (mapGen) and, since phase 1, on the pre-made community lots (nbTemplate: LOUNGE gets both, PLAZA / PARK / SKATE PARK a radio). Lots that already have a layout keep it; RESET a lot to get them.
 
 ## Death variants
 `die(snd, why)` in main.c: the dead screen's note says what killed you (`deathNote`): 0 YOU DIED, 1 DIED OF SHOCK (a bail that is 40+), 2 GRAVITY WON (a fall: also a failed life-or-death roll), 3 MET A WALL AT SPEED, 4 DIED OF HUNGER (hit points ran out while FOOD < 10), 5 ONE HIT TOO MANY. Falls play the scream. Ghosts are not in yet.
