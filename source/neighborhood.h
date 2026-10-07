@@ -51,6 +51,8 @@ static int nbBarred(void){   // 1 = the live room is a COMMUNITY lot and you got
     // the builder, the pause menu's EDIT MAP, BUILD ROOM in the main menu, the creator's BUILD button and loading a blueprint over it all say no
     return nbOk&&!nbEditPass&&nbT.cur<NB_LOTS&&nbT.lot[nbT.cur].on&&nbT.lot[nbT.cur].kind==LKIND_COMM;
 }
+static int nbFlagOk(void){ return nbOk&&nbEditPass&&nbT.cur<NB_LOTS&&nbT.lot[nbT.cur].on&&nbT.cur!=nbT.home&&!nbLives(nbT.cur); }   // flags can only be placed while the town view's BUILD has a free lot open (never in your home, never in normal play)
+static int nbFlagsOn(void){ return nbOk&&nbT.cur<NB_LOTS&&nbT.lot[nbT.cur].on&&nbT.lot[nbT.cur].kind==LKIND_COMM; }   // flags only do anything on a community lot
 static int nbAt(int cx,int cy){ for(int i=0;i<NB_LOTS;i++){ const NbLot*L=&nbT.lot[i]; if(L->on&&cx>=L->x&&cy>=L->y&&cx<L->x+L->w&&cy<L->y+L->h) return i; } return -1; }
 static int nbItemValue(char c){
     switch(c){ case '.': case 'P': return 0; case 'W': return 4; case 'w': return 2; case 'D': return 15; case 'F': return 60; case 'T': return 30; case 'S': return 50;

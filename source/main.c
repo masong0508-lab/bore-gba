@@ -1369,6 +1369,7 @@ static u8 gInPlay;   // 1 while the life game runs (some actions only make sense
 static int edX0=0, edY0=0, edX1=9999, edY1=9999;   // where the room builder's cursor may go (neighborhood.h narrows it to the lot you are on)
 static int nbPlaying;   // the game was started from the neighborhood: its pause menu goes back there
 static int nbResetLot(void);
+static int nbFlagOk(void); static int nbFlagsOn(void);   // neighborhood.h: flags are a town-build tool, they only work on community lots
 static int nbBarred(void);   // neighborhood.h: 1 while the live lot is a COMMUNITY lot you are only visiting: building is locked there, you build it from the town view
 static u8 udOn EWRAM_BSS; static int udCashD EWRAM_BSS; static void udRec(int x,int y);   // undo.h: the room builder records every tile it changes (udOn only while the builder is open)
 #define MW 40
@@ -2194,6 +2195,7 @@ static void mapReset(void){ mapGen(); }
 // (PARK unless it already is another kind), both = PARK + SKATE. Up to FLG_MAX of each count (mapScan finds them); nothing is saved apart from the tiles.
 #define FLG_MAX 4
 static u8 flgN[2] EWRAM_BSS, flgX[2][FLG_MAX] EWRAM_BSS, flgY[2][FLG_MAX] EWRAM_BSS;   // [0] community, [1] skate
+#define FLG(t) (nbFlagsOn()?flgN[t]:0)   // the flags that count: none outside a community lot
 static void mapScan(void){   // find the skateboard (B), the spawn point (P) and the flags (a, k); fall back to sane defaults
     wDirty=1;
     int fx=-1, fy=-1; bdx=bdy=spx=spy=-1; flgN[0]=flgN[1]=0;
@@ -2318,6 +2320,7 @@ static int edPay(int net){   // net > 0 buys, net < 0 sells back. 0 = refused
 static int edAffordable(char c,char old){ int n=edCost(c)-edSell(old); return n<=0||!edCharged()||simMoney>=n; }
 static void mapPlace(int x,int y,char c){
     char old=lifeMap[y][x];
+    if((c=='a'||c=='k')&&!nbFlagOk()){ dsMsg="FLAGS ARE BUILT FROM THE TOWN"; return; }   // (a designer tool of the town view's BUILD: not for your home or normal play)
     if(isWinCh(c)&&old!='W'&&old!='w'&&!isWinCh(old)){ dsMsg="WINDOWS GO IN A WALL"; return; }   // (a window is a wall piece: it replaces a bit of wall)
     if(c!=old){ int net=edCost(c)-edSell(old); if(net&&!edPay(net)) return; }   // buying costs; replacing or removing sells the old one back (half)
     if(c=='B'||c=='P'){ for(int j=0;j<MH;j++)for(int i=0;i<MW;i++) if(lifeMap[j][i]==c){ udRec(i,j); lifeMap[j][i]='.'; } }   // (the old board / spawn is a change too: undo puts it back)
@@ -3031,7 +3034,7 @@ static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
             if(isItemCh(c)) drawItemTile(c,sx,sy,ox,oy);
             if((ed&&c=='B')||(!ed&&!lhave&&ox==BDX&&oy==BDY)) blitItem(V_BOARD,sx,sy-(ed?0:((lfr>>4)&1)));   // the skateboard pickup, bobbing
             if(ed&&c=='P') drawSpawn(sx,sy+1);   // little person = spawn
-            if(c=='a'||c=='k') drawFlag(sx,sy+1,c=='k',(int)(lfr>>3));   // a flag on a pole (blue = community, orange = skate); it waves in play too
+            if((c=='a'||c=='k')&&(nbFlagsOn()||(ed&&nbFlagOk()))) drawFlag(sx,sy+1,c=='k',(int)(lfr>>3));   // a flag on a pole (blue = community, orange = skate); it waves in play too
         }
         if(cln) for(int i=0;i<CL_N;i++) if(cls[i]==s){ int sx=LOX+(clr[i][0]-clr[i][1])*CA, sy=LOY+(clr[i][0]+clr[i][1]+1)*CB; if(sx+11>x0&&sx-11<x1&&sy+6>y0&&sy-24<y1) clDraw(i,sx,sy); }
         if(!ed&&hhN&&!curFl) hhDrawBand(s,s);
