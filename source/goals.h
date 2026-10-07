@@ -92,9 +92,12 @@ static void goalsScreen(void){
 // ---- the INTRO FLYOVER (roadmap #4): when a lot opens, the camera pans to the goal spots, each with a banner in the top bar ----
 // It only visits the goals that are still open on this lot (the saved goal bits, tgHave): the tape spot if the tape is not found, the first and last
 // letter if SKATE is not done, then back to you (with the score goal when that is open). Any of A, B, START skips it. The world holds still meanwhile.
+// It plays once per lot per session (flySeen: gone at power off); a lot visited again, or the same lot after a retry, goes straight to play.
 // camFollow looks at flyX / flyY instead of the skater while flyOn is set (main.c).
+static u16 flySeen EWRAM_BSS, flyKey EWRAM_BSS;   // the lots whose flyover already played since power on (a bit per lot) and the town they belong to
 static void introFly(void){
     if(!CL_ON||tutOn||tutModal!=TM_NONE||stModal||tgHave==15) return;
+    { u16 key=tgKeyNow(), b=(u16)(1u<<tgLotNow()); if(key!=flyKey){ flyKey=key; flySeen=0; } if(flySeen&b) return; flySeen|=b; }   // once per lot per session
     s32 sx[4], sy[4]; const char* tx[4]; int n=0;
     if(!(tgHave&TGF_TAPE)&&!(clGot&32)){ sx[n]=clx[5]*256+128; sy[n]=cly[5]*256+128; tx[n++]="FIND THE HIDDEN TAPE"; }
     if(!(tgHave&TGF_SKATE)){
