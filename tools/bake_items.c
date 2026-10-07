@@ -14,5 +14,12 @@ int main(int argc,char**argv){
     fprintf(f,"static const u16 romSpr[%d][%d] __attribute__((aligned(4)))={\n",NIV,IW*IH);
     for(int k=0;k<NIV;k++){ fprintf(f,"{"); const u16*p=&bakeBuf[k][0][0];
         for(int i=0;i<IW*IH;i++){ fprintf(f,"%s0x%X",i?(i%IW?",":",\n"):"",p[i]); } fprintf(f,"},\n"); }
+    fprintf(f,"};\n");
+    // the first opaque column and one past the last, per sprite row (blitItem skips the see-through margins): a ROM table, so it uses no RAM
+    fprintf(f,"static const u8 itemSpan[%d][%d][2]={\n",NIV,IH);
+    for(int k=0;k<NIV;k++){ fprintf(f,"{"); for(int j=0;j<IH;j++){ const u16*s=&bakeBuf[k][j][0]; int a=IW,b=0;
+            for(int i=0;i<IW;i++) if(s[i]!=IKEY){ if(i<a) a=i; b=i+1; }
+            if(a>=b) a=b=0;
+            fprintf(f,"%s{%d,%d}",j?",":"",a,b); } fprintf(f,"},\n"); }
     fprintf(f,"};\n"); fclose(f); return 0;
 }

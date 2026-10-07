@@ -4,17 +4,10 @@
 // Include AFTER px/shade/EWRAM_BSS/SW/SH/fb are defined.
 #include "itemids.h"
 #include "itemrom.h"
-// Sprites are read straight from the cartridge (no RAM for the art). Only a tiny table in RAM: for every sprite row, the first opaque column and one
+// Sprites are read straight from the cartridge (no RAM for the art). A tiny table (also in ROM): for every sprite row, the first opaque column and one
 // past the last, so the blit never touches the see-through margins. It also clips once per row, not once per pixel.
-static u8 itemSpan[NIV][IH][2] EWRAM_BSS;
-static void itemSpanInit(void){
-    for(int k=0;k<NIV;k++)for(int j=0;j<IH;j++){
-        const u16*s=romSpr[k]+j*IW; int a=IW,b=0;
-        for(int i=0;i<IW;i++) if(s[i]!=IKEY){ if(i<a) a=i; b=i+1; }
-        if(a>=b){ a=b=0; }
-        itemSpan[k][j][0]=(u8)a; itemSpan[k][j][1]=(u8)b;
-    }
-}
+// (itemSpan is a const ROM table, baked into itemrom.h by tools/bake_items.sh: it used to be 4 KB of EWRAM filled at boot)
+static void itemSpanInit(void){}   // kept so the boot code stays the same
 IWRAM_CODE static void blitItem(int k,int sx,int sy){
     CNT(cntBI); int x0=sx-IOX, y0=sy-IOY;
     int cx1=cX0+(int)cW, cy1=cY0+(int)cH;
