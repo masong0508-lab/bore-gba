@@ -915,6 +915,7 @@ static const char* const trNm[TR_N]={"NEAT","OUTGOING","ACTIVE","PLAYFUL","NICE"
 static const char* const signNm[12]={"ARIES","TAURUS","GEMINI","CANCER","LEO","VIRGO","LIBRA","SCORPIO","SAGITTARIUS","CAPRICORN","AQUARIUS","PISCES"};
 static const u8 signTr[12][TR_N]={ {5,8,6,3,3},{5,5,3,8,4},{4,7,8,3,3},{6,3,6,4,6},{4,10,4,4,3},{9,2,6,3,5},
                                    {2,8,2,6,7},{6,5,8,3,3},{2,3,9,7,4},{7,4,8,2,4},{4,4,4,7,6},{5,3,4,4,9} };   // each adds up to 25
+#define LTN 4   // lifetime wants per aspiration (sims.h simLtws); a saved 0 or 1 is still the old first or second one
 static u8 pAsp=AS_FORTUNE, pLtw=0, pTr[TR_N]={5,8,6,3,3};   // starts as an ARIES who wants FORTUNE
 static inline int aspNow(void){ return stage<AG_TEEN?AS_GROW:pAsp; }
 static inline int trOf(int t){ return pTr[t]; }
@@ -926,7 +927,7 @@ static int signOf(void){   // the sign whose traits are nearest to the creature'
 }
 static void setSign(int s){ for(int i=0;i<TR_N;i++) pTr[i]=signTr[s][i]; }
 static int persValid(int asp,int ltw,const u8*tr){
-    int s=0; if(asp>=AS_PICK||ltw>=2) return 0;
+    int s=0; if(asp>=AS_PICK||ltw>=LTN) return 0;
     for(int i=0;i<TR_N;i++){ if(tr[i]>10) return 0; s+=tr[i]; }
     return s<=TR_POINTS;
 }
@@ -2650,7 +2651,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
     if(bump){
         lsp=(lsp*2)/3;
         if(lbumpCd==0&&sp0b>=(lskate?12:10)){ lbumpCd=40;   // skating into a wall hurts, running into one bonks
-            if(lskate&&(k&K_R)){ int wp=150+skLvl(SK_AIR)*5; if(lspecOn) wp*=2; lscore+=wp; lcAdd("WALL TAP"); lcN++; lcPts+=wp; lcT=oComboLen(); lvz=0x2A0; lnote="WALL TAP"; lnoteT=40; sfxPlay(SFX_POP); specAdd(50); moodEvent(M_TRICK); }
+            if(lskate&&(k&K_R)){ int wp=150+skLvl(SK_AIR)*5; if(lspecOn) wp*=2; lscore+=wp; lcAdd("WALL TAP"); simEvent(SE_WALLTAP); lcN++; lcPts+=wp; lcT=oComboLen(); lvz=0x2A0; lnote="WALL TAP"; lnoteT=40; sfxPlay(SFX_POP); specAdd(50); moodEvent(M_TRICK); }
             else if(lskate&&(abPow()&PW_CHARGE)){ sfxPlay(SFX_HIT); lnote="HORNS FIRST"; lnoteT=30; simEvent(SE_CHARGE); }   // HORNS: charge the wall, no harm done
             else if(lskate) hurt(sp0b*2/3+(rnd8()>>5),2); else sfxPlay(SFX_BONK); }   // (was speed + 0..15: a full speed wall was a coin flip for dying. Now 8..23, worst case a short OW)
     }
@@ -2684,7 +2685,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
         else{
             if(g==1){ F.spd=F.spd*3/5; lsp=F.spd>>4; pts/=2; lnote="SKETCHY"; lnoteT=40; }   // landed, but crooked: you lose speed and the trick is worth half
             else if(g==3&&pts){ pts+=pts/4; if(lstrk<5) lstrk++; pts+=pts*lstrk/10; }                                                      // PERFECT: +25%
-            if(pts){ if(hs||lflip||gb) pts=pts*(100+skLvl(SK_AIR)*4)/100; skGain(SK_AIR,(hs>=2?2:hs?1:0)+(lflip?1:0)+(gb?1:0)); skGain(SK_BAL,g==3?2:g==2?1:0); pts=moodPts(pts); if(lsw) pts+=pts/4; if(lspecOn) pts*=2; lscore+=pts; lpts=pts; if(g!=1){ trickName(hs,gb,g==3); if(lsw) swName(); if(g==3&&lstrk>=2){ int n=0; while(lnBuf[n]) n++; if(n<20){ lnBuf[n++]=' '; lnBuf[n++]='X'; lnBuf[n++]=(char)('0'+lstrk); lnBuf[n]=0; } } } lnoteT=60; lcAdd(g!=1?lnBuf:"SKETCHY"); lcN++; lcPts+=pts; lcT=oComboLen(); moodEvent(M_TRICK); specAdd(60+pts/(lspecOn?8:4)); }
+            if(pts){ if(hs||lflip||gb) pts=pts*(100+skLvl(SK_AIR)*4)/100; skGain(SK_AIR,(hs>=2?2:hs?1:0)+(lflip?1:0)+(gb?1:0)); skGain(SK_BAL,g==3?2:g==2?1:0); pts=moodPts(pts); if(lsw){ pts+=pts/4; simEvent(SE_SWITCH); } if(lspecOn) pts*=2; lscore+=pts; lpts=pts; if(g!=1){ trickName(hs,gb,g==3); if(lsw) swName(); if(g==3&&lstrk>=2){ int n=0; while(lnBuf[n]) n++; if(n<20){ lnBuf[n++]=' '; lnBuf[n++]='X'; lnBuf[n++]=(char)('0'+lstrk); lnBuf[n]=0; } } } lnoteT=60; lcAdd(g!=1?lnBuf:"SKETCHY"); lcN++; lcPts+=pts; lcT=oComboLen(); moodEvent(M_TRICK); specAdd(60+pts/(lspecOn?8:4)); }
             if(onRail){ lgrind=1; skGain(SK_GRIND,1); lnote="GRIND"; lnoteT=30; lcAdd("GRIND"); lcN++; lcT=oComboLen(); moodEvent(M_GRIND_ON); sfxPlay(SFX_GRIND); specAdd(60); }
             else sfxPlay((pts&&g!=1)?SFX_STICK:SFX_LAND);   // the landing is heard: a thud, or the bright one for a trick
         }
@@ -2697,7 +2698,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
     lairF=air;
     if(lflip&&lskate&&air){ if(!bFPrev) bFD=(k&K_UP)?-1:1; if(bFT<BFLIP_LEN) bFT++; bFPrev=1; } else { bFT=0; bFPrev=0; }   // the flip: one full roll in BFLIP_LEN steps, then it is flat again
     if(lskate&&!air&&lstun<=0&&!ldead&&(k&K_R)&&lsp>=8&&lifeMap[lfy>>8][lfx>>8]=='M'){
-        if(!lman){ lman=1; lnote="MANUAL"; lnoteT=30; if(lcN==0) lcN=1; lcAdd("MANUAL"); }
+        if(!lman){ lman=1; lnote="MANUAL"; lnoteT=30; if(lcN==0) lcN=1; lcAdd("MANUAL"); simEvent(SE_MANUAL); }
         if((fr&7)==0){ int g=40+skLvl(SK_BAL)*2; if(lspecOn) g*=2; lscore+=g; lcPts+=g; lcT=oComboLen(); skGain(SK_BAL,1); specAdd(8); }
     } else lman=0;
     if(lgrind){ if(air||tileH(lfx>>8,lfy>>8)!=6) lgrind=0; else if((fr&3)==0){ int g=abGrindPts()+skLvl(SK_GRIND)/2; if(lspecOn) g*=2; lscore+=g; lnote="GRIND"; lnoteT=10; lcPts+=g; lcT=oComboLen(); specAdd(4); } }   // GRIP ability
@@ -3472,7 +3473,7 @@ static void radioTune(int sys){   // R at the radio (sys=0) or the sound system 
         if(xo[XO_GAMEMUS]){ gMusic=0; gmStart(); } else { gMusic=0; musFadeOut(XF_OUT); }   // back to the normal game music (or silence)
         return; }
     int v=radioPick(st-1); radioSt=(u8)st; gmCur=v; jbLast=v; gMusic=1; mGain=mGainT=256; gmPlay();
-    radioNote(1);
+    radioNote(1); simEvent(SE_RADIO);
     if(sys){ moodEvent(M_CHILL); }   // the big speakers feel better than the little radio
 }
 static void gmTick(void){   // once per frame: when the song is over, another random one
@@ -3847,7 +3848,7 @@ static const Row tabRow[NTAB][TROWS]={
    {"TAIL HEIGHT",0,RK_SLIDE,LK_TAILHT,9},{"TAIL SWAY",0,RK_SLIDE,LK_TAILSW,9},{"TAIL TIP LEN",0,RK_SLIDE,LK_TAILTL,9},{"HORN FWD BACK",0,RK_SLIDE,LK_HORNFB,9},{"HORN THICKNESS",0,RK_SLIDE,LK_HORNTH,9},
    {"WING SPREAD",0,RK_SLIDE,LK_WINGSP,9},{"WING HEIGHT",0,RK_SLIDE,LK_WINGHT,9},{"ANT FRONT BACK",0,RK_SLIDE,LK_ANTFB,9},{"ANT GAP",0,RK_SLIDE,LK_ANTGAP,9},{"TAIL SHADE",0,RK_SLIDE,LK_TAILTONE,9},{"HORN SHADE",0,RK_SLIDE,LK_HORNTONE,9},
    {"TAIL TAPER",0,RK_SLIDE,LK_TAILTAPER,9},{"TAIL FLUFF",0,RK_SLIDE,LK_TAILFLUF,9},{"TAIL WAVE",0,RK_SLIDE,LK_TAILWAVE,9},{"TAIL TIP SHADE",0,RK_SLIDE,LK_TIPTONE,9},{"HORN TIP",0,RK_SLIDE,LK_HORNTIP,9},{"WING DROOP",0,RK_SLIDE,LK_WINGDROOP,9},{"WING SHADE",0,RK_SLIDE,LK_WINGTONE,9}},
-  {{"ASPIRATION",0,RK_PERS,PS_ASP,AS_PICK},{"LIFETIME WANT",0,RK_PERS,PS_LTW,2},{"SIGN",0,RK_PERS,PS_SIGN,12},
+  {{"ASPIRATION",0,RK_PERS,PS_ASP,AS_PICK},{"LIFETIME WANT",0,RK_PERS,PS_LTW,LTN},{"SIGN",0,RK_PERS,PS_SIGN,12},
    {"NEAT",0,RK_TRAIT,TR_NEAT,11},{"OUTGOING",0,RK_TRAIT,TR_OUT,11},{"ACTIVE",0,RK_TRAIT,TR_ACT,11},{"PLAYFUL",0,RK_TRAIT,TR_PLAY,11},{"NICE",0,RK_TRAIT,TR_NICE,11}},
   {{"GO LIVE LIFE!","PLAY IT NOW",RK_ACT,AC_PLAY,0},{"ROLL THE DICE","EVERYTHING ROLLS",RK_DUO,AC_RAND,AC_TRAND},{"EDIT MAP","BUILD ROOMS",RK_ACT,AC_MAP,0},{"MAIN MENU","LOOK IS KEPT",RK_ACT,AC_MENU,0},{"HOUSEHOLD","FAMILY AND KIN",RK_ACT,AC_HOUSE,0}} };   // (HOUSEHOLD: hhcreate.h. It holds ADD TO FAMILY, FAMILY and the relations)
 static const u8 tabN0[NTAB]={31,21,6,7,40,8,5};
@@ -3958,7 +3959,7 @@ static void drawAspire(int sel){   // ASPIRE tab: aspiration, lifetime want and 
         text(CDX+9,y,lab[i],f?WHITE:DIMC,1);
         const char*nm; int cur, cnt;
         if(i==PS_ASP){ nm=aspNm[pAsp]; cur=pAsp; cnt=AS_PICK; }
-        else if(i==PS_LTW){ nm=simLtw()->name; cur=pLtw; cnt=2; }
+        else if(i==PS_LTW){ nm=simLtw()->name; cur=pLtw; cnt=LTN; }
         else { cur=signOf(); nm=signNm[cur]; cnt=12; }
         if(i==PS_ASP&&stage<AG_TEEN) text(CDX+CDW-6-tw("TEEN",1),y,"TEEN",RGB(12,20,26),1);   // babies and children GROW UP first: this starts as a teen
         else { int k=numStr(b,cur+1); b[k]='/'; numStr(b+k+1,cnt); text(CDX+CDW-6-tw(b,1),y,b,f?DIMC:RGB(10,12,16),1); }
@@ -4126,7 +4127,7 @@ static void lookStep(int id,int n,int d){
 static void persStep(const Row*r,int d){
     if(r->kind==RK_TRAIT){ int t=r->id, v=pTr[t]+d; if(v<0||v>10||(d>0&&trLeft()<=0)) return; pTr[t]=(u8)v; }
     else if(r->id==PS_ASP) pAsp=(u8)((pAsp+d+AS_PICK)%AS_PICK);
-    else if(r->id==PS_LTW) pLtw=(u8)((pLtw+d+2)%2);
+    else if(r->id==PS_LTW) pLtw=(u8)((pLtw+d+LTN)%LTN);
     else setSign((signOf()+d+12)%12);
     persSave();
 }
@@ -4223,7 +4224,7 @@ static void lookRandom(void){   // the dice (like Create-A-Bore): a whole new lo
             if(id==LK_BEARD&&stage<AG_ADULT) v=0;
             if(lkAllowed(id,v)){ look[id]=(u8)v; break; } }
     }
-    setSign(rnd8()%12); pAsp=(u8)(rnd8()%AS_PICK); pLtw=(u8)(rnd8()&1); persSave();
+    setSign(rnd8()%12); pAsp=(u8)(rnd8()%AS_PICK); pLtw=(u8)(rnd8()%LTN); persSave();
     custom=0; fixLook(); buildLook(); setColors();
 }
 // TRUE RANDOM: every slider (0-8, evenly), every pick, part and colour at random, nothing nudged towards the middle - only what the age
@@ -4243,7 +4244,7 @@ static void lookTrueRandom(u8*lk,u8*stg){
 }
 static void lookTrueRandomMe(void){   // the creator's TRUE RANDOM row: the same for you (your age stays), and a new personality
     slkLoad(); u8 lk[LK_N], st=stage; lookTrueRandom(lk,&st); for(int i=0;i<LK_N;i++) look[i]=lk[i]; slkMiddle();   // (a locked slider stays in the middle)
-    setSign(rnd8()%12); pAsp=(u8)(rnd8()%AS_PICK); pLtw=(u8)(rnd8()&1); persSave();
+    setSign(rnd8()%12); pAsp=(u8)(rnd8()%AS_PICK); pLtw=(u8)(rnd8()%LTN); persSave();
     custom=0; fixLook(); buildLook(); setColors();
 }
 #define TRIG(m,i) ((pressed&(m))||(hold[i]>14&&(hold[i]&3)==0))   // pressed now, or held long enough to repeat

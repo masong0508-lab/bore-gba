@@ -41,6 +41,8 @@
 #define SIM_GAIN_SIT   300    // comfort per step on the sofa (~5.5 s)
 #define SIM_LOW        20     // a need below this shows in the thought bubble
 #define SIM_SLEEPY_TOP 20     // % of top speed lost when ENERGY is below SIM_LOW
+#define SIM_STRK_WIN   2700   // steps (45 s, 3 game hours) after a met want in which the next one counts as a STREAK
+#define SIM_WANT_STALE 10800  // steps (3 minutes, 12 game hours) before a want nobody met is swapped for a new one (a locked want stays)
 #define SIM_WANT_GAP   240    // steps before an emptied want slot rolls a new want (a fear slot waits twice as long)
 #define SIM_NIGHT_FROM 1320   // 22:00 ... 06:00: awake costs energy 50% faster, sleep restores 25% faster
 #define SIM_NIGHT_TO   360
@@ -81,7 +83,7 @@ static const short simSkillAt[5]={12,35,70,120,200};      // skill points for sk
 static const char* const simDayNm[7]={"MON","TUE","WED","THU","FRI","SAT","SUN"};
 
 // furniture the room has (simsScan) and what a want needs
-enum { SR_FRIDGE=1, SR_TOILET=2, SR_BED=4, SR_SHOWER=8, SR_SOFA=16, SR_RAIL=32, SR_RAMP=64, SR_PIPE=128, SR_TV=256, SR_BOOK=512, SR_FISH=1024, SR_RUN=2048 };
+enum { SR_FRIDGE=1, SR_TOILET=2, SR_BED=4, SR_SHOWER=8, SR_SOFA=16, SR_RAIL=32, SR_RAMP=64, SR_PIPE=128, SR_TV=256, SR_BOOK=512, SR_FISH=1024, SR_RUN=2048, SR_RADIO=4096, SR_PAD=8192 };   // SR_RADIO: a radio or sound system; SR_PAD: a manual pad
 enum { SK_COOK, SK_LOGIC, SK_BODY, SK_CHARM, SK_CREAT,   // life skills
        SK_GRIND, SK_AIR, SK_BAL,                          // skater skills (SKATING itself is skillPts)
        SK_N };
@@ -94,7 +96,7 @@ enum { SE_EAT, SE_PEE, SE_SLEEP, SE_SHOWER, SE_SOFA, SE_TRICK, SE_COMBO, SE_GRIN
        SE_GLIDE, SE_CHARGE,
        SE_TALK, SE_FRIEND, SE_BFF, SE_KISS, SE_LOVE, SE_STEADY, SE_HUGGED, SE_LAUGH,   // social (house.h)
        SE_REJECT, SE_SLAPPED, SE_FIGHT, SE_ENEMY, SE_LONELY,
-       SE_PIPE, SE_TV, SE_READ, SE_FISH, SE_RUN, SE_LETTER, SE_TAPE, SE_N };   // SE_PIPE: a puff on the water pipe, or PUFF PUFF PASS; SE_TV .. SE_RUN: the home pack (skills.h)   // (event numbers are not saved: they can be put in any order; table ROWS are saved by index)
+       SE_PIPE, SE_TV, SE_READ, SE_FISH, SE_RUN, SE_LETTER, SE_TAPE, SE_SWITCH, SE_WALLTAP, SE_MANUAL, SE_RADIO, SE_N };   // SE_PIPE: a puff on the water pipe, or PUFF PUFF PASS; SE_TV .. SE_RUN: the home pack (skills.h)   // (event numbers are not saved: they can be put in any order; table ROWS are saved by index)
 // icons (7x7, simIconArt): drawn in the HUD cells, the aspiration panel and the creator
 enum { IC_FOOD, IC_WC, IC_BED, IC_SHOWER, IC_SOFA, IC_BOARD, IC_COMBO, IC_RAIL, IC_AIR, IC_STAR, IC_BRIEF, IC_UP, IC_DOWN, IC_BOOK, IC_HOUSE,
        IC_COIN, IC_TROPHY, IC_CAKE, IC_HEART, IC_SKULL, IC_HURT, IC_PUDDLE, IC_SAD, IC_GLASS, IC_CANE, IC_STINK, IC_BAIL, IC_ZZZ,
@@ -182,6 +184,11 @@ static const SimWish simWants[]={   // '#' in a name is replaced by the wish's p
     {"WORK OUT",       SE_RUN,    12,SR_RUN,  IC_UP,    WP_NONE, A(AS_GROW)|A(AS_POP),               TP(TR_ACT), 0,WH_ANY},
     {"GRAB A LETTER",  SE_LETTER, 10,SR_RAIL, IC_STAR,  WP_NONE, A(AS_POP)|A(AS_PLEAS),             TP(TR_PLAY),0,WH_ANY},   // collectibles (main.c, clTick): a floating S K A T E letter
     {"FIND THE TAPE",  SE_TAPE,   25,SR_RAIL, IC_TROPHY,WP_NONE, A(AS_POP)|A(AS_GROW),               TP(TR_ACT), 0,WH_ANY},   // ... and the hidden tape
+    {"SWITCH TRICK",   SE_SWITCH, 20,0,        IC_BOARD, WP_NONE, A(AS_POP)|A(AS_GROW),             TP(TR_ACT), 0,WH_ANY},   // land a trick while riding switch (main.c, the landing)
+    {"TAP A WALL",     SE_WALLTAP,12,0,        IC_AIR,   WP_NONE, A(AS_PLEAS)|A(AS_POP),            TP(TR_PLAY),0,WH_ANY},
+    {"HOLD A MANUAL",  SE_MANUAL, 15,SR_PAD,   IC_BOARD, WP_NONE, A(AS_GROW)|A(AS_KNOW),            TP(TR_ACT), 0,WH_ANY},   // needs a MANUAL PAD
+    {"TUNE THE RADIO", SE_RADIO,   8,SR_RADIO, IC_STAR,  WP_NONE, A(AS_PLEAS)|A(AS_HOME),           TP(TR_PLAY),0,WH_ANY},   // needs a RADIO or SOUND SYSTEM
+    {"8 TRICK COMBO",  SE_COMBO,  40,0,        IC_COMBO, WP_NONE, A(AS_POP)|A(AS_KNOW),             TP(TR_ACT), 8,WH_ANY},
 };
 static const SimWish simFears[]={
     {"BAILING",        SE_BAIL,     8,0,IC_BAIL,  WP_NONE,A(AS_POP)|A(AS_GROW),          TN(TR_OUT), 0,WH_ANY},
@@ -213,12 +220,12 @@ static const SimWish simFears[]={
 // lifetime wants: two per aspiration (GROW UP has none: it is chosen as a teen)
 enum { LT_JOB, LT_CASH, LT_SKILL, LT_TRICKS, LT_COMBO, LT_WANTS, LT_STOKED, LT_NIGHTS, LT_HOME };
 typedef struct { const char* name; unsigned char kind; unsigned short goal; } SimLtw;
-static const SimLtw simLtws[AS_PICK][2]={
-    {{"BE A LEGEND",   LT_JOB,   5},   {"HAVE 3000 CASH", LT_CASH,  3000}},
-    {{"MAX SKATE SKILL",LT_SKILL,5},   {"LAND 500 TRICKS",LT_TRICKS,500}},
-    {{"20000 COMBO",   LT_COMBO, 20000},{"GO PRO",        LT_JOB,   3}},
-    {{"MEET 100 WANTS",LT_WANTS, 100}, {"STOKED 20 MIN",  LT_STOKED,20}},
-    {{"30 GOOD NIGHTS",LT_NIGHTS,30},  {"PERFECT HOME",   LT_HOME,  1}},
+static const SimLtw simLtws[AS_PICK][LTN]={   // the last two of each row are new (a saved 0 or 1 still means the old two)
+    {{"BE A LEGEND",   LT_JOB,   5},   {"HAVE 3000 CASH", LT_CASH,  3000},  {"HAVE 9000 CASH", LT_CASH,  9000}, {"REACH LEVEL 4",  LT_JOB,   4}},
+    {{"MAX SKATE SKILL",LT_SKILL,5},   {"LAND 500 TRICKS",LT_TRICKS,500},  {"LAND 1500 TRICKS",LT_TRICKS,1500}, {"SKILL LEVEL 3",LT_SKILL,3}},
+    {{"20000 COMBO",   LT_COMBO, 20000},{"GO PRO",        LT_JOB,   3},     {"8000 COMBO",    LT_COMBO, 8000}, {"35000 COMBO",   LT_COMBO, 35000}},
+    {{"MEET 100 WANTS",LT_WANTS, 100}, {"STOKED 20 MIN",  LT_STOKED,20},    {"MEET 40 WANTS", LT_WANTS, 40},  {"STOKED 60 MIN",  LT_STOKED,60}},
+    {{"30 GOOD NIGHTS",LT_NIGHTS,30},  {"PERFECT HOME",   LT_HOME,  1},     {"10 GOOD NIGHTS",LT_NIGHTS,10}, {"60 GOOD NIGHTS",LT_NIGHTS,60}},
 };
 // aspiration rewards, bought with reward points
 enum { RW_ENERGIZER, RW_CAP, RW_TREE, RW_ELIXIR, RW_N };
@@ -234,6 +241,8 @@ static int simAct, simActT, simActN;         // activity: 0 none, 1 sleep, 2 was
 static int simAsp, simDone, simMeter, simZone;   // reward points, wants met, aspiration meter 0..1000 and its zone 0..5
 static int simW[SIM_WS], simWP[SIM_WS], simF[SIM_FS];   // slot contents (index into the tables, -1 empty) and want parameters
 static int simLock;                          // bit s = want slot s is locked
+static int simStrk EWRAM_BSS, simStrkT EWRAM_BSS;   // wants met in a row (each within SIM_STRK_WIN of the last) and the steps left; nothing is saved
+static u16 simWAge[SIM_WS] EWRAM_BSS;        // steps a want has been on show (SIM_WANT_STALE)
 static int simSlotT[SIM_WS+SIM_FS];          // refill countdown per slot
 static int simAspUsed;                       // the aspiration the slots were rolled for (-1: none yet)
 static int simFlags;                         // SF_ bits
@@ -299,7 +308,7 @@ static void simsScan(void){   // what does this map have?
     for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ char c=lifeMap[y][x];
         if(c=='F') simHave|=SR_FRIDGE; else if(c=='T') simHave|=SR_TOILET; else if(c=='S') simHave|=SR_BED;
         else if(c=='H') simHave|=SR_SHOWER; else if(c=='C'||c=='U') simHave|=SR_SOFA; else if(c=='G') simHave|=SR_PIPE;
-        else if(c=='v') simHave|=SR_TV; else if(c=='b') simHave|=SR_BOOK; else if(c=='q') simHave|=SR_FISH; else if(c=='m') simHave|=SR_RUN;
+        else if(c=='v') simHave|=SR_TV; else if(c=='b') simHave|=SR_BOOK; else if(c=='q') simHave|=SR_FISH; else if(c=='m') simHave|=SR_RUN; else if(c=='R'||c=='A') simHave|=SR_RADIO; else if(c=='M') simHave|=SR_PAD;
         else if(c=='='||c=='L'||c=='N'||c=='Z'||c=='K'||c=='J') simHave|=SR_RAIL; else if((c>='1'&&c<='<')) simHave|=SR_RAMP; }
 }
 static void simSkillCalc(void){ int l=0; for(int i=0;i<5;i++) if(skillPts>=simSkillAt[i]) l=i+1; skillLvl=l; }
@@ -371,7 +380,7 @@ static int simParam(int par,int minv){   // a parameter for a wish that is just 
       default:       return minv;
     }
 }
-static void simRollWant(int s){ int i=simPick(1); simW[s]=i; simWP[s]=i>=0?simParam(simWants[i].par,simWants[i].minv):0; }
+static void simRollWant(int s){ int i=simPick(1); simWAge[s]=0; simW[s]=i; simWP[s]=i>=0?simParam(simWants[i].par,simWants[i].minv):0; }
 static void simRollFear(int s){ simF[s]=simPick(0); }
 static void simFill(void){
     if(!simWishes()) return;
@@ -466,7 +475,7 @@ static void fxGhostClear(void); static void simsDefaults(void){ fxGhostClear(); 
     for(int s=0;s<SIM_WS;s++){ simW[s]=-1; simWP[s]=0; } for(int s=0;s<SIM_FS;s++) simF[s]=-1;
 }
 static void simsTransient(void){
-    simCrN=simCrH=simCrC=0; simAct=simActT=simActN=0; for(int s=0;s<SIM_WS+SIM_FS;s++) simSlotT[s]=0;
+    simCrN=simCrH=simCrC=0; simAct=simActT=simActN=0; for(int s=0;s<SIM_WS+SIM_FS;s++) simSlotT[s]=0; simStrk=simStrkT=0; for(int s=0;s<SIM_WS;s++) simWAge[s]=0;
     simPrevMood=-1; simEdges=0; simStokedCr=0; simDrainCr=0; simQ=0; simQ2=0; simQ3=0; simQT=0; simT=0; simClkCr=0; shiftPts=0; simLastScore=lscore; simNiceRoom=0;
     simSkillCalc(); simsScan(); simZone=simZoneOf(simMeter);
     for(int s=0;s<SIM_WS;s++) if(simW[s]>=0&&((simWants[simW[s]].req&simHave)!=simWants[simW[s]].req||!simWho(simWants[simW[s]].who))){ simW[s]=-1; simLock&=~(1<<s); }   // a different room, or a stage that cannot
@@ -491,10 +500,13 @@ static void simMeterAdd(int d){
 }
 static void simMeet(int s){   // the want in slot s came true
     const SimWish*w=&simWants[simW[s]];
-    simAsp+=w->pts; if(simAsp>9999) simAsp=9999; if(simDone<9999) simDone++; dnaAdd(w->pts);   // Spore: living earns DNA
-    simMeterAdd(w->pts*SIM_METER_K);
+    int pts=w->pts;
+    simStrk=(simStrkT>0&&simStrk<9)?simStrk+1:1; simStrkT=SIM_STRK_WIN;   // a STREAK: wants met soon after each other pay 5 more points each (up to +20)
+    if(simStrk>=2) pts+=(simStrk<5?simStrk-1:4)*5;
+    simAsp+=pts; if(simAsp>9999) simAsp=9999; if(simDone<9999) simDone++; dnaAdd(pts);   // Spore: living earns DNA
+    simMeterAdd(pts*SIM_METER_K);
     simW[s]=-1; simLock&=~(1<<s); simSlotT[s]=SIM_WANT_GAP;
-    moodEvent(M_WANT); simCatN(simCat(simMsg2,"WANT MET +"),w->pts); simQueue(simMsg2);
+    moodEvent(M_WANT); { char*e=simCatN(simCat(simMsg2,"WANT MET +"),pts); if(simStrk>=2) simCatN(simCat(e,"  STREAK X"),simStrk); } simQueue(simMsg2);
 }
 static void simDread(int s){   // the fear in slot s came true
     const SimWish*w=&simFears[simF[s]];
@@ -551,7 +563,7 @@ static const char* simsAlert(void){   // most urgent need, or 0
     return 0;
 }
 // lifetime want: progress towards the goal of the chosen one
-static const SimLtw* simLtw(void){ return &simLtws[pAsp<AS_PICK?pAsp:AS_KNOW][pLtw&1]; }   // GROW UP (a child or teen you switched to) has no table row: learning stands in
+static const SimLtw* simLtw(void){ return &simLtws[pAsp<AS_PICK?pAsp:AS_KNOW][pLtw<LTN?pLtw:0]; }   // GROW UP (a child or teen you switched to) has no table row: learning stands in
 static int simLtwVal(void){
     switch(simLtw()->kind){
       case LT_JOB: return jobLvl;           case LT_CASH: return simMoney;     case LT_SKILL: return skillLvl;
@@ -766,6 +778,9 @@ static void simsTick(unsigned pr,int tx,int ty){
         simAspUsed=aspNow(); simLock=0; simReroll(); simCat(simCat(simMsg,"ASPIRES TO "),aspNm[aspNow()]); simQueue(simMsg);
     }
     for(int s=0;s<SIM_WS+SIM_FS;s++) if(simSlotT[s]>0) simSlotT[s]--;
+    if(simStrkT>0&&--simStrkT==0) simStrk=0;
+    if(simWishes()) for(int s=0;s<SIM_WS;s++) if(simW[s]>=0&&!(simLock>>s&1)&&++simWAge[s]>=SIM_WANT_STALE){   // nobody met it: a fresh want (never the same one again if there is another)
+        int old=simW[s]; simW[s]=-1; for(int t=0;t<3;t++){ simRollWant(s); if(simW[s]!=old) break; if(t<2) simW[s]=-1; } }
     simFill();
     if(simQ){ if(lnoteT<=0){ lnote=simQ; lnoteT=60; simQ=simQ2; simQ2=simQ3; simQ3=0; simQT=240; } else if(--simQT<=0){ simQ=0; simQ2=0; simQ3=0; } }
 }
