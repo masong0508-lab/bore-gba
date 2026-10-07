@@ -2596,6 +2596,7 @@ static void hhStart(void); static void hhTick(void); static int hhSocR(int useLa
 // Nothing is saved and no map tile is used: lifeInit scatters them over empty floor every run (a new spot each time), so they cost a few bytes of EWRAM
 // and no sprite art (they are drawn in code). A letter counts like a combo letter (sktAward: five make SKATE). Only on lots that have something to skate.
 static int tgFound(void); static void tgMark(void); static void tgSeen(void); static void tgPump(void); static void goalsScreen(void);   // goals.h: the tape stays found per lot, VIEW GOALS
+static void mySimScreen(void);   // mysim.h: PAUSE > MY SIM (career, skills, people, more)
 static s32 lgx0 EWRAM_BSS, lgy0 EWRAM_BSS; static void tgGap(int tiles);   // goals.h: the GAP goal; lgx0 / lgy0 = where the jump in the air began
 #define CL_N 6   // 0..4 = S K A T E, 5 = the hidden tape
 static u8 clTook EWRAM_BSS, clReal EWRAM_BSS;   // LOT CLEARED: the ones really taken, and the ones that were placed (all taken = a 500 bonus)
@@ -3454,9 +3455,9 @@ static const char* const pmArt[8][9]={
  {"....#....","...###...","..#####..",".#######.","#########",".##...##.",".##.o.##.",".##.o.##.",".#######."},   // build (a house)
  {"#######..","#.....#.#","#.....##.","#...#####","#.....##.","#.....#.#","#.....#..","#######..","........."}}; // quit (door and arrow)
 static const u16 pmCol[8]={RGB(10,28,10),RGB(10,20,31),RGB(31,26,6),RGB(31,16,22),RGB(22,16,30),RGB(22,24,26),RGB(30,20,8),RGB(30,10,8)};
-static const char* const pmNm[8]={"RESUME","SAVE","WANTS","FAMILY","STORY","OPTIONS","BUILD","QUIT"};
-static const char* const pmTitle[8]={"RESUME","SAVE GAME","ASPIRATION","HOUSEHOLD","STORY","OPTIONS","BUILD AND HOUSES","MAIN MENU"};
-static const char* const pmDesc[8]={"BACK TO YOUR LIFE","SAVES YOU AND YOUR HOUSE","WANTS  FEARS  SKILLS  TRICKS","WHO LIVES HERE  HOW THEY FEEL","YOUR CHAPTERS","SETTINGS  SOUND  CONTROLS","EDIT MAP  BLUEPRINTS  NEW LIFE","SAVES AND LEAVES"};
+static const char* const pmNm[8]={"RESUME","SAVE","MY SIM","FAMILY","STORY","OPTIONS","BUILD","QUIT"};
+static const char* const pmTitle[8]={"RESUME","SAVE GAME","MY SIM","HOUSEHOLD","STORY","OPTIONS","BUILD AND HOUSES","MAIN MENU"};
+static const char* const pmDesc[8]={"BACK TO YOUR LIFE","SAVES YOU AND YOUR HOUSE","CAREER  SKILLS  PEOPLE  MORE","WHO LIVES HERE  HOW THEY FEEL","YOUR CHAPTERS","SETTINGS  SOUND  CONTROLS","EDIT MAP  BLUEPRINTS  NEW LIFE","SAVES AND LEAVES"};
 static int pauseMenu(int mode){   // mode 0 life, 1 from the neighborhood, 2 test play from the editor. Returns a PM_ number, or -1 (resume)
     static const u8 full[8]={0,1,2,3,4,5,6,7}, edl[3]={PM_RESUME,PM_OPTS,PM_QUIT};
     const u8*ids=mode==2?edl:full; int n=mode==2?3:8, sel=0, dirty=1, lastB=-1; u16 prev=keyNow(); u32 t=0;
@@ -3599,7 +3600,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
             { u8 zz=xo[XO_ZOOM]; xo[XO_ZOOM]=0; hudApplyLayout(); camSnap=1; liveInvalidate(); lifeDraw(); xo[XO_ZOOM]=zz; }   // a whole picture behind the menu (the screen itself only holds patches), not zoomed
             int c=pauseMenu(ed?2:nbPlaying?1:0);
             if(c==PM_SAVE){ if(!sgPid) toast("PICK A PLAYER ON THE PLAY SCREEN"); else { int se=sgSave(); toast(se?slErrMsg(se):"GAME SAVED"); } }
-            else if(c==PM_WANTS){ const char* wsm[5]={"WANTS  FEARS  REWARDS","SKILLS","VIEW TRICKS","VIEW GOALS",trnLabel()}; int w=menu("WANTS AND SKILLS",wsm,5); if(w==0) aspPanel(); else if(w==1) skillsScreen(); else if(w==2) tricksScreen(); else if(w==3) goalsScreen(); else if(w==4) trnPick(); }
+            else if(c==PM_WANTS) mySimScreen();   // the old WANTS list lives on in the MORE tab
             else if(c==PM_FAMILY) hhMenu();
             else if(c==PM_STORY){ if(prShown()) prisonScreen(); else storyScreen(); }   // (while a sentence runs the STORY tile is the PRISON)
             else if(c==PM_OPTS){ settingsScreen(); if(!ed&&xo[XO_TUTOR]==2) tutBegin(); }
@@ -4776,6 +4777,7 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "tvclip.h"       // the TV's 3 second clips (tvClipRun)
 #include "skills.h"         // SKILLS (life and skater) and the home pack items: TV, bookshelf, coffee maker, aquarium, treadmill
 #include "goals.h"          // VIEW GOALS and the tape count per lot (the tape stays found)
+#include "mysim.h"         // MY SIM: the pause menu tile with CAREER / SKILLS / PEOPLE / MORE tabs
 // ---------- main menu (The Sims 3 look): a glossy panel over your town, lit for the time of day of your life's clock ----------
 #define MM_N 7
 static const char* const mmName[MM_N]={"Play","Create a Bore","Build Mode","Toukebox","Room Slots","Options","?"};
