@@ -67,6 +67,8 @@ static int hmNear(int r,char c){   // is there an item c within r tiles of you
     return 0;
 }
 static void hmNeed(int*v,int d){ *v+=d; if(*v>100) *v=100; if(*v<0) *v=0; }
+static int hmFishHungry(void){ return hmFishDay!=(u16)(simDay+1); }   // item module 13: house.h asks, and a Sim at the aquarium feeds them
+static void hmFishFed(void){ hmFishDay=(u16)(simDay+1); }
 static void homeTick(void){   // every step of the life
     if(hmDay!=(u16)(simDay+1)){ hmDay=(u16)(simDay+1); hmBook=0; hmRuns=0; hmCups=0; hmMus=0; }
     if(hmCoffee>0&&--hmCoffee==0){ hmNeed(&sNrg,-12); lnote="CAFFEINE CRASH"; lnoteT=60; }

@@ -82,9 +82,10 @@ static inline int iuUsable(const HhSim*s,int r,int f){   // would this Sim choos
     for(int n=0;n<HN_N;n++) if(s->need[n]<u->gate[n]) return 0;
     return 1;
 }
+static int hmFishHungry(void); static void hmFishFed(void);   // skills.h (item module 13): the player's fish-fed flag
 static inline int iuWeight(const HhSim*s,int r){   // item module 9: personality picks the item: active Sims run, quiet ones read, playful ones turn the music up, outgoing ones phone
     int a=s->tr[TR_ACT], o=s->tr[TR_OUT], p=s->tr[TR_PLAY], n=s->tr[TR_NICE], t=s->tr[TR_NEAT]; if(a>10) a=10; if(o>10) o=10; if(p>10) p=10; if(n>10) n=10; if(t>10) t=10;
-    switch(r){ case IU_TV: return 4+(10-a)/2; case IU_SHELF: return 3+(10-o)/2+t/3; case IU_AQUA: return 3+n/2; case IU_TREAD: return 1+a;
+    switch(r){ case IU_TV: return 4+(10-a)/2; case IU_SHELF: return 3+(10-o)/2+t/3; case IU_AQUA: return 3+n/2+(hmFishHungry()?12:0); case IU_TREAD: return 1+a;
                case IU_STEREO: return 2+(p+o)/2; case IU_COFFEE: return 4+a/2; default: return 2+o; }
 }
 static inline int iuPick(const HhSim*s,int need,int f){   // a usable item for this need on floor f: the row (one of them at random), or -1
@@ -681,6 +682,12 @@ static void hhOffStep(int m){
     if(f>0){ hhFl[m]=(u8)(f-1); hhUp[m]=90; return; }   // nothing pressing: drifts back down
     hhUp[m]=60;   // on the ground floor while you are upstairs: waits for you
 }
+static void hhAmbient(void){   // item module 12: while a Sim has the stereo on, everyone else awake on the floor enjoys it (+1 FUN every 2 seconds)
+    if(!xo[XO_ITEMUSE]||lfr%120) return;
+    int on=0; for(int m=0;m<hhN;m++){ const HhSim*s=&hhM[m]; if(s->act==HA_USE&&s->item&&iuT[s->item-1].ch=='A'&&(hhFl[m]==curFl||!xo[XO_MULTIFL])) on=1; }
+    if(!on) return;
+    for(int m=0;m<hhN;m++){ HhSim*s=&hhM[m]; if(s->act==HA_AWAY||s->need[HN_FUN]>=100||(s->act==HA_USE&&s->item&&iuT[s->item-1].ch=='A')) continue; s->need[HN_FUN]++; }
+}
 static void hhTick(void){   // once per logic step in the life game
     if(xo[XO_MULTIFL]||xo[XO_ITEMUSE]){ if(hhCenT) hhCenT--; else hhCensus(); }   // floors step 2: keep the per-floor furniture census fresh (item module 2: item use reads it too)
     if(curFl&&!xo[XO_MULTIFL]) return;   // upstairs: the household waits on the ground floor (SIMS ON FLOORS: the Sims up here carry on)
@@ -690,7 +697,7 @@ static void hhTick(void){   // once per logic step in the life game
     if(xo[XO_FREEWILL]&&!curFl) twTick(&planned);
     if(!curFl) copTick(&planned);   // npc.h: the police (a cop comes after you when you hurt Sims)
     if(!hhN) return;
-    relTick();
+    relTick(); hhAmbient();
     int fe=oFoodEvery(), we=oWcEvery();
     for(int m=0;m<hhN;m++){ HhSim*s=&hhM[m];
         // needs drain (gently: the Sims you do not watch should not be in constant crisis)
@@ -728,7 +735,7 @@ static void hhTick(void){   // once per logic step in the life game
           if(due&&s->act!=HA_LEAVE) continue; }
         if(s->act==HA_USE){   // using furniture: refill, then free again (a night's sleep lasts until it is over, rested or not)
             if(s->need[s->use]<100&&(lfr&1)) s->need[s->use]++;
-            if(--s->t<=0||(s->need[s->use]>=100&&!(s->use==HN_REST&&simIsNight()))){ s->act=HA_IDLE; s->think=(short)(HH_THINK/2); if(s->item){ if(iuT[s->item-1].ch=='I') hhCallDone(s); iuCouple(s,s->item-1); s->ilast=s->item; s->item=0; } else if(xo[XO_ITEMUSE]&&s->use<HN_FUN) iuBasic(s); }
+            if(--s->t<=0||(s->need[s->use]>=100&&!(s->use==HN_REST&&simIsNight()))){ s->act=HA_IDLE; s->think=(short)(HH_THINK/2); if(s->item){ if(iuT[s->item-1].ch=='I') hhCallDone(s); else if(iuT[s->item-1].ch=='q') hmFishFed(); iuCouple(s,s->item-1); s->ilast=s->item; s->item=0; } else if(xo[XO_ITEMUSE]&&s->use<HN_FUN) iuBasic(s); }
             continue;
         }
         if(s->act==HA_WALK||s->act==HA_WANDER||s->act==HA_SEEK||s->act==HA_LEAVE||s->act==HA_STAIR){   // follow the path, tile centre to tile centre
