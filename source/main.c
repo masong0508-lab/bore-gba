@@ -2371,6 +2371,7 @@ static void mapPlace(int x,int y,char c){
 // ---------- floors: the live map is the floor you are on; the others wait packed in flPool. Stairs: '^' goes up, '~' comes down. House slots (slots.h) keep all of them ----------
 static void hhSlotsFree(void); static void liveInvalidate(void);
 static const char* const flNm[FLR_N]={"GROUND FLOOR","FLOOR 2","FLOOR 3"};
+static const u16 flBack[FLR_N]={RGB(4,5,8),RGB(5,9,16),RGB(7,13,22)};   // floors render 1: the colour behind the map, a little lighter and bluer the higher you are (a sky), so each floor looks different
 static int flBd[4];   // the board pickup and the spawn tile of the ground floor while you are upstairs
 static void flBlankLive(void);
 static int flLiveBlank(void){ for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int e=(x==0||y==0||x==MW-1||y==MH-1); if(lifeMap[y][x]!=(e?'w':'.')||floorMap[y][x]!=1||wallMap[y][x]!=(e?13:0)) return 0; } return 1; }
@@ -3069,7 +3070,7 @@ static void clDraw(int i,int sx,int sy){
 }
 static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
     clipSet(x0,y0,x1,y1);
-    rect(x0,y0,x1-x0,y1-y0,RGB(4,5,8));
+    rect(x0,y0,x1-x0,y1-y0,flBack[curFl]);
     int s0,s1; bandRows(y0,y1,&s0,&s1);
     for(int s=s0;s<=s1;s++){ int a,b; bandCols(s,x0,x1,&a,&b);
         for(int tx=a;tx<=b;tx++){ int ty=s-tx;

@@ -102,11 +102,13 @@ static void hudTopUpdate(int all){
     if(lspecOn) mk^=0x5A5A5A5Au;
     int sw=lsw&&lskate;   // STANCE BADGE: "SW" at the right end of the middle while you ride switch
     if(sw) mk^=0x2F1D35u;
+    int flOn=curFl>0||pkHome>=0; char flT[3]={'F',(char)('1'+curFl),0}; int flW=tw(flT,1)+5, flX=(sw?164:180)-flW, flR=flOn?flX-2:(sw?164:180);   // floors render 1: FLOOR BADGE
+    if(flOn) mk^=0x1B7A91u*(unsigned)(1+curFl+(pkHome>=0?4:0));
     if(hudChg(all,HK_MSG,mk)){
-        hudClear(102,0,78,HUD_TOPH-1); clipSet(102,0,sw?164:180,HUD_TOPH-1);
+        hudClear(102,0,78,HUD_TOPH-1); clipSet(102,0,flR,HUD_TOPH-1);
         if(!has){
             if(lcamF>0){ t="BIG COMBO"; c=GOLD; has=1; }
-            else if(lcN>0&&lcNmN>0){ t=hudComboStr(sw?60:76); c=lspecOn?RGB(31,27,9):GOLD; has=1; }
+            else if(lcN>0&&lcNmN>0){ t=hudComboStr((sw?60:76)-(flOn?flW+2:0)); c=lspecOn?RGB(31,27,9):GOLD; has=1; }
             else if(lcN>0){ const char*p=lspecOn?"SPECIAL X":"COMBO X"; while(*p) b[cn++]=*p++; int n=lcN; if(n>=10) b[cn++]=(char)('0'+n/10%10); b[cn++]=(char)('0'+n%10); b[cn]=0; t=b; c=GOLD; has=1; n2=lcPts*lcN; }
             else if(lcBankT>0){ t="COMBO"; c=GOLD; has=1; n2=lcBank; }
             else if(lspecOn){ t="SPECIAL"; c=GOLD; has=1; }
@@ -115,6 +117,7 @@ static void hudTopUpdate(int all){
         if(has&&t){ int x=text(104,1,t,c,1); if(pts) numText(text(x+3,1,"+",GOLD,1)+1,1,pts,GOLD); else if(n2) numText(x+3,1,n2,WHITE); }
         clipAll();
         if(sw){ rect(166,1,14,HUD_TOPH-4,HC_GOLD); rect(167,2,12,HUD_TOPH-6,HC_BG0); text(168,1,"SW",HC_GOLD,1); }
+        if(flOn){ u16 bc=pkHome>=0?RGB(14,24,31):HC_GOLD; rect(flX,1,flW,HUD_TOPH-4,bc); rect(flX+1,2,flW-2,HUD_TOPH-6,HC_BG0); text(flX+3,1,flT,bc,1); }
         hudMark(102,0,78,HUD_TOPH-1);
     }
     if(hudChg(all,HK_CLOCK,trnOn?0x40000000u+(unsigned)(trnLeft<600?trnLeft/15:1000+trnLeft/60):(unsigned)simMin*8u+(unsigned)simInShift()*4u+(unsigned)xo[XO_CLOCK]+(unsigned)(simIsNight()?64:0)*100000u+(unsigned)fxWxHud()*10000000u)){
