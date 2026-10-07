@@ -33,6 +33,7 @@
 // ---- THE SRAM MAP (32 KB), layout 2 ------------------------------------------------------------------------------------
 //     0      .. 4802    the room being played ("BM3", main.c)
 //     4808   .. 4810    layout marker 'L' 'Y' 2 (slMigrate)
+//     4816   .. 4824    TIMED RUN high score (TRN_OFF, timedrun.h)
 //     4864   .. 4879    settings (SET_OFF)            4896 .. 4991   extended options (OPT_OFF)
 //     4992   .. 5007    active slot (SLOT_DIR)        5008 .. 5023   life stage (AGE_OFF)
 //     5014   .. 5023    skills (SK_OFF, skills.h)

@@ -111,9 +111,13 @@ static void hudTopUpdate(int all){
         if(has&&t){ int x=text(104,1,t,c,1); if(pts) numText(text(x+3,1,"+",GOLD,1)+1,1,pts,GOLD); else if(n2) numText(x+3,1,n2,WHITE); }
         clipAll(); hudMark(102,0,78,HUD_TOPH-1);
     }
-    if(hudChg(all,HK_CLOCK,(unsigned)simMin*8u+(unsigned)simInShift()*4u+(unsigned)xo[XO_CLOCK]+(unsigned)(simIsNight()?64:0)*100000u+(unsigned)fxWxHud()*10000000u)){
+    if(hudChg(all,HK_CLOCK,trnOn?0x40000000u+(unsigned)(trnLeft<600?trnLeft/15:1000+trnLeft/60):(unsigned)simMin*8u+(unsigned)simInShift()*4u+(unsigned)xo[XO_CLOCK]+(unsigned)(simIsNight()?64:0)*100000u+(unsigned)fxWxHud()*10000000u)){
         hudClear(182,0,56,HUD_TOPH-1);
-        if(xo[XO_CLOCK]!=2){
+        if(trnOn){   // TIMED RUN: the countdown replaces the clock (red and blinking in the last 10 seconds)
+            char tb[8]; int ts=(trnLeft+59)/60; tb[0]=(char)('0'+ts/60); tb[1]=':'; tb[2]=(char)('0'+ts%60/10); tb[3]=(char)('0'+ts%10); tb[4]=0;
+            u16 tc=trnLeft<600?(((trnLeft/15)&1)?RGB(31,8,6):WHITE):HC_GOLD;
+            text(SW-4-tw(tb,1),1,tb,tc,1); text(SW-4-tw(tb,1)-tw("TIME ",1),1,"TIME",HC_LABEL,1);
+        } else if(xo[XO_CLOCK]!=2){
             const char*ck=simsClock(); int w=tw(ck,1); int xx=SW-4-w;
             text(xx,1,ck,simInShift()?HC_GOLD:RGB(22,25,29),1);
             if(simIsNight()){ rect(184,2,5,6,RGB(22,24,31)); rect(185,2,4,6,HC_BG0); rect(184,3,3,4,RGB(22,24,31)); }       // moon

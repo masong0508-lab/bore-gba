@@ -1393,6 +1393,7 @@ static int bdx=10, bdy=4, spx=3, spy=6;   // skateboard tile and spawn tile, fou
 #define BDY bdy
 static int lbailT;   // frames of bail flicker left (the skater blinks while getting up)
 static int lsp,lhd,lspin,lflip,lgrind,lscore,lstun,lairF,lpts,lnoteT,lglide; static const char*lnote;
+static int trnOn EWRAM_BSS, trnLeft EWRAM_BSS, trnDone EWRAM_BSS;   // timed.h: TIMED RUN running / game steps left / just ran out (the results card is due)
 // COMBO STRING: the names of the tricks in the running chain, oldest first (hud.h shows the newest ones that fit in the top bar: "KICKFLIP + 360 + GRIND  X3")
 #define LC_NM 6
 static char lcNm[LC_NM][16] EWRAM_BSS; static u8 lcNmN;   // lcNmN: names kept (the oldest drop out when the chain is longer than LC_NM)
@@ -2614,8 +2615,10 @@ static u16 babyPad(void){
     return dm[dir];
 }
 static void phoneMenu(void); static void phTick(void);   // households.h: the PHONE, and the food it ordered
+static void trnTick(void);   // timedrun.h
 static void storyScreen(void); static void stTick(void); static void stEnter(void); static void stOff(void);   // story.h
 static void lifeStep(u16 k,u16 pr,int fr){
+    trnTick();   // TIMED RUN countdown: one game step
     if(stage==AG_BABY&&!ldead){ k=babyPad(); pr=0; }   // uncontrollable stage: the pad is ignored (the pause menu still works)
     int fh=surfH(lfx,lfy)<<8;
     { int tx=(int)(lfx>>8), ty=(int)(lfy>>8); char sc=(tx>=0&&ty>=0&&tx<MW&&ty<MH)?lifeMap[ty][tx]:'.';   // stairs: step on them to change floor (step off and on again to use them once more)
@@ -3480,6 +3483,7 @@ static void gmTick(void){   // once per frame: when the song is over, another ra
     if(!gMusic||!mPlay) return;
     if((xo[XO_GAMEXF]&&musNearEnd(XF_SONG))||(mKind?mDone:mLaps>=1)){ gmCur=gmPick(); if(gmCur<0){ gMusic=0; return; } gmPlay(); if(radioSt) radioNote(0); }   // crossfade on: the next song blends in before this one ends. Off: it starts right at the end
 }
+#include "timedrun.h"   // TIMED RUN: a 2:00 score attack with a high score (PAUSE > WANTS)
 #include "tutorial.h"   // the TUTORIAL: pop-up lessons in the Sims 2 style (tutTick / tutRunModal, called from lifeModeRun)
 static void lifeModeRun(int ed);
 static void lifeMode(int ed){ int back=musCtx; gInPlay=1; lifeModeRun(ed); gInPlay=0; if(!gToMenu){ if(back==1) creatorMusStart(); else menuMusStart(); } }   // back from the game: the screen it was started from gets its music back (a crossfade)   // gInPlay: some option actions are only allowed while playing / only outside it
@@ -3488,6 +3492,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
     // (the passers-by of this lot are kept until you move to another lot or start a new life: twKeep, house.h)
     pkHome=-1; lifeInit(); if(!ed) phoneEnsure(); lcamF=0; vbase=cview=0; lcN=lcPts=lcT=lcBank=lcBankT=lcamPend=0; lcNmN=0; u16 prev=keyNow(); gmStart(); hudApplyLayout(); liveInvalidate(); camSnap=1;
     stModal=0; if(!ed) stEnter();   // (the chapter card of the story waits for the first frame)
+    trnOn=trnDone=0;   // (no timed run carries over)
     tutOn=0; tutModal=TM_NONE;   // the tutorial: replay now, or offer it once (first PLAY, not in the test play of the editor)
     if(!ed){ if(xo[XO_TUTOR]==2) tutBegin(); else if(xo[XO_TUTOR]==0&&!tutAsked){ tutAsked=1; tutModal=TM_OFFER; } }
     tmStart(); u16 tl=R_TM2D; int acc=0, fpsN=0, fr=0; u32 fpsT=0, workT=0; lfpsV=0; lloadV=0;
@@ -3518,7 +3523,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
             { u8 zz=xo[XO_ZOOM]; xo[XO_ZOOM]=0; hudApplyLayout(); camSnap=1; liveInvalidate(); lifeDraw(); xo[XO_ZOOM]=zz; }   // a whole picture behind the menu (the screen itself only holds patches), not zoomed
             int c=pauseMenu(ed?2:nbPlaying?1:0);
             if(c==PM_SAVE){ if(!sgPid) toast("PICK A PLAYER ON THE PLAY SCREEN"); else { int se=sgSave(); toast(se?slErrMsg(se):"GAME SAVED"); } }
-            else if(c==PM_WANTS){ static const char* const wsm[3]={"WANTS  FEARS  REWARDS","SKILLS","VIEW TRICKS"}; int w=menu("WANTS AND SKILLS",wsm,3); if(w==0) aspPanel(); else if(w==1) skillsScreen(); else if(w==2) tricksScreen(); }
+            else if(c==PM_WANTS){ const char* wsm[4]={"WANTS  FEARS  REWARDS","SKILLS","VIEW TRICKS",trnLabel()}; int w=menu("WANTS AND SKILLS",wsm,4); if(w==0) aspPanel(); else if(w==1) skillsScreen(); else if(w==2) tricksScreen(); else if(w==3) trnPick(); }
             else if(c==PM_FAMILY) hhMenu();
             else if(c==PM_STORY) storyScreen();
             else if(c==PM_OPTS){ settingsScreen(); if(!ed&&xo[XO_TUTOR]==2) tutBegin(); }
@@ -3526,7 +3531,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
                 int b=menu("BUILD AND HOUSES",buildItems,3);
                 if(b==0){ if(edGate()){ cview=0; vpFull(); mapEditor(); lifeInit(); cview=vbase; } }
                 else if(b==1){ simsSaveNow(); hhSave(); if(slotScreen()){ lifeInit(); phoneEnsure(); } }   // a blueprint was loaded: start again in the loaded room (the life was written first, so nothing is lost)
-                else if(b==2){ if(menu("START A NEW LIFE",yesNoLife,2)==1){ twKeep=0; simsNewLife(); moodReset(); lscore=0; simLastScore=0; stOff(); lnote="NEW LIFE"; lnoteT=60; } } }
+                else if(b==2){ if(menu("START A NEW LIFE",yesNoLife,2)==1){ twKeep=0; simsNewLife(); moodReset(); lscore=0; simLastScore=0; trnOn=0; stOff(); lnote="NEW LIFE"; lnoteT=60; } } }
             else if(c==PM_QUIT){ int go=1; if(!ed&&!nbPlaying){ if(sgPid&&sgManual()){ int r=sgAsk(1); if(r==0) go=0; else if(r==2) sgDiscard=1; } if(go) gToMenu=1; } if(go) break; }   // (from the neighborhood: back there)   // MANUAL saving: quitting with unsaved progress asks first
             winFull(); REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=vbase; continue;
         }
@@ -3537,6 +3542,12 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
                 if(stModal) stRunModal(); else tutRunModal();
                 winFull(); REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=vbase; continue;
             } }
+        if(trnDone&&lcamF==0){   // TIMED RUN: time is up, the results card takes the screen, the game holds still behind it
+            trnDone=0; mGainT=128; sfxStop(); objHideAll(); REG_DISPCNT=0x0403;
+            { u8 zz=xo[XO_ZOOM]; xo[XO_ZOOM]=0; hudApplyLayout(); camSnap=1; liveInvalidate(); lifeDraw(); xo[XO_ZOOM]=zz; }
+            trnResult();
+            winFull(); REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=vbase; continue;
+        }
         if(tvClip&&lcamF==0){   // the TV: a 3 second clip takes the screen, the game holds still behind it
             int tc=tvClip-1; tvClip=0; mGainT=128; sfxStop(); objHideAll(); REG_DISPCNT=0x0403;
             tvClipRun(tc);
@@ -3550,7 +3561,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
         gmTick(); lifeDraw(); workT+=(u16)(lifeVs-w0);
         fpsN++; if(fpsT>=65536){ lfpsV=fpsN; lloadV=(int)(workT/(u32)fpsN*100/(u32)((sFps+1)*TICKS_FRAME)); workT=0; fpsN=0; fpsT-=65536; }
     }
-    tutOn=0; tutModal=TM_NONE; stModal=0;
+    tutOn=0; tutModal=TM_NONE; stModal=0; trnOn=trnDone=0;
     objHideAll(); REG_DISPCNT=0x0403;
     simsSave(); hhSave(); R_TM2CNT=0; gmStop(); sfxStop(); lcamF=0; vbase=cview=0; vpFull(); clipAll(); liveInvalidate();   // leaving the life game saves it
     while((~REG_KEYINPUT)&0x3FF) vsync();   // wait for release so the caller doesn't see the exit keys
