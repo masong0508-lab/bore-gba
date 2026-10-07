@@ -805,3 +805,8 @@ Built as ten small patch modules (`bore-items.zip`, one `apply.sh`); each leaves
 
 ## Floors: switching to a Sim on another floor (phase 1 fix)
 With SIMS ON FLOORS on, a Sim parked on another floor (the household list says GROUND / FLOOR 2 / FLOOR 3) can now be played: SELECT picks the next Sim on your floor and, when nobody else is here, one on another floor; the household menu (WHO DO YOU PLAY) lets you pick any of them. You change floor first (`flGo`; if the floors do not fit in flPool nothing changes and it says TOO MUCH BUILT TO CHANGE FLOOR) and arrive on the matching stairs, like climbing them. The Sim you leave stays on the floor you left. Sims out at work or school, and the prisoner, are still out (`hhOnOtherFloor`, house.h). Switching while FLOOR PEEK is on ends the peek first.
+
+
+## Floors step 9: call the household, and work on time
+- **R next to the stairs** (nothing else in reach, SIMS ON FLOORS on) shouts for the household: every Sim parked on another floor comes to your floor and steps out of the stairs (`hhCallFloors`, house.h). The note says CALLED SOMEONE DOWN, CALLED THE HOUSEHOLD or NOBODY ON OTHER FLOORS. No new RAM.
+- **Work and school on time:** a Sim parked on another floor now checks its schedule too (`hhTick`, the parked branch). Before, it only left once it had drifted down to your floor.

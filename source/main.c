@@ -2591,7 +2591,7 @@ static void trickName(int hs,int grab,int perfect){
     p[-1]=0; lnote=lnBuf; lnPerf=(u8)perfect;
 }
 static void swName(void){ int n=0; while(lnBuf[n]) n++; if(n>15) return; for(int i=n;i>=0;i--) lnBuf[i+7]=lnBuf[i]; const char*q="SWITCH "; for(int i=0;i<7;i++) lnBuf[i]=q[i]; }
-static void hhStart(void); static void hhTick(void); static int hhSocR(int useLabel);   // house.h (included further down, next to the drawing it hooks into)
+static void hhStart(void); static void hhTick(void); static int hhSocR(int useLabel); static int hhCallFloors(void);   // house.h (included further down, next to the drawing it hooks into)
 // ---- COLLECTIBLES (like THPS): the letters S K A T E and one hidden tape float over the floor of a skate lot. Touch one to take it. ----
 // Nothing is saved and no map tile is used: lifeInit scatters them over empty floor every run (a new spot each time), so they cost a few bytes of EWRAM
 // and no sprite art (they are drawn in code). A letter counts like a combo letter (sktAward: five make SKATE). Only on lots that have something to skate.
@@ -2788,6 +2788,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
             char c=lifeMap[ty][tx]; if(c=='F') nf=1; if(c=='T') nt=1; if(c=='S') nb=1; if(c=='H') nh=1; if(c=='C'||c=='U') nc=1; if(c=='G') np=1; if(c=='Q') nq=1; if(c=='I') nph=1; if(c=='R') nrd=1; if(c=='A') nsy=1; if(c=='v') ntv=1; if(c=='b') nbk=1; if(c=='c') ncf=1; if(c=='q') naq=1; if(c=='m') ntm=1; if(c=='W'&&prFence(tx,ty)) nfe=1; }
         lnear=nf?1:(nt?2:(nb?3:(nh?4:(np?6:(nq?7:(nph?8:(nrd?9:(nsy?10:(ntv?11:(nbk?12:(ncf?13:(naq?14:(ntm?15:(nfe?16:(nc?5:0)))))))))))))));   // 7 the DeadSet   // 1 fridge, 2 toilet, 3 bed, 4 shower, 6 water pipe, 5 sofa or beanbag
         if((pr&K_R)&&lstun<=0&&lz<=fh&&!simAct&&hhSocR(lnear==16?0:lnear)) pr&=~K_R;   // next to a household Sim: the social menu (it offers the furniture too)
+        if((pr&K_R)&&!lnear&&lstun<=0&&lz<=fh&&!simAct&&hhCallFloors()) pr&=~K_R;   // floors step 9: R next to the stairs calls the Sims on the other floors to you
         if((pr&K_R)&&lnear&&lstun<=0&&lz<=fh){
             if(lnear==1){   // fridge: eat
                 if(lfood>=95){ lnote="FULL"; lnoteT=40; }

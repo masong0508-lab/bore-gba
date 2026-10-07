@@ -710,6 +710,7 @@ static void hhTick(void){   // once per logic step in the life game
         if(prHeld(s)){ s->act=HA_AWAY; continue; }   // prison.h: the prisoner is out while you are at home, everyone else while you are in the cell
         if(xo[XO_MULTIFL]){   // floors step 4: Sims who are not on your floor wait (parked), the ones whose floor you came to step out of the stairs
             if(hhFl[m]!=curFl){
+                if(xo[XO_FREEWILL]){ int fr=0, to=0, k=hhSched(s,&fr,&to); if(k&&simMin>=fr&&simMin<to&&!(s->act==HA_AWAY&&!hhUp[m])){ s->act=HA_AWAY; hhFl[m]=0; hhUp[m]=0; s->use=(u8)k; s->item=0; hhNote(s,k==2?" WENT TO SCHOOL":" LEFT FOR WORK"); continue; } }   // floors step 9: a Sim parked on another floor still leaves for work or school on time
                 if(s->act!=HA_AWAY){ s->act=HA_AWAY; s->use=HN_FUN; s->item=0; hhUp[m]=(u16)(300+(rnd8()<<2)); }   // you left their floor: they stay there a while
                 if(hhUp[m]>1) hhUp[m]--; else if(hhUp[m]) hhOffStep(m);   // floors step 8: a Sim on another floor lives coarsely (hhOffStep)
                 continue; }
@@ -1204,6 +1205,13 @@ static void hhStart(void){   // entering the life game: load the household and s
 static void hhSwap(HhSim*s);   // main.c: trades the player's position, needs, look and persona with s
 static void hhSwitchFrom(int f);
 static int hhOnOtherFloor(int m){ return xo[XO_MULTIFL]&&hhM[m].act==HA_AWAY&&hhUp[m]>0&&hhFl[m]<FLR_N&&hhFl[m]!=curFl&&!prHeld(&hhM[m]); }   // floors fix: parked on another floor (not out at work): you can still switch to them, you go to their floor
+static int hhCallFloors(void){   // floors step 9: R next to the stairs with nothing else in reach shouts for the household: every Sim parked on another floor comes to yours and steps out of the stairs (1 = handled)
+    if(!xo[XO_MULTIFL]||!hhN) return 0;
+    int st=0; for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++){ int tx=(int)(lfx>>8)+dx, ty=(int)(lfy>>8)+dy; if(tx<0||ty<0||tx>=MW||ty>=MH) continue; char c=lifeMap[ty][tx]; if(c=='^'||c=='~') st=1; }
+    if(!st) return 0;
+    int n=0; for(int m=0;m<hhN;m++) if(hhOnOtherFloor(m)){ hhFl[m]=(u8)curFl; hhUp[m]=2; n++; }   // (hhTick sees a parked Sim whose floor is now yours and places it at the stairs)
+    lstun=20; lsp=0; lgrind=0; lnote=n?(n==1?"CALLED SOMEONE DOWN":"CALLED THE HOUSEHOLD"):"NOBODY ON OTHER FLOORS"; lnoteT=70; return 1;
+}
 static void hhSwitch(void){   // SELECT: control the next Sim of the household who is at home
     if(!hhN) return;
     int f=0; while(f<hhN&&hhM[f].act==HA_AWAY) f++;
