@@ -21,7 +21,7 @@ Observed by playing the carts in an emulator; nothing was copied from them. Thes
 ## What is next (in this order)
 Done so far: special meter, trick names and combo string, SKATE letters and the hidden tape, VIEW TRICKS, bail flicker, SWITCH tricks, the PRO SKATER job with its own quota (every other job counts work minutes).
 
-1. **Wants and DNA for collecting.** Add "COLLECT S-K-A-T-E" and "FIND THE HIDDEN TAPE" to `simWants` (a new `SE_` event fired from `clTick`), so the Sims side asks for it. Small: one event, two want rows, two lines of text.
+1. **(DONE: GRAB A LETTER and FIND THE TAPE wants, SE_LETTER / SE_TAPE, plus a LOT CLEARED +500 bonus.) Wants and DNA for collecting.** Add "COLLECT S-K-A-T-E" and "FIND THE HIDDEN TAPE" to `simWants` (a new `SE_` event fired from `clTick`), so the Sims side asks for it. Small: one event, two want rows, two lines of text.
 2. **A tape count per map.** Save which lots you found the tape on (one bit per lot in the neighborhood save) and show it on the lot card in the town menu and in the goals list. Also decide whether the tape stays hidden after you have it (suggested: it does not come back on that lot).
 3. **Goals list per map + VIEW GOALS.** A small goal table per lot (high score, SKATE, tape, one gap or wallride), saved per slot, shown in the pause menu beside VIEW TRICKS. Completing goals unlocks parts or maps. This is also the base for the intro flyover.
 4. **Level intro flyover.** Pan the camera to each goal spot with a text banner (needs the goal table from step 3).

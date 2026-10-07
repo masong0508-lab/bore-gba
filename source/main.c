@@ -2541,6 +2541,7 @@ static void hhStart(void); static void hhTick(void); static int hhSocR(int useLa
 // Nothing is saved and no map tile is used: lifeInit scatters them over empty floor every run (a new spot each time), so they cost a few bytes of EWRAM
 // and no sprite art (they are drawn in code). A letter counts like a combo letter (sktAward: five make SKATE). Only on lots that have something to skate.
 #define CL_N 6   // 0..4 = S K A T E, 5 = the hidden tape
+static u8 clTook EWRAM_BSS, clReal EWRAM_BSS;   // LOT CLEARED: the ones really taken, and the ones that were placed (all taken = a 500 bonus)
 static u8 clx[CL_N] EWRAM_BSS, cly[CL_N] EWRAM_BSS, clGot EWRAM_BSS, clLive EWRAM_BSS;   // tile of each one; a bit per one taken; 1 = this lot has them
 #define CL_ON (clLive&&!tutOn&&!curFl)
 static void clPlace(void){
@@ -2559,7 +2560,7 @@ static void clPlace(void){
         }
         if(!ok) clGot|=(u8)(1<<i);   // no room for it: it counts as already taken
     }
-    clLive=1;
+    clReal=(u8)(~clGot&63); clTook=0; clLive=1;
 }
 static void clTick(void){
     if(!CL_ON||ldead||lz>(30<<8)) return;
@@ -2569,8 +2570,10 @@ static void clTick(void){
         if(dx<0) dx=-dx; if(dy<0) dy=-dy;
         if(dx>0xB0||dy>0xB0) continue;
         clGot|=(u8)(1<<i);
-        if(i<5){ lscore+=100; specAdd(60); moodEvent(M_TRICK); sfxPlay(SFX_POP); sktAward(); }   // sktAward writes the note (S, SK, ...) and pays the SKATE bonus at five
-        else { lscore+=1000; specAdd(SPEC_MAX/2); moodEvent(M_TRICK); sfxPlay(SFX_STICK); voxPlay(V_yahoo); lnote="SECRET TAPE  +1000"; lnoteT=100; }
+        if(i<5){ lscore+=100; specAdd(60); moodEvent(M_TRICK); sfxPlay(SFX_POP); sktAward(); simEvent(SE_LETTER); }   // sktAward writes the note (S, SK, ...) and pays the SKATE bonus at five
+        else { lscore+=1000; specAdd(SPEC_MAX/2); moodEvent(M_TRICK); sfxPlay(SFX_STICK); voxPlay(V_yahoo); lnote="SECRET TAPE  +1000"; lnoteT=100; simEvent(SE_TAPE); }
+        clTook|=(u8)(1<<i);
+        if(clReal&&clTook==clReal){ lscore+=500; specAdd(SPEC_MAX); sfxPlay(SFX_STICK); lnote="LOT CLEARED  +500"; lnoteT=110; }   // every letter and the tape of this lot
     }
 }
 static void lifeInit(void){
@@ -3452,6 +3455,13 @@ static int radioPick(int st){   // a random song of the station, never the one t
     for(int v=0;v<jbN;v++){ if(!radioMatch(st,v)||(!any&&v==gmCur)) continue; if(r--==0) return v; }
     return -1;
 }
+static char radB[44] EWRAM_BSS;
+static void radioNote(int withStn){   // the station (when just tuned) and the song that plays: "HIP HOP FM  SONG NAME", cut to fit the bar
+    char*e=radB; const char*p; int k=0;
+    if(withStn){ p=radioStn[radioSt-1].nm; while(*p&&k<18){ *e++=*p++; k++; } *e++=' '; *e++=' '; } else { p="NOW  "; while(*p) *e++=*p++; }
+    p=songs[jbMap[gmCur]].name; k=0; while(*p&&k<24){ *e++=*p++; k++; } *e=0;
+    if(withStn||lnoteT<=0){ lnote=radB; lnoteT=withStn?100:80; }
+}
 static int gmPick(void){ if(radioSt){ int v=radioPick(radioSt-1); if(v>=0){ jbLast=v; return v; } } return pickSong(); }   // the next song: the station's, else a random checked one
 static void radioTune(int sys){   // R at the radio (sys=0) or the sound system (sys=1)
     if(!sSnd||jbN<=0){ lnote="SOUND IS OFF"; lnoteT=50; return; }
@@ -3462,12 +3472,12 @@ static void radioTune(int sys){   // R at the radio (sys=0) or the sound system 
         if(xo[XO_GAMEMUS]){ gMusic=0; gmStart(); } else { gMusic=0; musFadeOut(XF_OUT); }   // back to the normal game music (or silence)
         return; }
     int v=radioPick(st-1); radioSt=(u8)st; gmCur=v; jbLast=v; gMusic=1; mGain=mGainT=256; gmPlay();
-    lnote=radioStn[st-1].nm; lnoteT=70;
+    radioNote(1);
     if(sys){ moodEvent(M_CHILL); }   // the big speakers feel better than the little radio
 }
 static void gmTick(void){   // once per frame: when the song is over, another random one
     if(!gMusic||!mPlay) return;
-    if((xo[XO_GAMEXF]&&musNearEnd(XF_SONG))||(mKind?mDone:mLaps>=1)){ gmCur=gmPick(); if(gmCur<0){ gMusic=0; return; } gmPlay(); }   // crossfade on: the next song blends in before this one ends. Off: it starts right at the end
+    if((xo[XO_GAMEXF]&&musNearEnd(XF_SONG))||(mKind?mDone:mLaps>=1)){ gmCur=gmPick(); if(gmCur<0){ gMusic=0; return; } gmPlay(); if(radioSt) radioNote(0); }   // crossfade on: the next song blends in before this one ends. Off: it starts right at the end
 }
 #include "tutorial.h"   // the TUTORIAL: pop-up lessons in the Sims 2 style (tutTick / tutRunModal, called from lifeModeRun)
 static void lifeModeRun(int ed);

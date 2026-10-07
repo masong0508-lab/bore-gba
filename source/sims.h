@@ -94,7 +94,7 @@ enum { SE_EAT, SE_PEE, SE_SLEEP, SE_SHOWER, SE_SOFA, SE_TRICK, SE_COMBO, SE_GRIN
        SE_GLIDE, SE_CHARGE,
        SE_TALK, SE_FRIEND, SE_BFF, SE_KISS, SE_LOVE, SE_STEADY, SE_HUGGED, SE_LAUGH,   // social (house.h)
        SE_REJECT, SE_SLAPPED, SE_FIGHT, SE_ENEMY, SE_LONELY,
-       SE_PIPE, SE_TV, SE_READ, SE_FISH, SE_RUN, SE_N };   // SE_PIPE: a puff on the water pipe, or PUFF PUFF PASS; SE_TV .. SE_RUN: the home pack (skills.h)   // (event numbers are not saved: they can be put in any order; table ROWS are saved by index)
+       SE_PIPE, SE_TV, SE_READ, SE_FISH, SE_RUN, SE_LETTER, SE_TAPE, SE_N };   // SE_PIPE: a puff on the water pipe, or PUFF PUFF PASS; SE_TV .. SE_RUN: the home pack (skills.h)   // (event numbers are not saved: they can be put in any order; table ROWS are saved by index)
 // icons (7x7, simIconArt): drawn in the HUD cells, the aspiration panel and the creator
 enum { IC_FOOD, IC_WC, IC_BED, IC_SHOWER, IC_SOFA, IC_BOARD, IC_COMBO, IC_RAIL, IC_AIR, IC_STAR, IC_BRIEF, IC_UP, IC_DOWN, IC_BOOK, IC_HOUSE,
        IC_COIN, IC_TROPHY, IC_CAKE, IC_HEART, IC_SKULL, IC_HURT, IC_PUDDLE, IC_SAD, IC_GLASS, IC_CANE, IC_STINK, IC_BAIL, IC_ZZZ,
@@ -180,6 +180,8 @@ static const SimWish simWants[]={   // '#' in a name is replaced by the wish's p
     {"READ A BOOK",    SE_READ,   12,SR_BOOK, IC_BOOK,  WP_NONE, A(AS_KNOW)|A(AS_GROW),              TN(TR_OUT), 0,WH_ANY},
     {"FEED THE FISH",  SE_FISH,    8,SR_FISH, IC_FOOD,  WP_NONE, A(AS_HOME)|A(AS_GROW),              TP(TR_NICE),0,WH_ANY},
     {"WORK OUT",       SE_RUN,    12,SR_RUN,  IC_UP,    WP_NONE, A(AS_GROW)|A(AS_POP),               TP(TR_ACT), 0,WH_ANY},
+    {"GRAB A LETTER",  SE_LETTER, 10,SR_RAIL, IC_STAR,  WP_NONE, A(AS_POP)|A(AS_PLEAS),             TP(TR_PLAY),0,WH_ANY},   // collectibles (main.c, clTick): a floating S K A T E letter
+    {"FIND THE TAPE",  SE_TAPE,   25,SR_RAIL, IC_TROPHY,WP_NONE, A(AS_POP)|A(AS_GROW),               TP(TR_ACT), 0,WH_ANY},   // ... and the hidden tape
 };
 static const SimWish simFears[]={
     {"BAILING",        SE_BAIL,     8,0,IC_BAIL,  WP_NONE,A(AS_POP)|A(AS_GROW),          TN(TR_OUT), 0,WH_ANY},
@@ -349,15 +351,15 @@ static int simOnShow(int want,int i){   // is this row already in a slot?
     return 0;
 }
 static int simPick(int want){   // a weighted random wish the creature and the room can have, not already on show; -1 if none
-    const SimWish*tab=want?simWants:simFears; int n=want?SIM_NW:SIM_NF, tot=0, wt[32];
-    for(int i=0;i<n&&i<32;i++){
+    const SimWish*tab=want?simWants:simFears; int n=want?SIM_NW:SIM_NF, tot=0, wt[64];
+    for(int i=0;i<n&&i<64;i++){
         const SimWish*w=&tab[i]; int v=0;
         if((w->req&simHave)==w->req&&simWho(w->who)&&(w->ev!=SE_PIPE||pipeOk())&&!simOnShow(want,i)){ v=simWeight(w); if(want) v+=simNeedBoost(w->ev); }
         wt[i]=v; tot+=v;
     }
     if(tot<=0) return -1;
     int r=((simRnd()<<8)|simRnd())%tot;
-    for(int i=0;i<n&&i<32;i++){ if(r<wt[i]) return i; r-=wt[i]; }
+    for(int i=0;i<n&&i<64;i++){ if(r<wt[i]) return i; r-=wt[i]; }
     return -1;
 }
 static int simParam(int par,int minv){   // a parameter for a wish that is just rolling
