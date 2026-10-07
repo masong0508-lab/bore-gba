@@ -34,6 +34,8 @@ typedef struct {
     u8 gok; s32 gx, gy;      // the tile centre this step walks to (fixed when the step starts)
     u8 hp;                   // health 0..100 (not saved: everyone comes back at 100). Punches take it, it creeps back (hhTick)
     u8 uid, tgt, bub, bubT;  // who this is (relationships are kept by uid), who it is going to talk to (uid), balloon icon and time
+    u8 ilast;                // item module 7: the item row + 1 of its last use (it tries something else next time)
+    u8 item;                 // item use (item module 2): the iuT row + 1 this Sim is walking to or using (0 = none). Reset at every decision (hhDecide)
     short think, t;          // steps to the next decision, steps left in the action
     u8 path[HH_PATH];        // directions: 0 +x, 1 +y, 2 -x, 3 -y
 } HhSim;
@@ -41,6 +43,58 @@ static HhSim hhM[HH_MAX] EWRAM_BSS; static int hhN;
 static u16 hhUp[HH_MAX] EWRAM_BSS;   // steps a Sim still spends UPSTAIRS (act is HA_AWAY meanwhile, so nothing draws or picks it); 0 = not upstairs
 static u8 hhFl[HH_MAX] EWRAM_BSS; static u8 hhCen[FLR_N] EWRAM_BSS; static u16 hhCenT;   // floors step 2: the floor each Sim is on (0 = ground), and per floor which need furniture it has
 static u8 hhFlLd[HH_MAX] EWRAM_BSS;   // floors step 7: the floor each member was saved on (hhLoad), put back by hhStart
+// ---- ITEM USE (item module 2): what a household Sim can do at the home pack and sound pack furniture, and what each use COSTS and NEEDS ----
+// One row per item, all in ROM. need = the need it refills (the Sim gains 1 per 2 steps, up to t steps: a short use ends early when the need is full);
+// dn[] = what the use does to the OTHER needs when it ends (items depend on each other: a run makes a Sim dirty and hungry, coffee fills the bladder);
+// gate[] = the lowest value each need may have for a Sim to choose it (too hungry to run, too tired to read); seat = needs a sofa or beanbag on the floor.
+enum { IU_TV, IU_SHELF, IU_AQUA, IU_TREAD, IU_STEREO, IU_COFFEE, IU_PHONE, IU_N };
+typedef struct { char ch; u8 need, t, seat; signed char dn[HN_N]; u8 gate[HN_N]; const char*say; } ItemUse;
+//                                    FOOD WC REST CLEAN COMFY FUN SOC            FOOD WC REST CLEAN COMFY FUN SOC
+static const ItemUse iuT[IU_N]={
+    {'v',HN_FUN, 200,1,{  0, 0,-5, 0, 8, 0, 0},{  0, 0,15, 0, 0, 0, 0}," IS WATCHING TV"},
+    {'b',HN_FUN, 220,0,{  0, 0,-5, 0, 0, 0, 0},{  0, 0,25, 0, 0, 0, 0}," IS READING"},
+    {'q',HN_FUN, 120,0,{  0, 0, 0, 0, 5, 0, 0},{  0, 0, 0, 0, 0, 0, 0}," IS FEEDING THE FISH"},
+    {'m',HN_FUN, 160,0,{-12,-6,-10,-25, 0, 0, 0},{ 35, 0,35, 0, 0, 0, 0}," IS WORKING OUT"},
+    {'A',HN_FUN, 180,0,{  0, 0, 0, 0, 4, 0, 0},{  0, 0, 0, 0, 0, 0, 0}," IS LISTENING TO MUSIC"},
+    {'c',HN_REST, 60,0,{  0,-12, 0, 0, 0, 0, 0},{  0,20, 0, 0, 0, 0, 0}," IS HAVING COFFEE"},
+    {'I',HN_SOC, 150,0,{  0, 0, 0, 0, 0, 0, 0},{  0, 0, 0, 0, 0, 0, 0}," IS ON THE PHONE"},
+};
+static u8 hhCenI[FLR_N] EWRAM_BSS;   // per floor: which iuT items it has (bit = row), kept with hhCen by hhCensus
+static const u8 iuIc[IU_N]={IC_SOFA,IC_BOOK,IC_PUDDLE,IC_AIR,IC_STAR,IC_GLASS,IC_TALK};   // item module 8: the balloon over a Sim using it (TV, shelf, aquarium, treadmill, stereo, coffee, phone)
+static const char* const iuTag[IU_N]={"  TV","  READ","  FISH","  RUN","  MUSIC","  COFFEE","  PHONE"};   // and the tag after its name in the household menu (short: the name buffer is small)
+static inline int iuRow(char c){ for(int r=0;r<IU_N;r++) if(iuT[r].ch==c) return r; return -1; }
+static inline int iuHasCallee(const HhSim*s){   // item module 5: is there someone to phone: a member parked on another floor (or upstairs)?
+    for(int m=0;m<hhN;m++){ const HhSim*o=&hhM[m]; if(o!=s&&o->act==HA_AWAY&&hhUp[m]) return 1; }
+    return 0;
+}
+static inline int iuBusy(const HhSim*s,int r){   // item module 7: a piece of furniture holds one Sim: are all of this kind on this floor taken?
+    int u=0; for(int m=0;m<hhN;m++){ const HhSim*o=&hhM[m]; if(o!=s&&o->item==r+1&&(o->act==HA_USE||o->act==HA_WALK)&&(hhFl[m]==curFl||!xo[XO_MULTIFL])) u++; }
+    if(!u) return 0;
+    int n=0; for(int y=0;y<MH;y++)for(int x=0;x<MW;x++) if(lifeMap[y][x]==iuT[r].ch) n++;
+    return u>=n;
+}
+static inline int iuUsable(const HhSim*s,int r,int f){   // would this Sim choose item r on floor f right now? (it is there, the gates hold, the seat is there)
+    const ItemUse*u=&iuT[r]; if(!(hhCenI[f]&(1<<r))) return 0;
+    if(u->seat&&!(hhCen[f]&(1<<HN_COMFY))) return 0;
+    if(r==IU_COFFEE&&simIsNight()) return 0;   // (item module 4) coffee is for the day
+    if(r==IU_PHONE&&!iuHasCallee(s)) return 0;   // (item module 5) nobody to call
+    if(f==curFl&&iuBusy(s,r)) return 0;   // (item module 7) someone has it
+    for(int n=0;n<HN_N;n++) if(s->need[n]<u->gate[n]) return 0;
+    return 1;
+}
+static inline int iuWeight(const HhSim*s,int r){   // item module 9: personality picks the item: active Sims run, quiet ones read, playful ones turn the music up, outgoing ones phone
+    int a=s->tr[TR_ACT], o=s->tr[TR_OUT], p=s->tr[TR_PLAY], n=s->tr[TR_NICE], t=s->tr[TR_NEAT]; if(a>10) a=10; if(o>10) o=10; if(p>10) p=10; if(n>10) n=10; if(t>10) t=10;
+    switch(r){ case IU_TV: return 4+(10-a)/2; case IU_SHELF: return 3+(10-o)/2+t/3; case IU_AQUA: return 3+n/2; case IU_TREAD: return 1+a;
+               case IU_STEREO: return 2+(p+o)/2; case IU_COFFEE: return 4+a/2; default: return 2+o; }
+}
+static inline int iuPick(const HhSim*s,int need,int f){   // a usable item for this need on floor f: the row (one of them at random), or -1
+    int c[IU_N], k=0; for(int r=0;r<IU_N;r++) if(iuT[r].need==need&&iuUsable(s,r,f)) c[k++]=r;
+    if(k>1) for(int i=0;i<k;i++) if(c[i]+1==s->ilast){ c[i]=c[--k]; break; }   // (item module 7) not the same thing twice in a row
+    if(!k) return -1;
+    int w[IU_N], sum=0; for(int i=0;i<k;i++){ w[i]=iuWeight(s,c[i]); sum+=w[i]; }   // (item module 9) weighted by personality
+    int x=(rnd8()*sum)>>8; for(int i=0;i<k;i++){ if(x<w[i]) return c[i]; x-=w[i]; }
+    return c[k-1];
+}
 // ---- relationships (Sims 2 style): for every pair a DAILY and a LIFETIME score, -100..100, kept by uid and one-way (how a feels about b) ----
 #define HU_N (HH_MAX+1)
 static signed char relD[HU_N][HU_N] EWRAM_BSS, relL[HU_N][HU_N] EWRAM_BSS; static u8 relF[HU_N][HU_N] EWRAM_BSS;
@@ -442,12 +496,51 @@ static int hhTilt(const HhSim*s,int n){   // traits: neat Sims shower sooner, la
     switch(n){ case HN_CLEAN: return 70+s->tr[TR_NEAT]*6; case HN_COMFY: return 130-s->tr[TR_ACT]*6; case HN_FUN: return 70+s->tr[TR_PLAY]*6; case HN_SOC: return 60+s->tr[TR_OUT]*8; default: return 100; }
 }
 static void hhSeek(HhSim*s);   // social: pick someone and walk over (below)
-static int hhUseT(const HhSim*s){ return (s->use==HN_REST&&simIsNight())?HH_USE*5:HH_USE; }   // a night in bed is a long one
+static int hhUseT(const HhSim*s){ if(s->item) return iuT[s->item-1].t; return (s->use==HN_REST&&simIsNight())?HH_USE*5:HH_USE; }   // (item module 3: an item has its own time)   // a night in bed is a long one
 static int hhHasStairs(void){ if(curFl>=FLR_N-1) return 0; for(int y=0;y<MH;y++)for(int x=0;x<MW;x++) if(lifeMap[y][x]=='^') return 1; return 0; }   // a way up on the ground floor
 static int hhHasCh(char c){ for(int y=0;y<MH;y++)for(int x=0;x<MW;x++) if(lifeMap[y][x]==c) return 1; return 0; }
 static int hhFloorFor(int n){ for(int d=1;d<FLR_N;d++){ int u=curFl+d, w=curFl-d; if(u<FLR_N&&(hhCen[u]&(1<<n))) return u; if(w>=0&&(hhCen[w]&(1<<n))) return w; } return -1; }   // floors step 5: the nearest other floor with need n's furniture
 static int hhElse(int n){ if(!xo[XO_MULTIFL]) return 0; int g=hhFloorFor(n); if(g<0) return 0; return hhHasCh(g>curFl?'^':'~')?(g>curFl?1:-1):0; }   // +1 the furniture is up the stairs, -1 down the stairs, 0 no way
+// item module 6: NEED CHAINS. A finished use moves the OTHER needs: iuT[].dn for the items, iuBc[] for the five basics (eating fills the bladder, a night's sleep
+// leaves a Sim hungry, a shower feels good, a sit-down is a little fun), so one need leads to the next and the household keeps moving.
+static inline void iuMove(HhSim*s,const signed char*d){ for(int n=0;n<HN_N;n++){ int v=s->need[n]+d[n]; s->need[n]=(u8)(v<0?0:v>100?100:v); } }
+static const signed char iuBc[HN_FUN][HN_N]={   //  FOOD WC REST CLEAN COMFY FUN SOC
+    {  0,-15, 0, 0, 0, 0, 0},   // ate
+    {  0,  0, 0, 0, 0, 0, 0},   // toilet
+    {-10,-10, 0, 0, 0, 0, 0},   // slept
+    {  0,  0, 0, 0, 5, 0, 0},   // showered
+    {  0,  0, 0, 0, 0, 5, 0} }; // sat
+static inline void iuBasic(HhSim*s){ iuMove(s,iuBc[s->use]); }
+static inline void iuCouple(HhSim*s,int r){ iuMove(s,iuT[r].dn); }   // what a finished item use does to the other needs
+static void hhNote(const HhSim*s,const char*w);
+static void hhCallDone(HhSim*s){   // item module 5: the call ends: the closest friend who is parked on another floor picks up; both are less lonely and like each other a little more
+    int m=-1, bs=-999, v;
+    for(int k=0;k<hhN;k++){ const HhSim*q=&hhM[k]; if(q==s||q->act!=HA_AWAY||!hhUp[k]) continue; int d=(q->uid<HU_N&&s->uid<HU_N?relD[s->uid][q->uid]:0)+(rnd8()&15); if(d>bs){ bs=d; m=k; } }
+    if(m<0) return;
+    HhSim*o=&hhM[m]; int a=s->uid, b=o->uid;
+    if(a<HU_N&&b<HU_N){ v=relD[a][b]+3; relD[a][b]=(signed char)(v>100?100:v); v=relD[b][a]+3; relD[b][a]=(signed char)(v>100?100:v); v=relL[a][b]+1; relL[a][b]=(signed char)(v>100?100:v); v=relL[b][a]+1; relL[b][a]=(signed char)(v>100?100:v); }
+    v=o->need[HN_SOC]+25; o->need[HN_SOC]=(u8)(v>100?100:v); hhNote(s," HAD A PHONE CALL");
+}
+static void iuStart(HhSim*s){   // item module 10: a Sim starts an item: its balloon, and "NAME IS WATCHING TV" when it is within 8 tiles of you (hhNote waits while another note is up)
+    int r=s->item-1; if(r<0) return;
+    s->bub=iuIc[r]; s->bubT=90;
+    s32 dx=(s->fx-lfx)>>8, dy=(s->fy-lfy)>>8; if(dx<0) dx=-dx; if(dy<0) dy=-dy;
+    if(dx<=8&&dy<=8) hhNote(s,iuT[r].say);
+}
+static int iuFloorFor(int r){ for(int d=1;d<FLR_N;d++){ int u=curFl+d, w=curFl-d; if(u<FLR_N&&(hhCenI[u]&(1<<r))) return u; if(w>=0&&(hhCenI[w]&(1<<r))) return w; } return -1; }   // the nearest other floor with item r
+static int hhItemGo(HhSim*s,int need){   // item module 3: serve 'need' with an item. On this floor: walk there and use it. On another floor (SIMS ON FLOORS): to the stairs. 1 = the Sim has a plan
+    int r=iuPick(s,need,curFl);
+    if(r>=0){ int q=hhPlan(s,iuT[r].ch);
+        if(q==1){ s->item=(u8)(r+1); s->act=HA_USE; s->use=iuT[r].need; s->t=hhUseT(s); iuStart(s); return 1; }
+        if(q>1){ s->item=(u8)(r+1); s->act=HA_WALK; s->use=iuT[r].need; return 1; } }
+    if(xo[XO_MULTIFL]) for(int d=1;d<FLR_N;d++) for(int sg=0;sg<2;sg++){ int g=sg?curFl-d:curFl+d; if(g<0||g>=FLR_N) continue;
+        int r2=iuPick(s,need,g); if(r2<0||!hhHasCh(g>curFl?'^':'~')) continue;
+        int q=hhPlan(s,g>curFl?'^':'~'); if(q<1) continue;
+        if(q==1){ s->pn=s->pi=0; s->gok=0; } s->act=HA_STAIR; s->use=(u8)need; s->item=(u8)(r2+1); return 1; }
+    return 0;
+}
 static void hhDecide(HhSim*s){
+    s->item=0;
     int best[2]={-1,-1}, bs[2]={0,0}, low=xo[XO_FREEWILL]==1?35:55;   // LOW free will waits until needs are lower
     for(int n=0;n<HN_N;n++){
         if(hnFurn[n]&&!(simHave&(n==HN_FOOD?SR_FRIDGE:n==HN_WC?SR_TOILET:n==HN_REST?SR_BED:n==HN_CLEAN?SR_SHOWER:SR_SOFA))&&!hhElse(n)) continue;   // no such furniture on this floor or above
@@ -461,7 +554,9 @@ static void hhDecide(HhSim*s){
     if((simHave&SR_PIPE)&&s->stage>=AG_ADULT&&s->act!=HA_LEAVE){   // grown-ups and the water pipe: for fun, and everyone at 4:20
         int t420=simMin>=16*60+20&&simMin<17*60+20;
         if((t420&&rnd8()<200)||(n==HN_FUN&&(rnd8()&1))){ int r=hhPlan(s,'G'); if(r==1){ s->act=HA_USE; s->use=HN_FUN; s->t=HH_USE; s->bub=IC_LEAF; s->bubT=90; return; } if(r>1){ s->act=HA_WALK; s->use=HN_FUN; return; } } }
-    if(n==HN_SOC){ hhSeek(s); return; }
+    if(xo[XO_ITEMUSE]&&n==HN_REST&&!simIsNight()&&s->need[HN_REST]>=25&&(rnd8()&1)&&hhItemGo(s,HN_REST)) return;   // item module 4: tired but not wrecked, in the daytime: a coffee first (really tired: bed)
+    if(xo[XO_ITEMUSE]&&(n==HN_FUN||(n<0&&rnd8()<70))&&hhItemGo(s,HN_FUN)) return;   // item module 3: FUN = the TV, bookshelf, aquarium, treadmill, stereo (nothing pressing: a hobby now and then)
+    if(n==HN_SOC){ if(xo[XO_ITEMUSE]&&rnd8()<90&&hhItemGo(s,HN_SOC)) return; hhSeek(s); return; }   // item module 5: sometimes lonely means the phone
     if(n<0&&rnd8()<30&&hhHasStairs()){   // nothing pressing: sometimes up the stairs for a while
         int r=hhPlan(s,'^'); if(r>=1){ if(r==1){ s->pn=s->pi=0; s->gok=0; } s->act=HA_STAIR; s->use=HN_FUN; return; } }
     if(n<0&&hhN>0&&(rnd8()*100>>8)<25+s->tr[TR_OUT]*5){ hhSeek(s); return; }   // nothing pressing: go and see someone (outgoing Sims more often)
@@ -550,10 +645,11 @@ static void twTick(int*planned){   // VISITORS: someone from another household w
 // ---- SIMS ON FLOORS (floors step 2): where each Sim is, and what each floor has ----
 static void hhCensus(void){   // which need furniture each floor has (bit = need number). flPlaneAt reads the live map for this floor and the packed copy for the others
     hhCenT=300;
-    for(int f=0;f<FLR_N;f++){ u8 b=0;
+    for(int f=0;f<FLR_N;f++){ u8 b=0, bi=0;
         for(int i=0;i<MSZ;i++){ int c=flPlaneAt(f,0,i);
-            if(c=='F') b|=1<<HN_FOOD; else if(c=='T') b|=1<<HN_WC; else if(c=='S') b|=1<<HN_REST; else if(c=='H') b|=1<<HN_CLEAN; else if(c=='C'||c=='U') b|=1<<HN_COMFY; }
-        hhCen[f]=b; }
+            if(c=='F') b|=1<<HN_FOOD; else if(c=='T') b|=1<<HN_WC; else if(c=='S') b|=1<<HN_REST; else if(c=='H') b|=1<<HN_CLEAN; else if(c=='C'||c=='U') b|=1<<HN_COMFY;
+            else { int r=iuRow((char)c); if(r>=0) bi|=1<<r; } }
+        hhCen[f]=b; hhCenI[f]=bi; }
 }
 static void hhStairSpot(HhSim*s,char c){   // floors step 4: stand on a free tile next to the stairs c ('^' up, '~' down), where a Sim arrives from another floor
     int sx=-1, sy=-1;
@@ -571,7 +667,11 @@ static const char* hhWhere(int m){ static const char*const t[]={"  GROUND","  FL
 static void hhOffStep(int m){
     HhSim*s=&hhM[m]; int f=hhFl[m], any=0, low=xo[XO_FREEWILL]==1?35:55, best=-1, bv=101;
     for(int g=0;g<FLR_N;g++) any|=hhCen[g];
-    if(s->use<HN_FUN&&(hhCen[f]&(1<<s->use))) s->need[s->use]=100;   // it used the furniture while it waited
+    if(xo[XO_ITEMUSE]&&s->item){ int r=s->item-1;   // item module 3: bound for an item on another floor: it uses it when it gets there, else one floor toward it
+        if(hhCenI[f]&(1<<r)){ int v=s->need[iuT[r].need]+iuT[r].t/2; s->need[iuT[r].need]=(u8)(v>100?100:v); iuCouple(s,r); s->item=0; s->use=HN_FUN; }
+        else { int g=-1; for(int d=1;d<FLR_N&&g<0;d++){ if(f+d<FLR_N&&(hhCenI[f+d]&(1<<r))) g=f+1; else if(f-d>=0&&(hhCenI[f-d]&(1<<r))) g=f-1; }
+            if(g>=0){ hhFl[m]=(u8)g; hhUp[m]=90; return; } s->item=0; } }
+    if(s->use<HN_FUN&&(hhCen[f]&(1<<s->use))){ s->need[s->use]=100; if(xo[XO_ITEMUSE]) iuBasic(s); }   // it used the furniture while it waited
     for(int n=0;n<HN_FUN;n++){ int v=s->need[n]; if(!(any&(1<<n))) continue; if(n==HN_REST&&simIsNight()) v=v>45?v-45:0; if(v<low+30&&v<bv){ bv=v; best=n; } }
     if(best>=0){ s->use=(u8)best;
         if(hhCen[f]&(1<<best)){ hhUp[m]=(u16)(hhUseT(s)+2); return; }   // here: it uses it
@@ -582,7 +682,7 @@ static void hhOffStep(int m){
     hhUp[m]=60;   // on the ground floor while you are upstairs: waits for you
 }
 static void hhTick(void){   // once per logic step in the life game
-    if(xo[XO_MULTIFL]){ if(hhCenT) hhCenT--; else hhCensus(); }   // floors step 2: keep the per-floor furniture census fresh
+    if(xo[XO_MULTIFL]||xo[XO_ITEMUSE]){ if(hhCenT) hhCenT--; else hhCensus(); }   // floors step 2: keep the per-floor furniture census fresh (item module 2: item use reads it too)
     if(curFl&&!xo[XO_MULTIFL]) return;   // upstairs: the household waits on the ground floor (SIMS ON FLOORS: the Sims up here carry on)
     if(hhBubT) hhBubT--;
     if(lvx||lvy||lsp||lairF||lgrind) hhStill=0; else if(hhStill<1000) hhStill++;
@@ -603,10 +703,10 @@ static void hhTick(void){   // once per logic step in the life game
         if(prHeld(s)){ s->act=HA_AWAY; continue; }   // prison.h: the prisoner is out while you are at home, everyone else while you are in the cell
         if(xo[XO_MULTIFL]){   // floors step 4: Sims who are not on your floor wait (parked), the ones whose floor you came to step out of the stairs
             if(hhFl[m]!=curFl){
-                if(s->act!=HA_AWAY){ s->act=HA_AWAY; s->use=HN_FUN; hhUp[m]=(u16)(300+(rnd8()<<2)); }   // you left their floor: they stay there a while
+                if(s->act!=HA_AWAY){ s->act=HA_AWAY; s->use=HN_FUN; s->item=0; hhUp[m]=(u16)(300+(rnd8()<<2)); }   // you left their floor: they stay there a while
                 if(hhUp[m]>1) hhUp[m]--; else if(hhUp[m]) hhOffStep(m);   // floors step 8: a Sim on another floor lives coarsely (hhOffStep)
                 continue; }
-            else if(s->act==HA_AWAY&&hhUp[m]){ s->use=HN_FUN; hhUp[m]=0; hhStairSpot(s,curFl?'~':'^'); s->act=HA_IDLE; s->think=20; s->gok=0; s->pn=s->pi=0; continue; } }
+            else if(s->act==HA_AWAY&&hhUp[m]){ s->use=HN_FUN; s->item=0; hhUp[m]=0; hhStairSpot(s,curFl?'~':'^'); s->act=HA_IDLE; s->think=20; s->gok=0; s->pn=s->pi=0; continue; } }
         if(hhUp[m]){   // upstairs: gone from the ground floor until the time is up, then back down the stairs (waits if someone stands there)
             if(s->act!=HA_AWAY){ hhUp[m]=0; }
             else { if(!xo[XO_FREEWILL]&&hhUp[m]>1) hhUp[m]=1;
@@ -628,14 +728,14 @@ static void hhTick(void){   // once per logic step in the life game
           if(due&&s->act!=HA_LEAVE) continue; }
         if(s->act==HA_USE){   // using furniture: refill, then free again (a night's sleep lasts until it is over, rested or not)
             if(s->need[s->use]<100&&(lfr&1)) s->need[s->use]++;
-            if(--s->t<=0||(s->need[s->use]>=100&&!(s->use==HN_REST&&simIsNight()))){ s->act=HA_IDLE; s->think=(short)(HH_THINK/2); }
+            if(--s->t<=0||(s->need[s->use]>=100&&!(s->use==HN_REST&&simIsNight()))){ s->act=HA_IDLE; s->think=(short)(HH_THINK/2); if(s->item){ if(iuT[s->item-1].ch=='I') hhCallDone(s); iuCouple(s,s->item-1); s->ilast=s->item; s->item=0; } else if(xo[XO_ITEMUSE]&&s->use<HN_FUN) iuBasic(s); }
             continue;
         }
         if(s->act==HA_WALK||s->act==HA_WANDER||s->act==HA_SEEK||s->act==HA_LEAVE||s->act==HA_STAIR){   // follow the path, tile centre to tile centre
             if(s->pi>=s->pn&&s->act==HA_SEEK){ hhArrive(m); continue; }
-            if(s->pi>=s->pn&&s->act==HA_STAIR){ s->act=HA_AWAY; hhUp[m]=(u16)(xo[XO_MULTIFL]&&s->use<HN_FUN?hhUseT(s)+90:600+(rnd8()<<3)); if(xo[XO_MULTIFL]){ int g=s->use<HN_FUN?hhFloorFor(s->use):-1; hhFl[m]=(u8)((g>=0&&g<curFl)||curFl+1>=FLR_N?curFl-1:curFl+1); } hhNote(s,xo[XO_MULTIFL]&&hhFl[m]<curFl?" WENT DOWNSTAIRS":" WENT UPSTAIRS"); continue; }
+            if(s->pi>=s->pn&&s->act==HA_STAIR){ s->act=HA_AWAY; hhUp[m]=(u16)(xo[XO_MULTIFL]&&(s->use<HN_FUN||s->item)?hhUseT(s)+90:600+(rnd8()<<3)); if(xo[XO_MULTIFL]){ int g=s->item?iuFloorFor(s->item-1):s->use<HN_FUN?hhFloorFor(s->use):-1; hhFl[m]=(u8)((g>=0&&g<curFl)||curFl+1>=FLR_N?curFl-1:curFl+1); } hhNote(s,xo[XO_MULTIFL]&&hhFl[m]<curFl?" WENT DOWNSTAIRS":" WENT UPSTAIRS"); continue; }
             if(s->pi>=s->pn&&s->act==HA_LEAVE){ s->act=HA_AWAY; hhNote(s,s->use==2?" WENT TO SCHOOL":" LEFT FOR WORK"); continue; }
-            if(s->pi>=s->pn){ if(s->act==HA_WALK){ s->act=HA_USE; s->t=hhUseT(s); } else { s->act=HA_IDLE; if(s->need[HN_FUN]<90) s->need[HN_FUN]+=10; } continue; }
+            if(s->pi>=s->pn){ if(s->act==HA_WALK){ s->act=HA_USE; s->t=hhUseT(s); iuStart(s); } else { s->act=HA_IDLE; if(s->need[HN_FUN]<90) s->need[HN_FUN]+=10; } continue; }
             hhStepAlong(s);
             continue;
         }
@@ -1219,7 +1319,7 @@ static void hhInviteTrue(void); static int hhMoveOut(int m);   // households.h
 static void hhSwitchMenu(void){   // pick the Sim you control
     if(!hhN){ toast("NO ONE ELSE LIVES HERE"); return; }
     static char nm[HH_MAX][HH_NM+8] EWRAM_BSS; const char* who[HH_MAX];
-    for(int m=0;m<hhN;m++){ char*e=simCat(nm[m],hhM[m].name); if(hhM[m].act==HA_AWAY) simCat(e,prHeld(&hhM[m])?(prHere()?"  AT HOME":"  IN PRISON"):hhUp[m]?hhWhere(m):"  OUT"); who[m]=nm[m]; }
+    for(int m=0;m<hhN;m++){ char*e=simCat(nm[m],hhM[m].name); if(hhM[m].act==HA_AWAY) simCat(e,prHeld(&hhM[m])?(prHere()?"  AT HOME":"  IN PRISON"):hhUp[m]?hhWhere(m):"  OUT"); else if(xo[XO_ITEMUSE]&&hhM[m].act==HA_USE&&hhM[m].item) simCat(e,iuTag[hhM[m].item-1]); who[m]=nm[m]; }
     int m=menu("WHO DO YOU PLAY",who,hhN); if(m<0) return;
     hhSwitchTo(m); lnote=hhPName; lnoteT=60;
 }
