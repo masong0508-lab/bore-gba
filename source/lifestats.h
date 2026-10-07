@@ -20,7 +20,7 @@ static u32 lsAll[LS_CH][LS_N] EWRAM_BSS; static u32 lg[LG_N] EWRAM_BSS;
 static int lsRow(void){ return (hhPUid>=0&&hhPUid<LS_CH)?hhPUid:0; }
 #define lsc (lsAll[lsRow()])
 static u32 lsPrevS EWRAM_BSS, lsPrevP EWRAM_BSS; static u8 lsPrevOk EWRAM_BSS;
-static u8 lsSub EWRAM_BSS, lsInit EWRAM_BSS, lsDirty EWRAM_BSS, lgInit EWRAM_BSS, lgDirty EWRAM_BSS; static int lsTx EWRAM_BSS=-1, lsTy EWRAM_BSS;
+static u8 lsSub EWRAM_BSS, lsInit EWRAM_BSS, lsDirty EWRAM_BSS, lgInit EWRAM_BSS, lgDirty EWRAM_BSS; static int lsTx EWRAM_BSS, lsTy EWRAM_BSS;   // lsTx = tile x + 1, so 0 (what .sbss starts as) means no tile yet
 static u32 lsGet(volatile u8*m,int i){ return (u32)m[4*i]|((u32)m[4*i+1]<<8)|((u32)m[4*i+2]<<16)|((u32)m[4*i+3]<<24); }
 static void lsLoad(void){
     volatile u8*m=SRAM_BASE+LS_OFF+2; unsigned sum=0x4C; int n=LS_N*LS_CH; lsInit=1; lsSub=0; lsPrevOk=0;
@@ -81,8 +81,8 @@ static void lsMile(void){   // once a second: milestone notes (hours played, lif
 }
 static void lsTick(void){   // from lifeStep: one game step
     int tx=(int)(lfx>>8), ty=(int)(lfy>>8);   // a step: the Sim moved onto another tile (a jump of more than 2 tiles, stairs or a respawn, is not walking)
-    if(lsTx>=0&&(tx!=lsTx||ty!=lsTy)){ int dx=tx-lsTx, dy=ty-lsTy; if(dx>=-2&&dx<=2&&dy>=-2&&dy<=2&&!ldead) lsAdd(LS_STEPS,1); }
-    lsTx=tx; lsTy=ty;
+    if(lsTx>0&&(tx!=lsTx-1||ty!=lsTy)){ int dx=tx-(lsTx-1), dy=ty-lsTy; if(dx>=-2&&dx<=2&&dy>=-2&&dy<=2&&!ldead) lsAdd(LS_STEPS,1); }
+    lsTx=tx+1; lsTy=ty;
     if(++lsSub>=60){ lsSub=0; lsAdd(LS_SECS,1); if(lskate&&!ldead) lsAdd(LS_BOARDSECS,1); if(lgrind) lsAdd(LS_GRINDSECS,1); lsMile(); }
 }
 static void lsEvent(int ev){   // from simsMood: tricks, combos, bails, deaths
