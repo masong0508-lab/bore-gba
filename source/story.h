@@ -226,13 +226,15 @@ static int storyPick(void){
         if(full) stBack("WHICH STORY?",(int)cnt);   // the backdrop and title bar only when the plumbob moves: a flip redraws just the card (it paints over the old one)
         s2rr(8,21,224,126,RGB(16,27,31)); s2rr(9,22,222,124,RGB(2,6,13)); s2grad(10,23,220,122,3,9,19,1,4,10);
         s2rr(14,27,44,40,RGB(10,20,30)); s2grad(15,28,42,38,7,16,26,3,8,16); stIcon(sel,18+((cnt>>4)&1),33,4,RGB(31,20,22));   // the story's picture (it beats slowly)
-        text(64,28,stNm[sel],GOLD,2); text(64,46,stTag[sel],RGB(17,29,31),1);
-        for(int i=0;i<3;i++) text(64,56+i*9,stBlurb[sel][i],WHITE,1);
-        rect(14,72,212,1,RGB(14,26,31)); text(16,76,"THE CHAPTERS",RGB(17,29,31),1);
-        for(int i=0;i<stLen[sel];i++){ char b[44]; char*e=slNum(b,i+1); e=slCat(e,"  "); slCat(e,stChs[sel][i].nm); text(16,86+i*8,b,i==stLen[sel]-1?GOLD:RGB(24,27,30),1); }
-        for(int i=1;i<STY_N;i++){ int x=108+(i-1)*12; s2rr(x,136,8,4,i==sel?GOLD:RGB(7,14,22)); }   // which of the stories this is
-        text(14,134,"<",GOLD,1); text(223,134,">",GOLD,1);
-        s2pill(5,147,66,"LEFT RIGHT STORY"); s2pill(75,147,40,"A START"); s2pill(119,147,40,"B BACK");
+        // layout (the 3 blurb lines used to run into the divider and THE CHAPTERS): title 27, kind 40, blurb 49/57/65 (ends 72), divider 75, header 78, chapters 88 + 8 a row (ends 136), dots 139
+        text(64,27,stNm[sel],GOLD,2); text(64,40,stTag[sel],RGB(17,29,31),1);
+        for(int i=0;i<3;i++) text(64,49+i*8,stBlurb[sel][i],WHITE,1);
+        rect(14,75,212,1,RGB(14,26,31)); text(16,78,"THE CHAPTERS",RGB(17,29,31),1);
+        for(int i=0;i<stLen[sel];i++){ char b[44]; char*e=slNum(b,i+1); e=slCat(e,"  "); slCat(e,stChs[sel][i].nm); text(16,88+i*8,b,i==stLen[sel]-1?GOLD:RGB(24,27,30),1); }
+        for(int i=1;i<STY_N;i++){ int x=108+(i-1)*12; s2rr(x,139,8,4,i==sel?GOLD:RGB(7,14,22)); }   // which of the stories this is
+        text(14,138,"<",GOLD,1); text(223,138,">",GOLD,1);
+        { static const char* const bt[3]={"LEFT RIGHT STORY","A START","B BACK"}; int x=5;   // the buttons are as wide as their words (they were fixed widths, and LEFT RIGHT STORY ran into A START)
+          for(int i=0;i<3;i++){ int w=tw(bt[i],1)+10; s2pill(x,147,w,bt[i]); x+=w+4; } }
         present();
     }
 }
