@@ -463,7 +463,7 @@ static void simsPack(volatile unsigned char*m){   // write the life into any SIM
     for(int i=4;i<=50;i++) sum+=m[i];
     m[51]=(unsigned char)sum;
 }
-static void fxGhostSave(volatile unsigned char*m); static void simsSaveNow(void){ simsPack(SIM_SRAM); fxGhostSave(SIM_SRAM+SIM_BLOCK); persSave(); skSave(); }   // the persona too: its DNA is earned here
+static void fxGhostSave(volatile unsigned char*m); static void simsSaveNow(void){ lsSave(); simsPack(SIM_SRAM); fxGhostSave(SIM_SRAM+SIM_BLOCK); persSave(); skSave(); }   // the persona too: its DNA is earned here
 static void simsSave(void){ if(xo[XO_AUTOSAVE]) simsSaveNow(); }   // AUTO SAVE LIFE option: off = only slots / SAVE LIFE NOW write it
 static int simsVer(volatile unsigned char*m){ return (m[0]=='S'&&m[1]=='I'&&m[2]=='M')?(m[3]=='3'?3:m[3]=='2'?2:0):0; }
 static int simsCheck(volatile unsigned char*m){   // 1 = the buffer holds a valid life, SIM3 or SIM2 (nothing is changed)
@@ -524,7 +524,7 @@ static void simsRespawn(void){   // after dying: the needs come back, the life (
     sNrg=60; sHyg=60; sCom=60; simAct=simActT=0; simQ=0; shiftPts=0; simLastScore=lscore;
 }
 static void simsNewLife(void){   // pause menu: NEW LIFE
-    simsDefaults(); simsTransient(); simsSaveNow();
+    lsAdd(LS_LIVES,1); simsDefaults(); simsTransient(); simsSaveNow();
 }
 
 // ---- wants, fears and the aspiration meter ----
@@ -564,6 +564,7 @@ static void simSkillAdd(int n){
 }
 // mood.h calls this from every moodEvent: the game events that wants, fears and skill care about
 static void simsMood(int ev,int n){
+    lsEvent(ev);
     switch(ev){
         case M_TRICK: simEvent(SE_TRICK); simSkillAdd(1); if(simTricks<65535) simTricks++; if(simTricks%5==0){ dnaAdd(SIM_DNA_TRICKS); if(!simQ) simQueue("+1 JENE"); } break;
         case M_COMBO:   // n = tricks - 1; lcBank holds the points the chain banked
@@ -712,7 +713,7 @@ static void simMinute(void){   // once per game minute
     if(jobTrack!=JT_SKATE&&simInShift()&&!simAct&&!ldead&&simAtWork()!=1) shiftPts+=(moodState()==MS_STOKED)?2:1;   // a normal job: work minutes (see jobQuotaOf)
     if(simMin==16*60+20&&(simHave&SR_PIPE)&&pipeOk()) simQueue("IT IS 4:20  PUFF PUFF PASS");   // the house gathers at the water pipe (house.h)
     if(simMin>=1440){   // midnight: new day, bills, autosave
-        simMin=0; simDay++; if(simDay>30000) simDay=0;
+        simMin=0; simDay++; if(simDay>30000) simDay=0; lsAdd(LS_DAYS,1);
         ageTick(); copDay(); prDay();
         if(simFlags&SF_TREE){ simMoney+=SIM_TREE_PAY; if(simMoney>9999) simMoney=9999; }   // the money tree
         int bill=ojob()?SIM_BILLS*oBillsPct()/100:0; if(jobT()->perk==JP_BARRACKS) bill/=2; bill-=bill*skLvl(SK_LOGIC)*5/100;   // MILITARY: the barracks   // no career = no bills; BILLS option scales them
@@ -818,6 +819,7 @@ static void simsTick(unsigned pr,int tx,int ty){
     // the day's quota counts trick points scored during the shift
     if(lscore>simLastScore&&simInShift()&&jobTrack==JT_SKATE) shiftPts+=lscore-simLastScore;   // only the skater job is paid in trick points
     if(lscore!=simLastScore) sgDirty=1;   // (progress since the last save file: MANUAL saving asks before it is thrown away)
+    if(lscore>simLastScore) lsAdd(LS_SCORE,(u32)(lscore-simLastScore));   // lifetime score: every point earned, in every life
     simLastScore=lscore;
     if(simT%30==0){ simRoomTick(tx,ty); simStateTick(); }
     if(sNrg==0&&simAct==0){ sNrg=25; lstun=300; lsp=0; lgrind=0; lnote="PASSED OUT"; lnoteT=90; moodEvent(M_PASSOUT); }   // like the old FAINT, from tiredness

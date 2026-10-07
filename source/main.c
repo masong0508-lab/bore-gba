@@ -1450,6 +1450,7 @@ static void hpLose(int n){ lhp-=n; if(lhp<0) lhp=0; if(xo[XO_HURT]==2&&lhp<1) lh
 #include "voices.h"   // the voice clips of the Sim you control (tools/encode_voices.py)
 static void voxPlay(int v); static void voxNag(int v); static void voxChain(int a,int b,int c); static void voxEvent(int ev,int v);   // (defined after sfxPlay)
 #include "mood.h"   // FUN + HAPPY meters: moodEvent(), moodTick(), moodTop(), moodPts()
+#include "lifestats.h"   // LIFETIME STATS: lifetime score, hours played ... (needs the M_ events of mood.h)
 #include "sims.h"   // life-sim layer: energy/hygiene/comfort, wants and fears, aspiration. simsTick(), simBegin(), simsHud()
 
 // ---------- sound effects: 4-bit IMA-ADPCM @ 6554 Hz, mixed as one more voice by the music mixer (see the AUDIO notes further down) ----------
@@ -2678,7 +2679,7 @@ static void phoneMenu(void); static void phTick(void);   // households.h: the PH
 static void trnTick(void);   // timedrun.h
 static void storyScreen(void); static void stTick(void); static void stEnter(void); static void stOff(void);   // story.h
 static void lifeStep(u16 k,u16 pr,int fr){
-    trnTick();   // TIMED RUN countdown: one game step
+    lsTick(); trnTick();   // TIMED RUN countdown: one game step
     if(stage==AG_BABY&&!ldead){ k=babyPad(); pr=0; }   // uncontrollable stage: the pad is ignored (the pause menu still works)
     int fh=surfH(lfx,lfy)<<8;
     { int tx=(int)(lfx>>8), ty=(int)(lfy>>8); char sc=(tx>=0&&ty>=0&&tx<MW&&ty<MH)?lifeMap[ty][tx]:'.';   // stairs: step on them to change floor (step off and on again to use them once more)
@@ -2748,7 +2749,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
         else{
             if(g==1){ F.spd=F.spd*3/5; lsp=F.spd>>4; pts/=2; lnote="SKETCHY"; lnoteT=40; }   // landed, but crooked: you lose speed and the trick is worth half
             else if(g==3&&pts){ pts+=pts/4; if(lstrk<5) lstrk++; pts+=pts*lstrk/10; }                                                      // PERFECT: +25%
-            if(pts){ if(hs||lflip||gb) pts=pts*(100+skLvl(SK_AIR)*4)/100; skGain(SK_AIR,(hs>=2?2:hs?1:0)+(lflip?1:0)+(gb?1:0)); skGain(SK_BAL,g==3?2:g==2?1:0); pts=moodPts(pts); if(lsw){ pts+=pts/4; simEvent(SE_SWITCH); } if(lspecOn) pts*=2; lscore+=pts; lpts=pts; if(g!=1){ trickName(hs,gb,g==3); if(lsw) swName(); if(g==3&&lstrk>=2){ int n=0; while(lnBuf[n]) n++; if(n<20){ lnBuf[n++]=' '; lnBuf[n++]='X'; lnBuf[n++]=(char)('0'+lstrk); lnBuf[n]=0; } } } lnoteT=60; lcAdd(g!=1?lnBuf:"SKETCHY"); lcN++; lcPts+=pts; lcT=oComboLen(); moodEvent(M_TRICK); specAdd(60+pts/(lspecOn?8:4)); }
+            if(pts){ if(hs||lflip||gb) pts=pts*(100+skLvl(SK_AIR)*4)/100; skGain(SK_AIR,(hs>=2?2:hs?1:0)+(lflip?1:0)+(gb?1:0)); skGain(SK_BAL,g==3?2:g==2?1:0); pts=moodPts(pts); if(lsw){ pts+=pts/4; simEvent(SE_SWITCH); } if(lspecOn) pts*=2; lscore+=pts; lpts=pts; lsMax(LS_BESTTRICK,(u32)pts); if(g!=1){ trickName(hs,gb,g==3); if(lsw) swName(); if(g==3&&lstrk>=2){ int n=0; while(lnBuf[n]) n++; if(n<20){ lnBuf[n++]=' '; lnBuf[n++]='X'; lnBuf[n++]=(char)('0'+lstrk); lnBuf[n]=0; } } } lnoteT=60; lcAdd(g!=1?lnBuf:"SKETCHY"); lcN++; lcPts+=pts; lcT=oComboLen(); moodEvent(M_TRICK); specAdd(60+pts/(lspecOn?8:4)); }
             if(onRail){ lgrind=1; skGain(SK_GRIND,1); lnote="GRIND"; lnoteT=30; lcAdd("GRIND"); lcN++; lcT=oComboLen(); moodEvent(M_GRIND_ON); sfxPlay(SFX_GRIND); specAdd(60); }
             else sfxPlay((pts&&g!=1)?SFX_STICK:SFX_LAND);   // the landing is heard: a thud, or the bright one for a trick
         }
@@ -2818,7 +2819,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
             int tot=lcPts*lcN; if(lcN>=2) lscore+=lcPts*(lcN-1);
             lcBank=tot; lcBankT=120; if(trnOn&&tot>trnCombo) trnCombo=tot;   // (best chain of a timed run)
             if(lcN>=2&&sCam&&tot>camThr[sCam]) lcamPend=1;
-            if(lcN>=2) moodEventN(M_COMBO,lcN-1);
+            if(lcN>=2){ moodEventN(M_COMBO,lcN-1); lsAdd(LS_COMBOS,1); lsMax(LS_BESTCOMBO,(u32)tot); }
             if(lcN>=3) sktAward();
             lcN=0; lcPts=0; lcNmN=0;
         }
@@ -4777,6 +4778,7 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "tvclip.h"       // the TV's 3 second clips (tvClipRun)
 #include "skills.h"         // SKILLS (life and skater) and the home pack items: TV, bookshelf, coffee maker, aquarium, treadmill
 #include "goals.h"          // VIEW GOALS and the tape count per lot (the tape stays found)
+#include "statscreen.h"   // the LIFETIME STATS screen (PAUSE > MY SIM > MORE)
 #include "mysim.h"         // MY SIM: the pause menu tile with CAREER / SKILLS / PEOPLE / MORE tabs
 // ---------- main menu (The Sims 3 look): a glossy panel over your town, lit for the time of day of your life's clock ----------
 #define MM_N 7
@@ -4867,7 +4869,7 @@ static int newGame(int slot){   // 1 = it started (and ended: back to the main m
     int f=0; if(c==1){ const char* fm[HH_NFAM]; for(int i=0;i<HH_NFAM;i++) fm[i]=hhFams[i].fam; f=menu("WHICH FAMILY?",fm,HH_NFAM); if(f<0) return 0; }
     static const char* const yn[2]={"YES  NEW LIFE","NO"}; if(!sgWant&&menu("START OVER?",yn,2)!=0) return 0;   // (a NEW PLAYER has nothing to start over: the player in play was saved first)
     if(slot>=0){ if(!nbSwitch(slot)){ nbOk=nbLoad(); toast(nbErr); return 0; } nbOk=1; nbBounds(); }
-    if(sgWant){ sgPickHome(); sgPid=sgWant; sgWant=0; } else sgPid=0;   // a NEW PLAYER gets a home lot and a save file of their own; a new life started elsewhere belongs to no save file
+    if(sgWant){ sgPickHome(); sgPid=sgWant; sgWant=0; lsReset(); } else sgPid=0;   // a NEW PLAYER gets a home lot and a save file of their own; a new life started elsewhere belongs to no save file
     twKeep=0; simsNewLife(); prClear(); moodReset(); lscore=0; simLastScore=0;
     hhN=0; for(int a=0;a<HU_N;a++)for(int b=0;b<HU_N;b++){ relD[a][b]=relL[a][b]=0; relF[a][b]=0; } kinClear();   // the old household moves out
     stOff();
