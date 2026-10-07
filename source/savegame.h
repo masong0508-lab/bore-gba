@@ -30,7 +30,7 @@ static void sgEncDna(SlW*w){ slwPut16(w,pDna); slwPut16(w,pUnl); }
 static void sgEncFamily(SlW*w){ volatile u8*b=SL_HHBLK; int n=hhBlockLen(b,SL_HH_LEN); for(int i=0;i<n;i++) slwPut(w,b[i]); }
 static void sgEncSkills(SlW*w){ for(int i=0;i<SK_N;i++) slwPut(w,skPts[i]); }
 static void sgEncStory(SlW*w){ volatile u8*m=SRAM_BASE+STORY_OFF; for(int i=0;i<8;i++) slwPut(w,m[i]); }
-static void sgEncStats(SlW*w){ lsEnsure(); for(int i=0;i<LS_N;i++) for(int b=0;b<4;b++) slwPut(w,(u8)(ls[i]>>(8*b))); }
+static void sgEncStats(SlW*w){ lsEnsure(); for(int i=0;i<LS_N*LS_CH;i++) for(int b=0;b<4;b++) slwPut(w,(u8)(lsFlat[i]>>(8*b))); }
 static int sgBuild(SlW*w){
     slChunk(w,SLC_PLACE,sgEncPlace); slChunk(w,SLC_PERSON,slEncPerson);
     if(simsCheck(SIM_SRAM)) slChunk(w,SLC_LIFE,slEncLife);
@@ -99,7 +99,7 @@ static int sgParse(volatile u8*body,int len,int apply){   // apply 0: check ever
         else if(tag==SLC_STORY){ if(cl!=8||c.p[0]!='S'||c.p[1]!='Y') return SLE_FMT; if(apply){ volatile u8*d=SRAM_BASE+STORY_OFF; for(int i=0;i<8;i++) d[i]=c.p[i]; } }
         else if(tag==SLC_GHOST){ if(cl!=12) return SLE_FMT; if(apply){ fxGhostLoad(c.p); fxGhostSave(SIM_SRAM+SIM_BLOCK); } }
         else if(tag==SLC_SKILLS){ if(cl!=SK_N) return SLE_FMT; if(apply){ for(int i=0;i<SK_N;i++) skPts[i]=c.p[i]; skSave(); } }
-        else if(tag==SLC_STATS){ if(cl<4||cl%4||cl>4*LS_N) return SLE_FMT; if(apply){ for(int i=0;i<cl/4;i++) ls[i]=(u32)c.p[4*i]|((u32)c.p[4*i+1]<<8)|((u32)c.p[4*i+2]<<16)|((u32)c.p[4*i+3]<<24); lsInit=1; lsDirty=1; lsSave(); } }
+        else if(tag==SLC_STATS){ if(cl<4||cl%4||cl>4*LS_N*LS_CH) return SLE_FMT; if(apply){ for(int i=0;i<cl/4;i++) lsFlat[i]=(u32)c.p[4*i]|((u32)c.p[4*i+1]<<8)|((u32)c.p[4*i+2]<<16)|((u32)c.p[4*i+3]<<24); lsInit=1; lsDirty=1; lsSave(); } }
         // anything else: a later version's chunk, skipped on purpose
     }
     return (gotP&&gotC)?SLE_OK:SLE_FMT;
@@ -170,6 +170,7 @@ static void sgDraw(const int*l,int n,int sel){
         u16 nc=i==sel?WHITE:DIMC;
         if(i<n){ const SlInfo*I=&slI[l[i]]; char b[40]; char*e=slCat(b,"SAVED "); e=slNum(e,I->seq); slCat(e,I->seq==1?" TIME":" TIMES");
             text(16,y,I->name[0]?I->name:"NO NAME",nc,1); text(16,y+7,b,i==sel?RGB(22,25,28):RGB(11,13,18),1);
+            { u32 hs=lsPlayerSecs(l[i]); if(hs){ char hb[16]; char*he=simCatN(hb,(int)(hs/3600)); he=simCat(he," H "); simCatN(he,(int)(hs/60%60)); simCat(hb," M"); text(230-tw(hb,1),y+7,hb,i==sel?RGB(22,25,28):RGB(11,13,18),1); } }
             if(sgPid==I->pid) text(190,y,"PLAYING",GOLD,1); }
         else text(16,y+2,i==n?"NEW PLAYER":i==n+1?"NEIGHBORHOODS":"TEST MAP",nc,1);
     }
