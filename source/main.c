@@ -1393,7 +1393,7 @@ static int bdx=10, bdy=4, spx=3, spy=6;   // skateboard tile and spawn tile, fou
 #define BDY bdy
 static int lbailT;   // frames of bail flicker left (the skater blinks while getting up)
 static int lsp,lhd,lspin,lflip,lgrind,lscore,lstun,lairF,lpts,lnoteT,lglide; static const char*lnote;
-static int trnOn EWRAM_BSS, trnLeft EWRAM_BSS, trnDone EWRAM_BSS;   // timed.h: TIMED RUN running / game steps left / just ran out (the results card is due)
+static int trnOn EWRAM_BSS, trnLeft EWRAM_BSS, trnDone EWRAM_BSS, trnCombo EWRAM_BSS;   // timed.h: TIMED RUN running / game steps left / just ran out (the results card is due)
 // COMBO STRING: the names of the tricks in the running chain, oldest first (hud.h shows the newest ones that fit in the top bar: "KICKFLIP + 360 + GRIND  X3")
 #define LC_NM 6
 static char lcNm[LC_NM][16] EWRAM_BSS; static u8 lcNmN;   // lcNmN: names kept (the oldest drop out when the chain is longer than LC_NM)
@@ -2753,7 +2753,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
         if(lstun>0||ldead){ lcN=0; lcPts=0; lcT=0; lcNmN=0; }                      // a bail or hit loses the chain
         else if(!air&&!lgrind&&!lman&&--lcT<=0){                                  // chain over: bank the multiplier bonus
             int tot=lcPts*lcN; if(lcN>=2) lscore+=lcPts*(lcN-1);
-            lcBank=tot; lcBankT=120;
+            lcBank=tot; lcBankT=120; if(trnOn&&tot>trnCombo) trnCombo=tot;   // (best chain of a timed run)
             if(lcN>=2&&sCam&&tot>camThr[sCam]) lcamPend=1;
             if(lcN>=2) moodEventN(M_COMBO,lcN-1);
             if(lcN>=3) sktAward();
