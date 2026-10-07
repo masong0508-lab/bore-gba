@@ -1069,7 +1069,7 @@ static void hhInviteTrue(void){   // a truly random Sim moves in: any age from c
 }
 static void hhLoad(void);
 static void hhStart(void){   // entering the life game: load the household and stand everyone somewhere free
-    for(int m=0;m<HH_MAX;m++) hhFl[m]=0; hhCenT=0;   // floors step 2: everyone starts on the ground floor
+    for(int m=0;m<HH_MAX;m++){ hhFl[m]=0; hhUp[m]=0; } hhCenT=0;   // floors step 2: everyone starts on the ground floor
     hhLoad(); hhSlotsFree(); hhFindExits(); for(int k=0;k<TW_N;k++){ twOn[k]=0; twWait[k]=(short)(240+k*700); }
     for(int m=0;m<hhN;m++){ hhPlace(&hhM[m],m); hhOld[m].x0=hhOld[m].x1=0; hhOldSig[m]=0xFFFFFFFFu; }
 }
