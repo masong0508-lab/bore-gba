@@ -179,17 +179,27 @@ static int stProg(const StCh*c,char*b){
     if(v>of) v=of;
     char*e=slNum(b,v); e=slCat(e," OF "); slNum(e,of); return 1;
 }
-static void storyScreen(void){   // pause menu > STORY: the story journal, a chapter timeline
+static int storyPick(void); static void storySetup(int s);   // (below)
+static void storyJoin(void){   // floors step 10: pause menu > STORY with no story: pick one for the life you are living now (nobody is wiped; the new housemate or kid just moves in)
+    int s=storyPick(); if(!s) return;
+    int need=(s==STY_ROOM||s==STY_WED||s==STY_PARENT||s==STY_SECOND||s==STY_HOUSE||s==STY_TOWN)?1:s==STY_FRIEND?2:0;   // Sims the story brings in
+    if(hhN+need>HH_MAX){ toast("TOO MANY SIMS HOME FOR THAT STORY"); return; }
+    static const char* const yn[2]={"START THIS STORY","NOT NOW"}; if(menu(stNm[s],yn,2)!=0) return;
+    int money=simMoney; storySetup(s); if(s==STY_RAGS) simMoney=money;   // (RAGS TO RICHES keeps your money here: a new life is the way to start it poor)
+    stEnter();   // the first chapter card
+}
+static void storyScreen(void){   // pause menu > STORY: the story journal, a chapter timeline (no story yet: A picks one for this life)
     u16 prev=keyNow(); u32 cnt=0, lt=~0u;
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
+        if(!stId&&(pr&K_A)){ storyJoin(); prev=keyNow(); lt=~0u; if(stId) stModal=0; continue; }   // (the card is shown now by the journal itself: no second one when you close it)
         if(pr&(K_A|K_B|K_START)) return;
         if(!pr&&(cnt>>3)==lt){ vsync(); continue; }   // idle: the picture on the screen is still right (the whole backdrop used to be redrawn every frame, so taps landed between polls and were lost)
         lt=cnt>>3;
         stBack(stId?"STORY JOURNAL":"STORY",(int)cnt);
         if(!stId){
             s2rr(8,24,224,60,RGB(10,20,30)); s2rr(9,25,222,58,RGB(2,6,13));
-            text(16,32,"NO STORY RIGHT NOW",GOLD,1); text(16,46,"START ONE FROM THE MAIN MENU",WHITE,1); text(16,56,"PLAY  NEW GAME  STORY MODE",RGB(17,29,31),1);
+            text(16,32,"NO STORY RIGHT NOW",GOLD,1); text(16,46,"PICK ONE FOR THIS LIFE WITH A",WHITE,1); text(16,56,"OR PLAY  NEW GAME  STORY MODE",RGB(17,29,31),1);
             text(16,70,"TEN STORIES  SIX CHAPTERS EACH",RGB(20,24,28),1);
         } else {
             int n=stLen[stId];
@@ -207,7 +217,7 @@ static void storyScreen(void){   // pause menu > STORY: the story journal, a cha
                 if(st==1){ char b[16]; if(stProg(c,b)) text(231-tw(b,1),y+2,b,GOLD,1); }
                 else if(c->goal!=SG_END){ char b[12]; char*e=slCat(b,"+"); slNum(e,stRew(i)); text(231-tw(b,1),y+2,b,st==2?RGB(10,22,12):RGB(12,18,24),1); } }   // what each chapter pays
         }
-        s2pill(5,147,60,"A OR B BACK");
+        if(stId) s2pill(5,147,60,"A OR B BACK"); else { int pw=tw("A PICK A STORY",1)+10; s2pill(5,147,pw,"A PICK A STORY"); s2pill(9+pw,147,tw("B BACK",1)+10,"B BACK"); }
         if(stId){ char b[34]; int tot=0; for(int i=0;i<stCh;i++) tot+=stRew(i); char*e=slCat(b,"EARNED "); e=slNum(e,tot); slCat(e," SIMOLEONS"); s2pill(69,147,tw(b,1)+10,b); }
         present();
     }

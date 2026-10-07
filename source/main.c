@@ -3050,13 +3050,15 @@ static inline int isItemCh(char c){
 }
 // a collectible floating over tile centre (sx,sy): a spinning gold tag with its letter, or the tape (a little cassette)
 static void clDraw(int i,int sx,int sy){
-    static const signed char bob[4]={0,1,2,1}; static const char* const lt[5]={"S","K","A","T","E"};
+    static const signed char bob[4]={0,1,2,1};
+    static const u8 gl[5][7]={{15,16,16,14,1,1,30},{17,18,20,24,20,18,17},{14,17,17,31,17,17,17},{31,4,4,4,4,4,4},{31,16,16,30,16,16,31}};   // S K A T E: 5 x 7 pixels by hand (the font is anti-aliased and smudged at this size)
     int b=bob[(lfr>>3)&3], y=sy-17-b;
     rect(sx-3,sy-1,7,2,RGB(2,3,5));   // shadow on the floor
     if(i<5){
         static const u8 wd[4]={9,7,3,7}; int w=wd[((lfr>>2)+i)&3], x=sx-w/2;   // the tag turns
         rect(x-1,y-1,w+2,11,RGB(9,6,1)); rect(x,y,w,9,((lfr>>3)&1)?RGB(31,28,8):RGB(31,22,4));
-        if(w>=7) text(sx-2,y+1,lt[i],RGB(9,6,1),1);
+        rect(x,y,w,1,RGB(31,31,15));   // a glint along the top edge
+        if(w>=7) for(int r=0;r<7;r++) for(int c=0;c<5;c++) if((gl[i][r]>>(4-c))&1) px(sx-2+c,y+1+r,RGB(9,6,1));
     } else {
         rect(sx-6,y-1,13,9,RGB(4,4,6)); rect(sx-5,y,11,7,RGB(22,22,26)); rect(sx-4,y+1,9,3,RGB(31,24,6));
         rect(sx-3,y+2,2,2,RGB(4,4,6)); rect(sx+2,y+2,2,2,RGB(4,4,6));   // the reels

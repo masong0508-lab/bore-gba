@@ -810,3 +810,9 @@ With SIMS ON FLOORS on, a Sim parked on another floor (the household list says G
 ## Floors step 9: call the household, and work on time
 - **R next to the stairs** (nothing else in reach, SIMS ON FLOORS on) shouts for the household: every Sim parked on another floor comes to your floor and steps out of the stairs (`hhCallFloors`, house.h). The note says CALLED SOMEONE DOWN, CALLED THE HOUSEHOLD or NOBODY ON OTHER FLOORS. No new RAM.
 - **Work and school on time:** a Sim parked on another floor now checks its schedule too (`hhTick`, the parked branch). Before, it only left once it had drifted down to your floor.
+
+
+## Floors step 10: story from the pause menu, better skaters, SKATE letters
+- **STORY with no story:** PAUSE > STORY now says A PICK A STORY. It opens the same story cards as NEW GAME > STORY MODE and starts the story on the life you are living (`storyJoin`, story.h). Nobody is wiped: the housemate or kid the story needs just moves in (it refuses with a note if the house has no room). RAGS TO RICHES keeps your money here. The first chapter card shows as the journal.
+- **AI skaters:** frames 2 and 3 of `npcArt` (npc.h) are redrawn with a face, hair shine, separate arms and legs, shaded shirt and pants, white shoes, a board with a graphic and wheels, and arms out and knees bent in the air. The OBJ palettes now use 16 colours (was 8); the cop art still uses the first 8. Each of the three skaters keeps its own colours.
+- **SKATE letters:** the S K A T E tags (`clDraw`, main.c) draw hand-made 5 x 7 pixel letters instead of the smoothed font, with a glint on the tag.
