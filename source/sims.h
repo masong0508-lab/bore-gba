@@ -89,7 +89,8 @@ enum { SK_COOK, SK_LOGIC, SK_BODY, SK_CHARM, SK_CREAT,   // life skills
        SK_N };
 #define SK_LIFE 5
 static void copDay(void);   // npc.h: the cops that remember you may raid at midnight
-static void prDay(void);   // prison.h: a day off the sentence
+static int rnd8(void);   // main.c (the game random number, 0..255)
+static void prDay(void); static int prTotDays(void);   // prison.h: a day off the sentence
 static int skLvl(int k); static void skGain(int k,int n); static void skReset(void); static void skSave(void); static int skTop(int top);   // skills.h (included much later)
 // things that happen (wants and fears are both made of these)
 enum { SE_EAT, SE_PEE, SE_SLEEP, SE_SHOWER, SE_SOFA, SE_TRICK, SE_COMBO, SE_GRIND, SE_AIR, SE_SHOWOFF, SE_STOKED, SE_GREAT,
@@ -621,6 +622,11 @@ static const char* simBuy(int r){   // returns the note to show
 
 // ---- clock and career ----
 static char jobMsg[32] EWRAM_BSS;
+static int simFire(const char*why){   // FIRED (prison.h: busted, or too many shifts missed in the cell): the job is lost, you start the track again at the bottom. 0 = nothing to lose (no career or already at the bottom)
+    if(!ojob()||jobLvl<=0) return 0;
+    jobLvl=0; jobBr=0; jobChosen=0; jobGood=0; jobBad=0; shiftPts=0;
+    moodEvent(M_DEMOTE); simEvent(SE_DEMOTE); simQueue(why); return 1;
+}
 static void jobPromote(void){   // enough good shifts: a promotion, if the track has a level left and you have the skill and the friend for it
     const JobTr*t=jobT();
     if(jobLvl>=t->top){ if(!simQ) simQueue("TOP OF TRACK  TRANSFER ON PHONE"); return; }
@@ -646,6 +652,9 @@ static void simCameo(void){   // a good shift: the duo (or Sk9m) and one of thei
 static char spMsg[32] EWRAM_BSS;   // the sponsor note
 static const char* const jobFlav[JT_N]={"DOORS OPEN  LIGHTS UP","LOOK BUSY","WARM UP FIRST","BACK TO THE GRIND","KEEP A LOW PROFILE","REPORT FOR DUTY","THE BELL RINGS","THE FRYER IS HOT","THE SPONSOR IS WATCHING"};   // a line when the shift starts, one per track (enum order)
 static void simShiftEnd(void){   // the end of a shift on a work day (the track's hours)
+    if(prIn()){ shiftPts=0;   // prison.h: you cannot work from the cell: the shift counts as a bad one, and the boss may fire you (more likely on a long sentence)
+        if(rnd8()<(prTotDays()>=45?100:50)&&simFire("FIRED  YOU MISSED TOO MUCH WORK")){ simsSave(); return; }
+        simQueue("MISSED WORK  YOU ARE IN PRISON"); }
     const JobTr*t=jobT(); int q=simQuota(), p=shiftPts, pay=0, jenes=0, sp=0, base=jobPayOf(jobTrack,jobLvl,jobBr);
     if(p>=q){ pay=base+(p>=2*q?t->bonus:0); jobBad=0;
         if(jobTrack==JT_SKATE){ sp=(p-q)/50; if(sp>base/4) sp=base/4; pay+=sp; }   // SPONSOR: 1 extra per 50 trick points over the quota, at most a quarter of the base pay

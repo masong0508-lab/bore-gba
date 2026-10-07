@@ -13,9 +13,11 @@
 //                Pause menu > PRISON (the STORY tile): the record, SERVE TIME (skip 1, 7 or 30 days) and the story journal. A LIFE sentence never ends.
 // SAVED          12 bytes in the jukebox block's spare room (JB_OFF+56): 'P' 'R', days left (65535 = life), who (uid + 1), the sentence, convictions, record, checksum.
 //                The prison map itself is saved like any lot. Nothing here is EWRAM that matters: about 20 bytes.
+// BAIL          Pause menu > PRISON > PAY BAIL (in the cell, not for LIFE): PR_BAIL simoleons a day, 1, 7 or 30 days. A missed shift in the cell counts as a bad shift (sims.h simShiftEnd) and may get you FIRED (simFire: back to the bottom of the track); so may the arrest itself (prBook), the longer the sentence the likelier.
 // ONE PRISONER   Only one Sim of the household can be inside at a time; if a second one is busted meanwhile the old 10 second hold happens ("the cells are full").
 #define PR_OFF  (JB_OFF+56)
 #define PR_LIFE 0xFFFF
+#define PR_BAIL 40   // simoleons per day of sentence bought off (PAY BAIL)
 static u16 prDays EWRAM_BSS, prTot EWRAM_BSS, prRec EWRAM_BSS;   // days left (PR_LIFE = life), the sentence as given, the record not yet punished
 static u8 prW1 EWRAM_BSS, prCon EWRAM_BSS, prGood EWRAM_BSS, prTrouble EWRAM_BSS, prCardOn EWRAM_BSS, prInit EWRAM_BSS;   // who is inside (uid + 1, 0 = nobody), convictions, clean days in a row, trouble today, show the booking card
 
@@ -41,6 +43,7 @@ static u16 prSentence(int s){   // how bad you were (points) -> days
 }
 static int prHere(void){ return nbOk&&nbT.cur<NB_LOTS&&nbT.lot[nbT.cur].on&&nbT.lot[nbT.cur].kind==LKIND_COMM&&nbT.lot[nbT.cur].type==CT_PRISON; }
 static int prIn(void){ return prDays&&prW1&&hhPUid==prW1-1&&prHere(); }   // you are the one doing time, and you are in the prison
+static int prTotDays(void){ return prTot==PR_LIFE?60000:prTot; }   // (sims.h: how long the sentence is)
 static int prShown(void){ return prDays&&prW1; }
 static int prHeld(const HhSim*s){   // house.h hhSched: a Sim who is not where they should be today is OUT: the prisoner while you are at home, everyone else while you are at the prison
     if(!prDays||!prW1) return 0;
@@ -98,6 +101,8 @@ static int prBook(void){   // npc.h copArrest, before the stars are cleared: sen
     int s=prRec+copWant*6+copHeat+prCon*4;
     if(prLotGet()<0) return 0;
     u16 d=prSentence(s); prDays=d; prTot=d; prW1=(u8)(hhPUid+1); if(prCon<60) prCon++; prRec=0; prGood=0; prTrouble=0; prCardOn=1; prSave();
+    { int ch=d==PR_LIFE?230:25+d; if(ch>230) ch=230;   // the boss hears of it: 10 percent for a scuffle, about 2 in 3 for 140 days, almost sure for a long one
+      if(rnd8()<ch) simFire("FIRED  YOUR BOSS HEARD ABOUT THE ARREST"); }
     prGo=1; return 1;
 }
 static void prCancel(void){ if(prCon) prCon--; prDays=prTot=0; prW1=0; prCardOn=0; prSave(); }
@@ -120,7 +125,7 @@ static void prDay(void){   // sims.h, every midnight
 }
 
 // ---------- switching between the cell and home ----------
-static void prSelect(void){ if(hhN<1) return; hhSwitchFrom(0); prGo=2; }   // SELECT in the prison: you are the next Sim of the household, at home
+static void prSelect(void){ if(hhN<1){ toast("YOU LIVE ALONE  NO ONE TO SWITCH TO"); return; } hhSwitchFrom(0); prGo=2; }   // SELECT in the prison: you are the next Sim of the household, at home
 static int prSwitchHook(int m){   // house.h hhSwitchTo: 1 = handled (the pause menu's SWITCH TO A SIM)
     if(!prDays||!prW1||custom||m<0||m>=hhN) return 0;
     if(prIn()){ hhSwitchFrom(m); prGo=2; return 1; }   // out of the cell, home as that Sim
@@ -171,6 +176,18 @@ static void prRecord(void){
     text(170,128,"A OK",DIMC,1);
     present(); prWait();
 }
+static int prBail(void){   // PAY BAIL: buy days off the sentence at PR_BAIL simoleons a day (not for LIFE). 1 = the cell door opened or the days came off
+    static const u8 dn[3]={1,7,30}; static char lb[3][20] EWRAM_BSS; const char*it[3]; int ix[3], n=0;
+    for(int i=0;i<3;i++){ int d=dn[i]; if(d>prDays) d=prDays; int cost=d*PR_BAIL; if(simMoney<cost) continue;
+        char*e=slNum(lb[n],d); e=slCat(e,d==1?" DAY  ":" DAYS  "); e=slCat(e,"$"); slNum(e,cost); it[n]=lb[n]; ix[n++]=i;
+        if(d==prDays) break; }   // (a bigger offer than the days left is the same offer)
+    if(!n){ toast("NOT ENOUGH CASH FOR BAIL"); return 0; }
+    int c=menu("PAY BAIL",it,n); if(c<0) return 0;
+    int d=dn[ix[c]]; if(d>prDays) d=prDays; simMoney-=d*PR_BAIL; simsSave();
+    if(d>=prDays){ prRelease(); return 1; }
+    prDays=(u16)(prDays-d); prSave();
+    static char t[32] EWRAM_BSS; char*e=prDaysTxt(t,prDays); slCat(e," LEFT"); lnote=t; lnoteT=90; return 1;
+}
 static void prServe(int days){   // skip days in the cell: the clock runs to midnight, the days come off, bills are not paid from the cell
     for(int d=0;d<days&&prDays&&!prGo;d++){
         box(50,60,140,30); text(60,66,"SERVING TIME...",WHITE,1);
@@ -181,13 +198,15 @@ static void prServe(int days){   // skip days in the cell: the clock runs to mid
 }
 static void prisonScreen(void){   // pause menu > PRISON (the STORY tile while a sentence runs)
     for(;;){
-        const char*it[3]; int id[3], n=0;
+        const char*it[4]; int id[4], n=0;
         it[n]="PRISON RECORD"; id[n++]=0;
         if(prIn()){ it[n]="SERVE TIME"; id[n++]=1; }
+        if(prIn()&&prDays!=PR_LIFE){ it[n]="PAY BAIL"; id[n++]=3; }
         it[n]="STORY JOURNAL"; id[n++]=2;
         int c=menu("PRISON",it,n); if(c<0) return;
         if(id[c]==0) prRecord();
         else if(id[c]==1){ static const char* const sv[3]={"SKIP 1 DAY","SKIP 7 DAYS","SKIP 30 DAYS"}; static const u8 dn[3]={1,7,30}; int s=menu("SERVE TIME",sv,3); if(s>=0){ prServe(dn[s]); return; } }
+        else if(id[c]==3){ if(prBail()) return; }
         else storyScreen();
     }
 }
