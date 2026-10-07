@@ -196,7 +196,8 @@ static const char* rowVal(const OptRow*r){
     return r->lab[*rowVar(r)];
 }
 static int rowHeat(const OptRow*r){   // VIDEO page colours: 0 light (green), 1 medium (yellow), 2 heavy (red), 3 neutral
-    if(r->kind!=OR_VAR) return 3; u8*v=r->v;
+    if(r->kind!=OR_VAR) return 3;
+    u8*v=r->v;
     if(v==&sFps) return sFps==0?2:sFps==1?1:0;
     if(v==&sWall) return sWall==0?2:sWall==1?1:0;
     if(v==&sWp) return sWp?1:0;
@@ -227,7 +228,8 @@ static const char* const opIcon[NOPG][7]={   // the page tabs, 7 x 7: VIDEO moni
 static const char* const opTitle[NOPG]={"VIDEO AND SPEED","THE SIM","TIME","SOUND","BUTTONS","ON SCREEN","ROOMS","SAVING AND DATA"};
 static int pgAnyChanged(const OptPage*pg){
     if(pg->ns){ for(int u=0;u<pg->ns;u++) for(int q=0;q<pg->sub[u].n;q++) if(rowChanged(&pg->sub[u].r[q])) return 1; return 0; }
-    for(int q=0;q<pg->n;q++) if(rowChanged(&pg->r[q])) return 1; return 0;
+    for(int q=0;q<pg->n;q++) if(rowChanged(&pg->r[q])) return 1;
+    return 0;
 }
 static void opSwitch(int x,int y,int on,int foc){   // 22 x 8: a switch, green when on
     s3Box(x,y,22,8,4,foc?RGB(2,8,1):RGB(4,8,16),foc?RGB(1,5,0):RGB(3,6,13));

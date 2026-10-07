@@ -21,8 +21,15 @@ static void pieBack(void){
 }
 static int pieDir(u16 k){   // the direction held: 0 up, 1 up-right, 2 right ... 7 up-left (-1: none)
     int u=(k&K_UP)!=0, d=(k&K_DOWN)!=0, l=(k&K_LEFT)!=0, r=(k&K_RIGHT)!=0;
-    if(u&&r) return 1; if(d&&r) return 3; if(d&&l) return 5; if(u&&l) return 7;
-    if(u) return 0; if(r) return 2; if(d) return 4; if(l) return 6; return -1;
+    if(u&&r) return 1;
+    if(d&&r) return 3;
+    if(d&&l) return 5;
+    if(u&&l) return 7;
+    if(u) return 0;
+    if(r) return 2;
+    if(d) return 4;
+    if(l) return 6;
+    return -1;
 }
 static int pieMenu(const char*title,const char*foot,const char*const*lab,const u16*col,int n,int sel){   // n 1..8
     int slot[8], dirty=1; for(int i=0;i<n;i++) slot[i]=(i*8)/n;
@@ -55,7 +62,8 @@ static int pieMenu(const char*title,const char*foot,const char*const*lab,const u
         pieDisc(PIE_HX,PIE_HY,PIE_HR+1,GOLD); pieDisc(PIE_HX,PIE_HY,PIE_HR-1,RGB(4,6,12));
         pieDisc(PIE_HX,PIE_HY,8,col[sel]); pieDisc(PIE_HX,PIE_HY,4,WHITE);
         for(int i=0;i<n;i++){ int on=(i==sel), w=tw(lab[i],1)+10, x=pieCx[slot[i]]-w/2, y=pieCy[slot[i]]-6;
-            if(x<2) x=2; if(x+w>SW-2) x=SW-2-w;
+            if(x<2) x=2;
+            if(x+w>SW-2) x=SW-2-w;
             u16 c=col[i], dim=(u16)((c>>1)&0x3DEF);
             rect(x-1,y-1,w+2,14,on?WHITE:dim); rect(x,y,w,12,on?c:(u16)((dim>>1)&0x3DEF));
             text(x+5,y+2,lab[i],on?WHITE:DIMC,1); }

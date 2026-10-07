@@ -40,7 +40,9 @@ static u16 ldKeep;   // the display mode ldShow found with the window on (0 = no
 static void ldShow(const char*msg,int done,int total){
     if(!ldOn) ldBegin(); else ldIdle=0;
     { u16 d=REG_DISPCNT; if(d&0x2000){ ldKeep=d; REG_DISPCNT=0x0403; } }
-    if(total<1) total=1; if(done<0) done=0; if(done>total) done=total;
+    if(total<1) total=1;
+    if(done<0) done=0;
+    if(done>total) done=total;
     int pct=done*100/total, bw=148, fill=bw*done/total;
     rect(0,0,SW,SH,RGB(3,4,8));
     box(36,48,168,60);

@@ -21,7 +21,10 @@ static void hudRng(int d,int c,int k,int*a,int*b){   // the art columns (or rows
     *a=c+hudFl((d-c)*64,k); *b=c+hudFl((d+1-c)*64,k)-1; if(*b<*a) *b=*a;
 }
 static char hudPick(const char*const*A,int rmax,int w,int fl,int a0,int a1,int r0,int r1){   // the first ink in the box, row by row (as drawDeco's PICK); '.' outside the art
-    if(a0<0) a0=0; if(a1>w-1) a1=w-1; if(r0<0) r0=0; if(r1>rmax-1) r1=rmax-1;
+    if(a0<0) a0=0;
+    if(a1>w-1) a1=w-1;
+    if(r0<0) r0=0;
+    if(r1>rmax-1) r1=rmax-1;
     for(int r=r0;r<=r1;r++)for(int i=a0;i<=a1;i++){ char c=A[r][fl?w-1-i:i]; if(c!='.') return c; }
     return '.';
 }
@@ -73,5 +76,6 @@ static void hudFaceDraw(int x,int y,int st){   // x,y = top left of the 22 x 22 
 static unsigned hudFaceKey(int st){   // everything the portrait draws from, so it is redrawn when the mood or the Sim (or their look) changes
     static const u8 ids[]={LK_SKIN,LK_TONE,LK_HCOL,LK_HTONE,LK_HSTYLE,LK_EYECOL,LK_EYETONE,LK_BROW,LK_GLASS,LK_NOSE,LK_CHEEK,LK_EYESZ,LK_EYESP,LK_EYEHT,LK_MOUTHW,LK_MOUTHHT,LK_BROWHT,LK_NOSEHT};
     unsigned h=(2166136261u^(unsigned)st)*16777619u^(unsigned)(stage*2+mcDbl());   // (the age and the double sliders change the face too)
-    for(unsigned i=0;i<sizeof ids;i++) h=(h^look[ids[i]])*16777619u; return h|1u;
+    for(unsigned i=0;i<sizeof ids;i++) h=(h^look[ids[i]])*16777619u;
+    return h|1u;
 }

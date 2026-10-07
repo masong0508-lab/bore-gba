@@ -81,7 +81,8 @@ static void nbTemplate(int i){   // a lot's starting layout: the land, the stree
         if(L->kind==LKIND_COMM){
             if(L->type==CT_PARK){ for(int y=y0+2;y<=y1-2;y+=3)for(int x=x0+2;x<=x1-2;x+=4) gPut(x,y,(x/4+y/3)&1?'Z':'N'); gPut(cx-1,(y0+y1)/2,'Y'); gPut(cx+2,(y0+y1)/2,'K'); gPut(x0+1,y0+1,'a'); }   // (a community flag: visitors come and go there)
             else if(L->type==CT_SKATE||L->type==CT_BOTH){ gBox(x0,y0,x1,y1,12); gLine(x0+2,y0+2,x1-2,y0+2,'=',0); gPut(x0+2,y1-3,'1'); gPut(x1-2,y1-3,'3');
-                for(int x=x0+3;x<=x1-3;x++) gPut(x,y0+1,'5'); gPut(cx,(y0+y1)/2,'X'); gPut(cx+1,(y0+y1)/2,'X'); gPut(cx,(y0+y1)/2+1,'9'); gPut(x0+1,(y0+y1)/2,'L'); gPut(x1-1,(y0+y1)/2,'M'); gPut(x0+1,y0+1,'k');   // (a skate flag: a skater starts there)
+                for(int x=x0+3;x<=x1-3;x++) gPut(x,y0+1,'5');
+                gPut(cx,(y0+y1)/2,'X'); gPut(cx+1,(y0+y1)/2,'X'); gPut(cx,(y0+y1)/2+1,'9'); gPut(x0+1,(y0+y1)/2,'L'); gPut(x1-1,(y0+y1)/2,'M'); gPut(x0+1,y0+1,'k');   // (a skate flag: a skater starts there)
                 if(L->type==CT_BOTH){ gPut(x1-1,y0+1,'a'); for(int x=x0+3;x<=x1-3;x+=5){ gFree(x,y1-1,(x/5)&1?'Z':'N'); } gFree(cx-3,y1-3,'K'); gFree(x1-3,y1-4,'Y'); } }   // + a community flag, benches, planters and a picnic table
             else if(L->type==CT_PLAZA){ gBox(x0,y0,x1,y1,3); for(int x=x0+1;x<=x1-1;x+=3){ gPut(x,y0+1,'Z'); gPut(x,y1-1,'Z'); } gPut(cx-2,(y0+y1)/2,'N'); gPut(cx+2,(y0+y1)/2,'N'); gPut(cx,(y0+y1)/2-2,'K'); }
             else if(L->type==CT_LOUNGE){ int rx0=x0+1, ry0=y0+1, rx1=x1-1, ry1=y1-3; gRoom(rx0,ry0,rx1,ry1,2,NWP+57); gPut(cx,ry1,'D');
@@ -211,7 +212,9 @@ static u16 nbTint(u16 c){
     if(nbT.tod==1){ r=r*29/32+1; g=g*22/32; b=b*18/32; }
     else if(nbT.tod==2){ r=r*10/32; g=g*11/32; b=b*13/32+3; }
     else if(nbT.tod==3){ r=r*24/32+5; g=g*21/32+3; b=b*25/32+6; }   // dawn (the main menu only): a pink, misty light
-    if(r>31)r=31; if(b>31)b=31; return RGB(r,g,b);
+    if(r>31)r=31;
+    if(b>31)b=31;
+    return RGB(r,g,b);
 }
 static u16 nbGround(int t,int cx,int cy){
     int alt=(cx+cy)&1; u16 c;
@@ -526,7 +529,11 @@ static void neighborhoodScreen(void){
         int tr[4], fast=0; for(int i=0;i<4;i++){ hold[i]=(k&dirK[i])?hold[i]+1:0; tr[i]=(hold[i]==1)||hold[i]>3; if(hold[i]>12) fast=1; }   // (a pass is a whole redraw: held, the cursor steps every pass, and two cells after a while)
         int ux=tr[0]-tr[1], uy=tr[3]-tr[2];
         if(ux||uy){ int dx=ux+uy, dy=uy-ux; dx=(dx>0)-(dx<0); dy=(dy>0)-(dy<0); ccx+=dx<<fast; ccy+=dy<<fast;   // screen-relative, like the room builder
-            if(ccx<0)ccx=0; if(ccy<0)ccy=0; if(ccx>=NB_W)ccx=NB_W-1; if(ccy>=NB_H)ccy=NB_H-1; dirty=1; }
+            if(ccx<0)ccx=0;
+            if(ccy<0)ccy=0;
+            if(ccx>=NB_W)ccx=NB_W-1;
+            if(ccy>=NB_H)ccy=NB_H-1;
+            dirty=1; }
         if(pr&K_R){ tool=(tool+1)%5; dirty=1; } if(pr&K_L){ tool=(tool+4)%5; dirty=1; }
         if(pr&K_SEL){ int n=tool==1?NT_ROAD:tool==3?DC_N:tool==4?6:1; sub[tool]=(sub[tool]+1)%n; dirty=1; }
         int gw=nbSizes[sub[4]][0], gh=nbSizes[sub[4]][1], gok=nbFree(ccx,ccy,gw,gh,-1);

@@ -272,7 +272,8 @@ static int slInfo(int slot,SlInfo*I){
     u8 hs=0x5B; for(int i=0;i<31;i++) hs=(u8)(hs+m[i]); if(m[31]!=hs) return 0;
     I->kind=m[3]; I->span=m[4]; I->has=m[5]; I->len=(u16)(m[6]|(m[7]<<8)); I->sum=(u16)(m[8]|(m[9]<<8)); I->mw=m[10]; I->mh=m[11]; I->seq=(u16)(m[12]|(m[13]<<8)); I->pid=m[28];
     int e=SLOT_NAME; for(int i=0;i<SLOT_NAME;i++){ char c=(char)m[16+i]; I->name[i]=((c>='A'&&c<='Z')||(c>='0'&&c<='9'))?c:' '; }
-    while(e>0&&I->name[e-1]==' ') e--; I->name[e]=0;
+    while(e>0&&I->name[e-1]==' ') e--;
+    I->name[e]=0;
     if(I->kind>SLK_PLAYER||!slFits(slot,I->span)||I->len>I->span*SLOT_SZ-SLOT_HDR) return 0;
     I->ok=1; return 1;
 }
@@ -281,7 +282,8 @@ static void slScan(void){
     for(int i=0;i<SLOT_N;){
         SlInfo*I=&slI[i];
         if(slInfo(i,I)){ slGood[i]=(u8)(slSumOf(SLB(i)+SLOT_HDR,I->len)==I->sum);
-            for(int k=0;k<I->span;k++) slOwner[i+k]=(s8)i; i+=I->span; }
+            for(int k=0;k<I->span;k++) slOwner[i+k]=(s8)i;
+            i+=I->span; }
         else i++;
     }
 }

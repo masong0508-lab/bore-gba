@@ -88,7 +88,8 @@ static inline int oNeedPct(void){ static const u8 t[5]={0,50,100,150,200}; retur
 static inline int oStepsMin(void){ static const u8 t[5]={7,15,30,60,0}; return t[xo[XO_DAY]]; }   // logic steps per game minute, 0 = stopped
 static inline int oStageDays(int st){   // game days a stage lasts before the next one (0 = for ever); ELDER is the last stage and has no row
     static const u8 t[10]={1,2,3,5,7,10,14,21,30,60};
-    if(st<0||st>3) return 0; int i=xo[XO_AGEB+st]; return i<10?t[i]:0; }
+    if(st<0||st>3) return 0;
+    int i=xo[XO_AGEB+st]; return i<10?t[i]:0; }
 static inline int oBillsPct(void){ static const u8 t[4]={0,50,100,200}; return t[xo[XO_BILLS]]; }
 static inline int oQuotaPct(void){ static const u8 t[4]={60,100,150,200}; return t[xo[XO_QUOTA]]; }
 static inline int oScorePct(void){ static const u16 t[4]={50,100,200,300}; return t[xo[XO_SCORE]]; }

@@ -55,7 +55,8 @@ static char hudCb[128] EWRAM_BSS;
 static int hudComboBuild(int first,const char*suf){
     char*e=hudCb; if(first>0){ *e++='.'; *e++='.'; *e++=' '; }
     for(int k=first;k<lcNmN;k++){ if(k>first){ *e++=' '; *e++='+'; *e++=' '; } const char*p=lcNm[k]; while(*p) *e++=*p++; }
-    while(*suf) *e++=*suf++; *e=0; return tw(hudCb,1);
+    while(*suf) *e++=*suf++;
+    *e=0; return tw(hudCb,1);
 }
 static const char* hudComboStr(int maxw){
     char suf[8]; int sn=0; if(lcN>=2){ suf[sn++]=' '; suf[sn++]=' '; suf[sn++]='X'; if(lcN>=10) suf[sn++]=(char)('0'+lcN/10%10); suf[sn++]=(char)('0'+lcN%10); } suf[sn]=0;   // (x2 and up)
@@ -65,7 +66,8 @@ static const char* hudComboStr(int maxw){
 }
 static unsigned hudComboKey(void){ unsigned h=(unsigned)lcN*2654435761u+lcNmN; for(int k=0;k<lcNmN;k++) h=h*31u+hudHash(lcNm[k]); return h; }
 static void hudTopStatic(void){
-    for(int y=0;y<HUD_TOPH-1;y++) rect(0,y,SW,1,hudBgAt(y)); rect(0,HUD_TOPH-1,SW,1,HC_EDGE);
+    for(int y=0;y<HUD_TOPH-1;y++) rect(0,y,SW,1,hudBgAt(y));
+    rect(0,HUD_TOPH-1,SW,1,HC_EDGE);
 }
 static void hudTopUpdate(int all){
     if(all) hudTopStatic();
@@ -140,7 +142,8 @@ static const char* const hudNeedNm[8]={"FOOD","REST","CLEAN","COMFY","WC","FUN",
 #define HUD_FX 31
 static void hudNeedPos(int i,int*x,int*y){ *x=HUD_FX+(i>>2)*66; *y=HUD_BOTY+4+(i&3)*6; }
 static void hudBotStatic(void){
-    for(int y=HUD_BOTY;y<SH;y++) rect(0,y,SW,1,hudBgAt(y)); rect(0,HUD_BOTY,SW,1,HC_EDGE); rect(0,HUD_BOTY+1,SW,1,HC_DARK);
+    for(int y=HUD_BOTY;y<SH;y++) rect(0,y,SW,1,hudBgAt(y));
+    rect(0,HUD_BOTY,SW,1,HC_EDGE); rect(0,HUD_BOTY+1,SW,1,HC_DARK);
     for(int i=0;i<8;i++){ int x,y; hudNeedPos(i,&x,&y); text(x,y,hudNeedNm[i],HC_LABEL,1); }
 }
 static void hudBotUpdate(int all){

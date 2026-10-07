@@ -112,7 +112,8 @@ static void hhSprFree(int m){   // give a member's block back: everything above 
     if(len){ for(int i=off;i<hhPoolTop-len;i++) hhPool[i]=hhPool[i+len];
              for(int k=0;k<=HH_MAX;k++) if(k!=m&&hhSp[k].len&&hhSp[k].off>off) hhSp[k].off=(u16)(hhSp[k].off-len);
              hhPoolTop-=len; }
-    for(int v=0;v<4;v++) s->sm[v]=s->dm[v]=0; s->off=0; s->len=0;
+    for(int v=0;v<4;v++) s->sm[v]=s->dm[v]=0;
+    s->off=0; s->len=0;
 }
 static void hhSprBegin(int m){ hhSprFree(m); hhSp[m].off=(u16)hhPoolTop; }   // a new block grows at the top of the pool
 static const u8* hhStTile(int m,int v,int t){   // the standing tile t of view v, or 0 when it is empty
@@ -130,7 +131,8 @@ static void hhUpTiles(volatile u16*d,int id,int v,int f,int t0){
     for(int t=0;t<32;t++){
         int hs=(sm>>t)&1, hd=(dm>>t)&1; const u16*src=0;
         if(hd) src=(const u16*)dp; else if(hs) src=(const u16*)sp;
-        if(hs) sp+=32; if(hd) dp+=32;
+        if(hs) sp+=32;
+        if(hd) dp+=32;
         if(t<t0) continue;
         volatile u16*q=d+t*16;
         if(src){ for(int k=0;k<16;k++) q[k]=src[k]; } else { for(int k=0;k<16;k++) q[k]=0; }
@@ -314,7 +316,8 @@ static void hhBakeAll(void){
     for(int i=0;i<LK_N;i++) sl[i]=look[i];
     for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ sv[y][z][x]=vox[y][z][x]; sd[y][z][x]=dec[y][z][x]; }
     for(int m=0;m<hhN;m++){
-        for(int i=0;i<LK_N;i++) look[i]=hhM[m].look[i]; stage=hhM[m].stage;
+        for(int i=0;i<LK_N;i++) look[i]=hhM[m].look[i];
+        stage=hhM[m].stage;
         buildLook(); setColors(); u32 k=bakeKey(); if(k==hhKey[m]) continue;   // unchanged since the last bake
         ldShow("GETTING THE SIMS READY",m,hhN+TW_N+1);
         bakeInto(spr4); hhQuant(spr4,m,hhPal[m]);
@@ -323,13 +326,15 @@ static void hhBakeAll(void){
     if(!twKeep) twPick();   // who visits (new faces on another lot or in a new life)
     twKeep=1;
     for(int k=0;k<TW_N;k++){ int v=TW_V(k); if(!twHas[k]||v<hhN) continue;   // the visitors, in the free member places
-        for(int i=0;i<LK_N;i++) look[i]=hhM[v].look[i]; stage=hhM[v].stage;
+        for(int i=0;i<LK_N;i++) look[i]=hhM[v].look[i];
+        stage=hhM[v].stage;
         buildLook(); setColors(); u32 kk=bakeKey(); if(kk==hhKey[v]) continue;
         ldShow("GETTING THE NEIGHBORS READY",hhN+k,hhN+TW_N+1);
         bakeInto(spr4); hhQuant(spr4,v,hhPal[v]);
         strideK=1; bakeInto(spr4s); strideK=0; hhQuantS(spr4s,v,hhPal[v]); hhKey[v]=kk; scratch=1;
     }
-    for(int i=0;i<LK_N;i++) look[i]=sl[i]; stage=sst;
+    for(int i=0;i<LK_N;i++) look[i]=sl[i];
+    stage=sst;
     for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ vox[y][z][x]=sv[y][z][x]; dec[y][z][x]=sd[y][z][x]; }
     custom=sc; setColors();
     u32 pk=bakeKey();
@@ -368,7 +373,8 @@ static int hhAdd(const u8*lk,int stg,int asp,int ltw,const u8*tr){   // a new me
     for(int i=0;i<LK_N;i++) s->look[i]=lk[i];
     s->stage=(u8)stg; s->asp=(u8)asp; s->ltw=(u8)ltw; for(int i=0;i<TR_N;i++) s->tr[i]=tr[i];
     hhPickName(s->name); for(int i=0;i<HH_NM;i++) s->last[i]=hhPLast[i];   // family: your last name
-    for(int k=0;k<HN_N;k++) s->need[k]=(u8)(70+(rnd8()&15)); s->act=HA_IDLE; s->think=(short)(rnd8()&63); s->hd=0;
+    for(int k=0;k<HN_N;k++) s->need[k]=(u8)(70+(rnd8()&15));
+    s->act=HA_IDLE; s->think=(short)(rnd8()&63); s->hd=0;
     hhPlace(s,0);
     int a=s->uid;                                       // family: they know and like everyone at home already
     for(int u=0;u<HU_N;u++){ if(u==a) continue; relD[a][u]=relD[u][a]=40; relL[a][u]=relL[u][a]=50; relF[a][u]=relF[u][a]=0; kin[a][u]=kin[u][a]=0; }
@@ -380,7 +386,8 @@ static void hhRemove(int m){   // moves out: their sprites and relationships go 
     hhSprFree(m);   // their sprites go back to the pool; the others only move their descriptors
     for(int k=m;k<hhN-1;k++){ hhM[k]=hhM[k+1]; hhSp[k]=hhSp[k+1]; for(int i=0;i<16;i++) hhPal[k][i]=hhPal[k+1][i]; }
     if(hhN-1>m){ HhSpr*z=&hhSp[hhN-1]; for(int v=0;v<4;v++) z->sm[v]=z->dm[v]=0; z->off=0; z->len=0; }   // (no second descriptor for the same block)
-    for(int k=m;k<hhN-1;k++) hhKey[k]=hhKey[k+1]; hhKey[hhN-1]=0;   // the keys move with the sprites
+    for(int k=m;k<hhN-1;k++) hhKey[k]=hhKey[k+1];
+    hhKey[hhN-1]=0;   // the keys move with the sprites
     hhN--; hhSlotsFree();
 }
 static void hhNew(HhSim*s,const HhPre*p){
@@ -388,7 +395,8 @@ static void hhNew(HhSim*s,const HhPre*p){
     for(int i=0;i<LK_N;i++) s->look[i]=p->look[i];
     s->stage=p->stage; s->asp=p->asp; s->ltw=0; for(int i=0;i<TR_N;i++) s->tr[i]=signTr[p->sign][i];
     int i=0; for(;p->name[i]&&i<HH_NM-1;i++) s->name[i]=p->name[i]; s->name[i]=0; s->last[0]=0;
-    for(int k=0;k<HN_N;k++) s->need[k]=(u8)(70+(rnd8()&15)); s->act=HA_IDLE; s->think=(short)(rnd8()&63); s->hd=0;
+    for(int k=0;k<HN_N;k++) s->need[k]=(u8)(70+(rnd8()&15));
+    s->act=HA_IDLE; s->think=(short)(rnd8()&63); s->hd=0;
     hhPlace(s,0);
 }
 
@@ -509,7 +517,8 @@ static void twTick(int*planned){   // VISITORS: someone from another household w
             if(hhPlan(s,1)>1){ twOn[k]=1; s->act=HA_WALK;   // walking in, over to you
                 char*e=twMsg; for(const char*p=s->name;*p;) *e++=*p++; *e++=' '; for(const char*p=s->last;*p;) *e++=*p++;
                 if(twWel[k]){ const char*p=" SAYS WELCOME"; while(*p) *e++=*p++; }   // (the welcome visit)
-                else if(twFrom[k][0]){ const char*p=" FROM "; while(*p) *e++=*p++; for(p=twFrom[k];*p;) *e++=*p++; } else { const char*p=" DROPS BY"; while(*p) *e++=*p++; } *e=0;
+                else if(twFrom[k][0]){ const char*p=" FROM "; while(*p) *e++=*p++; for(p=twFrom[k];*p;) *e++=*p++; } else { const char*p=" DROPS BY"; while(*p) *e++=*p++; }
+                *e=0;
                 lnote=twMsg; lnoteT=90; }
             else twWait[k]=120;
             continue;
@@ -624,9 +633,15 @@ static int hhRomanceOk(void){ for(int m=0;m<hhN;m++) if(romOk(hhPUid,hhM[m].uid)
 static int clampR(int v){ return v<-100?-100:v>100?100:v; }
 static const char* relWord(int a,int b){   // how a sees b
     u8 f=relF[a][b]; int d=relD[a][b], l=relL[a][b];
-    if(f&RF_STEADY) return "STEADY"; if(f&RF_LOVE) return "IN LOVE"; if(f&RF_CRUSH) return "CRUSH";
-    if(d>=70&&l>=70) return "BEST FRIEND"; if(d>=50) return "FRIEND"; if(d<=-50) return "ENEMY"; if(d<=-20) return "DISLIKE";
-    if(d==0&&l==0) return "STRANGER"; return "ACQUAINTANCE";
+    if(f&RF_STEADY) return "STEADY";
+    if(f&RF_LOVE) return "IN LOVE";
+    if(f&RF_CRUSH) return "CRUSH";
+    if(d>=70&&l>=70) return "BEST FRIEND";
+    if(d>=50) return "FRIEND";
+    if(d<=-50) return "ENEMY";
+    if(d<=-20) return "DISLIKE";
+    if(d==0&&l==0) return "STRANGER";
+    return "ACQUAINTANCE";
 }
 static int uPipeOk(int u){ return u==hhPUid?pipeOk():uStage(u)>=AG_ADULT; }   // you: PIPE AGE applies; members: grown-ups (they keep no days-in-stage)
 static int socAllowed(int a,int b,int i){   // may a do interaction i to b now?
@@ -808,7 +823,9 @@ static int socPick(int a,int b){   // what a free-will Sim says to b
     pool[n++]=SC_TALK; if(socAllowed(a,b,SC_JOKE)&&uTr(a,TR_PLAY)>=4) pool[n++]=SC_JOKE; if(socAllowed(a,b,SC_COMPL)&&nice>=5) pool[n++]=SC_COMPL;
     if(socAllowed(a,b,SC_PASS)&&simMin>=16*60+20&&simMin<17*60+20) return SC_PASS;   // 4:20
     if(socAllowed(a,b,SC_PASS)&&uTr(a,TR_PLAY)>=4) pool[n++]=SC_PASS;
-    if(socAllowed(a,b,SC_HIGH5)) pool[n++]=SC_HIGH5; if(socAllowed(a,b,SC_HUG)&&nice>=4) pool[n++]=SC_HUG; if(socAllowed(a,b,SC_TRICK)&&uTr(a,TR_ACT)>=5) pool[n++]=SC_TRICK;
+    if(socAllowed(a,b,SC_HIGH5)) pool[n++]=SC_HIGH5;
+    if(socAllowed(a,b,SC_HUG)&&nice>=4) pool[n++]=SC_HUG;
+    if(socAllowed(a,b,SC_TRICK)&&uTr(a,TR_ACT)>=5) pool[n++]=SC_TRICK;
     return pool[(r*n)>>8];
 }
 static void hhArrive(int m){   // a free-will Sim reached the one it wanted to see
@@ -877,7 +894,8 @@ static void relScreen(void){
     u16 prev=keyNow(); int top=0;   // seven rows fit: UP / DOWN scroll a bigger household
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; if(pr&(K_A|K_B|K_START)) return;
-        if((pr&K_DOWN)&&top+7<hhN) top++; if((pr&K_UP)&&top>0) top--;
+        if((pr&K_DOWN)&&top+7<hhN) top++;
+        if((pr&K_UP)&&top>0) top--;
         if((pr&K_SEL)&&dbgOn){ hhInvite(); prev=keyNow(); }   // SELECT: a new Sim moves in (DEBUG CODE only)
         box(3,1,234,157); char t[44]; { char*e=simCat(simCat(t,"RELATIONSHIPS OF "),hhPName); if(hhPLast[0]){ *e++=' '; simCat(e,hhPLast); } } text(10,6,t,GOLD,1);
         text(84,16,"YOU TO THEM",DIMC,1); text(162,16,"THEM TO YOU",DIMC,1);
@@ -910,7 +928,7 @@ static void hhRc(int m,HhR*r){   // what a member puts INTO the picture: only it
     if(hhM[m].act==HA_AWAY){ r->x0=r->x1=r->y0=r->y1=0; return; }   // off the lot: nothing
     r->x0=(short)(hhX[m]-3); r->x1=(short)(hhX[m]+4); r->y0=(short)(hhY[m]-hhH[m]-1); r->y1=(short)(hhY[m]-hhH[m]+1);
     if(hhM[m].bubT){ int by=hhY[m]-hhH[m]-50; if(r->y0>by) r->y0=(short)by; if(r->x0>hhX[m]-5) r->x0=(short)(hhX[m]-5); if(r->x1<hhX[m]+6) r->x1=(short)(hhX[m]+6); } }
-static unsigned hhSig(int m){ return (unsigned)(hhX[m]&0x3FF)|((unsigned)(hhY[m]&0x3FF)<<10)|((unsigned)(hhH[m]&15)<<22)|((unsigned)(hhM[m].bubT?1+(hhM[m].bub&31):0)<<26)^(hhM[m].act==HA_AWAY?0x80000000u:0); }
+static unsigned hhSig(int m){ return ((unsigned)(hhX[m]&0x3FF)|((unsigned)(hhY[m]&0x3FF)<<10)|((unsigned)(hhH[m]&15)<<22)|((unsigned)(hhM[m].bubT?1+(hhM[m].bub&31):0)<<26))^(hhM[m].act==HA_AWAY?0x80000000u:0); }
 static int hhBehindAt(s32 fx,s32 fy){   // is a full-height wall in front of this spot (towards the camera)? then a Sim there is drawn see-through
     s32 rx,ry; rotPos(fx,fy,&rx,&ry); int x=(int)(rx>>8), y=(int)(ry>>8);
     static const signed char d[5][2]={{1,0},{0,1},{1,1},{2,1},{1,2}};
@@ -957,7 +975,8 @@ static void fxObjUpdate(void); static void hhObjUpdate0(void){   // in vblank: h
     for(i=0;i<n;i++){ int id=w[i].id; if(hhSlotOf[id]>=0) continue;
         int sl=-1; for(int t=0;t<OBJ_SLOTS;t++) if(hhSlotId[t]<0){ sl=t; break; }
         if(sl<0){ int fd=w[i].dd+24; for(int t=0;t<OBJ_SLOTS;t++){ int o=hhSlotId[t]; if(ddOf[o]>fd){ fd=ddOf[o]; sl=t; } }   // steal from the farthest, but only if it is clearly farther (no ping-pong)
-                  if(sl<0) continue; hhSlotOf[hhSlotId[sl]]=-1; }
+                  if(sl<0) continue;
+                  hhSlotOf[hhSlotId[sl]]=-1; }
         hhSlotId[sl]=id; hhSlotOf[id]=(signed char)sl; hhSlotKey[sl]=-1;
         const u16*pl=hhPalOf(id); for(int c=0;c<16;c++) OBJ_PAL[sl*16+c]=pl[c];
     }
@@ -1048,7 +1067,8 @@ static void hhSwitchFrom(int f){   // the first f members go to the back of the 
     hhSp[hhN-1]=hhSp[HH_MAX]; for(int i=0;i<16;i++) hhPal[hhN-1][i]=pl[i];
     { HhSpr*z=&hhSp[HH_MAX]; for(int v=0;v<4;v++) z->sm[v]=z->dm[v]=0; z->off=0; z->len=0; }   // the spare is empty again
     spBounds();
-    for(int m=0;m<HH_MAX;m++) hhKey[m]=0; sprKey=0;   // sprites moved around and the player's came from a hardware sprite: bake them again next time
+    for(int m=0;m<HH_MAX;m++) hhKey[m]=0;
+    sprKey=0;   // sprites moved around and the player's came from a hardware sprite: bake them again next time
     hhSlotsFree();
 }
 
@@ -1059,12 +1079,17 @@ static void hhSwitchFrom(int f){   // the first f members go to the back of the 
 static void hhSave(void){
     volatile u8*m=SRAM_BASE+HH_OFF; int k=3; u8 sum=0x48;
     m[0]='H'; m[1]='?'; m[2]=(u8)hhN; m[k++]=(u8)hhPUid;   // 'H:' = 'H9' for 8 Sims (8 uids); 'H;' adds the format 11 sliders; 'H?' adds the kin (who is whose mother, sister, roommate)
-    for(int j=0;j<HH_NM;j++) m[k++]=(u8)hhPName[j]; for(int j=0;j<HH_NM;j++) m[k++]=(u8)hhPLast[j];   // your own name
+    for(int j=0;j<HH_NM;j++) m[k++]=(u8)hhPName[j];
+    for(int j=0;j<HH_NM;j++) m[k++]=(u8)hhPLast[j];   // your own name
     for(int i=0;i<hhN;i++){ const HhSim*s=&hhM[i];
         for(int j=0;j<LK_N;j++) if(!lkSlide(j)) m[k++]=s->look[j];   // 'H9': the picks as bytes, then the sliders (9 values) two to a byte
         { int h=-1; for(int j=0;j<LK_N;j++) if(lkSlide(j)){ int v=s->look[j]&15; if(h<0) h=v; else { m[k++]=(u8)(h|(v<<4)); h=-1; } } if(h>=0) m[k++]=(u8)h; }
         m[k++]=s->stage; m[k++]=s->asp; m[k++]=s->ltw;
-        for(int j=0;j<TR_N;j++) m[k++]=s->tr[j]; for(int j=0;j<HH_NM;j++) m[k++]=(u8)s->name[j]; for(int j=0;j<HH_NM;j++) m[k++]=(u8)s->last[j]; for(int j=0;j<HN_N;j++) m[k++]=s->need[j]; m[k++]=s->uid; }
+        for(int j=0;j<TR_N;j++) m[k++]=s->tr[j];
+        for(int j=0;j<HH_NM;j++) m[k++]=(u8)s->name[j];
+        for(int j=0;j<HH_NM;j++) m[k++]=(u8)s->last[j];
+        for(int j=0;j<HN_N;j++) m[k++]=s->need[j];
+        m[k++]=s->uid; }
     for(int a=0;a<HU_N;a++)for(int b=0;b<HU_N;b++){ m[k++]=(u8)relD[a][b]; m[k++]=(u8)relL[a][b]; m[k++]=relF[a][b]; }
     for(int a=0;a<HU_N;a++)for(int b=0;b<HU_N;b++) m[k++]=kin[a][b];
     for(int i=2;i<k;i++) sum+=m[i];
@@ -1088,7 +1113,8 @@ static void hhLoad(void){
           int h=-1; for(int j=0;j<lim;j++) if(lkSlide(j)){ if(h<0){ int b=m[k++]; s->look[j]=(u8)(b&15); h=b>>4; } else { s->look[j]=(u8)h; h=-1; } } }
         else for(int j=0;j<LK_N;j++) s->look[j]=j<nl?m[k++]:0;
         s->stage=m[k++]; s->asp=m[k++]; s->ltw=m[k++];
-        for(int j=0;j<TR_N;j++) s->tr[j]=m[k++]; if(v7){ for(int j=0;j<HH_NM;j++) s->name[j]=(char)m[k++]; for(int j=0;j<HH_NM;j++) s->last[j]=(char)m[k++]; } else { for(int j=0;j<10;j++) s->name[j]=(char)m[k++]; s->last[0]=0; s->name[9]=0; } s->name[HH_NM-1]=s->last[HH_NM-1]=0;
+        for(int j=0;j<TR_N;j++) s->tr[j]=m[k++];
+        if(v7){ for(int j=0;j<HH_NM;j++) s->name[j]=(char)m[k++]; for(int j=0;j<HH_NM;j++) s->last[j]=(char)m[k++]; } else { for(int j=0;j<10;j++) s->name[j]=(char)m[k++]; s->last[0]=0; s->name[9]=0; } s->name[HH_NM-1]=s->last[HH_NM-1]=0;
         for(int j=0;j<HN_N;j++){ s->need[j]=m[k++]; if(s->need[j]>100) s->need[j]=70; } s->uid=m[k++];
         if(s->stage>=AG_N||s->asp>=AS_N||s->uid>=hu||s->uid==pu) return;   // (AS_GROW, past AS_PICK, is the aspiration of the young)
         if(i>=HH_MAX) continue;   // (a member past the 8 Sims a household holds now: moved out)
@@ -1118,7 +1144,8 @@ static int hhMoveIn(const HhFam*F){   // a pre-made family moves in (HOUSEHOLD, 
     int add=0, first=hhN;
     for(int i=0;i<F->n&&hhN<HH_MAX;i++){ twDrop(hhN); hhNew(&hhM[hhN],&F->m[i]);
         { const char*f=F->fam; if(f[0]=='T'&&f[1]=='H'&&f[2]=='E'&&f[3]==' ') f+=4; int k=0; while(f[k]&&k<HH_NM-1){ hhM[hhN].last[k]=f[k]; k++; }   // THE MIDNIGHTS -> MIDNIGHT
-          if(k>1&&hhM[hhN].last[k-1]=='S') k--; hhM[hhN].last[k]=0; }
+          if(k>1&&hhM[hhN].last[k-1]=='S') k--;
+          hhM[hhN].last[k]=0; }
         hhN++; add++; }
     for(int i=first;i<hhN;i++)for(int j=first;j<hhN;j++) if(i!=j){   // a family already knows and likes each other; couples (the first two adults) are in love
         int a=hhM[i].uid, b=hhM[j].uid; relD[a][b]=40; relL[a][b]=50; relF[a][b]=0; kin[a][b]=0;

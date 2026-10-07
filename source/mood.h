@@ -98,7 +98,8 @@ static void moodTick(void){   // once per logic step while alive
     int comfort=lfood<100-lbl?lfood:100-lbl;                            // 0..100: worst of hunger and bladder
     { int sc=simsComfort()+20; if(sc>100) sc=100; if(sc<comfort) comfort=sc; }   // ...and the sims.h needs (energy, hygiene, comfort), with some slack
     int target=(comfort*MOOD_W_COMFORT+moodFunPct()*(100-MOOD_W_COMFORT))/100+simsAspMood();   // the aspiration meter lifts (platinum) or sinks (failing) it
-    if(target<0) target=0; if(target>100) target=100;
+    if(target<0) target=0;
+    if(target>100) target=100;
     int t=target*MOOD_ONE;
     if(moodHap<t){ moodHap+=MOOD_HAP_UP; if(moodHap>t) moodHap=t; } else if(moodHap>t){ moodHap-=MOOD_HAP_DOWN; if(moodHap<t) moodHap=t; }
     moodHap=moodClamp(moodHap);

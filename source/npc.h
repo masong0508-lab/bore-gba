@@ -223,7 +223,8 @@ static int copAtExit(int px,int py){   // you are on or next to a way out of the
     return 0;
 }
 static int copSpawn(void){   // one more cop walks in from a way off the lot
-    if(copN>=COP_MAX||copN>=copMax) return 0; int a=twFar(); if(a<0) return 0;
+    if(copN>=COP_MAX||copN>=copMax) return 0;
+    int a=twFar(); if(a<0) return 0;
     HhSim*c=&copS[copN]; c->fx=(a%MW)*256+128; c->fy=(a/MW)*256+128; c->pn=c->pi=0; c->gok=0; c->stage=AG_ADULT; c->act=HA_WALK; c->hd=0; copRp[copN]=45; copN++; return 1;
 }
 static void copPlaceAgain(int i){ int a=twFar(); if(a<0) return; HhSim*c=&copS[i]; c->fx=(a%MW)*256+128; c->fy=(a/MW)*256+128; c->pn=c->pi=0; c->gok=0; }
@@ -280,7 +281,8 @@ static void copTick(int*planned){   // once per logic step (hhTick)
         }
         break; }
     case 3:
-        if(lstun<2) lstun=2; lsp=0; lgrind=0;
+        if(lstun<2) lstun=2;
+        lsp=0; lgrind=0;
         copT--;
         if(copT%60==0&&copT>0){ simCatN(simCat(copMsg,"BUSTED  JAIL "),copT/60); lnote=copMsg; lnoteT=90; }
         if(copT<=0){ copSt=4; copT=1200; copCool=3600; copHeat=0; lnote="RELEASED  BEHAVE";  lnoteT=90;

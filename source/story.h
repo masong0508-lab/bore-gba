@@ -57,7 +57,8 @@ static int stMember(int uid){ for(int m=0;m<hhN;m++) if(hhM[m].uid==uid) return 
 static void stMixLook(u8*out,const u8*a,const u8*b,int stg){   // a child of a and b: every pick, slider and colour from one of them, then fitted to the age
     u8 sl[LK_N], ss=stage; for(int i=0;i<LK_N;i++){ sl[i]=look[i]; look[i]=(rnd8()&1)?a[i]:b[i]; }
     stage=(u8)stg; look[LK_BEARD]=0; fixLook(); for(int i=0;i<LK_N;i++) out[i]=look[i];
-    for(int i=0;i<LK_N;i++) look[i]=sl[i]; stage=ss;
+    for(int i=0;i<LK_N;i++) look[i]=sl[i];
+    stage=ss;
 }
 static int stAddSim(const u8*lk,int stg,const char*last){   // someone moves in for the story (not the debug-code HOUSEHOLD menu): their place, -1 = full
     u8 tr[TR_N]; for(int i=0;i<TR_N;i++) tr[i]=(u8)(rnd8()%11);

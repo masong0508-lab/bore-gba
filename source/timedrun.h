@@ -23,7 +23,9 @@ static int trnBestGet(void){   // the high score (0 = none yet)
 static int trnRunsGet(void){ volatile u8*m=SRAM_BASE+TRN_OFF; return (trnBestGet()||m[0]=='T')?(m[5]|(m[6]<<8)):0; }
 static void trnBestPut(int best,int runs){
     volatile u8*m=SRAM_BASE+TRN_OFF; unsigned sum=0x7B;
-    if(best<0) best=0; if(best>0xFFFFFF) best=0xFFFFFF; if(runs>0xFFFF) runs=0xFFFF;
+    if(best<0) best=0;
+    if(best>0xFFFFFF) best=0xFFFFFF;
+    if(runs>0xFFFF) runs=0xFFFF;
     m[2]=(u8)best; m[3]=(u8)(best>>8); m[4]=(u8)(best>>16); m[5]=(u8)runs; m[6]=(u8)(runs>>8); m[7]=0;
     for(int i=2;i<TRN_LEN-1;i++) sum+=m[i];
     m[TRN_LEN-1]=(u8)sum; m[0]='T'; m[1]='R';
