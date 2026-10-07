@@ -2503,7 +2503,7 @@ static void itemSpanInit(void);
 // Timer2 (65536 Hz) is the clock for pacing, the speed meter and the load counter.
 #define R_TM2D   (*(volatile u16*)0x04000108)
 #define R_TM2CNT (*(volatile u16*)0x0400010A)
-static void homeUse(int k); static void homeTick(void); static void homeMusic(void); static void skillsScreen(void); static void tricksScreen(void); static void skLoad(void);   // skills.h: skills and the home pack items
+static int prFence(int x,int y); static void homeUse(int k); static void homeTick(void); static void homeMusic(void); static void skillsScreen(void); static void tricksScreen(void); static void skLoad(void);   // skills.h: skills and the home pack items
 static void radioTune(int sys);   // (the radio and sound system items: defined with the game music, below)
 static int jbLast=-1;   // the last song picked at random anywhere (menus, jukebox, game music): the next pick avoids it
 static u32 uiTicks;     // counts frames in the menus: how long you sat there stirs the random numbers
@@ -2744,11 +2744,11 @@ static void lifeStep(u16 k,u16 pr,int fr){
         { static u8 vxH, vxP; if(lfood<SIM_LOW){ if(!vxH){ vxH=1; voxNag(V_im_hungryrururyry); } } else if(lfood>=40) vxH=0;   // the hunger and the bladder speak up once each time they run low
           if(lbl>=80){ if(!vxP){ vxP=1; voxNag(V_need_to_pee); } } else if(lbl<50) vxP=0; }
         if(lbl>=100){ lbl=0; lstun=90; lsp=0; lgrind=0; lscore=lscore>100?lscore-100:0; sfxPlay(SFX_CRY); lnote="ACCIDENT"; lnoteT=90; moodEvent(M_ACCIDENT); }
-        int nf=0, nt=0, nb=0, nh=0, nc=0, np=0, nq=0, nph=0, nrd=0, nsy=0, ntv=0, nbk=0, ncf=0, naq=0, ntm=0;
+        int nf=0, nt=0, nb=0, nh=0, nc=0, np=0, nq=0, nph=0, nrd=0, nsy=0, ntv=0, nbk=0, ncf=0, naq=0, ntm=0, nfe=0;
         for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++){ int tx=(lfx>>8)+dx, ty=(lfy>>8)+dy; if(tx<0||ty<0||tx>=MW||ty>=MH) continue;
-            char c=lifeMap[ty][tx]; if(c=='F') nf=1; if(c=='T') nt=1; if(c=='S') nb=1; if(c=='H') nh=1; if(c=='C'||c=='U') nc=1; if(c=='G') np=1; if(c=='Q') nq=1; if(c=='I') nph=1; if(c=='R') nrd=1; if(c=='A') nsy=1; if(c=='v') ntv=1; if(c=='b') nbk=1; if(c=='c') ncf=1; if(c=='q') naq=1; if(c=='m') ntm=1; }
-        lnear=nf?1:(nt?2:(nb?3:(nh?4:(np?6:(nq?7:(nph?8:(nrd?9:(nsy?10:(ntv?11:(nbk?12:(ncf?13:(naq?14:(ntm?15:(nc?5:0))))))))))))));   // 7 the DeadSet   // 1 fridge, 2 toilet, 3 bed, 4 shower, 6 water pipe, 5 sofa or beanbag
-        if((pr&K_R)&&lstun<=0&&lz<=fh&&!simAct&&hhSocR(lnear)) pr&=~K_R;   // next to a household Sim: the social menu (it offers the furniture too)
+            char c=lifeMap[ty][tx]; if(c=='F') nf=1; if(c=='T') nt=1; if(c=='S') nb=1; if(c=='H') nh=1; if(c=='C'||c=='U') nc=1; if(c=='G') np=1; if(c=='Q') nq=1; if(c=='I') nph=1; if(c=='R') nrd=1; if(c=='A') nsy=1; if(c=='v') ntv=1; if(c=='b') nbk=1; if(c=='c') ncf=1; if(c=='q') naq=1; if(c=='m') ntm=1; if(c=='W'&&prFence(tx,ty)) nfe=1; }
+        lnear=nf?1:(nt?2:(nb?3:(nh?4:(np?6:(nq?7:(nph?8:(nrd?9:(nsy?10:(ntv?11:(nbk?12:(ncf?13:(naq?14:(ntm?15:(nfe?16:(nc?5:0)))))))))))))));   // 7 the DeadSet   // 1 fridge, 2 toilet, 3 bed, 4 shower, 6 water pipe, 5 sofa or beanbag
+        if((pr&K_R)&&lstun<=0&&lz<=fh&&!simAct&&hhSocR(lnear==16?0:lnear)) pr&=~K_R;   // next to a household Sim: the social menu (it offers the furniture too)
         if((pr&K_R)&&lnear&&lstun<=0&&lz<=fh){
             if(lnear==1){   // fridge: eat
                 if(lfood>=95){ lnote="FULL"; lnoteT=40; }

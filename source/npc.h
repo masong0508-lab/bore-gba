@@ -228,7 +228,7 @@ static int copSpawn(void){   // one more cop walks in from a way off the lot
 }
 static void copPlaceAgain(int i){ int a=twFar(); if(a<0) return; HhSim*c=&copS[i]; c->fx=(a%MW)*256+128; c->fy=(a/MW)*256+128; c->pn=c->pi=0; c->gok=0; }
 static void copStart(int max,int fast,int wait){ copSt=1; copN=0; copMax=(u8)(max>COP_MAX?COP_MAX:max); copFast=(u8)fast; copT=(short)wait; copTry=0; copRT=0; copTired=0; }
-static int prNote(int n); static int prBook(void); static int prGuardTick(int*planned);   // prison.h
+static int prNote(int n); static int prBook(void); static int prGuardTick(int*planned); static const HhSim* prVisSprite(void);   // prison.h
 static void copCrime(int n){   // called when you hurt someone
     if(prNote(n)) return;   // prison.h: the record grows (in the prison itself: more days, and no cops)
     if(copCool>0||copSt) return;
@@ -319,4 +319,8 @@ static void npcObjUpdate(void){
         int a=k->air, h=a?a*(26-a)/10:0, x=sx-8, y=sy-30-h;
         if(x+16<=vpX0||x>=vpX1||y+32<=sbY0||y>=sbY1) continue;
         e[0]=(u16)((y&255)|0x8000); e[1]=(u16)((x&511)|0x8000|(k->face?0x1000:0)); e[2]=(u16)((NPC_TILE+(a?3:2)*8)|((NPC_PALS+i)<<12)); }
+    if(!hide&&!npcSkN){   // the prison visitor (prison.h) borrows the first skater's sprite slot: the cop art in a skater's colours
+        const HhSim*v=prVisSprite();
+        if(v){ volatile u16*e=oam+(NPC_OAM0+1)*4; int sx,sy; fxScreen(v->fx,v->fy,&sx,&sy); int x=sx-8, y=sy-30, fr=(v->pi<v->pn)&&((fxT>>3)&1)?1:0;
+            if(!(x+16<=vpX0||x>=vpX1||y+32<=sbY0||y>=sbY1)){ e[0]=(u16)((y&255)|0x8000); e[1]=(u16)((x&511)|0x8000|((v->hd==4||v->hd==8)?0x1000:0)); e[2]=(u16)((NPC_TILE+fr*8)|((NPC_PALS+(v->uid%3))<<12)); } } }
 }
