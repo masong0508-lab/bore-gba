@@ -62,3 +62,23 @@ static void statsScreen(void){
         present();
     }
 }
+static void achScreen(void){   // PAUSE > MY SIM > MORE > ACHIEVEMENTS: UP / DOWN scroll
+    lsEnsure(); static char b[32] EWRAM_BSS; u16 prev=keyNow(); u32 cnt=0; int top=0; const int rows=9;
+    for(;;){
+        u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
+        if(pr&(K_B|K_START|K_A)) return;
+        if((pr&K_DOWN)&&top+rows<LS_NACH) top++;
+        if((pr&K_UP)&&top>0) top--;
+        if(cnt&7){ vsync(); continue; }
+        stBack("ACHIEVEMENTS",(int)cnt);
+        u32 m=lsAchMask(); int n=0; for(int i=0;i<LS_NACH;i++) if(m>>i&1) n++;
+        char*e=simCatN(b,n); e=simCat(e," OF "); e=simCatN(e,LS_NACH); simCat(e," UNLOCKED  "); simCat(b,hhPName); text(10,21,b,GOLD,1);
+        for(int r=0;r<rows&&top+r<LS_NACH;r++){ int i=top+r, y=33+r*11, d=m>>i&1;
+            text(10,y,lsAch[i].nm,d?WHITE:RGB(17,19,23),1);
+            if(d) text(230-tw("DONE",1),y,"DONE",GOLD,1);
+            else { u32 v=lsAchVal(i); u32 p=v*100/lsAch[i].t; if(lsAch[i].t>40000000) p=v/(lsAch[i].t/100); char*q=simCatN(b,(int)(p>99?99:p)); simCat(q," PCT"); text(230-tw(b,1),y,b,RGB(12,14,16),1); } }
+        text(10,138,"BADGES COUNT THE SIM YOU CONTROL",RGB(12,14,16),1);
+        text(10,148,"UP DOWN SCROLL  A OR B BACK",RGB(12,14,16),1);
+        present();
+    }
+}

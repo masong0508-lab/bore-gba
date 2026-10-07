@@ -52,9 +52,26 @@ static void lsAdd(int k,u32 n){ lsEnsure(); u32 v=lsc[k]+n; lsc[k]=v<lsc[k]?0xFF
     int g=lsToG[k]; if(g>=0){ v=lg[g]+n; lg[g]=v<lg[g]?0xFFFFFFFFu:v; lgDirty=1; } }
 static void lsMax(int k,u32 n){ lsEnsure(); if(n>lsc[k]){ lsc[k]=n; lsDirty=1; } }
 static void lsNote(const char*t){ lnote=t; lnoteT=150; }
+
+// ---- ACHIEVEMENTS: badges worked out from the counters (nothing extra is saved). src 0 = this Sim, 1 = the game totals ----
+typedef struct { const char*nm; u8 src, k; u32 t; } LsAch;
+#define LS_NACH 18
+static const LsAch lsAch[LS_NACH]={
+    {"FIRST TRICK",0,LS_TRICKS,1},{"TRICK MASTER",0,LS_TRICKS,100},{"TRICK LEGEND",0,LS_TRICKS,1000},
+    {"COMBO KING  5000",0,LS_BESTCOMBO,5000},{"COMBO GOD  20000",0,LS_BESTCOMBO,20000},
+    {"SCORE 10000",0,LS_SCORE,10000},{"SCORE 1 MILLION",0,LS_SCORE,1000000},
+    {"RAIL RAT  50 GRINDS",0,LS_GRINDS,50},{"AIRHEAD  100 JUMPS",0,LS_AIRS,100},{"CRASH TEST  50 BAILS",0,LS_BAILS,50},
+    {"WISH GRANTER  25 WANTS",0,LS_WANTS,25},{"EMPLOYEE  A PROMOTION",0,LS_PROMOS,1},{"FOODIE  100 MEALS",0,LS_MEALS,100},
+    {"MARATHON  10000 STEPS",0,LS_STEPS,10000},{"100 DAYS LIVED",0,LS_DAYS,100},
+    {"NINE LIVES  9 DEATHS",0,LS_DEATHS,9},{"10 HOURS WITH A SIM",0,LS_SECS,36000},{"20 HOURS IN THE GAME",1,LG_SECS,72000}};
+static u32 lsAchVal(int i){ return lsAch[i].src?lg[lsAch[i].k]:lsc[lsAch[i].k]; }
+static u32 lsAchMask(void){ u32 m=0; for(int i=0;i<LS_NACH;i++) if(lsAchVal(i)>=lsAch[i].t) m|=1u<<i; return m; }
+static u32 lsPrevMask EWRAM_BSS; static int lsPrevRow EWRAM_BSS;
+static char lsBadge[40] EWRAM_BSS;
 static void lsMile(void){   // once a second: milestone notes (hours played, lifetime score) and a flush to the save chip every minute
     u32 s=lsc[LS_SECS], p=lsc[LS_SCORE];
-    if(!lsPrevOk){ lsPrevOk=1; lsPrevS=s; lsPrevP=p; return; }
+    if(!lsPrevOk||lsPrevRow!=lsRow()){ lsPrevOk=1; lsPrevRow=lsRow(); lsPrevS=s; lsPrevP=p; lsPrevMask=lsAchMask(); return; }   // (a new Sim or a new player: look again, no banner)
+    { u32 m=lsAchMask(), nw=m&~lsPrevMask; lsPrevMask=m; for(int i=0;i<LS_NACH&&nw;i++) if(nw>>i&1){ char*d=lsBadge; const char*a="BADGE  "; while(*a) *d++=*a++; a=lsAch[i].nm; while(*a&&d<lsBadge+38) *d++=*a++; *d=0; lsNote(lsBadge); break; } }
     static const u32 hr[4]={1,10,50,100}, sc[4]={10000,100000,500000,1000000};
     static const char* const hn[4]={"1 HOUR PLAYED","10 HOURS PLAYED","50 HOURS PLAYED","100 HOURS  TRUE FAN"};
     static const char* const sn[4]={"LIFETIME SCORE 10000","LIFETIME SCORE 100000","LIFETIME SCORE 500000","LIFETIME SCORE 1 MILLION"};

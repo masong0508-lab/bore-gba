@@ -144,7 +144,7 @@ static void msPeople(int top){
         if(relF[a][b]&RF_STEADY) simIcon(224,y+2,IC_HEART,RGB(31,14,20)); }
     text(10,147,hhN>6?"TOP DAILY  LOW LIFETIME  UP DOWN MORE":dbgOn?"TOP DAILY  LOW LIFETIME  SELECT ADD":"TOP BAR DAILY  LOW BAR LIFETIME",RGB(12,14,16),1);
 }
-#define MY_MORE 4
+#define MY_MORE 5
 static void mySimScreen(void){
     static const char* const tn[7]={"SIM","WANTS","JOB","SKILLS","PEOPLE","STUFF","MORE"};
     static u8 keep EWRAM_BSS;   // the tab you were on last time
@@ -169,7 +169,7 @@ static void mySimScreen(void){
                 else toast(simBuy(sel));
                 prev=keyNow(); dirty=1; } }
         if(tab==6){ if(pr&K_DOWN){ ms=(ms+1)%MY_MORE; dirty=1; } if(pr&K_UP){ ms=(ms+MY_MORE-1)%MY_MORE; dirty=1; }
-            if(pr&K_A){ if(ms==0) tricksScreen(); else if(ms==1) goalsScreen(); else if(ms==2) trnPick(); else statsScreen();
+            if(pr&K_A){ if(ms==0) tricksScreen(); else if(ms==1) goalsScreen(); else if(ms==2) trnPick(); else if(ms==3) statsScreen(); else achScreen();
                 prev=keyNow(); dirty=1; } }
         if(!dirty&&(cnt>>3)==lt){ vsync(); continue; }   // idle: the picture on the screen is still right
         dirty=0; lt=cnt>>3;
@@ -182,9 +182,9 @@ static void mySimScreen(void){
         else if(tab==3){ msPanel(35,121); msSkills(sel); }
         else if(tab==4){ msPanel(35,121); msPeople(top); }
         else if(tab==5) msStuff(sel);
-        else { static const char* const ds[MY_MORE]={"THE SKATE CONTROLS ON ONE PAGE","THE GOALS OF THIS LOT AND THE TOWN","A 2 MINUTE TRICK SCORE ATTACK","HOURS PLAYED, LIFETIME SCORE AND MORE"};
+        else { static const char* const ds[MY_MORE]={"THE SKATE CONTROLS ON ONE PAGE","THE GOALS OF THIS LOT AND THE TOWN","A 2 MINUTE TRICK SCORE ATTACK","HOURS PLAYED, LIFETIME SCORE AND MORE","BADGES TO UNLOCK FROM YOUR STATS"};
             msPanel(35,121); text(10,40,"MORE ABOUT YOU",GOLD,1);
-            for(int i=0;i<MY_MORE;i++){ const char*nm=i==0?"VIEW TRICKS":i==1?"VIEW GOALS":i==2?trnLabel():"LIFETIME STATS"; int y=52+i*15, on=i==ms;
+            for(int i=0;i<MY_MORE;i++){ const char*nm=i==0?"VIEW TRICKS":i==1?"VIEW GOALS":i==2?trnLabel():i==3?"LIFETIME STATS":"ACHIEVEMENTS"; int y=52+i*15, on=i==ms;
                 s2rr(10,y,220,13,on?GOLD:RGB(10,20,30)); s2rr(11,y+1,218,11,on?RGB(6,18,10):RGB(4,9,18)); text(16,y+3,nm,on?WHITE:RGB(20,26,30),1); }
             rect(8,131,224,1,RGB(14,26,31)); text(10,136,ds[ms],RGB(17,29,31),1); text(10,147,"A OPEN",RGB(12,14,16),1); }
         present();
