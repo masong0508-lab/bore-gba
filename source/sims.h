@@ -96,7 +96,7 @@ enum { SE_EAT, SE_PEE, SE_SLEEP, SE_SHOWER, SE_SOFA, SE_TRICK, SE_COMBO, SE_GRIN
        SE_GLIDE, SE_CHARGE,
        SE_TALK, SE_FRIEND, SE_BFF, SE_KISS, SE_LOVE, SE_STEADY, SE_HUGGED, SE_LAUGH,   // social (house.h)
        SE_REJECT, SE_SLAPPED, SE_FIGHT, SE_ENEMY, SE_LONELY,
-       SE_PIPE, SE_TV, SE_READ, SE_FISH, SE_RUN, SE_LETTER, SE_TAPE, SE_SWITCH, SE_WALLTAP, SE_MANUAL, SE_RADIO, SE_N };   // SE_PIPE: a puff on the water pipe, or PUFF PUFF PASS; SE_TV .. SE_RUN: the home pack (skills.h)   // (event numbers are not saved: they can be put in any order; table ROWS are saved by index)
+       SE_PIPE, SE_TV, SE_READ, SE_FISH, SE_RUN, SE_LETTER, SE_TAPE, SE_SWITCH, SE_WALLTAP, SE_MANUAL, SE_RADIO, SE_SPONSOR, SE_N };   // SE_PIPE: a puff on the water pipe, or PUFF PUFF PASS; SE_TV .. SE_RUN: the home pack (skills.h)   // (event numbers are not saved: they can be put in any order; table ROWS are saved by index)
 // icons (7x7, simIconArt): drawn in the HUD cells, the aspiration panel and the creator
 enum { IC_FOOD, IC_WC, IC_BED, IC_SHOWER, IC_SOFA, IC_BOARD, IC_COMBO, IC_RAIL, IC_AIR, IC_STAR, IC_BRIEF, IC_UP, IC_DOWN, IC_BOOK, IC_HOUSE,
        IC_COIN, IC_TROPHY, IC_CAKE, IC_HEART, IC_SKULL, IC_HURT, IC_PUDDLE, IC_SAD, IC_GLASS, IC_CANE, IC_STINK, IC_BAIL, IC_ZZZ,
@@ -189,6 +189,7 @@ static const SimWish simWants[]={   // '#' in a name is replaced by the wish's p
     {"HOLD A MANUAL",  SE_MANUAL, 15,SR_PAD,   IC_BOARD, WP_NONE, A(AS_GROW)|A(AS_KNOW),            TP(TR_ACT), 0,WH_ANY},   // needs a MANUAL PAD
     {"TUNE THE RADIO", SE_RADIO,   8,SR_RADIO, IC_STAR,  WP_NONE, A(AS_PLEAS)|A(AS_HOME),           TP(TR_PLAY),0,WH_ANY},   // needs a RADIO or SOUND SYSTEM
     {"8 TRICK COMBO",  SE_COMBO,  40,0,        IC_COMBO, WP_NONE, A(AS_POP)|A(AS_KNOW),             TP(TR_ACT), 8,WH_ANY},
+    {"SPONSOR BONUS",  SE_SPONSOR,25,0,        IC_COIN,  WP_NONE, A(AS_FORTUNE)|A(AS_POP),          TP(TR_ACT), 0,WH_JOB},   // a PRO SKATER shift well over quota (simShiftEnd)
 };
 static const SimWish simFears[]={
     {"BAILING",        SE_BAIL,     8,0,IC_BAIL,  WP_NONE,A(AS_POP)|A(AS_GROW),          TN(TR_OUT), 0,WH_ANY},
@@ -635,9 +636,12 @@ static void simCameo(void){   // a good shift: the duo (or Sk9m) and one of thei
     int r=simRnd()%5;   // the catchphrase is the favourite (2 of 5): it names him and fills both free notes, "SK9M  IM KIND OF A BIG DEAL" then "YEAHHHH"
     if(r<2){ simQPush(simSk9mLn[0]); simQPush(simSk9mLn[1]); } else { simQPush(simSk9mNm); simQPush(simSk9mLn[r]); }
 }
+static char spMsg[32] EWRAM_BSS;   // the sponsor note
+static const char* const jobFlav[JT_N]={"DOORS OPEN  LIGHTS UP","LOOK BUSY","WARM UP FIRST","BACK TO THE GRIND","KEEP A LOW PROFILE","REPORT FOR DUTY","THE BELL RINGS","THE FRYER IS HOT","THE SPONSOR IS WATCHING"};   // a line when the shift starts, one per track (enum order)
 static void simShiftEnd(void){   // the end of a shift on a work day (the track's hours)
-    const JobTr*t=jobT(); int q=simQuota(), p=shiftPts, pay=0, jenes=0, base=jobPayOf(jobTrack,jobLvl,jobBr);
+    const JobTr*t=jobT(); int q=simQuota(), p=shiftPts, pay=0, jenes=0, sp=0, base=jobPayOf(jobTrack,jobLvl,jobBr);
     if(p>=q){ pay=base+(p>=2*q?t->bonus:0); jobBad=0;
+        if(jobTrack==JT_SKATE){ sp=(p-q)/50; if(sp>base/4) sp=base/4; pay+=sp; }   // SPONSOR: 1 extra per 50 trick points over the quota, at most a quarter of the base pay
         if(t->perk==JP_TRAIN) simSkillAdd(1);                 // ATHLETIC: the training pays off
         if(t->perk==JP_MEAL){ lfood+=30; if(lfood>100) lfood=100; }   // FAST FOOD: the staff meal
         jenes=SIM_DNA_SHIFT+(p>=2*q?SIM_DNA_ACE:0); dnaAdd(jenes);   // a good shift earns jenes too
@@ -645,7 +649,8 @@ static void simShiftEnd(void){   // the end of a shift on a work day (the track'
     else if(p>=q/2){ pay=base/2; }
     else { if(t->perk==JP_FINE){ simMoney-=40; if(simMoney<0) simMoney=0; }   // CRIMINAL: a bad night costs you
         if(++jobBad>=t->bad){ jobBad=0; jobGood=0; if(jobLvl>0){ jobLvl--; if(jobLvl<3) jobChosen=0; moodEvent(M_DEMOTE); simEvent(SE_DEMOTE); simQueue("DEMOTED"); } } }
-    if(pay>0){ simMoney+=pay; if(simMoney>9999) simMoney=9999; moodEvent(M_PAY); simMsgPay(p>=q?"SHIFT PAID ":"HALF PAY ",pay); if(jenes) simCat(simCatN(simCat(simMsg+simStrLen(simMsg),"  +"),jenes)," JENES"); simQPush(simMsg); }
+    if(pay>0){ simMoney+=pay; if(simMoney>9999) simMoney=9999; moodEvent(M_PAY); simMsgPay(p>=q?"SHIFT PAID ":"HALF PAY ",pay); if(jenes) simCat(simCatN(simCat(simMsg+simStrLen(simMsg),"  +"),jenes)," JENES"); simQPush(simMsg);
+        if(sp>0){ simCatN(simCat(spMsg,"SPONSOR PAYS EXTRA "),sp); simQPush(spMsg); simEvent(SE_SPONSOR); } }
     else { simEvent(SE_NOPAY); if(!simQ) simQueue("NO PAY TODAY"); }
     if(p>=q) simCameo();
     if(p>=q/2) simEvent(SE_SHIFT);
@@ -661,6 +666,7 @@ static void ageTick(void){   // once per game day: each stage lasts the days set
 }
 static void simMinute(void){   // once per game minute
     simMin++;
+    if(simMin==simJobFrom()&&simInShift()&&!ldead) simQueue(jobFlav[jobTrack]);   // clocking in: a line for the job
     if(jobTrack!=JT_SKATE&&simInShift()&&!simAct&&!ldead) shiftPts+=(moodState()==MS_STOKED)?2:1;   // a normal job: work minutes (see jobQuotaOf)
     if(simMin==16*60+20&&(simHave&SR_PIPE)&&pipeOk()) simQueue("IT IS 4:20  PUFF PUFF PASS");   // the house gathers at the water pipe (house.h)
     if(simMin>=1440){   // midnight: new day, bills, autosave
