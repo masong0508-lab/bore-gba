@@ -157,7 +157,42 @@ static void stComplete(void){   // the current chapter is done: pay it, open wha
     if(c->goal==SG_DAYS) stKidDay=255;
     stCh++; stSave(); stAnnounce(); stShown=(u8)(stId*16+stCh+1); stModal=2;   // the CHAPTER COMPLETE card (stRunModal)
 }
-static void stTick(void){   // once per logic step in the life game: is this chapter done?
+// TV SHOW & TELL, chapter 4 (YOU ARE MAMESY NOW): the CAST ARRIVAL and the hand-over of control.
+// Cast arrival = a person the chapter needs moves in as a real Sim of the household (not only a figure in a cutscene). Here: Mamesy, Missy's sister.
+// She comes with the chapter and you take over her; chapter 5 hands you back to Missy. This story has no partner and no kid, so its two story bytes hold the uids:
+// stPart = Mamesy, stKid = Missy. Only the game's own switch is used (hhSwitchTo, as the HOUSEHOLD menu does). stTvWant (not saved) = 1 go to Mamesy, 2 back to Missy.
+static u8 stTvWant, stTvWarn;
+static int stTvCan(int m){ return m>=0&&!custom&&!(hhM[m].act==HA_AWAY&&!hhOnOtherFloor(m)); }   // the switch would work right now (else we ask again in a second, silently)
+static void stTvControl(void){
+    if(stId!=STY_TVSHOW||!stTvWant){ stTvWant=0; return; }
+    if(stTvWant==1){   // chapter 4: be Mamesy
+        if(stCh!=3){ stTvWant=0; return; }
+        if(stPart!=255&&hhPUid==(int)stPart){ stTvWant=0; return; }   // already her
+        int m=stPart!=255?stMember(stPart):-1;
+        if(m<0){   // the cast arrives: a grown-up sister (half of her looks come from Missy)
+            u8 lk2[LK_N], lk[LK_N], st=AG_ADULT; lookTrueRandom(lk2,&st); stMixLook(lk,look,lk2,AG_ADULT);
+            m=stAddSim(lk,AG_ADULT,hhPLast);
+            if(m<0){ if(!stTvWarn){ stTvWarn=1; toast("NO ROOM FOR MAMESY  MOVE SOMEONE OUT"); } return; }
+            { const char*nm="MAMESY"; int k=0; for(;nm[k]&&k<HH_NM-1;k++) hhM[m].name[k]=nm[k]; hhM[m].name[k]=0; }
+            stPart=hhM[m].uid; stRel(hhPUid,hhM[m].uid,70,70,RF_FRIEND|RF_BFF); kin[hhPUid][hhM[m].uid]=KN_SISTER; kin[hhM[m].uid][hhPUid]=KN_SISTER;
+            for(int k=0;k<hhN;k++){ hhOld[k].x0=hhOld[k].x1=0; hhOldSig[k]=0xFFFFFFFFu; }
+            toast("PLEASE WAIT  MAMESY IS MOVING IN"); hhBakeAll(); hhSave(); liveInvalidate(); stSave();
+        }
+        if(!stTvCan(m)) return;
+        int me=hhPUid; hhSwitchTo(m);
+        if(hhPUid!=(int)stPart) return;   // it did not switch: try again later
+        stKid=(u8)me; stTvWant=0;
+    } else {   // later chapters: Missy again
+        if(stCh<4||stPart==255||stKid==255||hhPUid!=(int)stPart){ stTvWant=0; return; }
+        int m=stMember(stKid); if(m<0){ stTvWant=0; return; }
+        if(!stTvCan(m)) return;
+        hhSwitchTo(m);
+        if(hhPUid!=(int)stKid) return;
+        stTvWant=0;
+    }
+    stTvWarn=0; lnote=hhPName; lnoteT=90; liveInvalidate(); camSnap=1; stSave(); hhSave();
+}
+static void stTick0(void){   // once per logic step in the life game: is this chapter done?
     static u8 cnt; if(!stId||++cnt<60) return; cnt=0;
     if(stCh>=stLen[stId]) return;
     for(int k=0;k<TW_N;k++) if(twOn[k]==2) stGuest=1;   // a neighbor is staying over (HAVE A NEIGHBOR OVER)
@@ -171,6 +206,7 @@ static void stTick(void){   // once per logic step in the life game: is this cha
     } else if(!stDone(c)) return;
     stComplete();
 }
+static void stTick(void){ stTick0(); if(stTvWant&&stId==STY_TVSHOW){ static u8 tc; if(++tc>=60){ tc=0; stTvControl(); } } }   // (TV SHOW & TELL: keep asking while the hand-over is waiting)
 static void stEnter(void){ stLoad(); if(stId){ stAnnounce(); if(stShown!=(u8)(stId*16+stCh+1)){ stShown=(u8)(stId*16+stCh+1); stModal=1; } } }   // (a chapter card once per chapter and power on)   // entering the life game: the current goal on the top bar
 // ---- the look: Sims 2 / Life Stories panels (the pieces live in main.c next to HOW TO PLAY) ----
 static void s2rr(int x,int y,int w,int h,u16 c); static void s2grad(int x,int y,int w,int h,int r0,int g0,int b0,int r1,int g1,int b1);
@@ -265,7 +301,7 @@ static void storyScreen(void){   // pause menu > STORY: the story journal, a cha
     }
 }
 // the chapter cards: CHAPTER n (a chapter starts) and CHAPTER COMPLETE (a chapter was done). Shown by lifeModeRun like the pause menu.
-static void stRunModal(void){
+static void stRunModal0(void){
     int kind=stModal; stModal=0; if(!stId) return;
     if(stId==STY_TVSHOW&&kind==2&&stCh>=1&&stCh<=5) csPlay(stCh==5?5:stCh-1);   // the scene that closes the chapter just finished (cutscene.h; chapter 5 closes with scene 5, its opening news is scene 4)
     u16 prev=keyNow(); u32 cnt=0; const StCh*c=&stChs[stId][stCh];
@@ -288,6 +324,13 @@ static void stRunModal(void){
         s2pill(5,147,40,"A OK");
         present();
     }
+}
+static void stRunModal(void){   // the card, then the TV SHOW & TELL hand-over of control (chapter 4 starts as Mamesy, chapter 5 as Missy again)
+    int kind=stModal; stRunModal0();
+    if(stId!=STY_TVSHOW) return;
+    if(stCh==3&&(stPart==255||hhPUid!=(int)stPart)&&(kind==2||stKid==255)) stTvWant=1;
+    else if(stCh>=4&&stPart!=255&&stKid!=255&&hhPUid==(int)stPart&&(kind==2||stCh==4)) stTvWant=2;
+    stTvControl();
 }
 // NEW GAME > STORY MODE: pick a story on a story card (LEFT RIGHT to flip through them, A to start)
 static int storyPick(void){
