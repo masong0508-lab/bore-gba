@@ -2187,15 +2187,25 @@ static int palIdx(char c){
 static char edObjCh(void){ char c=palCh[eOb]; return (eOb==OB_KICKER||eOb==OB_QPIPE||eOb==OB_LAUNCH)?(char)(c+eRot):c; }   // the char the ITEM tool places
 // ---- BUY mode: the catalog. Every palette item sits in one category and has a price (cash of the life; BUILD COSTS option) ----
 #define DS_PRICE 75000
-#define NCAT 7
-static const char* const catNm[NCAT]={"SEAT","HOME","TECH","SKATE","DECOR","WALLS","MISC"};
-static const u8 catN[NCAT]={4,6,7,10,4,8,6};
+#define NCAT 8
+static const char* const catNm[NCAT]={"SEAT","HOME","TECH","SKATE","DECOR","WALLS","MISC","REWARDS"};
+static const u8 catN[NCAT]={4,5,5,10,3,8,6,4};
 static int catCnt(int c){ return (c==6&&!nbFlagOk())?catN[c]-2:catN[c]; }   // the two FLAGS (the end of MISC) only show in the palette while the town view's BUILD has a free lot open
-static const u8 catItems[NCAT][10]={ {13,16,27,22}, {5,6,14,15,36,38}, {31,32,33,30,26,25,34}, {3,4,10,11,12,17,18,19,23,24}, {20,21,35,37}, {1,2,7,28,29,39,40,41}, {0,8,9,44,42,43} };
+static const u8 catItems[NCAT][10]={ {13,16,27,22}, {5,6,14,15,36}, {31,32,26,25,34}, {3,4,10,11,12,17,18,19,23,24}, {20,21,35}, {1,2,7,28,29,39,40,41}, {0,8,9,44,42,43}, {37,38,33,30} };   // (the last row is REWARDS: aquarium, treadmill, sound system, DeadSet)
 static const u32 palPrice[NOBJ]={0,50,100,120,250,1200,600,250,0,0,450,900,300,350,1500,1100,1400,700,800,80,60,150,700,200,150,400,250,300,900,900,DS_PRICE,200,150,2500,1800,600,250,1000,1500,400,450,500,0,0,0};   // simoleons: a starter room (bed, fridge, toilet, shower, sofa, TV) is about 8000 of the 15000 you start with
 static int edCatOf(int idx,int*pos){ for(int c=0;c<NCAT;c++) for(int j=0;j<catCnt(c);j++) if(catItems[c][j]==idx){ if(pos) *pos=j; return c; } if(pos) *pos=0; return 0; }
 static void edItemStep(int d){ int p, c=edCatOf(eOb,&p); p=(p+d+catCnt(c))%catCnt(c); eOb=catItems[c][p]; }   // L / R: the next item of this category
 static void edCatStep(int d){ int c=(edCatOf(eOb,0)+d+NCAT)%NCAT; eOb=catItems[c][0]; }                  // SELECT + L / R: the next category
+// ---- REWARDS (BUY): the last category. Its items open as STORY MISSIONS are finished (all lives together, each mission counted once: jbStoryDone in story.h). ----
+// Nothing is saved for it: rwTotal (story.h) counts the mission bits that are already in SRAM. The Konami code (sUnlock) opens everything.
+// Items you already placed stay, and selling or erasing always works; the lock only stops BUYING (mapPlace, edAffordable) and says how many missions are left.
+// To add a reward: put its palette number in the last row of catItems, raise RW_N and catN, and add the number of missions it needs to rwNeed.
+#define RW_N 4
+static const u8 rwNeed[RW_N]={1,3,6,12};   // story missions done: AQUARIUM, TREADMILL, SOUND SYSTEM, DEADSET 3THOUSAND VYBE
+static int rwTotal(void);   // (story.h) how many story missions are done in all lives
+static int rwNeedOf(int idx){ for(int j=0;j<RW_N;j++) if(catItems[NCAT-1][j]==idx) return rwNeed[j]; return 0; }
+static int rwLocked(int idx){ int n=rwNeedOf(idx); return n&&!sUnlock&&rwTotal()<n; }
+static int rwLockedCh(char c){ int i=palIdx(c); return i>=0&&rwLocked(i); }
 // ---- default big map: house (top left), factory (top right), rail park (bottom), roads of concrete between ----
 static void gBox(int x0,int y0,int x1,int y1,int fl){ for(int y=y0;y<=y1;y++)for(int x=x0;x<=x1;x++) floorMap[y][x]=(u8)fl; }
 static void gRoom(int x0,int y0,int x1,int y1,int fl,int wp){   // walled room with a floor
@@ -2376,11 +2386,12 @@ static int edPay(int net){   // net > 0 buys, net < 0 sells back. 0 = refused
     if(net>0&&simMoney<net){ dsMsg=net>=DS_PRICE?"THE DEADSET COSTS 75000":"NOT ENOUGH CASH"; return 0; }
     simMoneyAdd(-(money_t)net); edCashDirty=1; if(udOn) udCashD+=net; return 1;
 }
-static int edAffordable(char c,char old){ int n=edCost(c)-edSell(old); return n<=0||!edCharged()||simMoney>=n; }
+static int edAffordable(char c,char old){ if(c!=old&&rwLockedCh(c)) return 0; int n=edCost(c)-edSell(old); return n<=0||!edCharged()||simMoney>=n; }
 static void mapPlace(int x,int y,char c){
     char old=lifeMap[y][x];
     if((c=='a'||c=='k')&&!nbFlagOk()){ dsMsg="FLAGS ARE BUILT FROM THE TOWN"; return; }   // (a designer tool of the town view's BUILD: not for your home or normal play)
     if(isWinCh(c)&&old!='W'&&old!='w'&&!isWinCh(old)){ dsMsg="WINDOWS GO IN A WALL"; return; }   // (a window is a wall piece: it replaces a bit of wall)
+    if(c!=old&&rwLockedCh(c)){ dsMsg="LOCKED  FINISH STORY MISSIONS"; return; }   // (REWARDS: only buying is locked; selling and erasing always work)
     if(c!=old){ int net=edCost(c)-edSell(old); if(net&&!edPay(net)) return; }   // buying costs; replacing or removing sells the old one back (half)
     if(c=='B'||c=='P'){ for(int j=0;j<MH;j++)for(int i=0;i<MW;i++) if(lifeMap[j][i]==c){ udRec(i,j); lifeMap[j][i]='.'; } }   // (the old board / spawn is a change too: undo puts it back)
     udRec(x,y); lifeMap[y][x]=c; if(c=='w'||c=='W') wallMap[y][x]=(u8)eWp; wDirty=1; }
@@ -3759,9 +3770,9 @@ static void drawEditorHud(const char*msg){
         text((xo[XO_MINI]?SW-MW-8:SW-3)-tw(ub,1),11,ub,DIMC,1); }
     if(eTool==T_ITEM){
         { int cc=edCatOf(eOb,0), xx=2;   // the category tabs, then this category's items
-          for(int c=0;c<NCAT;c++){ int w=tw(catNm[c],1)+4; rect(xx,102,w,8,c==cc?GOLD:RGB(3,4,7)); text(xx+2,102,catNm[c],c==cc?RGB(4,3,6):DIMC,1); xx+=w+1; }
-          for(int j=0;j<catCnt(cc);j++){ int id=catItems[cc][j], x2=2+j*14; rect(x2,112,13,10,id==eOb?WHITE:RGB(3,4,7)); rect(x2+1,113,11,8,palCol[id]); } }
-        { char b[24]; int xx=text(2,134,"PRICE",DIMC,1)+3; edMoney(b,edCost(palCh[eOb])); xx=text(xx,134,b,WHITE,1)+8;
+          for(int c=0;c<NCAT;c++){ int w=tw(catNm[c],1)+3; rect(xx,102,w,8,c==cc?GOLD:RGB(3,4,7)); text(xx+2,102,catNm[c],c==cc?RGB(4,3,6):DIMC,1); xx+=w+1; }
+          for(int j=0;j<catCnt(cc);j++){ int id=catItems[cc][j], x2=2+j*14; rect(x2,112,13,10,id==eOb?WHITE:RGB(3,4,7)); rect(x2+1,113,11,8,rwLocked(id)?RGB(6,7,10):palCol[id]); } }
+        if(rwLocked(eOb)){ static char lb[36] EWRAM_BSS; int rm=rwNeedOf(eOb)-rwTotal(); char*e=simCatN(simCat(lb,"LOCKED  "),rm); simCat(e,rm==1?" MORE STORY MISSION":" MORE STORY MISSIONS"); text(2,134,lb,RGB(31,10,8),1); } else { char b[24]; int xx=text(2,134,"PRICE",DIMC,1)+3; edMoney(b,edCost(palCh[eOb])); xx=text(xx,134,b,WHITE,1)+8;
           if(xo[XO_BUYCOST]&&edCharged()){ text(xx,134,"CASH",DIMC,1); edMoney(b,simMoney); text(xx+26,134,b,edAffordable(edObjCh(),lifeMap[ecy][ecx])?RGB(14,30,14):RGB(31,10,8),1); } }
         { static const char*const faceNm[4]={"FACES S","FACES E","FACES N","FACES W"};
           int xx=text(2,124,palNm[eOb],WHITE,1)+4; if(eOb==OB_KICKER||eOb==OB_QPIPE||eOb==OB_LAUNCH) text(xx,124,faceNm[eRot],GOLD,1); }

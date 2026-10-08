@@ -124,6 +124,13 @@ static int jbStoryDone(int story,int ch){   // 1 when this mission was the one t
     if(n*2<(STY_N-1)*SM_PER) return 0;   // half of ALL the missions: it grows with every story added (10 stories = 50 missions = 25 needed)
     int a=jbUnlock(UL_CLOSER), t=jbUnlock(UL_TREE); return a|t;
 }
+static int rwTotal(void){   // story missions done in every life (the bits jbStoryDone writes): the REWARDS category of BUY opens with this count
+    volatile u8*m=SRAM_BASE+JB_OFF+40; if(m[0]!='M'||m[1]!='S') return 0;
+    u8 v[8], x=0x5A; for(int i=0;i<8;i++){ v[i]=m[2+i]; x^=v[i]; }
+    if(m[10]!=x) return 0;
+    int n=0; for(int i=0;i<(STY_N-1)*SM_PER&&i<64;i++) n+=(v[i>>3]>>(i&7))&1;
+    return n;
+}
 static void stAnnounce(void){ static char t[44] EWRAM_BSS; char*e=slCat(t,"CHAPTER "); e=slNum(e,stCh+1); e=slCat(e,"  "); slCat(e,stChs[stId][stCh].nm); lnote=t; lnoteT=240; }
 static void stTick(void){   // once per logic step in the life game: is this chapter done?
     static u8 cnt; if(!stId||++cnt<60) return; cnt=0;
@@ -138,7 +145,8 @@ static void stTick(void){   // once per logic step in the life game: is this cha
         stKidHome(); stKidDay=255;
     } else if(!stDone(c)) return;
     simMoneyAdd(stRew(stCh)); dnaAdd(25); persSave(); simsSave();
-    if(jbStoryDone(stId,stCh)){ simQPush("MORE SCOOBY STUFF TO FIND"); simQPush("TOUCH GRASS TO FIND IT"); }   // half of all the story missions: secret songs (no names, go and look)
+    int rwWas=rwTotal(); if(jbStoryDone(stId,stCh)){ simQPush("MORE SCOOBY STUFF TO FIND"); simQPush("TOUCH GRASS TO FIND IT"); }   // half of all the story missions: secret songs (no names, go and look)
+    for(int j=0;j<RW_N;j++) if(rwWas<rwNeed[j]&&rwTotal()>=rwNeed[j]){ simQPush("NEW REWARD IN BUY MODE"); break; }
     if(c->goal==SG_DAYS) stKidDay=255;
     stCh++; stSave(); stAnnounce(); stShown=(u8)(stId*16+stCh+1); stModal=2;   // the CHAPTER COMPLETE card (stRunModal)
 }
