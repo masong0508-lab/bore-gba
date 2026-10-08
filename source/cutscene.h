@@ -393,7 +393,7 @@ static const char* const csNames[8]={ "CH1 END  THE BARS", "CH2 END  THE SWEATER
 
 #ifndef CS_HOST
 #define CSCHIP(id,bs,off) {bs,off},
-static const struct { u16 bs; u32 off; } csTn[5]={
+static const struct { u16 bs; u32 off; } csTnT[5]={
 #include "cschips.h"
 };   // the four cutscene tunes: steps in a beat, offset into chipsyn.bin (order: SUNMAN, WHISTLER, CORA, EXCUSES, MAGIC)
 #undef CSCHIP
@@ -408,7 +408,7 @@ static void csPlay(int id){   // play scene id; returns when it ends or START sk
     volatile u16*bc=(volatile u16*)0x04000050; volatile u16*bl=(volatile u16*)0x04000054;
     const CsScene*sc=&csScenes[id]; clipAll(); objHideAll(); csCamReset(); csAliveReset(); csCurSc=id; csSlow=0;
     u16 prev=keyNow(); int skip=0;
-    { int tn=csTune[id]; if(tn>=0&&sSnd){ mGain=mGainT=256; musBegin(2,chipsyn+csTn[tn].off,0); csSongOn=1; csTuneBS=csTn[tn].bs; csMT=0; csMP=csy.step; } }   // the scene's chip tune, locked to the figures by csFt
+    { int tn=csTune[id]; if(tn>=0&&sSnd){ mGain=mGainT=256; musBegin(2,chipsyn+csTnT[tn].off,0); csSongOn=1; csTuneBS=csTnT[tn].bs; csMT=0; csMP=csy.step; } }   // the scene's chip tune, locked to the figures by csFt
     for(int bi=0;bi<sc->n&&!skip;bi++){
         csCurBi=bi; const CsBeat*b=&sc->b[bi]; int total=0; for(int i=0;i<3&&b->t[i];i++) total+=csLen(b->t[i]);
         int t=0, shown=0, rest=0, dt=1; if(b->sfx==250){ if(sSnd){ csSongOn=1; musBegin(1,jbs_here_today,0); } } else if(b->sfx==251){ if(csSongOn) musFadeOut(XF_OUT); csSongOn=0; } else if(b->sfx) sfxPlay(b->sfx-1);
