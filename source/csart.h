@@ -32,6 +32,24 @@ static void csFig(int x,int y,int who,int pose,int t){
     case CP_WALK: case CP_LEAVE: if(mv){ lean=1; lh=-5+csWv(t,14)/2; rh=5-csWv(t,14)/2; ls=csWv(t,14)/2; } break;
     case CP_SLUMP: bob=t/4>7?7:t/4; hd=3; lean=-1; break;
     }
+    // cutscene redo 13 - ALIVE: everyone breathes and shifts their weight; whoever is speaking leans in, nods, gestures with BOTH hands and moves the mouth in syllables
+    // (not just the TALK pose); the listener nods along; the eyes glance at the other person and now and then dart away. Layered on top of whatever the pose set.
+    csLook=csDir; csEm=0; csMh=5;
+    { int spk=csTalking&&csSpk==who, lis=csTalking&&csSpk&&csSpk!=who, syl=t>>2;
+      int calm=(pose==CP_STAND||pose==CP_HEAD||pose==CP_SWAY||pose==CP_TALK||pose==CP_POINT||pose==CP_SHOCK||pose==CP_SLUMP);
+      if(calm) bob+=(csWv(t+who*19,72)+8)/10;                                                                       // the chest rises a pixel every ~1.2 s
+      if(pose==CP_STAND){ lean+=csWv(t+who*31,150)/6; lv+=(csWv(t+who*7,90)+8)/12; rv+=(csWv(t+who*11,110)+8)/12; }   // weight shifts, hands drift
+      if(spk&&calm){
+          int g=csWv(t+who*9,52), g2=csWv(t+who*9+26,70); if(g<0) g=0; if(g2<0) g2=0;                             // two hands, out of step: emphasis strokes
+          if(pose!=CP_POINT&&pose!=CP_SHOCK) lean+=csDir;                                                         // leans toward who they are talking to
+          if(((t>>3)&3)==0) hd+=1;                                                                                // a nod on the beat
+          if(pose==CP_STAND||pose==CP_SWAY){ rv-=g*5/4; rh+=g/3; lv-=g2*5/4; lh-=g2/3; }
+          if(pose==CP_TALK){ lv-=g2; lh-=g2/4; rv-=g/2; }
+          if(g>4||g2>4) csEm=1;
+          if(pose!=CP_SHOCK){ open=(syl*syl+syl/3)%5<3; csMh=3+(syl*5)%4; }                                          // syllables, not a square wave
+      } else if(lis&&calm){ int ph=(t+who*13)%96; if(ph<10&&(ph/3)%2==0) hd+=1; }                                    // listener: a double nod now and then
+      { int dt=(t/41+who*3)%5; if(dt==0) csLook=-csDir; else if(dt==1) csLook=0; }                               // glances away, then back
+    }
     int sy=y-21+bob, hx=x+lean, hy=y-29+bob+hd; u16 lc=dress?sk:bt; int bl=((t+who*23)%110)<4;   // bl: a blink every ~2 s (cutscene redo 10)
     int fem=(who==CA_MISSY||who==CA_MAME), ax=fem?5:6;   // the build: the women slimmer through the shoulders, the men broader (the arms hang from the edge of the shoulders)
     csR(x-6,y,12,1,RGB(2,1,3));                                                                                       // the floor shadow
@@ -59,10 +77,10 @@ static void csFig(int x,int y,int who,int pose,int t){
     if(who!=CA_MAME){ csR(hx-2,hy-4,2,1,csLt(hr,8)); } else { csR(hx-3,hy-2,7,2,hr); csR(hx-4,hy-1,2,4,hr); csR(hx+3,hy-1,2,3,hr); csR(hx+1,hy-4,2,1,csLt(hr,8)); }                       // the tousled tufts and a shine (the in-game hair)
     csR(hx-4,hy+4,1,1,RGB(28,12,12)); csR(hx+4,hy+4,1,1,RGB(28,12,12));                                                   // blush
     if(who==CA_MISSY){ u16 gl=RGB(9,9,12); int gx=hx, gy=hy+1; csR(gx-4,gy-1,3,1,gl); csR(gx-4,gy+1,3,1,gl); csR(gx-4,gy,1,1,gl); csR(gx-2,gy,1,1,gl); csR(gx+1,gy-1,3,1,gl); csR(gx+1,gy+1,3,1,gl); csR(gx+1,gy,1,1,gl); csR(gx+3,gy,1,1,gl); csR(gx-1,gy,2,1,gl); csR(gx-3,gy,1,1,bl?sk:dk); csR(gx+2,gy,1,1,bl?sk:dk); csR(gx-3,gy-3,7,2,hr); }   // small round glasses with a bridge, flat sleepy eyes, bangs
-    else { csR(hx-2,hy+1,1,1,bl?sk:dk); csR(hx+1,hy+1,1,1,bl?sk:dk); csR(hx-3,hy-1,2,1,hr); csR(hx+1,hy-1,2,1,hr); }                    // eyes, brows
+    else { csR(hx-2+csLook,hy+1,1,1,bl?sk:dk); csR(hx+1+csLook,hy+1,1,1,bl?sk:dk); csR(hx-3,hy-1-csEm,2,1,hr); csR(hx+1,hy-1-csEm,2,1,hr); }                    // eyes, brows
     if(who==CA_HOST) csR(hx-4,hy-3,8,2,hr);                                                                               // Dex: swept fringe
     if(who==CA_CREW){ csR(hx-6,hy-3,12,3,RGB(31,31,28)); csR(hx-7,hy-1,14,1,RGB(24,24,22)); csR(hx-2,hy-4,4,1,RGB(31,31,31)); }   // Hal: the hard hat
     if(who==CA_DOC){ csLn(hx-3,hy+6,hx,hy+10,RGB(22,22,24)); csLn(hx+3,hy+6,hx,hy+10,RGB(22,22,24)); csD(hx,hy+11,1,RGB(26,26,28)); }   // Okafor: the stethoscope
     if(who==CA_MISSY&&!open){ csR(hx-1,hy+4,3,1,RGB(18,6,6)); csR(hx+2,hy+3,1,1,RGB(18,6,6)); }                            // a deadpan smirk
-    else if(open) csR(hx-1,hy+4,2,2,RGB(18,2,3)); else { csR(hx-1,hy+4,2,1,who==CA_MAME?RGB(22,9,9):RGB(18,6,6)); if(who==CA_MAME){ csR(hx-2,hy+3,1,1,RGB(22,9,9)); csR(hx+1,hy+3,1,1,RGB(22,9,9)); } }
+    else if(open) csR(hx-1,hy+4,2,csMh>4?2:1,RGB(18,2,3)); else { csR(hx-1,hy+4,2,1,who==CA_MAME?RGB(22,9,9):RGB(18,6,6)); if(who==CA_MAME){ csR(hx-2,hy+3,1,1,RGB(22,9,9)); csR(hx+1,hy+3,1,1,RGB(22,9,9)); } }
 }

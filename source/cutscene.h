@@ -13,6 +13,7 @@ static int csOx, csOy;   // the shake
 static int csMood=0, csLite=0;   // cutscene redo 12: the picture's mood (-1 brighter, 0 normal, 1 dimmer, 2 much dimmer) and a lightning flash in the hospital window
 static int csSlow=0;   // 1 while the frames are coming slowly: the backdrop lighting (glows, dust, vignette) is skipped until they speed up again
 static int csDir=1, csTalking=0, csMirPose=CP_HEAD;   // cutscene redo 10: which way POINT points (+1 right), the speaker's mouth moves while the caption types, the mirror reflection's pose
+static int csSpk=0, csLook=0, csMh=5, csEm=0;   // cutscene redo 13 (ALIVE): who is speaking now (CA_*), which way the eyes look (-1/0/1), how wide the mouth opens, 1 = an emphatic beat (brows lift)
 #include "cscam.h"
 static void csR(int x,int y,int w,int h,u16 c){ csCamR(x+csOx,y+csOy,w,h,c); }
 static void csD(int x,int y,int r,u16 c){ csCamD(x+csOx,y+csOy,r,c); }
@@ -124,7 +125,7 @@ static int csLen(const char*s){ int n=0; while(s[n]) n++; return n; }
 static int csIsq(int v){ int w=0; while((w+1)*(w+1)<=v) w++; return w; }
 
 static void csDraw(const CsBeat*b,int t,int shown){   // one frame of one beat (shown: how many letters of the caption are typed)
-    { int tot=0; for(int i=0;i<3&&b->t[i];i++) tot+=csLen(b->t[i]); csTalking=shown<tot; csMirPose=(!b->a&&b->pa)?b->pa:CP_HEAD; }   // cutscene redo 10
+    { int tot=0; for(int i=0;i<3&&b->t[i];i++) tot+=csLen(b->t[i]); csTalking=shown<tot; csSpk=csWho(b->who); csMirPose=(!b->a&&b->pa)?b->pa:CP_HEAD; }   // cutscene redo 10
     { int sc=csCurSc, bi=csCurBi; csMood=0; csLite=0;   // cutscene redo 12: the lights go down for the news (4) and the plug (6), and the world turns up when she wakes (3)
       if(sc==4&&bi>=21) csMood=1; if(sc==6&&bi>=7) csMood=bi>=9?2:1; if(sc==3&&bi>=29) csMood=-1;
       if(sc==6&&bi==9&&((t<10)||(t>=16&&t<20))) csLite=1; }

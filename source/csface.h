@@ -47,7 +47,7 @@ static void csFaceBig(int wx,int wy,int who,int pose,int t,int open,u16 sk,u16 h
     // eyes
     for(int s=-1;s<=1;s+=2){ int cx=s*ex;
         if(closed){ csFR(cx-5,0,10,2,dk); csFR(cx-5+(s<0?0:8),1,2,2,dk); csFR(cx-4,2,8,1,csFSh(fc,5)); }
-        else { int gy=sad?3:0, gx=0; u16 ir=who==CA_MISSY?RGB(18,15,6):RGB(11,7,3);
+        else { int gy=sad?3:0, gx=sad?0:csLook; u16 ir=who==CA_MISSY?RGB(18,15,6):RGB(11,7,3);
             csFE(cx,0,5,4,dk); csFE(cx,0,4,3,wh);
             csFE(cx+gx,gy,3,3,ir); csFE(cx+gx,gy,1,1,dk); csFR(cx+gx-2,gy-2,1,1,wh);
             if(who==CA_MISSY&&!loud&&!sad){ csFR(cx-5,-4,10,4,csFSh(fc,2)); csFR(cx-5,-1,10,1,dk); csFR(cx-5,-5,10,1,csFSh(fc,5)); }   // the deadpan half lid
@@ -57,12 +57,12 @@ static void csFaceBig(int wx,int wy,int who,int pose,int t,int open,u16 sk,u16 h
     }
     // brows: heights from the outer end to the inner end
     { static const signed char bn[3]={-10,-10,-10}, bs[3]={-9,-11,-13}, ba[3]={-13,-11,-9}, br[3]={-14,-14,-14}; const signed char*bw=sad?bs:(yell&&!sad&&shake)?ba:loud?br:bn;
-      for(int s=-1;s<=1;s+=2) for(int i=0;i<3;i++){ int x=s<0?-ex-8+i*5:ex+8-i*5-5; csFR(x,bw[i]-(who==CA_MISSY?3:0),5,2,who==CA_CREW?hr:csFLt(hr,2)); } }
+      for(int s=-1;s<=1;s+=2) for(int i=0;i<3;i++){ int x=s<0?-ex-8+i*5:ex+8-i*5-5; csFR(x,bw[i]-(who==CA_MISSY?3:0)-csEm*2,5,2,who==CA_CREW?hr:csFLt(hr,2)); } }
     // nose, cheeks
     csFR(-2,5,4,3,csFSh(fc,4)); csFR(-1,3,2,2,csFLt(fc,2)); csFR(-3,7,2,1,csFSh(fc,6)); csFR(1,7,2,1,csFSh(fc,6));
     if(!sick){ csFE(-13,9,5,3,csFMix(fc,RGB(28,12,12),3)); csFE(13,9,5,3,csFMix(fc,RGB(28,12,12),3)); }
     // mouth
-    if(loud||sick){ int h=scream?7:5; csFE(0,13,7,h,RGB(10,1,3)); if(!scream) csFR(-5,9,10,3,wh); csFE(0,16,4,2,RGB(26,8,10)); }
+    if(loud||sick){ int h=scream?7:csMh; csFE(0,13,7,h,RGB(10,1,3)); if(!scream) csFR(-5,9,10,3,wh); csFE(0,16,4,2,RGB(26,8,10)); }
     else if(sad){ csFR(-5,13,10,2,lip); csFR(-6,14,2,2,lip); csFR(4,14,2,2,lip); if(crying) csFR(-3,15,6,1,csFSh(lip,5)); }
     else if(who==CA_MISSY){ csFR(-5,13,9,2,lip); csFR(4,11,3,2,lip); csFR(7,10,1,1,csFSh(fc,5)); csFR(-3,15,6,1,csFLt(lip,6)); }
     else { u16 lp=who==CA_MAME?csFMix(csFSh(fc,2),RGB(24,10,10),5):lip; csFR(-5,13,10,2,lp); csFR(-6,12,2,2,lp); csFR(4,12,2,2,lp); csFR(-3,15,6,1,csFLt(lp,4)); }
