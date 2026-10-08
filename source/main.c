@@ -3032,11 +3032,15 @@ static const u8 faceView[16]={3,3,0,0,0,0,0,1,1,1,2,2,2,2,3,3};
 #include "house.h"   // households: up to 7 more Sims with free will, SELECT switches who you control
 static int plX, plY, plZ, plFh, plV, plBob;   // feet on screen, height above the floor, floor height under the feet, which baked view
 static int plDip, plMk;   // plDip: px the skater crouches for a few frames after a landing; plMk: the landing mark under a spinning skater (0 none, 1 red = bail, 2 yellow = sketchy, 3 green = clean, 4 bright = perfect)
+static int aliveRate(void){   // ALIVE tier 1: the step bounce follows how you feel: STOKED = quick steps, SAD / BORED / worn out = slow, heavy ones (a bigger number = slower)
+    int m=moodState(); if(m==MS_STOKED) return 2; if(m==MS_SAD||m==MS_BORED||sNrg<20) return 4; return 3;
+}
 static void playerCalc(void){
     s32 rfx,rfy; rotPos(lfx,lfy,&rfx,&rfy);
     plX=LOX+(int)((rfx-rfy)>>5); plY=LOY+(int)((rfx+rfy)>>6);
     plFh=surfH(lfx,lfy); plZ=(int)(lz>>8); plV=faceView[(lhd+lspin+4*cview)&15];
-    plBob=(!lskate&&plZ<=plFh&&(lvx|lvy)&&lstun<=2)?(int)((lfr>>3)&1):0;   // a little step bounce while he walks
+    plBob=(!lskate&&plZ<=plFh&&(lvx|lvy)&&lstun<=2)?(int)((lfr>>aliveRate())&1):0;   // a little step bounce while he walks
+    if(!lskate&&!lvx&&!lvy&&!lsp&&hhStill>=120&&!simAct&&!ldead&&!hhBubT&&plZ<=plFh){ unsigned g=(((unsigned)(lfr>>7)+3u)*2654435761u)>>29; if(g==0) plV=(plV+1)&3; else if(g==1) plV=(plV+3)&3; }   // ALIVE tier 1: after 2 seconds of standing, a glance a quarter turn left or right now and then (the picture only; where you face does not change)
     lpsx=plX; lpsy=plY-20;
     plDip=(lskate&&lLand>0&&plZ<=plFh)?(lLand>4?(lLandD>=10?3:2):1):0;   // landing crouch: the harder the drop the lower, easing back up over 7 frames
     plMk=0; if(lskate&&plZ>plFh&&(F.spinV||F.spin>=20||F.spin<=-20)){ int g=feelPredGrade(); plMk=g==0?1:g==1?2:g==2?3:4; }   // spinning: will it land?

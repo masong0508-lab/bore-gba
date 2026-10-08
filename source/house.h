@@ -1112,9 +1112,14 @@ static void relScreen(void){
 }
 // ---- drawing: like the player, inside drawRoomRect's back-to-front walk. hhCalc (once a picture) works out where everyone is ----
 static int hhX[HH_MAX], hhY[HH_MAX], hhB[HH_MAX], hhV[HH_MAX], hhH[HH_MAX];   // feet on screen, band (tile x+y), view, floor height
+static int hhLook(int m){   // ALIVE tier 1: an idle member now and then glances a quarter turn one way or the other (the four views are already baked). 0 = looks where they face
+    if(m>=hhN||hhM[m].act!=HA_IDLE) return 0;
+    unsigned g=((((unsigned)(lfr>>7))+(unsigned)m*7u)*2654435761u)>>29;   // a new glance every 128 steps, different for each member
+    return g==0?4:g==1?12:0;   // (heading units: 4 and 12 are the two quarter turns)
+}
 static void hhCalc(void){   // (the places above hhN that hold a visitor too)
     for(int m=0;m<HH_MAX;m++){ if(m>=hhN){ int k=HH_MAX-1-m; if(k>=TW_N||!twHas[k]||!twOn[k]||curFl) continue; } const HhSim*s=&hhM[m]; s32 rx,ry; rotPos(s->fx,s->fy,&rx,&ry);
-        hhX[m]=LOX+(int)((rx-ry)>>5); hhY[m]=LOY+(int)((rx+ry)>>6); hhB[m]=(int)((rx>>8)+(ry>>8)); hhV[m]=faceView[(s->hd+4*cview)&15]; hhH[m]=surfH(s->fx,s->fy); }
+        hhX[m]=LOX+(int)((rx-ry)>>5); hhY[m]=LOY+(int)((rx+ry)>>6); hhB[m]=(int)((rx>>8)+(ry>>8)); hhV[m]=faceView[(s->hd+hhLook(m)+4*cview)&15]; hhH[m]=surfH(s->fx,s->fy); }
 }
 static void hhDrawBand(int s0,int s1){   // the members whose band is in s0..s1
     for(int m=0;m<hhN;m++){ if(hhB[m]<s0||hhB[m]>s1||hhM[m].act==HA_AWAY) continue;
