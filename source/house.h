@@ -1148,6 +1148,16 @@ static int hhPlayerFront(int x,int y){   // is the player (drawn into the pictur
     return py>y+SPF&&dx>-22&&dx<22&&py<y+SPF+44;
 }
 typedef struct { const HhSim*s; short x,y; int dd,dep; u8 id,key,pk; signed char tb,pb; } HhOv;   // a Sim in view: where its sprite goes, how far from the middle, how far back; key = body*8+view*2+frame, pk = its palette; tb, pb = the tile block and palette bank it got (-1: none yet)
+// RUNNING LEGS: the stride is driven by real movement (world position since last frame), not only by the walking actions, so a Sim that is pushed,
+// scared or sent running always moves its legs. Faster than 1.5 x walking speed = running: the legs swap every 4 frames instead of 8. Other code can force
+// a run by setting hhRunT[id] (steps). Teleports (a jump of a tile or more in one frame) do not count.
+static int hhLfx[HH_MAX], hhLfy[HH_MAX]; static u8 hhMvT[HH_MAX], hhRunT[HH_MAX];
+static int hhLegs(int id,const HhSim*s){   // 0 standing, 1 walking, 2 running
+    int dx=(int)(s->fx-hhLfx[id]), dy=(int)(s->fy-hhLfy[id]); hhLfx[id]=(int)s->fx; hhLfy[id]=(int)s->fy; if(dx<0) dx=-dx; if(dy<0) dy=-dy; int d=dx+dy;
+    if(d>0&&d<200){ hhMvT[id]=8; if(d>F_WALK*3/2) hhRunT[id]=8; } else if(hhMvT[id]) hhMvT[id]--;
+    if(hhRunT[id]&&d==0&&!hhMvT[id]) hhRunT[id]=0; else if(hhRunT[id]) hhRunT[id]--;
+    return hhMvT[id]?(hhRunT[id]?2:1):0;
+}
 static void fxObjUpdate(void); static void hhObjUpdate0(void){   // in vblank: hand out OAM entries, tile blocks and palette banks, load what changed into OBJ VRAM, write OAM (a Sim is one 32x64 sprite), set the window that clips them
     volatile u16*oam=OAM; int i, nOam=0;
     *(volatile u16*)0x04000040=240; *(volatile u16*)0x04000044=(u16)((sbY0<<8)|sbY1);   // WIN0: the room view (the room rows of the screen)
@@ -1168,7 +1178,7 @@ static void fxObjUpdate(void); static void hhObjUpdate0(void){   // in vblank: h
             if(hhM[id].act==HA_AWAY) continue;
             s=&hhM[id]; x=hhX[id]-16; y=hhY[id]-SPF-hhH[id]; v=hhV[id]; dep=hhB[id];
             int walk=(s->act==HA_WALK||s->act==HA_WANDER||s->act==HA_SEEK||s->act==HA_LEAVE||s->act==HA_STAIR)&&s->pi<s->pn;
-            f=walk?((lfr+id*5)>>3)&1:0;   // walking: standing / mid-stride, every 8 frames (each Sim a little out of step)
+            { int mv=hhLegs(id,s); f=(walk||mv)?((lfr+id*5)>>(mv==2?2:3))&1:0; }   // walking: standing / mid-stride, every 8 frames (running: every 4); each Sim a little out of step
         }
         if(x+32<=vpX0||x>=vpX1||y+SPH<=vpY0||y>=vpY1) continue;
         HhOv*o=&w[n++]; o->s=s; o->x=(short)x; o->y=(short)y; o->id=(u8)id; o->key=(u8)(inmSetOf(id)*8+v*2+f); o->pk=(u8)(id>=HH_MAX?32+(id-HH_MAX):id); o->dep=dep; o->tb=o->pb=-1;
