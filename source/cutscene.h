@@ -10,9 +10,10 @@ typedef struct { u8 bg, a, pa, ax, b, pb, bx, fx, sfx, dur; const char* who; con
 typedef struct { const CsBeat* b; u8 n; } CsScene;
 
 static int csOx, csOy;   // the shake
-static void csR(int x,int y,int w,int h,u16 c){ rect(x+csOx,y+csOy,w,h,c); }
-static void csD(int x,int y,int r,u16 c){ disc(x+csOx,y+csOy,r,c); }
-static void csLn(int x0,int y0,int x1,int y1,u16 c){ line(x0+csOx,y0+csOy,x1+csOx,y1+csOy,c); }
+#include "cscam.h"
+static void csR(int x,int y,int w,int h,u16 c){ csCamR(x+csOx,y+csOy,w,h,c); }
+static void csD(int x,int y,int r,u16 c){ csCamD(x+csOx,y+csOy,r,c); }
+static void csLn(int x0,int y0,int x1,int y1,u16 c){ csCamL(x0+csOx,y0+csOy,x1+csOx,y1+csOy,c); }
 static int csWv(int t,int per){ int p=t%per, h=per/2, v=p<h?p:per-p; return v*16/h-8; }   // a triangle wave, -8 .. 8
 static void csGrad(int y0,int h,int r0,int g0,int b0,int r1,int g1,int b1){ for(int i=0;i<h;i++){ int t=h>1?i*256/(h-1):0; csR(0,y0+i,SW,1,RGB(r0+(r1-r0)*t/256,g0+(g1-g0)*t/256,b0+(b1-b0)*t/256)); } }
 
@@ -115,16 +116,16 @@ static int csIsq(int v){ int w=0; while((w+1)*(w+1)<=v) w++; return w; }
 static void csDraw(const CsBeat*b,int t,int shown){   // one frame of one beat (shown: how many letters of the caption are typed)
     csOx=csOy=0; if(b->fx&CF_SHAKE){ csOx=(rnd8()%5)-2; csOy=(rnd8()%5)-2; }
     rect(0,0,SW,SH,0);
-    csBg(b->bg,t,b->fx);
+    csCamAim(b,t); clipSet(0,12,SW,116); csBg(b->bg,t,b->fx);
     int ay=110, by=110;
     if(b->bg==CB_HOSP||b->bg==CB_FLAT){ if(b->pb==CP_LIE) by=98; }
     if(b->bg==CB_SITE){ if(b->pb==CP_CLIMB) by=110-(t/3>48?48:t/3); if(b->pb==CP_FLAIL){ by=62+t*t/20; if(by>110) by=110; } if(b->pb==CP_LIE) by=111; }
     if(b->a) csFig(b->ax*4,ay,b->a,b->pa,t);
     if(b->b) csFig(b->bx*4,by,b->b,b->pb,t);
     if(b->fx&CF_SICK){ int mx=b->bx*4, my=by-26; for(int k=0;k<9;k++) if(t>k*2) csR(mx+5+k*3,my+k*k/3-3,2,2,k&1?RGB(13,24,4):RGB(18,28,6)); }
-    if(b->fx&CF_IRIS){ int r=130-t*2; if(r<0) r=0; int cx=b->bx*4, cy=by-27;
+    if(b->fx&CF_IRIS){ int r=130-t*2; if(r<0) r=0; int cx=csCamX(b->bx*4), cy=csCamY(by-27);
         for(int y=12;y<116;y++){ int dy=y-cy, v=r*r-dy*dy; if(v<=0){ rect(0,y,SW,1,0); continue; } int w=csIsq(v); if(cx-w>0) rect(0,y,cx-w,1,0); if(cx+w<SW) rect(cx+w,y,SW-cx-w,1,0); } }
-    rect(0,0,SW,12,0); rect(0,116,SW,44,RGB(2,3,8)); rect(0,116,SW,1,RGB(14,11,3));
+    clipAll(); rect(0,0,SW,12,0); rect(0,116,SW,44,RGB(2,3,8)); rect(0,116,SW,1,RGB(14,11,3));
     text(205,3,"START SKIP",RGB(8,9,11),1);
     int y0=b->who?129:124; if(b->who) text(12,119,b->who,GOLD,1);
     static char buf[64]; int left=shown;
@@ -273,7 +274,7 @@ static const char* const csNames[8]={ "CH1 END  THE BARS", "CH2 END  THE SWEATER
 #ifndef CS_HOST
 static void csPlay(int id){   // play scene id; returns when it ends or START skips it
     volatile u16*bc=(volatile u16*)0x04000050; volatile u16*bl=(volatile u16*)0x04000054;
-    const CsScene*sc=&csScenes[id]; clipAll(); objHideAll();
+    const CsScene*sc=&csScenes[id]; clipAll(); objHideAll(); csCamReset();
     u16 prev=keyNow(); int skip=0;
     for(int bi=0;bi<sc->n&&!skip;bi++){
         const CsBeat*b=&sc->b[bi]; int total=0; for(int i=0;i<3&&b->t[i];i++) total+=csLen(b->t[i]);
