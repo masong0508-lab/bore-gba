@@ -121,8 +121,8 @@ static void csShotApply(const CsBeat*b,int t){
     int u=t-s->t0, d=s->dur>0?s->dur:1; if(u>d) u=d;
     int ax=s->anc==1?b->bx*4:s->anc==2?b->ax*4:0;
     // JUMP CUTS instead of glides: the move from the first framing to the last is cut into 2 hard cuts (3 for a long one), each a still shot
-    int n=d>=150?3:2, k=u>=d?n-1:u*n/d;
-    csCz=s->z0+(s->z1-s->z0)*k/(n-1); csCx=ax+s->x0+(s->x1-s->x0)*k/(n-1); csCy=s->y0+(s->y1-s->y0)*k/(n-1);
+    int cuts=d>=150?3:2, k=u>=d?cuts-1:u*cuts/d;
+    csCz=s->z0+(s->z1-s->z0)*k/(cuts-1); csCx=ax+s->x0+(s->x1-s->x0)*k/(cuts-1); csCy=s->y0+(s->y1-s->y0)*k/(cuts-1);
     int hw=(120*256)/csCz, hh=(52*256)/csCz;                                                     // never show past the edge of the picture (as cscam.h)
     if(csCx<hw) csCx=hw;
     if(csCx>240-hw) csCx=240-hw;
