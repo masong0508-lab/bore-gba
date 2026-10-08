@@ -4802,6 +4802,7 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "weapons.h"       // WEAPONS: the weapon button, melee, the arsenal (shots: wpshot.h; shop: armsshop.h; stashes: wpsecret.h)
 #include "wpshot.h"        // WEAPONS 2: bullets and guided missiles
 #include "armsshop.h"      // WEAPONS 3: the ARMS SHOP lot and its counter
+#include "wpsecret.h"      // WEAPONS 4: secret stashes in the community lots
 #include "goals.h"          // VIEW GOALS and the tape count per lot (the tape stays found)
 #include "statscreen.h"   // the LIFETIME STATS screen (PAUSE > MY SIM > MORE)
 #include "mysim.h"         // MY SIM: the pause menu tile with CAREER / SKILLS / PEOPLE / MORE tabs
