@@ -216,6 +216,8 @@ static void stComplete(void){   // the current chapter is done: pay it, open wha
 // Cast arrival = a person the chapter needs moves in as a real Sim of the household (not only a figure in a cutscene). Here: Mamesy, Missy's sister.
 // She comes with the chapter and you take over her; chapter 5 hands you back to Missy. This story has no partner and no kid, so its two story bytes hold the uids:
 // stPart = Mamesy, stKid = Missy. Only the game's own switch is used (hhSwitchTo, as the HOUSEHOLD menu does). stTvWant (not saved) = 1 go to Mamesy, 2 back to Missy.
+// MAMESY'S LOOK: fixed, so the game and the cutscenes (csart.h csface.h) show the same woman: a slim-average build, Missy's skin (they are sisters), long brown hair, a teal long-sleeve top, jeans.
+static const u8 stMamesyLook[LK_N]={[LK_SHAPE]=0,[LK_SKIN]=1,[LK_EYES]=1,[LK_MOUTH]=1,[LK_EARS]=1,[LK_HSTYLE]=2,[LK_HCOL]=1,[LK_TOP]=0,[LK_BOT]=0,[LK_BROW]=1,[LK_NOSE]=1,[LK_CHEEK]=1,[LK_TOPSTY]=1};
 static u8 stTvWant, stTvWarn;
 static int stTvCan(int m){ return m>=0&&!custom&&!(hhM[m].act==HA_AWAY&&!hhOnOtherFloor(m)); }   // the switch would work right now (else we ask again in a second, silently)
 static void stTvControl(void){
@@ -224,8 +226,8 @@ static void stTvControl(void){
         if(stCh!=3){ stTvWant=0; return; }
         if(stPart!=255&&hhPUid==(int)stPart){ stTvWant=0; return; }   // already her
         int m=stPart!=255?stMember(stPart):-1;
-        if(m<0){   // the cast arrives: a grown-up sister (half of her looks come from Missy)
-            u8 lk2[LK_N], lk[LK_N], st=AG_ADULT; lookTrueRandom(lk2,&st); stMixLook(lk,look,lk2,AG_ADULT);
+        if(m<0){   // the cast arrives: Mamesy, the way the cutscenes draw her (stMamesyLook)
+            u8 lk[LK_N]; for(int i=0;i<LK_N;i++) lk[i]=stMamesyLook[i];
             m=stAddSim(lk,AG_ADULT,hhPLast);
             if(m<0){ if(!stTvWarn){ stTvWarn=1; toast("No room for Mamesy. Make some space."); } return; }
             { const char*nm="MAMESY"; int k=0; for(;nm[k]&&k<HH_NM-1;k++) hhM[m].name[k]=nm[k]; hhM[m].name[k]=0; }
