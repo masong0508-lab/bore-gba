@@ -11,11 +11,14 @@
 // SAVED       10 bytes at JB_OFF+68: 'H' 'T', rep, gang, agility, smokes, job, checksum, grudge, warden goal (the jukebox block's last spare bytes). About 16 bytes of RAM.
 // COURT       hardcourt.h: a warden who catches you (a fight in sight, dealing, out of your cell in lockdown, a cell search) beats you and drags you before the judge.
 // WARDENS     a goal now and then (read, work out, work, keep clean): meet it by midnight for 2 days off, at a cost in rep.
+// FAVORS      the prison's phone > FAVORS: take ONE favor at a time, 3 days to do it, then a day's wait. An INMATE wants 2 smokes handed over at a canteen table ($30, rep +2).
+//             Your GANG wants 4 hits on inmates with no guard looking ($45, rep +8). The WARDEN wants the same and looks away: no court, 2 days off, rep +3. Not saved (about 5 bytes of RAM).
 #define HT_OFF (JB_OFF+68)
 static u8 htRep EWRAM_BSS, htGang EWRAM_BSS, htAgi EWRAM_BSS, htCig EWRAM_BSS, htJob EWRAM_BSS, htInit EWRAM_BSS;
 static u8 htTalks EWRAM_BSS, htDeals EWRAM_BSS, htOut EWRAM_BSS, htWarned EWRAM_BSS; static u16 htLastMin EWRAM_BSS;
 static u8 htPend EWRAM_BSS, htGoal EWRAM_BSS, htGrudge EWRAM_BSS;   // the charge waiting for court (1 FIGHTING, 2 DEALING, 3 OUT AFTER LOCKDOWN, 4 CONTRABAND), the warden's goal, days the warden holds a grudge
 static void htCourt(void);   // hardcourt.h
+static u8 htMis EWRAM_BSS, htMisBy EWRAM_BSS, htMisN EWRAM_BSS, htMisD EWRAM_BSS, htMisCool EWRAM_BSS;   // the favor you took at the phone (not saved): 0 none, 1 DELIVERY, 2 HIT JOB / who asked (1 inmate, 2 gang, 3 warden) / what is left to do / days left / 1 = no new favor until midnight
 static const char* const htGoalNm[5]={"","READ 2 BOOKS","WORK OUT TWICE","DO YOUR JOB","STAY OUT OF TROUBLE"};
 static char htMsg[40] EWRAM_BSS, htQb[3][40] EWRAM_BSS; static u8 htQi EWRAM_BSS, htQn EWRAM_BSS;
 static void htQ(const char*a,const char*b,int n){ if(htQn>=3) return; htQn++; char*e=slCat(htQb[htQi],a); if(n>=0) e=slNum(e,n); if(b) slCat(e,b); simQPush(htQb[htQi]); htQi=(u8)((htQi+1)%3); }   // a note after the ones waiting
@@ -30,7 +33,7 @@ static void htLoad(void){
     volatile u8*m=SRAM_BASE+HT_OFF; htInit=1;
     if(m[0]=='H'&&m[1]=='T'&&m[7]==htSum(m)){ htRep=m[2]>100?100:m[2]; htGang=m[3]>4?0:m[3]; htAgi=m[4]; htCig=m[5]>9?9:m[5]; htJob=m[6]>3?0:m[6]; htGrudge=m[8]>3?0:m[8]; htGoal=m[9]>4?0:m[9]; }
     else { htRep=15; htGang=htAgi=htCig=htJob=htGrudge=htGoal=0; }
-    htTalks=htDeals=htOut=htWarned=htPend=0; htLastMin=0xFFFF;
+    htTalks=htDeals=htOut=htWarned=htPend=0; htMis=htMisCool=0; htLastMin=0xFFFF;
 }
 static int htAgiLvl(void){ int l=0; for(int i=0;i<5;i++) if(htAgi>=skAt[i]) l=i+1; return l; }
 static void htRepAdd(int d){ int v=htRep+d; htRep=(u8)(v<0?0:v>100?100:v); }
@@ -38,16 +41,57 @@ static const char* htRepNm(void){ return htRep<15?"PUSHOVER":htRep<30?"NEWBIE":h
 static char* htNote(const char*a,int d,const char*b){ char*e=slCat(htMsg,a); if(d){ *e++=d<0?'-':'+'; e=slNum(e,d<0?-d:d); *e=0; } if(b) e=slCat(e,b); lnote=htMsg; lnoteT=90; return e; }
 static void htAddDays(int a){ if(prDays!=PR_LIFE){ prDays=(u16)(prDays+a>60000?60000:prDays+a); if(prTot<prDays) prTot=prDays; } prTrouble=1; prSave(); }
 
+// ---------- favors: taken at the prison's phone ----------
+static void htMisDone(void){   // a favor is done: paid by who asked
+    int p=htMisBy==1?30:htMisBy==2?45:0, r=htMisBy==1?2:htMisBy==2?8:3;
+    char*e=slCat(htMsg,"FAVOR DONE  ");
+    if(p){ simMoney+=p; if(simMoney>9999) simMoney=9999; e=slCat(e,"$"); e=slNum(e,p); }
+    else { if(prDays!=PR_LIFE&&prDays>3){ prDays-=2; prSave(); } e=slCat(e,"2 DAYS OFF"); }
+    e=slCat(e,"  REP +"); slNum(e,r); htRepAdd(r); moodEvent(M_PAY);
+    htMis=0; htMisCool=1; htSave(); lnote=htMsg; lnoteT=110;
+}
+static int htMisHit(int n){   // htFight: a hit on an inmate. 1 = the warden looks away (no court, no days added)
+    if(htMis!=2) return 0;
+    if(htMisBy!=3&&prGuardsNear()>0){ htMis=0; htMisCool=1; htRepAdd(-2); lnote="HIT JOB BLOWN  A GUARD SAW  REP -2"; lnoteT=90; return 0; }
+    if(htMisN>n) htMisN=(u8)(htMisN-n); else { htMisN=0; htMisDone(); }
+    return htMisBy==3;
+}
+static void htMisGive(void){   // htTable: hand the smokes over
+    if(htMis!=1||htCig<htMisN){ toast("YOU NEED MORE SMOKES"); return; }
+    htCig=(u8)(htCig-htMisN); htMisN=0; htMisDone();
+}
+static void htMisDay(void){   // htDay: the days run out
+    if(htMisCool) htMisCool--;
+    if(htMis&&--htMisD==0){ htMis=0; htMisCool=1; htRepAdd(-2); htQ("FAVOR FAILED  OUT OF TIME",0,-1); }
+}
+static void htFavors(void){   // households.h phoneMenu, at the phone of the prison
+    if(htMis){
+        char*e=slCat(htMsg,htMis==1?"BRING ":"LAND "); e=slNum(e,htMisN); e=slCat(e,htMis==1?" SMOKES  ":" MORE HITS  "); e=slNum(e,htMisD); slCat(e,htMisD==1?" DAY":" DAYS");
+        const char*gv[2]={"KEEP AT IT","GIVE UP  REP -2"};
+        if(menu(htMsg,gv,2)==1){ htMis=0; htMisCool=1; htRepAdd(-2); htSave(); toast("YOU GAVE UP THE FAVOR  REP -2"); }
+        return;
+    }
+    if(htMisCool){ toast("NO WORK TODAY  CALL AGAIN TOMORROW"); return; }
+    const char*it[3]; int id[3], n=0;
+    it[n]="AN INMATE  BRING 2 SMOKES  $30"; id[n++]=1;
+    if(htGang){ it[n]="YOUR GANG  HIT JOB  $45  REP +8"; id[n++]=2; }
+    if(prDays!=PR_LIFE){ it[n]="THE WARDEN  HIT JOB  2 DAYS OFF"; id[n++]=3; }
+    int c=menu("FAVORS",it,n); if(c<0) return;
+    htMis=(u8)(id[c]==1?1:2); htMisBy=(u8)id[c]; htMisN=(u8)(id[c]==1?2:4); htMisD=3;
+    toast(id[c]==1?"BRING 2 SMOKES TO A CANTEEN TABLE":id[c]==2?"4 HITS ON INMATES  NO GUARDS":"4 HITS  THE WARDEN LOOKS AWAY");
+}
+
 // ---------- the prison calls these ----------
 static void htBook(int d){   // prBook: a new sentence. The worse the crime, the tougher you start
-    htRep=(u8)(d<=3?10:d<=25?20:d<=80?30:d<=240?40:55); htGang=0; htJob=0; htCig=0; htGoal=htGrudge=htPend=0; htTalks=htDeals=htOut=htWarned=0; htSave();
+    htMis=htMisCool=0; htRep=(u8)(d<=3?10:d<=25?20:d<=80?30:d<=240?40:55); htGang=0; htJob=0; htCig=0; htGoal=htGrudge=htPend=0; htTalks=htDeals=htOut=htWarned=0; htSave();
 }
 static int htFight(int n){   // prNote: you hurt someone in the prison: a hard man gets known. 1 = a guard saw it (court decides the days, prNote adds none)
     htRepAdd(n*(htGang==3?3:2)); htSave();
+    if(htMisHit(n)) return 1;   // (a favor for the warden: nobody is charged)
     if(prGuardsNear()>0&&!htPend&&prDays!=PR_LIFE){ htPend=1; return 1; }
     return 0;
 }
-static void htRelease(void){ htJob=0; htCig=0; htGang=0; htOut=0; htGoal=htGrudge=htPend=0; htSave(); }
+static void htRelease(void){ htMis=htMisCool=0; htJob=0; htCig=0; htGang=0; htOut=0; htGoal=htGrudge=htPend=0; htSave(); }
 static void htDay(void){   // prDay, every midnight of a sentence: work pays, the gang takes its due, bullies pick on the weak, the warden checks your goal and searches
     if(!prShown()) return;
     htQn=0;
@@ -67,6 +111,7 @@ static void htDay(void){   // prDay, every midnight of a sentence: work pays, th
     if(!htGoal&&prIn()&&prDays!=PR_LIFE&&prDays>6&&rnd8()<100){ htGoal=(u8)(1+rnd8()%4); htQ("WARDEN GOAL  ",htGoalNm[htGoal],-1); }
     if(htCig&&prIn()&&!htPend&&(rnd8()%100)<(htGrudge?50:25)){ htCig=0; htPend=4; htQ("CELL SEARCH  SMOKES FOUND",0,-1); }
     if(htGrudge) htGrudge--;
+    htMisDay();
     htTalks=htDeals=0; htOut=0; htWarned=0;
     simsSave(); htSave();
 }
@@ -169,16 +214,18 @@ static int htTable(void){   // main.c lifeStep, R with nothing in reach: next to
     int ok=0; for(int dy=-1;dy<=1&&!ok;dy++) for(int dx=-1;dx<=1;dx++){ int tx=(int)(lfx>>8)+dx, ty=(int)(lfy>>8)+dy; if(tx<0||ty<0||tx>=MW||ty>=MH) continue; if(lifeMap[ty][tx]=='K'){ ok=1; break; } }
     if(!ok) return 0;
     int buy=htGang==4?4:6;
-    static char lb[4][24] EWRAM_BSS; const char*it[4]; int id[4], n=0;
+    static char lb[4][24] EWRAM_BSS; const char*it[5]; int id[5], n=0;
     it[n]="CHAT"; id[n++]=0;
     { char*e=slCat(lb[n],"BUY A SMOKE  $"); slNum(e,buy); it[n]=lb[n]; id[n++]=1; }
     if(htCig){ char*e=slCat(lb[n],"SELL A SMOKE  $"); slNum(e,htGang==4?14:11); it[n]=lb[n]; id[n++]=2; }
     if(htCig){ it[n]="SMOKE ONE"; id[n++]=3; }
+    if(htMis==1&&htCig>=htMisN){ it[n]="HAND OVER THE SMOKES"; id[n++]=4; }
     int c=menu("CANTEEN TABLE",it,n);
     if(c>=0){
         if(id[c]==0) htChat();
         else if(id[c]==1){ if(htCig>=9) toast("YOUR POCKETS ARE FULL"); else if(simMoney<buy) toast("NOT ENOUGH CASH"); else if(!htBust()){ simMoney-=buy; htCig++; htSave(); toast("BOUGHT A SMOKE"); } }
         else if(id[c]==2){ if(htDeals>=4) toast("NO ONE IS BUYING"); else if(!htBust()){ int p=htGang==4?14:11; simMoney+=p; if(simMoney>9999) simMoney=9999; htCig--; htDeals++; if(htGang==1){ htGang=0; toast("THROWN OUT OF THE PEAKS"); } else htRepAdd(1); htSave(); toast("SOLD A SMOKE"); } }
+        else if(id[c]==4) htMisGive();
         else { htCig--; hmNeed(&sCom,25); if(lhp>3) lhp-=3; moodEvent(M_CHILL); lstun=60; lsp=0; htSave(); lnote="A SMOKE  AHH"; lnoteT=60; }
     }
     liveInvalidate(); camSnap=1; while((~REG_KEYINPUT)&0x3FF) vsync();

@@ -198,17 +198,20 @@ static void phInvite(void){   // someone from another household comes over (they
     static char t[40] EWRAM_BSS; char*e=simCat(t,s->name); simCat(e," IS COMING OVER"); toast(t);
 }
 static void careerScreen(void);   // career.h
+static void htFavors(void);   // hardtime.h
 static void phoneMenu(void){   // pause menu > PHONE
-    const char* it[6]; int id[6], n=0;
+    const char* it[7]; int id[7], n=0;
     it[n]="INVITE SOMEONE OVER"; id[n++]=0;
     if(ojob()){ it[n]="CAREER  JOBS AND PAY"; id[n++]=4; }   // (the career tracks: career.h)
     it[n]="ORDER PIZZA  \xC2\xA7" "20"; id[n++]=1;
     it[n]="ORDER CHINESE  \xC2\xA7" "15"; id[n++]=2;
+    if(prIn()){ it[n]="FAVORS  PRISON JOBS"; id[n++]=5; }   // (in the prison: hardtime.h)
     if(dbgOn&&hhN){ it[n]="MOVE SOMEONE OUT"; id[n++]=3; }   // (the DEBUG CODE: every change to who lives in the house)
     int c=menu("PHONE",it,n); if(c<0) return;
     switch(id[c]){
         case 0: phInvite(); break;
         case 4: careerScreen(); break;
+        case 5: htFavors(); break;
         case 1: case 2: { int cost=id[c]==1?20:15;
             if(phFood){ toast("FOOD IS ALREADY ON ITS WAY"); break; }
             if(simMoney<cost){ toast("NOT ENOUGH SIMOLEONS"); break; }
