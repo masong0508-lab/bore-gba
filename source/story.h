@@ -384,6 +384,28 @@ static void stRunModal(void){   // the card, then the TV SHOW & TELL hand-over o
     else if(stCh>=4&&stPart!=255&&stKid!=255&&hhPUid==(int)stPart&&(kind==2||stCh==4)) stTvWant=2;
     stTvControl();
 }
+// STORY CAST (story step 1): STORY MODE does not make you build a Sim. Every story has its own pre-made lead, who is who you play (the creator is for CREATE A BORE).
+// One row per story, in the order of the STY_ enum; the last name comes from the family name like a pre-made family (a trailing S is dropped, so these end in a letter that is not S).
+//   look: SHAPE SKIN EYES MOUTH EARS HSTYLE HCOL TOP BOT  TONE EARSZ EARLF
+static const HhFam stLead[STY_N]={
+    {"",0},
+    {"THE PARKER",1,{ {"JESS", {4,3,2,1,1,2,2,6,0, 0,0,0},AG_ADULT,AS_PLEAS, 6} }},   // ROOMMATES
+    {"THE KOWALSKI",1,{ {"NICK", {5,2,1,1,1,0,3,3,2, 0,0,0},AG_ADULT,AS_HOME, 1} }},   // NEWLYWEDS
+    {"THE BRENNAN",1,{ {"MARA", {4,1,2,2,1,1,4,5,1, 0,0,0},AG_ADULT,AS_HOME, 2} }},   // SINGLE PARENT
+    {"THE VALDEZ",1,{ {"DEX",  {6,1,6,2,1,2,6,1,3, 0,0,0},AG_ADULT,AS_POP,  4} }},   // SKATE LIFE
+    {"THE OKAFOR",1,{ {"BRAM", {3,2,3,1,1,3,1,2,4, 0,0,0},AG_ADULT,AS_PLEAS,9} }},   // HOUSEFULL
+    {"THE LINDQVIST",1,{ {"SAM",  {1,4,3,1,2,4,5,5,2, 0,0,0},AG_ADULT,AS_KNOW, 8} }},   // BEST FRIENDS
+    {"THE QUINN",1,{ {"PENNY",{0,2,1,2,2,1,3,2,5, 0,0,0},AG_ADULT,AS_FORTUNE,9} }},   // RAGS TO RICHES
+    {"THE HARLOW",1,{ {"WES",  {5,6,2,0,1,2,0,1,1, 0,0,0},AG_ADULT,AS_FORTUNE,0} }},   // CAREER CLIMBER
+    {"THE MORENO",1,{ {"ROSA", {4,5,0,1,2,5,2,6,3, 0,0,0},AG_ADULT,AS_POP,  3} }},   // NEW IN TOWN
+    {"THE ASHBY",1,{ {"LEO",  {5,0,2,3,1,0,1,3,1, 0,0,0},AG_ADULT,AS_HOME, 5} }},   // SECOND CHANCE
+    {"THE TELLER",1,{ {"MISSY",{4,1,3,1,1,2,6,5,3, 0,0,0},AG_ADULT,AS_POP,  3} }},   // TV SHOW & TELL
+};
+static int storyLead(int s){   // the story's lead becomes you (the same hand-over as A PRE-MADE FAMILY: they move in, you take their place, who you were leaves). 0 = it did not fit
+    if(s<1||s>=STY_N) return 0;
+    if(hhMoveIn(&stLead[s])>0){ hhSwap(&hhM[0]); hhRemove(0); return 1; }
+    return 0;
+}
 // NEW GAME > STORY MODE: pick a story on a story card (LEFT RIGHT to flip through them, A to start)
 static int storyPick(void){
     int sel=1; u16 prev=keyNow(); u32 cnt=0, lt=~0u;

@@ -5086,9 +5086,9 @@ static int newGame(int slot){   // 1 = it started (and ended: back to the main m
     stOff();
     if(c==1&&hhMoveIn(&hhFams[f])>0){ hhSwap(&hhM[0]); hhRemove(0); }   // you are the family's first Sim (who you were leaves)
     else if(c==2) lookTrueRandomMe();
-    else if(c==3) storySetup(story);   // STORY MODE: who you live with, and chapter 1
+    else if(c==3){ if(!storyLead(story)) lookTrueRandomMe(); storySetup(story); }   // STORY MODE: you play the story's own pre-made lead (no creator), then who you live with, and chapter 1
     hhSave(); sprKey=0; if(sgPid) sgSave();   // (the save file exists from the first minute)
-    if(c==0||c==3){ creatureEditor(); if(sgPid) homePick(); }   // make your Sim, then a new player picks a home (homepick.h), then GO LIVE LIFE
+    if(c==0){ creatureEditor(); if(sgPid) homePick(); }   // make your Sim, then a new player picks a home (homepick.h), then GO LIVE LIFE (a story has its own pre-made lead: story.h stLead)
     else lifeMode(0);
     return 1;
 }
