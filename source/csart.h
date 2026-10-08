@@ -6,8 +6,8 @@ static void csFig(int x,int y,int who,int pose,int t){
     //                         -    MISSY        MAMESY       DEX          HAL          OKAFOR     (the game's own skinTones / hairTones / topTones / botTones)
     static const u16 SKc[6]={0,RGB(24,16,10),RGB(24,16,10),RGB(30,23,17),RGB(19,12,7),RGB(13,8,5)};
     static const u16 HRc[6]={0,RGB(5,3,2),RGB(14,8,4),RGB(5,3,2),RGB(14,8,4),RGB(5,3,2)};
-    static const u16 CLc[6]={0,RGB(8,10,26),RGB(8,20,22),RGB(5,5,8),RGB(30,16,4),RGB(29,29,30)};
-    static const u16 BTc[6]={0,RGB(8,9,20),RGB(8,9,20),RGB(8,9,20),RGB(8,9,20),RGB(8,10,22)};
+    static const u16 CLc[6]={0,RGB(8,10,26),RGB(8,20,22),RGB(8,9,14),RGB(30,16,4),RGB(29,29,30)};   // blazer, teal top, navy suit jacket, hi-vis vest, white coat
+    static const u16 BTc[6]={0,RGB(7,8,15),RGB(9,13,23),RGB(4,4,7),RGB(17,14,8),RGB(8,12,20)};   // pencil skirt, jeans, suit trousers, work trousers, scrub trousers
     u16 sk=SKc[who], hr=HRc[who], cl=CLc[who], bt=BTc[who], dk=RGB(3,2,3), ol=RGB(2,1,4);
     int mv=0; if(pose==CP_WALK){ if(t<60){ x+=(x>120?60-t:t-60); mv=1; } } else if(pose==CP_LEAVE){ if(t>45){ x+=(x>120?t-45:45-t); mv=1; } }   // cutscene redo 10: walk in from, and out toward, the nearer side
     int dress=who==CA_MISSY;   /* (Mamesy wears a top and jeans, like in the game) */
@@ -33,29 +33,32 @@ static void csFig(int x,int y,int who,int pose,int t){
     case CP_SLUMP: bob=t/4>7?7:t/4; hd=3; lean=-1; break;
     }
     int sy=y-21+bob, hx=x+lean, hy=y-29+bob+hd; u16 lc=dress?sk:bt; int bl=((t+who*23)%110)<4;   // bl: a blink every ~2 s (cutscene redo 10)
+    int fem=(who==CA_MISSY||who==CA_MAME), ax=fem?5:6;   // the build: the women slimmer through the shoulders, the men broader (the arms hang from the edge of the shoulders)
     csR(x-6,y,12,1,RGB(2,1,3));                                                                                       // the floor shadow
-    csR(x-4+ls,y-9,3,9,ol); csR(x+1-ls,y-9,3,9,ol); csR(x-3+ls,y-8,2,8,lc); csR(x+1-ls,y-8,2,8,lc);                       // legs (bare under a dress, trousers otherwise)
+    csR(x-4+ls,y-12,3,12,ol); csR(x+1-ls,y-12,3,12,ol); csR(x-3+ls,y-11,2,11,lc); csR(x+1-ls,y-11,2,11,lc);               // legs: a third of the figure, trousers or jeans (bare under Missy's skirt)
     csR(x-5+ls,y-2,4,2,dk); csR(x+1-ls,y-2,4,2,dk); csR(x-4+ls,y-2,2,1,csLt(dk,5));                                       // shoes
-    u16 ac=(who==CA_MISSY)?sk:cl;                                                                          // arms: bare, or a sleeve
-    csLn(x+lean-5,sy,x+lean+lh-1,sy+lv,ol); csLn(x+lean+5,sy,x+lean+rh+1,sy+rv,ol);
-    csLn(x+lean-4,sy,x+lean+lh,sy+lv,ac); csLn(x+lean-3,sy,x+lean+lh+1,sy+lv,ac); csLn(x+lean+4,sy,x+lean+rh,sy+rv,ac); csLn(x+lean+3,sy,x+lean+rh-1,sy+rv,ac);
+    u16 ac=(who==CA_CREW)?RGB(14,14,16):cl;                                                                // arms: a sleeve (Hal: a grey work shirt under the vest)
+    csLn(x+lean-ax,sy,x+lean+lh-1,sy+lv,ol); csLn(x+lean+ax,sy,x+lean+rh+1,sy+rv,ol);
+    csLn(x+lean-ax+1,sy,x+lean+lh,sy+lv,ac); csLn(x+lean-ax+2,sy,x+lean+lh+1,sy+lv,ac); csLn(x+lean+ax-1,sy,x+lean+rh,sy+rv,ac); csLn(x+lean+ax-2,sy,x+lean+rh-1,sy+rv,ac);
     csR(x+lean+lh-1,sy+lv-1,2,2,sk); csR(x+lean+rh-1,sy+rv-1,2,2,sk);                                                    // hands
-    for(int i=0;i<14;i++){ int w=8+i*6/13, cx=x+lean*(14-i)/14, yy=y-22+i+bob;                                            // the body, a trapezoid with an outline and a shaded side
-        csR(cx-w/2-1,yy,w+2,1,ol); csR(cx-w/2,yy,w,1,cl); csR(cx-w/2,yy,2,1,csSh(cl,4)); csR(cx+w/2-2,yy,1,1,csLt(cl,3));
-        if(dress&&i==13) csR(cx-w/2,yy,w,1,csLt(cl,6));                                                                  // the hem
-        if(!dress&&i==9) csR(cx-w/2,yy,w,1,bt); if(who==CA_MAME&&i>9) csR(cx-w/2,yy,w,1,bt);                                                                           // the belt line
-        if(who==CA_HOST&&i>0&&i<9){ csR(cx,yy,1,1,i<2?WHITE:RGB(24,4,6)); }                                              // Dex: shirt collar, red tie
-        if(who==CA_DOC){ if(i<7) csR(cx,yy,1,1,csSh(cl,10)); if(i==4||i==5) csR(cx-w/2+1,yy,2,1,csSh(cl,8)); }          // Okafor: the coat seam, a pocket
-        if(who==CA_CREW&&i>1&&i<12){ csR(cx-w/2+2,yy,1,1,RGB(31,30,16)); csR(cx+w/2-3,yy,1,1,RGB(31,30,16)); }          // Hal: the reflective vest stripes
-        if(dress&&i<3) csR(cx-1,yy,3,1,csSh(sk,2));                                                                        // the neckline
+    for(int i=0;i<11;i++){ int w=i<3?(fem?10:12):i<7?(fem?9:11):(fem?8:10), cx=x+lean*(11-i)/11, yy=y-22+i+bob;           // the body: straight, shoulders to hips, with an outline and a shaded side
+        u16 rc=(who==CA_MISSY&&i>=9)?bt:cl;                                                                              // Missy: the blazer ends at the hip, the skirt starts
+        csR(cx-w/2-1,yy,w+2,1,ol); csR(cx-w/2,yy,w,1,rc); csR(cx-w/2,yy,2,1,csSh(rc,4)); csR(cx+w/2-2,yy,1,1,csLt(rc,3));
+        if(who==CA_MISSY){ if(i<4) csR(cx-(i<2?1:0),yy,i<2?3:1,1,WHITE); if(i==6) csR(cx,yy,1,1,csLt(cl,9)); }          // a white blouse in the V of the blazer, one button
+        if(who==CA_MAME){ if(i<2) csR(cx-1,yy,3,1,csSh(sk,2)); if(i==10) csR(cx-w/2,yy,w,1,csSh(cl,3)); }                 // a round neck, a plain hem
+        if(who==CA_HOST){ if(i>=1&&i<7){ csR(cx-2,yy,1,1,csLt(cl,5)); csR(cx+2,yy,1,1,csLt(cl,5)); csR(cx-1,yy,1,1,WHITE); csR(cx+1,yy,1,1,WHITE); } if(i<2) csR(cx-1,yy,3,1,WHITE); if(i>=1&&i<8) csR(cx,yy,1,1,RGB(24,4,6)); }   // Dex: lapels, white shirt, red tie
+        if(who==CA_DOC){ if(i<2) csR(cx-1,yy,3,1,RGB(8,18,20)); if(i>=2&&i<10) csR(cx,yy,1,1,csSh(cl,10)); if(i==4||i==5) csR(cx-w/2+1,yy,2,1,csSh(cl,8)); }   // Okafor: scrubs at the neck, the coat seam, a pocket
+        if(who==CA_CREW){ if(i<2) csR(cx-1,yy,3,1,RGB(14,14,16)); if(i>1&&i<10){ csR(cx-w/2+2,yy,1,1,RGB(31,30,16)); csR(cx+w/2-3,yy,1,1,RGB(31,30,16)); } }   // Hal: the grey shirt, the reflective vest stripes
     }
+    if(who==CA_DOC) for(int k=0;k<7;k++){ int yy=y-11+k; csR(x-6,yy,12,1,ol); csR(x-5,yy,10,1,cl); csR(x-5,yy,2,1,csSh(cl,4)); csR(x,yy,1,1,csSh(cl,10)); }   // the white coat hangs to the knee
+    if(who==CA_MISSY) for(int k=0;k<7;k++){ int yy=y-11+k; csR(x-5,yy,10,1,ol); csR(x-4,yy,8,1,bt); csR(x-4,yy,1,1,csSh(bt,2)); if(k==6) csR(x-4,yy,8,1,csLt(bt,5)); }   // a straight knee-length skirt
     if(csCz>=384){ csFaceBig(hx,hy+2,who,pose,t,open,sk,hr); return; }
     if(who==CA_MAME){ csR(hx-7,hy-1,3,15,ol); csR(hx+4,hy-1,3,15,ol); csR(hx-6,hy,2,14,hr); csR(hx+4,hy,2,14,hr); csR(hx-6,hy+9,1,3,csLt(hr,5)); csR(hx+5,hy+9,1,3,csLt(hr,5)); }      // long hair behind
     if(who==CA_MISSY){ csR(hx-6,hy-1,2,10,ol); csR(hx+5,hy-1,2,10,ol); csR(hx-6,hy,2,9,hr); csR(hx+4,hy,2,9,hr); }       // the bob, to the chin
     csD(hx,hy+1,6,ol); csD(hx,hy,5,hr); csD(hx,hy+2,4,sk);                                                                 // head: outline, hair, face
-    if(who!=CA_MAME){ csR(hx-3,hy-6,1,2,hr); csR(hx+2,hy-6,1,2,hr); csR(hx,hy-7,1,2,hr); csR(hx-2,hy-4,2,1,csLt(hr,8)); } else { csR(hx-3,hy-2,7,2,hr); csR(hx-4,hy-1,2,4,hr); csR(hx+3,hy-1,2,3,hr); csR(hx+1,hy-4,2,1,csLt(hr,8)); }                       // the tousled tufts and a shine (the in-game hair)
+    if(who!=CA_MAME){ csR(hx-2,hy-4,2,1,csLt(hr,8)); } else { csR(hx-3,hy-2,7,2,hr); csR(hx-4,hy-1,2,4,hr); csR(hx+3,hy-1,2,3,hr); csR(hx+1,hy-4,2,1,csLt(hr,8)); }                       // the tousled tufts and a shine (the in-game hair)
     csR(hx-4,hy+4,1,1,RGB(28,12,12)); csR(hx+4,hy+4,1,1,RGB(28,12,12));                                                   // blush
-    if(who==CA_MISSY){ u16 gl=RGB(16,16,20); int gx=hx, gy=hy+1; csR(gx-4,gy-1,4,1,gl); csR(gx-4,gy+1,4,1,gl); csR(gx-4,gy,1,1,gl); csR(gx-1,gy,1,1,gl); csR(gx,gy-1,4,1,gl); csR(gx,gy+1,4,1,gl); csR(gx,gy,1,1,gl); csR(gx+3,gy,1,1,gl); csR(gx-2,gy,1,1,bl?sk:dk); csR(gx+1,gy,1,1,bl?sk:dk); csR(gx-3,gy-3,7,2,hr); }   // round glasses, flat sleepy eyes, bangs
+    if(who==CA_MISSY){ u16 gl=RGB(9,9,12); int gx=hx, gy=hy+1; csR(gx-4,gy-1,3,1,gl); csR(gx-4,gy+1,3,1,gl); csR(gx-4,gy,1,1,gl); csR(gx-2,gy,1,1,gl); csR(gx+1,gy-1,3,1,gl); csR(gx+1,gy+1,3,1,gl); csR(gx+1,gy,1,1,gl); csR(gx+3,gy,1,1,gl); csR(gx-1,gy,2,1,gl); csR(gx-3,gy,1,1,bl?sk:dk); csR(gx+2,gy,1,1,bl?sk:dk); csR(gx-3,gy-3,7,2,hr); }   // small round glasses with a bridge, flat sleepy eyes, bangs
     else { csR(hx-2,hy+1,1,1,bl?sk:dk); csR(hx+1,hy+1,1,1,bl?sk:dk); csR(hx-3,hy-1,2,1,hr); csR(hx+1,hy-1,2,1,hr); }                    // eyes, brows
     if(who==CA_HOST) csR(hx-4,hy-3,8,2,hr);                                                                               // Dex: swept fringe
     if(who==CA_CREW){ csR(hx-6,hy-3,12,3,RGB(31,31,28)); csR(hx-7,hy-1,14,1,RGB(24,24,22)); csR(hx-2,hy-4,4,1,RGB(31,31,31)); }   // Hal: the hard hat

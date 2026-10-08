@@ -35,7 +35,7 @@ static void csFaceBig(int wx,int wy,int who,int pose,int t,int open,u16 sk,u16 h
     // face
     csFE(0,0,18,20,ol); csFE(0,0,17,19,csFSh(fc,3)); csFE(-1,-1,16,18,fc); csFE(-5,-10,6,3,csFLt(fc,2));
     // hair in front
-    if(who==CA_MISSY){ csFE(0,-14,19,9,hr); csFR(-12,-6,6,4,hr); csFR(-3,-6,6,5,hr); csFR(6,-6,6,4,hr); csFR(-13,-32,5,9,ol); csFR(7,-32,5,9,ol); csFR(-2,-35,5,10,ol); csFR(-12,-31,3,8,hr); csFR(8,-31,3,8,hr); csFR(-1,-34,3,9,hr); csFR(-8,-19,6,2,csFLt(hr,8)); }
+    if(who==CA_MISSY){ csFE(0,-14,19,9,hr); csFR(-12,-6,6,4,hr); csFR(-3,-6,6,5,hr); csFR(6,-6,6,4,hr); csFR(-8,-19,6,2,csFLt(hr,8)); }
     else if(who==CA_MAME){ csFE(2,-14,19,9,hr); csFR(-19,-9,6,13,hr); csFR(14,-9,5,11,hr); csFR(-8,-8,14,3,hr); csFR(-6,-19,10,2,csFLt(hr,8)); }
     else if(who==CA_HOST){ csFE(2,-15,19,9,hr); csFR(-19,-9,5,8,hr); csFR(-6,-8,12,3,hr); csFR(-4,-21,8,2,csFLt(hr,8)); csFR(-2,-18,2,9,ol); }
     else if(who==CA_DOC){ csFE(0,-14,19,9,hr); csFR(-20,-9,5,12,hr); csFR(15,-9,5,12,hr); csFE(10,-30,6,5,hr); csFR(-6,-20,8,2,csFLt(hr,8)); }
