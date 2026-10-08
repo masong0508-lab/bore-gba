@@ -7,7 +7,17 @@ static u16 csLt(u16 c,int k){ int r=(c&31)+k,g=((c>>5)&31)+k,b=((c>>10)&31)+k; i
 typedef struct { short cur[8], from[8]; short lt, fn; u8 have; } CsPS;
 static CsPS csPS[6] EWRAM_BSS;
 static int csFrameNo;
-static void csAliveReset(void){ for(int i=0;i<6;i++){ csPS[i].fn=-100; csPS[i].have=0; csPS[i].lt=0; } csFrameNo=0; }
+// cutscene redo 14 (step 3: SECONDARY MOTION): the hair strands and the skirt / coat hem trail behind the body and swing back past it (a small spring on the head's x), so a lean, a
+// step or a dance move has weight. csHL[who]: the smoothed head x (1/16 px), its speed, the last frame it was updated.
+typedef struct { short q, w, f; } CsHL;
+static CsHL csHL[6] EWRAM_BSS;
+static void csAliveReset(void){ for(int i=0;i<6;i++){ csPS[i].fn=-100; csPS[i].have=0; csPS[i].lt=0; csHL[i].f=-100; } csFrameNo=0; csHlag=0; }
+static int csHairLag(int who,int hx){   // spring the head x; returns how many px the hair trails (negative: behind a head that moved right), -3 .. 3
+    CsHL*h=&csHL[who]; int t16=hx*16;
+    if(csFrameNo-h->f>3){ h->q=(short)t16; h->w=0; } else { int w=(h->w+(t16-h->q)/5)*3/4; h->w=(short)w; h->q=(short)(h->q+w); }
+    h->f=(short)csFrameNo; int l=(h->q-t16+(h->q>=t16?8:-8))/16; return l>3?3:l<-3?-3:l;
+}
+static void csHairR(int x,int y,int w,int h,u16 c,int lag){ int a=h/3; csR(x,y,w,a,c); csR(x+lag/2,y+a,w,a,c); csR(x+lag,y+2*a,w,h-2*a,c); }   // a hair strand in three pieces: the tip trails
 // cutscene redo 14 (step 1: ELBOWS): arms are two segments with a real elbow. The elbow bulges outward / down like a relaxed arm, and a raised hand folds the arm up.
 static int csIq(int v){ int w=0; while((w+1)*(w+1)<=v) w++; return w; }
 static void csLimb(int x0,int y0,int x1,int y1,u16 fill,u16 ol){   // a 2 px wide, outlined bone
@@ -78,6 +88,7 @@ static void csFig(int x,int y,int who,int pose,int t){
       for(int i=0;i<8;i++) p->cur[i]=v[i]; p->lt=(short)t; p->fn=(short)csFrameNo; }
     int sy=y-21+bob, hx=x+lean, hy=y-29+bob+hd; u16 lc=dress?sk:bt; int bl=((t+who*23)%110)<4;   // bl: a blink every ~2 s (cutscene redo 10)
     int fem=(who==CA_MISSY||who==CA_MAME), ax=fem?5:6;   // the build: the women slimmer through the shoulders, the men broader (the arms hang from the edge of the shoulders)
+    int lag=csHairLag(who,hx); csHlag=lag;                                                                              // how far the hair and the hem trail
     csR(x-6,y,12,1,RGB(2,1,3));                                                                                       // the floor shadow
     csR(x-4+ls,y-12,3,12,ol); csR(x+1-ls,y-12,3,12,ol); csR(x-3+ls,y-11,2,11,lc); csR(x+1-ls,y-11,2,11,lc);               // legs: a third of the figure, trousers or jeans (bare under Missy's skirt)
     csR(x-5+ls,y-2,4,2,dk); csR(x+1-ls,y-2,4,2,dk); csR(x-4+ls,y-2,2,1,csLt(dk,5));                                       // shoes
@@ -92,11 +103,11 @@ static void csFig(int x,int y,int who,int pose,int t){
         if(who==CA_DOC){ if(i<2) csR(cx-1,yy,3,1,RGB(8,18,20)); if(i>=2&&i<10) csR(cx,yy,1,1,csSh(cl,10)); if(i==4||i==5) csR(cx-w/2+1,yy,2,1,csSh(cl,8)); }   // Okafor: scrubs at the neck, the coat seam, a pocket
         if(who==CA_CREW){ if(i<2) csR(cx-1,yy,3,1,RGB(14,14,16)); if(i>1&&i<10){ csR(cx-w/2+2,yy,1,1,RGB(31,30,16)); csR(cx+w/2-3,yy,1,1,RGB(31,30,16)); } }   // Hal: the grey shirt, the reflective vest stripes
     }
-    if(who==CA_DOC) for(int k=0;k<7;k++){ int yy=y-11+k; csR(x-6,yy,12,1,ol); csR(x-5,yy,10,1,cl); csR(x-5,yy,2,1,csSh(cl,4)); csR(x,yy,1,1,csSh(cl,10)); }   // the white coat hangs to the knee
-    if(who==CA_MISSY) for(int k=0;k<7;k++){ int yy=y-11+k; csR(x-5,yy,10,1,ol); csR(x-4,yy,8,1,bt); csR(x-4,yy,1,1,csSh(bt,2)); if(k==6) csR(x-4,yy,8,1,csLt(bt,5)); }   // a straight knee-length skirt
+    if(who==CA_DOC) for(int k=0;k<7;k++){ int yy=y-11+k, xx=x+lag*(k+1)/7; csR(xx-6,yy,12,1,ol); csR(xx-5,yy,10,1,cl); csR(xx-5,yy,2,1,csSh(cl,4)); csR(xx,yy,1,1,csSh(cl,10)); }   // the white coat hangs to the knee
+    if(who==CA_MISSY) for(int k=0;k<7;k++){ int yy=y-11+k, xx=x+lag*(k+1)/7; csR(xx-5,yy,10,1,ol); csR(xx-4,yy,8,1,bt); csR(xx-4,yy,1,1,csSh(bt,2)); if(k==6) csR(xx-4,yy,8,1,csLt(bt,5)); }   // a straight knee-length skirt
     if(csCz>=384){ csFaceBig(hx,hy+2,who,pose,t,open,sk,hr); return; }
-    if(who==CA_MAME){ csR(hx-7,hy-1,3,15,ol); csR(hx+4,hy-1,3,15,ol); csR(hx-6,hy,2,14,hr); csR(hx+4,hy,2,14,hr); csR(hx-6,hy+9,1,3,csLt(hr,5)); csR(hx+5,hy+9,1,3,csLt(hr,5)); }      // long hair behind
-    if(who==CA_MISSY){ csR(hx-6,hy-1,2,10,ol); csR(hx+5,hy-1,2,10,ol); csR(hx-6,hy,2,9,hr); csR(hx+4,hy,2,9,hr); }       // the bob, to the chin
+    if(who==CA_MAME){ csHairR(hx-7,hy-1,3,15,ol,lag); csHairR(hx+4,hy-1,3,15,ol,lag); csHairR(hx-6,hy,2,14,hr,lag); csHairR(hx+4,hy,2,14,hr,lag); csR(hx-6+lag,hy+9,1,3,csLt(hr,5)); csR(hx+5+lag,hy+9,1,3,csLt(hr,5)); }      // long hair behind
+    if(who==CA_MISSY){ csHairR(hx-6,hy-1,2,10,ol,lag); csHairR(hx+5,hy-1,2,10,ol,lag); csHairR(hx-6,hy,2,9,hr,lag); csHairR(hx+4,hy,2,9,hr,lag); }       // the bob, to the chin
     csD(hx,hy+1,6,ol); csD(hx,hy,5,hr); csD(hx,hy+2,4,sk);                                                                 // head: outline, hair, face
     if(who!=CA_MAME){ csR(hx-2,hy-4,2,1,csLt(hr,8)); } else { csR(hx-3,hy-2,7,2,hr); csR(hx-4,hy-1,2,4,hr); csR(hx+3,hy-1,2,3,hr); csR(hx+1,hy-4,2,1,csLt(hr,8)); }                       // the tousled tufts and a shine (the in-game hair)
     csR(hx-4,hy+4,1,1,RGB(28,12,12)); csR(hx+4,hy+4,1,1,RGB(28,12,12));                                                   // blush

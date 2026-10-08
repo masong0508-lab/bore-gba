@@ -13,7 +13,8 @@ static int csOx, csOy;   // the shake
 static int csMood=0, csLite=0;   // cutscene redo 12: the picture's mood (-1 brighter, 0 normal, 1 dimmer, 2 much dimmer) and a lightning flash in the hospital window
 static int csSlow=0;   // 1 while the frames are coming slowly: the backdrop lighting (glows, dust, vignette) is skipped until they speed up again
 static int csDir=1, csTalking=0, csMirPose=CP_HEAD;   // cutscene redo 10: which way POINT points (+1 right), the speaker's mouth moves while the caption types, the mirror reflection's pose
-static int csSpk=0, csLook=0, csMh=5, csEm=0;   // cutscene redo 13 (ALIVE): who is speaking now (CA_*), which way the eyes look (-1/0/1), how wide the mouth opens, 1 = an emphatic beat (brows lift)
+static int csSpk=0, csLook=0, csMh=5, csEm=0, csHlag=0;   // (csHlag, cutscene redo 14 step 3: how far the hair / hem trails behind the head, in px)
+static int csSpkDummy_;   // cutscene redo 13 (ALIVE): who is speaking now (CA_*), which way the eyes look (-1/0/1), how wide the mouth opens, 1 = an emphatic beat (brows lift)
 #include "cscam.h"
 static void csR(int x,int y,int w,int h,u16 c){ csCamR(x+csOx,y+csOy,w,h,c); }
 static void csD(int x,int y,int r,u16 c){ csCamD(x+csOx,y+csOy,r,c); }

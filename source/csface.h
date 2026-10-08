@@ -16,6 +16,7 @@ static void csFEl(int cx,int cy,int rx,int ry,int top,u16 c){        // a filled
 static void csFE(int dx,int dy,int rx,int ry,u16 c){ csFEl(csFcx+csFu(dx),csFcy+csFu(dy),csFr(rx),csFr(ry),0,c); }
 static void csFT(int dx,int dy,int rx,int ry,u16 c){ csFEl(csFcx+csFu(dx),csFcy+csFu(dy),csFr(rx),csFr(ry),1,c); }
 static void csFR(int dx,int dy,int w,int h,u16 c){ rect(csFcx+csFu(dx),csFcy+csFu(dy),csFr(w),csFr(h),c); }
+static void csFStr(int x,int y,int w,int h,u16 c){ int a=h/3, l=csHlag*4; csFR(x,y,w,a,c); csFR(x+l/2,y+a,w,a,c); csFR(x+l,y+2*a,w,h-2*a,c); }   // a long strand of hair: the tip trails (csHlag)
 static void csFLn(int x0,int y0,int x1,int y1,u16 c){ line(csFcx+csFu(x0),csFcy+csFu(y0),csFcx+csFu(x1),csFcy+csFu(y1),c); }
 
 static void csFaceBig(int wx,int wy,int who,int pose,int t,int open,u16 sk,u16 hr){
@@ -28,8 +29,8 @@ static void csFaceBig(int wx,int wy,int who,int pose,int t,int open,u16 sk,u16 h
     int ex=(who==CA_MISSY)?10:8;
     // hair behind, neck, ears
     csFE(0,-7,23,23,ol); csFE(0,-8,21,21,hr);
-    if(who==CA_MISSY){ csFR(-25,-14,9,46,ol); csFR(16,-14,9,46,ol); csFR(-24,-12,7,43,hr); csFR(17,-12,7,43,hr); }
-    if(who==CA_MAME){ csFR(-27,-14,10,62,ol); csFR(17,-14,10,62,ol); csFR(-26,-12,8,59,hr); csFR(18,-12,8,59,hr); }
+    if(who==CA_MISSY){ csFStr(-25,-14,9,46,ol); csFStr(16,-14,9,46,ol); csFStr(-24,-12,7,43,hr); csFStr(17,-12,7,43,hr); }
+    if(who==CA_MAME){ csFStr(-27,-14,10,62,ol); csFStr(17,-14,10,62,ol); csFStr(-26,-12,8,59,hr); csFStr(18,-12,8,59,hr); }
     csFR(-7,12,14,16,ol); csFR(-6,12,12,15,csFSh(fc,4));
     csFE(-18,2,4,5,ol); csFE(18,2,4,5,ol); csFE(-18,2,3,4,csFSh(fc,2)); csFE(18,2,3,4,csFSh(fc,2));
     // face
