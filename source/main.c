@@ -2608,7 +2608,7 @@ static void trickName(int hs,int grab,int perfect){
 }
 static void swName(void){ int n=0; while(lnBuf[n]) n++; if(n>15) return; for(int i=n;i>=0;i--) lnBuf[i+7]=lnBuf[i]; const char*q="SWITCH "; for(int i=0;i<7;i++) lnBuf[i]=q[i]; }
 static void hhStart(void); static void hhTick(void); static int hhSocR(int useLabel); static int hhCallFloors(void);   // house.h (included further down, next to the drawing it hooks into)
-static void drawCounter(int sx,int sy,int t); static void wpPre(u16*kp,u16*pp); static void wpDraw(void); static void wpConfiscate(void);   // weapons.h
+static void drawCounter(int sx,int sy,int t); static void dbgMenu(void); static void wpPre(u16*kp,u16*pp); static void wpDraw(void); static void wpConfiscate(void);   // weapons.h
 // ---- COLLECTIBLES (like THPS): the letters S K A T E and one hidden tape float over the floor of a skate lot. Touch one to take it. ----
 // Nothing is saved and no map tile is used: lifeInit scatters them over empty floor every run (a new spot each time), so they cost a few bytes of EWRAM
 // and no sprite art (they are drawn in code). A letter counts like a combo letter (sktAward: five make SKATE). Only on lots that have something to skate.
@@ -3490,6 +3490,7 @@ static int pauseMenu(int mode){   // mode 0 life, 1 from the neighborhood, 2 tes
         if((pr&K_DOWN)&&sel+4<n) sel+=4;
         if((pr&K_UP)&&sel>=4) sel-=4;
         if(pr&K_A) return ids[sel]==PM_RESUME?-1:ids[sel];
+        if(dbgOn&&(pr&K_SEL)){ dbgMenu(); prev=keyNow(); dirty=1; }   // dbgmenu.h: the debug cheats
         if(pr&(K_B|K_START)) return -1;
         { int bb=(int)((t>>4)&1); if(sel!=ps||bb!=lastB) dirty=1; lastB=bb; }   // redraw when the cursor moves or the icon bob changes (a few times a second), not every frame
         if(!dirty){ vsync(); continue; }
@@ -3508,7 +3509,7 @@ static int pauseMenu(int mode){   // mode 0 life, 1 from the neighborhood, 2 tes
           if(id==PM_BUILD&&mode!=2&&nbBarred()) ds="NO BUILDING WHILE VISITING";   // (a community lot is built from the town view)
           if(id==PM_QUIT&&mode==1){ ti="NEIGHBORHOOD"; ds="BACK TO THE TOWN"; } else if(id==PM_QUIT&&mode==2){ ti="BACK TO EDITOR"; ds="LEAVE THE TEST PLAY"; }
           rect(7,113,226,1,RGB(10,16,30)); text(12,118,ti,GOLD,1); text(12,128,ds,RGB(22,25,28),1); }
-        text(12,142,"LEFT RIGHT UP DOWN PICK  A OK  B BACK",RGB(12,14,16),1);
+        text(12,142,dbgOn?"ARROWS PICK  A OK  B BACK  SEL DEBUG":"LEFT RIGHT UP DOWN PICK  A OK  B BACK",RGB(12,14,16),1);
         present();
     }
 }
@@ -4803,6 +4804,7 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "wpshot.h"        // WEAPONS 2: bullets and guided missiles
 #include "armsshop.h"      // WEAPONS 3: the ARMS SHOP lot and its counter
 #include "wpsecret.h"      // WEAPONS 4: secret stashes in the community lots
+#include "dbgmenu.h"       // WEAPONS 5: the DEBUG menu (pause, then SELECT; DEBUG CODE only)
 #include "goals.h"          // VIEW GOALS and the tape count per lot (the tape stays found)
 #include "statscreen.h"   // the LIFETIME STATS screen (PAUSE > MY SIM > MORE)
 #include "mysim.h"         // MY SIM: the pause menu tile with CAREER / SKILLS / PEOPLE / MORE tabs
