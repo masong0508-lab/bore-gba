@@ -15,7 +15,7 @@
 //                The prison map itself is saved like any lot. Nothing here is EWRAM that matters: about 20 bytes.
 // BAIL          Pause menu > PRISON > PAY BAIL (in the cell, not for LIFE): PR_BAIL simoleons a day, 1, 7 or 30 days. A missed shift in the cell counts as a bad shift (sims.h simShiftEnd) and may get you FIRED (simFire: back to the bottom of the track); so may the arrest itself (prBook), the longer the sentence the likelier.
 // ONE PRISONER   Only one Sim of the household can be inside at a time; if a second one is busted meanwhile the old 10 second hold happens ("the cells are full").
-static void htBook(int d); static void htFight(int n); static void htRelease(void); static void htDay(void); static void htTick(void); static void htLoad(void); static int htAgiLvl(void); static void htCard(void); static void htLife(void);   // hardtime.h
+static void htBook(int d); static int htFight(int n); static void htRelease(void); static void htDay(void); static void htTick(void); static void htLoad(void); static int htAgiLvl(void); static void htCard(void); static void htLife(void);   // hardtime.h
 #define PR_OFF  (JB_OFF+56)
 #define PR_LIFE 0xFFFF
 #define PR_BAIL 40   // simoleons per day of sentence bought off (PAY BAIL)
@@ -92,7 +92,7 @@ static void prisonBuild(int x0,int y0,int x1,int y1){   // nbTemplate: the compo
 // ---------- the record, the booking, the days ----------
 static int prNote(int n){   // npc.h copCrime: you hurt someone. 1 = no cops (in the prison); the days of a fight in there are added to the sentence
     if(prHere()){
-        if(prIn()){ htFight(n); if(prDays!=PR_LIFE){ int a=n*3; prDays=(u16)(prDays+a>60000?60000:prDays+a); if(prTot<prDays) prTot=prDays; static char t[24] EWRAM_BSS; char*e=slCat(t,"TROUBLE  +"); e=slNum(e,a); slCat(e," DAYS"); lnote=t; lnoteT=90; }
+        if(prIn()){ if(htFight(n)) return 1; if(prDays!=PR_LIFE){ int a=n*3; prDays=(u16)(prDays+a>60000?60000:prDays+a); if(prTot<prDays) prTot=prDays; static char t[24] EWRAM_BSS; char*e=slCat(t,"TROUBLE  +"); e=slNum(e,a); slCat(e," DAYS"); lnote=t; lnoteT=90; }
             else { lnote="TROUBLE  YOU ARE IN FOR LIFE"; lnoteT=90; }
             prTrouble=1; prSave(); }
         return 1; }
