@@ -40,10 +40,14 @@ static void csCamAim(const CsBeat*b,int t){
         else if((b->fx&CF_SHAKE)&&b->b){ tx=b->bx*4; ty=by-18; tz=512; }
         else if(b->a&&b->b){ tx=(b->ax*4+b->bx*4)/2; ty=by-14; }
         else if(b->b){ tx=b->bx*4; ty=by-14; }
-        tz+=(t>200?200:t)/2;                                                                     // a slow push-in the longer the beat runs
+        // JUMP CUTS, not slow zooms: a shot holds still and the picture CUTS. Long narration over the figures cuts from the wide shot to a close-up halfway through its typing;
+        // after a spoken line has been typed out and a beat has gone by, the picture cuts to the other person's reaction.
+        { int tot=0; for(int i=0;i<3&&b->t[i];i++){ int n=0; while(b->t[i][n]) n++; tot+=n; }
+          if(!id&&tot>=36&&(b->a||b->b)&&!(b->fx&(CF_SICK|CF_IRIS))&&t>=tot){ if(b->b){ tx=b->bx*4; ty=by-20; tz=512; } else { tx=b->ax*4; ty=110-20; tz=512; } }
+          else if(found&&b->a&&b->b&&t>=tot*2+24){ if(b->a==id){ tx=b->bx*4; ty=by-20; } else { tx=b->ax*4; ty=110-20; } tz=448; } }
     }
     if(b->bg!=csCbg){ csCbg=b->bg; csCz=tz; csCx=tx; csCy=ty; }                                  // a new backdrop: cut
-    else { csCz=csEase(csCz,tz); csCx=csEase(csCx,tx); csCy=csEase(csCy,ty); }
+    else { csCz=tz; csCx=tx; csCy=ty; }   // no easing: a jump cut
     int hw=(120*256)/csCz, hh=(52*256)/csCz;                                                     // never show past the edge of the picture
     if(csCx<hw) csCx=hw; if(csCx>240-hw) csCx=240-hw; if(csCy<12+hh) csCy=12+hh; if(csCy>116-hh) csCy=116-hh;
 }

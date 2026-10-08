@@ -131,8 +131,7 @@ static void csDraw(const CsBeat*b,int t,int shown){   // one frame of one beat (
     csOx=csOy=0; if(b->fx&CF_SHAKE){ csOx=(rnd8()%5)-2; csOy=(rnd8()%5)-2; }
     rect(0,0,SW,SH,0);
     csFxNow=b->fx; csCamAim(b,t); csShotApply(b,t);
-    int cdx=0, cdy=0; if(csCz>=300){ int ox=csCx, oy=csCy, hw=(120*256)/csCz, hh=(52*256)/csCz; csCx+=csWv(t,260)/6; csCy+=csWv(t,190)/9;   // cutscene redo 12: the camera never sits perfectly still (undone at the end of the frame)
-        if(csCx<hw) csCx=hw; if(csCx>240-hw) csCx=240-hw; if(csCy<12+hh) csCy=12+hh; if(csCy>116-hh) csCy=116-hh; cdx=csCx-ox; cdy=csCy-oy; }
+    int cdx=0, cdy=0;   // (jump cuts: the camera holds still inside a shot, it no longer drifts)
     clipSet(0,12,SW,116); csBg(b->bg,t,b->fx); if(!csSlow) csBgFx(b->bg,t,b->fx);
     if(csCurSc==1&&b->bg==CB_HOME&&(csCurBi==4||csCurBi==5)){ int on=csCurBi==5||((t>>3)&1); csR(175,89,7,3,on?RGB(10,20,31):RGB(3,4,8)); if(on) csGlow(178,90,12,7,2,CSG_COOL); }   // cutscene redo 12: her phone lights up on the bar cart
     if(csCurSc==4&&b->bg==CB_BACK&&(csCurBi==17||csCurBi==19)&&b->b){ int px=b->bx*4+11; csR(px,84,4,7,RGB(2,2,4)); csR(px+1,85,2,5,((t>>3)&1)?RGB(12,24,31):RGB(5,12,20)); if((t>>2)&1){ csR(px-3,83,1,5,RGB(26,26,26)); csR(px+6,83,1,5,RGB(26,26,26)); } }   // the phone buzzing in her hand
