@@ -103,7 +103,7 @@ static int prBook(void){   // npc.h copArrest, before the stars are cleared: sen
     if(prEd||!nbOk||prDays||hhPUid<0||hhPUid>=HU_N) return 0;
     int s=prRec+copWant*6+copHeat+prCon*4;
     if(prLotGet()<0) return 0;
-    u16 d=prSentence(s); prDays=d; prTot=d; prW1=(u8)(hhPUid+1); if(prCon<60) prCon++; prRec=0; prGood=0; prTrouble=0; prCardOn=1; htBook(d); prSave();
+    u16 d=prSentence(s); prDays=d; prTot=d; prW1=(u8)(hhPUid+1); if(prCon<60) prCon++; prRec=0; prGood=0; prTrouble=0; prCardOn=1; htBook(d); wpConfiscate(); prSave();
     { int ch=d==PR_LIFE?230:25+d; if(ch>230) ch=230;   // the boss hears of it: 10 percent for a scuffle, about 2 in 3 for 140 days, almost sure for a long one
       if(rnd8()<ch) simFire("FIRED  YOUR BOSS HEARD ABOUT THE ARREST"); }
     prGo=1; return 1;
