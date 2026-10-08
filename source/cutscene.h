@@ -11,6 +11,7 @@ typedef struct { const CsBeat* b; u8 n; } CsScene;
 
 static int csOx, csOy;   // the shake
 static int csMood=0, csLite=0;   // cutscene redo 12: the picture's mood (-1 brighter, 0 normal, 1 dimmer, 2 much dimmer) and a lightning flash in the hospital window
+static int csSlow=0;   // 1 while the frames are coming slowly: the backdrop lighting (glows, dust, vignette) is skipped until they speed up again
 static int csDir=1, csTalking=0, csMirPose=CP_HEAD;   // cutscene redo 10: which way POINT points (+1 right), the speaker's mouth moves while the caption types, the mirror reflection's pose
 #include "cscam.h"
 static void csR(int x,int y,int w,int h,u16 c){ csCamR(x+csOx,y+csOy,w,h,c); }
@@ -132,7 +133,7 @@ static void csDraw(const CsBeat*b,int t,int shown){   // one frame of one beat (
     csFxNow=b->fx; csCamAim(b,t); csShotApply(b,t);
     int cdx=0, cdy=0; if(csCz>=300){ int ox=csCx, oy=csCy, hw=(120*256)/csCz, hh=(52*256)/csCz; csCx+=csWv(t,260)/6; csCy+=csWv(t,190)/9;   // cutscene redo 12: the camera never sits perfectly still (undone at the end of the frame)
         if(csCx<hw) csCx=hw; if(csCx>240-hw) csCx=240-hw; if(csCy<12+hh) csCy=12+hh; if(csCy>116-hh) csCy=116-hh; cdx=csCx-ox; cdy=csCy-oy; }
-    clipSet(0,12,SW,116); csBg(b->bg,t,b->fx); csBgFx(b->bg,t,b->fx);
+    clipSet(0,12,SW,116); csBg(b->bg,t,b->fx); if(!csSlow) csBgFx(b->bg,t,b->fx);
     if(csCurSc==1&&b->bg==CB_HOME&&(csCurBi==4||csCurBi==5)){ int on=csCurBi==5||((t>>3)&1); csR(175,89,7,3,on?RGB(10,20,31):RGB(3,4,8)); if(on) csGlow(178,90,12,7,2,CSG_COOL); }   // cutscene redo 12: her phone lights up on the bar cart
     if(csCurSc==4&&b->bg==CB_BACK&&(csCurBi==17||csCurBi==19)&&b->b){ int px=b->bx*4+11; csR(px,84,4,7,RGB(2,2,4)); csR(px+1,85,2,5,((t>>3)&1)?RGB(12,24,31):RGB(5,12,20)); if((t>>2)&1){ csR(px-3,83,1,5,RGB(26,26,26)); csR(px+6,83,1,5,RGB(26,26,26)); } }   // the phone buzzing in her hand
     int ay=110, by=110;
@@ -143,7 +144,7 @@ static void csDraw(const CsBeat*b,int t,int shown){   // one frame of one beat (
     if(b->fx&CF_SICK){ int mx=b->bx*4, my=by-26; for(int k=0;k<9;k++) if(t>k*2) csR(mx+5+k*3,my+k*k/3-3,2,2,k&1?RGB(13,24,4):RGB(18,28,6)); }
     if(b->fx&CF_IRIS){ int r=130-t*2; if(r<0) r=0; int cx=csCamX(b->bx*4), cy=csCamY(by-27);
         for(int y=12;y<116;y++){ int dy=y-cy, v=r*r-dy*dy; if(v<=0){ rect(0,y,SW,1,0); continue; } int w=csIsq(v); if(cx-w>0) rect(0,y,cx-w,1,0); if(cx+w<SW) rect(cx+w,y,SW-cx-w,1,0); } }
-    csVig(b->bg); clipAll(); rect(0,0,SW,12,0); rect(0,116,SW,44,RGB(2,3,8)); rect(0,116,SW,1,RGB(14,11,3));
+    if(!csSlow||csMood) csVig(b->bg); clipAll(); rect(0,0,SW,12,0); rect(0,116,SW,44,RGB(2,3,8)); rect(0,116,SW,1,RGB(14,11,3));
     text(205,3,"START SKIP",RGB(8,9,11),1);
     int y0=b->who?129:124; if(b->who) text(12,119,b->who,GOLD,1);
     static char buf[64]; int left=shown;
@@ -364,25 +365,35 @@ static const char* const csNames[8]={ "CH1 END  THE BARS", "CH2 END  THE SWEATER
 
 #ifndef CS_HOST
 static int csSongOn;   // 1 while the scene's song plays (a beat with sfx 250 starts it, sfx 251 fades it out; the scene end fades it too)
+// TIMING: a beat counts REAL frames (1/60 s), not passes through the loop. A busy picture can take several vblanks to draw; the typing, the holds, the fades and the
+// camera used to slow down with it (a caption took ten seconds). Timer 3 (a frame = 274 ticks, started by vsync) tells how many frames really went by since the last look.
+static u16 csTl; static u32 csAc;
+static int csFrames(void){ u16 n=R_TM3D; csAc+=(u16)(n-csTl); csTl=n; int f=(int)(csAc/274); csAc-=(u32)f*274; return f; }
+static void csTimeReset(void){ if(!(R_TM3CNT&0x80)) vsync(); csTl=R_TM3D; csAc=0; }
 static void csPlay(int id){   // play scene id; returns when it ends or START skips it
     volatile u16*bc=(volatile u16*)0x04000050; volatile u16*bl=(volatile u16*)0x04000054;
-    const CsScene*sc=&csScenes[id]; clipAll(); objHideAll(); csCamReset(); csCurSc=id;
+    const CsScene*sc=&csScenes[id]; clipAll(); objHideAll(); csCamReset(); csCurSc=id; csSlow=0;
     u16 prev=keyNow(); int skip=0;
     for(int bi=0;bi<sc->n&&!skip;bi++){
         csCurBi=bi; const CsBeat*b=&sc->b[bi]; int total=0; for(int i=0;i<3&&b->t[i];i++) total+=csLen(b->t[i]);
-        int t=0, shown=0, rest=0; if(b->sfx==250){ if(sSnd){ csSongOn=1; musBegin(1,jbs_here_today,0); } } else if(b->sfx==251){ if(csSongOn) musFadeOut(XF_OUT); csSongOn=0; } else if(b->sfx) sfxPlay(b->sfx-1);
+        int t=0, shown=0, rest=0, dt=1; if(b->sfx==250){ if(sSnd){ csSongOn=1; musBegin(1,jbs_here_today,0); } } else if(b->sfx==251){ if(csSongOn) musFadeOut(XF_OUT); csSongOn=0; } else if(b->sfx) sfxPlay(b->sfx-1);
+        csTimeReset();
         for(;;){
             u16 k=keyNow(), pr=k&~prev; prev=k;
             if(pr&K_START){ skip=1; break; }
-            if(total){ if(shown<total){ shown=t/2; if(shown>total) shown=total; if(pr&K_A) shown=total; } else rest++;
+            if(total){ if(shown<total){ shown=t/2; if(shown>total) shown=total; if(pr&K_A) shown=total; } else rest+=dt;
                 if(shown>=total&&((b->fx&CF_AUTO)?rest>(b->dur?b->dur:60):(rest>8&&(pr&K_A)))) break; }
             else if(t>=(b->dur?b->dur:60)) break;
             *bc=0x00C4; *bl=0; if((b->fx&CF_FADEIN)&&t<16){ *bl=16-t; } else if((b->fx&CF_FLASH)&&t<14){ *bc=0x0084; *bl=14-t; }
-            csDraw(b,t,shown); present(); t++;
+            for(int e=1;e<dt&&e<6;e++) csCamAim(b,t);   // the camera eases once per picture: the pictures it missed while the last one drew are caught up
+            { u16 a0=R_TM3D; csDraw(b,t,shown); present(); u16 cost=(u16)(R_TM3D-a0);   // a picture that took over two and a half frames: lighten the next ones (back to full below one and a half)
+              if(cost>685) csSlow=1; else if(cost<410) csSlow=0; }
+            dt=csFrames(); t+=dt;
         }
-        if(!skip&&(b->fx&CF_FADEOUT)){ *bc=0x00C4; for(int i=0;i<=16;i++){ *bl=i; csDraw(b,t,total); present(); } for(int i=0;i<14;i++){ present(); } }
+        if(!skip&&(b->fx&CF_FADEOUT)){ *bc=0x00C4; csTimeReset(); int ft=0; while(ft<=16){ *bl=ft>16?16:ft; csDraw(b,t,total); present(); ft+=csFrames(); }
+            *bl=16; for(int w=0;w<14;){ present(); w+=csFrames(); } }
     }
-    if(csSongOn){ musFadeOut(XF_OUT); csSongOn=0; } *bc=0x0400; *bl=0; objHideAll(); clipAll(); csCurSc=-1;
+    if(csSongOn){ musFadeOut(XF_OUT); csSongOn=0; } *bc=0x0400; *bl=0; objHideAll(); clipAll(); csCurSc=-1; csSlow=0;
     while(keyNow()&(K_A|K_B|K_START)) vsync();   // let go before the next screen reads the keys
 }
 #endif
