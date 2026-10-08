@@ -20,7 +20,7 @@ typedef struct { u8 kind, idx, n, def; u8*v; const char*nm; const char* const* l
 // gInPlay (main.c): 1 while the life game runs (some actions only make sense, or are only safe, in one place)
 
 static const char* const lbFps[4]={"60 FPS","30 FPS","20 FPS","15 FPS"}, *const lbWalls[3]={"FULL","CUTAWAY","LOW"}, *const lbPat[2]={"PLAIN","PATTERNS"},
-    *const lbOnOff[2]={"OFF","ON"}, *const lbFree[3]={"OFF","LOW","HIGH"}, *const lbPipe[2]={"ADULTS ONLY","LATE TEENS"}, *const lbShow[3]={"OFF","FPS","DETAIL"}, *const lbWarn[2]={"ON","OFF"}, *const lbRom[2]={"FAST","SAFE"},
+    *const lbOnOff[2]={"OFF","ON"}, *const lbFree[3]={"OFF","LOW","HIGH"}, *const lbPop[3]={"LOW","MEDIUM","HIGH"}, *const lbPipe[2]={"ADULTS ONLY","LATE TEENS"}, *const lbShow[3]={"OFF","FPS","DETAIL"}, *const lbWarn[2]={"ON","OFF"}, *const lbRom[2]={"FAST","SAFE"},
     *const lbCam[4]={"OFF","OVER 10000","OVER 5000","OVER 2000"}, *const lbHud[3]={"FULL","SLIM","OFF"};
 static const char* const lbNeed[5]={"OFF","SLOW","NORMAL","FAST","BRUTAL"}, *const lbHunger[4]={"OFF","SLOW","NORMAL","FAST"},
     *const lbDay[5]={"3 MIN","6 MIN","12 MIN","24 MIN","STOPPED"}, *const lbBills[4]={"NONE","HALF","NORMAL","DOUBLE"},
@@ -69,6 +69,7 @@ static const OptRow pgSimSims[]={
  XR(XO_FREEWILL,"FREE WILL",lbFree,"SIMS YOU DO NOT CONTROL LOOK AFTER","THEMSELVES  LOW WAITS LONGER  OFF STANDS"),
  XR(XO_MULTIFL,"SIMS ON FLOORS",lbOnOff,"SIMS USE THE STAIRS TO REACH THE BED FRIDGE","AND SO ON  OFF SENDS THEM UP TO VANISH"),
  XR(XO_ITEMUSE,"SIMS USE ITEMS",lbOnOff,"SIMS WATCH TV READ RUN FEED FISH MAKE COFFEE","AND CALL FRIENDS  OFF KEEPS THE FIVE BASICS"),
+ XR(XO_INMATES,"INMATES",lbPop,"HOW MANY INMATES THE PRISON HOLDS  LOW 4","MEDIUM 8  HIGH 12  READ WHEN YOU ENTER IT"),
  XR(XO_SIMPRE,"PRE-MADE SIMS",lbOnOff,"THE FAMILIES THAT MOVE IN FROM THE","HOUSEHOLD MENU  OFF BLOCKS THEM"),
  XR(XO_SIMUSER,"USER-MADE SIMS",lbOnOff,"SIMS YOU MAKE IN THE CREATOR AND ADD","TO THE FAMILY  OFF BLOCKS ADDING THEM"),
  XR(XO_SIMRAND,"MADE-UP SIMS",lbOnOff,"RANDOM SIMS THAT MOVE IN OR WALK PAST","OFF MEANS NONE OF THEM SHOW UP"),

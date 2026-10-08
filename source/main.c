@@ -3022,7 +3022,7 @@ static void playerCalc(void){
         bdRoll=(bFT>0&&bFT<BFLIP_LEN)?((bFD*bFT*256/BFLIP_LEN)&255):0; // kickflip / heelflip
         bdSpk=lgrind?1+(lfr&3):0;                                      // grind sparks
     } else { bdA=bdPitch=bdRoll=bdRaise=bdSpk=0; }
-    hhCalc();
+    hhCalc(); inmCalc();
 }
 // The board: a real deck, about as long as the rider is wide (scaled by life stage), drawn as a flat slab in the room's isometric grid under the feet.
 // It points the way the rider faces and turns with spins, noses up and down in an ollie, rolls over for a KICKFLIP / HEELFLIP (the grip side is

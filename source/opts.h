@@ -72,10 +72,11 @@ enum {
     XO_NIGHT,     // TIME > DAY: how dark the night is in play: OFF SOFT NORMAL DEEP (fx.h: the room dims by the hour; windows show sky, dusk and stars)
     XO_MULTIFL,   // SIM > BORES: household Sims use the stairs to reach the furniture their needs call for (house.h). OFF: they vanish upstairs for a while
     XO_ITEMUSE,   // SIM > BORES: household Sims use the TV, bookshelf, aquarium, treadmill, stereo, coffee maker and phone for their needs (house.h, item modules). OFF: only the five basic furniture needs
+    XO_INMATES,   // SIM > BORES: how many inmates the prison holds: LOW 4, MEDIUM 8, HIGH 12 (inmates.h)
     XO_N
 };
-static const u8 xoCnt[]={ 5,5,2,4,4,4,4,2,3,4,2,3,2,4,   4,3,   4,3,2,   3,6,3,   2,2,2,2,2,3,2, 4,10,10,10,11, 2, 3, 2, 2, 2, 2, 11, 11, 11, 2, 2, 2, 5, 3, 2, 2, 3, 7, 3 , 2, 2, 4, 2, 2};
-static const u8 xoDef[]={ 2,1,1,2,1,1,1,1,0,2,1,1,1,1,   0,1,   0,0,1,   0,0,1,   1,1,1,0,1,2,1, 2,1,2,2,4, 0, 2, 1, 1, 1, 1, 10, 10, 10, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1 , 1, 1, 2, 1, 1};
+static const u8 xoCnt[]={ 5,5,2,4,4,4,4,2,3,4,2,3,2,4,   4,3,   4,3,2,   3,6,3,   2,2,2,2,2,3,2, 4,10,10,10,11, 2, 3, 2, 2, 2, 2, 11, 11, 11, 2, 2, 2, 5, 3, 2, 2, 3, 7, 3 , 2, 2, 4, 2, 2, 3};
+static const u8 xoDef[]={ 2,1,1,2,1,1,1,1,0,2,1,1,1,1,   0,1,   0,0,1,   0,0,1,   1,1,1,0,1,2,1, 2,1,2,2,4, 0, 2, 1, 1, 1, 1, 10, 10, 10, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1 , 1, 1, 2, 1, 1, 1};
 _Static_assert(sizeof(xoCnt)==XO_N&&sizeof(xoDef)==XO_N,"xoCnt / xoDef must have one entry per XO_ name");
 static u8 xo[XO_N];
 static void optsDefaults(void){ for(int i=0;i<XO_N;i++) xo[i]=xoDef[i]; }
