@@ -2519,6 +2519,7 @@ static int menu(const char*title,const char*const*it,int n){   // UP/DOWN + A to
     int vis=n>9?9:n, w=tw(title,1)+40; for(int i=0;i<n;i++){ int q=tw(it[i],1)+30; if(q>w) w=q; } if(w<116) w=116; if(w>232) w=232;   // as wide as its longest line
     int h=32+vis*10, x=(SW-w)/2, y=(SH-h)/2, sel=0, top=0, dirty=1, hold=0; u16 prev=keyNow();
     sfxPlay(SFX_POP);
+    { int pw=w*72/100, ph=h*72/100, qx=x+(w-pw)/2, qy=y+(h-ph)/2; box(qx,qy,pw,ph); rect(qx,qy,pw,9,RGB(5,12,24)); rect(qx,qy+9,pw,1,GOLD); uiPresent(); }   // pops open from the middle in one quick step (it only grows, so nothing needs wiping); the full panel follows at once
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; int ps=sel;
         if(k&(K_UP|K_DOWN)){ if(++hold>24&&hold%6==0) pr|=k&(K_UP|K_DOWN); } else hold=0;   // hold UP or DOWN to run down a long list
