@@ -95,3 +95,5 @@ SONG_XM(the_ticking_bomb,"THE TICKING BOMB","tools/the_ticking_bomb.xm")
 // YOU'RE WINNER (ORIGINAL): Dipper - You're Winner (You Rule), transcribed from the song's stems (tools/make_winner.py, notes in
 // tools/youre_winner_notes.json, 131 BPM, 6:07). A SECRET song, hidden until the title-screen code (isDbgSong in main.c), until it is approved.
 SONG_XM(youre_winner,"YOU'RE WINNER (ORIGINAL)","tools/youre_winner.xm")
+// HERE TODAY (MISSY'S SONG): the original song Missy sings at the end of TV SHOW & TELL (tools/make_heretoday.py: a chiptune rendition of the author's own melody)
+SONG_ADP(here_today,"HERE TODAY (MISSY'S SONG)","source/music/here_today.adp")

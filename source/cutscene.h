@@ -263,31 +263,42 @@ static const CsBeat csS4[]={
  {CB_BACK,CA_HOST,CP_HEAD,47,CA_MISSY,CP_STAND,27,CF_FADEOUT,0,0,0,{"In the front row, dead center, one seat is waiting for","somebody who is not coming.",0}},
 };
 static const CsBeat csS5[]={
- {CB_BIG,CA_HOST,CP_STAND,17,CA_MISSY,CP_STAND,43,CF_FADEIN,0,0,0,{"The house lights fall. Eleven million people","watched her worst night. Tonight a few thousand","will watch what comes next."}},
- {CB_BIG,CA_HOST,CP_STAND,17,CA_MISSY,CP_STAND,43,0,0,0,"Dex",{"Ladies and gentlemen, a woman who needs no","introduction. Which is lucky, because she skipped every","rehearsal. Missy Jeanne!"}},
- {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_STAND,43,0,0,0,0,{"She had a speech. A good one, with a joke about","the bars and a sparkle in every sentence. She","rehearsed it for weeks."}},
- {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_HEAD,43,0,0,0,0,{"She doesn't remember a single word.",0,0}},
- {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_STAND,43,0,0,0,"Missy",{"I was going to tell you I'm sorry. For all of it. For","two years of it. I am.",0}},
- {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_STAND,43,0,0,0,"Missy",{"But I came to sing for someone tonight. She was","supposed to be here. She was always going to be here.",0}},
- {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_STAND,43,0,0,0,"Missy",{"She'd say this song is far too sentimental. She would","sing every word anyway.",0}},
- {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SING,43,0,SFX_POP+1,0,0,{"Here Today, by Paul McCartney.",0,0}},
- {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SING,43,CF_AUTO,0,140,0,{"She doesn't hit every note. She doesn't hide","behind a single one.",0}},
- {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SING,43,CF_AUTO,0,150,0,{"In the front row, dead center, one seat stays empty.","Nobody asks to sit in it.",0}},
-// here today lyric slots (cutscene redo 8): she sings; each beat holds 2 lines for 2.5 s. Type the lyric over each [Vn Ln] marker (max ~56 characters a line). Add or delete beats freely; shots for these beats are in csshot.h
- {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SING,43,CF_AUTO,0,150,0,{"[V1 L1: type the lyric here]","[V1 L2]",0}},
- {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SING,43,CF_AUTO,0,150,0,{"[V1 L3: type the lyric here]","[V1 L4]",0}},
- {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SING,43,CF_AUTO,0,150,0,{"[V1 L5: type the lyric here]","[V1 L6]",0}},
- {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SING,43,CF_AUTO,0,150,0,{"[V1 L7: type the lyric here]","[V1 L8]",0}},
- {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SING,43,CF_AUTO,0,150,0,{"[V2 L1: type the lyric here]","[V2 L2]",0}},
- {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SING,43,CF_AUTO,0,150,0,{"[V2 L3: type the lyric here]","[V2 L4]",0}},
- {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SING,43,CF_AUTO,0,150,0,{"[V2 L5: type the lyric here]","[V2 L6]",0}},
- {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SING,43,CF_AUTO,0,150,0,{"[V2 L7: type the lyric here]","[V2 L8]",0}},
- {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SING,43,CF_AUTO,0,150,0,{"[V3 L1: type the lyric here]","[V3 L2]",0}},
- {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SING,43,CF_AUTO,0,150,0,{"[V3 L3: type the lyric here]","[V3 L4]",0}},
- {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SING,43,CF_AUTO,0,150,0,{"[V3 L5: type the lyric here]","[V3 L6]",0}},
- {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SING,43,CF_AUTO,0,150,0,{"[V3 L7: type the lyric here]","[V3 L8]",0}},
- {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_STAND,43,0,0,0,"Missy",{"Thanks for coming, Mame.",0,0}},
+// here today rewritten (cutscene redo 9): an original song. Beats 10+ are the sung lines, one per phrase of the melody (tools/make_heretoday.py); each lasts from its phrase start to the next (frames at 59.73 Hz). First lyric beat starts the song (sfx 250), "Thanks for coming" fades it (251).
+ {CB_BIG,CA_HOST,CP_STAND,17,CA_MISSY,CP_STAND,43,CF_FADEIN,0,0,0,{"Studio 9, sold out. The same stage where it all went","wrong, rebuilt, repainted, and sweeping its own floor.",0}},
+ {CB_BIG,CA_HOST,CP_STAND,17,CA_MISSY,CP_STAND,43,0,0,0,"Dex",{"Ladies and gentlemen, she needs no introduction.","She skipped every rehearsal. Missy Jeanne!",0}},
+ {CB_BIG,CA_NONE,CP_STAND,17,CA_MISSY,CP_STAND,43,0,0,0,0,{"She wrote a speech. Three pages, one joke, and a","thank-you to the lighting crew. It stays in her pocket.",0}},
+ {CB_BIG,CA_NONE,CP_STAND,17,CA_MISSY,CP_HEAD,43,0,0,0,0,{"The spotlight finds her. It is much warmer than the","last time. This time, she is awake for all of it.",0}},
+ {CB_BIG,CA_NONE,CP_STAND,17,CA_MISSY,CP_STAND,43,0,0,0,"Missy",{"I was going to say I'm sorry. For all of it. I am.",0,0}},
+ {CB_BIG,CA_NONE,CP_STAND,17,CA_MISSY,CP_STAND,43,0,0,0,"Missy",{"But I came to sing for somebody tonight. She was","supposed to be sitting right there.",0}},
+ {CB_BIG,CA_NONE,CP_STAND,17,CA_MISSY,CP_STAND,43,0,0,0,"Missy",{"She'd call this song far too sentimental. She would","sing every word anyway. And get half of them wrong.",0}},
+ {CB_BIG,CA_NONE,CP_STAND,17,CA_MISSY,CP_STAND,43,0,SFX_TICK+1,0,0,{"The band takes a breath. So does she. One held chord,","and then there is only the room.",0}},
+ {CB_BIG,CA_NONE,CP_STAND,17,CA_MISSY,CP_STAND,43,0,0,0,"Missy",{"This one's called Here Today. I wrote it in a hospital","hallway, on the back of a parking ticket.",0}},
+ {CB_BIG,CA_NONE,CP_STAND,17,CA_MISSY,CP_STAND,43,CF_AUTO,0,40,0,{"The camera finds the front row, dead center. One seat,","still folded up. Nobody asks to sit in it.",0}},
+ {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_STAND,43,CF_AUTO,250,111,"Missy",{"Hey, Mame.",0,0}},
+ {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_STAND,43,CF_AUTO,0,130,"Missy",{"I'm still here.",0,0}},
+ {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SING,43,CF_AUTO,0,141,"Missy",{"Your seat is still warm, I swear.",0,0}},
+ {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SING,43,CF_AUTO,0,120,"Missy",{"I kept your place.",0,0}},
+ {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SING,43,CF_AUTO,0,196,"Missy",{"And the lights stay on.",0,0}},
+ {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SING,43,CF_AUTO,0,196,"Missy",{"Like you did.",0,0}},
+ {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SING,43,CF_AUTO,0,168,"Missy",{"I was so loud,",0,0}},
+ {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SING,43,CF_AUTO,0,213,"Missy",{"and so lost,",0,0}},
+ {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SING,43,CF_AUTO,0,95,"Missy",{"you stayed anyway.",0,0}},
+ {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SING,43,CF_AUTO,0,194,"Missy",{"You whistled through my worst of days,",0,0}},
+ {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SING,43,CF_AUTO,0,137,"Missy",{"every night,",0,0}},
+ {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SING,43,CF_AUTO,0,249,"Missy",{"even my worst.",0,0}},
+ {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SING,43,CF_AUTO,0,157,"Missy",{"So this one's for you, Mame.",0,0}},
+ {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SING,43,CF_AUTO,0,196,"Missy",{"Can you hear me?",0,0}},
+ {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SING,43,CF_AUTO,0,43,"Missy",{"Don't go quiet.",0,0}},
+ {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SING,43,CF_AUTO,0,73,"Missy",{"Not yet.",0,0}},
+ {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SING,43,CF_AUTO,0,255,"Missy",{"I'll hold your note for you,",0,0}},
+ {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SING,43,CF_AUTO,0,219,"Missy",{"till the whole room knows.",0,0}},
+ {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SING,43,CF_AUTO,0,255,"Missy",{"You were here today.",0,0}},
+ {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SING,43,0,0,40,0,{0,0,0}},
+ {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SWAY,43,CF_AUTO,0,255,"Missy",{"I'm here, because you were.",0,0}},
+ {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SWAY,43,0,0,41,0,{0,0,0}},
+ {CB_BIG,CA_NONE,CP_STAND,17,CA_MISSY,CP_STAND,43,0,251,0,"Missy",{"Thanks for coming, Mame.",0,0}},
  {CB_BLACK,CA_NONE,CP_STAND,0,CA_NONE,CP_STAND,0,CF_FADEIN|CF_FADEOUT,0,0,0,{"Some nights she still pours two glasses of water. One","for her. One for the front row.",0}},
+ {CB_BLACK,CA_NONE,CP_STAND,0,CA_NONE,CP_STAND,0,0,0,80,0,{0,0,0}},
 };
 // CH4 LOSS: the plug pressure hit 100 for the second time (story.h stPlugLose plays this, then the game goes back to your last save). CB_FLAT = the hospital with a flat green line.
 static const CsBeat csS6[]={
@@ -336,13 +347,14 @@ static const CsScene csScenes[8]={ {csS0,sizeof(csS0)/sizeof(csS0[0])}, {csS1,si
 static const char* const csNames[8]={ "CH1 END  THE BARS", "CH2 END  THE SWEATER", "CH3 END  THE FALL", "CH4 END  WAKING UP", "CH5 START  THE NEWS", "CH5 END  HERE TODAY", "CH4 LOSS  THE PLUG", "OPENING  THE NIGHT" };
 
 #ifndef CS_HOST
+static int csSongOn;   // 1 while the scene's song plays (a beat with sfx 250 starts it, sfx 251 fades it out; the scene end fades it too)
 static void csPlay(int id){   // play scene id; returns when it ends or START skips it
     volatile u16*bc=(volatile u16*)0x04000050; volatile u16*bl=(volatile u16*)0x04000054;
     const CsScene*sc=&csScenes[id]; clipAll(); objHideAll(); csCamReset(); csCurSc=id;
     u16 prev=keyNow(); int skip=0;
     for(int bi=0;bi<sc->n&&!skip;bi++){
         csCurBi=bi; const CsBeat*b=&sc->b[bi]; int total=0; for(int i=0;i<3&&b->t[i];i++) total+=csLen(b->t[i]);
-        int t=0, shown=0, rest=0; if(b->sfx) sfxPlay(b->sfx-1);
+        int t=0, shown=0, rest=0; if(b->sfx==250){ if(sSnd){ csSongOn=1; musBegin(1,jbs_here_today,0); } } else if(b->sfx==251){ if(csSongOn) musFadeOut(XF_OUT); csSongOn=0; } else if(b->sfx) sfxPlay(b->sfx-1);
         for(;;){
             u16 k=keyNow(), pr=k&~prev; prev=k;
             if(pr&K_START){ skip=1; break; }
@@ -354,7 +366,7 @@ static void csPlay(int id){   // play scene id; returns when it ends or START sk
         }
         if(!skip&&(b->fx&CF_FADEOUT)){ *bc=0x00C4; for(int i=0;i<=16;i++){ *bl=i; csDraw(b,t,total); present(); } for(int i=0;i<14;i++){ present(); } }
     }
-    *bc=0x0400; *bl=0; objHideAll(); clipAll(); csCurSc=-1;
+    if(csSongOn){ musFadeOut(XF_OUT); csSongOn=0; } *bc=0x0400; *bl=0; objHideAll(); clipAll(); csCurSc=-1;
     while(keyNow()&(K_A|K_B|K_START)) vsync();   // let go before the next screen reads the keys
 }
 #endif
