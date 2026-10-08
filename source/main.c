@@ -3949,6 +3949,7 @@ static void drawEditorHud(const char*msg){
     else { int w=tw("FREE BUILD",1)+8; rect(x,2,w,10,RGB(1,3,6)); text(x+4,4,"FREE BUILD",DIMC,1); x+=w+6; }
     if(udCur||udNA>udCur){ static char ub[24] EWRAM_BSS; char*e=ub; const char*q="UNDO "; while(*q) *e++=*q++; e+=numStr(e,udCur); q="  REDO "; while(*q) *e++=*q++; e+=numStr(e,udNA-udCur); *e=0;
         if(x+tw(ub,1)<=194) text(x,4,ub,DIMC,1); }   // UNDO / REDO: how many steps there are (SELECT + B / SELECT + START)
+    { static char fb[8] EWRAM_BSS; const char*q="FLOOR "; char*e=fb; while(*q) *e++=*q++; *e++=(char)('1'+curFl); *e=0; text(SW-tw(fb,1)-3,4,fb,GOLD,1); }   // which floor you are building on (L + R held + UP / DOWN changes it)
     edPanel(py,SH); rect(0,py,SW,1,RGB(14,20,28)); rect(0,py+1,SW,1,RGB(2,3,7));   // the bottom panel
     if(msg[0]){ int w=tw(msg,1)+8; rect(2,16,w,10,GOLD); rect(3,17,w-2,8,RGB(3,5,10)); text(6,19,msg,WHITE,1); }   // a message: a small gold-framed note under the top bar
     const char*h1, *h2;
@@ -3969,7 +3970,7 @@ static void drawEditorHud(const char*msg){
             text(32+5*13+4,142,fl?flTex[eFl].nm:wpName(eWp),WHITE,1); }
         else text(3,142,"PICK TWO CORNERS TO SELL WALLS ITEMS AND FLOORS",DIMC,1);
         h1=eTool==T_ROOM?"A CORNER  A AGAIN BUILDS  L R FLOOR  SEL+L R WALL":eTool==T_WALL?"A START  A AGAIN DRAWS  L R WALLPAPER  B CANCEL":eTool==T_FLOOR?"A CORNER  A AGAIN FILLS  L R FLOOR  B CANCEL":"A CORNER  A AGAIN SELLS  B CANCEL";
-        h2="SEL+LEFT RIGHT TOOL  SEL+UP DOWN ZOOM  SEL BUY";
+        h2="L+R HELD UP DN LEVEL  SEL+LEFT RIGHT TOOL  SEL BUY";
     } else {
         { int cc=edCatOf(eOb,0), xx=3;   // the category tabs, then this category's items
           for(int c=0;c<NCAT;c++){ int w=tw(catNm[c],1)+5; edBtn(xx,101,w,10,c==cc); text(xx+3,103,catNm[c],c==cc?WHITE:DIMC,1); xx+=w+1; }
@@ -3990,7 +3991,7 @@ static void drawEditorHud(const char*msg){
                 case 34:blitItem(V_TV,221,141);break; case 35:blitItem(V_SHELF,221,141);break; case 36:blitItem(V_COFFEE,221,141);break; case 37:blitItem(V_AQUA,221,141);break; case 38:blitItem(V_TREAD,221,141);break; case 39:case 40:case 41:{ u16 wb[WALL_H]; for(int u=0;u<8;u++){ winCol(eOb-39,0,u,wb); for(int r=0;r<12;r++) px(215+u+(u>3),136+r,wb[3+r*2]); } break; } default:drawSpawn(221,142); } }
         if(eOb==1||eOb==2){ wallSwatch(eWp,212,137); }
         h1="A BUY  B SELL  A AND MOVE PAINTS  SEL+A TURN";
-        h2="L R ITEM  SEL+L R TYPE  SEL+UP DN ZOOM  SEL BUILD";
+        h2="L R ITEM  SEL+L R TYPE  L+R HELD UP DN LEVEL";
     }
     text(3,150,h1,RGB(16,18,21),1); text(3,155,h2,RGB(16,18,21),1);
 }
@@ -4031,7 +4032,7 @@ static void edPresent(void){   // the builder's picture goes to the screen the m
     vsyncUi();
 }
 static void mapEditor(void){
-    int hold[4]={0}, lrHold=0, edZ=0, edLast=T_ROOM, comboUsed=0, dirty=1, lastBl=-1, msgT=0; const char*msg=""; u16 prev=keyNow();
+    int hold[4]={0}, lrHold=0, lrCombo=0, lrPend=0, lrPendT=0, edZ=0, edLast=T_ROOM, comboUsed=0, dirty=1, lastBl=-1, msgT=0; const char*msg=""; u16 prev=keyNow();
     static const u16 dirK[4]={K_RIGHT,K_LEFT,K_UP,K_DOWN};
     edTried=0; edLife=0; edCashDirty=0; if(xo[XO_BUYCOST]&&!gInPlay) edLoadLife();   // the life's cash, for the prices
     udClear(); udOn=1;   // a fresh UNDO history for this visit to the builder
@@ -4043,7 +4044,16 @@ static void mapEditor(void){
         int ux=tr[0]-tr[1], uy=tr[3]-tr[2];
         int fast=0; for(int i=0;i<4;i++) if(hold[i]>oRepDelay()+14) fast=1;   // held a while: two tiles a step
         lrHold=(k&(K_L|K_R))?lrHold+1:0;   // L / R repeat while held, so the floors and wallpapers scroll by
-        if(lrHold>12&&(lrHold&3)==0) pr|=(u16)(k&(K_L|K_R));
+        // FLOORS: hold L and R together, then press UP / DOWN = the floor above / below. A lone L or R waits 4 frames for its partner (SELECT + L / R and
+        // taps still work), so the combo never also steps the item or floor pattern, and the cursor stays put while both are held.
+        if((k&(K_L|K_R))==(K_L|K_R)){ lrCombo=1; lrPend=0; pr&=(u16)~(K_L|K_R); }
+        else if(!(k&(K_L|K_R))) lrCombo=0;
+        if(lrCombo) ux=uy=0;
+        else if((pr&(K_L|K_R))&&!(k&K_SEL)){ lrPend=pr&(K_L|K_R); lrPendT=4; pr&=(u16)~(K_L|K_R); }
+        else if(lrPend&&--lrPendT<=0){ pr|=(u16)lrPend; lrPend=0; }
+        else if(lrHold>12&&(lrHold&3)==0) pr|=(u16)(k&(K_L|K_R));
+        if(lrCombo&&(pr&(K_UP|K_DOWN))){ int nf=curFl+((pr&K_UP)?1:-1); udEnd(); eAct=0; comboUsed=1; dirty=1;   // L + R held, UP / DOWN: the floor above / below
+            if(nf>=0&&nf<FLR_N){ if(flGo(nf)){ msg=flNm[nf]; msgT=50; } else { msg="TOO MUCH BUILT TO CHANGE FLOOR"; msgT=60; } } else { msg=nf<0?"NO FLOOR BELOW":"NO FLOOR ABOVE"; msgT=40; } }
         if(k&K_SEL){   // SELECT + D-pad never moves the cursor: UP / DOWN zoom in / out, LEFT / RIGHT the tool (BUY: the category)
             ux=uy=0;
             if(pr&(K_UP|K_DOWN)){ static const char* const zn[4]={"ZOOM 1X","ZOOM 1.3X","ZOOM 2X","ZOOM 2.7X"}; int nz=edZ+((pr&K_UP)?1:-1); comboUsed=1; if(nz>=0&&nz<4){ edZ=nz; msg=zn[nz]; msgT=30; dirty=1; } }
