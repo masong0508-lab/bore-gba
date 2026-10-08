@@ -5184,7 +5184,7 @@ static int newGame(int slot){   // 1 = it started (and ended: back to the main m
     int f=0; if(c==1){ const char* fm[HH_NFAM]; for(int i=0;i<HH_NFAM;i++) fm[i]=hhFams[i].fam; f=menu("WHICH FAMILY?",fm,HH_NFAM); if(f<0) return 0; }
     static const char* const yn[2]={"YES  NEW LIFE","NO"}; if(!sgWant&&menu("START OVER?",yn,2)!=0) return 0;   // (a NEW PLAYER has nothing to start over: the player in play was saved first)
     if(slot>=0){ if(!nbSwitch(slot)){ nbOk=nbLoad(); toast(nbErr); return 0; } nbOk=1; nbBounds(); }
-    if(sgWant){ sgPickHome(); sgPid=sgWant; sgWant=0; lsReset(); } else sgPid=0;   // a NEW PLAYER gets a home lot and a save file of their own; a new life started elsewhere belongs to no save file
+    if(sgWant){ sgPickHome(); sgPid=sgWant; sgWant=0; lsReset(); memReset(); } else sgPid=0;   // a NEW PLAYER gets a home lot and a save file of their own; a new life started elsewhere belongs to no save file
     twKeep=0; simsNewLife(); prClear(); moodReset(); lscore=0; simLastScore=0;
     hhN=0; for(int a=0;a<HU_N;a++)for(int b=0;b<HU_N;b++){ relD[a][b]=relL[a][b]=0; relF[a][b]=0; } kinClear();   // the old household moves out
     stOff();

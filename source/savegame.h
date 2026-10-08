@@ -17,6 +17,7 @@
 #define SLC_FAMILY 'F'
 #define SLC_STORY  'Y'
 #define SLC_SKILLS 'K'   // skills.h: the skill points of this player (SK_N bytes)
+#define SLC_MEMS   'M'   // memlog.h: the diary of big moments (version 1, then per Sim with a diary: uid + 1, count, count x (moment, day, value))
 #define SLC_GHOST  'G'   // fx.h: the ghosts of this life (12 bytes, the same block as in the life in SRAM)
 static void fxGhostSave(volatile unsigned char*m); static void fxGhostLoad(volatile unsigned char*m); static void fxGhostClear(void);
 static void sgEncGhost(SlW*w){ unsigned char t[12]; fxGhostSave(t); for(int i=0;i<12;i++) slwPut(w,t[i]); }
@@ -30,6 +31,20 @@ static void sgEncFamily(SlW*w){ volatile u8*b=SL_HHBLK; int n=hhBlockLen(b,SL_HH
 static void sgEncSkills(SlW*w){ for(int i=0;i<SK_N;i++) slwPut(w,skPts[i]); }
 static void sgEncStory(SlW*w){ volatile u8*m=SRAM_BASE+STORY_OFF; for(int i=0;i<8;i++) slwPut(w,m[i]); }
 static void sgEncStats(SlW*w){ lsEnsure(); for(int i=0;i<LS_N*LS_CH;i++) for(int b=0;b<4;b++) slwPut(w,(u8)(lsFlat[i]>>(8*b))); }
+static void sgEncMems(SlW*w){
+    slwPut(w,1);
+    for(int u=0;u<LS_CH;u++){ int n=memCnt[u]; if(!n) continue; slwPut(w,u+1); slwPut(w,n);
+        for(int i=0;i<n;i++){ const MemE*m=&memLog[u][(memHead[u]+MEM_N-n+i)%MEM_N]; slwPut(w,m->k); slwPut16(w,m->day); slwPut16(w,m->val); } }   // oldest first
+}
+static int sgDecMems(volatile u8*p,int cl,int apply){   // 1 = fine. apply 0: only check the layout
+    if(cl<1||p[0]!=1) return 0;
+    for(int q=1;q<cl;){ int u=p[q]-1, n=q+1<cl?p[q+1]:99; if(u<0||u>=LS_CH||n>MEM_N||q+2+5*n>cl) return 0;
+        if(apply){ memCnt[u]=0; memHead[u]=0;
+            for(int i=0;i<n;i++){ volatile u8*e=p+q+2+5*i; if(e[0]>=MEM_KN) continue; MemE*m=&memLog[u][memCnt[u]++]; m->k=e[0]; m->pad=0; m->day=(u16)(e[1]|(e[2]<<8)); m->val=(u16)(e[3]|(e[4]<<8)); }
+            memHead[u]=(u8)(memCnt[u]%MEM_N); }
+        q+=2+5*n; }
+    return 1;
+}
 static int sgBuild(SlW*w){
     slChunk(w,SLC_PLACE,sgEncPlace); slChunk(w,SLC_PERSON,slEncPerson);
     if(simsCheck(SIM_SRAM)) slChunk(w,SLC_LIFE,slEncLife);
@@ -39,6 +54,7 @@ static int sgBuild(SlW*w){
     slChunk(w,SLC_GHOST,sgEncGhost);
     slChunk(w,SLC_SKILLS,sgEncSkills);
     slChunk(w,SLC_STATS,sgEncStats);
+    slChunk(w,SLC_MEMS,sgEncMems);
     slwPut(w,0); return w->pos;
 }
 // all the players (the newest copy of each) into l: their slots. Scans the slots.
@@ -99,6 +115,7 @@ static int sgParse(volatile u8*body,int len,int apply){   // apply 0: check ever
         else if(tag==SLC_GHOST){ if(cl!=12) return SLE_FMT; if(apply){ fxGhostLoad(c.p); fxGhostSave(SIM_SRAM+SIM_BLOCK); } }
         else if(tag==SLC_SKILLS){ if(cl!=SK_N) return SLE_FMT; if(apply){ for(int i=0;i<SK_N;i++) skPts[i]=c.p[i]; skSave(); } }
         else if(tag==SLC_STATS){ if(cl<4||cl%4||cl>4*LS_N*LS_CH) return SLE_FMT; if(apply){ for(int i=0;i<cl/4;i++) lsFlat[i]=(u32)c.p[4*i]|((u32)c.p[4*i+1]<<8)|((u32)c.p[4*i+2]<<16)|((u32)c.p[4*i+3]<<24); lsInit=1; lsDirty=1; lsSave(); } }
+        else if(tag==SLC_MEMS){ if(!sgDecMems(c.p,cl,apply)) return SLE_FMT; }
         // anything else: a later version's chunk, skipped on purpose
     }
     return (gotP&&gotC)?SLE_OK:SLE_FMT;
@@ -123,7 +140,7 @@ static int sgLoadPlayer(int slot){   // 0 = the player is in play now, else a SL
     volatile u8*b=SLB(slot)+SLOT_HDR;
     if(slSumOf(b,I.len)!=I.sum) return SLE_BAD;
     int e=sgParse(b,I.len,0); if(e) return e;
-    skReset(); lsReset(); sgParse(b,I.len,1);   // (a file from before the skills has no 'K' chunk: they start at zero)
+    skReset(); lsReset(); memReset(); sgParse(b,I.len,1);   // (a file from before the skills has no 'K' chunk: they start at zero)
     svCommit(); hhLoad(); stLoad(); ageLoad(); if(stId==STY_TVSHOW&&stCh==0&&stKidDay==255) stShown=0;   /* cutfix: the opening was not saved: it plays again */
     twKeep=0; sprKey=0; for(int m=0;m<HH_MAX;m++) hhKey[m]=0; hhSlotsFree(); moodReset(); lscore=0; simLastScore=0;
     sgPid=I.pid; sgDirty=0;
