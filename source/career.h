@@ -4,7 +4,7 @@
 //   Level 3 of a track splits into BRANCH A (steady) and BRANCH B (high pay and a higher quota): the first visit after the promotion asks.
 //   A transfer keeps part of your level (level 5 -> 2, 3 or 4 -> 1, else 0): the top of a track moves you on.
 //   Teens may only take the part-time track (FAST FOOD). Promotions want the track's skill (jobSk: SKATING for PRO SKATER, a life skill for the rest; jobNeedSkill) and, from level 3, a friend (jobNeedFriend).
-// Needs before it: sims.h (jobTr, jobTrack ...), house.h (relF, hhPUid), story.h (stBack: the backdrop with the plumbob).
+// Needs before it: sims.h (jobTr, jobTrack ...), house.h (relF, hhPUid), story.h (stBack: the backdrop).
 static int jobFriends(void){ int me=hhPUid, n=0; for(int u=0;u<HU_N;u++) if(u!=me&&(relF[me][u]&RF_FRIEND)) n++; return n; }
 static const char* const jobPerkNm[5]={"","TRAINING","FINES","BARRACKS","STAFF MEAL"};
 static const char* const jobPerkTx[5]={"","+1 SKILL EACH GOOD SHIFT","A BAD SHIFT COSTS 40","BILLS ARE HALVED","A GOOD SHIFT FILLS FOOD"};

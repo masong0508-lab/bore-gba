@@ -145,15 +145,14 @@ static void stTick(void){   // once per logic step in the life game: is this cha
 static void stEnter(void){ stLoad(); if(stId){ stAnnounce(); if(stShown!=(u8)(stId*16+stCh+1)){ stShown=(u8)(stId*16+stCh+1); stModal=1; } } }   // (a chapter card once per chapter and power on)   // entering the life game: the current goal on the top bar
 // ---- the look: Sims 2 / Life Stories panels (the pieces live in main.c next to HOW TO PLAY) ----
 static void s2rr(int x,int y,int w,int h,u16 c); static void s2grad(int x,int y,int w,int h,int r0,int g0,int b0,int r1,int g1,int b1);
-static void s2plumbob(int cx,int y); static void s2pill(int x,int y,int w,const char*s);
-static void stBack(const char*title,int cnt){   // the backdrop, the frame, the title bar with the bobbing plumbob
-    static const signed char bob[8]={0,1,2,2,1,0,-1,-1};
+static void s2pill(int x,int y,int w,const char*s);
+static void stBack(const char*title,int cnt){   // the backdrop, the frame, the title bar
     objHideAll();
     s2grad(0,0,SW,SH,1,4,10,2,9,17);
     for(int y=0;y<SH;y+=8) for(int x=(y&8)?4:0;x<SW;x+=8) rect(x,y,1,1,RGB(3,9,17));
     s2rr(1,1,238,158,RGB(10,20,30)); s2rr(2,2,236,156,RGB(2,6,13));
     s2grad(3,3,234,14,8,18,28,3,10,19); rect(3,17,234,1,RGB(14,26,31));
-    s2plumbob(11,2+bob[(cnt>>3)&7]); text(21,7,title,WHITE,1);
+    text(11,7,title,WHITE,1);
 }
 static void stIcon(int s,int x,int y,int sc,u16 c){   // a little picture per story: a heart, a ring, a parent with a kid (9 x 8 pixels, drawn big)
     static const char* const pic[STY_N][8]={{0},
@@ -254,8 +253,8 @@ static int storyPick(void){
         if(pr&K_A) return sel;
         if(pr&(K_B|K_START)) return 0;
         if(!pr&&(cnt>>3)==lt){ vsync(); continue; }   // idle: the picture on the screen is still right (the whole backdrop used to be redrawn every frame, so taps landed between polls and were lost)
-        int full=(cnt>>3)!=lt; lt=cnt>>3;
-        if(full) stBack("WHICH STORY?",(int)cnt);   // the backdrop and title bar only when the plumbob moves: a flip redraws just the card (it paints over the old one)
+        int full=lt==~0u; lt=cnt>>3;
+        if(full) stBack("WHICH STORY?",(int)cnt);   // the backdrop and title bar only once: a flip redraws just the card (it paints over the old one)
         s2rr(8,21,224,126,RGB(16,27,31)); s2rr(9,22,222,124,RGB(2,6,13)); s2grad(10,23,220,122,3,9,19,1,4,10);
         s2rr(14,27,44,40,RGB(10,20,30)); s2grad(15,28,42,38,7,16,26,3,8,16); stIcon(sel,18+((cnt>>4)&1),33,4,RGB(31,20,22));   // the story's picture (it beats slowly)
         // layout (the 3 blurb lines used to run into the divider and THE CHAPTERS): title 27, kind 40, blurb 49/57/65 (ends 72), divider 75, header 78, chapters 88 + 8 a row (ends 136), dots 139

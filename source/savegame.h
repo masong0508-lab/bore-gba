@@ -248,7 +248,7 @@ static void playerScreen(void){
             n=sgList(l); if(sel>=SG_ROWS(n)) sel=SG_ROWS(n)-1;
             prev=keyNow(); dirty=1; mmPick();
         }
-        if(dirty){ sgDraw(l,n,sel); present(); dirty=0; } else vsync();
+        if(dirty){ sgDraw(l,n,sel); uiPresent(); dirty=0; } else vsync();
         uiTicks++; menuMusTick();
     }
     while((~REG_KEYINPUT)&0x3FF) vsync();

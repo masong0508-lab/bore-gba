@@ -382,7 +382,7 @@ static void settingsScreen(void){   // the OPTIONS screen (the name stays so eve
             }
         }
         if(pr&(K_B|K_START)){ settingsSave(); R_TM2CNT=0; return; }
-        if(dirty){ drawOptions(); present(); dirty=0; idle=0; }
+        if(dirty){ drawOptions(); uiPresent(); dirty=0; idle=0; }
         else { vsync(); if(remeasure&&opPage==0&&++idle>=20){ sCost=measureDraw(); costCache[costKey()]=(s16)sCost; remeasure=0; dirty=1; } }
     }
 }

@@ -29,7 +29,7 @@ static const TutStep tutSteps[]={
 static int tutI, tutModal, tutShown, tutT, tutAcc, tutDelay, tutSawPause, tutAsked; static s32 tutX0, tutY0;   // (tutOn lives in main.c: die() needs it)
 
 static void s2rr(int x,int y,int w,int h,u16 c); static void s2grad(int x,int y,int w,int h,int r0,int g0,int b0,int r1,int g1,int b1);
-static void s2plumbob(int cx,int y); static void s2pill(int x,int y,int w,const char*s);   // the Sims 2 style panel pieces (main.c, HOW TO PLAY)
+static void s2pill(int x,int y,int w,const char*s);   // the Sims 2 style panel pieces (main.c, HOW TO PLAY)
 
 static void tutEnd(void){ tutOn=0; tutModal=TM_NONE; if(xo[XO_TUTOR]!=1){ xo[XO_TUTOR]=1; optsSave(); } }
 static void tutBegin(void){ tutOn=1; tutI=0; tutShown=0; tutT=0; tutAcc=0; tutDelay=0; tutSawPause=0; tutModal=TM_NONE; if(xo[XO_TUTOR]!=1){ xo[XO_TUTOR]=1; optsSave(); } }
@@ -62,11 +62,10 @@ static void tutTick(u16 k,u16 pr){
     if(s->hint[0]&&lnoteT<=0){ lnote=s->hint; lnoteT=2; }   // the goal, in the top bar
 }
 static void tutCardDraw(const char*title,const char*hd,const char*const*ln,const char*f1,const char*f2,const char*f3,u32 cnt){
-    static const signed char bob[8]={0,1,2,2,1,0,-1,-1};
     objHideAll();
     s2rr(6,22,228,112,RGB(10,20,30)); s2rr(7,23,226,110,RGB(2,6,13));
     s2grad(8,24,224,14,8,18,28,3,10,19); rect(8,38,224,1,RGB(14,26,31));
-    s2plumbob(16,23+bob[(cnt>>3)&7]); text(26,28,title,WHITE,1);
+    text(14,28,title,WHITE,1);
     for(int i=0;i<TUT_N;i++) rect(232-(TUT_N-i)*7,28,5,5,i<tutI?RGB(8,28,10):i==tutI?GOLD:RGB(7,14,22));   // progress: one cell per lesson
     rect(8,41,224,11,RGB(6,16,26)); text(14,44,hd,GOLD,1);
     for(int i=0;i<4;i++) if(ln[i]) text(14,58+i*9,ln[i],RGB(27,30,31),1);

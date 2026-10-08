@@ -1311,12 +1311,24 @@ IWRAM_ARM static void zoomArm(void){   // in vblank: line 0's scaling now, then 
     d0[0]=(u32)(uintptr_t)(t+4); d0[1]=0x04000020u; d0[2]=4u|(3u<<21)|(1u<<25)|(1u<<26)|(2u<<28)|(1u<<31);   // 4 words, dest reload, repeat, 32 bit, HBlank, on
 }
 static void zoomOff(void){ volatile u32*d0=(volatile u32*)0x040000B0, *bg=(volatile u32*)0x04000020; zoomShow=0; d0[2]=0; bg[0]=0x100; bg[1]=0x1000000u; bg[2]=0; bg[3]=0; }   // BG2 back to 1:1
-static void vsync(void){ while(REG_VCOUNT>=160); while(REG_VCOUNT<160); if(mWantOff) audIdleStop(); svTick(); ldTick(); }
+static void vsync(void){
+    while(REG_VCOUNT>=160);
+    while(REG_VCOUNT<160){ if((*(volatile u16*)0x04000208&1)&&(*(volatile u16*)0x04000200&1)&&(*(volatile u16*)0x04000004&8)) *(volatile u8*)0x04000301=0; }   // the vblank interrupt is on: halt the CPU until it fires instead of spinning (emulators skip the idle time, so menus get the speed back)
+    if(mWantOff) audIdleStop(); svTick(); ldTick(); }
 static void present(void){
     if(zoomShow&&!zoomKeep) zoomOff();   // anything but a room picture (menus, messages) is shown 1:1
     vsync();
     REG_DMA3SAD=(u32)(uintptr_t)fb; REG_DMA3DAD=VRAM_ADDR;
     REG_DMA3CNT=(SW*SH/2)|0x84000000u;
+}
+
+// Menus: the picture goes to the screen right after it is drawn (present() first waits up to a whole frame for vblank), then the frame is waited out
+// so the loop still runs one pass a frame. A menu changes only when a key does, so the odd torn frame cannot be seen.
+static void uiPresent(void){
+    if(zoomShow&&!zoomKeep) zoomOff();
+    REG_DMA3SAD=(u32)(uintptr_t)fb; REG_DMA3DAD=VRAM_ADDR;
+    REG_DMA3CNT=(SW*SH/2)|0x84000000u;
+    vsync();
 }
 
 // Copy only the scene columns (blink-only redraws leave the panel untouched).
@@ -2506,7 +2518,6 @@ static int menu(const char*title,const char*const*it,int n){   // UP/DOWN + A to
     if(n<=0) return -1;
     int vis=n>9?9:n, w=tw(title,1)+40; for(int i=0;i<n;i++){ int q=tw(it[i],1)+30; if(q>w) w=q; } if(w<116) w=116; if(w>232) w=232;   // as wide as its longest line
     int h=32+vis*10, x=(SW-w)/2, y=(SH-h)/2, sel=0, top=0, dirty=1, hold=0; u16 prev=keyNow();
-    for(int g=1;g<3;g++){ int gh=h*g/3; box(x,(SH-gh)/2,w,gh); present(); }   // it opens (it only grows, so nothing needs wiping)
     sfxPlay(SFX_POP);
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; int ps=sel;
@@ -2527,7 +2538,7 @@ static int menu(const char*title,const char*const*it,int n){   // UP/DOWN + A to
             text(x+16,yy,it[i],i==sel?WHITE:DIMC,1); }
         if(n>vis){ int th=vis*10*vis/n; if(th<6) th=6; rect(x+w-5,y+15,2,vis*10,RGB(8,12,22)); rect(x+w-5,y+15+(vis*10-th)*top/(n-vis),2,th,GOLD); }   // scroll bar
         text(x+6,y+h-9,"A OK  B BACK",RGB(12,14,16),1);
-        present();
+        uiPresent();
     }
 }
 #include "pie.h"   // the pie menu: contextual interaction (house.h: hhSocR)
@@ -2541,7 +2552,7 @@ static void helpScreen(const char*title,const char*const*ln,int n){   // lines s
         box(3,1,234,157); text(14,10,title,GOLD,1);
         for(int i=0;i<n;i++){ const char*l=ln[i]; if(l[0]=='>') text(14,22+i*8,l+1,GOLD,1); else text(18,22+i*8,l,WHITE,1); }
         text(14,144,"PRESS A TO CLOSE",DIMC,1);
-        present();
+        uiPresent();
     }
 }
 static void toast(const char*msg){ int w=tw(msg,1)+16;
@@ -3178,7 +3189,7 @@ IWRAM_CODE static void zoomFb(int cx,int cy,int zk){   // only the scene rows (v
 // over by the camera's step (one DMA per row, during the vertical blank) and only what changed is drawn: the strip the slide uncovered, the rectangle
 // round the player (where he was and where he is) and a bobbing pickup. Each rectangle is drawn into fb at its own place on screen (clipped, so it is
 // the very same pixels a whole-screen draw would make) and copied to VRAM. fb therefore only holds the last patches, not the room.
-// What floats over the room (thought bubble, plumbob) is not part of the room: the pixels under it are saved before it is drawn and put back before
+// What floats over the room (the thought bubble) is not part of the room: the pixels under it are saved before it is drawn and put back before
 // it moves, so it costs a copy, not a redraw of the room behind it.
 #define NRC 28   // (room for the household's Sims: each can add its old and new rectangle)
 static Rc rcs[NRC] EWRAM_BSS; static int nrc;
@@ -3243,7 +3254,7 @@ static void vramScroll(int dx,int dy){   // the picture moves by (-dx,-dy) insid
         else { REG_DMA3SAD=src; REG_DMA3DAD=dst; REG_DMA3CNT=(u32)w|0x80000000u; }
     }
 }
-// ---- the overlay (bubble / plumbob): save what is under it, draw it, put it back ----
+// ---- the overlay (the bubble): save what is under it, draw it, put it back ----
 static void ovSaveVram(const Rc*r){ dmaRows16(VRAM_ADDR+(u32)((r->y0*SW+r->x0)*2),(u32)(uintptr_t)ovBuf,r->x1-r->x0,r->y1-r->y0,SW,r->x1-r->x0); }
 static void ovSaveFb(const Rc*r){ int w=r->x1-r->x0; for(int y=r->y0;y<r->y1;y++){ const u16*sp=fb+y*SW+r->x0; u16*d=ovBuf+(y-r->y0)*w; for(int x=0;x<w;x++) d[x]=sp[x]; } }
 static void ovToFb(const Rc*r){ dmaRows16((u32)(uintptr_t)ovBuf,(u32)(uintptr_t)(fb+r->y0*SW+r->x0),r->x1-r->x0,r->y1-r->y0,r->x1-r->x0,SW); }
@@ -4016,7 +4027,7 @@ static const char* const iconArt[6][9]={
   {"..#####..",".#######.","#########","##.....##","#.......#","#.......#",".#.....#.","..#...#..","........."},   // hair
   {".##...##.","####.####","#########","#.#####.#","..#####..","..#####..","..#####..","..#####..","........."},   // clothes
   {"#.......#","##.....##",".#.###.#.","..#####..","..#.#.#..","..#####..","...###...",".........","........."},   // parts (a horned head)
-  {"....#....","...###...","..#####..",".#######.","#########",".#######.","..#####..","...###...","....#...."} }; // aspire (the plumbob)
+  {"....#....","....#....","...###...","#########",".#######.","..#####..","..##.##..",".##...##.","#.......#"} }; // aspire (a star)
 static void drawIcon(int x,int y,int id,u16 c){
     if(id==TB_DONE){ line(x,y+4,x+3,y+7,c); line(x+3,y+7,x+9,y+1,c); line(x,y+3,x+3,y+6,c); line(x+3,y+6,x+9,y,c); return; }
     for(int r=0;r<9;r++)for(int q=0;q<9;q++) if(iconArt[id][r][q]=='#') px(x+q,y+r,c);
@@ -4843,54 +4854,54 @@ static void drawMainMenu(int sel,int full){
     mmLogo(SW/2-LOGO_SW/2,1); s3Tip(mmDesc[sel]);
 }
 // ---------- HOW TO PLAY: a Sims 2 style control panel (main menu only) ----------
-// Glossy blue panels, rounded tabs along the top, a bobbing green plumbob next to the title, a scrolling text pane with a thumb,
+// Glossy blue panels, rounded tabs along the top, a scrolling text pane with a thumb,
 // and a button strip along the bottom.  L R (or LEFT RIGHT, or A) change the tab, UP DOWN scroll, B or START close.
 static void s2rr(int x,int y,int w,int h,u16 c){ rect(x+1,y,w-2,h,c); rect(x,y+1,w,h-2,c); }   // a rounded rectangle
 static void s2grad(int x,int y,int w,int h,int r0,int g0,int b0,int r1,int g1,int b1){        // a vertical gradient
     for(int i=0;i<h;i++){ int t=h>1?i*256/(h-1):0; rect(x,y+i,w,1,RGB(r0+(r1-r0)*t/256,g0+(g1-g0)*t/256,b0+(b1-b0)*t/256)); } }
-static void s2plumbob(int cx,int y){   // the green diamond: dark left half, light right half, a glint
-    for(int i=0;i<7;i++){ int hw=i<4?i:6-i; rect(cx-hw,y+i*2,hw+1,2,i<3?RGB(3,20,6):RGB(2,14,4)); rect(cx+1,y+i*2,hw,2,i<3?RGB(14,31,16):RGB(8,26,10)); }
-    rect(cx+1,y+3,1,2,RGB(26,31,26)); }
 static void s2pill(int x,int y,int w,const char*s){ s2rr(x,y,w,11,RGB(10,20,30)); s2grad(x+1,y+1,w-2,9,6,15,25,3,9,17); text(x+(w-tw(s,1))/2,y+2,s,RGB(20,27,31),1); }
 static void howToPlay(void){
-    static const signed char bob[8]={0,1,2,2,1,0,-1,-1};
     static const char* const tn[7]={"PLAY","MAKE","BUILD","MUSIC","PLANS","OPTS","TOWN"};
     static const char* const tt[7]={"PLAYING","CREATE A BORE","BUILD ROOMS","TOUKEBOX","BLUEPRINTS","OPTIONS","NEIGHBORHOOD"};
     const char* const* ln[7]={lifeHelp,creatureHelp,mapHelp,jbHelp,slotHelp,optHelp,nbHelp};
     static const unsigned char nn[7]={19,15,17,15,13,12,20};
     enum { VIS=13, LY=34, LH=104 };
-    int tab=0, sc=0; u32 cnt=0, lt=~0u; u16 prev=keyNow();
+    int tab=0, sc=0, dirty=7; u16 prev=keyNow();   // dirty: 1 the backdrop and frame (once), 2 the title bar, tabs and page number (a new tab), 4 the text pane (a scroll)
     for(;;){
-        u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
+        u16 k=keyNow(), pr=k&~prev; prev=k;
         if(pr&(K_B|K_START)) return;
-        if(pr&(K_R|K_RIGHT|K_A)){ tab=(tab+1)%7; sc=0; }
-        if(pr&(K_L|K_LEFT)){ tab=(tab+6)%7; sc=0; }
+        if(pr&(K_R|K_RIGHT|K_A)){ tab=(tab+1)%7; sc=0; dirty|=6; }
+        if(pr&(K_L|K_LEFT)){ tab=(tab+6)%7; sc=0; dirty|=6; }
         int n=nn[tab], mx=n>VIS?n-VIS:0;
-        if((pr&K_DOWN)&&sc<mx) sc++;
-        if((pr&K_UP)&&sc>0) sc--;
-        if(!pr&&(cnt>>3)==lt){ vsync(); continue; }   // idle: the picture on the screen is still right (the whole backdrop used to be redrawn every frame, so taps landed between polls and were lost)
-        lt=cnt>>3;
-        objHideAll();
-        s2grad(0,0,SW,SH,1,4,10,2,9,17);                                       // the backdrop: deep Sims blue
-        for(int y=0;y<SH;y+=8) for(int x=(y&8)?4:0;x<SW;x+=8) rect(x,y,1,1,RGB(3,9,17));   // a faint diamond lattice
-        s2rr(1,1,238,158,RGB(10,20,30)); s2rr(2,2,236,156,RGB(2,6,13));        // the frame
-        s2grad(3,3,234,14,8,18,28,3,10,19); rect(3,17,234,1,RGB(14,26,31));    // the title bar
-        s2plumbob(11,2+bob[(cnt>>3)&7]); text(21,7,"HOW TO PLAY",WHITE,1);
-        { const char*t=tt[tab]; text(233-tw(t,1),7,t,RGB(17,29,31),1); }
-        for(int i=0;i<7;i++){ int x=4+i*33, on=i==tab;                          // the tabs
-            s2rr(x,19,32,12,on?RGB(16,27,31):RGB(7,14,22));
-            if(on) s2grad(x+1,20,30,11,10,22,31,5,14,25); else s2grad(x+1,20,30,11,3,9,18,2,6,13);
-            text(x+(32-tw(tn[i],1))/2,22,tn[i],on?WHITE:RGB(12,18,24),1); }
-        s2rr(3,31,234,113,RGB(10,20,30)); s2rr(4,32,232,111,RGB(2,6,13));      // the text pane
+        if((pr&K_DOWN)&&sc<mx){ sc++; dirty|=4; }
+        if((pr&K_UP)&&sc>0){ sc--; dirty|=4; }
+        if(!dirty){ vsync(); continue; }   // nothing moves on this page: the picture on the screen is still right
+        if(dirty&1){
+            objHideAll();
+            s2grad(0,0,SW,SH,1,4,10,2,9,17);                                       // the backdrop: deep blue
+            for(int y=0;y<SH;y+=8) for(int x=(y&8)?4:0;x<SW;x+=8) rect(x,y,1,1,RGB(3,9,17));   // a faint diamond lattice
+            s2rr(1,1,238,158,RGB(10,20,30)); s2rr(2,2,236,156,RGB(2,6,13));        // the frame
+            s2pill(5,147,50,"L R TAB"); s2pill(59,147,86,"UP DOWN SCROLL"); s2pill(149,147,46,"B BACK");   // the button strip
+        }
+        if(dirty&2){
+            s2grad(3,3,234,14,8,18,28,3,10,19); rect(3,17,234,1,RGB(14,26,31));    // the title bar
+            text(11,7,"HOW TO PLAY",WHITE,1);
+            { const char*t=tt[tab]; text(233-tw(t,1),7,t,RGB(17,29,31),1); }
+            for(int i=0;i<7;i++){ int x=4+i*33, on=i==tab;                          // the tabs
+                s2rr(x,19,32,12,on?RGB(16,27,31):RGB(7,14,22));
+                if(on) s2grad(x+1,20,30,11,10,22,31,5,14,25); else s2grad(x+1,20,30,11,3,9,18,2,6,13);
+                text(x+(32-tw(tn[i],1))/2,22,tn[i],on?WHITE:RGB(12,18,24),1); }
+            { char pg[8]; pg[0]=(char)('1'+tab); pg[1]='/'; pg[2]='7'; pg[3]=0; s2rr(199,147,36,11,RGB(10,20,30)); s2rr(200,148,34,9,RGB(2,6,13)); text(199+(36-tw(pg,1))/2,149,pg,RGB(17,29,31),1); }
+        }
+        s2rr(3,31,234,113,RGB(10,20,30)); s2rr(4,32,232,111,RGB(2,6,13));      // the text pane (always: it paints over the old page)
         for(int i=0;i<VIS&&sc+i<n;i++){ const char*l=ln[tab][sc+i]; int y=LY+i*8;
             if(l[0]=='>'){ s2grad(6,y-1,222,9,6,16,26,3,9,17); rect(9,y+2,3,3,RGB(8,28,10)); text(15,y,l+1,RGB(17,29,31),1); }
             else text(11,y,l,RGB(27,30,31),1); }
         rect(232,LY,4,LH,RGB(4,10,18));                                          // the scroll thumb
         if(mx>0){ int th=LH*VIS/n; if(th<8) th=8; int ty=LY+(LH-th)*sc/mx; s2grad(232,ty,4,th,12,24,31,6,16,26); }
         else s2grad(232,LY,4,LH,6,14,22,4,10,18);
-        s2pill(5,147,50,"L R TAB"); s2pill(59,147,86,"UP DOWN SCROLL"); s2pill(149,147,46,"B BACK");   // the button strip
-        { char pg[8]; pg[0]=(char)('1'+tab); pg[1]='/'; pg[2]='7'; pg[3]=0; s2rr(199,147,36,11,RGB(10,20,30)); s2rr(200,148,34,9,RGB(2,6,13)); text(199+(36-tw(pg,1))/2,149,pg,RGB(17,29,31),1); }
-        present();
+        dirty=0;
+        uiPresent();
     }
 }
 
@@ -4988,7 +4999,7 @@ static void playScreen(void){
                         slDelete(l[sel]); toast("NEIGHBORHOOD DELETED"); n=nbTownList(l,SLOT_MAX); if(sel>=n) sel=n-1; if(sel<0) sel=0; } } }
             nbOk=nbLoad(); act=nbTS; prev=keyNow(); dirty=2;
         }
-        if(dirty){ if(dirty&2) mmBackdrop(); plDraw(l,n,sel,act,foc,tile,(dirty&6)!=0); present(); dirty=0; } else vsync();   // (the acid rainbow holds still here: the panel is too much to draw every frame)
+        if(dirty){ if(dirty&2) mmBackdrop(); plDraw(l,n,sel,act,foc,tile,(dirty&6)!=0); uiPresent(); dirty=0; } else vsync();   // (the acid rainbow holds still here: the panel is too much to draw every frame)
         uiTicks++; menuMusTick();
     }
     nbOk=nbLoad(); nbBounds();
@@ -5015,7 +5026,7 @@ static void mainMenu(void){
             menuMusSync();   // the menu's song comes back (a crossfade) if the screen took the music; OPTIONS may have switched SOUND or MENU MUSIC
             continue;
         }
-        if(dirty){ drawMainMenu(sel,dirty&2); present(); dirty=0; }
+        if(dirty){ drawMainMenu(sel,dirty&2); uiPresent(); dirty=0; }
         else if(mmAcid){   // the acid rainbow moves: only the plasma around the panel is worked out again and copied (the panel stays put on screen)
             acT+=2; acidRect(acT,0,60,0,10); acidRect(acT,0,15,10,74); acidRect(acT,45,60,10,74); acidRect(acT,0,60,74,75); mmLogo(SW/2-LOGO_SW/2,1);
             vsync(); vramCopy(0,0,SW,20); vramCopy(0,20,60,148); vramCopy(180,20,SW,148); vramCopy(0,148,SW,150); }

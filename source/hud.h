@@ -3,7 +3,7 @@
 //
 //  TOP BAR    rows 0..HUD_TOPH-1: score and cash on the left, the one message that matters in the middle (prompt > note > combo > hint), the clock on the right.
 //  BOTTOM     rows HUD_BOT..159: a portrait that shows the mood, the eight needs as bars, the aspiration level and the two wants (or the fear).
-//  OVER HEAD  a thought bubble, only now and then (no plumbob). They are the only things drawn on top of the room: the room itself is drawn in
+//  OVER HEAD  a thought bubble, only now and then. They are the only things drawn on top of the room: the room itself is drawn in
 //             rectangles (see liveDraw in main.c), so anything drawn over it has to be told to the renderer (hudOverlayRc).
 //
 // The panels never overlap the room, so they are only redrawn when something they show changes (hudKeys), then copied to the screen.
@@ -224,13 +224,13 @@ static void hudBotUpdate(int all){
 // ---- over the head ----
 // Returns 1 and the rectangle (x1,y1 excluded) when something is drawn over the player's head. The picture is made in two steps: the room
 // rectangle, then this on top, so the rectangle must be redrawn whenever this moves or goes away.
-static int hudOverlayWhat(const char**txt,int*alert){   // 0 none, 2 bubble (1, the plumbob, is no longer shown)
+static int hudOverlayWhat(const char**txt,int*alert){   // 0 none, 2 bubble
     *txt=0; *alert=0;
     if(lcamF>0||ldead||sHud>=2||!xo[XO_BUBBLE]) return 0;
     if(hhBubT&&hhBubTxt){ *txt=hhBubTxt; return 2; }   // talking (house.h)
     if(hhStill<30) return 0;   // nothing over your head while you move: it only pops up once you stand still for half a second
     // Only when it should: an urgent need pops up for 3 seconds when it starts (another one may follow 5 seconds later), the same one
-    // again only every 30 seconds while it lasts; with THOUGHT BUBBLE: ALL a want pops up for 3 seconds every 45. No plumbob.
+    // again only every 30 seconds while it lasts; with THOUGHT BUBBLE: ALL a want pops up for 3 seconds every 45.
     static const char* bubLast; static int bubAt=-100000, wantAt=-100000;
     const char*t=simsAlert();
     if(t){ if((t!=bubLast&&lfr-bubAt>=300)||lfr-bubAt>=1800){ bubLast=t; bubAt=lfr; }
@@ -263,11 +263,5 @@ static void hudOverlayDraw(void){
         text(x+4,y+2,t,RGB(6,6,10),1);
         px(plX-2,y+11,edge); px(plX-1,y+11,edge); px(plX-1,y+12,edge); px(plX,y+12,edge); px(plX,y+13,edge);   // tail
         px(plX-2,y+10,fill); px(plX-1,y+10,fill); px(plX-1,y+11,fill);
-    } else {
-        int st=moodState(); u16 c=hudMoodCol(st), hi=lite(c,22), lo=shade(c,10);
-        int by=top-15+(((lfr>>4)&1)?1:0);     // the plumbob bobs
-        static const u8 wd[11]={1,3,5,5,5,5,5,3,3,1,1};
-        for(int j=0;j<11;j++){ int hw=wd[j]/2; for(int i=-hw;i<=hw;i++) px(plX+i,by+j,i<0?hi:i>0?lo:c); }
-        px(plX-1,by+3,WHITE);
     }
 }

@@ -660,7 +660,7 @@ static int slotScreen(void){   // returns 1 if something was loaded
         if(pr&K_UP){ for(int t=0;t<SLOT_N;t++){ sel=(sel+SLOT_N-1)%SLOT_N; if(!slLocked(sel)) break; } dirty=1; }
         if(pr&(K_B|K_START)) break;
         if(pr&K_A){ changed|=slActions(sel); slScan(); prev=keyNow(); dirty=1; }
-        if(dirty){ slDraw(sel); present(); dirty=0; } else vsync();
+        if(dirty){ slDraw(sel); uiPresent(); dirty=0; } else vsync();
     }
     while((~REG_KEYINPUT)&0x3FF) vsync();
     return changed;
