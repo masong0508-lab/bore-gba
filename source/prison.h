@@ -15,6 +15,7 @@
 //                The prison map itself is saved like any lot. Nothing here is EWRAM that matters: about 20 bytes.
 // BAIL          Pause menu > PRISON > PAY BAIL (in the cell, not for LIFE): PR_BAIL simoleons a day, 1, 7 or 30 days. A missed shift in the cell counts as a bad shift (sims.h simShiftEnd) and may get you FIRED (simFire: back to the bottom of the track); so may the arrest itself (prBook), the longer the sentence the likelier.
 // ONE PRISONER   Only one Sim of the household can be inside at a time; if a second one is busted meanwhile the old 10 second hold happens ("the cells are full").
+static void htBook(int d); static void htFight(int n); static void htRelease(void); static void htDay(void); static void htTick(void); static void htLoad(void); static int htAgiLvl(void); static void htCard(void); static void htLife(void);   // hardtime.h
 #define PR_OFF  (JB_OFF+56)
 #define PR_LIFE 0xFFFF
 #define PR_BAIL 40   // simoleons per day of sentence bought off (PAY BAIL)
@@ -91,7 +92,7 @@ static void prisonBuild(int x0,int y0,int x1,int y1){   // nbTemplate: the compo
 // ---------- the record, the booking, the days ----------
 static int prNote(int n){   // npc.h copCrime: you hurt someone. 1 = no cops (in the prison); the days of a fight in there are added to the sentence
     if(prHere()){
-        if(prIn()){ if(prDays!=PR_LIFE){ int a=n*3; prDays=(u16)(prDays+a>60000?60000:prDays+a); if(prTot<prDays) prTot=prDays; static char t[24] EWRAM_BSS; char*e=slCat(t,"TROUBLE  +"); e=slNum(e,a); slCat(e," DAYS"); lnote=t; lnoteT=90; }
+        if(prIn()){ htFight(n); if(prDays!=PR_LIFE){ int a=n*3; prDays=(u16)(prDays+a>60000?60000:prDays+a); if(prTot<prDays) prTot=prDays; static char t[24] EWRAM_BSS; char*e=slCat(t,"TROUBLE  +"); e=slNum(e,a); slCat(e," DAYS"); lnote=t; lnoteT=90; }
             else { lnote="TROUBLE  YOU ARE IN FOR LIFE"; lnoteT=90; }
             prTrouble=1; prSave(); }
         return 1; }
@@ -102,7 +103,7 @@ static int prBook(void){   // npc.h copArrest, before the stars are cleared: sen
     if(prEd||!nbOk||prDays||hhPUid<0||hhPUid>=HU_N) return 0;
     int s=prRec+copWant*6+copHeat+prCon*4;
     if(prLotGet()<0) return 0;
-    u16 d=prSentence(s); prDays=d; prTot=d; prW1=(u8)(hhPUid+1); if(prCon<60) prCon++; prRec=0; prGood=0; prTrouble=0; prCardOn=1; prSave();
+    u16 d=prSentence(s); prDays=d; prTot=d; prW1=(u8)(hhPUid+1); if(prCon<60) prCon++; prRec=0; prGood=0; prTrouble=0; prCardOn=1; htBook(d); prSave();
     { int ch=d==PR_LIFE?230:25+d; if(ch>230) ch=230;   // the boss hears of it: 10 percent for a scuffle, about 2 in 3 for 140 days, almost sure for a long one
       if(rnd8()<ch) simFire("FIRED  YOUR BOSS HEARD ABOUT THE ARREST"); }
     prGo=1; return 1;
@@ -110,13 +111,14 @@ static int prBook(void){   // npc.h copArrest, before the stars are cleared: sen
 static void prCancel(void){ if(prCon) prCon--; prDays=prTot=0; prW1=0; prCardOn=0; prSave(); }
 static void prRelease(void){   // the sentence is served
     static char t[40] EWRAM_BSS; char*e=slCat(t,prName()); slCat(e,"  RELEASED");
-    int was=prIn(); prDays=prTot=0; prW1=0; prGood=0; prTrouble=0; prSave();
+    int was=prIn(); htRelease(); prDays=prTot=0; prW1=0; prGood=0; prTrouble=0; prSave();
     copCool=3600; copHeat=0; copWant=0; lnote=t; lnoteT=140;
     if(was) prGo=2;   // you were inside: you go home
 }
 static void prDay(void){   // sims.h, every midnight
     if(!prDays||!prW1) return;
     if(!prNorm()){ prDays=prTot=0; prW1=0; prGood=0; prSave(); return; }   // (the one doing time moved out: nobody to keep inside)
+    htDay();
     if(prDays!=PR_LIFE){
         prDays--; if(hhN>0&&(rnd8()%3)==0) prVisit=1; else prVisit=0;
         if(prTrouble) prGood=0; else if(prTot>=14&&++prGood>=7&&prDays>1){ prGood=0; prDays--; }   // a clean week earns a day off for good behavior
@@ -189,12 +191,13 @@ static int prGuardTick(int*planned){   // npc.h copTick: 1 = you are doing time,
     for(int i=0;i<copN;i++){ HhSim*c=&copS[i];
         if(c->pi>=c->pn){ if(copRp[i]<60) copRp[i]++; if(copRp[i]>=60&&!*planned){ *planned=1; copRp[i]=0; hhPlan(c,0); } }
         else hhStepAlong(c); }
+    htTick();
     if(prVisit&&!prVisSt&&simMin>=720&&simMin<1080&&!lstun) prVisitStart();
     if(prVisSt) prVisTick(planned);
     return 1;
 }
 static int prEscape(void){   // 1 = out (the main loop takes you home)
-    int odds=25+skLvl(SK_BODY)*8-prGuardsNear()*15; if(odds<5) odds=5; if(odds>80) odds=80;
+    int odds=25+skLvl(SK_BODY)*8+htAgiLvl()*6-prGuardsNear()*15; if(odds<5) odds=5; if(odds>80) odds=80;
     if((int)(rnd8()*100/256)<odds){
         prDays=prTot=0; prW1=0; prGood=0; prTrouble=0; prCardOn=0; prSave();
         copWant=(u8)(copWant+2>6?6:copWant+2); copRaid=1; copCool=0; copHeat=0; skGain(SK_BODY,3);
@@ -226,7 +229,7 @@ static int prTransfer(int code){   // main.c lifeMode: 1 = to the prison, 2 = ho
 }
 static void prCard(void);
 static void prApply(int ed){   // main.c lifeModeRun, right after lifeInit: the sentence decides where you are and who is OUT
-    prLoad(); prGo=0;
+    prLoad(); htLoad(); prGo=0;
     if(!prDays||ed) return;
     if(!nbOk){ prDays=prTot=0; prW1=0; prSave(); return; }   // no town, no prison
     if(hhPUid==prW1-1&&!prHere()){ prGo=1; return; }          // the prisoner starts in the prison (a restart, or the Sim just changed)
@@ -283,14 +286,17 @@ static void prServe(int days){   // skip days in the cell: the clock runs to mid
 }
 static void prisonScreen(void){   // pause menu > PRISON (the STORY tile while a sentence runs)
     for(;;){
-        const char*it[5]; int id[5], n=0;
+        const char*it[7]; int id[7], n=0;
         it[n]="PRISON RECORD"; id[n++]=0;
+        if(prIn()){ it[n]="INMATE CARD"; id[n++]=4; it[n]="WORK AND GANG"; id[n++]=5; }
         if(prIn()){ it[n]="SERVE TIME"; id[n++]=1; }
         if(prIn()&&prDays!=PR_LIFE){ it[n]="PAY BAIL"; id[n++]=3; }
         it[n]="STORY JOURNAL"; id[n++]=2;
         int c=menu("PRISON",it,n); if(c<0) return;
         if(id[c]==0) prRecord();
         else if(id[c]==1){ static const char* const sv[3]={"SKIP 1 DAY","SKIP 7 DAYS","SKIP 30 DAYS"}; static const u8 dn[3]={1,7,30}; int s=menu("SERVE TIME",sv,3); if(s>=0){ prServe(dn[s]); return; } }
+        else if(id[c]==4) htCard();
+        else if(id[c]==5) htLife();
         else if(id[c]==3){ if(prBail()) return; }
         else storyScreen();
     }

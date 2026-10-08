@@ -78,6 +78,7 @@ static void homeMusic(void){ if(hmMus<4){ hmMus++; skGain(SK_CREAT,1); } }   // 
 static void homeUse(int k){   // R at a home pack item: lnear 11 TV, 12 bookshelf, 13 coffee maker, 14 aquarium, 15 treadmill
     if(stage==AG_BABY){ lnote="TOO YOUNG"; lnoteT=40; return; }
     lsp=0; lgrind=0;
+    htUse(k);   /* hardtime.h: agility in the prison gym */
     if(k==16){ prClimb(); return; }   // prison.h: the sealed fence
     if(k==11){
         static const char* const tvN[5]={"MACHINI-TV","SKATE VIDEO","COMEDY NIGHT","THE NEWS","HORROR FLICK"};   // channel 0 plays a 3 second clip (tvclip.h)
