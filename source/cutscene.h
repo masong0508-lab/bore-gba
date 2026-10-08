@@ -113,13 +113,14 @@ static void csBg(int bg,int t,int fx){   // the picture area: y 12 .. 115
 
 #include "csfx.h"
 #include "csbg.h"
+#include "csshot.h"
 static int csLen(const char*s){ int n=0; while(s[n]) n++; return n; }
 static int csIsq(int v){ int w=0; while((w+1)*(w+1)<=v) w++; return w; }
 
 static void csDraw(const CsBeat*b,int t,int shown){   // one frame of one beat (shown: how many letters of the caption are typed)
     csOx=csOy=0; if(b->fx&CF_SHAKE){ csOx=(rnd8()%5)-2; csOy=(rnd8()%5)-2; }
     rect(0,0,SW,SH,0);
-    csFxNow=b->fx; csCamAim(b,t); clipSet(0,12,SW,116); csBg(b->bg,t,b->fx); csBgFx(b->bg,t,b->fx);
+    csFxNow=b->fx; csCamAim(b,t); csShotApply(b,t); clipSet(0,12,SW,116); csBg(b->bg,t,b->fx); csBgFx(b->bg,t,b->fx);
     int ay=110, by=110;
     if(b->bg==CB_HOSP||b->bg==CB_FLAT){ if(b->pb==CP_LIE) by=98; }
     if(b->bg==CB_SITE){ if(b->pb==CP_CLIMB) by=110-(t/3>48?48:t/3); if(b->pb==CP_FLAIL){ by=62+t*t/20; if(by>110) by=110; } if(b->pb==CP_LIE) by=111; }
@@ -277,10 +278,10 @@ static const char* const csNames[8]={ "CH1 END  THE BARS", "CH2 END  THE SWEATER
 #ifndef CS_HOST
 static void csPlay(int id){   // play scene id; returns when it ends or START skips it
     volatile u16*bc=(volatile u16*)0x04000050; volatile u16*bl=(volatile u16*)0x04000054;
-    const CsScene*sc=&csScenes[id]; clipAll(); objHideAll(); csCamReset();
+    const CsScene*sc=&csScenes[id]; clipAll(); objHideAll(); csCamReset(); csCurSc=id;
     u16 prev=keyNow(); int skip=0;
     for(int bi=0;bi<sc->n&&!skip;bi++){
-        const CsBeat*b=&sc->b[bi]; int total=0; for(int i=0;i<3&&b->t[i];i++) total+=csLen(b->t[i]);
+        csCurBi=bi; const CsBeat*b=&sc->b[bi]; int total=0; for(int i=0;i<3&&b->t[i];i++) total+=csLen(b->t[i]);
         int t=0, shown=0, rest=0; if(b->sfx) sfxPlay(b->sfx-1);
         for(;;){
             u16 k=keyNow(), pr=k&~prev; prev=k;
@@ -293,7 +294,7 @@ static void csPlay(int id){   // play scene id; returns when it ends or START sk
         }
         if(!skip&&(b->fx&CF_FADEOUT)){ *bc=0x00C4; for(int i=0;i<=16;i++){ *bl=i; csDraw(b,t,total); present(); } for(int i=0;i<14;i++){ present(); } }
     }
-    *bc=0x0400; *bl=0; objHideAll(); clipAll();
+    *bc=0x0400; *bl=0; objHideAll(); clipAll(); csCurSc=-1;
     while(keyNow()&(K_A|K_B|K_START)) vsync();   // let go before the next screen reads the keys
 }
 #endif
