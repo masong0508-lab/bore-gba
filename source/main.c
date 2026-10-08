@@ -1338,10 +1338,17 @@ IWRAM_ARM static void zoomArm(void){   // in vblank: line 0's scaling now, then 
     d0[0]=(u32)(uintptr_t)(t+4); d0[1]=0x04000020u; d0[2]=4u|(3u<<21)|(1u<<25)|(1u<<26)|(2u<<28)|(1u<<31);   // 4 words, dest reload, repeat, 32 bit, HBlank, on
 }
 static void zoomOff(void){ volatile u32*d0=(volatile u32*)0x040000B0, *bg=(volatile u32*)0x04000020; zoomShow=0; d0[2]=0; bg[0]=0x100; bg[1]=0x1000000u; bg[2]=0; bg[3]=0; }   // BG2 back to 1:1
+#define R_TM3D (*(volatile u16*)0x0400010C)
+#define R_TM3CNT (*(volatile u16*)0x0400010E)
+static u16 vsT;   // timer 3 when the last vsync returned (a frame is 274 ticks)
 static void vsync(void){
+    if(!(R_TM3CNT&0x80)){ R_TM3CNT=0; R_TM3D=0; R_TM3CNT=0x83; }
     while(REG_VCOUNT>=160);
     while(REG_VCOUNT<160){ if((*(volatile u16*)0x04000208&1)&&(*(volatile u16*)0x04000200&1)&&(*(volatile u16*)0x04000004&8)) *(volatile u8*)0x04000301=0; }   // the vblank interrupt is on: halt the CPU until it fires instead of spinning (emulators skip the idle time, so menus get the speed back)
-    if(mWantOff) audIdleStop(); svTick(); ldTick(); }
+    vsT=R_TM3D; if(mWantOff) audIdleStop(); svTick(); ldTick(); }
+static void vsyncUi(void){   // vsync for the menus: if the last redraw ran over a whole frame (we are already inside the NEXT vblank), do not wait out another full frame
+    if(REG_VCOUNT>=160&&(R_TM3CNT&0x80)&&(u16)(R_TM3D-vsT)>180){ vsT=R_TM3D; if(mWantOff) audIdleStop(); svTick(); ldTick(); return; }
+    vsync(); }
 static void present(void){
     if(zoomShow&&!zoomKeep) zoomOff();   // anything but a room picture (menus, messages) is shown 1:1
     vsync();
@@ -1356,6 +1363,15 @@ static void uiPresent(void){
     REG_DMA3SAD=(u32)(uintptr_t)fb; REG_DMA3DAD=VRAM_ADDR;
     REG_DMA3CNT=(SW*SH/2)|0x84000000u;
     vsync();
+}
+
+static void uiPresentRect(int x0,int y0,int x1,int y1){   // a menu redraws only its own box: copy just those rows and columns (the whole screen is 19200 words, most of a frame, and the mixer needs the rest)
+    if(zoomShow&&!zoomKeep) zoomOff();
+    if(x0<0) x0=0; if(y0<0) y0=0; if(x1>SW) x1=SW; if(y1>SH) y1=SH;
+    x0&=~1; x1=(x1+1)&~1; if(x1>SW) x1=SW;
+    int wd=(x1-x0)>>1;
+    if(wd>0) for(int y=y0;y<y1;y++){ REG_DMA3SAD=(u32)(uintptr_t)(fb+y*SW+x0); REG_DMA3DAD=VRAM_ADDR+(u32)((y*SW+x0)*2); REG_DMA3CNT=(u32)wd|0x84000000u; }
+    vsyncUi();
 }
 
 // Copy only the scene columns (blink-only redraws leave the panel untouched).
@@ -2560,7 +2576,7 @@ static int menu(const char*title,const char*const*it,int n){   // UP/DOWN + A to
     { int pw=w*72/100, ph=h*72/100, qx=x+(w-pw)/2, qy=y+(h-ph)/2; box(qx,qy,pw,ph); rect(qx,qy,pw,9,RGB(5,12,24)); rect(qx,qy+9,pw,1,GOLD); uiPresent(); }   // pops open from the middle in one quick step (it only grows, so nothing needs wiping); the full panel follows at once
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; int ps=sel;
-        if(k&(K_UP|K_DOWN)){ if(++hold>24&&hold%6==0) pr|=k&(K_UP|K_DOWN); } else hold=0;   // hold UP or DOWN to run down a long list
+        if(k&(K_UP|K_DOWN)){ if(++hold>14&&hold%3==0) pr|=k&(K_UP|K_DOWN); } else hold=0;   // hold UP or DOWN to run down a long list
         if(pr&K_DOWN) sel=(sel+1)%n;
         if(pr&K_UP) sel=(sel+n-1)%n;
         if(pr&K_R){ sel+=vis; if(sel>=n) sel=n-1; }
@@ -2577,7 +2593,7 @@ static int menu(const char*title,const char*const*it,int n){   // UP/DOWN + A to
             text(x+16,yy,it[i],i==sel?WHITE:DIMC,1); }
         if(n>vis){ int th=vis*10*vis/n; if(th<6) th=6; rect(x+w-5,y+15,2,vis*10,RGB(8,12,22)); rect(x+w-5,y+15+(vis*10-th)*top/(n-vis),2,th,GOLD); }   // scroll bar
         text(x+6,y+h-9,"A OK  B BACK",RGB(12,14,16),1);
-        uiPresent();
+        uiPresentRect(x-1,y-1,x+w+1,y+h+1);
     }
 }
 #include "pie.h"   // the pie menu: contextual interaction (house.h: hhSocR)
@@ -2595,7 +2611,7 @@ static void helpScreen(const char*title,const char*const*ln,int n){   // lines s
     }
 }
 static void toast(const char*msg){ int w=tw(msg,1)+16;
-    box((SW-w)/2,66,w,22); text((SW-w)/2+8,74,msg,WHITE,1); for(int i=0,n=oToastLen();i<n;i++){ present(); } }
+    box((SW-w)/2,66,w,22); text((SW-w)/2+8,74,msg,WHITE,1); { u16 pv=keyNow(); for(int i=0,n=oToastLen();i<n;i++){ present(); u16 k=keyNow(); if(k&~pv&(K_A|K_B|K_START)) break; pv=k; } } }
 static int edGate(void){ if(!nbBarred()) return 1; toast("COMMUNITY LOT  BUILD IN THE TOWN"); return 0; }   // every way into the room builder asks first: a community lot can only be built from the neighborhood view
 static const char* const lifeHelp[]={
     ">Life in BORE",
