@@ -101,8 +101,8 @@ static inline int oSpeedPct(void){ static const u8 t[4]={80,100,125,150}; return
 static inline int oFoodEvery(void){ static const u16 t[4]={0,240,120,60}; return t[xo[XO_HUNGER]]; }  // steps per FOOD point, 0 = never
 static inline int oWcEvery(void){ static const u16 t[4]={0,200,100,50}; return t[xo[XO_HUNGER]]; }
 static inline int oToastLen(void){ static const u8 t[3]={25,45,90}; return t[xo[XO_TOAST]]; }
-static inline int oRepDelay(void){ static const u8 t[3]={22,14,8}; return t[xo[XO_REPEAT]]; }       // frames held before the cursor repeats
-static inline int oRepMask(void){ static const u8 t[3]={7,3,1}; return t[xo[XO_REPEAT]]; }          // repeats when (held & mask) == 0
+static inline int oRepDelay(void){ static const u8 t[3]={12,7,4}; return t[xo[XO_REPEAT]]; }       // frames held before the cursor repeats
+static inline int oRepMask(void){ static const u8 t[3]={3,1,0}; return t[xo[XO_REPEAT]]; }          // repeats when (held & mask) == 0
 // Volume sliders: 0..10 steps on a curve that sounds even (a straight line would be too loud too early). Music and effects are each
 // multiplied with the master slider. The result is a gain 0..256 (256 = full): a sample is scaled by (sample*gain)>>8.
 static const u16 volTab[11]={0,8,17,28,42,60,84,114,150,198,256};

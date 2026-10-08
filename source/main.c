@@ -3992,10 +3992,10 @@ static int edCamStep(void){   // dead-zone camera: the view only scrolls when th
     int lo=eTool==T_ITEM?94:112;   // (BUY has a taller panel at the bottom)
     if(sy<48) dy=sy-48; else if(sy>lo) dy=sy-lo;
     if(!dx&&!dy) return 0;
-    if(dx>10) dx=10;
-    if(dx<-10) dx=-10;
-    if(dy>5) dy=5;
-    if(dy<-5) dy=-5;
+    if(dx>24) dx=24;
+    if(dx<-24) dx=-24;
+    if(dy>12) dy=12;
+    if(dy<-12) dy=-12;
     int ox=camX, oy=camY; camX+=dx; camY+=dy; camClamp(1);
     return camX!=ox||camY!=oy;
 }
@@ -4015,8 +4015,14 @@ static void miniMap(void){   // whole map at 1 px per tile, top right: colours b
     u16 cc=(efr&8)?WHITE:GOLD;
     mmPx(ecx,ecy,cc); mmPx(ecx-1,ecy,cc); mmPx(ecx+1,ecy,cc); mmPx(ecx,ecy-1,cc); mmPx(ecx,ecy+1,cc);
 }
+static void edPresent(void){   // the builder's picture goes to the screen the moment it is drawn (present() first waits for vblank: up to a frame of input lag), then the frame is waited out; a redraw that overran skips the extra wait
+    if(zoomShow&&!zoomKeep) zoomOff();
+    REG_DMA3SAD=(u32)(uintptr_t)fb; REG_DMA3DAD=VRAM_ADDR;
+    REG_DMA3CNT=(SW*SH/2)|0x84000000u;
+    vsyncUi();
+}
 static void mapEditor(void){
-    int hold[4]={0}, comboUsed=0, dirty=1, lastBl=-1, msgT=0; const char*msg=""; u16 prev=keyNow();
+    int hold[4]={0}, lrHold=0, edZ=0, comboUsed=0, dirty=1, lastBl=-1, msgT=0; const char*msg=""; u16 prev=keyNow();
     static const u16 dirK[4]={K_RIGHT,K_LEFT,K_UP,K_DOWN};
     edTried=0; edLife=0; edCashDirty=0; if(xo[XO_BUYCOST]&&!gInPlay) edLoadLife();   // the life's cash, for the prices
     udClear(); udOn=1;   // a fresh UNDO history for this visit to the builder
@@ -4026,6 +4032,13 @@ static void mapEditor(void){
         int tr[4];
         for(int i=0;i<4;i++){ hold[i]=(k&dirK[i])?hold[i]+1:0; tr[i]=(hold[i]==1)||(hold[i]>oRepDelay()&&(hold[i]&oRepMask())==0); }
         int ux=tr[0]-tr[1], uy=tr[3]-tr[2];
+        int fast=0; for(int i=0;i<4;i++) if(hold[i]>oRepDelay()+14) fast=1;   // held a while: two tiles a step
+        lrHold=(k&(K_L|K_R))?lrHold+1:0;   // L / R repeat while held, so the floors and wallpapers scroll by
+        if(lrHold>12&&(lrHold&3)==0) pr|=(u16)(k&(K_L|K_R));
+        if((k&K_SEL)&&(pr&(K_LEFT|K_RIGHT))){   // SELECT + LEFT / RIGHT: zoom the builder out / in (1x, 1.3x, 2x, 2.7x), around the cursor
+            static const char* const zn[4]={"ZOOM 1X","ZOOM 1.3X","ZOOM 2X","ZOOM 2.7X"}; int nz=edZ+((pr&K_RIGHT)?1:-1);
+            comboUsed=1; ux=uy=0; if(nz>=0&&nz<4){ edZ=nz; msg=zn[nz]; msgT=30; dirty=1; } }
+        if(k&K_SEL){ ux=0; if(!(tr[2]||tr[3])) uy=0; }   // (SELECT + D-pad never moves the cursor)
         if((k&K_SEL)&&(tr[2]||tr[3])){   // SELECT + UP / DOWN: the floor above / below (stairs: the ^ and ~ items)
             int nf=curFl+(tr[2]?1:-1); comboUsed=1; ux=uy=0; dirty=1; udEnd();
             if(nf>=0&&nf<FLR_N){ if(flGo(nf)){ eAct=0; msg=flNm[nf]; msgT=60; } else { msg="TOO MUCH BUILT TO CHANGE FLOOR"; msgT=60; } } else { msg=nf<0?"NO FLOOR BELOW":"NO FLOOR ABOVE"; msgT=40; }
@@ -4034,6 +4047,7 @@ static void mapEditor(void){
         if((k&K_SEL)&&(pr&K_START)){ comboUsed=1; eAct=0; msg=udRedo(); msgT=50; dirty=1; pr&=(u16)~K_START; }   // SELECT + START: REDO (the MAP MENU has both too)
         if(ux||uy){   // screen-relative like walking: up = away from the camera
             int dx=ux+uy, dy=uy-ux; dx=(dx>0)-(dx<0); dy=(dy>0)-(dy<0);
+            if(fast&&eTool!=T_ITEM){ dx*=2; dy*=2; }
             ecx+=dx; ecy+=dy; if(ecx<edX0)ecx=edX0; if(ecy<edY0)ecy=edY0; if(ecx>edX1)ecx=edX1; if(ecy>edY1)ecy=edY1; if(ecx>=MW)ecx=MW-1; if(ecy>=MH)ecy=MH-1;
             if(eTool==T_ITEM){ if(k&K_A) mapPlace(ecx,ecy,edObjCh()); else if(k&K_B) mapPlace(ecx,ecy,'.'); }
             dirty=1;
@@ -4080,8 +4094,11 @@ static void mapEditor(void){
         if(msgT>0&&--msgT==0){ msg=""; dirty=1; }
         int bl=(efr>>3)&1;   // the editor only redraws when something changed or the cursor blinks
         if(dirty||bl!=lastBl){
-            drawRoom(1); drawEditorHud(msgT>0?msg:""); if(xo[XO_MINI]) miniMap();
-            present(); dirty=0; lastBl=bl;
+            drawRoom(1);
+            if(edZ){ static const short zk[4]={256,192,128,96}; int zx=LOX+(ecx-ecy)*CA, zy=LOY+(ecx+ecy+1)*CB;
+                if(zx<0)zx=0; if(zx>SW-1)zx=SW-1; if(zy<vpY0+1)zy=vpY0+1; if(zy>vpY1-2)zy=vpY1-2; zoomFb(zx,zy,zk[edZ]); }
+            drawEditorHud(msgT>0?msg:""); if(xo[XO_MINI]) miniMap();
+            edPresent(); dirty=0; lastBl=bl;
         } else vsync();
     }
     udEnd(); udOn=0;   // (every way out of the loop ends up here: the history stays only while the builder is open)
