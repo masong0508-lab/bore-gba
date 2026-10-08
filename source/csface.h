@@ -22,8 +22,8 @@ static void csFaceBig(int wx,int wy,int who,int pose,int t,int open,u16 sk,u16 h
     csFcx=csCamX(wx+csOx); csFcy=csCamY(wy+csOy);
     u16 dk=RGB(3,2,3), ol=RGB(2,1,4), lip=RGB(20,7,8), wh=RGB(30,30,31);
     int sick=(csFxNow&CF_SICK)!=0, shake=(csFxNow&CF_SHAKE)!=0;
-    int lie=pose==CP_LIE, sad=pose==CP_HEAD, sing=pose==CP_SING||open, scream=pose==CP_FLAIL||sick, yell=shake&&!sad&&!lie&&(who!=CA_MISSY||pose!=CP_STAND||1);
-    int crying=sad&&shake&&!sick, blink=((t+who*23)%100)<4, closed=lie||blink||crying, loud=sing||scream||(yell&&!sad);
+    int lie=pose==CP_LIE||pose==CP_STIR, sad=pose==CP_HEAD||pose==CP_CRY||pose==CP_SLUMP, sing=pose==CP_SING||open, scream=pose==CP_FLAIL||pose==CP_SHOCK||sick, yell=shake&&!sad&&!lie&&(who!=CA_MISSY||pose!=CP_STAND||1);
+    int crying=(sad&&shake&&!sick)||pose==CP_CRY, blink=((t+who*23)%100)<4, closed=lie||blink||crying, loud=sing||scream||(yell&&!sad);
     u16 fc=sick?csFMix(sk,RGB(12,24,6),4):sk, hat=RGB(31,31,28);
     int ex=(who==CA_MISSY)?10:8;
     // hair behind, neck, ears

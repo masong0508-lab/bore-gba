@@ -30,7 +30,7 @@ static int csEase(int c,int g){ int d=g-c; if(!d) return c; int s=d/4; if(!s) s=
 static void csCamAim(const CsBeat*b,int t){
     int tz=256, tx=120, ty=64, id=csWho(b->who), fx=0, fy=110, found=0, by=110;
     if(b->bg==CB_SITE){ if(b->pb==CP_CLIMB) by=110-(t/3>48?48:t/3); if(b->pb==CP_FLAIL){ by=62+t*t/20; if(by>110) by=110; } if(b->pb==CP_LIE) by=111; }   // (where csDraw puts the second figure)
-    if((b->bg==CB_HOSP||b->bg==CB_FLAT)&&b->pb==CP_LIE) by=98;
+    if((b->bg==CB_HOSP||b->bg==CB_FLAT)&&(b->pb==CP_LIE||b->pb==CP_STIR)) by=98;
     if(id){ if(b->a==id){ fx=b->ax*4; fy=110; found=1; } else if(b->b==id){ fx=b->bx*4; fy=by; found=1; } }
     if(b->bg==CB_RATE||b->bg==CB_BLACK){ }                                                       // text and a graph: always the wide shot
     else {
