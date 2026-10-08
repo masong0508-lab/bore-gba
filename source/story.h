@@ -11,7 +11,7 @@
 _Static_assert(OPT_OFF+3+XO_N+1<=STORY_OFF&&STORY_OFF+8<=SLOT_DIR,"the story block overlaps the options or the slot directory");
 enum { STY_NONE, STY_ROOM, STY_WED, STY_PARENT, STY_SKATE, STY_HOUSE, STY_FRIEND, STY_RAGS, STY_CLIMB, STY_TOWN, STY_SECOND, STY_TVSHOW, STY_N };   // (new stories go at the END: the saved story number stays valid)
 enum { SG_FRIEND, SG_LOVE, SG_STEADY, SG_JOB, SG_MONEY, SG_KID, SG_KIDFRIEND, SG_GUEST, SG_END,
-    SG_SKILL, SG_TRICKS, SG_WANTS, SG_HOUSE, SG_FRIENDS, SG_BFF, SG_DAYS, SG_SCRIPT };   // (SG_SCRIPT: no number to count: only a scripted cutscene ends the chapter, with stComplete)
+    SG_SKILL, SG_TRICKS, SG_WANTS, SG_HOUSE, SG_FRIENDS, SG_BFF, SG_DAYS, SG_SCRIPT, SG_MULTI };   // (SG_SCRIPT: no number to count: only a scripted cutscene ends the chapter, with stComplete)
 //   TV SHOW & TELL  drama: a fallen TV judge wins her fans back in five chapters (Dancing with the Bars, Pull Yourself a Sweater, The Winner Takes It All, The Loser Has To Fall, While She's Dancing with the Stars)   // (the last seven: skill level, tricks landed, wants fulfilled, Sims in the house, friends in the house, a best friend, days since the chapter began)
 typedef struct { const char* nm; u8 goal; u32 arg; } StCh;
 static const StCh stRoom[]={ {"BECOME FRIENDS WITH YOUR ROOMMATE",SG_FRIEND,0}, {"FALL IN LOVE",SG_LOVE,0}, {"GO STEADY",SG_STEADY,0},
@@ -34,8 +34,8 @@ static const StCh stTown[]={ {"BECOME FRIENDS WITH A HOUSEMATE",SG_FRIEND,0}, {"
     {"FILL THE HOUSE WITH 3 SIMS",SG_HOUSE,3}, {"FULFIL 8 WANTS",SG_WANTS,8}, {"THE END  YOU BELONG HERE",SG_END,0} };
 static const StCh stSecond[]={ {"BECOME FRIENDS AGAIN",SG_FRIEND,0}, {"FALL BACK IN LOVE",SG_LOVE,0}, {"GO STEADY AGAIN",SG_STEADY,0},
     {"SURVIVE 14 MORE DAYS",SG_DAYS,14}, {"SAVE 32000 SIMOLEONS",SG_MONEY,32000}, {"THE END  WORTH FIXING",SG_END,0} };
-static const StCh stTv[]={ {"DANCING WITH THE BARS",SG_SCRIPT,0}, {"PULL YOURSELF A SWEATER",SG_SCRIPT,0}, {"THE WINNER TAKES IT ALL...",SG_SCRIPT,0},
-    {"...THE LOSER HAS TO FALL",SG_SCRIPT,0}, {"WHILE SHE'S DANCING WITH THE STARS",SG_SCRIPT,0}, {"THE END  HERE TODAY",SG_END,0} };
+static const StCh stTv[]={ {"DANCING WITH THE BARS",SG_MULTI,0}, {"PULL YOURSELF A SWEATER",SG_MULTI,0}, {"THE WINNER TAKES IT ALL...",SG_MULTI,0},
+    {"...THE LOSER HAS TO FALL",SG_MULTI,0}, {"WHILE SHE'S DANCING WITH THE STARS",SG_MULTI,0}, {"THE END  HERE TODAY",SG_END,0} };
 _Static_assert(sizeof(stTv)/sizeof(stTv[0])==6,"a story has five chapters and the END row");
 // the two lines under a TV SHOW & TELL chapter on its card (what the chapter is about; nothing is counted)
 static const char* const stTvBrief[5][2]={ {"HUNGOVER AND UNSTEADY  PULL YOURSELF","TOGETHER AND JUDGE THE TALENT SHOW"},
@@ -88,6 +88,46 @@ static void stKidHome(void){   // the promised child moves in: a mix of you and 
     static char t[40] EWRAM_BSS; char*e=simCat(t,hhM[m].name); simCat(e," IS HOME"); toast(t);
     stKid=hhM[m].uid;   // (the kid goals are about this child)
 }
+// TV SHOW & TELL: every chapter is SEVERAL goals at once and ALL of them must hold at the same moment (no skating in this story: it is about getting a life back).
+// The chapter clock lives in stKidDay (no kid in this story): the day the chapter began, or the day of the last RELAPSE (a puff) or COLLAPSE (faint / pass out) in the chapters that watch for them.
+static const char* const stqNm[7]={"DAYS CLEAN","DAYS HOLDING ON","FRIENDS","SIMOLEONS","SIMS LIVING HERE","HAVE A NEIGHBOR OVER","FEEL HAPPY RIGHT NOW"};
+enum { TQ_CLEAN, TQ_DAYS, TQ_FRIENDS, TQ_MONEY, TQ_HOUSE, TQ_GUEST, TQ_HAPPY };
+typedef struct { u8 k; u32 n; } StQ;
+static const StQ stqT[5][5]={
+    { {TQ_GUEST,1}, {TQ_FRIENDS,1}, {TQ_MONEY,4000} },                                                     // 1 hungover: have somebody over, a friend, a little cash
+    { {TQ_CLEAN,7}, {TQ_FRIENDS,2}, {TQ_MONEY,6000}, {TQ_HAPPY,1} },                                       // 2 a week clean (a puff or a faint starts it again)
+    { {TQ_HOUSE,3}, {TQ_CLEAN,4}, {TQ_MONEY,20000}, {TQ_FRIENDS,2} },                                      // 3 a private house with a crew around you
+    { {TQ_DAYS,5}, {TQ_FRIENDS,2}, {TQ_MONEY,12000}, {TQ_HAPPY,1} },                                       // 4 you are Mamesy: hold on
+    { {TQ_CLEAN,10}, {TQ_FRIENDS,4}, {TQ_HOUSE,4}, {TQ_MONEY,40000}, {TQ_HAPPY,1} } };                     // 5 the comeback: all of it, together
+static const u8 stqN[5]={3,4,4,4,5};
+static u8 stqDay(void){ u8 b=(u8)(simDay&255); return b==255?254:b; }
+static int stqDays(void){ return stKidDay==255?0:((simDay&255)-stKidDay)&255; }
+static int stqVal(const StQ*q){
+    switch(q->k){
+    case TQ_CLEAN: case TQ_DAYS: return stqDays();
+    case TQ_FRIENDS: { int me=hhPUid, ex=stCh==3?(int)stKid:(int)stPart, n=0; for(int u=0;u<HU_N;u++) if(u!=me&&u!=ex&&(relF[me][u]&RF_FRIEND)) n++; return n; }   // (Missy's sister does not count once she is gone, and in chapter 4 Missy is in a coma)
+    case TQ_MONEY: return (int)simMoneyI();
+    case TQ_HOUSE: { int n=hhN+1; if(stCh==4&&stPart!=255&&stMember(stPart)>=0) n--; return n; }
+    case TQ_GUEST: return stGuest?1:0;
+    case TQ_HAPPY: return moodState()>=MS_HAPPY;
+    }
+    return 0;
+}
+static int stqOk(const StQ*q){ return stqVal(q)>=(int)q->n; }
+static int stqDone(void){ if(stCh>=5) return 0; int n=0; for(int i=0;i<stqN[stCh];i++) n+=stqOk(&stqT[stCh][i]); return n; }
+static int stqAll(void){ return stCh<5&&stqDone()==stqN[stCh]; }
+static void stqText(const StQ*q,char*b){   // one goal line, b at least 44 long: "+ 5 OF 7 DAYS CLEAN" / "- 1 OF 4 FRIENDS"
+    int v=stqVal(q); char*e=slCat(b,stqOk(q)?"+ ":"- ");
+    if(q->k==TQ_GUEST||q->k==TQ_HAPPY){ slCat(e,stqNm[q->k]); return; }
+    if(v>(int)q->n) v=(int)q->n;
+    e=slNum(e,v); e=slCat(e," OF "); e=slNum(e,(int)q->n); e=slCat(e," "); slCat(e,stqNm[q->k]);
+}
+static void stqList(int x,int y,int dy){ if(stCh>=5) return; for(int i=0;i<stqN[stCh];i++){ char b[48]; stqText(&stqT[stCh][i],b); text(x,y+i*dy,b,b[0]=='+'?RGB(10,28,12):WHITE,1); } }
+static void stTvEvent(int ev){   // sims.h simEventV calls this for every game event: a puff or a collapse in chapters 2, 3 and 5 starts the clock again
+    if(stId!=STY_TVSHOW||stKidDay==255||(stCh!=1&&stCh!=2&&stCh!=4)) return;
+    if(ev!=SE_PIPE&&ev!=SE_FAINT&&ev!=SE_PASSOUT) return;
+    stKidDay=stqDay(); stSave(); toast(ev==SE_PIPE?"RELAPSE  THE CLOCK STARTS OVER":"YOU COLLAPSED  THE CLOCK STARTS OVER");
+}
 static int stValue(const StCh*c){   // the number a goal counts (-1: the goal has none)
     switch(c->goal){
         case SG_MONEY: return simMoneyI();      case SG_JOB: return jobLvl;      case SG_SKILL: return skillLvl;
@@ -109,6 +149,7 @@ static int stDone(const StCh*c){   // is the chapter's goal met?
         case SG_KIDFRIEND: { int k=stMember(stKid); return k>=0&&(relF[me][hhM[k].uid]&RF_FRIEND); }
         case SG_GUEST: return stGuest;
         case SG_SCRIPT: return 0;   // (ended by its cutscene: stComplete)
+        case SG_MULTI: return stqAll();   // (TV SHOW & TELL: every goal of the chapter at once)
         case SG_BFF: return pu>=0&&(relF[me][pu]&RF_BFF);
         case SG_SKILL: case SG_TRICKS: case SG_WANTS: case SG_HOUSE: case SG_FRIENDS: case SG_DAYS: { int v=stValue(c); return v>=(int)c->arg; }
     }
@@ -154,7 +195,7 @@ static void stComplete(void){   // the current chapter is done: pay it, open wha
     stGotN=0; int rwWas=rwTotal(); int slkWas=jbStoryCount(stId); if(jbStoryDone(stId,stCh)){ simQPush("MORE SCOOBY STUFF TO FIND"); simQPush("TOUCH GRASS TO FIND IT"); }   // half of all the story missions: secret songs (no names, go and look)
     if(slkWas<SM_PER&&jbStoryCount(stId)>=SM_PER){ int p=slkGift(stId); if(p>=0){ static char sg[32] EWRAM_BSS; simCat(simCat(sg,slkNm[p])," UNLOCKED"); simQPush(sg); stGotAdd(slkNm[p]); } }   // all 5 missions of this story are done: a free slider pack
     for(int j=0;j<RW_N;j++) if(rwWas<rwNeed[j]&&rwTotal()>=rwNeed[j]){ simQPush("NEW REWARD IN BUY MODE"); stGotAdd(palNm[catItems[NCAT-1][j]]); break; }
-    if(c->goal==SG_DAYS) stKidDay=255;
+    if(c->goal==SG_DAYS||c->goal==SG_MULTI){ stKidDay=255; if(c->goal==SG_MULTI) stGuest=0; }
     stCh++; stSave(); stAnnounce(); stShown=(u8)(stId*16+stCh+1); stModal=2;   // the CHAPTER COMPLETE card (stRunModal)
 }
 // TV SHOW & TELL, chapter 4 (YOU ARE MAMESY NOW): the CAST ARRIVAL and the hand-over of control.
@@ -199,6 +240,7 @@ static void stTick0(void){   // once per logic step in the life game: is this ch
     const StCh*c=&stChs[stId][stCh];
     if(c->goal==SG_END) return;
     if(c->goal==SG_DAYS&&stKidDay==255){ u8 b=(u8)(simDay&255); stKidDay=b==255?254:b; stSave(); return; }   // the clock starts when the chapter does
+    if(c->goal==SG_MULTI&&stKidDay==255){ stKidDay=stqDay(); stGuest=0; stSave(); return; }   // (the chapter clock starts with the chapter)
     if(c->goal==SG_KID){   // a day after the chapter starts the child comes home
         if(stKidDay==255){ stKidDay=(u8)((simDay+1)&255); stSave(); return; }
         if((u8)simDay!=stKidDay) return;
@@ -240,6 +282,7 @@ static void stSparkle(u32 cnt,int x0,int y0,int w,int h){   // a few twinkling p
 }
 // the chapter goal's progress as text (only the goals that have a number)
 static int stProg(const StCh*c,char*b){
+    if(c->goal==SG_MULTI){ if(stCh>=5) return 0; char*e=slNum(b,stqDone()); e=slCat(e," OF "); slNum(e,stqN[stCh]); return 1; }
     int v=stValue(c), of=c->arg; if(v<0) return 0;
     if(v>of) v=of;
     char*e=slNum(b,v); e=slCat(e," OF "); slNum(e,of); return 1;
@@ -252,6 +295,15 @@ static void storyJoin(void){   // floors step 10: pause menu > STORY with no sto
     static const char* const yn[2]={"START THIS STORY","NOT NOW"}; if(menu(stNm[s],yn,2)!=0) return;
     money_t money=simMoney; storySetup(s); if(s==STY_RAGS) simMoney=money;   // (RAGS TO RICHES keeps your money here: a new life is the way to start it poor)
     stEnter();   // the first chapter card
+}
+static void stqPage(void){   // the journal page of TV SHOW & TELL (L R): what this chapter asks, live
+    if(stCh>=5){ text(14,23,"THE END",GOLD,1); return; }
+    text(14,23,stChs[stId][stCh].nm,GOLD,1);
+    text(14,34,stTvBrief[stCh][0],RGB(20,26,31),1); text(14,43,stTvBrief[stCh][1],RGB(20,26,31),1);
+    rect(14,54,212,1,RGB(14,26,31)); text(14,58,"ALL OF THESE AT THE SAME TIME",RGB(17,29,31),1);
+    stqList(14,70,10);
+    if(stCh==1||stCh==2||stCh==4) text(14,124,"A PUFF OR A FAINT STARTS THE CLOCK AGAIN",RGB(31,20,22),1);
+    text(14,136,"L OR R  BACK TO THE STORY",RGB(12,18,24),1);
 }
 static void rwPage(void){   // the REWARDS page of the journal (L R): what the story missions open in BUY mode, and the creator slider packs
     int tot=rwTotal(); char b[44]; char*e=slNum(b,tot); e=slCat(e," OF "); e=slNum(e,(STY_N-1)*SM_PER); slCat(e," STORY MISSIONS DONE");
@@ -269,12 +321,12 @@ static void storyScreen(void){   // pause menu > STORY: the story journal, a cha
     u16 prev=keyNow(); u32 cnt=0, lt=~0u;
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
-        if(pr&(K_L|K_R|K_LEFT|K_RIGHT)){ pg^=1; lt=~0u; } if(!stId&&!pg&&(pr&K_A)){ storyJoin(); prev=keyNow(); lt=~0u; if(stId) stModal=0; continue; }   // (the card is shown now by the journal itself: no second one when you close it)
+        if(pr&(K_L|K_R|K_LEFT|K_RIGHT)){ pg=(pg+1)%(stId==STY_TVSHOW?3:2); lt=~0u; } if(!stId&&!pg&&(pr&K_A)){ storyJoin(); prev=keyNow(); lt=~0u; if(stId) stModal=0; continue; }   // (the card is shown now by the journal itself: no second one when you close it)
         if(pr&(K_A|K_B|K_START)) return;
         if(!pr&&(cnt>>3)==lt){ vsync(); continue; }   // idle: the picture on the screen is still right (the whole backdrop used to be redrawn every frame, so taps landed between polls and were lost)
         lt=cnt>>3;
-        stBack(pg?"REWARDS":stId?"STORY JOURNAL":"STORY",(int)cnt);
-        if(pg) rwPage(); else
+        stBack(pg==2?"THIS CHAPTER":pg?"REWARDS":stId?"STORY JOURNAL":"STORY",(int)cnt);
+        if(pg==2) stqPage(); else if(pg) rwPage(); else
         if(!stId){
             s2rr(8,24,224,60,RGB(10,20,30)); s2rr(9,25,222,58,RGB(2,6,13));
             text(16,32,"NO STORY RIGHT NOW",GOLD,1); text(16,46,"PICK ONE FOR THIS LIFE WITH A",WHITE,1); text(16,56,"OR PLAY  NEW GAME  STORY MODE",RGB(17,29,31),1);
@@ -303,7 +355,7 @@ static void storyScreen(void){   // pause menu > STORY: the story journal, a cha
 // the chapter cards: CHAPTER n (a chapter starts) and CHAPTER COMPLETE (a chapter was done). Shown by lifeModeRun like the pause menu.
 static void stRunModal0(void){
     int kind=stModal; stModal=0; if(!stId) return;
-    if(stId==STY_TVSHOW&&kind==2&&stCh>=1&&stCh<=5) csPlay(stCh==5?5:stCh-1);   // the scene that closes the chapter just finished (cutscene.h; chapter 5 closes with scene 5, its opening news is scene 4)
+    if(stId==STY_TVSHOW&&kind==2&&stCh>=1&&stCh<=5) { csPlay(stCh==5?5:stCh-1); if(stCh==4) csPlay(4); }   // the scene that closes the chapter just finished (cutscene.h; chapter 5 closes with scene 5, its opening news is scene 4)
     u16 prev=keyNow(); u32 cnt=0; const StCh*c=&stChs[stId][stCh];
     int end=c->goal==SG_END;
     for(;;){
@@ -317,10 +369,10 @@ static void stRunModal0(void){
         if(kind==2){ char b[40]; char*e=slCat(b,"DONE  +"); e=slNum(e,stRew(stCh-1)); slCat(e," SIMOLEONS  +25 JENES"); text(60,70,b,RGB(10,28,12),1); stSparkle(cnt,12,26,216,100); }
         if(kind==2&&stGotN){ static char gb[60] EWRAM_BSS; char*e=simCat(gb,"UNLOCKED  "); e=simCat(e,stGotP[0]); if(stGotN>1){ e=simCat(e,"  AND  "); simCat(e,stGotP[1]); } if(tw(gb,1)>206) simCat(gb,"UNLOCKED  2 NEW THINGS"); text(16,77,gb,GOLD,1); }   // (what this chapter opened: a BUY reward and / or a slider pack)
         rect(14,84,212,1,RGB(14,26,31));
-        text(16,90,kind==2?(end?"THE END":"NEXT CHAPTER"):(end?"THE END":"YOUR GOAL"),GOLD,1);
-        text(16,102,end?(kind==2?"YOUR STORY GOES ON  KEEP PLAYING":"YOUR STORY GOES ON  KEEP PLAYING"):c->nm,WHITE,1);
-        if(!end){ char b[16]; if(stProg(c,b)) text(16,112,b,RGB(20,26,31),1); }
-        if(stId==STY_TVSHOW&&!end&&stCh<5){ text(16,114,stTvBrief[stCh][0],RGB(20,26,31),1); text(16,123,stTvBrief[stCh][1],RGB(20,26,31),1); }   // (what this chapter is about)
+        text(16,90,kind==2?(end?"THE END":"NEXT CHAPTER"):(end?"THE END":c->goal==SG_MULTI?"ALL OF THESE AT ONCE":"YOUR GOAL"),GOLD,1);
+        if(c->goal!=SG_MULTI||end) text(16,102,end?(kind==2?"YOUR STORY GOES ON  KEEP PLAYING":"YOUR STORY GOES ON  KEEP PLAYING"):c->nm,WHITE,1);
+        if(!end&&c->goal!=SG_MULTI){ char b[16]; if(stProg(c,b)) text(16,112,b,RGB(20,26,31),1); }
+        if(stId==STY_TVSHOW&&!end&&stCh<5) stqList(16,99,8);   // (the goals of the chapter, ticked as they hold)   // (what this chapter is about)
         s2pill(5,147,40,"A OK");
         present();
     }
