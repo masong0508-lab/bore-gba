@@ -3096,9 +3096,9 @@ static void drawBoard(void){
     if(bdSpk){ px(tx+bdSpk-2,ty-bdSpk,RGB(31,29,8)); px(tx-bdSpk,ty-(bdSpk>>1)-1,RGB(31,31,24)); px(tx+(bdSpk>>1),ty-bdSpk-2,RGB(31,20,4)); }
 }
 static void blitSq(const u8*s,int x0,int y0,int k){   // ALIVE tier 3: blit with the rows above the feet squeezed together by k rows (feet stay put); rows are dropped evenly, nothing is invented
-    int H=SPF-spBy0; if(H<8||k<1){ blit(s,x0,y0); return; } if(k>H/4) k=H/4; int Hn=H-k;
+    int sqH=SPF-spBy0; if(sqH<8||k<1){ blit(s,x0,y0); return; } if(k>sqH/4) k=sqH/4; int Hn=sqH-k;
     int ia=cX0-x0, ib=cX0+(int)cW-x0; if(ia<spBx0) ia=spBx0; if(ib>spBx1) ib=spBx1; if(ia>=ib) return;
-    for(int yd=SPF-Hn;yd<spBy1;yd++){ int ys=yd<=SPF?SPF-(SPF-yd)*H/Hn:yd; int yy=y0+yd; if((unsigned)(yy-cY0)>=cH) continue;
+    for(int yd=SPF-Hn;yd<spBy1;yd++){ int ys=yd<=SPF?SPF-(SPF-yd)*sqH/Hn:yd; int yy=y0+yd; if((unsigned)(yy-cY0)>=cH) continue;
         const u8*sp=s+ys*SPW+ia; u16*d=&fb[yy*SW+x0+ia];
         for(int x=ia;x<ib;x++,sp++,d++){ u8 c=*sp; if(c) *d=sprPal[c]; } }
 }
