@@ -114,7 +114,7 @@ static void homeUse(int k){   // R at a home pack item: lnear 11 TV, 12 bookshel
 }
 // ---- the SKILLS screen (pause menu > WANTS > SKILLS) ----
 static void skRow(int y,int sel,const char*nm,int pts,int lvl,const short*at){
-    if(sel) rect(6,y-1,228,10,RGB(6,16,8));
+    if(sel) rect(8,y-1,224,10,RGB(6,16,8));
     text(10,y,nm,sel?WHITE:RGB(20,26,30),1);
     for(int i=0;i<5;i++) rect(88+i*9,y+1,7,5,i<lvl?GOLD:RGB(7,14,22));
     if(lvl>=5) text(142,y,"MAX",RGB(10,28,12),1);

@@ -30,11 +30,11 @@ static void statsScreen(void){
         stBack(t,(int)cnt);
         if(pg==0){
             text(10,21,"TIME PLAYED",GOLD,1); lsTime(b,lsc[LS_SECS]); text(230-tw(b,1),21,b,WHITE,1);
-            text(10,34,"LIFETIME SCORE",GOLD,1); numText(150,34,lsI(lsc[LS_SCORE]),GOLD);
+            text(10,32,"LIFETIME SCORE",GOLD,1); numText(150,32,lsI(lsc[LS_SCORE]),GOLD);
             static const char* const nm[8]={"TRICKS LANDED","COMBOS BANKED","BEST COMBO","BEST TRICK","BAILS","DEATHS","DAYS LIVED","LIVES LIVED"};
             for(int i=0;i<8;i++){
                 u32 v=i==0?lsc[LS_TRICKS]:i==1?lsc[LS_COMBOS]:i==2?lsc[LS_BESTCOMBO]:i==3?lsc[LS_BESTTRICK]:i==4?lsc[LS_BAILS]:i==5?lsc[LS_DEATHS]:i==6?lsc[LS_DAYS]:(lsc[LS_LIVES]?lsc[LS_LIVES]:1);
-                text(10,48+i*11,nm[i],lab,1); numText(150,48+i*11,lsI(v),WHITE);
+                text(10,45+i*9,nm[i],lab,1); numText(150,45+i*9,lsI(v),WHITE);
             }
         } else if(pg==1){
             text(10,21,"STEPS TAKEN",GOLD,1); numText(150,21,lsI(lsc[LS_STEPS]),GOLD);
@@ -54,8 +54,8 @@ static void statsScreen(void){
             text(10,111,"SESSIONS",lab,1); numText(170,111,lsI(lg[LG_BOOTS]),WHITE);
             text(10,120,"SIMS PLAYED IN THIS HOUSE",lab,1); numText(170,120,ch,WHITE);
         }
-        if(pg<2){ u32 nx,lo; const char*rk=lsRank(lsc[LS_SCORE],&nx,&lo); text(10,117,"RANK",lab,1); text(40,117,rk,GOLD,1);
-            int w=nx?(int)((u32)(lsc[LS_SCORE]-lo)*120/(nx-lo)):120; rect(100,118,120,6,RGB(4,9,18)); rect(100,118,w,6,nx?RGB(6,18,10):GOLD); if(nx&&w>0) rect(100,118,1,6,GOLD); }
+        if(pg<2){ u32 nx,lo; const char*rk=lsRank(lsc[LS_SCORE],&nx,&lo); text(10,119,"RANK",lab,1); text(40,119,rk,GOLD,1);
+            int w=nx?(int)((u32)(lsc[LS_SCORE]-lo)*120/(nx-lo)):120; rect(100,119,120,6,RGB(4,9,18)); rect(100,119,w,6,nx?RGB(6,18,10):GOLD); if(nx&&w>0) rect(100,119,1,6,GOLD); }
         { const char*pn=pg==0?"PAGE 1 OF 3":pg==1?"PAGE 2 OF 3":"PAGE 3 OF 3"; text(10,128,pn,GOLD,1); text(230-tw("L R PAGE",1),128,"L R PAGE",RGB(17,29,31),1); }
         text(10,138,pg<2?"THIS SIM ONLY  SELECT SWITCHES SIMS":"EVERY SIM AND EVERY PLAYER",RGB(12,14,16),1);
         text(10,148,"A OR B BACK",RGB(12,14,16),1);

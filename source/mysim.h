@@ -53,8 +53,8 @@ static void msCareer(void){
 }
 static void msSkills(int sel){
     static const u8 ord[SK_N+1]={SK_COOK,SK_LOGIC,SK_BODY,SK_CHARM,SK_CREAT,SK_N,SK_GRIND,SK_AIR,SK_BAL};   // top to bottom; SK_N stands for SKATING
-    text(10,34,"LIFE SKILLS",GOLD,1); text(10,89,"SKATER SKILLS",GOLD,1);
-    for(int r=0;r<=SK_N;r++){ int id=ord[r], y=r<SK_LIFE?44+r*9:99+(r-SK_LIFE)*9;
+    text(10,39,"LIFE SKILLS",GOLD,1); text(10,91,"SKATER SKILLS",GOLD,1);
+    for(int r=0;r<=SK_N;r++){ int id=ord[r], y=r<SK_LIFE?49+r*8:101+(r-SK_LIFE)*8;
         if(id==SK_N) skRow(y,r==sel,"SKATING",skillPts,skillLvl,simSkillAt); else skRow(y,r==sel,skNm[id],skPts[id],skLvl(id),skAt); }
     rect(8,135,224,1,RGB(14,26,31)); text(10,138,skFx[ord[sel]],WHITE,1); text(10,147,skHow[ord[sel]],RGB(17,29,31),1);
 }
@@ -133,9 +133,9 @@ static void msStuff(int cur){
     text(14,147,"A BUY  PACKS COME FROM THE CREATOR",RGB(12,14,16),1);
 }
 static void msPeople(int top){
-    text(90,34,"YOU TO THEM",DIMC,1); text(158,34,"THEM TO YOU",DIMC,1);
-    if(!hhN){ text(10,50,"NO ONE ELSE LIVES HERE",WHITE,1); text(10,62,"INVITE SOMEONE OVER ON THE PHONE",DIMC,1); return; }
-    for(int m=top;m<hhN&&m<top+6;m++){ int y=44+(m-top)*16, b=hhM[m].uid, a=hhPUid;
+    if(!hhN){ text(14,45,"NO ONE ELSE LIVES HERE",WHITE,1); text(14,57,"INVITE SOMEONE OVER ON THE PHONE",DIMC,1); return; }
+    text(90,39,"YOU TO THEM",DIMC,1); text(158,39,"THEM TO YOU",DIMC,1);
+    for(int m=top;m<hhN&&m<top+6;m++){ int y=50+(m-top)*15, b=hhM[m].uid, a=hhPUid;
         text(10,y,hhM[m].name,WHITE,1);
         { char q[40]; const char*w=relWord(a,b); int kr=kin[b][a];
           if(kr){ char*e=simCat(q,kinNm[kr]); e=simCat(e,"  "); simCat(e,w); if(tw(q,1)<=76) w=q; else w=kinNm[kr]; }
