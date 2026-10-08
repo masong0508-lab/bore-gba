@@ -28,6 +28,7 @@ static s8 wpSel=-1;                                                             
 static u8 wpCd EWRAM_BSS, wpRP EWRAM_BSS, wpRT EWRAM_BSS, wpCyc EWRAM_BSS, wpSw EWRAM_BSS, wpSwX EWRAM_BSS, wpSwY EWRAM_BSS;   // cooldown, R pending / its steps / cycled this press, swing timer and direction (+1)
 static u16 wpKeys EWRAM_BSS;                                                                          // the keys held this step (the missiles read them)
 static void wpShoot(int w,int ax,int ay); static void wpShotTick(void); static void wpShotDraw(void);   // wpshot.h
+static int armsUse(void);   // armsshop.h
 /*WPFWD*/
 static u8 wpSum(const volatile u8*m){ return (u8)(0x5E^m[2]^m[3]^(m[4]*3)^(m[5]*5)); }
 static void wpSave(void){ volatile u8*m=SRAM_BASE+WP_OFF; m[0]='W'; m[1]='P'; m[2]=wpOwn; m[3]=wpSecr; m[4]=wpBul; m[5]=wpMis; m[6]=0; m[7]=wpSum(m); }
@@ -81,7 +82,7 @@ static void wpFire(u16 k){
     (*am)--; wpSave(); wpShoot(w,ax,ay);
 }
 static void wpTry(u16 k){ if(wpCd==0&&lstun<=0&&!lcamF) wpFire(k); }
-static int wpUseSpot(void){ int r=0; /*WPSPOT*/ return r; }   // R next to a counter or a stash (armsshop.h, wpsecret.h). 1 = it was used
+static int wpUseSpot(void){ int r=0; if(!r) r=armsUse(); /*WPSPOT*/ return r; }   // R next to a counter or a stash (armsshop.h, wpsecret.h). 1 = it was used
 // Called first thing in every life step: the weapon button. It may rewrite which keys the rest of the step sees.
 static void wpPre(u16*kp,u16*pp){
     u16 k=*kp, pr=*pp; wpEnsure(); wpKeys=k;

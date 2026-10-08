@@ -2042,7 +2042,7 @@ static inline int isWinCh(char c){ return c=='E'||c=='e'||c=='f'; }   // the win
 static int tileH(int tx,int ty){   // surface height in px (ramps: their highest point). Grind height is 6: rails, ledges and benches
     if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
     char c=lifeMap[ty][tx];
-    return (c=='#'||c=='F'||c=='W'||c=='H'||isWinCh(c))?2*CC: (c=='X'||c=='Y')?10: (c=='b')?2*CC: (c=='m')?5: (c=='w'||c=='T'||c=='S'||c=='C'||c=='O'||c=='G'||c=='V'||c=='U'||c=='Q'||c=='A'||c=='v'||c=='c'||c=='q')?CC: (c=='='||c=='L'||c=='N'||c=='Z'||c=='K'||c=='J'||c=='I'||c=='R')?6: (c=='M')?3: isKicker(c)?KICKER_H: isLaunch(c)?LAUNCH_H: isQPipe(c)?qpH[7]: 0;   // pack 2: X funbox 10, Y trash can 10, O barrel 8, Z planter / K table / J jersey grind at 6, M manual pad 3
+    return (c=='#'||c=='F'||c=='W'||c=='H'||isWinCh(c))?2*CC: (c=='X'||c=='Y')?10: (c=='b')?2*CC: (c=='m')?5: (c=='w'||c=='T'||c=='S'||c=='C'||c=='O'||c=='G'||c=='V'||c=='U'||c=='Q'||c=='A'||c=='v'||c=='c'||c=='q')?CC: (c=='='||c=='L'||c=='N'||c=='Z'||c=='K'||c=='J'||c=='I'||c=='R'||c=='g')?6: (c=='M')?3: isKicker(c)?KICKER_H: isLaunch(c)?LAUNCH_H: isQPipe(c)?qpH[7]: 0;   // pack 2: X funbox 10, Y trash can 10, O barrel 8, Z planter / K table / J jersey grind at 6, M manual pad 3
 }
 static int surfH(s32 fx,s32 fy){   // surface height at an exact position (1/256 tiles): same as tileH, but ramps slope
     int tx=(int)(fx>>8), ty=(int)(fy>>8); if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
@@ -2608,7 +2608,7 @@ static void trickName(int hs,int grab,int perfect){
 }
 static void swName(void){ int n=0; while(lnBuf[n]) n++; if(n>15) return; for(int i=n;i>=0;i--) lnBuf[i+7]=lnBuf[i]; const char*q="SWITCH "; for(int i=0;i<7;i++) lnBuf[i]=q[i]; }
 static void hhStart(void); static void hhTick(void); static int hhSocR(int useLabel); static int hhCallFloors(void);   // house.h (included further down, next to the drawing it hooks into)
-static void wpPre(u16*kp,u16*pp); static void wpDraw(void); static void wpConfiscate(void);   // weapons.h
+static void drawCounter(int sx,int sy,int t); static void wpPre(u16*kp,u16*pp); static void wpDraw(void); static void wpConfiscate(void);   // weapons.h
 // ---- COLLECTIBLES (like THPS): the letters S K A T E and one hidden tape float over the floor of a skate lot. Touch one to take it. ----
 // Nothing is saved and no map tile is used: lifeInit scatters them over empty floor every run (a new spot each time), so they cost a few bytes of EWRAM
 // and no sprite art (they are drawn in code). A letter counts like a combo letter (sktAward: five make SKATE). Only on lots that have something to skate.
@@ -3112,6 +3112,7 @@ static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
             if(isItemCh(c)) drawItemTile(c,sx,sy,ox,oy);
             if((ed&&c=='B')||(!ed&&!lhave&&ox==BDX&&oy==BDY)) blitItem(V_BOARD,sx,sy-(ed?0:((lfr>>4)&1)));   // the skateboard pickup, bobbing
             if(ed&&c=='P') drawSpawn(sx,sy+1);   // little person = spawn
+            if(c=='g') drawCounter(sx,sy+1,(int)(lfr>>3));   // the arms shop counter (armsshop.h)
             if(c=='x') drawWork(sx,sy+1,(int)(lfr>>3));   // the WORK MARKER: a gold pad with a briefcase (a normal job's minutes count here)
             if((c=='a'||c=='k')&&(nbFlagsOn()||(ed&&nbFlagOk()))) drawFlag(sx,sy+1,c=='k',(int)(lfr>>3));   // a flag on a pole (blue = community, orange = skate); it waves in play too
         }
@@ -4800,6 +4801,7 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "hardcourt.h"       // COURT: wardens beat you and drag you before the judge (plea, verdict, days and rep)
 #include "weapons.h"       // WEAPONS: the weapon button, melee, the arsenal (shots: wpshot.h; shop: armsshop.h; stashes: wpsecret.h)
 #include "wpshot.h"        // WEAPONS 2: bullets and guided missiles
+#include "armsshop.h"      // WEAPONS 3: the ARMS SHOP lot and its counter
 #include "goals.h"          // VIEW GOALS and the tape count per lot (the tape stays found)
 #include "statscreen.h"   // the LIFETIME STATS screen (PAUSE > MY SIM > MORE)
 #include "mysim.h"         // MY SIM: the pause menu tile with CAREER / SKILLS / PEOPLE / MORE tabs
