@@ -42,3 +42,10 @@ In `csart.h` (`csFig`, new `csStepLift`): while a figure walks (CP_WALK / CP_LEA
 - Arms counter-swing (the hand opposite the forward foot goes forward) and the hands rise with the swing; the run pumps harder and leans in.
 - The body dips as the feet spread and rises as they pass (a bounce of about 1 px walking, 2 running).
 - Standing, talking and every other pose keep the old straight legs. No new statics.
+
+## Step 7 - small-sprite crying and laughing (redo 14)
+
+In `csart.h` (small sprite only; close-ups already had their own):
+- CP_CRY: sobs come in bursts (24 frames of quick heaves, then 24 of slow breaths): the shoulders heave up while the head is pulled down, the raised hands rise a pixel on the peaks. Eyes scrunched shut, two tears run down the cheeks and start again, the mouth quivers. Also used when a sad head (CP_HEAD / CP_SLUMP) is shaking with CF_SHAKE.
+- CP_LAUGH: eyes shut as two upturned arcs, a wide open mouth with teeth on top and the jaw bobbing, and a tear of joy now and then. Missy keeps her glasses with the eyes simply shut.
+- No new statics.

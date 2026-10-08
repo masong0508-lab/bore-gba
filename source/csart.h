@@ -91,7 +91,7 @@ static void csFig(int x,int y,int who,int pose,int t){
     // WALK / LEAVE step in or out; SLUMP sinks and hangs the head
     case CP_TALK:  lean=csWv(t,50)/6; lh=-7; rh=8; rv=-4+csWv(t,14)/3; open=csTalking&&((t>>2)&1); break;
     case CP_LAUGH: bob=(csWv(t,8)+8)/5; lean=csWv(t,8)/5; hd=-1; lh=-4; lv=-2; rh=4; rv=-2; open=1; break;
-    case CP_CRY:   bob=(csWv(t,12)+8)/8; hd=3; lean=-1; lh=-2; lv=-6; rh=2; rv=-6; break;
+    case CP_CRY:   { int w=csWv(t,(t%48)<24?6:20), bu=(t%48)<24; if(bu){ bob=-((w+8)/8); hd=3+(w+8)/8; } else { bob=(w+8)/10; hd=3; } lean=-1; lh=-2; lv=rv=-6-(bu&&w>4); rh=2; } break;   // step 7: sobs come in bursts: the shoulders heave up and the head is pulled down, then slow breaths
     case CP_POINT: lean=csDir*2; if(csDir>0){ rh=13; rv=-5; lh=-6; } else { lh=-13; lv=-5; rh=6; } open=csTalking&&((t>>2)&1); break;
     case CP_SHOCK: bob=t<6?-2:0; lean=-csDir*3; hd=-1; ls=2; lh=-9; lv=-12; rh=9; rv=-12; open=1; break;
     case CP_WALK: case CP_LEAVE: if(mv){ gait=1; gs=csWv(t,14); lean=1; lh=-5-gs/2; rh=5+gs/2; lv=rv=8-(gs<0?-gs:gs)/2; bob=((gs<0?-gs:gs)+4)/8; ls=0; } break;   // step 6
@@ -137,6 +137,7 @@ static void csFig(int x,int y,int who,int pose,int t){
           if(lis2&&csPuncL==1) lean+=csDir; }                                                   // leans in at a question
       csMd=md; }
     int sy=y-21+bob, hx=x+lean, hy=y-29+bob+hd; u16 lc=dress?sk:bt; int bl=((t+who*23)%110)<4;   // bl: a blink every ~2 s (cutscene redo 10)
+    int cry=pose==CP_CRY||((pose==CP_HEAD||pose==CP_SLUMP)&&(csFxNow&CF_SHAKE)&&!(csFxNow&CF_SICK)), lau=pose==CP_LAUGH; if(cry||lau) bl=1;   // step 7: the small sprite's crying and laughing detail (eyes shut)
     int fem=(who==CA_MISSY||who==CA_MAME), ax=fem?5:6;   // the build: the women slimmer through the shoulders, the men broader (the arms hang from the edge of the shoulders)
     int lag=csHairLag(who,hx); csHlag=lag;                                                                              // how far the hair and the hem trail
     csR(x-6,y,12,1,RGB(2,1,3));                                                                                       // the floor shadow
@@ -173,4 +174,12 @@ static void csFig(int x,int y,int who,int pose,int t){
     if(who==CA_CREW){ csR(hx-6,hy-3,12,3,RGB(31,31,28)); csR(hx-7,hy-1,14,1,RGB(24,24,22)); csR(hx-2,hy-4,4,1,RGB(31,31,31)); }   // Hal: the hard hat
     if(who==CA_DOC){ csLn(hx-3,hy+6,hx,hy+10,RGB(22,22,24)); csLn(hx+3,hy+6,hx,hy+10,RGB(22,22,24)); csD(hx,hy+11,1,RGB(26,26,28)); }   // Okafor: the stethoscope
     csMouthS(hx,hy,who,open,md);
+    if(cry||lau){ u16 tr=RGB(14,22,31), tl=RGB(24,28,31), od=RGB(18,2,3), wh=RGB(30,30,31);   // step 7: eyes, tears and mouth of the small sprite
+        if(who!=CA_MISSY){ csR(hx-3,hy,2,2,sk); csR(hx+1,hy,2,2,sk);
+            if(lau){ csR(hx-3,hy+1,1,1,dk); csR(hx-2,hy,1,1,dk); csR(hx+1,hy,1,1,dk); csR(hx+2,hy+1,1,1,dk); }                  // laughing: two upturned arcs (^ ^)
+            else { csR(hx-3,hy+1,2,1,dk); csR(hx+1,hy+1,2,1,dk); } }                                                              // crying: scrunched shut
+        if(cry){ int ph=(t*2)%14; for(int e=0;e<2;e++){ int tx=e?hx+2:hx-3; csR(tx,hy+2,1,1,tl); csR(tx,hy+2+ph/3,1,1,tr); if(ph>6) csR(tx,hy+2+ph/3-1,1,1,tr); }   // two tears run down the cheeks and start again
+            if((t>>1)&1) csR(hx-1,hy+5,2,1,RGB(18,6,6)); else csR(hx-1,hy+4,2,1,od); }                                           // the mouth quivers
+        if(lau){ csR(hx-2,hy+4,4,((t>>1)&1)?3:2,od); csR(hx-1,hy+4,2,1,wh);                                                       // a wide laugh: teeth on top, the jaw bobbing
+            if((t%48)<14) csR(hx+3,hy+2,1,1,tr); } }                                                                              // and a tear of joy now and then
 }
