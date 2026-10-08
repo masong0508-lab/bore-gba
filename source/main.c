@@ -3887,17 +3887,10 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
 #include "undo.h"   // UNDO / REDO for the room builder (SELECT + B / SELECT + START, and the MAP MENU)
 // ---------- map editor ----------
 // Tools: ROOM (two corners -> walls + floor + a door), WALL (a straight line), FLOOR (fill an area), ITEM (single tiles), ERASE (clear an area).
-enum { MI_TEST, MI_SAVE, MI_UNDO, MI_REDO, MI_PLANS, MI_OPTS, MI_RESET, MI_BACK, MI_N };
+enum { MI_TEST, MI_SAVE, MI_UNDO, MI_REDO, MI_LVUP, MI_LVDN, MI_PLANS, MI_OPTS, MI_RESET, MI_BACK, MI_N };
 static char mapUndoNm[12] EWRAM_BSS, mapRedoNm[12] EWRAM_BSS;   // "UNDO 3" / "REDO 1": the steps left, in the MAP MENU
 static const char* const yesNo[2]={"NO","YES RESET"};
 static const char* const toolNm[NTOOL]={"ROOM","WALL","FLOOR","BUY","SELL"};
-static const u8 toolNext[NTOOL]={T_WALL,T_FLOOR,T_ERASE,T_ROOM,T_ITEM};   // SELECT: BUILD tools (room, wall, floor, sell), then BUY, then round again
-static const char* const toolHint[NTOOL][2]={
- {"A CORNER  A AGAIN BUILDS THE ROOM  B CANCEL","L R FLOOR  SEL+L R WALLPAPER  SEL TOOL"},
- {"A START  A AGAIN DRAWS A WALL  B CANCEL","L R WALLPAPER  SEL TOOL  START MENU"},
- {"A CORNER  A AGAIN FILLS THE AREA  B CANCEL","L R FLOOR  SEL TOOL  START MENU"},
- {"A BUY  B SELL  HOLD AND MOVE TO PAINT","L R ITEM  SEL+L R TYPE  SEL+A TURN"},
- {"A CORNER  A AGAIN SELLS THE AREA  B CANCEL","SEL MODE  START MENU"} };
 static void texSwatch(const Tex*t,int x,int y);
 static void wallSwatch(int wp,int x,int y){   // 8x8: an old pattern, or a new wallpaper squeezed (every 3rd row)
     if(wp<NWP){ texSwatch(&wpTex[wp],x,y); return; }
@@ -3936,32 +3929,55 @@ static int eApply(void){   // second A of ROOM / WALL / FLOOR / ERASE. 0 = refus
 }
 static void edShadeBand(int y0,int y1){ for(int i=y0*SW;i<y1*SW;i++){ u16 c=fb[i]; fb[i]=(u16)((c>>2)&0x1CE7); } }   // the room behind HUD text, at a quarter brightness
 static char* edMoney(char*b,money_t v){ char*e=b; *e++=(char)0xC2; *e++=(char)0xA7; simCatMoney(e,v,1); return b; }   // "§1,234"
+// ---- the builder's look (BUILD / BUY like the Sims): a blue top bar with the two mode buttons, the wallet and the undo count; a blue bottom panel with the tool buttons, the picked floor / wallpaper / item and two lines of keys
+static void edBtn(int x,int y,int w,int h,int on){ rect(x,y,w,h,on?GOLD:RGB(10,14,22)); rect(x+1,y+1,w-2,h-2,on?RGB(13,18,28):RGB(4,7,13)); rect(x+1,y+1,w-2,1,on?RGB(20,26,31):RGB(8,12,20)); }   // a button: a lit face, a light top edge, the chosen one framed in gold
+static void edPanel(int y0,int y1){ int n=y1-y0; for(int y=y0;y<y1;y++){ int k=(y-y0)*256/n; rect(0,y,SW,1,RGB(9-(k*5>>8),13-(k*7>>8),22-(k*11>>8))); } }   // a blue panel, lighter at the top
+static void edIcon(int tl,int x,int y,int on){   // 9 x 9 tool icons
+    u16 c=on?WHITE:RGB(16,20,26), d=RGB(3,5,10);
+    if(tl==T_ROOM){ rect(x,y,9,1,c); rect(x,y,1,9,c); rect(x+8,y,1,9,c); rect(x,y+8,4,1,c); rect(x+6,y+8,3,1,c); rect(x+2,y+2,5,5,on?RGB(12,22,12):RGB(6,11,8)); }
+    else if(tl==T_WALL){ for(int r=0;r<3;r++) rect(x,y+r*3,9,2,c); px(x+4,y,d); px(x+2,y+3,d); px(x+6,y+3,d); px(x+4,y+6,d); }
+    else if(tl==T_FLOOR){ rect(x,y,4,4,c); rect(x+5,y+5,4,4,c); rect(x+5,y,4,4,RGB(7,10,16)); rect(x,y+5,4,4,RGB(7,10,16)); }
+    else { u16 r=on?RGB(31,10,8):RGB(18,7,6); for(int i=0;i<9;i++){ px(x+i,y+i,r); px(x+8-i,y+i,r); px(x+i+1,y+i,r); px(x+7-i,y+i,r); } }
+}
+static const u8 edBT[4]={T_ROOM,T_WALL,T_FLOOR,T_ERASE};   // the BUILD tools in the order of the buttons (ERASE = SELL)
 static void drawEditorHud(const char*msg){
-    int x=2, buy=(eTool==T_ITEM);
-    edShadeBand(0,18); { int y0=buy?100:124; edShadeBand(y0,SH); rect(0,y0,SW,1,RGB(9,11,15)); }   // dark bands top and bottom: the text stays readable over any floor
-    for(int m=0;m<2;m++){ int on=(m==buy), w=tw(m?"BUY":"BUILD",1)+4;   // the two modes, like the Sims: BUILD (rooms, walls, floors, selling) and BUY (the catalog)
-        rect(x,1,w,8,on?GOLD:RGB(3,4,7)); text(x+2,1,m?"BUY":"BUILD",on?RGB(4,3,6):DIMC,1); x+=w+1; }
+    int buy=(eTool==T_ITEM), py=buy?98:120, x=3; char b[28];
+    edPanel(0,14); rect(0,14,SW,1,RGB(14,20,28));   // the top bar
+    for(int m=0;m<2;m++){ int on=(m==buy), w=tw(m?"BUY":"BUILD",1)+8; edBtn(x,2,w,10,on); text(x+4,4,m?"BUY":"BUILD",on?WHITE:DIMC,1); x+=w+2; }   // the two modes (SELECT switches)
     x+=4;
-    if(!buy) for(int i=0;i<NTOOL;i++){ if(i==T_ITEM) continue; int w=tw(toolNm[i],1)+4;   // the BUILD tools
-        rect(x,1,w,8,i==eTool?WHITE:RGB(3,4,7)); text(x+2,1,toolNm[i],i==eTool?RGB(4,3,6):DIMC,1); x+=w+1; }
-    if(msg[0]) text(2,11,msg,WHITE,1);
-    else if(eTool!=T_ITEM){
+    if(xo[XO_BUYCOST]&&edCharged()){ edMoney(b,simMoney); int w=tw(b,1)+8; rect(x,2,w,10,RGB(1,3,6)); rect(x,2,w,1,RGB(8,12,20)); text(x+4,4,b,RGB(14,30,14),1); x+=w+6; }   // the wallet
+    else { int w=tw("FREE BUILD",1)+8; rect(x,2,w,10,RGB(1,3,6)); text(x+4,4,"FREE BUILD",DIMC,1); x+=w+6; }
+    if(udCur||udNA>udCur){ static char ub[24] EWRAM_BSS; char*e=ub; const char*q="UNDO "; while(*q) *e++=*q++; e+=numStr(e,udCur); q="  REDO "; while(*q) *e++=*q++; e+=numStr(e,udNA-udCur); *e=0;
+        if(x+tw(ub,1)<=194) text(x,4,ub,DIMC,1); }   // UNDO / REDO: how many steps there are (SELECT + B / SELECT + START)
+    edPanel(py,SH); rect(0,py,SW,1,RGB(14,20,28)); rect(0,py+1,SW,1,RGB(2,3,7));   // the bottom panel
+    if(msg[0]){ int w=tw(msg,1)+8; rect(2,16,w,10,GOLD); rect(3,17,w-2,8,RGB(3,5,10)); text(6,19,msg,WHITE,1); }   // a message: a small gold-framed note under the top bar
+    const char*h1, *h2;
+    if(!buy){
+        for(int i=0;i<4;i++){ int tl=edBT[i], on=(tl==eTool); edBtn(3+i*17,123,15,13,on); edIcon(tl,6+i*17,125,on); }   // the four tools
+        text(75,124,toolNm[eTool],WHITE,1);
         if(eAct){ int x0,y0,x1,y1; eRect(&x0,&y0,&x1,&y1); int w=x1-x0+1, h=y1-y0+1;
-            if(eTool==T_WALL){ numText(text(2,11,"LENGTH",GOLD,1)+3,11,w+h-1,WHITE); }
-            else { int xx=numText(text(2,11,"SIZE",GOLD,1)+3,11,w,WHITE)+3; xx=text(xx,11,"X",GOLD,1)+3; numText(xx,11,h,WHITE); } }
-        else text(2,11,"PICK A START POINT",GOLD,1);
-    }
-    if(!msg[0]&&(udCur||udNA>udCur)){   // UNDO / REDO: how many steps there are (SELECT + B / SELECT + START)
-        static char ub[24] EWRAM_BSS; char*e=ub; const char*q="UNDO "; while(*q) *e++=*q++; e+=numStr(e,udCur); q="  REDO "; while(*q) *e++=*q++; e+=numStr(e,udNA-udCur); *e=0;
-        text((xo[XO_MINI]?SW-MW-8:SW-3)-tw(ub,1),11,ub,DIMC,1); }
-    if(eTool==T_ITEM){
-        { int cc=edCatOf(eOb,0), xx=2;   // the category tabs, then this category's items
-          for(int c=0;c<NCAT;c++){ int w=tw(catNm[c],1)+3; rect(xx,102,w,8,c==cc?GOLD:RGB(3,4,7)); text(xx+2,102,catNm[c],c==cc?RGB(4,3,6):DIMC,1); xx+=w+1; }
-          for(int j=0;j<catCnt(cc);j++){ int id=catItems[cc][j], x2=2+j*14; rect(x2,112,13,10,id==eOb?WHITE:RGB(3,4,7)); rect(x2+1,113,11,8,rwLocked(id)?RGB(6,7,10):palCol[id]); } }
-        if(rwLocked(eOb)){ static char lb[36] EWRAM_BSS; int rm=rwNeedOf(eOb)-rwTotal(); char*e=simCatN(simCat(lb,"LOCKED  "),rm); simCat(e,rm==1?" MORE STORY MISSION":" MORE STORY MISSIONS"); text(2,134,lb,RGB(31,10,8),1); } else { char b[24]; int xx=text(2,134,"PRICE",DIMC,1)+3; edMoney(b,edCost(palCh[eOb])); xx=text(xx,134,b,WHITE,1)+8;
+            if(eTool==T_WALL) numText(text(75,131,"LENGTH",GOLD,1)+3,131,w+h-1,WHITE);
+            else { int xx=numText(text(75,131,"SIZE",GOLD,1)+3,131,w,WHITE)+3; xx=text(xx,131,"X",GOLD,1)+3; numText(xx,131,h,WHITE); }
+            if(eTool!=T_FLOOR&&xo[XO_BUYCOST]){ int n=eNet(x0,y0,x1,y1); if(n){ int xx=text(150,124,n>0?"COST":"REFUND",DIMC,1)+3; edMoney(b,n>0?n:-n); text(xx,124,b,(n>0&&edCharged()&&n>simMoney)?RGB(31,10,8):WHITE,1); } } }
+        else text(75,131,eTool==T_WALL?"PICK A START":"PICK A CORNER",GOLD,1);
+        if(eTool==T_ROOM){ text(3,142,"FLOOR",DIMC,1); int xx=34; rect(xx-2,138,12,12,GOLD); texSwatch(&flTex[eFl],xx,140); text(xx+13,142,flTex[eFl].nm,WHITE,1);
+            text(112,142,"WALL",DIMC,1); xx=136; rect(xx-2,138,12,12,GOLD); rect(xx-1,139,10,10,RGB(3,4,7)); wallSwatch(eWp,xx,140); text(xx+13,142,wpName(eWp),WHITE,1); }
+        else if(eTool==T_WALL||eTool==T_FLOOR){ int fl=(eTool==T_FLOOR); text(3,142,fl?"FLOOR":"WALL",DIMC,1);   // five swatches, the picked one in the middle
+            for(int k=-2;k<=2;k++){ int xx=32+(k+2)*13, i=fl?(eFl+k+NFL*2)%NFL:(eWp+k+NWALL*2)%NWALL;
+                if(k==0){ rect(xx-2,138,12,12,GOLD); rect(xx-1,139,10,10,RGB(3,4,7)); } else if(!fl) rect(xx-1,139,10,10,RGB(8,11,17));
+                if(fl) texSwatch(&flTex[i],xx,140); else wallSwatch(i,xx,140); }
+            text(32+5*13+4,142,fl?flTex[eFl].nm:wpName(eWp),WHITE,1); }
+        else text(3,142,"PICK TWO CORNERS TO SELL WALLS ITEMS AND FLOORS",DIMC,1);
+        h1=eTool==T_ROOM?"A CORNER  A AGAIN BUILDS  L R FLOOR  SEL+L R WALL":eTool==T_WALL?"A START  A AGAIN DRAWS  L R WALLPAPER  B CANCEL":eTool==T_FLOOR?"A CORNER  A AGAIN FILLS  L R FLOOR  B CANCEL":"A CORNER  A AGAIN SELLS  B CANCEL";
+        h2="SEL+LEFT RIGHT TOOL  SEL+UP DOWN ZOOM  SEL BUY";
+    } else {
+        { int cc=edCatOf(eOb,0), xx=3;   // the category tabs, then this category's items
+          for(int c=0;c<NCAT;c++){ int w=tw(catNm[c],1)+5; edBtn(xx,101,w,10,c==cc); text(xx+3,103,catNm[c],c==cc?WHITE:DIMC,1); xx+=w+1; }
+          for(int j=0;j<catCnt(cc);j++){ int id=catItems[cc][j], x2=3+j*14; if(id==eOb) rect(x2-1,111,15,12,GOLD); rect(x2,112,13,10,RGB(3,4,7)); rect(x2+1,113,11,8,rwLocked(id)?RGB(6,7,10):palCol[id]); } }
+        if(rwLocked(eOb)){ static char lb[36] EWRAM_BSS; int rm=rwNeedOf(eOb)-rwTotal(); char*e=simCatN(simCat(lb,"LOCKED  "),rm); simCat(e,rm==1?" MORE STORY MISSION":" MORE STORY MISSIONS"); text(3,134,lb,RGB(31,10,8),1); } else { int xx=text(3,134,"PRICE",DIMC,1)+3; edMoney(b,edCost(palCh[eOb])); xx=text(xx,134,b,WHITE,1)+8;
           if(xo[XO_BUYCOST]&&edCharged()){ text(xx,134,"CASH",DIMC,1); edMoney(b,simMoney); text(xx+26,134,b,edAffordable(edObjCh(),lifeMap[ecy][ecx])?RGB(14,30,14):RGB(31,10,8),1); } }
         { static const char*const faceNm[4]={"FACES S","FACES E","FACES N","FACES W"};
-          int xx=text(2,124,palNm[eOb],WHITE,1)+4; if(eOb==OB_KICKER||eOb==OB_QPIPE||eOb==OB_LAUNCH) text(xx,124,faceNm[eRot],GOLD,1); }
+          int xx=text(3,124,palNm[eOb],WHITE,1)+4; if(eOb==OB_KICKER||eOb==OB_QPIPE||eOb==OB_LAUNCH) text(xx,124,faceNm[eRot],GOLD,1); }
         if(eOb>=3){ rect(204,114,34,36,RGB(4,5,8)); tileTop(221,141,RGB(14,14,18));   // preview of the picked item
             switch(eOb){ case 3:blitItem(V_CRATE,221,141);break; case 4:blitItem(V_RAILU,221,141);break; case 5:blitItem(V_FRIDGE,221,141);break;
                 case 6:blitItem(V_TOILET,221,141);break; case 7:blitItem(V_DOOR,221,141);break; case 8:blitItem(V_BOARD,221,141);break;
@@ -3973,23 +3989,16 @@ static void drawEditorHud(const char*msg){
                 case 14:blitItem(V_BED,221,141);break; case 15:blitItem(V_SHOWER,221,141);break; case 16:blitItem(V_SOFA,221,141);break; case 25:blitItem(V_PIPE,221,141);break; case 26:blitItem(V_LAVA,221,141);break; case 27:blitItem(V_BEANBAG,221,141);break; case 28:case 29:drawStairs(221,141,eOb==28);break; case 30:blitItem(V_DEADSET,221,141);break; case 31:blitItem(V_PHONE,221,141);break; case 32:blitItem(V_RADIO,221,141);break; case 33:blitItem(V_STEREO,221,141);break;
                 case 34:blitItem(V_TV,221,141);break; case 35:blitItem(V_SHELF,221,141);break; case 36:blitItem(V_COFFEE,221,141);break; case 37:blitItem(V_AQUA,221,141);break; case 38:blitItem(V_TREAD,221,141);break; case 39:case 40:case 41:{ u16 wb[WALL_H]; for(int u=0;u<8;u++){ winCol(eOb-39,0,u,wb); for(int r=0;r<12;r++) px(215+u+(u>3),136+r,wb[3+r*2]); } break; } default:drawSpawn(221,142); } }
         if(eOb==1||eOb==2){ wallSwatch(eWp,212,137); }
-    } else if(eTool!=T_ERASE){
-        int xx=2;   // label, swatch, name: each placed after the one before, so nothing covers a label
-        if(eTool!=T_WALL){ xx=text(2,139,"FLOOR",DIMC,1)+3; texSwatch(&flTex[eFl],xx,137); xx=text(xx+12,139,flTex[eFl].nm,WHITE,1)+10; }
-        if(eTool!=T_FLOOR){ xx=text(xx,139,"WALL",DIMC,1)+3; wallSwatch(eWp,xx,137); text(xx+12,139,wpName(eWp),WHITE,1); }
-    } else text(2,139,"SELLS WALLS ITEMS AND FLOORS",DIMC,1);
-    if(!buy){ char b[24]; int xx=2;
-        if(xo[XO_BUYCOST]&&edCharged()){ xx=text(2,126,"CASH",DIMC,1)+3; edMoney(b,simMoney); xx=text(xx,126,b,RGB(14,30,14),1)+10; }
-        else xx=text(2,126,xo[XO_BUYCOST]?"NO LIFE YET  FREE":"FREE BUILD",DIMC,1)+10;
-        if(eAct&&eTool!=T_FLOOR){ int x0,y0,x1,y1; eRect(&x0,&y0,&x1,&y1); int n=eNet(x0,y0,x1,y1);
-            if(n&&xo[XO_BUYCOST]){ xx=text(xx,126,n>0?"COST":"REFUND",DIMC,1)+3; edMoney(b,n>0?n:-n); text(xx,126,b,(n>0&&edCharged()&&n>simMoney)?RGB(31,10,8):WHITE,1); } } }
-    text(2,147,toolHint[eTool][0],RGB(16,18,21),1); text(2,153,toolHint[eTool][1],RGB(16,18,21),1);
+        h1="A BUY  B SELL  A AND MOVE PAINTS  SEL+A TURN";
+        h2="L R ITEM  SEL+L R TYPE  SEL+UP DN ZOOM  SEL BUILD";
+    }
+    text(3,150,h1,RGB(16,18,21),1); text(3,155,h2,RGB(16,18,21),1);
 }
 static void edCamSnap(void){ camX=(ecx-ecy)*CA; camY=24+(ecx+ecy+1)*CB-80; camClamp(1); }
 static int edCamStep(void){   // dead-zone camera: the view only scrolls when the cursor nears the edge of the screen
     int sx=LOX+(ecx-ecy)*CA, sy=LOY+(ecx+ecy+1)*CB, dx=0, dy=0;
     if(sx<76) dx=sx-76; else if(sx>164) dx=sx-164;
-    int lo=eTool==T_ITEM?94:112;   // (BUY has a taller panel at the bottom)
+    int lo=eTool==T_ITEM?88:108;   // (BUY has a taller panel at the bottom)
     if(sy<48) dy=sy-48; else if(sy>lo) dy=sy-lo;
     if(!dx&&!dy) return 0;
     if(dx>24) dx=24;
@@ -4022,7 +4031,7 @@ static void edPresent(void){   // the builder's picture goes to the screen the m
     vsyncUi();
 }
 static void mapEditor(void){
-    int hold[4]={0}, lrHold=0, edZ=0, comboUsed=0, dirty=1, lastBl=-1, msgT=0; const char*msg=""; u16 prev=keyNow();
+    int hold[4]={0}, lrHold=0, edZ=0, edLast=T_ROOM, comboUsed=0, dirty=1, lastBl=-1, msgT=0; const char*msg=""; u16 prev=keyNow();
     static const u16 dirK[4]={K_RIGHT,K_LEFT,K_UP,K_DOWN};
     edTried=0; edLife=0; edCashDirty=0; if(xo[XO_BUYCOST]&&!gInPlay) edLoadLife();   // the life's cash, for the prices
     udClear(); udOn=1;   // a fresh UNDO history for this visit to the builder
@@ -4035,13 +4044,11 @@ static void mapEditor(void){
         int fast=0; for(int i=0;i<4;i++) if(hold[i]>oRepDelay()+14) fast=1;   // held a while: two tiles a step
         lrHold=(k&(K_L|K_R))?lrHold+1:0;   // L / R repeat while held, so the floors and wallpapers scroll by
         if(lrHold>12&&(lrHold&3)==0) pr|=(u16)(k&(K_L|K_R));
-        if((k&K_SEL)&&(pr&(K_LEFT|K_RIGHT))){   // SELECT + LEFT / RIGHT: zoom the builder out / in (1x, 1.3x, 2x, 2.7x), around the cursor
-            static const char* const zn[4]={"ZOOM 1X","ZOOM 1.3X","ZOOM 2X","ZOOM 2.7X"}; int nz=edZ+((pr&K_RIGHT)?1:-1);
-            comboUsed=1; ux=uy=0; if(nz>=0&&nz<4){ edZ=nz; msg=zn[nz]; msgT=30; dirty=1; } }
-        if(k&K_SEL){ ux=0; if(!(tr[2]||tr[3])) uy=0; }   // (SELECT + D-pad never moves the cursor)
-        if((k&K_SEL)&&(tr[2]||tr[3])){   // SELECT + UP / DOWN: the floor above / below (stairs: the ^ and ~ items)
-            int nf=curFl+(tr[2]?1:-1); comboUsed=1; ux=uy=0; dirty=1; udEnd();
-            if(nf>=0&&nf<FLR_N){ if(flGo(nf)){ eAct=0; msg=flNm[nf]; msgT=60; } else { msg="TOO MUCH BUILT TO CHANGE FLOOR"; msgT=60; } } else { msg=nf<0?"NO FLOOR BELOW":"NO FLOOR ABOVE"; msgT=40; }
+        if(k&K_SEL){   // SELECT + D-pad never moves the cursor: UP / DOWN zoom in / out, LEFT / RIGHT the tool (BUY: the category)
+            ux=uy=0;
+            if(pr&(K_UP|K_DOWN)){ static const char* const zn[4]={"ZOOM 1X","ZOOM 1.3X","ZOOM 2X","ZOOM 2.7X"}; int nz=edZ+((pr&K_UP)?1:-1); comboUsed=1; if(nz>=0&&nz<4){ edZ=nz; msg=zn[nz]; msgT=30; dirty=1; } }
+            if(pr&(K_LEFT|K_RIGHT)){ int d=(pr&K_RIGHT)?1:-1; comboUsed=1; eAct=0; dirty=1;
+                if(eTool==T_ITEM) edCatStep(d); else { int ti=0; for(int i=0;i<4;i++) if(edBT[i]==eTool) ti=i; eTool=edBT[(ti+d+4)%4]; } }
         }
         if((k&K_SEL)&&(pr&K_B)){ comboUsed=1; eAct=0; msg=udUndo(); msgT=50; dirty=1; pr&=(u16)~K_B; }       // SELECT + B: UNDO
         if((k&K_SEL)&&(pr&K_START)){ comboUsed=1; eAct=0; msg=udRedo(); msgT=50; dirty=1; pr&=(u16)~K_START; }   // SELECT + START: REDO (the MAP MENU has both too)
@@ -4060,7 +4067,7 @@ static void mapEditor(void){
             else if(eTool==T_WALL) eWp=(eWp+d+NWALL)%NWALL;
             else if(eTool!=T_ERASE) eFl=(eFl+d+NFL)%NFL;
         }
-        if(rel&K_SEL){ if(!comboUsed){ eTool=toolNext[eTool]; eAct=0; } comboUsed=0; }
+        if(rel&K_SEL){ if(!comboUsed){ if(eTool==T_ITEM) eTool=edLast; else { edLast=eTool; eTool=T_ITEM; } eAct=0; } comboUsed=0; }   // SELECT alone: BUILD <-> BUY (back to the tool you had)
         if(pr&K_A){
             if(eTool==T_ITEM&&(k&K_SEL)){ eRot=(eRot+1)&3; comboUsed=1; msg="TURNED"; msgT=20; }   // SEL+A: turn the next ramp
             else if(eTool==T_ITEM){ money_t m0=simMoney; mapPlace(ecx,ecy,edObjCh()); if(xo[XO_BUYCOST]&&simMoney!=m0){ msg=simMoney<m0?"BOUGHT":"SOLD"; msgT=30; } }
@@ -4074,10 +4081,12 @@ static void mapEditor(void){
             udEnd();
             const char*mi[MI_N]; { int nu=udCur, nr=udNA-udCur; char*e=mapUndoNm; const char*q="UNDO"; while(*q) *e++=*q++; if(nu){ *e++=' '; e+=numStr(e,nu); } *e=0;
                 e=mapRedoNm; q="REDO"; while(*q) *e++=*q++; if(nr){ *e++=' '; e+=numStr(e,nr); } *e=0; }
-            mi[MI_TEST]="PLAY TEST"; mi[MI_SAVE]="SAVE MAP"; mi[MI_UNDO]=mapUndoNm; mi[MI_REDO]=mapRedoNm; mi[MI_PLANS]="BLUEPRINTS"; mi[MI_OPTS]="OPTIONS"; mi[MI_RESET]="RESET MAP"; mi[MI_BACK]="BACK";
+            mi[MI_TEST]="PLAY TEST"; mi[MI_SAVE]="SAVE MAP"; mi[MI_UNDO]=mapUndoNm; mi[MI_REDO]=mapRedoNm; mi[MI_LVUP]="LEVEL UP"; mi[MI_LVDN]="LEVEL DOWN"; mi[MI_PLANS]="BLUEPRINTS"; mi[MI_OPTS]="OPTIONS"; mi[MI_RESET]="RESET MAP"; mi[MI_BACK]="BACK";
             int c=menu("MAP MENU",mi,MI_N);
             if(c==MI_TEST){ edCashSave(); mapScan(); lifeMode(1); }
             else if(c==MI_UNDO||c==MI_REDO){ eAct=0; const char*r=c==MI_UNDO?udUndo():udRedo(); toast(r); }
+            else if(c==MI_LVUP||c==MI_LVDN){ int nf=curFl+(c==MI_LVUP?1:-1); udEnd(); eAct=0;   // the floor above / below (stairs: the ^ and ~ items)
+                if(nf>=0&&nf<FLR_N){ if(flGo(nf)) toast(flNm[nf]); else toast("TOO MUCH BUILT TO CHANGE FLOOR"); } else toast(nf<0?"NO FLOOR BELOW":"NO FLOOR ABOVE"); }
             else if(c==MI_SAVE){ edCashSave(); mapSave();
                 if(!mapSaved()) toast("SAVE NOT SUPPORTED HERE");
                 else if(xo[XO_SLOTSYNC]&&slotSyncActive()) toast("MAP AND SLOT SAVED");   // MAP SAVE TO SLOT option
