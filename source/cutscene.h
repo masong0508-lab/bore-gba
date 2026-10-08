@@ -112,13 +112,14 @@ static void csBg(int bg,int t,int fx){   // the picture area: y 12 .. 115
 }
 
 #include "csfx.h"
+#include "csbg.h"
 static int csLen(const char*s){ int n=0; while(s[n]) n++; return n; }
 static int csIsq(int v){ int w=0; while((w+1)*(w+1)<=v) w++; return w; }
 
 static void csDraw(const CsBeat*b,int t,int shown){   // one frame of one beat (shown: how many letters of the caption are typed)
     csOx=csOy=0; if(b->fx&CF_SHAKE){ csOx=(rnd8()%5)-2; csOy=(rnd8()%5)-2; }
     rect(0,0,SW,SH,0);
-    csFxNow=b->fx; csCamAim(b,t); clipSet(0,12,SW,116); csBg(b->bg,t,b->fx);
+    csFxNow=b->fx; csCamAim(b,t); clipSet(0,12,SW,116); csBg(b->bg,t,b->fx); csBgFx(b->bg,t,b->fx);
     int ay=110, by=110;
     if(b->bg==CB_HOSP||b->bg==CB_FLAT){ if(b->pb==CP_LIE) by=98; }
     if(b->bg==CB_SITE){ if(b->pb==CP_CLIMB) by=110-(t/3>48?48:t/3); if(b->pb==CP_FLAIL){ by=62+t*t/20; if(by>110) by=110; } if(b->pb==CP_LIE) by=111; }
@@ -127,7 +128,7 @@ static void csDraw(const CsBeat*b,int t,int shown){   // one frame of one beat (
     if(b->fx&CF_SICK){ int mx=b->bx*4, my=by-26; for(int k=0;k<9;k++) if(t>k*2) csR(mx+5+k*3,my+k*k/3-3,2,2,k&1?RGB(13,24,4):RGB(18,28,6)); }
     if(b->fx&CF_IRIS){ int r=130-t*2; if(r<0) r=0; int cx=csCamX(b->bx*4), cy=csCamY(by-27);
         for(int y=12;y<116;y++){ int dy=y-cy, v=r*r-dy*dy; if(v<=0){ rect(0,y,SW,1,0); continue; } int w=csIsq(v); if(cx-w>0) rect(0,y,cx-w,1,0); if(cx+w<SW) rect(cx+w,y,SW-cx-w,1,0); } }
-    clipAll(); rect(0,0,SW,12,0); rect(0,116,SW,44,RGB(2,3,8)); rect(0,116,SW,1,RGB(14,11,3));
+    csVig(b->bg); clipAll(); rect(0,0,SW,12,0); rect(0,116,SW,44,RGB(2,3,8)); rect(0,116,SW,1,RGB(14,11,3));
     text(205,3,"START SKIP",RGB(8,9,11),1);
     int y0=b->who?129:124; if(b->who) text(12,119,b->who,GOLD,1);
     static char buf[64]; int left=shown;
