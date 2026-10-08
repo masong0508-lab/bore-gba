@@ -3938,6 +3938,10 @@ static int slkBuy(int id){   // A on a locked slider: spend jenes on its pack. 1
     pDna=(u16)(pDna-c); slkUl|=(u8)(1<<p); slkSave(); persSave(); return 1;
 }
 
+static int slkGift(int story){   // a whole story finished: the next locked slider pack opens free (story 1 starts at BODY SHAPE; packs you bought are skipped). Returns the pack, -1 = all open
+    for(int i=0;i<NSLK;i++){ int p=(story-1+i)%NSLK; if(!(slkUl>>p&1)){ slkUl|=(u8)(1<<p); slkSave(); return p; } }
+    return -1;
+}
 // ---------- creature creator ----------
 // Pick a look from numbered tabs (like a character creator): the body, the face, the hair, the clothes, Spore-style PARTS that change
 // what the creature can do, and (like Create-A-Bore) its ASPIRATION, lifetime want and personality.
