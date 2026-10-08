@@ -198,15 +198,28 @@ static void storyJoin(void){   // floors step 10: pause menu > STORY with no sto
     money_t money=simMoney; storySetup(s); if(s==STY_RAGS) simMoney=money;   // (RAGS TO RICHES keeps your money here: a new life is the way to start it poor)
     stEnter();   // the first chapter card
 }
+static void rwPage(void){   // the REWARDS page of the journal (L R): what the story missions open in BUY mode, and the creator slider packs
+    int tot=rwTotal(); char b[44]; char*e=slNum(b,tot); e=slCat(e," OF "); e=slNum(e,(STY_N-1)*SM_PER); slCat(e," STORY MISSIONS DONE");
+    text(14,23,b,GOLD,1); text(14,33,"MISSIONS COUNT IN EVERY LIFE",RGB(17,29,31),1);
+    for(int j=0;j<RW_N;j++){ int y=46+j*14, nd=rwNeed[j], open=sUnlock||tot>=nd;
+        if(open){ rect(10,y+1,10,8,RGB(5,18,7)); rect(11,y+2,8,6,RGB(8,26,10)); text(12,y+2,"+",WHITE,1); } else { rect(10,y+1,10,8,RGB(7,14,22)); rect(11,y+2,8,6,RGB(2,6,13)); }
+        text(25,y+2,palNm[catItems[NCAT-1][j]],open?RGB(10,22,12):WHITE,1);
+        if(open) text(231-tw("OPEN",1),y+2,"OPEN",RGB(10,22,12),1); else { char*f=slNum(b,nd); slCat(f," MISSIONS"); text(231-tw(b,1),y+2,b,GOLD,1); } }
+    text(14,106,"FINISH ALL 5 MISSIONS OF A STORY",WHITE,1); text(14,115,"FOR A FREE CREATOR SLIDER PACK",WHITE,1);
+    { int n=0; for(int i=0;i<NSLK;i++) n+=(sUnlock||(slkUl>>i&1))?1:0; char*f=slNum(b,n); f=slCat(f," OF "); f=slNum(f,NSLK); slCat(f," SLIDER PACKS OPEN"); text(14,125,b,RGB(17,29,31),1); }
+    text(14,136,"L OR R  BACK TO THE STORY",RGB(12,18,24),1);
+}
 static void storyScreen(void){   // pause menu > STORY: the story journal, a chapter timeline (no story yet: A picks one for this life)
+    int pg=0;   // 0 the story, 1 the REWARDS list (L R)
     u16 prev=keyNow(); u32 cnt=0, lt=~0u;
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
-        if(!stId&&(pr&K_A)){ storyJoin(); prev=keyNow(); lt=~0u; if(stId) stModal=0; continue; }   // (the card is shown now by the journal itself: no second one when you close it)
+        if(pr&(K_L|K_R|K_LEFT|K_RIGHT)){ pg^=1; lt=~0u; } if(!stId&&!pg&&(pr&K_A)){ storyJoin(); prev=keyNow(); lt=~0u; if(stId) stModal=0; continue; }   // (the card is shown now by the journal itself: no second one when you close it)
         if(pr&(K_A|K_B|K_START)) return;
         if(!pr&&(cnt>>3)==lt){ vsync(); continue; }   // idle: the picture on the screen is still right (the whole backdrop used to be redrawn every frame, so taps landed between polls and were lost)
         lt=cnt>>3;
-        stBack(stId?"STORY JOURNAL":"STORY",(int)cnt);
+        stBack(pg?"REWARDS":stId?"STORY JOURNAL":"STORY",(int)cnt);
+        if(pg) rwPage(); else
         if(!stId){
             s2rr(8,24,224,60,RGB(10,20,30)); s2rr(9,25,222,58,RGB(2,6,13));
             text(16,32,"NO STORY RIGHT NOW",GOLD,1); text(16,46,"PICK ONE FOR THIS LIFE WITH A",WHITE,1); text(16,56,"OR PLAY  NEW GAME  STORY MODE",RGB(17,29,31),1);
