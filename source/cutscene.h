@@ -170,6 +170,7 @@ static const CsBeat csS1[]={
  {CB_MIRROR,CA_NONE,CP_STAND,0,CA_NONE,CP_STAND,0,0,0,0,0,{"She is still on the cold tile when the clock rolls past","midnight. One week. Seven days. She doesn't feel proud.","She just feels awake."}},
  {CB_MIRROR,CA_NONE,CP_STAND,0,CA_NONE,CP_STAND,0,0,0,0,"Missy",{"Okay. Not for the network. Not for the fans. For me.","And for Mamesy, who still picks up when I call.",0}},
  {CB_MIRROR,CA_NONE,CP_STAND,0,CA_NONE,CP_STAND,0,CF_FADEOUT,0,0,0,{"Tomorrow she will try again.","Tomorrow, she'll try harder.",0}},
+ {CB_BLACK,CA_NONE,CP_STAND,0,CA_NONE,CP_STAND,0,0,0,80,0,{0,0,0}},   // cutscene redo 3: a silent held black beat after the last card
 };
 static const CsBeat csS2[]={
  {CB_SITE,CA_CREW,CP_STAND,10,CA_MISSY,CP_STAND,32,CF_FADEIN,0,0,0,{"The new house rises behind twelve-foot walls and a very","expensive gate. After months of lenses in the hedges,","Missy has learned exactly what 'private' costs."}},

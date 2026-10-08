@@ -34,6 +34,12 @@ static const CsShot csShots[]={
     {5,9,0,   0,170, 330,172,80, 700,121,97},
     // the mirror, THE BARS' NIGHT at home (scene 1, beat 8): the first look, creeping in on the reflection
     {1,8,0,   0,150, 300,120,60, 640,120,72},
+    // sweater shots (cutscene redo 3): push to the glass (1), slow push on "Nobody would know" (3), track her run (7), tight on the crying line (10), pull out on the cold tile (12)
+    {1,1,0,   0,120, 256,120,64, 600,166,86},
+    {1,3,1,   0, 90, 330,  0,70, 520,  0,76},
+    {1,7,1,   0, 10, 360,-20,72, 300, 60,72},
+    {1,10,0,  0,120, 760,120,66, 900,120,68},
+    {1,12,0,  0,150, 900,120,68, 256,120,64},
 };
 static void csShotApply(const CsBeat*b,int t){
     const CsShot*s=0; int n=(int)(sizeof(csShots)/sizeof(csShots[0]));
