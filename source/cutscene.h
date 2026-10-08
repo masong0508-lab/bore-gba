@@ -190,24 +190,42 @@ static const CsBeat csS2[]={
  {CB_BLACK,CA_NONE,CP_STAND,0,CA_NONE,CP_STAND,0,0,0,80,0,{0,0,0}},   // cutscene redo 4: a silent held black beat after the last card
 };
 static const CsBeat csS3[]={
+// scene 3 rewritten (cutscene redo 7): longer, tenser, more heartfelt, with the humor kept
  {CB_HOSP,CA_MAME,CP_STAND,20,CA_MISSY,CP_LIE,41,CF_FADEIN,0,0,0,{"Day nine. The machines do the breathing now, and","Mamesy does the talking.",0}},
+ {CB_HOSP,CA_MAME,CP_HEAD,20,CA_MISSY,CP_LIE,41,0,0,0,0,{"She has read Missy the weather, the headlines, and the","entire terms and conditions of her phone. Twice.",0}},
+ {CB_HOSP,CA_MAME,CP_HEAD,20,CA_MISSY,CP_LIE,41,0,0,0,"Mamesy",{"Not even the arbitration clause got a reaction, Mish.","That's when I knew it was bad.",0}},
  {CB_HOSP,CA_DOC,CP_STAND,20,CA_MISSY,CP_LIE,41,0,0,0,"Dr. Okafor",{"Ms. Jeanne, we need to talk about next steps. Her scans","haven't changed. I'm so sorry, I know how hard this is.",0}},
  {CB_HOSP,CA_MAME,CP_HEAD,20,CA_MISSY,CP_LIE,41,0,0,0,"Mamesy",{"One more night. Please. She's stubborn. She has never","once missed an entrance in her life.",0}},
- {CB_HOSP,CA_MAME,CP_HEAD,20,CA_MISSY,CP_LIE,41,0,0,0,0,{"Mamesy pulls the chair close and takes her","sister's hand. It is the first time she has let","herself cry in front of anyone."}},
+ {CB_HOSP,CA_DOC,CP_STAND,20,CA_MISSY,CP_LIE,41,0,0,0,"Dr. Okafor",{"The hospital reviews her case in the morning. I will","fight for every hour I can give you.",0}},
+ {CB_HOSP,CA_MAME,CP_HEAD,20,CA_MISSY,CP_LIE,41,0,SFX_TICK+1,0,0,{"The door clicks shut behind the doctor. The room gets","very quiet. Only the machines are left, and the rain.",0}},
+ {CB_HOSP,CA_MAME,CP_HEAD,20,CA_MISSY,CP_LIE,41,0,SFX_CRY+1,0,0,{"Mamesy pulls the chair close and takes her","sister's hand. It is the first time she has let","herself cry in front of anyone."}},
+ {CB_HOSP,CA_MAME,CP_HEAD,20,CA_MISSY,CP_LIE,41,0,0,0,"Mamesy",{"I'm so tired, Mish. I'm so angry at you. And I'd give","anything to hear you say something awful about my outfit.",0}},
+ {CB_HOSP,CA_MAME,CP_STAND,20,CA_MISSY,CP_LIE,41,0,0,0,"Mamesy",{"This sweater is a crime. You'd say so. Say it. Say","it's a crime, and I'll never wear it again.",0}},
  {CB_HOSP,CA_MAME,CP_STAND,20,CA_MISSY,CP_LIE,41,0,0,0,"Mamesy",{"Hey, Mish. You still owe me a duet. And a rematch at","that card game you cheat at.",0}},
  {CB_HOSP,CA_MAME,CP_STAND,20,CA_MISSY,CP_LIE,41,0,SFX_TICK+1,0,0,{"The monitor keeps its slow green rhythm.","Somewhere between the third beep and the fourth,","something changes."}},
- {CB_HOSP,CA_MAME,CP_STAND,20,CA_MISSY,CP_LIE,41,CF_AUTO,0,50,0,{"Her fingers move.",0,0}},
+ {CB_HOSP,CA_MAME,CP_STAND,20,CA_MISSY,CP_LIE,41,CF_AUTO,SFX_TICK+1,50,0,{"The fourth beep comes early.",0,0}},
+ {CB_HOSP,CA_MAME,CP_HEAD,20,CA_MISSY,CP_LIE,41,0,0,0,"Mamesy",{"...Mish?",0,0}},
+ {CB_HOSP,CA_MAME,CP_STAND,20,CA_MISSY,CP_LIE,41,CF_AUTO,0,60,0,{"Her fingers move.",0,0}},
+ {CB_HOSP,CA_MAME,CP_STAND,20,CA_MISSY,CP_LIE,41,CF_SHAKE,SFX_GASP+1,0,"Mamesy",{"Doctor! DOCTOR! Somebody get in here! Her hand MOVED.",0,0}},
  {CB_HOSP,CA_MAME,CP_STAND,20,CA_MISSY,CP_LIE,41,0,0,0,"Missy",{"...Mame? Why is the ceiling so clean?",0,0}},
  {CB_HOSP,CA_MAME,CP_HEAD,20,CA_MISSY,CP_LIE,41,CF_SHAKE,0,0,"Mamesy",{"You absolute idiot. You absolute, glorious idiot.",0,0}},
+ {CB_HOSP,CA_MAME,CP_STAND,20,CA_MISSY,CP_LIE,41,0,0,0,"Missy",{"Tell me my hair isn't doing the thing.",0,0}},
+ {CB_HOSP,CA_MAME,CP_STAND,20,CA_MISSY,CP_LIE,41,0,0,0,"Mamesy",{"It's doing the thing. It's doing a lot of things.",0,0}},
+ {CB_HOSP,CA_DOC,CP_STAND,20,CA_MISSY,CP_LIE,41,0,0,0,"Dr. Okafor",{"Ms. Jeanne? Missy? Can you tell me your name?",0,0}},
+ {CB_HOSP,CA_DOC,CP_STAND,20,CA_MISSY,CP_LIE,41,0,0,0,"Missy",{"Missy Jeanne. I'd like a coffee and a lawyer, in that","order.",0}},
  {CB_HOSP,CA_DOC,CP_STAND,20,CA_MISSY,CP_LIE,41,0,0,0,"Dr. Okafor",{"A concussion, some scrapes... and by every","measure she shouldn't be awake. Missy, do you","remember what happened?"}},
  {CB_HOSP,CA_DOC,CP_STAND,20,CA_MISSY,CP_LIE,41,0,0,0,"Missy",{"There was scaffolding. And a lot of martinis, I think?","Honestly, it's all a bit of a blur.",0}},
  {CB_HOSP,CA_MAME,CP_STAND,20,CA_MISSY,CP_LIE,41,0,0,0,"Mamesy",{"Then let it stay a blur.",0,0}},
+ {CB_HOSP,CA_DOC,CP_STAND,20,CA_MISSY,CP_LIE,41,0,0,0,"Dr. Okafor",{"The review is cancelled, by the way. Patients who wake","up tend to do that.",0}},
+ {CB_HOSP,CA_MAME,CP_STAND,20,CA_MISSY,CP_LIE,41,0,0,0,"Missy",{"Mame. How long?",0,0}},
+ {CB_HOSP,CA_MAME,CP_HEAD,20,CA_MISSY,CP_LIE,41,0,0,0,"Mamesy",{"Nine days. And before you ask, yes, I was here.","Where else would I be?",0}},
+ {CB_HOSP,CA_MAME,CP_STAND,20,CA_MISSY,CP_LIE,41,0,0,0,"Missy",{"I heard you. Somewhere in the dark. Somebody kept","reading the arbitration clause. You kept the lights on.",0}},
  {CB_HOSP,CA_MAME,CP_STAND,20,CA_MISSY,CP_LIE,41,0,0,0,"Missy",{"Is that rain? Somebody open the","window. I want to hear it.",0}},
  {CB_HOSP,CA_MAME,CP_STAND,20,CA_MISSY,CP_LIE,41,0,0,0,0,{"She listens to the rain as if it were a symphony. The","whole world has been turned up.",0}},
  {CB_HOSP,CA_MAME,CP_STAND,20,CA_MISSY,CP_LIE,41,0,0,0,"Missy",{"Everything's so bright. Was it always this beautiful?",0,0}},
  {CB_HOSP,CA_MAME,CP_STAND,20,CA_MISSY,CP_LIE,41,0,0,0,"Mamesy",{"Always was. You just had your eyes closed.",0,0}},
  {CB_HOSP,CA_MAME,CP_STAND,20,CA_MISSY,CP_LIE,41,CF_FADEOUT,0,0,"Missy",{"Then I'm done closing them. Mame, let's go win","everybody back. The right way.",0}},
- {CB_BLACK,CA_NONE,CP_STAND,0,CA_NONE,CP_STAND,0,0,0,80,0,{0,0,0}},   // cutscene redo 5: a silent held black beat after the last card
+ {CB_BLACK,CA_NONE,CP_STAND,0,CA_NONE,CP_STAND,0,0,0,80,0,{0,0,0}},
 };
 static const CsBeat csS4[]={
 // scene 4 rewritten (cutscene redo 6): longer, tenser, more heartfelt, with the humor kept
