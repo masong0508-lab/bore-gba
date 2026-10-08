@@ -235,7 +235,7 @@ if __name__ == '__main__':
         f.write('// chips.h - the chiptune loops of the creator menu: voiced by tools/make_chiptunes.py, stored as synth data by tools/chip_synth.py (do not edit)\n'
                 '//   CHIP(id,"NAME",secret,offset into chipsyn.bin)   secret = 1: only after the title-screen code (UP UP DOWN DOWN LEFT LEFT RIGHT B A START)\n')
         for L in loops:
-            if not L.get('custom'): f.write('CHIP(chip_%s,"%s",%d,%d)\n' % (L['sid'], L['title'], L['secret'], off['L_' + L['sid']]))
+            if not L.get('custom') or L.get('menu'): f.write('CHIP(chip_%s,"%s",%d,%d)\n' % (L['sid'], L['title'], L['secret'], off['L_' + L['sid']]))
     with open('source/cschips.h', 'w') as f:
         f.write('// cschips.h - the cutscene tunes (tools/cs_tunes.py, made by tools/chip_synth.py, do not edit): CSCHIP(id, steps in a beat, offset into chipsyn.bin)\n')
         for L in loops:

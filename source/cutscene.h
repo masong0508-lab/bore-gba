@@ -393,11 +393,11 @@ static const char* const csNames[8]={ "CH1 END  THE BARS", "CH2 END  THE SWEATER
 
 #ifndef CS_HOST
 #define CSCHIP(id,bs,off) {bs,off},
-static const struct { u16 bs; u32 off; } csTn[4]={
+static const struct { u16 bs; u32 off; } csTn[5]={
 #include "cschips.h"
-};   // the four cutscene tunes: steps in a beat, offset into chipsyn.bin (order: SUNMAN, WHISTLER, CORA, EXCUSES)
+};   // the four cutscene tunes: steps in a beat, offset into chipsyn.bin (order: SUNMAN, WHISTLER, CORA, EXCUSES, MAGIC)
 #undef CSCHIP
-static const s8 csTune[8]={3,0,2,0,3,-1,2,1};   // which tune each scene plays (csNames order); -1 = its own song (scene 5, HERE TODAY). The tunes repeat across scenes
+static const s8 csTune[8]={3,0,2,0,3,-1,2,4};   // which tune each scene plays (csNames order); -1 = its own song (scene 5, HERE TODAY). The tunes repeat across scenes
 static int csSongOn;   // 1 while the scene's song plays (a beat with sfx 250 starts it, sfx 251 fades it out; the scene end fades it too)
 // TIMING: a beat counts REAL frames (1/60 s), not passes through the loop. A busy picture can take several vblanks to draw; the typing, the holds, the fades and the
 // camera used to slow down with it (a caption took ten seconds). Timer 3 (a frame = 274 ticks, started by vsync) tells how many frames really went by since the last look.

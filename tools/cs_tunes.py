@@ -13,10 +13,11 @@ CR = 120
 # key, song id, mood title, drum style, beats in the loop (4 per bar)
 TUNES = [
     ("sunman",   "sunman_sunrise",   "CS SUNMAN",   "beat",   32),
-    ("whistler", "whistler_shuffle", "CS WHISTLER", "half",   32),
+    ("whistler", "whistler_shuffle", "WHISTLER MAN  SCENE SCORE", "half", 32, 0, 1),   # also in the creator menu's hidden list (secret code), with its beat clock
     ("cora",     "mi_cora_zone",     "CS CORA",     "sparse", 32),
     ("excuses",  "excuses_house",    "CS EXCUSES",  "sparse", 32),
-]
+    ("magic",    "magic_act",        "CS MAGIC",    "half",   24, 16),   # the hopeful one: the opening night scene (16 rows to a beat = a gentle 95 BPM)
+]   # (key, song, title, drums, beats, rows per beat (0 = automatic), 1 = also list in the creator menu's hidden list)
 def src(sid):
     for _, lst in MC_GROUPS():
         for (s, path, title, opts) in lst:
@@ -51,10 +52,10 @@ def hold(vals, slot):
         if out and out[-1][2] == f and out[-1][0] + out[-1][1] == i: out[-1] = (out[-1][0], out[-1][1] + 1, f)
         else: out.append((i, 1, f))
     return out
-def rendition(key, sid, title, style, beats):
+def rendition(key, sid, title, style, beats, rpb0=0, menu=0):
     path, opts = src(sid)
     tr, NL, rowsec, duty = meta_for(sid, path, opts)
-    rowsteps = rowsec * CR; rpb = 4 if 4 * rowsteps >= 42 else 8; BEAT = int(round(rpb * rowsteps)); N = beats * BEAT; q = BEAT // 2; qb = BEAT        # step counts of an 8th and a quarter
+    rowsteps = rowsec * CR; rpb = rpb0 or (4 if 4 * rowsteps >= 42 else 8); BEAT = int(round(rpb * rowsteps)); N = beats * BEAT; q = BEAT // 2; qb = BEAT        # step counts of an 8th and a quarter
     mid = lambda k: (tr[k].f[NL:2 * NL], tr[k].a[NL:2 * NL])
     t = {k: MC.Track(N) for k in ('p1', 'p2', 'tri', 'noi')}
     def at(k, j):                                   # the source's pitch at loop step j (the tune is read at its own tempo, then laid on the exact beat grid)
@@ -94,7 +95,7 @@ def rendition(key, sid, title, style, beats):
         o = MC.Track(3 * N)
         for a in ('f', 'a', 'p', 'm'): setattr(o, a, np.tile(getattr(t[k], a), 3))
         tr3[k] = o
-    return dict(secret=0, sid='cs_' + key, title=title, tr=tr3, NL=N, duty=duty, beat=BEAT, custom=True,
+    return dict(secret=menu, menu=menu, sid='cs_' + key, title=title, tr=tr3, NL=N, duty=duty, beat=BEAT, custom=True,
                 notes=int((t['p1'].a > 0).sum() > 0))
 def custom_loops():
     return [rendition(*x) for x in TUNES]
