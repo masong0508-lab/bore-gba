@@ -10,10 +10,18 @@ static const CsShot csShots[]={
     {0,11,1,  0, 24, 400,-34,84, 460,-24,84},
     {0,11,1, 24, 24, 640, 10,82, 700,  6,82},
     {0,11,1, 48, 70, 900,  0,84,1024,  0,86},
+    // bars end shots (cutscene redo 2): a push in on the shout (beat 4), then from the extreme close-up a slow pull out as the iris closes on "...Ow." (beat 12)
+    {0,4,1,   0, 60, 330,  0,70, 560,  0,76},
+    {0,12,1,  0, 70,1024,  0,86, 700,  0,82},
     // the sick moment, THE OPENING (scene 7, beats 17-19): a slow push in, held tight, then a long pull back from the silence
     {7,17,1,  0, 80, 440,  0,80, 940,  0,86},
     {7,18,1,  0,150, 940,  0,86,1024,  0,86},
     {7,19,1,  0,120,1024,  0,86, 520,  0,76},
+    // opening end shots (cutscene redo 1): the laughs and phones pull wide, Dex gets a slow push, the approval board pushes in on the cliff then drifts back
+    {7,20,1,  0,100, 520,  0,76, 256,  0,64},
+    {7,21,2,  0,120, 256, 60,70, 420, 40,84},
+    {7,22,0,  0,200, 256,120,64, 380,150,74},
+    {7,23,0,  0,140, 380,150,74, 256,120,64},
     // the fall, THE SWEATER (scene 2, beats 11-13): the camera drops with her, a hard cut to the ground when she lands, then it backs away to the fence and the flashbulbs
     {2,11,1,  0, 30, 300,  0,44, 420,  0,92},
     {2,12,1,  0, 50, 420, -6,85, 560, -6,90},

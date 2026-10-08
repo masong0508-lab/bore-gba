@@ -152,6 +152,7 @@ static const CsBeat csS0[]={
  {CB_STAGE,CA_NONE,CP_STAND,0,CA_MISSY,CP_HEAD,37,CF_SICK|CF_SHAKE,SFX_GROAN+1,70,0,{"Three cameras catch it from three different angles.",0,0}},
  {CB_STAGE,CA_NONE,CP_STAND,0,CA_MISSY,CP_SWAY,37,CF_IRIS|CF_AUTO,SFX_GASP+1,70,"Missy",{"...Ow.",0,0}},
  {CB_BLACK,CA_NONE,CP_STAND,0,CA_NONE,CP_STAND,0,CF_FADEIN|CF_FADEOUT,0,0,0,{"By morning the clip had been replayed eleven million","times. Her agent stopped answering at nine.",0}},
+ {CB_BLACK,CA_NONE,CP_STAND,0,CA_NONE,CP_STAND,0,0,0,80,0,{0,0,0}},   // cutscene redo 2: a silent held black beat after the last card
 };
 static const CsBeat csS1[]={
  {CB_HOME,CA_NONE,CP_STAND,0,CA_MISSY,CP_SWAY,22,CF_FADEIN,0,0,0,{"Day seven. 11:04 p.m. Fifty-six minutes from a full","week, and the house has never been this quiet.",0}},
@@ -271,6 +272,7 @@ static const CsBeat csS7[]={
  {CB_RATE,CA_NONE,CP_STAND,0,CA_NONE,CP_STAND,0,CF_FADEIN,0,0,0,{"By midnight the clip had left the building, the city and","the country. Her approval rating went with it.",0}},
  {CB_RATE,CA_NONE,CP_STAND,0,CA_NONE,CP_STAND,0,0,SFX_TICK+1,0,0,{"Six years of goodwill, gone in eleven seconds. The","sponsors left first. The fans left next.",0}},
  {CB_BLACK,CA_NONE,CP_STAND,0,CA_NONE,CP_STAND,0,CF_FADEIN|CF_FADEOUT,0,0,0,{"Her phone buzzed forty-one times before sunrise. Only","one voicemail was worth hearing: 'Mish. Pick up. Please.'",0}},
+ {CB_BLACK,CA_NONE,CP_STAND,0,CA_NONE,CP_STAND,0,0,0,90,0,{0,0,0}},   // cutscene redo 1: a silent held black beat after the voicemail card
 };
 static const CsScene csScenes[8]={ {csS0,sizeof(csS0)/sizeof(csS0[0])}, {csS1,sizeof(csS1)/sizeof(csS1[0])}, {csS2,sizeof(csS2)/sizeof(csS2[0])}, {csS3,sizeof(csS3)/sizeof(csS3[0])}, {csS4,sizeof(csS4)/sizeof(csS4[0])}, {csS5,sizeof(csS5)/sizeof(csS5[0])}, {csS6,sizeof(csS6)/sizeof(csS6[0])}, {csS7,sizeof(csS7)/sizeof(csS7[0])} };
 static const char* const csNames[8]={ "CH1 END  THE BARS", "CH2 END  THE SWEATER", "CH3 END  THE FALL", "CH4 END  WAKING UP", "CH5 START  THE NEWS", "CH5 END  HERE TODAY", "CH4 LOSS  THE PLUG", "OPENING  THE NIGHT" };
