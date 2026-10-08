@@ -297,4 +297,7 @@ static void bakeAll(void){
     bakePix(V_RADIO,rdArt,pSnd,0); bakePix(V_STEREO,syArt,pSnd,0);   // sound pack
     for(int r=0;r<4;r++){ bakeOne(V_TV+r,bxTv,5,r,11); bakeOne(V_SHELF+r,bxShelf,1,r,11); bakeOne(V_TREAD+r,bxTread,5,r,11); }   // home pack
     bakeOne(V_COFFEE,bxCoffee,4,0,11); bakeOne(V_AQUA,bxAqua,3,0,11);
+    for(int r=0;r<4;r++){   // long ramps: the chained kicker tiles and launch tiles (see ramps.h)
+        bakeOne(V_KSEG+r,bxKickerSeg0,8,r,11); bakeOne(V_KSEG+4+r,bxKickerSeg1,8,r,11); bakeOne(V_KSEG+8+r,bxKickerSeg2,8,r,11); bakeOne(V_KSEG+12+r,bxKickerSeg3,8,r,11);
+        bakeOne(V_LSEG+r,bxLaunchSeg0,8,r,11); bakeOne(V_LSEG+4+r,bxLaunchSeg1,8,r,11); bakeOne(V_LSEG+8+r,bxLaunchSeg2,8,r,11); }
 }

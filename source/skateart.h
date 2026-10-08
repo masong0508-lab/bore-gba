@@ -124,6 +124,174 @@ MAT(mJeTopU,pJe,4,8,"dddd","dddd","dddd","dddd","dddd","dddd","dddd","dddd")
 MAT(mJeTopV,pJe,8,4,"dddddddd","dddddddd","dddddddd","dddddddd")
 MAT(mPdSide,pPd,3,3,"bbb","cccccccc","bbbbbbbb")
 MAT(mPdTop,pPd,8,8,"dddddddd","dbbbbbbd","dbcbbbcd","dbbcbcbd","dbbbcbbd","dbbcbcbd","dbcbbbcd","dddddddd")
+MAT(mKiG0T0,pKi,8,1,"cccccccc")
+MAT(mKiG0R0,pKiR,1,1,"c")
+MAT(mKiG0S0,pKi,1,1,"e")
+MAT(mKiG0T1,pKi,8,1,"bbbbbbbb")
+MAT(mKiG0R1,pKiR,1,1,"b")
+MAT(mKiG0S1,pKi,1,1,"e")
+MAT(mKiG0T2,pKi,8,1,"bbbbbbbb")
+MAT(mKiG0R2,pKiR,1,1,"b")
+MAT(mKiG0S2,pKi,1,1,"e")
+MAT(mKiG0T3,pKi,8,1,"cccccccc")
+MAT(mKiG0R3,pKiR,1,1,"c")
+MAT(mKiG0S3,pKi,1,1,"e")
+MAT(mKiG0T4,pKi,8,1,"bbbbbbbb")
+MAT(mKiG0R4,pKiR,1,1,"b")
+MAT(mKiG0S4,pKi,1,1,"e")
+MAT(mKiG0T5,pKi,8,1,"bbbbbbbb")
+MAT(mKiG0R5,pKiR,1,1,"b")
+MAT(mKiG0S5,pKi,1,1,"e")
+MAT(mKiG0T6,pKi,8,1,"cccccccc")
+MAT(mKiG0R6,pKiR,1,1,"c")
+MAT(mKiG0S6,pKi,1,1,"e")
+MAT(mKiG0T7,pKi,8,1,"bbbbbbbb")
+MAT(mKiG0R7,pKiR,1,1,"b")
+MAT(mKiG0S7,pKi,1,1,"e")
+MAT(mKiG1T0,pKi,8,1,"cccccccc")
+MAT(mKiG1R0,pKiR,1,1,"c")
+MAT(mKiG1S0,pKi,1,1,"e")
+MAT(mKiG1T1,pKi,8,1,"bbbbbbbb")
+MAT(mKiG1R1,pKiR,1,1,"b")
+MAT(mKiG1S1,pKi,1,1,"e")
+MAT(mKiG1T2,pKi,8,1,"bbbbbbbb")
+MAT(mKiG1R2,pKiR,1,1,"b")
+MAT(mKiG1S2,pKi,1,1,"e")
+MAT(mKiG1T3,pKi,8,1,"cccccccc")
+MAT(mKiG1R3,pKiR,1,1,"c")
+MAT(mKiG1S3,pKi,1,1,"e")
+MAT(mKiG1T4,pKi,8,1,"bbbbbbbb")
+MAT(mKiG1R4,pKiR,1,1,"b")
+MAT(mKiG1S4,pKi,1,1,"e")
+MAT(mKiG1T5,pKi,8,1,"bbbbbbbb")
+MAT(mKiG1R5,pKiR,1,1,"b")
+MAT(mKiG1S5,pKi,1,1,"e")
+MAT(mKiG1T6,pKi,8,1,"cccccccc")
+MAT(mKiG1R6,pKiR,1,1,"c")
+MAT(mKiG1S6,pKi,1,1,"e")
+MAT(mKiG1T7,pKi,8,1,"bbbbbbbb")
+MAT(mKiG1R7,pKiR,1,1,"b")
+MAT(mKiG1S7,pKi,1,1,"e")
+MAT(mKiG2T0,pKi,8,1,"cccccccc")
+MAT(mKiG2R0,pKiR,1,1,"c")
+MAT(mKiG2S0,pKi,1,1,"e")
+MAT(mKiG2T1,pKi,8,1,"bbbbbbbb")
+MAT(mKiG2R1,pKiR,1,1,"b")
+MAT(mKiG2S1,pKi,1,1,"e")
+MAT(mKiG2T2,pKi,8,1,"bbbbbbbb")
+MAT(mKiG2R2,pKiR,1,1,"b")
+MAT(mKiG2S2,pKi,1,1,"e")
+MAT(mKiG2T3,pKi,8,1,"cccccccc")
+MAT(mKiG2R3,pKiR,1,1,"c")
+MAT(mKiG2S3,pKi,1,1,"e")
+MAT(mKiG2T4,pKi,8,1,"bbbbbbbb")
+MAT(mKiG2R4,pKiR,1,1,"b")
+MAT(mKiG2S4,pKi,1,1,"e")
+MAT(mKiG2T5,pKi,8,1,"bbbbbbbb")
+MAT(mKiG2R5,pKiR,1,1,"b")
+MAT(mKiG2S5,pKi,1,1,"e")
+MAT(mKiG2T6,pKi,8,1,"cccccccc")
+MAT(mKiG2R6,pKiR,1,1,"c")
+MAT(mKiG2S6,pKi,1,1,"e")
+MAT(mKiG2T7,pKi,8,1,"bbbbbbbb")
+MAT(mKiG2R7,pKiR,1,1,"b")
+MAT(mKiG2S7,pKi,1,1,"e")
+MAT(mKiG3T0,pKi,8,1,"cccccccc")
+MAT(mKiG3R0,pKiR,1,1,"c")
+MAT(mKiG3S0,pKi,1,1,"e")
+MAT(mKiG3T1,pKi,8,1,"bbbbbbbb")
+MAT(mKiG3R1,pKiR,1,1,"b")
+MAT(mKiG3S1,pKi,1,1,"e")
+MAT(mKiG3T2,pKi,8,1,"bbbbbbbb")
+MAT(mKiG3R2,pKiR,1,1,"b")
+MAT(mKiG3S2,pKi,1,1,"e")
+MAT(mKiG3T3,pKi,8,1,"cccccccc")
+MAT(mKiG3R3,pKiR,1,1,"c")
+MAT(mKiG3S3,pKi,1,1,"e")
+MAT(mKiG3T4,pKi,8,1,"bbbbbbbb")
+MAT(mKiG3R4,pKiR,1,1,"b")
+MAT(mKiG3S4,pKi,1,1,"e")
+MAT(mKiG3T5,pKi,8,1,"bbbbbbbb")
+MAT(mKiG3R5,pKiR,1,1,"b")
+MAT(mKiG3S5,pKi,1,1,"e")
+MAT(mKiG3T6,pKi,8,1,"cccccccc")
+MAT(mKiG3R6,pKiR,1,1,"c")
+MAT(mKiG3S6,pKi,1,1,"e")
+MAT(mKiG3T7,pKi,8,1,"bbbbbbbb")
+MAT(mKiG3R7,pKiR,1,1,"b")
+MAT(mKiG3S7,pKi,1,1,"e")
+MAT(mLaG0T0,pLa,8,1,"bbbddbbb")
+MAT(mLaG0R0,pLaR,1,1,"c")
+MAT(mLaG0S0,pLa,1,1,"e")
+MAT(mLaG0T1,pLa,8,1,"bbbddbbb")
+MAT(mLaG0R1,pLaR,1,1,"b")
+MAT(mLaG0S1,pLa,1,1,"e")
+MAT(mLaG0T2,pLa,8,1,"bbbddbbb")
+MAT(mLaG0R2,pLaR,1,1,"b")
+MAT(mLaG0S2,pLa,1,1,"e")
+MAT(mLaG0T3,pLa,8,1,"bbbddbbb")
+MAT(mLaG0R3,pLaR,1,1,"c")
+MAT(mLaG0S3,pLa,1,1,"e")
+MAT(mLaG0T4,pLa,8,1,"bbbddbbb")
+MAT(mLaG0R4,pLaR,1,1,"b")
+MAT(mLaG0S4,pLa,1,1,"e")
+MAT(mLaG0T5,pLa,8,1,"bbbddbbb")
+MAT(mLaG0R5,pLaR,1,1,"b")
+MAT(mLaG0S5,pLa,1,1,"e")
+MAT(mLaG0T6,pLa,8,1,"bbbddbbb")
+MAT(mLaG0R6,pLaR,1,1,"c")
+MAT(mLaG0S6,pLa,1,1,"e")
+MAT(mLaG0T7,pLa,8,1,"bbbddbbb")
+MAT(mLaG0R7,pLaR,1,1,"b")
+MAT(mLaG0S7,pLa,1,1,"e")
+MAT(mLaG1T0,pLa,8,1,"bbbddbbb")
+MAT(mLaG1R0,pLaR,1,1,"c")
+MAT(mLaG1S0,pLa,1,1,"e")
+MAT(mLaG1T1,pLa,8,1,"bbbddbbb")
+MAT(mLaG1R1,pLaR,1,1,"b")
+MAT(mLaG1S1,pLa,1,1,"e")
+MAT(mLaG1T2,pLa,8,1,"bbbddbbb")
+MAT(mLaG1R2,pLaR,1,1,"b")
+MAT(mLaG1S2,pLa,1,1,"e")
+MAT(mLaG1T3,pLa,8,1,"bbbddbbb")
+MAT(mLaG1R3,pLaR,1,1,"c")
+MAT(mLaG1S3,pLa,1,1,"e")
+MAT(mLaG1T4,pLa,8,1,"bbbddbbb")
+MAT(mLaG1R4,pLaR,1,1,"b")
+MAT(mLaG1S4,pLa,1,1,"e")
+MAT(mLaG1T5,pLa,8,1,"bbbddbbb")
+MAT(mLaG1R5,pLaR,1,1,"b")
+MAT(mLaG1S5,pLa,1,1,"e")
+MAT(mLaG1T6,pLa,8,1,"bbbddbbb")
+MAT(mLaG1R6,pLaR,1,1,"c")
+MAT(mLaG1S6,pLa,1,1,"e")
+MAT(mLaG1T7,pLa,8,1,"bbbddbbb")
+MAT(mLaG1R7,pLaR,1,1,"b")
+MAT(mLaG1S7,pLa,1,1,"e")
+MAT(mLaG2T0,pLa,8,1,"bbbddbbb")
+MAT(mLaG2R0,pLaR,1,1,"c")
+MAT(mLaG2S0,pLa,1,1,"e")
+MAT(mLaG2T1,pLa,8,1,"bbbddbbb")
+MAT(mLaG2R1,pLaR,1,1,"b")
+MAT(mLaG2S1,pLa,1,1,"e")
+MAT(mLaG2T2,pLa,8,1,"bbbddbbb")
+MAT(mLaG2R2,pLaR,1,1,"b")
+MAT(mLaG2S2,pLa,1,1,"e")
+MAT(mLaG2T3,pLa,8,1,"bbbddbbb")
+MAT(mLaG2R3,pLaR,1,1,"c")
+MAT(mLaG2S3,pLa,1,1,"e")
+MAT(mLaG2T4,pLa,8,1,"bbbddbbb")
+MAT(mLaG2R4,pLaR,1,1,"b")
+MAT(mLaG2S4,pLa,1,1,"e")
+MAT(mLaG2T5,pLa,8,1,"bbbddbbb")
+MAT(mLaG2R5,pLaR,1,1,"b")
+MAT(mLaG2S5,pLa,1,1,"e")
+MAT(mLaG2T6,pLa,8,1,"bbbddbbb")
+MAT(mLaG2R6,pLaR,1,1,"c")
+MAT(mLaG2S6,pLa,1,1,"e")
+MAT(mLaG2T7,pLa,8,1,"bbbddbbb")
+MAT(mLaG2R7,pLaR,1,1,"b")
+MAT(mLaG2S7,pLa,1,1,"e")
 static const IBox bxKicker[8]={ // wedge, 12 px lip
  {0,0,8,1,0,12,{&mKiR0,&mKiS0,&mKiS0,&mKiS0,&mKiT0}},
  {0,1,8,2,0,11,{&mKiR1,&mKiS1,&mKiS1,&mKiS1,&mKiT1}},
@@ -198,3 +366,66 @@ static const IBox bxJerseyV[3]={ // jersey barrier, runs along b
  {3,0,5,8,5,9,{&mJeStripe,&mJeStripe,&mJeStripe,&mJeStripe,&mJeTopV}} };
 static const IBox bxManualPad[1]={ // manual pad, 3 px, rides on without a jump
  {0,0,8,8,0,3,{&mPdSide,&mPdSide,&mPdSide,&mPdSide,&mPdTop}} };
+static const IBox bxKickerSeg0[8]={ // long kicker, tile 0 (0 to 8 px)
+ {0,0,8,1,0,8,{&mKiG0R0,&mKiG0S0,&mKiG0S0,&mKiG0S0,&mKiG0T0}},
+ {0,1,8,2,0,7,{&mKiG0R1,&mKiG0S1,&mKiG0S1,&mKiG0S1,&mKiG0T1}},
+ {0,2,8,3,0,6,{&mKiG0R2,&mKiG0S2,&mKiG0S2,&mKiG0S2,&mKiG0T2}},
+ {0,3,8,4,0,5,{&mKiG0R3,&mKiG0S3,&mKiG0S3,&mKiG0S3,&mKiG0T3}},
+ {0,4,8,5,0,4,{&mKiG0R4,&mKiG0S4,&mKiG0S4,&mKiG0S4,&mKiG0T4}},
+ {0,5,8,6,0,3,{&mKiG0R5,&mKiG0S5,&mKiG0S5,&mKiG0S5,&mKiG0T5}},
+ {0,6,8,7,0,2,{&mKiG0R6,&mKiG0S6,&mKiG0S6,&mKiG0S6,&mKiG0T6}},
+ {0,7,8,8,0,1,{&mKiG0R7,&mKiG0S7,&mKiG0S7,&mKiG0S7,&mKiG0T7}} };
+static const IBox bxKickerSeg1[8]={ // long kicker, tile 1 (8 to 16 px)
+ {0,0,8,1,0,16,{&mKiG1R0,&mKiG1S0,&mKiG1S0,&mKiG1S0,&mKiG1T0}},
+ {0,1,8,2,0,15,{&mKiG1R1,&mKiG1S1,&mKiG1S1,&mKiG1S1,&mKiG1T1}},
+ {0,2,8,3,0,14,{&mKiG1R2,&mKiG1S2,&mKiG1S2,&mKiG1S2,&mKiG1T2}},
+ {0,3,8,4,0,13,{&mKiG1R3,&mKiG1S3,&mKiG1S3,&mKiG1S3,&mKiG1T3}},
+ {0,4,8,5,0,12,{&mKiG1R4,&mKiG1S4,&mKiG1S4,&mKiG1S4,&mKiG1T4}},
+ {0,5,8,6,0,11,{&mKiG1R5,&mKiG1S5,&mKiG1S5,&mKiG1S5,&mKiG1T5}},
+ {0,6,8,7,0,10,{&mKiG1R6,&mKiG1S6,&mKiG1S6,&mKiG1S6,&mKiG1T6}},
+ {0,7,8,8,0,9,{&mKiG1R7,&mKiG1S7,&mKiG1S7,&mKiG1S7,&mKiG1T7}} };
+static const IBox bxKickerSeg2[8]={ // long kicker, tile 2 (16 to 24 px)
+ {0,0,8,1,0,24,{&mKiG2R0,&mKiG2S0,&mKiG2S0,&mKiG2S0,&mKiG2T0}},
+ {0,1,8,2,0,23,{&mKiG2R1,&mKiG2S1,&mKiG2S1,&mKiG2S1,&mKiG2T1}},
+ {0,2,8,3,0,22,{&mKiG2R2,&mKiG2S2,&mKiG2S2,&mKiG2S2,&mKiG2T2}},
+ {0,3,8,4,0,21,{&mKiG2R3,&mKiG2S3,&mKiG2S3,&mKiG2S3,&mKiG2T3}},
+ {0,4,8,5,0,20,{&mKiG2R4,&mKiG2S4,&mKiG2S4,&mKiG2S4,&mKiG2T4}},
+ {0,5,8,6,0,19,{&mKiG2R5,&mKiG2S5,&mKiG2S5,&mKiG2S5,&mKiG2T5}},
+ {0,6,8,7,0,18,{&mKiG2R6,&mKiG2S6,&mKiG2S6,&mKiG2S6,&mKiG2T6}},
+ {0,7,8,8,0,17,{&mKiG2R7,&mKiG2S7,&mKiG2S7,&mKiG2S7,&mKiG2T7}} };
+static const IBox bxKickerSeg3[8]={ // long kicker, flat deck at 24 px
+ {0,0,8,1,0,24,{&mKiG3R0,&mKiG3S0,&mKiG3S0,&mKiG3S0,&mKiG3T0}},
+ {0,1,8,2,0,24,{&mKiG3R1,&mKiG3S1,&mKiG3S1,&mKiG3S1,&mKiG3T1}},
+ {0,2,8,3,0,24,{&mKiG3R2,&mKiG3S2,&mKiG3S2,&mKiG3S2,&mKiG3T2}},
+ {0,3,8,4,0,24,{&mKiG3R3,&mKiG3S3,&mKiG3S3,&mKiG3S3,&mKiG3T3}},
+ {0,4,8,5,0,24,{&mKiG3R4,&mKiG3S4,&mKiG3S4,&mKiG3S4,&mKiG3T4}},
+ {0,5,8,6,0,24,{&mKiG3R5,&mKiG3S5,&mKiG3S5,&mKiG3S5,&mKiG3T5}},
+ {0,6,8,7,0,24,{&mKiG3R6,&mKiG3S6,&mKiG3S6,&mKiG3S6,&mKiG3T6}},
+ {0,7,8,8,0,24,{&mKiG3R7,&mKiG3S7,&mKiG3S7,&mKiG3S7,&mKiG3T7}} };
+static const IBox bxLaunchSeg0[8]={ // long launch ramp, tile 0 (0 to 12 px)
+ {0,0,8,1,0,12,{&mLaG0R0,&mLaG0S0,&mLaG0S0,&mLaG0S0,&mLaG0T0}},
+ {0,1,8,2,0,11,{&mLaG0R1,&mLaG0S1,&mLaG0S1,&mLaG0S1,&mLaG0T1}},
+ {0,2,8,3,0,9,{&mLaG0R2,&mLaG0S2,&mLaG0S2,&mLaG0S2,&mLaG0T2}},
+ {0,3,8,4,0,8,{&mLaG0R3,&mLaG0S3,&mLaG0S3,&mLaG0S3,&mLaG0T3}},
+ {0,4,8,5,0,6,{&mLaG0R4,&mLaG0S4,&mLaG0S4,&mLaG0S4,&mLaG0T4}},
+ {0,5,8,6,0,5,{&mLaG0R5,&mLaG0S5,&mLaG0S5,&mLaG0S5,&mLaG0T5}},
+ {0,6,8,7,0,3,{&mLaG0R6,&mLaG0S6,&mLaG0S6,&mLaG0S6,&mLaG0T6}},
+ {0,7,8,8,0,2,{&mLaG0R7,&mLaG0S7,&mLaG0S7,&mLaG0S7,&mLaG0T7}} };
+static const IBox bxLaunchSeg1[8]={ // long launch ramp, tile 1 (12 to 24 px)
+ {0,0,8,1,0,24,{&mLaG1R0,&mLaG1S0,&mLaG1S0,&mLaG1S0,&mLaG1T0}},
+ {0,1,8,2,0,23,{&mLaG1R1,&mLaG1S1,&mLaG1S1,&mLaG1S1,&mLaG1T1}},
+ {0,2,8,3,0,21,{&mLaG1R2,&mLaG1S2,&mLaG1S2,&mLaG1S2,&mLaG1T2}},
+ {0,3,8,4,0,20,{&mLaG1R3,&mLaG1S3,&mLaG1S3,&mLaG1S3,&mLaG1T3}},
+ {0,4,8,5,0,18,{&mLaG1R4,&mLaG1S4,&mLaG1S4,&mLaG1S4,&mLaG1T4}},
+ {0,5,8,6,0,17,{&mLaG1R5,&mLaG1S5,&mLaG1S5,&mLaG1S5,&mLaG1T5}},
+ {0,6,8,7,0,15,{&mLaG1R6,&mLaG1S6,&mLaG1S6,&mLaG1S6,&mLaG1T6}},
+ {0,7,8,8,0,14,{&mLaG1R7,&mLaG1S7,&mLaG1S7,&mLaG1S7,&mLaG1T7}} };
+static const IBox bxLaunchSeg2[8]={ // long launch ramp, flat deck at 24 px
+ {0,0,8,1,0,24,{&mLaG2R0,&mLaG2S0,&mLaG2S0,&mLaG2S0,&mLaG2T0}},
+ {0,1,8,2,0,24,{&mLaG2R1,&mLaG2S1,&mLaG2S1,&mLaG2S1,&mLaG2T1}},
+ {0,2,8,3,0,24,{&mLaG2R2,&mLaG2S2,&mLaG2S2,&mLaG2S2,&mLaG2T2}},
+ {0,3,8,4,0,24,{&mLaG2R3,&mLaG2S3,&mLaG2S3,&mLaG2S3,&mLaG2T3}},
+ {0,4,8,5,0,24,{&mLaG2R4,&mLaG2S4,&mLaG2S4,&mLaG2S4,&mLaG2T4}},
+ {0,5,8,6,0,24,{&mLaG2R5,&mLaG2S5,&mLaG2S5,&mLaG2S5,&mLaG2T5}},
+ {0,6,8,7,0,24,{&mLaG2R6,&mLaG2S6,&mLaG2S6,&mLaG2S6,&mLaG2T6}},
+ {0,7,8,8,0,24,{&mLaG2R7,&mLaG2S7,&mLaG2S7,&mLaG2S7,&mLaG2T7}} };

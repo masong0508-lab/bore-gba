@@ -183,6 +183,28 @@ def mpad():
     return [Box(0,0,8,8,0,3,[side,side,side,side,top])]
 OBJS.append(('ManualPad',mpad(),12,'manual pad, 3 px, rides on without a jump'))
 
+# ------------------------------------------------------------------ LONG RAMPS: segments (ramps.h chains same-way ramp tiles into one long ramp)
+# Place 2 or more KICKERs (or LAUNCH ramps) in a row, all facing the same way: the lower tiles turn into gentle segments that keep climbing, and past the
+# last segment the next tile is a flat DECK. Each segment is the same wedge as the single ramp (8 slices, boxes from the floor up), just from height a to b.
+KSEG=8; KSEGS=3     # kicker chain: 8 px per tile, 3 tiles of climb (24 px), then a flat deck at 24
+LSEG=12; LSEGS=2    # launch chain: 12 px per tile, 2 tiles of climb (24 px), then a flat deck at 24
+def segment(tag,p,pR,a,b,topRows):
+    boxes=[]
+    for k in range(8):
+        h=a+((b-a)*(8-k)+4)//8 if b>a else a   # slice k, back (high) to front (low)
+        seam=(k%3==0)
+        top=mat('m%sT%d'%(tag,k),p,topRows(seam))
+        ris=mat('m%sR%d'%(tag,k),pR,['c' if seam else 'b'])
+        side=mat('m%sS%d'%(tag,k),p,['e'])
+        boxes.append(Box(0,k,8,k+1,0,h,[ris,side,side,side,top]))
+    return boxes
+for i in range(KSEGS+1):
+    a=KSEG*min(i,KSEGS); b=KSEG*min(i+1,KSEGS)
+    OBJS.append(('KickerSeg%d'%i,segment('KiG%d'%i,pKi,pKiR,a,b,lambda seam:['cccccccc' if seam else 'bbbbbbbb']),11,'long kicker, tile %d (%d to %d px)'%(i,a,b) if i<KSEGS else 'long kicker, flat deck at %d px'%b))
+for i in range(LSEGS+1):
+    a=LSEG*min(i,LSEGS); b=LSEG*min(i+1,LSEGS)
+    OBJS.append(('LaunchSeg%d'%i,segment('LaG%d'%i,pLa,pLaR,a,b,lambda seam:['bbbddbbb']),11,'long launch ramp, tile %d (%d to %d px)'%(i,a,b) if i<LSEGS else 'long launch ramp, flat deck at %d px'%b))
+
 # ------------------------------------------------------------------ renderer (port of items.h)
 def rotPt(r,a,b): return [(a,b),(b,8-a),(8-a,8-b),(8-b,a)][r]
 def drawBox(d,q,r):
@@ -302,9 +324,13 @@ def emit_ramps():
             'static const u8 qpH[8]={%s};   // quarter pipe, per eighth of the tile from the low edge to the lip\n'
             '#define KICKER_H %d   // kicker height at the lip\n'
             '#define LAUNCH_H %d   // launch ramp height at the lip (pack 2)\n'
+            '#define KICKER_SEG %d   // LONG RAMPS (ramps.h): px a kicker tile climbs when it is part of a chain\n'
+            '#define KICKER_SEGS %d   // tiles of climb in a kicker chain; the next tile is a flat deck at KICKER_SEG*KICKER_SEGS\n'
+            '#define LAUNCH_SEG %d   // the same for a launch ramp chain\n'
+            '#define LAUNCH_SEGS %d\n'
             '#define GRIND_H %d   // rail, ledge, bench, planter, picnic table, jersey barrier: grindable. 9 is a height nothing else has (8 is furniture)\n'
             '#define SOLID_H %d   // funbox and trash can\n'
-            '#define BARREL_H %d   // oil drum\n')%(','.join(str(h) for h in reversed(QPH)),KIH,LAH[0],GRIND_H,SOLID_H,BARREL_H)
+            '#define BARREL_H %d   // oil drum\n')%(','.join(str(h) for h in reversed(QPH)),KIH,LAH[0],KSEG,KSEGS,LSEG,LSEGS,GRIND_H,SOLID_H,BARREL_H)
 
 if __name__=='__main__':
     open(os.path.join(ROOT,'source','skateart.h'),'w').write(emit())

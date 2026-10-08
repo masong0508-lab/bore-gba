@@ -95,8 +95,10 @@ static void drawItemTile(char c,int sx,int sy,int x,int y){
     else if(c=='Z') blitItem(V_PLANTER,sx,sy);
     else if(c=='K') blitItem(V_PICNIC,sx,sy);
     else if(c=='M') blitItem(V_MPAD,sx,sy);
-    else if(isLaunch(c)) blitItem(V_LAUNCH+(((c-'9')-cview)&3),sx,sy);
-    else if(isKicker(c)) blitItem(V_KICKER+(((c-'1')-cview)&3),sx,sy);
+    else if(isLaunch(c)){ int up, i=rampChain(x,y,c,&up), r=((c-'9')-cview)&3;   // a lone launch ramp, or one tile of a long one
+        blitItem((i||up)?V_LSEG+4*(i<LAUNCH_SEGS?i:LAUNCH_SEGS)+r:V_LAUNCH+r,sx,sy); }
+    else if(isKicker(c)){ int up, i=rampChain(x,y,c,&up), r=((c-'1')-cview)&3;
+        blitItem((i||up)?V_KSEG+4*(i<KICKER_SEGS?i:KICKER_SEGS)+r:V_KICKER+r,sx,sy); }
     else if(isQPipe(c)) blitItem(V_QPIPE+(((c-'5')-cview)&3),sx,sy);
     else if(c=='S') blitItem(V_BED+((itemFacing(x,y)-cview)&3),sx,sy);
     else if(c=='H') blitItem(V_SHOWER+((itemFacing(x,y)-cview)&3),sx,sy);

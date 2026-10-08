@@ -2,6 +2,10 @@
 static const u8 qpH[8]={1,2,3,5,9,12,17,24};   // quarter pipe, per eighth of the tile from the low edge to the lip
 #define KICKER_H 12   // kicker height at the lip
 #define LAUNCH_H 18   // launch ramp height at the lip (pack 2)
+#define KICKER_SEG 8   // LONG RAMPS (ramps.h): px a kicker tile climbs when it is part of a chain
+#define KICKER_SEGS 3   // tiles of climb in a kicker chain; the next tile is a flat deck at KICKER_SEG*KICKER_SEGS
+#define LAUNCH_SEG 12   // the same for a launch ramp chain
+#define LAUNCH_SEGS 2
 #define GRIND_H 9   // rail, ledge, bench, planter, picnic table, jersey barrier: grindable. 9 is a height nothing else has (8 is furniture)
 #define SOLID_H 14   // funbox and trash can
 #define BARREL_H 13   // oil drum
