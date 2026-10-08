@@ -187,6 +187,7 @@ static const CsBeat csS2[]={
  {CB_SITE,CA_NONE,CP_STAND,0,CA_MISSY,CP_FLAIL,32,CF_SHAKE,SFX_SCREAM+1,48,0,{0,0,0}},
  {CB_SITE,CA_NONE,CP_STAND,0,CA_MISSY,CP_LIE,32,CF_FLASH,SFX_HIT+1,50,0,{0,0,0}},
  {CB_SITE,CA_NONE,CP_STAND,0,CA_MISSY,CP_LIE,32,CF_FADEOUT,0,0,0,{"Beyond the fence the flashbulbs keep popping, at","the gate, at the hedge, at nothing. For once, nobody","is taking her picture."}},
+ {CB_BLACK,CA_NONE,CP_STAND,0,CA_NONE,CP_STAND,0,0,0,80,0,{0,0,0}},   // cutscene redo 4: a silent held black beat after the last card
 };
 static const CsBeat csS3[]={
  {CB_HOSP,CA_MAME,CP_STAND,20,CA_MISSY,CP_LIE,41,CF_FADEIN,0,0,0,{"Day nine. The machines do the breathing now, and","Mamesy does the talking.",0}},

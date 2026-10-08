@@ -26,6 +26,14 @@ static const CsShot csShots[]={
     {2,11,1,  0, 30, 300,  0,44, 420,  0,92},
     {2,12,1,  0, 50, 420, -6,85, 560, -6,90},
     {2,13,1,  0,170, 560, -6,90, 300, 10,72},
+    // fall shots (cutscene redo 4): open tight and pull wide (0), the bucket (4), the shout (6), the camera climbs with her (7-9), a tight cut-in on "Easy!" (10)
+    {2,0,0,   0,150, 300, 60,70, 256,120,64},
+    {2,4,2,   0, 90, 300, 10,84, 380, 30,84},
+    {2,6,1,   0, 50, 450,  0,78, 520,  0,76},
+    {2,7,1,   0,140, 330,  0,84, 330,  0,62},
+    {2,8,1,   0, 60, 300,-10,56, 330,  0,50},
+    {2,9,1,   0,120, 330,  0,50, 520,  0,46},
+    {2,10,1,  0, 60, 760,  0,46, 900,  0,46},
     // the flat line, THE PLUG (scene 6, beats 7-9): a push toward the monitor, a cut to the bedside, then a slow pull back out of the room
     {6,7,0,   0, 70, 256,120,64, 440, 76,52},
     {6,8,0,   0, 80, 420,130,86, 520,134,88},
