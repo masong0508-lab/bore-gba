@@ -2,7 +2,7 @@
 // csPlay(scene): A types the caption out / moves on, START skips the whole scene. Scenes are tables of beats (CsBeat) at the bottom.
 // Used by TV SHOW & TELL (story.h plays one when a chapter ends). Needs from main.c: fb, rect, disc, line, text, tw, present, keyNow, sfxPlay, rnd8, objHideAll.
 // Layout: black bar 0..11, the picture 12..115, the caption panel 116..159. Fades use the hardware brightness blend (BLDCNT / BLDY), so they cost nothing.
-enum { CB_BLACK, CB_STAGE, CB_HOME, CB_MIRROR, CB_SITE, CB_HOSP, CB_BACK, CB_BIG, CB_FLAT };            // backdrops
+enum { CB_BLACK, CB_STAGE, CB_HOME, CB_MIRROR, CB_SITE, CB_HOSP, CB_BACK, CB_BIG, CB_FLAT, CB_RATE };            // backdrops
 enum { CA_NONE, CA_MISSY, CA_MAME, CA_HOST, CA_CREW, CA_DOC };                                   // who stands there
 enum { CP_STAND, CP_SWAY, CP_DANCE, CP_SING, CP_HEAD, CP_RUN, CP_CLIMB, CP_FLAIL, CP_LIE };      // what they are doing
 enum { CF_SHAKE=1, CF_FLASH=2, CF_FADEIN=4, CF_FADEOUT=8, CF_STROBE=16, CF_IRIS=32, CF_SICK=64, CF_AUTO=128 };
@@ -41,6 +41,7 @@ static void csFig(int x,int y,int who,int pose,int t){   // one person, 34 px ta
     if(open) csR(x+lean-1,y-25+bob+hd,2,2,RGB(18,2,3)); else csR(x+lean-1,y-25+bob+hd,2,1,RGB(18,6,6));
 }
 
+static char* csNum(char*b,int v){ char d[12]; int n=0; if(v<=0) d[n++]='0'; while(v>0){ d[n++]=(char)('0'+v%10); v/=10; } while(n>0) *b++=d[--n]; *b=0; return b; }   // a number as text (the approval board)
 static void csBg(int bg,int t,int fx){   // the picture area: y 12 .. 115
     switch(bg){
     case CB_STAGE: case CB_BIG: {
@@ -80,6 +81,20 @@ static void csBg(int bg,int t,int fx){   // the picture area: y 12 .. 115
         csR(14,30,34,30,RGB(2,3,4)); { int py=45; for(int x=0;x<32;x++){ int ph=(x+t/2)%32; int y=py; if(bg!=CB_FLAT){ if(ph==14) y=py-9; else if(ph==15) y=py+6; } csR(15+x,y,1,1,bg==CB_FLAT?RGB(31,8,6):RGB(8,31,12)); } }   // the monitor
         csR(28,60,4,50,RGB(16,18,18)); csR(20,106,20,4,RGB(16,18,18)); csR(226,24,2,40,RGB(20,22,22)); csR(222,24,10,12,RGB(24,29,31));
         break;
+    case CB_RATE: {   // the approval board: her line climbs for years, then falls off a cliff (drawn a bit more every frame)
+        csR(0,12,SW,104,RGB(2,3,6)); csR(14,18,212,92,RGB(1,2,4));
+        for(int gy=30;gy<=90;gy+=15) csR(20,gy,200,1,RGB(4,6,9));
+        csR(20,24,1,78,RGB(10,12,14)); csR(20,102,201,1,RGB(10,12,14));
+        int n=t*3; if(n>200) n=200; int py=92; u16 col=RGB(8,28,12);
+        for(int i=0;i<n;i++){
+            int y; if(i<110) y=92-i*52/110-((i%9)==0?2:0); else if(i<134) y=40+(i-110)*54/24; else y=94+((i>>2)&1);
+            col=i<110?RGB(8,28,12):RGB(31,6,6);
+            if(i>0) csLn(20+i-1,py,20+i,y,col); csR(20+i,y,1,1,col); py=y;
+        }
+        csD(20+(n>0?n-1:0),py,2,col);
+        text(24,14,"APPROVAL",RGB(20,24,28),1);
+        { char b[20]; char*e=csNum(b,(100-py)*70); e[0]='K'; e[1]=0; text(176,14,b,col,1); }
+        break; }
     case CB_BACK:
         csGrad(12,104,14,6,10,8,3,7); csR(0,106,SW,10,RGB(8,5,4));
         csR(58,18,124,66,RGB(8,8,12)); csR(61,21,118,60,RGB(14,20,26)); for(int i=0;i<12;i++) csD(63+i*10,19+((i*3)&1),2,(((t>>4)+i)&3)?RGB(31,28,10):RGB(20,16,5));   // the mirror and its bulbs
@@ -220,8 +235,36 @@ static const CsBeat csS6[]={
  {CB_FLAT,CA_MAME,CP_HEAD,20,CA_MISSY,CP_LIE,41,0,0,0,0,{"Missy Jeanne is gone. For the last time, nobody is","taking her picture.",0}},
  {CB_BLACK,CA_NONE,CP_STAND,0,CA_NONE,CP_STAND,0,CF_FADEIN|CF_FADEOUT,0,0,0,{"Some stories do not get a second night.",0,0}},
 };
-static const CsScene csScenes[7]={ {csS0,sizeof(csS0)/sizeof(csS0[0])}, {csS1,sizeof(csS1)/sizeof(csS1[0])}, {csS2,sizeof(csS2)/sizeof(csS2[0])}, {csS3,sizeof(csS3)/sizeof(csS3[0])}, {csS4,sizeof(csS4)/sizeof(csS4[0])}, {csS5,sizeof(csS5)/sizeof(csS5[0])}, {csS6,sizeof(csS6)/sizeof(csS6[0])} };
-static const char* const csNames[7]={ "CH1 END  THE BARS", "CH2 END  THE SWEATER", "CH3 END  THE FALL", "CH4 END  WAKING UP", "CH5 START  THE NEWS", "CH5 END  HERE TODAY", "CH4 LOSS  THE PLUG" };
+// OPENING: the night it all started, live on TV (STORY MODE > TV SHOW & TELL plays this once, before chapter 1). Drunk judging, a gasp, the rush to the stage, the sick, the approval board falling off a cliff.
+static const CsBeat csS7[]={
+ {CB_BLACK,CA_NONE,CP_STAND,0,CA_NONE,CP_STAND,0,CF_FADEIN,0,0,0,{"Present day. Studio 9. Live, in front of four million","viewers and one very patient host.",0}},
+ {CB_STAGE,CA_HOST,CP_STAND,15,CA_MISSY,CP_STAND,37,CF_FADEIN,0,0,0,{"For six years Missy Jeanne was the nation's favorite","judge. Sharp, sparkling, never once late for a cue.",0}},
+ {CB_STAGE,CA_HOST,CP_STAND,15,CA_MISSY,CP_SWAY,37,0,0,0,0,{"Tonight her water glass has been refilled eleven times.","Nobody has the heart to tell the crew it isn't water.",0}},
+ {CB_STAGE,CA_HOST,CP_STAND,15,CA_MISSY,CP_SWAY,37,0,0,0,"Dex",{"Missy, thoughts on that last performance?",0,0}},
+ {CB_STAGE,CA_HOST,CP_STAND,15,CA_MISSY,CP_SWAY,37,0,0,0,"Missy",{"Thoughts? Sweetheart, I had a lovely nap.","Wake me when somebody sings.",0}},
+ {CB_STAGE,CA_HOST,CP_HEAD,15,CA_MISSY,CP_SWAY,37,0,0,0,0,{"The audience laughs. They think it's a bit. Dex, who has","worked beside her for six years, does not laugh.",0}},
+ {CB_STAGE,CA_HOST,CP_HEAD,15,CA_MISSY,CP_SWAY,37,CF_SHAKE,SFX_GASP+1,0,"Missy",{"Who told you that you could sing, honey?","Whoever it was, they were lying to you.",0}},
+ {CB_STAGE,CA_HOST,CP_HEAD,15,CA_MISSY,CP_SWAY,37,0,0,0,0,{"A gasp rolls through the studio. In the control room a","producer says 'Stay on her,' very quietly. Nobody argues.",0}},
+ {CB_STAGE,CA_HOST,CP_STAND,15,CA_MISSY,CP_SWAY,37,0,0,0,"Dex",{"We're going to a break. Missy? We are going to a break.",0,0}},
+ {CB_STAGE,CA_HOST,CP_STAND,15,CA_MISSY,CP_SWAY,37,CF_SHAKE,0,0,"Missy",{"I don't want a break. I want the STAGE.",0,0}},
+ {CB_STAGE,CA_HOST,CP_HEAD,15,CA_MISSY,CP_RUN,37,CF_SHAKE,SFX_BONK+1,0,0,{"She stands too fast and the studio tips sideways. With","the total confidence of the truly gone, she goes anyway.",0}},
+ {CB_STAGE,CA_HOST,CP_HEAD,15,CA_MISSY,CP_RUN,44,CF_SHAKE,0,10,0,{0,0,0}},
+ {CB_STAGE,CA_NONE,CP_STAND,0,CA_MISSY,CP_RUN,38,CF_SHAKE,0,10,0,{0,0,0}},
+ {CB_STAGE,CA_NONE,CP_STAND,0,CA_MISSY,CP_RUN,33,CF_SHAKE,0,10,0,{0,0,0}},
+ {CB_STAGE,CA_NONE,CP_STAND,0,CA_MISSY,CP_SWAY,30,0,0,0,"Missy",{"Everybody... watch me.",0,0}},
+ {CB_STAGE,CA_NONE,CP_STAND,0,CA_MISSY,CP_SWAY,30,0,0,0,0,{"The spotlight finds her. So does the sudden, terrible","heat of every light in the building.",0}},
+ {CB_STAGE,CA_NONE,CP_STAND,0,CA_MISSY,CP_HEAD,30,CF_SHAKE,0,0,"Missy",{"Oh. That's... oh, no.",0,0}},
+ {CB_STAGE,CA_NONE,CP_STAND,0,CA_MISSY,CP_HEAD,30,CF_SICK|CF_SHAKE,SFX_GROAN+1,80,0,{0,0,0}},
+ {CB_STAGE,CA_NONE,CP_STAND,0,CA_MISSY,CP_HEAD,30,0,0,0,0,{"Camera two pushes in. Nobody in the control room","says cut.",0}},
+ {CB_STAGE,CA_NONE,CP_STAND,0,CA_MISSY,CP_HEAD,30,CF_AUTO,0,60,0,{"Three seconds of dead silence.",0,0}},
+ {CB_STAGE,CA_NONE,CP_STAND,0,CA_MISSY,CP_HEAD,30,0,SFX_POP+1,0,0,{"Then somebody in the third row laughs. Then a phone","comes up. Then four hundred phones.",0}},
+ {CB_STAGE,CA_HOST,CP_HEAD,15,CA_MISSY,CP_HEAD,30,0,0,0,"Dex",{"We are... experiencing technical difficulties.",0,0}},
+ {CB_RATE,CA_NONE,CP_STAND,0,CA_NONE,CP_STAND,0,CF_FADEIN,0,0,0,{"By midnight the clip had left the building, the city and","the country. Her approval rating went with it.",0}},
+ {CB_RATE,CA_NONE,CP_STAND,0,CA_NONE,CP_STAND,0,0,SFX_TICK+1,0,0,{"Six years of goodwill, gone in eleven seconds. The","sponsors left first. The fans left next.",0}},
+ {CB_BLACK,CA_NONE,CP_STAND,0,CA_NONE,CP_STAND,0,CF_FADEIN|CF_FADEOUT,0,0,0,{"Her phone buzzed forty-one times before sunrise. Only","one voicemail was worth hearing: 'Mish. Pick up. Please.'",0}},
+};
+static const CsScene csScenes[8]={ {csS0,sizeof(csS0)/sizeof(csS0[0])}, {csS1,sizeof(csS1)/sizeof(csS1[0])}, {csS2,sizeof(csS2)/sizeof(csS2[0])}, {csS3,sizeof(csS3)/sizeof(csS3[0])}, {csS4,sizeof(csS4)/sizeof(csS4[0])}, {csS5,sizeof(csS5)/sizeof(csS5[0])}, {csS6,sizeof(csS6)/sizeof(csS6[0])}, {csS7,sizeof(csS7)/sizeof(csS7[0])} };
+static const char* const csNames[8]={ "CH1 END  THE BARS", "CH2 END  THE SWEATER", "CH3 END  THE FALL", "CH4 END  WAKING UP", "CH5 START  THE NEWS", "CH5 END  HERE TODAY", "CH4 LOSS  THE PLUG", "OPENING  THE NIGHT" };
 
 #ifndef CS_HOST
 static void csPlay(int id){   // play scene id; returns when it ends or START skips it

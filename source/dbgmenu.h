@@ -18,6 +18,6 @@ static void dbgMenu(void){
         else if(c==6){ copHeat=0; copWant=0; copCool=3600; prRec=0; toast("CLEAN RECORD"); }
         else if(c==7){ if(prShown()){ prRelease(); toast("SENTENCE ENDED"); } else toast("NOT IN PRISON"); }
         else if(c==8){ if(stId&&stCh<stLen[stId]&&stChs[stId][stCh].goal!=SG_END){ stComplete(); toast("CHAPTER DONE"); } else toast("NO CHAPTER TO FINISH"); }   // (story.h: pays it and starts the next chapter, to test a story)
-        else if(c==9){ int s=menu("CUTSCENE",csNames,7); if(s>=0){ csPlay(s); rect(0,0,SW,SH,RGB(2,4,8)); } }   // (cutscene.h: preview any scene)
+        else if(c==9){ int s=menu("CUTSCENE",csNames,8); if(s>=0){ csPlay(s); rect(0,0,SW,SH,RGB(2,4,8)); } }   // (cutscene.h: preview any scene)
     }
 }
