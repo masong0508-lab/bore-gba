@@ -39,6 +39,7 @@ static void poseDraw(const u8*s,int a,int n,int x0,int y0){   // n pixels from l
 }
 static int poseSel(void){   // 0 none, 1 wave, 2 cheer, 3 sit: for the Sim you control, standing still, never on the board (the picture only)
     if(!poseKey||poseKey!=sprKey||lskate||ldead||lvx||lvy||lsp||plZ>plFh||lbailT>0) return 0;
+    { int sp=slfPose(); if(sp) return sp; }   // self.h: the pose of the action you are doing
     if(alvPopK==1&&alvPopT>0) return 2;
     if(hhBubT) return 1;
     if(simAct==3||(sNrg<20&&hhStill>=240)) return 3;

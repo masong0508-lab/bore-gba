@@ -2794,7 +2794,7 @@ static void trickName(int hs,int grab,int perfect){
 }
 static void swName(void){ int n=0; while(lnBuf[n]) n++; if(n>15) return; for(int i=n;i>=0;i--) lnBuf[i+7]=lnBuf[i]; const char*q="SWITCH "; for(int i=0;i<7;i++) lnBuf[i]=q[i]; }
 static void hhStart(void); static void hhTick(void); static int hhSocR(int useLabel); static int hhCallFloors(void);   // house.h (included further down, next to the drawing it hooks into)
-static void drawCounter(int sx,int sy,int t); static void dbgMenu(void); static void wpPre(u16*kp,u16*pp); static void fgPre(u16*kp,u16*pp); static int slfMenu(void); static void fgDraw(void); static void wpDraw(void); static void wpConfiscate(void);   // weapons.h
+static void drawCounter(int sx,int sy,int t); static void dbgMenu(void); static void wpPre(u16*kp,u16*pp); static void fgPre(u16*kp,u16*pp); static int slfMenu(void); static void slfFx(void); static int slfPose(void); static void fgDraw(void); static void wpDraw(void); static void wpConfiscate(void);   // weapons.h
 // ---- COLLECTIBLES (like THPS): the letters S K A T E and one hidden tape float over the floor of a skate lot. Touch one to take it. ----
 // Nothing is saved and no map tile is used: lifeInit scatters them over empty floor every run (a new spot each time), so they cost a few bytes of EWRAM
 // and no sprite art (they are drawn in code). A letter counts like a combo letter (sktAward: five make SKATE). Only on lots that have something to skate.
@@ -3213,6 +3213,7 @@ static void playerCalc(void){
         if(alvPopK==1&&alvPopT<=3&&plZ<=plFh) q=alvPopT>1?2:1;                                                     // the end of a hop
         if(!lskate&&!lvx&&!lvy&&!lsp&&plZ<=plFh){ int m=moodState(); int s=simAct==1?4:m==MS_SAD?2:sNrg<20?1:0; if(s>q) q=s; }   // asleep: slumped; SAD: a slump; worn out: a little
         plSq=(signed char)q; }
+    slfFx();   // self.h: the animation of the action you are doing (nudge, hop, squash, facing)
     lpsx=plX; lpsy=plY-20;
     plDip=(lskate&&lLand>0&&plZ<=plFh)?(lLand>4?(lLandD>=10?3:2):1):0;   // landing crouch: the harder the drop the lower, easing back up over 7 frames
     plMk=0; if(lskate&&plZ>plFh&&(F.spinV||F.spin>=20||F.spin<=-20)){ int g=feelPredGrade(); plMk=g==0?1:g==1?2:g==2?3:4; }   // spinning: will it land?

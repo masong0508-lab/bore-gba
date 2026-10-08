@@ -8,7 +8,11 @@
 //   CARE  FRESHEN UP, CAT NAP, DEEP BREATH      hygiene, energy, health
 // Every action costs or gives needs (energy, hygiene, comfort, food), keeps you busy a moment (lstun) and then needs a cooldown in game minutes
 // (TOO SOON otherwise), so it is a choice, not a way to farm skills. Too hungry or too tired for the hard ones.
-// MEMORY  64 bytes of EWRAM (the cooldowns, not saved). No IWRAM.
+// ANIMATION  each action plays while you are busy (lstun counts it down). It only moves the PICTURE of your Sim, with what playerCalc already has:
+//   plPopX / plPopY (a nudge or hop), plSq (squash: 1..3 a hunch, 4 slumped asleep), plV (which way it faces: a spin or a look round) and the baked poses
+//   (WAVE, CHEER = arms up, SIT). slfFx (called from playerCalc) and slfPose (from poseSel) read the elapsed steps. Examples: DANCE turns through all four
+//   views and hops, PUSH-UPS dips and rises, MEDITATE sits and hovers, AIR GUITAR jitters and pumps, CRY slumps and shakes. Some also pop a word balloon.
+// MEMORY  64 bytes of EWRAM (the cooldowns, not saved) + 2 for the animation. No IWRAM.
 enum { SL_STRETCH, SL_PUSHUP, SL_FLEX, SL_MEDIT, SL_SPEECH, SL_DOODLE, SL_DREAM, SL_DANCE, SL_SING, SL_GUITAR, SL_CRY, SL_FRESH, SL_NAP, SL_BREATH, SL_N };
 typedef struct { const char*nm; u8 cat, cd, busy; } SlfAct;   // cd: game minutes before it can be done again; busy: steps you are occupied
 static const SlfAct slfT[SL_N]={
@@ -29,6 +33,8 @@ static const SlfAct slfT[SL_N]={
 };
 static const char* const slfCatNm[4]={"BODY","MIND","FUN","CARE"};
 static const u16 slfCatCol[4]={RGB(8,24,10),RGB(9,17,29),RGB(28,22,5),RGB(28,10,17)};
+static u8 slfA EWRAM_BSS, slfBusy EWRAM_BSS;   // the action playing (+1; 0 none) and how many steps it keeps you busy
+static const char* const slfBub[SL_N]={0,"HUP",0,"OHM","HELLO","SCRIBBLE","HMM","WOO","LA LA","ROCK ON","WAAH",0,"ZZZ",0};   // the word balloon (0 = none)
 static u32 slfAt[SL_N] EWRAM_BSS;   // the game minute (+1) each action is ready again; 0 = ready
 static u32 slfNow(void){ return (u32)simDay*1440u+(u32)simMin+1u; }
 static void slfAdd(int*v,int d){ *v+=d; if(*v>100) *v=100; if(*v<0) *v=0; }
@@ -58,6 +64,46 @@ static void slfDo(int a){
     }
     lnoteT=60; lstun=d->busy; lsp=0; lgrind=0;
     slfAt[a]=now+d->cd;
+    slfA=(u8)(a+1); slfBusy=d->busy;
+    if(slfBub[a]){ hhSay(hhPUid,0,slfBub[a]); if(hhBubT>d->busy-4) hhBubT=d->busy-4; }
+}
+// ---- the animation (the picture only). e = steps since it began ----
+static int slfE(void){ int e=(int)slfBusy-lstun; return e<0?0:e; }
+static void slfFx(void){   // playerCalc: nudges, hops, squash and facing for the action playing
+    if(!slfA) return;
+    if(lstun<=0||ldead||lskate||lstun>(int)slfBusy){ slfA=0; return; }   // over, or something else took over (a hit, the board)
+    int a=slfA-1, e=slfE(), x=0, y=0, q=0;
+    switch(a){
+        case SL_STRETCH: y=(e>=12&&e<=48)?-1:0; q=(e<12||e>48)?1:0; break;                       // crouch, rise with arms up, settle
+        case SL_PUSHUP:  { int dn=(e/14)&1; q=dn?3:0; y=dn?1:0; } break;                           // down, up, down ...
+        case SL_FLEX:    x=(e&2)?1:-1; break;                                                       // a pump on the spot
+        case SL_MEDIT:   y=-(1+((e>>4)&1)); break;                                                  // floats a little, breathing
+        case SL_SPEECH:  y=((e>>3)&1)?-1:0; if((e/40)&1) plV=(plV+1)&3; break;                     // nods and turns to the "crowd"
+        case SL_DOODLE:  q=2; x=((e>>3)&1)?1:0; break;                                              // hunched over the page
+        case SL_DREAM:   q=1; plV=(plV+e/30)&3; break;                                              // a slow look all the way round
+        case SL_DANCE:   { int up=(e>>3)&1; plV=(plV+(e>>4))&3; y=up?-2:0; q=up?0:1; } break;      // spins through every view, hops, lands soft
+        case SL_SING:    y=((e/6)&1)?-1:0; break;                                                   // bobs to the tune
+        case SL_GUITAR:  x=((e/3)&1)?1:-1; q=((e/6)&1)?2:0; break;                                  // headbang
+        case SL_CRY:     q=2; x=((e>>2)&1)?1:-1; break;                                             // slumped and shaking
+        case SL_FRESH:   q=1; x=((e>>1)&1)?1:-1; break;                                             // scrubbing
+        case SL_NAP:     q=4; break;                                                                // slumped, like asleep
+        case SL_BREATH:  y=-((e<25?e:50-e)/12); break;                                              // rises on the in-breath
+    }
+    plPopX=(signed char)x; plPopY=(signed char)y; plSq=(signed char)q;
+}
+static int slfPose(void){   // poseSel: 0 none, 1 wave, 2 cheer (arms up), 3 sit
+    if(!slfA||lstun<=0) return 0;
+    int e=slfE();
+    switch(slfA-1){
+        case SL_STRETCH: return (e>=12&&e<=48)?2:0;
+        case SL_FLEX:    return ((e>>3)&1)?0:2;
+        case SL_MEDIT: case SL_DOODLE: case SL_NAP: return 3;
+        case SL_SPEECH: case SL_SING: return 1;
+        case SL_DANCE:   return ((e>>3)&1)?2:0;
+        case SL_GUITAR:  return ((e/5)&1)?2:0;
+        case SL_BREATH:  return (e>=10&&e<=35)?2:0;
+    }
+    return 0;
 }
 // the two-level pie. Returns 1 (the key was used, whatever was picked)
 static int slfMenu(void){
