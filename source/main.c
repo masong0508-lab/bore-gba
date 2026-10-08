@@ -3266,6 +3266,7 @@ static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
         for(int tx=a;tx<=b;tx++){ int ty=s-tx;
             int sx=LOX+(tx-ty)*CA, sy=LOY+(tx+ty+1)*CB;
             if(sx+11<=x0||sx-11>=x1||sy+6<=y0||sy-24>=y1) continue;   // art (walls, items, the pickup) is at most 11 px to a side, 24 above and 5 below the centre
+            if(papN&&!ed&&!curFl){ int qx,qy; rotXY(tx,ty,&qx,&qy); for(int p=0;p<papN;p++) if(papX[p]==qx&&papY[p]==qy) drawPap(sx,sy+1,p); }   // TV SHOW & TELL: the paparazzi
             char c=cellAt(tx,ty); if(c=='.'&&(ed||lhave)) continue;   // plain floor: nothing stands there (but the board pickup might)
             int ox,oy; rotXY(tx,ty,&ox,&oy);
             if(c=='.'&&(ox!=BDX||oy!=BDY)) continue;

@@ -234,6 +234,43 @@ static void stTvControl(void){
     }
     stTvWarn=0; lnote=hhPName; lnoteT=90; liveInvalidate(); camSnap=1; stSave(); hhSave();
 }
+// TV SHOW & TELL step 3: the PAPARAZZI. Only in chapter 3, on the ground floor of the lot you stand on. Up to PAP_MAX photographers walk in from a way off the lot
+// (twFar) and close in on you, a step every 1 to 2 seconds. A SECURITY CAMERA scares them: within 4 tiles of one they back away (it films them). A SECURITY GATE is a wall they
+// cannot cross, so a line of gates keeps them out. Any that get within 5 tiles of you (and are not near a camera) flash: THE PAPARAZZI SNAP YOU and a small mood hit,
+// at most once every 6 seconds. Nothing is saved: they are made again when the chapter is running.
+static u8 papT, papKey, papCool, papW[PAP_MAX] EWRAM_BSS, papCN, papCX[8] EWRAM_BSS, papCY[8] EWRAM_BSS;
+static int papNear(int x,int y,int*cx,int*cy){   // the nearest security camera within 4 tiles of (x,y): 1 and where, else 0
+    int best=99; for(int i=0;i<papCN;i++){ int d=fxAbs(x-papCX[i])+fxAbs(y-papCY[i]); if(d<=4&&d<best){ best=d; *cx=papCX[i]; *cy=papCY[i]; } }
+    return best<99;
+}
+static int papFree(int x,int y,int me){ if(!hhWalk(x,y)) return 0; for(int i=0;i<papN;i++) if(i!=me&&papX[i]==x&&papY[i]==y) return 0; return !(x==(int)(lfx>>8)&&y==(int)(lfy>>8)); }
+static void papStep(int p,int tx,int ty,int away){   // one tile toward (or away from) a target, the longer way first, the other way if blocked
+    int x=papX[p], y=papY[p], dx=tx-x, dy=ty-y; if(away){ dx=-dx; dy=-dy; }
+    int sx=dx<0?-1:dx>0?1:0, sy=dy<0?-1:dy>0?1:0, ax=fxAbs(dx), ay=fxAbs(dy), tryX=ax>=ay;
+    for(int pass=0;pass<2;pass++,tryX=!tryX){
+        if(tryX&&sx&&papFree(x+sx,y,p)){ papX[p]=(u8)(x+sx); return; }
+        if(!tryX&&sy&&papFree(x,y+sy,p)){ papY[p]=(u8)(y+sy); return; } }
+    int d=rnd8()&3; if(papFree(x+hhDx[d],y+hhDy[d],p)){ papX[p]=(u8)(x+hhDx[d]); papY[p]=(u8)(y+hhDy[d]); }   // boxed in: a sidestep
+}
+static void papTick(void){   // once per logic step (stTick)
+    int on=stId==STY_TVSHOW&&stCh==2&&!curFl&&!ldead&&nbOk;
+    u8 key=(u8)(nbOk?nbT.cur+1:0);
+    if(!on||key!=papKey){ papN=0; papKey=key; papCN=0; papT=0; if(!on) return; }
+    int px=(int)(lfx>>8), py=(int)(lfy>>8), i, cx=0, cy=0;
+    if(papCool) papCool--;
+    for(i=0;i<papN;i++) if(papFl[i]) papFl[i]--;
+    if(++papT>=60){ papT=0;   // once a second: where the cameras are, and maybe one more photographer
+        papCN=0; for(int y=0;y<MH&&papCN<8;y++) for(int x=0;x<MW&&papCN<8;x++) if(lifeMap[y][x]=='n'){ papCX[papCN]=(u8)x; papCY[papCN]=(u8)y; papCN++; }
+        if(papN<PAP_MAX&&(rnd8()&1)){ int a=twFar();
+            if(a>=0){ int x=a%MW, y=a/MW; if(papFree(x,y,-1)&&!papNear(x,y,&cx,&cy)){ papX[papN]=(u8)x; papY[papN]=(u8)y; papFl[papN]=0; papW[papN]=(u8)(30+(rnd8()&31)); papN++;
+                if(papN==1){ lnote="PAPARAZZI OUTSIDE"; lnoteT=90; } } } } }
+    for(i=0;i<papN;i++){
+        int x=papX[i], y=papY[i], d=fxAbs(x-px)+fxAbs(y-py), scared=papNear(x,y,&cx,&cy);
+        if(papW[i]) papW[i]--; else { papW[i]=(u8)(45+(rnd8()&45));
+            if(scared) papStep(i,cx,cy,1); else if(d>2) papStep(i,px,py,0); }
+        if(!scared&&d<=5&&!papFl[i]&&(rnd8()&63)==0){ papFl[i]=10;
+            if(!papCool){ papCool=240; moodEvent(M_SPOOK); lnote="THE PAPARAZZI SNAP YOU"; lnoteT=70; } } }
+}
 static void stTick0(void){   // once per logic step in the life game: is this chapter done?
     static u8 cnt; if(!stId||++cnt<60) return; cnt=0;
     if(stCh>=stLen[stId]) return;
@@ -249,7 +286,7 @@ static void stTick0(void){   // once per logic step in the life game: is this ch
     } else if(!stDone(c)) return;
     stComplete();
 }
-static void stTick(void){ stTick0(); if(stTvWant&&stId==STY_TVSHOW){ static u8 tc; if(++tc>=60){ tc=0; stTvControl(); } } }   // (TV SHOW & TELL: keep asking while the hand-over is waiting)
+static void stTick(void){ papTick(); stTick0(); if(stTvWant&&stId==STY_TVSHOW){ static u8 tc; if(++tc>=60){ tc=0; stTvControl(); } } }   // (TV SHOW & TELL: keep asking while the hand-over is waiting)
 static void stEnter(void){ stLoad(); if(stId){ stAnnounce(); if(stShown!=(u8)(stId*16+stCh+1)){ stShown=(u8)(stId*16+stCh+1); stModal=1; } } }   // (a chapter card once per chapter and power on)   // entering the life game: the current goal on the top bar
 // ---- the look: Sims 2 / Life Stories panels (the pieces live in main.c next to HOW TO PLAY) ----
 static void s2rr(int x,int y,int w,int h,u16 c); static void s2grad(int x,int y,int w,int h,int r0,int g0,int b0,int r1,int g1,int b1);

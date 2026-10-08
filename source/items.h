@@ -49,6 +49,17 @@ static void drawSecGate(int sx,int sy){   // a tall iron fence piece: posts, a t
     rect(sx-8,sy-20,2,20,post); rect(sx+7,sy-20,2,20,post); px(sx-8,sy-20,hi); px(sx+7,sy-20,hi);
 }
 static int secCount(char ch){ int n=0; for(int y=0;y<MH;y++) for(int x=0;x<MW;x++) if(lifeMap[y][x]==ch) n++; return n; }   // how many of one security piece the live map has (the story goal reads this)
+// TV SHOW & TELL step 3, the PAPARAZZI (chapter 3): photographers drawn by code, standing on the floor of the lot (story.h papTick moves them). Not saved.
+#define PAP_MAX 6
+static u8 papN, papX[PAP_MAX] EWRAM_BSS, papY[PAP_MAX] EWRAM_BSS, papFl[PAP_MAX] EWRAM_BSS;   // how many, their tile, a flash timer (about 12 bytes)
+static void drawPap(int sx,int sy,int p){   // a photographer with a big camera at his face; his coat colour is his number
+    static const u16 coat[3]={RGB(5,6,10),RGB(14,5,5),RGB(4,10,6)};
+    rect(sx-4,sy-1,9,2,RGB(2,3,5)); rect(sx-3,sy-8,3,8,RGB(4,4,7)); rect(sx+1,sy-8,3,8,RGB(4,4,7));
+    rect(sx-4,sy-15,9,8,coat[p%3]); rect(sx-4,sy-15,9,1,RGB(20,20,24));
+    rect(sx-2,sy-21,5,6,RGB(27,20,15)); rect(sx-2,sy-21,5,2,RGB(6,4,2));
+    rect(sx-7,sy-19,6,4,RGB(3,3,5)); rect(sx-9,sy-18,2,2,RGB(16,22,28));   // the camera and its lens
+    if(papFl[p]){ rect(sx-14,sy-24,8,8,WHITE); rect(sx-16,sy-21,12,2,WHITE); rect(sx-11,sy-27,2,14,WHITE); }   // the flash
+}
 // which way an item faces (world dir 0=S(+y) 1=E(+x) 2=N(-y) 3=W(-x)): away from a wall, toward open floor
 static int itemOpen(int x,int y){ if(x<0||y<0||x>=MW||y>=MH) return 0; char c=lifeMap[y][x]; return c=='.'||c=='D'||c=='B'||c=='P'; }
 static int itemFacing(int x,int y){
