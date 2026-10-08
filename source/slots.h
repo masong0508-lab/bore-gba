@@ -69,7 +69,7 @@ _Static_assert(NWALL<=255&&NFL<=255,"a run stores the floor and the wallpaper in
 
 enum { SLK_ROOM=0, SLK_HOUSE=1, SLK_HHOLD=2, SLK_TOWN=3, SLK_PLAYER=4 };   // SLK_PLAYER: a PLAYER SAVE FILE (savegame.h)
 static u8 sgPid EWRAM_BSS, sgWant EWRAM_BSS, slHPid EWRAM_BSS;   // player in play (0 none) / a new player about to start / extra header byte for the next slHeader
-static int sgSave(void); static int sgDeletePid(int pid); static void sgPickHome(void);   // savegame.h
+static int sgSave(void); static int sgDeletePid(int pid); static void sgPickHome(void); static int sgList(int*l); static int sgHomeOf(int slot);   // savegame.h
 enum { SLH_ROOM=1, SLH_PERSON=2, SLH_LIFE=4 };                 // what a slot holds / what to load
 enum { SLE_OK=0, SLE_EMPTY=-1, SLE_BAD=-2, SLE_BIG=-3, SLE_HOUSE=-4, SLE_FMT=-5, SLE_SIZE=-6, SLE_NOPART=-7, SLE_NOSRAM=-8, SLE_NOROOM=-9, SLE_VISIT=-10 };
 static int hhBlockLen(volatile u8*m,int avail); static void hhSave(void); static void hhLoad(void);   // house.h (included further down)
