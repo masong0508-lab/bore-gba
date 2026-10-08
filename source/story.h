@@ -401,11 +401,11 @@ static void storyScreen(void){   // pause menu > STORY: the story journal, a cha
             text(16,32,"NO STORY RIGHT NOW",GOLD,1); text(16,46,"PICK ONE FOR THIS LIFE WITH A",WHITE,1); text(16,56,"OR PLAY  NEW GAME  STORY MODE",RGB(17,29,31),1);
             text(16,70,"ELEVEN STORIES  SIX CHAPTERS EACH",RGB(20,24,28),1);
         } else {
-            int n=stLen[stId];
+            int n=stLen[stId]-1;   // (the END row is not listed)
             stIcon(stId,9,21,2,RGB(31,20,22));   // the story's picture, its name and kind, and how far you are
             text(32,21,stNm[stId],GOLD,1); text(32,30,stTag[stId],RGB(17,29,31),1);
-            { char b[24]; char*e=slCat(b,"CHAPTER "); e=slNum(e,stCh+1); e=slCat(e," OF "); slNum(e,n); text(233-tw(b,1),21,b,WHITE,1);
-              int bw=84, fx=233-bw; rect(fx-1,31,bw+2,7,RGB(14,26,31)); rect(fx,32,bw,5,RGB(3,5,9)); int f=bw*stCh/(n>1?n-1:1); if(f>bw) f=bw; if(f>0){ s2grad(fx,32,f,5,10,26,12,6,18,8); rect(fx,32,f,1,RGB(18,31,20)); } }
+            { char b[24]; char*e=slCat(b,"CHAPTER "); e=slNum(e,stCh+1>n?n:stCh+1); e=slCat(e," OF "); slNum(e,n); text(233-tw(b,1),21,b,WHITE,1);
+              int bw=84, fx=233-bw; rect(fx-1,31,bw+2,7,RGB(14,26,31)); rect(fx,32,bw,5,RGB(3,5,9)); int f=bw*(stCh>n-1?n-1:stCh)/(n>1?n-1:1); if(f>bw) f=bw; if(f>0){ s2grad(fx,32,f,5,10,26,12,6,18,8); rect(fx,32,f,1,RGB(18,31,20)); } }
             for(int i=0;i<n;i++){ int y=44+i*13, st=i<stCh?2:i==stCh?1:0; const StCh*c=&stChs[stId][i];
                 if(i+1<n) rect(14,y+9,2,4,st==2?RGB(8,26,10):RGB(7,14,22));   // the line down to the next chapter
                 if(st==2){ rect(10,y+1,10,8,RGB(5,18,7)); rect(11,y+2,8,6,RGB(8,26,10)); text(12,y+2,"+",WHITE,1); }   // done: a green tick
@@ -517,7 +517,7 @@ static int storyPick(void){
         for(int i=0;i<3;i++) text(64,49+i*8,stBlurb[sel][i],WHITE,1);
         rect(14,75,212,1,RGB(14,26,31)); text(16,78,"THE CHAPTERS",RGB(17,29,31),1);
         { char b[32]; int pay=0; for(int i=0;i<stLen[sel]-1;i++) pay+=stRew(i); int dn=jbStoryCount(sel); char*e=slNum(b,dn); e=slCat(e," OF 5 DONE  PAYS "); slNum(e,pay); text(226-tw(b,1),78,b,dn>=SM_PER?GOLD:RGB(20,26,31),1); }   // missions finished in any life, and what the story pays in all
-        for(int i=0;i<stLen[sel];i++){ char b[44]; char*e=slNum(b,i+1); e=slCat(e,"  "); slCat(e,stChs[sel][i].nm); text(16,88+i*8,b,i==stLen[sel]-1?GOLD:RGB(24,27,30),1); }
+        for(int i=0;i<stLen[sel]-1;i++){ char b[44]; char*e=slNum(b,i+1); e=slCat(e,"  "); slCat(e,stChs[sel][i].nm); text(16,88+i*8,b,i==stLen[sel]-2?GOLD:RGB(24,27,30),1); }
         for(int i=1;i<STY_N;i++){ int x=(SW-((STY_N-2)*12+8))/2+(i-1)*12; s2rr(x,139,8,4,i==sel?GOLD:RGB(7,14,22)); }   // which of the stories this is
         text(14,138,"<",GOLD,1); text(223,138,">",GOLD,1);
         { static const char* const bt[3]={"LEFT RIGHT STORY","A START","B BACK"}; int x=5;   // the buttons are as wide as their words (they were fixed widths, and LEFT RIGHT STORY ran into A START)
