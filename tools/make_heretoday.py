@@ -4,7 +4,9 @@ note by note; the lyrics in source/cutscene.h are original too). Run from the pr
   1. writes /tmp/here_today.wav   2. encode it with  python3 tools/encode_song.py /tmp/here_today.wav  (or use encode_to_adp below, which does both)
 Edit PHRASES to change the tune: each phrase is [start s, end s, [[start s, length s, MIDI note], ...]]. The cutscene (cutscene.h, scene 5) shows one lyric line per
 phrase and its beat lengths are worked out from these phrase starts, so if you move a phrase, change that beat's length too (see the comment on the lyric beats).
-Sound: a 25 % pulse lead one octave up with a faint echo, a triangle bass an octave below the written note on the longer notes, a soft vibrato on held notes."""
+Sound (v2, cutscene redo 11): same melody and same timing (the lyric beats depend on it). The lead is a 25 % pulse one octave up, doubled by a slightly detuned 12.5 % pulse, with a short slide into each note, vibrato on held notes and a soft three-tap echo.
+Under it, chords are worked out from the melody by a small search (best-fitting triad per slot, smooth motion between them): a triangle bass (root on the slot start, fifth halfway, a pickup on long slots), a quiet 12.5 % pulse
+arpeggio and a held 50 % pulse pad. Everything swells toward the high section (about 32 s to 50 s) and thins out again for the last lines; the last chord rings out."""
 import numpy as np, wave, sys
 SR = 44100
 PHRASES = [[0.15, 1.35, [[0.15, 1.07, 59],
@@ -94,21 +96,104 @@ PHRASES = [[0.15, 1.35, [[0.15, 1.07, 59],
   [69.7, 0.13, 47],
   [70.17, 0.48, 47]]]]
 def midi_hz(m): return 440.0 * 2 ** ((m - 69) / 12.0)
+TAIL = 1.8                                           # seconds the last chord rings after the last melody note
+SWELL = [(0, 0.55), (12, 0.70), (28, 0.80), (32, 1.00), (50, 1.05), (58, 0.80), (66, 0.60), (72, 0.50)]   # the accompaniment's level over the song
+
+def swell(t): return np.interp(t, [p[0] for p in SWELL], [p[1] for p in SWELL])
+
+def slots():
+    """Chord slots: one per phrase, a phrase longer than 3.2 s is cut in two at the note nearest its middle. -> [(start, end, [(len, midi), ...])]"""
+    out = []
+    for k, (ps, pe, notes) in enumerate(PHRASES):
+        nxt = PHRASES[k + 1][0] if k + 1 < len(PHRASES) else pe + TAIL
+        if pe - ps > 3.2 and len(notes) > 3:
+            mid = (ps + pe) / 2; j = min(range(1, len(notes)), key=lambda i: abs(notes[i][0] - mid))
+            out.append((ps, notes[j][0], [(n[1], n[2]) for n in notes[:j]]))
+            out.append((notes[j][0], nxt, [(n[1], n[2]) for n in notes[j:]]))
+        else:
+            out.append((ps, nxt, [(n[1], n[2]) for n in notes]))
+    return out
+
+CH = [(r, q) for r in range(12) for q in (0, 1)]       # (root pitch class, 0 major / 1 minor)
+def tones(c): r, q = c; return [r, (r + (3 if q else 4)) % 12, (r + 7) % 12]
+def fit(c, notes):
+    t = tones(c); s = 0.0
+    for i, (ln, m) in enumerate(notes):
+        w = ln * (1.5 if i == 0 else 1.0); pc = m % 12
+        s += w * ((2.0 if pc == t[0] else 1.6 if pc == t[1] else 1.3 if pc == t[2] else -1.0))
+    return s
+def link(a, b):
+    ta, tb = set(tones(a)), set(tones(b)); s = 0.4 * len(ta & tb) - (0.35 if a == b else 0.0)
+    d = (b[0] - a[0]) % 12; s += 0.5 if d in (5, 7) else 0.1 if d in (2, 3, 4, 8, 9, 10) else 0.0
+    return s
+def key_bonus(c):   # the tune sits around G minor / Bb: favour its own chords a little
+    return 0.6 if c in [(7, 1), (0, 1), (2, 0), (2, 1), (3, 0), (5, 0), (10, 0), (7, 0)] else 0.0
+def harmonise(sl):
+    n = len(sl); best = [{c: fit(c, sl[0][2]) + key_bonus(c) for c in CH}]; back = []
+    for k in range(1, n):
+        cur = {}; bk = {}
+        for c in CH:
+            p = max(CH, key=lambda a: best[-1][a] + link(a, c)); cur[c] = best[-1][p] + link(p, c) + fit(c, sl[k][2]) + key_bonus(c) + (3.0 if k == n - 1 and c == (7, 0) else 0.0); bk[c] = p
+        best.append(cur); back.append(bk)
+    c = max(CH, key=lambda a: best[-1][a]); path = [c]
+    for bk in reversed(back): c = bk[c]; path.append(c)
+    return path[::-1]
+
+def add(out, i0, seg):
+    if i0 >= len(out): return
+    seg = seg[:len(out) - i0]; out[i0:i0 + len(seg)] += seg
+def pulse(ph, duty): return np.where((ph % 1.0) < duty, 1.0, -1.0)
+
 def render():
-    end = PHRASES[-1][1] + 1.0
-    out = np.zeros(int(SR * (end + 0.5)))
+    sl = slots(); ch = harmonise(sl)
+    end = PHRASES[-1][1] + TAIL + 0.7
+    out = np.zeros(int(SR * end)); acc = np.zeros_like(out)
+    # ---- the lead (melody), with a double, a slide into each note and a three-tap echo
     for ps, pe, notes in PHRASES:
         for ns, nl, m in notes:
             i0 = int(ns * SR); n = int(max(nl, 0.12) * SR); t = np.arange(n) / SR
-            vib = 1 + (0.006 * np.sin(2 * np.pi * 5.5 * t) * np.clip((t - 0.25) * 4, 0, 1) if nl > 0.5 else 0)
-            f = midi_hz(m + 12) * vib; ph = np.cumsum(f) / SR; lead = np.where((ph % 1.0) < 0.25, 1.0, -1.0)
-            env = np.minimum(t / 0.006, 1.0) * np.exp(-t * 1.6) * 0.7 + 0.3 * np.minimum(t / 0.006, 1.0); env *= np.clip((n / SR - t) / 0.05, 0, 1)
-            seg = lead * env * 0.30
-            out[i0:i0 + n] += seg[:len(out) - i0]
-            j0 = i0 + int(0.23 * SR); out[j0:j0 + n] += (seg * 0.22)[:max(0, len(out) - j0)]   # the echo
-            if nl >= 0.4:
-                fb = midi_hz(m - 12); pb = np.cumsum(np.full(n, fb)) / SR; tri = 4 * np.abs((pb % 1.0) - 0.5) - 1
-                out[i0:i0 + n] += (tri * env * 0.35)[:len(out) - i0]
+            vib = 1 + (0.007 * np.sin(2 * np.pi * 5.6 * t) * np.clip((t - 0.22) * 4, 0, 1) if nl > 0.4 else 0)
+            slide = 2 ** ((-0.7 * np.exp(-t / 0.025)) / 12.0)
+            f = midi_hz(m + 12) * vib * slide; ph = np.cumsum(f) / SR
+            duty = 0.25 + 0.03 * np.sin(2 * np.pi * 2.2 * t)
+            lead = pulse(ph, duty)
+            ph2 = np.cumsum(f * 1.004) / SR; dbl = pulse(ph2, 0.125)
+            env = np.minimum(t / 0.006, 1.0) * (np.exp(-t * 1.5) * 0.65 + 0.35); env *= np.clip((n / SR - t) / 0.07, 0, 1)
+            seg = (lead * 0.26 + dbl * 0.08) * env
+            add(out, i0, seg)
+            for d, g in ((0.23, 0.22), (0.46, 0.10), (0.69, 0.045)): add(out, i0 + int(d * SR), seg * g)
+    # ---- the accompaniment, slot by slot
+    for (s0, s1, notes), c in zip(sl, ch):
+        r, q = c; third = 3 if q else 4; L = s1 - s0
+        a = lambda p, lo: lo + ((p - lo) % 12)              # the pitch p (any octave) moved up into the octave starting at lo
+        bass_r = a(r, 43); bass_5 = a(r + 7, 43)
+        i0 = int(s0 * SR); n = int(L * SR); t = np.arange(n) / SR
+        last = (s1 - s0) > 0 and sl[-1][0] == s0
+        g = swell(s0 + t)
+        tail_fade = np.clip((L - t) / 2.0, 0, 1) if last else 1.0
+        # pad: three held tones, soft 50 % pulses, a slow tremolo, a short crossfade at each end
+        padenv = np.minimum(t / 0.12, 1.0) * np.clip((L - t) / (0.20 if not last else 2.0), 0, 1) * (0.8 + 0.2 * np.sin(2 * np.pi * 0.7 * t))
+        pad = 0.0
+        for p in (a(r, 50), a(r + third, 50), a(r + 7, 50)):
+            pad = pad + pulse(np.cumsum(np.full(n, midi_hz(p))) / SR, 0.5) * 0.034
+        add(acc, i0, pad * padenv * g * tail_fade)
+        # bass: root on the slot start, the fifth halfway on a long slot, a short octave pickup at the end of a very long one
+        def tri(p, ln, vel):
+            m = int(ln * SR); tt = np.arange(m) / SR; ph = np.cumsum(np.full(m, midi_hz(p))) / SR
+            e = np.minimum(tt / 0.012, 1.0) * np.exp(-tt * 0.9) * np.clip((ln - tt) / 0.08, 0, 1)
+            return (4 * np.abs((ph % 1.0) - 0.5) - 1) * e * vel
+        bl = min(L * (0.55 if L > 2.0 else 0.95), 2.6) if not last else 4.0
+        add(acc, i0, tri(bass_r, bl, 0.30) * swell(s0))
+        if L > 2.0 and not last: add(acc, i0 + int(L * 0.55 * SR), tri(bass_5, min(L * 0.4, 1.6), 0.26) * swell(s0 + L * 0.55))
+        if L > 3.4 and not last: add(acc, i0 + int((L - 0.5) * SR), tri(bass_r + 12, 0.45, 0.18) * swell(s1))
+        # arpeggio: a quiet 12.5 % pulse pluck every 0.25 s, up and down the triad, the last chord only twice
+        pat = [0, 1, 2, 3, 2, 1]; step = 0.25
+        for k in range(int(L / step) if not last else 8):
+            tt0 = k * step; p = [a(r, 60), a(r + third, 60), a(r + 7, 60), a(r, 60) + 12][pat[k % 6]]
+            m = int(0.28 * SR); tt = np.arange(m) / SR; ph = np.cumsum(np.full(m, midi_hz(p))) / SR
+            e = np.minimum(tt / 0.004, 1.0) * np.exp(-tt * 11.0)
+            add(acc, i0 + int(tt0 * SR), pulse(ph, 0.125) * e * 0.065 * swell(s0 + tt0) * (1.0 if not last else 0.7))
+    out += acc
     out /= max(1e-9, np.abs(out).max()) / 0.9
     return out
 def write(path):
@@ -117,3 +202,6 @@ def write(path):
 if __name__ == '__main__':
     p = sys.argv[1] if len(sys.argv) > 1 else '/tmp/here_today.wav'
     print('wrote', p, round(write(p), 1), 's')
+    if '--chords' in sys.argv:
+        names = 'C C# D D# E F F# G G# A A# B'.split()
+        for (s0, s1, _), (r, q) in zip(slots(), harmonise(slots())): print('%6.2f-%6.2f  %s%s' % (s0, s1, names[r], 'm' if q else ''))
