@@ -1389,7 +1389,7 @@ static int edX0=0, edY0=0, edX1=9999, edY1=9999;   // where the room builder's c
 static int nbPlaying;   // the game was started from the neighborhood: its pause menu goes back there
 static u8 prEd, prGo;   // prison.h: prEd = test play from the editor (no sentences there); prGo = the live lot must change (1 to the prison, 2 home) at the end of this step
 static int prShown(void); static int prIn(void); static void prApply(int ed); static void prSelect(void); static int prLifeSwitch(int code); static void prisonScreen(void); static void prClear(void);   // prison.h
-static int htTable(void); static void htUse(int k); static void htKnocked(void); static int htInjured(void);   // hardtime.h
+static int htTable(void); static void htUse(int k); static void htKnocked(void); static int htInjured(void); static int htBlockUse(void); static const char* htBlockHint(void); static void htRestHere(void);   // hardtime.h
 static int nbResetLot(void);
 static int nbFlagOk(void); static int nbFlagsOn(void);   // neighborhood.h: flags are a town-build tool, they only work on community lots
 static int nbBarred(void);   // neighborhood.h: 1 while the live lot is a COMMUNITY lot you are only visiting: building is locked there, you build it from the town view
@@ -2808,7 +2808,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
         lnear=nf?1:(nt?2:(nb?3:(nh?4:(np?6:(nq?7:(nph?8:(nrd?9:(nsy?10:(ntv?11:(nbk?12:(ncf?13:(naq?14:(ntm?15:(nfe?16:(nc?5:0)))))))))))))));   // 7 the DeadSet   // 1 fridge, 2 toilet, 3 bed, 4 shower, 6 water pipe, 5 sofa or beanbag
         if((pr&K_R)&&lstun<=0&&lz<=fh&&!simAct&&hhSocR(lnear==16?0:lnear)) pr&=~K_R;   // next to a household Sim: the social menu (it offers the furniture too)
         if((pr&K_R)&&!lnear&&lstun<=0&&lz<=fh&&!simAct&&hhCallFloors()) pr&=~K_R;   // floors step 9: R next to the stairs calls the Sims on the other floors to you
-        if((pr&K_R)&&!lnear&&lstun<=0&&lz<=fh&&!simAct&&htTable()) pr&=~K_R;   // hardtime.h: R at a canteen table of the prison
+        if((pr&K_R)&&!lnear&&lstun<=0&&lz<=fh&&!simAct&&(htTable()||htBlockUse())) pr&=~K_R;   // hardtime.h: R at a canteen table of the prison
         if((pr&K_R)&&lnear&&lstun<=0&&lz<=fh){
             if(lnear==1){   // fridge: eat
                 if(lfood>=95){ lnote="FULL"; lnoteT=40; }

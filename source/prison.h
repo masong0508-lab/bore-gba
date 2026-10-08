@@ -75,11 +75,26 @@ static int prLotGet(void){   // the prison's lot, made if there is none (-1: no 
             L->kind=LKIND_COMM; L->type=CT_PRISON; const char*nm="PRISON"; int k=0; for(;nm[k]&&k<NB_NAME;k++) L->name[k]=nm[k]; L->name[k]=0; nbSave(); return i; } }
     return -1;
 }
+static void prBlocks(int x0,int y0,int x1,int y1){   // the HOSPITAL (two beds), the WORKSHOP (benches and crates) and the YARD (grass, benches, weights) along the middle of a compound 24 wide. hardtime.h htBlock knows where they are
+    if(x1-x0<23||y1-y0<23) return;
+    int wp=NWP+57;
+    gRoom(x0+1,y0+12,x0+7,y0+17,2,wp); gPut(x0+4,y0+17,'D'); gPut(x0+2,y0+13,'S'); gPut(x0+4,y0+13,'S'); gPut(x0+6,y0+14,'Z');
+    gRoom(x0+9,y0+12,x0+16,y0+17,3,wp); gPut(x0+12,y0+17,'D'); gPut(x0+11,y0+14,'N'); gPut(x0+14,y0+14,'N'); gPut(x0+10,y0+13,'#'); gPut(x0+15,y0+13,'#'); gPut(x0+10,y0+16,'#');
+    gBox(x0+18,y0+12,x0+22,y0+17,11); gPut(x0+19,y0+13,'N'); gPut(x0+21,y0+13,'N'); gPut(x0+19,y0+16,'#'); gPut(x0+20,y0+16,'#'); gPut(x0+22,y0+16,'O');
+}
+static void prBlocksEnsure(void){   // prApply: a prison built before the blocks gets them too, but only onto empty floor
+    if(!prHere()) return;
+    int x0,y0,x1,y1; nbRect(&nbT.lot[nbT.cur],&x0,&y0,&x1,&y1); if(x1-x0<23||y1-y0<23) return;
+    if(lifeMap[y0+12][x0+1]=='W'&&lifeMap[y0+17][x0+4]=='D') return;   // (they are there)
+    for(int y=y0+12;y<=y0+17;y++) for(int x=x0+1;x<=x0+22;x++) if(lifeMap[y][x]!='.') return;   // something stands there: leave it alone
+    prBlocks(x0,y0,x1,y1); wDirty=1; liveInvalidate();
+}
 static void prisonBuild(int x0,int y0,int x1,int y1){   // nbTemplate: the compound fills the lot's rectangle; you arrive at the front desk (the bottom middle)
     int wp=NWP+57, cx=(x0+x1)/2, hy=y0+6;
     gBox(x0,y0,x1,y1,12);
     gLine(x0,y0,x1,y0,'W',wp); gLine(x0,y1,x1,y1,'W',wp); gLine(x0,y0,x0,y1,'W',wp); gLine(x1,y0,x1,y1,'W',wp);   // the fence: sealed, there is no way out
     for(int c=x0;c+4<=x1;c+=4){ gRoom(c,y0,c+4,y0+5,3,wp); gPut(c+2,y0+5,'D'); gPut(c+1,y0+2,'S'); gPut(c+3,y0+2,'T'); }   // the cell block: a bunk and a toilet in each
+    prBlocks(x0,y0,x1,y1);                                                                    // the hospital, the workshop and the yard
     gFree(x0+1,hy+1,'H'); gFree(x0+1,hy+3,'H');                                               // showers
     gFree(x0+4,hy+2,'C'); gFree(x0+6,hy+2,'C'); gFree(x0+5,hy+1,'v');                          // the day room: sofas and a TV
     gFree(x0+9,hy+1,'b'); gFree(x0+10,hy+1,'b');                                              // the library
@@ -229,7 +244,7 @@ static int prTransfer(int code){   // main.c lifeMode: 1 = to the prison, 2 = ho
 }
 static void prCard(void);
 static void prApply(int ed){   // main.c lifeModeRun, right after lifeInit: the sentence decides where you are and who is OUT
-    prLoad(); htLoad(); prGo=0;
+    prLoad(); htLoad(); prGo=0; if(!ed) prBlocksEnsure();   // (an older prison gets its blocks here)
     if(!prDays||ed) return;
     if(!nbOk){ prDays=prTot=0; prW1=0; prSave(); return; }   // no town, no prison
     if(hhPUid==prW1-1&&!prHere()){ prGo=1; return; }          // the prisoner starts in the prison (a restart, or the Sim just changed)

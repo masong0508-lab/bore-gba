@@ -784,6 +784,7 @@ static void simEnd(void){
         moodEvent(M_SLEEP); simEvent(SE_SLEEP);
         if(simActN>=SIM_GOOD_SLEEP){   // a real night's sleep: a fresh set of wants and fears, like waking up in The Sims
             if(sNrg>=90&&simNights<255) simNights++;
+            htRestHere();   // (a good sleep in the prison's hospital heals: hardtime.h)
             simReroll(); simQueue("NEW WANTS AND FEARS"); voxPlay(V_reading_or_thinking);
         }
     }
