@@ -1517,6 +1517,7 @@ static void voxPlay(int v); static void voxNag(int v); static void voxChain(int 
 #include "mood.h"   // FUN + HAPPY meters: moodEvent(), moodTick(), moodTop(), moodPts()
 #include "lifestats.h"   // LIFETIME STATS: lifetime score, hours played ... (needs the M_ events of mood.h)
 #include "sims.h"   // life-sim layer: energy/hygiene/comfort, wants and fears, aspiration. simsTick(), simBegin(), simsHud()
+#include "memlog.h"   // MEMORIES: the diary of big moments, filled by simEventV (sims.h); the screen is in mysim.h
 
 // ---------- sound effects: 4-bit IMA-ADPCM @ 6554 Hz, mixed as one more voice by the music mixer (see the AUDIO notes further down) ----------
 // source/sfx/*.adp (made by tools/encode_sfx.py) are baked into the ROM with .incbin; paths are relative to the project root.

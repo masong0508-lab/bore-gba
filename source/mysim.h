@@ -144,7 +144,37 @@ static void msPeople(int top){
         if(relF[a][b]&RF_STEADY) simIcon(224,y+2,IC_HEART,RGB(31,14,20)); }
     text(10,147,hhN>6?"TOP DAILY  LOW LIFETIME  UP DOWN MORE":dbgOn?"TOP DAILY  LOW LIFETIME  SELECT ADD":"TOP BAR DAILY  LOW BAR LIFETIME",RGB(12,14,16),1);
 }
-#define MY_MORE 5
+// ---- MORE > MEMORIES: the lifetime score and rank, then the big moments of this Sim, newest first (memlog.h) ----
+static void memScreen(void){
+    lsEnsure(); static char b[32] EWRAM_BSS; u16 prev=keyNow(); u32 cnt=0; int top=0, dirty=1; u32 lt=~0u;
+    for(;;){
+        u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
+        int u=hhPUid>=0&&hhPUid<LS_CH?hhPUid:0, n=memCnt[u], vis=7;
+        if(pr&(K_B|K_START|K_A)) return;
+        if((pr&K_DOWN)&&top+vis<n){ top++; dirty=1; } if((pr&K_UP)&&top>0){ top--; dirty=1; }
+        if(!dirty&&(cnt>>3)==lt){ vsync(); continue; }
+        dirty=0; lt=cnt>>3;
+        { char*e=simCat(b,"MEMORIES  "); simCat(e,hhPName); stBack(b,(int)cnt); }
+        msPanel(15,141);
+        { u32 nx,lo; const char*rk=lsRank(lsc[LS_SCORE],&nx,&lo); int w=nx?(int)((u32)(lsc[LS_SCORE]-lo)*120/(nx-lo)):120;
+          text(14,20,"LIFETIME SCORE",GOLD,1); numText(228-tw("0000000",1),20,lsI(lsc[LS_SCORE]),WHITE);
+          text(14,30,"RANK",DIMC,1); text(40,30,rk,GOLD,1); rect(100,30,122,6,RGB(10,20,30)); rect(101,31,120,4,RGB(3,5,9)); if(w>0) rect(101,31,w>120?120:w,4,nx?RGB(6,18,10):GOLD);
+          { static const char* const nm[3]={"DAYS","WANTS","PROMOS"}; static const u8 ix[3]={LS_DAYS,LS_WANTS,LS_PROMOS};
+            for(int i=0;i<3;i++){ int x=14+i*74; text(x,41,nm[i],DIMC,1); numText(x+tw(nm[i],1)+4,41,lsI(lsc[ix[i]]),WHITE); } } }
+        rect(12,51,216,1,RGB(14,26,31));
+        if(!n){ text(14,60,"NOTHING TO REMEMBER YET",WHITE,1); text(14,72,"FRIENDS, LOVE, PROMOTIONS AND BIG",RGB(17,24,29),1); text(14,82,"DAYS ARE WRITTEN DOWN HERE",RGB(17,24,29),1); }
+        for(int r=0;r<vis&&top+r<n;r++){
+            const MemE*m=&memLog[u][(memHead[u]+MEM_N-1-(top+r))%MEM_N]; int y=55+r*11; char*e;
+            e=simCat(b,"DAY "); simCatN(e,m->day+1); text(14,y,b,DIMC,1);
+            text(54,y,memKinds[m->k].nm,r+top==0?WHITE:RGB(22,28,22),1);
+            if(memKinds[m->k].ev==SE_SHOWOFF){ e=b; *e++='+'; numStr(e,m->val); text(228-tw(b,1),y,b,GOLD,1); } }
+        rect(12,134,216,1,RGB(14,26,31));
+        text(14,139,n>vis?"UP DOWN  SCROLL   B  BACK":"B  BACK",RGB(12,14,16),1);
+        if(n){ char*e=simCatN(b,n); e=simCat(e," MOMENTS"); text(228-tw(b,1),139,b,DIMC,1); }
+        present();
+    }
+}
+#define MY_MORE 6
 static void mySimScreen(void){
     static const char* const tn[7]={"SIM","WANTS","JOB","SKILLS","PEOPLE","STUFF","MORE"};
     static u8 keep EWRAM_BSS;   // the tab you were on last time
@@ -169,7 +199,7 @@ static void mySimScreen(void){
                 else toast(simBuy(sel));
                 prev=keyNow(); dirty=1; } }
         if(tab==6){ if(pr&K_DOWN){ ms=(ms+1)%MY_MORE; dirty=1; } if(pr&K_UP){ ms=(ms+MY_MORE-1)%MY_MORE; dirty=1; }
-            if(pr&K_A){ if(ms==0) tricksScreen(); else if(ms==1) goalsScreen(); else if(ms==2) trnPick(); else if(ms==3) statsScreen(); else achScreen();
+            if(pr&K_A){ if(ms==0) tricksScreen(); else if(ms==1) goalsScreen(); else if(ms==2) trnPick(); else if(ms==3) memScreen(); else if(ms==4) statsScreen(); else achScreen();
                 prev=keyNow(); dirty=1; } }
         if(!dirty&&(cnt>>3)==lt){ vsync(); continue; }   // idle: the picture on the screen is still right
         dirty=0; lt=cnt>>3;
@@ -182,10 +212,10 @@ static void mySimScreen(void){
         else if(tab==3){ msPanel(35,121); msSkills(sel); }
         else if(tab==4){ msPanel(35,121); msPeople(top); }
         else if(tab==5) msStuff(sel);
-        else { static const char* const ds[MY_MORE]={"THE SKATE CONTROLS ON ONE PAGE","THE GOALS OF THIS LOT AND THE TOWN","A 2 MINUTE TRICK SCORE ATTACK","HOURS PLAYED, LIFETIME SCORE AND MORE","BADGES TO UNLOCK FROM YOUR STATS"};
+        else { static const char* const ds[MY_MORE]={"THE SKATE CONTROLS ON ONE PAGE","THE GOALS OF THIS LOT AND THE TOWN","A 2 MINUTE TRICK SCORE ATTACK","THE BIG MOMENTS OF YOUR LIFE","HOURS PLAYED, LIFETIME SCORE AND MORE","BADGES TO UNLOCK FROM YOUR STATS"};
             msPanel(35,121); text(10,40,"MORE ABOUT YOU",GOLD,1);
-            for(int i=0;i<MY_MORE;i++){ const char*nm=i==0?"VIEW TRICKS":i==1?"VIEW GOALS":i==2?trnLabel():i==3?"LIFETIME STATS":"ACHIEVEMENTS"; int y=52+i*15, on=i==ms;
-                s2rr(10,y,220,13,on?GOLD:RGB(10,20,30)); s2rr(11,y+1,218,11,on?RGB(6,18,10):RGB(4,9,18)); text(16,y+3,nm,on?WHITE:RGB(20,26,30),1); }
+            for(int i=0;i<MY_MORE;i++){ const char*nm=i==0?"VIEW TRICKS":i==1?"VIEW GOALS":i==2?trnLabel():i==3?"MEMORIES":i==4?"LIFETIME STATS":"ACHIEVEMENTS"; int y=50+i*13, on=i==ms;
+                s2rr(10,y,220,12,on?GOLD:RGB(10,20,30)); s2rr(11,y+1,218,10,on?RGB(6,18,10):RGB(4,9,18)); text(16,y+2,nm,on?WHITE:RGB(20,26,30),1); }
             rect(8,131,224,1,RGB(14,26,31)); text(10,136,ds[ms],RGB(17,29,31),1); text(10,147,"A OPEN",RGB(12,14,16),1); }
         present();
     }

@@ -612,9 +612,10 @@ static void simDread(int s){   // the fear in slot s came true
     simCatN(simCat(simMsg2,"FEAR CAME TRUE -"),w->pts); simQueue(simMsg2);
 }
 // something happened (v = how much of it: tricks in a combo, a combo's points, cash, skill points): pay a want, or let a fear come true
+static void memNote(int ev,int v);   // memlog.h: the diary of big moments (MY SIM > MORE > MEMORIES)
 static void stTvEvent(int ev);   // story.h: TV SHOW & TELL watches for a puff or a collapse
 static void simEventV(int ev,int v){
-    stTvEvent(ev);
+    stTvEvent(ev); memNote(ev,v);
     voxEvent(ev,v);   // the voice of the Sim you control (main.c)
     if(!simWishes()) return;
     for(int s=0;s<SIM_WS;s++) if(simW[s]>=0&&simWants[simW[s]].ev==ev&&(ev==SE_CASH?simMoney>=simCashGoal(simWP[s]):v>=simWP[s])) simMeet(s);
