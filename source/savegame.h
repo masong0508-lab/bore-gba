@@ -124,7 +124,7 @@ static int sgLoadPlayer(int slot){   // 0 = the player is in play now, else a SL
     if(slSumOf(b,I.len)!=I.sum) return SLE_BAD;
     int e=sgParse(b,I.len,0); if(e) return e;
     skReset(); lsReset(); sgParse(b,I.len,1);   // (a file from before the skills has no 'K' chunk: they start at zero)
-    svCommit(); hhLoad(); stLoad(); ageLoad();
+    svCommit(); hhLoad(); stLoad(); ageLoad(); if(stId==STY_TVSHOW&&stCh==0&&stKidDay==255) stShown=0;   /* cutfix: the opening was not saved: it plays again */
     twKeep=0; sprKey=0; for(int m=0;m<HH_MAX;m++) hhKey[m]=0; hhSlotsFree(); moodReset(); lscore=0; simLastScore=0;
     sgPid=I.pid; sgDirty=0;
     sgEnterTown();

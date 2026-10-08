@@ -446,7 +446,7 @@ static void stPlugLose(void){
 static void stRunModal0(void){
     int kind=stModal; stModal=0; if(!stId) return;
     if(kind==3){ stPlugLose(); return; }   // (chapter 4 lost)
-    if(stId==STY_TVSHOW&&kind==1&&stCh==0&&stKidDay==255){ csPlay(7); stKidDay=stqDay(); stGuest=0; stSave(); }   // a brand new TV SHOW & TELL: the night it all started plays once, before chapter 1 (the chapter clock starts here, which is also what stops it playing again)
+    if(stId==STY_TVSHOW&&kind==1&&stCh==0&&stKidDay==255){ csPlay(7); stKidDay=stqDay(); stGuest=0; stSave(); sgDirty=1; }   /* cutfix: unsaved until the game is saved */   // a brand new TV SHOW & TELL: the night it all started plays once, before chapter 1 (the chapter clock starts here, which is also what stops it playing again)
     if(stId==STY_TVSHOW&&kind==2&&stCh>=1&&stCh<=5) { csPlay(stCh==5?5:stCh-1); if(stCh==4) csPlay(4); }   // the scene that closes the chapter just finished (cutscene.h; chapter 5 closes with scene 5, its opening news is scene 4)
     u16 prev=keyNow(); u32 cnt=0; const StCh*c=&stChs[stId][stCh];
     int end=c->goal==SG_END;
