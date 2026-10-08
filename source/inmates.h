@@ -63,7 +63,7 @@ static const u16* inmPalOf(int j){   // hhObjUpdate: the palette of inmate j (hh
 }
 static int inmSetOf(int id){ if(id<HH_MAX) return id; return inmSets?inmSetPl[(id-HH_MAX)%inmSets]:0; }   // the place whose baked sprites this sprite id shows
 static int inmOn(int j){ return j>=0&&j<inmN&&inmPl[j]&&!curFl&&prHere(); }   // inmate j is on the lot
-static int inmWalk(int j){ const HhSim*s=&inmS[j]; return (s->act==HA_WALK&&s->pi<s->pn)?((lfr+j*5)>>3)&1:0; }   // the walking frame, out of step with each other
+static int inmWalk(int j){ const HhSim*s=&inmS[j]; return (s->act==HA_WALK&&s->pi<s->pn)?((lfr+(j%(inmSets?inmSets:1))*5)>>3)&1:0; }   // the walking frame: out of step between bodies, in step within one (so they can share a tile block)
 static void inmPick(void){   // hhBakeAll, before the visitors: who is in the prison (nobody anywhere else)
     if(!prHere()){ if(inmWas){ inmWas=0; inmN=0; inmSets=0; for(int v=0;v<HH_MAX;v++) hhKey[v]=0; for(int j=0;j<INM_MAX;j++) inmPl[j]=0; twKeep=0; } return; }   // (leaving: the places get their own sprites back)
     twKeep=1; for(int k=0;k<TW_N;k++){ twHas[k]=0; twOn[k]=0; }   // no neighbours drop by a prison

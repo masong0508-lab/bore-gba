@@ -164,9 +164,24 @@ static const signed char hhDx[4]={1,0,-1,0}, hhDy[4]={0,1,0,-1};
 static int inmSetOf(int id); static const u16* inmPalOf(int j); static int inmOn(int j); static int inmWalk(int j); static int inmNear(void); static void inmCalc(void);
 static HhSim inmS[INM_MAX] EWRAM_BSS; static short inX[INM_MAX] EWRAM_BSS, inY[INM_MAX] EWRAM_BSS, inH[INM_MAX] EWRAM_BSS, inB[INM_MAX] EWRAM_BSS; static u8 inV[INM_MAX] EWRAM_BSS, inmSets EWRAM_BSS, inmSetPl[HH_MAX] EWRAM_BSS;
 #define UP_BUDGET 5                             // fresh sprite uploads per vblank (a full one is ~700 halfword writes); the rest wait a frame
-static signed char hhSlotOf[HH_IDS], hhSlotId[OBJ_SLOTS], hhSlotKey[OBJ_SLOTS];   // id -> slot, slot -> id, view*2+frame in the slot (-1: tiles not loaded)
+// CROWD (the prison): a sprite needs three separate things, and hhObjUpdate0 hands them out one by one, nearest Sim first:
+//   an OAM entry   0..HH_OAM-1 (32 of them; fx.h starts after them)
+//   a TILE BLOCK   1 KB of OBJ VRAM holding one body's view and walking frame (a "key": body*8 + view*2 + frame). Sims of the same body that face the same way and stride the same way
+//                  SHARE one block. 8 blocks (OBJ VRAM slots 0..7); in the prison 6 more (slots 10..15; slot 8 is fx.h's, 9 is npc.h's)
+//   a PALETTE BANK 16 colours: body 0..6 = its baked palette, 32+j = inmate j with its own skin and hair. Sims with the same palette share a bank. 8 banks (0..7); in the prison the
+//                  banks that ghosts (8..10) and cops / skaters (12..15) are not using this very frame are lent out too (hhBanksBusy, npc.h), and handed back (hhExtraDone) when they are needed
+// The tile block and the palette bank are chosen on their own: that is what lets one block (and so VRAM) serve several differently coloured inmates. A Sim that finds no block or bank waits a frame.
+#define HH_OAM 32                               // OAM entries 0..31: the Sims (depth order: the nearest the camera gets the lowest)
+_Static_assert(HH_IDS<=HH_OAM,"every sprite id must have an OAM entry");
+#define HH_TB 14                                // tile blocks: 0..7 = OBJ VRAM slots 0..7, 8..13 = slots 10..15 (prison only)
+static const u8 hhTvSlot[HH_TB]={0,1,2,3,4,5,6,7,10,11,12,13,14,15};
+static signed char hhTcur[HH_TB] EWRAM_BSS;     // what block b holds: body*8+view*2+frame (-1: nothing loaded)
+static signed char hhPkey[16] EWRAM_BSS;        // what OBJ palette bank b holds: body 0..6, 32+j an inmate (-1: nothing of ours)
+static signed char hhIdBlk[HH_IDS] EWRAM_BSS;   // the block this sprite id drew from last frame (-1: none)
+static u16 hhBorrow EWRAM_BSS;                  // palette banks we have overwritten that belong to fx.h / npc.h
 static u8 hhSlotOk;
-static void hhSlotsFree(void){ for(int i=0;i<HH_IDS;i++) hhSlotOf[i]=-1; for(int s=0;s<OBJ_SLOTS;s++){ hhSlotId[s]=-1; hhSlotKey[s]=-1; } hhSlotOk=1; }   // after anything that changes the baked sprites or who is who
+static int hhBanksBusy(void); static void hhExtraDone(void);   // npc.h
+static void hhSlotsFree(void){ for(int i=0;i<HH_IDS;i++) hhIdBlk[i]=-1; for(int b=0;b<HH_TB;b++) hhTcur[b]=-1; for(int b=0;b<16;b++) hhPkey[b]=-1; hhSlotOk=1; }   // after anything that changes the baked sprites or who is who
 static inline int hhPop(u32 x){ int n=0; while(x){ x&=x-1; n++; } return n; }
 static void hhSprFree(int m){   // give a member's block back: everything above it slides down, so the pool stays packed
     HhSpr*s=&hhSp[m]; int off=s->off, len=s->len;
@@ -1124,18 +1139,17 @@ static int hhPlayerFront(int x,int y){   // is the player (drawn into the pictur
     s32 rx,ry; rotPos(lfx,lfy,&rx,&ry); int px=LOX+(int)((rx-ry)>>5), py=LOY+(int)((rx+ry)>>6), dx=px-(x+16);
     return py>y+SPF&&dx>-22&&dx<22&&py<y+SPF+44;
 }
-typedef struct { const HhSim*s; short x,y; int dd,dep; u8 id,key; } HhOv;   // a Sim in view: where its sprite goes, how far from the middle, how far back
-static void fxObjUpdate(void); static void hhObjUpdate0(void){   // in vblank: hand out OBJ slots, load what changed into OBJ VRAM, write OAM (a Sim is two entries: 32x32 over 32x16), set the window that clips them
+typedef struct { const HhSim*s; short x,y; int dd,dep; u8 id,key,pk; signed char tb,pb; } HhOv;   // a Sim in view: where its sprite goes, how far from the middle, how far back; key = body*8+view*2+frame, pk = its palette; tb, pb = the tile block and palette bank it got (-1: none yet)
+static void fxObjUpdate(void); static void hhObjUpdate0(void){   // in vblank: hand out OAM entries, tile blocks and palette banks, load what changed into OBJ VRAM, write OAM (a Sim is one 32x64 sprite), set the window that clips them
     volatile u16*oam=OAM; int i, nOam=0;
     *(volatile u16*)0x04000040=240; *(volatile u16*)0x04000044=(u16)((sbY0<<8)|sbY1);   // WIN0: the room view (the room rows of the screen)
     *(volatile u16*)0x04000048=0x34; *(volatile u16*)0x0400004A=0x04;                   // inside: BG2 + sprites + blend; outside: BG2 only
     *(volatile u16*)0x04000050=0x0400; *(volatile u16*)0x04000052=(6<<8)|10;            // see-through sprites blend 10/16 over the picture
     if(!hhSlotOk) hhSlotsFree();
-    if(lcamF>0){ for(i=0;i<2*OBJ_SLOTS;i++) oam[i*4]=0x200; return; }   // the action cam: all off, the slots stay as they are
-    if(xo[XO_MULTIFL]?pkHome>=0:curFl){ for(i=0;i<2*OBJ_SLOTS;i++) oam[i*4]=0x200; hhSlotsFree(); return; }   // upstairs: no Sim sprites
+    if(lcamF>0){ for(i=0;i<HH_OAM;i++) oam[i*4]=0x200; return; }   // the action cam: all off, the blocks and banks stay as they are
+    if(xo[XO_MULTIFL]?pkHome>=0:curFl){ for(i=0;i<HH_OAM;i++) oam[i*4]=0x200; hhSlotsFree(); return; }   // upstairs: no Sim sprites
     // 1. who is in view
-    HhOv w[HH_IDS]; int n=0, cx=SW/2, cy=(vpY0+vpY1)/2; u8 vis[HH_IDS]; int ddOf[HH_IDS];
-    for(i=0;i<HH_IDS;i++) vis[i]=0;
+    HhOv w[HH_IDS]; int n=0, cx=SW/2, cy=(vpY0+vpY1)/2;
     for(int id=0;id<HH_IDS;id++){
         const HhSim*s; int x,y,v,f,dep;
         if(id>=HH_MAX){ int j=id-HH_MAX; if(!inmOn(j)) continue; s=&inmS[j]; x=inX[j]-16; y=inY[j]-SPF-inH[j]; v=inV[j]; dep=inB[j]; f=inmWalk(j); }   // an inmate
@@ -1149,41 +1163,51 @@ static void fxObjUpdate(void); static void hhObjUpdate0(void){   // in vblank: h
             f=walk?((lfr+id*5)>>3)&1:0;   // walking: standing / mid-stride, every 8 frames (each Sim a little out of step)
         }
         if(x+32<=vpX0||x>=vpX1||y+SPH<=vpY0||y>=vpY1) continue;
-        HhOv*o=&w[n++]; o->s=s; o->x=(short)x; o->y=(short)y; o->id=(u8)id; o->key=(u8)(v*2+f); o->dep=dep;
-        int dx=x+16-cx, dy=y+40-cy; o->dd=(dx<0?-dx:dx)+(dy<0?-dy:dy); ddOf[id]=o->dd; vis[id]=1;
+        HhOv*o=&w[n++]; o->s=s; o->x=(short)x; o->y=(short)y; o->id=(u8)id; o->key=(u8)(inmSetOf(id)*8+v*2+f); o->pk=(u8)(id>=HH_MAX?32+(id-HH_MAX):id); o->dep=dep; o->tb=o->pb=-1;
+        int dx=x+16-cx, dy=y+40-cy; o->dd=(dx<0?-dx:dx)+(dy<0?-dy:dy);
     }
-    // 2. slots: free the ones whose Sim left the view, then give the nearest newcomers a slot (if the view holds more Sims than slots, the farthest wait)
-    for(int sl=0;sl<OBJ_SLOTS;sl++){ int id=hhSlotId[sl]; if(id>=0&&!vis[id]){ hhSlotOf[id]=-1; hhSlotId[sl]=-1; hhSlotKey[sl]=-1; } }
-    for(i=1;i<n;i++){ HhOv t=w[i]; int j=i; while(j>0&&w[j-1].dd>t.dd){ w[j]=w[j-1]; j--; } w[j]=t; }   // nearest first (insertion sort, n <= 16)
-    for(i=0;i<n;i++){ int id=w[i].id; if(hhSlotOf[id]>=0) continue;
-        int sl=-1; for(int t=0;t<OBJ_SLOTS;t++) if(hhSlotId[t]<0){ sl=t; break; }
-        if(sl<0){ int fd=w[i].dd+24; for(int t=0;t<OBJ_SLOTS;t++){ int o=hhSlotId[t]; if(ddOf[o]>fd){ fd=ddOf[o]; sl=t; } }   // steal from the farthest, but only if it is clearly farther (no ping-pong)
-                  if(sl<0) continue;
-                  hhSlotOf[hhSlotId[sl]]=-1; }
-        hhSlotId[sl]=id; hhSlotOf[id]=(signed char)sl; hhSlotKey[sl]=-1;
-        const u16*pl=hhPalOf(id); for(int c=0;c<16;c++) OBJ_PAL[sl*16+c]=pl[c];
-    }
-    // 3. depth order: the Sim nearest the camera gets the lowest OAM entry, so it is drawn over the ones behind it
-    int ord[HH_IDS], no=0;
-    for(i=0;i<n;i++) if(hhSlotOf[w[i].id]>=0) ord[no++]=i;
-    for(i=1;i<no;i++){ int t=ord[i], j=i; while(j>0&&w[ord[j-1]].dep<w[t].dep){ ord[j]=ord[j-1]; j--; } ord[j]=t; }
-    // 4. load what changed (a few fresh sprites per frame at most) and write OAM
+    // 2. nearest first
+    for(i=1;i<n;i++){ HhOv t=w[i]; int j=i; while(j>0&&w[j-1].dd>t.dd){ w[j]=w[j-1]; j--; } w[j]=t; }   // (insertion sort, n <= 31)
+    // 3. which palette banks and tile blocks may be used this frame
+    u16 allow=0x00FF; int nTb=8;
+    if(prHere()){ allow|=(u16)(0xF700&~hhBanksBusy()); nTb=HH_TB; }   // the prison: the banks ghosts and cops are not drawing with are lent too (11 is the weather's)
+    { u16 lost=(u16)(hhBorrow&~allow); if(lost){ for(int b=8;b<16;b++) if((lost>>b)&1) hhPkey[b]=-1; hhBorrow&=(u16)~lost; hhExtraDone(); } }   // a ghost or a cop wants its bank back: its art and colours are loaded again right after this (fx.h, npc.h)
+    // 4. hand out banks and blocks, load what changed (a few fresh sprites per frame at most)
+    u8 tcnt[HH_TB], pcnt[16]; for(i=0;i<HH_TB;i++) tcnt[i]=0; for(i=0;i<16;i++) pcnt[i]=0;
     int budget=UP_BUDGET;
-    for(int r=0;r<no;r++){ const HhOv*o=&w[ord[r]]; int id=o->id, sl=hhSlotOf[id], v=o->key>>1, f=o->key&1, key=o->key;
-        if(hhSlotKey[sl]!=key){
-            int ov=hhSlotKey[sl], full=ov<0||(ov>>1)!=v;
-            if(full&&budget<=0){ if(ov<0) continue; }   // no time left: a new sprite appears next frame, one that only turned keeps its old view for a frame or two
-            else { if(full) budget--;
-                volatile u16*d=OBJ_VRAM+sl*(OBJ_B/2); hhSlotKey[sl]=(signed char)key;
-                hhUpTiles(d,inmSetOf(id),v,f,full?0:STR_T0); } }   // the whole view, or only the tiles the walking frame can change
-        volatile u16*e=oam+nOam*4; int tile=512+sl*32, y=o->y, x=o->x, blend=(hhBehindAt(o->s->fx,o->s->fy)||hhPlayerFront(x,y))?0x400:0;
+    for(i=0;i<n;i++){ HhOv*o=&w[i]; int id=o->id, set=o->key>>3, v=(o->key>>1)&3, f=o->key&1, key=o->key, pk=o->pk, pb=-1, tb=-1, b;
+        for(int a=0;a<2&&pb<0;a++){   // a palette bank: the one that already holds this palette, else a free one (a crowd that is too colourful falls back to the body's own colours)
+            int kk=a?set:pk; if(a&&pk<32) break;
+            for(b=0;b<16;b++) if(((allow>>b)&1)&&hhPkey[b]==kk){ pb=b; break; }
+            if(pb<0) for(b=0;b<16;b++) if(((allow>>b)&1)&&!pcnt[b]){ pb=b; break; }
+            if(pb>=0&&hhPkey[pb]!=kk){ const u16*pl=kk>=32?inmPalOf(kk-32):hhPal[kk]; for(int c=0;c<16;c++) OBJ_PAL[pb*16+c]=pl[c]; hhPkey[pb]=(signed char)kk; if(pb>=8) hhBorrow|=(u16)(1u<<pb); } }
+        if(pb<0) continue;
+        for(b=0;b<nTb;b++) if(hhTcur[b]==key){ tb=b; break; }   // a block that already holds exactly this (shared by every Sim that looks the same way)
+        if(tb<0) for(b=0;b<nTb;b++) if(!tcnt[b]&&hhTcur[b]>=0&&(hhTcur[b]>>1)==(key>>1)){ tb=b; break; }   // the same view in the other stride: only the legs change
+        if(tb<0&&hhIdBlk[id]>=0&&hhIdBlk[id]<nTb&&!tcnt[(int)hhIdBlk[id]]) tb=hhIdBlk[id];   // else the block this Sim had
+        if(tb<0) for(b=0;b<nTb;b++) if(!tcnt[b]&&hhTcur[b]<0){ tb=b; break; }
+        if(tb<0) for(b=0;b<nTb;b++) if(!tcnt[b]){ tb=b; break; }
+        if(tb<0) continue;
+        if(hhTcur[tb]!=key){
+            int ov=hhTcur[tb], full=ov<0||(ov>>1)!=(key>>1);
+            if(full&&budget<=0){ if(ov<0||(ov>>3)!=set) continue; }   // no time left: a new sprite appears next frame, one that only turned keeps its old view for a frame or two
+            else { if(full) budget--; hhTcur[tb]=(signed char)key; hhUpTiles(OBJ_VRAM+hhTvSlot[tb]*(OBJ_B/2),set,v,f,full?0:STR_T0); } }   // the whole view, or only the tiles the walking frame can change
+        tcnt[tb]++; pcnt[pb]++; hhIdBlk[id]=(signed char)tb; o->tb=(signed char)tb; o->pb=(signed char)pb;
+    }
+    // 5. depth order: the Sim nearest the camera gets the lowest OAM entry, so it is drawn over the ones behind it
+    int ord[HH_IDS], no=0;
+    for(i=0;i<n;i++) if(w[i].tb>=0) ord[no++]=i;
+    for(i=1;i<no;i++){ int t=ord[i], j=i; while(j>0&&w[ord[j-1]].dep<w[t].dep){ ord[j]=ord[j-1]; j--; } ord[j]=t; }
+    // 6. OAM
+    for(int r=0;r<no;r++){ const HhOv*o=&w[ord[r]];
+        volatile u16*e=oam+nOam*4; int tile=512+hhTvSlot[(int)o->tb]*32, pal=o->pb, y=o->y, x=o->x, blend=(hhBehindAt(o->s->fx,o->s->fy)||hhPlayerFront(x,y))?0x400:0;
         if(zoomDma){   // ZOOM: scaled up by the hardware (affine, double size: a 64 x 128 box, matrix 0) and placed where its room pixels are on screen
             int X=(x+16-vpX0)*zoomNum/zoomDen-32, Y=sbY0+(y+32-vpY0)*zoomNum/zoomDen-64;
-            e[0]=(u16)((Y&255)|blend|0x8000|0x300); e[1]=(u16)((X&511)|0xC000); e[2]=(u16)(tile|(sl<<12));
-        } else { e[0]=(u16)((y&255)|blend|0x8000); e[1]=(u16)((x&511)|0xC000); e[2]=(u16)(tile|(sl<<12)); }   // one tall 32 x 64 sprite
+            e[0]=(u16)((Y&255)|blend|0x8000|0x300); e[1]=(u16)((X&511)|0xC000); e[2]=(u16)(tile|(pal<<12));
+        } else { e[0]=(u16)((y&255)|blend|0x8000); e[1]=(u16)((x&511)|0xC000); e[2]=(u16)(tile|(pal<<12)); }   // one tall 32 x 64 sprite
         nOam++;
     }
-    for(i=nOam;i<2*OBJ_SLOTS;i++) oam[i*4]=0x200;   // everything else off
+    for(i=nOam;i<HH_OAM;i++) oam[i*4]=0x200;   // everything else off
     oam[3]=zoomPa; oam[7]=0; oam[11]=0; oam[15]=zoomPa;   // affine matrix 0 (the ZOOM's sprites): 1 / scale
 }
 static void hhObjUpdate(void){ hhObjUpdate0(); fxObjUpdate(); }   // fx.h: the ghosts and the weather are sprites too

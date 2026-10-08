@@ -1,8 +1,8 @@
 // npc.h - AI SKATERS and POLICE: two small NPC systems on hardware sprites (no frame buffer, no baked characters).
 //
 //  * ART: 4 frames of 16 x 32 in ROM (npcArt: cop standing, cop stepping, skater rolling, skater in the air), uploaded to OBJ tiles 800.. (8 tiles a frame),
-//    OBJ palettes 12 (cop) and 13..15 (the three skaters). OAM entries 59..62 (and 63.. for cops 2 and up, see COP_MAX). fx.h owns tiles 768..799, palettes 8..11 and OAM 16..58; the household
-//    owns tiles 512..767, palettes 0..7 and OAM 0..15. Nothing here is saved.
+//    OBJ palettes 12 (cop) and 13..15 (the three skaters). OAM entries 75..78 (and 79.. for cops 2 and up, see COP_MAX). fx.h owns tiles 768..799, palettes 8..11 and OAM 32..74; the household
+//    owns tiles 512..767, palettes 0..7 and OAM 0..31. In the prison the crowd of inmates borrows palettes 8..10 and 12..15 while nothing here uses them (hhBanksBusy, at the end of this file). Nothing here is saved.
 //  * AI SKATERS: on a map with at least NPC_PARK skate objects (kickers, quarter pipes, launch ramps, funboxes, rails, ledges, jersey barriers, manual
 //    pads) up to 3 skaters roll from object to object and hop beside each one. They cost about 90 bytes of EWRAM and no drawing time.
 //  * POLICE: punching Sims is a crime (copCrime, called from fightHit in house.h). Heat 3 or more (a knock-out is worth 2 at once) and about 5 seconds later
@@ -10,7 +10,7 @@
 //    10 seconds where you cannot move (lstun), then he walks off. After that the cops leave you alone for a minute. Heat fades by 1 every 10 seconds.
 //    Slice 1 on purpose: jail is a timed hold on the spot, not a room yet.
 #define NPC_TILE 800
-#define NPC_OAM0 59
+#define NPC_OAM0 75   // (after the Sims' 0..31 and fx.h's 32..74)
 #define NPC_PALC 12
 #define NPC_PALS 13
 #define NPC_SKN  3   // (was SK_N: that name is the skill count in sims.h)
@@ -212,7 +212,7 @@ static void npcSkSpawn(void){
 // come in): "YOU GOT AWAY". But they remember you: each escape adds a WANTED star (copWant, up to 6), and every midnight there is a small chance (about 5% a star)
 // that the cops RAID your home lot, with more cops the more stars you have. Being BUSTED clears the stars. Not saved (a new session starts clean).
 #define COP_CAP 5    // the most cops a chase or a raid ever sends (what the game asks for is clamped to this)
-#define COP_MAX 20   // HARD LIMIT: the size of every cop array and the OAM entries set aside (cop 0 = 59, cop n = 62+n: 63..81). Never exceeded, whatever COP_CAP says.
+#define COP_MAX 20   // HARD LIMIT: the size of every cop array and the OAM entries set aside (cop 0 = NPC_OAM0, cop n = NPC_OAM0+3+n). Never exceeded, whatever COP_CAP says.
 _Static_assert(COP_CAP<=COP_MAX,"COP_CAP can not be above the hard limit COP_MAX");
 _Static_assert(NPC_OAM0+3+COP_MAX-1<128,"the cops' OAM entries run past the 128 the GBA has");
 static HhSim copS[COP_MAX] EWRAM_BSS;                          // the cops walk like visitors: path, position and speed are an HhSim's. copS[0] leads (about 190 bytes of EWRAM each: COP_MAX of them are always reserved)
@@ -319,7 +319,7 @@ static void npcPlayStart(void){
 static void npcObjUpdate(void){
     volatile u16*oam=OAM; if(!npcVramOk){ npcUpload(); npcVramOk=1; }
     int hide=(lcamF>0)||curFl||zoomDma, i;
-    for(int ci=0;ci<COP_MAX;ci++){ volatile u16*e=oam+(ci?NPC_OAM0+3+ci:NPC_OAM0)*4; e[0]=0x200;   // the cops: 59, then 63.. up to 81 (60..62 are the skaters; 65..81 were unclaimed)
+    for(int ci=0;ci<COP_MAX;ci++){ volatile u16*e=oam+(ci?NPC_OAM0+3+ci:NPC_OAM0)*4; e[0]=0x200;   // the cops: NPC_OAM0, then NPC_OAM0+4.. (NPC_OAM0+1..3 are the skaters)
       if(hide||copSt<2||ci>=copN||copS[ci].act==HA_AWAY) continue;
       const HhSim*c=&copS[ci]; int sx,sy; fxScreen(c->fx,c->fy,&sx,&sy); int x=sx-8, y=sy-30;
       int fr=(copSt==2||copSt==4||(copSt==5&&c->pi<c->pn))&&(((fxT>>3)+ci)&1)?1:0;
@@ -336,3 +336,13 @@ static void npcObjUpdate(void){
         if(v){ volatile u16*e=oam+(NPC_OAM0+1)*4; int sx,sy; fxScreen(v->fx,v->fy,&sx,&sy); int x=sx-8, y=sy-30, fr=(v->pi<v->pn)&&((fxT>>3)&1)?1:0;
             if(!(x+16<=vpX0||x>=vpX1||y+32<=sbY0||y>=sbY1)){ e[0]=(u16)((y&255)|0x8000); e[1]=(u16)((x&511)|0x8000|((v->hd==4||v->hd==8)?0x1000:0)); e[2]=(u16)((NPC_TILE+fr*8)|((NPC_PALS+(v->uid%3))<<12)); } } }
 }
+
+// ---- lent palette banks (house.h hhObjUpdate0: the prison's crowd) ----
+static int hhBanksBusy(void){   // which OBJ palette banks fx.h and npc.h draw with right now (bit = bank): the crowd must not touch them
+    int m=0;
+    if(xo[XO_GHOSTS]) for(int g=0;g<GH_MAX&&g<fxGN;g++) m|=1<<(FX_PALG+g);
+    if(copSt||copN) m|=1<<NPC_PALC;
+    if(npcSkN||prVisSprite()) m|=(1<<NPC_PALS)|(1<<(NPC_PALS+1))|(1<<(NPC_PALS+2));
+    return m;
+}
+static void hhExtraDone(void){ fxVramOk=0; npcVramOk=0; }   // the crowd gave the banks back: the ghosts' and the cops' art and colours are written again this vblank (fxObjUpdate, npcObjUpdate)

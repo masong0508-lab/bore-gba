@@ -2,7 +2,7 @@
 // hundred bytes of EWRAM.  Included late in main.c (after neighborhood.h, which holds the season); everything it needs earlier is forward declared.
 //
 // OBJ VRAM is 16 KB in the bitmap modes = 16 slots of 32 tiles.  The household (house.h) uses slots 0..7 (OBJ_SLOTS) and OBJ palettes 0..7, and
-// OAM entries 0..15.  This file takes slot 8 (tiles 768..799), OBJ palettes 8..11 and OAM entries 16.. : ghosts first, then the weather particles.
+// OAM entries 0..31 (HH_OAM); the prison's crowd also borrows slots 10..15 and, while they are idle, palettes 8..10 and 12..15 (hhObjUpdate0).  This file takes slot 8 (tiles 768..799), OBJ palettes 8..11 and OAM entries 16.. : ghosts first, then the weather particles.
 //   tiles 768..775  ghost frame A (16 x 32)        784  rain streak
 //   tiles 776..783  ghost frame B                  785  snow flake      786  splash
 //   palettes 8, 9, 10  one per ghost (its colour says how it died)       11  weather
@@ -24,7 +24,7 @@
 static void npcTick(void); static void npcPlayStart(void); static void npcObjUpdate(void);   // npc.h: AI skaters and police
 #define FX_SLOT  8
 #define FX_TILE  (512+FX_SLOT*32)     // first tile number of the slot
-#define FX_OAM0  (2*OBJ_SLOTS)        // first OAM entry after the household's
+#define FX_OAM0  HH_OAM               // first OAM entry after the Sims' (house.h)
 #define GH_MAX   3
 #define WX_N     40                   // most weather particles at once (OAM entries FX_OAM0+GH_MAX ..)
 #define FX_PALG  8
