@@ -80,18 +80,26 @@ static int moodState(void){
     return h>=60?MS_HAPPY:MS_OK;
 }
 static void moodReset(void){ moodFun=MOOD_FUN_START*MOOD_ONE; moodHap=MOOD_HAP_START*MOOD_ONE; moodIdle=moodAir=0; moodSt=moodState(); }
+static u8 alvPopK EWRAM_BSS, alvPopT EWRAM_BSS;   // ALIVE tier 2: the body reaction running on the Sim you control (1 hop for joy, 2 head shake for anger, 3 flinch) and the steps it has left
+static void alvPopSet(int ev){   // pick the reaction for a mood event (quiet ones: a small hop, a shake, a flinch). Not for every trick, so it stays subtle
+    switch(ev){
+        case M_WANT: case M_SKILL: case M_PAY: case M_PROMO: case M_GOT_BOARD: case M_COMBO: alvPopK=1; alvPopT=18; break;
+        case M_DEMOTE: case M_BROKE: alvPopK=2; alvPopT=24; break;
+        case M_BAIL: case M_HURT: case M_HURT_BIG: case M_FEAR: case M_SPOOK: alvPopK=3; alvPopT=14; break;
+        default: break; }
+}
 static u8 fxRxEv=255, fxRxT;   // ALIVE: the last mood event and the steps its face reaction has left (hudface.h reads them)
 static void moodEventN(int ev,int n){
     if(n<1) n=1;
     if(n>8) n=8;
     moodFun=moodClamp(moodFun+moodTab[ev].fun*MOOD_ONE*n); moodHap=moodClamp(moodHap+moodTab[ev].hap*MOOD_ONE*n);
-    fxRxEv=(u8)ev; fxRxT=72;   // (the portrait reacts for about a second)
+    alvPopSet(ev); fxRxEv=(u8)ev; fxRxT=72;   // (the portrait reacts for about a second)
     if(moodTab[ev].fun>0) moodIdle=0;   // something fun happened: boredom starts over
     simsMood(ev,n);                     // sims.h: tell the wants and fears about it
 }
 static inline void moodEvent(int ev){ moodEventN(ev,1); }
 static void moodTick(void){   // once per logic step while alive
-    if(fxRxT&&!--fxRxT) fxRxEv=255;
+    if(fxRxT&&!--fxRxT) fxRxEv=255; if(alvPopT&&!--alvPopT) alvPopK=0;
     moodIdle++;
     int dec=MOOD_FUN_DECAY*(moodIdle>MOOD_BORED_AFTER?2:1)*simsFunPct()/100;   // PLAYFUL creatures get bored faster
     if(lskate&&lsp>=12) dec-=MOOD_CRUISE;                              // cruising: boredom creeps instead of running

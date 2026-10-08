@@ -3031,6 +3031,7 @@ static int lpsx, lpsy;   // where the player is on screen (zoom centre)
 static const u8 faceView[16]={3,3,0,0,0,0,0,1,1,1,2,2,2,2,3,3};
 #include "house.h"   // households: up to 7 more Sims with free will, SELECT switches who you control
 static int plX, plY, plZ, plFh, plV, plBob;   // feet on screen, height above the floor, floor height under the feet, which baked view
+static signed char plPopX EWRAM_BSS, plPopY EWRAM_BSS;   // ALIVE tier 2: px the sprite is moved by a reaction (hop up, shake sideways, flinch down); the shadow stays
 static int plDip, plMk;   // plDip: px the skater crouches for a few frames after a landing; plMk: the landing mark under a spinning skater (0 none, 1 red = bail, 2 yellow = sketchy, 3 green = clean, 4 bright = perfect)
 static int aliveRate(void){   // ALIVE tier 1: the step bounce follows how you feel: STOKED = quick steps, SAD / BORED / worn out = slow, heavy ones (a bigger number = slower)
     int m=moodState(); if(m==MS_STOKED) return 2; if(m==MS_SAD||m==MS_BORED||sNrg<20) return 4; return 3;
@@ -3041,6 +3042,10 @@ static void playerCalc(void){
     plFh=surfH(lfx,lfy); plZ=(int)(lz>>8); plV=faceView[(lhd+lspin+4*cview)&15];
     plBob=(!lskate&&plZ<=plFh&&(lvx|lvy)&&lstun<=2)?(int)((lfr>>aliveRate())&1):0;   // a little step bounce while he walks
     if(!lskate&&!lvx&&!lvy&&!lsp&&hhStill>=120&&!simAct&&!ldead&&!hhBubT&&plZ<=plFh){ unsigned g=(((unsigned)(lfr>>7)+3u)*2654435761u)>>29; if(g==0) plV=(plV+1)&3; else if(g==1) plV=(plV+3)&3; }   // ALIVE tier 1: after 2 seconds of standing, a glance a quarter turn left or right now and then (the picture only; where you face does not change)
+    plPopX=plPopY=0; if(alvPopT&&!ldead){ int t=alvPopT, n;   // ALIVE tier 2: reaction pops (the picture only)
+        if(alvPopK==1){ if(plZ<=plFh){ n=18-t; plPopY=(signed char)-(n*(18-n)/27); } }                          // hop for joy: 3 px up and back down
+        else if(alvPopK==2) plPopX=(signed char)(t>12?((t&2)?2:-2):t>4?((t&2)?1:-1):0);                         // head shake: a jitter that settles
+        else if(alvPopK==3){ plPopY=(signed char)(t>10?2:t>6?1:0); plPopX=(signed char)(t>10?-1:0); } }          // flinch: a quick duck and recoil
     lpsx=plX; lpsy=plY-20;
     plDip=(lskate&&lLand>0&&plZ<=plFh)?(lLand>4?(lLandD>=10?3:2):1):0;   // landing crouch: the harder the drop the lower, easing back up over 7 frames
     plMk=0; if(lskate&&plZ>plFh&&(F.spinV||F.spin>=20||F.spin<=-20)){ int g=feelPredGrade(); plMk=g==0?1:g==1?2:g==2?3:4; }   // spinning: will it land?
@@ -3091,7 +3096,7 @@ static void drawPlayerNow(void){
         rect(plX-w,plY-plFh+2,2*w+1,2,mc); }
     if(lskate) drawBoard();   // board under the feet
     if(lbailT>0&&((lbailT>>1)&1)) return;   // BAIL FLICKER: the skater blinks (every other 2 frames) while getting up
-    blit((plBob&&!lskate)?spr4s[plV]:spr4[plV],plX-16,plY-SPF-plZ-plBob+plDip);   // walking: the stride frame on the up-step
+    blit((plBob&&!lskate)?spr4s[plV]:spr4[plV],plX-16+plPopX,plY-SPF-plZ-plBob+plDip+plPopY);   // walking: the stride frame on the up-step
 }
 // The room inside the rectangle x0..x1 / y0..y1 (end excluded), drawn back to front and clipped to it: the same pixels a whole-screen
 // draw would put there. ed=1: editor view (no player).
@@ -3238,7 +3243,7 @@ static void rcAdd(int x0,int y0,int x1,int y1){
 }
 static int rcHit(const Rc*a,int x0,int y0,int x1,int y1){ return a->x0<x1&&a->x1>x0&&a->y0<y1&&a->y1>y0; }
 static void actorRc(Rc*r){   // everything the player puts on screen: sprite, shadow, board
-    int sx=plX-16, sy=plY-SPF-plZ-plBob+plDip;
+    int sx=plX-16+plPopX, sy=plY-SPF-plZ-plBob+plDip+plPopY;
     int x0=sx+spBx0, x1=sx+spBx1, y0=sy+spBy0, y1=sy+spBy1;
     if(sShad){ if(plX-3<x0) x0=plX-3; if(plX+4>x1) x1=plX+4; if(plY-plFh+2>y1) y1=plY-plFh+2; }
     if(plMk){ if(plX-7<x0) x0=plX-7; if(plX+8>x1) x1=plX+8; if(plY-plFh+4>y1) y1=plY-plFh+4; }   // the landing mark on the floor
@@ -3246,7 +3251,7 @@ static void actorRc(Rc*r){   // everything the player puts on screen: sprite, sh
     r->x0=(short)x0; r->x1=(short)x1; r->y0=(short)y0; r->y1=(short)y1;
 }
 static unsigned actSigBase(void){ return (unsigned)(plX&0x3FF)|((unsigned)(plY&0x3FF)<<10)|((unsigned)(plZ&0x3F)<<20)|((unsigned)plV<<26)|((unsigned)lskate<<28)|((unsigned)sShad<<29)|((unsigned)(plFh&1)<<30)|((unsigned)plBob<<31); }
-static unsigned actSigNow(void){ unsigned b=actSigBase(); if(lskate) b^=((unsigned)bdA|((unsigned)(bdPitch+4)<<8)|((unsigned)bdRaise<<12)|((unsigned)bdRoll<<16)|((unsigned)bdSpk<<24)|((unsigned)plDip<<27)|((unsigned)plMk<<29))*2654435761u; return b; }   // + the board's pose: any change redraws
+static unsigned actSigNow(void){ unsigned b=actSigBase(); if(plPopX|plPopY) b^=(unsigned)((plPopX+4)|((plPopY+4)<<4))*2654435761u; if(lskate) b^=((unsigned)bdA|((unsigned)(bdPitch+4)<<8)|((unsigned)bdRaise<<12)|((unsigned)bdRoll<<16)|((unsigned)bdSpk<<24)|((unsigned)plDip<<27)|((unsigned)plMk<<29))*2654435761u; return b; }   // + the board's pose: any change redraws
 // ---- getting pixels to the screen ----
 static void dmaRows16(u32 src,u32 dst,int w,int rows,int sstride,int dstride){   // rows of w halfwords, strides in halfwords
     for(int j=0;j<rows;j++){ REG_DMA3SAD=src; REG_DMA3DAD=dst; REG_DMA3CNT=(u32)w|0x80000000u; src+=(u32)(sstride*2); dst+=(u32)(dstride*2); }
