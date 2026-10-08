@@ -90,16 +90,25 @@ static void stKidHome(void){   // the promised child moves in: a mix of you and 
 }
 // TV SHOW & TELL: every chapter is SEVERAL goals at once and ALL of them must hold at the same moment (no skating in this story: it is about getting a life back).
 // The chapter clock lives in stKidDay (no kid in this story): the day the chapter began, or the day of the last RELAPSE (a puff) or COLLAPSE (faint / pass out) in the chapters that watch for them.
-static const char* const stqNm[8]={"DAYS CLEAN","DAYS HOLDING ON","FRIENDS","SIMOLEONS","SIMS LIVING HERE","HAVE A NEIGHBOR OVER","FEEL HAPPY RIGHT NOW","SECURITY PIECES"};
-enum { TQ_CLEAN, TQ_DAYS, TQ_FRIENDS, TQ_MONEY, TQ_HOUSE, TQ_GUEST, TQ_HAPPY, TQ_SECURE };
+static const char* const stqNm[9]={"DAYS CLEAN","DAYS HOLDING ON","FRIENDS","SIMOLEONS","SIMS LIVING HERE","HAVE A NEIGHBOR OVER","FEEL HAPPY RIGHT NOW","SECURITY PIECES","PLUG PRESSURE"};
+enum { TQ_CLEAN, TQ_DAYS, TQ_FRIENDS, TQ_MONEY, TQ_HOUSE, TQ_GUEST, TQ_HAPPY, TQ_SECURE, TQ_PLUG };
+// TV SHOW & TELL step 4: the PLUG. Chapter 4 only. Missy lies unconscious and the hospital (Dr. Okafor) wants to pull the plug: plugV is its PRESSURE, 0 to 100.
+// You are Mamesy and you hold it off by keeping the chapter going: it creeps up every 10 seconds by 3, less 1 for each of: 2 friends, feeling happy, 12000 simoleons.
+// Every new day Dr. Okafor calls: the life-support bill is paid from your cash (PLUG_BILL; if you cannot, the pressure jumps). A new friend, a best friend or a promotion eases it.
+// At 75 and 90 you are warned. At 100 the hospital gives you ONE MORE NIGHT: the days-holding-on clock starts over, a deposit is taken and the pressure drops to 50. The chapter also
+// asks for the pressure to be 60 or less at the moment you finish. Nothing is saved: the pressure starts again at PLUG_START when the game starts and the chapter is running.
+#define PLUG_START 20
+#define PLUG_BILL 400
+#define PLUG_OK 60
+static u8 plugV=PLUG_START; static u16 plugDay=0xFFFF; static u8 plugSec, plugTen;
 typedef struct { u8 k; u32 n; } StQ;
 static const StQ stqT[5][5]={
     { {TQ_GUEST,1}, {TQ_FRIENDS,1}, {TQ_MONEY,4000} },                                                     // 1 hungover: have somebody over, a friend, a little cash
     { {TQ_CLEAN,7}, {TQ_FRIENDS,2}, {TQ_MONEY,6000}, {TQ_HAPPY,1} },                                       // 2 a week clean (a puff or a faint starts it again)
     { {TQ_HOUSE,3}, {TQ_CLEAN,4}, {TQ_MONEY,20000}, {TQ_FRIENDS,2}, {TQ_SECURE,4} },                                      // 3 a private house with a crew around you
-    { {TQ_DAYS,5}, {TQ_FRIENDS,2}, {TQ_MONEY,12000}, {TQ_HAPPY,1} },                                       // 4 you are Mamesy: hold on
+    { {TQ_DAYS,5}, {TQ_FRIENDS,2}, {TQ_MONEY,12000}, {TQ_HAPPY,1}, {TQ_PLUG,1} },                          // 4 you are Mamesy: hold on, and keep the hospital from pulling the plug
     { {TQ_CLEAN,10}, {TQ_FRIENDS,4}, {TQ_HOUSE,4}, {TQ_MONEY,40000}, {TQ_HAPPY,1} } };                     // 5 the comeback: all of it, together
-static const u8 stqN[5]={3,4,5,4,5};
+static const u8 stqN[5]={3,4,5,5,5};
 static u8 stqDay(void){ u8 b=(u8)(simDay&255); return b==255?254:b; }
 static int stqDays(void){ return stKidDay==255?0:((simDay&255)-stKidDay)&255; }
 static int stqVal(const StQ*q){
@@ -111,6 +120,7 @@ static int stqVal(const StQ*q){
     case TQ_SECURE: { int c=secCount('n'), g=secCount('j'); return (c>2?2:c)+(g>2?2:g); }   // chapter 3: tight security = 2 SECURITY CAMERAS and 2 SECURITY GATES on the lot you are on
     case TQ_GUEST: return stGuest?1:0;
     case TQ_HAPPY: return moodState()>=MS_HAPPY;
+    case TQ_PLUG: return plugV<=PLUG_OK;   // chapter 4: the hospital is held off (60 or less)
     }
     return 0;
 }
@@ -120,11 +130,14 @@ static int stqAll(void){ return stCh<5&&stqDone()==stqN[stCh]; }
 static void stqText(const StQ*q,char*b){   // one goal line, b at least 44 long: "+ 5 OF 7 DAYS CLEAN" / "- 1 OF 4 FRIENDS"
     int v=stqVal(q); char*e=slCat(b,stqOk(q)?"+ ":"- ");
     if(q->k==TQ_GUEST||q->k==TQ_HAPPY){ slCat(e,stqNm[q->k]); return; }
+    if(q->k==TQ_PLUG){ e=slCat(e,"PLUG PRESSURE "); e=slNum(e,plugV); slCat(e," OF 60 MAX"); return; }
     if(v>(int)q->n) v=(int)q->n;
     e=slNum(e,v); e=slCat(e," OF "); e=slNum(e,(int)q->n); e=slCat(e," "); slCat(e,stqNm[q->k]);
 }
 static void stqList(int x,int y,int dy){ if(stCh>=5) return; for(int i=0;i<stqN[stCh];i++){ char b[48]; stqText(&stqT[stCh][i],b); text(x,y+i*dy,b,b[0]=='+'?RGB(10,28,12):WHITE,1); } }
 static void stTvEvent(int ev){   // sims.h simEventV calls this for every game event: a puff or a collapse in chapters 2, 3 and 5 starts the clock again
+    if(stId==STY_TVSHOW&&stCh==3&&stKidDay!=255&&(ev==SE_FRIEND||ev==SE_BFF||ev==SE_PROMO)){   // step 4: good news eases the hospital
+        int d=ev==SE_BFF?15:10; plugV=(u8)(plugV>d?plugV-d:0); lnote=ev==SE_PROMO?"A RAISE  PLUG PRESSURE DOWN":"A FRIEND STANDS WITH YOU"; lnoteT=90; }
     if(stId!=STY_TVSHOW||stKidDay==255||(stCh!=1&&stCh!=2&&stCh!=4)) return;
     if(ev!=SE_PIPE&&ev!=SE_FAINT&&ev!=SE_PASSOUT) return;
     stKidDay=stqDay(); stSave(); toast(ev==SE_PIPE?"RELAPSE  THE CLOCK STARTS OVER":"YOU COLLAPSED  THE CLOCK STARTS OVER");
@@ -271,6 +284,23 @@ static void papTick(void){   // once per logic step (stTick)
         if(!scared&&d<=5&&!papFl[i]&&(rnd8()&63)==0){ papFl[i]=10;
             if(!papCool){ papCool=240; moodEvent(M_SPOOK); lnote="THE PAPARAZZI SNAP YOU"; lnoteT=70; } } }
 }
+static void plugTick(void){   // once per logic step (stTick): the hospital's pressure in chapter 4
+    int on=stId==STY_TVSHOW&&stCh==3&&stKidDay!=255;
+    if(!on){ plugV=PLUG_START; plugDay=0xFFFF; plugSec=0; plugTen=0; return; }
+    if(++plugSec<60) return; plugSec=0;
+    static const StQ qF={TQ_FRIENDS,2}, qH={TQ_HAPPY,1}, qM={TQ_MONEY,12000};
+    int old=plugV, v=plugV;
+    if(plugDay==0xFFFF) plugDay=(u16)simDay;
+    if((u16)simDay!=plugDay){ plugDay=(u16)simDay;   // a new day: Dr. Okafor calls about the life support
+        v+=8; if(simMoney>=PLUG_BILL){ simMoney-=PLUG_BILL; lnote="OKAFOR CALLED  BILL PAID"; } else { v+=20; lnote="CANNOT PAY  PRESSURE UP"; } lnoteT=120; }
+    if(++plugTen>=10){ plugTen=0; v+=3-stqOk(&qF)-stqOk(&qH)-stqOk(&qM); }
+    if(v>100) v=100;
+    if(v>=100){   // the plug is nearly pulled: one more night, and everything you held on to starts over
+        v=50; stKidDay=stqDay(); stSave(); if(simMoney>=1000) simMoney-=1000; toast("ONE MORE NIGHT  THE DAYS START OVER"); }
+    else if(old<90&&v>=90){ lnote="LAST CHANCE  SAVE MISSY"; lnoteT=150; }
+    else if(old<75&&v>=75){ lnote="OKAFOR WANTS TO PULL THE PLUG"; lnoteT=150; }
+    plugV=(u8)v;
+}
 static void stTick0(void){   // once per logic step in the life game: is this chapter done?
     static u8 cnt; if(!stId||++cnt<60) return; cnt=0;
     if(stCh>=stLen[stId]) return;
@@ -286,7 +316,7 @@ static void stTick0(void){   // once per logic step in the life game: is this ch
     } else if(!stDone(c)) return;
     stComplete();
 }
-static void stTick(void){ papTick(); stTick0(); if(stTvWant&&stId==STY_TVSHOW){ static u8 tc; if(++tc>=60){ tc=0; stTvControl(); } } }   // (TV SHOW & TELL: keep asking while the hand-over is waiting)
+static void stTick(void){ papTick(); plugTick(); stTick0(); if(stTvWant&&stId==STY_TVSHOW){ static u8 tc; if(++tc>=60){ tc=0; stTvControl(); } } }   // (TV SHOW & TELL: keep asking while the hand-over is waiting)
 static void stEnter(void){ stLoad(); if(stId){ stAnnounce(); if(stShown!=(u8)(stId*16+stCh+1)){ stShown=(u8)(stId*16+stCh+1); stModal=1; } } }   // (a chapter card once per chapter and power on)   // entering the life game: the current goal on the top bar
 // ---- the look: Sims 2 / Life Stories panels (the pieces live in main.c next to HOW TO PLAY) ----
 static void s2rr(int x,int y,int w,int h,u16 c); static void s2grad(int x,int y,int w,int h,int r0,int g0,int b0,int r1,int g1,int b1);
