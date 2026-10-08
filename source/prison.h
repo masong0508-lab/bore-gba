@@ -15,7 +15,7 @@
 //                The prison map itself is saved like any lot. Nothing here is EWRAM that matters: about 20 bytes.
 // BAIL          Pause menu > PRISON > PAY BAIL (in the cell, not for LIFE): PR_BAIL simoleons a day, 1, 7 or 30 days. A missed shift in the cell counts as a bad shift (sims.h simShiftEnd) and may get you FIRED (simFire: back to the bottom of the track); so may the arrest itself (prBook), the longer the sentence the likelier.
 // ONE PRISONER   Only one Sim of the household can be inside at a time; if a second one is busted meanwhile the old 10 second hold happens ("the cells are full").
-static void htBook(int d); static int htFight(int n); static void htRelease(void); static void htDay(void); static void htTick(void); static void htLoad(void); static int htAgiLvl(void); static void htCard(void); static void htLife(void);   // hardtime.h
+static void htBook(int d); static int htFight(int n); static void htRelease(void); static void htDay(void); static void htTick(void); static void htLoad(void); static int htAgiLvl(void); static void htCard(void); static void htLife(void); static void htMdAdd(int d);   // hardtime.h
 #define PR_OFF  (JB_OFF+56)
 #define PR_LIFE 0xFFFF
 #define PR_BAIL 40   // simoleons per day of sentence bought off (PAY BAIL)
@@ -165,7 +165,7 @@ static void prVisitStart(void){   // someone of the household walks in from the 
 }
 static void prVisArrive(void){   // they reached you: a talk
     static char t[40] EWRAM_BSS; char*e=slCat(t,hhM[prVisM%hhN].name); slCat(e,"  COMFORTS YOU");
-    sCom+=10; if(sCom>100) sCom=100; sSoc+=25; if(sSoc>100) sSoc=100; moodEvent(M_SOFA); simEvent(SE_TALK); skGain(SK_CHARM,1); sfxPlay(SFX_GASP);
+    sCom+=10; if(sCom>100) sCom=100; sSoc+=25; if(sSoc>100) sSoc=100; moodEvent(M_SOFA); htMdAdd(150); simEvent(SE_TALK); skGain(SK_CHARM,1); sfxPlay(SFX_GASP);
     prVisSt=2; prVisT=480; prVis.act=HA_IDLE; prVis.pn=prVis.pi=0; lnote=t; lnoteT=110;
 }
 static void prVisTick(int*planned){

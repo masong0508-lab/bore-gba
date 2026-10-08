@@ -68,7 +68,7 @@ enum { MS_SAD, MS_BORED, MS_OK, MS_HAPPY, MS_STOKED };
 static int moodFun, moodHap, moodIdle, moodAir, moodSt;   // meters x256, steps since anything fun, steps airborne, last announced state
 static const char* const moodStName[5]={"SAD","BORED","OK","HAPPY","STOKED"};
 static int simsComfort(void); static int simsTop(int top); static void simsMood(int ev,int n); static int simsPts(int pts);   // sims.h (included after this file)
-static int simsAspMood(void); static int simsFunPct(void);
+static int simsAspMood(void); static int simsFunPct(void); static int htMoodAdj(void);   // (htMoodAdj: hardtime.h)
 static inline int moodClamp(int v){ return v<0?0:v>100*MOOD_ONE?100*MOOD_ONE:v; }
 static inline int moodFunPct(void){ return moodFun/MOOD_ONE; }
 static inline int moodHapPct(void){ return moodHap/MOOD_ONE; }
@@ -97,7 +97,7 @@ static void moodTick(void){   // once per logic step while alive
     moodFun=moodClamp(moodFun-dec);
     int comfort=lfood<100-lbl?lfood:100-lbl;                            // 0..100: worst of hunger and bladder
     { int sc=simsComfort()+20; if(sc>100) sc=100; if(sc<comfort) comfort=sc; }   // ...and the sims.h needs (energy, hygiene, comfort), with some slack
-    int target=(comfort*MOOD_W_COMFORT+moodFunPct()*(100-MOOD_W_COMFORT))/100+simsAspMood();   // the aspiration meter lifts (platinum) or sinks (failing) it
+    int target=(comfort*MOOD_W_COMFORT+moodFunPct()*(100-MOOD_W_COMFORT))/100+simsAspMood()+htMoodAdj();   // the aspiration meter lifts (platinum) or sinks (failing) it; so does the prison's morale meter (hardtime.h)
     if(target<0) target=0;
     if(target>100) target=100;
     int t=target*MOOD_ONE;
