@@ -4,8 +4,8 @@
 // RAMP TUNING (see lifeStep): F_RAMP_BOOST turns the climb speed (8.8 px/step) into launch speed, F_RAMP_MAX caps it.
 #include "rampdata.h"
 #define F_RAMP_BOOST 4      // launch vz = (smoothed px climbed per step, 8.8) * this
-#define F_RAMP_MAX   0x300  // never launch harder than this: ~18 px above the lip (an ollie is ~0x388). Keep lip + this under 34 px or landings scream
-#define F_RAMP_TOL   6      // px a ramp surface may rise between two steps before it counts as a wall (flat ground uses 3)
+#define F_RAMP_MAX   0x2A0  // never launch harder than this: ~14 px above the lip (an ollie is ~0x388). Keep lip + this under 34 px or landings scream (launch ramp: 18 + 14 = 32). It was 0x300 with 8 and 12 px lips
+#define F_RAMP_TOL   9      // px a ramp surface may rise between two steps before it counts as a wall (flat ground uses 3). The quarter pipe's last eighth of a tile climbs 7 px, so this was 6 with the old 14 px pipe
 static inline int isKicker(char c){ return c>='1'&&c<='4'; }
 static inline int isQPipe(char c){ return c>='5'&&c<='8'; }
 static inline int isLaunch(char c){ return c>='9'&&c<='<'; }   // launch ramp (pack 2): '9' ':' ';' '<' = faces S E N W

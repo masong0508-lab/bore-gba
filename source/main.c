@@ -2108,8 +2108,9 @@ static inline int isWinCh(char c){ return c=='E'||c=='e'||c=='f'; }   // the win
 static int tileH(int tx,int ty){   // surface height in px (ramps: their highest point). Grind height is 6: rails, ledges and benches
     if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
     char c=lifeMap[ty][tx];
-    return (c=='j')?2*CC: (c=='n')?CC: (c=='#'||c=='F'||c=='W'||c=='H'||isWinCh(c))?2*CC: (c=='X'||c=='Y')?10: (c=='b')?2*CC: (c=='m')?5: (c=='w'||c=='T'||c=='S'||c=='C'||c=='O'||c=='G'||c=='V'||c=='U'||c=='Q'||c=='A'||c=='v'||c=='c'||c=='q')?CC: (c=='='||c=='L'||c=='N'||c=='Z'||c=='K'||c=='J'||c=='I'||c=='R'||c=='g')?6: (c=='M')?3: isKicker(c)?KICKER_H: isLaunch(c)?LAUNCH_H: isQPipe(c)?qpH[7]: 0;   // pack 2: X funbox 10, Y trash can 10, O barrel 8, Z planter / K table / J jersey grind at 6, M manual pad 3
+    return (c=='j')?2*CC: (c=='n')?CC: (c=='#'||c=='F'||c=='W'||c=='H'||isWinCh(c))?2*CC: (c=='X'||c=='Y')?SOLID_H: (c=='O')?BARREL_H: (c=='b')?2*CC: (c=='m')?5: (c=='w'||c=='T'||c=='S'||c=='C'||c=='G'||c=='V'||c=='U'||c=='Q'||c=='A'||c=='v'||c=='c'||c=='q')?CC: (c=='='||c=='L'||c=='N'||c=='Z'||c=='K'||c=='J')?GRIND_H: (c=='I'||c=='R'||c=='g')?6: (c=='M')?3: isKicker(c)?KICKER_H: isLaunch(c)?LAUNCH_H: isQPipe(c)?qpH[7]: 0;   // X funbox and Y trash can SOLID_H, O barrel BARREL_H, rail / ledge / bench / Z planter / K table / J jersey GRIND_H (rampdata.h), phone / radio / counter 6, M manual pad 3
 }
+static inline int isGrindH(int h){ return h==GRIND_H||h==6; }   // a surface you can grind: the skate pieces (GRIND_H) and the old 6 px things (phone, radio, counter)
 static int surfH(s32 fx,s32 fy){   // surface height at an exact position (1/256 tiles): same as tileH, but ramps slope
     int tx=(int)(fx>>8), ty=(int)(fy>>8); if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
     char c=lifeMap[ty][tx]; return isRamp(c)?rampH(c,(int)fx,(int)fy):tileH(tx,ty);
@@ -2944,7 +2945,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
         }
     }
     if(lairF&&!air){                                   // just landed
-        int g=feelGrade(), hs=feelHalfTurns(), gb=F.grab>=12, onRail=lskate&&tileH(lfx>>8,lfy>>8)==6;
+        int g=feelGrade(), hs=feelHalfTurns(), gb=F.grab>=12, onRail=lskate&&isGrindH(tileH(lfx>>8,lfy>>8));
         if(onRail&&g<2) g=2;                           // a rail catches the board whatever the angle: no bail for a crooked grind
         int pts=hs*180+(lflip?100:0)+feelGrabPts();
         int drop=lmaxz-(int)(lz>>8), sp0=lsp, bail=(g==0); if(isRamp(lifeMap[lfy>>8][lfx>>8])) drop/=2;
@@ -2971,7 +2972,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
         if(!lman){ lman=1; lnote="MANUAL"; lnoteT=30; if(lcN==0) lcN=1; lcAdd("MANUAL"); simEvent(SE_MANUAL); }
         if((fr&7)==0){ int g=40+skLvl(SK_BAL)*2; if(lspecOn) g*=2; lscore+=g; lcPts+=g; lcT=oComboLen(); skGain(SK_BAL,1); specAdd(8); }
     } else lman=0;
-    if(lgrind){ if(air||tileH(lfx>>8,lfy>>8)!=6) lgrind=0; else if((fr&3)==0){ int g=abGrindPts()+skLvl(SK_GRIND)/2; if(lspecOn) g*=2; lscore+=g; lnote="GRIND"; lnoteT=10; lcPts+=g; lcT=oComboLen(); specAdd(4); } }   // GRIP ability
+    if(lgrind){ if(air||!isGrindH(tileH(lfx>>8,lfy>>8))) lgrind=0; else if((fr&3)==0){ int g=abGrindPts()+skLvl(SK_GRIND)/2; if(lspecOn) g*=2; lscore+=g; lnote="GRIND"; lnoteT=10; lcPts+=g; lcT=oComboLen(); specAdd(4); } }   // GRIP ability
     if(!lhave&&lz<(8<<8)&&(lfx>>8)==BDX&&(lfy>>8)==BDY){ lhave=1; lnote="GOT A SKATEBOARD"; lnoteT=90; moodEvent(M_GOT_BOARD); }   // walk over it to pick it up
     clTick();   // letters and the tape
     fxTick();   // ghosts and weather (fx.h): every step, also while you lie dead
@@ -3074,7 +3075,7 @@ static int fdiv(int a,int b){ return a>=0?a/b:-((-a+b-1)/b); }   // floor divisi
 // The diagonals (tx+ty) and, on each, the tiles whose art can touch the rectangle x0..x1 / y0..y1 (a little generous: a tile's art reaches
 // 23 px above its centre, 5 below, 11 to each side). Drawing extra tiles is harmless, they are clipped.
 static void bandRows(int y0,int y1,int*s0,int*s1){
-    int lo=fdiv(y0-14-LOY,CB)-1, hi=fdiv(y1+26-LOY,CB)+1;
+    int lo=fdiv(y0-14-LOY,CB)-1, hi=fdiv(y1+36-LOY,CB)+1;   // (tiles below the rectangle reach up into it: 36 px, the tallest ramp art)
     if(lo<0) lo=0;
     if(hi>MW+MH-2) hi=MW+MH-2;
     *s0=lo; *s1=hi;
@@ -3318,7 +3319,7 @@ static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
     for(int s=s0;s<=s1;s++){ int a,b; bandCols(s,x0,x1,&a,&b);
         for(int tx=a;tx<=b;tx++){ int ty=s-tx;
             int sx=LOX+(tx-ty)*CA, sy=LOY+(tx+ty+1)*CB;
-            if(sx+11<=x0||sx-11>=x1||sy+6<=y0||sy-24>=y1) continue;   // art (walls, items, the pickup) is at most 11 px to a side, 24 above and 5 below the centre
+            if(sx+11<=x0||sx-11>=x1||sy+6<=y0||sy-34>=y1) continue;   // art (walls, items, the pickup) is at most 11 px to a side, 34 above (a quarter pipe) and 5 below the centre
             if(papN&&!ed&&!curFl){ int qx,qy; rotXY(tx,ty,&qx,&qy); for(int p=0;p<papN;p++) if(papX[p]==qx&&papY[p]==qy) drawPap(sx,sy+1,p); }   // TV SHOW & TELL: the paparazzi
             char c=cellAt(tx,ty); if(c=='.'&&(ed||lhave)) continue;   // plain floor: nothing stands there (but the board pickup might)
             int ox,oy; rotXY(tx,ty,&ox,&oy);

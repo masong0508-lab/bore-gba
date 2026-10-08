@@ -187,11 +187,11 @@ static void bakeOne(int k,const IBox*b,int n,int r,int nsh){
     drawObj(d,b,n,r,0); if(nsh<16) outlineSpr(d,nsh);
 }
 static void bakePix(int k,const char*const*rows,const u16*pal,int mirror){   // pixel art straight into a sprite
-    for(int y=0;y<IH;y++)for(int x=0;x<IW;x++){ char c=rows[y][mirror?IW-1-x:x]; bakeBuf[k][y][x]=c=='.'?IKEY:pal[c-'a']; }
+    for(int y=0;y<IH;y++)for(int x=0;x<IW;x++){ char c=y<IPAD?'.':rows[y-IPAD][mirror?IW-1-x:x]; bakeBuf[k][y][x]=c=='.'?IKEY:pal[c-'a']; }   // (the art is IH0 rows tall and sits at the bottom of the taller canvas)
 }
 // ---- the telephone: a nightstand with a phone on it (pixel art) ----
 static const u16 pPh[8]={RGB(3,2,5),RGB(27,19,10),RGB(15,9,5),RGB(20,13,7),RGB(26,6,6),RGB(31,15,12),RGB(8,8,11),RGB(31,31,28)};   // outline, top, left, right, phone, highlight, handset, dial
-static const char*const phArt[IH]={
+static const char*const phArt[IH0]={
  ".....................",
  ".....................",
  ".....................",
@@ -222,7 +222,7 @@ static const char*const phArt[IH]={
  "....................."};
 // sound pack: RADIO (a boombox, tile 'R') and SOUND SYSTEM (a speaker tower with an amp, tile 'A'), hand-drawn pixel art
 static const u16 pSnd[10]={RGB(3,3,5),RGB(23,23,25),RGB(14,15,18),RGB(9,10,13),RGB(5,5,8),RGB(18,18,22),RGB(31,25,6),RGB(31,6,6),RGB(8,30,12),RGB(8,8,10)};   // outline, top, front, side, speaker, cone shine, gold, red, green, handle
-static const char*const rdArt[IH]={
+static const char*const rdArt[IH0]={
  ".....................",
  ".....................",
  ".....................",
@@ -251,7 +251,7 @@ static const char*const rdArt[IH]={
  "...acccccccccccccaa..",
  "....aaaaaaaaaaaaa....",
  "....................."};
-static const char*const syArt[IH]={
+static const char*const syArt[IH0]={
  ".....................",
  ".....................",
  "......aaaaaaaaaaa....",

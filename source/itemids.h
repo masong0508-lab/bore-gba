@@ -1,8 +1,10 @@
 // itemids.h - sprite size and sprite numbers, shared by the GBA game (items.h) and the PC baker (tools/bake_items.c).
 #define IW 21
-#define IH 28
+#define IH0 28   // the height the hand-drawn pixel art (phone, radio, DeadSet ...) was drawn at
+#define IH 38    // the sprite canvas: 10 rows taller than it was, so ramps and boxes can be taller (see the SCALE note in docs/NOTES.md)
+#define IPAD (IH-IH0)   // empty rows added at the top of the hand-drawn art
 #define IOX 10   // sprite column of the tile centre
-#define IOY 22   // sprite row of the tile centre
+#define IOY 32   // sprite row of the tile centre (was 22)
 #define IKEY 0x8000
 // Sprite numbers. EVERY item sprite is pre-baked in ROM (itemrom.h, generated), so new items cost no RAM, only ROM.
 // NEW ITEM: add its art to itembake.h (or an art header it includes), add its V_ number here BEFORE NIV, add one bakeOne(...) line
