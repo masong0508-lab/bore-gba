@@ -43,6 +43,7 @@ static const char* const stTvBrief[5][2]={ {"HUNGOVER AND UNSTEADY  PULL YOURSEL
     {"THE PAPARAZZI ARE EVERYWHERE  BUILD","A PRIVATE HOUSE WITH TIGHT SECURITY"},
     {"YOU ARE MAMESY NOW  KEEP HOPE ALIVE","AND STOP THE PLUG BEING PULLED"},
     {"YOUR COMEBACK SHOW IS READY  NOTHING","CAN GO WRONG  RIGHT"} };
+static const char* stRowNm(const StCh*c){ const char*s=c->nm; return (c->goal==SG_END&&s[0]=='T'&&s[1]=='H'&&s[2]=='E'&&s[3]==' '&&s[4]=='E'&&s[5]=='N'&&s[6]=='D'&&s[7]==' '&&s[8]==' ')?s+9:s; }   // the sixth row is listed by its title alone: no THE END in front
 static const StCh* const stChs[STY_N]={0,stRoom,stWed,stPar,stSkate,stHouse,stFriend,stRags,stClimb,stTown,stSecond,stTv};
 static const u8 stLen[STY_N]={0,6,6,6,6,6,6,6,6,6,6,6};   // (6 each: the story card and the journal have room for six rows)
 static const char* const stNm[STY_N]={"","ROOMMATES","NEWLYWEDS","SINGLE PARENT","SKATE LIFE","HOUSEFULL","BEST FRIENDS","RAGS TO RICHES","CAREER CLIMBER","NEW IN TOWN","SECOND CHANCE","TV SHOW & TELL"};
@@ -403,18 +404,18 @@ static void storyScreen(void){   // pause menu > STORY: the story journal, a cha
             text(16,32,"NO STORY RIGHT NOW",GOLD,1); text(16,46,"PICK ONE FOR THIS LIFE WITH A",WHITE,1); text(16,56,"OR PLAY  NEW GAME  STORY MODE",RGB(17,29,31),1);
             text(16,70,"ELEVEN STORIES  SIX CHAPTERS EACH",RGB(20,24,28),1);
         } else {
-            int n=stLen[stId]-1;   // (the END row is not listed)
+            int n=stLen[stId]-1, rows=stLen[stId];   // (n = the five chapters you count: CHAPTER x OF 5 and the bar; rows = all six, the sixth is the story's title)
             stIcon(stId,9,21,2,RGB(31,20,22));   // the story's picture, its name and kind, and how far you are
             text(32,21,stNm[stId],GOLD,1); text(32,30,stTag[stId],RGB(17,29,31),1);
             { char b[24]; char*e=slCat(b,"CHAPTER "); e=slNum(e,stCh+1>n?n:stCh+1); e=slCat(e," OF "); slNum(e,n); text(233-tw(b,1),21,b,WHITE,1);
               int bw=84, fx=233-bw; rect(fx-1,31,bw+2,7,RGB(14,26,31)); rect(fx,32,bw,5,RGB(3,5,9)); int f=bw*(stCh>n-1?n-1:stCh)/(n>1?n-1:1); if(f>bw) f=bw; if(f>0){ s2grad(fx,32,f,5,10,26,12,6,18,8); rect(fx,32,f,1,RGB(18,31,20)); } }
-            for(int i=0;i<n;i++){ int y=44+i*13, st=i<stCh?2:i==stCh?1:0; const StCh*c=&stChs[stId][i];
-                if(i+1<n) rect(14,y+9,2,4,st==2?RGB(8,26,10):RGB(7,14,22));   // the line down to the next chapter
+            for(int i=0;i<rows;i++){ int y=44+i*13, st=i<stCh?2:i==stCh?1:0; const StCh*c=&stChs[stId][i];
+                if(i+1<rows) rect(14,y+9,2,4,st==2?RGB(8,26,10):RGB(7,14,22));   // the line down to the next chapter
                 if(st==2){ rect(10,y+1,10,8,RGB(5,18,7)); rect(11,y+2,8,6,RGB(8,26,10)); text(12,y+2,"+",WHITE,1); }   // done: a green tick
                 else if(st==1){ int g=(cnt>>3)&1; rect(10,y+1,10,8,g?RGB(31,26,6):RGB(24,19,3)); rect(11,y+2,8,6,RGB(3,5,9)); rect(13,y+4,4,2,GOLD); }   // now: a gold blinking ring
                 else { rect(10,y+1,10,8,RGB(7,14,22)); rect(11,y+2,8,6,RGB(2,6,13)); }
                 if(st==1){ s2grad(23,y,208,11,6,16,26,3,9,17); }
-                text(25,y+2,c->nm,st==2?RGB(10,22,12):st==1?WHITE:RGB(12,18,24),1);
+                text(25,y+2,stRowNm(c),st==2?RGB(10,22,12):st==1?WHITE:RGB(12,18,24),1);
                 if(st==1){ char b[16]; if(stProg(c,b)) text(231-tw(b,1),y+2,b,GOLD,1); }
                 else if(c->goal!=SG_END){ char b[12]; char*e=slCat(b,"+"); slNum(e,stRew(i)); text(231-tw(b,1),y+2,b,st==2?RGB(10,22,12):RGB(12,18,24),1); } }   // what each chapter pays
         }
@@ -519,7 +520,7 @@ static int storyPick(void){
         for(int i=0;i<3;i++) text(64,49+i*8,stBlurb[sel][i],WHITE,1);
         rect(14,75,212,1,RGB(14,26,31)); text(16,78,"THE CHAPTERS",RGB(17,29,31),1);
         { char b[32]; int pay=0; for(int i=0;i<stLen[sel]-1;i++) pay+=stRew(i); int dn=jbStoryCount(sel); char*e=slNum(b,dn); e=slCat(e," OF 5 DONE  PAYS "); slNum(e,pay); text(226-tw(b,1),78,b,dn>=SM_PER?GOLD:RGB(20,26,31),1); }   // missions finished in any life, and what the story pays in all
-        for(int i=0;i<stLen[sel]-1;i++){ char b[44]; char*e=slNum(b,i+1); e=slCat(e,"  "); slCat(e,stChs[sel][i].nm); text(16,88+i*8,b,i==stLen[sel]-2?GOLD:RGB(24,27,30),1); }
+        for(int i=0;i<stLen[sel];i++){ char b[44]; char*e=slNum(b,i+1); e=slCat(e,"  "); slCat(e,stRowNm(&stChs[sel][i])); text(16,88+i*8,b,i==stLen[sel]-1?GOLD:RGB(24,27,30),1); }   // all six rows (the sixth, in gold, is the title)
         for(int i=1;i<STY_N;i++){ int x=(SW-((STY_N-2)*12+8))/2+(i-1)*12; s2rr(x,139,8,4,i==sel?GOLD:RGB(7,14,22)); }   // which of the stories this is
         text(14,138,"<",GOLD,1); text(223,138,">",GOLD,1);
         { static const char* const bt[3]={"LEFT RIGHT STORY","A START","B BACK"}; int x=5;   // the buttons are as wide as their words (they were fixed widths, and LEFT RIGHT STORY ran into A START)
