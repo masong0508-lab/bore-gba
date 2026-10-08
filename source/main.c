@@ -182,8 +182,8 @@ static const u32 stMaskShape[AG_N]={   // every age gets a real choice of bodies
     13|SHB(SH_CHUBBY)|SHB(SH_PEAR)|SHB(SH_LANKY)|SHB(SH_STOCKY)|SHB(SH_HUNCH)|SHB(SH_POT)|SHB(SH_MUSCLE)|SHB(SH_PETITE)|SHB(SH_BARREL)|SHB(SH_DIGI)|SHB(SH_RUNNER)|SHKID,
     SHALL, SHALL, SHALL };
 static const u8 stMaskEars[AG_N]={3,7,7,7,7};
-#define NHAIR 9   // CROP BOWL LONG BALD + SPIKY AFRO FLAT TOP SIDE TAIL BUN
-static const u16 stMaskHair[AG_N]={9,11|0x1F0,15|0x1F0,15|0x1F0,15|0x1F0};
+#define NHAIR 15   // CROP BOWL LONG BALD + SPIKY AFRO FLAT TOP SIDE TAIL BUN
+static const u16 stMaskHair[AG_N]={9,11|0x1F0|0x6E00,15|0x1F0|0x7E00,15|0x1F0|0x7E00,15|0x1F0|0x7E00};   // bits 9-14: BOB PONYTAIL PIGTAILS MOHAWK PIXIE CURLS (children: no MOHAWK)
 static inline int shapeMask(void){ int m=(int)stMaskShape[stage]; if(!sUnlock) m&=~4; else if(stage<AG_TEEN) m|=(int)SHHUM; else m|=(int)SHB(SH_SPIDER); return m; }   // BIG HEAD, and V-SHAPE / CURVY / SOFT / POWER / LONG LEGS below teen, are only on offer with the debug code
 static const u8 stSwatches[AG_N]={4,6,8,8,8};       // how many colours of each row are on offer
 #define BX0 ((W-BXW)/2)
@@ -805,6 +805,29 @@ static void buildLook(void){
         if(st==6){ for(int z=hz;z<hz+hd;z++)for(int x=hx;x<hx+hw;x++) vb(x,top,z,5); }                                                        // FLAT TOP: square, no slopes
         if(st==7){ for(int y=top-1;y>=hy-1&&y>=0;y--) hairW(hx+hw,y,hz,0,0,0,0); vw(hx+hw,hy-2,hz,5,0,0,0,0); }                               // SIDE TAIL: down one side
         if(st==8&&zb>=0){ for(int x=hx;x<hx+hw;x++) vw(x,top-1,zb,5,x==hx+hw-1,x==hx,0,1); }                                                   // BUN: a knot at the back
+        if(st>=9){   // the newer styles (BOB PONYTAIL PIGTAILS MOHAWK PIXIE CURLS): the same dome as above, plus what makes each one recognizable (all scale with the head)
+            int xc=hx+hw/2-1, zf=hz+hd, z0=hz>0?hz-1:hz, room=(top==hy+hh);   // xc: left one of the two centre columns; zf: the row in front of the face; room: a free layer above the head
+            if((st==9||st==13)&&room&&zf<BXD){ for(int x=hx;x<hx+hw;x++) hairW(x,top,zf,0,0,1,0); }   // BOB / PIXIE: a fringe, a wedge hanging over the forehead
+            if(st==9){   // BOB: the bowl's sides, and a back panel down to the chin that is a little wider than the head
+                for(int z=hz;z<hz+hd;z++)for(int y=top-1;y>=top-2&&y>=0;y--){ hairW(hx-1,y,z,0,0,0,0); hairW(hx+hw,y,z,0,0,0,0); }
+                for(int x=hx-1;x<=hx+hw;x++)for(int y=top-1;y>=hy&&y>=0;y--) hairW(x,y,z0,0,0,0,0); }
+            if(st==10&&zb>=0){   // PONYTAIL: a tied knot at the back of the head, and the tail hanging from it
+                for(int x=xc;x<xc+2;x++){ for(int y=top-1;y>=hy-1&&y>=0;y--) hairW(x,y,zb,0,0,0,0); vw(x,hy-2,zb,5,0,0,0,1); } }
+            if(st==11){   // PIGTAILS: a bunch out of each side at the back, with a block between it and the head
+                for(int sd=0;sd<2;sd++){ int xs=sd?hx+hw:hx-1, xo=sd?hx+hw+1:hx-2;
+                    hairW(xs,top-1,hz,0,0,0,0); hairW(xo,top-1,hz,0,0,0,0); hairW(xo,top-2,hz,0,0,0,0); vw(xo,top-3,hz,5,sd,!sd,0,0); } }
+            if(st==12){   // MOHAWK: a strip down the middle (over the top and down the nape), the sides stay bare
+                if(hw>2) for(int z=hz;z<hz+hd;z++)for(int x=hx;x<hx+hw;x++) if(x<xc||x>xc+1) vb(x,top,z,room?0:1);
+                if(room&&top+1<BXH) for(int z=hz;z<hz+hd;z++)for(int x=xc;x<xc+2;x++) hairW(x,top+1,z,x==xc+1,x==xc,z==hz+hd-1,z==hz);
+                if(zb>=0) for(int x=xc;x<xc+2;x++)for(int y=top-1;y>=hy&&y>=0;y--) hairW(x,y,zb,0,0,0,0); }
+            if(st==13){   // PIXIE: short, with a fringe, sideburns and a little tuft at the nape
+                for(int z=hz;z<hz+hd;z++){ hairW(hx-1,top-1,z,0,0,0,0); hairW(hx+hw,top-1,z,0,0,0,0); }
+                if(zb>=0) for(int x=hx;x<hx+hw;x++) hairW(x,top-1,zb,0,0,0,0); }
+            if(st==14){   // CURLS: bumps on top, puffs at the sides, a lumpy back
+                for(int z=hz;z<hz+hd;z++){ hairW(hx-1,top-1,z,0,0,0,0); hairW(hx+hw,top-1,z,0,0,0,0);
+                    for(int x=hx;x<hx+hw;x++) if(room&&top+1<BXH&&((x+z)&1)==0) hairW(x,top+1,z,0,0,0,0); }
+                if(zb>=0) for(int x=hx-1;x<=hx+hw;x++)for(int y=top-1;y>=top-2&&y>=0;y--) if(y==top-1||((x+y)&1)==0) hairW(x,y,zb,0,0,0,0); }
+        }
     }
     {   // hats (in a colour slot the creature already has: top, bottom, white, black, red or gold)
         static const u8 hatSlot[6]={6,7,2,3,4,8}; int hat=look[LK_HAT], hc=hatSlot[look[LK_HATCOL]%6];
@@ -4101,7 +4124,7 @@ static const char* const ftailNm[4]={"NONE","FOX","CAT","BUNNY"};
 static const char* const cheekNm[5]={"NONE","BLUSH","FRECKLES","WHISKERS","SCAR"};
 static const char* const glassNm[4]={"NONE","ROUND","SQUARE","SHADES"};
 static const char* const earNm[3]={"NONE","SMALL","BIG"};
-static const char* const hairNm[NHAIR]={"CROP","BOWL","LONG","BALD","SPIKY","AFRO","FLAT TOP","SIDE TAIL","BUN"};
+static const char* const hairNm[NHAIR]={"CROP","BOWL","LONG","BALD","SPIKY","AFRO","FLAT TOP","SIDE TAIL","BUN","BOB","PONYTAIL","PIGTAILS","MOHAWK","PIXIE","CURLS"};
 static const char* const hatNm[6]={"NONE","CAP","BEANIE","BAND","FEZ","HELMET"};
 static const char* const hatColNm[6]={"AS THE TOP","AS THE BOTTOM","WHITE","BLACK","RED","GOLD"};
 static const char* const beardNm[3]={"NONE","BEARD","LONG BEARD"};

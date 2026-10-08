@@ -15,7 +15,7 @@ static const u8 hudMsE[9]={0,1,2,1,4,0,6,7,8};   // her reactions: WIDE and CUTE
 static const u8 hudMsM[9]={0,4,2,4,4,5,4,4,8};   // SMILE, GRIN, TONGUE and FANGS all become a SMIRK
 static int hudMissy(void){ return hhPName[0]=='M'&&hhPName[1]=='I'&&hhPName[2]=='S'&&hhPName[3]=='S'&&hhPName[4]=='Y'&&!hhPName[5]; }
 static const u8* hudEx(int st){ return hudMissy()?hudExprMissy[st]:hudExpr[st]; }
-static const u8 hudHairRows[NHAIR]={2,3,3,0,3,4,2,3,3};   // rows of hair across the top of the portrait per hair style (CROP BOWL LONG BALD SPIKY AFRO FLAT TOP SIDE TAIL BUN)
+static const u8 hudHairRows[NHAIR]={2,3,3,0,3,4,2,3,3, 4,3,3,0,3,3};   // rows of hair across the top of the portrait per hair style (CROP BOWL LONG BALD SPIKY AFRO FLAT TOP SIDE TAIL BUN BOB PONYTAIL PIGTAILS MOHAWK PIXIE CURLS)
 static u16 hudHairCol(void){ return toneBy(hairTones[look[LK_HCOL]%NSW],slideEffS(look[LK_HTONE])); }
 static void hudPx(int x,int y,u16 c){ rect(x,y,1,1,c); }
 static void hudSprPlot(int x,int y,const char*a,int w,int fl,const u16*pal){   // one art row, 'k w r s i b g h l' as in setColors, 't' a tear; a is w chars wide
@@ -52,6 +52,32 @@ static void hudFaceAnim(int st){
     if(hudMissy()){ if(e>=0&&e<9) e=hudMsE[e]; if(m>=0&&m<9) m=hudMsM[m]; }
     hudOvE=(signed char)e; hudOvM=(signed char)m;
 }
+static void hudHairX(int x,int y,int hs,u16 hair,const u8*ovl){   // the newer hair styles: what each adds around the top rows of the portrait (BOB PONYTAIL PIGTAILS MOHAWK PIXIE CURLS)
+    u16 tie=RGB(29,12,16);
+    switch(hs){
+    case 9:   // BOB: a parted fringe, then hair framing the face down to the chin
+        rect(x,y+4,7,1,hair); rect(x+15,y+4,7,1,hair);
+        for(int j=5;j<20;j++){ int c=ovl[j], w=(j<8||j>=18)?4:3; rect(x+c,y+j,w,1,hair); rect(x+22-c-w,y+j,w,1,hair); }
+        break;
+    case 10:  // PONYTAIL: a swept fringe, and the tail tied at one side
+        rect(x,y+3,15,1,hair); rect(x+20,y+4,2,1,tie); rect(x+20,y+5,2,9,hair);
+        break;
+    case 11:  // PIGTAILS: a parted fringe and a tied bunch down each side
+        rect(x,y+3,8,1,hair); rect(x+14,y+3,8,1,hair);
+        rect(x,y+5,2,1,tie); rect(x+20,y+5,2,1,tie); rect(x,y+6,2,9,hair); rect(x+20,y+6,2,9,hair);
+        break;
+    case 12:  // MOHAWK: a strip down the middle that narrows to a point
+        rect(x+8,y,6,3,hair); rect(x+9,y+3,4,1,hair); rect(x+10,y+4,2,1,hair);
+        break;
+    case 13:  // PIXIE: a swept fringe and short sideburns
+        rect(x,y+3,16,1,hair); rect(x,y+4,9,1,hair); rect(x,y+5,2,5,hair); rect(x+20,y+4,2,5,hair);
+        break;
+    case 14:  // CURLS: a scalloped fringe and lumpy sides
+        for(int i=0;i<22;i++){ if(((i>>1)&1)==0) hudPx(x+i,y+3,hair); else hudPx(x+i,y+4,hair); }
+        for(int j=5;j<12;j++){ int w=(j&2)?3:2; rect(x,y+j,w,1,hair); rect(x+22-w,y+j,w,1,hair); }
+        break;
+    }
+}
 static void hudFaceDraw(int x,int y,int st){   // x,y = top left of the 22 x 22 face area inside the portrait frame
     u16 skin=toneBy(skinTones[look[LK_SKIN]],slideEffS(look[LK_TONE])), hair=hudHairCol();
     u16 pal[10]={ RGB(3,3,6), RGB(31,31,31), RGB(29,12,16), shade(skin,11), toneBy(eyeTones[look[LK_EYECOL]%NSW],slideEffS(look[LK_EYETONE])),
@@ -61,6 +87,7 @@ static void hudFaceDraw(int x,int y,int st){   // x,y = top left of the 22 x 22 
     for(int j=0;j<22;j++){ int c=ovl[j]; rect(x+c,y+j,22-2*c,1,j>=20?jaw:skin); }
     int hs=look[LK_HSTYLE]%NHAIR, hr=hudHairRows[hs];
     for(int j=0;j<22;j++){ int c=ovl[j]; if(j<hr) rect(x+c,y+j,22-2*c,1,hair); else if(hs==2&&j<20){ rect(x+c,y+j,2,1,hair); rect(x+20-c,y+j,2,1,hair); } }   // LONG hair falls down both sides
+    if(hs>=9) hudHairX(x,y,hs,hair,ovl);   // the newer styles add their fringe, sides and tails
     const u8*e=hudEx(st); int eo=hudOvE>=0?hudOvE:e[0], mo=hudOvM>=0?hudOvM:e[1]; const Spr*es=&spr[eo], *ms=&spr[NEYE+mo];
     int br=e[2]?e[2]:look[LK_BROW], gl=look[LK_GLASS], no=look[LK_NOSE], ch=look[LK_CHEEK], baby=stage==AG_BABY;
     // The face sliders work as they do on the block (drawDeco): every feature is sampled through the same scale and shift, so eye size, spacing and height, mouth width
