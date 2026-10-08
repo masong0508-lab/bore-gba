@@ -9,6 +9,12 @@ static const u8 hudExpr[5][4]={   // eye, mouth, brows, tears
     {1,0,0,0},   // OK       ROUND eyes, FLAT mouth
     {2,1,0,0},   // HAPPY    HAPPY (closed, smiling) eyes, SMILE
     {3,3,0,0} }; // STOKED   WIDE eyes, GRIN
+// MISSY has her own set (deadpan, half-lidded, a smirk instead of a grin; Daria, but foxy). Same row layout as hudExpr.
+static const u8 hudExprMissy[5][4]={ {0,5,4,0}, {0,0,0,0}, {0,4,0,0}, {2,4,0,0}, {8,4,0,0} };   // SAD BORED OK HAPPY STOKED
+static const u8 hudMsE[9]={0,1,2,1,4,0,6,7,8};   // her reactions: WIDE and CUTE eyes become ROUND and SLEEPY
+static const u8 hudMsM[9]={0,4,2,4,4,5,4,4,8};   // SMILE, GRIN, TONGUE and FANGS all become a SMIRK
+static int hudMissy(void){ return hhPName[0]=='M'&&hhPName[1]=='I'&&hhPName[2]=='S'&&hhPName[3]=='S'&&hhPName[4]=='Y'&&!hhPName[5]; }
+static const u8* hudEx(int st){ return hudMissy()?hudExprMissy[st]:hudExpr[st]; }
 static const u8 hudHairRows[NHAIR]={2,3,3,0,3,4,2,3,3};   // rows of hair across the top of the portrait per hair style (CROP BOWL LONG BALD SPIKY AFRO FLAT TOP SIDE TAIL BUN)
 static u16 hudHairCol(void){ return toneBy(hairTones[look[LK_HCOL]%NSW],slideEffS(look[LK_HTONE])); }
 static void hudPx(int x,int y,u16 c){ rect(x,y,1,1,c); }
@@ -42,7 +48,8 @@ static void hudFaceAnim(int st){
     if(fxRxT&&fxRxEv<M_N){ e=hudRx[fxRxEv][0]; m=hudRx[fxRxEv][1]; if(m==-2) m=((t>>3)&1)?2:1; }   // a reaction (eating: the mouth chews)
     else if(hhBubT){ static const signed char tk[4]={2,0,3,0}; m=tk[(t>>3)&3]; }                      // talking: the mouth opens and shuts
     else if(simAct==1){ e=0; m=0; } else if(simAct==2){ e=2; m=1; }                                    // asleep: eyes shut; washing: eyes closed and a smile
-    if(e<0&&hudExpr[st][0]!=0&&hudExpr[st][0]!=2&&(t+53u)%220u<5u) e=0;                                 // a blink (not when the eyes are shut already)
+    if(e<0&&hudEx(st)[0]!=0&&hudEx(st)[0]!=2&&(t+53u)%220u<5u) e=0;                                 // a blink (not when the eyes are shut already)
+    if(hudMissy()){ if(e>=0&&e<9) e=hudMsE[e]; if(m>=0&&m<9) m=hudMsM[m]; }
     hudOvE=(signed char)e; hudOvM=(signed char)m;
 }
 static void hudFaceDraw(int x,int y,int st){   // x,y = top left of the 22 x 22 face area inside the portrait frame
@@ -54,7 +61,7 @@ static void hudFaceDraw(int x,int y,int st){   // x,y = top left of the 22 x 22 
     for(int j=0;j<22;j++){ int c=ovl[j]; rect(x+c,y+j,22-2*c,1,j>=20?jaw:skin); }
     int hs=look[LK_HSTYLE]%NHAIR, hr=hudHairRows[hs];
     for(int j=0;j<22;j++){ int c=ovl[j]; if(j<hr) rect(x+c,y+j,22-2*c,1,hair); else if(hs==2&&j<20){ rect(x+c,y+j,2,1,hair); rect(x+20-c,y+j,2,1,hair); } }   // LONG hair falls down both sides
-    const u8*e=hudExpr[st]; int eo=hudOvE>=0?hudOvE:e[0], mo=hudOvM>=0?hudOvM:e[1]; const Spr*es=&spr[eo], *ms=&spr[NEYE+mo];
+    const u8*e=hudEx(st); int eo=hudOvE>=0?hudOvE:e[0], mo=hudOvM>=0?hudOvM:e[1]; const Spr*es=&spr[eo], *ms=&spr[NEYE+mo];
     int br=e[2]?e[2]:look[LK_BROW], gl=look[LK_GLASS], no=look[LK_NOSE], ch=look[LK_CHEEK], baby=stage==AG_BABY;
     // The face sliders work as they do on the block (drawDeco): every feature is sampled through the same scale and shift, so eye size, spacing and height, mouth width
     // and height, brow height and nose height (and the master controller's double sliders) put the features where the creator does. The block's pixels are 7 x 6 per
@@ -92,7 +99,7 @@ static void hudFaceDraw(int x,int y,int st){   // x,y = top left of the 22 x 22 
 }
 static unsigned hudFaceKey(int st){   // everything the portrait draws from, so it is redrawn when the mood or the Sim (or their look) changes
     static const u8 ids[]={LK_SKIN,LK_TONE,LK_HCOL,LK_HTONE,LK_HSTYLE,LK_EYECOL,LK_EYETONE,LK_BROW,LK_GLASS,LK_NOSE,LK_CHEEK,LK_EYESZ,LK_EYESP,LK_EYEHT,LK_MOUTHW,LK_MOUTHHT,LK_BROWHT,LK_NOSEHT};
-    unsigned h=(2166136261u^(unsigned)st)*16777619u^(unsigned)(stage*2+mcDbl());   // (the age and the double sliders change the face too)
+    unsigned h=(2166136261u^(unsigned)st)*16777619u^(unsigned)(stage*2+mcDbl()+(hudMissy()?64:0));   // (the age and the double sliders change the face too)
     for(unsigned i=0;i<sizeof ids;i++) h=(h^look[ids[i]])*16777619u;
     return h|1u;
 }

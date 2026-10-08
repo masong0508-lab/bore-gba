@@ -491,7 +491,7 @@ static const HhFam stLead[STY_N]={
     {"THE HARLOW",1,{ {"WES",  {5,6,2,0,1,2,0,1,1, 0,0,0},AG_ADULT,AS_FORTUNE,0} }},   // CAREER CLIMBER
     {"THE MORENO",1,{ {"ROSA", {4,5,0,1,2,5,2,6,3, 0,0,0},AG_ADULT,AS_POP,  3} }},   // NEW IN TOWN
     {"THE ASHBY",1,{ {"LEO",  {5,0,2,3,1,0,1,3,1, 0,0,0},AG_ADULT,AS_HOME, 5} }},   // SECOND CHANCE
-    {"THE TELLER",1,{ {"MISSY",{4,1,3,1,1,2,0,4,0, 0,0,0},AG_ADULT,AS_POP,  3} }},   // TV SHOW & TELL
+    {"THE TELLER",1,{ {"MISSY",{[LK_SHAPE]=4,[LK_SKIN]=1,[LK_EYES]=0,[LK_MOUTH]=4,[LK_EARS]=1,[LK_HSTYLE]=1,[LK_HCOL]=0,[LK_TOP]=4,[LK_BOT]=0,[LK_BROW]=1,[LK_GLASS]=1,[LK_EYECOL]=2},AG_ADULT,AS_POP,  3} }},   // TV SHOW & TELL
 };
 static int storyLead(int s){   // the story's lead becomes you (the same hand-over as A PRE-MADE FAMILY: they move in, you take their place, who you were leaves). 0 = it did not fit
     if(s<1||s>=STY_N) return 0;

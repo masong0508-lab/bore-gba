@@ -35,11 +35,13 @@ static void csFig(int x,int y,int who,int pose,int t){   // one person, 34 px ta
     csR(x-3+ls,y-8,2,8,sk); csR(x+1-ls,y-8,2,8,sk); csR(x-4+ls,y-1,3,1,dk); csR(x+1-ls,y-1,3,1,dk);                                       // legs and shoes
     csLn(x+lean-4,sy,x+lean+lh,sy+lv,sk); csLn(x+lean-3,sy,x+lean+lh+1,sy+lv,sk); csLn(x+lean+4,sy,x+lean+rh,sy+rv,sk); csLn(x+lean+3,sy,x+lean+rh-1,sy+rv,sk);   // arms
     for(int i=0;i<14;i++){ int w=8+i*6/13; csR(x+lean*(14-i)/14-w/2,y-22+i+bob,w,1,cl); }                                                 // the dress / suit, a trapezoid
-    if(who==CA_MISSY){ csR(x+lean-6,y-30+bob+hd,2,4,Hh); csR(x+lean+4,y-30+bob+hd,2,4,Hh); csR(x+lean-1,y-35+bob+hd,3,2,Hh); }
+    if(who==CA_MISSY){ csR(x+lean-5,y-30+bob+hd,2,8,Hh); csR(x+lean+4,y-30+bob+hd,2,8,Hh); }   // the bob, to the chin (bangs are drawn after the face)
     if(who==CA_MAME){ csR(x+lean-5,y-29+bob+hd,2,10,Hh); csR(x+lean+3,y-29+bob+hd,2,10,Hh); }                              // long hair
     csD(x+lean,y-29+bob+hd,5,Hh); csD(x+lean,y-27+bob+hd,4,sk);                                                                           // hair, face
-    csR(x+lean-2,y-28+bob+hd,1,1,dk); csR(x+lean+1,y-28+bob+hd,1,1,dk);
-    if(open) csR(x+lean-1,y-25+bob+hd,2,2,RGB(18,2,3)); else csR(x+lean-1,y-25+bob+hd,2,1,RGB(18,6,6));
+    if(who==CA_MISSY){ u16 gl=RGB(24,24,26); int gx=x+lean, gy=y-28+bob+hd; csR(gx-4,gy-1,4,1,gl); csR(gx-4,gy+1,4,1,gl); csR(gx-4,gy,1,1,gl); csR(gx-1,gy,1,1,gl); csR(gx,gy-1,4,1,gl); csR(gx,gy+1,4,1,gl); csR(gx,gy,1,1,gl); csR(gx+3,gy,1,1,gl); csR(gx-2,gy,1,1,dk); csR(gx+1,gy,1,1,dk); csR(gx-3,gy-3,7,2,Hh); }   // round glasses, flat sleepy eyes, bangs
+    else { csR(x+lean-2,y-28+bob+hd,1,1,dk); csR(x+lean+1,y-28+bob+hd,1,1,dk); }
+    if(who==CA_MISSY&&!open){ csR(x+lean-1,y-25+bob+hd,3,1,RGB(18,6,6)); csR(x+lean+2,y-26+bob+hd,1,1,RGB(18,6,6)); }   // a deadpan smirk
+    else if(open) csR(x+lean-1,y-25+bob+hd,2,2,RGB(18,2,3)); else csR(x+lean-1,y-25+bob+hd,2,1,RGB(18,6,6));
 }
 
 static char* csNum(char*b,int v){ char d[12]; int n=0; if(v<=0) d[n++]='0'; while(v>0){ d[n++]=(char)('0'+v%10); v/=10; } while(n>0) *b++=d[--n]; *b=0; return b; }   // a number as text (the approval board)
