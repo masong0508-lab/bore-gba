@@ -125,7 +125,7 @@ static int csLen(const char*s){ int n=0; while(s[n]) n++; return n; }
 static int csIsq(int v){ int w=0; while((w+1)*(w+1)<=v) w++; return w; }
 
 static void csDraw(const CsBeat*b,int t,int shown){   // one frame of one beat (shown: how many letters of the caption are typed)
-    { int tot=0; for(int i=0;i<3&&b->t[i];i++) tot+=csLen(b->t[i]); csTalking=shown<tot; csSpk=csWho(b->who); csMirPose=(!b->a&&b->pa)?b->pa:CP_HEAD; }   // cutscene redo 10
+    { int tot=0; for(int i=0;i<3&&b->t[i];i++) tot+=csLen(b->t[i]); csFrameNo++; csTalking=shown<tot; csSpk=csWho(b->who); csMirPose=(!b->a&&b->pa)?b->pa:CP_HEAD; }   // cutscene redo 10
     { int sc=csCurSc, bi=csCurBi; csMood=0; csLite=0;   // cutscene redo 12: the lights go down for the news (4) and the plug (6), and the world turns up when she wakes (3)
       if(sc==4&&bi>=21) csMood=1; if(sc==6&&bi>=7) csMood=bi>=9?2:1; if(sc==3&&bi>=29) csMood=-1;
       if(sc==6&&bi==9&&((t<10)||(t>=16&&t<20))) csLite=1; }
@@ -372,7 +372,7 @@ static int csFrames(void){ u16 n=R_TM3D; csAc+=(u16)(n-csTl); csTl=n; int f=(int
 static void csTimeReset(void){ if(!(R_TM3CNT&0x80)) vsync(); csTl=R_TM3D; csAc=0; }
 static void csPlay(int id){   // play scene id; returns when it ends or START skips it
     volatile u16*bc=(volatile u16*)0x04000050; volatile u16*bl=(volatile u16*)0x04000054;
-    const CsScene*sc=&csScenes[id]; clipAll(); objHideAll(); csCamReset(); csCurSc=id; csSlow=0;
+    const CsScene*sc=&csScenes[id]; clipAll(); objHideAll(); csCamReset(); csAliveReset(); csCurSc=id; csSlow=0;
     u16 prev=keyNow(); int skip=0;
     for(int bi=0;bi<sc->n&&!skip;bi++){
         csCurBi=bi; const CsBeat*b=&sc->b[bi]; int total=0; for(int i=0;i<3&&b->t[i];i++) total+=csLen(b->t[i]);

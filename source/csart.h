@@ -2,6 +2,12 @@
 // Replaces csFig of cutscene.h (the old one stays as csFigV1, unused). Same call: csFig(x,y,who,pose,t): 34 px tall, feet at (x,y). Needs csR csD csLn csWv from cutscene.h.
 static u16 csSh(u16 c,int k){ int r=(c&31)-k,g=((c>>5)&31)-k,b=((c>>10)&31)-k; if(r<0)r=0; if(g<0)g=0; if(b<0)b=0; return RGB(r,g,b); }   // darker
 static u16 csLt(u16 c,int k){ int r=(c&31)+k,g=((c>>5)&31)+k,b=((c>>10)&31)+k; if(r>31)r=31; if(g>31)g=31; if(b>31)b=31; return RGB(r,g,b); }   // lighter
+// cutscene redo 14 (step 2: BLENDING): when a beat changes a figure no longer snaps to the new pose. The eight pose numbers (lean, bob, both hands, legs, head) ease from where the
+// figure WAS to the new pose over 12 frames, with a small overshoot (it settles into the pose, like a spring). Per figure (indexed by who); state lives in EWRAM.
+typedef struct { short cur[8], from[8]; short lt, fn; u8 have; } CsPS;
+static CsPS csPS[6] EWRAM_BSS;
+static int csFrameNo;
+static void csAliveReset(void){ for(int i=0;i<6;i++){ csPS[i].fn=-100; csPS[i].have=0; csPS[i].lt=0; } csFrameNo=0; }
 // cutscene redo 14 (step 1: ELBOWS): arms are two segments with a real elbow. The elbow bulges outward / down like a relaxed arm, and a raised hand folds the arm up.
 static int csIq(int v){ int w=0; while((w+1)*(w+1)<=v) w++; return w; }
 static void csLimb(int x0,int y0,int x1,int y1,u16 fill,u16 ol){   // a 2 px wide, outlined bone
@@ -25,6 +31,7 @@ static void csFig(int x,int y,int who,int pose,int t){
     u16 sk=SKc[who], hr=HRc[who], cl=CLc[who], bt=BTc[who], dk=RGB(3,2,3), ol=RGB(2,1,4);
     int mv=0; if(pose==CP_WALK){ if(t<60){ x+=(x>120?60-t:t-60); mv=1; } } else if(pose==CP_LEAVE){ if(t>45){ x+=(x>120?t-45:45-t); mv=1; } }   // cutscene redo 10: walk in from, and out toward, the nearer side
     int dress=who==CA_MISSY;   /* (Mamesy wears a top and jeans, like in the game) */
+    if(pose==CP_LIE||pose==CP_STIR) csPS[who].fn=-100;   // lying down: no blend into or out of it
     if(pose==CP_LIE||pose==CP_STIR){ int st=pose==CP_STIR, lf=st?(csWv(t,30)+8)/3:0, br=csWv(t,100)>4; csR(x-19,y-1,36,1,RGB(2,1,3)); csR(x-11,y-7,18,7,ol); csR(x-10,y-6,17,6,cl); csR(x-10,y-6,17,1,csLt(cl,5)); if(br) csR(x-8,y-8,13,1,cl); csR(x+7,y-5-lf,10,3,ol); csR(x+7,y-4-lf,9,2,dress?sk:bt); if(st) csR(x+17,y-5-lf+((t>>2)&1),1,2,sk);   // (cutscene redo 10: she breathes; STIR lifts her hand and her fingers move)
         csD(x-14,y-4,5,ol); csD(x-14,y-4,4,sk); csR(x-19,y-9,6,6,hr); csR(x-18,y-10,3,1,csLt(hr,7)); csR(x-15,y-5,1,1,dk); csR(x-13,y-3,2,1,RGB(24,8,8)); if(csCz>=384) csFaceBig(x-14,y-6,who,CP_LIE,t,0,SKc[who],HRc[who]); return; }
     int lean=0, bob=0, lh=-6, lv=8, rh=6, rv=8, ls=0, hd=0, open=0;
@@ -64,6 +71,11 @@ static void csFig(int x,int y,int who,int pose,int t){
       } else if(lis&&calm){ int ph=(t+who*13)%96; if(ph<10&&(ph/3)%2==0) hd+=1; }                                    // listener: a double nod now and then
       { int dt=(t/41+who*3)%5; if(dt==0) csLook=-csDir; else if(dt==1) csLook=0; }                               // glances away, then back
     }
+    { CsPS*p=&csPS[who]; short v[8]={lean,bob,lh,lv,rh,rv,ls,hd};                                   // BLEND from where the figure was at the end of the last beat
+      if(csFrameNo-p->fn>3) p->have=0; else if(t<p->lt){ for(int i=0;i<8;i++) p->from[i]=p->cur[i]; p->have=1; }
+      if(p->have&&t<12){ static const signed char ez[12]={0,5,9,12,14,16,17,17,17,16,16,16}; int k=ez[t]; for(int i=0;i<8;i++) v[i]=(short)(p->from[i]+(v[i]-p->from[i])*k/16);
+          lean=v[0]; bob=v[1]; lh=v[2]; lv=v[3]; rh=v[4]; rv=v[5]; ls=v[6]; hd=v[7]; }
+      for(int i=0;i<8;i++) p->cur[i]=v[i]; p->lt=(short)t; p->fn=(short)csFrameNo; }
     int sy=y-21+bob, hx=x+lean, hy=y-29+bob+hd; u16 lc=dress?sk:bt; int bl=((t+who*23)%110)<4;   // bl: a blink every ~2 s (cutscene redo 10)
     int fem=(who==CA_MISSY||who==CA_MAME), ax=fem?5:6;   // the build: the women slimmer through the shoulders, the men broader (the arms hang from the edge of the shoulders)
     csR(x-6,y,12,1,RGB(2,1,3));                                                                                       // the floor shadow
