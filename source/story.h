@@ -81,10 +81,10 @@ static void stRel(int a,int b,int d,int l,u8 f){ relD[a][b]=relD[b][a]=(signed c
 static void stKidHome(void){   // the promised child moves in: a mix of you and your partner (or a look of their own)
     int p=stMember(stPart); u8 lk[LK_N];
     if(p>=0) stMixLook(lk,look,hhM[p].look,AG_CHILD); else { u8 st=AG_CHILD; lookTrueRandom(lk,&st); }
-    int m=stAddSim(lk,AG_CHILD,hhPLast); if(m<0){ toast("THE HOUSE IS FULL  NO ROOM FOR A CHILD"); return; }
+    int m=stAddSim(lk,AG_CHILD,hhPLast); if(m<0){ toast("The house is full. No room for a kid."); return; }
     stRel(hhPUid,hhM[m].uid,50,40,RF_FRIEND); if(p>=0) stRel(hhM[p].uid,hhM[m].uid,50,40,RF_FRIEND);
     for(int k=0;k<hhN;k++){ hhOld[k].x0=hhOld[k].x1=0; hhOldSig[k]=0xFFFFFFFFu; }
-    toast("PLEASE WAIT  YOUR CHILD IS COMING HOME"); hhBakeAll(); hhSave(); liveInvalidate();
+    toast("One moment. Your kid is on the way."); hhBakeAll(); hhSave(); liveInvalidate();
     static char t[40] EWRAM_BSS; char*e=simCat(t,hhM[m].name); simCat(e," IS HOME"); toast(t);
     stKid=hhM[m].uid;   // (the kid goals are about this child)
 }
@@ -137,10 +137,10 @@ static void stqText(const StQ*q,char*b){   // one goal line, b at least 44 long:
 static void stqList(int x,int y,int dy){ if(stCh>=5) return; for(int i=0;i<stqN[stCh];i++){ char b[48]; stqText(&stqT[stCh][i],b); text(x,y+i*dy,b,b[0]=='+'?RGB(10,28,12):WHITE,1); } }
 static void stTvEvent(int ev){   // sims.h simEventV calls this for every game event: a puff or a collapse in chapters 2, 3 and 5 starts the clock again
     if(stId==STY_TVSHOW&&stCh==3&&stKidDay!=255&&(ev==SE_FRIEND||ev==SE_BFF||ev==SE_PROMO)){   // step 4: good news eases the hospital
-        int d=ev==SE_BFF?15:10; plugV=(u8)(plugV>d?plugV-d:0); lnote=ev==SE_PROMO?"A RAISE  PLUG PRESSURE DOWN":"A FRIEND STANDS WITH YOU"; lnoteT=90; }
+        int d=ev==SE_BFF?15:10; plugV=(u8)(plugV>d?plugV-d:0); lnote=ev==SE_PROMO?"A raise. Okafor eases off.":"A friend helps. Okafor eases."; lnoteT=90; }
     if(stId!=STY_TVSHOW||stKidDay==255||(stCh!=1&&stCh!=2&&stCh!=4)) return;
     if(ev!=SE_PIPE&&ev!=SE_FAINT&&ev!=SE_PASSOUT) return;
-    stKidDay=stqDay(); stSave(); toast(ev==SE_PIPE?"RELAPSE  THE CLOCK STARTS OVER":"YOU COLLAPSED  THE CLOCK STARTS OVER");
+    stKidDay=stqDay(); stSave(); toast(ev==SE_PIPE?"You relapsed. The clock restarts.":"You collapsed. The clock resets.");
 }
 static int stValue(const StCh*c){   // the number a goal counts (-1: the goal has none)
     switch(c->goal){
@@ -227,11 +227,11 @@ static void stTvControl(void){
         if(m<0){   // the cast arrives: a grown-up sister (half of her looks come from Missy)
             u8 lk2[LK_N], lk[LK_N], st=AG_ADULT; lookTrueRandom(lk2,&st); stMixLook(lk,look,lk2,AG_ADULT);
             m=stAddSim(lk,AG_ADULT,hhPLast);
-            if(m<0){ if(!stTvWarn){ stTvWarn=1; toast("NO ROOM FOR MAMESY  MOVE SOMEONE OUT"); } return; }
+            if(m<0){ if(!stTvWarn){ stTvWarn=1; toast("No room for Mamesy. Make some space."); } return; }
             { const char*nm="MAMESY"; int k=0; for(;nm[k]&&k<HH_NM-1;k++) hhM[m].name[k]=nm[k]; hhM[m].name[k]=0; }
             stPart=hhM[m].uid; stRel(hhPUid,hhM[m].uid,70,70,RF_FRIEND|RF_BFF); kin[hhPUid][hhM[m].uid]=KN_SISTER; kin[hhM[m].uid][hhPUid]=KN_SISTER;
             for(int k=0;k<hhN;k++){ hhOld[k].x0=hhOld[k].x1=0; hhOldSig[k]=0xFFFFFFFFu; }
-            toast("PLEASE WAIT  MAMESY IS MOVING IN"); hhBakeAll(); hhSave(); liveInvalidate(); stSave();
+            toast("One moment. Mamesy is moving in."); hhBakeAll(); hhSave(); liveInvalidate(); stSave();
         }
         if(!stTvCan(m)) return;
         int me=hhPUid; hhSwitchTo(m);
@@ -276,13 +276,13 @@ static void papTick(void){   // once per logic step (stTick)
         papCN=0; for(int y=0;y<MH&&papCN<8;y++) for(int x=0;x<MW&&papCN<8;x++) if(lifeMap[y][x]=='n'){ papCX[papCN]=(u8)x; papCY[papCN]=(u8)y; papCN++; }
         if(papN<PAP_MAX&&(rnd8()&1)){ int a=twFar();
             if(a>=0){ int x=a%MW, y=a/MW; if(papFree(x,y,-1)&&!papNear(x,y,&cx,&cy)){ papX[papN]=(u8)x; papY[papN]=(u8)y; papFl[papN]=0; papW[papN]=(u8)(30+(rnd8()&31)); papN++;
-                if(papN==1){ lnote="PAPARAZZI OUTSIDE"; lnoteT=90; } } } } }
+                if(papN==1){ lnote="Cameras outside again."; lnoteT=90; } } } } }
     for(i=0;i<papN;i++){
         int x=papX[i], y=papY[i], d=fxAbs(x-px)+fxAbs(y-py), scared=papNear(x,y,&cx,&cy);
         if(papW[i]) papW[i]--; else { papW[i]=(u8)(45+(rnd8()&45));
             if(scared) papStep(i,cx,cy,1); else if(d>2) papStep(i,px,py,0); }
         if(!scared&&d<=5&&!papFl[i]&&(rnd8()&63)==0){ papFl[i]=10;
-            if(!papCool){ papCool=240; moodEvent(M_SPOOK); lnote="THE PAPARAZZI SNAP YOU"; lnoteT=70; } } }
+            if(!papCool){ papCool=240; moodEvent(M_SPOOK); lnote="They got a shot of you. Ugh."; lnoteT=70; } } }
 }
 static void plugTick(void){   // once per logic step (stTick): the hospital's pressure in chapter 4
     int on=stId==STY_TVSHOW&&stCh==3&&stKidDay!=255;
@@ -292,14 +292,14 @@ static void plugTick(void){   // once per logic step (stTick): the hospital's pr
     int old=plugV, v=plugV;
     if(plugDay==0xFFFF) plugDay=(u16)simDay;
     if((u16)simDay!=plugDay){ plugDay=(u16)simDay;   // a new day: Dr. Okafor calls about the life support
-        v+=8; if(simMoney>=PLUG_BILL){ simMoney-=PLUG_BILL; lnote="OKAFOR CALLED  BILL PAID"; } else { v+=20; lnote="CANNOT PAY  PRESSURE UP"; } lnoteT=120; }
+        v+=8; { static const char* const ok3[3]={"Okafor called. Bill's paid.","Bill paid. One more day.","Paid. Okafor sounds calmer."}, * const no3[3]={"You can't cover the bill.","Okafor called. No money.","Overdue bill. Okafor noticed."}; int r=rnd8()%3; if(simMoney>=PLUG_BILL){ simMoney-=PLUG_BILL; lnote=ok3[r]; } else { v+=20; lnote=no3[r]; } } lnoteT=120; }
     if(++plugTen>=10){ plugTen=0; v+=3-stqOk(&qF)-stqOk(&qH)-stqOk(&qM); }
     if(v>100) v=100;
     if(v>=100&&plugNight){ plugV=100; if(!stModal) stModal=3; return; }   // the second time there is no more night: the hospital pulls the plug (stModal 3: stRunModal0 plays the loss, then back to your last save)
     if(v>=100){   // the plug is nearly pulled: one more night, and everything you held on to starts over
-        v=50; stKidDay=stqDay(); stSave(); if(simMoney>=1000) simMoney-=1000; plugNight=1; toast("ONE MORE NIGHT  THE DAYS START OVER"); lnote="NEXT TIME THE PLUG IS PULLED"; lnoteT=200; }
-    else if(old<90&&v>=90){ lnote="LAST CHANCE  SAVE MISSY"; lnoteT=150; }
-    else if(old<75&&v>=75){ lnote="OKAFOR WANTS TO PULL THE PLUG"; lnoteT=150; }
+        v=50; stKidDay=stqDay(); stSave(); if(simMoney>=1000) simMoney-=1000; plugNight=1; toast("One more night. The days reset."); lnote="There won't be another one."; lnoteT=200; }
+    else if(old<90&&v>=90){ static const char* const l90[3]={"Last chance. Save Missy.","She's almost out of time.","Mamesy, hurry. Please."}; lnote=l90[rnd8()%3]; lnoteT=150; }
+    else if(old<75&&v>=75){ static const char* const l75[3]={"Okafor's losing patience.","Okafor won't stop hinting.","The hospital wants an answer."}; lnote=l75[rnd8()%3]; lnoteT=150; }
     plugV=(u8)v;
 }
 static void stTick0(void){   // once per logic step in the life game: is this chapter done?
@@ -360,7 +360,7 @@ static int storyPick(void); static void storySetup(int s);   // (below)
 static void storyJoin(void){   // floors step 10: pause menu > STORY with no story: pick one for the life you are living now (nobody is wiped; the new housemate or kid just moves in)
     int s=storyPick(); if(!s) return;
     int need=(s==STY_ROOM||s==STY_WED||s==STY_PARENT||s==STY_SECOND||s==STY_HOUSE||s==STY_TOWN)?1:s==STY_FRIEND?2:0;   // Sims the story brings in
-    if(hhN+need>HH_MAX){ toast("TOO MANY SIMS HOME FOR THAT STORY"); return; }
+    if(hhN+need>HH_MAX){ toast("Too many people home for that story."); return; }
     static const char* const yn[2]={"START THIS STORY","NOT NOW"}; if(menu(stNm[s],yn,2)!=0) return;
     money_t money=simMoney; storySetup(s); if(s==STY_RAGS) simMoney=money;   // (RAGS TO RICHES keeps your money here: a new life is the way to start it poor)
     stEnter();   // the first chapter card
@@ -429,18 +429,18 @@ static void stPlugLose(void){
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
         if(pr&(K_A|K_B|K_START)) break;
-        stBack("CHAPTER 4  FAILED",(int)cnt);
+        stBack("CHAPTER 4  TOO LATE",(int)cnt);
         s2rr(8,22,224,116,RGB(16,27,31)); s2rr(9,23,222,114,RGB(2,6,13)); s2grad(10,24,220,112,3,9,19,1,4,10);
         stIcon(stId,16,32,4,RGB(31,20,22));
         text(60,30,stNm[stId],GOLD,1); text(60,40,"...THE LOSER HAS TO FALL",RGB(17,29,31),1);
-        text(18,62,"MISSY IS GONE",RGB(31,8,8),2);
-        text(18,84,"THE PLUG WAS PULLED",WHITE,1);
-        text(18,98,back?"YOU GO BACK TO YOUR LAST SAVE":"THE CHAPTER STARTS OVER",RGB(20,26,31),1);
-        if(back) text(18,110,"WHAT YOU DID SINCE THEN IS LOST",RGB(20,26,31),1);
+        text(18,62,"She's gone.",RGB(31,8,8),2);
+        text(18,84,"The hospital pulled the plug.",WHITE,1);
+        text(18,98,back?"Deep breath. Back to your save.":"Deep breath. Let's try again.",RGB(20,26,31),1);
+        if(back) text(18,110,"Whatever you did since is lost.",RGB(20,26,31),1);
         s2pill(5,147,40,"A OK");
         present();
     }
-    if(back) sgDiscard=2; else { stKidDay=stqDay(); stGuest=0; stSave(); toast("NO SAVE FILE  THE CHAPTER STARTS OVER"); }
+    if(back) sgDiscard=2; else { stKidDay=stqDay(); stGuest=0; stSave(); toast("No save to go back to. Try again."); }
 }
 // the chapter cards: CHAPTER n (a chapter starts) and CHAPTER COMPLETE (a chapter was done). Shown by lifeModeRun like the pause menu.
 static void stRunModal0(void){
