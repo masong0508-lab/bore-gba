@@ -2794,7 +2794,7 @@ static void trickName(int hs,int grab,int perfect){
 }
 static void swName(void){ int n=0; while(lnBuf[n]) n++; if(n>15) return; for(int i=n;i>=0;i--) lnBuf[i+7]=lnBuf[i]; const char*q="SWITCH "; for(int i=0;i<7;i++) lnBuf[i]=q[i]; }
 static void hhStart(void); static void hhTick(void); static int hhSocR(int useLabel); static int hhCallFloors(void);   // house.h (included further down, next to the drawing it hooks into)
-static void drawCounter(int sx,int sy,int t); static void dbgMenu(void); static void wpPre(u16*kp,u16*pp); static void fgPre(u16*kp,u16*pp); static void fgDraw(void); static void wpDraw(void); static void wpConfiscate(void);   // weapons.h
+static void drawCounter(int sx,int sy,int t); static void dbgMenu(void); static void wpPre(u16*kp,u16*pp); static void fgPre(u16*kp,u16*pp); static int slfMenu(void); static void fgDraw(void); static void wpDraw(void); static void wpConfiscate(void);   // weapons.h
 // ---- COLLECTIBLES (like THPS): the letters S K A T E and one hidden tape float over the floor of a skate lot. Touch one to take it. ----
 // Nothing is saved and no map tile is used: lifeInit scatters them over empty floor every run (a new spot each time), so they cost a few bytes of EWRAM
 // and no sprite art (they are drawn in code). A letter counts like a combo letter (sktAward: five make SKATE). Only on lots that have something to skate.
@@ -2996,6 +2996,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
         if((pr&K_R)&&lstun<=0&&lz<=fh&&!simAct&&hhSocR(lnear==16?0:lnear)) pr&=~K_R;   // next to a household Sim: the social menu (it offers the furniture too)
         if((pr&K_R)&&!lnear&&lstun<=0&&lz<=fh&&!simAct&&hhCallFloors()) pr&=~K_R;   // floors step 9: R next to the stairs calls the Sims on the other floors to you
         if((pr&K_R)&&!lnear&&lstun<=0&&lz<=fh&&!simAct&&(htTable()||htBlockUse())) pr&=~K_R;   // hardtime.h: R at a canteen table of the prison
+        if((pr&K_R)&&!lnear&&!lskate&&stage>=AG_CHILD&&lstun<=0&&lz<=fh&&!simAct&&!prIn()&&slfMenu()) pr&=~K_R;   // self.h: R with nothing near: YOUR ACTIONS (pie menu)
         if((pr&K_R)&&lnear&&lstun<=0&&lz<=fh){
             if(lnear==1){   // fridge: eat
                 if(lfood>=95){ lnote="FULL"; lnoteT=40; }
@@ -5083,6 +5084,7 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "inmates.h"        // INMATES: the prison population, voxel Sims in prison clothes (needs prison.h)
 #include "weapons.h"       // WEAPONS: the weapon button, melee, the arsenal (shots: wpshot.h; shop: armsshop.h; stashes: wpsecret.h)
 #include "fight.h"         // FIGHT: guard, jab / cross / hook / kick, counter blows (module 1)
+#include "self.h"          // YOUR ACTIONS: the self pie menu (BODY / MIND / FUN / CARE)
 #include "wpshot.h"        // WEAPONS 2: bullets and guided missiles
 #include "armsshop.h"      // WEAPONS 3: the ARMS SHOP lot and its counter
 #include "wpsecret.h"      // WEAPONS 4: secret stashes in the community lots
