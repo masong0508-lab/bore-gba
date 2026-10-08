@@ -110,6 +110,7 @@ static void csBg(int bg,int t,int fx){   // the picture area: y 12 .. 115
     }
 }
 
+#include "csfx.h"
 static int csLen(const char*s){ int n=0; while(s[n]) n++; return n; }
 static int csIsq(int v){ int w=0; while((w+1)*(w+1)<=v) w++; return w; }
 
@@ -120,7 +121,7 @@ static void csDraw(const CsBeat*b,int t,int shown){   // one frame of one beat (
     int ay=110, by=110;
     if(b->bg==CB_HOSP||b->bg==CB_FLAT){ if(b->pb==CP_LIE) by=98; }
     if(b->bg==CB_SITE){ if(b->pb==CP_CLIMB) by=110-(t/3>48?48:t/3); if(b->pb==CP_FLAIL){ by=62+t*t/20; if(by>110) by=110; } if(b->pb==CP_LIE) by=111; }
-    if(b->a) csFig(b->ax*4,ay,b->a,b->pa,t);
+    csSpeed(b,t,by); if(b->a) csFig(b->ax*4,ay,b->a,b->pa,t);
     if(b->b) csFig(b->bx*4,by,b->b,b->pb,t);
     if(b->fx&CF_SICK){ int mx=b->bx*4, my=by-26; for(int k=0;k<9;k++) if(t>k*2) csR(mx+5+k*3,my+k*k/3-3,2,2,k&1?RGB(13,24,4):RGB(18,28,6)); }
     if(b->fx&CF_IRIS){ int r=130-t*2; if(r<0) r=0; int cx=csCamX(b->bx*4), cy=csCamY(by-27);
