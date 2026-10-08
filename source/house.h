@@ -915,7 +915,7 @@ static void fightHit(int a,int b){
     if(a==hhPUid) copCrime(1);   // hitting someone is a crime (npc.h)
     if((rnd8()*100>>8)<fkDodge(lb)){ hhSay(b,IC_BAIL,"DODGED"); return; }   // eye stalks see it coming, wings flap clear
     int dmg=14+(uTr(a,TR_ACT)>>1)+(rnd8()>>5)+fkAtk(la);
-    { int tk=fkTaken(lb); if(la[LK_CLAWS]==3) tk+=(100-tk)/4; dmg=dmg*tk/100; } if(dmg<1) dmg=1;   // BLADES cut through a quarter of the armour
+    { int tk=fkTaken(lb); if(la[LK_CLAWS]==3) tk+=(100-tk)/4; dmg=dmg*tk/100; } if(fgMul) dmg=dmg*fgMul/100; if(dmg<1) dmg=1;   // BLADES cut through a quarter of the armour
     int crit=(rnd8()*100>>8)<8+(la[LK_CLAWS]==3?10:0)+(uTr(a,TR_ACT)>>2);   // a CRITICAL HIT: one blow in twelve or so (BLADES and active Sims more) lands half as hard again
     if(crit){ dmg=dmg*3/2; hhSay(b,IC_BAIL,"CRIT"); }
     if(lb[LK_BACK]==1&&dmg>3){ fkLose(a,4); if(a==hhPUid&&lnoteT<=0){ lnote="OUCH  SPIKES"; lnoteT=40; } }   // spikes prick the one that hits them

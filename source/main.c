@@ -2092,7 +2092,9 @@ static void hurt(int sev,int kind){
     if(!ldead&&lhp<=0) die(SFX_DEATH,5);                                                              // the meter ran out (hits add up)
 }
 // A punch lands on the one you control (house.h calls this). Fights never kill: at 0 HP you are knocked out for 4 s and get up at 25.
+static u16 fgMul EWRAM_BSS, fgMode EWRAM_BSS;   // fight.h: percent a blow lands at (fightHit; 0 = normal), steps the fight stance stays up
 static void fightHurt(int dmg){
+    fgMode=300;   // a blow on you puts you in the fight stance
     if(xo[XO_HURT]==1) dmg/=2;                                              // GENTLE
     static u8 vxLosing; if(lhp>=60) vxLosing=0;
     lhp-=dmg; lsp=0; lgrind=0; sfxPlay(SFX_HIT);
@@ -2792,7 +2794,7 @@ static void trickName(int hs,int grab,int perfect){
 }
 static void swName(void){ int n=0; while(lnBuf[n]) n++; if(n>15) return; for(int i=n;i>=0;i--) lnBuf[i+7]=lnBuf[i]; const char*q="SWITCH "; for(int i=0;i<7;i++) lnBuf[i]=q[i]; }
 static void hhStart(void); static void hhTick(void); static int hhSocR(int useLabel); static int hhCallFloors(void);   // house.h (included further down, next to the drawing it hooks into)
-static void drawCounter(int sx,int sy,int t); static void dbgMenu(void); static void wpPre(u16*kp,u16*pp); static void wpDraw(void); static void wpConfiscate(void);   // weapons.h
+static void drawCounter(int sx,int sy,int t); static void dbgMenu(void); static void wpPre(u16*kp,u16*pp); static void fgPre(u16*kp,u16*pp); static void fgDraw(void); static void wpDraw(void); static void wpConfiscate(void);   // weapons.h
 // ---- COLLECTIBLES (like THPS): the letters S K A T E and one hidden tape float over the floor of a skate lot. Touch one to take it. ----
 // Nothing is saved and no map tile is used: lifeInit scatters them over empty floor every run (a new spot each time), so they cost a few bytes of EWRAM
 // and no sprite art (they are drawn in code). A letter counts like a combo letter (sktAward: five make SKATE). Only on lots that have something to skate.
@@ -2881,6 +2883,7 @@ static void storyScreen(void); static void stTick(void); static void stEnter(voi
 static void lifeStep(u16 k,u16 pr,int fr){
     lsTick(); trnTick();   // TIMED RUN countdown: one game step
     if(stage==AG_BABY&&!ldead){ k=babyPad(); pr=0; }   // uncontrollable stage: the pad is ignored (the pause menu still works)
+    fgPre(&k,&pr);   // fight.h: L = guard, L + R = fight stance, R = punches
     wpPre(&k,&pr);   // weapons.h: the weapon button (R with a weapon in hand, R + L = next weapon)
     int fh=surfH(lfx,lfy)<<8;
     { int tx=(int)(lfx>>8), ty=(int)(lfy>>8); char sc=(tx>=0&&ty>=0&&tx<MW&&ty<MH)?lifeMap[ty][tx]:'.';   // stairs: step on them to change floor (step off and on again to use them once more)
@@ -3335,6 +3338,7 @@ static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
     if(!ed&&hhN&&(xo[XO_MULTIFL]?pkHome<0:!curFl)) hhDrawBand(s1+1,9999);
     if(!ed&&ss>s1) drawPlayerNow();   // the feet are below the rectangle but the head is inside it: nothing in front can reach it, so draw last
     if(!ed) wpDraw();   // weapons.h: swings, shots, blasts
+    if(!ed) fgDraw();   // fight.h: punch trails and the guard
     clipAll();
 }
 static void drawRoom(int ed){   // the whole screen (editor, speed test)
@@ -5078,6 +5082,7 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "hardcourt.h"       // COURT: wardens beat you and drag you before the judge (plea, verdict, days and rep)
 #include "inmates.h"        // INMATES: the prison population, voxel Sims in prison clothes (needs prison.h)
 #include "weapons.h"       // WEAPONS: the weapon button, melee, the arsenal (shots: wpshot.h; shop: armsshop.h; stashes: wpsecret.h)
+#include "fight.h"         // FIGHT: guard, jab / cross / hook / kick, counter blows (module 1)
 #include "wpshot.h"        // WEAPONS 2: bullets and guided missiles
 #include "armsshop.h"      // WEAPONS 3: the ARMS SHOP lot and its counter
 #include "wpsecret.h"      // WEAPONS 4: secret stashes in the community lots
