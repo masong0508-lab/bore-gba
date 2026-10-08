@@ -40,6 +40,16 @@ static const CsShot csShots[]={
     {6,9,0,   0,220, 480,134,86, 256,120,64},
     // the empty chair, HERE TODAY (scene 5, beat 9): from the singer, a slow drift down the front row to the one seat nobody takes
     {5,9,0,   0,170, 330,172,80, 700,121,97},
+    // waking shots (cutscene redo 5), WAKING UP (scene 3): a slow push into the room (0), the held hand (3), the monitor (5), a hard cut to the fingers (6), her face (7), the shout (8), the rain (12-13), a last push (16)
+    {3,0,0,   0,150, 256,120,64, 300,120,70},
+    {3,3,1,   0,120, 330,-40,86, 560,-30,88},
+    {3,5,0,   0,100, 300, 60,60, 560, 36,50},
+    {3,6,1,   0, 50, 900, 10,94,1024, 10,94},
+    {3,7,1,   0,100, 760,-14,92, 900,-14,92},
+    {3,8,2,   0, 60, 560,  0,76, 620,  0,76},
+    {3,12,0,  0,120, 500,150,80, 300,130,70},
+    {3,13,0,  0,150, 300,130,70, 256,120,64},
+    {3,16,0,  0,200, 256,120,64, 420,164,86},
     // the mirror, THE BARS' NIGHT at home (scene 1, beat 8): the first look, creeping in on the reflection
     {1,8,0,   0,150, 300,120,60, 640,120,72},
     // sweater shots (cutscene redo 3): push to the glass (1), slow push on "Nobody would know" (3), track her run (7), tight on the crying line (10), pull out on the cold tile (12)

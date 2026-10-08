@@ -207,6 +207,7 @@ static const CsBeat csS3[]={
  {CB_HOSP,CA_MAME,CP_STAND,20,CA_MISSY,CP_LIE,41,0,0,0,"Missy",{"Everything's so bright. Was it always this beautiful?",0,0}},
  {CB_HOSP,CA_MAME,CP_STAND,20,CA_MISSY,CP_LIE,41,0,0,0,"Mamesy",{"Always was. You just had your eyes closed.",0,0}},
  {CB_HOSP,CA_MAME,CP_STAND,20,CA_MISSY,CP_LIE,41,CF_FADEOUT,0,0,"Missy",{"Then I'm done closing them. Mame, let's go win","everybody back. The right way.",0}},
+ {CB_BLACK,CA_NONE,CP_STAND,0,CA_NONE,CP_STAND,0,0,0,80,0,{0,0,0}},   // cutscene redo 5: a silent held black beat after the last card
 };
 static const CsBeat csS4[]={
  {CB_BACK,CA_NONE,CP_STAND,0,CA_MISSY,CP_STAND,27,CF_FADEIN,0,0,0,{"Showtime minus forty minutes. The dressing room smells","like hairspray and second chances.",0}},
