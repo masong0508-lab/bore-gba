@@ -2,6 +2,20 @@
 // Replaces csFig of cutscene.h (the old one stays as csFigV1, unused). Same call: csFig(x,y,who,pose,t): 34 px tall, feet at (x,y). Needs csR csD csLn csWv from cutscene.h.
 static u16 csSh(u16 c,int k){ int r=(c&31)-k,g=((c>>5)&31)-k,b=((c>>10)&31)-k; if(r<0)r=0; if(g<0)g=0; if(b<0)b=0; return RGB(r,g,b); }   // darker
 static u16 csLt(u16 c,int k){ int r=(c&31)+k,g=((c>>5)&31)+k,b=((c>>10)&31)+k; if(r>31)r=31; if(g>31)g=31; if(b>31)b=31; return RGB(r,g,b); }   // lighter
+// cutscene redo 14 (step 1: ELBOWS): arms are two segments with a real elbow. The elbow bulges outward / down like a relaxed arm, and a raised hand folds the arm up.
+static int csIq(int v){ int w=0; while((w+1)*(w+1)<=v) w++; return w; }
+static void csLimb(int x0,int y0,int x1,int y1,u16 fill,u16 ol){   // a 2 px wide, outlined bone
+    int dx=x1-x0, dy=y1-y0; if(dx<0) dx=-dx; if(dy<0) dy=-dy;
+    if(dy>=dx){ csLn(x0-1,y0,x1-1,y1,ol); csLn(x0+2,y0,x1+2,y1,ol); csLn(x0,y0,x1,y1,fill); csLn(x0+1,y0,x1+1,y1,fill); }
+    else      { csLn(x0,y0-1,x1,y1-1,ol); csLn(x0,y0+2,x1,y1+2,ol); csLn(x0,y0,x1,y1,fill); csLn(x0,y0+1,x1,y1+1,fill); }
+}
+static void csArm(int sx,int sy,int hx,int hy,int side,u16 ac,u16 ol,u16 sk){   // side -1 left, +1 right; shoulder (sx,sy) to the hand at (hx,hy)
+    int ax=sx+(side<0?1:-2), bx=hx+(side<0?0:-1), dx=bx-ax, dy=hy-sy, d=csIq(dx*dx+dy*dy), ex=ax+dx/2, ey=sy+dy/2;
+    if(d>0&&d<10){ int px=-dy, py=dx; if(px*side<0||(px==0&&py<0)){ px=-px; py=-py; }     // the bulge points away from the body, or down
+        int h=csIq(25-d*d/4)*3/5; ex+=px*h/d; ey+=py*h/d; }
+    csLimb(ax,sy,ex,ey,ac,ol); csLimb(ex,ey,bx,hy,ac,ol);
+    csR(hx-1,hy-1,2,2,sk);                                                                  // the hand
+}
 static void csFig(int x,int y,int who,int pose,int t){
     //                         -    MISSY        MAMESY       DEX          HAL          OKAFOR     (the game's own skinTones / hairTones / topTones / botTones)
     static const u16 SKc[6]={0,RGB(24,16,10),RGB(24,16,10),RGB(30,23,17),RGB(19,12,7),RGB(13,8,5)};
@@ -56,9 +70,7 @@ static void csFig(int x,int y,int who,int pose,int t){
     csR(x-4+ls,y-12,3,12,ol); csR(x+1-ls,y-12,3,12,ol); csR(x-3+ls,y-11,2,11,lc); csR(x+1-ls,y-11,2,11,lc);               // legs: a third of the figure, trousers or jeans (bare under Missy's skirt)
     csR(x-5+ls,y-2,4,2,dk); csR(x+1-ls,y-2,4,2,dk); csR(x-4+ls,y-2,2,1,csLt(dk,5));                                       // shoes
     u16 ac=(who==CA_CREW)?RGB(14,14,16):cl;                                                                // arms: a sleeve (Hal: a grey work shirt under the vest)
-    csLn(x+lean-ax,sy,x+lean+lh-1,sy+lv,ol); csLn(x+lean+ax,sy,x+lean+rh+1,sy+rv,ol);
-    csLn(x+lean-ax+1,sy,x+lean+lh,sy+lv,ac); csLn(x+lean-ax+2,sy,x+lean+lh+1,sy+lv,ac); csLn(x+lean+ax-1,sy,x+lean+rh,sy+rv,ac); csLn(x+lean+ax-2,sy,x+lean+rh-1,sy+rv,ac);
-    csR(x+lean+lh-1,sy+lv-1,2,2,sk); csR(x+lean+rh-1,sy+rv-1,2,2,sk);                                                    // hands
+    csArm(x+lean-ax,sy,x+lean+lh,sy+lv,-1,ac,ol,sk); csArm(x+lean+ax,sy,x+lean+rh,sy+rv,1,ac,ol,sk);                    // arms: shoulder, elbow, hand
     for(int i=0;i<11;i++){ int w=i<3?(fem?10:12):i<7?(fem?9:11):(fem?8:10), cx=x+lean*(11-i)/11, yy=y-22+i+bob;           // the body: straight, shoulders to hips, with an outline and a shaded side
         u16 rc=(who==CA_MISSY&&i>=9)?bt:cl;                                                                              // Missy: the blazer ends at the hip, the skirt starts
         csR(cx-w/2-1,yy,w+2,1,ol); csR(cx-w/2,yy,w,1,rc); csR(cx-w/2,yy,2,1,csSh(rc,4)); csR(cx+w/2-2,yy,1,1,csLt(rc,3));
