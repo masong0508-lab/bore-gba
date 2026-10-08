@@ -62,6 +62,7 @@ static void wpHurt(int m,int dmg,int w){   // one hit on a household Sim (melee,
     copCrime(1);
     if(hhPUid>=0&&hhPUid<HU_N&&b<HU_N){ relD[b][hhPUid]=(signed char)clampR(relD[b][hhPUid]-18); relL[b][hhPUid]=(signed char)clampR(relL[b][hhPUid]-8); }
     sfxPlay(SFX_HIT); hhSay(b,IC_HURT,"OW");
+    hhScare((int)(t->fx>>8),(int)(t->fy>>8),7,150); hhPanT[m]=0;   // PANIC: the others run from it (the one hit is stunned or down)
     if(t->hp>dmg){ t->hp=(u8)(t->hp-dmg); hhFreeze(b,w==WP_TASER?200:40);
         static char hb[20] EWRAM_BSS; char*e=simCat(hb,wpT[w].nm); *e++=' '; simCatN(e,dmg); lnote=hb; lnoteT=40; }
     else { t->hp=30; t->act=HA_SOC; t->t=600; t->bub=IC_SKULL; t->bubT=120; hhNote(t," IS KNOCKED OUT"); voxPlay(V_win_the_fight); copCrime(2); }

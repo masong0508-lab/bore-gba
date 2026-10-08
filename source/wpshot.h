@@ -13,9 +13,11 @@ static void wpShoot(int w,int ax,int ay){
     WpShot*s=&wpS[i]; int d=(ax&&ay)?36:48;   // the muzzle: a little ahead of you
     s->x=lfx+ax*d; s->y=lfy+ay*d; s->dx=(s8)ax; s->dy=(s8)ay; s->w=(u8)w; s->kind=(u8)(wpT[w].kind); s->life=(u8)(wpT[w].kind==2?110:44);
     sfxPlay(wpT[w].kind==2?SFX_THUNDER:SFX_HIT);
+    hhScare((int)(lfx>>8),(int)(lfy>>8),9,150);   // PANIC: a shot fired scares the Sims close by
 }
 static void wpBoom(s32 x,int dmg){   // (x is passed with wpBoomY set by the caller)
     wpBoomT=14; wpBoomX=x; sfxPlay(SFX_THUNDER);
+    hhScare((int)(wpBoomX>>8),(int)(wpBoomY>>8),14,240);   // PANIC: a blast
     int R=410;
     for(int m=0;m<hhN;m++){ if(!wpLive(m)) continue;
         int dx=(int)(hhM[m].fx-wpBoomX), dy=(int)(hhM[m].fy-wpBoomY), q=dx*dx+dy*dy; if(q>=R*R) continue;

@@ -719,6 +719,7 @@ static void hhAmbient(void){   // item module 12: while a Sim has the stereo on,
     if(!on) return;
     for(int m=0;m<hhN;m++){ HhSim*s=&hhM[m]; if(s->act==HA_AWAY||s->need[HN_FUN]>=100||(s->act==HA_USE&&s->item&&iuT[s->item-1].ch=='A')) continue; s->need[HN_FUN]++; }
 }
+#include "panic.h"   // PANIC: Sims run from gunfire, blasts and shot Sims (hhScare)
 static void hhTick(void){   // once per logic step in the life game
     if(xo[XO_MULTIFL]||xo[XO_ITEMUSE]){ if(hhCenT) hhCenT--; else hhCensus(); }   // floors step 2: keep the per-floor furniture census fresh (item module 2: item use reads it too)
     if(curFl&&!xo[XO_MULTIFL]) return;   // upstairs: the household waits on the ground floor (SIMS ON FLOORS: the Sims up here carry on)
@@ -752,6 +753,7 @@ static void hhTick(void){   // once per logic step in the life game
                 if(hhUp[m]>1){ hhUp[m]--; continue; }
                 if(hhTaken((int)(s->fx>>8),(int)(s->fy>>8),s)){ hhUp[m]=30; continue; }
                 hhUp[m]=0; if(hhFl[m]){ hhFl[m]=0; hhStairSpot(s,'^'); } if(xo[XO_MULTIFL]&&s->use<HN_FUN) s->need[s->use]=100; s->act=HA_IDLE; s->think=20; s->gok=0; s->pn=s->pi=0; hhNote(s," CAME DOWNSTAIRS"); continue; } }
+        if(hhPanT[m]){ if(s->act==HA_SOC&&s->bub==IC_SKULL) hhPanT[m]=0; else { hhPanicStep(m,s,&planned); continue; } }   // PANIC: running away
         if(s->act==HA_SOC){ if(--s->t<=0){ s->act=HA_IDLE; s->think=(short)(HH_THINK/2); } continue; }   // standing in a conversation
         if(!xo[XO_FREEWILL]){ if(s->act==HA_AWAY) s->fx=hhExX*256+128, s->fy=hhExY*256+128; s->act=HA_IDLE; continue; }
         { int fr=0, to=0, k=hhSched(s,&fr,&to), due=k&&simMin>=fr&&simMin<to;   // the day's routine
