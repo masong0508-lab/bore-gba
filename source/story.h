@@ -90,16 +90,16 @@ static void stKidHome(void){   // the promised child moves in: a mix of you and 
 }
 // TV SHOW & TELL: every chapter is SEVERAL goals at once and ALL of them must hold at the same moment (no skating in this story: it is about getting a life back).
 // The chapter clock lives in stKidDay (no kid in this story): the day the chapter began, or the day of the last RELAPSE (a puff) or COLLAPSE (faint / pass out) in the chapters that watch for them.
-static const char* const stqNm[7]={"DAYS CLEAN","DAYS HOLDING ON","FRIENDS","SIMOLEONS","SIMS LIVING HERE","HAVE A NEIGHBOR OVER","FEEL HAPPY RIGHT NOW"};
-enum { TQ_CLEAN, TQ_DAYS, TQ_FRIENDS, TQ_MONEY, TQ_HOUSE, TQ_GUEST, TQ_HAPPY };
+static const char* const stqNm[8]={"DAYS CLEAN","DAYS HOLDING ON","FRIENDS","SIMOLEONS","SIMS LIVING HERE","HAVE A NEIGHBOR OVER","FEEL HAPPY RIGHT NOW","SECURITY PIECES"};
+enum { TQ_CLEAN, TQ_DAYS, TQ_FRIENDS, TQ_MONEY, TQ_HOUSE, TQ_GUEST, TQ_HAPPY, TQ_SECURE };
 typedef struct { u8 k; u32 n; } StQ;
 static const StQ stqT[5][5]={
     { {TQ_GUEST,1}, {TQ_FRIENDS,1}, {TQ_MONEY,4000} },                                                     // 1 hungover: have somebody over, a friend, a little cash
     { {TQ_CLEAN,7}, {TQ_FRIENDS,2}, {TQ_MONEY,6000}, {TQ_HAPPY,1} },                                       // 2 a week clean (a puff or a faint starts it again)
-    { {TQ_HOUSE,3}, {TQ_CLEAN,4}, {TQ_MONEY,20000}, {TQ_FRIENDS,2} },                                      // 3 a private house with a crew around you
+    { {TQ_HOUSE,3}, {TQ_CLEAN,4}, {TQ_MONEY,20000}, {TQ_FRIENDS,2}, {TQ_SECURE,4} },                                      // 3 a private house with a crew around you
     { {TQ_DAYS,5}, {TQ_FRIENDS,2}, {TQ_MONEY,12000}, {TQ_HAPPY,1} },                                       // 4 you are Mamesy: hold on
     { {TQ_CLEAN,10}, {TQ_FRIENDS,4}, {TQ_HOUSE,4}, {TQ_MONEY,40000}, {TQ_HAPPY,1} } };                     // 5 the comeback: all of it, together
-static const u8 stqN[5]={3,4,4,4,5};
+static const u8 stqN[5]={3,4,5,4,5};
 static u8 stqDay(void){ u8 b=(u8)(simDay&255); return b==255?254:b; }
 static int stqDays(void){ return stKidDay==255?0:((simDay&255)-stKidDay)&255; }
 static int stqVal(const StQ*q){
@@ -108,6 +108,7 @@ static int stqVal(const StQ*q){
     case TQ_FRIENDS: { int me=hhPUid, ex=stCh==3?(int)stKid:(int)stPart, n=0; for(int u=0;u<HU_N;u++) if(u!=me&&u!=ex&&(relF[me][u]&RF_FRIEND)) n++; return n; }   // (Missy's sister does not count once she is gone, and in chapter 4 Missy is in a coma)
     case TQ_MONEY: return (int)simMoneyI();
     case TQ_HOUSE: { int n=hhN+1; if(stCh==4&&stPart!=255&&stMember(stPart)>=0) n--; return n; }
+    case TQ_SECURE: { int c=secCount('n'), g=secCount('j'); return (c>2?2:c)+(g>2?2:g); }   // chapter 3: tight security = 2 SECURITY CAMERAS and 2 SECURITY GATES on the lot you are on
     case TQ_GUEST: return stGuest?1:0;
     case TQ_HAPPY: return moodState()>=MS_HAPPY;
     }

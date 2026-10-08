@@ -36,6 +36,19 @@ static void drawWork(int sx,int sy,int t){   // WORK MARKER: a gold diamond pad 
     for(int j=-3;j<=3;j++){ int w=(3-(j<0?-j:j))*3+1; rect(sx-w,sy+j,2*w+1,1,pad); px(sx-w,sy+j,dark); px(sx+w,sy+j,dark); }
     rect(sx-3,sy-6,7,5,dark); rect(sx-2,sy-5,5,3,gold); rect(sx-1,sy-7,3,1,dark); px(sx,sy-4,dark);
 }
+// TV SHOW & TELL (chapter 3, a private house with tight security): two items drawn by code, no ROM art, no RAM. n = SECURITY CAMERA, j = SECURITY GATE.
+static void drawSecCam(int sx,int sy,int t){   // a pole with a camera on top and a blinking red light
+    rect(sx-3,sy-1,8,2,RGB(7,7,9)); rect(sx,sy-14,2,14,RGB(9,9,12));
+    rect(sx-4,sy-18,10,5,RGB(20,21,24)); rect(sx-4,sy-18,10,1,RGB(28,29,31)); rect(sx+4,sy-17,3,3,RGB(3,3,5));
+    if((t>>2)&1) rect(sx-3,sy-17,2,2,RGB(31,5,4));
+}
+static void drawSecGate(int sx,int sy){   // a tall iron fence piece: posts, a top rail and bars
+    u16 post=RGB(5,5,7), bar=RGB(14,15,18), hi=RGB(24,25,28);
+    for(int i=-6;i<=6;i+=3) rect(sx+i,sy-17,1,17,bar);
+    rect(sx-7,sy-18,15,2,post); rect(sx-7,sy-6,15,1,post);
+    rect(sx-8,sy-20,2,20,post); rect(sx+7,sy-20,2,20,post); px(sx-8,sy-20,hi); px(sx+7,sy-20,hi);
+}
+static int secCount(char ch){ int n=0; for(int y=0;y<MH;y++) for(int x=0;x<MW;x++) if(lifeMap[y][x]==ch) n++; return n; }   // how many of one security piece the live map has (the story goal reads this)
 // which way an item faces (world dir 0=S(+y) 1=E(+x) 2=N(-y) 3=W(-x)): away from a wall, toward open floor
 static int itemOpen(int x,int y){ if(x<0||y<0||x>=MW||y>=MH) return 0; char c=lifeMap[y][x]; return c=='.'||c=='D'||c=='B'||c=='P'; }
 static int itemFacing(int x,int y){

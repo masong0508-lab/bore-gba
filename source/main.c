@@ -2058,7 +2058,7 @@ static inline int isWinCh(char c){ return c=='E'||c=='e'||c=='f'; }   // the win
 static int tileH(int tx,int ty){   // surface height in px (ramps: their highest point). Grind height is 6: rails, ledges and benches
     if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
     char c=lifeMap[ty][tx];
-    return (c=='#'||c=='F'||c=='W'||c=='H'||isWinCh(c))?2*CC: (c=='X'||c=='Y')?10: (c=='b')?2*CC: (c=='m')?5: (c=='w'||c=='T'||c=='S'||c=='C'||c=='O'||c=='G'||c=='V'||c=='U'||c=='Q'||c=='A'||c=='v'||c=='c'||c=='q')?CC: (c=='='||c=='L'||c=='N'||c=='Z'||c=='K'||c=='J'||c=='I'||c=='R'||c=='g')?6: (c=='M')?3: isKicker(c)?KICKER_H: isLaunch(c)?LAUNCH_H: isQPipe(c)?qpH[7]: 0;   // pack 2: X funbox 10, Y trash can 10, O barrel 8, Z planter / K table / J jersey grind at 6, M manual pad 3
+    return (c=='j')?2*CC: (c=='n')?CC: (c=='#'||c=='F'||c=='W'||c=='H'||isWinCh(c))?2*CC: (c=='X'||c=='Y')?10: (c=='b')?2*CC: (c=='m')?5: (c=='w'||c=='T'||c=='S'||c=='C'||c=='O'||c=='G'||c=='V'||c=='U'||c=='Q'||c=='A'||c=='v'||c=='c'||c=='q')?CC: (c=='='||c=='L'||c=='N'||c=='Z'||c=='K'||c=='J'||c=='I'||c=='R'||c=='g')?6: (c=='M')?3: isKicker(c)?KICKER_H: isLaunch(c)?LAUNCH_H: isQPipe(c)?qpH[7]: 0;   // pack 2: X funbox 10, Y trash can 10, O barrel 8, Z planter / K table / J jersey grind at 6, M manual pad 3
 }
 static int surfH(s32 fx,s32 fy){   // surface height at an exact position (1/256 tiles): same as tileH, but ramps slope
     int tx=(int)(fx>>8), ty=(int)(fy>>8); if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
@@ -2174,14 +2174,14 @@ static int numText(int x,int y,int n,u16 c){
 // lifeMap = what stands on each tile, floorMap = floor style under it, wallMap = wallpaper on it (for wall tiles).
 enum { T_ROOM, T_WALL, T_FLOOR, T_ITEM, T_ERASE, NTOOL };
 static int eTool, eAct, eAx, eAy, eFl, eWp, eOb;   // editor: tool, rectangle anchor set?, anchor tile, chosen floor / wallpaper / item
-#define NOBJ 45   // (44 is the WORK MARKER 'x'; 42 and 43, the COMMUNITY FLAG 'a' and the SKATE FLAG 'k', are drawn by code, see FLAGS below, and stay the LAST TWO of MISC)
+#define NOBJ 47   // (44 is the WORK MARKER 'x'; 42 and 43, the COMMUNITY FLAG 'a' and the SKATE FLAG 'k', are drawn by code, see FLAGS below, and stay the LAST TWO of MISC)
 #define OB_LAUNCH 17   // launch ramp turns like the kicker: '9'..'<'
 #define OB_KICKER 10   // palette slots whose char carries a turn (+eRot): kicker '1'..'4', quarter pipe '5'..'8'
 #define OB_QPIPE 11
 static int eRot;   // editor: which way the next ramp faces (0 S, 1 E, 2 N, 3 W)
-static const char palCh[NOBJ]={'.','w','W','#','=','F','T','D','B','P','1','5','L','N','S','H','C','9','X','O','Y','Z','K','J','M','G','V','U','^','~','Q','I','R','A','v','b','c','q','m','E','e','f','a','k','x'};
-static const char* const palNm[NOBJ]={"CLEAR","LOW WALL","WALL","CRATE","RAIL","FRIDGE","TOILET","DOOR","BOARD","SPAWN","KICKER","Q PIPE","LEDGE","BENCH","BED","SHOWER","SOFA","LAUNCH","FUNBOX","BARREL","TRASH CAN","PLANTER","PICNIC","JERSEY","MANUAL PAD","WATER PIPE","LAVA LAMP","BEANBAG","STAIRS UP","STAIRS DOWN","DEADSET 3THOUSAND VYBE","PHONE","RADIO","SOUND SYSTEM","TV","BOOKSHELF","COFFEE MAKER","AQUARIUM","TREADMILL","WINDOW","DARK WINDOW","STRIP WINDOW","COMMUNITY FLAG","SKATE FLAG","WORK MARKER"};
-static const u16 palCol[NOBJ]={RGB(26,21,14),RGB(8,20,22),RGB(10,22,24),RGB(8,9,20),RGB(31,30,16),RGB(31,31,31),RGB(30,28,18),RGB(14,9,5),RGB(26,10,6),RGB(28,10,8),RGB(24,17,9),RGB(27,19,11),RGB(20,20,22),RGB(25,18,9),RGB(10,14,28),RGB(22,28,30),RGB(26,18,9),RGB(8,14,24),RGB(18,16,24),RGB(24,6,5),RGB(12,18,14),RGB(20,10,6),RGB(25,18,9),RGB(22,22,24),RGB(30,26,5),RGB(10,24,14),RGB(24,8,26),RGB(18,8,22),RGB(24,22,18),RGB(12,11,10),RGB(6,20,31),RGB(26,6,6),RGB(20,20,22),RGB(12,13,16),RGB(8,14,26),RGB(18,11,5),RGB(22,12,4),RGB(6,18,28),RGB(14,14,18),RGB(12,22,30),RGB(5,10,14),RGB(20,28,31),RGB(6,24,28),RGB(31,18,4),RGB(31,24,4)};
+static const char palCh[NOBJ]={'.','w','W','#','=','F','T','D','B','P','1','5','L','N','S','H','C','9','X','O','Y','Z','K','J','M','G','V','U','^','~','Q','I','R','A','v','b','c','q','m','E','e','f','a','k','x','n','j'};
+static const char* const palNm[NOBJ]={"CLEAR","LOW WALL","WALL","CRATE","RAIL","FRIDGE","TOILET","DOOR","BOARD","SPAWN","KICKER","Q PIPE","LEDGE","BENCH","BED","SHOWER","SOFA","LAUNCH","FUNBOX","BARREL","TRASH CAN","PLANTER","PICNIC","JERSEY","MANUAL PAD","WATER PIPE","LAVA LAMP","BEANBAG","STAIRS UP","STAIRS DOWN","DEADSET 3THOUSAND VYBE","PHONE","RADIO","SOUND SYSTEM","TV","BOOKSHELF","COFFEE MAKER","AQUARIUM","TREADMILL","WINDOW","DARK WINDOW","STRIP WINDOW","COMMUNITY FLAG","SKATE FLAG","WORK MARKER","SECURITY CAMERA","SECURITY GATE"};
+static const u16 palCol[NOBJ]={RGB(26,21,14),RGB(8,20,22),RGB(10,22,24),RGB(8,9,20),RGB(31,30,16),RGB(31,31,31),RGB(30,28,18),RGB(14,9,5),RGB(26,10,6),RGB(28,10,8),RGB(24,17,9),RGB(27,19,11),RGB(20,20,22),RGB(25,18,9),RGB(10,14,28),RGB(22,28,30),RGB(26,18,9),RGB(8,14,24),RGB(18,16,24),RGB(24,6,5),RGB(12,18,14),RGB(20,10,6),RGB(25,18,9),RGB(22,22,24),RGB(30,26,5),RGB(10,24,14),RGB(24,8,26),RGB(18,8,22),RGB(24,22,18),RGB(12,11,10),RGB(6,20,31),RGB(26,6,6),RGB(20,20,22),RGB(12,13,16),RGB(8,14,26),RGB(18,11,5),RGB(22,12,4),RGB(6,18,28),RGB(14,14,18),RGB(12,22,30),RGB(5,10,14),RGB(20,28,31),RGB(6,24,28),RGB(31,18,4),RGB(31,24,4),RGB(20,21,24),RGB(14,15,18)};
 static signed char palLut[256] EWRAM_BSS; static u8 palLutOk;   // tile char -> palette slot (or -1), built on first use: palIdx() runs for every tile of the minimap, so it must be O(1) even with 100+ items
 static int palIdx(char c){
     if(!palLutOk){ for(int i=0;i<256;i++) palLut[i]=-1; for(int i=NOBJ-1;i>=0;i--) palLut[(u8)palCh[i]]=(signed char)i;
@@ -2193,10 +2193,10 @@ static char edObjCh(void){ char c=palCh[eOb]; return (eOb==OB_KICKER||eOb==OB_QP
 #define DS_PRICE 75000
 #define NCAT 8
 static const char* const catNm[NCAT]={"SEAT","HOME","TECH","SKATE","DECOR","WALLS","MISC","REWARDS"};
-static const u8 catN[NCAT]={4,5,5,10,3,8,6,4};
+static const u8 catN[NCAT]={4,5,5,10,3,8,8,4};
 static int catCnt(int c){ return (c==6&&!nbFlagOk())?catN[c]-2:catN[c]; }   // the two FLAGS (the end of MISC) only show in the palette while the town view's BUILD has a free lot open
-static const u8 catItems[NCAT][10]={ {13,16,27,22}, {5,6,14,15,36}, {31,32,26,25,34}, {3,4,10,11,12,17,18,19,23,24}, {20,21,35}, {1,2,7,28,29,39,40,41}, {0,8,9,44,42,43}, {37,38,33,30} };   // (the last row is REWARDS: aquarium, treadmill, sound system, DeadSet)
-static const u32 palPrice[NOBJ]={0,50,100,120,250,1200,600,250,0,0,450,900,300,350,1500,1100,1400,700,800,80,60,150,700,200,150,400,250,300,900,900,DS_PRICE,200,150,2500,1800,600,250,1000,1500,400,450,500,0,0,0};   // simoleons: a starter room (bed, fridge, toilet, shower, sofa, TV) is about 8000 of the 15000 you start with
+static const u8 catItems[NCAT][10]={ {13,16,27,22}, {5,6,14,15,36}, {31,32,26,25,34}, {3,4,10,11,12,17,18,19,23,24}, {20,21,35}, {1,2,7,28,29,39,40,41}, {0,8,9,44,45,46,42,43}, {37,38,33,30} };   // (the last row is REWARDS: aquarium, treadmill, sound system, DeadSet)
+static const u32 palPrice[NOBJ]={0,50,100,120,250,1200,600,250,0,0,450,900,300,350,1500,1100,1400,700,800,80,60,150,700,200,150,400,250,300,900,900,DS_PRICE,200,150,2500,1800,600,250,1000,1500,400,450,500,0,0,0,300,200};   // simoleons: a starter room (bed, fridge, toilet, shower, sofa, TV) is about 8000 of the 15000 you start with
 static int edCatOf(int idx,int*pos){ for(int c=0;c<NCAT;c++) for(int j=0;j<catCnt(c);j++) if(catItems[c][j]==idx){ if(pos) *pos=j; return c; } if(pos) *pos=0; return 0; }
 static void edItemStep(int d){ int p, c=edCatOf(eOb,&p); p=(p+d+catCnt(c))%catCnt(c); eOb=catItems[c][p]; }   // L / R: the next item of this category
 static void edCatStep(int d){ int c=(edCatOf(eOb,0)+d+NCAT)%NCAT; eOb=catItems[c][0]; }                  // SELECT + L / R: the next category
@@ -3274,6 +3274,8 @@ static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
             if((ed&&c=='B')||(!ed&&!lhave&&ox==BDX&&oy==BDY)) blitItem(V_BOARD,sx,sy-(ed?0:((lfr>>4)&1)));   // the skateboard pickup, bobbing
             if(ed&&c=='P') drawSpawn(sx,sy+1);   // little person = spawn
             if(c=='g') drawCounter(sx,sy+1,(int)(lfr>>3));   // the arms shop counter (armsshop.h)
+            if(c=='n') drawSecCam(sx,sy+1,(int)(lfr>>3));   // TV SHOW & TELL: the security camera and gate (drawn by code)
+            if(c=='j') drawSecGate(sx,sy+1);
             if(c=='x') drawWork(sx,sy+1,(int)(lfr>>3));   // the WORK MARKER: a gold pad with a briefcase (a normal job's minutes count here)
             if((c=='a'||c=='k')&&(nbFlagsOn()||(ed&&nbFlagOk()))) drawFlag(sx,sy+1,c=='k',(int)(lfr>>3));   // a flag on a pole (blue = community, orange = skate); it waves in play too
         }
