@@ -1126,18 +1126,48 @@ static void hhCalc(void){   // (the places above hhN that hold a visitor too)
     for(int m=0;m<HH_MAX;m++){ if(m>=hhN){ int k=HH_MAX-1-m; if(k>=TW_N||!twHas[k]||!twOn[k]||curFl) continue; } const HhSim*s=&hhM[m]; s32 rx,ry; rotPos(s->fx,s->fy,&rx,&ry);
         hhX[m]=LOX+(int)((rx-ry)>>5); hhY[m]=LOY+(int)((rx+ry)>>6); hhB[m]=(int)((rx>>8)+(ry>>8)); hhV[m]=faceView[(s->hd+hhLook(m)+4*cview)&15]; hhH[m]=surfH(s->fx,s->fy); }
 }
+// FOE HEALTH BAR (fight.h sets it): a small bar floats over the Sim you last hit for about 2.5 s. Green / yellow / red like the HUD; a pale chunk
+// (the ghost) holds where the health was and drains away, so you can see what the last blow took. A knocked out Sim shows an empty bar. 4 bytes of EWRAM.
+#define HB_W 18      // inner width in pixels
+#define HB_UP 44     // the bar sits this far above the Sim's feet (a balloon moves up by HB_BAL to make room)
+#define HB_BAL 7
+static u8 hhBarT EWRAM_BSS, hhBarM EWRAM_BSS, hhBarG EWRAM_BSS, hhBarH EWRAM_BSS;   // steps left, whose bar (member), ghost health, steps the ghost holds
+static int hhBarOn(int m){ return hhBarT&&hhBarM==m&&m<hhN; }
+static int hhBarHp(int m){ return (hhM[m].act==HA_SOC&&hhM[m].t>=500)?0:hhM[m].hp; }   // (a knocked out Sim is kept at 30 HP inside: show it empty)
+static void hhBarHit(int m,int hp0){   // a blow landed on member m that had hp0 before it
+    if(hhBarT&&hhBarM==m&&hhBarG>hp0) hp0=hhBarG;   // the same foe again: the ghost keeps the whole combo's damage
+    hhBarM=(u8)m; hhBarG=(u8)hp0; hhBarH=24; hhBarT=150;
+}
+static void hhBarTick(void){
+    if(!hhBarT) return;
+    hhBarT--; if(hhBarM>=hhN){ hhBarT=0; return; }
+    int cur=hhBarHp(hhBarM);
+    if(hhBarG<cur) hhBarG=(u8)cur;
+    else if(hhBarH) hhBarH--;
+    else if(hhBarG>cur){ int g=hhBarG-2; hhBarG=(u8)(g<cur?cur:g); }
+}
+static void hhBarDraw(int m){
+    int x=hhX[m]-HB_W/2-1, y=hhY[m]-hhH[m]-HB_UP, cur=hhBarHp(m), w=(cur*46)>>8, g=(hhBarG*46)>>8; if(cur>0&&w<1) w=1;
+    u16 col=cur>=55?RGB(9,27,8):cur>=28?RGB(29,25,5):RGB(30,7,6);
+    rect(x,y,HB_W+2,5,RGB(3,3,6)); rect(x+1,y+1,HB_W,3,RGB(9,4,4));
+    if(g>w) rect(x+1+w,y+1,g-w,3,RGB(31,30,24));
+    if(w>0){ rect(x+1,y+1,w,3,col); rect(x+1,y+1,w,1,(u16)(col|0x2108)); }
+}
 static void hhDrawBand(int s0,int s1){   // the members whose band is in s0..s1
     for(int m=0;m<hhN;m++){ if(hhB[m]<s0||hhB[m]>s1||hhM[m].act==HA_AWAY) continue;
         if(sShad) rect(hhX[m]-3,hhY[m]-hhH[m]-1,7,2,RGB(10,8,5));   // (the Sim itself is a hardware sprite: hhObjUpdate)
-        if(hhM[m].bubT){ int bx=hhX[m]-5, by=hhY[m]-hhH[m]-50; rect(bx,by,11,10,RGB(14,16,22)); rect(bx+1,by+1,9,8,WHITE);   // a balloon with an icon (Sims style)
+        if(hhBarOn(m)) hhBarDraw(m);
+        if(hhM[m].bubT){ int bx=hhX[m]-5, by=hhY[m]-hhH[m]-50-(hhBarOn(m)?HB_BAL:0); rect(bx,by,11,10,RGB(14,16,22)); rect(bx+1,by+1,9,8,WHITE);   // a balloon with an icon (Sims style)
             simIcon(bx+2,by+1,hhM[m].bub,hhM[m].bub==IC_HEART?RGB(28,6,12):hhM[m].bub==IC_ANGRY||hhM[m].bub==IC_HURT?RGB(26,4,4):RGB(4,4,10)); px(hhX[m],by+10,RGB(14,16,22)); } }
 }
 typedef struct { short x0,y0,x1,y1; } HhR;   // (hud.h's Rc comes later in main.c)
 static void hhRc(int m,HhR*r){   // what a member puts INTO the picture: only its shadow (and a balloon); the body is a hardware sprite
     if(hhM[m].act==HA_AWAY){ r->x0=r->x1=r->y0=r->y1=0; return; }   // off the lot: nothing
     r->x0=(short)(hhX[m]-3); r->x1=(short)(hhX[m]+4); r->y0=(short)(hhY[m]-hhH[m]-1); r->y1=(short)(hhY[m]-hhH[m]+1);
-    if(hhM[m].bubT){ int by=hhY[m]-hhH[m]-50; if(r->y0>by) r->y0=(short)by; if(r->x0>hhX[m]-5) r->x0=(short)(hhX[m]-5); if(r->x1<hhX[m]+6) r->x1=(short)(hhX[m]+6); } }
-static unsigned hhSig(int m){ return ((unsigned)(hhX[m]&0x3FF)|((unsigned)(hhY[m]&0x3FF)<<10)|((unsigned)(hhH[m]&15)<<22)|((unsigned)(hhM[m].bubT?1+(hhM[m].bub&31):0)<<26))^(hhM[m].act==HA_AWAY?0x80000000u:0); }
+    if(hhM[m].bubT){ int by=hhY[m]-hhH[m]-50-(hhBarOn(m)?HB_BAL:0); if(r->y0>by) r->y0=(short)by; if(r->x0>hhX[m]-5) r->x0=(short)(hhX[m]-5); if(r->x1<hhX[m]+6) r->x1=(short)(hhX[m]+6); }
+    if(hhBarOn(m)){ int by=hhY[m]-hhH[m]-HB_UP; if(r->y0>by) r->y0=(short)by; if(r->x0>hhX[m]-HB_W/2-1) r->x0=(short)(hhX[m]-HB_W/2-1); if(r->x1<hhX[m]+HB_W/2+2) r->x1=(short)(hhX[m]+HB_W/2+2); } }
+static unsigned hhSig(int m){ return (((unsigned)(hhX[m]&0x3FF)|((unsigned)(hhY[m]&0x3FF)<<10)|((unsigned)(hhH[m]&15)<<22)|((unsigned)(hhM[m].bubT?1+(hhM[m].bub&31):0)<<26))^(hhM[m].act==HA_AWAY?0x80000000u:0))
+    +(hhBarOn(m)?((unsigned)(hhBarHp(m)+1)+(unsigned)hhBarG*257u)*0x9E3779B1u:0u); }   // (the bar adds its own health and ghost, so any change redraws it)
 static int hhBehindAt(s32 fx,s32 fy){   // is a full-height wall in front of this spot (towards the camera)? then a Sim there is drawn see-through
     s32 rx,ry; rotPos(fx,fy,&rx,&ry); int x=(int)(rx>>8), y=(int)(ry>>8);
     static const signed char d[5][2]={{1,0},{0,1},{1,1},{2,1},{1,2}};

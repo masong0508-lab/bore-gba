@@ -14,7 +14,9 @@
 //   it winds up for about a quarter of a second (a HIYAH balloon and a tick, that is your cue to guard), then swings once. It only reaches 1.9 tiles.
 //   Damage, dodging, armour and critical hits are the same as before (fightHit in house.h): this module only scales the blow (fgMul) and decides when.
 //
-// MEMORY  about 16 bytes of EWRAM. Nothing is saved. The hooks: fgPre (first thing in lifeStep), fgDraw (main.c next to wpDraw), fgMode/fgMul (main.c).
+// HEALTH BAR  the Sim you last hit gets a small bar floating over its head for about 2.5 s (house.h: hhBarHit / hhBarDraw), with a pale ghost chunk that drains to show what the blow took.
+//
+// MEMORY  about 20 bytes of EWRAM. Nothing is saved. The hooks: fgPre (first thing in lifeStep), fgDraw (main.c next to wpDraw), fgMode/fgMul (main.c).
 #define FG_HOLD 6     // steps L is held before it is a guard (shorter = a tap = the board swap)
 #define FG_PARRY 10   // steps after the guard goes up in which a blow is a PARRY
 enum { FG_JAB, FG_CROSS, FG_HOOK, FG_KICK, FG_N };
@@ -71,9 +73,10 @@ static void fgAttack(u16 k){
     int mul=fgPct[mv]+fgCh*5; if(fgPar){ mul=mul*3/2; fgPar=0; }
     fgMul=mul; fightHit(hhPUid,b); fgMul=0;
     if(t->t==600&&t->act==HA_SOC){   // knocked out
-        fgC=0; fgCW=0; fgCh=0; fgFoeT=0; fgMode=60; lnote="K.O."; lnoteT=60; return; }
+        hhBarHit(m,hp0); fgC=0; fgCW=0; fgCh=0; fgFoeT=0; fgMode=60; lnote="K.O."; lnoteT=60; return; }
     int dealt=hp0-(int)t->hp;
     if(dealt<=0){ fgC=0; fgCW=0; return; }   // dodged
+    hhBarHit(m,hp0);   // the health bar floats over this foe
     if(hhPUid>=0&&hhPUid<HU_N&&b<HU_N){ relD[b][hhPUid]=(signed char)clampR(relD[b][hhPUid]-5); relL[b][hhPUid]=(signed char)clampR(relL[b][hhPUid]-2); }
     fgCh++; if(fgCh>9) fgCh=9;
     int st=fgStunT[mv]-fgCh*3; if(st<10) st=10;
@@ -103,6 +106,7 @@ static void fgCounter(void){   // the Sim that was winding up swings
 // First thing in every life step (before wpPre). Reads the pad, may rewrite the keys the rest of the step sees.
 static void fgPre(u16*kp,u16*pp){
     u16 k=*kp, pr=*pp, k0=k;
+    hhBarTick();
     if(fgCd) fgCd--;
     if(fgCW&&!--fgCW){ fgC=0; fgCh=0; }
     if(fgSw) fgSw--;
