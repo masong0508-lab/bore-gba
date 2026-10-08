@@ -104,7 +104,7 @@ static int htBlockUse(void){   // main.c lifeStep, R with nothing in reach: insi
         if(menu("WORKSHOP",it,1)==0){
             if(htWk>=4) toast("THE FOREMAN SAYS ENOUGH FOR TODAY");
             else if(sNrg<25||lfood<20) toast("TOO TIRED OR HUNGRY TO WORK");
-            else { htWk++; hmNeed(&sNrg,-15); lfood-=8; simMoney+=12; if(simMoney>9999) simMoney=9999; if(rnd8()&1) skGain(SK_BODY,1); htMdAdd(15); moodEvent(M_PAY); lstun=120; lsp=0; lnote="WORKED A SHIFT  PAID $12"; lnoteT=90; }
+            else { htWk++; hmNeed(&sNrg,-15); lfood-=8; simMoneyAdd(12); if(rnd8()&1) skGain(SK_BODY,1); htMdAdd(15); moodEvent(M_PAY); lstun=120; lsp=0; lnote="WORKED A SHIFT  PAID $12"; lnoteT=90; }
         }
     } else {
         const char*it[2]={"RUN LAPS","SIT AND THINK"};
@@ -126,7 +126,7 @@ static int htBlockUse(void){   // main.c lifeStep, R with nothing in reach: insi
 static void htMisDone(void){   // a favor is done: paid by who asked
     int p=htMisBy==1?30:htMisBy==2?45:0, r=htMisBy==1?2:htMisBy==2?8:3;
     char*e=slCat(htMsg,"FAVOR DONE  ");
-    if(p){ simMoney+=p; if(simMoney>9999) simMoney=9999; e=slCat(e,"$"); e=slNum(e,p); }
+    if(p){ simMoneyAdd(p); e=slCat(e,"$"); e=slNum(e,p); }
     else { if(prDays!=PR_LIFE&&prDays>3){ prDays-=2; prSave(); } e=slCat(e,"2 DAYS OFF"); }
     e=slCat(e,"  REP +"); slNum(e,r); htRepAdd(r); htMdAdd(100); moodEvent(M_PAY);
     htMis=0; htMisCool=1; htSave(); lnote=htMsg; lnoteT=110;
@@ -176,7 +176,7 @@ static void htRelease(void){ htMis=htMisCool=0; htInj=0; htMd=600; htMdZ=(u8)htM
 static void htDay(void){   // prDay, every midnight of a sentence: work pays, the gang takes its due, bullies pick on the weak, the warden checks your goal and searches
     if(!prShown()) return;
     htQn=0;
-    if(htJob&&prIn()&&!prTrouble){ int p=htPay[htJob]+(htGang==2?htPay[htJob]/4:0)+(htMdZoneOf(htMd)==5?htPay[htJob]/4:0); simMoney+=p; if(simMoney>9999) simMoney=9999; htQ("PAID $",0,p); moodEvent(M_PAY); htMdAdd(100); if(htJob==1) htRepAdd(-1); }
+    if(htJob&&prIn()&&!prTrouble){ int p=htPay[htJob]+(htGang==2?htPay[htJob]/4:0)+(htMdZoneOf(htMd)==5?htPay[htJob]/4:0); simMoneyAdd(p); htQ("PAID $",0,p); moodEvent(M_PAY); htMdAdd(100); if(htJob==1) htRepAdd(-1); }
     else if(htJob){ htQ("SHIFT MISSED",0,-1); htMdAdd(-60); }
     if(htGang==2||htGang==3){ if(simMoney>=5){ simMoney-=5; htQ("GANG DUES $5",0,-1); } else { htGang=0; htQ("OUT OF THE GANG  NO DUES",0,-1); } }
     if(htGang==2) skGain(SK_LOGIC,1);
@@ -225,14 +225,14 @@ static void htLvl(char*d,int l){ slNum(d,l); slCat(d," OF 5"); }
 static void htCard(void){   // the inmate card
     box(14,6,212,148); rect(15,7,210,13,RGB(5,12,24)); rect(15,20,210,1,GOLD);
     text(20,10,"INMATE CARD",GOLD,1); { const char*nm=prName(); text(220-tw(nm,1),10,nm,WHITE,1); }
-    char b[24]; int y=23;
+    char b[28]; int y=23;
     htLvl(b,skLvl(SK_BODY)); htLine(y,"STRENGTH",b,WHITE); y+=10;
     htLvl(b,htAgiLvl()); htLine(y,"AGILITY",b,WHITE); y+=10;
     htLvl(b,skLvl(SK_LOGIC)); htLine(y,"INTELLIGENCE",b,WHITE); y+=10;
     { char*e=slNum(b,htRep); e=slCat(e,"  "); slCat(e,htRepNm()); htLine(y,"REPUTATION",b,htRep>=50?RGB(14,30,14):htRep<20?RGB(31,10,10):GOLD); y+=10; }
     htLine(y,"GANG",htGangNm[htGang],htGang?GOLD:DIMC); y+=10;
     htLine(y,"WORK",htJobNm[htJob],htJob?WHITE:DIMC); y+=10;
-    { char*e=slCat(b,"$"); slNum(e,simMoney); htLine(y,"CASH",b,WHITE); y+=10; }
+    { char*e=slCat(b,"$"); simCatMoney(e,simMoney,1); htLine(y,"CASH",b,WHITE); y+=10; }
     slNum(b,htCig); htLine(y,"SMOKES",b,WHITE); y+=10;
     prDaysTxt(b,prDays); htLine(y,"DAYS LEFT",b,prDays==PR_LIFE?RGB(31,8,8):GOLD); y+=10;
     { const char*r=simMin>=1320||simMin<420?"LOCKDOWN":simMin>=720&&simMin<780?"CHOW TIME":"FREE TIME"; htLine(y,"REGIME",r,r[0]=='L'?RGB(31,10,10):WHITE); }
@@ -311,7 +311,7 @@ static int htTable(void){   // main.c lifeStep, R with nothing in reach: next to
     if(c>=0){
         if(id[c]==0) htChat();
         else if(id[c]==1){ if(htCig>=9) toast("YOUR POCKETS ARE FULL"); else if(simMoney<buy) toast("NOT ENOUGH CASH"); else if(!htBust()){ simMoney-=buy; htCig++; htSave(); toast("BOUGHT A SMOKE"); } }
-        else if(id[c]==2){ if(htDeals>=4) toast("NO ONE IS BUYING"); else if(!htBust()){ int p=htGang==4?14:11; simMoney+=p; if(simMoney>9999) simMoney=9999; htCig--; htDeals++; if(htGang==1){ htGang=0; toast("THROWN OUT OF THE PEAKS"); } else htRepAdd(1); htSave(); toast("SOLD A SMOKE"); } }
+        else if(id[c]==2){ if(htDeals>=4) toast("NO ONE IS BUYING"); else if(!htBust()){ int p=htGang==4?14:11; simMoneyAdd(p); htCig--; htDeals++; if(htGang==1){ htGang=0; toast("THROWN OUT OF THE PEAKS"); } else htRepAdd(1); htSave(); toast("SOLD A SMOKE"); } }
         else if(id[c]==4) htMisGive();
         else { htCig--; hmNeed(&sCom,25); if(lhp>3) lhp-=3; moodEvent(M_CHILL); htMdAdd(60); lstun=60; lsp=0; htSave(); lnote="A SMOKE  AHH"; lnoteT=60; }
     }

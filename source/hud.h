@@ -87,8 +87,8 @@ static void hudTopUpdate(int all){
         for(int i=0;i<5;i++) rect(64+i*7,HUD_TOPH-2,6,2,i<lskl?HC_GOLD:HC_DARK);
         hudMark(62,HUD_TOPH-2,40,2);
     }
-    if(hudChg(all,HK_CASH,(unsigned)simMoney)){ hudClear(62,0,40,HUD_TOPH-2);
-        rect(63,3,5,5,HC_GOLD); rect(64,4,3,3,RGB(24,19,3)); rect(64,3,3,1,RGB(31,30,16)); numText(71,1,simMoney,HC_GOLD); hudMark(62,0,40,HUD_TOPH-2); }
+    if(hudChg(all,HK_CASH,(unsigned)simMoney^((unsigned)(simMoney>>32)*2654435761u))){ hudClear(62,0,40,HUD_TOPH-2);
+        rect(63,3,5,5,HC_GOLD); rect(64,4,3,3,RGB(24,19,3)); rect(64,3,3,1,RGB(31,30,16)); { char cb[12]; simCatShort(cb,simMoney); text(71,1,cb,HC_GOLD,1); } hudMark(62,0,40,HUD_TOPH-2); }
     // the middle: prompt > note > combo > hint
     const char*t; u16 c; int pts; int has=hudMsg(&t,&c,&pts); char b[24]; int cn=0; int n2=0;
     unsigned mk;

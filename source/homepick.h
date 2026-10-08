@@ -7,18 +7,18 @@ static void homePick(void){
     if(!nbOk||nbT.home>=NB_LOTS) return;
     int l[SLOT_MAX], n=sgList(l); u8 used[NB_LOTS]; for(int i=0;i<NB_LOTS;i++) used[i]=0;
     for(int i=0;i<n;i++) if(slI[l[i]].pid!=sgPid){ int h=sgHomeOf(l[i]); if(h<NB_LOTS) used[h]=1; }   // (another player's home)
-    static char lb[12][32] EWRAM_BSS; const char* it[12]; int lot[12], m=0;
+    static char lb[12][40] EWRAM_BSS; const char* it[12]; int lot[12], m=0;
     for(int li=0;li<NB_LOTS&&m<12;li++){
         const NbLot*L=&nbT.lot[li];
-        if(!L->on||L->kind!=LKIND_RES||li==nbT.home||used[li]||nbWho(li,0)||(int)L->value>simMoney) continue;
-        char*e=slCat(lb[m],L->name); e=slCat(e,L->slot>=0?"  HOUSE  ":"  LAND  "); nbMoney(e,L->value);
+        if(!L->on||L->kind!=LKIND_RES||li==nbT.home||used[li]||nbWho(li,0)||nbPrice(L)>simMoney) continue;
+        char*e=slCat(lb[m],L->name); e=slCat(e,L->slot>=0?"  HOUSE  ":"  LAND  "); nbMoney(e,nbPrice(L));
         it[m]=lb[m]; lot[m]=li; m++;
     }
     if(!m){ toast("NO HOME YOU CAN AFFORD"); return; }
-    char t[32]; { char*e=slCat(t,"PICK A HOME  "); nbMoney(e,simMoney); }
+    char t[40]; { char*e=slCat(t,"PICK A HOME  "); nbMoney(e,simMoney); }
     int c=menu(t,it,m); if(c<0) return;   // B: stay on the starter lot
-    int li=lot[c], price=nbT.lot[li].value, old=nbT.home;
+    int li=lot[c], price=nbPrice(&nbT.lot[li]), old=nbT.home;
     nbT.home=(u8)li;
     if(!nbGo(li)){ nbT.home=(u8)old; nbSave(); toast(nbErr); return; }
-    simMoney-=price; if(simMoney<0) simMoney=0; simsSaveNow(); nbSave(); toast("WELCOME HOME");
+    simMoneyAdd(-(money_t)price); simsSaveNow(); nbSave(); toast("WELCOME HOME");
 }

@@ -247,7 +247,7 @@ static void copDay(void){   // once a night (sims.h, midnight): the cops that re
 }
 static void copArrest(void){
     int jail=prBook();   // prison.h: the rap sheet decides the sentence (before the stars are cleared). 1 = off to the prison
-    int fine=simMoney>=50?50:simMoney; simMoney-=fine; copHeat=0; copWant=0; copRaid=0; copSt=3; copT=600; for(int i=0;i<copN;i++) copS[i].act=HA_IDLE;
+    int fine=simMoney>=1000?1000:(int)simMoney; simMoney-=fine; copHeat=0; copWant=0; copRaid=0; copSt=3; copT=600; for(int i=0;i<copN;i++) copS[i].act=HA_IDLE;
     moodEvent(M_HURT_BIG); sfxPlay(SFX_HIT); lsp=0; lgrind=0; lscore-=lscore/4;
     if(jail){ copSt=0; copN=0; lnote="BUSTED  OFF TO PRISON"; lnoteT=90; return; }   // (no 10 second hold: the cell it is)
     simCatN(simCat(copMsg,"BUSTED  JAIL "),10); lnote=copMsg; lnoteT=90;

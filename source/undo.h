@@ -17,7 +17,7 @@
 #define UD_ACT 3   // you can undo three times (and redo them again); raise it for a longer history
 _Static_assert(NFL<=16&&NWALL<=256&&MW*MH<=2048,"undo.h packs a tile into 4 bytes: 11 bits of position, 4 of floor, 8 of wallpaper, 8 of item");
 #define UD_PACK(i,f,w,c) ((u32)(i)|((u32)(f)<<11)|((u32)(w)<<15)|((u32)(u8)(c)<<23))
-typedef struct { u16 s,n; s16 cash; u8 fl,pad; } UdAct;   // a step: its first record, how many, what it cost (negative: it sold), and its floor
+typedef struct { u16 s,n; s32 cash; u8 fl,pad; } UdAct;   // a step: its first record, how many, what it cost (negative: it sold), and its floor
 static u32 udR[UD_REC] EWRAM_BSS;                          // the recorded tiles
 static UdAct udA[UD_ACT+1] EWRAM_BSS;                      // the steps (one spare slot: the step being drawn)
 static u16 udNR EWRAM_BSS;                                 // records in use
@@ -54,7 +54,7 @@ static void udEnd(void){   // the step is finished (A / B let go, a menu, a floo
     UdAct*a=&udA[udNA]; int ch=0;
     for(int k=a->s;k<a->s+a->n&&!ch;k++) ch=udDiffers(k);
     if(!ch){ udNR=a->s; udCashD=0; return; }   // (a tile put back as it was: not a step)
-    a->cash=(s16)udCashD; udCashD=0; udNA++; udCur=udNA;
+    a->cash=(s32)udCashD; udCashD=0; udNA++; udCur=udNA;
 }
 static void udSwap(int k){   // record k <-> the live tile
     u32 r=udR[k]; int i=(int)(r&2047), y=i/MW, x=i-y*MW;
@@ -68,7 +68,7 @@ static const char* udUndo(void){
     if(a->cash&&edCharged()&&simMoney+a->cash<0) return "NOT ENOUGH CASH TO UNDO";   // (undoing a sale buys the things back)
     if(a->fl!=curFl&&!flGo(a->fl)) return "TOO MUCH BUILT TO CHANGE FLOOR";
     for(int k=a->s+a->n-1;k>=a->s;k--) udSwap(k);
-    if(a->cash&&edCharged()){ int m=simMoney+a->cash; if(m>9999) m=9999; simMoney=m; edCashDirty=1; }
+    if(a->cash&&edCharged()){ simMoneyAdd(a->cash); edCashDirty=1; }
     udCur--; wDirty=1; return "UNDONE";
 }
 static const char* udRedo(void){
@@ -78,7 +78,7 @@ static const char* udRedo(void){
     if(a->cash&&edCharged()&&simMoney-a->cash<0) return "NOT ENOUGH CASH TO REDO";
     if(a->fl!=curFl&&!flGo(a->fl)) return "TOO MUCH BUILT TO CHANGE FLOOR";
     for(int k=a->s;k<a->s+a->n;k++) udSwap(k);
-    if(a->cash&&edCharged()){ int m=simMoney-a->cash; if(m>9999) m=9999; simMoney=m; edCashDirty=1; }
+    if(a->cash&&edCharged()){ simMoneyAdd(-(money_t)a->cash); edCashDirty=1; }
     udCur++; wDirty=1; return "REDONE";
 }
 static void edSet(int x,int y,int l,int f,int w){   // change a tile and record it. l / f / w below 0 = leave that part as it is. A tile that would not change is not touched

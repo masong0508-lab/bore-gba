@@ -15,9 +15,9 @@
 #define TGF_SKATE 2
 #define TGF_CLEAR 4
 #define TGF_SCORE 8
-#define TG_MASTER 300   // the bonus for all four
+#define TG_MASTER 6000  // the bonus for all four
 _Static_assert(TRN_OFF+TRN_LEN<=TG_OFF&&TG_OFF+TG_LEN<=SET_OFF&&TG_LEN==3+TG_N*12,"the goals block must sit between the timed run block and the settings");
-static const u8 tgPay[4]={50,100,100,150};
+static const u16 tgPay[4]={1000,2000,2000,3000};
 static const u8 tgIx[4]={0,2,3,4};   // goal -> its mask (1 is 'lots played')
 static u16 tgKey[TG_N] EWRAM_BSS, tgM[TG_N][5] EWRAM_BSS;   // a copy of the block (tgLoad fills it)
 static u8 tgHave EWRAM_BSS;   // the goals done on the lot in play (bits TGF_*), read when the lot opens
@@ -58,7 +58,7 @@ static void tgDone(int bit){   // a goal was reached on the lot in play (nothing
     tgHave|=(u8)bit; tgTouch(tgIx[g],(u16)(1u<<tgLotNow()));
     char*e=simCat(tgMsg,"GOAL DONE  +");
     if(tgHave==15){ pay+=TG_MASTER; simCatN(simCat(tgMsg,"LOT MASTERED  +"),pay); } else simCatN(e,pay);
-    simMoney+=pay; if(simMoney>9999) simMoney=9999;
+    simMoneyAdd(pay);
     tgPend=tgMsg;
 }
 // ---- the GAP goal (phase 1): a bonus goal outside the four that make LOT MASTERED (so old saves and the +300 stay as they were) ----
@@ -68,7 +68,7 @@ static void tgDone(int bit){   // a goal was reached on the lot in play (nothing
 #define GP_N    3
 #define GP_LEN  15
 #define GP_NEED 5     // tiles (the two kickers that face each other in the rail park are 5 apart)
-#define GP_PAY  120
+#define GP_PAY  2400
 _Static_assert(STORY_OFF+8<=GP_OFF&&GP_OFF+GP_LEN<=SLOT_DIR&&GP_LEN==3+GP_N*4,"the gap goal block must sit between the story block and the slot directory");
 static u16 gpKey[GP_N] EWRAM_BSS, gpM[GP_N] EWRAM_BSS;
 static void gpLoad(void){
@@ -92,7 +92,7 @@ static void tgGap(int tiles){   // a clean landing `tiles` from the takeoff spot
     for(int i=at;i>0;i--){ gpKey[i]=gpKey[i-1]; gpM[i]=gpM[i-1]; }
     gpKey[0]=key; gpM[0]=m; gpSave();
     simCatN(simCat(tgMsg,"GAP GOAL  +"),GP_PAY);
-    simMoney+=GP_PAY; if(simMoney>9999) simMoney=9999;
+    simMoneyAdd(GP_PAY);
     tgPend=tgMsg;
 }
 static void tgMark(void){ tgDone(TGF_TAPE); }   // the tape of the lot in play was just taken

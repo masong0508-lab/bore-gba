@@ -2174,13 +2174,13 @@ static int palIdx(char c){
 }
 static char edObjCh(void){ char c=palCh[eOb]; return (eOb==OB_KICKER||eOb==OB_QPIPE||eOb==OB_LAUNCH)?(char)(c+eRot):c; }   // the char the ITEM tool places
 // ---- BUY mode: the catalog. Every palette item sits in one category and has a price (cash of the life; BUILD COSTS option) ----
-#define DS_PRICE 5000
+#define DS_PRICE 75000
 #define NCAT 7
 static const char* const catNm[NCAT]={"SEAT","HOME","TECH","SKATE","DECOR","WALLS","MISC"};
 static const u8 catN[NCAT]={4,6,7,10,4,8,6};
 static int catCnt(int c){ return (c==6&&!nbFlagOk())?catN[c]-2:catN[c]; }   // the two FLAGS (the end of MISC) only show in the palette while the town view's BUILD has a free lot open
 static const u8 catItems[NCAT][10]={ {13,16,27,22}, {5,6,14,15,36,38}, {31,32,33,30,26,25,34}, {3,4,10,11,12,17,18,19,23,24}, {20,21,35,37}, {1,2,7,28,29,39,40,41}, {0,8,9,44,42,43} };
-static const u16 palPrice[NOBJ]={0,3,6,10,15,150,90,12,0,0,30,60,20,40,140,110,120,45,50,10,5,10,80,15,10,30,25,60,40,40,DS_PRICE,50,40,200,120,90,60,150,130,35,45,60,0,0,0};
+static const u32 palPrice[NOBJ]={0,50,100,120,250,1200,600,250,0,0,450,900,300,350,1500,1100,1400,700,800,80,60,150,700,200,150,400,250,300,900,900,DS_PRICE,200,150,2500,1800,600,250,1000,1500,400,450,500,0,0,0};   // simoleons: a starter room (bed, fridge, toilet, shower, sofa, TV) is about 8000 of the 15000 you start with
 static int edCatOf(int idx,int*pos){ for(int c=0;c<NCAT;c++) for(int j=0;j<catCnt(c);j++) if(catItems[c][j]==idx){ if(pos) *pos=j; return c; } if(pos) *pos=0; return 0; }
 static void edItemStep(int d){ int p, c=edCatOf(eOb,&p); p=(p+d+catCnt(c))%catCnt(c); eOb=catItems[c][p]; }   // L / R: the next item of this category
 static void edCatStep(int d){ int c=(edCatOf(eOb,0)+d+NCAT)%NCAT; eOb=catItems[c][0]; }                  // SELECT + L / R: the next category
@@ -2352,13 +2352,17 @@ static const char* dsMsg;   // set when something could not be bought (the room 
 static u8 edLife EWRAM_BSS, edTried EWRAM_BSS, edCashDirty EWRAM_BSS;   // the room builder works with the life's cash: loaded once (lazily when not in play), saved when you leave
 static void edLoadLife(void){ if(edTried) return; edTried=1; simsDefaults(); edLife=simsLoad()?1:0; edCashDirty=0; }
 static void edCashSave(void){ if(!gInPlay&&edLife&&edCashDirty){ simsSaveNow(); edCashDirty=0; } }
+static void hhJoinCash(void){   // a Sim joins the household: SIM_JOIN_CASH more for the life (in play it is paid now; in a menu or the creator the saved life gets it)
+    if(gInPlay){ simMoneyAdd(SIM_JOIN_CASH); simsSave(); return; }
+    edTried=0; edLoadLife(); if(edLife){ simMoneyAdd(SIM_JOIN_CASH); edCashDirty=1; edCashSave(); }
+}
 static int edCharged(void){ if(!gInPlay) edLoadLife(); return gInPlay||edLife; }   // is there a purse to pay from? (before any life is saved the room builder is free)
 static int edCost(char c){ if(c=='Q') return DS_PRICE; if(!xo[XO_BUYCOST]) return 0; int i=palIdx(c); return i<0?0:palPrice[i]; }   // the DeadSet always costs; the rest with BUILD COSTS on
 static int edSell(char c){ return c=='Q'?DS_PRICE:edCost(c)/2; }   // selling gives half back (the DeadSet: all of it, as before)
 static int edPay(int net){   // net > 0 buys, net < 0 sells back. 0 = refused
     if(!net||!edCharged()) return 1;
-    if(net>0&&simMoney<net){ dsMsg=net>=DS_PRICE?"THE DEADSET COSTS 5000":"NOT ENOUGH CASH"; return 0; }
-    simMoney-=net; if(simMoney>9999) simMoney=9999; if(simMoney<0) simMoney=0; edCashDirty=1; if(udOn) udCashD+=net; return 1;
+    if(net>0&&simMoney<net){ dsMsg=net>=DS_PRICE?"THE DEADSET COSTS 75000":"NOT ENOUGH CASH"; return 0; }
+    simMoneyAdd(-(money_t)net); edCashDirty=1; if(udOn) udCashD+=net; return 1;
 }
 static int edAffordable(char c,char old){ int n=edCost(c)-edSell(old); return n<=0||!edCharged()||simMoney>=n; }
 static void mapPlace(int x,int y,char c){
@@ -3498,7 +3502,7 @@ static int pauseMenu(int mode){   // mode 0 life, 1 from the neighborhood, 2 tes
         box(6,4,228,152);
         rect(7,5,226,17,RGB(5,12,24)); rect(7,21,226,1,GOLD);
         text(12,9,mode==2?"TEST PLAY PAUSED":nbBarred()?"PAUSED  VISITING":"PAUSED",GOLD,1);
-        if(mode!=2){ char b[12]; char*e=b; *e++=(char)0xC2; *e++=(char)0xA7; numStr(e,simMoney); text(228-tw(b,1),9,b,RGB(14,30,14),1); }
+        if(mode!=2){ char b[24]; char*e=b; *e++=(char)0xC2; *e++=(char)0xA7; simCatShort(e,simMoney); text(228-tw(b,1),9,b,RGB(14,30,14),1); }
         for(int i=0;i<n;i++){ int id=ids[i], x=10+(i&3)*56, y=27+(i>>2)*43, on=(i==sel);
             rect(x-1,y-1,54,40,on?GOLD:RGB(10,16,30)); rect(x,y,52,38,on?RGB(6,18,10):RGB(7,10,20));
             u16 col=on?pmCol[id]:(u16)((pmCol[id]>>1)&0x3DEF); int ib=(on&&((t>>4)&1))?-1:0;
@@ -3722,7 +3726,7 @@ static int eApply(void){   // second A of ROOM / WALL / FLOOR / ERASE. 0 = refus
     return 1;
 }
 static void edShadeBand(int y0,int y1){ for(int i=y0*SW;i<y1*SW;i++){ u16 c=fb[i]; fb[i]=(u16)((c>>2)&0x1CE7); } }   // the room behind HUD text, at a quarter brightness
-static char* edMoney(char*b,int v){ char*e=b; *e++=(char)0xC2; *e++=(char)0xA7; numStr(e,v); return b; }   // "§123"
+static char* edMoney(char*b,money_t v){ char*e=b; *e++=(char)0xC2; *e++=(char)0xA7; simCatMoney(e,v,1); return b; }   // "§1,234"
 static void drawEditorHud(const char*msg){
     int x=2, buy=(eTool==T_ITEM);
     edShadeBand(0,18); { int y0=buy?100:124; edShadeBand(y0,SH); rect(0,y0,SW,1,RGB(9,11,15)); }   // dark bands top and bottom: the text stays readable over any floor
@@ -3745,7 +3749,7 @@ static void drawEditorHud(const char*msg){
         { int cc=edCatOf(eOb,0), xx=2;   // the category tabs, then this category's items
           for(int c=0;c<NCAT;c++){ int w=tw(catNm[c],1)+4; rect(xx,102,w,8,c==cc?GOLD:RGB(3,4,7)); text(xx+2,102,catNm[c],c==cc?RGB(4,3,6):DIMC,1); xx+=w+1; }
           for(int j=0;j<catCnt(cc);j++){ int id=catItems[cc][j], x2=2+j*14; rect(x2,112,13,10,id==eOb?WHITE:RGB(3,4,7)); rect(x2+1,113,11,8,palCol[id]); } }
-        { char b[16]; int xx=text(2,134,"PRICE",DIMC,1)+3; edMoney(b,edCost(palCh[eOb])); xx=text(xx,134,b,WHITE,1)+8;
+        { char b[24]; int xx=text(2,134,"PRICE",DIMC,1)+3; edMoney(b,edCost(palCh[eOb])); xx=text(xx,134,b,WHITE,1)+8;
           if(xo[XO_BUYCOST]&&edCharged()){ text(xx,134,"CASH",DIMC,1); edMoney(b,simMoney); text(xx+26,134,b,edAffordable(edObjCh(),lifeMap[ecy][ecx])?RGB(14,30,14):RGB(31,10,8),1); } }
         { static const char*const faceNm[4]={"FACES S","FACES E","FACES N","FACES W"};
           int xx=text(2,124,palNm[eOb],WHITE,1)+4; if(eOb==OB_KICKER||eOb==OB_QPIPE||eOb==OB_LAUNCH) text(xx,124,faceNm[eRot],GOLD,1); }
@@ -3765,7 +3769,7 @@ static void drawEditorHud(const char*msg){
         if(eTool!=T_WALL){ xx=text(2,139,"FLOOR",DIMC,1)+3; texSwatch(&flTex[eFl],xx,137); xx=text(xx+12,139,flTex[eFl].nm,WHITE,1)+10; }
         if(eTool!=T_FLOOR){ xx=text(xx,139,"WALL",DIMC,1)+3; wallSwatch(eWp,xx,137); text(xx+12,139,wpName(eWp),WHITE,1); }
     } else text(2,139,"SELLS WALLS ITEMS AND FLOORS",DIMC,1);
-    if(!buy){ char b[16]; int xx=2;
+    if(!buy){ char b[24]; int xx=2;
         if(xo[XO_BUYCOST]&&edCharged()){ xx=text(2,126,"CASH",DIMC,1)+3; edMoney(b,simMoney); xx=text(xx,126,b,RGB(14,30,14),1)+10; }
         else xx=text(2,126,xo[XO_BUYCOST]?"NO LIFE YET  FREE":"FREE BUILD",DIMC,1)+10;
         if(eAct&&eTool!=T_FLOOR){ int x0,y0,x1,y1; eRect(&x0,&y0,&x1,&y1); int n=eNet(x0,y0,x1,y1);
@@ -3836,7 +3840,7 @@ static void mapEditor(void){
         if(rel&K_SEL){ if(!comboUsed){ eTool=toolNext[eTool]; eAct=0; } comboUsed=0; }
         if(pr&K_A){
             if(eTool==T_ITEM&&(k&K_SEL)){ eRot=(eRot+1)&3; comboUsed=1; msg="TURNED"; msgT=20; }   // SEL+A: turn the next ramp
-            else if(eTool==T_ITEM){ int m0=simMoney; mapPlace(ecx,ecy,edObjCh()); if(xo[XO_BUYCOST]&&simMoney!=m0){ msg=simMoney<m0?"BOUGHT":"SOLD"; msgT=30; } }
+            else if(eTool==T_ITEM){ money_t m0=simMoney; mapPlace(ecx,ecy,edObjCh()); if(xo[XO_BUYCOST]&&simMoney!=m0){ msg=simMoney<m0?"BOUGHT":"SOLD"; msgT=30; } }
             else if(!eAct){ eAct=1; eAx=ecx; eAy=ecy; }
             else if(eApply()){ eAct=0; msg=eTool==T_ROOM?"ROOM BUILT":eTool==T_WALL?"WALL BUILT":eTool==T_FLOOR?"FLOOR LAID":"SOLD"; msgT=70; }
             else { msg="ROOM NEEDS 3 X 3 OR BIGGER"; msgT=70; }

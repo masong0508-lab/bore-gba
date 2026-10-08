@@ -18,7 +18,7 @@
 static void htBook(int d); static int htFight(int n); static void htRelease(void); static void htDay(void); static void htTick(void); static void htLoad(void); static int htAgiLvl(void); static void htCard(void); static void htLife(void); static void htMdAdd(int d);   // hardtime.h
 #define PR_OFF  (JB_OFF+56)
 #define PR_LIFE 0xFFFF
-#define PR_BAIL 40   // simoleons per day of sentence bought off (PAY BAIL)
+#define PR_BAIL 800  // simoleons per day of sentence bought off (PAY BAIL)
 static u16 prDays EWRAM_BSS, prTot EWRAM_BSS, prRec EWRAM_BSS;   // days left (PR_LIFE = life), the sentence as given, the record not yet punished
 static HhSim prVis EWRAM_BSS; static u8 prVisSt EWRAM_BSS, prVisRp EWRAM_BSS, prVisM EWRAM_BSS, prVisX EWRAM_BSS, prVisY EWRAM_BSS; static u16 prVisT EWRAM_BSS;   // the visitor: 0 none, 1 walking in, 2 with you, 3 walking out
 static u8 prVisit EWRAM_BSS, prGTry EWRAM_BSS;   // a family visit is due today; the guards were tried this stay

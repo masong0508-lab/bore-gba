@@ -453,6 +453,7 @@ static void hhPickName(char*out){   // a first name nobody in the house has yet
     out[0]='S'; out[1]='I'; out[2]='M'; out[3]=0;
 }
 static void hhPlace(HhSim*s,int k);
+static void hhJoinCash(void);   // main.c: +SIM_JOIN_CASH for a Sim who joins
 static int hhAdd(const u8*lk,int stg,int asp,int ltw,const u8*tr){   // a new member of the family (CREATE-A-FAMILY): -1 when the house is full
     if(hhN>=HH_MAX) return -1;
     twDrop(hhN);
@@ -465,6 +466,7 @@ static int hhAdd(const u8*lk,int stg,int asp,int ltw,const u8*tr){   // a new me
     hhPlace(s,0);
     int a=s->uid;                                       // family: they know and like everyone at home already
     for(int u=0;u<HU_N;u++){ if(u==a) continue; relD[a][u]=relD[u][a]=40; relL[a][u]=relL[u][a]=50; relF[a][u]=relF[u][a]=0; kin[a][u]=kin[u][a]=0; }
+    hhJoinCash();
     return hhN++;
 }
 static void hhRemove(int m){   // moves out: their sprites and relationships go with them
@@ -665,7 +667,7 @@ static void twTick(int*planned){   // VISITORS: someone from another household w
             continue; }
         if(s->pi>=s->pn){
             if(twOn[k]==1){ twOn[k]=2; s->act=HA_IDLE; twWait[k]=(short)(360+(rnd8()<<2));
-                if(twWel[k]){ twWel[k]=0; simMoney+=25; if(simMoney>9999) simMoney=9999; moodEvent(M_PAY); lnote="WELCOME GIFT  25"; lnoteT=90; } }   // there: the housewarming gift   // there: stays 6 to 23 seconds
+                if(twWel[k]){ twWel[k]=0; simMoneyAdd(500); moodEvent(M_PAY); lnote="WELCOME GIFT  500"; lnoteT=90; } }   // there: the housewarming gift   // there: stays 6 to 23 seconds
             else { twOn[k]=0; twWait[k]=(short)(900+(rnd8()<<4)); }                      // gone: the next visit in a while
             continue; }
         hhStepAlong(s);
@@ -1378,6 +1380,7 @@ static int hhMoveIn(const HhFam*F){   // a pre-made family moves in (HOUSEHOLD, 
     for(int i=first;i<hhN;i++)for(int j=first;j<hhN;j++) if(i!=j){   // a family already knows and likes each other; couples (the first two adults) are in love
         int a=hhM[i].uid, b=hhM[j].uid; relD[a][b]=40; relL[a][b]=50; relF[a][b]=0; kin[a][b]=0;
         if(i<first+2&&j<first+2&&hhM[i].stage>=AG_ADULT&&hhM[j].stage>=AG_ADULT){ relD[a][b]=70; relL[a][b]=80; relF[a][b]=RF_CRUSH|RF_LOVE|RF_STEADY|RF_KISSED|RF_FRIEND|RF_BFF; kin[a][b]=KN_PARTNER; } }
+    for(int i=0;i<add;i++) hhJoinCash();   // (every Sim who moves in brings SIM_JOIN_CASH)
     return add;
 }
 // ---- the pause menu's HOUSEHOLD screen ----

@@ -69,7 +69,7 @@ static void msNeed(int x,int y,const char*nm,int v){   // a need: the HUD's name
 static void msSim(void){
     char b[40], *e; int st=moodState(); msPanel(35,121);
     e=simCat(b,hhPName); if(hhPLast[0]){ *e++=' '; simCat(e,hhPLast); } text(14,39,b,GOLD,1);
-    e=b; *e++=(char)0xC2; *e++=(char)0xA7; simCatN(e,simMoney); text(228-tw(b,1),39,b,RGB(14,30,14),1);
+    e=b; *e++=(char)0xC2; *e++=(char)0xA7; simCatMoney(e,simMoney,1); text(228-tw(b,1),39,b,RGB(14,30,14),1);
     e=simCat(b,stageNm[stage]);
     if(stage<AG_ELDER&&xo[XO_AGING]&&oStageDays(stage)){ static const u8 pct[4]={0,200,100,50}; int need=oStageDays(stage)*pct[xo[XO_AGING]]/100; if(need<1) need=1;
         e=simCat(e,"  DAY "); e=simCatN(e,ageDays+1); e=simCat(e," OF "); simCatN(e,need); }

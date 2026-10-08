@@ -12,31 +12,31 @@ _Static_assert(OPT_OFF+3+XO_N+1<=STORY_OFF&&STORY_OFF+8<=SLOT_DIR,"the story blo
 enum { STY_NONE, STY_ROOM, STY_WED, STY_PARENT, STY_SKATE, STY_HOUSE, STY_FRIEND, STY_RAGS, STY_CLIMB, STY_TOWN, STY_SECOND, STY_N };   // (new stories go at the END: the saved story number stays valid)
 enum { SG_FRIEND, SG_LOVE, SG_STEADY, SG_JOB, SG_MONEY, SG_KID, SG_KIDFRIEND, SG_GUEST, SG_END,
     SG_SKILL, SG_TRICKS, SG_WANTS, SG_HOUSE, SG_FRIENDS, SG_BFF, SG_DAYS };   // (the last seven: skill level, tricks landed, wants fulfilled, Sims in the house, friends in the house, a best friend, days since the chapter began)
-typedef struct { const char* nm; u8 goal; u16 arg; } StCh;
+typedef struct { const char* nm; u8 goal; u32 arg; } StCh;
 static const StCh stRoom[]={ {"BECOME FRIENDS WITH YOUR ROOMMATE",SG_FRIEND,0}, {"FALL IN LOVE",SG_LOVE,0}, {"GO STEADY",SG_STEADY,0},
     {"GET A PROMOTION",SG_JOB,1}, {"A CHILD COMES HOME",SG_KID,0}, {"THE END  A FAMILY OF YOUR OWN",SG_END,0} };
-static const StCh stWed[]={ {"GET A PROMOTION",SG_JOB,1}, {"SAVE 1000 SIMOLEONS",SG_MONEY,1000}, {"A CHILD COMES HOME",SG_KID,0},
-    {"BECOME YOUR KID'S FRIEND",SG_KIDFRIEND,0}, {"SAVE 2500 SIMOLEONS",SG_MONEY,2500}, {"THE END  HAPPY EVER AFTER",SG_END,0} };
-static const StCh stPar[]={ {"GET A PROMOTION",SG_JOB,1}, {"BECOME YOUR KID'S FRIEND",SG_KIDFRIEND,0}, {"SAVE 800 SIMOLEONS",SG_MONEY,800},
+static const StCh stWed[]={ {"GET A PROMOTION",SG_JOB,1}, {"SAVE 40000 SIMOLEONS",SG_MONEY,40000}, {"A CHILD COMES HOME",SG_KID,0},
+    {"BECOME YOUR KID'S FRIEND",SG_KIDFRIEND,0}, {"SAVE 100000 SIMOLEONS",SG_MONEY,100000}, {"THE END  HAPPY EVER AFTER",SG_END,0} };
+static const StCh stPar[]={ {"GET A PROMOTION",SG_JOB,1}, {"BECOME YOUR KID'S FRIEND",SG_KIDFRIEND,0}, {"SAVE 32000 SIMOLEONS",SG_MONEY,32000},
     {"HAVE A NEIGHBOR OVER",SG_GUEST,0}, {"GET ANOTHER PROMOTION",SG_JOB,2}, {"THE END  YOU MADE IT WORK",SG_END,0} };
 static const StCh stSkate[]={ {"LAND 20 TRICKS",SG_TRICKS,20}, {"REACH SKILL LEVEL 2",SG_SKILL,2}, {"GET A PROMOTION",SG_JOB,1},
     {"LAND 150 TRICKS",SG_TRICKS,150}, {"REACH SKILL LEVEL 4",SG_SKILL,4}, {"THE END  A TRUE SKATER",SG_END,0} };
 static const StCh stHouse[]={ {"BECOME FRIENDS WITH A HOUSEMATE",SG_FRIEND,0}, {"MAKE 3 FRIENDS",SG_FRIENDS,3}, {"FILL THE HOUSE WITH 4 SIMS",SG_HOUSE,4},
-    {"GET A PROMOTION",SG_JOB,1}, {"SAVE 1500 SIMOLEONS",SG_MONEY,1500}, {"THE END  A HOUSE FULL OF LIFE",SG_END,0} };
+    {"GET A PROMOTION",SG_JOB,1}, {"SAVE 60000 SIMOLEONS",SG_MONEY,60000}, {"THE END  A HOUSE FULL OF LIFE",SG_END,0} };
 static const StCh stFriend[]={ {"MAKE A BEST FRIEND",SG_BFF,0}, {"MAKE 2 FRIENDS",SG_FRIENDS,2}, {"HAVE A NEIGHBOR OVER",SG_GUEST,0},
-    {"FULFIL 5 WANTS",SG_WANTS,5}, {"SAVE 500 SIMOLEONS",SG_MONEY,500}, {"THE END  FRIENDS FOR LIFE",SG_END,0} };
-static const StCh stRags[]={ {"SAVE 300 SIMOLEONS",SG_MONEY,300}, {"GET A PROMOTION",SG_JOB,1}, {"SAVE 1000 SIMOLEONS",SG_MONEY,1000},
-    {"GET ANOTHER PROMOTION",SG_JOB,2}, {"SAVE 3000 SIMOLEONS",SG_MONEY,3000}, {"THE END  RICH AT LAST",SG_END,0} };
-static const StCh stClimb[]={ {"GET A PROMOTION",SG_JOB,1}, {"SAVE 600 SIMOLEONS",SG_MONEY,600}, {"FULFIL 5 WANTS",SG_WANTS,5},
+    {"FULFIL 5 WANTS",SG_WANTS,5}, {"SAVE 20000 SIMOLEONS",SG_MONEY,20000}, {"THE END  FRIENDS FOR LIFE",SG_END,0} };
+static const StCh stRags[]={ {"SAVE 12000 SIMOLEONS",SG_MONEY,12000}, {"GET A PROMOTION",SG_JOB,1}, {"SAVE 40000 SIMOLEONS",SG_MONEY,40000},
+    {"GET ANOTHER PROMOTION",SG_JOB,2}, {"SAVE 120000 SIMOLEONS",SG_MONEY,120000}, {"THE END  RICH AT LAST",SG_END,0} };
+static const StCh stClimb[]={ {"GET A PROMOTION",SG_JOB,1}, {"SAVE 24000 SIMOLEONS",SG_MONEY,24000}, {"FULFIL 5 WANTS",SG_WANTS,5},
     {"GET ANOTHER PROMOTION",SG_JOB,2}, {"REACH SKILL LEVEL 3",SG_SKILL,3}, {"THE END  TOP OF THE LADDER",SG_END,0} };
 static const StCh stTown[]={ {"BECOME FRIENDS WITH A HOUSEMATE",SG_FRIEND,0}, {"MAKE 2 FRIENDS",SG_FRIENDS,2}, {"HAVE A NEIGHBOR OVER",SG_GUEST,0},
     {"FILL THE HOUSE WITH 3 SIMS",SG_HOUSE,3}, {"FULFIL 8 WANTS",SG_WANTS,8}, {"THE END  YOU BELONG HERE",SG_END,0} };
 static const StCh stSecond[]={ {"BECOME FRIENDS AGAIN",SG_FRIEND,0}, {"FALL BACK IN LOVE",SG_LOVE,0}, {"GO STEADY AGAIN",SG_STEADY,0},
-    {"SURVIVE 14 MORE DAYS",SG_DAYS,14}, {"SAVE 800 SIMOLEONS",SG_MONEY,800}, {"THE END  WORTH FIXING",SG_END,0} };
+    {"SURVIVE 14 MORE DAYS",SG_DAYS,14}, {"SAVE 32000 SIMOLEONS",SG_MONEY,32000}, {"THE END  WORTH FIXING",SG_END,0} };
 static const StCh* const stChs[STY_N]={0,stRoom,stWed,stPar,stSkate,stHouse,stFriend,stRags,stClimb,stTown,stSecond};
 static const u8 stLen[STY_N]={0,6,6,6,6,6,6,6,6,6,6};   // (6 each: the story card and the journal have room for six rows)
 static const char* const stNm[STY_N]={"","ROOMMATES","NEWLYWEDS","SINGLE PARENT","SKATE LIFE","HOUSEFULL","BEST FRIENDS","RAGS TO RICHES","CAREER CLIMBER","NEW IN TOWN","SECOND CHANCE"};
-static int stRew(int ch){ return 250+ch*50; }   // the pay of a chapter rises with the story: 250, 300, 350 ...
+static int stRew(int ch){ return 5000+ch*1000; }   // the pay of a chapter rises with the story: 5000, 6000, 7000 ...
 static const char* const stAbout[STY_N]={"","A NEW ROOMMATE  AND MAYBE MORE","JUST MARRIED  A FAMILY TO START","YOU AND YOUR KID  ON YOUR OWN"};
 static const char* const stTag[STY_N]={"","ROMANCE","ROMANCE AND FAMILY","FAMILY","SKILL AND CAREER","FRIENDSHIP AND HOME","FRIENDSHIP","MONEY AND CAREER","CAREER AND SKILL","FRIENDSHIP AND TOWN","ROMANCE AND REPAIR"};
 static const char* const stBlurb[STY_N][3]={{0,0,0},{"YOU MOVE IN WITH SOMEONE","YOU BARELY KNOW  FRIENDS","FIRST  THEN MAYBE LOVE"},
@@ -79,7 +79,7 @@ static void stKidHome(void){   // the promised child moves in: a mix of you and 
 }
 static int stValue(const StCh*c){   // the number a goal counts (-1: the goal has none)
     switch(c->goal){
-        case SG_MONEY: return simMoney;      case SG_JOB: return jobLvl;      case SG_SKILL: return skillLvl;
+        case SG_MONEY: return simMoneyI();      case SG_JOB: return jobLvl;      case SG_SKILL: return skillLvl;
         case SG_TRICKS: return simTricks;    case SG_WANTS: return simDone;   case SG_HOUSE: return hhN+1;
         case SG_DAYS: return stKidDay==255?0:((simDay&255)-stKidDay)&255;   // (the day the chapter began lives in stKidDay: no story has both this goal and a child)
         case SG_FRIENDS: { int me=hhPUid, n=0; for(int u=0;u<HU_N;u++) if(u!=me&&(relF[me][u]&RF_FRIEND)) n++; return n; }
@@ -137,7 +137,7 @@ static void stTick(void){   // once per logic step in the life game: is this cha
         if((u8)simDay!=stKidDay) return;
         stKidHome(); stKidDay=255;
     } else if(!stDone(c)) return;
-    simMoney+=stRew(stCh); if(simMoney>9999) simMoney=9999; dnaAdd(25); persSave(); simsSave();
+    simMoneyAdd(stRew(stCh)); dnaAdd(25); persSave(); simsSave();
     if(jbStoryDone(stId,stCh)){ simQPush("MORE SCOOBY STUFF TO FIND"); simQPush("TOUCH GRASS TO FIND IT"); }   // half of all the story missions: secret songs (no names, go and look)
     if(c->goal==SG_DAYS) stKidDay=255;
     stCh++; stSave(); stAnnounce(); stShown=(u8)(stId*16+stCh+1); stModal=2;   // the CHAPTER COMPLETE card (stRunModal)
@@ -185,7 +185,7 @@ static void storyJoin(void){   // floors step 10: pause menu > STORY with no sto
     int need=(s==STY_ROOM||s==STY_WED||s==STY_PARENT||s==STY_SECOND||s==STY_HOUSE||s==STY_TOWN)?1:s==STY_FRIEND?2:0;   // Sims the story brings in
     if(hhN+need>HH_MAX){ toast("TOO MANY SIMS HOME FOR THAT STORY"); return; }
     static const char* const yn[2]={"START THIS STORY","NOT NOW"}; if(menu(stNm[s],yn,2)!=0) return;
-    int money=simMoney; storySetup(s); if(s==STY_RAGS) simMoney=money;   // (RAGS TO RICHES keeps your money here: a new life is the way to start it poor)
+    money_t money=simMoney; storySetup(s); if(s==STY_RAGS) simMoney=money;   // (RAGS TO RICHES keeps your money here: a new life is the way to start it poor)
     stEnter();   // the first chapter card
 }
 static void storyScreen(void){   // pause menu > STORY: the story journal, a chapter timeline (no story yet: A picks one for this life)
@@ -282,7 +282,7 @@ static void storySetup(int s){   // after the new life is set up and the old hou
     case STY_PARENT: stMixLook(lk,look,look,AG_CHILD);   // your kid takes after you
         m=stAddSim(lk,AG_CHILD,hhPLast); if(m>=0){ stRel(hhPUid,hhM[m].uid,40,30,0); stKid=hhM[m].uid; } break;
     case STY_SKATE: break;   // just you and a board
-    case STY_RAGS: simMoney=100; break;   // you start with almost nothing
+    case STY_RAGS: simMoney=2000; break;   // you start with almost nothing
     case STY_SECOND: st=AG_ADULT; lookTrueRandom(lk,&st);   // someone you fell out with (they start cold)
         m=stAddSim(lk,AG_ADULT,hhPLast); if(m>=0){ stRel(hhPUid,hhM[m].uid,-20,-10,0); stPart=hhM[m].uid; } break;
     case STY_CLIMB: break;   // just you and a job to climb

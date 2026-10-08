@@ -36,13 +36,13 @@ static int armsNear(void){ int tx=(int)(lfx>>8), ty=(int)(lfy>>8);
 static int armsUse(void){   // R next to the counter (weapons.h wpUseSpot)
     if(!armsNear()) return 0;
     if(stage<AG_TEEN){ lnote="NOT FOR KIDS"; lnoteT=50; return 1; }
-    static char lb[9][28] EWRAM_BSS, tt[24] EWRAM_BSS; const char*it[9];
+    static char lb[9][28] EWRAM_BSS, tt[40] EWRAM_BSS; const char*it[9];
     for(;;){
-        char*e=simCat(tt,"ARMS SHOP  $"); simCatN(e,simMoney);
+        char*e=simCat(tt,"ARMS SHOP  $"); simCatMoney(e,simMoney,1);
         for(int w=0;w<WP_N;w++){ char*q=simCat(lb[w],wpT[w].nm); q=simCat(q,"  "); if(wpOwn>>w&1) simCat(q,"OWNED"); else { *q++='$'; simCatN(q,wpT[w].price); } it[w]=lb[w]; }
-        { char*q=simCat(lb[6],"12 BULLETS  $40"); (void)q; it[6]=lb[6]; q=simCat(lb[7],"3 MISSILES  $150"); (void)q; it[7]=lb[7]; it[8]="LEAVE"; }
+        { char*q=simCat(lb[6],"12 BULLETS  $400"); (void)q; it[6]=lb[6]; q=simCat(lb[7],"3 MISSILES  $3000"); (void)q; it[7]=lb[7]; it[8]="LEAVE"; }
         int c=menu(tt,it,9); if(c<0||c==8) break;
-        int price=c<WP_N?wpT[c].price:c==6?40:150;
+        int price=c<WP_N?wpT[c].price:c==6?400:3000;
         if(c<WP_N&&(wpOwn>>c&1)) toast("YOU HAVE ONE");
         else if(c==6&&wpBul>=WP_BMAX) toast("POCKETS FULL");
         else if(c==7&&wpMis>=WP_MMAX) toast("POCKETS FULL");

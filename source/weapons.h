@@ -15,11 +15,11 @@ enum { WP_BAT, WP_KNIFE, WP_TASER, WP_PISTOL, WP_UZI, WP_ROCKET, WP_N };
 typedef struct { const char*nm; u8 kind, dmg, cd, reach, flag; u16 price, col; } WpDef;   // kind 0 melee, 1 bullet, 2 missile; reach in 1/16 tiles (melee); flag 1 = keeps firing while R is held, 2 = freezes the target
 static const WpDef wpT[WP_N]={
     {"BAT",    0, 22, 24, 28, 0, 120, RGB(22,14,6)},
-    {"KNIFE",  0, 15, 10, 20, 0,  80, RGB(28,28,31)},
-    {"TASER",  0,  9, 30, 22, 2, 150, RGB(10,24,31)},
-    {"PISTOL", 1, 20, 16,  0, 0, 300, RGB(31,28,8)},
-    {"UZI",    1,  9,  5,  0, 1, 600, RGB(31,22,6)},
-    {"ROCKET", 2, 45, 50,  0, 0, 900, RGB(31,12,4)},
+    {"KNIFE",  0, 15, 10, 20, 0, 200, RGB(28,28,31)},
+    {"TASER",  0,  9, 30, 22, 2, 900, RGB(10,24,31)},
+    {"PISTOL", 1, 20, 16,  0, 0, 2400, RGB(31,28,8)},
+    {"UZI",    1,  9,  5,  0, 1, 6000, RGB(31,22,6)},
+    {"ROCKET", 2, 45, 50,  0, 0, 15000, RGB(31,12,4)},
 };
 #define WP_BMAX 99   // most bullets, most missiles
 #define WP_MMAX 20

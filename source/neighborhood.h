@@ -28,10 +28,12 @@ static const char* const dcNm[DC_N]={"CLEAR","TREE","PINE","BUSH","FLOWERS","ROC
 static const char* const ctNm[CT_N]={"PARK","SKATE PARK","PLAZA","LOUNGE","OLD TOWN","PARK + SKATE","PRISON","ARMS SHOP"};
 static const char* const seasNm[4]={"SPRING","SUMMER","FALL","WINTER"};
 static const char* const todNm[3]={"DAY","DUSK","NIGHT"};
-typedef struct { u8 on,x,y,w,h,kind,type; s8 slot; char name[NB_NAME+1]; u8 floors; u16 value; } NbLot;   // value: what it sells for
+typedef struct { u8 on,x,y,w,h,kind,type; s8 slot; char name[NB_NAME+1]; u8 floors; u16 value; } NbLot;   // value: what it sells for, in units of NB_UNIT simoleons
 typedef struct { char tag[4]; char name[NB_NAME+1]; u8 season,tod,home,cur,zoom,pad[3]; u8 cell[NB_H][NB_W]; NbLot lot[NB_LOTS]; u8 roof[NB_LOTS][5]; } Town;   // roof (APPENDED, older towns have none: zeros = the old automatic roof): per lot [0] style (low nibble: PYRAMID FLAT HIP SHED) + colour (high nibble: 0 auto, 1-8 palette, 9 custom), [1] height 0 auto / 1-15, [2] overhang 0-7, [3..4] custom RGB555
 #define NB_TOWN_V1 ((unsigned)__builtin_offsetof(Town,roof))   // the size of a town saved before roofs existed: still loads, its roofs are all automatic
 static Town nbT EWRAM_BSS;
+#define NB_UNIT 40   // a lot's saved value is in units of this many simoleons (a u16 then reaches 2.6 million; an old town's numbers just scale up)
+static int nbPrice(const NbLot*L){ return (int)L->value*NB_UNIT; }   // what the lot costs / sells for
 static int nbWho(int li,char*nm); static int nbLives(int li); static int hhPlayAt(int li); static int hhNewAt(int li);   // households.h: who lives on a lot, playing them, new Sims
 static u8 nbOk;                  // nbT holds a town
 static int nbTS=-1;              // the slot nbT was loaded from (or -1: a new town, it gets a free slot)
@@ -54,16 +56,15 @@ static int nbBarred(void){   // 1 = the live room is a COMMUNITY lot and you got
 static int nbFlagOk(void){ return nbOk&&nbEditPass&&nbT.cur<NB_LOTS&&nbT.lot[nbT.cur].on&&nbT.cur!=nbT.home&&!nbLives(nbT.cur); }   // flags can only be placed while the town view's BUILD has a free lot open (never in your home, never in normal play)
 static int nbFlagsOn(void){ return nbOk&&nbT.cur<NB_LOTS&&nbT.lot[nbT.cur].on&&nbT.lot[nbT.cur].kind==LKIND_COMM; }   // flags only do anything on a community lot
 static int nbAt(int cx,int cy){ for(int i=0;i<NB_LOTS;i++){ const NbLot*L=&nbT.lot[i]; if(L->on&&cx>=L->x&&cy>=L->y&&cx<L->x+L->w&&cy<L->y+L->h) return i; } return -1; }
-static int nbItemValue(char c){
-    switch(c){ case '.': case 'P': return 0; case 'W': return 4; case 'w': return 2; case 'D': return 15; case 'F': return 60; case 'T': return 30; case 'S': return 50;
-        case 'H': return 40; case 'C': return 35; case 'B': return 12; case 'N': return 15; case 'Y': return 20; case 'V': return 12; case 'G': return 9; case 'U': return 15;
-        case 'Q': return 5000; case 'A': return 150; case 'R': return 40; case 'v': return 120; case 'b': return 90; case 'c': return 60; case 'q': return 150; case 'm': return 130; case 'K': return 4; case 'Z': return 6; case '=': return 8; case '#': return 5; case '^': case '~': return 30; default: return (c>='1'&&c<='9')||c=='X'||c=='L'||c=='O'||c=='J'||c=='M'?25:5; }
+static int nbItemValue(char c){   // what a tile of c is worth in simoleons: the catalog price (main.c palPrice); anything that is not in the catalog counts a little
+    if(c=='.'||c=='P') return 0;
+    int i=palIdx(c); return i<0?50:(int)palPrice[i];
 }
-static void nbValueLive(int j){   // land (half a simoleon a tile) + everything built on every floor of the live map
-    NbLot*L=&nbT.lot[j]; u32 v=(u32)L->w*L->h*8; int fl=1;
+static void nbValueLive(int j){   // land (20 simoleons a tile) + everything built on every floor of the live map
+    NbLot*L=&nbT.lot[j]; u32 v=(u32)L->w*L->h*8*NB_UNIT; int fl=1;
     flEnsure();
     for(int f=0;f<FLR_N;f++){ int any=0; for(int i=0;i<MSZ;i++){ char c=(char)flPlaneAt(f,0,i); v+=(u32)nbItemValue(c); if(f&&c!='.'&&c!='w') any=1; } if(any) fl=f+1; }
-    L->value=(u16)(v>65535?65535:v); L->floors=(u8)fl;
+    v=(v+NB_UNIT/2)/NB_UNIT; L->value=(u16)(v>65535?65535:v); L->floors=(u8)fl;
 }
 static const char* nbErr;
 static void prisonBuild(int x0,int y0,int x1,int y1);   // prison.h
@@ -362,9 +363,8 @@ static void nbDrawTown(int ccx,int ccy,int tool,int ghostW,int ghostH,int ghostO
     line(sx,sy,sx+nbHw,sy+nbHh,WHITE); line(sx+nbHw,sy+nbHh,sx,sy+2*nbHh,WHITE); line(sx,sy+2*nbHh,sx-nbHw,sy+nbHh,WHITE); line(sx-nbHw,sy+nbHh,sx,sy,WHITE);
     clipAll();
 }
-static char* nbMoney(char*d,int v){   // §1,234
-    *d++=(char)0xC2; *d++=(char)0xA7; char t[8]; int k=0; if(v<=0) t[k++]='0'; while(v>0&&k<7){ t[k++]=(char)('0'+v%10); v/=10; }
-    for(int i=k-1;i>=0;i--){ *d++=t[i]; if(i&&i%3==0) *d++=','; } *d=0; return d;
+static char* nbMoney(char*d,money_t v){   // §1,234
+    *d++=(char)0xC2; *d++=(char)0xA7; return simCatMoney(d,v,1);
 }
 static const char* const nbTools[5]={"LOTS","PAINT","ROADS","DECOR","NEW LOT"};
 static const u8 nbSizes[6][2]={{4,4},{5,5},{6,6},{8,8},{10,10},{8,5}};
@@ -379,7 +379,7 @@ static void nbPanel(int ccx,int ccy,int tool,int sub){
         const NbLot*L=&nbT.lot[li]; text(4,135,L->name,WHITE,1);
         e=slCat(b,L->kind==LKIND_RES?"HOME LOT ":ctNm[L->type]); e=slCat(e,"  "); e=slNum(e,L->w*4); e=slCat(e," X "); slNum(e,L->h*4); text(84,135,b,DIMC,1);
         if(li==nbT.home) e=slCat(b,"YOUR HOME  "); else if(L->kind==LKIND_COMM) e=slCat(b,"COMMUNITY  "); else if(nbWho(li,0)){ char f[24]; f[0]=0; nbWho(li,f); e=slCat(b,f); e=slCat(e,"  "); } else if(L->slot<0&&nbT.cur!=li) e=slCat(b,"FREE LOT  "); else { e=slCat(b,"HOUSE "); e=slNum(e,L->floors); e=slCat(e,L->floors>1?" FLOORS  ":" FLOOR  "); }
-        nbMoney(e,L->value); text(4,145,b,GOLD,1);
+        nbMoney(e,nbPrice(L)); text(4,145,b,GOLD,1);
         text(4,153,nbT.cur==li?"A  LOT MENU   YOU ARE HERE":"A  LOT MENU",RGB(12,14,16),1);
         return;
     }
@@ -399,7 +399,7 @@ static int nbFree(int x,int y,int w,int h,int skip){   // can a lot go there?
     for(int j=y;j<y+h;j++)for(int i=x;i<x+w;i++){ int l=nbAt(i,j); if((l>=0&&l!=skip)||NB_GR(nbT.cell[j][i])==NT_ROAD||NB_GR(nbT.cell[j][i])==NT_WATER) return 0; }
     return 1;
 }
-static int nbCash(int*have){ simsDefaults(); if(!simsLoad()){ *have=-1; return 0; } *have=simMoney; return 1; }   // the life's cash (0 = no life yet)
+static int nbCash(money_t*have){ simsDefaults(); if(!simsLoad()){ *have=-1; return 0; } *have=simMoney; return 1; }   // the life's cash (0 = no life yet)
 // ---- ROOF EDITOR (lot menu > ROOF): pick a style and colour, set the height and overhang, or mix your own colour. A saves, B cancels ----
 static char* nbItoa(char*e,int v){ if(v>=10) *e++=(char)('0'+v/10); *e++=(char)('0'+v%10); *e=0; return e; }
 static int nbRoofEdit(int li){   // 1 = saved
@@ -472,12 +472,12 @@ static int nbLotMenu(int li){   // returns 1 when the screen should close (play 
             if(id[c]==A_BUILD) nbFlagSync(li);   // (flags placed while building set what kind of place the lot is)
             nbValueLive(li); nbStore(li); nbSave(); menuMusSync(); return 0;
         case A_MOVE: {
-            int have; int price=L->value, sale=nbT.home<NB_LOTS&&nbT.lot[nbT.home].on?nbT.lot[nbT.home].value:0, net=price-sale;
+            money_t have; int price=nbPrice(L), sale=nbT.home<NB_LOTS&&nbT.lot[nbT.home].on?nbPrice(&nbT.lot[nbT.home]):0, net=price-sale;
             if(nbCash(&have)){
                 char q[40]; char*e=slCat(q,net>=0?"PAY ":"GET "); nbMoney(e,net>=0?net:-net);
                 const char*yn[2]={"NO","YES"}; if(menu(q,yn,2)!=1) return 0;
                 if(net>have){ toast("NOT ENOUGH SIMOLEONS"); return 0; }
-                simMoney-=net; if(simMoney>9999) simMoney=9999; simsSaveNow();
+                simMoneyAdd(-(money_t)net); simsSaveNow();
             }
             nbT.home=(u8)li; nbSave(); toast("WELCOME HOME"); return 0; }
         case A_CONV: {

@@ -54,11 +54,11 @@ static void trnPick(void){   // the entry was chosen
 #define TRN_GOLD   6000
 static void trnResult(void){   // the results card (the game holds still behind it)
     int sc=lscore<0?0:lscore, old=trnBestGet(), runs=trnRunsGet()+1, nw=sc>old;
-    int md=sc>=TRN_GOLD?3:sc>=TRN_SILVER?2:sc>=TRN_BRONZE?1:0, pay=sc/20;   // medal and prize money (1 per 20 points)
+    int md=sc>=TRN_GOLD?3:sc>=TRN_SILVER?2:sc>=TRN_BRONZE?1:0, pay=sc/2;   // medal and prize money (1 per 2 points)
     static const char* const mdNm[4]={"NONE","BRONZE","SILVER","GOLD"};
     static const u16 mdCol[4]={RGB(12,14,16),RGB(24,14,6),RGB(24,26,28),RGB(31,26,6)};
     trnBestPut(nw?sc:old,runs);
-    simMoney+=pay; if(simMoney>9999) simMoney=9999;
+    simMoneyAdd(pay);
     u16 prev=keyNow(); u32 t=0; const u16 lab=RGB(22,25,28);
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; t++;
