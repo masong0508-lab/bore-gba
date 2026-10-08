@@ -433,25 +433,46 @@ static int storyPick(void){
         present();
     }
 }
+// STORY CAST (story step 2): the people a story brings home are pre-made, named characters too (last = 0: they take your last name).
+typedef struct { const char* last; HhPre p; } StCast;
+//    look: SHAPE SKIN EYES MOUTH EARS HSTYLE HCOL TOP BOT  TONE EARSZ EARLF
+static const StCast stCast[STY_N][2]={
+    {{0}},
+    {{"DUNMORE", {"CAL",   {0,2,3,1,2,4,1,5,2, 0,0,0},AG_ADULT,AS_KNOW,   8}}},   // ROOMMATES: the roommate you barely know
+    {{0,         {"ELI",   {4,4,2,1,2,2,5,6,0, 0,0,0},AG_ADULT,AS_FORTUNE,6}}},   // NEWLYWEDS: your spouse
+    {{0,         {"JUNIE", {0,1,1,2,2,1,4,5,5, 0,0,0},AG_CHILD,AS_GROW,   2}}},   // SINGLE PARENT: your kid
+    {{0}}, // SKATE LIFE: just you
+    {{"BELOV",   {"IVAN",  {6,0,4,2,1,3,0,2,6, 0,0,0},AG_ADULT,AS_KNOW,   5}}},   // HOUSEFULL: a housemate
+    {{"TANAKA",  {"KIKI",  {1,3,5,3,2,6,2,5,1, 0,0,0},AG_ADULT,AS_POP,    7}},    // BEST FRIENDS: two housemates
+     {"OKONKWO", {"RUSS",  {3,6,0,0,1,1,3,1,7, 0,0,0},AG_ADULT,AS_HOME,   4}}},
+    {{0}}, // RAGS TO RICHES: just you
+    {{0}}, // CAREER CLIMBER: just you
+    {{"ABERNATHY",{"GWEN", {4,2,1,1,2,0,6,7,1, 0,0,0},AG_ADULT,AS_PLEAS,  11}}},   // NEW IN TOWN: a housemate
+    {{0,         {"VAL",   {5,3,2,3,1,5,0,6,4, 0,0,0},AG_ADULT,AS_POP,    10}}},   // SECOND CHANCE: the one you fell out with
+    {{0}}, // TV SHOW & TELL: the cast arrives with the chapters
+};
+static int stCastSim(const StCast*c){   // one of the story's people moves in (their look, name, aspiration and personality). -1 = the house is full
+    int m=stAddSim(c->p.look,c->p.stage,c->last); if(m<0) return -1;
+    HhSim*s=&hhM[m]; int k=0; for(;c->p.name[k]&&k<HH_NM-1;k++) s->name[k]=c->p.name[k]; s->name[k]=0;
+    s->asp=(u8)(c->p.stage<AG_ADULT?AS_GROW:c->p.asp); for(int i=0;i<TR_N;i++) s->tr[i]=signTr[c->p.sign][i];
+    return m;
+}
 static void storySetup(int s){   // after the new life is set up and the old household has gone
     stId=(u8)s; stCh=0; stPart=stKid=stKidDay=255; stGuest=0;
-    u8 lk[LK_N], st; int m;
+    int m;
     switch(s){
-    case STY_ROOM: st=AG_ADULT; lookTrueRandom(lk,&st); { char l[HH_NM]; famLast(&hhFams[rnd8()%HH_NFAM],l);
-        m=stAddSim(lk,AG_ADULT,l); if(m>=0){ stRel(hhPUid,hhM[m].uid,10,0,0); stPart=hhM[m].uid; } } break;
-    case STY_WED: st=AG_ADULT; lookTrueRandom(lk,&st);
-        m=stAddSim(lk,AG_ADULT,hhPLast); if(m>=0){ stRel(hhPUid,hhM[m].uid,70,80,RF_CRUSH|RF_LOVE|RF_STEADY|RF_KISSED|RF_FRIEND|RF_BFF); stPart=hhM[m].uid; } break;
-    case STY_PARENT: stMixLook(lk,look,look,AG_CHILD);   // your kid takes after you
-        m=stAddSim(lk,AG_CHILD,hhPLast); if(m>=0){ stRel(hhPUid,hhM[m].uid,40,30,0); stKid=hhM[m].uid; } break;
+    case STY_ROOM: m=stCastSim(&stCast[s][0]); if(m>=0){ stRel(hhPUid,hhM[m].uid,10,0,0); stPart=hhM[m].uid; } break;
+    case STY_WED: m=stCastSim(&stCast[s][0]);
+        if(m>=0){ stRel(hhPUid,hhM[m].uid,70,80,RF_CRUSH|RF_LOVE|RF_STEADY|RF_KISSED|RF_FRIEND|RF_BFF); stPart=hhM[m].uid; } break;
+    case STY_PARENT: m=stCastSim(&stCast[s][0]); if(m>=0){ stRel(hhPUid,hhM[m].uid,40,30,0); stKid=hhM[m].uid; } break;
     case STY_SKATE: break;   // just you and a board
     case STY_RAGS: simMoney=2000; break;   // you start with almost nothing
-    case STY_SECOND: st=AG_ADULT; lookTrueRandom(lk,&st);   // someone you fell out with (they start cold)
-        m=stAddSim(lk,AG_ADULT,hhPLast); if(m>=0){ stRel(hhPUid,hhM[m].uid,-20,-10,0); stPart=hhM[m].uid; } break;
+    case STY_SECOND: m=stCastSim(&stCast[s][0]);   // someone you fell out with (they start cold)
+        if(m>=0){ stRel(hhPUid,hhM[m].uid,-20,-10,0); stPart=hhM[m].uid; } break;
     case STY_CLIMB: break;   // just you and a job to climb
     case STY_TVSHOW: break;   // just you (the rest of the cast arrives with the chapters)
     case STY_HOUSE: case STY_FRIEND: case STY_TOWN:   // housemates who are not friends yet (BEST FRIENDS: two of them)
-        for(int i=0;i<(s==STY_FRIEND?2:1);i++){ st=AG_ADULT; lookTrueRandom(lk,&st); char l[HH_NM]; famLast(&hhFams[rnd8()%HH_NFAM],l);
-            m=stAddSim(lk,AG_ADULT,l); if(m>=0){ stRel(hhPUid,hhM[m].uid,20,0,0); if(!i) stPart=hhM[m].uid; } }
+        for(int i=0;i<(s==STY_FRIEND?2:1);i++){ m=stCastSim(&stCast[s][i]); if(m>=0){ stRel(hhPUid,hhM[m].uid,20,0,0); if(!i) stPart=hhM[m].uid; } }
         break;
     }
     hhSave(); stSave();
