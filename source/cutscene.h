@@ -45,6 +45,7 @@ __attribute__((unused)) static void csFigV1(int x,int y,int who,int pose,int t){
     else if(open) csR(x+lean-1,y-25+bob+hd,2,2,RGB(18,2,3)); else csR(x+lean-1,y-25+bob+hd,2,1,RGB(18,6,6));
 }
 
+#include "csface.h"
 #include "csart.h"
 static char* csNum(char*b,int v){ char d[12]; int n=0; if(v<=0) d[n++]='0'; while(v>0){ d[n++]=(char)('0'+v%10); v/=10; } while(n>0) *b++=d[--n]; *b=0; return b; }   // a number as text (the approval board)
 static void csBg(int bg,int t,int fx){   // the picture area: y 12 .. 115
@@ -117,7 +118,7 @@ static int csIsq(int v){ int w=0; while((w+1)*(w+1)<=v) w++; return w; }
 static void csDraw(const CsBeat*b,int t,int shown){   // one frame of one beat (shown: how many letters of the caption are typed)
     csOx=csOy=0; if(b->fx&CF_SHAKE){ csOx=(rnd8()%5)-2; csOy=(rnd8()%5)-2; }
     rect(0,0,SW,SH,0);
-    csCamAim(b,t); clipSet(0,12,SW,116); csBg(b->bg,t,b->fx);
+    csFxNow=b->fx; csCamAim(b,t); clipSet(0,12,SW,116); csBg(b->bg,t,b->fx);
     int ay=110, by=110;
     if(b->bg==CB_HOSP||b->bg==CB_FLAT){ if(b->pb==CP_LIE) by=98; }
     if(b->bg==CB_SITE){ if(b->pb==CP_CLIMB) by=110-(t/3>48?48:t/3); if(b->pb==CP_FLAIL){ by=62+t*t/20; if(by>110) by=110; } if(b->pb==CP_LIE) by=111; }

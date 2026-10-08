@@ -11,7 +11,7 @@ static void csFig(int x,int y,int who,int pose,int t){
     u16 sk=SKc[who], hr=HRc[who], cl=CLc[who], bt=BTc[who], dk=RGB(3,2,3), ol=RGB(2,1,4);
     int dress=who==CA_MISSY||who==CA_MAME;
     if(pose==CP_LIE){ csR(x-19,y-1,36,1,RGB(2,1,3)); csR(x-11,y-7,18,7,ol); csR(x-10,y-6,17,6,cl); csR(x-10,y-6,17,1,csLt(cl,5)); csR(x+7,y-5,10,3,ol); csR(x+7,y-4,9,2,dress?sk:bt);
-        csD(x-14,y-4,5,ol); csD(x-14,y-4,4,sk); csR(x-19,y-9,6,6,hr); csR(x-18,y-10,3,1,csLt(hr,7)); csR(x-15,y-5,1,1,dk); csR(x-13,y-3,2,1,RGB(24,8,8)); return; }
+        csD(x-14,y-4,5,ol); csD(x-14,y-4,4,sk); csR(x-19,y-9,6,6,hr); csR(x-18,y-10,3,1,csLt(hr,7)); csR(x-15,y-5,1,1,dk); csR(x-13,y-3,2,1,RGB(24,8,8)); if(csCz>=384) csFaceBig(x-14,y-6,who,CP_LIE,t,0,SKc[who],HRc[who]); return; }
     int lean=0, bob=0, lh=-6, lv=8, rh=6, rv=8, ls=0, hd=0, open=0;
     switch(pose){
     case CP_SWAY:  lean=csWv(t,70)/2; lh=-7+csWv(t,50)/3; rh=7-csWv(t,50)/3; ls=csWv(t,70)/4; break;
@@ -39,6 +39,7 @@ static void csFig(int x,int y,int who,int pose,int t){
         if(who==CA_CREW&&i>1&&i<12){ csR(cx-w/2+2,yy,1,1,RGB(31,30,16)); csR(cx+w/2-3,yy,1,1,RGB(31,30,16)); }          // Hal: the reflective vest stripes
         if(dress&&i<3) csR(cx-1,yy,3,1,csSh(sk,2));                                                                        // the neckline
     }
+    if(csCz>=384){ csFaceBig(hx,hy+2,who,pose,t,open,sk,hr); return; }
     if(who==CA_MAME){ csR(hx-7,hy-1,3,13,ol); csR(hx+4,hy-1,3,13,ol); csR(hx-6,hy,2,11,hr); csR(hx+4,hy,2,11,hr); }      // long hair behind
     if(who==CA_MISSY){ csR(hx-6,hy-1,2,10,ol); csR(hx+5,hy-1,2,10,ol); csR(hx-6,hy,2,9,hr); csR(hx+4,hy,2,9,hr); }       // the bob, to the chin
     csD(hx,hy+1,6,ol); csD(hx,hy,5,hr); csD(hx,hy+2,4,sk);                                                                 // head: outline, hair, face
