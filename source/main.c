@@ -2574,10 +2574,115 @@ static void helpScreen(const char*title,const char*const*ln,int n){   // lines s
 static void toast(const char*msg){ int w=tw(msg,1)+16;
     box((SW-w)/2,66,w,22); text((SW-w)/2+8,74,msg,WHITE,1); for(int i=0,n=oToastLen();i<n;i++){ present(); } }
 static int edGate(void){ if(!nbBarred()) return 1; toast("COMMUNITY LOT  BUILD IN THE TOWN"); return 0; }   // every way into the room builder asks first: a community lot can only be built from the neighborhood view
-static const char* const lifeHelp[19]={">ON FOOT","DPAD WALK  B RUN  A HOP","L GET ON THE BOARD","R USE FRIDGE TOILET BED SHOWER SOFA",">ON THE BOARD","A PUSH  DPAD STEER  B OLLIE","IN AIR DPAD SPINS  B KICKFLIP  R GLIDES","GREEN MARK = SAFE LANDING  RED = BAIL",">KEEP YOURSELF GOING","WC IS THE TOILET BAR  HP UNDER THE FACE","A OR B GETS YOU UP FROM BED OR SOFA",">WORK  PICK A CAREER ON THE PHONE","SKATER JOB PAYS FOR TRICK POINTS",">WANTS AND FEARS","WANTS FILL THE METER  FEARS DRAIN IT","A GOOD SLEEP ROLLS NEW WANTS AND FEARS","R BY A SIM TALK OR FIGHT  START MENU","SELECT+UP DOWN ZOOM IN OR OUT","SELECT+L R TURN THE VIEW"};
+static const char* const lifeHelp[]={
+    ">Life in BORE",
+    "BORE is a life simulation about one creature and the",
+    "days it lives. You look after its needs, earn a living,",
+    "skate around town and, in time, share a home with a",
+    "household of up to fourteen Sims.",
+    ">Needs and Mood",
+    "Your creature must eat, use the toilet, rest, wash",
+    "and relax, and it feels better in a pleasant room. A",
+    "thought bubble shows the most urgent need. Fun",
+    "comes from skating, and a bored or sad creature is",
+    "slower and scores fewer trick points. Food and a",
+    "night in bed restore health.",
+    ">Work and Money",
+    "A game day lasts six real minutes. Choose from",
+    "eight careers on the phone, work a weekday shift and",
+    "collect your pay. Good days lead to promotion and",
+    "bad days to strikes. Bills fall due every midnight, so",
+    "keep some cash in hand.",
+    ">Skating",
+    "Skating is the heart of the game. Land tricks, link",
+    "combos, grind rails and launch off ramps to score",
+    "points and raise your skill. The skater job pays for",
+    "the trick points you earn.",
+    ">Wants and Fears",
+    "Every Sim carries wants and fears. Meeting a want",
+    "lifts your aspiration meter and earns reward points",
+    "to spend; a fear coming true pulls it down. A high",
+    "meter eases your needs and improves your mood,",
+    "while a collapse means a breakdown. A good night's",
+    "sleep brings new wants.",
+    ">Other Sims",
+    "The Sims around you look after themselves. They",
+    "go to work and school, make friends, fall in love",
+    "and sometimes quarrel. You can talk to them,",
+    "befriend them or fight. Switch to any of them and",
+    "play their life instead.",
+    ">Story Mode",
+    "Three stories, Roommates, Newlyweds and Single",
+    "Parent, each set you six chapters of goals. Every",
+    "chapter you complete pays cash and Jenes.",
+    ">Handy Controls",
+    "D-pad walks, B runs, A hops. L boards, R uses",
+    "furniture or talks to a Sim. START opens the",
+    "pause menu. SELECT with the D-pad zooms",
+    "and turns the view."};
 
-static const char* const creatureHelp[15]={">PICK YOUR LOOK","L R CHANGE TAB   UP DOWN PICK A ROW","LEFT RIGHT CHANGE IT  A ALSO STEPS","SELECT TURNS THE CREATURE ROUND",">THE TABS","1 BODY  2 FACE  3 HAIR  4 CLOTHES","5 PARTS  TAIL HORNS SPIKES WINGS","  PARTS GIVE POWERS  AND FIGHT BONUSES","  BIG PARTS COST JENES  A BUYS ONE","6 ASPIRE  ASPIRATION  LIFETIME WANT  SIGN","  AND TRAITS THAT SHARE 25 POINTS",">FINISH","START JUMPS TO THE DONE TAB","GO LIVE LIFE PLAYS YOUR CREATURE","LIVING EARNS DNA FOR NEW PARTS"};
-static const char* const mapHelp[17]={">BUILD A ROOM","ROOM TOOL  A CORNER  A BUILDS","WALL TOOL  A START  A DRAWS A LINE","FLOOR TOOL  A CORNER  A FILLS","ITEM TOOL  PLACE SINGLE TILES","ERASE TOOL  A CORNER  A CLEARS",">STYLES","L R PICK FLOOR OR ITEM","SEL+L R PICK WALLPAPER","SELECT TAP NEXT TOOL  B CANCELS",">KEEP IT","START OPENS PLAY TEST AND SAVE",">FLOORS","SEL+UP DOWN FLOOR  STAIRS ARE ITEMS",">UNDO AND REDO","SEL+B UNDO  SEL+START REDO","ALSO IN THE MAP MENU (START)"};
+static const char* const creatureHelp[]={
+    ">Create Your Creature",
+    "The creator builds your voxel character block by",
+    "block, with a live preview in a little room. Every",
+    "look is yours to decide: body shape, life stage, face,",
+    "hair and clothing, with sliders for height, weight and",
+    "the features of the face.",
+    ">Looks",
+    "Faces offer many eyes, mouths, brows, glasses and",
+    "cheek marks. Hair brings beards and hats, and",
+    "clothes can be restyled, recoloured or left bare.",
+    "Randomize rolls a completely new creature if you",
+    "would like a surprise.",
+    ">Parts and Powers",
+    "Tails, horns, spikes and wings are more than",
+    "decoration. Horns hit harder, spikes soften a blow,",
+    "and wings help you dodge and glide. Big parts cost",
+    "Jenes, which you earn by living: DNA from your life",
+    "unlocks new parts.",
+    ">Aspiration and Traits",
+    "Choose an aspiration, a lifetime want and a",
+    "star sign. Traits share 25 points between",
+    "them, and they shape both your wants and the",
+    "way your creature behaves.",
+    ">Life Stages",
+    "A creature grows from baby to child, teen, adult",
+    "and elder, and each stage has its own limits. Only",
+    "teens and adults hold jobs. You can slow aging down",
+    "or switch it off in Options.",
+    ">Families",
+    "Add several creatures to build a household, then give",
+    "them names and set who is related to whom. When",
+    "you are happy, Go Live Life starts the story.",
+    ">Handy Controls",
+    "L and R change tab, UP and DOWN pick a row, LEFT",
+    "and RIGHT change it. SELECT turns the creature,",
+    "and START jumps to Done."};
+static const char* const mapHelp[]={
+    ">Design Your Home",
+    "The room builder lets you shape the place where",
+    "your life happens. Draw walls and rooms, lay",
+    "floors, hang wallpaper and fill the space with",
+    "furniture and objects.",
+    ">Furniture That Works",
+    "Furniture does real work. The fridge feeds you,",
+    "and the toilet, bed, shower and sofa each satisfy a",
+    "need. A well-furnished room lifts your mood.",
+    "Every item has a price, so a grand home is",
+    "something to save for.",
+    ">Skate Spots",
+    "Ramps, rails and other skate objects turn any space",
+    "into a skate park. A radio, a sound system and a TV",
+    "add music and entertainment.",
+    ">Floors and Flags",
+    "A house can have three floors joined by stairs.",
+    "Placing a community or skate flag turns a lot into a",
+    "public park or skate park.",
+    ">Handy Controls",
+    "SELECT changes tool, B cancels, and A places. Hold",
+    "SELECT with L or R for wallpaper, or UP or DOWN",
+    "to change floor. SELECT and B undo, SELECT and",
+    "START redo, and START opens the map menu."};
 
 // ---------- settings screen ----------
 static void drawRoom(int ed);
@@ -4831,7 +4936,28 @@ static void creatorMusStart(void){
 }
 
 // ---------- main menu ----------
-static const char* const jbHelp[15]={">PLAYING","UP DOWN PICK A SONG  A PLAYS IT","A ON THE PLAYING SONG STOPS IT","L R GO TO THE PREVIOUS OR NEXT SONG",">CHECK BOXES","SELECT CHECKS OR UNCHECKS A SONG","ONLY CHECKED SONGS ARE PICKED AT RANDOM:","HERE  IN THE MENUS  AND FOR GAME MUSIC",">PLAY MODE","START CHANGES IT:  SHUFFLE  IN ORDER  REPEAT","WHEN A SONG ENDS THE MODE PICKS THE NEXT",">OTHER","LEFT RIGHT CHANGE THE VOLUME","OPENING IT PLAYS ONE RANDOM CHECKED SONG","B GOES BACK TO THE MENU"};
+static const char* const jbHelp[]={
+    ">The Jukebox",
+    "The jukebox is a music player with a large library of",
+    "songs. A card shows what is playing, who made it",
+    "and how far through it you are, above a list that",
+    "gives the length of every song.",
+    ">Your Playlist",
+    "Check the songs you like. Only checked songs are",
+    "chosen at random, for the menus, the jukebox and",
+    "the music in the game itself. Choose Shuffle, In",
+    "Order or Repeat to decide what follows.",
+    ">Radio in the Game",
+    "A radio or sound system in the house tunes in by",
+    "genre: House and Dance, Breaks and Bass, Chill and",
+    "World, Latin, Rock and Prog, or Hip Hop.",
+    ">Secrets",
+    "A few songs stay locked until one of your Sims",
+    "fulfils their lifetime want.",
+    ">Handy Controls",
+    "A plays a song, L and R skip, SELECT checks,",
+    "START changes the mode and LEFT and",
+    "RIGHT set the volume."};
 #include "acid.h"   // ACID RAINBOW: a live plasma, one of the main menu's backdrops
 // ---- the Sims 3 look: glossy rounded panels and pill buttons ----
 static u16 s3Mix(u16 a,u16 b,int t,int n){ if(n<=1) return a; int m=n-1;
@@ -4908,7 +5034,7 @@ static void s2pill(int x,int y,int w,const char*s){ s2rr(x,y,w,11,RGB(10,20,30))
 static void howToPlay(void){
     static const char* const tn[7]={"PLAY","MAKE","BUILD","MUSIC","PLANS","OPTS","TOWN"};
     const char* const* ln[7]={lifeHelp,creatureHelp,mapHelp,jbHelp,slotHelp,optHelp,nbHelp};
-    static const unsigned char nn[7]={19,15,17,15,13,12,20};
+    static const unsigned char nn[7]={sizeof(lifeHelp)/sizeof(lifeHelp[0]),sizeof(creatureHelp)/sizeof(creatureHelp[0]),sizeof(mapHelp)/sizeof(mapHelp[0]),sizeof(jbHelp)/sizeof(jbHelp[0]),sizeof(slotHelp)/sizeof(slotHelp[0]),sizeof(optHelp)/sizeof(optHelp[0]),sizeof(nbHelp)/sizeof(nbHelp[0])};
     enum { VIS=10, WY=49, WH=88, TY=53 };
     int tab=0, sc=0, dirty=7; u16 prev=keyNow();   // dirty: 1 the backdrop, panel, title and logo (once), 2 the pills and page number (a new tab), 4 the text well (a scroll)
     for(;;){

@@ -386,4 +386,21 @@ static void settingsScreen(void){   // the OPTIONS screen (the name stays so eve
         else { vsync(); if(remeasure&&opPage==0&&++idle>=20){ sCost=measureDraw(); costCache[costKey()]=(s16)sCost; remeasure=0; dirty=1; } }
     }
 }
-static const char* const optHelp[12]={">OPTIONS",">PAGES  L AND R","VIDEO  SPEED AND LOOKS   PLAY  THE LIFE SIM","TIME  SECTIONS  UP AT THE TOP ROW PICKS ONE",">ROWS","UP DOWN PICK  LEFT RIGHT CHANGE","SELECT PUTS A ROW BACK TO NORMAL","A GOLD DOT MARKS A CHANGED ROW",">SAFE TO TRY","RESET ALL OPTIONS IS ON THE DATA PAGE","B OR START GOES BACK AND SAVES",""};
+static const char* const optHelp[]={
+    ">Tuning the Game",
+    "Options adjust how BORE looks, runs and plays.",
+    "Choose a preset for the best looks, a balance,",
+    "more speed or longer battery life, or tune",
+    "every detail yourself.",
+    ">Gameplay",
+    "You can decide how forgiving injuries are, how",
+    "independently the other Sims behave, how quickly",
+    "your creature ages and how many inmates fill the",
+    "prison. Sound and button settings are here too.",
+    ">Safe to Experiment",
+    "A gold dot marks every setting you have changed,",
+    "and Reset All Options on the Data page puts",
+    "everything back, so you can try things freely.",
+    ">Handy Controls",
+    "L and R change page, UP and DOWN pick a row,",
+    "LEFT and RIGHT change it, and SELECT restores it."};

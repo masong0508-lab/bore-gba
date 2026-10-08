@@ -506,9 +506,32 @@ static int nbLotMenu(int li){   // returns 1 when the screen should close (play 
     }
     return 0;
 }
-static const char* const nbHelp[20]={">THE NEIGHBORHOOD","EVERY LOT IS A PLACE TO LIVE OR VISIT","THE ROOM YOU PLAY IS THE LOT YOU ARE ON",">LOTS TOOL","A ON A LOT  PLAY BUILD MOVE IN RENAME",
-    "MOVE IN BUYS IT AND SELLS YOUR OLD HOME","BULLDOZE CLEARS IT  DELETE REMOVES IT",">BUILD THE TOWN","L R CHANGE THE TOOL  SELECT ITS KIND","PAINT GROUND  LAY ROADS  PLANT DECOR",
-    "NEW LOT  PICK A SIZE AND A KIND",">TOWN MENU  START","ZOOM  SEASON  TIME OF DAY  RENAME",">SAVING","HOUSES GO IN BLUEPRINTS","THE TOWN SAVES WHEN YOU LEAVE",">COMMUNITY LOTS","VISIT PLAYS  YOU CANNOT BUILD THERE","BUILD IT FROM THIS SCREEN INSTEAD","MAKE COMMUNITY  MAKE RESIDENTIAL"};
+static const char* const nbHelp[]={
+    ">The Neighborhood",
+    "A town is a map of lots, and each lot is a place to",
+    "live, visit or build. You can explore the town you are",
+    "in or make a new one of your own.",
+    ">Shaping the Land",
+    "Paint ground, lay roads, plant trees and",
+    "decorations, and add new lots. A lot can be a",
+    "home, a park, a skate park, a plaza, a lounge or",
+    "part of the old town.",
+    ">Moving In",
+    "Choose a lot to play on, build on or move into.",
+    "Moving in buys the lot and sells your old home. A lot",
+    "is priced by its land and everything built on it.",
+    ">Community Lots",
+    "Parks, plazas and the like are places to visit rather",
+    "than build in. To change one, work on it from this",
+    "town view. Make Community and Make Residential",
+    "switch a lot between the two.",
+    ">The Town Menu",
+    "From here you can zoom, change the season and time",
+    "of day, and rename the town.",
+    ">Handy Controls",
+    "A on a lot offers Play, Build, Move In and Rename. L",
+    "and R change tool, and SELECT picks its kind.",
+    "START opens the town menu."};
 static int nbNewLot(int x,int y,int w,int h){
     int i=0; while(i<NB_LOTS&&nbT.lot[i].on) i++;
     if(i>=NB_LOTS){ toast("THE TOWN IS FULL"); return 0; }
