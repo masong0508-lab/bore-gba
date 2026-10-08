@@ -724,6 +724,13 @@ static void hairW(int x,int y,int z,int xp,int xm,int zp,int zm){   // one hair 
     for(int i=0;i<8;i++) if(wMask[i]==m&&m){ vox[y][z][x]=(u8)(5|((4+i)<<4)); return; }
     vox[y][z][x]=5;
 }
+static void hairFlush(int hx,int hz,int hw,int hd,int ylo,int yhi,int back,int sides){   // hair that grows ON the head: recolour the head's own blocks (never the face row) so the silhouette does not widen
+    for(int y=ylo;y<=yhi;y++){ if(y<0||y>=BXH) continue;
+        for(int z=hz;z<hz+hd-1;z++)for(int x=hx;x<hx+hw;x++){
+            if(!((back&&z==hz)||(sides&&(x==hx||x==hx+hw-1)))) continue;
+            if(z<0||z>=BXD||x<BX0||x>=BX0+BXW) continue;
+            u8 v=vox[y][z][x]; if(v&&(v&15)==1) vox[y][z][x]=(u8)((v&0xF0)|5); } }
+}
 static void vb(int x,int y,int z,int v){ if(x<BX0||x>=BX0+BXW||y<0||y>=BXH||z<0||z>=BXD) return; vox[y][z][x]=(u8)v; }
 // Spore parts (the PARTS tab): a TAIL behind the hips, HORNS on the sides of the head, SPIKES or WINGS on the back. The back of the
 // creature is z=0 (faces look towards +z). vw() is one block with a wedge top that slopes away on the sides flagged (grid space).
@@ -792,42 +799,44 @@ static void buildLook(void){
     // ears are sprites now (drawEars in drawScene), not blocks
     int st=look[LK_HSTYLE], top=(BXH-(hy+hh)>=1)?hy+hh:hy+hh-1;    // hair: a cap on the head, or in place of its top layer when the head touches the ceiling
     if(st!=3){
-        // every style starts with the same dome: the outer edges of the cap are wedges that slope away, down to the head's top
+        // HAIR: grows ON the head, not around it. Hair that only recolours the head's own blocks (hairF) keeps the silhouette the head's width, so nothing wraps the skull like a helmet;
+        // only what really hangs or puffs out (long, bob, afro, ponytail ...) sticks out, and it ends in slopes instead of square walls. The face row (front) is never touched.
+        int zb=hz>0?hz-1:-1, zf=hz+hd-1, room=(top==hy+hh), xc=hx+hw/2-1, y1=top-1, y2=top-2;   // zb: the row behind the head (-1: none); zf: the face row; y1: the head's top layer
+        // the cap: the same dome for every style, sloping away on all four sides down to the head's top
         for(int z=hz;z<hz+hd;z++)for(int x=hx;x<hx+hw;x++) hairW(x,top,z,x==hx+hw-1,x==hx,z==hz+hd-1,z==hz);
-        // BOWL: full blocks down both sides (the dome slopes down onto them, so the profile stays smooth)
-        if(st==1) for(int z=hz;z<hz+hd;z++)for(int y=top-1;y>=top-2&&y>=0;y--){ hairW(hx-1,y,z,0,0,0,0); hairW(hx+hw,y,z,0,0,0,0); }
-        // LONG: full blocks down the back, from the dome to below the neck
-        if(st==2){ int z0=hz>0?hz-1:hz; for(int x=hx;x<hx+hw;x++)for(int y=hy-1;y<top;y++) hairW(x,y,z0,0,0,0,0); }
-        int zb=hz>0?hz-1:-1;   // the row behind the head (-1: none, the big head fills the box)
-        if(st==4){ for(int z=hz;z<hz+hd;z++){ vw(hx-1,top-1,z,5,0,1,0,0); vw(hx+hw,top-1,z,5,1,0,0,0); } if(zb>=0) for(int x=hx;x<hx+hw;x++) vw(x,top-1,zb,5,0,0,0,1); }   // SPIKY: tufts out of every side
-        if(st==5){ for(int z=hz;z<hz+hd;z++)for(int y=top-1;y>=top-2&&y>=0;y--){ hairW(hx-1,y,z,0,y==top-1,0,0); hairW(hx+hw,y,z,y==top-1,0,0,0); }   // AFRO: big and round
-                   if(zb>=0) for(int x=hx-1;x<hx+hw+1;x++)for(int y=top-1;y>=top-2&&y>=0;y--) hairW(x,y,zb,x==hx+hw,x==hx-1,0,y==top-1); }
-        if(st==6){ for(int z=hz;z<hz+hd;z++)for(int x=hx;x<hx+hw;x++) vb(x,top,z,5); }                                                        // FLAT TOP: square, no slopes
-        if(st==7){ for(int y=top-1;y>=hy-1&&y>=0;y--) hairW(hx+hw,y,hz,0,0,0,0); vw(hx+hw,hy-2,hz,5,0,0,0,0); }                               // SIDE TAIL: down one side
-        if(st==8&&zb>=0){ for(int x=hx;x<hx+hw;x++) vw(x,top-1,zb,5,x==hx+hw-1,x==hx,0,1); }                                                   // BUN: a knot at the back
-        if(st>=9){   // the newer styles (BOB PONYTAIL PIGTAILS MOHAWK PIXIE CURLS): the same dome as above, plus what makes each one recognizable (all scale with the head)
-            int xc=hx+hw/2-1, zf=hz+hd, z0=hz>0?hz-1:hz, room=(top==hy+hh);   // xc: left one of the two centre columns; zf: the row in front of the face; room: a free layer above the head
-            if((st==9||st==13)&&room&&zf<BXD){ for(int x=hx;x<hx+hw;x++) hairW(x,top,zf,0,0,1,0); }   // BOB / PIXIE: a fringe, a wedge hanging over the forehead
-            if(st==9){   // BOB: the bowl's sides, and a back panel down to the chin that is a little wider than the head
-                for(int z=hz;z<hz+hd;z++)for(int y=top-1;y>=top-2&&y>=0;y--){ hairW(hx-1,y,z,0,0,0,0); hairW(hx+hw,y,z,0,0,0,0); }
-                for(int x=hx-1;x<=hx+hw;x++)for(int y=top-1;y>=hy&&y>=0;y--) hairW(x,y,z0,0,0,0,0); }
-            if(st==10&&zb>=0){   // PONYTAIL: a tied knot at the back of the head, and the tail hanging from it
-                for(int x=xc;x<xc+2;x++){ for(int y=top-1;y>=hy-1&&y>=0;y--) hairW(x,y,zb,0,0,0,0); vw(x,hy-2,zb,5,0,0,0,1); } }
-            if(st==11){   // PIGTAILS: a bunch out of each side at the back, with a block between it and the head
-                for(int sd=0;sd<2;sd++){ int xs=sd?hx+hw:hx-1, xo=sd?hx+hw+1:hx-2;
-                    hairW(xs,top-1,hz,0,0,0,0); hairW(xo,top-1,hz,0,0,0,0); hairW(xo,top-2,hz,0,0,0,0); vw(xo,top-3,hz,5,sd,!sd,0,0); } }
-            if(st==12){   // MOHAWK: a strip down the middle (over the top and down the nape), the sides stay bare
-                if(hw>2) for(int z=hz;z<hz+hd;z++)for(int x=hx;x<hx+hw;x++) if(x<xc||x>xc+1) vb(x,top,z,room?0:1);
-                if(room&&top+1<BXH) for(int z=hz;z<hz+hd;z++)for(int x=xc;x<xc+2;x++) hairW(x,top+1,z,x==xc+1,x==xc,z==hz+hd-1,z==hz);
-                if(zb>=0) for(int x=xc;x<xc+2;x++)for(int y=top-1;y>=hy&&y>=0;y--) hairW(x,y,zb,0,0,0,0); }
-            if(st==13){   // PIXIE: short, with a fringe, sideburns and a little tuft at the nape
-                for(int z=hz;z<hz+hd;z++){ hairW(hx-1,top-1,z,0,0,0,0); hairW(hx+hw,top-1,z,0,0,0,0); }
-                if(zb>=0) for(int x=hx;x<hx+hw;x++) hairW(x,top-1,zb,0,0,0,0); }
-            if(st==14){   // CURLS: bumps on top, puffs at the sides, a lumpy back
-                for(int z=hz;z<hz+hd;z++){ hairW(hx-1,top-1,z,0,0,0,0); hairW(hx+hw,top-1,z,0,0,0,0);
-                    for(int x=hx;x<hx+hw;x++) if(room&&top+1<BXH&&((x+z)&1)==0) hairW(x,top+1,z,0,0,0,0); }
-                if(zb>=0) for(int x=hx-1;x<=hx+hw;x++)for(int y=top-1;y>=top-2&&y>=0;y--) if(y==top-1||((x+y)&1)==0) hairW(x,y,zb,0,0,0,0); }
-        }
+        hairFlush(hx,hz,hw,hd,y1,y1,1,0);                                                   // every cut: the back of the top layer is hair (the temples stay skin: a short back and sides)
+        if(st==1){ hairFlush(hx,hz,hw,hd,y1,y1,1,1); if(y2>=hy) hairFlush(hx,hz,hw,hd,y2,y2,1,1); }                           // BOWL: all round the head down to the ears, nothing sticks out
+        if(st==2&&zb>=0){ hairFlush(hx,hz,hw,hd,y1,y1,1,1); if(y2>=hy) hairFlush(hx,hz,hw,hd,y2,y2,1,1);                      // LONG: a curtain down the back that ends in a soft point, the sides hug the head
+            for(int y=top-1;y>=hy-1&&y>=0;y--) for(int x=hx;x<hx+hw;x++) hairW(x,y,zb,y==hy-1&&x==hx+hw-1,y==hy-1&&x==hx,0,y==hy-1); }
+        if(st==2&&zb<0) for(int x=hx;x<hx+hw;x++)for(int y=hy-1;y<top;y++) hairW(x,y,hz,0,0,0,0);
+        if(st==4){ if(room&&top+1<BXH) for(int z=hz;z<hz+hd;z++)for(int x=hx;x<hx+hw;x++) if(((x+z)&1)==0) hairW(x,top+1,z,x==hx+hw-1,x==hx,z==hz+hd-1,z==hz);   // SPIKY: points up out of the top
+                   vw(hx-1,y1,hz,5,0,1,0,1); vw(hx+hw,y1,hz,5,1,0,0,1); if(zb>=0) for(int x=hx;x<hx+hw;x+=hw-1) vw(x,y1,zb,5,x==hx+hw-1,x==hx,0,1); }
+        if(st==5){ hairFlush(hx,hz,hw,hd,y1,y1,1,1); if(y2>=hy) hairFlush(hx,hz,hw,hd,y2,y2,1,1);                              // AFRO: a round puff - full on top, a rim at the sides and back, tapering down behind
+            if(room&&top+1<BXH){ for(int z=hz;z<hz+hd;z++)for(int x=hx;x<hx+hw;x++){ vb(x,top,z,5); hairW(x,top+1,z,x==hx+hw-1,x==hx,z==hz+hd-1,z==hz); } }
+            for(int z=hz;z<hz+hd;z++){ hairW(hx-1,y1,z,0,1,0,0); hairW(hx+hw,y1,z,1,0,0,0); }
+            if(zb>=0){ for(int x=hx-1;x<=hx+hw;x++) hairW(x,y1,zb,x==hx+hw,x==hx-1,0,1); for(int x=hx;x<hx+hw;x++) if(y2>=0) hairW(x,y2,zb,0,0,0,1); } }
+        if(st==6){ for(int z=hz;z<hz+hd;z++)for(int x=hx;x<hx+hw;x++) vb(x,top,z,5); }                                          // FLAT TOP: square on top, the sides stay skin (a fade)
+        if(st==7){ for(int y=top-1;y>=hy-1&&y>=0;y--) hairW(hx+hw,y,hz,0,0,0,0); vw(hx+hw,hy-2,hz,5,0,0,0,0); }                  // SIDE TAIL: down one side
+        if(st==8&&zb>=0){ for(int x=xc;x<xc+2;x++) hairW(x,y1,zb,x==xc+1,x==xc,0,1); }                                           // BUN: a knot at the back
+        if(st==9){   // BOB: hugs the head, and a panel behind it down to the chin that curls in at the bottom (no wall in front, no wings at the sides)
+            hairFlush(hx,hz,hw,hd,y1,y1,1,1); if(y2>=hy) hairFlush(hx,hz,hw,hd,y2,y2,1,1);
+            if(zb>=0) for(int y=top-1;y>=hy&&y>=0;y--) for(int x=hx;x<hx+hw;x++) hairW(x,y,zb,y==hy&&x==hx+hw-1,y==hy&&x==hx,0,y==hy); }
+        if(st==10&&zb>=0){   // PONYTAIL: a tied knot at the back of the head, and the tail hanging from it
+            int ex=xc; for(int x=ex;x<ex+2;x++){ for(int y=top-1;y>=hy-1&&y>=0;y--) hairW(x,y,zb,0,0,0,0); vw(x,hy-2,zb,5,0,0,0,1); } }
+        if(st==11){   // PIGTAILS: a bunch out of each side at the back, with a block between it and the head
+            for(int sd=0;sd<2;sd++){ int xs=sd?hx+hw:hx-1, xo=sd?hx+hw+1:hx-2;
+                hairW(xs,y1,hz,0,0,0,0); hairW(xo,y1,hz,0,0,0,0); hairW(xo,y2,hz,0,0,0,0); vw(xo,top-3,hz,5,sd,!sd,0,0); } }
+        if(st==12){   // MOHAWK: a strip down the middle (over the top and down the nape), the sides stay bare
+            if(hw>2) for(int z=hz;z<hz+hd;z++)for(int x=hx;x<hx+hw;x++) if(x<xc||x>xc+1) vb(x,top,z,room?0:1);
+            if(room&&top+1<BXH) for(int z=hz;z<hz+hd;z++)for(int x=xc;x<xc+2;x++) hairW(x,top+1,z,x==xc+1,x==xc,z==hz+hd-1,z==hz);
+            if(zb>=0) for(int x=xc;x<xc+2;x++)for(int y=top-1;y>=hy&&y>=0;y--) hairW(x,y,zb,0,0,0,0); }
+        if(st==13){ hairFlush(hx,hz,hw,hd,y1,y1,1,1); if(zb>=0) for(int x=xc;x<xc+2;x++) hairW(x,y1,zb,0,0,0,1); }                 // PIXIE: short and close, a little tuft at the nape
+        if(st==14){   // CURLS: bumps on top, a few at the back and the corners, the rest hugs the head
+            hairFlush(hx,hz,hw,hd,y1,y1,1,1);
+            for(int z=hz;z<hz+hd;z++)for(int x=hx;x<hx+hw;x++) if(room&&top+1<BXH&&((x+z)&1)==0) hairW(x,top+1,z,0,0,0,0);
+            hairW(hx-1,y1,hz,0,0,0,0); hairW(hx+hw,y1,hz,0,0,0,0);
+            if(zb>=0) for(int x=hx-1;x<=hx+hw;x++){ if(((x-hx)&1)==0) hairW(x,y1,zb,0,0,0,0); else if(y2>=0) hairW(x,y2,zb,0,0,0,0); } }
+        (void)zf;
     }
     {   // hats (in a colour slot the creature already has: top, bottom, white, black, red or gold)
         static const u8 hatSlot[6]={6,7,2,3,4,8}; int hat=look[LK_HAT], hc=hatSlot[look[LK_HATCOL]%6];
