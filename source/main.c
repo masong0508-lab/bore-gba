@@ -4876,6 +4876,7 @@ static void howToPlay(void){
 }
 
 // ---------- NEW GAME: a fresh life in the chosen town, started three ways (the story mode can start from here later) ----------
+#include "homepick.h"   // PICK YOUR HOME: a new player chooses land or a house after the creator
 static const char* const ngIt[4]={"CREATE A BORE","A PRE-MADE FAMILY","A TRULY RANDOM SIM","STORY MODE"};
 static int newGame(int slot){   // 1 = it started (and ended: back to the main menu)
     int c=menu("HOW DO YOU START?",ngIt,4); if(c<0) return 0;
@@ -4891,7 +4892,7 @@ static int newGame(int slot){   // 1 = it started (and ended: back to the main m
     else if(c==2) lookTrueRandomMe();
     else if(c==3) storySetup(story);   // STORY MODE: who you live with, and chapter 1
     hhSave(); sprKey=0; if(sgPid) sgSave();   // (the save file exists from the first minute)
-    if(c==0||c==3) creatureEditor();   // make your Sim, then GO LIVE LIFE
+    if(c==0||c==3){ creatureEditor(); if(sgPid) homePick(); }   // make your Sim, then a new player picks a home (homepick.h), then GO LIVE LIFE
     else lifeMode(0);
     return 1;
 }
