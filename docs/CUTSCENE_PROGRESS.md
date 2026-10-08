@@ -26,3 +26,11 @@ Speakers who were CP_STAND now use CP_TALK automatically (scene 5 sung lines unc
 - Mood: the lights dim for the news (scene 4 from beat 21, the dressing-room bulbs go out) and the plug (scene 6 from beat 7, darker still from beat 9); the picture brightens when she wakes and hears the rain (scene 3 from beat 29). `csMood` in `cutscene.h` (-1 brighter .. 2 much dimmer), applied in `csVig`.
 - Her phone lights up on the bar cart (scene 1, beats 4-5) and buzzes in her hand (scene 4, beats 17 and 19).
 - The camera drifts a pixel or two on every held shot (undone each frame, so the shot lists are unaffected).
+
+## Step 5 - close-up faces (redo 14)
+
+In `csface.h` (only used when the camera is zoomed in, csCz >= 384):
+- Head turn parallax: the head eases toward where the figure looks (csLook) plus a slow idle sway. Eyes, brows, cheeks and mouth slide the furthest, the nose a bit more, the face oval half as far, the hair a third. Lying figures keep still; crying and sad heads turn less.
+- 3-phase blinks: half shut, shut, half open (6 frames, every 100).
+- Mouth shape by syllable: ah (wide, tall), oo (small, round), ee (wide, flat), oh (round); teeth and tongue follow the width.
+- State: csTn[8] and csTnFn[8] in EWRAM (48 B). No IWRAM change.
