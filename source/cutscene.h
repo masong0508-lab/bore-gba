@@ -17,8 +17,8 @@ static int csWv(int t,int per){ int p=t%per, h=per/2, v=p<h?p:per-p; return v*16
 static void csGrad(int y0,int h,int r0,int g0,int b0,int r1,int g1,int b1){ for(int i=0;i<h;i++){ int t=h>1?i*256/(h-1):0; csR(0,y0+i,SW,1,RGB(r0+(r1-r0)*t/256,g0+(g1-g0)*t/256,b0+(b1-b0)*t/256)); } }
 
 static void csFig(int x,int y,int who,int pose,int t){   // one person, 34 px tall, feet at (x,y)
-    static const u16 dr[6]={0,RGB(26,4,8),RGB(4,17,22),RGB(5,5,11),RGB(27,17,2),RGB(29,29,31)};      // dress / suit / vest / coat
-    static const u16 hr[6]={0,RGB(29,25,9),RGB(7,4,2),RGB(4,3,2),RGB(18,18,18),RGB(9,6,4)};          // hair
+    static const u16 dr[6]={0,RGB(5,6,13),RGB(4,17,22),RGB(14,4,18),RGB(27,17,2),RGB(29,29,31)};      // dress / suit / vest / coat
+    static const u16 hr[6]={0,RGB(5,4,4),RGB(7,4,2),RGB(16,14,12),RGB(18,18,18),RGB(9,6,4)};          // hair
     u16 sk=RGB(28,21,16), cl=dr[who], Hh=hr[who], dk=RGB(3,2,3);   // (cl, not D: main.c defines D as a macro)
     if(pose==CP_LIE){ csR(x-10,y-6,17,6,cl); csR(x+7,y-4,9,2,sk); csD(x-14,y-4,4,sk); csR(x-18,y-8,5,5,Hh); csR(x-15,y-5,1,1,dk); return; }
     int lean=0, bob=0, lh=-6, lv=8, rh=6, rv=8, ls=0, hd=0, open=0;
@@ -35,7 +35,8 @@ static void csFig(int x,int y,int who,int pose,int t){   // one person, 34 px ta
     csR(x-3+ls,y-8,2,8,sk); csR(x+1-ls,y-8,2,8,sk); csR(x-4+ls,y-1,3,1,dk); csR(x+1-ls,y-1,3,1,dk);                                       // legs and shoes
     csLn(x+lean-4,sy,x+lean+lh,sy+lv,sk); csLn(x+lean-3,sy,x+lean+lh+1,sy+lv,sk); csLn(x+lean+4,sy,x+lean+rh,sy+rv,sk); csLn(x+lean+3,sy,x+lean+rh-1,sy+rv,sk);   // arms
     for(int i=0;i<14;i++){ int w=8+i*6/13; csR(x+lean*(14-i)/14-w/2,y-22+i+bob,w,1,cl); }                                                 // the dress / suit, a trapezoid
-    if(who==CA_MISSY||who==CA_MAME){ csR(x+lean-5,y-29+bob+hd,2,10,Hh); csR(x+lean+3,y-29+bob+hd,2,10,Hh); }                              // long hair
+    if(who==CA_MISSY){ csR(x+lean-6,y-30+bob+hd,2,4,Hh); csR(x+lean+4,y-30+bob+hd,2,4,Hh); csR(x+lean-1,y-35+bob+hd,3,2,Hh); }
+    if(who==CA_MAME){ csR(x+lean-5,y-29+bob+hd,2,10,Hh); csR(x+lean+3,y-29+bob+hd,2,10,Hh); }                              // long hair
     csD(x+lean,y-29+bob+hd,5,Hh); csD(x+lean,y-27+bob+hd,4,sk);                                                                           // hair, face
     csR(x+lean-2,y-28+bob+hd,1,1,dk); csR(x+lean+1,y-28+bob+hd,1,1,dk);
     if(open) csR(x+lean-1,y-25+bob+hd,2,2,RGB(18,2,3)); else csR(x+lean-1,y-25+bob+hd,2,1,RGB(18,6,6));
