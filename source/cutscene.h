@@ -16,7 +16,7 @@ static void csLn(int x0,int y0,int x1,int y1,u16 c){ line(x0+csOx,y0+csOy,x1+csO
 static int csWv(int t,int per){ int p=t%per, h=per/2, v=p<h?p:per-p; return v*16/h-8; }   // a triangle wave, -8 .. 8
 static void csGrad(int y0,int h,int r0,int g0,int b0,int r1,int g1,int b1){ for(int i=0;i<h;i++){ int t=h>1?i*256/(h-1):0; csR(0,y0+i,SW,1,RGB(r0+(r1-r0)*t/256,g0+(g1-g0)*t/256,b0+(b1-b0)*t/256)); } }
 
-static void csFig(int x,int y,int who,int pose,int t){   // one person, 34 px tall, feet at (x,y)
+__attribute__((unused)) static void csFigV1(int x,int y,int who,int pose,int t){   // one person, 34 px tall, feet at (x,y)
     static const u16 dr[6]={0,RGB(5,6,13),RGB(4,17,22),RGB(14,4,18),RGB(27,17,2),RGB(29,29,31)};      // dress / suit / vest / coat
     static const u16 hr[6]={0,RGB(5,4,4),RGB(7,4,2),RGB(16,14,12),RGB(18,18,18),RGB(9,6,4)};          // hair
     u16 sk=RGB(28,21,16), cl=dr[who], Hh=hr[who], dk=RGB(3,2,3);   // (cl, not D: main.c defines D as a macro)
@@ -44,6 +44,7 @@ static void csFig(int x,int y,int who,int pose,int t){   // one person, 34 px ta
     else if(open) csR(x+lean-1,y-25+bob+hd,2,2,RGB(18,2,3)); else csR(x+lean-1,y-25+bob+hd,2,1,RGB(18,6,6));
 }
 
+#include "csart.h"
 static char* csNum(char*b,int v){ char d[12]; int n=0; if(v<=0) d[n++]='0'; while(v>0){ d[n++]=(char)('0'+v%10); v/=10; } while(n>0) *b++=d[--n]; *b=0; return b; }   // a number as text (the approval board)
 static void csBg(int bg,int t,int fx){   // the picture area: y 12 .. 115
     switch(bg){
