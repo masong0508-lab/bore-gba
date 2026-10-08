@@ -4800,6 +4800,7 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "skills.h"         // SKILLS (life and skater) and the home pack items: TV, bookshelf, coffee maker, aquarium, treadmill
 #include "hardtime.h"       // HARD TIME: the prison plays like Hard Time (stats, rep, gangs, regime, work, smokes, talks)
 #include "hardcourt.h"       // COURT: wardens beat you and drag you before the judge (plea, verdict, days and rep)
+#include "inmates.h"        // INMATES: the prison population, voxel Sims in prison clothes (needs prison.h)
 #include "weapons.h"       // WEAPONS: the weapon button, melee, the arsenal (shots: wpshot.h; shop: armsshop.h; stashes: wpsecret.h)
 #include "wpshot.h"        // WEAPONS 2: bullets and guided missiles
 #include "armsshop.h"      // WEAPONS 3: the ARMS SHOP lot and its counter

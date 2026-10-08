@@ -346,7 +346,7 @@ static void hhRandLook(u8*lk,u8*stg){   // a made-up Sim: passers-by, and SELECT
 // flag, the unlock flag and every option. Equal key = an identical picture, so a Sim that did not change is not drawn again (coming back
 // from the editor, a slot, the pause menu, growing up ...). Keys follow their sprites when members move (hhRemove); hhSwitch drops them.
 static u32 hhKey[HH_MAX];   // per member: the key the pool block and hhPal were baked from (0 = unknown)
-static u8 twKeep;           // the visitors already picked are kept (new faces when you move to another lot or start a new life)
+static u8 twKeep; static u8 inmN EWRAM_BSS; static void inmPick(void); static void inmDress(int j); static void inmColors(int j); static int inmIs(int m); static int inmWalk(int m); static void inmTick(int*planned);   // inmates.h: the prison population           // the visitors already picked are kept (new faces when you move to another lot or start a new life)
 static u8 twWel[TW_N];      // visitor k is the WELCOME visit: the first neighbour of a new home rings the bell soon after you move in (twPick), at night too, and brings a gift
 static u8 twHas[TW_N], twOn[TW_N]; static short twWait[TW_N]={240,900}; static char twFrom[TW_N][12];   // visitor k: set up, on the lot (1 coming, 2 staying, 3 going), the lot they live on
 static int nbVisitor(HhSim*s,char*from,int not);   // households.h: a Sim of another household of the town (s), the lot it lives on; not = a family to skip
@@ -381,6 +381,7 @@ static void hhBakeAll(void){
         bakeInto(spr4); hhQuant(spr4,m,hhPal[m]);
         strideK=1; bakeInto(spr4s); strideK=0; hhQuantS(spr4s,m,hhPal[m]); hhKey[m]=k; scratch=1;
     }
+    inmPick();   // inmates.h: who is in the prison (and no neighbours there)
     if(!twKeep) twPick();   // who visits (new faces on another lot or in a new life)
     twKeep=1;
     for(int k=0;k<TW_N;k++){ int v=TW_V(k); if(!twHas[k]||v<hhN) continue;   // the visitors, in the free member places
@@ -388,6 +389,14 @@ static void hhBakeAll(void){
         stage=hhM[v].stage;
         buildLook(); setColors(); u32 kk=bakeKey(); if(kk==hhKey[v]) continue;
         ldShow("GETTING THE NEIGHBORS READY",hhN+k,hhN+TW_N+1);
+        bakeInto(spr4); hhQuant(spr4,v,hhPal[v]);
+        strideK=1; bakeInto(spr4s); strideK=0; hhQuantS(spr4s,v,hhPal[v]); hhKey[v]=kk; scratch=1;
+    }
+    for(int j=0;j<inmN;j++){ int v=HH_MAX-1-j; if(v<hhN) continue;   // the prison's inmates, in the free member places (prison clothes: inmDress, inmColors)
+        for(int i=0;i<LK_N;i++) look[i]=hhM[v].look[i];
+        stage=hhM[v].stage;
+        buildLook(); inmDress(j); setColors(); inmColors(j); u32 kk=bakeKey(); if(kk==hhKey[v]) continue;
+        ldShow("GETTING THE INMATES READY",hhN+j,hhN+TW_N+inmN+1);
         bakeInto(spr4); hhQuant(spr4,v,hhPal[v]);
         strideK=1; bakeInto(spr4s); strideK=0; hhQuantS(spr4s,v,hhPal[v]); hhKey[v]=kk; scratch=1;
     }
@@ -695,7 +704,7 @@ static void hhTick(void){   // once per logic step in the life game
     if(lvx||lvy||lsp||lairF||lgrind) hhStill=0; else if(hhStill<1000) hhStill++;
     int planned=0;
     if(xo[XO_FREEWILL]&&!curFl) twTick(&planned);
-    if(!curFl) copTick(&planned);   // npc.h: the police (a cop comes after you when you hurt Sims)
+    if(!curFl){ copTick(&planned); inmTick(&planned); }   // npc.h: the police (a cop comes after you when you hurt Sims)
     if(!hhN) return;
     relTick(); hhAmbient();
     int fe=oFoodEvery(), we=oWcEvery();
@@ -1006,7 +1015,7 @@ static void hhArrive(int m){   // a free-will Sim reached the one it wanted to s
     socDo(s->uid,b,socPick(s->uid,b));
 }
 // ---- you: R next to a household Sim opens the social menu (furniture you stand at is offered first) ----
-static int hhVisitorHere(int m){ if(m<hhN||curFl) return 0; int k=HH_MAX-1-m; return k>=0&&k<TW_N&&twHas[k]&&twOn[k]; }   // slot m (past the household) holds a neighbour on the lot
+static int hhVisitorHere(int m){ if(m<hhN||curFl) return 0; if(inmIs(m)) return 1; int k=HH_MAX-1-m; return k>=0&&k<TW_N&&twHas[k]&&twOn[k]; }   // slot m (past the household) holds a neighbour on the lot
 static int hhNearest(void){ if(xo[XO_MULTIFL]?pkHome>=0:curFl) return -1; int best=-1, bd=1<<30; for(int m=0;m<HH_MAX;m++){ if(m<hhN){ if(hhM[m].act==HA_AWAY) continue; } else if(!hhVisitorHere(m)) continue; s32 dx=hhM[m].fx-lfx, dy=hhM[m].fy-lfy; int d=(int)((dx*dx+dy*dy)>>8); if(d<bd){ bd=d; best=m; } } return bd<=(380*380>>8)?best:-1; }   // within 1.5 tiles (household Sims and the neighbours who drop by)
 static void liveInvalidate(void);
 static int hhVisitorTalk(int m,int useLabel){   // R next to a neighbour who dropped by: TALK / JOKE / COMPLIMENT / HIGH FIVE (needs and mood only: visitors are not in the relationship tables)
@@ -1016,7 +1025,7 @@ static int hhVisitorTalk(int m,int useLabel){   // R next to a neighbour who dro
     static const char* const vn[4]={"TALK","JOKE","COMPLIMENT","HIGH FIVE"}; static const u8 vcat[4]={0,1,0,0};
     if((useLabel>0&&useLabel<6)||useLabel>=8){ it[n]=useLabel==8?"USE THE PHONE":useLabel>=11?useNm2[useLabel-11]:useLabel>=9?"TUNE THE RADIO":useNm[useLabel]; cat[n]=4; id[n++]=-1; }
     for(int i=0;i<4;i++){ it[n]=vn[i]; cat[n]=vcat[i]; id[n++]=i; }
-    { char*e=simCat(tl,s->name); simCat(e,"  NEIGHBOR"); }
+    { char*e=simCat(tl,s->name); simCat(e,inmIs(m)?"  INMATE":"  NEIGHBOR"); }
     int c=pieCats(tl,it,cat,n); liveInvalidate();
     while((~REG_KEYINPUT)&0x3FF) vsync();
     if(c<0) return 1;
@@ -1082,7 +1091,7 @@ static void relScreen(void){
 // ---- drawing: like the player, inside drawRoomRect's back-to-front walk. hhCalc (once a picture) works out where everyone is ----
 static int hhX[HH_MAX], hhY[HH_MAX], hhB[HH_MAX], hhV[HH_MAX], hhH[HH_MAX];   // feet on screen, band (tile x+y), view, floor height
 static void hhCalc(void){   // (the places above hhN that hold a visitor too)
-    for(int m=0;m<HH_MAX;m++){ if(m>=hhN){ int k=HH_MAX-1-m; if(k>=TW_N||!twHas[k]||!twOn[k]||curFl) continue; } const HhSim*s=&hhM[m]; s32 rx,ry; rotPos(s->fx,s->fy,&rx,&ry);
+    for(int m=0;m<HH_MAX;m++){ if(m>=hhN&&!inmIs(m)){ int k=HH_MAX-1-m; if(k>=TW_N||!twHas[k]||!twOn[k]||curFl) continue; } const HhSim*s=&hhM[m]; s32 rx,ry; rotPos(s->fx,s->fy,&rx,&ry);
         hhX[m]=LOX+(int)((rx-ry)>>5); hhY[m]=LOY+(int)((rx+ry)>>6); hhB[m]=(int)((rx>>8)+(ry>>8)); hhV[m]=faceView[(s->hd+4*cview)&15]; hhH[m]=surfH(s->fx,s->fy); }
 }
 static void hhDrawBand(int s0,int s1){   // the members whose band is in s0..s1
@@ -1124,9 +1133,9 @@ static void fxObjUpdate(void); static void hhObjUpdate0(void){   // in vblank: h
     for(i=0;i<HH_IDS;i++) vis[i]=0;
     for(int id=0;id<HH_IDS;id++){
         const HhSim*s; int x,y,v,f,dep;
-        if(id>=hhN){ int k=HH_MAX-1-id; if(k>=TW_N||!twHas[k]||!twOn[k]||curFl) continue;   // a visitor
+        if(id>=hhN){ int k=HH_MAX-1-id; if(!inmIs(id)&&(k>=TW_N||!twHas[k]||!twOn[k]||curFl)) continue;   // a visitor (or an inmate)
             s=&hhM[id]; x=hhX[id]-16; y=hhY[id]-SPF-hhH[id]; v=hhV[id]; dep=hhB[id];
-            f=twOn[k]!=2?((lfr+k*3)>>3)&1:0;   // walking in or out: stepping; staying: standing
+            f=inmIs(id)?inmWalk(id):twOn[k]!=2?((lfr+k*3)>>3)&1:0;   // walking in or out: stepping; staying: standing
         } else {
             if(hhM[id].act==HA_AWAY) continue;
             s=&hhM[id]; x=hhX[id]-16; y=hhY[id]-SPF-hhH[id]; v=hhV[id]; dep=hhB[id];
