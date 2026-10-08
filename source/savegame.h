@@ -198,7 +198,7 @@ static void sgBeforeLeave(void){   // another player (or a new one) is about to 
 }
 static void sgLeaveSave(void){   // play was left
     if(!sgPid) return;
-    if(!sgManual()){ int e=sgSave(); toast(e?slErrMsg(e):"GAME SAVED"); return; }
+    if(!sgManual()&&sgDiscard!=2){ int e=sgSave(); toast(e?slErrMsg(e):"GAME SAVED"); return; }   // (sgDiscard 2 = chapter 4 was lost: the last save file comes back even with AUTO saving)
     int r=sgDiscard?2:sgAsk(0); sgDiscard=0;
     if(r==2){ int e=sgReload(); toast(e?slErrMsg(e):"BACK TO YOUR LAST SAVE"); }
 }

@@ -2,7 +2,7 @@
 // csPlay(scene): A types the caption out / moves on, START skips the whole scene. Scenes are tables of beats (CsBeat) at the bottom.
 // Used by TV SHOW & TELL (story.h plays one when a chapter ends). Needs from main.c: fb, rect, disc, line, text, tw, present, keyNow, sfxPlay, rnd8, objHideAll.
 // Layout: black bar 0..11, the picture 12..115, the caption panel 116..159. Fades use the hardware brightness blend (BLDCNT / BLDY), so they cost nothing.
-enum { CB_BLACK, CB_STAGE, CB_HOME, CB_MIRROR, CB_SITE, CB_HOSP, CB_BACK, CB_BIG };            // backdrops
+enum { CB_BLACK, CB_STAGE, CB_HOME, CB_MIRROR, CB_SITE, CB_HOSP, CB_BACK, CB_BIG, CB_FLAT };            // backdrops
 enum { CA_NONE, CA_MISSY, CA_MAME, CA_HOST, CA_CREW, CA_DOC };                                   // who stands there
 enum { CP_STAND, CP_SWAY, CP_DANCE, CP_SING, CP_HEAD, CP_RUN, CP_CLIMB, CP_FLAIL, CP_LIE };      // what they are doing
 enum { CF_SHAKE=1, CF_FLASH=2, CF_FADEIN=4, CF_FADEOUT=8, CF_STROBE=16, CF_IRIS=32, CF_SICK=64, CF_AUTO=128 };
@@ -74,10 +74,10 @@ static void csBg(int bg,int t,int fx){   // the picture area: y 12 .. 115
         csR(196,40,44,76,RGB(6,5,4)); for(int i=0;i<9;i++) csR(198+i*5,36+(i&1)*3,3,80,RGB(9,7,4));                                                     // the fence
         for(int i=0;i<4;i++) if((((t>>2)+i*5)&7)<2){ int fx2=206+((i*13)&24), fy=50+((i*11)&31); csR(fx2,fy,2,2,RGB(31,31,31)); csR(fx2-1,fy,4,1,RGB(31,31,26)); }   // flashbulbs
         break;
-    case CB_HOSP:
+    case CB_HOSP: case CB_FLAT:
         csGrad(12,104,22,27,24,17,23,20); csR(0,110,SW,6,RGB(13,15,14));
         csR(110,80,100,10,RGB(29,29,30)); csR(110,90,100,6,RGB(14,18,22)); csR(106,70,4,40,RGB(20,22,22)); csR(210,76,4,34,RGB(20,22,22));             // the bed
-        csR(14,30,34,30,RGB(2,3,4)); { int py=45; for(int x=0;x<32;x++){ int ph=(x+t/2)%32; int y=py; if(ph==14) y=py-9; else if(ph==15) y=py+6; csR(15+x,y,1,1,RGB(8,31,12)); } }   // the monitor
+        csR(14,30,34,30,RGB(2,3,4)); { int py=45; for(int x=0;x<32;x++){ int ph=(x+t/2)%32; int y=py; if(bg!=CB_FLAT){ if(ph==14) y=py-9; else if(ph==15) y=py+6; } csR(15+x,y,1,1,bg==CB_FLAT?RGB(31,8,6):RGB(8,31,12)); } }   // the monitor
         csR(28,60,4,50,RGB(16,18,18)); csR(20,106,20,4,RGB(16,18,18)); csR(226,24,2,40,RGB(20,22,22)); csR(222,24,10,12,RGB(24,29,31));
         break;
     case CB_BACK:
@@ -98,7 +98,7 @@ static void csDraw(const CsBeat*b,int t,int shown){   // one frame of one beat (
     rect(0,0,SW,SH,0);
     csBg(b->bg,t,b->fx);
     int ay=110, by=110;
-    if(b->bg==CB_HOSP){ if(b->pb==CP_LIE) by=98; }
+    if(b->bg==CB_HOSP||b->bg==CB_FLAT){ if(b->pb==CP_LIE) by=98; }
     if(b->bg==CB_SITE){ if(b->pb==CP_CLIMB) by=110-(t/3>48?48:t/3); if(b->pb==CP_FLAIL){ by=62+t*t/20; if(by>110) by=110; } if(b->pb==CP_LIE) by=111; }
     if(b->a) csFig(b->ax*4,ay,b->a,b->pa,t);
     if(b->b) csFig(b->bx*4,by,b->b,b->pb,t);
@@ -206,8 +206,22 @@ static const CsBeat csS5[]={
  {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_STAND,43,0,0,0,"Missy",{"Thanks for coming, Mame.",0,0}},
  {CB_BLACK,CA_NONE,CP_STAND,0,CA_NONE,CP_STAND,0,CF_FADEIN|CF_FADEOUT,0,0,0,{"Some nights she still pours two glasses of water. One","for her. One for the front row.",0}},
 };
-static const CsScene csScenes[6]={ {csS0,sizeof(csS0)/sizeof(csS0[0])}, {csS1,sizeof(csS1)/sizeof(csS1[0])}, {csS2,sizeof(csS2)/sizeof(csS2[0])}, {csS3,sizeof(csS3)/sizeof(csS3[0])}, {csS4,sizeof(csS4)/sizeof(csS4[0])}, {csS5,sizeof(csS5)/sizeof(csS5[0])} };
-static const char* const csNames[6]={ "CH1 END  THE BARS", "CH2 END  THE SWEATER", "CH3 END  THE FALL", "CH4 END  WAKING UP", "CH5 START  THE NEWS", "CH5 END  HERE TODAY" };
+// CH4 LOSS: the plug pressure hit 100 for the second time (story.h stPlugLose plays this, then the game goes back to your last save). CB_FLAT = the hospital with a flat green line.
+static const CsBeat csS6[]={
+ {CB_HOSP,CA_MAME,CP_HEAD,20,CA_MISSY,CP_LIE,41,CF_FADEIN,0,0,0,{"The pressure reached a hundred. There were no more","nights left to give her.",0}},
+ {CB_HOSP,CA_DOC,CP_STAND,20,CA_MISSY,CP_LIE,41,0,0,0,"Dr. Okafor",{"Ms. Jeanne, the hospital has made its decision.","I am so sorry. I fought for every night I could.",0}},
+ {CB_HOSP,CA_DOC,CP_STAND,20,CA_MISSY,CP_LIE,41,CF_SHAKE,SFX_CRY+1,0,"Mamesy",{"No. Please. One more night. She has never once","missed an entrance.",0}},
+ {CB_HOSP,CA_DOC,CP_HEAD,20,CA_MISSY,CP_LIE,41,0,0,0,"Dr. Okafor",{"I'll give you a few minutes with her.",0,0}},
+ {CB_HOSP,CA_MAME,CP_HEAD,20,CA_MISSY,CP_LIE,41,0,SFX_TICK+1,0,0,{"Mamesy takes her sister's hand. The monitor keeps","its slow green rhythm.",0}},
+ {CB_HOSP,CA_MAME,CP_HEAD,20,CA_MISSY,CP_LIE,41,0,0,0,"Mamesy",{"Hey, Mish. You still owe me a duet.",0,0}},
+ {CB_HOSP,CA_MAME,CP_HEAD,20,CA_MISSY,CP_LIE,41,0,SFX_TICK+1,0,0,{"The machines are switched off, one at a time. The","room gets very quiet.",0}},
+ {CB_FLAT,CA_MAME,CP_HEAD,20,CA_MISSY,CP_LIE,41,CF_AUTO,SFX_DEATH+1,70,0,{"The green line goes flat.",0,0}},
+ {CB_FLAT,CA_MAME,CP_HEAD,20,CA_MISSY,CP_LIE,41,CF_SHAKE,SFX_CRY+1,0,"Mamesy",{"Mish? ...Mish.",0,0}},
+ {CB_FLAT,CA_MAME,CP_HEAD,20,CA_MISSY,CP_LIE,41,0,0,0,0,{"Missy Jeanne is gone. For the last time, nobody is","taking her picture.",0}},
+ {CB_BLACK,CA_NONE,CP_STAND,0,CA_NONE,CP_STAND,0,CF_FADEIN|CF_FADEOUT,0,0,0,{"Some stories do not get a second night.",0,0}},
+};
+static const CsScene csScenes[7]={ {csS0,sizeof(csS0)/sizeof(csS0[0])}, {csS1,sizeof(csS1)/sizeof(csS1[0])}, {csS2,sizeof(csS2)/sizeof(csS2[0])}, {csS3,sizeof(csS3)/sizeof(csS3[0])}, {csS4,sizeof(csS4)/sizeof(csS4[0])}, {csS5,sizeof(csS5)/sizeof(csS5[0])}, {csS6,sizeof(csS6)/sizeof(csS6[0])} };
+static const char* const csNames[7]={ "CH1 END  THE BARS", "CH2 END  THE SWEATER", "CH3 END  THE FALL", "CH4 END  WAKING UP", "CH5 START  THE NEWS", "CH5 END  HERE TODAY", "CH4 LOSS  THE PLUG" };
 
 #ifndef CS_HOST
 static void csPlay(int id){   // play scene id; returns when it ends or START skips it

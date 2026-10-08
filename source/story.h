@@ -100,7 +100,7 @@ enum { TQ_CLEAN, TQ_DAYS, TQ_FRIENDS, TQ_MONEY, TQ_HOUSE, TQ_GUEST, TQ_HAPPY, TQ
 #define PLUG_START 20
 #define PLUG_BILL 400
 #define PLUG_OK 60
-static u8 plugV=PLUG_START; static u16 plugDay=0xFFFF; static u8 plugSec, plugTen;
+static u8 plugV=PLUG_START; static u16 plugDay=0xFFFF; static u8 plugSec, plugTen, plugNight;   // plugNight: the ONE MORE NIGHT was used (the next time the pressure hits 100 Missy dies)
 typedef struct { u8 k; u32 n; } StQ;
 static const StQ stqT[5][5]={
     { {TQ_GUEST,1}, {TQ_FRIENDS,1}, {TQ_MONEY,4000} },                                                     // 1 hungover: have somebody over, a friend, a little cash
@@ -286,7 +286,7 @@ static void papTick(void){   // once per logic step (stTick)
 }
 static void plugTick(void){   // once per logic step (stTick): the hospital's pressure in chapter 4
     int on=stId==STY_TVSHOW&&stCh==3&&stKidDay!=255;
-    if(!on){ plugV=PLUG_START; plugDay=0xFFFF; plugSec=0; plugTen=0; return; }
+    if(!on){ plugV=PLUG_START; plugDay=0xFFFF; plugSec=0; plugTen=0; plugNight=0; return; }
     if(++plugSec<60) return; plugSec=0;
     static const StQ qF={TQ_FRIENDS,2}, qH={TQ_HAPPY,1}, qM={TQ_MONEY,12000};
     int old=plugV, v=plugV;
@@ -295,8 +295,9 @@ static void plugTick(void){   // once per logic step (stTick): the hospital's pr
         v+=8; if(simMoney>=PLUG_BILL){ simMoney-=PLUG_BILL; lnote="OKAFOR CALLED  BILL PAID"; } else { v+=20; lnote="CANNOT PAY  PRESSURE UP"; } lnoteT=120; }
     if(++plugTen>=10){ plugTen=0; v+=3-stqOk(&qF)-stqOk(&qH)-stqOk(&qM); }
     if(v>100) v=100;
+    if(v>=100&&plugNight){ plugV=100; if(!stModal) stModal=3; return; }   // the second time there is no more night: the hospital pulls the plug (stModal 3: stRunModal0 plays the loss, then back to your last save)
     if(v>=100){   // the plug is nearly pulled: one more night, and everything you held on to starts over
-        v=50; stKidDay=stqDay(); stSave(); if(simMoney>=1000) simMoney-=1000; toast("ONE MORE NIGHT  THE DAYS START OVER"); }
+        v=50; stKidDay=stqDay(); stSave(); if(simMoney>=1000) simMoney-=1000; plugNight=1; toast("ONE MORE NIGHT  THE DAYS START OVER"); lnote="NEXT TIME THE PLUG IS PULLED"; lnoteT=200; }
     else if(old<90&&v>=90){ lnote="LAST CHANCE  SAVE MISSY"; lnoteT=150; }
     else if(old<75&&v>=75){ lnote="OKAFOR WANTS TO PULL THE PLUG"; lnoteT=150; }
     plugV=(u8)v;
@@ -420,9 +421,31 @@ static void storyScreen(void){   // pause menu > STORY: the story journal, a cha
         present();
     }
 }
+// CHAPTER 4 LOST: the plug pressure hit 100 with no night left. Missy dies (cutscene 6), a FAILED card says what happens, then play ends and the LAST SAVE FILE comes back:
+// sgDiscard=2 makes sgLeaveSave (savegame.h) reload the file even with AUTO saving. No save file yet (sgPid 0): nothing to go back to, so the chapter starts over where you stand.
+static void stPlugLose(void){
+    csPlay(6); plugV=PLUG_START; plugDay=0xFFFF; plugSec=plugTen=0; plugNight=0;
+    int back=sgPid!=0; u16 prev=keyNow(); u32 cnt=0;
+    for(;;){
+        u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
+        if(pr&(K_A|K_B|K_START)) break;
+        stBack("CHAPTER 4  FAILED",(int)cnt);
+        s2rr(8,22,224,116,RGB(16,27,31)); s2rr(9,23,222,114,RGB(2,6,13)); s2grad(10,24,220,112,3,9,19,1,4,10);
+        stIcon(stId,16,32,4,RGB(31,20,22));
+        text(60,30,stNm[stId],GOLD,1); text(60,40,"...THE LOSER HAS TO FALL",RGB(17,29,31),1);
+        text(18,62,"MISSY IS GONE",RGB(31,8,8),2);
+        text(18,84,"THE PLUG WAS PULLED",WHITE,1);
+        text(18,98,back?"YOU GO BACK TO YOUR LAST SAVE":"THE CHAPTER STARTS OVER",RGB(20,26,31),1);
+        if(back) text(18,110,"WHAT YOU DID SINCE THEN IS LOST",RGB(20,26,31),1);
+        s2pill(5,147,40,"A OK");
+        present();
+    }
+    if(back) sgDiscard=2; else { stKidDay=stqDay(); stGuest=0; stSave(); toast("NO SAVE FILE  THE CHAPTER STARTS OVER"); }
+}
 // the chapter cards: CHAPTER n (a chapter starts) and CHAPTER COMPLETE (a chapter was done). Shown by lifeModeRun like the pause menu.
 static void stRunModal0(void){
     int kind=stModal; stModal=0; if(!stId) return;
+    if(kind==3){ stPlugLose(); return; }   // (chapter 4 lost)
     if(stId==STY_TVSHOW&&kind==2&&stCh>=1&&stCh<=5) { csPlay(stCh==5?5:stCh-1); if(stCh==4) csPlay(4); }   // the scene that closes the chapter just finished (cutscene.h; chapter 5 closes with scene 5, its opening news is scene 4)
     u16 prev=keyNow(); u32 cnt=0; const StCh*c=&stChs[stId][stCh];
     int end=c->goal==SG_END;
@@ -446,7 +469,7 @@ static void stRunModal0(void){
     }
 }
 static void stRunModal(void){   // the card, then the TV SHOW & TELL hand-over of control (chapter 4 starts as Mamesy, chapter 5 as Missy again)
-    int kind=stModal; stRunModal0();
+    int kind=stModal; stRunModal0(); if(kind==3) return;   // (3 = chapter 4 lost: lifeModeRun leaves play when sgDiscard is 2)
     if(stId!=STY_TVSHOW) return;
     if(stCh==3&&(stPart==255||hhPUid!=(int)stPart)&&(kind==2||stKid==255)) stTvWant=1;
     else if(stCh>=4&&stPart!=255&&stKid!=255&&hhPUid==(int)stPart&&(kind==2||stCh==4)) stTvWant=2;

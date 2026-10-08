@@ -3751,7 +3751,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
     objHideAll(); winFull(); REG_DISPCNT=0x3443; fxPlayStart();   // mode 3 + sprites (1D tiles) + window 0 (the household's hardware sprites, house.h)
     // (the passers-by of this lot are kept until you move to another lot or start a new life: twKeep, house.h)
     pkHome=-1; prEd=(u8)ed; lifeInit(); prApply(ed); if(!ed) phoneEnsure(); lcamF=0; vbase=cview=0; lcN=lcPts=lcT=lcBank=lcBankT=lcamPend=0; lcNmN=0; u16 prev=keyNow(); gmStart(); hudApplyLayout(); liveInvalidate(); camSnap=1;
-    stModal=0; if(!ed) stEnter();   // (the chapter card of the story waits for the first frame)
+    stModal=0; if(sgDiscard==2) sgDiscard=0; if(!ed) stEnter();   // (the chapter card of the story waits for the first frame)
     trnOn=trnDone=0;   // (no timed run carries over)
     tutOn=0; tutModal=TM_NONE;   // the tutorial: replay now, or offer it once (first PLAY, not in the test play of the editor)
     if(!ed){ if(xo[XO_TUTOR]==2) tutBegin(); else if(xo[XO_TUTOR]==0&&!tutAsked){ tutAsked=1; tutModal=TM_OFFER; } }
@@ -3803,6 +3803,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
                 mGainT=128; sfxStop(); objHideAll(); REG_DISPCNT=0x0403;
                 { u8 zz=xo[XO_ZOOM]; xo[XO_ZOOM]=0; hudApplyLayout(); camSnap=1; liveInvalidate(); lifeDraw(); xo[XO_ZOOM]=zz; }
                 if(stModal) stRunModal(); else tutRunModal();
+                if(sgDiscard==2){ if(!ed&&!nbPlaying) gToMenu=1; break; }   // chapter 4 lost (story.h stPlugLose): leave play like QUIT WITHOUT SAVING (the last save file is loaded again)
                 winFull(); REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=vbase; continue;
             } }
         if(trnDone&&lcamF==0){   // TIMED RUN: time is up, the results card takes the screen, the game holds still behind it
