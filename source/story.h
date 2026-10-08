@@ -131,6 +131,8 @@ static int rwTotal(void){   // story missions done in every life (the bits jbSto
     int n=0; for(int i=0;i<(STY_N-1)*SM_PER&&i<64;i++) n+=(v[i>>3]>>(i&7))&1;
     return n;
 }
+static const char* stGotP[2]; static u8 stGotN;   // what the chapter just finished unlocked (names of a REWARDS item and / or a slider pack): the CHAPTER COMPLETE card lists them
+static void stGotAdd(const char*nm){ if(stGotN<2) stGotP[stGotN++]=nm; }
 static void stAnnounce(void){ static char t[44] EWRAM_BSS; char*e=slCat(t,"CHAPTER "); e=slNum(e,stCh+1); e=slCat(e,"  "); slCat(e,stChs[stId][stCh].nm); lnote=t; lnoteT=240; }
 static void stTick(void){   // once per logic step in the life game: is this chapter done?
     static u8 cnt; if(!stId||++cnt<60) return; cnt=0;
@@ -145,9 +147,9 @@ static void stTick(void){   // once per logic step in the life game: is this cha
         stKidHome(); stKidDay=255;
     } else if(!stDone(c)) return;
     simMoneyAdd(stRew(stCh)); dnaAdd(25); persSave(); simsSave();
-    int rwWas=rwTotal(); int slkWas=jbStoryCount(stId); if(jbStoryDone(stId,stCh)){ simQPush("MORE SCOOBY STUFF TO FIND"); simQPush("TOUCH GRASS TO FIND IT"); }   // half of all the story missions: secret songs (no names, go and look)
-    if(slkWas<SM_PER&&jbStoryCount(stId)>=SM_PER){ int p=slkGift(stId); if(p>=0){ static char sg[32] EWRAM_BSS; simCat(simCat(sg,slkNm[p])," UNLOCKED"); simQPush(sg); } }   // all 5 missions of this story are done: a free slider pack
-    for(int j=0;j<RW_N;j++) if(rwWas<rwNeed[j]&&rwTotal()>=rwNeed[j]){ simQPush("NEW REWARD IN BUY MODE"); break; }
+    stGotN=0; int rwWas=rwTotal(); int slkWas=jbStoryCount(stId); if(jbStoryDone(stId,stCh)){ simQPush("MORE SCOOBY STUFF TO FIND"); simQPush("TOUCH GRASS TO FIND IT"); }   // half of all the story missions: secret songs (no names, go and look)
+    if(slkWas<SM_PER&&jbStoryCount(stId)>=SM_PER){ int p=slkGift(stId); if(p>=0){ static char sg[32] EWRAM_BSS; simCat(simCat(sg,slkNm[p])," UNLOCKED"); simQPush(sg); stGotAdd(slkNm[p]); } }   // all 5 missions of this story are done: a free slider pack
+    for(int j=0;j<RW_N;j++) if(rwWas<rwNeed[j]&&rwTotal()>=rwNeed[j]){ simQPush("NEW REWARD IN BUY MODE"); stGotAdd(palNm[catItems[NCAT-1][j]]); break; }
     if(c->goal==SG_DAYS) stKidDay=255;
     stCh++; stSave(); stAnnounce(); stShown=(u8)(stId*16+stCh+1); stModal=2;   // the CHAPTER COMPLETE card (stRunModal)
 }
@@ -244,6 +246,7 @@ static void stRunModal(void){
         text(60,30,stNm[stId],GOLD,1); text(60,40,stTag[stId],RGB(17,29,31),1);
         { char b[24]; char*e=slCat(b,kind==2?"CHAPTER ":"CHAPTER "); e=slNum(e,kind==2?stCh:stCh+1); text(60,52,b,WHITE,2); }
         if(kind==2){ char b[40]; char*e=slCat(b,"DONE  +"); e=slNum(e,stRew(stCh-1)); slCat(e," SIMOLEONS  +25 JENES"); text(60,70,b,RGB(10,28,12),1); stSparkle(cnt,12,26,216,100); }
+        if(kind==2&&stGotN){ static char gb[60] EWRAM_BSS; char*e=simCat(gb,"UNLOCKED  "); e=simCat(e,stGotP[0]); if(stGotN>1){ e=simCat(e,"  AND  "); simCat(e,stGotP[1]); } if(tw(gb,1)>206) simCat(gb,"UNLOCKED  2 NEW THINGS"); text(16,77,gb,GOLD,1); }   // (what this chapter opened: a BUY reward and / or a slider pack)
         rect(14,84,212,1,RGB(14,26,31));
         text(16,90,kind==2?(end?"THE END":"NEXT CHAPTER"):(end?"THE END":"YOUR GOAL"),GOLD,1);
         text(16,102,end?(kind==2?"YOUR STORY GOES ON  KEEP PLAYING":"YOUR STORY GOES ON  KEEP PLAYING"):c->nm,WHITE,1);
