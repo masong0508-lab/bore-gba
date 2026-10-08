@@ -10,8 +10,9 @@
 // This file is included from main.c at the old SETTINGS screen's place: it needs presetNm/presetOf/setPreset/setDefaults/autoTune/
 // measureDraw/capLevel/costCache from there, slots.h for the confirm menus, and tmStart()/R_TM2CNT.
 enum { OR_VAR, OR_XO, OR_PRESET, OR_ACT };   // a plain u8 variable, an xo[] option, the preset, an action
-enum { OA_TUNE, OA_LIFESAVE, OA_LIFEERASE, OA_ROOMERASE, OA_SLOTSERASE, OA_ALLERASE, OA_SRAMTEST, OA_RESET, OA_BTNTEST, OA_CLEAN };
+enum { OA_TUNE, OA_LIFESAVE, OA_LIFEERASE, OA_ROOMERASE, OA_SLOTSERASE, OA_ALLERASE, OA_SRAMTEST, OA_RESET, OA_BTNTEST, OA_CLEAN, OA_CUTS };
 static void cacheFlush(void);   // CLEAR CACHES (main.c, next to liveInvalidate: it needs the room, sprite-slot and path state)
+static void csMenu(void);   // CUTSCENES menu (dbgmenu.h)
 typedef struct { u8 kind, idx, n, def; u8*v; const char*nm; const char* const* lab; const char*d0; const char*d1; } OptRow;
 #define VR(var,n,def,nm,lab,d0,d1) {OR_VAR,0,n,def,&var,nm,lab,d0,d1}
 #define XR(i,nm,lab,d0,d1) {OR_XO,i,0,0,0,nm,lab,d0,d1}
@@ -79,6 +80,7 @@ static const char* const lbMcSl[2]={"NORMAL","DOUBLE"}, *const lbMcBox[2]={"BY A
 static const OptRow pgSimMaster[]={   // CHEAT console (debug code only) (the section is hidden without it, and has no effect)
  XR(XO_MCSLIDE,"SIZE SLIDERS",lbMcSl,"DOUBLE  EVERY SIZE TONE AND LENGTH SLIDER","GOES TWICE AS FAR  PARTS STAY ATTACHED"),
  XR(XO_MCBOX,"BODY BOX",lbMcBox,"LIMIT BREAK  EVERY AGE GETS THE ADULT BOX","AND ADULTS STRETCH PAST 8 BLOCKS TALL"),
+ AR(OA_CUTS,"PLAY CUTSCENES","WATCH ANY TV SHOW AND TELL SCENE OR ALL OF THEM","IN STORY ORDER  START SKIPS A SCENE"),
 };
 static const OptRow pgSimMind[]={
  XR(XO_BUBBLE,"THOUGHT BUBBLE",lbBubble,"THE BUBBLE OVER YOUR HEAD","URGENT SHOWS ONLY NEEDS  ALL ADDS WANTS"),
@@ -327,6 +329,7 @@ static void optAction(int a,int*remeasure){
         case OA_TUNE: autoTune(); costCache[costKey()]=(s16)sCost; *remeasure=0; break;
         case OA_RESET: if(menu("RESET ALL OPTIONS",slYesNo,2)==1){ optsDefaults(); setDefaults(); sTunedMsg=0; *remeasure=1; toast("OPTIONS RESET"); } break;
         case OA_BTNTEST: buttonTest(); break;
+        case OA_CUTS: csMenu(); *remeasure=0; break;
         case OA_CLEAN:{
             if(!sUnlock) break;   // (the row is hidden without the Konami code; this is only a second lock)
             static const char* const dis[11]={">NOT A REAL CACHE DELETER","THE GBA HAS NO CACHE PILE UP TO CLEAR","AND THE GAME KEEPS NO HIDDEN ASSETS IN RAM","IT ONLY DROPS SMALL SPEED UP COPIES THAT","THE GAME BUILDS AGAIN BY ITSELF",">WHAT IT CAN DO","FIX A GLITCHED SPRITE OR A STALE REDRAW",">WHAT IT CANNOT DO","RAISE YOUR FRAME RATE OR FREE UP RAM","FOR REAL SPEED USE FRAME RATE WALLS","WALLPAPER FLOORS AND SHADOWS"};

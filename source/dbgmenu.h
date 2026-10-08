@@ -4,6 +4,13 @@
 //   MAX AMMO              bullets and missiles to the limit   RESET STASHES       the secret stashes can be found again
 //   MONEY +100000         (up to 999,999,999,999)                     FULL HEALTH + NEEDS you and every Sim in the house
 //   CLEAR WANTED          cops forget you, the record is wiped    FREE FROM PRISON   ends the sentence on the spot
+static void csMenu(void){   // OPTIONS > SIM > CHEAT > PLAY CUTSCENES: pick one scene, or play all eight in story order
+    static const u8 ord[8]={7,0,1,2,3,4,5,6};
+    const char* it[9]; it[0]="PLAY ALL IN STORY ORDER"; for(int i=0;i<8;i++) it[i+1]=csNames[i];
+    for(;;){ int s=menu("CUTSCENES",it,9); if(s<0) return;
+        if(s==0){ for(int i=0;i<8;i++) csPlay(ord[i]); } else csPlay(s-1);
+        rect(0,0,SW,SH,RGB(2,4,8)); }
+}
 static void dbgMenu(void){
     static const char* const it[11]={"GIVE ALL WEAPONS","MAX AMMO","TAKE ALL WEAPONS","RESET STASHES","MONEY +100000","FULL HEALTH + NEEDS","CLEAR WANTED","FREE FROM PRISON","STORY NEXT CHAPTER","PLAY CUTSCENE","BACK"};
     for(;;){
