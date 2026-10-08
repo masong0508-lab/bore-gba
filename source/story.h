@@ -267,6 +267,7 @@ static void storyScreen(void){   // pause menu > STORY: the story journal, a cha
 // the chapter cards: CHAPTER n (a chapter starts) and CHAPTER COMPLETE (a chapter was done). Shown by lifeModeRun like the pause menu.
 static void stRunModal(void){
     int kind=stModal; stModal=0; if(!stId) return;
+    if(stId==STY_TVSHOW&&kind==2&&stCh>=1&&stCh<=5) csPlay(stCh==5?5:stCh-1);   // the scene that closes the chapter just finished (cutscene.h; chapter 5 closes with scene 5, its opening news is scene 4)
     u16 prev=keyNow(); u32 cnt=0; const StCh*c=&stChs[stId][stCh];
     int end=c->goal==SG_END;
     for(;;){
