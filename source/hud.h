@@ -153,7 +153,7 @@ static void hudBotStatic(void){
 static void hudBotUpdate(int all){
     if(all) hudBotStatic();
     int st=moodState();
-    if(hudChg(all,HK_PORT,hudFaceKey(st))){   // portrait: a frame in the mood colour around the face
+    hudFaceAnim(st); if(hudChg(all,HK_PORT,(hudFaceKey(st)^(unsigned)(hudOvE+2)*40503u^(unsigned)(hudOvM+2)*9973u)|1u)){   // portrait: a frame in the mood colour around the face
         rect(3,HUD_BOTY+4,24,24,hudMoodCol(st)); rect(4,HUD_BOTY+5,22,22,hudFaceBg[st]); hudFaceDraw(4,HUD_BOTY+5,st); hudMark(3,HUD_BOTY+4,24,24); }
     {   // HEALTH: a 2 px bar under the portrait (full width = 100 HP), green / yellow / red like the needs
         int w=(lhp*61)>>8; if(w>24) w=24; unsigned hk=(unsigned)w*4u+(unsigned)(lhp>=55?2:lhp>=28?1:0)+(unsigned)(lhp<=0?1000:0);

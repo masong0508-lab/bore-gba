@@ -80,15 +80,18 @@ static int moodState(void){
     return h>=60?MS_HAPPY:MS_OK;
 }
 static void moodReset(void){ moodFun=MOOD_FUN_START*MOOD_ONE; moodHap=MOOD_HAP_START*MOOD_ONE; moodIdle=moodAir=0; moodSt=moodState(); }
+static u8 fxRxEv=255, fxRxT;   // ALIVE: the last mood event and the steps its face reaction has left (hudface.h reads them)
 static void moodEventN(int ev,int n){
     if(n<1) n=1;
     if(n>8) n=8;
     moodFun=moodClamp(moodFun+moodTab[ev].fun*MOOD_ONE*n); moodHap=moodClamp(moodHap+moodTab[ev].hap*MOOD_ONE*n);
+    fxRxEv=(u8)ev; fxRxT=72;   // (the portrait reacts for about a second)
     if(moodTab[ev].fun>0) moodIdle=0;   // something fun happened: boredom starts over
     simsMood(ev,n);                     // sims.h: tell the wants and fears about it
 }
 static inline void moodEvent(int ev){ moodEventN(ev,1); }
 static void moodTick(void){   // once per logic step while alive
+    if(fxRxT&&!--fxRxT) fxRxEv=255;
     moodIdle++;
     int dec=MOOD_FUN_DECAY*(moodIdle>MOOD_BORED_AFTER?2:1)*simsFunPct()/100;   // PLAYFUL creatures get bored faster
     if(lskate&&lsp>=12) dec-=MOOD_CRUISE;                              // cruising: boredom creeps instead of running
