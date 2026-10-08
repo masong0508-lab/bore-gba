@@ -1,0 +1,5 @@
+// cschips.h - the cutscene tunes (tools/cs_tunes.py, made by tools/chip_synth.py, do not edit): CSCHIP(id, steps in a beat, offset into chipsyn.bin)
+CSCHIP(cs_sunman,62,171580)
+CSCHIP(cs_whistler,48,173516)
+CSCHIP(cs_cora,54,174428)
+CSCHIP(cs_excuses,58,175288)

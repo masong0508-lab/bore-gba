@@ -9,6 +9,15 @@ enum { CF_SHAKE=1, CF_FLASH=2, CF_FADEIN=4, CF_FADEOUT=8, CF_STROBE=16, CF_IRIS=
 typedef struct { u8 bg, a, pa, ax, b, pb, bx, fx, sfx, dur; const char* who; const char* t[3]; } CsBeat;   // ax / bx: x position / 4. sfx: SFX id + 1. dur: frames (no caption: how long; AUTO caption: the wait after it)
 typedef struct { const CsBeat* b; u8 n; } CsScene;
 static const CsScene csScenes[8];   // (defined below the scenes; csDraw looks at the last beat to walk figures in and out)
+// CUTSCENE TUNES (tools/cs_tunes.py): four stripped-down chip renditions of jukebox songs, played live by the chip synth. While one plays, csFt() gives the figures
+// a clock that runs on the MUSIC (read from the player's step counter, 120 a step a second, minus 4 steps for the mixer's look-ahead): one beat = 32 units, so a
+// dancer bobs twice a beat, on the beat, whatever the tempo, and a swaying figure follows the tempo. No tune (or the host test build): the plain frame clock t.
+#ifdef CS_HOST
+#define csFt(t) (t)
+#else
+static int csTuneBS, csMT, csMP;
+static int csFt(int t){ if(!csTuneBS) return t; int p=csy.step-4; if(p<0) p+=csy.nl; int d=p-csMP; if(d<0) d+=csy.nl; csMP=p; csMT+=d; return csMT*32/csTuneBS; }
+#endif
 
 static int csOx, csOy;   // the shake
 static int csMood=0, csLite=0;   // cutscene redo 12: the picture's mood (-1 brighter, 0 normal, 1 dimmer, 2 much dimmer) and a lightning flash in the hospital window
@@ -78,7 +87,7 @@ static void csBg(int bg,int t,int fx){   // the picture area: y 12 .. 115
     case CB_MIRROR:
         csR(0,12,SW,104,RGB(8,12,14)); for(int x=0;x<SW;x+=12) csR(x,12,1,104,RGB(6,9,11)); for(int y=12;y<116;y+=12) csR(0,y,SW,1,RGB(6,9,11));
         csR(66,14,108,84,RGB(22,22,16)); for(int i=0;i<78;i++) csR(69,17+i,102,1,RGB(10-i*4/78,14-i*5/78,18-i*4/78));
-        csFig(120,94,CA_MISSY,csMirPose,t);   // the reflection (acts the beat's pose a; no pose = she hangs her head)
+        csFig(120,94,CA_MISSY,csMirPose,csFt(t));   // the reflection (acts the beat's pose a; no pose = she hangs her head)
         csR(40,98,160,18,RGB(24,24,26)); csR(40,98,160,2,RGB(30,30,31)); csR(116,88,8,10,RGB(16,16,19)); csR(112,86,16,3,RGB(16,16,19));
         break;
     case CB_SITE:
@@ -150,16 +159,16 @@ static void csDraw(const CsBeat*b,int t,int shown){   // one frame of one beat (
         if(pv->bg==b->bg&&b->bg!=CB_BLACK&&b->bg!=CB_RATE&&b->bg!=CB_MIRROR&&!b->sfx&&!(b->fx&(CF_SHAKE|CF_FLASH|CF_SICK|CF_IRIS))){
             for(int k=0;k<2;k++){ int who=k?pv->b:pv->a, px=(k?pv->bx:pv->ax)*4, pp=k?pv->pb:pv->pa;
                 if(who&&who!=b->a&&who!=b->b&&pp!=CP_LIE&&pp!=CP_STIR&&pp!=CP_LEAVE&&pp!=CP_CLIMB&&pp!=CP_FLAIL&&t<64){
-                    int ex=t*2; csEntD=px>120?1:-1; csEnt=csEntD>0?ex:-ex; csDir=csEntD; csOth=-1; csFig(px,110,who,pp,t); csEnt=0; } }   // (a ghost of the last beat's figure, stepping out)
+                    int ex=t*2; csEntD=px>120?1:-1; csEnt=csEntD>0?ex:-ex; csDir=csEntD; csOth=-1; csFig(px,110,who,pp,csFt(t)); csEnt=0; } }   // (a ghost of the last beat's figure, stepping out)
         } }
     if(b->a){ csDir=(b->b&&b->bx<b->ax)?-1:1; csOth=b->b?b->pb:-1; csEnt=0;
         if(csCurBi>0&&!(b->fx&CF_FADEIN)&&b->pa!=CP_WALK&&b->pa!=CP_LEAVE&&b->pa!=CP_LIE&&b->pa!=CP_STIR&&b->bg!=CB_BLACK&&b->bg!=CB_RATE&&b->bg!=CB_MIRROR){ const CsBeat*pv=&csScenes[csCurSc].b[csCurBi-1];
             if(pv->bg==b->bg&&b->a!=pv->a&&b->a!=pv->b&&t<28){ csEnt=(28-t)*2; csEntD=b->ax*4>120?-1:1; if(csEntD>0) csEnt=-csEnt; } }
-        csFig(b->ax*4,ay,b->a,b->pa,t); csEnt=0; }
+        csFig(b->ax*4,ay,b->a,b->pa,csFt(t)); csEnt=0; }
     if(b->b){ csDir=b->a?(b->ax>b->bx?1:-1):(b->bx*4>120?-1:1); csOth=b->a?b->pa:-1; csEnt=0;
         if(csCurBi>0&&!(b->fx&CF_FADEIN)&&b->pb!=CP_WALK&&b->pb!=CP_LEAVE&&b->pb!=CP_LIE&&b->pb!=CP_STIR&&b->pb!=CP_CLIMB&&b->pb!=CP_FLAIL&&b->bg!=CB_BLACK&&b->bg!=CB_RATE&&b->bg!=CB_MIRROR){ const CsBeat*pv=&csScenes[csCurSc].b[csCurBi-1];
             if(pv->bg==b->bg&&b->b!=pv->a&&b->b!=pv->b&&t<28){ csEnt=(28-t)*2; csEntD=b->bx*4>120?-1:1; if(csEntD>0) csEnt=-csEnt; } }
-        csFig(b->bx*4,by,b->b,b->pb,t); csEnt=0; }
+        csFig(b->bx*4,by,b->b,b->pb,csFt(t)); csEnt=0; }
     if(b->fx&CF_SICK){ int mx=b->bx*4, my=by-26; for(int k=0;k<9;k++) if(t>k*2) csR(mx+5+k*3,my+k*k/3-3,2,2,k&1?RGB(13,24,4):RGB(18,28,6)); }
     if(b->fx&CF_IRIS){ int r=130-t*2; if(r<0) r=0; int cx=csCamX(b->bx*4), cy=csCamY(by-27);
         for(int y=12;y<116;y++){ int dy=y-cy, v=r*r-dy*dy; if(v<=0){ rect(0,y,SW,1,0); continue; } int w=csIsq(v); if(cx-w>0) rect(0,y,cx-w,1,0); if(cx+w<SW) rect(cx+w,y,SW-cx-w,1,0); } }
@@ -383,6 +392,12 @@ static const CsScene csScenes[8]={ {csS0,sizeof(csS0)/sizeof(csS0[0])}, {csS1,si
 static const char* const csNames[8]={ "CH1 END  THE BARS", "CH2 END  THE SWEATER", "CH3 END  THE FALL", "CH4 END  WAKING UP", "CH5 START  THE NEWS", "CH5 END  HERE TODAY", "CH4 LOSS  THE PLUG", "OPENING  THE NIGHT" };
 
 #ifndef CS_HOST
+#define CSCHIP(id,bs,off) {bs,off},
+static const struct { u16 bs; u32 off; } csTn[4]={
+#include "cschips.h"
+};   // the four cutscene tunes: steps in a beat, offset into chipsyn.bin (order: SUNMAN, WHISTLER, CORA, EXCUSES)
+#undef CSCHIP
+static const s8 csTune[8]={3,0,2,0,3,-1,2,1};   // which tune each scene plays (csNames order); -1 = its own song (scene 5, HERE TODAY). The tunes repeat across scenes
 static int csSongOn;   // 1 while the scene's song plays (a beat with sfx 250 starts it, sfx 251 fades it out; the scene end fades it too)
 // TIMING: a beat counts REAL frames (1/60 s), not passes through the loop. A busy picture can take several vblanks to draw; the typing, the holds, the fades and the
 // camera used to slow down with it (a caption took ten seconds). Timer 3 (a frame = 274 ticks, started by vsync) tells how many frames really went by since the last look.
@@ -393,6 +408,7 @@ static void csPlay(int id){   // play scene id; returns when it ends or START sk
     volatile u16*bc=(volatile u16*)0x04000050; volatile u16*bl=(volatile u16*)0x04000054;
     const CsScene*sc=&csScenes[id]; clipAll(); objHideAll(); csCamReset(); csAliveReset(); csCurSc=id; csSlow=0;
     u16 prev=keyNow(); int skip=0;
+    { int tn=csTune[id]; if(tn>=0&&sSnd){ mGain=mGainT=256; musBegin(2,chipsyn+csTn[tn].off,0); csSongOn=1; csTuneBS=csTn[tn].bs; csMT=0; csMP=csy.step; } }   // the scene's chip tune, locked to the figures by csFt
     for(int bi=0;bi<sc->n&&!skip;bi++){
         csCurBi=bi; const CsBeat*b=&sc->b[bi]; int total=0; for(int i=0;i<3&&b->t[i];i++) total+=csLen(b->t[i]);
         int t=0, shown=0, rest=0, dt=1; if(b->sfx==250){ if(sSnd){ csSongOn=1; musBegin(1,jbs_here_today,0); } } else if(b->sfx==251){ if(csSongOn) musFadeOut(XF_OUT); csSongOn=0; } else if(b->sfx) sfxPlay(b->sfx-1);
@@ -403,6 +419,7 @@ static void csPlay(int id){   // play scene id; returns when it ends or START sk
             if(total){ if(shown<total){ shown=t/2; if(shown>total) shown=total; if(pr&K_A) shown=total; } else rest+=dt;
                 if(shown>=total&&((b->fx&CF_AUTO)?rest>(b->dur?b->dur:60):(rest>8&&(pr&K_A)))) break; }
             else if(t>=(b->dur?b->dur:60)) break;
+            if(csTuneBS) mGainT=(total&&shown<total)?176:(csMood>=1?200:256);   // the tune dips while a caption types and in the dim, sad moods, and comes back up when it waits
             *bc=0x00C4; *bl=0; if((b->fx&CF_FADEIN)&&t<16){ *bl=16-t; } else if((b->fx&CF_FLASH)&&t<14){ *bc=0x0084; *bl=14-t; }
             for(int e=1;e<dt&&e<6;e++) csCamAim(b,t);   // the camera eases once per picture: the pictures it missed while the last one drew are caught up
             { u16 a0=R_TM3D; csDraw(b,t,shown); present(); u16 cost=(u16)(R_TM3D-a0);   // a picture that took over two and a half frames: lighten the next ones (back to full below one and a half)
@@ -412,7 +429,7 @@ static void csPlay(int id){   // play scene id; returns when it ends or START sk
         if(!skip&&(b->fx&CF_FADEOUT)){ *bc=0x00C4; csTimeReset(); int ft=0; while(ft<=16){ *bl=ft>16?16:ft; csDraw(b,t,total); present(); ft+=csFrames(); }
             *bl=16; for(int w=0;w<14;){ present(); w+=csFrames(); } }
     }
-    if(csSongOn){ musFadeOut(XF_OUT); csSongOn=0; } *bc=0x0400; *bl=0; objHideAll(); clipAll(); csCurSc=-1; csSlow=0;
+    if(csSongOn){ musFadeOut(XF_OUT); csSongOn=0; } csTuneBS=0; mGainT=256; *bc=0x0400; *bl=0; objHideAll(); clipAll(); csCurSc=-1; csSlow=0;
     while(keyNow()&(K_A|K_B|K_START)) vsync();   // let go before the next screen reads the keys
 }
 #endif
