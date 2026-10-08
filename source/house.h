@@ -386,6 +386,7 @@ static u32 bakeKey(void){   // call after buildLook() + setColors()
     hkAdd(&h,dL,sizeof(dL)); hkAdd(&h,dR,sizeof(dR)); hkAdd(&h,look,sizeof(look)); hkAdd(&h,t,4); hkAdd(&h,xo,sizeof(xo));
     return h?h:1;
 }
+static void poseBakeAll(void); static void poseWiden(void);
 static void hhBakeAll(void){
     static u8 sv[H][D][W] EWRAM_BSS; static u16 sd[H][D][W] EWRAM_BSS; u8 sl[LK_N]; u8 sst=stage; int sc=custom;
     int scratch=0;   // spr4 / spr4s were used to bake someone else: the player has to be baked again
@@ -427,9 +428,9 @@ static void hhBakeAll(void){
     if(scratch||pk!=sprKey){
         ldShow("ALMOST THERE",hhN+TW_N,hhN+TW_N+1);
         bakeInto(spr4);   // the player (still drawn by the CPU, so walls and furniture in front cover it and the action cam can zoom it)
-        strideK=1; bakeInto(spr4s); strideK=0; sprKey=pk;
+        poseBakeAll(); strideK=1; bakeInto(spr4s); strideK=0; sprKey=pk;
     }
-    spBounds();      // the blit box holds both frames
+    spBounds(); poseWiden();      // the blit box holds both frames and the poses
     ldEnd();         // the loading screen is over: the game's display mode (window 0 + sprites) comes back
     hhSlotsFree();   // new tiles and palettes: every slot is reloaded when its Sim is next on screen
 }

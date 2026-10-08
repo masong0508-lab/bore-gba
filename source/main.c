@@ -575,7 +575,7 @@ static void rotUW(int u,int w,int*ru,int*rw){
     switch(view){ case 0:*ru=u;*rw=w;break; case 1:*ru=-w;*rw=u;break; case 2:*ru=-u;*rw=-w;break; default:*ru=w;*rw=-u; }
 }
 // u,w = doubled grid coords relative to the build-space centre
-static int headK, handK, liftK, liftL, liftT, liftTn, armK, stanceK, bakeCapH=99, bakeCapW=99, bakeCapT=99, bakeCapX=99, bakeCapL=99, bakeSh, bakeWk, strideK, neckK, exHip, exWst, exSho, exThi, exCal, exChe, exBel, exUAr, exFAr, exJaw, exHnd, exFt, bakeCapE=99, exMax;
+static int headK, handK, liftK, liftL, liftT, liftTn, armK, stanceK, bakeCapH=99, bakeCapW=99, bakeCapT=99, bakeCapX=99, bakeCapL=99, bakeSh, bakeWk, strideK, poseK, neckK, exHip, exWst, exSho, exThi, exCal, exChe, exBel, exUAr, exFAr, exJaw, exHnd, exFt, bakeCapE=99, exMax;
 #define EXC(v) ((v)>bakeCapE?bakeCapE:(v)<-bakeCapE?-bakeCapE:(v))   // NECK / HIP / WAIST / SHOULDER / THIGH / CALF extras, eased off for a sprite bake   // liftT: TORSO slider px per torso row (liftTn rows); armK, stanceK: ARMS and STANCE spread (px)
    // strideK: legs (shape 3) half a block forward / back, arms the other way   // HEIGHT slider: every one of the first liftL rows (the legs) is liftK px taller
 static const signed char shpDraw[NSHAPE][4]={   // per body type, drawn: torso width, arm width, leg width (px added to the block's half width), leg lift (px per leg row)
@@ -1272,7 +1272,11 @@ IWRAM_THUMB static void drawScene(int blink){
             #undef ARMV
             if(strideK&&onArm) w+=(x<W/2)?-strideK:strideK;   // the swing
         }
-        int sx,sy; projC(u,w,y+1,&sx,&sy);   // top-face centre
+        int py=y;   // POSES (poses.h): wave and cheer raise an arm up and out about the shoulder, sit folds the legs forward and drops the body
+        if(poseK&&!onArm){
+            if(poseK<3&&(shape==1||shape==2)&&y<hyB&&(poseK==2||x>=W/2)){ int d=hyB-1-y; py=hyB-1+d; u+=(x<W/2)?-d:d; }
+            else if(poseK==3&&y<hyB){ if(shape==3){ w+=(liftL-1-y)*-2; py=0; } else py=y-(liftL-1); } }
+        int sx,sy; projC(u,w,py+1,&sx,&sy);   // top-face centre
         if(onArm){ int sg=u<0?1:-1, a2,b2, hg=HUG-wk-armK-exWst-exSho; rotUW(sg,0,&a2,&b2); sx+=hg*(a2-b2); sy+=(hg*(a2+b2))/2; }   // and the hug (else they float off the hand)
         int bw=(y<hyB&&shape<4)?(shape==1||shape==2?wk/2+shA:shape==3?wk-shpDraw[look[LK_SHAPE]<NSHAPE?look[LK_SHAPE]:0][0]+shL:wk):(y>=hyB&&shape<4?headK:0);
         if(y<hyB&&(shape==2||(shape==3&&y==0))) bw+=handK;   // bigger or smaller hands and feet
@@ -2104,7 +2108,7 @@ static int bakeClips(void){   // the drawing in fb reaches the two outer rows / 
     return 0;
 }
 static void bakeInto(u8 (*ss)[SPW*SPH]){   // render the built character once per view (4 turns) into a sprite set, then just blit it
-    if(!strideK) sprN=1;   // a new sprite set starts a new palette; the stride frames (strideK) add to the standing frames' palette
+    if(!strideK&&!poseK) sprN=1;   // a new sprite set starts a new palette; the stride frames (strideK) add to the standing frames' palette
     sprHashBuild();
     int sv=view; noGrid=1; bakeOn=1; oycV=OYCB;   // (drawn lower than in the creator: the tall capture window fits on the screen)
     int ox=cX0, oy=cY0; unsigned ow=cW, oh=cH;   // draw only inside the capture window: nothing outside it is ever read
@@ -3095,6 +3099,7 @@ static void drawBoard(void){
     }
     if(bdSpk){ px(tx+bdSpk-2,ty-bdSpk,RGB(31,29,8)); px(tx-bdSpk,ty-(bdSpk>>1)-1,RGB(31,31,24)); px(tx+(bdSpk>>1),ty-bdSpk-2,RGB(31,20,4)); }
 }
+#include "poses.h"   // ALIVE tier 4: wave, cheer and sit poses, kept as runs that differ from standing
 static void blitSq(const u8*s,int x0,int y0,int k){   // ALIVE tier 3: blit with the rows above the feet squeezed together by k rows (feet stay put); rows are dropped evenly, nothing is invented
     int sqH=SPF-spBy0; if(sqH<8||k<1){ blit(s,x0,y0); return; } if(k>sqH/4) k=sqH/4; int Hn=sqH-k;
     int ia=cX0-x0, ib=cX0+(int)cW-x0; if(ia<spBx0) ia=spBx0; if(ib>spBx1) ib=spBx1; if(ia>=ib) return;
@@ -3109,6 +3114,7 @@ static void drawPlayerNow(void){
         rect(plX-w,plY-plFh+2,2*w+1,2,mc); }
     if(lskate) drawBoard();   // board under the feet
     if(lbailT>0&&((lbailT>>1)&1)) return;   // BAIL FLICKER: the skater blinks (every other 2 frames) while getting up
+    { int pz=poseSel(); if(pz&&poseBlit(pz,plV,plX-16+plPopX,plY-SPF-plZ-plBob+plDip+plPopY)) return; }   // ALIVE tier 4: a pose instead
     if(plSq) blitSq((plBob&&!lskate)?spr4s[plV]:spr4[plV],plX-16+plPopX,plY-SPF-plZ-plBob+plDip+plPopY,plSq);
     else blit((plBob&&!lskate)?spr4s[plV]:spr4[plV],plX-16+plPopX,plY-SPF-plZ-plBob+plDip+plPopY);   // walking: the stride frame on the up-step
 }
@@ -3265,7 +3271,7 @@ static void actorRc(Rc*r){   // everything the player puts on screen: sprite, sh
     r->x0=(short)x0; r->x1=(short)x1; r->y0=(short)y0; r->y1=(short)y1;
 }
 static unsigned actSigBase(void){ return (unsigned)(plX&0x3FF)|((unsigned)(plY&0x3FF)<<10)|((unsigned)(plZ&0x3F)<<20)|((unsigned)plV<<26)|((unsigned)lskate<<28)|((unsigned)sShad<<29)|((unsigned)(plFh&1)<<30)|((unsigned)plBob<<31); }
-static unsigned actSigNow(void){ unsigned b=actSigBase(); if(plSq) b^=(unsigned)plSq*0x9E3779B1u; if(plPopX|plPopY) b^=(unsigned)((plPopX+4)|((plPopY+4)<<4))*2654435761u; if(lskate) b^=((unsigned)bdA|((unsigned)(bdPitch+4)<<8)|((unsigned)bdRaise<<12)|((unsigned)bdRoll<<16)|((unsigned)bdSpk<<24)|((unsigned)plDip<<27)|((unsigned)plMk<<29))*2654435761u; return b; }   // + the board's pose: any change redraws
+static unsigned actSigNow(void){ unsigned b=actSigBase(); if(plSq) b^=(unsigned)plSq*0x9E3779B1u; b^=(unsigned)poseSel()*0x85EBCA6Bu; if(plPopX|plPopY) b^=(unsigned)((plPopX+4)|((plPopY+4)<<4))*2654435761u; if(lskate) b^=((unsigned)bdA|((unsigned)(bdPitch+4)<<8)|((unsigned)bdRaise<<12)|((unsigned)bdRoll<<16)|((unsigned)bdSpk<<24)|((unsigned)plDip<<27)|((unsigned)plMk<<29))*2654435761u; return b; }   // + the board's pose: any change redraws
 // ---- getting pixels to the screen ----
 static void dmaRows16(u32 src,u32 dst,int w,int rows,int sstride,int dstride){   // rows of w halfwords, strides in halfwords
     for(int j=0;j<rows;j++){ REG_DMA3SAD=src; REG_DMA3DAD=dst; REG_DMA3CNT=(u32)w|0x80000000u; src+=(u32)(sstride*2); dst+=(u32)(dstride*2); }
