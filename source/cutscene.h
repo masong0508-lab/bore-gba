@@ -13,7 +13,7 @@ static int csOx, csOy;   // the shake
 static int csMood=0, csLite=0;   // cutscene redo 12: the picture's mood (-1 brighter, 0 normal, 1 dimmer, 2 much dimmer) and a lightning flash in the hospital window
 static int csSlow=0;   // 1 while the frames are coming slowly: the backdrop lighting (glows, dust, vignette) is skipped until they speed up again
 static int csDir=1, csTalking=0, csMirPose=CP_HEAD;   // cutscene redo 10: which way POINT points (+1 right), the speaker's mouth moves while the caption types, the mirror reflection's pose
-static int csSpk=0, csLook=0, csMh=5, csEm=0, csHlag=0;   // (csHlag, cutscene redo 14 step 3: how far the hair / hem trails behind the head, in px)
+static int csSpk=0, csLook=0, csMh=5, csEm=0, csHlag=0, csMd=0, csOth=-1, csPuncS=0, csPuncL=0, csStart=0;   // (csHlag, cutscene redo 14 step 3: how far the hair / hem trails behind the head, in px; step 4: csMd the face's mood, csOth the other figure's pose, csPuncS / csPuncL the punctuation just typed (speaker / listener, a few frames later), csStart the startle left)
 static int csSpkDummy_;   // cutscene redo 13 (ALIVE): who is speaking now (CA_*), which way the eyes look (-1/0/1), how wide the mouth opens, 1 = an emphatic beat (brows lift)
 #include "cscam.h"
 static void csR(int x,int y,int w,int h,u16 c){ csCamR(x+csOx,y+csOy,w,h,c); }
@@ -126,7 +126,8 @@ static int csLen(const char*s){ int n=0; while(s[n]) n++; return n; }
 static int csIsq(int v){ int w=0; while((w+1)*(w+1)<=v) w++; return w; }
 
 static void csDraw(const CsBeat*b,int t,int shown){   // one frame of one beat (shown: how many letters of the caption are typed)
-    { int tot=0; for(int i=0;i<3&&b->t[i];i++) tot+=csLen(b->t[i]); csFrameNo++; csTalking=shown<tot; csSpk=csWho(b->who); csMirPose=(!b->a&&b->pa)?b->pa:CP_HEAD; }   // cutscene redo 10
+    { int tot=0; for(int i=0;i<3&&b->t[i];i++) tot+=csLen(b->t[i]); csFrameNo++; csTalking=shown<tot; csSpk=csWho(b->who); csOth=-1; csPuncS=csPunc(b,shown); csPuncL=csPunc(b,shown-5);
+      { int sf=b->sfx-1; csStart=(b->sfx&&t<12&&(sf==SFX_BONK||sf==SFX_HIT||sf==SFX_GASP||sf==SFX_SCREAM||sf==SFX_THUNDER||sf==SFX_DEATH||sf==SFX_NEARLY||sf==SFX_POP))?12-t:0; } csMirPose=(!b->a&&b->pa)?b->pa:CP_HEAD; }   // cutscene redo 10
     { int sc=csCurSc, bi=csCurBi; csMood=0; csLite=0;   // cutscene redo 12: the lights go down for the news (4) and the plug (6), and the world turns up when she wakes (3)
       if(sc==4&&bi>=21) csMood=1; if(sc==6&&bi>=7) csMood=bi>=9?2:1; if(sc==3&&bi>=29) csMood=-1;
       if(sc==6&&bi==9&&((t<10)||(t>=16&&t<20))) csLite=1; }
@@ -140,8 +141,8 @@ static void csDraw(const CsBeat*b,int t,int shown){   // one frame of one beat (
     int ay=110, by=110;
     if(b->bg==CB_HOSP||b->bg==CB_FLAT){ if(b->pb==CP_LIE||b->pb==CP_STIR) by=98; }
     if(b->bg==CB_SITE){ if(b->pb==CP_CLIMB) by=110-(t/3>48?48:t/3); if(b->pb==CP_FLAIL){ by=62+t*t/20; if(by>110) by=110; } if(b->pb==CP_LIE) by=111; }
-    csSpeed(b,t,by); if(b->a){ csDir=(b->b&&b->bx<b->ax)?-1:1; csFig(b->ax*4,ay,b->a,b->pa,t); }
-    if(b->b){ csDir=b->a?(b->ax>b->bx?1:-1):(b->bx*4>120?-1:1); csFig(b->bx*4,by,b->b,b->pb,t); }
+    csSpeed(b,t,by); if(b->a){ csDir=(b->b&&b->bx<b->ax)?-1:1; csOth=b->b?b->pb:-1; csFig(b->ax*4,ay,b->a,b->pa,t); }
+    if(b->b){ csDir=b->a?(b->ax>b->bx?1:-1):(b->bx*4>120?-1:1); csOth=b->a?b->pa:-1; csFig(b->bx*4,by,b->b,b->pb,t); }
     if(b->fx&CF_SICK){ int mx=b->bx*4, my=by-26; for(int k=0;k<9;k++) if(t>k*2) csR(mx+5+k*3,my+k*k/3-3,2,2,k&1?RGB(13,24,4):RGB(18,28,6)); }
     if(b->fx&CF_IRIS){ int r=130-t*2; if(r<0) r=0; int cx=csCamX(b->bx*4), cy=csCamY(by-27);
         for(int y=12;y<116;y++){ int dy=y-cy, v=r*r-dy*dy; if(v<=0){ rect(0,y,SW,1,0); continue; } int w=csIsq(v); if(cx-w>0) rect(0,y,cx-w,1,0); if(cx+w<SW) rect(cx+w,y,SW-cx-w,1,0); } }

@@ -18,6 +18,37 @@ static int csHairLag(int who,int hx){   // spring the head x; returns how many p
     h->f=(short)csFrameNo; int l=(h->q-t16+(h->q>=t16?8:-8))/16; return l>3?3:l<-3?-3:l;
 }
 static void csHairR(int x,int y,int w,int h,u16 c,int lag){ int a=h/3; csR(x,y,w,a,c); csR(x+lag/2,y+a,w,a,c); csR(x+lag,y+2*a,w,h-2*a,c); }   // a hair strand in three pieces: the tip trails
+// cutscene redo 14 (step 4: EXPRESSIONS and REACTIONS): every face has a mood (csMd: 0 neutral, 1 sad, 2 happy, 3 angry, 4 shocked, 5 puzzled, 6 worried) that comes from the pose, the beat's
+// effects, what the speaker is typing right now (? ! ...) and what the OTHER figure is doing. A listener reacts a few frames after the speaker's punctuation, comforts a crying friend
+// (leans in, worried brows), smiles with a laughing one, and every figure flinches at a startling sound.
+static int csPunc(const CsBeat*b,int n){   // the last '?', '!' or '...' within the first n typed characters, if it is recent (16 chars): 1 question, 2 exclamation, 3 trailing off, 0 none
+    int pos=0, last=-99, kind=0, prev=0;
+    for(int i=0;i<3&&b->t[i];i++){ const char*s=b->t[i]; for(int j=0;s[j]&&pos<n;j++,pos++){ int c=s[j]; if(c=='?'){ last=pos; kind=1; } else if(c=='!'){ last=pos; kind=2; } else if(c=='.'&&prev=='.'){ last=pos; kind=3; } prev=c; } }
+    return n-last<=16?kind:0;
+}
+static void csEyesS(int hx,int hy,int bl,u16 sk,u16 hr,int md){   // eyes and brows of the small sprite (not Missy: her glasses keep their own)
+    u16 dk=RGB(3,2,3), wh=RGB(30,30,31); int lk=csLook, by=hy-1-csEm;
+    if(md==4&&!bl){ csR(hx-3,hy,2,2,wh); csR(hx+1,hy,2,2,wh); csR(hx-3+(lk>0),hy+1,1,1,dk); csR(hx+1+(lk>0),hy+1,1,1,dk); by--; }    // wide eyes, brows up
+    else if(md==2&&!bl){ csR(hx-3,hy+1,2,1,dk); csR(hx+1,hy+1,2,1,dk); }                                                              // smiling eyes: two dashes
+    else { csR(hx-2+lk,hy+1,1,1,bl?sk:dk); csR(hx+1+lk,hy+1,1,1,bl?sk:dk); }
+    if(md==1||md==6){ csR(hx-3,by+1,1,1,hr); csR(hx-2,by,1,1,hr); csR(hx+1,by,1,1,hr); csR(hx+2,by+1,1,1,hr); }                       // inner ends up
+    else if(md==3){ csR(hx-3,by,1,1,hr); csR(hx-2,by+1,1,1,hr); csR(hx+1,by+1,1,1,hr); csR(hx+2,by,1,1,hr); }                         // inner ends down
+    else if(md==5){ csR(hx-3,by,2,1,hr); csR(hx+1,by-2,2,1,hr); }                                                                     // one brow up
+    else { csR(hx-3,by,2,1,hr); csR(hx+1,by,2,1,hr); }
+}
+static void csMouthS(int hx,int hy,int who,int open,int md){   // the small sprite's mouth for a mood
+    u16 lp=who==CA_MAME?RGB(22,9,9):RGB(18,6,6), od=RGB(18,2,3);
+    if(open){ csR(hx-1,hy+4,2,csMh>4?2:1,od); if(md==2){ csR(hx-2,hy+4,1,1,lp); csR(hx+1,hy+4,1,1,lp); } return; }
+    switch(md){
+    case 1: case 6: csR(hx-1,hy+4,2,1,lp); csR(hx-2,hy+5,1,1,lp); csR(hx+1,hy+5,1,1,lp); break;           // a frown
+    case 2: csR(hx-1,hy+5,2,1,lp); csR(hx-2,hy+4,1,1,lp); csR(hx+1,hy+4,1,1,lp); break;                   // a smile
+    case 3: csR(hx-1,hy+4,2,1,od); csR(hx-2,hy+5,1,1,lp); csR(hx+1,hy+5,1,1,lp); break;                   // tight, down at the corners
+    case 4: csR(hx-1,hy+4,2,2,od); break;                                                                  // a small O
+    case 5: csR(hx-1,hy+5,2,1,lp); csR(hx+1,hy+4,1,1,lp); break;                                          // crooked
+    default: if(who==CA_MISSY){ csR(hx-1,hy+4,3,1,lp); csR(hx+2,hy+3,1,1,lp); }                           // Missy's deadpan smirk
+             else { csR(hx-1,hy+4,2,1,lp); if(who==CA_MAME){ csR(hx-2,hy+3,1,1,lp); csR(hx+1,hy+3,1,1,lp); } }
+    }
+}
 // cutscene redo 14 (step 1: ELBOWS): arms are two segments with a real elbow. The elbow bulges outward / down like a relaxed arm, and a raised hand folds the arm up.
 static int csIq(int v){ int w=0; while((w+1)*(w+1)<=v) w++; return w; }
 static void csLimb(int x0,int y0,int x1,int y1,u16 fill,u16 ol){   // a 2 px wide, outlined bone
@@ -41,10 +72,10 @@ static void csFig(int x,int y,int who,int pose,int t){
     u16 sk=SKc[who], hr=HRc[who], cl=CLc[who], bt=BTc[who], dk=RGB(3,2,3), ol=RGB(2,1,4);
     int mv=0; if(pose==CP_WALK){ if(t<60){ x+=(x>120?60-t:t-60); mv=1; } } else if(pose==CP_LEAVE){ if(t>45){ x+=(x>120?t-45:45-t); mv=1; } }   // cutscene redo 10: walk in from, and out toward, the nearer side
     int dress=who==CA_MISSY;   /* (Mamesy wears a top and jeans, like in the game) */
-    if(pose==CP_LIE||pose==CP_STIR) csPS[who].fn=-100;   // lying down: no blend into or out of it
+    if(pose==CP_LIE||pose==CP_STIR){ csPS[who].fn=-100; csMd=0; }   // lying down: no blend into or out of it
     if(pose==CP_LIE||pose==CP_STIR){ int st=pose==CP_STIR, lf=st?(csWv(t,30)+8)/3:0, br=csWv(t,100)>4; csR(x-19,y-1,36,1,RGB(2,1,3)); csR(x-11,y-7,18,7,ol); csR(x-10,y-6,17,6,cl); csR(x-10,y-6,17,1,csLt(cl,5)); if(br) csR(x-8,y-8,13,1,cl); csR(x+7,y-5-lf,10,3,ol); csR(x+7,y-4-lf,9,2,dress?sk:bt); if(st) csR(x+17,y-5-lf+((t>>2)&1),1,2,sk);   // (cutscene redo 10: she breathes; STIR lifts her hand and her fingers move)
         csD(x-14,y-4,5,ol); csD(x-14,y-4,4,sk); csR(x-19,y-9,6,6,hr); csR(x-18,y-10,3,1,csLt(hr,7)); csR(x-15,y-5,1,1,dk); csR(x-13,y-3,2,1,RGB(24,8,8)); if(csCz>=384) csFaceBig(x-14,y-6,who,CP_LIE,t,0,SKc[who],HRc[who]); return; }
-    int lean=0, bob=0, lh=-6, lv=8, rh=6, rv=8, ls=0, hd=0, open=0;
+    int lean=0, bob=0, lh=-6, lv=8, rh=6, rv=8, ls=0, hd=0, open=0, md=0;
     switch(pose){
     case CP_SWAY:  lean=csWv(t,70)/2; lh=-7+csWv(t,50)/3; rh=7-csWv(t,50)/3; ls=csWv(t,70)/4; break;
     case CP_DANCE: bob=(csWv(t,16)+8)/6; lean=csWv(t,40)/2; lh=-9; lv=-9+csWv(t,16)/2; rh=9; rv=-9-csWv(t,16)/2; ls=csWv(t,16)/3; break;
@@ -86,6 +117,22 @@ static void csFig(int x,int y,int who,int pose,int t){
       if(p->have&&t<12){ static const signed char ez[12]={0,5,9,12,14,16,17,17,17,16,16,16}; int k=ez[t]; for(int i=0;i<8;i++) v[i]=(short)(p->from[i]+(v[i]-p->from[i])*k/16);
           lean=v[0]; bob=v[1]; lh=v[2]; lv=v[3]; rh=v[4]; rv=v[5]; ls=v[6]; hd=v[7]; }
       for(int i=0;i<8;i++) p->cur[i]=v[i]; p->lt=(short)t; p->fn=(short)csFrameNo; }
+    { int spk2=csTalking&&csSpk==who, lis2=csTalking&&csSpk&&csSpk!=who, shake=(csFxNow&CF_SHAKE)!=0;
+      int sad=(pose==CP_HEAD||pose==CP_CRY||pose==CP_SLUMP), ok=(pose==CP_STAND||pose==CP_SWAY||pose==CP_TALK||pose==CP_POINT||pose==CP_WALK||pose==CP_LEAVE);   // ok: poses that can react
+      int os=(csOth==CP_HEAD||csOth==CP_CRY||csOth==CP_SLUMP||csOth==CP_LIE), oh=(csOth==CP_LAUGH||csOth==CP_DANCE||csOth==CP_SING), ox=(csOth==CP_SHOCK||csOth==CP_FLAIL);
+      md=0;
+      if(sad) md=1; else if(pose==CP_LAUGH||pose==CP_DANCE||pose==CP_SING) md=2; else if(pose==CP_SHOCK||pose==CP_FLAIL||(csFxNow&CF_SICK)) md=4;
+      else if(ok){
+          if(csStart>0) md=4;                                                                  // a loud noise
+          else if(spk2){ if(shake) md=3; else if(csPuncS==1) md=5; else if(csPuncS==3) md=6; }  // angry when heated, puzzled at a question, uncertain trailing off
+          else { if(os||shake) md=6; else if(oh) md=2; else if(ox) md=4; else if(lis2&&csPuncL==2) md=4; else if(lis2&&csPuncL==1) md=5; else if(lis2&&csPuncL==3) md=6; }
+      }
+      if(ok){ if(spk2&&csPuncS==2) csEm=1;                                                     // an exclamation: brows up
+          if(csStart>0){ int s=csStart; bob-=(s+2)/4; lean-=csDir*((s+3)/6); lv-=s/3; rv-=s/3; lh-=s/6; rh+=s/6; }   // flinch: jump, recoil, hands up
+          if(os&&!spk2){ lean+=csDir; hd+=1; }                                                  // leans in toward someone who is hurting
+          if(lis2&&csPuncL==2){ lean-=csDir; bob-=1; }                                          // a small recoil at a shout
+          if(lis2&&csPuncL==1) lean+=csDir; }                                                   // leans in at a question
+      csMd=md; }
     int sy=y-21+bob, hx=x+lean, hy=y-29+bob+hd; u16 lc=dress?sk:bt; int bl=((t+who*23)%110)<4;   // bl: a blink every ~2 s (cutscene redo 10)
     int fem=(who==CA_MISSY||who==CA_MAME), ax=fem?5:6;   // the build: the women slimmer through the shoulders, the men broader (the arms hang from the edge of the shoulders)
     int lag=csHairLag(who,hx); csHlag=lag;                                                                              // how far the hair and the hem trail
@@ -112,10 +159,9 @@ static void csFig(int x,int y,int who,int pose,int t){
     if(who!=CA_MAME){ csR(hx-2,hy-4,2,1,csLt(hr,8)); } else { csR(hx-3,hy-2,7,2,hr); csR(hx-4,hy-1,2,4,hr); csR(hx+3,hy-1,2,3,hr); csR(hx+1,hy-4,2,1,csLt(hr,8)); }                       // the tousled tufts and a shine (the in-game hair)
     csR(hx-4,hy+4,1,1,RGB(28,12,12)); csR(hx+4,hy+4,1,1,RGB(28,12,12));                                                   // blush
     if(who==CA_MISSY){ u16 gl=RGB(9,9,12); int gx=hx, gy=hy+1; csR(gx-4,gy-1,3,1,gl); csR(gx-4,gy+1,3,1,gl); csR(gx-4,gy,1,1,gl); csR(gx-2,gy,1,1,gl); csR(gx+1,gy-1,3,1,gl); csR(gx+1,gy+1,3,1,gl); csR(gx+1,gy,1,1,gl); csR(gx+3,gy,1,1,gl); csR(gx-1,gy,2,1,gl); csR(gx-3,gy,1,1,bl?sk:dk); csR(gx+2,gy,1,1,bl?sk:dk); csR(gx-3,gy-3,7,2,hr); }   // small round glasses with a bridge, flat sleepy eyes, bangs
-    else { csR(hx-2+csLook,hy+1,1,1,bl?sk:dk); csR(hx+1+csLook,hy+1,1,1,bl?sk:dk); csR(hx-3,hy-1-csEm,2,1,hr); csR(hx+1,hy-1-csEm,2,1,hr); }                    // eyes, brows
+    else csEyesS(hx,hy,bl,sk,hr,md);                    // eyes, brows
     if(who==CA_HOST) csR(hx-4,hy-3,8,2,hr);                                                                               // Dex: swept fringe
     if(who==CA_CREW){ csR(hx-6,hy-3,12,3,RGB(31,31,28)); csR(hx-7,hy-1,14,1,RGB(24,24,22)); csR(hx-2,hy-4,4,1,RGB(31,31,31)); }   // Hal: the hard hat
     if(who==CA_DOC){ csLn(hx-3,hy+6,hx,hy+10,RGB(22,22,24)); csLn(hx+3,hy+6,hx,hy+10,RGB(22,22,24)); csD(hx,hy+11,1,RGB(26,26,28)); }   // Okafor: the stethoscope
-    if(who==CA_MISSY&&!open){ csR(hx-1,hy+4,3,1,RGB(18,6,6)); csR(hx+2,hy+3,1,1,RGB(18,6,6)); }                            // a deadpan smirk
-    else if(open) csR(hx-1,hy+4,2,csMh>4?2:1,RGB(18,2,3)); else { csR(hx-1,hy+4,2,1,who==CA_MAME?RGB(22,9,9):RGB(18,6,6)); if(who==CA_MAME){ csR(hx-2,hy+3,1,1,RGB(22,9,9)); csR(hx+1,hy+3,1,1,RGB(22,9,9)); } }
+    csMouthS(hx,hy,who,open,md);
 }
