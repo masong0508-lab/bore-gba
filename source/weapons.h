@@ -107,8 +107,3 @@ static void wpDraw(void){
     wpShotDraw();
     /*WPDRAW*/
 }
-// WPSTUB-BEGIN
-static void wpShoot(int w,int ax,int ay){ (void)w; (void)ax; (void)ay; lnote="GUNS ARE NOT IN YET"; lnoteT=30; }
-static void wpShotTick(void){}
-static void wpShotDraw(void){}
-// WPSTUB-END

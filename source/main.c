@@ -4799,6 +4799,7 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "hardtime.h"       // HARD TIME: the prison plays like Hard Time (stats, rep, gangs, regime, work, smokes, talks)
 #include "hardcourt.h"       // COURT: wardens beat you and drag you before the judge (plea, verdict, days and rep)
 #include "weapons.h"       // WEAPONS: the weapon button, melee, the arsenal (shots: wpshot.h; shop: armsshop.h; stashes: wpsecret.h)
+#include "wpshot.h"        // WEAPONS 2: bullets and guided missiles
 #include "goals.h"          // VIEW GOALS and the tape count per lot (the tape stays found)
 #include "statscreen.h"   // the LIFETIME STATS screen (PAUSE > MY SIM > MORE)
 #include "mysim.h"         // MY SIM: the pause menu tile with CAREER / SKILLS / PEOPLE / MORE tabs
