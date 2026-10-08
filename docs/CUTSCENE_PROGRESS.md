@@ -34,3 +34,11 @@ In `csface.h` (only used when the camera is zoomed in, csCz >= 384):
 - 3-phase blinks: half shut, shut, half open (6 frames, every 100).
 - Mouth shape by syllable: ah (wide, tall), oo (small, round), ee (wide, flat), oh (round); teeth and tongue follow the width.
 - State: csTn[8] and csTnFn[8] in EWRAM (48 B). No IWRAM change.
+
+## Step 6 - walk and run cycle (redo 14)
+
+In `csart.h` (`csFig`, new `csStepLift`): while a figure walks (CP_WALK / CP_LEAVE, only while it is moving) or runs (CP_RUN) the legs are two-segment limbs (thigh, knee, shin).
+- The feet swing in step (walk: 14-frame cycle, run: 10), the swinging foot lifts (2 px walking, 4 running) and the knee bulges the way they are going. Shoes point that way.
+- Arms counter-swing (the hand opposite the forward foot goes forward) and the hands rise with the swing; the run pumps harder and leans in.
+- The body dips as the feet spread and rises as they pass (a bounce of about 1 px walking, 2 running).
+- Standing, talking and every other pose keep the old straight legs. No new statics.
