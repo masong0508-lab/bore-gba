@@ -4,8 +4,8 @@
 #define CS_NZ {8640,16832,25024,33216,41408}
 #define CS_NNZ 5
 #define CS_NB 8192
-#define CS_TAB {49600,56512,70080}
-#define CS_HMIN {4,5,30}
+#define CS_TAB {49600,56512,70336}
+#define CS_HMIN {4,4,30}
 #define CS_HMAX {30,57,127}
 #define CS_POFF 3840
 #define CS_UOFF 4800
