@@ -304,7 +304,7 @@ static const CsBeat csS5[]={
 static const CsBeat csS6[]={
  {CB_HOSP,CA_MAME,CP_HEAD,20,CA_MISSY,CP_LIE,41,CF_FADEIN,0,0,0,{"The pressure reached a hundred. There were no more","nights left to give her.",0}},
  {CB_HOSP,CA_DOC,CP_STAND,20,CA_MISSY,CP_LIE,41,0,0,0,"Dr. Okafor",{"Ms. Jeanne, the hospital has made its decision.","I am so sorry. I fought for every night I could.",0}},
- {CB_HOSP,CA_DOC,CP_STAND,20,CA_MISSY,CP_LIE,41,CF_SHAKE,SFX_CRY+1,0,"Mamesy",{"No. Please. One more night. She has never once","missed an entrance.",0}},
+ {CB_HOSP,CA_MAME,CP_HEAD,20,CA_MISSY,CP_LIE,41,CF_SHAKE,SFX_CRY+1,0,"Mamesy",{"No. Please. One more night. She has never once","missed an entrance.",0}},   // cutscene redo 8: Mamesy is on screen for her own plea
  {CB_HOSP,CA_DOC,CP_HEAD,20,CA_MISSY,CP_LIE,41,0,0,0,"Dr. Okafor",{"I'll give you a few minutes with her.",0,0}},
  {CB_HOSP,CA_MAME,CP_HEAD,20,CA_MISSY,CP_LIE,41,0,SFX_TICK+1,0,0,{"Mamesy takes her sister's hand. The monitor keeps","its slow green rhythm.",0}},
  {CB_HOSP,CA_MAME,CP_HEAD,20,CA_MISSY,CP_LIE,41,0,0,0,"Mamesy",{"Hey, Mish. You still owe me a duet.",0,0}},
@@ -313,6 +313,7 @@ static const CsBeat csS6[]={
  {CB_FLAT,CA_MAME,CP_HEAD,20,CA_MISSY,CP_LIE,41,CF_SHAKE,SFX_CRY+1,0,"Mamesy",{"Mish? ...Mish.",0,0}},
  {CB_FLAT,CA_MAME,CP_HEAD,20,CA_MISSY,CP_LIE,41,0,0,0,0,{"Missy Jeanne is gone. For the last time, nobody is","taking her picture.",0}},
  {CB_BLACK,CA_NONE,CP_STAND,0,CA_NONE,CP_STAND,0,CF_FADEIN|CF_FADEOUT,0,0,0,{"Some stories do not get a second night.",0,0}},
+ {CB_BLACK,CA_NONE,CP_STAND,0,CA_NONE,CP_STAND,0,0,0,80,0,{0,0,0}},   // cutscene redo 8: a silent held black beat after the last card
 };
 // OPENING: the night it all started, live on TV (STORY MODE > TV SHOW & TELL plays this once, before chapter 1). Drunk judging, a gasp, the rush to the stage, the sick, the approval board falling off a cliff.
 static const CsBeat csS7[]={

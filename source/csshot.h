@@ -38,6 +38,15 @@ static const CsShot csShots[]={
     {6,7,0,   0, 70, 256,120,64, 440, 76,52},
     {6,8,0,   0, 80, 420,130,86, 520,134,88},
     {6,9,0,   0,220, 480,134,86, 256,120,64},
+    // plug shots (cutscene redo 8): THE PLUG (scene 6): a slow push into the room (0), the doctor (1), a push on Mamesy's plea (2), the doctor leaves (3), the held hand (4-5), a hard cut to the machines being switched off (6), a tight cut-in on "Mish? ...Mish." (8)
+    {6,0,0,   0,150, 256,120,64, 320,130,72},
+    {6,1,2,   0, 90, 360, 10,82, 440, 10,82},
+    {6,2,2,   0, 70, 450,  0,80, 620,  0,80},
+    {6,3,2,   0, 70, 380, 10,82, 320, 30,80},
+    {6,4,1,   0,120, 330,-40,86, 560,-30,88},
+    {6,5,1,   0,100, 560,-30,88, 760,-20,88},
+    {6,6,0,   0, 60, 560, 40,56, 700, 36,50},
+    {6,8,1,   0, 50, 900,  0,92,1024,  0,92},
     // the empty chair, HERE TODAY (scene 5, beat 9): from the singer, a slow drift down the front row to the one seat nobody takes
     {5,9,0,   0,170, 330,172,80, 700,121,97},
     // here today shots (cutscene redo 9): a slow push in and drift back on the singer for each sung line, tight pushes on the two high lines, then a long drift to the empty seat and a pull out to the wide shot
