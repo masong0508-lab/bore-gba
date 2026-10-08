@@ -40,6 +40,19 @@ static const CsShot csShots[]={
     {6,9,0,   0,220, 480,134,86, 256,120,64},
     // the empty chair, HERE TODAY (scene 5, beat 9): from the singer, a slow drift down the front row to the one seat nobody takes
     {5,9,0,   0,170, 330,172,80, 700,121,97},
+    // here today lyric slots (cutscene redo 8): beats 10-21 of scene 5 alternate a slow push in and a slow drift back on the singer
+    {5,10,1,  0,150, 330,  0,84, 450,  0,84},
+    {5,11,1,  0,150, 450,  0,84, 330,  0,84},
+    {5,12,1,  0,150, 330,  0,84, 450,  0,84},
+    {5,13,1,  0,150, 450,  0,84, 330,  0,84},
+    {5,14,1,  0,150, 330,  0,84, 450,  0,84},
+    {5,15,1,  0,150, 450,  0,84, 330,  0,84},
+    {5,16,1,  0,150, 330,  0,84, 450,  0,84},
+    {5,17,1,  0,150, 450,  0,84, 330,  0,84},
+    {5,18,1,  0,150, 330,  0,84, 450,  0,84},
+    {5,19,1,  0,150, 450,  0,84, 330,  0,84},
+    {5,20,1,  0,150, 330,  0,84, 450,  0,84},
+    {5,21,1,  0,150, 450,  0,84, 330,  0,84},
     // waking shots (cutscene redo 7): WAKING UP (scene 3): a slow push into the room (0), Mamesy's plea (4), the held hand (7), her grief (8), the monitor (11-12), a hard cut to the fingers (14), Missy's face (16), the shout (17), the coffee and lawyer (21), "I heard you" (28), the rain (29-30), a last push (33)
     {3,0,0,   0,150, 256,120,64, 300,120,70},
     {3,4,2,   0, 90, 560,  0,80, 620,  0,80},
