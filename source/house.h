@@ -159,9 +159,9 @@ static const signed char hhDx[4]={1,0,-1,0}, hhDy[4]={0,1,0,-1};
 // really uses) and palette s. hhObjUpdate hands slots to the Sims in view (nearest the middle of the screen first) and takes them back when a Sim
 // walks off, goes to work or school, or a passer-by leaves the map. Ids: members 0..HH_MAX-1, then the passers-by.
 #define OBJ_SLOTS 8   // (a household is 8 Sims: never more than 7 sprites on screen)
-#define INM_MAX 12   // inmates.h: the prison's population (one instance each; the looks they show are baked into the free member places)
+#define INM_MAX 24   // inmates.h: the prison's population (one instance each; the looks they show are baked into the free member places)
 #define HH_IDS    (HH_MAX+INM_MAX)   // sprite ids: 0..HH_MAX-1 the places, then one id per inmate (inmSetOf: the place whose baked sprites it shows)
-static int inmSetOf(int id); static int inmOn(int j); static int inmWalk(int j); static int inmNear(void); static void inmCalc(void);
+static int inmSetOf(int id); static const u16* inmPalOf(int j); static int inmOn(int j); static int inmWalk(int j); static int inmNear(void); static void inmCalc(void);
 static HhSim inmS[INM_MAX] EWRAM_BSS; static short inX[INM_MAX] EWRAM_BSS, inY[INM_MAX] EWRAM_BSS, inH[INM_MAX] EWRAM_BSS, inB[INM_MAX] EWRAM_BSS; static u8 inV[INM_MAX] EWRAM_BSS, inmSets EWRAM_BSS, inmSetPl[HH_MAX] EWRAM_BSS;
 #define UP_BUDGET 5                             // fresh sprite uploads per vblank (a full one is ~700 halfword writes); the rest wait a frame
 static signed char hhSlotOf[HH_IDS], hhSlotId[OBJ_SLOTS], hhSlotKey[OBJ_SLOTS];   // id -> slot, slot -> id, view*2+frame in the slot (-1: tiles not loaded)
@@ -199,7 +199,7 @@ static void hhUpTiles(volatile u16*d,int id,int v,int f,int t0){
         if(src){ for(int k=0;k<16;k++) q[k]=src[k]; } else { for(int k=0;k<16;k++) q[k]=0; }
     }
 }
-static inline const u16* hhPalOf(int id){ return hhPal[inmSetOf(id)]; }
+static inline const u16* hhPalOf(int id){ return id>=HH_MAX?inmPalOf(id-HH_MAX):hhPal[id]; }   // (an inmate: its body's palette with its own skin and hair colour, inmates.h)
 
 // ---- premade families (original characters) ----
 typedef struct { const char* name; u8 look[LK_N]; u8 stage, asp, sign; } HhPre;   // the whole look (the first families only set the base picks); traits come from a sign

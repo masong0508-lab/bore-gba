@@ -1,9 +1,9 @@
 // inmates.h - INMATES: the prison has a population of voxel Sims in prison clothes (the same kind of character work as everyone else, baked like a household member, a hardware sprite on screen).
 //
-// POPULATION  OPTIONS > PLAY > BORES > INMATES: LOW 4, MEDIUM 8 (the default), HIGH 12 (inmPop, XO_INMATES). Read when you walk into the prison. More inmates than the household has places for:
+// POPULATION  OPTIONS > PLAY > BORES > INMATES: LOW 8, MEDIUM 16 (the default), HIGH 24 (inmPop, XO_INMATES). Read when you walk into the prison. More inmates than the household has places for:
 //             an inmate is NOT a household member. Each one is an instance in inmS[INM_MAX] (an HhSim that walks with the household's own path code) and has its own sprite id (HH_MAX + j).
 // LOOKS       An inmate only needs the BAKED SPRITES of a look. Those live in the free member places (a place past the household, or a member who is OUT because of the sentence: prHeld), up to HH_MAX of
-//             them, so the sprite pool holds the same as a full household. inmSets looks are baked (one per free place, at most the population); inmate j wears look j % inmSets, so with 12 inmates and
+//             them, so the sprite pool holds the same as a full household. inmSets looks are baked (one per free place, at most the population); inmate j wears look j % inmSets, so with 24 inmates and
 //             7 places some of them are look-alikes. The names, the numbers ("#4821") and where they walk are their own. A household of 7 that is all at the prison leaves no place: no inmates then.
 //             Looks are a hash of the number, so it is the same people every visit.
 // ATTIRE      The creator's colour rows have no orange, so the uniform colours are set right after setColors (inmColors) and the pattern is painted into the voxels right after buildLook (inmDress).
@@ -12,7 +12,7 @@
 // LIFE        They wander the compound, stop for 3 to 7 seconds, go on, and stand still while you talk to one. R next to one: TALK / JOKE / COMPLIMENT / HIGH FIVE (the neighbour menu, titled INMATE).
 //             They are not in the relationship tables and do not fight yet.
 // MEMORY      inmS: INM_MAX x about 280 bytes of EWRAM, plus about 100 bytes of flags, timers and screen positions. Nothing here is saved. Hardware: at most OBJ_SLOTS (8) Sims are drawn at once, the nearest.
-static const u8 inmPop[3]={4,8,12};
+static const u8 inmPop[3]={8,16,24};
 static u8 inmPl[INM_MAX] EWRAM_BSS;     // 1 = this inmate stands on the lot (placed on its first tick)
 static u16 inmWt[INM_MAX] EWRAM_BSS;    // steps to stand still before the next walk
 static u8 inmWas EWRAM_BSS;             // the inmates were set up on this lot (leaving the prison hands the places back)
@@ -20,12 +20,14 @@ static u8 inmWas EWRAM_BSS;             // the inmates were set up on this lot (
 static u8 inR(int j,int k){ u32 x=(u32)(j*97+k*31+11)*2654435761u; x^=x>>15; x*=2246822519u; return (u8)(x>>24); }   // a stable pseudo-random byte for look / inmate j, trait k
 static int inmOut(int k){ return k&3; }   // the outfit of look k: 0 jumpsuit, 1 stripes, 2 blues, 3 orange pants and a white tank
 
+static int inmSkin(int k){ return (int)(inR(k,4)%15); }   // the skin colour index of look / inmate k (of the first 15 natural and fantasy tones)
+static int inmHair(int k){ return (int)(inR(k,9)%NSW); }   // the hair colour index
 static void inmLook(int k,u8*lk,u8*stg){
     static const u8 shp[12]={0,1,3,4,5,6,17,18,19,20,21,22}, cut[6]={0,3,4,6,0,3};   // (the shapes hhRandLook uses) / CROP BALD SPIKY FLAT TOP
     int o=inmOut(k);
     for(int i=0;i<LK_N;i++) lk[i]=0;
-    lk[LK_SHAPE]=shp[inR(k,3)%12]; lk[LK_SKIN]=(u8)(inR(k,4)%15); lk[LK_EYES]=(u8)(inR(k,5)%NEYE); lk[LK_MOUTH]=(u8)(inR(k,6)%NMOUTH);
-    lk[LK_EARS]=(u8)(1+(inR(k,7)&1)); lk[LK_HSTYLE]=cut[inR(k,8)%6]; lk[LK_HCOL]=(u8)(inR(k,9)%NSW);
+    lk[LK_SHAPE]=shp[(k*5)%12]; lk[LK_SKIN]=(u8)inmSkin(k); lk[LK_EYES]=(u8)(inR(k,5)%NEYE); lk[LK_MOUTH]=(u8)(inR(k,6)%NMOUTH);
+    lk[LK_EARS]=(u8)(1+(inR(k,7)&1)); lk[LK_HSTYLE]=cut[(k+inR(k,8))%6]; lk[LK_HCOL]=(u8)inmHair(k);
     lk[LK_BROW]=(u8)(inR(k,10)%6); lk[LK_EYECOL]=(u8)(inR(k,11)%NSW);
     lk[LK_GLASS]=(inR(k,12)%5==0)?1:0; lk[LK_BEARD]=(inR(k,13)%3==0)?(u8)(1+(inR(k,14)&1)):0;
     lk[LK_TOP]=0; lk[LK_BOT]=0; lk[LK_TOPSTY]=(u8)(o==3?2:1); lk[LK_BOTSTY]=0; lk[LK_SHOE]=(u8)((o==0||o==3)?1:2); lk[LK_HAT]=0; lk[LK_PATTERN]=0;
@@ -39,6 +41,25 @@ static void inmColors(int k){   // after setColors: the uniform colours (slot 6 
     static const u16 tc[4]={RGB(31,14,2),RGB(30,30,30),RGB(9,14,26),RGB(30,30,30)}, bc[4]={RGB(31,14,2),RGB(30,30,30),RGB(6,8,17),RGB(31,14,2)};
     int o=inmOut(k); base[6]=tc[o]; base[7]=bc[o];
     for(int i=6;i<8;i++){ sT[i]=base[i]; sL[i]=shade(base[i],12); sR[i]=shade(base[i],9); }
+}
+
+// COLOURS     More inmates than baked bodies (at most 7 of those): each inmate j has its own SKIN and HAIR colour on top of its body. The tiles are shared, the palette is not (a sprite picks
+//             its palette bank, hhObjUpdate loads hhPalOf(id) into it), so this costs 32 bytes of palette per inmate on screen and no sprite memory at all. inmPalOf rebuilds it from the body's own
+//             palette: every entry that is one of the body's skin or hair shades (full, left face, right face, brows ...) becomes the same shade of the inmate's colour.
+static u16 inmPalBuf[16];
+static int inmShadeOf(u16 c,u16 b0){   // is c a shade of colour b0 (n/16 of it)? the n (1..16), or 0 when it is not
+    int r=c&31, g=(c>>5)&31, bl=(c>>10)&31, best=0, bd=1<<30;
+    for(int n=5;n<=16;n++){ u16 t=shade(b0,n); int d=fxAbs(r-(t&31))+fxAbs(g-((t>>5)&31))+fxAbs(bl-((t>>10)&31)); if(d<bd){ bd=d; best=n; } }
+    return bd<=3?best:0;
+}
+static const u16* inmPalOf(int j){   // hhObjUpdate: the palette of inmate j (hhPalOf)
+    const u16*src=hhPal[inmSetOf(HH_MAX+j)]; int k=j%(inmSets?inmSets:1);
+    u16 s0=skinTones[inmSkin(k)], h0=hairTones[inmHair(k)], s1=skinTones[inmSkin(j+inmSets*3)], h1=hairTones[inmHair(j+inmSets*3)];
+    if(j<inmSets){ s1=s0; h1=h0; }   // the first inmate of each body is the body as baked
+    for(int i=0;i<16;i++){ u16 c=src[i]; inmPalBuf[i]=c; if(!i||(s1==s0&&h1==h0)) continue;
+        int ns=inmShadeOf(c,s0), nh=inmShadeOf(c,h0);
+        if(ns&&(!nh||s0!=h0)){ inmPalBuf[i]=shade(s1,ns); } else if(nh){ inmPalBuf[i]=shade(h1,nh); } }
+    return inmPalBuf;
 }
 static int inmSetOf(int id){ if(id<HH_MAX) return id; return inmSets?inmSetPl[(id-HH_MAX)%inmSets]:0; }   // the place whose baked sprites this sprite id shows
 static int inmOn(int j){ return j>=0&&j<inmN&&inmPl[j]&&!curFl&&prHere(); }   // inmate j is on the lot
