@@ -2794,7 +2794,7 @@ static void trickName(int hs,int grab,int perfect){
 }
 static void swName(void){ int n=0; while(lnBuf[n]) n++; if(n>15) return; for(int i=n;i>=0;i--) lnBuf[i+7]=lnBuf[i]; const char*q="SWITCH "; for(int i=0;i<7;i++) lnBuf[i]=q[i]; }
 static void hhStart(void); static void hhTick(void); static int hhSocR(int useLabel); static int hhCallFloors(void);   // house.h (included further down, next to the drawing it hooks into)
-static void drawCounter(int sx,int sy,int t); static void dbgMenu(void); static void wpPre(u16*kp,u16*pp); static void fgPre(u16*kp,u16*pp); static int slfMenu(void); static void slfFx(void); static int slfPose(void); static void fgDraw(void); static void wpDraw(void); static void wpConfiscate(void);   // weapons.h
+static void drawCounter(int sx,int sy,int t); static void dbgMenu(void); static void wpPre(u16*kp,u16*pp); static void fgPre(u16*kp,u16*pp); static int slfMenu(void); static void slfFx(void); static int slfPose(void); static void fgDraw(void); static int fgGate(u16*pr); static int fgRcNow(int*r); static void wpDraw(void); static void wpConfiscate(void);   // weapons.h
 // ---- COLLECTIBLES (like THPS): the letters S K A T E and one hidden tape float over the floor of a skate lot. Touch one to take it. ----
 // Nothing is saved and no map tile is used: lifeInit scatters them over empty floor every run (a new spot each time), so they cost a few bytes of EWRAM
 // and no sprite art (they are drawn in code). A letter counts like a combo letter (sktAward: five make SKATE). Only on lots that have something to skate.
@@ -3545,6 +3545,10 @@ static void livePatch(int dx,int dy){
     }
     for(int m=0;m<hhN;m++){ unsigned sg=hhSig(m);   // household members: same as the player
         if(dx||dy||sg!=hhOldSig[m]){ HhR r; hhRc(m,&r); rcAdd(r.x0,r.y0,r.x1,r.y1); if(hhOld[m].x1>hhOld[m].x0) rcAdd(hhOld[m].x0-dx,hhOld[m].y0-dy,hhOld[m].x1-dx,hhOld[m].y1-dy); hhOld[m]=r; hhOldSig[m]=sg; } }
+    { static short fgO[4] EWRAM_BSS; static u8 fgOh EWRAM_BSS; int r[4]; int on=fgRcNow(r);   // fight.h overlays (swing, guard, fireball, K.O. banner): redraw their box now and where it was
+      if(fgOh) rcAdd(fgO[0]-dx,fgO[1]-dy,fgO[2]-dx,fgO[3]-dy);
+      if(on){ rcAdd(r[0],r[1],r[2],r[3]); for(int i=0;i<4;i++) fgO[i]=(short)r[i]; }
+      fgOh=(u8)on; }
     int bob=(!lhave)?((lfr>>4)&1):-1; if(bob!=pBob) liveBoardRc();
     for(int i=0;i<nrc;i++) drawRoomRect(rcs[i].x0,rcs[i].y0,rcs[i].x1,rcs[i].y1,0);
 #ifdef SELFTEST
@@ -3873,7 +3877,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
         }
         if(lcamF>0) camStep(steps,k,pr);
         else {
-            if(pkHome<0) for(int s=0;s<steps;s++) lifeStep(k,s?0:pr,fr++);   // catch up if a frame took long; button presses count once   (peeking at another floor: the world holds still)
+            if(pkHome<0) for(int s=0;s<steps;s++){ u16 q=s?0:pr; if(fgGate(&q)) lifeStep(k,q,fr++); }   // (fgGate: fight.h hit-stop and K.O. slow motion)   // catch up if a frame took long; button presses count once   (peeking at another floor: the world holds still)
             if(lcamPend){ lcamPend=0; if(sCam){ lcamF=1; cview=vbase; } }
         }
         if(prGo&&!ed){   // prison.h: busted (to the cell), released or switched (home): the live lot changes
