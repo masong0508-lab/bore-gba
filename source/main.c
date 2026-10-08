@@ -2086,7 +2086,7 @@ static void hurt(int sev,int kind){
         if(rnd8()<128){ if(lhp>15) lhp=15; lstun=240; lsp=0; lgrind=0; sfxPlay(SFX_NEARLY); lnote="CLOSE CALL"; lnoteT=120; }
         else die(kind==2?SFX_DEATH:SFX_SCREAM,kind==2?3:2);
     }
-    else if(sev>=18){ lstun=150; lsp=0; lgrind=0; sfxPlay(SFX_GROAN); lnote="OW"; lnoteT=90; }     // groaning, struggling up
+    else if(sev>=18){ lstun=150; lsp=0; lgrind=0; voxPlay(V_losing_the_fight); lnote="OW"; lnoteT=90; }     // groaning, struggling up
     else if(kind==1){ lstun=BAIL_STUN; lbailT=BAIL_STUN; voxPlay((rnd8()&1)?V_cry:V_cry_after_bad_event); }                                                  // minor bail: crying
     else if(kind==2){ lstun=20; sfxPlay(SFX_HIT); lnote="OOF"; lnoteT=30; }                          // grunts and hits
     if(!ldead&&lhp<=0) die(SFX_DEATH,5);                                                              // the meter ran out (hits add up)
@@ -2096,7 +2096,7 @@ static void fightHurt(int dmg){
     if(xo[XO_HURT]==1) dmg/=2;                                              // GENTLE
     static u8 vxLosing; if(lhp>=60) vxLosing=0;
     lhp-=dmg; lsp=0; lgrind=0; sfxPlay(SFX_HIT);
-    if(lhp<=0){ lhp=25; lstun=240; sfxPlay(SFX_GROAN); voxPlay(V_lost_the_fight); lnote="KNOCKED OUT"; lnoteT=120; moodEvent(M_HURT_BIG); htKnocked(); }
+    if(lhp<=0){ lhp=25; lstun=240; voxPlay(V_lost_the_fight); lnote="KNOCKED OUT"; lnoteT=120; moodEvent(M_HURT_BIG); htKnocked(); }
     else { if(lhp<35&&!vxLosing){ vxLosing=1; voxPlay(V_losing_the_fight); }   // still on your feet, but losing
         static char fhB[16] EWRAM_BSS; char*e=simCat(fhB,dmg>=30?"OUCH ":"OW "); *e++='-'; simCatN(e,dmg); if(lstun<30) lstun=30; lnote=fhB; lnoteT=40; }   // and how much
 }
@@ -2982,7 +2982,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
               if(lchill==900&&lnoteT<=0){ lnote="THE MUNCHIES"; lnoteT=60; } if(!lchill&&lnoteT<=0){ lnote="BACK TO NORMAL"; lnoteT=40; } }
           if(we&&lfr%we==0&&lbl<100) lbl++; }
         if(lhp<HP_MAX&&lfood>=25&&lstun<=0&&lfr%(htInjured()?HP_REGEN*4:HP_REGEN)==0) lhp++;   // HEALTH creeps back while you are fed and on your feet
-        if(lfood==0&&lfr%300==0){ lfood=15; lstun=120; lsp=0; lgrind=0; sfxPlay(SFX_GROAN); lnote="FAINTED FROM HUNGER"; lnoteT=90; moodEvent(M_FAINT); }
+        if(lfood==0&&lfr%300==0){ lfood=15; lstun=120; lsp=0; lgrind=0; voxPlay(V_death_of_hunger); lnote="FAINTED FROM HUNGER"; lnoteT=90; moodEvent(M_FAINT); }
         { static u8 vxH, vxP; if(lfood<SIM_LOW){ if(!vxH){ vxH=1; voxNag(V_im_hungryrururyry); } } else if(lfood>=40) vxH=0;   // the hunger and the bladder speak up once each time they run low
           if(lbl>=80){ if(!vxP){ vxP=1; voxNag(V_need_to_pee); } } else if(lbl<50) vxP=0; }
         if(lbl>=100){ lbl=0; lstun=90; lsp=0; lgrind=0; lscore=lscore>100?lscore-100:0; sfxPlay(SFX_CRY); lnote="ACCIDENT"; lnoteT=90; moodEvent(M_ACCIDENT); }
