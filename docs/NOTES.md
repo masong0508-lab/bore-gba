@@ -837,3 +837,6 @@ OPTIONS > PLAY > BORES > INMATES: LOW 8, MEDIUM 16 (default), HIGH 24 (read when
 
 ## ALIVE tier 2: reaction pops
 The Sim you control reacts to big moments with a small body move (`alvPopSet` in mood.h, drawn in `playerCalc` / `drawPlayerNow` in main.c, the picture only). A hop for joy (3 px, 18 steps) on a want met, a skill level, a paid shift, a promotion, a combo or finding the board. A head shake (a sideways jitter that settles, 24 steps) on a demotion or unpaid bills. A flinch (a quick duck and recoil, 14 steps) on a bail, a groan, a close call, a fear or a BOO. Plain landed tricks do not hop, so it stays quiet. The shadow stays put. Two bytes of EWRAM for the reaction and two for the offsets.
+
+## ALIVE tier 3: squash and slump
+The Sim you control is squashed towards the feet for a few frames: on a skate landing (harder drops squash more, then it springs back over the crouch) and at the end of a reaction hop. It is also held squashed while standing still when SAD (2 rows), worn out (1 row) or asleep at the bed or sofa (4 rows). `blitSq` in main.c drops rows evenly from the baked sprite, so no new frames and no extra RAM (one byte of EWRAM, `plSq`). Not done: tilting the sleeper to lie down, which needs a rotated blit tested against the bed's direction.
