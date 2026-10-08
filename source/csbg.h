@@ -39,7 +39,7 @@ static void csBgFx(int bg,int t,int fx){
         break;
     case CB_HOSP: csGlow(31,45,26,22,(((t/2)%32)<4)?1:2,0x03E0); break;                                  // the monitor's green, flaring on the beat
     case CB_FLAT: csGlow(31,45,26,22,2,0x001F); break;                                                   // the same glow, red
-    case CB_BACK: for(int i=0;i<12;i++) if(((t>>4)+i)&3) csGlow(63+i*10,19,5,5,2,CSG_WARM); break;      // the bulbs round the mirror
+    case CB_BACK: if(csMood<=0) for(int i=0;i<12;i++) if(((t>>4)+i)&3) csGlow(63+i*10,19,5,5,2,CSG_WARM); break;      // the bulbs round the mirror
     default: break;
     }
 }
@@ -50,6 +50,8 @@ static void csDk(int y,int x0,int x1,int s){                                    
 }
 static void csVig(int bg){
     if(bg==CB_RATE||bg==CB_BLACK) return;
+    if(csMood>0){ int s=csMood>1?1:2; for(int y=12;y<116;y++) csDk(y,0,SW,s); }                       // cutscene redo 12: the lights go down
+    else if(csMood<0){ for(int y=12;y<116;y++) csGlowRow(0,SW,y,3,CSG_ALL); }                           // ...or the whole world turns up
     for(int y=12;y<116;y++){ int edge=(y<14||y>=114);
         if(edge) csDk(y,10,230,3);
         csDk(y,0,4,2); csDk(y,4,10,3); csDk(y,230,236,3); csDk(y,236,240,2);

@@ -10,6 +10,7 @@ typedef struct { u8 bg, a, pa, ax, b, pb, bx, fx, sfx, dur; const char* who; con
 typedef struct { const CsBeat* b; u8 n; } CsScene;
 
 static int csOx, csOy;   // the shake
+static int csMood=0, csLite=0;   // cutscene redo 12: the picture's mood (-1 brighter, 0 normal, 1 dimmer, 2 much dimmer) and a lightning flash in the hospital window
 static int csDir=1, csTalking=0, csMirPose=CP_HEAD;   // cutscene redo 10: which way POINT points (+1 right), the speaker's mouth moves while the caption types, the mirror reflection's pose
 #include "cscam.h"
 static void csR(int x,int y,int w,int h,u16 c){ csCamR(x+csOx,y+csOy,w,h,c); }
@@ -87,6 +88,9 @@ static void csBg(int bg,int t,int fx){   // the picture area: y 12 .. 115
         csR(110,80,100,10,RGB(29,29,30)); csR(110,90,100,6,RGB(14,18,22)); csR(106,70,4,40,RGB(20,22,22)); csR(210,76,4,34,RGB(20,22,22));             // the bed
         csR(14,30,34,30,RGB(2,3,4)); { int py=45; for(int x=0;x<32;x++){ int ph=(x+t/2)%32; int y=py; if(bg!=CB_FLAT){ if(ph==14) y=py-9; else if(ph==15) y=py+6; } csR(15+x,y,1,1,bg==CB_FLAT?RGB(31,8,6):RGB(8,31,12)); } }   // the monitor
         csR(28,60,4,50,RGB(16,18,18)); csR(20,106,20,4,RGB(16,18,18)); csR(226,24,2,40,RGB(20,22,22)); csR(222,24,10,12,RGB(24,29,31));
+        csR(60,20,42,44,RGB(10,12,14)); csR(62,22,38,40,csLite?RGB(27,28,31):RGB(4,7,15)); csR(58,64,46,3,RGB(14,16,17));   // the window (cutscene redo 12): rain on the glass, a lightning flash
+        if(!csLite) for(int i=0;i<14;i++){ int ry=22+((t*3+i*17)%36); csR(63+((i*11)%36)-(ry-22)/10,ry,1,3,RGB(14,20,29)); }
+        csR(80,22,2,40,RGB(10,12,14)); csR(62,41,38,2,RGB(10,12,14));
         break;
     case CB_RATE: {   // the approval board: her line climbs for years, then falls off a cliff (drawn a bit more every frame)
         csR(0,12,SW,104,RGB(2,3,6)); csR(14,18,212,92,RGB(1,2,4));
@@ -104,7 +108,7 @@ static void csBg(int bg,int t,int fx){   // the picture area: y 12 .. 115
         break; }
     case CB_BACK:
         csGrad(12,104,14,6,10,8,3,7); csR(0,106,SW,10,RGB(8,5,4));
-        csR(58,18,124,66,RGB(8,8,12)); csR(61,21,118,60,RGB(14,20,26)); for(int i=0;i<12;i++) csD(63+i*10,19+((i*3)&1),2,(((t>>4)+i)&3)?RGB(31,28,10):RGB(20,16,5));   // the mirror and its bulbs
+        csR(58,18,124,66,RGB(8,8,12)); csR(61,21,118,60,RGB(14,20,26)); for(int i=0;i<12;i++) csD(63+i*10,19+((i*3)&1),2,csMood>0?RGB(8,6,2):(((t>>4)+i)&3)?RGB(31,28,10):RGB(20,16,5));   // the mirror and its bulbs
         csR(46,84,148,6,RGB(16,10,7)); csR(40,90,4,16,RGB(16,10,7)); csR(196,90,4,16,RGB(16,10,7));
         csD(214,28,9,RGB(28,28,28)); csD(214,28,7,RGB(5,5,8)); csLn(214,28,214,22,RGB(28,28,28)); csLn(214,28,218,30,RGB(28,28,28));          // the clock
         break;
@@ -120,9 +124,17 @@ static int csIsq(int v){ int w=0; while((w+1)*(w+1)<=v) w++; return w; }
 
 static void csDraw(const CsBeat*b,int t,int shown){   // one frame of one beat (shown: how many letters of the caption are typed)
     { int tot=0; for(int i=0;i<3&&b->t[i];i++) tot+=csLen(b->t[i]); csTalking=shown<tot; csMirPose=(!b->a&&b->pa)?b->pa:CP_HEAD; }   // cutscene redo 10
+    { int sc=csCurSc, bi=csCurBi; csMood=0; csLite=0;   // cutscene redo 12: the lights go down for the news (4) and the plug (6), and the world turns up when she wakes (3)
+      if(sc==4&&bi>=21) csMood=1; if(sc==6&&bi>=7) csMood=bi>=9?2:1; if(sc==3&&bi>=29) csMood=-1;
+      if(sc==6&&bi==9&&((t<10)||(t>=16&&t<20))) csLite=1; }
     csOx=csOy=0; if(b->fx&CF_SHAKE){ csOx=(rnd8()%5)-2; csOy=(rnd8()%5)-2; }
     rect(0,0,SW,SH,0);
-    csFxNow=b->fx; csCamAim(b,t); csShotApply(b,t); clipSet(0,12,SW,116); csBg(b->bg,t,b->fx); csBgFx(b->bg,t,b->fx);
+    csFxNow=b->fx; csCamAim(b,t); csShotApply(b,t);
+    int cdx=0, cdy=0; if(csCz>=300){ int ox=csCx, oy=csCy, hw=(120*256)/csCz, hh=(52*256)/csCz; csCx+=csWv(t,260)/6; csCy+=csWv(t,190)/9;   // cutscene redo 12: the camera never sits perfectly still (undone at the end of the frame)
+        if(csCx<hw) csCx=hw; if(csCx>240-hw) csCx=240-hw; if(csCy<12+hh) csCy=12+hh; if(csCy>116-hh) csCy=116-hh; cdx=csCx-ox; cdy=csCy-oy; }
+    clipSet(0,12,SW,116); csBg(b->bg,t,b->fx); csBgFx(b->bg,t,b->fx);
+    if(csCurSc==1&&b->bg==CB_HOME&&(csCurBi==4||csCurBi==5)){ int on=csCurBi==5||((t>>3)&1); csR(175,89,7,3,on?RGB(10,20,31):RGB(3,4,8)); if(on) csGlow(178,90,12,7,2,CSG_COOL); }   // cutscene redo 12: her phone lights up on the bar cart
+    if(csCurSc==4&&b->bg==CB_BACK&&(csCurBi==17||csCurBi==19)&&b->b){ int px=b->bx*4+11; csR(px,84,4,7,RGB(2,2,4)); csR(px+1,85,2,5,((t>>3)&1)?RGB(12,24,31):RGB(5,12,20)); if((t>>2)&1){ csR(px-3,83,1,5,RGB(26,26,26)); csR(px+6,83,1,5,RGB(26,26,26)); } }   // the phone buzzing in her hand
     int ay=110, by=110;
     if(b->bg==CB_HOSP||b->bg==CB_FLAT){ if(b->pb==CP_LIE||b->pb==CP_STIR) by=98; }
     if(b->bg==CB_SITE){ if(b->pb==CP_CLIMB) by=110-(t/3>48?48:t/3); if(b->pb==CP_FLAIL){ by=62+t*t/20; if(by>110) by=110; } if(b->pb==CP_LIE) by=111; }
@@ -136,6 +148,7 @@ static void csDraw(const CsBeat*b,int t,int shown){   // one frame of one beat (
     int y0=b->who?129:124; if(b->who) text(12,119,b->who,GOLD,1);
     static char buf[64]; int left=shown;
     for(int i=0;i<3&&b->t[i];i++){ int n=csLen(b->t[i]); int k=left<n?left:n; if(k<=0) break; for(int j=0;j<k;j++) buf[j]=b->t[i][j]; buf[k]=0; text(12,y0+i*9,buf,b->who?WHITE:RGB(22,26,31),1); left-=n; if(left<=0) break; }
+    csCx-=cdx; csCy-=cdy;
 }
 
 // ---- the scenes (TV SHOW & TELL): 0-3 close chapters 1-4, 4 is the news that opens chapter 5, 5 closes the story ----
@@ -313,7 +326,7 @@ static const CsBeat csS6[]={
  {CB_HOSP,CA_MAME,CP_HEAD,20,CA_MISSY,CP_LIE,41,0,SFX_TICK+1,0,0,{"The machines are switched off, one at a time. The","room gets very quiet.",0}},
  {CB_FLAT,CA_MAME,CP_SHOCK,20,CA_MISSY,CP_LIE,41,CF_AUTO,SFX_DEATH+1,70,0,{"The green line goes flat.",0,0}},
  {CB_FLAT,CA_MAME,CP_CRY,20,CA_MISSY,CP_LIE,41,CF_SHAKE,SFX_CRY+1,0,"Mamesy",{"Mish? ...Mish.",0,0}},
- {CB_FLAT,CA_MAME,CP_SLUMP,20,CA_MISSY,CP_LIE,41,0,0,0,0,{"Missy Jeanne is gone. For the last time, nobody is","taking her picture.",0}},
+ {CB_FLAT,CA_MAME,CP_SLUMP,20,CA_MISSY,CP_LIE,41,0,SFX_THUNDER+1,0,0,{"Missy Jeanne is gone. For the last time, nobody is","taking her picture.",0}},
  {CB_BLACK,CA_NONE,CP_STAND,0,CA_NONE,CP_STAND,0,CF_FADEIN|CF_FADEOUT,0,0,0,{"Some stories do not get a second night.",0,0}},
  {CB_BLACK,CA_NONE,CP_STAND,0,CA_NONE,CP_STAND,0,0,0,80,0,{0,0,0}},   // cutscene redo 8: a silent held black beat after the last card
 };
