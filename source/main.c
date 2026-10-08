@@ -4982,6 +4982,7 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "prison.h"         // PRISON: when the cops catch you, the sentence depends on your record; you serve it in a prison of the town
 #include "cutscene.h"       // CUTSCENES: scripted scenes (TV SHOW & TELL)
 #include "story.h"          // STORY MODE: chapters with goals (NEW GAME > STORY MODE)
+#include "storylot.h"      // STORY LOTS: every story starts in its own furnished house (storyHome)
 #include "career.h"         // CAREER TRACKS: the screen on the phone (the tracks are in sims.h)
 #include "tvclip.h"       // the TV's 3 second clips (tvClipRun)
 #include "skills.h"         // SKILLS (life and skater) and the home pack items: TV, bookshelf, coffee maker, aquarium, treadmill
@@ -5086,7 +5087,7 @@ static int newGame(int slot){   // 1 = it started (and ended: back to the main m
     stOff();
     if(c==1&&hhMoveIn(&hhFams[f])>0){ hhSwap(&hhM[0]); hhRemove(0); }   // you are the family's first Sim (who you were leaves)
     else if(c==2) lookTrueRandomMe();
-    else if(c==3){ if(!storyLead(story)) lookTrueRandomMe(); storySetup(story); }   // STORY MODE: you play the story's own pre-made lead (no creator), then who you live with, and chapter 1
+    else if(c==3){ if(!storyLead(story)) lookTrueRandomMe(); storySetup(story); storyHome(story); }   // STORY MODE: you play the story's own pre-made lead (no creator), then who you live with, and chapter 1
     hhSave(); sprKey=0; if(sgPid) sgSave();   // (the save file exists from the first minute)
     if(c==0){ creatureEditor(); if(sgPid) homePick(); }   // make your Sim, then a new player picks a home (homepick.h), then GO LIVE LIFE (a story has its own pre-made lead: story.h stLead)
     else lifeMode(0);
