@@ -366,7 +366,7 @@ static void storyJoin(void){   // floors step 10: pause menu > STORY with no sto
     stEnter();   // the first chapter card
 }
 static void stqPage(void){   // the journal page of TV SHOW & TELL (L R): what this chapter asks, live
-    if(stCh>=5){ text(14,23,"THE END",GOLD,1); return; }
+    if(stCh>=5){ text(14,23,"THE END, IS HERE TODAY",GOLD,1); return; }
     text(14,23,stChs[stId][stCh].nm,GOLD,1);
     text(14,34,stTvBrief[stCh][0],RGB(20,26,31),1); text(14,43,stTvBrief[stCh][1],RGB(20,26,31),1);
     rect(14,54,212,1,RGB(14,26,31)); text(14,58,"ALL OF THESE AT THE SAME TIME",RGB(17,29,31),1);
@@ -461,7 +461,7 @@ static void stRunModal0(void){
         if(kind==2){ char b[40]; char*e=slCat(b,"DONE  +"); e=slNum(e,stRew(stCh-1)); slCat(e," SIMOLEONS  +25 JENES"); text(60,70,b,RGB(10,28,12),1); stSparkle(cnt,12,26,216,100); }
         if(kind==2&&stGotN){ static char gb[60] EWRAM_BSS; char*e=simCat(gb,"UNLOCKED  "); e=simCat(e,stGotP[0]); if(stGotN>1){ e=simCat(e,"  AND  "); simCat(e,stGotP[1]); } if(tw(gb,1)>206) simCat(gb,"UNLOCKED  2 NEW THINGS"); text(16,77,gb,GOLD,1); }   // (what this chapter opened: a BUY reward and / or a slider pack)
         rect(14,84,212,1,RGB(14,26,31));
-        text(16,90,kind==2?(end?"THE END":"NEXT CHAPTER"):(end?"THE END":c->goal==SG_MULTI?"ALL OF THESE AT ONCE":"YOUR GOAL"),GOLD,1);
+        text(16,90,kind==2?(end?"THE END, IS HERE TODAY":"NEXT CHAPTER"):(end?"THE END, IS HERE TODAY":c->goal==SG_MULTI?"ALL OF THESE AT ONCE":"YOUR GOAL"),GOLD,1);
         if(c->goal!=SG_MULTI||end) text(16,102,end?(kind==2?"YOUR STORY GOES ON  KEEP PLAYING":"YOUR STORY GOES ON  KEEP PLAYING"):c->nm,WHITE,1);
         if(!end&&c->goal!=SG_MULTI){ char b[16]; if(stProg(c,b)) text(16,112,b,RGB(20,26,31),1); }
         if(stId==STY_TVSHOW&&!end&&stCh<5) stqList(16,99,8);   // (the goals of the chapter, ticked as they hold)   // (what this chapter is about)
