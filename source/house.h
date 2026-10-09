@@ -833,13 +833,14 @@ static void hhTick(void){   // once per logic step in the life game
 // The player presses R next to a household Sim (a menu like the Sims' pie menu); free will makes Sims start them too, with each other and
 // with you. Whether it is ACCEPTED depends on how the target feels about the one asking (daily score), its traits, its mood and age.
 // Accepted: both feel better about each other and their SOCIAL (and sometimes FUN) fills. Rejected: the asker is embarrassed, and likes the
-// other a bit less. Mean ones (ARGUE, INSULT, SLAP) always land: the target likes the asker less.
+// other a bit less. Mean ones (ARGUE, INSULT, TEASE, SHOVE, SLAP, PUNCH) can be done to anyone at any time, friend, family or stranger (the physical ones
+// teens and up), and always land: the target likes the asker less.
 // Statuses follow the scores: FRIEND (daily 50+), BEST FRIEND (daily and lifetime 70+), ENEMY (daily -50 or less), and the romance
 // steps CRUSH (a flirt was accepted), IN LOVE (kissed, and lifetime 60+ both ways), STEADY (asked and said yes). Daily drifts back to
 // lifetime over the hours, so friendships need keeping up.
 enum { SA_ROM=1, SA_MEAN=2, SA_CRUSH=4, SA_LOVE=8, SA_KID=16, SA_PIPE=32, SA_WED=64, SA_FAM=128 };   // SA_WED: going steady, not married; SA_FAM: a couple, room for a baby (family.h)   // SA_PIPE: grown-ups, with a water pipe in the house
 typedef struct { const char* name; signed char dA,lA,dR,lR; u8 soc,fun; signed char minD,maxD; u8 base,tr,fl,icA,icR; const char*say,*yes,*no; } SocAct;
-enum { SC_TALK, SC_JOKE, SC_COMPL, SC_HIGH5, SC_HUG, SC_TRICK, SC_FLIRT, SC_KISS, SC_STEADY, SC_SORRY, SC_ARGUE, SC_INSULT, SC_SLAP, SC_PUNCH, SC_PASS, SC_PROPOSE, SC_BABY, SC_N };
+enum { SC_TALK, SC_JOKE, SC_COMPL, SC_HIGH5, SC_HUG, SC_TRICK, SC_FLIRT, SC_KISS, SC_STEADY, SC_SORRY, SC_ARGUE, SC_INSULT, SC_SLAP, SC_PUNCH, SC_PASS, SC_PROPOSE, SC_BABY, SC_TEASE, SC_SHOVE, SC_N };
 static const SocAct socT[SC_N]={
   //  name           dA  lA  dR  lR soc fun minD maxD base trait   flags                icon yes  icon no     you say  they did        they did not
     {"TALK",          3,  1, -2,  0, 22,  0,-100, 100, 85,TR_OUT, SA_KID,              IC_TALK, IC_BAIL, "BLAH BLAH","CHATTED",     "IGNORED YOU"},
@@ -853,12 +854,14 @@ static const SocAct socT[SC_N]={
     {"GO STEADY",    15, 10,-15, -6, 22,  0,  70, 100, 65,TR_NICE,SA_ROM|SA_LOVE,      IC_HEART,IC_BAIL, "BE MINE",  "SAID YES",      "SAID NO"},
     {"APOLOGIZE",    12,  4, -3,  0, 10,  0,-100,  -5, 55,TR_NICE,SA_KID,              IC_TALK, IC_ANGRY,"SORRY",   "FORGAVE YOU",   "IS STILL MAD"},
     {"ARGUE",        -8, -3,  0,  0,  6,  0,-100, 100,100,TR_NICE,SA_MEAN|SA_KID,      IC_ANGRY,IC_ANGRY,"GRR",     "ARGUED BACK",   ""},
-    {"INSULT",      -10, -4,  0,  0,  4,  0,-100,  30,100,TR_NICE,SA_MEAN|SA_KID,      IC_SAD,  IC_SAD,  "LOSER",   "LOOKS HURT",    ""},
-    {"SLAP",        -16, -6,  0,  0,  4,  0,-100, -20,100,TR_NICE,SA_MEAN,             IC_HURT, IC_HURT, "SMACK",   "GOT SLAPPED",   ""},
-    {"PUNCH",       -20, -8,  0,  0,  4,  0,-100,   0,100,TR_NICE,SA_MEAN,             IC_HURT, IC_HURT, "TAKE THAT","GOT PUNCHED",  ""},   // teens and up; neutral or worse; takes HP (fightHit)
+    {"INSULT",      -10, -4,  0,  0,  4,  0,-100, 100,100,TR_NICE,SA_MEAN|SA_KID,      IC_SAD,  IC_SAD,  "LOSER",   "LOOKS HURT",    ""},
+    {"SLAP",        -16, -6,  0,  0,  4,  0,-100, 100,100,TR_NICE,SA_MEAN,             IC_HURT, IC_HURT, "SMACK",   "GOT SLAPPED",   ""},
+    {"PUNCH",       -20, -8,  0,  0,  4,  0,-100, 100,100,TR_NICE,SA_MEAN,             IC_HURT, IC_HURT, "TAKE THAT","GOT PUNCHED",  ""},   // teens and up; takes HP (fightHit)
     {"PUFF PUFF PASS", 6,  2, -3,  0, 14, 14, -10, 100, 80,TR_PLAY,SA_PIPE,             IC_LEAF, IC_BAIL, "PASS IT", "TOOK A HIT",    "PASSED"},
     {"PROPOSE",      16, 12,-14, -6, 24,  6,  75, 100, 60,TR_NICE,SA_ROM|SA_WED,       IC_HEART,IC_BAIL, "MARRY ME","SAID YES",      "SAID NOT YET"},   // adults going steady: a wedding (family.h)
     {"TRY FOR A BABY",8,  4, -6, -2, 20, 10,  60, 100, 70,TR_NICE,SA_ROM|SA_FAM,       IC_HEART,IC_BAIL, "A BABY?", "WANTS ONE TOO", "NOT NOW"},        // a couple: maybe a baby in 3 days (family.h)
+    {"TEASE",        -5, -1,  0,  0,  6,  4,-100, 100,100,TR_NICE,SA_MEAN|SA_KID,      IC_ANGRY,IC_SAD,  "NYAH NYAH","GOT TEASED",   ""},   // the mildest one: any age
+    {"SHOVE",       -12, -5,  0,  0,  4,  0,-100, 100,100,TR_NICE,SA_MEAN,             IC_ANGRY,IC_HURT, "MOVE IT", "GOT SHOVED",    ""},   // teens and up: no HP, just rude
 };
 static void famWed(int a,int b); static void famTry(int a,int b); static void famForget(int u);   // family.h
 static int nrWedIn(int g);   // townrel.h: a neighbour said yes to PROPOSE: they move in (their new uid, -1 = they could not)
@@ -939,7 +942,7 @@ static void socNote(int a,int b,int i,int ok){   // what you read when you are p
     const SocAct*S=&socT[i]; char*e=simMsg2;
     if(a==hhPUid){ e=simCat(e,uName(b)); *e++=' '; e=simCat(e,ok?S->yes:S->no); }
     else { e=simCat(e,uName(a)); *e++=' '; const char*w=S->name; char lw[16]; int k=0; for(;w[k]&&k<15;k++) lw[k]=w[k]; lw[k]=0;
-        e=simCat(e,(S->fl&SA_MEAN)?(i==SC_PUNCH?"PUNCHED YOU":i==SC_SLAP?"SLAPPED YOU":i==SC_ARGUE?"PICKED A FIGHT":"INSULTED YOU"):i==SC_TALK?"CAME TO CHAT":i==SC_FLIRT?"FLIRTS WITH YOU":i==SC_KISS?"KISSED YOU":i==SC_HUG?"HUGS YOU":i==SC_STEADY?"ASKS YOU OUT":i==SC_PROPOSE?"PROPOSED TO YOU":i==SC_BABY?"WANTS A BABY WITH YOU":lw); }
+        e=simCat(e,(S->fl&SA_MEAN)?(i==SC_PUNCH?"PUNCHED YOU":i==SC_SLAP?"SLAPPED YOU":i==SC_ARGUE?"PICKED A FIGHT":i==SC_TEASE?"TEASED YOU":i==SC_SHOVE?"SHOVED YOU":"INSULTED YOU"):i==SC_TALK?"CAME TO CHAT":i==SC_FLIRT?"FLIRTS WITH YOU":i==SC_KISS?"KISSED YOU":i==SC_HUG?"HUGS YOU":i==SC_STEADY?"ASKS YOU OUT":i==SC_PROPOSE?"PROPOSED TO YOU":i==SC_BABY?"WANTS A BABY WITH YOU":lw); }
     lnote=simMsg2; lnoteT=110;
 }
 // ---- FIGHTING: PUNCH takes HP from the one hit. Damage 14..26, more from active (TR_ACT) Sims. Nobody dies in a fight: at 0 HP the Sim is
@@ -1024,7 +1027,8 @@ static int socDo(int a,int b,int i){
         relD[b][a]=(signed char)clampR(relD[b][a]+S->dA); relL[b][a]=(signed char)clampR(relL[b][a]+S->lA);
         relD[a][b]=(signed char)clampR(relD[a][b]+S->dA/2);
         needAdd(b,HN_SOC,-S->soc); needAdd(a,HN_SOC,S->soc); if(uTr(a,TR_NICE)<=3) needAdd(a,HN_FUN,8);   // grouchy Sims enjoy it a little
-        hhSay(b,S->icR,i==SC_PUNCH?"OOF":i==SC_SLAP?"OW":i==SC_ARGUE?"GRR":"HEY");
+        hhSay(b,S->icR,i==SC_PUNCH?"OOF":i==SC_SLAP?"OW":i==SC_ARGUE?"GRR":i==SC_TEASE?"QUIT IT":"HEY");
+        if(uGuest(b)&&(i==SC_SLAP||i==SC_PUNCH||i==SC_SHOVE)){ int k=b-GU0; if(twOn[k]==2) twWait[k]=60; }   // a guest who gets hit has had enough: home they go
         if(i==SC_PUNCH){   // the blow lands, and a Sim that is not out cold hits back (grouchy ones nearly always)
             fightHit(a,b);
             int bm=hhMemOf(b);
@@ -1078,7 +1082,8 @@ static void hhSeek(HhSim*s){   // pick someone to go and see: friends most, enem
 }
 static int socPick(int a,int b){   // what a free-will Sim says to b
     int d=relD[a][b], nice=uTr(a,TR_NICE), r=rnd8();
-    if(d<-30||(nice<=2&&r<40)){ if(d<-30&&socAllowed(a,b,SC_PUNCH)&&r<50) return SC_PUNCH; if(socAllowed(a,b,SC_SLAP)&&r<70) return SC_SLAP; return (r&1)?SC_ARGUE:SC_INSULT; }
+    if(d<-30||(nice<=2&&r<40)){ if(d<-30&&socAllowed(a,b,SC_PUNCH)&&r<50) return SC_PUNCH; if(d<=-20&&socAllowed(a,b,SC_SLAP)&&r<70) return SC_SLAP;   // (anyone can be mean to anyone now; free will still only hits when it is bad between them)
+        if(d<=-20&&socAllowed(a,b,SC_SHOVE)&&r<110) return SC_SHOVE; return (r&2)?SC_TEASE:(r&1)?SC_ARGUE:SC_INSULT; }
     if(d<-5&&nice>=6&&socAllowed(a,b,SC_SORRY)) return SC_SORRY;
     if(socAllowed(a,b,SC_PROPOSE)&&!uGuest(b)&&r<40) return SC_PROPOSE;   // (a free-will Sim never tries for a baby: that is yours to choose; nor proposes to a guest)
     if(socAllowed(a,b,SC_STEADY)&&r<90) return SC_STEADY;
@@ -1106,13 +1111,14 @@ static void hhArrive(int m){   // a free-will Sim reached the one it wanted to s
 static int hhVisitorHere(int m){ if(m<hhN||curFl) return 0; int k=HH_MAX-1-m; return k>=0&&k<TW_N&&twHas[k]&&twOn[k]; }   // slot m (past the household) holds a neighbour on the lot
 static int hhNearest(void){ if(xo[XO_MULTIFL]?pkHome>=0:curFl) return -1; int best=-1, bd=1<<30; for(int m=0;m<HH_MAX;m++){ if(m<hhN){ if(hhM[m].act==HA_AWAY) continue; } else if(!hhVisitorHere(m)) continue; s32 dx=hhM[m].fx-lfx, dy=hhM[m].fy-lfy; int d=(int)((dx*dx+dy*dy)>>8); if(d<bd){ bd=d; best=m; } } return bd<=(380*380>>8)?best:-1; }   // within 1.5 tiles (household Sims and the neighbours who drop by)
 static void liveInvalidate(void);
-static int hhVisitorTalk(int m,int useLabel){   // R next to a neighbour who dropped by: TALK / JOKE / COMPLIMENT / HIGH FIVE (needs and mood only: visitors are not in the relationship tables)
+static int hhVisitorTalk(int m,int useLabel){   // R next to a neighbour who dropped by (or an inmate): TALK / JOKE / COMPLIMENT / HIGH FIVE, and the mean ones: TEASE / INSULT, SHOVE / SLAP for teens and up (needs and mood only: they are not in the relationship tables)
     HhSim*s=m>=HH_MAX?&inmS[m-HH_MAX]:&hhM[m];
-    static const char* it[6] EWRAM_BSS; static char tl[32] EWRAM_BSS, nt[28] EWRAM_BSS; int id[6], cat[6], n=0;
+    static const char* it[10] EWRAM_BSS; static char tl[32] EWRAM_BSS, nt[28] EWRAM_BSS; int id[10], cat[10], n=0;
     static const char* const useNm[6]={0,"USE THE FRIDGE","USE THE TOILET","SLEEP IN BED","TAKE A SHOWER","SIT ON SOFA"}; static const char* const useNm2[5]={"WATCH TV","READ A BOOK","MAKE COFFEE","FEED THE FISH","RUN ON TREADMILL"};
-    static const char* const vn[4]={"TALK","JOKE","COMPLIMENT","HIGH FIVE"}; static const u8 vcat[4]={0,1,0,0};
+    static const char* const vn[8]={"TALK","JOKE","COMPLIMENT","HIGH FIVE","TEASE","INSULT","SHOVE","SLAP"}; static const u8 vcat[8]={0,1,0,0,3,3,3,3};
     if((useLabel>0&&useLabel<6)||useLabel>=8){ it[n]=useLabel==8?"USE THE PHONE":useLabel>=11?useNm2[useLabel-11]:useLabel>=9?"TUNE THE RADIO":useNm[useLabel]; cat[n]=4; id[n++]=-1; }
-    for(int i=0;i<4;i++){ it[n]=vn[i]; cat[n]=vcat[i]; id[n++]=i; }
+    int big=stage>=AG_TEEN&&s->stage>=AG_TEEN;   // (shoving and slapping: teens and up, both of you)
+    for(int i=0;i<8;i++) if(i<6||big){ it[n]=vn[i]; cat[n]=vcat[i]; id[n++]=i; }
     { char*e=simCat(tl,s->name); simCat(e,m>=HH_MAX?"  INMATE":"  NEIGHBOR"); }
     int c=pieCats(tl,it,cat,n); liveInvalidate();
     while((~REG_KEYINPUT)&0x3FF) vsync();
@@ -1121,6 +1127,16 @@ static int hhVisitorTalk(int m,int useLabel){   // R next to a neighbour who dro
     int px=(int)(lfx>>8), py=(int)(lfy>>8), sx=(int)(s->fx>>8), sy=(int)(s->fy>>8);
     s->hd=(u8)(px>sx?0:px<sx?8:py>sy?4:12); lhd=(s->hd+8)&15;
     int i=id[c], gain=i==1?10:i==0?8:6;
+    if(i>=4){   // a mean one: it lands. They are hurt or angry; a neighbour shoved or slapped goes home, an inmate may hit back
+        static const char* const said[4]={" GOT TEASED"," LOOKS HURT"," GOT SHOVED"," GOT SLAPPED"};
+        hhSay(hhPUid,IC_ANGRY,i==4?"NYAH NYAH":i==5?"LOSER":i==6?"MOVE IT":"SMACK"); hhFreeze(hhPUid,60);
+        s->bub=(u8)(i>=6?IC_HURT:i==5?IC_SAD:IC_ANGRY); s->bubT=90;
+        needAdd(hhPUid,HN_SOC,2); if(pTr[TR_NICE]<=3) needAdd(hhPUid,HN_FUN,6);   // grouchy Sims enjoy it a little
+        voxPlay(i>=6?V_lets_fight:V_amgry); simEvent(SE_FIGHT);
+        { char*e=simCat(nt,s->name); simCat(e,said[i-4]); } lnote=nt; lnoteT=60;
+        if(i>=6){ if(m>=HH_MAX){ if((rnd8()&1)||i==7){ fightHurt(6+(rnd8()&7)); simCat(simCat(nt,s->name)," HIT BACK"); } }   // an inmate does not take it
+                  else { int k=HH_MAX-1-m; if(k>=0&&k<TW_N&&twWait[k]>40) twWait[k]=40; } }                                         // a neighbour has had enough: home they go
+        return 1; }
     needAdd(hhPUid,HN_SOC,gain); if(i==1) needAdd(hhPUid,HN_FUN,8);
     simEvent(SE_TALK); if(i==1) simEvent(SE_LAUGH); moodEvent(M_WANT);
     voxPlay(i==3?V_yeha:i==1?V_joke_good:V_agree);
@@ -1136,7 +1152,7 @@ static int hhSocR(int useLabel){   // 1 = handled (a social, or the menu was clo
     if(s->act==HA_USE){ lnote="THEY ARE BUSY"; lnoteT=50; return 0; }
     static const char* it[SC_N+4] EWRAM_BSS; static char tl[40] EWRAM_BSS; int id[SC_N+4], cat[SC_N+4], n=0;   // (cat: the pie's category, 0 FRIENDLY 1 FUN 2 ROMANTIC 3 MEAN 4 USE)
     static const char* const useNm[6]={0,"USE THE FRIDGE","USE THE TOILET","SLEEP IN BED","TAKE A SHOWER","SIT ON SOFA"}; static const char* const useNm2[5]={"WATCH TV","READ A BOOK","MAKE COFFEE","FEED THE FISH","RUN ON TREADMILL"};
-    static const u8 socCat[SC_N]={0,1,0,0,0,1,2,2,2,0,3,3,3,3,1,2,2};   // TALK JOKE COMPL HIGH5 HUG TRICK FLIRT KISS STEADY SORRY ARGUE INSULT SLAP PUNCH PASS PROPOSE BABY
+    static const u8 socCat[SC_N]={0,1,0,0,0,1,2,2,2,0,3,3,3,3,1,2,2,3,3};   // TALK JOKE COMPL HIGH5 HUG TRICK FLIRT KISS STEADY SORRY ARGUE INSULT SLAP PUNCH PASS PROPOSE BABY TEASE SHOVE
     if((useLabel>0&&useLabel<6)||useLabel>=8){ it[n]=useLabel==8?"USE THE PHONE":useLabel>=11?useNm2[useLabel-11]:useLabel>=9?"TUNE THE RADIO":useNm[useLabel]; cat[n]=4; id[n++]=-1; }
     it[n]="YOUR ACTIONS"; cat[n]=4; id[n++]=-2;   // self.h: the pie of what you can do on your own
     for(int i=0;i<SC_N;i++) if(socAllowed(a,b,i)){ it[n]=i==SC_PUNCH?fkMove(a,"PUNCH"):socT[i].name; cat[n]=socCat[i]; id[n++]=i; }

@@ -33,27 +33,40 @@ static void famTry(int a,int b){   // a couple said yes to a baby: it comes in 3
     else { int m=hhMemOf(a); if(m>=0) hhNote(&hhM[m]," IS EXPECTING"); }
 }
 
-// ---- PORTRAITS: a Sim's head and shoulders in a round frame, from its baked sprite at 2x (the pie's hub, FAMILY, the notices) ----
-// You: spr4 (8-bit indices into sprPal). A member: its standing tiles from the sprite pool (hhViewImg), 4-bit, in its own palette.
-static u8 famTv[OBJ_B] EWRAM_BSS;   // one view of a member, as OBJ tiles
-static int famPx(int m,int x,int y){   // a pixel of the view in hand (m<0: you), -1 = clear
-    if((unsigned)x>=SPW||(unsigned)y>=SPH) return -1;
-    if(m<0){ int i=spr4[0][y*SPW+x]; return i?sprPal[i]:-1; }
-    int t=(y>>3)*4+(x>>3), o=t*32+(y&7)*4+((x&7)>>1), k=(famTv[o]>>((x&1)*4))&15; return k?hhPalOf(m)[k]:-1;
-}
+// ---- PORTRAITS: a Sim's head and shoulders in a round frame (the pie's hub, FAMILY, the notices), drawn at full resolution ----
+// The face is the HUD portrait's own drawing (hudface.h faceDrawL: the creator's eye and mouth art, brows, glasses, nose, cheeks, hair, every face slider) for
+// anyone's look, with an expression for how they feel; under it their neck and their top's colour across the shoulders. What falls outside the circle is put
+// back as it was (the pixels under the frame are kept first), then the rim goes round it.
+static u16 famUnder[47*47] EWRAM_BSS;   // the pixels under the frame (r up to 21)
 static void famBg(int sx,u16*a,u16*b){   // a portrait's backdrop: pink, blue or mint by gender
     if(sx==SX_FEMALE){ *a=RGB(31,25,28); *b=RGB(25,13,21); } else if(sx==SX_MALE){ *a=RGB(22,28,31); *b=RGB(9,17,30); } else { *a=RGB(24,31,25); *b=RGB(10,23,15); } }
+static int famSt(int u,int stg){   // their face for the moment: SAD BORED OK HAPPY STOKED (hudExpr's rows)
+    if(u==hhPUid) return moodState();
+    if(stg==AG_BABY) return 3;
+    int v=uMood(u); return v<25?0:v<40?1:v<60?2:v<80?3:4; }
 static void famFace(int cx,int cy,int r,int u){
-    int m=hhMemOf(u); if(m>=0) hhViewImg(m,0,0,famTv);   // (view 0 looks out of the screen)
-    int y0=-1, yb=0, hx0=SPW, hx1=-1;
-    for(int y=0;y<SPH;y++) for(int x=0;x<SPW;x++) if(famPx(m,x,y)>=0){ if(y0<0) y0=y; yb=y; if(y<y0+6){ if(x<hx0) hx0=x; if(x>hx1) hx1=x; } }
-    // the frame centres on the face: 5/16 of the way down, never lower than a normal adult's face (12 rows) plus HEAD SIZE (tall Sims grow in the legs)
-    int hk=slideEffS((m<0?look:hhM[m].look)[LK_HEADSZ]), fd=(yb-y0)*5/16, cap=12+(hk>0?hk:0); if(fd>cap) fd=cap;
-    int hc=(hx0+hx1+1)/2, fy=y0+fd, R2=(r+2)*(r+2), R1=(r+1)*(r+1), R0=r*r; u16 b0,b1; famBg(uSex(u),&b0,&b1);
-    for(int dy=-r-2;dy<=r+2;dy++) for(int dx=-r-2;dx<=r+2;dx++){ int d=dx*dx+dy*dy; if(d>R2) continue;
-        if(d>R0){ px(cx+dx,cy+dy,d>R1?RGB(2,5,11):RGB(26,30,31)); continue; }   // the rim, and a dark edge round it
-        int c=y0<0?-1:famPx(m,hc+((dx+64)>>1)-32,fy+((dy+64)>>1)-32);
-        px(cx+dx,cy+dy,c>=0?(u16)c:s3Mix(b0,b1,dy+r,2*r+1)); }
+    if(r>21) r=21;
+    int m=hhMemOf(u); const u8*lk=m<0?look:hhM[m].look; int stg=m<0?stage:hhM[m].stage, st=famSt(u,stg);
+    int R2=(r+2)*(r+2), R1=(r+1)*(r+1), R0=r*r, bw=2*r+5, bx=cx-r-2, by=cy-r-2; u16 b0,b1; famBg(uSex(u),&b0,&b1);
+    for(int j=0;j<bw;j++) for(int i=0;i<bw;i++){ int X=bx+i, Y=by+j; famUnder[j*bw+i]=((unsigned)X<SW&&(unsigned)Y<SH)?fb[Y*SW+X]:0; }
+    int ox0=cX0, oy0=cY0; unsigned ow=cW, oh=cH;
+    clipSet(bx<0?0:bx,by<0?0:by,bx+bw>SW?SW:bx+bw,by+bw>SH?SH:by+bw);
+    for(int dy=-r;dy<=r;dy++) rect(cx-r,cy+dy,2*r+1,1,s3Mix(b0,b1,dy+r,2*r+1));   // the backdrop (the corners are put back below)
+    u16 skin=toneBy(skinTones[lk[LK_SKIN]],slideEffS(lk[LK_TONE])), hair=toneBy(hairTones[lk[LK_HCOL]%NSW],slideEffS(lk[LK_HTONE]));
+    u16 top=toneBy(topTones[lk[LK_TOP]%NSW],slideEffS(lk[LK_TTONE]));
+    int up=r>=19?13:r-3; if(up>13) up=13;
+    int fx=cx-11, fy=cy-up, sh=fy+(r>=19?25:23);   // the face's top left, the top of the shoulders (a bigger frame shows more neck)
+    rect(cx-3,fy+19,7,sh-fy-18,shade(skin,13)); rect(cx-3,fy+19,1,sh-fy-18,shade(skin,11)); rect(cx-3,fy+22,7,1,shade(skin,11));   // the neck, the jaw's shadow on it
+    for(int y=sh;y<=cy+r;y++){ int k=y-sh, w=7; while((w-6)*(w-6)<k*36&&w<2*r) w++;   // round shoulders in their top's colour, light along the top
+        rect(cx-w,y,2*w+1,1,k==0?lite(top,19):top); rect(cx-w,y,2,1,shade(top,12)); rect(cx+w-1,y,2,1,shade(top,12)); }
+    if(sh<=cy+r){ rect(cx-2,sh,5,1,skin); if(sh+1<=cy+r) rect(cx-1,sh+1,3,1,skin); }   // the neckline
+    { u16 ed=shade(skin,12); rect(fx-1,fy+9,2,5,skin); rect(fx-1,fy+10,1,3,ed); rect(fx+21,fy+9,2,5,skin); rect(fx+22,fy+10,1,3,ed); }   // ears (the hair, if it is long, falls over them)
+    { int hs=lk[LK_HSTYLE]%NHAIR; if(hudHairRows[hs]) rect(fx+5,fy-1,12,1,hair); if(hs==5){ rect(fx+2,fy-3,18,2,hair); rect(fx,fy-1,22,2,hair); } }   // a little hair above the crown (an AFRO a lot)
+    const u8*e=(u==hhPUid)?hudEx(st):hudExpr[st];
+    faceDrawL(fx,fy,lk,stg,e,-1,-1);
+    cX0=ox0; cY0=oy0; cW=ow; cH=oh;
+    for(int j=0;j<bw;j++) for(int i=0;i<bw;i++){ int dx=i-r-2, dy=j-r-2, d=dx*dx+dy*dy; if(d<=R0) continue;   // outside the circle: as it was; then the rim and its dark edge
+        u16 c=d>R2?famUnder[j*bw+i]:d>R1?RGB(2,5,11):RGB(26,30,31); px(bx+i,by+j,c); }
 }
 static void famBob(int cx,int y,int mood){   // the plumbob over a Sim: green when fine, yellow when so-so, red when miserable
     static const u16 col[3][4]={ {RGB(3,20,6),RGB(2,14,4),RGB(14,31,16),RGB(8,26,10)}, {RGB(22,18,2),RGB(16,12,1),RGB(31,29,10),RGB(28,24,4)}, {RGB(22,4,3),RGB(15,2,2),RGB(31,14,12),RGB(28,8,6)} };

@@ -78,29 +78,29 @@ static void hudHairX(int x,int y,int hs,u16 hair,const u8*ovl){   // the newer h
         break;
     }
 }
-static void hudFaceDraw(int x,int y,int st){   // x,y = top left of the 22 x 22 face area inside the portrait frame
-    u16 skin=toneBy(skinTones[look[LK_SKIN]],slideEffS(look[LK_TONE])), hair=hudHairCol();
-    u16 pal[10]={ RGB(3,3,6), RGB(31,31,31), RGB(29,12,16), shade(skin,11), toneBy(eyeTones[look[LK_EYECOL]%NSW],slideEffS(look[LK_EYETONE])),
+static void faceDrawL(int x,int y,const u8*lk,int stg,const u8*e,int ovE,int ovM){   // anyone's face at 1x: x,y = top left of the 22 x 22 face; lk their look, stg their age, e an expression row (as hudExpr), ovE / ovM eye and mouth to use instead (-1: the row's)
+    u16 skin=toneBy(skinTones[lk[LK_SKIN]],slideEffS(lk[LK_TONE])), hair=toneBy(hairTones[lk[LK_HCOL]%NSW],slideEffS(lk[LK_HTONE]));
+    u16 pal[10]={ RGB(3,3,6), RGB(31,31,31), RGB(29,12,16), shade(skin,11), toneBy(eyeTones[lk[LK_EYECOL]%NSW],slideEffS(lk[LK_EYETONE])),
                  RGB(((skin&31)+31)/2,(((skin>>5)&31)+8)/2,(((skin>>10)&31)+12)/2), RGB(6,6,8), shade(hair,10), RGB(4,5,9), RGB(13,22,31) };   // the face palette of setColors, unshaded, and a tear blue
     static const u8 ovl[22]={3,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,3};   // the head is an oval: columns cut off at the left (and right) of each row
     u16 jaw=shade(skin,13);
     for(int j=0;j<22;j++){ int c=ovl[j]; rect(x+c,y+j,22-2*c,1,j>=20?jaw:skin); }
-    int hs=look[LK_HSTYLE]%NHAIR, hr=hudHairRows[hs];
+    int hs=lk[LK_HSTYLE]%NHAIR, hr=hudHairRows[hs];
     for(int j=0;j<22;j++){ int c=ovl[j]; if(j<hr) rect(x+c,y+j,22-2*c,1,hair); else if(hs==2&&j<20){ rect(x+c,y+j,2,1,hair); rect(x+20-c,y+j,2,1,hair); } }   // LONG hair falls down both sides
     if(hs>=9) hudHairX(x,y,hs,hair,ovl);   // the newer styles add their fringe, sides and tails
-    const u8*e=hudEx(st); int eo=hudOvE>=0?hudOvE:e[0], mo=hudOvM>=0?hudOvM:e[1]; const Spr*es=&spr[eo], *ms=&spr[NEYE+mo];
-    int br=e[2]?e[2]:look[LK_BROW], gl=look[LK_GLASS], no=look[LK_NOSE], ch=look[LK_CHEEK], baby=stage==AG_BABY;
+    int eo=ovE>=0?ovE:e[0], mo=ovM>=0?ovM:e[1]; const Spr*es=&spr[eo], *ms=&spr[NEYE+mo];
+    int br=e[2]?e[2]:lk[LK_BROW], gl=lk[LK_GLASS], no=lk[LK_NOSE], ch=lk[LK_CHEEK], baby=stg==AG_BABY;
     // The face sliders work as they do on the block (drawDeco): every feature is sampled through the same scale and shift, so eye size, spacing and height, mouth width
     // and height, brow height and nose height (and the master controller's double sliders) put the features where the creator does. The block's pixels are 7 x 6 per
     // eye and 15 x 6 per mouth, the portrait's art is 9 x 8 and 19 x 8, so shifts are scaled by 9/7 across and 4/3 down; sizes are ratios and carry over as they are.
     { char tr[8][9]; for(int j=0;j<8;j++)for(int i=0;i<9;i++) tr[j][i]=es->art[j][i];
       if(e[3]){ tr[6][1]='t'; tr[7][1]='t'; }   // a tear runs down the outer edge of each eye
       const char*ea[8]; for(int j=0;j<8;j++) ea[j]=tr[j];
-      int en=slideEffS(look[LK_EYESZ])+(baby?1:0); en=en>0?2*en:en<0?en-1:0;
+      int en=slideEffS(lk[LK_EYESZ])+(baby?1:0); en=en>0?2*en:en<0?en-1:0;
       int gw=7+en, gh=6+en; if(gw<1) gw=1; if(gh<1) gh=1; int kx=64*gw/7, ky=64*gh/6;
-      int sv=slideEff(look[LK_EYEHT])*4/3, bsh=slideEff(look[LK_BROWHT])*4/3;
+      int sv=slideEff(lk[LK_EYEHT])*4/3, bsh=slideEff(lk[LK_BROWHT])*4/3;
       for(int side=0;side<2;side++){   // left eye, then the right one mirrored (angry and sad eyes slope towards the nose)
-        int ox=1+side*11, oy=3, sh=slideEff(look[LK_EYESP])*9/7; if(side) sh=-sh;
+        int ox=1+side*11, oy=3, sh=slideEff(lk[LK_EYESP])*9/7; if(side) sh=-sh;
         short ca[17][2], ra[16][2];   // the art spans of each column and row (they only depend on dx or dy: worked out once, not per pixel)
         for(int dx=-4;dx<13;dx++){ int a0,a1; hudRng(dx+sh,4,kx,&a0,&a1); ca[dx+4][0]=(short)a0; ca[dx+4][1]=(short)a1; }
         for(int dy=-4;dy<12;dy++){ int r0,r1; hudRng(dy+sv,4,ky,&r0,&r1); ra[dy+4][0]=(short)r0; ra[dy+4][1]=(short)r1; }
@@ -115,8 +115,8 @@ static void hudFaceDraw(int x,int y,int st){   // x,y = top left of the 22 x 22 
       }
     }
     {   // the mouth, with the nose and cheeks around it
-        int mw=slideEffS(look[LK_MOUTHW])-(baby?1:0), gw=15+mw*3; if(gw<1) gw=1; int kx=64*gw/15;
-        int sv=slideEff(look[LK_MOUTHHT])*4/3, nsh=slideEff(look[LK_NOSEHT])*4/3;
+        int mw=slideEffS(lk[LK_MOUTHW])-(baby?1:0), gw=15+mw*3; if(gw<1) gw=1; int kx=64*gw/15;
+        int sv=slideEff(lk[LK_MOUTHHT])*4/3, nsh=slideEff(lk[LK_NOSEHT])*4/3;
         short ca[33][2], ra[22][2];   // (as for the eyes: the spans once per column and row)
         for(int dx=-7;dx<26;dx++){ int a0,a1; hudRng(dx,9,kx,&a0,&a1); ca[dx+7][0]=(short)a0; ca[dx+7][1]=(short)a1; }
         for(int dy=-7;dy<15;dy++){ int r0,r1; hudRng(dy+sv,4,64,&r0,&r1); ra[dy+7][0]=(short)r0; ra[dy+7][1]=(short)r1; }
@@ -130,6 +130,7 @@ static void hudFaceDraw(int x,int y,int st){   // x,y = top left of the 22 x 22 
         }
     }
 }
+static void hudFaceDraw(int x,int y,int st){ faceDrawL(x,y,look,stage,hudEx(st),hudOvE,hudOvM); }   // the HUD's mood portrait: the Sim you control, alive (x,y = top left of the 22 x 22 face area inside the portrait frame)
 static unsigned hudFaceKey(int st){   // everything the portrait draws from, so it is redrawn when the mood or the Sim (or their look) changes
     static const u8 ids[]={LK_SKIN,LK_TONE,LK_HCOL,LK_HTONE,LK_HSTYLE,LK_EYECOL,LK_EYETONE,LK_BROW,LK_GLASS,LK_NOSE,LK_CHEEK,LK_EYESZ,LK_EYESP,LK_EYEHT,LK_MOUTHW,LK_MOUTHHT,LK_BROWHT,LK_NOSEHT};
     unsigned h=(2166136261u^(unsigned)st)*16777619u^(unsigned)(stage*2+mcDbl()+(hudMissy()?64:0));   // (the age and the double sliders change the face too)
