@@ -102,3 +102,6 @@ SONG_ADP(here_today_old,"HERE TODAY (ORIGINAL)","source/music/here_today_old.adp
 
 // HERE TODAY (FULL VERSION): longer, lusher, with an instrumental reprise of the bridge (tools/make_heretoday_full.py). Locked until the story is finished (unlocks.h)
 SONG_ADP(here_today_full,"HERE TODAY (FULL VERSION)","source/music/here_today_full.adp")
+
+// HERE TODAY (INSTRUMENTAL): the full version with no vocals and no lead melody, to sing on; lusher, no key change, a doubled intro (tools/make_heretoday_instrumental.py). A SECRET song: only with the title-screen debug code (isDbgSong in main.c)
+SONG_ADP(here_today_instrumental,"HERE TODAY (INSTRUMENTAL)","source/music/here_today_instrumental.adp")
