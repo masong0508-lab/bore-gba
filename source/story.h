@@ -452,7 +452,7 @@ static void stRunModal0(void){
     int kind=stModal; stModal=0; if(!stId) return;
     if(kind==3){ stPlugLose(); return; }   // (chapter 4 lost)
     if(stId==STY_TVSHOW&&kind==1&&stCh==0&&stKidDay==255){ csPlay(7); stKidDay=stqDay(); stGuest=0; stSave(); sgDirty=1; }   /* cutfix: unsaved until the game is saved */   // a brand new TV SHOW & TELL: the night it all started plays once, before chapter 1 (the chapter clock starts here, which is also what stops it playing again)
-    if(stId==STY_TVSHOW&&kind==2&&stCh>=1&&stCh<=5) { csPlay(stCh==5?5:stCh-1); if(stCh==4) csPlay(4); }   // the scene that closes the chapter just finished (cutscene.h; chapter 5 closes with scene 5, its opening news is scene 4)
+    if(stId==STY_TVSHOW&&kind==2&&stCh>=1&&stCh<=5) { csPlay(stCh==5?5:stCh-1); if(stCh==4) csPlay(4); if(stCh==5) jbUnlock(UL_HERETODAY); }   // the scene that closes the chapter just finished (cutscene.h; chapter 5 closes with scene 5, its opening news is scene 4)
     u16 prev=keyNow(); u32 cnt=0; const StCh*c=&stChs[stId][stCh];
     int end=c->goal==SG_END;
     for(;;){
@@ -465,6 +465,7 @@ static void stRunModal0(void){
         { char b[24]; char*e=slCat(b,kind==2?"CHAPTER ":"CHAPTER "); e=slNum(e,kind==2?stCh:stCh+1); text(60,52,b,WHITE,2); }
         if(kind==2){ char b[40]; char*e=slCat(b,"DONE  +"); e=slNum(e,stRew(stCh-1)); slCat(e," SIMOLEONS  +25 JENES"); text(60,70,b,RGB(10,28,12),1); stSparkle(cnt,12,26,216,100); }
         if(kind==2&&stGotN){ static char gb[60] EWRAM_BSS; char*e=simCat(gb,"UNLOCKED  "); e=simCat(e,stGotP[0]); if(stGotN>1){ e=simCat(e,"  AND  "); simCat(e,stGotP[1]); } if(tw(gb,1)>206) simCat(gb,"UNLOCKED  2 NEW THINGS"); text(16,77,gb,GOLD,1); }   // (what this chapter opened: a BUY reward and / or a slider pack)
+        if(kind==2&&stCh==5) text(16,112,"NEW SONG  HERE TODAY (FULL VERSION)",GOLD,1);
         rect(14,84,212,1,RGB(14,26,31));
         text(16,90,kind==2?(end?"THE END, IS HERE TODAY":"NEXT CHAPTER"):(end?"THE END, IS HERE TODAY":c->goal==SG_MULTI?"ALL OF THESE AT ONCE":"YOUR GOAL"),GOLD,1);
         if(c->goal!=SG_MULTI||end) text(16,102,end?(kind==2?"YOUR STORY GOES ON  KEEP PLAYING":"YOUR STORY GOES ON  KEEP PLAYING"):c->nm,WHITE,1);

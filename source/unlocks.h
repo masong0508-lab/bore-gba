@@ -10,3 +10,6 @@ UNLOCK("WORTHLESS CLOUDS",UL_CLOUDS)
 UNLOCK("CLOSER TO THE END",UL_CLOSER)
 // TREE-AGE IN ACTION comes with the same half of the story missions
 UNLOCK("TREE-AGE IN ACTION",UL_TREE)
+
+// HERE TODAY (FULL VERSION): the longer, lusher rearrangement (tools/make_heretoday_full.py), earned by finishing the story
+UNLOCK("HERE TODAY (FULL VERSION)",UL_HERETODAY)

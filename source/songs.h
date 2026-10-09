@@ -99,3 +99,6 @@ SONG_XM(youre_winner,"YOU'RE WINNER (ORIGINAL)","tools/youre_winner.xm")
 SONG_ADP(here_today,"HERE TODAY (MISSY'S SONG)","source/music/here_today.adp")
 // HERE TODAY (ORIGINAL): the short chiptune placeholder (tools/make_heretoday.py, 1:13), the version that used to play in the last cutscene: a SECRET song (isDbgSong in main.c)
 SONG_ADP(here_today_old,"HERE TODAY (ORIGINAL)","source/music/here_today_old.adp")
+
+// HERE TODAY (FULL VERSION): longer, lusher, with an instrumental reprise of the bridge (tools/make_heretoday_full.py). Locked until the story is finished (unlocks.h)
+SONG_ADP(here_today_full,"HERE TODAY (FULL VERSION)","source/music/here_today_full.adp")

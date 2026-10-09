@@ -68,6 +68,7 @@ typedef long long money_t;    // the purse is 64 bit: it holds up to MONEY_CAP
 #define UL_CLOUDS      1      // unlock bit: the song WORTHLESS CLOUDS (unlocks.h) comes with the first lifetime want you meet
 #define UL_CLOSER      2      // unlock bit: the song CLOSER TO THE END comes once half of all the story missions are done (jbStoryDone, story.h)
 #define UL_TREE        4      // unlock bit: the song TREE-AGE IN ACTION comes with the same half of the story missions (jbStoryDone, story.h)
+#define UL_HERETODAY   8      // unlock bit: HERE TODAY (FULL VERSION), earned by finishing the story (story.h)
 static int jbDreamMet(int asp,int ltw);   // (main.c) records a met dream (it unlocks nothing now: the songs come with the story missions)
 static int jbUnlock(int bit);   // (main.c) sets an unlock bit for good and rebuilds the jukebox list; 1 = it was locked before
 #define SIM_GOOD_SLEEP 300    // steps of sleep (5 game hours: sleep runs the clock fast) that count as a real night: wants reroll on waking
