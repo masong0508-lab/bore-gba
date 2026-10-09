@@ -1,0 +1,36 @@
+// genres.h - WHAT KIND OF MUSIC EACH SONG IS. The radio (RADIO and SOUND SYSTEM items) tunes stations by genre, not by artist.
+//
+//   GENRE("SONG NAME", G_xxx | G_yyy)     SONG NAME = the name exactly as it is written in source/songs.h
+//
+// A song can carry more than one genre (a Latin house tune plays on both the HOUSE and the LATIN station). A song with no line here is
+// only heard on ALL SONGS FM. Genres: G_HOUSE (house, garage, hi-NRG, dance), G_BREAKS (drum & bass, rave, IDM), G_CHILL (ambient, soft),
+// G_LATIN, G_ROCK (rock, prog, metal, funk), G_WORLD, G_HIPHOP. Stations and which genres they play: radioStn[] in main.c.
+GENRE("AIM AND SHOOT",G_WORLD)
+GENRE("AN ODE TO THE SPANISH FLEXICODE",G_LATIN|G_CHILL)
+GENRE("THE MAGIC ACT",G_ROCK)
+GENRE("HOT DAMN",G_BREAKS)
+GENRE("HOT DAMN (ORIGINAL)",G_BREAKS)
+GENRE("MELTDOWN IN MARS",G_HOUSE)
+GENRE("STAGED THE FULL PERFORMANCE",G_HOUSE)
+GENRE("EMERGENCY ON THE DANCE FLOOR",G_HOUSE)
+GENRE("EMERGENCY (ORIGINAL)",G_HOUSE)
+GENRE("EXCUSES",G_HOUSE|G_CHILL)
+GENRE("TREE-AGE IN ACTION",G_CHILL)
+GENRE("TREE-AGE IN ACTION (FAST)",G_HOUSE)
+GENRE("GOTTCHO BARRACHO",G_LATIN)
+GENRE("GOTTCHO BARRACHO (ORIGINAL)",G_LATIN)
+GENRE("MI CORA ZONE",G_HOUSE|G_LATIN)
+GENRE("THE TICKING BOMB",G_HOUSE|G_LATIN)
+GENRE("WHISTLER MAN",G_ROCK)
+GENRE("WHISTLER MAN (ORIGINAL)",G_ROCK)
+GENRE("THE CYNICAL SYNDICATION",G_BREAKS)
+GENRE("NURSERY TIME",G_ROCK)
+GENRE("CONDENSED MUSIC",G_HOUSE)
+GENRE("CLOSER TO THE END",G_ROCK)
+GENRE("CLOSER TO THE END (ORIGINAL)",G_ROCK)
+GENRE("SUNMAN SUNRISE",G_HOUSE)
+GENRE("COCAINE COLA",G_HOUSE)
+GENRE("COCAINE COLA (ORIGINAL)",G_HOUSE)
+GENRE("EARTH AND THE SPACE CITIZENS",G_HIPHOP)
+GENRE("AMIGA MUSIC",G_HIPHOP)
+// WORTHLESS CLOUDS is left out on purpose: it is on no genre station. It only plays on ALL SONGS FM, and only once it is unlocked (unlocks.h).

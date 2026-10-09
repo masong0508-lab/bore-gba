@@ -60,15 +60,23 @@ enum {
     XO_SIMPRE,    // PLAY: pre-made Sims (the MOVE IN families) allowed: OFF / ON
     XO_SIMUSER,   // PLAY: user-made Sims (made in the creator, added with ADD TO FAMILY) allowed: OFF / ON
     XO_SIMRAND,   // PLAY: made-up Sims (INVITE A NEW SIM, SELECT on RELATIONSHIPS, passers-by) allowed: OFF / ON
-    XO_ZOOM,      // VIDEO: the room while you play: OFF, 1.5X, 2X (closer, and only that part of the room is drawn: faster)
+    XO_ZOOM,      // VIDEO: the room while you play: OFF, 1.25X, 1.5X, 1.7X, 2X (closer, and only that part of the room is drawn: faster)
     XO_MENUBG,    // HUD: the main menu's backdrop: RANDOM (a new pick each visit), TOWN (your town at the time of day), ACID (the acid rainbow)
     XO_MCSLIDE,   // SIM > MASTER (debug code only, a nod to The Sims' Master Controller): the size sliders go twice as far: NORMAL / DOUBLE
     XO_MCBOX,     // SIM > MASTER: every age builds in the adult box (6 x 4 x 8) and taller adults stretch further: BY AGE / LIMIT BREAK
-    XO_TWINS,     // SIM > SIMS: how often a baby comes with a twin (family.h): NEVER SOMETIMES OFTEN ALWAYS
+    XO_TUTOR,     // PLAY: the tutorial: OFFER (asks once at the first PLAY), DONE, REPLAY (starts it at the next PLAY / when you leave the pause menu options)
+    XO_WEATHER,   // TIME > DAY: AUTO (follows the season and the day), or force CLEAR / CLOUDY / FOG / RAIN / STORM / SNOW (fx.h)
+    XO_GHOSTS,    // SIM > BORES: OFF / ON (a ghost stays where you die) / HAUNTED (one is always around) (fx.h)
+    XO_BUYCOST,   // ROOMS: BUILD / BUY mode prices walls and items against the life's cash (selling gives it back); OFF = free (the DeadSet always costs)
+    XO_SAVEMODE,  // SAVING: AUTO (leaving play saves the player) or MANUAL (default: only SAVE GAME keeps progress; quitting asks, a power cut loses it)
+    XO_NIGHT,     // TIME > DAY: how dark the night is in play: OFF SOFT NORMAL DEEP (fx.h: the room dims by the hour; windows show sky, dusk and stars)
+    XO_MULTIFL,   // SIM > BORES: household Sims use the stairs to reach the furniture their needs call for (house.h). OFF: they vanish upstairs for a while
+    XO_ITEMUSE,   // SIM > BORES: household Sims use the TV, bookshelf, aquarium, treadmill, stereo, coffee maker and phone for their needs (house.h, item modules). OFF: only the five basic furniture needs
+    XO_INMATES,   // SIM > BORES: how many inmates the prison holds: LOW 8, MEDIUM 16, HIGH 24 (inmates.h)
     XO_N
 };
-static const u8 xoCnt[]={ 5,5,2,4,4,4,4,2,3,4,2,3,2,4,   4,3,   4,3,2,   3,6,3,   2,2,2,2,2,3,2, 4,10,10,10,11, 2, 3, 2, 2, 2, 2, 11, 11, 11, 2, 2, 2, 3, 3, 2, 2, 4 };
-static const u8 xoDef[]={ 2,1,1,2,1,1,1,1,0,2,1,1,1,1,   0,1,   0,0,1,   0,0,1,   1,1,1,0,1,2,1, 2,1,2,2,4, 0, 2, 1, 1, 1, 1, 10, 10, 10, 1, 1, 1, 0, 0, 0, 0, 1 };
+static const u8 xoCnt[]={ 5,5,2,4,4,4,4,2,3,4,2,3,2,4,   4,3,   4,3,2,   3,6,3,   2,2,2,2,2,3,2, 4,10,10,10,11, 2, 3, 2, 2, 2, 2, 11, 11, 11, 2, 2, 2, 5, 3, 2, 2, 3, 7, 3 , 2, 2, 4, 2, 2, 3};
+static const u8 xoDef[]={ 2,1,1,2,1,1,1,1,0,2,1,1,1,1,   0,1,   0,0,1,   0,0,1,   1,1,1,0,1,2,1, 2,1,2,2,4, 0, 2, 1, 1, 1, 1, 10, 10, 10, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1 , 1, 1, 2, 1, 1, 1};
 _Static_assert(sizeof(xoCnt)==XO_N&&sizeof(xoDef)==XO_N,"xoCnt / xoDef must have one entry per XO_ name");
 static u8 xo[XO_N];
 static void optsDefaults(void){ for(int i=0;i<XO_N;i++) xo[i]=xoDef[i]; }
@@ -83,7 +91,8 @@ static inline int oNeedPct(void){ static const u8 t[5]={0,50,100,150,200}; retur
 static inline int oStepsMin(void){ static const u8 t[5]={7,15,30,60,0}; return t[xo[XO_DAY]]; }   // logic steps per game minute, 0 = stopped
 static inline int oStageDays(int st){   // game days a stage lasts before the next one (0 = for ever); ELDER is the last stage and has no row
     static const u8 t[10]={1,2,3,5,7,10,14,21,30,60};
-    if(st<0||st>3) return 0; int i=xo[XO_AGEB+st]; return i<10?t[i]:0; }
+    if(st<0||st>3) return 0;
+    int i=xo[XO_AGEB+st]; return i<10?t[i]:0; }
 static inline int oBillsPct(void){ static const u8 t[4]={0,50,100,200}; return t[xo[XO_BILLS]]; }
 static inline int oQuotaPct(void){ static const u8 t[4]={60,100,150,200}; return t[xo[XO_QUOTA]]; }
 static inline int oScorePct(void){ static const u16 t[4]={50,100,200,300}; return t[xo[XO_SCORE]]; }
@@ -92,8 +101,8 @@ static inline int oSpeedPct(void){ static const u8 t[4]={80,100,125,150}; return
 static inline int oFoodEvery(void){ static const u16 t[4]={0,240,120,60}; return t[xo[XO_HUNGER]]; }  // steps per FOOD point, 0 = never
 static inline int oWcEvery(void){ static const u16 t[4]={0,200,100,50}; return t[xo[XO_HUNGER]]; }
 static inline int oToastLen(void){ static const u8 t[3]={25,45,90}; return t[xo[XO_TOAST]]; }
-static inline int oRepDelay(void){ static const u8 t[3]={22,14,8}; return t[xo[XO_REPEAT]]; }       // frames held before the cursor repeats
-static inline int oRepMask(void){ static const u8 t[3]={7,3,1}; return t[xo[XO_REPEAT]]; }          // repeats when (held & mask) == 0
+static inline int oRepDelay(void){ static const u8 t[3]={12,7,4}; return t[xo[XO_REPEAT]]; }       // frames held before the cursor repeats
+static inline int oRepMask(void){ static const u8 t[3]={3,1,0}; return t[xo[XO_REPEAT]]; }          // repeats when (held & mask) == 0
 // Volume sliders: 0..10 steps on a curve that sounds even (a straight line would be too loud too early). Music and effects are each
 // multiplied with the master slider. The result is a gain 0..256 (256 = full): a sample is scaled by (sample*gain)>>8.
 static const u16 volTab[11]={0,8,17,28,42,60,84,114,150,198,256};

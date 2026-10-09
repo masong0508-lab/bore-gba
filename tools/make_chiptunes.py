@@ -39,11 +39,14 @@ SONGS = [      # the visible set (picked by ear; 9 of 10 so far)
     ("aim_and_shoot",          "tools/aim_and_shoot.xm",          "AIM AND SHOOT",              {}),
     ("gottcho_barracho_ii",    "tools/gottcho_barracho_ii.xm",    "GOTTCHO BARRACHO",           {'v2': True}),
     ("spanish_flexicode",      "tools/spanish_flexicode.xm",      "AN ODE TO THE SPANISH FLEXICODE", {'v2': True}),
+    ("magic_act",              "tools/magic_act.xm",              "THE MAGIC ACT",              {'v2': True}),
 ]
 SECRET = [     # the hidden set: for the title-screen code, like the (ORIGINAL) songs
     ("amiga_music",            "tools/amiga_music.xm",            "AMIGA MUSIC",                {}),
     ("emergency_hitech",       "tools/emergency_hitech.xm",       "EMERGENCY ON THE DANCE FLOOR", {}),
     ("hotdamn_rave",           "tools/hotdamn_rave.xm",           "HOT DAMN",                   {}),
+    ("nursery_time",           "tools/nursery_time.xm",           "NURSERY TIME",               {'v2': True}),
+    ("closer_to_the_end",      "tools/closer_to_the_end.xm",      "CLOSER TO THE END",          {'v2': True}),
 ]
 CANDIDATES = [ # options for the one visible slot still open (v2 = the better pitch and role analysis)
     ("worthless_clouds",       "tools/worthless_clouds.xm",       "WORTHLESS CLOUDS",           {'v2': True}),

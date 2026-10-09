@@ -7,14 +7,16 @@ BG2PA, PB, PC, PD, BG2X, BG2Y, written by an HBlank DMA (main.c, zoomVbl). Table
 10..129; INFO ON SCREEN OFF: 10..159) and the two zooms (1.5X, 2X). Run it again if HUD_TOPH / HUD_BOTY (hud.h) change."""
 import os
 SW, SH, TOP, BOT = 240, 160, 10, 130
+ZW = (192, 160, 140, 120)   # window width per level: 1.25X, 1.5X, 1.7X (12/7), 2X; the scale is SW / ww
+ZND = ((5, 4), (3, 2), (12, 7), (2, 1))   # that scale as a fraction (the OBJ sprites follow it, main.c zoomNum / zoomDen)
 def table(b0, b1, z):
     hb = b1 - b0
-    ww, hw, pa = (120, hb // 2, 128) if z == 2 else (160, hb * 2 // 3, 170)   # 2X: half as many pixels each way; 1.5X: two thirds
+    ww = ZW[z]; pa = 256 * ww // SW; hw = (hb * ww + SW - 1) // SW
     x0 = (SW - ww) // 2; y0 = b0 + (hb - hw) // 2
     rows = []
     for L in range(SH + 1):
         if b0 <= L < b1:
-            y = y0 * 256 + ((L - b0) * 128 if z == 2 else (L - b0) * 512 // 3)
+            y = y0 * 256 + (L - b0) * 256 * ww // SW
             rows.append((pa, 0, 0, pa, x0 * 256, y))
         else:   # (the extra line after the last one is line 0's: BG2X / BG2Y are latched from it at vblank)
             rows.append((256, 0, 0, 256, 0, (L % SH) * 256))
@@ -25,11 +27,12 @@ out = ['// zoomtab.h - made by tools/make_zoomtab.py (do not edit): the in-game 
        '_Static_assert(HUD_TOPH==%d&&HUD_BOTY==%d,"the HUD moved: run tools/make_zoomtab.py again");' % (TOP, BOT)]
 wins = []; tabs = []
 for hudoff in (0, 1):
-    for z in (1, 2):
-        w, rows = table(TOP, SH if hudoff else BOT, 2 if z == 2 else 1)
+    for z in range(4):
+        w, rows = table(TOP, SH if hudoff else BOT, z)
         wins.append('{%d,%d,%d,%d}' % w)
         tabs.append('{' + ','.join('{%d,%d,%d,%d,%d,%d}' % r for r in rows) + '}')
-out.append('static const u8 zoomWin[2][2][4]={{%s,%s},{%s,%s}};   // [INFO ON SCREEN OFF][1.5X, 2X]: the room window drawn (x0, x1, y0, y1)' % tuple(wins))
-out.append('static const ZLn zoomTab[2][2][ZT_N]={{%s,\n%s},\n{%s,\n%s}};' % tuple(tabs))
+out.append('static const u8 zoomWin[2][4][4]={{%s},{%s}};   // [INFO ON SCREEN OFF][1.25X, 1.5X, 1.7X, 2X]: the room window drawn (x0, x1, y0, y1)' % (','.join(wins[:4]), ','.join(wins[4:])))
+out.append('static const u8 zoomND[4][2]={%s};   // the scale of each zoom as num, den' % ','.join('{%d,%d}' % t for t in ZND))
+out.append('static const ZLn zoomTab[2][4][ZT_N]={{%s},\n{%s}};' % (',\n'.join(tabs[:4]), ',\n'.join(tabs[4:])))
 open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'source', 'zoomtab.h'), 'w').write('\n'.join(out) + '\n')
 print('wrote source/zoomtab.h:', wins)

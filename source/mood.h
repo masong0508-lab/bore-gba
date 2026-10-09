@@ -32,7 +32,7 @@
 #define MOOD_STOKED     80    // fun at/above this (and happy >= 60) = STOKED (more points, a touch faster)
 
 enum { M_TRICK, M_COMBO, M_GRIND_ON, M_LAUNCH, M_GOT_BOARD, M_EAT, M_RELIEVE, M_SLEEP, M_SHOWER, M_SOFA, M_WANT, M_SKILL, M_PAY, M_PROMO, M_CHILL,      // good
-       M_BAIL, M_HURT, M_HURT_BIG, M_BUMP, M_ACCIDENT, M_FAINT, M_DIE, M_FEAR, M_PASSOUT, M_BROKE, M_DEMOTE, M_N };        // bad
+       M_BAIL, M_HURT, M_HURT_BIG, M_BUMP, M_ACCIDENT, M_FAINT, M_DIE, M_FEAR, M_PASSOUT, M_BROKE, M_DEMOTE, M_SPOOK, M_SOAKED, M_N };        // bad
 typedef struct { signed char fun, hap; } MoodRow;
 static const MoodRow moodTab[M_N]={
     { 5, 1},   // M_TRICK       landed a clean trick (spin / flip / grab)
@@ -61,12 +61,14 @@ static const MoodRow moodTab[M_N]={
     {-6,-12},  // M_PASSOUT     fell asleep on their feet (sims.h)
     {-4,-10},  // M_BROKE       bills could not be paid (sims.h)
     {-6,-15},  // M_DEMOTE      demoted (sims.h)
+    {-3,-8},   // M_SPOOK       a ghost said BOO (fx.h)
+    {-2,-3},   // M_SOAKED      caught outside in the rain or snow (fx.h)
 };
 enum { MS_SAD, MS_BORED, MS_OK, MS_HAPPY, MS_STOKED };
 static int moodFun, moodHap, moodIdle, moodAir, moodSt;   // meters x256, steps since anything fun, steps airborne, last announced state
 static const char* const moodStName[5]={"SAD","BORED","OK","HAPPY","STOKED"};
 static int simsComfort(void); static int simsTop(int top); static void simsMood(int ev,int n); static int simsPts(int pts);   // sims.h (included after this file)
-static int simsAspMood(void); static int simsFunPct(void);
+static int simsAspMood(void); static int simsFunPct(void); static int htMoodAdj(void);   // (htMoodAdj: hardtime.h)
 static inline int moodClamp(int v){ return v<0?0:v>100*MOOD_ONE?100*MOOD_ONE:v; }
 static inline int moodFunPct(void){ return moodFun/MOOD_ONE; }
 static inline int moodHapPct(void){ return moodHap/MOOD_ONE; }
@@ -78,15 +80,26 @@ static int moodState(void){
     return h>=60?MS_HAPPY:MS_OK;
 }
 static void moodReset(void){ moodFun=MOOD_FUN_START*MOOD_ONE; moodHap=MOOD_HAP_START*MOOD_ONE; moodIdle=moodAir=0; moodSt=moodState(); }
+static u8 alvPopK EWRAM_BSS, alvPopT EWRAM_BSS;   // ALIVE tier 2: the body reaction running on the Sim you control (1 hop for joy, 2 head shake for anger, 3 flinch) and the steps it has left
+static void alvPopSet(int ev){   // pick the reaction for a mood event (quiet ones: a small hop, a shake, a flinch). Not for every trick, so it stays subtle
+    switch(ev){
+        case M_WANT: case M_SKILL: case M_PAY: case M_PROMO: case M_GOT_BOARD: case M_COMBO: alvPopK=1; alvPopT=18; break;
+        case M_DEMOTE: case M_BROKE: alvPopK=2; alvPopT=24; break;
+        case M_BAIL: case M_HURT: case M_HURT_BIG: case M_FEAR: case M_SPOOK: alvPopK=3; alvPopT=14; break;
+        default: break; }
+}
+static u8 fxRxEv=255, fxRxT;   // ALIVE: the last mood event and the steps its face reaction has left (hudface.h reads them)
 static void moodEventN(int ev,int n){
     if(n<1) n=1;
     if(n>8) n=8;
     moodFun=moodClamp(moodFun+moodTab[ev].fun*MOOD_ONE*n); moodHap=moodClamp(moodHap+moodTab[ev].hap*MOOD_ONE*n);
+    alvPopSet(ev); fxRxEv=(u8)ev; fxRxT=72;   // (the portrait reacts for about a second)
     if(moodTab[ev].fun>0) moodIdle=0;   // something fun happened: boredom starts over
     simsMood(ev,n);                     // sims.h: tell the wants and fears about it
 }
 static inline void moodEvent(int ev){ moodEventN(ev,1); }
 static void moodTick(void){   // once per logic step while alive
+    if(fxRxT&&!--fxRxT) fxRxEv=255; if(alvPopT&&!--alvPopT) alvPopK=0;
     moodIdle++;
     int dec=MOOD_FUN_DECAY*(moodIdle>MOOD_BORED_AFTER?2:1)*simsFunPct()/100;   // PLAYFUL creatures get bored faster
     if(lskate&&lsp>=12) dec-=MOOD_CRUISE;                              // cruising: boredom creeps instead of running
@@ -95,8 +108,9 @@ static void moodTick(void){   // once per logic step while alive
     moodFun=moodClamp(moodFun-dec);
     int comfort=lfood<100-lbl?lfood:100-lbl;                            // 0..100: worst of hunger and bladder
     { int sc=simsComfort()+20; if(sc>100) sc=100; if(sc<comfort) comfort=sc; }   // ...and the sims.h needs (energy, hygiene, comfort), with some slack
-    int target=(comfort*MOOD_W_COMFORT+moodFunPct()*(100-MOOD_W_COMFORT))/100+simsAspMood();   // the aspiration meter lifts (platinum) or sinks (failing) it
-    if(target<0) target=0; if(target>100) target=100;
+    int target=(comfort*MOOD_W_COMFORT+moodFunPct()*(100-MOOD_W_COMFORT))/100+simsAspMood()+htMoodAdj();   // the aspiration meter lifts (platinum) or sinks (failing) it; so does the prison's morale meter (hardtime.h)
+    if(target<0) target=0;
+    if(target>100) target=100;
     int t=target*MOOD_ONE;
     if(moodHap<t){ moodHap+=MOOD_HAP_UP; if(moodHap>t) moodHap=t; } else if(moodHap>t){ moodHap-=MOOD_HAP_DOWN; if(moodHap<t) moodHap=t; }
     moodHap=moodClamp(moodHap);

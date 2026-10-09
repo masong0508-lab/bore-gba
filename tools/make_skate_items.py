@@ -9,7 +9,10 @@ Ramps are 8 one-unit slices stepping up 1 px at a time; each riser is painted in
 import os, sys
 ROOT=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0,os.path.join(ROOT,'tools'))
-IW,IH,IOX,IOY=21,28,10,22
+IW,IH,IOX,IOY=21,38,10,32   # the canvas grew 10 rows upward (was 21 x 28, centre row 22): ramps are taller now. Keep in step with source/itemids.h
+GRIND_H=9   # grind surfaces (rail, ledge, bench, planter, picnic table, jersey barrier): 9 px, a value nothing else uses, so tileH()==GRIND_H means grindable
+SOLID_H=14  # funbox and trash can
+BARREL_H=13
 KEY=None
 def shade(c,n): return (c[0]*n//16,c[1]*n//16,c[2]*n//16)
 def lift(c,num,den): return tuple(min(31,v*num//den) for v in c)
@@ -34,8 +37,9 @@ OBJS=[]   # (name, boxes, outline shade, note)
 # ------------------------------------------------------------------ kicker ramp (plywood, rises away from the viewer at rotation 0)
 pKi =pal('pKi', [(7,4,2),(24,17,9),(20,13,6),(28,21,12),(12,7,3)])
 pKiR=pal('pKiR',[lift(c,4,3) for c in pKi])        # risers get shade 12, so pre-lift 4/3 -> same as the top
+KIH=12   # kicker lip height in px (was 8)
 def kicker():
-    boxes=[]; hs=[8,7,6,5,4,3,2,1]                  # slice k: b=k..k+1, back (high) to front (low)
+    boxes=[]; hs=[(KIH*(8-k)+4)//8 for k in range(8)]   # slice k: b=k..k+1, back (high) to front (low): a straight wedge to KIH
     for k,h in enumerate(hs):
         seam=(k%3==0)
         top=mat('mKiT%d'%k,pKi,['cccccccc' if seam else 'bbbbbbbb'])
@@ -43,12 +47,12 @@ def kicker():
         side=mat('mKiS%d'%k,pKi,['e'])
         boxes.append(Box(0,k,8,k+1,0,h,[ris,side,side,side,top]))
     return boxes
-OBJS.append(('Kicker',kicker(),11,'wedge, 8 px lip'))
+OBJS.append(('Kicker',kicker(),11,'wedge, 12 px lip'))
 
 # ------------------------------------------------------------------ quarter pipe (concave, steel coping on the lip)
 pQp =pal('pQp', [(6,4,3),(22,15,8),(17,11,5),(27,19,11),(11,7,3),(21,22,25),(30,30,31)])
 pQpR=pal('pQpR',[lift(c,4,3) for c in pQp])
-QPH=[14,10,7,5,3,2,1,1]                              # slice k, back to front (physics uses the same table)
+QPH=[24,17,12,9,5,3,2,1]                              # slice k, back to front (physics uses the same table)
 def qpipe():
     boxes=[]
     for k,h in enumerate(QPH):
@@ -62,16 +66,16 @@ def qpipe():
         side=mat('mQpS%d'%k,pQp,['e'])
         boxes.append(Box(0,k,8,k+1,0,h,[ris,side,side,side,top]))
     return boxes
-OBJS.append(('QuarterPipe',qpipe(),11,'concave, 14 px'))
+OBJS.append(('QuarterPipe',qpipe(),11,'concave, 24 px'))
 
 # ------------------------------------------------------------------ ledge (concrete box, steel edges). Two variants: run along a (U) / along b (V)
 pLe=pal('pLe',[(6,6,8),(16,16,18),(12,12,14),(27,28,30),(21,22,25)])
 def ledge(alongU):
-    side=mat('mLeSide',pLe,['eeeeeeee','bbbbbbbb','bbbcbbbb','bbbbbbbb','bcbbbbbb','bbbbbbbb'])
+    side=mat('mLeSide',pLe,['eeeeeeee','bbbbbbbb','bbbcbbbb','bbbbbbbb','bcbbbbbb','bbbbbbbb','bbbbcbbb','bbbbbbbb','bbbbbbbb'])
     if alongU: topr=['dddddddd']+['bbbbbbbb','bbcbbbbb','bbbbbbcb','bcbbbbbb','bbbbbbbb','bbbcbbbb']+['dddddddd']
     else:      topr=['dbbbbbbd','dbbcbbbd','dbbbbcbd','dcbbbbbd','dbbbbbbd','dbbbcbbd','dbbbbbbd','dbcbbbbd']
     topm=mat('mLeTop'+('U' if alongU else 'V'),pLe,topr)
-    return [Box(0,0,8,8,0,6,[side,side,side,side,topm])]
+    return [Box(0,0,8,8,0,GRIND_H,[side,side,side,side,topm])]
 OBJS.append(('LedgeU',ledge(True),12,'grind ledge, runs along a'))
 OBJS.append(('LedgeV',ledge(False),12,'grind ledge, runs along b'))
 
@@ -81,31 +85,31 @@ def bench(alongU):
     leg=mat('mBeLeg',pBe,['d']); edge=mat('mBeEdge',pBe,['bbbbbbbb','cccccccc'])
     if alongU:
         topm=mat('mBeTopU',pBe,['bbbbbbbb','bbbbbbbb','cccccccc','bbbbbbbb'])
-        return [Box(1,2,2,6,0,4,[leg]*5),Box(6,2,7,6,0,4,[leg]*5),Box(0,2,8,6,4,6,[edge,edge,edge,edge,topm])]
+        return [Box(1,2,2,6,0,GRIND_H-2,[leg]*5),Box(6,2,7,6,0,GRIND_H-2,[leg]*5),Box(0,2,8,6,GRIND_H-2,GRIND_H,[edge,edge,edge,edge,topm])]
     topm=mat('mBeTopV',pBe,['bbcb']*8)
-    return [Box(2,1,6,2,0,4,[leg]*5),Box(2,6,6,7,0,4,[leg]*5),Box(2,0,6,8,4,6,[edge,edge,edge,edge,topm])]
+    return [Box(2,1,6,2,0,GRIND_H-2,[leg]*5),Box(2,6,6,7,0,GRIND_H-2,[leg]*5),Box(2,0,6,8,GRIND_H-2,GRIND_H,[edge,edge,edge,edge,topm])]
 OBJS.append(('BenchU',bench(True),12,'bench, runs along a'))
 OBJS.append(('BenchV',bench(False),12,'bench, runs along b'))
 
-# ------------------------------------------------------------------ rail v2: base plate + post + bar (same grind height, 6 px)
+# ------------------------------------------------------------------ rail v2: base plate + post + bar (grind height GRIND_H)
 pRl=pal('pRl',[(7,7,10),(19,20,24),(29,30,31),(30,26,5),(12,12,15)])
 def rail(alongU):
     plate=mat('mRlPlate',pRl,['e']); post=mat('mRlPost',pRl,['a'])
     if alongU:
         lng=mat('mRlLong',pRl,['cccccccc','bbbbbbbb']); sh=mat('mRlShort',pRl,['cc','bb'])
         top=mat('mRlTopL',pRl,['cccccccc','cdcdcdcd'])
-        return [Box(2,2,6,6,0,1,[plate]*5),Box(3,3,5,5,1,4,[post]*5),Box(0,3,8,5,4,6,[lng,sh,lng,sh,top])]
+        return [Box(2,2,6,6,0,1,[plate]*5),Box(3,3,5,5,1,GRIND_H-2,[post]*5),Box(0,3,8,5,GRIND_H-2,GRIND_H,[lng,sh,lng,sh,top])]
     lng=mat('mRlLongV',pRl,['cccccccc','bbbbbbbb']); sh=mat('mRlShortV',pRl,['cc','bb'])
     top=mat('mRlTopS',pRl,['cc','cd','cc','cd','cc','cd','cc','cd'])
-    return [Box(2,2,6,6,0,1,[plate]*5),Box(3,3,5,5,1,4,[post]*5),Box(3,0,5,8,4,6,[sh,lng,sh,lng,top])]
+    return [Box(2,2,6,6,0,1,[plate]*5),Box(3,3,5,5,1,GRIND_H-2,[post]*5),Box(3,0,5,8,GRIND_H-2,GRIND_H,[sh,lng,sh,lng,top])]
 OBJS.append(('RailU',rail(True),16,'grind rail along a'))
 OBJS.append(('RailV',rail(False),16,'grind rail along b'))
 
 # ================================================================== PACK 2: launch ramp, funbox, barrel, trash can, planter, picnic table, jersey barrier, manual pad
-# ------------------------------------------------------------------ launch ramp (taller blue wedge with a white centre stripe, 12 px lip)
+# ------------------------------------------------------------------ launch ramp (taller blue wedge with a white centre stripe, 18 px lip)
 pLa =pal('pLa', [(3,5,10),(8,14,24),(14,22,31),(24,29,31),(5,9,17)])
 pLaR=pal('pLaR',[lift(c,4,3) for c in pLa])
-LAH=[12,11,9,7,6,4,2,1]                               # slice k, back (lip) to front; physics is a straight line up to LAUNCH_H
+LAH=[(18*(8-k)+4)//8 for k in range(8)]                               # slice k, back (lip) to front; physics is a straight line up to LAUNCH_H
 def launch():
     boxes=[]
     for k,h in enumerate(LAH):
@@ -115,48 +119,49 @@ def launch():
         side=mat('mLaS%d'%k,pLa,['e'])
         boxes.append(Box(0,k,8,k+1,0,h,[ris,side,side,side,top]))
     return boxes
-OBJS.append(('Launch',launch(),11,'launch ramp, 12 px lip'))
+OBJS.append(('Launch',launch(),11,'launch ramp, 18 px lip'))
 
 # ------------------------------------------------------------------ funbox (flat concrete platform, yellow band, steel coping, 10 px)
 pFb=pal('pFb',[(5,5,9),(14,13,20),(20,18,27),(28,26,31),(10,9,15),(31,27,6)])
 def funbox():
-    side=mat('mFbSide',pFb,['dddddddd','eeeeeeee','bbbbbbbb','bbcbbbbb','ffffffff','ffffffff','bbbbbbbb','bbbbbcbb','bbbbbbbb','eeeeeeee'])
+    side=mat('mFbSide',pFb,['dddddddd','eeeeeeee','bbbbbbbb','bbcbbbbb','bbbbbbbb','ffffffff','ffffffff','bbbbbbbb','bbbbcbbb','bbbbbbbb','bbcbbbbb','bbbbbbbb','bbbbbbbb','eeeeeeee'])
     top=mat('mFbTop',pFb,['dddddddd','dbbbbbbd','dbbcbbbd','dbbbbbcd','dbcbbbbd','dbbbbbbd','dbbbcbbd','dddddddd'])
-    return [Box(0,0,8,8,0,10,[side,side,side,side,top])]
-OBJS.append(('Funbox',funbox(),12,'platform, 10 px, solid (ollie onto it)'))
+    return [Box(0,0,8,8,0,SOLID_H,[side,side,side,side,top])]
+OBJS.append(('Funbox',funbox(),12,'platform, 14 px, solid (ollie onto it)'))
 
 # ------------------------------------------------------------------ barrel (red oil drum with ribs, 8 px)
 pBa=pal('pBa',[(8,2,2),(24,6,5),(30,12,9),(14,3,3),(31,24,20)])
 def barrel():
-    side=mat('mBaSide',pBa,['bbcbbbbb','dddddddd','bbcbbbbb','bbcbbbbb','bbcbbbbb','bbcbbbbb','dddddddd','bbcbbbbb'])
+    side=mat('mBaSide',pBa,['bbcbbbbb','dddddddd']+['bbcbbbbb']*4+['dddddddd']+['bbcbbbbb']*4+['dddddddd','bbcbbbbb'])
     top=mat('mBaTop',pBa,['dddddd','dbbbbd','dbeebd','dbeebd','dbbbbd','dddddd'])
-    return [Box(1,1,7,7,0,8,[side,side,side,side,top])]
-OBJS.append(('Barrel',barrel(),11,'oil drum, 8 px, solid'))
+    return [Box(1,1,7,7,0,BARREL_H,[side,side,side,side,top])]
+OBJS.append(('Barrel',barrel(),11,'oil drum, 13 px, solid'))
 
 # ------------------------------------------------------------------ trash can (grey-green, lid, 10 px)
 pTr=pal('pTr',[(3,5,4),(12,18,14),(17,24,19),(22,28,24),(7,11,8)])
 def trashcan():
-    body=mat('mTrBody',pTr,['bcbcbcbc']*9)
+    body=mat('mTrBody',pTr,['bcbcbcbc']*(SOLID_H-1))
     lidS=mat('mTrLidS',pTr,['d']); lidT=mat('mTrLidT',pTr,['dddddddd','dcccccd d'.replace(' ',''),'dcdddcdd','dcccccdd','dddddddd','dcccccdd','dcdddcdd','dddddddd'][:8])
-    return [Box(1,1,7,7,0,9,[body,body,body,body,body]),Box(0,0,8,8,9,10,[lidS,lidS,lidS,lidS,lidT])]
-OBJS.append(('TrashCan',trashcan(),11,'trash can, 10 px, solid'))
+    return [Box(1,1,7,7,0,SOLID_H-1,[body,body,body,body,body]),Box(0,0,8,8,SOLID_H-1,SOLID_H,[lidS,lidS,lidS,lidS,lidT])]
+OBJS.append(('TrashCan',trashcan(),11,'trash can, 14 px, solid'))
 
 # ------------------------------------------------------------------ planter (brick box with soil and plants, grind height 6)
 pPl=pal('pPl',[(6,3,2),(20,10,6),(26,15,9),(14,7,4),(9,6,3),(8,22,6),(14,28,9),(30,10,16)])
 def planter():
-    side=mat('mPlSide',pPl,['cbbbcbbb','dddddddd','bbcbbbcb','dddddddd','cbbbcbbb','dddddddd'])
+    side=mat('mPlSide',pPl,['cbbbcbbb','dddddddd','bbcbbbcb','dddddddd','cbbbcbbb','dddddddd','bbcbbbcb','dddddddd','cbbbcbbb'])
     top=mat('mPlTop',pPl,['cccccccc','cefeefec','cffefeec','cefhfefc','cfeefhec','cefefeec','cfehefec','cccccccc'])
-    return [Box(0,0,8,8,0,6,[side,side,side,side,top])]
-OBJS.append(('Planter',planter(),11,'planter box, grind 6 px'))
+    return [Box(0,0,8,8,0,GRIND_H,[side,side,side,side,top])]
+OBJS.append(('Planter',planter(),11,'planter box, grind 9 px'))
 
-# ------------------------------------------------------------------ picnic table (top at 6 px so it grinds; seats both sides)
+# ------------------------------------------------------------------ picnic table (top at GRIND_H so it grinds; seats both sides)
 pPt=pal('pPt',[(6,4,2),(25,18,9),(18,12,6),(29,22,12),(13,8,4)])
 def picnic():
     leg=mat('mPtLeg',pPt,['e']); seatE=mat('mPtSeatE',pPt,['bbbbbbbb']); seatT=mat('mPtSeatT',pPt,['bbbbbbbb','bbcbbbbb'])
     topE=mat('mPtTopE',pPt,['dddddddd','cccccccc']); topT=mat('mPtTopT',pPt,['dddddddd','cccccccc']*3)
-    return [Box(1,0,2,8,0,2,[leg]*5),Box(6,0,7,8,0,2,[leg]*5),Box(0,0,8,2,2,3,[seatE,seatE,seatE,seatE,seatT]),Box(0,6,8,8,2,3,[seatE,seatE,seatE,seatE,seatT]),
-            Box(1,1,7,7,5,6,[topE,topE,topE,topE,topT]),Box(2,1,3,7,3,5,[leg]*5),Box(5,1,6,7,3,5,[leg]*5)]
-OBJS.append(('PicnicTable',picnic(),12,'picnic table, grind 6 px'))
+    g=GRIND_H
+    return [Box(1,0,2,8,0,3,[leg]*5),Box(6,0,7,8,0,3,[leg]*5),Box(0,0,8,2,3,4,[seatE,seatE,seatE,seatE,seatT]),Box(0,6,8,8,3,4,[seatE,seatE,seatE,seatE,seatT]),
+            Box(1,1,7,7,g-1,g,[topE,topE,topE,topE,topT]),Box(2,1,3,7,4,g-1,[leg]*5),Box(5,1,6,7,4,g-1,[leg]*5)]
+OBJS.append(('PicnicTable',picnic(),12,'picnic table, grind 9 px'))
 
 # ------------------------------------------------------------------ jersey barrier (concrete, red/white stripes on the top, grind 6 px). U / V variants like the ledge
 pJe=pal('pJe',[(6,6,8),(17,17,19),(22,22,24),(27,28,30),(12,12,14),(27,6,5),(30,30,30)])
@@ -164,8 +169,9 @@ def jersey(alongU):
     base=mat('mJeBase',pJe,['bbbbbbbb','eeeeeeee']); mid=mat('mJeMid',pJe,['cccccccc','bbbbbbbb'])
     stp =mat('mJeStripe',pJe,['ffggffgg','ggffggff'])
     topm=mat('mJeTop'+('U' if alongU else 'V'),pJe,['dddd']*8 if alongU else ['dddddddd']*4)
-    if alongU: return [Box(0,1,8,7,0,2,[base]*4+[mid]),Box(0,2,8,6,2,4,[mid,mid,mid,mid,mid]),Box(0,3,8,5,4,6,[stp,stp,stp,stp,topm])]
-    return [Box(1,0,7,8,0,2,[base]*4+[mid]),Box(2,0,6,8,2,4,[mid,mid,mid,mid,mid]),Box(3,0,5,8,4,6,[stp,stp,stp,stp,topm])]
+    g=GRIND_H
+    if alongU: return [Box(0,1,8,7,0,2,[base]*4+[mid]),Box(0,2,8,6,2,5,[mid,mid,mid,mid,mid]),Box(0,3,8,5,5,g,[stp,stp,stp,stp,topm])]
+    return [Box(1,0,7,8,0,2,[base]*4+[mid]),Box(2,0,6,8,2,5,[mid,mid,mid,mid,mid]),Box(3,0,5,8,5,g,[stp,stp,stp,stp,topm])]
 OBJS.append(('JerseyU',jersey(True),12,'jersey barrier, runs along a'))
 OBJS.append(('JerseyV',jersey(False),12,'jersey barrier, runs along b'))
 
@@ -176,6 +182,28 @@ def mpad():
     top=mat('mPdTop',pPd,['dddddddd','dbbbbbbd','dbcbbbcd','dbbcbcbd','dbbbcbbd','dbbcbcbd','dbcbbbcd','dddddddd'])
     return [Box(0,0,8,8,0,3,[side,side,side,side,top])]
 OBJS.append(('ManualPad',mpad(),12,'manual pad, 3 px, rides on without a jump'))
+
+# ------------------------------------------------------------------ LONG RAMPS: segments (ramps.h chains same-way ramp tiles into one long ramp)
+# Place 2 or more KICKERs (or LAUNCH ramps) in a row, all facing the same way: the lower tiles turn into gentle segments that keep climbing, and past the
+# last segment the next tile is a flat DECK. Each segment is the same wedge as the single ramp (8 slices, boxes from the floor up), just from height a to b.
+KSEG=8; KSEGS=3     # kicker chain: 8 px per tile, 3 tiles of climb (24 px), then a flat deck at 24
+LSEG=12; LSEGS=2    # launch chain: 12 px per tile, 2 tiles of climb (24 px), then a flat deck at 24
+def segment(tag,p,pR,a,b,topRows):
+    boxes=[]
+    for k in range(8):
+        h=a+((b-a)*(8-k)+4)//8 if b>a else a   # slice k, back (high) to front (low)
+        seam=(k%3==0)
+        top=mat('m%sT%d'%(tag,k),p,topRows(seam))
+        ris=mat('m%sR%d'%(tag,k),pR,['c' if seam else 'b'])
+        side=mat('m%sS%d'%(tag,k),p,['e'])
+        boxes.append(Box(0,k,8,k+1,0,h,[ris,side,side,side,top]))
+    return boxes
+for i in range(KSEGS+1):
+    a=KSEG*min(i,KSEGS); b=KSEG*min(i+1,KSEGS)
+    OBJS.append(('KickerSeg%d'%i,segment('KiG%d'%i,pKi,pKiR,a,b,lambda seam:['cccccccc' if seam else 'bbbbbbbb']),11,'long kicker, tile %d (%d to %d px)'%(i,a,b) if i<KSEGS else 'long kicker, flat deck at %d px'%b))
+for i in range(LSEGS+1):
+    a=LSEG*min(i,LSEGS); b=LSEG*min(i+1,LSEGS)
+    OBJS.append(('LaunchSeg%d'%i,segment('LaG%d'%i,pLa,pLaR,a,b,lambda seam:['bbbddbbb']),11,'long launch ramp, tile %d (%d to %d px)'%(i,a,b) if i<LSEGS else 'long launch ramp, flat deck at %d px'%b))
 
 # ------------------------------------------------------------------ renderer (port of items.h)
 def rotPt(r,a,b): return [(a,b),(b,8-a),(8-a,8-b),(8-b,a)][r]
@@ -292,10 +320,17 @@ def preview2(path,scale=6):
     im.save(path)
 
 def emit_ramps():
-    return ('// rampdata.h - GENERATED by tools/make_skate_items.py. Surface heights (px) that match the ramp sprites, used by ramps.h.\n'
+    return ('// rampdata.h - GENERATED by tools/make_skate_items.py. Surface heights (px) that match the sprites, used by ramps.h and tileH() in main.c.\n'
             'static const u8 qpH[8]={%s};   // quarter pipe, per eighth of the tile from the low edge to the lip\n'
             '#define KICKER_H %d   // kicker height at the lip\n'
-            '#define LAUNCH_H %d   // launch ramp height at the lip (pack 2)\n')%(','.join(str(h) for h in reversed(QPH)),8,LAH[0])
+            '#define LAUNCH_H %d   // launch ramp height at the lip (pack 2)\n'
+            '#define KICKER_SEG %d   // LONG RAMPS (ramps.h): px a kicker tile climbs when it is part of a chain\n'
+            '#define KICKER_SEGS %d   // tiles of climb in a kicker chain; the next tile is a flat deck at KICKER_SEG*KICKER_SEGS\n'
+            '#define LAUNCH_SEG %d   // the same for a launch ramp chain\n'
+            '#define LAUNCH_SEGS %d\n'
+            '#define GRIND_H %d   // rail, ledge, bench, planter, picnic table, jersey barrier: grindable. 9 is a height nothing else has (8 is furniture)\n'
+            '#define SOLID_H %d   // funbox and trash can\n'
+            '#define BARREL_H %d   // oil drum\n')%(','.join(str(h) for h in reversed(QPH)),KIH,LAH[0],KSEG,KSEGS,LSEG,LSEGS,GRIND_H,SOLID_H,BARREL_H)
 
 if __name__=='__main__':
     open(os.path.join(ROOT,'source','skateart.h'),'w').write(emit())

@@ -18,7 +18,6 @@
 // ---------- the bank ----------
 #define BK_SZ  4096
 #define BK_HDR 40   // 0 'H' 1 'B' (written last) 2 kind 3 lot 4..5 town key 6..7 payload length 8..9 checksum 10..21 last name 22..33 first name 34 stage
-                    // 35 how many look bytes the payload starts with (LK_N; anything else: a record written before GENDER, LK_N10)
 static int bkN;     // households the bank holds
 static u32 bkOff(int i){ return SLOT_BASE+(u32)(slN+2*i)*SLOT_SZ; }   // right after the room slots
 static void bkInit(void){   // at power on, after slInitN: the top slots that no save uses become the bank (slN ends below it)
@@ -43,14 +42,13 @@ static void bkHead(int i,int kind,int lot,u16 key,const char*last,const char*fir
     for(int k=0;k<HH_NM;k++){ svWr(o+22+k,k<HH_NM-1?first[k]:0); if(!first[k]) break; }
     svWr(o+34,stage); svWr(o+35,LK_N); svWr(o,'H'); svWr(o+1,'B');   // byte 35: how many looks the record holds (older records have another value there: LK_N10)
 }
-static int bkNl(int v){ return v==LK_N?LK_N:v==LK_N12?LK_N12:v==LK_N11?LK_N11:LK_N10; }   // looks a bank record holds, from its byte 35
-static void bkSex(u8*lk,int nl){ if(nl<LK_N) lk[LK_SEX]=sexGuess(lk); else if(lk[LK_SEX]>=SX_N) lk[LK_SEX]=SX_NB; }   // (a record written before GENDER)
+static int bkNl(int v){ return v==LK_N?LK_N:v==LK_N13?LK_N13:v==LK_N12?LK_N12:v==LK_N11?LK_N11:LK_N10; }   // looks a bank record holds, from its byte 35
 static int bkCheck(int i){ u32 o=bkOff(i); if(!bkOk(i)) return 0; int n=svRd(o+6)|svRd(o+7)<<8; if(n>BK_SZ-BK_HDR) return 0;
     u16 s=0; for(int k=0;k<n;k++) s=(u16)(s+svRd(o+BK_HDR+k)); return s==(u16)(svRd(o+8)|svRd(o+9)<<8); }
 static int bkPutMine(int i,u16 key,int lot){   // the household you play (kind 1) into record i. 1 = done
     simsSaveNow(); hhSave(); ageSave(); persSave();
     volatile u8*hh=SRAM_BASE+HH_OFF; int hl=hhBlockLen(hh,SL_HH_LEN); if(!hl) return 0;
-    if(BK_HDR+LK_N+5+PERS_LEN+SIM_BLOCK+8+2+hl+16>BK_SZ) return 0;
+    if(BK_HDR+LK_N+5+PERS_LEN+SIM_BLOCK+8+2+hl>BK_SZ) return 0;
     svErr=0; svErase(bkOff(i),BK_SZ); bkW=bkOff(i)+BK_HDR; bkSum=0;
     for(int k=0;k<LK_N;k++) bkPut8(look[k]);
     for(int k=0;k<5;k++) bkPut8(SRAM_BASE[AGE_OFF+k]);
@@ -58,7 +56,6 @@ static int bkPutMine(int i,u16 key,int lot){   // the household you play (kind 1
     for(int k=0;k<SIM_BLOCK;k++) bkPut8(SIM_SRAM[k]);
     for(int k=0;k<8;k++) bkPut8(SRAM_BASE[STORY_OFF+k]);   // (their story, story.h)
     bkPut8(hl); bkPut8(hl>>8); for(int k=0;k<hl;k++) bkPut8(hh[k]);
-    for(int k=0;k<16;k++) bkPut8(SRAM_BASE[FAM_OFF+k]);   // (their family: ages, a baby on the way; family.h. Older records end before it)
     bkHead(i,1,lot,key,hhPLast,hhPName,stage);
     return !svErr;
 }
@@ -69,7 +66,7 @@ static int bkPutSim(int i,u16 key,int lot,const HhSim*s){   // one Sim who moved
     bkHead(i,2,lot,key,s->last,s->name,s->stage);
     return !svErr;
 }
-static void hhRelClear(void){ for(int a=0;a<HU_N;a++)for(int b=0;b<HU_N;b++){ relD[a][b]=relL[a][b]=0; relF[a][b]=0; } }
+static void hhRelClear(void){ for(int a=0;a<HU_N;a++)for(int b=0;b<HU_N;b++){ relD[a][b]=relL[a][b]=0; relF[a][b]=0; } kinClear(); }
 static void hhAfterSwitch(void){   // a different household is the one you play: everything baked or picked for the old one goes
     twKeep=0; sprKey=0; for(int m=0;m<HH_MAX;m++) hhKey[m]=0; hhSlotsFree();
     custom=0; fixLook(); buildLook(); setColors(); ageSave(); persSave(); hhSave(); simsSaveNow();
@@ -77,7 +74,7 @@ static void hhAfterSwitch(void){   // a different household is the one you play:
 static int bkTake(int i){   // record i becomes the household you play (it leaves the bank). 1 = done
     if(!bkCheck(i)) return 0;
     u32 p=bkOff(i)+BK_HDR; int kind=svRd(bkOff(i)+2);
-    { int nl=bkNl(svRd(bkOff(i)+35)); for(int k=0;k<LK_N;k++) look[k]=k<nl?svRd(p++):0; bkSex(look,nl); }
+    { int nl=bkNl(svRd(bkOff(i)+35)); for(int k=0;k<LK_N;k++) look[k]=k<nl?svRd(p++):0; }
     if(kind==1){
         for(int k=0;k<5;k++) SRAM_BASE[AGE_OFF+k]=svRd(p++);
         for(int k=0;k<PERS_LEN;k++) SRAM_BASE[PERS_OFF+k]=svRd(p++);
@@ -85,8 +82,6 @@ static int bkTake(int i){   // record i becomes the household you play (it leave
         for(int k=0;k<8;k++) SRAM_BASE[STORY_OFF+k]=svRd(p++);
         int hl=svRd(p)|svRd(p+1)<<8; p+=2; if(hl>SL_HH_LEN) return 0;
         for(int k=0;k<hl;k++) SRAM_BASE[HH_OFF+k]=svRd(p++);
-        { int n=svRd(bkOff(i)+6)|svRd(bkOff(i)+7)<<8; int left=n-(int)(p-bkOff(i)-BK_HDR);   // the family block, if the record has one
-          for(int k=0;k<16;k++) SRAM_BASE[FAM_OFF+k]=left>=16?svRd(p++):0; }
         ageLoad(); persLoad(); hhLoad();
     } else {   // one Sim: a new life, a household of one
         pAsp=svRd(p++); pLtw=svRd(p++); for(int k=0;k<TR_N;k++) pTr[k]=svRd(p++);
@@ -134,7 +129,7 @@ static int nbVisitor(HhSim*s,char*from,int skip){   // a Sim of another househol
 static void nbSimFrom(int li,HhSim*s,char*from){   // a Sim of the household on lot li (someone lives there) into s; the lot's name into from
     { int k=0; for(;nbT.lot[li].name[k]&&k<11;k++) from[k]=nbT.lot[li].name[k]; from[k]=0; }
     int b=bkFind(nbKey(&nbT),li);
-    if(b>=0){ u32 o=bkOff(b), p=o+BK_HDR; { int nl=bkNl(svRd(o+35)); for(int k=0;k<LK_N;k++) s->look[k]=k<nl?svRd(p+k):0; bkSex(s->look,nl); }
+    if(b>=0){ u32 o=bkOff(b), p=o+BK_HDR; { int nl=bkNl(svRd(o+35)); for(int k=0;k<LK_N;k++) s->look[k]=k<nl?svRd(p+k):0; }
         s->stage=svRd(o+34); if(s->stage>=AG_N) s->stage=AG_ADULT; s->asp=AS_FORTUNE; for(int k=0;k<TR_N;k++) s->tr[k]=5;
         bkName(b,1,s->name); bkName(b,0,s->last); return; }
     const HhFam*F=&hhFams[nbFamOf(&nbT,li)]; hhNew(s,&F->m[rnd8()%F->n]); famLast(F,s->last);
@@ -151,6 +146,7 @@ static int hhLeaveHome(void){   // the household you play goes into the bank, on
     return 1;
 }
 static int hhPlayAt(int li){   // NEIGHBORHOOD lot menu > PLAY THE ...: you play the household of lot li (yours waits in the bank). 1 = the game was played
+    if(prShown()){ toast("SERVE YOUR TIME FIRST"); return 0; }   // (prison.h: the sentence belongs to this household)
     char nm[24]; nm[0]=0; int who=nbWho(li,nm); if(!who) return 0;
     { char q[32]; char*e=slCat(q,"PLAY "); slCat(e,nm); const char*yn[2]={"YES","NO"}; if(menu(q,yn,2)!=0) return 0; }
     int b=who==1?bkFind(nbKey(&nbT),li):-1, f=who==2?nbFamOf(&nbT,li):-1;
@@ -162,6 +158,7 @@ static int hhPlayAt(int li){   // NEIGHBORHOOD lot menu > PLAY THE ...: you play
     nbSave(); return 1;
 }
 static int hhNewAt(int li){   // NEIGHBORHOOD lot menu > NEW HOUSEHOLD HERE (a free lot): new Sims, made in the creator. 1 = done
+    if(prShown()){ toast("SERVE YOUR TIME FIRST"); return 0; }
     { const char*yn[2]={"YES","NO"}; if(menu("NEW SIMS ON THIS LOT",yn,2)!=0) return 0; }
     if(!hhLeaveHome()) return 0;
     int old=nbT.home; nbT.home=(u8)li;
@@ -175,7 +172,7 @@ static int hhMoveOut(int m){   // member m moves out: to a free lot of the town 
     int r=lot>=0?bkFree():-1, there=0;
     if(r>=0&&bkPutSim(r,nbKey(&nbT),lot,&hhM[m])) there=1;
     hhRemove(m); for(int k=0;k<hhN;k++){ hhOld[k].x0=hhOld[k].x1=0; hhOldSig[k]=0xFFFFFFFFu; } hhSave();
-    if(there){ static char t[40]; char*e=slCat(t,"THEY LIVE ON "); slCat(e,nbT.lot[lot].name); toast(t); nbSave(); } else toast("MOVED OUT OF TOWN");
+    if(there){ static char t[40] EWRAM_BSS; char*e=slCat(t,"THEY LIVE ON "); slCat(e,nbT.lot[lot].name); toast(t); nbSave(); } else toast("MOVED OUT OF TOWN");
     return 1;
 }
 
@@ -198,18 +195,24 @@ static void phInvite(void){   // someone from another household comes over (they
     s->uid=255; s->bubT=0; s->hp=HP_MAX; s->act=HA_IDLE; s->pn=s->pi=0;
     twHas[k]=1;   // (a guest staying over counts for STORY MODE's HAVE A NEIGHBOR OVER: story.h watches twOn) twOn[k]=0; twWait[k]=90; hhKey[v]=0; twKeep=1;
     toast("PLEASE WAIT  THEY ARE ON THEIR WAY"); hhBakeAll();
-    static char t[40]; char*e=simCat(t,s->name); simCat(e," IS COMING OVER"); toast(t);
+    static char t[40] EWRAM_BSS; char*e=simCat(t,s->name); simCat(e," IS COMING OVER"); toast(t);
 }
+static void careerScreen(void);   // career.h
+static void htFavors(void);   // hardtime.h
 static void phoneMenu(void){   // pause menu > PHONE
-    const char* it[5]; int id[5], n=0;
+    const char* it[7]; int id[7], n=0;
     it[n]="INVITE SOMEONE OVER"; id[n++]=0;
-    it[n]="ORDER PIZZA  \xC2\xA7" "20"; id[n++]=1;
-    it[n]="ORDER CHINESE  \xC2\xA7" "15"; id[n++]=2;
+    if(ojob()){ it[n]="CAREER  JOBS AND PAY"; id[n++]=4; }   // (the career tracks: career.h)
+    it[n]="ORDER PIZZA  \xC2\xA7" "80"; id[n++]=1;
+    it[n]="ORDER CHINESE  \xC2\xA7" "60"; id[n++]=2;
+    if(prIn()){ it[n]="FAVORS  PRISON JOBS"; id[n++]=5; }   // (in the prison: hardtime.h)
     if(dbgOn&&hhN){ it[n]="MOVE SOMEONE OUT"; id[n++]=3; }   // (the DEBUG CODE: every change to who lives in the house)
     int c=menu("PHONE",it,n); if(c<0) return;
     switch(id[c]){
         case 0: phInvite(); break;
-        case 1: case 2: { int cost=id[c]==1?20:15;
+        case 4: careerScreen(); break;
+        case 5: htFavors(); break;
+        case 1: case 2: { int cost=id[c]==1?80:60;
             if(phFood){ toast("FOOD IS ALREADY ON ITS WAY"); break; }
             if(simMoney<cost){ toast("NOT ENOUGH SIMOLEONS"); break; }
             simMoney-=cost; simsSave(); phFood=(u8)id[c]; phT=(short)(480+(rnd8()<<1));   // the doorbell in 8 to 16 seconds

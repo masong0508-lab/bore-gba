@@ -124,8 +124,8 @@ Walls are drawn like The Sims: a wall tile is a **thin, tall panel** (24 px, 3 b
   - It works for both creators: legs are the leg-shaped blocks and arms the arm-shaped ones, whether built from a look or by hand in the classic block builder.
   - Household sprites keep only the part that changes: OBJ tile rows 1..5, 640 bytes per view. Your Sim keeps a full second set (`spr4s`).
 - **Hardware sprites**: the other Sims are GBA sprites (OBJ, 32x64, 16 colours each with their own palette), so their moving costs no drawing; the CPU only draws their shadows and talk balloons into the room. Their four views are baked like yours, cut down to 15 colours (closest colours merged, the common ones kept exact), and only the view on show sits in sprite memory (1 KB each, copied in vblank). A window keeps them inside the room view (never over the HUD), menus and other screens hide them. Sprites always sit on top of the picture, so a Sim standing behind a full-height wall is drawn see-through (an x-ray blend) instead of in front of it. You stay drawn by the CPU (furniture in front of you covers you, the action cam can zoom you); SELECT swaps sprites both ways.
-- **Social life** (Sims 2 style). A SOCIAL need (HUD bar, a LONELY alert; outgoing Sims get lonely faster). Every pair of Sims has a one-way DAILY and LIFETIME relationship (-100..100): daily changes fast and drifts back to lifetime every game hour, lifetime moves a third as much. Statuses: STRANGER, ACQUAINTANCE, FRIEND (daily 50+), BEST FRIEND (daily and lifetime 70+), DISLIKE, ENEMY (daily -50 or less), and the romance steps CRUSH, IN LOVE, STEADY, MARRIED (see FAMILY LIFE).
-  - **R next to a household Sim** opens the social menu (the furniture you stand at is offered first): TALK, JOKE, COMPLIMENT, HIGH FIVE, HUG, SHOW A TRICK, FLIRT, KISS, GO STEADY, PROPOSE, TRY FOR A BABY, APOLOGIZE, ARGUE, INSULT, SLAP. What is on offer depends on the relationship (a hug needs daily 35, a kiss a crush, going steady being in love), age (romance only teen with teen or adult with adult/elder; no slapping for children) and mood.
+- **Social life** (Sims 2 style). A SOCIAL need (HUD bar, a LONELY alert; outgoing Sims get lonely faster). Every pair of Sims has a one-way DAILY and LIFETIME relationship (-100..100): daily changes fast and drifts back to lifetime every game hour, lifetime moves a third as much. Statuses: STRANGER, ACQUAINTANCE, FRIEND (daily 50+), BEST FRIEND (daily and lifetime 70+), DISLIKE, ENEMY (daily -50 or less), and the romance steps CRUSH, IN LOVE, STEADY.
+  - **R next to a household Sim** opens the social menu (the furniture you stand at is offered first): TALK, JOKE, COMPLIMENT, HIGH FIVE, HUG, SHOW A TRICK, FLIRT, KISS, GO STEADY, APOLOGIZE, ARGUE, INSULT, SLAP. What is on offer depends on the relationship (a hug needs daily 35, a kiss a crush, going steady being in love), age (romance only teen with teen or adult with adult/elder; no slapping for children) and mood.
   - **Acceptance** = the interaction's base chance + half of how the other feels about you + their matching trait (playful for jokes, nice for compliments and hugs, outgoing for flirts) + their mood; shy Sims are wary of people they hardly know, and a Sim going steady with someone else turns flirts down. Accepted: both like each other more and fill SOCIAL (jokes and tricks also FUN). Rejected: you are embarrassed and like them a little less. Mean ones always land.
   - **Free will socials**: lonely Sims (and idle ones, outgoing ones most) go and see someone: friends, crushes and partners first, strangers to say hello, and you. Grouchy Sims go looking for trouble. What they do follows the relationship: friends joke and hug, crushes flirt and kiss, couples in love ask to go steady, enemies argue and slap. They do it to you too.
   - Balloons over heads show what is said (a word over yours, an icon over theirs), and the note line says what happened ("REX LAUGHED").
@@ -194,8 +194,6 @@ them at 4840 and `svInit` puts them back.)
 | 4808 | layout marker `LY2` (set once the upgrade below has run) |
 | 4864 | settings (16 bytes) |
 | 4896 | extended options (`opts.h`) |
-| 4968 | story mode (`story.h`, 8 bytes) |
-| 4976 | family: ages, a baby on the way (`family.h`, 16 bytes) |
 | 4992 | active room slot |
 | 5008 | life stage and days in it |
 | 5024 | persona: aspiration, lifetime want, traits, DNA, unlocked parts |
@@ -330,6 +328,23 @@ tables, and `chipMix` (main.c) renders them live.
 - **Saved** in a TOWN slot (kind 3). The first town is BOREVILLE: your place, four empty lots and five community lots.
 - **Hook:** `nbDrawLotModel()` draws each lot's building as an icon. The real house can be drawn there later.
 - **Tested in mGBA:** the town draws in both zooms; visiting another lot saved YOUR PLACE as a 2-slot house and wrote the town slot.
+
+## Undo and redo (`source/undo.h`)
+- **Keys:** SELECT + B = UNDO, SELECT + START = REDO (in the room builder). The MAP MENU lists UNDO n and REDO n too, and the builder shows `UNDO n  REDO n` at the top right when there is something to step through.
+- **A step** = everything between pressing A / B and letting go (`udEnd` runs when both are up, before a menu, before a floor change and when the builder closes). A tile put back exactly as it was is not a step.
+- **How:** before a tile changes, `udRec(x, y)` stores its three bytes (item char, floor, wallpaper) packed in a u32 (11 bits position, 4 floor, 8 wallpaper, 8 item). UNDO swaps the stored tiles with the live ones, in reverse order; REDO swaps them again, in order. Only recorded tiles are touched, so a play test in between cannot corrupt the history. Callers: `mapPlace` (BUY / SELL, including the old board / spawn tile it clears), `eApply` through `edSet` (ROOM, WALL, FLOOR, SELL area).
+- **Money:** `edPay` adds what it charged to `udCashD`; the step keeps it. UNDO refunds it, REDO charges it. A step that cannot be paid for is refused (`NOT ENOUGH CASH TO UNDO / REDO`). No purse (the builder is free) means nothing to settle.
+- **Floors:** a step remembers its floor; UNDO / REDO on another floor goes there first (`flGo`), and refuses if the floor pool cannot hold the change.
+- **Limits:** `UD_ACT` 3 steps (you can undo three times), `UD_REC` 1,000 tiles. The oldest steps fall off. One step bigger than `UD_REC` (a 40 x 40 fill) clears the history and shows TOO BIG TO UNDO. Cleared on RESET MAP, after a blueprint loads, and when the builder opens.
+- **Memory:** about 4.2 KB EWRAM (`udR` 4,000 B, `udA` 136 B, a few bytes of flags and two 12 B menu labels). No IWRAM. The last measured build had about 6.6 KB of EWRAM free: run `make size` and lower `UD_REC` if it is tight.
+- **Tested:** the logic (steps, redo cut-off, cash refunds, refused undo, repeated tiles, the 16-step and 1,000-tile limits, floors) in a host-side C harness. **Not run on the GBA or in an emulator.**
+
+## Community lots: visiting and building
+- **The rule:** while the live room is a community lot, nothing may build it except the town view. `nbBarred()` (`neighborhood.h`) is true when the town is loaded, the live lot (`nbT.cur`) is a community lot and `nbEditPass` is not set. The town view's BUILD sets `nbEditPass` around its `mapEditor()` call; nothing else does.
+- **What it blocks** (all with the toast COMMUNITY LOT BUILD IN THE TOWN, `edGate()` in `main.c`): the pause menu's BUILD > EDIT MAP, BUILD ROOM in the main menu, the creator's BUILD button and its BUILD ROOM row. Loading a room or a house slot over the lot says NO BUILDING WHILE VISITING (`SLE_VISIT` in `slLoad`; loading a Sim only is still fine, and BLUEPRINTS can still save). The pause panel shows PAUSED VISITING and the BUILD tile reads NO BUILDING WHILE VISITING.
+- **Staying on a community lot:** after VISIT the live lot stays the community lot until you play another one (as before), so BUILD ROOM in the main menu keeps saying no until you PLAY your home from the neighborhood. A later version could send you home when the visit ends.
+- **MAKE COMMUNITY / MAKE RESIDENTIAL** (lot menu): any lot that is not your HOME and has no household. Making one a community lot asks for the kind (park, skate park, plaza, lounge, old town). An empty live lot gets the starting layout of its new kind; a lot with something built keeps it. Saved with the town.
+- **Not done:** per-lot opening hours, community lots with their own rules, an automatic walk home. **Untested on hardware.**
 
 ## Choose a neighborhood (the screen before the town)
 - **The screen:** main menu NEIGHBORHOOD opens a chooser with a panel of town thumbnails. Each thumbnail is an aerial view drawn from the town's save.
@@ -566,8 +581,11 @@ Wants: snack, WC, nap, get clean, sofa, land a trick, trick combo, 5 trick combo
 ## Household slots
 **Pause menu -> ROOM SLOTS** (and the main menu's slot screen) can now keep several households. On an empty slot pick **SAVE HOUSEHOLD**; on a household slot pick **LOAD HOUSEHOLD** (replaces the Sims living with you and their relationships; your own look and life stay), **SAVE HOUSEHOLD** (overwrite it with the current one), **RENAME**, **COPY TO**, **INFO** or **DELETE**. They share the twelve room slots (slot KIND 2 in `source/slots.h`); a big household takes two neighbouring free slots. A household slot never becomes the active slot, and saving a room never overwrites one.
 
+**CREATE-A-HOUSEHOLD** (creator > DONE tab > HOUSEHOLD, `source/hhcreate.h`): ADD THIS SIM puts the look on screen into the household, asks for a name, then who it is related to. SET A RELATION picks two Sims and what the first IS to the second: ROOMMATE, MOTHER, FATHER, DAUGHTER, SON, SISTER, BROTHER, WIFE, HUSBAND, PARTNER, then MORE KIN (grandparents, grandchildren, aunt, uncle, niece, nephew, cousin, step family, PARENT / CHILD / SIBLING); when the other side can be two or three things (a mother's child is a DAUGHTER, a SON or a CHILD) it asks that too. WHO IS WHO shows one Sim's household (LEFT RIGHT change whose); EDIT OR MOVE OUT is the old FAMILY screen; SAME LAST NAME gives everyone yours. Ages are checked (a baby cannot be a mother, a child cannot be a wife), a relation lifts the two Sims' scores to fit (never lowers them; partners and spouses start as a couple), and family never romance each other (`socAllowed`). The RELATIONSHIPS screen shows what each Sim is to you. `HC_GATE` in `hhcreate.h` makes the row need the debug code again. The old ADD TO FAMILY / FAMILY rows moved inside this hub.
+- **Save format 'H?'**: the household block ('H>' before) adds `kin[HU_N][HU_N]` (u8, 64 bytes, what a is TO b, by uid) right after the relationships, before the checksum. Older blocks ('H2'..'H>') still load (no kin). Because kin lives inside the household block, household slots, the household bank and room slot copies carry it with no other change. Kin is cleared wherever the relationships are (new game, new household on a lot, MOVE EVERYONE OUT) and when a Sim moves out.
+
 ## Floors (three per house)
-A house has **three floors**. The floor you are on is the live map; the other two wait in memory (packed in `flPool`, `flGo` in `source/main.c`). Stairs are two items: **STAIRS UP** (`^`) and **STAIRS DOWN** (`~`), at the end of the item list. Step on `^` to go up and on `~` to come down; step off and on again to use them once more. If the other floor has no matching stairs yet, they appear where you came from. In the map editor **SELECT + UP / DOWN** changes the floor you are building on. Upstairs the household waits on the ground floor (Sims do not use stairs yet). The room kept in SRAM, and a ROOM slot, always hold the ground floor.
+A house has **three floors**. The floor you are on is the live map; the other two wait in memory (packed in `flPool`, `flGo` in `source/main.c`). Stairs are two items: **STAIRS UP** (`^`) and **STAIRS DOWN** (`~`), at the end of the item list. Step on `^` to go up and on `~` to come down; step off and on again to use them once more. If the other floor has no matching stairs yet, they appear where you came from. In the map editor (BUILD and BUY) **hold L and R together, then press UP / DOWN** to change the floor you are building on (the top bar shows FLOOR n; the cursor does not move while both are held; SELECT + UP / DOWN is the zoom). The same two floor steps are in the MAP MENU as LEVEL UP / LEVEL DOWN. Upstairs the household waits on the ground floor (Sims do not use stairs yet). The room kept in SRAM, and a ROOM slot, always hold the ground floor.
 **Saving:** in ROOM SLOTS an empty slot offers **SAVE HOUSE** (all three floors, 3 or 4 slots in a row, KIND 1 in `source/slots.h`); on a house slot **LOAD ALL** loads it (you start on the ground floor), **SAVE HOUSE** overwrites it. Floors upstairs that are not saved to a house slot are lost when the console is switched off. Loading a single room slot replaces the house with one floor (the upper floors are emptied).
 
 ## Sim filter (OPTIONS > PLAY)
@@ -711,144 +729,152 @@ a fresh pre-made family or NEW HOUSEHOLD HERE end the story (`stOff`).
 - Over your head: no plumbob any more, and the thought bubble only when it should: an urgent need for 3 seconds when it starts (again
   every 30 seconds while it lasts), with THOUGHT BUBBLE: ALL a want for 3 seconds every 45. Talking bubbles are as before.
 
-## THE TICKING BOMB (El B.D'ees)
+## THE TICKING BOMB (VanInBlack)
 Latin house rework of The Dipper Man - The Ticking Bomb, built by tools/make_tickingbomb_rework.py (124 BPM). Keeps the offbeat riff, the A/D bass and the G-E-G stinger (a semitone down). Breakbeat under a house kick, congas and timbales, a low whine, and an 12-bar half-time downgroove after the fuse, then the blast back into house.
 
-## Studio renders (soundtrack release)
-`python3 tools/studio_render.py OUTDIR` renders every tracker song and creator chiptune for a soundtrack release. `python3 tools/studio_render.py --pack OUTDIR` then builds the album: 3 discs, tagged LAME V0 MP3s and 24-bit FLACs, a cover made from the title logo, a track list, and zip parts of about 23 MB for sending.
-- **Same music as the game.** Songs are read through xm2gba.py, so the converter's own arrangements are the ones rendered (the ambient TREE-AGE, Worthless Clouds, the Amiga ending, the bar-fitted chord loops). The notes, volumes and pan choreography are the game's.
-- **Hi-fi sounds.** Songs built by a generator script are re-synthesised at 4x the rate. `BORE_HIFI=4` scales every `SR*` constant in make_flexicode / condensed / staged / sunman / meltdown / cocaine_cola; the scripts built on the flexicode palette follow it. At the default (1) every generator still writes byte-identical XMs. Songs built on recorded samples play those samples directly: no 8-bit re-quantising, no down-sampling. Every note is resampled with a long Kaiser-windowed sinc.
-- **Mix.** Each instrument goes to a role bus (kick, boom, bass, perc, snare, hat, fx, pad, mel). Each note gets a low cut kept under its own bottom, and a new note on a channel cuts the old one with a 4 ms fade. Bass and pads duck under the kick, and pads are widened with a mono-safe delayed side signal. All roles share one stereo hall (frequency-dependent decay) at different send levels.
-- **Panning.** Continuous instead of 7 buses. It is xm2gba's design_pan with the rounding taken out, so each song's hand-made choreography is followed exactly. In-between positions open out a little, and kick and bass stay centred.
-- **Master.**
-  - Bass mono below 110 Hz, and left/right levels evened out.
-  - The high side signal is raised on narrow mixes.
-  - A gentle tilt EQ: 35 % of the way to -4.5 dB/oct, at most 2 dB.
-  - Glue compression (1–2 dB).
-  - -14 LUFS (quiet pieces lower, and the limiter never works more than 4 dB), with a -1 dBTP true-peak limiter.
-- **Chiptunes.** Rendered from the same control tracks the game plays, by make_chiptunes' 48 kHz renderer with no 7.5 kHz limit. Each voice gets its own place in the stereo field and there is a small room reverb. Each plays 3 times with no seams and fades out on the 4th.
-
-## Genders
-Every Sim has a GENDER: FEMALE, MALE or NONBINARY. It's `look[LK_SEX]`, the last look, so it travels with the look everywhere: the creator, saved people, households, the household bank, pre-mades, visitors and story children.
-- **Creator:** a GENDER row under AGE. The dice keep your gender; TRUE RANDOM rolls it.
-- **New Sims:** random ones are 45 % female, 45 % male and 10 % nonbinary (`sexRoll`). Every pre-made Sim has one set in `hhFams` (`HhPre.sex`).
-- **What it changes:** only words, never what a Sim may wear, do or love.
-  - `sexWord`: WIFE / HUSBAND / SPOUSE, DAUGHTER / SON / CHILD, GIRLFRIEND / BOYFRIEND / PARTNER, SHE / HE / THEY and so on.
-  - `whoWord`: GIRL, TEEN BOY, ELDER WOMAN…
-  - The relationships screen calls a steady partner GIRLFRIEND / BOYFRIEND / PARTNER.
-- **Story mode:** after the story, NEW GAME asks who shares it.
-  - YOUR ROOMMATE IS / YOU MARRIED / YOUR KID IS, each with a woman/man/nonbinary choice or SURPRISE ME.
-  - The child who comes home is a surprise ("YOUR DAUGHTER MAE IS HOME").
-  - Chapters name who they are about (BECOME FRIENDS WITH YOUR SON), and the STORY screen lists your spouse / roommate / kid.
-- **Saves:**
-  - A saved person is format 13 (formats 1 to 12 are read too).
-  - A household is 'H=' ('H9' to 'H<' are read and converted).
-  - A bank record stores its look length at header byte 35.
-  - A Sim from an older save gets a gender from `sexGuess`: a beard means male, otherwise a hash of the look, so the same Sim always gets the same one.
-- **IWRAM:** the longer look shifted IWRAM variables, and the mixer needed a few more address loads. Three text buffers moved to EWRAM to pay for it, so IWRAM use ends up 180 bytes lower than before.
-- **Better copies of recorded sounds.** The songs built on recorded samples were compared against all 29 of The Dipper Man's modules on the Mod Archive (artist 91731) with `tools/sample_match.py`.
-  - 18 of the 29 are byte-identical to modules already in `tools/`.
-  - Most of these songs' sounds exist nowhere at a higher rate.
-  - Five do, and `tools/sample_upgrades.json` maps them, lined up to the sample and level-matched; `studio_render.py` plays those copies in their place:
-    - **Amiga Music:** 2 leads at 2–4 kHz move to 8 kHz copies, and a sub-bass moves to a 16 kHz copy.
-    - **Tree-Age in Action** (both versions): the pluck moves from 2 kHz to 8 kHz.
-    - **Gottcho Barracho (Original):** the same sub-bass.
-  - The one source not already in the repo was added as `tools/the_dipper_man_another_cigarette.xm`.
-- **Rebuilt sounds (`tools/studio_rebuild.py`), for the songs built on recorded samples.** The game keeps its own samples.
-  - **Top end restored:** every recorded sound gets back the octaves above its old ceiling. Its top octave is moved up 1–3 octaves (the analytic signal to the 2nd/4th/8th power: harmonic tones stay harmonic, noise stays noise) and laid in at the level its own spectral slope predicts (falling 6–15 dB per octave). Nothing below the old ceiling changes. The tracks end up within about 1.5 dB of the master's tonal balance curve up to 12.5 kHz.
-  - **Gottcho Barracho (Original), rebuilt as a banda:** its tune is El Menchón (Banda MS), and its pitched sounds were cut from that recording's stems.
-    - The stems are replaced by synthesized instruments playing the same notes: tuba, alto horns (a trombone below them), and two trumpets with a clarinet (a trombone below their range). They are additive brass with the brass bloom, a scoop into each note and vibrato on held notes.
-    - They are in equal temperament (the stems' tunings disagreed by up to 40 cents) and level-matched to the sounds they replace. The transcription's B-7 cut marks are treated as note ends.
-    - The six drum hits that came from the recording are rebuilt too (tambora, tarola, cymbals), coloured by each recorded hit's own spectrum and envelope.
-    - Its chords still match the old version second by second (0.93 median).
-- **Space and panning (studio renders).**
-  - **Reverb per song (`SPACE`):** the title song gets a quarter of the hall, in a small short room. Dance tracks get 0.3–0.5. CONDENSED MUSIC and STAGED get 0.3, as they carry reverb of their own. The ambient and acoustic pieces keep the full hall.
-  - **Panning:**
-    - The plan's places are opened out (|p|^0.6) for melodic parts, pads, percussion, effects and hats; kick, bass and snare stay centred.
-    - The far ear hears each panned note up to 0.35 ms later, so it is placed clearly.
-    - Pads drift (±0.18 over 9 s).
-    - Busy short-note lines the plan leaves in the middle (arps, acid lines, pulses) swing ±0.5 every 8 s.
-  - **Width:** narrow mixes are lifted to side/mid 0.36 above 250 Hz, and no mix is wider than side/mid 0.69 (a left/right correlation of at least 0.35, so nothing thins out in mono).
-## FAMILY LIFE (`source/family.h`)
-Households now marry, have babies and grow up.
-- **PROPOSE** (social): two adults going steady. A yes marries them.
-  - The relationship becomes WIFE / HUSBAND / SPOUSE (`RF_MARRIED`).
-  - The one who was asked takes the asker's last name.
-  - Free-will Sims propose too, to each other and to you.
-  - Pre-made couples and the NEWLYWEDS story start married.
-- **TRY FOR A BABY** (social): a married or steady couple of adults (not elders).
-  - It needs room in the house and no baby already on the way.
-  - A yes means a baby arrives 3 days later at midnight.
-  - The baby is a mix of both parents (`stMixLook`), with a gender of its own.
-  - Only you can ask; free-will Sims never try for a baby on their own.
-- **TWINS** (OPTIONS > SIM > SIMS > TWINS): NEVER / SOMETIMES (1 in 6, the default) / OFTEN (1 in 3) / ALWAYS.
-  - Twins come only when the house has room for two.
-  - Half are identical (one look, one gender) and half are fraternal (each a mix and gender of their own).
-  - Twins start out close (daily 60, friends).
-- **Everyone grows up.** Members age at midnight the way you do (`ageTick`), using the days on OPTIONS > TIME > AGES scaled by AGING.
-  - A member who grows up has their look fitted to the new stage.
-  - At teen they get an aspiration of their own.
-  - The days lived in a stage go with each Sim when SELECT swaps who you play.
-- **Babies** are looked after: their needs never sink below 60. They crawl about, go and see people and only coo (TALK). They stay home on workdays.
-- **Notices.** After the new sprites bake, a birth ("IT'S A GIRL!", "IDENTICAL TWINS!") or a birthday ("HAPPY BIRTHDAY!  BO IS A CHILD NOW") stops the game for a Sims dialog with the new faces (see THE SIMS LOOK). The story's child coming home gets one too ("WELCOME HOME!").
-- **Pause menu > HOUSEHOLD > FAMILY:** a card per Sim with their face, age and gender, a ring or a heart, who is married to whom, days until they grow up, the baby on the way and the TWINS setting.
-- **Save:** `FAM_OFF` 4976, 16 bytes. `hhSave` writes it and `hhLoad` reads it:
-  - `'F' 'Y'`
-  - each member's days in their stage (by place in the household)
-  - the days until the baby, and its parents (0 = you, 1.. = members by place)
-  - the checksum and size of the household it belongs to
-  - a checksum.
-  - A household from a slot or an older bank record that does not match starts fresh (no ages, no baby).
-  - The household bank stores the block after the household (older records end before it).
-- **Tested in mGBA:**
-  - PROPOSE: MARRIED was set both ways and survived a reset.
-  - TRY FOR A BABY: the baby was due in 3 days. A single baby was born (OFTEN). With ALWAYS, both identical twins (same look) and fraternal twins (37 of 100 looks different) came, depending on timing.
-  - A baby with its days poked to full grew into a CHILD with the GROW UP aspiration.
-  - The FAMILY screen listed everyone.
-  - After a reset the household, its ages and the marriage were all back.
-## THE SIMS LOOK (`source/simui.h`)
-The household screens look like The Sims instead of a plain list.
-- **The kit** (`simui.h`, included before the UI kit in `main.c`):
-  - The Sims 3 glossy rounded boxes and pills (`s3*`), and The Sims 2 deep blue gradients, frame, lattice backdrop and plumbob (`s2*`). These moved here from the main menu code.
-  - `suBob`: the plumbob in green, yellow or red (mood), big or small.
-  - `suDim`: the world dims to navy behind a dialog. Dimming again settles on the navy, never on black.
-  - `suBgSave` / `suBgLoad` / `suBgRect`: the pie menu's backdrop is the world as a navy picture, kept at 4 bits a pixel in VRAM past the mode 3 screen (over the household sprite tiles, which menus hide; `hhSlotsFree` uploads them again). The menu can wipe what it drew without a second frame buffer, which EWRAM has no room for.
-  - `suBubble` (glass bubbles tinted by kind), `suRelBar` (Sims 2 relationship bars), `suTitleBar`, `suBackdrop`, `suRing`, `suHeart`.
-- **Every menu** (`menu`): the world dims; a glass panel has a title bar with a bobbing plumbob, the row you are on is a green pill, and A OK / B BACK sit as pills. Menus of more than 11 rows now scroll (the 42-family list used to run off the screen).
-- **Every help page** (`helpScreen`, STORY too): the How to Play frame, with headings as lit bars.
-- **Every panel** (`box`: loading screen, options and so on): a light blue rim on deep blue glass with rounded corners.
-- **Pop-up messages** (`toast`): a dark glass pill with the plumbob.
-- **The pie menu** (R next to a household Sim, `socPie` in `house.h`), as in The Sims:
-  - Their face is in the middle of the pie, in a round frame, with their plumbob over it in their mood's colour.
-  - Choices sit around it in glass bubbles: white-blue for friendly, pink for romance, red for mean, gold for using the furniture. They pop out one per frame, with a spoke from the face to each bubble.
-  - The DPAD points (diagonals too), L and R step round, A picks, B goes back or closes.
-  - More than 8 choices are grouped as Friendly... / Romance... / Mean..., and a group with only one choice shows that choice directly.
-  - A banner across the top shows their name, how you stand ("HUSBAND" in pink), HP, and your daily and lifetime bars.
-  - Labels are in sentence case ("Try for a baby").
-- **Portraits** (`simPortrait`): a Sim's head and shoulders at 2x, read straight from the baked sprite (yours from `spr4`, members' from their 4-bit OBJ tiles). View 0 is the one that faces the screen. Behind it is pink, blue or mint by gender.
-  - The frame centres on the face: 5/16 of the way down the Sim, but never lower than a normal adult's face line (12 rows) plus the HEAD SIZE slider.
-  - That covers the whole sprite range. The tallest normal Sim bakes 40 px tall; with the MASTER CONTROLLER's double sliders and limit-break box it reaches 55 px of the 60 px bake (one 32 x 64 hardware sprite). The extra height is legs, torso and neck, so the face line stays put.
-  - Measured in mGBA: HEIGHT, TORSO and NECK at the top and the TALL shape gave 40 px normally and 55 px with the codes, and both portraits show the head and shoulders.
-- **RELATIONSHIPS:** a glass row per Sim with their face, the word ("WIFE", "BEST FRIEND"), Sims 2 bars both ways, and a ring or a heart.
-- **FAMILY:** cards with faces, moods, rings and hearts. Four or fewer Sims get tall cards in the middle, with how you stand. The picked Sim is described below (married to, days to grow up, bars), with BABY IN N DAYS and the TWINS setting as pills.
-- **Notices** (`famNotice`): a confetti backdrop and a glass panel ("IT'S A GIRL!", "TWINS!", "HAPPY BIRTHDAY!", "WELCOME HOME!") with the new faces, their names on pills, two lines and a green OK. Press A to go on.
-- **Memory:** IWRAM ends up 24 bytes lower than before (the old social menu's static lists are gone). EWRAM grew by about 50 bytes.
 ## VOICES
 The Sim you control talks. 43 clips (tools/voices_src/*.wav, cleaned and trimmed) are encoded by `python3 tools/encode_voices.py` into source/sfx/v_*.adp (4-bit ADPCM, 6554 Hz, 296 KB)
 and source/voices.h (X-macro list, ROM blobs, V_<name> ids). They play on the one effect voice, so the newest sound wins. `voxPlay(V_x)` always plays, `voxNag(V_x)` only when nothing else sounds,
 `voxChain(a,b,c)` plays three in a row (the pipe: lighter, inhale, cough). Who plays what: `voxEvent` (main.c, called from sims.h simEventV) for life events, `voxSoc` (house.h) for socials,
 and spots in main.c: falls (shriek), bails (cry), instant death (die of shock), fights (lets fight / losing / lost / win), hunger and bladder nags, sleep (snore), new wants (thinking).
-Family life: PROPOSE plays the serenade (good on a yes, bad on a not yet); TRY FOR A BABY plays yahoo on a yes (getting ready to woohoo) or nah on a no.
-## THE WATTERSONS (pre-made family, a fan tribute) and the cat parts
-Ported from the old Gumball commit (`claude/loving-newton-i2hh4z`, 0d6eda7) onto the current code, without its save-format changes:
-- **New creator options** (appended, so saves keep their meaning): eyes TOON (big plain white ovals, a tiny pupil; its sprite id sits after the mouths so saved mouth ids stay put), nose CAT (a pink triangle), cheeks CAT WHISKERS (three a side).
-- Already in the game since then, so not re-added: CAT / BUNNY ears and tails, BARE clothes (adults only), the HIP WIDTH slider.
-- Pre-mades can now set their own personality (`HhPre.tr`, 25 points) instead of a sign, and a family can have 5 Sims.
-- **HOUSEHOLD > MOVE IN A FAMILY > THE WATTERSONS:** NICOLE (blue cat) and RICHARD (big pink rabbit), married; GUMBALL (blue cat, TOON eyes, whiskers, brown sweater), DARWIN (the goldfish with legs, big eyes, a fin tail) and ANAIS (little pink rabbit genius).
-- Not ported: the old commit's light-fur colour slot and LIGHT muzzle. They would have shifted the wallpaper colour slots, and saved rooms check those. With no orange skin yet, Darwin uses the salmon swatch, lightened.
-## Talking to visitors
-Sims from the town's other households who drop by (`twPick` / `twTick`) can now be talked to like household members: R next to one opens the pie menu.
-- While they visit they hold a spare uid (the highest one nobody at home uses), starting as STRANGERS: nothing carries over between visits.
-- `hhMemOf` finds them, so names, faces, moods, balloons and punches work. `hhFreeUid` skips their uid, so a new member never collides with one.
-- PROPOSE and TRY FOR A BABY stay household-only (`uHome`).
-- A full house (8 uids in use) leaves no uid for a visitor; they then just walk by as before.
+
+## Slider locks (roadmap #5)
+Most creator sliders start locked and are bought in six packs with jenes (BODY SHAPE 40, BODY DETAIL 80, BUTT 50, FACE DETAIL 40, EAR SLIDERS 30, PART SLIDERS 60): press A on a locked slider. Free essentials: HEIGHT, WEIGHT, SKIN TONE, EYE SIZE, EYE SHADE, HAIR / TOP / BOTTOM tone. The Konami code (sUnlock) opens everything. Looks keep the values they already hold (old saves carry over); the lock only stops editing, and ROLL THE DICE / TRUE RANDOM for you leave a locked slider in the middle. Saved in the jukebox block at JB_OFF+32: 'S' 'K', the pack bits, the bits xor 0x5A (appended; nothing moved, nothing resized). Code: "SLIDER LOCKS" above the creator in main.c.
+**Earning jenes** (pDna, spent on parts and slider packs): a met want pays its points, SKILL UP 15, a promotion 25, a birthday 50, a lifetime want 200, a story chapter 25, and since the slider locks: a GOOD SHIFT 8 (16 on a double-quota shift, shown on the pay note) and every 5th trick landed 1 ("+1 JENE"). Tune SIM_DNA_SHIFT / SIM_DNA_ACE / SIM_DNA_TRICKS in sims.h.
+**Hidden songs and story missions** (roadmap #4): CLOSER TO THE END and TREE-AGE IN ACTION no longer come from lifetime dreams. Every story chapter you finish (5 per story, the END card is not one; any life) is counted once in the jukebox block at JB_OFF+40 ('M' 'S', 8 bytes of mission bits, check byte), and half of all of them (18 of 35 with 7 stories) unlocks both songs. `jbStoryDone()` (story.h) is called from stTick. Dreams are still recorded (jbDreamMet) but unlock nothing; songs already unlocked stay unlocked. Missions finished before this patch are not counted. Adding a story: SM_PER stays 5, the total follows STY_N.
+
+## Sound pack: RADIO and SOUND SYSTEM (items `R` and `A`)
+Two room items at the END of the item list (palette slots 32 and 33, so old rooms and saves load unchanged). Art is hand-drawn pixel art in `itembake.h` (`rdArt`, `syArt`), baked into `itemrom.h` by `tools/bake_items.sh` (V_RADIO, V_STEREO). The radio is a low grindable item (height 6 like the phone); the sound system is one block tall.
+- **R next to one** (`lnear` 9 / 10, `radioTune` in main.c) tunes the next station. Stations (`radioStn`): ALL SONGS FM, DAYBAR FM, SK9M BASS RADIO, DANNY STEELE FM, BRENO FM, SINGHS RADIO. A station plays the visible (unlocked, non-secret) songs whose artist name starts with its key, at random, never the same song twice in a row; after the last station the radio goes OFF and the normal GAME MUSIC comes back. A station with no visible song is skipped.
+- It rides on the game-music player: `gmPick` (instead of `pickSong`) chooses the next song while `radioSt` is set, `gmSync` leaves a tuned radio alone when the pause menu closes, `gmStop` switches it off when you leave the game. To add a station, add a row to `radioStn` and raise `RADIO_N`.
+- The sound system also gives a CHILL mood event. Both count as furniture for the ROOM need (the "den" bit with the DeadSet, lamp and pipe), cost §40 / §150 in the town's house value, and show in the build room palette with a preview.
+- They stand in the default house's lounge (mapGen) and, since phase 1, on the pre-made community lots (nbTemplate: LOUNGE gets both, PLAZA / PARK / SKATE PARK a radio). Lots that already have a layout keep it; RESET a lot to get them.
+
+## Death variants
+`die(snd, why)` in main.c: the dead screen's note says what killed you (`deathNote`): 0 YOU DIED, 1 DIED OF SHOCK (a bail that is 40+), 2 GRAVITY WON (a fall: also a failed life-or-death roll), 3 MET A WALL AT SPEED, 4 DIED OF HUNGER (hit points ran out while FOOD < 10), 5 ONE HIT TOO MANY. Falls play the scream. Ghosts are not in yet.
+
+## Cameos (DAYBAR and SK9M)
+After a good shift (`simCameo`, sims.h): a 1 in 6 chance, then a coin toss between DAYBAR and SK9M. Sk9m's catchphrase ("IM KIND OF A BIG DEAL" ... "YEAHHHH") fills both spare note slots (only three notes fit after the pay note); his other lines come after his name. Edit `simSk9mLn` / `simCameoLn`.
+
+## Welcome visit (scripted arrival)
+`twPick` (house.h) marks the first neighbour `twWel` and sets his wait to 3 seconds, so on every new lot or new life someone walks in soon after you arrive. The welcome ignores the night rule, says "<NAME> SAYS WELCOME" and pays a housewarming gift of §25 on arrival. Later visits are as before.
+
+
+## Pie menu + scrolling menu (IWRAM safe)
+- `source/pie.h`: Sims-style pie menu. Social interactions (R next to a Sim) show a ring of up to 8 chips; D-pad picks by direction (two keys = diagonal), L R step round, A confirms, B backs out. More than 8 interactions go in two levels (FRIENDLY / FUN / ROMANTIC / MEAN / USE), B steps back up.
+- `menu()` now opens with a short grow animation, sizes to its longest line, scrolls long lists (scroll bar, n/m counter, L R page) and plays tick/pop sounds.
+- IWRAM: pie.h is ROM code with no statics (arrays live on the EWRAM stack); the static symbol set (names + sizes) is identical to before. The Makefile now fails the build if `.bss + .data + .iwram` > `IWRAM_MAX` (32512 B), printing the figure on every build.
+
+## Ghosts and weather (`source/fx.h`)
+Both are hardware sprites on the OBJ slots the household does not use (slot 8 = tiles 768..799, OBJ palettes 8..11, OAM entries 16..58), semi-transparent like the household's x-ray sprites, clipped to the room view by the same window. They add no frame buffer and no drawing time; the cost is about 330 bytes of EWRAM (ghosts 60, particles 120, state) and about 1.3 KB of ROM for the ghost art plus 12.8 KB for the two sounds. Not drawn while the ZOOM is on, during the action cam, or upstairs. *Untested on hardware.*
+- **Ghosts.** `die()` calls `fxGhostBorn(why)`: a ghost rises where you fell and stays (3 at most, the oldest goes). Its colour says how it died (plain, shock, gravity, a wall, hunger, worn out). It drifts through walls near its home tile, flickers by day and is solid at night. Close to you it says BOO (mood event `M_SPOOK`, a wail); close to a household member it puts a skull balloon over them. Saved with the life: 12 bytes at SRAM 5188..5199 (`'G'`, count, x y how x3, checksum; the 64 byte life block only used 52). Room slots do not carry ghosts. OPTIONS > SIM > BORES > GHOSTS: OFF / ON / HAUNTED (one is always around, for testing).
+- **Weather.** CLEAR, CLOUDY, FOG, RAIN, STORM, SNOW. Nothing is stored: the kind is rolled from the day, the six-hour block of it and the season (the town's `nbT.season`, else the calendar), so a day always has the same weather. Rain and snow are up to 40 sprite particles that land on outdoor tiles only (`wInside`). The room view is dimmed (cloudy, rain, storm) or washed out (fog, snow) with the hardware blend (`BLDCNT` / `BLDY`), half as much when you stand indoors; a storm adds lightning (a brighten flash) and thunder. Outside in rain or snow your mood slowly drops (`M_SOAKED`). The HUD clock shows a small weather sign instead of the sun or moon. OPTIONS > TIME > DAY > WEATHER: AUTO or force one kind. Menus reset the blend registers (`objHideAll`), so nothing dims a menu.
+- **Sounds** `thunder.adp` and `ghost.adp` are synthesised by `tools/make_fx_sfx.py` (no recordings) and encoded like every other effect.
+- **Seeds for later:** weather could change top speed or grip outdoors (wet ground), make Sims go indoors in a storm, and let the bored ghost possess the radio. See `docs/RAM_AUDIT.md` for the RAM left for them.
+
+## Jobs: PRO SKATER and the normal jobs
+- `JT_SKATE` ("PRO SKATER", track 8 in `jobTr`) is the new default job. It is the **only** job whose quota is trick points (`shiftPts` grows with `lscore` while `simInShift()`); the OPTIONS > JOB page's **SKATER QUOTA** scales it.
+- Every other track is a normal job with nothing to do with skating: `shiftPts` counts **work minutes** (`simMinute`: +1 while up and about, +2 while STOKED, 0 asleep / washing / sitting / dead). `jobQuotaOf` makes the quota a share of the shift (55% + 3% a level, times the track's `quota` %, +10% in branch B, clamped 30..90%). Pay, strikes and promotions work as before (`simShiftEnd`).
+- Promotions want a skill per track (`jobSk`): SKATING for PRO SKATER, a life skill for the rest.
+- Save: the track number needs 4 bits. Bits 3-5 of byte 18 keep the low three; the high bit (track 8) is bit 7 of byte 41, the lock mask byte (the mask only uses bits 0-3). Old saves read as before: their track is below 8.
+
+## Lot flags (community and skate spawns) and the intro flyover
+- **Two builder items, MISC category:** the COMMUNITY FLAG (`a`, blue) and the SKATE FLAG (`k`, orange). Drawn by code (`drawFlag`, items.h), no baked sprite, walkable, up to 4 of each count (`flgN / flgX / flgY`, found by `mapScan`). They are saved as ordinary map tiles, so older saves are untouched.
+- **Town build only.** Flags can only be placed while the town view's BUILD has a free lot open (`nbFlagOk`): not in your home, not in BUILD ROOM or EDIT MAP during play ("FLAGS ARE BUILT FROM THE TOWN"). They only draw and act on a community lot (`nbFlagsOn`), so normal play never sees them.
+- **They spawn the lot's crowd.** Visitors walk in from and out to a community flag (`twFar`, house.h; without a flag the old lot-edge exits are used). Each skate flag spawns one AI skater, up to 3 (`npcSkSpawn`, npc.h), even on a lot with fewer than NPC_PARK things to skate (it still needs at least one).
+- **They set what kind of place the lot is.** After BUILD in the town view (`nbFlagSync`, neighborhood.h): skate flags = SKATE PARK, community flags = a community lot (a skate park turns into a PARK, any other kind stays), both = the new **PARK + SKATE** type (`CT_BOTH`). A free residential lot with flags becomes a community lot; your home and lots where a household lives keep their kind (the flags are decoration there). No flags: nothing changes. New PARK, SKATE PARK and PARK + SKATE lots start with their flags in the corner.
+- **Intro flyover** (`introFly`, goals.h): when a lot opens the camera pans to the goals still open on it (hidden tape, first and last SKATE letter), then back to you. A, B or START skips it. It plays once per lot per session (`flySeen`, reset at power on). The flag items only show in the palette during town BUILD (`catCnt`).
+
+
+## Mood portrait = the Sim's own face
+`hudFaceDraw()` (source/hudface.h, included by hud.h) paints the creator's eye and mouth sprites (`spr[]`) onto a head in the controlled Sim's skin tone, with their hair, iris colour, brows, glasses, nose and cheeks. Each mood swaps the expression (`hudExpr`: eye sprite, mouth sprite, brows, tears): SAD = CUTE eyes, SAD brows, FROWN and tears; BORED = SLEEPY + FLAT; OK = ROUND + FLAT; HAPPY = HAPPY eyes + SMILE; STOKED = WIDE + GRIN. Edit one row of `hudExpr` to change a mood's face. The face sliders (EYE SIZE, SPACING, HEIGHT, MOUTH WIDTH, HEIGHT, BROW HEIGHT, NOSE HEIGHT and the master controller's double sliders) apply too: the sprites are sampled through the same scale and shift as `drawDeco` (`hudRng` / `hudPick`), with shifts rescaled from the block's 7x6 / 15x6 px footprints to the portrait's 9x8 / 19x8 art. Redrawn when the mood, Sim or look changes (`hudFaceKey`). The old 7x7 smiley (`faceArt` / `drawFace`) is gone.
+
+## BROAD and SPIDER
+**BROAD** is a four block wide torso with thick arms on **two** thick legs (teen and up; the legs and arms are thickened when drawn, `shpDraw` row 1). The old BROAD, whose torso stood on four thin legs side by side, is kept as **SPIDER** (shape 29, `SH_SPIDER`): it is only on offer with the debug code (the title's Konami code, `sUnlock`, like BIG HEAD). A person saved as BROAD now loads with the new body.
+
+## Item use: household Sims and the home / sound pack (`source/house.h`, OPTIONS > SIM > BORES > SIMS USE ITEMS)
+Built as ten small patch modules (`bore-items.zip`, one `apply.sh`); each leaves a marker comment `item module N` in the source. Every behaviour is behind `xo[XO_ITEMUSE]`: OFF gives exactly the old game (the five basic furniture needs, a wander for FUN).
+- **The table (`iuT[]`, ROM).** One row per item: the tile char, the need it refills, how many steps a use takes, whether it needs a seat (sofa or beanbag) on the floor, what it does to the OTHER needs (`dn[]`), and the lowest value each need may have before a Sim will choose it (`gate[]`). To add an item: one enum name before `IU_N`, one row, one entry in `iuIc[]` and `iuTag[]`, and a weight in `iuWeight()`.
+- **Which item.** `iuPick` takes the items for a need that are on the floor and usable (gates, seat, daytime for coffee, someone to call for the phone, not taken by another Sim, not the same thing as last time), then chooses by personality (`iuWeight`: ACTIVE runs, quiet reads, PLAYFUL and OUTGOING turn the music up, NICE feeds the fish, OUTGOING phones).
+- **FUN** = TV, bookshelf, aquarium, treadmill, stereo (also a hobby now and then when nothing is pressing). **REST in the daytime** (tired, not wrecked) = the coffee maker first. **SOCIAL** = sometimes the phone: the call goes to a member who is on another floor, both get less lonely and like each other a little more. An item on another floor is reached over the stairs (SIMS ON FLOORS): `hhItemGo`, `iuFloorFor`, and the coarse offscreen step in `hhOffStep`.
+- **Need chains (`iuMove`).** Items: a run costs FOOD, REST and CLEAN, coffee fills the bladder, TV on a sofa is comfy. Basics (`iuBc[]`): eating fills the bladder, a night's sleep leaves a Sim hungry, a shower feels good, a sit-down is a little fun. So one need leads to the next.
+- **Showing it.** A balloon over the Sim (`iuIc[]`), `NAME IS WATCHING TV` when it is within 8 tiles of you, and a short tag after the name in the household menu (`iuTag[]`).
+- **Stereo and fish (modules 12, 13).** While a Sim has the stereo on, the others awake on the floor gain FUN. Sims share your fish-fed flag: hungry fish make the aquarium far more attractive, and a Sim feeding them counts as fed today.
+- **Memory.** Two bytes in each `HhSim` (`item`, `ilast`), one byte per floor (`hhCenI`), the table in ROM. Nothing is saved: after a load everyone starts fresh.
+- **Not done:** Sims do not gain skills from the items (skills.h comes after house.h and the household has no skill table), Sims on a floor you are not on only use items by the trip logic (they are not drawn).
+
+## Floors: switching to a Sim on another floor (phase 1 fix)
+With SIMS ON FLOORS on, a Sim parked on another floor (the household list says GROUND / FLOOR 2 / FLOOR 3) can now be played: SELECT picks the next Sim on your floor and, when nobody else is here, one on another floor; the household menu (WHO DO YOU PLAY) lets you pick any of them. You change floor first (`flGo`; if the floors do not fit in flPool nothing changes and it says TOO MUCH BUILT TO CHANGE FLOOR) and arrive on the matching stairs, like climbing them. The Sim you leave stays on the floor you left. Sims out at work or school, and the prisoner, are still out (`hhOnOtherFloor`, house.h). Switching while FLOOR PEEK is on ends the peek first.
+
+
+## Floors step 9: call the household, and work on time
+- **R next to the stairs** (nothing else in reach, SIMS ON FLOORS on) shouts for the household: every Sim parked on another floor comes to your floor and steps out of the stairs (`hhCallFloors`, house.h). The note says CALLED SOMEONE DOWN, CALLED THE HOUSEHOLD or NOBODY ON OTHER FLOORS. No new RAM.
+- **Work and school on time:** a Sim parked on another floor now checks its schedule too (`hhTick`, the parked branch). Before, it only left once it had drifted down to your floor.
+
+
+## Floors step 10: story from the pause menu, better skaters, SKATE letters
+- **STORY with no story:** PAUSE > STORY now says A PICK A STORY. It opens the same story cards as NEW GAME > STORY MODE and starts the story on the life you are living (`storyJoin`, story.h). Nobody is wiped: the housemate or kid the story needs just moves in (it refuses with a note if the house has no room). RAGS TO RICHES keeps your money here. The first chapter card shows as the journal.
+- **AI skaters:** frames 2 and 3 of `npcArt` (npc.h) are redrawn with a face, hair shine, separate arms and legs, shaded shirt and pants, white shoes, a board with a graphic and wheels, and arms out and knees bent in the air. The OBJ palettes now use 16 colours (was 8); the cop art still uses the first 8. Each of the three skaters keeps its own colours.
+- **SKATE letters:** the S K A T E tags (`clDraw`, main.c) draw hand-made 5 x 7 pixel letters instead of the smoothed font, with a glint on the tag.
+
+## Inmates (prison population)
+The PRISON lot now has up to 5 inmates (`source/inmates.h`). They are voxel Sims like the household, not sprite art like the cops: each lives in a free member place (the same places the neighbours use), is baked with the creator's own code and drawn as a hardware sprite. They cost no new RAM (14 bytes of EWRAM for the flags and timers); a household of 7 leaves no room, as with visitors. Their look is a hash of the inmate number, so it is the same people every visit.
+
+Outfits (the creator has no orange, so the colours are set after `setColors`): ORANGE JUMPSUIT, OLD STRIPES (white with a black stripe every other layer on shirt and pants), WORK BLUES, ORANGE PANTS + WHITE TANK. They wander the yard and stand a few seconds; R next to one gives the neighbour menu titled INMATE (talk, joke, compliment, high five). They do not fight yet and are not saved.
+
+## Inmates, step 2: population setting
+OPTIONS > PLAY > BORES > INMATES: LOW 8, MEDIUM 16 (default), HIGH 24 (read when you enter the prison). The household has only 7 places, so the inmates are no longer household members: each is an instance in `inmS[INM_MAX]` with its own sprite id (`HH_IDS` = places + inmates; `inmSetOf` says which place's baked sprites an id shows). The baked looks live in the free member places (past the household, or members who are OUT because of the sentence), so the sprite pool holds what a full household does; with more inmates than free places some share a look. EWRAM: `inmS` is 12 x about 280 bytes plus about 100 bytes of flags. Nothing is saved. A held member is not baked while you are in the prison (it is when you go home).
+
+## Money: a 12 digit purse and a bigger economy
+- **Cap 999,999,999,999.** `simMoney` is a 64 bit `money_t` (sims.h). Always change it with `simMoneyAdd(n)` (clamps to 0 .. `MONEY_CAP`); use `simMoneyI()` where an int only compares or shows it. There is no 64 bit divide in the game: `simDigits` takes digits by subtracting powers of ten, and `simCatMoney(d,v,commas)` / `simCatShort(d,v)` (123.4K, 1.234M, 12.34B for the narrow HUD cell) are built on it.
+- **Saving (still the 52 byte SIM3 block).** Bytes 8-9 keep the low 16 bits of the cash. Bits 16-39 sit in the unused high bits of other fields (`simMSeg`: minute, meter, lock byte, the four need bytes, good / bad shifts), so the block, its checksum and every copy of it (room slots, households, SAVEGAME) are unchanged. An older save has zeros there and reads the same. Needs, the minute, the meter and the shift counters are masked when read.
+- **Starting cash** is 15,000 for a life with one Sim, and **+2,000 for every Sim who joins** (`hhJoinCash`, main.c, called from `hhAdd` and `hhMoveIn`: paid now in play, or into the saved life from a menu / the creator).
+- **Scale.** Old money x 20 for pay and bills (shift 1,400 + 800 a level, bills 800 a day, money tree 500, welcome gift 500, bail 800 a day, cop fine 1,000), prizes and goal pay (goals 1,000-3,000, LOT MASTERED +6,000, GAP GOAL +2,400, a timed run pays 1 per 2 points, story chapters 5,000 + 1,000 each), weapons and ammo. Money goals are x 40 so they stay above the 15,000 you start with (story: 12,000 to 120,000; lifetime wants HAVE 60000 / 180000 CASH).
+- **Item prices** (`palPrice`, main.c, now `u32`): wall 100, door 250, toilet 600, shower 1,100, fridge 1,200, sofa 1,400, bed 1,500, TV 1,800, sound system 2,500; the DEADSET is 75,000.
+- **Lot prices.** A lot's saved `value` is in units of `NB_UNIT` = 40 simoleons (`nbPrice(L)`), so the u16 reaches 2.6 million and the SRAM layout does not change. Land is 20 a tile (a 16 x 16 lot is 5,120; 40 x 40 is 32,000) plus the catalog price of everything built on every floor (`nbItemValue` now reads `palPrice`). Old towns keep their numbers, which just scale up.
+- **HAVE # CASH wants** store their goal as 3 digits and a power of ten in the 16 bit want parameter (`simCashEnc` / `simCashGoal`); an old plain number reads the same. The goal is a little above what you have (2,000-6,000 + 1/16 of your cash).
+- **Left alone on purpose:** the prison's own small economy (a shift $12, cigarettes, gang dues, bully $15) and BUILD COSTS being an option. Lives saved before this keep their old small cash: start a NEW LIFE to get the 15,000.
+
+## ALIVE tier 2: reaction pops
+The Sim you control reacts to big moments with a small body move (`alvPopSet` in mood.h, drawn in `playerCalc` / `drawPlayerNow` in main.c, the picture only). A hop for joy (3 px, 18 steps) on a want met, a skill level, a paid shift, a promotion, a combo or finding the board. A head shake (a sideways jitter that settles, 24 steps) on a demotion or unpaid bills. A flinch (a quick duck and recoil, 14 steps) on a bail, a groan, a close call, a fear or a BOO. Plain landed tricks do not hop, so it stays quiet. The shadow stays put. Two bytes of EWRAM for the reaction and two for the offsets.
+
+## ALIVE tier 3: squash and slump
+The Sim you control is squashed towards the feet for a few frames: on a skate landing (harder drops squash more, then it springs back over the crouch) and at the end of a reaction hop. It is also held squashed while standing still when SAD (2 rows), worn out (1 row) or asleep at the bed or sofa (4 rows). `blitSq` in main.c drops rows evenly from the baked sprite, so no new frames and no extra RAM (one byte of EWRAM, `plSq`). Not done: tilting the sleeper to lie down, which needs a rotated blit tested against the bed's direction.
+
+## Fighting, module 1: moves and blocking (fight.h)
+Real-time fists for the Sim you control (on foot, empty hands, teen or older, not in the prison). **Hold L = GUARD**: you stand and block (a blow from in front lands at 25% and does not stun); raise it as a blow lands (first 10 steps) for a PARRY: no damage, the attacker reels and your next blow is 1.5x. The pad turns you while guarding. A TAP of L is still the board swap (it fires when L is let go; SELECT+L and R+L are untouched). **L + R** takes the fight stance (5 s, renewed by every blow you throw or take, and set by a social PUNCH on you); in it **R = JAB, CROSS, HOOK** (70 / 100 / 160%, the hook knocks back and takes its name from your creator parts), **A + R = KICK** (135%, reach 26/16 tile, ends the chain). R pressed during recovery is buffered 6 steps; the chain continues for the blow's cooldown + 16 steps; each hit of a combo adds 5% and shortens the stun. A miss costs 6 extra steps and drops the chain. With the pad let go the blow turns to the nearest Sim within 2 tiles. A Sim you hit may hit back once the combo stops (70% minus 5% per NICE point, plus 4% per combo hit): HIYAH balloon + tick, then a swing about a quarter second later that reaches 1.9 tiles. Damage, dodge, armour and crits are `fightHit` (house.h); `fgMul` scales a blow. Code: fight.h (`fgPre` first in lifeStep, `fgDraw` after wpDraw), `fgMul`/`fgMode` next to `fightHurt` in main.c. About 16 bytes of EWRAM, nothing saved. Next modules: rounds. (The health bar, special moves, hit-stop and the K.O. fanfare are in: see below.)
+
+## YOUR ACTIONS: the self pie menu (self.h)
+Press **R with nothing near you** (no furniture, no Sim in reach, on foot, not in the prison) or pick **YOUR ACTIONS** in the USE ring of any Sim's pie. It is a two-level Sims pie like the social one: the ring of categories (BODY, MIND, FUN, CARE), then that category's actions; B steps back up. BODY: STRETCH, PUSH-UPS, FLEX. MIND: MEDITATE, PRACTICE SPEECH, DOODLE, DAYDREAM (LOGIC, CHARISMA, CREATIVITY skills). FUN: DANCE, SING, AIR GUITAR, HAVE A CRY (mood events). CARE: FRESHEN UP, CAT NAP, DEEP BREATH. Each one gives or costs energy, hygiene, comfort or food, keeps you busy 50 to 200 steps (lstun) and then has a game-minute cooldown (`slfT` in self.h, TOO SOON; not saved); PUSH-UPS and DANCE need energy, PUSH-UPS needs food, CAT NAP needs you tired. To add one: a row in `slfT`, an enum name, a `case` in `slfDo`. The category footer shows ENERGY / CLEAN / COMFY. 64 bytes of EWRAM.
+
+### YOUR ACTIONS: animations (self.h)
+Every action animates while you are busy (`lstun` counts it down, `slfBusy` is the length, elapsed = `slfBusy - lstun`). `slfFx` (called at the end of the squash block in `playerCalc`) sets `plPopX`, `plPopY`, `plSq` and may turn `plV`; `slfPose` (first thing in `poseSel`, poses.h) picks WAVE / CHEER / SIT. DANCE spins through all four views and hops, PUSH-UPS dips and rises, MEDITATE sits and hovers, AIR GUITAR headbangs with arms up, CRY slumps and shakes, CAT NAP slumps like sleep, DAYDREAM looks all the way round. SING, DANCE, GUITAR, CRY, NAP, MEDITATE, SPEECH, DOODLE, DAYDREAM and PUSH-UPS also pop a word balloon (`slfBub`). A hit or the board cancels it. To animate a new action: add a `case` to `slfFx` (and `slfPose`) and a word to `slfBub`.
+
+### Fighting: the floating health bar (house.h `hhBar*`, fight.h)
+The Sim you last hit gets a small bar over its head for 150 steps (about 2.5 s), drawn with the balloon in `hhDrawBand` so the dirty-rectangle redraw handles it (`hhRc` grows the rectangle, `hhSig` changes with the foe's health and ghost). Green, yellow or red like the HUD (55 / 28). The pale **ghost** chunk keeps the health from before the combo for 24 steps, then drains 2 HP a step; hitting the same foe again keeps the ghost, so a combo reads as one big bite. A knocked out Sim shows an empty bar (its HP is held at 30 inside). A speech balloon moves up 7 px while the bar is up. `hhBarHit(m,hp0)` starts it (called from `fgAttack` on every landed blow and the K.O.), `hhBarTick()` runs first in `fgPre`. One bar at a time, 4 bytes of EWRAM, nothing saved. Not drawn for you (your HP is the HUD bar). To show it for other fights (a social PUNCH, a counter), call `hhBarHit`.
+
+### Fighting, module 2: special moves, hit-stop, K.O. fanfare (fight.h)
+**Meter.** Landed blows fill the skating SPECIAL meter (`lspec`, the bar under the score): +20 a blow (+4 per combo hit), +100 for a PARRY, +100 for a K.O. With SPECIAL full (`lspecOn`) the specials cost nothing.
+**Motions** (pad, then **R** in the fight stance; `fgHist` keeps the last 6 pad states with times, `fgMove` matches them, the motion must be done within 20 steps and R pressed within 40 of its end; the side can be LEFT or RIGHT): **FIREBALL** = down, down+side, side (30%): a ball flies 8 tiles (`fbX/fbY`, 28 units twice a step), stops at walls and furniture, hits the first Sim for 150%, stun 44. **UPPERCUT** = side, down, down+side (40%): 220% at 1.5 tiles, stun 70, a big shove. **SPIN KICK** = down, let go, down (30%): every Sim within 1.6 tiles takes 110%, stun 36, shoved away; you turn on the spot for 12 steps. Not enough meter: the R is a normal blow and the note says NEED MORE SPECIAL. Hits from specials count for the health bar, relationships (-8 daily) and K.O.s like any blow (`fgLand`).
+**Hit-stop.** `fgGate` (called by the main loop before each `lifeStep`) holds the game still: 1 / 2 / 3 / 4 frames for jab / cross / kick / hook, 4 for a special, 8 for a K.O. After a K.O. the game runs at a third speed for 75 frames (`fgSlow`) under a big **K.O.!** banner (84 frames, red and gold). R / A pressed while it holds still are kept for the next step (`fgPend`).
+**Redraw.** The main loop (`livePatch`) asks `fgRcNow` for the box the fight overlays use (swing trail, guard, special effects, fireball, banner) and redraws it every frame while it shows and once after, so none of it leaves smears. About 30 bytes of EWRAM, nothing saved.
+
+## SCALE: ramps and skate pieces are taller (tools/make_skate_items.py)
+A Sim is about 32 px tall, so the old pieces (rail 6, kicker 8, launch 12, quarter pipe 14) looked like toys next to a skater who ollies 25 px. Now (px): **KICKER 12, LAUNCH 18, Q PIPE 24, rail / ledge / bench / planter / picnic table / jersey barrier 9 (`GRIND_H`), FUNBOX and TRASH CAN 14 (`SOLID_H`), BARREL 13 (`BARREL_H`)**; the manual pad stays 3. All of them live in `tools/make_skate_items.py`: change a number there, run `python3 tools/make_skate_items.py` then `sh tools/bake_items.sh`; `source/rampdata.h` (the physics heights) and `source/itemrom.h` follow.
+- **Sprite canvas** is 21 x 38 now (was 28 tall, `IH`/`IOY` in itemids.h): ten empty rows on top. The hand-drawn art (phone, radio, DeadSet) is padded by `IPAD` in `bakePix`. Redraw margins grew to match: `bandRows` (+10 px) and the tile cull in `drawRoomRect` (34 px above the centre).
+- **Grind** is `isGrindH()` in main.c: a surface of `GRIND_H` (9, a height nothing else has; furniture is 8) or the old 6 (phone, radio, counter).
+- **Launch tuning** to keep lip + air under 34 px (the shriek height): `F_RAMP_MAX` 0x2A0 (was 0x300), `F_RAMP_TOL` 9 (was 6, the pipe's top eighth climbs 7 px). The pipe's launch (`qpOut`) is unchanged: it starts 10 px higher.
+- Still one tile each (the grid is the limit): a 2-tile-long ramp would need segment sprites. That is the next step if these still feel small.
+
+## Long ramps
+Place two or more **KICKERs** (or **LAUNCH** ramps) in a row, all facing the same way, and they join into one long ramp (no new tile chars, so old maps and saves are unchanged). `rampChain()` in `ramps.h` looks at the tiles on the low and the lip side: the low end is chain index 0, each tile climbs `KICKER_SEG` (8 px) or `LAUNCH_SEG` (12 px) instead of the single ramp's 12 / 18 px, and after `KICKER_SEGS` (3) / `LAUNCH_SEGS` (2) climbing tiles the next ones are a flat 24 px **deck** you can roll along and drop off. Surface heights (`rampH`, `rampTop` for `tileH`) and the sprites (`V_KSEG`, `V_LSEG` in `itemids.h`, drawn in `items.h`) come from the same table in `tools/make_skate_items.py`, so the art and the physics always match. A gentler slope would give less air, so `F_RAMP_LONG` (3 = x1.5) boosts the launch off a chained ramp. Re-run `python3 tools/make_skate_items.py` and `sh tools/bake_items.sh` after changing any of the numbers.
+
+## Memories
+**PAUSE > MY SIM > MORE > MEMORIES** shows the lifetime score with its rank bar and a few totals (days, wants met, promotions), then a diary of the big moments of the Sim you control, newest first (`memlog.h`, screen in `mysim.h`). `simEventV` (sims.h) calls `memNote()` for every life event; only the ones listed in `memKinds` are kept (friends, best friends, first kiss, love, going steady, enemies, fights, promotions and demotions, aced shifts, sponsor bonuses, skills learned, growing up and old, the hidden tape, combos of 500+ points, accidents, fainting, going broke, death). The same moment twice on one day is one memory. One diary per household uid, the last 16 each, about 800 bytes of EWRAM. **It is saved** with the player: `savegame.h` writes it as an `'M'` chunk of the player's save file (`sgEncMems`; version 1, then per Sim with a diary: uid + 1, count, count x 5 bytes, oldest first; about 95 bytes for two busy Sims, at most 650) and `sgDecMems` checks the layout before anything is replaced. Files from before this have no `'M'` chunk and start with an empty diary; a loaded file or a new player calls `memReset()` first.
+
+
+## Wallride, halfpipe and the decor pack
+- **WALLRIDE** (skating only, `lifeStep` in main.c; `lwr`, `lwrAx`, `lwrSg`, `lwrV`, `wrEnd`): in the air (more than 5 px above the ground) hold **R** and skate into a tall thing (a wall, crate, fridge ...; not a ramp). You stick to it and run along it for up to `WR_LEN` (70) steps, +100 at the start and about +30 every 8 steps, as part of the combo and the SPECIAL meter. It ends when you let go of R, land, run out of wall or hit a corner; `wrEnd` kicks you off away from the wall and on along it, with the spin cleared so the landing is fair, and gives 40 steps of bump protection so the kick-off never hurts. Walking never wallrides.
+- **Walking into walls is calm now:** on foot you slide along a wall (lose 1/6 of your speed, not 1/3), and only a flat-out run (speed 16) bonks, at most every 90 steps. Walking is silent. The long shriek only plays for a fall of 80 px or more on foot (34 px on the board). Skating into a wall still hurts, as before.
+- **HALFPIPE** (BUILD > SKATE, last item): SEL+A turns it, A lays two QUARTER PIPES facing each other with two flat tiles between, 2 tiles wide (8 free tiles, `edHalf`). It is bought as four pipes. Hold-and-drag does not repeat it. The pipes keep the existing quarter pipe physics (roll back, `qpOut`), so you ride up one, fly, drop in and roll to the other.
+- **LIVING AND DECOR pack** (art: `tools/make_decor_items.py` writes `source/decorart.h`, then `sh tools/bake_items.sh`): RUG `r` (flat, walkable), DINING TABLE `t`, CHAIR `h`, DESK `d` (with a computer), FLOOR LAMP `l`, HOUSEPLANT `p`, DRESSER `i`, FIREPLACE `o`, KITCHEN COUNTER `y`. Shop: SEAT (chair), HOME (table, desk, dresser, counter), DECOR (rug, lamp, plant, fireplace). All but the rug are solid like other furniture; chair, desk, dresser, fireplace and counter turn to face the open floor. They feed the ROOM need as two new kinds (cosy: rug / lamp / plant / fireplace; lived in: table / chair / desk / dresser / counter), so a decorated room scores higher. Palette numbers 47 to 56; `catItems` rows now hold up to 12 items.

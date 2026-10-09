@@ -190,6 +190,13 @@ if __name__ == '__main__':
             for v in range(3):
                 if r[2 * v] > 0: H = harm_of(inc_of(r[2 * v])); hmin[v] = min(hmin[v], H); hmax[v] = max(hmax[v], H)
         loops.append(dict(secret=secret, sid=sid, title=title, tr=tr, NL=NL, duty=duty, rows=rows, stream=encode(rows)))
+    import cs_tunes   # the story cutscene tunes (tools/cs_tunes.py): stored in the same blob, listed in cschips.h and not in the creator's chips.h
+    for L in cs_tunes.custom_loops():
+        L['rows'] = per_step(L['tr'], L['NL'], drums)
+        for r in L['rows']:
+            for v in range(3):
+                if r[2 * v] > 0: H = harm_of(inc_of(r[2 * v])); hmin[v] = min(hmin[v], H); hmax[v] = max(hmax[v], H)
+        L['stream'] = encode(L['rows']); loops.append(L)
     T = Tables([(hmin[v], hmax[v]) for v in range(3)])
     nbufs = [np.round(noise_buf(p, m) * 100).astype(np.int64) for p, m in drums]
     blob = bytearray(); off = {}
@@ -227,5 +234,10 @@ if __name__ == '__main__':
     with open(CHIPS_H, 'w') as f:
         f.write('// chips.h - the chiptune loops of the creator menu: voiced by tools/make_chiptunes.py, stored as synth data by tools/chip_synth.py (do not edit)\n'
                 '//   CHIP(id,"NAME",secret,offset into chipsyn.bin)   secret = 1: only after the title-screen code (UP UP DOWN DOWN LEFT LEFT RIGHT B A START)\n')
-        for L in loops: f.write('CHIP(chip_%s,"%s",%d,%d)\n' % (L['sid'], L['title'], L['secret'], off['L_' + L['sid']]))
+        for L in loops:
+            if not L.get('custom') or L.get('menu'): f.write('CHIP(chip_%s,"%s",%d,%d)\n' % (L['sid'], L['title'], L['secret'], off['L_' + L['sid']]))
+    with open('source/cschips.h', 'w') as f:
+        f.write('// cschips.h - the cutscene tunes (tools/cs_tunes.py, made by tools/chip_synth.py, do not edit): CSCHIP(id, steps in a beat, offset into chipsyn.bin)\n')
+        for L in loops:
+            if L.get('custom'): f.write('CSCHIP(%s,%d,%d)\n' % (L['sid'], L['beat'], off['L_' + L['sid']]))
     print('%d loops: %d KB of ROM in all (was %d KB of ADPCM) -> %s, %s, %s' % (len(loops), len(blob) // 1024, total_old // 1024, BIN, HDR, CHIPS_H))

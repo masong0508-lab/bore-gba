@@ -4,17 +4,10 @@
 // Include AFTER px/shade/EWRAM_BSS/SW/SH/fb are defined.
 #include "itemids.h"
 #include "itemrom.h"
-// Sprites are read straight from the cartridge (no RAM for the art). Only a tiny table in RAM: for every sprite row, the first opaque column and one
+// Sprites are read straight from the cartridge (no RAM for the art). A tiny table (also in ROM): for every sprite row, the first opaque column and one
 // past the last, so the blit never touches the see-through margins. It also clips once per row, not once per pixel.
-static u8 itemSpan[NIV][IH][2] EWRAM_BSS;
-static void itemSpanInit(void){
-    for(int k=0;k<NIV;k++)for(int j=0;j<IH;j++){
-        const u16*s=romSpr[k]+j*IW; int a=IW,b=0;
-        for(int i=0;i<IW;i++) if(s[i]!=IKEY){ if(i<a) a=i; b=i+1; }
-        if(a>=b){ a=b=0; }
-        itemSpan[k][j][0]=(u8)a; itemSpan[k][j][1]=(u8)b;
-    }
-}
+// (itemSpan is a const ROM table, baked into itemrom.h by tools/bake_items.sh: it used to be 4 KB of EWRAM filled at boot)
+static void itemSpanInit(void){}   // kept so the boot code stays the same
 IWRAM_CODE static void blitItem(int k,int sx,int sy){
     CNT(cntBI); int x0=sx-IOX, y0=sy-IOY;
     int cx1=cX0+(int)cW, cy1=cY0+(int)cH;
@@ -32,8 +25,43 @@ static void drawSpawn(int sx,int sy){   // editor marker: a little standing pers
     for(int j=0;j<12;j++)for(int i=0;i<7;i++){ char c=spawnArt[j][i]; if(c=='.') continue;
         u16 col=c=='h'?RGB(10,6,3):c=='s'?RGB(30,23,17):c=='r'?RGB(28,8,7):c=='b'?RGB(7,9,20):RGB(3,3,5); px(sx-3+i,sy-11+j,col); }
 }
+static void drawFlag(int sx,int sy,int skate,int t){   // a flag on a pole, drawn in code: blue with a white stripe = COMMUNITY, orange with a dark stripe = SKATE; the cloth ripples
+    u16 pole=RGB(26,26,28), cloth=skate?RGB(31,17,3):RGB(5,19,28), mark=skate?RGB(6,5,8):RGB(31,31,31), foot=RGB(10,10,12);
+    for(int j=0;j<17;j++) px(sx,sy-16+j,pole);
+    px(sx-1,sy+1,foot); px(sx,sy+1,foot); px(sx+1,sy+1,foot);
+    for(int i=0;i<9;i++){ int w=(i<3?0:(((t+i/2)&3)>>1)); for(int j=0;j<6;j++){ u16 c=(j==2||j==3)?mark:cloth; px(sx+1+i,sy-16+j+w,c); } }
+}
+static void drawWork(int sx,int sy,int t){   // WORK MARKER: a gold diamond pad (it blinks) with a little briefcase on it
+    u16 gold=RGB(31,24,4), lite=RGB(31,29,12), dark=RGB(11,7,1), pad=((t>>2)&1)?lite:gold;
+    for(int j=-3;j<=3;j++){ int w=(3-(j<0?-j:j))*3+1; rect(sx-w,sy+j,2*w+1,1,pad); px(sx-w,sy+j,dark); px(sx+w,sy+j,dark); }
+    rect(sx-3,sy-6,7,5,dark); rect(sx-2,sy-5,5,3,gold); rect(sx-1,sy-7,3,1,dark); px(sx,sy-4,dark);
+}
+// TV SHOW & TELL (chapter 3, a private house with tight security): two items drawn by code, no ROM art, no RAM. n = SECURITY CAMERA, j = SECURITY GATE.
+static void drawSecCam(int sx,int sy,int t){   // a pole with a camera on top and a blinking red light
+    rect(sx-3,sy-1,8,2,RGB(7,7,9)); rect(sx,sy-14,2,14,RGB(9,9,12));
+    rect(sx-4,sy-18,10,5,RGB(20,21,24)); rect(sx-4,sy-18,10,1,RGB(28,29,31)); rect(sx+4,sy-17,3,3,RGB(3,3,5));
+    if((t>>2)&1) rect(sx-3,sy-17,2,2,RGB(31,5,4));
+}
+static void drawSecGate(int sx,int sy){   // a tall iron fence piece: posts, a top rail and bars
+    u16 post=RGB(5,5,7), bar=RGB(14,15,18), hi=RGB(24,25,28);
+    for(int i=-6;i<=6;i+=3) rect(sx+i,sy-17,1,17,bar);
+    rect(sx-7,sy-18,15,2,post); rect(sx-7,sy-6,15,1,post);
+    rect(sx-8,sy-20,2,20,post); rect(sx+7,sy-20,2,20,post); px(sx-8,sy-20,hi); px(sx+7,sy-20,hi);
+}
+static int secCount(char ch){ int n=0; for(int y=0;y<MH;y++) for(int x=0;x<MW;x++) if(lifeMap[y][x]==ch) n++; return n; }   // how many of one security piece the live map has (the story goal reads this)
+// TV SHOW & TELL step 3, the PAPARAZZI (chapter 3): photographers drawn by code, standing on the floor of the lot (story.h papTick moves them). Not saved.
+#define PAP_MAX 6
+static u8 papN, papX[PAP_MAX] EWRAM_BSS, papY[PAP_MAX] EWRAM_BSS, papFl[PAP_MAX] EWRAM_BSS;   // how many, their tile, a flash timer (about 12 bytes)
+static void drawPap(int sx,int sy,int p){   // a photographer with a big camera at his face; his coat colour is his number
+    static const u16 coat[3]={RGB(5,6,10),RGB(14,5,5),RGB(4,10,6)};
+    rect(sx-4,sy-1,9,2,RGB(2,3,5)); rect(sx-3,sy-8,3,8,RGB(4,4,7)); rect(sx+1,sy-8,3,8,RGB(4,4,7));
+    rect(sx-4,sy-15,9,8,coat[p%3]); rect(sx-4,sy-15,9,1,RGB(20,20,24));
+    rect(sx-2,sy-21,5,6,RGB(27,20,15)); rect(sx-2,sy-21,5,2,RGB(6,4,2));
+    rect(sx-7,sy-19,6,4,RGB(3,3,5)); rect(sx-9,sy-18,2,2,RGB(16,22,28));   // the camera and its lens
+    if(papFl[p]){ rect(sx-14,sy-24,8,8,WHITE); rect(sx-16,sy-21,12,2,WHITE); rect(sx-11,sy-27,2,14,WHITE); }   // the flash
+}
 // which way an item faces (world dir 0=S(+y) 1=E(+x) 2=N(-y) 3=W(-x)): away from a wall, toward open floor
-static int itemOpen(int x,int y){ if(x<0||y<0||x>=MW||y>=MH) return 0; char c=lifeMap[y][x]; return c=='.'||c=='D'||c=='B'||c=='P'; }
+static int itemOpen(int x,int y){ if(x<0||y<0||x>=MW||y>=MH) return 0; char c=lifeMap[y][x]; return c=='.'||c=='D'||c=='B'||c=='P'||c=='r'; }
 static int itemFacing(int x,int y){
     static const signed char dx[4]={0,1,0,-1}, dy[4]={1,0,-1,0};
     for(int d=0;d<4;d++) if(itemOpen(x+dx[d],y+dy[d])&&!itemOpen(x+dx[(d+2)&3],y+dy[(d+2)&3])) return d;
@@ -47,6 +75,10 @@ static int itemAlongU(int x,int y,char ch){   // rails / ledges / benches link u
 static void drawStairs(int sx,int sy,int up){   // steps drawn in code (no baked sprite): up = they rise, down = they sink into the floor
     for(int i=0;i<4;i++){ int h=up?3+i*3:12-i*3; u16 top=up?RGB(27,25,21):RGB(15,14,12), side=up?RGB(19,17,14):RGB(8,8,7);
         rect(sx-7+i*4,sy-h-1,4,2,top); rect(sx-7+i*4,sy-h+1,4,h,side); }
+    { u16 ac=up?RGB(31,26,6):RGB(20,26,31); int ay=sy-23;   // floors render 2: an arrow over the steps, gold up and blue down, on a dark plate
+      rect(sx-4,ay-1,9,8,RGB(3,4,6));
+      if(up){ rect(sx-1,ay,3,1,ac); rect(sx-2,ay+1,5,1,ac); rect(sx-3,ay+2,7,1,ac); rect(sx-1,ay+3,3,3,ac); }
+      else { rect(sx-1,ay,3,3,ac); rect(sx-3,ay+3,7,1,ac); rect(sx-2,ay+4,5,1,ac); rect(sx-1,ay+5,3,1,ac); } }
 }
 // draw the item standing on real tile (x,y); (sx,sy) = screen centre of the tile
 static void drawItemTile(char c,int sx,int sy,int x,int y){
@@ -63,8 +95,10 @@ static void drawItemTile(char c,int sx,int sy,int x,int y){
     else if(c=='Z') blitItem(V_PLANTER,sx,sy);
     else if(c=='K') blitItem(V_PICNIC,sx,sy);
     else if(c=='M') blitItem(V_MPAD,sx,sy);
-    else if(isLaunch(c)) blitItem(V_LAUNCH+(((c-'9')-cview)&3),sx,sy);
-    else if(isKicker(c)) blitItem(V_KICKER+(((c-'1')-cview)&3),sx,sy);
+    else if(isLaunch(c)){ int up, i=rampChain(x,y,c,&up), r=((c-'9')-cview)&3;   // a lone launch ramp, or one tile of a long one
+        blitItem((i||up)?V_LSEG+4*(i<LAUNCH_SEGS?i:LAUNCH_SEGS)+r:V_LAUNCH+r,sx,sy); }
+    else if(isKicker(c)){ int up, i=rampChain(x,y,c,&up), r=((c-'1')-cview)&3;
+        blitItem((i||up)?V_KSEG+4*(i<KICKER_SEGS?i:KICKER_SEGS)+r:V_KICKER+r,sx,sy); }
     else if(isQPipe(c)) blitItem(V_QPIPE+(((c-'5')-cview)&3),sx,sy);
     else if(c=='S') blitItem(V_BED+((itemFacing(x,y)-cview)&3),sx,sy);
     else if(c=='H') blitItem(V_SHOWER+((itemFacing(x,y)-cview)&3),sx,sy);
@@ -74,5 +108,22 @@ static void drawItemTile(char c,int sx,int sy,int x,int y){
     else if(c=='V') blitItem(V_LAVA,sx,sy);
     else if(c=='U') blitItem(V_BEANBAG+((itemFacing(x,y)-cview)&3),sx,sy);
     else if(c=='Q') blitItem(V_DEADSET+(((itemFacing(x,y)-cview)&3)>=2),sx,sy);   // the DeadSet 3Thousand VYBE
+    else if(c=='I') blitItem(V_PHONE,sx,sy);                                   // the telephone (R: the phone menu)
+    else if(c=='R') blitItem(V_RADIO,sx,sy);                                   // the radio (R: tune a station)
+    else if(c=='A') blitItem(V_STEREO,sx,sy);                                  // the sound system (R: crank it)
+    else if(c=='v') blitItem(V_TV+((itemFacing(x,y)-cview)&3),sx,sy);          // home pack: the TV (R: next channel)
+    else if(c=='b') blitItem(V_SHELF+((itemFacing(x,y)-cview)&3),sx,sy);       // the bookshelf (R: read)
+    else if(c=='c') blitItem(V_COFFEE,sx,sy);                                   // the coffee maker (R: a cup)
+    else if(c=='q') blitItem(V_AQUA,sx,sy);                                     // the aquarium (R: feed the fish)
+    else if(c=='m') blitItem(V_TREAD+((itemFacing(x,y)-cview)&3),sx,sy);       // the treadmill (R: a run)
+    else if(c=='r') blitItem(V_RUG,sx,sy);                                     // living and decor pack: the rug (flat, walk over it)
+    else if(c=='t') blitItem(V_TABLE,sx,sy);
+    else if(c=='h') blitItem(V_CHAIR+((itemFacing(x,y)-cview)&3),sx,sy);
+    else if(c=='d') blitItem(V_DESK+((itemFacing(x,y)-cview)&3),sx,sy);
+    else if(c=='l') blitItem(V_LAMP,sx,sy);
+    else if(c=='p') blitItem(V_PLANT,sx,sy);
+    else if(c=='i') blitItem(V_DRESSER+((itemFacing(x,y)-cview)&3),sx,sy);
+    else if(c=='o') blitItem(V_FIRE+((itemFacing(x,y)-cview)&3),sx,sy);
+    else if(c=='y') blitItem(V_COUNTER+((itemFacing(x,y)-cview)&3),sx,sy);
     else if(c=='^'||c=='~') drawStairs(sx,sy,c=='^');
 }

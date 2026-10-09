@@ -7,13 +7,18 @@ TARGET  := bore
 CC      := arm-none-eabi-gcc
 OBJCOPY := arm-none-eabi-objcopy
 ARCH    := -mthumb -mthumb-interwork
-CFLAGS  := $(ARCH) -O2 -Wall -fno-strict-aliasing -ffunction-sections
+CFLAGS  := $(ARCH) -O2 -Wall -fno-strict-aliasing -ffunction-sections -mcpu=arm7tdmi -mtune=arm7tdmi -fomit-frame-pointer -fno-unwind-tables -fno-asynchronous-unwind-tables
 LDFLAGS := -specs=gba.specs $(ARCH)
+STACK_EWRAM := 8192                       # the stack sits in the top of EWRAM (main.c: main() stub); statics must stay below it
+EWRAM_STATIC_MAX := $(shell echo $$((262144-8192)))
+IWRAM_MAX ?= 32512   # 32768 minus the top 256 B the BIOS uses; .bss + .data + .iwram must fit below (override: make IWRAM_MAX=n)
 
 all: $(TARGET).gba
 
 $(TARGET).elf: source/main.c source/logo.c $(wildcard source/*.h) $(wildcard source/sfx/*.adp) $(wildcard source/music/*.adp) $(wildcard source/music/*.bin)
 	$(CC) $(CFLAGS) source/main.c source/logo.c $(LDFLAGS) -o $@
+	@arm-none-eabi-size -A $@ | awk -v lim=$(EWRAM_STATIC_MAX) '$$1==".sbss"||$$1==".ewram"{e+=$$2} END{ if(e>lim){ printf("ERROR: EWRAM statics %d B > %d B: the top %d KB of EWRAM is the stack (see main.c)\n",e,lim,$(STACK_EWRAM)/1024); exit 1 } }'
+	@arm-none-eabi-size -A $@ | awk -v lim=$(IWRAM_MAX) '$$1==".bss"||$$1==".data"||$$1==".iwram"{i+=$$2} END{ printf("IWRAM: %d B used of %d (%d B free)\n",i,lim,lim-i); if(i>lim){ printf("ERROR: IWRAM %d B > %d B: new code must not be IWRAM_*, new statics need EWRAM_BSS\n",i,lim); exit 1 } }'
 
 $(TARGET).gba: $(TARGET).elf
 	$(OBJCOPY) -O binary $< $@

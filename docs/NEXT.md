@@ -1,5 +1,7 @@
 # What to build next (notes from playing THPS3 / THPS4 on GBA)
 
+**Status (checked against the source, updated with the combo string):** the SPECIAL meter (`lspec`, top bar under the score), the SKATE letters (`lskl`, `sktAward`), SWITCH tricks (`lsw`), manuals, wall taps and the combo chain (`lcN`) exist, and the top bar now shows the **combo string**: the names of the tricks in the running chain, newest last, with the multiplier (`lcAdd` in main.c keeps the names, `hudComboStr` in hud.h fits them in the middle of the top bar). **Jobs:** PRO SKATER (track 8, `JT_SKATE` in sims.h) is the default job and the ONLY one paid in trick points (the SKATER QUOTA option scales it). Every other track is a normal job: its quota is work minutes (`jobQuotaOf`; a minute counts 1 while you are up and about, 2 while STOKED), and promotions want a life skill (`jobSk`) instead of SKATING. **Collectibles are in** (`clPlace` / `clTick` / `clDraw` in main.c): the letters S K A T E and one hidden tape float over empty floor on any lot that has something to skate; they are scattered again every run, drawn in code, saved nowhere. A letter feeds `sktAward` (five = SKATE bonus), the tape pays 1000. **VIEW TRICKS** is in the pause menu under WANTS (`tricksScreen`, skills.h). The **bail flicker** (`lbailT`) and SWITCH stance (`lsw`) are in too. Not built yet: see **What is next** below. What does exist and helps: story mode (`story.h`) hands out chapter goals like THPS4's, neighbors visit and welcome you (`twTick`), a radio and sound system play the jukebox in the room, and the aspiration wants and fears act as a goal list. For the Sims-side wishlist see `WISHLIST_EFFORT.md`.
+
 Observed by playing the carts in an emulator; nothing was copied from them. These are design targets for BORE, sized for the GBA.
 
 ## What the THPS GBA games do that BORE can match
@@ -8,23 +10,27 @@ Observed by playing the carts in an emulator; nothing was copied from them. Thes
 | Fixed isometric camera that scrolls smoothly with the skater | Same, already | Keep |
 | HUD: `Score` top left with a **special meter** bar under it, a big red **2:00 run timer** top centre | Score, cash, clock | Add a SPECIAL meter (fills with tricks, drains slowly; full = bonus points and special tricks). Optional TIMED RUN mode (2:00) beside the free life mode |
 | **Level intro flyover**: the camera pans to each goal with a banner ("FIND THE HIDDEN TAPE", "WALLRIDE THE MAGMA FALLS") | none | A goals intro: pan the camera to 3 to 5 map spots with a text banner. Needs a goal table per map (id, tile, text) |
-| **Collectibles in the level**: floating S-K-A-T-E letters, a hidden tape, coins | none | Item tiles that spin (2 to 4 frame sprites), collected on touch; feed wants ("COLLECT SKATE") and DNA |
+| **Collectibles in the level**: floating S-K-A-T-E letters, a hidden tape, coins | letters and tape are in (runtime pickups, `clPlace`) | Wants for them, a tape count per map, coins |
 | **Career goals list** (pause menu: VIEW GOALS) | wants and fears | Per-map goal list saved per slot: high score, SKATE, tape, gap, wallride. Completing goals unlocks parts or maps |
-| **Pause menu**: CONTINUE, RETRY, VIEW GOALS, VIEW TRICKS, SOUND, END RUN | similar | Add VIEW TRICKS (the trick list and controls) |
-| **SWITCH stance** badge (skateboard icon, top right) | none | Track stance after a 180; switch tricks score more |
-| **Bail**: the skater flickers (dithered) while getting up | stun + sounds | Flicker the sprite during `lstun` |
+| **Pause menu**: CONTINUE, RETRY, VIEW GOALS, VIEW TRICKS, SOUND, END RUN | similar; VIEW TRICKS is under WANTS | VIEW GOALS (see the goals list below) |
+| **SWITCH stance** badge (skateboard icon, top right) | SWITCH tricks score more (`lsw`, "SW" in the combo string) | A stance badge in the top bar |
+| **Bail**: the skater flickers (dithered) while getting up | done (`lbailT`) | Keep |
 | Halfpipes and quarter pipes everywhere, wallrides | kicker, quarter pipe, launch | Wallride on walls (hold the grind key against a wall) and a HALFPIPE item (two quarter pipes back to back) |
 | THPS4: free roam, no timer, goals handed out by people in the level | life mode is free roam | **NPCs that give goals**: the freed 124 KB of RAM (see README, RAM budget) holds about 10 baked characters. An NPC = baked sprite set + a tile + a goal id; talk with R |
 
-## Order to build it in
-1. **Special meter + trick names on screen + combo string** (cheap, all HUD; biggest "feels like THPS" win).
-2. **Collectibles** (SKATE letters, tape) as item tiles; hook them into wants ("COLLECT S-K-A-T-E").
-3. **NPCs**: bake 2 to 4 extra sprite sets from creator looks (reuse `bakeSprites`), place them on the map, simple idle/wander, R to talk: they give a goal (THPS4 style) and count as SOCIAL for the Sims side.
-4. **Goals list per map** + level intro flyover.
-5. **Timed run mode** (2:00, high score / pro score / sick score).
-6. Wallride, switch stance, manuals on the MANUAL PAD.
+## What is next (in this order)
+Done so far: special meter, trick names and combo string, SKATE letters and the hidden tape, VIEW TRICKS, bail flicker, SWITCH tricks, the PRO SKATER job with its own quota (every other job counts work minutes).
+
+1. **(DONE: GRAB A LETTER and FIND THE TAPE wants, SE_LETTER / SE_TAPE, plus a LOT CLEARED +500 bonus.) Wants and DNA for collecting.** Add "COLLECT S-K-A-T-E" and "FIND THE HIDDEN TAPE" to `simWants` (a new `SE_` event fired from `clTick`), so the Sims side asks for it. Small: one event, two want rows, two lines of text.
+2. **(DONE, goals.h: the lots with the tape found are remembered per town in SRAM, the tape does not come back there, VIEW GOALS shows TAPES FOUND n OF m.) A tape count per map.** Save which lots you found the tape on (one bit per lot in the neighborhood save) and show it on the lot card in the town menu and in the goals list. Also decide whether the tape stays hidden after you have it (suggested: it does not come back on that lot).
+3. **(MOSTLY DONE, goals.h: four saved goals per lot (tape, SKATE, LOT CLEARED, SCORE 2000), paid once in cash, +300 for all four = LOT MASTERED, shown in PAUSE > WANTS > VIEW GOALS; still to do: a gap or wallride goal, and goals that unlock parts or maps.) Goals list per map + VIEW GOALS.** A small goal table per lot (high score, SKATE, tape, one gap or wallride), saved per slot, shown in the pause menu beside VIEW TRICKS. Completing goals unlocks parts or maps. This is also the base for the intro flyover.
+4. **(DONE, goals.h introFly: tape spot, first letter, back to you; A/B/START skips.) Level intro flyover.** Pan the camera to each goal spot with a text banner (needs the goal table from step 3).
+5. **(FIRST STEP DONE: community and skate flags spawn visitors and AI skaters, see NOTES: Lot flags.) NPCs that give goals** (THPS4 style). Bake 2 to 4 extra sprite sets from creator looks (reuse `bakeSprites`), place them on the map, simple idle and wander, R to talk: they hand out a goal and count as SOCIAL for the Sims side. Check the RAM budget (about 10 baked characters fit in the freed 124 KB; see README).
+6. **Job follow-ups.** A workplace marker for the normal jobs (stand on it during a shift for the work minutes instead of counting any minute at home), job-flavoured wants and notes, and a PRO SKATER perk (a sponsor: a good shift pays a little extra per trick). Keep the SKATER QUOTA option for the skater only.
+7. **(DONE, timedrun.h: PAUSE > WANTS > TIMED RUN, 2:00 countdown in the top bar, results card with medal, best combo, prize and a saved high score.) Timed run mode** (2:00, high score / pro score / sick score) beside the free life mode.
+8. **(DONE: WALLRIDE in `lifeStep` (main.c, `lwr`) and the HALFPIPE builder item (`edHalf`); see NOTES: Wallride, halfpipe and the decor pack.) Wallride and HALFPIPE.** Wallride on walls (hold the grind key against a wall), a HALFPIPE item (two quarter pipes back to back), and a stance badge for SWITCH (the badge is DONE: a gold SW box in the top bar while you ride switch, hud.h). Manuals already work on the MANUAL PAD.
 
 ## GBA limits to respect
-- EWRAM 256 KB (113 KB used now), IWRAM 32 KB (about 25 KB used, the rest is the stack). One baked character = 11 KB at 16 bits per pixel; 8 bits plus a palette halves that.
+- EWRAM 256 KB (113 KB when this was written; the 32 x 60 sprites and household tiles added about 25 KB since: see NOTES), IWRAM 32 KB (about 30.7 KB used by code + .bss; the stack lives in the rest, so new code must stay out of IWRAM). One baked character = 11 KB at 16 bits per pixel; 8 bits plus a palette halves that.
 - The game draws in mode 3 (one 240x160 bitmap, the CPU draws everything). Each extra character on screen costs draw time: keep NPC sprites small and cull anything off screen. Check DRAW COST in OPTIONS > VIDEO after each addition.
 - The ROM is about 3 MB now; carts go to 32 MB, so ROM space is not the problem, RAM and draw time are.

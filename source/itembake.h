@@ -40,6 +40,10 @@ static const IBox bxToilet[3]={
 #include "skateart.h"
 // ---- bed, shower, sofa: the life-sim furniture ----
 #include "simart.h"
+// ---- home pack: TV, bookshelf, coffee maker, aquarium, treadmill ----
+#include "homeart.h"
+// ---- living and decor pack: rug, table, chair, desk, floor lamp, houseplant, dresser, fireplace, kitchen counter ----
+#include "decorart.h"
 
 // ---- door mat / threshold ----
 static const u16 pDr[4]={RGB(8,5,3),RGB(18,11,6),RGB(24,16,8),RGB(28,20,10)};
@@ -185,8 +189,99 @@ static void bakeOne(int k,const IBox*b,int n,int r,int nsh){
     drawObj(d,b,n,r,0); if(nsh<16) outlineSpr(d,nsh);
 }
 static void bakePix(int k,const char*const*rows,const u16*pal,int mirror){   // pixel art straight into a sprite
-    for(int y=0;y<IH;y++)for(int x=0;x<IW;x++){ char c=rows[y][mirror?IW-1-x:x]; bakeBuf[k][y][x]=c=='.'?IKEY:pal[c-'a']; }
+    for(int y=0;y<IH;y++)for(int x=0;x<IW;x++){ char c=y<IPAD?'.':rows[y-IPAD][mirror?IW-1-x:x]; bakeBuf[k][y][x]=c=='.'?IKEY:pal[c-'a']; }   // (the art is IH0 rows tall and sits at the bottom of the taller canvas)
 }
+// ---- the telephone: a nightstand with a phone on it (pixel art) ----
+static const u16 pPh[8]={RGB(3,2,5),RGB(27,19,10),RGB(15,9,5),RGB(20,13,7),RGB(26,6,6),RGB(31,15,12),RGB(8,8,11),RGB(31,31,28)};   // outline, top, left, right, phone, highlight, handset, dial
+static const char*const phArt[IH0]={
+ ".....................",
+ ".....................",
+ ".....................",
+ ".....................",
+ ".....................",
+ ".....................",
+ ".....................",
+ ".....................",
+ ".....................",
+ "......aaaaaaaaa......",
+ ".....aggggggggga.....",
+ ".....agfffffffga.....",
+ "....aabeeeeeeebaa....",
+ "..aabbeeehhheeebbaa..",
+ ".abbbbbbbbbbbbbbbbba.",
+ ".accbbbbbbbbbbbbbdda.",
+ ".accccbbbbbbbbbdddda.",
+ ".accccccbbbbbdddddda.",
+ ".accccccccbddddccdda.",
+ ".acccccccccddchdddda.",
+ ".acccccccccdcddccdda.",
+ ".acccccccccddccdddda.",
+ "..aacccccccdcddddaa..",
+ "....aacccccddddaa....",
+ "......aacccddaa......",
+ "........aacaa........",
+ "..........a..........",
+ "....................."};
+// sound pack: RADIO (a boombox, tile 'R') and SOUND SYSTEM (a speaker tower with an amp, tile 'A'), hand-drawn pixel art
+static const u16 pSnd[10]={RGB(3,3,5),RGB(23,23,25),RGB(14,15,18),RGB(9,10,13),RGB(5,5,8),RGB(18,18,22),RGB(31,25,6),RGB(31,6,6),RGB(8,30,12),RGB(8,8,10)};   // outline, top, front, side, speaker, cone shine, gold, red, green, handle
+static const char*const rdArt[IH0]={
+ ".....................",
+ ".....................",
+ ".....................",
+ ".....................",
+ ".....................",
+ "..................a..",
+ ".................aja.",
+ ".................aja.",
+ "................aja..",
+ "................aja..",
+ "...............aja...",
+ ".......aaaaaaaaaja...",
+ "......ajjjjjjjjja....",
+ "......ajjjjjjjjja....",
+ ".....aajaaaaaaajaa...",
+ "....abbbbbbbbbbbbba..",
+ "....abbbbbbbbbbbbba..",
+ "...acccccccccccccaba.",
+ "...acceeeggggeeecdda.",
+ "...aceeeeecceeeeedda.",
+ "...aeefeeeeeefeeeeda.",
+ "...aeeefeeeeeefeeeda.",
+ "...aeeeeeeeeeeeeeeda.",
+ "...aceeeeehieeeeedda.",
+ "...acceeecccceeecdda.",
+ "...acccccccccccccaa..",
+ "....aaaaaaaaaaaaa....",
+ "....................."};
+static const char*const syArt[IH0]={
+ ".....................",
+ ".....................",
+ "......aaaaaaaaaaa....",
+ ".....abbbbbbbbbbba...",
+ ".....abbbbbbbbbbba...",
+ "....acccccccccccaba..",
+ "....aceeeeeeeeecdda..",
+ "....acegggffffecdda..",
+ "....acefhfffifecdda..",
+ "....aceeeeeeeeecdda..",
+ "....acccceeeccccdda..",
+ "....acccefeeecccdda..",
+ "....accceeeeecccdda..",
+ "....accceeeeecccdda..",
+ "....acccceeeccccdda..",
+ "....acccccccccccdda..",
+ "....acccceeeccccdda..",
+ "....accceeeeecccdda..",
+ "....acceefffeeccdda..",
+ "....aceefffffeecdda..",
+ "....aceeffeffeecdda..",
+ "....aceefffffeecdda..",
+ "....acceefffeeccdda..",
+ "....accceeeeecccdda..",
+ "....acccceeeccccdda..",
+ "....acccccccccccaa...",
+ ".....aaaaaaaaaaa.....",
+ "....................."};
 static void bakeAll(void){
     bakeOne(V_CRATE,bxCrate,1,0,11);
     for(int r=0;r<4;r++){ bakeOne(V_FRIDGE+r,bxFridge,1,r,11); bakeOne(V_TOILET+r,bxToilet,3,r,11);
@@ -200,4 +295,13 @@ static void bakeAll(void){
     bakeOne(V_PIPE,bxPipe,4,0,10); bakeOne(V_LAVA,bxLava,3,0,10); for(int r=0;r<4;r++) bakeOne(V_BEANBAG+r,bxBeanbag,2,r,11);   // chill pack
     bakePix(V_DEADSET,dsArt,pDs,0); bakePix(V_DEADSET+1,dsArt,pDs,1);   // the DeadSet
     bakeOne(V_PICNIC,bxPicnicTable,7,0,12); bakeOne(V_JERSEYU,bxJerseyU,3,0,12); bakeOne(V_JERSEYV,bxJerseyV,3,0,12); bakeOne(V_MPAD,bxManualPad,1,0,12);
+    bakePix(V_PHONE,phArt,pPh,0);   // the telephone
+    bakePix(V_RADIO,rdArt,pSnd,0); bakePix(V_STEREO,syArt,pSnd,0);   // sound pack
+    for(int r=0;r<4;r++){ bakeOne(V_TV+r,bxTv,5,r,11); bakeOne(V_SHELF+r,bxShelf,1,r,11); bakeOne(V_TREAD+r,bxTread,5,r,11); }   // home pack
+    bakeOne(V_COFFEE,bxCoffee,4,0,11); bakeOne(V_AQUA,bxAqua,3,0,11);
+    bakeOne(V_RUG,bxDRug,1,0,13); bakeOne(V_TABLE,bxDTable,5,0,11); bakeOne(V_LAMP,bxDLamp,3,0,11); bakeOne(V_PLANT,bxDPlant,3,0,11);   // living and decor pack
+    for(int r=0;r<4;r++){ bakeOne(V_CHAIR+r,bxDChair,6,r,11); bakeOne(V_DESK+r,bxDDesk,6,r,11); bakeOne(V_DRESSER+r,bxDDresser,1,r,11); bakeOne(V_FIRE+r,bxDFire,3,r,11); bakeOne(V_COUNTER+r,bxDCounter,1,r,11); }
+    for(int r=0;r<4;r++){   // long ramps: the chained kicker tiles and launch tiles (see ramps.h)
+        bakeOne(V_KSEG+r,bxKickerSeg0,8,r,11); bakeOne(V_KSEG+4+r,bxKickerSeg1,8,r,11); bakeOne(V_KSEG+8+r,bxKickerSeg2,8,r,11); bakeOne(V_KSEG+12+r,bxKickerSeg3,8,r,11);
+        bakeOne(V_LSEG+r,bxLaunchSeg0,8,r,11); bakeOne(V_LSEG+4+r,bxLaunchSeg1,8,r,11); bakeOne(V_LSEG+8+r,bxLaunchSeg2,8,r,11); }
 }

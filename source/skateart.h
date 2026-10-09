@@ -64,7 +64,7 @@ MAT(mQpS6,pQp,1,1,"e")
 MAT(mQpT7,pQp,8,1,"bbbbbbbb")
 MAT(mQpR7,pQpR,1,1,"b")
 MAT(mQpS7,pQp,1,1,"e")
-MAT(mLeSide,pLe,8,6,"eeeeeeee","bbbbbbbb","bbbcbbbb","bbbbbbbb","bcbbbbbb","bbbbbbbb")
+MAT(mLeSide,pLe,8,9,"eeeeeeee","bbbbbbbb","bbbcbbbb","bbbbbbbb","bcbbbbbb","bbbbbbbb","bbbbcbbb","bbbbbbbb","bbbbbbbb")
 MAT(mLeTopU,pLe,8,8,"dddddddd","bbbbbbbb","bbcbbbbb","bbbbbbcb","bcbbbbbb","bbbbbbbb","bbbcbbbb","dddddddd")
 MAT(mLeTopV,pLe,8,8,"dbbbbbbd","dbbcbbbd","dbbbbcbd","dcbbbbbd","dbbbbbbd","dbbbcbbd","dbbbbbbd","dbcbbbbd")
 MAT(mBeLeg,pBe,1,1,"d")
@@ -103,14 +103,14 @@ MAT(mLaS6,pLa,1,1,"e")
 MAT(mLaT7,pLa,8,1,"bbbddbbb")
 MAT(mLaR7,pLaR,1,1,"b")
 MAT(mLaS7,pLa,1,1,"e")
-MAT(mFbSide,pFb,8,10,"dddddddd","eeeeeeee","bbbbbbbb","bbcbbbbb","ffffffff","ffffffff","bbbbbbbb","bbbbbcbb","bbbbbbbb","eeeeeeee")
+MAT(mFbSide,pFb,8,14,"dddddddd","eeeeeeee","bbbbbbbb","bbcbbbbb","bbbbbbbb","ffffffff","ffffffff","bbbbbbbb","bbbbcbbb","bbbbbbbb","bbcbbbbb","bbbbbbbb","bbbbbbbb","eeeeeeee")
 MAT(mFbTop,pFb,8,8,"dddddddd","dbbbbbbd","dbbcbbbd","dbbbbbcd","dbcbbbbd","dbbbbbbd","dbbbcbbd","dddddddd")
-MAT(mBaSide,pBa,8,8,"bbcbbbbb","dddddddd","bbcbbbbb","bbcbbbbb","bbcbbbbb","bbcbbbbb","dddddddd","bbcbbbbb")
+MAT(mBaSide,pBa,8,13,"bbcbbbbb","dddddddd","bbcbbbbb","bbcbbbbb","bbcbbbbb","bbcbbbbb","dddddddd","bbcbbbbb","bbcbbbbb","bbcbbbbb","bbcbbbbb","dddddddd","bbcbbbbb")
 MAT(mBaTop,pBa,6,6,"dddddd","dbbbbd","dbeebd","dbeebd","dbbbbd","dddddd")
-MAT(mTrBody,pTr,8,9,"bcbcbcbc","bcbcbcbc","bcbcbcbc","bcbcbcbc","bcbcbcbc","bcbcbcbc","bcbcbcbc","bcbcbcbc","bcbcbcbc")
+MAT(mTrBody,pTr,8,13,"bcbcbcbc","bcbcbcbc","bcbcbcbc","bcbcbcbc","bcbcbcbc","bcbcbcbc","bcbcbcbc","bcbcbcbc","bcbcbcbc","bcbcbcbc","bcbcbcbc","bcbcbcbc","bcbcbcbc")
 MAT(mTrLidS,pTr,1,1,"d")
 MAT(mTrLidT,pTr,8,8,"dddddddd","dcccccdd","dcdddcdd","dcccccdd","dddddddd","dcccccdd","dcdddcdd","dddddddd")
-MAT(mPlSide,pPl,8,6,"cbbbcbbb","dddddddd","bbcbbbcb","dddddddd","cbbbcbbb","dddddddd")
+MAT(mPlSide,pPl,8,9,"cbbbcbbb","dddddddd","bbcbbbcb","dddddddd","cbbbcbbb","dddddddd","bbcbbbcb","dddddddd","cbbbcbbb")
 MAT(mPlTop,pPl,8,8,"cccccccc","cefeefec","cffefeec","cefhfefc","cfeefhec","cefefeec","cfehefec","cccccccc")
 MAT(mPtLeg,pPt,1,1,"e")
 MAT(mPtSeatE,pPt,8,1,"bbbbbbbb")
@@ -124,77 +124,308 @@ MAT(mJeTopU,pJe,4,8,"dddd","dddd","dddd","dddd","dddd","dddd","dddd","dddd")
 MAT(mJeTopV,pJe,8,4,"dddddddd","dddddddd","dddddddd","dddddddd")
 MAT(mPdSide,pPd,3,3,"bbb","cccccccc","bbbbbbbb")
 MAT(mPdTop,pPd,8,8,"dddddddd","dbbbbbbd","dbcbbbcd","dbbcbcbd","dbbbcbbd","dbbcbcbd","dbcbbbcd","dddddddd")
-static const IBox bxKicker[8]={ // wedge, 8 px lip
- {0,0,8,1,0,8,{&mKiR0,&mKiS0,&mKiS0,&mKiS0,&mKiT0}},
- {0,1,8,2,0,7,{&mKiR1,&mKiS1,&mKiS1,&mKiS1,&mKiT1}},
- {0,2,8,3,0,6,{&mKiR2,&mKiS2,&mKiS2,&mKiS2,&mKiT2}},
- {0,3,8,4,0,5,{&mKiR3,&mKiS3,&mKiS3,&mKiS3,&mKiT3}},
- {0,4,8,5,0,4,{&mKiR4,&mKiS4,&mKiS4,&mKiS4,&mKiT4}},
- {0,5,8,6,0,3,{&mKiR5,&mKiS5,&mKiS5,&mKiS5,&mKiT5}},
- {0,6,8,7,0,2,{&mKiR6,&mKiS6,&mKiS6,&mKiS6,&mKiT6}},
- {0,7,8,8,0,1,{&mKiR7,&mKiS7,&mKiS7,&mKiS7,&mKiT7}} };
-static const IBox bxQuarterPipe[8]={ // concave, 14 px
- {0,0,8,1,0,14,{&mQpR0,&mQpS0,&mQpS0,&mQpS0,&mQpT0}},
- {0,1,8,2,0,10,{&mQpR1,&mQpS1,&mQpS1,&mQpS1,&mQpT1}},
- {0,2,8,3,0,7,{&mQpR2,&mQpS2,&mQpS2,&mQpS2,&mQpT2}},
- {0,3,8,4,0,5,{&mQpR3,&mQpS3,&mQpS3,&mQpS3,&mQpT3}},
- {0,4,8,5,0,3,{&mQpR4,&mQpS4,&mQpS4,&mQpS4,&mQpT4}},
- {0,5,8,6,0,2,{&mQpR5,&mQpS5,&mQpS5,&mQpS5,&mQpT5}},
- {0,6,8,7,0,1,{&mQpR6,&mQpS6,&mQpS6,&mQpS6,&mQpT6}},
+MAT(mKiG0T0,pKi,8,1,"cccccccc")
+MAT(mKiG0R0,pKiR,1,1,"c")
+MAT(mKiG0S0,pKi,1,1,"e")
+MAT(mKiG0T1,pKi,8,1,"bbbbbbbb")
+MAT(mKiG0R1,pKiR,1,1,"b")
+MAT(mKiG0S1,pKi,1,1,"e")
+MAT(mKiG0T2,pKi,8,1,"bbbbbbbb")
+MAT(mKiG0R2,pKiR,1,1,"b")
+MAT(mKiG0S2,pKi,1,1,"e")
+MAT(mKiG0T3,pKi,8,1,"cccccccc")
+MAT(mKiG0R3,pKiR,1,1,"c")
+MAT(mKiG0S3,pKi,1,1,"e")
+MAT(mKiG0T4,pKi,8,1,"bbbbbbbb")
+MAT(mKiG0R4,pKiR,1,1,"b")
+MAT(mKiG0S4,pKi,1,1,"e")
+MAT(mKiG0T5,pKi,8,1,"bbbbbbbb")
+MAT(mKiG0R5,pKiR,1,1,"b")
+MAT(mKiG0S5,pKi,1,1,"e")
+MAT(mKiG0T6,pKi,8,1,"cccccccc")
+MAT(mKiG0R6,pKiR,1,1,"c")
+MAT(mKiG0S6,pKi,1,1,"e")
+MAT(mKiG0T7,pKi,8,1,"bbbbbbbb")
+MAT(mKiG0R7,pKiR,1,1,"b")
+MAT(mKiG0S7,pKi,1,1,"e")
+MAT(mKiG1T0,pKi,8,1,"cccccccc")
+MAT(mKiG1R0,pKiR,1,1,"c")
+MAT(mKiG1S0,pKi,1,1,"e")
+MAT(mKiG1T1,pKi,8,1,"bbbbbbbb")
+MAT(mKiG1R1,pKiR,1,1,"b")
+MAT(mKiG1S1,pKi,1,1,"e")
+MAT(mKiG1T2,pKi,8,1,"bbbbbbbb")
+MAT(mKiG1R2,pKiR,1,1,"b")
+MAT(mKiG1S2,pKi,1,1,"e")
+MAT(mKiG1T3,pKi,8,1,"cccccccc")
+MAT(mKiG1R3,pKiR,1,1,"c")
+MAT(mKiG1S3,pKi,1,1,"e")
+MAT(mKiG1T4,pKi,8,1,"bbbbbbbb")
+MAT(mKiG1R4,pKiR,1,1,"b")
+MAT(mKiG1S4,pKi,1,1,"e")
+MAT(mKiG1T5,pKi,8,1,"bbbbbbbb")
+MAT(mKiG1R5,pKiR,1,1,"b")
+MAT(mKiG1S5,pKi,1,1,"e")
+MAT(mKiG1T6,pKi,8,1,"cccccccc")
+MAT(mKiG1R6,pKiR,1,1,"c")
+MAT(mKiG1S6,pKi,1,1,"e")
+MAT(mKiG1T7,pKi,8,1,"bbbbbbbb")
+MAT(mKiG1R7,pKiR,1,1,"b")
+MAT(mKiG1S7,pKi,1,1,"e")
+MAT(mKiG2T0,pKi,8,1,"cccccccc")
+MAT(mKiG2R0,pKiR,1,1,"c")
+MAT(mKiG2S0,pKi,1,1,"e")
+MAT(mKiG2T1,pKi,8,1,"bbbbbbbb")
+MAT(mKiG2R1,pKiR,1,1,"b")
+MAT(mKiG2S1,pKi,1,1,"e")
+MAT(mKiG2T2,pKi,8,1,"bbbbbbbb")
+MAT(mKiG2R2,pKiR,1,1,"b")
+MAT(mKiG2S2,pKi,1,1,"e")
+MAT(mKiG2T3,pKi,8,1,"cccccccc")
+MAT(mKiG2R3,pKiR,1,1,"c")
+MAT(mKiG2S3,pKi,1,1,"e")
+MAT(mKiG2T4,pKi,8,1,"bbbbbbbb")
+MAT(mKiG2R4,pKiR,1,1,"b")
+MAT(mKiG2S4,pKi,1,1,"e")
+MAT(mKiG2T5,pKi,8,1,"bbbbbbbb")
+MAT(mKiG2R5,pKiR,1,1,"b")
+MAT(mKiG2S5,pKi,1,1,"e")
+MAT(mKiG2T6,pKi,8,1,"cccccccc")
+MAT(mKiG2R6,pKiR,1,1,"c")
+MAT(mKiG2S6,pKi,1,1,"e")
+MAT(mKiG2T7,pKi,8,1,"bbbbbbbb")
+MAT(mKiG2R7,pKiR,1,1,"b")
+MAT(mKiG2S7,pKi,1,1,"e")
+MAT(mKiG3T0,pKi,8,1,"cccccccc")
+MAT(mKiG3R0,pKiR,1,1,"c")
+MAT(mKiG3S0,pKi,1,1,"e")
+MAT(mKiG3T1,pKi,8,1,"bbbbbbbb")
+MAT(mKiG3R1,pKiR,1,1,"b")
+MAT(mKiG3S1,pKi,1,1,"e")
+MAT(mKiG3T2,pKi,8,1,"bbbbbbbb")
+MAT(mKiG3R2,pKiR,1,1,"b")
+MAT(mKiG3S2,pKi,1,1,"e")
+MAT(mKiG3T3,pKi,8,1,"cccccccc")
+MAT(mKiG3R3,pKiR,1,1,"c")
+MAT(mKiG3S3,pKi,1,1,"e")
+MAT(mKiG3T4,pKi,8,1,"bbbbbbbb")
+MAT(mKiG3R4,pKiR,1,1,"b")
+MAT(mKiG3S4,pKi,1,1,"e")
+MAT(mKiG3T5,pKi,8,1,"bbbbbbbb")
+MAT(mKiG3R5,pKiR,1,1,"b")
+MAT(mKiG3S5,pKi,1,1,"e")
+MAT(mKiG3T6,pKi,8,1,"cccccccc")
+MAT(mKiG3R6,pKiR,1,1,"c")
+MAT(mKiG3S6,pKi,1,1,"e")
+MAT(mKiG3T7,pKi,8,1,"bbbbbbbb")
+MAT(mKiG3R7,pKiR,1,1,"b")
+MAT(mKiG3S7,pKi,1,1,"e")
+MAT(mLaG0T0,pLa,8,1,"bbbddbbb")
+MAT(mLaG0R0,pLaR,1,1,"c")
+MAT(mLaG0S0,pLa,1,1,"e")
+MAT(mLaG0T1,pLa,8,1,"bbbddbbb")
+MAT(mLaG0R1,pLaR,1,1,"b")
+MAT(mLaG0S1,pLa,1,1,"e")
+MAT(mLaG0T2,pLa,8,1,"bbbddbbb")
+MAT(mLaG0R2,pLaR,1,1,"b")
+MAT(mLaG0S2,pLa,1,1,"e")
+MAT(mLaG0T3,pLa,8,1,"bbbddbbb")
+MAT(mLaG0R3,pLaR,1,1,"c")
+MAT(mLaG0S3,pLa,1,1,"e")
+MAT(mLaG0T4,pLa,8,1,"bbbddbbb")
+MAT(mLaG0R4,pLaR,1,1,"b")
+MAT(mLaG0S4,pLa,1,1,"e")
+MAT(mLaG0T5,pLa,8,1,"bbbddbbb")
+MAT(mLaG0R5,pLaR,1,1,"b")
+MAT(mLaG0S5,pLa,1,1,"e")
+MAT(mLaG0T6,pLa,8,1,"bbbddbbb")
+MAT(mLaG0R6,pLaR,1,1,"c")
+MAT(mLaG0S6,pLa,1,1,"e")
+MAT(mLaG0T7,pLa,8,1,"bbbddbbb")
+MAT(mLaG0R7,pLaR,1,1,"b")
+MAT(mLaG0S7,pLa,1,1,"e")
+MAT(mLaG1T0,pLa,8,1,"bbbddbbb")
+MAT(mLaG1R0,pLaR,1,1,"c")
+MAT(mLaG1S0,pLa,1,1,"e")
+MAT(mLaG1T1,pLa,8,1,"bbbddbbb")
+MAT(mLaG1R1,pLaR,1,1,"b")
+MAT(mLaG1S1,pLa,1,1,"e")
+MAT(mLaG1T2,pLa,8,1,"bbbddbbb")
+MAT(mLaG1R2,pLaR,1,1,"b")
+MAT(mLaG1S2,pLa,1,1,"e")
+MAT(mLaG1T3,pLa,8,1,"bbbddbbb")
+MAT(mLaG1R3,pLaR,1,1,"c")
+MAT(mLaG1S3,pLa,1,1,"e")
+MAT(mLaG1T4,pLa,8,1,"bbbddbbb")
+MAT(mLaG1R4,pLaR,1,1,"b")
+MAT(mLaG1S4,pLa,1,1,"e")
+MAT(mLaG1T5,pLa,8,1,"bbbddbbb")
+MAT(mLaG1R5,pLaR,1,1,"b")
+MAT(mLaG1S5,pLa,1,1,"e")
+MAT(mLaG1T6,pLa,8,1,"bbbddbbb")
+MAT(mLaG1R6,pLaR,1,1,"c")
+MAT(mLaG1S6,pLa,1,1,"e")
+MAT(mLaG1T7,pLa,8,1,"bbbddbbb")
+MAT(mLaG1R7,pLaR,1,1,"b")
+MAT(mLaG1S7,pLa,1,1,"e")
+MAT(mLaG2T0,pLa,8,1,"bbbddbbb")
+MAT(mLaG2R0,pLaR,1,1,"c")
+MAT(mLaG2S0,pLa,1,1,"e")
+MAT(mLaG2T1,pLa,8,1,"bbbddbbb")
+MAT(mLaG2R1,pLaR,1,1,"b")
+MAT(mLaG2S1,pLa,1,1,"e")
+MAT(mLaG2T2,pLa,8,1,"bbbddbbb")
+MAT(mLaG2R2,pLaR,1,1,"b")
+MAT(mLaG2S2,pLa,1,1,"e")
+MAT(mLaG2T3,pLa,8,1,"bbbddbbb")
+MAT(mLaG2R3,pLaR,1,1,"c")
+MAT(mLaG2S3,pLa,1,1,"e")
+MAT(mLaG2T4,pLa,8,1,"bbbddbbb")
+MAT(mLaG2R4,pLaR,1,1,"b")
+MAT(mLaG2S4,pLa,1,1,"e")
+MAT(mLaG2T5,pLa,8,1,"bbbddbbb")
+MAT(mLaG2R5,pLaR,1,1,"b")
+MAT(mLaG2S5,pLa,1,1,"e")
+MAT(mLaG2T6,pLa,8,1,"bbbddbbb")
+MAT(mLaG2R6,pLaR,1,1,"c")
+MAT(mLaG2S6,pLa,1,1,"e")
+MAT(mLaG2T7,pLa,8,1,"bbbddbbb")
+MAT(mLaG2R7,pLaR,1,1,"b")
+MAT(mLaG2S7,pLa,1,1,"e")
+static const IBox bxKicker[8]={ // wedge, 12 px lip
+ {0,0,8,1,0,12,{&mKiR0,&mKiS0,&mKiS0,&mKiS0,&mKiT0}},
+ {0,1,8,2,0,11,{&mKiR1,&mKiS1,&mKiS1,&mKiS1,&mKiT1}},
+ {0,2,8,3,0,9,{&mKiR2,&mKiS2,&mKiS2,&mKiS2,&mKiT2}},
+ {0,3,8,4,0,8,{&mKiR3,&mKiS3,&mKiS3,&mKiS3,&mKiT3}},
+ {0,4,8,5,0,6,{&mKiR4,&mKiS4,&mKiS4,&mKiS4,&mKiT4}},
+ {0,5,8,6,0,5,{&mKiR5,&mKiS5,&mKiS5,&mKiS5,&mKiT5}},
+ {0,6,8,7,0,3,{&mKiR6,&mKiS6,&mKiS6,&mKiS6,&mKiT6}},
+ {0,7,8,8,0,2,{&mKiR7,&mKiS7,&mKiS7,&mKiS7,&mKiT7}} };
+static const IBox bxQuarterPipe[8]={ // concave, 24 px
+ {0,0,8,1,0,24,{&mQpR0,&mQpS0,&mQpS0,&mQpS0,&mQpT0}},
+ {0,1,8,2,0,17,{&mQpR1,&mQpS1,&mQpS1,&mQpS1,&mQpT1}},
+ {0,2,8,3,0,12,{&mQpR2,&mQpS2,&mQpS2,&mQpS2,&mQpT2}},
+ {0,3,8,4,0,9,{&mQpR3,&mQpS3,&mQpS3,&mQpS3,&mQpT3}},
+ {0,4,8,5,0,5,{&mQpR4,&mQpS4,&mQpS4,&mQpS4,&mQpT4}},
+ {0,5,8,6,0,3,{&mQpR5,&mQpS5,&mQpS5,&mQpS5,&mQpT5}},
+ {0,6,8,7,0,2,{&mQpR6,&mQpS6,&mQpS6,&mQpS6,&mQpT6}},
  {0,7,8,8,0,1,{&mQpR7,&mQpS7,&mQpS7,&mQpS7,&mQpT7}} };
 static const IBox bxLedgeU[1]={ // grind ledge, runs along a
- {0,0,8,8,0,6,{&mLeSide,&mLeSide,&mLeSide,&mLeSide,&mLeTopU}} };
+ {0,0,8,8,0,9,{&mLeSide,&mLeSide,&mLeSide,&mLeSide,&mLeTopU}} };
 static const IBox bxLedgeV[1]={ // grind ledge, runs along b
- {0,0,8,8,0,6,{&mLeSide,&mLeSide,&mLeSide,&mLeSide,&mLeTopV}} };
+ {0,0,8,8,0,9,{&mLeSide,&mLeSide,&mLeSide,&mLeSide,&mLeTopV}} };
 static const IBox bxBenchU[3]={ // bench, runs along a
- {1,2,2,6,0,4,{&mBeLeg,&mBeLeg,&mBeLeg,&mBeLeg,&mBeLeg}},
- {6,2,7,6,0,4,{&mBeLeg,&mBeLeg,&mBeLeg,&mBeLeg,&mBeLeg}},
- {0,2,8,6,4,6,{&mBeEdge,&mBeEdge,&mBeEdge,&mBeEdge,&mBeTopU}} };
+ {1,2,2,6,0,7,{&mBeLeg,&mBeLeg,&mBeLeg,&mBeLeg,&mBeLeg}},
+ {6,2,7,6,0,7,{&mBeLeg,&mBeLeg,&mBeLeg,&mBeLeg,&mBeLeg}},
+ {0,2,8,6,7,9,{&mBeEdge,&mBeEdge,&mBeEdge,&mBeEdge,&mBeTopU}} };
 static const IBox bxBenchV[3]={ // bench, runs along b
- {2,1,6,2,0,4,{&mBeLeg,&mBeLeg,&mBeLeg,&mBeLeg,&mBeLeg}},
- {2,6,6,7,0,4,{&mBeLeg,&mBeLeg,&mBeLeg,&mBeLeg,&mBeLeg}},
- {2,0,6,8,4,6,{&mBeEdge,&mBeEdge,&mBeEdge,&mBeEdge,&mBeTopV}} };
+ {2,1,6,2,0,7,{&mBeLeg,&mBeLeg,&mBeLeg,&mBeLeg,&mBeLeg}},
+ {2,6,6,7,0,7,{&mBeLeg,&mBeLeg,&mBeLeg,&mBeLeg,&mBeLeg}},
+ {2,0,6,8,7,9,{&mBeEdge,&mBeEdge,&mBeEdge,&mBeEdge,&mBeTopV}} };
 static const IBox bxRailU[3]={ // grind rail along a
  {2,2,6,6,0,1,{&mRlPlate,&mRlPlate,&mRlPlate,&mRlPlate,&mRlPlate}},
- {3,3,5,5,1,4,{&mRlPost,&mRlPost,&mRlPost,&mRlPost,&mRlPost}},
- {0,3,8,5,4,6,{&mRlLong,&mRlShort,&mRlLong,&mRlShort,&mRlTopL}} };
+ {3,3,5,5,1,7,{&mRlPost,&mRlPost,&mRlPost,&mRlPost,&mRlPost}},
+ {0,3,8,5,7,9,{&mRlLong,&mRlShort,&mRlLong,&mRlShort,&mRlTopL}} };
 static const IBox bxRailV[3]={ // grind rail along b
  {2,2,6,6,0,1,{&mRlPlate,&mRlPlate,&mRlPlate,&mRlPlate,&mRlPlate}},
- {3,3,5,5,1,4,{&mRlPost,&mRlPost,&mRlPost,&mRlPost,&mRlPost}},
- {3,0,5,8,4,6,{&mRlShortV,&mRlLongV,&mRlShortV,&mRlLongV,&mRlTopS}} };
-static const IBox bxLaunch[8]={ // launch ramp, 12 px lip
- {0,0,8,1,0,12,{&mLaR0,&mLaS0,&mLaS0,&mLaS0,&mLaT0}},
- {0,1,8,2,0,11,{&mLaR1,&mLaS1,&mLaS1,&mLaS1,&mLaT1}},
- {0,2,8,3,0,9,{&mLaR2,&mLaS2,&mLaS2,&mLaS2,&mLaT2}},
- {0,3,8,4,0,7,{&mLaR3,&mLaS3,&mLaS3,&mLaS3,&mLaT3}},
- {0,4,8,5,0,6,{&mLaR4,&mLaS4,&mLaS4,&mLaS4,&mLaT4}},
- {0,5,8,6,0,4,{&mLaR5,&mLaS5,&mLaS5,&mLaS5,&mLaT5}},
- {0,6,8,7,0,2,{&mLaR6,&mLaS6,&mLaS6,&mLaS6,&mLaT6}},
- {0,7,8,8,0,1,{&mLaR7,&mLaS7,&mLaS7,&mLaS7,&mLaT7}} };
-static const IBox bxFunbox[1]={ // platform, 10 px, solid (ollie onto it)
- {0,0,8,8,0,10,{&mFbSide,&mFbSide,&mFbSide,&mFbSide,&mFbTop}} };
-static const IBox bxBarrel[1]={ // oil drum, 8 px, solid
- {1,1,7,7,0,8,{&mBaSide,&mBaSide,&mBaSide,&mBaSide,&mBaTop}} };
-static const IBox bxTrashCan[2]={ // trash can, 10 px, solid
- {1,1,7,7,0,9,{&mTrBody,&mTrBody,&mTrBody,&mTrBody,&mTrBody}},
- {0,0,8,8,9,10,{&mTrLidS,&mTrLidS,&mTrLidS,&mTrLidS,&mTrLidT}} };
-static const IBox bxPlanter[1]={ // planter box, grind 6 px
- {0,0,8,8,0,6,{&mPlSide,&mPlSide,&mPlSide,&mPlSide,&mPlTop}} };
-static const IBox bxPicnicTable[7]={ // picnic table, grind 6 px
- {1,0,2,8,0,2,{&mPtLeg,&mPtLeg,&mPtLeg,&mPtLeg,&mPtLeg}},
- {6,0,7,8,0,2,{&mPtLeg,&mPtLeg,&mPtLeg,&mPtLeg,&mPtLeg}},
- {0,0,8,2,2,3,{&mPtSeatE,&mPtSeatE,&mPtSeatE,&mPtSeatE,&mPtSeatT}},
- {0,6,8,8,2,3,{&mPtSeatE,&mPtSeatE,&mPtSeatE,&mPtSeatE,&mPtSeatT}},
- {1,1,7,7,5,6,{&mPtTopE,&mPtTopE,&mPtTopE,&mPtTopE,&mPtTopT}},
- {2,1,3,7,3,5,{&mPtLeg,&mPtLeg,&mPtLeg,&mPtLeg,&mPtLeg}},
- {5,1,6,7,3,5,{&mPtLeg,&mPtLeg,&mPtLeg,&mPtLeg,&mPtLeg}} };
+ {3,3,5,5,1,7,{&mRlPost,&mRlPost,&mRlPost,&mRlPost,&mRlPost}},
+ {3,0,5,8,7,9,{&mRlShortV,&mRlLongV,&mRlShortV,&mRlLongV,&mRlTopS}} };
+static const IBox bxLaunch[8]={ // launch ramp, 18 px lip
+ {0,0,8,1,0,18,{&mLaR0,&mLaS0,&mLaS0,&mLaS0,&mLaT0}},
+ {0,1,8,2,0,16,{&mLaR1,&mLaS1,&mLaS1,&mLaS1,&mLaT1}},
+ {0,2,8,3,0,14,{&mLaR2,&mLaS2,&mLaS2,&mLaS2,&mLaT2}},
+ {0,3,8,4,0,11,{&mLaR3,&mLaS3,&mLaS3,&mLaS3,&mLaT3}},
+ {0,4,8,5,0,9,{&mLaR4,&mLaS4,&mLaS4,&mLaS4,&mLaT4}},
+ {0,5,8,6,0,7,{&mLaR5,&mLaS5,&mLaS5,&mLaS5,&mLaT5}},
+ {0,6,8,7,0,5,{&mLaR6,&mLaS6,&mLaS6,&mLaS6,&mLaT6}},
+ {0,7,8,8,0,2,{&mLaR7,&mLaS7,&mLaS7,&mLaS7,&mLaT7}} };
+static const IBox bxFunbox[1]={ // platform, 14 px, solid (ollie onto it)
+ {0,0,8,8,0,14,{&mFbSide,&mFbSide,&mFbSide,&mFbSide,&mFbTop}} };
+static const IBox bxBarrel[1]={ // oil drum, 13 px, solid
+ {1,1,7,7,0,13,{&mBaSide,&mBaSide,&mBaSide,&mBaSide,&mBaTop}} };
+static const IBox bxTrashCan[2]={ // trash can, 14 px, solid
+ {1,1,7,7,0,13,{&mTrBody,&mTrBody,&mTrBody,&mTrBody,&mTrBody}},
+ {0,0,8,8,13,14,{&mTrLidS,&mTrLidS,&mTrLidS,&mTrLidS,&mTrLidT}} };
+static const IBox bxPlanter[1]={ // planter box, grind 9 px
+ {0,0,8,8,0,9,{&mPlSide,&mPlSide,&mPlSide,&mPlSide,&mPlTop}} };
+static const IBox bxPicnicTable[7]={ // picnic table, grind 9 px
+ {1,0,2,8,0,3,{&mPtLeg,&mPtLeg,&mPtLeg,&mPtLeg,&mPtLeg}},
+ {6,0,7,8,0,3,{&mPtLeg,&mPtLeg,&mPtLeg,&mPtLeg,&mPtLeg}},
+ {0,0,8,2,3,4,{&mPtSeatE,&mPtSeatE,&mPtSeatE,&mPtSeatE,&mPtSeatT}},
+ {0,6,8,8,3,4,{&mPtSeatE,&mPtSeatE,&mPtSeatE,&mPtSeatE,&mPtSeatT}},
+ {1,1,7,7,8,9,{&mPtTopE,&mPtTopE,&mPtTopE,&mPtTopE,&mPtTopT}},
+ {2,1,3,7,4,8,{&mPtLeg,&mPtLeg,&mPtLeg,&mPtLeg,&mPtLeg}},
+ {5,1,6,7,4,8,{&mPtLeg,&mPtLeg,&mPtLeg,&mPtLeg,&mPtLeg}} };
 static const IBox bxJerseyU[3]={ // jersey barrier, runs along a
  {0,1,8,7,0,2,{&mJeBase,&mJeBase,&mJeBase,&mJeBase,&mJeMid}},
- {0,2,8,6,2,4,{&mJeMid,&mJeMid,&mJeMid,&mJeMid,&mJeMid}},
- {0,3,8,5,4,6,{&mJeStripe,&mJeStripe,&mJeStripe,&mJeStripe,&mJeTopU}} };
+ {0,2,8,6,2,5,{&mJeMid,&mJeMid,&mJeMid,&mJeMid,&mJeMid}},
+ {0,3,8,5,5,9,{&mJeStripe,&mJeStripe,&mJeStripe,&mJeStripe,&mJeTopU}} };
 static const IBox bxJerseyV[3]={ // jersey barrier, runs along b
  {1,0,7,8,0,2,{&mJeBase,&mJeBase,&mJeBase,&mJeBase,&mJeMid}},
- {2,0,6,8,2,4,{&mJeMid,&mJeMid,&mJeMid,&mJeMid,&mJeMid}},
- {3,0,5,8,4,6,{&mJeStripe,&mJeStripe,&mJeStripe,&mJeStripe,&mJeTopV}} };
+ {2,0,6,8,2,5,{&mJeMid,&mJeMid,&mJeMid,&mJeMid,&mJeMid}},
+ {3,0,5,8,5,9,{&mJeStripe,&mJeStripe,&mJeStripe,&mJeStripe,&mJeTopV}} };
 static const IBox bxManualPad[1]={ // manual pad, 3 px, rides on without a jump
  {0,0,8,8,0,3,{&mPdSide,&mPdSide,&mPdSide,&mPdSide,&mPdTop}} };
+static const IBox bxKickerSeg0[8]={ // long kicker, tile 0 (0 to 8 px)
+ {0,0,8,1,0,8,{&mKiG0R0,&mKiG0S0,&mKiG0S0,&mKiG0S0,&mKiG0T0}},
+ {0,1,8,2,0,7,{&mKiG0R1,&mKiG0S1,&mKiG0S1,&mKiG0S1,&mKiG0T1}},
+ {0,2,8,3,0,6,{&mKiG0R2,&mKiG0S2,&mKiG0S2,&mKiG0S2,&mKiG0T2}},
+ {0,3,8,4,0,5,{&mKiG0R3,&mKiG0S3,&mKiG0S3,&mKiG0S3,&mKiG0T3}},
+ {0,4,8,5,0,4,{&mKiG0R4,&mKiG0S4,&mKiG0S4,&mKiG0S4,&mKiG0T4}},
+ {0,5,8,6,0,3,{&mKiG0R5,&mKiG0S5,&mKiG0S5,&mKiG0S5,&mKiG0T5}},
+ {0,6,8,7,0,2,{&mKiG0R6,&mKiG0S6,&mKiG0S6,&mKiG0S6,&mKiG0T6}},
+ {0,7,8,8,0,1,{&mKiG0R7,&mKiG0S7,&mKiG0S7,&mKiG0S7,&mKiG0T7}} };
+static const IBox bxKickerSeg1[8]={ // long kicker, tile 1 (8 to 16 px)
+ {0,0,8,1,0,16,{&mKiG1R0,&mKiG1S0,&mKiG1S0,&mKiG1S0,&mKiG1T0}},
+ {0,1,8,2,0,15,{&mKiG1R1,&mKiG1S1,&mKiG1S1,&mKiG1S1,&mKiG1T1}},
+ {0,2,8,3,0,14,{&mKiG1R2,&mKiG1S2,&mKiG1S2,&mKiG1S2,&mKiG1T2}},
+ {0,3,8,4,0,13,{&mKiG1R3,&mKiG1S3,&mKiG1S3,&mKiG1S3,&mKiG1T3}},
+ {0,4,8,5,0,12,{&mKiG1R4,&mKiG1S4,&mKiG1S4,&mKiG1S4,&mKiG1T4}},
+ {0,5,8,6,0,11,{&mKiG1R5,&mKiG1S5,&mKiG1S5,&mKiG1S5,&mKiG1T5}},
+ {0,6,8,7,0,10,{&mKiG1R6,&mKiG1S6,&mKiG1S6,&mKiG1S6,&mKiG1T6}},
+ {0,7,8,8,0,9,{&mKiG1R7,&mKiG1S7,&mKiG1S7,&mKiG1S7,&mKiG1T7}} };
+static const IBox bxKickerSeg2[8]={ // long kicker, tile 2 (16 to 24 px)
+ {0,0,8,1,0,24,{&mKiG2R0,&mKiG2S0,&mKiG2S0,&mKiG2S0,&mKiG2T0}},
+ {0,1,8,2,0,23,{&mKiG2R1,&mKiG2S1,&mKiG2S1,&mKiG2S1,&mKiG2T1}},
+ {0,2,8,3,0,22,{&mKiG2R2,&mKiG2S2,&mKiG2S2,&mKiG2S2,&mKiG2T2}},
+ {0,3,8,4,0,21,{&mKiG2R3,&mKiG2S3,&mKiG2S3,&mKiG2S3,&mKiG2T3}},
+ {0,4,8,5,0,20,{&mKiG2R4,&mKiG2S4,&mKiG2S4,&mKiG2S4,&mKiG2T4}},
+ {0,5,8,6,0,19,{&mKiG2R5,&mKiG2S5,&mKiG2S5,&mKiG2S5,&mKiG2T5}},
+ {0,6,8,7,0,18,{&mKiG2R6,&mKiG2S6,&mKiG2S6,&mKiG2S6,&mKiG2T6}},
+ {0,7,8,8,0,17,{&mKiG2R7,&mKiG2S7,&mKiG2S7,&mKiG2S7,&mKiG2T7}} };
+static const IBox bxKickerSeg3[8]={ // long kicker, flat deck at 24 px
+ {0,0,8,1,0,24,{&mKiG3R0,&mKiG3S0,&mKiG3S0,&mKiG3S0,&mKiG3T0}},
+ {0,1,8,2,0,24,{&mKiG3R1,&mKiG3S1,&mKiG3S1,&mKiG3S1,&mKiG3T1}},
+ {0,2,8,3,0,24,{&mKiG3R2,&mKiG3S2,&mKiG3S2,&mKiG3S2,&mKiG3T2}},
+ {0,3,8,4,0,24,{&mKiG3R3,&mKiG3S3,&mKiG3S3,&mKiG3S3,&mKiG3T3}},
+ {0,4,8,5,0,24,{&mKiG3R4,&mKiG3S4,&mKiG3S4,&mKiG3S4,&mKiG3T4}},
+ {0,5,8,6,0,24,{&mKiG3R5,&mKiG3S5,&mKiG3S5,&mKiG3S5,&mKiG3T5}},
+ {0,6,8,7,0,24,{&mKiG3R6,&mKiG3S6,&mKiG3S6,&mKiG3S6,&mKiG3T6}},
+ {0,7,8,8,0,24,{&mKiG3R7,&mKiG3S7,&mKiG3S7,&mKiG3S7,&mKiG3T7}} };
+static const IBox bxLaunchSeg0[8]={ // long launch ramp, tile 0 (0 to 12 px)
+ {0,0,8,1,0,12,{&mLaG0R0,&mLaG0S0,&mLaG0S0,&mLaG0S0,&mLaG0T0}},
+ {0,1,8,2,0,11,{&mLaG0R1,&mLaG0S1,&mLaG0S1,&mLaG0S1,&mLaG0T1}},
+ {0,2,8,3,0,9,{&mLaG0R2,&mLaG0S2,&mLaG0S2,&mLaG0S2,&mLaG0T2}},
+ {0,3,8,4,0,8,{&mLaG0R3,&mLaG0S3,&mLaG0S3,&mLaG0S3,&mLaG0T3}},
+ {0,4,8,5,0,6,{&mLaG0R4,&mLaG0S4,&mLaG0S4,&mLaG0S4,&mLaG0T4}},
+ {0,5,8,6,0,5,{&mLaG0R5,&mLaG0S5,&mLaG0S5,&mLaG0S5,&mLaG0T5}},
+ {0,6,8,7,0,3,{&mLaG0R6,&mLaG0S6,&mLaG0S6,&mLaG0S6,&mLaG0T6}},
+ {0,7,8,8,0,2,{&mLaG0R7,&mLaG0S7,&mLaG0S7,&mLaG0S7,&mLaG0T7}} };
+static const IBox bxLaunchSeg1[8]={ // long launch ramp, tile 1 (12 to 24 px)
+ {0,0,8,1,0,24,{&mLaG1R0,&mLaG1S0,&mLaG1S0,&mLaG1S0,&mLaG1T0}},
+ {0,1,8,2,0,23,{&mLaG1R1,&mLaG1S1,&mLaG1S1,&mLaG1S1,&mLaG1T1}},
+ {0,2,8,3,0,21,{&mLaG1R2,&mLaG1S2,&mLaG1S2,&mLaG1S2,&mLaG1T2}},
+ {0,3,8,4,0,20,{&mLaG1R3,&mLaG1S3,&mLaG1S3,&mLaG1S3,&mLaG1T3}},
+ {0,4,8,5,0,18,{&mLaG1R4,&mLaG1S4,&mLaG1S4,&mLaG1S4,&mLaG1T4}},
+ {0,5,8,6,0,17,{&mLaG1R5,&mLaG1S5,&mLaG1S5,&mLaG1S5,&mLaG1T5}},
+ {0,6,8,7,0,15,{&mLaG1R6,&mLaG1S6,&mLaG1S6,&mLaG1S6,&mLaG1T6}},
+ {0,7,8,8,0,14,{&mLaG1R7,&mLaG1S7,&mLaG1S7,&mLaG1S7,&mLaG1T7}} };
+static const IBox bxLaunchSeg2[8]={ // long launch ramp, flat deck at 24 px
+ {0,0,8,1,0,24,{&mLaG2R0,&mLaG2S0,&mLaG2S0,&mLaG2S0,&mLaG2T0}},
+ {0,1,8,2,0,24,{&mLaG2R1,&mLaG2S1,&mLaG2S1,&mLaG2S1,&mLaG2T1}},
+ {0,2,8,3,0,24,{&mLaG2R2,&mLaG2S2,&mLaG2S2,&mLaG2S2,&mLaG2T2}},
+ {0,3,8,4,0,24,{&mLaG2R3,&mLaG2S3,&mLaG2S3,&mLaG2S3,&mLaG2T3}},
+ {0,4,8,5,0,24,{&mLaG2R4,&mLaG2S4,&mLaG2S4,&mLaG2S4,&mLaG2T4}},
+ {0,5,8,6,0,24,{&mLaG2R5,&mLaG2S5,&mLaG2S5,&mLaG2S5,&mLaG2T5}},
+ {0,6,8,7,0,24,{&mLaG2R6,&mLaG2S6,&mLaG2S6,&mLaG2S6,&mLaG2T6}},
+ {0,7,8,8,0,24,{&mLaG2R7,&mLaG2S7,&mLaG2S7,&mLaG2S7,&mLaG2T7}} };

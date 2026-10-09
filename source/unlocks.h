@@ -6,7 +6,7 @@
 // (UP UP DOWN DOWN LEFT LEFT RIGHT B A START) shows locked songs too. jbUnlock(bit) in main.c sets a bit; today the only caller is simLtwCheck() in sims.h:
 // WORTHLESS CLOUDS unlocks when the player meets their LIFETIME WANT.
 UNLOCK("WORTHLESS CLOUDS",UL_CLOUDS)
-// CLOSER TO THE END comes once HALF of all the lifetime dreams (5 of the 10: two per aspiration) have been met, in any life (jbDreamMet in main.c)
+// CLOSER TO THE END comes once HALF of all the story missions are done (5 per story, so the bar grows with every story), counted across every life (jbStoryDone in story.h)
 UNLOCK("CLOSER TO THE END",UL_CLOSER)
-// TREE-AGE IN ACTION comes with the same fifth lifetime dream
+// TREE-AGE IN ACTION comes with the same half of the story missions
 UNLOCK("TREE-AGE IN ACTION",UL_TREE)
