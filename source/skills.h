@@ -83,7 +83,7 @@ static void homeUse(int k){   // R at a home pack item: lnear 11 TV, 12 bookshel
     if(k==11){
         static const char* const tvN[5]={"MACHINI-TV","SKATE VIDEO","COMEDY NIGHT","THE NEWS","HORROR FLICK"};   // channel 0 plays a 3 second clip (tvclip.h)
         int ch=hmTv%5, sofa=hmNear(3,'C')||hmNear(3,'U'); hmTv=(u8)((hmTv+1)%5);
-        lstun=90; hmNeed(&sCom,sofa?30:12);
+        lstun=90; hmNeed(&sCom,sofa?30:12); sfxPlay(SFX_TV);   // (the set comes on: a channel's own sound below replaces it)
         if(ch==0){ tvClip=1; simEvent(SE_LAUGH); moodEvent(M_SOFA); }
         else if(ch==1){ simSkillAdd(1); skGain(SK_CREAT,1); }
         else if(ch==2){ simEvent(SE_LAUGH); voxPlay(V_laughing); moodEvent(M_SOFA); }
@@ -96,14 +96,14 @@ static void homeUse(int k){   // R at a home pack item: lnear 11 TV, 12 bookshel
         if(hmBook>=3){ lnote="NO MORE BOOKS TODAY"; lnoteT=50; return; }
         int g=3-hmBook; if(hmCoffee>0) g++; if(prIn()) g++;   // the prison library counts extra
         lstun=100; hmNeed(&sNrg,-3); hmNeed(&sCom,6); skGain(SK_LOGIC,g); hmBook++;
-        simEvent(SE_READ); lnote=hmCoffee>0?"READ A BOOK  STUDY BUZZ":"READ A BOOK"; lnoteT=60;
+        simEvent(SE_READ); sfxPlay(SFX_PAGE); lnote=hmCoffee>0?"READ A BOOK  STUDY BUZZ":"READ A BOOK"; lnoteT=60;
     } else if(k==13){
         if(hmCups>=3){ lnote="TOO JITTERY FOR MORE"; lnoteT=50; return; }
         hmCups++; hmCoffee=2400; lstun=40; hmNeed(&sNrg,25); hmNeed(&lbl,12); if(lbl>99) lbl=99;
-        moodEvent(M_SOFA); lnote="COFFEE  WIRED"; lnoteT=60;
+        moodEvent(M_SOFA); sfxPlay(SFX_BREW); lnote="COFFEE  WIRED"; lnoteT=60;
     } else if(k==14){
         if(hmFishDay==(u16)(simDay+1)){ lnote="THE FISH ARE FULL"; lnoteT=50; return; }
-        hmFishDay=(u16)(simDay+1); lstun=40; hmNeed(&sCom,8); moodEvent(M_SOFA); simEvent(SE_FISH); lnote="FED THE FISH  CALM"; lnoteT=60;
+        hmFishDay=(u16)(simDay+1); lstun=40; hmNeed(&sCom,8); moodEvent(M_SOFA); simEvent(SE_FISH); sfxPlay(SFX_SPLASH); lnote="FED THE FISH  CALM"; lnoteT=60;
     } else {
         if(lfood<20){ lnote="TOO HUNGRY TO RUN"; lnoteT=50; return; }
         if(sNrg<25){ lnote="TOO TIRED TO RUN"; lnoteT=50; return; }

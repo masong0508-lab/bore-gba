@@ -1560,12 +1560,24 @@ __asm__(".pushsection .rodata\n.balign 4\n"
  ".global sfx_grind\nsfx_grind:\n.incbin \"source/sfx/grind.adp\"\n.balign 4\n"
  ".global sfx_thunder\nsfx_thunder:\n.incbin \"source/sfx/thunder.adp\"\n.balign 4\n"
  ".global sfx_ghost\nsfx_ghost:\n.incbin \"source/sfx/ghost.adp\"\n.balign 4\n"
+ ".global sfx_bell\nsfx_bell:\n.incbin \"source/sfx/bell.adp\"\n.balign 4\n"
+ ".global sfx_dial\nsfx_dial:\n.incbin \"source/sfx/dial.adp\"\n.balign 4\n"
+ ".global sfx_flush\nsfx_flush:\n.incbin \"source/sfx/flush.adp\"\n.balign 4\n"
+ ".global sfx_shower\nsfx_shower:\n.incbin \"source/sfx/shower.adp\"\n.balign 4\n"
+ ".global sfx_munch\nsfx_munch:\n.incbin \"source/sfx/munch.adp\"\n.balign 4\n"
+ ".global sfx_cash\nsfx_cash:\n.incbin \"source/sfx/cash.adp\"\n.balign 4\n"
+ ".global sfx_page\nsfx_page:\n.incbin \"source/sfx/page.adp\"\n.balign 4\n"
+ ".global sfx_brew\nsfx_brew:\n.incbin \"source/sfx/brew.adp\"\n.balign 4\n"
+ ".global sfx_tv\nsfx_tv:\n.incbin \"source/sfx/tv.adp\"\n.balign 4\n"
+ ".global sfx_splash\nsfx_splash:\n.incbin \"source/sfx/splash.adp\"\n.balign 4\n"
+ ".global sfx_boot\nsfx_boot:\n.incbin \"source/sfx/boot.adp\"\n.balign 4\n"
  ".popsection\n");
 extern const u8 sfx_hit[],sfx_gasp[],sfx_scream[],sfx_cry[],sfx_groan[],sfx_instant[],sfx_tick[],sfx_pop[],sfx_land[],sfx_stick[],sfx_grind[],sfx_thunder[],sfx_ghost[];
-enum { SFX_BONK, SFX_HIT, SFX_GASP, SFX_SCREAM, SFX_CRY, SFX_GROAN, SFX_NEARLY, SFX_DEATH, SFX_INSTANT, SFX_TICK, SFX_POP, SFX_LAND, SFX_STICK, SFX_GRIND, SFX_THUNDER, SFX_GHOST, SFX_VOICE0, SFX_N=SFX_VOICE0+VOICE_N };   // POP ollie, LAND a landing, STICK a trick landed, GRIND a rail caught (tools/make_skate_sfx.py)
+extern const u8 sfx_bell[],sfx_dial[],sfx_flush[],sfx_shower[],sfx_munch[],sfx_cash[],sfx_page[],sfx_brew[],sfx_tv[],sfx_splash[],sfx_boot[];   // the everyday sounds (tools/make_life_sfx.py)
+enum { SFX_BONK, SFX_HIT, SFX_GASP, SFX_SCREAM, SFX_CRY, SFX_GROAN, SFX_NEARLY, SFX_DEATH, SFX_INSTANT, SFX_TICK, SFX_POP, SFX_LAND, SFX_STICK, SFX_GRIND, SFX_THUNDER, SFX_GHOST, SFX_BELL, SFX_DIAL, SFX_FLUSH, SFX_SHOWER, SFX_MUNCH, SFX_CASH, SFX_PAGE, SFX_BREW, SFX_TV, SFX_SPLASH, SFX_BOOT, SFX_VOICE0, SFX_N=SFX_VOICE0+VOICE_N };   // POP ollie, LAND a landing, STICK a trick landed, GRIND a rail caught (tools/make_skate_sfx.py)
 #define VS(v) (SFX_VOICE0+(v))   // a voice clip's sound id (V_xxx from voices.h)
 // effects that share a source file share one blob in the ROM
-static const u8* const sfxTab[SFX_N]={ sfx_hit,sfx_hit,sfx_gasp,sfx_scream,sfx_cry,sfx_groan,sfx_scream,sfx_scream,sfx_instant,sfx_tick,sfx_pop,sfx_land,sfx_stick,sfx_grind,sfx_thunder,sfx_ghost, VOICE_TAB };
+static const u8* const sfxTab[SFX_N]={ sfx_hit,sfx_hit,sfx_gasp,sfx_scream,sfx_cry,sfx_groan,sfx_scream,sfx_scream,sfx_instant,sfx_tick,sfx_pop,sfx_land,sfx_stick,sfx_grind,sfx_thunder,sfx_ghost, sfx_bell,sfx_dial,sfx_flush,sfx_shower,sfx_munch,sfx_cash,sfx_page,sfx_brew,sfx_tv,sfx_splash,sfx_boot, VOICE_TAB };
 static const u16 stepT[89]={7,8,9,10,11,12,13,14,16,17,19,21,23,25,28,31,34,37,41,45,50,55,60,66,73,80,88,97,107,118,130,143,157,173,190,209,230,253,279,307,337,371,408,449,494,544,598,658,724,796,876,963,1060,1166,1282,1411,1552,1707,1878,2066,2272,2499,2749,3024,3327,3660,4026,4428,4871,5358,5894,6484,7132,7845,8630,9493,10442,11487,12635,13899,15289,16818,18500,20350,22385,24623,27086,29794,32767};
 static const signed char idxT[8]={-1,-1,-1,-1,2,4,6,8};
 // The effect voice: ssrc/sn = the clip's nibbles and sample count, sPos + sFr/65536 = play position in clip samples, sRd = samples decoded so far,
@@ -1575,7 +1587,19 @@ static volatile int sfxLoop, sfxFade=256, sfxFadeT=256;   // the effect voice ca
 static int gMusic;   // game music is switched on right now (an effect now plays over it instead of pausing it)
 static volatile int mOn, mPlay;   // mOn: the mixer interrupts and sound DMA are running; mPlay: a song is part of the mix
 static void audStart(void); static void audStop(void);
-static void sfxStop(void){ vxQn=0; if(sfxLoop&&sfxV){ sfxFadeT=0; return; } sfxV=0; sfxOn=0; if(mOn&&!mPlay) audStop(); }   // (the loading tick-tock is never cut: it fades out and ends itself)
+// ---- NATURE SOUNDS: the outdoor ambience, a stereo bed under everything (tools/make_ambience.py: birds and a breeze by day, crickets, frogs
+// and an owl at night, rain, wind). One bed plays at a time: 8-bit L R pairs at the mixer's rate, read straight from ROM (no decoding), so it
+// costs a few percent of a frame. ambience.h (ambTick) picks the bed and its level from the hour, the weather and whether you are indoors. ----
+__asm__(".pushsection .rodata\n.balign 4\n"
+ ".global amb_day\namb_day:\n.incbin \"source/sfx/amb_day.raw\"\n.balign 4\n"
+ ".global amb_night\namb_night:\n.incbin \"source/sfx/amb_night.raw\"\n.balign 4\n"
+ ".global amb_rain\namb_rain:\n.incbin \"source/sfx/amb_rain.raw\"\n.balign 4\n"
+ ".global amb_wind\namb_wind:\n.incbin \"source/sfx/amb_wind.raw\"\n.balign 4\n"
+ ".popsection\n");
+extern const u8 amb_day[], amb_night[], amb_rain[], amb_wind[];
+static const signed char* volatile ambD; static volatile u32 ambN, ambP; static volatile int ambG, ambK=256;   // the bed playing (L R pairs), its frames, where it is, its gain 0..256 (0: not mixed) and its tone (256 open, lower = duller: indoors)
+static int ambLl, ambLr;   // the dulling filter's state
+static void sfxStop(void){ vxQn=0; if(sfxLoop&&sfxV){ sfxFadeT=0; return; } sfxV=0; sfxOn=0; if(mOn&&!mPlay&&!ambG) audStop(); }   // (the loading tick-tock is never cut: it fades out and ends itself)
 // ---------- tracker songs: note-based XM player (tools/xm2gba.py converts the .xm songs listed in songs.h) ----------
 // A song is stored as notes (pattern/row/channel events, each with its own volume) plus small instrument samples (8-bit,
 // band-limited and down-sampled in the converter). A 16-voice stereo mixer (each note has a pan bus, see tools/xm2gba.py) with linear interpolation renders 304 samples per frame
@@ -1723,6 +1747,17 @@ IWRAM_ARM static void pseudoSt(s8*out,s8*outR){
         out[k]=(s8)(l>127?127:l<-128?-128:l); outR[k]=(s8)(r>127?127:r<-128?-128:r); }
     mDp=dp; mLp=lp;
 }
+IWRAM_ARM static void ambMix(s8*outL,s8*outR){   // add the nature bed (both sides), clipped; ambK < 256 dulls it (a one-pole low pass, as a shift: indoors)
+    const u16*d=(const u16*)ambD; u32 p=ambP, n=ambN; int g=(ambG*mGain)>>8, dull=ambK<256, l=ambLl, r=ambLr; if(!d||!g||!n) return;   // (it dips with the music under a menu: mGain)
+    for(int i=0;i<MUS_N;){
+        int run=(int)(n-p); if(run>MUS_N-i) run=MUS_N-i;   // (up to the loop's end: no wrap test per sample)
+        const u16*q=d+p; p+=(u32)run; if(p>=n) p=0;
+        for(int e=i+run;i<e;i++){ u32 w=*q++; int a=(s8)(w&255)*g, b=(s8)(w>>8)*g;   // (one 16-bit read: the L and R bytes of a frame)
+            if(dull){ l+=(a-l)>>2; r+=(b-r)>>2; a=l; b=r; }
+            int x=outL[i]+(a>>8), y=outR[i]+(b>>8);
+            outL[i]=(s8)((unsigned)(x+96)<=192u?x:softClip(x)); outR[i]=(s8)((unsigned)(y+96)<=192u?y:softClip(y)); } }
+    ambP=p; ambLl=l; ambLr=r;
+}
 IWRAM_ARM static void sfxMix(s8*outL,s8*outR){   // add the effect voice to a finished buffer (both sides), clipped
     int fg=sfxFade;   // the voice's own fade (loading tick-tock): 8/256 a frame up, 16/256 down
     if(fg!=sfxFadeT){ fg+=(sfxFadeT>fg)?8:-16; if((sfxFadeT>sfxFade)?fg>sfxFadeT:fg<sfxFadeT) fg=sfxFadeT; sfxFade=fg;
@@ -1742,7 +1777,7 @@ IWRAM_ARM static void sfxMix(s8*outL,s8*outR){   // add the effect voice to a fi
             else s1=0;
             rd++; }
         int x=((s0+(((s1-s0)*(int)fr)>>16))*sgain)>>16;
-        outL[i]=(s8)softClip(outL[i]+x); outR[i]=(s8)softClip(outR[i]+x);   // (the soft limit: an effect over a loud song bends, never cuts)
+        { int l=outL[i]+x, r=outR[i]+x; outL[i]=(s8)((unsigned)(l+96)<=192u?l:softClip(l)); outR[i]=(s8)((unsigned)(r+96)<=192u?r:softClip(r)); }   // (the soft limit: an effect over a loud song bends, never cuts; inside +-96 it is the sample itself)
         fr+=SFX_STEP; ip+=fr>>16; fr&=0xFFFF;
     }
     sPos=ip; sFr=fr; sRd=rd; spred=pred; sidx=idx; sS0=s0; sS1=s1;
@@ -1825,7 +1860,7 @@ static void deckSwap(MDeck*d){   // exchange the main deck (the globals) with d
     { u32*a=(u32*)mDly,*b=(u32*)d->dly; for(int i=0;i<64;i++){ u32 t=a[i]; a[i]=b[i]; b[i]=t; } }
 }
 IWRAM_ARM static void musMixAny(int b){
-    if(!mPlay&&!xfOn){ for(int i=0;i<MUS_N;i++){ mbufL[b][i]=0; mbufR[b][i]=0; } if(sfxV) sfxMix(mbufL[b],mbufR[b]); else mWantOff=1; return; }   // only an effect (or nothing: switch the mixer off)
+    if(!mPlay&&!xfOn){ for(int i=0;i<MUS_N;i++){ mbufL[b][i]=0; mbufR[b][i]=0; } if(ambG) ambMix(mbufL[b],mbufR[b]); if(sfxV) sfxMix(mbufL[b],mbufR[b]); else if(!ambG) mWantOff=1; return; }   // only an effect or the nature sounds (or nothing: switch the mixer off)
     if(ldG==0&&ldGT==0&&!xfOn){ for(int i=0;i<MUS_N;i++){ mbufL[b][i]=0; mbufR[b][i]=0; } if(sfxV) sfxMix(mbufL[b],mbufR[b]); return; }   // the song is stepped aside for a loading screen: frozen where it is, no decoding at all (only the tick-tock is mixed)
     if(mPlay){ if(mKind==2) chipMix(mbufL[b],mbufR[b]); else if(mKind) adpMix(mbufL[b],mbufR[b]); else musMix(mbufL[b],mbufR[b]); }
     else for(int i=0;i<MUS_N;i++){ mbufL[b][i]=0; mbufR[b][i]=0; }
@@ -1845,6 +1880,7 @@ IWRAM_ARM static void musMixAny(int b){
     if(mGain<256){ int g=mGain; for(int i=0;i<MUS_N;i++){ mbufL[b][i]=(s8)((mbufL[b][i]*g)>>8); mbufR[b][i]=(s8)((mbufR[b][i]*g)>>8); } }
     if(ldG!=ldGT){ int g=ldG+((ldGT>ldG)?6:-8); if((ldGT>ldG)?g>ldGT:g<ldGT) g=ldGT; ldG=g; }   // LOADING fade: out 8/256 a frame (~0.5 s), back in 6/256 (~0.7 s)
     if(ldG<256){ int g=ldG; for(int i=0;i<MUS_N;i++){ mbufL[b][i]=(s8)((mbufL[b][i]*g)>>8); mbufR[b][i]=(s8)((mbufR[b][i]*g)>>8); } }
+    if(ambG) ambMix(mbufL[b],mbufR[b]);   // the nature sounds under the song
     if(sfxV) sfxMix(mbufL[b],mbufR[b]);   // an effect plays on top of the song (it used to pause it)
 }
 // ---- Audio is driven by interrupts, NOT by the main loop ----
@@ -1857,10 +1893,10 @@ IWRAM_ARM static void musMixAny(int b){
 #define R_IME (*(volatile u16*)0x04000208)
 #define R_DISPSTAT (*(volatile u16*)0x04000004)
 #define R_IRQVEC (*(volatile u32*)0x03007FFC)
-u32 irqStack[256] __attribute__((aligned(8)));   // private IRQ stack (the BIOS one is only 160 bytes)
+u32 irqStack[128] __attribute__((aligned(8)));   // private IRQ stack (the BIOS one is only 160 bytes). Measured in mGBA: the mixer interrupt goes ~216 bytes deep (song, effect, nature sounds), so 512 leaves it more than twice that
 extern void irqEntry(void);
 __asm__(".pushsection .iwram,\"ax\",%progbits\n.arm\n.align 2\n.global irqEntry\nirqEntry:\n"
-        "  push {r4-r11,lr}\n  mov r4,sp\n  ldr r0,=irqStack+1024\n  mov sp,r0\n  bl irqMain\n  mov sp,r4\n  pop {r4-r11,lr}\n  bx lr\n"
+        "  push {r4-r11,lr}\n  mov r4,sp\n  ldr r0,=irqStack+512\n  mov sp,r0\n  bl irqMain\n  mov sp,r4\n  pop {r4-r11,lr}\n  bx lr\n"
         ".ltorg\n.popsection\n");
 __attribute__((used)) IWRAM_ARM void irqMain(void){
     u16 f=R_IF;
@@ -1922,8 +1958,8 @@ static void musBegin(int kind,const u8*adp,const XmSong*xm){ ldDrop(); xfOn=0; x
 static void musStart(void){ musBegin(0,0,&xm_the_dipper_man); }   // the title music
 static void musKick(void){}   // (kept so old call sites still compile: the interrupts do this now)
 static void musFill(void){}
-static void musStop(void){ ldDrop(); xfOn=0; xdk.play=0; xdkG=256; mPlay=0; if(mOn&&!sfxV) audStop(); }   // a hard stop. An effect still sounding keeps the mixer going (sfxTick stops it after)
-static void audIdleStop(void){ mWantOff=0; if(mOn&&!mPlay&&!xfOn&&!sfxV) audStop(); }
+static void musStop(void){ ldDrop(); xfOn=0; xdk.play=0; xdkG=256; mPlay=0; if(mOn&&!sfxV&&!ambG) audStop(); }   // a hard stop. An effect still sounding keeps the mixer going (sfxTick stops it after)
+static void audIdleStop(void){ mWantOff=0; if(mOn&&!mPlay&&!xfOn&&!sfxV&&!ambG) audStop(); }
 // CROSSFADE to a new song: the one playing carries on under a falling gain while the new one rises (frames of 1/60 s). With nothing playing the song just fades in.
 #define XF_SONG 90   // song to song: 1.5 s
 #define XF_SCREEN 60 // from one screen's music to the next's
@@ -2047,7 +2083,7 @@ static void sfxPlay(int id){   // a new sound replaces whatever effect is playin
 }
 static void sfxTick(void){   // call once per frame: switch the mixer off once the last effect is over and no song plays
     if(!sfxV&&vxQn>0){ int v=vxQ[0], n=vxQn-1; vxQ[0]=vxQ[1]; voxPlay(v); vxQn=n; }   // the next clip of a chain (lighter, inhale, cough)
-    if(sfxOn&&!sfxV){ sfxOn=0; if(mOn&&!mPlay) audStop(); }
+    if(sfxOn&&!sfxV){ sfxOn=0; if(mOn&&!mPlay&&!ambG) audStop(); }   // (the nature sounds keep the mixer going)
 }
 static u32 lrng=12345;
 static int rnd8(void){ lrng=lrng*1664525u+1013904223u; return (int)(lrng>>24); }
@@ -2468,7 +2504,7 @@ static int edSell(char c){ return c=='Q'?DS_PRICE:edCost(c)/2; }   // selling gi
 static int edPay(int net){   // net > 0 buys, net < 0 sells back. 0 = refused
     if(!net||!edCharged()) return 1;
     if(net>0&&simMoney<net){ dsMsg=net>=DS_PRICE?"THE DEADSET COSTS 75000":"NOT ENOUGH CASH"; return 0; }
-    simMoneyAdd(-(money_t)net); edCashDirty=1; if(udOn) udCashD+=net; return 1;
+    simMoneyAdd(-(money_t)net); edCashDirty=1; if(udOn) udCashD+=net; if(net>0) sfxPlay(SFX_CASH); return 1;   // (the till rings)
 }
 static int edAffordable(char c,char old){ if(c!=old&&rwLockedCh(c)) return 0; int n=edCost(c)-edSell(old); return n<=0||!edCharged()||simMoney>=n; }
 static void mapPlace(int x,int y,char c){
@@ -3065,22 +3101,22 @@ static void lifeStep(u16 k,u16 pr,int fr){
         if((pr&K_R)&&lnear&&lstun<=0&&lz<=fh){
             if(lnear==1){   // fridge: eat
                 if(lfood>=95){ lnote="FULL"; lnoteT=40; }
-                else { lfood+=35+skLvl(SK_COOK)*4; if(lfood>100) lfood=100; skGain(SK_COOK,1); lbl+=10; if(lbl>99) lbl=99; lstun=30; lsp=0; lnote="YUM"; lnoteT=50; moodEvent(M_EAT); }
+                else { lfood+=35+skLvl(SK_COOK)*4; if(lfood>100) lfood=100; skGain(SK_COOK,1); lbl+=10; if(lbl>99) lbl=99; lstun=30; lsp=0; lnote="YUM"; lnoteT=50; moodEvent(M_EAT); sfxPlay(SFX_MUNCH); }
             } else if(lnear==7){   // the DeadSet 3Thousand VYBE: strap it on and vanish into virtual reality for a while
-                lstun=150; lsp=0; lgrind=0; lnote="JACKED IN  VYBE 3000"; lnoteT=150; moodEvent(M_CHILL); moodEvent(M_COMBO);
+                lstun=150; lsp=0; lgrind=0; lnote="JACKED IN  VYBE 3000"; lnoteT=150; moodEvent(M_CHILL); moodEvent(M_COMBO); sfxPlay(SFX_BOOT);
             } else if(lnear==6){   // the water pipe (grown-ups only): CHILLED OUT for two game hours
                 if(!pipeOk()){ lnote=stage==AG_TEEN&&xo[XO_PIPEAGE]?"NOT OLD ENOUGH YET":"GROWN-UPS ONLY"; lnoteT=50; }
                 else if(lchill>0){ lnote="STILL CHILLIN"; lnoteT=40; }
                 else { lchill=1800; lstun=80; lsp=0; lgrind=0; lnote="PUFF PUFF  CHILLED OUT"; lnoteT=80; moodEvent(M_CHILL); simEvent(SE_PIPE); }
             } else if(lnear==8){   // the telephone: invite someone, order food, pick a career
-                phoneMenu(); liveInvalidate(); camSnap=1; while((~REG_KEYINPUT)&0x3FF) vsync();
+                sfxPlay(SFX_DIAL); phoneMenu(); liveInvalidate(); camSnap=1; while((~REG_KEYINPUT)&0x3FF) vsync();
             } else if(lnear==9||lnear==10){ radioTune(lnear==10);   // the radio / the sound system (sound pack): next station
                 homeMusic();
             } else if(lnear>=11){ homeUse(lnear);   // the home pack: TV, bookshelf, coffee maker, aquarium, treadmill (skills.h)
-            } else if(lnear>=3){ simBegin(lnear);   // bed / shower / sofa (sims.h)
+            } else if(lnear>=3){ if(simBegin(lnear)&&lnear==4) sfxPlay(SFX_SHOWER);   // bed / shower / sofa (sims.h)
             } else {        // toilet: relieve yourself
                 if(lbl<15){ lnote="LATER"; lnoteT=40; }
-                else { lbl=0; lstun=70; lsp=0; lgrind=0; lnote="AHH"; lnoteT=60; moodEvent(M_RELIEVE); }
+                else { lbl=0; lstun=70; lsp=0; lgrind=0; lnote="AHH"; lnoteT=60; moodEvent(M_RELIEVE); sfxPlay(SFX_FLUSH); }
             }
         }
     }
@@ -3165,8 +3201,9 @@ static u8 wInside[MH][MW] EWRAM_BSS; static u8 wDirty=1;
 static u16 bfsQ[MH*MW] EWRAM_BSS;   // one queue for every breadth-first search (the walls' flood here, the Sims' paths in house.h)
 static int wIsWall(int x,int y){ return x>=0&&y>=0&&x<MW&&y<MH&&(lifeMap[y][x]=='W'||isWinCh(lifeMap[y][x])); }   // rooms are closed by full walls (a low wall is a fence)
 static int wDoor(int x,int y){ return (wIsWall(x-1,y)&&wIsWall(x+1,y))||(wIsWall(x,y-1)&&wIsWall(x,y+1)); }
+static u8 wFqView;   // (the floor pieces under the walls, below)
 static void wallsScan(void){   // flood the outside from the map edge; everything else that is not a wall is inside
-    u16*q=bfsQ; int qh=0, qt=0;
+    u16*q=bfsQ; int qh=0, qt=0; wFqView=255;   // (the floor pieces under the walls are worked out again)
     for(int y=0;y<MH;y++)for(int x=0;x<MW;x++) wInside[y][x]=1;
     for(int y=0;y<MH;y++)for(int x=0;x<MW;x++) if((x==0||y==0||x==MW-1||y==MH-1)&&!wIsWall(x,y)){ wInside[y][x]=0; q[qt++]=(u16)(y*MW+x); }
     while(qh<qt){ int p=q[qh++], x=p%MW, y=p/MW;
@@ -3378,15 +3415,20 @@ _Static_assert(CA==8,"the scans below divide by CA with a shift");
 // two quarters side by side are one piece of floor unless an arm runs between them. Each piece takes the floor of a neighbour it faces that is not a
 // wall (the inside first, as wallFloorR). It used to be one floor for the whole tile, the inside one: a strip of the room's floor showed outside.
 // A door ('D') stands in a wall line too and is split the same way.
-__attribute__((noinline,long_call)) static void wallFloorDraw(int tx,int ty,int sx,int sy){
+// The pieces are worked out once per view and map (wFqBuild, when the view turns or a wall, door or floor changes) into wFq: per screen tile the
+// floor of each quarter (top right bottom left, 4 bits each), 0xFFFF = not split. Drawing them is then three spans a row (wallFloorDraw).
+static u16 wFq[MH][MW] EWRAM_BSS; static u8 wFqView=255;   // (by screen tile of the view wFqView; 255 = to be worked out)
+_Static_assert(NFL<=15,"wFq keeps a floor in 4 bits");
+static int wFqOf(int tx,int ty){   // the four floors of screen tile (tx,ty), packed; 0xFFFF = draw it whole
     static const signed char dd[4][2]={{0,-1},{1,0},{0,1},{-1,0}};   // quarter q's own edge faces neighbour dd[q]; the arm between quarters q and q+1 points to dd[q]
-    int arm[4], fq[4], v=(tx^ty)&1;
+    char c=cellAt(tx,ty); if(!isWallCh(c)&&c!='D') return 0xFFFF;
+    int arm[4], fq[4];
     for(int q=0;q<4;q++) arm[q]=wallAtR(tx+dd[q][0],ty+dd[q][1]);
     { int ax=arm[1]||arm[3], ay=arm[0]||arm[2];   // a wall along one axis splits its whole tile along that line (also at a free end, by a door)
       if(ax&&!ay) arm[1]=arm[3]=1; else if(ay&&!ax) arm[0]=arm[2]=1;
-      else if(!ax&&!ay&&!isWallCh(cellAt(tx,ty))){ int fl=flAt(tx,ty); if(sFl) floorTile(sx,sy,&flTab[fl][v][0][0]); else tileTop(sx,sy,flFlat[fl][v]); return; } }   // (a door on its own: its own floor)
+      else if(!ax&&!ay&&!isWallCh(c)) return 0xFFFF; }   // (a door on its own: its own floor)
     int reg[4]; for(int q=0;q<4;q++) reg[q]=q;
-    for(int pass=0;pass<2;pass++) for(int q=0;q<4;q++) if(!arm[q]){ int a=reg[q], b=reg[(q+1)&3], m=a<b?a:b; for(int r=0;r<4;r++) if(reg[r]==a||reg[r]==b) reg[r]=m; }   // quarters with no arm between them are one piece
+    for(int q=0;q<4;q++) if(!arm[q]){ int a=reg[q], b=reg[(q+1)&3], m=a<b?a:b; for(int r=0;r<4;r++) if(reg[r]==a||reg[r]==b) reg[r]=m; }   // quarters with no arm between them are one piece
     for(int g=0;g<4;g++){ int best=-1, ins=0;
         for(int q=0;q<4;q++){ if(reg[q]!=g) continue;
             for(int e=0;e<2;e++){ int d=e?q:(q+3)&3; if(arm[d]) continue;   // quarter q faces dd[q-1] and dd[q] (its two outer edges)
@@ -3394,19 +3436,21 @@ __attribute__((noinline,long_call)) static void wallFloorDraw(int tx,int ty,int 
                 int in=wInAt(x,y); if(best<0||(in&&!ins)){ best=flAt(x,y); ins=in; } } }
         if(best<0) best=wallFloorR(tx,ty);
         for(int q=0;q<4;q++) if(reg[q]==g) fq[q]=best; }
+    return fq[0]|fq[1]<<4|fq[2]<<8|fq[3]<<12;
+}
+static void wFqBuild(void){ for(int y=0;y<MH;y++)for(int x=0;x<MW;x++) wFq[y][x]=(u16)wFqOf(x,y); wFqView=(u8)cview; }
+__attribute__((noinline,long_call)) static void wallFloorDraw(int sx,int sy,int pk,int v){   // a split tile: each row is the left quarter, the middle one (top or bottom) and the right one, meeting where the two wall lines cross it
     int xa=cX0, xz=cX0+(int)cW-1;
     for(int ry=-CB;ry<=CB;ry++){
         int y=sy+ry; if((unsigned)(y-cY0)>=cH) continue;
-        int hw=rowHW[ry<0?-ry:ry], a=2*(ry<0?-ry:ry), mid=ry<0?0:2;   // this row: the left quarter, the middle one (top or bottom), the right one; they meet where the two wall lines cross it
+        int hw=rowHW[ry<0?-ry:ry], a=2*(ry<0?-ry:ry), mid=ry<0?0:2;
         int sp[3][2]={{-hw,-a-1},{-a,a},{a+1,hw}}, qq[3]={3,mid,1};   // (near the top and bottom points the whole row is the middle quarter)
         for(int k=0;k<3;k++){ int l=sp[k][0]<-hw?-hw:sp[k][0], r=sp[k][1]>hw?hw:sp[k][1]; if(l>r) continue;   // (inside the diamond only)
             int x0=sx+l, x1=sx+r; if(x0<xa) x0=xa; if(x1>xz) x1=xz; if(x0>x1) continue;
-            int fl=fq[qq[k]];
+            int fl=(pk>>(4*qq[k]))&15;
             if(sFl) cpyHW(&fb[y*SW+x0],&flTab[fl][v][0][0]+(ry+CB)*(2*CA+1)+CA+(x0-sx),x1-x0+1);
             else fillHW(&fb[y*SW+x0],x1-x0+1,flFlat[fl][v]); } }
 }
-
-static int wallFloorR(int rx,int ry) __attribute__((long_call,noinline));   // (ROM: walls are few, and inlined it would bloat IWRAM)
 static inline __attribute__((always_inline)) void bandColsF(int s,int x0,int x1,int lox,int*a,int*b){   // bandCols, with fdiv(...,8) as a shift (it floors)
     int kmin=((x0-12-lox)>>3)-1, kmax=((x1+12-lox)>>3)+1;
     int lo=(s+kmin)>>1, hi=(s+kmax+1)>>1, mn=s-(MH-1), mx=s<MW-1?s:MW-1;
@@ -3423,8 +3467,9 @@ __attribute__((noinline)) IWRAM_CODE static void roomFloors(int x0,int y0,int x1
             int sx=lox+(tx-ty)*CA, sy=loy+(tx+ty+1)*CB;
             if(sx+CA<x0||sx-CA>=x1||sy+CB<y0||sy-CB>=y1) continue;   // the diamond does not reach the rectangle
             char c=lm[lb+tx*lx+ty*ly]; if(c=='#') continue;
-            if(isWallCh(c)||c=='D'){ wallFloorDraw(tx,ty,sx,sy); continue; }   // (walls are thin, and a door stands in a wall line: the floors of both sides run under them)
-            int fl=fm[fb0+tx*fx+ty*fy], v=(tx^ty)&1;
+            int v=(tx^ty)&1;
+            if(isWallCh(c)||c=='D'){ int pk=wFq[ty][tx]; if(pk!=0xFFFF){ wallFloorDraw(sx,sy,pk,v); continue; } }   // (walls are thin, and a door stands in a wall line: the floors of both sides run under them)
+            int fl=fm[fb0+tx*fx+ty*fy];
             if(sfl) floorTile(sx,sy,&flTab[fl][v][0][0]); else tileTop(sx,sy,flFlat[fl][v]); } }
 }
 __attribute__((noinline)) IWRAM_CODE static int roomScan(int s,int x0,int y0,int x1,int y1,int bidx,u8*out){   // pass 2, band s: the tiles whose art may reach the rectangle and that hold something (or the board pickup, map index bidx; -1 = none)
@@ -3441,6 +3486,8 @@ static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
     clipSet(x0,y0,x1,y1);
     rect(x0,y0,x1-x0,y1-y0,flBack[curFl]); flSlab(x0,y0,x1,y1);
     int s0,s1; bandRows(y0,y1,&s0,&s1);
+    if(wDirty) wallsScan();   // (the inside map first: the floor pieces under the walls ask it)
+    if(wFqView!=cview) wFqBuild();
     roomFloors(x0,y0,x1,y1,s0,s1);   // pass 1 (IWRAM, above)
     int cls[CL_N], cln=0;   // collectibles: the screen diagonal (rx+ry) of each one still there, -1 = none; clr: its screen tile
     static int clr[CL_N][2] EWRAM_BSS;
@@ -3941,6 +3988,7 @@ static void gmTick(void){   // once per frame: when the song is over, another ra
 #include "timedrun.h"   // TIMED RUN: a 2:00 score attack with a high score (PAUSE > WANTS)
 #include "tutorial.h"   // the TUTORIAL: pop-up lessons in the Sims 2 style (tutTick / tutRunModal, called from lifeModeRun)
 static void lifeModeRun(int ed); static void introFly(void);   // goals.h
+static void ambTick(void); static void ambOff(void);   // ambience.h
 static void lifeMode(int ed){ int back=musCtx; gInPlay=1; lifeModeRun(ed); gInPlay=0; if(!gToMenu){ if(back==1) creatorMusStart(); else menuMusStart(); } }   // back from the game: the screen it was started from gets its music back (a crossfade)   // gInPlay: some option actions are only allowed while playing / only outside it
 static void lifeModeRun(int ed){   // ed=1: test play started from the map editor
     objHideAll(); winFull(); REG_DISPCNT=0x3443; fxPlayStart();   // mode 3 + sprites (1D tiles) + window 0 (the household's hardware sprites, house.h)
@@ -4021,12 +4069,12 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
             int pc=prGo; prGo=0; lcamF=0; peekEnd(); mGainT=128; sfxStop();
             if(prLifeSwitch(pc)){ winFull(); REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=vbase; continue; }
             winFull(); REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; }
-        gmTick(); lifeDraw(); workT+=(u16)(lifeVs-w0);
+        gmTick(); ambTick(); lifeDraw(); workT+=(u16)(lifeVs-w0);
         fpsN++; if(fpsT>=65536){ lfpsV=fpsN; lloadV=(int)(workT/(u32)fpsN*100/(u32)((sFps+1)*TICKS_FRAME)); workT=0; fpsN=0; fpsT-=65536; }
     }
     tutOn=0; tutModal=TM_NONE; stModal=0; trnOn=trnDone=0;
     objHideAll(); REG_DISPCNT=0x0403;
-    simsSave(); hhSave(); R_TM2CNT=0; gmStop(); sfxStop(); lcamF=0; vbase=cview=0; vpFull(); clipAll(); liveInvalidate();   // leaving the life game saves it
+    simsSave(); hhSave(); R_TM2CNT=0; ambOff(); gmStop(); sfxStop(); lcamF=0; vbase=cview=0; vpFull(); clipAll(); liveInvalidate();   // leaving the life game saves it
     while((~REG_KEYINPUT)&0x3FF) vsync();   // wait for release so the caller doesn't see the exit keys
 }
 
@@ -5220,6 +5268,7 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "fx.h"
 #include "npc.h"             // AI SKATERS and POLICE: hardware sprites on the last spare OBJ tiles (see the top of npc.h)             // GHOSTS and WEATHER: hardware sprites on the spare OBJ slots (see the top of the file)
 #include "prison.h"         // PRISON: when the cops catch you, the sentence depends on your record; you serve it in a prison of the town
+#include "ambience.h"       // NATURE SOUNDS: the outdoor bed (birds, crickets, rain, wind) by the hour, the weather and indoors
 #include "cutscene.h"       // CUTSCENES: scripted scenes (TV SHOW & TELL)
 #include "story.h"          // STORY MODE: chapters with goals (NEW GAME > STORY MODE)
 #include "storylot.h"      // STORY LOTS: every story starts in its own furnished house (storyHome)

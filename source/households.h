@@ -190,6 +190,7 @@ static u8 phFood; static short phT;   // food on its way: 1 pizza, 2 Chinese; st
 static void phTick(void){   // once per logic step in the life game
     if(!phFood||--phT>0) return;
     int f=phFood; phFood=0; lfood=100; for(int m=0;m<hhN;m++) hhM[m].need[HN_FOOD]=100;   // everyone eats
+    sfxPlay(SFX_BELL);   // the doorbell
     if(f==1){ toast("DING DONG  THE PIZZA IS HERE"); toast("WAIT... IT'S NOT DELIVERY"); toast("IT'S DIGIORNO"); }
     else toast("THE CHINESE FOOD IS HERE");
     lnote="EVERYONE ATE"; lnoteT=60; liveInvalidate();
@@ -229,7 +230,7 @@ static void phoneMenu(void){   // pause menu > PHONE
         case 1: case 2: { int cost=id[c]==1?80:60;
             if(phFood){ toast("FOOD IS ALREADY ON ITS WAY"); break; }
             if(simMoney<cost){ toast("NOT ENOUGH SIMOLEONS"); break; }
-            simMoney-=cost; simsSave(); phFood=(u8)id[c]; phT=(short)(480+(rnd8()<<1));   // the doorbell in 8 to 16 seconds
+            simMoney-=cost; simsSave(); sfxPlay(SFX_CASH); phFood=(u8)id[c]; phT=(short)(480+(rnd8()<<1));   // the doorbell in 8 to 16 seconds
             toast(id[c]==1?"A PIZZA IS ON ITS WAY":"CHINESE FOOD IS ON ITS WAY"); break; }
         case 3: { const char* who[HH_MAX]; for(int m=0;m<hhN;m++) who[m]=hhM[m].name;
             int m=menu("WHO MOVES OUT?",who,hhN); if(m<0) break;

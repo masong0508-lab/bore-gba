@@ -703,7 +703,8 @@ static void twTick(int*planned){   // VISITORS: someone from another household w
             continue; }
         if(s->pi>=s->pn){
             if(twOn[k]==1){ twOn[k]=2; s->act=HA_IDLE; twWait[k]=(short)(360+(rnd8()<<2));
-                if(twWel[k]){ twWel[k]=0; simMoneyAdd(500); moodEvent(M_PAY); lnote="WELCOME GIFT  500"; lnoteT=90; } }   // there: the housewarming gift   // there: stays 6 to 23 seconds
+                if(twWel[k]){ twWel[k]=0; simMoneyAdd(500); moodEvent(M_PAY); lnote="WELCOME GIFT  500"; lnoteT=90; }   // there: the housewarming gift   // there: stays 6 to 23 seconds
+                if(!sfxV&&!curFl) sfxPlay(SFX_BELL); }   // the doorbell (when nothing else is sounding)
             else { twOn[k]=0; twWait[k]=(short)(nrPull(k)?600+(rnd8()<<3):900+(rnd8()<<4)); nrSync(); }   // gone: the next visit in a while (sooner when they like you)
             continue; }
         hhStepAlong(s);
@@ -716,7 +717,7 @@ static void hhCensus(void){   // which need furniture each floor has (bit = need
         for(int y=0,i=0;y<MH;y++)for(int x=0;x<MW;x++,i++){   // (row by row: flPlaneAt works the row and column out of i with two divisions a cell, which made this a 2-frame hitch every 5 seconds)
             int c=f==curFl?(u8)lifeMap[y][x]:flLen[f]?flGet(f,0,i):((x==0||y==0||x==MW-1||y==MH-1)?'w':'.');   // (the live map, the stored floor, or a blank floor's carpet and low wall: flBlankV)
             if(c=='F') b|=1<<HN_FOOD; else if(c=='T') b|=1<<HN_WC; else if(c=='S') b|=1<<HN_REST; else if(c=='H') b|=1<<HN_CLEAN; else if(c=='C'||c=='U') b|=1<<HN_COMFY;
-            else { int r=iuRow((char)c); if(r>=0) bi|=1<<r; } }
+            else if(c!='.'&&c!='w'&&c!='W'){ int r=iuRow((char)c); if(r>=0) bi|=1<<r; } }   // (plain floor and walls hold no item: most cells skip the item table)
         hhCen[f]=b; hhCenI[f]=bi; }
 }
 static void hhStairSpot(HhSim*s,char c){   // floors step 4: stand on a free tile next to the stairs c ('^' up, '~' down), where a Sim arrives from another floor
