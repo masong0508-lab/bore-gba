@@ -25,7 +25,7 @@ HIFI = 4            # generator re-synthesis rate factor
 GEN = {             # song id -> the generator script that built it (its sounds are synthesised again at HIFI x the rate)
     'aim_and_shoot': 'make_aimandshoot_rework', 'gottcho_barracho_ii': 'make_barracho_rework', 'closer_to_the_end_old': 'make_closer_old_rework',
     'closer_to_the_end': 'make_closer_rework', 'cocaine_cola_ii': 'make_cocaine_cola_rework', 'condensed_music': 'make_condensed_rework',
-    'cynicaller_dnb': 'make_cynicaller_rework', 'emergency_hitech': 'make_emergency_rework', 'excuses_house': 'make_excuses_rework',
+    'cynicaller_dnb': 'make_cynicaller_rework', 'quickbullet': 'make_quickbullet_vanin', 'emergency_hitech': 'make_emergency_rework', 'excuses_house': 'make_excuses_rework',
     'spanish_flexicode': 'make_flexicode_rework', 'hotdamn_rave': 'make_hotdamn_rework', 'magic_act': 'make_magicact_rework',
     'nursery_time': 'make_nursery_rework', 'staged': 'make_staged_rework', 'sunman_sunrise': 'make_sunman_rework',
     'the_ticking_bomb': 'make_tickingbomb_rework', 'whistler_shuffle': 'make_whistler_rework', 'meltdown_in_mars_house': 'make_meltdown_house',
