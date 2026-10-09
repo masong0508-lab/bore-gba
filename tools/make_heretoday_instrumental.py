@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""HERE TODAY (INSTRUMENTAL): the full version as a very early (1970) band, NO vocals and NO lead melody (the B2-G4 line is left empty to sing on), no key change (every section stays in the home key).
-12-string acoustic, mellotron strings and flute, Hammond swell through a Leslie, piano arpeggios, fuzzed bass, a doubled intro (a sparse first pass, the mellotron joins on the second), bells that ease down once verse 1 starts, the master through a touch of tape.
+"""HERE TODAY (INSTRUMENTAL): a 12 minute SUITE of the full version, played by a very early (1970) band. NO vocals and NO lead melody (the B2-G4 line is left empty to sing on), no key change (every section stays in the home key).
+Form: wind prelude, 12-string intro, verses, bridge, chorus, interlude, a hush, a long build, bigger and bigger choruses, a pastoral return, a final chorus and the ending (the same MIDI and tempo, only the order and orchestration change).
+12-string acoustic, mellotron strings and flute, Hammond swell through a Leslie, piano arpeggios, fuzzed bass, bells that ease down once verse 1 starts, the master through a touch of tape.
 A SECRET song (isDbgSong in main.c): only with the title-screen debug code.
-Writes $TMPDIR/here_today_inst.wav (stereo, 44.1 kHz); encode it for the jukebox with:  python3 tools/encode_song.py here_today_inst.wav  (then rename the id / title in songs.h)
-Run from the project root:  TMPDIR=/tmp python3 tools/make_heretoday_instrumental.py   (needs numpy, scipy)"""
+Writes $TMPDIR/here_today_inst.wav (stereo, 32 kHz); encode it for the jukebox with:  python3 tools/encode_song.py here_today_inst.wav  (then rename the id / title in songs.h)
+Run from the project root:  TMPDIR=/tmp python3 tools/make_heretoday_instrumental.py   (needs numpy, scipy; about 5 minutes and 1 GB of RAM)"""
 import sys, os, re, wave
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import numpy as np
@@ -11,7 +12,7 @@ from scipy import signal
 import midi_read as M
 from encode_sfx import encode
 import encode_song as ES
-SR = 44100; TMP = os.environ.get('TMPDIR', '.')
+SR = 32000; TMP = os.environ.get('TMPDIR', '.')
 div, tr = M.parse('tools/here_today.mid')
 tempos = [(e[0], int.from_bytes(e[3], 'big')) for e in tr[0] if e[1] == 'meta' and e[2] == 0x51]
 def sec(t):
@@ -44,34 +45,46 @@ CH = sorted((e[0], chord(e[3].decode())) for e in tr[2] if e[1] == 'meta' and e[
 def chord_at(t): return [c for tk, c in CH if tk <= t][-1]
 # ---- sections: source tick range, key shift, layers
 V1R, V2R, BRR, CHR, V3R, OUTR = (0, 13440), (13440, 26880), (26880, 46080), (46080, 67200), (67200, 80640), (80640, 90000)
-SECS = [
- ('intro a', V1R, 0, dict(gt=.8, hp=.85, pd=.55, ramp=(.5, .85))),
- ('intro', V1R, 0, dict(lead='cello', gt=1.0, st=.8, hp=.9, pd=.5, ramp=(.65, 1))),
- ('verse 1', V1R, 0, dict(v=1, gt=1.0, st=.9, hp=.5, pd=.5)),
- ('verse 2', V2R, 0, dict(v=1, h=.5, gt=1.0, st=1.1, hp=.8, pd=.8, bs=.7)),
- ('bridge', BRR, 0, dict(v=1, gt=.8, st=1.3, hp=.8, pd=1.0, bs=.9, tp=1)),
- ('chorus', CHR, 0, dict(v=1.1, h=.8, gt=.9, st=1.3, sx=.8, hp=1.0, pd=1.0, bs=1.0, bl=.6, tp=1)),
- ('interlude', V2R, 0, dict(lead='violin', gt=.8, st=1.3, hp=1.0, pd=1.0, bs=.8, bl=.5)),
- ('chorus 2', CHR, 0, dict(v=1.15, h=1.0, gt=.9, st=1.5, sx=1.0, hp=1.1, pd=1.2, bs=1.0, bl=1.0, tp=1)),
- ('verse 3', V3R, 0, dict(v=1.1, h=.7, gt=.8, st=1.4, hp=1.0, pd=1.1, bs=.8, bl=.5)),
- ('first ending', OUTR, 0, dict(v=1.1, h=.8, gt=.7, st=1.5, sx=.8, hp=.8, pd=1.2, bs=.6, bl=.7)),
- ('BRIDGE REPRISE', BRR, 0, dict(lead='violin', lead2='flute', st=1.5, sx=.6, hp=1.0, pd=1.3, bs=.8, bl=.4, tp=2, ramp=(.45, 1.25))),
- ('ending again', OUTR, 0, dict(v=1.2, h=1.0, gt=.7, st=1.7, sx=1.0, hp=1.2, pd=1.4, bs=.9, bl=1.0, tp=1)),
+SECS = [   # a SUITE: pastoral prelude -> songs -> hush -> a long build -> bigger and bigger choruses -> a quiet return -> the last chorus and the ending.  Same MIDI, same key, same tempo; only the orchestration and the order change.
+ ('wind', OUTR, 0, dict(sx=.9, pd=.9, hp=.4, blv=.5, ramp=(.3, .8))),
+ ('prelude', V1R, 0, dict(gt=1.0, hp=.6, pd=.35, blv=.9, ramp=(.5, .85))),
+ ('intro', V1R, 0, dict(gt=.9, hp=.9, st=.8, pd=.5, blv=.9, ramp=(.65, 1))),
+ ('verse 1', V1R, 0, dict(gt=1.0, st=.9, hp=.5, pd=.5, blv=.9, bfade=1)),
+ ('verse 2', V2R, 0, dict(gt=1.0, st=1.1, hp=.8, pd=.8, bs=.7, blv=.3)),
+ ('bridge', BRR, 0, dict(gt=.8, st=1.3, hp=.8, pd=1.0, bs=.9, tp=1, blv=.35)),
+ ('chorus', CHR, 0, dict(gt=.9, st=1.3, sx=.8, hp=1.0, pd=1.0, bs=1.0, tp=1, blv=.5)),
+ ('interlude 1', V2R, 0, dict(gt=.8, st=1.3, hp=1.0, pd=1.0, bs=.8, blv=.45)),
+ ('hush', V1R, 0, dict(gt=.7, hp=.6, pd=.7, blv=.7, ramp=(.7, .4))),
+ ('build 1', BRR, 0, dict(gt=.8, st=1.3, hp=.8, pd=1.0, bs=.9, tp=2, blv=.3, ramp=(.4, 1.3))),
+ ('chorus 2', CHR, 0, dict(gt=.9, st=1.5, sx=1.0, hp=1.1, pd=1.2, bs=1.0, tp=1, blv=.5)),
+ ('verse 3', V3R, 0, dict(gt=.8, st=1.4, hp=1.0, pd=1.1, bs=.8, blv=.35)),
+ ('first ending', OUTR, 0, dict(gt=.7, st=1.5, sx=.8, hp=.8, pd=1.2, bs=.6, blv=.4)),
+ ('pastoral', V2R, 0, dict(gt=1.0, hp=.9, pd=.9, sx=.7, blv=.6, ramp=(.6, .9))),
+ ('second verse', V1R, 0, dict(gt=.9, st=.9, hp=.8, pd=.8, bs=.5, blv=.5)),
+ ('second bridge', BRR, 0, dict(gt=.8, st=1.2, sx=.6, hp=1.0, pd=1.1, bs=.9, tp=2, blv=.35, ramp=(.4, 1.4))),
+ ('interlude 2', V3R, 0, dict(gt=.8, st=.8, hp=1.0, pd=.9, bs=.6, blv=.4)),
+ ('chorus 3', CHR, 0, dict(gt=.9, st=1.4, sx=.9, hp=1.1, pd=1.1, bs=1.0, tp=1, blv=.5, ramp=(.9, 1.25))),
+ ('storm', V2R, 0, dict(gt=.9, st=1.5, sx=.9, hp=1.0, pd=1.2, bs=1.0, tp=1, blv=.4, ramp=(1, 1.3))),
+ ('interlude 3', V2R, 0, dict(gt=.9, hp=1.0, pd=.9, sx=.6, blv=.55, ramp=(.8, .5))),
+ ('build 2', BRR, 0, dict(gt=.7, st=1.3, sx=.7, hp=.9, pd=1.1, bs=.9, tp=2, blv=.3, ramp=(.3, 1.5))),
+ ('chorus 4', CHR, 0, dict(gt=.9, st=1.6, sx=1.0, hp=1.2, pd=1.3, bs=1.0, tp=1, blv=.5, ramp=(1.1, 1.4))),
+ ('verse 4', V3R, 0, dict(gt=.8, st=1.3, hp=.9, pd=1.0, bs=.8, blv=.35, ramp=(1.2, .7))),
+ ('ending 1', OUTR, 0, dict(gt=.7, st=1.2, hp=.8, pd=1.1, bs=.6, blv=.4, ramp=(1, .8))),
+ ('quiet again', V1R, 0, dict(gt=.9, hp=.7, pd=.6, st=.5, blv=.8, ramp=(.6, .35))),
+ ('third bridge', BRR, 0, dict(gt=.7, st=1.2, sx=.6, hp=.9, pd=1.0, bs=.7, tp=2, blv=.35, ramp=(.5, .95))),
+ ('final chorus', CHR, 0, dict(gt=.9, st=1.7, sx=1.1, hp=1.2, pd=1.4, bs=1.0, tp=1, blv=.5, ramp=(1.0, 1.5))),
+ ('ending again', OUTR, 0, dict(gt=.7, st=1.7, sx=1.0, hp=1.2, pd=1.4, bs=.9, tp=1, blv=.5)),
 ]
-for _n,_r,_sh,_L in SECS:                                                # the voice is gone: lend its space to strings and pad
-    if _L.get('v') or _L.get('lead'): _L['st']=_L.get('st',0)*1.1; _L['pd']=_L.get('pd',0)*1.12
-BLV={'intro a':.9,'intro':.9,'verse 1':.9,'verse 2':.3,'bridge':.35,'chorus':.5,'interlude':.45,'chorus 2':.5,'verse 3':.35,'first ending':.4,'BRIDGE REPRISE':.35,'ending again':.5}
-for _n,_r,_sh,_L in SECS:                                                # LUSHER: more strings, octave violins everywhere, thicker pad, fuller harp, more bells
-    if _L.get('st'): _L['st']*=1.25; _L['sx']=max(_L.get('sx',0),.75)
-    if _L.get('pd'): _L['pd']*=1.3
-    if _L.get('hp'): _L['hp']*=1.15
-    _L['bl']=BLV[_n]
-    if _L.get('gt'): _L['gt']*=1.2
-    if _n=='verse 1': _L['bfade']=1
-GAP = {'first ending': 1.6}                            # a breath of silence after the first ending, before the reprise
+for _n, _r, _sh, _L in SECS:                                                # LUSHER: more strings, octave violins everywhere, thicker pad, fuller piano, 12-string forward
+    if _L.get('st'): _L['st'] *= 1.25; _L['sx'] = max(_L.get('sx', 0), .75)
+    if _L.get('pd'): _L['pd'] *= 1.3
+    if _L.get('hp'): _L['hp'] *= 1.15
+    if _L.get('gt'): _L['gt'] *= 1.2
+    _L['bl'] = _L.pop('blv', .4)
+GAP = {'hush': 2.5, 'first ending': 1.6, 'quiet again': 2.0}
 TAIL = 7.0
 A = np.zeros(int((sum(sec(b) - sec(a) for _, (a, b), _, _ in SECS) + sum(GAP.values()) + TAIL + 2) * SR))   # sustained: voice, strings, pad, leads
-B = np.zeros_like(A); C = np.zeros_like(A); VB = np.zeros_like(A)                                                                  # plucked: guitar, harp, bells / low: bass, drum
+A = A.astype(np.float32); B = np.zeros_like(A); C = np.zeros_like(A); VB = np.zeros(1)                                                                  # plucked: guitar, harp, bells / low: bass, drum
 def put(buf, t0, x, g):
     i = int(t0 * SR)
     if i < 0 or i >= len(buf): return
@@ -216,26 +229,32 @@ def reverb(x, T, dark):
     n = int(T * SR); t = np.arange(n) / SR; h = rng.standard_normal(n) * np.exp(-6.9 * t / T); h = lp(h, dark, 1); h = np.concatenate([np.zeros(int(.025 * SR)), h]); h /= np.sqrt((h ** 2).sum())
     return signal.fftconvolve(x, h)[:len(x)]
 
-A = A + VB
-def rvb(x, T, dark, seed):
+def rvb2(x, T, dark, seed):
     rg = np.random.default_rng(seed); n = int(T * SR); t = np.arange(n) / SR; h = rg.standard_normal(n) * np.exp(-6.9 * t / T); h = lp(h, dark, 1); h = np.concatenate([np.zeros(int(.025 * SR)), h]); h /= np.sqrt((h ** 2).sum())
-    return signal.fftconvolve(x, h)[:len(x)]
-def ens(x, seed):                                                            # string-ensemble chorus: three slowly moving delay taps per ear, so the section sounds like many players
-    rg = np.random.default_rng(seed + 100); N = len(x); idx = np.arange(N, dtype=float); t = idx / SR; out = .55 * x
-    for d, rate, dep in ((.017, .31, .004), (.024, .47, .006), (.031, .23, .005)):
-        out = out + .3 * np.interp(idx - (d + dep * np.sin(2 * np.pi * rate * t + rg.uniform(0, 6.28))) * SR, idx, x)
+    return signal.oaconvolve(x, h)[:len(x)].astype(np.float32)
+def fdel(x, dfn, blk=2000000):                                               # fractional delay, block by block (a long song must not fill the memory)
+    N = len(x); out = np.empty(N, np.float32)
+    for i0 in range(0, N, blk):
+        i1 = min(N, i0 + blk); idx = np.arange(i0, i1, dtype=np.float64); pos = np.clip(idx - dfn(idx / SR) * SR, 0, N - 2); p0 = pos.astype(np.int64); fr = (pos - p0).astype(np.float32)
+        out[i0:i1] = x[p0] * (1 - fr) + x[p0 + 1] * fr
     return out
-dry = A + B + C
+def ens2(x, seed):                                                           # string-ensemble chorus (three moving taps per ear)
+    rg = np.random.default_rng(seed + 100); out = .55 * x
+    for d, rate, dep in ((.017, .31, .004), (.024, .47, .006), (.031, .23, .005)):
+        ph = rg.uniform(0, 6.28); out = out + .3 * fdel(x, lambda tt, d=d, rate=rate, dep=dep, ph=ph: d + dep * np.sin(2 * np.pi * rate * tt + ph))
+    return out.astype(np.float32)
+def tape2(x):
+    x = fdel(x, lambda tt: .0004 * (1 + np.sin(2 * np.pi * .55 * tt)) + .00015 * (1 + np.sin(2 * np.pi * 6.1 * tt + 1)))
+    x = lp(x, 11000, 2); m = np.abs(x).max(); return (np.tanh(1.5 * x / m) / np.tanh(1.5) * m).astype(np.float32)
 ch = []
-for sd in (0, 10):                                                           # two different reverbs, one per ear: width without moving anything
-    Ae = ens(A, sd)
-    ch.append(Ae + B + C + .46 * rvb(Ae, 3.0, 2900, sd + 1) + .38 * rvb(B, 2.4, 3800, sd + 2) + .09 * rvb(C, 1.6, 900, sd + 3))
+for sd in (0, 10):
+    Ae = ens2(A, sd); y = Ae + B + C
+    y += .46 * rvb2(Ae, 3.0, 2900, sd + 1); y += .38 * rvb2(B, 2.4, 3800, sd + 2); y += .09 * rvb2(C, 1.6, 900, sd + 3)
+    ch.append(y); del Ae; print('channel', sd // 10, 'mixed', flush=True)
 last = int(np.nonzero(np.abs(ch[0]) > 1e-3 * np.abs(ch[0]).max())[0][-1]) + int(.5 * SR)
 hb = signal.butter(1, 45 / (SR / 2), 'high'); fo = int(3 * SR)
 for k in range(2):
-    ch[k] = signal.lfilter(*hb, ch[k][:last]); ch[k][-fo:] *= np.linspace(1, 0, fo)
-ch = [tape(c_) for c_ in ch]
-pk = max(np.abs(ch[0]).max(), np.abs(ch[1]).max()); ch = [c / pk * .9 for c in ch]
-st = np.stack(ch, 1)
+    ch[k] = signal.lfilter(*hb, ch[k][:last]).astype(np.float32); ch[k][-fo:] *= np.linspace(1, 0, fo).astype(np.float32); ch[k] = tape2(ch[k])
+pk = max(np.abs(ch[0]).max(), np.abs(ch[1]).max()); st = np.stack([c / pk * .9 for c in ch], 1)
 w = wave.open(TMP + '/here_today_inst.wav', 'wb'); w.setnchannels(2); w.setsampwidth(2); w.setframerate(SR); w.writeframes((st * 32767).astype('<i2').tobytes()); w.close()
 print('rendered', round(len(st) / SR, 1), 's'); [print(' ', *l) for l in log]
