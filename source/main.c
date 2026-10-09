@@ -346,7 +346,7 @@ static int tw(const char*s,int sc){
     const u8*adv=sc<=1?fa_s:sc==2?fa_m:fa_l; int sp=sc<=1?FSP_s:sc==2?FSP_m:FSP_l, w=0;
     while(*s){ int i=fNext(&s); w+=(i<0)?sp:adv[i]; } return w;
 }
-IWRAM_THUMB static int text(int x,int y,const char*s,u16 c,int sc){
+IWRAM_THUMB __attribute__((noclone)) static int text(int x,int y,const char*s,u16 c,int sc){   // (noclone: one copy in IWRAM, not a second one specialised by the compiler)
     const u32*fo=sc<=1?fo_s:sc==2?fo_m:fo_l; const u8*fw=sc<=1?fw_s:sc==2?fw_m:fw_l, *fa=sc<=1?fa_s:sc==2?fa_m:fa_l, *fp=sc<=1?fp_s:sc==2?fp_m:fp_l, *fx=sc<=1?fx_s:sc==2?fx_m:fx_l;
     int fh=sc<=1?FH_s:sc==2?FH_m:FH_l, sp=sc<=1?FSP_s:sc==2?FSP_m:FSP_l, ft=sc<=1?FTOP_s:sc==2?FTOP_m:FTOP_l;   // ft = extra rows above the capitals (room for accents on capitals); y is still the top of the capitals
     int cr=c&31, cg=(c>>5)&31, cb=(c>>10)&31;
