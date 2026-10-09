@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""HERE TODAY (INSTRUMENTAL): the full version with NO vocals and NO lead melody (the B2-G4 line is left empty to sing on), no key change (every section stays in the home key),
-lusher (more strings, octave violins everywhere, ensemble chorus, thicker pad), a bit less reverb, a doubled intro (a sparse first pass, strings join on the second) and bells that ease down once verse 1 starts.
+"""HERE TODAY (INSTRUMENTAL): the full version as a very early (1970) band, NO vocals and NO lead melody (the B2-G4 line is left empty to sing on), no key change (every section stays in the home key).
+12-string acoustic, mellotron strings and flute, Hammond swell through a Leslie, piano arpeggios, fuzzed bass, a doubled intro (a sparse first pass, the mellotron joins on the second), bells that ease down once verse 1 starts, the master through a touch of tape.
 A SECRET song (isDbgSong in main.c): only with the title-screen debug code.
-Writes $TMPDIR/here_today_inst.wav (stereo, 44.1 kHz); encode it for the jukebox with:  python3 tools/encode_song.py here_today_instrumental.wav  (then rename the id / title in songs.h)
+Writes $TMPDIR/here_today_inst.wav (stereo, 44.1 kHz); encode it for the jukebox with:  python3 tools/encode_song.py here_today_inst.wav  (then rename the id / title in songs.h)
 Run from the project root:  TMPDIR=/tmp python3 tools/make_heretoday_instrumental.py   (needs numpy, scipy)"""
 import sys, os, re, wave
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -66,6 +66,7 @@ for _n,_r,_sh,_L in SECS:                                                # LUSHE
     if _L.get('pd'): _L['pd']*=1.3
     if _L.get('hp'): _L['hp']*=1.15
     _L['bl']=BLV[_n]
+    if _L.get('gt'): _L['gt']*=1.2
     if _n=='verse 1': _L['bfade']=1
 GAP = {'first ending': 1.6}                            # a breath of silence after the first ending, before the reprise
 TAIL = 7.0
@@ -126,6 +127,44 @@ def bass(buf, s, e, m, g):
     n = int((e - s + .3) * SR); t = np.arange(n) / SR; f = hz(m); x = np.sin(2 * np.pi * f * t) + .35 * np.sin(4 * np.pi * f * t) + .1 * np.sin(6 * np.pi * f * t); put(buf, s, x * env(n, .06, .35), g * .085)
 def thump(buf, s, g):
     n = int(.7 * SR); t = np.arange(n) / SR; ph = 2 * np.pi * np.cumsum(46 + 70 * np.exp(-t / .05)) / SR; x = np.sin(ph) * np.exp(-t / .22) + .15 * lp(rng.standard_normal(n), 400, 2) * np.exp(-t / .02); put(buf, s, x, g * .36)
+# ---- 1970 band instruments (very early Genesis: 12-string, mellotron, Hammond swell, piano, fuzzy bass, tape)
+def pluck_gtr(buf, s, e, m, v, g):                    # 12-string acoustic: low courses are octave pairs, top courses detuned unison pairs, a loose strum
+    n = int(min(e - s + .4, 3.5) * SR); t = np.arange(n) / SR; f = hz(m); s = s + rng.uniform(0, .012)
+    def course(fr, a): return a * sum(np.sin(2 * np.pi * fr * k * t + .1 * k * k) * np.exp(-t * (1.3 + 1.3 * k)) / k ** .9 for k in range(1, 10) if fr * k < SR * .45)
+    x = course(f, 1) + (.75 * course(2 * f * 1.0015, 1) if m < 55 else .85 * course(f * 1.003, 1))
+    x = x + .03 * np.exp(-t / .006) * rng.standard_normal(n); put(buf, s, x * env(n, .002, .06), g * .2 * v / 100)
+def harp(buf, s, m, g, dur=2.6):                      # (the arpeggios are now a piano: slightly stretched partials, two strings beating, a soft hammer)
+    n = int(dur * SR); t = np.arange(n) / SR; f = hz(m); d0 = .5 + f / 500; x = 0
+    for k in range(1, 12):
+        fk = f * k * np.sqrt(1 + .0005 * k * k)
+        if fk >= SR * .45: break
+        x = x + np.sin(2 * np.pi * fk * t + .3 * k) * np.exp(-t * (d0 + .55 * k)) / k ** 1.05
+    x = x + .5 * np.sin(2 * np.pi * f * 1.0012 * t) * np.exp(-t * d0) + .09 * np.exp(-t / .012) * lp(rng.standard_normal(n), 2500, 1)
+    put(buf, s, lp(x, 5200, 1) * env(n, .002, .12), g * .2)
+def strings(buf, s, e, m, v, g, bright=1800):         # MELLOTRON: tape wow and flutter on the pitch, a reedy dull top; the octave violins are the mellotron FLUTE
+    n = int((e - s + .55) * SR); t = np.arange(n) / SR; f = hz(m)
+    w = .0011 * np.sin(2 * np.pi * (.4 + rng.uniform(0, .25)) * t + rng.uniform(0, 6.3)) + .0006 * np.sin(2 * np.pi * (5.1 + rng.uniform(0, 1)) * t + rng.uniform(0, 6.3))
+    ph = 2 * np.pi * np.cumsum(f * (1 + w)) / SR
+    if bright >= 3000:
+        x = np.sin(ph) + .22 * np.sin(2 * ph) + .08 * np.sin(3 * ph) + .05 * bp(rng.standard_normal(n), min(f * 2, 6000), f); x = lp(x, 3200, 2); gg = .8; a_, r_ = .1, .4
+    else:
+        x = sum(signal.sawtooth(ph * 2 ** (c / 1200) + rng.uniform(0, 6)) for c in (-7, 0, 7)); x = lp(x, min(bright, 1700), 2); x = x + .35 * bp(x, 900, 500); gg = 1.0; a_, r_ = .06, .45
+    x = x + .02 * lp(rng.standard_normal(n), 2500, 1)
+    put(buf, s, x * env(n, a_, r_), g * .11 * gg * v / 100)
+def pad(buf, s, e, ms, g):                            # a Hammond swell through a Leslie (pitch and level wobble at 6.3 Hz) over the old soft sine pad
+    n = int((e - s + .9) * SR); t = np.arange(n) / SR; x = 0; y = 0; vib = 1 + .0016 * np.sin(2 * np.pi * 6.3 * t)
+    for m in ms:
+        f = hz(m); ph = 2 * np.pi * np.cumsum(f * vib) / SR
+        x = x + np.sin(ph) + .5 * np.sin(2 * ph) + .35 * np.sin(3 * ph) + .2 * np.sin(4 * ph) + .1 * np.sin(6 * ph)
+        y = y + np.sin(2 * np.pi * f * t) + .4 * np.sin(2 * np.pi * f * 2.003 * t) + .15 * np.sin(2 * np.pi * f * 3.001 * t)
+    put(buf, s, (lp(x * (1 + .1 * np.sin(2 * np.pi * 6.3 * t + 1.2)), 2600, 2) * .55 + lp(y, 1500, 2) * .8) * env(n, .9, .9), g * .024)
+def bass(buf, s, e, m, g):                            # a growling, slightly fuzzed bass
+    n = int((e - s + .3) * SR); t = np.arange(n) / SR; f = hz(m); x = np.sin(2 * np.pi * f * t) + .35 * np.sin(4 * np.pi * f * t) + .1 * np.sin(6 * np.pi * f * t)
+    put(buf, s, lp(np.tanh(1.8 * x), 1100, 2) * env(n, .06, .35), g * .06)
+def tape(x):                                          # the master goes to tape: a touch of wow, a soft top, gentle saturation
+    N = len(x); idx = np.arange(N, dtype=float); tt = idx / SR
+    x = np.interp(idx - (.0004 * (1 + np.sin(2 * np.pi * .55 * tt)) + .00015 * (1 + np.sin(2 * np.pi * 6.1 * tt + 1))) * SR, idx, x)
+    x = lp(x, 11000, 2); m = np.abs(x).max(); return np.tanh(1.5 * x / m) / np.tanh(1.5) * m
 # ---- lay the sections out in time
 D = 0.0; log = []
 for name, (a, b), shift, L in SECS:
@@ -190,11 +229,12 @@ dry = A + B + C
 ch = []
 for sd in (0, 10):                                                           # two different reverbs, one per ear: width without moving anything
     Ae = ens(A, sd)
-    ch.append(Ae + B + C + .46 * rvb(Ae, 3.0, 3400, sd + 1) + .38 * rvb(B, 2.4, 4400, sd + 2) + .09 * rvb(C, 1.6, 900, sd + 3))
+    ch.append(Ae + B + C + .46 * rvb(Ae, 3.0, 2900, sd + 1) + .38 * rvb(B, 2.4, 3800, sd + 2) + .09 * rvb(C, 1.6, 900, sd + 3))
 last = int(np.nonzero(np.abs(ch[0]) > 1e-3 * np.abs(ch[0]).max())[0][-1]) + int(.5 * SR)
 hb = signal.butter(1, 45 / (SR / 2), 'high'); fo = int(3 * SR)
 for k in range(2):
     ch[k] = signal.lfilter(*hb, ch[k][:last]); ch[k][-fo:] *= np.linspace(1, 0, fo)
+ch = [tape(c_) for c_ in ch]
 pk = max(np.abs(ch[0]).max(), np.abs(ch[1]).max()); ch = [c / pk * .9 for c in ch]
 st = np.stack(ch, 1)
 w = wave.open(TMP + '/here_today_inst.wav', 'wb'); w.setnchannels(2); w.setsampwidth(2); w.setframerate(SR); w.writeframes((st * 32767).astype('<i2').tobytes()); w.close()
