@@ -2,8 +2,10 @@
 // A scene beat with no entry here keeps the automatic camera. An entry takes over a beat from its t0 frame: the camera starts at (z0,x0,y0), glides in a straight line to (z1,x1,y1) over
 // dur frames and holds there. Several entries on one beat make a cut list: the one with the latest t0 that has started is the one in use (each entry's first frame is a hard cut).
 // z is 8.8 fixed point (256 = wide, 512 = 2x). anc: 0 = x is a world x, 1 = x is an offset from the beat's second figure (b), 2 = from the first figure (a). The usual edge limit still applies.
+// anc 3 / 4 TRACK the second / first figure where it is right now: x AND y are offsets from it (its feet), and the camera follows it on the pan spring (a figure that runs
+// across the set stays in the shot). A glide (same size) eases in and out; a change of size is a cut (at the start, the middle and, for a long one, a third of the way).
 // Needs cscam.h (csCz csCx csCy), cutscene.h (CsBeat). csCurSc / csCurBi say which scene and beat csPlay is on (csPlay sets them).
-typedef struct { u8 sc, bi, anc; short t0, dur, z0, x0, y0, z1, x1, y1; } CsShot;
+typedef struct CsShot_ { u8 sc, bi, anc; short t0, dur, z0, x0, y0, z1, x1, y1; } CsShot;
 static int csCurSc=-1, csCurBi=0;
 static const CsShot csShots[]={
     // the sick moment, THE BARS (scene 0, beat 11): three cameras, three angles: side-on, closer, then her face and a slow push
@@ -13,13 +15,17 @@ static const CsShot csShots[]={
     // bars end shots (cutscene redo 2): a push in on the shout (beat 4), then from the extreme close-up a slow pull out as the iris closes on "...Ow." (beat 12)
     {0,4,1,   0, 60, 330,  0,70, 560,  0,76},
     {0,12,1,  0, 70,1024,  0,86, 700,  0,82},
-    // the sick moment, THE OPENING (scene 7, beats 17-19): a slow push in, held tight, then a long pull back from the silence
-    {7,17,1,  0, 80, 440,  0,80, 940,  0,86},
-    {7,18,1,  0,150, 940,  0,86,1024,  0,86},
-    {7,19,1,  0,120,1024,  0,86, 520,  0,76},
+    // THE OPENING at the judges' table (scene 7, cutscene redo 15): the camera runs with her round the end of the table (11), up the steps (12) and along the stage (13),
+    // leading her by a few pixels; then the sick moment on the stage: a push in, held tight, a long pull back from the silence (17-19)
+    {7,11,3,  0, 22, 384, 16,-26, 384, 16,-26},
+    {7,12,3,  0, 18, 384,  4,-26, 384,  4,-26},
+    {7,13,3,  0, 34, 384,-16,-24, 384, -4,-24},
+    {7,17,1,  0, 80, 440,  0,45, 940,  0,51},
+    {7,18,1,  0,150, 940,  0,51,1024,  0,51},
+    {7,19,1,  0,120,1024,  0,51, 520,  0,41},
     // opening end shots (cutscene redo 1): the laughs and phones pull wide, Dex gets a slow push, the approval board pushes in on the cliff then drifts back
-    {7,20,1,  0,100, 520,  0,76, 256,  0,64},
-    {7,21,2,  0,120, 256, 60,70, 420, 40,84},
+    {7,20,1,  0,100, 520,  0,41, 256,  0,64},
+    {7,21,2,  0,120, 256, 60,72, 420, 40,82},
     {7,22,0,  0,200, 256,120,64, 380,150,74},
     {7,23,0,  0,140, 380,150,74, 256,120,64},
     // the fall, THE SWEATER (scene 2, beats 11-13): the camera drops with her, a hard cut to the ground when she lands, then it backs away to the fence and the flashbulbs
@@ -114,18 +120,21 @@ static const CsShot csShots[]={
     {1,10,0,  0,120, 760,120,66, 900,120,68},
     {1,12,0,  0,150, 900,120,68, 256,120,64},
 };
-static void csShotApply(const CsBeat*b,int t){
+static const CsShot* csShotFind(int t){   // the shot in use on this beat now, if any (several on a beat: the one with the latest start that has begun)
     const CsShot*s=0; int n=(int)(sizeof(csShots)/sizeof(csShots[0]));
     for(int i=0;i<n;i++){ const CsShot*c=&csShots[i]; if(c->sc==csCurSc&&c->bi==csCurBi&&t>=c->t0&&(!s||c->t0>=s->t0)) s=c; }
-    if(!s) return;
+    return s;
+}
+static void csShotApply(const CsBeat*b,int t){
+    const CsShot*s=csShotFind(t); if(!s) return;
     int u=t-s->t0, d=s->dur>0?s->dur:1; if(u>d) u=d;
-    int ax=s->anc==1?b->bx*4:s->anc==2?b->ax*4:0;
-    // JUMP CUTS instead of glides: the move from the first framing to the last is cut into 2 hard cuts (3 for a long one), each a still shot
-    int cuts=d>=150?3:2, k=u>=d?cuts-1:u*cuts/d;
-    csCz=s->z0+(s->z1-s->z0)*k/(cuts-1); csCx=ax+s->x0+(s->x1-s->x0)*k/(cuts-1); csCy=s->y0+(s->y1-s->y0)*k/(cuts-1);
-    int hw=(120*256)/csCz, hh=(52*256)/csCz;                                                     // never show past the edge of the picture (as cscam.h)
-    if(csCx<hw) csCx=hw;
-    if(csCx>240-hw) csCx=240-hw;
-    if(csCy<12+hh) csCy=12+hh;
-    if(csCy>116-hh) csCy=116-hh;
+    int cuts=d>=150?3:2, k=u>=d?cuts-1:u*cuts/d, z=s->z0+(s->z1-s->z0)*k/(cuts-1);   // the size steps (cuts), it never zooms
+    if(s->anc>=3){ int sb=s->anc==3, who=sb?b->b:b->a;   // TRACKING: where the figure is now, plus the offset
+        int fx=csFigNowX(who,(sb?b->bx:b->ax)*4), fy=csFigNowY(who,csFeet(b,sb?1:0,t)), ox=s->x0+(s->x1-s->x0)*u/d, oy=s->y0+(s->y1-s->y0)*u/d;
+        if(u==0&&t==s->t0) csCamCut(z,(fx+ox)<<4,(fy+oy)<<4); else csCamPan(z,(fx+ox)<<4,(fy+oy)<<4);
+        return; }
+    int ax=s->anc==1?b->bx*4:s->anc==2?b->ax*4:0, e=(u<<8)/d; e=(e*e*(768-2*e))>>16;   // a glide: smoothstep, eased in and out (0..256)
+    csCz=csCtz=z; csVx=csVy=0;
+    csCxF=((ax+s->x0)<<4)+(((s->x1-s->x0)<<4)*e>>8); csCyF=(s->y0<<4)+(((s->y1-s->y0)<<4)*e>>8);
+    csCamClamp();
 }

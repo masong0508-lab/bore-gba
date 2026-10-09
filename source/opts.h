@@ -75,10 +75,11 @@ enum {
     XO_INMATES,   // SIM > BORES: how many inmates the prison holds: LOW 8, MEDIUM 16, HIGH 24 (inmates.h)
     XO_TWINS,     // SIM > BORES: how often a baby comes with a twin (family.h): NEVER SOMETIMES OFTEN ALWAYS
     XO_AMBV,      // AUDIO: NATURE SOUNDS slider 0..10, the outdoor ambience (main.c ambMix: birds by day, crickets at night, rain, wind)
+    XO_CSTEXT,    // TIME > TIMERS: cutscene captions PLAY ON (each page waits long enough to read, then the scene goes on by itself; A hurries it) or WAIT FOR A
     XO_N
 };
-static const u8 xoCnt[]={ 5,5,2,4,4,4,4,2,3,4,2,3,2,4,   4,3,   4,3,2,   3,6,3,   2,2,2,2,2,3,2, 4,10,10,10,11, 2, 3, 2, 2, 2, 2, 11, 11, 11, 2, 2, 2, 5, 3, 2, 2, 3, 7, 3 , 2, 2, 4, 2, 2, 3, 4, 11};
-static const u8 xoDef[]={ 2,1,1,2,1,1,1,1,0,2,1,1,1,1,   0,1,   0,0,1,   0,0,1,   1,1,1,0,1,2,1, 2,1,2,2,4, 0, 2, 1, 1, 1, 1, 10, 10, 10, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1 , 1, 1, 2, 1, 1, 1, 1, 6};
+static const u8 xoCnt[]={ 5,5,2,4,4,4,4,2,3,4,2,3,2,4,   4,3,   4,3,2,   3,6,3,   2,2,2,2,2,3,2, 4,10,10,10,11, 2, 3, 2, 2, 2, 2, 11, 11, 11, 2, 2, 2, 5, 3, 2, 2, 3, 7, 3 , 2, 2, 4, 2, 2, 3, 4, 11, 2};
+static const u8 xoDef[]={ 2,1,1,2,1,1,1,1,0,2,1,1,1,1,   0,1,   0,0,1,   0,0,1,   1,1,1,0,1,2,1, 2,1,2,2,4, 0, 2, 1, 1, 1, 1, 10, 10, 10, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1 , 1, 1, 2, 1, 1, 1, 1, 6, 0};
 _Static_assert(sizeof(xoCnt)==XO_N&&sizeof(xoDef)==XO_N,"xoCnt / xoDef must have one entry per XO_ name");
 static u8 xo[XO_N];
 static void optsDefaults(void){ for(int i=0;i<XO_N;i++) xo[i]=xoDef[i]; }

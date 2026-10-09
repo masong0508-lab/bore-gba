@@ -33,7 +33,7 @@ static const char* const lbTut[3]={"OFFER","DONE","REPLAY"};
 static const char* const lbNight[4]={"OFF","SOFT","NORMAL","DEEP"}, *const lbWeather[7]={"AUTO","CLEAR","CLOUDY","FOG","RAIN","STORM","SNOW"}, *const lbGhost[3]={"OFF","ON","HAUNTED"}, *const lbTwins[4]={"NEVER","SOMETIMES","OFTEN","ALWAYS"};
 static const char* const lbPct[11]={"0 %","10 %","20 %","30 %","40 %","50 %","60 %","70 %","80 %","90 %","100 %"};   // the volume sliders (rows made with SR)
 static const char* const lbBtn[4]={"NORMAL","A B SWAPPED","L R SWAPPED","BOTH SWAPPED"}, *const lbRep[3]={"SLOW","NORMAL","FAST"},
-    *const lbClock[3]={"24 HOUR","12 HOUR","HIDDEN"}, *const lbToast[3]={"SHORT","NORMAL","LONG"},
+    *const lbClock[3]={"24 HOUR","12 HOUR","HIDDEN"}, *const lbToast[3]={"SHORT","NORMAL","LONG"}, *const lbCsTx[2]={"PLAY ON","WAIT FOR A"},
     *const lbCont[3]={"ROOM","ROOM+PERSON","ALL THREE"}, *const lbZoom[5]={"OFF","1.25X","1.5X","1.7X","2X"}, *const lbMenuBg[3]={"RANDOM","TOWN","ACID RAINBOW"};
 
 static const OptRow pgVideo[]={
@@ -106,6 +106,7 @@ static const OptRow pgTimeAges[]={
 static const OptRow pgTimeTimers[]={
  XR(XO_COMBO,"COMBO WINDOW",lbCombo,"TIME YOU HAVE TO LAND THE NEXT TRICK","BEFORE THE CHAIN IS BANKED"),
  XR(XO_TOAST,"MESSAGE TIME",lbToast,"HOW LONG POP UP MESSAGES STAY ON SCREEN","SHORT  NORMAL  LONG"),
+ XR(XO_CSTEXT,"CUTSCENE TEXT",lbCsTx,"PLAY ON RUNS A STORY SCENE LIKE A FILM","A HURRIES IT  WAIT FOR A HOLDS EACH PAGE"),
 };
 static const OptRow pgAudio[]={
  VR(sSnd,2,1,"SOUND",lbOnOff,"SOUND OFF SKIPS SOUND DECODING","SAVES A LITTLE SPEED AND BATTERY"),

@@ -28,6 +28,10 @@ static void csBgFx(int bg,int t,int fx){
         csGlow(120,103,64,6,bg==CB_BIG?2:3,bg==CB_BIG?ch:CSG_ALL); csGlow(120,103,36,4,bg==CB_BIG?2:3,bg==CB_BIG?ch:CSG_ALL);                                            // the light pool on the boards
         for(int i=0;i<6;i++) csMote(100+((i*37+t/3)%40),22+((i*29+t/4)%70),1);                           // dust drifting in the beam
         break; }
+    case CB_STUDIO:
+        csGlow(120,73,58,3,3,CSG_ALL); csGlow(120,73,30,2,2,CSG_WARM);                                  // the pool of light on the boards
+        for(int i=0;i<6;i++) csMote(100+((i*37+t/3)%40),22+((i*29+t/4)%48),1);                           // dust drifting in the beam
+        break;
     case CB_HOME:
         for(int y=52;y<112;y++) csGlowBox(178-(y-52)*3/2,y,32,1,3,CSG_COOL);                              // moonlight from the window across the floor
         for(int i=0;i<4;i++) csMote(40+((i*53+t/5)%120),30+((i*31+t/6)%60),2);

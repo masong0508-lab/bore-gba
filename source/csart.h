@@ -4,7 +4,7 @@ static u16 csSh(u16 c,int k){ int r=(c&31)-k,g=((c>>5)&31)-k,b=((c>>10)&31)-k; i
 static u16 csLt(u16 c,int k){ int r=(c&31)+k,g=((c>>5)&31)+k,b=((c>>10)&31)+k; if(r>31)r=31; if(g>31)g=31; if(b>31)b=31; return RGB(r,g,b); }   // lighter
 // cutscene redo 14 (step 2: BLENDING): when a beat changes a figure no longer snaps to the new pose. The eight pose numbers (lean, bob, both hands, legs, head) ease from where the
 // figure WAS to the new pose over 12 frames, with a small overshoot (it settles into the pose, like a spring). Per figure (indexed by who); state lives in EWRAM.
-typedef struct { short cur[8], from[8]; short lt, fn, bt, bn, x, x0, xt; u8 have, tw, bg; } CsPS;   // (bt: the beat frame the blend started; bn: the beat last drawn; x: where the figure stood last frame; x0 -> xt: a walk to a new spot; tw: walking last frame)
+typedef struct { short cur[8], from[8]; short lt, fn, bt, bn, x, x0, xt, y, y0, yt; u8 have, tw, bg; } CsPS;   // (bt: the beat frame the blend started; bn: the beat last drawn; x: where the figure stood last frame; x0 -> xt: a walk to a new spot; tw: walking last frame)
 static CsPS csPS[6] EWRAM_BSS;
 static int csFrameNo;
 // cutscene redo 14 (step 3: SECONDARY MOTION): the hair strands and the skirt / coat hem trail behind the body and swing back past it (a small spring on the head's x), so a lean, a
@@ -21,9 +21,9 @@ static void csHairR(int x,int y,int w,int h,u16 c,int lag){ int a=h/3; csR(x,y,w
 // cutscene redo 14 (step 4: EXPRESSIONS and REACTIONS): every face has a mood (csMd: 0 neutral, 1 sad, 2 happy, 3 angry, 4 shocked, 5 puzzled, 6 worried) that comes from the pose, the beat's
 // effects, what the speaker is typing right now (? ! ...) and what the OTHER figure is doing. A listener reacts a few frames after the speaker's punctuation, comforts a crying friend
 // (leans in, worried brows), smiles with a laughing one, and every figure flinches at a startling sound.
-static int csPunc(const CsBeat*b,int n){   // the last '?', '!' or '...' within the first n typed characters, if it is recent (16 chars): 1 question, 2 exclamation, 3 trailing off, 0 none
-    int pos=0, last=-99, kind=0, prev=0;
-    for(int i=0;i<3&&b->t[i];i++){ const char*s=b->t[i]; for(int j=0;s[j]&&pos<n;j++,pos++){ int c=s[j]; if(c=='?'){ last=pos; kind=1; } else if(c=='!'){ last=pos; kind=2; } else if(c=='.'&&prev=='.'){ last=pos; kind=3; } prev=c; } }
+static int csPunc(const CsBeat*b,int n){   // the last '?', '!' or '...' within the first n typed characters of the caption (csFull), if it is recent (16 chars): 1 question, 2 exclamation, 3 trailing off, 0 none
+    int last=-99, kind=0, prev=0; (void)b; if(n>csFullN) n=csFullN;
+    for(int pos=0;pos<n;pos++){ int c=csFull[pos]; if(c=='?'){ last=pos; kind=1; } else if(c=='!'){ last=pos; kind=2; } else if(c=='.'&&prev=='.'){ last=pos; kind=3; } prev=c; }
     return n-last<=16?kind:0;
 }
 static void csBrows(int hx,int by,u16 hr,int md){   // the brows for a mood (G1: shared by the small sprites, Missy's too)
@@ -69,6 +69,9 @@ static void csArm(int sx,int sy,int hx,int hy,int side,u16 ac,u16 ol,u16 sk){   
 // cutscene redo 14 (step 6: WALK AND RUN CYCLE): while a figure walks or runs the legs are two-segment limbs (thigh, knee, shin) that swing in step, the swinging foot lifts and the knee
 // bends toward the way they go; the arms counter-swing (opposite hand to the forward foot) and their hands rise with the elbows; the body dips as the feet spread and rises as they pass.
 static int csStepLift(int t,int per,int mx){ int p=((t%per)+per)%per, h=per/2; if(p>=h) return 0; int q=p<h/2?p:h-p; return q*mx*2/h; }   // 0 .. mx .. 0 over half a cycle, then 0
+static void csGlassAt(int x,int y){ csR(x-1,y-6,3,6,RGB(15,21,29)); csR(x-1,y-6,3,1,RGB(31,31,31)); csR(x-1,y-3,3,3,RGB(9,16,26)); csR(x-2,y-1,2,2,RGB(24,16,10)); }   // a glass in a hand at (x,y): the rim, the water, the fingers round it
+static int csFigNowX(int who,int x){ if(who<=0||who>=6) return x; const CsPS*p=&csPS[who]; return (csFrameNo-p->fn<=3&&p->bg==csBgNow)?p->x:x; }   // where a figure is right now (on its way to a new spot), for the camera
+static int csFigNowY(int who,int y){ if(who<=0||who>=6) return y; const CsPS*p=&csPS[who]; return (csFrameNo-p->fn<=3&&p->bg==csBgNow)?p->y:y; }
 static void csFig(int x,int y,int who,int pose,int t){   // t: the motion clock (csFt: on the tune's beat when one plays); csBT: frames since the beat began, for what happens once (walk in, leave, slump, the shock's jolt)
     //                         -    MISSY        MAMESY       DEX          HAL          OKAFOR     (the game's own skinTones / hairTones / topTones / botTones)
     static const u16 SKc[6]={0,RGB(24,16,10),RGB(24,16,10),RGB(30,23,17),RGB(19,12,7),RGB(13,8,5)};
@@ -78,11 +81,16 @@ static void csFig(int x,int y,int who,int pose,int t){   // t: the motion clock 
     u16 sk=SKc[who], hr=HRc[who], cl=CLc[who], bt=BTc[who], dk=RGB(3,2,3), ol=RGB(2,1,4);
     int tv=0, tgd=1;   // TRAVEL: a figure who stood somewhere else in the last beat (same backdrop, no fade) walks there, or runs in a RUN beat, instead of jumping to the new spot
     { CsPS*p=&csPS[who]; int can=!csEnt&&pose!=CP_LIE&&pose!=CP_STIR&&pose!=CP_CLIMB&&pose!=CP_FLAIL&&pose!=CP_WALK&&pose!=CP_LEAVE&&csBgNow!=CB_MIRROR&&!(csFxNow&CF_FADEIN);
-      if(!can||csFrameNo-p->fn>3||p->bg!=csBgNow){ p->x0=p->xt=(short)x; } else if(p->bn!=csBN){ p->x0=p->x; p->xt=(short)x; }
-      int d=p->xt-p->x0;
-      if(d&&p->xt==x){ int sp=pose==CP_RUN?7:4, T=((d<0?-d:d)*2+sp-1)/sp;   // half pixels a frame: a walk is 2 px, a run 3.5
-          if(csBT<T){ x=p->x0+d*csBT/T; tv=T>=6?1:2; tgd=d>0?1:-1; if(tv==1) csDir=tgd; } }   // (a step of a pixel or two just slides; a real walk faces the way it goes)
-      p->x=(short)x; p->bg=(u8)csBgNow; }
+      if(!can||csFrameNo-p->fn>3||p->bg!=csBgNow){ p->x0=p->xt=(short)x; p->y0=p->yt=(short)y; } else if(p->bn!=csBN){ p->x0=p->x; p->xt=(short)x; p->y0=p->y; p->yt=(short)y; }
+      int d=p->xt-p->x0, dy=p->yt-p->y0;
+      if((d||dy)&&p->xt==x&&p->yt==y){ int sp=pose==CP_RUN?7:4, ad=d<0?-d:d, ady=dy<0?-dy:dy, climb=ady>10;   // half pixels a frame: a walk is 2 px, a run 3.5
+          int T=(ad*2+sp-1)/sp, Ty=climb?(ady+1)/2+2:ady+3; if(Ty>T) T=Ty;                                     // (up steps: 2 px a frame; out of a chair: about a pixel)
+          if(csBT<T){ int u=csBT, ln=u*256/T, sm=(ln*ln*(768-2*ln))>>16, e=(ln+sm)>>1;                        // it gets going and it slows to a stop: not a slide at one speed
+              x=p->x0+d*e/256;
+              if(climb){ int n=ady/5; if(n<1) n=1; int k=u*n/T, ph=(u*n)%T; y=p->y0+dy*k/n-(ph*2<T?1:0); }      // up (or down) a flight of steps: a step at a time, lifting off each
+              else if(dy){ static const signed char ez[12]={0,5,9,12,14,16,17,17,17,16,16,16}; y=p->y0+dy*ez[u*12/T]/16; }   // out of a chair: a touch too far up, then it settles
+              if(ad>=6||climb){ tv=1; tgd=d>0?1:d<0?-1:csDir; csDir=tgd; } else tv=2; } }                   // (a step of a pixel or two just slides; a real walk faces the way it goes)
+      p->x=(short)x; p->y=(short)y; p->bg=(u8)csBgNow; }
     int ent=csEnt; if(pose==CP_LIE||pose==CP_STIR) ent=0; x+=ent;   // C8: stepping in from / out toward the edge of the picture (csEnt: px from the figure's spot, csEntD: the way it walks)
     int mv=0, gait=0, gd=1, gs=0; if(pose==CP_WALK){ int bt=csBT; if(bt<60){ gd=x>120?-1:1; x+=(x>120?60-bt:bt-60); mv=1; } } else if(pose==CP_LEAVE){ int bt=csBT; if(bt>45){ gd=x>120?1:-1; x+=(x>120?bt-45:45-bt); mv=1; } }   // cutscene redo 10: walk in from, and out toward, the nearer side
     int dress=who==CA_MISSY;   /* (Mamesy wears a top and jeans, like in the game) */
@@ -112,7 +120,9 @@ static void csFig(int x,int y,int who,int pose,int t){   // t: the motion clock 
     case CP_SHOCK: bob=csBT<6?-2:0; lean=-csDir*3; hd=-1; ls=2; lh=-9; lv=-12; rh=9; rv=-12; open=1; break;
     case CP_WALK: case CP_LEAVE: if(mv){ gait=1; gs=csWv(t,14); lean=1; lh=-5-gs/2; rh=5+gs/2; lv=rv=8-(gs<0?-gs:gs)/2; bob=((gs<0?-gs:gs)+4)/8; ls=0; } break;   // step 6
     case CP_SLUMP: bob=csBT/4>7?7:csBT/4; hd=3; lean=-1; break;
+    case CP_DRINK: { int ph=csBT%150, up=ph<14?ph:ph<44?14:ph<58?58-ph:0; rh=7-up*4/14; rv=7-up; if(ph>=14&&ph<44){ hd=-1; lean=-1; } if(up) csGlassUp=up; } break;   // the glass to the lips, a long sip with the head back, and down again
     }
+    if(csSeat&&(pose==CP_STAND||pose==CP_SWAY||pose==CP_DRINK)){ lv=7; lh=-7; if(pose!=CP_DRINK){ rv=7; rh=7; } }   // seated at the judges' table: the hands rest on it (a sip, a gesture or a nod lifts them)
     // cutscene redo 13 - ALIVE: everyone breathes and shifts their weight; whoever is speaking leans in, nods, gestures with BOTH hands and moves the mouth in syllables
     // (not just the TALK pose); the listener nods along; the eyes glance at the other person and now and then dart away. Layered on top of whatever the pose set.
     csLook=csDir; csEm=0; csMh=5;
@@ -170,6 +180,7 @@ static void csFig(int x,int y,int who,int pose,int t){   // t: the motion clock 
     csR(x-5+ls,y-2,4,2,dk); csR(x+1-ls,y-2,4,2,dk); csR(x-4+ls,y-2,2,1,csLt(dk,5)); }                                      // shoes
     u16 ac=(who==CA_CREW)?RGB(14,14,16):cl;                                                                // arms: a sleeve (Hal: a grey work shirt under the vest)
     csArm(x+lean-ax,sy,x+lean+lh,sy+lv,-1,ac,ol,sk); csArm(x+lean+ax,sy,x+lean+rh,sy+rv,1,ac,ol,sk);                    // arms: shoulder, elbow, hand
+    if(csSeat&&who==CA_HOST) csR(x+lean+lh-3,sy+lv-2,5,3,RGB(28,28,26));                                                   // Dex: his cue cards in hand
     for(int i=0;i<11;i++){ int w=i<3?(fem?10:12):i<7?(fem?9:11):(fem?8:10), cx=x+lean*(11-i)/11, yy=y-22+i+bob;           // the body: straight, shoulders to hips, with an outline and a shaded side
         u16 rc=(who==CA_MISSY&&i>=9)?bt:cl;                                                                              // Missy: the blazer ends at the hip, the skirt starts
         csR(cx-w/2-1,yy,w+2,1,ol); csR(cx-w/2,yy,w,1,rc); csR(cx-w/2,yy,2,1,csSh(rc,4)); csR(cx+w/2-2,yy,1,1,csLt(rc,3));
@@ -181,7 +192,7 @@ static void csFig(int x,int y,int who,int pose,int t){   // t: the motion clock 
     }
     if(who==CA_DOC) for(int k=0;k<7;k++){ int yy=y-11+k, xx=x+lag*(k+1)/7; csR(xx-6,yy,12,1,ol); csR(xx-5,yy,10,1,cl); csR(xx-5,yy,2,1,csSh(cl,4)); csR(xx,yy,1,1,csSh(cl,10)); }   // the white coat hangs to the knee
     if(who==CA_MISSY) for(int k=0;k<7;k++){ int yy=y-11+k, xx=x+lag*(k+1)/7; csR(xx-5,yy,10,1,ol); csR(xx-4,yy,8,1,bt); csR(xx-4,yy,1,1,csSh(bt,2)); if(k==6) csR(xx-4,yy,8,1,csLt(bt,5)); }   // a straight knee-length skirt
-    if(csCz>=384){ csFaceBig(hx,hy+2,who,pose,t,open,sk,hr); return; }
+    if(csCz>=384){ csFaceBig(hx,hy+2,who,pose,t,open,sk,hr); if(pose==CP_DRINK&&csGlassUp) csGlassAt(x+lean+rh,sy+rv); return; }
     if(who==CA_MAME){ csHairR(hx-7,hy-1,3,15,ol,lag); csHairR(hx+4,hy-1,3,15,ol,lag); csHairR(hx-6,hy,2,14,hr,lag); csHairR(hx+4,hy,2,14,hr,lag); csR(hx-6+lag,hy+9,1,3,csLt(hr,5)); csR(hx+5+lag,hy+9,1,3,csLt(hr,5)); }      // long hair behind
     if(who==CA_MISSY){ csHairR(hx-6,hy-1,2,10,ol,lag); csHairR(hx+5,hy-1,2,10,ol,lag); csHairR(hx-6,hy,2,9,hr,lag); csHairR(hx+4,hy,2,9,hr,lag); }       // the bob, to the chin
     csD(hx,hy+1,6,ol); csD(hx,hy,5,hr); csD(hx,hy+2,4,sk);                                                                 // head: outline, hair, face
@@ -201,4 +212,5 @@ static void csFig(int x,int y,int who,int pose,int t){   // t: the motion clock 
             if((t>>1)&1) csR(hx-1,hy+5,2,1,RGB(18,6,6)); else csR(hx-1,hy+4,2,1,od); }                                           // the mouth quivers
         if(lau){ csR(hx-2,hy+4,4,((t>>1)&1)?3:2,od); csR(hx-1,hy+4,2,1,wh);                                                       // a wide laugh: teeth on top, the jaw bobbing
             if((t%48)<14) csR(hx+3,hy+2,1,1,tr); } }                                                                              // and a tear of joy now and then
+    if(pose==CP_DRINK&&csGlassUp) csGlassAt(x+lean+rh,sy+rv);                                                                        // the glass, in front of the face
 }
