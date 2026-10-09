@@ -1714,7 +1714,9 @@ typedef struct { const s8*d; u32 pos,step,len; int vl,vr,ol,orr; } MVoice;   // 
 static MVoice mvc[MUS_VOICES];
 // STEREO: Direct Sound A plays the left buffers, Direct Sound B the right ones; both are fed by Timer0 and restarted together at vblank.
 static s8 mbufL[2][MUS_N] __attribute__((aligned(4))), mbufR[2][MUS_N] __attribute__((aligned(4)));
-static s16 maccL[MUS_N], maccR[MUS_N];
+static u32 macc[MUS_N];   // musMix: per sample, left in the top 16 bits and right in the bottom 16 (one load and one store per voice and sample)
+#define maccL ((s16*)macc)            // chipMix's scratch: two plain s16 rows in the same memory
+#define maccR (((s16*)macc)+MUS_N)
 static s8 mDly[256] __attribute__((aligned(4))); static int mDp, mLp;   // pseudo-stereo for streamed songs: 256-sample (14 ms) delay line + a low-pass state that keeps the bass centred
 static int mOrd, mRow, mLeft, mFrac; static volatile int mCur, mFilled; static const XmSong*mSong;
 static volatile int ldG=256, ldGT=256; static volatile int ldHold, ldRel;   // LOADING: the song steps aside while a slow job runs (loading.h). ldG = its own gain (256 full) gliding to ldGT; at 0 the song is FROZEN, not mixed at all (that is the CPU the job gets back). ldHold = a song is stepped aside; ldRel = frames until it comes back
@@ -1766,26 +1768,33 @@ IWRAM_ARM static void musMix(s8*outL,s8*outR){
         if(mLeft==0){ musTrigger(); mFrac+=mSong->rfr; mLeft=mSong->rowN+(mFrac>>8); mFrac&=255;
             if(++mRow>=mSong->rows[mSong->order[mOrd]]){ mRow=0; if(++mOrd>=mSong->nord){ mOrd=mSong->loop; mLaps++; } } }
         int n=MUS_N-done; if(n>mLeft) n=mLeft;
-        s16*a=maccL+done; s16*b=maccR+done;
-        for(int i=0;i<n;i++){ a[i]=0; b[i]=0; }
+        u32*a=macc+done;
+        for(int i=0;i<n;i++) a[i]=0;
+        // Left and right share one 32-bit word: acc = L*65536 + R (mod 2^32). Adding a voice's (l, r) is one add of (l<<16)+r, and at the end
+        // R = the low 16 bits as signed, L = (acc - R) >> 16: exactly the two s16 sums of before, wrap-round and all (the output is bit for bit the same).
         for(int vi=0;vi<MUS_VOICES;vi++){ MVoice*v=&mvc[vi]; if(!v->d) continue;
             u32 pos=v->pos, st=v->step; const s8*d=v->d; int vl=v->vl, vr=v->vr, i=0;
             if(pos>>16){ u32 k=pos>>16; d+=k; v->len-=k; pos&=0xFFFF; v->d=d; }   // keep pos small (see MVoice)
             u32 len=(v->len>0xFFFF?0xFFFFu:v->len)<<16;   // a frame moves a note far less than 65535 samples, so the cap never stops one early
-            for(;i<n;i++){
+            if(pos<len&&st*(u32)(n-1)<len-pos){   // the note cannot end inside this chunk (pos+st*(n-1) < len): no test per sample (steps are far below 2^22, so no overflow)
+                while(i<n){   // notes play below their sample's own rate (steps are mostly 0.2 .. 0.9): read a pair of sample bytes once, use it until pos moves past it
+                    int ix=(int)(pos>>16), x0=d[ix], dx=d[ix+1]-x0, b0=x0*256; u32 lim=(u32)(ix+1)<<16;
+                    do{ int x=b0+dx*(int)((pos>>8)&255);   // the same interpolated sample as below, bit for bit
+                        a[i]+=((u32)((x*vl)>>21)<<16)+(u32)((x*vr)>>21); pos+=st; i++; }while(i<n&&pos<lim); }
+            } else for(;i<n;i++){
                 if(pos>=len){ v->d=0; break; }
                 int ix=(int)(pos>>16), fr=(int)((pos>>8)&255), x0=d[ix], x1=d[ix+1];
                 int x=x0*256+(x1-x0)*fr;                      // one interpolated sample, 16-bit scale
-                a[i]=(s16)(a[i]+((x*vl)>>21)); b[i]=(s16)(b[i]+((x*vr)>>21)); pos+=st; }   // (>>21 = the old >>14 with the 1/128 bus gain folded in)
+                a[i]+=((u32)((x*vl)>>21)<<16)+(u32)((x*vr)>>21); pos+=st; }   // (>>21 = the old >>14 with the 1/128 bus gain folded in)
             v->pos=pos; }
         for(int vi=0;vi<MUS_VOICES;vi++){ MVoice*v=&mvc[vi]; int ol=v->ol, orr=v->orr; if(!(ol|orr)) continue;   // declick offsets fading out
-            for(int i=0;i<n;i++){ a[i]=(s16)(a[i]+(ol>>5)); b[i]=(s16)(b[i]+(orr>>5)); ol-=ol>>5; orr-=orr>>5; }
+            for(int i=0;i<n;i++){ a[i]+=((u32)(ol>>5)<<16)+(u32)(orr>>5); ol-=ol>>5; orr-=orr>>5; }
             if(ol>-32&&ol<32) ol=0;
             if(orr>-32&&orr<32) orr=0;
             v->ol=ol; v->orr=orr; }
         mLeft-=n; done+=n;
     }
-    for(int i=0;i<MUS_N;i++) outL[i]=(s8)softClip(maccL[i]>>2), outR[i]=(s8)softClip(maccR[i]>>2);
+    for(int i=0;i<MUS_N;i++){ u32 w=macc[i]; int r=(s16)w, l=(s16)((w-(u32)r)>>16); outL[i]=(s8)softClip(l>>2); outR[i]=(s8)softClip(r>>2); }
 }
 // Streamed ADPCM song (source/music/*.adp from tools/encode_song.py): 4-bit IMA-ADPCM, 18157 Hz, so one frame = 304 samples.
 // Same format as the sound effects: u32 sample count, then nibbles (low first). Decoded straight into the DMA buffer.
