@@ -293,13 +293,21 @@ IWRAM_CODE static void vline(int x,int y0,int y1,u16 c){
     int ye=cY0+(int)cH-1; if(y0<cY0)y0=cY0; if(y1>ye)y1=ye;
     u16*p=&fb[y0*SW+x]; for(;y0<=y1;y0++,p+=SW) *p=c;
 }
+__attribute__((noinline)) IWRAM_ARM static void fill32(u32*q,u32 v,int m){   // m words of v: eight at a store (stmia) while they last. fb is in EWRAM, so this runs at the memory's own pace
+    __asm__ volatile("mov r4,%2\n mov r5,%2\n mov r6,%2\n mov r7,%2\n mov r8,%2\n mov r9,%2\n mov r10,%2\n mov r11,%2\n"
+                     "1: subs %1,%1,#8\n stmgeia %0!,{r4-r11}\n bgt 1b\n addlt %1,%1,#8\n"
+                     "2: subs %1,%1,#1\n strge %2,[%0],#4\n bgt 2b\n"
+                     : "+r"(q), "+r"(m) : "r"(v) : "r4","r5","r6","r7","r8","r9","r10","r11","cc","memory");
+}
 IWRAM_CODE static void rect(int x,int y,int w,int h,u16 c){
     int x1=x+w, y1=y+h; if(x<cX0)x=cX0; if(y<cY0)y=cY0; if(x1>cX0+(int)cW)x1=cX0+(int)cW; if(y1>cY0+(int)cH)y1=cY0+(int)cH;
     if(x>=x1||y>=y1) return;
     u32 cc=(u32)c|((u32)c<<16);   // two pixels a store
     for(;y<y1;y++){ u16*p=&fb[y*SW+x]; int n=x1-x;
         if((uintptr_t)p&2){ *p++=c; n--; }
-        u32*q=(u32*)p; for(int m=n>>1;m>0;m--) *q++=cc;
+        u32*q=(u32*)p; int m=n>>1;
+        if(m>=16){ fill32(q,cc,m); q+=m; }   // a wide row: the block store
+        else for(;m>0;m--) *q++=cc;
         if(n&1) *(u16*)q=c; }
 }
 IWRAM_THUMB static void line(int x0,int y0,int x1,int y1,u16 c){
@@ -4453,7 +4461,7 @@ static int kcapAr(int x,int y,int vert){   // a key cap showing two arrows: up/d
     return x+w+2;
 }
 static int klab(int x,int y,const char*t){ return text(x,y,t,RGB(20,22,26),1)+6; }
-static void disc(int x0,int y0,int r,u16 c){ for(int dy=-r;dy<=r;dy++)for(int dx=-r;dx<=r;dx++) if(dx*dx+dy*dy<=r*r) px(x0+dx,y0+dy,c); }
+static void disc(int x0,int y0,int r,u16 c){ int w=0, pw=-1, py=0; for(int dy=-r;dy<=r;dy++){ int v=r*r-dy*dy; while((w+1)*(w+1)<=v) w++; while(w*w>v) w--; if(w!=pw){ if(pw>=0) rect(x0-pw,y0+py,2*pw+1,dy-py,c); pw=w; py=dy; } } if(pw>=0) rect(x0-pw,y0+py,2*pw+1,r+1-py,c); }   // rows: every dx with dx*dx+dy*dy <= r*r (w is a row's square root, walked from the last row's; rows of one width are one rectangle)
 
 static const char* const iconArt[6][9]={
   {"...###...","...###...","...###...","..#####..",".#.###.#.",".#.###.#.","...#.#...","...#.#...","...#.#..."},   // body
@@ -5520,6 +5528,9 @@ int boreMain(void){
     { static volatile u32 zero; zero=0; REG_DMA3SAD=(u32)(uintptr_t)&zero; REG_DMA3DAD=VRAM_ADDR; REG_DMA3CNT=(SW*SH/2)|0x85000000u; }   // (the zero must sit in RAM: a DMA from cartridge ROM always steps its source, "fixed" or not, and used to paint ROM data on screen)   // clear its tiles out of the bitmap (else mode 3 shows them as noise until the title is drawn)
     REG_DISPCNT=0x0403;  // mode 3, BG2 on
     initTables(); setColors(); svInit(); slInitN(); slMigrate(); bkInit(); chipGuard(); settingsLoad(); optsLoad(); applyRom();   // slMigrate: carries a layout 1 save over to layout 2 first (slots.h)
+#ifdef CS_PREVIEW
+    for(;;) csPlay(CS_PREVIEW-1);   // test build (-DCS_PREVIEW=n): play scene n-1 over and over (cutscene previews)
+#endif
     lrng^=(u32)titleScreen()*2654435761u;   // time spent on the title seeds the random numbers (first shuffle)
     if(konMsg) toast(konMsg==2?"DEBUG UNLOCKED":"DEBUG LOCKED");
     jbSetup();                              // load the saved shuffled order (or make a new one), placeholders hidden

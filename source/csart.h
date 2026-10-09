@@ -4,7 +4,7 @@ static u16 csSh(u16 c,int k){ int r=(c&31)-k,g=((c>>5)&31)-k,b=((c>>10)&31)-k; i
 static u16 csLt(u16 c,int k){ int r=(c&31)+k,g=((c>>5)&31)+k,b=((c>>10)&31)+k; if(r>31)r=31; if(g>31)g=31; if(b>31)b=31; return RGB(r,g,b); }   // lighter
 // cutscene redo 14 (step 2: BLENDING): when a beat changes a figure no longer snaps to the new pose. The eight pose numbers (lean, bob, both hands, legs, head) ease from where the
 // figure WAS to the new pose over 12 frames, with a small overshoot (it settles into the pose, like a spring). Per figure (indexed by who); state lives in EWRAM.
-typedef struct { short cur[8], from[8]; short lt, fn; u8 have; } CsPS;
+typedef struct { short cur[8], from[8]; short lt, fn, bt, bn, x, x0, xt; u8 have, tw, bg; } CsPS;   // (bt: the beat frame the blend started; bn: the beat last drawn; x: where the figure stood last frame; x0 -> xt: a walk to a new spot; tw: walking last frame)
 static CsPS csPS[6] EWRAM_BSS;
 static int csFrameNo;
 // cutscene redo 14 (step 3: SECONDARY MOTION): the hair strands and the skirt / coat hem trail behind the body and swing back past it (a small spring on the head's x), so a lean, a
@@ -76,6 +76,13 @@ static void csFig(int x,int y,int who,int pose,int t){
     static const u16 CLc[6]={0,RGB(8,10,26),RGB(8,20,22),RGB(8,9,14),RGB(30,16,4),RGB(29,29,30)};   // blazer, teal top, navy suit jacket, hi-vis vest, white coat
     static const u16 BTc[6]={0,RGB(7,8,15),RGB(9,13,23),RGB(4,4,7),RGB(17,14,8),RGB(8,12,20)};   // pencil skirt, jeans, suit trousers, work trousers, scrub trousers
     u16 sk=SKc[who], hr=HRc[who], cl=CLc[who], bt=BTc[who], dk=RGB(3,2,3), ol=RGB(2,1,4);
+    int tv=0, tgd=1;   // TRAVEL: a figure who stood somewhere else in the last beat (same backdrop, no fade) walks there, or runs in a RUN beat, instead of jumping to the new spot
+    { CsPS*p=&csPS[who]; int can=!csEnt&&pose!=CP_LIE&&pose!=CP_STIR&&pose!=CP_CLIMB&&pose!=CP_FLAIL&&pose!=CP_WALK&&pose!=CP_LEAVE&&csBgNow!=CB_MIRROR&&!(csFxNow&CF_FADEIN);
+      if(!can||csFrameNo-p->fn>3||p->bg!=csBgNow){ p->x0=p->xt=(short)x; } else if(p->bn!=csBN){ p->x0=p->x; p->xt=(short)x; }
+      int d=p->xt-p->x0;
+      if(d&&p->xt==x){ int sp=pose==CP_RUN?7:4, T=((d<0?-d:d)*2+sp-1)/sp;   // half pixels a frame: a walk is 2 px, a run 3.5
+          if(csBT<T){ x=p->x0+d*csBT/T; tv=T>=6?1:2; tgd=d>0?1:-1; if(tv==1) csDir=tgd; } }   // (a step of a pixel or two just slides; a real walk faces the way it goes)
+      p->x=(short)x; p->bg=(u8)csBgNow; }
     int ent=csEnt; if(pose==CP_LIE||pose==CP_STIR) ent=0; x+=ent;   // C8: stepping in from / out toward the edge of the picture (csEnt: px from the figure's spot, csEntD: the way it walks)
     int mv=0, gait=0, gd=1, gs=0; if(pose==CP_WALK){ if(t<60){ gd=x>120?-1:1; x+=(x>120?60-t:t-60); mv=1; } } else if(pose==CP_LEAVE){ if(t>45){ gd=x>120?1:-1; x+=(x>120?t-45:45-t); mv=1; } }   // cutscene redo 10: walk in from, and out toward, the nearer side
     int dress=who==CA_MISSY;   /* (Mamesy wears a top and jeans, like in the game) */
@@ -125,11 +132,13 @@ static void csFig(int x,int y,int who,int pose,int t){
       { int dt=(t/41+who*3)%5; if(dt==0) csLook=-csDir; else if(dt==1) csLook=0; }                               // glances away, then back
     }
     if(ent){ mv=1; gait=1; gd=csEntD; gs=csWv(t,14); lean=gd; lh=-5-gs/2; rh=5+gs/2; lv=rv=8-(gs<0?-gs:gs)/2; bob=((gs<0?-gs:gs)+4)/8; ls=0; }   // C8: the walk cycle while stepping in or out
-    { CsPS*p=&csPS[who]; short v[8]={lean,bob,lh,lv,rh,rv,ls,hd};                                   // BLEND from where the figure was at the end of the last beat
-      if(csFrameNo-p->fn>3) p->have=0; else if(t<p->lt){ for(int i=0;i<8;i++) p->from[i]=p->cur[i]; p->have=1; }
-      if(p->have&&t<12){ static const signed char ez[12]={0,5,9,12,14,16,17,17,17,16,16,16}; int k=ez[t]; for(int i=0;i<8;i++) v[i]=(short)(p->from[i]+(v[i]-p->from[i])*k/16);
-          lean=v[0]; bob=v[1]; lh=v[2]; lv=v[3]; rh=v[4]; rv=v[5]; ls=v[6]; hd=v[7]; }
-      for(int i=0;i<8;i++) p->cur[i]=v[i]; p->lt=(short)t; p->fn=(short)csFrameNo; }
+    if(tv==1&&!ent&&pose!=CP_RUN){ mv=1; gait=1; gd=tgd; gs=csWv(t,14); lean=tgd; lh=-5-gs/2; rh=5+gs/2; lv=rv=8-(gs<0?-gs:gs)/2; bob=((gs<0?-gs:gs)+4)/8; ls=0; }   // the same walk on the way to a new spot (a RUN beat runs there)
+    { CsPS*p=&csPS[who]; short v[8]={lean,bob,lh,lv,rh,rv,ls,hd};                                   // BLEND from where the figure was at the end of the last beat (or of the walk to its new spot)
+      int nw=tv==1&&!ent;
+      if(csFrameNo-p->fn>3) p->have=0; else if(p->bn!=csBN||(p->tw&&!nw)){ for(int i=0;i<8;i++) p->from[i]=p->cur[i]; p->have=1; p->bt=(short)csBT; }   // (beat time, not csFt's: with a tune playing that one never starts again)
+      { int bt=csBT-p->bt; if(p->have&&bt>=0&&bt<12){ static const signed char ez[12]={0,5,9,12,14,16,17,17,17,16,16,16}; int k=ez[bt]; for(int i=0;i<8;i++) v[i]=(short)(p->from[i]+(v[i]-p->from[i])*k/16);
+          lean=v[0]; bob=v[1]; lh=v[2]; lv=v[3]; rh=v[4]; rv=v[5]; ls=v[6]; hd=v[7]; } }
+      for(int i=0;i<8;i++) p->cur[i]=v[i]; p->lt=(short)t; p->fn=(short)csFrameNo; p->bn=(short)csBN; p->tw=(u8)nw; }
     { int spk2=csTalking&&csSpk==who, lis2=csTalking&&csSpk&&csSpk!=who, shake=(csFxNow&CF_SHAKE)!=0;
       int sad=(pose==CP_HEAD||pose==CP_CRY||pose==CP_SLUMP), ok=(pose==CP_STAND||pose==CP_SWAY||pose==CP_TALK||pose==CP_POINT||pose==CP_WALK||pose==CP_LEAVE);   // ok: poses that can react
       int os=(csOth==CP_HEAD||csOth==CP_CRY||csOth==CP_SLUMP||csOth==CP_LIE), oh=(csOth==CP_LAUGH||csOth==CP_DANCE||csOth==CP_SING), ox=(csOth==CP_SHOCK||csOth==CP_FLAIL);

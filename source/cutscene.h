@@ -31,7 +31,13 @@ static void csR(int x,int y,int w,int h,u16 c){ csCamR(x+csOx,y+csOy,w,h,c); }
 static void csD(int x,int y,int r,u16 c){ csCamD(x+csOx,y+csOy,r,c); }
 static void csLn(int x0,int y0,int x1,int y1,u16 c){ csCamL(x0+csOx,y0+csOy,x1+csOx,y1+csOy,c); }
 static int csWv(int t,int per){ int p=t%per, h=per/2, v=p<h?p:per-p; return v*16/h-8; }   // a triangle wave, -8 .. 8
-static void csGrad(int y0,int h,int r0,int g0,int b0,int r1,int g1,int b1){ for(int i=0;i<h;i++){ int t=h>1?i*256/(h-1):0; csR(0,y0+i,SW,1,RGB(r0+(r1-r0)*t/256,g0+(g1-g0)*t/256,b0+(b1-b0)*t/256)); } }
+static void csGrad(int y0,int h,int r0,int g0,int b0,int r1,int g1,int b1){   // rows of one colour go down as one band (t = i*256/(h-1), stepped without dividing)
+    int n=h>1?h-1:1, tq=256/n, tr=256%n, t=0, a=0, s=0; u16 sc=0;
+    for(int i=0;i<h;i++){ u16 c=RGB(r0+(r1-r0)*t/256,g0+(g1-g0)*t/256,b0+(b1-b0)*t/256);
+        if(i&&c!=sc){ csR(0,y0+s,SW,i-s,sc); s=i; } sc=c;
+        t+=tq; a+=tr; if(a>=n){ a-=n; t++; } }
+    if(h>0) csR(0,y0+s,SW,h-s,sc);
+}
 
 __attribute__((unused)) static void csFigV1(int x,int y,int who,int pose,int t){   // one person, 34 px tall, feet at (x,y)
     static const u16 dr[6]={0,RGB(5,6,13),RGB(4,17,22),RGB(14,4,18),RGB(27,17,2),RGB(29,29,31)};      // dress / suit / vest / coat
@@ -136,6 +142,7 @@ static void csBg(int bg,int t,int fx){   // the picture area: y 12 .. 115
 static int csLen(const char*s){ int n=0; while(s[n]) n++; return n; }
 static int csIsq(int v){ int w=0; while((w+1)*(w+1)<=v) w++; return w; }
 
+static const CsBeat* csCapB EWRAM_BSS; static short csCapN EWRAM_BSS, csCapX[3] EWRAM_BSS; static u8 csCapUp EWRAM_BSS;   // the caption as drawn in the frame buffer (csCapUp: changed since the screen got it)
 static void csDraw(const CsBeat*b,int t,int shown){   // one frame of one beat (shown: how many letters of the caption are typed)
     // G3: every sound startles except the quiet ones (cry, groan, tick, ghost, the skate landings), so new sounds need no list
     { int tot=0; for(int i=0;i<3&&b->t[i];i++) tot+=csLen(b->t[i]); csFrameNo++; csTalking=shown<tot; csSpk=csWho(b->who); csOth=-1; csPuncS=csPunc(b,shown); csPuncL=csPunc(b,shown-5);
@@ -144,7 +151,8 @@ static void csDraw(const CsBeat*b,int t,int shown){   // one frame of one beat (
       if(sc==4&&bi>=21) csMood=1; if(sc==6&&bi>=7) csMood=bi>=9?2:1; if(sc==3&&bi>=29) csMood=-1;
       if(sc==6&&bi==9&&((t<10)||(t>=16&&t<20))) csLite=1; }
     csOx=csOy=0; if(b->fx&CF_SHAKE){ csOx=(rnd8()%5)-2; csOy=(rnd8()%5)-2; }
-    rect(0,0,SW,SH,0);
+    { int e=8; rect(0,12,SW,e,0); rect(0,116-e,SW,e,0); rect(0,12+e,e,104-2*e,0); rect(SW-e,12+e,e,104-2*e,0); }   // (every backdrop covers the picture: only a shake or a zoom's rounding can leave its edges, so only the edges are cleared)
+    { static const CsBeat*lb EWRAM_BSS; if(b!=lb){ lb=b; csBN++; } } csBT=t; csBgNow=b->bg;
     csFxNow=b->fx; csCamAim(b,t); csShotApply(b,t);
     int cdx=0, cdy=0;   // (jump cuts: the camera holds still inside a shot, it no longer drifts)
     clipSet(0,12,SW,116); csBg(b->bg,t,b->fx); if(!csSlow) csBgFx(b->bg,t,b->fx);
@@ -172,11 +180,17 @@ static void csDraw(const CsBeat*b,int t,int shown){   // one frame of one beat (
     if(b->fx&CF_SICK){ int mx=b->bx*4, my=by-26; for(int k=0;k<9;k++) if(t>k*2) csR(mx+5+k*3,my+k*k/3-3,2,2,k&1?RGB(13,24,4):RGB(18,28,6)); }
     if(b->fx&CF_IRIS){ int r=130-t*2; if(r<0) r=0; int cx=csCamX(b->bx*4), cy=csCamY(by-27);
         for(int y=12;y<116;y++){ int dy=y-cy, v=r*r-dy*dy; if(v<=0){ rect(0,y,SW,1,0); continue; } int w=csIsq(v); if(cx-w>0) rect(0,y,cx-w,1,0); if(cx+w<SW) rect(cx+w,y,SW-cx-w,1,0); } }
-    if(!csSlow||csMood) csVig(b->bg); clipAll(); rect(0,0,SW,12,0); rect(0,116,SW,44,RGB(2,3,8)); rect(0,116,SW,1,RGB(14,11,3));
-    text(205,3,"START SKIP",RGB(8,9,11),1);
-    int y0=b->who?129:124; if(b->who) text(12,119,b->who,GOLD,1);
-    static char buf[64]; int left=shown;
-    for(int i=0;i<3&&b->t[i];i++){ int n=csLen(b->t[i]); int k=left<n?left:n; if(k<=0) break; for(int j=0;j<k;j++) buf[j]=b->t[i][j]; buf[k]=0; text(12,y0+i*9,buf,b->who?WHITE:RGB(22,26,31),1); left-=n; if(left<=0) break; }
+    if(!csSlow||csMood) csVig(b->bg); clipAll();
+    if(b!=csCapB||shown<csCapN){   // the caption panel and the top bar are drawn once a beat; after that only the letters typed since the last picture
+        rect(0,0,SW,12,0); rect(0,116,SW,44,RGB(2,3,8)); rect(0,116,SW,1,RGB(14,11,3)); text(SW-4-tw("START SKIP",1),3,"START SKIP",RGB(8,9,11),1);
+        if(b->who) text(12,119,b->who,GOLD,1);
+        csCapB=b; csCapN=0; csCapX[0]=csCapX[1]=csCapX[2]=12; csCapUp=2; }
+    if(shown>csCapN){   // (glyphs land in the same order as a whole redraw, so the blended edges come out the same)
+        int y0=b->who?129:124, off=0; static char buf[64];
+        for(int i=0;i<3&&b->t[i];i++){ int n=csLen(b->t[i]), a=csCapN-off, z=shown-off; if(a<0) a=0; if(z>n) z=n;
+            if(z>a){ int k=0; for(int j=a;j<z&&k<63;j++) buf[k++]=b->t[i][j]; buf[k]=0; csCapX[i]=(short)text(csCapX[i],y0+i*9,buf,b->who?WHITE:RGB(22,26,31),1); }
+            off+=n; if(off>=shown) break; }
+        csCapN=(short)shown; if(!csCapUp) csCapUp=1; }
     csCx-=cdx; csCy-=cdy;
 }
 
@@ -404,9 +418,25 @@ static int csSongOn;   // 1 while the scene's song plays (a beat with sfx 250 st
 static u16 csTl; static u32 csAc;
 static int csFrames(void){ u16 n=R_TM3D; csAc+=(u16)(n-csTl); csTl=n; int f=(int)(csAc/274); csAc-=(u32)f*274; return f; }
 static void csTimeReset(void){ if(!(R_TM3CNT&0x80)) vsync(); csTl=R_TM3D; csAc=0; }
+// The picture goes to the screen without waiting for the vblank: 8 rows at a time, each one as soon as the beam has drawn it this frame (the
+// screen shows the whole new picture from the next frame on, the same frame present() would have, but the next picture is started a third
+// of a frame or more sooner). Rows the beam has passed are copied at once, the rest right behind it. The copy outruns the beam (a row in
+// about 0.8 of a line), so what is left when the frame ends stays ahead of it, even past the mixer's interrupt at line 0 (rows from 40 on).
+// No piece starts in the 8 lines before the vblank (the sound buffers swap there, on time). Only the rows that changed: the caption only when
+// it did (csCapUp: 1 the caption, 2 the top bar too).
+static void csPresent(void){
+    if(zoomShow&&!zoomKeep) zoomOff();
+    int a=csCapUp>1?0:12, b=csCapUp?SH:116; csCapUp=0;
+    { int v=REG_VCOUNT; if(v>=180) while(REG_VCOUNT>=160||REG_VCOUNT<40); }   // late in the vblank: too little of it left to get ahead, so start behind the beam once the mixer has run
+    int last=REG_VCOUNT, wrap=0;
+    for(int r=a;r<b;r+=8){ int e=r+8>b?b:r+8;
+        for(;;){ int vc=REG_VCOUNT; if(vc<last) wrap=1; last=vc; if(vc>=152&&vc<160) continue; if(wrap||vc>=e||vc>=160) break; }
+        REG_DMA3SAD=(u32)(uintptr_t)(fb+r*SW); REG_DMA3DAD=VRAM_ADDR+r*SW*2; REG_DMA3CNT=((e-r)*SW/2)|0x84000000u; }
+    if(mWantOff) audIdleStop();
+}
 static void csPlay(int id){   // play scene id; returns when it ends or START skips it
     volatile u16*bc=(volatile u16*)0x04000050; volatile u16*bl=(volatile u16*)0x04000054;
-    const CsScene*sc=&csScenes[id]; clipAll(); objHideAll(); csCamReset(); csAliveReset(); csCurSc=id; csSlow=0;
+    const CsScene*sc=&csScenes[id]; clipAll(); objHideAll(); csCapB=0; csCamReset(); csAliveReset(); csCurSc=id; csSlow=0;
     u16 prev=keyNow(); int skip=0;
     { int tn=csTune[id]; if(tn>=0&&sSnd){ mGain=mGainT=256; musBegin(2,chipsyn+csTnT[tn].off,0); csSongOn=1; csTuneBS=csTnT[tn].bs; csMT=0; csMP=csy.step; } }   // the scene's chip tune, locked to the figures by csFt
     for(int bi=0;bi<sc->n&&!skip;bi++){
@@ -422,12 +452,12 @@ static void csPlay(int id){   // play scene id; returns when it ends or START sk
             if(csTuneBS) mGainT=(total&&shown<total)?176:(csMood>=1?200:256);   // the tune dips while a caption types and in the dim, sad moods, and comes back up when it waits
             *bc=0x00C4; *bl=0; if((b->fx&CF_FADEIN)&&t<16){ *bl=16-t; } else if((b->fx&CF_FLASH)&&t<14){ *bc=0x0084; *bl=14-t; }
             for(int e=1;e<dt&&e<6;e++) csCamAim(b,t);   // the camera eases once per picture: the pictures it missed while the last one drew are caught up
-            { u16 a0=R_TM3D; csDraw(b,t,shown); present(); u16 cost=(u16)(R_TM3D-a0);   // a picture that took over two and a half frames: lighten the next ones (back to full below one and a half)
+            { u16 a0=R_TM3D; csDraw(b,t,shown); csPresent(); u16 cost=(u16)(R_TM3D-a0);   // a picture that took over two and a half frames: lighten the next ones (back to full below one and a half)
               if(cost>685) csSlow=1; else if(cost<410) csSlow=0; }
             dt=csFrames(); t+=dt;
         }
-        if(!skip&&(b->fx&CF_FADEOUT)){ *bc=0x00C4; csTimeReset(); int ft=0; while(ft<=16){ *bl=ft>16?16:ft; csDraw(b,t,total); present(); ft+=csFrames(); }
-            *bl=16; for(int w=0;w<14;){ present(); w+=csFrames(); } }
+        if(!skip&&(b->fx&CF_FADEOUT)){ *bc=0x00C4; csTimeReset(); int ft=0; while(ft<=16){ *bl=ft>16?16:ft; csDraw(b,t,total); csPresent(); ft+=csFrames(); }
+            *bl=16; for(int w=0;w<14;){ vsync(); w+=csFrames(); } }
     }
     if(csSongOn){ musFadeOut(XF_OUT); csSongOn=0; } csTuneBS=0; mGainT=256; *bc=0x0400; *bl=0; objHideAll(); clipAll(); csCurSc=-1; csSlow=0;
     while(keyNow()&(K_A|K_B|K_START)) vsync();   // let go before the next screen reads the keys

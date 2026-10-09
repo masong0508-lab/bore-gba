@@ -5,6 +5,7 @@
 // shape follows the syllable (ah wide and tall, oo small and round, ee wide and flat, oh round).
 // Units below are QUARTER world pixels, relative to the face centre. Needs cscam.h (step 2) and csart.h (step 1).
 static int csFxNow, csFcx, csFcy;
+static int csBT EWRAM_BSS, csBN EWRAM_BSS, csBgNow EWRAM_BSS;   // the beat's own frame count (csFt's music time does not start again at a new beat), a number that changes with every beat, the backdrop
 static int csFrameNo;   // (also declared in csart.h; csface.h comes first)
 static short csTn[8] EWRAM_BSS; static int csTnFn[8] EWRAM_BSS;   // step 5: each figure's head turn, in 1/4 quarter-pixels (eased every frame), and the frame it was last eased on (16 B of EWRAM)
 static u16 csFSh(u16 c,int k){ int r=(c&31)-k,g=((c>>5)&31)-k,b=((c>>10)&31)-k; if(r<0)r=0; if(g<0)g=0; if(b<0)b=0; return RGB(r,g,b); }
@@ -15,7 +16,12 @@ static int csFr(int n){ int v=csFu(n); return v<1?1:v; }             // a size: 
 static int csFi(int v){ int w=0; while((w+1)*(w+1)<=v) w++; return w; }
 static void csFEl(int cx,int cy,int rx,int ry,int top,u16 c){        // a filled ellipse (top: only the upper half)
     if(ry<1){ rect(cx-rx,cy,2*rx+1,1,c); return; }
-    for(int y=-ry;y<=(top?0:ry);y++){ int w=rx*csFi(16*(ry*ry-y*y))/(4*ry); rect(cx-w,cy+y,2*w+1,1,c); }
+    int q=0;   // the square root of 16*(ry*ry-y*y), walked from row to row instead of counted up from 0 every row (the same numbers; a big close-up face was tens of thousands of steps a frame)
+    int d=4*ry, inv=65536/d+1;   // (rx*q/d by a reciprocal, put right by a step either way: the same w as the division)
+    int pw=-1, py=0, ye=top?0:ry;   // rows of the same width go down as one rectangle
+    for(int y=-ry;y<=ye;y++){ int v=16*(ry*ry-y*y); while((q+1)*(q+1)<=v) q++; while(q*q>v) q--; int n=rx*q, w=(int)(((u32)n*(u32)inv)>>16); while(w*d>n) w--; while((w+1)*d<=n) w++;
+        if(w!=pw){ if(pw>=0) rect(cx-pw,cy+py,2*pw+1,y-py,c); pw=w; py=y; } }
+    rect(cx-pw,cy+py,2*pw+1,ye+1-py,c);
 }
 static void csFE(int dx,int dy,int rx,int ry,u16 c){ csFEl(csFcx+csFu(dx),csFcy+csFu(dy),csFr(rx),csFr(ry),0,c); }
 static void csFT(int dx,int dy,int rx,int ry,u16 c){ csFEl(csFcx+csFu(dx),csFcy+csFu(dy),csFr(rx),csFr(ry),1,c); }
