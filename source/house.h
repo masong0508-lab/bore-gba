@@ -713,7 +713,8 @@ static void twTick(int*planned){   // VISITORS: someone from another household w
 static void hhCensus(void){   // which need furniture each floor has (bit = need number). flPlaneAt reads the live map for this floor and the packed copy for the others
     hhCenT=300;
     for(int f=0;f<FLR_N;f++){ u8 b=0, bi=0;
-        for(int i=0;i<MSZ;i++){ int c=flPlaneAt(f,0,i);
+        for(int y=0,i=0;y<MH;y++)for(int x=0;x<MW;x++,i++){   // (row by row: flPlaneAt works the row and column out of i with two divisions a cell, which made this a 2-frame hitch every 5 seconds)
+            int c=f==curFl?(u8)lifeMap[y][x]:flLen[f]?flGet(f,0,i):((x==0||y==0||x==MW-1||y==MH-1)?'w':'.');   // (the live map, the stored floor, or a blank floor's carpet and low wall: flBlankV)
             if(c=='F') b|=1<<HN_FOOD; else if(c=='T') b|=1<<HN_WC; else if(c=='S') b|=1<<HN_REST; else if(c=='H') b|=1<<HN_CLEAN; else if(c=='C'||c=='U') b|=1<<HN_COMFY;
             else { int r=iuRow((char)c); if(r>=0) bi|=1<<r; } }
         hhCen[f]=b; hhCenI[f]=bi; }

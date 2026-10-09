@@ -450,7 +450,7 @@ static inline __attribute__((always_inline)) void fillHW(u16*d,int n,u16 c){
     while(n-->0) *d++=c;
 }
 // One floor tile: copy the pre-sampled columns. tex = flTab[floor][odd][0][0].
-IWRAM_CODE static void floorTile(int sx,int sy,const u16*tex){
+__attribute__((noinline)) IWRAM_CODE static void floorTile(int sx,int sy,const u16*tex){
     CNT(cntFT);   // one scanline span per row instead of one call per column
     int xa=cX0, xz=cX0+(int)cW-1;
     for(int ry=-CB;ry<=CB;ry++,tex+=2*CA+1){
@@ -461,7 +461,7 @@ IWRAM_CODE static void floorTile(int sx,int sy,const u16*tex){
     }
 }
 
-IWRAM_CODE static void tileTop(int sx,int sy,u16 c){
+__attribute__((noinline)) IWRAM_CODE static void tileTop(int sx,int sy,u16 c){
     int xa=cX0, xz=cX0+(int)cW-1;
     for(int ry=-CB;ry<=CB;ry++){
         int y=sy+ry; if((unsigned)(y-cY0)>=cH) continue;
@@ -1082,7 +1082,9 @@ IWRAM_CODE static void fillCols(int w0,int w1,u16 c){
     for(int y=0;y<SH;y++,row+=ROW_W) for(int w=w0;w<w1;w++) row[w]=v;
 }
 static u8 ord[4][W*D];   // per view: cells (x | z<<4) sorted back to front, so the draw loop needs no search
+static void scInit(void);
 static void initTables(void){
+    scInit();   // the mixers' soft limit (before any sound plays)
     for(int sh=0;sh<4;sh++){ int r=rTab[sh]; for(int at=0;at<=r;at++) hhT[sh][at]=(u8)((r/2)*(r-at)/r); }
     for(int a=0;a<=CB;a++){ int w=0; for(int at=0;at<=CA;at++) if(hhT[0][at]>=a) w=at; rowHW[a]=(u8)w; }
     bakeTex();
@@ -1636,9 +1638,14 @@ static void musTrigger(void){
 }
 // SOFT LIMIT: past +-96 the output bends smoothly towards the 8-bit edge instead of being cut flat there (a flat cut crackles). The curve is
 // 96 + d*R/(d+R) (d = how far past 96, R = room left), so its slope is 1 at the knee and it never quite reaches the edge. tools/preview_xm.py: the same.
+// The curve is a table (scKnee, filled once by scInit): the mixers run it for every sample, and the division the formula needs is a slow library call
+// on the GBA (it used to cost a loud song hundreds of calls a frame). The table holds the formula's exact integer results; past d = 1023 they do not
+// change any more (+126 / -127), so the output is the same, bit for bit.
+static u8 scKnee[2][1024] EWRAM_BSS;   // [0] how far above +96, [1] how far below -96
+static void scInit(void){ for(int d=0;d<1024;d++){ scKnee[0][d]=(u8)(d*31/(d+31)); scKnee[1][d]=(u8)(d*32/(d+32)); } }
 static inline __attribute__((always_inline)) int softClip(int x){
-    if(x>96){ int d=x-96; return 96+d*31/(d+31); }
-    if(x<-96){ int d=-96-x; return -96-d*32/(d+32); }
+    if(x>96){ int d=x-96; if(d>1023) d=1023; return 96+scKnee[0][d]; }
+    if(x<-96){ int d=-96-x; if(d>1023) d=1023; return -96-scKnee[1][d]; }
     return x;
 }
 IWRAM_ARM static void musMix(s8*outL,s8*outR){
@@ -3351,27 +3358,64 @@ static void clDraw(int i,int sx,int sy){
         if((lfr>>3)&1) px(sx+5,y-2,WHITE);   // a glint
     }
 }
+// ---- the room's two tile scans, in ARM code in IWRAM (drawRoomRect runs them for every patch of every picture: walking redraws two strips a frame,
+// and a strip 2 px high still crosses ~400 tiles). Same tiles, same order, same pictures as the plain C loops they replace; what changed is how a
+// tile is found: the view's rotation is an index stride (rotStride) instead of a switch per tile, and the band columns are shifts (a tile is 8 px).
+// rotStride: map cell of screen tile (rx,ry) in the current view = b0 + rx*cx + ry*cy, for an array whose rows are st apart (as rotXY: view 0 tx=rx ty=ry,
+// 1 tx=ry ty=MW-1-rx, 2 tx=MW-1-rx ty=MH-1-ry, 3 tx=MH-1-ry ty=rx). The table holds them for lifeMap (rows MW+1 apart) and floorMap (MW apart).
+static const short rsTab[2][4][3]={
+    { {0,1,MW+1}, {(MW-1)*(MW+1),-(MW+1),1}, {(MH-1)*(MW+1)+(MW-1),-1,-(MW+1)}, {MH-1,MW+1,-1} },
+    { {0,1,MW},   {(MW-1)*MW,-MW,1},         {(MH-1)*MW+(MW-1),-1,-MW},         {MH-1,MW,-1} } };
+_Static_assert(CA==8,"the scans below divide by CA with a shift");
+static int wallFloorR(int rx,int ry) __attribute__((long_call,noinline));   // (ROM: walls are few, and inlined it would bloat IWRAM)
+static inline __attribute__((always_inline)) void bandColsF(int s,int x0,int x1,int lox,int*a,int*b){   // bandCols, with fdiv(...,8) as a shift (it floors)
+    int kmin=((x0-12-lox)>>3)-1, kmax=((x1+12-lox)>>3)+1;
+    int lo=(s+kmin)>>1, hi=(s+kmax+1)>>1, mn=s-(MH-1), mx=s<MW-1?s:MW-1;
+    if(mn<0) mn=0;
+    if(lo<mn) lo=mn;
+    if(hi>mx) hi=mx;
+    *a=lo; *b=hi;
+}
+__attribute__((noinline)) IWRAM_CODE static void roomFloors(int x0,int y0,int x1,int y1,int s0,int s1){   // pass 1: the floor of every tile whose diamond reaches the rectangle
+    const short*L=rsTab[0][cview&3], *F=rsTab[1][cview&3]; int lb=L[0], lx=L[1], ly=L[2], fb0=F[0], fx=F[1], fy=F[2];
+    const char*lm=&lifeMap[0][0]; const u8*fm=&floorMap[0][0]; int lox=LOX, loy=LOY, sfl=sFl;
+    for(int s=s0;s<=s1;s++){ int a,b; bandColsF(s,x0,x1,lox,&a,&b);
+        for(int tx=a;tx<=b;tx++){ int ty=s-tx;
+            int sx=lox+(tx-ty)*CA, sy=loy+(tx+ty+1)*CB;
+            if(sx+CA<x0||sx-CA>=x1||sy+CB<y0||sy-CB>=y1) continue;   // the diamond does not reach the rectangle
+            char c=lm[lb+tx*lx+ty*ly]; if(c=='#') continue;
+            int fl=isWallCh(c)?wallFloorR(tx,ty):fm[fb0+tx*fx+ty*fy], v=(tx^ty)&1;   // (walls are thin now: the room's floor runs under them)
+            if(sfl) floorTile(sx,sy,&flTab[fl][v][0][0]); else tileTop(sx,sy,flFlat[fl][v]); } }
+}
+__attribute__((noinline)) IWRAM_CODE static int roomScan(int s,int x0,int y0,int x1,int y1,int bidx,u8*out){   // pass 2, band s: the tiles whose art may reach the rectangle and that hold something (or the board pickup, map index bidx; -1 = none)
+    const short*L=rsTab[0][cview&3]; int lb=L[0], lx=L[1], ly=L[2]; const char*lm=&lifeMap[0][0]; int lox=LOX, loy=LOY, a, b, n=0;
+    bandColsF(s,x0,x1,lox,&a,&b);
+    for(int tx=a;tx<=b;tx++){ int ty=s-tx;
+        int sx=lox+(tx-ty)*CA, sy=loy+(tx+ty+1)*CB;
+        if(sx+11<=x0||sx-11>=x1||sy+6<=y0||sy-34>=y1) continue;   // art (walls, items, the pickup) is at most 11 px to a side, 34 above (a quarter pipe) and 5 below the centre
+        int i=lb+tx*lx+ty*ly; if(lm[i]=='.'&&i!=bidx) continue;   // plain floor: nothing stands there (but the board pickup might)
+        out[n++]=(u8)tx; }
+    return n;
+}
 static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
     clipSet(x0,y0,x1,y1);
     rect(x0,y0,x1-x0,y1-y0,flBack[curFl]); flSlab(x0,y0,x1,y1);
     int s0,s1; bandRows(y0,y1,&s0,&s1);
-    for(int s=s0;s<=s1;s++){ int a,b; bandCols(s,x0,x1,&a,&b);
-        for(int tx=a;tx<=b;tx++){ int ty=s-tx;
-            int sx=LOX+(tx-ty)*CA, sy=LOY+(tx+ty+1)*CB;
-            if(sx+CA<x0||sx-CA>=x1||sy+CB<y0||sy-CB>=y1) continue;   // the diamond does not reach the rectangle
-            CNT(cntTiles); char c=cellAt(tx,ty); if(c=='#') continue;
-            { int fl=isWallCh(c)?wallFloorR(tx,ty):flAt(tx,ty), v=(tx^ty)&1; if(sFl) floorTile(sx,sy,&flTab[fl][v][0][0]); else tileTop(sx,sy,flFlat[fl][v]); } } }   // (walls are thin now: the room's floor runs under them)
+    roomFloors(x0,y0,x1,y1,s0,s1);   // pass 1 (IWRAM, above)
     int cls[CL_N], cln=0;   // collectibles: the screen diagonal (rx+ry) of each one still there, -1 = none; clr: its screen tile
     static int clr[CL_N][2] EWRAM_BSS;
     for(int i=0;i<CL_N;i++){ cls[i]=-1; if(ed||!CL_ON||(clGot>>i&1)) continue; int tx=clx[i], ty=cly[i], rx, ry;
         switch(cview){ case 0:rx=tx;ry=ty;break; case 1:rx=MW-1-ty;ry=tx;break; case 2:rx=MW-1-tx;ry=MH-1-ty;break; default:rx=ty;ry=MH-1-tx; }
         clr[i][0]=rx; clr[i][1]=ry; cls[i]=rx+ry; cln++; }
     int ss=0; if(!ed){ s32 rfx,rfy; rotPos(lfx,lfy,&rfx,&rfy); ss=(int)((rfx>>8)+(rfy>>8)); }
-    for(int s=s0;s<=s1;s++){ int a,b; bandCols(s,x0,x1,&a,&b);
-        for(int tx=a;tx<=b;tx++){ int ty=s-tx;
+    int pap=papN&&!ed&&!curFl, bidx=(ed||lhave)?-1:BDY*(MW+1)+BDX;   // (the board pickup: its map index, when it can be there)
+    static u8 rsT[MW] EWRAM_BSS;   // the tiles of a band that roomScan found
+    for(int s=s0;s<=s1;s++){ int a,b, nt=0;
+        if(pap) bandCols(s,x0,x1,&a,&b); else { nt=roomScan(s,x0,y0,x1,y1,bidx,rsT); a=0; b=nt-1; }   // (TV SHOW & TELL's paparazzi stand on plain floor: that lot keeps the plain loop)
+        for(int k=a;k<=b;k++){ int tx=pap?k:rsT[k], ty=s-tx;
             int sx=LOX+(tx-ty)*CA, sy=LOY+(tx+ty+1)*CB;
-            if(sx+11<=x0||sx-11>=x1||sy+6<=y0||sy-34>=y1) continue;   // art (walls, items, the pickup) is at most 11 px to a side, 34 above (a quarter pipe) and 5 below the centre
-            if(papN&&!ed&&!curFl){ int qx,qy; rotXY(tx,ty,&qx,&qy); for(int p=0;p<papN;p++) if(papX[p]==qx&&papY[p]==qy) drawPap(sx,sy+1,p); }   // TV SHOW & TELL: the paparazzi
+            if(pap){ if(sx+11<=x0||sx-11>=x1||sy+6<=y0||sy-34>=y1) continue;   // art (walls, items, the pickup) is at most 11 px to a side, 34 above (a quarter pipe) and 5 below the centre
+                     int qx,qy; rotXY(tx,ty,&qx,&qy); for(int p=0;p<papN;p++) if(papX[p]==qx&&papY[p]==qy) drawPap(sx,sy+1,p); }   // TV SHOW & TELL: the paparazzi
             char c=cellAt(tx,ty); if(c=='.'&&(ed||lhave)) continue;   // plain floor: nothing stands there (but the board pickup might)
             int ox,oy; rotXY(tx,ty,&ox,&oy);
             if(c=='.'&&(ox!=BDX||oy!=BDY)) continue;
