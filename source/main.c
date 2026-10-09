@@ -2109,7 +2109,7 @@ static inline int isWinCh(char c){ return c=='E'||c=='e'||c=='f'; }   // the win
 static int tileH(int tx,int ty){   // surface height in px (ramps: their highest point). Grind height is 6: rails, ledges and benches
     if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
     char c=lifeMap[ty][tx];
-    return (c=='j')?2*CC: (c=='n')?CC: (c=='#'||c=='F'||c=='W'||c=='H'||isWinCh(c))?2*CC: (c=='X'||c=='Y')?SOLID_H: (c=='O')?BARREL_H: (c=='b')?2*CC: (c=='m')?5: (c=='w'||c=='T'||c=='S'||c=='C'||c=='G'||c=='V'||c=='U'||c=='Q'||c=='A'||c=='v'||c=='c'||c=='q')?CC: (c=='='||c=='L'||c=='N'||c=='Z'||c=='K'||c=='J')?GRIND_H: (c=='I'||c=='R'||c=='g')?6: (c=='M')?3: isRamp(c)?rampTop(tx,ty,c): 0;   // X funbox and Y trash can SOLID_H, O barrel BARREL_H, rail / ledge / bench / Z planter / K table / J jersey GRIND_H (rampdata.h), phone / radio / counter 6, M manual pad 3
+    return (c=='j')?2*CC: (c=='n')?CC: (c=='#'||c=='F'||c=='W'||c=='H'||isWinCh(c))?2*CC: (c=='X'||c=='Y')?SOLID_H: (c=='O')?BARREL_H: (c=='b')?2*CC: (c=='m')?5: (c=='w'||c=='T'||c=='S'||c=='C'||c=='t'||c=='h'||c=='d'||c=='l'||c=='p'||c=='i'||c=='o'||c=='y'||c=='G'||c=='V'||c=='U'||c=='Q'||c=='A'||c=='v'||c=='c'||c=='q')?CC: (c=='='||c=='L'||c=='N'||c=='Z'||c=='K'||c=='J')?GRIND_H: (c=='I'||c=='R'||c=='g')?6: (c=='M')?3: isRamp(c)?rampTop(tx,ty,c): 0;   // X funbox and Y trash can SOLID_H, O barrel BARREL_H, rail / ledge / bench / Z planter / K table / J jersey GRIND_H (rampdata.h), phone / radio / counter 6, M manual pad 3
 }
 static inline int isGrindH(int h){ return h==GRIND_H||h==6; }   // a surface you can grind: the skate pieces (GRIND_H) and the old 6 px things (phone, radio, counter)
 static int surfH(s32 fx,s32 fy){   // surface height at an exact position (1/256 tiles): same as tileH, but ramps slope
@@ -2226,29 +2226,30 @@ static int numText(int x,int y,int n,u16 c){
 // lifeMap = what stands on each tile, floorMap = floor style under it, wallMap = wallpaper on it (for wall tiles).
 enum { T_ROOM, T_WALL, T_FLOOR, T_ITEM, T_ERASE, NTOOL };
 static int eTool, eAct, eAx, eAy, eFl, eWp, eOb;   // editor: tool, rectangle anchor set?, anchor tile, chosen floor / wallpaper / item
-#define NOBJ 47   // (44 is the WORK MARKER 'x'; 42 and 43, the COMMUNITY FLAG 'a' and the SKATE FLAG 'k', are drawn by code, see FLAGS below, and stay the LAST TWO of MISC)
+#define NOBJ 57   // (44 is the WORK MARKER 'x'; 42 and 43, the COMMUNITY FLAG 'a' and the SKATE FLAG 'k', are drawn by code, see FLAGS below, and stay the LAST TWO of MISC)
 #define OB_LAUNCH 17   // launch ramp turns like the kicker: '9'..'<'
 #define OB_KICKER 10   // palette slots whose char carries a turn (+eRot): kicker '1'..'4', quarter pipe '5'..'8'
 #define OB_QPIPE 11
+#define OB_HALF 47   // the HALFPIPE: a builder shortcut that lays two quarter pipes facing each other (see edHalf); it is never a tile of its own
 static int eRot;   // editor: which way the next ramp faces (0 S, 1 E, 2 N, 3 W)
-static const char palCh[NOBJ]={'.','w','W','#','=','F','T','D','B','P','1','5','L','N','S','H','C','9','X','O','Y','Z','K','J','M','G','V','U','^','~','Q','I','R','A','v','b','c','q','m','E','e','f','a','k','x','n','j'};
-static const char* const palNm[NOBJ]={"CLEAR","LOW WALL","WALL","CRATE","RAIL","FRIDGE","TOILET","DOOR","BOARD","SPAWN","KICKER","Q PIPE","LEDGE","BENCH","BED","SHOWER","SOFA","LAUNCH","FUNBOX","BARREL","TRASH CAN","PLANTER","PICNIC","JERSEY","MANUAL PAD","WATER PIPE","LAVA LAMP","BEANBAG","STAIRS UP","STAIRS DOWN","DEADSET 3THOUSAND VYBE","PHONE","RADIO","SOUND SYSTEM","TV","BOOKSHELF","COFFEE MAKER","AQUARIUM","TREADMILL","WINDOW","DARK WINDOW","STRIP WINDOW","COMMUNITY FLAG","SKATE FLAG","WORK MARKER","SECURITY CAMERA","SECURITY GATE"};
-static const u16 palCol[NOBJ]={RGB(26,21,14),RGB(8,20,22),RGB(10,22,24),RGB(8,9,20),RGB(31,30,16),RGB(31,31,31),RGB(30,28,18),RGB(14,9,5),RGB(26,10,6),RGB(28,10,8),RGB(24,17,9),RGB(27,19,11),RGB(20,20,22),RGB(25,18,9),RGB(10,14,28),RGB(22,28,30),RGB(26,18,9),RGB(8,14,24),RGB(18,16,24),RGB(24,6,5),RGB(12,18,14),RGB(20,10,6),RGB(25,18,9),RGB(22,22,24),RGB(30,26,5),RGB(10,24,14),RGB(24,8,26),RGB(18,8,22),RGB(24,22,18),RGB(12,11,10),RGB(6,20,31),RGB(26,6,6),RGB(20,20,22),RGB(12,13,16),RGB(8,14,26),RGB(18,11,5),RGB(22,12,4),RGB(6,18,28),RGB(14,14,18),RGB(12,22,30),RGB(5,10,14),RGB(20,28,31),RGB(6,24,28),RGB(31,18,4),RGB(31,24,4),RGB(20,21,24),RGB(14,15,18)};
+static const char palCh[NOBJ]={'.','w','W','#','=','F','T','D','B','P','1','5','L','N','S','H','C','9','X','O','Y','Z','K','J','M','G','V','U','^','~','Q','I','R','A','v','b','c','q','m','E','e','f','a','k','x','n','j','%','r','t','h','d','l','p','i','o','y'};
+static const char* const palNm[NOBJ]={"CLEAR","LOW WALL","WALL","CRATE","RAIL","FRIDGE","TOILET","DOOR","BOARD","SPAWN","KICKER","Q PIPE","LEDGE","BENCH","BED","SHOWER","SOFA","LAUNCH","FUNBOX","BARREL","TRASH CAN","PLANTER","PICNIC","JERSEY","MANUAL PAD","WATER PIPE","LAVA LAMP","BEANBAG","STAIRS UP","STAIRS DOWN","DEADSET 3THOUSAND VYBE","PHONE","RADIO","SOUND SYSTEM","TV","BOOKSHELF","COFFEE MAKER","AQUARIUM","TREADMILL","WINDOW","DARK WINDOW","STRIP WINDOW","COMMUNITY FLAG","SKATE FLAG","WORK MARKER","SECURITY CAMERA","SECURITY GATE","HALFPIPE","RUG","DINING TABLE","CHAIR","DESK","FLOOR LAMP","HOUSEPLANT","DRESSER","FIREPLACE","KITCHEN COUNTER"};
+static const u16 palCol[NOBJ]={RGB(26,21,14),RGB(8,20,22),RGB(10,22,24),RGB(8,9,20),RGB(31,30,16),RGB(31,31,31),RGB(30,28,18),RGB(14,9,5),RGB(26,10,6),RGB(28,10,8),RGB(24,17,9),RGB(27,19,11),RGB(20,20,22),RGB(25,18,9),RGB(10,14,28),RGB(22,28,30),RGB(26,18,9),RGB(8,14,24),RGB(18,16,24),RGB(24,6,5),RGB(12,18,14),RGB(20,10,6),RGB(25,18,9),RGB(22,22,24),RGB(30,26,5),RGB(10,24,14),RGB(24,8,26),RGB(18,8,22),RGB(24,22,18),RGB(12,11,10),RGB(6,20,31),RGB(26,6,6),RGB(20,20,22),RGB(12,13,16),RGB(8,14,26),RGB(18,11,5),RGB(22,12,4),RGB(6,18,28),RGB(14,14,18),RGB(12,22,30),RGB(5,10,14),RGB(20,28,31),RGB(6,24,28),RGB(31,18,4),RGB(31,24,4),RGB(20,21,24),RGB(14,15,18),RGB(27,19,11),RGB(23,7,8),RGB(21,13,6),RGB(27,6,6),RGB(20,13,7),RGB(30,25,11),RGB(9,22,9),RGB(21,13,6),RGB(20,8,6),RGB(24,24,26)};
 static signed char palLut[256] EWRAM_BSS; static u8 palLutOk;   // tile char -> palette slot (or -1), built on first use: palIdx() runs for every tile of the minimap, so it must be O(1) even with 100+ items
 static int palIdx(char c){
     if(!palLutOk){ for(int i=0;i<256;i++) palLut[i]=-1; for(int i=NOBJ-1;i>=0;i--) palLut[(u8)palCh[i]]=(signed char)i;
         for(int r=0;r<4;r++){ palLut[(u8)('1'+r)]=OB_KICKER; palLut[(u8)('5'+r)]=OB_QPIPE; palLut[(u8)('9'+r)]=OB_LAUNCH; } palLutOk=1; }
     return palLut[(u8)c];
 }
-static char edObjCh(void){ char c=palCh[eOb]; return (eOb==OB_KICKER||eOb==OB_QPIPE||eOb==OB_LAUNCH)?(char)(c+eRot):c; }   // the char the ITEM tool places
+static char edObjCh(void){ if(eOb==OB_HALF) return (char)('5'+eRot); char c=palCh[eOb]; return (eOb==OB_KICKER||eOb==OB_QPIPE||eOb==OB_LAUNCH)?(char)(c+eRot):c; }   // the char the ITEM tool places
 // ---- BUY mode: the catalog. Every palette item sits in one category and has a price (cash of the life; BUILD COSTS option) ----
 #define DS_PRICE 75000
 #define NCAT 8
 static const char* const catNm[NCAT]={"SEAT","HOME","TECH","SKATE","DECOR","WALLS","MISC","REWARDS"};
-static const u8 catN[NCAT]={4,5,5,10,3,8,8,4};
+static const u8 catN[NCAT]={5,9,5,11,7,8,8,4};
 static int catCnt(int c){ return (c==6&&!nbFlagOk())?catN[c]-2:catN[c]; }   // the two FLAGS (the end of MISC) only show in the palette while the town view's BUILD has a free lot open
-static const u8 catItems[NCAT][10]={ {13,16,27,22}, {5,6,14,15,36}, {31,32,26,25,34}, {3,4,10,11,12,17,18,19,23,24}, {20,21,35}, {1,2,7,28,29,39,40,41}, {0,8,9,44,45,46,42,43}, {37,38,33,30} };   // (the last row is REWARDS: aquarium, treadmill, sound system, DeadSet)
-static const u32 palPrice[NOBJ]={0,50,100,120,250,1200,600,250,0,0,450,900,300,350,1500,1100,1400,700,800,80,60,150,700,200,150,400,250,300,900,900,DS_PRICE,200,150,2500,1800,600,250,1000,1500,400,450,500,0,0,0,300,200};   // simoleons: a starter room (bed, fridge, toilet, shower, sofa, TV) is about 8000 of the 15000 you start with
+static const u8 catItems[NCAT][12]={ {13,16,27,22,50}, {5,6,14,15,36,49,51,54,56}, {31,32,26,25,34}, {3,4,10,11,12,17,18,19,23,24,47}, {20,21,35,48,52,53,55}, {1,2,7,28,29,39,40,41}, {0,8,9,44,45,46,42,43}, {37,38,33,30} };   // (the last row is REWARDS: aquarium, treadmill, sound system, DeadSet)
+static const u32 palPrice[NOBJ]={0,50,100,120,250,1200,600,250,0,0,450,900,300,350,1500,1100,1400,700,800,80,60,150,700,200,150,400,250,300,900,900,DS_PRICE,200,150,2500,1800,600,250,1000,1500,400,450,500,0,0,0,300,200,3600,120,350,150,500,200,120,450,1200,700};   // simoleons: a starter room (bed, fridge, toilet, shower, sofa, TV) is about 8000 of the 15000 you start with
 static int edCatOf(int idx,int*pos){ for(int c=0;c<NCAT;c++) for(int j=0;j<catCnt(c);j++) if(catItems[c][j]==idx){ if(pos) *pos=j; return c; } if(pos) *pos=0; return 0; }
 static void edItemStep(int d){ int p, c=edCatOf(eOb,&p); p=(p+d+catCnt(c))%catCnt(c); eOb=catItems[c][p]; }   // L / R: the next item of this category
 static void edCatStep(int d){ int c=(edCatOf(eOb,0)+d+NCAT)%NCAT; eOb=catItems[c][0]; }                  // SELECT + L / R: the next category
@@ -2451,6 +2452,17 @@ static void mapPlace(int x,int y,char c){
     if(c!=old){ int net=edCost(c)-edSell(old); if(net&&!edPay(net)) return; }   // buying costs; replacing or removing sells the old one back (half)
     if(c=='B'||c=='P'){ for(int j=0;j<MH;j++)for(int i=0;i<MW;i++) if(lifeMap[j][i]==c){ udRec(i,j); lifeMap[j][i]='.'; } }   // (the old board / spawn is a change too: undo puts it back)
     udRec(x,y); lifeMap[y][x]=c; if(c=='w'||c=='W') wallMap[y][x]=(u8)eWp; wDirty=1; }
+
+// HALFPIPE (BUILD > SKATE): two quarter pipes facing each other with two flat tiles between, 2 tiles wide, laid in the direction SEL+A turned to.
+// The tile under the cursor is the corner of the first pipe. It needs all 8 tiles free; the 4 pipe tiles are bought one by one like any item.
+static void edHalf(int x,int y){
+    static const signed char dx[4]={0,1,0,-1}, dy[4]={1,0,-1,0};
+    int d=eRot&3, p=(d+1)&3, i, w;
+    for(w=0;w<2;w++)for(i=0;i<4;i++){ int tx=x+i*dx[d]+w*dx[p], ty=y+i*dy[d]+w*dy[p];
+        if(tx<1||ty<1||tx>=MW-1||ty>=MH-1||lifeMap[ty][tx]!='.'){ dsMsg="HALFPIPE NEEDS 4 X 2 FREE TILES"; return; } }
+    if(edCharged()&&simMoney<4*edCost('5')){ dsMsg="NOT ENOUGH CASH"; return; }
+    for(w=0;w<2;w++){ mapPlace(x+w*dx[p],y+w*dy[p],(char)('5'+d)); mapPlace(x+3*dx[d]+w*dx[p],y+3*dy[d]+w*dy[p],(char)('5'+((d+2)&3))); }
+}
 
 // ---------- floors: the live map is the floor you are on; the others wait packed in flPool. Stairs: '^' goes up, '~' comes down. House slots (slots.h) keep all of them ----------
 static void hhSlotsFree(void); static void liveInvalidate(void);
@@ -2843,11 +2855,22 @@ static void clTick(void){
         if(clReal&&clTook==clReal){ lscore+=500; specAdd(SPEC_MAX); sfxPlay(SFX_STICK); lnote="LOT CLEARED  +500"; lnoteT=110; tgDone(4); }   // every letter and the tape of this lot
     }
 }
+// WALLRIDE (skating only): in the air, hold R and skate into a tall thing (a wall, crate, fridge ...) and you stick to it and run along it for a
+// second or so, scoring as you go, then kick off it. Let go of R, land, or run out of wall and you drop. Walking never does this.
+#define WR_LEN 70   // steps a wallride lasts at most (about 1.2 s)
+static u8 lwr EWRAM_BSS; static s8 lwrAx EWRAM_BSS, lwrSg EWRAM_BSS; static int lwrV EWRAM_BSS;   // steps left, which axis the wall is on (0 = x), which side it is on (+1 / -1), the speed along it
+static void wrDir(int bx,int by){ int best=0, bd=-999999; for(int a=0;a<256;a+=2){ int dp=fcos(a)*bx+fsin(a)*by; if(dp>bd){ bd=dp; best=a; } } F.angF=best<<4; }   // point the board along (bx,by)
+static void wrEnd(void){   // kick off the wall: away from it and on along it, with the spin cleared so the landing is fair
+    int al=lwrV<0?-1:1; lwr=0; lbumpCd=40;
+    if(lwrAx==0) wrDir(-lwrSg*2,al); else wrDir(al,-lwrSg*2);
+    if(F.spd<160) F.spd=160;
+    F.fvx=F.fvy=0; F.rx=F.ry=0; F.spin=F.spinV=0; lflip=0; lsp=F.spd>>4;
+}
 static void lifeInit(void){
     if(!(shapeMask()>>look[LK_SHAPE]&1)){ look[LK_SHAPE]=(u8)maskPick(shapeMask(),look[LK_SHAPE],NSHAPE); if(!custom) buildLook(); }
     flHome(); mapScan(); hhStart();
     bakeSprites(); camSnap=1;
-    lfx=spx*256+128; lfy=spy*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote=""; lchill=0; lskate=0; lhave=(bdx<0); lfr=0; lvx=lvy=0; ldead=0; lmaxz=0; lplay=0; lbumpCd=0; lfood=100; lbl=0; lhp=HP_MAX; lnear=0; lspec=0; lspecOn=0; lsw=0; lskl=0; lstrk=0; moodReset(); simsReset(); sfxStop(); feelReset(0);
+    lfx=spx*256+128; lfy=spy*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote=""; lchill=0; lskate=0; lhave=(bdx<0); lfr=0; lvx=lvy=0; ldead=0; lmaxz=0; lplay=0; lbumpCd=0; lfood=100; lbl=0; lhp=HP_MAX; lnear=0; lspec=0; lspecOn=0; lsw=0; lskl=0; lstrk=0; lwr=0; moodReset(); simsReset(); sfxStop(); feelReset(0);
     clPlace(); if(CL_ON&&!(clGot&32)){ lnote="FIND THE HIDDEN TAPE"; lnoteT=90; }   // (collectibles: see clPlace)
 }
 static char rampCh; static s32 rampX, rampY; static u8 lqp;
@@ -2913,15 +2936,27 @@ static void lifeStep(u16 k,u16 pr,int fr){
             feelWalk(k,pr,lz<=fh);                             // D-pad relative to screen, B = run, A = hop
         }
     }
+    if(lwr){   // riding a wall: stay up, run along it, and drop off when something ends it
+        int tx=(int)(lfx>>8)+(lwrAx==0?lwrSg:0), ty=(int)(lfy>>8)+(lwrAx==0?0:lwrSg);
+        if(!lskate||ldead||lstun>0||!(k&K_R)||lz<=fh||--lwr==0||tileH(tx,ty)<=(int)(lz>>8)) wrEnd();
+        else { lvz=0; if(lwrAx==0){ lvx=0; lvy=lwrV; } else { lvy=0; lvx=lwrV; } F.rx=F.ry=0; lbumpCd=40;
+            if((fr&7)==0){ int g=30+skLvl(SK_GRIND)*2; if(lspecOn) g*=2; lscore+=g; lcPts+=g; lcT=oComboLen(); specAdd(6); } }
+    }
     int zp=(int)(lz>>8);
     s32 nx=lfx+lvx, ny=lfy+lvy;   // move per axis so walls slide
-    int bump=0, sp0b=lsp;
+    int bump=0, sp0b=lsp, bxS=0, byS=0;   // bxS / byS: which way the wall is that stopped the x / y move
     int tol=isRamp(lifeMap[lfy>>8][lfx>>8])?F_RAMP_TOL:3;   // a ramp climbs a few px per step without being a wall
-    if(surfH(nx,lfy)<=zp+tol) lfx=nx; else bump=1;
-    if(surfH(lfx,ny)<=zp+tol) lfy=ny; else bump=1;
-    if(bump){
-        lsp=(lsp*2)/3;
-        if(lbumpCd==0&&sp0b>=(lskate?12:10)){ lbumpCd=40;   // skating into a wall hurts, running into one bonks
+    if(surfH(nx,lfy)<=zp+tol) lfx=nx; else { bump=1; bxS=lvx>0?1:-1; }
+    if(surfH(lfx,ny)<=zp+tol) lfy=ny; else { bump=1; byS=lvy>0?1:-1; }
+    if(lwr&&bump) wrEnd();   // ran into a corner
+    if(bump&&lskate&&!lwr&&(k&K_R)&&lstun<=0&&!ldead&&sp0b>=8&&(bxS||byS)&&lz>fh+(5<<8)&&!isRamp(lifeMap[byS?(lfy>>8)+byS:lfy>>8][bxS?(lfx>>8)+bxS:lfx>>8])){   // WALLRIDE
+        int al=bxS?lvy:lvx; if(al>-12&&al<12) al=al<0?-12:12; if(al>40) al=40; if(al<-40) al=-40;
+        lwr=WR_LEN; lwrAx=bxS?0:1; lwrSg=(s8)(bxS?bxS:byS); lwrV=al; lvz=0; lbumpCd=40;
+        { int wp=100+skLvl(SK_GRIND)*5; if(lspecOn) wp*=2; lscore+=wp; lcPts+=wp; } lcAdd("WALLRIDE"); lcN++; lcT=oComboLen(); lnote="WALLRIDE"; lnoteT=40; sfxPlay(SFX_POP); specAdd(40); moodEvent(M_TRICK);
+    }
+    else if(bump){
+        lsp=lskate?(lsp*2)/3:(lsp*5)/6;   // on foot you slide along a wall instead of stopping dead
+        if(lbumpCd==0&&sp0b>=(lskate?12:16)){ lbumpCd=lskate?40:90;   // skating into a wall hurts; running flat out into one bonks (walking is silent, so no more screaming at walls)
             if(lskate&&(k&K_R)){ int wp=150+skLvl(SK_AIR)*5; if(lspecOn) wp*=2; lscore+=wp; lcAdd("WALL TAP"); simEvent(SE_WALLTAP); lcN++; lcPts+=wp; lcT=oComboLen(); lvz=0x2A0; lnote="WALL TAP"; lnoteT=40; sfxPlay(SFX_POP); specAdd(50); moodEvent(M_TRICK); }
             else if(lskate&&(abPow()&PW_CHARGE)){ sfxPlay(SFX_HIT); lnote="HORNS FIRST"; lnoteT=30; simEvent(SE_CHARGE); }   // HORNS: charge the wall, no harm done
             else if(lskate) hurt(sp0b*2/3+(rnd8()>>5),2); else sfxPlay(SFX_BONK); }   // (was speed + 0..15: a full speed wall was a coin flip for dying. Now 8..23, worst case a short OW)
@@ -2942,7 +2977,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
     if(air){
         int zz=(int)(lz>>8); if(zz>lmaxz) lmaxz=zz;
         if(!lplay&&lvz<0){ int hi=lmaxz-(int)(fh>>8);
-            if(hi>=34+(lqp?40:0)){ voxPlay(V_shriek); lplay=1; }                 // falling from way up
+            if(hi>=(lskate?34:80)+(lqp?40:0)){ voxPlay(V_shriek); lplay=1; }                 // falling from way up
             else if(hi>=10&&F.spin&&feelPredGrade()==0){ sfxPlay(SFX_GASP); lplay=1; }   // landing is going wrong (judged from where the spin will end up, not where it is now)
         }
     }
@@ -3282,7 +3317,7 @@ static void drawPlayerNow(void){
 // The room inside the rectangle x0..x1 / y0..y1 (end excluded), drawn back to front and clipped to it: the same pixels a whole-screen
 // draw would put there. ed=1: editor view (no player).
 static inline int isItemCh(char c){
-    switch(c){ case '#': case 'F': case 'T': case '=': case 'D': case 'L': case 'N': case 'S': case 'H': case 'C': case 'X': case 'O': case 'Y': case 'Z': case 'K': case 'J': case 'M': case 'G': case 'V': case 'U': case 'Q': case 'I': case 'R': case 'A': case 'v': case 'b': case 'c': case 'q': case 'm': case '^': case '~': return 1; }
+    switch(c){ case '#': case 'F': case 'T': case '=': case 'D': case 'L': case 'N': case 'S': case 'H': case 'C': case 'X': case 'O': case 'Y': case 'Z': case 'K': case 'J': case 'M': case 'G': case 'V': case 'U': case 'Q': case 'I': case 'R': case 'A': case 'v': case 'b': case 'c': case 'q': case 'm': case 'r': case 't': case 'h': case 'd': case 'l': case 'p': case 'i': case 'o': case 'y': case '^': case '~': return 1; }
     return isRamp(c);
 }
 // a collectible floating over tile centre (sx,sy): a spinning gold tag with its letter, or the tape (a little cassette)
@@ -4001,7 +4036,7 @@ static void drawEditorHud(const char*msg){
                 case 20:blitItem(V_TRASH,221,141);break; case 21:blitItem(V_PLANTER,221,141);break; case 22:blitItem(V_PICNIC,221,141);break;
                 case 23:blitItem(V_JERSEYU,221,141);break; case 24:blitItem(V_MPAD,221,141);break;
                 case 14:blitItem(V_BED,221,141);break; case 15:blitItem(V_SHOWER,221,141);break; case 16:blitItem(V_SOFA,221,141);break; case 25:blitItem(V_PIPE,221,141);break; case 26:blitItem(V_LAVA,221,141);break; case 27:blitItem(V_BEANBAG,221,141);break; case 28:case 29:drawStairs(221,141,eOb==28);break; case 30:blitItem(V_DEADSET,221,141);break; case 31:blitItem(V_PHONE,221,141);break; case 32:blitItem(V_RADIO,221,141);break; case 33:blitItem(V_STEREO,221,141);break;
-                case 34:blitItem(V_TV,221,141);break; case 35:blitItem(V_SHELF,221,141);break; case 36:blitItem(V_COFFEE,221,141);break; case 37:blitItem(V_AQUA,221,141);break; case 38:blitItem(V_TREAD,221,141);break; case 39:case 40:case 41:{ u16 wb[WALL_H]; for(int u=0;u<8;u++){ winCol(eOb-39,0,u,wb); for(int r=0;r<12;r++) px(215+u+(u>3),136+r,wb[3+r*2]); } break; } default:drawSpawn(221,142); } }
+                case 34:blitItem(V_TV,221,141);break; case 35:blitItem(V_SHELF,221,141);break; case 36:blitItem(V_COFFEE,221,141);break; case 37:blitItem(V_AQUA,221,141);break; case 38:blitItem(V_TREAD,221,141);break; case OB_HALF:blitItem(V_QPIPE+((eRot-cview)&3),221,141);break; case 48:blitItem(V_RUG,221,141);break; case 49:blitItem(V_TABLE,221,141);break; case 50:blitItem(V_CHAIR,221,141);break; case 51:blitItem(V_DESK,221,141);break; case 52:blitItem(V_LAMP,221,141);break; case 53:blitItem(V_PLANT,221,141);break; case 54:blitItem(V_DRESSER,221,141);break; case 55:blitItem(V_FIRE,221,141);break; case 56:blitItem(V_COUNTER,221,141);break; case 39:case 40:case 41:{ u16 wb[WALL_H]; for(int u=0;u<8;u++){ winCol(eOb-39,0,u,wb); for(int r=0;r<12;r++) px(215+u+(u>3),136+r,wb[3+r*2]); } break; } default:drawSpawn(221,142); } }
         if(eOb==1||eOb==2){ wallSwatch(eWp,212,137); }
         h1="A BUY  B SELL  A AND MOVE PAINTS  SEL+A TURN";
         h2="L R ITEM  SEL+L R TYPE  L+R HELD UP DN LEVEL";
@@ -4079,7 +4114,7 @@ static void mapEditor(void){
             int dx=ux+uy, dy=uy-ux; dx=(dx>0)-(dx<0); dy=(dy>0)-(dy<0);
             if(fast&&eTool!=T_ITEM){ dx*=2; dy*=2; }
             ecx+=dx; ecy+=dy; if(ecx<edX0)ecx=edX0; if(ecy<edY0)ecy=edY0; if(ecx>edX1)ecx=edX1; if(ecy>edY1)ecy=edY1; if(ecx>=MW)ecx=MW-1; if(ecy>=MH)ecy=MH-1;
-            if(eTool==T_ITEM){ if(k&K_A) mapPlace(ecx,ecy,edObjCh()); else if(k&K_B) mapPlace(ecx,ecy,'.'); }
+            if(eTool==T_ITEM){ if(k&K_A){ if(eOb!=OB_HALF) mapPlace(ecx,ecy,edObjCh()); } else if(k&K_B) mapPlace(ecx,ecy,'.'); }
             dirty=1;
         }
         if(pr|rel) dirty=1;
@@ -4093,7 +4128,7 @@ static void mapEditor(void){
         if(rel&K_SEL){ if(!comboUsed){ if(eTool==T_ITEM) eTool=edLast; else { edLast=eTool; eTool=T_ITEM; } eAct=0; } comboUsed=0; }   // SELECT alone: BUILD <-> BUY (back to the tool you had)
         if(pr&K_A){
             if(eTool==T_ITEM&&(k&K_SEL)){ eRot=(eRot+1)&3; comboUsed=1; msg="TURNED"; msgT=20; }   // SEL+A: turn the next ramp
-            else if(eTool==T_ITEM){ money_t m0=simMoney; mapPlace(ecx,ecy,edObjCh()); if(xo[XO_BUYCOST]&&simMoney!=m0){ msg=simMoney<m0?"BOUGHT":"SOLD"; msgT=30; } }
+            else if(eTool==T_ITEM){ money_t m0=simMoney; if(eOb==OB_HALF) edHalf(ecx,ecy); else mapPlace(ecx,ecy,edObjCh()); if(xo[XO_BUYCOST]&&simMoney!=m0){ msg=simMoney<m0?"BOUGHT":"SOLD"; msgT=30; } }
             else if(!eAct){ eAct=1; eAx=ecx; eAy=ecy; }
             else if(eApply()){ eAct=0; msg=eTool==T_ROOM?"ROOM BUILT":eTool==T_WALL?"WALL BUILT":eTool==T_FLOOR?"FLOOR LAID":"SOLD"; msgT=70; }
             else { msg="ROOM NEEDS 3 X 3 OR BIGGER"; msgT=70; }

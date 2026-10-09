@@ -808,9 +808,9 @@ static void simRoomTick(int tx,int ty){
     for(int y=ty-SIM_ROOM_R;y<=ty+SIM_ROOM_R;y++)for(int x=tx-SIM_ROOM_R;x<=tx+SIM_ROOM_R;x++){
         if(x<0||y<0||x>=MW||y>=MH) continue;
         char c=lifeMap[y][x]; int b=0;
-        if(c=='F') b=1; else if(c=='T') b=2; else if(c=='S') b=4; else if(c=='H') b=8; else if(c=='C'||c=='U') b=16; else if(c=='V'||c=='G') b=32; else if(c=='Q'||c=='R'||c=='A') b=64; else if(c=='v') b=128; else if(c=='b') b=256; else if(c=='q') b=512; else if(c=='c'||c=='m') b=1024;   // a lava lamp (or the pipe) makes it a den; home pack: TV, books, fish, coffee or a treadmill each add a kind
+        if(c=='F') b=1; else if(c=='T') b=2; else if(c=='S') b=4; else if(c=='H') b=8; else if(c=='C'||c=='U') b=16; else if(c=='V'||c=='G') b=32; else if(c=='Q'||c=='R'||c=='A') b=64; else if(c=='v') b=128; else if(c=='b') b=256; else if(c=='q') b=512; else if(c=='c'||c=='m') b=1024; else if(c=='r'||c=='l'||c=='p'||c=='o') b=2048; else if(c=='t'||c=='h'||c=='d'||c=='i'||c=='y') b=4096;   // living and decor pack: a rug, lamp, plant or fire makes it cosy; a table, chair, desk, dresser or counter makes it lived in   // a lava lamp (or the pipe) makes it a den; home pack: TV, books, fish, coffee or a treadmill each add a kind
         if(b){ kinds|=b; items++; } }
-    int k=0; for(int b=1;b<2048;b<<=1) if(kinds&b) k++;
+    int k=0; for(int b=1;b<8192;b<<=1) if(kinds&b) k++;
     int target=k*16+(items>5?5:items)*4; if(target>100) target=100;
     if(target>sRoom){ sRoom+=2; if(sRoom>target) sRoom=target; }
     else if(target<sRoom&&(simT%90)<30) sRoom--;       // sags slowly

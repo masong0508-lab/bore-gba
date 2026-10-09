@@ -61,7 +61,7 @@ static void drawPap(int sx,int sy,int p){   // a photographer with a big camera 
     if(papFl[p]){ rect(sx-14,sy-24,8,8,WHITE); rect(sx-16,sy-21,12,2,WHITE); rect(sx-11,sy-27,2,14,WHITE); }   // the flash
 }
 // which way an item faces (world dir 0=S(+y) 1=E(+x) 2=N(-y) 3=W(-x)): away from a wall, toward open floor
-static int itemOpen(int x,int y){ if(x<0||y<0||x>=MW||y>=MH) return 0; char c=lifeMap[y][x]; return c=='.'||c=='D'||c=='B'||c=='P'; }
+static int itemOpen(int x,int y){ if(x<0||y<0||x>=MW||y>=MH) return 0; char c=lifeMap[y][x]; return c=='.'||c=='D'||c=='B'||c=='P'||c=='r'; }
 static int itemFacing(int x,int y){
     static const signed char dx[4]={0,1,0,-1}, dy[4]={1,0,-1,0};
     for(int d=0;d<4;d++) if(itemOpen(x+dx[d],y+dy[d])&&!itemOpen(x+dx[(d+2)&3],y+dy[(d+2)&3])) return d;
@@ -116,5 +116,14 @@ static void drawItemTile(char c,int sx,int sy,int x,int y){
     else if(c=='c') blitItem(V_COFFEE,sx,sy);                                   // the coffee maker (R: a cup)
     else if(c=='q') blitItem(V_AQUA,sx,sy);                                     // the aquarium (R: feed the fish)
     else if(c=='m') blitItem(V_TREAD+((itemFacing(x,y)-cview)&3),sx,sy);       // the treadmill (R: a run)
+    else if(c=='r') blitItem(V_RUG,sx,sy);                                     // living and decor pack: the rug (flat, walk over it)
+    else if(c=='t') blitItem(V_TABLE,sx,sy);
+    else if(c=='h') blitItem(V_CHAIR+((itemFacing(x,y)-cview)&3),sx,sy);
+    else if(c=='d') blitItem(V_DESK+((itemFacing(x,y)-cview)&3),sx,sy);
+    else if(c=='l') blitItem(V_LAMP,sx,sy);
+    else if(c=='p') blitItem(V_PLANT,sx,sy);
+    else if(c=='i') blitItem(V_DRESSER+((itemFacing(x,y)-cview)&3),sx,sy);
+    else if(c=='o') blitItem(V_FIRE+((itemFacing(x,y)-cview)&3),sx,sy);
+    else if(c=='y') blitItem(V_COUNTER+((itemFacing(x,y)-cview)&3),sx,sy);
     else if(c=='^'||c=='~') drawStairs(sx,sy,c=='^');
 }

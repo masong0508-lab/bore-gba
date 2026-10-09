@@ -42,6 +42,8 @@ static const IBox bxToilet[3]={
 #include "simart.h"
 // ---- home pack: TV, bookshelf, coffee maker, aquarium, treadmill ----
 #include "homeart.h"
+// ---- living and decor pack: rug, table, chair, desk, floor lamp, houseplant, dresser, fireplace, kitchen counter ----
+#include "decorart.h"
 
 // ---- door mat / threshold ----
 static const u16 pDr[4]={RGB(8,5,3),RGB(18,11,6),RGB(24,16,8),RGB(28,20,10)};
@@ -297,6 +299,8 @@ static void bakeAll(void){
     bakePix(V_RADIO,rdArt,pSnd,0); bakePix(V_STEREO,syArt,pSnd,0);   // sound pack
     for(int r=0;r<4;r++){ bakeOne(V_TV+r,bxTv,5,r,11); bakeOne(V_SHELF+r,bxShelf,1,r,11); bakeOne(V_TREAD+r,bxTread,5,r,11); }   // home pack
     bakeOne(V_COFFEE,bxCoffee,4,0,11); bakeOne(V_AQUA,bxAqua,3,0,11);
+    bakeOne(V_RUG,bxDRug,1,0,13); bakeOne(V_TABLE,bxDTable,5,0,11); bakeOne(V_LAMP,bxDLamp,3,0,11); bakeOne(V_PLANT,bxDPlant,3,0,11);   // living and decor pack
+    for(int r=0;r<4;r++){ bakeOne(V_CHAIR+r,bxDChair,6,r,11); bakeOne(V_DESK+r,bxDDesk,6,r,11); bakeOne(V_DRESSER+r,bxDDresser,1,r,11); bakeOne(V_FIRE+r,bxDFire,3,r,11); bakeOne(V_COUNTER+r,bxDCounter,1,r,11); }
     for(int r=0;r<4;r++){   // long ramps: the chained kicker tiles and launch tiles (see ramps.h)
         bakeOne(V_KSEG+r,bxKickerSeg0,8,r,11); bakeOne(V_KSEG+4+r,bxKickerSeg1,8,r,11); bakeOne(V_KSEG+8+r,bxKickerSeg2,8,r,11); bakeOne(V_KSEG+12+r,bxKickerSeg3,8,r,11);
         bakeOne(V_LSEG+r,bxLaunchSeg0,8,r,11); bakeOne(V_LSEG+4+r,bxLaunchSeg1,8,r,11); bakeOne(V_LSEG+8+r,bxLaunchSeg2,8,r,11); }
