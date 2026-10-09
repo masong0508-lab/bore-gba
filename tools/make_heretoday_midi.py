@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""HERE TODAY (MISSY'S SONG), v4 (voice an octave up, female and emotional): renders the author's MIDI (tools/here_today.mid: female voice, nylon guitar, string quartet) to source/music/here_today.adp
+"""HERE TODAY (MISSY'S SONG), v5 (voice an octave up, female and emotional; new lyrics written note for note): renders the author's MIDI (tools/here_today.mid: female voice, nylon guitar, string quartet) to source/music/here_today.adp
 and re-times the scene-5 lyric beats (source/cutscene.h) and camera shots (source/csshot.h) to its phrases.  Run from the project root: python3 tools/make_heretoday_midi.py"""
 import sys, os, re, wave
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -69,24 +69,89 @@ out = out[int(TRIM * SR):]
 out = signal.lfilter(*signal.butter(1, 60 / (SR / 2), 'high'), out); out /= np.abs(out).max() / .9
 w = wave.open(__import__('os').environ.get('TMPDIR','.') + '/here_today.wav', 'wb'); w.setnchannels(1); w.setsampwidth(2); w.setframerate(SR); w.writeframes((out * 32767).astype('<i2').tobytes()); w.close()
 x = ES.load(__import__('os').environ.get('TMPDIR','.') + '/here_today.wav'); open('source/music/here_today.adp', 'wb').write(encode(x)); print('adp', len(x) / ES.RATE, 's')
-# ---- phrases -> lyric beats
+# ---- phrases -> lyric beats.  The melody has 20 phrases; each is cut into LINES, and every line starts on the first note it is sung on (the notes count is the
+# first number: about one syllable per note, long notes carry the stressed words), so the caption appears with its notes and the syllables fall where the melody does.
+LY = [
+ (0, [(4, "Hey, Mame, it's me.")]),
+ (1, [(6, "The room is full tonight,"), (6, "but one chair's left alone.")]),
+ (2, [(6, "I'm saving it for you."), (6, "Please stay with me tonight.")]),
+ (3, [(4, "Are you out there?")]),
+ (4, [(6, "I wrote this in the hall"), (6, "while you sat on the floor.")]),
+ (5, [(6, "You whistled in the dark,"), (6, "and that's how I got through.")]),
+ (6, [(4, "I was so loud,")]),
+ (7, [(5, "and I couldn't see"), (5, "you there beside me,")]),
+ (8, [(7, "but you held my hand all night,"), (4, "stayed anyway.")]),
+ (9, [(4, "Mame, I'm still here.")]),
+ (10, [(4, "Don't say goodbye.")]),
+ (11, [(2, "Not yet.")]),
+ (12, [(7, "Can you hear me sing it, Mame?"), (12, "I'll hold your note till the whole room knows"), (4, "Don't go quiet.")]),
+ (13, [(7, "I felt you in the front row,"), (7, "and the lights stay on for you.")]),
+ (14, [(7, "I was so hard to be with,"), (12, "but you stayed through every single worst night"), (4, "you stayed, you stayed.")]),
+ (15, [(7, "So this one is for you, Mame,"), (7, "every note, every breath,"), (3, "I miss you.")]),
+ (16, [(4, "The song is yours.")]),
+ (17, [(6, "Your seat is still so warm"), (6, "like you just left the room.")]),
+ (18, [(6, "I won't turn off the light,"), (3, "you were here"), (6, "today, and every day.")]),
+ (19, [(6, "I'm here, because you were.")]),
+]
 v = notes(tr[1]); ph = [[v[0]]]
 for n in v[1:]:
     (ph[-1].append(n) if n[0] - ph[-1][-1][1] <= .45 else ph.append([n]))
-P = [p[0][0] - TRIM for p in ph]; END = ph[-1][-1][1] - TRIM + 1.2; assert len(P) == 20, len(P)
-L = open('source/cutscene.h', encoding='utf-8').read().split('\n'); s = next(i for i, l in enumerate(L) if 'csS5[]' in l)
-idx = [i for i in range(s + 1, len(L)) if L[i].startswith(' {')]; lyr = list(range(10, 29)) + [30]; lens = {}
-for k, bi in enumerate(lyr):
-    gap = (P[k + 1] - P[k]) if k < 19 else (END - P[19]); fr = round(gap * FPS)
-    if bi == 28: fr -= 40
-    if bi == 30: fr -= 41
-    line = L[idx[bi]]; txt = re.findall(r'\{"([^"]*)"', line)[0]; d = max(20, fr - 2 * len(txt) - 1)
-    L[idx[bi]] = re.sub(r'(CF_AUTO,\d+,)\d+(,"Missy")', lambda m: m.group(1) + str(d) + m.group(2), line); lens[bi] = d + 2 * len(txt) + 1
-lens[29] = 40; lens[31] = 41
-L = '\n'.join(L).replace('u8 bg, a, pa, ax, b, pb, bx, fx, sfx, dur;', 'u8 bg, a, pa, ax, b, pb, bx, fx, sfx; u16 dur;')
-open('source/cutscene.h', 'w', encoding='utf-8').write(L)
+assert len(ph) == 20, len(ph); END = ph[-1][-1][1] - TRIM + 1.2
+lines = []                                              # [start s, text, highest note of the line, phrase]
+for pi, chunks in LY:
+    assert sum(c[0] for c in chunks) == len(ph[pi]), (pi, sum(c[0] for c in chunks), len(ph[pi]))
+    k = 0
+    for cn, txt in chunks:
+        lines.append([ph[pi][k][0] - TRIM, txt, max(n[2] for n in ph[pi][k:k + cn]), pi]); k += cn
+fs = [round(l[0] * FPS) for l in lines] + [round(END * FPS)]
+PAD1, PAD2 = 40, 41                                     # the short wordless beats before the last phrase and after it (the camera settles on the empty seat)
+last18 = max(i for i, l in enumerate(lines) if l[3] == 18)
+beats = []; bad = 0
+for i, l in enumerate(lines):
+    fr = fs[i + 1] - fs[i]
+    if i == last18: fr -= PAD1
+    if i == len(lines) - 1: fr -= PAD2
+    txt = l[1]; ws = txt.split(); rows = 1; cur = ws[0]                # the caption must fit on ONE page (two rows of about 24 letters), or it would wait between pages and drift off the song
+    for w in ws[1:]:
+        if len(cur) + 1 + len(w) <= 24: cur += ' ' + w
+        else: rows += 1; cur = w
+    assert rows <= 2, ('3 rows', txt)
+    d = max(20, fr - 2 * len(txt) - 1)
+    if d * 1 + 2 * len(txt) + 1 > fr + 1: bad += 1; print('TOO LONG for its notes:', repr(txt), 'needs', 2 * len(txt) + 21, 'has', fr)
+    beats.append((l, d, d + 2 * len(txt) + 1))
+assert not bad
+L = open('source/cutscene.h', encoding='utf-8').read().split('\n'); s5 = next(i for i, x in enumerate(L) if 'csS5[]' in x)
+idx = [i for i in range(s5 + 1, len(L)) if L[i].startswith(' {')]; first = idx[10]
+end = next(i for i in idx if 'Thanks for coming' in L[i]); assert end > first
+def beat(pose, sfx, d, txt): return ' {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,%s,43,%s,%d,%d,%s,{%s,0,0}},' % (pose, 'CF_AUTO' if txt else '0', sfx, d, '"Missy"' if txt else '0', '"%s"' % txt if txt else '0')
+new = []; shot = []; bi = 10; flip = 0; pos = {}
+for n, (l, d, tot) in enumerate(beats):
+    if n == len(beats) - 1:                             # the last phrase: pad beat first, then the sway
+        new.append(' {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SING,43,0,0,%d,0,{0,0,0}},' % PAD1); pos['pad1'] = bi; bi += 1
+    pose = 'CP_STAND' if n == 0 else ('CP_SWAY' if n == len(beats) - 1 else 'CP_SING')
+    new.append(beat(pose, 250 if n == 0 else 0, d, l[1])); pos[n] = bi
+    bi += 1
+new.append(' {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SWAY,43,0,0,%d,0,{0,0,0}},' % PAD2); pos['pad2'] = bi
+L[first:end] = new
+open('source/cutscene.h', 'w', encoding='utf-8').write('\n'.join(L).replace("Beats 10+ are the sung lines, one per phrase of the melody (tools/make_heretoday.py); each lasts from its phrase start to the next", "Beats 10+ are the sung lines, written note for note to the melody (LY in tools/make_heretoday_midi.py): each line starts on its first note and lasts to the next line"))
+# ---- camera: a push or drift on the singer for each line, tight pushes on the high ones; the last phrase drifts to the empty seat
+d18 = [(n, tot) for n, (l, d, tot) in enumerate(beats) if l[3] == 18]; T18 = sum(t for _, t in d18); A, B = (330, 172, 80), (568, 127, 95); acc = 0
+for n, (l, d, tot) in enumerate(beats):
+    b = pos[n]
+    if l[3] == 18:
+        f0, f1 = acc / T18, (acc + tot) / T18; acc += tot
+        z = lambda f: tuple(round(A[j] + (B[j] - A[j]) * f) for j in range(3))
+        shot.append('    {5,%d,0,  0,%d, %d,%d,%d, %d,%d,%d},' % ((b, tot) + z(f0) + z(f1)))
+    elif l[3] == 19:
+        shot.append('    {5,%d,0,  0,%d, 600,121,97, 296,120,68},' % (pos['pad1'] + 1, tot))
+    elif l[2] >= 67: shot.append('    {5,%d,1,  0,%d, 420,0,82, 700,0,82},' % (b, tot))
+    else: shot.append('    {5,%d,1,  0,%d, %s,0,84, %s,0,84},' % ((b, tot) + (('330', '450') if flip == 0 else ('450', '330')))); flip ^= 1
+shot.insert(len([x for x in shot if ',0,  0,' in x and x.startswith('    {5,') and int(x.split(',')[1]) < pos['pad1']]), '    {5,%d,0,  0,%d, %d,%d,%d, 600,121,97},' % (pos['pad1'], PAD1, *B))
+shot.append('    {5,%d,0,  0,%d, 296,120,68, 256,120,64},' % (pos['pad2'], PAD2))
+shot.sort(key=lambda x: int(x.split(',')[1]))
 C = open('source/csshot.h', encoding='utf-8').read().split('\n')
-for i, l in enumerate(C):
-    m = re.match(r'(\s*\{5,(\d+),\d+,\s*0,\s*)\d+(,.*)', l)
-    if m and int(m.group(2)) in lens: C[i] = m.group(1) + str(lens[int(m.group(2))]) + m.group(3)
-open('source/csshot.h', 'w', encoding='utf-8').write('\n'.join(C)); print('retimed', lens)
+ci = [i for i, x in enumerate(C) if re.match(r'\s*\{5,(\d+),', x) and int(re.match(r'\s*\{5,(\d+),', x).group(1)) >= 10]
+assert ci and ci == list(range(ci[0], ci[-1] + 1)), ci
+C[ci[0]:ci[-1] + 1] = shot
+open('source/csshot.h', 'w', encoding='utf-8').write('\n'.join(C).replace('for each sung line (one shot per line of the song, tools/make_heretoday_midi.py)', 'for each sung line').replace('for each sung line', 'for each sung line (one shot per line of the song, tools/make_heretoday_midi.py)'))
+print('lines', len(lines), 'beats', bi - 10 + 1, 'last beat', pos['pad2'])
