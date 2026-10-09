@@ -2514,7 +2514,6 @@ static int isDbgSong(int i){
     const char*n=songs[i].name; int len=0; while(n[len]) len++;
     static const char orig[]=" (ORIGINAL)"; int ol=(int)sizeof(orig)-1;
     if(len>ol){ const char*t=n+len-ol; int k=0; while(k<ol&&t[k]==orig[k]) k++; if(k==ol) return 1; }
-    { const char*h="HERE TODAY ("; const char*q=n; while(*h&&*q==*h){ q++; h++; } if(!*h) return 1; }   // every other version of HERE TODAY is secret: only HERE TODAY GONE TOMORROW shows
     const char*p="PLACEHOLDER"; while(*p){ if(*n++!=*p++) return 0; } return 1;
 }
 static u16 jbNameHash(int upto){   // hash of the names of the first n songs: tells whether the saved on/off flags still belong to this list (jukebox.h)
