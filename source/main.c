@@ -523,14 +523,31 @@ static const char* const mFrown[8]={ B19, B19, B19, ".....kkkkkkkkk.....", "....
 static const char* const mTongue[8]={ B19, B19, "....kkkkkkkkkkk....", ".....k.rrrrr.k.....", "......krrrrrk......", ".......kkkkk.......", B19, B19 };
 static const char* const mFangs[8]={ B19, B19, "....kkkkkkkkkkk....", ".....ww.....ww.....", "......w.....w......", B19, B19, B19 };
 static const char* const mCat[8]  ={ B19, B19, ".....k...k...k.....", "......k.k.k.k......", ".......k...k.......", B19, B19, B19 };
+// MORE FACES (added after the first 18 so saved creatures keep their sprite ids): 6 more eyes, 6 more mouths
+static const char* const aStar[8]={ B9, "....k....", "...kwk...", ".kkwwwkk.", "kwwwiwwwk", ".kkwwwkk.", "...kwk...", "....k...." };
+static const char* const aTired[8]={ B9, ".kkkkkkk.", ".wwkikww.", "..wwwww..", "..sssss..", B9, B9, B9 };
+static const char* const aSquint[8]={ B9, "kk.......", ".kkk.....", "...kkk...", ".kkk.....", "kk.......", B9, B9 };
+static const char* const aDizzy[8]={ B9, "..kkkkk..", ".kwwwwwk.", ".kwkkkwk.", ".kwkikwk.", ".kwkkkkk.", ".kwwwwwk.", "..kkkkk.." };
+static const char* const aAnime[8]={ B9, ".kkkkkkk.", "kiiiiiiik", "kiwwiiiik", "kiwwikiik", "kiiiiiiik", ".kiiiiik.", "..kkkkk.." };
+static const char* const aSide[8]={ B9, ".kkkkkkk.", "kwwwwwwwk", "kwwwkiiwk", "kwwwkiiwk", ".kwwwwwk.", "..kkkkk..", B9 };
+static const char* const mLaugh[8]={ B19, "....kkkkkkkkkkk....", "....kwwwwwwwwwk....", ".....krrrrrrrk.....", "......krrrrrk......", ".......kkkkk.......", B19, B19 };
+static const char* const mWavy[8]={ B19, B19, B19, "...k...k...k...k...", "..k.k.k.k.k.k.k.k..", ".k...k...k...k...k.", B19, B19 };
+static const char* const mPout[8]={ B19, B19, "........kkk........", ".......k.r.k.......", "........kkk........", B19, B19, B19 };
+static const char* const mBuck[8]={ B19, B19, "....kkkkkkkkkkk....", ".......kwwkwwk.....", ".......kwwkwwk.....", "........kkkkk......", B19, B19 };
+static const char* const mWonky[8]={ B19, "..............kkk..", "..........kkkk.....", "......kkkk.........", B19, B19, B19, B19 };
+static const char* const mScream[8]={ B19, "......kkkkkkk......", ".....kwwwwwwwk.....", ".....krrrrrrrk.....", ".....krrrrrrrk.....", "......kkkkkkk......", B19, B19 };
 typedef struct { const char*name; u8 wc; const char* const*art; } Spr;   // wc = width in cells
-#define NEYE 9
-#define NMOUTH 9
+#define NEYE0 9        // the first eyes and mouths: sprite ids 0..17 never move (saved creatures hold them)
+#define NMOUTH0 9
+#define NEYE 15        // eye styles in the creator (the 6 new ones are sprites 18..23)
+#define NMOUTH 15      // mouth styles (the 6 new ones are sprites 24..29)
 #define NSPR (NEYE+NMOUTH)
 static const Spr spr[NSPR]={ {"SLEEPY",1,aHalf},{"ROUND",1,aRound},{"HAPPY",1,aHappy},{"WIDE",1,aWide},{"ANGRY",1,aAngry},
                              {"CUTE",1,aCute},{"CAT",1,aCat},{"DOT",1,aDot},{"LASHES",1,aLash},
                              {"FLAT",2,mFlat},{"SMILE",2,mSmile},{"OH",2,mOh},{"GRIN",2,mGrin},{"SMIRK",2,mSmirk},
-                             {"FROWN",2,mFrown},{"TONGUE",2,mTongue},{"FANGS",2,mFangs},{"KITTY",2,mCat} };
+                             {"FROWN",2,mFrown},{"TONGUE",2,mTongue},{"FANGS",2,mFangs},{"KITTY",2,mCat},
+                             {"STAR",1,aStar},{"TIRED",1,aTired},{"SQUINT",1,aSquint},{"DIZZY",1,aDizzy},{"ANIME",1,aAnime},{"SIDE",1,aSide},
+                             {"LAUGH",2,mLaugh},{"WAVY",2,mWavy},{"POUT",2,mPout},{"BUCK",2,mBuck},{"WONKY",2,mWonky},{"SCREAM",2,mScream} };
 // Details drawn over the eyes (brows, glasses) and over the mouth (nose, cheeks), from the look: [style-1][row], art in the same grid.
 static const char* const brArt[5][2]={ {"..hhhhh..",B9},{".hhhhhhh.",".hhhhhhh."},{".hhh.....","....hhh.."},{".....hhh.","..hhh...."},{"hhhhhhhhh","hhhhhhhhh"} };   // THIN THICK ANGRY SAD UNIBROW
 static const char* const glArt[3][8]={ {B9,"..ggggg..",".g.....g.","gg.....gg",".g.....g.","..ggggg..",B9,B9},              // ROUND
@@ -542,7 +559,11 @@ static const char* const noArt[5][2]={ {"........sss........",B19},{".........ss
 static const char* const chArt[4][4]={ {".bbb...........bbb.",".bbb...........bbb.",B19,B19},{".s.s...........s.s.","..s.............s..",B19,B19},
                                        {B19,"kkk.............kkk",B19,"kkk.............kkk"},{"................r..","...............r...","..............r....",B19} };   // BLUSH FRECKLES WHISKERS SCAR
 static int sty[2];                     // chosen style per kind: 0 = eye, 1 = mouth
-#define SPRID(k) ((k)?NEYE+sty[1]:sty[0])
+// style -> sprite id. Styles 0..8 are the first eyes / mouths (ids 0..8 / 9..17); the newer styles sit after them, so no saved face changes.
+static inline int eyeSpr(int st){ return st<NEYE0?st:NEYE0+NMOUTH0+(st-NEYE0); }
+static inline int mouthSpr(int st){ return st<NMOUTH0?NEYE0+st:NEYE0+NMOUTH0+(NEYE-NEYE0)+(st-NMOUTH0); }
+static inline int sprIsEye(int id){ return id<NEYE0||(id>=NEYE0+NMOUTH0&&id<NEYE0+NMOUTH0+(NEYE-NEYE0)); }
+#define SPRID(k) ((k)?mouthSpr(sty[1]):eyeSpr(sty[0]))
 static inline int decSpr(u16 c){ return (c&7)|((c>>8)&0x78); }            // sprite+1: bits 0-2 and 11-14 of the code
 static inline u16 decSprBits(int n){ return (u16)((n&7)|((n>>3)<<11)); }
 
@@ -554,7 +575,7 @@ static int decNose;   // 1: drawDeco draws only the nose (a raised nose is drawn
 static int decLook;   // 1: brows, glasses, nose, cheeks and the face sliders apply (a look-built creature)
 __attribute__((noinline)) static void drawDeco(int sx,int sy,u16 code,int face,int tint){   // ROM: only the few face voxels call it
     int id=decSpr(code)-1; if(id<0||id>=NSPR) return;
-    const Spr*sp=&spr[id]; int eye=id<NEYE;
+    const Spr*sp=&spr[id]; int eye=sprIsEye(id);
     int ci=(code>>3)&7, cj=(code>>6)&3, sz=((code>>8)&3)+1, fl=(code>>10)&1, aw=10*sp->wc-1;   // aw = art width in chars
     int wp=CA*sp->wc*sz-1, hp=CC*sz-2;   // footprint size in px (scales with the voxel size)
     const u16*pal=face?dR:dL;
@@ -947,7 +968,7 @@ static void buildLook(void){
 static void restyle(int kind){   // change the style of every eye (0) or mouth (1) sprite already on the creature, built by hand or not
     for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){
         u16 c=dec[y][z][x]; if(!c) continue;
-        int id=decSpr(c)-1; if((id>=NEYE)==kind) dec[y][z][x]=(u16)((c&~0x7807)|decSprBits(SPRID(kind)+1)); }
+        int id=decSpr(c)-1; if((!sprIsEye(id))==kind) dec[y][z][x]=(u16)((c&~0x7807)|decSprBits(SPRID(kind)+1)); }
 }
 // ---- changing the stage ----
 static int maskPick(int mask,int v,int n){ for(int i=0;i<n;i++){ int j=(v+i)%n; if(mask>>j&1) return j; } return 0; }   // the option at or after v that is allowed
@@ -1384,7 +1405,7 @@ IWRAM_OVL0 static void drawSceneO(int blink){
             if(decLook&&(stage>=AG_TEEN||sUnlock)&&liftL>0&&y==liftL-1&&z==1&&shape==3&&(x==BX0+(BXW-2)/2||x==BX0+BXW/2)) { if(look[LK_BUTT]!=BUTT_OFF) drawSeat(x,y,u,w,rl,raw&15); } }   // the seat, on the back of the top of the legs
         u16 dc=dec[y][z][x]; int tint=0;
         if(gdec[y][z][x]&&blink){ dc=gdec[y][z][x]; tint=1; }
-        if(dc&&fv>=0){ drawDeco(sx,sy,dc,fv,tint); if(decSpr(dc)-1>=NEYE){ nsx=sx; nsy=sy; ndc=dc; ntint=tint; } }
+        if(dc&&fv>=0){ drawDeco(sx,sy,dc,fv,tint); if(!sprIsEye(decSpr(dc)-1)){ nsx=sx; nsy=sy; ndc=dc; ntint=tint; } }
     } }
     if(ndc&&decLook&&look[LK_NOSE]&&slideEff(look[LK_NOSEHT])>0){ decNose=1; drawDeco(nsx,nsy,ndc,fv,ntint); decNose=0; }   // a raised nose, over the block above the mouth
     drawEars(1); drawTail(1); drawWings(1); drawHorns(1); drawAntennae();
@@ -2493,12 +2514,13 @@ static int isDbgSong(int i){
     const char*n=songs[i].name; int len=0; while(n[len]) len++;
     static const char orig[]=" (ORIGINAL)"; int ol=(int)sizeof(orig)-1;
     if(len>ol){ const char*t=n+len-ol; int k=0; while(k<ol&&t[k]==orig[k]) k++; if(k==ol) return 1; }
+    { const char*h="HERE TODAY ("; const char*q=n; while(*h&&*q==*h){ q++; h++; } if(!*h) return 1; }   // every other version of HERE TODAY is secret: only HERE TODAY GONE TOMORROW shows
     const char*p="PLACEHOLDER"; while(*p){ if(*n++!=*p++) return 0; } return 1;
 }
 static u16 jbNameHash(int upto){   // hash of the names of the first n songs: tells whether the saved on/off flags still belong to this list (jukebox.h)
-    static const char* const was[2][2]={{"TREE-AGE IN ACTION","TREE SWAYING ACTION"},{"TREE-AGE IN ACTION (ORIGINAL)","TREE SWAYING ACTION (ORIGINAL)"}};   // renamed songs count by their old names (the checkmarks stay)
+    static const char* const was[3][2]={{"TREE-AGE IN ACTION","TREE SWAYING ACTION"},{"TREE-AGE IN ACTION (ORIGINAL)","TREE SWAYING ACTION (ORIGINAL)"},{"HERE TODAY GONE TOMORROW","HERE TODAY (INSTRUMENTAL)"}};   // renamed songs count by their old names (the checkmarks stay)
     u32 h=2166136261u; for(int i=0;i<upto&&i<NSONGS;i++){ const char*nm=songs[i].name;
-        for(int r=0;r<2;r++){ const char*x=was[r][0],*y=nm; while(*x&&*x==*y){x++;y++;} if(!*x&&!*y) nm=was[r][1]; }
+        for(int r=0;r<3;r++){ const char*x=was[r][0],*y=nm; while(*x&&*x==*y){x++;y++;} if(!*x&&!*y) nm=was[r][1]; }
         for(const char*p=nm;*p;p++) h=(h^(u8)*p)*16777619u;
         h=(h^0x7C)*16777619u; }
     return (u16)(h^(h>>16));
@@ -4450,8 +4472,8 @@ enum { PS_ASP, PS_LTW, PS_SIGN };
 typedef struct { const char*lab,*sub; u8 kind,id,n; } Row;   // sub = second line of a button
 static const char* const tabNm[NTAB]={"BODY","FACE","HAIR","CLOTHES","PARTS","ASPIRE","DONE"};
 static const char* const shapeNm[NSHAPE]={"AVERAGE","BROAD","BIG HEAD","STUBBY","SLIM","ATHLETIC","TALL","CHUBBY","PEAR","LANKY","STOCKY","HUNCHED","POTBELLY","MUSCLE","PETITE","BARREL","DIGITIGRADE","V-SHAPE","CURVY","RUNNER","SOFT","POWER","LONG LEGS","PUDGY","TODDLER","SPROUT","SPORTY","BELL","STURDY","SPIDER"};
-static const char* const eyeNm[NEYE]={"SLEEPY","ROUND","HAPPY","WIDE","ANGRY","CUTE","CAT","DOT","LASHES"};
-static const char* const mouthNm[NMOUTH]={"FLAT","SMILE","OH","GRIN","SMIRK","FROWN","TONGUE","FANGS","KITTY"};
+static const char* const eyeNm[NEYE]={"SLEEPY","ROUND","HAPPY","WIDE","ANGRY","CUTE","CAT","DOT","LASHES","STAR","TIRED","SQUINT","DIZZY","ANIME","SIDE"};
+static const char* const mouthNm[NMOUTH]={"FLAT","SMILE","OH","GRIN","SMIRK","FROWN","TONGUE","FANGS","KITTY","LAUGH","WAVY","POUT","BUCK","WONKY","SCREAM"};
 static const char* const browNm[6]={"NONE","THIN","THICK","ANGRY","WORRIED","UNIBROW"};
 static const char* const noseNm[6]={"NONE","BUTTON","POINTY","WIDE","PIG","ANIMAL"};
 static const char* const fearNm[5]={"NONE","CAT","FOX","BUNNY","BEAR"};

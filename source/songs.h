@@ -101,5 +101,13 @@ SONG_XM(over_my_voice,"OVER MY VOICE","tools/over_my_voice.xm")
 // YOU'RE WINNER (ORIGINAL): Dipper - You're Winner (You Rule), transcribed from the song's stems (tools/make_winner.py, notes in
 // tools/youre_winner_notes.json, 131 BPM, 6:07). A SECRET song, hidden until the title-screen code (isDbgSong in main.c), until it is approved.
 SONG_XM(youre_winner,"YOU'RE WINNER (ORIGINAL)","tools/youre_winner.xm")
-// HERE TODAY (MISSY'S SONG): the original song Missy sings at the end of TV SHOW & TELL (tools/make_heretoday.py: a chiptune rendition of the author's own melody)
+// HERE TODAY (MISSY'S SONG): the author's own MIDI (tools/here_today.mid) rendered by tools/make_heretoday_midi.py; the scene-5 lyric beats are timed to its phrases
 SONG_ADP(here_today,"HERE TODAY (MISSY'S SONG)","source/music/here_today.adp")
+// HERE TODAY (ORIGINAL): the short chiptune placeholder (tools/make_heretoday.py, 1:13), the version that used to play in the last cutscene: a SECRET song (isDbgSong in main.c)
+SONG_ADP(here_today_old,"HERE TODAY (ORIGINAL)","source/music/here_today_old.adp")
+
+// HERE TODAY (FULL VERSION): longer, lusher, with an instrumental reprise of the bridge (tools/make_heretoday_full.py). Locked until the story is finished (unlocks.h)
+SONG_ADP(here_today_full,"HERE TODAY (FULL VERSION)","source/music/here_today_full.adp")
+
+// HERE TODAY GONE TOMORROW (Singhs): the 12 minute suite of HERE TODAY played by a very early (1970) band, no vocals, no lead, no key change (tools/make_heretoday_instrumental.py). The only visible HERE TODAY: the other versions are secret (isDbgSong in main.c)
+SONG_ADP(here_today_gone_tomorrow,"HERE TODAY GONE TOMORROW","source/music/here_today_gone_tomorrow.adp")

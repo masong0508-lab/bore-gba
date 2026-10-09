@@ -11,8 +11,8 @@ static const u8 hudExpr[5][4]={   // eye, mouth, brows, tears
     {3,3,0,0} }; // STOKED   WIDE eyes, GRIN
 // MISSY has her own set (deadpan, half-lidded, a smirk instead of a grin; Daria, but foxy). Same row layout as hudExpr.
 static const u8 hudExprMissy[5][4]={ {0,5,4,0}, {0,0,0,0}, {0,4,0,0}, {2,4,0,0}, {8,4,0,0} };   // SAD BORED OK HAPPY STOKED
-static const u8 hudMsE[9]={0,1,2,1,4,0,6,7,8};   // her reactions: WIDE and CUTE eyes become ROUND and SLEEPY
-static const u8 hudMsM[9]={0,4,2,4,4,5,4,4,8};   // SMILE, GRIN, TONGUE and FANGS all become a SMIRK
+static const u8 hudMsE[15]={0,1,2,1,4,0,6,7,8,9,10,11,12,13,14};   // her reactions: WIDE and CUTE eyes become ROUND and SLEEPY
+static const u8 hudMsM[15]={0,4,2,4,4,5,4,4,8,9,10,11,12,13,14};   // SMILE, GRIN, TONGUE and FANGS all become a SMIRK
 static int hudMissy(void){ return hhPName[0]=='M'&&hhPName[1]=='I'&&hhPName[2]=='S'&&hhPName[3]=='S'&&hhPName[4]=='Y'&&!hhPName[5]; }
 static const u8* hudEx(int st){ return hudMissy()?hudExprMissy[st]:hudExpr[st]; }
 static const u8 hudHairRows[NHAIR]={2,3,3,0,3,4,2,3,3, 4,3,3,0,3,3};   // rows of hair across the top of the portrait per hair style (CROP BOWL LONG BALD SPIKY AFRO FLAT TOP SIDE TAIL BUN BOB PONYTAIL PIGTAILS MOHAWK PIXIE CURLS)
@@ -49,7 +49,7 @@ static void hudFaceAnim(int st){
     else if(hhBubT){ static const signed char tk[4]={2,0,3,0}; m=tk[(t>>3)&3]; }                      // talking: the mouth opens and shuts
     else if(simAct==1){ e=0; m=0; } else if(simAct==2){ e=2; m=1; }                                    // asleep: eyes shut; washing: eyes closed and a smile
     if(e<0&&hudEx(st)[0]!=0&&hudEx(st)[0]!=2&&(t+53u)%220u<5u) e=0;                                 // a blink (not when the eyes are shut already)
-    if(hudMissy()){ if(e>=0&&e<9) e=hudMsE[e]; if(m>=0&&m<9) m=hudMsM[m]; }
+    if(hudMissy()){ if(e>=0&&e<NEYE) e=hudMsE[e]; if(m>=0&&m<NMOUTH) m=hudMsM[m]; }
     hudOvE=(signed char)e; hudOvM=(signed char)m;
 }
 static void hudHairX(int x,int y,int hs,u16 hair,const u8*ovl){   // the newer hair styles: what each adds around the top rows of the portrait (BOB PONYTAIL PIGTAILS MOHAWK PIXIE CURLS)
@@ -88,7 +88,7 @@ static void faceDrawL(int x,int y,const u8*lk,int stg,const u8*e,int ovE,int ovM
     int hs=lk[LK_HSTYLE]%NHAIR, hr=hudHairRows[hs];
     for(int j=0;j<22;j++){ int c=ovl[j]; if(j<hr) rect(x+c,y+j,22-2*c,1,hair); else if(hs==2&&j<20){ rect(x+c,y+j,2,1,hair); rect(x+20-c,y+j,2,1,hair); } }   // LONG hair falls down both sides
     if(hs>=9) hudHairX(x,y,hs,hair,ovl);   // the newer styles add their fringe, sides and tails
-    int eo=ovE>=0?ovE:e[0], mo=ovM>=0?ovM:e[1]; const Spr*es=&spr[eo], *ms=&spr[NEYE+mo];
+    int eo=ovE>=0?ovE:e[0], mo=ovM>=0?ovM:e[1]; const Spr*es=&spr[eyeSpr(eo)], *ms=&spr[mouthSpr(mo)];
     int br=e[2]?e[2]:lk[LK_BROW], gl=lk[LK_GLASS], no=lk[LK_NOSE], ch=lk[LK_CHEEK], baby=stg==AG_BABY;
     // The face sliders work as they do on the block (drawDeco): every feature is sampled through the same scale and shift, so eye size, spacing and height, mouth width
     // and height, brow height and nose height (and the master controller's double sliders) put the features where the creator does. The block's pixels are 7 x 6 per
