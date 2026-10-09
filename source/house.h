@@ -120,6 +120,15 @@ static const u8 kinInv[KN_N][3]={   // if a is the role, what b may be (the firs
     {KN_NIECE,KN_NEPHEW,0}, {KN_NIECE,KN_NEPHEW,0}, {KN_AUNT,KN_UNCLE,0}, {KN_AUNT,KN_UNCLE,0}, {KN_COUSIN,0,0},
     {KN_STEPDAU,KN_STEPSON,0}, {KN_STEPDAU,KN_STEPSON,0}, {KN_STEPMOM,KN_STEPDAD,0}, {KN_STEPMOM,KN_STEPDAD,0} };
 static inline int kinRom(int r){ return r==KN_PARTNER||r==KN_WIFE||r==KN_HUSBAND; }
+static int kinSex(int r){   // the gender a kin role says (-1: the role does not say)
+    switch(r){ case KN_WIFE: case KN_MOTHER: case KN_DAUGHTER: case KN_SISTER: case KN_GRANDMA: case KN_GRANDDAU: case KN_AUNT: case KN_NIECE: case KN_STEPMOM: case KN_STEPDAU: return SX_FEMALE;
+               case KN_HUSBAND: case KN_FATHER: case KN_SON: case KN_BROTHER: case KN_GRANDPA: case KN_GRANDSON: case KN_UNCLE: case KN_NEPHEW: case KN_STEPDAD: case KN_STEPSON: return SX_MALE;
+               default: return -1; } }
+static int kinSexOf(int u){ for(int v=0;v<HU_N;v++){ int x=kinSex(kin[u][v]); if(x>=0) return x; } return -1; }   // what u's own kin roles say about their gender
+// FAMILY LIFE (family.h): each member's days in their life stage (by uid), and a baby on the way (days left, 0 = none; its parents' uids, 255 = nobody).
+// Saved at the end of an 'H@' household.
+static u8 famAge[HU_N] EWRAM_BSS, famDue EWRAM_BSS, famPa EWRAM_BSS, famPb EWRAM_BSS;
+static void famReset(void){ for(int u=0;u<HU_N;u++) famAge[u]=0; famDue=0; famPa=famPb=255; }
 static void copCrime(int n); static void copTick(int*planned);   // npc.h: the police
 static int prHeld(const HhSim*s); static int prHere(void); static void prSave(void); static int prSwitchHook(int m);   // prison.h
 static int hhPUid;                         // the uid of the Sim you control
@@ -217,53 +226,53 @@ static void hhUpTiles(volatile u16*d,int id,int v,int f,int t0){
 static inline const u16* hhPalOf(int id){ return id>=HH_MAX?inmPalOf(id-HH_MAX):hhPal[id]; }   // (an inmate: its body's palette with its own skin and hair colour, inmates.h)
 
 // ---- premade families (original characters) ----
-typedef struct { const char* name; u8 look[LK_N]; u8 stage, asp, sign; } HhPre;   // the whole look (the first families only set the base picks); traits come from a sign
+typedef struct { const char* name; u8 look[LK_N]; u8 stage, asp, sign, sex; } HhPre;   // the whole look (the first families only set the base picks); traits come from a sign
 typedef struct { const char* fam; u8 n; HhPre m[4]; } HhFam;
 //                     look: SHAPE SKIN EYES MOUTH EARS HSTYLE HCOL TOP BOT  TONE EARSZ EARLF
 static const HhFam hhFams[]={
-    {"THE GRINDERS",3,{ {"REX", {5,2,2,1,1,0,0,1,1, 0,0,0},AG_ADULT,AS_POP,  0},
-                        {"DEE", {4,1,1,1,1,2,3,3,0, 0,0,0},AG_ADULT,AS_FORTUNE,9},
-                        {"PIP", {0,1,2,2,2,1,3,2,5, 0,0,0},AG_CHILD,AS_GROW,  2} }},
-    {"THE MIDNIGHTS",3,{ {"MORTIMER",{6,0,0,0,0,2,0,7,1, 4,0,0},AG_ADULT,AS_KNOW, 5},
-                        {"VESPER", {4,0,0,1,1,2,7,5,1, 4,0,0},AG_ADULT,AS_HOME, 7},
-                        {"WREN",   {0,0,0,0,1,1,0,7,7, 4,0,0},AG_TEEN, AS_PLEAS,10} }},
-    {"THE FRESHLYS",2,{ {"BEN",   {0,3,1,1,1,0,1,4,3, 0,0,0},AG_ADULT,AS_FORTUNE,1},
-                        {"BEA",   {4,3,2,1,1,2,2,6,0, 0,0,0},AG_ADULT,AS_PLEAS, 6} }},
-    {"THE NOVAS",2,{   {"JUNO",  {5,4,5,3,1,5,6,2,3, 0,0,0},AG_ADULT,AS_POP,    3},
-                        {"KIT",   {0,2,3,1,2,4,1,5,2, 0,0,0},AG_TEEN, AS_GROW,   8} }},
+    {"THE GRINDERS",3,{ {"REX", {5,2,2,1,1,0,0,1,1, 0,0,0},AG_ADULT,AS_POP,  0,SX_MALE},
+                        {"DEE", {4,1,1,1,1,2,3,3,0, 0,0,0},AG_ADULT,AS_FORTUNE,9,SX_FEMALE},
+                        {"PIP", {0,1,2,2,2,1,3,2,5, 0,0,0},AG_CHILD,AS_GROW,  2,SX_FEMALE} }},
+    {"THE MIDNIGHTS",3,{ {"MORTIMER",{6,0,0,0,0,2,0,7,1, 4,0,0},AG_ADULT,AS_KNOW, 5,SX_MALE},
+                        {"VESPER", {4,0,0,1,1,2,7,5,1, 4,0,0},AG_ADULT,AS_HOME, 7,SX_FEMALE},
+                        {"WREN",   {0,0,0,0,1,1,0,7,7, 4,0,0},AG_TEEN, AS_PLEAS,10,SX_NB} }},
+    {"THE FRESHLYS",2,{ {"BEN",   {0,3,1,1,1,0,1,4,3, 0,0,0},AG_ADULT,AS_FORTUNE,1,SX_MALE},
+                        {"BEA",   {4,3,2,1,1,2,2,6,0, 0,0,0},AG_ADULT,AS_PLEAS, 6,SX_FEMALE} }},
+    {"THE NOVAS",2,{   {"JUNO",  {5,4,5,3,1,5,6,2,3, 0,0,0},AG_ADULT,AS_POP,    3,SX_FEMALE},
+                        {"KIT",   {0,2,3,1,2,4,1,5,2, 0,0,0},AG_TEEN, AS_GROW,   8,SX_MALE} }},
     // the 32 Sims of the bake test (tools: every slider and part random), now families of their own
-    {"THE STACKS",4,{ {"ROXY",{6,4,4,0,1,1,6,4,0,0,2,2,2,3,3,0,0,0,0,0,0,1,0,0,0,2,4,0,2,7,0,1,1,1,1,0,0,0,1,3,4,2,7,1,1,2,3,0,2,2,3,3,1,5,1,1,4,8,6,6,5,3,7,0,5,3,2,3,5,0,5,7,8,0,7,7,1,2,1,0,4,8,1,5,5,0},AG_ELDER,AS_FORTUNE, 0},
-                {"DUKE",{5,7,6,6,2,4,1,3,2,2,5,7,0,1,2,0,0,0,0,0,0,0,0,0,3,4,1,7,6,1,0,0,1,3,3,0,0,0,3,5,8,8,8,0,6,3,3,1,3,7,2,3,3,0,6,5,0,0,4,8,0,5,5,4,6,2,5,1,8,0,7,7,8,5,7,5,8,5,0,7,8,2,7,0,6,1},AG_ADULT,AS_KNOW, 1},
-                {"MILO",{3,2,4,7,2,4,0,1,7,0,1,8,0,2,2,0,0,0,3,0,0,0,0,0,0,5,2,3,3,7,7,2,5,2,2,0,0,3,6,2,5,1,1,6,8,5,1,1,1,8,0,6,7,1,5,3,1,5,7,8,6,4,7,7,7,2,7,2,7,0,2,7,8,1,4,2,1,0,5,3,2,4,0,6,7,6},AG_ADULT,AS_POP, 2},
-                {"IVY",{0,5,1,5,1,0,6,0,1,0,5,6,2,0,2,0,0,0,2,0,0,0,0,0,0,7,3,1,7,5,8,5,1,3,1,0,0,7,4,2,8,2,7,8,1,6,3,3,2,3,7,5,6,5,7,2,3,8,3,7,6,6,0,3,5,0,1,2,4,0,5,0,0,7,6,0,2,0,3,5,0,0,2,3,7,5},AG_ADULT,AS_PLEAS, 3} }},
-    {"THE PIXELS",4,{ {"ZED",{1,0,6,6,1,7,6,4,4,1,4,1,2,3,1,0,0,0,2,0,0,5,0,0,0,7,5,0,3,4,2,0,8,1,3,0,0,0,7,3,2,3,4,6,4,5,0,3,0,2,6,5,3,0,3,6,1,5,4,1,8,5,5,5,5,6,2,8,5,0,2,0,7,0,6,3,2,2,2,4,3,6,4,1,8,8},AG_ADULT,AS_HOME, 4},
-                {"LULU",{5,0,1,8,1,8,2,1,1,8,7,3,2,3,1,0,0,0,1,0,0,0,0,0,0,3,8,4,4,1,8,6,1,1,1,0,0,6,0,7,2,4,6,5,1,7,1,1,2,8,2,6,8,5,5,2,3,8,7,6,1,7,1,8,5,1,4,0,5,0,8,1,5,8,5,4,1,2,6,2,8,8,1,7,5,8},AG_TEEN,AS_GROW, 5},
-                {"BYTE",{4,6,7,8,2,5,2,7,3,8,0,7,3,2,3,4,0,0,2,0,0,5,0,0,0,1,4,2,1,1,1,3,4,3,1,0,0,6,0,8,5,2,3,6,0,6,0,1,3,7,7,2,6,8,8,6,2,4,1,5,3,4,8,7,1,6,2,8,0,0,8,8,0,2,4,3,3,8,5,3,0,8,4,0,7,8},AG_ELDER,AS_KNOW, 6},
-                {"PIXIE",{4,0,6,3,2,4,1,6,5,8,5,7,2,3,2,0,0,0,3,0,0,5,0,0,0,6,6,1,5,5,1,7,5,3,1,0,0,2,8,8,1,8,4,0,3,2,0,1,0,5,5,5,2,6,3,1,1,4,4,5,8,5,5,8,5,1,7,5,5,0,0,8,0,4,5,1,0,4,6,3,8,0,5,8,0,3},AG_TEEN,AS_GROW, 7} }},
-    {"THE VOXELLS",4,{ {"OTIS",{4,6,7,0,2,7,4,2,0,7,7,2,0,2,3,0,0,0,3,0,0,5,0,0,2,4,7,5,8,5,1,1,4,3,0,0,0,7,5,5,4,7,5,3,0,5,3,0,3,2,4,4,7,0,3,1,5,7,7,1,5,7,6,2,0,0,8,6,3,0,0,8,1,5,4,8,5,2,0,3,4,5,3,2,7,8},AG_ADULT,AS_PLEAS, 8},
-                {"JUNE",{5,2,3,5,1,8,6,4,5,3,7,4,3,0,2,0,0,0,0,0,0,1,0,0,0,0,6,3,7,6,6,1,2,2,1,0,0,2,3,2,3,2,5,7,4,5,1,1,1,6,4,3,3,3,5,8,5,2,6,7,3,6,7,7,2,6,5,3,7,0,5,4,8,1,4,5,1,5,3,4,2,7,1,2,7,0},AG_ADULT,AS_HOME, 9},
-                {"CASH",{1,7,2,0,1,3,1,5,1,1,0,0,2,1,2,4,0,0,1,0,0,4,0,0,0,5,7,8,0,6,2,3,7,1,0,0,0,0,8,5,6,4,4,5,2,2,1,3,3,5,3,8,2,1,4,5,5,3,7,5,8,4,6,7,3,8,5,7,8,0,7,2,1,6,7,7,8,4,6,6,3,3,3,2,4,4},AG_ADULT,AS_FORTUNE,10},
-                {"MAYA",{5,0,1,8,1,0,0,1,7,1,8,3,1,1,0,0,0,0,0,0,0,2,0,0,1,2,2,3,0,6,5,0,5,3,0,0,0,4,0,6,6,2,6,5,0,8,2,2,0,2,5,3,1,2,7,6,0,1,4,2,4,0,0,1,1,3,8,0,0,0,6,8,2,8,1,8,6,4,4,1,7,7,1,2,5,1},AG_ELDER,AS_KNOW,11} }},
-    {"THE LOWPOLYS",4,{ {"TOBY",{6,5,2,7,1,3,1,1,6,2,5,2,0,0,3,0,0,0,0,0,0,0,0,0,0,6,7,6,0,8,4,0,1,1,1,0,0,2,6,6,7,0,5,6,8,1,3,2,3,6,2,6,3,1,3,7,2,5,6,1,4,6,3,6,1,1,6,0,2,0,2,4,8,1,2,2,6,8,4,1,3,4,3,4,6,7},AG_TEEN,AS_GROW, 0},
-                {"ELLA",{3,7,6,1,1,5,0,5,2,6,0,2,3,3,0,0,0,0,2,0,0,3,0,0,3,4,3,7,1,3,7,8,8,3,2,0,0,4,5,5,3,4,6,0,7,0,3,1,0,7,1,1,8,4,2,2,5,7,1,0,7,4,7,7,7,3,1,3,2,0,0,8,2,7,0,6,8,1,1,5,0,7,6,7,8,5},AG_TEEN,AS_GROW, 1},
-                {"FINN",{5,6,2,8,1,3,4,3,3,0,3,4,1,3,0,3,0,0,3,0,0,2,0,0,3,3,6,6,1,6,4,7,3,2,2,0,0,7,6,3,7,5,2,5,3,7,0,0,1,4,2,6,1,7,6,0,0,3,3,2,0,2,5,0,3,3,1,8,6,0,6,1,1,0,3,8,5,8,4,3,3,5,6,0,4,7},AG_ELDER,AS_HOME, 2},
-                {"SAGE",{4,6,1,0,1,7,2,1,6,4,1,2,2,3,2,0,0,0,2,0,0,5,0,0,0,7,4,2,1,2,4,5,2,1,0,0,0,1,5,0,2,2,5,7,3,2,3,3,3,7,2,6,8,7,1,3,6,8,3,0,2,3,3,4,0,0,6,2,4,0,8,8,5,5,1,8,4,6,8,6,1,7,0,1,6,0},AG_ADULT,AS_FORTUNE, 3} }},
-    {"THE KICKFLIPS",4,{ {"GUS",{6,1,6,2,1,2,6,1,3,0,1,2,0,3,1,0,0,0,3,0,0,1,0,0,0,0,8,8,2,8,3,7,2,0,2,0,0,2,4,5,7,7,7,6,7,4,0,1,3,6,8,1,0,7,2,6,3,4,6,8,4,3,0,2,6,2,5,8,4,0,6,1,6,8,3,5,6,6,5,4,5,6,1,6,8,0},AG_ADULT,AS_KNOW, 4},
-                {"NELL",{1,3,3,4,1,2,1,4,1,4,7,7,2,0,0,0,0,0,3,0,0,2,0,0,0,3,4,6,5,7,8,3,2,0,3,0,0,1,1,0,5,7,5,5,2,3,1,0,1,2,1,3,1,2,1,8,0,7,6,5,8,2,1,4,4,4,1,8,7,0,8,5,2,1,6,0,4,4,1,3,1,3,3,6,5,4},AG_ADULT,AS_POP, 5},
-                {"ACE",{3,5,0,1,1,6,3,3,6,8,3,6,1,0,2,4,0,0,3,0,0,1,0,0,0,3,2,5,3,6,1,6,8,3,3,0,0,6,0,2,6,3,2,4,0,6,0,0,3,6,5,8,1,4,0,1,5,7,1,2,1,4,0,3,8,3,2,0,0,0,6,3,4,5,0,4,8,2,3,3,5,1,2,5,7,7},AG_TEEN,AS_GROW, 6},
-                {"POPPY",{4,5,1,4,2,7,3,5,4,0,4,6,1,2,2,0,0,0,2,0,0,0,0,0,0,0,6,7,4,2,5,1,5,0,3,0,0,8,6,6,0,3,3,8,0,2,0,1,1,1,2,0,4,0,2,4,5,3,0,2,2,1,6,8,1,4,1,6,8,0,8,1,2,3,6,1,4,3,2,0,1,0,6,6,6,0},AG_ADULT,AS_HOME, 7} }},
-    {"THE BUFFERS",4,{ {"HANK",{4,7,6,2,1,1,2,3,5,4,8,5,3,0,2,0,0,0,0,0,0,5,0,0,1,4,0,3,8,8,7,4,1,3,1,0,0,8,7,0,4,6,1,7,0,4,3,1,3,0,4,2,3,0,2,3,8,3,4,3,3,4,7,3,7,8,7,2,6,0,0,6,7,5,4,5,4,7,2,0,4,1,2,8,1,5},AG_ADULT,AS_FORTUNE, 8},
-                {"DOT",{6,5,0,7,1,8,4,1,7,2,0,6,1,0,0,2,0,0,0,0,0,2,0,0,0,1,1,8,1,6,7,3,2,1,0,0,0,7,6,1,3,5,7,0,1,0,1,2,0,1,1,2,1,8,7,5,1,5,8,1,7,2,2,7,2,2,5,0,2,0,0,8,2,3,5,0,5,0,6,7,0,0,8,1,4,0},AG_ELDER,AS_KNOW, 9},
-                {"RIO",{6,1,7,2,2,5,2,6,4,3,8,0,1,2,0,0,0,0,2,0,0,1,0,0,2,6,0,5,8,1,4,2,2,2,1,0,0,4,2,2,7,0,0,2,2,4,3,3,3,2,2,6,1,3,3,5,2,7,4,2,5,7,1,6,7,0,1,1,1,0,6,1,1,6,1,4,4,1,6,8,1,6,4,8,3,1},AG_ADULT,AS_POP,10},
-                {"SUKI",{4,2,8,2,2,2,6,6,4,7,6,2,2,2,0,0,0,0,3,0,0,5,0,0,0,1,6,2,0,8,4,3,6,2,2,0,0,1,2,7,5,1,5,6,5,1,3,0,3,4,2,7,4,4,0,1,8,6,7,1,4,7,4,2,5,5,7,1,8,0,6,6,5,3,7,6,0,3,6,7,0,2,1,1,3,7},AG_ELDER,AS_PLEAS,11} }},
-    {"THE SPRITES",4,{ {"WADE",{3,2,4,7,1,5,2,3,5,6,5,6,1,3,1,0,0,0,2,0,0,4,0,0,0,6,1,2,7,7,4,4,2,1,1,0,0,5,5,4,6,0,6,0,2,8,2,1,3,4,0,5,4,2,7,8,3,6,4,3,4,3,8,2,5,2,1,1,4,0,5,0,8,0,1,4,3,3,5,0,1,7,6,0,2,6},AG_ADULT,AS_HOME, 0},
-                {"IRIS",{4,1,3,6,2,5,3,5,1,5,7,0,3,1,2,0,0,0,0,0,0,4,0,0,0,2,6,7,4,1,1,4,3,0,2,0,0,5,6,2,3,3,3,8,3,0,3,3,1,1,2,8,8,4,7,0,8,6,6,6,8,5,4,2,4,6,4,6,1,0,3,3,7,8,6,1,1,3,3,1,8,4,4,0,5,0},AG_TEEN,AS_GROW, 1},
-                {"KOJI",{0,0,5,7,2,7,2,7,3,5,1,4,2,1,3,0,0,0,1,0,0,3,0,0,3,1,0,8,5,0,4,3,5,1,2,0,0,3,4,1,7,7,6,7,5,5,2,1,1,7,8,2,1,5,3,1,6,8,0,6,3,4,5,0,5,2,3,8,3,0,8,8,1,3,4,8,3,4,8,4,7,6,6,0,7,4},AG_ELDER,AS_KNOW, 2},
-                {"LOLA",{1,3,5,7,2,6,2,0,2,6,4,8,0,2,1,0,0,0,1,0,0,0,0,0,0,5,3,5,5,4,1,1,3,2,3,0,0,7,7,2,7,2,7,2,8,8,1,2,1,2,5,0,4,6,0,3,2,4,6,3,0,8,1,8,8,2,7,6,1,0,6,3,0,2,3,3,5,2,2,1,2,5,0,7,6,7},AG_ADULT,AS_POP, 3} }},
-    {"THE DIPPERS",4,{ {"VINCE",{4,3,5,2,1,8,1,7,6,2,7,6,2,0,1,0,0,0,2,0,0,1,0,0,0,3,7,0,5,0,8,8,7,2,0,0,0,5,0,0,7,0,5,4,2,8,0,2,2,3,7,8,1,0,3,4,1,5,8,7,8,7,7,2,5,4,0,0,7,0,6,4,5,8,1,3,2,8,1,8,6,1,3,7,0,1},AG_TEEN,AS_GROW, 4},
-                {"MAE",{5,6,2,1,1,0,2,3,4,7,2,6,2,3,2,3,0,0,3,0,0,4,0,0,0,7,2,0,4,0,0,8,7,3,3,0,0,6,7,5,7,1,0,3,3,1,3,3,2,1,2,8,8,3,4,8,8,4,2,0,4,5,8,8,7,5,8,6,1,0,2,5,7,4,5,0,6,6,0,5,0,1,2,4,3,4},AG_TEEN,AS_GROW, 5},
-                {"OZZY",{3,0,7,4,1,8,6,7,7,1,7,4,3,0,2,0,0,0,2,0,0,1,0,0,3,7,4,0,1,8,7,0,8,0,0,0,0,1,5,6,8,7,5,5,0,3,2,0,1,3,8,4,1,1,7,8,0,2,0,6,5,1,6,2,0,3,4,2,2,0,6,0,3,3,5,0,7,4,0,1,1,7,0,1,4,3},AG_TEEN,AS_GROW, 6},
-                {"TESS",{4,6,8,5,2,7,0,1,1,8,2,2,3,3,0,3,0,0,2,0,0,2,0,0,0,7,3,6,2,6,6,0,5,0,1,0,0,6,6,1,7,1,2,0,1,7,1,1,3,6,6,8,2,7,0,3,2,5,2,8,4,7,0,0,3,4,3,7,8,0,7,7,1,3,4,6,5,2,2,4,0,5,5,8,8,6},AG_ELDER,AS_KNOW, 7} }},
+    {"THE STACKS",4,{ {"ROXY",{6,4,4,0,1,1,6,4,0,0,2,2,2,3,3,0,0,0,0,0,0,1,0,0,0,2,4,0,2,7,0,1,1,1,1,0,0,0,1,3,4,2,7,1,1,2,3,0,2,2,3,3,1,5,1,1,4,8,6,6,5,3,7,0,5,3,2,3,5,0,5,7,8,0,7,7,1,2,1,0,4,8,1,5,5,0},AG_ELDER,AS_FORTUNE, 0,SX_FEMALE},
+                {"DUKE",{5,7,6,6,2,4,1,3,2,2,5,7,0,1,2,0,0,0,0,0,0,0,0,0,3,4,1,7,6,1,0,0,1,3,3,0,0,0,3,5,8,8,8,0,6,3,3,1,3,7,2,3,3,0,6,5,0,0,4,8,0,5,5,4,6,2,5,1,8,0,7,7,8,5,7,5,8,5,0,7,8,2,7,0,6,1},AG_ADULT,AS_KNOW, 1,SX_MALE},
+                {"MILO",{3,2,4,7,2,4,0,1,7,0,1,8,0,2,2,0,0,0,3,0,0,0,0,0,0,5,2,3,3,7,7,2,5,2,2,0,0,3,6,2,5,1,1,6,8,5,1,1,1,8,0,6,7,1,5,3,1,5,7,8,6,4,7,7,7,2,7,2,7,0,2,7,8,1,4,2,1,0,5,3,2,4,0,6,7,6},AG_ADULT,AS_POP, 2,SX_MALE},
+                {"IVY",{0,5,1,5,1,0,6,0,1,0,5,6,2,0,2,0,0,0,2,0,0,0,0,0,0,7,3,1,7,5,8,5,1,3,1,0,0,7,4,2,8,2,7,8,1,6,3,3,2,3,7,5,6,5,7,2,3,8,3,7,6,6,0,3,5,0,1,2,4,0,5,0,0,7,6,0,2,0,3,5,0,0,2,3,7,5},AG_ADULT,AS_PLEAS, 3,SX_FEMALE} }},
+    {"THE PIXELS",4,{ {"ZED",{1,0,6,6,1,7,6,4,4,1,4,1,2,3,1,0,0,0,2,0,0,5,0,0,0,7,5,0,3,4,2,0,8,1,3,0,0,0,7,3,2,3,4,6,4,5,0,3,0,2,6,5,3,0,3,6,1,5,4,1,8,5,5,5,5,6,2,8,5,0,2,0,7,0,6,3,2,2,2,4,3,6,4,1,8,8},AG_ADULT,AS_HOME, 4,SX_MALE},
+                {"LULU",{5,0,1,8,1,8,2,1,1,8,7,3,2,3,1,0,0,0,1,0,0,0,0,0,0,3,8,4,4,1,8,6,1,1,1,0,0,6,0,7,2,4,6,5,1,7,1,1,2,8,2,6,8,5,5,2,3,8,7,6,1,7,1,8,5,1,4,0,5,0,8,1,5,8,5,4,1,2,6,2,8,8,1,7,5,8},AG_TEEN,AS_GROW, 5,SX_FEMALE},
+                {"BYTE",{4,6,7,8,2,5,2,7,3,8,0,7,3,2,3,4,0,0,2,0,0,5,0,0,0,1,4,2,1,1,1,3,4,3,1,0,0,6,0,8,5,2,3,6,0,6,0,1,3,7,7,2,6,8,8,6,2,4,1,5,3,4,8,7,1,6,2,8,0,0,8,8,0,2,4,3,3,8,5,3,0,8,4,0,7,8},AG_ELDER,AS_KNOW, 6,SX_NB},
+                {"PIXIE",{4,0,6,3,2,4,1,6,5,8,5,7,2,3,2,0,0,0,3,0,0,5,0,0,0,6,6,1,5,5,1,7,5,3,1,0,0,2,8,8,1,8,4,0,3,2,0,1,0,5,5,5,2,6,3,1,1,4,4,5,8,5,5,8,5,1,7,5,5,0,0,8,0,4,5,1,0,4,6,3,8,0,5,8,0,3},AG_TEEN,AS_GROW, 7,SX_FEMALE} }},
+    {"THE VOXELLS",4,{ {"OTIS",{4,6,7,0,2,7,4,2,0,7,7,2,0,2,3,0,0,0,3,0,0,5,0,0,2,4,7,5,8,5,1,1,4,3,0,0,0,7,5,5,4,7,5,3,0,5,3,0,3,2,4,4,7,0,3,1,5,7,7,1,5,7,6,2,0,0,8,6,3,0,0,8,1,5,4,8,5,2,0,3,4,5,3,2,7,8},AG_ADULT,AS_PLEAS, 8,SX_MALE},
+                {"JUNE",{5,2,3,5,1,8,6,4,5,3,7,4,3,0,2,0,0,0,0,0,0,1,0,0,0,0,6,3,7,6,6,1,2,2,1,0,0,2,3,2,3,2,5,7,4,5,1,1,1,6,4,3,3,3,5,8,5,2,6,7,3,6,7,7,2,6,5,3,7,0,5,4,8,1,4,5,1,5,3,4,2,7,1,2,7,0},AG_ADULT,AS_HOME, 9,SX_FEMALE},
+                {"CASH",{1,7,2,0,1,3,1,5,1,1,0,0,2,1,2,4,0,0,1,0,0,4,0,0,0,5,7,8,0,6,2,3,7,1,0,0,0,0,8,5,6,4,4,5,2,2,1,3,3,5,3,8,2,1,4,5,5,3,7,5,8,4,6,7,3,8,5,7,8,0,7,2,1,6,7,7,8,4,6,6,3,3,3,2,4,4},AG_ADULT,AS_FORTUNE,10,SX_MALE},
+                {"MAYA",{5,0,1,8,1,0,0,1,7,1,8,3,1,1,0,0,0,0,0,0,0,2,0,0,1,2,2,3,0,6,5,0,5,3,0,0,0,4,0,6,6,2,6,5,0,8,2,2,0,2,5,3,1,2,7,6,0,1,4,2,4,0,0,1,1,3,8,0,0,0,6,8,2,8,1,8,6,4,4,1,7,7,1,2,5,1},AG_ELDER,AS_KNOW,11,SX_FEMALE} }},
+    {"THE LOWPOLYS",4,{ {"TOBY",{6,5,2,7,1,3,1,1,6,2,5,2,0,0,3,0,0,0,0,0,0,0,0,0,0,6,7,6,0,8,4,0,1,1,1,0,0,2,6,6,7,0,5,6,8,1,3,2,3,6,2,6,3,1,3,7,2,5,6,1,4,6,3,6,1,1,6,0,2,0,2,4,8,1,2,2,6,8,4,1,3,4,3,4,6,7},AG_TEEN,AS_GROW, 0,SX_MALE},
+                {"ELLA",{3,7,6,1,1,5,0,5,2,6,0,2,3,3,0,0,0,0,2,0,0,3,0,0,3,4,3,7,1,3,7,8,8,3,2,0,0,4,5,5,3,4,6,0,7,0,3,1,0,7,1,1,8,4,2,2,5,7,1,0,7,4,7,7,7,3,1,3,2,0,0,8,2,7,0,6,8,1,1,5,0,7,6,7,8,5},AG_TEEN,AS_GROW, 1,SX_FEMALE},
+                {"FINN",{5,6,2,8,1,3,4,3,3,0,3,4,1,3,0,3,0,0,3,0,0,2,0,0,3,3,6,6,1,6,4,7,3,2,2,0,0,7,6,3,7,5,2,5,3,7,0,0,1,4,2,6,1,7,6,0,0,3,3,2,0,2,5,0,3,3,1,8,6,0,6,1,1,0,3,8,5,8,4,3,3,5,6,0,4,7},AG_ELDER,AS_HOME, 2,SX_MALE},
+                {"SAGE",{4,6,1,0,1,7,2,1,6,4,1,2,2,3,2,0,0,0,2,0,0,5,0,0,0,7,4,2,1,2,4,5,2,1,0,0,0,1,5,0,2,2,5,7,3,2,3,3,3,7,2,6,8,7,1,3,6,8,3,0,2,3,3,4,0,0,6,2,4,0,8,8,5,5,1,8,4,6,8,6,1,7,0,1,6,0},AG_ADULT,AS_FORTUNE, 3,SX_NB} }},
+    {"THE KICKFLIPS",4,{ {"GUS",{6,1,6,2,1,2,6,1,3,0,1,2,0,3,1,0,0,0,3,0,0,1,0,0,0,0,8,8,2,8,3,7,2,0,2,0,0,2,4,5,7,7,7,6,7,4,0,1,3,6,8,1,0,7,2,6,3,4,6,8,4,3,0,2,6,2,5,8,4,0,6,1,6,8,3,5,6,6,5,4,5,6,1,6,8,0},AG_ADULT,AS_KNOW, 4,SX_MALE},
+                {"NELL",{1,3,3,4,1,2,1,4,1,4,7,7,2,0,0,0,0,0,3,0,0,2,0,0,0,3,4,6,5,7,8,3,2,0,3,0,0,1,1,0,5,7,5,5,2,3,1,0,1,2,1,3,1,2,1,8,0,7,6,5,8,2,1,4,4,4,1,8,7,0,8,5,2,1,6,0,4,4,1,3,1,3,3,6,5,4},AG_ADULT,AS_POP, 5,SX_FEMALE},
+                {"ACE",{3,5,0,1,1,6,3,3,6,8,3,6,1,0,2,4,0,0,3,0,0,1,0,0,0,3,2,5,3,6,1,6,8,3,3,0,0,6,0,2,6,3,2,4,0,6,0,0,3,6,5,8,1,4,0,1,5,7,1,2,1,4,0,3,8,3,2,0,0,0,6,3,4,5,0,4,8,2,3,3,5,1,2,5,7,7},AG_TEEN,AS_GROW, 6,SX_MALE},
+                {"POPPY",{4,5,1,4,2,7,3,5,4,0,4,6,1,2,2,0,0,0,2,0,0,0,0,0,0,0,6,7,4,2,5,1,5,0,3,0,0,8,6,6,0,3,3,8,0,2,0,1,1,1,2,0,4,0,2,4,5,3,0,2,2,1,6,8,1,4,1,6,8,0,8,1,2,3,6,1,4,3,2,0,1,0,6,6,6,0},AG_ADULT,AS_HOME, 7,SX_FEMALE} }},
+    {"THE BUFFERS",4,{ {"HANK",{4,7,6,2,1,1,2,3,5,4,8,5,3,0,2,0,0,0,0,0,0,5,0,0,1,4,0,3,8,8,7,4,1,3,1,0,0,8,7,0,4,6,1,7,0,4,3,1,3,0,4,2,3,0,2,3,8,3,4,3,3,4,7,3,7,8,7,2,6,0,0,6,7,5,4,5,4,7,2,0,4,1,2,8,1,5},AG_ADULT,AS_FORTUNE, 8,SX_MALE},
+                {"DOT",{6,5,0,7,1,8,4,1,7,2,0,6,1,0,0,2,0,0,0,0,0,2,0,0,0,1,1,8,1,6,7,3,2,1,0,0,0,7,6,1,3,5,7,0,1,0,1,2,0,1,1,2,1,8,7,5,1,5,8,1,7,2,2,7,2,2,5,0,2,0,0,8,2,3,5,0,5,0,6,7,0,0,8,1,4,0},AG_ELDER,AS_KNOW, 9,SX_FEMALE},
+                {"RIO",{6,1,7,2,2,5,2,6,4,3,8,0,1,2,0,0,0,0,2,0,0,1,0,0,2,6,0,5,8,1,4,2,2,2,1,0,0,4,2,2,7,0,0,2,2,4,3,3,3,2,2,6,1,3,3,5,2,7,4,2,5,7,1,6,7,0,1,1,1,0,6,1,1,6,1,4,4,1,6,8,1,6,4,8,3,1},AG_ADULT,AS_POP,10,SX_MALE},
+                {"SUKI",{4,2,8,2,2,2,6,6,4,7,6,2,2,2,0,0,0,0,3,0,0,5,0,0,0,1,6,2,0,8,4,3,6,2,2,0,0,1,2,7,5,1,5,6,5,1,3,0,3,4,2,7,4,4,0,1,8,6,7,1,4,7,4,2,5,5,7,1,8,0,6,6,5,3,7,6,0,3,6,7,0,2,1,1,3,7},AG_ELDER,AS_PLEAS,11,SX_FEMALE} }},
+    {"THE SPRITES",4,{ {"WADE",{3,2,4,7,1,5,2,3,5,6,5,6,1,3,1,0,0,0,2,0,0,4,0,0,0,6,1,2,7,7,4,4,2,1,1,0,0,5,5,4,6,0,6,0,2,8,2,1,3,4,0,5,4,2,7,8,3,6,4,3,4,3,8,2,5,2,1,1,4,0,5,0,8,0,1,4,3,3,5,0,1,7,6,0,2,6},AG_ADULT,AS_HOME, 0,SX_MALE},
+                {"IRIS",{4,1,3,6,2,5,3,5,1,5,7,0,3,1,2,0,0,0,0,0,0,4,0,0,0,2,6,7,4,1,1,4,3,0,2,0,0,5,6,2,3,3,3,8,3,0,3,3,1,1,2,8,8,4,7,0,8,6,6,6,8,5,4,2,4,6,4,6,1,0,3,3,7,8,6,1,1,3,3,1,8,4,4,0,5,0},AG_TEEN,AS_GROW, 1,SX_FEMALE},
+                {"KOJI",{0,0,5,7,2,7,2,7,3,5,1,4,2,1,3,0,0,0,1,0,0,3,0,0,3,1,0,8,5,0,4,3,5,1,2,0,0,3,4,1,7,7,6,7,5,5,2,1,1,7,8,2,1,5,3,1,6,8,0,6,3,4,5,0,5,2,3,8,3,0,8,8,1,3,4,8,3,4,8,4,7,6,6,0,7,4},AG_ELDER,AS_KNOW, 2,SX_MALE},
+                {"LOLA",{1,3,5,7,2,6,2,0,2,6,4,8,0,2,1,0,0,0,1,0,0,0,0,0,0,5,3,5,5,4,1,1,3,2,3,0,0,7,7,2,7,2,7,2,8,8,1,2,1,2,5,0,4,6,0,3,2,4,6,3,0,8,1,8,8,2,7,6,1,0,6,3,0,2,3,3,5,2,2,1,2,5,0,7,6,7},AG_ADULT,AS_POP, 3,SX_FEMALE} }},
+    {"THE DIPPERS",4,{ {"VINCE",{4,3,5,2,1,8,1,7,6,2,7,6,2,0,1,0,0,0,2,0,0,1,0,0,0,3,7,0,5,0,8,8,7,2,0,0,0,5,0,0,7,0,5,4,2,8,0,2,2,3,7,8,1,0,3,4,1,5,8,7,8,7,7,2,5,4,0,0,7,0,6,4,5,8,1,3,2,8,1,8,6,1,3,7,0,1},AG_TEEN,AS_GROW, 4,SX_MALE},
+                {"MAE",{5,6,2,1,1,0,2,3,4,7,2,6,2,3,2,3,0,0,3,0,0,4,0,0,0,7,2,0,4,0,0,8,7,3,3,0,0,6,7,5,7,1,0,3,3,1,3,3,2,1,2,8,8,3,4,8,8,4,2,0,4,5,8,8,7,5,8,6,1,0,2,5,7,4,5,0,6,6,0,5,0,1,2,4,3,4},AG_TEEN,AS_GROW, 5,SX_FEMALE},
+                {"OZZY",{3,0,7,4,1,8,6,7,7,1,7,4,3,0,2,0,0,0,2,0,0,1,0,0,3,7,4,0,1,8,7,0,8,0,0,0,0,1,5,6,8,7,5,5,0,3,2,0,1,3,8,4,1,1,7,8,0,2,0,6,5,1,6,2,0,3,4,2,2,0,6,0,3,3,5,0,7,4,0,1,1,7,0,1,4,3},AG_TEEN,AS_GROW, 6,SX_MALE},
+                {"TESS",{4,6,8,5,2,7,0,1,1,8,2,2,3,3,0,3,0,0,2,0,0,2,0,0,0,7,3,6,2,6,6,0,5,0,1,0,0,6,6,1,7,1,2,0,1,7,1,1,3,6,6,8,2,7,0,3,2,5,2,8,4,7,0,0,3,4,3,7,8,0,7,7,1,3,4,6,5,2,2,4,0,5,5,8,8,6},AG_ELDER,AS_KNOW, 7,SX_FEMALE} }},
 };
 #define HH_NFAM ((int)(sizeof(hhFams)/sizeof(hhFams[0])))
 
@@ -356,7 +365,7 @@ static void hhRandLook(u8*lk,u8*stg){   // a made-up Sim: passers-by, and SELECT
     lk[LK_SHAPE]=shp[rnd8()%12]; lk[LK_SKIN]=(u8)(rnd8()%NSKIN); lk[LK_EYES]=(u8)(rnd8()%NEYE); lk[LK_MOUTH]=(u8)(rnd8()%NMOUTH);
     lk[LK_EARS]=(u8)(1+(rnd8()&1)); lk[LK_HSTYLE]=(u8)(rnd8()%NHAIR); lk[LK_HCOL]=(u8)(rnd8()%NSW); lk[LK_TOP]=(u8)(rnd8()%NSW); lk[LK_BOT]=(u8)(rnd8()%NSW);
     lk[LK_TOPSTY]=(u8)(rnd8()&3); lk[LK_HAT]=(rnd8()&3)==0?(u8)(1+rnd8()%5):0; lk[LK_GLASS]=(rnd8()&3)==0?(u8)(1+rnd8()%3):0;
-    lk[LK_BROW]=(u8)(rnd8()%6); lk[LK_EYECOL]=(u8)(rnd8()%NSW);
+    lk[LK_BROW]=(u8)(rnd8()%6); lk[LK_EYECOL]=(u8)(rnd8()%NSW); lk[LK_SEX]=sexRoll();
     *stg=sg[rnd8()&3];
 }
 // ---- bake cache: a sprite set is only baked again when something it is drawn from changed ----
@@ -482,7 +491,7 @@ static void hhRemove(int m){   // moves out: their sprites and relationships go 
 }
 static void hhNew(HhSim*s,const HhPre*p){
     s->uid=(u8)hhFreeUid(); s->bubT=0; s->hp=HP_MAX;
-    for(int i=0;i<LK_N;i++) s->look[i]=p->look[i];
+    for(int i=0;i<LK_N;i++) s->look[i]=p->look[i]; s->look[LK_SEX]=p->sex;
     s->stage=p->stage; s->asp=p->asp; s->ltw=0; for(int i=0;i<TR_N;i++) s->tr[i]=signTr[p->sign][i];
     int i=0; for(;p->name[i]&&i<HH_NM-1;i++) s->name[i]=p->name[i]; s->name[i]=0; s->last[0]=0;
     for(int k=0;k<HN_N;k++) s->need[k]=(u8)(70+(rnd8()&15));
@@ -825,6 +834,12 @@ static int hhFreeUid(void){ for(int u=0;u<HU_N;u++){ if(u==hhPUid) continue; int
 static int hhOthers(void){ return hhN>0; }
 static int hhMemOf(int uid){ for(int m=0;m<hhN;m++) if(hhM[m].uid==uid) return m; return -1; }   // -1: the player (or nobody)
 static int uStage(int u){ int m=hhMemOf(u); return m<0?stage:hhM[m].stage; }
+static int uSex(int u){ int m=hhMemOf(u); return m<0?look[LK_SEX]:hhM[m].look[LK_SEX]; }   // GENDER (SX_*)
+static void kinParent(int p,int c){   // p is c's parent: MOTHER / FATHER / PARENT, and c is p's DAUGHTER / SON / CHILD (by their GENDER)
+    static const u8 par[SX_N]={KN_MOTHER,KN_FATHER,KN_PARENT}, kid[SX_N]={KN_DAUGHTER,KN_SON,KN_CHILD};
+    int a=uSex(p), b=uSex(c); kin[p][c]=par[a<SX_N?a:SX_NB]; kin[c][p]=kid[b<SX_N?b:SX_NB]; }
+static void kinSib(int a,int b){ static const u8 sib[SX_N]={KN_SISTER,KN_BROTHER,KN_SIBLING}; int x=uSex(a), y=uSex(b); kin[a][b]=sib[x<SX_N?x:SX_NB]; kin[b][a]=sib[y<SX_N?y:SX_NB]; }
+static void uSetSex(int u,int x){ int m=hhMemOf(u); if(m<0) look[LK_SEX]=(u8)x; else hhM[m].look[LK_SEX]=(u8)x; }
 static int uTr(int u,int t){ int m=hhMemOf(u); return m<0?pTr[t]:hhM[m].tr[t]; }
 static int uMood(int u){ int m=hhMemOf(u); if(m<0) return moodHapPct(); const HhSim*s=&hhM[m]; int v=0; for(int n=0;n<HN_N;n++) v+=s->need[n]; return v/HN_N; }
 static const char* uName(int u){ int m=hhMemOf(u); return m<0?hhPName:hhM[m].name; }
@@ -834,7 +849,8 @@ static int hhRomanceOk(void){ for(int m=0;m<hhN;m++) if(romOk(hhPUid,hhM[m].uid)
 static int clampR(int v){ return v<-100?-100:v>100?100:v; }
 static const char* relWord(int a,int b){   // how a sees b
     u8 f=relF[a][b]; int d=relD[a][b], l=relL[a][b];
-    if(f&RF_STEADY) return "STEADY";
+    if(kinRom(kin[b][a])) return kinNm[kin[b][a]];   // married (or partners): WIFE / HUSBAND / PARTNER
+    if(f&RF_STEADY) return sexWord(SW_DATE,uSex(b));   // going steady: GIRLFRIEND / BOYFRIEND / PARTNER
     if(f&RF_LOVE) return "IN LOVE";
     if(f&RF_CRUSH) return "CRUSH";
     if(d>=70&&l>=70) return "BEST FRIEND";
@@ -1358,7 +1374,7 @@ static void hhSwitchFrom(int f){   // the first f members go to the back of the 
 #define HH_RELB (4*HU_N*HU_N)   // daily, lifetime, flags and (from 'H?') kin, for every pair of uids
 static void hhSave(void){
     volatile u8*m=SRAM_BASE+HH_OFF; int k=3; u8 sum=0x48;
-    m[0]='H'; m[1]='?'; m[2]=(u8)hhN; m[k++]=(u8)hhPUid;   // 'H:' = 'H9' for 8 Sims (8 uids); 'H;' adds the format 11 sliders; 'H?' adds the kin (who is whose mother, sister, roommate)
+    m[0]='H'; m[1]='@'; m[2]=(u8)hhN; m[k++]=(u8)hhPUid;   // 'H:' = 'H9' for 8 Sims (8 uids); 'H;' adds the format 11 sliders; 'H?' adds the kin (who is whose mother, sister, roommate); 'H@' adds GENDER and the family tail
     for(int j=0;j<HH_NM;j++) m[k++]=(u8)hhPName[j];
     for(int j=0;j<HH_NM;j++) m[k++]=(u8)hhPLast[j];   // your own name
     for(int i=0;i<hhN;i++){ const HhSim*s=&hhM[i];
@@ -1372,6 +1388,9 @@ static void hhSave(void){
         m[k++]=s->uid; }
     for(int a=0;a<HU_N;a++)for(int b=0;b<HU_N;b++){ m[k++]=(u8)relD[a][b]; m[k++]=(u8)relL[a][b]; m[k++]=relF[a][b]; }
     for(int a=0;a<HU_N;a++)for(int b=0;b<HU_N;b++) m[k++]=kin[a][b];
+    { int pl[2]={famPa,famPb};   // 'H@': the family tail (family.h): each member's days in their stage, the days until the baby, its parents (0 you, 1.. members by place, 255 nobody)
+      for(int i=0;i<hhN;i++) m[k++]=famAge[hhM[i].uid];
+      m[k++]=famDue; for(int q=0;q<2;q++){ int u=pl[q], v=255; if(famDue&&u!=255){ if(u==hhPUid) v=0; else for(int i=0;i<hhN;i++) if(hhM[i].uid==u) v=i+1; } m[k++]=(u8)v; } }
     for(int i=2;i<k;i++) sum+=m[i];
     m[k]=sum;
     prSave();   // prison.h: who is doing time is kept as a place in this household (a load gives the uids out again)
@@ -1379,17 +1398,18 @@ static void hhSave(void){
 static int hhUidsOf(int ver){ return ver<'6'?HH_MAXOLD+1:ver<=':'-1?HH_MAX9+1:HU_N; }   // uids a saved household kept relationships for
 static void hhLoad(void){
     volatile u8*m=SRAM_BASE+HH_OFF; u8 sum=0x48; hhN=0; for(int j=0;j<HH_MAX;j++) hhFlLd[j]=0;
-    if(m[0]!='H'||m[1]<'2'||m[1]>'?'||m[2]>(m[1]>=':'?HH_MAX:HH_MAX9)) return;
+    famReset();
+    if(m[0]!='H'||m[1]<'2'||m[1]>'@'||m[2]>(m[1]>=':'?HH_MAX:HH_MAX9)) return;
     int hu=hhUidsOf(m[1]);   // before 'H6': 10 uids; 'H6'..'H9': 14; 'H:': 8
-    int v7=m[1]>='7', nb=v7?2*HH_NM:10, nl=m[1]>='>'?LKPK:m[1]>='='?LKPK13:m[1]>='<'?LKPK12:m[1]>=';'?LKPK11:m[1]>='9'?LKPK10:m[1]>='8'?LK_N9:v7?LK_N8:m[1]>='5'?LK_N7:m[1]=='4'?LK_N6:m[1]=='3'?LK_N5:LK_N4, rec=HH_REC-LKPK+nl-2*HH_NM+nb;   // 'H2' households were saved before the hats and clothes, 'H3' before the face details and sliders
-    int n=m[2], hb=v7?2*HH_NM:0, k=4+hb+n*rec+3*hu*hu+(m[1]>='?'?hu*hu:0); for(int i=2;i<k;i++) sum+=m[i]; if(m[k]!=sum) return;
+    int v7=m[1]>='7', nb=v7?2*HH_NM:10, nl=m[1]>='@'?LKPK:m[1]>='>'?LKPK14:m[1]>='='?LKPK13:m[1]>='<'?LKPK12:m[1]>=';'?LKPK11:m[1]>='9'?LKPK10:m[1]>='8'?LK_N9:v7?LK_N8:m[1]>='5'?LK_N7:m[1]=='4'?LK_N6:m[1]=='3'?LK_N5:LK_N4, rec=HH_REC-LKPK+nl-2*HH_NM+nb;   // 'H2' households were saved before the hats and clothes, 'H3' before the face details and sliders
+    int n=m[2], hb=v7?2*HH_NM:0, k=4+hb+n*rec+3*hu*hu+(m[1]>='?'?hu*hu:0)+(m[1]>='@'?n+3:0); for(int i=2;i<k;i++) sum+=m[i]; if(m[k]!=sum) return;
     if(m[3]>=hu) return;
     u8 nu[HH_MAX9+1]; for(int u=0;u<=HH_MAX9;u++) nu[u]=255;   // an older, bigger household: the uids are given out again (you 0, the members 1..), the first HH_MAX members stay
     k=4; int pu=m[3]; nu[pu]=0; hhPUid=0;
     if(v7){ for(int j=0;j<HH_NM;j++) hhPName[j]=(char)m[k++]; for(int j=0;j<HH_NM;j++) hhPLast[j]=(char)m[k++]; hhPName[HH_NM-1]=hhPLast[HH_NM-1]=0; if(!hhPName[0]){ hhPName[0]='Y'; hhPName[1]='O'; hhPName[2]='U'; hhPName[3]=0; } }
     int kept=0;
     for(int i=0;i<n;i++){ HhSim tmp, *s=i<HH_MAX?&hhM[i]:&tmp;
-        if(m[1]>='9'){ int lim=m[1]>='>'?LK_N:m[1]>='='?LK_N13:m[1]>='<'?LK_N12:m[1]>=';'?LK_N11:LK_N10; for(int j=0;j<LK_N;j++) s->look[j]=0; for(int j=0;j<lim;j++) if(!lkSlide(j)) s->look[j]=m[k++];   // 'H:' and older: no format 11 looks
+        if(m[1]>='9'){ int lim=m[1]>='@'?LK_N:m[1]>='>'?LK_N14:m[1]>='='?LK_N13:m[1]>='<'?LK_N12:m[1]>=';'?LK_N11:LK_N10; for(int j=0;j<LK_N;j++) s->look[j]=0; for(int j=0;j<lim;j++) if(!lkSlide(j)) s->look[j]=m[k++];   // 'H:' and older: no format 11 looks
           int h=-1; for(int j=0;j<lim;j++) if(lkSlide(j)){ if(h<0){ int b=m[k++]; s->look[j]=(u8)(b&15); h=b>>4; } else { s->look[j]=(u8)h; h=-1; } } }
         else for(int j=0;j<LK_N;j++) s->look[j]=j<nl?m[k++]:0;
         { int sg=m[k++]; if(i<HH_MAX) hhFlLd[i]=(u8)(sg>>6); s->stage=(u8)(sg&63); } s->asp=m[k++]; s->ltw=m[k++];
@@ -1406,14 +1426,19 @@ static void hhLoad(void){
         if(nu[a]<HU_N&&nu[b]<HU_N){ relD[nu[a]][nu[b]]=d; relL[nu[a]][nu[b]]=l; relF[nu[a]][nu[b]]=f; } }
     if(m[1]>='?') for(int a=0;a<hu;a++)for(int b=0;b<hu;b++){ u8 v=m[k++]; if(nu[a]<HU_N&&nu[b]<HU_N&&v<KN_N) kin[nu[a]][nu[b]]=v; }   // 'H?': kin follow the same uid mapping
     hhN=n<HH_MAX?n:HH_MAX;
+    if(m[1]>='@'){ for(int i=0;i<n;i++){ u8 d=m[k++]; if(i<hhN) famAge[hhM[i].uid]=d; }   // the family tail (the places are the new uids: you 0, members 1..)
+        int due=m[k++], pa=m[k++], pb=m[k++]; if(due&&due<=9&&(pa<=hhN||pb<=hhN)){ famDue=(u8)due; famPa=(u8)(pa<=hhN?pa:255); famPb=(u8)(pb<=hhN?pb:255); } }
+    else {   // a household from before GENDER: kin roles say it first (a MOTHER is a woman), then the look
+        for(int i=0;i<hhN;i++){ int x=kinSexOf(hhM[i].uid); hhM[i].look[LK_SEX]=(u8)(x>=0?x:sexGuess(hhM[i].look)); }
+        { int x=kinSexOf(hhPUid); if(x>=0) look[LK_SEX]=(u8)x; } }
 }
 // How many bytes the household block at m takes (its header, count, uids and checksum all check out), or 0 if it is not a good household
 // or does not fit in avail bytes. The household slots (slots.h) use it to copy a household in and out of SRAM without touching hhM.
 static int hhBlockLen(volatile u8*m,int avail){
-    if(avail<4||m[0]!='H'||m[1]<'2'||m[1]>'?'||m[2]>(m[1]>=':'?HH_MAX:HH_MAX9)) return 0;
+    if(avail<4||m[0]!='H'||m[1]<'2'||m[1]>'@'||m[2]>(m[1]>=':'?HH_MAX:HH_MAX9)) return 0;
     int hu=hhUidsOf(m[1]);
-    int v7=m[1]>='7', nb=v7?2*HH_NM:10, nl=m[1]>='>'?LKPK:m[1]>='='?LKPK13:m[1]>='<'?LKPK12:m[1]>=';'?LKPK11:m[1]>='9'?LKPK10:m[1]>='8'?LK_N9:v7?LK_N8:m[1]>='5'?LK_N7:m[1]=='4'?LK_N6:m[1]=='3'?LK_N5:LK_N4, rec=HH_REC-LKPK+nl-2*HH_NM+nb;
-    int n=m[2], hb=v7?2*HH_NM:0, k=4+hb+n*rec+3*hu*hu+(m[1]>='?'?hu*hu:0); if(k+1>avail) return 0;
+    int v7=m[1]>='7', nb=v7?2*HH_NM:10, nl=m[1]>='@'?LKPK:m[1]>='>'?LKPK14:m[1]>='='?LKPK13:m[1]>='<'?LKPK12:m[1]>=';'?LKPK11:m[1]>='9'?LKPK10:m[1]>='8'?LK_N9:v7?LK_N8:m[1]>='5'?LK_N7:m[1]=='4'?LK_N6:m[1]=='3'?LK_N5:LK_N4, rec=HH_REC-LKPK+nl-2*HH_NM+nb;
+    int n=m[2], hb=v7?2*HH_NM:0, k=4+hb+n*rec+3*hu*hu+(m[1]>='?'?hu*hu:0)+(m[1]>='@'?n+3:0); if(k+1>avail) return 0;
     u8 sum=0x48; for(int i=2;i<k;i++) sum+=m[i]; if(m[k]!=sum||m[3]>=hu) return 0;
     return k+1;
 }

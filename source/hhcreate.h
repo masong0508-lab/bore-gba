@@ -62,6 +62,7 @@ static void hcBond(int a,int b,int r){   // a is b's r: how well a knows and lik
 static void hcSetKin(int a,int b,int ra,int rb){   // a is b's ra and b is a's rb (KN_NONE takes the relation away)
     int was=kinRom(kin[a][b])||kinRom(kin[b][a]);
     kin[a][b]=(u8)ra; kin[b][a]=(u8)rb;
+    { int x=kinSex(ra); if(x>=0) uSetSex(a,x); x=kinSex(rb); if(x>=0) uSetSex(b,x); }   // a gendered role sets the GENDER (a MOTHER is a woman)
     if(ra) hcBond(a,b,ra);
     if(rb) hcBond(b,a,rb);
     if(was&&!kinRom(ra)){ relF[a][b]&=(u8)~(RF_CRUSH|RF_LOVE|RF_STEADY); relF[b][a]&=(u8)~(RF_CRUSH|RF_LOVE|RF_STEADY); }   // not a couple any more
@@ -96,6 +97,8 @@ static int hcRelate(int a,int b){   // ask what a is to b (and what b is to a), 
         const u8*iv=kinInv[ra]; const char* it[3]; int id[3], n=0;
         for(int i=0;i<3;i++) if(iv[i]){ it[n]=kinNm[iv[i]]; id[n]=iv[i]; n++; }
         if(n==1) rb=id[0];
+        else if(uSex(b)<SX_NB&&iv[uSex(b)]) rb=iv[uSex(b)];   // GENDER answers it: a mother's child who is a boy is her SON
+        else if(uSex(b)==SX_NB&&iv[2]) rb=iv[2];
         else { char*e=simCat(t,y); e=simCat(e," IS "); e=simCat(e,x); simCat(e,"'S"); int c=menu(t,it,n); if(c<0) return 0; rb=id[c]; }
         if(!hcStageOk(ra,uStage(a),uStage(b))||!hcStageOk(rb,uStage(b),uStage(a))){ toast("THEIR AGES DO NOT FIT"); return 0; }
     }
