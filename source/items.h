@@ -8,7 +8,9 @@
 // past the last, so the blit never touches the see-through margins. It also clips once per row, not once per pixel.
 // (itemSpan is a const ROM table, baked into itemrom.h by tools/bake_items.sh: it used to be 4 KB of EWRAM filled at boot)
 static void itemSpanInit(void){}   // kept so the boot code stays the same
-IWRAM_CODE __attribute__((noclone)) static void blitItem(int k,int sx,int sy){
+IWRAM_OVL1 static void blitItemO(int k,int sx,int sy);
+static inline void blitItem(int k,int sx,int sy){ ovlUse(1); blitItemO(k,sx,sy); }
+__attribute__((noclone)) IWRAM_OVL1 static void blitItemO(int k,int sx,int sy){
     CNT(cntBI); int x0=sx-IOX, y0=sy-IOY;
     int cx1=cX0+(int)cW, cy1=cY0+(int)cH;
     if(x0>=cx1||x0+IW<=cX0||y0>=cy1||y0+IH<=cY0) return;

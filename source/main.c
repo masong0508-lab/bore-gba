@@ -16,6 +16,23 @@ typedef uint8_t u8; typedef uint16_t u16; typedef uint32_t u32;
 #define IWRAM_CODE __attribute__((section(".iwram"), long_call))
 #define IWRAM_ARM __attribute__((section(".iwram"), target("arm"), long_call))
 #define IWRAM_THUMB __attribute__((section(".iwram"), long_call))   // fast RAM, Thumb code: about 2/3 the size of ARM, for work that is not the per-pixel hot path
+// IWRAM OVERLAYS: two sets of fast code that never run at the same moment share one stretch of IWRAM (devkitARM's .iwram0 / .iwram1).
+//   overlay 0  the creator's voxel renderer (drawScene, cube): the creature creator, and baking a Sim's sprites
+//   overlay 1  the room renderer's inner loops (walls, floors, items, the zoom)
+// Every way into an overlay goes through a small ROM wrapper that calls ovlUse first, which copies that overlay in when the other one is
+// there (a DMA of a few KB, done only when switching: entering the creator or baking, then the next room picture). Neither overlay calls
+// into the other, and no interrupt code lives in one. The startup code loads overlay 0.
+#define IWRAM_OVL0 __attribute__((section(".iwram0"), long_call))
+#define IWRAM_OVL1 __attribute__((section(".iwram1"), long_call))
+extern const unsigned char __load_start_iwram0[], __load_stop_iwram0[], __load_start_iwram1[], __load_stop_iwram1[];
+extern unsigned char __iwram_overlay_start[];
+static unsigned char ovlCur;   // the overlay in IWRAM now (0 at power on)
+__attribute__((noinline)) static void ovlLoad(int k){
+    const unsigned char*s=k?__load_start_iwram1:__load_start_iwram0, *e=k?__load_stop_iwram1:__load_stop_iwram0;
+    REG_DMA3SAD=(unsigned)(unsigned long)s; REG_DMA3DAD=(unsigned)(unsigned long)__iwram_overlay_start; REG_DMA3CNT=((unsigned)(e-s+3)>>2)|0x84000000u;
+    ovlCur=(unsigned char)k;
+}
+static inline __attribute__((always_inline)) void ovlUse(int k){ if(ovlCur!=k) ovlLoad(k); }
 #define REG_WAITCNT (*(volatile u16*)0x04000204)
 #include "save.h"   // the save chip: 128 KB flash, or 32 KB SRAM as the fallback (SRAM_BASE, svRd / svWr / svErase / svCommit)
 
@@ -143,6 +160,7 @@ enum { LK_SHAPE, LK_SKIN, LK_EYES, LK_MOUTH, LK_EARS, LK_HSTYLE, LK_HCOL, LK_TOP
 #define LK_N3 (LK_EARLF+1)   // looks a person format 3 slot holds (the Spore parts TAIL, HORNS, BACK came with format 4)
 static inline int lkSlide(int id){ return (id>=LK_BASE&&id<=LK_EARLF)||(id>=LK_HEIGHT&&id<=LK_MOUTHHT)||(id>=LK_HTONE&&id<=LK_STANCE)||(id>=LK_BUTT&&id<=LK_WINGSZ)||(id>=LK_NECK&&id<=LK_EARWID)||(id>=LK_CHESTW&&id<=LK_HORNTONE)||(id>=LK_TAILTAPER&&id<=LK_WINGTONE)||(id>=LK_JAWW&&id<=LK_NECKW); }
 static inline int slidePos(int v){ return (v+4)%9; }      // 0..8 left to right, the middle (stored 0) is 4
+#define BUTT_OFF 9   // look[LK_BUTT]: the seat switched off (the hidden switch past the slider's left end, lookStep); 0..8 are the slider
 static inline int slideVal(int p){ return (p+5)%9; }
 static inline int slideEff(int v){ return slidePos(v)-4; }   // -4..4
 // MASTER CONTROLLER (OPTIONS > SIMU > CHEAT, only with the debug code: sUnlock from the title's Konami code, or dbgOn): a debug cheat console for extreme body sliders.
@@ -379,7 +397,7 @@ static inline __attribute__((always_inline)) u16 lite(u16 c,int n){
 static const u8 rTab[4]={CA,CA*7/10,CA/2,CA*4/5};   // block, slim limb, hand, leg half widths
 static u8 hhT[4][CA+1];   // hhT[shape][|t|] = (r/2)*(r-|t|)/r, filled once in initTables (no division in the hot loop)
 static int cubeDR;   // WEIGHT slider: added to a block's half width (0 everywhere but the creature's body)
-IWRAM_CODE static void cube(int sx,int sy,int ci,int shape,int f){
+IWRAM_OVL0 static void cube(int sx,int sy,int ci,int shape,int f){   // (overlay 0: only drawScene and what it calls use it)
     int r=rTab[shape], ch=shape==2?CC*7/10:CC; const u8*hhp=hhT[shape];
     if(cubeDR){ static u8 hv[CA+8]; r+=cubeDR; if(r<3) r=3; if(r>CA+6) r=CA+6; for(int a=0;a<=r;a++) hv[a]=(u8)((r/2)*(r-a)/r); hhp=hv; }
     if(shape) f&=3;
@@ -1154,6 +1172,8 @@ __attribute__((noinline)) static void drawAntennae(void){
     }
 }
 // ---- TAIL and HORNS: sprites, so their length / size are sliders and they take no blocks (and no RAM: they are drawn each frame) ----
+static int tailSin(int d){   // sine of d degrees (-180..180) x256 (Bhaskara's formula, close enough for a tail's bend)
+    int sg=1; if(d<0){ d=-d; sg=-1; } if(d>180) d=180; int p=d*(180-d); return sg*(1024*p)/(40500-p); }
 __attribute__((noinline)) static void drawTail(int near){   // STUB (a short wedge) or LONG (droops); TAIL LENGTH: a half block a notch
     int tl=look[LK_TAIL]; if(!tl||custom) return;
     int L,T,hs; bodyPlan(&L,&T,&hs);
@@ -1162,22 +1182,33 @@ __attribute__((noinline)) static void drawTail(int near){   // STUB (a short wed
     x0+=bx*bakeWk/(2*CA); y0+=by*bakeWk/(2*CA);   // WEIGHT: a heavier body is fatter front to back too, so the root moves out with its back face
     if((by>0)!=near) return;                                                                  // pointing away from you: behind the body
     int n=(tl==1?4:7)+slideEffS(look[LK_TAILLEN]); if(n<2) n=2;
-    u16 tb=toneBy(sT[5],slideEffS(look[LK_TAILTONE])), col=shade(tb,13); int cu=slideEff(look[LK_TAILCURL]), tk=slideEffS(look[LK_TAILTHK])/2, sway=slideEff(look[LK_TAILSW]), tipn=n+(slideEffS(look[LK_TAILTL])*(n+2))/4;   // TAIL SWAY: leans left / right on the screen; TAIL TIP LEN: how much of the tail is the tip colour
+    u16 tb=toneBy(sT[5],slideEffS(look[LK_TAILTONE])), col=tb; int cu=slideEff(look[LK_TAILCURL]), tk=slideEffS(look[LK_TAILTHK])/2, sway=slideEff(look[LK_TAILSW]), tipn=n+(slideEffS(look[LK_TAILTL])*(n+2))/4;   // TAIL SWAY: leans left / right on the screen; TAIL TIP LEN: how much of the tail is the tip colour
       // TAIL CURL: negative droops, positive curls up; TAIL THICKNESS: a pixel every two notches
     static const u8 tipSlot[7]={0,2,4,8,3,6,7}; int tpS=tipSlot[look[LK_TAILTIP]%7]; u16 tpc=toneBy(tpS?shade(sT[tpS],13):col,slideEffS(look[LK_TIPTONE]));   // TAIL TIP: the last quarter in another colour (TIP SHADE: lighter / darker)
     int tpe=slideEff(look[LK_TAILTAPER]), fl=slideEff(look[LK_TAILFLUF]), wv=slideEff(look[LK_TAILWAVE]);   // TAIL TAPER: blunt .. pointed; TAIL FLUFF: slim .. bushy (a fuzzy rim); TAIL WAVE: an S wiggle
     static const signed char wvT[8]={0,5,7,5,0,-5,-7,-5};
-    for(int j=0;j<=4*n;j++){
+    // Drawn as a round tube in two passes: a dark rim first (each brush a pixel wider), then the lit body over it, so the tail has an outline
+    // like the voxel blocks and does not wash into what is behind it. FAR to NEAR: a tail pointing away from you is painted tip first, so the
+    // part nearest the hips (nearer you) covers it; pointing towards you, root first. The LONG tail lifts off the hips and then hangs (gravity),
+    // the STUB sticks out and dips a little; TAIL CURL lifts the end (positive) or lets it hang lower (negative).
+    static short tbx[64], tby[64];   // where step j of the tail is, worked out once (the two passes and both orders use it)
+    { int ha=0, va=0, a0=tl==2?-15:18, a1=tl==2?-95+cu*40:cu*8; if(a1<-150) a1=-150; if(a1>80) a1=80;   // the angle off level, in degrees: from a0 at the root to a1 at the tip (LONG hangs; CURL lifts or tucks it)
+      if(4*n>63) n=15;
+      for(int j=0;j<=4*n;j++){ int ang=a0+(a1-a0)*j/(4*n), sx=tailSin(90-ang), sy=tailSin(ang);   // cos and sin, x256
+          tbx[j]=(short)(x0+(bx*ha)/2048+(j*sway)/(2*n)); tby[j]=(short)(y0+(by*ha)/2048-(CC*va)/2048);
+          ha+=sx; va+=sy; } }   // each step is an eighth of a block along the tail
+    for(int pass=0;pass<2;pass++) for(int k=0;k<=4*n;k++){
+        int j=near?k:4*n-k;
         int f=16*(4*n-j)/(4*n), mx=f;   // 16 at the root, 0 at the tip
         if(tpe>0) mx=f+(f*f/16-f)*tpe/4; else if(tpe<0) mx=f+((16-(16-f)*(16-f)/16)-f)*(-tpe)/4;   // pointed: thins early; blunt: stays thick to the end
-        int t=1+(hs+1)*mx/16+tk+(bakeWk>0?bakeWk/4:0)+(fl*(f*(16-f)/16))/6; if(t<1) t=1;   // (and a bit thicker on a heavy body); FLUFF swells the middle
-        int x=x0+bx*j/8+(j*sway)/(2*n), y=y0+by*j/8+(tl==2?j*j*(10-3*cu)/960:j*(2-cu)/16);
+        int t=2+(hs+2)*mx/16+tk+(bakeWk>0?bakeWk/4:0)+(fl*(f*(16-f)/16))/6; if(t<2) t=2;   // (and a bit thicker on a heavy body); FLUFF swells the middle
+        int x=tbx[j], y=tby[j];
         if(wv) y+=(wv*wvT[(j*8/(2*n+1))&7]*j)/(8*4*n);   // WAVE grows from the root
-        u16 c0=j>4*n-tipn?tpc:col, hi=lite(c0,19), lo=shade(c0,9);
-        if(t<=2){ rect(x-t/2,y-t/2,t,t,c0); continue; }
-        int r=t/2;   // a round, lit-from-above brush: highlight on top, shadow underneath, a dark rim at the sides
-        for(int dy=-r;dy<=r;dy++){ int hw=r; while(hw>0&&hw*hw+dy*dy>r*r+r) hw--;
-            u16 c=dy*3<-r?hi:dy*3>r?lo:c0; rect(x-hw,y+dy,2*hw+1,1,c); if(hw>=2){ px(x-hw,y+dy,lo); px(x+hw,y+dy,lo); } }
+        u16 c0=j>4*n-tipn?tpc:col, hi=toneBy(c0,3), lo=shade(c0,11), rim=shade(c0,5);   // (the highlight lifts toward white, so a dark tail shows its roundness too)
+        int r=t/2;
+        if(!pass){ int R=r+1; for(int dy=-R;dy<=R;dy++){ int hw=R; while(hw>0&&hw*hw+dy*dy>R*R+R) hw--; rect(x-hw,y+dy,2*hw+1,1,rim); } continue; }   // the outline
+        for(int dy=-r;dy<=r;dy++){ int hw=r; while(hw>0&&hw*hw+dy*dy>r*r+r) hw--;   // a round, lit-from-above brush: highlight on top, shadow underneath
+            u16 c=dy*3<-r?hi:dy*3>r?lo:c0; rect(x-hw,y+dy,2*hw+1,1,c); }
         if(fl>0&&(j&1)){ int e=r+1; px(x-e,y-r/2+(j&2),c0); px(x+e,y+r/2-(j&2),c0); }   // fluffy: a fuzzy rim
     }
 }
@@ -1280,7 +1311,9 @@ static void bxSync(void);
 // DEBUG CODE (title screen): HEIGHT also works for a BABY. A baby has one leg row (none for BIG HEAD / STUBBY / STOCKY / PETITE / TODDLER), so the leg stretch
 // does little; with the debug code on, the slider stretches the baby's torso row as well. Out of line (ROM) so the IWRAM drawing code stays small.
 __attribute__((noinline)) static int babyTall(void){ if(stage!=AG_BABY||!dbgOn) return 0; int h=slideEffS(look[LK_HEIGHT]); return h<-4?-4:h>bxLift?bxLift:h; }
-IWRAM_THUMB static void drawScene(int blink){
+IWRAM_OVL0 static void drawSceneO(int blink);
+static inline void drawScene(int blink){ ovlUse(0); drawSceneO(blink); }
+IWRAM_OVL0 static void drawSceneO(int blink){
     bxSync();   // (the bake swaps the stage between Sims without building the look again)
     if(stageOn&&!noGrid) drawStage(); else if(bakeOn) rect(cX0,cY0,(int)cW,(int)cH,SKY); else fillCols(0,SCENE_W,SKY);
     // floor grid
@@ -1348,7 +1381,7 @@ IWRAM_THUMB static void drawScene(int blink){
             int syc=sy; if(y==liftL+liftTn-1&&neckK>0) syc+=neckK;   // NECK LENGTH: the head sits higher; the top torso row stays at the shoulders and the neck (drawNeck) fills the gap
             for(int o=rl;o>0;o-=CC) cube(sx,syc+o,ci,shape,f|1);   // a stretched row: its lower part first (a block every CC pixels, so a long stretch has no gaps), then the block on top of it
             cube(sx,syc,ci,shape,rl>0?f|2:f); cubeDR=0;
-            if(decLook&&(stage>=AG_TEEN||sUnlock)&&liftL>0&&y==liftL-1&&z==1&&shape==3&&(x==BX0+(BXW-2)/2||x==BX0+BXW/2)) drawSeat(x,y,u,w,rl,raw&15); }   // the seat, on the back of the top of the legs
+            if(decLook&&(stage>=AG_TEEN||sUnlock)&&liftL>0&&y==liftL-1&&z==1&&shape==3&&(x==BX0+(BXW-2)/2||x==BX0+BXW/2)) { if(look[LK_BUTT]!=BUTT_OFF) drawSeat(x,y,u,w,rl,raw&15); } }   // the seat, on the back of the top of the legs
         u16 dc=dec[y][z][x]; int tint=0;
         if(gdec[y][z][x]&&blink){ dc=gdec[y][z][x]; tint=1; }
         if(dc&&fv>=0){ drawDeco(sx,sy,dc,fv,tint); if(decSpr(dc)-1>=NEYE){ nsx=sx; nsy=sy; ndc=dc; ntint=tint; } }
@@ -3278,7 +3311,9 @@ static __attribute__((noinline)) void winCol(int k,int dir,int u,u16*o){
 }
 // one segment of wall: columns xa..xb of a tile whose centre (on the floor) is sx,sy. dir 0 runs along x (the camera sees its +y face),
 // dir 1 along y (+x face). h = height in px. edge: bit 0 = column xa is an end or corner, bit 1 = column xb.
-IWRAM_CODE static void wallSeg(int sx,int sy,int xa,int xb,int dir,int h,int wp,int edge){
+IWRAM_OVL1 static void wallSegO(int sx,int sy,int xa,int xb,int dir,int h,int wp,int edge);
+static inline void wallSeg(int sx,int sy,int xa,int xb,int dir,int h,int wp,int edge){ ovlUse(1); wallSegO(sx,sy,xa,xb,dir,h,wp,edge); }
+IWRAM_OVL1 static void wallSegO(int sx,int sy,int xa,int xb,int dir,int h,int wp,int edge){
     int ye=cY0+(int)cH-1, per, v0; u16 wb[WALL_H];
     u16 av=wpAvgOf(wp), flat=shade(av,dir?9:12), trim=lite(av,20), dark=shade(av,6);
     for(int x=xa;x<=xb;x++){
@@ -3494,7 +3529,9 @@ static inline __attribute__((always_inline)) void bandColsF(int s,int x0,int x1,
     if(hi>mx) hi=mx;
     *a=lo; *b=hi;
 }
-__attribute__((noinline)) IWRAM_CODE static void roomFloors(int x0,int y0,int x1,int y1,int s0,int s1){   // pass 1: the floor of every tile whose diamond reaches the rectangle
+IWRAM_OVL1 static void roomFloorsO(int x0,int y0,int x1,int y1,int s0,int s1);
+static inline void roomFloors(int x0,int y0,int x1,int y1,int s0,int s1){ ovlUse(1); roomFloorsO(x0,y0,x1,y1,s0,s1); }
+__attribute__((noinline)) IWRAM_OVL1 static void roomFloorsO(int x0,int y0,int x1,int y1,int s0,int s1){   // pass 1: the floor of every tile whose diamond reaches the rectangle
     const short*L=rsTab[0][cview&3], *F=rsTab[1][cview&3]; int lb=L[0], lx=L[1], ly=L[2], fb0=F[0], fx=F[1], fy=F[2];
     const char*lm=&lifeMap[0][0]; const u8*fm=&floorMap[0][0]; int lox=LOX, loy=LOY, sfl=sFl;
     for(int s=s0;s<=s1;s++){ int a,b; bandColsF(s,x0,x1,lox,&a,&b);
@@ -3507,7 +3544,9 @@ __attribute__((noinline)) IWRAM_CODE static void roomFloors(int x0,int y0,int x1
             int fl=fm[fb0+tx*fx+ty*fy];
             if(sfl) floorTile(sx,sy,&flTab[fl][v][0][0]); else tileTop(sx,sy,flFlat[fl][v]); } }
 }
-__attribute__((noinline)) IWRAM_CODE static int roomScan(int s,int x0,int y0,int x1,int y1,int bidx,u8*out){   // pass 2, band s: the tiles whose art may reach the rectangle and that hold something (or the board pickup, map index bidx; -1 = none)
+IWRAM_OVL1 static int roomScanO(int s,int x0,int y0,int x1,int y1,int bidx,u8*out);
+static inline int roomScan(int s,int x0,int y0,int x1,int y1,int bidx,u8*out){ ovlUse(1); return roomScanO(s,x0,y0,x1,y1,bidx,out); }
+__attribute__((noinline)) IWRAM_OVL1 static int roomScanO(int s,int x0,int y0,int x1,int y1,int bidx,u8*out){   // pass 2, band s: the tiles whose art may reach the rectangle and that hold something (or the board pickup, map index bidx; -1 = none)
     const short*L=rsTab[0][cview&3]; int lb=L[0], lx=L[1], ly=L[2]; const char*lm=&lifeMap[0][0]; int lox=LOX, loy=LOY, a, b, n=0;
     bandColsF(s,x0,x1,lox,&a,&b);
     for(int tx=a;tx<=b;tx++){ int ty=s-tx;
@@ -3581,7 +3620,9 @@ static void drawRoom(int ed){   // the whole screen (editor, speed test)
 // Camera zoom: scale the finished picture up around (cx,cy) in place. zk = 256 / zoom. Source pixels are always nearer the
 // centre than their destination, so working outward from the centre never reads a pixel that was already overwritten.
 static short zxm[SW], zym[SH];
-IWRAM_CODE static void zoomFb(int cx,int cy,int zk){   // only the scene rows (vpY0..vpY1-1) are zoomed: the HUD panels stay put
+IWRAM_OVL1 static void zoomFbO(int cx,int cy,int zk);
+static inline void zoomFb(int cx,int cy,int zk){ ovlUse(1); zoomFbO(cx,cy,zk); }
+IWRAM_OVL1 static void zoomFbO(int cx,int cy,int zk){   // only the scene rows (vpY0..vpY1-1) are zoomed: the HUD panels stay put
     for(int x=0;x<SW;x++) zxm[x]=(short)(cx+(((x-cx)*zk)>>8));
     for(int y=vpY0;y<vpY1;y++) zym[y]=(short)(cy+(((y-cy)*zk)>>8));
     for(int pass=0;pass<2;pass++){
@@ -4642,7 +4683,7 @@ static void drawRowSet(int tab,int sel){
                 int x=text(CDX+11,y+10,b,lc,1)+3; x=text(x,y+10,"JENES",lc,1)+4;
                 rect(x,y+11,5,4,lc); rect(x+1,y+9,3,2,lc); px(x+2,y+10,f?FOCUS:CARD);
                 continue; }
-            int pos=slidePos(look[r->id]); u16 ink=f?GOLD:RGB(10,12,16);
+            int off=r->id==LK_BUTT&&look[r->id]==BUTT_OFF, pos=off?0:slidePos(look[r->id]); u16 ink=off?RGB(14,14,16):f?GOLD:RGB(10,12,16);   // (switched off: the knob at the end, hollow)
             rect(CDX+11,y+12,65,1,f?DIMC:RGB(8,10,16));
             for(int q=0;q<9;q++) rect(CDX+11+q*8,y+(q==4?9:10),1,q==4?7:5,f?DIMC:RGB(8,10,16));
             rect(CDX+11+pos*8-2,y+9,5,7,f?WHITE:RGB(16,18,22)); rect(CDX+11+pos*8-1,y+10,3,5,ink);
@@ -4712,6 +4753,9 @@ static void lookStep(int id,int n,int d){
         if(custom&&ns<stage){ static const char* const it[2]={"YES  CUT THEM","NO  KEEP AGE"}; if(menu("CUT BLOCKS TO FIT?",it,2)!=0) return; }
         setStage(ns); return;
     }
+    if(id==LK_BUTT&&(look[id]==BUTT_OFF||(d<0&&slidePos(look[id])==0))){   // THE HIDDEN SWITCH: LEFT once more at the bottom of BUTT clicks the seat off; RIGHT brings it back at the bottom
+        if(look[id]==BUTT_OFF&&d<0) return;
+        look[id]=(u8)(look[id]==BUTT_OFF?slideVal(0):BUTT_OFF); sfxPlay(SFX_TICK); return; }
     if(lkSlide(id)){   // sliders: one step along the track, no wrap round, never rebuilds the blocks
         int p=slidePos(look[id])+d; if(p<0||p>8) return;
         look[id]=(u8)slideVal(p); if(id==LK_TONE||(id>=LK_HTONE&&id<=LK_EYETONE)) setColors(); return;   // the colour sliders repaint at once
@@ -5557,7 +5601,7 @@ int boreMain(void){
 #endif
     REG_WAITCNT=0x4317;  // ROM 3/1 waits + prefetch (power-on default is 4/2, no prefetch)
     *(volatile unsigned int*)0x04000800=0x0E000020;   // EWRAM 1 wait state (faster fb, sprites, stack)
-    logo_play();         // the DippInn Productions boot logo (source/logo.c, ~8 s; leaves a black screen, its DMA and sprites off)
+    logo_play(fb);       // (its tables borrow the frame buffer, not yet in use)   the DippInn Productions boot logo (source/logo.c, ~8 s; leaves a black screen, its DMA and sprites off)
     { volatile u16*io=(volatile u16*)0x04000000; for(int r=0x08/2;r<0x20/2;r++) io[r]=0; for(int r=0x40/2;r<0x56/2;r++) io[r]=0; }   // undo its BG control, scroll, windows and blend (BG2's affine registers are left alone: mode 3 needs them)
     { static volatile u32 zero; zero=0; REG_DMA3SAD=(u32)(uintptr_t)&zero; REG_DMA3DAD=VRAM_ADDR; REG_DMA3CNT=(SW*SH/2)|0x85000000u; }   // (the zero must sit in RAM: a DMA from cartridge ROM always steps its source, "fixed" or not, and used to paint ROM data on screen)   // clear its tiles out of the bitmap (else mode 3 shows them as noise until the title is drawn)
     REG_DISPCNT=0x0403;  // mode 3, BG2 on
