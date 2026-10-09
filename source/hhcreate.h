@@ -40,14 +40,14 @@ static int hcStageOk(int r,int self,int other){   // may a Sim of life stage sel
         case KN_DAUGHTER: case KN_SON: case KN_CHILD: case KN_STEPDAU: case KN_STEPSON: return other>=AG_TEEN&&other>=self;
         case KN_GRANDMA: case KN_GRANDPA: return self>=AG_ADULT&&self>=other;
         case KN_GRANDDAU: case KN_GRANDSON: return other>=AG_ADULT&&other>=self;
-        case KN_WIFE: case KN_HUSBAND: case KN_PARTNER: return self>=AG_TEEN&&other>=AG_TEEN&&ageBand(self)==ageBand(other);
+        case KN_WIFE: case KN_HUSBAND: case KN_SPOUSE: case KN_PARTNER: return self>=AG_TEEN&&other>=AG_TEEN&&ageBand(self)==ageBand(other);
         default: return 1;
     }
 }
 static void hcBond(int a,int b,int r){   // a is b's r: how well a knows and likes b grows to fit (never lower)
     int d=40, l=50;
     switch(r){
-        case KN_PARTNER: case KN_WIFE: case KN_HUSBAND: d=70; l=80; break;
+        case KN_PARTNER: case KN_WIFE: case KN_HUSBAND: case KN_SPOUSE: d=70; l=80; break;
         case KN_MOTHER: case KN_FATHER: case KN_PARENT: case KN_DAUGHTER: case KN_SON: case KN_CHILD: case KN_SISTER: case KN_BROTHER: case KN_SIBLING:
         case KN_GRANDMA: case KN_GRANDPA: case KN_GRANDDAU: case KN_GRANDSON: d=60; l=70; break;
         case KN_AUNT: case KN_UNCLE: case KN_NIECE: case KN_NEPHEW: case KN_COUSIN: d=50; l=60; break;
@@ -69,13 +69,13 @@ static void hcSetKin(int a,int b,int ra,int rb){   // a is b's ra and b is a's r
     hhSave();
 }
 static int hcPickRole(const char*title){   // the relation picker: a KN_ role (KN_NONE: no relation), or -1 when backed out. B goes back a page
-    static const u8 p0[10]={KN_ROOMMATE,KN_MOTHER,KN_FATHER,KN_DAUGHTER,KN_SON,KN_SISTER,KN_BROTHER,KN_WIFE,KN_HUSBAND,KN_PARTNER};
+    static const u8 p0[11]={KN_ROOMMATE,KN_MOTHER,KN_FATHER,KN_DAUGHTER,KN_SON,KN_SISTER,KN_BROTHER,KN_WIFE,KN_HUSBAND,KN_SPOUSE,KN_PARTNER};
     static const u8 p1[9]={KN_GRANDMA,KN_GRANDPA,KN_GRANDDAU,KN_GRANDSON,KN_AUNT,KN_UNCLE,KN_NIECE,KN_NEPHEW,KN_COUSIN};
     static const u8 p2[7]={KN_STEPMOM,KN_STEPDAD,KN_STEPDAU,KN_STEPSON,KN_PARENT,KN_CHILD,KN_SIBLING};
     int page=0;
     for(;;){
-        const char* it[12]; int id[12], n=0;
-        const u8*t=page==0?p0:page==1?p1:p2; int cnt=page==0?10:page==1?9:7;
+        const char* it[13]; int id[13], n=0;
+        const u8*t=page==0?p0:page==1?p1:p2; int cnt=page==0?11:page==1?9:7;
         for(int i=0;i<cnt;i++){ it[n]=kinNm[t[i]]; id[n]=t[i]; n++; }
         if(page==0){ it[n]="MORE KIN..."; id[n]=-2; n++; it[n]="NO RELATION"; id[n]=KN_NONE; n++; }
         else if(page==1){ it[n]="STEP AND MORE..."; id[n]=-3; n++; it[n]="BACK"; id[n]=-4; n++; }

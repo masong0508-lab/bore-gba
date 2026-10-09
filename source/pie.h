@@ -11,6 +11,8 @@ static const u8 pieCx[8]={120,184,206,184,120,56,34,56}, pieCy[8]={26,44,80,116,
 #define PIE_HX 120
 #define PIE_HY 80
 #define PIE_HR 18
+static u8 pieFaceU EWRAM_BSS;   // whose face fills the hub: their uid + 1 (0: none, the plain hub); hhSocR sets it for the Sim you talk to
+static void pieHub(int cx,int cy,int r,int u);   // family.h: their face in a round frame, their plumbob over it
 static void pieDisc(int cx,int cy,int r,u16 c){ for(int dy=-r;dy<=r;dy++){ int hw=r; while(hw*hw+dy*dy>r*r) hw--; rect(cx-hw,cy+dy,hw*2+1,1,c); } }
 static void s2grad(int x,int y,int w,int h,int r0,int g0,int b0,int r1,int g1,int b1);   // (main.c, defined further down)
 // The backdrop of every pie frame. fb does NOT hold the room (the room lives in VRAM and fb only keeps the last redraw patches, see "the life scene" in main.c),
@@ -60,7 +62,8 @@ static int pieMenu(const char*title,const char*foot,const char*const*lab,const u
         for(int i=0;i<n;i++) if(i!=sel) line(PIE_HX,PIE_HY,pieCx[slot[i]],pieCy[slot[i]],RGB(10,15,26));   // spokes, the chosen one on top
         line(PIE_HX,PIE_HY,pieCx[slot[sel]],pieCy[slot[sel]],col[sel]);
         pieDisc(PIE_HX,PIE_HY,PIE_HR+1,GOLD); pieDisc(PIE_HX,PIE_HY,PIE_HR-1,RGB(4,6,12));
-        pieDisc(PIE_HX,PIE_HY,8,col[sel]); pieDisc(PIE_HX,PIE_HY,4,WHITE);
+        if(pieFaceU) pieHub(PIE_HX,PIE_HY,PIE_HR-2,pieFaceU-1);   // the Sims way: their face in the middle, their mood over their head
+        else { pieDisc(PIE_HX,PIE_HY,8,col[sel]); pieDisc(PIE_HX,PIE_HY,4,WHITE); }
         for(int i=0;i<n;i++){ int on=(i==sel), w=tw(lab[i],1)+10, x=pieCx[slot[i]]-w/2, y=pieCy[slot[i]]-6;
             if(x<2) x=2;
             if(x+w>SW-2) x=SW-2-w;

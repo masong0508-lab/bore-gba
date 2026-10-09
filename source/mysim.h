@@ -132,17 +132,11 @@ static void msStuff(int cur){
         if(own) text(x+98-tw("OWNED",1),y,"OWNED",RGB(10,28,12),1); else { numStr(b,slkCost[i]); text(x+98-tw(b,1),y,b,pDna>=slkCost[i]?RGB(22,25,28):RGB(26,16,10),1); } }
     text(14,147,"A BUY  PACKS COME FROM THE CREATOR",RGB(12,14,16),1);
 }
-static void msPeople(int top){
-    if(!hhN){ text(14,45,"NO ONE ELSE LIVES HERE",WHITE,1); text(14,57,"INVITE SOMEONE OVER ON THE PHONE",DIMC,1); return; }
+static void msPeople(int top,int n){   // the household, then the town Sims you know (townrel.h)
+    if(!n){ text(14,45,"NO ONE ELSE LIVES HERE",WHITE,1); text(14,57,"TALK TO THE NEIGHBORS WHO DROP BY",DIMC,1); text(14,67,"OR INVITE SOMEONE OVER ON THE PHONE",DIMC,1); return; }
     text(90,39,"YOU TO THEM",DIMC,1); text(158,39,"THEM TO YOU",DIMC,1);
-    for(int m=top;m<hhN&&m<top+6;m++){ int y=50+(m-top)*15, b=hhM[m].uid, a=hhPUid;
-        text(10,y,hhM[m].name,WHITE,1);
-        { char q[40]; const char*w=relWord(a,b); int kr=kin[b][a];
-          if(kr){ char*e=simCat(q,kinNm[kr]); e=simCat(e,"  "); simCat(e,w); if(tw(q,1)<=76) w=q; else w=kinNm[kr]; }
-          text(10,y+8,w,(relF[a][b]&(RF_LOVE|RF_STEADY|RF_CRUSH))?RGB(31,14,20):relD[a][b]<=-20?RGB(30,10,8):RGB(16,26,16),1); }
-        relBar(90,y+1,relD[a][b]); relBar(90,y+8,relL[a][b]); relBar(158,y+1,relD[b][a]); relBar(158,y+8,relL[b][a]);
-        if(relF[a][b]&RF_STEADY) simIcon(224,y+2,IC_HEART,RGB(31,14,20)); }
-    text(10,147,hhN>6?"TOP DAILY  LOW LIFETIME  UP DOWN MORE":dbgOn?"TOP DAILY  LOW LIFETIME  SELECT ADD":"TOP BAR DAILY  LOW BAR LIFETIME",RGB(12,14,16),1);
+    for(int r=top;r<n&&r<top+6;r++) pplRow(r,50+(r-top)*15,90,158,224);
+    text(10,147,n>6?"UP DOWN MORE  BLUE NAMES LIVE IN TOWN":dbgOn?"TOP DAILY  LOW LIFETIME  SELECT ADD":"TOP DAILY  LOW LIFETIME  BLUE IN TOWN",RGB(12,14,16),1);
 }
 // ---- MORE > MEMORIES: the lifetime score and rank, then the big moments of this Sim, newest first (memlog.h) ----
 static void memScreen(void){
@@ -179,7 +173,7 @@ static void mySimScreen(void){
     static const char* const tn[7]={"SIM","WANTS","JOB","SKILLS","PEOPLE","STUFF","MORE"};
     static u8 keep EWRAM_BSS;   // the tab you were on last time
     slkLoad();   // (the packs you own: a byte of the save chip)
-    int tab=keep<7?keep:0, sel=0, top=0, ms=0, dirty=1; u16 prev=keyNow(); u32 cnt=0, lt=~0u;
+    int tab=keep<7?keep:0, sel=0, top=0, ms=0, dirty=1, ppl=0; u16 prev=keyNow(); u32 cnt=0, lt=~0u;
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
         if(pr&(K_B|K_START)) return;
@@ -190,8 +184,8 @@ static void mySimScreen(void){
                 if(pr&K_SEL){ aspRewards(); prev=keyNow(); dirty=1; } } }
         if(tab==2&&(pr&K_A)&&ojob()){ careerScreen(); prev=keyNow(); dirty=1; }
         if(tab==3){ if(pr&K_DOWN){ sel=(sel+1)%(SK_N+1); dirty=1; } if(pr&K_UP){ sel=(sel+SK_N)%(SK_N+1); dirty=1; } }
-        if(tab==4){ if((pr&K_DOWN)&&top+6<hhN){ top++; dirty=1; } if((pr&K_UP)&&top>0){ top--; dirty=1; }
-            if((pr&K_SEL)&&dbgOn){ hhInvite(); prev=keyNow(); if(top+6>hhN) top=hhN>6?hhN-6:0; dirty=1; } }
+        if(tab==4){ if(dirty) ppl=pplCount(); if((pr&K_DOWN)&&top+6<ppl){ top++; dirty=1; } if((pr&K_UP)&&top>0){ top--; dirty=1; }
+            if((pr&K_SEL)&&dbgOn){ hhInvite(); prev=keyNow(); ppl=pplCount(); if(top+6>ppl) top=ppl>6?ppl-6:0; dirty=1; } }
         if(tab==5){ if(pr&K_DOWN){ sel=(sel+1)%RW_N; dirty=1; } if(pr&K_UP){ sel=(sel+RW_N-1)%RW_N; dirty=1; }
             if((pr&K_A)&&simWishes()){ char nb[24]; u16 c; int ok; msRew(sel,nb,&c,&ok);
                 if(ok){ static char q[32] EWRAM_BSS; static const char* const yn[2]={"YES  BUY IT","NO"}; char*e=simCat(q,simRewNm[sel]); e=simCat(e,"  "); e=simCatN(e,simRewCost[sel]); simCat(e," POINTS?");
@@ -210,7 +204,7 @@ static void mySimScreen(void){
         else if(tab==1) msWants(sel);
         else if(tab==2) msCareer();
         else if(tab==3){ msPanel(35,121); msSkills(sel); }
-        else if(tab==4){ msPanel(35,121); msPeople(top); }
+        else if(tab==4){ msPanel(35,121); msPeople(top,ppl); }
         else if(tab==5) msStuff(sel);
         else { static const char* const ds[MY_MORE]={"THE SKATE CONTROLS ON ONE PAGE","THE GOALS OF THIS LOT AND THE TOWN","A 2 MINUTE TRICK SCORE ATTACK","THE BIG MOMENTS OF YOUR LIFE","HOURS PLAYED, LIFETIME SCORE AND MORE","BADGES TO UNLOCK FROM YOUR STATS"};
             msPanel(35,121); text(10,40,"MORE ABOUT YOU",GOLD,1);

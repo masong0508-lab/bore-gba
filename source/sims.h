@@ -585,8 +585,9 @@ static void simsReset(void){   // entering the life game: pick up the saved life
 static void simsRespawn(void){   // after dying: the needs come back, the life (cash, job, skill, aspiration, wants, clock) goes on
     sNrg=60; sHyg=60; sCom=60; simAct=simActT=0; simQ=0; shiftPts=0; simLastScore=lscore;
 }
+static void famDay(void); static void famReset(void); static void nrDay(void);   // family.h, house.h, townrel.h
 static void simsNewLife(void){   // pause menu: NEW LIFE
-    lsAdd(LS_LIVES,1); simsDefaults(); simsTransient(); simsSaveNow();
+    lsAdd(LS_LIVES,1); famReset(); simsDefaults(); simsTransient(); simsSaveNow();
 }
 
 // ---- wants, fears and the aspiration meter ----
@@ -780,6 +781,8 @@ static void simMinute(void){   // once per game minute
     if(simMin>=1440){   // midnight: new day, bills, autosave
         simMin=0; simDay++; if(simDay>30000) simDay=0; lsAdd(LS_DAYS,1);
         ageTick(); copDay(); prDay();
+        famDay();   // the rest of the household grows up too, and a baby may come (family.h)
+        nrDay();    // the people you know in the town: yesterday fades (townrel.h)
         if(simFlags&SF_TREE){ simMoneyAdd(SIM_TREE_PAY); }   // the money tree
         int bill=ojob()?SIM_BILLS*oBillsPct()/100:0; if(jobT()->perk==JP_BARRACKS) bill/=2; bill-=bill*skLvl(SK_LOGIC)*5/100;   // MILITARY: the barracks   // no career = no bills; BILLS option scales them
         if(bill>0){ if(simMoney>=bill){ simMoney-=bill; simEvent(SE_BILLS); }

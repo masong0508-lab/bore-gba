@@ -118,22 +118,30 @@ static int nbWho(int li,char*nm){   // who lives on lot li of the town you are i
 }
 static int nbLives(int li){ return nbWho(li,0)!=0; }
 static void nbSimFrom(int li,HhSim*s,char*from);
+static int nrLotPull(int lot); static int nrMemPick(int lot,const HhFam*F); static void nrMovedOut(int m,int lot);   // townrel.h: how much a household's Sims mean to yours, and which of them comes
 static int nbVisitor(HhSim*s,char*from,int skip){   // a Sim of another household of the town into s (look, stage, names, traits), the lot it lives on into from.
-    int cand[NB_LOTS], n=0;                        // Returns who it is (skip that next time: two visitors are never from one household), -2 = nobody
-    if(nbOk) for(int li=0;li<NB_LOTS;li++) if(nbLives(li)&&li!=skip) cand[n++]=li;
+    int cand[NB_LOTS], w[NB_LOTS], n=0, sum=0;     // Returns who it is (skip that next time: two visitors are never from one household), -2 = nobody
+    if(nbOk) for(int li=0;li<NB_LOTS;li++) if(nbLives(li)&&li!=skip){ int f=nbWho(li,0)==2?nbFamOf(&nbT,li):-1; if(f>=0&&nrMemPick(li,&hhFams[f])<0) continue;   // (everyone there moved in with you)
+        cand[n]=li; w[n]=8+nrLotPull(li); sum+=w[n++]; }   // friends and loves come round more often (townrel.h)
     from[0]=0;
     if(!n){   // no neighbors (no town yet, or nobody else lives in it): someone from a pre-made family, from down the street
-        int f=rnd8()%HH_NFAM; const HhFam*F=&hhFams[f]; const HhPre*p=&F->m[rnd8()%F->n];
-        hhNew(s,p); famLast(F,s->last); return 100+f; }
-    int li=cand[rnd8()%n]; nbSimFrom(li,s,from); return li;
+        int f=rnd8()%HH_NFAM; const HhFam*F=&hhFams[f]; int mi=nrMemPick(0x80|f,F); if(mi<0) mi=0; const HhPre*p=&F->m[mi];
+        hhNew(s,p); famLast(F,s->last); nbMem=(u8)mi; return 100+f; }
+    int x=(int)(((u32)rnd8()<<8|rnd8())%(u32)sum), i=0; while(i<n-1&&x>=w[i]){ x-=w[i]; i++; }
+    int li=cand[i]; nbSimFrom(li,s,from); return li;
 }
-static void nbSimFrom(int li,HhSim*s,char*from){   // a Sim of the household on lot li (someone lives there) into s; the lot's name into from
+static void nbSimAt(int li,int mi,HhSim*s,char*from){   // member mi (pre-made families; a bank household shows its first Sim) of the household on lot li into s
     { int k=0; for(;nbT.lot[li].name[k]&&k<11;k++) from[k]=nbT.lot[li].name[k]; from[k]=0; }
-    int b=bkFind(nbKey(&nbT),li);
+    int b=bkFind(nbKey(&nbT),li); nbMem=0;
     if(b>=0){ u32 o=bkOff(b), p=o+BK_HDR; { int nl=bkNl(svRd(o+35)); for(int k=0;k<LK_N;k++) s->look[k]=k<nl?svRd(p+k):0; bkSex(s->look,nl); }
         s->stage=svRd(o+34); if(s->stage>=AG_N) s->stage=AG_ADULT; s->asp=AS_FORTUNE; for(int k=0;k<TR_N;k++) s->tr[k]=5;
         bkName(b,1,s->name); bkName(b,0,s->last); return; }
-    const HhFam*F=&hhFams[nbFamOf(&nbT,li)]; hhNew(s,&F->m[rnd8()%F->n]); famLast(F,s->last);
+    const HhFam*F=&hhFams[nbFamOf(&nbT,li)]; if(mi<0||mi>=F->n) mi=0;
+    hhNew(s,&F->m[mi]); famLast(F,s->last); nbMem=(u8)mi;
+}
+static void nbSimFrom(int li,HhSim*s,char*from){   // a Sim of the household on lot li (someone lives there) into s; the lot's name into from
+    int f=nbWho(li,0)==2?nbFamOf(&nbT,li):-1;
+    nbSimAt(li,f>=0?nrMemPick(li,&hhFams[f]):0,s,from);   // (which of them: townrel.h, the ones who like you most often)
 }
 
 // ---------- playing another household / a new one ----------
@@ -171,7 +179,7 @@ static int hhMoveOut(int m){   // member m moves out: to a free lot of the town 
     if(m<0||m>=hhN) return 0;
     int lot=-1; if(nbOk) for(int li=0;li<NB_LOTS&&lot<0;li++){ const NbLot*L=&nbT.lot[li]; if(L->on&&L->kind==LKIND_RES&&li!=nbT.home&&!nbLives(li)) lot=li; }
     int r=lot>=0?bkFree():-1, there=0;
-    if(r>=0&&bkPutSim(r,nbKey(&nbT),lot,&hhM[m])) there=1;
+    if(r>=0&&bkPutSim(r,nbKey(&nbT),lot,&hhM[m])){ there=1; nrMovedOut(m,lot); }   // (they stay someone you know: townrel.h)
     hhRemove(m); for(int k=0;k<hhN;k++){ hhOld[k].x0=hhOld[k].x1=0; hhOldSig[k]=0xFFFFFFFFu; } hhSave();
     if(there){ static char t[40] EWRAM_BSS; char*e=slCat(t,"THEY LIVE ON "); slCat(e,nbT.lot[lot].name); toast(t); nbSave(); } else toast("MOVED OUT OF TOWN");
     return 1;
@@ -186,15 +194,20 @@ static void phTick(void){   // once per logic step in the life game
     else toast("THE CHINESE FOOD IS HERE");
     lnote="EVERYONE ATE"; lnoteT=60; liveInvalidate();
 }
+static int nrKnown(int*lot,int*mem,char (*nm)[28],int max);   // townrel.h: the Sims of the town you know, closest first (lot, member, "NAME  FRIEND")
 static void phInvite(void){   // someone from another household comes over (they take a free member place, like a visitor)
     int k=0, v=TW_V(0); if(v<hhN){ toast("NO ROOM FOR GUESTS"); return; }
-    const char* it[NB_LOTS+1]; static char nm[NB_LOTS][28] EWRAM_BSS; int lot[NB_LOTS], n=0;
-    if(nbOk) for(int li=0;li<NB_LOTS;li++){ char f[24]; f[0]=0; if(!nbWho(li,f)) continue; char*e=slCat(nm[n],f); e=slCat(e,"  "); slCat(e,nbT.lot[li].name); it[n]=nm[n]; lot[n++]=li; }
+    const char* it[NB_LOTS+12]; static char nm[NB_LOTS+12][28] EWRAM_BSS; int lot[NB_LOTS+12], mem[NB_LOTS+12], n=0;
+    n=nrKnown(lot,mem,nm,12); for(int i=0;i<n;i++) it[i]=nm[i];   // the people you know first: call them by name
+    if(nbOk) for(int li=0;li<NB_LOTS;li++){ char f[24]; f[0]=0; if(!nbWho(li,f)) continue; char*e=slCat(nm[n],f); e=slCat(e,"  "); slCat(e,nbT.lot[li].name); it[n]=nm[n]; lot[n]=li; mem[n++]=-1; }
     if(!n){ toast("NOBODY ELSE LIVES IN TOWN YET"); return; }
     int c=menu("WHO DO YOU CALL",it,n); if(c<0) return;
-    HhSim*s=&hhM[v]; nbSimFrom(lot[c],s,twFrom[k]);
-    s->uid=255; s->bubT=0; s->hp=HP_MAX; s->act=HA_IDLE; s->pn=s->pi=0;
-    twHas[k]=1;   // (a guest staying over counts for STORY MODE's HAVE A NEIGHBOR OVER: story.h watches twOn) twOn[k]=0; twWait[k]=90; hhKey[v]=0; twKeep=1;
+    nrSync();   // (whoever was in that place keeps what they feel)
+    HhSim*s=&hhM[v];
+    if(mem[c]>=0) nbSimAt(lot[c],mem[c],s,twFrom[k]); else nbSimFrom(lot[c],s,twFrom[k]);
+    s->bubT=0; s->hp=HP_MAX; s->act=HA_IDLE; s->pn=s->pi=0; s->ltw=0; for(int q=0;q<HN_N;q++) s->need[q]=80;
+    twWho(k,lot[c]);
+    twHas[k]=1; twOn[k]=0; twWait[k]=90; twWel[k]=0; twCall[k]=1; hhKey[v]=0; twKeep=1;   // at the door in a moment (a guest staying over counts for STORY MODE's HAVE A NEIGHBOR OVER: story.h watches twOn)
     toast("PLEASE WAIT  THEY ARE ON THEIR WAY"); hhBakeAll();
     static char t[40] EWRAM_BSS; char*e=simCat(t,s->name); simCat(e," IS COMING OVER"); toast(t);
 }

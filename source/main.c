@@ -3671,6 +3671,7 @@ static void hhSwap(HhSim*s){   // trade places: the player becomes s, s becomes 
     for(int i=0;i<TR_N;i++){ u8 t=pTr[i]; pTr[i]=s->tr[i]; s->tr[i]=t; }
     for(int i=0;i<HH_NM;i++){ char t=hhPName[i]; hhPName[i]=s->name[i]; s->name[i]=t; t=hhPLast[i]; hhPLast[i]=s->last[i]; s->last[i]=t; }
     { int u=hhPUid; hhPUid=s->uid; s->uid=(u8)u; int v=sSoc; sSoc=s->need[HN_SOC]; s->need[HN_SOC]=(u8)v; s->bubT=0; hhBubT=0; }
+    { u8 t=ageDays; ageDays=famAge[hhPUid]; famAge[s->uid]=t; }   // the days lived in this stage go with each Sim (family.h)
     s->act=HA_IDLE; s->think=30; s->gok=0;
     lz=lvz=0; lsp=0; lskate=0; lgrind=0; lstun=0; lairF=0; feelReset(lhd);
     buildLook(); setColors(); ageSave(); persSave();
@@ -4644,6 +4645,7 @@ static void famMenu(void){
     for(int i=0;i<TR_N;i++){ u8 t=pTr[i]; pTr[i]=s->tr[i]; s->tr[i]=t; }
     for(int i=0;i<HH_NM;i++){ char t=hhPName[i]; hhPName[i]=s->name[i]; s->name[i]=t; t=hhPLast[i]; hhPLast[i]=s->last[i]; s->last[i]=t; }
     { int t=hhPUid; hhPUid=s->uid; s->uid=(u8)t; }
+    famAge[s->uid]=ageDays;   // (your days in the stage go with you to them)
     custom=0; ageDays=0; fixLook(); buildLook(); setColors(); ageSave(); persSave(); hhSave();
     static char t[32] EWRAM_BSS; simCat(simCat(t,"NOW EDITING "),hhPName); toast(t);
 }
@@ -5130,6 +5132,7 @@ static void s3Round(int x,int y,int on,const char*glyph){ disc(x,y,7,on?RGB(4,10
 static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,RGB(8,14,26)); text((SW-tw(t,1))/2,152,t,RGB(26,29,31),1); }
 #include "neighborhood.h"   // THE NEIGHBORHOOD: a town of lots to live in, visit and build on (main menu)
 #include "households.h"     // THE TOWN'S HOUSEHOLDS: who lives where, the household bank, visitors, the phone
+#include "townrel.h"        // TOWN RELATIONSHIPS: neighbours are people you know (guests with every social, remembered, moving in)
 #include "fx.h"
 #include "npc.h"             // AI SKATERS and POLICE: hardware sprites on the last spare OBJ tiles (see the top of npc.h)             // GHOSTS and WEATHER: hardware sprites on the spare OBJ slots (see the top of the file)
 #include "prison.h"         // PRISON: when the cops catch you, the sentence depends on your record; you serve it in a prison of the town
@@ -5188,6 +5191,7 @@ static void s2rr(int x,int y,int w,int h,u16 c){ rect(x+1,y,w-2,h,c); rect(x,y+1
 static void s2grad(int x,int y,int w,int h,int r0,int g0,int b0,int r1,int g1,int b1){        // a vertical gradient
     for(int i=0;i<h;i++){ int t=h>1?i*256/(h-1):0; rect(x,y+i,w,1,RGB(r0+(r1-r0)*t/256,g0+(g1-g0)*t/256,b0+(b1-b0)*t/256)); } }
 static void s2pill(int x,int y,int w,const char*s){ s2rr(x,y,w,11,RGB(10,20,30)); s2grad(x+1,y+1,w-2,9,6,15,25,3,9,17); text(x+(w-tw(s,1))/2,y+2,s,RGB(20,27,31),1); }
+#include "family.h"         // FAMILY LIFE: weddings, babies and twins, a household that grows up, the FAMILY panel and the birth notices
 static void howToPlay(void){
     static const char* const tn[7]={"PLAY","MAKE","BUILD","MUSIC","PLANS","OPTS","TOWN"};
     const char* const* ln[7]={lifeHelp,creatureHelp,mapHelp,jbHelp,slotHelp,optHelp,nbHelp};
