@@ -2137,6 +2137,12 @@ static int surfH(s32 fx,s32 fy){   // surface height at an exact position (1/256
     int tx=(int)(fx>>8), ty=(int)(fy>>8); if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
     char c=lifeMap[ty][tx]; return isRamp(c)?rampH(c,(int)fx,(int)fy):tileH(tx,ty);
 }
+static inline int wallTall(char c){ return c=='W'||c=='#'||isWinCh(c); }   // full walls and windows: nothing gets over them, however high the jump (low walls and fences can be cleared)
+static int moveH(s32 fx,s32 fy){   // the height a step into (fx,fy) has to clear: the surface, or no way at all into a full wall from another tile
+    int tx=(int)(fx>>8), ty=(int)(fy>>8); if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
+    if(wallTall(lifeMap[ty][tx])&&(tx!=(int)(lfx>>8)||ty!=(int)(lfy>>8))) return 99;   // (already inside one, somehow: walk out)
+    return surfH(fx,fy);
+}
 // Colour lookups for the sprite palette and the two quantisers (house.h): a small open-addressing hash from a 15-bit colour to a slot (key 0xFFFF = empty).
 // The sprites hold about 40 colours, so a lookup is one or two probes instead of a walk through the list.
 #define HQ_N 512
@@ -2967,8 +2973,8 @@ static void lifeStep(u16 k,u16 pr,int fr){
     s32 nx=lfx+lvx, ny=lfy+lvy;   // move per axis so walls slide
     int bump=0, sp0b=lsp, bxS=0, byS=0;   // bxS / byS: which way the wall is that stopped the x / y move
     int tol=isRamp(lifeMap[lfy>>8][lfx>>8])?F_RAMP_TOL:3;   // a ramp climbs a few px per step without being a wall
-    if(surfH(nx,lfy)<=zp+tol) lfx=nx; else { bump=1; bxS=lvx>0?1:-1; }
-    if(surfH(lfx,ny)<=zp+tol) lfy=ny; else { bump=1; byS=lvy>0?1:-1; }
+    if(moveH(nx,lfy)<=zp+tol) lfx=nx; else { bump=1; bxS=lvx>0?1:-1; }
+    if(moveH(lfx,ny)<=zp+tol) lfy=ny; else { bump=1; byS=lvy>0?1:-1; }
     if(lwr&&bump) wrEnd();   // ran into a corner
     if(bump&&lskate&&!lwr&&(k&K_R)&&lstun<=0&&!ldead&&sp0b>=8&&(bxS||byS)&&lz>fh+(5<<8)&&!isRamp(lifeMap[byS?(lfy>>8)+byS:lfy>>8][bxS?(lfx>>8)+bxS:lfx>>8])){   // WALLRIDE
         int al=bxS?lvy:lvx; if(al>-12&&al<12) al=al<0?-12:12; if(al>40) al=40; if(al<-40) al=-40;
@@ -3367,6 +3373,39 @@ static const short rsTab[2][4][3]={
     { {0,1,MW+1}, {(MW-1)*(MW+1),-(MW+1),1}, {(MH-1)*(MW+1)+(MW-1),-1,-(MW+1)}, {MH-1,MW+1,-1} },
     { {0,1,MW},   {(MW-1)*MW,-MW,1},         {(MH-1)*MW+(MW-1),-1,-MW},         {MH-1,MW,-1} } };
 _Static_assert(CA==8,"the scans below divide by CA with a shift");
+// THE FLOOR UNDER A WALL. A wall runs through the middle of its tile (drawWall: an arm from the centre towards each wall neighbour), so the tile's
+// floor shows on both sides of it. The diamond is four quarters (top, right, bottom, left); each faces the two neighbours across its outer edges, and
+// two quarters side by side are one piece of floor unless an arm runs between them. Each piece takes the floor of a neighbour it faces that is not a
+// wall (the inside first, as wallFloorR). It used to be one floor for the whole tile, the inside one: a strip of the room's floor showed outside.
+// A door ('D') stands in a wall line too and is split the same way.
+__attribute__((noinline,long_call)) static void wallFloorDraw(int tx,int ty,int sx,int sy){
+    static const signed char dd[4][2]={{0,-1},{1,0},{0,1},{-1,0}};   // quarter q's own edge faces neighbour dd[q]; the arm between quarters q and q+1 points to dd[q]
+    int arm[4], fq[4], v=(tx^ty)&1;
+    for(int q=0;q<4;q++) arm[q]=wallAtR(tx+dd[q][0],ty+dd[q][1]);
+    { int ax=arm[1]||arm[3], ay=arm[0]||arm[2];   // a wall along one axis splits its whole tile along that line (also at a free end, by a door)
+      if(ax&&!ay) arm[1]=arm[3]=1; else if(ay&&!ax) arm[0]=arm[2]=1;
+      else if(!ax&&!ay&&!isWallCh(cellAt(tx,ty))){ int fl=flAt(tx,ty); if(sFl) floorTile(sx,sy,&flTab[fl][v][0][0]); else tileTop(sx,sy,flFlat[fl][v]); return; } }   // (a door on its own: its own floor)
+    int reg[4]; for(int q=0;q<4;q++) reg[q]=q;
+    for(int pass=0;pass<2;pass++) for(int q=0;q<4;q++) if(!arm[q]){ int a=reg[q], b=reg[(q+1)&3], m=a<b?a:b; for(int r=0;r<4;r++) if(reg[r]==a||reg[r]==b) reg[r]=m; }   // quarters with no arm between them are one piece
+    for(int g=0;g<4;g++){ int best=-1, ins=0;
+        for(int q=0;q<4;q++){ if(reg[q]!=g) continue;
+            for(int e=0;e<2;e++){ int d=e?q:(q+3)&3; if(arm[d]) continue;   // quarter q faces dd[q-1] and dd[q] (its two outer edges)
+                int x=tx+dd[d][0], y=ty+dd[d][1]; if(x<0||y<0||x>=MW||y>=MH) continue;
+                int in=wInAt(x,y); if(best<0||(in&&!ins)){ best=flAt(x,y); ins=in; } } }
+        if(best<0) best=wallFloorR(tx,ty);
+        for(int q=0;q<4;q++) if(reg[q]==g) fq[q]=best; }
+    int xa=cX0, xz=cX0+(int)cW-1;
+    for(int ry=-CB;ry<=CB;ry++){
+        int y=sy+ry; if((unsigned)(y-cY0)>=cH) continue;
+        int hw=rowHW[ry<0?-ry:ry], a=2*(ry<0?-ry:ry), mid=ry<0?0:2;   // this row: the left quarter, the middle one (top or bottom), the right one; they meet where the two wall lines cross it
+        int sp[3][2]={{-hw,-a-1},{-a,a},{a+1,hw}}, qq[3]={3,mid,1};   // (near the top and bottom points the whole row is the middle quarter)
+        for(int k=0;k<3;k++){ int l=sp[k][0]<-hw?-hw:sp[k][0], r=sp[k][1]>hw?hw:sp[k][1]; if(l>r) continue;   // (inside the diamond only)
+            int x0=sx+l, x1=sx+r; if(x0<xa) x0=xa; if(x1>xz) x1=xz; if(x0>x1) continue;
+            int fl=fq[qq[k]];
+            if(sFl) cpyHW(&fb[y*SW+x0],&flTab[fl][v][0][0]+(ry+CB)*(2*CA+1)+CA+(x0-sx),x1-x0+1);
+            else fillHW(&fb[y*SW+x0],x1-x0+1,flFlat[fl][v]); } }
+}
+
 static int wallFloorR(int rx,int ry) __attribute__((long_call,noinline));   // (ROM: walls are few, and inlined it would bloat IWRAM)
 static inline __attribute__((always_inline)) void bandColsF(int s,int x0,int x1,int lox,int*a,int*b){   // bandCols, with fdiv(...,8) as a shift (it floors)
     int kmin=((x0-12-lox)>>3)-1, kmax=((x1+12-lox)>>3)+1;
@@ -3384,7 +3423,8 @@ __attribute__((noinline)) IWRAM_CODE static void roomFloors(int x0,int y0,int x1
             int sx=lox+(tx-ty)*CA, sy=loy+(tx+ty+1)*CB;
             if(sx+CA<x0||sx-CA>=x1||sy+CB<y0||sy-CB>=y1) continue;   // the diamond does not reach the rectangle
             char c=lm[lb+tx*lx+ty*ly]; if(c=='#') continue;
-            int fl=isWallCh(c)?wallFloorR(tx,ty):fm[fb0+tx*fx+ty*fy], v=(tx^ty)&1;   // (walls are thin now: the room's floor runs under them)
+            if(isWallCh(c)||c=='D'){ wallFloorDraw(tx,ty,sx,sy); continue; }   // (walls are thin, and a door stands in a wall line: the floors of both sides run under them)
+            int fl=fm[fb0+tx*fx+ty*fy], v=(tx^ty)&1;
             if(sfl) floorTile(sx,sy,&flTab[fl][v][0][0]); else tileTop(sx,sy,flFlat[fl][v]); } }
 }
 __attribute__((noinline)) IWRAM_CODE static int roomScan(int s,int x0,int y0,int x1,int y1,int bidx,u8*out){   // pass 2, band s: the tiles whose art may reach the rectangle and that hold something (or the board pickup, map index bidx; -1 = none)
