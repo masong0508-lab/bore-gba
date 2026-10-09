@@ -26,7 +26,7 @@ static void inmLook(int k,u8*lk,u8*stg){
     static const u8 shp[12]={0,1,3,4,5,6,17,18,19,20,21,22}, cut[6]={0,3,4,6,0,3};   // (the shapes hhRandLook uses) / CROP BALD SPIKY FLAT TOP
     int o=inmOut(k);
     for(int i=0;i<LK_N;i++) lk[i]=0;
-    lk[LK_SHAPE]=shp[(k*5)%12]; lk[LK_SKIN]=(u8)inmSkin(k); lk[LK_EYES]=(u8)(inR(k,5)%NEYE); lk[LK_MOUTH]=(u8)(inR(k,6)%NMOUTH);
+    lk[LK_SHAPE]=shp[(k*5)%12]; lk[LK_SKIN]=(u8)inmSkin(k); lk[LK_EYES]=(u8)(inR(k,5)%NEYE0); lk[LK_MOUTH]=(u8)(inR(k,6)%NMOUTH0);
     lk[LK_EARS]=(u8)(1+(inR(k,7)&1)); lk[LK_HSTYLE]=cut[(k+inR(k,8))%6]; lk[LK_HCOL]=(u8)inmHair(k);
     lk[LK_BROW]=(u8)(inR(k,10)%6); lk[LK_EYECOL]=(u8)(inR(k,11)%NSW);
     lk[LK_GLASS]=(inR(k,12)%5==0)?1:0; lk[LK_BEARD]=(inR(k,13)%3==0)?(u8)(1+(inR(k,14)&1)):0;
