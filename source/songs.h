@@ -95,6 +95,9 @@ SONG_XM(the_ticking_bomb,"THE TICKING BOMB","tools/the_ticking_bomb.xm")
 // MISTER QUICKBULLET: a VaninBlack rework of the Caustic project "Kw5 O" (its MIDI export, tools/mister_quickbullet.mid, and tools/kw5_o.caustic):
 // a dark 129 BPM half-time downgroove with the acid BassLine, an 808, growls cut from the unused BeatBox (tools/make_quickbullet_vanin.py, about 3:58)
 SONG_XM(quickbullet,"MISTER QUICKBULLET","tools/quickbullet.xm")
+// OVER MY VOICE: a DayBar hi-NRG / house rework of the Caustic project "Over my voixe. V2" (tools/over_my_voixe.caustic + .mid): a software
+// singer (tools/singer.py) sings the Vocoder lines with words, plus every unused organ, synth and drum pattern (tools/make_overmyvoice_rework.py, 3:34)
+SONG_XM(over_my_voice,"OVER MY VOICE","tools/over_my_voice.xm")
 // YOU'RE WINNER (ORIGINAL): Dipper - You're Winner (You Rule), transcribed from the song's stems (tools/make_winner.py, notes in
 // tools/youre_winner_notes.json, 131 BPM, 6:07). A SECRET song, hidden until the title-screen code (isDbgSong in main.c), until it is approved.
 SONG_XM(youre_winner,"YOU'RE WINNER (ORIGINAL)","tools/youre_winner.xm")

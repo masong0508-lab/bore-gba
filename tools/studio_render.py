@@ -25,7 +25,7 @@ HIFI = 4            # generator re-synthesis rate factor
 GEN = {             # song id -> the generator script that built it (its sounds are synthesised again at HIFI x the rate)
     'aim_and_shoot': 'make_aimandshoot_rework', 'gottcho_barracho_ii': 'make_barracho_rework', 'closer_to_the_end_old': 'make_closer_old_rework',
     'closer_to_the_end': 'make_closer_rework', 'cocaine_cola_ii': 'make_cocaine_cola_rework', 'condensed_music': 'make_condensed_rework',
-    'cynicaller_dnb': 'make_cynicaller_rework', 'quickbullet': 'make_quickbullet_vanin', 'emergency_hitech': 'make_emergency_rework', 'excuses_house': 'make_excuses_rework',
+    'cynicaller_dnb': 'make_cynicaller_rework', 'quickbullet': 'make_quickbullet_vanin', 'over_my_voice': 'make_overmyvoice_rework', 'emergency_hitech': 'make_emergency_rework', 'excuses_house': 'make_excuses_rework',
     'spanish_flexicode': 'make_flexicode_rework', 'hotdamn_rave': 'make_hotdamn_rework', 'magic_act': 'make_magicact_rework',
     'nursery_time': 'make_nursery_rework', 'staged': 'make_staged_rework', 'sunman_sunrise': 'make_sunman_rework',
     'the_ticking_bomb': 'make_tickingbomb_rework', 'whistler_shuffle': 'make_whistler_rework', 'meltdown_in_mars_house': 'make_meltdown_house',
@@ -228,7 +228,7 @@ def song_plan(S, used, lo, panf, pans, snd, sid):
 
 SPACE = {   # how much hall a song gets (1 = the full hall; under 0.6 a small room instead).  Dance tracks are kept dry and close; the title
              # song nearly dry; CONDENSED MUSIC and STAGED carry reverb in their own sounds already.  The ambient and acoustic pieces keep the hall.
-    'the_dipper_man': 0.25, 'condensed_music': 0.3, 'staged': 0.3, 'emergency_hitech': 0.4, 'emergency_dance_floor': 0.4, 'hotdamn_rave': 0.4,
+    'the_dipper_man': 0.25, 'condensed_music': 0.3, 'staged': 0.3, 'over_my_voice': 0.3, 'emergency_hitech': 0.4, 'emergency_dance_floor': 0.4, 'hotdamn_rave': 0.4,
     'hotdamn_rave_old': 0.4, 'amiga_music': 0.4, 'cynicaller_dnb': 0.45, 'meltdown_in_mars_house': 0.45, 'mi_cora_zone': 0.45,
     'closer_to_the_end': 0.5, 'closer_to_the_end_old': 0.5, 'sunman_sunrise': 0.5, 'the_ticking_bomb': 0.5, 'cocaine_cola_ii': 0.5,
     'cocaine_cola': 0.5, 'gottcho_barracho': 0.55, 'earth_and_the_space_citizens': 0.6, 'tree_swaying_action_old': 0.6, 'excuses_house': 0.8,

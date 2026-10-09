@@ -27,7 +27,7 @@ OUT = "source/musicdata.h"
 BIN = "source/music/xmdata.bin"   # every song's note events and sample data, pulled into the ROM with .incbin (keeps musicdata.h small and the ROM compact)
 BLOB = bytearray(); LABELS = []   # LABELS: (symbol, kind, offset, size) of each piece of BLOB; one .incbin line each in musicdata.h
 TITLE = ("the_dipper_man", "tools/the_dipper_man.xm")
-GAIN = {"tree_swaying_action": 2.7, "tree_swaying_action_old": 0.9, "tree_fast": 2.0, "tree_fast_old": 2.0, "amiga_music": 1.1, "earth_and_the_space_citizens": 2.0, "meltdown_in_mars_house": 1.8, "sunman_sunrise": 1.6, "gottcho_barracho": 1.85, "spanish_flexicode": 1.7, "gottcho_barracho_ii": 1.7, "mi_cora_zone": 1.5, "emergency_hitech": 1.6, "excuses_house": 1.9, "whistler_shuffle": 2.2, "whistler_shuffle_old": 2.2, "worthless_clouds": 1.15, "cynicaller_dnb": 1.35, "hotdamn_rave": 1.5, "hotdamn_rave_old": 1.5, "aim_and_shoot": 2.15, "magic_act": 3.0, "nursery_time": 3.4, "condensed_music": 1.6, "cocaine_cola_ii": 1.8, "cocaine_cola": 3.0, "staged": 1.5, "closer_to_the_end": 2.0, "closer_to_the_end_old": 2.0, "the_ticking_bomb": 1.7, "quickbullet": 1.6}   # louder/quieter per song (default 1.0), so every tracker song sits at a similar level
+GAIN = {"tree_swaying_action": 2.7, "tree_swaying_action_old": 0.9, "tree_fast": 2.0, "tree_fast_old": 2.0, "amiga_music": 1.1, "earth_and_the_space_citizens": 2.0, "meltdown_in_mars_house": 1.8, "sunman_sunrise": 1.6, "gottcho_barracho": 1.85, "spanish_flexicode": 1.7, "gottcho_barracho_ii": 1.7, "mi_cora_zone": 1.5, "emergency_hitech": 1.6, "excuses_house": 1.9, "whistler_shuffle": 2.2, "whistler_shuffle_old": 2.2, "worthless_clouds": 1.15, "cynicaller_dnb": 1.35, "hotdamn_rave": 1.5, "hotdamn_rave_old": 1.5, "aim_and_shoot": 2.15, "magic_act": 3.0, "nursery_time": 3.4, "condensed_music": 1.6, "cocaine_cola_ii": 1.8, "cocaine_cola": 3.0, "staged": 1.5, "closer_to_the_end": 2.0, "closer_to_the_end_old": 2.0, "the_ticking_bomb": 1.7, "quickbullet": 1.6, "over_my_voice": 1.5}   # louder/quieter per song (default 1.0), so every tracker song sits at a similar level
 LOOP_OVERRIDE = {"the_dipper_man": 4, "amiga_music": 0, "emergency_dance_floor": 0, "tree_swaying_action": 0, "tree_swaying_action_old": 0}   # the title song plays its intro once, then loops from order 4 (others loop from the XM restart position)
 
 def make_ending(S):
@@ -720,6 +720,23 @@ def quickbullet_pan(pat, row, ch, i, n):
     if ch == 13: return 0.4
     if ch == 14: return -0.25
     return None
+def voice_pan(pat, row, ch, i, n):
+    """OVER MY VOICE (tools/make_overmyvoice_rework.py): kick, clap, the organ bass and the sung line in the middle, its double right; hats
+       right, open hats left; the organ / piano / brass a little left; the choir and the sung hook fanned; the 8-bit lead just right with its
+       echo / the chimes left; congas and toms ping-pong every 16th; the orchestra hits and hoover right of centre; fx centre-right."""
+    if ch in (0, 1, 4): return 0.0
+    if ch == 9: return -0.1
+    if ch == 10: return 0.45
+    if ch == 2: return 0.4
+    if ch == 3: return -0.4
+    if ch == 5: return -0.25
+    if ch in (6, 7, 8): return (-0.6, 0.0, 0.6)[ch - 6]
+    if ch == 11: return 0.2
+    if ch == 12: return -0.4
+    if ch == 13: return -0.5 if (row >> 2) & 1 else 0.5
+    if ch == 14: return 0.3
+    if ch == 15: return 0.15
+    return None
 def condensed_pan(pat, row, ch, i, n):
     """CONDENSED MUSIC (tools/make_condensed_rework.py): kick, snare, bass in the middle; hats right, shaker / open hat left; the riff
        organ left of centre, the Rhodes fanned, the lead just right with its echo / harmony further right; the arp and the blips
@@ -812,7 +829,7 @@ def bomb_pan(pat, row, ch, i, n):
     if ch == 14: return 0.5 * __import__('math').sin(pat * .7)
     return {2: 0.2, 3: -0.5, 5: -0.6, 6: 0.6, 7: 0.5, 8: -0.3, 9: 0.4, 10: -0.15, 11: 0.6, 12: 0.25, 13: -0.3}.get(ch, 0.0)
 
-OVERRIDES = {"the_ticking_bomb": bomb_pan, "nursery_time": nursery_pan, "magic_act": magic_pan, "the_dipper_man": title_pan, "excuses_house": excuses_pan, "whistler_shuffle": whistler_pan, "whistler_shuffle_old": whistler_pan, "emergency_hitech": hitech_pan, "worthless_clouds": clouds_pan, "cynicaller_dnb": cynic_pan, "hotdamn_rave": hotdamn_pan, "hotdamn_rave_old": hotdamn_pan, "aim_and_shoot": aim_pan, "spanish_flexicode": flexicode_pan, "gottcho_barracho_ii": barracho_pan, "condensed_music": condensed_pan, "staged": staged_pan, "quickbullet": quickbullet_pan}
+OVERRIDES = {"the_ticking_bomb": bomb_pan, "nursery_time": nursery_pan, "magic_act": magic_pan, "the_dipper_man": title_pan, "excuses_house": excuses_pan, "whistler_shuffle": whistler_pan, "whistler_shuffle_old": whistler_pan, "emergency_hitech": hitech_pan, "worthless_clouds": clouds_pan, "cynicaller_dnb": cynic_pan, "hotdamn_rave": hotdamn_pan, "hotdamn_rave_old": hotdamn_pan, "aim_and_shoot": aim_pan, "spanish_flexicode": flexicode_pan, "gottcho_barracho_ii": barracho_pan, "condensed_music": condensed_pan, "staged": staged_pan, "quickbullet": quickbullet_pan, "over_my_voice": voice_pan}
 
 def design_pan(S, used, insts, sid=None):
     """Pan plan for one song. Returns pan(pat, row, ch, inst, note) -> bus.  Rules (a small 'mix engineer'):
