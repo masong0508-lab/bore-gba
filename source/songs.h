@@ -97,3 +97,5 @@ SONG_XM(the_ticking_bomb,"THE TICKING BOMB","tools/the_ticking_bomb.xm")
 SONG_XM(youre_winner,"YOU'RE WINNER (ORIGINAL)","tools/youre_winner.xm")
 // HERE TODAY (MISSY'S SONG): the author's own MIDI (tools/here_today.mid) rendered by tools/make_heretoday_midi.py; the scene-5 lyric beats are timed to its phrases
 SONG_ADP(here_today,"HERE TODAY (MISSY'S SONG)","source/music/here_today.adp")
+// HERE TODAY (ORIGINAL): the short chiptune placeholder (tools/make_heretoday.py, 1:13), the version that used to play in the last cutscene: a SECRET song (isDbgSong in main.c)
+SONG_ADP(here_today_old,"HERE TODAY (ORIGINAL)","source/music/here_today_old.adp")

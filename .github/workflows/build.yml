@@ -5,12 +5,25 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+# Only the newest push of a branch may publish: an older, slower run can no longer finish last and overwrite "Latest build" with an old ROM.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   build:
     runs-on: ubuntu-latest
     container: devkitpro/devkitarm:latest
     steps:
       - uses: actions/checkout@v4
+      - name: Check HERE TODAY is the full song
+        run: |
+          # source/music/here_today.adp starts with a u32 sample count (18157 Hz). The full song is 152 s = about 2,761,000 samples.
+          n=$(od -An -tu4 -N4 source/music/here_today.adp | tr -d ' ')
+          n=$((n & 1073741823))
+          secs=$((n / 18157))
+          echo "HERE TODAY: $n samples = $secs s"
+          { echo "### HERE TODAY (Missy's song)"; echo "$secs s in the ROM (full song = 152 s), built from commit ${GITHUB_SHA}"; } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$secs" -lt 150 ]; then echo "ERROR: here_today.adp is only $secs s long, the full song is 152 s"; exit 1; fi
       - name: Build
         run: |
           export DEVKITPRO=/opt/devkitpro
@@ -27,8 +40,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
-          name: Latest build
-          body: The newest bore.gba built from main. Download bore.gba below and open it in mGBA, Pizza Boy, a PSP emulator or a flash cart.
+          name: Latest build (${{ github.sha }})
+          body: The newest bore.gba built from main, commit ${{ github.sha }}. Download bore.gba below and open it in mGBA, Pizza Boy, a PSP emulator or a flash cart.
           target_commitish: ${{ github.sha }}
           make_latest: true
           files: bore.gba
