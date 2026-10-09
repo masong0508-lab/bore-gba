@@ -5529,7 +5529,7 @@ int boreMain(void){
     REG_DISPCNT=0x0403;  // mode 3, BG2 on
     initTables(); setColors(); svInit(); slInitN(); slMigrate(); bkInit(); chipGuard(); settingsLoad(); optsLoad(); applyRom();   // slMigrate: carries a layout 1 save over to layout 2 first (slots.h)
 #ifdef CS_PREVIEW
-    for(;;) csPlay(CS_PREVIEW-1);   // test build (-DCS_PREVIEW=n): play scene n-1 over and over (cutscene previews)
+    for(;;){ if(CS_PREVIEW>8) for(int i=0;i<8;i++) csPlay(i); else csPlay(CS_PREVIEW-1); }   // test build (-DCS_PREVIEW=n): play scene n-1 over and over (9: all of them in turn)
 #endif
     lrng^=(u32)titleScreen()*2654435761u;   // time spent on the title seeds the random numbers (first shuffle)
     if(konMsg) toast(konMsg==2?"DEBUG UNLOCKED":"DEBUG LOCKED");

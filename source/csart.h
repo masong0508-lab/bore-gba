@@ -69,7 +69,7 @@ static void csArm(int sx,int sy,int hx,int hy,int side,u16 ac,u16 ol,u16 sk){   
 // cutscene redo 14 (step 6: WALK AND RUN CYCLE): while a figure walks or runs the legs are two-segment limbs (thigh, knee, shin) that swing in step, the swinging foot lifts and the knee
 // bends toward the way they go; the arms counter-swing (opposite hand to the forward foot) and their hands rise with the elbows; the body dips as the feet spread and rises as they pass.
 static int csStepLift(int t,int per,int mx){ int p=((t%per)+per)%per, h=per/2; if(p>=h) return 0; int q=p<h/2?p:h-p; return q*mx*2/h; }   // 0 .. mx .. 0 over half a cycle, then 0
-static void csFig(int x,int y,int who,int pose,int t){
+static void csFig(int x,int y,int who,int pose,int t){   // t: the motion clock (csFt: on the tune's beat when one plays); csBT: frames since the beat began, for what happens once (walk in, leave, slump, the shock's jolt)
     //                         -    MISSY        MAMESY       DEX          HAL          OKAFOR     (the game's own skinTones / hairTones / topTones / botTones)
     static const u16 SKc[6]={0,RGB(24,16,10),RGB(24,16,10),RGB(30,23,17),RGB(19,12,7),RGB(13,8,5)};
     static const u16 HRc[6]={0,RGB(5,3,2),RGB(14,8,4),RGB(5,3,2),RGB(14,8,4),RGB(5,3,2)};
@@ -84,7 +84,7 @@ static void csFig(int x,int y,int who,int pose,int t){
           if(csBT<T){ x=p->x0+d*csBT/T; tv=T>=6?1:2; tgd=d>0?1:-1; if(tv==1) csDir=tgd; } }   // (a step of a pixel or two just slides; a real walk faces the way it goes)
       p->x=(short)x; p->bg=(u8)csBgNow; }
     int ent=csEnt; if(pose==CP_LIE||pose==CP_STIR) ent=0; x+=ent;   // C8: stepping in from / out toward the edge of the picture (csEnt: px from the figure's spot, csEntD: the way it walks)
-    int mv=0, gait=0, gd=1, gs=0; if(pose==CP_WALK){ if(t<60){ gd=x>120?-1:1; x+=(x>120?60-t:t-60); mv=1; } } else if(pose==CP_LEAVE){ if(t>45){ gd=x>120?1:-1; x+=(x>120?t-45:45-t); mv=1; } }   // cutscene redo 10: walk in from, and out toward, the nearer side
+    int mv=0, gait=0, gd=1, gs=0; if(pose==CP_WALK){ int bt=csBT; if(bt<60){ gd=x>120?-1:1; x+=(x>120?60-bt:bt-60); mv=1; } } else if(pose==CP_LEAVE){ int bt=csBT; if(bt>45){ gd=x>120?1:-1; x+=(x>120?bt-45:45-bt); mv=1; } }   // cutscene redo 10: walk in from, and out toward, the nearer side
     int dress=who==CA_MISSY;   /* (Mamesy wears a top and jeans, like in the game) */
     int lmd=0, jb=0, nod=0, lbl=0;
     if(pose==CP_LIE||pose==CP_STIR){ csPS[who].fn=-100;   // lying down: no blend into or out of it (a different drawing), but G2: she reacts
@@ -109,9 +109,9 @@ static void csFig(int x,int y,int who,int pose,int t){
     case CP_LAUGH: bob=(csWv(t,8)+8)/5; lean=csWv(t,8)/5; hd=-1; lh=-4; lv=-2; rh=4; rv=-2; open=1; break;
     case CP_CRY:   { int w=csWv(t,(t%48)<24?6:20), bu=(t%48)<24; if(bu){ bob=-((w+8)/8); hd=3+(w+8)/8; } else { bob=(w+8)/10; hd=3; } lean=-1; lh=-2; lv=rv=-6-(bu&&w>4); rh=2; } break;   // step 7: sobs come in bursts: the shoulders heave up and the head is pulled down, then slow breaths
     case CP_POINT: lean=csDir*2; if(csDir>0){ rh=13; rv=-5; lh=-6; } else { lh=-13; lv=-5; rh=6; } open=csTalking&&((t>>2)&1); break;
-    case CP_SHOCK: bob=t<6?-2:0; lean=-csDir*3; hd=-1; ls=2; lh=-9; lv=-12; rh=9; rv=-12; open=1; break;
+    case CP_SHOCK: bob=csBT<6?-2:0; lean=-csDir*3; hd=-1; ls=2; lh=-9; lv=-12; rh=9; rv=-12; open=1; break;
     case CP_WALK: case CP_LEAVE: if(mv){ gait=1; gs=csWv(t,14); lean=1; lh=-5-gs/2; rh=5+gs/2; lv=rv=8-(gs<0?-gs:gs)/2; bob=((gs<0?-gs:gs)+4)/8; ls=0; } break;   // step 6
-    case CP_SLUMP: bob=t/4>7?7:t/4; hd=3; lean=-1; break;
+    case CP_SLUMP: bob=csBT/4>7?7:csBT/4; hd=3; lean=-1; break;
     }
     // cutscene redo 13 - ALIVE: everyone breathes and shifts their weight; whoever is speaking leans in, nods, gestures with BOTH hands and moves the mouth in syllables
     // (not just the TALK pose); the listener nods along; the eyes glance at the other person and now and then dart away. Layered on top of whatever the pose set.
