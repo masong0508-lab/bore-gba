@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""HERE TODAY (MISSY'S SONG), v3: renders the author's MIDI (tools/here_today.mid: tenor voice, nylon guitar, string quartet) to source/music/here_today.adp
+"""HERE TODAY (MISSY'S SONG), v4 (voice an octave up, female and emotional): renders the author's MIDI (tools/here_today.mid: female voice, nylon guitar, string quartet) to source/music/here_today.adp
 and re-times the scene-5 lyric beats (source/cutscene.h) and camera shots (source/csshot.h) to its phrases.  Run from the project root: python3 tools/make_heretoday_midi.py"""
 import sys, os, re, wave
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -34,11 +34,27 @@ def env(n, a, r): e = np.ones(n); k = min(n, int(a * SR)); e[:k] = np.linspace(0
 def additive(f, n, w):
     t = np.arange(n) / SR; return sum(a * np.sin(2 * np.pi * f * (k + 1) * t) for k, a in enumerate(w) if f * (k + 1) < SR * .45)
 rng = np.random.default_rng(7)
-for (s, e, m, v) in notes(tr[1]):                      # voice: breathy vowel, vibrato on long notes
-    n = int((e - s + .15) * SR); t = np.arange(n) / SR; f = hz(m) * (1 + .006 * np.sin(2 * np.pi * 5.2 * t) * np.minimum(1, t / .4))
-    ph = 2 * np.pi * np.cumsum(f) / SR; x = sum(np.sin((k + 1) * ph) / (k + 1) ** 1.3 for k in range(14) if f.max() * (k + 1) < SR * .45)
-    b, a = signal.butter(2, [600 / (SR / 2), 1100 / (SR / 2)], 'band'); x = x + 1.4 * signal.lfilter(b, a, x) + .02 * rng.standard_normal(n)
-    put(s, x * env(n, .05, .15), .22 * v / 100)
+VOICE_OCT = 12                                         # the melody sits one octave up (a female range, B3 to G5)
+def formant(x, fc, bw, g):                             # one vocal-tract resonance
+    b, a = signal.butter(2, [(fc - bw / 2) / (SR / 2), (fc + bw / 2) / (SR / 2)], 'band'); return g * signal.lfilter(b, a, x)
+vn = notes(tr[1])
+for i, (s, e, m, v) in enumerate(vn):                  # voice: a breathy, emotional female vocal ("ah"), glide in, late vibrato, swell
+    prev = vn[i - 1] if i else None; legato = prev is not None and s - prev[1] < .12
+    n = int((e - s + .2) * SR); t = np.arange(n) / SR; dur = e - s; mt = m + VOICE_OCT; f0 = hz(mt)
+    slide = np.zeros(n)                                # scoop up into the note from below (a bigger sigh after a rest), or glide from the last pitch
+    st = (prev[2] - m) if legato and abs(prev[2] - m) <= 5 else -1.4
+    slide = st * np.exp(-t / .07)
+    vd = np.clip((t - min(.35, dur * .45)) / .5, 0, 1)  # vibrato blooms late and widens on long notes, a touch of tremor
+    vib = (.011 + .006 * min(1, dur / 1.5)) * np.sin(2 * np.pi * (5.6 + .5 * np.sin(2 * np.pi * .3 * t)) * t) * vd
+    f = f0 * 2 ** (slide / 12) * (1 + vib) * (1 + .0012 * rng.standard_normal(n).cumsum() / np.sqrt(n) * 4)
+    ph = 2 * np.pi * np.cumsum(f) / SR
+    x = sum(np.sin((k + 1) * ph + .3 * k) / (k + 1) ** 1.05 for k in range(24) if f.max() * (k + 1) < SR * .45)   # brighter glottal source
+    nz = rng.standard_normal(n); nz = signal.lfilter(*signal.butter(2, 2500 / (SR / 2), 'high'), nz)
+    air = (.05 + .09 * np.exp(-t / .12)) * nz * (1 + .4 * np.sin(2 * np.pi * 5.6 * t))   # breath, strongest on the onset
+    bright = min(1.0, max(0.0, (mt - 62) / 14))
+    x = formant(x, 850 + 150 * bright, 220, 1.5) + formant(x, 1250 + 200 * bright, 300, .9) + formant(x, 2900, 500, .5) + .35 * x + air   # female vowel formants
+    swell = 1 + .28 * np.clip(np.sin(np.pi * np.clip(t / max(dur, .3), 0, 1)), 0, 1) * min(1, dur / 1.2)   # long notes swell, then fall away
+    put(s, x * env(n, .035 if not legato else .02, .22) * swell, .15 * (.55 + .45 * v / 100) * (1 + .12 * bright))
 for (s, e, m, v) in notes(tr[3]):                      # nylon guitar: plucked partials with their own decays
     n = int(min(e - s + .4, 3.5) * SR); t = np.arange(n) / SR; f = hz(m)
     x = sum(np.sin(2 * np.pi * f * k * t) * np.exp(-t * (2 + 1.6 * k)) / k for k in range(1, 9) if f * k < SR * .45)
