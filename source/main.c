@@ -2452,15 +2452,15 @@ static int flPlaneAt(int f,int pl,int i){   // cell i of plane pl of floor f as 
 // They are picked by NAME, so a new one needs no change here: the old version of a reworked song is named "... (ORIGINAL)" in songs.h, the test tunes "PLACEHOLDER ...".
 static int isDbgSong(int i){
     const char*n=songs[i].name; int len=0; while(n[len]) len++;
-    static const char* const sfx[2]={" (ORIGINAL)"," (INSTRUMENTAL)"};   // a name ending like this is a secret song
-    for(int q=0;q<2;q++){ const char*orig=sfx[q]; int ol=0; while(orig[ol]) ol++;
-        if(len>ol){ const char*t=n+len-ol; int k=0; while(k<ol&&t[k]==orig[k]) k++; if(k==ol) return 1; } }
+    static const char orig[]=" (ORIGINAL)"; int ol=(int)sizeof(orig)-1;
+    if(len>ol){ const char*t=n+len-ol; int k=0; while(k<ol&&t[k]==orig[k]) k++; if(k==ol) return 1; }
+    { const char*h="HERE TODAY ("; const char*q=n; while(*h&&*q==*h){ q++; h++; } if(!*h) return 1; }   // every other version of HERE TODAY is secret: only HERE TODAY GONE TOMORROW shows
     const char*p="PLACEHOLDER"; while(*p){ if(*n++!=*p++) return 0; } return 1;
 }
 static u16 jbNameHash(int upto){   // hash of the names of the first n songs: tells whether the saved on/off flags still belong to this list (jukebox.h)
-    static const char* const was[2][2]={{"TREE-AGE IN ACTION","TREE SWAYING ACTION"},{"TREE-AGE IN ACTION (ORIGINAL)","TREE SWAYING ACTION (ORIGINAL)"}};   // renamed songs count by their old names (the checkmarks stay)
+    static const char* const was[3][2]={{"TREE-AGE IN ACTION","TREE SWAYING ACTION"},{"TREE-AGE IN ACTION (ORIGINAL)","TREE SWAYING ACTION (ORIGINAL)"},{"HERE TODAY GONE TOMORROW","HERE TODAY (INSTRUMENTAL)"}};   // renamed songs count by their old names (the checkmarks stay)
     u32 h=2166136261u; for(int i=0;i<upto&&i<NSONGS;i++){ const char*nm=songs[i].name;
-        for(int r=0;r<2;r++){ const char*x=was[r][0],*y=nm; while(*x&&*x==*y){x++;y++;} if(!*x&&!*y) nm=was[r][1]; }
+        for(int r=0;r<3;r++){ const char*x=was[r][0],*y=nm; while(*x&&*x==*y){x++;y++;} if(!*x&&!*y) nm=was[r][1]; }
         for(const char*p=nm;*p;p++) h=(h^(u8)*p)*16777619u;
         h=(h^0x7C)*16777619u; }
     return (u16)(h^(h>>16));

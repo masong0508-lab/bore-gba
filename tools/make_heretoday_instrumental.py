@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""HERE TODAY (INSTRUMENTAL): a 12 minute SUITE of the full version, played by a very early (1970) band. NO vocals and NO lead melody (the B2-G4 line is left empty to sing on), no key change (every section stays in the home key).
+"""HERE TODAY GONE TOMORROW (by Singhs): a 12 minute SUITE of the HERE TODAY full version, played by a very early (1970) band. NO vocals and NO lead melody (the B2-G4 line is left empty to sing on), no key change (every section stays in the home key).
 Form: wind prelude, 12-string intro, verses, bridge, chorus, interlude, a hush, a long build, bigger and bigger choruses, a pastoral return, a final chorus and the ending (the same MIDI and tempo, only the order and orchestration change).
 12-string acoustic, mellotron strings and flute, Hammond swell through a Leslie, piano arpeggios, fuzzed bass, bells that ease down once verse 1 starts, the master through a touch of tape.
-A SECRET song (isDbgSong in main.c): only with the title-screen debug code.
+The only visible HERE TODAY in the jukebox: every other version is secret (isDbgSong in main.c).
 Writes $TMPDIR/here_today_inst.wav (stereo, 32 kHz); encode it for the jukebox with:  python3 tools/encode_song.py here_today_inst.wav  (then rename the id / title in songs.h)
 Run from the project root:  TMPDIR=/tmp python3 tools/make_heretoday_instrumental.py   (needs numpy, scipy; about 5 minutes and 1 GB of RAM)"""
 import sys, os, re, wave
