@@ -190,7 +190,7 @@ static void sgDraw(const int*l,int n,int sel){
             if(sgPid==I->pid) text(190,y,"PLAYING",GOLD,1); }
         else text(16,y+2,i==n?"NEW PLAYER":i==n+1?"NEIGHBORHOODS":"TEST MAP",nc,1);
     }
-    text(12,112,"UP DOWN PICK  A PLAY  START MORE",WHITE,1);
+    text(12,112,sel<n?"A PLAY  START TOWN OR DELETE  B BACK":"UP DOWN PICK  A OK  B BACK",WHITE,1);
     text(12,125,"EVERY PLAYER HAS A SAVE FILE OF THEIR OWN",DIMC,1);
     text(12,134,"AND LIVES ON A LOT OF THE SHARED TOWN",DIMC,1);
     text(12,143,"PAUSE  SAVE GAME SAVES AT ONCE",DIMC,1);
@@ -219,9 +219,9 @@ static void sgLeaveSave(void){   // play was left
     int r=sgDiscard?2:sgAsk(0); sgDiscard=0;
     if(r==2){ int e=sgReload(); toast(e?slErrMsg(e):"BACK TO YOUR LAST SAVE"); }
 }
-static void sgPlayerMenu(int slot,int c0){   // c0: -1 asks (CONTINUE / NEIGHBORHOOD / DELETE), else that choice at once (A on a player = CONTINUE)
-    static const char* const it[3]={"CONTINUE","NEIGHBORHOOD","DELETE PLAYER"};
-    int pid=slI[slot].pid, c=c0>=0?c0:menu(slI[slot].name[0]?slI[slot].name:"PLAYER",it,3); if(c<0) return;
+static void sgPlayerMenu(int slot,int c0){   // c0: -1 asks (THEIR NEIGHBORHOOD / DELETE: A on a player already plays, so START does not offer that again), else that choice at once (0 = CONTINUE)
+    static const char* const it[2]={"THEIR NEIGHBORHOOD","DELETE PLAYER"};
+    int pid=slI[slot].pid, c=c0; if(c<0){ c=menu(slI[slot].name[0]?slI[slot].name:"PLAYER",it,2); if(c<0) return; c++; }
     if(c==2){ if(menu("DELETE THIS PLAYER",slYesNo,2)==1){ sgDeletePid(pid); toast("PLAYER DELETED"); } return; }
     if(sgPid!=pid){
         sgBeforeLeave();   // the player who was in play is saved before the next one loads
@@ -233,18 +233,21 @@ static void sgPlayerMenu(int slot,int c0){   // c0: -1 asks (CONTINUE / NEIGHBOR
     if(c==0) lifeMode(0); else neighborhoodScreen();
     if(!gToMenu||sgPid) sgLeaveSave();
 }
+static void sgNewPlayerIn(int slot){   // a NEW PLAYER who lives in town slot (from PLAYERS > NEW PLAYER, or a town's NEW PLAYER tile)
+    sgBeforeLeave();
+    slScan(); int pid=sgNewPid(); if(!pid){ toast("TOO MANY PLAYERS"); return; }
+    sgWant=(u8)pid;
+    int started=newGame(slot);   // (it gives the new player a home lot and the number above, then a fresh life)
+    sgWant=0;
+    if(started) sgLeaveSave();
+}
 static void sgNewPlayer(void){
     int l[SLOT_MAX], n=nbTownList(l,SLOT_MAX); if(n>16) n=16;
     if(!n){ toast("MAKE A NEIGHBORHOOD FIRST"); return; }
     static char tn[16][NB_NAME+1] EWRAM_BSS; const char* nm[16];
     for(int i=0;i<n;i++){ nbRead(l[i],&nbTmp); int k=0; for(;nbTmp.name[k]&&k<NB_NAME;k++) tn[i][k]=nbTmp.name[k]; tn[i][k]=0; nm[i]=tn[i]; }
     int c=n==1?0:menu("WHICH NEIGHBORHOOD",nm,n); if(c<0) return;   // (one town: nothing to ask)
-    sgBeforeLeave();
-    slScan(); int pid=sgNewPid(); if(!pid){ toast("TOO MANY PLAYERS"); return; }
-    sgWant=(u8)pid;
-    int started=newGame(l[c]);   // (it gives the new player a home lot and the number above, then a fresh life)
-    sgWant=0;
-    if(started) sgLeaveSave();
+    sgNewPlayerIn(l[c]);
 }
 static void playerScreen(void){
     int l[SLOT_MAX]; nbFirstTowns(l); nbOk=nbLoad(); nbBounds();

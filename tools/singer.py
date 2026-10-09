@@ -10,6 +10,7 @@
 How it sounds: a glottal pulse (Rosenberg) with vibrato that blooms after the attack, a little jitter and breath, through a cascade
 of five formant resonators (the vocal tract) whose frequencies glide from phoneme to phoneme; fricatives (S SH F TH V Z) are shaped
 noise added beside the tract, stops (P T K B D G) are a closure, a burst and aspiration, nasals (M N NG) a closed, dark tract.
+voice is diva, soft or gec (hyperpop: hard-tuned, no vibrato, pitched-up formants).
 Phonemes are ARPAbet: vowels AA AE AH AO EH ER IH IY OW UH UW and the glides AY AW OY EY; consonants M N NG L R W Y V Z DH F S SH TH HH
 P T K B D G.   python3 tools/singer.py OUT.wav sings a test phrase.
 """
@@ -31,7 +32,7 @@ C = {'M': ((280, 1300, 2400), .45, None, 'nasal'), 'N': ((280, 1700, 2600), .45,
      'B': ((300, 1000, 2400), .2, (.35, 500, 2500), 'stop'), 'D': ((300, 1700, 2600), .2, (.4, 3000, 7000), 'stop'), 'G': ((300, 1900, 2500), .2, (.35, 1500, 4000), 'stop')}
 CDUR = {'nasal': .065, 'liquid': .06, 'fric': .085, 'asp': .06, 'stop': .07}
 
-def _plan(lines, beat, scale):
+def _plan(lines, beat, scale, glide=13):
     """frame-by-frame targets (2 ms frames): formants, voicing, frication, aspiration, pitch."""
     s16 = beat / 4; end = max(n[0] + n[1] for _, ns in lines for n in ns) * s16 + .6
     fr = .002; N = int(end / fr) + 1
@@ -74,7 +75,7 @@ def _plan(lines, beat, scale):
     if len(nz): f0 = np.interp(np.arange(N), nz, f0[nz])
     k = np.ones(9) / 9
     for j in range(3): F[:, j] = np.convolve(F[:, j], k, 'same')
-    f0 = np.exp(np.convolve(np.log(np.maximum(f0, 50)), np.ones(13) / 13, 'same'))
+    f0 = np.exp(np.convolve(np.log(np.maximum(f0, 50)), np.ones(glide) / glide, 'same'))
     av = np.convolve(av, np.ones(5) / 5, 'same'); vib = np.convolve(vib, np.ones(25) / 25, 'same')
     return fr, N, F, av, af, fl, fh, ah, f0, vib, burst
 
@@ -91,19 +92,21 @@ def _cons(c, a, b, F, av, af, fl, fh, ah, burst):
     if fric: af[a:b] = fric[0]; fl[a:b] = fric[1]; fh[a:b] = fric[2]
 
 def sing(lines, fs, beat, voice='diva', seed=7, scale=1.0):
+    """voice 'gec': hyperpop - hard-tuned (the pitch snaps from note to note), no vibrato, a bright, small, pitched-up throat."""
     rng = np.random.default_rng(seed)
-    fr, N, F, av, af, fl, fh, ah, f0, vib, burst = _plan(lines, beat, scale)
+    fr, N, F, av, af, fl, fh, ah, f0, vib, burst = _plan(lines, beat, scale, 3 if voice == 'gec' else 13)
+    if voice == 'gec': vib = vib * 0
     n = int(N * fr * fs); t = np.arange(n) / fs; fi = np.minimum((t / fr).astype(int), N - 1)
     # glottal source: Rosenberg pulses at f0 with vibrato (5.6 Hz, up to a third of a semitone) and a little jitter
     vibr = 2 ** (np.sin(2 * np.pi * 5.6 * t) * vib[fi] * .33 / 12)
-    jit = 1 + .004 * np.convolve(rng.standard_normal(n), np.ones(200) / 200, 'same') * 14
+    jit = 1 + (.001 if voice == 'gec' else .004) * np.convolve(rng.standard_normal(n), np.ones(200) / 200, 'same') * 14
     ph = np.cumsum(f0[fi] * vibr * jit / fs) % 1.0
-    oq = .62 if voice == 'diva' else .7
+    oq = {'diva': .62, 'gec': .55}.get(voice, .7)
     g = np.where(ph < oq * .65, .5 * (1 - np.cos(np.pi * ph / (oq * .65))), np.where(ph < oq, np.cos(np.pi * (ph - oq * .65) / (2 * oq * .35)), 0.0))
     src = np.diff(np.concatenate([[0], g])) * fs / 2000                         # the radiation at the lips: the pulse's slope
     src = src * np.interp(t / fr, np.arange(N), av) + rng.standard_normal(n) * .12 * np.interp(t / fr, np.arange(N), ah)
     # the vocal tract: five resonators in cascade, coefficients changed every frame
-    shift = 1.0 if voice == 'diva' else .93
+    shift = {'diva': 1.0, 'gec': 1.13}.get(voice, .93)
     out = np.zeros(n); spf = max(1, int(fr * fs))
     zs = [np.zeros(2) for _ in range(5)]
     BW = (80, 100, 140, 220, 300)

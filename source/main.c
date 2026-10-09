@@ -1371,10 +1371,36 @@ static void zoomOff(void){ volatile u32*d0=(volatile u32*)0x040000B0, *bg=(volat
 #define R_TM3D (*(volatile u16*)0x0400010C)
 #define R_TM3CNT (*(volatile u16*)0x0400010E)
 static u16 vsT;   // timer 3 when the last vsync returned (a frame is 274 ticks)
+// ---- THE KEY LATCH: no press is ever lost, however slow a frame is ----
+// The buttons are sampled 60 times a second in the vblank interrupt (always on, see irqOff), and by vsync and keyNow. Every PRESS (an up -> down edge) is
+// counted per button, so a tap that starts and ends inside one long frame, or a second tap of a button before the game looked again, still arrives.
+// keyNow hands the presses out in order: a waiting press shows the button down; if keyNow said "down" last time, it first says "up" once, so the caller's
+// own pr = k & ~prev sees a fresh press. A press nobody read within KEY_STALE (a quarter second) is dropped: mashing A through a loading screen does not
+// fire a row of A's into the next menu. (Timer 3 runs at 16384 Hz, vsync starts it: a frame is 274 ticks.)
+#define R_IMEK (*(volatile u16*)0x04000208)
+#define KEY_STALE 4100
+static u16 kPrev, kRet, kT[10]; static u8 kQ[10];
+static inline void keySample(void){   // (interrupts held off by the caller, or inside the interrupt)
+    u16 c=(u16)(~REG_KEYINPUT)&0x3FF, e=c&(u16)~kPrev; kPrev=c;
+    if(e){ u16 now=R_TM3D; for(int b=0;b<10;b++) if((e>>b)&1){ if(kQ[b]<3) kQ[b]++; kT[b]=now; } }
+}
+static void keySampleM(void){ u16 ime=R_IMEK; R_IMEK=0; keySample(); R_IMEK=ime; }
+static void keyFlush(void){ u16 ime=R_IMEK; R_IMEK=0; keySample(); for(int b=0;b<10;b++) kQ[b]=0; kRet=kPrev; R_IMEK=ime; }   // forget every press not yet read (what is held stays held)
+static u16 keyRaw(void){   // keyNow before the BUTTONS swap
+    u16 ime=R_IMEK; R_IMEK=0; keySample();
+    u16 now=R_TM3D, out=kPrev;
+    for(int b=0;b<10;b++){ if(!kQ[b]) continue; u16 bit=(u16)(1u<<b);
+        if((u16)(now-kT[b])>KEY_STALE){ kQ[b]=0; continue; }   // too old: only whether it is down now counts
+        if(kRet&bit) out&=(u16)~bit;                              // it read as down last time: up once, so the press is a new one
+        else { out|=bit; kQ[b]--; svQuiet=SV_QUIET; } }         // the press, even if the button is already up again (and no flash commit for a moment: save.h)
+    kRet=out; R_IMEK=ime; return out;
+}
 static void vsync(void){
     if(!(R_TM3CNT&0x80)){ R_TM3CNT=0; R_TM3D=0; R_TM3CNT=0x83; }
+    keySampleM();
     while(REG_VCOUNT>=160);
     while(REG_VCOUNT<160){ if((*(volatile u16*)0x04000208&1)&&(*(volatile u16*)0x04000200&1)&&(*(volatile u16*)0x04000004&8)) *(volatile u8*)0x04000301=0; }   // the vblank interrupt is on: halt the CPU until it fires instead of spinning (emulators skip the idle time, so menus get the speed back)
+    keySampleM();
     vsT=R_TM3D; if(mWantOff) audIdleStop(); svTick(); ldTick(); }
 static void vsyncUi(void){   // vsync for the menus: if the last redraw ran over a whole frame (we are already inside the NEXT vblank), do not wait out another full frame
     if(REG_VCOUNT>=160&&(R_TM3CNT&0x80)&&(u16)(R_TM3D-vsT)>180){ vsT=R_TM3D; if(mWantOff) audIdleStop(); svTick(); ldTick(); return; }
@@ -1909,7 +1935,7 @@ __asm__(".pushsection .iwram,\"ax\",%progbits\n.arm\n.align 2\n.global irqEntry\
 __attribute__((used)) IWRAM_ARM void irqMain(void){
     u16 f=R_IF;
     if(f&1){   // vblank: start the buffer that was filled last frame, in step with the screen
-        R_IF=1;
+        R_IF=1; keySample();   // (the buttons, 60 times a second whatever the main loop is doing: the key latch)
         if(zoomShow&&zoomDma) zoomArm();   // the ZOOM's per-line scaling, every frame
         if(mOn){
             if(!mFilled) mCur^=1;                      // (mix overran: replay the last buffer rather than a half-filled one)
@@ -1927,7 +1953,7 @@ __attribute__((used)) IWRAM_ARM void irqMain(void){
     }
 }
 static void zoomIrq(void){ R_IRQVEC=(u32)(uintptr_t)irqEntry; R_DISPSTAT|=0x0008; R_IE|=1; R_IME=1; }   // the vblank IRQ on (for the ZOOM, also without sound)
-static void irqOff(void){ R_IME=0; R_IE=0; R_DISPSTAT=0; R_IF=0xFFFF; if(zoomShow) zoomIrq(); }
+static void irqOff(void){ R_IME=0; R_IE=0; R_DISPSTAT=0; R_IF=0xFFFF; zoomIrq(); }   // the sound interrupts off; the vblank one stays (the ZOOM, the key latch)
 // AUDIO: one mixer for everything. While a song or an effect plays, the interrupts above run it; with neither, they are switched off.
 static void audStart(void){   // start the mixer (the caller has set up what plays)
     irqOff(); R_DMA1CNT=0; R_DMA2CNT=0; R_TM0CNT=0;
@@ -2076,6 +2102,7 @@ static int titleScreen(void){
         musFill();
     }
     while((~REG_KEYINPUT)&K_START) vsync();   // wait for release so START doesn't also change size   (the title song plays on: the main menu crossfades from it)
+    keyFlush();   // (the cheat codes typed on the title are not presses for the main menu)
     return frame;   // how long the player sat on the title: stirs the random seed
 }
 
@@ -2657,7 +2684,7 @@ static void settingsLoad(void){ volatile u8*m=SRAM_BASE+SET_OFF;
 #define DIMC RGB(18,20,22)
 #define WHITE RGB(31,31,31)
 static u16 keyNow(void){   // BUTTONS option: A/B and L/R can be swapped here, so every screen sees the swapped keys
-    u16 k=(u16)(~REG_KEYINPUT)&0x3FF; int b=xo[XO_BTN];
+    u16 k=keyRaw(); int b=xo[XO_BTN];   // (the key latch: what is down, and every press since the last look)
     if(b&1){ u16 a=k&K_A, c=k&K_B; k=(u16)((k&~(K_A|K_B))|(a?K_B:0)|(c?K_A:0)); }
     if(b&2){ u16 l=k&K_L, r=k&K_R; k=(u16)((k&~(K_L|K_R))|(l?K_R:0)|(r?K_L:0)); }
     return k;
@@ -3895,36 +3922,40 @@ static const char* const pmTitle[8]={"RESUME","SAVE GAME","MY SIM","HOUSEHOLD","
 static const char* const pmDesc[8]={"BACK TO YOUR LIFE","SAVES YOU AND YOUR HOUSE","CAREER  SKILLS  PEOPLE  MORE","WHO LIVES HERE  HOW THEY FEEL","YOUR CHAPTERS","SETTINGS  SOUND  CONTROLS","EDIT MAP  BLUEPRINTS  NEW LIFE","SAVES AND LEAVES"};
 static int pauseMenu(int mode){   // mode 0 life, 1 from the neighborhood, 2 test play from the editor. Returns a PM_ number, or -1 (resume)
     static const u8 full[8]={0,1,2,3,4,5,6,7}, edl[3]={PM_RESUME,PM_OPTS,PM_QUIT};
-    const u8*ids=mode==2?edl:full; int n=mode==2?3:8, sel=0, dirty=1, lastB=-1; u16 prev=keyNow(); u32 t=0;
+    const u8*ids=mode==2?edl:full; int n=mode==2?3:8, sel=0, ps=-1, lastB=-1; u16 prev=keyNow(); u32 t=0;
+    int all=1;   // the whole panel (first, and after the debug menu); after that a move repaints two tiles and the text under them, the bob one tile
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; t++;
-        int ps=sel;
         if(pr&K_RIGHT) sel=(sel+1)%n;
         if(pr&K_LEFT) sel=(sel+n-1)%n;
         if((pr&K_DOWN)&&sel+4<n) sel+=4;
         if((pr&K_UP)&&sel>=4) sel-=4;
         if(pr&K_A) return ids[sel]==PM_RESUME?-1:ids[sel];
-        if(dbgOn&&(pr&K_SEL)){ dbgMenu(); prev=keyNow(); dirty=1; }   // dbgmenu.h: the debug cheats
+        if(dbgOn&&(pr&K_SEL)){ dbgMenu(); prev=keyNow(); all=1; }   // dbgmenu.h: the debug cheats
         if(pr&(K_B|K_START)) return -1;
-        { int bb=(int)((t>>4)&1); if(sel!=ps||bb!=lastB) dirty=1; lastB=bb; }   // redraw when the cursor moves or the icon bob changes (a few times a second), not every frame
-        if(!dirty){ vsync(); continue; }
-        dirty=0;
-        box(6,4,228,152);
-        rect(7,5,226,17,RGB(5,12,24)); rect(7,21,226,1,GOLD);
-        text(12,9,mode==2?"TEST PLAY PAUSED":nbBarred()?"PAUSED  VISITING":"PAUSED",GOLD,1);
-        if(mode!=2){ char b[24]; char*e=b; *e++=(char)0xC2; *e++=(char)0xA7; simCatShort(e,simMoney); text(228-tw(b,1),9,b,RGB(14,30,14),1); }
-        for(int i=0;i<n;i++){ int id=ids[i], x=10+(i&3)*56, y=27+(i>>2)*43, on=(i==sel);
+        int bb=(int)((t>>4)&1);
+        if(!all&&sel==ps&&bb==lastB){ vsync(); continue; }
+        if(all){
+            box(6,4,228,152);
+            rect(7,5,226,17,RGB(5,12,24)); rect(7,21,226,1,GOLD);
+            text(12,9,mode==2?"TEST PLAY PAUSED":nbBarred()?"PAUSED  VISITING":"PAUSED",GOLD,1);
+            if(mode!=2){ char b[24]; char*e=b; *e++=(char)0xC2; *e++=(char)0xA7; simCatShort(e,simMoney); text(228-tw(b,1),9,b,RGB(14,30,14),1); }
+            rect(7,113,226,1,RGB(10,16,30));
+            text(12,142,dbgOn?"ARROWS PICK  A OK  B BACK  SEL DEBUG":"LEFT RIGHT UP DOWN PICK  A OK  B BACK",RGB(12,14,16),1);
+        }
+        for(int i=0;i<n;i++){ if(!all&&i!=sel&&i!=ps) continue;
+            int id=ids[i], x=10+(i&3)*56, y=27+(i>>2)*43, on=(i==sel);
             rect(x-1,y-1,54,40,on?GOLD:RGB(10,16,30)); rect(x,y,52,38,on?RGB(6,18,10):RGB(7,10,20));
-            u16 col=on?pmCol[id]:(u16)((pmCol[id]>>1)&0x3DEF); int ib=(on&&((t>>4)&1))?-1:0;
+            u16 col=on?pmCol[id]:(u16)((pmCol[id]>>1)&0x3DEF); int ib=(on&&bb)?-1:0;
             for(int r=0;r<9;r++)for(int q=0;q<9;q++){ char ch=pmArt[id][r][q]; if(ch!='.') rect(x+17+q*2,y+5+r*2+ib,2,2,ch=='o'?WHITE:col); }
             const char*nm=(id==PM_STORY&&prShown())?"PRISON":(id==PM_QUIT&&mode==1)?"TOWN":(id==PM_QUIT&&mode==2)?"EDITOR":pmNm[id];
             text(x+(52-tw(nm,1))/2,y+28,nm,on?WHITE:DIMC,1); }
-        { int id=ids[sel]; const char*ti=pmTitle[id], *ds=pmDesc[id];
+        if(all||sel!=ps){ int id=ids[sel]; const char*ti=pmTitle[id], *ds=pmDesc[id];
           if(id==PM_BUILD&&mode!=2&&nbBarred()) ds="NO BUILDING WHILE VISITING";   // (a community lot is built from the town view)
           if(id==PM_QUIT&&mode==1){ ti="NEIGHBORHOOD"; ds="BACK TO THE TOWN"; } else if(id==PM_QUIT&&mode==2){ ti="BACK TO EDITOR"; ds="LEAVE THE TEST PLAY"; }
-          rect(7,113,226,1,RGB(10,16,30)); text(12,118,ti,GOLD,1); text(12,128,ds,RGB(22,25,28),1); }
-        text(12,142,dbgOn?"ARROWS PICK  A OK  B BACK  SEL DEBUG":"LEFT RIGHT UP DOWN PICK  A OK  B BACK",RGB(12,14,16),1);
-        present();
+          rect(7,114,226,24,RGB(3,4,7)); text(12,118,ti,GOLD,1); text(12,128,ds,RGB(22,25,28),1); }
+        if(all) present(); else uiPresentRect(7,26,233,138);   // (a move: the tile rows and the text, not the whole screen)
+        all=0; ps=sel; lastB=bb;
     }
 }
 static const char* const buildItems[3]={"EDIT MAP","BLUEPRINTS","NEW LIFE"};
@@ -4034,7 +4065,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
         if(pr&K_START){   // pause menu
             tutSawPause=1;   // (the tutorial's pause menu lesson)
             mGainT=128; sfxStop(); simsSave(); hhSave(); objHideAll(); REG_DISPCNT=0x0403;   // (no sprites over the menus, options or the editor)   // the music fades to half while a menu is open   // the pause menu is also a save point
-            { u8 zz=xo[XO_ZOOM]; xo[XO_ZOOM]=0; hudApplyLayout(); camSnap=1; liveInvalidate(); lifeDraw(); xo[XO_ZOOM]=zz; }   // a whole picture behind the menu (the screen itself only holds patches), not zoomed
+            rect(0,0,SW,3,RGB(2,3,6)); rect(0,157,SW,3,RGB(2,3,6)); rect(0,3,5,154,RGB(2,3,6)); rect(235,3,5,154,RGB(2,3,6));   // the menu covers all but a frame round the edge: that is painted dark (the room behind used to be drawn whole first, a quarter of a second for 4 pixels of it)
             int c=pauseMenu(ed?2:nbPlaying?1:0);
             if(c==PM_SAVE){ if(!sgPid) toast("PICK A PLAYER ON THE PLAY SCREEN"); else { int se=sgSave(); toast(se?slErrMsg(se):"GAME SAVED"); } }
             else if(c==PM_WANTS) mySimScreen();   // the old WANTS list lives on in the MORE tab
@@ -5317,6 +5348,11 @@ static void mmBackdrop(void){   // your town close up around a random lot (no to
     nbT.tod=st; nbT.zoom=sz; if(!had) nbT.tag[0]=0;
 }
 static void mmLogo(int x,int y){ for(int j=0;j<LOGO_SH;j++){ const char*r=logoSmallArt[j]; u16*o=&fb[(y+j)*SW+x]; for(int i=0;i<LOGO_SW;i++){ char c=r[i]; if(c!='0') o[i]=logoPal[(c<='9'?c-'0':c-'a'+10)-1]; } } }
+static void mmMove(int ps,int sel){   // a cursor move on the main menu: only the two buttons and the tip change (the panel stays), and only they are copied
+    for(int k=0;k<2;k++){ int i=k?sel:ps; if(i==6) s3Round(73,136,sel==6,"?"); else s3Pill(70,i?52+(i-1)*15:31,100,i?13:17,i==sel,mmName[i]); }
+    s3Tip(mmDesc[sel]);
+    vsync(); vramCopy(64,29,172,145); vramCopy(0,150,SW,160);
+}
 static void drawMainMenu(int sel,int full){
     if(full) mmBackdrop();
     s3Panel(60,20,120,128);
@@ -5378,14 +5414,14 @@ static const char* const ngIt[4]={"CREATE A BORE","A PRE-MADE FAMILY","A TRULY R
 static int newGame(int slot){   // 1 = it started (and ended: back to the main menu)
     int c=menu("HOW DO YOU START?",ngIt,4); if(c<0) return 0;
     int story=0; if(c==3){ story=storyPick(); if(!story) return 0; }
-    int f=0; if(c==1){ const char* fm[HH_NFAM]; for(int i=0;i<HH_NFAM;i++) fm[i]=hhFams[i].fam; f=menu("WHICH FAMILY?",fm,HH_NFAM); if(f<0) return 0; }
+    int f=0, me=0; if(c==1){ me=famPick(&f,0); if(me<0) return 0; }   // the family bin: the family and who of them you play, on one screen
     static const char* const yn[2]={"YES  NEW LIFE","NO"}; if(!sgWant&&menu("START OVER?",yn,2)!=0) return 0;   // (a NEW PLAYER has nothing to start over: the player in play was saved first)
     if(slot>=0){ if(!nbSwitch(slot)){ nbOk=nbLoad(); toast(nbErr); return 0; } nbOk=1; nbBounds(); }
     if(sgWant){ sgPickHome(); sgPid=sgWant; sgWant=0; lsReset(); memReset(); } else sgPid=0;   // a NEW PLAYER gets a home lot and a save file of their own; a new life started elsewhere belongs to no save file
     twKeep=0; simsNewLife(); prClear(); moodReset(); lscore=0; simLastScore=0;
     hhN=0; for(int a=0;a<HU_N;a++)for(int b=0;b<HU_N;b++){ relD[a][b]=relL[a][b]=0; relF[a][b]=0; } kinClear();   // the old household moves out
     stOff();
-    if(c==1&&hhMoveIn(&hhFams[f])>0){ hhSwap(&hhM[0]); hhRemove(0); }   // you are the family's first Sim (who you were leaves)
+    if(c==1&&hhMoveIn(&hhFams[f])>0){ if(me>=hhN) me=0; hhSwap(&hhM[me]); hhRemove(me); }   // you are the family member you picked (who you were leaves)
     else if(c==2) lookTrueRandomMe();
     else if(c==3){ if(!storyLead(story)) lookTrueRandomMe(); storySetup(story); storyHome(story); }   // STORY MODE: you play the story's own pre-made lead (no creator), then who you live with, and chapter 1
     hhSave(); sprKey=0; if(sgPid) sgSave();   // (the save file exists from the first minute)
@@ -5413,20 +5449,18 @@ static void plDraw(const int*l,int n,int sel,int act,int foc,int tile,int full){
         text(102,60,sand>100?"OUT IN THE DESERT":wat>40?"A TOWN BY THE WATER":"A QUIET GREEN SUBURB",RGB(3,9,20),1);
         text(102,69,b,RGB(5,12,22),1); text(102,78,l[sel]==act?"YOU LIVE HERE":seasNm[nbTmp.season&3],l[sel]==act?RGB(4,16,2):RGB(5,12,22),1); }
     s3Well(16,89,208,42);
-    for(int i=0;i<2;i++){ int x=22+i*72, y=92, on=foc==1&&tile==i;
+    for(int i=0;i<2;i++){ int x=40+i*94, y=92, on=foc==1&&tile==i;   // the two things a town is for: look round it, or start a new player there
         s3Box(x,y,66,36,5,on?RGB(14,27,6):RGB(9,15,25),on?RGB(8,20,3):RGB(7,12,22)); s3Box(x+1,y+1,64,34,4,on?RGB(26,31,20):RGB(27,30,31),on?RGB(20,29,12):RGB(20,26,31));
-        if(i==0) nbIsoBox(x+33,y+17,11,7,7,RGB(20,18,14),RGB(28,26,20),RGB(14,4,4),RGB(20,6,5));
-        else if(ok) nbThumb(&nbTmp,x+13,y+4,40,18);   // (small: cheap enough to draw again)
-        text(x+33-tw(i?"Visit Town":"Continue",1)/2,y+25,i?"Visit Town":"Continue",RGB(2,5,11),1); }
-    { int on=foc==1&&tile==2; disc(190,106,10,on?RGB(4,10,2):RGB(5,10,20)); disc(190,106,9,on?RGB(14,27,6):RGB(18,25,31)); rect(185,105,11,2,on?RGB(1,4,0):WHITE); rect(189,101,2,11,on?RGB(1,4,0):WHITE);
-      text(190-tw("New Game",1)/2,119,"New Game",RGB(2,5,11),1); }
+        if(i==0){ if(ok) nbThumb(&nbTmp,x+13,y+4,40,18); }   // (small: cheap enough to draw again)
+        else { disc(x+33,y+13,10,on?RGB(4,10,2):RGB(5,10,20)); disc(x+33,y+13,9,on?RGB(14,27,6):RGB(18,25,31)); rect(x+28,y+12,11,2,on?RGB(1,4,0):WHITE); rect(x+32,y+8,2,11,on?RGB(1,4,0):WHITE); }
+        text(x+33-tw(i?"New Player":"Visit Town",1)/2,y+25,i?"New Player":"Visit Town",RGB(2,5,11),1); }
     if(full){ disc(120,140,9,RGB(3,8,19)); disc(120,140,7,RGB(10,18,30)); for(int d=0;d<2;d++){ line(116,140+d,119,143+d,WHITE); line(119,143+d,125,136+d,WHITE); }   // the check button (A)
     mmLogo(SW/2-LOGO_SW/2,0); }
     if(foc==0) s3Tip("LEFT RIGHT TOWN  SELECT NEW  START RENAME");
-    else if(tile==0) s3Tip("PLAY ON WHERE YOU LEFT OFF");
-    else if(tile==1) s3Tip("THE TOWN MAP  LOTS  MOVE IN AND BUILD");
-    else s3Tip("A FRESH START IN THIS TOWN");
+    else if(tile==0) s3Tip("THE TOWN MAP  LOTS  MOVE IN AND BUILD");
+    else s3Tip("A NEW PLAYER WHO LIVES IN THIS TOWN");
 }
+static void sgNewPlayerIn(int slot);   // savegame.h: a NEW PLAYER who lives in town slot
 static void playScreen(void){
     int l[SLOT_MAX], n=nbFirstTowns(l);
     nbOk=nbLoad(); int act=nbTS, sel=0; for(int i=0;i<n;i++) if(l[i]==act) sel=i;
@@ -5436,14 +5470,13 @@ static void playScreen(void){
         if(pr&K_UP){ foc=0; dirty|=1; }
         if(pr&K_DOWN){ foc=1; dirty|=1; }
         int d=(pr&K_RIGHT)?1:(pr&K_LEFT)?-1:0, dt=(pr&K_R)?1:(pr&K_L)?-1:0;
-        if(foc==0&&d) dt=d; else if(d){ tile=(tile+3+d)%3; dirty|=1; }
+        if(foc==0&&d) dt=d; else if(d){ tile^=1; dirty|=1; }
         if(dt&&n){ sel=(sel+n+dt)%n; dirty|=4; }   // another town: its picture and description too
         if(pr&K_B) break;
         if(pr&K_A){
             if(foc==0){ foc=1; dirty|=1; }
-            else if(tile==0){ lifeMode(0); break; }
-            else if(tile==1&&n){ if(!nbSwitch(l[sel])){ nbOk=nbLoad(); toast(nbErr); } else { nbOk=1; neighborhoodScreen(); if(gToMenu) break; } }
-            else if(tile==2){ if(!dbgOn) toast("USE NEW PLAYER ON THE PLAYERS SCREEN"); else if(newGame(n?l[sel]:-1)) break; }   // (the old new game on the old lot is a secret: debug code)
+            else if(tile==0&&n){ if(!nbSwitch(l[sel])){ nbOk=nbLoad(); toast(nbErr); } else { nbOk=1; neighborhoodScreen(); if(gToMenu) break; } }
+            else if(tile==1){ if(!n) toast("MAKE A NEIGHBORHOOD FIRST  SELECT"); else { sgNewPlayerIn(l[sel]); break; } }   // (back to the PLAYERS list, the new player in it)
             n=nbTownList(l,SLOT_MAX); act=nbTS; if(sel>=n) sel=n?n-1:0; prev=keyNow(); dirty=2; mmPick();
         }
         if(pr&K_SEL){
@@ -5474,7 +5507,7 @@ static void playScreen(void){
 
 #include "savegame.h"    // PLAYERS: a save file per player, picked on the PLAY screen
 static void mainMenu(void){
-    int sel=0, dirty=3; u16 prev=keyNow();
+    int sel=0, dirty=3, ps=0; u16 prev=keyNow();
     menuMusStart();   // a random checked song plays while a main menu is open (MENU MUSIC option)
     acidInit(); mmPick();
     for(;;){
@@ -5493,7 +5526,8 @@ static void mainMenu(void){
             menuMusSync();   // the menu's song comes back (a crossfade) if the screen took the music; OPTIONS may have switched SOUND or MENU MUSIC
             continue;
         }
-        if(dirty){ drawMainMenu(sel,dirty&2); uiPresent(); dirty=0; }
+        if(dirty==1){ mmMove(ps,sel); dirty=0; ps=sel; }   // (only the cursor moved)
+        else if(dirty){ drawMainMenu(sel,dirty&2); uiPresent(); dirty=0; ps=sel; }
         else if(mmAcid){   // the acid rainbow moves: only the plasma around the panel is worked out again and copied (the panel stays put on screen)
             acT+=2; acidRect(acT,0,60,0,10); acidRect(acT,0,15,10,74); acidRect(acT,45,60,10,74); acidRect(acT,0,60,74,75); mmLogo(SW/2-LOGO_SW/2,1);
             vsync(); vramCopy(0,0,SW,20); vramCopy(0,20,60,148); vramCopy(180,20,SW,148); vramCopy(0,148,SW,150); }
@@ -5527,6 +5561,7 @@ int boreMain(void){
     { volatile u16*io=(volatile u16*)0x04000000; for(int r=0x08/2;r<0x20/2;r++) io[r]=0; for(int r=0x40/2;r<0x56/2;r++) io[r]=0; }   // undo its BG control, scroll, windows and blend (BG2's affine registers are left alone: mode 3 needs them)
     { static volatile u32 zero; zero=0; REG_DMA3SAD=(u32)(uintptr_t)&zero; REG_DMA3DAD=VRAM_ADDR; REG_DMA3CNT=(SW*SH/2)|0x85000000u; }   // (the zero must sit in RAM: a DMA from cartridge ROM always steps its source, "fixed" or not, and used to paint ROM data on screen)   // clear its tiles out of the bitmap (else mode 3 shows them as noise until the title is drawn)
     REG_DISPCNT=0x0403;  // mode 3, BG2 on
+    zoomIrq();           // the vblank interrupt, from the first screen on (the key latch samples the buttons in it)
     initTables(); setColors(); svInit(); slInitN(); slMigrate(); bkInit(); chipGuard(); settingsLoad(); optsLoad(); applyRom();   // slMigrate: carries a layout 1 save over to layout 2 first (slots.h)
 #ifdef CS_PREVIEW
     for(;;){ if(CS_PREVIEW>8) for(int i=0;i<8;i++) csPlay(i); else csPlay(CS_PREVIEW-1); }   // test build (-DCS_PREVIEW=n): play scene n-1 over and over (9: all of them in turn)

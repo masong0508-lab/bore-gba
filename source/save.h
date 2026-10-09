@@ -79,13 +79,21 @@ static void svCommit(void){
     }
     svBankTo(ob); svScan=0;
 }
+// A commit stops the game for a few frames (a sector erase and up to 4096 byte writes: longer on a real cart than in an emulator), so svTick never
+// commits right after a button press: it waits for a lull (SV_QUIET frames with no new press; keyRaw sets svQuiet), or SV_LATE frames at most.
+#define SV_QUIET 20
+#define SV_LATE  600
+static u8 svQuiet; static u16 svLate;
 static void svTick(void){   // from vsync: compare 128 bytes of the RAM copy with the chip, commit on a difference
     if(svType!=SV_FLASH) return;
+    if(svQuiet) svQuiet--;
     int ob=svBank; svBankTo(0);
     const u8*l=svLow+svScan; volatile u8*c=SVB+SV_LOW0+svScan; int d=0;
     for(int i=0;i<128;i++) if(c[i]!=l[i]){ d=1; break; }
     svBankTo(ob);
-    if(d) svCommit(); else svScan=(u16)((svScan+128)&(SV_LOWN-1));
+    if(!d){ svScan=(u16)((svScan+128)&(SV_LOWN-1)); return; }
+    if(svQuiet&&++svLate<SV_LATE) return;   // (someone is pressing buttons: later, the same slice is looked at again)
+    svLate=0; svCommit();
 }
 static void svEraseAll(void){   // ERASE EVERYTHING: the whole chip (flash) or 32 KB of zeros (SRAM)
     if(svType!=SV_FLASH){ for(u32 i=0;i<32768;i++) SVB[i]=0; SVB[SV_BK]='S'; SVB[SV_BK+1]='K'; return; }

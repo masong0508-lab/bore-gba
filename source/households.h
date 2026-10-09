@@ -92,9 +92,10 @@ static int bkTake(int i){   // record i becomes the household you play (it leave
     bkDel(i); hhAfterSwitch(); return 1;
 }
 static void stOff(void);   // story.h
-static void hhFresh(int f){   // pre-made family f moves in for the first time: a new life, you are its first Sim, the rest live with you
+static int famWho(const HhFam*F);   // family.h: WHO DO YOU PLAY, the pick of a pre-made family's member
+static void hhFresh(int f,int who){   // pre-made family f moves in for the first time: a new life, you are its member who (famWho), the rest live with you
     simsNewLife(); moodReset(); hhN=0; hhRelClear(); stOff();
-    if(hhMoveIn(&hhFams[f])>0){ hhSwap(&hhM[0]); hhRemove(0); }
+    if(hhMoveIn(&hhFams[f])>0){ if(who<0||who>=hhN) who=0; hhSwap(&hhM[who]); hhRemove(who); }
     hhAfterSwitch();
 }
 
@@ -157,13 +158,14 @@ static int hhLeaveHome(void){   // the household you play goes into the bank, on
 static int hhPlayAt(int li){   // NEIGHBORHOOD lot menu > PLAY THE ...: you play the household of lot li (yours waits in the bank). 1 = the game was played
     if(prShown()){ toast("SERVE YOUR TIME FIRST"); return 0; }   // (prison.h: the sentence belongs to this household)
     char nm[24]; nm[0]=0; int who=nbWho(li,nm); if(!who) return 0;
-    { char q[32]; char*e=slCat(q,"PLAY "); slCat(e,nm); const char*yn[2]={"YES","NO"}; if(menu(q,yn,2)!=0) return 0; }
-    int b=who==1?bkFind(nbKey(&nbT),li):-1, f=who==2?nbFamOf(&nbT,li):-1;
+    int b=who==1?bkFind(nbKey(&nbT),li):-1, f=who==2?nbFamOf(&nbT,li):-1, me=0;
+    if(f>=0){ me=famWho(&hhFams[f]); if(me<0) return 0; }   // a pre-made family: pick which of them you play (that is the yes)
+    else { char q[32]; char*e=slCat(q,"PLAY "); slCat(e,nm); const char*yn[2]={"YES","NO"}; if(menu(q,yn,2)!=0) return 0; }
     if(!hhLeaveHome()) return 0;
     int old=nbT.home; nbT.home=(u8)li;
     if(!nbGo(li)){ nbT.home=(u8)old; nbSave(); toast(nbErr); return 0; }
     ldShow("MOVING THEM IN",2,4);
-    if(b>=0){ if(!bkTake(b)){ toast("THAT HOUSEHOLD IS DAMAGED"); hhFresh(f<0?0:f); } } else hhFresh(f);
+    if(b>=0){ if(!bkTake(b)){ toast("THAT HOUSEHOLD IS DAMAGED"); hhFresh(f<0?0:f,0); } } else hhFresh(f,me);
     nbSave(); return 1;
 }
 static int hhNewAt(int li){   // NEIGHBORHOOD lot menu > NEW HOUSEHOLD HERE (a free lot): new Sims, made in the creator. 1 = done
