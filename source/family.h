@@ -37,7 +37,7 @@ static void famTry(int a,int b){   // a couple said yes to a baby: it comes in 3
 // The face is the HUD portrait's own drawing (hudface.h faceDrawL: the creator's eye and mouth art, brows, glasses, nose, cheeks, hair, every face slider) for
 // anyone's look, with an expression for how they feel; under it their neck and their top's colour across the shoulders. What falls outside the circle is put
 // back as it was (the pixels under the frame are kept first), then the rim goes round it.
-static u16 famUnder[47*47] EWRAM_BSS;   // the pixels under the frame (r up to 21)
+static u16 famUnder[556] EWRAM_BSS;   // the pixels under the frame that are put back: only the corners outside the rim (556 at most, r up to 21; was the whole 47 x 47 square)
 static void famBg(int sx,u16*a,u16*b){   // a portrait's backdrop: pink, blue or mint by gender
     if(sx==SX_FEMALE){ *a=RGB(31,25,28); *b=RGB(25,13,21); } else if(sx==SX_MALE){ *a=RGB(22,28,31); *b=RGB(9,17,30); } else { *a=RGB(24,31,25); *b=RGB(10,23,15); } }
 static int famSt(int u,int stg){   // their face for the moment: SAD BORED OK HAPPY STOKED (hudExpr's rows)
@@ -47,7 +47,7 @@ static int famSt(int u,int stg){   // their face for the moment: SAD BORED OK HA
 static void famFaceL(int cx,int cy,int r,const u8*lk,int stg,int sx,const u8*e){   // a portrait of any look (e: the expression, hudExpr's rows)
     if(r>21) r=21;
     int R2=(r+2)*(r+2), R1=(r+1)*(r+1), R0=r*r, bw=2*r+5, bx=cx-r-2, by=cy-r-2; u16 b0,b1; famBg(sx,&b0,&b1);
-    for(int j=0;j<bw;j++) for(int i=0;i<bw;i++){ int X=bx+i, Y=by+j; famUnder[j*bw+i]=((unsigned)X<SW&&(unsigned)Y<SH)?fb[Y*SW+X]:0; }
+    { int q=0; for(int j=0;j<bw;j++) for(int i=0;i<bw;i++){ int dx=i-r-2, dy=j-r-2; if(dx*dx+dy*dy<=R2) continue; int X=bx+i, Y=by+j; famUnder[q++]=((unsigned)X<SW&&(unsigned)Y<SH)?fb[Y*SW+X]:0; } }   // (the same order the corners are put back in below)
     int ox0=cX0, oy0=cY0; unsigned ow=cW, oh=cH;
     clipSet(bx<0?0:bx,by<0?0:by,bx+bw>SW?SW:bx+bw,by+bw>SH?SH:by+bw);
     for(int dy=-r;dy<=r;dy++) rect(cx-r,cy+dy,2*r+1,1,s3Mix(b0,b1,dy+r,2*r+1));   // the backdrop (the corners are put back below)
@@ -63,8 +63,8 @@ static void famFaceL(int cx,int cy,int r,const u8*lk,int stg,int sx,const u8*e){
     { int hs=lk[LK_HSTYLE]%NHAIR; if(hudHairRows[hs]) rect(fx+5,fy-1,12,1,hair); if(hs==5){ rect(fx+2,fy-3,18,2,hair); rect(fx,fy-1,22,2,hair); } }   // a little hair above the crown (an AFRO a lot)
     faceDrawL(fx,fy,lk,stg,e,-1,-1);
     cX0=ox0; cY0=oy0; cW=ow; cH=oh;
-    for(int j=0;j<bw;j++) for(int i=0;i<bw;i++){ int dx=i-r-2, dy=j-r-2, d=dx*dx+dy*dy; if(d<=R0) continue;   // outside the circle: as it was; then the rim and its dark edge
-        u16 c=d>R2?famUnder[j*bw+i]:d>R1?RGB(2,5,11):RGB(26,30,31); px(bx+i,by+j,c); }
+    { int q=0; for(int j=0;j<bw;j++) for(int i=0;i<bw;i++){ int dx=i-r-2, dy=j-r-2, d=dx*dx+dy*dy; if(d<=R0) continue;   // outside the circle: as it was; then the rim and its dark edge
+        u16 c=d>R2?famUnder[q++]:d>R1?RGB(2,5,11):RGB(26,30,31); px(bx+i,by+j,c); } }
 }
 static void famFace(int cx,int cy,int r,int u){   // the portrait of Sim u, with their face for the moment
     int m=hhMemOf(u); const u8*lk=m<0?look:hhM[m].look; int stg=m<0?stage:hhM[m].stage, st=famSt(u,stg);

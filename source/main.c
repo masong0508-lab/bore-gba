@@ -270,7 +270,7 @@ static const Tex flTex[NFL]={
  {"RED TILE",{RGB(22,8,5),RGB(14,6,4),RGB(25,11,7),0},{PN_TILE}},
 };
 static const u8 flVs[NFL]={14,15,15,16,14,15,15,15,15,15,15,15,15,15};   // shade (of 16) for the odd tiles of a checkerboard of tiles
-static u16 wpAvg[NWP];   // average colour of each wallpaper: wall tops and the "wallpaper off" look
+#include "bakedtabs.h"   // wpTab / wpHi / wpLo / wpAvg (the wallpapers pre-shaded), scKnee, acSin / acHue: baked into ROM by tools/gen_bakedtabs.py (7 KB of RAM they used to fill at power on)
 
 
 static u16 toneBy(u16 c,int e){   // a tone slider: darker to the left, lighter to the right (a step each notch)
@@ -416,8 +416,6 @@ IWRAM_OVL0 static void cube(int sx,int sy,int ci,int shape,int f){   // (overlay
 }
 
 // ---------- textured walls and floors ----------
-static u16 wpTab[NWP][2][8][8] EWRAM_BSS;              // [wallpaper][0 left face / 1 right face][column][row], pre-shaded
-static u16 wpHi[NWP][2][8], wpLo[NWP][2][8];            // per column: the lit row under the top edge, and the shaded row above the bottom edge
 #include "fltab.h"   // flTab[floor][odd tile][row][column]: pre-sampled onto the iso diamond, now baked into ROM (tools/gen_fltab.c) instead of 8.5 KB of EWRAM
 static u8 rowHW[CB+1];   // rowHW[|y|] = half width of the diamond on that row
 static u16 flFlat[NFL][2];                             // plain-colour fallback ("floor patterns off")
@@ -427,10 +425,7 @@ static u16 avgTex(const Tex*t){
     return RGB(r/64,g/64,b/64);
 }
 static void bakeTex(void){   // needs hhT (filled by initTables)
-    for(int w=0;w<NWP;w++){
-        const Tex*t=&wpTex[w]; wpAvg[w]=avgTex(t);
-        for(int f=0;f<2;f++)for(int u=0;u<8;u++){ for(int v=0;v<8;v++) wpTab[w][f][u][v]=shade(t->c[t->p[v][u]-'0'],f?9:12); wpHi[w][f][u]=lite(wpTab[w][f][u][1],19); wpLo[w][f][u]=shade(wpTab[w][f][u][6],13); }
-    }
+    // (the wallpapers, wpTab / wpHi / wpLo / wpAvg, are baked into ROM: bakedtabs.h)
     for(int fl=0;fl<NFL;fl++){
         const Tex*t=&flTex[fl]; u16 av=avgTex(t); int vs=flVs[fl];
         flFlat[fl][0]=av; flFlat[fl][1]=shade(av,vs);
@@ -1129,9 +1124,7 @@ IWRAM_CODE static void fillCols(int w0,int w1,u16 c){
     for(int y=0;y<SH;y++,row+=ROW_W) for(int w=w0;w<w1;w++) row[w]=v;
 }
 static u8 ord[4][W*D];   // per view: cells (x | z<<4) sorted back to front, so the draw loop needs no search
-static void scInit(void);
 static void initTables(void){
-    scInit();   // the mixers' soft limit (before any sound plays)
     for(int sh=0;sh<4;sh++){ int r=rTab[sh]; for(int at=0;at<=r;at++) hhT[sh][at]=(u8)((r/2)*(r-at)/r); }
     for(int a=0;a<=CB;a++){ int w=0; for(int at=0;at<=CA;at++) if(hhT[0][at]>=a) w=at; rowHW[a]=(u8)w; }
     bakeTex();
@@ -1752,11 +1745,10 @@ static void musTrigger(void){
 }
 // SOFT LIMIT: past +-96 the output bends smoothly towards the 8-bit edge instead of being cut flat there (a flat cut crackles). The curve is
 // 96 + d*R/(d+R) (d = how far past 96, R = room left), so its slope is 1 at the knee and it never quite reaches the edge. tools/preview_xm.py: the same.
-// The curve is a table (scKnee, filled once by scInit): the mixers run it for every sample, and the division the formula needs is a slow library call
+// The curve is a table (scKnee, baked into ROM: bakedtabs.h): the mixers run it for every sample, and the division the formula needs is a slow library call
 // on the GBA (it used to cost a loud song hundreds of calls a frame). The table holds the formula's exact integer results; past d = 1023 they do not
 // change any more (+126 / -127), so the output is the same, bit for bit.
-static u8 scKnee[2][1024] EWRAM_BSS;   // [0] how far above +96, [1] how far below -96
-static void scInit(void){ for(int d=0;d<1024;d++){ scKnee[0][d]=(u8)(d*31/(d+31)); scKnee[1][d]=(u8)(d*32/(d+32)); } }
+// scKnee[2][1024]: [0] how far above +96, [1] how far below -96 (in ROM: bakedtabs.h)
 static inline __attribute__((always_inline)) int softClip(int x){
     if(x>96){ int d=x-96; if(d>1023) d=1023; return 96+scKnee[0][d]; }
     if(x<-96){ int d=-96-x; if(d>1023) d=1023; return -96-scKnee[1][d]; }
@@ -5584,7 +5576,7 @@ static void playScreen(void){
 static void mainMenu(void){
     int sel=0, dirty=3, ps=0; u16 prev=keyNow();
     menuMusStart();   // a random checked song plays while a main menu is open (MENU MUSIC option)
-    acidInit(); mmPick();
+    mmPick();
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k;
         if(pr&K_DOWN){ sel=(sel+1)%MM_N; dirty|=1; }
