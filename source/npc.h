@@ -212,10 +212,10 @@ static void npcSkSpawn(void){
 // come in): "YOU GOT AWAY". But they remember you: each escape adds a WANTED star (copWant, up to 6), and every midnight there is a small chance (about 5% a star)
 // that the cops RAID your home lot, with more cops the more stars you have. Being BUSTED clears the stars. Not saved (a new session starts clean).
 #define COP_CAP 5    // the most cops a chase or a raid ever sends (what the game asks for is clamped to this)
-#define COP_MAX 20   // HARD LIMIT: the size of every cop array and the OAM entries set aside (cop 0 = NPC_OAM0, cop n = NPC_OAM0+3+n). Never exceeded, whatever COP_CAP says.
+#define COP_MAX COP_CAP   // HARD LIMIT: the size of every cop array and the OAM entries set aside (cop 0 = NPC_OAM0, cop n = NPC_OAM0+3+n). Was 20, but no chase or raid ever had more than COP_CAP: the 15 slots that could never be used (4 KB of EWRAM) are gone
 _Static_assert(COP_CAP<=COP_MAX,"COP_CAP can not be above the hard limit COP_MAX");
 _Static_assert(NPC_OAM0+3+COP_MAX-1<128,"the cops' OAM entries run past the 128 the GBA has");
-static HhSim copS[COP_MAX] EWRAM_BSS;                          // the cops walk like visitors: path, position and speed are an HhSim's. copS[0] leads (about 190 bytes of EWRAM each: COP_MAX of them are always reserved)
+static HhSim copS[COP_MAX] EWRAM_BSS;                          // the cops walk like visitors: path, position and speed are an HhSim's. copS[0] leads (an HhSim each: COP_MAX of them are always reserved)
 static u8 copN EWRAM_BSS, copMax EWRAM_BSS, copFast EWRAM_BSS, copRp[COP_MAX] EWRAM_BSS;   // cops on the lot, most this chase, raid (backup comes quickly), replan counters
 static u8 copSt EWRAM_BSS, copHeat EWRAM_BSS, copTry EWRAM_BSS, copWant EWRAM_BSS, copRaid EWRAM_BSS; static u16 copHT EWRAM_BSS, copCool EWRAM_BSS, copRT EWRAM_BSS, copTired EWRAM_BSS; static short copT EWRAM_BSS;
 static char copMsg[20] EWRAM_BSS;                              // copSt: 0 none, 1 called (waiting), 2 running at you, 3 holding you, 4 walking away
