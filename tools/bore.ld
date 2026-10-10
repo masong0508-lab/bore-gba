@@ -1,4 +1,4 @@
-/* bore.ld - devkitARM's gba_cart.ld with two changes (marked BORE below) so the IWRAM overlays work. Used through tools/bore.specs. */
+/* bore.ld - devkitARM's gba_cart.ld with the changes marked BORE below so the IWRAM overlays work. Used through tools/bore.specs. */
 /* Linker Script Original v1.3 by Jeff Frohwein     */
 /*  v1.0 - Original release                         */
 /*  v1.1 - Added proper .data section support       */
@@ -88,7 +88,7 @@ SECTIONS
 
 	.text  :   /* ALIGN (4): */
 	{
-		*(EXCLUDE_FILE (*.iwram*) .text*)
+		*(EXCLUDE_FILE (*.iwram* *_udivsi3.o *_divsi3.o) .text*)   /* BORE: libgcc's integer division goes to IWRAM (below) */
 		*(.gnu.linkonce.t.*)
 		KEEP (*(.text.*personality*))
 		/* .gnu.warning sections are handled specially by elf32.em.  */
@@ -161,6 +161,8 @@ SECTIONS
 	.iwram __iwram_start : AT (__iwram_lma)
 	{
 		__iwram_start__ = ABSOLUTE(.) ;
+		*_udivsi3.o(.text*)   /* BORE: libgcc's own integer division (the very same code, from IWRAM instead of the ROM bus: Thumb code divides in software) */
+		*_divsi3.o(.text*)
 		*(.iwram .iwram.*)   /* BORE: not .iwram*, which also took the overlays' .iwram0 .. .iwram9 (main.c IWRAM_OVL0 / IWRAM_OVL1) */
 		*iwram.*(.text* .data*)
 		. = ALIGN(4);   /* REQUIRED. LD is flaky without it. */
