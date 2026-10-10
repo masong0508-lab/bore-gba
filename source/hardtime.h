@@ -243,16 +243,16 @@ static void htCard(void){   // the inmate card
     present(); prWait();
 }
 static void htWork(void){
-    static char lb[4][28] EWRAM_BSS; const char*it[4]; int id[4], n=0;
+    char lb[4][28]; const char*it[4]; int id[4], n=0;
     for(int j=1;j<4;j++){ char*e=slCat(lb[n],htJobNm[j]); e=slCat(e,"  $"); e=slNum(e,htPay[j]); if(j==2) slCat(e,"  LOGIC 1"); if(j==3) slCat(e,"  BODY 2"); it[n]=lb[n]; id[n++]=j; }
     it[n]="NO JOB"; id[n++]=0;
     int c=menu("WORK",it,n); if(c<0) return; int j=id[c];
     if(j==2&&skLvl(SK_LOGIC)<1){ toast("YOU NEED LOGIC 1 FOR THE KITCHEN"); return; }
     if(j==3&&skLvl(SK_BODY)<2){ toast("YOU NEED BODY 2 FOR THE WORKSHOP"); return; }
-    htJob=(u8)j; htSave(); toast(j?"YOU HAVE A JOB  PAID AT MIDNIGHT":"NO MORE WORK");
+    htJob=(u8)j; htSave(); toast(j?"YOU HAVE A JOB  PAID AT MIDNIGHT":"NO MORE WORK"); if(j) stQEvent(QE_PJOB,1);
 }
 static void htGangMenu(void){
-    static char lb[5][36] EWRAM_BSS; const char*it[5]; int id[5], n=0;
+    char lb[5][36]; const char*it[5]; int id[5], n=0;
     if(htGang){ it[n]="LEAVE THE GANG"; id[n++]=0; }
     else for(int g=1;g<5;g++){ char*e=slCat(lb[n],htGangNm[g]); e=slCat(e,"  "); slCat(e,htGangAsk[g]); it[n]=lb[n]; id[n++]=g; }
     int c=menu(htGang?htGangNm[htGang]:"JOIN A GANG",it,n); if(c<0) return; int g=id[c];
@@ -301,7 +301,7 @@ static int htTable(void){   // main.c lifeStep, R with nothing in reach: next to
     int ok=0; for(int dy=-1;dy<=1&&!ok;dy++) for(int dx=-1;dx<=1;dx++){ int tx=(int)(lfx>>8)+dx, ty=(int)(lfy>>8)+dy; if(tx<0||ty<0||tx>=MW||ty>=MH) continue; if(lifeMap[ty][tx]=='K'){ ok=1; break; } }
     if(!ok) return 0;
     int buy=htGang==4?4:6;
-    static char lb[4][24] EWRAM_BSS; const char*it[5]; int id[5], n=0;
+    char lb[4][24]; const char*it[5]; int id[5], n=0;
     it[n]="CHAT"; id[n++]=0;
     { char*e=slCat(lb[n],"BUY A SMOKE  $"); slNum(e,buy); it[n]=lb[n]; id[n++]=1; }
     if(htCig){ char*e=slCat(lb[n],"SELL A SMOKE  $"); slNum(e,htGang==4?14:11); it[n]=lb[n]; id[n++]=2; }

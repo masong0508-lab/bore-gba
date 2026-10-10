@@ -20,10 +20,10 @@ static void wpBoom(s32 x,int dmg){   // (x is passed with wpBoomY set by the cal
     hhScare((int)(wpBoomX>>8),(int)(wpBoomY>>8),14,240);   // PANIC: a blast
     int R=410;
     for(int m=0;m<hhN;m++){ if(!wpLive(m)) continue;
-        int dx=(int)(hhM[m].fx-wpBoomX), dy=(int)(hhM[m].fy-wpBoomY), q=dx*dx+dy*dy; if(q>=R*R) continue;
+        int dx=(int)(hhM[m].fx-wpBoomX), dy=(int)(hhM[m].fy-wpBoomY), q=dx*dx+dy*dy; if(q>=R*R||!wallClear(wpBoomX,wpBoomY,hhM[m].fx,hhM[m].fy)) continue;   // (the walls take the blast)
         int d=1; while(d*d<q) d++;   // (square root: the distances are small)
         wpHurt(m,10+(dmg-10)*(R-d)/R,WP_ROCKET); }
-    { int dx=(int)(lfx-wpBoomX), dy=(int)(lfy-wpBoomY), q=dx*dx+dy*dy; if(q<330*330&&!ldead){ fightHurt(dmg/3); lnote="CAUGHT IN YOUR OWN BLAST"; lnoteT=50; } }
+    { int dx=(int)(lfx-wpBoomX), dy=(int)(lfy-wpBoomY), q=dx*dx+dy*dy; if(q<330*330&&!ldead&&wallClear(wpBoomX,wpBoomY,lfx,lfy)){ fightHurt(dmg/3); lnote="CAUGHT IN YOUR OWN BLAST"; lnoteT=50; } }
 }
 static void wpShotTick(void){
     if(wpBoomT) wpBoomT--;

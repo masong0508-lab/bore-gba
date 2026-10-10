@@ -411,15 +411,68 @@ __asm__(".pushsection .rodata\n"
   ".global xm_the_ticking_bomb_S6\nxm_the_ticking_bomb_S6:\n.incbin \"source/music/xmdata.bin\",4416111,5356\n"
   ".global xm_the_ticking_bomb_S7\nxm_the_ticking_bomb_S7:\n.incbin \"source/music/xmdata.bin\",4421467,2676\n"
   ".global xm_the_ticking_bomb_S13\nxm_the_ticking_bomb_S13:\n.incbin \"source/music/xmdata.bin\",4424143,21560\n"
-  ".global xm_youre_winner_ev\nxm_youre_winner_ev:\n.incbin \"source/music/xmdata.bin\",4445703,25618\n"
-  ".global xm_youre_winner_S0\nxm_youre_winner_S0:\n.incbin \"source/music/xmdata.bin\",4471321,1314\n"
-  ".global xm_youre_winner_S1\nxm_youre_winner_S1:\n.incbin \"source/music/xmdata.bin\",4472635,3943\n"
-  ".global xm_youre_winner_S2\nxm_youre_winner_S2:\n.incbin \"source/music/xmdata.bin\",4476578,1033\n"
-  ".global xm_youre_winner_S3\nxm_youre_winner_S3:\n.incbin \"source/music/xmdata.bin\",4477611,26679\n"
-  ".global xm_youre_winner_S4\nxm_youre_winner_S4:\n.incbin \"source/music/xmdata.bin\",4504290,9182\n"
-  ".global xm_youre_winner_S5\nxm_youre_winner_S5:\n.incbin \"source/music/xmdata.bin\",4513472,36752\n"
-  ".global xm_youre_winner_S6\nxm_youre_winner_S6:\n.incbin \"source/music/xmdata.bin\",4550224,13350\n"
-  ".global xm_youre_winner_S7\nxm_youre_winner_S7:\n.incbin \"source/music/xmdata.bin\",4563574,20025\n"
+  ".global xm_quickbullet_ev\nxm_quickbullet_ev:\n.incbin \"source/music/xmdata.bin\",4445703,24684\n"
+  ".global xm_quickbullet_S0\nxm_quickbullet_S0:\n.incbin \"source/music/xmdata.bin\",4470387,1733\n"
+  ".global xm_quickbullet_S1\nxm_quickbullet_S1:\n.incbin \"source/music/xmdata.bin\",4472120,4942\n"
+  ".global xm_quickbullet_S2\nxm_quickbullet_S2:\n.incbin \"source/music/xmdata.bin\",4477062,1217\n"
+  ".global xm_quickbullet_S3\nxm_quickbullet_S3:\n.incbin \"source/music/xmdata.bin\",4478279,699\n"
+  ".global xm_quickbullet_S4\nxm_quickbullet_S4:\n.incbin \"source/music/xmdata.bin\",4478978,4908\n"
+  ".global xm_quickbullet_S6\nxm_quickbullet_S6:\n.incbin \"source/music/xmdata.bin\",4483886,640\n"
+  ".global xm_quickbullet_S7\nxm_quickbullet_S7:\n.incbin \"source/music/xmdata.bin\",4484526,16656\n"
+  ".global xm_quickbullet_S8\nxm_quickbullet_S8:\n.incbin \"source/music/xmdata.bin\",4501182,2481\n"
+  ".global xm_quickbullet_S10\nxm_quickbullet_S10:\n.incbin \"source/music/xmdata.bin\",4503663,3859\n"
+  ".global xm_quickbullet_S11\nxm_quickbullet_S11:\n.incbin \"source/music/xmdata.bin\",4507522,1971\n"
+  ".global xm_quickbullet_S12\nxm_quickbullet_S12:\n.incbin \"source/music/xmdata.bin\",4509493,3956\n"
+  ".global xm_quickbullet_S14\nxm_quickbullet_S14:\n.incbin \"source/music/xmdata.bin\",4513449,4065\n"
+  ".global xm_quickbullet_S15\nxm_quickbullet_S15:\n.incbin \"source/music/xmdata.bin\",4517514,21999\n"
+  ".global xm_quickbullet_S20\nxm_quickbullet_S20:\n.incbin \"source/music/xmdata.bin\",4539513,15581\n"
+  ".global xm_quickbullet_S21\nxm_quickbullet_S21:\n.incbin \"source/music/xmdata.bin\",4555094,1724\n"
+  ".global xm_quickbullet_S22\nxm_quickbullet_S22:\n.incbin \"source/music/xmdata.bin\",4556818,1725\n"
+  ".global xm_quickbullet_S23\nxm_quickbullet_S23:\n.incbin \"source/music/xmdata.bin\",4558543,489\n"
+  ".global xm_quickbullet_S24\nxm_quickbullet_S24:\n.incbin \"source/music/xmdata.bin\",4559032,6062\n"
+  ".global xm_quickbullet_S25\nxm_quickbullet_S25:\n.incbin \"source/music/xmdata.bin\",4565094,17735\n"
+  ".global xm_quickbullet_S26\nxm_quickbullet_S26:\n.incbin \"source/music/xmdata.bin\",4582829,4121\n"
+  ".global xm_quickbullet_S27\nxm_quickbullet_S27:\n.incbin \"source/music/xmdata.bin\",4586950,1627\n"
+  ".global xm_quickbullet_S28\nxm_quickbullet_S28:\n.incbin \"source/music/xmdata.bin\",4588577,19427\n"
+  ".global xm_over_my_voice_ev\nxm_over_my_voice_ev:\n.incbin \"source/music/xmdata.bin\",4608004,14172\n"
+  ".global xm_over_my_voice_S0\nxm_over_my_voice_S0:\n.incbin \"source/music/xmdata.bin\",4622176,1318\n"
+  ".global xm_over_my_voice_S1\nxm_over_my_voice_S1:\n.incbin \"source/music/xmdata.bin\",4623494,6175\n"
+  ".global xm_over_my_voice_S2\nxm_over_my_voice_S2:\n.incbin \"source/music/xmdata.bin\",4629669,2763\n"
+  ".global xm_over_my_voice_S3\nxm_over_my_voice_S3:\n.incbin \"source/music/xmdata.bin\",4632432,665\n"
+  ".global xm_over_my_voice_S4\nxm_over_my_voice_S4:\n.incbin \"source/music/xmdata.bin\",4633097,4914\n"
+  ".global xm_over_my_voice_S5\nxm_over_my_voice_S5:\n.incbin \"source/music/xmdata.bin\",4638011,1140\n"
+  ".global xm_over_my_voice_S6\nxm_over_my_voice_S6:\n.incbin \"source/music/xmdata.bin\",4639151,2060\n"
+  ".global xm_over_my_voice_S7\nxm_over_my_voice_S7:\n.incbin \"source/music/xmdata.bin\",4641211,1228\n"
+  ".global xm_over_my_voice_S8\nxm_over_my_voice_S8:\n.incbin \"source/music/xmdata.bin\",4642439,2075\n"
+  ".global xm_over_my_voice_S9\nxm_over_my_voice_S9:\n.incbin \"source/music/xmdata.bin\",4644514,7549\n"
+  ".global xm_over_my_voice_S10\nxm_over_my_voice_S10:\n.incbin \"source/music/xmdata.bin\",4652063,4844\n"
+  ".global xm_over_my_voice_S11\nxm_over_my_voice_S11:\n.incbin \"source/music/xmdata.bin\",4656907,6870\n"
+  ".global xm_over_my_voice_S12\nxm_over_my_voice_S12:\n.incbin \"source/music/xmdata.bin\",4663777,7422\n"
+  ".global xm_over_my_voice_S13\nxm_over_my_voice_S13:\n.incbin \"source/music/xmdata.bin\",4671199,13205\n"
+  ".global xm_over_my_voice_S14\nxm_over_my_voice_S14:\n.incbin \"source/music/xmdata.bin\",4684404,1126\n"
+  ".global xm_over_my_voice_S15\nxm_over_my_voice_S15:\n.incbin \"source/music/xmdata.bin\",4685530,17604\n"
+  ".global xm_over_my_voice_S16\nxm_over_my_voice_S16:\n.incbin \"source/music/xmdata.bin\",4703134,42002\n"
+  ".global xm_over_my_voice_S17\nxm_over_my_voice_S17:\n.incbin \"source/music/xmdata.bin\",4745136,15440\n"
+  ".global xm_over_my_voice_S18\nxm_over_my_voice_S18:\n.incbin \"source/music/xmdata.bin\",4760576,14144\n"
+  ".global xm_over_my_voice_S19\nxm_over_my_voice_S19:\n.incbin \"source/music/xmdata.bin\",4774720,12433\n"
+  ".global xm_over_my_voice_S20\nxm_over_my_voice_S20:\n.incbin \"source/music/xmdata.bin\",4787153,6591\n"
+  ".global xm_over_my_voice_S21\nxm_over_my_voice_S21:\n.incbin \"source/music/xmdata.bin\",4793744,1376\n"
+  ".global xm_over_my_voice_S22\nxm_over_my_voice_S22:\n.incbin \"source/music/xmdata.bin\",4795120,6035\n"
+  ".global xm_over_my_voice_S23\nxm_over_my_voice_S23:\n.incbin \"source/music/xmdata.bin\",4801155,3062\n"
+  ".global xm_over_my_voice_S24\nxm_over_my_voice_S24:\n.incbin \"source/music/xmdata.bin\",4804217,5569\n"
+  ".global xm_over_my_voice_S25\nxm_over_my_voice_S25:\n.incbin \"source/music/xmdata.bin\",4809786,240341\n"
+  ".global xm_over_my_voice_S26\nxm_over_my_voice_S26:\n.incbin \"source/music/xmdata.bin\",5050127,208955\n"
+  ".global xm_over_my_voice_S27\nxm_over_my_voice_S27:\n.incbin \"source/music/xmdata.bin\",5259082,254644\n"
+  ".global xm_over_my_voice_S28\nxm_over_my_voice_S28:\n.incbin \"source/music/xmdata.bin\",5513726,232017\n"
+  ".global xm_youre_winner_ev\nxm_youre_winner_ev:\n.incbin \"source/music/xmdata.bin\",5745743,25618\n"
+  ".global xm_youre_winner_S0\nxm_youre_winner_S0:\n.incbin \"source/music/xmdata.bin\",5771361,1314\n"
+  ".global xm_youre_winner_S1\nxm_youre_winner_S1:\n.incbin \"source/music/xmdata.bin\",5772675,3943\n"
+  ".global xm_youre_winner_S2\nxm_youre_winner_S2:\n.incbin \"source/music/xmdata.bin\",5776618,1033\n"
+  ".global xm_youre_winner_S3\nxm_youre_winner_S3:\n.incbin \"source/music/xmdata.bin\",5777651,26679\n"
+  ".global xm_youre_winner_S4\nxm_youre_winner_S4:\n.incbin \"source/music/xmdata.bin\",5804330,9182\n"
+  ".global xm_youre_winner_S5\nxm_youre_winner_S5:\n.incbin \"source/music/xmdata.bin\",5813512,36752\n"
+  ".global xm_youre_winner_S6\nxm_youre_winner_S6:\n.incbin \"source/music/xmdata.bin\",5850264,13350\n"
+  ".global xm_youre_winner_S7\nxm_youre_winner_S7:\n.incbin \"source/music/xmdata.bin\",5863614,20025\n"
   ".popsection\n");
 extern const u8 xm_the_dipper_man_ev[];
 extern const s8 xm_the_dipper_man_S0[];
@@ -829,6 +882,59 @@ extern const s8 xm_the_ticking_bomb_S4[];
 extern const s8 xm_the_ticking_bomb_S6[];
 extern const s8 xm_the_ticking_bomb_S7[];
 extern const s8 xm_the_ticking_bomb_S13[];
+extern const u8 xm_quickbullet_ev[];
+extern const s8 xm_quickbullet_S0[];
+extern const s8 xm_quickbullet_S1[];
+extern const s8 xm_quickbullet_S2[];
+extern const s8 xm_quickbullet_S3[];
+extern const s8 xm_quickbullet_S4[];
+extern const s8 xm_quickbullet_S6[];
+extern const s8 xm_quickbullet_S7[];
+extern const s8 xm_quickbullet_S8[];
+extern const s8 xm_quickbullet_S10[];
+extern const s8 xm_quickbullet_S11[];
+extern const s8 xm_quickbullet_S12[];
+extern const s8 xm_quickbullet_S14[];
+extern const s8 xm_quickbullet_S15[];
+extern const s8 xm_quickbullet_S20[];
+extern const s8 xm_quickbullet_S21[];
+extern const s8 xm_quickbullet_S22[];
+extern const s8 xm_quickbullet_S23[];
+extern const s8 xm_quickbullet_S24[];
+extern const s8 xm_quickbullet_S25[];
+extern const s8 xm_quickbullet_S26[];
+extern const s8 xm_quickbullet_S27[];
+extern const s8 xm_quickbullet_S28[];
+extern const u8 xm_over_my_voice_ev[];
+extern const s8 xm_over_my_voice_S0[];
+extern const s8 xm_over_my_voice_S1[];
+extern const s8 xm_over_my_voice_S2[];
+extern const s8 xm_over_my_voice_S3[];
+extern const s8 xm_over_my_voice_S4[];
+extern const s8 xm_over_my_voice_S5[];
+extern const s8 xm_over_my_voice_S6[];
+extern const s8 xm_over_my_voice_S7[];
+extern const s8 xm_over_my_voice_S8[];
+extern const s8 xm_over_my_voice_S9[];
+extern const s8 xm_over_my_voice_S10[];
+extern const s8 xm_over_my_voice_S11[];
+extern const s8 xm_over_my_voice_S12[];
+extern const s8 xm_over_my_voice_S13[];
+extern const s8 xm_over_my_voice_S14[];
+extern const s8 xm_over_my_voice_S15[];
+extern const s8 xm_over_my_voice_S16[];
+extern const s8 xm_over_my_voice_S17[];
+extern const s8 xm_over_my_voice_S18[];
+extern const s8 xm_over_my_voice_S19[];
+extern const s8 xm_over_my_voice_S20[];
+extern const s8 xm_over_my_voice_S21[];
+extern const s8 xm_over_my_voice_S22[];
+extern const s8 xm_over_my_voice_S23[];
+extern const s8 xm_over_my_voice_S24[];
+extern const s8 xm_over_my_voice_S25[];
+extern const s8 xm_over_my_voice_S26[];
+extern const s8 xm_over_my_voice_S27[];
+extern const s8 xm_over_my_voice_S28[];
 extern const u8 xm_youre_winner_ev[];
 extern const s8 xm_youre_winner_S0[];
 extern const s8 xm_youre_winner_S1[];
@@ -1802,6 +1908,68 @@ static const u8 xm_the_ticking_bomb_busL[7]={199,179,152,122,88,51,13,
 static const u8 xm_the_ticking_bomb_busR[7]={13,51,88,122,152,179,199,
 };
 static const XmSong xm_the_ticking_bomb={xm_the_ticking_bomb_order,xm_the_ticking_bomb_rows,xm_the_ticking_bomb_patOff,xm_the_ticking_bomb_ev,xm_the_ticking_bomb_vt,xm_the_ticking_bomb_anc,xm_the_ticking_bomb_fx,xm_the_ticking_bomb_len,xm_the_ticking_bomb_data,xm_the_ticking_bomb_busL,xm_the_ticking_bomb_busR,61,0,1098,53};
+// ---- quickbullet  (from tools/quickbullet.xm) ----
+static const u8 xm_quickbullet_order[64]={0,1,2,3,4,5,6,7,8,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,
+29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,48,49,52,54,55,
+56,57,58,59,
+};
+static const u16 xm_quickbullet_rows[60]={128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,
+128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,
+};
+static const u32 xm_quickbullet_patOff[60]={0,79,150,226,423,638,843,1055,1371,1720,2183,2613,3081,3575,4146,4625,5098,5579,6052,6727,6955,7284,7531,7901,
+8275,8663,9099,9574,9893,10389,10867,11367,11800,12395,12967,13575,14250,14846,15432,15751,16048,16380,16760,17109,17435,17877,18176,18828,
+19469,20126,20767,21411,22065,22709,23350,24096,24271,24453,24551,24661,
+};
+static const u16 xm_quickbullet_vt[33]={759,1784,2809,2365,1679,1358,1553,1536,2611,1428,1925,1734,935,1960,2985,1663,
+1718,743,1768,2793,1394,1058,3002,3004,954,1702,2237,1092,1995,3020,1374,1122,
+1390,
+};
+static const u32 xm_quickbullet_anc[29]={61819841,247279365,247279365,247279365,247279365,0,61819841,247279365,
+41259794,0,82519588,123639683,247279365,0,247279365,165039176,
+0,0,0,247279365,165039176,61819841,61819841,123639683,
+41259794,165039176,61819841,123639683,247279365,
+};
+static const u8 xm_quickbullet_fx[1]={255,
+};
+static const u32 xm_quickbullet_len[29]={1732,4941,1216,698,4907,0,639,16655,2480,0,3858,1970,3955,0,4064,21998,0,0,0,13325,15580,1723,1724,488,
+6061,17734,4120,1626,19426,
+};
+static const s8* const xm_quickbullet_data[29]={xm_quickbullet_S0,xm_quickbullet_S1,xm_quickbullet_S2,xm_quickbullet_S3,xm_quickbullet_S4,0,xm_quickbullet_S6,xm_quickbullet_S7,xm_quickbullet_S8,0,xm_quickbullet_S10,xm_quickbullet_S11,xm_quickbullet_S12,0,xm_quickbullet_S14,xm_quickbullet_S15,0,0,0,xm_cynicaller_dnb_S13,xm_quickbullet_S20,xm_quickbullet_S21,xm_quickbullet_S22,xm_quickbullet_S23,xm_quickbullet_S24,xm_quickbullet_S25,xm_quickbullet_S26,xm_quickbullet_S27,xm_quickbullet_S28};
+static const u8 xm_quickbullet_busL[7]={199,179,152,122,88,51,13,
+};
+static const u8 xm_quickbullet_busR[7]={13,51,88,122,152,179,199,
+};
+static const XmSong xm_quickbullet={xm_quickbullet_order,xm_quickbullet_rows,xm_quickbullet_patOff,xm_quickbullet_ev,xm_quickbullet_vt,xm_quickbullet_anc,xm_quickbullet_fx,xm_quickbullet_len,xm_quickbullet_data,xm_quickbullet_busL,xm_quickbullet_busR,64,0,527,210};
+// ---- over_my_voice  (from tools/over_my_voice.xm) ----
+static const u8 xm_over_my_voice_order[57]={0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,
+30,31,32,5,6,7,33,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,34,35,36,37,38,
+};
+static const u16 xm_over_my_voice_rows[39]={128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,
+128,128,128,128,128,128,128,128,128,
+};
+static const u32 xm_over_my_voice_patOff[39]={0,201,399,621,958,1305,1621,1937,2313,2669,2997,3325,3713,4172,4595,5066,5614,6105,6523,7059,7662,8257,8799,9328,
+9955,10251,10540,10806,11084,11403,11722,12021,12435,12782,13138,13399,13674,13901,14152,
+};
+static const u16 xm_over_my_voice_vt[46]={854,1847,2888,1839,870,1895,2920,886,1911,2936,902,1927,2952,1536,1807,1569,
+1652,822,1945,2653,1823,2970,2098,1091,1553,621,605,2669,1961,2986,1157,2797,
+749,1977,2238,3002,1189,2251,1228,1993,3018,1173,1244,2302,2872,1929,
+};
+static const u32 xm_over_my_voice_anc[29]={61819841,247279365,247279365,247279365,247279365,61819841,61819841,61819841,
+61819841,61819841,165039176,165039176,247279365,165039176,123639683,165039176,
+165039176,165039176,165039176,82519588,41259794,61819841,247279365,123639683,
+247279365,247279365,247279365,247279365,247279365,
+};
+static const u8 xm_over_my_voice_fx[1]={255,
+};
+static const u32 xm_over_my_voice_len[29]={1317,6174,2762,664,4913,1139,2059,1227,2074,7548,4843,6869,7421,13204,1125,17603,42001,15439,14143,12432,6590,1375,6034,3061,
+5568,240340,208954,254643,232016,
+};
+static const s8* const xm_over_my_voice_data[29]={xm_over_my_voice_S0,xm_over_my_voice_S1,xm_over_my_voice_S2,xm_over_my_voice_S3,xm_over_my_voice_S4,xm_over_my_voice_S5,xm_over_my_voice_S6,xm_over_my_voice_S7,xm_over_my_voice_S8,xm_over_my_voice_S9,xm_over_my_voice_S10,xm_over_my_voice_S11,xm_over_my_voice_S12,xm_over_my_voice_S13,xm_over_my_voice_S14,xm_over_my_voice_S15,xm_over_my_voice_S16,xm_over_my_voice_S17,xm_over_my_voice_S18,xm_over_my_voice_S19,xm_over_my_voice_S20,xm_over_my_voice_S21,xm_over_my_voice_S22,xm_over_my_voice_S23,xm_over_my_voice_S24,xm_over_my_voice_S25,xm_over_my_voice_S26,xm_over_my_voice_S27,xm_over_my_voice_S28};
+static const u8 xm_over_my_voice_busL[7]={199,179,152,122,88,51,13,
+};
+static const u8 xm_over_my_voice_busR[7]={13,51,88,122,152,179,199,
+};
+static const XmSong xm_over_my_voice={xm_over_my_voice_order,xm_over_my_voice_rows,xm_over_my_voice_patOff,xm_over_my_voice_ev,xm_over_my_voice_vt,xm_over_my_voice_anc,xm_over_my_voice_fx,xm_over_my_voice_len,xm_over_my_voice_data,xm_over_my_voice_busL,xm_over_my_voice_busR,57,0,534,8};
 // ---- youre_winner  (from tools/youre_winner.xm) ----
 static const u8 xm_youre_winner_order[200]={0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,
 30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,

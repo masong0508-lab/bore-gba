@@ -36,7 +36,7 @@ static int armsNear(void){ int tx=(int)(lfx>>8), ty=(int)(lfy>>8);
 static int armsUse(void){   // R next to the counter (weapons.h wpUseSpot)
     if(!armsNear()) return 0;
     if(stage<AG_TEEN){ lnote="NOT FOR KIDS"; lnoteT=50; return 1; }
-    static char lb[9][28] EWRAM_BSS, tt[40] EWRAM_BSS; const char*it[9];
+    char lb[9][28], tt[40]; const char*it[9];   // (the shop's lines: on the stack while it is open)
     for(;;){
         char*e=simCat(tt,"ARMS SHOP  $"); simCatMoney(e,simMoney,1);
         for(int w=0;w<WP_N;w++){ char*q=simCat(lb[w],wpT[w].nm); q=simCat(q,"  "); if(wpOwn>>w&1) simCat(q,"OWNED"); else { *q++='$'; simCatN(q,wpT[w].price); } it[w]=lb[w]; }
@@ -47,7 +47,7 @@ static int armsUse(void){   // R next to the counter (weapons.h wpUseSpot)
         else if(c==6&&wpBul>=WP_BMAX) toast("POCKETS FULL");
         else if(c==7&&wpMis>=WP_MMAX) toast("POCKETS FULL");
         else if(simMoney<price) toast("NOT ENOUGH CASH");
-        else { simMoney-=price;
+        else { simMoney-=price; if(c<WP_N) stQEvent(QE_BUY,1);   // (a weapon, not ammo: a story task)
             if(c<WP_N) wpGive(c,c==WP_PISTOL||c==WP_UZI?12:0,c==WP_ROCKET?2:0);
             else { if(c==6) wpBul=(u8)(wpBul+12>WP_BMAX?WP_BMAX:wpBul+12); else wpMis=(u8)(wpMis+3>WP_MMAX?WP_MMAX:wpMis+3); wpSave(); }   // ammo alone never makes a weapon
             simsSaveNow(); toast("SOLD"); }

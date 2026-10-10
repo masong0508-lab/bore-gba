@@ -160,19 +160,30 @@ static void csBg(int bg,int t,int fx){   // the picture area: y 12 .. 115
 static int csLen(const char*s){ int n=0; while(s[n]) n++; return n; }
 static int csIsq(int v){ int w=0; while((w+1)*(w+1)<=v) w++; return w; }
 
+#include "csfont.h"   // the caption font (tools/make_csfont.py): 7 px capitals, between the small and the medium text
+static int csTw(const char*s){ int w=0; for(;*s;s++){ int i=fIdx(*s); w+=i<0?FSP_c:fa_c[i]; } return w; }   // a caption string's width
+static int csText(int x,int y,const char*s,u16 c){   // a caption string at (x, top of the cell y), blended over the picture like text(); returns the x after it
+    int cr=c&31, cg=(c>>5)&31, cb=(c>>10)&31;
+    for(;*s;s++){ int i=fIdx(*s); if(i<0){ x+=FSP_c; continue; } int w=fw_c[i]; const u8*g=fp_c+fo_c[i];
+        for(int r=0;r<FH_c;r++,g+=w){ u16*d=&fb[(y+r)*SW+x];
+            for(int q=0;q<w;q++){ int a=g[q]; if(!a) continue; if(a>=8){ d[q]=c; continue; } u16 b=d[q]; int ia=8-a;
+                d[q]=(u16)((((b&31)*ia+cr*a)>>3)|(((((b>>5)&31)*ia+cg*a)>>3)<<5)|(((((b>>10)&31)*ia+cb*a)>>3)<<10)); } }
+        x+=fa_c[i]; }
+    return x; }
 static const CsBeat* csCapB EWRAM_BSS; static short csCapN EWRAM_BSS, csCapX[3] EWRAM_BSS, csCapP EWRAM_BSS; static u8 csCapUp EWRAM_BSS;
 #define CS_TX 8     // the caption's left edge
-#define CS_TW 226   // ... and how wide a line may be (the big font: about 26 letters)
+#define CS_TW 226   // ... and how wide a line may be (the caption font: about 38 letters)
+#define CS_PL 3     // lines a page
 static int csLayout(const CsBeat*b){   // the caption as one string (its lines joined by spaces), word-wrapped for the big font into csLs / csLl; returns its length
     int n=0; for(int i=0;i<3&&b->t[i];i++){ if(n&&n<206) csFull[n++]=' '; for(const char*q=b->t[i];*q&&n<206;q++) csFull[n++]=*q; } csFull[n]=0; csFullN=n; csNL=0;
-    static char tmp[64]; int ls=0;
+    static char tmp[64] EWRAM_BSS; int ls=0;
     while(ls<n&&csNL<16){ int best=-1, e=ls;   // the longest run of whole words from ls that fits
         for(;;){ int we=e; while(we<n&&csFull[we]!=' ') we++; int k=we-ls; if(k>63) k=63; for(int i=0;i<k;i++) tmp[i]=csFull[ls+i]; tmp[k]=0;
-            if(tw(tmp,2)>CS_TW&&best>=0) break; best=we; if(we>=n) break; e=we+1; }
+            if(csTw(tmp)>CS_TW&&best>=0) break; best=we; if(we>=n) break; e=we+1; }
         if(best<=ls) best=ls+1; csLs[csNL]=(u8)ls; csLl[csNL]=(u8)(best-ls); csNL++; ls=best; while(ls<n&&csFull[ls]==' ') ls++; }
     return n; }
-static int csPgS(int pg){ int l=pg*2; return l<csNL?csLs[l]:csFullN; }                                  // where page pg starts in csFull
-static int csPgE(int pg){ int l=pg*2+1; if(l>=csNL) l=csNL-1; return l<0?0:csLs[l]+csLl[l]; }           // ... and ends   // the caption as drawn in the frame buffer (csCapUp: changed since the screen got it)
+static int csPgS(int pg){ int l=pg*CS_PL; return l<csNL?csLs[l]:csFullN; }                                  // where page pg starts in csFull
+static int csPgE(int pg){ int l=pg*CS_PL+CS_PL-1; if(l>=csNL) l=csNL-1; return l<0?0:csLs[l]+csLl[l]; }           // ... and ends   // the caption as drawn in the frame buffer (csCapUp: changed since the screen got it)
 static int csFeet(const CsBeat*b,int k,int t){   // the feet line of the beat's first (k 0) or second (k 1) figure
     int sp=k?(b->sp>>4):(b->sp&15);
     if(sp==SP_SEAT) return 108; if(sp==SP_DESK||sp==SP_FLOOR) return 100; if(sp==SP_STAGE) return 75;   // (seated, the judges' table hides them from the chest down; standing, from the hips)
@@ -243,11 +254,11 @@ static void csDraw(const CsBeat*b,int t,int shown){   // one frame of one beat (
     if(b!=csCapB||csPg!=csCapP||shown<csCapN){   // the caption panel and the top bar are drawn once a page; after that only the letters typed since the last picture
         rect(0,0,SW,12,0); rect(0,116,SW,44,RGB(2,3,8)); rect(0,116,SW,1,RGB(14,11,3)); text(SW-4-tw("START SKIP",1),3,"START SKIP",RGB(8,9,11),1);
         if(b->who) text(8,119,b->who,GOLD,1);
-        int l=csPg*2; csCapB=b; csCapP=csPg; csCapN=(short)(l<csNL?csLs[l]:shown); csCapX[0]=csCapX[1]=CS_TX; csCapUp=2; }
+        int l=csPg*CS_PL; csCapB=b; csCapP=csPg; csCapN=(short)(l<csNL?csLs[l]:shown); csCapX[0]=csCapX[1]=csCapX[2]=CS_TX; csCapUp=2; }
     if(shown>csCapN){   // the big font, two lines a page (glyphs land in the same order as a whole redraw, so the blended edges come out the same)
-        int y0=b->who?131:125; static char buf[64];
-        for(int j=0;j<2;j++){ int l=csPg*2+j; if(l>=csNL) break; int ls=csLs[l], le=ls+csLl[l], a=csCapN>ls?csCapN:ls, e=shown<le?shown:le;
-            if(e>a){ int k=0; for(int i=a;i<e&&k<63;i++) buf[k++]=csFull[i]; buf[k]=0; csCapX[j]=(short)text(csCapX[j],y0+j*14,buf,b->who?WHITE:RGB(22,26,31),2); } }
+        int y0=b->who?127:121; static char buf[64] EWRAM_BSS;
+        for(int j=0;j<CS_PL;j++){ int l=csPg*CS_PL+j; if(l>=csNL) break; int ls=csLs[l], le=ls+csLl[l], a=csCapN>ls?csCapN:ls, e=shown<le?shown:le;
+            if(e>a){ int k=0; for(int i=a;i<e&&k<63;i++) buf[k++]=csFull[i]; buf[k]=0; csCapX[j]=(short)csText(csCapX[j],y0+j*11,buf,b->who?WHITE:RGB(22,26,31)); } }
         csCapN=(short)shown; if(!csCapUp) csCapUp=1; }
     csCxF-=cdx; csCyF-=cdy;
 }
@@ -514,7 +525,7 @@ static void csPlay(int id){   // play scene id; returns when it ends or START sk
     u16 prev=keyNow(); int skip=0;
     { int tn=csTune[id]; if(tn>=0&&sSnd){ mGain=mGainT=256; musBegin(2,chipsyn+csTnT[tn].off,0); csSongOn=1; csTuneBS=csTnT[tn].bs; csMT=0; csMP=csy.step; } }   // the scene's chip tune, locked to the figures by csFt
     for(int bi=0;bi<sc->n&&!skip;bi++){
-        csCurBi=bi; const CsBeat*b=&sc->b[bi]; int total=csLayout(b), np=(csNL+1)/2, pg=0, tp=0; csPg=0; csTypingNow=0;
+        csCurBi=bi; const CsBeat*b=&sc->b[bi]; int total=csLayout(b), np=(csNL+CS_PL-1)/CS_PL, pg=0, tp=0; csPg=0; csTypingNow=0;
         int t=0, shown=0, rest=0, dt=1; if(b->sfx==250){ if(sSnd){ csSongOn=1; musBegin(1,jbs_here_today,0); } } else if(b->sfx==251){ if(csSongOn) musFadeOut(XF_OUT); csSongOn=0; } else if(b->sfx) sfxPlay(b->sfx-1);
         csTimeReset();
         for(;;){
@@ -522,7 +533,7 @@ static void csPlay(int id){   // play scene id; returns when it ends or START sk
             if(pr&K_START){ skip=1; break; }
             if(total){ int ps=csPgS(pg), pe=csPgE(pg);   // a page (two lines) types out, waits to be read, and the next one follows (PLAY ON); A finishes the typing, then turns the page
                 if(shown<pe){ shown=ps+(t-tp)/2; if(shown>pe) shown=pe; if(pr&K_A) shown=pe; rest=0; }
-                else { rest+=dt; int last=pg+1>=np, au=last&&(b->fx&CF_AUTO), hold=au?(b->dur?b->dur:60):(xo[XO_CSTEXT]?0x7FFF:40+(pe-ps)*3/2);   // (reading time: about 18 letters a second after the typing)
+                else { rest+=dt; int last=pg+1>=np, au=last&&(b->fx&CF_AUTO), hold=au?(b->dur?b->dur:60):(xo[XO_CSTEXT]?0x7FFF:30+(pe-ps));   // (reading time: about 17 letters a second, typing included)
                     if(rest>hold||(!au&&rest>8&&(pr&K_A))){ if(last) break; pg++; tp=t; shown=csPgS(pg); rest=0; } }
                 csPg=pg; csTypingNow=shown<csPgE(pg); }
             else if(t>=(b->dur?b->dur:60)) break;

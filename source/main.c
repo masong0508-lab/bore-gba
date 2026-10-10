@@ -16,6 +16,23 @@ typedef uint8_t u8; typedef uint16_t u16; typedef uint32_t u32;
 #define IWRAM_CODE __attribute__((section(".iwram"), long_call))
 #define IWRAM_ARM __attribute__((section(".iwram"), target("arm"), long_call))
 #define IWRAM_THUMB __attribute__((section(".iwram"), long_call))   // fast RAM, Thumb code: about 2/3 the size of ARM, for work that is not the per-pixel hot path
+// IWRAM OVERLAYS: two sets of fast code that never run at the same moment share one stretch of IWRAM (devkitARM's .iwram0 / .iwram1).
+//   overlay 0  the creator's voxel renderer (drawScene, cube): the creature creator, and baking a Sim's sprites
+//   overlay 1  the room renderer's inner loops (walls, floors, items, the zoom)
+// Every way into an overlay goes through a small ROM wrapper that calls ovlUse first, which copies that overlay in when the other one is
+// there (a DMA of a few KB, done only when switching: entering the creator or baking, then the next room picture). Neither overlay calls
+// into the other, and no interrupt code lives in one. The startup code loads overlay 0.
+#define IWRAM_OVL0 __attribute__((section(".iwram0"), long_call))
+#define IWRAM_OVL1 __attribute__((section(".iwram1"), long_call))
+extern const unsigned char __load_start_iwram0[], __load_stop_iwram0[], __load_start_iwram1[], __load_stop_iwram1[];
+extern unsigned char __iwram_overlay_start[];
+static unsigned char ovlCur;   // the overlay in IWRAM now (0 at power on)
+__attribute__((noinline)) static void ovlLoad(int k){
+    const unsigned char*s=k?__load_start_iwram1:__load_start_iwram0, *e=k?__load_stop_iwram1:__load_stop_iwram0;
+    REG_DMA3SAD=(unsigned)(unsigned long)s; REG_DMA3DAD=(unsigned)(unsigned long)__iwram_overlay_start; REG_DMA3CNT=((unsigned)(e-s+3)>>2)|0x84000000u;
+    ovlCur=(unsigned char)k;
+}
+static inline __attribute__((always_inline)) void ovlUse(int k){ if(ovlCur!=k) ovlLoad(k); }
 #define REG_WAITCNT (*(volatile u16*)0x04000204)
 #include "save.h"   // the save chip: 128 KB flash, or 32 KB SRAM as the fallback (SRAM_BASE, svRd / svWr / svErase / svCommit)
 
@@ -117,7 +134,9 @@ enum { LK_SHAPE, LK_SKIN, LK_EYES, LK_MOUTH, LK_EARS, LK_HSTYLE, LK_HCOL, LK_TOP
        LK_JAWW, LK_HANDSZ, LK_FOOTSZ,   // format 13: jaw width (the bottom row of the head), hand size and foot size on their own (appended: older saves keep their positions)
        LK_NECKW,   // format 14: neck width (the neck is its own narrow column between the shoulders and the head)
        LK_SEX,     // format 15: GENDER (SX_FEMALE, SX_MALE, SX_NB). It changes the words (WIFE / HUSBAND / SPOUSE ...), never what a Sim may wear or do; older saves get one from sexGuess
+       LK_BROWSP, LK_GLASSHT, LK_CHEEKHT,   // format 16: brow spacing, glasses height and cheek height (sliders, appended after GENDER)
        LK_N };   // animal (furry) ears, a muzzle, a fur tail (format 8); LK_BUTT: a slider, the seat (teens and up); LK_LEGW: leg width slider (format 9)
+#define LK_N15 (LK_SEX+1)   // looks a person format 15 slot (and an 'H@' / 'HA' household) holds
 #define LK_N14 (LK_NECKW+1)   // looks a person format 14 slot (and an 'H>' / 'H?' household) holds
 #define LK_N13 (LK_FOOTSZ+1)   // looks a person format 13 slot (and an 'H=' household) holds
 #define LK_N12 (LK_WINGTONE+1)   // looks a person format 12 slot (and an 'H<' household) holds
@@ -128,8 +147,10 @@ enum { LK_SHAPE, LK_SKIN, LK_EYES, LK_MOUTH, LK_EARS, LK_HSTYLE, LK_HCOL, LK_TOP
 #define LK_NSL11 (LK_NSL10+(LK_HORNTONE-LK_CHESTW+1))   // sliders before format 12
 #define LK_NSL12 (LK_NSL11+(LK_WINGTONE-LK_TAILTAPER+1))   // sliders before format 13
 #define LK_NSL13 (LK_NSL12+(LK_FOOTSZ-LK_JAWW+1))   // sliders before format 14
-#define LK_NSL (LK_NSL13+1)   // how many looks are sliders (9 values each)
-#define LKPK14 ((LK_N14-LK_NSL)+(LK_NSL+1)/2)   // the same, in an 'H>' / 'H?' household (before GENDER)
+#define LK_NSL14 (LK_NSL13+1)   // sliders before format 16
+#define LK_NSL (LK_NSL14+(LK_CHEEKHT-LK_BROWSP+1))   // how many looks are sliders (9 values each)
+#define LKPK15 ((LK_N15-LK_NSL14)+(LK_NSL14+1)/2)   // the same, in an 'H@' / 'HA' household (before the format 16 sliders)
+#define LKPK14 ((LK_N14-LK_NSL14)+(LK_NSL14+1)/2)   // the same, in an 'H>' / 'H?' household (before GENDER)
 #define LKPK13 ((LK_N13-LK_NSL13)+(LK_NSL13+1)/2)   // the same, in an 'H=' household (before the format 14 slider)
 #define LKPK12 ((LK_N12-LK_NSL12)+(LK_NSL12+1)/2)   // the same, in an 'H<' household (before the format 13 sliders)
 #define LKPK11 ((LK_N11-LK_NSL11)+(LK_NSL11+1)/2)   // the same, in an 'H;' household (before the format 12 sliders)
@@ -141,8 +162,9 @@ enum { LK_SHAPE, LK_SKIN, LK_EYES, LK_MOUTH, LK_EARS, LK_HSTYLE, LK_HCOL, LK_TOP
 #define LK_N5 (LK_SHOE+1)    // looks a person format 5 slot holds
 #define LK_N4 (LK_BACK+1)    // looks a person format 4 slot holds   // LK_TONE, LK_EARSZ, LK_EARLF are sliders: 0 = middle, then 1..4 up, 5..8 down (see slidePos)
 #define LK_N3 (LK_EARLF+1)   // looks a person format 3 slot holds (the Spore parts TAIL, HORNS, BACK came with format 4)
-static inline int lkSlide(int id){ return (id>=LK_BASE&&id<=LK_EARLF)||(id>=LK_HEIGHT&&id<=LK_MOUTHHT)||(id>=LK_HTONE&&id<=LK_STANCE)||(id>=LK_BUTT&&id<=LK_WINGSZ)||(id>=LK_NECK&&id<=LK_EARWID)||(id>=LK_CHESTW&&id<=LK_HORNTONE)||(id>=LK_TAILTAPER&&id<=LK_WINGTONE)||(id>=LK_JAWW&&id<=LK_NECKW); }
+static inline int lkSlide(int id){ return (id>=LK_BASE&&id<=LK_EARLF)||(id>=LK_HEIGHT&&id<=LK_MOUTHHT)||(id>=LK_HTONE&&id<=LK_STANCE)||(id>=LK_BUTT&&id<=LK_WINGSZ)||(id>=LK_NECK&&id<=LK_EARWID)||(id>=LK_CHESTW&&id<=LK_HORNTONE)||(id>=LK_TAILTAPER&&id<=LK_WINGTONE)||(id>=LK_JAWW&&id<=LK_NECKW)||(id>=LK_BROWSP&&id<=LK_CHEEKHT); }
 static inline int slidePos(int v){ return (v+4)%9; }      // 0..8 left to right, the middle (stored 0) is 4
+#define BUTT_OFF 9   // look[LK_BUTT]: the seat switched off (the hidden switch past the slider's left end, lookStep); 0..8 are the slider
 static inline int slideVal(int p){ return (p+5)%9; }
 static inline int slideEff(int v){ return slidePos(v)-4; }   // -4..4
 // MASTER CONTROLLER (OPTIONS > SIMU > CHEAT, only with the debug code: sUnlock from the title's Konami code, or dbgOn): a debug cheat console for extreme body sliders.
@@ -252,7 +274,7 @@ static const Tex flTex[NFL]={
  {"RED TILE",{RGB(22,8,5),RGB(14,6,4),RGB(25,11,7),0},{PN_TILE}},
 };
 static const u8 flVs[NFL]={14,15,15,16,14,15,15,15,15,15,15,15,15,15};   // shade (of 16) for the odd tiles of a checkerboard of tiles
-static u16 wpAvg[NWP];   // average colour of each wallpaper: wall tops and the "wallpaper off" look
+#include "bakedtabs.h"   // wpTab / wpHi / wpLo / wpAvg (the wallpapers pre-shaded), scKnee, acSin / acHue: baked into ROM by tools/gen_bakedtabs.py (7 KB of RAM they used to fill at power on)
 
 
 static u16 toneBy(u16 c,int e){   // a tone slider: darker to the left, lighter to the right (a step each notch)
@@ -346,7 +368,7 @@ static int tw(const char*s,int sc){
     const u8*adv=sc<=1?fa_s:sc==2?fa_m:fa_l; int sp=sc<=1?FSP_s:sc==2?FSP_m:FSP_l, w=0;
     while(*s){ int i=fNext(&s); w+=(i<0)?sp:adv[i]; } return w;
 }
-IWRAM_THUMB static int text(int x,int y,const char*s,u16 c,int sc){
+IWRAM_THUMB __attribute__((noclone)) static int text(int x,int y,const char*s,u16 c,int sc){   // (noclone: one copy in IWRAM, not a second one specialised by the compiler)
     const u32*fo=sc<=1?fo_s:sc==2?fo_m:fo_l; const u8*fw=sc<=1?fw_s:sc==2?fw_m:fw_l, *fa=sc<=1?fa_s:sc==2?fa_m:fa_l, *fp=sc<=1?fp_s:sc==2?fp_m:fp_l, *fx=sc<=1?fx_s:sc==2?fx_m:fx_l;
     int fh=sc<=1?FH_s:sc==2?FH_m:FH_l, sp=sc<=1?FSP_s:sc==2?FSP_m:FSP_l, ft=sc<=1?FTOP_s:sc==2?FTOP_m:FTOP_l;   // ft = extra rows above the capitals (room for accents on capitals); y is still the top of the capitals
     int cr=c&31, cg=(c>>5)&31, cb=(c>>10)&31;
@@ -379,7 +401,7 @@ static inline __attribute__((always_inline)) u16 lite(u16 c,int n){
 static const u8 rTab[4]={CA,CA*7/10,CA/2,CA*4/5};   // block, slim limb, hand, leg half widths
 static u8 hhT[4][CA+1];   // hhT[shape][|t|] = (r/2)*(r-|t|)/r, filled once in initTables (no division in the hot loop)
 static int cubeDR;   // WEIGHT slider: added to a block's half width (0 everywhere but the creature's body)
-IWRAM_CODE static void cube(int sx,int sy,int ci,int shape,int f){
+IWRAM_OVL0 static void cube(int sx,int sy,int ci,int shape,int f){   // (overlay 0: only drawScene and what it calls use it)
     int r=rTab[shape], ch=shape==2?CC*7/10:CC; const u8*hhp=hhT[shape];
     if(cubeDR){ static u8 hv[CA+8]; r+=cubeDR; if(r<3) r=3; if(r>CA+6) r=CA+6; for(int a=0;a<=r;a++) hv[a]=(u8)((r/2)*(r-a)/r); hhp=hv; }
     if(shape) f&=3;
@@ -398,8 +420,6 @@ IWRAM_CODE static void cube(int sx,int sy,int ci,int shape,int f){
 }
 
 // ---------- textured walls and floors ----------
-static u16 wpTab[NWP][2][8][8] EWRAM_BSS;              // [wallpaper][0 left face / 1 right face][column][row], pre-shaded
-static u16 wpHi[NWP][2][8], wpLo[NWP][2][8];            // per column: the lit row under the top edge, and the shaded row above the bottom edge
 #include "fltab.h"   // flTab[floor][odd tile][row][column]: pre-sampled onto the iso diamond, now baked into ROM (tools/gen_fltab.c) instead of 8.5 KB of EWRAM
 static u8 rowHW[CB+1];   // rowHW[|y|] = half width of the diamond on that row
 static u16 flFlat[NFL][2];                             // plain-colour fallback ("floor patterns off")
@@ -409,10 +429,7 @@ static u16 avgTex(const Tex*t){
     return RGB(r/64,g/64,b/64);
 }
 static void bakeTex(void){   // needs hhT (filled by initTables)
-    for(int w=0;w<NWP;w++){
-        const Tex*t=&wpTex[w]; wpAvg[w]=avgTex(t);
-        for(int f=0;f<2;f++)for(int u=0;u<8;u++){ for(int v=0;v<8;v++) wpTab[w][f][u][v]=shade(t->c[t->p[v][u]-'0'],f?9:12); wpHi[w][f][u]=lite(wpTab[w][f][u][1],19); wpLo[w][f][u]=shade(wpTab[w][f][u][6],13); }
-    }
+    // (the wallpapers, wpTab / wpHi / wpLo / wpAvg, are baked into ROM: bakedtabs.h)
     for(int fl=0;fl<NFL;fl++){
         const Tex*t=&flTex[fl]; u16 av=avgTex(t); int vs=flVs[fl];
         flFlat[fl][0]=av; flFlat[fl][1]=shade(av,vs);
@@ -485,6 +502,10 @@ __attribute__((noinline)) IWRAM_CODE static void tileTop(int sx,int sy,u16 c){
 // ---------- face sprites ----------
 // One cell = 9 x 8 px of art on a cube face. Wider sprites span cells: width = 10*cells-1 (the seam column is art too).
 // Palette: k dark, w white, r red, s skin shadow, i iris (EYE COLOUR), b blush, g glasses frame, h brow (hair colour), l dark lens, . clear
+#define NBROW 9    // face details: NONE + the art styles (new ones go at the end, so saved faces keep theirs)
+#define NNOSE 9
+#define NCHEEK 8
+#define NGLASS 7
 #define B9  "........."
 #define B19 "..................."
 static const char* const aHalf[8] ={ B9, "..sssss..", ".kkkkkkk.", ".wwkikww.", "..wkikw..", "...www...", B9, B9 };
@@ -531,15 +552,21 @@ static const Spr spr[NSPR]={ {"SLEEPY",1,aHalf},{"ROUND",1,aRound},{"HAPPY",1,aH
                              {"STAR",1,aStar},{"TIRED",1,aTired},{"SQUINT",1,aSquint},{"DIZZY",1,aDizzy},{"ANIME",1,aAnime},{"SIDE",1,aSide},
                              {"LAUGH",2,mLaugh},{"WAVY",2,mWavy},{"POUT",2,mPout},{"BUCK",2,mBuck},{"WONKY",2,mWonky},{"SCREAM",2,mScream} };
 // Details drawn over the eyes (brows, glasses) and over the mouth (nose, cheeks), from the look: [style-1][row], art in the same grid.
-static const char* const brArt[5][2]={ {"..hhhhh..",B9},{".hhhhhhh.",".hhhhhhh."},{".hhh.....","....hhh.."},{".....hhh.","..hhh...."},{"hhhhhhhhh","hhhhhhhhh"} };   // THIN THICK ANGRY SAD UNIBROW
-static const char* const glArt[3][8]={ {B9,"..ggggg..",".g.....g.","gg.....gg",".g.....g.","..ggggg..",B9,B9},              // ROUND
+static const char* const brArt[NBROW-1][2]={ {"..hhhhh..",B9},{".hhhhhhh.",".hhhhhhh."},{".hhh.....","....hhh.."},{".....hhh.","..hhh...."},{"hhhhhhhhh","hhhhhhhhh"},
+                                         {"...hhh...","..h...h.."},{"...hhh...",B9},{"hhhhhhhh.",".hhhhhhhh"} };   // THIN THICK ANGRY SAD UNIBROW ARCHED SHORT BUSHY
+static const char* const glArt[NGLASS-1][8]={ {B9,"..ggggg..",".g.....g.","gg.....gg",".g.....g.","..ggggg..",B9,B9},              // ROUND
                                        {B9,"ggggggggg","g.......g","g.......g","g.......g","ggggggggg",B9,B9},              // SQUARE
-                                       {B9,B9,"ggggggggg",".lllllll.",".lllllll.","..lllll..",B9,B9} };                       // SHADES
-static const char* const noArt[5][2]={ {"........sss........",B19},{".........ss........",".........kss......."},
+                                       {B9,B9,"ggggggggg",".lllllll.",".lllllll.","..lllll..",B9,B9},                        // SHADES
+                                       {B9,"gg.....gg",".ggggggg.",".g.....g.","..g...g..","...ggg...",B9,B9},             // CAT-EYE
+                                       {B9,".ggggggg.","gl.....lg","gl.....lg","gl.....lg",".ggggggg.",B9,B9},             // GOGGLES
+                                       {B9,B9,"ggggggggg","rrrrrrrrr","rrrrrrrrr","ggggggggg",B9,B9} };                     // VISOR
+static const char* const noArt[NNOSE-1][2]={ {"........sss........",B19},{".........ss........",".........kss......."},
                                        {".......sssss.......",".......s...s......."},{"........sss........","........k.k........"},
-                                       {".......kkkkk.......","........kkk........"} };   // BUTTON POINTY WIDE PIG ANIMAL
-static const char* const chArt[4][4]={ {".bbb...........bbb.",".bbb...........bbb.",B19,B19},{".s.s...........s.s.","..s.............s..",B19,B19},
-                                       {B19,"kkk.............kkk",B19,"kkk.............kkk"},{"................r..","...............r...","..............r....",B19} };   // BLUSH FRECKLES WHISKERS SCAR
+                                       {".......kkkkk.......","........kkk........"},
+                                       {".........s.........",B19},{"......sssssss......","......k.....k......"},{"........sss........",".........ssk......."} };   // BUTTON POINTY WIDE PIG ANIMAL TINY BROAD HOOKED
+static const char* const chArt[NCHEEK-1][4]={ {".bbb...........bbb.",".bbb...........bbb.",B19,B19},{".s.s...........s.s.","..s.............s..",B19,B19},
+                                       {B19,"kkk.............kkk",B19,"kkk.............kkk"},{"................r..","...............r...","..............r....",B19},
+                                       {B19,B19,"..k.............k..",B19},{B19,"................k..",B19,B19},{"rrr.............rrr",B19,"rrr.............rrr",B19} };   // BLUSH FRECKLES WHISKERS SCAR DIMPLES MOLE WAR PAINT
 static int sty[2];                     // chosen style per kind: 0 = eye, 1 = mouth
 // style -> sprite id. Styles 0..8 are the first eyes / mouths (ids 0..8 / 9..17); the newer styles sit after them, so no saved face changes.
 static inline int eyeSpr(int st){ return st<NEYE0?st:NEYE0+NMOUTH0+(st-NEYE0); }
@@ -561,25 +588,27 @@ __attribute__((noinline)) static void drawDeco(int sx,int sy,u16 code,int face,i
     int ci=(code>>3)&7, cj=(code>>6)&3, sz=((code>>8)&3)+1, fl=(code>>10)&1, aw=10*sp->wc-1;   // aw = art width in chars
     int wp=CA*sp->wc*sz-1, hp=CC*sz-2;   // footprint size in px (scales with the voxel size)
     const u16*pal=face?dR:dL;
-    int sh=0, sv=0, kx=64, ky=64, br=0, gl=0, no=0, ch=0, bsh=0, nsh=0;   // shift (px), scale (64 = 1x), details
+    int sh=0, sv=0, kx=64, ky=64, br=0, gl=0, no=0, ch=0, bsh=0, nsh=0, bsx=0, gsh=0, csh=0;   // shift (px), scale (64 = 1x), details
     if(decLook){
         // every notch of a face slider moves the art by a pixel, or grows its footprint by two (per voxel size): no two notches look the same
         if(eye){ int e=(slideEffS(look[LK_EYESZ])+(stage==AG_BABY?1:0))*sz, gw; e=e>0?2*e:e<0?e-sz:0; gw=wp+e; int gh=hp+e; if(gw<1) gw=1; if(gh<1) gh=1; kx=64*gw/wp; ky=64*gh/hp;
                  sh=slideEff(look[LK_EYESP])*sz; if(fl) sh=-sh; sv=slideEff(look[LK_EYEHT])*sz;
-                 br=look[LK_BROW]; gl=look[LK_GLASS]; bsh=slideEff(look[LK_BROWHT])*sz; }
-        else { int gw=wp+(slideEffS(look[LK_MOUTHW])-(stage==AG_BABY?1:0))*sz*3; if(gw<1) gw=1; kx=64*gw/wp; sv=slideEff(look[LK_MOUTHHT])*sz; no=look[LK_NOSE]; ch=look[LK_CHEEK]; nsh=slideEff(look[LK_NOSEHT])*sz; }
+                 br=look[LK_BROW]; gl=look[LK_GLASS]; bsh=slideEff(look[LK_BROWHT])*sz; gsh=slideEff(look[LK_GLASSHT])*sz; bsx=slideEff(look[LK_BROWSP])*sz; if(fl) bsx=-bsx; }
+        else { int gw=wp+(slideEffS(look[LK_MOUTHW])-(stage==AG_BABY?1:0))*sz*3; if(gw<1) gw=1; kx=64*gw/wp; sv=slideEff(look[LK_MOUTHHT])*sz; no=look[LK_NOSE]; ch=look[LK_CHEEK]; nsh=slideEff(look[LK_NOSEHT])*sz; csh=slideEff(look[LK_CHEEKHT])*sz; }
     }
     int M=decLook?(eye?4:7):0, pc=wp/2, qc=hp/2;
     int lc0=(ci?-1:0)-M, lr0=(cj?-1:0)-M, lc1=CA-1+M, lr1=CC-2+M;
     for(int lr=lr0;lr<lr1;lr++){
         int Q=cj*CC+lr+sv; Q=qc+((Q-qc)*64)/ky;
-        int Qb=Q+bsh, Qn=Q+nsh-sv;   // (the brows and nose may sit outside the art's own rows: they are checked on their own)
-        if((Q<0||Q>=hp)&&(!br||Qb<0||Qb>=hp)&&(!no||Qn<0||Qn>=hp)) continue;
+        int Qb=Q+bsh, Qn=Q+nsh-sv, Qg=Q+gsh, Qc=Q+csh;   // (the brows and nose may sit outside the art's own rows: they are checked on their own)
+        if((Q<0||Q>=hp)&&(!br||Qb<0||Qb>=hp)&&(!no||Qn<0||Qn>=hp)&&(!gl||Qg<0||Qg>=hp)&&(!ch||Qc<0||Qc>=hp)) continue;
         int ay0=Q>=0&&Q<hp?(Q*8)/hp:9, ay1=Q>=0&&Q<hp?((Q+1)*8-1)/hp:9; if(ay0<9){ if(ay0>7) ay0=7; if(ay1>7) ay1=7; if(ay1<ay0) ay1=ay0; }   // the art rows this pixel covers   // the brows (BROW HEIGHT) and the nose (NOSE HEIGHT) move on their own
-        int by0=Qb>=0&&Qb<hp?(Qb*8)/hp:9, by1=Qb>=0&&Qb<hp?((Qb+1)*8-1)/hp:9, ny0=Qn>=0&&Qn<hp?(Qn*8)/hp:9, ny1=Qn>=0&&Qn<hp?((Qn+1)*8-1)/hp:9;
+        int by0=Qb>=0&&Qb<hp?(Qb*8)/hp:9, by1=Qb>=0&&Qb<hp?((Qb+1)*8-1)/hp:9, ny0=Qn>=0&&Qn<hp?(Qn*8)/hp:9, ny1=Qn>=0&&Qn<hp?((Qn+1)*8-1)/hp:9,
+            gy0=Qg>=0&&Qg<hp?(Qg*8)/hp:9, gy1=Qg>=0&&Qg<hp?((Qg+1)*8-1)/hp:9, cy0=Qc>=0&&Qc<hp?(Qc*8)/hp:9, cy1=Qc>=0&&Qc<hp?((Qc+1)*8-1)/hp:9;   // GLASSES HEIGHT and CHEEK HEIGHT
         for(int lc=lc0;lc<lc1;lc++){
             int P=ci*CA+lc+sh; P=pc+((P-pc)*64)/kx; if(P<0||P>=wp) continue;
             int ax0=(P*aw)/wp, ax1=((P+1)*aw-1)/wp; if(ax0>aw-1) ax0=aw-1; if(ax1>aw-1) ax1=aw-1; if(ax1<ax0) ax1=ax0;
+            int bx0=-1, bx1=-1; if(br){ int Pb=pc+((ci*CA+lc+sh+bsx-pc)*64)/kx; if(Pb>=0&&Pb<wp){ bx0=(Pb*aw)/wp; bx1=((Pb+1)*aw-1)/wp; if(bx0>aw-1) bx0=aw-1; if(bx1>aw-1) bx1=aw-1; if(bx1<bx0) bx1=bx0; } }   // BROW SPACING: the brows on columns of their own
             // shrunk art: a pixel shows the art at its corner, or if that is clear any ink in the box it covers (else a one-row line, like the FLAT mouth, can fall
             // between the rows sampled and vanish)
             #define PICKR(A,rmax,Y0,Y1) ({ char t_=(Y0)<(rmax)?(A)[Y0][fl?aw-1-ax0:ax0]:'.'; for(int a_=(Y0);a_<=(Y1)&&a_<(rmax)&&t_=='.';a_++) for(int b_=ax0;b_<=ax1;b_++){ char u_=(A)[a_][fl?aw-1-b_:b_]; if(u_!='.'){ t_=u_; break; } } t_; })
@@ -587,11 +616,11 @@ __attribute__((noinline)) static void drawDeco(int sx,int sy,u16 code,int face,i
             char c=decNose?'.':PICK(sp->art,8);
             if(decNose){ if(!eye&&no) c=PICKR(noArt[no-1],2,ny0,ny1); }
             else if(eye){
-                if(br){ char t=PICKR(brArt[br-1],2,by0,by1); if(t!='.') c=t; }
-                if(gl){ char t=PICK(glArt[gl-1],8); if(t!='.') c=t; }
+                if(br&&bx0>=0){ int s0=ax0,s1=ax1; ax0=bx0; ax1=bx1; char t=PICKR(brArt[br-1],2,by0,by1); ax0=s0; ax1=s1; if(t!='.') c=t; }
+                if(gl){ char t=PICKR(glArt[gl-1],8,gy0,gy1); if(t!='.') c=t; }
             } else if(c=='.'){
                 if(no) c=PICKR(noArt[no-1],2,ny0,ny1);
-                if(c=='.'&&ch) c=PICK(chArt[ch-1],4);
+                if(c=='.'&&ch) c=PICKR(chArt[ch-1],4,cy0,cy1);
             }
             #undef PICK
             #undef PICKR
@@ -1111,9 +1140,7 @@ IWRAM_CODE static void fillCols(int w0,int w1,u16 c){
     for(int y=0;y<SH;y++,row+=ROW_W) for(int w=w0;w<w1;w++) row[w]=v;
 }
 static u8 ord[4][W*D];   // per view: cells (x | z<<4) sorted back to front, so the draw loop needs no search
-static void scInit(void);
 static void initTables(void){
-    scInit();   // the mixers' soft limit (before any sound plays)
     for(int sh=0;sh<4;sh++){ int r=rTab[sh]; for(int at=0;at<=r;at++) hhT[sh][at]=(u8)((r/2)*(r-at)/r); }
     for(int a=0;a<=CB;a++){ int w=0; for(int at=0;at<=CA;at++) if(hhT[0][at]>=a) w=at; rowHW[a]=(u8)w; }
     bakeTex();
@@ -1175,6 +1202,8 @@ __attribute__((noinline)) static void drawAntennae(void){
     }
 }
 // ---- TAIL and HORNS: sprites, so their length / size are sliders and they take no blocks (and no RAM: they are drawn each frame) ----
+static int tailSin(int d){   // sine of d degrees (-180..180) x256 (Bhaskara's formula, close enough for a tail's bend)
+    int sg=1; if(d<0){ d=-d; sg=-1; } if(d>180) d=180; int p=d*(180-d); return sg*(1024*p)/(40500-p); }
 __attribute__((noinline)) static void drawTail(int near){   // STUB (a short wedge) or LONG (droops); TAIL LENGTH: a half block a notch
     int tl=look[LK_TAIL]; if(!tl||custom) return;
     int L,T,hs; bodyPlan(&L,&T,&hs);
@@ -1183,22 +1212,33 @@ __attribute__((noinline)) static void drawTail(int near){   // STUB (a short wed
     x0+=bx*bakeWk/(2*CA); y0+=by*bakeWk/(2*CA);   // WEIGHT: a heavier body is fatter front to back too, so the root moves out with its back face
     if((by>0)!=near) return;                                                                  // pointing away from you: behind the body
     int n=(tl==1?4:7)+slideEffS(look[LK_TAILLEN]); if(n<2) n=2;
-    u16 tb=toneBy(sT[5],slideEffS(look[LK_TAILTONE])), col=shade(tb,13); int cu=slideEff(look[LK_TAILCURL]), tk=slideEffS(look[LK_TAILTHK])/2, sway=slideEff(look[LK_TAILSW]), tipn=n+(slideEffS(look[LK_TAILTL])*(n+2))/4;   // TAIL SWAY: leans left / right on the screen; TAIL TIP LEN: how much of the tail is the tip colour
+    u16 tb=toneBy(sT[5],slideEffS(look[LK_TAILTONE])), col=tb; int cu=slideEff(look[LK_TAILCURL]), tk=slideEffS(look[LK_TAILTHK])/2, sway=slideEff(look[LK_TAILSW]), tipn=n+(slideEffS(look[LK_TAILTL])*(n+2))/4;   // TAIL SWAY: leans left / right on the screen; TAIL TIP LEN: how much of the tail is the tip colour
       // TAIL CURL: negative droops, positive curls up; TAIL THICKNESS: a pixel every two notches
     static const u8 tipSlot[7]={0,2,4,8,3,6,7}; int tpS=tipSlot[look[LK_TAILTIP]%7]; u16 tpc=toneBy(tpS?shade(sT[tpS],13):col,slideEffS(look[LK_TIPTONE]));   // TAIL TIP: the last quarter in another colour (TIP SHADE: lighter / darker)
     int tpe=slideEff(look[LK_TAILTAPER]), fl=slideEff(look[LK_TAILFLUF]), wv=slideEff(look[LK_TAILWAVE]);   // TAIL TAPER: blunt .. pointed; TAIL FLUFF: slim .. bushy (a fuzzy rim); TAIL WAVE: an S wiggle
     static const signed char wvT[8]={0,5,7,5,0,-5,-7,-5};
-    for(int j=0;j<=4*n;j++){
+    // Drawn as a round tube in two passes: a dark rim first (each brush a pixel wider), then the lit body over it, so the tail has an outline
+    // like the voxel blocks and does not wash into what is behind it. FAR to NEAR: a tail pointing away from you is painted tip first, so the
+    // part nearest the hips (nearer you) covers it; pointing towards you, root first. The LONG tail lifts off the hips and then hangs (gravity),
+    // the STUB sticks out and dips a little; TAIL CURL lifts the end (positive) or lets it hang lower (negative).
+    static short tbx[64], tby[64];   // where step j of the tail is, worked out once (the two passes and both orders use it)
+    { int ha=0, va=0, a0=tl==2?-15:18, a1=tl==2?-95+cu*40:cu*8; if(a1<-150) a1=-150; if(a1>80) a1=80;   // the angle off level, in degrees: from a0 at the root to a1 at the tip (LONG hangs; CURL lifts or tucks it)
+      if(4*n>63) n=15;
+      for(int j=0;j<=4*n;j++){ int ang=a0+(a1-a0)*j/(4*n), sx=tailSin(90-ang), sy=tailSin(ang);   // cos and sin, x256
+          tbx[j]=(short)(x0+(bx*ha)/2048+(j*sway)/(2*n)); tby[j]=(short)(y0+(by*ha)/2048-(CC*va)/2048);
+          ha+=sx; va+=sy; } }   // each step is an eighth of a block along the tail
+    for(int pass=0;pass<2;pass++) for(int k=0;k<=4*n;k++){
+        int j=near?k:4*n-k;
         int f=16*(4*n-j)/(4*n), mx=f;   // 16 at the root, 0 at the tip
         if(tpe>0) mx=f+(f*f/16-f)*tpe/4; else if(tpe<0) mx=f+((16-(16-f)*(16-f)/16)-f)*(-tpe)/4;   // pointed: thins early; blunt: stays thick to the end
-        int t=1+(hs+1)*mx/16+tk+(bakeWk>0?bakeWk/4:0)+(fl*(f*(16-f)/16))/6; if(t<1) t=1;   // (and a bit thicker on a heavy body); FLUFF swells the middle
-        int x=x0+bx*j/8+(j*sway)/(2*n), y=y0+by*j/8+(tl==2?j*j*(10-3*cu)/960:j*(2-cu)/16);
+        int t=2+(hs+2)*mx/16+tk+(bakeWk>0?bakeWk/4:0)+(fl*(f*(16-f)/16))/6; if(t<2) t=2;   // (and a bit thicker on a heavy body); FLUFF swells the middle
+        int x=tbx[j], y=tby[j];
         if(wv) y+=(wv*wvT[(j*8/(2*n+1))&7]*j)/(8*4*n);   // WAVE grows from the root
-        u16 c0=j>4*n-tipn?tpc:col, hi=lite(c0,19), lo=shade(c0,9);
-        if(t<=2){ rect(x-t/2,y-t/2,t,t,c0); continue; }
-        int r=t/2;   // a round, lit-from-above brush: highlight on top, shadow underneath, a dark rim at the sides
-        for(int dy=-r;dy<=r;dy++){ int hw=r; while(hw>0&&hw*hw+dy*dy>r*r+r) hw--;
-            u16 c=dy*3<-r?hi:dy*3>r?lo:c0; rect(x-hw,y+dy,2*hw+1,1,c); if(hw>=2){ px(x-hw,y+dy,lo); px(x+hw,y+dy,lo); } }
+        u16 c0=j>4*n-tipn?tpc:col, hi=toneBy(c0,3), lo=shade(c0,11), rim=shade(c0,5);   // (the highlight lifts toward white, so a dark tail shows its roundness too)
+        int r=t/2;
+        if(!pass){ int R=r+1; for(int dy=-R;dy<=R;dy++){ int hw=R; while(hw>0&&hw*hw+dy*dy>R*R+R) hw--; rect(x-hw,y+dy,2*hw+1,1,rim); } continue; }   // the outline
+        for(int dy=-r;dy<=r;dy++){ int hw=r; while(hw>0&&hw*hw+dy*dy>r*r+r) hw--;   // a round, lit-from-above brush: highlight on top, shadow underneath
+            u16 c=dy*3<-r?hi:dy*3>r?lo:c0; rect(x-hw,y+dy,2*hw+1,1,c); }
         if(fl>0&&(j&1)){ int e=r+1; px(x-e,y-r/2+(j&2),c0); px(x+e,y+r/2-(j&2),c0); }   // fluffy: a fuzzy rim
     }
 }
@@ -1301,7 +1341,9 @@ static void bxSync(void);
 // DEBUG CODE (title screen): HEIGHT also works for a BABY. A baby has one leg row (none for BIG HEAD / STUBBY / STOCKY / PETITE / TODDLER), so the leg stretch
 // does little; with the debug code on, the slider stretches the baby's torso row as well. Out of line (ROM) so the IWRAM drawing code stays small.
 __attribute__((noinline)) static int babyTall(void){ if(stage!=AG_BABY||!dbgOn) return 0; int h=slideEffS(look[LK_HEIGHT]); return h<-4?-4:h>bxLift?bxLift:h; }
-IWRAM_THUMB static void drawScene(int blink){
+IWRAM_OVL0 static void drawSceneO(int blink);
+static inline void drawScene(int blink){ ovlUse(0); drawSceneO(blink); }
+IWRAM_OVL0 static void drawSceneO(int blink){
     bxSync();   // (the bake swaps the stage between Sims without building the look again)
     if(stageOn&&!noGrid) drawStage(); else if(bakeOn) rect(cX0,cY0,(int)cW,(int)cH,SKY); else fillCols(0,SCENE_W,SKY);
     // floor grid
@@ -1369,7 +1411,7 @@ IWRAM_THUMB static void drawScene(int blink){
             int syc=sy; if(y==liftL+liftTn-1&&neckK>0) syc+=neckK;   // NECK LENGTH: the head sits higher; the top torso row stays at the shoulders and the neck (drawNeck) fills the gap
             for(int o=rl;o>0;o-=CC) cube(sx,syc+o,ci,shape,f|1);   // a stretched row: its lower part first (a block every CC pixels, so a long stretch has no gaps), then the block on top of it
             cube(sx,syc,ci,shape,rl>0?f|2:f); cubeDR=0;
-            if(decLook&&(stage>=AG_TEEN||sUnlock)&&liftL>0&&y==liftL-1&&z==1&&shape==3&&(x==BX0+(BXW-2)/2||x==BX0+BXW/2)) drawSeat(x,y,u,w,rl,raw&15); }   // the seat, on the back of the top of the legs
+            if(decLook&&(stage>=AG_TEEN||sUnlock)&&liftL>0&&y==liftL-1&&z==1&&shape==3&&(x==BX0+(BXW-2)/2||x==BX0+BXW/2)) { if(look[LK_BUTT]!=BUTT_OFF) drawSeat(x,y,u,w,rl,raw&15); } }   // the seat, on the back of the top of the legs
         u16 dc=dec[y][z][x]; int tint=0;
         if(gdec[y][z][x]&&blink){ dc=gdec[y][z][x]; tint=1; }
         if(dc&&fv>=0){ drawDeco(sx,sy,dc,fv,tint); if(!sprIsEye(decSpr(dc)-1)){ nsx=sx; nsy=sy; ndc=dc; ntint=tint; } }
@@ -1392,10 +1434,36 @@ static void zoomOff(void){ volatile u32*d0=(volatile u32*)0x040000B0, *bg=(volat
 #define R_TM3D (*(volatile u16*)0x0400010C)
 #define R_TM3CNT (*(volatile u16*)0x0400010E)
 static u16 vsT;   // timer 3 when the last vsync returned (a frame is 274 ticks)
+// ---- THE KEY LATCH: no press is ever lost, however slow a frame is ----
+// The buttons are sampled 60 times a second in the vblank interrupt (always on, see irqOff), and by vsync and keyNow. Every PRESS (an up -> down edge) is
+// counted per button, so a tap that starts and ends inside one long frame, or a second tap of a button before the game looked again, still arrives.
+// keyNow hands the presses out in order: a waiting press shows the button down; if keyNow said "down" last time, it first says "up" once, so the caller's
+// own pr = k & ~prev sees a fresh press. A press nobody read within KEY_STALE (a quarter second) is dropped: mashing A through a loading screen does not
+// fire a row of A's into the next menu. (Timer 3 runs at 16384 Hz, vsync starts it: a frame is 274 ticks.)
+#define R_IMEK (*(volatile u16*)0x04000208)
+#define KEY_STALE 4100
+static u16 kPrev, kRet, kT[10]; static u8 kQ[10];
+static inline void keySample(void){   // (interrupts held off by the caller, or inside the interrupt)
+    u16 c=(u16)(~REG_KEYINPUT)&0x3FF, e=c&(u16)~kPrev; kPrev=c;
+    if(e){ u16 now=R_TM3D; for(int b=0;b<10;b++) if((e>>b)&1){ if(kQ[b]<3) kQ[b]++; kT[b]=now; } }
+}
+static void keySampleM(void){ u16 ime=R_IMEK; R_IMEK=0; keySample(); R_IMEK=ime; }
+static void keyFlush(void){ u16 ime=R_IMEK; R_IMEK=0; keySample(); for(int b=0;b<10;b++) kQ[b]=0; kRet=kPrev; R_IMEK=ime; }   // forget every press not yet read (what is held stays held)
+static u16 keyRaw(void){   // keyNow before the BUTTONS swap
+    u16 ime=R_IMEK; R_IMEK=0; keySample();
+    u16 now=R_TM3D, out=kPrev;
+    for(int b=0;b<10;b++){ if(!kQ[b]) continue; u16 bit=(u16)(1u<<b);
+        if((u16)(now-kT[b])>KEY_STALE){ kQ[b]=0; continue; }   // too old: only whether it is down now counts
+        if(kRet&bit) out&=(u16)~bit;                              // it read as down last time: up once, so the press is a new one
+        else { out|=bit; kQ[b]--; svQuiet=SV_QUIET; } }         // the press, even if the button is already up again (and no flash commit for a moment: save.h)
+    kRet=out; R_IMEK=ime; return out;
+}
 static void vsync(void){
     if(!(R_TM3CNT&0x80)){ R_TM3CNT=0; R_TM3D=0; R_TM3CNT=0x83; }
+    keySampleM();
     while(REG_VCOUNT>=160);
     while(REG_VCOUNT<160){ if((*(volatile u16*)0x04000208&1)&&(*(volatile u16*)0x04000200&1)&&(*(volatile u16*)0x04000004&8)) *(volatile u8*)0x04000301=0; }   // the vblank interrupt is on: halt the CPU until it fires instead of spinning (emulators skip the idle time, so menus get the speed back)
+    keySampleM();
     vsT=R_TM3D; if(mWantOff) audIdleStop(); svTick(); ldTick(); }
 static void vsyncUi(void){   // vsync for the menus: if the last redraw ran over a whole frame (we are already inside the NEXT vblank), do not wait out another full frame
     if(REG_VCOUNT>=160&&(R_TM3CNT&0x80)&&(u16)(R_TM3D-vsT)>180){ vsT=R_TM3D; if(mWantOff) audIdleStop(); svTick(); ldTick(); return; }
@@ -1576,12 +1644,7 @@ static void voxPlay(int v); static void voxNag(int v); static void voxChain(int 
 #define R_TM1CNT  (*(volatile u16*)0x04000106)
 #define SFX_STEP 23655   // 6553.6 Hz source samples per 18157 Hz mixer sample, 16.16 fixed point
 __asm__(".pushsection .rodata\n.balign 4\n"
- ".global sfx_hit\nsfx_hit:\n.incbin \"source/sfx/hit.adp\"\n.balign 4\n"
  ".global sfx_gasp\nsfx_gasp:\n.incbin \"source/sfx/gasp.adp\"\n.balign 4\n"
- ".global sfx_scream\nsfx_scream:\n.incbin \"source/sfx/scream.adp\"\n.balign 4\n"
- ".global sfx_cry\nsfx_cry:\n.incbin \"source/sfx/cry.adp\"\n.balign 4\n"
- ".global sfx_groan\nsfx_groan:\n.incbin \"source/sfx/groan.adp\"\n.balign 4\n"
- ".global sfx_instant\nsfx_instant:\n.incbin \"source/sfx/instant.adp\"\n.balign 4\n"
  ".global sfx_tick\nsfx_tick:\n.incbin \"source/sfx/tick.adp\"\n.balign 4\n"
  ".global sfx_pop\nsfx_pop:\n.incbin \"source/sfx/pop.adp\"\n.balign 4\n"
  ".global sfx_land\nsfx_land:\n.incbin \"source/sfx/land.adp\"\n.balign 4\n"
@@ -1601,12 +1664,16 @@ __asm__(".pushsection .rodata\n.balign 4\n"
  ".global sfx_splash\nsfx_splash:\n.incbin \"source/sfx/splash.adp\"\n.balign 4\n"
  ".global sfx_boot\nsfx_boot:\n.incbin \"source/sfx/boot.adp\"\n.balign 4\n"
  ".popsection\n");
-extern const u8 sfx_hit[],sfx_gasp[],sfx_scream[],sfx_cry[],sfx_groan[],sfx_instant[],sfx_tick[],sfx_pop[],sfx_land[],sfx_stick[],sfx_grind[],sfx_thunder[],sfx_ghost[];
+extern const u8 sfx_gasp[],sfx_tick[],sfx_pop[],sfx_land[],sfx_stick[],sfx_grind[],sfx_thunder[],sfx_ghost[];
 extern const u8 sfx_bell[],sfx_dial[],sfx_flush[],sfx_shower[],sfx_munch[],sfx_cash[],sfx_page[],sfx_brew[],sfx_tv[],sfx_splash[],sfx_boot[];   // the everyday sounds (tools/make_life_sfx.py)
-enum { SFX_BONK, SFX_HIT, SFX_GASP, SFX_SCREAM, SFX_CRY, SFX_GROAN, SFX_NEARLY, SFX_DEATH, SFX_INSTANT, SFX_TICK, SFX_POP, SFX_LAND, SFX_STICK, SFX_GRIND, SFX_THUNDER, SFX_GHOST, SFX_BELL, SFX_DIAL, SFX_FLUSH, SFX_SHOWER, SFX_MUNCH, SFX_CASH, SFX_PAGE, SFX_BREW, SFX_TV, SFX_SPLASH, SFX_BOOT, SFX_VOICE0, SFX_N=SFX_VOICE0+VOICE_N };   // POP ollie, LAND a landing, STICK a trick landed, GRIND a rail caught (tools/make_skate_sfx.py)
+enum { SFX_BONK, SFX_HIT, SFX_GASP, SFX_SCREAM, SFX_CRY, SFX_GROAN, SFX_NEARLY, SFX_DEATH, SFX_INSTANT, SFX_TICK, SFX_POP, SFX_LAND, SFX_STICK, SFX_GRIND, SFX_THUNDER, SFX_GHOST, SFX_BELL, SFX_DIAL, SFX_FLUSH, SFX_SHOWER, SFX_MUNCH, SFX_CASH, SFX_PAGE, SFX_BREW, SFX_TV, SFX_SPLASH, SFX_BOOT, SFX_YELP, SFX_KO, SFX_VOICE0, SFX_N=SFX_VOICE0+VOICE_N };   // POP ollie, LAND a landing, STICK a trick landed, GRIND a rail caught (tools/make_skate_sfx.py)
 #define VS(v) (SFX_VOICE0+(v))   // a voice clip's sound id (V_xxx from voices.h)
-// effects that share a source file share one blob in the ROM
-static const u8* const sfxTab[SFX_N]={ sfx_hit,sfx_hit,sfx_gasp,sfx_scream,sfx_cry,sfx_groan,sfx_scream,sfx_scream,sfx_instant,sfx_tick,sfx_pop,sfx_land,sfx_stick,sfx_grind,sfx_thunder,sfx_ghost, sfx_bell,sfx_dial,sfx_flush,sfx_shower,sfx_munch,sfx_cash,sfx_page,sfx_brew,sfx_tv,sfx_splash,sfx_boot, VOICE_TAB };
+// THE TAKES. The voice effects (BONK HIT SCREAM CRY GROAN NEARLY DEATH INSTANT, and YELP KO) are takes cut out of five long recording sessions
+// (tools/chop_sfx.py, sfxtakes.h): one take each, instead of the whole 3 to 16 s session every time. HIT and YELP have several takes and
+// cycle through them (sfxPlay), so a fight does not repeat one grunt.
+#include "sfxtakes.h"
+static const u8* const sfxHitT[TK_HIT_N]={TK_HIT}; static const u8* const sfxYelpT[TK_YELP_N]={TK_YELP}; static u8 sfxRot;
+static const u8* const sfxTab[SFX_N]={ TK_BONK_FIRST,TK_HIT_FIRST,sfx_gasp,TK_SCREAM_FIRST,TK_CRY_FIRST,TK_GROAN_FIRST,TK_NEARLY_FIRST,TK_DEATH_FIRST,TK_INSTANT_FIRST,sfx_tick,sfx_pop,sfx_land,sfx_stick,sfx_grind,sfx_thunder,sfx_ghost, sfx_bell,sfx_dial,sfx_flush,sfx_shower,sfx_munch,sfx_cash,sfx_page,sfx_brew,sfx_tv,sfx_splash,sfx_boot, TK_YELP_FIRST,TK_KO_FIRST, VOICE_TAB };
 static const u16 stepT[89]={7,8,9,10,11,12,13,14,16,17,19,21,23,25,28,31,34,37,41,45,50,55,60,66,73,80,88,97,107,118,130,143,157,173,190,209,230,253,279,307,337,371,408,449,494,544,598,658,724,796,876,963,1060,1166,1282,1411,1552,1707,1878,2066,2272,2499,2749,3024,3327,3660,4026,4428,4871,5358,5894,6484,7132,7845,8630,9493,10442,11487,12635,13899,15289,16818,18500,20350,22385,24623,27086,29794,32767};
 static const signed char idxT[8]={-1,-1,-1,-1,2,4,6,8};
 // The effect voice: ssrc/sn = the clip's nibbles and sample count, sPos + sFr/65536 = play position in clip samples, sRd = samples decoded so far,
@@ -1655,7 +1722,9 @@ typedef struct { const s8*d; u32 pos,step,len; int vl,vr,ol,orr; } MVoice;   // 
 static MVoice mvc[MUS_VOICES];
 // STEREO: Direct Sound A plays the left buffers, Direct Sound B the right ones; both are fed by Timer0 and restarted together at vblank.
 static s8 mbufL[2][MUS_N] __attribute__((aligned(4))), mbufR[2][MUS_N] __attribute__((aligned(4)));
-static s16 maccL[MUS_N], maccR[MUS_N];
+static u32 macc[MUS_N];   // musMix: per sample, left in the top 16 bits and right in the bottom 16 (one load and one store per voice and sample)
+#define maccL ((s16*)macc)            // chipMix's scratch: two plain s16 rows in the same memory
+#define maccR (((s16*)macc)+MUS_N)
 static s8 mDly[256] __attribute__((aligned(4))); static int mDp, mLp;   // pseudo-stereo for streamed songs: 256-sample (14 ms) delay line + a low-pass state that keeps the bass centred
 static int mOrd, mRow, mLeft, mFrac; static volatile int mCur, mFilled; static const XmSong*mSong;
 static volatile int ldG=256, ldGT=256; static volatile int ldHold, ldRel;   // LOADING: the song steps aside while a slow job runs (loading.h). ldG = its own gain (256 full) gliding to ldGT; at 0 the song is FROZEN, not mixed at all (that is the CPU the job gets back). ldHold = a song is stepped aside; ldRel = frames until it comes back
@@ -1691,11 +1760,10 @@ static void musTrigger(void){
 }
 // SOFT LIMIT: past +-96 the output bends smoothly towards the 8-bit edge instead of being cut flat there (a flat cut crackles). The curve is
 // 96 + d*R/(d+R) (d = how far past 96, R = room left), so its slope is 1 at the knee and it never quite reaches the edge. tools/preview_xm.py: the same.
-// The curve is a table (scKnee, filled once by scInit): the mixers run it for every sample, and the division the formula needs is a slow library call
+// The curve is a table (scKnee, baked into ROM: bakedtabs.h): the mixers run it for every sample, and the division the formula needs is a slow library call
 // on the GBA (it used to cost a loud song hundreds of calls a frame). The table holds the formula's exact integer results; past d = 1023 they do not
 // change any more (+126 / -127), so the output is the same, bit for bit.
-static u8 scKnee[2][1024] EWRAM_BSS;   // [0] how far above +96, [1] how far below -96
-static void scInit(void){ for(int d=0;d<1024;d++){ scKnee[0][d]=(u8)(d*31/(d+31)); scKnee[1][d]=(u8)(d*32/(d+32)); } }
+// scKnee[2][1024]: [0] how far above +96, [1] how far below -96 (in ROM: bakedtabs.h)
 static inline __attribute__((always_inline)) int softClip(int x){
     if(x>96){ int d=x-96; if(d>1023) d=1023; return 96+scKnee[0][d]; }
     if(x<-96){ int d=-96-x; if(d>1023) d=1023; return -96-scKnee[1][d]; }
@@ -1707,26 +1775,33 @@ IWRAM_ARM static void musMix(s8*outL,s8*outR){
         if(mLeft==0){ musTrigger(); mFrac+=mSong->rfr; mLeft=mSong->rowN+(mFrac>>8); mFrac&=255;
             if(++mRow>=mSong->rows[mSong->order[mOrd]]){ mRow=0; if(++mOrd>=mSong->nord){ mOrd=mSong->loop; mLaps++; } } }
         int n=MUS_N-done; if(n>mLeft) n=mLeft;
-        s16*a=maccL+done; s16*b=maccR+done;
-        for(int i=0;i<n;i++){ a[i]=0; b[i]=0; }
+        u32*a=macc+done;
+        for(int i=0;i<n;i++) a[i]=0;
+        // Left and right share one 32-bit word: acc = L*65536 + R (mod 2^32). Adding a voice's (l, r) is one add of (l<<16)+r, and at the end
+        // R = the low 16 bits as signed, L = (acc - R) >> 16: exactly the two s16 sums of before, wrap-round and all (the output is bit for bit the same).
         for(int vi=0;vi<MUS_VOICES;vi++){ MVoice*v=&mvc[vi]; if(!v->d) continue;
             u32 pos=v->pos, st=v->step; const s8*d=v->d; int vl=v->vl, vr=v->vr, i=0;
             if(pos>>16){ u32 k=pos>>16; d+=k; v->len-=k; pos&=0xFFFF; v->d=d; }   // keep pos small (see MVoice)
             u32 len=(v->len>0xFFFF?0xFFFFu:v->len)<<16;   // a frame moves a note far less than 65535 samples, so the cap never stops one early
-            for(;i<n;i++){
+            if(pos<len&&st*(u32)(n-1)<len-pos){   // the note cannot end inside this chunk (pos+st*(n-1) < len): no test per sample (steps are far below 2^22, so no overflow)
+                while(i<n){   // notes play below their sample's own rate (steps are mostly 0.2 .. 0.9): read a pair of sample bytes once, use it until pos moves past it
+                    int ix=(int)(pos>>16), x0=d[ix], dx=d[ix+1]-x0, b0=x0*256; u32 lim=(u32)(ix+1)<<16;
+                    do{ int x=b0+dx*(int)((pos>>8)&255);   // the same interpolated sample as below, bit for bit
+                        a[i]+=((u32)((x*vl)>>21)<<16)+(u32)((x*vr)>>21); pos+=st; i++; }while(i<n&&pos<lim); }
+            } else for(;i<n;i++){
                 if(pos>=len){ v->d=0; break; }
                 int ix=(int)(pos>>16), fr=(int)((pos>>8)&255), x0=d[ix], x1=d[ix+1];
                 int x=x0*256+(x1-x0)*fr;                      // one interpolated sample, 16-bit scale
-                a[i]=(s16)(a[i]+((x*vl)>>21)); b[i]=(s16)(b[i]+((x*vr)>>21)); pos+=st; }   // (>>21 = the old >>14 with the 1/128 bus gain folded in)
+                a[i]+=((u32)((x*vl)>>21)<<16)+(u32)((x*vr)>>21); pos+=st; }   // (>>21 = the old >>14 with the 1/128 bus gain folded in)
             v->pos=pos; }
         for(int vi=0;vi<MUS_VOICES;vi++){ MVoice*v=&mvc[vi]; int ol=v->ol, orr=v->orr; if(!(ol|orr)) continue;   // declick offsets fading out
-            for(int i=0;i<n;i++){ a[i]=(s16)(a[i]+(ol>>5)); b[i]=(s16)(b[i]+(orr>>5)); ol-=ol>>5; orr-=orr>>5; }
+            for(int i=0;i<n;i++){ a[i]+=((u32)(ol>>5)<<16)+(u32)(orr>>5); ol-=ol>>5; orr-=orr>>5; }
             if(ol>-32&&ol<32) ol=0;
             if(orr>-32&&orr<32) orr=0;
             v->ol=ol; v->orr=orr; }
         mLeft-=n; done+=n;
     }
-    for(int i=0;i<MUS_N;i++) outL[i]=(s8)softClip(maccL[i]>>2), outR[i]=(s8)softClip(maccR[i]>>2);
+    for(int i=0;i<MUS_N;i++){ u32 w=macc[i]; int r=(s16)w, l=(s16)((w-(u32)r)>>16); outL[i]=(s8)softClip(l>>2); outR[i]=(s8)softClip(r>>2); }
 }
 // Streamed ADPCM song (source/music/*.adp from tools/encode_song.py): 4-bit IMA-ADPCM, 18157 Hz, so one frame = 304 samples.
 // Same format as the sound effects: u32 sample count, then nibbles (low first). Decoded straight into the DMA buffer.
@@ -1930,7 +2005,7 @@ __asm__(".pushsection .iwram,\"ax\",%progbits\n.arm\n.align 2\n.global irqEntry\
 __attribute__((used)) IWRAM_ARM void irqMain(void){
     u16 f=R_IF;
     if(f&1){   // vblank: start the buffer that was filled last frame, in step with the screen
-        R_IF=1;
+        R_IF=1; keySample();   // (the buttons, 60 times a second whatever the main loop is doing: the key latch)
         if(zoomShow&&zoomDma) zoomArm();   // the ZOOM's per-line scaling, every frame
         if(mOn){
             if(!mFilled) mCur^=1;                      // (mix overran: replay the last buffer rather than a half-filled one)
@@ -1948,7 +2023,7 @@ __attribute__((used)) IWRAM_ARM void irqMain(void){
     }
 }
 static void zoomIrq(void){ R_IRQVEC=(u32)(uintptr_t)irqEntry; R_DISPSTAT|=0x0008; R_IE|=1; R_IME=1; }   // the vblank IRQ on (for the ZOOM, also without sound)
-static void irqOff(void){ R_IME=0; R_IE=0; R_DISPSTAT=0; R_IF=0xFFFF; if(zoomShow) zoomIrq(); }
+static void irqOff(void){ R_IME=0; R_IE=0; R_DISPSTAT=0; R_IF=0xFFFF; zoomIrq(); }   // the sound interrupts off; the vblank one stays (the ZOOM, the key latch)
 // AUDIO: one mixer for everything. While a song or an effect plays, the interrupts above run it; with neither, they are switched off.
 static void audStart(void){   // start the mixer (the caller has set up what plays)
     irqOff(); R_DMA1CNT=0; R_DMA2CNT=0; R_TM0CNT=0;
@@ -2097,6 +2172,7 @@ static int titleScreen(void){
         musFill();
     }
     while((~REG_KEYINPUT)&K_START) vsync();   // wait for release so START doesn't also change size   (the title song plays on: the main menu crossfades from it)
+    keyFlush();   // (the cheat codes typed on the title are not presses for the main menu)
     return frame;   // how long the player sat on the title: stirs the random seed
 }
 
@@ -2104,6 +2180,7 @@ static void sfxPlay(int id){   // a new sound replaces whatever effect is playin
     if(!sSnd){ sfxStop(); return; }
     vxQn=0;   // (a new sound drops the clips waiting behind the old one)
     const u8*b=sfxTab[id];
+    if(id==SFX_HIT) b=sfxHitT[sfxRot++%TK_HIT_N]; else if(id==SFX_YELP) b=sfxYelpT[sfxRot++%TK_YELP_N];   // (the next take each time)
     sfxV=0;   // (the interrupt does not touch the voice while sfxV is 0)
     ssrc=b+4; sn=*(const u32*)b; sPos=0; sFr=0; sRd=0; spred=0; sidx=0; sS0=sS1=0;
     sfxLoop=0; sfxFade=sfxFadeT=256;
@@ -2208,10 +2285,39 @@ static int moveH(s32 fx,s32 fy){   // the height a step into (fx,fy) has to clea
     if(wallTall(lifeMap[ty][tx])&&(tx!=(int)(lfx>>8)||ty!=(int)(lfy>>8))) return 99;   // (already inside one, somehow: walk out)
     return surfH(fx,fy);
 }
+// THE WALL BETWEEN. wallClear: 1 = nothing solid on the straight line from (ax,ay) to (bx,by) (1/256 tiles). A wall is what drawWall draws: an arm
+// from its tile's centre to each wall next to it (a lone one is a short post), so this agrees with the picture: round a wall's end is open, through
+// it is not. Full walls, windows and the solid blocks ('#') stop it; a low wall is a fence (over it you can still talk and swing). Talking, punches,
+// melee weapons, blasts and a cop's grab all ask this: nobody reaches anybody through a wall.
+static int isWallCh(char c);   // (the walls section)
+static int segArm(s32 ax,s32 ay,s32 bx,s32 by,s32 c,s32 lo,s32 hi,int vert){   // does the segment touch the arm y=c, lo<=x<=hi (vert: x=c, lo<=y<=hi)?
+    if(vert){ s32 t=ax; ax=ay; ay=t; t=bx; bx=by; by=t; }
+    if((ay>c&&by>c)||(ay<c&&by<c)) return 0;   // both ends on one side
+    if(ay==by) return (ax<bx?ax:bx)<=hi&&(ax>bx?ax:bx)>=lo;   // along the arm's line
+    s32 d=by-ay, num=ax*d+(bx-ax)*(c-ay); if(d<0){ d=-d; num=-num; }   // where it crosses, times d (no division)
+    return num>=lo*d&&num<=hi*d;
+}
+static int wallClear(s32 ax,s32 ay,s32 bx,s32 by){
+    int x0=(int)((ax<bx?ax:bx)>>8), x1=(int)((ax>bx?ax:bx)>>8), y0=(int)((ay<by?ay:by)>>8), y1=(int)((ay>by?ay:by)>>8);
+    if(x0<0) x0=0; if(y0<0) y0=0; if(x1>=MW) x1=MW-1; if(y1>=MH) y1=MH-1;
+    for(int ty=y0;ty<=y1;ty++) for(int tx=x0;tx<=x1;tx++){
+        char c=lifeMap[ty][tx]; if(!wallTall(c)) continue;
+        s32 cx=tx*256+128, cy=ty*256+128;
+        if(c=='#'){ if(segArm(ax,ay,bx,by,cy,cx-128,cx+128,0)||segArm(ax,ay,bx,by,cx,cy-128,cy+128,1)) return 0; continue; }   // a solid block: all of its tile
+        int l=tx>0&&isWallCh(lifeMap[ty][tx-1]), r=tx<MW-1&&isWallCh(lifeMap[ty][tx+1]), u=ty>0&&isWallCh(lifeMap[ty-1][tx]), dn=ty<MH-1&&isWallCh(lifeMap[ty+1][tx]);
+        if(!(l|r|u|dn)){ if(segArm(ax,ay,bx,by,cy,cx-48,cx+48,0)||segArm(ax,ay,bx,by,cx,cy-48,cy+48,1)) return 0; continue; }   // a post
+        if((l|r)&&segArm(ax,ay,bx,by,cy,l?cx-128:cx,r?cx+128:cx,0)) return 0;
+        if((u|dn)&&segArm(ax,ay,bx,by,cx,u?cy-128:cy,dn?cy+128:cy,1)) return 0;
+    }
+    return 1;
+}
 // Colour lookups for the sprite palette and the two quantisers (house.h): a small open-addressing hash from a 15-bit colour to a slot (key 0xFFFF = empty).
 // The sprites hold about 40 colours, so a lookup is one or two probes instead of a walk through the list.
 #define HQ_N 512
-static u16 hqKey[HQ_N] EWRAM_BSS; static u8 hqVal[HQ_N] EWRAM_BSS;
+static u16 bfsQ[MH*MW] EWRAM_BSS;   // (the search queue, defined again further down: the same array)
+#define hqKey ((u16*)bfsQ)                 // the bake's colour hash lives in the search queue: it is scratch of a bake (hqClear / sprHashBuild start every use),
+#define hqVal (((u8*)bfsQ)+HQ_N*2)         // and no search runs during a bake (the bake already borrows hhDist the same way: hhQs). 1.5 KB of EWRAM
+_Static_assert(HQ_N*3<=MH*MW*2,"the bake's colour hash must fit in the search queue");
 static void hqClear(void){ for(int i=0;i<HQ_N;i++) hqKey[i]=0xFFFF; }
 static inline int hqSlot(u16 c){ int h=(int)(((u32)c*40503u)>>7)&(HQ_N-1); while(hqKey[h]!=0xFFFF&&hqKey[h]!=c) h=(h+1)&(HQ_N-1); return h; }
 static inline int hqDist(u16 a,u16 b){ int dr=(a&31)-(b&31), dg=((a>>5)&31)-((b>>5)&31), db=((a>>10)&31)-((b>>10)&31); return dr*dr*3+dg*dg*4+db*db*2; }
@@ -2679,7 +2785,7 @@ static void settingsLoad(void){ volatile u8*m=SRAM_BASE+SET_OFF;
 #define DIMC RGB(18,20,22)
 #define WHITE RGB(31,31,31)
 static u16 keyNow(void){   // BUTTONS option: A/B and L/R can be swapped here, so every screen sees the swapped keys
-    u16 k=(u16)(~REG_KEYINPUT)&0x3FF; int b=xo[XO_BTN];
+    u16 k=keyRaw(); int b=xo[XO_BTN];   // (the key latch: what is down, and every press since the last look)
     if(b&1){ u16 a=k&K_A, c=k&K_B; k=(u16)((k&~(K_A|K_B))|(a?K_B:0)|(c?K_A:0)); }
     if(b&2){ u16 l=k&K_L, r=k&K_R; k=(u16)((k&~(K_L|K_R))|(l?K_R:0)|(r?K_L:0)); }
     return k;
@@ -3122,6 +3228,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
         if(lbl>=100){ lbl=0; lstun=90; lsp=0; lgrind=0; lscore=lscore>100?lscore-100:0; sfxPlay(SFX_CRY); lnote="ACCIDENT"; lnoteT=90; moodEvent(M_ACCIDENT); }
         int nf=0, nt=0, nb=0, nh=0, nc=0, np=0, nq=0, nph=0, nrd=0, nsy=0, ntv=0, nbk=0, ncf=0, naq=0, ntm=0, nfe=0;
         for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++){ int tx=(lfx>>8)+dx, ty=(lfy>>8)+dy; if(tx<0||ty<0||tx>=MW||ty>=MH) continue;
+            if(dx&&dy&&wallTall(lifeMap[ty][tx-dx])&&wallTall(lifeMap[ty-dy][tx])) continue;   // round a corner of two walls: the other side, out of reach
             char c=lifeMap[ty][tx]; if(c=='F') nf=1; if(c=='T') nt=1; if(c=='S') nb=1; if(c=='H') nh=1; if(c=='C'||c=='U') nc=1; if(c=='G') np=1; if(c=='Q') nq=1; if(c=='I') nph=1; if(c=='R') nrd=1; if(c=='A') nsy=1; if(c=='v') ntv=1; if(c=='b') nbk=1; if(c=='c') ncf=1; if(c=='q') naq=1; if(c=='m') ntm=1; if(c=='W'&&prFence(tx,ty)) nfe=1; }
         lnear=nf?1:(nt?2:(nb?3:(nh?4:(np?6:(nq?7:(nph?8:(nrd?9:(nsy?10:(ntv?11:(nbk?12:(ncf?13:(naq?14:(ntm?15:(nfe?16:(nc?5:0)))))))))))))));   // 7 the DeadSet   // 1 fridge, 2 toilet, 3 bed, 4 shower, 6 water pipe, 5 sofa or beanbag
         if((pr&K_R)&&lstun<=0&&lz<=fh&&!simAct&&hhSocR(lnear==16?0:lnear)) pr&=~K_R;   // next to a household Sim: the social menu (it offers the furniture too)
@@ -3273,7 +3380,9 @@ static __attribute__((noinline)) void winCol(int k,int dir,int u,u16*o){
 }
 // one segment of wall: columns xa..xb of a tile whose centre (on the floor) is sx,sy. dir 0 runs along x (the camera sees its +y face),
 // dir 1 along y (+x face). h = height in px. edge: bit 0 = column xa is an end or corner, bit 1 = column xb.
-IWRAM_CODE static void wallSeg(int sx,int sy,int xa,int xb,int dir,int h,int wp,int edge){
+IWRAM_OVL1 static void wallSegO(int sx,int sy,int xa,int xb,int dir,int h,int wp,int edge);
+static inline void wallSeg(int sx,int sy,int xa,int xb,int dir,int h,int wp,int edge){ ovlUse(1); wallSegO(sx,sy,xa,xb,dir,h,wp,edge); }
+IWRAM_OVL1 static void wallSegO(int sx,int sy,int xa,int xb,int dir,int h,int wp,int edge){
     int ye=cY0+(int)cH-1, per, v0; u16 wb[WALL_H];
     u16 av=wpAvgOf(wp), flat=shade(av,dir?9:12), trim=lite(av,20), dark=shade(av,6);
     for(int x=xa;x<=xb;x++){
@@ -3489,7 +3598,9 @@ static inline __attribute__((always_inline)) void bandColsF(int s,int x0,int x1,
     if(hi>mx) hi=mx;
     *a=lo; *b=hi;
 }
-__attribute__((noinline)) IWRAM_CODE static void roomFloors(int x0,int y0,int x1,int y1,int s0,int s1){   // pass 1: the floor of every tile whose diamond reaches the rectangle
+IWRAM_OVL1 static void roomFloorsO(int x0,int y0,int x1,int y1,int s0,int s1);
+static inline void roomFloors(int x0,int y0,int x1,int y1,int s0,int s1){ ovlUse(1); roomFloorsO(x0,y0,x1,y1,s0,s1); }
+__attribute__((noinline)) IWRAM_OVL1 static void roomFloorsO(int x0,int y0,int x1,int y1,int s0,int s1){   // pass 1: the floor of every tile whose diamond reaches the rectangle
     const short*L=rsTab[0][cview&3], *F=rsTab[1][cview&3]; int lb=L[0], lx=L[1], ly=L[2], fb0=F[0], fx=F[1], fy=F[2];
     const char*lm=&lifeMap[0][0]; const u8*fm=&floorMap[0][0]; int lox=LOX, loy=LOY, sfl=sFl;
     for(int s=s0;s<=s1;s++){ int a,b; bandColsF(s,x0,x1,lox,&a,&b);
@@ -3502,7 +3613,9 @@ __attribute__((noinline)) IWRAM_CODE static void roomFloors(int x0,int y0,int x1
             int fl=fm[fb0+tx*fx+ty*fy];
             if(sfl) floorTile(sx,sy,&flTab[fl][v][0][0]); else tileTop(sx,sy,flFlat[fl][v]); } }
 }
-__attribute__((noinline)) IWRAM_CODE static int roomScan(int s,int x0,int y0,int x1,int y1,int bidx,u8*out){   // pass 2, band s: the tiles whose art may reach the rectangle and that hold something (or the board pickup, map index bidx; -1 = none)
+IWRAM_OVL1 static int roomScanO(int s,int x0,int y0,int x1,int y1,int bidx,u8*out);
+static inline int roomScan(int s,int x0,int y0,int x1,int y1,int bidx,u8*out){ ovlUse(1); return roomScanO(s,x0,y0,x1,y1,bidx,out); }
+__attribute__((noinline)) IWRAM_OVL1 static int roomScanO(int s,int x0,int y0,int x1,int y1,int bidx,u8*out){   // pass 2, band s: the tiles whose art may reach the rectangle and that hold something (or the board pickup, map index bidx; -1 = none)
     const short*L=rsTab[0][cview&3]; int lb=L[0], lx=L[1], ly=L[2]; const char*lm=&lifeMap[0][0]; int lox=LOX, loy=LOY, a, b, n=0;
     bandColsF(s,x0,x1,lox,&a,&b);
     for(int tx=a;tx<=b;tx++){ int ty=s-tx;
@@ -3576,7 +3689,9 @@ static void drawRoom(int ed){   // the whole screen (editor, speed test)
 // Camera zoom: scale the finished picture up around (cx,cy) in place. zk = 256 / zoom. Source pixels are always nearer the
 // centre than their destination, so working outward from the centre never reads a pixel that was already overwritten.
 static short zxm[SW], zym[SH];
-IWRAM_CODE static void zoomFb(int cx,int cy,int zk){   // only the scene rows (vpY0..vpY1-1) are zoomed: the HUD panels stay put
+IWRAM_OVL1 static void zoomFbO(int cx,int cy,int zk);
+static inline void zoomFb(int cx,int cy,int zk){ ovlUse(1); zoomFbO(cx,cy,zk); }
+IWRAM_OVL1 static void zoomFbO(int cx,int cy,int zk){   // only the scene rows (vpY0..vpY1-1) are zoomed: the HUD panels stay put
     for(int x=0;x<SW;x++) zxm[x]=(short)(cx+(((x-cx)*zk)>>8));
     for(int y=vpY0;y<vpY1;y++) zym[y]=(short)(cy+(((y-cy)*zk)>>8));
     for(int pass=0;pass<2;pass++){
@@ -3840,7 +3955,7 @@ static void hhSwap(HhSim*s){   // trade places: the player becomes s, s becomes 
 // ---- the ASPIRATION panel (pause menu): the Sims 2 wants and fears panel, the lifetime want, the reward shop, and the creature's Spore side ----
 // UP DOWN pick a want | A lock it (one at a time: a locked want survives the reroll when you wake up) | R aspiration rewards | B back
 static void aspRewards(void){
-    static char rb[RW_N][24] EWRAM_BSS; const char* it[RW_N];
+    char rb[RW_N][24]; const char* it[RW_N];
     for(;;){
         for(int r=0;r<RW_N;r++){ char*e=rb[r]; const char*p=simRewNm[r]; while(*p) *e++=*p++; *e++=' '; *e++=' '; e+=numStr(e,simRewCost[r]); *e=0; it[r]=rb[r]; }
         char t[24]; { char*e=t; const char*p="REWARDS  POINTS "; while(*p) *e++=*p++; numStr(e,simAsp); }
@@ -3917,36 +4032,40 @@ static const char* const pmTitle[8]={"RESUME","SAVE GAME","MY SIM","HOUSEHOLD","
 static const char* const pmDesc[8]={"BACK TO YOUR LIFE","SAVES YOU AND YOUR HOUSE","CAREER  SKILLS  PEOPLE  MORE","WHO LIVES HERE  HOW THEY FEEL","YOUR CHAPTERS","SETTINGS  SOUND  CONTROLS","EDIT MAP  BLUEPRINTS  NEW LIFE","SAVES AND LEAVES"};
 static int pauseMenu(int mode){   // mode 0 life, 1 from the neighborhood, 2 test play from the editor. Returns a PM_ number, or -1 (resume)
     static const u8 full[8]={0,1,2,3,4,5,6,7}, edl[3]={PM_RESUME,PM_OPTS,PM_QUIT};
-    const u8*ids=mode==2?edl:full; int n=mode==2?3:8, sel=0, dirty=1, lastB=-1; u16 prev=keyNow(); u32 t=0;
+    const u8*ids=mode==2?edl:full; int n=mode==2?3:8, sel=0, ps=-1, lastB=-1; u16 prev=keyNow(); u32 t=0;
+    int all=1;   // the whole panel (first, and after the debug menu); after that a move repaints two tiles and the text under them, the bob one tile
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; t++;
-        int ps=sel;
         if(pr&K_RIGHT) sel=(sel+1)%n;
         if(pr&K_LEFT) sel=(sel+n-1)%n;
         if((pr&K_DOWN)&&sel+4<n) sel+=4;
         if((pr&K_UP)&&sel>=4) sel-=4;
         if(pr&K_A) return ids[sel]==PM_RESUME?-1:ids[sel];
-        if(dbgOn&&(pr&K_SEL)){ dbgMenu(); prev=keyNow(); dirty=1; }   // dbgmenu.h: the debug cheats
+        if(dbgOn&&(pr&K_SEL)){ dbgMenu(); prev=keyNow(); all=1; }   // dbgmenu.h: the debug cheats
         if(pr&(K_B|K_START)) return -1;
-        { int bb=(int)((t>>4)&1); if(sel!=ps||bb!=lastB) dirty=1; lastB=bb; }   // redraw when the cursor moves or the icon bob changes (a few times a second), not every frame
-        if(!dirty){ vsync(); continue; }
-        dirty=0;
-        box(6,4,228,152);
-        rect(7,5,226,17,RGB(5,12,24)); rect(7,21,226,1,GOLD);
-        text(12,9,mode==2?"TEST PLAY PAUSED":nbBarred()?"PAUSED  VISITING":"PAUSED",GOLD,1);
-        if(mode!=2){ char b[24]; char*e=b; *e++=(char)0xC2; *e++=(char)0xA7; simCatShort(e,simMoney); text(228-tw(b,1),9,b,RGB(14,30,14),1); }
-        for(int i=0;i<n;i++){ int id=ids[i], x=10+(i&3)*56, y=27+(i>>2)*43, on=(i==sel);
+        int bb=(int)((t>>4)&1);
+        if(!all&&sel==ps&&bb==lastB){ vsync(); continue; }
+        if(all){
+            box(6,4,228,152);
+            rect(7,5,226,17,RGB(5,12,24)); rect(7,21,226,1,GOLD);
+            text(12,9,mode==2?"TEST PLAY PAUSED":nbBarred()?"PAUSED  VISITING":"PAUSED",GOLD,1);
+            if(mode!=2){ char b[24]; char*e=b; *e++=(char)0xC2; *e++=(char)0xA7; simCatShort(e,simMoney); text(228-tw(b,1),9,b,RGB(14,30,14),1); }
+            rect(7,113,226,1,RGB(10,16,30));
+            text(12,142,dbgOn?"ARROWS PICK  A OK  B BACK  SEL DEBUG":"LEFT RIGHT UP DOWN PICK  A OK  B BACK",RGB(12,14,16),1);
+        }
+        for(int i=0;i<n;i++){ if(!all&&i!=sel&&i!=ps) continue;
+            int id=ids[i], x=10+(i&3)*56, y=27+(i>>2)*43, on=(i==sel);
             rect(x-1,y-1,54,40,on?GOLD:RGB(10,16,30)); rect(x,y,52,38,on?RGB(6,18,10):RGB(7,10,20));
-            u16 col=on?pmCol[id]:(u16)((pmCol[id]>>1)&0x3DEF); int ib=(on&&((t>>4)&1))?-1:0;
+            u16 col=on?pmCol[id]:(u16)((pmCol[id]>>1)&0x3DEF); int ib=(on&&bb)?-1:0;
             for(int r=0;r<9;r++)for(int q=0;q<9;q++){ char ch=pmArt[id][r][q]; if(ch!='.') rect(x+17+q*2,y+5+r*2+ib,2,2,ch=='o'?WHITE:col); }
             const char*nm=(id==PM_STORY&&prShown())?"PRISON":(id==PM_QUIT&&mode==1)?"TOWN":(id==PM_QUIT&&mode==2)?"EDITOR":pmNm[id];
             text(x+(52-tw(nm,1))/2,y+28,nm,on?WHITE:DIMC,1); }
-        { int id=ids[sel]; const char*ti=pmTitle[id], *ds=pmDesc[id];
+        if(all||sel!=ps){ int id=ids[sel]; const char*ti=pmTitle[id], *ds=pmDesc[id];
           if(id==PM_BUILD&&mode!=2&&nbBarred()) ds="NO BUILDING WHILE VISITING";   // (a community lot is built from the town view)
           if(id==PM_QUIT&&mode==1){ ti="NEIGHBORHOOD"; ds="BACK TO THE TOWN"; } else if(id==PM_QUIT&&mode==2){ ti="BACK TO EDITOR"; ds="LEAVE THE TEST PLAY"; }
-          rect(7,113,226,1,RGB(10,16,30)); text(12,118,ti,GOLD,1); text(12,128,ds,RGB(22,25,28),1); }
-        text(12,142,dbgOn?"ARROWS PICK  A OK  B BACK  SEL DEBUG":"LEFT RIGHT UP DOWN PICK  A OK  B BACK",RGB(12,14,16),1);
-        present();
+          rect(7,114,226,24,RGB(3,4,7)); text(12,118,ti,GOLD,1); text(12,128,ds,RGB(22,25,28),1); }
+        if(all) present(); else uiPresentRect(7,26,233,138);   // (a move: the tile rows and the text, not the whole screen)
+        all=0; ps=sel; lastB=bb;
     }
 }
 static const char* const buildItems[3]={"EDIT MAP","BLUEPRINTS","NEW LIFE"};
@@ -4056,7 +4175,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
         if(pr&K_START){   // pause menu
             tutSawPause=1;   // (the tutorial's pause menu lesson)
             mGainT=128; sfxStop(); simsSave(); hhSave(); objHideAll(); REG_DISPCNT=0x0403;   // (no sprites over the menus, options or the editor)   // the music fades to half while a menu is open   // the pause menu is also a save point
-            { u8 zz=xo[XO_ZOOM]; xo[XO_ZOOM]=0; hudApplyLayout(); camSnap=1; liveInvalidate(); lifeDraw(); xo[XO_ZOOM]=zz; }   // a whole picture behind the menu (the screen itself only holds patches), not zoomed
+            rect(0,0,SW,3,RGB(2,3,6)); rect(0,157,SW,3,RGB(2,3,6)); rect(0,3,5,154,RGB(2,3,6)); rect(235,3,5,154,RGB(2,3,6));   // the menu covers all but a frame round the edge: that is painted dark (the room behind used to be drawn whole first, a quarter of a second for 4 pixels of it)
             int c=pauseMenu(ed?2:nbPlaying?1:0);
             if(c==PM_SAVE){ if(!sgPid) toast("PICK A PLAYER ON THE PLAY SCREEN"); else { int se=sgSave(); toast(se?slErrMsg(se):"GAME SAVED"); } }
             else if(c==PM_WANTS) mySimScreen();   // the old WANTS list lives on in the MORE tab
@@ -4362,16 +4481,18 @@ static const char* const slkNm[NSLK]={"BODY SHAPE","BODY DETAIL","BUTT","FACE DE
 static const short slkCost[NSLK]={40,80,50,40,30,60};   // jenes (pDna) for each pack
 static u8 slkUl;   // unlocked packs
 static void slkSave(void){ volatile u8*m=SRAM_BASE+JB_OFF; m[32]='S'; m[33]='K'; m[34]=slkUl; m[35]=(u8)(slkUl^0x5A); }
-static void slkLoad(void){ volatile u8*m=SRAM_BASE+JB_OFF; slkUl=(m[32]=='S'&&m[33]=='K'&&(u8)(m[34]^0x5A)==m[35])?(u8)(m[34]&((1<<NSLK)-1)):0; }
+static void slkLoad(void){ volatile u8*m=SRAM_BASE+JB_OFF; slkUl=(m[32]=='S'&&m[33]=='K'&&(u8)(m[34]^0x5A)==m[35])?(u8)(m[34]&((1<<NSLK)-1)):0; slkUl|=8; }   // (FACE DETAIL: its sliders are all free now, so the pack counts as open)
 static int slkPack(int id){   // which pack a slider is in: -1 = an essential (always free) or not a slider
     switch(id){
       case LK_HEIGHT: case LK_WEIGHT: case LK_TONE: case LK_EYESZ: case LK_EYETONE: case LK_HTONE: case LK_TTONE: case LK_BTONE: return -1;
-      case LK_TORSO: case LK_ARMS: case LK_STANCE: case LK_LEGW: case LK_ARMW: case LK_HEADSZ: case LK_HANDFT: return 0;
-      case LK_NECK: case LK_NECKW: case LK_HIPW: case LK_WAISTW: case LK_SHOULW: case LK_THIGHW: case LK_CALFW: case LK_CHESTW: case LK_BELLYW:
-      case LK_UARMW: case LK_FARMW: case LK_JAWW: case LK_HANDSZ: case LK_FOOTSZ: return 1;
-      case LK_BUTT: case LK_BUTTH: case LK_BUTTW: return 2;
-      case LK_EYESP: case LK_EYEHT: case LK_BROWHT: case LK_NOSEHT: case LK_MOUTHW: case LK_MOUTHHT: return 3;
-      case LK_EARSZ: case LK_EARLF: case LK_EARFWD: case LK_EARSPR: case LK_EARWID: return 4;
+      // free from the start too (a new player should not feel boxed in): the whole face, the main body proportions, the butt and ear size
+      case LK_EYESP: case LK_EYEHT: case LK_BROWHT: case LK_NOSEHT: case LK_MOUTHW: case LK_MOUTHHT: case LK_JAWW: case LK_BROWSP: case LK_GLASSHT: case LK_CHEEKHT:
+      case LK_TORSO: case LK_ARMS: case LK_LEGW: case LK_HEADSZ: case LK_NECK: case LK_SHOULW: case LK_WAISTW: case LK_HIPW: case LK_BUTT: case LK_EARSZ: return -1;
+      case LK_STANCE: case LK_ARMW: case LK_HANDFT: return 0;
+      case LK_NECKW: case LK_THIGHW: case LK_CALFW: case LK_CHESTW: case LK_BELLYW:
+      case LK_UARMW: case LK_FARMW: case LK_HANDSZ: case LK_FOOTSZ: return 1;
+      case LK_BUTTH: case LK_BUTTW: return 2;
+      case LK_EARLF: case LK_EARFWD: case LK_EARSPR: case LK_EARWID: return 4;
       default: return lkSlide(id)?5:-1;   // every other slider is a part slider (ANT, TAIL, HORN, WING)
     }
 }
@@ -4396,19 +4517,20 @@ static int slkGift(int story){   // a whole story finished: the next locked slid
 enum { TB_BODY, TB_FACE, TB_HAIR, TB_CLOTHES, TB_PARTS, TB_ASPIRE, TB_DONE, NTAB };
 enum { RK_PICK, RK_SWATCH, RK_ACT, RK_SLIDE, RK_PERS, RK_TRAIT, RK_DUO };   // RK_DUO: two buttons side by side in one row (LEFT RIGHT picks the side; id = left action, n = right action, lab/sub = what each side says it does)   // a row picks from named options, picks a colour, is a button, a slider, a persona choice or a trait
 enum { AC_PLAY, AC_MAP, AC_MENU, AC_RAND, AC_ADD, AC_FAM, AC_FNAME, AC_LNAME, AC_TRAND, AC_HOUSE };
+static u8 ceMoveIn;   // a NEW PLAYER's creator (newGame): 1 = GO LIVE LIFE leaves the creator to MOVE IN on the town map first (it sets 2)
 enum { PS_ASP, PS_LTW, PS_SIGN };
 typedef struct { const char*lab,*sub; u8 kind,id,n; } Row;   // sub = second line of a button
 static const char* const tabNm[NTAB]={"BODY","FACE","HAIR","CLOTHES","PARTS","ASPIRE","DONE"};
 static const char* const shapeNm[NSHAPE]={"AVERAGE","BROAD","BIG HEAD","STUBBY","SLIM","ATHLETIC","TALL","CHUBBY","PEAR","LANKY","STOCKY","HUNCHED","POTBELLY","MUSCLE","PETITE","BARREL","DIGITIGRADE","V-SHAPE","CURVY","RUNNER","SOFT","POWER","LONG LEGS","PUDGY","TODDLER","SPROUT","SPORTY","BELL","STURDY","SPIDER"};
 static const char* const eyeNm[NEYE]={"SLEEPY","ROUND","HAPPY","WIDE","ANGRY","CUTE","CAT","DOT","LASHES","STAR","TIRED","SQUINT","DIZZY","ANIME","SIDE"};
 static const char* const mouthNm[NMOUTH]={"FLAT","SMILE","OH","GRIN","SMIRK","FROWN","TONGUE","FANGS","KITTY","LAUGH","WAVY","POUT","BUCK","WONKY","SCREAM"};
-static const char* const browNm[6]={"NONE","THIN","THICK","ANGRY","WORRIED","UNIBROW"};
-static const char* const noseNm[6]={"NONE","BUTTON","POINTY","WIDE","PIG","ANIMAL"};
+static const char* const browNm[NBROW]={"NONE","THIN","THICK","ANGRY","WORRIED","UNIBROW","ARCHED","SHORT","BUSHY"};
+static const char* const noseNm[NNOSE]={"NONE","BUTTON","POINTY","WIDE","PIG","ANIMAL","TINY","BROAD","HOOKED"};
 static const char* const fearNm[5]={"NONE","CAT","FOX","BUNNY","BEAR"};
 static const char* const muzNm[4]={"NONE","SNOUT","MUZZLE","BEAK"};
 static const char* const ftailNm[4]={"NONE","FOX","CAT","BUNNY"};
-static const char* const cheekNm[5]={"NONE","BLUSH","FRECKLES","WHISKERS","SCAR"};
-static const char* const glassNm[4]={"NONE","ROUND","SQUARE","SHADES"};
+static const char* const cheekNm[NCHEEK]={"NONE","BLUSH","FRECKLES","WHISKERS","SCAR","DIMPLES","MOLE","WAR PAINT"};
+static const char* const glassNm[NGLASS]={"NONE","ROUND","SQUARE","SHADES","CAT-EYE","GOGGLES","VISOR"};
 static const char* const earNm[3]={"NONE","SMALL","BIG"};
 static const char* const hairNm[NHAIR]={"CROP","BOWL","LONG","BALD","SPIKY","AFRO","FLAT TOP","SIDE TAIL","BUN","BOB","PONYTAIL","PIGTAILS","MOHAWK","PIXIE","CURLS"};
 static const char* const hatNm[6]={"NONE","CAP","BEANIE","BAND","FEZ","HELMET"};
@@ -4421,8 +4543,8 @@ static const char* const shoeNm[6]={"AS THE BOTTOM","WHITE","BLACK","RED","GOLD"
 #define LK_AGE LK_N   // the AGE row is not part of look[]: it picks the life stage
 static const char* const sexNm[SX_N]={"FEMALE","MALE","NONBINARY"};
 static const char* const* const lookNm[LK_N+1]={shapeNm,0,eyeNm,mouthNm,earNm,hairNm,0,0,0,0,0,0,tailNm,hornNm,backNm,hatNm,hatColNm,beardNm,topStyNm,botStyNm,shoeNm,
-                                                browNm,noseNm,cheekNm,glassNm,0,0,0,0,0,0,0,0,clawNm,antNm,patNm,patColNm,0,0,0,0,0,0,0,0,0,fearNm,muzNm,ftailNm,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,tipNm,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,sexNm,stageNm};
-_Static_assert(LK_N==104,"lookNm / lookCol / cnt need a slot for every look");
+                                                browNm,noseNm,cheekNm,glassNm,0,0,0,0,0,0,0,0,clawNm,antNm,patNm,patColNm,0,0,0,0,0,0,0,0,0,fearNm,muzNm,ftailNm,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,tipNm,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,sexNm,0,0,0,stageNm};
+_Static_assert(LK_N==107,"lookNm / lookCol / cnt need a slot for every look");
 static const u16* const lookCol[LK_N+1]={0,skinTones,0,0,0,0,hairTones,topTones,botTones,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,eyeTones,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 #define TROWS 40   // most rows a tab holds; the card shows 5 at a time and scrolls
 static const Row tabRow[NTAB][TROWS]={
@@ -4430,9 +4552,9 @@ static const Row tabRow[NTAB][TROWS]={
    {"TORSO",0,RK_SLIDE,LK_TORSO,9},{"ARMS",0,RK_SLIDE,LK_ARMS,9},{"STANCE",0,RK_SLIDE,LK_STANCE,9},{"LEG WIDTH",0,RK_SLIDE,LK_LEGW,9},{"ARM WIDTH",0,RK_SLIDE,LK_ARMW,9},{"HEAD SIZE",0,RK_SLIDE,LK_HEADSZ,9},{"HAND FOOT SIZE",0,RK_SLIDE,LK_HANDFT,9},{"NECK LENGTH",0,RK_SLIDE,LK_NECK,9},{"NECK WIDTH",0,RK_SLIDE,LK_NECKW,9},{"HIP WIDTH",0,RK_SLIDE,LK_HIPW,9},{"WAIST WIDTH",0,RK_SLIDE,LK_WAISTW,9},{"SHOULDERS",0,RK_SLIDE,LK_SHOULW,9},{"THIGH WIDTH",0,RK_SLIDE,LK_THIGHW,9},{"CALF WIDTH",0,RK_SLIDE,LK_CALFW,9},{"CHEST",0,RK_SLIDE,LK_CHESTW,9},{"BELLY",0,RK_SLIDE,LK_BELLYW,9},{"UPPER ARM",0,RK_SLIDE,LK_UARMW,9},{"FOREARM",0,RK_SLIDE,LK_FARMW,9},{"JAW WIDTH",0,RK_SLIDE,LK_JAWW,9},{"HAND SIZE",0,RK_SLIDE,LK_HANDSZ,9},{"FOOT SIZE",0,RK_SLIDE,LK_FOOTSZ,9},
    {"SKIN",0,RK_SWATCH,LK_SKIN,NSKIN},{"SKIN TONE",0,RK_SLIDE,LK_TONE,9},{"BUTT",0,RK_SLIDE,LK_BUTT,9},{"BUTT HEIGHT",0,RK_SLIDE,LK_BUTTH,9},{"BUTT WIDTH",0,RK_SLIDE,LK_BUTTW,9}},   // (the BUTT rows last: cut from the tab below teen)
   {{"EYES",0,RK_PICK,LK_EYES,NEYE},{"EYE COLOUR",0,RK_SWATCH,LK_EYECOL,NSW},{"EYE SHADE",0,RK_SLIDE,LK_EYETONE,9},{"EYE SIZE",0,RK_SLIDE,LK_EYESZ,9},{"EYE SPACING",0,RK_SLIDE,LK_EYESP,9},
-   {"EYE HEIGHT",0,RK_SLIDE,LK_EYEHT,9},{"BROWS",0,RK_PICK,LK_BROW,6},{"BROW HEIGHT",0,RK_SLIDE,LK_BROWHT,9},{"GLASSES",0,RK_PICK,LK_GLASS,4},{"NOSE",0,RK_PICK,LK_NOSE,6},
+   {"EYE HEIGHT",0,RK_SLIDE,LK_EYEHT,9},{"BROWS",0,RK_PICK,LK_BROW,NBROW},{"BROW HEIGHT",0,RK_SLIDE,LK_BROWHT,9},{"BROW SPACING",0,RK_SLIDE,LK_BROWSP,9},{"GLASSES",0,RK_PICK,LK_GLASS,NGLASS},{"GLASSES HEIGHT",0,RK_SLIDE,LK_GLASSHT,9},{"NOSE",0,RK_PICK,LK_NOSE,NNOSE},
    {"NOSE HEIGHT",0,RK_SLIDE,LK_NOSEHT,9},
-   {"MOUTH",0,RK_PICK,LK_MOUTH,NMOUTH},{"MOUTH WIDTH",0,RK_SLIDE,LK_MOUTHW,9},{"MOUTH HEIGHT",0,RK_SLIDE,LK_MOUTHHT,9},{"CHEEKS",0,RK_PICK,LK_CHEEK,5},
+   {"MOUTH",0,RK_PICK,LK_MOUTH,NMOUTH},{"MOUTH WIDTH",0,RK_SLIDE,LK_MOUTHW,9},{"MOUTH HEIGHT",0,RK_SLIDE,LK_MOUTHHT,9},{"CHEEKS",0,RK_PICK,LK_CHEEK,NCHEEK},{"CHEEK HEIGHT",0,RK_SLIDE,LK_CHEEKHT,9},
    {"EARS",0,RK_PICK,LK_EARS,3},{"EAR SIZE",0,RK_SLIDE,LK_EARSZ,9},{"EAR HEIGHT",0,RK_SLIDE,LK_EARLF,9},{"EAR FRONT BACK",0,RK_SLIDE,LK_EARFWD,9},{"EAR SPREAD",0,RK_SLIDE,LK_EARSPR,9},{"EAR WIDTH",0,RK_SLIDE,LK_EARWID,9}},
   {{"STYLE",0,RK_PICK,LK_HSTYLE,NHAIR},{"COLOUR",0,RK_SWATCH,LK_HCOL,NSW},{"HAIR TONE",0,RK_SLIDE,LK_HTONE,9},{"BEARD",0,RK_PICK,LK_BEARD,3},{"HAT",0,RK_PICK,LK_HAT,6},{"HAT COLOUR",0,RK_PICK,LK_HATCOL,6}},
   {{"TOP",0,RK_SWATCH,LK_TOP,NSW},{"TOP TONE",0,RK_SLIDE,LK_TTONE,9},{"BOTTOM",0,RK_SWATCH,LK_BOT,NSW},{"BOTTOM TONE",0,RK_SLIDE,LK_BTONE,9},{"TOP STYLE",0,RK_PICK,LK_TOPSTY,5},{"BOTTOM STYLE",0,RK_PICK,LK_BOTSTY,4},{"SHOES",0,RK_PICK,LK_SHOE,6}},
@@ -4633,7 +4755,7 @@ static void drawRowSet(int tab,int sel){
                 int x=text(CDX+11,y+10,b,lc,1)+3; x=text(x,y+10,"JENES",lc,1)+4;
                 rect(x,y+11,5,4,lc); rect(x+1,y+9,3,2,lc); px(x+2,y+10,f?FOCUS:CARD);
                 continue; }
-            int pos=slidePos(look[r->id]); u16 ink=f?GOLD:RGB(10,12,16);
+            int off=r->id==LK_BUTT&&look[r->id]==BUTT_OFF, pos=off?0:slidePos(look[r->id]); u16 ink=off?RGB(14,14,16):f?GOLD:RGB(10,12,16);   // (switched off: the knob at the end, hollow)
             rect(CDX+11,y+12,65,1,f?DIMC:RGB(8,10,16));
             for(int q=0;q<9;q++) rect(CDX+11+q*8,y+(q==4?9:10),1,q==4?7:5,f?DIMC:RGB(8,10,16));
             rect(CDX+11+pos*8-2,y+9,5,7,f?WHITE:RGB(16,18,22)); rect(CDX+11+pos*8-1,y+10,3,5,ink);
@@ -4703,6 +4825,9 @@ static void lookStep(int id,int n,int d){
         if(custom&&ns<stage){ static const char* const it[2]={"YES  CUT THEM","NO  KEEP AGE"}; if(menu("CUT BLOCKS TO FIT?",it,2)!=0) return; }
         setStage(ns); return;
     }
+    if(id==LK_BUTT&&(look[id]==BUTT_OFF||(d<0&&slidePos(look[id])==0))){   // THE HIDDEN SWITCH: LEFT once more at the bottom of BUTT clicks the seat off; RIGHT brings it back at the bottom
+        if(look[id]==BUTT_OFF&&d<0) return;
+        look[id]=(u8)(look[id]==BUTT_OFF?slideVal(0):BUTT_OFF); sfxPlay(SFX_TICK); return; }
     if(lkSlide(id)){   // sliders: one step along the track, no wrap round, never rebuilds the blocks
         int p=slidePos(look[id])+d; if(p<0||p>8) return;
         look[id]=(u8)slideVal(p); if(id==LK_TONE||(id>=LK_HTONE&&id<=LK_EYETONE)) setColors(); return;   // the colour sliders repaint at once
@@ -4792,11 +4917,14 @@ static void famAdd(void){
     if(m<0){ toast("THE HOUSE IS FULL"); return; }
     hhSave(); static char t[36] EWRAM_BSS; char*e=simCat(t,hhM[m].name); e=simCat(e," JOINS  "); e=simCatN(e,hhN+1); e=simCat(e," OF "); simCatN(e,HH_MAX+1); toast(t);
 }
+__attribute__((noinline)) static int famPickM(void){   // THE FAMILY list (on the stack only while it is open): the member, or -1
+    char lb[HH_MAX][32]; const char* it[HH_MAX];
+    for(int m=0;m<hhN;m++){ char*e=simCat(lb[m],hhM[m].name); e=simCat(e,"  "); simCat(e,stageNm[hhM[m].stage<AG_N?hhM[m].stage:AG_ADULT]); it[m]=lb[m]; }
+    return menu("THE FAMILY",it,hhN);
+}
 static void famMenu(void){
     hhLoad(); if(!hhN){ toast("ONLY YOU SO FAR"); return; }
-    static char lb[HH_MAX][32] EWRAM_BSS; const char* it[HH_MAX];
-    for(int m=0;m<hhN;m++){ char*e=simCat(lb[m],hhM[m].name); e=simCat(e,"  "); simCat(e,stageNm[hhM[m].stage<AG_N?hhM[m].stage:AG_ADULT]); it[m]=lb[m]; }
-    int m=menu("THE FAMILY",it,hhN); if(m<0) return;
+    int m=famPickM(); if(m<0) return;
     static const char* const act[3]={"EDIT  PLAY AS THEM","MOVE OUT","BACK"}; int c=menu(hhM[m].name,act,3);
     if(c==1){ static const char* const yn[2]={"YES  GOODBYE","NO"}; if(menu("ARE YOU SURE?",yn,2)==0){ hhRemove(m); hhSave(); toast("MOVED OUT"); } return; }
     if(c!=0) return;
@@ -4812,7 +4940,7 @@ static void famMenu(void){
     static char t[32] EWRAM_BSS; simCat(simCat(t,"NOW EDITING "),hhPName); toast(t);
 }
 #include "hhcreate.h"   // CREATE-A-HOUSEHOLD: the DONE tab's HOUSEHOLD row (add Sims, who is whose mother / sister / roommate)
-static const u8 lkCnt[LK_N]={NSHAPE,NSKIN,NEYE,NMOUTH,3,NHAIR,NSW,NSW,NSW,9,9,9,3,3,3,6,6,3,4,3,6, 6,6,5,4,NSW, 9,9,9,9,9,9,9, 4,3,7,6, 9,9,9,9,9,9,9,9,9, 5,4,4, 9,9,9, 9,9,9,9,9,9,9, 9,9,9,9,9,9,9, 9,9,9,7, 9,9,9, 9, [LK_SEX]=SX_N};   // how many options each look row has (sliders: 9)
+static const u8 lkCnt[LK_N]={NSHAPE,NSKIN,NEYE,NMOUTH,3,NHAIR,NSW,NSW,NSW,9,9,9,3,3,3,6,6,3,4,3,6, NBROW,NNOSE,NCHEEK,NGLASS,NSW, 9,9,9,9,9,9,9, 4,3,7,6, 9,9,9,9,9,9,9,9,9, 5,4,4, 9,9,9, 9,9,9,9,9,9,9, 9,9,9,9,9,9,9, 9,9,9,7, 9,9,9, 9, [LK_SEX]=SX_N, 9,9,9};   // how many options each look row has (sliders: 9)
 static void lookRandom(void){   // the dice (like Create-A-Bore): a whole new look and personality, only from what this stage and your unlocked parts allow
     const u8*cnt=lkCnt;
     for(int id=0;id<LK_N;id++){
@@ -4874,7 +5002,7 @@ static int creatorNew(void){   // returns 1 when the secret code switched screen
             if(pressed&K_A){
                 partsSettle();   // a part still locked comes off before the creature leaves the creator
                 switch(aid){
-                    case AC_PLAY:  lifeMode(0); if(gToMenu){ stageOn=0; return 0; } break;
+                    case AC_PLAY:  if(ceMoveIn){ ceMoveIn=2; stageOn=0; return 0; } lifeMode(0); if(gToMenu){ stageOn=0; return 0; } break;   // (a new player picks a home first: newGame)
                     case AC_MAP:   if(edGate()) mapEditor(); break;
                     case AC_RAND:  lookRandom(); break;
                     case AC_TRAND: lookTrueRandomMe(); break;
@@ -4968,7 +5096,7 @@ static int creatorClassic(void){   // returns 1 when the secret code switched sc
             if(TRIG(K_R,8)){cy++;dirty=1;}      if(TRIG(K_L,9)){cy--;dirty=1;}
             }
             if((pressed&K_A)&&part!=NPARTS&&part!=NPARTS+1){
-                if(part==NPARTS+2){ lifeMode(0); if(gToMenu) return 0; }
+                if(part==NPARTS+2){ if(ceMoveIn){ ceMoveIn=2; return 0; } lifeMode(0); if(gToMenu) return 0; }
                 else if(part==NPARTS+3){ if(edGate()) mapEditor(); }
                 else if(part==NPARTS+4) return 0;   // MAIN MENU
                 else { doPart(1,part,size,cx,cy,cz); custom=1; }
@@ -5292,12 +5420,14 @@ static void s3Pill(int x,int y,int w,int h,int on,const char*s){   // the focuse
 }
 static void s3Round(int x,int y,int on,const char*glyph){ disc(x,y,7,on?RGB(4,10,2):RGB(3,7,16)); disc(x,y,6,on?RGB(14,27,6):RGB(9,16,27)); text(x-tw(glyph,1)/2+1,y-3,glyph,on?RGB(1,4,0):WHITE,1); }
 static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,RGB(8,14,26)); text((SW-tw(t,1))/2,152,t,RGB(26,29,31),1); }
+#include "housegen.h"   // HOUSES: every lot builds its own furnished house (style, plan, furniture from a seed)
 #include "neighborhood.h"   // THE NEIGHBORHOOD: a town of lots to live in, visit and build on (main menu)
 #include "households.h"     // THE TOWN'S HOUSEHOLDS: who lives where, the household bank, visitors, the phone
 #include "townrel.h"        // TOWN RELATIONSHIPS: neighbours are people you know (guests with every social, remembered, moving in)
 #include "fx.h"
 #include "npc.h"             // AI SKATERS and POLICE: hardware sprites on the last spare OBJ tiles (see the top of npc.h)             // GHOSTS and WEATHER: hardware sprites on the spare OBJ slots (see the top of the file)
-#include "prison.h"         // PRISON: when the cops catch you, the sentence depends on your record; you serve it in a prison of the town
+#include "prison.h"         // PRISON
+#include "travel.h"         // GETTING ABOUT: CALL A CAB, the story's GO THERE (a lot change without leaving the game): when the cops catch you, the sentence depends on your record; you serve it in a prison of the town
 #include "ambience.h"       // NATURE SOUNDS: the outdoor bed (birds, crickets, rain, wind) by the hour, the weather and indoors
 #include "cutscene.h"       // CUTSCENES: scripted scenes (TV SHOW & TELL)
 #include "story.h"          // STORY MODE: chapters with goals (NEW GAME > STORY MODE)
@@ -5339,6 +5469,11 @@ static void mmBackdrop(void){   // your town close up around a random lot (no to
     nbT.tod=st; nbT.zoom=sz; if(!had) nbT.tag[0]=0;
 }
 static void mmLogo(int x,int y){ for(int j=0;j<LOGO_SH;j++){ const char*r=logoSmallArt[j]; u16*o=&fb[(y+j)*SW+x]; for(int i=0;i<LOGO_SW;i++){ char c=r[i]; if(c!='0') o[i]=logoPal[(c<='9'?c-'0':c-'a'+10)-1]; } } }
+static void mmMove(int ps,int sel){   // a cursor move on the main menu: only the two buttons and the tip change (the panel stays), and only they are copied
+    for(int k=0;k<2;k++){ int i=k?sel:ps; if(i==6) s3Round(73,136,sel==6,"?"); else s3Pill(70,i?52+(i-1)*15:31,100,i?13:17,i==sel,mmName[i]); }
+    s3Tip(mmDesc[sel]);
+    vsync(); vramCopy(64,29,172,145); vramCopy(0,150,SW,160);
+}
 static void drawMainMenu(int sel,int full){
     if(full) mmBackdrop();
     s3Panel(60,20,120,128);
@@ -5397,28 +5532,32 @@ static void howToPlay(void){
 // ---------- NEW GAME: a fresh life in the chosen town, started three ways (the story mode can start from here later) ----------
 #include "homepick.h"   // PICK YOUR HOME: a new player chooses land or a house after the creator
 static const char* const ngIt[4]={"CREATE A BORE","A PRE-MADE FAMILY","A TRULY RANDOM SIM","STORY MODE"};
+static void nbMoveInTown(void){ if(!nbOk){ lifeMode(0); return; } nbMoveMode=1; neighborhoodScreen(); nbMoveMode=0; }   // MOVE IN: the town map, buy a home, play there (neighborhood.h)
 static int newGame(int slot){   // 1 = it started (and ended: back to the main menu)
     int c=menu("HOW DO YOU START?",ngIt,4); if(c<0) return 0;
     int story=0; if(c==3){ story=storyPick(); if(!story) return 0; }
-    int f=0; if(c==1){ const char* fm[HH_NFAM]; for(int i=0;i<HH_NFAM;i++) fm[i]=hhFams[i].fam; f=menu("WHICH FAMILY?",fm,HH_NFAM); if(f<0) return 0; }
+    int f=0, me=0; if(c==1){ me=famPick(&f,0); if(me<0) return 0; }   // the family bin: the family and who of them you play, on one screen
     static const char* const yn[2]={"YES  NEW LIFE","NO"}; if(!sgWant&&menu("START OVER?",yn,2)!=0) return 0;   // (a NEW PLAYER has nothing to start over: the player in play was saved first)
     if(slot>=0){ if(!nbSwitch(slot)){ nbOk=nbLoad(); toast(nbErr); return 0; } nbOk=1; nbBounds(); }
     if(sgWant){ sgPickHome(); sgPid=sgWant; sgWant=0; lsReset(); memReset(); } else sgPid=0;   // a NEW PLAYER gets a home lot and a save file of their own; a new life started elsewhere belongs to no save file
     twKeep=0; simsNewLife(); prClear(); moodReset(); lscore=0; simLastScore=0;
     hhN=0; for(int a=0;a<HU_N;a++)for(int b=0;b<HU_N;b++){ relD[a][b]=relL[a][b]=0; relF[a][b]=0; } kinClear();   // the old household moves out
     stOff();
-    if(c==1&&hhMoveIn(&hhFams[f])>0){ hhSwap(&hhM[0]); hhRemove(0); }   // you are the family's first Sim (who you were leaves)
+    if(c==1&&hhMoveIn(&hhFams[f])>0){ if(me>=hhN) me=0; hhSwap(&hhM[me]); hhRemove(me); }   // you are the family member you picked (who you were leaves)
     else if(c==2) lookTrueRandomMe();
     else if(c==3){ if(!storyLead(story)) lookTrueRandomMe(); storySetup(story); storyHome(story); }   // STORY MODE: you play the story's own pre-made lead (no creator), then who you live with, and chapter 1
     hhSave(); sprKey=0; if(sgPid) sgSave();   // (the save file exists from the first minute)
-    if(c==0){ creatureEditor(); if(sgPid) homePick(); }   // make your Sim, then a new player picks a home (homepick.h), then GO LIVE LIFE (a story has its own pre-made lead: story.h stLead)
-    else lifeMode(0);
+    // A NEW PLAYER moves in like The Sims 2: make your Sim (or pick a family / roll one), then the town map to buy a home, then play there.
+    // (A story has its own house: storylot.h. A new life that is not a new player plays on where it is.)
+    if(c==0){ ceMoveIn=sgPid?1:0; creatureEditor(); int go=ceMoveIn==2; ceMoveIn=0; if(go) nbMoveInTown(); }
+    else if(c==3||!sgPid) lifeMode(0);
+    else nbMoveInTown();
     return 1;
 }
 
 // ---------- PLAY (The Sims 3 New Game panel): pick a town, then CONTINUE your life, VISIT the town, or a NEW GAME there ----------
-static void plDraw(const int*l,int n,int sel,int act,int foc,int tile,int full){   // full 0: only what the cursor changes (the dropdown, the tiles, the tip)
-    int ok=n&&nbRead(l[sel],&nbTmp);
+__attribute__((noinline)) static void plDraw(const int*l,int n,int sel,int act,int foc,int tile,int full){   // full 0: only what the cursor changes (the dropdown, the tiles, the tip)
+    Town nbTmp; int ok=n&&nbRead(l[sel],&nbTmp);   // (the town shown: on the stack while it is drawn, kept out of line so the PLAY screen's own frame stays small)
     if(full){
     s3Panel(8,16,224,124); text(22,24,"Play",RGB(3,9,20),1);
     s3Well(16,31,208,55);
@@ -5435,19 +5574,22 @@ static void plDraw(const int*l,int n,int sel,int act,int foc,int tile,int full){
         text(102,60,sand>100?"OUT IN THE DESERT":wat>40?"A TOWN BY THE WATER":"A QUIET GREEN SUBURB",RGB(3,9,20),1);
         text(102,69,b,RGB(5,12,22),1); text(102,78,l[sel]==act?"YOU LIVE HERE":seasNm[nbTmp.season&3],l[sel]==act?RGB(4,16,2):RGB(5,12,22),1); }
     s3Well(16,89,208,42);
-    for(int i=0;i<2;i++){ int x=22+i*72, y=92, on=foc==1&&tile==i;
+    for(int i=0;i<2;i++){ int x=40+i*94, y=92, on=foc==1&&tile==i;   // the two things a town is for: look round it, or start a new player there
         s3Box(x,y,66,36,5,on?RGB(14,27,6):RGB(9,15,25),on?RGB(8,20,3):RGB(7,12,22)); s3Box(x+1,y+1,64,34,4,on?RGB(26,31,20):RGB(27,30,31),on?RGB(20,29,12):RGB(20,26,31));
-        if(i==0) nbIsoBox(x+33,y+17,11,7,7,RGB(20,18,14),RGB(28,26,20),RGB(14,4,4),RGB(20,6,5));
-        else if(ok) nbThumb(&nbTmp,x+13,y+4,40,18);   // (small: cheap enough to draw again)
-        text(x+33-tw(i?"Visit Town":"Continue",1)/2,y+25,i?"Visit Town":"Continue",RGB(2,5,11),1); }
-    { int on=foc==1&&tile==2; disc(190,106,10,on?RGB(4,10,2):RGB(5,10,20)); disc(190,106,9,on?RGB(14,27,6):RGB(18,25,31)); rect(185,105,11,2,on?RGB(1,4,0):WHITE); rect(189,101,2,11,on?RGB(1,4,0):WHITE);
-      text(190-tw("New Game",1)/2,119,"New Game",RGB(2,5,11),1); }
+        if(i==0){ if(ok) nbThumb(&nbTmp,x+13,y+4,40,18); }   // (small: cheap enough to draw again)
+        else { disc(x+33,y+13,10,on?RGB(4,10,2):RGB(5,10,20)); disc(x+33,y+13,9,on?RGB(14,27,6):RGB(18,25,31)); rect(x+28,y+12,11,2,on?RGB(1,4,0):WHITE); rect(x+32,y+8,2,11,on?RGB(1,4,0):WHITE); }
+        text(x+33-tw(i?"New Player":"Visit Town",1)/2,y+25,i?"New Player":"Visit Town",RGB(2,5,11),1); }
     if(full){ disc(120,140,9,RGB(3,8,19)); disc(120,140,7,RGB(10,18,30)); for(int d=0;d<2;d++){ line(116,140+d,119,143+d,WHITE); line(119,143+d,125,136+d,WHITE); }   // the check button (A)
     mmLogo(SW/2-LOGO_SW/2,0); }
     if(foc==0) s3Tip("LEFT RIGHT TOWN  SELECT NEW  START RENAME");
-    else if(tile==0) s3Tip("PLAY ON WHERE YOU LEFT OFF");
-    else if(tile==1) s3Tip("THE TOWN MAP  LOTS  MOVE IN AND BUILD");
-    else s3Tip("A FRESH START IN THIS TOWN");
+    else if(tile==0) s3Tip("THE TOWN MAP  LOTS  MOVE IN AND BUILD");
+    else s3Tip("A NEW PLAYER WHO LIVES IN THIS TOWN");
+}
+static void sgNewPlayerIn(int slot);   // savegame.h: a NEW PLAYER who lives in town slot
+__attribute__((noinline)) static int nbDelTown(int s){   // DELETE: the town in slot s and the houses on its lots (the town read on the stack, out of line). 1 = done
+    Town t; if(!nbRead(s,&t)) return 0;
+    for(int i=0;i<NB_LOTS;i++) if(t.lot[i].on&&t.lot[i].slot>=0) slDelete(t.lot[i].slot);
+    slDelete(s); return 1;
 }
 static void playScreen(void){
     int l[SLOT_MAX], n=nbFirstTowns(l);
@@ -5458,14 +5600,13 @@ static void playScreen(void){
         if(pr&K_UP){ foc=0; dirty|=1; }
         if(pr&K_DOWN){ foc=1; dirty|=1; }
         int d=(pr&K_RIGHT)?1:(pr&K_LEFT)?-1:0, dt=(pr&K_R)?1:(pr&K_L)?-1:0;
-        if(foc==0&&d) dt=d; else if(d){ tile=(tile+3+d)%3; dirty|=1; }
+        if(foc==0&&d) dt=d; else if(d){ tile^=1; dirty|=1; }
         if(dt&&n){ sel=(sel+n+dt)%n; dirty|=4; }   // another town: its picture and description too
         if(pr&K_B) break;
         if(pr&K_A){
             if(foc==0){ foc=1; dirty|=1; }
-            else if(tile==0){ lifeMode(0); break; }
-            else if(tile==1&&n){ if(!nbSwitch(l[sel])){ nbOk=nbLoad(); toast(nbErr); } else { nbOk=1; neighborhoodScreen(); if(gToMenu) break; } }
-            else if(tile==2){ if(!dbgOn) toast("USE NEW PLAYER ON THE PLAYERS SCREEN"); else if(newGame(n?l[sel]:-1)) break; }   // (the old new game on the old lot is a secret: debug code)
+            else if(tile==0&&n){ if(!nbSwitch(l[sel])){ nbOk=nbLoad(); toast(nbErr); } else { nbOk=1; neighborhoodScreen(); if(gToMenu) break; } }
+            else if(tile==1){ if(!n) toast("MAKE A NEIGHBORHOOD FIRST  SELECT"); else { sgNewPlayerIn(l[sel]); break; } }   // (back to the PLAYERS list, the new player in it)
             n=nbTownList(l,SLOT_MAX); act=nbTS; if(sel>=n) sel=n?n-1:0; prev=keyNow(); dirty=2; mmPick();
         }
         if(pr&K_SEL){
@@ -5475,17 +5616,17 @@ static void playScreen(void){
                 nbOk=nbLoad(); n=nbTownList(l,SLOT_MAX); act=nbTS; }
             prev=keyNow(); dirty=2;
         }
-        if((pr&K_START)&&n&&nbRead(l[sel],&nbTmp)){
+        TownHd th;
+        if((pr&K_START)&&n&&nbReadHd(l[sel],&th)){
             static const char* const it[2]={"RENAME","DELETE"};
-            int c=menu(nbTmp.name,it,2);
+            int c=menu(th.name,it,2);
             if(c==0&&nbRead(l[sel],&nbT)){ char nm[SLOT_NAME+1]; for(int i=0;i<=NB_NAME;i++) nm[i]=nbT.name[i];
                 if(slEditName(nm)){ for(int i=0;i<=NB_NAME;i++) nbT.name[i]=nm[i]; nbTS=l[sel]; nbSave(); } nbOk=nbLoad(); }
             else if(c==1){
                 if(l[sel]==act) toast("YOU LIVE THERE");
                 else { const char*yn[2]={"NO","YES"};
-                    if(menu("DELETE IT AND ITS HOUSES",yn,2)==1&&nbRead(l[sel],&nbTmp)){
-                        for(int i=0;i<NB_LOTS;i++) if(nbTmp.lot[i].on&&nbTmp.lot[i].slot>=0) slDelete(nbTmp.lot[i].slot);
-                        slDelete(l[sel]); toast("NEIGHBORHOOD DELETED"); n=nbTownList(l,SLOT_MAX); if(sel>=n) sel=n-1; if(sel<0) sel=0; } } }
+                    if(menu("DELETE IT AND ITS HOUSES",yn,2)==1&&nbDelTown(l[sel])){
+                        toast("NEIGHBORHOOD DELETED"); n=nbTownList(l,SLOT_MAX); if(sel>=n) sel=n-1; if(sel<0) sel=0; } } }
             nbOk=nbLoad(); act=nbTS; prev=keyNow(); dirty=2;
         }
         if(dirty){ if(dirty&2) mmBackdrop(); plDraw(l,n,sel,act,foc,tile,(dirty&6)!=0); uiPresent(); dirty=0; } else vsync();   // (the acid rainbow holds still here: the panel is too much to draw every frame)
@@ -5494,11 +5635,12 @@ static void playScreen(void){
     nbOk=nbLoad(); nbBounds();
 }
 
-#include "savegame.h"    // PLAYERS: a save file per player, picked on the PLAY screen
+#include "savegame.h"    // PLAYERS
+static int nbOthersHome(int li){ int l[SLOT_MAX], n=sgList(l); for(int i=0;i<n;i++) if(slI[l[i]].pid!=sgPid&&sgHomeOf(l[i])==li) return 1; return 0; }   // (neighborhood.h MOVE IN): a save file per player, picked on the PLAY screen
 static void mainMenu(void){
-    int sel=0, dirty=3; u16 prev=keyNow();
+    int sel=0, dirty=3, ps=0; u16 prev=keyNow();
     menuMusStart();   // a random checked song plays while a main menu is open (MENU MUSIC option)
-    acidInit(); mmPick();
+    mmPick();
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k;
         if(pr&K_DOWN){ sel=(sel+1)%MM_N; dirty|=1; }
@@ -5515,7 +5657,8 @@ static void mainMenu(void){
             menuMusSync();   // the menu's song comes back (a crossfade) if the screen took the music; OPTIONS may have switched SOUND or MENU MUSIC
             continue;
         }
-        if(dirty){ drawMainMenu(sel,dirty&2); uiPresent(); dirty=0; }
+        if(dirty==1){ mmMove(ps,sel); dirty=0; ps=sel; }   // (only the cursor moved)
+        else if(dirty){ drawMainMenu(sel,dirty&2); uiPresent(); dirty=0; ps=sel; }
         else if(mmAcid){   // the acid rainbow moves: only the plasma around the panel is worked out again and copied (the panel stays put on screen)
             acT+=2; acidRect(acT,0,60,0,10); acidRect(acT,0,15,10,74); acidRect(acT,45,60,10,74); acidRect(acT,0,60,74,75); mmLogo(SW/2-LOGO_SW/2,1);
             vsync(); vramCopy(0,0,SW,20); vramCopy(0,20,60,148); vramCopy(180,20,SW,148); vramCopy(0,148,SW,150); }
@@ -5545,10 +5688,11 @@ int boreMain(void){
 #endif
     REG_WAITCNT=0x4317;  // ROM 3/1 waits + prefetch (power-on default is 4/2, no prefetch)
     *(volatile unsigned int*)0x04000800=0x0E000020;   // EWRAM 1 wait state (faster fb, sprites, stack)
-    logo_play();         // the DippInn Productions boot logo (source/logo.c, ~8 s; leaves a black screen, its DMA and sprites off)
+    logo_play(fb);       // (its tables borrow the frame buffer, not yet in use)   the DippInn Productions boot logo (source/logo.c, ~8 s; leaves a black screen, its DMA and sprites off)
     { volatile u16*io=(volatile u16*)0x04000000; for(int r=0x08/2;r<0x20/2;r++) io[r]=0; for(int r=0x40/2;r<0x56/2;r++) io[r]=0; }   // undo its BG control, scroll, windows and blend (BG2's affine registers are left alone: mode 3 needs them)
     { static volatile u32 zero; zero=0; REG_DMA3SAD=(u32)(uintptr_t)&zero; REG_DMA3DAD=VRAM_ADDR; REG_DMA3CNT=(SW*SH/2)|0x85000000u; }   // (the zero must sit in RAM: a DMA from cartridge ROM always steps its source, "fixed" or not, and used to paint ROM data on screen)   // clear its tiles out of the bitmap (else mode 3 shows them as noise until the title is drawn)
     REG_DISPCNT=0x0403;  // mode 3, BG2 on
+    zoomIrq();           // the vblank interrupt, from the first screen on (the key latch samples the buttons in it)
     initTables(); setColors(); svInit(); slInitN(); slMigrate(); bkInit(); chipGuard(); settingsLoad(); optsLoad(); applyRom();   // slMigrate: carries a layout 1 save over to layout 2 first (slots.h)
 #ifdef CS_PREVIEW
     for(;;){ if(CS_PREVIEW>8) for(int i=0;i<8;i++) csPlay(i); else csPlay(CS_PREVIEW-1); }   // test build (-DCS_PREVIEW=n): play scene n-1 over and over (9: all of them in turn)

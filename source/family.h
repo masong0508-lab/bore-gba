@@ -37,18 +37,17 @@ static void famTry(int a,int b){   // a couple said yes to a baby: it comes in 3
 // The face is the HUD portrait's own drawing (hudface.h faceDrawL: the creator's eye and mouth art, brows, glasses, nose, cheeks, hair, every face slider) for
 // anyone's look, with an expression for how they feel; under it their neck and their top's colour across the shoulders. What falls outside the circle is put
 // back as it was (the pixels under the frame are kept first), then the rim goes round it.
-static u16 famUnder[47*47] EWRAM_BSS;   // the pixels under the frame (r up to 21)
+static u16 famUnder[556] EWRAM_BSS;   // the pixels under the frame that are put back: only the corners outside the rim (556 at most, r up to 21; was the whole 47 x 47 square)
 static void famBg(int sx,u16*a,u16*b){   // a portrait's backdrop: pink, blue or mint by gender
     if(sx==SX_FEMALE){ *a=RGB(31,25,28); *b=RGB(25,13,21); } else if(sx==SX_MALE){ *a=RGB(22,28,31); *b=RGB(9,17,30); } else { *a=RGB(24,31,25); *b=RGB(10,23,15); } }
 static int famSt(int u,int stg){   // their face for the moment: SAD BORED OK HAPPY STOKED (hudExpr's rows)
     if(u==hhPUid) return moodState();
     if(stg==AG_BABY) return 3;
     int v=uMood(u); return v<25?0:v<40?1:v<60?2:v<80?3:4; }
-static void famFace(int cx,int cy,int r,int u){
+static void famFaceL(int cx,int cy,int r,const u8*lk,int stg,int sx,const u8*e){   // a portrait of any look (e: the expression, hudExpr's rows)
     if(r>21) r=21;
-    int m=hhMemOf(u); const u8*lk=m<0?look:hhM[m].look; int stg=m<0?stage:hhM[m].stage, st=famSt(u,stg);
-    int R2=(r+2)*(r+2), R1=(r+1)*(r+1), R0=r*r, bw=2*r+5, bx=cx-r-2, by=cy-r-2; u16 b0,b1; famBg(uSex(u),&b0,&b1);
-    for(int j=0;j<bw;j++) for(int i=0;i<bw;i++){ int X=bx+i, Y=by+j; famUnder[j*bw+i]=((unsigned)X<SW&&(unsigned)Y<SH)?fb[Y*SW+X]:0; }
+    int R2=(r+2)*(r+2), R1=(r+1)*(r+1), R0=r*r, bw=2*r+5, bx=cx-r-2, by=cy-r-2; u16 b0,b1; famBg(sx,&b0,&b1);
+    { int q=0; for(int j=0;j<bw;j++) for(int i=0;i<bw;i++){ int dx=i-r-2, dy=j-r-2; if(dx*dx+dy*dy<=R2) continue; int X=bx+i, Y=by+j; famUnder[q++]=((unsigned)X<SW&&(unsigned)Y<SH)?fb[Y*SW+X]:0; } }   // (the same order the corners are put back in below)
     int ox0=cX0, oy0=cY0; unsigned ow=cW, oh=cH;
     clipSet(bx<0?0:bx,by<0?0:by,bx+bw>SW?SW:bx+bw,by+bw>SH?SH:by+bw);
     for(int dy=-r;dy<=r;dy++) rect(cx-r,cy+dy,2*r+1,1,s3Mix(b0,b1,dy+r,2*r+1));   // the backdrop (the corners are put back below)
@@ -62,11 +61,14 @@ static void famFace(int cx,int cy,int r,int u){
     if(sh<=cy+r){ rect(cx-2,sh,5,1,skin); if(sh+1<=cy+r) rect(cx-1,sh+1,3,1,skin); }   // the neckline
     { u16 ed=shade(skin,12); rect(fx-1,fy+9,2,5,skin); rect(fx-1,fy+10,1,3,ed); rect(fx+21,fy+9,2,5,skin); rect(fx+22,fy+10,1,3,ed); }   // ears (the hair, if it is long, falls over them)
     { int hs=lk[LK_HSTYLE]%NHAIR; if(hudHairRows[hs]) rect(fx+5,fy-1,12,1,hair); if(hs==5){ rect(fx+2,fy-3,18,2,hair); rect(fx,fy-1,22,2,hair); } }   // a little hair above the crown (an AFRO a lot)
-    const u8*e=(u==hhPUid)?hudEx(st):hudExpr[st];
     faceDrawL(fx,fy,lk,stg,e,-1,-1);
     cX0=ox0; cY0=oy0; cW=ow; cH=oh;
-    for(int j=0;j<bw;j++) for(int i=0;i<bw;i++){ int dx=i-r-2, dy=j-r-2, d=dx*dx+dy*dy; if(d<=R0) continue;   // outside the circle: as it was; then the rim and its dark edge
-        u16 c=d>R2?famUnder[j*bw+i]:d>R1?RGB(2,5,11):RGB(26,30,31); px(bx+i,by+j,c); }
+    { int q=0; for(int j=0;j<bw;j++) for(int i=0;i<bw;i++){ int dx=i-r-2, dy=j-r-2, d=dx*dx+dy*dy; if(d<=R0) continue;   // outside the circle: as it was; then the rim and its dark edge
+        u16 c=d>R2?famUnder[q++]:d>R1?RGB(2,5,11):RGB(26,30,31); px(bx+i,by+j,c); } }
+}
+static void famFace(int cx,int cy,int r,int u){   // the portrait of Sim u, with their face for the moment
+    int m=hhMemOf(u); const u8*lk=m<0?look:hhM[m].look; int stg=m<0?stage:hhM[m].stage, st=famSt(u,stg);
+    famFaceL(cx,cy,r,lk,stg,uSex(u),(u==hhPUid)?hudEx(st):hudExpr[st]);
 }
 static void famBob(int cx,int y,int mood){   // the plumbob over a Sim: green when fine, yellow when so-so, red when miserable
     static const u16 col[3][4]={ {RGB(3,20,6),RGB(2,14,4),RGB(14,31,16),RGB(8,26,10)}, {RGB(22,18,2),RGB(16,12,1),RGB(31,29,10),RGB(28,24,4)}, {RGB(22,4,3),RGB(15,2,2),RGB(31,14,12),RGB(28,8,6)} };
@@ -98,6 +100,41 @@ static void famNotice(const char*title,const char*l1,const char*l2,const int*us,
     for(;;){ u16 k=keyNow(), pr=k&~prev; prev=k; if(pr&(K_A|K_B|K_START)) break; vsync(); }
     while((~REG_KEYINPUT)&0x3FF) vsync();   // (the game must not see the A)
 }
+
+// ---- THE FAMILY BIN (The Sims 2): one screen to start a pre-made family. UP / DOWN go through the families, their faces in a row; LEFT / RIGHT pick
+// who of them you play, described below; A plays them. (From a lot the family is the one living there: only the member is picked.)
+static int famPick(int*fp,int lock){   // the member you become (*fp: the family, changed with UP / DOWN unless lock); -1 = back
+    int f=*fp, sel=0, dirty=1; u16 prev=keyNow();
+    for(;;){
+        const HhFam*F=&hhFams[f]; int n=F->n>4?4:F->n; char last[HH_NM]; famLast(F,last);
+        u16 k=keyNow(), pr=k&~prev; prev=k;
+        if(!lock&&(pr&(K_DOWN|K_UP))){ f=(f+((pr&K_DOWN)?1:HH_NFAM-1))%HH_NFAM; sel=0; dirty=1; sfxPlay(SFX_TICK); continue; }
+        if(n>1&&(pr&(K_RIGHT|K_R))){ sel=(sel+1)%n; dirty=1; sfxPlay(SFX_TICK); }
+        if(n>1&&(pr&(K_LEFT|K_L))){ sel=(sel+n-1)%n; dirty=1; sfxPlay(SFX_TICK); }
+        if(pr&K_A){ sfxPlay(SFX_POP); while((~REG_KEYINPUT)&0x3FF) vsync(); *fp=f; return sel; }   // (the next screen must not see the A)
+        if(pr&(K_B|K_START)){ while((~REG_KEYINPUT)&0x3FF) vsync(); return -1; }
+        if(!dirty){ vsync(); continue; }
+        dirty=0;
+        famBack();
+        s3Box(12,14,216,132,10,RGB(15,24,31),RGB(8,15,26)); s3Box(13,15,214,130,9,RGB(5,11,22),RGB(2,5,13));
+        famBar(14,16,212,F->fam);
+        if(!lock){ char c[8]; char*e=simCatN(c,f+1); *e++='/'; simCatN(e,HH_NFAM); text(222-tw(c,1),20,c,RGB(17,29,31),1); }   // 3/12
+        text(120-tw("WHO DO YOU PLAY?",1)/2,34,"WHO DO YOU PLAY?",RGB(17,29,31),1);
+        int gap=n>1?196/n:0, x0=120-gap*(n-1)/2;
+        for(int i=0;i<n;i++){ const HhPre*p=&F->m[i]; int cx=x0+i*gap, on=i==sel;
+            famFaceL(cx,68,on?21:16,p->look,p->stage,p->sex,hudExpr[on?4:2]);
+            int w=tw(p->name,1)+14; s3Pill(cx-w/2,92,w,11,on,p->name); }
+        { const HhPre*p=&F->m[sel]; char b[40]; char*e=simCat(b,p->name); if(last[0]){ e=simCat(e," "); simCat(e,last); }
+          text(120-tw(b,1)/2,108,b,WHITE,1);
+          e=simCat(b,stageNm[p->stage<AG_N?p->stage:AG_ADULT]); e=simCat(e,"  "); simCat(e,sexNm[p->sex<SX_N?p->sex:SX_NB]);
+          text(120-tw(b,1)/2,118,b,RGB(17,29,31),1);
+          e=simCat(b,"ASPIRES TO "); simCat(e,aspNm[p->asp<AS_N?p->asp:0]);
+          text(120-tw(b,1)/2,128,b,GOLD,1); }
+        { const char*h=lock?"< > WHO   A PLAY   B BACK":"UP DOWN FAMILY   < > WHO   A PLAY   B BACK"; text(120-tw(h,1)/2,150,h,RGB(12,18,26),1); }
+        present();
+    }
+}
+static int famWho(const HhFam*F){ int f=(int)(F-hhFams); return famPick(&f,1); }   // a lot's pre-made family: which of them you play
 
 static void famLookOf(int u,u8*out){ const u8*l=fkLook(u); for(int i=0;i<LK_N;i++) out[i]=l[i]; }
 static int famKidOf(int c,int p){ int r=kin[c][p]; return p!=255&&(r==KN_DAUGHTER||r==KN_SON||r==KN_CHILD); }   // is c a child of p?
@@ -172,7 +209,7 @@ static void famRelBar(int x,int y,int w,int v){ s2rr(x,y,w,6,RGB(9,16,26)); rect
 static void famScreen(void){
     int us[HU_N], n=0; us[n++]=hhPUid; for(int m=0;m<hhN;m++) us[n++]=hhM[m].uid;
     int sel=0, dirty=1; u16 prev=keyNow();
-    static char t[40] EWRAM_BSS, d1[52] EWRAM_BSS, d2[40] EWRAM_BSS;
+    char t[40], d1[52], d2[40];
     { char*e=t; if(hhPLast[0]){ e=simCat(e,"THE "); e=simCat(e,hhPLast); simCat(e," FAMILY"); } else simCat(e,"YOUR FAMILY"); }
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k;

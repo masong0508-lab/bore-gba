@@ -83,7 +83,7 @@ static int nrWho(const NrE*q,char*nm,int*sx){   // their first name and gender; 
     const HhPre*p=0; nm[0]=0; *sx=SX_NB;
     if(q->lot&0x80){ int f=q->lot&0x7F; if(f<HH_NFAM&&q->mem<hhFams[f].n) p=&hhFams[f].m[q->mem]; }
     else if(nbOk&&q->lot<NB_LOTS&&nbLives(q->lot)){ int b=bkFind(nbKey(&nbT),q->lot);
-        if(b>=0){ if(q->mem) return 0; bkName(b,1,nm); u32 o=bkOff(b); if(svRd(o+35)==LK_N){ int x=svRd(o+BK_HDR+LK_SEX); *sx=x<SX_N?x:SX_NB; } }
+        if(b>=0){ if(q->mem) return 0; bkName(b,1,nm); u32 o=bkOff(b); if(svRd(o+35)>=LK_N15){ int x=svRd(o+BK_HDR+LK_SEX); *sx=x<SX_N?x:SX_NB; } }
         else { int f=nbFamOf(&nbT,q->lot); if(f>=0&&q->mem<hhFams[f].n) p=&hhFams[f].m[q->mem]; } }
     if(p){ int i=0; for(;p->name[i]&&i<HH_NM-1;i++) nm[i]=p->name[i]; nm[i]=0; *sx=p->sex; }
     return nm[0]&&nrHash(nm)==q->nh;

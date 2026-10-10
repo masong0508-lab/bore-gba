@@ -235,11 +235,13 @@ static int prSwitchHook(int m){   // house.h hhSwitchTo: 1 = handled (the pause 
     if(hhM[m].uid==prW1-1){ hhSwitchFrom(m); if(!prHere()) prGo=1; return 1; }   // back to the cell
     return 0;
 }
-static int prTransfer(int code){   // main.c lifeMode: 1 = to the prison, 2 = home (the live lot changes; 0 = it did not work)
+static u8 trvLot;   // travel.h
+static int prTransfer(int code){   // main.c lifeMode: 1 = to the prison, 2 = home, 3 = a cab ride to trvLot (the live lot changes; 0 = it did not work)
     copSt=0; copN=0; copT=0;
     if(code==1){ int lot=prLotGet(); if(lot<0){ toast("NO ROOM IN TOWN FOR A PRISON"); prCancel(); return 0; }
         if(!nbGo(lot)){ toast(nbErr); prCancel(); return 0; } }
     else if(code==2){ if(!nbGo(nbT.home)){ toast(nbErr); return 0; } }
+    else if(code==3){ if(trvLot>=NB_LOTS||!nbGo(trvLot)){ toast(trvLot>=NB_LOTS?"NOWHERE TO GO":nbErr); return 0; } }   // travel.h: a cab ride (CALL A CAB, the story's GO THERE)
     return 1;
 }
 static void prCard(void);
@@ -280,7 +282,7 @@ static void prRecord(void){
     present(); prWait();
 }
 static int prBail(void){   // PAY BAIL: buy days off the sentence at PR_BAIL simoleons a day (not for LIFE). 1 = the cell door opened or the days came off
-    static const u8 dn[3]={1,7,30}; static char lb[3][20] EWRAM_BSS; const char*it[3]; int ix[3], n=0;
+    static const u8 dn[3]={1,7,30}; char lb[3][20]; const char*it[3]; int ix[3], n=0;
     for(int i=0;i<3;i++){ int d=dn[i]; if(d>prDays) d=prDays; int cost=d*PR_BAIL; if(simMoney<cost) continue;
         char*e=slNum(lb[n],d); e=slCat(e,d==1?" DAY  ":" DAYS  "); e=slCat(e,"$"); slNum(e,cost); it[n]=lb[n]; ix[n++]=i;
         if(d==prDays) break; }   // (a bigger offer than the days left is the same offer)

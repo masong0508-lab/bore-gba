@@ -37,7 +37,8 @@ static int nbPrice(const NbLot*L){ return (int)L->value*NB_UNIT; }   // what the
 static int nbWho(int li,char*nm); static int nbLives(int li); static int hhPlayAt(int li); static int hhNewAt(int li);   // households.h: who lives on a lot, playing them, new Sims
 static u8 nbOk;                  // nbT holds a town
 static int nbTS=-1;              // the slot nbT was loaded from (or -1: a new town, it gets a free slot)
-static Town nbTmp EWRAM_BSS;     // another town, read for the chooser's thumbnails
+typedef struct { char tag[4]; char name[NB_NAME+1]; u8 season,tod,home,cur,zoom,pad[3]; } TownHd;   // the start of a Town: enough to know a town by name and whether it is the live one
+_Static_assert(sizeof(TownHd)==__builtin_offsetof(Town,cell),"TownHd must be the start of Town");
 #define NB_ACT pad[0]            // 1 = the live room belongs to this town (its lot cur)
 #define NB_GR(c) ((c)&7)
 #define NB_DC(c) ((c)>>3)
@@ -146,9 +147,14 @@ static int nbRead(int s,Town*t){   // a town from its slot (1 = ok)
     t->name[NB_NAME]=0; for(int i=0;i<NB_LOTS;i++) t->lot[i].name[NB_NAME]=0;
     return 1;
 }
+static int nbReadHd(int s,TownHd*t){   // only the start of a town (its name, and whether the live room is there): no 1 KB copy for that (1 = ok)
+    volatile u8*b=SLB(s)+SLOT_HDR; u8*d=(u8*)t; for(unsigned i=0;i<sizeof(TownHd);i++) d[i]=b[i];
+    if(t->tag[0]!='T'||t->tag[1]!='W'||t->tag[2]!='N'||t->tag[3]!='1') return 0;
+    t->name[NB_NAME]=0; return 1;
+}
 static int nbLoad(void){   // the town the live room belongs to (or the first one)
-    int l[SLOT_MAX], n=nbTownList(l,SLOT_MAX), pick=-1;
-    for(int i=0;i<n&&pick<0;i++){ if(nbRead(l[i],&nbTmp)&&nbTmp.NB_ACT) pick=l[i]; }
+    int l[SLOT_MAX], n=nbTownList(l,SLOT_MAX), pick=-1; TownHd h;
+    for(int i=0;i<n&&pick<0;i++){ if(nbReadHd(l[i],&h)&&h.NB_ACT) pick=l[i]; }
     if(pick<0&&n) pick=l[0];
     if(pick<0||!nbRead(pick,&nbT)) return 0;
     nbT.NB_ACT=1; nbTS=pick; return 1;
@@ -369,10 +375,29 @@ static char* nbMoney(char*d,money_t v){   // §1,234
 static const char* const nbTools[5]={"LOTS","PAINT","ROADS","DECOR","NEW LOT"};
 static const u8 nbSizes[6][2]={{4,4},{5,5},{6,6},{8,8},{10,10},{8,5}};
 static const char* const nbSizeNm[6]={"16 X 16","20 X 20","24 X 24","32 X 32","40 X 40","32 X 20"};
+// MOVE IN (below, neighborhoodScreen): the lots a new household may buy, and what they cost
+static u8 nbMoveMode;
+static int nbOthersHome(int li);   // main.c: another player calls this lot home
+static int nbMoveOk(int li){ const NbLot*L=&nbT.lot[li]; return L->on&&L->kind==LKIND_RES&&(li==nbT.home||(!nbWho(li,0)&&!nbOthersHome(li))); }
+static int nbMovePrice(int li){ return nbPrice(&nbT.lot[li]); }   // (every lot has its price: no free lot set aside)
+static u32 nbLotSeed(int li){ u32 h=2166136261u; for(int i=0;i<NB_NAME&&nbT.name[i];i++) h=(h^(u8)nbT.name[i])*16777619u; return h^((u32)(li+1)*2654435761u); }   // a lot's own seed: its house is always the same one
+static int nbLotStyle(int li){ return hgStyleFor((int)nbLotSeed(li),nbT.lot[li].w*nbT.lot[li].h); }   // the kind of house an empty lot comes with (housegen.h)
 static void nbPanel(int ccx,int ccy,int tool,int sub){
     rect(0,0,SW,12,PANEL); text(4,3,nbT.name,GOLD,1);
     { char b[24]; char*e=slCat(b,seasNm[nbT.season]); e=slCat(e," "); slCat(e,todNm[nbT.tod]); text(SW-4-tw(b,1),3,b,DIMC,1); }
     rect(0,122,SW,38,PANEL);
+    if(nbMoveMode){   // MOVE IN: your money, and what the lot under the cursor costs
+        { char b[40]; char*e=slCat(b,"PICK A HOME  YOU HAVE "); nbMoney(e,simMoney); text(4,125,b,GOLD,1); }
+        int li=nbAt(ccx,ccy); char b[40]; char*e;
+        if(li<0){ text(4,135,"MOVE ONTO A LOT",WHITE,1); text(4,153,"B  KEEP LOOKING OR MOVE IN LATER",RGB(12,14,16),1); return; }
+        const NbLot*L=&nbT.lot[li]; text(4,135,L->name,WHITE,1);
+        if(L->kind!=LKIND_RES){ text(84,135,ctNm[L->type],DIMC,1); text(4,145,"A PUBLIC PLACE",DIMC,1); }
+        else if(!nbMoveOk(li)){ char f[24]; f[0]=0; nbWho(li,f); e=slCat(b,f[0]?f:"ANOTHER PLAYER"); slCat(e," LIVES HERE"); text(4,145,b,DIMC,1); }
+        else { e=slCat(b,L->slot>=0?"A HOUSE  ":"EMPTY LAND  "); e=slNum(e,L->w*4); e=slCat(e," X "); slNum(e,L->h*4); text(84,135,b,DIMC,1);
+            int p=nbMovePrice(li); e=slCat(b,"LAND "); e=nbMoney(e,p); if(L->slot<0){ int st=nbLotStyle(li); e=slCat(e,"  "); e=slCat(e,hsNm[st]); e=slCat(e," "); nbMoney(e,p+hsCost[st]); } text(4,145,b,p>simMoney?RGB(31,10,8):GOLD,1);
+            text(4,153,p>simMoney?"YOU CAN'T AFFORD IT":"A  MOVE IN HERE",RGB(12,14,16),1); }
+        return;
+    }
     for(int t=0,x=4;t<5;t++){ int w=tw(nbTools[t],1)+6; if(t==tool) rect(x-2,124,w,9,RGB(6,16,8)); text(x+1,125,nbTools[t],t==tool?WHITE:DIMC,1); x+=w+2; }
     int li=nbAt(ccx,ccy); char b[40]; char*e;
     if(tool==0&&li>=0){
@@ -551,10 +576,36 @@ static void nbTownMenu(int*quit){
     else if(c==3){ char nm[SLOT_NAME+1]; for(int i=0;i<=NB_NAME;i++) nm[i]=nbT.name[i]; if(slEditName(nm)) for(int i=0;i<=NB_NAME;i++) nbT.name[i]=nm[i]; }
     else if(c==4||c==5) *quit=1;
 }
+// MOVE IN (The Sims 2): a new player's household picks its home on the town map. main.c newGame opens the town in this mode right after the creator
+// (or the family bin): the tools and the town menu are off, the panel shows each lot's price against your money, A on a home lot buys it and moves
+// you in, and play starts there (QUIT goes back to this town, like a lot in The Sims). The lot the game set aside for you is free; B asks whether
+// to keep looking or move in later (you stay on that lot).
+static void stStarterHouse(int li,int style);   // storylot.h: the lot's own furnished house on the live lot li (beds for the household)
+static int nbMoveInAt(int li){   // A on lot li while moving in: 1 = bought, moved in, and the live lot is there now
+    const NbLot*L=&nbT.lot[li];
+    if(L->kind!=LKIND_RES){ toast("A PUBLIC PLACE  PICK A HOME LOT"); return 0; }
+    if(!nbMoveOk(li)){ toast("SOMEONE LIVES THERE"); return 0; }
+    int land=nbMovePrice(li), house=L->slot>=0, build=0, price=land;
+    char a[40], b[40]; const char* it[3]; int n=0;
+    if(house){ char*e=slCat(a,"MOVE IN  "); nbMoney(e,land); it[n++]=a; }
+    else { int st=nbLotStyle(li); char*e=slCat(a,hsNm[st]); e=slCat(e,"  "); nbMoney(e,land+hsCost[st]); it[n++]=a; e=slCat(b,"JUST THE LAND  "); nbMoney(e,land); it[n++]=b; }   // (the lot's own furnished house, or build it yourself)
+    it[n++]="NO";
+    int c=menu(house?"MOVE IN HERE":"EMPTY LAND",it,n); if(c<0||c==n-1) return 0;
+    if(!house&&c==0){ build=1; price=land+hsCost[nbLotStyle(li)]; }
+    if(price>simMoney){ toast("NOT ENOUGH SIMOLEONS"); return 0; }
+    int old=nbT.home; nbT.home=(u8)li;
+    if(!nbGo(li)){ nbT.home=(u8)old; nbSave(); toast(nbErr); return 0; }
+    if(!house){ nbTemplate(li); if(build) stStarterHouse(li,nbLotStyle(li)); }   // (empty land is bare when you get it: nothing left over from before)
+    simMoneyAdd(-(money_t)price); simsSaveNow(); nbSave(); toast("WELCOME HOME"); return 1;
+}
 static void neighborhoodScreen(void){
     nbBounds();
     armsLotGet();   // armsshop.h: the town gets its arms shop once
     int ccx=nbT.lot[nbT.home].on?nbT.lot[nbT.home].x+nbT.lot[nbT.home].w/2:5, ccy=nbT.lot[nbT.home].on?nbT.lot[nbT.home].y+nbT.lot[nbT.home].h/2:5;
+    if(nbMoveMode){ int best=-1, bp=0x7FFFFFFF;   // the cursor starts on the cheapest home lot you can buy
+        for(int i=0;i<NB_LOTS;i++) if(nbMoveOk(i)){ int p=nbMovePrice(i)+(nbT.lot[i].slot<0?hsCost[nbLotStyle(i)]:0); if(p<bp){ bp=p; best=i; } }   // (with its house)
+        if(best>=0){ ccx=nbT.lot[best].x+nbT.lot[best].w/2; ccy=nbT.lot[best].y+nbT.lot[best].h/2; }
+        toast("PICK A HOME  A ON A LOT TO MOVE IN"); }
     int tool=0, sub[5]={0,0,0,1,2}, hold[4]={0}, dirty=1, quit=0, played=0; u16 prev=keyNow();
     static const u16 dirK[4]={K_RIGHT,K_LEFT,K_UP,K_DOWN};
     while(!quit){
@@ -567,7 +618,7 @@ static void neighborhoodScreen(void){
             if(ccx>=NB_W)ccx=NB_W-1;
             if(ccy>=NB_H)ccy=NB_H-1;
             dirty=1; }
-        if(pr&K_R){ tool=(tool+1)%5; dirty=1; } if(pr&K_L){ tool=(tool+4)%5; dirty=1; }
+        if(!nbMoveMode&&(pr&K_R)){ tool=(tool+1)%5; dirty=1; } if(!nbMoveMode&&(pr&K_L)){ tool=(tool+4)%5; dirty=1; }   // (moving in: the lots only)
         if(pr&K_SEL){ int n=tool==1?NT_ROAD:tool==3?DC_N:tool==4?6:1; sub[tool]=(sub[tool]+1)%n; dirty=1; }
         int gw=nbSizes[sub[4]][0], gh=nbSizes[sub[4]][1], gok=nbFree(ccx,ccy,gw,gh,-1);
         int onLot=nbAt(ccx,ccy)>=0;
@@ -581,13 +632,18 @@ static void neighborhoodScreen(void){
                 played=1; }
             dirty=1;
         }
-        if(pr&K_B){ if(tool){ tool=0; dirty=1; } else quit=1; }
+        if(pr&K_B){ if(tool){ tool=0; dirty=1; }
+            else if(nbMoveMode){ static const char* const it[2]={"KEEP LOOKING","MOVE IN LATER"}; if(menu("YOU HAVE NOT MOVED IN",it,2)==1) quit=1; prev=keyNow(); dirty=1; }
+            else quit=1; }
         if(pr&K_A){
-            if(tool==0){ int li=nbAt(ccx,ccy); if(li>=0){ if(nbLotMenu(li)){ nbSave(); return; } }
+            if(tool==0&&nbMoveMode){ int li=nbAt(ccx,ccy);   // MOVE IN: buy the lot and live there
+                if(li<0) toast("PICK A LOT"); else if(nbMoveInAt(li)){ nbMoveMode=0; nbPlaying=1; lifeMode(0); nbPlaying=0; if(gToMenu){ nbSave(); return; } menuMusSync(); }
+                prev=keyNow(); dirty=1; }
+            else if(tool==0){ int li=nbAt(ccx,ccy); if(li>=0){ if(nbLotMenu(li)){ nbSave(); return; } }
                          else { tool=4; } prev=keyNow(); dirty=1; }
             else if(tool==4){ if(!gok) toast("NO ROOM THERE"); else if(nbNewLot(ccx,ccy,gw,gh)) tool=0; prev=keyNow(); dirty=1; }
         }
-        if(pr&K_START){ nbTownMenu(&quit); prev=keyNow(); dirty=1; played=1; }
+        if(!nbMoveMode&&(pr&K_START)){ nbTownMenu(&quit); prev=keyNow(); dirty=1; played=1; }
         if(dirty||(uiTicks&15)==0){ nbDrawTown(ccx,ccy,tool,gw,gh,gok); nbPanel(ccx,ccy,tool,sub[tool]); present(); dirty=0; } else vsync();
         uiTicks++; menuMusTick();
     }

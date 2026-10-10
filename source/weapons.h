@@ -61,7 +61,7 @@ static void wpHurt(int m,int dmg,int w){   // one hit on a household Sim (melee,
     HhSim*t=&hhM[m]; int b=t->uid; if(dmg<1) dmg=1;
     copCrime(1);
     if(hhPUid>=0&&hhPUid<HU_N&&b<HU_N){ relD[b][hhPUid]=(signed char)clampR(relD[b][hhPUid]-18); relL[b][hhPUid]=(signed char)clampR(relL[b][hhPUid]-8); }
-    sfxPlay(SFX_HIT); hhSay(b,IC_HURT,"OW");
+    sfxPlay(SFX_YELP); hhSay(b,IC_HURT,"OW");   // (a weapon: a yelp, not a punch's grunt)
     hhScare((int)(t->fx>>8),(int)(t->fy>>8),7,150); hhPanT[m]=0;   // PANIC: the others run from it (the one hit is stunned or down)
     if(t->hp>dmg){ t->hp=(u8)(t->hp-dmg); hhFreeze(b,w==WP_TASER?200:40);
         static char hb[20] EWRAM_BSS; char*e=simCat(hb,wpT[w].nm); *e++=' '; simCatN(e,dmg); lnote=hb; lnoteT=40; }
@@ -74,6 +74,7 @@ static void wpMelee(int w,int ax,int ay){
         int dx=(int)(hhM[m].fx-lfx), dy=(int)(hhM[m].fy-lfy);
         if(dx*dx+dy*dy>R*R) continue;
         if(dx*ax+dy*ay<-48) continue;   // behind you
+        if(!wallClear(lfx,lfy,hhM[m].fx,hhM[m].fy)) continue;   // a wall in between
         wpHurt(m,d->dmg+(rnd8()>>5),w); }
 }
 static void wpFire(u16 k){

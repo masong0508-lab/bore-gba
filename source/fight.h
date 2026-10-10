@@ -55,7 +55,7 @@ static int fgFind(int R,int ax,int ay){
     int best=-1, bd=0x7FFFFFFF;
     for(int m=0;m<hhN;m++){ if(!fgLive(m)) continue;
         int dx=(int)(hhM[m].fx-lfx), dy=(int)(hhM[m].fy-lfy), d=dx*dx+dy*dy;
-        if(d>R*R||dx*ax+dy*ay<=0||d>=bd) continue;
+        if(d>R*R||dx*ax+dy*ay<=0||d>=bd||!wallClear(lfx,lfy,hhM[m].fx,hhM[m].fy)) continue;   // (a wall in between: out of reach)
         best=m; bd=d; }
     return best;
 }
@@ -77,7 +77,7 @@ static void fgKnock(int m,int ax,int ay,int amt){   // shove a Sim back, never i
     if(surfH(nx,ny)<=h0&&surfH(nx,t->fy)<=h0&&surfH(t->fx,ny)<=h0){ t->fx=nx; t->fy=ny; }
 }
 static void fgKO(int m){   // the K.O. fanfare
-    (void)m; fgHS=8; fgSlow=75; fgKoT=84; specAdd(100); sfxPlay(SFX_HIT);
+    (void)m; fgHS=8; fgSlow=75; fgKoT=84; specAdd(100); sfxPlay(SFX_KO);
 }
 // a special lands on member m. 1 = hurt, 2 = knocked out, 0 = dodged
 static int fgLand(int m,int mul,int stun,int kb,int ax,int ay,const char*nm){
@@ -113,7 +113,7 @@ static int fgSpecial(int sp,u16 k){
     if(sp==FS_FB){ fgCd=16; fbX=lfx+ax*140; fbY=lfy+ay*140; fbDx=(signed char)ax; fbDy=(signed char)ay; fbL=36; sfxPlay(SFX_POP); lnote="FIREBALL"; lnoteT=30; }
     else if(sp==FS_DP){ fgCd=26; fgSpT=16; sfxPlay(SFX_POP); int m=fgFind(24*16,ax,ay); if(m>=0) fgLand(m,220,70,0x70,ax,ay,"UPPERCUT"); else { fgCd+=10; lnote="UPPERCUT"; lnoteT=30; } }
     else { fgCd=24; fgSpin=12; sfxPlay(SFX_POP); int hit=0;
-        for(int m=0;m<hhN;m++){ if(!fgLive(m)) continue; int dx=(int)(hhM[m].fx-lfx), dy=(int)(hhM[m].fy-lfy); if(dx*dx+dy*dy>410*410) continue;
+        for(int m=0;m<hhN;m++){ if(!fgLive(m)) continue; int dx=(int)(hhM[m].fx-lfx), dy=(int)(hhM[m].fy-lfy); if(dx*dx+dy*dy>410*410||!wallClear(lfx,lfy,hhM[m].fx,hhM[m].fy)) continue;
             hit|=fgLand(m,110,36,0x50,dx>40?1:dx<-40?-1:0,dy>40?1:dy<-40?-1:0,"SPIN KICK"); }
         if(!hit&&lnoteT<=0){ lnote="SPIN KICK"; lnoteT=30; } }
     return 1;
@@ -183,7 +183,7 @@ static void fgAttack(u16 k){
 static void fgCounter(void){   // the Sim that was winding up swings
     int m=hhMemOf(fgFoe); if(m<0||!fgLive(m)) return;
     int dx=(int)(hhM[m].fx-lfx), dy=(int)(hhM[m].fy-lfy), ax, ay;
-    if(dx*dx+dy*dy>(30*16)*(30*16)){ hhSay(fgFoe,IC_BAIL,"MISS"); return; }
+    if(dx*dx+dy*dy>(30*16)*(30*16)||!wallClear(hhM[m].fx,hhM[m].fy,lfx,lfy)){ hhSay(fgFoe,IC_BAIL,"MISS"); return; }   // (out of reach, or a wall in between)
     wpAim(0,&ax,&ay);
     int blocking=fgG&&fgCd==0&&(dx*ax+dy*ay>=0);
     fgMode=300;
