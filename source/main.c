@@ -4465,16 +4465,18 @@ static const char* const slkNm[NSLK]={"BODY SHAPE","BODY DETAIL","BUTT","FACE DE
 static const short slkCost[NSLK]={40,80,50,40,30,60};   // jenes (pDna) for each pack
 static u8 slkUl;   // unlocked packs
 static void slkSave(void){ volatile u8*m=SRAM_BASE+JB_OFF; m[32]='S'; m[33]='K'; m[34]=slkUl; m[35]=(u8)(slkUl^0x5A); }
-static void slkLoad(void){ volatile u8*m=SRAM_BASE+JB_OFF; slkUl=(m[32]=='S'&&m[33]=='K'&&(u8)(m[34]^0x5A)==m[35])?(u8)(m[34]&((1<<NSLK)-1)):0; }
+static void slkLoad(void){ volatile u8*m=SRAM_BASE+JB_OFF; slkUl=(m[32]=='S'&&m[33]=='K'&&(u8)(m[34]^0x5A)==m[35])?(u8)(m[34]&((1<<NSLK)-1)):0; slkUl|=8; }   // (FACE DETAIL: its sliders are all free now, so the pack counts as open)
 static int slkPack(int id){   // which pack a slider is in: -1 = an essential (always free) or not a slider
     switch(id){
       case LK_HEIGHT: case LK_WEIGHT: case LK_TONE: case LK_EYESZ: case LK_EYETONE: case LK_HTONE: case LK_TTONE: case LK_BTONE: return -1;
-      case LK_TORSO: case LK_ARMS: case LK_STANCE: case LK_LEGW: case LK_ARMW: case LK_HEADSZ: case LK_HANDFT: return 0;
-      case LK_NECK: case LK_NECKW: case LK_HIPW: case LK_WAISTW: case LK_SHOULW: case LK_THIGHW: case LK_CALFW: case LK_CHESTW: case LK_BELLYW:
-      case LK_UARMW: case LK_FARMW: case LK_JAWW: case LK_HANDSZ: case LK_FOOTSZ: return 1;
-      case LK_BUTT: case LK_BUTTH: case LK_BUTTW: return 2;
-      case LK_EYESP: case LK_EYEHT: case LK_BROWHT: case LK_NOSEHT: case LK_MOUTHW: case LK_MOUTHHT: return 3;
-      case LK_EARSZ: case LK_EARLF: case LK_EARFWD: case LK_EARSPR: case LK_EARWID: return 4;
+      // free from the start too (a new player should not feel boxed in): the whole face, the main body proportions, the butt and ear size
+      case LK_EYESP: case LK_EYEHT: case LK_BROWHT: case LK_NOSEHT: case LK_MOUTHW: case LK_MOUTHHT: case LK_JAWW:
+      case LK_TORSO: case LK_ARMS: case LK_LEGW: case LK_HEADSZ: case LK_NECK: case LK_SHOULW: case LK_WAISTW: case LK_HIPW: case LK_BUTT: case LK_EARSZ: return -1;
+      case LK_STANCE: case LK_ARMW: case LK_HANDFT: return 0;
+      case LK_NECKW: case LK_THIGHW: case LK_CALFW: case LK_CHESTW: case LK_BELLYW:
+      case LK_UARMW: case LK_FARMW: case LK_HANDSZ: case LK_FOOTSZ: return 1;
+      case LK_BUTTH: case LK_BUTTW: return 2;
+      case LK_EARLF: case LK_EARFWD: case LK_EARSPR: case LK_EARWID: return 4;
       default: return lkSlide(id)?5:-1;   // every other slider is a part slider (ANT, TAIL, HORN, WING)
     }
 }
