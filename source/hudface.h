@@ -108,8 +108,8 @@ static void faceDrawL(int x,int y,const u8*lk,int stg,const u8*e,int ovE,int ovM
             int X=ox+dx, Y=oy+dy; if(X<0||X>21||Y<0||Y>21) continue;
             int a0=ca[dx+4][0], a1=ca[dx+4][1], r0=ra[dy+4][0], r1=ra[dy+4][1];
             char c=hudPick(ea,8,9,side,a0,a1,r0,r1);
-            if(br>0&&br<=5){ char t=hudPick(brArt[br-1],2,9,side,a0,a1,r0+bsh,r1+bsh); if(t!='.') c=t; }
-            if(gl>0&&gl<=3){ char t=hudPick(glArt[gl-1],8,9,side,a0,a1,r0,r1); if(t!='.') c=t; }
+            if(br>0&&br<NBROW){ char t=hudPick(brArt[br-1],2,9,side,a0,a1,r0+bsh,r1+bsh); if(t!='.') c=t; }
+            if(gl>0&&gl<NGLASS){ char t=hudPick(glArt[gl-1],8,9,side,a0,a1,r0,r1); if(t!='.') c=t; }
             if(c!='.') hudSprPlot(x+X,y+Y,&c,1,0,pal);
         }
       }
@@ -124,8 +124,8 @@ static void faceDrawL(int x,int y,const u8*lk,int stg,const u8*e,int ovE,int ovM
             int X=2+dx, Y=11+dy; if(X<0||X>21||Y<0||Y>21) continue;
             int a0=ca[dx+7][0], a1=ca[dx+7][1], r0=ra[dy+7][0], r1=ra[dy+7][1];
             char c=hudPick(ms->art,8,19,0,a0,a1,r0,r1);
-            if(c=='.'&&no>0&&no<=5) c=hudPick(noArt[no-1],2,19,0,a0,a1,dy+nsh,dy+nsh);
-            if(c=='.'&&ch>0&&ch<=4) c=hudPick(chArt[ch-1],4,19,0,a0,a1,r0,r1);
+            if(c=='.'&&no>0&&no<NNOSE) c=hudPick(noArt[no-1],2,19,0,a0,a1,dy+nsh,dy+nsh);
+            if(c=='.'&&ch>0&&ch<NCHEEK) c=hudPick(chArt[ch-1],4,19,0,a0,a1,r0,r1);
             if(c!='.') hudSprPlot(x+X,y+Y,&c,1,0,pal);
         }
     }

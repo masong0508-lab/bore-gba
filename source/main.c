@@ -498,6 +498,10 @@ __attribute__((noinline)) IWRAM_CODE static void tileTop(int sx,int sy,u16 c){
 // ---------- face sprites ----------
 // One cell = 9 x 8 px of art on a cube face. Wider sprites span cells: width = 10*cells-1 (the seam column is art too).
 // Palette: k dark, w white, r red, s skin shadow, i iris (EYE COLOUR), b blush, g glasses frame, h brow (hair colour), l dark lens, . clear
+#define NBROW 9    // face details: NONE + the art styles (new ones go at the end, so saved faces keep theirs)
+#define NNOSE 9
+#define NCHEEK 8
+#define NGLASS 7
 #define B9  "........."
 #define B19 "..................."
 static const char* const aHalf[8] ={ B9, "..sssss..", ".kkkkkkk.", ".wwkikww.", "..wkikw..", "...www...", B9, B9 };
@@ -544,15 +548,21 @@ static const Spr spr[NSPR]={ {"SLEEPY",1,aHalf},{"ROUND",1,aRound},{"HAPPY",1,aH
                              {"STAR",1,aStar},{"TIRED",1,aTired},{"SQUINT",1,aSquint},{"DIZZY",1,aDizzy},{"ANIME",1,aAnime},{"SIDE",1,aSide},
                              {"LAUGH",2,mLaugh},{"WAVY",2,mWavy},{"POUT",2,mPout},{"BUCK",2,mBuck},{"WONKY",2,mWonky},{"SCREAM",2,mScream} };
 // Details drawn over the eyes (brows, glasses) and over the mouth (nose, cheeks), from the look: [style-1][row], art in the same grid.
-static const char* const brArt[5][2]={ {"..hhhhh..",B9},{".hhhhhhh.",".hhhhhhh."},{".hhh.....","....hhh.."},{".....hhh.","..hhh...."},{"hhhhhhhhh","hhhhhhhhh"} };   // THIN THICK ANGRY SAD UNIBROW
-static const char* const glArt[3][8]={ {B9,"..ggggg..",".g.....g.","gg.....gg",".g.....g.","..ggggg..",B9,B9},              // ROUND
+static const char* const brArt[NBROW-1][2]={ {"..hhhhh..",B9},{".hhhhhhh.",".hhhhhhh."},{".hhh.....","....hhh.."},{".....hhh.","..hhh...."},{"hhhhhhhhh","hhhhhhhhh"},
+                                         {"...hhh...","..h...h.."},{"...hhh...",B9},{"hhhhhhhh.",".hhhhhhhh"} };   // THIN THICK ANGRY SAD UNIBROW ARCHED SHORT BUSHY
+static const char* const glArt[NGLASS-1][8]={ {B9,"..ggggg..",".g.....g.","gg.....gg",".g.....g.","..ggggg..",B9,B9},              // ROUND
                                        {B9,"ggggggggg","g.......g","g.......g","g.......g","ggggggggg",B9,B9},              // SQUARE
-                                       {B9,B9,"ggggggggg",".lllllll.",".lllllll.","..lllll..",B9,B9} };                       // SHADES
-static const char* const noArt[5][2]={ {"........sss........",B19},{".........ss........",".........kss......."},
+                                       {B9,B9,"ggggggggg",".lllllll.",".lllllll.","..lllll..",B9,B9},                        // SHADES
+                                       {B9,"gg.....gg",".ggggggg.",".g.....g.","..g...g..","...ggg...",B9,B9},             // CAT-EYE
+                                       {B9,".ggggggg.","gl.....lg","gl.....lg","gl.....lg",".ggggggg.",B9,B9},             // GOGGLES
+                                       {B9,B9,"ggggggggg","rrrrrrrrr","rrrrrrrrr","ggggggggg",B9,B9} };                     // VISOR
+static const char* const noArt[NNOSE-1][2]={ {"........sss........",B19},{".........ss........",".........kss......."},
                                        {".......sssss.......",".......s...s......."},{"........sss........","........k.k........"},
-                                       {".......kkkkk.......","........kkk........"} };   // BUTTON POINTY WIDE PIG ANIMAL
-static const char* const chArt[4][4]={ {".bbb...........bbb.",".bbb...........bbb.",B19,B19},{".s.s...........s.s.","..s.............s..",B19,B19},
-                                       {B19,"kkk.............kkk",B19,"kkk.............kkk"},{"................r..","...............r...","..............r....",B19} };   // BLUSH FRECKLES WHISKERS SCAR
+                                       {".......kkkkk.......","........kkk........"},
+                                       {".........s.........",B19},{"......sssssss......","......k.....k......"},{"........sss........",".........ssk......."} };   // BUTTON POINTY WIDE PIG ANIMAL TINY BROAD HOOKED
+static const char* const chArt[NCHEEK-1][4]={ {".bbb...........bbb.",".bbb...........bbb.",B19,B19},{".s.s...........s.s.","..s.............s..",B19,B19},
+                                       {B19,"kkk.............kkk",B19,"kkk.............kkk"},{"................r..","...............r...","..............r....",B19},
+                                       {B19,B19,"..k.............k..",B19},{B19,"................k..",B19,B19},{"rrr.............rrr",B19,"rrr.............rrr",B19} };   // BLUSH FRECKLES WHISKERS SCAR DIMPLES MOLE WAR PAINT
 static int sty[2];                     // chosen style per kind: 0 = eye, 1 = mouth
 // style -> sprite id. Styles 0..8 are the first eyes / mouths (ids 0..8 / 9..17); the newer styles sit after them, so no saved face changes.
 static inline int eyeSpr(int st){ return st<NEYE0?st:NEYE0+NMOUTH0+(st-NEYE0); }
@@ -4508,13 +4518,13 @@ static const char* const tabNm[NTAB]={"BODY","FACE","HAIR","CLOTHES","PARTS","AS
 static const char* const shapeNm[NSHAPE]={"AVERAGE","BROAD","BIG HEAD","STUBBY","SLIM","ATHLETIC","TALL","CHUBBY","PEAR","LANKY","STOCKY","HUNCHED","POTBELLY","MUSCLE","PETITE","BARREL","DIGITIGRADE","V-SHAPE","CURVY","RUNNER","SOFT","POWER","LONG LEGS","PUDGY","TODDLER","SPROUT","SPORTY","BELL","STURDY","SPIDER"};
 static const char* const eyeNm[NEYE]={"SLEEPY","ROUND","HAPPY","WIDE","ANGRY","CUTE","CAT","DOT","LASHES","STAR","TIRED","SQUINT","DIZZY","ANIME","SIDE"};
 static const char* const mouthNm[NMOUTH]={"FLAT","SMILE","OH","GRIN","SMIRK","FROWN","TONGUE","FANGS","KITTY","LAUGH","WAVY","POUT","BUCK","WONKY","SCREAM"};
-static const char* const browNm[6]={"NONE","THIN","THICK","ANGRY","WORRIED","UNIBROW"};
-static const char* const noseNm[6]={"NONE","BUTTON","POINTY","WIDE","PIG","ANIMAL"};
+static const char* const browNm[NBROW]={"NONE","THIN","THICK","ANGRY","WORRIED","UNIBROW","ARCHED","SHORT","BUSHY"};
+static const char* const noseNm[NNOSE]={"NONE","BUTTON","POINTY","WIDE","PIG","ANIMAL","TINY","BROAD","HOOKED"};
 static const char* const fearNm[5]={"NONE","CAT","FOX","BUNNY","BEAR"};
 static const char* const muzNm[4]={"NONE","SNOUT","MUZZLE","BEAK"};
 static const char* const ftailNm[4]={"NONE","FOX","CAT","BUNNY"};
-static const char* const cheekNm[5]={"NONE","BLUSH","FRECKLES","WHISKERS","SCAR"};
-static const char* const glassNm[4]={"NONE","ROUND","SQUARE","SHADES"};
+static const char* const cheekNm[NCHEEK]={"NONE","BLUSH","FRECKLES","WHISKERS","SCAR","DIMPLES","MOLE","WAR PAINT"};
+static const char* const glassNm[NGLASS]={"NONE","ROUND","SQUARE","SHADES","CAT-EYE","GOGGLES","VISOR"};
 static const char* const earNm[3]={"NONE","SMALL","BIG"};
 static const char* const hairNm[NHAIR]={"CROP","BOWL","LONG","BALD","SPIKY","AFRO","FLAT TOP","SIDE TAIL","BUN","BOB","PONYTAIL","PIGTAILS","MOHAWK","PIXIE","CURLS"};
 static const char* const hatNm[6]={"NONE","CAP","BEANIE","BAND","FEZ","HELMET"};
@@ -4536,9 +4546,9 @@ static const Row tabRow[NTAB][TROWS]={
    {"TORSO",0,RK_SLIDE,LK_TORSO,9},{"ARMS",0,RK_SLIDE,LK_ARMS,9},{"STANCE",0,RK_SLIDE,LK_STANCE,9},{"LEG WIDTH",0,RK_SLIDE,LK_LEGW,9},{"ARM WIDTH",0,RK_SLIDE,LK_ARMW,9},{"HEAD SIZE",0,RK_SLIDE,LK_HEADSZ,9},{"HAND FOOT SIZE",0,RK_SLIDE,LK_HANDFT,9},{"NECK LENGTH",0,RK_SLIDE,LK_NECK,9},{"NECK WIDTH",0,RK_SLIDE,LK_NECKW,9},{"HIP WIDTH",0,RK_SLIDE,LK_HIPW,9},{"WAIST WIDTH",0,RK_SLIDE,LK_WAISTW,9},{"SHOULDERS",0,RK_SLIDE,LK_SHOULW,9},{"THIGH WIDTH",0,RK_SLIDE,LK_THIGHW,9},{"CALF WIDTH",0,RK_SLIDE,LK_CALFW,9},{"CHEST",0,RK_SLIDE,LK_CHESTW,9},{"BELLY",0,RK_SLIDE,LK_BELLYW,9},{"UPPER ARM",0,RK_SLIDE,LK_UARMW,9},{"FOREARM",0,RK_SLIDE,LK_FARMW,9},{"JAW WIDTH",0,RK_SLIDE,LK_JAWW,9},{"HAND SIZE",0,RK_SLIDE,LK_HANDSZ,9},{"FOOT SIZE",0,RK_SLIDE,LK_FOOTSZ,9},
    {"SKIN",0,RK_SWATCH,LK_SKIN,NSKIN},{"SKIN TONE",0,RK_SLIDE,LK_TONE,9},{"BUTT",0,RK_SLIDE,LK_BUTT,9},{"BUTT HEIGHT",0,RK_SLIDE,LK_BUTTH,9},{"BUTT WIDTH",0,RK_SLIDE,LK_BUTTW,9}},   // (the BUTT rows last: cut from the tab below teen)
   {{"EYES",0,RK_PICK,LK_EYES,NEYE},{"EYE COLOUR",0,RK_SWATCH,LK_EYECOL,NSW},{"EYE SHADE",0,RK_SLIDE,LK_EYETONE,9},{"EYE SIZE",0,RK_SLIDE,LK_EYESZ,9},{"EYE SPACING",0,RK_SLIDE,LK_EYESP,9},
-   {"EYE HEIGHT",0,RK_SLIDE,LK_EYEHT,9},{"BROWS",0,RK_PICK,LK_BROW,6},{"BROW HEIGHT",0,RK_SLIDE,LK_BROWHT,9},{"GLASSES",0,RK_PICK,LK_GLASS,4},{"NOSE",0,RK_PICK,LK_NOSE,6},
+   {"EYE HEIGHT",0,RK_SLIDE,LK_EYEHT,9},{"BROWS",0,RK_PICK,LK_BROW,NBROW},{"BROW HEIGHT",0,RK_SLIDE,LK_BROWHT,9},{"GLASSES",0,RK_PICK,LK_GLASS,NGLASS},{"NOSE",0,RK_PICK,LK_NOSE,NNOSE},
    {"NOSE HEIGHT",0,RK_SLIDE,LK_NOSEHT,9},
-   {"MOUTH",0,RK_PICK,LK_MOUTH,NMOUTH},{"MOUTH WIDTH",0,RK_SLIDE,LK_MOUTHW,9},{"MOUTH HEIGHT",0,RK_SLIDE,LK_MOUTHHT,9},{"CHEEKS",0,RK_PICK,LK_CHEEK,5},
+   {"MOUTH",0,RK_PICK,LK_MOUTH,NMOUTH},{"MOUTH WIDTH",0,RK_SLIDE,LK_MOUTHW,9},{"MOUTH HEIGHT",0,RK_SLIDE,LK_MOUTHHT,9},{"CHEEKS",0,RK_PICK,LK_CHEEK,NCHEEK},
    {"EARS",0,RK_PICK,LK_EARS,3},{"EAR SIZE",0,RK_SLIDE,LK_EARSZ,9},{"EAR HEIGHT",0,RK_SLIDE,LK_EARLF,9},{"EAR FRONT BACK",0,RK_SLIDE,LK_EARFWD,9},{"EAR SPREAD",0,RK_SLIDE,LK_EARSPR,9},{"EAR WIDTH",0,RK_SLIDE,LK_EARWID,9}},
   {{"STYLE",0,RK_PICK,LK_HSTYLE,NHAIR},{"COLOUR",0,RK_SWATCH,LK_HCOL,NSW},{"HAIR TONE",0,RK_SLIDE,LK_HTONE,9},{"BEARD",0,RK_PICK,LK_BEARD,3},{"HAT",0,RK_PICK,LK_HAT,6},{"HAT COLOUR",0,RK_PICK,LK_HATCOL,6}},
   {{"TOP",0,RK_SWATCH,LK_TOP,NSW},{"TOP TONE",0,RK_SLIDE,LK_TTONE,9},{"BOTTOM",0,RK_SWATCH,LK_BOT,NSW},{"BOTTOM TONE",0,RK_SLIDE,LK_BTONE,9},{"TOP STYLE",0,RK_PICK,LK_TOPSTY,5},{"BOTTOM STYLE",0,RK_PICK,LK_BOTSTY,4},{"SHOES",0,RK_PICK,LK_SHOE,6}},
@@ -4924,7 +4934,7 @@ static void famMenu(void){
     static char t[32] EWRAM_BSS; simCat(simCat(t,"NOW EDITING "),hhPName); toast(t);
 }
 #include "hhcreate.h"   // CREATE-A-HOUSEHOLD: the DONE tab's HOUSEHOLD row (add Sims, who is whose mother / sister / roommate)
-static const u8 lkCnt[LK_N]={NSHAPE,NSKIN,NEYE,NMOUTH,3,NHAIR,NSW,NSW,NSW,9,9,9,3,3,3,6,6,3,4,3,6, 6,6,5,4,NSW, 9,9,9,9,9,9,9, 4,3,7,6, 9,9,9,9,9,9,9,9,9, 5,4,4, 9,9,9, 9,9,9,9,9,9,9, 9,9,9,9,9,9,9, 9,9,9,7, 9,9,9, 9, [LK_SEX]=SX_N};   // how many options each look row has (sliders: 9)
+static const u8 lkCnt[LK_N]={NSHAPE,NSKIN,NEYE,NMOUTH,3,NHAIR,NSW,NSW,NSW,9,9,9,3,3,3,6,6,3,4,3,6, NBROW,NNOSE,NCHEEK,NGLASS,NSW, 9,9,9,9,9,9,9, 4,3,7,6, 9,9,9,9,9,9,9,9,9, 5,4,4, 9,9,9, 9,9,9,9,9,9,9, 9,9,9,9,9,9,9, 9,9,9,7, 9,9,9, 9, [LK_SEX]=SX_N};   // how many options each look row has (sliders: 9)
 static void lookRandom(void){   // the dice (like Create-A-Bore): a whole new look and personality, only from what this stage and your unlocked parts allow
     const u8*cnt=lkCnt;
     for(int id=0;id<LK_N;id++){

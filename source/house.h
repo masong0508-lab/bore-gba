@@ -385,8 +385,8 @@ static void hhRandLook(u8*lk,u8*stg){   // a made-up Sim: passers-by, and SELECT
     for(int i=0;i<LK_N;i++) lk[i]=0;
     lk[LK_SHAPE]=shp[rnd8()%12]; lk[LK_SKIN]=(u8)(rnd8()%NSKIN); lk[LK_EYES]=(u8)(rnd8()%NEYE); lk[LK_MOUTH]=(u8)(rnd8()%NMOUTH);
     lk[LK_EARS]=(u8)(1+(rnd8()&1)); lk[LK_HSTYLE]=(u8)(rnd8()%NHAIR); lk[LK_HCOL]=(u8)(rnd8()%NSW); lk[LK_TOP]=(u8)(rnd8()%NSW); lk[LK_BOT]=(u8)(rnd8()%NSW);
-    lk[LK_TOPSTY]=(u8)(rnd8()&3); lk[LK_HAT]=(rnd8()&3)==0?(u8)(1+rnd8()%5):0; lk[LK_GLASS]=(rnd8()&3)==0?(u8)(1+rnd8()%3):0;
-    lk[LK_BROW]=(u8)(rnd8()%6); lk[LK_EYECOL]=(u8)(rnd8()%NSW); lk[LK_SEX]=sexRoll();
+    lk[LK_TOPSTY]=(u8)(rnd8()&3); lk[LK_HAT]=(rnd8()&3)==0?(u8)(1+rnd8()%5):0; lk[LK_GLASS]=(rnd8()&3)==0?(u8)(1+rnd8()%(NGLASS-1)):0;
+    lk[LK_BROW]=(u8)(rnd8()%NBROW); lk[LK_EYECOL]=(u8)(rnd8()%NSW); lk[LK_SEX]=sexRoll();
     *stg=sg[rnd8()&3];
 }
 // ---- bake cache: a sprite set is only baked again when something it is drawn from changed ----
