@@ -2269,6 +2269,32 @@ static int moveH(s32 fx,s32 fy){   // the height a step into (fx,fy) has to clea
     if(wallTall(lifeMap[ty][tx])&&(tx!=(int)(lfx>>8)||ty!=(int)(lfy>>8))) return 99;   // (already inside one, somehow: walk out)
     return surfH(fx,fy);
 }
+// THE WALL BETWEEN. wallClear: 1 = nothing solid on the straight line from (ax,ay) to (bx,by) (1/256 tiles). A wall is what drawWall draws: an arm
+// from its tile's centre to each wall next to it (a lone one is a short post), so this agrees with the picture: round a wall's end is open, through
+// it is not. Full walls, windows and the solid blocks ('#') stop it; a low wall is a fence (over it you can still talk and swing). Talking, punches,
+// melee weapons, blasts and a cop's grab all ask this: nobody reaches anybody through a wall.
+static int isWallCh(char c);   // (the walls section)
+static int segArm(s32 ax,s32 ay,s32 bx,s32 by,s32 c,s32 lo,s32 hi,int vert){   // does the segment touch the arm y=c, lo<=x<=hi (vert: x=c, lo<=y<=hi)?
+    if(vert){ s32 t=ax; ax=ay; ay=t; t=bx; bx=by; by=t; }
+    if((ay>c&&by>c)||(ay<c&&by<c)) return 0;   // both ends on one side
+    if(ay==by) return (ax<bx?ax:bx)<=hi&&(ax>bx?ax:bx)>=lo;   // along the arm's line
+    s32 d=by-ay, num=ax*d+(bx-ax)*(c-ay); if(d<0){ d=-d; num=-num; }   // where it crosses, times d (no division)
+    return num>=lo*d&&num<=hi*d;
+}
+static int wallClear(s32 ax,s32 ay,s32 bx,s32 by){
+    int x0=(int)((ax<bx?ax:bx)>>8), x1=(int)((ax>bx?ax:bx)>>8), y0=(int)((ay<by?ay:by)>>8), y1=(int)((ay>by?ay:by)>>8);
+    if(x0<0) x0=0; if(y0<0) y0=0; if(x1>=MW) x1=MW-1; if(y1>=MH) y1=MH-1;
+    for(int ty=y0;ty<=y1;ty++) for(int tx=x0;tx<=x1;tx++){
+        char c=lifeMap[ty][tx]; if(!wallTall(c)) continue;
+        s32 cx=tx*256+128, cy=ty*256+128;
+        if(c=='#'){ if(segArm(ax,ay,bx,by,cy,cx-128,cx+128,0)||segArm(ax,ay,bx,by,cx,cy-128,cy+128,1)) return 0; continue; }   // a solid block: all of its tile
+        int l=tx>0&&isWallCh(lifeMap[ty][tx-1]), r=tx<MW-1&&isWallCh(lifeMap[ty][tx+1]), u=ty>0&&isWallCh(lifeMap[ty-1][tx]), dn=ty<MH-1&&isWallCh(lifeMap[ty+1][tx]);
+        if(!(l|r|u|dn)){ if(segArm(ax,ay,bx,by,cy,cx-48,cx+48,0)||segArm(ax,ay,bx,by,cx,cy-48,cy+48,1)) return 0; continue; }   // a post
+        if((l|r)&&segArm(ax,ay,bx,by,cy,l?cx-128:cx,r?cx+128:cx,0)) return 0;
+        if((u|dn)&&segArm(ax,ay,bx,by,cx,u?cy-128:cy,dn?cy+128:cy,1)) return 0;
+    }
+    return 1;
+}
 // Colour lookups for the sprite palette and the two quantisers (house.h): a small open-addressing hash from a 15-bit colour to a slot (key 0xFFFF = empty).
 // The sprites hold about 40 colours, so a lookup is one or two probes instead of a walk through the list.
 #define HQ_N 512
@@ -3186,6 +3212,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
         if(lbl>=100){ lbl=0; lstun=90; lsp=0; lgrind=0; lscore=lscore>100?lscore-100:0; sfxPlay(SFX_CRY); lnote="ACCIDENT"; lnoteT=90; moodEvent(M_ACCIDENT); }
         int nf=0, nt=0, nb=0, nh=0, nc=0, np=0, nq=0, nph=0, nrd=0, nsy=0, ntv=0, nbk=0, ncf=0, naq=0, ntm=0, nfe=0;
         for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++){ int tx=(lfx>>8)+dx, ty=(lfy>>8)+dy; if(tx<0||ty<0||tx>=MW||ty>=MH) continue;
+            if(dx&&dy&&wallTall(lifeMap[ty][tx-dx])&&wallTall(lifeMap[ty-dy][tx])) continue;   // round a corner of two walls: the other side, out of reach
             char c=lifeMap[ty][tx]; if(c=='F') nf=1; if(c=='T') nt=1; if(c=='S') nb=1; if(c=='H') nh=1; if(c=='C'||c=='U') nc=1; if(c=='G') np=1; if(c=='Q') nq=1; if(c=='I') nph=1; if(c=='R') nrd=1; if(c=='A') nsy=1; if(c=='v') ntv=1; if(c=='b') nbk=1; if(c=='c') ncf=1; if(c=='q') naq=1; if(c=='m') ntm=1; if(c=='W'&&prFence(tx,ty)) nfe=1; }
         lnear=nf?1:(nt?2:(nb?3:(nh?4:(np?6:(nq?7:(nph?8:(nrd?9:(nsy?10:(ntv?11:(nbk?12:(ncf?13:(naq?14:(ntm?15:(nfe?16:(nc?5:0)))))))))))))));   // 7 the DeadSet   // 1 fridge, 2 toilet, 3 bed, 4 shower, 6 water pipe, 5 sofa or beanbag
         if((pr&K_R)&&lstun<=0&&lz<=fh&&!simAct&&hhSocR(lnear==16?0:lnear)) pr&=~K_R;   // next to a household Sim: the social menu (it offers the furniture too)

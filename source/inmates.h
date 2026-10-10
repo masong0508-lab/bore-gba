@@ -89,8 +89,8 @@ static void inmCalc(void){   // once a picture (main.c, next to hhCalc): where e
 static int inmNear(void){   // R: the nearest inmate within 1.5 tiles, or -1
     if(xo[XO_MULTIFL]?pkHome>=0:curFl) return -1;
     int best=-1, bd=1<<30;
-    for(int j=0;j<inmN;j++){ if(!inmOn(j)) continue; s32 dx=inmS[j].fx-lfx, dy=inmS[j].fy-lfy; int d=(int)((dx*dx+dy*dy)>>8); if(d<bd){ bd=d; best=j; } }
-    return bd<=(380*380>>8)?best:-1;
+    for(int j=0;j<inmN;j++){ if(!inmOn(j)) continue; s32 dx=inmS[j].fx-lfx, dy=inmS[j].fy-lfy; int d=(int)((dx*dx+dy*dy)>>8); if(d<bd&&d<=(380*380>>8)&&wallClear(lfx,lfy,inmS[j].fx,inmS[j].fy)){ bd=d; best=j; } }
+    return best;   // (never through a wall)
 }
 static int inmTaken(int x,int y,int self){ for(int j=0;j<inmN;j++){ if(j==self||!inmPl[j]) continue; if((int)(inmS[j].fx>>8)==x&&(int)(inmS[j].fy>>8)==y) return 1; } return 0; }
 static void inmTick(int*planned){   // hhTick, on the ground floor

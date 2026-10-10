@@ -540,8 +540,14 @@ static void hhTakenScan(const HhSim*self){   // the player's tile, and every oth
 }
 static int hhTakenAt(int x,int y){ int p=y*MW+x; for(int i=0;i<hhTkN;i++) if(hhTk[i]==p) return 1; return 0; }
 static int hhTaken(int x,int y,const HhSim*self){ hhTakenScan(self); return hhTakenAt(x,y); }
+static int hhOut(HhSim*s){   // standing where nobody can stand (a wall was built on the spot): out to the nearest free tile around it. 1 = moved
+    int sx=(int)(s->fx>>8), sy=(int)(s->fy>>8); hhTakenScan(s);
+    for(int r=1;r<=4;r++)for(int dy=-r;dy<=r;dy++)for(int dx=-r;dx<=r;dx++){ if((dx<0?-dx:dx)!=r&&(dy<0?-dy:dy)!=r) continue;
+        int x=sx+dx, y=sy+dy; if(hhWalk(x,y)&&!hhTakenAt(x,y)){ s->fx=x*256+128; s->fy=y*256+128; s->pn=s->pi=0; s->gok=0; return 1; } }
+    return 0;
+}
 static int hhPlan(HhSim*s,char c){   // fills s->path; returns its length+1 (1 = already there), 0 = no way
-    int sx=(int)(s->fx>>8), sy=(int)(s->fy>>8); if(!hhWalk(sx,sy)) return 0;
+    int sx=(int)(s->fx>>8), sy=(int)(s->fy>>8); if(!hhWalk(sx,sy)){ if(!hhOut(s)) return 0; sx=(int)(s->fx>>8); sy=(int)(s->fy>>8); }   // (inside a wall: step out of it first, never stuck there)
     for(int i=0;i<MW*MH;i++) hhDist[i]=0xFFFF;
     hhTakenScan(s);
     if(c==1&&((sx-hhGX)*(sx-hhGX)+(sy-hhGY)*(sy-hhGY))<=2) return 1;   // already next to them
@@ -664,6 +670,7 @@ static char hhNoteB[40] EWRAM_BSS;
 static void hhNote(const HhSim*s,const char*w){ if(lnoteT>0) return; char*e=simCat(hhNoteB,s->name); simCat(e,w); lnote=hhNoteB; lnoteT=110; }
 static void hhStepAlong(HhSim*s){   // one step along the path, tile centre to tile centre
     int d=s->path[s->pi];
+    if(!s->gok&&!hhWalk((int)(s->fx>>8)+hhDx[d],(int)(s->fy>>8)+hhDy[d])){ s->pi=s->pn; return; }   // a wall was built across the way since the plan: stop here (the next plan goes round it)
     if(!s->gok){ s->gx=((int)(s->fx>>8)+hhDx[d])*256+128; s->gy=((int)(s->fy>>8)+hhDy[d])*256+128; s->fx=(s->fx&~255)|128; s->fy=(s->fy&~255)|128; s->gok=1; }
     int sp=F_WALK*stSpd[s->stage]/100; if(sp<2) sp=2;
     if(hhDx[d]){ s->fx+=hhDx[d]*sp; if((hhDx[d]>0&&s->fx>=s->gx)||(hhDx[d]<0&&s->fx<=s->gx)){ s->fx=s->gx; s->pi++; s->gok=0; } }
@@ -1109,7 +1116,7 @@ static void hhArrive(int m){   // a free-will Sim reached the one it wanted to s
 }
 // ---- you: R next to a household Sim opens the social menu (furniture you stand at is offered first) ----
 static int hhVisitorHere(int m){ if(m<hhN||curFl) return 0; int k=HH_MAX-1-m; return k>=0&&k<TW_N&&twHas[k]&&twOn[k]; }   // slot m (past the household) holds a neighbour on the lot
-static int hhNearest(void){ if(xo[XO_MULTIFL]?pkHome>=0:curFl) return -1; int best=-1, bd=1<<30; for(int m=0;m<HH_MAX;m++){ if(m<hhN){ if(hhM[m].act==HA_AWAY) continue; } else if(!hhVisitorHere(m)) continue; s32 dx=hhM[m].fx-lfx, dy=hhM[m].fy-lfy; int d=(int)((dx*dx+dy*dy)>>8); if(d<bd){ bd=d; best=m; } } return bd<=(380*380>>8)?best:-1; }   // within 1.5 tiles (household Sims and the neighbours who drop by)
+static int hhNearest(void){ if(xo[XO_MULTIFL]?pkHome>=0:curFl) return -1; int best=-1, bd=1<<30; for(int m=0;m<HH_MAX;m++){ if(m<hhN){ if(hhM[m].act==HA_AWAY) continue; } else if(!hhVisitorHere(m)) continue; s32 dx=hhM[m].fx-lfx, dy=hhM[m].fy-lfy; int d=(int)((dx*dx+dy*dy)>>8); if(d<bd&&d<=(380*380>>8)&&wallClear(lfx,lfy,hhM[m].fx,hhM[m].fy)){ bd=d; best=m; } } return best; }   // within 1.5 tiles (household Sims and the neighbours who drop by), never through a wall
 static void liveInvalidate(void);
 static int hhVisitorTalk(int m,int useLabel){   // R next to a neighbour who dropped by (or an inmate): TALK / JOKE / COMPLIMENT / HIGH FIVE, and the mean ones: TEASE / INSULT, SHOVE / SLAP for teens and up (needs and mood only: they are not in the relationship tables)
     HhSim*s=m>=HH_MAX?&inmS[m-HH_MAX]:&hhM[m];

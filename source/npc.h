@@ -270,7 +270,7 @@ static void copTick(int*planned){   // once per logic step (hhTick)
         break;
     case 2: {
         int caught=0;
-        for(i=0;i<copN;i++){ int ddx=px-(int)(copS[i].fx>>8), ddy=py-(int)(copS[i].fy>>8); if(ddx*ddx+ddy*ddy<=2){ caught=1; break; } }
+        for(i=0;i<copN;i++){ int ddx=px-(int)(copS[i].fx>>8), ddy=py-(int)(copS[i].fy>>8); if(ddx*ddx+ddy*ddy<=2&&wallClear(copS[i].fx,copS[i].fy,lfx,lfy)){ caught=1; break; } }   // (never through a wall)
         if(caught){ copArrest(); break; }
         if(copAtExit(px,py)){ copEscape(); break; }
         if(copN<copMax&&++copRT>=900){ copRT=0; if(copSpawn()){ lnote="MORE COPS ARE COMING"; lnoteT=60; } }   // backup: more of them, never faster

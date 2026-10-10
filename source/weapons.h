@@ -74,6 +74,7 @@ static void wpMelee(int w,int ax,int ay){
         int dx=(int)(hhM[m].fx-lfx), dy=(int)(hhM[m].fy-lfy);
         if(dx*dx+dy*dy>R*R) continue;
         if(dx*ax+dy*ay<-48) continue;   // behind you
+        if(!wallClear(lfx,lfy,hhM[m].fx,hhM[m].fy)) continue;   // a wall in between
         wpHurt(m,d->dmg+(rnd8()>>5),w); }
 }
 static void wpFire(u16 k){
