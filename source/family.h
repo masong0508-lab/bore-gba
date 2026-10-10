@@ -209,7 +209,7 @@ static void famRelBar(int x,int y,int w,int v){ s2rr(x,y,w,6,RGB(9,16,26)); rect
 static void famScreen(void){
     int us[HU_N], n=0; us[n++]=hhPUid; for(int m=0;m<hhN;m++) us[n++]=hhM[m].uid;
     int sel=0, dirty=1; u16 prev=keyNow();
-    static char t[40] EWRAM_BSS, d1[52] EWRAM_BSS, d2[40] EWRAM_BSS;
+    char t[40], d1[52], d2[40];
     { char*e=t; if(hhPLast[0]){ e=simCat(e,"THE "); e=simCat(e,hhPLast); simCat(e," FAMILY"); } else simCat(e,"YOUR FAMILY"); }
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k;

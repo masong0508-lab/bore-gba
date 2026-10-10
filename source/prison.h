@@ -280,7 +280,7 @@ static void prRecord(void){
     present(); prWait();
 }
 static int prBail(void){   // PAY BAIL: buy days off the sentence at PR_BAIL simoleons a day (not for LIFE). 1 = the cell door opened or the days came off
-    static const u8 dn[3]={1,7,30}; static char lb[3][20] EWRAM_BSS; const char*it[3]; int ix[3], n=0;
+    static const u8 dn[3]={1,7,30}; char lb[3][20]; const char*it[3]; int ix[3], n=0;
     for(int i=0;i<3;i++){ int d=dn[i]; if(d>prDays) d=prDays; int cost=d*PR_BAIL; if(simMoney<cost) continue;
         char*e=slNum(lb[n],d); e=slCat(e,d==1?" DAY  ":" DAYS  "); e=slCat(e,"$"); slNum(e,cost); it[n]=lb[n]; ix[n++]=i;
         if(d==prDays) break; }   // (a bigger offer than the days left is the same offer)

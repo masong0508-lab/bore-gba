@@ -1559,7 +1559,7 @@ static int hhMoveIn(const HhFam*F){   // a pre-made family moves in (HOUSEHOLD, 
 static void hhInviteTrue(void); static int hhMoveOut(int m);   // households.h
 static void hhSwitchMenu(void){   // pick the Sim you control
     if(!hhN){ toast("NO ONE ELSE LIVES HERE"); return; }
-    static char nm[HH_MAX][HH_NM+8] EWRAM_BSS; const char* who[HH_MAX];
+    char nm[HH_MAX][HH_NM+8]; const char* who[HH_MAX];
     for(int m=0;m<hhN;m++){ char*e=simCat(nm[m],hhM[m].name); if(hhM[m].act==HA_AWAY) simCat(e,prHeld(&hhM[m])?(prHere()?"  AT HOME":"  IN PRISON"):hhUp[m]?hhWhere(m):"  OUT"); else if(xo[XO_ITEMUSE]&&hhM[m].act==HA_USE&&hhM[m].item) simCat(e,iuTag[hhM[m].item-1]); who[m]=nm[m]; }
     int m=menu("WHO DO YOU PLAY",who,hhN); if(m<0) return;
     hhSwitchTo(m); lnote=hhPName; lnoteT=60;

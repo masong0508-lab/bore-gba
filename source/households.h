@@ -31,7 +31,8 @@ static int bkFind(u16 key,int lot){ for(int i=0;i<bkN;i++){ u32 o=bkOff(i); if(b
 static int bkFree(void){ for(int i=0;i<bkN;i++) if(!bkOk(i)) return i; return -1; }
 static void bkDel(int i){ svErase(bkOff(i),BK_SZ); }
 static void bkName(int i,int first,char*d){ u32 o=bkOff(i)+(first?22:10); int k=0; for(;k<HH_NM-1;k++){ char c=(char)svRd(o+k); if(!c) break; d[k]=c; } d[k]=0; }
-static u16 nbKey(const Town*t){ u16 h=0x5A3C; for(int i=0;i<NB_NAME&&t->name[i];i++) h=(u16)(h*31+(u8)t->name[i]); return h; }   // a town by its name
+static u16 nbKeyS(const char*nm){ u16 h=0x5A3C; for(int i=0;i<NB_NAME&&nm[i];i++) h=(u16)(h*31+(u8)nm[i]); return h; }   // a town by its name
+static u16 nbKey(const Town*t){ return nbKeyS(t->name); }
 // writing a record: the header's fields, then the payload byte by byte (the checksum is counted on the way), the magic last
 static u32 bkW; static u16 bkSum;
 static void bkPut8(int v){ svWr(bkW++,v&255); bkSum=(u16)(bkSum+(v&255)); }
@@ -198,18 +199,22 @@ static void phTick(void){   // once per logic step in the life game
     lnote="EVERYONE ATE"; lnoteT=60; liveInvalidate();
 }
 static int nrKnown(int*lot,int*mem,char (*nm)[28],int max);   // townrel.h: the Sims of the town you know, closest first (lot, member, "NAME  FRIEND")
-static void phInvite(void){   // someone from another household comes over (they take a free member place, like a visitor)
-    int k=0, v=TW_V(0); if(v<hhN){ toast("NO ROOM FOR GUESTS"); return; }
-    const char* it[NB_LOTS+12]; static char nm[NB_LOTS+12][28] EWRAM_BSS; int lot[NB_LOTS+12], mem[NB_LOTS+12], n=0;
+__attribute__((noinline)) static int phWho(int*lotOut,int*memOut){   // WHO DO YOU CALL: the list, on the stack only while it is open (no RAM kept for it). 0 = nobody picked
+    const char* it[NB_LOTS+12]; char nm[NB_LOTS+12][28]; int lot[NB_LOTS+12], mem[NB_LOTS+12], n=0;
     n=nrKnown(lot,mem,nm,12); for(int i=0;i<n;i++) it[i]=nm[i];   // the people you know first: call them by name
     if(nbOk) for(int li=0;li<NB_LOTS;li++){ char f[24]; f[0]=0; if(!nbWho(li,f)) continue; char*e=slCat(nm[n],f); e=slCat(e,"  "); slCat(e,nbT.lot[li].name); it[n]=nm[n]; lot[n]=li; mem[n++]=-1; }
-    if(!n){ toast("NOBODY ELSE LIVES IN TOWN YET"); return; }
-    int c=menu("WHO DO YOU CALL",it,n); if(c<0) return;
+    if(!n){ toast("NOBODY ELSE LIVES IN TOWN YET"); return 0; }
+    int c=menu("WHO DO YOU CALL",it,n); if(c<0) return 0;
+    *lotOut=lot[c]; *memOut=mem[c]; return 1;
+}
+static void phInvite(void){   // someone from another household comes over (they take a free member place, like a visitor)
+    int k=0, v=TW_V(0); if(v<hhN){ toast("NO ROOM FOR GUESTS"); return; }
+    int lot, mem; if(!phWho(&lot,&mem)) return;
     nrSync();   // (whoever was in that place keeps what they feel)
     HhSim*s=&hhM[v];
-    if(mem[c]>=0) nbSimAt(lot[c],mem[c],s,twFrom[k]); else nbSimFrom(lot[c],s,twFrom[k]);
+    if(mem>=0) nbSimAt(lot,mem,s,twFrom[k]); else nbSimFrom(lot,s,twFrom[k]);
     s->bubT=0; s->hp=HP_MAX; s->act=HA_IDLE; s->pn=s->pi=0; s->ltw=0; for(int q=0;q<HN_N;q++) s->need[q]=80;
-    twWho(k,lot[c]);
+    twWho(k,lot);
     twHas[k]=1; twOn[k]=0; twWait[k]=90; twWel[k]=0; twCall[k]=1; hhKey[v]=0; twKeep=1;   // at the door in a moment (a guest staying over counts for STORY MODE's HAVE A NEIGHBOR OVER: story.h watches twOn)
     toast("PLEASE WAIT  THEY ARE ON THEIR WAY"); hhBakeAll();
     static char t[40] EWRAM_BSS; char*e=simCat(t,s->name); simCat(e," IS COMING OVER"); toast(t);

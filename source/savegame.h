@@ -124,9 +124,9 @@ static int sgSave(void){   // sgSaveI under a loading screen (flash writes are s
     ldShow("SAVING GAME",0,2); int e=sgSaveI(); ldShow("SAVING GAME",2,2); ldEnd(); if(!e) sgDirty=0; return e;
 }
 static void sgEnterTown(void){   // the player's town and lot become the live ones
-    int l[SLOT_MAX], n=nbTownList(l,SLOT_MAX), pick=-1;
-    for(int i=0;i<n;i++) if(l[i]==sgPlSlot&&nbRead(l[i],&nbTmp)&&nbKey(&nbTmp)==sgPlKey) pick=l[i];
-    for(int i=0;i<n&&pick<0;i++) if(nbRead(l[i],&nbTmp)&&nbKey(&nbTmp)==sgPlKey) pick=l[i];
+    int l[SLOT_MAX], n=nbTownList(l,SLOT_MAX), pick=-1; TownHd h;
+    for(int i=0;i<n;i++) if(l[i]==sgPlSlot&&nbReadHd(l[i],&h)&&nbKeyS(h.name)==sgPlKey) pick=l[i];
+    for(int i=0;i<n&&pick<0;i++) if(nbReadHd(l[i],&h)&&nbKeyS(h.name)==sgPlKey) pick=l[i];
     if(pick>=0&&nbSwitch(pick)){
         nbOk=1;
         if(sgPlHome<NB_LOTS&&nbT.lot[sgPlHome].on&&nbT.lot[sgPlHome].kind==LKIND_RES) nbT.home=(u8)sgPlHome;
@@ -241,14 +241,14 @@ static void sgNewPlayerIn(int slot){   // a NEW PLAYER who lives in town slot (f
     sgWant=0;
     if(started) sgLeaveSave();
 }
-static void sgNewPlayer(void){
+__attribute__((noinline)) static int sgTownPick(void){   // WHICH NEIGHBORHOOD (the names on the stack only while it is open): the town's slot, or -1
     int l[SLOT_MAX], n=nbTownList(l,SLOT_MAX); if(n>16) n=16;
-    if(!n){ toast("MAKE A NEIGHBORHOOD FIRST"); return; }
-    static char tn[16][NB_NAME+1] EWRAM_BSS; const char* nm[16];
-    for(int i=0;i<n;i++){ nbRead(l[i],&nbTmp); int k=0; for(;nbTmp.name[k]&&k<NB_NAME;k++) tn[i][k]=nbTmp.name[k]; tn[i][k]=0; nm[i]=tn[i]; }
-    int c=n==1?0:menu("WHICH NEIGHBORHOOD",nm,n); if(c<0) return;   // (one town: nothing to ask)
-    sgNewPlayerIn(l[c]);
+    if(!n){ toast("MAKE A NEIGHBORHOOD FIRST"); return -1; }
+    char tn[16][NB_NAME+1]; const char* nm[16]; TownHd h;
+    for(int i=0;i<n;i++){ int ok=nbReadHd(l[i],&h); int k=0; if(ok) for(;h.name[k]&&k<NB_NAME;k++) tn[i][k]=h.name[k]; tn[i][k]=0; nm[i]=tn[i]; }
+    int c=n==1?0:menu("WHICH NEIGHBORHOOD",nm,n); return c<0?-1:l[c];   // (one town: nothing to ask)
 }
+static void sgNewPlayer(void){ int t=sgTownPick(); if(t>=0) sgNewPlayerIn(t); }
 static void playerScreen(void){
     int l[SLOT_MAX]; nbFirstTowns(l); nbOk=nbLoad(); nbBounds();
     sgAdopt();

@@ -37,7 +37,8 @@ static int nbPrice(const NbLot*L){ return (int)L->value*NB_UNIT; }   // what the
 static int nbWho(int li,char*nm); static int nbLives(int li); static int hhPlayAt(int li); static int hhNewAt(int li);   // households.h: who lives on a lot, playing them, new Sims
 static u8 nbOk;                  // nbT holds a town
 static int nbTS=-1;              // the slot nbT was loaded from (or -1: a new town, it gets a free slot)
-static Town nbTmp EWRAM_BSS;     // another town, read for the chooser's thumbnails
+typedef struct { char tag[4]; char name[NB_NAME+1]; u8 season,tod,home,cur,zoom,pad[3]; } TownHd;   // the start of a Town: enough to know a town by name and whether it is the live one
+_Static_assert(sizeof(TownHd)==__builtin_offsetof(Town,cell),"TownHd must be the start of Town");
 #define NB_ACT pad[0]            // 1 = the live room belongs to this town (its lot cur)
 #define NB_GR(c) ((c)&7)
 #define NB_DC(c) ((c)>>3)
@@ -146,9 +147,14 @@ static int nbRead(int s,Town*t){   // a town from its slot (1 = ok)
     t->name[NB_NAME]=0; for(int i=0;i<NB_LOTS;i++) t->lot[i].name[NB_NAME]=0;
     return 1;
 }
+static int nbReadHd(int s,TownHd*t){   // only the start of a town (its name, and whether the live room is there): no 1 KB copy for that (1 = ok)
+    volatile u8*b=SLB(s)+SLOT_HDR; u8*d=(u8*)t; for(unsigned i=0;i<sizeof(TownHd);i++) d[i]=b[i];
+    if(t->tag[0]!='T'||t->tag[1]!='W'||t->tag[2]!='N'||t->tag[3]!='1') return 0;
+    t->name[NB_NAME]=0; return 1;
+}
 static int nbLoad(void){   // the town the live room belongs to (or the first one)
-    int l[SLOT_MAX], n=nbTownList(l,SLOT_MAX), pick=-1;
-    for(int i=0;i<n&&pick<0;i++){ if(nbRead(l[i],&nbTmp)&&nbTmp.NB_ACT) pick=l[i]; }
+    int l[SLOT_MAX], n=nbTownList(l,SLOT_MAX), pick=-1; TownHd h;
+    for(int i=0;i<n&&pick<0;i++){ if(nbReadHd(l[i],&h)&&h.NB_ACT) pick=l[i]; }
     if(pick<0&&n) pick=l[0];
     if(pick<0||!nbRead(pick,&nbT)) return 0;
     nbT.NB_ACT=1; nbTS=pick; return 1;

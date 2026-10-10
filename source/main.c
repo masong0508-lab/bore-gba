@@ -3912,7 +3912,7 @@ static void hhSwap(HhSim*s){   // trade places: the player becomes s, s becomes 
 // ---- the ASPIRATION panel (pause menu): the Sims 2 wants and fears panel, the lifetime want, the reward shop, and the creature's Spore side ----
 // UP DOWN pick a want | A lock it (one at a time: a locked want survives the reroll when you wake up) | R aspiration rewards | B back
 static void aspRewards(void){
-    static char rb[RW_N][24] EWRAM_BSS; const char* it[RW_N];
+    char rb[RW_N][24]; const char* it[RW_N];
     for(;;){
         for(int r=0;r<RW_N;r++){ char*e=rb[r]; const char*p=simRewNm[r]; while(*p) *e++=*p++; *e++=' '; *e++=' '; e+=numStr(e,simRewCost[r]); *e=0; it[r]=rb[r]; }
         char t[24]; { char*e=t; const char*p="REWARDS  POINTS "; while(*p) *e++=*p++; numStr(e,simAsp); }
@@ -4871,11 +4871,14 @@ static void famAdd(void){
     if(m<0){ toast("THE HOUSE IS FULL"); return; }
     hhSave(); static char t[36] EWRAM_BSS; char*e=simCat(t,hhM[m].name); e=simCat(e," JOINS  "); e=simCatN(e,hhN+1); e=simCat(e," OF "); simCatN(e,HH_MAX+1); toast(t);
 }
+__attribute__((noinline)) static int famPickM(void){   // THE FAMILY list (on the stack only while it is open): the member, or -1
+    char lb[HH_MAX][32]; const char* it[HH_MAX];
+    for(int m=0;m<hhN;m++){ char*e=simCat(lb[m],hhM[m].name); e=simCat(e,"  "); simCat(e,stageNm[hhM[m].stage<AG_N?hhM[m].stage:AG_ADULT]); it[m]=lb[m]; }
+    return menu("THE FAMILY",it,hhN);
+}
 static void famMenu(void){
     hhLoad(); if(!hhN){ toast("ONLY YOU SO FAR"); return; }
-    static char lb[HH_MAX][32] EWRAM_BSS; const char* it[HH_MAX];
-    for(int m=0;m<hhN;m++){ char*e=simCat(lb[m],hhM[m].name); e=simCat(e,"  "); simCat(e,stageNm[hhM[m].stage<AG_N?hhM[m].stage:AG_ADULT]); it[m]=lb[m]; }
-    int m=menu("THE FAMILY",it,hhN); if(m<0) return;
+    int m=famPickM(); if(m<0) return;
     static const char* const act[3]={"EDIT  PLAY AS THEM","MOVE OUT","BACK"}; int c=menu(hhM[m].name,act,3);
     if(c==1){ static const char* const yn[2]={"YES  GOODBYE","NO"}; if(menu("ARE YOU SURE?",yn,2)==0){ hhRemove(m); hhSave(); toast("MOVED OUT"); } return; }
     if(c!=0) return;
@@ -5501,8 +5504,8 @@ static int newGame(int slot){   // 1 = it started (and ended: back to the main m
 }
 
 // ---------- PLAY (The Sims 3 New Game panel): pick a town, then CONTINUE your life, VISIT the town, or a NEW GAME there ----------
-static void plDraw(const int*l,int n,int sel,int act,int foc,int tile,int full){   // full 0: only what the cursor changes (the dropdown, the tiles, the tip)
-    int ok=n&&nbRead(l[sel],&nbTmp);
+__attribute__((noinline)) static void plDraw(const int*l,int n,int sel,int act,int foc,int tile,int full){   // full 0: only what the cursor changes (the dropdown, the tiles, the tip)
+    Town nbTmp; int ok=n&&nbRead(l[sel],&nbTmp);   // (the town shown: on the stack while it is drawn, kept out of line so the PLAY screen's own frame stays small)
     if(full){
     s3Panel(8,16,224,124); text(22,24,"Play",RGB(3,9,20),1);
     s3Well(16,31,208,55);
@@ -5531,6 +5534,11 @@ static void plDraw(const int*l,int n,int sel,int act,int foc,int tile,int full){
     else s3Tip("A NEW PLAYER WHO LIVES IN THIS TOWN");
 }
 static void sgNewPlayerIn(int slot);   // savegame.h: a NEW PLAYER who lives in town slot
+__attribute__((noinline)) static int nbDelTown(int s){   // DELETE: the town in slot s and the houses on its lots (the town read on the stack, out of line). 1 = done
+    Town t; if(!nbRead(s,&t)) return 0;
+    for(int i=0;i<NB_LOTS;i++) if(t.lot[i].on&&t.lot[i].slot>=0) slDelete(t.lot[i].slot);
+    slDelete(s); return 1;
+}
 static void playScreen(void){
     int l[SLOT_MAX], n=nbFirstTowns(l);
     nbOk=nbLoad(); int act=nbTS, sel=0; for(int i=0;i<n;i++) if(l[i]==act) sel=i;
@@ -5556,17 +5564,17 @@ static void playScreen(void){
                 nbOk=nbLoad(); n=nbTownList(l,SLOT_MAX); act=nbTS; }
             prev=keyNow(); dirty=2;
         }
-        if((pr&K_START)&&n&&nbRead(l[sel],&nbTmp)){
+        TownHd th;
+        if((pr&K_START)&&n&&nbReadHd(l[sel],&th)){
             static const char* const it[2]={"RENAME","DELETE"};
-            int c=menu(nbTmp.name,it,2);
+            int c=menu(th.name,it,2);
             if(c==0&&nbRead(l[sel],&nbT)){ char nm[SLOT_NAME+1]; for(int i=0;i<=NB_NAME;i++) nm[i]=nbT.name[i];
                 if(slEditName(nm)){ for(int i=0;i<=NB_NAME;i++) nbT.name[i]=nm[i]; nbTS=l[sel]; nbSave(); } nbOk=nbLoad(); }
             else if(c==1){
                 if(l[sel]==act) toast("YOU LIVE THERE");
                 else { const char*yn[2]={"NO","YES"};
-                    if(menu("DELETE IT AND ITS HOUSES",yn,2)==1&&nbRead(l[sel],&nbTmp)){
-                        for(int i=0;i<NB_LOTS;i++) if(nbTmp.lot[i].on&&nbTmp.lot[i].slot>=0) slDelete(nbTmp.lot[i].slot);
-                        slDelete(l[sel]); toast("NEIGHBORHOOD DELETED"); n=nbTownList(l,SLOT_MAX); if(sel>=n) sel=n-1; if(sel<0) sel=0; } } }
+                    if(menu("DELETE IT AND ITS HOUSES",yn,2)==1&&nbDelTown(l[sel])){
+                        toast("NEIGHBORHOOD DELETED"); n=nbTownList(l,SLOT_MAX); if(sel>=n) sel=n-1; if(sel<0) sel=0; } } }
             nbOk=nbLoad(); act=nbTS; prev=keyNow(); dirty=2;
         }
         if(dirty){ if(dirty&2) mmBackdrop(); plDraw(l,n,sel,act,foc,tile,(dirty&6)!=0); uiPresent(); dirty=0; } else vsync();   // (the acid rainbow holds still here: the panel is too much to draw every frame)
