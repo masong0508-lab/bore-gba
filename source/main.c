@@ -134,7 +134,9 @@ enum { LK_SHAPE, LK_SKIN, LK_EYES, LK_MOUTH, LK_EARS, LK_HSTYLE, LK_HCOL, LK_TOP
        LK_JAWW, LK_HANDSZ, LK_FOOTSZ,   // format 13: jaw width (the bottom row of the head), hand size and foot size on their own (appended: older saves keep their positions)
        LK_NECKW,   // format 14: neck width (the neck is its own narrow column between the shoulders and the head)
        LK_SEX,     // format 15: GENDER (SX_FEMALE, SX_MALE, SX_NB). It changes the words (WIFE / HUSBAND / SPOUSE ...), never what a Sim may wear or do; older saves get one from sexGuess
+       LK_BROWSP, LK_GLASSHT, LK_CHEEKHT,   // format 16: brow spacing, glasses height and cheek height (sliders, appended after GENDER)
        LK_N };   // animal (furry) ears, a muzzle, a fur tail (format 8); LK_BUTT: a slider, the seat (teens and up); LK_LEGW: leg width slider (format 9)
+#define LK_N15 (LK_SEX+1)   // looks a person format 15 slot (and an 'H@' / 'HA' household) holds
 #define LK_N14 (LK_NECKW+1)   // looks a person format 14 slot (and an 'H>' / 'H?' household) holds
 #define LK_N13 (LK_FOOTSZ+1)   // looks a person format 13 slot (and an 'H=' household) holds
 #define LK_N12 (LK_WINGTONE+1)   // looks a person format 12 slot (and an 'H<' household) holds
@@ -145,8 +147,10 @@ enum { LK_SHAPE, LK_SKIN, LK_EYES, LK_MOUTH, LK_EARS, LK_HSTYLE, LK_HCOL, LK_TOP
 #define LK_NSL11 (LK_NSL10+(LK_HORNTONE-LK_CHESTW+1))   // sliders before format 12
 #define LK_NSL12 (LK_NSL11+(LK_WINGTONE-LK_TAILTAPER+1))   // sliders before format 13
 #define LK_NSL13 (LK_NSL12+(LK_FOOTSZ-LK_JAWW+1))   // sliders before format 14
-#define LK_NSL (LK_NSL13+1)   // how many looks are sliders (9 values each)
-#define LKPK14 ((LK_N14-LK_NSL)+(LK_NSL+1)/2)   // the same, in an 'H>' / 'H?' household (before GENDER)
+#define LK_NSL14 (LK_NSL13+1)   // sliders before format 16
+#define LK_NSL (LK_NSL14+(LK_CHEEKHT-LK_BROWSP+1))   // how many looks are sliders (9 values each)
+#define LKPK15 ((LK_N15-LK_NSL14)+(LK_NSL14+1)/2)   // the same, in an 'H@' / 'HA' household (before the format 16 sliders)
+#define LKPK14 ((LK_N14-LK_NSL14)+(LK_NSL14+1)/2)   // the same, in an 'H>' / 'H?' household (before GENDER)
 #define LKPK13 ((LK_N13-LK_NSL13)+(LK_NSL13+1)/2)   // the same, in an 'H=' household (before the format 14 slider)
 #define LKPK12 ((LK_N12-LK_NSL12)+(LK_NSL12+1)/2)   // the same, in an 'H<' household (before the format 13 sliders)
 #define LKPK11 ((LK_N11-LK_NSL11)+(LK_NSL11+1)/2)   // the same, in an 'H;' household (before the format 12 sliders)
@@ -158,7 +162,7 @@ enum { LK_SHAPE, LK_SKIN, LK_EYES, LK_MOUTH, LK_EARS, LK_HSTYLE, LK_HCOL, LK_TOP
 #define LK_N5 (LK_SHOE+1)    // looks a person format 5 slot holds
 #define LK_N4 (LK_BACK+1)    // looks a person format 4 slot holds   // LK_TONE, LK_EARSZ, LK_EARLF are sliders: 0 = middle, then 1..4 up, 5..8 down (see slidePos)
 #define LK_N3 (LK_EARLF+1)   // looks a person format 3 slot holds (the Spore parts TAIL, HORNS, BACK came with format 4)
-static inline int lkSlide(int id){ return (id>=LK_BASE&&id<=LK_EARLF)||(id>=LK_HEIGHT&&id<=LK_MOUTHHT)||(id>=LK_HTONE&&id<=LK_STANCE)||(id>=LK_BUTT&&id<=LK_WINGSZ)||(id>=LK_NECK&&id<=LK_EARWID)||(id>=LK_CHESTW&&id<=LK_HORNTONE)||(id>=LK_TAILTAPER&&id<=LK_WINGTONE)||(id>=LK_JAWW&&id<=LK_NECKW); }
+static inline int lkSlide(int id){ return (id>=LK_BASE&&id<=LK_EARLF)||(id>=LK_HEIGHT&&id<=LK_MOUTHHT)||(id>=LK_HTONE&&id<=LK_STANCE)||(id>=LK_BUTT&&id<=LK_WINGSZ)||(id>=LK_NECK&&id<=LK_EARWID)||(id>=LK_CHESTW&&id<=LK_HORNTONE)||(id>=LK_TAILTAPER&&id<=LK_WINGTONE)||(id>=LK_JAWW&&id<=LK_NECKW)||(id>=LK_BROWSP&&id<=LK_CHEEKHT); }
 static inline int slidePos(int v){ return (v+4)%9; }      // 0..8 left to right, the middle (stored 0) is 4
 #define BUTT_OFF 9   // look[LK_BUTT]: the seat switched off (the hidden switch past the slider's left end, lookStep); 0..8 are the slider
 static inline int slideVal(int p){ return (p+5)%9; }
@@ -584,25 +588,27 @@ __attribute__((noinline)) static void drawDeco(int sx,int sy,u16 code,int face,i
     int ci=(code>>3)&7, cj=(code>>6)&3, sz=((code>>8)&3)+1, fl=(code>>10)&1, aw=10*sp->wc-1;   // aw = art width in chars
     int wp=CA*sp->wc*sz-1, hp=CC*sz-2;   // footprint size in px (scales with the voxel size)
     const u16*pal=face?dR:dL;
-    int sh=0, sv=0, kx=64, ky=64, br=0, gl=0, no=0, ch=0, bsh=0, nsh=0;   // shift (px), scale (64 = 1x), details
+    int sh=0, sv=0, kx=64, ky=64, br=0, gl=0, no=0, ch=0, bsh=0, nsh=0, bsx=0, gsh=0, csh=0;   // shift (px), scale (64 = 1x), details
     if(decLook){
         // every notch of a face slider moves the art by a pixel, or grows its footprint by two (per voxel size): no two notches look the same
         if(eye){ int e=(slideEffS(look[LK_EYESZ])+(stage==AG_BABY?1:0))*sz, gw; e=e>0?2*e:e<0?e-sz:0; gw=wp+e; int gh=hp+e; if(gw<1) gw=1; if(gh<1) gh=1; kx=64*gw/wp; ky=64*gh/hp;
                  sh=slideEff(look[LK_EYESP])*sz; if(fl) sh=-sh; sv=slideEff(look[LK_EYEHT])*sz;
-                 br=look[LK_BROW]; gl=look[LK_GLASS]; bsh=slideEff(look[LK_BROWHT])*sz; }
-        else { int gw=wp+(slideEffS(look[LK_MOUTHW])-(stage==AG_BABY?1:0))*sz*3; if(gw<1) gw=1; kx=64*gw/wp; sv=slideEff(look[LK_MOUTHHT])*sz; no=look[LK_NOSE]; ch=look[LK_CHEEK]; nsh=slideEff(look[LK_NOSEHT])*sz; }
+                 br=look[LK_BROW]; gl=look[LK_GLASS]; bsh=slideEff(look[LK_BROWHT])*sz; gsh=slideEff(look[LK_GLASSHT])*sz; bsx=slideEff(look[LK_BROWSP])*sz; if(fl) bsx=-bsx; }
+        else { int gw=wp+(slideEffS(look[LK_MOUTHW])-(stage==AG_BABY?1:0))*sz*3; if(gw<1) gw=1; kx=64*gw/wp; sv=slideEff(look[LK_MOUTHHT])*sz; no=look[LK_NOSE]; ch=look[LK_CHEEK]; nsh=slideEff(look[LK_NOSEHT])*sz; csh=slideEff(look[LK_CHEEKHT])*sz; }
     }
     int M=decLook?(eye?4:7):0, pc=wp/2, qc=hp/2;
     int lc0=(ci?-1:0)-M, lr0=(cj?-1:0)-M, lc1=CA-1+M, lr1=CC-2+M;
     for(int lr=lr0;lr<lr1;lr++){
         int Q=cj*CC+lr+sv; Q=qc+((Q-qc)*64)/ky;
-        int Qb=Q+bsh, Qn=Q+nsh-sv;   // (the brows and nose may sit outside the art's own rows: they are checked on their own)
-        if((Q<0||Q>=hp)&&(!br||Qb<0||Qb>=hp)&&(!no||Qn<0||Qn>=hp)) continue;
+        int Qb=Q+bsh, Qn=Q+nsh-sv, Qg=Q+gsh, Qc=Q+csh;   // (the brows and nose may sit outside the art's own rows: they are checked on their own)
+        if((Q<0||Q>=hp)&&(!br||Qb<0||Qb>=hp)&&(!no||Qn<0||Qn>=hp)&&(!gl||Qg<0||Qg>=hp)&&(!ch||Qc<0||Qc>=hp)) continue;
         int ay0=Q>=0&&Q<hp?(Q*8)/hp:9, ay1=Q>=0&&Q<hp?((Q+1)*8-1)/hp:9; if(ay0<9){ if(ay0>7) ay0=7; if(ay1>7) ay1=7; if(ay1<ay0) ay1=ay0; }   // the art rows this pixel covers   // the brows (BROW HEIGHT) and the nose (NOSE HEIGHT) move on their own
-        int by0=Qb>=0&&Qb<hp?(Qb*8)/hp:9, by1=Qb>=0&&Qb<hp?((Qb+1)*8-1)/hp:9, ny0=Qn>=0&&Qn<hp?(Qn*8)/hp:9, ny1=Qn>=0&&Qn<hp?((Qn+1)*8-1)/hp:9;
+        int by0=Qb>=0&&Qb<hp?(Qb*8)/hp:9, by1=Qb>=0&&Qb<hp?((Qb+1)*8-1)/hp:9, ny0=Qn>=0&&Qn<hp?(Qn*8)/hp:9, ny1=Qn>=0&&Qn<hp?((Qn+1)*8-1)/hp:9,
+            gy0=Qg>=0&&Qg<hp?(Qg*8)/hp:9, gy1=Qg>=0&&Qg<hp?((Qg+1)*8-1)/hp:9, cy0=Qc>=0&&Qc<hp?(Qc*8)/hp:9, cy1=Qc>=0&&Qc<hp?((Qc+1)*8-1)/hp:9;   // GLASSES HEIGHT and CHEEK HEIGHT
         for(int lc=lc0;lc<lc1;lc++){
             int P=ci*CA+lc+sh; P=pc+((P-pc)*64)/kx; if(P<0||P>=wp) continue;
             int ax0=(P*aw)/wp, ax1=((P+1)*aw-1)/wp; if(ax0>aw-1) ax0=aw-1; if(ax1>aw-1) ax1=aw-1; if(ax1<ax0) ax1=ax0;
+            int bx0=-1, bx1=-1; if(br){ int Pb=pc+((ci*CA+lc+sh+bsx-pc)*64)/kx; if(Pb>=0&&Pb<wp){ bx0=(Pb*aw)/wp; bx1=((Pb+1)*aw-1)/wp; if(bx0>aw-1) bx0=aw-1; if(bx1>aw-1) bx1=aw-1; if(bx1<bx0) bx1=bx0; } }   // BROW SPACING: the brows on columns of their own
             // shrunk art: a pixel shows the art at its corner, or if that is clear any ink in the box it covers (else a one-row line, like the FLAT mouth, can fall
             // between the rows sampled and vanish)
             #define PICKR(A,rmax,Y0,Y1) ({ char t_=(Y0)<(rmax)?(A)[Y0][fl?aw-1-ax0:ax0]:'.'; for(int a_=(Y0);a_<=(Y1)&&a_<(rmax)&&t_=='.';a_++) for(int b_=ax0;b_<=ax1;b_++){ char u_=(A)[a_][fl?aw-1-b_:b_]; if(u_!='.'){ t_=u_; break; } } t_; })
@@ -610,11 +616,11 @@ __attribute__((noinline)) static void drawDeco(int sx,int sy,u16 code,int face,i
             char c=decNose?'.':PICK(sp->art,8);
             if(decNose){ if(!eye&&no) c=PICKR(noArt[no-1],2,ny0,ny1); }
             else if(eye){
-                if(br){ char t=PICKR(brArt[br-1],2,by0,by1); if(t!='.') c=t; }
-                if(gl){ char t=PICK(glArt[gl-1],8); if(t!='.') c=t; }
+                if(br&&bx0>=0){ int s0=ax0,s1=ax1; ax0=bx0; ax1=bx1; char t=PICKR(brArt[br-1],2,by0,by1); ax0=s0; ax1=s1; if(t!='.') c=t; }
+                if(gl){ char t=PICKR(glArt[gl-1],8,gy0,gy1); if(t!='.') c=t; }
             } else if(c=='.'){
                 if(no) c=PICKR(noArt[no-1],2,ny0,ny1);
-                if(c=='.'&&ch) c=PICK(chArt[ch-1],4);
+                if(c=='.'&&ch) c=PICKR(chArt[ch-1],4,cy0,cy1);
             }
             #undef PICK
             #undef PICKR
@@ -4480,7 +4486,7 @@ static int slkPack(int id){   // which pack a slider is in: -1 = an essential (a
     switch(id){
       case LK_HEIGHT: case LK_WEIGHT: case LK_TONE: case LK_EYESZ: case LK_EYETONE: case LK_HTONE: case LK_TTONE: case LK_BTONE: return -1;
       // free from the start too (a new player should not feel boxed in): the whole face, the main body proportions, the butt and ear size
-      case LK_EYESP: case LK_EYEHT: case LK_BROWHT: case LK_NOSEHT: case LK_MOUTHW: case LK_MOUTHHT: case LK_JAWW:
+      case LK_EYESP: case LK_EYEHT: case LK_BROWHT: case LK_NOSEHT: case LK_MOUTHW: case LK_MOUTHHT: case LK_JAWW: case LK_BROWSP: case LK_GLASSHT: case LK_CHEEKHT:
       case LK_TORSO: case LK_ARMS: case LK_LEGW: case LK_HEADSZ: case LK_NECK: case LK_SHOULW: case LK_WAISTW: case LK_HIPW: case LK_BUTT: case LK_EARSZ: return -1;
       case LK_STANCE: case LK_ARMW: case LK_HANDFT: return 0;
       case LK_NECKW: case LK_THIGHW: case LK_CALFW: case LK_CHESTW: case LK_BELLYW:
@@ -4537,8 +4543,8 @@ static const char* const shoeNm[6]={"AS THE BOTTOM","WHITE","BLACK","RED","GOLD"
 #define LK_AGE LK_N   // the AGE row is not part of look[]: it picks the life stage
 static const char* const sexNm[SX_N]={"FEMALE","MALE","NONBINARY"};
 static const char* const* const lookNm[LK_N+1]={shapeNm,0,eyeNm,mouthNm,earNm,hairNm,0,0,0,0,0,0,tailNm,hornNm,backNm,hatNm,hatColNm,beardNm,topStyNm,botStyNm,shoeNm,
-                                                browNm,noseNm,cheekNm,glassNm,0,0,0,0,0,0,0,0,clawNm,antNm,patNm,patColNm,0,0,0,0,0,0,0,0,0,fearNm,muzNm,ftailNm,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,tipNm,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,sexNm,stageNm};
-_Static_assert(LK_N==104,"lookNm / lookCol / cnt need a slot for every look");
+                                                browNm,noseNm,cheekNm,glassNm,0,0,0,0,0,0,0,0,clawNm,antNm,patNm,patColNm,0,0,0,0,0,0,0,0,0,fearNm,muzNm,ftailNm,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,tipNm,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,sexNm,0,0,0,stageNm};
+_Static_assert(LK_N==107,"lookNm / lookCol / cnt need a slot for every look");
 static const u16* const lookCol[LK_N+1]={0,skinTones,0,0,0,0,hairTones,topTones,botTones,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,eyeTones,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 #define TROWS 40   // most rows a tab holds; the card shows 5 at a time and scrolls
 static const Row tabRow[NTAB][TROWS]={
@@ -4546,9 +4552,9 @@ static const Row tabRow[NTAB][TROWS]={
    {"TORSO",0,RK_SLIDE,LK_TORSO,9},{"ARMS",0,RK_SLIDE,LK_ARMS,9},{"STANCE",0,RK_SLIDE,LK_STANCE,9},{"LEG WIDTH",0,RK_SLIDE,LK_LEGW,9},{"ARM WIDTH",0,RK_SLIDE,LK_ARMW,9},{"HEAD SIZE",0,RK_SLIDE,LK_HEADSZ,9},{"HAND FOOT SIZE",0,RK_SLIDE,LK_HANDFT,9},{"NECK LENGTH",0,RK_SLIDE,LK_NECK,9},{"NECK WIDTH",0,RK_SLIDE,LK_NECKW,9},{"HIP WIDTH",0,RK_SLIDE,LK_HIPW,9},{"WAIST WIDTH",0,RK_SLIDE,LK_WAISTW,9},{"SHOULDERS",0,RK_SLIDE,LK_SHOULW,9},{"THIGH WIDTH",0,RK_SLIDE,LK_THIGHW,9},{"CALF WIDTH",0,RK_SLIDE,LK_CALFW,9},{"CHEST",0,RK_SLIDE,LK_CHESTW,9},{"BELLY",0,RK_SLIDE,LK_BELLYW,9},{"UPPER ARM",0,RK_SLIDE,LK_UARMW,9},{"FOREARM",0,RK_SLIDE,LK_FARMW,9},{"JAW WIDTH",0,RK_SLIDE,LK_JAWW,9},{"HAND SIZE",0,RK_SLIDE,LK_HANDSZ,9},{"FOOT SIZE",0,RK_SLIDE,LK_FOOTSZ,9},
    {"SKIN",0,RK_SWATCH,LK_SKIN,NSKIN},{"SKIN TONE",0,RK_SLIDE,LK_TONE,9},{"BUTT",0,RK_SLIDE,LK_BUTT,9},{"BUTT HEIGHT",0,RK_SLIDE,LK_BUTTH,9},{"BUTT WIDTH",0,RK_SLIDE,LK_BUTTW,9}},   // (the BUTT rows last: cut from the tab below teen)
   {{"EYES",0,RK_PICK,LK_EYES,NEYE},{"EYE COLOUR",0,RK_SWATCH,LK_EYECOL,NSW},{"EYE SHADE",0,RK_SLIDE,LK_EYETONE,9},{"EYE SIZE",0,RK_SLIDE,LK_EYESZ,9},{"EYE SPACING",0,RK_SLIDE,LK_EYESP,9},
-   {"EYE HEIGHT",0,RK_SLIDE,LK_EYEHT,9},{"BROWS",0,RK_PICK,LK_BROW,NBROW},{"BROW HEIGHT",0,RK_SLIDE,LK_BROWHT,9},{"GLASSES",0,RK_PICK,LK_GLASS,NGLASS},{"NOSE",0,RK_PICK,LK_NOSE,NNOSE},
+   {"EYE HEIGHT",0,RK_SLIDE,LK_EYEHT,9},{"BROWS",0,RK_PICK,LK_BROW,NBROW},{"BROW HEIGHT",0,RK_SLIDE,LK_BROWHT,9},{"BROW SPACING",0,RK_SLIDE,LK_BROWSP,9},{"GLASSES",0,RK_PICK,LK_GLASS,NGLASS},{"GLASSES HEIGHT",0,RK_SLIDE,LK_GLASSHT,9},{"NOSE",0,RK_PICK,LK_NOSE,NNOSE},
    {"NOSE HEIGHT",0,RK_SLIDE,LK_NOSEHT,9},
-   {"MOUTH",0,RK_PICK,LK_MOUTH,NMOUTH},{"MOUTH WIDTH",0,RK_SLIDE,LK_MOUTHW,9},{"MOUTH HEIGHT",0,RK_SLIDE,LK_MOUTHHT,9},{"CHEEKS",0,RK_PICK,LK_CHEEK,NCHEEK},
+   {"MOUTH",0,RK_PICK,LK_MOUTH,NMOUTH},{"MOUTH WIDTH",0,RK_SLIDE,LK_MOUTHW,9},{"MOUTH HEIGHT",0,RK_SLIDE,LK_MOUTHHT,9},{"CHEEKS",0,RK_PICK,LK_CHEEK,NCHEEK},{"CHEEK HEIGHT",0,RK_SLIDE,LK_CHEEKHT,9},
    {"EARS",0,RK_PICK,LK_EARS,3},{"EAR SIZE",0,RK_SLIDE,LK_EARSZ,9},{"EAR HEIGHT",0,RK_SLIDE,LK_EARLF,9},{"EAR FRONT BACK",0,RK_SLIDE,LK_EARFWD,9},{"EAR SPREAD",0,RK_SLIDE,LK_EARSPR,9},{"EAR WIDTH",0,RK_SLIDE,LK_EARWID,9}},
   {{"STYLE",0,RK_PICK,LK_HSTYLE,NHAIR},{"COLOUR",0,RK_SWATCH,LK_HCOL,NSW},{"HAIR TONE",0,RK_SLIDE,LK_HTONE,9},{"BEARD",0,RK_PICK,LK_BEARD,3},{"HAT",0,RK_PICK,LK_HAT,6},{"HAT COLOUR",0,RK_PICK,LK_HATCOL,6}},
   {{"TOP",0,RK_SWATCH,LK_TOP,NSW},{"TOP TONE",0,RK_SLIDE,LK_TTONE,9},{"BOTTOM",0,RK_SWATCH,LK_BOT,NSW},{"BOTTOM TONE",0,RK_SLIDE,LK_BTONE,9},{"TOP STYLE",0,RK_PICK,LK_TOPSTY,5},{"BOTTOM STYLE",0,RK_PICK,LK_BOTSTY,4},{"SHOES",0,RK_PICK,LK_SHOE,6}},
@@ -4934,7 +4940,7 @@ static void famMenu(void){
     static char t[32] EWRAM_BSS; simCat(simCat(t,"NOW EDITING "),hhPName); toast(t);
 }
 #include "hhcreate.h"   // CREATE-A-HOUSEHOLD: the DONE tab's HOUSEHOLD row (add Sims, who is whose mother / sister / roommate)
-static const u8 lkCnt[LK_N]={NSHAPE,NSKIN,NEYE,NMOUTH,3,NHAIR,NSW,NSW,NSW,9,9,9,3,3,3,6,6,3,4,3,6, NBROW,NNOSE,NCHEEK,NGLASS,NSW, 9,9,9,9,9,9,9, 4,3,7,6, 9,9,9,9,9,9,9,9,9, 5,4,4, 9,9,9, 9,9,9,9,9,9,9, 9,9,9,9,9,9,9, 9,9,9,7, 9,9,9, 9, [LK_SEX]=SX_N};   // how many options each look row has (sliders: 9)
+static const u8 lkCnt[LK_N]={NSHAPE,NSKIN,NEYE,NMOUTH,3,NHAIR,NSW,NSW,NSW,9,9,9,3,3,3,6,6,3,4,3,6, NBROW,NNOSE,NCHEEK,NGLASS,NSW, 9,9,9,9,9,9,9, 4,3,7,6, 9,9,9,9,9,9,9,9,9, 5,4,4, 9,9,9, 9,9,9,9,9,9,9, 9,9,9,9,9,9,9, 9,9,9,7, 9,9,9, 9, [LK_SEX]=SX_N, 9,9,9};   // how many options each look row has (sliders: 9)
 static void lookRandom(void){   // the dice (like Create-A-Bore): a whole new look and personality, only from what this stage and your unlocked parts allow
     const u8*cnt=lkCnt;
     for(int id=0;id<LK_N;id++){

@@ -1447,7 +1447,7 @@ static int hhPlaceOf(int u){ if(u==hhPUid) return 0; for(int i=0;i<hhN;i++) if(h
 #define HH_RELB (4*HU_N*HU_N)   // daily, lifetime, flags and (from 'H?') kin, for every pair of uids
 static void hhSave(void){
     volatile u8*m=SRAM_BASE+HH_OFF; int k=3; u8 sum=0x48;
-    m[0]='H'; m[1]='A'; m[2]=(u8)hhN; m[k++]=(u8)hhPUid;   // 'H:' = 'H9' for 8 Sims (8 uids); 'H;' adds the format 11 sliders; 'H?' adds the kin (who is whose mother, sister, roommate); 'H@' adds GENDER and the family tail; 'HA' the town relationships
+    m[0]='H'; m[1]='B'; m[2]=(u8)hhN; m[k++]=(u8)hhPUid;   // 'H:' = 'H9' for 8 Sims (8 uids); 'H;' adds the format 11 sliders; 'H?' adds the kin (who is whose mother, sister, roommate); 'H@' adds GENDER and the family tail; 'HA' the town relationships; 'HB' the format 16 sliders
     for(int j=0;j<HH_NM;j++) m[k++]=(u8)hhPName[j];
     for(int j=0;j<HH_NM;j++) m[k++]=(u8)hhPLast[j];   // your own name
     for(int i=0;i<hhN;i++){ const HhSim*s=&hhM[i];
@@ -1478,7 +1478,7 @@ static int hhUidsOf(int ver){ return ver<'6'?HH_MAXOLD+1:ver<=':'-1?HH_MAX9+1:HU
 // or it would not fit in avail bytes. ('HA': the town tail's own count says how long it is.)
 static int hhSumAt(volatile u8*m,int avail){
     int hu=hhUidsOf(m[1]);   // before 'H6': 10 uids; 'H6'..'H9': 14; 'H:': 8
-    int v7=m[1]>='7', nb=v7?2*HH_NM:10, nl=m[1]>='@'?LKPK:m[1]>='>'?LKPK14:m[1]>='='?LKPK13:m[1]>='<'?LKPK12:m[1]>=';'?LKPK11:m[1]>='9'?LKPK10:m[1]>='8'?LK_N9:v7?LK_N8:m[1]>='5'?LK_N7:m[1]=='4'?LK_N6:m[1]=='3'?LK_N5:LK_N4, rec=HH_REC-LKPK+nl-2*HH_NM+nb;   // 'H2' households were saved before the hats and clothes, 'H3' before the face details and sliders
+    int v7=m[1]>='7', nb=v7?2*HH_NM:10, nl=m[1]>='B'?LKPK:m[1]>='@'?LKPK15:m[1]>='>'?LKPK14:m[1]>='='?LKPK13:m[1]>='<'?LKPK12:m[1]>=';'?LKPK11:m[1]>='9'?LKPK10:m[1]>='8'?LK_N9:v7?LK_N8:m[1]>='5'?LK_N7:m[1]=='4'?LK_N6:m[1]=='3'?LK_N5:LK_N4, rec=HH_REC-LKPK+nl-2*HH_NM+nb;   // 'H2' households were saved before the hats and clothes, 'H3' before the face details and sliders
     int n=m[2], hb=v7?2*HH_NM:0, k=4+hb+n*rec+3*hu*hu+(m[1]>='?'?hu*hu:0)+(m[1]>='@'?n+3:0);
     if(m[1]>='A'){ if(k+3>avail||m[k+2]>NR_N) return -1; k+=3+NR_B*m[k+2]; }
     return k+1>avail?-1:k;
@@ -1491,7 +1491,7 @@ static int hhFyOk(u8 sum,int n){ volatile u8*f=SRAM_BASE+HH_FY_OFF; u8 s=0x46; f
 static void hhLoad(void){
     volatile u8*m=SRAM_BASE+HH_OFF; u8 sum=0x48; hhN=0; for(int j=0;j<HH_MAX;j++) hhFlLd[j]=0;
     famReset(); nrN=0; nrKey=0;
-    if(m[0]!='H'||m[1]<'2'||m[1]>'A'||m[2]>(m[1]>=':'?HH_MAX:HH_MAX9)) return;
+    if(m[0]!='H'||m[1]<'2'||m[1]>'B'||m[2]>(m[1]>=':'?HH_MAX:HH_MAX9)) return;
     int hu=hhUidsOf(m[1]), n=m[2], k=hhSumAt(m,SL_HH_LEN); if(k<0) return;
     for(int i=2;i<k;i++) sum+=m[i]; if(m[k]!=sum) return;
     if(m[3]>=hu) return;
@@ -1502,7 +1502,7 @@ static void hhLoad(void){
     if(v7){ for(int j=0;j<HH_NM;j++) hhPName[j]=(char)m[k++]; for(int j=0;j<HH_NM;j++) hhPLast[j]=(char)m[k++]; hhPName[HH_NM-1]=hhPLast[HH_NM-1]=0; if(!hhPName[0]){ hhPName[0]='Y'; hhPName[1]='O'; hhPName[2]='U'; hhPName[3]=0; } }
     int kept=0;
     for(int i=0;i<n;i++){ HhSim tmp, *s=i<HH_MAX?&hhM[i]:&tmp;
-        if(m[1]>='9'){ int lim=m[1]>='@'?LK_N:m[1]>='>'?LK_N14:fy?LK_N12:m[1]>='='?LK_N13:m[1]>='<'?LK_N12:m[1]>=';'?LK_N11:LK_N10; for(int j=0;j<LK_N;j++) s->look[j]=0; for(int j=0;j<lim;j++) if(!lkSlide(j)) s->look[j]=m[k++];   // 'H:' and older: no format 11 looks
+        if(m[1]>='9'){ int lim=m[1]>='B'?LK_N:m[1]>='@'?LK_N15:m[1]>='>'?LK_N14:fy?LK_N12:m[1]>='='?LK_N13:m[1]>='<'?LK_N12:m[1]>=';'?LK_N11:LK_N10; for(int j=0;j<LK_N;j++) s->look[j]=0; for(int j=0;j<lim;j++) if(!lkSlide(j)) s->look[j]=m[k++];   // 'H:' and older: no format 11 looks
           if(fy) s->look[LK_SEX]=m[k++];   // (the test build's GENDER: the last pick, before the sliders)
           int h=-1; for(int j=0;j<lim;j++) if(lkSlide(j)){ if(h<0){ int b=m[k++]; s->look[j]=(u8)(b&15); h=b>>4; } else { s->look[j]=(u8)h; h=-1; } } }
         else for(int j=0;j<LK_N;j++) s->look[j]=j<nl?m[k++]:0;
@@ -1542,7 +1542,7 @@ static void hhLoad(void){
 // How many bytes the household block at m takes (its header, count, uids and checksum all check out), or 0 if it is not a good household
 // or does not fit in avail bytes. The household slots (slots.h) use it to copy a household in and out of SRAM without touching hhM.
 static int hhBlockLen(volatile u8*m,int avail){
-    if(avail<4||m[0]!='H'||m[1]<'2'||m[1]>'A'||m[2]>(m[1]>=':'?HH_MAX:HH_MAX9)) return 0;
+    if(avail<4||m[0]!='H'||m[1]<'2'||m[1]>'B'||m[2]>(m[1]>=':'?HH_MAX:HH_MAX9)) return 0;
     int hu=hhUidsOf(m[1]), k=hhSumAt(m,avail); if(k<0) return 0;
     u8 sum=0x48; for(int i=2;i<k;i++) sum+=m[i]; if(m[k]!=sum||m[3]>=hu) return 0;
     return k+1;
