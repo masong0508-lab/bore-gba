@@ -2272,7 +2272,10 @@ static int moveH(s32 fx,s32 fy){   // the height a step into (fx,fy) has to clea
 // Colour lookups for the sprite palette and the two quantisers (house.h): a small open-addressing hash from a 15-bit colour to a slot (key 0xFFFF = empty).
 // The sprites hold about 40 colours, so a lookup is one or two probes instead of a walk through the list.
 #define HQ_N 512
-static u16 hqKey[HQ_N] EWRAM_BSS; static u8 hqVal[HQ_N] EWRAM_BSS;
+static u16 bfsQ[MH*MW] EWRAM_BSS;   // (the search queue, defined again further down: the same array)
+#define hqKey ((u16*)bfsQ)                 // the bake's colour hash lives in the search queue: it is scratch of a bake (hqClear / sprHashBuild start every use),
+#define hqVal (((u8*)bfsQ)+HQ_N*2)         // and no search runs during a bake (the bake already borrows hhDist the same way: hhQs). 1.5 KB of EWRAM
+_Static_assert(HQ_N*3<=MH*MW*2,"the bake's colour hash must fit in the search queue");
 static void hqClear(void){ for(int i=0;i<HQ_N;i++) hqKey[i]=0xFFFF; }
 static inline int hqSlot(u16 c){ int h=(int)(((u32)c*40503u)>>7)&(HQ_N-1); while(hqKey[h]!=0xFFFF&&hqKey[h]!=c) h=(h+1)&(HQ_N-1); return h; }
 static inline int hqDist(u16 a,u16 b){ int dr=(a&31)-(b&31), dg=((a>>5)&31)-((b>>5)&31), db=((a>>10)&31)-((b>>10)&31); return dr*dr*3+dg*dg*4+db*db*2; }
