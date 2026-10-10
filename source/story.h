@@ -11,29 +11,33 @@
 _Static_assert(OPT_OFF+3+XO_N+1<=STORY_OFF&&STORY_OFF+8<=SLOT_DIR,"the story block overlaps the options or the slot directory");
 enum { STY_NONE, STY_ROOM, STY_WED, STY_PARENT, STY_SKATE, STY_HOUSE, STY_FRIEND, STY_RAGS, STY_CLIMB, STY_TOWN, STY_SECOND, STY_TVSHOW, STY_N };   // (new stories go at the END: the saved story number stays valid)
 enum { SG_FRIEND, SG_LOVE, SG_STEADY, SG_JOB, SG_MONEY, SG_KID, SG_KIDFRIEND, SG_GUEST, SG_END,
-    SG_SKILL, SG_TRICKS, SG_WANTS, SG_HOUSE, SG_FRIENDS, SG_BFF, SG_DAYS, SG_SCRIPT, SG_MULTI };   // (SG_SCRIPT: no number to count: only a scripted cutscene ends the chapter, with stComplete)
+    SG_SKILL, SG_TRICKS, SG_WANTS, SG_HOUSE, SG_FRIENDS, SG_BFF, SG_DAYS, SG_SCRIPT, SG_MULTI, SG_TASKS };   // SG_TASKS: the chapter's tasks (stBk), all ticked   // (SG_SCRIPT: no number to count: only a scripted cutscene ends the chapter, with stComplete)
 //   TV SHOW & TELL  drama: a fallen TV judge wins her fans back in five chapters (Dancing with the Bars, Pull Yourself a Sweater, The Winner Takes It All, The Loser Has To Fall, While She's Dancing with the Stars)   // (the last seven: skill level, tricks landed, wants fulfilled, Sims in the house, friends in the house, a best friend, days since the chapter began)
 typedef struct { const char* nm; u8 goal; u32 arg; } StCh;
-static const StCh stRoom[]={ {"BECOME FRIENDS WITH YOUR ROOMMATE",SG_FRIEND,0}, {"FALL IN LOVE",SG_LOVE,0}, {"GO STEADY",SG_STEADY,0},
-    {"GET A PROMOTION",SG_JOB,1}, {"A CHILD COMES HOME",SG_KID,0}, {"THE END  A FAMILY OF YOUR OWN",SG_END,0} };
-static const StCh stWed[]={ {"GET A PROMOTION",SG_JOB,1}, {"SAVE 40000 SIMOLEONS",SG_MONEY,40000}, {"A CHILD COMES HOME",SG_KID,0},
-    {"BECOME YOUR KID'S FRIEND",SG_KIDFRIEND,0}, {"SAVE 100000 SIMOLEONS",SG_MONEY,100000}, {"THE END  HAPPY EVER AFTER",SG_END,0} };
-static const StCh stPar[]={ {"GET A PROMOTION",SG_JOB,1}, {"BECOME YOUR KID'S FRIEND",SG_KIDFRIEND,0}, {"SAVE 32000 SIMOLEONS",SG_MONEY,32000},
-    {"HAVE A NEIGHBOR OVER",SG_GUEST,0}, {"GET ANOTHER PROMOTION",SG_JOB,2}, {"THE END  YOU MADE IT WORK",SG_END,0} };
-static const StCh stSkate[]={ {"LAND 20 TRICKS",SG_TRICKS,20}, {"REACH SKILL LEVEL 2",SG_SKILL,2}, {"GET A PROMOTION",SG_JOB,1},
-    {"LAND 150 TRICKS",SG_TRICKS,150}, {"REACH SKILL LEVEL 4",SG_SKILL,4}, {"THE END  A TRUE SKATER",SG_END,0} };
-static const StCh stHouse[]={ {"BECOME FRIENDS WITH A HOUSEMATE",SG_FRIEND,0}, {"MAKE 3 FRIENDS",SG_FRIENDS,3}, {"FILL THE HOUSE WITH 4 SIMS",SG_HOUSE,4},
-    {"GET A PROMOTION",SG_JOB,1}, {"SAVE 60000 SIMOLEONS",SG_MONEY,60000}, {"THE END  A HOUSE FULL OF LIFE",SG_END,0} };
-static const StCh stFriend[]={ {"MAKE A BEST FRIEND",SG_BFF,0}, {"MAKE 2 FRIENDS",SG_FRIENDS,2}, {"HAVE A NEIGHBOR OVER",SG_GUEST,0},
-    {"FULFIL 5 WANTS",SG_WANTS,5}, {"SAVE 20000 SIMOLEONS",SG_MONEY,20000}, {"THE END  FRIENDS FOR LIFE",SG_END,0} };
-static const StCh stRags[]={ {"SAVE 12000 SIMOLEONS",SG_MONEY,12000}, {"GET A PROMOTION",SG_JOB,1}, {"SAVE 40000 SIMOLEONS",SG_MONEY,40000},
-    {"GET ANOTHER PROMOTION",SG_JOB,2}, {"SAVE 120000 SIMOLEONS",SG_MONEY,120000}, {"THE END  RICH AT LAST",SG_END,0} };
-static const StCh stClimb[]={ {"GET A PROMOTION",SG_JOB,1}, {"SAVE 24000 SIMOLEONS",SG_MONEY,24000}, {"FULFIL 5 WANTS",SG_WANTS,5},
-    {"GET ANOTHER PROMOTION",SG_JOB,2}, {"REACH SKILL LEVEL 3",SG_SKILL,3}, {"THE END  TOP OF THE LADDER",SG_END,0} };
-static const StCh stTown[]={ {"BECOME FRIENDS WITH A HOUSEMATE",SG_FRIEND,0}, {"MAKE 2 FRIENDS",SG_FRIENDS,2}, {"HAVE A NEIGHBOR OVER",SG_GUEST,0},
-    {"FILL THE HOUSE WITH 3 SIMS",SG_HOUSE,3}, {"FULFIL 8 WANTS",SG_WANTS,8}, {"THE END  YOU BELONG HERE",SG_END,0} };
-static const StCh stSecond[]={ {"BECOME FRIENDS AGAIN",SG_FRIEND,0}, {"FALL BACK IN LOVE",SG_LOVE,0}, {"GO STEADY AGAIN",SG_STEADY,0},
-    {"SURVIVE 14 MORE DAYS",SG_DAYS,14}, {"SAVE 32000 SIMOLEONS",SG_MONEY,32000}, {"THE END  WORTH FIXING",SG_END,0} };
+// THE FIRST TEN STORIES (story step 4) are stories now: each chapter is a scene with a title, two lines of what is going on (stBk, the chapter
+// card and the journal) and up to three TASKS (stBk) that tick off in any order and stay ticked. The tasks take you round the town and the
+// game: the skate park, the lounge, the plaza, the park, old town, the arms shop and the prison; skating, the career, the phone, fights,
+// friends and love. A place task can take you there from the journal (GO THERE: travel.h). The rows here are the chapter titles.
+static const StCh stRoom[]={ {"THE NEW ROOMMATE",SG_TASKS,0}, {"SKATE DATE",SG_TASKS,0}, {"SOMETHING MORE",SG_TASKS,0},
+    {"THE LOUNGE",SG_TASKS,0}, {"A CHILD COMES HOME",SG_KID,0}, {"THE END  A FAMILY OF YOUR OWN",SG_END,0} };
+static const StCh stWed[]={ {"BILLS BILLS BILLS",SG_TASKS,0}, {"DATE NIGHT",SG_TASKS,0}, {"A CHILD COMES HOME",SG_KID,0},
+    {"FAMILY DAY",SG_TASKS,0}, {"MOVING UP",SG_TASKS,0}, {"THE END  HAPPY EVER AFTER",SG_END,0} };
+static const StCh stPar[]={ {"JUST US TWO",SG_TASKS,0}, {"FRESH AIR",SG_TASKS,0}, {"MONEY IS TIGHT",SG_TASKS,0},
+    {"OPEN DOOR",SG_TASKS,0}, {"ONE MORE STEP",SG_TASKS,0}, {"THE END  YOU MADE IT WORK",SG_END,0} };
+static const StCh stSkate[]={ {"THE DRIVEWAY",SG_TASKS,0}, {"THE SKATE PARK",SG_TASKS,0}, {"S K A T E",SG_TASKS,0},
+    {"GOING PRO",SG_TASKS,0}, {"THE WHOLE TOWN WATCHING",SG_TASKS,0}, {"THE END  A TRUE SKATER",SG_END,0} };
+static const StCh stHouse[]={ {"HOUSE RULES",SG_TASKS,0}, {"MAKE IT NICE",SG_TASKS,0}, {"OPEN HOUSE",SG_TASKS,0},
+    {"THE OLD TOWN CROWD",SG_TASKS,0}, {"FOUR PEOPLE ONE FRIDGE",SG_TASKS,0}, {"THE END  A HOUSE FULL OF LIFE",SG_END,0} };
+static const StCh stFriend[]={ {"TWO NEW FACES",SG_TASKS,0}, {"NIGHT OUT",SG_TASKS,0}, {"RIDE OR DIE",SG_TASKS,0},
+    {"THE BIG HANGOUT",SG_TASKS,0}, {"DREAMS AND SAVINGS",SG_TASKS,0}, {"THE END  FRIENDS FOR LIFE",SG_END,0} };
+static const StCh stRags[]={ {"NOTHING BUT A BED",SG_TASKS,0}, {"EASY MONEY",SG_TASKS,0}, {"BUSTED",SG_TASKS,0},
+    {"OUT",SG_TASKS,0}, {"GOING STRAIGHT",SG_TASKS,0}, {"THE END  RICH AT LAST",SG_END,0} };
+static const StCh stClimb[]={ {"FIRST DAY",SG_TASKS,0}, {"NETWORKING",SG_TASKS,0}, {"THE FIRST STEP",SG_TASKS,0},
+    {"THE BIG DEAL",SG_TASKS,0}, {"CORNER OFFICE",SG_TASKS,0}, {"THE END  TOP OF THE LADDER",SG_END,0} };
+static const StCh stTown[]={ {"UNPACKING",SG_TASKS,0}, {"SEE THE SIGHTS",SG_TASKS,0}, {"THE LOCALS",SG_TASKS,0},
+    {"OPEN HOUSE",SG_TASKS,0}, {"THE SKATE PARK CROWD",SG_TASKS,0}, {"THE END  YOU BELONG HERE",SG_END,0} };
+static const StCh stSecond[]={ {"THE COLD SHOULDER",SG_TASKS,0}, {"OLD HABITS",SG_TASKS,0}, {"FALLING AGAIN",SG_TASKS,0},
+    {"PROVE IT",SG_TASKS,0}, {"A HOME WORTH IT",SG_TASKS,0}, {"THE END  WORTH FIXING",SG_END,0} };
 static const StCh stTv[]={ {"DANCING WITH THE BARS",SG_MULTI,0}, {"PULL YOURSELF A SWEATER",SG_MULTI,0}, {"THE WINNER TAKES IT ALL...",SG_MULTI,0},
     {"...THE LOSER HAS TO FALL",SG_MULTI,0}, {"WHILE SHE'S DANCING WITH THE STARS",SG_MULTI,0}, {"THE END  HERE TODAY",SG_END,0} };
 _Static_assert(sizeof(stTv)/sizeof(stTv[0])==6,"a story has five chapters and the END row");
@@ -43,6 +47,82 @@ static const char* const stTvBrief[5][2]={ {"HUNGOVER AND UNSTEADY  PULL YOURSEL
     {"THE PAPARAZZI ARE EVERYWHERE  BUILD","A PRIVATE HOUSE WITH TIGHT SECURITY"},
     {"YOU ARE MAMESY NOW  KEEP HOPE ALIVE","AND STOP THE PLUG BEING PULLED"},
     {"YOUR COMEBACK SHOW IS READY  NOTHING","CAN GO WRONG  RIGHT"} };
+// THE TASKS of the first ten stories: per chapter two lines of story and up to three tasks (a SG_KID chapter has the lines and no tasks).
+// A task: QK_AT a place (CT_ kind: SKATE takes a PARK + SKATE lot too), QK_HOME back home, QK_EV a life event (SE_, or a story event QE_; n = the
+// least it counts, a combo's length), QK_FRIEND / LOVE / STEADY / BFF with the story's partner, QK_FRIENDS n friends, QK_MONEY, QK_JOB the career
+// level, QK_SKATE the skating level, QK_LSKILL a life skill (a) at level n, QK_TRICKS / WANTS lifetime counts, QK_HOUSE Sims living here,
+// QK_GUEST a neighbor over, QK_KIDFRIEND your kid's friend, QK_ROOM a room that looks great (80), QK_BUSTED the cops take you in (the story does it),
+// QK_FREE out of prison again.
+enum { QK_NONE, QK_AT, QK_HOME, QK_EV, QK_FRIEND, QK_LOVE, QK_STEADY, QK_BFF, QK_FRIENDS, QK_MONEY, QK_JOB, QK_SKATE, QK_LSKILL, QK_TRICKS, QK_WANTS,
+       QK_HOUSE, QK_GUEST, QK_KIDFRIEND, QK_ROOM, QK_BUSTED, QK_FREE };
+typedef struct { u8 k, a; u32 n; const char* nm; } StT;
+typedef struct { const char* br[2]; StT t[3]; } StB;
+#define T_AT(c,nm)   {QK_AT,c,0,nm}
+#define T_EV(e,n,nm) {QK_EV,e,n,nm}
+static const StB stBk[10][5]={
+  { // ROOMMATES: Jad moves into a flatshare with Brannet
+    {{"BRANNET KEEPS TO HERSELF","FOOD AND A CHAT BREAK THE ICE"},{T_EV(QE_FOOD,1,"ORDER FOOD ON THE PHONE"),{QK_FRIEND,0,0,"BECOME FRIENDS WITH BRANNET"}}},
+    {{"SHE SAYS SHE SKATES BETTER","PROVE IT AT THE SKATE PARK"},{T_AT(CT_SKATE,"GO TO THE SKATE PARK"),T_EV(SE_COMBO,3,"LAND A 3 TRICK COMBO")}},
+    {{"BACK HOME IT FEELS DIFFERENT","MAKE HER LAUGH  WIN HER HEART"},{T_EV(SE_LAUGH,1,"TELL A JOKE"),{QK_LOVE,0,0,"FALL IN LOVE WITH BRANNET"}}},
+    {{"A FIRST REAL DATE AT THE","LOUNGE  THEN MAKE IT OFFICIAL"},{T_AT(CT_LOUNGE,"GO TO THE LOUNGE"),{QK_STEADY,0,0,"GO STEADY WITH BRANNET"}}},
+    {{"JAD AND BRANNET ARE READY","A CHILD COMES HOME TOMORROW"}} },
+  { // NEWLYWEDS
+    {{"THE HONEYMOON IS OVER  WORK","A SHIFT  MAKE THE PLACE NICE"},{T_EV(SE_SHIFT,1,"WORK A SHIFT"),{QK_ROOM,0,0,"MAKE A ROOM LOOK GREAT"}}},
+    {{"ELI MISSES GOING OUT  A CAB","TO THE LOUNGE AND SOME MUSIC"},{T_AT(CT_LOUNGE,"GO TO THE LOUNGE"),T_EV(SE_RADIO,1,"PLAY THE RADIO OR STEREO")}},
+    {{"THE NURSERY IS READY","SOMEONE SMALL IS ON THE WAY"}},
+    {{"A DAY AT THE PARK  THEN BE","THERE FOR YOUR KID"},{T_AT(CT_PARK,"GO TO THE PARK"),{QK_KIDFRIEND,0,0,"BECOME YOUR KID'S FRIEND"}}},
+    {{"A BIGGER FAMILY NEEDS A","BIGGER PAYCHECK"},{{QK_JOB,0,1,"GET A PROMOTION"},{QK_MONEY,0,100000,"SAVE 100000 SIMOLEONS"}}} },
+  { // SINGLE PARENT
+    {{"JUNIE MISSES THE OLD HOUSE","TV TOGETHER  THEN WORK"},{T_EV(SE_TV,1,"WATCH TV"),T_EV(SE_SHIFT,1,"WORK A SHIFT")}},
+    {{"A DAY AT THE PARK  YOU BOTH","COULD USE A FRIEND"},{T_AT(CT_PARK,"GO TO THE PARK"),{QK_FRIENDS,0,1,"MAKE A FRIEND"}}},
+    {{"READ UP AT HOME AND ASK THE","BOSS FOR MORE"},{T_EV(SE_READ,1,"READ A BOOK"),{QK_JOB,0,1,"GET A PROMOTION"}}},
+    {{"JUNIE WANTS COMPANY  CALL","A NEIGHBOR OVER"},{{QK_GUEST,0,0,"HAVE A NEIGHBOR OVER"},{QK_KIDFRIEND,0,0,"BECOME YOUR KID'S FRIEND"}}},
+    {{"ONE MORE STEP UP THE LADDER","AND A NEST EGG FOR JUNIE"},{{QK_JOB,0,2,"GET ANOTHER PROMOTION"},{QK_MONEY,0,32000,"SAVE 32000 SIMOLEONS"}}} },
+  { // SKATE LIFE: Dex and a board
+    {{"A RAIL AND A MANUAL PAD OUT","FRONT  WARM UP AT HOME"},{T_EV(SE_GRIND,1,"GRIND A RAIL"),T_EV(SE_MANUAL,1,"DO A MANUAL"),{QK_TRICKS,0,20,"LAND 20 TRICKS"}}},
+    {{"THE LOCALS ARE WATCHING","SHOW THEM WHAT YOU GOT"},{T_AT(CT_SKATE,"GO TO THE SKATE PARK"),T_EV(SE_COMBO,4,"LAND A 4 TRICK COMBO"),T_EV(SE_WALLTAP,1,"DO A WALL TAP")}},
+    {{"LETTERS ARE HIDDEN ON EVERY","LOT  GRAB ONE AND LEVEL UP"},{T_EV(SE_LETTER,1,"GRAB A SKATE LETTER"),{QK_SKATE,0,2,"REACH SKATING LEVEL 2"}}},
+    {{"PRO SKATER IS YOUR JOB NOW","PUT IN A SHIFT  GET PROMOTED"},{T_EV(SE_SHIFT,1,"WORK A SHIFT"),{QK_JOB,0,1,"GET A PROMOTION"}}},
+    {{"THE WHOLE TOWN KNOWS YOUR","NAME  PROVE IT ONE LAST TIME"},{{QK_TRICKS,0,150,"LAND 150 TRICKS"},{QK_SKATE,0,4,"REACH SKATING LEVEL 4"}}} },
+  { // HOUSEFULL: Bram and Ivan
+    {{"IVAN HOGS THE TV AND EATS","YOUR FOOD  MAKE PEACE"},{T_EV(SE_TV,1,"WATCH TV"),{QK_FRIEND,0,0,"BECOME FRIENDS WITH IVAN"}}},
+    {{"THE PLACE IS A MESS  BUILD","AND BUY TILL IT FEELS HOME"},{{QK_ROOM,0,0,"MAKE A ROOM LOOK GREAT"}}},
+    {{"THROW THE DOORS OPEN  HAVE","THE NEIGHBORS OVER"},{{QK_GUEST,0,0,"HAVE A NEIGHBOR OVER"},{QK_FRIENDS,0,3,"MAKE 3 FRIENDS"}}},
+    {{"THE FUN PEOPLE HANG OUT IN","OLD TOWN  BRING ONE HOME"},{T_AT(CT_OLDTOWN,"GO TO OLD TOWN"),{QK_HOUSE,0,4,"FILL THE HOUSE WITH 4 SIMS"}}},
+    {{"FOUR PEOPLE  ONE FRIDGE","KEEP THE BILLS PAID"},{{QK_JOB,0,1,"GET A PROMOTION"},{QK_MONEY,0,60000,"SAVE 60000 SIMOLEONS"}}} },
+  { // BEST FRIENDS: Sam, Kiki and Russ
+    {{"KIKI AND RUSS JUST MOVED IN","BREAK THE ICE WITH A JOKE"},{T_EV(SE_LAUGH,1,"TELL A JOKE"),{QK_FRIEND,0,0,"BECOME FRIENDS WITH KIKI"}}},
+    {{"KIKI KNOWS A PLACE  THE","LOUNGE  PLAY SOMETHING LOUD"},{T_AT(CT_LOUNGE,"GO TO THE LOUNGE"),T_EV(SE_RADIO,1,"PLAY THE RADIO OR STEREO"),{QK_FRIENDS,0,2,"MAKE 2 FRIENDS"}}},
+    {{"KIKI HAD A BAD DAY  BE THE","ONE SHE CALLS"},{T_EV(SE_HUGGED,1,"GIVE A HUG"),{QK_BFF,0,0,"BE KIKI'S BEST FRIEND"}}},
+    {{"EVERYONE MEETS AT THE PLAZA","THEN BACK TO YOURS"},{T_AT(CT_PLAZA,"GO TO THE PLAZA"),{QK_GUEST,0,0,"HAVE A NEIGHBOR OVER"}}},
+    {{"DREAMS COME TRUE WITH","FRIENDS AROUND"},{{QK_WANTS,0,5,"FULFIL 5 WANTS"},{QK_MONEY,0,20000,"SAVE 20000 SIMOLEONS"}}} },
+  { // RAGS TO RICHES: Penny, from nothing (and a night in the cells)
+    {{"ONE BED  ONE FRIDGE  NO","MONEY  GET TO WORK"},{T_EV(SE_SHIFT,1,"WORK A SHIFT"),{QK_MONEY,0,12000,"SAVE 12000 SIMOLEONS"}}},
+    {{"A GUY AT THE ARMS SHOP HAS","A JOB FOR YOU  NO QUESTIONS"},{T_AT(CT_ARMS,"GO TO THE ARMS SHOP"),T_EV(QE_BUY,1,"BUY A WEAPON")}},
+    {{"IT WAS A SETUP  THE COPS","GRAB YOU  DO YOUR TIME"},{{QK_BUSTED,0,0,"GET BOOKED"},T_EV(QE_PJOB,1,"TAKE A PRISON JOB"),T_EV(SE_RUN,1,"WORK OUT IN THE GYM")}},
+    {{"SERVE YOUR DAYS  PAY BAIL","OR MAKE A RUN FOR IT"},{{QK_FREE,0,0,"GET OUT OF PRISON"},{QK_HOME,0,0,"GET BACK HOME"}}},
+    {{"A CLEAN RECORD AND A REAL","JOB  THIS TIME IT PAYS"},{{QK_JOB,0,1,"GET A PROMOTION"},{QK_MONEY,0,120000,"SAVE 120000 SIMOLEONS"}}} },
+  { // CAREER CLIMBER: Wes
+    {{"A DESK  A PHONE  A FUTURE","WORK HARD AND STUDY UP"},{T_EV(SE_SHIFT,1,"WORK A SHIFT"),T_EV(SE_READ,1,"READ A BOOK")}},
+    {{"EVERYONE WHO MATTERS GOES","TO THE LOUNGE  MAKE A CONTACT"},{T_AT(CT_LOUNGE,"GO TO THE LOUNGE"),{QK_FRIENDS,0,1,"MAKE A FRIEND"}}},
+    {{"THE BOSS NOTICED YOU","NOW EARN IT"},{{QK_JOB,0,1,"GET A PROMOTION"},{QK_MONEY,0,24000,"SAVE 24000 SIMOLEONS"}}},
+    {{"A CLIENT WANTS TO MEET IN","OLD TOWN  DON'T BE LATE"},{T_AT(CT_OLDTOWN,"GO TO OLD TOWN"),{QK_WANTS,0,5,"FULFIL 5 WANTS"}}},
+    {{"ONE MORE PROMOTION AND YOU","ARE THE BOSS"},{{QK_JOB,0,2,"GET ANOTHER PROMOTION"},{QK_LSKILL,SK_LOGIC,3,"REACH LOGIC LEVEL 3"}}} },
+  { // NEW IN TOWN: Rosa and Gwen
+    {{"BOXES EVERYWHERE AND A","HOUSEMATE YOU DON'T KNOW"},{T_EV(QE_FOOD,1,"ORDER FOOD ON THE PHONE"),{QK_FRIEND,0,0,"BECOME FRIENDS WITH GWEN"}}},
+    {{"TAKE A CAB ROUND TOWN  THE","PLAZA  THEN THE PARK"},{T_AT(CT_PLAZA,"GO TO THE PLAZA"),T_AT(CT_PARK,"GO TO THE PARK")}},
+    {{"OLD TOWN IS WHERE THE","STORIES ARE  MEET SOMEONE"},{T_AT(CT_OLDTOWN,"GO TO OLD TOWN"),{QK_FRIENDS,0,2,"MAKE 2 FRIENDS"}}},
+    {{"HAVE THE NEW FRIENDS OVER","MAYBE ONE OF THEM STAYS"},{{QK_GUEST,0,0,"HAVE A NEIGHBOR OVER"},{QK_HOUSE,0,3,"FILL THE HOUSE WITH 3 SIMS"}}},
+    {{"THE SKATE PARK CROWD WANTS","TO MEET YOU  LIVE A LITTLE"},{T_AT(CT_SKATE,"GO TO THE SKATE PARK"),{QK_WANTS,0,8,"FULFIL 8 WANTS"}}} },
+  { // SECOND CHANCE: Leo and Val
+    {{"VAL WON'T LOOK AT YOU","START SMALL  A JOKE  A CHAT"},{T_EV(SE_LAUGH,1,"TELL A JOKE"),{QK_FRIEND,0,0,"BECOME FRIENDS AGAIN"}}},
+    {{"THE OLD CREW HANGS AT THE","PLAZA  TELL THEM YOU ARE DONE"},{T_AT(CT_PLAZA,"GO TO THE PLAZA"),T_EV(SE_FIGHT,1,"STAND UP TO SOMEONE")}},
+    {{"VAL HEARD YOU WALKED AWAY","SHE IS SOFTENING"},{T_EV(SE_HUGGED,1,"GIVE A HUG"),{QK_LOVE,0,0,"FALL BACK IN LOVE"}}},
+    {{"MAKE IT REAL THIS TIME AND","TAKE HER SOMEWHERE NICE"},{{QK_STEADY,0,0,"GO STEADY AGAIN"},T_AT(CT_PARK,"GO TO THE PARK")}},
+    {{"A HOME WORTH COMING BACK TO","SAVE UP  MAKE IT NICE"},{{QK_MONEY,0,32000,"SAVE 32000 SIMOLEONS"},{QK_ROOM,0,0,"MAKE A ROOM LOOK GREAT"}}} },
+};
+#undef T_AT
+#undef T_EV
 static const char* stRowNm(const StCh*c){ const char*s=c->nm; return (c->goal==SG_END&&s[0]=='T'&&s[1]=='H'&&s[2]=='E'&&s[3]==' '&&s[4]=='E'&&s[5]=='N'&&s[6]=='D'&&s[7]==' '&&s[8]==' ')?s+9:s; }   // the sixth row is listed by its title alone: no THE END in front
 static const StCh* const stChs[STY_N]={0,stRoom,stWed,stPar,stSkate,stHouse,stFriend,stRags,stClimb,stTown,stSecond,stTv};
 static const u8 stLen[STY_N]={0,6,6,6,6,6,6,6,6,6,6,6};   // (6 each: the story card and the journal have room for six rows)
@@ -50,21 +130,29 @@ static const char* const stNm[STY_N]={"","ROOMMATES","NEWLYWEDS","SINGLE PARENT"
 static int stRew(int ch){ return 5000+ch*1000; }   // the pay of a chapter rises with the story: 5000, 6000, 7000 ...
 static const char* const stAbout[STY_N]={"","A NEW ROOMMATE  AND MAYBE MORE","JUST MARRIED  A FAMILY TO START","YOU AND YOUR KID  ON YOUR OWN"};
 static const char* const stTag[STY_N]={"","ROMANCE","ROMANCE AND FAMILY","FAMILY","SKILL AND CAREER","FRIENDSHIP AND HOME","FRIENDSHIP","MONEY AND CAREER","CAREER AND SKILL","FRIENDSHIP AND TOWN","ROMANCE AND REPAIR","FAME AND RECOVERY"};
-static const char* const stBlurb[STY_N][3]={{0,0,0},{"YOU MOVE IN WITH SOMEONE","YOU BARELY KNOW  FRIENDS","FIRST  THEN MAYBE LOVE"},
-    {"JUST MARRIED AND IN LOVE","SAVE UP  CLIMB THE CAREER","AND START A FAMILY"},{"YOU AND YOUR KID ON YOUR","OWN  MAKE THE MONEY WORK","AND LET THE NEIGHBORS IN"},
-    {"NOBODY HERE BUT YOU AND","A BOARD  LAND TRICKS  LEARN","THE SKILL  MAKE IT PAY"},{"A BUSY SHARED HOUSE  MAKE","FRIENDS  FILL THE ROOMS","AND KEEP THE BILLS PAID"},
-    {"TWO NEW HOUSEMATES  ONE","TRUE BEST FRIEND  AND A","NEIGHBOR TO HAVE OVER"},{"YOU START WITH ALMOST","NOTHING  WORK  SAVE  GET","PROMOTED  AND GET RICH"},
-    {"A JOB WITH A FUTURE  WORK","HARD  LEARN A SKILL  AND","CLIMB THE LADDER"},{"YOU JUST MOVED IN  KNOW","NOBODY  MEET THE NEIGHBORS","AND MAKE THE PLACE YOURS"},
-    {"YOU WERE CLOSE ONCE  NOW","THEY BARELY LOOK AT YOU","FIX WHAT YOU BROKE"},
+static const char* const stBlurb[STY_N][3]={{0,0,0},{"JAD MOVES INTO A FLATSHARE","WITH BRANNET  A STRANGER","THE TOWN DOES THE REST"},
+    {"NICK AND ELI  JUST MARRIED","BILLS  DATE NIGHTS  AND A","FAMILY TO START"},{"MARA AND HER GIRL JUNIE","ON THEIR OWN  MAKE THE","MONEY WORK  LET PEOPLE IN"},
+    {"DEX AND A BOARD  FROM THE","DRIVEWAY TO THE SKATE PARK","TO A PRO CONTRACT"},{"BRAM SHARES WITH IVAN  FIX","UP THE PLACE  FILL IT WITH","FRIENDS FROM OLD TOWN"},
+    {"SAM  KIKI AND RUSS  NIGHTS","AT THE LOUNGE  THE PLAZA","AND ONE TRUE BEST FRIEND"},{"PENNY HAS NOTHING  A SHADY","DEAL  A NIGHT IN THE CELLS","THEN THE STRAIGHT ROAD UP"},
+    {"WES HAS A DESK AND A PLAN","THE LOUNGE  OLD TOWN DEALS","AND THE CORNER OFFICE"},{"ROSA JUST MOVED IN WITH","GWEN  SEE EVERY CORNER OF","TOWN AND MAKE IT HOME"},
+    {"LEO AND VAL FELL OUT  THE","OLD CREW  THE PLAZA  ONE","LAST CHANCE TO FIX IT"},
     {"A FALLEN TV JUDGE  WIN BACK","HER FANS  AND SHAKE THE URGE","FOR ONE MORE MARTINI"}};
 static u8 stShown;   // the chapter whose card was shown last (id*16+chapter+1): a card once per chapter
 static u8 stId, stCh, stPart=255, stKid=255, stKidDay=255, stGuest;   // the story, its chapter, your partner and your kid (uids), the day the promised child comes, a guest came
+static u8 stTkL;   // which tasks of the chapter are done (bits 0-2; saved in bits 3-5 of the chapter byte)
+static const StB* stBkNow(void){ return (stId>=1&&stId<=10&&stCh<5)?&stBk[stId-1][stCh]:0; }
+static int stTkN(const StB*b){ int n=0; if(b) while(n<3&&b->t[n].k) n++; return n; }
 static u8 stSum(volatile u8*m){ return (u8)(0x53+m[2]+m[3]*3+m[4]*5+m[5]*7+m[6]*11); }
-static void stSave(void){ volatile u8*m=SRAM_BASE+STORY_OFF; m[0]='S'; m[1]='Y'; m[2]=stId; m[3]=(u8)(stCh|(stGuest?0x80:0)); m[4]=stPart; m[5]=stKid; m[6]=stKidDay; m[7]=stSum(m); }
-static void stLoad(void){ volatile u8*m=SRAM_BASE+STORY_OFF; stId=0; stCh=0; stPart=stKid=stKidDay=255; stGuest=0;
+static void stSave(void){ volatile u8*m=SRAM_BASE+STORY_OFF; m[0]='S'; m[1]='Y'; m[2]=stId; m[3]=(u8)(stCh|((stTkL&7)<<3)|(stGuest?0x80:0)); m[4]=stPart; m[5]=stKid; m[6]=stKidDay; m[7]=stSum(m); }
+static void stLoad(void){ volatile u8*m=SRAM_BASE+STORY_OFF; stId=0; stCh=0; stPart=stKid=stKidDay=255; stGuest=0; stTkL=0;
     if(m[0]!='S'||m[1]!='Y'||m[2]>=STY_N||m[7]!=stSum(m)) return;
-    stId=m[2]; stCh=(u8)(m[3]&0x7F); stGuest=(u8)(m[3]>>7); stPart=m[4]; stKid=m[5]; stKidDay=m[6]; if(stId&&stCh>=stLen[stId]) stCh=(u8)(stLen[stId]-1); }
-static void stOff(void){ stId=0; stCh=0; stPart=stKid=stKidDay=255; stGuest=0; stSave(); }   // a game without a story
+    stId=m[2]; stCh=(u8)(m[3]&7); stTkL=(u8)((m[3]>>3)&7); stGuest=(u8)(m[3]>>7); stPart=m[4]; stKid=m[5]; stKidDay=m[6]; if(stId&&stCh>=stLen[stId]) stCh=(u8)(stLen[stId]-1); }
+static void stUidMap(const u8*nu,int n){   // house.h hhLoad gave the uids out again (you 0, the members 1..): the story's partner and kid move with them, in RAM and in SRAM
+    volatile u8*m=SRAM_BASE+STORY_OFF; int ok=m[0]=='S'&&m[1]=='Y'&&m[2]<STY_N&&m[7]==stSum(m);
+    if(stPart<n&&nu[stPart]!=255) stPart=nu[stPart]; if(stKid<n&&nu[stKid]!=255) stKid=nu[stKid];
+    if(ok){ if(m[4]<n&&nu[m[4]]!=255) m[4]=nu[m[4]]; if(m[5]<n&&nu[m[5]]!=255) m[5]=nu[m[5]]; m[7]=stSum(m); }
+}
+static void stOff(void){ stId=0; stCh=0; stPart=stKid=stKidDay=255; stGuest=0; stTkL=0; stSave(); }   // a game without a story
 static int stMember(int uid){ for(int m=0;m<hhN;m++) if(hhM[m].uid==uid) return m; return -1; }
 static void stMixLook(u8*out,const u8*a,const u8*b,int stg){   // a child of a and b: every pick, slider and colour from one of them, then fitted to the age
     u8 sl[LK_N], ss=stage; for(int i=0;i<LK_N;i++){ sl[i]=look[i]; look[i]=(rnd8()&1)?a[i]:b[i]; }
@@ -167,6 +255,7 @@ static int stDone(const StCh*c){   // is the chapter's goal met?
         case SG_GUEST: return stGuest;
         case SG_SCRIPT: return 0;   // (ended by its cutscene: stComplete)
         case SG_MULTI: return stqAll();   // (TV SHOW & TELL: every goal of the chapter at once)
+        case SG_TASKS: { int n=stTkN(stBkNow()); return n>0&&(stTkL&((1<<n)-1))==(1<<n)-1; }   // (every task ticked)
         case SG_BFF: return pu>=0&&(relF[me][pu]&RF_BFF);
         case SG_SKILL: case SG_TRICKS: case SG_WANTS: case SG_HOUSE: case SG_FRIENDS: case SG_DAYS: { int v=stValue(c); return v>=(int)c->arg; }
     }
@@ -213,7 +302,7 @@ static void stComplete(void){   // the current chapter is done: pay it, open wha
     if(slkWas<SM_PER&&jbStoryCount(stId)>=SM_PER){ int p=slkGift(stId); if(p>=0){ static char sg[32] EWRAM_BSS; simCat(simCat(sg,slkNm[p])," UNLOCKED"); simQPush(sg); stGotAdd(slkNm[p]); } }   // all 5 missions of this story are done: a free slider pack
     for(int j=0;j<RW_N;j++) if(rwWas<rwNeed[j]&&rwTotal()>=rwNeed[j]){ simQPush("NEW REWARD IN BUY MODE"); stGotAdd(palNm[catItems[NCAT-1][j]]); break; }
     if(c->goal==SG_DAYS||c->goal==SG_MULTI){ stKidDay=255; if(c->goal==SG_MULTI) stGuest=0; }
-    stCh++; stSave(); stAnnounce(); stShown=(u8)(stId*16+stCh+1); stModal=2;   // the CHAPTER COMPLETE card (stRunModal)
+    stCh++; stTkL=0; stSave(); stAnnounce(); stShown=(u8)(stId*16+stCh+1); stModal=2;   // the CHAPTER COMPLETE card (stRunModal)
 }
 // TV SHOW & TELL, chapter 4 (YOU ARE MAMESY NOW): the CAST ARRIVAL and the hand-over of control.
 // Cast arrival = a person the chapter needs moves in as a real Sim of the household (not only a figure in a cutscene). Here: Mamesy, Missy's sister.
@@ -307,11 +396,13 @@ static void plugTick(void){   // once per logic step (stTick): the hospital's pr
     else if(old<75&&v>=75){ static const char* const l75[3]={"Okafor's losing patience.","Okafor won't stop hinting.","The hospital wants an answer."}; lnote=l75[rnd8()%3]; lnoteT=150; }
     plugV=(u8)v;
 }
+static void stTkTick(void);
 static void stTick0(void){   // once per logic step in the life game: is this chapter done?
     static u8 cnt; if(!stId||++cnt<60) return; cnt=0;
     if(stCh>=stLen[stId]) return;
     for(int k=0;k<TW_N;k++) if(twOn[k]==2) stGuest=1;   // a neighbor is staying over (HAVE A NEIGHBOR OVER)
     const StCh*c=&stChs[stId][stCh];
+    if(c->goal==SG_TASKS) stTkTick();
     if(c->goal==SG_END) return;
     if(c->goal==SG_DAYS&&stKidDay==255){ u8 b=(u8)(simDay&255); stKidDay=b==255?254:b; stSave(); return; }   // the clock starts when the chapter does
     if(c->goal==SG_MULTI&&stKidDay==255){ stKidDay=stqDay(); stGuest=0; stSave(); return; }   // (the chapter clock starts with the chapter)
@@ -322,8 +413,66 @@ static void stTick0(void){   // once per logic step in the life game: is this ch
     } else if(!stDone(c)) return;
     stComplete();
 }
+// ---- the tasks: ticked by what happens (stQEvent, from sims.h simEventV and a few spots) or by how things are (stTkTick, once a second) ----
+static void stTkDone(int i,const StB*b){   // task i is done: tick it, say so
+    stTkL|=(u8)(1<<i); stSave();
+    static char t[44] EWRAM_BSS; char*e=simCat(t,"DONE  "); simCat(e,b->t[i].nm); lnote=t; lnoteT=150; sfxPlay(SFX_STICK);
+}
+static void stQEvent(int ev,int v){   // a life event or a story event (QE_): ticks a task that waits for it
+    if(!stId||stCh>=stLen[stId]||stChs[stId][stCh].goal!=SG_TASKS) return;
+    const StB*b=stBkNow(); int n=stTkN(b);
+    for(int i=0;i<n;i++){ const StT*t=&b->t[i]; if(!(stTkL>>i&1)&&t->k==QK_EV&&t->a==ev&&v>=(int)t->n) stTkDone(i,b); }
+}
+static int stTkNow(const StT*t){   // is a task's state met right now? (QK_EV only ticks on its event)
+    int me=hhPUid, p=stMember(stPart), pu=p>=0?hhM[p].uid:-1;
+    switch(t->k){
+    case QK_AT: return trvHere(t->a);
+    case QK_HOME: return !nbOk||nbT.cur==nbT.home;
+    case QK_FRIEND: return pu>=0&&(relF[me][pu]&RF_FRIEND);
+    case QK_LOVE: return pu>=0&&(relF[me][pu]&RF_LOVE);
+    case QK_STEADY: return pu>=0&&(relF[me][pu]&RF_STEADY);
+    case QK_BFF: return pu>=0&&(relF[me][pu]&RF_BFF);
+    case QK_FRIENDS: { int n=0; for(int u=0;u<HU_N;u++) if(u!=me&&(relF[me][u]&RF_FRIEND)) n++; return n>=(int)t->n; }
+    case QK_MONEY: return simMoney>=(money_t)t->n;
+    case QK_JOB: return jobLvl>=(int)t->n;
+    case QK_SKATE: return skillLvl>=(int)t->n;
+    case QK_LSKILL: return skLvl(t->a)>=(int)t->n;
+    case QK_TRICKS: return simTricks>=t->n;
+    case QK_WANTS: return simDone>=t->n;
+    case QK_HOUSE: return hhN+1>=(int)t->n;
+    case QK_GUEST: return stGuest;
+    case QK_KIDFRIEND: { int k=stMember(stKid); return k>=0&&(relF[me][hhM[k].uid]&RF_FRIEND); }
+    case QK_ROOM: return sRoom>=80;
+    case QK_FREE: return !prDays&&!prIn();
+    }
+    return 0;
+}
+static void stTkTick(void){   // once a second while a chapter of tasks runs
+    const StB*b=stBkNow(); int n=stTkN(b);
+    for(int i=0;i<n;i++){ const StT*t=&b->t[i]; if(stTkL>>i&1) continue;
+        if(t->k==QK_BUSTED){   // the story's arrest: the cops take you in (the prison's own booking), then this ticks once you are inside
+            if(prIn()){ stTkDone(i,b); continue; }
+            if(prGo||ldead) continue;   // (already on the way)
+            if(prDays||!prBook()){ stTkDone(i,b); continue; }   // (no town or no room for a prison: the story goes on without it)
+            moodEvent(M_HURT_BIG); sfxPlay(SFX_HIT); lnote="BUSTED  IT WAS A SETUP"; lnoteT=120; continue; }
+        if(t->k!=QK_EV&&stTkNow(t)) stTkDone(i,b); }
+}
+static int stTkPlace(int*ct){   // the place the chapter still wants you at (*ct = its kind; -2 = home). 0 = none
+    const StB*b=(stId&&stCh<stLen[stId]&&stChs[stId][stCh].goal==SG_TASKS)?stBkNow():0; int n=stTkN(b);
+    for(int i=0;i<n;i++){ if(stTkL>>i&1) continue; if(b->t[i].k==QK_AT){ *ct=b->t[i].a; return 1; } if(b->t[i].k==QK_HOME&&nbOk&&nbT.cur!=nbT.home){ *ct=-2; return 1; } }
+    return 0;
+}
+static void stPlaces(void){   // a chapter starts: every place it sends you to is in the town (a town without a lounge gets one)
+    const StB*b=(stId&&stCh<stLen[stId]&&stChs[stId][stCh].goal==SG_TASKS)?stBkNow():0; int n=stTkN(b);
+    for(int i=0;i<n;i++) if(b->t[i].k==QK_AT) trvPlace(b->t[i].a);
+}
+static void stTkList(int x,int y,int dy){   // the tasks of the chapter, ticked: "+ GO TO THE SKATE PARK" / "- LAND A 3 TRICK COMBO"
+    const StB*b=stBkNow(); int n=stTkN(b);
+    for(int i=0;i<n;i++){ int ok=stTkL>>i&1; char l[48]; char*e=slCat(l,ok?"+ ":"- "); slCat(e,b->t[i].nm); text(x,y+i*dy,l,ok?RGB(10,28,12):WHITE,1); }
+}
 static void stTick(void){ papTick(); plugTick(); stTick0(); if(stTvWant&&stId==STY_TVSHOW){ static u8 tc; if(++tc>=60){ tc=0; stTvControl(); } } }   // (TV SHOW & TELL: keep asking while the hand-over is waiting)
-static void stEnter(void){ stLoad(); if(stId){ stAnnounce(); if(stShown!=(u8)(stId*16+stCh+1)){ stShown=(u8)(stId*16+stCh+1); stModal=1; } } }   // (a chapter card once per chapter and power on)   // entering the life game: the current goal on the top bar
+static void stFix(void);
+static void stEnter(void){ stLoad(); stFix(); if(stId){ stAnnounce(); if(stShown!=(u8)(stId*16+stCh+1)){ stShown=(u8)(stId*16+stCh+1); stModal=1; } } }   // (a chapter card once per chapter and power on)   // entering the life game: the current goal on the top bar
 // ---- the look: Sims 2 / Life Stories panels (the pieces live in main.c next to HOW TO PLAY) ----
 static void s2rr(int x,int y,int w,int h,u16 c); static void s2grad(int x,int y,int w,int h,int r0,int g0,int b0,int r1,int g1,int b1);
 static void s2pill(int x,int y,int w,const char*s);
@@ -379,6 +528,17 @@ static void stqPage(void){   // the journal page of TV SHOW & TELL (L R): what t
     if(stCh==1||stCh==2||stCh==4) text(14,124,"A PUFF OR A FAINT STARTS THE CLOCK AGAIN",RGB(31,20,22),1);
     text(14,136,"L OR R  BACK TO THE STORY",RGB(12,18,24),1);
 }
+static void stTkPage(void){   // the journal page of the first ten stories (L R): this chapter's story and its tasks, live
+    if(stCh>=stLen[stId]-1){ text(14,23,"THE END",GOLD,1); text(14,36,"YOUR STORY GOES ON  KEEP PLAYING",WHITE,1); return; }
+    const StCh*c=&stChs[stId][stCh]; const StB*b=stBkNow();
+    { char t[44]; char*e=slCat(t,"CHAPTER "); e=slNum(e,stCh+1); e=slCat(e,"  "); slCat(e,c->nm); text(14,23,t,GOLD,1); }
+    if(b){ text(14,36,b->br[0],RGB(20,26,31),1); text(14,45,b->br[1],RGB(20,26,31),1); }
+    rect(14,56,212,1,RGB(14,26,31));
+    if(c->goal==SG_TASKS){ text(14,60,"DO ALL OF THESE  IN ANY ORDER",RGB(17,29,31),1); stTkList(14,72,11); }
+    else if(c->goal==SG_KID) text(14,60,"A CHILD COMES HOME TOMORROW",RGB(17,29,31),1);
+    { int ct; if(stTkPlace(&ct)){ text(14,112,"A TAKES YOU THERE  OR CALL A CAB",RGB(17,29,31),1); text(14,121,"ON THE PHONE",RGB(17,29,31),1); } }
+    text(14,136,"L OR R  MORE PAGES",RGB(12,18,24),1);
+}
 static void rwPage(void){   // the REWARDS page of the journal (L R): what the story missions open in BUY mode, and the creator slider packs
     int tot=rwTotal(); char b[44]; char*e=slNum(b,tot); e=slCat(e," OF "); e=slNum(e,(STY_N-1)*SM_PER); slCat(e," STORY MISSIONS DONE");
     text(14,23,b,GOLD,1); text(14,33,"MISSIONS COUNT IN EVERY LIFE",RGB(17,29,31),1);
@@ -395,12 +555,14 @@ static void storyScreen(void){   // pause menu > STORY: the story journal, a cha
     u16 prev=keyNow(); u32 cnt=0, lt=~0u;
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
-        if(pr&(K_L|K_R|K_LEFT|K_RIGHT)){ pg=(pg+1)%(stId==STY_TVSHOW?3:2); lt=~0u; } if(!stId&&!pg&&(pr&K_A)){ storyJoin(); prev=keyNow(); lt=~0u; if(stId) stModal=0; continue; }   // (the card is shown now by the journal itself: no second one when you close it)
+        if(pr&(K_L|K_R|K_LEFT|K_RIGHT)){ pg=(pg+1)%(stId?3:2); lt=~0u; }
+        { int ct; if(stId&&(pr&K_A)&&stTkPlace(&ct)){ int lot=ct==-2?nbT.home:trvPlace(ct); if(lot>=0&&trvGo(lot)){ sfxPlay(SFX_CASH); toast("THE CAB IS HERE"); } else if(lot<0) toast("NO SUCH PLACE IN TOWN"); return; } }   // GO THERE (travel.h)
+        if(!stId&&!pg&&(pr&K_A)){ storyJoin(); prev=keyNow(); lt=~0u; if(stId) stModal=0; continue; }   // (the card is shown now by the journal itself: no second one when you close it)
         if(pr&(K_A|K_B|K_START)) return;
         if(!pr&&(cnt>>3)==lt){ vsync(); continue; }   // idle: the picture on the screen is still right (the whole backdrop used to be redrawn every frame, so taps landed between polls and were lost)
         lt=cnt>>3;
         stBack(pg==2?"THIS CHAPTER":pg?"REWARDS":stId?"STORY JOURNAL":"STORY",(int)cnt);
-        if(pg==2) stqPage(); else if(pg) rwPage(); else
+        if(pg==2){ if(stId==STY_TVSHOW) stqPage(); else stTkPage(); } else if(pg) rwPage(); else
         if(!stId){
             s2rr(8,24,224,60,RGB(10,20,30)); s2rr(9,25,222,58,RGB(2,6,13));
             text(16,32,"NO STORY RIGHT NOW",GOLD,1); text(16,46,"PICK ONE FOR THIS LIFE WITH A",WHITE,1); text(16,56,"OR PLAY  NEW GAME  STORY MODE",RGB(17,29,31),1);
@@ -421,8 +583,10 @@ static void storyScreen(void){   // pause menu > STORY: the story journal, a cha
                 if(st==1){ char b[16]; if(stProg(c,b)) text(231-tw(b,1),y+2,b,GOLD,1); }
                 else if(c->goal!=SG_END){ char b[12]; char*e=slCat(b,"+"); slNum(e,stRew(i)); text(231-tw(b,1),y+2,b,st==2?RGB(10,22,12):RGB(12,18,24),1); } }   // what each chapter pays
         }
-        if(stId) s2pill(5,147,60,"A OR B BACK"); else { int pw=tw("A PICK A STORY",1)+10; s2pill(5,147,pw,"A PICK A STORY"); s2pill(9+pw,147,tw("B BACK",1)+10,"B BACK"); }
-        if(stId){ char b[34]; int tot=0; for(int i=0;i<stCh;i++) tot+=stRew(i); char*e=slCat(b,"EARNED "); e=slNum(e,tot); slCat(e," SIMOLEONS"); s2pill(69,147,tw(b,1)+10,b); }
+        { int ct; if(stId&&stTkPlace(&ct)){ char b[34]; char*e=slCat(b,"A GO TO "); slCat(e,ct==-2?"HOME":ctNm[ct]); int w=tw(b,1)+10; s2pill(5,147,w,b); s2pill(9+w,147,tw("B BACK",1)+10,"B BACK"); }
+          else if(stId) s2pill(5,147,60,"A OR B BACK"); }
+        if(!stId){ int pw=tw("A PICK A STORY",1)+10; s2pill(5,147,pw,"A PICK A STORY"); s2pill(9+pw,147,tw("B BACK",1)+10,"B BACK"); }
+        { int ct; if(stId&&!stTkPlace(&ct)){ char b[34]; int tot=0; for(int i=0;i<stCh;i++) tot+=stRew(i); char*e=slCat(b,"EARNED "); e=slNum(e,tot); slCat(e," SIMOLEONS"); s2pill(69,147,tw(b,1)+10,b); } }
         present();
     }
 }
@@ -453,8 +617,9 @@ static void stRunModal0(void){
     if(kind==3){ stPlugLose(); return; }   // (chapter 4 lost)
     if(stId==STY_TVSHOW&&kind==1&&stCh==0&&stKidDay==255){ csPlay(7); stKidDay=stqDay(); stGuest=0; stSave(); sgDirty=1; }   /* cutfix: unsaved until the game is saved */   // a brand new TV SHOW & TELL: the night it all started plays once, before chapter 1 (the chapter clock starts here, which is also what stops it playing again)
     if(stId==STY_TVSHOW&&kind==2&&stCh>=1&&stCh<=5) { csPlay(stCh==5?5:stCh-1); if(stCh==4) csPlay(4); if(stCh==5) jbUnlock(UL_HERETODAY); }   // the scene that closes the chapter just finished (cutscene.h; chapter 5 closes with scene 5, its opening news is scene 4)
+    stPlaces();   // (every place the chapter sends you to is in the town)
     u16 prev=keyNow(); u32 cnt=0; const StCh*c=&stChs[stId][stCh];
-    int end=c->goal==SG_END;
+    int end=c->goal==SG_END; const StB*bk=end?0:stBkNow(); int pct; int place=stTkPlace(&pct);
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
         if(pr&(K_A|K_B|K_START)) return;
@@ -467,11 +632,17 @@ static void stRunModal0(void){
         if(kind==2&&stGotN){ static char gb[60] EWRAM_BSS; char*e=simCat(gb,"UNLOCKED  "); e=simCat(e,stGotP[0]); if(stGotN>1){ e=simCat(e,"  AND  "); simCat(e,stGotP[1]); } if(tw(gb,1)>206) simCat(gb,"UNLOCKED  2 NEW THINGS"); text(16,77,gb,GOLD,1); }   // (what this chapter opened: a BUY reward and / or a slider pack)
         if(kind==2&&stCh==5) text(16,112,"NEW SONG  HERE TODAY (FULL VERSION)",GOLD,1);
         rect(14,84,212,1,RGB(14,26,31));
+        if(bk){   // the first ten stories: the chapter's title, what is going on, and its tasks
+            { char b[44]; char*e=slCat(b,kind==2?"NEXT  ":"NOW  "); slCat(e,c->nm); text(16,88,b,GOLD,1); }
+            text(16,97,bk->br[0],RGB(20,26,31),1); text(16,105,bk->br[1],RGB(20,26,31),1);
+            if(c->goal==SG_TASKS) stTkList(16,114,8); else if(c->goal==SG_KID) text(16,114,"+ A CHILD COMES HOME",WHITE,1);
+        } else {
         text(16,90,kind==2?(end?"THE END, IS HERE TODAY":"NEXT CHAPTER"):(end?"THE END, IS HERE TODAY":c->goal==SG_MULTI?"ALL OF THESE AT ONCE":"YOUR GOAL"),GOLD,1);
         if(c->goal!=SG_MULTI||end) text(16,102,end?(kind==2?"YOUR STORY GOES ON  KEEP PLAYING":"YOUR STORY GOES ON  KEEP PLAYING"):c->nm,WHITE,1);
-        if(!end&&c->goal!=SG_MULTI){ char b[16]; if(stProg(c,b)) text(16,112,b,RGB(20,26,31),1); }
+        if(!end&&c->goal!=SG_MULTI){ char b[16]; if(stProg(c,b)) text(16,112,b,RGB(20,26,31),1); } }
         if(stId==STY_TVSHOW&&!end&&stCh<5) stqList(16,99,8);   // (the goals of the chapter, ticked as they hold)   // (what this chapter is about)
         s2pill(5,147,40,"A OK");
+        if(place) text(50,149,"GO THERE  PAUSE  STORY  A",RGB(17,29,31),1);   // (or CALL A CAB on the phone)
         present();
     }
 }
@@ -487,16 +658,16 @@ static void stRunModal(void){   // the card, then the TV SHOW & TELL hand-over o
 //   look: SHAPE SKIN EYES MOUTH EARS HSTYLE HCOL TOP BOT  TONE EARSZ EARLF
 static const HhFam stLead[STY_N]={
     {"",0},
-    {"THE PARKER",1,{ {"JESS", {4,3,2,1,1,2,2,6,0, 0,0,0},AG_ADULT,AS_PLEAS, 6} }},   // ROOMMATES
-    {"THE KOWALSKI",1,{ {"NICK", {5,2,1,1,1,0,3,3,2, 0,0,0},AG_ADULT,AS_HOME, 1} }},   // NEWLYWEDS
-    {"THE BRENNAN",1,{ {"MARA", {4,1,2,2,1,1,4,5,1, 0,0,0},AG_ADULT,AS_HOME, 2} }},   // SINGLE PARENT
-    {"THE VALDEZ",1,{ {"DEX",  {6,1,6,2,1,2,6,1,3, 0,0,0},AG_ADULT,AS_POP,  4} }},   // SKATE LIFE
-    {"THE OKAFOR",1,{ {"BRAM", {3,2,3,1,1,3,1,2,4, 0,0,0},AG_ADULT,AS_PLEAS,9} }},   // HOUSEFULL
-    {"THE LINDQVIST",1,{ {"SAM",  {1,4,3,1,2,4,5,5,2, 0,0,0},AG_ADULT,AS_KNOW, 8} }},   // BEST FRIENDS
-    {"THE QUINN",1,{ {"PENNY",{0,2,1,2,2,1,3,2,5, 0,0,0},AG_ADULT,AS_FORTUNE,9} }},   // RAGS TO RICHES
-    {"THE HARLOW",1,{ {"WES",  {5,6,2,0,1,2,0,1,1, 0,0,0},AG_ADULT,AS_FORTUNE,0} }},   // CAREER CLIMBER
-    {"THE MORENO",1,{ {"ROSA", {4,5,0,1,2,5,2,6,3, 0,0,0},AG_ADULT,AS_POP,  3} }},   // NEW IN TOWN
-    {"THE ASHBY",1,{ {"LEO",  {5,0,2,3,1,0,1,3,1, 0,0,0},AG_ADULT,AS_HOME, 5} }},   // SECOND CHANCE
+    {"THE PARKER",1,{ {"JAD",  {5,3,2,1,1,0,2,3,2, 0,0,0},AG_ADULT,AS_PLEAS, 6,SX_MALE} }},   // ROOMMATES: Jad
+    {"THE KOWALSKI",1,{ {"NICK", {5,2,1,1,1,0,3,3,2, 0,0,0},AG_ADULT,AS_HOME, 1,SX_MALE} }},   // NEWLYWEDS
+    {"THE BRENNAN",1,{ {"MARA", {4,1,2,2,1,1,4,5,1, 0,0,0},AG_ADULT,AS_HOME, 2,SX_FEMALE} }},   // SINGLE PARENT
+    {"THE VALDEZ",1,{ {"DEX",  {6,1,6,2,1,2,6,1,3, 0,0,0},AG_ADULT,AS_POP,  4,SX_MALE} }},   // SKATE LIFE
+    {"THE OKAFOR",1,{ {"BRAM", {3,2,3,1,1,3,1,2,4, 0,0,0},AG_ADULT,AS_PLEAS,9,SX_MALE} }},   // HOUSEFULL
+    {"THE LINDQVIST",1,{ {"SAM",  {1,4,3,1,2,4,5,5,2, 0,0,0},AG_ADULT,AS_KNOW, 8,SX_NB} }},   // BEST FRIENDS
+    {"THE QUINN",1,{ {"PENNY",{0,2,1,2,2,1,3,2,5, 0,0,0},AG_ADULT,AS_FORTUNE,9,SX_FEMALE} }},   // RAGS TO RICHES
+    {"THE HARLOW",1,{ {"WES",  {5,6,2,0,1,2,0,1,1, 0,0,0},AG_ADULT,AS_FORTUNE,0,SX_MALE} }},   // CAREER CLIMBER
+    {"THE MORENO",1,{ {"ROSA", {4,5,0,1,2,5,2,6,3, 0,0,0},AG_ADULT,AS_POP,  3,SX_FEMALE} }},   // NEW IN TOWN
+    {"THE ASHBY",1,{ {"LEO",  {5,0,2,3,1,0,1,3,1, 0,0,0},AG_ADULT,AS_HOME, 5,SX_MALE} }},   // SECOND CHANCE
     {"THE TELLER",1,{ {"MISSY",{[LK_SHAPE]=4,[LK_SKIN]=1,[LK_EYES]=0,[LK_MOUTH]=4,[LK_EARS]=1,[LK_HSTYLE]=9,[LK_HCOL]=0,[LK_TOP]=4,[LK_BOT]=0,[LK_BROW]=1,[LK_GLASS]=1,[LK_EYECOL]=2},AG_ADULT,AS_POP,  3} }},   // TV SHOW & TELL
 };
 static int storyLead(int s){   // the story's lead becomes you (the same hand-over as A PRE-MADE FAMILY: they move in, you take their place, who you were leaves). 0 = it did not fit
@@ -536,27 +707,36 @@ typedef struct { const char* last; HhPre p; } StCast;
 //    look: SHAPE SKIN EYES MOUTH EARS HSTYLE HCOL TOP BOT  TONE EARSZ EARLF
 static const StCast stCast[STY_N][2]={
     {{0}},
-    {{"DUNMORE", {"CAL",   {0,2,3,1,2,4,1,5,2, 0,0,0},AG_ADULT,AS_KNOW,   8}}},   // ROOMMATES: the roommate you barely know
-    {{0,         {"ELI",   {4,4,2,1,2,2,5,6,0, 0,0,0},AG_ADULT,AS_FORTUNE,6}}},   // NEWLYWEDS: your spouse
-    {{0,         {"JUNIE", {0,1,1,2,2,1,4,5,5, 0,0,0},AG_CHILD,AS_GROW,   2}}},   // SINGLE PARENT: your kid
+    {{"DUNMORE", {"BRANNET",{4,2,3,1,2,2,1,5,0, 0,0,0},AG_ADULT,AS_KNOW,  8,SX_FEMALE}}},   // ROOMMATES: Brannet, the roommate Jad barely knows
+    {{0,         {"ELI",   {4,4,2,1,2,2,5,6,0, 0,0,0},AG_ADULT,AS_FORTUNE,6,SX_FEMALE}}},   // NEWLYWEDS: your spouse
+    {{0,         {"JUNIE", {0,1,1,2,2,1,4,5,5, 0,0,0},AG_CHILD,AS_GROW,   2,SX_FEMALE}}},   // SINGLE PARENT: your kid
     {{0}}, // SKATE LIFE: just you
-    {{"BELOV",   {"IVAN",  {6,0,4,2,1,3,0,2,6, 0,0,0},AG_ADULT,AS_KNOW,   5}}},   // HOUSEFULL: a housemate
-    {{"TANAKA",  {"KIKI",  {1,3,5,3,2,6,2,5,1, 0,0,0},AG_ADULT,AS_POP,    7}},    // BEST FRIENDS: two housemates
-     {"OKONKWO", {"RUSS",  {3,6,0,0,1,1,3,1,7, 0,0,0},AG_ADULT,AS_HOME,   4}}},
+    {{"BELOV",   {"IVAN",  {6,0,4,2,1,3,0,2,6, 0,0,0},AG_ADULT,AS_KNOW,   5,SX_MALE}}},   // HOUSEFULL: a housemate
+    {{"TANAKA",  {"KIKI",  {1,3,5,3,2,6,2,5,1, 0,0,0},AG_ADULT,AS_POP,    7,SX_FEMALE}},    // BEST FRIENDS: two housemates
+     {"OKONKWO", {"RUSS",  {3,6,0,0,1,1,3,1,7, 0,0,0},AG_ADULT,AS_HOME,   4,SX_MALE}}},
     {{0}}, // RAGS TO RICHES: just you
     {{0}}, // CAREER CLIMBER: just you
-    {{"ABERNATHY",{"GWEN", {4,2,1,1,2,0,6,7,1, 0,0,0},AG_ADULT,AS_PLEAS,  11}}},   // NEW IN TOWN: a housemate
-    {{0,         {"VAL",   {5,3,2,3,1,5,0,6,4, 0,0,0},AG_ADULT,AS_POP,    10}}},   // SECOND CHANCE: the one you fell out with
+    {{"ABERNATHY",{"GWEN", {4,2,1,1,2,0,6,7,1, 0,0,0},AG_ADULT,AS_PLEAS,  11,SX_FEMALE}}},   // NEW IN TOWN: a housemate
+    {{0,         {"VAL",   {5,3,2,3,1,5,0,6,4, 0,0,0},AG_ADULT,AS_POP,    10,SX_FEMALE}}},   // SECOND CHANCE: the one you fell out with
     {{0}}, // TV SHOW & TELL: the cast arrives with the chapters
 };
+static void stFix(void){   // a story saved before stUidMap may point its partner (SINGLE PARENT: the kid) at you or at nobody: find the story's own person by name
+    if(stId<1||stId>=STY_N||stId==STY_TVSHOW) return;
+    const StCast*c=&stCast[stId][0]; if(!c->p.name) return;
+    u8*w=stId==STY_PARENT?&stKid:&stPart; if(*w==255) return;
+    if(*w!=(u8)hhPUid&&stMember(*w)>=0) return;   // (fine)
+    int f=-1; for(int m=0;m<hhN&&f<0;m++){ const char*a=hhM[m].name,*b=c->p.name; int k=0; while(a[k]&&a[k]==b[k]) k++; if(!a[k]&&!b[k]) f=m; }
+    *w=f>=0?hhM[f].uid:255; stSave();
+}
 static int stCastSim(const StCast*c){   // one of the story's people moves in (their look, name, aspiration and personality). -1 = the house is full
     int m=stAddSim(c->p.look,c->p.stage,c->last); if(m<0) return -1;
     HhSim*s=&hhM[m]; int k=0; for(;c->p.name[k]&&k<HH_NM-1;k++) s->name[k]=c->p.name[k]; s->name[k]=0;
+    s->look[LK_SEX]=c->p.sex;   // (their gender: the words, never the look)
     s->asp=(u8)(c->p.stage<AG_ADULT?AS_GROW:c->p.asp); for(int i=0;i<TR_N;i++) s->tr[i]=signTr[c->p.sign][i];
     return m;
 }
 static void storySetup(int s){   // after the new life is set up and the old household has gone
-    stId=(u8)s; stCh=0; stPart=stKid=stKidDay=255; stGuest=0;
+    stId=(u8)s; stCh=0; stPart=stKid=stKidDay=255; stGuest=0; stTkL=0;
     int m;
     switch(s){
     case STY_ROOM: m=stCastSim(&stCast[s][0]); if(m>=0){ stRel(hhPUid,hhM[m].uid,10,0,0); stPart=hhM[m].uid; } break;

@@ -1352,6 +1352,7 @@ static void fxObjUpdate(void); static void hhObjUpdate0(void){   // in vblank: h
 static void hhObjUpdate(void){ hhObjUpdate0(); fxObjUpdate(); }   // fx.h: the ghosts and the weather are sprites too
 static HhR hhOld[HH_MAX] EWRAM_BSS; static unsigned hhOldSig[HH_MAX] EWRAM_BSS;
 static void hhSave(void);
+static void stUidMap(const u8*nu,int n);   // story.h: the story's partner and kid uids follow a household load that gave the uids out again
 static void hhInvite(void){   // a made-up Sim moves in (pause menu > HOUSEHOLD, or SELECT on the RELATIONSHIPS screen)
     if(!xo[XO_SIMRAND]){ toast("MADE-UP SIMS ARE OFF"); return; }
     if(hhN>=HH_MAX){ toast("THE HOUSE IS FULL"); return; }
@@ -1534,6 +1535,8 @@ static void hhLoad(void){
     else {   // a household from before GENDER: kin roles say it first (a MOTHER is a woman), then the look
         for(int i=0;i<hhN;i++){ int x=kinSexOf(hhM[i].uid); hhM[i].look[LK_SEX]=(u8)(x>=0?x:sexGuess(hhM[i].look)); }
         { int x=kinSexOf(hhPUid); if(x>=0) look[LK_SEX]=(u8)x; } }
+    { int same=1; for(int u=0;u<hu&&u<=HH_MAX9;u++) if(nu[u]!=255&&nu[u]!=u) same=0;   // the uids were given out again: the story's partner and kid follow them (once: the household is saved with the new uids)
+      if(!same){ stUidMap(nu,hu<=HH_MAX9?hu:HH_MAX9+1); hhSave(); } }
     for(int k=0;k<TW_N;k++){ int v=TW_V(k); if(twHas[k]&&v>=hhN&&hhM[v].uid==GU0+k) nrGuestIn(k); }   // the neighbours already over: their rows as THIS household knows them
 }
 // How many bytes the household block at m takes (its header, count, uids and checksum all check out), or 0 if it is not a good household

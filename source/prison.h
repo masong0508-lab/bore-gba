@@ -235,11 +235,13 @@ static int prSwitchHook(int m){   // house.h hhSwitchTo: 1 = handled (the pause 
     if(hhM[m].uid==prW1-1){ hhSwitchFrom(m); if(!prHere()) prGo=1; return 1; }   // back to the cell
     return 0;
 }
-static int prTransfer(int code){   // main.c lifeMode: 1 = to the prison, 2 = home (the live lot changes; 0 = it did not work)
+static u8 trvLot;   // travel.h
+static int prTransfer(int code){   // main.c lifeMode: 1 = to the prison, 2 = home, 3 = a cab ride to trvLot (the live lot changes; 0 = it did not work)
     copSt=0; copN=0; copT=0;
     if(code==1){ int lot=prLotGet(); if(lot<0){ toast("NO ROOM IN TOWN FOR A PRISON"); prCancel(); return 0; }
         if(!nbGo(lot)){ toast(nbErr); prCancel(); return 0; } }
     else if(code==2){ if(!nbGo(nbT.home)){ toast(nbErr); return 0; } }
+    else if(code==3){ if(trvLot>=NB_LOTS||!nbGo(trvLot)){ toast(trvLot>=NB_LOTS?"NOWHERE TO GO":nbErr); return 0; } }   // travel.h: a cab ride (CALL A CAB, the story's GO THERE)
     return 1;
 }
 static void prCard(void);

@@ -47,7 +47,7 @@ static int armsUse(void){   // R next to the counter (weapons.h wpUseSpot)
         else if(c==6&&wpBul>=WP_BMAX) toast("POCKETS FULL");
         else if(c==7&&wpMis>=WP_MMAX) toast("POCKETS FULL");
         else if(simMoney<price) toast("NOT ENOUGH CASH");
-        else { simMoney-=price;
+        else { simMoney-=price; if(c<WP_N) stQEvent(QE_BUY,1);   // (a weapon, not ammo: a story task)
             if(c<WP_N) wpGive(c,c==WP_PISTOL||c==WP_UZI?12:0,c==WP_ROCKET?2:0);
             else { if(c==6) wpBul=(u8)(wpBul+12>WP_BMAX?WP_BMAX:wpBul+12); else wpMis=(u8)(wpMis+3>WP_MMAX?WP_MMAX:wpMis+3); wpSave(); }   // ammo alone never makes a weapon
             simsSaveNow(); toast("SOLD"); }

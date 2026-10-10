@@ -5406,7 +5406,8 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "townrel.h"        // TOWN RELATIONSHIPS: neighbours are people you know (guests with every social, remembered, moving in)
 #include "fx.h"
 #include "npc.h"             // AI SKATERS and POLICE: hardware sprites on the last spare OBJ tiles (see the top of npc.h)             // GHOSTS and WEATHER: hardware sprites on the spare OBJ slots (see the top of the file)
-#include "prison.h"         // PRISON: when the cops catch you, the sentence depends on your record; you serve it in a prison of the town
+#include "prison.h"         // PRISON
+#include "travel.h"         // GETTING ABOUT: CALL A CAB, the story's GO THERE (a lot change without leaving the game): when the cops catch you, the sentence depends on your record; you serve it in a prison of the town
 #include "ambience.h"       // NATURE SOUNDS: the outdoor bed (birds, crickets, rain, wind) by the hour, the weather and indoors
 #include "cutscene.h"       // CUTSCENES: scripted scenes (TV SHOW & TELL)
 #include "story.h"          // STORY MODE: chapters with goals (NEW GAME > STORY MODE)

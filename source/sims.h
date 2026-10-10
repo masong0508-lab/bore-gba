@@ -105,7 +105,8 @@ enum { SE_EAT, SE_PEE, SE_SLEEP, SE_SHOWER, SE_SOFA, SE_TRICK, SE_COMBO, SE_GRIN
        SE_GLIDE, SE_CHARGE,
        SE_TALK, SE_FRIEND, SE_BFF, SE_KISS, SE_LOVE, SE_STEADY, SE_HUGGED, SE_LAUGH,   // social (house.h)
        SE_REJECT, SE_SLAPPED, SE_FIGHT, SE_ENEMY, SE_LONELY,
-       SE_PIPE, SE_TV, SE_READ, SE_FISH, SE_RUN, SE_LETTER, SE_TAPE, SE_SWITCH, SE_WALLTAP, SE_MANUAL, SE_RADIO, SE_SPONSOR, SE_N };   // SE_PIPE: a puff on the water pipe, or PUFF PUFF PASS; SE_TV .. SE_RUN: the home pack (skills.h)   // (event numbers are not saved: they can be put in any order; table ROWS are saved by index)
+       SE_PIPE, SE_TV, SE_READ, SE_FISH, SE_RUN, SE_LETTER, SE_TAPE, SE_SWITCH, SE_WALLTAP, SE_MANUAL, SE_RADIO, SE_SPONSOR, SE_N };
+enum { QE_FOOD=SE_N, QE_BUY, QE_PJOB };   // story events (story.h stQEvent) the life events do not have: food ordered on the phone, a weapon bought, a prison job taken   // SE_PIPE: a puff on the water pipe, or PUFF PUFF PASS; SE_TV .. SE_RUN: the home pack (skills.h)   // (event numbers are not saved: they can be put in any order; table ROWS are saved by index)
 // icons (7x7, simIconArt): drawn in the HUD cells, the aspiration panel and the creator
 enum { IC_FOOD, IC_WC, IC_BED, IC_SHOWER, IC_SOFA, IC_BOARD, IC_COMBO, IC_RAIL, IC_AIR, IC_STAR, IC_BRIEF, IC_UP, IC_DOWN, IC_BOOK, IC_HOUSE,
        IC_COIN, IC_TROPHY, IC_CAKE, IC_HEART, IC_SKULL, IC_HURT, IC_PUDDLE, IC_SAD, IC_GLASS, IC_CANE, IC_STINK, IC_BAIL, IC_ZZZ,
@@ -616,8 +617,9 @@ static void simDread(int s){   // the fear in slot s came true
 // something happened (v = how much of it: tricks in a combo, a combo's points, cash, skill points): pay a want, or let a fear come true
 static void memNote(int ev,int v);   // memlog.h: the diary of big moments (MY SIM > MORE > MEMORIES)
 static void stTvEvent(int ev);   // story.h: TV SHOW & TELL watches for a puff or a collapse
+static void stQEvent(int ev,int v);   // story.h: a story task that waits for this event
 static void simEventV(int ev,int v){
-    stTvEvent(ev); memNote(ev,v);
+    stTvEvent(ev); stQEvent(ev,v); memNote(ev,v);
     voxEvent(ev,v);   // the voice of the Sim you control (main.c)
     if(!simWishes()) return;
     for(int s=0;s<SIM_WS;s++) if(simW[s]>=0&&simWants[simW[s]].ev==ev&&(ev==SE_CASH?simMoney>=simCashGoal(simWP[s]):v>=simWP[s])) simMeet(s);

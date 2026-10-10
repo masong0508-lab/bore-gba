@@ -221,6 +221,7 @@ static void phInvite(void){   // someone from another household comes over (they
 }
 static void careerScreen(void);   // career.h
 static void htFavors(void);   // hardtime.h
+static void trvMenu(void);   // travel.h
 static void phoneMenu(void){   // pause menu > PHONE
     const char* it[7]; int id[7], n=0;
     it[n]="INVITE SOMEONE OVER"; id[n++]=0;
@@ -228,17 +229,19 @@ static void phoneMenu(void){   // pause menu > PHONE
     it[n]="ORDER PIZZA  \xC2\xA7" "80"; id[n++]=1;
     it[n]="ORDER CHINESE  \xC2\xA7" "60"; id[n++]=2;
     if(prIn()){ it[n]="FAVORS  PRISON JOBS"; id[n++]=5; }   // (in the prison: hardtime.h)
+    else if(nbOk){ it[n]="CALL A CAB  GO SOMEWHERE"; id[n++]=6; }   // (travel.h: the park, the skate park, the lounge ... or home)
     if(dbgOn&&hhN){ it[n]="MOVE SOMEONE OUT"; id[n++]=3; }   // (the DEBUG CODE: every change to who lives in the house)
     int c=menu("PHONE",it,n); if(c<0) return;
     switch(id[c]){
         case 0: phInvite(); break;
         case 4: careerScreen(); break;
         case 5: htFavors(); break;
+        case 6: trvMenu(); break;
         case 1: case 2: { int cost=id[c]==1?80:60;
             if(phFood){ toast("FOOD IS ALREADY ON ITS WAY"); break; }
             if(simMoney<cost){ toast("NOT ENOUGH SIMOLEONS"); break; }
             simMoney-=cost; simsSave(); sfxPlay(SFX_CASH); phFood=(u8)id[c]; phT=(short)(480+(rnd8()<<1));   // the doorbell in 8 to 16 seconds
-            toast(id[c]==1?"A PIZZA IS ON ITS WAY":"CHINESE FOOD IS ON ITS WAY"); break; }
+            toast(id[c]==1?"A PIZZA IS ON ITS WAY":"CHINESE FOOD IS ON ITS WAY"); stQEvent(QE_FOOD,1); break; }
         case 3: { const char* who[HH_MAX]; for(int m=0;m<hhN;m++) who[m]=hhM[m].name;
             int m=menu("WHO MOVES OUT?",who,hhN); if(m<0) break;
             const char*yn[2]={"YES  GOODBYE","NO"}; if(menu("ARE YOU SURE?",yn,2)!=0) break;

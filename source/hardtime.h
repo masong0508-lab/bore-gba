@@ -249,7 +249,7 @@ static void htWork(void){
     int c=menu("WORK",it,n); if(c<0) return; int j=id[c];
     if(j==2&&skLvl(SK_LOGIC)<1){ toast("YOU NEED LOGIC 1 FOR THE KITCHEN"); return; }
     if(j==3&&skLvl(SK_BODY)<2){ toast("YOU NEED BODY 2 FOR THE WORKSHOP"); return; }
-    htJob=(u8)j; htSave(); toast(j?"YOU HAVE A JOB  PAID AT MIDNIGHT":"NO MORE WORK");
+    htJob=(u8)j; htSave(); toast(j?"YOU HAVE A JOB  PAID AT MIDNIGHT":"NO MORE WORK"); if(j) stQEvent(QE_PJOB,1);
 }
 static void htGangMenu(void){
     char lb[5][36]; const char*it[5]; int id[5], n=0;
