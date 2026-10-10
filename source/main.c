@@ -1628,12 +1628,7 @@ static void voxPlay(int v); static void voxNag(int v); static void voxChain(int 
 #define R_TM1CNT  (*(volatile u16*)0x04000106)
 #define SFX_STEP 23655   // 6553.6 Hz source samples per 18157 Hz mixer sample, 16.16 fixed point
 __asm__(".pushsection .rodata\n.balign 4\n"
- ".global sfx_hit\nsfx_hit:\n.incbin \"source/sfx/hit.adp\"\n.balign 4\n"
  ".global sfx_gasp\nsfx_gasp:\n.incbin \"source/sfx/gasp.adp\"\n.balign 4\n"
- ".global sfx_scream\nsfx_scream:\n.incbin \"source/sfx/scream.adp\"\n.balign 4\n"
- ".global sfx_cry\nsfx_cry:\n.incbin \"source/sfx/cry.adp\"\n.balign 4\n"
- ".global sfx_groan\nsfx_groan:\n.incbin \"source/sfx/groan.adp\"\n.balign 4\n"
- ".global sfx_instant\nsfx_instant:\n.incbin \"source/sfx/instant.adp\"\n.balign 4\n"
  ".global sfx_tick\nsfx_tick:\n.incbin \"source/sfx/tick.adp\"\n.balign 4\n"
  ".global sfx_pop\nsfx_pop:\n.incbin \"source/sfx/pop.adp\"\n.balign 4\n"
  ".global sfx_land\nsfx_land:\n.incbin \"source/sfx/land.adp\"\n.balign 4\n"
@@ -1653,12 +1648,16 @@ __asm__(".pushsection .rodata\n.balign 4\n"
  ".global sfx_splash\nsfx_splash:\n.incbin \"source/sfx/splash.adp\"\n.balign 4\n"
  ".global sfx_boot\nsfx_boot:\n.incbin \"source/sfx/boot.adp\"\n.balign 4\n"
  ".popsection\n");
-extern const u8 sfx_hit[],sfx_gasp[],sfx_scream[],sfx_cry[],sfx_groan[],sfx_instant[],sfx_tick[],sfx_pop[],sfx_land[],sfx_stick[],sfx_grind[],sfx_thunder[],sfx_ghost[];
+extern const u8 sfx_gasp[],sfx_tick[],sfx_pop[],sfx_land[],sfx_stick[],sfx_grind[],sfx_thunder[],sfx_ghost[];
 extern const u8 sfx_bell[],sfx_dial[],sfx_flush[],sfx_shower[],sfx_munch[],sfx_cash[],sfx_page[],sfx_brew[],sfx_tv[],sfx_splash[],sfx_boot[];   // the everyday sounds (tools/make_life_sfx.py)
-enum { SFX_BONK, SFX_HIT, SFX_GASP, SFX_SCREAM, SFX_CRY, SFX_GROAN, SFX_NEARLY, SFX_DEATH, SFX_INSTANT, SFX_TICK, SFX_POP, SFX_LAND, SFX_STICK, SFX_GRIND, SFX_THUNDER, SFX_GHOST, SFX_BELL, SFX_DIAL, SFX_FLUSH, SFX_SHOWER, SFX_MUNCH, SFX_CASH, SFX_PAGE, SFX_BREW, SFX_TV, SFX_SPLASH, SFX_BOOT, SFX_VOICE0, SFX_N=SFX_VOICE0+VOICE_N };   // POP ollie, LAND a landing, STICK a trick landed, GRIND a rail caught (tools/make_skate_sfx.py)
+enum { SFX_BONK, SFX_HIT, SFX_GASP, SFX_SCREAM, SFX_CRY, SFX_GROAN, SFX_NEARLY, SFX_DEATH, SFX_INSTANT, SFX_TICK, SFX_POP, SFX_LAND, SFX_STICK, SFX_GRIND, SFX_THUNDER, SFX_GHOST, SFX_BELL, SFX_DIAL, SFX_FLUSH, SFX_SHOWER, SFX_MUNCH, SFX_CASH, SFX_PAGE, SFX_BREW, SFX_TV, SFX_SPLASH, SFX_BOOT, SFX_YELP, SFX_KO, SFX_VOICE0, SFX_N=SFX_VOICE0+VOICE_N };   // POP ollie, LAND a landing, STICK a trick landed, GRIND a rail caught (tools/make_skate_sfx.py)
 #define VS(v) (SFX_VOICE0+(v))   // a voice clip's sound id (V_xxx from voices.h)
-// effects that share a source file share one blob in the ROM
-static const u8* const sfxTab[SFX_N]={ sfx_hit,sfx_hit,sfx_gasp,sfx_scream,sfx_cry,sfx_groan,sfx_scream,sfx_scream,sfx_instant,sfx_tick,sfx_pop,sfx_land,sfx_stick,sfx_grind,sfx_thunder,sfx_ghost, sfx_bell,sfx_dial,sfx_flush,sfx_shower,sfx_munch,sfx_cash,sfx_page,sfx_brew,sfx_tv,sfx_splash,sfx_boot, VOICE_TAB };
+// THE TAKES. The voice effects (BONK HIT SCREAM CRY GROAN NEARLY DEATH INSTANT, and YELP KO) are takes cut out of five long recording sessions
+// (tools/chop_sfx.py, sfxtakes.h): one take each, instead of the whole 3 to 16 s session every time. HIT and YELP have several takes and
+// cycle through them (sfxPlay), so a fight does not repeat one grunt.
+#include "sfxtakes.h"
+static const u8* const sfxHitT[TK_HIT_N]={TK_HIT}; static const u8* const sfxYelpT[TK_YELP_N]={TK_YELP}; static u8 sfxRot;
+static const u8* const sfxTab[SFX_N]={ TK_BONK_FIRST,TK_HIT_FIRST,sfx_gasp,TK_SCREAM_FIRST,TK_CRY_FIRST,TK_GROAN_FIRST,TK_NEARLY_FIRST,TK_DEATH_FIRST,TK_INSTANT_FIRST,sfx_tick,sfx_pop,sfx_land,sfx_stick,sfx_grind,sfx_thunder,sfx_ghost, sfx_bell,sfx_dial,sfx_flush,sfx_shower,sfx_munch,sfx_cash,sfx_page,sfx_brew,sfx_tv,sfx_splash,sfx_boot, TK_YELP_FIRST,TK_KO_FIRST, VOICE_TAB };
 static const u16 stepT[89]={7,8,9,10,11,12,13,14,16,17,19,21,23,25,28,31,34,37,41,45,50,55,60,66,73,80,88,97,107,118,130,143,157,173,190,209,230,253,279,307,337,371,408,449,494,544,598,658,724,796,876,963,1060,1166,1282,1411,1552,1707,1878,2066,2272,2499,2749,3024,3327,3660,4026,4428,4871,5358,5894,6484,7132,7845,8630,9493,10442,11487,12635,13899,15289,16818,18500,20350,22385,24623,27086,29794,32767};
 static const signed char idxT[8]={-1,-1,-1,-1,2,4,6,8};
 // The effect voice: ssrc/sn = the clip's nibbles and sample count, sPos + sFr/65536 = play position in clip samples, sRd = samples decoded so far,
@@ -2165,6 +2164,7 @@ static void sfxPlay(int id){   // a new sound replaces whatever effect is playin
     if(!sSnd){ sfxStop(); return; }
     vxQn=0;   // (a new sound drops the clips waiting behind the old one)
     const u8*b=sfxTab[id];
+    if(id==SFX_HIT) b=sfxHitT[sfxRot++%TK_HIT_N]; else if(id==SFX_YELP) b=sfxYelpT[sfxRot++%TK_YELP_N];   // (the next take each time)
     sfxV=0;   // (the interrupt does not touch the voice while sfxV is 0)
     ssrc=b+4; sn=*(const u32*)b; sPos=0; sFr=0; sRd=0; spred=0; sidx=0; sS0=sS1=0;
     sfxLoop=0; sfxFade=sfxFadeT=256;

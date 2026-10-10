@@ -738,6 +738,28 @@ and source/voices.h (X-macro list, ROM blobs, V_<name> ids). They play on the on
 `voxChain(a,b,c)` plays three in a row (the pipe: lighter, inhale, cough). Who plays what: `voxEvent` (main.c, called from sims.h simEventV) for life events, `voxSoc` (house.h) for socials,
 and spots in main.c: falls (shriek), bails (cry), instant death (die of shock), fights (lets fight / losing / lost / win), hunger and bladder nags, sleep (snore), new wants (thinking).
 
+### The takes (hits, screams, cries, groans)
+The old voice effects were five recording sessions played whole: a punch played all five grunts of `hit` (3.4 s), and a scream, a close call, a death and
+INSTANT all played the same 15.7 s `scream` session (which `cry` and `instant` open with too). `python3 tools/chop_sfx.py` cuts the sessions
+(tools/sfx_src/*_session.adp) at their silences into 23 takes and writes the ones in use as source/sfx/x_<take>.adp plus source/sfxtakes.h. `ROLES` in the tool
+says what each effect plays:
+
+| Effect | Take(s) | Plays on |
+|---|---|---|
+| BONK | hit1 | running into a wall |
+| HIT | hit1 hit2 hit4 hit5, in turn | a punch or kick that lands (on you or a Sim), a parry, a tackle, a beating |
+| YELP (new) | scr7 cry6 grn7, in turn | a Sim hit by a weapon |
+| KO (new) | scr5 | a Sim knocked out |
+| SCREAM | scr3 | a fall that kills you |
+| NEARLY | scr6 | CLOSE CALL |
+| DEATH | scr1 | killed by a wall, or worn out by hits |
+| INSTANT | ins3 | |
+| CRY | cry5 | an accident, the cutscenes' crying |
+| GROAN | grn1 | the cutscenes' sick groan |
+
+Spare takes (not in the ROM until a role uses one): hit3 (a low thump), scr2, scr4, cry4, grn2 to grn6. `--preview DIR` writes every take as a WAV
+named by its number, take and role, to listen to. The takes in use are 56 KB of ROM; the sessions were 204 KB.
+
 ## Slider locks (roadmap #5)
 Most creator sliders start locked and are bought in six packs with jenes (BODY SHAPE 40, BODY DETAIL 80, BUTT 50, FACE DETAIL 40, EAR SLIDERS 30, PART SLIDERS 60): press A on a locked slider. Free essentials: HEIGHT, WEIGHT, SKIN TONE, EYE SIZE, EYE SHADE, HAIR / TOP / BOTTOM tone. The Konami code (sUnlock) opens everything. Looks keep the values they already hold (old saves carry over); the lock only stops editing, and ROLL THE DICE / TRUE RANDOM for you leave a locked slider in the middle. Saved in the jukebox block at JB_OFF+32: 'S' 'K', the pack bits, the bits xor 0x5A (appended; nothing moved, nothing resized). Code: "SLIDER LOCKS" above the creator in main.c.
 **Earning jenes** (pDna, spent on parts and slider packs): a met want pays its points, SKILL UP 15, a promotion 25, a birthday 50, a lifetime want 200, a story chapter 25, and since the slider locks: a GOOD SHIFT 8 (16 on a double-quota shift, shown on the pay note) and every 5th trick landed 1 ("+1 JENE"). Tune SIM_DNA_SHIFT / SIM_DNA_ACE / SIM_DNA_TRICKS in sims.h.

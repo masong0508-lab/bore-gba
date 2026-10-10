@@ -77,7 +77,7 @@ static void fgKnock(int m,int ax,int ay,int amt){   // shove a Sim back, never i
     if(surfH(nx,ny)<=h0&&surfH(nx,t->fy)<=h0&&surfH(t->fx,ny)<=h0){ t->fx=nx; t->fy=ny; }
 }
 static void fgKO(int m){   // the K.O. fanfare
-    (void)m; fgHS=8; fgSlow=75; fgKoT=84; specAdd(100); sfxPlay(SFX_HIT);
+    (void)m; fgHS=8; fgSlow=75; fgKoT=84; specAdd(100); sfxPlay(SFX_KO);
 }
 // a special lands on member m. 1 = hurt, 2 = knocked out, 0 = dodged
 static int fgLand(int m,int mul,int stun,int kb,int ax,int ay,const char*nm){
