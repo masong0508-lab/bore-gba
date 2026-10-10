@@ -4499,6 +4499,7 @@ static int slkGift(int story){   // a whole story finished: the next locked slid
 enum { TB_BODY, TB_FACE, TB_HAIR, TB_CLOTHES, TB_PARTS, TB_ASPIRE, TB_DONE, NTAB };
 enum { RK_PICK, RK_SWATCH, RK_ACT, RK_SLIDE, RK_PERS, RK_TRAIT, RK_DUO };   // RK_DUO: two buttons side by side in one row (LEFT RIGHT picks the side; id = left action, n = right action, lab/sub = what each side says it does)   // a row picks from named options, picks a colour, is a button, a slider, a persona choice or a trait
 enum { AC_PLAY, AC_MAP, AC_MENU, AC_RAND, AC_ADD, AC_FAM, AC_FNAME, AC_LNAME, AC_TRAND, AC_HOUSE };
+static u8 ceMoveIn;   // a NEW PLAYER's creator (newGame): 1 = GO LIVE LIFE leaves the creator to MOVE IN on the town map first (it sets 2)
 enum { PS_ASP, PS_LTW, PS_SIGN };
 typedef struct { const char*lab,*sub; u8 kind,id,n; } Row;   // sub = second line of a button
 static const char* const tabNm[NTAB]={"BODY","FACE","HAIR","CLOTHES","PARTS","ASPIRE","DONE"};
@@ -4983,7 +4984,7 @@ static int creatorNew(void){   // returns 1 when the secret code switched screen
             if(pressed&K_A){
                 partsSettle();   // a part still locked comes off before the creature leaves the creator
                 switch(aid){
-                    case AC_PLAY:  lifeMode(0); if(gToMenu){ stageOn=0; return 0; } break;
+                    case AC_PLAY:  if(ceMoveIn){ ceMoveIn=2; stageOn=0; return 0; } lifeMode(0); if(gToMenu){ stageOn=0; return 0; } break;   // (a new player picks a home first: newGame)
                     case AC_MAP:   if(edGate()) mapEditor(); break;
                     case AC_RAND:  lookRandom(); break;
                     case AC_TRAND: lookTrueRandomMe(); break;
@@ -5077,7 +5078,7 @@ static int creatorClassic(void){   // returns 1 when the secret code switched sc
             if(TRIG(K_R,8)){cy++;dirty=1;}      if(TRIG(K_L,9)){cy--;dirty=1;}
             }
             if((pressed&K_A)&&part!=NPARTS&&part!=NPARTS+1){
-                if(part==NPARTS+2){ lifeMode(0); if(gToMenu) return 0; }
+                if(part==NPARTS+2){ if(ceMoveIn){ ceMoveIn=2; return 0; } lifeMode(0); if(gToMenu) return 0; }
                 else if(part==NPARTS+3){ if(edGate()) mapEditor(); }
                 else if(part==NPARTS+4) return 0;   // MAIN MENU
                 else { doPart(1,part,size,cx,cy,cz); custom=1; }
@@ -5401,6 +5402,7 @@ static void s3Pill(int x,int y,int w,int h,int on,const char*s){   // the focuse
 }
 static void s3Round(int x,int y,int on,const char*glyph){ disc(x,y,7,on?RGB(4,10,2):RGB(3,7,16)); disc(x,y,6,on?RGB(14,27,6):RGB(9,16,27)); text(x-tw(glyph,1)/2+1,y-3,glyph,on?RGB(1,4,0):WHITE,1); }
 static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,RGB(8,14,26)); text((SW-tw(t,1))/2,152,t,RGB(26,29,31),1); }
+#include "housegen.h"   // HOUSES: every lot builds its own furnished house (style, plan, furniture from a seed)
 #include "neighborhood.h"   // THE NEIGHBORHOOD: a town of lots to live in, visit and build on (main menu)
 #include "households.h"     // THE TOWN'S HOUSEHOLDS: who lives where, the household bank, visitors, the phone
 #include "townrel.h"        // TOWN RELATIONSHIPS: neighbours are people you know (guests with every social, remembered, moving in)
@@ -5512,6 +5514,7 @@ static void howToPlay(void){
 // ---------- NEW GAME: a fresh life in the chosen town, started three ways (the story mode can start from here later) ----------
 #include "homepick.h"   // PICK YOUR HOME: a new player chooses land or a house after the creator
 static const char* const ngIt[4]={"CREATE A BORE","A PRE-MADE FAMILY","A TRULY RANDOM SIM","STORY MODE"};
+static void nbMoveInTown(void){ if(!nbOk){ lifeMode(0); return; } nbMoveMode=1; neighborhoodScreen(); nbMoveMode=0; }   // MOVE IN: the town map, buy a home, play there (neighborhood.h)
 static int newGame(int slot){   // 1 = it started (and ended: back to the main menu)
     int c=menu("HOW DO YOU START?",ngIt,4); if(c<0) return 0;
     int story=0; if(c==3){ story=storyPick(); if(!story) return 0; }
@@ -5526,8 +5529,11 @@ static int newGame(int slot){   // 1 = it started (and ended: back to the main m
     else if(c==2) lookTrueRandomMe();
     else if(c==3){ if(!storyLead(story)) lookTrueRandomMe(); storySetup(story); storyHome(story); }   // STORY MODE: you play the story's own pre-made lead (no creator), then who you live with, and chapter 1
     hhSave(); sprKey=0; if(sgPid) sgSave();   // (the save file exists from the first minute)
-    if(c==0){ creatureEditor(); if(sgPid) homePick(); }   // make your Sim, then a new player picks a home (homepick.h), then GO LIVE LIFE (a story has its own pre-made lead: story.h stLead)
-    else lifeMode(0);
+    // A NEW PLAYER moves in like The Sims 2: make your Sim (or pick a family / roll one), then the town map to buy a home, then play there.
+    // (A story has its own house: storylot.h. A new life that is not a new player plays on where it is.)
+    if(c==0){ ceMoveIn=sgPid?1:0; creatureEditor(); int go=ceMoveIn==2; ceMoveIn=0; if(go) nbMoveInTown(); }
+    else if(c==3||!sgPid) lifeMode(0);
+    else nbMoveInTown();
     return 1;
 }
 
@@ -5611,7 +5617,8 @@ static void playScreen(void){
     nbOk=nbLoad(); nbBounds();
 }
 
-#include "savegame.h"    // PLAYERS: a save file per player, picked on the PLAY screen
+#include "savegame.h"    // PLAYERS
+static int nbOthersHome(int li){ int l[SLOT_MAX], n=sgList(l); for(int i=0;i<n;i++) if(slI[l[i]].pid!=sgPid&&sgHomeOf(l[i])==li) return 1; return 0; }   // (neighborhood.h MOVE IN): a save file per player, picked on the PLAY screen
 static void mainMenu(void){
     int sel=0, dirty=3, ps=0; u16 prev=keyNow();
     menuMusStart();   // a random checked song plays while a main menu is open (MENU MUSIC option)

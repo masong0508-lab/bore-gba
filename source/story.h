@@ -44,7 +44,7 @@ _Static_assert(sizeof(stTv)/sizeof(stTv[0])==6,"a story has five chapters and th
 // the two lines under a TV SHOW & TELL chapter on its card (what the chapter is about; nothing is counted)
 static const char* const stTvBrief[5][2]={ {"HUNGOVER AND UNSTEADY  PULL YOURSELF","TOGETHER AND JUDGE THE TALENT SHOW"},
     {"TWO MONTHS ON  YOUR FANS HAVE GONE COLD","GO A WEEK WITHOUT DRINKING  I DARE YOU"},
-    {"THE PAPARAZZI ARE EVERYWHERE  BUILD","A PRIVATE HOUSE WITH TIGHT SECURITY"},
+    {"THE PAPARAZZI ARE EVERYWHERE  LOCK","THE GATEWAY  GATES AND CAMERAS"},
     {"YOU ARE MAMESY NOW  KEEP HOPE ALIVE","AND STOP THE PLUG BEING PULLED"},
     {"YOUR COMEBACK SHOW IS READY  NOTHING","CAN GO WRONG  RIGHT"} };
 // THE TASKS of the first ten stories: per chapter two lines of story and up to three tasks (a SG_KID chapter has the lines and no tasks).

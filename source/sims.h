@@ -55,7 +55,7 @@
 #define SIM_PAYX       20     // the money scale: the job table's small bonus numbers are multiplied by this
 #define SIM_BILLS      800    // taken every midnight
 #define SIM_FINE       800    // a bad night as a CRIMINAL
-#define SIM_CASH0      15000  // starting cash of a new life with one Sim ...
+#define SIM_CASH0      20000  // starting cash of a new life with one Sim ...
 #define SIM_JOIN_CASH  2000   // ... and every Sim who joins the household adds this (hhJoinCash, main.c)
 typedef long long money_t;    // the purse is 64 bit: it holds up to MONEY_CAP
 #define MONEY_CAP      999999999999LL
