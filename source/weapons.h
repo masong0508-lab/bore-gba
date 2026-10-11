@@ -104,10 +104,12 @@ static void wpPre(u16*kp,u16*pp){
 }
 // ---- drawing: the swing, then the shots (wpshot.h). Screen position of a spot on the floor, z px up ----
 static void wpScr(s32 fx,s32 fy,int z,int*sx,int*sy){ s32 rx,ry; rotPos(fx,fy,&rx,&ry); *sx=LOX+(int)((rx-ry)>>5); *sy=LOY+(int)((rx+ry)>>6)-z; }
+static void bdDraw(void);   // board.h
 static void wpDraw(void){
     if(wpSw&&wpSel>=0){ const WpDef*d=&wpT[wpSel]; int ax=(int)wpSwX-1, ay=(int)wpSwY-1, R=d->reach*16, n=wpSw>>1;
         for(int i=0;i<=5;i++){ int sx,sy; int r=R*(i+1)/6; wpScr(lfx+ax*r,lfy+ay*r,plFh+10+(i&1),&sx,&sy);
             u16 c=(i>=4-n/2)?d->col:RGB(28,28,28); rect(sx-1,sy-1,i>=4?3:2,i>=4?3:2,c); } }
     wpShotDraw();
     secDraw();
+    bdDraw();   // board.h: the hidden board's glint
 }

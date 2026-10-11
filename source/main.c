@@ -1629,6 +1629,8 @@ static int camX, camY, camSnap=1, camLastV;   // camera offset in px; the map's 
 // w = low wall, W = wall, # = 2-block crate, = = grind rail, . = floor (the default map is built by mapGen below)
 static const short cosT[16]={256,237,181,98,0,-98,-181,-237,-256,-237,-181,-98,0,98,181,237};   // sin(a)=cosT[(a+12)&15]
 static int spBx0, spBx1, spBy0, spBy1;
+static u8 bdOwn=1;   // board.h: your skateboard: 0 none, 1 a board, 2 a pro deck (bought at the SKATE SHOP or found hidden)
+static void bdLotInit(void); static void bdTick(void); static void bdGot(int lvl,const char*msg); static int bdHere(void);   // (board.h)
 static s32 lfx,lfy,lz,lvz,lvx,lvy; static int lskate, lhave, lfr;   // lskate: 0 on foot, 1 skateboard; lhave: picked up the board
 static u8 floorMap[MH][MW] EWRAM_BSS, wallMap[MH][MW] EWRAM_BSS;   // floor style and wallpaper per tile
 static u8 wDirty;   // the map changed: the walls work out again which floor is inside a room (wallsScan)
@@ -3194,6 +3196,7 @@ static void lifeInit(void){
     bakeSprites(); camSnap=1;
     lfx=spx*256+128; lfy=spy*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote=""; lchill=0; lskate=0; lhave=(bdx<0); lfr=0; lvx=lvy=0; ldead=0; lmaxz=0; lplay=0; lbumpCd=0; lfood=100; lbl=0; lhp=HP_MAX; lnear=0; lspec=0; lspecOn=0; lsw=0; lskl=0; lstrk=0; lwr=0; moodReset(); simsReset(); sfxStop(); feelReset(0);
     clPlace(); if(CL_ON&&!(clGot&32)){ lnote="FIND THE HIDDEN TAPE"; lnoteT=90; }   // (collectibles: see clPlace)
+    bdLotInit();   // board.h: no free board by the door; the hidden one; may you ride here
 }
 static u8 lqp, lqpD; static int lqpSpd, rGvz;   // skating 2: VERT up a quarter pipe (its direction, the speed you went up with); rGvz: how fast (8.8 px a step) the ground under the board was rising last step
 static void qpHold(void){   // in VERT: nothing carries you along the pipe (only sideways along its lip)
@@ -3228,7 +3231,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
     if(lbailT>0) lbailT--;
     if(lstun>0){ lstun--; lsp=0; lvx=lvy=0; }
     else {
-        if((pr&K_L)&&!lhave){ lnote="FIND A BOARD"; lnoteT=40; }
+        if((pr&K_L)&&!lhave){ lnote=bdOwn?"NO SKATING IN HERE":"NO BOARD  THE SKATE SHOP SELLS THEM"; lnoteT=70; }   // (board.h: some places are no place for a board)
         if((pr&K_L)&&lhave&&lz<=fh&&stage>=AG_CHILD){   // L: swap between on-foot (walk/run) and skateboard
             lskate=!lskate; lsp=0; lgrind=0; lspin=0; lflip=0; feelReset(lhd); lnote=lskate?"SKATE":"ON FOOT"; lnoteT=40;
         }
@@ -3335,7 +3338,8 @@ static void lifeStep(u16 k,u16 pr,int fr){
         if((fr&7)==0){ int g=40+skLvl(SK_BAL)*2; if(lspecOn) g*=2; lscore+=g; lcPts+=g; lcT=oComboLen(); skGain(SK_BAL,1); specAdd(8); }
     } else lman=0;
     if(lgrind){ if(air||!isGrindH(tileH(lfx>>8,lfy>>8))) lgrind=0; else if((fr&3)==0){ int g=abGrindPts()+skLvl(SK_GRIND)/2; if(lspecOn) g*=2; lscore+=g; lnote="GRIND"; lnoteT=10; lcPts+=g; lcT=oComboLen(); specAdd(4); } }   // GRIP ability
-    if(!lhave&&lz<(8<<8)&&(lfx>>8)==BDX&&(lfy>>8)==BDY){ lhave=1; lnote="GOT A SKATEBOARD"; lnoteT=90; moodEvent(M_GOT_BOARD); }   // walk over it to pick it up
+    if(!lhave&&lz<(8<<8)&&(lfx>>8)==BDX&&(lfy>>8)==BDY&&bdHere()){ bdGot(1,"GOT A SKATEBOARD  IT IS YOURS"); lhave=1; }   // walk over it to pick it up (a board lying in a map without a town: yours to keep)
+    bdTick();   // board.h: the board hidden on this lot
     clTick();   // letters and the tape
     fxTick();   // ghosts and weather (fx.h): every step, also while you lie dead
     if(!ldead){   // needs: hunger and bladder, then how they (and the skating) make the skater feel
@@ -5701,6 +5705,7 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "wpshot.h"        // WEAPONS 2: bullets and guided missiles
 #include "armsshop.h"      // WEAPONS 3: the ARMS SHOP lot and its counter
 #include "wpsecret.h"      // WEAPONS 4: secret stashes in the community lots
+#include "board.h"         // YOUR SKATEBOARD: owned, bought at the SKATE SHOP or found hidden; only where a board belongs
 #include "dbgmenu.h"       // WEAPONS 5: the DEBUG menu (pause, then SELECT; DEBUG CODE only)
 #include "goals.h"          // VIEW GOALS and the tape count per lot (the tape stays found)
 #include "statscreen.h"   // the LIFETIME STATS screen (PAUSE > MY SIM > MORE)
@@ -5794,7 +5799,7 @@ static void howToPlay(void){
 static const char* const ngIt[4]={"CREATE A BORE","A PRE-MADE FAMILY","A TRULY RANDOM SIM","STORY MODE"};
 static void nbMoveInTown(void){ if(!nbOk){ lifeMode(0); return; } nbMoveMode=1; neighborhoodScreen(); nbMoveMode=0; }   // MOVE IN: the town map, buy a home, play there (neighborhood.h)
 static int newGame(int slot){   // 1 = it started (and ended: back to the main menu)
-    wdClear(); wdSave(); exQuit();   // (a new life starts with an empty stash, and no mission)
+    wdClear(); wdSave(); exQuit(); bdOwn=0; bdSave();   // (a new life starts with an empty stash, no mission and no board: buy one or find one)
     int c=menu("HOW DO YOU START?",ngIt,4); if(c<0) return 0;
     int story=0; if(c==3){ story=storyPick(); if(!story) return 0; }
     int f=0, me=0; if(c==1){ me=famPick(&f,0); if(me<0) return 0; }   // the family bin: the family and who of them you play, on one screen
@@ -5979,6 +5984,7 @@ int boreMain(void){
     persLoad();              // ...with its aspiration, personality, DNA and unlocked parts
     skLoad();                // ...and its skills
     wdLoad();                // ...and its stash (weed.h)
+    bdLoad();                // ...and whether it owns a board (board.h)
     hhLoad();                // ...and the household, which holds your first and last name
     mainMenu();
     return 0;

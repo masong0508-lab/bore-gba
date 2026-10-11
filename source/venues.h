@@ -8,7 +8,7 @@
 #define VF_ADULT 1   // grown-ups only
 #define VF_NIGHT 2   // only after 6 PM
 enum { VS_NONE, VS_MUNCH, VS_ADOPT, VS_MOVIE, VS_GAMBLE, VS_HEAL, VS_HAIR, VS_WORK, VS_ROB, VS_GROCER, VS_PETFOOD, VS_PETTOY, VS_PETGROOM,
-       VS_LAUNCH, VS_SPACEWALK, VS_SPAR, VS_FIGHTER };   // (the packs, expand.h: a seat on the rocket, spacewalk training, a challenger, the BORTUA FIGHTER cabinet)
+       VS_LAUNCH, VS_SPACEWALK, VS_SPAR, VS_FIGHTER, VS_BOARD, VS_PRODECK };   // (board.h: a skateboard, a pro deck)   // (the packs, expand.h: a seat on the rocket, spacewalk training, a challenger, the BORTUA FIGHTER cabinet)
 typedef struct { const char*nm; short price; signed char food, nrg, hyg, com, soc; u8 mood, sk, skn, stun, fl, sp; const char*say; } VAct;   // (VS_GAMBLE: sk = payout x, skn = win %)
 #define NO 255
 static const VAct vAct[]={
@@ -106,6 +106,12 @@ static const VAct vAct[]={
     {"CALL OUT A CHALLENGER",5, 0,0,0,0,0, 0,NO,0,30,0,VS_SPAR,0},
     {"BORTUA FIGHTER",1, 0,-3,0,0,0, 0,NO,0,0,0,VS_FIGHTER,0},
     {"TEACH A CLASS",0, 0,-12,-6,0,6, 0,SK_BODY,1,200,0,VS_WORK,"BOW TO YOUR SENSEI"},
+    // SKATE SHOP (77)
+    {"A COMPLETE BOARD",120, 0,0,0,0,0, 0,NO,0,30,0,VS_BOARD,0},
+    {"A PRO DECK",450, 0,0,0,0,0, 0,NO,0,30,0,VS_PRODECK,0},
+    {"WATCH SKATE VIDEOS",0, 0,-2,0,5,0, M_COMBO,NO,0,120,0,VS_NONE,"THE NINETIES WERE A TIME"},
+    {"GRIP TAPE ART",15, 0,-3,0,0,0, M_WANT,SK_CREAT,1,90,0,VS_NONE,"A MASTERPIECE  UNDERFOOT"},
+    {"WORK THE REGISTER",0, 0,-10,0,0,5, 0,SK_CHARM,1,200,0,VS_WORK,"DUDE  NO WAY"},
 };
 // the rows the packs' missions name (expand.h TD): keep them in step with the table above
 enum { VA_FOURTH=5, VA_LIFT=7, VA_SPIN=8, VA_SHAKE=9, VA_CABINET=12, VA_BORTUA=15, VA_GROCER=21, VA_CHECKUP=30, VA_LATTE=34, VA_KARAOKE=39, VA_BARSNACK=41,
@@ -130,6 +136,7 @@ static const Venue venues[]={
     {CT_POOL,    0, 6,RGB(24,26,28),RGB(6,18,30),"HHNNpZ",62,4,"R THE LIFEGUARD"},
     {CT_SPACE,   5, 2,RGB(4,6,14),RGB(28,28,30), "QvVQpl",66,6,"R MISSION CONTROL"},
     {CT_DOJO,    4, 4,RGB(20,5,4),RGB(30,26,18), "mmHHpl",72,5,"R THE SENSEI"},
+    {CT_SKSHOP,  3, 2,RGB(20,20,22),RGB(31,22,4),"bbVQpl",77,5,"R THE SHOP DUDE"},
 };
 #define NVEN ((int)(sizeof(venues)/sizeof(venues[0])))
 static const Venue* venueOf(int ct){ for(int i=0;i<NVEN;i++) if(venues[i].ct==ct) return &venues[i]; return 0; }
@@ -165,6 +172,7 @@ static void venueDrawCounter(int sx,int sy,int t){
         case CT_CINEMA: rect(ix-1,iy,7,5,RGB(6,6,8)); px(ix,iy+1,WHITE); px(ix+4,iy+1,WHITE); px(ix,iy+3,WHITE); px(ix+4,iy+3,WHITE); break;                                  // a film reel
         case CT_POOL: rect(ix-2,iy+2,9,3,RGB(6,18,30)); if((t>>2)&1) px(ix+2,iy+1,WHITE); break;                                                                                // water
         case CT_SPACE: rect(ix+1,iy-1,3,5,WHITE); px(ix+2,iy-2,RGB(30,6,4)); px(ix,iy+3,RGB(30,6,4)); px(ix+4,iy+3,RGB(30,6,4)); px(ix+2,iy+4,((t>>1)&1)?RGB(31,28,6):RGB(31,14,4)); break;   // a rocket, its flame flickering
+        case CT_SKSHOP: rect(ix-2,iy+1,9,2,RGB(26,14,6)); rect(ix-2,iy+1,9,1,RGB(31,22,4)); px(ix-1,iy+3,RGB(4,4,6)); px(ix+5,iy+3,RGB(4,4,6)); break;   // a skateboard
         case CT_DOJO: rect(ix-2,iy+2,9,2,RGB(3,3,4)); rect(ix+1,iy+1,3,4,RGB(3,3,4)); px(ix+1,iy+5,RGB(3,3,4)); px(ix+3,iy+5,RGB(3,3,4)); break;                              // a black belt
         default: break; }
 }
@@ -212,6 +220,8 @@ static void venueDo(const VAct*a){
         case VS_SPACEWALK: exTake=EXT_SWTRAIN; lnote="SUIT UP"; break;
         case VS_SPAR: exSparCall(); break;
         case VS_FIGHTER: exTake=EXT_FIGHTER; lnote="INSERT COIN"; break;
+        case VS_BOARD: if(bdOwn){ simMoney+=price; lnote="YOU ALREADY HAVE A BOARD"; break; } bdGot(1,"A BRAND NEW BOARD  RIDE IT OUTSIDE"); break;
+        case VS_PRODECK: if(bdOwn>=2){ simMoney+=price; lnote="YOU ALREADY RIDE A PRO DECK"; break; } bdGot(2,"A PRO DECK  FASTER  MORE POP"); break;
         default: break; }
     stQEvent(QE_VACT,(int)(a-vAct));   // (the packs' missions: expand.h TD)
     simsSave();

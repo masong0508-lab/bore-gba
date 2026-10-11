@@ -26,7 +26,8 @@
 #define EXD_OFF 7482
 #define EXD_LEN 11
 #define BF_OFF  7494   // bortua.h
-#define GO_OFF  7502   // gotchi.h (up to 7559)
+#define GO_OFF  7502   // gotchi.h (up to 7551: the board block is at 7552, board.h)
+_Static_assert(GO_OFF+50<=BD_OFF,"the handheld's block runs into the board block");
 _Static_assert(WD_OFF+WD_LEN<=EX_OFF&&EX_OFF+EX_LEN<=EXD_OFF&&EXD_OFF+EXD_LEN<=BF_OFF&&BF_OFF+8<=GO_OFF&&GO_OFF<LG_OFF,"the expansion blocks sit between the stash and the life stats");
 enum { XP_SPACE, XP_ZOMB, XP_WAR, XP_FIGHT, XP_GOTCHI, XP_EPI, XP_N };
 enum { XS_NONE, XS_SOON, XS_ZOMB, XS_WAR, XS_ARENA, XS_PUDDLE, XS_GHOST };

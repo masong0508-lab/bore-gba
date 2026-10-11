@@ -29,11 +29,12 @@ enum { LKIND_RES, LKIND_COMM };
 enum { CT_PARK, CT_SKATE, CT_PLAZA, CT_LOUNGE, CT_OLDTOWN, CT_BOTH, CT_PRISON, CT_ARMS, CT_DISP,
        CT_TACO, CT_GYM, CT_ARCADE, CT_CLUB, CT_GROCER, CT_BANK, CT_HOSPITAL, CT_CAFE, CT_BAR, CT_SALON, CT_PETSHOP, CT_LIBRARY, CT_CASINO, CT_CINEMA, CT_POOL,   // venues.h
        CT_SPACE, CT_DOJO,   // venues.h too: the packs' places (expand.h)
+       CT_SKSHOP,   // venues.h: the SKATE SHOP (board.h: where boards come from)
        CT_N };   // CT_BOTH: a park and a skate park in one (what a community flag and a skate flag together make)
 static const char* const ntNm[NT_N]={"GRASS","DIRT","SAND","WATER","PLAZA","ROAD"};
 static const char* const dcNm[DC_N]={"CLEAR","TREE","PINE","BUSH","FLOWERS","ROCK","LAMP","BENCH","FOUNTAIN"};
 static const char* const ctNm[CT_N]={"PARK","SKATE PARK","PLAZA","LOUNGE","OLD TOWN","PARK + SKATE","PRISON","ARMS SHOP","DISPENSARY",
-    "TACO BORE","GYM","ARCADE","NIGHTCLUB","GROCERY","BANK","HOSPITAL","CAFE","BAR","SALON","PET SHOP","LIBRARY","CASINO","CINEMA","POOL","SPACEPORT","DOJO"};
+    "TACO BORE","GYM","ARCADE","NIGHTCLUB","GROCERY","BANK","HOSPITAL","CAFE","BAR","SALON","PET SHOP","LIBRARY","CASINO","CINEMA","POOL","SPACEPORT","DOJO","SKATE SHOP"};
 static const char* const seasNm[4]={"SPRING","SUMMER","FALL","WINTER"};
 static const char* const todNm[3]={"DAY","DUSK","NIGHT"};
 typedef struct { u8 on,x,y,w,h,kind,type; s8 slot; char name[NB_NAME+1]; u8 floors; u16 value; } NbLot;   // value: what it sells for, in units of NB_UNIT simoleons
@@ -282,7 +283,7 @@ static void nbDistricts(int style,int ox,int oy){   // the land past ox / oy (th
     for(int i=0;i<NB_LOTS;i++) if(nbT.lot[i].on) n++;
     for(int x=ox+5;x<tw_;x+=12) for(int y=0;y<th_;y++) if((x>=ox||y>=oy)&&nbAt(x,y)<0&&NB_GR(nbT.cell[y][x])!=NT_WATER) nbT.cell[y][x]=NT_ROAD;   // the new streets
     for(int y=oy+5;y<th_;y+=12) for(int x=0;x<tw_;x++) if((x>=ox||y>=oy)&&nbAt(x,y)<0&&NB_GR(nbT.cell[y][x])!=NT_WATER) nbT.cell[y][x]=NT_ROAD;
-    static const u8 kinds[]={CT_TACO,CT_PARK,CT_GYM,CT_DISP,CT_ARCADE,CT_SKATE,CT_CAFE,CT_CLUB,CT_GROCER,CT_LOUNGE,CT_BAR,CT_PETSHOP,CT_CINEMA,CT_BANK,CT_POOL,CT_LIBRARY,CT_HOSPITAL,CT_CASINO,CT_SALON,CT_PLAZA,CT_ARMS,CT_DOJO,CT_SPACE};
+    static const u8 kinds[]={CT_TACO,CT_PARK,CT_SKSHOP,CT_GYM,CT_DISP,CT_ARCADE,CT_SKATE,CT_CAFE,CT_CLUB,CT_GROCER,CT_LOUNGE,CT_BAR,CT_PETSHOP,CT_CINEMA,CT_BANK,CT_POOL,CT_LIBRARY,CT_HOSPITAL,CT_CASINO,CT_SALON,CT_PLAZA,CT_ARMS,CT_DOJO,CT_SPACE};
     int kc=n, homes[12]={0};   // (the kinds go on from where the town's count is: a grown town gets the next ones)
     for(int y=0;y<th_&&n<NB_LOTS;y++) for(int x=0;x<tw_&&n<NB_LOTS;x++){
         if(x<ox&&y<oy) continue;

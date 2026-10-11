@@ -960,3 +960,10 @@ Measured in the emulator before the change (a test course: one ramp across a fla
 - **Landings and bumps.** A clean landing on the board only hurts from a real height (over 72 px; sketchy 48); the shriek starts at 72. Falling onto a ramp catches you up to 10 px short of its top. Skating into a wall at full speed is an OOF and a stop, no longer 2.5 s down.
 - **Coasting** rolls about twice as far (speed/512 a step plus 1 every 8th).
 - **Walking**: the life-stage pace (a child at 80%, an elder at 70%) and the slower screen diagonals had slipped into a comment in `feelWalk`; they work again.
+
+## Your skateboard: buy it or find it (board.h)
+Nobody hands you a board on every lot any more (the old pickup beside the arrival is gone from every town lot, house lots included). You **own** one or you do not (`bdOwn`: 0 none, 1 a board, 2 a pro deck), saved in SRAM (`BD_OFF`) and in your player save (chunk `'O'`).
+- **Buy one** at the new **SKATE SHOP** (a venue: A COMPLETE BOARD §120, A PRO DECK §450 for a touch more speed and pop, WATCH SKATE VIDEOS, GRIP TAPE ART, WORK THE REGISTER). New towns get one early in their districts; an older town gets one from the cab's SOMEWHERE NEW.
+- **Find one**: every PARK, SKATE PARK, PLAZA and OLD TOWN hides a board in its most out-of-the-way spot: the walkable floor tile farthest from where you arrive (a breadth-first search when the lot opens). Nothing marks it until you are within two tiles, then it glints. Walk over it and it is yours. Once you own a board the hidden ones are gone.
+- **Only where a board belongs**: house lots, parks, skate parks, plazas and old town. Not in the shops, restaurants, gym, bank, hospital, cinema, casino, salon, library, pool, lounge, dispensary, arms shop, spaceport, dojo, skate shop or prison: L says NO SKATING IN HERE (and without a board: THE SKATE SHOP SELLS THEM).
+- **Who has one**: a new life starts without a board; SKATE LIFE starts with Dex's. A life or player save from before owned boards keeps one (it had one).

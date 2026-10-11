@@ -737,6 +737,7 @@ static int stCastSim(const StCast*c){   // one of the story's people moves in (t
     s->asp=(u8)(c->p.stage<AG_ADULT?AS_GROW:c->p.asp); for(int i=0;i<TR_N;i++) s->tr[i]=signTr[c->p.sign][i];
     return m;
 }
+static void bdSave(void);   // board.h
 static void storySetup(int s){   // after the new life is set up and the old household has gone
     stId=(u8)s; stCh=0; stPart=stKid=stKidDay=255; stGuest=0; stTkL=0;
     int m;
@@ -745,7 +746,7 @@ static void storySetup(int s){   // after the new life is set up and the old hou
     case STY_WED: m=stCastSim(&stCast[s][0]);
         if(m>=0){ stRel(hhPUid,hhM[m].uid,70,80,RF_CRUSH|RF_LOVE|RF_STEADY|RF_KISSED|RF_FRIEND|RF_BFF); stPart=hhM[m].uid; } break;
     case STY_PARENT: m=stCastSim(&stCast[s][0]); if(m>=0){ stRel(hhPUid,hhM[m].uid,40,30,0); stKid=hhM[m].uid; } break;
-    case STY_SKATE: break;   // just you and a board
+    case STY_SKATE: bdOwn=1; bdSave(); break;   // just you and a board (yours: the story starts with it)
     case STY_RAGS: simMoney=2000; break;   // you start with almost nothing
     case STY_SECOND: m=stCastSim(&stCast[s][0]);   // someone you fell out with (they start cold)
         if(m>=0){ stRel(hhPUid,hhM[m].uid,-20,-10,0); stPart=hhM[m].uid; } break;
