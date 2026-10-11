@@ -1,0 +1,26 @@
+run 900
+hold START 6
+run 60
+tap DOWN
+run 20
+hold A 6
+run 150
+wav tr/creator.wav
+rec tr/creator.rgb
+run 60
+tap RIGHT
+run 40
+tap RIGHT
+run 40
+tap DOWN
+run 40
+tap RIGHT
+run 40
+tap DOWN
+run 40
+tap RIGHT
+run 40
+tap A
+run 60
+recstop
+wavstop

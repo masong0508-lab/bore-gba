@@ -83,7 +83,10 @@ typedef struct { volatile u32 src, dst, cnt; } DmaRec;
 #define LOGO_EWRAM __attribute__((section(".sbss"), aligned(4)))   /* BORE: its tables live in EWRAM, IWRAM is full */
 #define RGB15(r, g, b) ((u16)(((r) >> 3) | (((g) >> 3) << 5) | (((b) >> 3) << 10)))
 
-static s16 gfx_sin_lut[256] LOGO_EWRAM;
+// BORE: the logo's tables (4.3 KB) live in a scratch block the game lends it for the 8 seconds it plays (its frame buffer, which is not
+// in use yet), not in EWRAM of their own for the rest of the run. The layout is LogoScr, declared below the sizes it needs.
+static void* logoScr LOGO_EWRAM;
+#define gfx_sin_lut (((s16*)logoScr))
 static u32 gfx_hash(int x, int y) { u32 n = (u32)x * 374761393u + (u32)y * 668265263u; n = (n ^ (n >> 13)) * 1274126177u; return (n ^ (n >> 16)) & 255; }
 
 static void zero32(volatile u32 *p, int n) { for (int i = 0; i < n; i++) p[i] = 0; }
@@ -201,7 +204,7 @@ static const Glyph FONT[] = {
  {'t', {".....",".#...","####.",".#...",".#...",".#..#","..##.",".....","....."}},
  {'s', {".....",".....",".####","#....",".###.","....#","####.",".....","....."}},
 };
-static u8 mask[TEXT_H][TEXT_W] LOGO_EWRAM;
+#define mask (*(u8(*)[TEXT_H][TEXT_W])((u8*)logoScr+512))
 static void gfx_text(int sb_text) {
     static const u16 txt[3] = {0, RGB15(14, 9, 30), RGB15(128, 110, 215)};
     static const u16 rope[4] = {0, RGB15(0x8a, 0x7a, 0xe0), RGB15(0x4a, 0x3f, 0x8f), RGB15(0xd9, 0xd2, 0xff)};
@@ -249,7 +252,10 @@ static void gfx_text(int sb_text) {
 #define SB_TEXT 26
 #define SB_ROPE 27
 
-static u16 tabW0[2][160] LOGO_EWRAM, tabW1[2][160] LOGO_EWRAM, tabH0[2][160] LOGO_EWRAM;   // HBlank DMA tables (double-buffered)
+#define LOGO_TAB0 ((512+TEXT_H*TEXT_W+3)&~3)   // HBlank DMA tables (double-buffered), after the sine and the text mask in the scratch block
+#define tabW0 (*(u16(*)[2][160])((u8*)logoScr+LOGO_TAB0))
+#define tabW1 (*(u16(*)[2][160])((u8*)logoScr+LOGO_TAB0+640))
+#define tabH0 (*(u16(*)[2][160])((u8*)logoScr+LOGO_TAB0+1280))
 static int cur;
 
 static inline int clampi(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
@@ -383,7 +389,8 @@ static void text_frame(int f) {
     }
 }
 
-void logo_play(void) {
+void logo_play(void* scratch) {   // scratch: at least LOGO_TAB0 + 1920 bytes, word aligned, free while the logo plays
+    logoScr = scratch;
     REG_BLDY = 16;
     scene_init();
     int held = 1;                                                     // BORE: A or START skips it (once both were let go after power on)

@@ -1,0 +1,39 @@
+run 600
+hold START 6
+run 200
+hold A 6
+run 200
+hold A 6
+run 200
+hold A 6
+run 200
+hold DOWN 6
+run 20
+hold DOWN 6
+run 20
+hold DOWN 6
+run 20
+hold A 6
+run 200
+hold A 6
+run 1200
+run 600
+hold A 6
+run 300
+run 600
+hold DOWN 6
+run 20
+hold DOWN 6
+run 20
+hold A 6
+run 300
+poke8 @ARG@ 0
+poke8 @CALL@ 8
+run 30
+wav tr/pets.wav
+rec tr/pets.rgb
+run 120
+poke8 @CALL@ 9
+run 200
+recstop
+wavstop

@@ -61,7 +61,7 @@ static void wpHurt(int m,int dmg,int w){   // one hit on a household Sim (melee,
     HhSim*t=&hhM[m]; int b=t->uid; if(dmg<1) dmg=1;
     copCrime(1);
     if(hhPUid>=0&&hhPUid<HU_N&&b<HU_N){ relD[b][hhPUid]=(signed char)clampR(relD[b][hhPUid]-18); relL[b][hhPUid]=(signed char)clampR(relL[b][hhPUid]-8); }
-    sfxPlay(SFX_HIT); hhSay(b,IC_HURT,"OW");
+    sfxPlay(SFX_YELP); hhSay(b,IC_HURT,"OW");   // (a weapon: a yelp, not a punch's grunt)
     hhScare((int)(t->fx>>8),(int)(t->fy>>8),7,150); hhPanT[m]=0;   // PANIC: the others run from it (the one hit is stunned or down)
     if(t->hp>dmg){ t->hp=(u8)(t->hp-dmg); hhFreeze(b,w==WP_TASER?200:40);
         static char hb[20] EWRAM_BSS; char*e=simCat(hb,wpT[w].nm); *e++=' '; simCatN(e,dmg); lnote=hb; lnoteT=40; }
@@ -74,6 +74,7 @@ static void wpMelee(int w,int ax,int ay){
         int dx=(int)(hhM[m].fx-lfx), dy=(int)(hhM[m].fy-lfy);
         if(dx*dx+dy*dy>R*R) continue;
         if(dx*ax+dy*ay<-48) continue;   // behind you
+        if(!wallClear(lfx,lfy,hhM[m].fx,hhM[m].fy)) continue;   // a wall in between
         wpHurt(m,d->dmg+(rnd8()>>5),w); }
 }
 static void wpFire(u16 k){
@@ -103,10 +104,12 @@ static void wpPre(u16*kp,u16*pp){
 }
 // ---- drawing: the swing, then the shots (wpshot.h). Screen position of a spot on the floor, z px up ----
 static void wpScr(s32 fx,s32 fy,int z,int*sx,int*sy){ s32 rx,ry; rotPos(fx,fy,&rx,&ry); *sx=LOX+(int)((rx-ry)>>5); *sy=LOY+(int)((rx+ry)>>6)-z; }
+static void bdDraw(void);   // board.h
 static void wpDraw(void){
     if(wpSw&&wpSel>=0){ const WpDef*d=&wpT[wpSel]; int ax=(int)wpSwX-1, ay=(int)wpSwY-1, R=d->reach*16, n=wpSw>>1;
         for(int i=0;i<=5;i++){ int sx,sy; int r=R*(i+1)/6; wpScr(lfx+ax*r,lfy+ay*r,plFh+10+(i&1),&sx,&sy);
             u16 c=(i>=4-n/2)?d->col:RGB(28,28,28); rect(sx-1,sy-1,i>=4?3:2,i>=4?3:2,c); } }
     wpShotDraw();
     secDraw();
+    bdDraw();   // board.h: the hidden board's glint
 }

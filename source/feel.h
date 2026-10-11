@@ -5,7 +5,7 @@
 // FEEL (tune here only)
 #define F_TOP     400   // top speed (old lsp 25)
 #define F_PUSHDIV 5     // push: spd += (TOP-spd)>>5 + 1  -> ~1.2 s to 90% speed
-#define F_COAST   7     // coast: spd -= 1 + spd>>7
+#define F_COAST   9     // coast: spd -= spd>>9, and 1 every 8th step (a long roll: about half your speed after 2 s)
 #define F_BRAKE   4     // brake: spd -= 5 + spd>>4
 #define F_TURN_LO 56    // turn rate at standstill (1/16 unit/frame, ~300 deg/s)
 #define F_TURN_HI 28    // ...at top speed (~150 deg/s)
@@ -47,15 +47,15 @@ static void feelSteer(u16 k){
     F.turn+=d; F.angF=(F.angF+F.turn)&4095;
 }
 static void feelPush(u16 k,int rail){
-    int top=moodTop(F_TOP); if(lspecOn) top+=top/8;                             // mood: SAD drags the top speed, STOKED adds a touch
+    int top=moodTop(F_TOP); if(lspecOn) top+=top/8; if(bdOwn==2) top+=top/16;   // (a PRO DECK: a touch faster)                             // mood: SAD drags the top speed, STOKED adds a touch
     if(k&K_A){ if(F.spd<top) F.spd+=((top-F.spd)>>F_PUSHDIV)+1; }
-    else { F.spd-=1+(F.spd>>F_COAST); }
+    else { F.spd-=(F.spd>>F_COAST)+((lfr&7)==0); }   // coasting rolls a long way (skating 2: was 1 + speed/128 a step, a dead stop in under 2 s)
     if(k&K_DOWN) F.spd-=F_BRAKE+1+(F.spd>>4);
     F.spd-=(fabsi(F.turn)*F.spd)>>14;                  // carving costs a little speed
     { int fl=192+(abOf(AB_GRIP)-2)*16; if(rail&&F.spd<fl) F.spd=fl; }   // rails keep you rolling (GRIP ability: faster)
     if(F.spd<0) F.spd=0;
 }
-static inline int feelOllie(void){ F.jh=1; F.buf=0; F.coy=0; return (F_OLLIE+(F.spd>>1)+(lspecOn?0x80:0))*abPct(AB_JUMP,6)/100; }   // JUMP ability: +-6% a point
+static inline int feelOllie(void){ F.jh=1; F.buf=0; F.coy=0; return (F_OLLIE+(F.spd>>1)+(lspecOn?0x80:0)+(bdOwn==2?0x30:0))*abPct(AB_JUMP,6)/100; }   // (a PRO DECK pops a little higher)   // JUMP ability: +-6% a point
 static void feelAir(u16 k,u16 pr,int nearGround){      // spin ramps up, A grabs, B flips; variable jump height
     int dir=((k&K_RIGHT)?1:0)-((k&K_LEFT)?1:0);
     if(dir){ F.spinV+=dir*F_SPIN_ACC; if(F.spinV>F_SPIN_MAX) F.spinV=F_SPIN_MAX; if(F.spinV<-F_SPIN_MAX) F.spinV=-F_SPIN_MAX; }
@@ -93,7 +93,8 @@ static inline int wEase(int e){ int s=e/F_WACC; return s?s:(e>0)-(e<0); }   // e
 static void feelWalk(u16 k,u16 pr,int ongr){   // on foot: eased accel instead of instant speed, hop with buffer + coyote
     int ux=((k&K_RIGHT)?1:0)-((k&K_LEFT)?1:0), uy=((k&K_DOWN)?1:0)-((k&K_UP)?1:0);
     int dx=ux+uy, dy=uy-ux, spd=(k&K_B)?F_RUN:F_WALK;
-    if(cview){ int t=dx; if(cview==1){ dx=dy; dy=-t; } else if(cview==2){ dx=-dx; dy=-dy; } else { dx=-dy; dy=t; } }   // the view is turned (SELECT + L / R): the D-pad still means "up the screen" spd=spd*stSpd[stage]/100; if(spd<2) spd=2; if(ux&&uy) spd=(spd*3)/4;   // the life stage scales the pace
+    if(cview){ int t=dx; if(cview==1){ dx=dy; dy=-t; } else if(cview==2){ dx=-dx; dy=-dy; } else { dx=-dy; dy=t; } }   // the view is turned (SELECT + L / R): the D-pad still means "up the screen"
+    spd=spd*stSpd[stage]/100; if(spd<2) spd=2; if(ux&&uy) spd=(spd*3)/4;   // the life stage scales the pace (this line had slipped into the comment above)
     int tx=dx*spd, ty=dy*spd;
     if((tx||ty)&&!lvx&&!lvy){ lvx=tx/F_WKICK; lvy=ty/F_WKICK; }   // standing start: visible movement on the very first step
     int ex=tx-lvx, ey=ty-lvy;

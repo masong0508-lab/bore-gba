@@ -4,6 +4,7 @@
 // THE HUB (HOUSEHOLD  n OF 8)
 //   ADD THIS SIM      the look on screen (and its persona) joins the household, you name it, then say who it is related to. Change the look
 //                     and add the next one. The Sim left on screen is the one you play.
+//   ADD FROM A CODE   a Bore from a SHARE CODE (sharecode.h: the CREATOR DEMO or a friend) joins as it is; the one on screen stays.
 //   SET A RELATION    pick two Sims, then what the first IS to the second (ROOMMATE, MOTHER, FATHER, DAUGHTER, SON, SISTER, BROTHER, WIFE, HUSBAND,
 //                     PARTNER, MORE KIN: grandparents, grandchildren, aunt, uncle, niece, nephew, cousin, step family, PARENT / CHILD / SIBLING).
 //                     When the other side could be two or three things (a mother's child is a DAUGHTER or a SON) you pick that too.
@@ -122,6 +123,17 @@ static void hcAdd(void){   // ADD THIS SIM
     hcAfterAdd(hhM[m].uid);
     static char t[36] EWRAM_BSS; char*e=simCat(t,hhM[m].name); e=simCat(e," JOINS  "); e=simCatN(e,hhN+1); e=simCat(e," OF "); simCatN(e,HH_MAX+1); toast(t);
 }
+static void hcAddCode(void){   // ADD FROM A CODE: a Bore from a share code (sharecode.h) joins the household as it is; the one on screen stays yours
+    if(!xo[XO_SIMUSER]){ toast("USER-MADE SIMS ARE OFF"); return; }
+    hhLoad(); if(hhN>=HH_MAX){ toast("THE HOUSE IS FULL"); return; }
+    u8 v[SC_NF], lk[LK_N]; if(!scEnterV(v)) return;
+    scLookOf(v,lk); u8 tr[TR_N]; for(int i=0;i<TR_N;i++) tr[i]=v[4+i];
+    int m=hhAdd(lk,v[1],v[2],v[3],tr); if(m<0){ toast("THE HOUSE IS FULL"); return; }
+    hhSave();
+    nameEdit(hhM[m].name,HH_NM-1,"NAME THIS SIM",0); hhSave();
+    hcAfterAdd(hhM[m].uid);
+    static char t[36] EWRAM_BSS; char*e=simCat(t,hhM[m].name); e=simCat(e," JOINS  "); e=simCatN(e,hhN+1); e=simCat(e," OF "); simCatN(e,HH_MAX+1); toast(t);
+}
 static void hcSet(void){   // SET A RELATION: two Sims, then the picker
     const char* lb[HH_MAX+1]; int uid[HH_MAX+1]; int n=hcRoster(lb,uid,-1);
     if(n<2){ toast("ADD ANOTHER SIM FIRST"); return; }
@@ -164,10 +176,10 @@ static void hcTree(void){   // WHO IS WHO: one Sim's household, LEFT RIGHT chang
 static void hcMenu(void){   // the DONE tab's HOUSEHOLD row
     if(HC_GATE&&!dbgOn){ toast("NEEDS THE DEBUG CODE"); return; }
     hhLoad();
-    static const char* const it[6]={"ADD THIS SIM","SET A RELATION","WHO IS WHO","EDIT OR MOVE OUT","SAME LAST NAME","BACK"};
+    static const char* const it[7]={"ADD THIS SIM","ADD FROM A CODE","SET A RELATION","WHO IS WHO","EDIT OR MOVE OUT","SAME LAST NAME","BACK"};
     for(;;){
         char t[24]; { char*e=simCat(t,"HOUSEHOLD  "); e=simCatN(e,hhN+1); e=simCat(e," OF "); simCatN(e,HH_MAX+1); }
-        int c=menu(t,it,6); if(c<0||c==5) return;
-        if(c==0) hcAdd(); else if(c==1) hcSet(); else if(c==2) hcTree(); else if(c==3) famMenu(); else hcLast();
+        int c=menu(t,it,7); if(c<0||c==6) return;
+        if(c==0) hcAdd(); else if(c==1) hcAddCode(); else if(c==2) hcSet(); else if(c==3) hcTree(); else if(c==4) famMenu(); else hcLast();
     }
 }

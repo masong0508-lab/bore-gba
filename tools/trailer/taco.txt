@@ -1,0 +1,44 @@
+run 600
+hold START 6
+run 200
+hold A 6
+run 200
+hold A 6
+run 200
+hold A 6
+run 200
+hold DOWN 6
+run 20
+hold DOWN 6
+run 20
+hold DOWN 6
+run 20
+hold A 6
+run 200
+hold A 6
+run 1200
+run 600
+hold A 6
+run 300
+run 600
+hold DOWN 6
+run 20
+hold DOWN 6
+run 20
+hold A 6
+run 300
+run 30
+wav tr/taco.wav
+rec tr/taco.rgb
+run 30
+poke8 @ARG@ 0
+poke8 @CALL@ 24
+run 720
+poke8 @CALL@ 25
+run 60
+hold R 6
+run 90
+hold A 6
+run 150
+recstop
+wavstop

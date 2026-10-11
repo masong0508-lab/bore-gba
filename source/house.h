@@ -16,6 +16,10 @@
 #define HH_MAX     7       // members besides the player: 8 Sims in all, as in The Sims 2. Only the Sims on screen hold a hardware sprite (OBJ slots,
                            // below); each place costs about 5.6 KB of EWRAM. (Households saved as 'H6'..'H9' held up to 13 members: hhLoad keeps 7.)
 #define HH_MAX9    13      // members an 'H6'..'H9' household could hold (14 uids)
+#define PET_MAX 3          // pets.h: pets a household keeps (their sprites use OBJ VRAM slots 14 and 15)
+#define PET_B   29         // bytes a pet takes in the household block
+#define PET_PALB 7         // the OBJ palette bank the pets share
+static void petTick(int*planned);   // pets.h
 #define HH_THINK   90      // steps between a member's decisions (FREE WILL HIGH; LOW thinks half as often and lets needs sink lower)
 #define HH_PATH    96      // longest path a member remembers (steps between tiles)
 #define HH_USE     240     // steps a member spends using a piece of furniture
@@ -36,6 +40,8 @@ typedef struct {
     u8 uid, tgt, bub, bubT;  // who this is (relationships are kept by uid), who it is going to talk to (uid), balloon icon and time
     u8 ilast;                // item module 7: the item row + 1 of its last use (it tries something else next time)
     u8 item;                 // item use (item module 2): the iuT row + 1 this Sim is walking to or using (0 = none). Reset at every decision (hhDecide)
+    u8 jt, jw, jl, ji;       // TOGETHER (below): an invite said yes to (1 TV, 2 BED, 3 COME: done when the chat ends), with whom (uid); jl: using it with someone
+                             // (the need filling up does not end it); ji: has asked someone along this time
     short think, t;          // steps to the next decision, steps left in the action
     u8 path[HH_PATH];        // directions: 0 +x, 1 +y, 2 -x, 3 -y
 } HhSim;
@@ -211,7 +217,8 @@ static signed char hhIdBlk[HH_IDS] EWRAM_BSS;   // the block this sprite id drew
 static u16 hhBorrow EWRAM_BSS;                  // palette banks we have overwritten that belong to fx.h / npc.h
 static u8 hhSlotOk;
 static int hhBanksBusy(void); static void hhExtraDone(void);   // npc.h
-static void hhSlotsFree(void){ for(int i=0;i<HH_IDS;i++) hhIdBlk[i]=-1; for(int b=0;b<HH_TB;b++) hhTcur[b]=-1; for(int b=0;b<16;b++) hhPkey[b]=-1; hhSlotOk=1; }   // after anything that changes the baked sprites or who is who
+static u8 petVramBad=1;   // pets.h: the pets' tiles must be loaded again (another screen used OBJ memory, the prison lent the slots)
+static void hhSlotsFree(void){ for(int i=0;i<HH_IDS;i++) hhIdBlk[i]=-1; for(int b=0;b<HH_TB;b++) hhTcur[b]=-1; for(int b=0;b<16;b++) hhPkey[b]=-1; hhSlotOk=1; petVramBad=1; }   // after anything that changes the baked sprites or who is who
 static inline int hhPop(u32 x){ int n=0; while(x){ x&=x-1; n++; } return n; }
 static void hhSprFree(int m){   // give a member's block back: everything above it slides down, so the pool stays packed
     HhSpr*s=&hhSp[m]; int off=s->off, len=s->len;
@@ -221,7 +228,8 @@ static void hhSprFree(int m){   // give a member's block back: everything above 
     for(int v=0;v<4;v++) s->sm[v]=s->dm[v]=0;
     s->off=0; s->len=0;
 }
-static void hhSprBegin(int m){ hhSprFree(m); hhSp[m].off=(u16)hhPoolTop; }   // a new block grows at the top of the pool
+static void hhSprBegin(int m){ stgOk=0; hhSprFree(m); hhSp[m].off=(u16)hhPoolTop; }   // a new block grows at the top of the pool (the creator's stage copy there is gone)
+
 static const u8* hhStTile(int m,int v,int t){   // the standing tile t of view v, or 0 when it is empty
     const HhSpr*s=&hhSp[m]; if(!((s->sm[v]>>t)&1)) return 0;
     int n=0; for(int w=0;w<v;w++) n+=hhPop(s->sm[w]);
@@ -385,8 +393,8 @@ static void hhRandLook(u8*lk,u8*stg){   // a made-up Sim: passers-by, and SELECT
     for(int i=0;i<LK_N;i++) lk[i]=0;
     lk[LK_SHAPE]=shp[rnd8()%12]; lk[LK_SKIN]=(u8)(rnd8()%NSKIN); lk[LK_EYES]=(u8)(rnd8()%NEYE); lk[LK_MOUTH]=(u8)(rnd8()%NMOUTH);
     lk[LK_EARS]=(u8)(1+(rnd8()&1)); lk[LK_HSTYLE]=(u8)(rnd8()%NHAIR); lk[LK_HCOL]=(u8)(rnd8()%NSW); lk[LK_TOP]=(u8)(rnd8()%NSW); lk[LK_BOT]=(u8)(rnd8()%NSW);
-    lk[LK_TOPSTY]=(u8)(rnd8()&3); lk[LK_HAT]=(rnd8()&3)==0?(u8)(1+rnd8()%5):0; lk[LK_GLASS]=(rnd8()&3)==0?(u8)(1+rnd8()%3):0;
-    lk[LK_BROW]=(u8)(rnd8()%6); lk[LK_EYECOL]=(u8)(rnd8()%NSW); lk[LK_SEX]=sexRoll();
+    lk[LK_TOPSTY]=(u8)(rnd8()&3); lk[LK_HAT]=(rnd8()&3)==0?(u8)(1+rnd8()%5):0; lk[LK_GLASS]=(rnd8()&3)==0?(u8)(1+rnd8()%(NGLASS-1)):0;
+    lk[LK_BROW]=(u8)(rnd8()%NBROW); lk[LK_EYECOL]=(u8)(rnd8()%NSW); lk[LK_SEX]=sexRoll();
     *stg=sg[rnd8()&3];
 }
 // ---- bake cache: a sprite set is only baked again when something it is drawn from changed ----
@@ -394,10 +402,19 @@ static void hhRandLook(u8*lk,u8*stg){   // a made-up Sim: passers-by, and SELECT
 // flag, the unlock flag and every option. Equal key = an identical picture, so a Sim that did not change is not drawn again (coming back
 // from the editor, a slot, the pause menu, growing up ...). Keys follow their sprites when members move (hhRemove); hhSwitch drops them.
 static u32 hhKey[HH_MAX];   // per member: the key the pool block and hhPal were baked from (0 = unknown)
+// THE CREATOR'S STAGE COPY (main.c drawStage) lives in this pool while you are in the creator. stgArm points it there; stgClaim, just before the
+// copy is written, lets go of every baked household sprite (they bake again when play starts: their keys are cleared).
+static void stgArm(void){ stgC=(u16*)(void*)hhPool; stgRows=SP_POOL/(PANEL_X*2); }
+static void stgClaim(void){
+    for(int m=0;m<=HH_MAX;m++){ HhSpr*z=&hhSp[m]; for(int v=0;v<4;v++) z->sm[v]=z->dm[v]=0; z->off=0; z->len=0; }
+    hhPoolTop=0; for(int m=0;m<HH_MAX;m++) hhKey[m]=0; hhSlotsFree();
+}
 static u8 twKeep; static u8 inmN EWRAM_BSS; static void inmPick(void); static void inmDress(int j); static void inmColors(int j);  static void inmTick(int*planned);   // inmates.h: the prison population           // the visitors already picked are kept (new faces when you move to another lot or start a new life)
 static u8 twCall[TW_N];     // visitor k was CALLED OVER on the phone: they come at night too
 static u8 twWel[TW_N];      // visitor k is the WELCOME visit: the first neighbour of a new home rings the bell soon after you move in (twPick), at night too, and brings a gift
-static u8 twHas[TW_N], twOn[TW_N]; static short twWait[TW_N]={240,900}; static char twFrom[TW_N][12];   // visitor k: set up, on the lot (1 coming, 2 staying, 3 going), the lot they live on
+static u8 twHas[TW_N], twOn[TW_N]; static short twWait[TW_N]={240,900}; static char twFrom[TW_N][12];
+static u8 exHT[TW_N];   // expand.h: visitor k is HOSTILE (1 a Borezie, 2 a soldier, 3 a challenger): the packs' scenarios
+static int exHMode(void); static void exHArrive(int k); static int exHStay(int k,int*planned); static void exUntint(int k); static void exSoc(int a,int b,int i,int ok); static void exKO(int uid);   // (expand.h)   // visitor k: set up, on the lot (1 coming, 2 staying, 3 going), the lot they live on
 static int nbVisitor(HhSim*s,char*from,int not);   // households.h: a Sim of another household of the town (s), the lot it lives on; not = a family to skip
 static u8 nbMem;   // households.h: which member of that household it was (nbSimFrom / nbVisitor set it)
 static void nrGuestIn(int k); static void nrForget(int u); static u8 nrHash(const char*s); static void nrGuestChat(int k); static int nrPull(int k);   // townrel.h
@@ -405,9 +422,10 @@ static void twWho(int k,int lot){ HhSim*s=&hhM[TW_V(k)]; twLot[k]=(u8)(lot<0?255
 static void twPick(void){   // who comes by while you are on this lot: Sims from the town's other households
     int f0=-1; nrSync();   // (the visitors who were here keep what they feel)
     for(int k=0;k<TW_N;k++){ int v=TW_V(k); twHas[k]=0; twOn[k]=0; twWait[k]=(short)(240+k*700);
-        if(v<hhN||!xo[XO_SIMPRE]) continue;
+        exUntint(k);   // (a hostile visitor's own colours back first: the same Sim may be picked again)
+        if(v<hhN||(!xo[XO_SIMPRE]&&!exHMode())) continue;
         HhSim*s=&hhM[v]; int f=nbVisitor(s,twFrom[k],f0); if(f==-2) continue; f0=f;
-        s->bubT=0; s->hp=HP_MAX; s->ltw=0; s->act=HA_IDLE; s->think=0; s->hd=0; s->pn=s->pi=0; for(int q=0;q<HN_N;q++) s->need[q]=80;
+        s->bubT=0; s->hp=HP_MAX; s->ltw=0; s->act=HA_IDLE; s->jt=s->jl=s->ji=0; s->think=0; s->hd=0; s->pn=s->pi=0; for(int q=0;q<HN_N;q++) s->need[q]=80;
         twWho(k,f); twHas[k]=1; }
     for(int k=0;k<TW_N;k++) twWel[k]=0;
     for(int k=0;k<TW_N;k++) if(twHas[k]){ twWel[k]=1; twWait[k]=180; break; }   // SCRIPTED ARRIVAL: the first neighbour walks in about 3 seconds after you move in
@@ -417,7 +435,8 @@ static void hkAdd(u32*h,const void*p,int n){ const u8*b=(const u8*)p; u32 x=*h; 
 static u32 bakeKey(void){   // call after buildLook() + setColors()
     u32 h=2166136261u; u8 t[4]={stage,(u8)custom,sUnlock,0};
     hkAdd(&h,vox,sizeof(vox)); hkAdd(&h,dec,sizeof(dec)); hkAdd(&h,sT,sizeof(sT)); hkAdd(&h,sL,sizeof(sL)); hkAdd(&h,sR,sizeof(sR));
-    hkAdd(&h,dL,sizeof(dL)); hkAdd(&h,dR,sizeof(dR)); hkAdd(&h,look,sizeof(look)); hkAdd(&h,t,4); hkAdd(&h,xo,sizeof(xo));
+    hkAdd(&h,dL,sizeof(dL)); hkAdd(&h,dR,sizeof(dR)); hkAdd(&h,look,sizeof(look)); hkAdd(&h,t,4);
+    { u8 o[2]={xo[XO_HURT],xo[XO_JOB]}; hkAdd(&h,o,2); }   // only the options the drawing reads (hashing them all made every option change, e.g. the zoom, bake the whole household again on the next lot)
     return h?h:1;
 }
 static void poseBakeAll(void); static void poseWiden(void);
@@ -469,7 +488,7 @@ static void hhBakeAll(void){
     hhSlotsFree();   // new tiles and palettes: every slot is reloaded when its Sim is next on screen
 }
 // ---- where members can stand ----
-static int hhWalk(int x,int y){ if(x<0||y<0||x>=MW||y>=MH) return 0; char c=lifeMap[y][x]; return c!='w'&&c!='W'&&tileH(x,y)<=3; }
+static int hhWalk(int x,int y){ if(x<0||y<0||x>=MW||y>=MH) return 0; char c=lifeMap[y][x]; return c!='w'&&c!='W'&&tileH(x,y)<=3&&!(curFl&&floorMap[y][x]==FL_AIR)&&!isWaterFl(floorMap[y][x]); }   // (upstairs: not on open air; never into a pool)
 static int hhTakenAt(int x,int y); static void hhTakenScan(const HhSim*self);
 static void hhPlace(HhSim*s,int k){   // somewhere free near the spawn point, spread out a little (never on someone else's tile)
     if(s>=hhM&&s<hhM+HH_MAX){ hhFl[s-hhM]=xo[XO_MULTIFL]?(u8)curFl:0; hhUp[s-hhM]=0; }
@@ -492,12 +511,12 @@ static void hhJoinCash(void);   // main.c: +SIM_JOIN_CASH for a Sim who joins
 static int hhAdd(const u8*lk,int stg,int asp,int ltw,const u8*tr){   // a new member of the family (CREATE-A-FAMILY): -1 when the house is full
     if(hhN>=HH_MAX) return -1;
     twDrop(hhN);
-    HhSim*s=&hhM[hhN]; s->uid=(u8)hhFreeUid(); s->bubT=0; s->hp=HP_MAX;
+    HhSim*s=&hhM[hhN]; s->uid=(u8)hhFreeUid(); s->bubT=0; s->hp=HP_MAX; s->jt=s->jl=s->ji=0;
     for(int i=0;i<LK_N;i++) s->look[i]=lk[i];
     s->stage=(u8)stg; s->asp=(u8)asp; s->ltw=(u8)ltw; for(int i=0;i<TR_N;i++) s->tr[i]=tr[i];
     hhPickName(s->name); for(int i=0;i<HH_NM;i++) s->last[i]=hhPLast[i];   // family: your last name
     for(int k=0;k<HN_N;k++) s->need[k]=(u8)(70+(rnd8()&15));
-    s->act=HA_IDLE; s->think=(short)(rnd8()&63); s->hd=0;
+    s->act=HA_IDLE; s->jt=s->jl=s->ji=0; s->think=(short)(rnd8()&63); s->hd=0;
     hhPlace(s,0);
     int a=s->uid;                                       // family: they know and like everyone at home already
     for(int u=0;u<HU_N;u++){ if(u==a) continue; relD[a][u]=relD[u][a]=40; relL[a][u]=relL[u][a]=50; relF[a][u]=relF[u][a]=0; kin[a][u]=kin[u][a]=0; }
@@ -521,7 +540,7 @@ static void hhNew(HhSim*s,const HhPre*p){
     s->stage=p->stage; s->asp=p->asp; s->ltw=0; for(int i=0;i<TR_N;i++) s->tr[i]=signTr[p->sign][i];
     int i=0; for(;p->name[i]&&i<HH_NM-1;i++) s->name[i]=p->name[i]; s->name[i]=0; s->last[0]=0;
     for(int k=0;k<HN_N;k++) s->need[k]=(u8)(70+(rnd8()&15));
-    s->act=HA_IDLE; s->think=(short)(rnd8()&63); s->hd=0;
+    s->act=HA_IDLE; s->jt=s->jl=s->ji=0; s->think=(short)(rnd8()&63); s->hd=0;
     hhPlace(s,0);
 }
 
@@ -540,8 +559,14 @@ static void hhTakenScan(const HhSim*self){   // the player's tile, and every oth
 }
 static int hhTakenAt(int x,int y){ int p=y*MW+x; for(int i=0;i<hhTkN;i++) if(hhTk[i]==p) return 1; return 0; }
 static int hhTaken(int x,int y,const HhSim*self){ hhTakenScan(self); return hhTakenAt(x,y); }
+static int hhOut(HhSim*s){   // standing where nobody can stand (a wall was built on the spot): out to the nearest free tile around it. 1 = moved
+    int sx=(int)(s->fx>>8), sy=(int)(s->fy>>8); hhTakenScan(s);
+    for(int r=1;r<=4;r++)for(int dy=-r;dy<=r;dy++)for(int dx=-r;dx<=r;dx++){ if((dx<0?-dx:dx)!=r&&(dy<0?-dy:dy)!=r) continue;
+        int x=sx+dx, y=sy+dy; if(hhWalk(x,y)&&!hhTakenAt(x,y)){ s->fx=x*256+128; s->fy=y*256+128; s->pn=s->pi=0; s->gok=0; return 1; } }
+    return 0;
+}
 static int hhPlan(HhSim*s,char c){   // fills s->path; returns its length+1 (1 = already there), 0 = no way
-    int sx=(int)(s->fx>>8), sy=(int)(s->fy>>8); if(!hhWalk(sx,sy)) return 0;
+    int sx=(int)(s->fx>>8), sy=(int)(s->fy>>8); if(!hhWalk(sx,sy)){ if(!hhOut(s)) return 0; sx=(int)(s->fx>>8); sy=(int)(s->fy>>8); }   // (inside a wall: step out of it first, never stuck there)
     for(int i=0;i<MW*MH;i++) hhDist[i]=0xFFFF;
     hhTakenScan(s);
     if(c==1&&((sx-hhGX)*(sx-hhGX)+(sy-hhGY)*(sy-hhGY))<=2) return 1;   // already next to them
@@ -563,7 +588,7 @@ static int hhTilt(const HhSim*s,int n){   // traits: neat Sims shower sooner, la
     switch(n){ case HN_CLEAN: return 70+s->tr[TR_NEAT]*6; case HN_COMFY: return 130-s->tr[TR_ACT]*6; case HN_FUN: return 70+s->tr[TR_PLAY]*6; case HN_SOC: return 60+s->tr[TR_OUT]*8; default: return 100; }
 }
 static void hhSeek(HhSim*s);   // social: pick someone and walk over (below)
-static int hhUseT(const HhSim*s){ if(s->item) return iuT[s->item-1].t; return (s->use==HN_REST&&simIsNight())?HH_USE*5:HH_USE; }   // (item module 3: an item has its own time)   // a night in bed is a long one
+static int hhUseT(const HhSim*s){ if(s->jl) return s->use==HN_REST&&simIsNight()?HH_USE*5:HH_USE*2; if(s->item) return iuT[s->item-1].t; return (s->use==HN_REST&&simIsNight())?HH_USE*5:HH_USE; }   // (item module 3: an item has its own time)   // a night in bed is a long one
 static int hhHasStairs(void){ if(curFl>=FLR_N-1) return 0; for(int y=0;y<MH;y++)for(int x=0;x<MW;x++) if(lifeMap[y][x]=='^') return 1; return 0; }   // a way up on the ground floor
 static int hhHasCh(char c){ for(int y=0;y<MH;y++)for(int x=0;x<MW;x++) if(lifeMap[y][x]==c) return 1; return 0; }
 static int hhFloorFor(int n){ for(int d=1;d<FLR_N;d++){ int u=curFl+d, w=curFl-d; if(u<FLR_N&&(hhCen[u]&(1<<n))) return u; if(w>=0&&(hhCen[w]&(1<<n))) return w; } return -1; }   // floors step 5: the nearest other floor with need n's furniture
@@ -607,7 +632,7 @@ static int hhItemGo(HhSim*s,int need){   // item module 3: serve 'need' with an 
     return 0;
 }
 static void hhDecide(HhSim*s){
-    s->item=0;
+    s->item=0; s->jl=s->ji=0;
     int best[2]={-1,-1}, bs[2]={0,0}, low=xo[XO_FREEWILL]==1?35:55;   // LOW free will waits until needs are lower
     for(int n=0;n<HN_N;n++){
         if(hnFurn[n]&&!(simHave&(n==HN_FOOD?SR_FRIDGE:n==HN_WC?SR_TOILET:n==HN_REST?SR_BED:n==HN_CLEAN?SR_SHOWER:SR_SOFA))&&!hhElse(n)) continue;   // no such furniture on this floor or above
@@ -664,6 +689,7 @@ static char hhNoteB[40] EWRAM_BSS;
 static void hhNote(const HhSim*s,const char*w){ if(lnoteT>0) return; char*e=simCat(hhNoteB,s->name); simCat(e,w); lnote=hhNoteB; lnoteT=110; }
 static void hhStepAlong(HhSim*s){   // one step along the path, tile centre to tile centre
     int d=s->path[s->pi];
+    if(!s->gok&&!hhWalk((int)(s->fx>>8)+hhDx[d],(int)(s->fy>>8)+hhDy[d])){ s->pi=s->pn; return; }   // a wall was built across the way since the plan: stop here (the next plan goes round it)
     if(!s->gok){ s->gx=((int)(s->fx>>8)+hhDx[d])*256+128; s->gy=((int)(s->fy>>8)+hhDy[d])*256+128; s->fx=(s->fx&~255)|128; s->fy=(s->fy&~255)|128; s->gok=1; }
     int sp=F_WALK*stSpd[s->stage]/100; if(sp<2) sp=2;
     if(hhDx[d]){ s->fx+=hhDx[d]*sp; if((hhDx[d]>0&&s->fx>=s->gx)||(hhDx[d]<0&&s->fx<=s->gx)){ s->fx=s->gx; s->pi++; s->gok=0; } }
@@ -680,11 +706,11 @@ static int twFar(void){   // where a visitor comes from / goes to: a way off the
     return -1;
 }
 static void twTick(int*planned){   // VISITORS: someone from another household walks in, stays a while near the house, and walks off again
-    if(!xo[XO_SIMPRE]){ for(int k=0;k<TW_N;k++) twOn[k]=0; return; }   // PRE-MADE SIMS off: the town's families stay home
+    if(!xo[XO_SIMPRE]&&!exHMode()){ for(int k=0;k<TW_N;k++) twOn[k]=0; return; }   // PRE-MADE SIMS off: the town's families stay home (a pack's Borezies, soldiers and challengers come anyway)
     for(int k=0;k<TW_N;k++){ int v=TW_V(k); if(!twHas[k]||v<hhN){ twOn[k]=0; continue; } HhSim*s=&hhM[v];
         if(!twOn[k]){
             if(twWait[k]>0){ twWait[k]--; continue; }
-            if(*planned||(simIsNight()&&!twWel[k]&&!twCall[k])){ twWait[k]=60; continue; }
+            if(*planned||(simIsNight()&&!twWel[k]&&!twCall[k]&&!exHMode())){ twWait[k]=60; continue; }   // (Borezies come at night too)
             int a=twFar(); if(a<0){ twWait[k]=120; continue; } s->fx=(a%MW)*256+128; s->fy=(a/MW)*256+128; *planned=1;
             hhGX=(int)(lfx>>8); hhGY=(int)(lfy>>8);
             if(hhPlan(s,1)>1){ twOn[k]=1; s->act=HA_WALK; twCall[k]=0;   // walking in, over to you
@@ -692,10 +718,11 @@ static void twTick(int*planned){   // VISITORS: someone from another household w
                 if(twWel[k]){ const char*p=" SAYS WELCOME"; while(*p) *e++=*p++; }   // (the welcome visit)
                 else if(twFrom[k][0]){ const char*p=" FROM "; while(*p) *e++=*p++; for(p=twFrom[k];*p;) *e++=*p++; } else { const char*p=" DROPS BY"; while(*p) *e++=*p++; }
                 *e=0;
-                lnote=twMsg; lnoteT=90; }
+                lnote=twMsg; lnoteT=90; exHArrive(k); }   // (a pack's scenario may make them hostile: expand.h)
             else twWait[k]=120;
             continue;
         }
+        if(twOn[k]==2&&exHStay(k,planned)) continue;   // a hostile visitor chases you (expand.h)
         if(twOn[k]==2){ if(--twWait[k]>0){ if(((twWait[k]+k*170)&511)==0) nrGuestChat(k); continue; }   // staying a while (now and then they come to you with something to say), then off again
             if(*planned){ twWait[k]=30; continue; }
             int b=twFar(); if(b<0){ twOn[k]=0; twWait[k]=900; continue; } hhGX=b%MW; hhGY=b/MW; *planned=1;
@@ -750,6 +777,7 @@ static void hhOffStep(int m){
     if(f>0){ hhFl[m]=(u8)(f-1); hhUp[m]=90; return; }   // nothing pressing: drifts back down
     hhUp[m]=60;   // on the ground floor while you are upstairs: waits for you
 }
+static void jtGo(HhSim*s); static void jtTick(void);   // TOGETHER (below)
 static void hhAmbient(void){   // item module 12: while a Sim has the stereo on, everyone else awake on the floor enjoys it (+1 FUN every 2 seconds)
     if(!xo[XO_ITEMUSE]||lfr%120) return;
     int on=0; for(int m=0;m<hhN;m++){ const HhSim*s=&hhM[m]; if(s->act==HA_USE&&s->item&&iuT[s->item-1].ch=='A'&&(hhFl[m]==curFl||!xo[XO_MULTIFL])) on=1; }
@@ -763,8 +791,9 @@ static void hhTick(void){   // once per logic step in the life game
     if(hhBubT) hhBubT--;
     if(lvx||lvy||lsp||lairF||lgrind) hhStill=0; else if(hhStill<1000) hhStill++;
     int planned=0;
-    if(xo[XO_FREEWILL]&&!curFl) twTick(&planned);
+    if((xo[XO_FREEWILL]||exHMode())&&!curFl) twTick(&planned);
     if(!curFl){ copTick(&planned); inmTick(&planned); }   // npc.h: the police (a cop comes after you when you hurt Sims)
+    petTick(&planned);   // pets.h (pets live with you even when nobody else does)
     if(!hhN) return;
     relTick(); hhAmbient();
     int fe=oFoodEvery(), we=oWcEvery();
@@ -791,7 +820,7 @@ static void hhTick(void){   // once per logic step in the life game
                 if(hhTaken((int)(s->fx>>8),(int)(s->fy>>8),s)){ hhUp[m]=30; continue; }
                 hhUp[m]=0; if(hhFl[m]){ hhFl[m]=0; hhStairSpot(s,'^'); } if(xo[XO_MULTIFL]&&s->use<HN_FUN) s->need[s->use]=100; s->act=HA_IDLE; s->think=20; s->gok=0; s->pn=s->pi=0; hhNote(s," CAME DOWNSTAIRS"); continue; } }
         if(hhPanT[m]){ if(s->act==HA_SOC&&s->bub==IC_SKULL) hhPanT[m]=0; else { hhPanicStep(m,s,&planned); continue; } }   // PANIC: running away
-        if(s->act==HA_SOC){ if(--s->t<=0){ s->act=HA_IDLE; s->think=(short)(HH_THINK/2); } continue; }   // standing in a conversation
+        if(s->act==HA_SOC){ if(--s->t<=0){ s->act=HA_IDLE; s->think=(short)(HH_THINK/2); if(s->jt) jtGo(s); } continue; }   // standing in a conversation (an invite said yes to: off they go)
         if(!xo[XO_FREEWILL]){ if(s->act==HA_AWAY) s->fx=hhExX*256+128, s->fy=hhExY*256+128; s->act=HA_IDLE; continue; }
         { int fr=0, to=0, k=hhSched(s,&fr,&to), due=k&&simMin>=fr&&simMin<to;   // the day's routine
           if(s->act==HA_AWAY){ if(due) continue;
@@ -800,13 +829,13 @@ static void hhTick(void){   // once per logic step in the life game
               hhNote(s,s->use==2?" IS BACK FROM SCHOOL":" IS HOME FROM WORK"); continue; }
           if(due&&curFl&&s->act!=HA_AWAY){ s->act=HA_AWAY; hhFl[m]=0; hhUp[m]=0; s->use=(u8)k; hhNote(s,k==2?" WENT TO SCHOOL":" LEFT FOR WORK"); continue; }
           if(due&&s->act!=HA_LEAVE&&!planned){   // time to go: walk to the way off (one search per step, like every plan)
-              s->use=(u8)k; hhGX=hhExX; hhGY=hhExY; planned=1;
+              s->use=(u8)k; s->jt=s->jl=0; hhGX=hhExX; hhGY=hhExY; planned=1;   // (off to work: any invite is off)
               int r=hhPlan(s,1); if(r>1) s->act=HA_LEAVE; else { s->act=HA_AWAY; hhNote(s,k==2?" WENT TO SCHOOL":" LEFT FOR WORK"); }
               continue; }
           if(due&&s->act!=HA_LEAVE) continue; }
         if(s->act==HA_USE){   // using furniture: refill, then free again (a night's sleep lasts until it is over, rested or not)
             if(s->need[s->use]<100&&(lfr&1)) s->need[s->use]++;
-            if(--s->t<=0||(s->need[s->use]>=100&&!(s->use==HN_REST&&simIsNight()))){ s->act=HA_IDLE; s->think=(short)(HH_THINK/2); if(s->item){ if(iuT[s->item-1].ch=='I') hhCallDone(s); else if(iuT[s->item-1].ch=='q') hmFishFed(); iuCouple(s,s->item-1); s->ilast=s->item; s->item=0; } else if(xo[XO_ITEMUSE]&&s->use<HN_FUN) iuBasic(s); }
+            if(--s->t<=0||(s->need[s->use]>=100&&!(s->use==HN_REST&&simIsNight())&&!s->jl)){ s->act=HA_IDLE; s->think=(short)(HH_THINK/2); s->jl=s->ji=0; if(s->item){ if(iuT[s->item-1].ch=='I') hhCallDone(s); else if(iuT[s->item-1].ch=='q') hmFishFed(); iuCouple(s,s->item-1); s->ilast=s->item; s->item=0; } else if(xo[XO_ITEMUSE]&&s->use<HN_FUN) iuBasic(s); }
             continue;
         }
         if(s->act==HA_WALK||s->act==HA_WANDER||s->act==HA_SEEK||s->act==HA_LEAVE||s->act==HA_STAIR){   // follow the path, tile centre to tile centre
@@ -827,6 +856,7 @@ static void hhTick(void){   // once per logic step in the life game
         }
     }
     hhPlanNext++;
+    jtTick();   // TOGETHER: side by side on the sofa or in bed
 }
 
 // ---- SOCIAL: interactions, acceptance, relationships ----
@@ -840,7 +870,7 @@ static void hhTick(void){   // once per logic step in the life game
 // lifetime over the hours, so friendships need keeping up.
 enum { SA_ROM=1, SA_MEAN=2, SA_CRUSH=4, SA_LOVE=8, SA_KID=16, SA_PIPE=32, SA_WED=64, SA_FAM=128 };   // SA_WED: going steady, not married; SA_FAM: a couple, room for a baby (family.h)   // SA_PIPE: grown-ups, with a water pipe in the house
 typedef struct { const char* name; signed char dA,lA,dR,lR; u8 soc,fun; signed char minD,maxD; u8 base,tr,fl,icA,icR; const char*say,*yes,*no; } SocAct;
-enum { SC_TALK, SC_JOKE, SC_COMPL, SC_HIGH5, SC_HUG, SC_TRICK, SC_FLIRT, SC_KISS, SC_STEADY, SC_SORRY, SC_ARGUE, SC_INSULT, SC_SLAP, SC_PUNCH, SC_PASS, SC_PROPOSE, SC_BABY, SC_TEASE, SC_SHOVE, SC_N };
+enum { SC_TALK, SC_JOKE, SC_COMPL, SC_HIGH5, SC_HUG, SC_TRICK, SC_FLIRT, SC_KISS, SC_STEADY, SC_SORRY, SC_ARGUE, SC_INSULT, SC_SLAP, SC_PUNCH, SC_PASS, SC_PROPOSE, SC_BABY, SC_TEASE, SC_SHOVE, SC_TV, SC_BED, SC_COME, SC_N };   // SC_TV.. TOGETHER: invites to do something with you (jtAllowed)
 static const SocAct socT[SC_N]={
   //  name           dA  lA  dR  lR soc fun minD maxD base trait   flags                icon yes  icon no     you say  they did        they did not
     {"TALK",          3,  1, -2,  0, 22,  0,-100, 100, 85,TR_OUT, SA_KID,              IC_TALK, IC_BAIL, "BLAH BLAH","CHATTED",     "IGNORED YOU"},
@@ -862,6 +892,9 @@ static const SocAct socT[SC_N]={
     {"TRY FOR A BABY",8,  4, -6, -2, 20, 10,  60, 100, 70,TR_NICE,SA_ROM|SA_FAM,       IC_HEART,IC_BAIL, "A BABY?", "WANTS ONE TOO", "NOT NOW"},        // a couple: maybe a baby in 3 days (family.h)
     {"TEASE",        -5, -1,  0,  0,  6,  4,-100, 100,100,TR_NICE,SA_MEAN|SA_KID,      IC_ANGRY,IC_SAD,  "NYAH NYAH","GOT TEASED",   ""},   // the mildest one: any age
     {"SHOVE",       -12, -5,  0,  0,  4,  0,-100, 100,100,TR_NICE,SA_MEAN,             IC_ANGRY,IC_HURT, "MOVE IT", "GOT SHOVED",    ""},   // teens and up: no HP, just rude
+    {"WATCH TV",      4,  1, -2,  0, 10,  8, -30, 100, 75,TR_PLAY,SA_KID,              IC_SOFA, IC_BAIL, "TV?",     "WILL WATCH WITH YOU","WOULD RATHER NOT"},   // TOGETHER: both to the sofa by the TV
+    {"COME TO BED",   8,  3, -6, -2, 10,  4,  40, 100, 70,TR_NICE,SA_ROM,              IC_HEART,IC_BAIL, "BED?",    "IS COMING TO BED","IS NOT TIRED"},        // a couple: to bed together
+    {"COME HERE",     2,  0, -2,  0,  6,  0, -40, 100, 85,TR_NICE,SA_KID,              IC_TALK, IC_BAIL, "OVER HERE","IS COMING OVER","STAYED PUT"},          // you call someone over
 };
 static void famWed(int a,int b); static void famTry(int a,int b); static void famForget(int u);   // family.h
 static int nrWedIn(int g);   // townrel.h: a neighbour said yes to PROPOSE: they move in (their new uid, -1 = they could not)
@@ -898,8 +931,21 @@ static const char* relWord(int a,int b){   // how a sees b
     return "ACQUAINTANCE";
 }
 static int uPipeOk(int u){ return u==hhPUid?pipeOk():uStage(u)>=AG_ADULT; }   // you: PIPE AGE applies; members: grown-ups (they keep no days-in-stage)
+// ---- TOGETHER: invite someone to do something WITH you. WATCH TV (both to the sofa by the TV), COME TO BED (a couple, grown-ups: to bed
+// together), COME HERE (you call someone over). Said yes, the one asked walks there after the chat (jt, jtGo). Two Sims on the sofa or in bed
+// side by side (you too: sitting or asleep next to them) enjoy it together (jtTick): their SOCIAL and FUN fill, they grow closer, a couple more so.
+// Free will asks too: a Sim who sits down to watch TV may call a friend over, one going to bed at night its partner (and you get a note).
+// The phone's CALL SOMEONE OVER asks from anywhere on the lot (jtCall). ----
+static int jtHere(int u){ if(u==hhPUid) return 1; int m=hhMemOf(u); return m>=0&&hhM[m].act!=HA_AWAY&&hhM[m].act!=HA_LEAVE&&hhM[m].act!=HA_STAIR; }   // on the lot, on this floor
+static int jtAllowed(int a,int b,int i){
+    if(!jtHere(a)||!jtHere(b)) return 0;
+    if(i==SC_COME) return a==hhPUid;
+    if(i==SC_TV) return hhHasCh('v')&&uStage(a)>=AG_CHILD&&uStage(b)>=AG_CHILD;
+    return (simHave&SR_BED)&&!uGuest(a)&&!uGuest(b)&&uStage(a)>=AG_ADULT&&uStage(b)>=AG_ADULT&&((relF[a][b]&(RF_STEADY|RF_LOVE))||kinRom(kin[a][b]));   // SC_BED
+}
 static int socAllowed(int a,int b,int i){   // may a do interaction i to b now?
     const SocAct*S=&socT[i]; int d=relD[a][b];
+    if(i>=SC_TV&&!jtAllowed(a,b,i)) return 0;
     if(d<S->minD||d>S->maxD) return 0;
     if(!(S->fl&SA_KID)&&(uStage(a)<AG_TEEN||uStage(b)<AG_TEEN)) return 0;
     if((S->fl&SA_ROM)&&!romOk(a,b)) return 0;
@@ -942,7 +988,7 @@ static void socNote(int a,int b,int i,int ok){   // what you read when you are p
     const SocAct*S=&socT[i]; char*e=simMsg2;
     if(a==hhPUid){ e=simCat(e,uName(b)); *e++=' '; e=simCat(e,ok?S->yes:S->no); }
     else { e=simCat(e,uName(a)); *e++=' '; const char*w=S->name; char lw[16]; int k=0; for(;w[k]&&k<15;k++) lw[k]=w[k]; lw[k]=0;
-        e=simCat(e,(S->fl&SA_MEAN)?(i==SC_PUNCH?"PUNCHED YOU":i==SC_SLAP?"SLAPPED YOU":i==SC_ARGUE?"PICKED A FIGHT":i==SC_TEASE?"TEASED YOU":i==SC_SHOVE?"SHOVED YOU":"INSULTED YOU"):i==SC_TALK?"CAME TO CHAT":i==SC_FLIRT?"FLIRTS WITH YOU":i==SC_KISS?"KISSED YOU":i==SC_HUG?"HUGS YOU":i==SC_STEADY?"ASKS YOU OUT":i==SC_PROPOSE?"PROPOSED TO YOU":i==SC_BABY?"WANTS A BABY WITH YOU":lw); }
+        e=simCat(e,(S->fl&SA_MEAN)?(i==SC_PUNCH?"PUNCHED YOU":i==SC_SLAP?"SLAPPED YOU":i==SC_ARGUE?"PICKED A FIGHT":i==SC_TEASE?"TEASED YOU":i==SC_SHOVE?"SHOVED YOU":"INSULTED YOU"):i==SC_TALK?"CAME TO CHAT":i==SC_FLIRT?"FLIRTS WITH YOU":i==SC_KISS?"KISSED YOU":i==SC_HUG?"HUGS YOU":i==SC_STEADY?"ASKS YOU OUT":i==SC_PROPOSE?"PROPOSED TO YOU":i==SC_BABY?"WANTS A BABY WITH YOU":i==SC_TV?"WANTS TO WATCH TV WITH YOU":i==SC_BED?"WANTS YOU IN BED":i==SC_COME?"CALLED YOU OVER":lw); }
     lnote=simMsg2; lnoteT=110;
 }
 // ---- FIGHTING: PUNCH takes HP from the one hit. Damage 14..26, more from active (TR_ACT) Sims. Nobody dies in a fight: at 0 HP the Sim is
@@ -984,43 +1030,66 @@ static void fightHit(int a,int b){
     if(m<0){ fightHurt(dmg); return; }
     HhSim*t=&hhM[m]; if(t->hp>dmg){ t->hp=(u8)(t->hp-dmg);
         if(a==hhPUid&&lnoteT<=0){ char*e=fkB; if(crit) e=simCat(e,"CRIT "); e=simCat(e,fkMove(a,"PUNCH")); *e++=' '; simCatN(e,dmg); lnote=fkB; lnoteT=45; } }   // you see how hard it landed
-    else { t->hp=30; t->act=HA_SOC; t->t=600; t->bub=IC_SKULL; t->bubT=120; hhNote(t," IS KNOCKED OUT"); if(a==hhPUid){ voxPlay(V_win_the_fight); copCrime(2); } }
+    else { t->hp=30; t->act=HA_SOC; t->t=600; t->bub=IC_SKULL; t->bubT=120; hhNote(t," IS KNOCKED OUT"); if(a==hhPUid){ voxPlay(V_win_the_fight); copCrime(2); exKO(b); } }
+}
+// ---- VOICES ARE PEOPLE (main.c voxSay): whose voice, and from where ----
+static int voxPitch(int uid){   // percent of the recorded speed: VOICE (or gender), age, a little of their own, mood
+    const u8*lk; int stg;
+    if(uid==hhPUid){ lk=look; stg=stage; } else { int m=hhMemOf(uid); if(m<0) return 100; lk=hhM[m].look; stg=hhM[m].stage; }
+    int v=lk[LK_VOICE], sx=lk[LK_SEX];
+    int p=v==2?133:v==1?100:sx==SX_FEMALE?133:sx==SX_MALE?100:116;   // FEMALE: the same clips sped up, about five semitones (the Missy Elliott trick)
+    static const signed char ag[AG_N]={30,16,5,0,-6};   // a baby squeaks, a child is bright, an elder a touch slower
+    p=p*(100+ag[stg<AG_N?stg:AG_ADULT])/100;
+    { u32 h=((u32)lk[LK_SHAPE]*97u+(u32)lk[LK_HEIGHT]*131u+(u32)lk[LK_SKIN]*31u+(u32)lk[LK_HSTYLE]*7u)*2654435761u; p+=(int)((h>>27)%11)-5; }   // everyone sounds a little like themselves
+    p+=(uMood(uid)-50)/12;   // cheery: brighter; down: lower
+    return p;
+}
+static void voxPan(int uid,int*gl,int*gr){   // left / right by where they stand on the screen (gently)
+    s32 fx=lfx, fy=lfy; if(uid!=hhPUid){ int m=hhMemOf(uid); if(m<0){ *gl=*gr=256; return; } fx=hhM[m].fx; fy=hhM[m].fy; }
+    s32 rx,ry; rotPos(fx,fy,&rx,&ry); int x=LOX+(int)((rx-ry)>>5);
+    int p=(x-SW/2)*3/4; if(p>100) p=100; if(p<-100) p=-100;
+    *gl=256-(p>0?p:0); *gr=256+(p<0?p:0);
 }
 // a does interaction i to b. Returns 1 if it was accepted (mean ones: 1 = it landed)
-// The voice of the Sim you control in a social (you are a or b). One clip at a time; the newest wins.
+// THE VOICES OF A SOCIAL: when you are in it, both of you speak: the one who starts says their line, the other answers in their own voice
+// (a joke that lands gets a laugh, one that does not gets a weak one or a NAH; a flirt gets flirted back or shut down). One exchange at a time; the newest wins.
 static void voxSoc(int a,int b,int i,int ok){
     int ya=(a==hhPUid), yb=(b==hhPUid); if(!ya&&!yb) return;
     const SocAct*S=&socT[i]; int rom=((relF[a][b]|relF[b][a])&(RF_CRUSH|RF_LOVE|RF_STEADY))!=0, r=rnd8()&1;
-    if(S->fl&SA_MEAN){   // a fight: you start it, or you are the one it is aimed at
-        if(ya) voxPlay((i==SC_ARGUE||i==SC_PUNCH)?V_lets_fight:V_amgry); else voxPlay(r?V_angered:V_amgry);
-        return; }
+    int no=r?V_nah:V_not_agree;   // a plain no
+    if(S->fl&SA_MEAN){ voxDuo(a,(i==SC_ARGUE||i==SC_PUNCH)?V_lets_fight:V_amgry,b,r?V_angered:V_amgry); return; }   // a fight: the one who starts it, then the one it hit
     switch(i){
-        case SC_TALK: case SC_COMPL: case SC_SORRY: voxPlay(ok?V_agree:(r?V_not_agree:V_disagree)); break;
-        case SC_HIGH5: voxPlay(ok?(r?V_yeha:V_yahoo):V_nah); break;
-        case SC_TRICK: voxPlay(ok?V_yahoo:V_nah); break;
-        case SC_HUG: if(!ok) voxPlay(V_nah); break;
+        case SC_TALK: case SC_COMPL: case SC_SORRY: if(ok) voxDuo(a,V_agree,b,r?V_laughing_small_or_not:V_agree); else voxDuo(a,V_agree,b,r?V_not_agree:V_disagree); break;
+        case SC_HIGH5: if(ok) voxDuo(a,V_yeha,b,V_yahoo); else voxDuo(a,V_yeha,b,no); break;
+        case SC_TRICK: if(ok) voxDuo(a,V_yahoo,b,r?V_laughing:V_yeha); else voxDuo(a,V_yahoo,b,V_laughing_small_or_not); break;
+        case SC_HUG: if(ok) voxSay(b,V_laughing_small_or_not); else voxDuo(a,V_agree,b,no); break;
         case SC_JOKE:
-            if(rom&&ok) voxPlay(r?V_naughty_joke:V_naughty_jokw_2);                        // a joke between two who fancy each other
-            else if(ya) voxPlay(ok?V_joke_good:V_joke_not_land);                           // you tell it
-            else voxPlay(ok?(r?V_laughing:V_laughing_2):V_laughing_small_or_not);          // you hear it
+            if(rom&&ok) voxDuo(a,r?V_naughty_joke:V_naughty_jokw_2,b,V_laughing);                            // a joke between two who fancy each other
+            else if(ok) voxDuo(a,V_joke_good,b,r?V_laughing:V_laughing_2);                                     // it lands: the laugh
+            else voxDuo(a,V_joke_not_land,b,r?V_laughing_small_or_not:V_nah);                                   // it does not: a pity laugh, or nothing
             break;
-        case SC_FLIRT: voxPlay(ok?(ya?V_flirt:V_flirt_2):V_nah); break;
-        case SC_KISS: voxPlay(ok?V_flirt_2:(ya?V_burst_crying:V_nah)); break;
-        case SC_STEADY: voxPlay(ok?V_serenade_good:V_serenade_bad); break;              // BE MINE: a serenade, good or bad
-        case SC_PROPOSE: voxPlay(ok?V_serenade_good:V_serenade_bad); break;             // popping the question: the serenade, good or bad (family.h)
-        case SC_BABY: voxPlay(ok?V_yahoo:V_nah); break;                                  // yahoo: getting ready to woohoo
+        case SC_FLIRT: if(ok) voxDuo(a,V_flirt,b,V_flirt_2); else voxDuo(a,V_flirt,b,no); break;
+        case SC_KISS: if(ok) voxDuo(a,V_flirt_2,b,V_flirt); else voxDuo(b,no,a,V_burst_crying); break;
+        case SC_STEADY: case SC_PROPOSE: if(ok) voxDuo(a,V_serenade_good,b,V_yahoo); else voxDuo(a,V_serenade_bad,b,no); break;   // BE MINE / popping the question: the serenade, then the answer
+        case SC_BABY: if(ok) voxDuo(a,V_flirt,b,V_yahoo); else voxDuo(a,V_flirt,b,no); break;
         default: break;   // PUFF PUFF PASS: the pipe sounds come from voxEvent
     }
+    (void)ya; (void)yb;
 }
+static int socChance(int a,int b,int i){   // percent: how likely b says yes to a
+    const SocAct*S=&socT[i];
+    int c=S->base+relD[b][a]/2+(uTr(b,S->tr)-5)*4+(uMood(b)-50)/5;
+    if(S->fl&SA_ROM){ if(relF[b][a]&RF_CRUSH) c+=20; for(int u=0;u<HU_N;u++) if(u!=a&&(relF[b][u]&RF_STEADY)) c-=40; }   // taken: jealousy
+    if(uTr(b,TR_OUT)<=2&&relD[b][a]<20) c-=10;   // shy with people it hardly knows
+    if(i==SC_BED){ if(simIsNight()) c+=25; int m=hhMemOf(b); if(m>=0&&hhM[m].need[HN_REST]<60) c+=15; }   // bedtime, or tired anyway
+    if(i==SC_TV){ int m=hhMemOf(b); if(m>=0&&hhM[m].need[HN_FUN]<60) c+=10; }
+    return c<5?5:c>95?95:c;
+}
+static void jtAccept(int a,int b,int i);   // (below)
 static int socDo(int a,int b,int i){
     const SocAct*S=&socT[i]; int ok;
     if(S->fl&SA_MEAN) ok=1;
-    else {
-        int c=S->base+relD[b][a]/2+(uTr(b,S->tr)-5)*4+(uMood(b)-50)/5;
-        if(S->fl&SA_ROM){ if(relF[b][a]&RF_CRUSH) c+=20; for(int u=0;u<HU_N;u++) if(u!=a&&(relF[b][u]&RF_STEADY)) c-=40; }   // taken: jealousy
-        if(uTr(b,TR_OUT)<=2&&relD[b][a]<20) c-=10;   // shy with people it hardly knows
-        c=c<5?5:c>95?95:c; ok=(rnd8()*100>>8)<c;
-    }
+    else ok=(rnd8()*100>>8)<socChance(a,b,i);
     hhFreeze(a,80); hhFreeze(b,80);
     hhSay(a,S->icA,i==SC_PUNCH?fkMove(a,S->say):S->say);
     if(S->fl&SA_MEAN){
@@ -1046,6 +1115,7 @@ static int socDo(int a,int b,int i){
         if(i==SC_STEADY){ relF[a][b]|=RF_STEADY; relF[b][a]|=RF_STEADY; if(a==hhPUid||b==hhPUid){ simEvent(SE_STEADY); simQueue("GOING STEADY"); } }
         if(i==SC_PROPOSE){ int w=uGuest(b)?nrWedIn(b):b; if(w>=0){ b=w; famWed(a,b); } }   // a wedding (a neighbour who says yes moves in first: townrel.h)
         if(i==SC_BABY) famTry(a,b);      // maybe a baby on the way
+        if(i>=SC_TV) jtAccept(a,b,i);    // TOGETHER: off they go when the chat is over
         if(a==hhPUid||b==hhPUid){ simEvent(SE_TALK); if(i==SC_JOKE) simEvent(SE_LAUGH); if(i==SC_HUG) simEvent(SE_HUGGED); moodEvent(M_WANT); }
         hhSay(b,S->icA,i==SC_JOKE?"HA HA":i==SC_HUG||i==SC_KISS?"AWW":i==SC_STEADY||i==SC_PROPOSE?"YES":i==SC_PASS?"NICE":"YEAH");
     } else {
@@ -1058,6 +1128,7 @@ static int socDo(int a,int b,int i){
     relMilestones(a,b); relMilestones(b,a);
     socNote(a,b,i,ok);
     voxSoc(a,b,i,ok);
+    exSoc(a,b,i,ok);   // expand.h: the packs' social tasks, and curing a Borezie
     return ok;
 }
 static void relTick(void){   // every game hour (900 steps): daily scores drift one step back towards lifetime
@@ -1089,6 +1160,8 @@ static int socPick(int a,int b){   // what a free-will Sim says to b
     if(socAllowed(a,b,SC_STEADY)&&r<90) return SC_STEADY;
     if(socAllowed(a,b,SC_KISS)&&r<120) return SC_KISS;
     if(socAllowed(a,b,SC_FLIRT)&&uTr(a,TR_OUT)>=5&&r<70) return SC_FLIRT;
+    if(socAllowed(a,b,SC_BED)&&simIsNight()&&r<120) return SC_BED;   // TOGETHER: bedtime for a couple
+    if(socAllowed(a,b,SC_TV)&&uTr(a,TR_ACT)<=6&&r<28) return SC_TV;   // (the less active, the more TV)
     int pool[8], n=0;
     pool[n++]=SC_TALK; if(socAllowed(a,b,SC_JOKE)&&uTr(a,TR_PLAY)>=4) pool[n++]=SC_JOKE; if(socAllowed(a,b,SC_COMPL)&&nice>=5) pool[n++]=SC_COMPL;
     if(socAllowed(a,b,SC_PASS)&&simMin>=16*60+20&&simMin<17*60+20) return SC_PASS;   // 4:20
@@ -1107,10 +1180,93 @@ static void hhArrive(int m){   // a free-will Sim reached the one it wanted to s
     s->hd=(u8)(x>sx?0:x<sx?8:y>sy?4:12); if(bm>=0) hhM[bm].hd=(u8)((s->hd+8)&15);
     socDo(s->uid,b,socPick(s->uid,b));
 }
+// ---- TOGETHER (see jtAllowed above) ----
+static void jtAccept(int a,int b,int i){   // b said yes to a's invite i: whoever lives here (not you) goes there when the chat ends
+    int k=i-SC_TV+1;
+    for(int q=0;q<2;q++){ int u=q?b:a, w=q?a:b; if(u==hhPUid||(k==3&&q==0)) continue;   // (COME HERE: only the one called comes)
+        int m=hhMemOf(u); if(m<0||uGuest(u)) continue; hhM[m].jt=(u8)k; hhM[m].jw=(u8)w; }
+}
+static void jtGo(HhSim*s){   // the invite said yes to: off to the sofa by the TV, to bed, or over to you
+    int k=s->jt; s->jt=0; s->item=0;
+    if(k==3){ int x,y; uTile(hhPUid,&x,&y); hhGX=x; hhGY=y; s->tgt=(u8)hhPUid; int r=hhPlan(s,1); if(r<1){ s->act=HA_IDLE; return; } s->act=HA_SEEK; if(r==1) s->pn=s->pi=0; return; }
+    char c=k==2?'S':((simHave&SR_SOFA)&&hhHasCh('C'))?'C':'v';
+    int r=hhPlan(s,c); if(r<1){ s->act=HA_IDLE; return; }
+    s->use=(u8)(k==2?HN_REST:c=='v'?HN_FUN:HN_COMFY); if(c=='v') s->item=(u8)(IU_TV+1);
+    s->jl=1; s->ji=1;   // (already with someone: it asks nobody else)
+    if(r==1){ s->act=HA_USE; s->t=(short)hhUseT(s); } else s->act=HA_WALK;
+    s->bub=(u8)(k==2?IC_BED:IC_SOFA); s->bubT=90;
+}
+static int jtGroup(const HhSim*s){ if(s->act!=HA_USE) return 0; if(s->use==HN_REST) return 2; return (s->use==HN_COMFY||(s->item&&s->item-1==IU_TV))?1:0; }   // 1 the sofa / TV, 2 bed
+static char jtB[44] EWRAM_BSS;
+static void jtBond(int a,int b,int g){   // a and b side by side, on the sofa or in bed: a little closer every time
+    int cpl=(relF[a][b]&(RF_STEADY|RF_LOVE))||kinRom(kin[a][b]), up=g==2&&cpl?2:1;
+    relD[a][b]=(signed char)clampR(relD[a][b]+up); relD[b][a]=(signed char)clampR(relD[b][a]+up);
+    if((rnd8()&3)==0||up>1){ relL[a][b]=(signed char)clampR(relL[a][b]+1); relL[b][a]=(signed char)clampR(relL[b][a]+1); }
+    needAdd(a,HN_SOC,4); needAdd(b,HN_SOC,4); if(g==1){ needAdd(a,HN_FUN,3); needAdd(b,HN_FUN,3); }
+    for(int q=0;q<2;q++){ int u=q?b:a, m=hhMemOf(u);
+        if(g==2){ if(m>=0){ int v=hhM[m].need[HN_REST]+2; hhM[m].need[HN_REST]=(u8)(v>100?100:v); } else if(sNrg<100) sNrg++; }   // cuddled up: rested sooner
+        if(m>=0&&(rnd8()&3)==0){ hhM[m].bub=(u8)(g==2?(cpl?IC_HEART:IC_BED):(rnd8()&1)?IC_STAR:IC_SOFA); hhM[m].bubT=60; } }
+    relMilestones(a,b); relMilestones(b,a);
+    if((a==hhPUid||b==hhPUid)&&lnoteT<=0&&(rnd8()&3)==0){ int o=a==hhPUid?b:a;
+        char*e=simCat(jtB,g==1?"WATCHING TV WITH ":cpl?"CUDDLING WITH ":"SLEEPING NEXT TO "); simCat(e,uName(o)); lnote=jtB; lnoteT=70; if(g==1) moodEvent(M_WANT); }
+}
+static void jtAsk(int a,int b,int i){   // a calls b from where it is (no walk over, no chat first): b comes, or says no
+    const SocAct*S=&socT[i]; hhSay(a,S->icA,S->say);
+    if(b==hhPUid){ if(lnoteT<=0){ char*e=simCat(jtB,uName(a)); simCat(e,i==SC_BED?" IS GOING TO BED  JOIN THEM":" WANTS TO WATCH TV  SIT WITH THEM"); lnote=jtB; lnoteT=150; } return; }
+    int m=hhMemOf(b); if(m<0) return;
+    if((rnd8()*100>>8)<socChance(a,b,i)){
+        relD[b][a]=(signed char)clampR(relD[b][a]+2); hhM[m].jt=(u8)(i-SC_TV+1); hhM[m].jw=(u8)a; jtGo(&hhM[m]); hhSay(b,S->icA,"OK");
+        hhNote(&hhM[m],i==SC_BED?" WENT TO BED TOO":i==SC_TV?" CAME TO WATCH TV":" IS COMING OVER"); }
+    else { hhSay(b,S->icR,"NO"); relD[a][b]=(signed char)clampR(relD[a][b]-1); }
+}
+static void jtInvite(HhSim*s,int g){   // free will: a Sim that just sat down for TV may call a friend over; one going to bed at night, its partner
+    s->ji=1;
+    if(g==2&&!simIsNight()) return;   // (a nap: alone)
+    if(g==1&&(rnd8()*100>>8)>=20+s->tr[TR_OUT]*5) return;   // outgoing Sims ask more often
+    int a=s->uid, i=g==1?SC_TV:SC_BED, best=-1, bs=-999;
+    for(int q=-1;q<hhN;q++){ int u=q<0?hhPUid:hhM[q].uid; if(u==a||!socAllowed(a,u,i)) continue;
+        if(q>=0){ const HhSim*o=&hhM[q]; if((o->act!=HA_IDLE&&o->act!=HA_WANDER)||o->jt) continue; }
+        else if(simAct) continue;   // (you are busy)
+        if(i==SC_TV&&relD[a][u]<10) continue;
+        int sc=relD[a][u]+(rnd8()&15)-(q<0?10:0); if(sc>bs){ bs=sc; best=u; } }
+    if(best>=0) jtAsk(a,best,i);
+}
+static void jtTick(void){   // twice a second: who is side by side on the sofa or in bed (you count when sitting or asleep next to them)
+    static u8 t; if(++t<30) return; t=0;
+    int pg=simAct==3?1:simAct==1?2:0, px=(int)(lfx>>8), py=(int)(lfy>>8);
+    for(int m=0;m<hhN;m++){ HhSim*s=&hhM[m]; int g=jtGroup(s); if(!g) continue;
+        int mf=xo[XO_MULTIFL]?hhFl[m]:0, sx=(int)(s->fx>>8), sy=(int)(s->fy>>8);
+        for(int k=m+1;k<hhN;k++){ const HhSim*o=&hhM[k]; if(jtGroup(o)!=g||(xo[XO_MULTIFL]&&hhFl[k]!=mf)) continue;
+            int dx=(int)(o->fx>>8)-sx, dy=(int)(o->fy>>8)-sy; if(dx>=-3&&dx<=3&&dy>=-3&&dy<=3) jtBond(s->uid,o->uid,g); }
+        if(pg==g&&(!xo[XO_MULTIFL]||mf==curFl)){ int dx=px-sx, dy=py-sy; if(dx>=-3&&dx<=3&&dy>=-3&&dy<=3) jtBond(hhPUid,s->uid,g); }
+        if(!s->ji) jtInvite(s,g);
+    }
+}
+static void jtCall(void){   // the phone: CALL SOMEONE OVER (anyone at home, from anywhere on the lot)
+    const char* who[HH_MAX]; int uid[HH_MAX], n=0;
+    for(int m=0;m<hhN;m++) if(jtHere(hhM[m].uid)){ who[n]=hhM[m].name; uid[n++]=hhM[m].uid; }
+    if(!n){ toast("NOBODY ELSE IS HOME"); return; }
+    int c=menu("CALL SOMEONE OVER",who,n); if(c<0) return;
+    int b=uid[c], m=hhMemOf(b); if(m<0) return;
+    static const u8 ac[3]={SC_COME,SC_TV,SC_BED}; static const char* const nm[3]={"COME HERE","WATCH TV WITH ME","COME TO BED"};
+    const char* it[3]; int id[3], k=0;
+    for(int q=0;q<3;q++) if(socAllowed(hhPUid,b,ac[q])){ it[k]=nm[q]; id[k++]=ac[q]; }
+    if(!k){ toast("THEY CANNOT RIGHT NOW"); return; }
+    int d=menu(hhM[m].name,it,k); if(d<0) return;
+    int i=id[d]; HhSim*s=&hhM[m];
+    if(s->act==HA_SOC||(s->act==HA_USE&&s->use==HN_REST&&i!=SC_BED)){ toast("THEY ARE BUSY"); return; }
+    char*e=simCat(jtB,s->name);
+    if((rnd8()*100>>8)<socChance(hhPUid,b,i)){
+        relD[b][hhPUid]=(signed char)clampR(relD[b][hhPUid]+2); s->jt=(u8)(i-SC_TV+1); s->jw=(u8)hhPUid; jtGo(s);
+        simCat(e,socT[i].yes); sfxPlay(SFX_POP); if(i!=SC_COME) simEvent(SE_TALK); }
+    else { simCat(e," SAID NO"); relD[hhPUid][b]=(signed char)clampR(relD[hhPUid][b]-1); }
+    toast(jtB);
+}
 // ---- you: R next to a household Sim opens the social menu (furniture you stand at is offered first) ----
 static int hhVisitorHere(int m){ if(m<hhN||curFl) return 0; int k=HH_MAX-1-m; return k>=0&&k<TW_N&&twHas[k]&&twOn[k]; }   // slot m (past the household) holds a neighbour on the lot
-static int hhNearest(void){ if(xo[XO_MULTIFL]?pkHome>=0:curFl) return -1; int best=-1, bd=1<<30; for(int m=0;m<HH_MAX;m++){ if(m<hhN){ if(hhM[m].act==HA_AWAY) continue; } else if(!hhVisitorHere(m)) continue; s32 dx=hhM[m].fx-lfx, dy=hhM[m].fy-lfy; int d=(int)((dx*dx+dy*dy)>>8); if(d<bd){ bd=d; best=m; } } return bd<=(380*380>>8)?best:-1; }   // within 1.5 tiles (household Sims and the neighbours who drop by)
+static int hhNearest(void){ if(xo[XO_MULTIFL]?pkHome>=0:curFl) return -1; int best=-1, bd=1<<30; for(int m=0;m<HH_MAX;m++){ if(m<hhN){ if(hhM[m].act==HA_AWAY) continue; } else if(!hhVisitorHere(m)) continue; s32 dx=hhM[m].fx-lfx, dy=hhM[m].fy-lfy; int d=(int)((dx*dx+dy*dy)>>8); if(d<bd&&d<=(380*380>>8)&&wallClear(lfx,lfy,hhM[m].fx,hhM[m].fy)){ bd=d; best=m; } } return best; }   // within 1.5 tiles (household Sims and the neighbours who drop by), never through a wall
 static void liveInvalidate(void);
+static int wdCanSell(int stg); static void wdSellTo(const char*nm,int stg);   // weed.h: SELL A BAG to someone who dropped by
 static int hhVisitorTalk(int m,int useLabel){   // R next to a neighbour who dropped by (or an inmate): TALK / JOKE / COMPLIMENT / HIGH FIVE, and the mean ones: TEASE / INSULT, SHOVE / SLAP for teens and up (needs and mood only: they are not in the relationship tables)
     HhSim*s=m>=HH_MAX?&inmS[m-HH_MAX]:&hhM[m];
     static const char* it[10] EWRAM_BSS; static char tl[32] EWRAM_BSS, nt[28] EWRAM_BSS; int id[10], cat[10], n=0;
@@ -1119,6 +1275,7 @@ static int hhVisitorTalk(int m,int useLabel){   // R next to a neighbour who dro
     if((useLabel>0&&useLabel<6)||useLabel>=8){ it[n]=useLabel==8?"USE THE PHONE":useLabel>=11?useNm2[useLabel-11]:useLabel>=9?"TUNE THE RADIO":useNm[useLabel]; cat[n]=4; id[n++]=-1; }
     int big=stage>=AG_TEEN&&s->stage>=AG_TEEN;   // (shoving and slapping: teens and up, both of you)
     for(int i=0;i<8;i++) if(i<6||big){ it[n]=vn[i]; cat[n]=vcat[i]; id[n++]=i; }
+    if(m<HH_MAX&&wdCanSell(s->stage)){ it[n]="SELL A BAG"; cat[n]=4; id[n++]=20; }   // weed.h
     { char*e=simCat(tl,s->name); simCat(e,m>=HH_MAX?"  INMATE":"  NEIGHBOR"); }
     int c=pieCats(tl,it,cat,n); liveInvalidate();
     while((~REG_KEYINPUT)&0x3FF) vsync();
@@ -1126,20 +1283,25 @@ static int hhVisitorTalk(int m,int useLabel){   // R next to a neighbour who dro
     if(id[c]<0) return 0;
     int px=(int)(lfx>>8), py=(int)(lfy>>8), sx=(int)(s->fx>>8), sy=(int)(s->fy>>8);
     s->hd=(u8)(px>sx?0:px<sx?8:py>sy?4:12); lhd=(s->hd+8)&15;
+    if(id[c]==20){ wdSellTo(s->name,s->stage); return 1; }
     int i=id[c], gain=i==1?10:i==0?8:6;
     if(i>=4){   // a mean one: it lands. They are hurt or angry; a neighbour shoved or slapped goes home, an inmate may hit back
         static const char* const said[4]={" GOT TEASED"," LOOKS HURT"," GOT SHOVED"," GOT SLAPPED"};
         hhSay(hhPUid,IC_ANGRY,i==4?"NYAH NYAH":i==5?"LOSER":i==6?"MOVE IT":"SMACK"); hhFreeze(hhPUid,60);
         s->bub=(u8)(i>=6?IC_HURT:i==5?IC_SAD:IC_ANGRY); s->bubT=90;
         needAdd(hhPUid,HN_SOC,2); if(pTr[TR_NICE]<=3) needAdd(hhPUid,HN_FUN,6);   // grouchy Sims enjoy it a little
-        voxPlay(i>=6?V_lets_fight:V_amgry); simEvent(SE_FIGHT);
+        voxDuo(hhPUid,i>=6?V_lets_fight:V_amgry,s->uid,i>=6?V_angered:((rnd8()&1)?V_amgry:V_not_agree)); simEvent(SE_FIGHT);
         { char*e=simCat(nt,s->name); simCat(e,said[i-4]); } lnote=nt; lnoteT=60;
         if(i>=6){ if(m>=HH_MAX){ if((rnd8()&1)||i==7){ fightHurt(6+(rnd8()&7)); simCat(simCat(nt,s->name)," HIT BACK"); } }   // an inmate does not take it
                   else { int k=HH_MAX-1-m; if(k>=0&&k<TW_N&&twWait[k]>40) twWait[k]=40; } }                                         // a neighbour has had enough: home they go
         return 1; }
+    { int pct=i==1?55+skLvl(SK_CHARM)*4:i==2?75+skLvl(SK_CHARM)*2:85; if(((int)rnd8()*100>>8)>=pct){   // NOT EVERY LINE LANDS: a joke most of all (CHARISMA helps)
+          static const char* const flat[4]={" DID NOT LAUGH"," SHRUGS"," LEFT YOU HANGING"," LOOKS AWKWARD"};
+          voxDuo(hhPUid,i==1?V_joke_not_land:i==3?V_yeha:V_agree,s->uid,i==1?((rnd8()&1)?V_laughing_small_or_not:V_nah):V_not_agree);
+          needAdd(hhPUid,HN_SOC,2); simEvent(SE_TALK); { char*e=simCat(nt,s->name); simCat(e,flat[i]); } lnote=nt; lnoteT=90; return 1; } }
     needAdd(hhPUid,HN_SOC,gain); if(i==1) needAdd(hhPUid,HN_FUN,8);
     simEvent(SE_TALK); if(i==1) simEvent(SE_LAUGH); moodEvent(M_WANT);
-    voxPlay(i==3?V_yeha:i==1?V_joke_good:V_agree);
+    voxDuo(hhPUid,i==3?V_yeha:i==1?V_joke_good:V_agree,s->uid,i==3?V_yahoo:i==1?((rnd8()&1)?V_laughing:V_laughing_2):V_agree);
     { char*e=simCat(nt,s->name); simCat(e,i==1?" LAUGHED":i==2?" SAYS THANKS":i==3?" HIGH FIVES":" CHATTED"); }
     lnote=nt; lnoteT=60;
     return 1;
@@ -1152,12 +1314,13 @@ static int hhSocR(int useLabel){   // 1 = handled (a social, or the menu was clo
     if(s->act==HA_USE){ lnote="THEY ARE BUSY"; lnoteT=50; return 0; }
     static const char* it[SC_N+4] EWRAM_BSS; static char tl[40] EWRAM_BSS; int id[SC_N+4], cat[SC_N+4], n=0;   // (cat: the pie's category, 0 FRIENDLY 1 FUN 2 ROMANTIC 3 MEAN 4 USE)
     static const char* const useNm[6]={0,"USE THE FRIDGE","USE THE TOILET","SLEEP IN BED","TAKE A SHOWER","SIT ON SOFA"}; static const char* const useNm2[5]={"WATCH TV","READ A BOOK","MAKE COFFEE","FEED THE FISH","RUN ON TREADMILL"};
-    static const u8 socCat[SC_N]={0,1,0,0,0,1,2,2,2,0,3,3,3,3,1,2,2,3,3};   // TALK JOKE COMPL HIGH5 HUG TRICK FLIRT KISS STEADY SORRY ARGUE INSULT SLAP PUNCH PASS PROPOSE BABY TEASE SHOVE
+    static const u8 socCat[SC_N]={0,1,0,0,0,1,2,2,2,0,3,3,3,3,1,2,2,3,3,1,2,0};   // TALK JOKE COMPL HIGH5 HUG TRICK FLIRT KISS STEADY SORRY ARGUE INSULT SLAP PUNCH PASS PROPOSE BABY TEASE SHOVE TV BED COME
     if((useLabel>0&&useLabel<6)||useLabel>=8){ it[n]=useLabel==8?"USE THE PHONE":useLabel>=11?useNm2[useLabel-11]:useLabel>=9?"TUNE THE RADIO":useNm[useLabel]; cat[n]=4; id[n++]=-1; }
     it[n]="YOUR ACTIONS"; cat[n]=4; id[n++]=-2;   // self.h: the pie of what you can do on your own
     for(int i=0;i<SC_N;i++) if(socAllowed(a,b,i)){ it[n]=i==SC_PUNCH?fkMove(a,"PUNCH"):socT[i].name; cat[n]=socCat[i]; id[n++]=i; }
     if(uGuest(b)){   // a neighbour: they can be asked to live here, or sent home (townrel.h)
         if(nrCanAsk(a,b)){ it[n]="ASK TO MOVE IN"; cat[n]=0; id[n++]=-3; }
+        if(wdCanSell(s->stage)){ it[n]="SELL A BAG"; cat[n]=4; id[n++]=-5; }   // weed.h
         it[n]="SAY GOODBYE"; cat[n]=0; id[n++]=-4; }
     { char*e=simCat(tl,s->name); *e++=' '; *e++=' '; e=simCat(e,relWord(a,b)); e=simCat(e,"  HP "); simCatN(e,s->hp); }
     if(!n){ lnote="NOTHING TO DO HERE"; lnoteT=50; return 1; }
@@ -1167,6 +1330,7 @@ static int hhSocR(int useLabel){   // 1 = handled (a social, or the menu was clo
     if(id[c]==-2) return slfMenu();   // self.h
     if(id[c]==-3){ nrAskIn(a,b); return 1; }
     if(id[c]==-4){ nrBye(b); return 1; }
+    if(id[c]==-5){ wdSellTo(s->name,s->stage); return 1; }
     if(id[c]<0) return 0;
     int px=(int)(lfx>>8), py=(int)(lfy>>8), sx=(int)(s->fx>>8), sy=(int)(s->fy>>8);
     s->hd=(u8)(px>sx?0:px<sx?8:py>sy?4:12); lhd=(s->hd+8)&15;
@@ -1261,7 +1425,9 @@ static int hhPlayerFront(int x,int y){   // is the player (drawn into the pictur
     s32 rx,ry; rotPos(lfx,lfy,&rx,&ry); int px=LOX+(int)((rx-ry)>>5), py=LOY+(int)((rx+ry)>>6), dx=px-(x+16);
     return py>y+SPF&&dx>-22&&dx<22&&py<y+SPF+44;
 }
-typedef struct { const HhSim*s; short x,y; int dd,dep; u8 id,key,pk; signed char tb,pb; } HhOv;   // a Sim in view: where its sprite goes, how far from the middle, how far back; key = body*8+view*2+frame, pk = its palette; tb, pb = the tile block and palette bank it got (-1: none yet)
+typedef struct { const HhSim*s; short x,y; int dd,dep; u8 id,key,pk; signed char tb,pb; } HhOv;
+typedef struct { short x,y; int dep; u16 tile; u8 flip, blend; } PetOv;   // a pet in view (pets.h petOvList): its 32 x 32 sprite
+static int petOvList(PetOv*o); static void petStart(void); static int petSaveTo(volatile u8*m); static int petLoadFrom(volatile u8*m,int n,int avail);   // pets.h   // a Sim in view: where its sprite goes, how far from the middle, how far back; key = body*8+view*2+frame, pk = its palette; tb, pb = the tile block and palette bank it got (-1: none yet)
 // RUNNING LEGS: the stride is driven by real movement (world position since last frame), not only by the walking actions, so a Sim that is pushed,
 // scared or sent running always moves its legs. Faster than 1.5 x walking speed = running: the legs swap every 4 frames instead of 8. Other code can force
 // a run by setting hhRunT[id] (steps). Teleports (a jump of a tile or more in one frame) do not count.
@@ -1301,8 +1467,8 @@ static void fxObjUpdate(void); static void hhObjUpdate0(void){   // in vblank: h
     // 2. nearest first
     for(i=1;i<n;i++){ HhOv t=w[i]; int j=i; while(j>0&&w[j-1].dd>t.dd){ w[j]=w[j-1]; j--; } w[j]=t; }   // (insertion sort, n <= 31)
     // 3. which palette banks and tile blocks may be used this frame
-    u16 allow=0x00FF; int nTb=8;
-    if(prHere()){ allow|=(u16)(0xF700&~hhBanksBusy()); nTb=HH_TB; }   // the prison: the banks ghosts and cops are not drawing with are lent too (11 is the weather's)
+    u16 allow=0x007F; int nTb=8;   // (bank 7 is the pets': 7 banks for the 7 member places is always enough)
+    if(prHere()){ allow=(u16)(0x00FF|(0xF700&~hhBanksBusy())); nTb=HH_TB; }   // the prison: the banks ghosts and cops are not drawing with are lent too (11 is the weather's)
     { u16 lost=(u16)(hhBorrow&~allow); if(lost){ for(int b=8;b<16;b++) if((lost>>b)&1) hhPkey[b]=-1; hhBorrow&=(u16)~lost; hhExtraDone(); } }   // a ghost or a cop wants its bank back: its art and colours are loaded again right after this (fx.h, npc.h)
     // 4. hand out banks and blocks, load what changed (a few fresh sprites per frame at most)
     u8 tcnt[HH_TB], pcnt[16]; for(i=0;i<HH_TB;i++) tcnt[i]=0; for(i=0;i<16;i++) pcnt[i]=0;
@@ -1330,8 +1496,15 @@ static void fxObjUpdate(void); static void hhObjUpdate0(void){   // in vblank: h
     int ord[HH_IDS], no=0;
     for(i=0;i<n;i++) if(w[i].tb>=0) ord[no++]=i;
     for(i=1;i<no;i++){ int t=ord[i], j=i; while(j>0&&w[ord[j-1]].dep<w[t].dep){ ord[j]=ord[j-1]; j--; } ord[j]=t; }
-    // 6. OAM
-    for(int r=0;r<no;r++){ const HhOv*o=&w[ord[r]];
+    // 6. OAM (the pets go in among the Sims by depth: pets.h)
+    PetOv po[PET_MAX]; int pn=petOvList(po), pi=0;
+    for(int r=0;r<=no;r++){
+      while(pi<pn&&nOam<HH_OAM&&(r==no||po[pi].dep>w[ord[r]].dep)){ const PetOv*q=&po[pi++]; volatile u16*e=oam+nOam*4; int bl=q->blend?0x400:0;   // a 32 x 32 sprite, flipped for the right-facing views
+          if(zoomDma){ int X=(q->x+16-vpX0)*zoomNum/zoomDen-32, Y=sbY0+(q->y+16-vpY0)*zoomNum/zoomDen-32; e[0]=(u16)((Y&255)|bl|0x300); e[1]=(u16)((X&511)|0x8000|(q->flip?0x200:0)); }   // ZOOM: affine, double size (matrix 1 is matrix 0 mirrored)
+          else { e[0]=(u16)((q->y&255)|bl); e[1]=(u16)((q->x&511)|0x8000|(q->flip?0x1000:0)); }
+          e[2]=(u16)(q->tile|(PET_PALB<<12)); nOam++; }
+      if(r==no) break;
+      const HhOv*o=&w[ord[r]];
         volatile u16*e=oam+nOam*4; int tile=512+hhTvSlot[(int)o->tb]*32, pal=o->pb, y=o->y, x=o->x, blend=(hhBehindAt(o->s->fx,o->s->fy)||hhPlayerFront(x,y))?0x400:0;
         if(zoomDma){   // ZOOM: scaled up by the hardware (affine, double size: a 64 x 128 box, matrix 0) and placed where its room pixels are on screen
             int X=(x+16-vpX0)*zoomNum/zoomDen-32, Y=sbY0+(y+32-vpY0)*zoomNum/zoomDen-64;
@@ -1341,10 +1514,12 @@ static void fxObjUpdate(void); static void hhObjUpdate0(void){   // in vblank: h
     }
     for(i=nOam;i<HH_OAM;i++) oam[i*4]=0x200;   // everything else off
     oam[3]=zoomPa; oam[7]=0; oam[11]=0; oam[15]=zoomPa;   // affine matrix 0 (the ZOOM's sprites): 1 / scale
+    oam[19]=(u16)-zoomPa; oam[23]=0; oam[27]=0; oam[31]=zoomPa;   // matrix 1: the same, mirrored (a pet facing right)
 }
 static void hhObjUpdate(void){ hhObjUpdate0(); fxObjUpdate(); }   // fx.h: the ghosts and the weather are sprites too
 static HhR hhOld[HH_MAX] EWRAM_BSS; static unsigned hhOldSig[HH_MAX] EWRAM_BSS;
 static void hhSave(void);
+static void stUidMap(const u8*nu,int n);   // story.h: the story's partner and kid uids follow a household load that gave the uids out again
 static void hhInvite(void){   // a made-up Sim moves in (pause menu > HOUSEHOLD, or SELECT on the RELATIONSHIPS screen)
     if(!xo[XO_SIMRAND]){ toast("MADE-UP SIMS ARE OFF"); return; }
     if(hhN>=HH_MAX){ toast("THE HOUSE IS FULL"); return; }
@@ -1371,6 +1546,7 @@ static void hhStart(void){   // entering the life game: load the household and s
     hhLoad(); hhSlotsFree(); hhFindExits(); for(int k=0;k<TW_N;k++){ twOn[k]=0; twWait[k]=(short)(240+k*700); }
     for(int m=0;m<hhN;m++){ hhPlace(&hhM[m],m); hhOld[m].x0=hhOld[m].x1=0; hhOldSig[m]=0xFFFFFFFFu; }
     if(xo[XO_MULTIFL]&&!curFl) for(int m=0;m<hhN;m++) if(hhFlLd[m]>0&&hhFlLd[m]<FLR_N){ hhFl[m]=hhFlLd[m]; hhM[m].act=HA_AWAY; hhM[m].use=HN_FUN; hhUp[m]=(u16)(300+(rnd8()<<2)); }   // floors step 7: whoever was upstairs when you saved still is
+    petStart();   // pets.h: the pets stand near you
 }
 // ---- switching who you control ----
 static void hhSwap(HhSim*s);   // main.c: trades the player's position, needs, look and persona with s
@@ -1439,7 +1615,7 @@ static int hhPlaceOf(int u){ if(u==hhPUid) return 0; for(int i=0;i<hhN;i++) if(h
 #define HH_RELB (4*HU_N*HU_N)   // daily, lifetime, flags and (from 'H?') kin, for every pair of uids
 static void hhSave(void){
     volatile u8*m=SRAM_BASE+HH_OFF; int k=3; u8 sum=0x48;
-    m[0]='H'; m[1]='A'; m[2]=(u8)hhN; m[k++]=(u8)hhPUid;   // 'H:' = 'H9' for 8 Sims (8 uids); 'H;' adds the format 11 sliders; 'H?' adds the kin (who is whose mother, sister, roommate); 'H@' adds GENDER and the family tail; 'HA' the town relationships
+    m[0]='H'; m[1]='D'; m[2]=(u8)hhN; m[k++]=(u8)hhPUid;   // 'H:' = 'H9' for 8 Sims (8 uids); 'H;' adds the format 11 sliders; 'H?' adds the kin (who is whose mother, sister, roommate); 'H@' adds GENDER and the family tail; 'HA' the town relationships; 'HB' the format 16 sliders; 'HC' the pets; 'HD' VOICE
     for(int j=0;j<HH_NM;j++) m[k++]=(u8)hhPName[j];
     for(int j=0;j<HH_NM;j++) m[k++]=(u8)hhPLast[j];   // your own name
     for(int i=0;i<hhN;i++){ const HhSim*s=&hhM[i];
@@ -1461,6 +1637,7 @@ static void hhSave(void){
       for(int e=0;e<nrN;e++){ const NrE*q=&nrT[e]; int p=q->own==NR_MARK?NR_MARK:hhPlaceOf(q->own); if(p<0) continue;
           m[k++]=q->lot; m[k++]=q->mem; m[k++]=q->nh; m[k++]=(u8)p; m[k++]=(u8)q->d1; m[k++]=(u8)q->l1; m[k++]=(u8)q->d2; m[k++]=(u8)q->l2; m[k++]=q->f1; m[k++]=q->f2; n++; }
       m[c]=(u8)n; }
+    k+=petSaveTo(m+k);   // 'HC': the pets (pets.h)
     for(int i=2;i<k;i++) sum+=m[i];
     m[k]=sum;
     prSave();   // prison.h: who is doing time is kept as a place in this household (a load gives the uids out again)
@@ -1470,9 +1647,10 @@ static int hhUidsOf(int ver){ return ver<'6'?HH_MAXOLD+1:ver<=':'-1?HH_MAX9+1:HU
 // or it would not fit in avail bytes. ('HA': the town tail's own count says how long it is.)
 static int hhSumAt(volatile u8*m,int avail){
     int hu=hhUidsOf(m[1]);   // before 'H6': 10 uids; 'H6'..'H9': 14; 'H:': 8
-    int v7=m[1]>='7', nb=v7?2*HH_NM:10, nl=m[1]>='@'?LKPK:m[1]>='>'?LKPK14:m[1]>='='?LKPK13:m[1]>='<'?LKPK12:m[1]>=';'?LKPK11:m[1]>='9'?LKPK10:m[1]>='8'?LK_N9:v7?LK_N8:m[1]>='5'?LK_N7:m[1]=='4'?LK_N6:m[1]=='3'?LK_N5:LK_N4, rec=HH_REC-LKPK+nl-2*HH_NM+nb;   // 'H2' households were saved before the hats and clothes, 'H3' before the face details and sliders
+    int v7=m[1]>='7', nb=v7?2*HH_NM:10, nl=m[1]>='D'?LKPK:m[1]>='B'?LKPK16:m[1]>='@'?LKPK15:m[1]>='>'?LKPK14:m[1]>='='?LKPK13:m[1]>='<'?LKPK12:m[1]>=';'?LKPK11:m[1]>='9'?LKPK10:m[1]>='8'?LK_N9:v7?LK_N8:m[1]>='5'?LK_N7:m[1]=='4'?LK_N6:m[1]=='3'?LK_N5:LK_N4, rec=HH_REC-LKPK+nl-2*HH_NM+nb;   // 'H2' households were saved before the hats and clothes, 'H3' before the face details and sliders
     int n=m[2], hb=v7?2*HH_NM:0, k=4+hb+n*rec+3*hu*hu+(m[1]>='?'?hu*hu:0)+(m[1]>='@'?n+3:0);
     if(m[1]>='A'){ if(k+3>avail||m[k+2]>NR_N) return -1; k+=3+NR_B*m[k+2]; }
+    if(m[1]>='C'){ if(k+1>avail||m[k]>PET_MAX) return -1; k+=1+PET_B*m[k]; }   // the pets
     return k+1>avail?-1:k;
 }
 // THE FAMILY-LIFE TEST BUILD (pull request 26 before it took in main) wrote its own 'H=': GENDER as the last pick after the format 12 looks, and its
@@ -1481,9 +1659,9 @@ static int hhSumAt(volatile u8*m,int avail){
 #define HH_FY_OFF 4976
 static int hhFyOk(u8 sum,int n){ volatile u8*f=SRAM_BASE+HH_FY_OFF; u8 s=0x46; for(int i=2;i<15;i++) s=(u8)(s*3+f[i]); return f[0]=='F'&&f[1]=='Y'&&f[15]==s&&f[12]==sum&&f[13]==n; }
 static void hhLoad(void){
-    volatile u8*m=SRAM_BASE+HH_OFF; u8 sum=0x48; hhN=0; for(int j=0;j<HH_MAX;j++) hhFlLd[j]=0;
+    volatile u8*m=SRAM_BASE+HH_OFF; u8 sum=0x48; hhN=0; for(int j=0;j<HH_MAX;j++) hhFlLd[j]=0; petLoadFrom(0,0,0);   // (no pets until the block says so)
     famReset(); nrN=0; nrKey=0;
-    if(m[0]!='H'||m[1]<'2'||m[1]>'A'||m[2]>(m[1]>=':'?HH_MAX:HH_MAX9)) return;
+    if(m[0]!='H'||m[1]<'2'||m[1]>'D'||m[2]>(m[1]>=':'?HH_MAX:HH_MAX9)) return;
     int hu=hhUidsOf(m[1]), n=m[2], k=hhSumAt(m,SL_HH_LEN); if(k<0) return;
     for(int i=2;i<k;i++) sum+=m[i]; if(m[k]!=sum) return;
     if(m[3]>=hu) return;
@@ -1494,7 +1672,7 @@ static void hhLoad(void){
     if(v7){ for(int j=0;j<HH_NM;j++) hhPName[j]=(char)m[k++]; for(int j=0;j<HH_NM;j++) hhPLast[j]=(char)m[k++]; hhPName[HH_NM-1]=hhPLast[HH_NM-1]=0; if(!hhPName[0]){ hhPName[0]='Y'; hhPName[1]='O'; hhPName[2]='U'; hhPName[3]=0; } }
     int kept=0;
     for(int i=0;i<n;i++){ HhSim tmp, *s=i<HH_MAX?&hhM[i]:&tmp;
-        if(m[1]>='9'){ int lim=m[1]>='@'?LK_N:m[1]>='>'?LK_N14:fy?LK_N12:m[1]>='='?LK_N13:m[1]>='<'?LK_N12:m[1]>=';'?LK_N11:LK_N10; for(int j=0;j<LK_N;j++) s->look[j]=0; for(int j=0;j<lim;j++) if(!lkSlide(j)) s->look[j]=m[k++];   // 'H:' and older: no format 11 looks
+        if(m[1]>='9'){ int lim=m[1]>='D'?LK_N:m[1]>='B'?LK_N16:m[1]>='@'?LK_N15:m[1]>='>'?LK_N14:fy?LK_N12:m[1]>='='?LK_N13:m[1]>='<'?LK_N12:m[1]>=';'?LK_N11:LK_N10; for(int j=0;j<LK_N;j++) s->look[j]=0; for(int j=0;j<lim;j++) if(!lkSlide(j)) s->look[j]=m[k++];   // 'H:' and older: no format 11 looks
           if(fy) s->look[LK_SEX]=m[k++];   // (the test build's GENDER: the last pick, before the sliders)
           int h=-1; for(int j=0;j<lim;j++) if(lkSlide(j)){ if(h<0){ int b=m[k++]; s->look[j]=(u8)(b&15); h=b>>4; } else { s->look[j]=(u8)h; h=-1; } } }
         else for(int j=0;j<LK_N;j++) s->look[j]=j<nl?m[k++]:0;
@@ -1505,7 +1683,7 @@ static void hhLoad(void){
         if(s->stage>=AG_N||s->asp>=AS_N||s->uid>=hu||s->uid==pu) return;   // (AS_GROW, past AS_PICK, is the aspiration of the young)
         if(i>=HH_MAX) continue;   // (a member past the 8 Sims a household holds now: moved out)
         nu[s->uid]=(u8)(++kept); s->uid=(u8)kept;
-        s->act=HA_IDLE; s->think=(short)(rnd8()&63); s->hd=0; s->bubT=0; s->hp=HP_MAX; }
+        s->act=HA_IDLE; s->think=(short)(rnd8()&63); s->hd=0; s->bubT=0; s->hp=HP_MAX; s->jt=s->jl=s->ji=0; }
     for(int a=0;a<HU_N;a++)for(int b=0;b<HU_N;b++){ relD[a][b]=relL[a][b]=0; relF[a][b]=0; }
     kinClear();
     for(int a=0;a<hu;a++)for(int b=0;b<hu;b++){ signed char d=(signed char)m[k++], l=(signed char)m[k++]; u8 f=m[k++];
@@ -1516,7 +1694,8 @@ static void hhLoad(void){
         int due=m[k++], pa=m[k++], pb=m[k++]; if(due&&due<=9&&(pa<=hhN||pb<=hhN)){ famDue=(u8)due; famPa=(u8)(pa<=hhN?pa:255); famPb=(u8)(pb<=hhN?pb:255); }
         if(m[1]>='A'){ nrKey=(u16)(m[k]|m[k+1]<<8); int c=m[k+2]; k+=3;   // 'HA': the town relationships (whose: a place, so the new uid)
             for(int e=0;e<c;e++,k+=NR_B){ int p=m[k+3]; if((p>hhN&&p!=NR_MARK)||nrN>=NR_N) continue; NrE*q=&nrT[nrN++];
-                q->lot=m[k]; q->mem=m[k+1]; q->nh=m[k+2]; q->own=(u8)p; q->d1=(signed char)m[k+4]; q->l1=(signed char)m[k+5]; q->d2=(signed char)m[k+6]; q->l2=(signed char)m[k+7]; q->f1=m[k+8]; q->f2=m[k+9]; } } }
+                q->lot=m[k]; q->mem=m[k+1]; q->nh=m[k+2]; q->own=(u8)p; q->d1=(signed char)m[k+4]; q->l1=(signed char)m[k+5]; q->d2=(signed char)m[k+6]; q->l2=(signed char)m[k+7]; q->f1=m[k+8]; q->f2=m[k+9]; }
+            if(m[1]>='C') k+=petLoadFrom(m+k,m[k],SL_HH_LEN); } }   // 'HC': the pets (pets.h)
     else if(fy){   // the family-life test build: genders came with the looks; its weddings become kin, its family block the family tail
         static const u8 wr[SX_N]={KN_WIFE,KN_HUSBAND,KN_SPOUSE};
         for(int i=0;i<hhN;i++) if(hhM[i].look[LK_SEX]>=SX_N) hhM[i].look[LK_SEX]=SX_NB;
@@ -1527,17 +1706,19 @@ static void hhLoad(void){
     else {   // a household from before GENDER: kin roles say it first (a MOTHER is a woman), then the look
         for(int i=0;i<hhN;i++){ int x=kinSexOf(hhM[i].uid); hhM[i].look[LK_SEX]=(u8)(x>=0?x:sexGuess(hhM[i].look)); }
         { int x=kinSexOf(hhPUid); if(x>=0) look[LK_SEX]=(u8)x; } }
+    { int same=1; for(int u=0;u<hu&&u<=HH_MAX9;u++) if(nu[u]!=255&&nu[u]!=u) same=0;   // the uids were given out again: the story's partner and kid follow them (once: the household is saved with the new uids)
+      if(!same){ stUidMap(nu,hu<=HH_MAX9?hu:HH_MAX9+1); hhSave(); } }
     for(int k=0;k<TW_N;k++){ int v=TW_V(k); if(twHas[k]&&v>=hhN&&hhM[v].uid==GU0+k) nrGuestIn(k); }   // the neighbours already over: their rows as THIS household knows them
 }
 // How many bytes the household block at m takes (its header, count, uids and checksum all check out), or 0 if it is not a good household
 // or does not fit in avail bytes. The household slots (slots.h) use it to copy a household in and out of SRAM without touching hhM.
 static int hhBlockLen(volatile u8*m,int avail){
-    if(avail<4||m[0]!='H'||m[1]<'2'||m[1]>'A'||m[2]>(m[1]>=':'?HH_MAX:HH_MAX9)) return 0;
+    if(avail<4||m[0]!='H'||m[1]<'2'||m[1]>'D'||m[2]>(m[1]>=':'?HH_MAX:HH_MAX9)) return 0;
     int hu=hhUidsOf(m[1]), k=hhSumAt(m,avail); if(k<0) return 0;
     u8 sum=0x48; for(int i=2;i<k;i++) sum+=m[i]; if(m[k]!=sum||m[3]>=hu) return 0;
     return k+1;
 }
-#define HH_MAXB (4+2*HH_NM+HH_MAX*HH_REC+HH_RELB+HH_MAX+3+3+NR_N*NR_B+1)   // the biggest household block: 8 Sims, the family tail, a full town table
+#define HH_MAXB (4+2*HH_NM+HH_MAX*HH_REC+HH_RELB+HH_MAX+3+3+NR_N*NR_B+1+PET_MAX*PET_B+1)   // the biggest household block: 8 Sims, the family tail, a full town table, the pets
 _Static_assert(HH_OFF+HH_MAXB<=SLOT_BASE,"the household must fit before the room slots");
 _Static_assert(HH_MAXB<=SL_HH_LEN,"the household is bigger than the SRAM block reserved for it");
 _Static_assert(HH_OFF+HH_MAXB<=7560,"the household runs into the life stats (lifestats.h LG_OFF)");
@@ -1557,21 +1738,23 @@ static int hhMoveIn(const HhFam*F){   // a pre-made family moves in (HOUSEHOLD, 
 }
 // ---- the pause menu's HOUSEHOLD screen ----
 static void hhInviteTrue(void); static int hhMoveOut(int m);   // households.h
+static void petScreen(void);   // petui.h
 static void hhSwitchMenu(void){   // pick the Sim you control
     if(!hhN){ toast("NO ONE ELSE LIVES HERE"); return; }
-    static char nm[HH_MAX][HH_NM+8] EWRAM_BSS; const char* who[HH_MAX];
+    char nm[HH_MAX][HH_NM+8]; const char* who[HH_MAX];
     for(int m=0;m<hhN;m++){ char*e=simCat(nm[m],hhM[m].name); if(hhM[m].act==HA_AWAY) simCat(e,prHeld(&hhM[m])?(prHere()?"  AT HOME":"  IN PRISON"):hhUp[m]?hhWhere(m):"  OUT"); else if(xo[XO_ITEMUSE]&&hhM[m].act==HA_USE&&hhM[m].item) simCat(e,iuTag[hhM[m].item-1]); who[m]=nm[m]; }
     int m=menu("WHO DO YOU PLAY",who,hhN); if(m<0) return;
     hhSwitchTo(m); lnote=hhPName; lnoteT=60;
 }
 static void hhMenu(void){
     if(!dbgOn){   // moving in / out and every other change to the household is the DEBUG CODE's (title screen, see main.c): without it, RELATIONSHIPS and who you control
-        static const char* const it2[3]={"RELATIONSHIPS","FAMILY","SWITCH TO A SIM"}; int c=menu("HOUSEHOLD",it2,3);
-        if(c==0) relScreen(); else if(c==1) famScreen(); else if(c==2) hhSwitchMenu();
+        static const char* const it2[4]={"RELATIONSHIPS","FAMILY","SWITCH TO A SIM","PETS"}; int c=menu("HOUSEHOLD",it2,4);
+        if(c==0) relScreen(); else if(c==1) famScreen(); else if(c==2) hhSwitchMenu(); else if(c==3) petScreen();
         return; }
-    static const char* const it[8]={"RELATIONSHIPS","MOVE IN A FAMILY","INVITE A NEW SIM","TRULY RANDOM SIM","MOVE SOMEONE OUT","MOVE EVERYONE OUT","SWITCH TO A SIM","FAMILY"};
+    static const char* const it[9]={"RELATIONSHIPS","MOVE IN A FAMILY","INVITE A NEW SIM","TRULY RANDOM SIM","MOVE SOMEONE OUT","MOVE EVERYONE OUT","SWITCH TO A SIM","FAMILY","PETS"};
     char t[24]; { char*e=t; const char*p="HOUSEHOLD  "; while(*p) *e++=*p++; e+=numStr(e,hhN+1); p=" OF "; while(*p) *e++=*p++; e+=numStr(e,HH_MAX+1); *e=0; }
-    int c=menu(t,it,8); if(c<0) return;
+    int c=menu(t,it,9); if(c<0) return;
+    if(c==8){ petScreen(); return; }
     if(c==6){ hhSwitchMenu(); return; }
     if(c==7){ famScreen(); return; }
     if(c==0){ relScreen(); return; }

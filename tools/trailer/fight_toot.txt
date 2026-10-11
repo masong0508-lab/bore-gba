@@ -1,0 +1,61 @@
+run 600
+hold START 6
+run 300
+hold DOWN 6
+run 20
+hold DOWN 6
+run 20
+hold DOWN 6
+run 20
+hold DOWN 6
+run 20
+hold DOWN 6
+run 20
+hold DOWN 6
+run 20
+hold A 6
+run 120
+hold RIGHT 6
+run 30
+hold RIGHT 6
+run 30
+hold RIGHT 6
+run 30
+hold RIGHT 6
+run 30
+hold A 6
+run 60
+hold UP 6
+run 20
+hold A 6
+run 30
+hold A 6
+run 200
+wav tr/fight_toot.wav
+rec tr/fight_toot.rgb
+run 20
+poke8 @TSA@ 2
+poke8 @HOSEA@ 0
+tap UP
+run 4
+tap UP
+run 4
+tap DOWN
+run 4
+tap DOWN
+run 4
+tap LEFT
+run 4
+tap RIGHT
+run 4
+tap LEFT
+run 4
+tap RIGHT
+run 4
+tap B
+run 4
+tap A
+run 24
+run 700
+recstop
+wavstop

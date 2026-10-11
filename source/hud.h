@@ -1,3 +1,4 @@
+static const char* wdHint(void); static const char* venueHint(void);   // weed.h, venues.h
 // hud.h - BORE life-mode screen furniture, in the spirit of The Sims 2 control panel. Include AFTER sims.h / mood.h / the life globals, faceArt/drawFace and
 // text()/rect(), and BEFORE lifeDraw.
 //
@@ -47,6 +48,7 @@ static int hudMsg(const char**txt,u16*col,int*pts){   // the message for the mid
     if(ldead){ *txt="PRESS A TO RESPAWN"; *col=RGB(31,12,8); return 1; }
     if(lnear&&!lcamF){ *txt=simAct?"A OR B GET UP":(lnear==1?"R OPEN FRIDGE":lnear==2?"R USE TOILET":lnear==3?"R SLEEP IN BED":lnear==4?"R TAKE A SHOWER":lnear==6?(pipeOk()?"R PUFF THE PIPE":"GROWN-UPS ONLY"):lnear==7?"R JACK IN":lnear==8?"R USE THE PHONE":lnear==9?"R TUNE THE RADIO":lnear==10?"R TUNE THE STEREO":lnear==11?"R WATCH TV":lnear==12?"R READ A BOOK":lnear==13?"R MAKE COFFEE":lnear==14?"R FEED THE FISH":lnear==15?"R RUN ON TREADMILL":lnear==16?"R CLIMB THE FENCE":"R SIT ON SOFA"); *col=HC_GOLD; return 1; }
     if(!lnear&&!lcamF&&!ldead&&lstun<=0&&!simAct&&lnoteT<=0){ const char*h=htBlockHint(); if(h){ *txt=h; *col=HC_GOLD; return 1; } }   // (a block of the prison: hardtime.h)
+    if(!lnear&&!lcamF&&!ldead&&lstun<=0&&!simAct&&lnoteT<=0&&!lskate){ const char*h=venueHint(); if(!h) h=wdHint(); if(h){ *txt=h; *col=HC_GOLD; return 1; } }   // (a planter or the dispensary counter: weed.h)
     if(!lcamF&&!ldead&&lstun<=0){ int m=hhNearest(); if(m>=0){ static char b[24] EWRAM_BSS; char*e=simCat(b,"R TALK TO "); simCat(e,hhM[m].name); if(lnoteT<=0){ *txt=b; *col=HC_GOLD; return 1; } } }   // a household Sim next to you
     if(lnoteT>0){ *txt=lnote; *col=(lnote==lnBuf&&lnPerf)?HC_GOLD:WHITE; *pts=(lpts&&lnote==lnBuf)?lpts:0; return 1; }
     return 0;
@@ -105,6 +107,10 @@ static void hudTopUpdate(int all){
     if(sw) mk^=0x2F1D35u;
     int flOn=curFl>0||pkHome>=0; char flT[3]={'F',(char)('1'+curFl),0}; int flW=tw(flT,1)+5, flX=(sw?164:180)-flW, flR=flOn?flX-2:(sw?164:180);   // floors render 1: FLOOR BADGE
     if(flOn) mk^=0x1B7A91u*(unsigned)(1+curFl+(pkHome>=0?4:0));
+    int mqOff=0;   // MARQUEE: a note longer than the slot holds still a moment, then slides left until its end shows
+    { static unsigned mqH; static int mqT;
+      if(has&&t){ unsigned h=hudHash(t); if(h!=mqH){ mqH=h; mqT=0; } else if(mqT<4000) mqT++;
+          int ov=tw(t,1)-(flR-104)+(pts?22:0); if(ov>0){ mqOff=(mqT-24)&~1; if(mqOff<0) mqOff=0; if(mqOff>ov) mqOff=ov; mk^=(unsigned)mqOff*0x9E3779B1u; } } }   // (2 px every other picture: the line is drawn again only half as often)
     if(hudChg(all,HK_MSG,mk)){
         hudClear(102,0,78,HUD_TOPH-1); clipSet(102,0,flR,HUD_TOPH-1);
         if(!has){
@@ -115,7 +121,7 @@ static void hudTopUpdate(int all){
             else if(lspecOn){ t="SPECIAL"; c=GOLD; has=1; }
             else if(sHud==0){ t=lskate?"A PUSH  B OLLIE  L WALK":(lhave?"B RUN  A HOP  L SKATE":"B RUN  A HOP"); c=HC_DIM; has=1; }
         }
-        if(has&&t){ int x=text(104,1,t,c,1); if(pts) numText(text(x+3,1,"+",GOLD,1)+1,1,pts,GOLD); else if(n2) numText(x+3,1,n2,WHITE); }
+        if(has&&t){ int x=text(104-mqOff,1,t,c,1); if(pts) numText(text(x+3,1,"+",GOLD,1)+1,1,pts,GOLD); else if(n2) numText(x+3,1,n2,WHITE); }
         clipAll();
         if(sw){ rect(166,1,14,HUD_TOPH-4,HC_GOLD); rect(167,2,12,HUD_TOPH-6,HC_BG0); text(168,1,"SW",HC_GOLD,1); }
         if(flOn){ u16 bc=pkHome>=0?RGB(14,24,31):HC_GOLD; rect(flX,1,flW,HUD_TOPH-4,bc); rect(flX+1,2,flW-2,HUD_TOPH-6,HC_BG0); text(flX+3,1,flT,bc,1); }

@@ -1,0 +1,55 @@
+run 600
+hold START 6
+run 200
+hold A 6
+run 200
+hold A 6
+run 200
+hold A 6
+run 200
+hold DOWN 6
+run 20
+hold DOWN 6
+run 20
+hold DOWN 6
+run 20
+hold A 6
+run 200
+hold A 6
+run 1200
+run 600
+hold A 6
+run 300
+run 600
+hold DOWN 6
+run 20
+hold DOWN 6
+run 20
+hold A 6
+run 300
+poke8 @ARG@ 0
+poke8 @CALL@ 30
+run 30
+wav tr/skate.wav
+rec tr/skate.rgb
+run 20
+keys A+RIGHT
+run 70
+keys RIGHT
+run 2
+tap B
+run 90
+keys NONE
+run 60
+poke8 @ARG@ 4
+poke8 @CALL@ 30
+run 20
+keys A+RIGHT
+run 60
+keys RIGHT
+tap B
+run 120
+keys NONE
+run 30
+recstop
+wavstop

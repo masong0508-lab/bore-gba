@@ -1,0 +1,6 @@
+run 240
+wav tr/title.wav
+rec tr/title.rgb
+run 600
+recstop
+wavstop

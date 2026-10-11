@@ -55,7 +55,7 @@
 #define SIM_PAYX       20     // the money scale: the job table's small bonus numbers are multiplied by this
 #define SIM_BILLS      800    // taken every midnight
 #define SIM_FINE       800    // a bad night as a CRIMINAL
-#define SIM_CASH0      15000  // starting cash of a new life with one Sim ...
+#define SIM_CASH0      20000  // starting cash of a new life with one Sim ...
 #define SIM_JOIN_CASH  2000   // ... and every Sim who joins the household adds this (hhJoinCash, main.c)
 typedef long long money_t;    // the purse is 64 bit: it holds up to MONEY_CAP
 #define MONEY_CAP      999999999999LL
@@ -105,7 +105,9 @@ enum { SE_EAT, SE_PEE, SE_SLEEP, SE_SHOWER, SE_SOFA, SE_TRICK, SE_COMBO, SE_GRIN
        SE_GLIDE, SE_CHARGE,
        SE_TALK, SE_FRIEND, SE_BFF, SE_KISS, SE_LOVE, SE_STEADY, SE_HUGGED, SE_LAUGH,   // social (house.h)
        SE_REJECT, SE_SLAPPED, SE_FIGHT, SE_ENEMY, SE_LONELY,
-       SE_PIPE, SE_TV, SE_READ, SE_FISH, SE_RUN, SE_LETTER, SE_TAPE, SE_SWITCH, SE_WALLTAP, SE_MANUAL, SE_RADIO, SE_SPONSOR, SE_N };   // SE_PIPE: a puff on the water pipe, or PUFF PUFF PASS; SE_TV .. SE_RUN: the home pack (skills.h)   // (event numbers are not saved: they can be put in any order; table ROWS are saved by index)
+       SE_PIPE, SE_TV, SE_READ, SE_FISH, SE_RUN, SE_LETTER, SE_TAPE, SE_SWITCH, SE_WALLTAP, SE_MANUAL, SE_RADIO, SE_SPONSOR, SE_N };
+enum { QE_FOOD=SE_N, QE_BUY, QE_PJOB,
+       QE_VACT, QE_SOC, QE_PET, QE_PMOP, QE_PLEARN, QE_HARVEST, QE_KO, QE_PARRY, QE_SPECIAL, QE_LAUNCH, QE_SPACEWALK, QE_GOTCHI, QE_SPOOK, QE_ZCURE, QE_SOLD, QE_BOUGHT };   // QE_SOLD grams of the green sold (weed.h), QE_BOUGHT a purchase in buy mode (main.c, v = what it cost)   // (the packs' events, expand.h: a venue action (v = its row), a social you did (v = SC_), a pet action (v = PD_), a puddle mopped, a trick learned, a harvest, a knock-out, a parry, a special move, a launch, a spacewalk (1 training, 2 in orbit), a handheld action (v = GA_), a ghost's BOO, a Borezie cured)   // story events (story.h stQEvent) the life events do not have: food ordered on the phone, a weapon bought, a prison job taken   // SE_PIPE: a puff on the water pipe, or PUFF PUFF PASS; SE_TV .. SE_RUN: the home pack (skills.h)   // (event numbers are not saved: they can be put in any order; table ROWS are saved by index)
 // icons (7x7, simIconArt): drawn in the HUD cells, the aspiration panel and the creator
 enum { IC_FOOD, IC_WC, IC_BED, IC_SHOWER, IC_SOFA, IC_BOARD, IC_COMBO, IC_RAIL, IC_AIR, IC_STAR, IC_BRIEF, IC_UP, IC_DOWN, IC_BOOK, IC_HOUSE,
        IC_COIN, IC_TROPHY, IC_CAKE, IC_HEART, IC_SKULL, IC_HURT, IC_PUDDLE, IC_SAD, IC_GLASS, IC_CANE, IC_STINK, IC_BAIL, IC_ZZZ,
@@ -616,8 +618,9 @@ static void simDread(int s){   // the fear in slot s came true
 // something happened (v = how much of it: tricks in a combo, a combo's points, cash, skill points): pay a want, or let a fear come true
 static void memNote(int ev,int v);   // memlog.h: the diary of big moments (MY SIM > MORE > MEMORIES)
 static void stTvEvent(int ev);   // story.h: TV SHOW & TELL watches for a puff or a collapse
+static void stQEvent(int ev,int v);   // story.h: a story task that waits for this event
 static void simEventV(int ev,int v){
-    stTvEvent(ev); memNote(ev,v);
+    stTvEvent(ev); stQEvent(ev,v); memNote(ev,v);
     voxEvent(ev,v);   // the voice of the Sim you control (main.c)
     if(!simWishes()) return;
     for(int s=0;s<SIM_WS;s++) if(simW[s]>=0&&simWants[simW[s]].ev==ev&&(ev==SE_CASH?simMoney>=simCashGoal(simWP[s]):v>=simWP[s])) simMeet(s);
@@ -773,15 +776,19 @@ static void ageTick(void){   // once per game day: each stage lasts the days set
     int need=oStageDays(stage)*pct[xo[XO_AGING]]/100; if(need<1) need=1;
     if(++ageDays>=need){ gGrow=1; dnaAdd(SIM_DNA_BDAY); simQueue("BIRTHDAY +50 DNA"); simEvent(SE_GROWUP); if(stage+1==AG_ELDER) simEvent(SE_OLD); } else ageSave();
 }
+static void petMinute(void); static void petDay(void);   // pets.h
+static void wdHour(void);   // weed.h
+static void goMinute(void);   // gotchi.h: the handheld lives on while you play
 static void simMinute(void){   // once per game minute
     simMin++;
+    petMinute(); wdHour(); goMinute();
     if(simMin==simJobFrom()&&simInShift()&&!ldead) simQueue((jobTrack!=JT_SKATE&&simAtWork()==1)?"GO TO YOUR WORK MARKER":jobFlav[jobTrack]);
     else if(simMin%30==0&&jobTrack!=JT_SKATE&&simInShift()&&!simAct&&!ldead&&lnoteT<=0&&simAtWork()==1){ lnote="NOT AT WORK  FIND THE MARKER"; lnoteT=60; }   // a nudge every half hour   // clocking in: a line for the job
     if(jobTrack!=JT_SKATE&&simInShift()&&!simAct&&!ldead&&simAtWork()!=1) shiftPts+=(moodState()==MS_STOKED)?2:1;   // a normal job: work minutes (see jobQuotaOf)
     if(simMin==16*60+20&&(simHave&SR_PIPE)&&pipeOk()) simQueue("IT IS 4:20  PUFF PUFF PASS");   // the house gathers at the water pipe (house.h)
     if(simMin>=1440){   // midnight: new day, bills, autosave
         simMin=0; simDay++; if(simDay>30000) simDay=0; lsAdd(LS_DAYS,1);
-        ageTick(); copDay(); prDay();
+        ageTick(); copDay(); prDay(); petDay();
         famDay();   // the rest of the household grows up too, and a baby may come (family.h)
         nrDay();    // the people you know in the town: yesterday fades (townrel.h)
         if(simFlags&SF_TREE){ simMoneyAdd(SIM_TREE_PAY); }   // the money tree
@@ -812,7 +819,7 @@ static void simRoomTick(int tx,int ty){
     for(int y=ty-SIM_ROOM_R;y<=ty+SIM_ROOM_R;y++)for(int x=tx-SIM_ROOM_R;x<=tx+SIM_ROOM_R;x++){
         if(x<0||y<0||x>=MW||y>=MH) continue;
         char c=lifeMap[y][x]; int b=0;
-        if(c=='F') b=1; else if(c=='T') b=2; else if(c=='S') b=4; else if(c=='H') b=8; else if(c=='C'||c=='U') b=16; else if(c=='V'||c=='G') b=32; else if(c=='Q'||c=='R'||c=='A') b=64; else if(c=='v') b=128; else if(c=='b') b=256; else if(c=='q') b=512; else if(c=='c'||c=='m') b=1024; else if(c=='r'||c=='l'||c=='p'||c=='o') b=2048; else if(c=='t'||c=='h'||c=='d'||c=='i'||c=='y') b=4096;   // living and decor pack: a rug, lamp, plant or fire makes it cosy; a table, chair, desk, dresser or counter makes it lived in   // a lava lamp (or the pipe) makes it a den; home pack: TV, books, fish, coffee or a treadmill each add a kind
+        if(c=='F') b=1; else if(c=='T') b=2; else if(c=='S') b=4; else if(c=='H') b=8; else if(c=='C'||c=='U') b=16; else if(c=='V'||c=='G') b=32; else if(c=='Q'||c=='R'||c=='A') b=64; else if(c=='v') b=128; else if(c=='b') b=256; else if(c=='q') b=512; else if(c=='c'||c=='m') b=1024; else if(c=='r'||c=='l'||c=='p'||c=='o'||c=='u') b=2048; else if(c=='t'||c=='h'||c=='d'||c=='i'||c=='y') b=4096;   // living and decor pack: a rug, lamp, plant or fire makes it cosy; a table, chair, desk, dresser or counter makes it lived in   // a lava lamp (or the pipe) makes it a den; home pack: TV, books, fish, coffee or a treadmill each add a kind
         if(b){ kinds|=b; items++; } }
     int k=0; for(int b=1;b<8192;b<<=1) if(kinds&b) k++;
     int target=k*16+(items>5?5:items)*4; if(target>100) target=100;

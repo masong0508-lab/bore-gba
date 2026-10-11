@@ -25,6 +25,7 @@ static u32 svSize=32768, svScr;    // bytes on the chip; the scratch sector (fla
 static int svBank;                 // the 64 KB bank the chip shows (128 KB flash)
 static u16 svScan;                 // svTick: where the next comparison starts
 static u8 svLow[SV_LOWN] EWRAM_BSS;
+static u32 svShad[SV_LOWN/4] EWRAM_BSS;   // flash: what sector 1 of the chip holds right now (read back after every commit), so svTick compares RAM with RAM, not with the slow chip
 static volatile u8* svBase=(volatile u8*)0x0E000000;
 #define SRAM_BASE svBase           // every old SRAM_BASE+offset with offset 4096..8191 lands in svLow on flash
 #define SVB ((volatile u8*)0x0E000000)
@@ -68,6 +69,7 @@ static void svErase(u32 off,u32 len){
         if(keep) for(u32 i=0;i<SV_SEC;i++){ u32 p=s+i; if(p>=a&&p<b) continue; int v=svChip(svScr+i); if(v!=0xFF) svWr(p,v); }
     }
 }
+static void svShadLoad(void){ int ob=svBank; svBankTo(0); u8*d=(u8*)svShad; for(u32 i=0;i<SV_LOWN;i++) d[i]=SVB[SV_LOW0+i]; svBankTo(ob); }
 // Write the RAM copy of sector 1 back if it differs (programs only when no bit has to go back to 1, else erase + program)
 static void svCommit(void){
     if(svType!=SV_FLASH) return;
@@ -77,19 +79,25 @@ static void svCommit(void){
         if(rise&&!flEraseRaw((int)SV_LOW0)) svErr=1;
         for(u32 i=0;i<SV_LOWN;i++){ u8 v=svLow[i]; if(SVB[SV_LOW0+i]!=v&&!flProgRaw((int)(SV_LOW0+i),v)){ svErr=1; break; } }
     }
-    svBankTo(ob); svScan=0;
+    svBankTo(ob); svScan=0; svShadLoad();
 }
+// A commit stops the game for a few frames (a sector erase and up to 4096 byte writes: longer on a real cart than in an emulator), so svTick never
+// commits right after a button press: it waits for a lull (SV_QUIET frames with no new press; keyRaw sets svQuiet), or SV_LATE frames at most.
+#define SV_QUIET 20
+#define SV_LATE  600
+static u8 svQuiet; static u16 svLate;
 static void svTick(void){   // from vsync: compare 128 bytes of the RAM copy with the chip, commit on a difference
     if(svType!=SV_FLASH) return;
-    int ob=svBank; svBankTo(0);
-    const u8*l=svLow+svScan; volatile u8*c=SVB+SV_LOW0+svScan; int d=0;
-    for(int i=0;i<128;i++) if(c[i]!=l[i]){ d=1; break; }
-    svBankTo(ob);
-    if(d) svCommit(); else svScan=(u16)((svScan+128)&(SV_LOWN-1));
+    if(svQuiet) svQuiet--;
+    const u32*l=(const u32*)(svLow+svScan), *c=svShad+svScan/4; int d=0;   // (the chip's copy: the same answer as reading the chip, 32 words of RAM instead of 128 flash reads)
+    for(int i=0;i<32;i++) if(c[i]!=l[i]){ d=1; break; }
+    if(!d){ svScan=(u16)((svScan+128)&(SV_LOWN-1)); return; }
+    if(svQuiet&&++svLate<SV_LATE) return;   // (someone is pressing buttons: later, the same slice is looked at again)
+    svLate=0; svCommit();
 }
 static void svEraseAll(void){   // ERASE EVERYTHING: the whole chip (flash) or 32 KB of zeros (SRAM)
     if(svType!=SV_FLASH){ for(u32 i=0;i<32768;i++) SVB[i]=0; SVB[SV_BK]='S'; SVB[SV_BK+1]='K'; return; }
-    flCmd(0x80); flCmd(0x10); svBank=-1; svBankTo(0); if(!flWait(0,0xFF,8000000)) svErr=1;
+    flCmd(0x80); flCmd(0x10); svBank=-1; svBankTo(0); if(!flWait(0,0xFF,8000000)) svErr=1; svShadLoad();
     for(u32 i=0;i<SV_LOWN;i++) svLow[i]=0xFF;
 }
 static u32 svSlotEnd(void){ return svType==SV_FLASH?svScr:32768; }   // the slots run up to here
@@ -116,6 +124,7 @@ static void svInit(void){
     svType=SV_FLASH; svSize=kind==2?131072u:65536u; svScr=svSize-SV_SEC;
     svBank=-1; if(svSize>65536) svBankTo(0); else svBank=0;
     for(u32 i=0;i<SV_LOWN;i++) svLow[i]=SVB[SV_LOW0+i];
+    svShadLoad();
     svBase=svLow-SV_LOW0;
 }
 static const char* svName(void){ return svType!=SV_FLASH?"32 KB SRAM":svSize>65536?"128 KB FLASH":"64 KB FLASH"; }

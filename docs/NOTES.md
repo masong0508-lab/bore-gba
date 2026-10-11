@@ -229,7 +229,7 @@ New skate-park pieces, all in the room editor's ITEM tool (L/R to pick, **Select
 | BENCH | 6 px | slatted seat on legs, grind it |
 | KICKER | 0 to 8 px | wedge ramp; the lip is on the side opposite the direction it faces |
 | Q PIPE | 0 to 14 px | quarter pipe, steel coping on the lip |
-Ramps have a real slope: ride up a kicker or quarter pipe on the board and you are launched off the lip, harder the faster you were going. Walking up one just works. Tuning is at the top of `source/ramps.h` (`F_RAMP_BOOST`, `F_RAMP_MAX`, `F_RAMP_TOL`). Saved maps keep working; to see the new pieces in the default park, reset the map (the default plaza now has two kickers facing each other, two quarter pipes under the wall, a ledge and a bench).
+Ramps have a real slope: ride up a kicker or quarter pipe on the board and you are launched off the lip, harder the faster you were going. Walking up one just works. Tuning is at the top of `source/ramps.h` (`F_SLOPE`, `F_LIP_K`, `F_QP_LIFT`, `F_RAMP_TOL`: see **Skating 2** below). Saved maps keep working; to see the new pieces in the default park, reset the map (the default plaza now has two kickers facing each other, two quarter pipes under the wall, a ledge and a bench).
 
 The sprite art is authored in `tools/make_skate_items.py`, which writes `source/skateart.h` (sprites), `source/rampdata.h` (matching physics heights) and a preview sheet `assets/preview/skate_items.png`. Edit the art there and re-run `python3 tools/make_skate_items.py`.
 
@@ -237,7 +237,7 @@ The sprite art is authored in `tools/make_skate_items.py`, which writes `source/
 Eight more pieces in the room editor's ITEM tool (the palette bar now scrolls, 25 entries). **Select+A turns the LAUNCH ramp** like the kicker. Tuning: `LAUNCH_H` in `source/rampdata.h`, the heights in `tileH()` in `main.c`.
 | Item | Tile | Height | Notes |
 |---|---|---|---|
-| LAUNCH | `9 : ; <` (S E N W) | 0 to 12 px | taller blue wedge; launches harder than a kicker (capped by `F_RAMP_MAX`) |
+| LAUNCH | `9 : ; <` (S E N W) | 0 to 12 px | taller blue wedge; launches harder than a kicker |
 | FUNBOX | `X` | 10 px | solid platform: ollie onto it, land on top |
 | BARREL | `O` | 8 px | oil drum, solid (bumping at speed hurts) |
 | TRASH CAN | `Y` | 10 px | solid |
@@ -738,6 +738,28 @@ and source/voices.h (X-macro list, ROM blobs, V_<name> ids). They play on the on
 `voxChain(a,b,c)` plays three in a row (the pipe: lighter, inhale, cough). Who plays what: `voxEvent` (main.c, called from sims.h simEventV) for life events, `voxSoc` (house.h) for socials,
 and spots in main.c: falls (shriek), bails (cry), instant death (die of shock), fights (lets fight / losing / lost / win), hunger and bladder nags, sleep (snore), new wants (thinking).
 
+### The takes (hits, screams, cries, groans)
+The old voice effects were five recording sessions played whole: a punch played all five grunts of `hit` (3.4 s), and a scream, a close call, a death and
+INSTANT all played the same 15.7 s `scream` session (which `cry` and `instant` open with too). `python3 tools/chop_sfx.py` cuts the sessions
+(tools/sfx_src/*_session.adp) at their silences into 23 takes and writes the ones in use as source/sfx/x_<take>.adp plus source/sfxtakes.h. `ROLES` in the tool
+says what each effect plays:
+
+| Effect | Take(s) | Plays on |
+|---|---|---|
+| BONK | hit1 | running into a wall |
+| HIT | hit1 hit2 hit4 hit5, in turn | a punch or kick that lands (on you or a Sim), a parry, a tackle, a beating |
+| YELP (new) | scr7 cry6 grn7, in turn | a Sim hit by a weapon |
+| KO (new) | scr5 | a Sim knocked out |
+| SCREAM | scr3 | a fall that kills you |
+| NEARLY | scr6 | CLOSE CALL |
+| DEATH | scr1 | killed by a wall, or worn out by hits |
+| INSTANT | ins3 | |
+| CRY | cry5 | an accident, the cutscenes' crying |
+| GROAN | grn1 | the cutscenes' sick groan |
+
+Spare takes (not in the ROM until a role uses one): hit3 (a low thump), scr2, scr4, cry4, grn2 to grn6. `--preview DIR` writes every take as a WAV
+named by its number, take and role, to listen to. The takes in use are 56 KB of ROM; the sessions were 204 KB.
+
 ## Slider locks (roadmap #5)
 Most creator sliders start locked and are bought in six packs with jenes (BODY SHAPE 40, BODY DETAIL 80, BUTT 50, FACE DETAIL 40, EAR SLIDERS 30, PART SLIDERS 60): press A on a locked slider. Free essentials: HEIGHT, WEIGHT, SKIN TONE, EYE SIZE, EYE SHADE, HAIR / TOP / BOTTOM tone. The Konami code (sUnlock) opens everything. Looks keep the values they already hold (old saves carry over); the lock only stops editing, and ROLL THE DICE / TRUE RANDOM for you leave a locked slider in the middle. Saved in the jukebox block at JB_OFF+32: 'S' 'K', the pack bits, the bits xor 0x5A (appended; nothing moved, nothing resized). Code: "SLIDER LOCKS" above the creator in main.c.
 **Earning jenes** (pDna, spent on parts and slider packs): a met want pays its points, SKILL UP 15, a promotion 25, a birthday 50, a lifetime want 200, a story chapter 25, and since the slider locks: a GOOD SHIFT 8 (16 on a double-quota shift, shown on the pay note) and every 5th trick landed 1 ("+1 JENE"). Tune SIM_DNA_SHIFT / SIM_DNA_ACE / SIM_DNA_TRICKS in sims.h.
@@ -878,3 +900,194 @@ Place two or more **KICKERs** (or **LAUNCH** ramps) in a row, all facing the sam
 - **Walking into walls is calm now:** on foot you slide along a wall (lose 1/6 of your speed, not 1/3), and only a flat-out run (speed 16) bonks, at most every 90 steps. Walking is silent. The long shriek only plays for a fall of 80 px or more on foot (34 px on the board). Skating into a wall still hurts, as before.
 - **HALFPIPE** (BUILD > SKATE, last item): SEL+A turns it, A lays two QUARTER PIPES facing each other with two flat tiles between, 2 tiles wide (8 free tiles, `edHalf`). It is bought as four pipes. Hold-and-drag does not repeat it. The pipes keep the existing quarter pipe physics (roll back, `qpOut`), so you ride up one, fly, drop in and roll to the other.
 - **LIVING AND DECOR pack** (art: `tools/make_decor_items.py` writes `source/decorart.h`, then `sh tools/bake_items.sh`): RUG `r` (flat, walkable), DINING TABLE `t`, CHAIR `h`, DESK `d` (with a computer), FLOOR LAMP `l`, HOUSEPLANT `p`, DRESSER `i`, FIREPLACE `o`, KITCHEN COUNTER `y`. Shop: SEAT (chair), HOME (table, desk, dresser, counter), DECOR (rug, lamp, plant, fireplace). All but the rug are solid like other furniture; chair, desk, dresser, fireplace and counter turn to face the open floor. They feed the ROOM need as two new kinds (cosy: rug / lamp / plant / fireplace; lived in: table / chair / desk / dresser / counter), so a decorated room scores higher. Palette numbers 47 to 56; `catItems` rows now hold up to 12 items.
+
+## Floors: open air upstairs
+An upper floor used to be a whole new lot of grass floor laid over the house. Now a tile upstairs that nobody built on is **open air** (`FL_AIR` = 15 in the floor plane; a floor value the undo steps can still hold in 4 bits). What it means:
+- **You see down through it.** The floor below shows through, dimmed (`flBel`, built once when the floor changes, `flBelowBuild`), and a built room upstairs stands on a slab: its edge is drawn 6 px under the floor (`roomFloorsO`, pass A then pass B).
+- **Nobody walks on it.** The player (`moveH`) and the household (`hhWalk`) stop at its edge. The stairs always floor the tile you arrive on (`flStairs`).
+- **Building upstairs lays a floor.** A wall, an item or a room on air gets the floor in hand (`edSet`); SELL upstairs gives the tile back to the air.
+- The minimap shows air dark, wall faces over air are not drawn, and slots and old saves carry over: an old upper floor of plain grass becomes air when it is loaded (`flMigrateAir`). The ground floor draws exactly as before.
+
+## Pets (pets.h, petui.h, tools/make_pets.py)
+Dogs and cats live with the household: up to 3, saved in the household block (version 'HC', `petPack`), so they move with their family.
+- **Getting one:** PHONE > ADOPT A PET (§150) opens the PET CREATOR: a breed to start from (18: golden retriever, lab, beagle, dalmatian, husky, shiba, corgi, tuxedo, tabby, Siamese, ...), then the BODY (7 looks: dog, spotted dog, spitz, spotted spitz, cat, tabby, pointed cat), SIZE, PUPPY / KITTEN (grows to its size in a few days), COAT and ACCENT (18 colours each, from cream to PURPLE HAZE), the traits SMART / HYPER / FRIENDLY and a name. HOUSEHOLD > PETS: the card, RESTYLE, RENAME, GIVE AWAY.
+- **Needs:** FOOD, BLADDER, ENERGY, FUN and LOVE, per game minute (`petMinute`).
+- **Free will** (`petDecide`): wanders, follows you (friendly ones), begs at you or at the fridge (a household Sim with nothing on feeds it), sleeps on rugs and next to beds and sofas (longer at night), the zoomies (hyper ones), barks at the cops, runs to greet visitors.
+- **Accidents are a roll, never automatic** (`petAccident`): a pet that has to go goes outdoors if it can reach the outdoors. If not, it MAY have an accident (about 40% untrained, down to about 10% fully house trained, more when bursting): a puddle (R next to it: MOP IT UP), or a dog next to someone may lift its leg on them (your hygiene drops). Otherwise it holds on and whines at the door.
+- **R next to a pet** (pie menu): PET / SCRATCH CHIN, CUDDLE, PLAY FETCH / DANGLE A STRING, TRAIN A TRICK (5 each; SMART and LOVE set the odds, a failure is a joke), DO A TRICK, FEED §5, LET IT OUT, HOUSE TRAIN, SCOLD, SHOO, ABOUT.
+- **Art:** `tools/make_pets.py` ray-marches little 3D models (spheres, ellipsoids, capsules) in the room's 2:1 view: 7 looks x 3 sizes x 2 views x 9 poses (stand, walk 1 and 2, sit, lie, sleep, eat, happy, pee), 32 x 32, 4bpp (`source/petart.h`, about 84 KB of ROM). Coat colours are not in the art: pets share OBJ palette bank 7 (outline, eyes, red, then 4 coat colours per pet) and the coat indices are moved per pet as the tiles are loaded (`petUp`).
+- **Hardware:** OBJ VRAM slots 14 and 15 (pets never go to the prison, whose crowd borrows them), OAM entries merged into the household's depth order, the shadow / balloon / puddles drawn into the picture band by band like a Sim's.
+
+## The green: grow, smoke, sell, the dispensary (weed.h)
+Grown-ups; teens only with OPTIONS' teen pipe switch (`pipeOk`), and at **three times the risk** when they sell. The dispensary never serves anyone under grown-up ("21 AND UP  NICE TRY KID").
+- **GROW PLANTER** ('u', BUY > HOME, §350), drawn by code. R next to it: PLANT SEEDS, WATER IT, CHECK ON IT, TALK TO IT, HARVEST, CLEAR THE POT. Every two game hours a watered plant drinks and may grow a stage (SPROUT, GROWING, FLOWERING, READY); a dry one may wither. A thirsty plant blinks a blue drop; a ready one sparkles in its strain's colour. The plant lives in the tile's wallpaper byte (`wallMap`, unused on a non-wall tile: bits 0-2 stage, 3-4 water, 5-7 strain), so rooms, slots and floors carry it with no new storage. Slots now accept any byte in that plane; wall tiles with a byte past the wallpapers are reset on load (`slWallSan`).
+- **Strains** (8): BORE KUSH, PURPLE HAZE, SOUR DIESEL, GRANDDADDY BORE, NORTHERN LIGHTS, GELATO, OG BOREDOM, WEDDING CAKE: potency, yield and street price each. Harvests grow with the GROW skill.
+- **Stash** (grams per strain, seed packs, GROW skill, grams sold): SRAM `WD_OFF` 7440 and the player save's 'W' chunk.
+- **Smoke:** YOUR ACTIONS > FUN > ROLL ONE UP: a gram of your strongest, CHILLED OUT (longer for stronger strains), the munchies. GUMMIES from the dispensary kick in later, and hard.
+- **Sell:** at the DISPENSARY (legal, 60% of street), SELL A BAG to a neighbour who drops by, or YOUR ACTIONS > FUN > SELL ON THE CORNER away from home (pays 150%, a few buyers, each one a roll that somebody calls it in: `copCrime`, and enough heat brings the cops).
+- **The DISPENSARY:** a new community lot type (CT_DISP, "GREEN BORE"): green tile room, a glass counter ('&') of jars with a blinking green cross, lava lamps, beanbags, a show plant. The phone's CALL A CAB offers it, and makes one if the town has none. The counter: PRE-ROLL, AN EIGHTH of the strain of the day, SEEDS, GUMMIES, SELL YOUR HARVEST, ASK THE BUDTENDER.
+
+## Voices are people (VOICE look, voxSay, voxDuo)
+- **VOICE** (creator, under GENDER; look `LK_VOICE`, person format 17, household 'HD'): BY GENDER, MALE (the clips as recorded) or FEMALE (the same clips sped up about five semitones, the Missy Elliott trick). Share codes: a Bore whose voice is BY GENDER still gets a version 'A' code (old codes and new ones match); one with a voice set gets a 'B' code.
+- **Every clip has a speaker** (`voxSay(uid, clip)`): the effect voice plays at that Sim's own pitch (`voxPitch`: VOICE or gender, age: babies squeak, elders a touch lower, a little of their own from their look, a little of their mood) and from where they stand (`voxPan`: gently left or right). The mixer's step and left / right gains are per clip now (`sfxStp`, `sfxGL`, `sfxGR`); IWRAM went down 32 bytes.
+- **Both sides of a social talk** (`voxDuo`: a line, then the answer in the other Sim's voice): a joke that lands gets a laugh, one that does not (`joke_not_land`) gets a pity laugh (`laughing_small_or_not`) or a NAH; a flirt gets flirted back or shut down; BE MINE and the proposal get the serenade and then the answer; fights get the challenge and the angry reply.
+- **Neighbours who drop by can say no now:** a joke lands about 55% (+ CHARISMA), a compliment 75%, a chat or high five 85%; a flat one says so (DID NOT LAUGH, LEFT YOU HANGING ...).
+- **The right clip in the right place:** ROLL ONE UP is the lighter, the inhale and the cough; a gummy kicking in is laughter and then "I'm hungry"; a harvest is a yahoo; a snitch or a pet's lifted leg is a shriek; the dispensary carding you is a disagree; pets get laughs, cheers and groans.
+
+## Non-music audio, compressed (the music is untouched)
+- **Nature beds: BLOCK DPCM** (`tools/encode_ambience.py`, like the SNES's BRR): 16-frame blocks, a header byte (shift 0..5 and delta-or-plain for each side) and 4-bit samples. 1.96 MB of 8-bit stereo PCM became 1.04 MB (`source/sfx/amb_*.abd`; the `.raw` files stay as the source). Error about 0.8 of an 8-bit step RMS (wind is lossless), better than IMA ADPCM at nearly its size, and the decoder (`ambChan`, IWRAM ARM) is a few instructions a sample with no tables: one channel at a time so it stays in registers (the stack is in slow EWRAM). Snapshots every 2048 frames keep the random start of a bed. Played from the same start, the new and old beds match (correlation 0.96, same level).
+- **Effects and voices: silence trimmed** (`tools/trim_sfx.py`): every clip that started late is encoded again from 24 samples before its sound (most were 10-40 ms late; DISAGREE waited half a second), long quiet tails are cut. 420 KB to 406 KB, and every reaction is immediate. Run it again after `tools/encode_voices.py` or `encode_sfx.py`.
+- ROM: about 0.95 MB smaller in all.
+
+## Big towns (SMALL to HUGE)
+- **A size per town:** PLAY > NEIGHBORHOODS > SELECT (a new neighborhood) asks the style and then HOW BIG: SMALL 24 x 24, MEDIUM 32, LARGE 40, HUGE 48 cells (a cell is 4 x 4 room tiles). Up to **48 lots** a town (was 16).
+- **Districts** (`nbDistricts`): the land past the first 24 x 24 gets streets every 12 cells and is filled with lots, a cell apart: homes on tree-named streets (ELM 2, BIRCH 4 ...) and, about one in four, a public place, the kinds in turn (park, dispensary, skate park, lounge, plaza, arms shop). A HUGE suburb comes out with about 45 lots.
+- **The town screen:** the whole town fits at once (a big town at half scale), then the town menu's ZOOM steps to MEDIUM (big towns) and CLOSE, both following the cursor. NEW LOT offers every kind of place.
+- **Saving ('TWN2'):** the header, the size, only the cells used, every lot and roof (`nbPack`): one slot for a small town, two for a big one (`nbSave` finds a run, moves the town when it grows past its slot). An old 'TWN1' town (24 x 24, 16 lots) loads as before and is saved as 'TWN2' from then on. Tested: an old town loads and draws the same; a LARGE town comes back byte for byte.
+
+## Places with things to do (venues.h) and towns that grow
+- **Fifteen new kinds of community lot**, each with its own room, counter and menu: TACO BORE (CRUNCHY TACO, BORE-RITO SUPREME, LOADED NACHOS, BAJA BLAST-OFF, THE MUNCHIES BOX, FOURTH MEAL after 6 PM, WORK THE DRIVE-THRU), GYM, ARCADE, NIGHTCLUB, GROCERY, BANK, HOSPITAL, CAFE, BAR, SALON, PET SHOP, LIBRARY, CASINO, CINEMA, POOL. About 65 actions in one table (`vAct`): a price (or pay), what it does to your needs, a skill, how long it keeps you busy, grown-ups only / after 6 PM, and a SPECIAL: munchies (food is worth three times as much while CHILLED OUT: THE MUNCHIES DEFEATED), adopt a pet, a movie (the TV clip), a bet (tickets, slots, blackjack, investing), patched up, a new hairdo (the look changes and the sprites are baked again), a shift of work (pay grows with the skill, one shift every two game hours), rob the bank (a roll: the cash and the cops, or just the cops), groceries for the house, pet food, toys and grooming.
+- **The counter** is one tile ('@') drawn by code in the venue's colours with its own sign (a taco, a dumbbell, a flashing screen, a disco light, a red cross ...); the town map draws each venue as a building in its colours. `venueBuild` lays the room out (wallpaper, floor, props round the walls) when the lot opens. The shop counters ('g', '&', '@') are counters to the slot checker now, so a lot saved with one loads again.
+- **Getting there:** CALL A CAB > SOMEWHERE NEW lists every kind of place the town has none of; the cab finds land for it. Big towns' districts build them in turn.
+- **GROW THE TOWN** (town menu; the cab does it by itself when it needs land): 8 more cells each way, up to 48: the streets that reached the old edge go on, new districts and trees fill the new land.
+
+## Skating 2: ramp physics that work (ramps.h, lifeStep)
+Measured in the emulator before the change (a test course: one ramp across a flat strip, the skater pushing from standstill), the old ramps were broken in five ways: a quarter pipe with a wall behind it (the usual way to place one) never went vert, you slammed into the wall at the top and lay there 2.5 s; without a wall it threw you back with an eighth of your speed; a kicker launch was capped below a flat-ground ollie; ramp heights came in whole pixels, so climbing was lumpy; and a clean landing from big air still hurt. Now:
+- **Exact surfaces.** `surf8` / `rampH8` give ramp heights in 8.8 px (the quarter pipe's curve runs smoothly through the middle of each eighth of `qpH`). The skater's height follows them; everything else still uses the whole-pixel `surfH`.
+- **Slopes keep your energy.** Rolling, `speed^2 - F_SLOPE x height gained` (8.8 px): up a ramp you slow, down one you speed up (to `F_SPD_MAX` 620). Run out of speed going up and you roll back down. Stand still on a slope and it rolls you down. Down a ramp's face the board stays on it however steep (only off a real ledge do you drop).
+- **Lips launch you.** Leaving a kicker or launch ramp over its lip: `vz = speed x lip slope x F_LIP_K / 1024` (a launch ramp's 18 px counts as 15). At top speed a kicker gives about 26 px of air above its lip, a launch ramp about 36, a 3-tile long kicker about 11 above its 24 px top. An ollie on a ramp adds the board's climb to its pop.
+- **Quarter pipes go vert.** Over the lip (on the ground, or in the air: no sailing over the wall behind it) you go straight up (`F_QP_LIFT`, about 40 px above a 24 px lip at top speed); only sideways movement along the lip carries on. You come down onto the pipe facing back down it, at the speed you went up with, and the roll down gives back what the climb took. Two pipes facing each other make a halfpipe: 65, 58, 52, 44 px peaks without pushing.
+- **Landings and bumps.** A clean landing on the board only hurts from a real height (over 72 px; sketchy 48); the shriek starts at 72. Falling onto a ramp catches you up to 10 px short of its top. Skating into a wall at full speed is an OOF and a stop, no longer 2.5 s down.
+- **Coasting** rolls about twice as far (speed/512 a step plus 1 every 8th).
+- **Walking**: the life-stage pace (a child at 80%, an elder at 70%) and the slower screen diagonals had slipped into a comment in `feelWalk`; they work again.
+
+## Your skateboard: buy it or find it (board.h)
+Nobody hands you a board on every lot any more (the old pickup beside the arrival is gone from every town lot, house lots included). You **own** one or you do not (`bdOwn`: 0 none, 1 a board, 2 a pro deck), saved in SRAM (`BD_OFF`) and in your player save (chunk `'O'`).
+- **Buy one** at the new **SKATE SHOP** (a venue: A COMPLETE BOARD §120, A PRO DECK §450 for a touch more speed and pop, WATCH SKATE VIDEOS, GRIP TAPE ART, WORK THE REGISTER). New towns get one early in their districts; an older town gets one from the cab's SOMEWHERE NEW.
+- **Find one**: every PARK, SKATE PARK, PLAZA and OLD TOWN hides a board in its most out-of-the-way spot: the walkable floor tile farthest from where you arrive (a breadth-first search when the lot opens). Nothing marks it until you are within two tiles, then it glints. Walk over it and it is yours. Once you own a board the hidden ones are gone.
+- **Only where a board belongs**: house lots, parks, skate parks, plazas and old town. Not in the shops, restaurants, gym, bank, hospital, cinema, casino, salon, library, pool, lounge, dispensary, arms shop, spaceport, dojo, skate shop or prison: L says NO SKATING IN HERE (and without a board: THE SKATE SHOP SELLS THEM).
+- **Who has one**: a new life starts without a board; SKATE LIFE starts with Dex's. A life or player save from before owned boards keeps one (it had one).
+
+## BOREAGOTCHI!'s mode: THE HANDHELD (gotchi.h)
+A keychain egg with a 32 x 16 dot LCD (each dot 4 px). Open it from EXPANSIONS > BOREAGOTCHI! > THE HANDHELD (main menu or in your life), or YOUR ACTIONS > FUN > CHECK THE BOREAGOTCHI once it has hatched.
+- **The blob**: EGG, BABY (BLOBBY), CHILD (BORELET), TEEN (ANGSTY BORE, or SLOUCHY BORE after 3+ care mistakes), ADULT (SUPER BORE with few mistakes and 50% discipline, CHILL BORE when snacks outnumber meals, SLOB BORE otherwise). It hatches after 20 ticks; teen at 240, adult at 1440 more.
+- **Needs**: HUNGER and HAPPY (4 hearts), DISCIPLINE, WEIGHT; it poops after eating, gets sick when the poop sits, sleeps at night (turn the LIGHT off). The ATTENTION icon lights when it needs something; 15 ticks unanswered is a CARE MISTAKE. Sometimes it calls for nothing: SCOLD is the right answer (discipline +25%). Badly neglected (no hearts, sick, 12 mistakes) it goes back to its home planet and a new egg comes.
+- **Icons**: FEED (A MEAL / A SNACK), LIGHT, PLAY (WHICH WAY?: guess where it looks, 5 rounds, 3 to win), MEDICINE, CLEAN, STATS, SCOLD, ATTENTION.
+- **Time**: a tick every half second in your hand and every game minute while you live your life (simMinute), so it grows while you play; a needy blob BEEPS now and then.
+- **Saved** at `GO_OFF` (20 bytes) and in the player save (chunk `'H'`). The pack's missions read `goStage` and the `GA_` events.
+
+## The base game's ten missions (expand.h, the BORE pack)
+First on the EXPANSION PACKS shelf (the `B` cover) sits the base game itself: ten missions, one for each thing the game does, each staged by a scenario so it feels like an event and not a checklist. They open one after the other and pay like the packs' missions (§500 to §1500); done bits live in their own four-byte block (`BM_OFF` 7556).
+1. **MOVING IN** (build and buy): a housewarming grant of §1500 lands; buy three things, make a room look great (the till fires `QE_BOUGHT`).
+2. **DROP IN** (skating): a board if you have none, and a kicker and a quarter pipe set down on the first clear strip of your yard, yours to keep; catch air, land three tricks, land a combo.
+3. **TACO TUESDAY** (the town): a crunchy taco, a lift at the gym, a cabinet at the arcade (the venues are placed in town if missing).
+4. **ICEBREAKER** (the pie menu): three neighbours knock at once; a joke, a high five, a friend.
+5. **SPARKS** (romance): the same knock; flirt, a first kiss, fall in love.
+6. **NINE TO FIVE** (the career): the bills take §150; work a shift, ace one, get promoted.
+7. **GOOD BOY** (pets): the pet shop, adopt, teach a trick.
+8. **FIGHT NIGHT** (fights): a challenger comes (the BORTUA scenario, a purse per win); the gym, a parry, beat them.
+9. **OPEN HOUSE** (the neighbours): the knock again; have one over, order food for everyone, somebody moves in.
+10. **THE GREEN THUMB** (the green, grown-ups only): two seed packs in the mail; harvest, the dispensary, sell some (`QE_SOLD`).
+
+## BORTUA FIGHTER's mode: ARCADE MODE (bortua.h, tools/make_bortua.py)
+One on one on a ring at sunset over the sea, best of three, a ladder of eight and the chrome boss BORAL. Open it from EXPANSIONS > BORTUA FIGHTER > ARCADE MODE, or the cabinet at an arcade.
+- **Pre-rendered 3D** (the Donkey Kong Country trick): `tools/make_bortua.py` builds each fighter out of capsules and ellipsoids, ray casts every frame of every move exactly (key light, rim light, a shine, three dithered shades a material, outlines), and paints the arena. 3 bodies (STANDARD, HEAVY, SLIM with a ponytail) x 3 seats x 93 frames, 64 x 128 each (`source/art/bortua_fighters.bin`, 3.4 MB of ROM); `source/bortuaart.h` says where each move starts, how far each frame reaches (the hits are measured off the renders) and where its root is. Re-run it after changing a pose or the arena; `sheet BODY ANIM ...` renders a few for a look.
+- **On the GBA**: the arena is a 240 x 160 picture in ROM; each fighter is two 64 x 64 hardware sprites in its own palette, mirrored to face left, its tiles copied in only when the frame changes. See-through shadows, hit sparks (blue on a guard), a hit stop and a screen shake on big blows, a white flash and slow motion on a K.O., a draining red damage trail on the bars. The CPU only draws the HUD and the words, so it runs at 60.
+- **You**: your Bore's skin, hair, top and bottom colours (bare tops and bottoms for grown-ups only, as everywhere), SLIM if a woman, HEAVY if heavy, and your seat: none if the BUTT switch is off (or a child), ROUND, or BIG at the top of BUTT + BUTT WIDTH.
+- **The jiggle**: a fighter with a seat jiggles now and then: landing a jump, shaking off a hit, standing about.
+- **THE MOON** (hidden; grown-up Bores only: a teen or a child never moons and is never mooned): UP UP DOWN DOWN LEFT RIGHT LEFT RIGHT B A in a fight arms it for the arcade session (a tick, nothing more; with the debug code already on it is armed from the start). From then on about one round in 128 has a moon in it (rolled at each round's start and again when the code goes in), yours or theirs: super rare on purpose, a few in a lifetime of play, the burst maybe once. The fighter turns round, drops their pants and moons the room. Bare or in underwear is a coin flip each time (white, pink, red, sky blue or gold). It ends one of four ways, a quarter each: a wiggle; a slap and a bounce; the TOOT (they freeze, it slips out, the cheeks shake, a green cloud drifts up, the screen shakes, pants up in a hurry; `tools/make_bortua_sfx.py` makes the sound, `SFX_TOOT`); or the HELIUM (side on, a little tank comes out and the hose goes to the mouth or, a coin flip, the back way; the belly balloons like a beach ball, then it all comes out in one shaking TOOT, they go red (and stay red for the rest of the match), and every voice, sound and note of music is a squeaky fifth higher for the rest of the match: `audHe` in main.c pitches the sample songs, the chip loops, the streamed songs, the effects and the voices). One helium moon in three goes too far: the belly keeps swelling (the seat with it, the head riding up on the ball) until they BURST: a flash, a bang, bits everywhere, a puddle with the head and the shoes in it (the burst frames are coloured by a blood palette). A burst fighter loses the round and the match on the spot, after the send-off: WHAT THE FUCK JUST HAPPENED??? in big wobbly comic letters (`bortuawtf.h`: 26 sprites, rainbow colours cycling, a jitter every frame) and a fade to black. When the pants come down the other fighter recoils (MOONED!, an opening; a TOOT holds them longer); hit someone mid-moon and it counts double (SPANKED). Moon a fighter and they pay you back; a fighter who wins a round once in a blue moon moons you anyway. None of it happens until the code has been put in during this arcade session.
+- **Saved** at `BF_OFF` (wins, BORTUA CHAMPION) and in the player save (chunk `'A'`).
+
+## THE CATALOG: 200 more things to buy (catalog.h, tools/make_catalog.py)
+BUY has 18 new tabs after the classic ones (CHAIRS, SOFAS, BEDS, TABLES, DESKS, STORAGE, LIGHTS, PLANTS, KITCHEN, BATH, TECH, ART, OUTDOOR, KIDS,
+SKATE 2, GROWN-UPS, SEASONAL, MISC): 200 items, 407 baked sprites (the ones that turn have four). The tab row scrolls so the picked tab stays
+in view; GROWN-UPS (bong, hookah, keg, slot machine ...) only shows for grown-ups (pipeOk, like the green).
+- A catalog item is a LOOK. The tile keeps an ordinary map character (a chair is 'h', a sofa 'C', a bed 'S', a fridge 'F' ...), so sitting,
+  sleeping, eating, the room score, the AI, walking round it and every save all keep working; only the picture is new. The look rides in the
+  tile's wallMap byte (the wallpaper only on wall tiles, the plant on a GROW PLANTER): CAT_WP0 (55) + id, so it is saved, undone, kept with
+  the floors and put in a house slot exactly like the wallpaper, with no new save format. catIdAt(x, y) reads it (and asks the look to be an
+  item of the tile's own character, so a stray byte never dresses a door as a chair); catDraw (items.h) draws it, with itemFacing for the
+  ones that turn. mapPlace clears the byte on every item tile it writes (a window keeps its wall's paper).
+- Prices: catTab[].price with BUILD COSTS on; selling gives half. The same character with another look is a purchase too. A look keeps the
+  REWARDS lock of what it behaves as (a FOUNTAIN is an aquarium). A lot's value counts the looks' own prices (nbValueLive).
+- The art: tools/make_catalog.py builds every item from textured boxes (the make_skate_items.py model: Mat textures, Box list, nsh outline)
+  and writes catalogart.h (host-only), catalogbake.h (the bakeOne lines), catalogids.h (CAT_N, CAT_SPR_N) and catalog.h (catTab: name,
+  character, price, sprite, turns, category, swatch colour). Then sh tools/bake_items.sh bakes source/itemrom.h as ever (V_CAT0 ..).
+  drawObj's painter table grew to 40 boxes. Every item sits in one tile and keeps z1 <= 28 so its back corner stays on the 21 x 38 canvas.
+- Generated houses (housegen.h hgLook) give one piece in three a catalog look, never from GROWN-UPS, so the lots differ more; the venues
+  (venues.h venueLook) dress their props to fit: TACO BORE gets bar stools, a pink flamingo and a neon arrow, the arcade real cabinets, the
+  casino slot machines, the gym a weight bench and a glass shower, the library tall bookshelves and computer desks, and so on.
+
+## Crystal-clear sound: the DMA re-point that cannot click (irqMain, audStart)
+The crackle came from the way the sound double buffer was turned over. At every vblank the interrupt stopped timer 0 (the sample clock) and the
+two sound DMAs and started them again at the next buffer's first sample. Whatever samples the FIFO had already fetched past the buffer's end
+were then fetched again, and the FIFO's fill level drifted a little with each frame's interrupt latency until a whole 16-sample chunk repeated:
+a sawtooth pushed through the mixer in a test build skipped 16 samples every 0.28 s, in the title, the menus, play and the loading screens
+alike. And one DMA of the whole picture (present) held the CPU, and so the interrupt, for up to 80 lines: a 100-sample click in the menus and
+the builder every time it crossed the vblank.
+- **Timer 0 never stops.** Timer 1 counts its overflows: the samples played. At the vblank the interrupt reads it, works out where playback
+  is in the ring of the two buffers and where the FIFO will fetch next (16 a chunk, 16..32 ahead of what plays), and re-points the DMAs to
+  exactly there. However late the interrupt comes, nothing is replayed or skipped. A third buffer holds a copy of the first, so the DMA reading
+  on past the end of the second (the ring's wrap, before the vblank re-points it) finds the right samples.
+- The clock starts 6 lines before the blank (8 samples), so a buffer's edge and the FIFO's 16-boundaries fall midway between vblanks; within 2
+  samples of a boundary the interrupt waits it out before re-pointing, so the re-point never races a FIFO request.
+- The full-picture copies (present, uiPresent, edPresent, edCopyRows) go 4 rows a DMA (about 2 samples of sound each).
+- Proof: tools of the test rig put a 256-sample sawtooth into the mixer and record mGBA's output; every cycle must be 462.0 samples at 32768 Hz.
+  Before: 3.5 bad cycles a second everywhere, 7.7 in the builder. After: 0 in the title, the menus, play, the builder and a lot load.
+- The nature bed is not mixed under a loading screen (a fifth of the CPU while the Sims bake).
+
+## Faster: the walk, the lot change, the Sims' bake (SUPER GBA pass 1)
+Measured in mGBA with the game's own load counter (PERFORMANCE INFO) and time-weighted profiles (emu proft / proflr).
+- **Walking indoors: 216% -> 143% of a frame** (20 -> 29 fps). The wall drawers (drawWall, wallFloorDraw, wallAtR, wInAt) run from the
+  IWRAM overlay the room pass already uses; isWallCh / isWinCh / cellAt / rotXY are inlined for real; a window's columns are computed once
+  per hour phase (winColT) instead of once per column per frame; the wall segment's column loop has no branch per pixel; floorTile and
+  wallFloorDraw touch only the diamond rows that reach a thin strip (rowMaxT); the nature bed decodes both channels in one pass with its
+  numbers in a struct (they were stack arguments GCC reloaded every sample); a long note's marquee moves 2 px every other picture.
+- What a walking frame is: the camera moves 1 px a frame, so livePatch scrolls VRAM by DMA (about 58k cycles, the bitmap's own price) and
+  redraws a 1-px strip plus the player's 27 x 36 rectangle; the strip alone touches 65 floor tiles, 30 wall segments and 71 band scans.
+  The player stays CPU-drawn (walls and furniture in front must cover him), so 60 fps while scrolling would need a different renderer.
+- **A cab ride: 12 s -> 7 s.** houseSave compares the house with what its slot holds in the same pass that counts it, and leaves the save
+  chip alone when nothing changed (it erased and programmed 3-4 slots every ride); flPlaneAt / flBlankV divide by MW as a multiply;
+  bakeKey hashes only the two options the drawing reads (it hashed them all, so any option change baked the whole household again on the
+  next lot); drawEars steps once per run of samples on a pixel with per-row oval bounds (byte-identical sprites, 5x quicker: the ears were
+  a fifth of every bake).
+
+## The commercial (assets/trailer/bore_commercial.mp4, tools/make_trailer.py, tools/trailer/)
+A 65-second late-night TV spot: "ARE YOU... BORED? GET BORE." Captured headlessly from test builds (every frame + the sound), cut with cards
+in tools/make_trailer.py (the SCENES table: clip, first frame, seconds, cards), given the old-tube look (4:3, scanlines, bleed, a rolling bar,
+jitter, barrel, vignette, channel-change static, the set clicking off) and muxed by ffmpeg. The scenes: the title, the acid menu, the creator
+("ALL THE GENDERS. AND A BUTT SLIDER."), a day at home, THE CATALOG ("GOLD TOILET $5000. BONG $150. PRIORITIES."), the dispensary ("GROW YOUR
+OWN TOMATOES* / *NOT TOMATOES"), the cab to TACO BORE ("LOADING... GO GET SNACKS"), the skate park, the pets ("ADOPT A DOG. FORGET TO FEED
+IT."), the TOUKEBOX ("NOW WITH 100% LESS CRACKLE"), BORTUA FIGHTER's moon and the helium burst with the game's own WHAT THE FUCK JUST
+HAPPENED??? ("RATED M FOR MUNCHIES"), and the end card ("IT'S LIKE LIFE. BUT WITH A SAVE BUTTON." / "ONLY $69.99*" / "CALL NOW
+1-800-GET-BORE" / "*we don't sell it. it's free. it's a github repo."). tools/trailer/README.md has the pipeline.
+
+## THE BUILD BATCH: 200 more build-mode things, and POOLS (floorart.h, wallpapers.h, winSt, the FLOOR tool)
+- WHAT   65 floors (carpets, woods, tiles, stone, outdoor grounds, specials, the POOL EDGE and 4 waters), 37 wallpapers and 12 FENCES
+         (wallpapers.h), 12 window styles, 12 doors, and 82 catalog items in 7 new BUY tabs (DOORS, WINDOWS, POOL, BEACH, GARDEN, TREES, YARD):
+         282 catalog items now (tools/make_catalog.py). Plus the features below: 200-odd things, the same as the #76 batch.
+- FLOORS   flTex moved to floorart.h, shared with tools/gen_fltab.c (which pre-samples them into fltab.h: no more second copy). NFL is 80.
+         FL_AIR (15) stays where the saves have it: it is a placeholder entry the picker skips (flHidden / flStep). Floors past 15 broke two
+         4-bit packings: undo keeps the floor in its own byte now (udRF), and the floor pieces under the walls use 8 bits a quarter (wFq is
+         u32). FL_BWALL moved to NFL. The picker's 5 swatches step over the hidden ones.
+- WATER    the last 8 floors are 4 waters in pairs (two frames each, PN_WAVE / PN_WAVE2); roomFloors shows the frame of the moment (wavePh,
+         flipped every 32 steps with a liveInvalidate, only on a lot that has water: wHasWater from wFqBuild). The FLOOR tool with a water
+         picked DIGS A POOL: the water costs POOL_COST a tile (BUILD COSTS on), walls are skipped, and the POOL EDGE is laid all round it
+         (eApply). Ground floor only. SWIMMING: the player in a water tile (lswim) is slow (5/8), cannot hop or ride (the board comes off with
+         a SPLASH), gets cleaner every 16 steps and a little tired, chills; the picture is clipped at the waterline 6 px lower with ripples
+         (drawPlayerNow). Sims and pets never path into water (hhWalk).
+- WALLPAPERS   wpTex moved to wallpapers.h with wp2Tex after it: their numbers come AFTER the KHLVH set (NWP+NWX..), so nothing saved moves.
+         gen_bakedtabs.py reads both tables and bakes wp2Tab / wp2Avg. The last NFENCE are fences: colour 3 is WP_KEY, see-through, and
+         wallSegO leaves those texels alone (what is behind shows). The WALL tool builds a fence style as a LOW WALL ('w'): you can see and
+         talk over it, hop it, and it keeps the look. texSwatch shows the key as dark.
+- WINDOWS  one table, winSt[NWIN]: wall / frame / tint colours, the glass box, bars (a column mask, a row) and flags (sill, strip, round,
+         arch, stained, shutters, dark). The 3 classic chars stay; the 12 new styles are catalog items on 'E' whose look byte picks the kind
+         (kind 3 + its place in the WINDOWS tab). winColT is a 6-slot cache of kinds in view instead of every kind (4.6 KB).
+- DOORS    catalog items on 'D' (rot: the leaf lies along the wall by itemFacing). Classic doors unchanged.
+- THE LOOK BYTE   wallMap used to keep 55 + id, which capped the catalog at 200. It keeps the item's number among the items of its character
+         (catTab[].lk; catChIdx / catChFirst / catChIds decode it: catIdOf), so the catalog can hold thousands. Room format 4; a format 3
+         room is converted on load (slLooksOld). Windows carry a look too (isLookCh). catFind / hgLook / venueLook return the byte.
+- POOLS IN TOWN   the COMMUNITY POOL venue digs a real 10 x 5 pool in its hall with a ladder, the diving board, loungers, a beach umbrella
+         and the lifeguard's chair (venueBuild). Big MODERN and MANSION lots get a 5 x 2 pool in the front yard one time in two, with a ladder
+         and two loungers (hgHouse: the yard is 3 rows deeper for it).
+- MEMORY   EWRAM 236 KB (was 230): wFq +3.2 KB, winColT +2.3 KB, udRF +1 KB. ROM +1 MB of sprites (549 catalog sprites).

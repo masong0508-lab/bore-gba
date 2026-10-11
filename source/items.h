@@ -8,7 +8,9 @@
 // past the last, so the blit never touches the see-through margins. It also clips once per row, not once per pixel.
 // (itemSpan is a const ROM table, baked into itemrom.h by tools/bake_items.sh: it used to be 4 KB of EWRAM filled at boot)
 static void itemSpanInit(void){}   // kept so the boot code stays the same
-IWRAM_CODE static void blitItem(int k,int sx,int sy){
+IWRAM_OVL1 static void blitItemO(int k,int sx,int sy);
+static inline void blitItem(int k,int sx,int sy){ ovlUse(1); blitItemO(k,sx,sy); }
+__attribute__((noclone)) IWRAM_OVL1 static void blitItemO(int k,int sx,int sy){
     CNT(cntBI); int x0=sx-IOX, y0=sy-IOY;
     int cx1=cX0+(int)cW, cy1=cY0+(int)cH;
     if(x0>=cx1||x0+IW<=cX0||y0>=cy1||y0+IH<=cY0) return;
@@ -68,6 +70,8 @@ static int itemFacing(int x,int y){
     for(int d=0;d<4;d++) if(itemOpen(x+dx[d],y+dy[d])) return d;
     return 0;
 }
+static void catDraw(int id,int sx,int sy,int x,int y){   // a catalog look (catalog.h) on tile (x, y): one sprite, or the one of its 4 turns that faces away from the wall
+    const CatItem*t=&catTab[id-1]; blitItem(V_CAT0+t->spr+(t->rot?((itemFacing(x,y)-cview)&3):0),sx,sy); }
 static int itemAlongU(int x,int y,char ch){   // rails / ledges / benches link up with neighbours of their own kind; in the rotated view the axis may swap
     int ax=(x>0&&lifeMap[y][x-1]==ch)+(x<MW-1&&lifeMap[y][x+1]==ch), ay=(y>0&&lifeMap[y-1][x]==ch)+(y<MH-1&&lifeMap[y+1][x]==ch);
     int axisX=!(ay>0&&ax==0); return axisX?!(cview&1):(cview&1);

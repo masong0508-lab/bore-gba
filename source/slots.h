@@ -104,11 +104,11 @@ static void slMigrate(void){
 }
 
 // ---------- byte writer (a counting dry run when p is 0) and reader ----------
-typedef struct { u32 off; int pos,cap,over; u32 s1,s2; } SlW;   // off: where in the save memory it writes (0 = only count)
-static void slwInit(SlW*w,u32 off,int cap){ w->off=off; w->pos=0; w->cap=cap; w->over=0; w->s1=w->s2=0; }
+typedef struct { u32 off; int pos,cap,over; u32 s1,s2; u8 cmp,diff; u8*ram; } SlW;   // off: where in the save memory it writes (0 = only count); cmp: compare with what is there instead (diff: it differs); ram: write into memory instead
+static void slwInit(SlW*w,u32 off,int cap){ w->off=off; w->pos=0; w->cap=cap; w->over=0; w->s1=w->s2=0; w->cmp=w->diff=0; w->ram=0; }
 static void slwPut(SlW*w,int b){
     if(w->pos>=w->cap){ w->over=1; return; }
-    b&=255; if(w->off) svWr(w->off+(u32)w->pos,b); w->pos++;
+    b&=255; if(w->ram) w->ram[w->pos]=(u8)b; else if(w->cmp){ if(svRd(w->off+(u32)w->pos)!=b) w->diff=1; } else if(w->off) svWr(w->off+(u32)w->pos,b); w->pos++;
     w->s1+=(u32)b; if(w->s1>=255) w->s1-=255; w->s2+=w->s1; if(w->s2>=255) w->s2-=255;   // Fletcher-16
 }
 static void slwPut16(SlW*w,int v){ slwPut(w,v&255); slwPut(w,(v>>8)&255); }
@@ -128,7 +128,7 @@ static int slPlaneVal(int plane,int i){ return flPlaneAt(slSrcF>=0?slSrcF:0,plan
 _Static_assert(FL_POOL>=4*SLOT_SZ-SLOT_HDR,"flPool (main.c) must hold every house that fits 4 save slots, or a saved house could fail to load: raise FL_POOL, or lower the 4-slot limit in houseSave on purpose");
 static void slEncRoom(SlW*w){
     slwPut(w,slRoomIdx);   // room index: 0 = the one room of a ROOM slot, a house numbers its floors
-    slwPut(w,3);
+    slwPut(w,4);   // format 4: an item's look byte is its number among its character's catalog items (catLk); 3 kept 55 + id
     for(int pl=0;pl<3;pl++){
         int n=0, cur=0;
         for(int i=0;i<MSZ;i++){
@@ -141,13 +141,15 @@ static void slEncRoom(SlW*w){
     }
 }
 // one plane of format 3: runs until the whole map is covered. Returns 1 if fine. apply=1 writes it into the map.
+static void slLooksOld(void){ for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ char c=lifeMap[y][x]; int b=wallMap[y][x]; if(c=='u'||!isLookCh(c)||b<56) continue; int id=b-55; wallMap[y][x]=(u8)((id<=200&&catTab[id-1].ch==c)?catTab[id-1].lk:0); } }   // a format 3 room: 55 + id -> the new look byte
+static void slWallSan(void){ for(int y=0;y<MH;y++)for(int x=0;x<MW;x++) if(wallMap[y][x]>=NWALL&&lifeMap[y][x]!='u'&&!catIdAt(x,y)) wallMap[y][x]=0; }   // (only a planter's byte, or an item's catalog look, may be past the wallpapers)
 static int slDecRoomPlane(SlR*c,int pl,int apply){
     int i=0;
     while(i<MSZ){
         int n=slrGet(c), v=slrGet(c); if(c->bad||n==0||i+n>MSZ) return 0;
         if(pl==0&&palIdx((char)v)<0) return 0;
-        if(pl==1&&v>=NFL) return 0;
-        if(pl==2&&v>=NWALL) return 0;
+        if(pl==1&&v>=NFL&&v!=FL_AIR) return 0;   // (FL_AIR: open air upstairs)
+        // (plane 2: any byte. A GROW PLANTER keeps its plant there (weed.h); a wall tile with a wallpaper past the list is put right after loading: slWallSan)
         if(apply) for(int k=0;k<n;k++){ int y=(i+k)/MW, x=(i+k)%MW; if(pl==0) lifeMap[y][x]=(char)v; else if(pl==1) floorMap[y][x]=(u8)v; else wallMap[y][x]=(u8)v; }
         i+=n;
     }
@@ -157,9 +159,9 @@ static int slDecRoomPlane(SlR*c,int pl,int apply){
 static int slDecRoom(SlR*c,int apply){
     int idx=slrGet(c), fmt=slrGet(c); if(c->bad) return 0;
     if(idx!=slWantRoom) return 1;      // another floor of a house: not wanted now
-    if(fmt==3){
+    if(fmt==3||fmt==4){
         for(int pl=0;pl<3;pl++) if(!slDecRoomPlane(c,pl,apply)) return 0;
-        if(apply) wDirty=1;
+        if(apply){ if(fmt==3) slLooksOld(); wDirty=1; slWallSan(); }
         return c->pos==c->len;
     }
     if(fmt!=1&&fmt!=2) return 0;
@@ -168,7 +170,7 @@ static int slDecRoom(SlR*c,int apply){
     while(c->pos<c->len){
         int n=slrGet(c), t=slrGet(c), f=slrGet(c), p; if(c->bad||n==0) return 0;
         if(fmt==1){ p=f&15; f>>=4; } else { p=slrGet(c); if(c->bad) return 0; }
-        if(palIdx((char)t)<0||f>=NFL||p>=NWALL) return 0;
+        if(palIdx((char)t)<0||(f>=NFL&&f!=FL_AIR)||p>=NWALL) return 0;
         if(i+n>MSZ) return 0;
         if(apply) for(int k=0;k<n;k++){ int y=(i+k)/MW, x=(i+k)%MW; lifeMap[y][x]=(char)t; floorMap[y][x]=(u8)f; wallMap[y][x]=(u8)p; }
         i+=n;
@@ -187,7 +189,7 @@ static void slEncPlane(SlW*w,int plane){   // 0 = voxels, 1 = face sprite low by
     if(n){ slwPut(w,n); slwPut(w,cur); }
 }
 static void slEncPerson(SlW*w){
-    slwPut(w,15);   // format 15 adds GENDER (the last look); format 14 adds neck width; format 13 adds jaw width, hand size and foot size; format 12 adds tail taper / fluff / wave / tip shade, horn tip and wing droop / shade; format 11 adds chest, belly, upper arm and forearm width and tail / horn shade; format 10 adds neck, hip / waist / shoulder / thigh / calf width and 11 more tail, horn, wing, antenna and ear sliders;                                            // format 9 (8 had no leg width, arm width, antenna, tail length / curl / thickness, horn size / spread / curve / height ear front-back / spread, head size, hand foot size, wing size or tail tip); format 8 (7 had no tone, brow / nose height, torso, arms or stance sliders); format 7 (6 had no claws, antennae or body paint); format 6 (5 had no brows, nose, cheeks, glasses, eye colour or body / face sliders); format 5 (4 had no hats, beards or clothes styles; 3 had no persona: it reads as the one already set; 2 had no sliders: they read as 0 = the middle; 1 had no life stage: those people are adults)
+    slwPut(w,17);   // format 17 adds VOICE; format 16 adds brow spacing, glasses height and cheek height; format 15 adds GENDER (the last look); format 14 adds neck width; format 13 adds jaw width, hand size and foot size; format 12 adds tail taper / fluff / wave / tip shade, horn tip and wing droop / shade; format 11 adds chest, belly, upper arm and forearm width and tail / horn shade; format 10 adds neck, hip / waist / shoulder / thigh / calf width and 11 more tail, horn, wing, antenna and ear sliders;                                            // format 9 (8 had no leg width, arm width, antenna, tail length / curl / thickness, horn size / spread / curve / height ear front-back / spread, head size, hand foot size, wing size or tail tip); format 8 (7 had no tone, brow / nose height, torso, arms or stance sliders); format 7 (6 had no claws, antennae or body paint); format 6 (5 had no brows, nose, cheeks, glasses, eye colour or body / face sliders); format 5 (4 had no hats, beards or clothes styles; 3 had no persona: it reads as the one already set; 2 had no sliders: they read as 0 = the middle; 1 had no life stage: those people are adults)
     for(int i=0;i<LK_N;i++) slwPut(w,look[i]);
     slwPut(w,stage); slwPut(w,ageDays);
     slwPut(w,pAsp); slwPut(w,pLtw); for(int i=0;i<TR_N;i++) slwPut(w,pTr[i]);   // persona: aspiration, lifetime want, personality
@@ -201,18 +203,20 @@ static int slDecPlane(SlR*c,int plane){
     return 1;
 }
 static int slDecPerson(SlR*c,int apply){
-    int fmt=slrGet(c); if(c->bad||fmt<1||fmt>15) return 0;
-    u8 lk[LK_N]={0}; for(int i=0;i<(fmt>=15?LK_N:fmt>=14?LK_N14:fmt>=13?LK_N13:fmt>=12?LK_N12:fmt>=11?LK_N11:fmt>=10?LK_N10:fmt>=9?LK_N9:fmt>=8?LK_N8:fmt>=7?LK_N7:fmt>=6?LK_N6:fmt>=5?LK_N5:fmt>=4?LK_N4:fmt>=3?LK_N3:LK_BASE);i++) lk[i]=(u8)slrGet(c);
+    int fmt=slrGet(c); if(c->bad||fmt<1||fmt>17) return 0;
+    u8 lk[LK_N]={0}; for(int i=0;i<(fmt>=17?LK_N:fmt>=16?LK_N16:fmt>=15?LK_N15:fmt>=14?LK_N14:fmt>=13?LK_N13:fmt>=12?LK_N12:fmt>=11?LK_N11:fmt>=10?LK_N10:fmt>=9?LK_N9:fmt>=8?LK_N8:fmt>=7?LK_N7:fmt>=6?LK_N6:fmt>=5?LK_N5:fmt>=4?LK_N4:fmt>=3?LK_N3:LK_BASE);i++) lk[i]=(u8)slrGet(c);
     int stg=AG_ADULT, agd=0; if(fmt>=2){ stg=slrGet(c); agd=slrGet(c); }
     if(c->bad||stg>=AG_N) return 0;
     int pa=pAsp, pl=pLtw; u8 pt[TR_N]; for(int i=0;i<TR_N;i++) pt[i]=pTr[i];
     if(fmt>=4){ pa=slrGet(c); pl=slrGet(c); for(int i=0;i<TR_N;i++) pt[i]=(u8)slrGet(c); if(c->bad||!persValid(pa,pl,pt)) return 0; }
     int cu=slrGet(c); if(c->bad) return 0;
     if(fmt<15) lk[LK_SEX]=sexGuess(lk); else if(lk[LK_SEX]>=SX_N) return 0;   // (a person saved before GENDER)
-    if(lk[LK_TONE]>=9||lk[LK_EARSZ]>=9||lk[LK_EARLF]>=9||lk[LK_SHAPE]>=NSHAPE||lk[LK_SKIN]>=NSKIN||lk[LK_EYES]>=NEYE||lk[LK_MOUTH]>=NMOUTH||lk[LK_BROW]>=6||lk[LK_NOSE]>=6||lk[LK_CHEEK]>=5||lk[LK_GLASS]>=4||lk[LK_EYECOL]>=NSW||lk[LK_EARS]>=3||lk[LK_HSTYLE]>=NHAIR||lk[LK_TAIL]>=3||lk[LK_HORNS]>=3||lk[LK_BACK]>=3||lk[LK_HAT]>=6||lk[LK_HATCOL]>=6||lk[LK_BEARD]>=3||lk[LK_TOPSTY]>=5||lk[LK_BOTSTY]>=4||lk[LK_SHOE]>=6||lk[LK_HCOL]>=NSW||lk[LK_TOP]>=NSW||lk[LK_BOT]>=NSW) return 0;
+    if(lk[LK_TONE]>=9||lk[LK_EARSZ]>=9||lk[LK_EARLF]>=9||lk[LK_SHAPE]>=NSHAPE||lk[LK_SKIN]>=NSKIN||lk[LK_EYES]>=NEYE||lk[LK_MOUTH]>=NMOUTH||lk[LK_BROW]>=NBROW||lk[LK_NOSE]>=NNOSE||lk[LK_CHEEK]>=NCHEEK||lk[LK_GLASS]>=NGLASS||lk[LK_EYECOL]>=NSW||lk[LK_EARS]>=3||lk[LK_HSTYLE]>=NHAIR||lk[LK_TAIL]>=3||lk[LK_HORNS]>=3||lk[LK_BACK]>=3||lk[LK_HAT]>=6||lk[LK_HATCOL]>=6||lk[LK_BEARD]>=3||lk[LK_TOPSTY]>=5||lk[LK_BOTSTY]>=4||lk[LK_SHOE]>=6||lk[LK_HCOL]>=NSW||lk[LK_TOP]>=NSW||lk[LK_BOT]>=NSW) return 0;
     for(int i=LK_HEIGHT;i<=LK_MOUTHHT;i++) if(lk[i]>=9) return 0;
+    for(int i=LK_BROWSP;i<=LK_CHEEKHT;i++) if(lk[i]>=9) return 0;
+    if(lk[LK_VOICE]>=3) return 0;
     for(int i=LK_HTONE;i<=LK_STANCE;i++) if(lk[i]>=9) return 0;
-    if(lk[LK_BUTT]>=9||lk[LK_BUTTH]>=9||lk[LK_BUTTW]>=9||lk[LK_LEGW]>=9||lk[LK_ARMW]>=9||lk[LK_ANTLEN]>=9||lk[LK_ANTSPR]>=9||lk[LK_ANTTIP]>=9||lk[LK_TAILLEN]>=9||lk[LK_HORNSZ]>=9||lk[LK_TAILCURL]>=9||lk[LK_TAILTHK]>=9||lk[LK_HORNSPR]>=9||lk[LK_HORNCRV]>=9||lk[LK_HORNHT]>=9||lk[LK_EARFWD]>=9||lk[LK_EARSPR]>=9||lk[LK_HEADSZ]>=9||lk[LK_HANDFT]>=9||lk[LK_WINGSZ]>=9||lk[LK_TAILTIP]>=7) return 0;
+    if(lk[LK_BUTT]>BUTT_OFF||lk[LK_BUTTH]>=9||lk[LK_BUTTW]>=9||lk[LK_LEGW]>=9||lk[LK_ARMW]>=9||lk[LK_ANTLEN]>=9||lk[LK_ANTSPR]>=9||lk[LK_ANTTIP]>=9||lk[LK_TAILLEN]>=9||lk[LK_HORNSZ]>=9||lk[LK_TAILCURL]>=9||lk[LK_TAILTHK]>=9||lk[LK_HORNSPR]>=9||lk[LK_HORNCRV]>=9||lk[LK_HORNHT]>=9||lk[LK_EARFWD]>=9||lk[LK_EARSPR]>=9||lk[LK_HEADSZ]>=9||lk[LK_HANDFT]>=9||lk[LK_WINGSZ]>=9||lk[LK_TAILTIP]>=7) return 0;
     for(int i=LK_NECK;i<=LK_EARWID;i++) if(lk[i]>=9) return 0;
     for(int i=LK_CHESTW;i<=LK_HORNTONE;i++) if(lk[i]>=9) return 0;
     for(int i=LK_TAILTAPER;i<=LK_WINGTONE;i++) if(lk[i]>=9) return 0;
@@ -370,7 +374,7 @@ static int houseLoad(int slot){   // all floors are checked first; only then is 
 static int houseSave(int slot,const char*name){   // needs a fresh slScan (slOwner). A house takes 3 or 4 slots in a row
     SlInfo old; int had=slInfo(slot,&old); if(had&&old.kind!=SLK_HOUSE) return SLE_HOUSE;
     flEnsure();   // (the floor you are on is read live: slPlaneVal)
-    SlW d; slwInit(&d,0,1<<20); slHouseBuild(&d);
+    SlW d; slwInit(&d,SLO(slot)+SLOT_HDR,4*SLOT_SZ-SLOT_HDR); d.cmp=1; slHouseBuild(&d);   // one pass counts the bytes and compares them with what the slot holds
     int span=(SLOT_HDR+d.pos+SLOT_SZ-1)/SLOT_SZ; if(span>4) return SLE_BIG;
     if(!slFits(slot,span)) return SLE_NOROOM;
     for(int k=0;k<span;k++) if(slOwner[slot+k]>=0&&slOwner[slot+k]!=slot) return SLE_NOROOM;
@@ -379,6 +383,9 @@ static int houseSave(int slot,const char*name){   // needs a fresh slScan (slOwn
     else if(had){ for(int i=0;i<=SLOT_NAME;i++) nm[i]=old.name[i]; }
     else slNameN(nm,"HOUSE ",slot+1);
     int oldspan=had?old.span:1;
+    if(had&&!d.diff&&old.span==span&&old.len==d.pos&&old.sum==slwSum(&d)&&old.has==SLH_ROOM){   // the same house as the slot holds? then the save chip is left alone (a cab ride used to erase and program it all again)
+        int same=1; for(int i=0;i<=SLOT_NAME&&same;i++){ same=old.name[i]==nm[i]; if(!nm[i]) break; }
+        if(same) return SLE_OK; }
     slOpen(slot,span);
     SlW w; slwInit(&w,SLO(slot)+SLOT_HDR,span*SLOT_SZ-SLOT_HDR); slHouseBuild(&w);
     if(w.over) return SLE_BIG;
@@ -476,7 +483,7 @@ static char* slSize(char*d,int n){   // 812B  or  1.4K
 }
 static u16 bfsQ[MH*MW] EWRAM_BSS;   // (main.c: the search queue, free while a slot is previewed)
 #define slTb ((u8*)bfsQ)            // the tile plane of the room being previewed (format 3)
-static u16 slThumbCol(int t,int f){ if(t=='.') return shade(flFlat[f%NFL][0],10); int pi=palIdx((char)t); return pi>=0?palCol[pi]:0; }
+static u16 slThumbCol(int t,int f){ if(t=='.') return f<NFL?shade(flFlat[f][0],10):RGB(3,4,7); int pi=palIdx((char)t); return pi>=0?palCol[pi]:0; }
 static void slThumb(int slot,int x0,int y0){   // the room of a slot at 1 pixel per tile, decoded straight from SRAM (all room formats)
     rect(x0-1,y0-1,MW+2,MH+2,RGB(3,4,7)); rect(x0,y0,MW,MH,RGB(6,7,10));
     SlInfo*I=&slI[slot]; if(!I->ok||!slGood[slot]||(I->kind!=SLK_ROOM&&I->kind!=SLK_HOUSE)||!(I->has&SLH_ROOM)) return;
@@ -486,7 +493,7 @@ static void slThumb(int slot,int x0,int y0){   // the room of a slot at 1 pixel 
         if(tag!=SLC_ROOM){ r.pos+=cl; continue; }
         SlR c={r.p+r.pos,0,cl,0}; int idx=slrGet(&c), fmt=slrGet(&c); if(idx!=0||c.bad) return;
         int i=0;
-        if(fmt==3){   // tiles first (kept), then the floors drawn with the tiles on top
+        if(fmt==3||fmt==4){   // tiles first (kept), then the floors drawn with the tiles on top
             while(i<MSZ){ int n=slrGet(&c), t=slrGet(&c); if(c.bad||n==0) return; for(int k=0;k<n&&i<MSZ;k++) slTb[i++]=(u8)t; }
             i=0;
             while(i<MSZ){ int n=slrGet(&c), f=slrGet(&c); if(c.bad||n==0) return; for(int k=0;k<n&&i<MSZ;k++,i++) px(x0+i%MW,y0+i/MW,slThumbCol(slTb[i],f)); }

@@ -10,15 +10,15 @@
 // LIMITS         UD_ACT steps and UD_REC tiles in all (4 bytes a tile). The oldest steps fall off the back. One step bigger than UD_REC
 //                (a whole 40 x 40 fill) cannot be undone: it clears the history instead and says so.
 // KEYS           SELECT + B = UNDO, SELECT + START = REDO, and the MAP MENU (START) lists both with the number of steps left.
-// MEMORY         about 4.2 KB of EWRAM (udR 4000 B + udA 136 B). IWRAM is untouched. Lower UD_REC if EWRAM gets tight (make size).
+// MEMORY         about 5.2 KB of EWRAM (udR 4000 B + udRF 1000 B + udA 136 B). IWRAM is untouched. Lower UD_REC if EWRAM gets tight (make size).
 // WHERE          included by main.c just before the map editor; mapPlace / edPay (earlier in main.c) call udRec / count the cash through
 //                the forward declarations at the top, edSet / eApply and mapEditor use the rest.
 #define UD_REC 1000
 #define UD_ACT 3   // you can undo three times (and redo them again); raise it for a longer history
-_Static_assert(NFL<=16&&NWALL<=256&&MW*MH<=2048,"undo.h packs a tile into 4 bytes: 11 bits of position, 4 of floor, 8 of wallpaper, 8 of item");
-#define UD_PACK(i,f,w,c) ((u32)(i)|((u32)(f)<<11)|((u32)(w)<<15)|((u32)(u8)(c)<<23))
+_Static_assert(NFL<=256&&NWALL<=256&&MW*MH<=2048,"undo.h packs a tile into 4 bytes (11 bits of position, 8 of wallpaper, 8 of item) and a byte of floor (udRF)");
+#define UD_PACK(i,f,w,c) ((u32)(i)|((u32)(w)<<15)|((u32)(u8)(c)<<23))
 typedef struct { u16 s,n; s32 cash; u8 fl,pad; } UdAct;   // a step: its first record, how many, what it cost (negative: it sold), and its floor
-static u32 udR[UD_REC] EWRAM_BSS;                          // the recorded tiles
+static u32 udR[UD_REC] EWRAM_BSS; static u8 udRF[UD_REC] EWRAM_BSS;   // the recorded tiles, and their floors
 static UdAct udA[UD_ACT+1] EWRAM_BSS;                      // the steps (one spare slot: the step being drawn)
 static u16 udNR EWRAM_BSS;                                 // records in use
 static u8 udNA EWRAM_BSS, udCur EWRAM_BSS, udOpen EWRAM_BSS, udOver EWRAM_BSS, udBig EWRAM_BSS;   // steps kept, steps applied (the rest can be redone), one is being drawn, it outgrew the history, tell the player
@@ -27,7 +27,7 @@ static void udClear(void){ udNA=udCur=udOpen=udOver=udBig=0; udNR=0; udCashD=0; 
 static void udDrop(void){   // forget the oldest step to make room. With nothing to forget the step being drawn is too big: the whole history goes
     if(!udNA){ udOver=1; udNR=0; udCur=0; return; }
     int d=udA[0].n;
-    for(int i=d;i<udNR;i++) udR[i-d]=udR[i];
+    for(int i=d;i<udNR;i++){ udR[i-d]=udR[i]; udRF[i-d]=udRF[i]; }
     udNR=(u16)(udNR-d);
     for(int i=0;i<udNA;i++){ udA[i]=udA[i+1]; udA[i].s=(u16)(udA[i].s-d); }   // (the step being drawn, if any, moves down with the rest)
     udNA--; udCur--;
@@ -42,11 +42,11 @@ static void udRec(int x,int y){   // call BEFORE changing tile (x, y)
     if(!udOn||udOver) return;
     if(!udOpen) udBegin();
     if(udNR>=UD_REC){ udDrop(); if(udOver) return; }
-    udR[udNR++]=UD_PACK(y*MW+x,floorMap[y][x],wallMap[y][x],lifeMap[y][x]);
+    udRF[udNR]=floorMap[y][x]; udR[udNR++]=UD_PACK(y*MW+x,0,wallMap[y][x],lifeMap[y][x]);
     udA[udNA].n++;
 }
 static int udDiffers(int k){ u32 r=udR[k]; int i=(int)(r&2047), y=i/MW, x=i-y*MW;
-    return floorMap[y][x]!=(u8)((r>>11)&15)||wallMap[y][x]!=(u8)((r>>15)&255)||(u8)lifeMap[y][x]!=(u8)((r>>23)&255); }
+    return floorMap[y][x]!=udRF[k]||wallMap[y][x]!=(u8)((r>>15)&255)||(u8)lifeMap[y][x]!=(u8)((r>>23)&255); }
 static void udEnd(void){   // the step is finished (A / B let go, a menu, a floor change, leaving): keep it, unless nothing really changed
     if(udOver){ udOver=0; udOpen=0; udNA=udCur=0; udNR=0; udBig=1; udCashD=0; return; }
     if(!udOpen){ udCashD=0; return; }
@@ -58,8 +58,8 @@ static void udEnd(void){   // the step is finished (A / B let go, a menu, a floo
 }
 static void udSwap(int k){   // record k <-> the live tile
     u32 r=udR[k]; int i=(int)(r&2047), y=i/MW, x=i-y*MW;
-    udR[k]=UD_PACK(i,floorMap[y][x],wallMap[y][x],lifeMap[y][x]);
-    lifeMap[y][x]=(char)((r>>23)&255); floorMap[y][x]=(u8)((r>>11)&15); wallMap[y][x]=(u8)((r>>15)&255);
+    u8 f=udRF[k]; udRF[k]=floorMap[y][x]; udR[k]=UD_PACK(i,0,wallMap[y][x],lifeMap[y][x]);
+    lifeMap[y][x]=(char)((r>>23)&255); floorMap[y][x]=f; wallMap[y][x]=(u8)((r>>15)&255);
 }
 static const char* udUndo(void){
     udEnd();
@@ -83,6 +83,8 @@ static const char* udRedo(void){
 }
 static void edSet(int x,int y,int l,int f,int w){   // change a tile and record it. l / f / w below 0 = leave that part as it is. A tile that would not change is not touched
     char nl=l<0?lifeMap[y][x]:(char)l; int nf=f<0?floorMap[y][x]:f, nw=w<0?wallMap[y][x]:w;
+    if(curFl&&nf==FL_AIR&&nl!='.') nf=(eFl<NFL?eFl:1);   // upstairs: a wall, door or item put on open air brings its own floor
+    if(nl=='u'&&lifeMap[y][x]!='u') nw=0;   // a new GROW PLANTER: an empty pot (weed.h keeps the plant in this byte)
     if(nl==lifeMap[y][x]&&nf==floorMap[y][x]&&nw==wallMap[y][x]) return;
     udRec(x,y); lifeMap[y][x]=nl; floorMap[y][x]=(u8)nf; wallMap[y][x]=(u8)nw; wFqView=255;   // (the floor pieces under the walls: main.c wFq)
 }

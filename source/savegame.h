@@ -18,6 +18,11 @@
 #define SLC_STORY  'Y'
 #define SLC_SKILLS 'K'   // skills.h: the skill points of this player (SK_N bytes)
 #define SLC_MEMS   'M'   // memlog.h: the diary of big moments (version 1, then per Sim with a diary: uid + 1, count, count x (moment, day, value))
+#define SLC_WEED   'W'   // weed.h: the stash, seeds and GROW skill (the WD_OFF block, byte for byte)
+#define SLC_BOARD  'O'   // board.h: whether you own a skateboard (the BD_OFF block, byte for byte; none: a save from before owned boards, which had one)
+#define SLC_ARCADE 'A'   // bortua.h: the ARCADE MODE record (the BF_OFF block, byte for byte)
+#define SLC_GOTCHI 'H'   // gotchi.h: the handheld (the GO_OFF block, byte for byte)
+#define SLC_EXP    'X'   // expand.h: the pack mission you are on (the EX_OFF block, byte for byte)
 #define SLC_GHOST  'G'   // fx.h: the ghosts of this life (12 bytes, the same block as in the life in SRAM)
 static void fxGhostSave(volatile unsigned char*m); static void fxGhostLoad(volatile unsigned char*m); static void fxGhostClear(void);
 static void sgEncGhost(SlW*w){ unsigned char t[12]; fxGhostSave(t); for(int i=0;i<12;i++) slwPut(w,t[i]); }
@@ -28,6 +33,7 @@ static void sgEncPlace(SlW*w){
 }
 static void sgEncDna(SlW*w){ slwPut16(w,pDna); slwPut16(w,pUnl); }
 static void sgEncFamily(SlW*w){ volatile u8*b=SL_HHBLK; int n=hhBlockLen(b,SL_HH_LEN); for(int i=0;i<n;i++) slwPut(w,b[i]); }
+static void sgEncWeed(SlW*w){ wdSave(); volatile u8*m=SRAM_BASE+WD_OFF; for(int i=0;i<WD_LEN;i++) slwPut(w,m[i]); }
 static void sgEncSkills(SlW*w){ for(int i=0;i<SK_N;i++) slwPut(w,skPts[i]); }
 static void sgEncStory(SlW*w){ volatile u8*m=SRAM_BASE+STORY_OFF; for(int i=0;i<8;i++) slwPut(w,m[i]); }
 static void sgEncStats(SlW*w){ lsEnsure(); for(int i=0;i<LS_N*LS_CH;i++) for(int b=0;b<4;b++) slwPut(w,(u8)(lsFlat[i]>>(8*b))); }
@@ -53,6 +59,11 @@ static int sgBuild(SlW*w){
     slChunk(w,SLC_STORY,sgEncStory);
     slChunk(w,SLC_GHOST,sgEncGhost);
     slChunk(w,SLC_SKILLS,sgEncSkills);
+    slChunk(w,SLC_WEED,sgEncWeed);
+    slChunk(w,SLC_EXP,sgEncExp);
+    slChunk(w,SLC_BOARD,sgEncBoard);
+    slChunk(w,SLC_GOTCHI,sgEncGotchi);
+    slChunk(w,SLC_ARCADE,sgEncArcade);
     slChunk(w,SLC_STATS,sgEncStats);
     slChunk(w,SLC_MEMS,sgEncMems);
     slwPut(w,0); return w->pos;
@@ -116,6 +127,11 @@ static int sgParse(volatile u8*body,int len,int apply){   // apply 0: check ever
         else if(tag==SLC_SKILLS){ if(cl!=SK_N) return SLE_FMT; if(apply){ for(int i=0;i<SK_N;i++) skPts[i]=c.p[i]; skSave(); } }
         else if(tag==SLC_STATS){ if(cl<4||cl%4||cl>4*LS_N*LS_CH) return SLE_FMT; if(apply){ for(int i=0;i<cl/4;i++) lsFlat[i]=(u32)c.p[4*i]|((u32)c.p[4*i+1]<<8)|((u32)c.p[4*i+2]<<16)|((u32)c.p[4*i+3]<<24); lsInit=1; lsDirty=1; lsSave(); } }
         else if(tag==SLC_MEMS){ if(!sgDecMems(c.p,cl,apply)) return SLE_FMT; }
+        else if(tag==SLC_WEED){ if(cl!=WD_LEN) return SLE_FMT; if(apply&&wdLoadFrom(c.p)) wdSave(); }
+        else if(tag==SLC_ARCADE){ if(cl!=BF_LEN) return SLE_FMT; if(apply&&bfLoadFrom(c.p)) bfSave(); }
+        else if(tag==SLC_GOTCHI){ if(cl!=GO_LEN) return SLE_FMT; if(apply){ goClear(); if(goUnpack(c.p)) goStage=(go.fl&GF_ON)?go.stage:0; goSave(); } }
+        else if(tag==SLC_BOARD){ if(cl!=4) return SLE_FMT; if(apply&&bdLoadFrom(c.p)) bdSave(); }
+        else if(tag==SLC_EXP){ if(cl!=EX_LEN) return SLE_FMT; if(apply){ exClear(); if(!exLoadFrom(c.p)) exClear(); exSave(); } }
         // anything else: a later version's chunk, skipped on purpose
     }
     return (gotP&&gotC)?SLE_OK:SLE_FMT;
@@ -124,9 +140,9 @@ static int sgSave(void){   // sgSaveI under a loading screen (flash writes are s
     ldShow("SAVING GAME",0,2); int e=sgSaveI(); ldShow("SAVING GAME",2,2); ldEnd(); if(!e) sgDirty=0; return e;
 }
 static void sgEnterTown(void){   // the player's town and lot become the live ones
-    int l[SLOT_MAX], n=nbTownList(l,SLOT_MAX), pick=-1;
-    for(int i=0;i<n;i++) if(l[i]==sgPlSlot&&nbRead(l[i],&nbTmp)&&nbKey(&nbTmp)==sgPlKey) pick=l[i];
-    for(int i=0;i<n&&pick<0;i++) if(nbRead(l[i],&nbTmp)&&nbKey(&nbTmp)==sgPlKey) pick=l[i];
+    int l[SLOT_MAX], n=nbTownList(l,SLOT_MAX), pick=-1; TownHd h;
+    for(int i=0;i<n;i++) if(l[i]==sgPlSlot&&nbReadHd(l[i],&h)&&nbKeyS(h.name)==sgPlKey) pick=l[i];
+    for(int i=0;i<n&&pick<0;i++) if(nbReadHd(l[i],&h)&&nbKeyS(h.name)==sgPlKey) pick=l[i];
     if(pick>=0&&nbSwitch(pick)){
         nbOk=1;
         if(sgPlHome<NB_LOTS&&nbT.lot[sgPlHome].on&&nbT.lot[sgPlHome].kind==LKIND_RES) nbT.home=(u8)sgPlHome;
@@ -140,7 +156,7 @@ static int sgLoadPlayer(int slot){   // 0 = the player is in play now, else a SL
     volatile u8*b=SLB(slot)+SLOT_HDR;
     if(slSumOf(b,I.len)!=I.sum) return SLE_BAD;
     int e=sgParse(b,I.len,0); if(e) return e;
-    skReset(); lsReset(); memReset(); sgParse(b,I.len,1);   // (a file from before the skills has no 'K' chunk: they start at zero)
+    skReset(); lsReset(); memReset(); wdClear(); wdSave(); exHClearAll(); exClear(); exSave(); bdOwn=1; bdSave(); goClear(); goSave(); bfWins=0; bfChamp=0; bfSave(); sgParse(b,I.len,1);   // (a file from before the skills has no 'K' chunk: they start at zero)
     svCommit(); hhLoad(); stLoad(); ageLoad(); if(stId==STY_TVSHOW&&stCh==0&&stKidDay==255) stShown=0;   /* cutfix: the opening was not saved: it plays again */
     twKeep=0; sprKey=0; for(int m=0;m<HH_MAX;m++) hhKey[m]=0; hhSlotsFree(); moodReset(); lscore=0; simLastScore=0;
     sgPid=I.pid; sgDirty=0;
@@ -190,7 +206,7 @@ static void sgDraw(const int*l,int n,int sel){
             if(sgPid==I->pid) text(190,y,"PLAYING",GOLD,1); }
         else text(16,y+2,i==n?"NEW PLAYER":i==n+1?"NEIGHBORHOODS":"TEST MAP",nc,1);
     }
-    text(12,112,"UP DOWN PICK  A PLAY  START MORE",WHITE,1);
+    text(12,112,sel<n?"A PLAY  START TOWN OR DELETE  B BACK":"UP DOWN PICK  A OK  B BACK",WHITE,1);
     text(12,125,"EVERY PLAYER HAS A SAVE FILE OF THEIR OWN",DIMC,1);
     text(12,134,"AND LIVES ON A LOT OF THE SHARED TOWN",DIMC,1);
     text(12,143,"PAUSE  SAVE GAME SAVES AT ONCE",DIMC,1);
@@ -219,9 +235,9 @@ static void sgLeaveSave(void){   // play was left
     int r=sgDiscard?2:sgAsk(0); sgDiscard=0;
     if(r==2){ int e=sgReload(); toast(e?slErrMsg(e):"BACK TO YOUR LAST SAVE"); }
 }
-static void sgPlayerMenu(int slot,int c0){   // c0: -1 asks (CONTINUE / NEIGHBORHOOD / DELETE), else that choice at once (A on a player = CONTINUE)
-    static const char* const it[3]={"CONTINUE","NEIGHBORHOOD","DELETE PLAYER"};
-    int pid=slI[slot].pid, c=c0>=0?c0:menu(slI[slot].name[0]?slI[slot].name:"PLAYER",it,3); if(c<0) return;
+static void sgPlayerMenu(int slot,int c0){   // c0: -1 asks (THEIR NEIGHBORHOOD / DELETE: A on a player already plays, so START does not offer that again), else that choice at once (0 = CONTINUE)
+    static const char* const it[2]={"THEIR NEIGHBORHOOD","DELETE PLAYER"};
+    int pid=slI[slot].pid, c=c0; if(c<0){ c=menu(slI[slot].name[0]?slI[slot].name:"PLAYER",it,2); if(c<0) return; c++; }
     if(c==2){ if(menu("DELETE THIS PLAYER",slYesNo,2)==1){ sgDeletePid(pid); toast("PLAYER DELETED"); } return; }
     if(sgPid!=pid){
         sgBeforeLeave();   // the player who was in play is saved before the next one loads
@@ -233,19 +249,22 @@ static void sgPlayerMenu(int slot,int c0){   // c0: -1 asks (CONTINUE / NEIGHBOR
     if(c==0) lifeMode(0); else neighborhoodScreen();
     if(!gToMenu||sgPid) sgLeaveSave();
 }
-static void sgNewPlayer(void){
-    int l[SLOT_MAX], n=nbTownList(l,SLOT_MAX); if(n>16) n=16;
-    if(!n){ toast("MAKE A NEIGHBORHOOD FIRST"); return; }
-    static char tn[16][NB_NAME+1] EWRAM_BSS; const char* nm[16];
-    for(int i=0;i<n;i++){ nbRead(l[i],&nbTmp); int k=0; for(;nbTmp.name[k]&&k<NB_NAME;k++) tn[i][k]=nbTmp.name[k]; tn[i][k]=0; nm[i]=tn[i]; }
-    int c=n==1?0:menu("WHICH NEIGHBORHOOD",nm,n); if(c<0) return;   // (one town: nothing to ask)
+static void sgNewPlayerIn(int slot){   // a NEW PLAYER who lives in town slot (from PLAYERS > NEW PLAYER, or a town's NEW PLAYER tile)
     sgBeforeLeave();
     slScan(); int pid=sgNewPid(); if(!pid){ toast("TOO MANY PLAYERS"); return; }
     sgWant=(u8)pid;
-    int started=newGame(l[c]);   // (it gives the new player a home lot and the number above, then a fresh life)
+    int started=newGame(slot);   // (it gives the new player a home lot and the number above, then a fresh life)
     sgWant=0;
     if(started) sgLeaveSave();
 }
+__attribute__((noinline)) static int sgTownPick(void){   // WHICH NEIGHBORHOOD (the names on the stack only while it is open): the town's slot, or -1
+    int l[SLOT_MAX], n=nbTownList(l,SLOT_MAX); if(n>16) n=16;
+    if(!n){ toast("MAKE A NEIGHBORHOOD FIRST"); return -1; }
+    char tn[16][NB_NAME+1]; const char* nm[16]; TownHd h;
+    for(int i=0;i<n;i++){ int ok=nbReadHd(l[i],&h); int k=0; if(ok) for(;h.name[k]&&k<NB_NAME;k++) tn[i][k]=h.name[k]; tn[i][k]=0; nm[i]=tn[i]; }
+    int c=n==1?0:menu("WHICH NEIGHBORHOOD",nm,n); return c<0?-1:l[c];   // (one town: nothing to ask)
+}
+static void sgNewPlayer(void){ int t=sgTownPick(); if(t>=0) sgNewPlayerIn(t); }
 static void playerScreen(void){
     int l[SLOT_MAX]; nbFirstTowns(l); nbOk=nbLoad(); nbBounds();
     sgAdopt();

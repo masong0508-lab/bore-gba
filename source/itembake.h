@@ -38,6 +38,7 @@ static const IBox bxToilet[3]={
 
 // ---- grind rail, kicker ramp, quarter pipe, ledge, bench: generated art (tools/make_skate_items.py) ----
 #include "skateart.h"
+#include "catalogart.h"   // THE CATALOG: 200 looks (tools/make_catalog.py)
 // ---- bed, shower, sofa: the life-sim furniture ----
 #include "simart.h"
 // ---- home pack: TV, bookshelf, coffee maker, aquarium, treadmill ----
@@ -161,7 +162,7 @@ static void drawBox(u16 (*d)[IW],const VBox*q,int r){
 }
 static int boxBehind(const VBox*A,const VBox*B){ return A->u1<=B->u0||A->v1<=B->v0||A->z1<=B->z0; }
 static void drawObj(u16 (*d)[IW],const IBox*b,int n,int r,int zoff){
-    VBox q[10]; int done=0;
+    VBox q[40]; int done=0;   // (the catalog items have up to 40 boxes; tools/make_catalog.py checks)
     for(int i=0;i<n;i++){
         int ua,va,ub,vb; rotPt(r,b[i].a0,b[i].b0,&ua,&va); rotPt(r,b[i].a1,b[i].b1,&ub,&vb);
         q[i].u0=ua<ub?ua:ub; q[i].u1=ua<ub?ub:ua; q[i].v0=va<vb?va:vb; q[i].v1=va<vb?vb:va;
@@ -304,4 +305,5 @@ static void bakeAll(void){
     for(int r=0;r<4;r++){   // long ramps: the chained kicker tiles and launch tiles (see ramps.h)
         bakeOne(V_KSEG+r,bxKickerSeg0,8,r,11); bakeOne(V_KSEG+4+r,bxKickerSeg1,8,r,11); bakeOne(V_KSEG+8+r,bxKickerSeg2,8,r,11); bakeOne(V_KSEG+12+r,bxKickerSeg3,8,r,11);
         bakeOne(V_LSEG+r,bxLaunchSeg0,8,r,11); bakeOne(V_LSEG+4+r,bxLaunchSeg1,8,r,11); bakeOne(V_LSEG+8+r,bxLaunchSeg2,8,r,11); }
+#include "catalogbake.h"   // THE CATALOG's 200 items (V_CAT0 ..)
 }

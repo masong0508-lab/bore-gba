@@ -50,12 +50,13 @@ static u16 fgPend EWRAM_BSS;   // R / A pressed while the game was held still: k
 static int fgOk(void){ return wpSel<0&&!lskate&&stage>=AG_TEEN&&!ldead&&!prIn()&&!lcamF&&!simAct&&lz<=(s32)(surfH(lfx,lfy)<<8); }
 static void fgFace(int ax,int ay){ for(int i=0;i<8;i++) if(fgDX[i]==ax&&fgDY[i]==ay){ lhd=i*2; return; } }
 static int fgLive(int m){ return wpLive(m)&&!(hhM[m].act==HA_SOC&&hhM[m].t>=500); }   // in this room and not knocked out
+static int fgTgt(int m){ return (m<hhN||hhVisitorHere(m))&&fgLive(m); }   // someone your blows can land on: the household, and a visitor on the lot (the packs' soldiers and challengers)
 // the nearest live Sim in reach R (1/256 tiles) in front of (ax,ay): its index or -1
 static int fgFind(int R,int ax,int ay){
     int best=-1, bd=0x7FFFFFFF;
-    for(int m=0;m<hhN;m++){ if(!fgLive(m)) continue;
+    for(int m=0;m<HH_MAX;m++){ if(!fgTgt(m)) continue;
         int dx=(int)(hhM[m].fx-lfx), dy=(int)(hhM[m].fy-lfy), d=dx*dx+dy*dy;
-        if(d>R*R||dx*ax+dy*ay<=0||d>=bd) continue;
+        if(d>R*R||dx*ax+dy*ay<=0||d>=bd||!wallClear(lfx,lfy,hhM[m].fx,hhM[m].fy)) continue;   // (a wall in between: out of reach)
         best=m; bd=d; }
     return best;
 }
@@ -63,7 +64,7 @@ static int fgFind(int R,int ax,int ay){
 static void fgAim(u16 k,int*ax,int*ay){
     if(k&(K_UP|K_DOWN|K_LEFT|K_RIGHT)){ wpAim(k,ax,ay); return; }
     int best=-1, bd=0x7FFFFFFF;
-    for(int m=0;m<hhN;m++){ if(!fgLive(m)) continue;
+    for(int m=0;m<HH_MAX;m++){ if(!fgTgt(m)) continue;
         int dx=(int)(hhM[m].fx-lfx), dy=(int)(hhM[m].fy-lfy), d=dx*dx+dy*dy;
         if(d>512*512||d>=bd) continue;
         best=m; bd=d; }
@@ -77,14 +78,15 @@ static void fgKnock(int m,int ax,int ay,int amt){   // shove a Sim back, never i
     if(surfH(nx,ny)<=h0&&surfH(nx,t->fy)<=h0&&surfH(t->fx,ny)<=h0){ t->fx=nx; t->fy=ny; }
 }
 static void fgKO(int m){   // the K.O. fanfare
-    (void)m; fgHS=8; fgSlow=75; fgKoT=84; specAdd(100); sfxPlay(SFX_HIT);
+    (void)m; fgHS=8; fgSlow=75; fgKoT=84; specAdd(100); sfxPlay(SFX_KO);
 }
 // a special lands on member m. 1 = hurt, 2 = knocked out, 0 = dodged
 static int fgLand(int m,int mul,int stun,int kb,int ax,int ay,const char*nm){
     HhSim*t=&hhM[m]; int b=t->uid, hp0=t->hp;
     fgMul=mul; fightHit(hhPUid,b); fgMul=0;
-    if(t->t==600&&t->act==HA_SOC){ hhBarHit(m,hp0); fgKnock(m,ax,ay,kb); fgKO(m); lnote="K.O."; lnoteT=60; return 2; }
+    if(t->t==600&&t->act==HA_SOC){ hhBarHit(m,hp0); fgKnock(m,ax,ay,kb); fgKO(m); lnote="K.O."; lnoteT=60; stQEvent(QE_SPECIAL,fgSp?fgSp:1); return 2; }
     int dealt=hp0-(int)t->hp; if(dealt<=0) return 0;
+    stQEvent(QE_SPECIAL,fgSp?fgSp:1);   // (a special move landed: the packs' task)
     hhBarHit(m,hp0);
     if(hhPUid>=0&&hhPUid<HU_N&&b<HU_N){ relD[b][hhPUid]=(signed char)clampR(relD[b][hhPUid]-8); relL[b][hhPUid]=(signed char)clampR(relL[b][hhPUid]-3); }
     hhFreeze(b,stun); fgKnock(m,ax,ay,kb); sfxPlay(SFX_HIT); if(fgHS<4) fgHS=4;
@@ -113,7 +115,7 @@ static int fgSpecial(int sp,u16 k){
     if(sp==FS_FB){ fgCd=16; fbX=lfx+ax*140; fbY=lfy+ay*140; fbDx=(signed char)ax; fbDy=(signed char)ay; fbL=36; sfxPlay(SFX_POP); lnote="FIREBALL"; lnoteT=30; }
     else if(sp==FS_DP){ fgCd=26; fgSpT=16; sfxPlay(SFX_POP); int m=fgFind(24*16,ax,ay); if(m>=0) fgLand(m,220,70,0x70,ax,ay,"UPPERCUT"); else { fgCd+=10; lnote="UPPERCUT"; lnoteT=30; } }
     else { fgCd=24; fgSpin=12; sfxPlay(SFX_POP); int hit=0;
-        for(int m=0;m<hhN;m++){ if(!fgLive(m)) continue; int dx=(int)(hhM[m].fx-lfx), dy=(int)(hhM[m].fy-lfy); if(dx*dx+dy*dy>410*410) continue;
+        for(int m=0;m<HH_MAX;m++){ if(!fgTgt(m)) continue; int dx=(int)(hhM[m].fx-lfx), dy=(int)(hhM[m].fy-lfy); if(dx*dx+dy*dy>410*410||!wallClear(lfx,lfy,hhM[m].fx,hhM[m].fy)) continue;
             hit|=fgLand(m,110,36,0x50,dx>40?1:dx<-40?-1:0,dy>40?1:dy<-40?-1:0,"SPIN KICK"); }
         if(!hit&&lnoteT<=0){ lnote="SPIN KICK"; lnoteT=30; } }
     return 1;
@@ -125,7 +127,7 @@ static void fgFbStep(void){   // the fireball flies
     for(int i=0;i<2;i++){ s32 nx=fbX+fbDx*28, ny=fbY+fbDy*28;
         if(surfH(nx,ny)>surfH(fbX,fbY)){ fbL=0; return; }   // a wall or a piece of furniture
         fbX=nx; fbY=ny;
-        for(int m=0;m<hhN;m++){ if(!fgLive(m)) continue; int dx=(int)(hhM[m].fx-fbX), dy=(int)(hhM[m].fy-fbY);
+        for(int m=0;m<HH_MAX;m++){ if(!fgTgt(m)) continue; int dx=(int)(hhM[m].fx-fbX), dy=(int)(hhM[m].fy-fbY);
             if(dx*dx+dy*dy<140*140){ fgLand(m,150,44,0x40,fbDx,fbDy,"FIREBALL"); fbL=0; return; } } }
 }
 // the pad, as the 4 bits the motions use (UP 1, DOWN 2, LEFT 4, RIGHT 8), pushed into the history whenever it changes
@@ -183,12 +185,12 @@ static void fgAttack(u16 k){
 static void fgCounter(void){   // the Sim that was winding up swings
     int m=hhMemOf(fgFoe); if(m<0||!fgLive(m)) return;
     int dx=(int)(hhM[m].fx-lfx), dy=(int)(hhM[m].fy-lfy), ax, ay;
-    if(dx*dx+dy*dy>(30*16)*(30*16)){ hhSay(fgFoe,IC_BAIL,"MISS"); return; }
+    if(dx*dx+dy*dy>(30*16)*(30*16)||!wallClear(hhM[m].fx,hhM[m].fy,lfx,lfy)){ hhSay(fgFoe,IC_BAIL,"MISS"); return; }   // (out of reach, or a wall in between)
     wpAim(0,&ax,&ay);
     int blocking=fgG&&fgCd==0&&(dx*ax+dy*ay>=0);
     fgMode=300;
     if(blocking&&fgGT<=FG_PARRY){   // raised just in time
-        hhFreeze(fgFoe,70); fgPar=50; sfxPlay(SFX_HIT); hhSay(fgFoe,IC_BAIL,"WHOA"); lnote="PARRY"; lnoteT=50; specAdd(100); return; }
+        hhFreeze(fgFoe,70); fgPar=50; sfxPlay(SFX_HIT); hhSay(fgFoe,IC_BAIL,"WHOA"); lnote="PARRY"; lnoteT=50; specAdd(100); stQEvent(QE_PARRY,1); return; }
     fgMul=blocking?25:100; fightHit(fgFoe,hhPUid); fgMul=0;
     if(blocking&&lhp>0){ lstun=0; lnote="BLOCKED"; lnoteT=40; }
     else { simEvent(SE_SLAPPED); moodEventN(M_FEAR,2); }

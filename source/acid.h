@@ -3,19 +3,9 @@
 // between the bands. Zero ROM data: the sine table and the colour wheel are built at start-up (512 bytes of EWRAM), the code is
 // about half a kilobyte. It is computed in 4x2 pixel blocks and written as 32-bit stores, and only rows 0..149 are drawn
 // (the tip line at the bottom of the menu covers the rest). Smooth motion only, nothing strobes.
-static s8  acSin[256] EWRAM_BSS;   // sine, -127..127, 256 steps per turn
-static u16 acHue[128] EWRAM_BSS;   // fully saturated rainbow wheel, 128 steps
+// acSin (a parabola sine, -127..127, 256 steps a turn) and acHue (the rainbow wheel, 128 steps) are baked into ROM: bakedtabs.h
 static int acT;                    // animation clock (the menu adds 2 per frame)
 
-static void acidInit(void){
-    for(int i=0;i<256;i++){ int x=i&127, v=(x*(128-x))>>5; if(v>127) v=127; acSin[i]=(s8)(i<128?v:-v); }   // parabola: close enough to a sine for a plasma
-    for(int i=0;i<128;i++){
-        int p=i*12, seg=p>>8, f=(p&255)>>3, up=f, dn=31-f, r, g, b;   // 6 segments of the colour wheel, 32 levels each
-        switch(seg){ case 0: r=31; g=up; b=0; break; case 1: r=dn; g=31; b=0; break; case 2: r=0; g=31; b=up; break;
-                     case 3: r=0; g=dn; b=31; break; case 4: r=up; g=0; b=31; break; default: r=31; g=0; b=dn; }
-        acHue[i]=RGB(r,g,b);
-    }
-}
 
 IWRAM_CODE static void acidRect(int t,int xb0,int xb1,int yb0,int yb1){   // blocks xb0..xb1-1 (4 pixels wide) of rows yb0..yb1-1 (2 pixels tall)
     for(int yb=yb0;yb<yb1;yb++){

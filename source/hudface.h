@@ -98,25 +98,25 @@ static void faceDrawL(int x,int y,const u8*lk,int stg,const u8*e,int ovE,int ovM
       const char*ea[8]; for(int j=0;j<8;j++) ea[j]=tr[j];
       int en=slideEffS(lk[LK_EYESZ])+(baby?1:0); en=en>0?2*en:en<0?en-1:0;
       int gw=7+en, gh=6+en; if(gw<1) gw=1; if(gh<1) gh=1; int kx=64*gw/7, ky=64*gh/6;
-      int sv=slideEff(lk[LK_EYEHT])*4/3, bsh=slideEff(lk[LK_BROWHT])*4/3;
+      int sv=slideEff(lk[LK_EYEHT])*4/3, bsh=slideEff(lk[LK_BROWHT])*4/3, gsh=slideEff(lk[LK_GLASSHT])*4/3;
       for(int side=0;side<2;side++){   // left eye, then the right one mirrored (angry and sad eyes slope towards the nose)
         int ox=1+side*11, oy=3, sh=slideEff(lk[LK_EYESP])*9/7; if(side) sh=-sh;
-        short ca[17][2], ra[16][2];   // the art spans of each column and row (they only depend on dx or dy: worked out once, not per pixel)
-        for(int dx=-4;dx<13;dx++){ int a0,a1; hudRng(dx+sh,4,kx,&a0,&a1); ca[dx+4][0]=(short)a0; ca[dx+4][1]=(short)a1; }
+        short ca[17][2], ra[16][2], cb[17][2]; int bsx=slideEff(lk[LK_BROWSP])*9/7; if(side) bsx=-bsx;   // the art spans of each column and row (they only depend on dx or dy: worked out once, not per pixel)
+        for(int dx=-4;dx<13;dx++){ int a0,a1; hudRng(dx+sh,4,kx,&a0,&a1); ca[dx+4][0]=(short)a0; ca[dx+4][1]=(short)a1; hudRng(dx+sh+bsx,4,kx,&a0,&a1); cb[dx+4][0]=(short)a0; cb[dx+4][1]=(short)a1; }   // (BROW SPACING: the brows on columns of their own)
         for(int dy=-4;dy<12;dy++){ int r0,r1; hudRng(dy+sv,4,ky,&r0,&r1); ra[dy+4][0]=(short)r0; ra[dy+4][1]=(short)r1; }
         for(int dy=-4;dy<12;dy++)for(int dx=-4;dx<13;dx++){
             int X=ox+dx, Y=oy+dy; if(X<0||X>21||Y<0||Y>21) continue;
             int a0=ca[dx+4][0], a1=ca[dx+4][1], r0=ra[dy+4][0], r1=ra[dy+4][1];
             char c=hudPick(ea,8,9,side,a0,a1,r0,r1);
-            if(br>0&&br<=5){ char t=hudPick(brArt[br-1],2,9,side,a0,a1,r0+bsh,r1+bsh); if(t!='.') c=t; }
-            if(gl>0&&gl<=3){ char t=hudPick(glArt[gl-1],8,9,side,a0,a1,r0,r1); if(t!='.') c=t; }
+            if(br>0&&br<NBROW){ char t=hudPick(brArt[br-1],2,9,side,cb[dx+4][0],cb[dx+4][1],r0+bsh,r1+bsh); if(t!='.') c=t; }
+            if(gl>0&&gl<NGLASS){ char t=hudPick(glArt[gl-1],8,9,side,a0,a1,r0+gsh,r1+gsh); if(t!='.') c=t; }
             if(c!='.') hudSprPlot(x+X,y+Y,&c,1,0,pal);
         }
       }
     }
     {   // the mouth, with the nose and cheeks around it
         int mw=slideEffS(lk[LK_MOUTHW])-(baby?1:0), gw=15+mw*3; if(gw<1) gw=1; int kx=64*gw/15;
-        int sv=slideEff(lk[LK_MOUTHHT])*4/3, nsh=slideEff(lk[LK_NOSEHT])*4/3;
+        int sv=slideEff(lk[LK_MOUTHHT])*4/3, nsh=slideEff(lk[LK_NOSEHT])*4/3, csh=slideEff(lk[LK_CHEEKHT])*4/3;
         short ca[33][2], ra[22][2];   // (as for the eyes: the spans once per column and row)
         for(int dx=-7;dx<26;dx++){ int a0,a1; hudRng(dx,9,kx,&a0,&a1); ca[dx+7][0]=(short)a0; ca[dx+7][1]=(short)a1; }
         for(int dy=-7;dy<15;dy++){ int r0,r1; hudRng(dy+sv,4,64,&r0,&r1); ra[dy+7][0]=(short)r0; ra[dy+7][1]=(short)r1; }
@@ -124,15 +124,15 @@ static void faceDrawL(int x,int y,const u8*lk,int stg,const u8*e,int ovE,int ovM
             int X=2+dx, Y=11+dy; if(X<0||X>21||Y<0||Y>21) continue;
             int a0=ca[dx+7][0], a1=ca[dx+7][1], r0=ra[dy+7][0], r1=ra[dy+7][1];
             char c=hudPick(ms->art,8,19,0,a0,a1,r0,r1);
-            if(c=='.'&&no>0&&no<=5) c=hudPick(noArt[no-1],2,19,0,a0,a1,dy+nsh,dy+nsh);
-            if(c=='.'&&ch>0&&ch<=4) c=hudPick(chArt[ch-1],4,19,0,a0,a1,r0,r1);
+            if(c=='.'&&no>0&&no<NNOSE) c=hudPick(noArt[no-1],2,19,0,a0,a1,dy+nsh,dy+nsh);
+            if(c=='.'&&ch>0&&ch<NCHEEK) c=hudPick(chArt[ch-1],4,19,0,a0,a1,r0+csh,r1+csh);
             if(c!='.') hudSprPlot(x+X,y+Y,&c,1,0,pal);
         }
     }
 }
 static void hudFaceDraw(int x,int y,int st){ faceDrawL(x,y,look,stage,hudEx(st),hudOvE,hudOvM); }   // the HUD's mood portrait: the Sim you control, alive (x,y = top left of the 22 x 22 face area inside the portrait frame)
 static unsigned hudFaceKey(int st){   // everything the portrait draws from, so it is redrawn when the mood or the Sim (or their look) changes
-    static const u8 ids[]={LK_SKIN,LK_TONE,LK_HCOL,LK_HTONE,LK_HSTYLE,LK_EYECOL,LK_EYETONE,LK_BROW,LK_GLASS,LK_NOSE,LK_CHEEK,LK_EYESZ,LK_EYESP,LK_EYEHT,LK_MOUTHW,LK_MOUTHHT,LK_BROWHT,LK_NOSEHT};
+    static const u8 ids[]={LK_SKIN,LK_TONE,LK_HCOL,LK_HTONE,LK_HSTYLE,LK_EYECOL,LK_EYETONE,LK_BROW,LK_GLASS,LK_NOSE,LK_CHEEK,LK_EYESZ,LK_EYESP,LK_EYEHT,LK_MOUTHW,LK_MOUTHHT,LK_BROWHT,LK_NOSEHT,LK_BROWSP,LK_GLASSHT,LK_CHEEKHT};
     unsigned h=(2166136261u^(unsigned)st)*16777619u^(unsigned)(stage*2+mcDbl()+(hudMissy()?64:0));   // (the age and the double sliders change the face too)
     for(unsigned i=0;i<sizeof ids;i++) h=(h^look[ids[i]])*16777619u;
     return h|1u;

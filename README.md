@@ -5,6 +5,12 @@ A Game Boy Advance game: a **voxel creature creator** that is growing into a **l
 ## Build and run
 - **GitHub:** push; the *Build GBA ROM* workflow makes `bore.gba` (download it from the run's artifacts; tag a commit to get a release).
 - **Locally:** install devkitARM, then `make`. Play `bore.gba` in mGBA or on a flash cart.
+- **The Creator Demo:** `make creator` builds `bore-creator.gba` (the workflow uploads it too): only the creature creator, like Spore's Creature Creator. Every part and slider is free; save your Bores to **MY CREATIONS** and flip through them, and every Bore has a **SHARE CODE**.
+
+## Share codes
+A Bore (its look, age, aspiration and personality) as up to about 72 letters and digits, e.g. `AG9E FK8H W7R8 ...`. The code alphabet has no I, O, 0 or 1, and a mistyped code is refused rather than loaded as some other Bore.
+- In the demo: hub > ENTER A SHARE CODE, or a creation's START in MY CREATIONS to see its code.
+- In the game: the creator's DONE tab > SHARE CODE / ENTER A CODE (the code's Bore becomes the one on screen), or DONE > HOUSEHOLD > ADD FROM A CODE (the code's Bore joins your household).
 
 ## Playing
 Power on, then START on the title screen. The **main menu** has:
@@ -49,6 +55,12 @@ In the room builder (BUILD ROOM, the pause menu's EDIT MAP, or BUILD on a lot in
 | `tools/` | song converters, music generators, font and art scripts |
 | `docs/NOTES.md` | the full technical notes (memory maps, save layout, every feature) |
 | `docs/NEXT.md` | what to build next |
+
+**The commercial:** `assets/trailer/bore_commercial.mp4`, a 65-second late-night TV spot cut from the game itself (`tools/make_trailer.py`; `tools/trailer/README.md` has the pipeline). Rated M for munchies.
+
+**THE CATALOG:** 200 more things to buy, in 18 new BUY tabs (chairs, sofas, beds, tables, desks, storage, lights, plants, kitchen, bath, tech, art, outdoor, kids, skate 2, grown-ups, seasonal, misc), from a 60 oak chair to a 5000 gold toilet. Each is a new look on a thing the game already knows how to use, so it is sat on, slept in, eaten from and saved like the rest. Generated houses and the town's venues wear them too. Details: `docs/NOTES.md`, *THE CATALOG*.
+
+**THE BUILD BATCH:** 200 more build-mode things: 65 floors, 49 wallpapers (12 of them see-through FENCES the WALL tool builds low), 12 window styles, 12 doors and 82 pool, beach, garden, tree and yard items (282 catalog items in all). And POOLS: pick a water in the FLOOR tool and it digs one, tiled edge and all; walk in and you swim (slower, cleaner, no boards). The COMMUNITY POOL has a real one, and big modern houses and mansions come with one in the yard.
 
 **New items:** a RADIO and a SOUND SYSTEM (R next to one tunes a station by genre (HOUSE & DANCE, BREAKS & BASS, CHILL & WORLD, LATIN, ROCK & PROG, HIP HOP, or ALL SONGS; genres live in source/genres.h); see docs/NOTES.md, Sound pack). Older: the DeadSet 3Thousand VYBE (5000), a parody VR headset on a display bust. Stand next to it and press R to jack in.
 
