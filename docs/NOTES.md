@@ -1051,3 +1051,13 @@ Measured in mGBA with the game's own load counter (PERFORMANCE INFO) and time-we
   bakeKey hashes only the two options the drawing reads (it hashed them all, so any option change baked the whole household again on the
   next lot); drawEars steps once per run of samples on a pixel with per-row oval bounds (byte-identical sprites, 5x quicker: the ears were
   a fifth of every bake).
+
+## The commercial (assets/trailer/bore_commercial.mp4, tools/make_trailer.py, tools/trailer/)
+A 65-second late-night TV spot: "ARE YOU... BORED? GET BORE." Captured headlessly from test builds (every frame + the sound), cut with cards
+in tools/make_trailer.py (the SCENES table: clip, first frame, seconds, cards), given the old-tube look (4:3, scanlines, bleed, a rolling bar,
+jitter, barrel, vignette, channel-change static, the set clicking off) and muxed by ffmpeg. The scenes: the title, the acid menu, the creator
+("ALL THE GENDERS. AND A BUTT SLIDER."), a day at home, THE CATALOG ("GOLD TOILET $5000. BONG $150. PRIORITIES."), the dispensary ("GROW YOUR
+OWN TOMATOES* / *NOT TOMATOES"), the cab to TACO BORE ("LOADING... GO GET SNACKS"), the skate park, the pets ("ADOPT A DOG. FORGET TO FEED
+IT."), the TOUKEBOX ("NOW WITH 100% LESS CRACKLE"), BORTUA FIGHTER's moon and the helium burst with the game's own WHAT THE FUCK JUST
+HAPPENED??? ("RATED M FOR MUNCHIES"), and the end card ("IT'S LIKE LIFE. BUT WITH A SAVE BUTTON." / "ONLY $69.99*" / "CALL NOW
+1-800-GET-BORE" / "*we don't sell it. it's free. it's a github repo."). tools/trailer/README.md has the pipeline.

@@ -1,0 +1,108 @@
+run 600
+hold START 6
+run 200
+hold A 6
+run 200
+hold A 6
+run 200
+hold A 6
+run 200
+hold DOWN 6
+run 20
+hold DOWN 6
+run 20
+hold DOWN 6
+run 20
+hold A 6
+run 200
+hold A 6
+run 1200
+run 600
+hold A 6
+run 300
+run 600
+hold DOWN 6
+run 20
+hold DOWN 6
+run 20
+hold A 6
+run 300
+poke8 @CALL@ 6
+run 200
+tap SELECT
+run 30
+hold SELECT+R 8
+run 12
+hold SELECT+R 8
+run 12
+hold SELECT+R 8
+run 12
+hold SELECT+R 8
+run 12
+hold SELECT+R 8
+run 12
+hold SELECT+R 8
+run 12
+hold SELECT+R 8
+run 12
+hold SELECT+R 8
+run 12
+wav tr/build.wav
+rec tr/build.rgb
+run 30
+hold A 6
+run 20
+hold RIGHT 6
+run 10
+hold R 6
+run 20
+hold A 6
+run 20
+hold RIGHT 6
+run 10
+hold R 6
+run 20
+hold A 6
+run 20
+hold SELECT+R 8
+run 20
+hold SELECT+R 8
+run 20
+hold DOWN 6
+run 10
+hold A 6
+run 20
+hold LEFT 6
+run 10
+hold R 6
+run 20
+hold A 6
+run 20
+hold SELECT+R 8
+run 20
+hold SELECT+R 8
+run 20
+hold SELECT+R 8
+run 20
+hold SELECT+R 8
+run 20
+hold SELECT+R 8
+run 20
+hold SELECT+R 8
+run 20
+hold SELECT+R 8
+run 20
+hold SELECT+R 8
+run 20
+hold DOWN 6
+run 10
+hold A 6
+run 20
+hold RIGHT 6
+run 10
+hold R 6
+run 20
+hold A 6
+run 60
+recstop
+wavstop

@@ -1,0 +1,16 @@
+run 900
+hold START 6
+run 30
+wav tr/menu.wav
+rec tr/menu.rgb
+run 90
+tap DOWN
+run 60
+tap DOWN
+run 60
+tap DOWN
+run 60
+tap UP
+run 60
+recstop
+wavstop

@@ -56,6 +56,8 @@ In the room builder (BUILD ROOM, the pause menu's EDIT MAP, or BUILD on a lot in
 | `docs/NOTES.md` | the full technical notes (memory maps, save layout, every feature) |
 | `docs/NEXT.md` | what to build next |
 
+**The commercial:** `assets/trailer/bore_commercial.mp4`, a 65-second late-night TV spot cut from the game itself (`tools/make_trailer.py`; `tools/trailer/README.md` has the pipeline). Rated M for munchies.
+
 **THE CATALOG:** 200 more things to buy, in 18 new BUY tabs (chairs, sofas, beds, tables, desks, storage, lights, plants, kitchen, bath, tech, art, outdoor, kids, skate 2, grown-ups, seasonal, misc), from a 60 oak chair to a 5000 gold toilet. Each is a new look on a thing the game already knows how to use, so it is sat on, slept in, eaten from and saved like the rest. Generated houses and the town's venues wear them too. Details: `docs/NOTES.md`, *THE CATALOG*.
 
 **New items:** a RADIO and a SOUND SYSTEM (R next to one tunes a station by genre (HOUSE & DANCE, BREAKS & BASS, CHILL & WORLD, LATIN, ROCK & PROG, HIP HOP, or ALL SONGS; genres live in source/genres.h); see docs/NOTES.md, Sound pack). Older: the DeadSet 3Thousand VYBE (5000), a parody VR headset on a display bust. Stand next to it and press R to jack in.

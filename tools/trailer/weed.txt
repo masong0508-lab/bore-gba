@@ -1,0 +1,50 @@
+run 600
+hold START 6
+run 200
+hold A 6
+run 200
+hold A 6
+run 200
+hold A 6
+run 200
+hold DOWN 6
+run 20
+hold DOWN 6
+run 20
+hold DOWN 6
+run 20
+hold A 6
+run 200
+hold A 6
+run 1200
+run 600
+hold A 6
+run 300
+run 600
+hold DOWN 6
+run 20
+hold DOWN 6
+run 20
+hold A 6
+run 300
+poke8 @CALL@ 16
+run 10
+poke8 @CALL@ 17
+run 30
+wav tr/weed.wav
+rec tr/weed.rgb
+run 60
+keys LEFT
+run 40
+keys NONE
+run 30
+keys RIGHT
+run 40
+keys NONE
+run 30
+hold R 6
+run 120
+hold B 6
+run 30
+recstop
+wavstop

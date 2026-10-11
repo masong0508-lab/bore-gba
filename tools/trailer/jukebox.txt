@@ -1,0 +1,22 @@
+run 900
+hold START 6
+run 60
+tap DOWN
+run 10
+tap DOWN
+run 10
+tap DOWN
+run 20
+hold A 6
+run 150
+wav tr/jukebox.wav
+rec tr/jukebox.rgb
+run 90
+tap DOWN
+run 60
+tap DOWN
+run 60
+tap A
+run 150
+recstop
+wavstop

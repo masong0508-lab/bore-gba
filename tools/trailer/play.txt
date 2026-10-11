@@ -1,0 +1,47 @@
+run 600
+hold START 6
+run 200
+hold A 6
+run 200
+hold A 6
+run 200
+hold A 6
+run 200
+hold DOWN 6
+run 20
+hold DOWN 6
+run 20
+hold DOWN 6
+run 20
+hold A 6
+run 200
+hold A 6
+run 1200
+run 600
+hold A 6
+run 300
+run 600
+hold DOWN 6
+run 20
+hold DOWN 6
+run 20
+hold A 6
+run 300
+run 60
+wav tr/play.wav
+rec tr/play.rgb
+keys UP
+run 90
+keys LEFT
+run 60
+keys NONE
+run 30
+poke32 @ARG@ 6414
+poke8 @CALL@ 41
+run 40
+keys RIGHT
+run 150
+keys NONE
+run 40
+recstop
+wavstop
