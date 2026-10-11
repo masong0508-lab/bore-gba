@@ -213,7 +213,7 @@ static void phInvite(void){   // someone from another household comes over (they
     nrSync();   // (whoever was in that place keeps what they feel)
     HhSim*s=&hhM[v];
     if(mem>=0) nbSimAt(lot,mem,s,twFrom[k]); else nbSimFrom(lot,s,twFrom[k]);
-    s->bubT=0; s->hp=HP_MAX; s->act=HA_IDLE; s->pn=s->pi=0; s->ltw=0; for(int q=0;q<HN_N;q++) s->need[q]=80;
+    s->bubT=0; s->hp=HP_MAX; s->act=HA_IDLE; s->pn=s->pi=0; s->ltw=0; s->jt=s->jl=s->ji=0; for(int q=0;q<HN_N;q++) s->need[q]=80;
     twWho(k,lot);
     twHas[k]=1; twOn[k]=0; twWait[k]=90; twWel[k]=0; twCall[k]=1; hhKey[v]=0; twKeep=1;   // at the door in a moment (a guest staying over counts for STORY MODE's HAVE A NEIGHBOR OVER: story.h watches twOn)
     toast("PLEASE WAIT  THEY ARE ON THEIR WAY"); hhBakeAll();
@@ -223,8 +223,9 @@ static void careerScreen(void);   // career.h
 static void htFavors(void);   // hardtime.h
 static void trvMenu(void);   // travel.h
 static void phoneMenu(void){   // pause menu > PHONE
-    const char* it[7]; int id[7], n=0;
+    const char* it[8]; int id[8], n=0;
     it[n]="INVITE SOMEONE OVER"; id[n++]=0;
+    if(hhN&&!prIn()){ it[n]="CALL SOMEONE OVER"; id[n++]=7; }   // (house.h TOGETHER: COME HERE, WATCH TV WITH ME, COME TO BED)
     if(ojob()){ it[n]="CAREER  JOBS AND PAY"; id[n++]=4; }   // (the career tracks: career.h)
     it[n]="ORDER PIZZA  \xC2\xA7" "80"; id[n++]=1;
     it[n]="ORDER CHINESE  \xC2\xA7" "60"; id[n++]=2;
@@ -237,6 +238,7 @@ static void phoneMenu(void){   // pause menu > PHONE
         case 4: careerScreen(); break;
         case 5: htFavors(); break;
         case 6: trvMenu(); break;
+        case 7: jtCall(); break;
         case 1: case 2: { int cost=id[c]==1?80:60;
             if(phFood){ toast("FOOD IS ALREADY ON ITS WAY"); break; }
             if(simMoney<cost){ toast("NOT ENOUGH SIMOLEONS"); break; }
