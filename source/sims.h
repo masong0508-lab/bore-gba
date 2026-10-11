@@ -778,9 +778,10 @@ static void ageTick(void){   // once per game day: each stage lasts the days set
 }
 static void petMinute(void); static void petDay(void);   // pets.h
 static void wdHour(void);   // weed.h
+static void goMinute(void);   // gotchi.h: the handheld lives on while you play
 static void simMinute(void){   // once per game minute
     simMin++;
-    petMinute(); wdHour();
+    petMinute(); wdHour(); goMinute();
     if(simMin==simJobFrom()&&simInShift()&&!ldead) simQueue((jobTrack!=JT_SKATE&&simAtWork()==1)?"GO TO YOUR WORK MARKER":jobFlav[jobTrack]);
     else if(simMin%30==0&&jobTrack!=JT_SKATE&&simInShift()&&!simAct&&!ldead&&lnoteT<=0&&simAtWork()==1){ lnote="NOT AT WORK  FIND THE MARKER"; lnoteT=60; }   // a nudge every half hour   // clocking in: a line for the job
     if(jobTrack!=JT_SKATE&&simInShift()&&!simAct&&!ldead&&simAtWork()!=1) shiftPts+=(moodState()==MS_STOKED)?2:1;   // a normal job: work minutes (see jobQuotaOf)

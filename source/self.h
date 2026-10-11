@@ -15,6 +15,7 @@
 // MEMORY  64 bytes of EWRAM (the cooldowns, not saved) + 2 for the animation. No IWRAM.
 enum { SL_STRETCH, SL_PUSHUP, SL_FLEX, SL_MEDIT, SL_SPEECH, SL_DOODLE, SL_DREAM, SL_DANCE, SL_SING, SL_GUITAR, SL_CRY, SL_FRESH, SL_NAP, SL_BREATH, SL_N };
 typedef struct { const char*nm; u8 cat, cd, busy; } SlfAct;   // cd: game minutes before it can be done again; busy: steps you are occupied
+static int goHas(void);   // gotchi.h
 static const SlfAct slfT[SL_N]={
     {"STRETCH",         0, 30,  60},
     {"PUSH-UPS",        0, 45, 120},
@@ -115,6 +116,7 @@ static int slfMenu(void){
         int c=pieMenu(tl,ft,slfCatNm,slfCatCol,4,cs); if(c<0) break;
         cs=c; const char* l[8]; u16 col[8]; int id[8], q=0;
         for(int i=0;i<SL_N&&q<8;i++) if(slfT[i].cat==c){ l[q]=slfT[i].nm; col[q]=slfCatCol[c]; id[q++]=i; }
+        if(c==2&&goHas()&&q<8){ l[q]="CHECK THE BOREAGOTCHI"; col[q]=RGB(28,14,24); id[q++]=-12; }   // gotchi.h: the handheld on your keychain
         if(c==2&&wdOk()&&wdAll()&&q<8){ l[q]="ROLL ONE UP"; col[q]=RGB(8,24,10); id[q++]=-10; }   // weed.h: a gram of your best
         if(c==2&&wdOk()&&wdAll()&&nbOk&&nbT.cur!=nbT.home&&!prHere()&&q<8){ l[q]="SELL ON THE CORNER"; col[q]=RGB(8,24,10); id[q++]=-11; }   // weed.h: away from home, and a risk
         int r=pieMenu(tl,slfCatNm[c],l,col,q,0);
@@ -122,6 +124,6 @@ static int slfMenu(void){
     }
     liveInvalidate();
     while((~REG_KEYINPUT)&0x3FF) vsync();
-    if(pick==-10) wdRoll(); else if(pick==-11) wdCorner(); else if(pick>=0) slfDo(pick);
+    if(pick==-12) exTake=EXT_GOTCHI; else if(pick==-10) wdRoll(); else if(pick==-11) wdCorner(); else if(pick>=0) slfDo(pick);
     return 1;
 }

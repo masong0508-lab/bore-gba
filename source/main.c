@@ -5712,6 +5712,7 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "mysim.h"         // MY SIM: the pause menu tile with CAREER / SKILLS / PEOPLE / MORE tabs
 #include "expand.h"        // EXPANSION PACKS: missions with scenarios (BORE-OUT MAN!, BOREZIES!, WORLD WAR BORE, BORTUA FIGHTER, BOREAGOTCHI!, BOREPILOGUE)
 #include "space.h"         // BORE-OUT MAN!: the launch and the spacewalk
+#include "gotchi.h"        // BOREAGOTCHI!: THE HANDHELD (a blob on a keychain that needs you constantly)
 #include "xmodes.h"        // the packs' MODES: BORTUA FIGHTER's ARCADE MODE, BOREAGOTCHI's HANDHELD
 // ---------- main menu (The Sims 3 look): a glossy panel over your town, lit for the time of day of your life's clock ----------
 #define MM_N 8
@@ -5799,7 +5800,7 @@ static void howToPlay(void){
 static const char* const ngIt[4]={"CREATE A BORE","A PRE-MADE FAMILY","A TRULY RANDOM SIM","STORY MODE"};
 static void nbMoveInTown(void){ if(!nbOk){ lifeMode(0); return; } nbMoveMode=1; neighborhoodScreen(); nbMoveMode=0; }   // MOVE IN: the town map, buy a home, play there (neighborhood.h)
 static int newGame(int slot){   // 1 = it started (and ended: back to the main menu)
-    wdClear(); wdSave(); exQuit(); bdOwn=0; bdSave();   // (a new life starts with an empty stash, no mission and no board: buy one or find one)
+    wdClear(); wdSave(); exQuit(); bdOwn=0; bdSave(); goClear(); goSave();   // (a new life starts with an empty stash, no mission, no board (buy one or find one) and no handheld
     int c=menu("HOW DO YOU START?",ngIt,4); if(c<0) return 0;
     int story=0; if(c==3){ story=storyPick(); if(!story) return 0; }
     int f=0, me=0; if(c==1){ me=famPick(&f,0); if(me<0) return 0; }   // the family bin: the family and who of them you play, on one screen
@@ -5985,6 +5986,7 @@ int boreMain(void){
     skLoad();                // ...and its skills
     wdLoad();                // ...and its stash (weed.h)
     bdLoad();                // ...and whether it owns a board (board.h)
+    goLoad();                // ...and its BOREAGOTCHI (gotchi.h)
     hhLoad();                // ...and the household, which holds your first and last name
     mainMenu();
     return 0;

@@ -20,6 +20,7 @@
 #define SLC_MEMS   'M'   // memlog.h: the diary of big moments (version 1, then per Sim with a diary: uid + 1, count, count x (moment, day, value))
 #define SLC_WEED   'W'   // weed.h: the stash, seeds and GROW skill (the WD_OFF block, byte for byte)
 #define SLC_BOARD  'O'   // board.h: whether you own a skateboard (the BD_OFF block, byte for byte; none: a save from before owned boards, which had one)
+#define SLC_GOTCHI 'H'   // gotchi.h: the handheld (the GO_OFF block, byte for byte)
 #define SLC_EXP    'X'   // expand.h: the pack mission you are on (the EX_OFF block, byte for byte)
 #define SLC_GHOST  'G'   // fx.h: the ghosts of this life (12 bytes, the same block as in the life in SRAM)
 static void fxGhostSave(volatile unsigned char*m); static void fxGhostLoad(volatile unsigned char*m); static void fxGhostClear(void);
@@ -60,6 +61,7 @@ static int sgBuild(SlW*w){
     slChunk(w,SLC_WEED,sgEncWeed);
     slChunk(w,SLC_EXP,sgEncExp);
     slChunk(w,SLC_BOARD,sgEncBoard);
+    slChunk(w,SLC_GOTCHI,sgEncGotchi);
     slChunk(w,SLC_STATS,sgEncStats);
     slChunk(w,SLC_MEMS,sgEncMems);
     slwPut(w,0); return w->pos;
@@ -124,6 +126,7 @@ static int sgParse(volatile u8*body,int len,int apply){   // apply 0: check ever
         else if(tag==SLC_STATS){ if(cl<4||cl%4||cl>4*LS_N*LS_CH) return SLE_FMT; if(apply){ for(int i=0;i<cl/4;i++) lsFlat[i]=(u32)c.p[4*i]|((u32)c.p[4*i+1]<<8)|((u32)c.p[4*i+2]<<16)|((u32)c.p[4*i+3]<<24); lsInit=1; lsDirty=1; lsSave(); } }
         else if(tag==SLC_MEMS){ if(!sgDecMems(c.p,cl,apply)) return SLE_FMT; }
         else if(tag==SLC_WEED){ if(cl!=WD_LEN) return SLE_FMT; if(apply&&wdLoadFrom(c.p)) wdSave(); }
+        else if(tag==SLC_GOTCHI){ if(cl!=GO_LEN) return SLE_FMT; if(apply){ goClear(); if(goUnpack(c.p)) goStage=(go.fl&GF_ON)?go.stage:0; goSave(); } }
         else if(tag==SLC_BOARD){ if(cl!=4) return SLE_FMT; if(apply&&bdLoadFrom(c.p)) bdSave(); }
         else if(tag==SLC_EXP){ if(cl!=EX_LEN) return SLE_FMT; if(apply){ exClear(); if(!exLoadFrom(c.p)) exClear(); exSave(); } }
         // anything else: a later version's chunk, skipped on purpose
@@ -150,7 +153,7 @@ static int sgLoadPlayer(int slot){   // 0 = the player is in play now, else a SL
     volatile u8*b=SLB(slot)+SLOT_HDR;
     if(slSumOf(b,I.len)!=I.sum) return SLE_BAD;
     int e=sgParse(b,I.len,0); if(e) return e;
-    skReset(); lsReset(); memReset(); wdClear(); wdSave(); exHClearAll(); exClear(); exSave(); bdOwn=1; bdSave(); sgParse(b,I.len,1);   // (a file from before the skills has no 'K' chunk: they start at zero)
+    skReset(); lsReset(); memReset(); wdClear(); wdSave(); exHClearAll(); exClear(); exSave(); bdOwn=1; bdSave(); goClear(); goSave(); sgParse(b,I.len,1);   // (a file from before the skills has no 'K' chunk: they start at zero)
     svCommit(); hhLoad(); stLoad(); ageLoad(); if(stId==STY_TVSHOW&&stCh==0&&stKidDay==255) stShown=0;   /* cutfix: the opening was not saved: it plays again */
     twKeep=0; sprKey=0; for(int m=0;m<HH_MAX;m++) hhKey[m]=0; hhSlotsFree(); moodReset(); lscore=0; simLastScore=0;
     sgPid=I.pid; sgDirty=0;

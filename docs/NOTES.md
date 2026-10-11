@@ -967,3 +967,11 @@ Nobody hands you a board on every lot any more (the old pickup beside the arriva
 - **Find one**: every PARK, SKATE PARK, PLAZA and OLD TOWN hides a board in its most out-of-the-way spot: the walkable floor tile farthest from where you arrive (a breadth-first search when the lot opens). Nothing marks it until you are within two tiles, then it glints. Walk over it and it is yours. Once you own a board the hidden ones are gone.
 - **Only where a board belongs**: house lots, parks, skate parks, plazas and old town. Not in the shops, restaurants, gym, bank, hospital, cinema, casino, salon, library, pool, lounge, dispensary, arms shop, spaceport, dojo, skate shop or prison: L says NO SKATING IN HERE (and without a board: THE SKATE SHOP SELLS THEM).
 - **Who has one**: a new life starts without a board; SKATE LIFE starts with Dex's. A life or player save from before owned boards keeps one (it had one).
+
+## BOREAGOTCHI!'s mode: THE HANDHELD (gotchi.h)
+A keychain egg with a 32 x 16 dot LCD (each dot 4 px). Open it from EXPANSIONS > BOREAGOTCHI! > THE HANDHELD (main menu or in your life), or YOUR ACTIONS > FUN > CHECK THE BOREAGOTCHI once it has hatched.
+- **The blob**: EGG, BABY (BLOBBY), CHILD (BORELET), TEEN (ANGSTY BORE, or SLOUCHY BORE after 3+ care mistakes), ADULT (SUPER BORE with few mistakes and 50% discipline, CHILL BORE when snacks outnumber meals, SLOB BORE otherwise). It hatches after 20 ticks; teen at 240, adult at 1440 more.
+- **Needs**: HUNGER and HAPPY (4 hearts), DISCIPLINE, WEIGHT; it poops after eating, gets sick when the poop sits, sleeps at night (turn the LIGHT off). The ATTENTION icon lights when it needs something; 15 ticks unanswered is a CARE MISTAKE. Sometimes it calls for nothing: SCOLD is the right answer (discipline +25%). Badly neglected (no hearts, sick, 12 mistakes) it goes back to its home planet and a new egg comes.
+- **Icons**: FEED (A MEAL / A SNACK), LIGHT, PLAY (WHICH WAY?: guess where it looks, 5 rounds, 3 to win), MEDICINE, CLEAN, STATS, SCOLD, ATTENTION.
+- **Time**: a tick every half second in your hand and every game minute while you live your life (simMinute), so it grows while you play; a needy blob BEEPS now and then.
+- **Saved** at `GO_OFF` (20 bytes) and in the player save (chunk `'H'`). The pack's missions read `goStage` and the `GA_` events.
