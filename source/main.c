@@ -3678,10 +3678,8 @@ static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
     if(!ed) fgDraw();   // fight.h: punch trails and the guard
     clipAll();
 }
-static void drawRoom(int ed){   // the whole screen (editor, speed test)
-    if(!ed) playerCalc();
-    drawRoomRect(0,0,SW,SH,ed);
-    if(ed){
+static void edOverlays(void){   // the builder's marks over the room: the preview of what A builds, the item you would place, the cursor
+    {
         if(eAct&&eTool!=T_ITEM){   // preview of what the next A will build
             int x0,y0,x1,y1; eRect(&x0,&y0,&x1,&y1);
             u16 pc=eTool==T_ERASE?RGB(31,10,8):RGB(10,28,10);
@@ -3693,6 +3691,11 @@ static void drawRoom(int ed){   // the whole screen (editor, speed test)
         if(eTool==T_ITEM){ char gc=edObjCh(); int hg=isWallCh(lifeMap[ecy][ecx])?0:tileH(ecx,ecy); drawItemTile(gc,LOX+(ecx-ecy)*CA,LOY+(ecx+ecy+1)*CB-hg,ecx,ecy); }   // BUY: the item you would place, standing on the tile
         tileMark(ecx,ecy,(efr&8)?WHITE:(eTool==T_ITEM&&!edAffordable(edObjCh(),lifeMap[ecy][ecx]))?RGB(31,10,8):GOLD);   // blinking diamond on the tile under the cursor (red: you cannot afford it)
     }
+}
+static void drawRoom(int ed){   // the whole screen (editor, speed test)
+    if(!ed) playerCalc();
+    drawRoomRect(0,0,SW,SH,ed);
+    if(ed) edOverlays();
 }
 
 // Camera zoom: scale the finished picture up around (cx,cy) in place. zk = 256 / zoom. Source pixels are always nearer the
@@ -4363,15 +4366,22 @@ static int edCamStep(void){   // dead-zone camera: the view only scrolls when th
     return camX!=ox||camY!=oy;
 }
 static void mmPx(int x,int y,u16 c){ if((unsigned)x<MW&&(unsigned)y<MH) px(SW-MW-3+x,2+y,c); }
+static void mmTile(int x,int y){ if((unsigned)x>=MW||(unsigned)y>=MH) return; char c=lifeMap[y][x]; u16 col;
+    if(c=='.') col=shade(flFlat[floorMap[y][x]][0],10); else { int i=palIdx(c); col=i>=0?palCol[i]:0; }
+    px(SW-MW-3+x,2+y,col); }
+static void mmView(void);
+static void miniMapCur(int ox,int oy){   // the cursor moved (or blinked): only the old cross goes back to the map, then the view outline and the new cross
+    mmTile(ox,oy); mmTile(ox-1,oy); mmTile(ox+1,oy); mmTile(ox,oy-1); mmTile(ox,oy+1); mmView();
+}
 static void miniMap(void){   // whole map at 1 px per tile, top right: colours by tile, the camera's view outlined, cursor blinking
     int X0=SW-MW-3, Y0=2;
     rect(X0-1,Y0-1,MW+2,MH+2,RGB(3,4,7));
-    for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){
-        char c=lifeMap[y][x]; u16 col;
-        if(c=='.') col=shade(flFlat[floorMap[y][x]][0],10);
-        else { int i=palIdx(c); col=i>=0?palCol[i]:0; }
-        px(X0+x,Y0+y,col);
-    }
+    u16 fc[NFL]; for(int i=0;i<NFL;i++) fc[i]=shade(flFlat[i][0],10);   // (the floor colours once, not per tile: a scroll draws the whole map again)
+    for(int y=0;y<MH;y++){ u16*d=fb+(Y0+y)*SW+X0; const char*row=lifeMap[y]; const u8*fr=floorMap[y];
+        for(int x=0;x<MW;x++){ char c=row[x]; u16 col; if(c=='.') col=fc[fr[x]<NFL?fr[x]:0]; else { int i=palIdx(c); col=i>=0?palCol[i]:0; } d[x]=col; } }
+    mmView();
+}
+static void mmView(void){
     int ca=(120-LOX)/CA, cb=(80-LOY)/CB-1;   // screen centre as (tx-ty, tx+ty); the screen is a tilted box on the map
     for(int t=-15;t<=15;t++){ int a=ca+t, b=cb-20; mmPx((a+b)>>1,(b-a)>>1,RGB(20,22,24)); b=cb+20; mmPx((a+b)>>1,(b-a)>>1,RGB(20,22,24)); }
     for(int t=-20;t<=20;t++){ int b=cb+t, a=ca-15; mmPx((a+b)>>1,(b-a)>>1,RGB(20,22,24)); a=ca+15; mmPx((a+b)>>1,(b-a)>>1,RGB(20,22,24)); }
@@ -4384,8 +4394,33 @@ static void edPresent(void){   // the builder's picture goes to the screen the m
     REG_DMA3CNT=(SW*SH/2)|0x84000000u;
     vsyncUi();
 }
+// ---- the builder redraws only what changed (a whole room is 5 or 6 frames of drawing: the cursor crawled, "playing chess in build mode") ----
+// A cursor step repaints the screen box round the old and the new tile, a blink the tile, an item placed the 3 x 3 tiles round it; the HUD is drawn
+// again only when a key changed what it shows. Only those rows go to the screen. A scroll, a zoom, a floor change, undo, a room built and a change
+// that moves the walls' inside map (wDirty) still draw it all.
+static int edBx0, edBy0, edBx1, edBy1;   // the box to repaint (empty: x0 >= x1)
+static void edBoxAdd(int x0,int y0,int x1,int y1){ if(edBx0>=edBx1){ edBx0=x0; edBy0=y0; edBx1=x1; edBy1=y1; return; } if(x0<edBx0) edBx0=x0; if(y0<edBy0) edBy0=y0; if(x1>edBx1) edBx1=x1; if(y1>edBy1) edBy1=y1; }
+static void edBoxTiles(int tx0,int ty0,int tx1,int ty1){   // the screen box of a block of tiles, with room for what stands on them (art: 48 px up, a tile's half to each side)
+    int ax=LOX+(tx0-ty1)*CA, bx=LOX+(tx1-ty0)*CA, ay=LOY+(tx0+ty0+1)*CB, by=LOY+(tx1+ty1+1)*CB;
+    edBoxAdd(ax-CA-14,ay-CB-48,bx+CA+14,by+CB+8);
+}
+static short edSt[6][4]; static int edStN;   // strips a scroll uncovered (drawn on their own: added to the box they would make it the whole band)
+static void edStrip(int x0,int y0,int x1,int y1){ if(edStN<6&&x0<x1&&y0<y1){ edSt[edStN][0]=(short)x0; edSt[edStN][1]=(short)y0; edSt[edStN][2]=(short)x1; edSt[edStN][3]=(short)y1; edStN++; } }
+static void edShift(int y0,int y1,int dx,int dy){   // a scroll: the picture in rows y0..y1-1 moves by (-dx,-dy) (the camera moved by dx,dy); what comes into view is drawn after
+    int w=SW-(dx<0?-dx:dx); if(w<=0) return;
+    int sx=dx>0?dx:0, tx=dx>0?0:-dx;
+    if(dy>=0) for(int y=y0;y+dy<y1;y++) __builtin_memmove(fb+y*SW+tx,fb+(y+dy)*SW+sx,(u32)w*2);
+    else for(int y=y1-1;y+dy>=y0;y--) __builtin_memmove(fb+y*SW+tx,fb+(y+dy)*SW+sx,(u32)w*2);
+}
+static void edCopyRows(int x0,int y0,int x1,int y1){   // part of the picture to the screen (whole rows in one go)
+    if(x0<0) x0=0; if(y0<0) y0=0; if(x1>SW) x1=SW; if(y1>SH) y1=SH; if(x0>=x1||y0>=y1) return;
+    if(x0==0&&x1==SW){ REG_DMA3SAD=(u32)(uintptr_t)(fb+y0*SW); REG_DMA3DAD=VRAM_ADDR+(u32)(y0*SW*2); REG_DMA3CNT=(u32)((y1-y0)*SW/2)|0x84000000u; return; }
+    x0&=~1; x1=(x1+1)&~1; if(x1>SW) x1=SW; int wd=(x1-x0)>>1;
+    for(int y=y0;y<y1;y++){ REG_DMA3SAD=(u32)(uintptr_t)(fb+y*SW+x0); REG_DMA3DAD=VRAM_ADDR+(u32)((y*SW+x0)*2); REG_DMA3CNT=(u32)wd|0x84000000u; }
+}
 static void mapEditor(void){
     int hold[4]={0}, lrHold=0, lrCombo=0, lrPend=0, lrPendT=0, edZ=0, edLast=T_ROOM, comboUsed=0, dirty=1, lastBl=-1, msgT=0; const char*msg=""; u16 prev=keyNow();
+    int pcur=0, pmap=0, phud=0, dcx=ecx, dcy=ecy, dAct=0, dAx=0, dAy=0, scx=0, scy=0; const char*shownMsg=0;   // a part to redraw: the cursor moved, an item went in or out, the HUD changed; d*: what the last picture showed
     static const u16 dirK[4]={K_RIGHT,K_LEFT,K_UP,K_DOWN};
     edTried=0; edLife=0; edCashDirty=0; if(xo[XO_BUYCOST]&&!gInPlay) edLoadLife();   // the life's cash, for the prices
     udClear(); udOn=1;   // a fresh UNDO history for this visit to the builder
@@ -4420,9 +4455,9 @@ static void mapEditor(void){
             if(fast&&eTool!=T_ITEM){ dx*=2; dy*=2; }
             ecx+=dx; ecy+=dy; if(ecx<edX0)ecx=edX0; if(ecy<edY0)ecy=edY0; if(ecx>edX1)ecx=edX1; if(ecy>edY1)ecy=edY1; if(ecx>=MW)ecx=MW-1; if(ecy>=MH)ecy=MH-1;
             if(eTool==T_ITEM){ if(k&K_A){ if(eOb!=OB_HALF) mapPlace(ecx,ecy,edObjCh()); } else if(k&K_B) mapPlace(ecx,ecy,'.'); }
-            dirty=1;
+            pcur=1; if(eTool==T_ITEM&&(k&(K_A|K_B))) pmap=1;   // (painting: the tiles round the new spot)
         }
-        if(pr|rel) dirty=1;
+        if(pr|rel){ pcur=1; phud=1; }   // (a key: the HUD, and the item you would place, may have changed)
         if(pr&(K_L|K_R)){
             int d=(pr&K_R)?1:-1;
             if(k&K_SEL){ if(eTool==T_ITEM) edCatStep(d); else eWp=(eWp+d+NWALL)%NWALL; comboUsed=1; }   // BUY: the next category; BUILD: the wallpaper
@@ -4433,13 +4468,13 @@ static void mapEditor(void){
         if(rel&K_SEL){ if(!comboUsed){ if(eTool==T_ITEM) eTool=edLast; else { edLast=eTool; eTool=T_ITEM; } eAct=0; } comboUsed=0; }   // SELECT alone: BUILD <-> BUY (back to the tool you had)
         if(pr&K_A){
             if(eTool==T_ITEM&&(k&K_SEL)){ eRot=(eRot+1)&3; comboUsed=1; msg="TURNED"; msgT=20; }   // SEL+A: turn the next ramp
-            else if(eTool==T_ITEM){ money_t m0=simMoney; if(eOb==OB_HALF) edHalf(ecx,ecy); else mapPlace(ecx,ecy,edObjCh()); if(xo[XO_BUYCOST]&&simMoney!=m0){ msg=simMoney<m0?"BOUGHT":"SOLD"; msgT=30; } }
+            else if(eTool==T_ITEM){ money_t m0=simMoney; pmap=1; if(eOb==OB_HALF){ edHalf(ecx,ecy); dirty=1; } else mapPlace(ecx,ecy,edObjCh()); if(xo[XO_BUYCOST]&&simMoney!=m0){ msg=simMoney<m0?"BOUGHT":"SOLD"; msgT=30; } }
             else if(!eAct){ eAct=1; eAx=ecx; eAy=ecy; }
-            else if(eApply()){ eAct=0; msg=eTool==T_ROOM?"ROOM BUILT":eTool==T_WALL?"WALL BUILT":eTool==T_FLOOR?"FLOOR LAID":"SOLD"; msgT=70; }
+            else if(eApply()){ eAct=0; dirty=1; msg=eTool==T_ROOM?"ROOM BUILT":eTool==T_WALL?"WALL BUILT":eTool==T_FLOOR?"FLOOR LAID":"SOLD"; msgT=70; }
             else { msg="ROOM NEEDS 3 X 3 OR BIGGER"; msgT=70; }
         }
-        if(pr&K_B){ if(eAct) eAct=0; else { int m0=simMoney; mapPlace(ecx,ecy,'.'); if(xo[XO_BUYCOST]&&simMoney>m0){ msg="SOLD"; msgT=30; } } }
-        if(dsMsg){ msg=dsMsg; msgT=90; dsMsg=0; dirty=1; }
+        if(pr&K_B){ if(eAct){ eAct=0; dirty=1; } else { int m0=simMoney; pmap=1; mapPlace(ecx,ecy,'.'); if(xo[XO_BUYCOST]&&simMoney>m0){ msg="SOLD"; msgT=30; } } }
+        if(dsMsg){ msg=dsMsg; msgT=90; dsMsg=0; phud=1; }
         if(pr&K_START){
             udEnd();
             const char*mi[MI_N]; { int nu=udCur, nr=udNA-udCur; char*e=mapUndoNm; const char*q="UNDO"; while(*q) *e++=*q++; if(nu){ *e++=' '; e+=numStr(e,nu); } *e=0;
@@ -4461,17 +4496,50 @@ static void mapEditor(void){
             prev=keyNow(); edCamSnap(); dirty=1; continue;
         }
         if(!(k&(K_A|K_B))) udEnd();   // a step = everything between pressing A (or B) and letting go
-        if(udBig){ udBig=0; msg="TOO BIG TO UNDO  HISTORY CLEARED"; msgT=90; dirty=1; }
-        if(edCamStep()) dirty=1;
-        if(msgT>0&&--msgT==0){ msg=""; dirty=1; }
+        if(udBig){ udBig=0; msg="TOO BIG TO UNDO  HISTORY CLEARED"; msgT=90; phud=1; }
+        { int ox=camX, oy=camY; if(edCamStep()){ scx+=camX-ox; scy+=camY-oy; } }   // a scroll: the picture slides, only what comes into view is drawn
+        if(msgT>0&&--msgT==0) msg="";
+        if(wDirty) dirty=1;   // the walls changed: the inside map (the floors under walls, which tiles are in a room) is drawn again everywhere
         int bl=(efr>>3)&1;   // the editor only redraws when something changed or the cursor blinks
-        if(dirty||bl!=lastBl){
+        const char*sm=msgT>0?msg:""; int pmsg=sm!=shownMsg, part=pcur||pmap||phud||pmsg||bl!=lastBl||scx||scy;
+        { int py=eTool==T_ITEM?98:120; if((scx||scy)&&(scx>=SW||-scx>=SW||scy>=py-15||-scy>=py-15)) dirty=1; }   // (a jump bigger than the view: all of it)
+        if(dirty||(edZ&&part)){   // the whole picture (a zoomed one is always whole)
             drawRoom(1);
             if(edZ){ static const short zk[4]={256,192,128,96}; int zx=LOX+(ecx-ecy)*CA, zy=LOY+(ecx+ecy+1)*CB;
                 if(zx<0)zx=0; if(zx>SW-1)zx=SW-1; if(zy<vpY0+1)zy=vpY0+1; if(zy>vpY1-2)zy=vpY1-2; zoomFb(zx,zy,zk[edZ]); }
-            drawEditorHud(msgT>0?msg:""); if(xo[XO_MINI]) miniMap();
-            edPresent(); dirty=0; lastBl=bl;
+            drawEditorHud(sm); if(xo[XO_MINI]) miniMap();
+            edPresent(); dirty=0; part=1;   // (part: what is shown is noted below)
+        } else if(part){   // just what changed
+            int py=eTool==T_ITEM?98:120;   // (the bottom panel starts here: drawEditorHud)
+            edBx0=edBx1=0; edStN=0;
+            if(scx||scy){   // the camera moved: slide the scene rows, then the strips that came into view; the marks that slid with it are drawn over below
+                edShift(15,py,scx,scy);
+                if(scx>0) edStrip(SW-scx,15,SW,py); else if(scx<0) edStrip(0,15,-scx,py);
+                if(scy>0) edStrip(0,py-scy,SW,py); else if(scy<0) edStrip(0,15,SW,15-scy);
+                { int py2=py; int a0,b0,a1,b1;   // the note and the map in the corner slid too: their own strips (in the box they would make it the whole band)
+                  if(shownMsg&&shownMsg[0]){ b0=15-scy; b1=28-scy; if(b0<15) b0=15; if(b1>py2) b1=py2; edStrip(0,b0,SW,b1); }
+                  if(xo[XO_MINI]){ a0=SW-MW-4-scx; a1=SW-scx; b0=15-scy; b1=MH+4-scy; if(a0<0) a0=0; if(a1>SW) a1=SW; if(b0<15) b0=15; if(b1>py2) b1=py2; edStrip(a0,b0,a1,b1); } }
+                pcur=1; }
+            if(pcur||bl!=lastBl){ edBoxTiles(dcx,dcy,dcx,dcy); edBoxTiles(ecx,ecy,ecx,ecy); }
+            if(pmap) edBoxTiles(ecx-1,ecy-1,ecx+1,ecy+1);
+            if(dAct&&(dcx!=ecx||dcy!=ecy||!eAct)) edBoxTiles(dAx<dcx?dAx:dcx,dAy<dcy?dAy:dcy,dAx>dcx?dAx:dcx,dAy>dcy?dAy:dcy);   // the selection as it was
+            if(eAct) edBoxTiles(eAx<ecx?eAx:ecx,eAy<ecy?eAy:ecy,eAx>ecx?eAx:ecx,eAy>ecy?eAy:ecy);   // and as it is
+            if(pmsg) edBoxAdd(0,15,SW,28);   // the note under the top bar came or went
+            if(edBy0<15) edBy0=15; if(edBy1>py) edBy1=py; if(edBx0<0) edBx0=0; if(edBx1>SW) edBx1=SW;
+            int box=edBx0<edBx1&&edBy0<edBy1;
+            for(int i=0;i<edStN;i++){ int a=edSt[i][0], b=edSt[i][1], c=edSt[i][2], d=edSt[i][3]; drawRoomRect(a,b,c,d,1); clipSet(a,b,c,d); edOverlays(); clipAll(); }
+            if(box){ drawRoomRect(edBx0,edBy0,edBx1,edBy1,1); clipSet(edBx0,edBy0,edBx1,edBy1); edOverlays(); clipAll(); }
+            int hud=phud||pmsg||(box&&sm[0]&&edBy0<28)||((scx||scy)&&sm[0]);
+            if(hud) drawEditorHud(sm);
+            int mmAll=xo[XO_MINI]&&(hud||pmap||scx||scy||(box&&edBy0<MH+4&&edBx1>SW-MW-4)), mm=mmAll||(xo[XO_MINI]&&(pcur||bl!=lastBl));
+            if(mmAll) miniMap(); else if(mm) miniMapCur(dcx,dcy);   // (just the cursor: the old cross back to the map)
+            if(scx||scy) edCopyRows(0,15,SW,py);   // (slid: the whole scene goes to the screen)
+            else if(box) edCopyRows(edBx0,edBy0,edBx1,edBy1);
+            if(hud){ edCopyRows(0,0,SW,28); edCopyRows(0,py,SW,SH); }   // (28: the top bar and the note under it)
+            if(mm) edCopyRows(SW-MW-4,0,SW,MH+4);
+            vsyncUi();
         } else vsync();
+        if(dirty||part){ pcur=pmap=phud=0; scx=scy=0; lastBl=bl; shownMsg=sm; dcx=ecx; dcy=ecy; dAct=eAct; dAx=eAx; dAy=eAy; }
     }
     udEnd(); udOn=0;   // (every way out of the loop ends up here: the history stays only while the builder is open)
     while((~REG_KEYINPUT)&0x3FF) vsync();
