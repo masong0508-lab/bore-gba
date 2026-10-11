@@ -5807,7 +5807,7 @@ __attribute__((noinline)) static void plDraw(const int*l,int n,int sel,int act,i
     rect(100,56,118,1,foc==0?RGB(14,27,6):RGB(23,29,31));
     text(106,46,ok?nbTmp.name:"NO TOWNS",WHITE,1); text(196,46,"<>",RGB(20,26,31),1);
     if(ok&&full){ int lots=0,homes=0,wat=0,sand=0; for(int i=0;i<NB_LOTS;i++) if(nbTmp.lot[i].on){ lots++; if(nbTmp.lot[i].kind==LKIND_RES&&nbTmp.lot[i].slot>=0) homes++; }
-        for(int y=0;y<NB_H;y++)for(int x=0;x<NB_W;x++){ int g=NB_GR(nbTmp.cell[y][x]); wat+=g==NT_WATER; sand+=g==NT_SAND; }
+        for(int y=0;y<nbTmp.h;y++)for(int x=0;x<nbTmp.w;x++){ int g=NB_GR(nbTmp.cell[y][x]); wat+=g==NT_WATER; sand+=g==NT_SAND; }
         char b[40]; char*e=slNum(b,lots); e=slCat(e," LOTS  "); e=slNum(e,homes); slCat(e,homes==1?" HOUSE":" HOUSES");
         text(102,60,sand>100?"OUT IN THE DESERT":wat>40?"A TOWN BY THE WATER":"A QUIET GREEN SUBURB",RGB(3,9,20),1);
         text(102,69,b,RGB(5,12,22),1); text(102,78,l[sel]==act?"YOU LIVE HERE":seasNm[nbTmp.season&3],l[sel]==act?RGB(4,16,2):RGB(5,12,22),1); }
@@ -5848,9 +5848,11 @@ static void playScreen(void){
             n=nbTownList(l,SLOT_MAX); act=nbTS; if(sel>=n) sel=n?n-1:0; prev=keyNow(); dirty=2; mmPick();
         }
         if(pr&K_SEL){
-            int st=menu("A NEW NEIGHBORHOOD",nsNm,NS_N);
-            if(st>=0){ char nm[SLOT_NAME+1]; int i=0; for(;nsTown[st][i];i++) nm[i]=nsTown[st][i]; nm[i]=0;
-                if(slEditName(nm)){ nbGen(st,nm); nbTS=-1; int e=nbSave(); toast(e?"NO FREE SLOT FOR A TOWN":"NEIGHBORHOOD MADE"); }
+            int st=menu("A NEW NEIGHBORHOOD",nsNm,NS_N), sz=-1;
+            static const char* const szNm[4]={"SMALL  24 X 24","MEDIUM  32 X 32","LARGE  40 X 40","HUGE  48 X 48"};
+            if(st>=0) sz=menu("HOW BIG",szNm,4);
+            if(st>=0&&sz>=0){ char nm[SLOT_NAME+1]; int i=0; for(;nsTown[st][i];i++) nm[i]=nsTown[st][i]; nm[i]=0;
+                if(slEditName(nm)){ nbGenS(st,nm,24+sz*8); nbTS=-1; int e=nbSave(); toast(e?"NO FREE SLOTS FOR A TOWN THAT BIG":"NEIGHBORHOOD MADE"); }
                 nbOk=nbLoad(); n=nbTownList(l,SLOT_MAX); act=nbTS; }
             prev=keyNow(); dirty=2;
         }

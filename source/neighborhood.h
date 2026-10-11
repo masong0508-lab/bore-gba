@@ -1,23 +1,27 @@
 // neighborhood.h - THE NEIGHBORHOOD: a town of lots to live in, visit and build on (The Sims 1 neighbourhood screen, with the later games'
 // town editing: paint the land, lay roads, plant trees, place and remove lots, seasons and the time of day).
 //
-// THE TOWN   a 24 x 24 grid of cells, each a terrain (grass, dirt, sand, water, plaza, road) and an optional decoration (tree, pine, bush,
+// THE TOWN   a grid of cells (SMALL 24 x 24, MEDIUM 32, LARGE 40, HUGE 48: picked when the town is made, nbT.w / nbT.h), each a terrain (grass, dirt, sand, water, plaza, road) and an optional decoration (tree, pine, bush,
 //            flowers, rock, lamp, bench, fountain).
-// LOTS       up to 16 rectangles of 4 to 10 cells a side. A cell is 4 x 4 tiles of the room map, so lots run from 16 x 16 to 40 x 40 tiles.
+// LOTS       up to 48 rectangles of 4 to 10 cells a side (a bigger town gets whole districts of them: nbDistricts). A cell is 4 x 4 tiles of the room map, so lots run from 16 x 16 to 40 x 40 tiles.
 //            RESIDENTIAL (a house to live in; one of them is your HOME) or COMMUNITY (park, skate park, plaza, lounge, old town).
 // THE LIVE MAP  the room you play and build always belongs to one lot (nbT.cur). Going to another lot first stores this one in a HOUSE slot
 //            (all three floors, named after the lot; slots.h finds a free run), then loads the other lot's slot, or builds its starting layout.
 //            The room builder keeps its cursor inside the lot (edX0..edY1); its RESET rebuilds the lot's starting layout.
 // MONEY      MOVE IN buys the lot (land + everything built on it) and sells your old home for its value, from the life's cash (sims.h).
-// SAVED      in a TOWN slot (slots.h, kind 3), found by its kind; written when you leave the screen and after every lot change.
+// SAVED      in a TOWN slot run (slots.h, kind 3: one slot, two for a big town), found by its kind; written when you leave the screen and after every
+//            lot change. 'TWN2': the header, the size, the cells actually used, every lot and its roof (nbPack). An old 'TWN1' (24 x 24, 16 lots) still loads.
 // HOOK       nbDrawLotModel() draws a lot's building as a small icon. A later version can draw the real house there (every floor of its slot).
 //
 // Needs before it: the map and floors (lifeMap, floorMap, wallMap, mapGen, gRoom, gBox, gPut, gLine, mapSave, mapScan, flHome, flBlankUpper,
 // flEnsure, flPlaneAt, curFl), slots.h, lifeMode, mapEditor, the UI kit (box, menu, toast, helpScreen, text, rect, px, line, disc, present,
 // keyNow), sims.h (simsDefaults, simsLoad, simsSaveNow, simMoney).
-#define NB_W 24
-#define NB_H 24
-#define NB_LOTS 16
+#define NB_WMAX 48
+#define NB_HMAX 48
+#define NB_W (nbT.w)   // the live town's size (every town keeps its own)
+#define NB_H (nbT.h)
+#define NB_LOTS 48
+#define NB_LOTS1 16   // lots a 'TWN1' town held
 #define NB_NAME 10
 enum { NT_GRASS, NT_DIRT, NT_SAND, NT_WATER, NT_PLAZA, NT_ROAD, NT_N };
 enum { DC_NONE, DC_TREE, DC_PINE, DC_BUSH, DC_FLOWER, DC_ROCK, DC_LAMP, DC_BENCH, DC_FOUNTAIN, DC_N };
@@ -29,8 +33,9 @@ static const char* const ctNm[CT_N]={"PARK","SKATE PARK","PLAZA","LOUNGE","OLD T
 static const char* const seasNm[4]={"SPRING","SUMMER","FALL","WINTER"};
 static const char* const todNm[3]={"DAY","DUSK","NIGHT"};
 typedef struct { u8 on,x,y,w,h,kind,type; s8 slot; char name[NB_NAME+1]; u8 floors; u16 value; } NbLot;   // value: what it sells for, in units of NB_UNIT simoleons
-typedef struct { char tag[4]; char name[NB_NAME+1]; u8 season,tod,home,cur,zoom,pad[3]; u8 cell[NB_H][NB_W]; NbLot lot[NB_LOTS]; u8 roof[NB_LOTS][5]; } Town;   // roof (APPENDED, older towns have none: zeros = the old automatic roof): per lot [0] style (low nibble: PYRAMID FLAT HIP SHED) + colour (high nibble: 0 auto, 1-8 palette, 9 custom), [1] height 0 auto / 1-15, [2] overhang 0-7, [3..4] custom RGB555
-#define NB_TOWN_V1 ((unsigned)__builtin_offsetof(Town,roof))   // the size of a town saved before roofs existed: still loads, its roofs are all automatic
+typedef struct { char tag[4]; char name[NB_NAME+1]; u8 season,tod,home,cur,zoom,pad[3]; u8 w,h,ver,spare; u8 cell[NB_HMAX][NB_WMAX]; NbLot lot[NB_LOTS]; u8 roof[NB_LOTS][5]; } Town;   // (in RAM: room for the biggest town)
+typedef struct { char tag[4]; char name[NB_NAME+1]; u8 season,tod,home,cur,zoom,pad[3]; u8 cell[24][24]; NbLot lot[NB_LOTS1]; u8 roof[NB_LOTS1][5]; } TownV1;   // a 'TWN1' town as it was saved   // roof (APPENDED, older towns have none: zeros = the old automatic roof): per lot [0] style (low nibble: PYRAMID FLAT HIP SHED) + colour (high nibble: 0 auto, 1-8 palette, 9 custom), [1] height 0 auto / 1-15, [2] overhang 0-7, [3..4] custom RGB555
+#define NB_TOWN_V1 ((unsigned)__builtin_offsetof(TownV1,roof))   // the size of a town saved before roofs existed: still loads, its roofs are all automatic
 static Town nbT EWRAM_BSS;
 #define NB_UNIT 40   // a lot's saved value is in units of this many simoleons (a u16 then reaches 2.6 million; an old town's numbers just scale up)
 static int nbPrice(const NbLot*L){ return (int)L->value*NB_UNIT; }   // what the lot costs / sells for
@@ -38,7 +43,7 @@ static int nbWho(int li,char*nm); static int nbLives(int li); static int hhPlayA
 static u8 nbOk;                  // nbT holds a town
 static int nbTS=-1;              // the slot nbT was loaded from (or -1: a new town, it gets a free slot)
 typedef struct { char tag[4]; char name[NB_NAME+1]; u8 season,tod,home,cur,zoom,pad[3]; } TownHd;   // the start of a Town: enough to know a town by name and whether it is the live one
-_Static_assert(sizeof(TownHd)==__builtin_offsetof(Town,cell),"TownHd must be the start of Town");
+_Static_assert(sizeof(TownHd)==__builtin_offsetof(Town,w),"TownHd must be the start of Town");
 #define NB_ACT pad[0]            // 1 = the live room belongs to this town (its lot cur)
 #define NB_GR(c) ((c)&7)
 #define NB_DC(c) ((c)>>3)
@@ -141,17 +146,45 @@ static int nbGo(int i){   // make lot i the live map. 1 = done (nbErr says why n
 }
 
 // ---------- the town on the save chip ----------
-static int nbTownList(int*l,int max){ slScan(); int n=0; for(int i=0;i<SLOT_N&&n<max;i++) if(slOwner[i]==i&&slI[i].kind==SLK_TOWN&&slGood[i]&&(slI[i].len==sizeof(Town)||slI[i].len==NB_TOWN_V1)) l[n++]=i; return n; }
-static int nbRead(int s,Town*t){   // a town from its slot (1 = ok)
-    volatile u8*b=SLB(s)+SLOT_HDR; u8*d=(u8*)t; unsigned n=slI[s].len; if(n>sizeof(Town)) n=sizeof(Town);
-    for(unsigned i=0;i<sizeof(Town);i++) d[i]=i<n?b[i]:0;   // (an older, shorter town: the roofs after its end are zero = automatic)
-    if(t->tag[0]!='T'||t->tag[1]!='W'||t->tag[2]!='N'||t->tag[3]!='1') return 0;
-    t->name[NB_NAME]=0; for(int i=0;i<NB_LOTS;i++) t->lot[i].name[NB_NAME]=0;
+static int nbTownList(int*l,int max){ slScan(); int n=0; for(int i=0;i<SLOT_N&&n<max;i++) if(slOwner[i]==i&&slI[i].kind==SLK_TOWN&&slGood[i]&&slI[i].len>=(int)sizeof(TownHd)) l[n++]=i; return n; }
+#define NB_PHDR 28   // a 'TWN2' town: the TownHd (23 bytes), then w, h, lots, version, reserved
+static int nbPackLen(const Town*t){ return NB_PHDR+t->w*t->h+NB_LOTS*(int)sizeof(NbLot)+NB_LOTS*5; }
+_Static_assert(NB_PHDR+NB_WMAX*NB_HMAX+NB_LOTS*sizeof(NbLot)+NB_LOTS*5<=2*SLOT_SZ-SLOT_HDR,"the biggest town must fit two slots");
+static u8 nbBuf[NB_PHDR+NB_WMAX*NB_HMAX+NB_LOTS*sizeof(NbLot)+NB_LOTS*5] EWRAM_BSS;   // a town packed for the save chip
+static int nbPack(const Town*t,u8*b){   // -> the length
+    const u8*h=(const u8*)t; for(unsigned i=0;i<sizeof(TownHd);i++) b[i]=h[i];
+    b[0]='T'; b[1]='W'; b[2]='N'; b[3]='2'; b[23]=t->w; b[24]=t->h; b[25]=NB_LOTS; b[26]=2; b[27]=0;
+    int k=NB_PHDR; for(int y=0;y<t->h;y++) for(int x=0;x<t->w;x++) b[k++]=t->cell[y][x];
+    const u8*L=(const u8*)t->lot; for(unsigned i=0;i<NB_LOTS*sizeof(NbLot);i++) b[k++]=L[i];
+    for(int i=0;i<NB_LOTS;i++) for(int q=0;q<5;q++) b[k++]=t->roof[i][q];
+    return k;
+}
+static int nbRead(int s,Town*t){   // a town from its slot (1 = ok): 'TWN2', or an old 'TWN1' turned into one
+    volatile u8*b=SLB(s)+SLOT_HDR; unsigned n=(unsigned)slI[s].len; u8*d=(u8*)t;
+    for(unsigned i=0;i<sizeof(Town);i++) d[i]=0;
+    if(n<sizeof(TownHd)||b[0]!='T'||b[1]!='W'||b[2]!='N'||(b[3]!='1'&&b[3]!='2')) return 0;
+    for(unsigned i=0;i<sizeof(TownHd);i++) d[i]=b[i];
+    if(b[3]=='1'){   // 24 x 24, 16 lots, the roofs if it was saved with them
+        if(n>sizeof(TownV1)) return 0;
+        static TownV1 o EWRAM_BSS; u8*q=(u8*)&o; for(unsigned i=0;i<sizeof(TownV1);i++) q[i]=i<n?b[i]:0;
+        t->w=t->h=24; for(int y=0;y<24;y++) for(int x=0;x<24;x++) t->cell[y][x]=o.cell[y][x];
+        for(int i=0;i<NB_LOTS1;i++){ t->lot[i]=o.lot[i]; for(int c=0;c<5;c++) t->roof[i][c]=o.roof[i][c]; }
+        for(int i=NB_LOTS1;i<NB_LOTS;i++) t->lot[i].slot=-1;
+    } else {
+        int w=b[23], h=b[24], nl=b[25]; if(w<8||h<8||w>NB_WMAX||h>NB_HMAX||nl>NB_LOTS||(unsigned)(NB_PHDR+w*h+nl*(int)sizeof(NbLot)+nl*5)>n) return 0;
+        t->w=(u8)w; t->h=(u8)h; int k=NB_PHDR;
+        for(int y=0;y<h;y++) for(int x=0;x<w;x++) t->cell[y][x]=b[k++];
+        u8*L=(u8*)t->lot; for(unsigned i=0;i<(unsigned)nl*sizeof(NbLot);i++) L[i]=b[k++];
+        for(int i=0;i<nl;i++) for(int q=0;q<5;q++) t->roof[i][q]=b[k++];
+        for(int i=nl;i<NB_LOTS;i++) t->lot[i].slot=-1;
+    }
+    t->tag[3]='2'; t->ver=2; t->name[NB_NAME]=0;
+    for(int i=0;i<NB_LOTS;i++){ NbLot*L=&t->lot[i]; L->name[NB_NAME]=0; if(L->on&&(L->x+L->w>t->w||L->y+L->h>t->h)) L->on=0; }
     return 1;
 }
-static int nbReadHd(int s,TownHd*t){   // only the start of a town (its name, and whether the live room is there): no 1 KB copy for that (1 = ok)
+static int nbReadHd(int s,TownHd*t){   // only the start of a town (its name, and whether the live room is there): no copy of the whole town for that (1 = ok)
     volatile u8*b=SLB(s)+SLOT_HDR; u8*d=(u8*)t; for(unsigned i=0;i<sizeof(TownHd);i++) d[i]=b[i];
-    if(t->tag[0]!='T'||t->tag[1]!='W'||t->tag[2]!='N'||t->tag[3]!='1') return 0;
+    if(t->tag[0]!='T'||t->tag[1]!='W'||t->tag[2]!='N'||(t->tag[3]!='1'&&t->tag[3]!='2')) return 0;
     t->name[NB_NAME]=0; return 1;
 }
 static int nbLoad(void){   // the town the live room belongs to (or the first one)
@@ -161,15 +194,20 @@ static int nbLoad(void){   // the town the live room belongs to (or the first on
     if(pick<0||!nbRead(pick,&nbT)) return 0;
     nbT.NB_ACT=1; nbTS=pick; return 1;
 }
-static int nbSave(void){
+static int nbSave(void){   // into its slot run (one slot, two for a big town); a town that grew past its run moves to a free one
+    int len=nbPack(&nbT,nbBuf), span=(SLOT_HDR+len+SLOT_SZ-1)/SLOT_SZ;
     slScan(); int s=nbTS; SlInfo old; int had=s>=0&&slOwner[s]==s&&slInfo(s,&old)&&old.kind==SLK_TOWN;
-    if(!had){ s=-1; for(int i=0;i<SLOT_N;i++) if(slOwner[i]<0){ s=i; break; } }
-    if(s<0) return SLE_NOROOM;
-    slOpen(s,1); const u8*d=(const u8*)&nbT; for(unsigned i=0;i<sizeof(Town);i++) svWr(SLO(s)+SLOT_HDR+i,d[i]);
-    slHeader(s,SLK_TOWN,1,0,(int)sizeof(Town),slSumOf((volatile u8*)d,(int)sizeof(Town)),had?old.seq+1:1,nbT.name);
-    nbTS=s; return slVerify(s);
+    int fits=had&&slFits(s,span); if(fits) for(int k=0;k<span;k++) if(slOwner[s+k]>=0&&slOwner[s+k]!=s) fits=0;
+    int at=fits?s:-1;
+    if(at<0) for(int i=0;i+span<=SLOT_N&&at<0;i++){ if(!slFits(i,span)) continue; int ok=1; for(int k=0;k<span;k++) if(slOwner[i+k]>=0) ok=0; if(ok) at=i; }
+    if(at<0) return SLE_NOROOM;
+    int oldspan=had?old.span:1;
+    slOpen(at,span); for(int i=0;i<len;i++) svWr(SLO(at)+SLOT_HDR+(u32)i,nbBuf[i]);
+    slHeader(at,SLK_TOWN,span,0,len,slSumOf(nbBuf,len),had?old.seq+1:1,nbT.name);
+    if(at==s) for(int k=span;k<oldspan&&s+k<SLOT_N;k++){ svWr(SLO(s+k),0); svWr(SLO(s+k)+1,0); }   // (a town that got smaller gives its spare slot back)
+    else if(had) slDelete(s);   // (moved: the old run is free again)
+    nbTS=at; return slVerify(at);
 }
-_Static_assert(sizeof(Town)<=SLOT_SZ-SLOT_HDR,"the town must fit one slot");
 
 // ---------- a new town ----------
 static void nbLotAdd(int i,const char*nm,int x,int y,int w,int h,int kind,int type){
@@ -179,9 +217,10 @@ static void nbLotAdd(int i,const char*nm,int x,int y,int w,int h,int kind,int ty
 enum { NS_SUBURB, NS_DESERT, NS_LAKE, NS_EMPTY, NS_N };
 static const char* const nsNm[NS_N]={"GREEN SUBURB","DESERT TOWN","LAKESIDE","EMPTY LAND"};
 static const char* const nsTown[NS_N]={"BOREVILLE","MESA FLATS","PINE COVE","NEW TOWN"};
-static void nbGen(int style,const char*name){   // a new town in nbT (not saved). Its live lot is none yet (cur 255): going there builds the home lot
+static void nbDistricts(int style);
+static void nbGenS(int style,const char*name,int size){   // a new town in nbT (not saved), size x size cells. Its live lot is none yet (cur 255): going there builds the home lot
     u8*z=(u8*)&nbT; for(unsigned i=0;i<sizeof(Town);i++) z[i]=0;
-    nbT.tag[0]='T'; nbT.tag[1]='W'; nbT.tag[2]='N'; nbT.tag[3]='1';
+    nbT.tag[0]='T'; nbT.tag[1]='W'; nbT.tag[2]='N'; nbT.tag[3]='2'; if(size<24) size=24; if(size>NB_WMAX) size=NB_WMAX; nbT.w=nbT.h=(u8)size; nbT.ver=2;
     { int k=0; for(;name[k]&&k<NB_NAME;k++) nbT.name[k]=name[k]; }
     nbT.season=(u8)(style==NS_LAKE?2:1); nbT.home=0; nbT.cur=255;
     for(int i=0;i<NB_LOTS;i++) nbT.lot[i].slot=-1;
@@ -206,6 +245,7 @@ static void nbGen(int style,const char*name){   // a new town in nbT (not saved)
         nbLotAdd(6,"CABIN",20,15,4,4,LKIND_COMM,CT_LOUNGE); nbLotAdd(7,"OLD DOCKS",6,17,8,5,LKIND_COMM,CT_OLDTOWN); nbLotAdd(8,"RIDGE SKATE",14,20,6,4,LKIND_COMM,CT_SKATE);
         for(int y=0;y<NB_H;y++)for(int x=0;x<NB_W;x++) if(nbAt(x,y)<0&&nbT.cell[y][x]!=NT_ROAD&&(x-17)*(x-17)+(y-6)*(y-6)*3/2<34) nbT.cell[y][x]=NT_WATER;   // the lake
     } else nbLotAdd(0,"YOUR PLACE",2,3,6,6,LKIND_RES,0);
+    if(nbT.w>24||nbT.h>24) nbDistricts(style);   // a bigger town: more streets, more homes, more places to go
     u32 r=0x2F6E2B1u+(u32)style*7919u; int dens=style==NS_EMPTY?25:style==NS_DESERT?45:70;
     for(int y=0;y<NB_H;y++)for(int x=0;x<NB_W;x++){
         r=r*1103515245u+12345u; int v=(int)(r>>16)&255;
@@ -220,6 +260,33 @@ static void nbGen(int style,const char*name){   // a new town in nbT (not saved)
             nbT.cell[y][x]|=(u8)(d<<3); }
     }
     if(style==NS_SUBURB){ nbT.cell[22][7]=(u8)(NT_SAND); nbT.cell[23][7]=(u8)(NT_SAND|(DC_ROCK<<3)); nbT.cell[20][9]=(u8)(NT_GRASS|(DC_BENCH<<3)); nbT.cell[10][4]=(u8)(NT_PLAZA|(DC_FOUNTAIN<<3)); }
+}
+static void nbGen(int style,const char*name){ nbGenS(style,name,24); }
+// DISTRICTS: the land past the first 24 x 24 of a bigger town gets a grid of streets (every 12 cells) and is filled with lots: mostly homes
+// on tree-named streets, every fourth or so a public place, the kinds in turn (so a big town has several parks, skate parks, lounges, dispensaries ...).
+static const char* const nbStreet[12]={"ELM","BIRCH","CEDAR","WILLOW","ASPEN","HOLLY","IVY","LARCH","ALDER","POPLAR","SPRUCE","HAZEL"};
+static int nbFree(int x,int y,int w,int h,int skip);
+static int nbRoomFor(int x,int y,int w,int h){   // free, and a cell of space from every other lot
+    if(!nbFree(x,y,w,h,-1)) return 0;
+    for(int j=y-1;j<=y+h;j++) for(int i=x-1;i<=x+w;i++) if(i>=0&&j>=0&&i<nbT.w&&j<nbT.h&&nbAt(i,j)>=0) return 0;
+    return 1;
+}
+static void nbDistricts(int style){
+    int tw_=nbT.w, th_=nbT.h, n=0; u32 r=0x51ED27u+(u32)style*131u+(u32)tw_*977u;
+    for(int i=0;i<NB_LOTS;i++) if(nbT.lot[i].on) n++;
+    for(int x=29;x<tw_;x+=12) for(int y=0;y<th_;y++) if(nbAt(x,y)<0&&NB_GR(nbT.cell[y][x])!=NT_WATER) nbT.cell[y][x]=NT_ROAD;   // the new streets
+    for(int y=29;y<th_;y+=12) for(int x=0;x<tw_;x++) if(nbAt(x,y)<0&&NB_GR(nbT.cell[y][x])!=NT_WATER) nbT.cell[y][x]=NT_ROAD;
+    static const u8 kinds[]={CT_PARK,CT_DISP,CT_SKATE,CT_LOUNGE,CT_PLAZA,CT_ARMS};
+    int kc=0, homes[12]={0};
+    for(int y=0;y<th_&&n<NB_LOTS;y++) for(int x=0;x<tw_&&n<NB_LOTS;x++){
+        if(x<24&&y<24) continue;
+        r=r*1103515245u+12345u; int sz=4+(int)((r>>16)%3), h2=sz-(int)((r>>20)&1);
+        int w=sz; if(!nbRoomFor(x,y,w,h2)){ w=4; h2=4; if(!nbRoomFor(x,y,w,h2)) continue; }
+        int comm=((r>>12)&3)==0;
+        if(comm){ int t=kinds[kc++%(int)sizeof(kinds)]; nbLotAdd(n,ctNm[t],x,y,w,h2,LKIND_COMM,t); }
+        else { int st=(int)((r>>24)%12); char nm[NB_NAME+1]; char*e=nm; for(const char*p=nbStreet[st];*p;) *e++=*p++; *e++=' '; homes[st]+=2; int no=homes[st]; if(no>=10) *e++=(char)('0'+no/10); *e++=(char)('0'+no%10); *e=0;
+            nbLotAdd(n,nm,x,y,w,h2,LKIND_RES,0); }
+        n++; }
 }
 // ---------- drawing ----------
 static int nbHw, nbHh, nbOx, nbOy, nbK;   // half width / height of a cell, where cell (0,0) is, the object scale
@@ -338,14 +405,14 @@ static void nbSky(void){   // the main menu's sky: a gradient for the time of da
 static u8 nbPart;   // 1: draw only inside the clip the caller set (a cursor step on the lots: neighborhoodScreen); cells outside it are skipped whole
 static void nbDrawTown(int ccx,int ccy,int tool,int ghostW,int ghostH,int ghostOk){
     int bd=tool==-2;
-    if(nbT.zoom&&tool!=-1){ nbHw=8; nbHh=4; nbK=2; nbOx=120-(ccx-ccy)*nbHw; nbOy=62-(ccx+ccy)*nbHh+(bd?14:0); }
-    else { nbHw=4; nbHh=2; nbK=1; nbOx=120; nbOy=20; }
+    if(nbT.zoom&&tool!=-1){ int mid=nbT.zoom==2; nbHw=mid?4:8; nbHh=nbHw/2; nbK=mid?1:2; nbOx=120-(ccx-ccy)*nbHw; nbOy=62-(ccx+ccy)*nbHh+(bd?14:0); }   // close (or, in a big town, MEDIUM): the map follows the cursor
+    else { int big=nbT.w>24||nbT.h>24; nbHw=big?2:4; nbHh=big?1:2; nbK=1; nbOx=120; nbOy=big?12+(110-(nbT.w+nbT.h)*nbHh)/2:20; }   // the whole town at once
     u16 sky=nbT.tod==2?RGB(1,1,4):nbT.tod==1?RGB(10,6,8):RGB(4,7,12);
     int yT=bd?-2*nbHh:4, yB=bd?SH:130, yB2=bd?SH+48:140;
     if(nbPart) rect(cX0,cY0,(int)cW,(int)cH,sky);
     else if(bd){ clipAll(); nbSky(); } else { clipAll(); fillCols(0,ROW_W,sky); clipSet(0,12,SW,122); }
     int qx0=cX0, qy0=cY0, qx1=cX0+(int)cW, qy1=cY0+(int)cH;   // (the clip: a part redraw skips what is outside it)
-    static signed char lm[NB_H][NB_W] EWRAM_BSS;   // which lot each cell is on, worked out once a picture (nbAt searched every lot for every cell, twice)
+    static signed char lm[NB_HMAX][NB_WMAX] EWRAM_BSS;   // which lot each cell is on, worked out once a picture (nbAt searched every lot for every cell, twice)
     for(int y=0;y<NB_H;y++)for(int x=0;x<NB_W;x++) lm[y][x]=-1;
     for(int i=NB_LOTS-1;i>=0;i--){ const NbLot*L=&nbT.lot[i]; if(!L->on) continue;   // (backwards: where lots overlap, the first one wins, as in nbAt)
         for(int y=L->y;y<L->y+L->h&&y<NB_H;y++)for(int x=L->x;x<L->x+L->w&&x<NB_W;x++) if(x>=0&&y>=0) lm[y][x]=(signed char)i; }
@@ -576,17 +643,18 @@ static const char* const nbHelp[]={
 static int nbNewLot(int x,int y,int w,int h){
     int i=0; while(i<NB_LOTS&&nbT.lot[i].on) i++;
     if(i>=NB_LOTS){ toast("THE TOWN IS FULL"); return 0; }
-    static const char* const kinds[6]={"HOME LOT","PARK","SKATE PARK","PLAZA","LOUNGE","OLD TOWN"};
-    int k=menu("WHAT GOES HERE",kinds,6); if(k<0) return 0;
+    const char* kinds[CT_N+1]; int kt[CT_N+1], nk=0; kinds[nk]="HOME LOT"; kt[nk++]=-1;
+    for(int t=0;t<CT_N;t++) if(t!=CT_BOTH){ kinds[nk]=ctNm[t]; kt[nk++]=t; }   // every kind of place (PARK + SKATE comes from the flags)
+    int k=menu("WHAT GOES HERE",kinds,nk); if(k<0) return 0;
     char nm[SLOT_NAME+1]; if(k==0) slNameN(nm,"LOT ",i+1); else { const char*s=kinds[k]; int j=0; for(;s[j]&&j<NB_NAME;j++) nm[j]=s[j]; nm[j]=0; }
-    nbLotAdd(i,nm,x,y,w,h,k?LKIND_COMM:LKIND_RES,k?k-1:0);
+    nbLotAdd(i,nm,x,y,w,h,k?LKIND_COMM:LKIND_RES,k?kt[k]:0);
     for(int j=y;j<y+h;j++)for(int q=x;q<x+w;q++) nbT.cell[j][q]&=7;   // (what stood there is cleared)
     nbSave(); toast("LOT PLACED"); return 1;
 }
 static void nbTownMenu(int*quit){
     static const char* const it[6]={"ZOOM","SEASON","TIME OF DAY","RENAME TOWN","ALL NEIGHBORHOODS","LEAVE"};
     int c=menu("TOWN",it,6);
-    if(c==0) nbT.zoom^=1;
+    if(c==0) nbT.zoom=(u8)(nbT.zoom==0?((nbT.w>24||nbT.h>24)?2:1):nbT.zoom==2?1:0);   // the whole town, then (in a big town) MEDIUM, then CLOSE, each following the cursor
     else if(c==1) nbT.season=(u8)((nbT.season+1)&3);
     else if(c==2) nbT.tod=(u8)((nbT.tod+1)%3);
     else if(c==3){ char nm[SLOT_NAME+1]; for(int i=0;i<=NB_NAME;i++) nm[i]=nbT.name[i]; if(slEditName(nm)) for(int i=0;i<=NB_NAME;i++) nbT.name[i]=nm[i]; }
@@ -699,8 +767,8 @@ static u16 nbThumbCol(const Town*t,int cx,int cy){
 static void nbThumb(const Town*t,int x0,int y0,int w,int h){   // the whole town, iso, w x h pixels
     rect(x0,y0,w,h,RGB(4,6,12));
     for(int py=0;py<h;py++)for(int px_=0;px_<w;px_++){
-        int X2=(2*px_-w)*NB_W*2/w, Y2=py*NB_W*4/h;   // twice (cx-cy) and twice (cx+cy)
-        int cx=(X2+Y2)/4, cy=(Y2-X2)/4; if(X2+Y2<0||Y2-X2<0||cx>=NB_W||cy>=NB_H) continue;
+        int X2=(2*px_-w)*t->w*2/w, Y2=py*t->w*4/h;   // twice (cx-cy) and twice (cx+cy)
+        int cx=(X2+Y2)/4, cy=(Y2-X2)/4; if(X2+Y2<0||Y2-X2<0||cx>=t->w||cy>=t->h) continue;
         px(x0+px_,y0+py,nbThumbCol(t,cx,cy)); }
 }
 static int nbSwitch(int s){   // make the town in slot s the one you live in (your lot there becomes the live room). 1 = done
