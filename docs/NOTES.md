@@ -229,7 +229,7 @@ New skate-park pieces, all in the room editor's ITEM tool (L/R to pick, **Select
 | BENCH | 6 px | slatted seat on legs, grind it |
 | KICKER | 0 to 8 px | wedge ramp; the lip is on the side opposite the direction it faces |
 | Q PIPE | 0 to 14 px | quarter pipe, steel coping on the lip |
-Ramps have a real slope: ride up a kicker or quarter pipe on the board and you are launched off the lip, harder the faster you were going. Walking up one just works. Tuning is at the top of `source/ramps.h` (`F_RAMP_BOOST`, `F_RAMP_MAX`, `F_RAMP_TOL`). Saved maps keep working; to see the new pieces in the default park, reset the map (the default plaza now has two kickers facing each other, two quarter pipes under the wall, a ledge and a bench).
+Ramps have a real slope: ride up a kicker or quarter pipe on the board and you are launched off the lip, harder the faster you were going. Walking up one just works. Tuning is at the top of `source/ramps.h` (`F_SLOPE`, `F_LIP_K`, `F_QP_LIFT`, `F_RAMP_TOL`: see **Skating 2** below). Saved maps keep working; to see the new pieces in the default park, reset the map (the default plaza now has two kickers facing each other, two quarter pipes under the wall, a ledge and a bench).
 
 The sprite art is authored in `tools/make_skate_items.py`, which writes `source/skateart.h` (sprites), `source/rampdata.h` (matching physics heights) and a preview sheet `assets/preview/skate_items.png`. Edit the art there and re-run `python3 tools/make_skate_items.py`.
 
@@ -237,7 +237,7 @@ The sprite art is authored in `tools/make_skate_items.py`, which writes `source/
 Eight more pieces in the room editor's ITEM tool (the palette bar now scrolls, 25 entries). **Select+A turns the LAUNCH ramp** like the kicker. Tuning: `LAUNCH_H` in `source/rampdata.h`, the heights in `tileH()` in `main.c`.
 | Item | Tile | Height | Notes |
 |---|---|---|---|
-| LAUNCH | `9 : ; <` (S E N W) | 0 to 12 px | taller blue wedge; launches harder than a kicker (capped by `F_RAMP_MAX`) |
+| LAUNCH | `9 : ; <` (S E N W) | 0 to 12 px | taller blue wedge; launches harder than a kicker |
 | FUNBOX | `X` | 10 px | solid platform: ollie onto it, land on top |
 | BARREL | `O` | 8 px | oil drum, solid (bumping at speed hurts) |
 | TRASH CAN | `Y` | 10 px | solid |
@@ -950,3 +950,13 @@ Grown-ups; teens only with OPTIONS' teen pipe switch (`pipeOk`), and at **three 
 - **The counter** is one tile ('@') drawn by code in the venue's colours with its own sign (a taco, a dumbbell, a flashing screen, a disco light, a red cross ...); the town map draws each venue as a building in its colours. `venueBuild` lays the room out (wallpaper, floor, props round the walls) when the lot opens. The shop counters ('g', '&', '@') are counters to the slot checker now, so a lot saved with one loads again.
 - **Getting there:** CALL A CAB > SOMEWHERE NEW lists every kind of place the town has none of; the cab finds land for it. Big towns' districts build them in turn.
 - **GROW THE TOWN** (town menu; the cab does it by itself when it needs land): 8 more cells each way, up to 48: the streets that reached the old edge go on, new districts and trees fill the new land.
+
+## Skating 2: ramp physics that work (ramps.h, lifeStep)
+Measured in the emulator before the change (a test course: one ramp across a flat strip, the skater pushing from standstill), the old ramps were broken in five ways: a quarter pipe with a wall behind it (the usual way to place one) never went vert, you slammed into the wall at the top and lay there 2.5 s; without a wall it threw you back with an eighth of your speed; a kicker launch was capped below a flat-ground ollie; ramp heights came in whole pixels, so climbing was lumpy; and a clean landing from big air still hurt. Now:
+- **Exact surfaces.** `surf8` / `rampH8` give ramp heights in 8.8 px (the quarter pipe's curve runs smoothly through the middle of each eighth of `qpH`). The skater's height follows them; everything else still uses the whole-pixel `surfH`.
+- **Slopes keep your energy.** Rolling, `speed^2 - F_SLOPE x height gained` (8.8 px): up a ramp you slow, down one you speed up (to `F_SPD_MAX` 620). Run out of speed going up and you roll back down. Stand still on a slope and it rolls you down. Down a ramp's face the board stays on it however steep (only off a real ledge do you drop).
+- **Lips launch you.** Leaving a kicker or launch ramp over its lip: `vz = speed x lip slope x F_LIP_K / 1024` (a launch ramp's 18 px counts as 15). At top speed a kicker gives about 26 px of air above its lip, a launch ramp about 36, a 3-tile long kicker about 11 above its 24 px top. An ollie on a ramp adds the board's climb to its pop.
+- **Quarter pipes go vert.** Over the lip (on the ground, or in the air: no sailing over the wall behind it) you go straight up (`F_QP_LIFT`, about 40 px above a 24 px lip at top speed); only sideways movement along the lip carries on. You come down onto the pipe facing back down it, at the speed you went up with, and the roll down gives back what the climb took. Two pipes facing each other make a halfpipe: 65, 58, 52, 44 px peaks without pushing.
+- **Landings and bumps.** A clean landing on the board only hurts from a real height (over 72 px; sketchy 48); the shriek starts at 72. Falling onto a ramp catches you up to 10 px short of its top. Skating into a wall at full speed is an OOF and a stop, no longer 2.5 s down.
+- **Coasting** rolls about twice as far (speed/512 a step plus 1 every 8th).
+- **Walking**: the life-stage pace (a child at 80%, an elder at 70%) and the slower screen diagonals had slipped into a comment in `feelWalk`; they work again.

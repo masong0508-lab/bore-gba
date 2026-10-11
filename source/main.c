@@ -2363,6 +2363,10 @@ static int surfH(s32 fx,s32 fy){   // surface height at an exact position (1/256
     int tx=(int)(fx>>8), ty=(int)(fy>>8); if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
     char c=lifeMap[ty][tx]; return isRamp(c)?rampH(c,(int)fx,(int)fy):tileH(tx,ty);
 }
+static int surf8(s32 fx,s32 fy){   // the same in 8.8 px, ramps without steps (the skater rides these; skating 2)
+    int tx=(int)(fx>>8), ty=(int)(fy>>8); if(tx<0||ty<0||tx>=MW||ty>=MH) return 99<<8;
+    char c=lifeMap[ty][tx]; return isRamp(c)?rampH8(c,(int)fx,(int)fy):tileH(tx,ty)<<8;
+}
 static inline int wallTall(char c){ return c=='W'||c=='#'||isWinCh(c); }   // full walls and windows: nothing gets over them, however high the jump (low walls and fences can be cleared)
 static int moveH(s32 fx,s32 fy){   // the height a step into (fx,fy) has to clear: the surface, or no way at all into a full wall from another tile
     int tx=(int)(fx>>8), ty=(int)(fy>>8); if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
@@ -3191,25 +3195,10 @@ static void lifeInit(void){
     lfx=spx*256+128; lfy=spy*256+128; lz=lvz=0; lsp=0; lhd=0; lspin=0; lflip=0; lgrind=0; lscore=0; lstun=0; lairF=0; lpts=0; lnoteT=0; lnote=""; lchill=0; lskate=0; lhave=(bdx<0); lfr=0; lvx=lvy=0; ldead=0; lmaxz=0; lplay=0; lbumpCd=0; lfood=100; lbl=0; lhp=HP_MAX; lnear=0; lspec=0; lspecOn=0; lsw=0; lskl=0; lstrk=0; lwr=0; moodReset(); simsReset(); sfxStop(); feelReset(0);
     clPlace(); if(CL_ON&&!(clGot&32)){ lnote="FIND THE HIDDEN TAPE"; lnoteT=90; }   // (collectibles: see clPlace)
 }
-static char rampCh; static s32 rampX, rampY; static u8 lqp;
-static void qpGrav(void){
-    if(lz>((s32)surfH(lfx,lfy)<<8)) return;
-    char c=lifeMap[lfy>>8][lfx>>8]; if(!isQPipe(c)) return;
-    int d=c-'5', ux=d==1?-1:d==3?1:0, uy=d==0?-1:d==2?1:0;
-    int a=F.angF>>4, dot=fcos(a)*ux+fsin(a)*uy;
-    F.spd-=(dot*3)/256; if(F.spd<0) F.spd=0;
-    if(F.spd<=8&&dot>0&&surfH(lfx,lfy)>=4){ F.angF=(F.angF+2048)&4095; F.fvx=-F.fvx; F.fvy=-F.fvy; F.spd=32; F.turn=0; lnote="ROLL BACK"; lnoteT=30; }
+static u8 lqp, lqpD; static int lqpSpd, rGvz;   // skating 2: VERT up a quarter pipe (its direction, the speed you went up with); rGvz: how fast (8.8 px a step) the ground under the board was rising last step
+static void qpHold(void){   // in VERT: nothing carries you along the pipe (only sideways along its lip)
+    if(lqpD==1||lqpD==3){ lvx=0; F.fvx=0; F.rx=0; } else { lvy=0; F.fvy=0; F.ry=0; }
 }
-static int qpOut(void){
-    int vz=0x3C0+(F.spd>>1), d=rampCh-'5';
-    if(d&1) F.fvx=-F.fvx; else F.fvy=-F.fvy;
-    int bx=F.fvx, by=F.fvy;
-    if(bx||by){ int best=0, bd=-999999; for(int a=0;a<256;a+=2){ int dp=fcos(a)*bx+fsin(a)*by; if(dp>bd){ bd=dp; best=a; } } F.angF=best<<4; }
-    F.spd/=8; F.fvx/=8; F.fvy/=8; F.rx=F.ry=0; F.turn=0;
-    lfx=rampX; lfy=rampY; lqp=1; return vz;
-}
-static u8 rampChn;   // the ramp tile ridden last is part of a LONG RAMP (ramps.h): its slope is gentler, so the launch is boosted to match
-static int rampAvg, rampOn;   // px/step (8.8) the skater has been climbing a ramp, smoothed (heights are whole px, so single steps are lumpy); rampOn = rode a ramp last step
 // BABY: cannot be steered. A caretaker keeps the needs up and the baby toddles about by itself: stops now and then, picks a new way
 // every second or two, and turns round when it walks into something.
 static const char* const growNote[AG_N]={"","NOW A CHILD","NOW A TEEN","NOW AN ADULT","NOW AN ELDER"};
@@ -3229,7 +3218,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
     if(stage==AG_BABY&&!ldead){ k=babyPad(); pr=0; }   // uncontrollable stage: the pad is ignored (the pause menu still works)
     fgPre(&k,&pr);   // fight.h: L = guard, L + R = fight stance, R = punches
     wpPre(&k,&pr);   // weapons.h: the weapon button (R with a weapon in hand, R + L = next weapon)
-    int fh=surfH(lfx,lfy)<<8;
+    int fh=surf8(lfx,lfy);
     { int tx=(int)(lfx>>8), ty=(int)(lfy>>8); char sc=(tx>=0&&ty>=0&&tx<MW&&ty<MH)?lifeMap[ty][tx]:'.';   // stairs: step on them to change floor (step off and on again to use them once more)
       if(sc!='^'&&sc!='~') flArm=1; else if(flArm&&lz<=fh&&!ldead){ flArm=0; flStairs(sc=='^'?1:-1); return; } }
     if(ldead){   // dead: frozen until A
@@ -3246,10 +3235,11 @@ static void lifeStep(u16 k,u16 pr,int fr){
         feelSync(); feelTick(lz<=fh,(pr&K_B)!=0&&lskate&&(lz<=fh||F.coy>0));
         if(lskate){
             if(lz<=fh||(F.coy>0&&lvz<=0)){                     // on the ground (or a rail), incl. coyote frames
-                feelSteer(k); feelPush(k,lgrind); qpGrav();
-                if(F.buf>0){ lvz=feelOllie(); lgrind=0; sfxPlay(SFX_POP); }      // ollie (buffered, variable height) with its pop
+                feelSteer(k); feelPush(k,lgrind);
+                if(F.buf>0){ lvz=feelOllie()+(rGvz>0?rGvz:0); lgrind=0; sfxPlay(SFX_POP); }   // ollie (buffered, variable height) with its pop; on a ramp the board's climb adds to it
             } else feelAir(k,pr,(lz-fh)<(8<<8));               // airborne
             feelVel(); lspin=F.spin>>4;
+            if(lqp) qpHold();
         } else {
             feelWalk(k,pr,lz<=fh);                             // D-pad relative to screen, B = run, A = hop
         }
@@ -3260,12 +3250,24 @@ static void lifeStep(u16 k,u16 pr,int fr){
         else { lvz=0; if(lwrAx==0){ lvx=0; lvy=lwrV; } else { lvy=0; lvx=lwrV; } F.rx=F.ry=0; lbumpCd=40;
             if((fr&7)==0){ int g=30+skLvl(SK_GRIND)*2; if(lspecOn) g*=2; lscore+=g; lcPts+=g; lcT=oComboLen(); specAdd(6); } }
     }
-    int zp=(int)(lz>>8);
+    int gr0=lskate&&lz<=fh+64&&lvz<=0;   // (rolling on the ground as this step begins)
+    if(lskate&&!ldead&&lstun<=0&&!lwr){   // SKATING 2: a lip ahead. Off a kicker's you fly; up a quarter pipe's you go VERT (in the air too: no sailing over the wall behind it)
+        int tx=(int)(lfx>>8), ty=(int)(lfy>>8); char rc=lifeMap[ty][tx];
+        if(isRamp(rc)&&(gr0||(isQPipe(rc)&&!lqp))){ int ux, uy; rampUp(rc,&ux,&uy);
+            s32 qx=lfx+lvx, qy=lfy+lvy; int out=ux>0?(int)(qx>>8)>tx:ux<0?(int)(qx>>8)<tx:uy>0?(int)(qy>>8)>ty:(int)(qy>>8)<ty, along=lvx*ux+lvy*uy;
+            if(out&&along>0){
+                if(isQPipe(rc)){ lqp=1; lqpD=(u8)rampDir(rc); lqpSpd=F.spd; qpHold();
+                    if(gr0){ lvz=F.spd*F_QP_LIFT/64+(F.buf>0?0x100:0); F.buf=0; lz=fh; lnote="VERT"; lnoteT=30; moodEvent(M_LAUNCH); sfxPlay(SFX_POP); } }
+                else { int nh=surf8(qx,qy);
+                    if(nh<fh-F_LIP_DROP){ int sl=rampLipSlope(rc,tx,ty); if(sl>12) sl=12+(sl-12)/2; int v=F.spd*sl*F_LIP_K/1024; /* (a launch ramp's 18 px counts as 15: big air, not orbit) */ if(v>0x600) v=0x600; if(lvz<v) lvz=v; lz=fh; lnote="AIR"; lnoteT=20; moodEvent(M_LAUNCH); } } } }
+    }
+    int zp=(int)(lz>>8); char oc0=lifeMap[lfy>>8][lfx>>8];   // (the tile this step starts on: rolling down a ramp keeps you on it)
     s32 nx=lfx+lvx, ny=lfy+lvy;   // move per axis so walls slide
     int bump=0, sp0b=lsp, bxS=0, byS=0;   // bxS / byS: which way the wall is that stopped the x / y move
     int tol=isRamp(lifeMap[lfy>>8][lfx>>8])?F_RAMP_TOL:3;   // a ramp climbs a few px per step without being a wall
-    if(moveH(nx,lfy)<=zp+tol) lfx=nx; else { bump=1; bxS=lvx>0?1:-1; }
-    if(moveH(lfx,ny)<=zp+tol) lfy=ny; else { bump=1; byS=lvy>0?1:-1; }
+    int fall=lskate&&lvz<0&&lz>fh;   // (falling onto a ramp catches you up to 10 px short of its top: no crash for a landing that was nearly right)
+    if(moveH(nx,lfy)<=zp+((fall&&isRamp(lifeMap[lfy>>8][nx>>8]))?10:tol)) lfx=nx; else { bump=1; bxS=lvx>0?1:-1; }
+    if(moveH(lfx,ny)<=zp+((fall&&isRamp(lifeMap[ny>>8][lfx>>8]))?10:tol)) lfy=ny; else { bump=1; byS=lvy>0?1:-1; }
     if(lwr&&bump) wrEnd();   // ran into a corner
     if(bump&&lskate&&!lwr&&(k&K_R)&&lstun<=0&&!ldead&&sp0b>=8&&(bxS||byS)&&lz>fh+(5<<8)&&!isRamp(lifeMap[byS?(lfy>>8)+byS:lfy>>8][bxS?(lfx>>8)+bxS:lfx>>8])){   // WALLRIDE
         int al=bxS?lvy:lvx; if(al>-12&&al<12) al=al<0?-12:12; if(al>40) al=40; if(al<-40) al=-40;
@@ -3277,17 +3279,21 @@ static void lifeStep(u16 k,u16 pr,int fr){
         if(lbumpCd==0&&sp0b>=(lskate?12:16)){ lbumpCd=lskate?40:90;   // skating into a wall hurts; running flat out into one bonks (walking is silent, so no more screaming at walls)
             if(lskate&&(k&K_R)){ int wp=150+skLvl(SK_AIR)*5; if(lspecOn) wp*=2; lscore+=wp; lcAdd("WALL TAP"); simEvent(SE_WALLTAP); lcN++; lcPts+=wp; lcT=oComboLen(); lvz=0x2A0; lnote="WALL TAP"; lnoteT=40; sfxPlay(SFX_POP); specAdd(50); moodEvent(M_TRICK); }
             else if(lskate&&(abPow()&PW_CHARGE)){ sfxPlay(SFX_HIT); lnote="HORNS FIRST"; lnoteT=30; simEvent(SE_CHARGE); }   // HORNS: charge the wall, no harm done
-            else if(lskate) hurt(sp0b*2/3+(rnd8()>>5),2); else sfxPlay(SFX_BONK); }   // (was speed + 0..15: a full speed wall was a coin flip for dying. Now 8..23, worst case a short OW)
+            else if(lskate) hurt(sp0b/2+(rnd8()>>6),2); else sfxPlay(SFX_BONK); }   /* (skating 2: a wall at full speed is an OOF and a stop, not 2.5 s on the floor) */   // (was speed + 0..15: a full speed wall was a coin flip for dying. Now 8..23, worst case a short OW)
     }
     if(lbumpCd>0) lbumpCd--;
     if(lLand>0) lLand--;
-    fh=surfH(lfx,lfy)<<8;
-    int wasOn=rampOn, onRamp=lskate&&isRamp(lifeMap[lfy>>8][lfx>>8]); rampOn=0;
-    if(lz<=fh&&onRamp){ int rise=lz<fh?(int)(fh-lz):0; rampAvg=(rampAvg*3+rise)>>2; rampOn=1; rampCh=lifeMap[lfy>>8][lfx>>8]; { int up; rampChn=!isQPipe(rampCh)&&(rampChain((int)(lfx>>8),(int)(lfy>>8),rampCh,&up)||up); } rampX=lfx; rampY=lfy; }   // riding a ramp: remember how fast we are climbing
-    if(lz<fh){ lz=fh; if(lvz<0) lvz=0; }
-    else if(lz>fh&&wasOn&&!onRamp&&lskate&&lvz<=0&&(lz-fh)<(16<<8)){   // rolled off the lip: launch with the climb speed
-        int v=rampAvg*F_RAMP_BOOST; if(rampChn) v=v*F_RAMP_LONG/2; if(v>F_RAMP_MAX) v=F_RAMP_MAX; if(isQPipe(rampCh)&&v>0) v=qpOut(); if(v>0){ lvz=v; lnote="AIR"; lnoteT=20; moodEvent(M_LAUNCH); } }
-    if(!rampOn) rampAvg=0;
+    { int z0=lz; fh=surf8(lfx,lfy);
+      int stick=fh>=z0-F_LIP_DROP||((isRamp(oc0)||isRamp(lifeMap[lfy>>8][lfx>>8]))&&fh>=z0-(12<<8));   // (down a ramp's face the board stays on it however steep; off a ledge you drop)
+      if(gr0&&lvz<=0&&stick){   // SKATING 2: rolling: the board follows the ground, and a slope trades speed for height (and back)
+          int dz=fh-z0; lz=fh; lvz=0; rGvz=dz;
+          if(dz){ int s2=F.spd*F.spd-F_SLOPE*dz;
+              if(s2<=0&&dz>0){ F.angF=(F.angF+2048)&4095; F.fvx=-F.fvx; F.fvy=-F.fvy; F.rx=F.ry=0; F.turn=0; F.spd=12; if(isQPipe(lifeMap[lfy>>8][lfx>>8])){ lnote="ROLL BACK"; lnoteT=30; } }   // ran out of speed going up: back down you roll
+              else { int v=isqrtI(s2); F.spd=v>F_SPD_MAX?F_SPD_MAX:v; }
+              lsp=F.spd>>4; }   // (keep lsp in step, or feelSync takes the change back next step)
+          { char rc=lifeMap[lfy>>8][lfx>>8]; if(isRamp(rc)&&F.spd<24&&!(k&K_A)){ int ux, uy; rampUp(rc,&ux,&uy); int a=ux>0?128:ux<0?0:uy>0?192:64; F.angF=a<<4; F.spd+=6; lsp=F.spd>>4; } }   // standing on a slope: it rolls you down
+      } else { rGvz=0; if(lz<fh){ lz=fh; if(lvz<0) lvz=0; } }
+    }
     if(lz>fh||lvz>0){ lz+=lvz; lvz-=0x40;   // gravity
         if((abPow()&PW_GLIDE)&&(k&K_R)&&lvz<0){ lvz+=0x2C; if(lvz<-0xC0) lvz=-0xC0; if(!lglide){ lnote="GLIDE"; lnoteT=30; simEvent(SE_GLIDE); } lglide=1; } else lglide=0;   // WINGS: hold R to float down
         if(lz<=fh&&lvz<=0){ lz=fh; lvz=0; } }
@@ -3295,7 +3301,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
     if(air){
         int zz=(int)(lz>>8); if(zz>lmaxz) lmaxz=zz;
         if(!lplay&&lvz<0){ int hi=lmaxz-(int)(fh>>8);
-            if(hi>=(lskate?34:80)+(lqp?40:0)){ voxPlay(V_shriek); lplay=1; }                 // falling from way up
+            if(hi>=(lskate?72:80)+(lqp?40:0)){ voxPlay(V_shriek); lplay=1; }                 // falling from way up (skating 2: big ramp air is not a fall)
             else if(hi>=10&&F.spin&&feelPredGrade()==0){ sfxPlay(SFX_GASP); lplay=1; }   // landing is going wrong (judged from where the spin will end up, not where it is now)
         }
     }
@@ -3314,8 +3320,9 @@ static void lifeStep(u16 k,u16 pr,int fr){
             else sfxPlay((pts&&g!=1)?SFX_STICK:SFX_LAND);   // the landing is heard: a thud, or the bright one for a trick
         }
         if(bail){ int sv=drop/3+sp0/3+(rnd8()>>6); if(drop<30&&sv>15) sv=15; sv-=sv*skLvl(SK_BAL)*6/100; hurt(sv,1); }   // bad landing: harder/faster/higher = worse (was drop/2+speed: a fast bail was OW + 2.5 s down, or even death)
-        else if(drop>24) hurt(drop-24+(rnd8()>>5),0);   // big drops hurt even landed clean
+        else { int lim=lskate?(g==1?48:72):24; if(drop>lim) hurt(drop-lim+(rnd8()>>5),0); }   // a drop hurts even landed (skating 2: on the board only a real height does: a clean ramp landing never)
         if(!bail&&(hs&1)) lsw^=1;
+        if(lqp&&!bail&&lskate){ int a=lqpD==0?64:lqpD==1?0:lqpD==2?192:128; F.angF=a<<4; F.spd=lqpSpd; F.fvx=(fcos(a)*F.spd)>>8; F.fvy=(fsin(a)*F.spd)>>8; F.rx=F.ry=0; F.turn=0; lsp=F.spd>>4; }   // back down from VERT: facing down the pipe, as fast as you went up
         if(!bail&&g>=2&&lskate){ int gx=(int)((lfx-lgx0)>>8), gy=(int)((lfy-lgy0)>>8); if(gx<0) gx=-gx; if(gy<0) gy=-gy; tgGap(gx>gy?gx:gy); }   // GAP goal: a clean landing, how far did the jump carry you
         lspin=0; lflip=0; feelLandReset();
     }
@@ -3566,7 +3573,7 @@ static int aliveRate(void){   // ALIVE tier 1: the step bounce follows how you f
 static void playerCalc(void){
     s32 rfx,rfy; rotPos(lfx,lfy,&rfx,&rfy);
     plX=LOX+(int)((rfx-rfy)>>5); plY=LOY+(int)((rfx+rfy)>>6);
-    plFh=surfH(lfx,lfy); plZ=(int)(lz>>8); plV=faceView[(lhd+lspin+4*cview)&15];
+    plFh=surf8(lfx,lfy)>>8; plZ=(int)(lz>>8); plV=faceView[(lhd+lspin+4*cview)&15];
     plBob=(!lskate&&plZ<=plFh&&(lvx|lvy)&&lstun<=2)?(int)((lfr>>aliveRate())&1):0;   // a little step bounce while he walks
     if(!lskate&&!lvx&&!lvy&&!lsp&&hhStill>=120&&!simAct&&!ldead&&!hhBubT&&plZ<=plFh){ unsigned g=(((unsigned)(lfr>>7)+3u)*2654435761u)>>29; if(g==0) plV=(plV+1)&3; else if(g==1) plV=(plV+3)&3; }   // ALIVE tier 1: after 2 seconds of standing, a glance a quarter turn left or right now and then (the picture only; where you face does not change)
     plPopX=plPopY=0; if(alvPopT&&!ldead){ int t=alvPopT, n;   // ALIVE tier 2: reaction pops (the picture only)
