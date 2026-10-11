@@ -141,7 +141,7 @@ static void slEncRoom(SlW*w){
     }
 }
 // one plane of format 3: runs until the whole map is covered. Returns 1 if fine. apply=1 writes it into the map.
-static void slWallSan(void){ for(int y=0;y<MH;y++)for(int x=0;x<MW;x++) if(wallMap[y][x]>=NWALL&&lifeMap[y][x]!='u') wallMap[y][x]=0; }   // (only a planter's byte may be past the wallpapers)
+static void slWallSan(void){ for(int y=0;y<MH;y++)for(int x=0;x<MW;x++) if(wallMap[y][x]>=NWALL&&lifeMap[y][x]!='u'&&!catIdAt(x,y)) wallMap[y][x]=0; }   // (only a planter's byte, or an item's catalog look, may be past the wallpapers)
 static int slDecRoomPlane(SlR*c,int pl,int apply){
     int i=0;
     while(i<MSZ){

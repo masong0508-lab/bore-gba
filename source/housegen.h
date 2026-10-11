@@ -48,18 +48,21 @@ static int hgOk(void){
 }
 // put c on a free floor tile inside the room (inner tiles x0..x1, y0..y1) against a wall (side 1: the back wall only), never in front of a door,
 // and only where the house can still be walked. 1 = placed
+static int hgLook(char c){   // a catalog look for a piece of furniture, one time in three (never the GROWN-UPS tab): the generated houses differ more
+    if(hgRnd(3)) return 0; int n=0; for(int i=0;i<CAT_N;i++) if(catTab[i].ch==c&&!catCatAdult[catTab[i].cat]) n++;
+    if(!n) return 0; int k=hgRnd(n); for(int i=0;i<CAT_N;i++) if(catTab[i].ch==c&&!catCatAdult[catTab[i].cat]&&k--==0) return CAT_WP0+i+1; return 0; }
 static int hgPut(int x0,int y0,int x1,int y1,int side,char c){
     u16 cand[64]; int n=0;
     for(int y=y0;y<=y1;y++)for(int x=x0;x<=x1;x++){ int edge=side==1?y==y0:(x==x0||x==x1||y==y0||y==y1);
         if(edge&&lifeMap[y][x]=='.'&&!hgNearDoor(x,y)&&n<64) cand[n++]=(u16)(y*MW+x); }
     while(n>0){ int k=hgRnd(n), p=cand[k]; cand[k]=cand[--n]; int x=p%MW, y=p/MW;
-        lifeMap[y][x]=c; if(hgOk()) return 1; lifeMap[y][x]='.'; }
+        lifeMap[y][x]=c; wallMap[y][x]=(u8)hgLook(c); if(hgOk()) return 1; lifeMap[y][x]='.'; wallMap[y][x]=0; }
     return 0;
 }
 static void hgSofaTv(int x0,int y0,int x1,int y1){   // the sofa against the back wall and the TV two tiles in front of it (as every house had it), or both on walls
     for(int t=0;t<12;t++){ int x=x0+hgRnd(x1-x0+1);
         if(y1-y0>=4&&lifeMap[y0][x]=='.'&&lifeMap[y0+2][x]=='.'&&!hgNearDoor(x,y0)&&!hgNearDoor(x,y0+2)){
-            lifeMap[y0][x]='C'; lifeMap[y0+2][x]='v'; if(hgOk()) return; lifeMap[y0][x]='.'; lifeMap[y0+2][x]='.'; } }
+            lifeMap[y0][x]='C'; lifeMap[y0+2][x]='v'; wallMap[y0][x]=(u8)hgLook('C'); wallMap[y0+2][x]=(u8)hgLook('v'); if(hgOk()) return; lifeMap[y0][x]='.'; lifeMap[y0+2][x]='.'; wallMap[y0][x]=wallMap[y0+2][x]=0; } }
     hgPut(x0,y0,x1,y1,0,'C'); hgPut(x0,y0,x1,y1,0,'v');
 }
 static void hgTable(int x0,int y0,int x1,int y1,int seats){   // a dining table with chairs either side (in the open, one tile from the walls)

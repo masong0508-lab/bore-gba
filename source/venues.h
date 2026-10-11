@@ -142,13 +142,37 @@ static const Venue venues[]={
 static const Venue* venueOf(int ct){ for(int i=0;i<NVEN;i++) if(venues[i].ct==ct) return &venues[i]; return 0; }
 static const Venue* venueHere(void){ if(!nbOk||nbT.cur>=NB_LOTS) return 0; const NbLot*L=&nbT.lot[nbT.cur]; return L->on&&L->kind==LKIND_COMM?venueOf(L->type):0; }
 // ---- the room ----
+static int catFind(const char*nm){ for(int i=0;i<CAT_N;i++){ const char*a=catTab[i].nm,*b=nm; while(*a&&*a==*b){ a++; b++; } if(!*a&&!*b) return CAT_WP0+i+1; } return 0; }   // a catalog look by name (catalog.h), as the wallMap byte
+static int venueLook(int ct,char c){   // the props of a place wear the catalog looks that fit it (TACO BORE's stools and neon, the arcade's cabinets ...)
+    switch(ct){
+        case CT_TACO: return c=='h'?catFind("BAR STOOL"):c=='p'?catFind("PINK FLAMINGO"):c=='l'?catFind("NEON ARROW"):0;
+        case CT_ARCADE: return c=='v'?catFind("ARCADE CABINET"):0;
+        case CT_CAFE: return c=='h'?catFind("WICKER CHAIR"):c=='c'?catFind("KETTLE STAND"):c=='p'?catFind("FICUS"):0;
+        case CT_BAR: return c=='h'?catFind("BAR STOOL"):c=='y'?catFind("BAR COUNTER"):0;
+        case CT_GYM: return c=='m'?catFind("WEIGHT BENCH"):c=='H'?catFind("GLASS SHOWER"):0;
+        case CT_DOJO: return c=='m'?catFind("PUNCHING BAG"):c=='p'?catFind("BONSAI"):c=='l'?catFind("TOTEM POLE"):0;
+        case CT_CASINO: return c=='v'?catFind("SLOT MACHINE"):c=='h'?catFind("BAR STOOL"):0;
+        case CT_LIBRARY: return c=='b'?catFind("TALL BOOKSHELF"):c=='d'?catFind("COMPUTER DESK"):c=='h'?catFind("OFFICE CHAIR"):0;
+        case CT_HOSPITAL: return c=='S'?catFind("CAMP COT"):c=='i'?catFind("CABINET"):c=='p'?catFind("FERN"):0;
+        case CT_POOL: return c=='N'?catFind("PARK BENCH"):c=='H'?catFind("HOT TUB"):c=='p'?catFind("POTTED PALM"):0;
+        case CT_SALON: return c=='h'?catFind("OFFICE CHAIR"):c=='i'?catFind("WHITE WARDROBE"):c=='l'?catFind("MARBLE BUST"):0;
+        case CT_CINEMA: return c=='v'?catFind("FLAT TV"):c=='C'?catFind("RED COUCH"):0;
+        case CT_SPACE: return c=='v'?catFind("ROBOT BUDDY"):c=='p'?catFind("TALL CACTUS"):c=='l'?catFind("GLOBE"):0;
+        case CT_BANK: return c=='d'?catFind("RECEPTION DESK"):c=='h'?catFind("OFFICE CHAIR"):c=='l'?catFind("TALL VASE"):0;
+        case CT_CLUB: return c=='A'?catFind("BIG SPEAKERS"):c=='U'?catFind("BALL PIT"):0;
+        case CT_GROCER: return c=='F'?catFind("VENDING MACHINE"):c=='b'?catFind("WINE RACK"):0;
+        case CT_PETSHOP: return c=='q'?catFind("FOUNTAIN"):c=='p'?catFind("TEDDY BEAR"):0;
+        case CT_SKSHOP: return c=='b'?catFind("BOARD RACK"):c=='p'?catFind("TRAFFIC CONE"):c=='l'?catFind("NEON BORE SIGN"):0;
+    }
+    return 0;
+}
 static void venueBuild(int x0,int y0,int x1,int y1,int ct){   // nbTemplate: a walled room, the counter across it, the props round the walls, you arrive outside the door
     const Venue*v=venueOf(ct); if(!v) return;
     int cx=(x0+x1)/2, rx0=x0+1, ry0=y0+1, rx1=x1-1, ry1=y1-3, my=(ry0+ry1)/2;
     gBox(x0,y0,x1,y1,v->fl==6?6:7); gRoom(rx0,ry0,rx1,ry1,v->fl,v->wp); gPut(cx,ry1,'D');
     for(int x=cx-2;x<=cx+2;x++) gPut(x,ry0+3,'@');
     const int sp[8][2]={{rx0+1,ry0+1},{rx1-1,ry0+1},{rx0+1,ry1-1},{rx1-1,ry1-1},{rx0+1,my},{rx1-1,my},{rx0+2,ry1-1},{rx1-2,ry1-1}};
-    for(int i=0;v->props[i]&&i<8;i++){ int x=sp[i][0], y=sp[i][1]; if(x>rx0&&x<rx1&&y>ry0&&y<ry1&&lifeMap[y][x]=='.'&&!(x==cx&&y==ry1-1)) gPut(x,y,v->props[i]); }
+    for(int i=0;v->props[i]&&i<8;i++){ int x=sp[i][0], y=sp[i][1]; if(x>rx0&&x<rx1&&y>ry0&&y<ry1&&lifeMap[y][x]=='.'&&!(x==cx&&y==ry1-1)){ gPut(x,y,v->props[i]); wallMap[y][x]=(u8)venueLook(ct,v->props[i]); } }
 }
 // ---- the counter, drawn by code ----
 static void venueDrawCounter(int sx,int sy,int t){
