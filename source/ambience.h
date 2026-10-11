@@ -23,7 +23,10 @@ static void ambTick(void){   // once a frame in play
     ambK=k;
     int tg=ambCur==want?lvl:0, g=ambG;   // a different bed: the old one fades out first
     if(g<tg){ g+=4; if(g>tg) g=tg; } else if(g>tg){ g-=6; if(g<tg) g=tg; }
-    if(g==0&&ambCur!=want){ ambG=0; const u8*b=ambBed(want); ambD=0; ambN=b?*(const u32*)b:0; ambP=b?(u32)(rnd8()<<8)%(ambN?ambN:1):0; ambD=b?(const signed char*)(b+4):0; ambCur=(u8)want; }   // (a random start: the loop never begins the same way)
+    if(g==0&&ambCur!=want){ ambG=0; const u8*b=ambBed(want); ambD=0;   // a new bed: start on a random snapshot (the loop never begins the same way), the decoder in the state it had there
+        if(b){ u32 n=*(const u32*)b, nk=*(const u32*)(b+4); const AmbKey*ky=(const AmbKey*)(b+8); u32 k=nk?(u32)(rnd8()%(int)nk):0; ambKy=ky; ambN=n; ambP=k*AMB_KEY; ambPl=ky[k].l; ambPr=ky[k].r; ambD=b+8+((nk*2+3)&~3u); }
+        else ambN=0;
+        ambCur=(u8)want; }
     ambG=g;
     if(g&&!mOn) audStart();   // (the mixer may be asleep: no song, no effect)
 }

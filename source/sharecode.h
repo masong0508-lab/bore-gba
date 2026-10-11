@@ -28,7 +28,6 @@ static void scVals(u8*v){   // the creature in the creator, as fields (the check
     for(int i=0;i<LK_N;i++){ int r=scRad(4+TR_N+i); v[4+TR_N+i]=look[i]<r?look[i]:0; }
 }
 static int scCheckN(const u8*v,int nf){ u32 h=0x2F; for(int f=1;f<nf;f++) h=(h*31u+v[f]+1u)%1000003u; return (int)(h%251u); }
-static int scCheck(const u8*v){ return scCheckN(v,SC_NF); }
 static void bgMulAdd(u8*b,int m,int a){ u32 c=(u32)a; for(int i=0;i<SC_LIMB;i++){ c+=(u32)b[i]*(u32)m; b[i]=(u8)c; c>>=8; } }
 static int bgDiv(u8*b,int d){ u32 r=0; for(int i=SC_LIMB-1;i>=0;i--){ r=(r<<8)|b[i]; b[i]=(u8)(r/(u32)d); r%=(u32)d; } return (int)r; }
 static int bgZero(const u8*b){ for(int i=0;i<SC_LIMB;i++) if(b[i]) return 0; return 1; }

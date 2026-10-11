@@ -1738,13 +1738,15 @@ static void audStart(void); static void audStop(void);
 // and an owl at night, rain, wind). One bed plays at a time: 8-bit L R pairs at the mixer's rate, read straight from ROM (no decoding), so it
 // costs a few percent of a frame. ambience.h (ambTick) picks the bed and its level from the hour, the weather and whether you are indoors. ----
 __asm__(".pushsection .rodata\n.balign 4\n"
- ".global amb_day\namb_day:\n.incbin \"source/sfx/amb_day.raw\"\n.balign 4\n"
- ".global amb_night\namb_night:\n.incbin \"source/sfx/amb_night.raw\"\n.balign 4\n"
- ".global amb_rain\namb_rain:\n.incbin \"source/sfx/amb_rain.raw\"\n.balign 4\n"
- ".global amb_wind\namb_wind:\n.incbin \"source/sfx/amb_wind.raw\"\n.balign 4\n"
+ ".global amb_day\namb_day:\n.incbin \"source/sfx/amb_day.abd\"\n.balign 4\n"
+ ".global amb_night\namb_night:\n.incbin \"source/sfx/amb_night.abd\"\n.balign 4\n"
+ ".global amb_rain\namb_rain:\n.incbin \"source/sfx/amb_rain.abd\"\n.balign 4\n"
+ ".global amb_wind\namb_wind:\n.incbin \"source/sfx/amb_wind.abd\"\n.balign 4\n"
  ".popsection\n");
 extern const u8 amb_day[], amb_night[], amb_rain[], amb_wind[];
-static const signed char* volatile ambD; static volatile u32 ambN, ambP; static volatile int ambG, ambK=256;   // the bed playing (L R pairs), its frames, where it is, its gain 0..256 (0: not mixed) and its tone (256 open, lower = duller: indoors)
+#define AMB_KEY 2048   // frames between the decoder snapshots of a bed (tools/encode_ambience.py)
+typedef struct { signed char l, r; } AmbKey;   // the BLOCK DPCM decoder's state at a snapshot: the previous sample of each side
+static const u8* volatile ambD; static const AmbKey* ambKy; static volatile u32 ambN, ambP; static volatile int ambG, ambK=256; static int ambPl, ambPr;   // (the beds are BLOCK DPCM now, tools/encode_ambience.py: about half the ROM of the 8-bit PCM they were; ambPl / ambPr: the previous samples)   // the bed playing (L R pairs), its frames, where it is, its gain 0..256 (0: not mixed) and its tone (256 open, lower = duller: indoors)
 static int ambLl, ambLr;   // the dulling filter's state
 static void sfxStop(void){ vxQn=0; if(sfxLoop&&sfxV){ sfxFadeT=0; return; } sfxV=0; sfxOn=0; if(mOn&&!mPlay&&!ambG) audStop(); }   // (the loading tick-tock is never cut: it fades out and ends itself)
 // ---------- tracker songs: note-based XM player (tools/xm2gba.py converts the .xm songs listed in songs.h) ----------
@@ -1902,16 +1904,32 @@ IWRAM_ARM static void pseudoSt(s8*out,s8*outR){
         out[k]=(s8)(l>127?127:l<-128?-128:l); outR[k]=(s8)(r>127?127:r<-128?-128:r); }
     mDp=dp; mLp=lp;
 }
+IWRAM_ARM __attribute__((noinline)) static int softClipN(int x){ return softClip(x); }   // (the rare loud sample: out of line, so the loops stay small)
+// one channel of a bed into out, frames p.. (run of them, not past the bed's end). BLOCK DPCM (tools/encode_ambience.py): a block is a header byte
+// (shift | delta << 3: low nibble L, high nibble R) and 16 bytes of 4-bit samples (low nibble L, high R). hs: 0 for L, 4 for R. st: previous sample, filter.
+// A few instructions a sample, no tables: delta blocks add (n << shift) to the last sample, plain ones are (n << shift). Then the indoor low pass (sh 0 =
+// open), add and clip. (One channel at a time: few enough values to stay in registers; the stack is in slow EWRAM.)
+IWRAM_ARM __attribute__((noinline)) static void ambChan(const u8*d,u32 p,int run,int*st,s8*out,int g,int sh,int hs){
+    int prev=st[0], f=st[1], ns=28-hs;
+    while(run>0){
+        const u8*bl=d+(p>>4)*17; int o=(int)(p&15), m=16-o; if(m>run) m=run;
+        int hd=(bl[0]>>hs)&15, bs=hd&7, mk=(hd&8)?-1:0; const u8*q=bl+1+o;   // (mk: keep the previous sample in a delta block, drop it in a plain one)
+        for(int k=0;k<m;k++){
+            prev=(prev&mk)+((((int)((u32)q[k]<<ns))>>28)<<bs);
+            f+=((prev*g)-f)>>sh;
+            int x=out[k]+(f>>8); out[k]=(s8)((unsigned)(x+96)<=192u?x:softClipN(x)); }
+        out+=m; p+=(u32)m; run-=m; }
+    st[0]=prev; st[1]=f;
+}
 IWRAM_ARM static void ambMix(s8*outL,s8*outR){   // add the nature bed (both sides), clipped; ambK < 256 dulls it (a one-pole low pass, as a shift: indoors)
-    const u16*d=(const u16*)ambD; u32 p=ambP, n=ambN; int g=(ambG*mGain)>>8, dull=ambK<256, l=ambLl, r=ambLr; if(!d||!g||!n) return;   // (it dips with the music under a menu: mGain)
+    const u8*d=ambD; u32 p=ambP, n=ambN; int g=(ambG*mGain)>>8, sh=ambK<256?2:0; if(!d||!g||!n) return;   // (it dips with the music under a menu: mGain; sh 0 = the filter is open)
+    int sl[2]={ambPl,ambLl}, sr[2]={ambPr,ambLr};
     for(int i=0;i<MUS_N;){
-        int run=(int)(n-p); if(run>MUS_N-i) run=MUS_N-i;   // (up to the loop's end: no wrap test per sample)
-        const u16*q=d+p; p+=(u32)run; if(p>=n) p=0;
-        for(int e=i+run;i<e;i++){ u32 w=*q++; int a=(s8)(w&255)*g, b=(s8)(w>>8)*g;   // (one 16-bit read: the L and R bytes of a frame)
-            if(dull){ l+=(a-l)>>2; r+=(b-r)>>2; a=l; b=r; }
-            int x=outL[i]+(a>>8), y=outR[i]+(b>>8);
-            outL[i]=(s8)((unsigned)(x+96)<=192u?x:softClip(x)); outR[i]=(s8)((unsigned)(y+96)<=192u?y:softClip(y)); } }
-    ambP=p; ambLl=l; ambLr=r;
+        int run=(int)(n-p); if(run>MUS_N-i) run=MUS_N-i;   // (up to the loop's end)
+        ambChan(d,p,run,sl,outL+i,g,sh,0); ambChan(d,p,run,sr,outR+i,g,sh,4);
+        i+=run; p+=(u32)run;
+        if(p>=n){ p=0; if(ambKy){ sl[0]=ambKy->l; sr[0]=ambKy->r; } } }   // looped: the decoder starts over exactly as it began
+    ambP=p; ambPl=sl[0]; ambLl=sl[1]; ambPr=sr[0]; ambLr=sr[1];
 }
 IWRAM_ARM static void sfxMix(s8*outL,s8*outR){   // add the effect voice to a finished buffer (both sides), clipped
     int fg=sfxFade;   // the voice's own fade (loading tick-tock): 8/256 a frame up, 16/256 down
