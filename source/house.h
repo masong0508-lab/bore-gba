@@ -223,7 +223,8 @@ static void hhSprFree(int m){   // give a member's block back: everything above 
     for(int v=0;v<4;v++) s->sm[v]=s->dm[v]=0;
     s->off=0; s->len=0;
 }
-static void hhSprBegin(int m){ hhSprFree(m); hhSp[m].off=(u16)hhPoolTop; }   // a new block grows at the top of the pool
+static void hhSprBegin(int m){ stgOk=0; hhSprFree(m); hhSp[m].off=(u16)hhPoolTop; }   // a new block grows at the top of the pool (the creator's stage copy there is gone)
+
 static const u8* hhStTile(int m,int v,int t){   // the standing tile t of view v, or 0 when it is empty
     const HhSpr*s=&hhSp[m]; if(!((s->sm[v]>>t)&1)) return 0;
     int n=0; for(int w=0;w<v;w++) n+=hhPop(s->sm[w]);
@@ -396,6 +397,13 @@ static void hhRandLook(u8*lk,u8*stg){   // a made-up Sim: passers-by, and SELECT
 // flag, the unlock flag and every option. Equal key = an identical picture, so a Sim that did not change is not drawn again (coming back
 // from the editor, a slot, the pause menu, growing up ...). Keys follow their sprites when members move (hhRemove); hhSwitch drops them.
 static u32 hhKey[HH_MAX];   // per member: the key the pool block and hhPal were baked from (0 = unknown)
+// THE CREATOR'S STAGE COPY (main.c drawStage) lives in this pool while you are in the creator. stgArm points it there; stgClaim, just before the
+// copy is written, lets go of every baked household sprite (they bake again when play starts: their keys are cleared).
+static void stgArm(void){ stgC=(u16*)(void*)hhPool; stgRows=SP_POOL/(PANEL_X*2); }
+static void stgClaim(void){
+    for(int m=0;m<=HH_MAX;m++){ HhSpr*z=&hhSp[m]; for(int v=0;v<4;v++) z->sm[v]=z->dm[v]=0; z->off=0; z->len=0; }
+    hhPoolTop=0; for(int m=0;m<HH_MAX;m++) hhKey[m]=0; hhSlotsFree();
+}
 static u8 twKeep; static u8 inmN EWRAM_BSS; static void inmPick(void); static void inmDress(int j); static void inmColors(int j);  static void inmTick(int*planned);   // inmates.h: the prison population           // the visitors already picked are kept (new faces when you move to another lot or start a new life)
 static u8 twCall[TW_N];     // visitor k was CALLED OVER on the phone: they come at night too
 static u8 twWel[TW_N];      // visitor k is the WELCOME visit: the first neighbour of a new home rings the bell soon after you move in (twPick), at night too, and brings a gift

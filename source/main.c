@@ -12,18 +12,19 @@ typedef uint8_t u8; typedef uint16_t u16; typedef uint32_t u32;
 #define REG_DMA3CNT (*(volatile u32*)0x040000DC)
 #define VRAM_ADDR 0x06000000u
 #define EWRAM_BSS __attribute__((section(".sbss"), aligned(4)))
-// Hot loops run as ARM code from IWRAM (32-bit, zero-wait bus) instead of Thumb from the 16-bit ROM bus.
-#define IWRAM_CODE __attribute__((section(".iwram"), long_call))
-#define IWRAM_ARM __attribute__((section(".iwram"), target("arm"), long_call))
-#define IWRAM_THUMB __attribute__((section(".iwram"), long_call))   // fast RAM, Thumb code: about 2/3 the size of ARM, for work that is not the per-pixel hot path
+// Hot loops run as ARM code from IWRAM (32-bit, zero-wait bus) instead of Thumb from the 16-bit ROM bus. noinline: else the compiler may copy an IWRAM
+// function into a ROM caller (wallBlock ran from ROM inside stageWall, the flash commands inside ROM code), which defeats the point.
+#define IWRAM_CODE __attribute__((section(".iwram"), long_call, noinline))
+#define IWRAM_ARM __attribute__((section(".iwram"), target("arm"), long_call, noinline))
+#define IWRAM_THUMB __attribute__((section(".iwram"), long_call, noinline))   // fast RAM, Thumb code: about 2/3 the size of ARM, for work that is not the per-pixel hot path
 // IWRAM OVERLAYS: two sets of fast code that never run at the same moment share one stretch of IWRAM (devkitARM's .iwram0 / .iwram1).
 //   overlay 0  the creator's voxel renderer (drawScene, cube): the creature creator, and baking a Sim's sprites
 //   overlay 1  the room renderer's inner loops (walls, floors, items, the zoom)
 // Every way into an overlay goes through a small ROM wrapper that calls ovlUse first, which copies that overlay in when the other one is
 // there (a DMA of a few KB, done only when switching: entering the creator or baking, then the next room picture). Neither overlay calls
 // into the other, and no interrupt code lives in one. The startup code loads overlay 0.
-#define IWRAM_OVL0 __attribute__((section(".iwram0"), long_call))
-#define IWRAM_OVL1 __attribute__((section(".iwram1"), long_call))
+#define IWRAM_OVL0 __attribute__((section(".iwram0"), long_call, noinline))
+#define IWRAM_OVL1 __attribute__((section(".iwram1"), long_call, noinline))
 extern const unsigned char __load_start_iwram0[], __load_stop_iwram0[], __load_start_iwram1[], __load_stop_iwram1[];
 extern unsigned char __iwram_overlay_start[];
 static unsigned char ovlCur;   // the overlay in IWRAM now (0 at power on)
@@ -445,6 +446,7 @@ static void bakeTex(void){   // needs hhT (filled by initTables)
 // The baseboard / crown lines come from cube's own edge rows, so they stay visible over the pattern.
 IWRAM_CODE static void wallBlock(int sx,int sy,int wp,int f){
     CNT(cntWB);
+    if(sy+CB+CC<cY0||sy-CB-1>=cY0+(int)cH||sx+CA<cX0||sx-CA>=cX0+(int)cW) return;   // all of it outside the clip: nothing to do (a clipped redraw skips it whole)
     const u8*hhp=hhT[0]; int sl=9+wp;
     u16 T=sT[sl], eT=wpEdge[wp][0], eL=wpEdge[wp][1], eR=wpEdge[wp][2];
     int t0=-CA, t1=CA; if(sx+t0<cX0) t0=cX0-sx; if(sx+t1>=cX0+(int)cW) t1=cX0+(int)cW-1-sx;
@@ -603,6 +605,14 @@ __attribute__((noinline)) static void drawDeco(int sx,int sy,u16 code,int face,i
     }
     int M=decLook?(eye?4:7):0, pc=wp/2, qc=hp/2;
     int lc0=(ci?-1:0)-M, lr0=(cj?-1:0)-M, lc1=CA-1+M, lr1=CC-2+M;
+    // the art columns each screen column covers depend on the column only: worked out once here, not for every pixel (they were most of the divisions)
+    signed char cA0[48], cA1[48], cB0[48], cB1[48]; if(lc1-lc0>48) lc1=lc0+48;
+    for(int lc=lc0;lc<lc1;lc++){ int k=lc-lc0;
+        int P=ci*CA+lc+sh; P=pc+((P-pc)*64)/kx;
+        if(P<0||P>=wp) cA0[k]=-1; else { int ax0=(P*aw)/wp, ax1=((P+1)*aw-1)/wp; if(ax0>aw-1) ax0=aw-1; if(ax1>aw-1) ax1=aw-1; if(ax1<ax0) ax1=ax0; cA0[k]=(signed char)ax0; cA1[k]=(signed char)ax1; }
+        cB0[k]=cB1[k]=-1;
+        if(br){ int Pb=pc+((ci*CA+lc+sh+bsx-pc)*64)/kx; if(Pb>=0&&Pb<wp){ int bx0=(Pb*aw)/wp, bx1=((Pb+1)*aw-1)/wp; if(bx0>aw-1) bx0=aw-1; if(bx1>aw-1) bx1=aw-1; if(bx1<bx0) bx1=bx0; cB0[k]=(signed char)bx0; cB1[k]=(signed char)bx1; } }   // BROW SPACING: the brows on columns of their own
+    }
     for(int lr=lr0;lr<lr1;lr++){
         int Q=cj*CC+lr+sv; Q=qc+((Q-qc)*64)/ky;
         int Qb=Q+bsh, Qn=Q+nsh-sv, Qg=Q+gsh, Qc=Q+csh;   // (the brows and nose may sit outside the art's own rows: they are checked on their own)
@@ -611,9 +621,8 @@ __attribute__((noinline)) static void drawDeco(int sx,int sy,u16 code,int face,i
         int by0=Qb>=0&&Qb<hp?(Qb*8)/hp:9, by1=Qb>=0&&Qb<hp?((Qb+1)*8-1)/hp:9, ny0=Qn>=0&&Qn<hp?(Qn*8)/hp:9, ny1=Qn>=0&&Qn<hp?((Qn+1)*8-1)/hp:9,
             gy0=Qg>=0&&Qg<hp?(Qg*8)/hp:9, gy1=Qg>=0&&Qg<hp?((Qg+1)*8-1)/hp:9, cy0=Qc>=0&&Qc<hp?(Qc*8)/hp:9, cy1=Qc>=0&&Qc<hp?((Qc+1)*8-1)/hp:9;   // GLASSES HEIGHT and CHEEK HEIGHT
         for(int lc=lc0;lc<lc1;lc++){
-            int P=ci*CA+lc+sh; P=pc+((P-pc)*64)/kx; if(P<0||P>=wp) continue;
-            int ax0=(P*aw)/wp, ax1=((P+1)*aw-1)/wp; if(ax0>aw-1) ax0=aw-1; if(ax1>aw-1) ax1=aw-1; if(ax1<ax0) ax1=ax0;
-            int bx0=-1, bx1=-1; if(br){ int Pb=pc+((ci*CA+lc+sh+bsx-pc)*64)/kx; if(Pb>=0&&Pb<wp){ bx0=(Pb*aw)/wp; bx1=((Pb+1)*aw-1)/wp; if(bx0>aw-1) bx0=aw-1; if(bx1>aw-1) bx1=aw-1; if(bx1<bx0) bx1=bx0; } }   // BROW SPACING: the brows on columns of their own
+            int kc=lc-lc0; if(cA0[kc]<0) continue;
+            int ax0=cA0[kc], ax1=cA1[kc], bx0=cB0[kc], bx1=cB1[kc];
             // shrunk art: a pixel shows the art at its corner, or if that is clear any ink in the box it covers (else a one-row line, like the FLAT mouth, can fall
             // between the rows sampled and vanish)
             #define PICKR(A,rmax,Y0,Y1) ({ char t_=(Y0)<(rmax)?(A)[Y0][fl?aw-1-ax0:ax0]:'.'; for(int a_=(Y0);a_<=(Y1)&&a_<(rmax)&&t_=='.';a_++) for(int b_=ax0;b_<=ax1;b_++){ char u_=(A)[a_][fl?aw-1-b_:b_]; if(u_!='.'){ t_=u_; break; } } t_; })
@@ -1176,8 +1185,26 @@ static void stageWall(int tx,int ty,int j32){   // one wall cell (tx or ty is -1
         if(sWp) wallBlock(sx,sy-j*CC,ST_WP,f); else cube(sx,sy-j*CC,9+ST_WP,0,f);
     }
 }
-__attribute__((noinline)) static void drawStage(void){   // ROM: the creator room, drawn once per redraw (its tiles and walls are IWRAM helpers)
-    for(int y=0;y<SH;y++){ u16 c=RGB(3+y/45,4+y/34,10+y/16); u32 v=c|((u32)c<<16), *row=(u32*)fb+y*ROW_W; for(int w=0;w<SCENE_W;w++) row[w]=v; }
+// THE STAGE CACHE: the creator's room never changes while you shape a Bore, but drawing it was most of every redraw (5 of 8 frames). The creator lends
+// it the household's sprite pool (house.h stgArm: those sprites are baked again when play starts): rows 0..stgRows-1 of the scene are kept there and
+// copied back; only the floor strip below them is drawn. Any sprite bake into the pool (hhSprBegin) makes the copy stale (stgOk=0).
+static u16* stgC; static int stgRows; static u32 stgKey; static u8 stgOk;
+static void stgClaim(void);   // house.h
+static void drawStageNow(void);
+__attribute__((noinline)) static void drawStage(void){
+    u32 key=(u32)oycV|((u32)sWp<<16)|((u32)sFl<<17);
+    if(!stgC||bakeOn||cX0!=0||cY0!=0||(int)cW!=PANEL_X||(int)cH!=SH){ drawStageNow(); return; }   // (not the creator's whole scene: as it always was)
+    if(stgOk&&stgKey==key){
+        for(int y=0;y<stgRows;y++){ REG_DMA3SAD=(u32)(uintptr_t)(stgC+y*PANEL_X); REG_DMA3DAD=(u32)(uintptr_t)(fb+y*SW); REG_DMA3CNT=(u32)(PANEL_X/2)|0x84000000u; }
+        clipSet(0,stgRows,PANEL_X,SH); drawStageNow(); clipSet(0,0,PANEL_X,SH);   // the strip under the kept rows
+        return; }
+    drawStageNow();
+    stgClaim();   // (house.h: the pool's sprites go first)
+    for(int y=0;y<stgRows;y++){ REG_DMA3SAD=(u32)(uintptr_t)(fb+y*SW); REG_DMA3DAD=(u32)(uintptr_t)(stgC+y*PANEL_X); REG_DMA3CNT=(u32)(PANEL_X/2)|0x84000000u; }
+    stgOk=1; stgKey=key;
+}
+__attribute__((noinline)) static void drawStageNow(void){   // ROM: the creator room (its tiles and walls are IWRAM helpers); rows outside the clip are left alone
+    for(int y=cY0;y<cY0+(int)cH&&y<SH;y++){ u16 c=RGB(3+y/45,4+y/34,10+y/16); u32 v=c|((u32)c<<16), *row=(u32*)fb+y*ROW_W; for(int w=0;w<SCENE_W;w++) row[w]=v; }
     for(int ty=0;ty<ST_N;ty++)for(int tx=0;tx<ST_N;tx++){
         int sx=OXC+(tx-ty)*CA, sy=ST_Y0+(tx+ty+1)*CB, v=(tx^ty)&1;
         int fl=(tx>=1&&tx<=ST_N-2&&ty>=1&&ty<=ST_N-2)?2:4;   // TEAL CARPET rug on WOOD PLANKS
@@ -1322,17 +1349,22 @@ __attribute__((noinline)) static void drawSeat(int x,int y,int u,int w,int rl,in
     static const signed char cs[32]={64,63,59,53,45,36,24,12,0,-12,-24,-36,-45,-53,-59,-63,-64,-63,-59,-53,-45,-36,-24,-12,0,12,24,36,45,53,59,63};
     static const u8 dq[17]={64,64,63,62,62,60,58,56,53,50,46,41,36,30,22,13,0};   // the dome's height at ring r of 16
     u16 b=base[(slot>=1&&slot<=8)?slot:7];   // the seat is the same colour as what covers the hips: the bottom colour, or skin when they are bare
-    for(int ri=16;ri>=0;ri--){ int na=ri?32:1, d=dq[ri];
+    #define DIVT(v,sh) ((v)>=0?(v)>>(sh):-((-(v))>>(sh)))   // v / 2^sh, rounding toward zero like C's /: the same picture, without a library division per point
+    u16 shc[24]; u32 shk=0;   // the shades used, worked out once each (shade / lite per point was most of the time)
+    for(int ri=16;ri>=0;ri--){ int na=ri?32:1, d=dq[ri], zx=DIVT(zX*d*bul,12), zy=DIVT(zY*d*bul,12);
         for(int a=0;a<na;a++){
-            int cu=cs[a]*ri/16, cv=cs[(a+24)&31]*ri/16;       // where on the disc (64ths), outer rings first so the middle of the dome lands on top
-            int X=cx+(xX*cu*rxq)/4096-(zX*d*bul)/4096, Y=cy+(cv*ry64)/4096+(xY*cu*rxq)/4096-(zY*d*bul)/4096;
-            u16 c;
-            if(ri>=13&&cu*side<-40) c=RGB(3,3,5);                          // the cleft: a clean dark line down the inner edge (survives the half-size bake)
-            else if(ri>=15&&cv>-24) c=shade(b,7);                          // the rim (not along the top: it runs into the waist)
-            else if(ri>=13&&cv>46) c=shade(b,8);                           // the crease underneath
-            else { int f=10+(d*5)/64-(cv*2)/64+(cu*side>0?(cu*side)/48:0); c=f<=16?shade(b,f):lite(b,f); }   // lit from above and the outside, brightest where it sticks out most
-            px(X,Y,c); px(X+1,Y,c);
+            int cu=DIVT(cs[a]*ri,4), cv=DIVT(cs[(a+24)&31]*ri,4);       // where on the disc (64ths), outer rings first so the middle of the dome lands on top
+            int X=cx+DIVT(xX*cu*rxq,12)-zx, Y=cy+DIVT(cv*ry64,12)+DIVT(xY*cu*rxq,12)-zy;
+            u16 c; int f;
+            if(ri>=13&&cu*side<-40){ px(X,Y,RGB(3,3,5)); px(X+1,Y,RGB(3,3,5)); continue; }   // the cleft: a clean dark line down the inner edge (survives the half-size bake)
+            else if(ri>=15&&cv>-24) f=7;                                   // the rim (not along the top: it runs into the waist)
+            else if(ri>=13&&cv>46) f=8;                                    // the crease underneath
+            else { int cs2=cu*side; f=10+((d*5)>>6)-DIVT(cv*2,6)+(cs2>0?(cs2*1366)>>16:0); }   // lit from above and the outside, brightest where it sticks out most ((cs2*1366)>>16 = cs2/48 for 0..64)
+            if(f<0) f=0; if(f>23) f=23;
+            if(!(shk>>f&1)){ shc[f]=f<=16?shade(b,f):lite(b,f); shk|=1u<<f; }
+            c=shc[f]; px(X,Y,c); px(X+1,Y,c);
         } }
+    #undef DIVT
 }
 // The neck (NECK LENGTH above 0): its own narrow skin column on the middle of the shoulders, up to the underside of the head, so a long neck reads as a neck and
 // not as a tall block of shoulders. NECK WIDTH makes it thinner or thicker. Stacked blocks (a block every CC px, so a long neck has no gaps); the head is drawn over its top.
@@ -2011,10 +2043,11 @@ extern void irqEntry(void);
 __asm__(".pushsection .iwram,\"ax\",%progbits\n.arm\n.align 2\n.global irqEntry\nirqEntry:\n"
         "  push {r4-r11,lr}\n  mov r4,sp\n  ldr r0,=irqStack+512\n  mov sp,r0\n  bl irqMain\n  mov sp,r4\n  pop {r4-r11,lr}\n  bx lr\n"
         ".ltorg\n.popsection\n");
+static volatile u32 vblN;   // frames, counted in the vblank interrupt (key repeat by the clock, not by how long a redraw took)
 __attribute__((used)) IWRAM_ARM void irqMain(void){
     u16 f=R_IF;
     if(f&1){   // vblank: start the buffer that was filled last frame, in step with the screen
-        R_IF=1; keySample();   // (the buttons, 60 times a second whatever the main loop is doing: the key latch)
+        R_IF=1; keySample(); vblN++;   // (the buttons, 60 times a second whatever the main loop is doing: the key latch)
         if(zoomShow&&zoomDma) zoomArm();   // the ZOOM's per-line scaling, every frame
         if(mOn){
             if(!mFilled) mCur^=1;                      // (mix overran: replay the last buffer rather than a half-filled one)
@@ -4699,6 +4732,7 @@ static void drawIcon(int x,int y,int id,u16 c){
     if(id==TB_DONE){ line(x,y+4,x+3,y+7,c); line(x+3,y+7,x+9,y+1,c); line(x,y+3,x+3,y+6,c); line(x+3,y+6,x+9,y,c); return; }
     for(int r=0;r<9;r++)for(int q=0;q<9;q++) if(iconArt[id][r][q]=='#') px(x+q,y+r,c);
 }
+static void panelBgRows(int y0,int y1){ for(int y=y0;y<y1;y++){ u16 c=RGB(2+y/55,3+y/38,9+y/14); u32 v=c|((u32)c<<16), *row=(u32*)fb+y*ROW_W; for(int w=SCENE_W+1;w<ROW_W;w++) row[w]=v; } }   // (from x 126: the gold edge stays)
 static void panelBg(void){
     for(int y=0;y<SH;y++){ u16 c=RGB(2+y/55,3+y/38,9+y/14); u32 v=c|((u32)c<<16), *row=(u32*)fb+y*ROW_W; for(int w=SCENE_W;w<ROW_W;w++) row[w]=v; }
     rect(PANEL_X,0,2,SH,GOLD2);
@@ -4875,11 +4909,19 @@ static void drawRowSet(int tab,int sel){
         }
     }
 }
+static void drawKeys(int tab,int sel);
+static void drawCreatorRows(int tab,int sel){   // only the card's rows and the legend: a row moved or a value changed (the panel's background, tabs and title stay)
+    rect(CDX+2,CDY+21,CDW-4,CDH-22,CARD); drawRowSet(tab,sel);
+    panelBgRows(CDY+CDH+1,SH); drawKeys(tab,sel);
+}
 static void drawCreatorPanel(int tab,int sel){
     panelBg(); drawTabs(tab);
     drawIcon(CDX+6,CDY+6,tab,GOLD); text(CDX+20,CDY+4,tabNm[tab],GOLD,2);
     rect(CDX+5,CDY+20,CDW-10,1,GOLD2);
     drawRowSet(tab,sel);
+    drawKeys(tab,sel);
+}
+static void drawKeys(int tab,int sel){   // the key legend under the card (it depends on the focused row)
     const Row*rs=&tabRow[tab][sel]; int act=(rs->kind==RK_ACT||rs->kind==RK_DUO), buy=rs->kind==RK_PICK&&isPart(rs->id)&&!partFree(rs->id,look[rs->id]), lkS=rs->kind==RK_SLIDE&&!slkFree(rs->id), x;
     x=kcap(128,132,"L"); x=kcap(x,132,"R"); x=klab(x,132,"TABS"); x=kcapAr(x,132,1); klab(x,132,"ROW");
     if(buy){ x=kcap(128,142,"A"); x=klab(x,142,"BUY"); x=kcapAr(x,142,0); klab(x,142,"CHANGE"); }
@@ -5068,8 +5110,13 @@ static void lookTrueRandomMe(void){   // the creator's TRUE RANDOM row: the same
     custom=0; fixLook(); buildLook(); setColors();
 }
 #define TRIG(m,i) ((pressed&(m))||(hold[i]>14&&(hold[i]&3)==0))   // pressed now, or held long enough to repeat
+// Key repeat by the clock (vblN): pressed now, or held 14 frames and then every 4 frames, however long each redraw takes (counting loop passes made a
+// slow redraw a slow repeat too: a held slider moved once every 27 frames)
+typedef struct { u32 t0, tl; } KRep;
+static int kRep(KRep*r,int down,int press){ u32 n=vblN; if(press){ r->t0=r->tl=n; return 1; } if(!down) return 0; if(n-r->t0>=14&&n-r->tl>=4){ r->tl=n; return 1; } return 0; }
 static int creatorNew(void){   // returns 1 when the secret code switched screens, 0 when leaving
-    int tab=0, rs[NTAB]={0}, dirty=3, hold[10]={0}; u16 prev=keyNow(); slkLoad();
+    int tab=0, rs[NTAB]={0}, dirty=3, hold[10]={0}; u16 prev=keyNow(); slkLoad(); KRep rpR={0,0}, rpL={0,0};
+    stgArm();   // (house.h: the stage is kept in the household sprite pool while you are here)
     if(!(shapeMask()>>look[LK_SHAPE]&1)){ look[LK_SHAPE]=(u8)maskPick(shapeMask(),look[LK_SHAPE],NSHAPE); if(!custom) buildLook(); }   // BIG HEAD goes away when the Konami code is off
     for(;;){
         u16 k=keyNow(), pressed=k&~prev; prev=k;
@@ -5078,16 +5125,16 @@ static int creatorNew(void){   // returns 1 when the secret code switched screen
         if(pressed&K_R){ tab=tabNext(tab,1); dirty|=2; }
         if(pressed&K_L){ tab=tabNext(tab,-1); dirty|=2; }
         if(rs[tab]>=tabN(tab)) rs[tab]=tabN(tab)-1;   // (a row can go when the age changes)
-        if(pressed&K_DOWN){ rs[tab]=(rs[tab]+1)%tabN(tab); dirty|=2; }
-        if(pressed&K_UP){ rs[tab]=(rs[tab]+tabN(tab)-1)%tabN(tab); dirty|=2; }
+        if(pressed&K_DOWN){ rs[tab]=(rs[tab]+1)%tabN(tab); dirty|=4; }   // (4: just the card's rows)
+        if(pressed&K_UP){ rs[tab]=(rs[tab]+tabN(tab)-1)%tabN(tab); dirty|=4; }
         if(pressed&K_SEL){ view=(view+1)&3; dirty=3; }
         if((pressed&K_START)&&!(k&K_SEL)){ tab=TB_DONE; rs[tab]=0; dirty|=2; }
         if(pressed&K_B){ partsSettle(); stageOn=0; return 0; }
         const Row*r=&tabRow[tab][rs[tab]];
-        int d=TRIG(K_RIGHT,4)?1:TRIG(K_LEFT,5)?-1:0;
+        int d=kRep(&rpR,k&K_RIGHT,pressed&K_RIGHT)?1:kRep(&rpL,k&K_LEFT,pressed&K_LEFT)?-1:0;
         if(r->kind==RK_ACT||r->kind==RK_DUO){
             int aid=r->id;
-            if(r->kind==RK_DUO){ if(d>0&&!duoHalf[tab]){ duoHalf[tab]=1; dirty|=2; } else if(d<0&&duoHalf[tab]){ duoHalf[tab]=0; dirty|=2; } if(duoHalf[tab]) aid=r->n; }   // LEFT RIGHT picks the side, A presses it
+            if(r->kind==RK_DUO){ if(d>0&&!duoHalf[tab]){ duoHalf[tab]=1; dirty|=4; } else if(d<0&&duoHalf[tab]){ duoHalf[tab]=0; dirty|=4; } if(duoHalf[tab]) aid=r->n; }   // LEFT RIGHT picks the side, A presses it
             if(pressed&K_A){
                 partsSettle();   // a part still locked comes off before the creature leaves the creator
                 switch(aid){
@@ -5117,12 +5164,14 @@ static int creatorNew(void){   // returns 1 when the secret code switched screen
         } else if(r->kind==RK_SLIDE&&!slkFree(r->id)){   // a locked slider: only A (buy the pack) does anything
             if(pressed&K_A){ slkBuy(r->id); prev=keyNow(); for(int i=0;i<10;i++) hold[i]=0; dirty=3; }
         } else if(d||(pressed&K_A)){
-            lookStep(r->id,r->n,d?d:1); prev=keyNow(); for(int i=0;i<10;i++) hold[i]=0; dirty=3;
+            lookStep(r->id,r->n,d?d:1); dirty|=5;   // (held: kRep repeats it by the clock; the Bore and the card's rows)
         }
         if(dirty){
-            if(dirty&1) drawCreatorScene();
-            drawCreatorPanel(tab,rs[tab]);
-            present(); dirty=0;
+            if(zoomShow&&!zoomKeep) zoomOff();
+            if(dirty&2){ drawCreatorPanel(tab,rs[tab]); edCopyRows(PANEL_X,0,SW,SH); }   // the panel first, straight to the screen: the slider moves at once, the Bore follows
+            else if(dirty&4){ drawCreatorRows(tab,rs[tab]); edCopyRows(CDX,CDY+20,CDX+CDW,CDY+CDH); edCopyRows(PANEL_X,CDY+CDH+1,SW,SH); }
+            if(dirty&1){ clipSet(0,0,PANEL_X,SH); drawCreatorScene(); clipAll(); edCopyRows(0,0,PANEL_X,SH); }   // (clipped: nothing spills onto the panel drawn before it)
+            vsyncUi(); dirty=0;
         } else vsync();
     }
 }
