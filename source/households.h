@@ -222,10 +222,12 @@ static void phInvite(void){   // someone from another household comes over (they
 static void careerScreen(void);   // career.h
 static void htFavors(void);   // hardtime.h
 static void trvMenu(void);   // travel.h
+static void petAdopt(void);   // petui.h
 static void phoneMenu(void){   // pause menu > PHONE
-    const char* it[8]; int id[8], n=0;
+    const char* it[10]; int id[10], n=0;
     it[n]="INVITE SOMEONE OVER"; id[n++]=0;
     if(hhN&&!prIn()){ it[n]="CALL SOMEONE OVER"; id[n++]=7; }   // (house.h TOGETHER: COME HERE, WATCH TV WITH ME, COME TO BED)
+    if(!prIn()){ it[n]="ADOPT A PET  \xC2\xA7" "150"; id[n++]=8; }   // petui.h: the PET CREATOR
     if(ojob()){ it[n]="CAREER  JOBS AND PAY"; id[n++]=4; }   // (the career tracks: career.h)
     it[n]="ORDER PIZZA  \xC2\xA7" "80"; id[n++]=1;
     it[n]="ORDER CHINESE  \xC2\xA7" "60"; id[n++]=2;
@@ -239,6 +241,7 @@ static void phoneMenu(void){   // pause menu > PHONE
         case 5: htFavors(); break;
         case 6: trvMenu(); break;
         case 7: jtCall(); break;
+        case 8: petAdopt(); break;
         case 1: case 2: { int cost=id[c]==1?80:60;
             if(phFood){ toast("FOOD IS ALREADY ON ITS WAY"); break; }
             if(simMoney<cost){ toast("NOT ENOUGH SIMOLEONS"); break; }

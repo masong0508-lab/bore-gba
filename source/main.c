@@ -3089,7 +3089,7 @@ static void trickName(int hs,int grab,int perfect){
     p[-1]=0; lnote=lnBuf; lnPerf=(u8)perfect;
 }
 static void swName(void){ int n=0; while(lnBuf[n]) n++; if(n>15) return; for(int i=n;i>=0;i--) lnBuf[i+7]=lnBuf[i]; const char*q="SWITCH "; for(int i=0;i<7;i++) lnBuf[i]=q[i]; }
-static void hhStart(void); static void hhTick(void); static int hhSocR(int useLabel); static int hhCallFloors(void);   // house.h (included further down, next to the drawing it hooks into)
+static void hhStart(void); static void hhTick(void); static int hhSocR(int useLabel); static int hhCallFloors(void); static int petR(void);   // house.h (included further down, next to the drawing it hooks into)
 static void drawCounter(int sx,int sy,int t); static void dbgMenu(void); static void wpPre(u16*kp,u16*pp); static void fgPre(u16*kp,u16*pp); static int slfMenu(void); static void slfFx(void); static int slfPose(void); static void fgDraw(void); static int fgGate(u16*pr); static int fgRcNow(int*r); static void wpDraw(void); static void wpConfiscate(void);   // weapons.h
 // ---- COLLECTIBLES (like THPS): the letters S K A T E and one hidden tape float over the floor of a skate lot. Touch one to take it. ----
 // Nothing is saved and no map tile is used: lifeInit scatters them over empty floor every run (a new spot each time), so they cost a few bytes of EWRAM
@@ -3314,6 +3314,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
             if(dx&&dy&&wallTall(lifeMap[ty][tx-dx])&&wallTall(lifeMap[ty-dy][tx])) continue;   // round a corner of two walls: the other side, out of reach
             char c=lifeMap[ty][tx]; if(c=='F') nf=1; if(c=='T') nt=1; if(c=='S') nb=1; if(c=='H') nh=1; if(c=='C'||c=='U') nc=1; if(c=='G') np=1; if(c=='Q') nq=1; if(c=='I') nph=1; if(c=='R') nrd=1; if(c=='A') nsy=1; if(c=='v') ntv=1; if(c=='b') nbk=1; if(c=='c') ncf=1; if(c=='q') naq=1; if(c=='m') ntm=1; if(c=='W'&&prFence(tx,ty)) nfe=1; }
         lnear=nf?1:(nt?2:(nb?3:(nh?4:(np?6:(nq?7:(nph?8:(nrd?9:(nsy?10:(ntv?11:(nbk?12:(ncf?13:(naq?14:(ntm?15:(nfe?16:(nc?5:0)))))))))))))));   // 7 the DeadSet   // 1 fridge, 2 toilet, 3 bed, 4 shower, 6 water pipe, 5 sofa or beanbag
+        if((pr&K_R)&&lstun<=0&&lz<=fh&&!simAct&&!lskate&&petR()) pr&=~K_R;   // petui.h: next to a pet (or a puddle), unless a Sim is nearer
         if((pr&K_R)&&lstun<=0&&lz<=fh&&!simAct&&hhSocR(lnear==16?0:lnear)) pr&=~K_R;   // next to a household Sim: the social menu (it offers the furniture too)
         if((pr&K_R)&&!lnear&&lstun<=0&&lz<=fh&&!simAct&&hhCallFloors()) pr&=~K_R;   // floors step 9: R next to the stairs calls the Sims on the other floors to you
         if((pr&K_R)&&!lnear&&lstun<=0&&lz<=fh&&!simAct&&(htTable()||htBlockUse())) pr&=~K_R;   // hardtime.h: R at a canteen table of the prison
@@ -3516,6 +3517,7 @@ static int lpsx, lpsy;   // where the player is on screen (zoom centre)
 // they pick the one that reads right (down and left show the face, right shows the face, up shows the back).
 static const u8 faceView[16]={3,3,0,0,0,0,0,1,1,1,2,2,2,2,3,3};
 #include "house.h"   // households: up to 7 more Sims with free will, SELECT switches who you control
+#include "pets.h"    // PETS: dogs and cats that live with the household (the screens are in petui.h)
 static int plX, plY, plZ, plFh, plV, plBob;   // feet on screen, height above the floor, floor height under the feet, which baked view
 static signed char plSq EWRAM_BSS;   // ALIVE tier 3: rows the sprite is squashed towards its feet (landing, sad slump, sleeping slump); 0 = normal
 static signed char plPopX EWRAM_BSS, plPopY EWRAM_BSS;   // ALIVE tier 2: px the sprite is moved by a reaction (hop up, shake sideways, flinch down); the shadow stays
@@ -3551,7 +3553,7 @@ static void playerCalc(void){
         bdRoll=(bFT>0&&bFT<BFLIP_LEN)?((bFD*bFT*256/BFLIP_LEN)&255):0; // kickflip / heelflip
         bdSpk=lgrind?1+(lfr&3):0;                                      // grind sparks
     } else { bdA=bdPitch=bdRoll=bdRaise=bdSpk=0; }
-    hhCalc(); inmCalc();
+    hhCalc(); inmCalc(); petCalc();
 }
 // The board: a real deck, about as long as the rider is wide (scaled by life stage), drawn as a flat slab in the room's isometric grid under the feet.
 // It points the way the rider faces and turns with spins, noses up and down in an ollie, rolls over for a KICKFLIP / HEELFLIP (the grip side is
@@ -3753,9 +3755,11 @@ static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
         }
         if(cln) for(int i=0;i<CL_N;i++) if(cls[i]==s){ int sx=LOX+(clr[i][0]-clr[i][1])*CA, sy=LOY+(clr[i][0]+clr[i][1]+1)*CB; if(sx+11>x0&&sx-11<x1&&sy+6>y0&&sy-24<y1) clDraw(i,sx,sy); }
         if(!ed&&hhN&&(xo[XO_MULTIFL]?pkHome<0:!curFl)) hhDrawBand(s,s);
+        if(!ed&&(petN||pudN)&&petAtHome()) petDrawBand(s,s);
         if(!ed&&s==ss) drawPlayerNow();
     }
     if(!ed&&hhN&&(xo[XO_MULTIFL]?pkHome<0:!curFl)) hhDrawBand(s1+1,9999);
+    if(!ed&&(petN||pudN)&&petAtHome()) petDrawBand(s1+1,9999);
     if(!ed&&ss>s1) drawPlayerNow();   // the feet are below the rectangle but the head is inside it: nothing in front can reach it, so draw last
     if(!ed) wpDraw();   // weapons.h: swings, shots, blasts
     if(!ed) fgDraw();   // fight.h: punch trails and the guard
@@ -3945,6 +3949,7 @@ static void liveFull(void){   // the whole scene and both panels, from scratch
     pCamX=camX; pCamY=camY;
     Rc r; actorRc(&r); actOld=r; actHas=1; actSig=actSigNow();
     for(int m=0;m<hhN;m++){ hhRc(m,&hhOld[m]); hhOldSig[m]=hhSig(m); }
+    for(int i=0;i<petN;i++){ petRc(i,&petOld[i]); petOldSig[i]=petSig(i); } pudOldSig=pudSig(); pudOldN=pudN; for(int k=0;k<pudN;k++) pudRc(k,&pudOld[k]);   // pets.h
     pBob=(!lhave)?((lfr>>4)&1):-1;
     vpValid=(lcamF>0)?0:1;
 #ifdef SELFTEST
@@ -3968,6 +3973,10 @@ static void livePatch(int dx,int dy){
     }
     for(int m=0;m<hhN;m++){ unsigned sg=hhSig(m);   // household members: same as the player
         if(dx||dy||sg!=hhOldSig[m]){ HhR r; hhRc(m,&r); rcAdd(r.x0,r.y0,r.x1,r.y1); if(hhOld[m].x1>hhOld[m].x0) rcAdd(hhOld[m].x0-dx,hhOld[m].y0-dy,hhOld[m].x1-dx,hhOld[m].y1-dy); hhOld[m]=r; hhOldSig[m]=sg; } }
+    for(int i=0;i<petN;i++){ unsigned sg=petSig(i);   // pets: the same for their shadow and balloon (pets.h)
+        if(dx||dy||sg!=petOldSig[i]){ HhR r; petRc(i,&r); rcAdd(r.x0,r.y0,r.x1,r.y1); if(petOld[i].x1>petOld[i].x0) rcAdd(petOld[i].x0-dx,petOld[i].y0-dy,petOld[i].x1-dx,petOld[i].y1-dy); petOld[i]=r; petOldSig[i]=sg; } }
+    { unsigned ps=pudSig(); if(ps!=pudOldSig){ for(int k=0;k<pudOldN;k++) rcAdd(pudOld[k].x0-dx,pudOld[k].y0-dy,pudOld[k].x1-dx,pudOld[k].y1-dy); for(int k=0;k<pudN;k++){ pudRc(k,&pudOld[k]); rcAdd(pudOld[k].x0,pudOld[k].y0,pudOld[k].x1,pudOld[k].y1); } pudOldN=pudN; pudOldSig=ps; }
+      else if(dx||dy) for(int k=0;k<pudN;k++) pudRc(k,&pudOld[k]); }   // a puddle came or went (a slide moves them with the picture)
     { static short fgO[4] EWRAM_BSS; static u8 fgOh EWRAM_BSS; int r[4]; int on=fgRcNow(r);   // fight.h overlays (swing, guard, fireball, K.O. banner): redraw their box now and where it was
       if(fgOh) rcAdd(fgO[0]-dx,fgO[1]-dy,fgO[2]-dx,fgO[3]-dy);
       if(on){ rcAdd(r[0],r[1],r[2],r[3]); for(int i=0;i<4;i++) fgO[i]=(short)r[i]; }
@@ -5617,6 +5626,7 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "townrel.h"        // TOWN RELATIONSHIPS: neighbours are people you know (guests with every social, remembered, moving in)
 #include "fx.h"
 #include "npc.h"             // AI SKATERS and POLICE: hardware sprites on the last spare OBJ tiles (see the top of npc.h)             // GHOSTS and WEATHER: hardware sprites on the spare OBJ slots (see the top of the file)
+#include "petui.h"           // PETS: the pie menu, ADOPT A PET, the PET CREATOR, HOUSEHOLD > PETS (needs npc.h)
 #include "prison.h"         // PRISON
 #include "travel.h"         // GETTING ABOUT: CALL A CAB, the story's GO THERE (a lot change without leaving the game): when the cops catch you, the sentence depends on your record; you serve it in a prison of the town
 #include "ambience.h"       // NATURE SOUNDS: the outdoor bed (birds, crickets, rain, wind) by the hour, the weather and indoors

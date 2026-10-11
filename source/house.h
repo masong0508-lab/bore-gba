@@ -16,6 +16,10 @@
 #define HH_MAX     7       // members besides the player: 8 Sims in all, as in The Sims 2. Only the Sims on screen hold a hardware sprite (OBJ slots,
                            // below); each place costs about 5.6 KB of EWRAM. (Households saved as 'H6'..'H9' held up to 13 members: hhLoad keeps 7.)
 #define HH_MAX9    13      // members an 'H6'..'H9' household could hold (14 uids)
+#define PET_MAX 3          // pets.h: pets a household keeps (their sprites use OBJ VRAM slots 14 and 15)
+#define PET_B   29         // bytes a pet takes in the household block
+#define PET_PALB 7         // the OBJ palette bank the pets share
+static void petTick(int*planned);   // pets.h
 #define HH_THINK   90      // steps between a member's decisions (FREE WILL HIGH; LOW thinks half as often and lets needs sink lower)
 #define HH_PATH    96      // longest path a member remembers (steps between tiles)
 #define HH_USE     240     // steps a member spends using a piece of furniture
@@ -213,7 +217,8 @@ static signed char hhIdBlk[HH_IDS] EWRAM_BSS;   // the block this sprite id drew
 static u16 hhBorrow EWRAM_BSS;                  // palette banks we have overwritten that belong to fx.h / npc.h
 static u8 hhSlotOk;
 static int hhBanksBusy(void); static void hhExtraDone(void);   // npc.h
-static void hhSlotsFree(void){ for(int i=0;i<HH_IDS;i++) hhIdBlk[i]=-1; for(int b=0;b<HH_TB;b++) hhTcur[b]=-1; for(int b=0;b<16;b++) hhPkey[b]=-1; hhSlotOk=1; }   // after anything that changes the baked sprites or who is who
+static u8 petVramBad=1;   // pets.h: the pets' tiles must be loaded again (another screen used OBJ memory, the prison lent the slots)
+static void hhSlotsFree(void){ for(int i=0;i<HH_IDS;i++) hhIdBlk[i]=-1; for(int b=0;b<HH_TB;b++) hhTcur[b]=-1; for(int b=0;b<16;b++) hhPkey[b]=-1; hhSlotOk=1; petVramBad=1; }   // after anything that changes the baked sprites or who is who
 static inline int hhPop(u32 x){ int n=0; while(x){ x&=x-1; n++; } return n; }
 static void hhSprFree(int m){   // give a member's block back: everything above it slides down, so the pool stays packed
     HhSpr*s=&hhSp[m]; int off=s->off, len=s->len;
@@ -783,6 +788,7 @@ static void hhTick(void){   // once per logic step in the life game
     int planned=0;
     if(xo[XO_FREEWILL]&&!curFl) twTick(&planned);
     if(!curFl){ copTick(&planned); inmTick(&planned); }   // npc.h: the police (a cop comes after you when you hurt Sims)
+    petTick(&planned);   // pets.h (pets live with you even when nobody else does)
     if(!hhN) return;
     relTick(); hhAmbient();
     int fe=oFoodEvery(), we=oWcEvery();
@@ -1386,7 +1392,9 @@ static int hhPlayerFront(int x,int y){   // is the player (drawn into the pictur
     s32 rx,ry; rotPos(lfx,lfy,&rx,&ry); int px=LOX+(int)((rx-ry)>>5), py=LOY+(int)((rx+ry)>>6), dx=px-(x+16);
     return py>y+SPF&&dx>-22&&dx<22&&py<y+SPF+44;
 }
-typedef struct { const HhSim*s; short x,y; int dd,dep; u8 id,key,pk; signed char tb,pb; } HhOv;   // a Sim in view: where its sprite goes, how far from the middle, how far back; key = body*8+view*2+frame, pk = its palette; tb, pb = the tile block and palette bank it got (-1: none yet)
+typedef struct { const HhSim*s; short x,y; int dd,dep; u8 id,key,pk; signed char tb,pb; } HhOv;
+typedef struct { short x,y; int dep; u16 tile; u8 flip, blend; } PetOv;   // a pet in view (pets.h petOvList): its 32 x 32 sprite
+static int petOvList(PetOv*o); static void petStart(void); static int petSaveTo(volatile u8*m); static int petLoadFrom(volatile u8*m,int n,int avail);   // pets.h   // a Sim in view: where its sprite goes, how far from the middle, how far back; key = body*8+view*2+frame, pk = its palette; tb, pb = the tile block and palette bank it got (-1: none yet)
 // RUNNING LEGS: the stride is driven by real movement (world position since last frame), not only by the walking actions, so a Sim that is pushed,
 // scared or sent running always moves its legs. Faster than 1.5 x walking speed = running: the legs swap every 4 frames instead of 8. Other code can force
 // a run by setting hhRunT[id] (steps). Teleports (a jump of a tile or more in one frame) do not count.
@@ -1426,8 +1434,8 @@ static void fxObjUpdate(void); static void hhObjUpdate0(void){   // in vblank: h
     // 2. nearest first
     for(i=1;i<n;i++){ HhOv t=w[i]; int j=i; while(j>0&&w[j-1].dd>t.dd){ w[j]=w[j-1]; j--; } w[j]=t; }   // (insertion sort, n <= 31)
     // 3. which palette banks and tile blocks may be used this frame
-    u16 allow=0x00FF; int nTb=8;
-    if(prHere()){ allow|=(u16)(0xF700&~hhBanksBusy()); nTb=HH_TB; }   // the prison: the banks ghosts and cops are not drawing with are lent too (11 is the weather's)
+    u16 allow=0x007F; int nTb=8;   // (bank 7 is the pets': 7 banks for the 7 member places is always enough)
+    if(prHere()){ allow=(u16)(0x00FF|(0xF700&~hhBanksBusy())); nTb=HH_TB; }   // the prison: the banks ghosts and cops are not drawing with are lent too (11 is the weather's)
     { u16 lost=(u16)(hhBorrow&~allow); if(lost){ for(int b=8;b<16;b++) if((lost>>b)&1) hhPkey[b]=-1; hhBorrow&=(u16)~lost; hhExtraDone(); } }   // a ghost or a cop wants its bank back: its art and colours are loaded again right after this (fx.h, npc.h)
     // 4. hand out banks and blocks, load what changed (a few fresh sprites per frame at most)
     u8 tcnt[HH_TB], pcnt[16]; for(i=0;i<HH_TB;i++) tcnt[i]=0; for(i=0;i<16;i++) pcnt[i]=0;
@@ -1455,8 +1463,15 @@ static void fxObjUpdate(void); static void hhObjUpdate0(void){   // in vblank: h
     int ord[HH_IDS], no=0;
     for(i=0;i<n;i++) if(w[i].tb>=0) ord[no++]=i;
     for(i=1;i<no;i++){ int t=ord[i], j=i; while(j>0&&w[ord[j-1]].dep<w[t].dep){ ord[j]=ord[j-1]; j--; } ord[j]=t; }
-    // 6. OAM
-    for(int r=0;r<no;r++){ const HhOv*o=&w[ord[r]];
+    // 6. OAM (the pets go in among the Sims by depth: pets.h)
+    PetOv po[PET_MAX]; int pn=petOvList(po), pi=0;
+    for(int r=0;r<=no;r++){
+      while(pi<pn&&nOam<HH_OAM&&(r==no||po[pi].dep>w[ord[r]].dep)){ const PetOv*q=&po[pi++]; volatile u16*e=oam+nOam*4; int bl=q->blend?0x400:0;   // a 32 x 32 sprite, flipped for the right-facing views
+          if(zoomDma){ int X=(q->x+16-vpX0)*zoomNum/zoomDen-32, Y=sbY0+(q->y+16-vpY0)*zoomNum/zoomDen-32; e[0]=(u16)((Y&255)|bl|0x300); e[1]=(u16)((X&511)|0x8000|(q->flip?0x200:0)); }   // ZOOM: affine, double size (matrix 1 is matrix 0 mirrored)
+          else { e[0]=(u16)((q->y&255)|bl); e[1]=(u16)((q->x&511)|0x8000|(q->flip?0x1000:0)); }
+          e[2]=(u16)(q->tile|(PET_PALB<<12)); nOam++; }
+      if(r==no) break;
+      const HhOv*o=&w[ord[r]];
         volatile u16*e=oam+nOam*4; int tile=512+hhTvSlot[(int)o->tb]*32, pal=o->pb, y=o->y, x=o->x, blend=(hhBehindAt(o->s->fx,o->s->fy)||hhPlayerFront(x,y))?0x400:0;
         if(zoomDma){   // ZOOM: scaled up by the hardware (affine, double size: a 64 x 128 box, matrix 0) and placed where its room pixels are on screen
             int X=(x+16-vpX0)*zoomNum/zoomDen-32, Y=sbY0+(y+32-vpY0)*zoomNum/zoomDen-64;
@@ -1466,6 +1481,7 @@ static void fxObjUpdate(void); static void hhObjUpdate0(void){   // in vblank: h
     }
     for(i=nOam;i<HH_OAM;i++) oam[i*4]=0x200;   // everything else off
     oam[3]=zoomPa; oam[7]=0; oam[11]=0; oam[15]=zoomPa;   // affine matrix 0 (the ZOOM's sprites): 1 / scale
+    oam[19]=(u16)-zoomPa; oam[23]=0; oam[27]=0; oam[31]=zoomPa;   // matrix 1: the same, mirrored (a pet facing right)
 }
 static void hhObjUpdate(void){ hhObjUpdate0(); fxObjUpdate(); }   // fx.h: the ghosts and the weather are sprites too
 static HhR hhOld[HH_MAX] EWRAM_BSS; static unsigned hhOldSig[HH_MAX] EWRAM_BSS;
@@ -1497,6 +1513,7 @@ static void hhStart(void){   // entering the life game: load the household and s
     hhLoad(); hhSlotsFree(); hhFindExits(); for(int k=0;k<TW_N;k++){ twOn[k]=0; twWait[k]=(short)(240+k*700); }
     for(int m=0;m<hhN;m++){ hhPlace(&hhM[m],m); hhOld[m].x0=hhOld[m].x1=0; hhOldSig[m]=0xFFFFFFFFu; }
     if(xo[XO_MULTIFL]&&!curFl) for(int m=0;m<hhN;m++) if(hhFlLd[m]>0&&hhFlLd[m]<FLR_N){ hhFl[m]=hhFlLd[m]; hhM[m].act=HA_AWAY; hhM[m].use=HN_FUN; hhUp[m]=(u16)(300+(rnd8()<<2)); }   // floors step 7: whoever was upstairs when you saved still is
+    petStart();   // pets.h: the pets stand near you
 }
 // ---- switching who you control ----
 static void hhSwap(HhSim*s);   // main.c: trades the player's position, needs, look and persona with s
@@ -1565,7 +1582,7 @@ static int hhPlaceOf(int u){ if(u==hhPUid) return 0; for(int i=0;i<hhN;i++) if(h
 #define HH_RELB (4*HU_N*HU_N)   // daily, lifetime, flags and (from 'H?') kin, for every pair of uids
 static void hhSave(void){
     volatile u8*m=SRAM_BASE+HH_OFF; int k=3; u8 sum=0x48;
-    m[0]='H'; m[1]='B'; m[2]=(u8)hhN; m[k++]=(u8)hhPUid;   // 'H:' = 'H9' for 8 Sims (8 uids); 'H;' adds the format 11 sliders; 'H?' adds the kin (who is whose mother, sister, roommate); 'H@' adds GENDER and the family tail; 'HA' the town relationships; 'HB' the format 16 sliders
+    m[0]='H'; m[1]='C'; m[2]=(u8)hhN; m[k++]=(u8)hhPUid;   // 'H:' = 'H9' for 8 Sims (8 uids); 'H;' adds the format 11 sliders; 'H?' adds the kin (who is whose mother, sister, roommate); 'H@' adds GENDER and the family tail; 'HA' the town relationships; 'HB' the format 16 sliders; 'HC' the pets
     for(int j=0;j<HH_NM;j++) m[k++]=(u8)hhPName[j];
     for(int j=0;j<HH_NM;j++) m[k++]=(u8)hhPLast[j];   // your own name
     for(int i=0;i<hhN;i++){ const HhSim*s=&hhM[i];
@@ -1587,6 +1604,7 @@ static void hhSave(void){
       for(int e=0;e<nrN;e++){ const NrE*q=&nrT[e]; int p=q->own==NR_MARK?NR_MARK:hhPlaceOf(q->own); if(p<0) continue;
           m[k++]=q->lot; m[k++]=q->mem; m[k++]=q->nh; m[k++]=(u8)p; m[k++]=(u8)q->d1; m[k++]=(u8)q->l1; m[k++]=(u8)q->d2; m[k++]=(u8)q->l2; m[k++]=q->f1; m[k++]=q->f2; n++; }
       m[c]=(u8)n; }
+    k+=petSaveTo(m+k);   // 'HC': the pets (pets.h)
     for(int i=2;i<k;i++) sum+=m[i];
     m[k]=sum;
     prSave();   // prison.h: who is doing time is kept as a place in this household (a load gives the uids out again)
@@ -1599,6 +1617,7 @@ static int hhSumAt(volatile u8*m,int avail){
     int v7=m[1]>='7', nb=v7?2*HH_NM:10, nl=m[1]>='B'?LKPK:m[1]>='@'?LKPK15:m[1]>='>'?LKPK14:m[1]>='='?LKPK13:m[1]>='<'?LKPK12:m[1]>=';'?LKPK11:m[1]>='9'?LKPK10:m[1]>='8'?LK_N9:v7?LK_N8:m[1]>='5'?LK_N7:m[1]=='4'?LK_N6:m[1]=='3'?LK_N5:LK_N4, rec=HH_REC-LKPK+nl-2*HH_NM+nb;   // 'H2' households were saved before the hats and clothes, 'H3' before the face details and sliders
     int n=m[2], hb=v7?2*HH_NM:0, k=4+hb+n*rec+3*hu*hu+(m[1]>='?'?hu*hu:0)+(m[1]>='@'?n+3:0);
     if(m[1]>='A'){ if(k+3>avail||m[k+2]>NR_N) return -1; k+=3+NR_B*m[k+2]; }
+    if(m[1]>='C'){ if(k+1>avail||m[k]>PET_MAX) return -1; k+=1+PET_B*m[k]; }   // the pets
     return k+1>avail?-1:k;
 }
 // THE FAMILY-LIFE TEST BUILD (pull request 26 before it took in main) wrote its own 'H=': GENDER as the last pick after the format 12 looks, and its
@@ -1607,9 +1626,9 @@ static int hhSumAt(volatile u8*m,int avail){
 #define HH_FY_OFF 4976
 static int hhFyOk(u8 sum,int n){ volatile u8*f=SRAM_BASE+HH_FY_OFF; u8 s=0x46; for(int i=2;i<15;i++) s=(u8)(s*3+f[i]); return f[0]=='F'&&f[1]=='Y'&&f[15]==s&&f[12]==sum&&f[13]==n; }
 static void hhLoad(void){
-    volatile u8*m=SRAM_BASE+HH_OFF; u8 sum=0x48; hhN=0; for(int j=0;j<HH_MAX;j++) hhFlLd[j]=0;
+    volatile u8*m=SRAM_BASE+HH_OFF; u8 sum=0x48; hhN=0; for(int j=0;j<HH_MAX;j++) hhFlLd[j]=0; petLoadFrom(0,0,0);   // (no pets until the block says so)
     famReset(); nrN=0; nrKey=0;
-    if(m[0]!='H'||m[1]<'2'||m[1]>'B'||m[2]>(m[1]>=':'?HH_MAX:HH_MAX9)) return;
+    if(m[0]!='H'||m[1]<'2'||m[1]>'C'||m[2]>(m[1]>=':'?HH_MAX:HH_MAX9)) return;
     int hu=hhUidsOf(m[1]), n=m[2], k=hhSumAt(m,SL_HH_LEN); if(k<0) return;
     for(int i=2;i<k;i++) sum+=m[i]; if(m[k]!=sum) return;
     if(m[3]>=hu) return;
@@ -1642,7 +1661,8 @@ static void hhLoad(void){
         int due=m[k++], pa=m[k++], pb=m[k++]; if(due&&due<=9&&(pa<=hhN||pb<=hhN)){ famDue=(u8)due; famPa=(u8)(pa<=hhN?pa:255); famPb=(u8)(pb<=hhN?pb:255); }
         if(m[1]>='A'){ nrKey=(u16)(m[k]|m[k+1]<<8); int c=m[k+2]; k+=3;   // 'HA': the town relationships (whose: a place, so the new uid)
             for(int e=0;e<c;e++,k+=NR_B){ int p=m[k+3]; if((p>hhN&&p!=NR_MARK)||nrN>=NR_N) continue; NrE*q=&nrT[nrN++];
-                q->lot=m[k]; q->mem=m[k+1]; q->nh=m[k+2]; q->own=(u8)p; q->d1=(signed char)m[k+4]; q->l1=(signed char)m[k+5]; q->d2=(signed char)m[k+6]; q->l2=(signed char)m[k+7]; q->f1=m[k+8]; q->f2=m[k+9]; } } }
+                q->lot=m[k]; q->mem=m[k+1]; q->nh=m[k+2]; q->own=(u8)p; q->d1=(signed char)m[k+4]; q->l1=(signed char)m[k+5]; q->d2=(signed char)m[k+6]; q->l2=(signed char)m[k+7]; q->f1=m[k+8]; q->f2=m[k+9]; }
+            if(m[1]>='C') k+=petLoadFrom(m+k,m[k],SL_HH_LEN); } }   // 'HC': the pets (pets.h)
     else if(fy){   // the family-life test build: genders came with the looks; its weddings become kin, its family block the family tail
         static const u8 wr[SX_N]={KN_WIFE,KN_HUSBAND,KN_SPOUSE};
         for(int i=0;i<hhN;i++) if(hhM[i].look[LK_SEX]>=SX_N) hhM[i].look[LK_SEX]=SX_NB;
@@ -1660,12 +1680,12 @@ static void hhLoad(void){
 // How many bytes the household block at m takes (its header, count, uids and checksum all check out), or 0 if it is not a good household
 // or does not fit in avail bytes. The household slots (slots.h) use it to copy a household in and out of SRAM without touching hhM.
 static int hhBlockLen(volatile u8*m,int avail){
-    if(avail<4||m[0]!='H'||m[1]<'2'||m[1]>'B'||m[2]>(m[1]>=':'?HH_MAX:HH_MAX9)) return 0;
+    if(avail<4||m[0]!='H'||m[1]<'2'||m[1]>'C'||m[2]>(m[1]>=':'?HH_MAX:HH_MAX9)) return 0;
     int hu=hhUidsOf(m[1]), k=hhSumAt(m,avail); if(k<0) return 0;
     u8 sum=0x48; for(int i=2;i<k;i++) sum+=m[i]; if(m[k]!=sum||m[3]>=hu) return 0;
     return k+1;
 }
-#define HH_MAXB (4+2*HH_NM+HH_MAX*HH_REC+HH_RELB+HH_MAX+3+3+NR_N*NR_B+1)   // the biggest household block: 8 Sims, the family tail, a full town table
+#define HH_MAXB (4+2*HH_NM+HH_MAX*HH_REC+HH_RELB+HH_MAX+3+3+NR_N*NR_B+1+PET_MAX*PET_B+1)   // the biggest household block: 8 Sims, the family tail, a full town table, the pets
 _Static_assert(HH_OFF+HH_MAXB<=SLOT_BASE,"the household must fit before the room slots");
 _Static_assert(HH_MAXB<=SL_HH_LEN,"the household is bigger than the SRAM block reserved for it");
 _Static_assert(HH_OFF+HH_MAXB<=7560,"the household runs into the life stats (lifestats.h LG_OFF)");
@@ -1685,6 +1705,7 @@ static int hhMoveIn(const HhFam*F){   // a pre-made family moves in (HOUSEHOLD, 
 }
 // ---- the pause menu's HOUSEHOLD screen ----
 static void hhInviteTrue(void); static int hhMoveOut(int m);   // households.h
+static void petScreen(void);   // petui.h
 static void hhSwitchMenu(void){   // pick the Sim you control
     if(!hhN){ toast("NO ONE ELSE LIVES HERE"); return; }
     char nm[HH_MAX][HH_NM+8]; const char* who[HH_MAX];
@@ -1694,12 +1715,13 @@ static void hhSwitchMenu(void){   // pick the Sim you control
 }
 static void hhMenu(void){
     if(!dbgOn){   // moving in / out and every other change to the household is the DEBUG CODE's (title screen, see main.c): without it, RELATIONSHIPS and who you control
-        static const char* const it2[3]={"RELATIONSHIPS","FAMILY","SWITCH TO A SIM"}; int c=menu("HOUSEHOLD",it2,3);
-        if(c==0) relScreen(); else if(c==1) famScreen(); else if(c==2) hhSwitchMenu();
+        static const char* const it2[4]={"RELATIONSHIPS","FAMILY","SWITCH TO A SIM","PETS"}; int c=menu("HOUSEHOLD",it2,4);
+        if(c==0) relScreen(); else if(c==1) famScreen(); else if(c==2) hhSwitchMenu(); else if(c==3) petScreen();
         return; }
-    static const char* const it[8]={"RELATIONSHIPS","MOVE IN A FAMILY","INVITE A NEW SIM","TRULY RANDOM SIM","MOVE SOMEONE OUT","MOVE EVERYONE OUT","SWITCH TO A SIM","FAMILY"};
+    static const char* const it[9]={"RELATIONSHIPS","MOVE IN A FAMILY","INVITE A NEW SIM","TRULY RANDOM SIM","MOVE SOMEONE OUT","MOVE EVERYONE OUT","SWITCH TO A SIM","FAMILY","PETS"};
     char t[24]; { char*e=t; const char*p="HOUSEHOLD  "; while(*p) *e++=*p++; e+=numStr(e,hhN+1); p=" OF "; while(*p) *e++=*p++; e+=numStr(e,HH_MAX+1); *e=0; }
-    int c=menu(t,it,8); if(c<0) return;
+    int c=menu(t,it,9); if(c<0) return;
+    if(c==8){ petScreen(); return; }
     if(c==6){ hhSwitchMenu(); return; }
     if(c==7){ famScreen(); return; }
     if(c==0){ relScreen(); return; }

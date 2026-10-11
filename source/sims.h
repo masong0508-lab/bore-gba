@@ -775,15 +775,17 @@ static void ageTick(void){   // once per game day: each stage lasts the days set
     int need=oStageDays(stage)*pct[xo[XO_AGING]]/100; if(need<1) need=1;
     if(++ageDays>=need){ gGrow=1; dnaAdd(SIM_DNA_BDAY); simQueue("BIRTHDAY +50 DNA"); simEvent(SE_GROWUP); if(stage+1==AG_ELDER) simEvent(SE_OLD); } else ageSave();
 }
+static void petMinute(void); static void petDay(void);   // pets.h
 static void simMinute(void){   // once per game minute
     simMin++;
+    petMinute();
     if(simMin==simJobFrom()&&simInShift()&&!ldead) simQueue((jobTrack!=JT_SKATE&&simAtWork()==1)?"GO TO YOUR WORK MARKER":jobFlav[jobTrack]);
     else if(simMin%30==0&&jobTrack!=JT_SKATE&&simInShift()&&!simAct&&!ldead&&lnoteT<=0&&simAtWork()==1){ lnote="NOT AT WORK  FIND THE MARKER"; lnoteT=60; }   // a nudge every half hour   // clocking in: a line for the job
     if(jobTrack!=JT_SKATE&&simInShift()&&!simAct&&!ldead&&simAtWork()!=1) shiftPts+=(moodState()==MS_STOKED)?2:1;   // a normal job: work minutes (see jobQuotaOf)
     if(simMin==16*60+20&&(simHave&SR_PIPE)&&pipeOk()) simQueue("IT IS 4:20  PUFF PUFF PASS");   // the house gathers at the water pipe (house.h)
     if(simMin>=1440){   // midnight: new day, bills, autosave
         simMin=0; simDay++; if(simDay>30000) simDay=0; lsAdd(LS_DAYS,1);
-        ageTick(); copDay(); prDay();
+        ageTick(); copDay(); prDay(); petDay();
         famDay();   // the rest of the household grows up too, and a baby may come (family.h)
         nrDay();    // the people you know in the town: yesterday fades (townrel.h)
         if(simFlags&SF_TREE){ simMoneyAdd(SIM_TREE_PAY); }   // the money tree
