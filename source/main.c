@@ -164,6 +164,11 @@ enum { LK_SHAPE, LK_SKIN, LK_EYES, LK_MOUTH, LK_EARS, LK_HSTYLE, LK_HCOL, LK_TOP
 #define LK_N3 (LK_EARLF+1)   // looks a person format 3 slot holds (the Spore parts TAIL, HORNS, BACK came with format 4)
 static inline int lkSlide(int id){ return (id>=LK_BASE&&id<=LK_EARLF)||(id>=LK_HEIGHT&&id<=LK_MOUTHHT)||(id>=LK_HTONE&&id<=LK_STANCE)||(id>=LK_BUTT&&id<=LK_WINGSZ)||(id>=LK_NECK&&id<=LK_EARWID)||(id>=LK_CHESTW&&id<=LK_HORNTONE)||(id>=LK_TAILTAPER&&id<=LK_WINGTONE)||(id>=LK_JAWW&&id<=LK_NECKW)||(id>=LK_BROWSP&&id<=LK_CHEEKHT); }
 static inline int slidePos(int v){ return (v+4)%9; }      // 0..8 left to right, the middle (stored 0) is 4
+#ifdef CC_DEMO
+#define CC_FREE 1   // the CREATOR DEMO: every part and slider is free
+#else
+#define CC_FREE 0
+#endif
 #define BUTT_OFF 9   // look[LK_BUTT]: the seat switched off (the hidden switch past the slider's left end, lookStep); 0..8 are the slider
 static inline int slideVal(int p){ return (p+5)%9; }
 static inline int slideEff(int v){ return slidePos(v)-4; }   // -4..4
@@ -1076,7 +1081,7 @@ static const signed char abShape[NSHAPE][AB_N]={   // ability changes (SPEED JUM
 static u16 pDna, pUnl;   // DNA points to spend; unlocked parts (bit = part*3 + option)
 static inline int isPart(int id){ return (id>=LK_TAIL&&id<=LK_BACK)||id==LK_CLAWS||id==LK_ANTENNA; }
 static inline int partOf(int id){ return id==LK_CLAWS?3:id==LK_ANTENNA?4:id-LK_TAIL; }   // 0 tail, 1 horns, 2 back, 3 claws, 4 antennae
-static int partFree(int id,int v){ int p=partOf(id); return !partCost[p][v]||sUnlock||(pUnl>>PARTBIT(p,v)&1); }   // Konami: every part is free
+static int partFree(int id,int v){ int p=partOf(id); return !partCost[p][v]||sUnlock||CC_FREE||(pUnl>>PARTBIT(p,v)&1); }   // Konami: every part is free
 static int abOf10(int a){   // 0..10, like a Sims skill bar: every part counts double, the body sliders add the odd points between
     int v=4+2*abShape[look[LK_SHAPE]<NSHAPE?look[LK_SHAPE]:0][a], hgt=slideEffS(look[LK_HEIGHT]), wgt=slideEffS(look[LK_WEIGHT]), tor=slideEffS(look[LK_TORSO]),
         arm=slideEff(look[LK_ARMS]), stn=slideEff(look[LK_STANCE]);
@@ -1534,7 +1539,11 @@ static void buildTitle(void){
     u16 ink=RGB(4,3,6), grn=RGB(12,28,8);
     for(int y=0;y<LOGO_H;y++){ const char*r=logoArt[y]; u16*o=&fb[(y+2)*SW+4];   // the logo, top left (0 = see-through)
         for(int x=0;x<LOGO_W;x++){ char c=r[x]; if(c!='0') o[x]=logoPal[(c<='9'?c-'0':c-'a'+10)-1]; } }
+#ifdef CC_DEMO
+    text(13,58,"CREATURE CREATOR DEMO",ink,1); text(12,57,"CREATURE CREATOR DEMO",grn,1);
+#else
     text(13,58,"A VOXEL LIFE SIM",ink,1); text(12,57,"A VOXEL LIFE SIM",grn,1);
+#endif
     text(14,126,"PUFF PUFF PASS THE CONTROLLER",RGB(16,22,12),1);
     titleKeep(1,SM_W0,SM_W1,0,SM_Y1,0); titleKeep(1,TX_W0,TX_W1,TX_Y0,TX_Y1,TB_TX);
 }
@@ -4496,7 +4505,7 @@ static int slkPack(int id){   // which pack a slider is in: -1 = an essential (a
       default: return lkSlide(id)?5:-1;   // every other slider is a part slider (ANT, TAIL, HORN, WING)
     }
 }
-static int slkFree(int id){ int p=slkPack(id); return p<0||sUnlock||(slkUl>>p&1); }
+static int slkFree(int id){ int p=slkPack(id); return p<0||sUnlock||CC_FREE||(slkUl>>p&1); }
 static void slkMiddle(void){ for(int id=0;id<LK_N;id++) if(lkSlide(id)&&!slkFree(id)) look[id]=0; }   // (0 = the middle notch)
 static int slkBuy(int id){   // A on a locked slider: spend jenes on its pack. 1 = bought
     int p=slkPack(id), c=slkCost[p]; char t[32]; static const char* const it[2]={"YES  UNLOCK IT","NO"};
@@ -4516,7 +4525,7 @@ static int slkGift(int story){   // a whole story finished: the next locked slid
 // L R change tab | UP DOWN pick a row | LEFT RIGHT change it | SELECT turns the creature | START jumps to DONE | B leaves.
 enum { TB_BODY, TB_FACE, TB_HAIR, TB_CLOTHES, TB_PARTS, TB_ASPIRE, TB_DONE, NTAB };
 enum { RK_PICK, RK_SWATCH, RK_ACT, RK_SLIDE, RK_PERS, RK_TRAIT, RK_DUO };   // RK_DUO: two buttons side by side in one row (LEFT RIGHT picks the side; id = left action, n = right action, lab/sub = what each side says it does)   // a row picks from named options, picks a colour, is a button, a slider, a persona choice or a trait
-enum { AC_PLAY, AC_MAP, AC_MENU, AC_RAND, AC_ADD, AC_FAM, AC_FNAME, AC_LNAME, AC_TRAND, AC_HOUSE };
+enum { AC_PLAY, AC_MAP, AC_MENU, AC_RAND, AC_ADD, AC_FAM, AC_FNAME, AC_LNAME, AC_TRAND, AC_HOUSE, AC_CSAVE, AC_CSHOW, AC_CENTER };
 static u8 ceMoveIn;   // a NEW PLAYER's creator (newGame): 1 = GO LIVE LIFE leaves the creator to MOVE IN on the town map first (it sets 2)
 enum { PS_ASP, PS_LTW, PS_SIGN };
 typedef struct { const char*lab,*sub; u8 kind,id,n; } Row;   // sub = second line of a button
@@ -4568,9 +4577,13 @@ static const Row tabRow[NTAB][TROWS]={
    {"TAIL TAPER",0,RK_SLIDE,LK_TAILTAPER,9},{"TAIL FLUFF",0,RK_SLIDE,LK_TAILFLUF,9},{"TAIL WAVE",0,RK_SLIDE,LK_TAILWAVE,9},{"TAIL TIP SHADE",0,RK_SLIDE,LK_TIPTONE,9},{"HORN TIP",0,RK_SLIDE,LK_HORNTIP,9},{"WING DROOP",0,RK_SLIDE,LK_WINGDROOP,9},{"WING SHADE",0,RK_SLIDE,LK_WINGTONE,9}},
   {{"ASPIRATION",0,RK_PERS,PS_ASP,AS_PICK},{"LIFETIME WANT",0,RK_PERS,PS_LTW,LTN},{"SIGN",0,RK_PERS,PS_SIGN,12},
    {"NEAT",0,RK_TRAIT,TR_NEAT,11},{"OUTGOING",0,RK_TRAIT,TR_OUT,11},{"ACTIVE",0,RK_TRAIT,TR_ACT,11},{"PLAYFUL",0,RK_TRAIT,TR_PLAY,11},{"NICE",0,RK_TRAIT,TR_NICE,11}},
-  {{"GO LIVE LIFE!","PLAY IT NOW",RK_ACT,AC_PLAY,0},{"ROLL THE DICE","EVERYTHING ROLLS",RK_DUO,AC_RAND,AC_TRAND},{"EDIT MAP","BUILD ROOMS",RK_ACT,AC_MAP,0},{"MAIN MENU","LOOK IS KEPT",RK_ACT,AC_MENU,0},{"HOUSEHOLD","FAMILY AND KIN",RK_ACT,AC_HOUSE,0}} };   // (HOUSEHOLD: hhcreate.h. It holds ADD TO FAMILY, FAMILY and the relations)
-static const u8 tabN0[NTAB]={31,21,6,7,40,8,5};
-static int tabRows(int t){ return tabN0[t]-(t==0&&stage<AG_TEEN&&!sUnlock?3:0); }   // babies and children: no BUTT rows
+#ifdef CC_DEMO   // the CREATOR DEMO (ccdemo.h): no life to go to
+  {{"SAVE CREATION","TO MY CREATIONS",RK_ACT,AC_CSAVE,0},{"ROLL THE DICE","EVERYTHING ROLLS",RK_DUO,AC_RAND,AC_TRAND},{"SHOW ITS CODE","TYPE IN A CODE",RK_DUO,AC_CSHOW,AC_CENTER},{"MAIN MENU","BACK TO THE DEMO",RK_ACT,AC_MENU,0}} };
+#else
+  {{"GO LIVE LIFE!","PLAY IT NOW",RK_ACT,AC_PLAY,0},{"ROLL THE DICE","EVERYTHING ROLLS",RK_DUO,AC_RAND,AC_TRAND},{"EDIT MAP","BUILD ROOMS",RK_ACT,AC_MAP,0},{"MAIN MENU","LOOK IS KEPT",RK_ACT,AC_MENU,0},{"HOUSEHOLD","FAMILY AND KIN",RK_ACT,AC_HOUSE,0},
+   {"SHOW ITS CODE","TYPE IN A CODE",RK_DUO,AC_CSHOW,AC_CENTER}} };   // (sharecode.h: a Bore as a code, from the CREATOR DEMO or a friend)
+#endif   // (HOUSEHOLD: hhcreate.h. It holds ADD TO FAMILY, FAMILY and the relations)
+static int tabRows(int t){ int n=0; while(n<TROWS&&tabRow[t][n].lab) n++; return n-(t==0&&stage<AG_TEEN&&!sUnlock?3:0); }   // babies and children: no BUTT rows
 #define tabN(t) tabRows(t)
 static int tabNext(int t,int d){ return (t+d+NTAB)%NTAB; }
 
@@ -4711,6 +4724,10 @@ static void drawDuo(int tab,int y,int f,const Row*r){   // two half-width button
         rect(x,y-2,42,17,on?FOCUS:f?RGB(7,11,21):RGB(5,8,16)); if(on) rect(x,y+13,42,2,GOLD);
         if(act==AC_RAND) drawDie(x+15,y,5,face,RGB(3,4,9));   // RANDOMIZE: one die
         else if(act==AC_TRAND){ drawDie(x+10,y+2,3,face,RGB(28,5,5)); drawDie(x+20,y-1,6,face,RGB(5,10,28)); }   // TRUE RANDOM: two tumbling dice with coloured pips
+        else if(act==AC_CSHOW||act==AC_CENTER){   // SHARE CODE: two words a button (sharecode.h)
+            const char*l1=act==AC_CSHOW?"SHARE":"ENTER", *l2=act==AC_CSHOW?"CODE":"A CODE";
+            text(x+21-tw(l1,1)/2,y,l1,on?GOLD:DIMC,1); text(x+21-tw(l2,1)/2,y+8,l2,on?WHITE:DIMC,1);
+        }
         else {   // the name buttons: FIRST / LAST over the name (cut to fit)
             char nb[HH_NM]; const char*nm=act==AC_FNAME?hhPName:(hhPLast[0]?hhPLast:"NONE"); int n=0;
             while(nm[n]&&n<HH_NM-1){ nb[n]=nm[n]; n++; } nb[n]=0; while(n>0&&tw(nb,1)>36) nb[--n]=0;
@@ -4939,8 +4956,12 @@ static void famMenu(void){
     custom=0; ageDays=0; fixLook(); buildLook(); setColors(); ageSave(); persSave(); hhSave();
     static char t[32] EWRAM_BSS; simCat(simCat(t,"NOW EDITING "),hhPName); toast(t);
 }
-#include "hhcreate.h"   // CREATE-A-HOUSEHOLD: the DONE tab's HOUSEHOLD row (add Sims, who is whose mother / sister / roommate)
-static const u8 lkCnt[LK_N]={NSHAPE,NSKIN,NEYE,NMOUTH,3,NHAIR,NSW,NSW,NSW,9,9,9,3,3,3,6,6,3,4,3,6, NBROW,NNOSE,NCHEEK,NGLASS,NSW, 9,9,9,9,9,9,9, 4,3,7,6, 9,9,9,9,9,9,9,9,9, 5,4,4, 9,9,9, 9,9,9,9,9,9,9, 9,9,9,9,9,9,9, 9,9,9,7, 9,9,9, 9, [LK_SEX]=SX_N, 9,9,9};   // how many options each look row has (sliders: 9)
+static const u8 lkCnt[LK_N]={NSHAPE,NSKIN,NEYE,NMOUTH,3,NHAIR,NSW,NSW,NSW,9,9,9,3,3,3,6,6,3,4,3,6, NBROW,NNOSE,NCHEEK,NGLASS,NSW, 9,9,9,9,9,9,9, 4,3,7,6, 9,9,9,9,9,9,9,9,9, 5,4,4, 9,9,9, 9,9,9,9,9,9,9, 9,9,9,9,9,9,9, 9,9,9,7, 9,9,9, 9, [LK_THIGHW ... LK_NECKW]=9, [LK_SEX]=SX_N, [LK_BROWSP ... LK_CHEEKHT]=9};   // how many options each look row has (sliders: 9)
+#include "sharecode.h"   // SHARE CODES: a Bore as letters and digits (both the game and the CREATOR DEMO)
+#include "hhcreate.h"   // CREATE-A-HOUSEHOLD: the DONE tab's HOUSEHOLD row (add Sims, who is whose mother / sister / roommate; ADD FROM A CODE)
+#ifdef CC_DEMO
+static int ccSave(void); static int ccLeave(void);   // ccdemo.h
+#endif
 static void lookRandom(void){   // the dice (like Create-A-Bore): a whole new look and personality, only from what this stage and your unlocked parts allow
     const u8*cnt=lkCnt;
     for(int id=0;id<LK_N;id++){
@@ -5011,6 +5032,12 @@ static int creatorNew(void){   // returns 1 when the secret code switched screen
                     case AC_HOUSE: hcMenu(); break;
                     case AC_FNAME: if(nameEdit(hhPName,HH_NM-1,"FIRST NAME",0)) hhSave(); break;
                     case AC_LNAME: if(nameEdit(hhPLast,HH_NM-1,"LAST NAME",1)) hhSave(); break;
+                    case AC_CSHOW: scShow(); break;
+                    case AC_CENTER: if(scEnter()){ toast("HERE IS THEIR BORE"); dirty=3; } break;
+#ifdef CC_DEMO
+                    case AC_CSAVE: ccSave(); break;
+                    case AC_MENU:  if(!ccLeave()) break; stageOn=0; return 0;
+#endif
                     default:       stageOn=0; return 0;   // MAIN MENU
                 }
                 prev=keyNow(); for(int i=0;i<10;i++) hold[i]=0; dirty=3;
@@ -5676,6 +5703,9 @@ u8* csTestP;
 // 50 million times, START on the title froze). main() is only this stub: it points sp at the top 8 KB of EWRAM (8-byte aligned) and enters boreMain.
 // The Makefile fails the build if EWRAM statics ever grow into those 8 KB (STACK_EWRAM). Interrupts use their own stack (irqStack, IWRAM), the BIOS its own.
 int boreMain(void);
+#ifdef CC_DEMO
+#include "ccdemo.h"   // the CREATOR DEMO: only the creator, a gallery and share codes
+#endif
 __attribute__((naked, used)) int main(void){
     __asm__ volatile("ldr r0,=0x02040000\n\tmov sp,r0\n\tldr r1,=boreMain\n\tbx r1\n\t.ltorg\n");
 }
@@ -5698,6 +5728,9 @@ int boreMain(void){
     for(;;){ if(CS_PREVIEW>8) for(int i=0;i<8;i++) csPlay(i); else csPlay(CS_PREVIEW-1); }   // test build (-DCS_PREVIEW=n): play scene n-1 over and over (9: all of them in turn)
 #endif
     lrng^=(u32)titleScreen()*2654435761u;   // time spent on the title seeds the random numbers (first shuffle)
+#ifdef CC_DEMO
+    jbSetup(); starter(); ccMain();   // the CREATOR DEMO: straight to its hub (ccdemo.h)
+#endif
     if(konMsg) toast(konMsg==2?"DEBUG UNLOCKED":"DEBUG LOCKED");
     jbSetup();                              // load the saved shuffled order (or make a new one), placeholders hidden
     starter();

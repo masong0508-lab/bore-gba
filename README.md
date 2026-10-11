@@ -5,6 +5,12 @@ A Game Boy Advance game: a **voxel creature creator** that is growing into a **l
 ## Build and run
 - **GitHub:** push; the *Build GBA ROM* workflow makes `bore.gba` (download it from the run's artifacts; tag a commit to get a release).
 - **Locally:** install devkitARM, then `make`. Play `bore.gba` in mGBA or on a flash cart.
+- **The Creator Demo:** `make creator` builds `bore-creator.gba` (the workflow uploads it too): only the creature creator, like Spore's Creature Creator. Every part and slider is free; save your Bores to **MY CREATIONS** and flip through them, and every Bore has a **SHARE CODE**.
+
+## Share codes
+A Bore (its look, age, aspiration and personality) as up to about 72 letters and digits, e.g. `AG9E FK8H W7R8 ...`. The code alphabet has no I, O, 0 or 1, and a mistyped code is refused rather than loaded as some other Bore.
+- In the demo: hub > ENTER A SHARE CODE, or a creation's START in MY CREATIONS to see its code.
+- In the game: the creator's DONE tab > SHARE CODE / ENTER A CODE (the code's Bore becomes the one on screen), or DONE > HOUSEHOLD > ADD FROM A CODE (the code's Bore joins your household).
 
 ## Playing
 Power on, then START on the title screen. The **main menu** has:
