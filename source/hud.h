@@ -105,6 +105,10 @@ static void hudTopUpdate(int all){
     if(sw) mk^=0x2F1D35u;
     int flOn=curFl>0||pkHome>=0; char flT[3]={'F',(char)('1'+curFl),0}; int flW=tw(flT,1)+5, flX=(sw?164:180)-flW, flR=flOn?flX-2:(sw?164:180);   // floors render 1: FLOOR BADGE
     if(flOn) mk^=0x1B7A91u*(unsigned)(1+curFl+(pkHome>=0?4:0));
+    int mqOff=0;   // MARQUEE: a note longer than the slot holds still a moment, then slides left until its end shows
+    { static unsigned mqH; static int mqT;
+      if(has&&t){ unsigned h=hudHash(t); if(h!=mqH){ mqH=h; mqT=0; } else if(mqT<4000) mqT++;
+          int ov=tw(t,1)-(flR-104)+(pts?22:0); if(ov>0){ mqOff=mqT-24; if(mqOff<0) mqOff=0; if(mqOff>ov) mqOff=ov; mk^=(unsigned)mqOff*0x9E3779B1u; } } }
     if(hudChg(all,HK_MSG,mk)){
         hudClear(102,0,78,HUD_TOPH-1); clipSet(102,0,flR,HUD_TOPH-1);
         if(!has){
@@ -115,7 +119,7 @@ static void hudTopUpdate(int all){
             else if(lspecOn){ t="SPECIAL"; c=GOLD; has=1; }
             else if(sHud==0){ t=lskate?"A PUSH  B OLLIE  L WALK":(lhave?"B RUN  A HOP  L SKATE":"B RUN  A HOP"); c=HC_DIM; has=1; }
         }
-        if(has&&t){ int x=text(104,1,t,c,1); if(pts) numText(text(x+3,1,"+",GOLD,1)+1,1,pts,GOLD); else if(n2) numText(x+3,1,n2,WHITE); }
+        if(has&&t){ int x=text(104-mqOff,1,t,c,1); if(pts) numText(text(x+3,1,"+",GOLD,1)+1,1,pts,GOLD); else if(n2) numText(x+3,1,n2,WHITE); }
         clipAll();
         if(sw){ rect(166,1,14,HUD_TOPH-4,HC_GOLD); rect(167,2,12,HUD_TOPH-6,HC_BG0); text(168,1,"SW",HC_GOLD,1); }
         if(flOn){ u16 bc=pkHome>=0?RGB(14,24,31):HC_GOLD; rect(flX,1,flW,HUD_TOPH-4,bc); rect(flX+1,2,flW-2,HUD_TOPH-6,HC_BG0); text(flX+3,1,flT,bc,1); }

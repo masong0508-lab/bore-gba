@@ -157,7 +157,7 @@ static int petOvList(PetOv*o){
 
 // ---- free will ----
 static void petSay(Pet*p,int ic,int t){ p->bub=(u8)ic; p->bubT=(u8)t; }
-static void petNote(const Pet*p,const char*w){ if(lnoteT>40) return; char*e=simCat(petMsg,p->name); simCat(e,w); lnote=petMsg; lnoteT=100; }
+static void petNote(const Pet*p,const char*w){ if(lnoteT>40) return; char*e=simCat(petMsg,p->name); simCat(e,w); lnote=petMsg; lnoteT=150; }   // (a long note slides along the top bar: hud.h MARQUEE)
 static int petNear(const Pet*p,s32 fx,s32 fy,int d){ s32 dx=p->w.fx-fx, dy=p->w.fy-fy; return dx<d&&dx>-d&&dy<d&&dy>-d; }
 // A search from the pet (the household's BFS scratch): the nearest tile that fits mode, a path there in p->w. Modes: 0 somewhere random, 1 next to (gx, gy),
 // 2 outdoors, 3 a place to sleep (a rug, next to a bed or a sofa), 4 next to the fridge. 1 = a way was found (or it is there already).
@@ -197,7 +197,7 @@ static void pudAdd(int x,int y){ if(pudAt(x,y)>=0) return; if(pudN>=PUD_N){ for(
 static void petAccident(Pet*p){
     int pct=40-p->potty*3/10+(p->need[PN_BLAD]<5?20:0)-p->tr[PTR_SMART];   // 40% untrained .. about 10% fully house trained (more when it is bursting)
     if(pct<6) pct=6;
-    if((int)(rnd8()%100)>=pct){ p->act=PA_HOLD; p->go=0; p->t=240; petSay(p,IC_WC,240); petNote(p,petCat(p)?" HAS TO GO  LET IT OUT":" WHINES AT THE DOOR"); return; }
+    if((int)(((int)rnd8()*100>>8))>=pct){ p->act=PA_HOLD; p->go=0; p->t=240; petSay(p,IC_WC,240); petNote(p,petCat(p)?" HAS TO GO  LET IT OUT":" WHINES AT THE DOOR"); return; }
     int x=(int)(p->w.fx>>8), y=(int)(p->w.fy>>8);
     if(!petCat(p)&&(rnd8()&1)){   // a leg nearby?
         if(petNear(p,lfx,lfy,400)&&!lskate){ petFace(p,lfx,lfy); p->act=PA_PEE; p->go=0; p->t=70; p->need[PN_BLAD]=100;
@@ -205,7 +205,7 @@ static void petAccident(Pet*p){
         for(int m=0;m<hhN;m++){ HhSim*s=&hhM[m]; if(s->act==HA_AWAY||!petNear(p,s->fx,s->fy,400)) continue;
             petFace(p,s->fx,s->fy); p->act=PA_PEE; p->go=0; p->t=70; p->need[PN_BLAD]=100;
             s->need[HN_CLEAN]=(u8)(s->need[HN_CLEAN]>30?s->need[HN_CLEAN]-30:0); s->bub=IC_ANGRY; s->bubT=120;
-            char*e=simCat(petMsg,p->name); e=simCat(e," PEED ON "); simCat(e,s->name); lnote=petMsg; lnoteT=110; sfxPlay(SFX_GASP); return; } }
+            char*e=simCat(petMsg,p->name); e=simCat(e," PEED ON "); simCat(e,s->name); lnote=petMsg; lnoteT=150; sfxPlay(SFX_GASP); return; } }
     p->act=PA_PEE; p->go=0; p->t=70; p->need[PN_BLAD]=100; pudAdd(x,y); petNote(p,petCat(p)?" MISSED THE LITTER BOX":" HAD AN ACCIDENT");
 }
 static void petStartAct(Pet*p,int act,int t){ p->act=(u8)act; p->go=(u8)(p->w.pn>0); p->t=(short)t; }
@@ -222,7 +222,7 @@ static void petDecide(Pet*p){
         if(petPlan(p,4,0,0)){ petStartAct(p,PA_BEG,420); petSay(p,IC_FOOD,200); return; } }
     { int cx,cy; if(!cat&&petCopAt(&cx,&cy)&&petPlan(p,1,cx,cy)){ petStartAct(p,PA_BARK,150); petSay(p,IC_ANGRY,150); petNote(p," BARKS AT THE COPS"); return; } }
     for(int k=0;k<TW_N;k++){ int v=TW_V(k); if(v>=hhN&&twHas[k]&&twOn[k]==1&&!cat&&fr>=4&&(rnd8()&3)==0){ HhSim*s=&hhM[v]; if(petPlan(p,1,(int)(s->fx>>8),(int)(s->fy>>8))){ petStartAct(p,PA_GREET,120); petSay(p,IC_HEART,120); return; } } }   // a visitor walking in: the dog runs to say hello
-    int r=rnd8()%100;
+    int r=((int)rnd8()*100>>8);
     if(p->need[PN_FUN]<35||r<hy*3){   // the zoomies (a cat: a mad dash and a pounce)
         if(petPlan(p,0,0,0)){ petStartAct(p,PA_ZOOM,0); if((rnd8()&3)==0) petNote(p,cat?" HAS THE MIDNIGHT CRAZIES":" HAS THE ZOOMIES"); return; } }
     if(r<35+fr*4&&petNear(p,lfx,lfy,10*256)&&!petNear(p,lfx,lfy,2*256)&&petPlan(p,1,(int)(lfx>>8),(int)(lfy>>8))){ petStartAct(p,PA_FOLLOW,200+fr*20); return; }   // friendly: comes to you
@@ -252,7 +252,7 @@ static void petTick(int*planned){
             case PA_BEG: if(--p->t<=0||p->need[PN_FOOD]>=60){ p->act=PA_IDLE; p->think=40; break; }
                 if((p->t&127)==0) petSay(p,IC_FOOD,80);
                 if(p->t==200&&hhN&&xo[XO_FREEWILL]){ for(int m=0;m<hhN;m++){ HhSim*s=&hhM[m]; if(s->act!=HA_IDLE&&s->act!=HA_WANDER) continue; if(s->stage<AG_CHILD) continue;   // someone with nothing on feeds it
-                        p->need[PN_FOOD]=100; p->act=PA_EAT; p->t=120; s->bub=IC_HEART; s->bubT=60; char*e=simCat(petMsg,s->name); e=simCat(e," FED "); simCat(e,p->name); lnote=petMsg; lnoteT=90; break; } }
+                        p->need[PN_FOOD]=100; p->act=PA_EAT; p->t=120; s->bub=IC_HEART; s->bubT=60; char*e=simCat(petMsg,s->name); e=simCat(e," FED "); simCat(e,p->name); lnote=petMsg; lnoteT=150; break; } }
                 continue;
             case PA_HOLD: if(--p->t<=0){ p->act=PA_IDLE; p->think=10; } continue;
             default: if(--p->t<=0){ p->act=PA_IDLE; p->think=(short)(30+(rnd8()&63)); } continue; }
