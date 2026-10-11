@@ -1017,3 +1017,37 @@ in view; GROWN-UPS (bong, hookah, keg, slot machine ...) only shows for grown-up
 - Generated houses (housegen.h hgLook) give one piece in three a catalog look, never from GROWN-UPS, so the lots differ more; the venues
   (venues.h venueLook) dress their props to fit: TACO BORE gets bar stools, a pink flamingo and a neon arrow, the arcade real cabinets, the
   casino slot machines, the gym a weight bench and a glass shower, the library tall bookshelves and computer desks, and so on.
+
+## Crystal-clear sound: the DMA re-point that cannot click (irqMain, audStart)
+The crackle came from the way the sound double buffer was turned over. At every vblank the interrupt stopped timer 0 (the sample clock) and the
+two sound DMAs and started them again at the next buffer's first sample. Whatever samples the FIFO had already fetched past the buffer's end
+were then fetched again, and the FIFO's fill level drifted a little with each frame's interrupt latency until a whole 16-sample chunk repeated:
+a sawtooth pushed through the mixer in a test build skipped 16 samples every 0.28 s, in the title, the menus, play and the loading screens
+alike. And one DMA of the whole picture (present) held the CPU, and so the interrupt, for up to 80 lines: a 100-sample click in the menus and
+the builder every time it crossed the vblank.
+- **Timer 0 never stops.** Timer 1 counts its overflows: the samples played. At the vblank the interrupt reads it, works out where playback
+  is in the ring of the two buffers and where the FIFO will fetch next (16 a chunk, 16..32 ahead of what plays), and re-points the DMAs to
+  exactly there. However late the interrupt comes, nothing is replayed or skipped. A third buffer holds a copy of the first, so the DMA reading
+  on past the end of the second (the ring's wrap, before the vblank re-points it) finds the right samples.
+- The clock starts 6 lines before the blank (8 samples), so a buffer's edge and the FIFO's 16-boundaries fall midway between vblanks; within 2
+  samples of a boundary the interrupt waits it out before re-pointing, so the re-point never races a FIFO request.
+- The full-picture copies (present, uiPresent, edPresent, edCopyRows) go 4 rows a DMA (about 2 samples of sound each).
+- Proof: tools of the test rig put a 256-sample sawtooth into the mixer and record mGBA's output; every cycle must be 462.0 samples at 32768 Hz.
+  Before: 3.5 bad cycles a second everywhere, 7.7 in the builder. After: 0 in the title, the menus, play, the builder and a lot load.
+- The nature bed is not mixed under a loading screen (a fifth of the CPU while the Sims bake).
+
+## Faster: the walk, the lot change, the Sims' bake (SUPER GBA pass 1)
+Measured in mGBA with the game's own load counter (PERFORMANCE INFO) and time-weighted profiles (emu proft / proflr).
+- **Walking indoors: 216% -> 143% of a frame** (20 -> 29 fps). The wall drawers (drawWall, wallFloorDraw, wallAtR, wInAt) run from the
+  IWRAM overlay the room pass already uses; isWallCh / isWinCh / cellAt / rotXY are inlined for real; a window's columns are computed once
+  per hour phase (winColT) instead of once per column per frame; the wall segment's column loop has no branch per pixel; floorTile and
+  wallFloorDraw touch only the diamond rows that reach a thin strip (rowMaxT); the nature bed decodes both channels in one pass with its
+  numbers in a struct (they were stack arguments GCC reloaded every sample); a long note's marquee moves 2 px every other picture.
+- What a walking frame is: the camera moves 1 px a frame, so livePatch scrolls VRAM by DMA (about 58k cycles, the bitmap's own price) and
+  redraws a 1-px strip plus the player's 27 x 36 rectangle; the strip alone touches 65 floor tiles, 30 wall segments and 71 band scans.
+  The player stays CPU-drawn (walls and furniture in front must cover him), so 60 fps while scrolling would need a different renderer.
+- **A cab ride: 12 s -> 7 s.** houseSave compares the house with what its slot holds in the same pass that counts it, and leaves the save
+  chip alone when nothing changed (it erased and programmed 3-4 slots every ride); flPlaneAt / flBlankV divide by MW as a multiply;
+  bakeKey hashes only the two options the drawing reads (it hashed them all, so any option change baked the whole household again on the
+  next lot); drawEars steps once per run of samples on a pixel with per-row oval bounds (byte-identical sprites, 5x quicker: the ears were
+  a fifth of every bake).

@@ -435,7 +435,8 @@ static void hkAdd(u32*h,const void*p,int n){ const u8*b=(const u8*)p; u32 x=*h; 
 static u32 bakeKey(void){   // call after buildLook() + setColors()
     u32 h=2166136261u; u8 t[4]={stage,(u8)custom,sUnlock,0};
     hkAdd(&h,vox,sizeof(vox)); hkAdd(&h,dec,sizeof(dec)); hkAdd(&h,sT,sizeof(sT)); hkAdd(&h,sL,sizeof(sL)); hkAdd(&h,sR,sizeof(sR));
-    hkAdd(&h,dL,sizeof(dL)); hkAdd(&h,dR,sizeof(dR)); hkAdd(&h,look,sizeof(look)); hkAdd(&h,t,4); hkAdd(&h,xo,sizeof(xo));
+    hkAdd(&h,dL,sizeof(dL)); hkAdd(&h,dR,sizeof(dR)); hkAdd(&h,look,sizeof(look)); hkAdd(&h,t,4);
+    { u8 o[2]={xo[XO_HURT],xo[XO_JOB]}; hkAdd(&h,o,2); }   // only the options the drawing reads (hashing them all made every option change, e.g. the zoom, bake the whole household again on the next lot)
     return h?h:1;
 }
 static void poseBakeAll(void); static void poseWiden(void);

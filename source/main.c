@@ -435,6 +435,7 @@ IWRAM_OVL0 static void cube(int sx,int sy,int ci,int shape,int f){   // (overlay
 // ---------- textured walls and floors ----------
 #include "fltab.h"   // flTab[floor][odd tile][row][column]: pre-sampled onto the iso diamond, now baked into ROM (tools/gen_fltab.c) instead of 8.5 KB of EWRAM
 static u8 rowHW[CB+1];   // rowHW[|y|] = half width of the diamond on that row
+static signed char rowMaxT[CA+2];   // rowMaxT[d] = the last row |y| whose half width still reaches d columns from the centre (-1: none): a thin strip d away touches only rows -r..r
 static u16 flFlat[NFL][2];                             // plain-colour fallback ("floor patterns off")
 static u16 avgTex(const Tex*t){
     int r=0,g=0,b=0;
@@ -492,7 +493,9 @@ static inline __attribute__((always_inline)) void fillHW(u16*d,int n,u16 c){
 __attribute__((noinline)) IWRAM_CODE static void floorTile(int sx,int sy,const u16*tex){
     CNT(cntFT);   // one scanline span per row instead of one call per column
     int xa=cX0, xz=cX0+(int)cW-1;
-    for(int ry=-CB;ry<=CB;ry++,tex+=2*CA+1){
+    int d=sx-xz; if(xa-sx>d) d=xa-sx; int r=d<=0?CB:d>CA?-1:rowMaxT[d]; if(r<0) return;   // (a thin strip: only the rows wide enough to reach it)
+    tex+=(CB-r)*(2*CA+1);
+    for(int ry=-r;ry<=r;ry++,tex+=2*CA+1){
         int y=sy+ry; if((unsigned)(y-cY0)>=cH) continue;
         int hw=rowHW[ry<0?-ry:ry], x0=sx-hw, x1=sx+hw; const u16*sp=tex+(CA-hw);
         if(x0<xa){ sp+=xa-x0; x0=xa; } if(x1>xz) x1=xz; if(x0>x1) continue;
@@ -1164,6 +1167,7 @@ static u8 ord[4][W*D];   // per view: cells (x | z<<4) sorted back to front, so 
 static void initTables(void){
     for(int sh=0;sh<4;sh++){ int r=rTab[sh]; for(int at=0;at<=r;at++) hhT[sh][at]=(u8)((r/2)*(r-at)/r); }
     for(int a=0;a<=CB;a++){ int w=0; for(int at=0;at<=CA;at++) if(hhT[0][at]>=a) w=at; rowHW[a]=(u8)w; }
+    for(int d=0;d<=CA+1;d++){ int r=-1; for(int a=0;a<=CB;a++) if(rowHW[a]>=d) r=a; rowMaxT[d]=(signed char)r; }   // (floorTile / wallFloorDraw: the rows a thin strip d columns from the centre can touch)
     bakeTex();
     int sv=view;
     for(int v=0;v<4;v++){
@@ -1313,6 +1317,8 @@ __attribute__((noinline)) static void drawWings(int near){   // WINGS: a feather
         vline(x,top,bot,c); px(x,top,RGB(20,20,24)); px(x,bot,RGB(20,20,24));
     }
 }
+#define EAR_NMAX 128   // (an ear's depth samples run -n..n, n = 4 x its half depth in px: up to about 100)
+static short earXo[2*EAR_NMAX+1] EWRAM_BSS, earYo[2*EAR_NMAX+1] EWRAM_BSS, earLast[2*EAR_NMAX+1] EWRAM_BSS;   // drawEars: the screen offset of each depth sample, and the last sample on the same pixel
 __attribute__((noinline)) static void drawEars(int near){   // ROM, not inlined into the IWRAM drawScene
     int es=look[LK_EARS]; if(!es||custom) return;
     int hx,hy,hz,hs; headBox(&hx,&hy,&hz,&hs);
@@ -1332,13 +1338,24 @@ __attribute__((noinline)) static void drawEars(int near){   // ROM, not inlined 
         { int sp=slideEff(look[LK_EARSPR])+headK, fw=slideEff(look[LK_EARFWD]);        // EAR SPREAD: out from the head (a pixel a notch); EAR FRONT BACK: a quarter block a notch along the face
           cxp+=(a-b)*sp+fw*dzx/4; cyp+=(a+b)*sp/2+fw*dzy/4; }
         int lft=(a-b)<0; u16 fill=shade(lft?sL[1]:sR[1],15), pit=shade(lft?sL[1]:sR[1],11), edge=shade(sT[1],5);
-        int n=4*rz;                                                              // sample the oval finely enough to leave no holes
-        for(int iy=-4*ry;iy<=4*ry;iy++)for(int iz=-n;iz<=n;iz++){
-            long e=(long)iz*iz*ry*ry+(long)iy*iy*rz*rz, E=(long)16*rz*rz*ry*ry;  // (iz/4rz)^2+(iy/4ry)^2 <= 1
-            if(e>E) continue;
-            int rim=e*100>E*62, hol=!rim&&((long)(iz+n/4)*(iz+n/4)*ry*ry*4+(long)iy*iy*rz*rz*4<=E);
-            int x=cxp+(iz*dzx)/(4*CA), y=cyp+(iz*dzy)/(4*CA)+iy/4;
-            px(x,y,rim?edge:hol?pit:fill);
+        int n=4*rz, n4=n/4; long E=(long)16*rz*rz*ry*ry, ryry=(long)ry*ry, rzrz=(long)rz*rz;   // sample the oval finely enough to leave no holes: (iz/4rz)^2+(iy/4ry)^2 <= 1
+        // (the same samples, the same picture, 4x quicker: the oval tests are one multiply each against per-row numbers, the screen offsets of
+        // iz are tables, and a run of samples on one pixel writes it once, with the last sample's colour, as the last write won before)
+        if(n>EAR_NMAX) n=EAR_NMAX;
+        for(int iz=-n;iz<=n;iz++){ earXo[iz+n]=(short)((iz*dzx)/(4*CA)); earYo[iz+n]=(short)((iz*dzy)/(4*CA)); }
+        { int e=n; for(int iz=n;iz>=-n;iz--){ if(iz<n&&(earXo[iz+n]!=earXo[iz+1+n]||earYo[iz+n]!=earYo[iz+1+n])) e=iz; earLast[iz+n]=(short)e; } }   // the last sample of the run of samples that land on one pixel
+        int izm=0;   // the last sample inside the oval on this row (|iz| <= izm): it follows the rows up and down
+        for(int iy=-4*ry;iy<=4*ry;iy++){
+            long rowE=E-(long)iy*iy*rzrz; if(rowE<0) continue;
+            long rowR=E*62-(long)iy*iy*rzrz*100, rowH=E-(long)iy*iy*rzrz*4;
+            while(izm<n&&(long)(izm+1)*(izm+1)*ryry<=rowE) izm++;
+            while(izm>0&&(long)izm*izm*ryry>rowE) izm--;
+            int py=cyp+iy/4;
+            for(int iz=-n;iz<=n;){
+                int e=earLast[iz+n], lo=iz<-izm?-izm:iz, hi=e<izm?e:izm;   // the run iz..e on one pixel: its last sample inside the oval decides the colour
+                if(lo<=hi){ long q=(long)hi*hi*ryry; int rim=q*100>rowR, hol=!rim&&((long)(hi+n4)*(hi+n4)*ryry*4<=rowH);
+                    px(cxp+earXo[hi+n],py+earYo[hi+n],rim?edge:hol?pit:fill); }
+                iz=e+1; }
         }
     }
 }
@@ -1512,19 +1529,20 @@ static void vsync(void){
 static void vsyncUi(void){   // vsync for the menus: if the last redraw ran over a whole frame (we are already inside the NEXT vblank), do not wait out another full frame
     if(REG_VCOUNT>=160&&(R_TM3CNT&0x80)&&(u16)(R_TM3D-vsT)>180){ vsT=R_TM3D; if(mWantOff) audIdleStop(); svTick(); ldTick(); return; }
     vsync(); }
+static void vramRows(int y0,int y1){   // whole rows of fb to the screen, 4 rows (about 2 samples of sound) a DMA: one DMA of the whole picture held the CPU, and so the sound interrupt, for 80 lines
+    for(int y=y0;y<y1;y+=4){ int n=y1-y<4?y1-y:4; REG_DMA3SAD=(u32)(uintptr_t)(fb+y*SW); REG_DMA3DAD=VRAM_ADDR+(u32)(y*SW*2); REG_DMA3CNT=(u32)(n*SW/2)|0x84000000u; }
+}
 static void present(void){
     if(zoomShow&&!zoomKeep) zoomOff();   // anything but a room picture (menus, messages) is shown 1:1
     vsync();
-    REG_DMA3SAD=(u32)(uintptr_t)fb; REG_DMA3DAD=VRAM_ADDR;
-    REG_DMA3CNT=(SW*SH/2)|0x84000000u;
+    vramRows(0,SH);
 }
 
 // Menus: the picture goes to the screen right after it is drawn (present() first waits up to a whole frame for vblank), then the frame is waited out
 // so the loop still runs one pass a frame. A menu changes only when a key does, so the odd torn frame cannot be seen.
 static void uiPresent(void){
     if(zoomShow&&!zoomKeep) zoomOff();
-    REG_DMA3SAD=(u32)(uintptr_t)fb; REG_DMA3DAD=VRAM_ADDR;
-    REG_DMA3CNT=(SW*SH/2)|0x84000000u;
+    vramRows(0,SH);
     vsync();
 }
 
@@ -1793,7 +1811,8 @@ typedef struct { const s8*d; u32 pos,step,len; int vl,vr,ol,orr; } MVoice;   // 
 // first sample is kept as an offset (x32) that is added to the mix and fades out over ~2 ms, so the wave never steps.
 static MVoice mvc[MUS_VOICES];
 // STEREO: Direct Sound A plays the left buffers, Direct Sound B the right ones; both are fed by Timer0 and restarted together at vblank.
-static s8 mbufL[2][MUS_N] __attribute__((aligned(4))), mbufR[2][MUS_N] __attribute__((aligned(4)));
+static s8 mbufL[3][MUS_N] __attribute__((aligned(4))), mbufR[3][MUS_N] __attribute__((aligned(4)));   // 0 and 1 play in turn; 2 is a copy of 0, so the DMA reading on past the end of 1 (the ring's wrap, before the vblank re-points it) still finds the right samples
+static u16 mTmLast; static int mPos;   // the sample counter (timer 1) at the last vblank, and where playback is in the ring (0 .. 2*MUS_N-1)
 static u32 macc[MUS_N];   // musMix: per sample, left in the top 16 bits and right in the bottom 16 (one load and one store per voice and sample)
 #define maccL ((s16*)macc)            // chipMix's scratch: two plain s16 rows in the same memory
 #define maccR (((s16*)macc)+MUS_N)
@@ -1932,27 +1951,33 @@ IWRAM_ARM __attribute__((noinline)) static int softClipN(int x){ return softClip
 // (shift | delta << 3: low nibble L, high nibble R) and 16 bytes of 4-bit samples (low nibble L, high R). hs: 0 for L, 4 for R. st: previous sample, filter.
 // A few instructions a sample, no tables: delta blocks add (n << shift) to the last sample, plain ones are (n << shift). Then the indoor low pass (sh 0 =
 // open), add and clip. (One channel at a time: few enough values to stay in registers; the stack is in slow EWRAM.)
-IWRAM_ARM __attribute__((noinline)) static void ambChan(const u8*d,u32 p,int run,int*st,s8*out,int g,int sh,int hs){
-    int prev=st[0], f=st[1], ns=28-hs;
+typedef struct { int pl, fl, pr, fr, g, sh; } AmbSt;   // the bed's decoder: previous sample and filter of L and R, the gain and the filter shift (in a struct: nothing is a stack argument)
+IWRAM_ARM __attribute__((noinline)) static void ambChan(const u8*d,u32 p,int run,AmbSt*c,s8*outL,s8*outR){   // both channels in one pass: a byte is L in its low nibble, R in its high one
+    int pl=c->pl, fl=c->fl, pr=c->pr, fr=c->fr, g=c->g, sh=c->sh;
     while(run>0){
         const u8*bl=d+(p>>4)*17; int o=(int)(p&15), m=16-o; if(m>run) m=run;
-        int hd=(bl[0]>>hs)&15, bs=hd&7, mk=(hd&8)?-1:0; const u8*q=bl+1+o;   // (mk: keep the previous sample in a delta block, drop it in a plain one)
-        for(int k=0;k<m;k++){
-            prev=(prev&mk)+((((int)((u32)q[k]<<ns))>>28)<<bs);
-            f+=((prev*g)-f)>>sh;
-            int x=out[k]+(f>>8); out[k]=(s8)((unsigned)(x+96)<=192u?x:softClipN(x)); }
-        out+=m; p+=(u32)m; run-=m; }
-    st[0]=prev; st[1]=f;
+        int hd=bl[0], bl_=hd&7, ml=(hd&8)?-1:0, br=(hd>>4)&7, mr=(hd&128)?-1:0; const u8*q=bl+1+o; s8*e=outL+m;   // (mask: keep the previous sample in a delta block, drop it in a plain one)
+        do {
+            int b=*q++;
+            pl=(pl&ml)+((((int)((u32)b<<28))>>28)<<bl_); fl+=((pl*g)-fl)>>sh;
+            pr=(pr&mr)+((((int)((u32)b<<24))>>28)<<br);  fr+=((pr*g)-fr)>>sh;
+            int x=*outL+(fl>>8); if((unsigned)(x+96)>192u) x=softClipN(x); *outL++=(s8)x;
+            int y=*outR+(fr>>8); if((unsigned)(y+96)>192u) y=softClipN(y); *outR++=(s8)y;
+        } while(outL<e);
+        p+=(u32)m; run-=m; }
+    c->pl=pl; c->fl=fl; c->pr=pr; c->fr=fr;
 }
+static int ldOn;   // (loading.h: a loading screen is up)
 IWRAM_ARM static void ambMix(s8*outL,s8*outR){   // add the nature bed (both sides), clipped; ambK < 256 dulls it (a one-pole low pass, as a shift: indoors)
+    if(ldOn) return;   // (a loading screen: the bed waits, the CPU bakes Sims)
     const u8*d=ambD; u32 p=ambP, n=ambN; int g=(ambG*mGain)>>8, sh=ambK<256?2:0; if(!d||!g||!n) return;   // (it dips with the music under a menu: mGain; sh 0 = the filter is open)
-    int sl[2]={ambPl,ambLl}, sr[2]={ambPr,ambLr};
+    AmbSt st={ambPl,ambLl,ambPr,ambLr,g,sh};
     for(int i=0;i<MUS_N;){
         int run=(int)(n-p); if(run>MUS_N-i) run=MUS_N-i;   // (up to the loop's end)
-        ambChan(d,p,run,sl,outL+i,g,sh,0); ambChan(d,p,run,sr,outR+i,g,sh,4);
+        ambChan(d,p,run,&st,outL+i,outR+i);
         i+=run; p+=(u32)run;
-        if(p>=n){ p=0; if(ambKy){ sl[0]=ambKy->l; sr[0]=ambKy->r; } } }   // looped: the decoder starts over exactly as it began
-    ambP=p; ambPl=sl[0]; ambLl=sl[1]; ambPr=sr[0]; ambLr=sr[1];
+        if(p>=n){ p=0; if(ambKy){ st.pl=ambKy->l; st.pr=ambKy->r; } } }   // looped: the decoder starts over exactly as it began
+    ambP=p; ambPl=st.pl; ambLl=st.fl; ambPr=st.pr; ambLr=st.fr;
 }
 IWRAM_ARM static void sfxMix(s8*outL,s8*outR){   // add the effect voice to a finished buffer (both sides), clipped
     int fg=sfxFade;   // the voice's own fade (loading tick-tock): 8/256 a frame up, 16/256 down
@@ -2107,34 +2132,45 @@ __attribute__((used)) IWRAM_ARM void irqMain(void){
     if(f&1){   // vblank: start the buffer that was filled last frame, in step with the screen
         R_IF=1; keySample(); vblN++;   // (the buttons, 60 times a second whatever the main loop is doing: the key latch)
         if(zoomShow&&zoomDma) zoomArm();   // the ZOOM's per-line scaling, every frame
-        if(mOn){
-            if(!mFilled) mCur^=1;                      // (mix overran: replay the last buffer rather than a half-filled one)
-            R_DMA1CNT=0; R_DMA2CNT=0; R_TM0CNT=0;
-            R_DMA1SAD=(u32)(uintptr_t)mbufL[mCur]; R_DMA1DAD=0x040000A0u;   // left  -> Direct Sound A
-            R_DMA2SAD=(u32)(uintptr_t)mbufR[mCur]; R_DMA2DAD=0x040000A4u;   // right -> Direct Sound B
-            R_DMA1CNT=0xB6400000u; R_DMA2CNT=0xB6400000u;                   // enable, FIFO timing, repeat, 32-bit, fixed dest
-            R_TM0D=(u16)(65536-924); R_TM0CNT=0x80;
-            mCur^=1; mFilled=0;                        // mCur is now the idle buffer
+        if(mOn){   // LATENCY-PROOF: the sample clock (timer 0) never stops and timer 1 counts the samples it has played, so however late this
+            // interrupt comes (a long DMA, a section with interrupts off) the DMA is re-pointed to exactly where it was reading in the ring: nothing
+            // is replayed or skipped. (Restarting the clock and the DMA at the buffer's start, as before, replayed the samples fetched during the
+            // delay and let the FIFO's fill drift a little every frame until a whole 16-sample chunk repeated: the clicks under load.)
+            u16 t; int p;
+            for(;;){ t=R_TM1D; p=mPos+(u16)(t-mTmLast); while(p>=2*MUS_N) p-=2*MUS_N; if(((p+2)&15)>=4) break; }   // samples played, in the ring. The FIFO asks for its next 16 as a 16-boundary passes: within 2 samples of one, wait it out (the DMA could be mid-request), so the re-point below never races it
+            mTmLast=t; mPos=p;
+            int at=((p>>4)+2)<<4; if(at>=2*MUS_N) at-=2*MUS_N;   // the FIFO takes 16 at a time and holds 16..32 ahead of what plays: where the DMA reads next
+            R_DMA1CNT=0; R_DMA2CNT=0;
+            R_DMA1SAD=(u32)(uintptr_t)(&mbufL[0][0]+at); R_DMA1DAD=0x040000A0u;   // left  -> Direct Sound A
+            R_DMA2SAD=(u32)(uintptr_t)(&mbufR[0][0]+at); R_DMA2DAD=0x040000A4u;   // right -> Direct Sound B
+            R_DMA1CNT=0xB6400000u; R_DMA2CNT=0xB6400000u;                         // enable, FIFO timing, repeat, 32-bit, fixed dest
+            { int q=p+MUS_N/2; if(q>=2*MUS_N) q-=2*MUS_N; mCur=q<MUS_N?1:0; }     // the buffer playback will not touch this frame: the line-0 interrupt fills it
+            mFilled=0;
         }
     }
     if(f&4){   // line 0: render the idle buffer, it plays at the next vblank
         R_IF=4;
-        if(mOn&&!mFilled){ musMixAny(mCur); mFilled=1; }
+        if(mOn&&!mFilled){ musMixAny(mCur); if(mCur==0) for(int i=0;i<MUS_N;i++){ mbufL[2][i]=mbufL[0][i]; mbufR[2][i]=mbufR[0][i]; } mFilled=1; }   // (buffer 2: the wrap copy of 0)
     }
 }
 static void zoomIrq(void){ R_IRQVEC=(u32)(uintptr_t)irqEntry; R_DISPSTAT|=0x0008; R_IE|=1; R_IME=1; }   // the vblank IRQ on (for the ZOOM, also without sound)
 static void irqOff(void){ R_IME=0; R_IE=0; R_DISPSTAT=0; R_IF=0xFFFF; zoomIrq(); }   // the sound interrupts off; the vblank one stays (the ZOOM, the key latch)
 // AUDIO: one mixer for everything. While a song or an effect plays, the interrupts above run it; with neither, they are switched off.
 static void audStart(void){   // start the mixer (the caller has set up what plays)
-    irqOff(); R_DMA1CNT=0; R_DMA2CNT=0; R_TM0CNT=0;
-    mCur=0; musMixAny(0);   // buffer 0 is primed here and plays at the first vblank; the line-0 IRQ then renders buffer 1
-    mFilled=1; mOn=1;
+    irqOff(); R_DMA1CNT=0; R_DMA2CNT=0; R_TM0CNT=0; R_TM1CNT=0;
+    musMixAny(0); for(int i=0;i<MUS_N;i++){ mbufL[2][i]=mbufL[0][i]; mbufR[2][i]=mbufR[0][i]; }   // buffer 0 is primed here and plays first; the line-0 IRQ then renders buffer 1
+    mCur=1; mFilled=0; mOn=1; mPos=0; mTmLast=0;
     R_SNDCNT_X=0x80; R_SNDCNT_L=0; R_SNDCNT_H=0x9A0C;   // stereo: Direct Sound A -> left only, B -> right only, both 100%, Timer0, FIFOs reset
+    R_DMA1SAD=(u32)(uintptr_t)mbufL[0]; R_DMA1DAD=0x040000A0u; R_DMA2SAD=(u32)(uintptr_t)mbufR[0]; R_DMA2DAD=0x040000A4u;
+    while(REG_VCOUNT!=154);          // the clock starts 6 lines (8 samples) before the blank: a buffer's edge and the FIFO's 16-boundaries then fall mid-way between vblank interrupts, never on one
+    R_TM1D=0; R_TM1CNT=0x84;         // timer 1 counts timer 0's overflows: the samples played (the vblank interrupt re-points the DMA by it)
+    R_TM0D=(u16)(65536-924); R_TM0CNT=0x80;
+    R_DMA1CNT=0xB6400000u; R_DMA2CNT=0xB6400000u;   // (the empty FIFOs ask for their first 32 samples at once)
     R_IRQVEC=(u32)(uintptr_t)irqEntry;
     R_DISPSTAT=0x0028;                // vblank IRQ (bit 3) + vcount IRQ (bit 5) at line 0
     R_IF=0xFFFF; R_IE=5; R_IME=1;
 }
-static void audStop(void){ irqOff(); mOn=0; R_DMA1CNT=0; R_DMA2CNT=0; R_TM0CNT=0; R_SNDCNT_H=0; }
+static void audStop(void){ irqOff(); mOn=0; R_DMA1CNT=0; R_DMA2CNT=0; R_TM0CNT=0; R_TM1CNT=0; R_SNDCNT_H=0; }
 // Start a song: kind 0 = the tracker song xm, kind 1 = the ADPCM data in adp, kind 2 = a chiptune loop (synth data in adp).
 static void deckInit(int kind,const u8*adp,const XmSong*xm){   // set the main deck up for a song (the sound hardware is not touched)
     for(int i=0;i<MUS_VOICES;i++){ mvc[i].d=0; mvc[i].ol=mvc[i].orr=0; }
@@ -2154,7 +2190,7 @@ static void ldDrop(void){
     R_IME=ime;
 }
 static void musBeginRaw(int kind,const u8*adp,const XmSong*xm){
-    irqOff(); mOn=0; R_DMA1CNT=0; R_DMA2CNT=0; R_TM0CNT=0;
+    irqOff(); mOn=0; R_DMA1CNT=0; R_DMA2CNT=0; R_TM0CNT=0; R_TM1CNT=0;
     sfxV=0; sfxOn=0; sfxLoop=0; mCur=0; mFilled=0;
     deckInit(kind,adp,xm); audStart();
 }
@@ -2374,7 +2410,7 @@ static void fightHurt(int dmg){
         static char fhB[16] EWRAM_BSS; char*e=simCat(fhB,dmg>=30?"OUCH ":"OW "); *e++='-'; simCatN(e,dmg); if(lstun<30) lstun=30; lnote=fhB; lnoteT=40; }   // and how much
 }
 
-static inline int isWinCh(char c){ return c=='E'||c=='e'||c=='f'; }   // the window items: a wall piece you can see through (drawn as a wall, blocks like a full wall)
+static inline __attribute__((always_inline)) int isWinCh(char c){ return c=='E'||c=='e'||c=='f'; }   // the window items: a wall piece you can see through (drawn as a wall, blocks like a full wall)
 #include "ramps.h"
 static int tileH(int tx,int ty){   // surface height in px (ramps: their highest point). Grind height is 6: rails, ledges and benches
     if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
@@ -2663,7 +2699,9 @@ static const char sramTag[] __attribute__((used)) = "FLASH1M_V103";   // tells e
 #define FL_POOL 8192
 static u8 flPool[FL_POOL] EWRAM_BSS; static u16 flLen[FLR_N] EWRAM_BSS, flPl[FLR_N][3] EWRAM_BSS; static int curFl; static u8 flArm, flInit;
 static int flOff(int f){ int o=0; for(int g=0;g<f;g++) o+=flLen[g]; return o; }   // where floor f's runs start (flOff(FLR_N) = bytes in use)
-static int flBlankV(int f,int pl,int i){ if(f) return pl==0?'.':pl==1?FL_AIR:0; int x=i%MW, y=i/MW, e=(x==0||y==0||x==MW-1||y==MH-1); return pl==0?(e?'w':'.'):pl==1?1:(e?13:0); }   // a blank floor: upstairs open air; (the ground: carpet and a low wall round the edge)
+_Static_assert(MW==40,"flPlaneAt / flBlankV divide by MW as a multiply (exact for i < 8000 when MW is 40)");
+#define DIV_MW(i) (((i)*3277)>>17)   // i / MW without a library division (slEncRoom, nbValueLive and the house compare read every cell of every plane through here)
+static int flBlankV(int f,int pl,int i){ if(f) return pl==0?'.':pl==1?FL_AIR:0; int y=DIV_MW(i), x=i-y*MW, e=(x==0||y==0||x==MW-1||y==MH-1); return pl==0?(e?'w':'.'):pl==1?1:(e?13:0); }   // a blank floor: upstairs open air; (the ground: carpet and a low wall round the edge)
 static u8 flCf[3] EWRAM_BSS; static int flCi[3] EWRAM_BSS, flCn[3] EWRAM_BSS, flCv[3] EWRAM_BSS; static const u8*flCq[3] EWRAM_BSS;   // one read cursor per plane (floor + 1, last cell, run left, value, next run)
 static int flGet(int f,int pl,int i){   // cell i of plane pl of stored floor f. Read a plane in order and it costs one step a cell
     if(!flLen[f]) return flBlankV(f,pl,i);
@@ -2672,7 +2710,7 @@ static int flGet(int f,int pl,int i){   // cell i of plane pl of stored floor f.
     return flCv[pl];
 }
 static int flPlaneAt(int f,int pl,int i){   // cell i of plane pl of floor f as it stands now: the live map for the floor you are on, else its stored copy
-    if(f==curFl){ int y=i/MW, x=i%MW; return pl==0?(u8)lifeMap[y][x]:pl==1?floorMap[y][x]:wallMap[y][x]; }
+    if(f==curFl){ int y=DIV_MW(i), x=i-y*MW; return pl==0?(u8)lifeMap[y][x]:pl==1?floorMap[y][x]:wallMap[y][x]; }
     return flGet(f,pl,i);
 }
 #define SET_OFF 4864            // settings live here now (the big map takes bytes 0..4802)
@@ -3450,16 +3488,16 @@ static void lifeStep(u16 k,u16 pr,int fr){
 }
 static int ecx=6, ecy=6, efr;   // map editor cursor (tile) and frame counter
 // The room can be viewed from 4 sides (action cam). (rx,ry) are screen-space tile coords for the current view, (tx,ty) the real map tile.
-static void rotXY(int rx,int ry,int*tx,int*ty){
+static inline __attribute__((always_inline)) void rotXY(int rx,int ry,int*tx,int*ty){
     switch(cview){ case 0:*tx=rx;*ty=ry;break; case 1:*tx=ry;*ty=MW-1-rx;break; case 2:*tx=MW-1-rx;*ty=MH-1-ry;break; default:*tx=MH-1-ry;*ty=rx; }
 }
 static void rotPos(s32 x,s32 y,s32*rx,s32*ry){   // same for a position in 1/256 tiles
     switch(cview){ case 0:*rx=x;*ry=y;break; case 1:*rx=MH*256-y;*ry=x;break; case 2:*rx=MW*256-x;*ry=MH*256-y;break; default:*rx=y;*ry=MW*256-x; }
 }
-static char cellAt(int rx,int ry){ int tx,ty; rotXY(rx,ry,&tx,&ty); return lifeMap[ty][tx]; }
+static inline __attribute__((always_inline)) char cellAt(int rx,int ry){ int tx,ty; rotXY(rx,ry,&tx,&ty); return lifeMap[ty][tx]; }
 static int wpAt(int rx,int ry){ int tx,ty; rotXY(rx,ry,&tx,&ty); return wallMap[ty][tx]; }
 static int flAt(int rx,int ry){ int tx,ty; rotXY(rx,ry,&tx,&ty); return floorMap[ty][tx]; }
-static int isWallCh(char c){ return c=='w'||c=='W'||isWinCh(c); }
+static inline __attribute__((always_inline)) int isWallCh(char c){ return c=='w'||c=='W'||isWinCh(c); }
 // ---- camera: follows the player (play) or the cursor (editor); only the tiles on screen are drawn ----
 static int vpY0=0, vpY1=SH, vpX0=0, vpX1=SW, sbY0=0, sbY1=SH;   // vpX0..vpX1: the columns drawn (all, or the ZOOM window); sbY0..sbY1: the room rows of the screen   // rows of the screen the scene lives in (life mode keeps the HUD panels above and below; the editor uses it all)
 static void camClamp(int ed){
@@ -3522,8 +3560,8 @@ static void wallsScan(void){   // flood the outside from the map edge; everythin
             wInside[ny][nx]=0; q[qt++]=(u16)(ny*MW+nx); } }
     wDirty=0;
 }
-static int wInAt(int rx,int ry){ if(rx<0||ry<0||rx>=MW||ry>=MH) return 0; int tx,ty; rotXY(rx,ry,&tx,&ty); return wInside[ty][tx]&&!isWallCh(lifeMap[ty][tx]); }
-static int wallAtR(int rx,int ry){ return rx>=0&&ry>=0&&rx<MW&&ry<MH&&isWallCh(cellAt(rx,ry)); }
+static inline int wInAt(int rx,int ry){ if(rx<0||ry<0||rx>=MW||ry>=MH) return 0; int tx,ty; rotXY(rx,ry,&tx,&ty); return wInside[ty][tx]&&!isWallCh(lifeMap[ty][tx]); }
+static inline int wallAtR(int rx,int ry){ return rx>=0&&ry>=0&&rx<MW&&ry<MH&&isWallCh(cellAt(rx,ry)); }
 static int wallFloorR(int rx,int ry){   // the floor to draw under a wall tile: a neighbour's (inside first)
     static const signed char nd[4][2]={{0,1},{1,0},{0,-1},{-1,0}}; int best=-1;
     for(int k=0;k<4;k++){ int x=rx+nd[k][0], y=ry+nd[k][1]; if(x<0||y<0||x>=MW||y>=MH||isWallCh(cellAt(x,y))||flAt(x,y)==FL_AIR) continue; if(wInAt(x,y)) return flAt(x,y); if(best<0) best=flAt(x,y); }   // (not open air)
@@ -3537,9 +3575,9 @@ static u16 wpAvgOf(int wp){ return wp<NWP?wpAvg[wp]:wp<NWP+NWX?wxAvg[wp-NWP]:win
 // One column (u 0..7) of a window wall, WALL_H rows from the top, drawn here instead of read from a texture. WINDOW: white frame, bars, sky glass.
 // DARK WINDOW: dark wood and night glass. STRIP WINDOW: no side frames, so a row of them is one long band of glass.
 static int todPhase(void){ int m=simMin; return (m>=420&&m<1020)?0:(m>=300&&m<1200)?1:2; }   // the sky by the hour: 0 day (7:00-17:00), 1 dawn / dusk (5-7, 17-20), 2 night
-static __attribute__((noinline)) void winCol(int k,int dir,int u,u16*o){
+static void winColAt(int k,int dir,int u,int ph,u16*o){   // (winColT fills from this)
     int sh=dir?9:12; u16 wall=shade(winWall[k],sh);
-    int ph=todPhase(); u16 g0,g1;   // the glass shows the sky of the hour: blue day, orange dusk, a dark night with stars
+    u16 g0,g1;   // the glass shows the sky of the hour: blue day, orange dusk, a dark night with stars
     if(k==1){ g0=ph==0?RGB(5,10,14):ph==1?RGB(14,7,5):RGB(2,3,7); g1=ph==0?RGB(9,16,20):ph==1?RGB(20,11,6):RGB(24,24,18); }
     else    { g0=ph==0?RGB(12,22,30):ph==1?RGB(28,15,8):RGB(3,5,12); g1=ph==0?RGB(20,28,31):ph==1?RGB(31,23,13):RGB(28,28,22); }
     u16 fr=k==1?shade(RGB(9,6,4),sh):shade(RGB(29,29,28),sh), gl=shade(g0,sh), gl2=shade(g1,sh);
@@ -3552,27 +3590,36 @@ static __attribute__((noinline)) void winCol(int k,int dir,int u,u16*o){
         o[v]=c;
     }
 }
+static u16 winColT[NWIN][2][8][WALL_H] EWRAM_BSS; static u8 winColPh EWRAM_BSS;   // every window column of the hour (2.3 KB): wallSegO reads them straight from here
+static const u16* winColGet(int k,int dir,int u){
+    int ph=todPhase(); if(winColPh!=(u8)(ph+1)){ winColPh=(u8)(ph+1); for(int a=0;a<NWIN;a++) for(int b=0;b<2;b++) for(int c=0;c<8;c++) winColAt(a,b,c,ph,winColT[a][b][c]); }
+    return winColT[k][dir][u]; }
+static void winCol(int k,int dir,int u,u16*o){ const u16*t=winColGet(k,dir,u); for(int v=0;v<WALL_H;v++) o[v]=t[v]; }
 // one segment of wall: columns xa..xb of a tile whose centre (on the floor) is sx,sy. dir 0 runs along x (the camera sees its +y face),
 // dir 1 along y (+x face). h = height in px. edge: bit 0 = column xa is an end or corner, bit 1 = column xb.
 IWRAM_OVL1 static void wallSegO(int sx,int sy,int xa,int xb,int dir,int h,int wp,int edge);
 static inline void wallSeg(int sx,int sy,int xa,int xb,int dir,int h,int wp,int edge){ ovlUse(1); wallSegO(sx,sy,xa,xb,dir,h,wp,edge); }
 IWRAM_OVL1 static void wallSegO(int sx,int sy,int xa,int xb,int dir,int h,int wp,int edge){
-    int ye=cY0+(int)cH-1, per, v0; u16 wb[WALL_H];
+    int ye=cY0+(int)cH-1, per, v0;
     u16 av=wpAvgOf(wp), flat=shade(av,dir?9:12), trim=lite(av,20), dark=shade(av,6);
     for(int x=xa;x<=xb;x++){
         if((unsigned)(x-cX0)>=cW) continue;
         int off=x-sx, base=dir?sy-(off>>1):sy+(off>>1), top=base-h, u=dir?(4-off)&7:(off+4)&7;
-        const u16*col; if(wp<NWP){ col=wpTab[wp][dir][u]; per=8; v0=0; } else if(wp<NWP+NWX){ col=wxTex[wp-NWP][dir][u]; per=WALL_H; v0=WALL_H-h; } else { winCol(wp-NWP-NWX,dir,u,wb); col=wb; per=WALL_H; v0=WALL_H-h; }
+        const u16*col; if(wp<NWP){ col=wpTab[wp][dir][u]; per=8; v0=0; } else if(wp<NWP+NWX){ col=wxTex[wp-NWP][dir][u]; per=WALL_H; v0=WALL_H-h; } else { col=winColGet(wp-NWP-NWX,dir,u); per=WALL_H; v0=WALL_H-h; }
         int ya=top-1<cY0?cY0:top-1, yz=base>ye?ye:base; if(ya>yz) continue;
         u16*d=&fb[ya*SW+x];
         if(((edge&1)&&x==xa)||((edge&2)&&x==xb)){ for(int y=ya;y<=yz;y++,d+=SW) *d=dark; continue; }   // an end or a corner: an outline
-        for(int y=ya;y<=yz;y++,d+=SW){
-            if(y==top-1) *d=dark; else if(y==top) *d=trim;                 // the top of the wall: an outline and a light trim
-            else if(!sWp) *d=flat;
-            else { int v=v0+(y-top-1); if(per==8) v&=7; *d=col[v]; } }
+        if(ya==top-1){ *d=dark; d+=SW; ya++; }                             // the top of the wall: an outline and a light trim
+        if(ya==top&&ya<=yz){ *d=trim; d+=SW; ya++; }
+        if(ya>yz) continue;
+        if(!sWp){ for(int y=ya;y<=yz;y++,d+=SW) *d=flat; }
+        else if(per==8){ int v=(v0+(ya-top-1))&7; for(int y=ya;y<=yz;y++,d+=SW){ *d=col[v]; v=(v+1)&7; } }
+        else { const u16*c=col+v0+(ya-top-1); for(int y=ya;y<=yz;y++,d+=SW) *d=*c++; }
     }
 }
-static void drawWall(int tx,int ty,int sx,int sy){   // tx,ty in screen-rotated tile coords
+IWRAM_OVL1 static void drawWallO(int tx,int ty,int sx,int sy);
+static inline void drawWall(int tx,int ty,int sx,int sy){ ovlUse(1); drawWallO(tx,ty,sx,sy); }
+IWRAM_OVL1 static void drawWallO(int tx,int ty,int sx,int sy){   // tx,ty in screen-rotated tile coords
     if(wDirty) wallsScan();
     int low=cellAt(tx,ty)=='w', wp=wpAt(tx,ty); if(wp>=NWALL) wp=0;
     { char wc=cellAt(tx,ty); if(isWinCh(wc)) wp=NWP+NWX+(wc=='E'?0:wc=='e'?1:2); }   // a window item
@@ -3753,9 +3800,10 @@ static int wFqOf(int tx,int ty){   // the four floors of screen tile (tx,ty), pa
     return fq[0]|fq[1]<<4|fq[2]<<8|fq[3]<<12;
 }
 static void wFqBuild(void){ for(int y=0;y<MH;y++)for(int x=0;x<MW;x++) wFq[y][x]=(u16)wFqOf(x,y); wFqView=(u8)cview; }
-__attribute__((noinline,long_call)) static void wallFloorDraw(int sx,int sy,int pk,int v){   // a split tile: each row is the left quarter, the middle one (top or bottom) and the right one, meeting where the two wall lines cross it
+IWRAM_OVL1 static void wallFloorDraw(int sx,int sy,int pk,int v){   // a split tile: each row is the left quarter, the middle one (top or bottom) and the right one, meeting where the two wall lines cross it
     int xa=cX0, xz=cX0+(int)cW-1;
-    for(int ry=-CB;ry<=CB;ry++){
+    int d=sx-xz; if(xa-sx>d) d=xa-sx; int r=d<=0?CB:d>CA?-1:rowMaxT[d]; if(r<0) return;   // (a thin strip: only the rows wide enough to reach it)
+    for(int ry=-r;ry<=r;ry++){
         int y=sy+ry; if((unsigned)(y-cY0)>=cH) continue;
         int hw=rowHW[ry<0?-ry:ry], a=2*(ry<0?-ry:ry), mid=ry<0?0:2;
         int sp[3][2]={{-hw,-a-1},{-a,a},{a+1,hw}}, qq[3]={3,mid,1};   // (near the top and bottom points the whole row is the middle quarter)
@@ -4584,8 +4632,7 @@ static void mmView(void){
 }
 static void edPresent(void){   // the builder's picture goes to the screen the moment it is drawn (present() first waits for vblank: up to a frame of input lag), then the frame is waited out; a redraw that overran skips the extra wait
     if(zoomShow&&!zoomKeep) zoomOff();
-    REG_DMA3SAD=(u32)(uintptr_t)fb; REG_DMA3DAD=VRAM_ADDR;
-    REG_DMA3CNT=(SW*SH/2)|0x84000000u;
+    vramRows(0,SH);
     vsyncUi();
 }
 // ---- the builder redraws only what changed (a whole room is 5 or 6 frames of drawing: the cursor crawled, "playing chess in build mode") ----
@@ -4608,7 +4655,7 @@ static void edShift(int y0,int y1,int dx,int dy){   // a scroll: the picture in 
 }
 static void edCopyRows(int x0,int y0,int x1,int y1){   // part of the picture to the screen (whole rows in one go)
     if(x0<0) x0=0; if(y0<0) y0=0; if(x1>SW) x1=SW; if(y1>SH) y1=SH; if(x0>=x1||y0>=y1) return;
-    if(x0==0&&x1==SW){ REG_DMA3SAD=(u32)(uintptr_t)(fb+y0*SW); REG_DMA3DAD=VRAM_ADDR+(u32)(y0*SW*2); REG_DMA3CNT=(u32)((y1-y0)*SW/2)|0x84000000u; return; }
+    if(x0==0&&x1==SW){ vramRows(y0,y1); return; }
     x0&=~1; x1=(x1+1)&~1; if(x1>SW) x1=SW; int wd=(x1-x0)>>1;
     for(int y=y0;y<y1;y++){ REG_DMA3SAD=(u32)(uintptr_t)(fb+y*SW+x0); REG_DMA3DAD=VRAM_ADDR+(u32)((y*SW+x0)*2); REG_DMA3CNT=(u32)wd|0x84000000u; }
 }

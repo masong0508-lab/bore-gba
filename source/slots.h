@@ -104,11 +104,11 @@ static void slMigrate(void){
 }
 
 // ---------- byte writer (a counting dry run when p is 0) and reader ----------
-typedef struct { u32 off; int pos,cap,over; u32 s1,s2; } SlW;   // off: where in the save memory it writes (0 = only count)
-static void slwInit(SlW*w,u32 off,int cap){ w->off=off; w->pos=0; w->cap=cap; w->over=0; w->s1=w->s2=0; }
+typedef struct { u32 off; int pos,cap,over; u32 s1,s2; u8 cmp,diff; u8*ram; } SlW;   // off: where in the save memory it writes (0 = only count); cmp: compare with what is there instead (diff: it differs); ram: write into memory instead
+static void slwInit(SlW*w,u32 off,int cap){ w->off=off; w->pos=0; w->cap=cap; w->over=0; w->s1=w->s2=0; w->cmp=w->diff=0; w->ram=0; }
 static void slwPut(SlW*w,int b){
     if(w->pos>=w->cap){ w->over=1; return; }
-    b&=255; if(w->off) svWr(w->off+(u32)w->pos,b); w->pos++;
+    b&=255; if(w->ram) w->ram[w->pos]=(u8)b; else if(w->cmp){ if(svRd(w->off+(u32)w->pos)!=b) w->diff=1; } else if(w->off) svWr(w->off+(u32)w->pos,b); w->pos++;
     w->s1+=(u32)b; if(w->s1>=255) w->s1-=255; w->s2+=w->s1; if(w->s2>=255) w->s2-=255;   // Fletcher-16
 }
 static void slwPut16(SlW*w,int v){ slwPut(w,v&255); slwPut(w,(v>>8)&255); }
@@ -373,7 +373,7 @@ static int houseLoad(int slot){   // all floors are checked first; only then is 
 static int houseSave(int slot,const char*name){   // needs a fresh slScan (slOwner). A house takes 3 or 4 slots in a row
     SlInfo old; int had=slInfo(slot,&old); if(had&&old.kind!=SLK_HOUSE) return SLE_HOUSE;
     flEnsure();   // (the floor you are on is read live: slPlaneVal)
-    SlW d; slwInit(&d,0,1<<20); slHouseBuild(&d);
+    SlW d; slwInit(&d,SLO(slot)+SLOT_HDR,4*SLOT_SZ-SLOT_HDR); d.cmp=1; slHouseBuild(&d);   // one pass counts the bytes and compares them with what the slot holds
     int span=(SLOT_HDR+d.pos+SLOT_SZ-1)/SLOT_SZ; if(span>4) return SLE_BIG;
     if(!slFits(slot,span)) return SLE_NOROOM;
     for(int k=0;k<span;k++) if(slOwner[slot+k]>=0&&slOwner[slot+k]!=slot) return SLE_NOROOM;
@@ -382,6 +382,9 @@ static int houseSave(int slot,const char*name){   // needs a fresh slScan (slOwn
     else if(had){ for(int i=0;i<=SLOT_NAME;i++) nm[i]=old.name[i]; }
     else slNameN(nm,"HOUSE ",slot+1);
     int oldspan=had?old.span:1;
+    if(had&&!d.diff&&old.span==span&&old.len==d.pos&&old.sum==slwSum(&d)&&old.has==SLH_ROOM){   // the same house as the slot holds? then the save chip is left alone (a cab ride used to erase and program it all again)
+        int same=1; for(int i=0;i<=SLOT_NAME&&same;i++){ same=old.name[i]==nm[i]; if(!nm[i]) break; }
+        if(same) return SLE_OK; }
     slOpen(slot,span);
     SlW w; slwInit(&w,SLO(slot)+SLOT_HDR,span*SLOT_SZ-SLOT_HDR); slHouseBuild(&w);
     if(w.over) return SLE_BIG;

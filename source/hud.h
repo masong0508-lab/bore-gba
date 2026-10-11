@@ -110,7 +110,7 @@ static void hudTopUpdate(int all){
     int mqOff=0;   // MARQUEE: a note longer than the slot holds still a moment, then slides left until its end shows
     { static unsigned mqH; static int mqT;
       if(has&&t){ unsigned h=hudHash(t); if(h!=mqH){ mqH=h; mqT=0; } else if(mqT<4000) mqT++;
-          int ov=tw(t,1)-(flR-104)+(pts?22:0); if(ov>0){ mqOff=mqT-24; if(mqOff<0) mqOff=0; if(mqOff>ov) mqOff=ov; mk^=(unsigned)mqOff*0x9E3779B1u; } } }
+          int ov=tw(t,1)-(flR-104)+(pts?22:0); if(ov>0){ mqOff=(mqT-24)&~1; if(mqOff<0) mqOff=0; if(mqOff>ov) mqOff=ov; mk^=(unsigned)mqOff*0x9E3779B1u; } } }   // (2 px every other picture: the line is drawn again only half as often)
     if(hudChg(all,HK_MSG,mk)){
         hudClear(102,0,78,HUD_TOPH-1); clipSet(102,0,flR,HUD_TOPH-1);
         if(!has){
