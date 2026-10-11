@@ -69,7 +69,9 @@ static int bkPutSim(int i,u16 key,int lot,const HhSim*s){   // one Sim who moved
     return !svErr;
 }
 static void hhRelClear(void){ for(int a=0;a<HU_N;a++)for(int b=0;b<HU_N;b++){ relD[a][b]=relL[a][b]=0; relF[a][b]=0; } kinClear(); }
+static void exQuit(void);   // expand.h
 static void hhAfterSwitch(void){   // a different household is the one you play: everything baked or picked for the old one goes
+    exQuit();   // (a pack's mission belongs to the life it was started in)
     twKeep=0; sprKey=0; for(int m=0;m<HH_MAX;m++) hhKey[m]=0; hhSlotsFree();
     custom=0; fixLook(); buildLook(); setColors(); ageSave(); persSave(); hhSave(); simsSaveNow();
 }

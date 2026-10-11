@@ -7,7 +7,8 @@
 //   The room   venueBuild lays it out when the lot opens (nbTemplate): a walled room, the counter across it, the props round the walls.
 #define VF_ADULT 1   // grown-ups only
 #define VF_NIGHT 2   // only after 6 PM
-enum { VS_NONE, VS_MUNCH, VS_ADOPT, VS_MOVIE, VS_GAMBLE, VS_HEAL, VS_HAIR, VS_WORK, VS_ROB, VS_GROCER, VS_PETFOOD, VS_PETTOY, VS_PETGROOM };
+enum { VS_NONE, VS_MUNCH, VS_ADOPT, VS_MOVIE, VS_GAMBLE, VS_HEAL, VS_HAIR, VS_WORK, VS_ROB, VS_GROCER, VS_PETFOOD, VS_PETTOY, VS_PETGROOM,
+       VS_LAUNCH, VS_SPACEWALK, VS_SPAR, VS_FIGHTER };   // (the packs, expand.h: a seat on the rocket, spacewalk training, a challenger, the BORTUA FIGHTER cabinet)
 typedef struct { const char*nm; short price; signed char food, nrg, hyg, com, soc; u8 mood, sk, skn, stun, fl, sp; const char*say; } VAct;   // (VS_GAMBLE: sk = payout x, skn = win %)
 #define NO 255
 static const VAct vAct[]={
@@ -29,87 +30,106 @@ static const VAct vAct[]={
     {"PLAY A CABINET",1, 0,-3,0,0,0, M_COMBO,SK_LOGIC,1,90,0,VS_NONE,"NEW HIGH SCORE"},
     {"TICKET GAME",2, 0,-2,0,0,0, 0,3,40,60,0,VS_GAMBLE,0},
     {"DANCE MACHINE",2, -3,-8,-6,0,4, M_COMBO,SK_BODY,1,100,0,VS_NONE,"PERFECT PERFECT GREAT"},
+    {"BORTUA FIGHTER",1, 0,-3,0,0,0, 0,NO,0,0,0,VS_FIGHTER,0},
     {"FIX THE MACHINES",0, 0,-10,-5,0,0, 0,SK_LOGIC,1,200,0,VS_WORK,"IT WAS UNPLUGGED"},
-    // NIGHTCLUB (16)
+    // NIGHTCLUB (17)
     {"DANCE",0, -4,-10,-8,0,15, M_COMBO,SK_BODY,1,120,0,VS_NONE,"THE BASS DROPS"},
     {"BUY A ROUND",30, 0,0,0,0,30, M_WANT,SK_CHARM,1,60,VF_ADULT,VS_NONE,"EVERYONE LOVES YOU NOW"},
     {"VIP LOUNGE",50, 0,5,0,30,20, M_SOFA,NO,0,120,VF_ADULT,VS_NONE,"VELVET ROPES"},
     {"DJ A SET",0, 0,-12,0,0,10, M_COMBO,SK_CREAT,2,200,VF_NIGHT,VS_WORK,"THE CROWD GOES WILD"},
-    // GROCERY (20)
+    // GROCERY (21)
     {"GROCERIES FOR HOME",40, 20,0,0,0,0, M_PAY,SK_COOK,1,60,0,VS_GROCER,0},
     {"A SNACK",3, 15,0,0,0,0, M_EAT,NO,0,30,0,VS_NONE,"CHIPS"},
     {"MUNCHIES AISLE",8, 30,0,0,5,0, M_EAT,NO,0,40,0,VS_MUNCH,"ONE OF EVERYTHING"},
     {"PET FOOD",10, 0,0,0,0,0, 0,NO,0,30,0,VS_PETFOOD,0},
     {"STOCK SHELVES",0, 0,-12,-6,0,0, 0,SK_BODY,1,200,0,VS_WORK,"CLEANUP ON AISLE 3"},
-    // BANK (25)
+    // BANK (26)
     {"INVEST 100",100, 0,0,0,0,0, 0,2,48,60,VF_ADULT,VS_GAMBLE,0},
     {"ROB THE BANK",0, 0,-10,0,0,0, 0,NO,0,90,VF_ADULT,VS_ROB,0},
     {"WORK THE TELLER",0, 0,-10,0,0,5, 0,SK_LOGIC,1,200,0,VS_WORK,"NEXT IN LINE"},
-    // HOSPITAL (28)
+    // HOSPITAL (29)
     {"GET PATCHED UP",50, 0,0,0,10,0, M_SOFA,NO,0,100,0,VS_HEAL,"GOOD AS NEW"},
     {"A CHECKUP",20, 0,0,0,10,0, M_WANT,NO,0,60,0,VS_HEAL,"SAY AHH"},
     {"DONATE BLOOD",-30, 10,-20,0,0,0, M_WANT,NO,0,90,VF_ADULT,VS_NONE,"YOU GET A COOKIE"},
     {"VOLUNTEER",0, 0,-12,0,0,10, 0,SK_CHARM,1,200,0,VS_WORK,"YOU HELPED"},
-    // CAFE (32)
+    // CAFE (33)
     {"ESPRESSO",3, 0,25,0,0,0, M_WANT,NO,0,30,0,VS_NONE,"WIDE AWAKE"},
     {"OAT LATTE",4, 5,18,0,5,0, M_WANT,NO,0,40,0,VS_NONE,"VERY ARTISANAL"},
     {"A PASTRY",3, 15,0,0,0,0, M_EAT,NO,0,30,0,VS_MUNCH,"FLAKY"},
     {"OPEN MIC",0, 0,-5,0,0,12, M_COMBO,SK_CHARM,2,120,0,VS_NONE,"SNAPS ALL ROUND"},
     {"BARISTA SHIFT",0, 0,-12,-4,0,6, 0,SK_COOK,1,200,0,VS_WORK,"NAME FOR THE CUP"},
-    // BAR (37)
+    // BAR (38)
     {"A DRINK",6, 0,-3,0,5,10, M_CHILL,NO,0,60,VF_ADULT,VS_NONE,"CHEERS"},
     {"KARAOKE",0, 0,-5,0,0,15, M_COMBO,SK_CHARM,1,120,0,VS_NONE,"DONT STOP BELIEVING"},
     {"DARTS",2, 0,-3,0,0,8, M_WANT,SK_LOGIC,1,80,0,VS_NONE,"BULLSEYE  ALMOST"},
     {"BAR SNACKS",4, 15,0,0,0,0, M_EAT,NO,0,30,0,VS_MUNCH,"PRETZELS"},
     {"TEND BAR",0, 0,-12,-4,0,8, 0,SK_CHARM,1,200,VF_ADULT,VS_WORK,"WHAT CAN I GET YOU"},
-    // SALON (42)
+    // SALON (43)
     {"NEW HAIRDO",40, 0,0,5,5,0, M_WANT,NO,0,120,0,VS_HAIR,0},
     {"MANI PEDI",20, 0,0,10,20,0, M_SOFA,NO,0,90,0,VS_NONE,"FABULOUS"},
     {"SPA DAY",60, 0,20,40,40,0, M_SOFA,NO,0,200,0,VS_NONE,"CUCUMBERS ON YOUR EYES"},
-    // PET SHOP (45)
+    // PET SHOP (46)
     {"ADOPT A PET",0, 0,0,0,0,0, 0,NO,0,0,0,VS_ADOPT,0},
     {"PET FOOD",10, 0,0,0,0,0, 0,NO,0,30,0,VS_PETFOOD,0},
     {"SQUEAKY TOY",8, 0,0,0,0,0, 0,NO,0,30,0,VS_PETTOY,0},
     {"PET GROOMING",25, 0,0,0,0,0, 0,NO,0,40,0,VS_PETGROOM,0},
-    // LIBRARY (49)
+    // LIBRARY (50)
     {"STUDY",0, -3,-8,0,0,0, M_WANT,SK_LOGIC,2,150,0,VS_NONE,"KNOWLEDGE"},
     {"READ A NOVEL",0, 0,0,0,10,0, M_SOFA,SK_CREAT,1,120,0,VS_NONE,"PLOT TWIST"},
     {"USE A COMPUTER",0, 0,-3,0,0,5, M_WANT,SK_LOGIC,1,90,0,VS_NONE,"YOU FELL DOWN A WIKI HOLE"},
     {"SHELVE BOOKS",0, 0,-10,0,0,0, 0,SK_LOGIC,1,200,0,VS_WORK,"SHHH"},
-    // CASINO (53)
+    // CASINO (54)
     {"SLOTS",5, 0,-2,0,0,0, 0,3,30,60,VF_ADULT,VS_GAMBLE,0},
     {"BLACKJACK",20, 0,-2,0,0,3, 0,2,45,80,VF_ADULT,VS_GAMBLE,0},
     {"HIGH ROLLER TABLE",200, 0,-4,0,0,5, 0,2,42,100,VF_ADULT,VS_GAMBLE,0},
     {"DEAL CARDS",0, 0,-12,0,0,5, 0,SK_LOGIC,1,200,VF_ADULT,VS_WORK,"HIT OR STAND"},
-    // CINEMA (57)
+    // CINEMA (58)
     {"WATCH A MOVIE",10, 0,0,0,10,5, M_SOFA,NO,0,60,0,VS_MOVIE,0},
     {"POPCORN",4, 15,0,0,0,0, M_EAT,NO,0,30,0,VS_MUNCH,"EXTRA BUTTER"},
     {"THE LATE SHOW",8, 0,-5,0,10,5, M_SOFA,NO,0,60,VF_NIGHT,VS_MOVIE,0},
     {"USHER SHIFT",0, 0,-10,0,0,4, 0,SK_CHARM,1,200,0,VS_WORK,"ENJOY THE SHOW"},
-    // POOL (61)
+    // POOL (62)
     {"SWIM LAPS",2, -5,-10,15,0,0, M_WANT,SK_BODY,2,150,0,VS_NONE,"SPLASH"},
     {"CANNONBALL",0, 0,-3,10,0,8, M_COMBO,NO,0,60,0,VS_NONE,"HUGE SPLASH"},
     {"SUNBATHE",0, 0,5,0,15,0, M_SOFA,NO,0,120,0,VS_NONE,"SO WARM"},
     {"LIFEGUARD SHIFT",0, 0,-12,0,0,4, 0,SK_BODY,1,200,0,VS_WORK,"NO RUNNING"},
+    // SPACEPORT (66)
+    {"ASTRONAUT ICE CREAM",4, 15,0,0,0,0, M_EAT,NO,0,30,0,VS_NONE,"FREEZE DRIED  BUT WHY"},
+    {"RIDE THE CENTRIFUGE",10, -10,-8,-10,0,0, M_COMBO,SK_BODY,1,120,0,VS_NONE,"YOU SAW YOUR LUNCH AGAIN"},
+    {"FLIGHT SIMULATOR",0, 0,-6,0,0,0, M_WANT,SK_LOGIC,2,150,0,VS_NONE,"YOU CRASHED INTO THE MOON"},
+    {"SPACEWALK TRAINING",0, 0,-5,0,0,0, 0,NO,0,0,0,VS_SPACEWALK,0},
+    {"A SEAT ON THE ROCKET",2500, 0,0,0,0,0, 0,NO,0,0,0,VS_LAUNCH,0},
+    {"MISSION CONTROL SHIFT",0, 0,-10,0,0,4, 0,SK_LOGIC,1,200,0,VS_WORK,"HOUSTON  WE HAVE A NAP"},
+    // DOJO (72)
+    {"KATA",0, -4,-12,-8,0,0, M_WANT,SK_BODY,2,150,0,VS_NONE,"WAX ON  WAX OFF"},
+    {"MEDITATE",0, 0,5,0,20,0, M_SOFA,NO,0,150,0,VS_NONE,"OMMMMMM"},
+    {"CALL OUT A CHALLENGER",5, 0,0,0,0,0, 0,NO,0,30,0,VS_SPAR,0},
+    {"BORTUA FIGHTER",1, 0,-3,0,0,0, 0,NO,0,0,0,VS_FIGHTER,0},
+    {"TEACH A CLASS",0, 0,-12,-6,0,6, 0,SK_BODY,1,200,0,VS_WORK,"BOW TO YOUR SENSEI"},
 };
+// the rows the packs' missions name (expand.h TD): keep them in step with the table above
+enum { VA_FOURTH=5, VA_LIFT=7, VA_SPIN=8, VA_SHAKE=9, VA_CABINET=12, VA_BORTUA=15, VA_GROCER=21, VA_CHECKUP=30, VA_LATTE=34, VA_KARAOKE=39, VA_BARSNACK=41,
+       VA_TOY=48, VA_GROOM=49, VA_STUDY=50, VA_NOVEL=51, VA_MOVIE=58, VA_SWIM=62, VA_CANNON=63, VA_CENTRI=67, VA_SPACEWALK=69, VA_SEAT=70, VA_KATA=72, VA_SPAR=74 };
 #undef NO
 typedef struct { u8 ct, wp, fl; u16 a, b; const char*props; u8 a0, an; const char*hint; } Venue;   // a, b: the counter's and the town icon's two colours
 static const Venue venues[]={
     {CT_TACO,    3,13,RGB(18,6,24),RGB(31,26,4), "KhKhpl", 0,7,"R ORDER"},
     {CT_GYM,     9, 7,RGB(10,10,12),RGB(30,8,6), "mmmHHb", 7,5,"R THE FRONT DESK"},
-    {CT_ARCADE,  3, 2,RGB(6,4,14),RGB(4,28,30),  "QvQvVV",12,4,"R THE PRIZE COUNTER"},
-    {CT_CLUB,    5, 3,RGB(8,2,10),RGB(30,6,28),  "AAVVUU",16,4,"R THE BAR"},
-    {CT_GROCER,  0, 3,RGB(24,24,24),RGB(6,22,8), "bbFFbb",20,5,"R THE CHECKOUT"},
-    {CT_BANK,    4, 1,RGB(16,12,6),RGB(28,24,10),"ddhhpl",25,3,"R THE TELLER"},
-    {CT_HOSPITAL,0, 6,RGB(28,28,30),RGB(28,4,4), "SSSHpi",28,4,"R THE NURSE"},
-    {CT_CAFE,    4, 4,RGB(14,9,5),RGB(26,20,12), "KhKhcp",32,5,"R ORDER"},
-    {CT_BAR,     8, 4,RGB(10,5,3),RGB(30,20,6),  "hhhyKA",37,5,"R THE BAR"},
-    {CT_SALON,   1, 5,RGB(30,20,24),RGB(28,10,20),"hhiipl",42,3,"R THE STYLIST"},
-    {CT_PETSHOP, 6,11,RGB(12,20,10),RGB(30,24,8),"qqZZpr",45,4,"R THE COUNTER"},
-    {CT_LIBRARY, 4, 1,RGB(12,8,5),RGB(20,14,8),  "bbbbdh",49,4,"R THE LIBRARIAN"},
-    {CT_CASINO,  5, 2,RGB(4,12,6),RGB(30,26,4),  "KKvAVh",53,4,"R THE CASHIER"},
-    {CT_CINEMA,  5,13,RGB(6,4,8),RGB(30,28,20),  "vCCCCv",57,4,"R THE BOX OFFICE"},
-    {CT_POOL,    0, 6,RGB(24,26,28),RGB(6,18,30),"HHNNpZ",61,4,"R THE LIFEGUARD"},
+    {CT_ARCADE,  3, 2,RGB(6,4,14),RGB(4,28,30),  "QvQvVV",12,5,"R THE PRIZE COUNTER"},
+    {CT_CLUB,    5, 3,RGB(8,2,10),RGB(30,6,28),  "AAVVUU",17,4,"R THE BAR"},
+    {CT_GROCER,  0, 3,RGB(24,24,24),RGB(6,22,8), "bbFFbb",21,5,"R THE CHECKOUT"},
+    {CT_BANK,    4, 1,RGB(16,12,6),RGB(28,24,10),"ddhhpl",26,3,"R THE TELLER"},
+    {CT_HOSPITAL,0, 6,RGB(28,28,30),RGB(28,4,4), "SSSHpi",29,4,"R THE NURSE"},
+    {CT_CAFE,    4, 4,RGB(14,9,5),RGB(26,20,12), "KhKhcp",33,5,"R ORDER"},
+    {CT_BAR,     8, 4,RGB(10,5,3),RGB(30,20,6),  "hhhyKA",38,5,"R THE BAR"},
+    {CT_SALON,   1, 5,RGB(30,20,24),RGB(28,10,20),"hhiipl",43,3,"R THE STYLIST"},
+    {CT_PETSHOP, 6,11,RGB(12,20,10),RGB(30,24,8),"qqZZpr",46,4,"R THE COUNTER"},
+    {CT_LIBRARY, 4, 1,RGB(12,8,5),RGB(20,14,8),  "bbbbdh",50,4,"R THE LIBRARIAN"},
+    {CT_CASINO,  5, 2,RGB(4,12,6),RGB(30,26,4),  "KKvAVh",54,4,"R THE CASHIER"},
+    {CT_CINEMA,  5,13,RGB(6,4,8),RGB(30,28,20),  "vCCCCv",58,4,"R THE BOX OFFICE"},
+    {CT_POOL,    0, 6,RGB(24,26,28),RGB(6,18,30),"HHNNpZ",62,4,"R THE LIFEGUARD"},
+    {CT_SPACE,   5, 2,RGB(4,6,14),RGB(28,28,30), "QvVQpl",66,6,"R MISSION CONTROL"},
+    {CT_DOJO,    4, 4,RGB(20,5,4),RGB(30,26,18), "mmHHpl",72,5,"R THE SENSEI"},
 };
 #define NVEN ((int)(sizeof(venues)/sizeof(venues[0])))
 static const Venue* venueOf(int ct){ for(int i=0;i<NVEN;i++) if(venues[i].ct==ct) return &venues[i]; return 0; }
@@ -144,6 +164,8 @@ static void venueDrawCounter(int sx,int sy,int t){
         case CT_CASINO: rect(ix,iy,5,5,WHITE); px(ix+1,iy+1,RGB(4,4,6)); px(ix+3,iy+3,RGB(4,4,6)); px(ix+2,iy+2,RGB(4,4,6)); break;                                           // a die
         case CT_CINEMA: rect(ix-1,iy,7,5,RGB(6,6,8)); px(ix,iy+1,WHITE); px(ix+4,iy+1,WHITE); px(ix,iy+3,WHITE); px(ix+4,iy+3,WHITE); break;                                  // a film reel
         case CT_POOL: rect(ix-2,iy+2,9,3,RGB(6,18,30)); if((t>>2)&1) px(ix+2,iy+1,WHITE); break;                                                                                // water
+        case CT_SPACE: rect(ix+1,iy-1,3,5,WHITE); px(ix+2,iy-2,RGB(30,6,4)); px(ix,iy+3,RGB(30,6,4)); px(ix+4,iy+3,RGB(30,6,4)); px(ix+2,iy+4,((t>>1)&1)?RGB(31,28,6):RGB(31,14,4)); break;   // a rocket, its flame flickering
+        case CT_DOJO: rect(ix-2,iy+2,9,2,RGB(3,3,4)); rect(ix+1,iy+1,3,4,RGB(3,3,4)); px(ix+1,iy+5,RGB(3,3,4)); px(ix+3,iy+5,RGB(3,3,4)); break;                              // a black belt
         default: break; }
 }
 static void venueDrawIcon(int ct,int sx,int sy,int k,int hw2){   // the town map: a box in the venue's colours, a sign in the other
@@ -157,12 +179,15 @@ static int vNear(void){ int tx=(int)(lfx>>8), ty=(int)(lfy>>8); for(int dy=-1;dy
 static const char* venueHint(void){ const Venue*v=venueHere(); return v&&vNear()?v->hint:0; }
 static void vAdd(int*v,int d){ *v+=d; if(*v>100) *v=100; if(*v<0) *v=0; }
 static u32 vWorkAt EWRAM_BSS;   // a shift: one every two game hours
+static int exSeatFree(void); static void exSparCall(void);   // expand.h
 static void venueDo(const VAct*a){
+    int price=a->price; if(a->sp==VS_LAUNCH&&exSeatFree()) price=0;   // (BORE-OUT MAN!: the mission booked your seat)
     if(a->fl&VF_ADULT&&stage<AG_ADULT){ lnote="GROWN-UPS ONLY"; lnoteT=60; voxPlay(V_nah); return; }
     if(a->fl&VF_NIGHT&&simMin<18*60&&simMin>=4*60){ lnote="COME BACK AFTER 6 PM"; lnoteT=70; return; }
-    if(a->price>0&&simMoney<a->price){ lnote="NOT ENOUGH SIMOLEONS"; lnoteT=60; voxPlay(V_nah); return; }
+    if(price>0&&simMoney<price){ lnote="NOT ENOUGH SIMOLEONS"; lnoteT=60; voxPlay(V_nah); return; }
+    if((a->sp==VS_LAUNCH||a->sp==VS_SPACEWALK||a->sp==VS_SPAR)&&stage<AG_TEEN){ lnote="KIDS WAIT OUTSIDE"; lnoteT=60; voxPlay(V_nah); return; }
     if(a->sp==VS_WORK){ u32 now=(u32)simDay*1440u+(u32)simMin; if(vWorkAt&&now<vWorkAt){ lnote="YOUR SHIFT IS NOT UP YET"; lnoteT=60; return; } if(sNrg<20){ lnote="TOO TIRED TO WORK"; lnoteT=60; return; } vWorkAt=now+120; }
-    if(a->price>0) simMoney-=a->price; else if(a->price<0) simMoneyAdd(-a->price);
+    if(price>0) simMoney-=price; else if(price<0) simMoneyAdd(-price);
     vAdd(&lfood,a->food); vAdd(&sNrg,a->nrg); vAdd(&sHyg,a->hyg); vAdd(&sCom,a->com); vAdd(&sSoc,a->soc);
     if(a->mood) moodEvent(a->mood);
     if(a->sk<SK_N&&a->sp!=VS_GAMBLE&&a->skn) skGain(a->sk,a->skn);
@@ -183,7 +208,12 @@ static void venueDo(const VAct*a){
         case VS_PETFOOD: if(!petN){ lnote="YOU HAVE NO PETS"; simMoney+=a->price; break; } for(int i=0;i<petN;i++){ petM[i].need[PN_FOOD]=100; if(petM[i].love<98) petM[i].love+=2; } lnote="THE PETS WILL EAT LIKE KINGS"; break;
         case VS_PETTOY: if(!petN){ lnote="YOU HAVE NO PETS"; simMoney+=a->price; break; } for(int i=0;i<petN;i++){ petM[i].need[PN_FUN]=(u8)(petM[i].need[PN_FUN]>60?100:petM[i].need[PN_FUN]+40); } lnote="SQUEAK SQUEAK SQUEAK"; break;
         case VS_PETGROOM: if(!petN){ lnote="YOU HAVE NO PETS"; simMoney+=a->price; break; } for(int i=0;i<petN;i++) petM[i].love=(u8)(petM[i].love>90?100:petM[i].love+10); lnote="FLUFFY AND FABULOUS"; break;
+        case VS_LAUNCH: exTake=EXT_LAUNCH; lnote=price?"STRAP IN":"YOUR SEAT IS BOOKED  STRAP IN"; break;
+        case VS_SPACEWALK: exTake=EXT_SWTRAIN; lnote="SUIT UP"; break;
+        case VS_SPAR: exSparCall(); break;
+        case VS_FIGHTER: exTake=EXT_FIGHTER; lnote="INSERT COIN"; break;
         default: break; }
+    stQEvent(QE_VACT,(int)(a-vAct));   // (the packs' missions: expand.h TD)
     simsSave();
 }
 static int venueUse(void){   // R next to a venue's counter. 1 = handled

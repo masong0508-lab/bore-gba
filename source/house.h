@@ -412,7 +412,9 @@ static void stgClaim(void){
 static u8 twKeep; static u8 inmN EWRAM_BSS; static void inmPick(void); static void inmDress(int j); static void inmColors(int j);  static void inmTick(int*planned);   // inmates.h: the prison population           // the visitors already picked are kept (new faces when you move to another lot or start a new life)
 static u8 twCall[TW_N];     // visitor k was CALLED OVER on the phone: they come at night too
 static u8 twWel[TW_N];      // visitor k is the WELCOME visit: the first neighbour of a new home rings the bell soon after you move in (twPick), at night too, and brings a gift
-static u8 twHas[TW_N], twOn[TW_N]; static short twWait[TW_N]={240,900}; static char twFrom[TW_N][12];   // visitor k: set up, on the lot (1 coming, 2 staying, 3 going), the lot they live on
+static u8 twHas[TW_N], twOn[TW_N]; static short twWait[TW_N]={240,900}; static char twFrom[TW_N][12];
+static u8 exHT[TW_N];   // expand.h: visitor k is HOSTILE (1 a Borezie, 2 a soldier, 3 a challenger): the packs' scenarios
+static int exHMode(void); static void exHArrive(int k); static int exHStay(int k,int*planned); static void exUntint(int k); static void exSoc(int a,int b,int i,int ok); static void exKO(int uid);   // (expand.h)   // visitor k: set up, on the lot (1 coming, 2 staying, 3 going), the lot they live on
 static int nbVisitor(HhSim*s,char*from,int not);   // households.h: a Sim of another household of the town (s), the lot it lives on; not = a family to skip
 static u8 nbMem;   // households.h: which member of that household it was (nbSimFrom / nbVisitor set it)
 static void nrGuestIn(int k); static void nrForget(int u); static u8 nrHash(const char*s); static void nrGuestChat(int k); static int nrPull(int k);   // townrel.h
@@ -420,7 +422,8 @@ static void twWho(int k,int lot){ HhSim*s=&hhM[TW_V(k)]; twLot[k]=(u8)(lot<0?255
 static void twPick(void){   // who comes by while you are on this lot: Sims from the town's other households
     int f0=-1; nrSync();   // (the visitors who were here keep what they feel)
     for(int k=0;k<TW_N;k++){ int v=TW_V(k); twHas[k]=0; twOn[k]=0; twWait[k]=(short)(240+k*700);
-        if(v<hhN||!xo[XO_SIMPRE]) continue;
+        exUntint(k);   // (a hostile visitor's own colours back first: the same Sim may be picked again)
+        if(v<hhN||(!xo[XO_SIMPRE]&&!exHMode())) continue;
         HhSim*s=&hhM[v]; int f=nbVisitor(s,twFrom[k],f0); if(f==-2) continue; f0=f;
         s->bubT=0; s->hp=HP_MAX; s->ltw=0; s->act=HA_IDLE; s->jt=s->jl=s->ji=0; s->think=0; s->hd=0; s->pn=s->pi=0; for(int q=0;q<HN_N;q++) s->need[q]=80;
         twWho(k,f); twHas[k]=1; }
@@ -702,11 +705,11 @@ static int twFar(void){   // where a visitor comes from / goes to: a way off the
     return -1;
 }
 static void twTick(int*planned){   // VISITORS: someone from another household walks in, stays a while near the house, and walks off again
-    if(!xo[XO_SIMPRE]){ for(int k=0;k<TW_N;k++) twOn[k]=0; return; }   // PRE-MADE SIMS off: the town's families stay home
+    if(!xo[XO_SIMPRE]&&!exHMode()){ for(int k=0;k<TW_N;k++) twOn[k]=0; return; }   // PRE-MADE SIMS off: the town's families stay home (a pack's Borezies, soldiers and challengers come anyway)
     for(int k=0;k<TW_N;k++){ int v=TW_V(k); if(!twHas[k]||v<hhN){ twOn[k]=0; continue; } HhSim*s=&hhM[v];
         if(!twOn[k]){
             if(twWait[k]>0){ twWait[k]--; continue; }
-            if(*planned||(simIsNight()&&!twWel[k]&&!twCall[k])){ twWait[k]=60; continue; }
+            if(*planned||(simIsNight()&&!twWel[k]&&!twCall[k]&&!exHMode())){ twWait[k]=60; continue; }   // (Borezies come at night too)
             int a=twFar(); if(a<0){ twWait[k]=120; continue; } s->fx=(a%MW)*256+128; s->fy=(a/MW)*256+128; *planned=1;
             hhGX=(int)(lfx>>8); hhGY=(int)(lfy>>8);
             if(hhPlan(s,1)>1){ twOn[k]=1; s->act=HA_WALK; twCall[k]=0;   // walking in, over to you
@@ -714,10 +717,11 @@ static void twTick(int*planned){   // VISITORS: someone from another household w
                 if(twWel[k]){ const char*p=" SAYS WELCOME"; while(*p) *e++=*p++; }   // (the welcome visit)
                 else if(twFrom[k][0]){ const char*p=" FROM "; while(*p) *e++=*p++; for(p=twFrom[k];*p;) *e++=*p++; } else { const char*p=" DROPS BY"; while(*p) *e++=*p++; }
                 *e=0;
-                lnote=twMsg; lnoteT=90; }
+                lnote=twMsg; lnoteT=90; exHArrive(k); }   // (a pack's scenario may make them hostile: expand.h)
             else twWait[k]=120;
             continue;
         }
+        if(twOn[k]==2&&exHStay(k,planned)) continue;   // a hostile visitor chases you (expand.h)
         if(twOn[k]==2){ if(--twWait[k]>0){ if(((twWait[k]+k*170)&511)==0) nrGuestChat(k); continue; }   // staying a while (now and then they come to you with something to say), then off again
             if(*planned){ twWait[k]=30; continue; }
             int b=twFar(); if(b<0){ twOn[k]=0; twWait[k]=900; continue; } hhGX=b%MW; hhGY=b/MW; *planned=1;
@@ -786,7 +790,7 @@ static void hhTick(void){   // once per logic step in the life game
     if(hhBubT) hhBubT--;
     if(lvx||lvy||lsp||lairF||lgrind) hhStill=0; else if(hhStill<1000) hhStill++;
     int planned=0;
-    if(xo[XO_FREEWILL]&&!curFl) twTick(&planned);
+    if((xo[XO_FREEWILL]||exHMode())&&!curFl) twTick(&planned);
     if(!curFl){ copTick(&planned); inmTick(&planned); }   // npc.h: the police (a cop comes after you when you hurt Sims)
     petTick(&planned);   // pets.h (pets live with you even when nobody else does)
     if(!hhN) return;
@@ -1025,7 +1029,7 @@ static void fightHit(int a,int b){
     if(m<0){ fightHurt(dmg); return; }
     HhSim*t=&hhM[m]; if(t->hp>dmg){ t->hp=(u8)(t->hp-dmg);
         if(a==hhPUid&&lnoteT<=0){ char*e=fkB; if(crit) e=simCat(e,"CRIT "); e=simCat(e,fkMove(a,"PUNCH")); *e++=' '; simCatN(e,dmg); lnote=fkB; lnoteT=45; } }   // you see how hard it landed
-    else { t->hp=30; t->act=HA_SOC; t->t=600; t->bub=IC_SKULL; t->bubT=120; hhNote(t," IS KNOCKED OUT"); if(a==hhPUid){ voxPlay(V_win_the_fight); copCrime(2); } }
+    else { t->hp=30; t->act=HA_SOC; t->t=600; t->bub=IC_SKULL; t->bubT=120; hhNote(t," IS KNOCKED OUT"); if(a==hhPUid){ voxPlay(V_win_the_fight); copCrime(2); exKO(b); } }
 }
 // ---- VOICES ARE PEOPLE (main.c voxSay): whose voice, and from where ----
 static int voxPitch(int uid){   // percent of the recorded speed: VOICE (or gender), age, a little of their own, mood
@@ -1123,6 +1127,7 @@ static int socDo(int a,int b,int i){
     relMilestones(a,b); relMilestones(b,a);
     socNote(a,b,i,ok);
     voxSoc(a,b,i,ok);
+    exSoc(a,b,i,ok);   // expand.h: the packs' social tasks, and curing a Borezie
     return ok;
 }
 static void relTick(void){   // every game hour (900 steps): daily scores drift one step back towards lifetime

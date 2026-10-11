@@ -1653,6 +1653,8 @@ static void lcAdd(const char*s){   // "SWITCH " is written "SW " here, and the p
 }
 static char lnBuf[24] EWRAM_BSS; static u8 lnPerf; static int lLand, lLandD;   // lnBuf: the name of the trick just landed ("KICK 360 GRAB"); lLand: frames of landing crouch left, lLandD: how far the fall was
 static int tvClip; static void tvClipRun(int ch);   // skills.h / tvclip.h: the TV asks for a clip (channel + 1); lifeModeRun plays it like a pause menu
+static u8 exModal, exTake; enum { EXT_NONE, EXT_LAUNCH, EXT_SWTRAIN, EXT_FIGHTER, EXT_GOTCHI };   // expand.h: a mission card is waiting; a screen wants to take over (the launch, spacewalk training, a pack's mode)
+static void exTick(void); static void exRunModal(void); static void exTakeRun(int t); static void exEnter(void); static void exStoryTile(void); static void exShelf(int ingame);   // (expand.h)
 static int stModal; static void stRunModal(void);   // story.h: a chapter card is waiting (1 chapter intro, 2 chapter done); lifeModeRun shows it like the pause menu
 static int tutOn;   // 1 while the tutorial runs (tutorial.h): nobody dies, like the Sims 2 tutorial neighborhood
 
@@ -3331,7 +3333,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
     fxTick();   // ghosts and weather (fx.h): every step, also while you lie dead
     if(!ldead){   // needs: hunger and bladder, then how they (and the skating) make the skater feel
         if(stage==AG_BABY){ if(lfood<70) lfood=70; if(lbl>30) lbl=30; if(sNrg<60) sNrg=60; if(sHyg<60) sHyg=60; if(sCom<60) sCom=60; }   // looked after
-        moodTick(); simsTick(pr,(int)(lfx>>8),(int)(lfy>>8)); hhTick(); phTick(); stTick(); homeTick(); wdTick();
+        moodTick(); simsTick(pr,(int)(lfx>>8),(int)(lfy>>8)); hhTick(); phTick(); stTick(); exTick(); homeTick(); wdTick();
         if(gGrow){ gGrow=0; setStage(stage+1); bakeSprites(); lnote=growNote[stage]; lnoteT=120; lstun=lstun>30?lstun:30; lsp=0; }
         { int fe=oFoodEvery(), we=oWcEvery();   // FOOD AND WC option
           if(fe&&lfr%fe==0&&lfood>0) lfood--;
@@ -4172,7 +4174,7 @@ static const char* const pmArt[8][9]={
 static const u16 pmCol[8]={RGB(10,28,10),RGB(10,20,31),RGB(31,26,6),RGB(31,16,22),RGB(22,16,30),RGB(22,24,26),RGB(30,20,8),RGB(30,10,8)};
 static const char* const pmNm[8]={"RESUME","SAVE","MY SIM","FAMILY","STORY","OPTIONS","BUILD","QUIT"};
 static const char* const pmTitle[8]={"RESUME","SAVE GAME","MY SIM","HOUSEHOLD","STORY","OPTIONS","BUILD AND HOUSES","MAIN MENU"};
-static const char* const pmDesc[8]={"BACK TO YOUR LIFE","SAVES YOU AND YOUR HOUSE","CAREER  SKILLS  PEOPLE  MORE","WHO LIVES HERE  HOW THEY FEEL","YOUR CHAPTERS","SETTINGS  SOUND  CONTROLS","EDIT MAP  BLUEPRINTS  NEW LIFE","SAVES AND LEAVES"};
+static const char* const pmDesc[8]={"BACK TO YOUR LIFE","SAVES YOU AND YOUR HOUSE","CAREER  SKILLS  PEOPLE  MORE","WHO LIVES HERE  HOW THEY FEEL","YOUR CHAPTERS  AND THE EXPANSION PACKS","SETTINGS  SOUND  CONTROLS","EDIT MAP  BLUEPRINTS  NEW LIFE","SAVES AND LEAVES"};
 static int pauseMenu(int mode){   // mode 0 life, 1 from the neighborhood, 2 test play from the editor. Returns a PM_ number, or -1 (resume)
     static const u8 full[8]={0,1,2,3,4,5,6,7}, edl[3]={PM_RESUME,PM_OPTS,PM_QUIT};
     const u8*ids=mode==2?edl:full; int n=mode==2?3:8, sel=0, ps=-1, lastB=-1; u16 prev=keyNow(); u32 t=0;
@@ -4286,7 +4288,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
     objHideAll(); winFull(); REG_DISPCNT=0x3443; fxPlayStart();   // mode 3 + sprites (1D tiles) + window 0 (the household's hardware sprites, house.h)
     // (the passers-by of this lot are kept until you move to another lot or start a new life: twKeep, house.h)
     pkHome=-1; prEd=(u8)ed; lifeInit(); prApply(ed); if(!ed) phoneEnsure(); lcamF=0; vbase=cview=0; lcN=lcPts=lcT=lcBank=lcBankT=lcamPend=0; lcNmN=0; u16 prev=keyNow(); gmStart(); hudApplyLayout(); liveInvalidate(); camSnap=1;
-    stModal=0; if(sgDiscard==2) sgDiscard=0; if(!ed) stEnter();   // (the chapter card of the story waits for the first frame)
+    stModal=0; exModal=0; exTake=0; if(sgDiscard==2) sgDiscard=0; if(!ed){ stEnter(); exEnter(); }   // (the chapter card of the story waits for the first frame)
     trnOn=trnDone=0;   // (no timed run carries over)
     tutOn=0; tutModal=TM_NONE;   // the tutorial: replay now, or offer it once (first PLAY, not in the test play of the editor)
     if(!ed){ if(xo[XO_TUTOR]==2) tutBegin(); else if(xo[XO_TUTOR]==0&&!tutAsked){ tutAsked=1; tutModal=TM_OFFER; } }
@@ -4323,7 +4325,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
             if(c==PM_SAVE){ if(!sgPid) toast("PICK A PLAYER ON THE PLAY SCREEN"); else { int se=sgSave(); toast(se?slErrMsg(se):"GAME SAVED"); } }
             else if(c==PM_WANTS) mySimScreen();   // the old WANTS list lives on in the MORE tab
             else if(c==PM_FAMILY) hhMenu();
-            else if(c==PM_STORY){ if(prShown()) prisonScreen(); else storyScreen(); }   // (while a sentence runs the STORY tile is the PRISON)
+            else if(c==PM_STORY){ if(prShown()) prisonScreen(); else exStoryTile(); }   // (STORIES AND PACKS: the mission, the story journal, the expansion packs)   // (while a sentence runs the STORY tile is the PRISON)
             else if(c==PM_OPTS){ settingsScreen(); if(!ed&&xo[XO_TUTOR]==2) tutBegin(); }
             else if(c==PM_BUILD){   // EDIT MAP, BLUEPRINTS (the old room slots) and NEW LIFE share one entry
                 int b=menu("BUILD AND HOUSES",buildItems,3);
@@ -4334,10 +4336,10 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
             winFull(); REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=vbase; continue;
         }
         if(!ed&&lcamF==0){ tutTick(k,pr);
-            if(tutModal||stModal){   // a tutorial pop-up: the game holds still behind it, like the pause menu
+            if(tutModal||stModal||exModal){   // a tutorial pop-up (or a story's or pack's card): the game holds still behind it, like the pause menu
                 mGainT=128; sfxStop(); objHideAll(); REG_DISPCNT=0x0403;
                 { u8 zz=xo[XO_ZOOM]; xo[XO_ZOOM]=0; hudApplyLayout(); camSnap=1; liveInvalidate(); lifeDraw(); xo[XO_ZOOM]=zz; }
-                if(stModal) stRunModal(); else tutRunModal();
+                if(stModal) stRunModal(); else if(exModal) exRunModal(); else tutRunModal();
                 if(sgDiscard==2){ if(!ed&&!nbPlaying) gToMenu=1; break; }   // chapter 4 lost (story.h stPlugLose): leave play like QUIT WITHOUT SAVING (the last save file is loaded again)
                 winFull(); REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=vbase; continue;
             } }
@@ -4352,6 +4354,11 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
             tvClipRun(tc);
             winFull(); REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=vbase; continue;
         }
+        if(exTake&&lcamF==0){   // a pack's screen (the launch, the spacewalk, a mode) takes over; the game holds still behind it
+            int t=exTake; exTake=0; peekEnd(); mGainT=128; sfxStop(); objHideAll(); REG_DISPCNT=0x0403;
+            exTakeRun(t);
+            hhSlotsFree(); winFull(); REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=vbase; continue;
+        }
         if(lcamF>0) camStep(steps,k,pr);
         else {
             if(pkHome<0) for(int s=0;s<steps;s++){ u16 q=s?0:pr; if(fgGate(&q)) lifeStep(k,q,fr++); }   // (fgGate: fight.h hit-stop and K.O. slow motion)   // catch up if a frame took long; button presses count once   (peeking at another floor: the world holds still)
@@ -4364,7 +4371,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
         gmTick(); ambTick(); lifeDraw(); workT+=(u16)(lifeVs-w0);
         fpsN++; if(fpsT>=65536){ lfpsV=fpsN; lloadV=(int)(workT/(u32)fpsN*100/(u32)((sFps+1)*TICKS_FRAME)); workT=0; fpsN=0; fpsT-=65536; }
     }
-    tutOn=0; tutModal=TM_NONE; stModal=0; trnOn=trnDone=0;
+    tutOn=0; tutModal=TM_NONE; stModal=0; exModal=0; exTake=0; trnOn=trnDone=0;
     objHideAll(); REG_DISPCNT=0x0403;
     simsSave(); hhSave(); R_TM2CNT=0; ambOff(); gmStop(); sfxStop(); lcamF=0; vbase=cview=0; vpFull(); clipAll(); liveInvalidate();   // leaving the life game saves it
     while((~REG_KEYINPUT)&0x3FF) vsync();   // wait for release so the caller doesn't see the exit keys
@@ -5691,10 +5698,13 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "goals.h"          // VIEW GOALS and the tape count per lot (the tape stays found)
 #include "statscreen.h"   // the LIFETIME STATS screen (PAUSE > MY SIM > MORE)
 #include "mysim.h"         // MY SIM: the pause menu tile with CAREER / SKILLS / PEOPLE / MORE tabs
+#include "expand.h"        // EXPANSION PACKS: missions with scenarios (BORE-OUT MAN!, BOREZIES!, WORLD WAR BORE, BORTUA FIGHTER, BOREAGOTCHI!, BOREPILOGUE)
+#include "space.h"         // BORE-OUT MAN!: the launch and the spacewalk
+#include "xmodes.h"        // the packs' MODES: BORTUA FIGHTER's ARCADE MODE, BOREAGOTCHI's HANDHELD
 // ---------- main menu (The Sims 3 look): a glossy panel over your town, lit for the time of day of your life's clock ----------
-#define MM_N 7
-static const char* const mmName[MM_N]={"Play","Create a Bore","Build Mode","Toukebox","Room Slots","Options","?"};
-static const char* const mmDesc[MM_N]={"YOUR LIFE  YOUR TOWNS  OR A NEW GAME","DESIGN YOUR OWN VOXEL CHARACTER","BUILD WALLS AND LAY FLOORS AND WALLPAPER","LISTEN  PICK  OR SHUFFLE THE SONGS","SAVE AND LOAD ROOMS  PEOPLE AND LIVES","SPEED  GAMEPLAY  SOUND  BUTTONS AND MORE","HOW TO PLAY  LEARN THE CONTROLS"};
+#define MM_N 8
+static const char* const mmName[MM_N]={"Play","Create a Bore","Build Mode","Toukebox","Room Slots","Options","Expansions","?"};
+static const char* const mmDesc[MM_N]={"YOUR LIFE  YOUR TOWNS  OR A NEW GAME","DESIGN YOUR OWN VOXEL CHARACTER","BUILD WALLS AND LAY FLOORS AND WALLPAPER","LISTEN  PICK  OR SHUFFLE THE SONGS","SAVE AND LOAD ROOMS  PEOPLE AND LIVES","SPEED  GAMEPLAY  SOUND  BUTTONS AND MORE","SIX PACKS OF MISSIONS  AND TWO MODES","HOW TO PLAY  LEARN THE CONTROLS"};
 static u8 mmTod, mmAcid; static s8 mmLot=-1;   // the time of day, and the acid rainbow in place of the town (picked on each visit)
 static int mmPickTod(void){   // 5-8 dawn, 8-17 day, 17-20 dusk, else night (no life yet: any)
     int m=simsCheck(SIM_SRAM)?simGet16(SIM_SRAM,16):-1; if(m<0) return rnd8()&3;
@@ -5713,15 +5723,15 @@ static void mmBackdrop(void){   // your town close up around a random lot (no to
 }
 static void mmLogo(int x,int y){ for(int j=0;j<LOGO_SH;j++){ const char*r=logoSmallArt[j]; u16*o=&fb[(y+j)*SW+x]; for(int i=0;i<LOGO_SW;i++){ char c=r[i]; if(c!='0') o[i]=logoPal[(c<='9'?c-'0':c-'a'+10)-1]; } } }
 static void mmMove(int ps,int sel){   // a cursor move on the main menu: only the two buttons and the tip change (the panel stays), and only they are copied
-    for(int k=0;k<2;k++){ int i=k?sel:ps; if(i==6) s3Round(73,136,sel==6,"?"); else s3Pill(70,i?52+(i-1)*15:31,100,i?13:17,i==sel,mmName[i]); }
+    for(int k=0;k<2;k++){ int i=k?sel:ps; if(i==MM_N-1) s3Round(73,136,sel==MM_N-1,"?"); else s3Pill(70,i?50+(i-1)*13:31,100,i?12:17,i==sel,mmName[i]); }
     s3Tip(mmDesc[sel]);
     vsync(); vramCopy(64,29,172,145); vramCopy(0,150,SW,160);
 }
 static void drawMainMenu(int sel,int full){
     if(full) mmBackdrop();
     s3Panel(60,20,120,128);
-    for(int i=0;i<6;i++) s3Pill(70,i?52+(i-1)*15:31,100,i?13:17,i==sel,mmName[i]);
-    s3Round(73,136,sel==6,"?");   // HOW TO PLAY
+    for(int i=0;i<MM_N-1;i++) s3Pill(70,i?50+(i-1)*13:31,100,i?12:17,i==sel,mmName[i]);
+    s3Round(73,136,sel==MM_N-1,"?");   // HOW TO PLAY
     s3Box(84,129,86,14,7,RGB(6,12,24),RGB(3,8,18)); s3Round(108,136,1,"A"); text(118,133,"Select",WHITE,1);
     mmLogo(SW/2-LOGO_SW/2,1); s3Tip(mmDesc[sel]);
 }
@@ -5777,7 +5787,7 @@ static void howToPlay(void){
 static const char* const ngIt[4]={"CREATE A BORE","A PRE-MADE FAMILY","A TRULY RANDOM SIM","STORY MODE"};
 static void nbMoveInTown(void){ if(!nbOk){ lifeMode(0); return; } nbMoveMode=1; neighborhoodScreen(); nbMoveMode=0; }   // MOVE IN: the town map, buy a home, play there (neighborhood.h)
 static int newGame(int slot){   // 1 = it started (and ended: back to the main menu)
-    wdClear(); wdSave();   // (a new life starts with an empty stash)
+    wdClear(); wdSave(); exQuit();   // (a new life starts with an empty stash, and no mission)
     int c=menu("HOW DO YOU START?",ngIt,4); if(c<0) return 0;
     int story=0; if(c==3){ story=storyPick(); if(!story) return 0; }
     int f=0, me=0; if(c==1){ me=famPick(&f,0); if(me<0) return 0; }   // the family bin: the family and who of them you play, on one screen
@@ -5898,6 +5908,7 @@ static void mainMenu(void){
             else if(sel==3) jukeboxScreen();
             else if(sel==4){ slotScreen(); if(nbOk) nbBoot(); }   // (a slot screen can delete or replace the town)
             else if(sel==5) settingsScreen();
+            else if(sel==6) exShelf(0);   // EXPANSIONS: the packs, their missions and modes (missions are played from your life: PAUSE > STORY)
             else howToPlay();
             gToMenu=0; prev=keyNow(); dirty=2; if(sel<=1||sel==4||sel==5) mmPick();   // back from a game (or OPTIONS): a new view and the time of day again
             menuMusSync();   // the menu's song comes back (a crossfade) if the screen took the music; OPTIONS may have switched SOUND or MENU MUSIC

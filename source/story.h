@@ -418,7 +418,9 @@ static void stTkDone(int i,const StB*b){   // task i is done: tick it, say so
     stTkL|=(u8)(1<<i); stSave();
     static char t[44] EWRAM_BSS; char*e=simCat(t,"DONE  "); simCat(e,b->t[i].nm); lnote=t; lnoteT=150; sfxPlay(SFX_STICK);
 }
+static void exQEvent(int ev,int v);   // expand.h: the packs' missions hear every event too
 static void stQEvent(int ev,int v){   // a life event or a story event (QE_): ticks a task that waits for it
+    exQEvent(ev,v);
     if(!stId||stCh>=stLen[stId]||stChs[stId][stCh].goal!=SG_TASKS) return;
     const StB*b=stBkNow(); int n=stTkN(b);
     for(int i=0;i<n;i++){ const StT*t=&b->t[i]; if(!(stTkL>>i&1)&&t->k==QK_EV&&t->a==ev&&v>=(int)t->n) stTkDone(i,b); }

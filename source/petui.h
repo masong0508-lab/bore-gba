@@ -102,7 +102,7 @@ static void petTricks(Pet*p,int train){
         if(p->need[PN_NRG]<15){ p->act=PA_IDLE; petNote(p," IS TOO TIRED TO LEARN"); return; }
         p->need[PN_NRG]=(u8)(p->need[PN_NRG]-8);
         int pct=18+p->tr[PTR_SMART]*6+p->love/5;
-        if((int)(((int)rnd8()*100>>8))<pct){ p->tricks|=(u8)(1<<q); p->love=(u8)(p->love>96?100:p->love+4); petSay(p,IC_STAR,90); char*e=simCat(petMsg,p->name); e=simCat(e," LEARNED "); simCat(e,petTrickNm[petCat(p)][q]); lnote=petMsg; lnoteT=150; moodEvent(M_SKILL); voxPlay(V_yeha); }
+        if((int)(((int)rnd8()*100>>8))<pct){ p->tricks|=(u8)(1<<q); p->love=(u8)(p->love>96?100:p->love+4); petSay(p,IC_STAR,90); char*e=simCat(petMsg,p->name); e=simCat(e," LEARNED "); simCat(e,petTrickNm[petCat(p)][q]); lnote=petMsg; lnoteT=150; moodEvent(M_SKILL); voxPlay(V_yeha); stQEvent(QE_PLEARN,1); }
         else { static const char* const dogNo[4]={" STARES AT YOU BLANKLY"," EATS A SOCK INSTEAD"," CHASES ITS TAIL"," SNEEZES AND FORGETS"}, * const catNo[4]={" IGNORES YOU"," LICKS ITSELF INSTEAD"," WALKS AWAY SLOWLY"," KNOCKS A CUP OFF THE TABLE"};
             p->act=PA_SIT; petNote(p,(petCat(p)?catNo:dogNo)[rnd8()&3]); voxPlay(V_laughing_small_or_not); } }
     else { petSay(p,IC_HEART,80); p->love=(u8)(p->love>98?100:p->love+1); moodEvent(M_CHILL); char*e=simCat(petMsg,p->name); e=simCat(e,q==3&&!petCat(p)?" PLAYS DEAD  BANG":q==4&&!petCat(p)?" SAYS WOOF":" DOES IT  GOOD JOB"); (void)e; lnote=petMsg; lnoteT=150; }
@@ -145,13 +145,14 @@ static int petPie(int i){
         case 8: p->love=(u8)(p->love>5?p->love-5:0); if(pudN&&p->potty<100) p->potty=(u8)(p->potty+4>100?100:p->potty+4); p->act=PA_LIE; p->t=90; petSay(p,IC_SAD,90); lstun=30; lsp=0; petNote(p,cat?" DOES NOT CARE":" LOOKS ASHAMED"); voxPlay(V_angered); break;
         case 9: p->love=(u8)(p->love>2?p->love-2:0); if(petPlan(p,0,0,0)) petStartAct(p,PA_WANDER,0); petNote(p," WANDERS OFF"); break;
         case 10: petCard(i); break; }
+    stQEvent(QE_PET,id[c]);   // (the packs' pet tasks: expand.h PD_)
     return 1;
 }
 static int petR(void){   // R: a puddle within reach is mopped; else the nearest pet's menu (a Sim who is nearer gets theirs)
     if(!petAtHome()) return 0;
     int px=(int)(lfx>>8), py=(int)(lfy>>8);
     for(int k=0;k<pudN;k++){ int dx=pudX[k]-px, dy=pudY[k]-py; if(dx>=-1&&dx<=1&&dy>=-1&&dy<=1){ for(int j=k+1;j<pudN;j++){ pudX[j-1]=pudX[j]; pudY[j-1]=pudY[j]; } pudN--;
-            lstun=60; lsp=0; sHyg=sHyg>5?sHyg-5:0; lnote="MOPPED IT UP  GROSS"; lnoteT=70; sfxPlay(SFX_SPLASH); return 1; } }
+            lstun=60; lsp=0; sHyg=sHyg>5?sHyg-5:0; lnote="MOPPED IT UP  GROSS"; lnoteT=70; sfxPlay(SFX_SPLASH); stQEvent(QE_PMOP,1); return 1; } }
     int best=-1, bd=1<<30;
     for(int i=0;i<petN;i++){ s32 dx=petM[i].w.fx-lfx, dy=petM[i].w.fy-lfy; int d=(int)((dx*dx+dy*dy)>>8); if(d<bd&&d<=(420*420>>8)&&wallClear(lfx,lfy,petM[i].w.fx,petM[i].w.fy)){ bd=d; best=i; } }
     if(best<0) return 0;

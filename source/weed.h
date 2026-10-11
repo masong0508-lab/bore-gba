@@ -98,7 +98,7 @@ static void wdPlanter(int x,int y){   // R next to a planter
         case 3: { static const char* const tk[4]={"YOU TELL IT ABOUT YOUR DAY","IT SEEMS TO LIKE JAZZ","YOU CALL IT A GOOD GIRL","IT GROWS A LITTLE PROUDER"}; lnote=tk[rnd8()&3]; lnoteT=110; moodEvent(M_CHILL); if(((int)rnd8()*100>>8)<20&&st<WP_READY) wpSet(x,y,st+1,wa,sn); break; }
         case 4: { int g=wdS[sn].yield+wdSk/12+(rnd8()&3); wdG[sn]=(u16)(wdG[sn]+g>9999?9999:wdG[sn]+g); if(((int)rnd8()*100>>8)<25) wdSeed[sn]++;
             wpSet(x,y,WP_EMPTY,0,0); wdSk=(u8)(wdSk+3>100?100:wdSk+3); moodEvent(M_PAY); voxPlay(V_yahoo);
-            char*e=simCat(wdMsg,"HARVESTED "); e=simCatN(e,g); e=simCat(e,"G OF "); simCat(e,wdS[sn].nm); lnote=wdMsg; lnoteT=150; wdSave(); break; }
+            char*e=simCat(wdMsg,"HARVESTED "); e=simCatN(e,g); e=simCat(e,"G OF "); simCat(e,wdS[sn].nm); lnote=wdMsg; lnoteT=150; wdSave(); stQEvent(QE_HARVEST,g); break; }
         case 5: wpSet(x,y,WP_EMPTY,0,0); lnote="CLEARED  TRY AGAIN"; lnoteT=60; break; }
 }
 // ---- smoking and selling (YOUR ACTIONS > FUN, self.h) ----

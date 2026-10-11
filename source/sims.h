@@ -106,7 +106,8 @@ enum { SE_EAT, SE_PEE, SE_SLEEP, SE_SHOWER, SE_SOFA, SE_TRICK, SE_COMBO, SE_GRIN
        SE_TALK, SE_FRIEND, SE_BFF, SE_KISS, SE_LOVE, SE_STEADY, SE_HUGGED, SE_LAUGH,   // social (house.h)
        SE_REJECT, SE_SLAPPED, SE_FIGHT, SE_ENEMY, SE_LONELY,
        SE_PIPE, SE_TV, SE_READ, SE_FISH, SE_RUN, SE_LETTER, SE_TAPE, SE_SWITCH, SE_WALLTAP, SE_MANUAL, SE_RADIO, SE_SPONSOR, SE_N };
-enum { QE_FOOD=SE_N, QE_BUY, QE_PJOB };   // story events (story.h stQEvent) the life events do not have: food ordered on the phone, a weapon bought, a prison job taken   // SE_PIPE: a puff on the water pipe, or PUFF PUFF PASS; SE_TV .. SE_RUN: the home pack (skills.h)   // (event numbers are not saved: they can be put in any order; table ROWS are saved by index)
+enum { QE_FOOD=SE_N, QE_BUY, QE_PJOB,
+       QE_VACT, QE_SOC, QE_PET, QE_PMOP, QE_PLEARN, QE_HARVEST, QE_KO, QE_PARRY, QE_SPECIAL, QE_LAUNCH, QE_SPACEWALK, QE_GOTCHI, QE_SPOOK, QE_ZCURE };   // (the packs' events, expand.h: a venue action (v = its row), a social you did (v = SC_), a pet action (v = PD_), a puddle mopped, a trick learned, a harvest, a knock-out, a parry, a special move, a launch, a spacewalk (1 training, 2 in orbit), a handheld action (v = GA_), a ghost's BOO, a Borezie cured)   // story events (story.h stQEvent) the life events do not have: food ordered on the phone, a weapon bought, a prison job taken   // SE_PIPE: a puff on the water pipe, or PUFF PUFF PASS; SE_TV .. SE_RUN: the home pack (skills.h)   // (event numbers are not saved: they can be put in any order; table ROWS are saved by index)
 // icons (7x7, simIconArt): drawn in the HUD cells, the aspiration panel and the creator
 enum { IC_FOOD, IC_WC, IC_BED, IC_SHOWER, IC_SOFA, IC_BOARD, IC_COMBO, IC_RAIL, IC_AIR, IC_STAR, IC_BRIEF, IC_UP, IC_DOWN, IC_BOOK, IC_HOUSE,
        IC_COIN, IC_TROPHY, IC_CAKE, IC_HEART, IC_SKULL, IC_HURT, IC_PUDDLE, IC_SAD, IC_GLASS, IC_CANE, IC_STINK, IC_BAIL, IC_ZZZ,
