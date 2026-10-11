@@ -976,6 +976,19 @@ A keychain egg with a 32 x 16 dot LCD (each dot 4 px). Open it from EXPANSIONS >
 - **Time**: a tick every half second in your hand and every game minute while you live your life (simMinute), so it grows while you play; a needy blob BEEPS now and then.
 - **Saved** at `GO_OFF` (20 bytes) and in the player save (chunk `'H'`). The pack's missions read `goStage` and the `GA_` events.
 
+## The base game's ten missions (expand.h, the BORE pack)
+First on the EXPANSION PACKS shelf (the `B` cover) sits the base game itself: ten missions, one for each thing the game does, each staged by a scenario so it feels like an event and not a checklist. They open one after the other and pay like the packs' missions (§500 to §1500); done bits live in their own four-byte block (`BM_OFF` 7556).
+1. **MOVING IN** (build and buy): a housewarming grant of §1500 lands; buy three things, make a room look great (the till fires `QE_BOUGHT`).
+2. **DROP IN** (skating): a board if you have none, and a kicker and a quarter pipe set down on the first clear strip of your yard, yours to keep; catch air, land three tricks, land a combo.
+3. **TACO TUESDAY** (the town): a crunchy taco, a lift at the gym, a cabinet at the arcade (the venues are placed in town if missing).
+4. **ICEBREAKER** (the pie menu): three neighbours knock at once; a joke, a high five, a friend.
+5. **SPARKS** (romance): the same knock; flirt, a first kiss, fall in love.
+6. **NINE TO FIVE** (the career): the bills take §150; work a shift, ace one, get promoted.
+7. **GOOD BOY** (pets): the pet shop, adopt, teach a trick.
+8. **FIGHT NIGHT** (fights): a challenger comes (the BORTUA scenario, a purse per win); the gym, a parry, beat them.
+9. **OPEN HOUSE** (the neighbours): the knock again; have one over, order food for everyone, somebody moves in.
+10. **THE GREEN THUMB** (the green, grown-ups only): two seed packs in the mail; harvest, the dispensary, sell some (`QE_SOLD`).
+
 ## BORTUA FIGHTER's mode: ARCADE MODE (bortua.h, tools/make_bortua.py)
 One on one on a ring at sunset over the sea, best of three, a ladder of eight and the chrome boss BORAL. Open it from EXPANSIONS > BORTUA FIGHTER > ARCADE MODE, or the cabinet at an arcade.
 - **Pre-rendered 3D** (the Donkey Kong Country trick): `tools/make_bortua.py` builds each fighter out of capsules and ellipsoids, ray casts every frame of every move exactly (key light, rim light, a shine, three dithered shades a material, outlines), and paints the arena. 3 bodies (STANDARD, HEAVY, SLIM with a ponytail) x 3 seats x 93 frames, 64 x 128 each (`source/art/bortua_fighters.bin`, 3.4 MB of ROM); `source/bortuaart.h` says where each move starts, how far each frame reaches (the hits are measured off the renders) and where its root is. Re-run it after changing a pose or the arena; `sheet BODY ANIM ...` renders a few for a look.

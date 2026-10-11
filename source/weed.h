@@ -117,7 +117,7 @@ static void wdCorner(void){   // SELL ON THE CORNER: a few buyers come by, each 
     int buyers=1+(rnd8()&1)+skLvl(SK_CHARM)/4, cash=0, sold=0, seen=0;
     for(int b=0;b<buyers;b++){ int s=wdBest(); if(s<0) break; int g=1+(rnd8()&3); if(g>wdG[s]) g=wdG[s];
         wdG[s]=(u16)(wdG[s]-g); sold+=g; cash+=g*wdS[s].price*3/2; if(wdRisk(12)) seen=1; }
-    simMoneyAdd(cash); wdSold=(u16)(wdSold+sold); lstun=240; lsp=0; lgrind=0; sfxPlay(SFX_CASH); wdSave();
+    simMoneyAdd(cash); wdSold=(u16)(wdSold+sold); lstun=240; lsp=0; lgrind=0; sfxPlay(SFX_CASH); wdSave(); if(sold) stQEvent(QE_SOLD,sold);
     char*e=simCat(wdMsg,"SOLD "); e=simCatN(e,sold); e=simCat(e,"G FOR \xC2\xA7"); simCatN(e,cash); lnote=wdMsg; lnoteT=150;
     if(seen){ copCrime(stage==AG_TEEN?4:2); simQPush("SOMEBODY SNITCHED"); voxPlay(V_shriek); }   // (npc.h: the heat; enough of it and the cops come)
 }
@@ -126,7 +126,7 @@ static void wdSellTo(const char*nm,int stg){   // SELL A BAG: they take a few gr
     int s=wdBest(); if(s<0) return;
     if(stg==AG_TEEN&&stage>=AG_ADULT&&(rnd8()&1)){ char*e=simCat(wdMsg,nm); simCat(e," IS TOO YOUNG  YOU WALK AWAY"); lnote=wdMsg; lnoteT=150; voxPlay(V_nah); return; }   // a grown-up thinks twice
     int g=1+(rnd8()%3); if(g>wdG[s]) g=wdG[s]; int cash=g*wdS[s].price*5/4;
-    wdG[s]=(u16)(wdG[s]-g); wdSold=(u16)(wdSold+g); simMoneyAdd(cash); sfxPlay(SFX_CASH); lstun=50; lsp=0; wdSave();
+    wdG[s]=(u16)(wdG[s]-g); wdSold=(u16)(wdSold+g); simMoneyAdd(cash); sfxPlay(SFX_CASH); lstun=50; lsp=0; wdSave(); stQEvent(QE_SOLD,g);
     char*e=simCat(wdMsg,nm); e=simCat(e," BOUGHT "); e=simCatN(e,g); e=simCat(e,"G  \xC2\xA7"); simCatN(e,cash); lnote=wdMsg; lnoteT=150;
     if(wdRisk(stg==AG_TEEN?10:5)){ copCrime(stage==AG_TEEN?4:2); simQPush("A NEIGHBOR SAW THE DEAL"); voxPlay(V_shriek); }
 }
@@ -156,7 +156,7 @@ static void wdCounter(void){   // R at the dispensary counter
         it[5]="ASK THE BUDTENDER"; it[6]="LEAVE";
         int c=menu(tt,it,7); if(c<0||c==6) break;
         if(c==5){ toast(tips[rnd8()%6]); continue; }
-        if(c==4){ int cash=0, g=0; for(int i=0;i<WD_N;i++){ cash+=wdG[i]*wdS[i].price*3/5; g+=wdG[i]; wdG[i]=0; } if(!g){ toast("NOTHING TO SELL"); continue; } simMoneyAdd(cash); wdSold=(u16)(wdSold+g); wdSave(); sfxPlay(SFX_CASH); char*q=simCat(wdMsg,"SOLD "); q=simCatN(q,g); q=simCat(q,"G  \xC2\xA7"); simCatN(q,cash); toast(wdMsg); continue; }
+        if(c==4){ int cash=0, g=0; for(int i=0;i<WD_N;i++){ cash+=wdG[i]*wdS[i].price*3/5; g+=wdG[i]; wdG[i]=0; } if(!g){ toast("NOTHING TO SELL"); continue; } simMoneyAdd(cash); wdSold=(u16)(wdSold+g); wdSave(); sfxPlay(SFX_CASH); stQEvent(QE_SOLD,g); char*q=simCat(wdMsg,"SOLD "); q=simCatN(q,g); q=simCat(q,"G  \xC2\xA7"); simCatN(q,cash); toast(wdMsg); continue; }
         if(c==2){ char sl[WD_N][28]; const char* si[WD_N]; for(int i=0;i<WD_N;i++){ char*q=simCat(sl[i],wdS[i].nm); q=simCat(q,"  HAVE "); simCatN(q,wdSeed[i]); si[i]=sl[i]; }
             int s=menu("SEEDS  \xC2\xA7" "60 A PACK",si,WD_N); if(s<0) continue; if(simMoney<60){ toast("NOT ENOUGH SIMOLEONS"); continue; } simMoney-=60; wdSeed[s]=(u8)(wdSeed[s]<99?wdSeed[s]+1:99); wdSave(); sfxPlay(SFX_CASH); toast("A PACK OF SEEDS  PLANT IT AT HOME"); continue; }
         int price=c==0?15:c==1?45:25; if(simMoney<price){ toast("NOT ENOUGH SIMOLEONS"); continue; } simMoney-=price; sfxPlay(SFX_CASH);

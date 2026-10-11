@@ -1,4 +1,7 @@
-// expand.h - EXPANSION PACKS: six packs of MISSIONS you play inside your own life (the roadmap's 1st to 4th, 7th and 8th packs).
+// expand.h - EXPANSION PACKS: six packs of MISSIONS you play inside your own life (the roadmap's 1st to 4th, 7th and 8th packs), and
+// first on the shelf THE BASE GAME's own ten: one mission for each thing the game does (build, skate, the town, the pie menu, romance,
+// the career, pets, fights, the neighbours, the green), each staged by a scenario (a housewarming grant, ramps dropped in your yard with a
+// board, three neighbours at the door, a bill in the mail, a challenger, seeds with no note).
 //   1 BORE-OUT MAN!  a space oddity    5 missions    a burnt-out desk jockey becomes an astronaut: the SPACEPORT, a launch, a spacewalk
 //   2 BOREZIES!                        5 missions    the town got so bored it turned: Borezies shamble in, and only fun cures them
 //   3 WORLD WAR BORE                  10 missions    the East Side trimmed your hedge: boot camp, the arms race, soldiers on your lawn
@@ -18,6 +21,9 @@
 //            XS_WAR    EAST SIDE SOLDIERS: visitors in khaki come to fight; they wind up (HIYAH: guard!) and swing. Knock them out (the counter).
 //            XS_ARENA  CHALLENGERS: the same, the BORTUA way (a purse for every win). The DOJO's CALL OUT A CHALLENGER brings one any time.
 //            XS_PUDDLE a pet had an accident: a puddle to mop when the mission starts.   XS_GHOST  a ghost turns up the first night.
+//            XS_GRANT  1500 simoleons to spend (the counter: things bought in buy mode).  XS_RAMPS  a board if you have none, and a kicker and a
+//                      quarter pipe set down in your yard, yours to keep (the counter: tricks landed).  XS_PARTY  three neighbours come round at once.
+//            XS_BILLS  the bills take 150 when the mission starts.   XS_SEEDS  two seed packs turn up (grown-ups only: the mission says so).
 // SAVED  EX_OFF: the mission you are on (it goes with your player save, chunk 'X'). EXD_OFF: the missions done, in every life (like the story
 //        missions). BF_OFF: the arcade's record (bortua.h). GO_OFF: the handheld (gotchi.h).
 // Needs before it: story.h (StT, QK_, stBack, stSparkle), venues.h (VA_), pets.h / petui.h, house.h (visitors, socials), fight.h, travel.h, the UI kit.
@@ -29,8 +35,8 @@
 #define GO_OFF  7502   // gotchi.h (up to 7551: the board block is at 7552, board.h)
 _Static_assert(GO_OFF+50<=BD_OFF,"the handheld's block runs into the board block");
 _Static_assert(WD_OFF+WD_LEN<=EX_OFF&&EX_OFF+EX_LEN<=EXD_OFF&&EXD_OFF+EXD_LEN<=BF_OFF&&BF_OFF+8<=GO_OFF&&GO_OFF<LG_OFF,"the expansion blocks sit between the stash and the life stats");
-enum { XP_SPACE, XP_ZOMB, XP_WAR, XP_FIGHT, XP_GOTCHI, XP_EPI, XP_N };
-enum { XS_NONE, XS_SOON, XS_ZOMB, XS_WAR, XS_ARENA, XS_PUDDLE, XS_GHOST };
+enum { XP_SPACE, XP_ZOMB, XP_WAR, XP_FIGHT, XP_GOTCHI, XP_EPI, XP_BASE, XP_N };   // (XP_BASE last: the saved pack numbers stay valid; the shelf shows it first)
+enum { XS_NONE, XS_SOON, XS_ZOMB, XS_WAR, XS_ARENA, XS_PUDDLE, XS_GHOST, XS_GRANT, XS_RAMPS, XS_PARTY, XS_BILLS, XS_SEEDS };
 enum { XMODE_NONE, XMODE_FIGHTER, XMODE_GOTCHI };
 // task kinds the packs add to story.h's (QK_EV, QK_AT ... QK_FREE)
 enum { QK_PETS=QK_FREE+1, QK_PLOVE, QK_PTRICKS, QK_POTTY, QK_STAGE, QK_CNT, QK_DAYS, QK_SECURE, QK_HAPPY, QK_BFW, QK_BFCHAMP, QK_GOTCHI,
@@ -167,6 +173,29 @@ static const XMs xmEpi[]={
   XM("THE END  AND THE ONE AFTER","GROW OLD  GROW WISE  AND","LEAVE THE TOWN BETTER",XS_NONE,120,
      TK(QK_STAGE,AG_ELDER,"GROW INTO AN ELDER"),TK(QK_MONEY,100000,"LEAVE 100000 SIMOLEONS"),TK(QK_FRIENDS,8,"MAKE 8 FRIENDS")),
 };
+// ---- THE BASE GAME: ten missions, one for each thing the game does ----
+static const XMs xmBase[]={
+  XM("MOVING IN","EMPTY WALLS  A GIFT OF 1500 TO SPEND","BUILD AND BUY TILL IT FEELS LIKE HOME",XS_GRANT,5,
+     TK(QK_CNT,3,"BUY THREE THINGS FOR THE PLACE"),{QK_ROOM,0,0,"MAKE A ROOM LOOK GREAT"}),
+  XM("DROP IN","A BOARD AND TWO RAMPS LANDED IN YOUR","YARD OVERNIGHT  GO AND RIDE THEM",XS_RAMPS,8,
+     TE(SE_AIR,1,"CATCH AIR OFF A RAMP"),TK(QK_CNT,3,"LAND THREE TRICKS"),TE(SE_COMBO,1,"LAND A COMBO")),
+  XM("TACO TUESDAY","THE TOWN IS OUT THERE  EAT A TACO","LIFT A WEIGHT  LOSE A QUARTER  GO",XS_NONE,6,
+     TD(0,"A CRUNCHY TACO AT TACO BORE"),TD(VA_LIFT,"PUMP IRON AT THE GYM"),TD(VA_CABINET,"A CABINET AT THE ARCADE")),
+  XM("ICEBREAKER","THREE NEIGHBOURS ARE AT THE DOOR","THE PIE MENU IS YOUR FRIEND  USE IT",XS_PARTY,6,
+     TS(SC_JOKE,"TELL SOMEBODY A JOKE"),TS(SC_HIGH5,"HIGH FIVE SOMEBODY"),TK(QK_FRIENDS,1,"MAKE A FRIEND")),
+  XM("SPARKS","SOMEBODY AT THE DOOR CAUGHT YOUR EYE","FLIRT  KISS  SEE WHERE IT GOES",XS_PARTY,8,
+     TS(SC_FLIRT,"FLIRT WITH SOMEBODY"),TE(SE_KISS,1,"A FIRST KISS"),TE(SE_LOVE,1,"FALL IN LOVE")),
+  XM("NINE TO FIVE","THE BILLS CAME  THE PHONE HAS JOBS","WORK A SHIFT  ACE ONE  MOVE UP",XS_BILLS,10,
+     TE(SE_SHIFT,1,"WORK A SHIFT"),TE(SE_ACE,1,"ACE A SHIFT"),TE(SE_PROMO,1,"GET PROMOTED")),
+  XM("GOOD BOY","A FACE IN THE PET SHOP WINDOW  IT","PICKED YOU  TAKE IT HOME  TEACH IT",XS_NONE,8,
+     TA(CT_PETSHOP,"GO TO THE PET SHOP"),TK(QK_PETS,1,"ADOPT A PET"),TP(PD_TRICK,"TEACH IT A TRICK")),
+  XM("FIGHT NIGHT","SOMEBODY TALKED  NOW THEY WANT A","PIECE OF YOU  GUARD  PARRY  SWING",XS_ARENA,10,
+     TA(CT_GYM,"TRAIN AT THE GYM"),TE(QE_PARRY,1,"PARRY A PUNCH"),TK(QK_CNT,1,"BEAT A CHALLENGER")),
+  XM("OPEN HOUSE","THE WHOLE STREET WANTS TO MEET YOU","FEED THEM  AND KEEP ONE OF THEM",XS_PARTY,10,
+     {QK_GUEST,0,0,"HAVE A NEIGHBOUR OVER"},TE(QE_FOOD,1,"ORDER FOOD FOR EVERYONE"),TK(QK_HOUSE,2,"SOMEBODY MOVES IN")),
+  XM("THE GREEN THUMB","SEEDS IN THE MAIL  NO NOTE  GROWN-UPS","PLANT  HARVEST  SELL  THE LEGAL WAY",XS_SEEDS,15,
+     TE(QE_HARVEST,1,"HARVEST A PLANT"),TA(CT_DISP,"GO TO THE DISPENSARY"),TE(QE_SOLD,1,"SELL SOME OF IT")),
+};
 #undef XM
 #undef XSOON
 #undef TA
@@ -185,9 +214,13 @@ static const XPk xPk[XP_N]={
   {"BORTUA FIGHTER","THE 3D FIGHTING SENSATION",{"ONE VIRAL PUNCH AND NOW","EVERY BORE WANTS A PIECE","PLUS A WHOLE ARCADE MODE"},xmFight,XN(xmFight),4,XMODE_FIGHTER,0,RGB(13,2,2),RGB(31,22,4),"ARCADE MODE"},
   {"BOREAGOTCHI!","IT NEEDS YOU  CONSTANTLY",{"A PIXEL BLOB ON A KEYCHAIN","AND REAL PETS WHO ARE","JEALOUS  PLUS THE HANDHELD"},xmGotchi,XN(xmGotchi),7,XMODE_GOTCHI,0,RGB(14,3,12),RGB(31,20,27),"THE HANDHELD"},
   {"BOREPILOGUE","THE LAST CHAPTER",{"RETIRE  REMINISCE  SETTLE","OLD SCORES AND LEAVE A","LEGACY  GROWN-UPS ONLY"},xmEpi,XN(xmEpi),8,XMODE_NONE,1,RGB(7,5,10),RGB(25,22,29),0},
+  {"BORE","THE BASE GAME  TEN MISSIONS",{"ONE MISSION FOR EACH THING","THE GAME DOES  BUILD  SKATE","LOVE  WORK  FIGHT  GROW"},xmBase,XN(xmBase),0,XMODE_NONE,0,RGB(3,6,12),RGB(31,26,6),0},
 };
-static const u8 xpBase[XP_N]={0,5,10,20,25,40};   // where each pack's missions start in the done bits
-_Static_assert(XN(xmSpace)==5&&XN(xmZomb)==5&&XN(xmWar)==10&&XN(xmFight)==5&&XN(xmGotchi)==15&&XN(xmEpi)==20,"the packs have 5, 5, 10, 5, 15 and 20 missions");
+static const u8 xpBase[XP_N]={0,5,10,20,25,40,0};   // where each pack's missions start in the done bits (the base game has its own block: BM_OFF)
+static const u8 exOrd[XP_N]={XP_BASE,XP_SPACE,XP_ZOMB,XP_WAR,XP_FIGHT,XP_GOTCHI,XP_EPI};   // the shelf's order
+_Static_assert(XN(xmSpace)==5&&XN(xmZomb)==5&&XN(xmWar)==10&&XN(xmFight)==5&&XN(xmGotchi)==15&&XN(xmEpi)==20&&XN(xmBase)==10,"the packs have 5, 5, 10, 5, 15, 20 and 10 missions");
+#define BM_OFF 7556   // SRAM: the base game's missions done ('M', ten bits in two bytes, checksum)
+_Static_assert(BD_OFF+4<=BM_OFF&&BM_OFF+4<=LG_OFF,"the base missions' block sits between the board block and the life stats");
 _Static_assert(40+20<=64,"the done bits (8 bytes) are full");
 #undef XN
 // ---- state ----
@@ -224,7 +257,9 @@ static void exDoneSet(int b){
     v[b>>3]|=(u8)(1<<(b&7)); x=0x3C; for(int i=0;i<8;i++) x^=v[i];
     m[0]='X'; m[1]='D'; for(int i=0;i<8;i++) m[2+i]=v[i]; m[10]=x;
 }
-static int exDone(int p,int m){ return exDoneBit(xpBase[p]+m); }
+static int bmDoneBits(void){ volatile u8*m=SRAM_BASE+BM_OFF; if(m[0]!='M'||m[3]!=(u8)(0x4D^m[1]^m[2])) return 0; return m[1]|(m[2]<<8); }
+static void bmDoneSet(int b){ int v=bmDoneBits()|(1<<b); volatile u8*m=SRAM_BASE+BM_OFF; m[0]='M'; m[1]=(u8)v; m[2]=(u8)(v>>8); m[3]=(u8)(0x4D^m[1]^m[2]); }
+static int exDone(int p,int m){ return p==XP_BASE?(bmDoneBits()>>m)&1:exDoneBit(xpBase[p]+m); }
 static int exPackDone(int p){ int n=0; for(int i=0;i<xPk[p].n;i++) n+=exDone(p,i); return n; }
 static int exPackPlay(int p){ int n=0; for(int i=0;i<xPk[p].n;i++) n+=!exSoon(p,i); return n; }
 static int exOpen(int p,int m){   // can mission m be played: not a placeholder, and the playable one before it is done
@@ -290,12 +325,14 @@ static int exHStay(int k,int*planned){   // a hostile visitor on the lot: chase 
     else socDo(s->uid,hhPUid,SC_SHOVE);   // (on a board, or too young for fists: a shove)
     return 1;
 }
-static int exCounts(void){ const XMs*x=exMs(); int sc=x?x->sc:0; return sc==XS_ZOMB?1:sc==XS_WAR?2:sc==XS_ARENA?3:0; }   // what the mission's counter counts
+static int exCounts(void){ const XMs*x=exMs(); int sc=x?x->sc:0; return sc==XS_ZOMB?1:sc==XS_WAR?2:sc==XS_ARENA?3:sc==XS_RAMPS?4:sc==XS_GRANT?5:0; }   // what the mission's counter counts
+static const char* const exCntNm[6]={"","BOREZIE CURED  ","SOLDIER DOWN  ","CHALLENGER BEATEN  ","TRICK LANDED  ","BOUGHT  "};
+static const char* const exCntJn[6]={"","BOREZIES CURED  ","SOLDIERS DOWN  ","CHALLENGERS BEATEN  ","TRICKS LANDED  ","THINGS BOUGHT  "};
 static void exCountUp(int kind){
     if(exCounts()!=kind) return;
     if(exCnt<250) exCnt++; exSave();
     const XMs*x=exMs(); int want=0; for(int i=0;i<exTkN(x);i++) if(x->t[i].k==QK_CNT&&(int)x->t[i].n>want) want=(int)x->t[i].n;
-    char*e=simCat(exB,kind==1?"BOREZIE CURED  ":kind==2?"SOLDIER DOWN  ":"CHALLENGER BEATEN  "); e=simCatN(e,exCnt);
+    char*e=simCat(exB,exCntNm[kind]); e=simCatN(e,exCnt);
     if(want){ e=simCat(e," OF "); simCatN(e,want); } lnote=exB; lnoteT=130;
 }
 static void exCure(int k){   // a Borezie laughs and comes back to life
@@ -373,6 +410,7 @@ static void exQEvent(int ev,int v){   // story.h stQEvent passes every life even
         int hit=(t->k==QK_EV&&t->a==ev&&v>=(int)t->n)||(t->k==QK_DO&&ev==QE_VACT&&v==t->a)||(t->k==QK_SOC&&ev==QE_SOC&&v==t->a)
               ||(t->k==QK_PETDO&&ev==QE_PET&&v==t->a)||(t->k==QK_GDO&&ev==QE_GOTCHI&&v==t->a);
         if(hit) exTkDone(i,x); }
+    if(ev==SE_TRICK&&x->sc==XS_RAMPS) exCountUp(4); if(ev==QE_BOUGHT&&x->sc==XS_GRANT) exCountUp(5);   // the base game's counters
 }
 static void exTkText(const StT*t,int ok,char*b){   // "+ CURE 3 BOREZIES" / "- CURE 3 BOREZIES  1/3"
     char*e=slCat(b,ok?"+ ":"- "); e=slCat(e,t->nm);
@@ -391,7 +429,25 @@ static int exPlace(int*ct){   // the place the mission still wants you at (*ct =
 // ---- scenarios ----
 static void exScSetup(const XMs*x){   // a mission starts: its places are in the town, its scenario begins
     if(!x) return;
-    for(int i=0;i<exTkN(x);i++) if(x->t[i].k==QK_AT) trvPlace(x->t[i].a);
+    for(int i=0;i<exTkN(x);i++){ if(x->t[i].k==QK_AT) trvPlace(x->t[i].a);
+        if(x->t[i].k==QK_DO) for(unsigned v=0;v<sizeof(venues)/sizeof(venues[0]);v++) if(x->t[i].a>=venues[v].a0&&x->t[i].a<venues[v].a0+venues[v].an) trvPlace(venues[v].ct); }   // (a venue action: that venue is in town)
+    if(x->sc==XS_GRANT){ simMoneyAdd(1500); lnote="A HOUSEWARMING GIFT  1500 SIMOLEONS  SPEND IT"; lnoteT=200; sfxPlay(SFX_CASH); }
+    if(x->sc==XS_BILLS&&simMoneyI()>300){ simMoneyAdd(-150); lnote="THE BILLS CAME  150 SIMOLEONS  GONE"; lnoteT=200; simEvent(SE_BILLS); }
+    if(x->sc==XS_SEEDS){ wdSeed[0]=(u8)(wdSeed[0]+2); wdSave(); lnote="TWO SEED PACKS IN THE MAIL  NO NOTE"; lnoteT=200; }
+    if(x->sc==XS_RAMPS){   // a board if you have none, and a kicker and a quarter pipe (with its wall) set down on the first clear strip of yard
+        if(!bdOwn) bdGot(1,"A BOARD CAME WITH THE RAMPS  YOURS TO KEEP");
+        int fx0=-1, fy0=-1, best=0x7FFFFFFF, px=(int)(lfx>>8), py=(int)(lfy>>8);   // the clear strip of yard (12 x 3, outdoors) nearest to you
+        if(!curFl&&!prHere()) for(int y=2;y<MH-4;y++) for(int x=2;x<MW-14;x++){ int ok=1, dx=x+6-px, dy=y+1-py, d=dx*dx+dy*dy; if(d>=best) continue;
+            for(int j=0;j<3&&ok;j++) for(int i=0;i<12&&ok;i++) if(lifeMap[y+j][x+i]!='.'||wInside[y+j][x+i]||!hhWalk(x+i,y+j)) ok=0;   // (bare, outdoors, nothing standing on it)
+            if(ok){ fx0=x; fy0=y; best=d; } }
+        if(fx0>=0){ for(int j=0;j<3;j++){ lifeMap[fy0+j][fx0+3]='4'; lifeMap[fy0+j][fx0+9]='8'; lifeMap[fy0+j][fx0+10]='#'; } liveInvalidate(); lnote="TWO RAMPS IN THE YARD  THEY ARE YOURS"; lnoteT=200; }
+    }
+    if(x->sc==XS_PARTY){   // three neighbours come round at once (friendly: exHKind is 0 for this scenario)
+        int any=0; for(int k=0;k<TW_N;k++) any|=twHas[k];
+        if(!any&&!curFl&&!prHere()){ twKeep=0; hhBakeAll(); ldEnd(); liveInvalidate(); }
+        int n=0; for(int k=0;k<TW_N;k++) if(twHas[k]&&!twOn[k]&&n<3){ twWait[k]=(short)(120+n*240); n++; }
+        lnote="A KNOCK  THEN ANOTHER  THEN ANOTHER"; lnoteT=200;
+    }
     if(x->sc==XS_ZOMB||x->sc==XS_WAR||x->sc==XS_ARENA){
         int any=0; for(int k=0;k<TW_N;k++) any|=twHas[k];
         if(!any&&!curFl&&!prHere()){ twKeep=0; hhBakeAll(); ldEnd(); liveInvalidate(); }   // (no visitors set up here: PRE-MADE SIMS off): somebody has to come
@@ -424,7 +480,8 @@ static void exQuit(void){ exHClearAll(); exClear(); exSave(); sgDirty=1; }
 static void exComplete(void){
     const XMs*x=exMs(); if(!x) return; int p=exP-1;
     simMoneyAdd((money_t)x->pay*100); dnaAdd(15); persSave(); simsSave();
-    exDoneSet(xpBase[p]+exM); exHClearAll(); exLastP=(u8)p; exLastM=exM;
+    if(p==XP_BASE) bmDoneSet(exM); else exDoneSet(xpBase[p]+exM);
+    exHClearAll(); exLastP=(u8)p; exLastM=exM;
     int nx=exNext(p,exM);
     if(nx>=0){ exM=(u8)nx; exTk=0; exCnt=0; exDay=exDay8(); exSave(); exScSetup(exMs()); exShown=(u8)(exP*32+exM+1); exModal=2; }
     else { exClear(); exSave(); exModal=3; }
@@ -450,7 +507,8 @@ static void exIcon(int p,int x,int y,int sc,u16 c){   // a picture per pack (9 x
       {"...XXX...",".XXXXXXX.","XXXXXXXXX","XXXXXXXXX","X.......X",".........","..X...X..","..XX.XX.."},
       {"..XXXX...",".XXXXXX..",".XXXXXXX.","XXXXXXXX.","XXXXXXXX.",".XXXXXX..","..XXXX...","..XXXX..."},
       {"...XXX...","..XXXXX..",".XX.X.XX.",".XXXXXXX.","XX.XXX.XX","XXXXXXXXX",".XXXXXXX.","..XXXXX.."},
-      {"XXXXXXXXX",".X.....X.","..X...X..","...XXX...","...X.X...","..X...X..",".XXXXXXX.","XXXXXXXXX"}};
+      {"XXXXXXXXX",".X.....X.","..X...X..","...XXX...","...X.X...","..X...X..",".XXXXXXX.","XXXXXXXXX"},
+      {"....X....","...XXX...","..XXXXX..",".XXXXXXX.","XXXXXXXXX",".XXX.XXX.",".XXX.XXX.",".XXX.XXX."}};   // (the base game: a house)
     for(int r=0;r<8;r++) for(int q=0;q<9;q++) if(pic[p][r][q]=='X') rect(x+q*sc,y+r*sc,sc,sc,c);
 }
 static u16 exMix(u16 a,u16 b,int t){ int r=(a&31)+(((b&31)-(a&31))*t>>4), g=((a>>5)&31)+((((b>>5)&31)-((a>>5)&31))*t>>4), bb=((a>>10)&31)+((((b>>10)&31)-((a>>10)&31))*t>>4); return RGB(r,g,bb); }
@@ -459,7 +517,7 @@ static void exCover(int p,int x,int y,int w,int h,int on){   // a pack's box: it
     for(int j=0;j<h;j++) rect(x,y+j,w,1,exMix(P->a,P->b,j*10/h));
     rect(x,y,w,1,on?GOLD:P->b); rect(x,y+h-1,w,1,on?GOLD:RGB(2,2,4)); rect(x,y,1,h,on?GOLD:P->b); rect(x+w-1,y,1,h,on?GOLD:RGB(2,2,4));
     exIcon(p,x+(w-18)/2,y+8,2,on?WHITE:exMix(P->b,WHITE,8));
-    rect(x+2,y+h-14,w-4,11,RGB(2,3,6)); { char b[4]; b[0]=(char)('0'+P->no); b[1]=0; text(x+(w-tw(b,1))/2,y+h-12,b,on?GOLD:DIMC,1); }
+    rect(x+2,y+h-14,w-4,11,RGB(2,3,6)); { char b[4]; b[0]=P->no?(char)('0'+P->no):'B'; b[1]=0; text(x+(w-tw(b,1))/2,y+h-12,b,on?GOLD:DIMC,1); }   // ('B': the base game)
 }
 static int exModeRun(int p);   // the packs' modes (bortua.h, gotchi.h)
 // ---- PACK: its missions ----
@@ -479,6 +537,7 @@ static void exPackScreen(int p,int ingame){
             else if(!exOpen(p,m)) toast("FINISH THE MISSION BEFORE IT FIRST");
             else if(!ingame) toast("PLAY YOUR LIFE  THEN PAUSE  STORY  PACKS");
             else if(P->adult&&stage<AG_ADULT) toast("THIS PACK IS FOR GROWN-UPS");
+            else if(xPk[p].ms[m].sc==XS_SEEDS&&stage<AG_ADULT) toast("THIS MISSION IS FOR GROWN-UPS");
             else if(prIn()) toast("NOT FROM A PRISON CELL");
             else { static const char* const yn[2]={"START THIS MISSION","NOT NOW"}; const char*q=exP?"YOUR MISSION NOW ENDS":xPk[p].ms[m].nm;
                 if(menu(q,yn,2)==0){ exStart(p,m); return; } }
@@ -507,23 +566,23 @@ static void exPackScreen(int p,int ingame){
 }
 // ---- THE SHELF: every pack ----
 static void exShelf(int ingame){
-    int sel=0; if(exP) sel=exP-1;
+    int sel=0; if(exP) for(int i=0;i<XP_N;i++) if(exOrd[i]==exP-1) sel=i;   // (sel: a place on the shelf; exOrd[sel] the pack)
     u16 prev=keyNow(); int dirty=1; u32 cnt=0;
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
         if(pr&(K_B|K_START)) return;
         if(pr&(K_RIGHT|K_R)){ sel=(sel+1)%XP_N; dirty=1; } if(pr&(K_LEFT|K_L)){ sel=(sel+XP_N-1)%XP_N; dirty=1; }
-        if(pr&K_A){ exPackScreen(sel,ingame); if(ingame&&exModal) return; prev=keyNow(); dirty=1; continue; }
+        if(pr&K_A){ exPackScreen(exOrd[sel],ingame); if(ingame&&exModal) return; prev=keyNow(); dirty=1; continue; }
         if(!dirty){ vsync(); continue; }
         dirty=0;
         stBack("EXPANSION PACKS",(int)cnt);
-        for(int p=0;p<XP_N;p++){ int on=p==sel; exCover(p,10+p*37,on?20:25,34,on?62:56,on); }
-        const XPk*P=&xPk[sel];
+        for(int i=0;i<XP_N;i++){ int on=i==sel; exCover(exOrd[i],8+i*32,on?20:25,30,on?62:56,on); }
+        const XPk*P=&xPk[exOrd[sel]];
         s2rr(8,88,224,54,RGB(10,20,30)); s2rr(9,89,222,52,RGB(2,6,13));
-        exIcon(sel,15,96,3,P->b);
         text(48,93,P->nm,GOLD,1); text(48,102,P->sub,RGB(17,29,31),1);
         for(int i=0;i<3;i++) text(48,113+i*9,P->bl[i],RGB(20,26,31),1);
-        { char b[32]; char*e=slNum(b,exPackDone(sel)); e=slCat(e,"/"); e=slNum(e,exPackPlay(sel)); slCat(e," DONE"); text(229-tw(b,1),93,b,WHITE,1);
+        exIcon(exOrd[sel],15,96,3,P->b);
+        { char b[32]; char*e=slNum(b,exPackDone(exOrd[sel])); e=slCat(e,"/"); e=slNum(e,exPackPlay(exOrd[sel])); slCat(e," DONE"); text(229-tw(b,1),93,b,WHITE,1);
           char*f=slNum(b,P->n); slCat(f," MISSIONS"); text(229-tw(b,1),102,b,DIMC,1); }
         if(P->mode) text(229-tw("+ A MODE",1),113,"+ A MODE",GOLD,1);
         { const char*a="A OPEN"; s2pill(5,147,tw(a,1)+10,a); s2pill(9+tw(a,1)+10,147,tw("LEFT RIGHT PICK",1)+10,"LEFT RIGHT PICK"); }
@@ -576,7 +635,7 @@ static void exJournal(void){   // pause menu > STORY > the mission: what it asks
         { char b[24]; char*e=slNum(b,exM+1); e=slCat(e," OF "); slNum(e,xPk[p].n); text(233-tw(b,1),21,b,WHITE,1); }
         rect(14,42,212,1,RGB(14,26,31));
         exCardBody(p,exM,48,1);
-        if(exCounts()){ char b[40]; char*e=slCat(b,exCounts()==1?"BOREZIES CURED  ":exCounts()==2?"SOLDIERS DOWN  ":"CHALLENGERS BEATEN  "); slNum(e,exCnt); text(16,112,b,RGB(17,29,31),1); }
+        if(exCounts()){ char b[40]; char*e=slCat(b,exCntJn[exCounts()]); slNum(e,exCnt); text(16,112,b,RGB(17,29,31),1); }
         { int ct; if(exPlace(&ct)){ char b[34]; char*e=slCat(b,"A GO TO "); slCat(e,ct==-2?"HOME":ctNm[ct]); int w=tw(b,1)+10; s2pill(5,147,w,b); s2pill(9+w,147,tw("SEL GIVE UP",1)+10,"SEL GIVE UP"); }
           else { s2pill(5,147,50,"B BACK"); s2pill(59,147,tw("SEL GIVE UP",1)+10,"SEL GIVE UP"); } }
         present();

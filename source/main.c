@@ -1630,6 +1630,7 @@ static int camX, camY, camSnap=1, camLastV;   // camera offset in px; the map's 
 static const short cosT[16]={256,237,181,98,0,-98,-181,-237,-256,-237,-181,-98,0,98,181,237};   // sin(a)=cosT[(a+12)&15]
 static int spBx0, spBx1, spBy0, spBy1;
 static u8 bdOwn=1;   // board.h: your skateboard: 0 none, 1 a board, 2 a pro deck (bought at the SKATE SHOP or found hidden)
+static void stQEvent(int ev,int v);   // story.h: a life or story event for the stories' and the missions' tasks (the till rings one)
 static void bdLotInit(void); static void bdTick(void); static void bdGot(int lvl,const char*msg); static int bdHere(void);   // (board.h)
 static s32 lfx,lfy,lz,lvz,lvx,lvy; static int lskate, lhave, lfr;   // lskate: 0 on foot, 1 skateboard; lhave: picked up the board
 static u8 floorMap[MH][MW] EWRAM_BSS, wallMap[MH][MW] EWRAM_BSS;   // floor style and wallpaper per tile
@@ -2743,7 +2744,7 @@ static int edSell(char c){ return c=='Q'?DS_PRICE:edCost(c)/2; }   // selling gi
 static int edPay(int net){   // net > 0 buys, net < 0 sells back. 0 = refused
     if(!net||!edCharged()) return 1;
     if(net>0&&simMoney<net){ dsMsg=net>=DS_PRICE?"THE DEADSET COSTS 75000":"NOT ENOUGH CASH"; return 0; }
-    simMoneyAdd(-(money_t)net); edCashDirty=1; if(udOn) udCashD+=net; if(net>0) sfxPlay(SFX_CASH); return 1;   // (the till rings)
+    simMoneyAdd(-(money_t)net); edCashDirty=1; if(udOn) udCashD+=net; if(net>0){ sfxPlay(SFX_CASH); stQEvent(QE_BOUGHT,net); } return 1;   // (the till rings; the base game's MOVING IN counts it)
 }
 static int edAffordable(char c,char old){ if(c!=old&&rwLockedCh(c)) return 0; int n=edCost(c)-edSell(old); return n<=0||!edCharged()||simMoney>=n; }
 static void mapPlace(int x,int y,char c){
