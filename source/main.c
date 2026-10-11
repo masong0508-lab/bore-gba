@@ -140,7 +140,9 @@ enum { LK_SHAPE, LK_SKIN, LK_EYES, LK_MOUTH, LK_EARS, LK_HSTYLE, LK_HCOL, LK_TOP
        LK_NECKW,   // format 14: neck width (the neck is its own narrow column between the shoulders and the head)
        LK_SEX,     // format 15: GENDER (SX_FEMALE, SX_MALE, SX_NB). It changes the words (WIFE / HUSBAND / SPOUSE ...), never what a Sim may wear or do; older saves get one from sexGuess
        LK_BROWSP, LK_GLASSHT, LK_CHEEKHT,   // format 16: brow spacing, glasses height and cheek height (sliders, appended after GENDER)
+       LK_VOICE,   // format 17: VOICE (0 BY GENDER, 1 MALE = the clips as recorded, 2 FEMALE = the same clips sped up and higher: voxPlay)
        LK_N };   // animal (furry) ears, a muzzle, a fur tail (format 8); LK_BUTT: a slider, the seat (teens and up); LK_LEGW: leg width slider (format 9)
+#define LK_N16 (LK_CHEEKHT+1)   // looks a person format 16 slot (and an 'HB' / 'HC' household) holds
 #define LK_N15 (LK_SEX+1)   // looks a person format 15 slot (and an 'H@' / 'HA' household) holds
 #define LK_N14 (LK_NECKW+1)   // looks a person format 14 slot (and an 'H>' / 'H?' household) holds
 #define LK_N13 (LK_FOOTSZ+1)   // looks a person format 13 slot (and an 'H=' household) holds
@@ -154,6 +156,7 @@ enum { LK_SHAPE, LK_SKIN, LK_EYES, LK_MOUTH, LK_EARS, LK_HSTYLE, LK_HCOL, LK_TOP
 #define LK_NSL13 (LK_NSL12+(LK_FOOTSZ-LK_JAWW+1))   // sliders before format 14
 #define LK_NSL14 (LK_NSL13+1)   // sliders before format 16
 #define LK_NSL (LK_NSL14+(LK_CHEEKHT-LK_BROWSP+1))   // how many looks are sliders (9 values each)
+#define LKPK16 ((LK_N16-LK_NSL)+(LK_NSL+1)/2)   // the same, in an 'HB' / 'HC' household (before VOICE)
 #define LKPK15 ((LK_N15-LK_NSL14)+(LK_NSL14+1)/2)   // the same, in an 'H@' / 'HA' household (before the format 16 sliders)
 #define LKPK14 ((LK_N14-LK_NSL14)+(LK_NSL14+1)/2)   // the same, in an 'H>' / 'H?' household (before GENDER)
 #define LKPK13 ((LK_N13-LK_NSL13)+(LK_NSL13+1)/2)   // the same, in an 'H=' household (before the format 14 slider)
@@ -1668,7 +1671,8 @@ static int lhp=HP_MAX;
 static void hpHeal(int n){ lhp+=n; if(lhp>HP_MAX) lhp=HP_MAX; }
 static void hpLose(int n){ lhp-=n; if(lhp<0) lhp=0; if(xo[XO_HURT]==2&&lhp<1) lhp=1; }   // HURT option NO DEATH: a fall can never empty it
 #include "voices.h"   // the voice clips of the Sim you control (tools/encode_voices.py)
-static void voxPlay(int v); static void voxNag(int v); static void voxChain(int a,int b,int c); static void voxEvent(int ev,int v);   // (defined after sfxPlay)
+static void voxPlay(int v); static void voxNag(int v); static void voxChain(int a,int b,int c); static void voxEvent(int ev,int v); static void voxSay(int uid,int v); static void voxDuo(int ua,int va,int ub,int vb);   // (defined after sfxPlay)
+static signed char vxQU[2];   // who says each clip waiting in the chain (vxQ, voices.h)
 #include "mood.h"   // FUN + HAPPY meters: moodEvent(), moodTick(), moodTop(), moodPts()
 #include "lifestats.h"   // LIFETIME STATS: lifetime score, hours played ... (needs the M_ events of mood.h)
 #include "sims.h"   // life-sim layer: energy/hygiene/comfort, wants and fears, aspiration. simsTick(), simBegin(), simsHud()
@@ -1724,6 +1728,8 @@ static const signed char idxT[8]={-1,-1,-1,-1,2,4,6,8};
 // The effect voice: ssrc/sn = the clip's nibbles and sample count, sPos + sFr/65536 = play position in clip samples, sRd = samples decoded so far,
 // sS0/sS1 = the two decoded samples around sPos (for interpolation), spred/sidx = the ADPCM decoder. sfxV is cleared by the mixer at the end.
 static const u8 *ssrc; static u32 sn, sPos, sFr, sRd; static int spred, sidx, sS0, sS1, sfxOn; static volatile int sfxV;
+static u32 sfxStp=SFX_STEP; static int sfxGL=256, sfxGR=256;   // VOICES: the clip playing, its step (its pitch and speed: who is talking) and its left / right gain (where they stand)
+static u32 sfxNStp; static int sfxNGL, sfxNGR; static u8 sfxNSet;   // what voxSay asks of the next sfxPlay
 static volatile int sfxLoop, sfxFade=256, sfxFadeT=256;   // the effect voice can LOOP (the loading tick-tock) and has its own fade: sfxFade glides to sfxFadeT a little every frame (256 = full); a looping voice that has faded to 0 ends itself
 static int gMusic;   // game music is switched on right now (an effect now plays over it instead of pausing it)
 static volatile int mOn, mPlay;   // mOn: the mixer interrupts and sound DMA are running; mPlay: a song is part of the mix
@@ -1911,7 +1917,7 @@ IWRAM_ARM static void sfxMix(s8*outL,s8*outR){   // add the effect voice to a fi
     int fg=sfxFade;   // the voice's own fade (loading tick-tock): 8/256 a frame up, 16/256 down
     if(fg!=sfxFadeT){ fg+=(sfxFadeT>fg)?8:-16; if((sfxFadeT>sfxFade)?fg>sfxFadeT:fg<sfxFadeT) fg=sfxFadeT; sfxFade=fg;
         if(fg==0&&sfxFadeT==0&&sfxLoop){ sfxV=0; sfxLoop=0; return; } }
-    const u8*d=ssrc; u32 n=sn, ip=sPos, fr=sFr, rd=sRd; int pred=spred, idx=sidx, s0=sS0, s1=sS1, sgain=(oSfxGain()*fg)>>8;   // SFX VOLUME and MASTER VOLUME options (x the voice's fade: 256 = unchanged)
+    const u8*d=ssrc; u32 n=sn, ip=sPos, fr=sFr, rd=sRd, stp=sfxStp; int pred=spred, idx=sidx, s0=sS0, s1=sS1, sgain=(oSfxGain()*fg)>>8, gl=sfxGL, gr=sfxGR;   // SFX VOLUME and MASTER VOLUME options (x the voice's fade: 256 = unchanged)
     for(int i=0;i<MUS_N;i++){
         if(ip>=n){ if(!sfxLoop){ sfxV=0; break; } ip=0; rd=0; pred=0; idx=0; s0=s1=0; }   // a looping voice starts over (decoder and all; the loop is silent at its ends)
         while(rd<ip+2){   // decode up to the sample after ip (silence past the end)
@@ -1926,8 +1932,8 @@ IWRAM_ARM static void sfxMix(s8*outL,s8*outR){   // add the effect voice to a fi
             else s1=0;
             rd++; }
         int x=((s0+(((s1-s0)*(int)fr)>>16))*sgain)>>16;
-        { int l=outL[i]+x, r=outR[i]+x; outL[i]=(s8)((unsigned)(l+96)<=192u?l:softClip(l)); outR[i]=(s8)((unsigned)(r+96)<=192u?r:softClip(r)); }   // (the soft limit: an effect over a loud song bends, never cuts; inside +-96 it is the sample itself)
-        fr+=SFX_STEP; ip+=fr>>16; fr&=0xFFFF;
+        { int l=outL[i]+((x*gl)>>8), r=outR[i]+((x*gr)>>8); outL[i]=(s8)((unsigned)(l+96)<=192u?l:softClip(l)); outR[i]=(s8)((unsigned)(r+96)<=192u?r:softClip(r)); }   // (the soft limit: an effect over a loud song bends, never cuts; inside +-96 it is the sample itself)
+        fr+=stp; ip+=fr>>16; fr&=0xFFFF;
     }
     sPos=ip; sFr=fr; sRd=rd; spred=pred; sidx=idx; sS0=s0; sS1=s1;
 }
@@ -2234,13 +2240,14 @@ static void sfxPlay(int id){   // a new sound replaces whatever effect is playin
     const u8*b=sfxTab[id];
     if(id==SFX_HIT) b=sfxHitT[sfxRot++%TK_HIT_N]; else if(id==SFX_YELP) b=sfxYelpT[sfxRot++%TK_YELP_N];   // (the next take each time)
     sfxV=0;   // (the interrupt does not touch the voice while sfxV is 0)
+    if(sfxNSet){ sfxStp=sfxNStp; sfxGL=sfxNGL; sfxGR=sfxNGR; sfxNSet=0; } else { sfxStp=SFX_STEP; sfxGL=sfxGR=256; }   // (a voice: its speaker's pitch and place)
     ssrc=b+4; sn=*(const u32*)b; sPos=0; sFr=0; sRd=0; spred=0; sidx=0; sS0=sS1=0;
     sfxLoop=0; sfxFade=sfxFadeT=256;
     sfxOn=1; sfxV=1;
     if(!mOn) audStart();
 }
 static void sfxTick(void){   // call once per frame: switch the mixer off once the last effect is over and no song plays
-    if(!sfxV&&vxQn>0){ int v=vxQ[0], n=vxQn-1; vxQ[0]=vxQ[1]; voxPlay(v); vxQn=n; }   // the next clip of a chain (lighter, inhale, cough)
+    if(!sfxV&&vxQn>0){ int v=vxQ[0], u=vxQU[0], n=vxQn-1; vxQ[0]=vxQ[1]; vxQU[0]=vxQU[1]; voxSay(u,v); vxQn=n; }   // the next clip of a chain (lighter, inhale, cough), or the other one answering
     if(sfxOn&&!sfxV){ sfxOn=0; if(mOn&&!mPlay&&!ambG) audStop(); }   // (the nature sounds keep the mixer going)
 }
 static u32 lrng=12345;
@@ -2249,9 +2256,14 @@ static u8 sexRoll(void){ int r=rnd8()%20; return (u8)(r<9?SX_FEMALE:r<18?SX_MALE
 static u8 sexGuess(const u8*lk){   // a Sim from a save made before GENDER: a beard says male, else the look decides (the same Sim always gets the same)
     if(lk[LK_BEARD]) return SX_MALE; u32 h=2166136261u; for(int i=0;i<LK_N10;i++) h=(h^lk[i])*16777619u; return (u8)(((h>>7)&1)?SX_MALE:SX_FEMALE); }
 // ---- voices: the Sim you control talks. voxPlay: always; voxNag: only when nothing else is sounding; voxChain: three clips one after the other ----
-static void voxPlay(int v){ sfxPlay(VS(v)); }
+// VOICES ARE PEOPLE: every clip is said by someone. voxSay(uid, clip) plays it at that Sim's own pitch (voxPitch, house.h: their VOICE look or their gender,
+// their age, a little of their own, their mood) and from where they stand (voxPan: left or right on the screen). voxDuo: one says something, the other answers.
+static int voxPitch(int uid); static void voxPan(int uid,int*gl,int*gr);   // house.h
+static void voxSay(int uid,int v){ int p=voxPitch(uid); if(p<70) p=70; if(p>190) p=190; sfxNStp=(u32)SFX_STEP*(u32)p/100u; voxPan(uid,&sfxNGL,&sfxNGR); sfxNSet=1; sfxPlay(VS(v)); if(!sSnd) sfxNSet=0; }
+static void voxPlay(int v){ voxSay(hhPUid,v); }
 static void voxNag(int v){ if(!sfxV&&!vxQn) voxPlay(v); }
-static void voxChain(int a,int b,int c){ voxPlay(a); vxQ[0]=(signed char)b; vxQ[1]=(signed char)c; vxQn=2; }
+static void voxChain(int a,int b,int c){ voxPlay(a); vxQ[0]=(signed char)b; vxQ[1]=(signed char)c; vxQU[0]=vxQU[1]=(signed char)hhPUid; vxQn=2; }
+static void voxDuo(int ua,int va,int ub,int vb){ voxSay(ua,va); vxQ[0]=(signed char)vb; vxQU[0]=(signed char)ub; vxQn=1; }   // a line and the answer to it
 static void voxEvent(int ev,int v){   // sims.h calls this for every life event (simEventV); the socials speak from house.h (voxSoc)
     switch(ev){
         case SE_SHIFT: voxPlay(V_finished); break;                                   // FINISH A SHIFT
@@ -4715,13 +4727,14 @@ static const char* const tipNm[7]={"NONE","WHITE","RED","GOLD","BLACK","AS THE T
 static const char* const shoeNm[6]={"AS THE BOTTOM","WHITE","BLACK","RED","GOLD","AS THE TOP"};
 #define LK_AGE LK_N   // the AGE row is not part of look[]: it picks the life stage
 static const char* const sexNm[SX_N]={"FEMALE","MALE","NONBINARY"};
+static const char* const voiceNm[3]={"BY GENDER","MALE","FEMALE"};
 static const char* const* const lookNm[LK_N+1]={shapeNm,0,eyeNm,mouthNm,earNm,hairNm,0,0,0,0,0,0,tailNm,hornNm,backNm,hatNm,hatColNm,beardNm,topStyNm,botStyNm,shoeNm,
-                                                browNm,noseNm,cheekNm,glassNm,0,0,0,0,0,0,0,0,clawNm,antNm,patNm,patColNm,0,0,0,0,0,0,0,0,0,fearNm,muzNm,ftailNm,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,tipNm,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,sexNm,0,0,0,stageNm};
-_Static_assert(LK_N==107,"lookNm / lookCol / cnt need a slot for every look");
-static const u16* const lookCol[LK_N+1]={0,skinTones,0,0,0,0,hairTones,topTones,botTones,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,eyeTones,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+                                                browNm,noseNm,cheekNm,glassNm,0,0,0,0,0,0,0,0,clawNm,antNm,patNm,patColNm,0,0,0,0,0,0,0,0,0,fearNm,muzNm,ftailNm,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,tipNm,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,sexNm,0,0,0,voiceNm,stageNm};
+_Static_assert(LK_N==108,"lookNm / lookCol / cnt need a slot for every look");
+static const u16* const lookCol[LK_N+1]={0,skinTones,0,0,0,0,hairTones,topTones,botTones,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,eyeTones,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 #define TROWS 40   // most rows a tab holds; the card shows 5 at a time and scrolls
 static const Row tabRow[NTAB][TROWS]={
-  {{"FIRST NAME","LAST NAME",RK_DUO,AC_FNAME,AC_LNAME},{"AGE",0,RK_PICK,LK_AGE,AG_N},{"GENDER",0,RK_PICK,LK_SEX,SX_N},{"SHAPE",0,RK_PICK,LK_SHAPE,NSHAPE},{"HEIGHT",0,RK_SLIDE,LK_HEIGHT,9},{"WEIGHT",0,RK_SLIDE,LK_WEIGHT,9},
+  {{"FIRST NAME","LAST NAME",RK_DUO,AC_FNAME,AC_LNAME},{"AGE",0,RK_PICK,LK_AGE,AG_N},{"GENDER",0,RK_PICK,LK_SEX,SX_N},{"VOICE",0,RK_PICK,LK_VOICE,3},{"SHAPE",0,RK_PICK,LK_SHAPE,NSHAPE},{"HEIGHT",0,RK_SLIDE,LK_HEIGHT,9},{"WEIGHT",0,RK_SLIDE,LK_WEIGHT,9},
    {"TORSO",0,RK_SLIDE,LK_TORSO,9},{"ARMS",0,RK_SLIDE,LK_ARMS,9},{"STANCE",0,RK_SLIDE,LK_STANCE,9},{"LEG WIDTH",0,RK_SLIDE,LK_LEGW,9},{"ARM WIDTH",0,RK_SLIDE,LK_ARMW,9},{"HEAD SIZE",0,RK_SLIDE,LK_HEADSZ,9},{"HAND FOOT SIZE",0,RK_SLIDE,LK_HANDFT,9},{"NECK LENGTH",0,RK_SLIDE,LK_NECK,9},{"NECK WIDTH",0,RK_SLIDE,LK_NECKW,9},{"HIP WIDTH",0,RK_SLIDE,LK_HIPW,9},{"WAIST WIDTH",0,RK_SLIDE,LK_WAISTW,9},{"SHOULDERS",0,RK_SLIDE,LK_SHOULW,9},{"THIGH WIDTH",0,RK_SLIDE,LK_THIGHW,9},{"CALF WIDTH",0,RK_SLIDE,LK_CALFW,9},{"CHEST",0,RK_SLIDE,LK_CHESTW,9},{"BELLY",0,RK_SLIDE,LK_BELLYW,9},{"UPPER ARM",0,RK_SLIDE,LK_UARMW,9},{"FOREARM",0,RK_SLIDE,LK_FARMW,9},{"JAW WIDTH",0,RK_SLIDE,LK_JAWW,9},{"HAND SIZE",0,RK_SLIDE,LK_HANDSZ,9},{"FOOT SIZE",0,RK_SLIDE,LK_FOOTSZ,9},
    {"SKIN",0,RK_SWATCH,LK_SKIN,NSKIN},{"SKIN TONE",0,RK_SLIDE,LK_TONE,9},{"BUTT",0,RK_SLIDE,LK_BUTT,9},{"BUTT HEIGHT",0,RK_SLIDE,LK_BUTTH,9},{"BUTT WIDTH",0,RK_SLIDE,LK_BUTTW,9}},   // (the BUTT rows last: cut from the tab below teen)
   {{"EYES",0,RK_PICK,LK_EYES,NEYE},{"EYE COLOUR",0,RK_SWATCH,LK_EYECOL,NSW},{"EYE SHADE",0,RK_SLIDE,LK_EYETONE,9},{"EYE SIZE",0,RK_SLIDE,LK_EYESZ,9},{"EYE SPACING",0,RK_SLIDE,LK_EYESP,9},
@@ -5129,7 +5142,7 @@ static void famMenu(void){
     custom=0; ageDays=0; fixLook(); buildLook(); setColors(); ageSave(); persSave(); hhSave();
     static char t[32] EWRAM_BSS; simCat(simCat(t,"NOW EDITING "),hhPName); toast(t);
 }
-static const u8 lkCnt[LK_N]={NSHAPE,NSKIN,NEYE,NMOUTH,3,NHAIR,NSW,NSW,NSW,9,9,9,3,3,3,6,6,3,4,3,6, NBROW,NNOSE,NCHEEK,NGLASS,NSW, 9,9,9,9,9,9,9, 4,3,7,6, 9,9,9,9,9,9,9,9,9, 5,4,4, 9,9,9, 9,9,9,9,9,9,9, 9,9,9,9,9,9,9, 9,9,9,7, 9,9,9, 9, [LK_THIGHW ... LK_NECKW]=9, [LK_SEX]=SX_N, [LK_BROWSP ... LK_CHEEKHT]=9};   // how many options each look row has (sliders: 9)
+static const u8 lkCnt[LK_N]={NSHAPE,NSKIN,NEYE,NMOUTH,3,NHAIR,NSW,NSW,NSW,9,9,9,3,3,3,6,6,3,4,3,6, NBROW,NNOSE,NCHEEK,NGLASS,NSW, 9,9,9,9,9,9,9, 4,3,7,6, 9,9,9,9,9,9,9,9,9, 5,4,4, 9,9,9, 9,9,9,9,9,9,9, 9,9,9,9,9,9,9, 9,9,9,7, 9,9,9, 9, [LK_THIGHW ... LK_NECKW]=9, [LK_SEX]=SX_N, [LK_BROWSP ... LK_CHEEKHT]=9, [LK_VOICE]=3};   // how many options each look row has (sliders: 9)
 #include "sharecode.h"   // SHARE CODES: a Bore as letters and digits (both the game and the CREATOR DEMO)
 #include "hhcreate.h"   // CREATE-A-HOUSEHOLD: the DONE tab's HOUSEHOLD row (add Sims, who is whose mother / sister / roommate; ADD FROM A CODE)
 #ifdef CC_DEMO
@@ -5139,7 +5152,7 @@ static void lookRandom(void){   // the dice (like Create-A-Bore): a whole new lo
     const u8*cnt=lkCnt;
     for(int id=0;id<LK_N;id++){
         if(lkSlide(id)){ look[id]=slkFree(id)?(u8)slideVal(rnd8()%5+rnd8()%5):0; continue; }   // most land near the middle (a locked slider stays in the middle)
-        if(id==LK_SEX) continue;   // (the dice keep your gender; TRUE RANDOM rolls it too)
+        if(id==LK_SEX||id==LK_VOICE) continue;   // (the dice keep your gender and voice; TRUE RANDOM rolls them too)
         for(int t=0;t<20;t++){ int v=rnd8()%cnt[id];
             if(isPart(id)&&(!partFree(id,v)||(rnd8()&1))) v=0;
             if((id==LK_PATTERN||id==LK_FEARS||id==LK_MUZZLE||id==LK_FTAIL||id==LK_TAILTIP)&&(rnd8()%3)) v=0;   // parts: half the time none, never a locked one (and the animal bits now and then)

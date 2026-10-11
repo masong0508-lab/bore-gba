@@ -97,7 +97,7 @@ static void wdPlanter(int x,int y){   // R next to a planter
         case 2: { char*e=simCat(wdMsg,stNm[st]); simCat(e,wa?"  NOT THIRSTY":"  NEEDS WATER"); lnote=wdMsg; lnoteT=100; break; }
         case 3: { static const char* const tk[4]={"YOU TELL IT ABOUT YOUR DAY","IT SEEMS TO LIKE JAZZ","YOU CALL IT A GOOD GIRL","IT GROWS A LITTLE PROUDER"}; lnote=tk[rnd8()&3]; lnoteT=110; moodEvent(M_CHILL); if(((int)rnd8()*100>>8)<20&&st<WP_READY) wpSet(x,y,st+1,wa,sn); break; }
         case 4: { int g=wdS[sn].yield+wdSk/12+(rnd8()&3); wdG[sn]=(u16)(wdG[sn]+g>9999?9999:wdG[sn]+g); if(((int)rnd8()*100>>8)<25) wdSeed[sn]++;
-            wpSet(x,y,WP_EMPTY,0,0); wdSk=(u8)(wdSk+3>100?100:wdSk+3); moodEvent(M_PAY); sfxPlay(SFX_CASH);
+            wpSet(x,y,WP_EMPTY,0,0); wdSk=(u8)(wdSk+3>100?100:wdSk+3); moodEvent(M_PAY); voxPlay(V_yahoo);
             char*e=simCat(wdMsg,"HARVESTED "); e=simCatN(e,g); e=simCat(e,"G OF "); simCat(e,wdS[sn].nm); lnote=wdMsg; lnoteT=150; wdSave(); break; }
         case 5: wpSet(x,y,WP_EMPTY,0,0); lnote="CLEARED  TRY AGAIN"; lnoteT=60; break; }
 }
@@ -105,7 +105,7 @@ static void wdPlanter(int x,int y){   // R next to a planter
 static void wdRoll(void){
     if(!wdOk()){ lnote="GROWN-UPS ONLY"; lnoteT=50; return; }
     int s=wdBest(); if(s<0){ lnote="YOUR STASH IS EMPTY"; lnoteT=60; return; }
-    wdG[s]--; lchill=1200+wdS[s].pot*240; lstun=110; lsp=0; lgrind=0; moodEventN(M_CHILL,1+wdS[s].pot/2); voxPlay(V_reading_or_thinking);
+    wdG[s]--; lchill=1200+wdS[s].pot*240; lstun=110; lsp=0; lgrind=0; moodEventN(M_CHILL,1+wdS[s].pot/2); voxChain(V_lighter_spark,V_spark_inhale,(rnd8()&1)?V_after_smoke_cough:V_after_smoke_cough_2);   // spark, inhale, cough
     char*e=simCat(wdMsg,"ROLLED A FAT ONE  "); simCat(e,wdS[s].nm); lnote=wdMsg; lnoteT=150; wdSave();
 }
 static int wdRisk(int base){ int r=base*(stage==AG_TEEN?3:1); return ((int)rnd8()*100>>8)<r; }   // a roll for being seen: teens three times as likely
@@ -119,16 +119,16 @@ static void wdCorner(void){   // SELL ON THE CORNER: a few buyers come by, each 
         wdG[s]=(u16)(wdG[s]-g); sold+=g; cash+=g*wdS[s].price*3/2; if(wdRisk(12)) seen=1; }
     simMoneyAdd(cash); wdSold=(u16)(wdSold+sold); lstun=240; lsp=0; lgrind=0; sfxPlay(SFX_CASH); wdSave();
     char*e=simCat(wdMsg,"SOLD "); e=simCatN(e,sold); e=simCat(e,"G FOR \xC2\xA7"); simCatN(e,cash); lnote=wdMsg; lnoteT=150;
-    if(seen){ copCrime(stage==AG_TEEN?4:2); simQPush("SOMEBODY SNITCHED"); }   // (npc.h: the heat; enough of it and the cops come)
+    if(seen){ copCrime(stage==AG_TEEN?4:2); simQPush("SOMEBODY SNITCHED"); voxPlay(V_shriek); }   // (npc.h: the heat; enough of it and the cops come)
 }
 static int wdCanSell(int stg){ return wdOk()&&wdAll()>0&&stg>=AG_TEEN&&!prIn(); }   // (house.h: a neighbour who dropped by)
 static void wdSellTo(const char*nm,int stg){   // SELL A BAG: they take a few grams of your best, at a street price; somebody may see (a teen seller, or a teen buyer, ups the odds)
     int s=wdBest(); if(s<0) return;
-    if(stg==AG_TEEN&&stage>=AG_ADULT&&(rnd8()&1)){ char*e=simCat(wdMsg,nm); simCat(e," IS TOO YOUNG  YOU WALK AWAY"); lnote=wdMsg; lnoteT=150; return; }   // a grown-up thinks twice
+    if(stg==AG_TEEN&&stage>=AG_ADULT&&(rnd8()&1)){ char*e=simCat(wdMsg,nm); simCat(e," IS TOO YOUNG  YOU WALK AWAY"); lnote=wdMsg; lnoteT=150; voxPlay(V_nah); return; }   // a grown-up thinks twice
     int g=1+(rnd8()%3); if(g>wdG[s]) g=wdG[s]; int cash=g*wdS[s].price*5/4;
     wdG[s]=(u16)(wdG[s]-g); wdSold=(u16)(wdSold+g); simMoneyAdd(cash); sfxPlay(SFX_CASH); lstun=50; lsp=0; wdSave();
     char*e=simCat(wdMsg,nm); e=simCat(e," BOUGHT "); e=simCatN(e,g); e=simCat(e,"G  \xC2\xA7"); simCatN(e,cash); lnote=wdMsg; lnoteT=150;
-    if(wdRisk(stg==AG_TEEN?10:5)){ copCrime(stage==AG_TEEN?4:2); simQPush("A NEIGHBOR SAW THE DEAL"); }
+    if(wdRisk(stg==AG_TEEN?10:5)){ copCrime(stage==AG_TEEN?4:2); simQPush("A NEIGHBOR SAW THE DEAL"); voxPlay(V_shriek); }
 }
 // ---- THE DISPENSARY: a community lot with a counter ('&') ----
 static void dispBuild(int x0,int y0,int x1,int y1){   // nbTemplate: a green shop: the counter across it, plants, lava lamps, a beanbag corner
@@ -145,7 +145,7 @@ static void drawDispCounter(int sx,int sy,int t){   // the counter: a glass case
     if((t>>3)&1){ rect(sx+5,sy-19,1,5,RGB(6,30,8)); rect(sx+3,sy-17,5,1,RGB(6,30,8)); } else { rect(sx+5,sy-19,1,5,RGB(4,18,6)); rect(sx+3,sy-17,5,1,RGB(4,18,6)); }
 }
 static void wdCounter(void){   // R at the dispensary counter
-    if(stage<AG_ADULT){ static const char* const no[3]={"21 AND UP  NICE TRY KID","THEY CHECKED YOUR ID  NOPE","COME BACK WITH A BEARD"}; lnote=no[rnd8()%3]; lnoteT=110; return; }
+    if(stage<AG_ADULT){ static const char* const no[3]={"21 AND UP  NICE TRY KID","THEY CHECKED YOUR ID  NOPE","COME BACK WITH A BEARD"}; lnote=no[rnd8()%3]; lnoteT=110; voxPlay(V_disagree); return; }
     static const char* const tips[6]={"START LOW AND GO SLOW","GUMMIES TAKE A WHILE  TRUST ME","WATER YOUR PLANTS  NOT TOO MUCH","PURPLE HAZE  GOOD FOR THE SOUL","SNACKS FIRST  YOU WILL THANK ME","THE CORNER IS RISKY  JUST SAYING"};
     char tt[40]; const char* it[8]; char lb[3][28];
     for(;;){
@@ -175,6 +175,6 @@ static int wdUse(void){   // R: a planter or the counter within reach. 1 = handl
 }
 static const char* wdHint(void){ if(wdNear('&',0,0)) return "R THE COUNTER"; if(wdNear('u',0,0)) return "R TEND THE PLANT"; return 0; }   // hud.h
 static void wdTick(void){   // every logic step: the gummy
-    if(wdEdT>0&&--wdEdT==0){ lchill=3600; moodEventN(M_CHILL,3); lstun=60; lsp=0; lnote="THE GUMMY KICKED IN  OH NO"; lnoteT=150; }
+    if(wdEdT>0&&--wdEdT==0){ lchill=3600; moodEventN(M_CHILL,3); lstun=60; lsp=0; lnote="THE GUMMY KICKED IN  OH NO"; lnoteT=150; voxChain(V_laughing,V_laughing_2,V_im_hungryrururyry); }
 }
 static void wdHour(void){ if(simMin%120==0) wdGrowTick(); }   // simMinute

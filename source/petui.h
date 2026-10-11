@@ -102,9 +102,9 @@ static void petTricks(Pet*p,int train){
         if(p->need[PN_NRG]<15){ p->act=PA_IDLE; petNote(p," IS TOO TIRED TO LEARN"); return; }
         p->need[PN_NRG]=(u8)(p->need[PN_NRG]-8);
         int pct=18+p->tr[PTR_SMART]*6+p->love/5;
-        if((int)(((int)rnd8()*100>>8))<pct){ p->tricks|=(u8)(1<<q); p->love=(u8)(p->love>96?100:p->love+4); petSay(p,IC_STAR,90); char*e=simCat(petMsg,p->name); e=simCat(e," LEARNED "); simCat(e,petTrickNm[petCat(p)][q]); lnote=petMsg; lnoteT=150; moodEvent(M_SKILL); }
+        if((int)(((int)rnd8()*100>>8))<pct){ p->tricks|=(u8)(1<<q); p->love=(u8)(p->love>96?100:p->love+4); petSay(p,IC_STAR,90); char*e=simCat(petMsg,p->name); e=simCat(e," LEARNED "); simCat(e,petTrickNm[petCat(p)][q]); lnote=petMsg; lnoteT=150; moodEvent(M_SKILL); voxPlay(V_yeha); }
         else { static const char* const dogNo[4]={" STARES AT YOU BLANKLY"," EATS A SOCK INSTEAD"," CHASES ITS TAIL"," SNEEZES AND FORGETS"}, * const catNo[4]={" IGNORES YOU"," LICKS ITSELF INSTEAD"," WALKS AWAY SLOWLY"," KNOCKS A CUP OFF THE TABLE"};
-            p->act=PA_SIT; petNote(p,(petCat(p)?catNo:dogNo)[rnd8()&3]); } }
+            p->act=PA_SIT; petNote(p,(petCat(p)?catNo:dogNo)[rnd8()&3]); voxPlay(V_laughing_small_or_not); } }
     else { petSay(p,IC_HEART,80); p->love=(u8)(p->love>98?100:p->love+1); moodEvent(M_CHILL); char*e=simCat(petMsg,p->name); e=simCat(e,q==3&&!petCat(p)?" PLAYS DEAD  BANG":q==4&&!petCat(p)?" SAYS WOOF":" DOES IT  GOOD JOB"); (void)e; lnote=petMsg; lnoteT=150; }
 }
 static int petPie(int i){
@@ -127,11 +127,11 @@ static int petPie(int i){
     if(c<0) return 1;
     petFaceMe(p); p->w.pn=p->w.pi=0; p->go=0;
     switch(id[c]){
-        case 0: if(cat&&p->tr[PTR_FRIEND]<4&&p->love<30&&(rnd8()&1)){ p->act=PA_SIT; p->t=60; petSay(p,IC_ANGRY,60); lhp=lhp>3?lhp-3:1; petNote(p," SWATS YOUR HAND"); lstun=30; lsp=0; break; }
+        case 0: if(cat&&p->tr[PTR_FRIEND]<4&&p->love<30&&(rnd8()&1)){ p->act=PA_SIT; p->t=60; petSay(p,IC_ANGRY,60); lhp=lhp>3?lhp-3:1; petNote(p," SWATS YOUR HAND"); lstun=30; lsp=0; voxPlay(V_amgry); break; }
             p->love=(u8)(p->love>96?100:p->love+4); if(p->need[PN_FUN]<95) p->need[PN_FUN]+=5; p->act=PA_SIT; p->t=80; petSay(p,IC_HEART,80);
-            sSoc=sSoc>94?100:sSoc+6; moodEvent(M_CHILL); lstun=45; lsp=0; petNote(p,cat?" PURRS":" WAGS ITS TAIL"); break;
+            sSoc=sSoc>94?100:sSoc+6; moodEvent(M_CHILL); lstun=45; lsp=0; petNote(p,cat?" PURRS":" WAGS ITS TAIL"); voxPlay(V_laughing_small_or_not); break;
         case 1: p->love=(u8)(p->love>94?100:p->love+6); p->act=PA_LIE; p->t=120; petSay(p,IC_HEART,110);
-            sSoc=sSoc>90?100:sSoc+10; sCom=sCom>92?100:sCom+8; moodEvent(M_CHILL); lstun=90; lsp=0; petNote(p," SNUGGLES UP"); break;
+            sSoc=sSoc>90?100:sSoc+10; sCom=sCom>92?100:sCom+8; moodEvent(M_CHILL); lstun=90; lsp=0; petNote(p," SNUGGLES UP"); voxPlay(V_laughing); break;
         case 2: if(p->need[PN_NRG]<15){ petNote(p," IS TOO TIRED TO PLAY"); break; }
             p->need[PN_FUN]=(u8)(p->need[PN_FUN]>70?100:p->need[PN_FUN]+30); p->need[PN_NRG]=(u8)(p->need[PN_NRG]-10); p->love=(u8)(p->love>97?100:p->love+3);
             moodEvent(M_CHILL); lstun=60; lsp=0; if(petPlan(p,0,0,0)) petStartAct(p,PA_ZOOM,0); petNote(p,cat?" POUNCES ON THE STRING":" BRINGS IT BACK  AGAIN"); break;
@@ -142,7 +142,7 @@ static int petPie(int i){
         case 6: if(petOutside((int)(p->w.fx>>8),(int)(p->w.fy>>8))){ p->act=PA_PEE; p->t=60; p->need[PN_BLAD]=100; break; }
             if(petPlan(p,2,0,0)){ petStartAct(p,PA_OUT,0); petNote(p," TROTS OUTSIDE"); } else petNote(p," HAS NOWHERE TO GO  ADD A DOOR"); break;
         case 7: { int g=3+p->tr[PTR_SMART]/2; p->potty=(u8)(p->potty+g>100?100:p->potty+g); p->act=PA_SIT; p->t=60; lstun=50; lsp=0; char*e=simCat(petMsg,p->name); e=simCat(e," IS "); e=simCatN(e,p->potty); simCat(e,"% HOUSE TRAINED"); lnote=petMsg; lnoteT=150; break; }
-        case 8: p->love=(u8)(p->love>5?p->love-5:0); if(pudN&&p->potty<100) p->potty=(u8)(p->potty+4>100?100:p->potty+4); p->act=PA_LIE; p->t=90; petSay(p,IC_SAD,90); lstun=30; lsp=0; petNote(p,cat?" DOES NOT CARE":" LOOKS ASHAMED"); break;
+        case 8: p->love=(u8)(p->love>5?p->love-5:0); if(pudN&&p->potty<100) p->potty=(u8)(p->potty+4>100?100:p->potty+4); p->act=PA_LIE; p->t=90; petSay(p,IC_SAD,90); lstun=30; lsp=0; petNote(p,cat?" DOES NOT CARE":" LOOKS ASHAMED"); voxPlay(V_angered); break;
         case 9: p->love=(u8)(p->love>2?p->love-2:0); if(petPlan(p,0,0,0)) petStartAct(p,PA_WANDER,0); petNote(p," WANDERS OFF"); break;
         case 10: petCard(i); break; }
     return 1;
@@ -166,7 +166,7 @@ static void petAdopt(void){
     Pet*p=&petM[petN]; petNew(p,rnd8()%PET_NBR);
     if(!petEdit(p,1)) return;
     simMoney-=PET_COST; simsSave(); petN++; petPlace(p,petN); p->act=PA_GREET; p->go=0; p->t=90; petSay(p,IC_HEART,120); petVramBad=1; hhSave();
-    char*e=simCat(petMsg,p->name); simCat(e,petCat(p)?" MOVED IN  MEOW":" MOVED IN  WOOF"); toast(petMsg); liveInvalidate(); camSnap=1;
+    char*e=simCat(petMsg,p->name); simCat(e,petCat(p)?" MOVED IN  MEOW":" MOVED IN  WOOF"); toast(petMsg); liveInvalidate(); camSnap=1; voxPlay(V_yahoo);
 }
 static void petScreen(void){
     for(;;){

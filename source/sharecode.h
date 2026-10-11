@@ -13,6 +13,7 @@
 #define SC_LIMB 72      // bytes of the big number (576 bits; the fields need about 400)
 #define SC_MAXC 128     // most letters a code may have
 #define SC_NF (1+1+1+1+TR_N+LK_N)   // fields: check, age, aspiration, lifetime want, traits, looks
+#define SC_NFA (SC_NF-1)   // the fields of a version 'A' code: everything before VOICE (the last look). A Bore whose voice is BY GENDER still gets an 'A' code, so old and new codes are the same
 static int scRad(int f){   // how many values field f has
     if(f==0) return 251;   // (a byte: the fields are kept in u8)
     if(f==1) return AG_N;
@@ -26,27 +27,28 @@ static void scVals(u8*v){   // the creature in the creator, as fields (the check
     for(int i=0;i<TR_N;i++) v[4+i]=pTr[i]>10?10:pTr[i];
     for(int i=0;i<LK_N;i++){ int r=scRad(4+TR_N+i); v[4+TR_N+i]=look[i]<r?look[i]:0; }
 }
-static int scCheck(const u8*v){ u32 h=0x2F; for(int f=1;f<SC_NF;f++) h=(h*31u+v[f]+1u)%1000003u; return (int)(h%251u); }
+static int scCheckN(const u8*v,int nf){ u32 h=0x2F; for(int f=1;f<nf;f++) h=(h*31u+v[f]+1u)%1000003u; return (int)(h%251u); }
+static int scCheck(const u8*v){ return scCheckN(v,SC_NF); }
 static void bgMulAdd(u8*b,int m,int a){ u32 c=(u32)a; for(int i=0;i<SC_LIMB;i++){ c+=(u32)b[i]*(u32)m; b[i]=(u8)c; c>>=8; } }
 static int bgDiv(u8*b,int d){ u32 r=0; for(int i=SC_LIMB-1;i>=0;i--){ r=(r<<8)|b[i]; b[i]=(u8)(r/(u32)d); r%=(u32)d; } return (int)r; }
 static int bgZero(const u8*b){ for(int i=0;i<SC_LIMB;i++) if(b[i]) return 0; return 1; }
 static int scMake(char*out){   // the code of the creature in the creator (out: SC_MAXC+1 chars). Returns its length
-    u8 v[SC_NF], b[SC_LIMB]; scVals(v); v[0]=(u8)scCheck(v);
+    u8 v[SC_NF], b[SC_LIMB]; scVals(v); int nf=v[SC_NF-1]?SC_NF:SC_NFA; v[0]=(u8)scCheckN(v,nf);   // ('B': the voice is set)
     for(int i=0;i<SC_LIMB;i++) b[i]=0;
-    for(int f=SC_NF-1;f>=0;f--) bgMulAdd(b,scRad(f),v[f]);   // field 0 is the lowest digit: it comes out first when reading
+    for(int f=nf-1;f>=0;f--) bgMulAdd(b,scRad(f),v[f]);   // field 0 is the lowest digit: it comes out first when reading
     char d[SC_MAXC]; int n=0; while(!bgZero(b)&&n<SC_MAXC-1) d[n++]=SC_ALPH[bgDiv(b,32)];
-    int k=0; out[k++]='A'; while(n>0) out[k++]=d[--n]; out[k]=0; return k;
+    int k=0; out[k++]=nf==SC_NF?'B':'A'; while(n>0) out[k++]=d[--n]; out[k]=0; return k;
 }
 static int scVal(char c){ if(c>='a'&&c<='z') c=(char)(c-32); for(int i=0;i<32;i++) if(SC_ALPH[i]==c) return i; return -1; }
 // Read a code into v (SC_NF fields). Spaces and dashes are skipped. 1 = a sound code
 static int scRead(const char*s,u8*v){
     while(*s==' '||*s=='-') s++;
-    if(*s!='A'&&*s!='a') return 0;
+    int nf=(*s=='A'||*s=='a')?SC_NFA:(*s=='B'||*s=='b')?SC_NF:0; if(!nf) return 0;   // 'A': before VOICE; 'B': with it
     s++;
     u8 b[SC_LIMB]; for(int i=0;i<SC_LIMB;i++) b[i]=0;
     for(;*s;s++){ if(*s==' '||*s=='-') continue; int d=scVal(*s); if(d<0||b[SC_LIMB-1]>=8) return 0; bgMulAdd(b,32,d); }
-    for(int f=0;f<SC_NF;f++) v[f]=(u8)bgDiv(b,scRad(f));
-    if(!bgZero(b)||v[0]!=scCheck(v)) return 0;
+    for(int f=0;f<SC_NF;f++) v[f]=f<nf?(u8)bgDiv(b,scRad(f)):0;
+    if(!bgZero(b)||v[0]!=scCheckN(v,nf)) return 0;
     u8 tr[TR_N]; for(int i=0;i<TR_N;i++) tr[i]=v[4+i];
     return persValid(v[2],v[3],tr);
 }

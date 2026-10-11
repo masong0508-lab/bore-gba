@@ -1027,31 +1027,49 @@ static void fightHit(int a,int b){
         if(a==hhPUid&&lnoteT<=0){ char*e=fkB; if(crit) e=simCat(e,"CRIT "); e=simCat(e,fkMove(a,"PUNCH")); *e++=' '; simCatN(e,dmg); lnote=fkB; lnoteT=45; } }   // you see how hard it landed
     else { t->hp=30; t->act=HA_SOC; t->t=600; t->bub=IC_SKULL; t->bubT=120; hhNote(t," IS KNOCKED OUT"); if(a==hhPUid){ voxPlay(V_win_the_fight); copCrime(2); } }
 }
+// ---- VOICES ARE PEOPLE (main.c voxSay): whose voice, and from where ----
+static int voxPitch(int uid){   // percent of the recorded speed: VOICE (or gender), age, a little of their own, mood
+    const u8*lk; int stg;
+    if(uid==hhPUid){ lk=look; stg=stage; } else { int m=hhMemOf(uid); if(m<0) return 100; lk=hhM[m].look; stg=hhM[m].stage; }
+    int v=lk[LK_VOICE], sx=lk[LK_SEX];
+    int p=v==2?133:v==1?100:sx==SX_FEMALE?133:sx==SX_MALE?100:116;   // FEMALE: the same clips sped up, about five semitones (the Missy Elliott trick)
+    static const signed char ag[AG_N]={30,16,5,0,-6};   // a baby squeaks, a child is bright, an elder a touch slower
+    p=p*(100+ag[stg<AG_N?stg:AG_ADULT])/100;
+    { u32 h=((u32)lk[LK_SHAPE]*97u+(u32)lk[LK_HEIGHT]*131u+(u32)lk[LK_SKIN]*31u+(u32)lk[LK_HSTYLE]*7u)*2654435761u; p+=(int)((h>>27)%11)-5; }   // everyone sounds a little like themselves
+    p+=(uMood(uid)-50)/12;   // cheery: brighter; down: lower
+    return p;
+}
+static void voxPan(int uid,int*gl,int*gr){   // left / right by where they stand on the screen (gently)
+    s32 fx=lfx, fy=lfy; if(uid!=hhPUid){ int m=hhMemOf(uid); if(m<0){ *gl=*gr=256; return; } fx=hhM[m].fx; fy=hhM[m].fy; }
+    s32 rx,ry; rotPos(fx,fy,&rx,&ry); int x=LOX+(int)((rx-ry)>>5);
+    int p=(x-SW/2)*3/4; if(p>100) p=100; if(p<-100) p=-100;
+    *gl=256-(p>0?p:0); *gr=256+(p<0?p:0);
+}
 // a does interaction i to b. Returns 1 if it was accepted (mean ones: 1 = it landed)
-// The voice of the Sim you control in a social (you are a or b). One clip at a time; the newest wins.
+// THE VOICES OF A SOCIAL: when you are in it, both of you speak: the one who starts says their line, the other answers in their own voice
+// (a joke that lands gets a laugh, one that does not gets a weak one or a NAH; a flirt gets flirted back or shut down). One exchange at a time; the newest wins.
 static void voxSoc(int a,int b,int i,int ok){
     int ya=(a==hhPUid), yb=(b==hhPUid); if(!ya&&!yb) return;
     const SocAct*S=&socT[i]; int rom=((relF[a][b]|relF[b][a])&(RF_CRUSH|RF_LOVE|RF_STEADY))!=0, r=rnd8()&1;
-    if(S->fl&SA_MEAN){   // a fight: you start it, or you are the one it is aimed at
-        if(ya) voxPlay((i==SC_ARGUE||i==SC_PUNCH)?V_lets_fight:V_amgry); else voxPlay(r?V_angered:V_amgry);
-        return; }
+    int no=r?V_nah:V_not_agree;   // a plain no
+    if(S->fl&SA_MEAN){ voxDuo(a,(i==SC_ARGUE||i==SC_PUNCH)?V_lets_fight:V_amgry,b,r?V_angered:V_amgry); return; }   // a fight: the one who starts it, then the one it hit
     switch(i){
-        case SC_TALK: case SC_COMPL: case SC_SORRY: voxPlay(ok?V_agree:(r?V_not_agree:V_disagree)); break;
-        case SC_HIGH5: voxPlay(ok?(r?V_yeha:V_yahoo):V_nah); break;
-        case SC_TRICK: voxPlay(ok?V_yahoo:V_nah); break;
-        case SC_HUG: if(!ok) voxPlay(V_nah); break;
+        case SC_TALK: case SC_COMPL: case SC_SORRY: if(ok) voxDuo(a,V_agree,b,r?V_laughing_small_or_not:V_agree); else voxDuo(a,V_agree,b,r?V_not_agree:V_disagree); break;
+        case SC_HIGH5: if(ok) voxDuo(a,V_yeha,b,V_yahoo); else voxDuo(a,V_yeha,b,no); break;
+        case SC_TRICK: if(ok) voxDuo(a,V_yahoo,b,r?V_laughing:V_yeha); else voxDuo(a,V_yahoo,b,V_laughing_small_or_not); break;
+        case SC_HUG: if(ok) voxSay(b,V_laughing_small_or_not); else voxDuo(a,V_agree,b,no); break;
         case SC_JOKE:
-            if(rom&&ok) voxPlay(r?V_naughty_joke:V_naughty_jokw_2);                        // a joke between two who fancy each other
-            else if(ya) voxPlay(ok?V_joke_good:V_joke_not_land);                           // you tell it
-            else voxPlay(ok?(r?V_laughing:V_laughing_2):V_laughing_small_or_not);          // you hear it
+            if(rom&&ok) voxDuo(a,r?V_naughty_joke:V_naughty_jokw_2,b,V_laughing);                            // a joke between two who fancy each other
+            else if(ok) voxDuo(a,V_joke_good,b,r?V_laughing:V_laughing_2);                                     // it lands: the laugh
+            else voxDuo(a,V_joke_not_land,b,r?V_laughing_small_or_not:V_nah);                                   // it does not: a pity laugh, or nothing
             break;
-        case SC_FLIRT: voxPlay(ok?(ya?V_flirt:V_flirt_2):V_nah); break;
-        case SC_KISS: voxPlay(ok?V_flirt_2:(ya?V_burst_crying:V_nah)); break;
-        case SC_STEADY: voxPlay(ok?V_serenade_good:V_serenade_bad); break;              // BE MINE: a serenade, good or bad
-        case SC_PROPOSE: voxPlay(ok?V_serenade_good:V_serenade_bad); break;             // popping the question: the serenade, good or bad (family.h)
-        case SC_BABY: voxPlay(ok?V_yahoo:V_nah); break;                                  // yahoo: getting ready to woohoo
+        case SC_FLIRT: if(ok) voxDuo(a,V_flirt,b,V_flirt_2); else voxDuo(a,V_flirt,b,no); break;
+        case SC_KISS: if(ok) voxDuo(a,V_flirt_2,b,V_flirt); else voxDuo(b,no,a,V_burst_crying); break;
+        case SC_STEADY: case SC_PROPOSE: if(ok) voxDuo(a,V_serenade_good,b,V_yahoo); else voxDuo(a,V_serenade_bad,b,no); break;   // BE MINE / popping the question: the serenade, then the answer
+        case SC_BABY: if(ok) voxDuo(a,V_flirt,b,V_yahoo); else voxDuo(a,V_flirt,b,no); break;
         default: break;   // PUFF PUFF PASS: the pipe sounds come from voxEvent
     }
+    (void)ya; (void)yb;
 }
 static int socChance(int a,int b,int i){   // percent: how likely b says yes to a
     const SocAct*S=&socT[i];
@@ -1266,14 +1284,18 @@ static int hhVisitorTalk(int m,int useLabel){   // R next to a neighbour who dro
         hhSay(hhPUid,IC_ANGRY,i==4?"NYAH NYAH":i==5?"LOSER":i==6?"MOVE IT":"SMACK"); hhFreeze(hhPUid,60);
         s->bub=(u8)(i>=6?IC_HURT:i==5?IC_SAD:IC_ANGRY); s->bubT=90;
         needAdd(hhPUid,HN_SOC,2); if(pTr[TR_NICE]<=3) needAdd(hhPUid,HN_FUN,6);   // grouchy Sims enjoy it a little
-        voxPlay(i>=6?V_lets_fight:V_amgry); simEvent(SE_FIGHT);
+        voxDuo(hhPUid,i>=6?V_lets_fight:V_amgry,s->uid,i>=6?V_angered:((rnd8()&1)?V_amgry:V_not_agree)); simEvent(SE_FIGHT);
         { char*e=simCat(nt,s->name); simCat(e,said[i-4]); } lnote=nt; lnoteT=60;
         if(i>=6){ if(m>=HH_MAX){ if((rnd8()&1)||i==7){ fightHurt(6+(rnd8()&7)); simCat(simCat(nt,s->name)," HIT BACK"); } }   // an inmate does not take it
                   else { int k=HH_MAX-1-m; if(k>=0&&k<TW_N&&twWait[k]>40) twWait[k]=40; } }                                         // a neighbour has had enough: home they go
         return 1; }
+    { int pct=i==1?55+skLvl(SK_CHARM)*4:i==2?75+skLvl(SK_CHARM)*2:85; if(((int)rnd8()*100>>8)>=pct){   // NOT EVERY LINE LANDS: a joke most of all (CHARISMA helps)
+          static const char* const flat[4]={" DID NOT LAUGH"," SHRUGS"," LEFT YOU HANGING"," LOOKS AWKWARD"};
+          voxDuo(hhPUid,i==1?V_joke_not_land:i==3?V_yeha:V_agree,s->uid,i==1?((rnd8()&1)?V_laughing_small_or_not:V_nah):V_not_agree);
+          needAdd(hhPUid,HN_SOC,2); simEvent(SE_TALK); { char*e=simCat(nt,s->name); simCat(e,flat[i]); } lnote=nt; lnoteT=90; return 1; } }
     needAdd(hhPUid,HN_SOC,gain); if(i==1) needAdd(hhPUid,HN_FUN,8);
     simEvent(SE_TALK); if(i==1) simEvent(SE_LAUGH); moodEvent(M_WANT);
-    voxPlay(i==3?V_yeha:i==1?V_joke_good:V_agree);
+    voxDuo(hhPUid,i==3?V_yeha:i==1?V_joke_good:V_agree,s->uid,i==3?V_yahoo:i==1?((rnd8()&1)?V_laughing:V_laughing_2):V_agree);
     { char*e=simCat(nt,s->name); simCat(e,i==1?" LAUGHED":i==2?" SAYS THANKS":i==3?" HIGH FIVES":" CHATTED"); }
     lnote=nt; lnoteT=60;
     return 1;
@@ -1587,7 +1609,7 @@ static int hhPlaceOf(int u){ if(u==hhPUid) return 0; for(int i=0;i<hhN;i++) if(h
 #define HH_RELB (4*HU_N*HU_N)   // daily, lifetime, flags and (from 'H?') kin, for every pair of uids
 static void hhSave(void){
     volatile u8*m=SRAM_BASE+HH_OFF; int k=3; u8 sum=0x48;
-    m[0]='H'; m[1]='C'; m[2]=(u8)hhN; m[k++]=(u8)hhPUid;   // 'H:' = 'H9' for 8 Sims (8 uids); 'H;' adds the format 11 sliders; 'H?' adds the kin (who is whose mother, sister, roommate); 'H@' adds GENDER and the family tail; 'HA' the town relationships; 'HB' the format 16 sliders; 'HC' the pets
+    m[0]='H'; m[1]='D'; m[2]=(u8)hhN; m[k++]=(u8)hhPUid;   // 'H:' = 'H9' for 8 Sims (8 uids); 'H;' adds the format 11 sliders; 'H?' adds the kin (who is whose mother, sister, roommate); 'H@' adds GENDER and the family tail; 'HA' the town relationships; 'HB' the format 16 sliders; 'HC' the pets; 'HD' VOICE
     for(int j=0;j<HH_NM;j++) m[k++]=(u8)hhPName[j];
     for(int j=0;j<HH_NM;j++) m[k++]=(u8)hhPLast[j];   // your own name
     for(int i=0;i<hhN;i++){ const HhSim*s=&hhM[i];
@@ -1619,7 +1641,7 @@ static int hhUidsOf(int ver){ return ver<'6'?HH_MAXOLD+1:ver<=':'-1?HH_MAX9+1:HU
 // or it would not fit in avail bytes. ('HA': the town tail's own count says how long it is.)
 static int hhSumAt(volatile u8*m,int avail){
     int hu=hhUidsOf(m[1]);   // before 'H6': 10 uids; 'H6'..'H9': 14; 'H:': 8
-    int v7=m[1]>='7', nb=v7?2*HH_NM:10, nl=m[1]>='B'?LKPK:m[1]>='@'?LKPK15:m[1]>='>'?LKPK14:m[1]>='='?LKPK13:m[1]>='<'?LKPK12:m[1]>=';'?LKPK11:m[1]>='9'?LKPK10:m[1]>='8'?LK_N9:v7?LK_N8:m[1]>='5'?LK_N7:m[1]=='4'?LK_N6:m[1]=='3'?LK_N5:LK_N4, rec=HH_REC-LKPK+nl-2*HH_NM+nb;   // 'H2' households were saved before the hats and clothes, 'H3' before the face details and sliders
+    int v7=m[1]>='7', nb=v7?2*HH_NM:10, nl=m[1]>='D'?LKPK:m[1]>='B'?LKPK16:m[1]>='@'?LKPK15:m[1]>='>'?LKPK14:m[1]>='='?LKPK13:m[1]>='<'?LKPK12:m[1]>=';'?LKPK11:m[1]>='9'?LKPK10:m[1]>='8'?LK_N9:v7?LK_N8:m[1]>='5'?LK_N7:m[1]=='4'?LK_N6:m[1]=='3'?LK_N5:LK_N4, rec=HH_REC-LKPK+nl-2*HH_NM+nb;   // 'H2' households were saved before the hats and clothes, 'H3' before the face details and sliders
     int n=m[2], hb=v7?2*HH_NM:0, k=4+hb+n*rec+3*hu*hu+(m[1]>='?'?hu*hu:0)+(m[1]>='@'?n+3:0);
     if(m[1]>='A'){ if(k+3>avail||m[k+2]>NR_N) return -1; k+=3+NR_B*m[k+2]; }
     if(m[1]>='C'){ if(k+1>avail||m[k]>PET_MAX) return -1; k+=1+PET_B*m[k]; }   // the pets
@@ -1633,7 +1655,7 @@ static int hhFyOk(u8 sum,int n){ volatile u8*f=SRAM_BASE+HH_FY_OFF; u8 s=0x46; f
 static void hhLoad(void){
     volatile u8*m=SRAM_BASE+HH_OFF; u8 sum=0x48; hhN=0; for(int j=0;j<HH_MAX;j++) hhFlLd[j]=0; petLoadFrom(0,0,0);   // (no pets until the block says so)
     famReset(); nrN=0; nrKey=0;
-    if(m[0]!='H'||m[1]<'2'||m[1]>'C'||m[2]>(m[1]>=':'?HH_MAX:HH_MAX9)) return;
+    if(m[0]!='H'||m[1]<'2'||m[1]>'D'||m[2]>(m[1]>=':'?HH_MAX:HH_MAX9)) return;
     int hu=hhUidsOf(m[1]), n=m[2], k=hhSumAt(m,SL_HH_LEN); if(k<0) return;
     for(int i=2;i<k;i++) sum+=m[i]; if(m[k]!=sum) return;
     if(m[3]>=hu) return;
@@ -1644,7 +1666,7 @@ static void hhLoad(void){
     if(v7){ for(int j=0;j<HH_NM;j++) hhPName[j]=(char)m[k++]; for(int j=0;j<HH_NM;j++) hhPLast[j]=(char)m[k++]; hhPName[HH_NM-1]=hhPLast[HH_NM-1]=0; if(!hhPName[0]){ hhPName[0]='Y'; hhPName[1]='O'; hhPName[2]='U'; hhPName[3]=0; } }
     int kept=0;
     for(int i=0;i<n;i++){ HhSim tmp, *s=i<HH_MAX?&hhM[i]:&tmp;
-        if(m[1]>='9'){ int lim=m[1]>='B'?LK_N:m[1]>='@'?LK_N15:m[1]>='>'?LK_N14:fy?LK_N12:m[1]>='='?LK_N13:m[1]>='<'?LK_N12:m[1]>=';'?LK_N11:LK_N10; for(int j=0;j<LK_N;j++) s->look[j]=0; for(int j=0;j<lim;j++) if(!lkSlide(j)) s->look[j]=m[k++];   // 'H:' and older: no format 11 looks
+        if(m[1]>='9'){ int lim=m[1]>='D'?LK_N:m[1]>='B'?LK_N16:m[1]>='@'?LK_N15:m[1]>='>'?LK_N14:fy?LK_N12:m[1]>='='?LK_N13:m[1]>='<'?LK_N12:m[1]>=';'?LK_N11:LK_N10; for(int j=0;j<LK_N;j++) s->look[j]=0; for(int j=0;j<lim;j++) if(!lkSlide(j)) s->look[j]=m[k++];   // 'H:' and older: no format 11 looks
           if(fy) s->look[LK_SEX]=m[k++];   // (the test build's GENDER: the last pick, before the sliders)
           int h=-1; for(int j=0;j<lim;j++) if(lkSlide(j)){ if(h<0){ int b=m[k++]; s->look[j]=(u8)(b&15); h=b>>4; } else { s->look[j]=(u8)h; h=-1; } } }
         else for(int j=0;j<LK_N;j++) s->look[j]=j<nl?m[k++]:0;
@@ -1685,7 +1707,7 @@ static void hhLoad(void){
 // How many bytes the household block at m takes (its header, count, uids and checksum all check out), or 0 if it is not a good household
 // or does not fit in avail bytes. The household slots (slots.h) use it to copy a household in and out of SRAM without touching hhM.
 static int hhBlockLen(volatile u8*m,int avail){
-    if(avail<4||m[0]!='H'||m[1]<'2'||m[1]>'C'||m[2]>(m[1]>=':'?HH_MAX:HH_MAX9)) return 0;
+    if(avail<4||m[0]!='H'||m[1]<'2'||m[1]>'D'||m[2]>(m[1]>=':'?HH_MAX:HH_MAX9)) return 0;
     int hu=hhUidsOf(m[1]), k=hhSumAt(m,avail); if(k<0) return 0;
     u8 sum=0x48; for(int i=2;i<k;i++) sum+=m[i]; if(m[k]!=sum||m[3]>=hu) return 0;
     return k+1;

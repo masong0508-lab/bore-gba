@@ -201,11 +201,11 @@ static void petAccident(Pet*p){
     int x=(int)(p->w.fx>>8), y=(int)(p->w.fy>>8);
     if(!petCat(p)&&(rnd8()&1)){   // a leg nearby?
         if(petNear(p,lfx,lfy,400)&&!lskate){ petFace(p,lfx,lfy); p->act=PA_PEE; p->go=0; p->t=70; p->need[PN_BLAD]=100;
-            sHyg=sHyg>30?sHyg-30:0; moodEvent(M_SOAKED); sfxPlay(SFX_GASP); petNote(p," PEED ON YOUR LEG"); return; }
+            sHyg=sHyg>30?sHyg-30:0; moodEvent(M_SOAKED); voxPlay(V_shriek); petNote(p," PEED ON YOUR LEG"); return; }
         for(int m=0;m<hhN;m++){ HhSim*s=&hhM[m]; if(s->act==HA_AWAY||!petNear(p,s->fx,s->fy,400)) continue;
             petFace(p,s->fx,s->fy); p->act=PA_PEE; p->go=0; p->t=70; p->need[PN_BLAD]=100;
             s->need[HN_CLEAN]=(u8)(s->need[HN_CLEAN]>30?s->need[HN_CLEAN]-30:0); s->bub=IC_ANGRY; s->bubT=120;
-            char*e=simCat(petMsg,p->name); e=simCat(e," PEED ON "); simCat(e,s->name); lnote=petMsg; lnoteT=150; sfxPlay(SFX_GASP); return; } }
+            char*e=simCat(petMsg,p->name); e=simCat(e," PEED ON "); simCat(e,s->name); lnote=petMsg; lnoteT=150; voxSay(s->uid,V_shriek); return; } }
     p->act=PA_PEE; p->go=0; p->t=70; p->need[PN_BLAD]=100; pudAdd(x,y); petNote(p,petCat(p)?" MISSED THE LITTER BOX":" HAD AN ACCIDENT");
 }
 static void petStartAct(Pet*p,int act,int t){ p->act=(u8)act; p->go=(u8)(p->w.pn>0); p->t=(short)t; }
