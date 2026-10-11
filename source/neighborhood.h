@@ -244,7 +244,7 @@ static u16 nbGround(int t,int cx,int cy){
     return nbTint(c);
 }
 static void nbDia(int sx,int sy,u16 c){   // a ground diamond, top vertex at (sx, sy)
-    for(int r=0;r<2*nbHh;r++){ int d=r<nbHh?r:2*nbHh-1-r, w=(d+1)*nbHw/nbHh; rect(sx-w,sy+r,2*w,1,c); }
+    int k=nbHw/nbHh; for(int r=0;r<2*nbHh;r++){ int d=r<nbHh?r:2*nbHh-1-r, w=(d+1)*k; rect(sx-w,sy+r,2*w,1,c); }   // (nbHw is a whole multiple of nbHh: no division per row)
 }
 static void nbPos(int cx,int cy,int*sx,int*sy){ *sx=nbOx+(cx-cy)*nbHw; *sy=nbOy+(cx+cy)*nbHh; }
 static void nbOutline(int x,int y,int w,int h,u16 c){   // the iso outline of a block of cells
@@ -332,16 +332,27 @@ static void nbSky(void){   // the main menu's sky: a gradient for the time of da
     if(t==2){ u32 r=0x1234567u; for(int i=0;i<60;i++){ r=r*1103515245u+12345u; px((int)((r>>8)%SW),(int)((r>>20)%SH),(r&0x100)?RGB(24,24,28):RGB(14,14,20)); } }
 }
 // tool: -1 = the whole town small (a backdrop), -2 = the main menu's backdrop (close up around ccx, ccy, the whole screen), 0.. = the town screen's tools
+static u8 nbPart;   // 1: draw only inside the clip the caller set (a cursor step on the lots: neighborhoodScreen); cells outside it are skipped whole
 static void nbDrawTown(int ccx,int ccy,int tool,int ghostW,int ghostH,int ghostOk){
     int bd=tool==-2;
     if(nbT.zoom&&tool!=-1){ nbHw=8; nbHh=4; nbK=2; nbOx=120-(ccx-ccy)*nbHw; nbOy=62-(ccx+ccy)*nbHh+(bd?14:0); }
     else { nbHw=4; nbHh=2; nbK=1; nbOx=120; nbOy=20; }
     u16 sky=nbT.tod==2?RGB(1,1,4):nbT.tod==1?RGB(10,6,8):RGB(4,7,12);
     int yT=bd?-2*nbHh:4, yB=bd?SH:130, yB2=bd?SH+48:140;
-    if(bd){ clipAll(); nbSky(); } else { clipAll(); fillCols(0,ROW_W,sky); clipSet(0,12,SW,122); }
-    for(int s=0;s<NB_W+NB_H-1;s++) for(int cx=(s<NB_H?0:s-NB_H+1);cx<=s&&cx<NB_W;cx++){   // the ground, back to front
+    if(nbPart) rect(cX0,cY0,(int)cW,(int)cH,sky);
+    else if(bd){ clipAll(); nbSky(); } else { clipAll(); fillCols(0,ROW_W,sky); clipSet(0,12,SW,122); }
+    int qx0=cX0, qy0=cY0, qx1=cX0+(int)cW, qy1=cY0+(int)cH;   // (the clip: a part redraw skips what is outside it)
+    static signed char lm[NB_H][NB_W] EWRAM_BSS;   // which lot each cell is on, worked out once a picture (nbAt searched every lot for every cell, twice)
+    for(int y=0;y<NB_H;y++)for(int x=0;x<NB_W;x++) lm[y][x]=-1;
+    for(int i=NB_LOTS-1;i>=0;i--){ const NbLot*L=&nbT.lot[i]; if(!L->on) continue;   // (backwards: where lots overlap, the first one wins, as in nbAt)
+        for(int y=L->y;y<L->y+L->h&&y<NB_H;y++)for(int x=L->x;x<L->x+L->w&&x<NB_W;x++) if(x>=0&&y>=0) lm[y][x]=(signed char)i; }
+    int sA=0, sB=NB_W+NB_H-2, sC=sB;   // the diagonal rows (cx+cy) to visit: all, or (a part redraw) only those that can reach the clip
+    if(nbPart){ sA=(qy0-nbOy)/nbHh-3; sB=(qy1-nbOy)/nbHh+1; sC=(qy1+(48+6*FLR_N)*nbK-nbOy)/nbHh+1;   // (sC: buildings stand up to that high over their row)
+        if(sA<0) sA=0; if(sB>NB_W+NB_H-2) sB=NB_W+NB_H-2; if(sC>NB_W+NB_H-2) sC=NB_W+NB_H-2; }
+    for(int s=sA;s<=sB;s++) for(int cx=(s<NB_H?0:s-NB_H+1);cx<=s&&cx<NB_W;cx++){   // the ground, back to front
         int cy=s-cx, sx, sy; nbPos(cx,cy,&sx,&sy); if(sx<-nbHw||sx>SW+nbHw||sy<yT||sy>yB) continue;
-        int li=nbAt(cx,cy); u8 c=nbT.cell[cy][cx];
+        if(nbPart&&(sx+nbHw<qx0||sx-nbHw>=qx1||sy+2*nbHh<qy0||sy>=qy1)) continue;
+        int li=lm[cy][cx]; u8 c=nbT.cell[cy][cx];
         u16 g; if(li>=0){ const NbLot*L=&nbT.lot[li]; g=L->kind==LKIND_COMM&&L->type!=CT_PARK?nbTint(((cx+cy)&1)?RGB(20,20,19):RGB(18,18,17)):nbLit(nbGround(NT_GRASS,cx,cy),1); }   // a lot: mown lawn, or paving
         else g=nbGround(NB_GR(c),cx,cy);
         nbDia(sx,sy,g);
@@ -351,12 +362,14 @@ static void nbDrawTown(int ccx,int ccy,int tool,int ghostW,int ghostH,int ghostO
         if(li<0&&NB_GR(c)==NT_WATER&&nbT.season!=3&&((cx*5+cy*3)&3)==0) rect(sx-1,sy+nbHh,3,1,nbTint(RGB(14,22,30)));
     }
     for(int i=0;i<NB_LOTS;i++) if(nbT.lot[i].on){ const NbLot*L=&nbT.lot[i]; nbOutline(L->x,L->y,L->w,L->h,nbTint(i==nbT.home?GOLD:RGB(25,25,24))); }
-    for(int s=0;s<NB_W+NB_H-1;s++) for(int cx=(s<NB_H?0:s-NB_H+1);cx<=s&&cx<NB_W;cx++){   // what stands on it, back to front
+    for(int s=sA;s<=sC;s++) for(int cx=(s<NB_H?0:s-NB_H+1);cx<=s&&cx<NB_W;cx++){   // what stands on it, back to front
         int cy=s-cx, sx, sy; nbPos(cx,cy,&sx,&sy); if(sx<-24||sx>SW+24||sy<-8||sy>yB2) continue;
-        int li=nbAt(cx,cy);
-        if(li<0){ int d=NB_DC(nbT.cell[cy][cx]); if(d) nbDecor(d,sx,sy+nbHh); continue; }
+        int li=lm[cy][cx];
+        if(li<0){ int d=NB_DC(nbT.cell[cy][cx]); if(d&&!(nbPart&&(sx+14<qx0||sx-14>=qx1||sy+nbHh+6<qy0||sy-26*nbK>=qy1))) nbDecor(d,sx,sy+nbHh); continue; }
         const NbLot*L=&nbT.lot[li];
         if(cx==L->x+L->w-1&&cy==L->y+L->h-1){   // the lot's front corner: its building, drawn at the lot's middle
+            if(nbPart){ int ax,ay,bx,by,dx,dy,ex,ey; nbPos(L->x,L->y,&ax,&ay); nbPos(L->x+L->w,L->y,&bx,&by); nbPos(L->x,L->y+L->h,&dx,&dy); nbPos(L->x+L->w,L->y+L->h,&ex,&ey);
+                if(bx+4<qx0||dx-4>=qx1||ey+4<qy0||ay-(40+6*L->floors)*nbK>=qy1) continue; }   // (the whole lot, and the building's height over it)
             int mx,my; nbPos(L->x,L->y,&mx,&my); my+=(L->w+L->h)*nbHh/2; mx+=(L->w-L->h)*nbHw/2;
             nbDrawLotModel(li,mx,my);
             if(li==nbT.home){ rect(mx-1,my-(16+3*L->floors)*nbK,3,3,GOLD); px(mx,my-(17+3*L->floors)*nbK,WHITE); }   // home: a gold marker over it
@@ -606,18 +619,18 @@ static void neighborhoodScreen(void){
         for(int i=0;i<NB_LOTS;i++) if(nbMoveOk(i)){ int p=nbMovePrice(i)+(nbT.lot[i].slot<0?hsCost[nbLotStyle(i)]:0); if(p<bp){ bp=p; best=i; } }   // (with its house)
         if(best>=0){ ccx=nbT.lot[best].x+nbT.lot[best].w/2; ccy=nbT.lot[best].y+nbT.lot[best].h/2; }
         toast("PICK A HOME  A ON A LOT TO MOVE IN"); }
-    int tool=0, sub[5]={0,0,0,1,2}, hold[4]={0}, dirty=1, quit=0, played=0; u16 prev=keyNow();
+    int tool=0, sub[5]={0,0,0,1,2}, hold[4]={0}, dirty=1, quit=0, played=0, pcx=ccx, pcy=ccy, step=0; u16 prev=keyNow(); KRep nrp[4]={{0,0},{0,0},{0,0},{0,0}};   // pcx, pcy: the cursor in the last picture; step: the cursor moved (a part redraw does)
     static const u16 dirK[4]={K_RIGHT,K_LEFT,K_UP,K_DOWN};
     while(!quit){
         u16 k=keyNow(), pr=k&~prev; prev=k;
-        int tr[4], fast=0; for(int i=0;i<4;i++){ hold[i]=(k&dirK[i])?hold[i]+1:0; tr[i]=(hold[i]==1)||hold[i]>3; if(hold[i]>12) fast=1; }   // (a pass is a whole redraw: held, the cursor steps every pass, and two cells after a while)
+        int tr[4], fast=0; for(int i=0;i<4;i++){ hold[i]=(k&dirK[i])?hold[i]+1:0; tr[i]=kRepN(&nrp[i],k&dirK[i],pr&dirK[i],10,3); if(kHeld(&nrp[i],k&dirK[i],40)) fast=1; }   // (by the clock: a quick redraw no longer makes the cursor race)   // (a pass is a whole redraw: held, the cursor steps every pass, and two cells after a while)
         int ux=tr[0]-tr[1], uy=tr[3]-tr[2];
         if(ux||uy){ int dx=ux+uy, dy=uy-ux; dx=(dx>0)-(dx<0); dy=(dy>0)-(dy<0); ccx+=dx<<fast; ccy+=dy<<fast;   // screen-relative, like the room builder
             if(ccx<0)ccx=0;
             if(ccy<0)ccy=0;
             if(ccx>=NB_W)ccx=NB_W-1;
             if(ccy>=NB_H)ccy=NB_H-1;
-            dirty=1; }
+            step=1; }
         if(!nbMoveMode&&(pr&K_R)){ tool=(tool+1)%5; dirty=1; } if(!nbMoveMode&&(pr&K_L)){ tool=(tool+4)%5; dirty=1; }   // (moving in: the lots only)
         if(pr&K_SEL){ int n=tool==1?NT_ROAD:tool==3?DC_N:tool==4?6:1; sub[tool]=(sub[tool]+1)%n; dirty=1; }
         int gw=nbSizes[sub[4]][0], gh=nbSizes[sub[4]][1], gok=nbFree(ccx,ccy,gw,gh,-1);
@@ -644,7 +657,24 @@ static void neighborhoodScreen(void){
             else if(tool==4){ if(!gok) toast("NO ROOM THERE"); else if(nbNewLot(ccx,ccy,gw,gh)) tool=0; prev=keyNow(); dirty=1; }
         }
         if(!nbMoveMode&&(pr&K_START)){ nbTownMenu(&quit); prev=keyNow(); dirty=1; played=1; }
-        if(dirty||(uiTicks&15)==0){ nbDrawTown(ccx,ccy,tool,gw,gh,gok); nbPanel(ccx,ccy,tool,sub[tool]); present(); dirty=0; } else vsync();
+        if(step&&(tool!=0||nbT.zoom)) dirty=1;   // (the other tools and the zoomed map, which follows the cursor: all of it)
+        if(dirty){ nbDrawTown(ccx,ccy,tool,gw,gh,gok); nbPanel(ccx,ccy,tool,sub[tool]); present(); dirty=0; step=0; pcx=ccx; pcy=ccy; }
+        else if(step||(uiTicks&15)==0){   // a cursor step on the lots, or the lot outline's blink: only round the old and the new spot (the whole town took a third of a second)
+            int bx0=SW, by0=SH, bx1=0, by1=0;
+            #define NBBOX(X0,Y0,X1,Y1) { if((X0)<bx0) bx0=(X0); if((Y0)<by0) by0=(Y0); if((X1)>bx1) bx1=(X1); if((Y1)>by1) by1=(Y1); }
+            for(int q=0;q<2;q++){ int x=q?ccx:pcx, y=q?ccy:pcy, sx, sy; nbPos(x,y,&sx,&sy); NBBOX(sx-nbHw-2,sy-2,sx+nbHw+3,sy+2*nbHh+3);
+                int li=nbAt(x,y); if(li>=0){ const NbLot*L=&nbT.lot[li]; int ax,ay,bx,by,dx,dy,ex,ey; nbPos(L->x,L->y,&ax,&ay); nbPos(L->x+L->w,L->y,&bx,&by); nbPos(L->x,L->y+L->h,&dx,&dy); nbPos(L->x+L->w,L->y+L->h,&ex,&ey);
+                    NBBOX(dx-2,ay-2,bx+3,ey+3); } }   // (its outline lights up)
+            #undef NBBOX
+            if(by0<12) by0=12; if(by1>122) by1=122; if(bx0<0) bx0=0; if(bx1>SW) bx1=SW;
+            if(bx0<bx1&&by0<by1){ clipSet(bx0,by0,bx1,by1); nbPart=1; nbDrawTown(ccx,ccy,tool,gw,gh,gok); nbPart=0; clipAll(); }
+            int pan=step&&nbAt(ccx,ccy)!=nbAt(pcx,pcy);   // the panel tells about the lot under the cursor: drawn again only when that lot changes
+            if(pan) nbPanel(ccx,ccy,tool,sub[tool]);
+            if(zoomShow&&!zoomKeep) zoomOff();
+            if(bx0<bx1&&by0<by1) edCopyRows(bx0,by0,bx1,by1);
+            if(pan){ edCopyRows(0,0,SW,12); edCopyRows(0,122,SW,SH); }
+            vsyncUi(); step=0; pcx=ccx; pcy=ccy; }
+        else vsync();
         uiTicks++; menuMusTick();
     }
     if(played) nbSave();

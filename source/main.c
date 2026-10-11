@@ -2044,6 +2044,12 @@ __asm__(".pushsection .iwram,\"ax\",%progbits\n.arm\n.align 2\n.global irqEntry\
         "  push {r4-r11,lr}\n  mov r4,sp\n  ldr r0,=irqStack+512\n  mov sp,r0\n  bl irqMain\n  mov sp,r4\n  pop {r4-r11,lr}\n  bx lr\n"
         ".ltorg\n.popsection\n");
 static volatile u32 vblN;   // frames, counted in the vblank interrupt (key repeat by the clock, not by how long a redraw took)
+// Key repeat by the clock (vblN): pressed now, or held `delay` frames and then every `every` frames, however long each redraw takes (counting loop
+// passes made a slow redraw a slow repeat too, and a fast one too fast: a held slider moved once every 27 frames)
+typedef struct { u32 t0, tl; } KRep;
+static int kRepN(KRep*r,int down,int press,int delay,int every){ u32 n=vblN; if(press){ r->t0=r->tl=n; return 1; } if(!down) return 0; if(n-r->t0>=(u32)delay&&n-r->tl>=(u32)every){ r->tl=n; return 1; } return 0; }
+static int kRep(KRep*r,int down,int press){ return kRepN(r,down,press,14,4); }
+static int kHeld(const KRep*r,int down,int frames){ return down&&vblN-r->t0>=(u32)frames; }   // held at least that long
 __attribute__((used)) IWRAM_ARM void irqMain(void){
     u16 f=R_IF;
     if(f&1){   // vblank: start the buffer that was filled last frame, in step with the screen
@@ -4453,7 +4459,7 @@ static void edCopyRows(int x0,int y0,int x1,int y1){   // part of the picture to
 }
 static void mapEditor(void){
     int hold[4]={0}, lrHold=0, lrCombo=0, lrPend=0, lrPendT=0, edZ=0, edLast=T_ROOM, comboUsed=0, dirty=1, lastBl=-1, msgT=0; const char*msg=""; u16 prev=keyNow();
-    int pcur=0, pmap=0, phud=0, dcx=ecx, dcy=ecy, dAct=0, dAx=0, dAy=0, scx=0, scy=0; const char*shownMsg=0;   // a part to redraw: the cursor moved, an item went in or out, the HUD changed; d*: what the last picture showed
+    int pcur=0, pmap=0, phud=0, dcx=ecx, dcy=ecy, dAct=0, dAx=0, dAy=0, scx=0, scy=0; const char*shownMsg=0; KRep erp[4]={{0,0},{0,0},{0,0},{0,0}};   // a part to redraw: the cursor moved, an item went in or out, the HUD changed; d*: what the last picture showed
     static const u16 dirK[4]={K_RIGHT,K_LEFT,K_UP,K_DOWN};
     edTried=0; edLife=0; edCashDirty=0; if(xo[XO_BUYCOST]&&!gInPlay) edLoadLife();   // the life's cash, for the prices
     udClear(); udOn=1;   // a fresh UNDO history for this visit to the builder
@@ -4461,9 +4467,9 @@ static void mapEditor(void){
     for(efr=0;;efr++){
         u16 k=keyNow(), pr=k&~prev, rel=prev&~k; prev=k;
         int tr[4];
-        for(int i=0;i<4;i++){ hold[i]=(k&dirK[i])?hold[i]+1:0; tr[i]=(hold[i]==1)||(hold[i]>oRepDelay()&&(hold[i]&oRepMask())==0); }
+        for(int i=0;i<4;i++){ hold[i]=(k&dirK[i])?hold[i]+1:0; tr[i]=kRepN(&erp[i],k&dirK[i],pr&dirK[i],oRepDelay(),oRepMask()+1); }   // (the REPEAT option, in frames by the clock)
         int ux=tr[0]-tr[1], uy=tr[3]-tr[2];
-        int fast=0; for(int i=0;i<4;i++) if(hold[i]>oRepDelay()+14) fast=1;   // held a while: two tiles a step
+        int fast=0; for(int i=0;i<4;i++) if(kHeld(&erp[i],k&dirK[i],oRepDelay()+24)) fast=1;   // held a while: two tiles a step
         lrHold=(k&(K_L|K_R))?lrHold+1:0;   // L / R repeat while held, so the floors and wallpapers scroll by
         // FLOORS: hold L and R together, then press UP / DOWN = the floor above / below. A lone L or R waits 4 frames for its partner (SELECT + L / R and
         // taps still work), so the combo never also steps the item or floor pattern, and the cursor stays put while both are held.
@@ -5110,10 +5116,7 @@ static void lookTrueRandomMe(void){   // the creator's TRUE RANDOM row: the same
     custom=0; fixLook(); buildLook(); setColors();
 }
 #define TRIG(m,i) ((pressed&(m))||(hold[i]>14&&(hold[i]&3)==0))   // pressed now, or held long enough to repeat
-// Key repeat by the clock (vblN): pressed now, or held 14 frames and then every 4 frames, however long each redraw takes (counting loop passes made a
-// slow redraw a slow repeat too: a held slider moved once every 27 frames)
-typedef struct { u32 t0, tl; } KRep;
-static int kRep(KRep*r,int down,int press){ u32 n=vblN; if(press){ r->t0=r->tl=n; return 1; } if(!down) return 0; if(n-r->t0>=14&&n-r->tl>=4){ r->tl=n; return 1; } return 0; }
+
 static int creatorNew(void){   // returns 1 when the secret code switched screens, 0 when leaving
     int tab=0, rs[NTAB]={0}, dirty=3, hold[10]={0}; u16 prev=keyNow(); slkLoad(); KRep rpR={0,0}, rpL={0,0};
     stgArm();   // (house.h: the stage is kept in the household sprite pool while you are here)
