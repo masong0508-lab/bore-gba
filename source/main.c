@@ -102,6 +102,10 @@ static int lloadV;   // work per drawn frame as a percent of its time budget (PE
 #define NWIN 3         // WINDOWS are their own items (palette: WINDOW 'E', DARK WINDOW 'e', STRIP WINDOW 'f'), not wallpapers. They are drawn by code as wall pieces (see winCol): no ROM art, no RAM
 #define NWALL (NWP+NWX)
 #define NFL 14       // floors
+#define FL_AIR 15    // floors: OPEN AIR on an upper floor (no floor: you see down to the floor below, nobody walks there). 15 = what undo's 4 bits can hold
+_Static_assert(FL_AIR>=NFL&&FL_AIR<16,"FL_AIR must not be a floor style and must fit in 4 bits");
+static int curFl;   // the floor you are on (floors: defined with the floor storage further down; C allows the early tentative definition)
+static u8 wFqView;   // (the floor pieces under the walls: defined with them)
 #include "opts.h"   // extended options (xo[]): gameplay, input, audio, HUD and room options; also defines GOLD (the accent colour)
 #define sgManual() (xo[XO_SAVEMODE]!=0)   // OPTIONS > DATA > SAVING: 1 = MANUAL
 static u8 sgDirty EWRAM_BSS, sgDiscard EWRAM_BSS;   // sgDirty: the player in play changed since the last save file. sgDiscard: quit without saving (the file is loaded again when play ends)
@@ -2331,6 +2335,7 @@ static inline int wallTall(char c){ return c=='W'||c=='#'||isWinCh(c); }   // fu
 static int moveH(s32 fx,s32 fy){   // the height a step into (fx,fy) has to clear: the surface, or no way at all into a full wall from another tile
     int tx=(int)(fx>>8), ty=(int)(fy>>8); if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
     if(wallTall(lifeMap[ty][tx])&&(tx!=(int)(lfx>>8)||ty!=(int)(lfy>>8))) return 99;   // (already inside one, somehow: walk out)
+    if(curFl&&floorMap[ty][tx]==FL_AIR&&(tx!=(int)(lfx>>8)||ty!=(int)(lfy>>8))) return 99;   // upstairs, open air: no floor to step onto
     return surfH(fx,fy);
 }
 // THE WALL BETWEEN. wallClear: 1 = nothing solid on the straight line from (ax,ay) to (bx,by) (1/256 tiles). A wall is what drawWall draws: an arm
@@ -2584,10 +2589,10 @@ static const char sramTag[] __attribute__((used)) = "FLASH1M_V103";   // tells e
 #define FL_POOL 8192
 static u8 flPool[FL_POOL] EWRAM_BSS; static u16 flLen[FLR_N] EWRAM_BSS, flPl[FLR_N][3] EWRAM_BSS; static int curFl; static u8 flArm, flInit;
 static int flOff(int f){ int o=0; for(int g=0;g<f;g++) o+=flLen[g]; return o; }   // where floor f's runs start (flOff(FLR_N) = bytes in use)
-static int flBlankV(int pl,int i){ int x=i%MW, y=i/MW, e=(x==0||y==0||x==MW-1||y==MH-1); return pl==0?(e?'w':'.'):pl==1?1:(e?13:0); }   // a blank floor: carpet and a low wall round the edge
+static int flBlankV(int f,int pl,int i){ if(f) return pl==0?'.':pl==1?FL_AIR:0; int x=i%MW, y=i/MW, e=(x==0||y==0||x==MW-1||y==MH-1); return pl==0?(e?'w':'.'):pl==1?1:(e?13:0); }   // a blank floor: upstairs open air; (the ground: carpet and a low wall round the edge)
 static u8 flCf[3] EWRAM_BSS; static int flCi[3] EWRAM_BSS, flCn[3] EWRAM_BSS, flCv[3] EWRAM_BSS; static const u8*flCq[3] EWRAM_BSS;   // one read cursor per plane (floor + 1, last cell, run left, value, next run)
 static int flGet(int f,int pl,int i){   // cell i of plane pl of stored floor f. Read a plane in order and it costs one step a cell
-    if(!flLen[f]) return flBlankV(pl,i);
+    if(!flLen[f]) return flBlankV(f,pl,i);
     if(flCf[pl]!=f+1||i<=flCi[pl]){ flCf[pl]=(u8)(f+1); flCq[pl]=flPool+flOff(f)+flPl[f][pl]; flCn[pl]=0; flCi[pl]=-1; }
     while(flCi[pl]<i){ if(!flCn[pl]){ flCn[pl]=*flCq[pl]++; flCv[pl]=*flCq[pl]++; } flCn[pl]--; flCi[pl]++; }
     return flCv[pl];
@@ -2729,7 +2734,7 @@ static void flSlab(int x0,int y0,int x1,int y1){   // floors render 2: an upper 
 static const u16 flBack[FLR_N]={RGB(4,5,8),RGB(5,9,16),RGB(7,13,22)};   // floors render 1: the colour behind the map, a little lighter and bluer the higher you are (a sky), so each floor looks different
 static int flBd[4];   // the board pickup and the spawn tile of the ground floor while you are upstairs
 static void flBlankLive(void);
-static int flLiveBlank(void){ for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int e=(x==0||y==0||x==MW-1||y==MH-1); if(lifeMap[y][x]!=(e?'w':'.')||floorMap[y][x]!=1||wallMap[y][x]!=(e?13:0)) return 0; } return 1; }
+static int flLiveBlank(void){ for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x; if((u8)lifeMap[y][x]!=flBlankV(curFl,0,i)||floorMap[y][x]!=flBlankV(curFl,1,i)||wallMap[y][x]!=flBlankV(curFl,2,i)) return 0; } return 1; }
 static int flEnc(u8*out,u16*pl){   // the live map as runs: with out 0 only counts the bytes. pl gets where each plane starts
     int n=0;
     for(int p=0;p<3;p++){
@@ -2755,6 +2760,7 @@ static int flStoreAs(int f){   // keep the live map as floor f. 1 = done; 0 = it
     flResize(f,n); if(n) flEnc(flPool+flOff(f),flPl[f]);
     return 1;
 }
+static void flMigrateAir(void);
 static void flLoad(int f){   // floor f becomes the live map
     if(!flLen[f]){ flBlankLive(); return; }
     const u8*q=flPool+flOff(f)+flPl[f][0];
@@ -2762,16 +2768,44 @@ static void flLoad(int f){   // floor f becomes the live map
         for(int left=MSZ;left>0;){ int c=*q++, v=*q++; if(c>left) c=left; left-=c;
             while(c-->0){ if(p==0) lifeMap[y][x]=(char)v; else if(p==1) floorMap[y][x]=(u8)v; else wallMap[y][x]=(u8)v; if(++x==MW){ x=0; y++; } } } }
     wDirty=1;
+    if(f) flMigrateAir();
+}
+// An upper floor saved before OPEN AIR was a carpet slab over the whole lot with a low wall round its edge. Loaded, it becomes what it would be now:
+// everything outside the rooms (reached from the edge without crossing a wall) that is plain carpet turns to open air, the edge wall goes; the rooms,
+// and anything standing outside them, keep their floor.
+static void flMigrateAir(void){
+    for(int x=0;x<MW;x++){ if(lifeMap[0][x]!='w'||lifeMap[MH-1][x]!='w') return; }   // (only the old slab has its low wall all round)
+    for(int y=0;y<MH;y++){ if(lifeMap[y][0]!='w'||lifeMap[y][MW-1]!='w') return; }
+    static u8 seen[MH][MW] EWRAM_BSS; static u16 q[MSZ] EWRAM_BSS; int qh=0, qt=0;
+    for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ seen[y][x]=0; if(x==0||y==0||x==MW-1||y==MH-1){ seen[y][x]=1; lifeMap[y][x]='.'; wallMap[y][x]=0; floorMap[y][x]=FL_AIR; q[qt++]=(u16)(y*MW+x); } }
+    static const signed char d4[4][2]={{1,0},{-1,0},{0,1},{0,-1}};
+    while(qh<qt){ int p=q[qh++], x=p%MW, y=p/MW;
+        for(int k=0;k<4;k++){ int nx=x+d4[k][0], ny=y+d4[k][1]; if(nx<0||ny<0||nx>=MW||ny>=MH||seen[ny][nx]) continue; seen[ny][nx]=1;
+            char c=lifeMap[ny][nx]; if(isWallCh(c)||c=='D') continue;   // a room's wall or door: inside stays as it is
+            if(c=='.'&&floorMap[ny][nx]==1&&wallMap[ny][nx]==0) floorMap[ny][nx]=FL_AIR;
+            q[qt++]=(u16)(ny*MW+nx); } }
+    wDirty=1;
+}
+// THE FLOOR BELOW: on an upper floor, what the floor under it shows through the open air (a floor style, FL_BWALL its walls, FL_AIR nothing), dimmed
+#define FL_BWALL 14
+static u8 flBel[MH][MW] EWRAM_BSS; static u16 flBelC[16];
+static void flBelowBuild(void){
+    if(!curFl) return;
+    int f=curFl-1;
+    for(int i=0;i<MSZ;i++){ int t=flGet(f,0,i), fl=flGet(f,1,i);
+        flBel[i/MW][i%MW]=(u8)(isWallCh((char)t)||t=='D'?FL_BWALL:fl==FL_AIR?FL_AIR:fl<NFL?fl:0); }
+    for(int k=0;k<NFL;k++) flBelC[k]=shade(flFlat[k][0],5);
+    flBelC[FL_BWALL]=RGB(4,5,8); flBelC[FL_AIR]=0;
 }
 static void flBlank(int f){ flResize(f,0); }   // an empty floor: carpet and a low wall round the edge (it takes no room)
 static void flClear(void){ for(int f=0;f<FLR_N;f++) flLen[f]=0; flCf[0]=flCf[1]=flCf[2]=0; }   // every floor blank at once (a house is about to be loaded over them)
-static void flBlankLive(void){ for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int e=(x==0||y==0||x==MW-1||y==MH-1); lifeMap[y][x]=e?'w':'.'; floorMap[y][x]=1; wallMap[y][x]=(u8)(e?13:0); } wDirty=1; }
+static void flBlankLive(void){ for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ int i=y*MW+x; lifeMap[y][x]=(char)flBlankV(curFl,0,i); floorMap[y][x]=(u8)flBlankV(curFl,1,i); wallMap[y][x]=(u8)flBlankV(curFl,2,i); } wDirty=1; }
 static void flEnsure(void){ if(flInit) return; flInit=1; for(int f=1;f<FLR_N;f++) flBlank(f); }
 static int flGoF(int n,int force){   // make floor n the live map (the one you leave is kept). 0 = it would not fit in flPool and nothing changed; with force the leaving floor falls back to its last stored copy
     if(n==curFl||n<0||n>=FLR_N) return 1;
     flEnsure(); if(!flStoreAs(curFl)&&!force) return 0;
     if(curFl==0){ flBd[0]=bdx; flBd[1]=bdy; flBd[2]=spx; flBd[3]=spy; }
-    curFl=n; flLoad(n);
+    curFl=n; flLoad(n); flBelowBuild();
     if(n==0){ bdx=flBd[0]; bdy=flBd[1]; spx=flBd[2]; spy=flBd[3]; } else bdx=bdy=-1;   // no board pickup upstairs
     flFade=16;   // floors render 2: fade in from black (fx.h fxLight)
     hhSlotsFree(); liveInvalidate(); camSnap=1;
@@ -2796,6 +2830,7 @@ static void flStairs(int dir){   // you stepped on a stair tile: up (+1) or down
     int fx=-1, fy=-1;
     for(int y=0;y<MH&&fx<0;y++)for(int x=0;x<MW;x++) if(lifeMap[y][x]==want){ fx=x; fy=y; break; }
     if(fx<0){ fx=tx; fy=ty; lifeMap[fy][fx]=want; wDirty=1; }   // no stairs there yet: they appear where you came from
+    if(floorMap[fy][fx]==FL_AIR){ floorMap[fy][fx]=1; wFqView=255; liveInvalidate(); }   // (and stand on a floor, open air or not)
     lfx=fx*256+128; lfy=fy*256+128; lz=lvz=0; flArm=0; lnote=flNm[n]; lnoteT=60;
 }
 // extended options (opts.h): one byte each at OPT_OFF, 'X' 'O', count, values, checksum. A save with fewer options (older game) leaves the new ones at their defaults.
@@ -3401,8 +3436,9 @@ static int wInAt(int rx,int ry){ if(rx<0||ry<0||rx>=MW||ry>=MH) return 0; int tx
 static int wallAtR(int rx,int ry){ return rx>=0&&ry>=0&&rx<MW&&ry<MH&&isWallCh(cellAt(rx,ry)); }
 static int wallFloorR(int rx,int ry){   // the floor to draw under a wall tile: a neighbour's (inside first)
     static const signed char nd[4][2]={{0,1},{1,0},{0,-1},{-1,0}}; int best=-1;
-    for(int k=0;k<4;k++){ int x=rx+nd[k][0], y=ry+nd[k][1]; if(x<0||y<0||x>=MW||y>=MH||isWallCh(cellAt(x,y))) continue; if(wInAt(x,y)) return flAt(x,y); if(best<0) best=flAt(x,y); }
-    return best<0?flAt(rx,ry):best;
+    for(int k=0;k<4;k++){ int x=rx+nd[k][0], y=ry+nd[k][1]; if(x<0||y<0||x>=MW||y>=MH||isWallCh(cellAt(x,y))||flAt(x,y)==FL_AIR) continue; if(wInAt(x,y)) return flAt(x,y); if(best<0) best=flAt(x,y); }   // (not open air)
+    if(best<0){ int f=flAt(rx,ry); best=f==FL_AIR?1:f; }
+    return best;
 }
 static const char* const winNm[NWIN]={"WINDOW","DARK WINDOW","STRIP WINDOW"};   // (wall style NWP+NWX+k inside wallSeg = window k)
 static const u16 winWall[NWIN]={RGB(26,24,20),RGB(17,16,15),RGB(24,24,22)};   // the plaster round the glass
@@ -3619,7 +3655,7 @@ static int wFqOf(int tx,int ty){   // the four floors of screen tile (tx,ty), pa
     for(int g=0;g<4;g++){ int best=-1, ins=0;
         for(int q=0;q<4;q++){ if(reg[q]!=g) continue;
             for(int e=0;e<2;e++){ int d=e?q:(q+3)&3; if(arm[d]) continue;   // quarter q faces dd[q-1] and dd[q] (its two outer edges)
-                int x=tx+dd[d][0], y=ty+dd[d][1]; if(x<0||y<0||x>=MW||y>=MH) continue;
+                int x=tx+dd[d][0], y=ty+dd[d][1]; if(x<0||y<0||x>=MW||y>=MH||flAt(x,y)==FL_AIR) continue;   // (open air has no floor to run under the wall)
                 int in=wInAt(x,y); if(best<0||(in&&!ins)){ best=flAt(x,y); ins=in; } } }
         if(best<0) best=wallFloorR(tx,ty);
         for(int q=0;q<4;q++) if(reg[q]==g) fq[q]=best; }
@@ -3650,12 +3686,20 @@ IWRAM_OVL1 static void roomFloorsO(int x0,int y0,int x1,int y1,int s0,int s1);
 static inline void roomFloors(int x0,int y0,int x1,int y1,int s0,int s1){ ovlUse(1); roomFloorsO(x0,y0,x1,y1,s0,s1); }
 __attribute__((noinline)) IWRAM_OVL1 static void roomFloorsO(int x0,int y0,int x1,int y1,int s0,int s1){   // pass 1: the floor of every tile whose diamond reaches the rectangle
     const short*L=rsTab[0][cview&3], *F=rsTab[1][cview&3]; int lb=L[0], lx=L[1], ly=L[2], fb0=F[0], fx=F[1], fy=F[2];
-    const char*lm=&lifeMap[0][0]; const u8*fm=&floorMap[0][0]; int lox=LOX, loy=LOY, sfl=sFl;
+    const char*lm=&lifeMap[0][0]; const u8*fm=&floorMap[0][0]; int lox=LOX, loy=LOY, sfl=sFl, up=curFl;
+    if(up){ const u8*bl=&flBel[0][0];   // upstairs, first: the floor below, dimmed, under every tile of open air
+        for(int s=s0;s<=s1;s++){ int a,b; bandColsF(s,x0,x1,lox,&a,&b);
+            for(int tx=a;tx<=b;tx++){ int ty=s-tx, i=fb0+tx*fx+ty*fy; if(fm[i]!=FL_AIR) continue;
+                int sx=lox+(tx-ty)*CA, sy=loy+(tx+ty+1)*CB; if(sx+CA<x0||sx-CA>=x1||sy+CB<y0||sy-CB>=y1) continue;
+                int b2=bl[i]; if(b2!=FL_AIR) tileTop(sx,sy,flBelC[b2]); } } }
     for(int s=s0;s<=s1;s++){ int a,b; bandColsF(s,x0,x1,lox,&a,&b);
         for(int tx=a;tx<=b;tx++){ int ty=s-tx;
             int sx=lox+(tx-ty)*CA, sy=loy+(tx+ty+1)*CB;
-            if(sx+CA<x0||sx-CA>=x1||sy+CB<y0||sy-CB>=y1) continue;   // the diamond does not reach the rectangle
+            if(sx+CA<x0||sx-CA>=x1||sy+CB<y0||sy-CB>=y1+6) continue;   // the diamond does not reach the rectangle (upstairs its slab hangs 6 px lower)
             char c=lm[lb+tx*lx+ty*ly]; if(c=='#') continue;
+            if(up){ if(fm[fb0+tx*fx+ty*fy]==FL_AIR&&!isWallCh(c)&&c!='D') continue;   // open air: nothing here (the floor below is already drawn)
+                for(int r=-CB;r<=CB;r++){ int hw=rowHW[r<0?-r:r], y=sy+6+r; rect(sx-hw,y,hw,1,RGB(9,10,14)); rect(sx,y,hw+1,1,RGB(5,6,9)); }   // the floor's slab: the same diamond 6 px lower (what is in front covers it; at open air it shows)
+                rect(sx-CA,sy+6,1,1,RGB(2,3,5)); }
             int v=(tx^ty)&1;
             if(isWallCh(c)||c=='D'){ int pk=wFq[ty][tx]; if(pk!=0xFFFF){ wallFloorDraw(sx,sy,pk,v); continue; } }   // (walls are thin, and a door stands in a wall line: the floors of both sides run under them)
             int fl=fm[fb0+tx*fx+ty*fy];
@@ -3675,7 +3719,7 @@ __attribute__((noinline)) IWRAM_OVL1 static int roomScanO(int s,int x0,int y0,in
 }
 static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
     clipSet(x0,y0,x1,y1);
-    rect(x0,y0,x1-x0,y1-y0,flBack[curFl]); flSlab(x0,y0,x1,y1);
+    rect(x0,y0,x1-x0,y1-y0,flBack[curFl]);   // (upstairs: each floored tile draws its own slab now, roomFloors)
     int s0,s1; bandRows(y0,y1,&s0,&s1);
     if(wDirty) wallsScan();   // (the inside map first: the floor pieces under the walls ask it)
     if(wFqView!=cview) wFqBuild();
@@ -4318,7 +4362,7 @@ static int eApply(void){   // second A of ROOM / WALL / FLOOR / ERASE. 0 = refus
         }
         else if(eTool==T_WALL) edSet(x,y,'W',-1,eWp);
         else if(eTool==T_FLOOR) edSet(x,y,-1,eFl,-1);
-        else edSet(x,y,'.',0,0);
+        else edSet(x,y,'.',curFl?FL_AIR:0,0);   // (SELL upstairs takes the floor away too: open air again)
     }
     return 1;
 }
@@ -4406,7 +4450,7 @@ static int edCamStep(void){   // dead-zone camera: the view only scrolls when th
 }
 static void mmPx(int x,int y,u16 c){ if((unsigned)x<MW&&(unsigned)y<MH) px(SW-MW-3+x,2+y,c); }
 static void mmTile(int x,int y){ if((unsigned)x>=MW||(unsigned)y>=MH) return; char c=lifeMap[y][x]; u16 col;
-    if(c=='.') col=shade(flFlat[floorMap[y][x]][0],10); else { int i=palIdx(c); col=i>=0?palCol[i]:0; }
+    if(c=='.') col=floorMap[y][x]<NFL?shade(flFlat[floorMap[y][x]][0],10):RGB(3,4,7); else { int i=palIdx(c); col=i>=0?palCol[i]:0; }
     px(SW-MW-3+x,2+y,col); }
 static void mmView(void);
 static void miniMapCur(int ox,int oy){   // the cursor moved (or blinked): only the old cross goes back to the map, then the view outline and the new cross
@@ -4417,7 +4461,7 @@ static void miniMap(void){   // whole map at 1 px per tile, top right: colours b
     rect(X0-1,Y0-1,MW+2,MH+2,RGB(3,4,7));
     u16 fc[NFL]; for(int i=0;i<NFL;i++) fc[i]=shade(flFlat[i][0],10);   // (the floor colours once, not per tile: a scroll draws the whole map again)
     for(int y=0;y<MH;y++){ u16*d=fb+(Y0+y)*SW+X0; const char*row=lifeMap[y]; const u8*fr=floorMap[y];
-        for(int x=0;x<MW;x++){ char c=row[x]; u16 col; if(c=='.') col=fc[fr[x]<NFL?fr[x]:0]; else { int i=palIdx(c); col=i>=0?palCol[i]:0; } d[x]=col; } }
+        for(int x=0;x<MW;x++){ char c=row[x]; u16 col; if(c=='.') col=fr[x]<NFL?fc[fr[x]]:RGB(3,4,7); else { int i=palIdx(c); col=i>=0?palCol[i]:0; } d[x]=col; } }   // (open air: dark)
     mmView();
 }
 static void mmView(void){

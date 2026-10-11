@@ -146,7 +146,7 @@ static int slDecRoomPlane(SlR*c,int pl,int apply){
     while(i<MSZ){
         int n=slrGet(c), v=slrGet(c); if(c->bad||n==0||i+n>MSZ) return 0;
         if(pl==0&&palIdx((char)v)<0) return 0;
-        if(pl==1&&v>=NFL) return 0;
+        if(pl==1&&v>=NFL&&v!=FL_AIR) return 0;   // (FL_AIR: open air upstairs)
         if(pl==2&&v>=NWALL) return 0;
         if(apply) for(int k=0;k<n;k++){ int y=(i+k)/MW, x=(i+k)%MW; if(pl==0) lifeMap[y][x]=(char)v; else if(pl==1) floorMap[y][x]=(u8)v; else wallMap[y][x]=(u8)v; }
         i+=n;
@@ -168,7 +168,7 @@ static int slDecRoom(SlR*c,int apply){
     while(c->pos<c->len){
         int n=slrGet(c), t=slrGet(c), f=slrGet(c), p; if(c->bad||n==0) return 0;
         if(fmt==1){ p=f&15; f>>=4; } else { p=slrGet(c); if(c->bad) return 0; }
-        if(palIdx((char)t)<0||f>=NFL||p>=NWALL) return 0;
+        if(palIdx((char)t)<0||(f>=NFL&&f!=FL_AIR)||p>=NWALL) return 0;
         if(i+n>MSZ) return 0;
         if(apply) for(int k=0;k<n;k++){ int y=(i+k)/MW, x=(i+k)%MW; lifeMap[y][x]=(char)t; floorMap[y][x]=(u8)f; wallMap[y][x]=(u8)p; }
         i+=n;
@@ -477,7 +477,7 @@ static char* slSize(char*d,int n){   // 812B  or  1.4K
 }
 static u16 bfsQ[MH*MW] EWRAM_BSS;   // (main.c: the search queue, free while a slot is previewed)
 #define slTb ((u8*)bfsQ)            // the tile plane of the room being previewed (format 3)
-static u16 slThumbCol(int t,int f){ if(t=='.') return shade(flFlat[f%NFL][0],10); int pi=palIdx((char)t); return pi>=0?palCol[pi]:0; }
+static u16 slThumbCol(int t,int f){ if(t=='.') return f<NFL?shade(flFlat[f][0],10):RGB(3,4,7); int pi=palIdx((char)t); return pi>=0?palCol[pi]:0; }
 static void slThumb(int slot,int x0,int y0){   // the room of a slot at 1 pixel per tile, decoded straight from SRAM (all room formats)
     rect(x0-1,y0-1,MW+2,MH+2,RGB(3,4,7)); rect(x0,y0,MW,MH,RGB(6,7,10));
     SlInfo*I=&slI[slot]; if(!I->ok||!slGood[slot]||(I->kind!=SLK_ROOM&&I->kind!=SLK_HOUSE)||!(I->has&SLH_ROOM)) return;

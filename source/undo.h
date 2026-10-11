@@ -83,6 +83,7 @@ static const char* udRedo(void){
 }
 static void edSet(int x,int y,int l,int f,int w){   // change a tile and record it. l / f / w below 0 = leave that part as it is. A tile that would not change is not touched
     char nl=l<0?lifeMap[y][x]:(char)l; int nf=f<0?floorMap[y][x]:f, nw=w<0?wallMap[y][x]:w;
+    if(curFl&&nf==FL_AIR&&nl!='.') nf=(eFl<NFL?eFl:1);   // upstairs: a wall, door or item put on open air brings its own floor
     if(nl==lifeMap[y][x]&&nf==floorMap[y][x]&&nw==wallMap[y][x]) return;
     udRec(x,y); lifeMap[y][x]=nl; floorMap[y][x]=(u8)nf; wallMap[y][x]=(u8)nw; wFqView=255;   // (the floor pieces under the walls: main.c wFq)
 }
