@@ -2354,7 +2354,7 @@ static inline int isWinCh(char c){ return c=='E'||c=='e'||c=='f'; }   // the win
 static int tileH(int tx,int ty){   // surface height in px (ramps: their highest point). Grind height is 6: rails, ledges and benches
     if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
     char c=lifeMap[ty][tx];
-    return (c=='j')?2*CC: (c=='n')?CC: (c=='#'||c=='F'||c=='W'||c=='H'||isWinCh(c))?2*CC: (c=='X'||c=='Y')?SOLID_H: (c=='O')?BARREL_H: (c=='b')?2*CC: (c=='m')?5: (c=='w'||c=='T'||c=='S'||c=='C'||c=='t'||c=='h'||c=='d'||c=='l'||c=='p'||c=='i'||c=='o'||c=='y'||c=='G'||c=='V'||c=='U'||c=='Q'||c=='A'||c=='v'||c=='c'||c=='q')?CC: (c=='='||c=='L'||c=='N'||c=='Z'||c=='K'||c=='J')?GRIND_H: (c=='I'||c=='R'||c=='g'||c=='&')?6: (c=='u')?CC: (c=='M')?3: isRamp(c)?rampTop(tx,ty,c): 0;   // X funbox and Y trash can SOLID_H, O barrel BARREL_H, rail / ledge / bench / Z planter / K table / J jersey GRIND_H (rampdata.h), phone / radio / counter 6, M manual pad 3
+    return (c=='j')?2*CC: (c=='n')?CC: (c=='#'||c=='F'||c=='W'||c=='H'||isWinCh(c))?2*CC: (c=='X'||c=='Y')?SOLID_H: (c=='O')?BARREL_H: (c=='b')?2*CC: (c=='m')?5: (c=='w'||c=='T'||c=='S'||c=='C'||c=='t'||c=='h'||c=='d'||c=='l'||c=='p'||c=='i'||c=='o'||c=='y'||c=='G'||c=='V'||c=='U'||c=='Q'||c=='A'||c=='v'||c=='c'||c=='q')?CC: (c=='='||c=='L'||c=='N'||c=='Z'||c=='K'||c=='J')?GRIND_H: (c=='I'||c=='R'||c=='g'||c=='&'||c=='@')?6: (c=='u')?CC: (c=='M')?3: isRamp(c)?rampTop(tx,ty,c): 0;   // X funbox and Y trash can SOLID_H, O barrel BARREL_H, rail / ledge / bench / Z planter / K table / J jersey GRIND_H (rampdata.h), phone / radio / counter 6, M manual pad 3
 }
 static inline int isGrindH(int h){ return h==GRIND_H||h==6; }   // a surface you can grind: the skate pieces (GRIND_H) and the old 6 px things (phone, radio, counter)
 static int surfH(s32 fx,s32 fy){   // surface height at an exact position (1/256 tiles): same as tileH, but ramps slope
@@ -2519,7 +2519,9 @@ static const u16 palCol[NOBJ]={RGB(26,21,14),RGB(8,20,22),RGB(10,22,24),RGB(8,9,
 static signed char palLut[256] EWRAM_BSS; static u8 palLutOk;   // tile char -> palette slot (or -1), built on first use: palIdx() runs for every tile of the minimap, so it must be O(1) even with 100+ items
 static int palIdx(char c){
     if(!palLutOk){ for(int i=0;i<256;i++) palLut[i]=-1; for(int i=NOBJ-1;i>=0;i--) palLut[(u8)palCh[i]]=(signed char)i;
-        for(int r=0;r<4;r++){ palLut[(u8)('1'+r)]=OB_KICKER; palLut[(u8)('5'+r)]=OB_QPIPE; palLut[(u8)('9'+r)]=OB_LAUNCH; } palLutOk=1; }
+        for(int r=0;r<4;r++){ palLut[(u8)('1'+r)]=OB_KICKER; palLut[(u8)('5'+r)]=OB_QPIPE; palLut[(u8)('9'+r)]=OB_LAUNCH; }
+        palLut[(u8)'g']=palLut[(u8)'&']=palLut[(u8)'@']=56;   // the shop counters (arms, dispensary, venues): counters, so a slot keeps them and the minimap shows them
+        palLutOk=1; }
     return palLut[(u8)c];
 }
 static char edObjCh(void){ if(eOb==OB_HALF) return (char)('5'+eRot); char c=palCh[eOb]; return (eOb==OB_KICKER||eOb==OB_QPIPE||eOb==OB_LAUNCH)?(char)(c+eRot):c; }   // the char the ITEM tool places
@@ -3120,6 +3122,7 @@ static void trickName(int hs,int grab,int perfect){
 }
 static void swName(void){ int n=0; while(lnBuf[n]) n++; if(n>15) return; for(int i=n;i>=0;i--) lnBuf[i+7]=lnBuf[i]; const char*q="SWITCH "; for(int i=0;i<7;i++) lnBuf[i]=q[i]; }
 static void drawPlanter(int sx,int sy,int x,int y,int t); static void drawPlanterS(int sx,int sy,int st,int wa,int sn,int t); static void drawDispCounter(int sx,int sy,int t);   // weed.h
+static void venueDrawCounter(int sx,int sy,int t); static int venueUse(void);   // venues.h
 static void hhStart(void); static void hhTick(void); static int hhSocR(int useLabel); static int hhCallFloors(void); static int petR(void); static int wdUse(void); static void wdTick(void);   // house.h (included further down, next to the drawing it hooks into)
 static void drawCounter(int sx,int sy,int t); static void dbgMenu(void); static void wpPre(u16*kp,u16*pp); static void fgPre(u16*kp,u16*pp); static int slfMenu(void); static void slfFx(void); static int slfPose(void); static void fgDraw(void); static int fgGate(u16*pr); static int fgRcNow(int*r); static void wpDraw(void); static void wpConfiscate(void);   // weapons.h
 // ---- COLLECTIBLES (like THPS): the letters S K A T E and one hidden tape float over the floor of a skate lot. Touch one to take it. ----
@@ -3345,6 +3348,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
             if(dx&&dy&&wallTall(lifeMap[ty][tx-dx])&&wallTall(lifeMap[ty-dy][tx])) continue;   // round a corner of two walls: the other side, out of reach
             char c=lifeMap[ty][tx]; if(c=='F') nf=1; if(c=='T') nt=1; if(c=='S') nb=1; if(c=='H') nh=1; if(c=='C'||c=='U') nc=1; if(c=='G') np=1; if(c=='Q') nq=1; if(c=='I') nph=1; if(c=='R') nrd=1; if(c=='A') nsy=1; if(c=='v') ntv=1; if(c=='b') nbk=1; if(c=='c') ncf=1; if(c=='q') naq=1; if(c=='m') ntm=1; if(c=='W'&&prFence(tx,ty)) nfe=1; }
         lnear=nf?1:(nt?2:(nb?3:(nh?4:(np?6:(nq?7:(nph?8:(nrd?9:(nsy?10:(ntv?11:(nbk?12:(ncf?13:(naq?14:(ntm?15:(nfe?16:(nc?5:0)))))))))))))));   // 7 the DeadSet   // 1 fridge, 2 toilet, 3 bed, 4 shower, 6 water pipe, 5 sofa or beanbag
+        if((pr&K_R)&&lstun<=0&&lz<=fh&&!simAct&&!lskate&&venueUse()) pr&=~K_R;   // venues.h: a venue's counter in reach
         if((pr&K_R)&&lstun<=0&&lz<=fh&&!simAct&&!lskate&&wdUse()) pr&=~K_R;   // weed.h: a GROW PLANTER or the dispensary counter in reach
         if((pr&K_R)&&lstun<=0&&lz<=fh&&!simAct&&!lskate&&petR()) pr&=~K_R;   // petui.h: next to a pet (or a puddle), unless a Sim is nearer
         if((pr&K_R)&&lstun<=0&&lz<=fh&&!simAct&&hhSocR(lnear==16?0:lnear)) pr&=~K_R;   // next to a household Sim: the social menu (it offers the furniture too)
@@ -3782,6 +3786,7 @@ static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
             if(c=='g') drawCounter(sx,sy+1,(int)(lfr>>3));   // the arms shop counter (armsshop.h)
             if(c=='u') drawPlanter(sx,sy+1,ox,oy,(int)(lfr>>3));   // weed.h: the GROW PLANTER (its plant is the tile's wallMap byte)
             if(c=='&') drawDispCounter(sx,sy+1,(int)(lfr>>3));   // weed.h: the dispensary counter
+            if(c=='@') venueDrawCounter(sx,sy+1,(int)(lfr>>3));   // venues.h: a venue's counter (its look comes from the lot)
             if(c=='n') drawSecCam(sx,sy+1,(int)(lfr>>3));   // TV SHOW & TELL: the security camera and gate (drawn by code)
             if(c=='j') drawSecGate(sx,sy+1);
             if(c=='x') drawWork(sx,sy+1,(int)(lfr>>3));   // the WORK MARKER: a gold pad with a briefcase (a normal job's minutes count here)
@@ -5663,6 +5668,7 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "npc.h"             // AI SKATERS and POLICE: hardware sprites on the last spare OBJ tiles (see the top of npc.h)             // GHOSTS and WEATHER: hardware sprites on the spare OBJ slots (see the top of the file)
 #include "petui.h"           // PETS: the pie menu, ADOPT A PET, the PET CREATOR, HOUSEHOLD > PETS (needs npc.h)
 #include "weed.h"            // THE GREEN: grow planters, the stash, the corner, the DISPENSARY (needs npc.h, neighborhood.h)
+#include "venues.h"          // PLACES WITH THINGS TO DO: TACO BORE, GYM, ARCADE, NIGHTCLUB, GROCERY, BANK, HOSPITAL, CAFE, BAR, SALON, PET SHOP, LIBRARY, CASINO, CINEMA, POOL
 #include "prison.h"         // PRISON
 #include "travel.h"         // GETTING ABOUT: CALL A CAB, the story's GO THERE (a lot change without leaving the game): when the cops catch you, the sentence depends on your record; you serve it in a prison of the town
 #include "ambience.h"       // NATURE SOUNDS: the outdoor bed (birds, crickets, rain, wind) by the hour, the weather and indoors

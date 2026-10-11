@@ -26,10 +26,13 @@
 enum { NT_GRASS, NT_DIRT, NT_SAND, NT_WATER, NT_PLAZA, NT_ROAD, NT_N };
 enum { DC_NONE, DC_TREE, DC_PINE, DC_BUSH, DC_FLOWER, DC_ROCK, DC_LAMP, DC_BENCH, DC_FOUNTAIN, DC_N };
 enum { LKIND_RES, LKIND_COMM };
-enum { CT_PARK, CT_SKATE, CT_PLAZA, CT_LOUNGE, CT_OLDTOWN, CT_BOTH, CT_PRISON, CT_ARMS, CT_DISP, CT_N };   // CT_BOTH: a park and a skate park in one (what a community flag and a skate flag together make)
+enum { CT_PARK, CT_SKATE, CT_PLAZA, CT_LOUNGE, CT_OLDTOWN, CT_BOTH, CT_PRISON, CT_ARMS, CT_DISP,
+       CT_TACO, CT_GYM, CT_ARCADE, CT_CLUB, CT_GROCER, CT_BANK, CT_HOSPITAL, CT_CAFE, CT_BAR, CT_SALON, CT_PETSHOP, CT_LIBRARY, CT_CASINO, CT_CINEMA, CT_POOL,   // venues.h
+       CT_N };   // CT_BOTH: a park and a skate park in one (what a community flag and a skate flag together make)
 static const char* const ntNm[NT_N]={"GRASS","DIRT","SAND","WATER","PLAZA","ROAD"};
 static const char* const dcNm[DC_N]={"CLEAR","TREE","PINE","BUSH","FLOWERS","ROCK","LAMP","BENCH","FOUNTAIN"};
-static const char* const ctNm[CT_N]={"PARK","SKATE PARK","PLAZA","LOUNGE","OLD TOWN","PARK + SKATE","PRISON","ARMS SHOP","DISPENSARY"};
+static const char* const ctNm[CT_N]={"PARK","SKATE PARK","PLAZA","LOUNGE","OLD TOWN","PARK + SKATE","PRISON","ARMS SHOP","DISPENSARY",
+    "TACO BORE","GYM","ARCADE","NIGHTCLUB","GROCERY","BANK","HOSPITAL","CAFE","BAR","SALON","PET SHOP","LIBRARY","CASINO","CINEMA","POOL"};
 static const char* const seasNm[4]={"SPRING","SUMMER","FALL","WINTER"};
 static const char* const todNm[3]={"DAY","DUSK","NIGHT"};
 typedef struct { u8 on,x,y,w,h,kind,type; s8 slot; char name[NB_NAME+1]; u8 floors; u16 value; } NbLot;   // value: what it sells for, in units of NB_UNIT simoleons
@@ -76,6 +79,7 @@ static const char* nbErr;
 static void prisonBuild(int x0,int y0,int x1,int y1);   // prison.h
 static void armsBuild(int x0,int y0,int x1,int y1); static int armsLotGet(void);   // prison.h: the compound of a PRISON lot
 static void dispBuild(int x0,int y0,int x1,int y1);   // weed.h
+static void venueBuild(int x0,int y0,int x1,int y1,int ct); static void venueDrawIcon(int ct,int sx,int sy,int k,int hw2);   // venues.h
 static void nbTemplate(int i){   // a lot's starting layout: the land, the street in front, and what its kind brings
     NbLot*L=&nbT.lot[i]; flEnsure(); flHome();
     if(L->kind==LKIND_COMM&&L->type==CT_OLDTOWN) mapGen();
@@ -99,6 +103,7 @@ static void nbTemplate(int i){   // a lot's starting layout: the land, the stree
             else if(L->type==CT_PRISON) prisonBuild(x0,y0,x1,y1);
             else if(L->type==CT_ARMS) armsBuild(x0,y0,x1,y1);   // armsshop.h
             else if(L->type==CT_DISP) dispBuild(x0,y0,x1,y1);   // weed.h
+            else if(L->type>=CT_TACO) venueBuild(x0,y0,x1,y1,L->type);   // venues.h
         }
         if(L->kind==LKIND_COMM){   // sound pack: a RADIO / SOUND SYSTEM on the community lots (only onto empty floor; R next to one tunes a station)
             int my=(y0+y1)/2;
@@ -217,7 +222,7 @@ static void nbLotAdd(int i,const char*nm,int x,int y,int w,int h,int kind,int ty
 enum { NS_SUBURB, NS_DESERT, NS_LAKE, NS_EMPTY, NS_N };
 static const char* const nsNm[NS_N]={"GREEN SUBURB","DESERT TOWN","LAKESIDE","EMPTY LAND"};
 static const char* const nsTown[NS_N]={"BOREVILLE","MESA FLATS","PINE COVE","NEW TOWN"};
-static void nbDistricts(int style);
+static void nbDistricts(int style,int ox,int oy);
 static void nbGenS(int style,const char*name,int size){   // a new town in nbT (not saved), size x size cells. Its live lot is none yet (cur 255): going there builds the home lot
     u8*z=(u8*)&nbT; for(unsigned i=0;i<sizeof(Town);i++) z[i]=0;
     nbT.tag[0]='T'; nbT.tag[1]='W'; nbT.tag[2]='N'; nbT.tag[3]='2'; if(size<24) size=24; if(size>NB_WMAX) size=NB_WMAX; nbT.w=nbT.h=(u8)size; nbT.ver=2;
@@ -245,7 +250,7 @@ static void nbGenS(int style,const char*name,int size){   // a new town in nbT (
         nbLotAdd(6,"CABIN",20,15,4,4,LKIND_COMM,CT_LOUNGE); nbLotAdd(7,"OLD DOCKS",6,17,8,5,LKIND_COMM,CT_OLDTOWN); nbLotAdd(8,"RIDGE SKATE",14,20,6,4,LKIND_COMM,CT_SKATE);
         for(int y=0;y<NB_H;y++)for(int x=0;x<NB_W;x++) if(nbAt(x,y)<0&&nbT.cell[y][x]!=NT_ROAD&&(x-17)*(x-17)+(y-6)*(y-6)*3/2<34) nbT.cell[y][x]=NT_WATER;   // the lake
     } else nbLotAdd(0,"YOUR PLACE",2,3,6,6,LKIND_RES,0);
-    if(nbT.w>24||nbT.h>24) nbDistricts(style);   // a bigger town: more streets, more homes, more places to go
+    if(nbT.w>24||nbT.h>24) nbDistricts(style,24,24);   // a bigger town: more streets, more homes, more places to go
     u32 r=0x2F6E2B1u+(u32)style*7919u; int dens=style==NS_EMPTY?25:style==NS_DESERT?45:70;
     for(int y=0;y<NB_H;y++)for(int x=0;x<NB_W;x++){
         r=r*1103515245u+12345u; int v=(int)(r>>16)&255;
@@ -271,15 +276,15 @@ static int nbRoomFor(int x,int y,int w,int h){   // free, and a cell of space fr
     for(int j=y-1;j<=y+h;j++) for(int i=x-1;i<=x+w;i++) if(i>=0&&j>=0&&i<nbT.w&&j<nbT.h&&nbAt(i,j)>=0) return 0;
     return 1;
 }
-static void nbDistricts(int style){
-    int tw_=nbT.w, th_=nbT.h, n=0; u32 r=0x51ED27u+(u32)style*131u+(u32)tw_*977u;
+static void nbDistricts(int style,int ox,int oy){   // the land past ox / oy (the first 24 x 24 of a new town, or what a town had before it grew)
+    int tw_=nbT.w, th_=nbT.h, n=0; u32 r=0x51ED27u+(u32)style*131u+(u32)tw_*977u+(u32)ox*31u;
     for(int i=0;i<NB_LOTS;i++) if(nbT.lot[i].on) n++;
-    for(int x=29;x<tw_;x+=12) for(int y=0;y<th_;y++) if(nbAt(x,y)<0&&NB_GR(nbT.cell[y][x])!=NT_WATER) nbT.cell[y][x]=NT_ROAD;   // the new streets
-    for(int y=29;y<th_;y+=12) for(int x=0;x<tw_;x++) if(nbAt(x,y)<0&&NB_GR(nbT.cell[y][x])!=NT_WATER) nbT.cell[y][x]=NT_ROAD;
-    static const u8 kinds[]={CT_PARK,CT_DISP,CT_SKATE,CT_LOUNGE,CT_PLAZA,CT_ARMS};
-    int kc=0, homes[12]={0};
+    for(int x=ox+5;x<tw_;x+=12) for(int y=0;y<th_;y++) if((x>=ox||y>=oy)&&nbAt(x,y)<0&&NB_GR(nbT.cell[y][x])!=NT_WATER) nbT.cell[y][x]=NT_ROAD;   // the new streets
+    for(int y=oy+5;y<th_;y+=12) for(int x=0;x<tw_;x++) if((x>=ox||y>=oy)&&nbAt(x,y)<0&&NB_GR(nbT.cell[y][x])!=NT_WATER) nbT.cell[y][x]=NT_ROAD;
+    static const u8 kinds[]={CT_TACO,CT_PARK,CT_GYM,CT_DISP,CT_ARCADE,CT_SKATE,CT_CAFE,CT_CLUB,CT_GROCER,CT_LOUNGE,CT_BAR,CT_PETSHOP,CT_CINEMA,CT_BANK,CT_POOL,CT_LIBRARY,CT_HOSPITAL,CT_CASINO,CT_SALON,CT_PLAZA,CT_ARMS};
+    int kc=n, homes[12]={0};   // (the kinds go on from where the town's count is: a grown town gets the next ones)
     for(int y=0;y<th_&&n<NB_LOTS;y++) for(int x=0;x<tw_&&n<NB_LOTS;x++){
-        if(x<24&&y<24) continue;
+        if(x<ox&&y<oy) continue;
         r=r*1103515245u+12345u; int sz=4+(int)((r>>16)%3), h2=sz-(int)((r>>20)&1);
         int w=sz; if(!nbRoomFor(x,y,w,h2)){ w=4; h2=4; if(!nbRoomFor(x,y,w,h2)) continue; }
         int comm=((r>>12)&3)==0;
@@ -287,6 +292,21 @@ static void nbDistricts(int style){
         else { int st=(int)((r>>24)%12); char nm[NB_NAME+1]; char*e=nm; for(const char*p=nbStreet[st];*p;) *e++=*p++; *e++=' '; homes[st]+=2; int no=homes[st]; if(no>=10) *e++=(char)('0'+no/10); *e++=(char)('0'+no%10); *e=0;
             nbLotAdd(n,nm,x,y,w,h2,LKIND_RES,0); }
         n++; }
+}
+// GROW THE TOWN (the town menu; the cab when it needs land for a new place): 8 more cells each way, up to 48. The new land takes the ground of
+// the old town's far corner, the streets that ran to the old edge go on, new districts fill it, and it gets its trees.
+static int nbExpand(void){
+    int ow=nbT.w, oh=nbT.h; if(ow>=NB_WMAX&&oh>=NB_HMAX) return 0;
+    int nw=ow+8>NB_WMAX?NB_WMAX:ow+8, nh=oh+8>NB_HMAX?NB_HMAX:oh+8, g=NB_GR(nbT.cell[oh-1][ow-1]); if(g!=NT_SAND&&g!=NT_DIRT) g=NT_GRASS;
+    for(int y=0;y<nh;y++) for(int x=0;x<nw;x++) if(x>=ow||y>=oh) nbT.cell[y][x]=(u8)g;
+    for(int x=0;x<ow;x++) if(NB_GR(nbT.cell[oh-1][x])==NT_ROAD) for(int y=oh;y<nh;y++) nbT.cell[y][x]=NT_ROAD;
+    for(int y=0;y<oh;y++) if(NB_GR(nbT.cell[y][ow-1])==NT_ROAD) for(int x=ow;x<nw;x++) nbT.cell[y][x]=NT_ROAD;
+    nbT.w=(u8)nw; nbT.h=(u8)nh; nbDistricts(g==NT_SAND?NS_DESERT:NS_SUBURB,ow,oh);
+    u32 r=0x7E57u+(u32)nw*131u;
+    for(int y=0;y<nh;y++) for(int x=0;x<nw;x++){ if(x<ow&&y<oh) continue; r=r*1103515245u+12345u; int v=(int)(r>>16)&255;
+        if(nbAt(x,y)>=0||NB_GR(nbT.cell[y][x])!=g) continue;
+        if(v<50) nbT.cell[y][x]|=(u8)((g==NT_SAND?(v<10?DC_TREE:v<30?DC_ROCK:DC_BUSH):(v<20?DC_TREE:v<32?DC_PINE:v<42?DC_BUSH:DC_FLOWER))<<3); }
+    nbSave(); return 1;
 }
 // ---------- drawing ----------
 static int nbHw, nbHh, nbOx, nbOy, nbK;   // half width / height of a cell, where cell (0,0) is, the object scale
@@ -383,6 +403,7 @@ static void nbDrawLotModel(int i,int sx,int sy){   // HOOK: a lot's building (a 
         nbDrawHouse(i,sx,sy);
         return;
     }
+    if(L->type>=CT_TACO){ venueDrawIcon(L->type,sx,sy,k,s*nbHw/2); return; }   // venues.h
     switch(L->type){
         case CT_PARK: { int sk=nbK; nbK=k+1; nbDecor(DC_TREE,sx-k*s/2,sy); nbDecor(DC_TREE,sx+k*s/2,sy-k); nbK=sk; nbDecor(DC_BENCH,sx,sy+k); break; }
         case CT_BOTH: { int sk=nbK; nbK=k+1; nbDecor(DC_TREE,sx+k*s/2,sy-k); nbK=sk; for(int i2=0;i2<3*k;i2++){ int h=(3*k-i2)*(3*k-i2)/(3*k); rect(sx-3*k+i2-k,sy-h,1,h+1,nbTint(RGB(20,20,22))); rect(sx+k-i2,sy-h,1,h+1,nbTint(RGB(17,17,19))); } rect(sx-4*k,sy,4*k,1,nbTint(RGB(28,10,6))); break; }
@@ -652,13 +673,14 @@ static int nbNewLot(int x,int y,int w,int h){
     nbSave(); toast("LOT PLACED"); return 1;
 }
 static void nbTownMenu(int*quit){
-    static const char* const it[6]={"ZOOM","SEASON","TIME OF DAY","RENAME TOWN","ALL NEIGHBORHOODS","LEAVE"};
-    int c=menu("TOWN",it,6);
+    static const char* const it[7]={"ZOOM","SEASON","TIME OF DAY","RENAME TOWN","GROW THE TOWN","ALL NEIGHBORHOODS","LEAVE"};
+    int c=menu("TOWN",it,7);
     if(c==0) nbT.zoom=(u8)(nbT.zoom==0?((nbT.w>24||nbT.h>24)?2:1):nbT.zoom==2?1:0);   // the whole town, then (in a big town) MEDIUM, then CLOSE, each following the cursor
     else if(c==1) nbT.season=(u8)((nbT.season+1)&3);
     else if(c==2) nbT.tod=(u8)((nbT.tod+1)%3);
     else if(c==3){ char nm[SLOT_NAME+1]; for(int i=0;i<=NB_NAME;i++) nm[i]=nbT.name[i]; if(slEditName(nm)) for(int i=0;i<=NB_NAME;i++) nbT.name[i]=nm[i]; }
-    else if(c==4||c==5) *quit=1;
+    else if(c==4){ if(nbExpand()){ char t[24]; char*e=slCat(t,"NOW "); e=slNum(e,nbT.w); e=slCat(e," X "); slNum(e,nbT.h); toast(t); } else toast("THE TOWN IS AS BIG AS IT GETS"); }
+    else if(c==5||c==6) *quit=1;
 }
 // MOVE IN (The Sims 2): a new player's household picks its home on the town map. main.c newGame opens the town in this mode right after the creator
 // (or the family bin): the tools and the town menu are off, the panel shows each lot's price against your money, A on a home lot buys it and moves

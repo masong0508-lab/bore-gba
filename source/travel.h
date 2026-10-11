@@ -17,7 +17,10 @@ static int trvFind(int ct){
     return -1;
 }
 static int trvHere(int ct){ return nbOk&&nbT.cur<NB_LOTS&&trvIs(&nbT.lot[nbT.cur],ct); }   // are you on a place of that kind right now?
-static int trvPlace(int ct){
+static int nbExpand(void);   // neighborhood.h
+static int trvPlace1(int ct);
+static int trvPlace(int ct){ int i=trvPlace1(ct); if(i<0&&nbOk&&nbExpand()) i=trvPlace1(ct); return i; }   // no land left: the town grows (8 cells each way) and the new districts make room
+static int trvPlace1(int ct){
     int i=trvFind(ct); if(i>=0||!nbOk) return i;
     if(ct==CT_PRISON) return prLotGet();
     if(ct==CT_ARMS){ armsLotGet(); return trvFind(ct); }
@@ -49,9 +52,11 @@ static void trvMenu(void){   // the phone: CALL A CAB  GO SOMEWHERE (home first,
     for(int i=0;i<NB_LOTS;i++){ const NbLot*L=&nbT.lot[i]; if(!L->on||L->kind!=LKIND_COMM||i==nbT.cur) continue;
         if(L->type==CT_PRISON&&!prIn()) continue;   // (nobody takes a cab to the prison)
         char*e=slCat(lb[n],L->name); if(L->type<CT_N&&!trvHas(L->name,ctNm[L->type])){ e=slCat(e,"  "); slCat(e,ctNm[L->type]); } it[n]=lb[n]; lot[n++]=i; }   // ("MAIN SQUARE  PLAZA", but not "SKATE PARK  SKATE PARK")
-    if(trvFind(CT_DISP)<0&&n<NB_LOTS+1){ it[n]="THE DISPENSARY  NEW IN TOWN"; lot[n++]=-2; }   // weed.h: a town without one gets one when you ask the cab
+    it[n]="SOMEWHERE NEW"; lot[n++]=-3;   // a kind of place the town has none of yet: the cab finds land for one (a dispensary, TACO BORE, a gym ...)
     if(!n){ toast("NO PUBLIC PLACES IN THIS TOWN YET"); return; }
     int c=menu("CALL A CAB  WHERE TO",it,n); if(c<0) return;
-    if(lot[c]==-2){ int d=trvPlace(CT_DISP); if(d<0){ toast("NO ROOM IN TOWN FOR IT"); return; } lot[c]=d; }
+    if(lot[c]==-3){ const char* nk[CT_N]; int kt[CT_N], m=0; for(int t=CT_DISP;t<CT_N;t++) if(trvFind(t)<0){ nk[m]=ctNm[t]; kt[m++]=t; }
+        if(!m){ toast("THIS TOWN HAS ONE OF EVERYTHING"); return; }
+        int k=menu("TAKE ME TO A NEW",nk,m); if(k<0) return; int d=trvPlace(kt[k]); if(d<0){ toast("NO ROOM IN TOWN FOR IT"); return; } lot[c]=d; }
     if(trvGo(lot[c])){ sfxPlay(SFX_CASH); toast("THE CAB IS HERE"); }
 }
