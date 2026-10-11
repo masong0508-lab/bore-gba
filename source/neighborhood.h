@@ -74,7 +74,7 @@ static int nbItemValue(char c){   // what a tile of c is worth in simoleons: the
 static void nbValueLive(int j){   // land (20 simoleons a tile) + everything built on every floor of the live map
     NbLot*L=&nbT.lot[j]; u32 v=(u32)L->w*L->h*8*NB_UNIT; int fl=1;
     flEnsure();
-    for(int f=0;f<FLR_N;f++){ int any=0; for(int i=0;i<MSZ;i++){ char c=(char)flPlaneAt(f,0,i), w=(char)flPlaneAt(f,2,i); int id=(c!='u'&&isItemCh(c))?(u8)w-CAT_WP0:0; v+=(id>=1&&id<=CAT_N&&catTab[id-1].ch==c)?catTab[id-1].price:(u32)nbItemValue(c); /* (a catalog look: its own price) */ if(f&&c!='.'&&c!='w') any=1; } if(any) fl=f+1; }
+    for(int f=0;f<FLR_N;f++){ int any=0; for(int i=0;i<MSZ;i++){ char c=(char)flPlaneAt(f,0,i), w=(char)flPlaneAt(f,2,i); int id=catIdOf(c,(u8)w); v+=id?catTab[id-1].price:(u32)nbItemValue(c); /* (a catalog look: its own price) */ if(f&&c!='.'&&c!='w') any=1; } if(any) fl=f+1; }
     v=(v+NB_UNIT/2)/NB_UNIT; L->value=(u16)(v>65535?65535:v); L->floors=(u8)fl;
 }
 static const char* nbErr;

@@ -1061,3 +1061,33 @@ OWN TOMATOES* / *NOT TOMATOES"), the cab to TACO BORE ("LOADING... GO GET SNACKS
 IT."), the TOUKEBOX ("NOW WITH 100% LESS CRACKLE"), BORTUA FIGHTER's moon and the helium burst with the game's own WHAT THE FUCK JUST
 HAPPENED??? ("RATED M FOR MUNCHIES"), and the end card ("IT'S LIKE LIFE. BUT WITH A SAVE BUTTON." / "ONLY $69.99*" / "CALL NOW
 1-800-GET-BORE" / "*we don't sell it. it's free. it's a github repo."). tools/trailer/README.md has the pipeline.
+
+## THE BUILD BATCH: 200 more build-mode things, and POOLS (floorart.h, wallpapers.h, winSt, the FLOOR tool)
+- WHAT   65 floors (carpets, woods, tiles, stone, outdoor grounds, specials, the POOL EDGE and 4 waters), 37 wallpapers and 12 FENCES
+         (wallpapers.h), 12 window styles, 12 doors, and 82 catalog items in 7 new BUY tabs (DOORS, WINDOWS, POOL, BEACH, GARDEN, TREES, YARD):
+         282 catalog items now (tools/make_catalog.py). Plus the features below: 200-odd things, the same as the #76 batch.
+- FLOORS   flTex moved to floorart.h, shared with tools/gen_fltab.c (which pre-samples them into fltab.h: no more second copy). NFL is 80.
+         FL_AIR (15) stays where the saves have it: it is a placeholder entry the picker skips (flHidden / flStep). Floors past 15 broke two
+         4-bit packings: undo keeps the floor in its own byte now (udRF), and the floor pieces under the walls use 8 bits a quarter (wFq is
+         u32). FL_BWALL moved to NFL. The picker's 5 swatches step over the hidden ones.
+- WATER    the last 8 floors are 4 waters in pairs (two frames each, PN_WAVE / PN_WAVE2); roomFloors shows the frame of the moment (wavePh,
+         flipped every 32 steps with a liveInvalidate, only on a lot that has water: wHasWater from wFqBuild). The FLOOR tool with a water
+         picked DIGS A POOL: the water costs POOL_COST a tile (BUILD COSTS on), walls are skipped, and the POOL EDGE is laid all round it
+         (eApply). Ground floor only. SWIMMING: the player in a water tile (lswim) is slow (5/8), cannot hop or ride (the board comes off with
+         a SPLASH), gets cleaner every 16 steps and a little tired, chills; the picture is clipped at the waterline 6 px lower with ripples
+         (drawPlayerNow). Sims and pets never path into water (hhWalk).
+- WALLPAPERS   wpTex moved to wallpapers.h with wp2Tex after it: their numbers come AFTER the KHLVH set (NWP+NWX..), so nothing saved moves.
+         gen_bakedtabs.py reads both tables and bakes wp2Tab / wp2Avg. The last NFENCE are fences: colour 3 is WP_KEY, see-through, and
+         wallSegO leaves those texels alone (what is behind shows). The WALL tool builds a fence style as a LOW WALL ('w'): you can see and
+         talk over it, hop it, and it keeps the look. texSwatch shows the key as dark.
+- WINDOWS  one table, winSt[NWIN]: wall / frame / tint colours, the glass box, bars (a column mask, a row) and flags (sill, strip, round,
+         arch, stained, shutters, dark). The 3 classic chars stay; the 12 new styles are catalog items on 'E' whose look byte picks the kind
+         (kind 3 + its place in the WINDOWS tab). winColT is a 6-slot cache of kinds in view instead of every kind (4.6 KB).
+- DOORS    catalog items on 'D' (rot: the leaf lies along the wall by itemFacing). Classic doors unchanged.
+- THE LOOK BYTE   wallMap used to keep 55 + id, which capped the catalog at 200. It keeps the item's number among the items of its character
+         (catTab[].lk; catChIdx / catChFirst / catChIds decode it: catIdOf), so the catalog can hold thousands. Room format 4; a format 3
+         room is converted on load (slLooksOld). Windows carry a look too (isLookCh). catFind / hgLook / venueLook return the byte.
+- POOLS IN TOWN   the COMMUNITY POOL venue digs a real 10 x 5 pool in its hall with a ladder, the diving board, loungers, a beach umbrella
+         and the lifeguard's chair (venueBuild). Big MODERN and MANSION lots get a 5 x 2 pool in the front yard one time in two, with a ladder
+         and two loungers (hgHouse: the yard is 3 rows deeper for it).
+- MEMORY   EWRAM 236 KB (was 230): wFq +3.2 KB, winColT +2.3 KB, udRF +1 KB. ROM +1 MB of sprites (549 catalog sprites).

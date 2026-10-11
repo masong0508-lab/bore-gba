@@ -388,7 +388,107 @@ item('GRANDFATHER CLOCK', 'i', 1200, C, block(1, 2, 7, 7, 0, 16, faces(M(OAK, ['
 item('PUNCHING BAG', 'm', 400, C, [Box(2, 2, 6, 6, 0, 2, solid(DARK, 'b')), Box(3, 3, 5, 5, 2, 22, solid(STEEL, 'c')), Box(2, 2, 6, 6, 8, 20, faces(stripes(RED, 4, 12, 'c', 'b', True, 4), stripes(RED, 4, 12, 'c', 'b', True, 4), flat(RED, 'd')))], col=(26, 5, 5))
 item('WEIGHT BENCH', 'm', 500, C, legs(1, 1, 7, 7, 6, flat(STEEL, 'c')) + block(2, 0, 6, 8, 6, 8, faces(flat(DARK, 'c'), flat(DARK, 'c'), flat(DARK, 'd'))) + [Box(0, 1, 1, 2, 0, 14, solid(STEEL, 'c')), Box(7, 1, 8, 2, 0, 14, solid(STEEL, 'c')), Box(0, 1, 8, 2, 13, 14, solid(STEEL, 'd')), Box(0, 0, 1, 3, 11, 16, solid(DARK, 'c')), Box(7, 0, 8, 3, 11, 16, solid(DARK, 'c'))], col=(20, 22, 26))
 
-assert len(ITEMS) == 200, len(ITEMS)
+# ====================================================================== BUILD batch: doors, windows, the pool, the garden (the room builder's build-mode items)
+def door(panel_m, frame, h=20, half=False, open_=False):   # a door standing in the wall line: two posts, a lintel and the leaf (r=0 lies along a, its face to +b)
+    post = solid(frame, 'b'); bx = [Box(0, 3, 1, 5, 0, h, post), Box(7, 3, 8, 5, 0, h, post), Box(0, 3, 8, 5, h, h + 2, solid(frame, 'c'))]
+    if open_: return bx
+    z0 = 7 if half else 0; z1 = 15 if half else h
+    return bx + [Box(1, 3, 7, 5, z0, z1, faces(panel_m, flat(frame, 'b'), flat(frame, 'c')))]
+def leaf(p, rows): return M(p, rows)
+PANEL6 = ['bbbbbb', 'bccccb', 'bcddcb', 'bcddcb', 'bccccb', 'bbbbbb', 'bccccb', 'bcddcb', 'bcddcb', 'bccccb', 'bbbbbb', 'bbbbbb', 'bcccdb', 'bccccb', 'bbbbbb']
+X_BRACE = ['bccccb', 'cbccbc', 'ccbbcc', 'ccbbcc', 'cbccbc', 'bccccb', 'bccccb', 'cbccbc', 'ccbbcc', 'ccbbcc', 'cbccbc', 'bccccb']
+BARS6 = ['cbcbcb', 'cbcbcb'] * 6
+C = cat('DOORS')
+item('OAK DOOR', 'D', 120, C, door(leaf(OAK, PANEL6), DARK), 1, col=(22, 14, 6)); item('WHITE DOOR', 'D', 120, C, door(leaf(WHITEW, PANEL6), WHITEW), 1, col=(28, 28, 29))
+item('RED DOOR', 'D', 150, C, door(leaf(RED, PANEL6), WHITEW), 1, col=(26, 5, 5)); item('BLACK DOOR', 'D', 150, C, door(leaf(DARK, PANEL6), DARK), 1, col=(9, 6, 4))
+item('BARN DOOR', 'D', 200, C, door(leaf(TERRA, X_BRACE), BROWN), 1, col=(22, 11, 5)); item('GLASS DOOR', 'D', 350, C, door(M(P_GLASS, ['bbbbbb', 'bccdcb', 'bccdcb', 'bcccdb', 'bccccb', 'bbbbbb']), STEEL), 1, col=(20, 26, 30))
+item('SALOON DOORS', 'D', 180, C, door(M(OAK, ['cbcbcb', 'cbcbcb', 'bbbbbb', 'cbcbcb']), OAK, half=True), 1, col=(22, 14, 6)); item('IRON GATE', 'D', 300, C, door(leaf(P_BLACK, BARS6), P_BLACK), 1, col=(6, 6, 8))
+item('STEEL DOOR', 'D', 400, C, door(M(STEEL, ['bbbbbb', 'bccccb', 'bcdccb', 'bccccb', 'bccccb', 'bcbbcb', 'bccccb', 'bbbbbb']), P_METAL), 1, col=(20, 22, 26))
+item('VAULT DOOR', 'D', 2500, C, door(M(P_METAL, ['bbbbbb', 'bcccdb', 'bcbbcb', 'bcbecb', 'bcbbcb', 'bccccb', 'bbbbbb']), P_METAL), 1, col=(18, 19, 23))
+item('ARCHWAY', 'D', 90, C, door(None, STONE, open_=True), 1, col=(17, 17, 16)); item('GARDEN GATE', 'D', 80, C, door(M(WHITEW, ['cbcbcb', 'cbcbcb', 'cccccc', 'cbcbcb', 'cbcbcb', 'cccccc']), WHITEW, half=True), 1, col=(28, 28, 29))
+def window(frame, glass_m, w=6, z0=6, z1=18):   # the BUY thumbnail of a window: a pane in a frame (the wall drawer paints the real thing: winSt in main.c)
+    a0 = (8 - w) // 2; return [Box(a0, 3, a0 + w, 5, z0, z1, faces(glass_m, flat(frame, 'c'), flat(frame, 'c'))), Box(a0, 3, a0 + w, 5, z0 - 1, z0, solid(frame, 'c')), Box(a0, 3, a0 + w, 5, z1, z1 + 1, solid(frame, 'c')), Box(a0 - 1 if a0 else 0, 3, a0 if a0 else 1, 5, z0 - 1, z1 + 1, solid(frame, 'c')), Box(a0 + w if a0 + w < 8 else 7, 3, min(8, a0 + w + 1), 5, z0 - 1, z1 + 1, solid(frame, 'c'))]
+SKYG = M(SKY, ['ccccdccc', 'cccdcccc', 'ccdccccc', 'cccccccc'])
+C = cat('WINDOWS')   # (same order as winSt's new kinds in main.c: kind = 3 + the item's place here)
+item('PORTHOLE', 'E', 300, C, window(STEEL, SKYG, 4, 8, 14), col=(20, 22, 26)); item('ARCH WINDOW', 'E', 350, C, window(WHITEW, SKYG, 6, 4, 18), col=(28, 28, 29))
+item('TALL WINDOW', 'E', 320, C, window(WHITEW, SKYG, 4, 3, 21), col=(28, 28, 29)); item('SMALL WINDOW', 'E', 120, C, window(WHITEW, SKYG, 4, 8, 13), col=(28, 28, 29))
+item('DOUBLE WINDOW', 'E', 420, C, window(WHITEW, M(SKY, ['cccbcccc', 'cccbcccc', 'bbbbbbbb', 'cccbcccc']), 8, 6, 18), col=(28, 28, 29))
+item('STAINED GLASS', 'E', 900, C, window(DARK, M(P_BOOKS, ['abcdabcd', 'bcdabcda', 'cdabcdab', 'dabcdabc']), 6, 4, 18), col=(26, 12, 28))
+item('SHUTTERED', 'E', 260, C, window(GREEN, SKYG, 4, 6, 18), col=(6, 20, 8)); item('BARRED WINDOW', 'E', 200, C, window(P_BLACK, M(SKY, ['cbcbcbcc'] * 4), 6, 6, 18), col=(6, 6, 8))
+item('BLACK FRAME', 'E', 280, C, window(P_BLACK, SKYG, 6, 6, 18), col=(6, 6, 8)); item('FRENCH WINDOW', 'E', 600, C, window(WHITEW, M(SKY, ['cccbcccc'] * 4), 6, 2, 21), col=(28, 28, 29))
+item('NEON WINDOW', 'E', 500, C, window(NEON, M(P_BLACK, ['bbccbbcc', 'ccbbccbb'] * 2), 6, 6, 18), col=(31, 8, 24)); item('BAY WINDOW', 'E', 700, C, window(WHITEW, M(SKY, ['ccbccbcc'] * 4), 8, 5, 19), col=(28, 28, 29))
+def lounger(p, wood):
+    frame = solid(wood, 'b'); pad = faces(stripes(p, 8, 2, 'c', 'd', False, 2), flat(p, 'c'), stripes(p, 8, 4, 'c', 'd', False, 2))
+    return legs(0, 2, 8, 6, 3, flat(wood, 'b')) + block(0, 2, 8, 6, 3, 5, pad) + [Box(0, 2, 2, 6, 5, 9, faces(flat(p, 'c'), flat(p, 'c'), stripes(p, 2, 4, 'c', 'd', True, 1)))]
+C = cat('POOL')
+item('POOL LADDER', 'p', 150, C, [Box(1, 3, 2, 4, 0, 14, solid(STEEL, 'c')), Box(6, 3, 7, 4, 0, 14, solid(STEEL, 'c')), Box(1, 3, 7, 4, 13, 14, solid(STEEL, 'd'))] + [Box(2, 3, 6, 4, z, z + 1, solid(STEEL, 'c')) for z in (3, 6, 9)], col=(20, 22, 26))
+item('DIVING BOARD', 'p', 450, C, [Box(2, 1, 6, 4, 0, 6, faces(panel(STEEL, 4, 6, 'b', 'c'), flat(STEEL, 'c'), flat(STEEL, 'c'))), Box(2, 0, 6, 8, 6, 7, faces(flat(SKY, 'b'), flat(SKY, 'c'), M(SKY, ['cccc', 'cdcc', 'cccc', 'ccdc'] * 2)))], 1, col=(12, 22, 31))
+item('LIFEGUARD CHAIR', 'h', 600, C, legs(1, 1, 7, 7, 14, flat(WHITEW, 'c')) + block(1, 1, 7, 7, 14, 16, faces(flat(WHITEW, 'c'), flat(WHITEW, 'c'), flat(WHITEW, 'd'))) + block(1, 1, 7, 3, 16, 24, faces(flat(RED, 'c'), flat(RED, 'c'), flat(RED, 'd'))) + [Box(2, 1, 6, 3, 19, 21, solid(WHITEW, 'c'))], 1, col=(28, 28, 29))
+item('SUN LOUNGER', 'N', 220, C, lounger(WHITEW, STEEL), 1, col=(28, 28, 29)); item('STRIPED LOUNGER', 'N', 240, C, lounger(SKY, PINE), 1, col=(12, 22, 31)); item('PINK LOUNGER', 'N', 240, C, lounger(P_PINK, WHITEW), 1, col=(30, 14, 22))
+item('BEACH UMBRELLA', 'p', 180, C, [Box(3, 3, 5, 5, 0, 2, solid(STEEL, 'b')), Box(4, 4, 5, 5, 2, 20, solid(STEEL, 'c'))] + block(0, 0, 8, 8, 20, 23, faces(stripes(RED, 8, 3, 'c', 'e', False, 2), stripes(RED, 8, 3, 'c', 'e', False, 2), stripes(RED, 8, 8, 'c', 'e', False, 2))) + [Box(2, 2, 6, 6, 23, 25, faces(stripes(RED, 4, 2, 'c', 'e', False, 2), flat(RED, 'c'), flat(RED, 'e')))], col=(26, 5, 5))
+item('POOL FLOAT', 'p', 40, C, block(0, 0, 8, 8, 0, 3, faces(flat(YELLOW, 'c'), flat(YELLOW, 'c'), M(YELLOW, ['bccccccb', 'cddddddc', 'cdbbbbdc', 'cdbaabdc', 'cdbaabdc', 'cdbbbbdc', 'cddddddc', 'bccccccb']))), col=(30, 26, 4))
+item('BEACH BALL', 'p', 25, C, [Box(2, 2, 6, 6, 0, 1, solid(GREY, 'a')), Box(2, 2, 6, 6, 1, 5, faces(M(P_BOOKS, ['abcd', 'abcd', 'abcd', 'abcd']), M(P_BOOKS, ['dabc'] * 4), M(P_BOOKS, ['abcd', 'bcda', 'cdab', 'dabc'])))], col=(24, 6, 6))
+item('TOWEL RACK', 'p', 90, C, [Box(1, 3, 2, 5, 0, 12, solid(STEEL, 'c')), Box(6, 3, 7, 5, 0, 12, solid(STEEL, 'c')), Box(1, 3, 7, 5, 11, 12, solid(STEEL, 'd')), Box(2, 3, 4, 5, 4, 11, faces(stripes(SKY, 2, 7, 'c', 'e', True, 2), flat(SKY, 'c'), flat(SKY, 'c'))), Box(4, 3, 6, 5, 5, 11, faces(stripes(P_PINK, 2, 6, 'c', 'e', True, 2), flat(P_PINK, 'c'), flat(P_PINK, 'c')))], col=(20, 22, 26))
+item('KIDDIE POOL', 'p', 60, C, block(0, 0, 8, 8, 0, 3, faces(flat(SKY, 'c'), flat(SKY, 'c'), M(P_WATER, ['bbbbbbbb', 'bccccccb', 'bcdccdcb', 'bccccccb', 'bccdcccb', 'bcccccdb', 'bccccccb', 'bbbbbbbb']))), col=(12, 20, 30))
+item('OUTDOOR SHOWER', 'H', 350, C, [Box(3, 1, 5, 2, 0, 24, solid(STEEL, 'c')), Box(1, 1, 7, 7, 0, 1, faces(flat(PINE, 'b'), flat(PINE, 'b'), stripes(PINE, 6, 6, 'c', 'b', True, 1))), Box(2, 1, 6, 3, 22, 24, solid(STEEL, 'd'))], 1, col=(20, 22, 26))
+C = cat('BEACH')
+item('SNACK CART', 'y', 500, C, legs(1, 1, 7, 7, 4, flat(STEEL, 'b')) + block(0, 1, 8, 7, 4, 12, faces(panel(WHITEW, 8, 8, 'b', 'c'), flat(WHITEW, 'c'), flat(RED, 'c'))) + [Box(0, 1, 8, 7, 18, 20, faces(stripes(RED, 8, 2, 'c', 'e', False, 2), stripes(RED, 6, 2, 'c', 'e', False, 2), stripes(RED, 8, 6, 'c', 'e', False, 2))), Box(0, 1, 1, 2, 12, 18, solid(STEEL, 'c')), Box(7, 6, 8, 7, 12, 18, solid(STEEL, 'c'))], 1, col=(26, 5, 5))
+item('COOLER', '#', 45, C, block(1, 2, 7, 6, 0, 5, faces(panel(BLUE, 6, 5, 'b', 'c'), flat(BLUE, 'c'), flat(WHITEW, 'c'))) + [Box(1, 2, 7, 6, 5, 6, solid(WHITEW, 'd'))], col=(6, 10, 26))
+item('POOL NOODLES', 'p', 15, C, [Box(1, 3, 2, 4, 0, 16, solid(P_PINK, 'c')), Box(3, 2, 4, 3, 0, 14, solid(GREEN, 'c')), Box(5, 4, 6, 5, 0, 17, solid(YELLOW, 'c')), Box(0, 2, 7, 5, 0, 1, solid(GREY, 'b'))], col=(30, 14, 22))
+item('FLAMINGO FLOAT', 'p', 70, C, block(0, 0, 8, 8, 0, 3, faces(flat(P_PINK, 'c'), flat(P_PINK, 'c'), M(P_PINK, ['bccccccb', 'cddddddc', 'cdbbbbdc', 'cdbccbdc', 'cdbccbdc', 'cdbbbbdc', 'cddddddc', 'bccccccb']))) + [Box(6, 3, 7, 5, 3, 9, solid(P_PINK, 'c')), Box(5, 3, 8, 5, 9, 11, faces(M(P_PINK, ['ccb', 'ccb']), flat(P_PINK, 'c'), flat(P_PINK, 'd')))], col=(30, 14, 22))
+item('TIKI BAR', 'y', 900, C, counter(PINE, grain(PINE, 8, 8)) + [Box(0, 0, 1, 1, 12, 22, solid(P_WOOD, 'c')), Box(7, 0, 8, 1, 12, 22, solid(P_WOOD, 'c')), Box(0, 0, 8, 8, 22, 25, faces(stripes(MUST, 8, 3, 'c', 'b', True, 1), stripes(MUST, 8, 3, 'c', 'b', True, 1), stripes(MUST, 8, 8, 'c', 'b', True, 1)))], col=(26, 20, 11))
+item('TIKI TORCH', 'l', 80, C, [Box(3, 3, 5, 5, 0, 1, solid(P_WOOD, 'b')), Box(4, 4, 5, 5, 1, 18, solid(P_WOOD, 'c')), Box(3, 3, 6, 6, 18, 22, faces(stripes(P_WOOD, 3, 4, 'c', 'b', True, 1), flat(P_WOOD, 'c'), flat(ORANGE, 'c'))), Box(3, 3, 6, 6, 22, 25, faces(M(ORANGE, ['cdc', 'dec', 'cdd']), flat(ORANGE, 'd'), flat(YELLOW, 'd')))], col=(28, 14, 3))
+item('SURFBOARD', 'p', 300, C, [Box(3, 1, 5, 7, 0, 1, solid(GREY, 'b')), Box(3, 1, 5, 7, 1, 2, faces(flat(CYAN, 'c'), flat(CYAN, 'c'), M(CYAN, ['bcbb', 'bccb', 'cddc', 'cddc', 'cddc', 'bccb']))), Box(3, 2, 5, 6, 2, 3, faces(flat(CYAN, 'c'), flat(CYAN, 'c'), M(CYAN, ['cdc', 'ddd', 'cdc'])))] + [Box(3, 1, 4, 2, 1, 16, solid(CYAN, 'c')), Box(3, 1, 4, 2, 16, 17, solid(CYAN, 'd'))], col=(8, 26, 30))
+item('LIFE RING', 'p', 50, C, [Box(3, 3, 5, 5, 0, 1, solid(STEEL, 'b')), Box(4, 4, 5, 5, 1, 10, solid(STEEL, 'c')), Box(1, 3, 7, 5, 8, 14, faces(M(RED, ['ccbbcc', 'cbeebc', 'beeeeb', 'beeeeb', 'cbeebc', 'ccbbcc']), flat(RED, 'c'), flat(RED, 'c')))], col=(26, 5, 5))
+item('CABANA', 'U', 650, C, [Box(0, 0, 1, 1, 0, 20, solid(P_WOOD, 'c')), Box(7, 0, 8, 1, 0, 20, solid(P_WOOD, 'c')), Box(0, 7, 1, 8, 0, 20, solid(P_WOOD, 'c')), Box(7, 7, 8, 8, 0, 20, solid(P_WOOD, 'c')), Box(0, 0, 8, 8, 20, 22, faces(stripes(WHITEW, 8, 2, 'c', 'b', False, 2), stripes(WHITEW, 8, 2, 'c', 'b', False, 2), stripes(WHITEW, 8, 8, 'c', 'b', False, 2))), Box(1, 1, 7, 7, 0, 4, faces(flat(SKY, 'c'), flat(SKY, 'c'), flat(SKY, 'd')))], col=(28, 28, 29))
+item('SAND CASTLE', 'p', 10, C, [Box(1, 1, 7, 7, 0, 3, solid(MUST, 'c')), Box(2, 2, 6, 6, 3, 7, faces(M(MUST, ['cbcc', 'cccc', 'ccbc', 'cccc']), flat(MUST, 'c'), flat(MUST, 'd'))), Box(1, 1, 3, 3, 3, 10, solid(MUST, 'd')), Box(5, 5, 7, 7, 3, 10, solid(MUST, 'd')), Box(3, 3, 5, 5, 7, 12, solid(MUST, 'd')), Box(3, 3, 4, 4, 12, 15, solid(RED, 'c'))], col=(26, 20, 4))
+def shrub(p, w=3, h=8, z0=0, trunk=0):
+    lm = faces(dots(p, 8, 8, 'c', 'f', 2), dots(p, 8, 8, 'c', 'b', 2), dots(p, 8, 8, 'c', 'g', 2))
+    bx = [Box(3, 3, 5, 5, 0, z0, solid(P_WOOD, 'b'))] if trunk else []
+    return bx + block(4 - w, 4 - w, 4 + w, 4 + w, z0, z0 + h, lm)
+def bigtree(p, trunk_h=10, crown=4, ch=12):
+    return [Box(3, 3, 5, 5, 0, trunk_h, faces(grain(P_WOOD, 2, 8, 'c', 'b', 2), grain(P_WOOD, 2, 8, 'c', 'b', 2), flat(P_WOOD, 'b')))] + block(4 - crown, 4 - crown, 4 + crown, 4 + crown, trunk_h, trunk_h + ch, faces(dots(p, 8, 8, 'c', 'f', 2), dots(p, 8, 8, 'c', 'b', 2), dots(p, 8, 8, 'c', 'g', 2))) + block(2, 2, 6, 6, trunk_h + ch, trunk_h + ch + 3, faces(dots(p, 4, 3, 'c', 'f', 2), dots(p, 4, 3, 'c', 'f', 2), dots(p, 4, 4, 'c', 'g', 2)))
+BLOSSOM = pal('pCBlossom', ramp((30, 18, 24)) + [(28, 12, 20), (31, 26, 29)]); AUTUMN = pal('pCAutumn', ramp((26, 12, 4)) + [(22, 8, 3), (30, 20, 6)])
+C = cat('GARDEN')
+item('HEDGE', '#', 60, C, block(0, 0, 8, 8, 0, 14, faces(dots(LEAF, 8, 8, 'c', 'f', 2), dots(LEAF, 8, 8, 'c', 'b', 2), dots(LEAF, 8, 8, 'c', 'g', 2))), col=(8, 22, 7))
+item('TOPIARY BALL', 'p', 140, C, [Box(2, 2, 6, 6, 0, 4, faces(panel(TERRA, 4, 4, 'b', 'c'), flat(TERRA, 'c'), flat(P_SOIL, 'a')))] + shrub(LEAF, 2, 6, 7, 1), col=(8, 22, 7))
+item('TOPIARY CONE', 'p', 160, C, [Box(2, 2, 6, 6, 0, 4, faces(panel(TERRA, 4, 4, 'b', 'c'), flat(TERRA, 'c'), flat(P_SOIL, 'a')))] + shrub(LEAF, 3, 4, 4) + shrub(LEAF, 2, 4, 8) + shrub(LEAF, 1, 4, 12), col=(8, 22, 7))
+item('RED FLOWER BED', 'Z', 70, C, block(0, 0, 8, 8, 0, 2, faces(flat(P_WOOD, 'b'), flat(P_WOOD, 'b'), flat(P_SOIL, 'b'))) + block(1, 1, 7, 7, 2, 5, faces(dots(LEAF, 6, 3, 'c', 'b', 2), dots(LEAF, 6, 3, 'c', 'b', 2), dots(RED, 6, 6, 'a', 'd', 2))), col=(26, 5, 5))
+item('YELLOW FLOWER BED', 'Z', 70, C, block(0, 0, 8, 8, 0, 2, faces(flat(P_WOOD, 'b'), flat(P_WOOD, 'b'), flat(P_SOIL, 'b'))) + block(1, 1, 7, 7, 2, 5, faces(dots(LEAF, 6, 3, 'c', 'b', 2), dots(LEAF, 6, 3, 'c', 'b', 2), dots(YELLOW, 6, 6, 'a', 'd', 2))), col=(30, 26, 4))
+item('TULIP BED', 'Z', 90, C, block(0, 0, 8, 8, 0, 2, faces(flat(STONE, 'b'), flat(STONE, 'b'), flat(P_SOIL, 'b'))) + [Box(1 + i * 2, 1 + j * 2, 2 + i * 2, 2 + j * 2, 2, 5 + ((i + j) & 1), solid(LEAF, 'c')) for i in range(3) for j in range(3)] + [Box(1 + i * 2, 1 + j * 2, 2 + i * 2, 2 + j * 2, 5 + ((i + j) & 1), 7 + ((i + j) & 1), solid([RED, P_PINK, YELLOW][(i + j) % 3], 'd')) for i in range(3) for j in range(3)], col=(30, 14, 22))
+item('ROSE BUSH', 'p', 110, C, shrub(LEAF, 3, 8) + [Box(1 + i * 2, 1 + ((i * 3) % 5), 2 + i * 2, 2 + ((i * 3) % 5), 8, 9, solid(RED, 'd')) for i in range(3)], col=(26, 5, 5))
+item('SHRUB', 'p', 50, C, shrub(LEAF2, 3, 7), col=(14, 24, 8))
+item('SUNDIAL', 'p', 220, C, [Box(2, 2, 6, 6, 0, 1, solid(STONE, 'b')), Box(3, 3, 5, 5, 1, 7, solid(STONE, 'c')), Box(1, 1, 7, 7, 7, 9, faces(flat(STONE, 'c'), flat(STONE, 'c'), M(P_GOLD, ['bccccccb', 'cbccccbc', 'ccbccbcc', 'cccbbccc', 'cccbbccc', 'ccbccbcc', 'cbccccbc', 'bccccccb']))), Box(3, 4, 5, 5, 9, 12, solid(P_GOLD, 'c'))], col=(28, 22, 6))
+item('WISHING WELL', 'p', 400, C, block(1, 1, 7, 7, 0, 6, faces(M(STONE, ['bcbcbc', 'cbcbcb', 'bcbcbc', 'cbcbcb', 'bcbcbc', 'cbcbcb']), M(STONE, ['cbcbcb', 'bcbcbc'] * 3), M(P_WATER, ['bbbbbb', 'bccccb', 'bcdccb', 'bccccb', 'bccdcb', 'bbbbbb']))) + [Box(1, 3, 2, 5, 6, 14, solid(P_WOOD, 'c')), Box(6, 3, 7, 5, 6, 14, solid(P_WOOD, 'c')), Box(0, 2, 8, 6, 14, 17, faces(flat(TERRA, 'c'), flat(TERRA, 'b'), stripes(TERRA, 8, 4, 'c', 'b', False, 1)))], col=(17, 17, 16))
+item('STONE LANTERN', 'l', 260, C, [Box(2, 2, 6, 6, 0, 2, solid(STONE, 'b')), Box(3, 3, 5, 5, 2, 10, solid(STONE, 'c')), Box(1, 1, 7, 7, 10, 11, solid(STONE, 'c')), Box(2, 2, 6, 6, 11, 15, faces(M(GLOW, ['bddb', 'dccd', 'dccd', 'bddb']), flat(GLOW, 'c'), flat(STONE, 'c'))), Box(1, 1, 7, 7, 15, 17, solid(STONE, 'd')), Box(3, 3, 5, 5, 17, 19, solid(STONE, 'd'))], col=(17, 17, 16))
+item('GARDEN STATUE', 'l', 650, C, statue(STONE, STONE, 17), col=(17, 17, 16))
+C = cat('TREES')
+item('BOXWOOD', 'p', 80, C, block(1, 1, 7, 7, 0, 9, faces(dots(LEAF, 6, 9, 'c', 'b', 2), dots(LEAF, 6, 9, 'c', 'b', 2), dots(LEAF, 6, 6, 'c', 'g', 2))), col=(8, 22, 7))
+item('OAK TREE', 'p', 350, C, bigtree(LEAF, 10, 4, 12), col=(8, 22, 7)); item('PALM TREE', 'p', 400, C, [Box(3, 3, 5, 5, 0, 20, faces(stripes(P_WOOD, 2, 8, 'c', 'b', True, 2), stripes(P_WOOD, 2, 8, 'c', 'b', True, 2), flat(P_WOOD, 'b')))] + [Box(0, 3, 8, 5, 20, 22, faces(dots(LEAF2, 8, 2, 'c', 'b', 2), flat(LEAF2, 'c'), M(LEAF2, ['bccccccb', 'cccccccc']))), Box(3, 0, 5, 8, 20, 22, faces(flat(LEAF2, 'c'), dots(LEAF2, 8, 2, 'c', 'b', 2), M(LEAF2, ['bc', 'cc', 'cc', 'cc', 'cc', 'cc', 'cc', 'cb']))), Box(2, 2, 6, 6, 22, 25, faces(dots(LEAF2, 4, 3, 'c', 'b', 2), dots(LEAF2, 4, 3, 'c', 'b', 2), dots(LEAF2, 4, 4, 'c', 'g', 2))), Box(3, 3, 5, 5, 19, 20, solid(BROWN, 'c'))], col=(14, 24, 8))
+item('PINE TREE', 'p', 300, C, [Box(3, 3, 5, 5, 0, 6, solid(P_WOOD, 'b'))] + shrub(LEAF, 4, 5, 6) + shrub(LEAF, 3, 5, 11) + shrub(LEAF, 2, 5, 16) + shrub(LEAF, 1, 5, 21), col=(8, 22, 7))
+item('BIRCH TREE', 'p', 320, C, [Box(3, 3, 5, 5, 0, 12, faces(M(P_WHITE, ['cc', 'ca', 'cc', 'ac', 'cc', 'cc', 'ca', 'cc']), M(P_WHITE, ['cc', 'cc', 'ac', 'cc', 'ca', 'cc', 'cc', 'ac']), flat(P_WHITE, 'b')))] + block(1, 1, 7, 7, 12, 22, faces(dots(LEAF2, 6, 8, 'c', 'f', 2), dots(LEAF2, 6, 8, 'c', 'b', 2), dots(LEAF2, 6, 6, 'c', 'g', 2))) + block(2, 2, 6, 6, 22, 25, faces(dots(LEAF2, 4, 3, 'c', 'f', 2), dots(LEAF2, 4, 3, 'c', 'f', 2), dots(LEAF2, 4, 4, 'c', 'g', 2))), col=(14, 24, 8))
+item('CHERRY BLOSSOM', 'p', 500, C, bigtree(BLOSSOM, 9, 4, 11), col=(30, 18, 24)); item('AUTUMN MAPLE', 'p', 380, C, bigtree(AUTUMN, 10, 4, 11), col=(26, 12, 4))
+item('WILLOW', 'p', 450, C, [Box(3, 3, 5, 5, 0, 14, solid(P_WOOD, 'b'))] + block(0, 0, 8, 8, 8, 20, faces(stripes(LEAF2, 8, 12, 'c', 'b', False, 1), stripes(LEAF2, 8, 12, 'c', 'b', False, 1), dots(LEAF2, 8, 8, 'c', 'g', 2))) + block(2, 2, 6, 6, 20, 23, faces(dots(LEAF2, 4, 3, 'c', 'b', 2), dots(LEAF2, 4, 3, 'c', 'b', 2), flat(LEAF2, 'g'))), col=(14, 24, 8))
+item('BONSAI', 'p', 280, C, [Box(1, 2, 7, 6, 0, 2, faces(panel(TERRA, 6, 2, 'b', 'c'), flat(TERRA, 'c'), flat(P_SOIL, 'a'))), Box(3, 3, 5, 5, 2, 6, solid(P_WOOD, 'b')), Box(1, 2, 5, 5, 6, 8, faces(dots(LEAF, 4, 2, 'c', 'b', 2), flat(LEAF, 'c'), dots(LEAF, 4, 3, 'c', 'g', 2))), Box(4, 3, 7, 6, 8, 10, faces(dots(LEAF, 3, 2, 'c', 'b', 2), flat(LEAF, 'c'), dots(LEAF, 3, 3, 'c', 'g', 2)))], col=(8, 22, 7))
+item('DEAD TREE', 'p', 90, C, [Box(3, 3, 5, 5, 0, 16, faces(grain(DARK, 2, 8, 'c', 'b', 2), grain(DARK, 2, 8, 'c', 'b', 2), flat(DARK, 'b'))), Box(1, 3, 3, 4, 10, 11, solid(DARK, 'c')), Box(1, 3, 2, 4, 11, 15, solid(DARK, 'c')), Box(5, 4, 7, 5, 12, 13, solid(DARK, 'c')), Box(6, 4, 7, 5, 13, 18, solid(DARK, 'c'))], col=(9, 6, 4))
+item('TREE STUMP', 'N', 30, C, block(1, 1, 7, 7, 0, 6, faces(grain(P_WOOD, 6, 6, 'c', 'b', 2), grain(P_WOOD, 6, 6, 'c', 'b', 2), M(PINE, ['bccccb', 'cbbbbc', 'cbccbc', 'cbccbc', 'cbbbbc', 'bccccb']))), col=(18, 11, 5))
+item('APPLE TREE', 'p', 420, C, bigtree(LEAF, 9, 4, 11) + [Box(1 + i * 2, 1 + ((i * 2) % 5), 2 + i * 2, 2 + ((i * 2) % 5), 12 + (i % 3) * 3, 13 + (i % 3) * 3, solid(RED, 'd')) for i in range(3)], col=(26, 5, 5))
+C = cat('YARD')
+item('SWING SET', 'U', 350, C, [Box(0, 1, 1, 2, 0, 18, solid(STEEL, 'c')), Box(0, 6, 1, 7, 0, 18, solid(STEEL, 'c')), Box(7, 1, 8, 2, 0, 18, solid(STEEL, 'c')), Box(7, 6, 8, 7, 0, 18, solid(STEEL, 'c')), Box(0, 3, 8, 5, 18, 19, solid(STEEL, 'd')), Box(2, 3, 3, 5, 6, 18, solid(GREY, 'b')), Box(5, 3, 6, 5, 6, 18, solid(GREY, 'b')), Box(2, 3, 6, 5, 5, 6, solid(RED, 'c'))], col=(20, 22, 26))
+item('SANDBOX', 'U', 120, C, block(0, 0, 8, 8, 0, 2, faces(flat(PINE, 'b'), flat(PINE, 'b'), flat(PINE, 'c'))) + block(1, 1, 7, 7, 1, 3, faces(flat(MUST, 'c'), flat(MUST, 'c'), dots(MUST, 6, 6, 'c', 'd', 3))) + [Box(2, 2, 3, 3, 3, 4, solid(RED, 'c'))], col=(26, 20, 4))
+item('DOG HOUSE', 'p', 180, C, block(1, 1, 7, 7, 0, 7, faces(M(RED, ['cccccc', 'ccbbcc', 'cbaabc', 'cbaabc', 'cbaabc', 'cbaabc', 'cccccc']), flat(RED, 'c'), flat(RED, 'c'))) + [Box(0, 0, 8, 8, 7, 9, solid(DARK, 'c')), Box(1, 1, 7, 7, 9, 11, solid(DARK, 'c')), Box(2, 2, 6, 6, 11, 12, solid(DARK, 'd'))], col=(26, 5, 5))
+item('BIRD FEEDER', 'p', 60, C, [Box(3, 3, 5, 5, 0, 1, solid(P_WOOD, 'b')), Box(4, 4, 5, 5, 1, 14, solid(P_WOOD, 'c')), Box(2, 2, 6, 6, 14, 15, solid(P_WOOD, 'c')), Box(3, 3, 5, 5, 15, 19, faces(M(MUST, ['cdcc', 'cccd', 'dccc', 'ccdc']), flat(MUST, 'c'), flat(P_WOOD, 'c'))), Box(2, 2, 6, 6, 19, 21, faces(stripes(RED, 4, 2, 'c', 'b', True, 1), flat(RED, 'c'), flat(RED, 'd')))], col=(18, 11, 5))
+item('WHEELBARROW', 'p', 70, C, [Box(1, 3, 3, 5, 0, 2, solid(DARK, 'b')), Box(0, 2, 7, 6, 2, 6, faces(flat(GREEN, 'c'), flat(GREEN, 'c'), M(P_SOIL, ['bbbbbbb', 'bcccccb', 'bccdccb', 'bbbbbbb']))), Box(7, 3, 8, 4, 0, 4, solid(P_WOOD, 'c')), Box(7, 4, 8, 5, 0, 4, solid(P_WOOD, 'c'))], 1, col=(6, 20, 8))
+item('GARDEN SHED', '#', 700, C, block(0, 0, 8, 8, 0, 14, faces(M(PINE, ['bbbbbbbb', 'bcccccbb', 'bcbbbcbb', 'bcbbbcbb', 'bcbbbcbb', 'bcbbbcbb', 'bcccccbb', 'bbbbbbbb']), stripes(PINE, 8, 14, 'c', 'b', True, 2), flat(PINE, 'c'))) + [Box(0, 0, 8, 8, 14, 16, solid(DARK, 'c')), Box(1, 1, 7, 7, 16, 18, solid(DARK, 'c')), Box(2, 2, 6, 6, 18, 19, solid(DARK, 'd'))], col=(26, 20, 11))
+item('COMPOST BIN', 'Y', 40, C, block(1, 1, 7, 7, 0, 9, faces(stripes(DARK, 6, 9, 'c', 'b', True, 3), stripes(DARK, 6, 9, 'c', 'b', True, 3), dots(P_SOIL, 6, 6, 'b', 'c', 2))), col=(9, 6, 4))
+item('RAIN BARREL', 'O', 60, C, block(1, 1, 7, 7, 0, 12, faces(stripes(TERRA, 6, 12, 'c', 'b', True, 4), stripes(TERRA, 6, 12, 'c', 'b', True, 4), M(P_WATER, ['bbbbbb', 'bccccb', 'bcdccb', 'bccccb', 'bccdcb', 'bbbbbb']))), col=(22, 11, 5))
+item('SCARECROW', 'p', 55, C, [Box(4, 4, 5, 5, 0, 12, solid(P_WOOD, 'c')), Box(1, 4, 8, 5, 9, 10, solid(P_WOOD, 'c')), Box(2, 3, 7, 6, 6, 12, faces(M(BLUE, ['ccbcc', 'cbcbc', 'ccbcc', 'cbcbc', 'ccbcc', 'ccccc']), flat(BLUE, 'c'), flat(BLUE, 'c'))), Box(3, 3, 6, 6, 12, 15, faces(M(MUST, ['cbc', 'ccc', 'cbc']), flat(MUST, 'c'), flat(MUST, 'c'))), Box(2, 2, 7, 7, 15, 16, solid(BROWN, 'c')), Box(3, 3, 6, 6, 16, 18, solid(BROWN, 'c'))], col=(26, 20, 4))
+item('BOULDER', 'O', 30, C, block(1, 1, 7, 7, 0, 5, faces(dots(STONE, 6, 5, 'c', 'b', 3), dots(STONE, 6, 5, 'c', 'b', 3), dots(STONE, 6, 6, 'c', 'd', 2))) + block(2, 2, 6, 6, 5, 8, faces(flat(STONE, 'c'), flat(STONE, 'b'), flat(STONE, 'd'))), col=(17, 17, 16))
+item('FLOWER POTS', 'p', 35, C, [Box(1, 1, 4, 4, 0, 3, solid(TERRA, 'c')), Box(4, 4, 7, 7, 0, 3, solid(TERRA, 'c')), Box(2, 2, 3, 3, 3, 6, solid(LEAF, 'c')), Box(5, 5, 6, 6, 3, 6, solid(LEAF, 'c')), Box(2, 2, 3, 3, 6, 7, solid(RED, 'd')), Box(5, 5, 6, 6, 6, 7, solid(YELLOW, 'd'))], col=(22, 11, 5))
+item('TRELLIS', '#', 90, C, [Box(0, 3, 8, 4, 0, 1, solid(WHITEW, 'c'))] + [Box(i, 3, i + 1, 4, 1, 16, solid(WHITEW, 'c')) for i in (0, 3, 7)] + [Box(0, 3, 8, 4, z, z + 1, solid(WHITEW, 'c')) for z in (5, 10, 15)] + [Box(1 + (i * 3) % 6, 3, 2 + (i * 3) % 6, 4, 2 + i * 2, 4 + i * 2, solid(LEAF, 'c')) for i in range(6)], col=(28, 28, 29))
+
+CAT_BUILD0 = 200   # the first 200 are the #76 batch; the rest the BUILD batch
+assert len(ITEMS) == 282, len(ITEMS)
 assert all(len([i for i in ITEMS if i['cat'] == c]) <= 12 for c in range(len(CATS))), 'a category holds at most 12 (the swatch row)'
 
 # ====================================================================== emit
@@ -411,23 +511,35 @@ def emit_bake():
 def emit_table(spr_n):
     L = ['// catalog.h - GENERATED by tools/make_catalog.py: THE CATALOG the room builder sells (200 looks for the tiles; see expand.h for what a look is).',
          '// catTab[id-1]: name, the map character the tile behaves as, price, first sprite (V_CAT0 + spr), turns to face away from the wall (4 sprites), category, swatch colour.',
-         'typedef struct { const char*nm; char ch; u16 price, spr; u8 rot, cat; u16 col; } CatItem;',
+         'typedef struct { const char*nm; char ch; u16 price, spr; u8 rot, cat; u16 col; u8 lk; } CatItem;   // lk: the look byte (wallMap) of this item: its number among the items of its character',
          '#define CAT_CATS %d' % len(CATS),
          'static const char* const catCatNm[CAT_CATS]={%s};' % ','.join('"%s"' % n for n, a in CATS),
          'static const u8 catCatAdult[CAT_CATS]={%s};   // (1: grown-ups only)' % ','.join(str(a) for n, a in CATS),
          'static const CatItem catTab[CAT_N]={']
     spr = 0
     for it in ITEMS:
-        L.append('  {"%s",\'%s\',%d,%d,%d,%d,RGB(%d,%d,%d)},' % (it['name'], it['ch'], it['price'], spr, it['rot'], it['cat'], *it['col'])); spr += 4 if it['rot'] else 1
+        L.append('  {"%s",\'%s\',%d,%d,%d,%d,RGB(%d,%d,%d),%d},' % (it['name'], it['ch'], it['price'], spr, it['rot'], it['cat'], *it['col'], it['lk'])); spr += 4 if it['rot'] else 1
     L.append('};')
     first = []; n = 0
     for c in range(len(CATS)): first.append(n); n += len([i for i in ITEMS if i['cat'] == c])
     first.append(n)
-    L.append('static const u8 catCatFirst[CAT_CATS+1]={%s};   // the items of category c are ids catCatFirst[c]+1 .. catCatFirst[c+1]' % ','.join(str(v) for v in first))
+    L.append('static const u16 catCatFirst[CAT_CATS+1]={%s};   // the items of category c are ids catCatFirst[c]+1 .. catCatFirst[c+1]' % ','.join(str(v) for v in first))
+    # the look byte -> id decoder: per map character, its items in order (catIdOf in main.c)
+    chs = sorted(set(it['ch'] for it in ITEMS)); idx = [255] * 128
+    for k, c in enumerate(chs): idx[ord(c)] = k
+    ids = []; cf = [0]
+    for c in chs: ids += [i + 1 for i, it in enumerate(ITEMS) if it['ch'] == c]; cf.append(len(ids))
+    L.append('#define CAT_CH_N %d' % len(chs))
+    L.append('static const u8 catChIdx[128]={%s};   // map character -> its row in catChFirst (255: no catalog item behaves as it)' % ','.join(str(v) for v in idx))
+    L.append('static const u16 catChFirst[CAT_CH_N+1]={%s};' % ','.join(str(v) for v in cf))
+    L.append('static const u16 catChIds[CAT_N]={%s};   // the ids, grouped by character: look byte b of character c is catChIds[catChFirst[row]+b-1]' % ','.join(str(v) for v in ids))
+    for n, a in CATS: L.append('#define CAT_C_%s %d' % (n.replace(' ', '_').replace('-', '_'), CATS.index((n, a))))
     assert spr == spr_n
     return '\n'.join(L) + '\n'
 
 def main():
+    cnt = {}
+    for it in ITEMS: cnt[it['ch']] = cnt.get(it['ch'], 0) + 1; it['lk'] = cnt[it['ch']]; assert it['lk'] <= 255
     bake, spr_n = emit_bake()
     open(os.path.join(ROOT, 'source', 'catalogart.h'), 'w').write(emit())
     open(os.path.join(ROOT, 'source', 'catalogbake.h'), 'w').write(bake)

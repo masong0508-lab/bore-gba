@@ -50,7 +50,8 @@ static int hgOk(void){
 // and only where the house can still be walked. 1 = placed
 static int hgLook(char c){   // a catalog look for a piece of furniture, one time in three (never the GROWN-UPS tab): the generated houses differ more
     if(hgRnd(3)) return 0; int n=0; for(int i=0;i<CAT_N;i++) if(catTab[i].ch==c&&!catCatAdult[catTab[i].cat]) n++;
-    if(!n) return 0; int k=hgRnd(n); for(int i=0;i<CAT_N;i++) if(catTab[i].ch==c&&!catCatAdult[catTab[i].cat]&&k--==0) return CAT_WP0+i+1; return 0; }
+    if(!n) return 0; int k=hgRnd(n); for(int i=0;i<CAT_N;i++) if(catTab[i].ch==c&&!catCatAdult[catTab[i].cat]&&k--==0) return catTab[i].lk; return 0; }
+static int hgLookNm(const char*nm){ for(int i=0;i<CAT_N;i++){ const char*a=catTab[i].nm,*b=nm; while(*a&&*a==*b){ a++; b++; } if(!*a&&!*b) return catTab[i].lk; } return 0; }   // a look by name
 static int hgPut(int x0,int y0,int x1,int y1,int side,char c){
     u16 cand[64]; int n=0;
     for(int y=y0;y<=y1;y++)for(int x=x0;x<=x1;x++){ int edge=side==1?y==y0:(x==x0||x==x1||y==y0||y==y1);
@@ -97,8 +98,9 @@ static void hgHouse(u32 seed,int style,int beds,int sep,int flags,int x0,int y0,
     static const u8 wMin[HS_N]={11,13,12,13,18}, wMax[HS_N]={13,16,16,17,22}, hMin[HS_N]={10,11,10,11,13}, hMax[HS_N]={11,13,12,13,16};
     int wd=wMin[style]+hgRnd(wMax[style]-wMin[style]+1), ht=hMin[style]+hgRnd(hMax[style]-hMin[style]+1);
     if(lw>=32&&(man||style==HS_FAMILY||style==HS_MODERN)){ wd+=4+hgRnd(5); ht+=2+hgRnd(3); }   // (a big lot: a bigger house)
-    int cw=lw-2-(man?2:0), ch=lh-4-(man?1:0); if(wd>cw) wd=cw; if(ht>ch) ht=ch; if(wd<10) wd=10; if(ht<9) ht=9;
-    int hx0=x0+(lw-wd)/2, hy1=y1-3, hy0=hy1-ht+1, hx1=hx0+wd-1;
+    int pool=(man||style==HS_MODERN)&&lw>=32&&lh>=22&&!bare&&hgRnd(2);   // a big MODERN or MANSION lot: one in two gets a pool in the front yard (the yard is 3 rows deeper for it)
+    int cw=lw-2-(man?2:0), ch=lh-4-(man?1:0)-(pool?3:0); if(wd>cw) wd=cw; if(ht>ch) ht=ch; if(wd<10) wd=10; if(ht<9) ht=9;
+    int hx0=x0+(lw-wd)/2, hy1=y1-(pool?6:3), hy0=hy1-ht+1, hx1=hx0+wd-1;
     if(lw-wd>=4) hx0+=hgRnd(3)-1, hx1=hx0+wd-1;   // (a little off the middle, when there is room)
     for(int y=hy0;y<=hy1;y++)for(int x=hx0;x<=hx1;x++) if(lifeMap[y][x]!='P') lifeMap[y][x]='.';   // (whatever stood there goes)
     int d=man?6:5; if(ht-d<5) d=ht-5; if(d<4) d=4;   // the back strip's depth (its rooms are d-1 tiles deep inside)
@@ -155,6 +157,12 @@ static void hgHouse(u32 seed,int style,int beds,int sep,int flags,int x0,int y0,
     // the yard
     if(flags&16){ gLine(x0+1,y1-1,x0+4,y1-1,'=',0); gPut(x1-3,y1-1,'M'); gPut(x1-2,y1-1,'M'); }   // a rail and a manual pad
     if(!bare){ int n=man?6:2; for(int i=0;i<n;i++){ int x=x0+1+hgRnd(lw-2), y=y0+1+hgRnd(lh-2); if(x>=hx0-1&&x<=hx1+1&&y>=hy0-1&&y<=hy1+1) continue; if(y>=y1-2) continue; if(lifeMap[y][x]=='.') lifeMap[y][x]='Z'; } }
+    if(pool){   // THE POOL: 5 x 2 of water with its tiled edge, on the side of the yard away from the front door; a ladder, two loungers
+        int side=hgFX>(x0+x1)/2, px0=side?x0+3:x1-7, px1=px0+4, py0=y1-4, py1=y1-3;
+        for(int y=py0-1;y<=py1+1;y++)for(int x=px0-1;x<=px1+1;x++){ int in=x>=px0&&x<=px1&&y>=py0&&y<=py1; lifeMap[y][x]='.'; floorMap[y][x]=(u8)(in?FL_W0:FL_COPING); }
+        lifeMap[py0][px0-1]='p'; wallMap[py0][px0-1]=(u8)hgLookNm("POOL LADDER");
+        int lx=side?px1+2:px0-2; if(lx>x0&&lx<x1){ for(int y=py0;y<=py1;y++) if(lifeMap[y][lx]=='.'){ lifeMap[y][lx]='N'; wallMap[y][lx]=(u8)hgLookNm(y==py0?"SUN LOUNGER":"STRIPED LOUNGER"); } }
+    }
     if(man){   // the garden fence: low walls round the lot, an open gateway at the front by the path (SECURITY GATES lock it)
         int gx=(x0+x1)/2;
         for(int x=x0;x<=x1;x++){ if(lifeMap[y0][x]=='.') lifeMap[y0][x]='w'; if((x<gx-2||x>gx+2)&&lifeMap[y1][x]=='.') lifeMap[y1][x]='w'; }

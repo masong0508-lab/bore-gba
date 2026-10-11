@@ -128,7 +128,7 @@ static int slPlaneVal(int plane,int i){ return flPlaneAt(slSrcF>=0?slSrcF:0,plan
 _Static_assert(FL_POOL>=4*SLOT_SZ-SLOT_HDR,"flPool (main.c) must hold every house that fits 4 save slots, or a saved house could fail to load: raise FL_POOL, or lower the 4-slot limit in houseSave on purpose");
 static void slEncRoom(SlW*w){
     slwPut(w,slRoomIdx);   // room index: 0 = the one room of a ROOM slot, a house numbers its floors
-    slwPut(w,3);
+    slwPut(w,4);   // format 4: an item's look byte is its number among its character's catalog items (catLk); 3 kept 55 + id
     for(int pl=0;pl<3;pl++){
         int n=0, cur=0;
         for(int i=0;i<MSZ;i++){
@@ -141,6 +141,7 @@ static void slEncRoom(SlW*w){
     }
 }
 // one plane of format 3: runs until the whole map is covered. Returns 1 if fine. apply=1 writes it into the map.
+static void slLooksOld(void){ for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ char c=lifeMap[y][x]; int b=wallMap[y][x]; if(c=='u'||!isLookCh(c)||b<56) continue; int id=b-55; wallMap[y][x]=(u8)((id<=200&&catTab[id-1].ch==c)?catTab[id-1].lk:0); } }   // a format 3 room: 55 + id -> the new look byte
 static void slWallSan(void){ for(int y=0;y<MH;y++)for(int x=0;x<MW;x++) if(wallMap[y][x]>=NWALL&&lifeMap[y][x]!='u'&&!catIdAt(x,y)) wallMap[y][x]=0; }   // (only a planter's byte, or an item's catalog look, may be past the wallpapers)
 static int slDecRoomPlane(SlR*c,int pl,int apply){
     int i=0;
@@ -158,9 +159,9 @@ static int slDecRoomPlane(SlR*c,int pl,int apply){
 static int slDecRoom(SlR*c,int apply){
     int idx=slrGet(c), fmt=slrGet(c); if(c->bad) return 0;
     if(idx!=slWantRoom) return 1;      // another floor of a house: not wanted now
-    if(fmt==3){
+    if(fmt==3||fmt==4){
         for(int pl=0;pl<3;pl++) if(!slDecRoomPlane(c,pl,apply)) return 0;
-        if(apply){ wDirty=1; slWallSan(); }
+        if(apply){ if(fmt==3) slLooksOld(); wDirty=1; slWallSan(); }
         return c->pos==c->len;
     }
     if(fmt!=1&&fmt!=2) return 0;
@@ -492,7 +493,7 @@ static void slThumb(int slot,int x0,int y0){   // the room of a slot at 1 pixel 
         if(tag!=SLC_ROOM){ r.pos+=cl; continue; }
         SlR c={r.p+r.pos,0,cl,0}; int idx=slrGet(&c), fmt=slrGet(&c); if(idx!=0||c.bad) return;
         int i=0;
-        if(fmt==3){   // tiles first (kept), then the floors drawn with the tiles on top
+        if(fmt==3||fmt==4){   // tiles first (kept), then the floors drawn with the tiles on top
             while(i<MSZ){ int n=slrGet(&c), t=slrGet(&c); if(c.bad||n==0) return; for(int k=0;k<n&&i<MSZ;k++) slTb[i++]=(u8)t; }
             i=0;
             while(i<MSZ){ int n=slrGet(&c), f=slrGet(&c); if(c.bad||n==0) return; for(int k=0;k<n&&i<MSZ;k++,i++) px(x0+i%MW,y0+i/MW,slThumbCol(slTb[i],f)); }

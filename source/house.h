@@ -488,7 +488,7 @@ static void hhBakeAll(void){
     hhSlotsFree();   // new tiles and palettes: every slot is reloaded when its Sim is next on screen
 }
 // ---- where members can stand ----
-static int hhWalk(int x,int y){ if(x<0||y<0||x>=MW||y>=MH) return 0; char c=lifeMap[y][x]; return c!='w'&&c!='W'&&tileH(x,y)<=3&&!(curFl&&floorMap[y][x]==FL_AIR); }   // (upstairs: not on open air)
+static int hhWalk(int x,int y){ if(x<0||y<0||x>=MW||y>=MH) return 0; char c=lifeMap[y][x]; return c!='w'&&c!='W'&&tileH(x,y)<=3&&!(curFl&&floorMap[y][x]==FL_AIR)&&!isWaterFl(floorMap[y][x]); }   // (upstairs: not on open air; never into a pool)
 static int hhTakenAt(int x,int y); static void hhTakenScan(const HhSim*self);
 static void hhPlace(HhSim*s,int k){   // somewhere free near the spawn point, spread out a little (never on someone else's tile)
     if(s>=hhM&&s<hhM+HH_MAX){ hhFl[s-hhM]=xo[XO_MULTIFL]?(u8)curFl:0; hhUp[s-hhM]=0; }

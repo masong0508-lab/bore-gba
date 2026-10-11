@@ -142,7 +142,7 @@ static const Venue venues[]={
 static const Venue* venueOf(int ct){ for(int i=0;i<NVEN;i++) if(venues[i].ct==ct) return &venues[i]; return 0; }
 static const Venue* venueHere(void){ if(!nbOk||nbT.cur>=NB_LOTS) return 0; const NbLot*L=&nbT.lot[nbT.cur]; return L->on&&L->kind==LKIND_COMM?venueOf(L->type):0; }
 // ---- the room ----
-static int catFind(const char*nm){ for(int i=0;i<CAT_N;i++){ const char*a=catTab[i].nm,*b=nm; while(*a&&*a==*b){ a++; b++; } if(!*a&&!*b) return CAT_WP0+i+1; } return 0; }   // a catalog look by name (catalog.h), as the wallMap byte
+static int catFind(const char*nm){ for(int i=0;i<CAT_N;i++){ const char*a=catTab[i].nm,*b=nm; while(*a&&*a==*b){ a++; b++; } if(!*a&&!*b) return catTab[i].lk; } return 0; }   // a catalog look by name (catalog.h), as the wallMap byte
 static int venueLook(int ct,char c){   // the props of a place wear the catalog looks that fit it (TACO BORE's stools and neon, the arcade's cabinets ...)
     switch(ct){
         case CT_TACO: return c=='h'?catFind("BAR STOOL"):c=='p'?catFind("PINK FLAMINGO"):c=='l'?catFind("NEON ARROW"):0;
@@ -173,6 +173,15 @@ static void venueBuild(int x0,int y0,int x1,int y1,int ct){   // nbTemplate: a w
     for(int x=cx-2;x<=cx+2;x++) gPut(x,ry0+3,'@');
     const int sp[8][2]={{rx0+1,ry0+1},{rx1-1,ry0+1},{rx0+1,ry1-1},{rx1-1,ry1-1},{rx0+1,my},{rx1-1,my},{rx0+2,ry1-1},{rx1-2,ry1-1}};
     for(int i=0;v->props[i]&&i<8;i++){ int x=sp[i][0], y=sp[i][1]; if(x>rx0&&x<rx1&&y>ry0&&y<ry1&&lifeMap[y][x]=='.'&&!(x==cx&&y==ry1-1)){ gPut(x,y,v->props[i]); wallMap[y][x]=(u8)venueLook(ct,v->props[i]); } }
+    if(ct==CT_POOL){   // THE COMMUNITY POOL: a real pool in the middle of the hall (water, its tiled edge), a ladder, the diving board, loungers and the lifeguard's chair
+        int px0=rx0+3, px1=rx1-3, py0=ry0+5, py1=ry1-4; if(px1-px0<2||py1-py0<1) return; if(px1>px0+9) px1=px0+9; if(py1>py0+4) py1=py0+4;   // (at most 10 x 5 of water)
+        for(int y=py0-1;y<=py1+1;y++)for(int x=px0-1;x<=px1+1;x++){ int in=x>=px0&&x<=px1&&y>=py0&&y<=py1; lifeMap[y][x]='.'; floorMap[y][x]=(u8)(in?FL_W0:FL_COPING); }
+        gPut(px1+1,py0,'p'); wallMap[py0][px1+1]=(u8)catFind("POOL LADDER");
+        gPut(px0-1,py1,'p'); wallMap[py1][px0-1]=(u8)catFind("DIVING BOARD");
+        for(int x=px0;x<=px1&&x<=px0+3;x+=2) if(py1+2<ry1&&lifeMap[py1+2][x]=='.'){ gPut(x,py1+2,'N'); wallMap[py1+2][x]=(u8)catFind(x==px0?"SUN LOUNGER":"STRIPED LOUNGER"); }
+        if(px1+2<rx1&&lifeMap[py0-1][px1+2]=='.'){ gPut(px1+2,py0-1,'h'); wallMap[py0-1][px1+2]=(u8)catFind("LIFEGUARD CHAIR"); }
+        if(px0-2>rx0&&lifeMap[py0-1][px0-2]=='.'){ gPut(px0-2,py0-1,'p'); wallMap[py0-1][px0-2]=(u8)catFind("BEACH UMBRELLA"); }
+    }
 }
 // ---- the counter, drawn by code ----
 static void venueDrawCounter(int sx,int sy,int t){

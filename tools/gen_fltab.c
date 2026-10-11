@@ -6,7 +6,6 @@
 typedef uint8_t u8; typedef uint16_t u16; typedef uint32_t u32;
 #define CA 8
 #define CB (CA/2)
-#define NFL 14
 #define RGB(r,g,b) ((u16)((r)|((g)<<5)|((b)<<10)))
 static u16 shade(u16 c,int n){ int r=c&31,g=(c>>5)&31,b=(c>>10)&31; return RGB(r*n/16,g*n/16,b*n/16); }
 typedef struct { const char*nm; u16 c[4]; const char*p[8]; } Tex;
@@ -15,23 +14,8 @@ typedef struct { const char*nm; u16 c[4]; const char*p[8]; } Tex;
 #define PN_CONC  "00000100","02000000","00001000","00000020","00100000","00000002","20000000","00020100"
 #define PN_TILE  "11111111","12001200","10001000","10001000","11111111","12001200","10001000","10001000"
 #define PN_STEEL "00000000","01110000","00220000","00000000","00000000","00000111","00000022","00000000"
-static const Tex flTex[NFL]={
- {"TAN CHECK",{RGB(26,21,14),0,0,0},{PN_FLAT}},
- {"BEIGE CARPET",{RGB(24,21,16),RGB(21,18,13),RGB(27,24,19),0},{PN_NOISE}},
- {"TEAL CARPET",{RGB(6,16,16),RGB(4,12,13),RGB(8,19,19),0},{PN_NOISE}},
- {"CHECKER LINO",{RGB(29,29,28),RGB(5,5,8),0,0},{"00001111","00001111","00001111","00001111","11110000","11110000","11110000","11110000"}},
- {"WOOD PLANKS",{RGB(20,13,6),RGB(12,7,3),RGB(23,16,8),0},{"11111111","10020000","10000200","10002000","11111111","02001000","00201000","00001002"}},
- {"PINK TILE",{RGB(28,18,20),RGB(30,28,27),RGB(30,22,23),0},{PN_TILE}},
- {"BLUE TILE",{RGB(9,19,26),RGB(28,29,30),RGB(14,24,29),0},{PN_TILE}},
- {"CONCRETE",{RGB(15,15,14),RGB(18,18,17),RGB(12,12,11),0},{PN_CONC}},
- {"STEEL PLATE",{RGB(12,14,16),RGB(20,22,24),RGB(7,8,10),0},{PN_STEEL}},
- {"METAL GRATE",{RGB(4,5,7),RGB(17,18,20),RGB(10,11,13),0},{"11111111","10001000","10201020","10001000","11111111","10001000","10201020","10001000"}},
- {"HAZARD",{RGB(30,25,2),RGB(4,4,5),0,0},{"00000000","00000000","11111111","11111111","00000000","00000000","11111111","11111111"}},
- {"GREEN LINO",{RGB(12,19,10),RGB(14,22,12),RGB(10,16,8),0},{PN_NOISE}},
- {"OIL STAINED",{RGB(14,14,13),RGB(8,8,9),RGB(11,11,11),0},{"00000000","00022000","00211200","00022100","00002000","00000000","00000000","00000000"}},
- {"RED TILE",{RGB(22,8,5),RGB(14,6,4),RGB(25,11,7),0},{PN_TILE}},
-};
-static const u8 flVs[NFL]={14,15,15,16,14,15,15,15,15,15,15,15,15,15};   // shade (of 16) for the odd tiles of a checkerboard of tiles
+#define PN_GRASS_UNUSED 0
+#include "../source/floorart.h"
 static const u8 rTab0=CA;
 static u16 tab[NFL][2][2*CB+1][2*CA+1];
 int main(void){
