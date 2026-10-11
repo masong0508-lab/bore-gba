@@ -1242,6 +1242,7 @@ static void jtCall(void){   // the phone: CALL SOMEONE OVER (anyone at home, fro
 static int hhVisitorHere(int m){ if(m<hhN||curFl) return 0; int k=HH_MAX-1-m; return k>=0&&k<TW_N&&twHas[k]&&twOn[k]; }   // slot m (past the household) holds a neighbour on the lot
 static int hhNearest(void){ if(xo[XO_MULTIFL]?pkHome>=0:curFl) return -1; int best=-1, bd=1<<30; for(int m=0;m<HH_MAX;m++){ if(m<hhN){ if(hhM[m].act==HA_AWAY) continue; } else if(!hhVisitorHere(m)) continue; s32 dx=hhM[m].fx-lfx, dy=hhM[m].fy-lfy; int d=(int)((dx*dx+dy*dy)>>8); if(d<bd&&d<=(380*380>>8)&&wallClear(lfx,lfy,hhM[m].fx,hhM[m].fy)){ bd=d; best=m; } } return best; }   // within 1.5 tiles (household Sims and the neighbours who drop by), never through a wall
 static void liveInvalidate(void);
+static int wdCanSell(int stg); static void wdSellTo(const char*nm,int stg);   // weed.h: SELL A BAG to someone who dropped by
 static int hhVisitorTalk(int m,int useLabel){   // R next to a neighbour who dropped by (or an inmate): TALK / JOKE / COMPLIMENT / HIGH FIVE, and the mean ones: TEASE / INSULT, SHOVE / SLAP for teens and up (needs and mood only: they are not in the relationship tables)
     HhSim*s=m>=HH_MAX?&inmS[m-HH_MAX]:&hhM[m];
     static const char* it[10] EWRAM_BSS; static char tl[32] EWRAM_BSS, nt[28] EWRAM_BSS; int id[10], cat[10], n=0;
@@ -1250,6 +1251,7 @@ static int hhVisitorTalk(int m,int useLabel){   // R next to a neighbour who dro
     if((useLabel>0&&useLabel<6)||useLabel>=8){ it[n]=useLabel==8?"USE THE PHONE":useLabel>=11?useNm2[useLabel-11]:useLabel>=9?"TUNE THE RADIO":useNm[useLabel]; cat[n]=4; id[n++]=-1; }
     int big=stage>=AG_TEEN&&s->stage>=AG_TEEN;   // (shoving and slapping: teens and up, both of you)
     for(int i=0;i<8;i++) if(i<6||big){ it[n]=vn[i]; cat[n]=vcat[i]; id[n++]=i; }
+    if(m<HH_MAX&&wdCanSell(s->stage)){ it[n]="SELL A BAG"; cat[n]=4; id[n++]=20; }   // weed.h
     { char*e=simCat(tl,s->name); simCat(e,m>=HH_MAX?"  INMATE":"  NEIGHBOR"); }
     int c=pieCats(tl,it,cat,n); liveInvalidate();
     while((~REG_KEYINPUT)&0x3FF) vsync();
@@ -1257,6 +1259,7 @@ static int hhVisitorTalk(int m,int useLabel){   // R next to a neighbour who dro
     if(id[c]<0) return 0;
     int px=(int)(lfx>>8), py=(int)(lfy>>8), sx=(int)(s->fx>>8), sy=(int)(s->fy>>8);
     s->hd=(u8)(px>sx?0:px<sx?8:py>sy?4:12); lhd=(s->hd+8)&15;
+    if(id[c]==20){ wdSellTo(s->name,s->stage); return 1; }
     int i=id[c], gain=i==1?10:i==0?8:6;
     if(i>=4){   // a mean one: it lands. They are hurt or angry; a neighbour shoved or slapped goes home, an inmate may hit back
         static const char* const said[4]={" GOT TEASED"," LOOKS HURT"," GOT SHOVED"," GOT SLAPPED"};
@@ -1289,6 +1292,7 @@ static int hhSocR(int useLabel){   // 1 = handled (a social, or the menu was clo
     for(int i=0;i<SC_N;i++) if(socAllowed(a,b,i)){ it[n]=i==SC_PUNCH?fkMove(a,"PUNCH"):socT[i].name; cat[n]=socCat[i]; id[n++]=i; }
     if(uGuest(b)){   // a neighbour: they can be asked to live here, or sent home (townrel.h)
         if(nrCanAsk(a,b)){ it[n]="ASK TO MOVE IN"; cat[n]=0; id[n++]=-3; }
+        if(wdCanSell(s->stage)){ it[n]="SELL A BAG"; cat[n]=4; id[n++]=-5; }   // weed.h
         it[n]="SAY GOODBYE"; cat[n]=0; id[n++]=-4; }
     { char*e=simCat(tl,s->name); *e++=' '; *e++=' '; e=simCat(e,relWord(a,b)); e=simCat(e,"  HP "); simCatN(e,s->hp); }
     if(!n){ lnote="NOTHING TO DO HERE"; lnoteT=50; return 1; }
@@ -1298,6 +1302,7 @@ static int hhSocR(int useLabel){   // 1 = handled (a social, or the menu was clo
     if(id[c]==-2) return slfMenu();   // self.h
     if(id[c]==-3){ nrAskIn(a,b); return 1; }
     if(id[c]==-4){ nrBye(b); return 1; }
+    if(id[c]==-5){ wdSellTo(s->name,s->stage); return 1; }
     if(id[c]<0) return 0;
     int px=(int)(lfx>>8), py=(int)(lfy>>8), sx=(int)(s->fx>>8), sy=(int)(s->fy>>8);
     s->hd=(u8)(px>sx?0:px<sx?8:py>sy?4:12); lhd=(s->hd+8)&15;

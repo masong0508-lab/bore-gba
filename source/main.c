@@ -2324,7 +2324,7 @@ static inline int isWinCh(char c){ return c=='E'||c=='e'||c=='f'; }   // the win
 static int tileH(int tx,int ty){   // surface height in px (ramps: their highest point). Grind height is 6: rails, ledges and benches
     if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
     char c=lifeMap[ty][tx];
-    return (c=='j')?2*CC: (c=='n')?CC: (c=='#'||c=='F'||c=='W'||c=='H'||isWinCh(c))?2*CC: (c=='X'||c=='Y')?SOLID_H: (c=='O')?BARREL_H: (c=='b')?2*CC: (c=='m')?5: (c=='w'||c=='T'||c=='S'||c=='C'||c=='t'||c=='h'||c=='d'||c=='l'||c=='p'||c=='i'||c=='o'||c=='y'||c=='G'||c=='V'||c=='U'||c=='Q'||c=='A'||c=='v'||c=='c'||c=='q')?CC: (c=='='||c=='L'||c=='N'||c=='Z'||c=='K'||c=='J')?GRIND_H: (c=='I'||c=='R'||c=='g')?6: (c=='M')?3: isRamp(c)?rampTop(tx,ty,c): 0;   // X funbox and Y trash can SOLID_H, O barrel BARREL_H, rail / ledge / bench / Z planter / K table / J jersey GRIND_H (rampdata.h), phone / radio / counter 6, M manual pad 3
+    return (c=='j')?2*CC: (c=='n')?CC: (c=='#'||c=='F'||c=='W'||c=='H'||isWinCh(c))?2*CC: (c=='X'||c=='Y')?SOLID_H: (c=='O')?BARREL_H: (c=='b')?2*CC: (c=='m')?5: (c=='w'||c=='T'||c=='S'||c=='C'||c=='t'||c=='h'||c=='d'||c=='l'||c=='p'||c=='i'||c=='o'||c=='y'||c=='G'||c=='V'||c=='U'||c=='Q'||c=='A'||c=='v'||c=='c'||c=='q')?CC: (c=='='||c=='L'||c=='N'||c=='Z'||c=='K'||c=='J')?GRIND_H: (c=='I'||c=='R'||c=='g'||c=='&')?6: (c=='u')?CC: (c=='M')?3: isRamp(c)?rampTop(tx,ty,c): 0;   // X funbox and Y trash can SOLID_H, O barrel BARREL_H, rail / ledge / bench / Z planter / K table / J jersey GRIND_H (rampdata.h), phone / radio / counter 6, M manual pad 3
 }
 static inline int isGrindH(int h){ return h==GRIND_H||h==6; }   // a surface you can grind: the skate pieces (GRIND_H) and the old 6 px things (phone, radio, counter)
 static int surfH(s32 fx,s32 fy){   // surface height at an exact position (1/256 tiles): same as tileH, but ramps slope
@@ -2477,15 +2477,15 @@ static int numText(int x,int y,int n,u16 c){
 // lifeMap = what stands on each tile, floorMap = floor style under it, wallMap = wallpaper on it (for wall tiles).
 enum { T_ROOM, T_WALL, T_FLOOR, T_ITEM, T_ERASE, NTOOL };
 static int eTool, eAct, eAx, eAy, eFl, eWp, eOb;   // editor: tool, rectangle anchor set?, anchor tile, chosen floor / wallpaper / item
-#define NOBJ 57   // (44 is the WORK MARKER 'x'; 42 and 43, the COMMUNITY FLAG 'a' and the SKATE FLAG 'k', are drawn by code, see FLAGS below, and stay the LAST TWO of MISC)
+#define NOBJ 58   // (44 is the WORK MARKER 'x'; 42 and 43, the COMMUNITY FLAG 'a' and the SKATE FLAG 'k', are drawn by code, see FLAGS below, and stay the LAST TWO of MISC)
 #define OB_LAUNCH 17   // launch ramp turns like the kicker: '9'..'<'
 #define OB_KICKER 10   // palette slots whose char carries a turn (+eRot): kicker '1'..'4', quarter pipe '5'..'8'
 #define OB_QPIPE 11
 #define OB_HALF 47   // the HALFPIPE: a builder shortcut that lays two quarter pipes facing each other (see edHalf); it is never a tile of its own
 static int eRot;   // editor: which way the next ramp faces (0 S, 1 E, 2 N, 3 W)
-static const char palCh[NOBJ]={'.','w','W','#','=','F','T','D','B','P','1','5','L','N','S','H','C','9','X','O','Y','Z','K','J','M','G','V','U','^','~','Q','I','R','A','v','b','c','q','m','E','e','f','a','k','x','n','j','%','r','t','h','d','l','p','i','o','y'};
-static const char* const palNm[NOBJ]={"CLEAR","LOW WALL","WALL","CRATE","RAIL","FRIDGE","TOILET","DOOR","BOARD","SPAWN","KICKER","Q PIPE","LEDGE","BENCH","BED","SHOWER","SOFA","LAUNCH","FUNBOX","BARREL","TRASH CAN","PLANTER","PICNIC","JERSEY","MANUAL PAD","WATER PIPE","LAVA LAMP","BEANBAG","STAIRS UP","STAIRS DOWN","DEADSET 3THOUSAND VYBE","PHONE","RADIO","SOUND SYSTEM","TV","BOOKSHELF","COFFEE MAKER","AQUARIUM","TREADMILL","WINDOW","DARK WINDOW","STRIP WINDOW","COMMUNITY FLAG","SKATE FLAG","WORK MARKER","SECURITY CAMERA","SECURITY GATE","HALFPIPE","RUG","DINING TABLE","CHAIR","DESK","FLOOR LAMP","HOUSEPLANT","DRESSER","FIREPLACE","KITCHEN COUNTER"};
-static const u16 palCol[NOBJ]={RGB(26,21,14),RGB(8,20,22),RGB(10,22,24),RGB(8,9,20),RGB(31,30,16),RGB(31,31,31),RGB(30,28,18),RGB(14,9,5),RGB(26,10,6),RGB(28,10,8),RGB(24,17,9),RGB(27,19,11),RGB(20,20,22),RGB(25,18,9),RGB(10,14,28),RGB(22,28,30),RGB(26,18,9),RGB(8,14,24),RGB(18,16,24),RGB(24,6,5),RGB(12,18,14),RGB(20,10,6),RGB(25,18,9),RGB(22,22,24),RGB(30,26,5),RGB(10,24,14),RGB(24,8,26),RGB(18,8,22),RGB(24,22,18),RGB(12,11,10),RGB(6,20,31),RGB(26,6,6),RGB(20,20,22),RGB(12,13,16),RGB(8,14,26),RGB(18,11,5),RGB(22,12,4),RGB(6,18,28),RGB(14,14,18),RGB(12,22,30),RGB(5,10,14),RGB(20,28,31),RGB(6,24,28),RGB(31,18,4),RGB(31,24,4),RGB(20,21,24),RGB(14,15,18),RGB(27,19,11),RGB(23,7,8),RGB(21,13,6),RGB(27,6,6),RGB(20,13,7),RGB(30,25,11),RGB(9,22,9),RGB(21,13,6),RGB(20,8,6),RGB(24,24,26)};
+static const char palCh[NOBJ]={'.','w','W','#','=','F','T','D','B','P','1','5','L','N','S','H','C','9','X','O','Y','Z','K','J','M','G','V','U','^','~','Q','I','R','A','v','b','c','q','m','E','e','f','a','k','x','n','j','%','r','t','h','d','l','p','i','o','y','u'};
+static const char* const palNm[NOBJ]={"CLEAR","LOW WALL","WALL","CRATE","RAIL","FRIDGE","TOILET","DOOR","BOARD","SPAWN","KICKER","Q PIPE","LEDGE","BENCH","BED","SHOWER","SOFA","LAUNCH","FUNBOX","BARREL","TRASH CAN","PLANTER","PICNIC","JERSEY","MANUAL PAD","WATER PIPE","LAVA LAMP","BEANBAG","STAIRS UP","STAIRS DOWN","DEADSET 3THOUSAND VYBE","PHONE","RADIO","SOUND SYSTEM","TV","BOOKSHELF","COFFEE MAKER","AQUARIUM","TREADMILL","WINDOW","DARK WINDOW","STRIP WINDOW","COMMUNITY FLAG","SKATE FLAG","WORK MARKER","SECURITY CAMERA","SECURITY GATE","HALFPIPE","RUG","DINING TABLE","CHAIR","DESK","FLOOR LAMP","HOUSEPLANT","DRESSER","FIREPLACE","KITCHEN COUNTER","GROW PLANTER"};
+static const u16 palCol[NOBJ]={RGB(26,21,14),RGB(8,20,22),RGB(10,22,24),RGB(8,9,20),RGB(31,30,16),RGB(31,31,31),RGB(30,28,18),RGB(14,9,5),RGB(26,10,6),RGB(28,10,8),RGB(24,17,9),RGB(27,19,11),RGB(20,20,22),RGB(25,18,9),RGB(10,14,28),RGB(22,28,30),RGB(26,18,9),RGB(8,14,24),RGB(18,16,24),RGB(24,6,5),RGB(12,18,14),RGB(20,10,6),RGB(25,18,9),RGB(22,22,24),RGB(30,26,5),RGB(10,24,14),RGB(24,8,26),RGB(18,8,22),RGB(24,22,18),RGB(12,11,10),RGB(6,20,31),RGB(26,6,6),RGB(20,20,22),RGB(12,13,16),RGB(8,14,26),RGB(18,11,5),RGB(22,12,4),RGB(6,18,28),RGB(14,14,18),RGB(12,22,30),RGB(5,10,14),RGB(20,28,31),RGB(6,24,28),RGB(31,18,4),RGB(31,24,4),RGB(20,21,24),RGB(14,15,18),RGB(27,19,11),RGB(23,7,8),RGB(21,13,6),RGB(27,6,6),RGB(20,13,7),RGB(30,25,11),RGB(9,22,9),RGB(21,13,6),RGB(20,8,6),RGB(24,24,26),RGB(10,22,8)};
 static signed char palLut[256] EWRAM_BSS; static u8 palLutOk;   // tile char -> palette slot (or -1), built on first use: palIdx() runs for every tile of the minimap, so it must be O(1) even with 100+ items
 static int palIdx(char c){
     if(!palLutOk){ for(int i=0;i<256;i++) palLut[i]=-1; for(int i=NOBJ-1;i>=0;i--) palLut[(u8)palCh[i]]=(signed char)i;
@@ -2497,10 +2497,10 @@ static char edObjCh(void){ if(eOb==OB_HALF) return (char)('5'+eRot); char c=palC
 #define DS_PRICE 75000
 #define NCAT 8
 static const char* const catNm[NCAT]={"SEAT","HOME","TECH","SKATE","DECOR","WALLS","MISC","REWARDS"};
-static const u8 catN[NCAT]={5,9,5,11,7,8,8,4};
+static const u8 catN[NCAT]={5,10,5,11,7,8,8,4};
 static int catCnt(int c){ return (c==6&&!nbFlagOk())?catN[c]-2:catN[c]; }   // the two FLAGS (the end of MISC) only show in the palette while the town view's BUILD has a free lot open
-static const u8 catItems[NCAT][12]={ {13,16,27,22,50}, {5,6,14,15,36,49,51,54,56}, {31,32,26,25,34}, {3,4,10,11,12,17,18,19,23,24,47}, {20,21,35,48,52,53,55}, {1,2,7,28,29,39,40,41}, {0,8,9,44,45,46,42,43}, {37,38,33,30} };   // (the last row is REWARDS: aquarium, treadmill, sound system, DeadSet)
-static const u32 palPrice[NOBJ]={0,50,100,120,250,1200,600,250,0,0,450,900,300,350,1500,1100,1400,700,800,80,60,150,700,200,150,400,250,300,900,900,DS_PRICE,200,150,2500,1800,600,250,1000,1500,400,450,500,0,0,0,300,200,3600,120,350,150,500,200,120,450,1200,700};   // simoleons: a starter room (bed, fridge, toilet, shower, sofa, TV) is about 8000 of the 15000 you start with
+static const u8 catItems[NCAT][12]={ {13,16,27,22,50}, {5,6,14,15,36,49,51,54,56,57}, {31,32,26,25,34}, {3,4,10,11,12,17,18,19,23,24,47}, {20,21,35,48,52,53,55}, {1,2,7,28,29,39,40,41}, {0,8,9,44,45,46,42,43}, {37,38,33,30} };   // (the last row is REWARDS: aquarium, treadmill, sound system, DeadSet)
+static const u32 palPrice[NOBJ]={0,50,100,120,250,1200,600,250,0,0,450,900,300,350,1500,1100,1400,700,800,80,60,150,700,200,150,400,250,300,900,900,DS_PRICE,200,150,2500,1800,600,250,1000,1500,400,450,500,0,0,0,300,200,3600,120,350,150,500,200,120,450,1200,700,350};   // simoleons: a starter room (bed, fridge, toilet, shower, sofa, TV) is about 8000 of the 15000 you start with
 static int edCatOf(int idx,int*pos){ for(int c=0;c<NCAT;c++) for(int j=0;j<catCnt(c);j++) if(catItems[c][j]==idx){ if(pos) *pos=j; return c; } if(pos) *pos=0; return 0; }
 static void edItemStep(int d){ int p, c=edCatOf(eOb,&p); p=(p+d+catCnt(c))%catCnt(c); eOb=catItems[c][p]; }   // L / R: the next item of this category
 static void edCatStep(int d){ int c=(edCatOf(eOb,0)+d+NCAT)%NCAT; eOb=catItems[c][0]; }                  // SELECT + L / R: the next category
@@ -3089,7 +3089,8 @@ static void trickName(int hs,int grab,int perfect){
     p[-1]=0; lnote=lnBuf; lnPerf=(u8)perfect;
 }
 static void swName(void){ int n=0; while(lnBuf[n]) n++; if(n>15) return; for(int i=n;i>=0;i--) lnBuf[i+7]=lnBuf[i]; const char*q="SWITCH "; for(int i=0;i<7;i++) lnBuf[i]=q[i]; }
-static void hhStart(void); static void hhTick(void); static int hhSocR(int useLabel); static int hhCallFloors(void); static int petR(void);   // house.h (included further down, next to the drawing it hooks into)
+static void drawPlanter(int sx,int sy,int x,int y,int t); static void drawPlanterS(int sx,int sy,int st,int wa,int sn,int t); static void drawDispCounter(int sx,int sy,int t);   // weed.h
+static void hhStart(void); static void hhTick(void); static int hhSocR(int useLabel); static int hhCallFloors(void); static int petR(void); static int wdUse(void); static void wdTick(void);   // house.h (included further down, next to the drawing it hooks into)
 static void drawCounter(int sx,int sy,int t); static void dbgMenu(void); static void wpPre(u16*kp,u16*pp); static void fgPre(u16*kp,u16*pp); static int slfMenu(void); static void slfFx(void); static int slfPose(void); static void fgDraw(void); static int fgGate(u16*pr); static int fgRcNow(int*r); static void wpDraw(void); static void wpConfiscate(void);   // weapons.h
 // ---- COLLECTIBLES (like THPS): the letters S K A T E and one hidden tape float over the floor of a skate lot. Touch one to take it. ----
 // Nothing is saved and no map tile is used: lifeInit scatters them over empty floor every run (a new spot each time), so they cost a few bytes of EWRAM
@@ -3297,7 +3298,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
     fxTick();   // ghosts and weather (fx.h): every step, also while you lie dead
     if(!ldead){   // needs: hunger and bladder, then how they (and the skating) make the skater feel
         if(stage==AG_BABY){ if(lfood<70) lfood=70; if(lbl>30) lbl=30; if(sNrg<60) sNrg=60; if(sHyg<60) sHyg=60; if(sCom<60) sCom=60; }   // looked after
-        moodTick(); simsTick(pr,(int)(lfx>>8),(int)(lfy>>8)); hhTick(); phTick(); stTick(); homeTick();
+        moodTick(); simsTick(pr,(int)(lfx>>8),(int)(lfy>>8)); hhTick(); phTick(); stTick(); homeTick(); wdTick();
         if(gGrow){ gGrow=0; setStage(stage+1); bakeSprites(); lnote=growNote[stage]; lnoteT=120; lstun=lstun>30?lstun:30; lsp=0; }
         { int fe=oFoodEvery(), we=oWcEvery();   // FOOD AND WC option
           if(fe&&lfr%fe==0&&lfood>0) lfood--;
@@ -3314,6 +3315,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
             if(dx&&dy&&wallTall(lifeMap[ty][tx-dx])&&wallTall(lifeMap[ty-dy][tx])) continue;   // round a corner of two walls: the other side, out of reach
             char c=lifeMap[ty][tx]; if(c=='F') nf=1; if(c=='T') nt=1; if(c=='S') nb=1; if(c=='H') nh=1; if(c=='C'||c=='U') nc=1; if(c=='G') np=1; if(c=='Q') nq=1; if(c=='I') nph=1; if(c=='R') nrd=1; if(c=='A') nsy=1; if(c=='v') ntv=1; if(c=='b') nbk=1; if(c=='c') ncf=1; if(c=='q') naq=1; if(c=='m') ntm=1; if(c=='W'&&prFence(tx,ty)) nfe=1; }
         lnear=nf?1:(nt?2:(nb?3:(nh?4:(np?6:(nq?7:(nph?8:(nrd?9:(nsy?10:(ntv?11:(nbk?12:(ncf?13:(naq?14:(ntm?15:(nfe?16:(nc?5:0)))))))))))))));   // 7 the DeadSet   // 1 fridge, 2 toilet, 3 bed, 4 shower, 6 water pipe, 5 sofa or beanbag
+        if((pr&K_R)&&lstun<=0&&lz<=fh&&!simAct&&!lskate&&wdUse()) pr&=~K_R;   // weed.h: a GROW PLANTER or the dispensary counter in reach
         if((pr&K_R)&&lstun<=0&&lz<=fh&&!simAct&&!lskate&&petR()) pr&=~K_R;   // petui.h: next to a pet (or a puddle), unless a Sim is nearer
         if((pr&K_R)&&lstun<=0&&lz<=fh&&!simAct&&hhSocR(lnear==16?0:lnear)) pr&=~K_R;   // next to a household Sim: the social menu (it offers the furniture too)
         if((pr&K_R)&&!lnear&&lstun<=0&&lz<=fh&&!simAct&&hhCallFloors()) pr&=~K_R;   // floors step 9: R next to the stairs calls the Sims on the other floors to you
@@ -3748,6 +3750,8 @@ static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
             if((ed&&c=='B')||(!ed&&!lhave&&ox==BDX&&oy==BDY)) blitItem(V_BOARD,sx,sy-(ed?0:((lfr>>4)&1)));   // the skateboard pickup, bobbing
             if(ed&&c=='P') drawSpawn(sx,sy+1);   // little person = spawn
             if(c=='g') drawCounter(sx,sy+1,(int)(lfr>>3));   // the arms shop counter (armsshop.h)
+            if(c=='u') drawPlanter(sx,sy+1,ox,oy,(int)(lfr>>3));   // weed.h: the GROW PLANTER (its plant is the tile's wallMap byte)
+            if(c=='&') drawDispCounter(sx,sy+1,(int)(lfr>>3));   // weed.h: the dispensary counter
             if(c=='n') drawSecCam(sx,sy+1,(int)(lfr>>3));   // TV SHOW & TELL: the security camera and gate (drawn by code)
             if(c=='j') drawSecGate(sx,sy+1);
             if(c=='x') drawWork(sx,sy+1,(int)(lfr>>3));   // the WORK MARKER: a gold pad with a briefcase (a normal job's minutes count here)
@@ -4436,7 +4440,7 @@ static void drawEditorHud(const char*msg){
                 case 20:blitItem(V_TRASH,221,141);break; case 21:blitItem(V_PLANTER,221,141);break; case 22:blitItem(V_PICNIC,221,141);break;
                 case 23:blitItem(V_JERSEYU,221,141);break; case 24:blitItem(V_MPAD,221,141);break;
                 case 14:blitItem(V_BED,221,141);break; case 15:blitItem(V_SHOWER,221,141);break; case 16:blitItem(V_SOFA,221,141);break; case 25:blitItem(V_PIPE,221,141);break; case 26:blitItem(V_LAVA,221,141);break; case 27:blitItem(V_BEANBAG,221,141);break; case 28:case 29:drawStairs(221,141,eOb==28);break; case 30:blitItem(V_DEADSET,221,141);break; case 31:blitItem(V_PHONE,221,141);break; case 32:blitItem(V_RADIO,221,141);break; case 33:blitItem(V_STEREO,221,141);break;
-                case 34:blitItem(V_TV,221,141);break; case 35:blitItem(V_SHELF,221,141);break; case 36:blitItem(V_COFFEE,221,141);break; case 37:blitItem(V_AQUA,221,141);break; case 38:blitItem(V_TREAD,221,141);break; case OB_HALF:blitItem(V_QPIPE+((eRot-cview)&3),221,141);break; case 48:blitItem(V_RUG,221,141);break; case 49:blitItem(V_TABLE,221,141);break; case 50:blitItem(V_CHAIR,221,141);break; case 51:blitItem(V_DESK,221,141);break; case 52:blitItem(V_LAMP,221,141);break; case 53:blitItem(V_PLANT,221,141);break; case 54:blitItem(V_DRESSER,221,141);break; case 55:blitItem(V_FIRE,221,141);break; case 56:blitItem(V_COUNTER,221,141);break; case 39:case 40:case 41:{ u16 wb[WALL_H]; for(int u=0;u<8;u++){ winCol(eOb-39,0,u,wb); for(int r=0;r<12;r++) px(215+u+(u>3),136+r,wb[3+r*2]); } break; } default:drawSpawn(221,142); } }
+                case 34:blitItem(V_TV,221,141);break; case 35:blitItem(V_SHELF,221,141);break; case 36:blitItem(V_COFFEE,221,141);break; case 37:blitItem(V_AQUA,221,141);break; case 38:blitItem(V_TREAD,221,141);break; case OB_HALF:blitItem(V_QPIPE+((eRot-cview)&3),221,141);break; case 48:blitItem(V_RUG,221,141);break; case 49:blitItem(V_TABLE,221,141);break; case 50:blitItem(V_CHAIR,221,141);break; case 51:blitItem(V_DESK,221,141);break; case 52:blitItem(V_LAMP,221,141);break; case 53:blitItem(V_PLANT,221,141);break; case 54:blitItem(V_DRESSER,221,141);break; case 55:blitItem(V_FIRE,221,141);break; case 56:blitItem(V_COUNTER,221,141);break; case 57:drawPlanterS(221,143,3,3,1,0);break; case 39:case 40:case 41:{ u16 wb[WALL_H]; for(int u=0;u<8;u++){ winCol(eOb-39,0,u,wb); for(int r=0;r<12;r++) px(215+u+(u>3),136+r,wb[3+r*2]); } break; } default:drawSpawn(221,142); } }
         if(eOb==1||eOb==2){ wallSwatch(eWp,212,137); }
         h1="A BUY  B SELL  A AND MOVE PAINTS  SEL+A TURN";
         h2="L R ITEM  SEL+L R TYPE  L+R HELD UP DN LEVEL";
@@ -5627,6 +5631,7 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "fx.h"
 #include "npc.h"             // AI SKATERS and POLICE: hardware sprites on the last spare OBJ tiles (see the top of npc.h)             // GHOSTS and WEATHER: hardware sprites on the spare OBJ slots (see the top of the file)
 #include "petui.h"           // PETS: the pie menu, ADOPT A PET, the PET CREATOR, HOUSEHOLD > PETS (needs npc.h)
+#include "weed.h"            // THE GREEN: grow planters, the stash, the corner, the DISPENSARY (needs npc.h, neighborhood.h)
 #include "prison.h"         // PRISON
 #include "travel.h"         // GETTING ABOUT: CALL A CAB, the story's GO THERE (a lot change without leaving the game): when the cops catch you, the sentence depends on your record; you serve it in a prison of the town
 #include "ambience.h"       // NATURE SOUNDS: the outdoor bed (birds, crickets, rain, wind) by the hour, the weather and indoors
@@ -5735,6 +5740,7 @@ static void howToPlay(void){
 static const char* const ngIt[4]={"CREATE A BORE","A PRE-MADE FAMILY","A TRULY RANDOM SIM","STORY MODE"};
 static void nbMoveInTown(void){ if(!nbOk){ lifeMode(0); return; } nbMoveMode=1; neighborhoodScreen(); nbMoveMode=0; }   // MOVE IN: the town map, buy a home, play there (neighborhood.h)
 static int newGame(int slot){   // 1 = it started (and ended: back to the main menu)
+    wdClear(); wdSave();   // (a new life starts with an empty stash)
     int c=menu("HOW DO YOU START?",ngIt,4); if(c<0) return 0;
     int story=0; if(c==3){ story=storyPick(); if(!story) return 0; }
     int f=0, me=0; if(c==1){ me=famPick(&f,0); if(me<0) return 0; }   // the family bin: the family and who of them you play, on one screen
@@ -5915,6 +5921,7 @@ int boreMain(void){
     ageLoad();               // ...grown to the stage it had reached
     persLoad();              // ...with its aspiration, personality, DNA and unlocked parts
     skLoad();                // ...and its skills
+    wdLoad();                // ...and its stash (weed.h)
     hhLoad();                // ...and the household, which holds your first and last name
     mainMenu();
     return 0;

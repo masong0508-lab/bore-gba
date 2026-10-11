@@ -44,12 +44,14 @@ static int trvHas(const char*s,const char*w){   // does the name already say the
     for(;*s;s++){ int i=0; while(k[i]&&s[i]==k[i]) i++; if(!k[i]) return 1; } return 0; }
 static void trvMenu(void){   // the phone: CALL A CAB  GO SOMEWHERE (home first, then every public place of the town)
     if(!nbOk){ toast("NO TOWN TO GO ABOUT IN"); return; }
-    const char* it[NB_LOTS+1]; int lot[NB_LOTS+1], n=0; char lb[NB_LOTS+1][28];
+    const char* it[NB_LOTS+2]; int lot[NB_LOTS+2], n=0; char lb[NB_LOTS+1][28];
     if(nbT.home<NB_LOTS&&nbT.home!=nbT.cur){ char*e=slCat(lb[n],"HOME  "); slCat(e,nbT.lot[nbT.home].name); it[n]=lb[n]; lot[n++]=nbT.home; }
     for(int i=0;i<NB_LOTS;i++){ const NbLot*L=&nbT.lot[i]; if(!L->on||L->kind!=LKIND_COMM||i==nbT.cur) continue;
         if(L->type==CT_PRISON&&!prIn()) continue;   // (nobody takes a cab to the prison)
         char*e=slCat(lb[n],L->name); if(L->type<CT_N&&!trvHas(L->name,ctNm[L->type])){ e=slCat(e,"  "); slCat(e,ctNm[L->type]); } it[n]=lb[n]; lot[n++]=i; }   // ("MAIN SQUARE  PLAZA", but not "SKATE PARK  SKATE PARK")
+    if(trvFind(CT_DISP)<0&&n<NB_LOTS+1){ it[n]="THE DISPENSARY  NEW IN TOWN"; lot[n++]=-2; }   // weed.h: a town without one gets one when you ask the cab
     if(!n){ toast("NO PUBLIC PLACES IN THIS TOWN YET"); return; }
     int c=menu("CALL A CAB  WHERE TO",it,n); if(c<0) return;
+    if(lot[c]==-2){ int d=trvPlace(CT_DISP); if(d<0){ toast("NO ROOM IN TOWN FOR IT"); return; } lot[c]=d; }
     if(trvGo(lot[c])){ sfxPlay(SFX_CASH); toast("THE CAB IS HERE"); }
 }

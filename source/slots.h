@@ -141,13 +141,14 @@ static void slEncRoom(SlW*w){
     }
 }
 // one plane of format 3: runs until the whole map is covered. Returns 1 if fine. apply=1 writes it into the map.
+static void slWallSan(void){ for(int y=0;y<MH;y++)for(int x=0;x<MW;x++) if(wallMap[y][x]>=NWALL&&lifeMap[y][x]!='u') wallMap[y][x]=0; }   // (only a planter's byte may be past the wallpapers)
 static int slDecRoomPlane(SlR*c,int pl,int apply){
     int i=0;
     while(i<MSZ){
         int n=slrGet(c), v=slrGet(c); if(c->bad||n==0||i+n>MSZ) return 0;
         if(pl==0&&palIdx((char)v)<0) return 0;
         if(pl==1&&v>=NFL&&v!=FL_AIR) return 0;   // (FL_AIR: open air upstairs)
-        if(pl==2&&v>=NWALL) return 0;
+        // (plane 2: any byte. A GROW PLANTER keeps its plant there (weed.h); a wall tile with a wallpaper past the list is put right after loading: slWallSan)
         if(apply) for(int k=0;k<n;k++){ int y=(i+k)/MW, x=(i+k)%MW; if(pl==0) lifeMap[y][x]=(char)v; else if(pl==1) floorMap[y][x]=(u8)v; else wallMap[y][x]=(u8)v; }
         i+=n;
     }
@@ -159,7 +160,7 @@ static int slDecRoom(SlR*c,int apply){
     if(idx!=slWantRoom) return 1;      // another floor of a house: not wanted now
     if(fmt==3){
         for(int pl=0;pl<3;pl++) if(!slDecRoomPlane(c,pl,apply)) return 0;
-        if(apply) wDirty=1;
+        if(apply){ wDirty=1; slWallSan(); }
         return c->pos==c->len;
     }
     if(fmt!=1&&fmt!=2) return 0;

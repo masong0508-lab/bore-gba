@@ -776,9 +776,10 @@ static void ageTick(void){   // once per game day: each stage lasts the days set
     if(++ageDays>=need){ gGrow=1; dnaAdd(SIM_DNA_BDAY); simQueue("BIRTHDAY +50 DNA"); simEvent(SE_GROWUP); if(stage+1==AG_ELDER) simEvent(SE_OLD); } else ageSave();
 }
 static void petMinute(void); static void petDay(void);   // pets.h
+static void wdHour(void);   // weed.h
 static void simMinute(void){   // once per game minute
     simMin++;
-    petMinute();
+    petMinute(); wdHour();
     if(simMin==simJobFrom()&&simInShift()&&!ldead) simQueue((jobTrack!=JT_SKATE&&simAtWork()==1)?"GO TO YOUR WORK MARKER":jobFlav[jobTrack]);
     else if(simMin%30==0&&jobTrack!=JT_SKATE&&simInShift()&&!simAct&&!ldead&&lnoteT<=0&&simAtWork()==1){ lnote="NOT AT WORK  FIND THE MARKER"; lnoteT=60; }   // a nudge every half hour   // clocking in: a line for the job
     if(jobTrack!=JT_SKATE&&simInShift()&&!simAct&&!ldead&&simAtWork()!=1) shiftPts+=(moodState()==MS_STOKED)?2:1;   // a normal job: work minutes (see jobQuotaOf)
@@ -816,7 +817,7 @@ static void simRoomTick(int tx,int ty){
     for(int y=ty-SIM_ROOM_R;y<=ty+SIM_ROOM_R;y++)for(int x=tx-SIM_ROOM_R;x<=tx+SIM_ROOM_R;x++){
         if(x<0||y<0||x>=MW||y>=MH) continue;
         char c=lifeMap[y][x]; int b=0;
-        if(c=='F') b=1; else if(c=='T') b=2; else if(c=='S') b=4; else if(c=='H') b=8; else if(c=='C'||c=='U') b=16; else if(c=='V'||c=='G') b=32; else if(c=='Q'||c=='R'||c=='A') b=64; else if(c=='v') b=128; else if(c=='b') b=256; else if(c=='q') b=512; else if(c=='c'||c=='m') b=1024; else if(c=='r'||c=='l'||c=='p'||c=='o') b=2048; else if(c=='t'||c=='h'||c=='d'||c=='i'||c=='y') b=4096;   // living and decor pack: a rug, lamp, plant or fire makes it cosy; a table, chair, desk, dresser or counter makes it lived in   // a lava lamp (or the pipe) makes it a den; home pack: TV, books, fish, coffee or a treadmill each add a kind
+        if(c=='F') b=1; else if(c=='T') b=2; else if(c=='S') b=4; else if(c=='H') b=8; else if(c=='C'||c=='U') b=16; else if(c=='V'||c=='G') b=32; else if(c=='Q'||c=='R'||c=='A') b=64; else if(c=='v') b=128; else if(c=='b') b=256; else if(c=='q') b=512; else if(c=='c'||c=='m') b=1024; else if(c=='r'||c=='l'||c=='p'||c=='o'||c=='u') b=2048; else if(c=='t'||c=='h'||c=='d'||c=='i'||c=='y') b=4096;   // living and decor pack: a rug, lamp, plant or fire makes it cosy; a table, chair, desk, dresser or counter makes it lived in   // a lava lamp (or the pipe) makes it a den; home pack: TV, books, fish, coffee or a treadmill each add a kind
         if(b){ kinds|=b; items++; } }
     int k=0; for(int b=1;b<8192;b<<=1) if(kinds&b) k++;
     int target=k*16+(items>5?5:items)*4; if(target>100) target=100;

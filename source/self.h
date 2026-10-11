@@ -110,16 +110,18 @@ static int slfMenu(void){
     static char ft[44] EWRAM_BSS; static char tl[28] EWRAM_BSS;
     { char*e=simCat(tl,hhPName); simCat(e,"  YOU"); }
     { char*e=simCat(ft,"ENERGY "); e=simCatN(e,sNrg); e=simCat(e,"  CLEAN "); e=simCatN(e,sHyg); e=simCat(e,"  COMFY "); simCatN(e,sCom); }
-    int cs=0, pick=-1;
+    int cs=0, pick=-100;
     for(;;){
         int c=pieMenu(tl,ft,slfCatNm,slfCatCol,4,cs); if(c<0) break;
         cs=c; const char* l[8]; u16 col[8]; int id[8], q=0;
         for(int i=0;i<SL_N&&q<8;i++) if(slfT[i].cat==c){ l[q]=slfT[i].nm; col[q]=slfCatCol[c]; id[q++]=i; }
+        if(c==2&&wdOk()&&wdAll()&&q<8){ l[q]="ROLL ONE UP"; col[q]=RGB(8,24,10); id[q++]=-10; }   // weed.h: a gram of your best
+        if(c==2&&wdOk()&&wdAll()&&nbOk&&nbT.cur!=nbT.home&&!prHere()&&q<8){ l[q]="SELL ON THE CORNER"; col[q]=RGB(8,24,10); id[q++]=-11; }   // weed.h: away from home, and a risk
         int r=pieMenu(tl,slfCatNm[c],l,col,q,0);
         if(r>=0){ pick=id[r]; break; }   // B: back up to the categories
     }
     liveInvalidate();
     while((~REG_KEYINPUT)&0x3FF) vsync();
-    if(pick>=0) slfDo(pick);
+    if(pick==-10) wdRoll(); else if(pick==-11) wdCorner(); else if(pick>=0) slfDo(pick);
     return 1;
 }
