@@ -1716,22 +1716,26 @@ __asm__(".pushsection .rodata\n.balign 4\n"
  ".global sfx_tv\nsfx_tv:\n.incbin \"source/sfx/tv.adp\"\n.balign 4\n"
  ".global sfx_splash\nsfx_splash:\n.incbin \"source/sfx/splash.adp\"\n.balign 4\n"
  ".global sfx_boot\nsfx_boot:\n.incbin \"source/sfx/boot.adp\"\n.balign 4\n"
+ ".global sfx_toot\nsfx_toot:\n.incbin \"source/sfx/toot.adp\"\n.balign 4\n"
  ".popsection\n");
 extern const u8 sfx_gasp[],sfx_tick[],sfx_pop[],sfx_land[],sfx_stick[],sfx_grind[],sfx_thunder[],sfx_ghost[];
 extern const u8 sfx_bell[],sfx_dial[],sfx_flush[],sfx_shower[],sfx_munch[],sfx_cash[],sfx_page[],sfx_brew[],sfx_tv[],sfx_splash[],sfx_boot[];   // the everyday sounds (tools/make_life_sfx.py)
-enum { SFX_BONK, SFX_HIT, SFX_GASP, SFX_SCREAM, SFX_CRY, SFX_GROAN, SFX_NEARLY, SFX_DEATH, SFX_INSTANT, SFX_TICK, SFX_POP, SFX_LAND, SFX_STICK, SFX_GRIND, SFX_THUNDER, SFX_GHOST, SFX_BELL, SFX_DIAL, SFX_FLUSH, SFX_SHOWER, SFX_MUNCH, SFX_CASH, SFX_PAGE, SFX_BREW, SFX_TV, SFX_SPLASH, SFX_BOOT, SFX_YELP, SFX_KO, SFX_VOICE0, SFX_N=SFX_VOICE0+VOICE_N };   // POP ollie, LAND a landing, STICK a trick landed, GRIND a rail caught (tools/make_skate_sfx.py)
+extern const u8 sfx_toot[];   // BORTUA FIGHTER's moon gone wrong (tools/make_bortua_sfx.py)
+enum { SFX_BONK, SFX_HIT, SFX_GASP, SFX_SCREAM, SFX_CRY, SFX_GROAN, SFX_NEARLY, SFX_DEATH, SFX_INSTANT, SFX_TICK, SFX_POP, SFX_LAND, SFX_STICK, SFX_GRIND, SFX_THUNDER, SFX_GHOST, SFX_BELL, SFX_DIAL, SFX_FLUSH, SFX_SHOWER, SFX_MUNCH, SFX_CASH, SFX_PAGE, SFX_BREW, SFX_TV, SFX_SPLASH, SFX_BOOT, SFX_YELP, SFX_KO, SFX_VOICE0, SFX_TOOT=SFX_VOICE0+VOICE_N, SFX_N };   // POP ollie, LAND a landing, STICK a trick landed, GRIND a rail caught (tools/make_skate_sfx.py)
 #define VS(v) (SFX_VOICE0+(v))   // a voice clip's sound id (V_xxx from voices.h)
 // THE TAKES. The voice effects (BONK HIT SCREAM CRY GROAN NEARLY DEATH INSTANT, and YELP KO) are takes cut out of five long recording sessions
 // (tools/chop_sfx.py, sfxtakes.h): one take each, instead of the whole 3 to 16 s session every time. HIT and YELP have several takes and
 // cycle through them (sfxPlay), so a fight does not repeat one grunt.
 #include "sfxtakes.h"
 static const u8* const sfxHitT[TK_HIT_N]={TK_HIT}; static const u8* const sfxYelpT[TK_YELP_N]={TK_YELP}; static u8 sfxRot;
-static const u8* const sfxTab[SFX_N]={ TK_BONK_FIRST,TK_HIT_FIRST,sfx_gasp,TK_SCREAM_FIRST,TK_CRY_FIRST,TK_GROAN_FIRST,TK_NEARLY_FIRST,TK_DEATH_FIRST,TK_INSTANT_FIRST,sfx_tick,sfx_pop,sfx_land,sfx_stick,sfx_grind,sfx_thunder,sfx_ghost, sfx_bell,sfx_dial,sfx_flush,sfx_shower,sfx_munch,sfx_cash,sfx_page,sfx_brew,sfx_tv,sfx_splash,sfx_boot, TK_YELP_FIRST,TK_KO_FIRST, VOICE_TAB };
+static const u8* const sfxTab[SFX_N]={ TK_BONK_FIRST,TK_HIT_FIRST,sfx_gasp,TK_SCREAM_FIRST,TK_CRY_FIRST,TK_GROAN_FIRST,TK_NEARLY_FIRST,TK_DEATH_FIRST,TK_INSTANT_FIRST,sfx_tick,sfx_pop,sfx_land,sfx_stick,sfx_grind,sfx_thunder,sfx_ghost, sfx_bell,sfx_dial,sfx_flush,sfx_shower,sfx_munch,sfx_cash,sfx_page,sfx_brew,sfx_tv,sfx_splash,sfx_boot, TK_YELP_FIRST,TK_KO_FIRST, VOICE_TAB sfx_toot };   // (TOOT after the voices: every older sound keeps its number)
 static const u16 stepT[89]={7,8,9,10,11,12,13,14,16,17,19,21,23,25,28,31,34,37,41,45,50,55,60,66,73,80,88,97,107,118,130,143,157,173,190,209,230,253,279,307,337,371,408,449,494,544,598,658,724,796,876,963,1060,1166,1282,1411,1552,1707,1878,2066,2272,2499,2749,3024,3327,3660,4026,4428,4871,5358,5894,6484,7132,7845,8630,9493,10442,11487,12635,13899,15289,16818,18500,20350,22385,24623,27086,29794,32767};
 static const signed char idxT[8]={-1,-1,-1,-1,2,4,6,8};
 // The effect voice: ssrc/sn = the clip's nibbles and sample count, sPos + sFr/65536 = play position in clip samples, sRd = samples decoded so far,
 // sS0/sS1 = the two decoded samples around sPos (for interpolation), spred/sidx = the ADPCM decoder. sfxV is cleared by the mixer at the end.
 static const u8 *ssrc; static u32 sn, sPos, sFr, sRd; static int spred, sidx, sS0, sS1, sfxOn; static volatile int sfxV;
+static u16 audHe;   // HELIUM (BORTUA FIGHTER's moon gone very wrong): 0 off, else every new note, effect and voice plays this much higher (8.8: 384 = a fifth up), streamed songs too
+static u8 aHeT;     // (the streamed song's helium: an extra sample every other one)
 static u32 sfxStp=SFX_STEP; static int sfxGL=256, sfxGR=256;   // VOICES: the clip playing, its step (its pitch and speed: who is talking) and its left / right gain (where they stand)
 static u32 sfxNStp; static int sfxNGL, sfxNGR; static u8 sfxNSet;   // what voxSay asks of the next sfxPlay
 static volatile int sfxLoop, sfxFade=256, sfxFadeT=256;   // the effect voice can LOOP (the loading tick-tock) and has its own fade: sfxFade glides to sfxFadeT a little every frame (256 = full); a looping voice that has faded to 0 ends itself
@@ -1795,6 +1799,7 @@ static u32 xmStep(const XmSong*s,int in,int nt){
     int q=(nt*683)>>13, j=nt-12*q, sh=46-q;   // q = nt/12 (exact for 0..95)
     u32 st=(u32)(((unsigned long long)s->anc[in]*xmT[j]+(1ull<<(sh-1)))>>sh);
     for(const u8*f=s->fx;*f!=255;f+=3) if(f[0]==in&&f[1]==nt) st+=(u32)(int)(s8)f[2];
+    if(audHe) st=(u32)(((unsigned long long)st*audHe)>>8);   // (helium)
     return st;
 }
 // Note events (tools/xm2gba.py): per pattern, row by row. A byte >=0x80 = that many (low 7 bits) empty rows; otherwise it is the number of events in
@@ -1869,7 +1874,7 @@ IWRAM_ARM static void adpMix(s8*out,s8*outR){
     int prv=aPrv, ph=aPh;
     for(;i<MUS_N;i++){
         if(aSlow){
-            ph+=2;
+            ph+=audHe?3:2;   // (helium: a stored sample every output one, half again as fast and high)
             while(ph>=3){ if(p>=e){ if(!aLoop) break; p=0; pred=aPred0; idx=aIdx0; } ph-=3; prv=pred;
                 int v=d[p>>1]; v=(p&1)?(v>>4):(v&15); p++;
                 int step=stepT[idx], diff=step>>3;
@@ -1881,14 +1886,17 @@ IWRAM_ARM static void adpMix(s8*out,s8*outR){
             if(p>=e&&ph>=3) break;
             out[i]=(s8)((prv+(((pred-prv)*ph)/3))>>8);
         } else {
-            if(p>=e){ if(!aLoop) break; p=0; pred=aPred0; idx=aIdx0; }
-            int v=d[p>>1]; v=(p&1)?(v>>4):(v&15); p++;
-            int step=stepT[idx], diff=step>>3;
-            if(v&1) diff+=step>>2;
-            if(v&2) diff+=step>>1;
-            if(v&4) diff+=step;
-            pred+=(v&8)?-diff:diff; if(pred>32767) pred=32767; if(pred<-32768) pred=-32768;
-            idx+=idxT[v&7]; if(idx<0) idx=0; if(idx>88) idx=88;
+            int rep=(audHe&&(aHeT^=1))?2:1, end=0;   // (helium: three stored samples every two out)
+            while(rep--){
+                if(p>=e){ if(!aLoop){ end=1; break; } p=0; pred=aPred0; idx=aIdx0; }
+                int v=d[p>>1]; v=(p&1)?(v>>4):(v&15); p++;
+                int step=stepT[idx], diff=step>>3;
+                if(v&1) diff+=step>>2;
+                if(v&2) diff+=step>>1;
+                if(v&4) diff+=step;
+                pred+=(v&8)?-diff:diff; if(pred>32767) pred=32767; if(pred<-32768) pred=-32768;
+                idx+=idxT[v&7]; if(idx<0) idx=0; if(idx>88) idx=88; }
+            if(end) break;
             out[i]=(s8)(pred>>8);
         }
     }
@@ -1983,7 +1991,8 @@ __attribute__((noinline,long_call)) static void csStep(CSyn*c){   // the next co
     else { int fl=*c->d++;
         if(fl&0x80) c->rep=fl&0x7F;
         else { for(int v=0;v<3;v++){
-                   if(fl&(1<<(2*v))){ int cd=c->d[0]|(c->d[1]<<8); c->d+=2; c->inc[v]=cd?(u32)(((unsigned long long)csInc[cd>>8]*csFine[cd&255])>>15):0; c->tab[v]=csTab(v,c->inc[v]); }
+                   if(fl&(1<<(2*v))){ int cd=c->d[0]|(c->d[1]<<8); c->d+=2; c->inc[v]=cd?(u32)(((unsigned long long)csInc[cd>>8]*csFine[cd&255])>>15):0;
+                       if(audHe) c->inc[v]=(u32)(((unsigned long long)c->inc[v]*audHe)>>8); c->tab[v]=csTab(v,c->inc[v]); }   // (helium; csTab keeps to its tables)
                    if(fl&(2<<(2*v))) c->lv[v]=*c->d++; }
                if(fl&0x40){ int b=*c->d++; c->nlv=b&15; c->nb=(const s8*)(chipsyn+csNzOff[b>>4]); } } }
     int t=c->acc+37; c->left=151+(t>=120); c->acc=t>=120?t-120:t;   // 18157/120 = 151 r 37: 151 or 152 samples a step, exact on average
@@ -2263,6 +2272,7 @@ static void sfxPlay(int id){   // a new sound replaces whatever effect is playin
     if(id==SFX_HIT) b=sfxHitT[sfxRot++%TK_HIT_N]; else if(id==SFX_YELP) b=sfxYelpT[sfxRot++%TK_YELP_N];   // (the next take each time)
     sfxV=0;   // (the interrupt does not touch the voice while sfxV is 0)
     if(sfxNSet){ sfxStp=sfxNStp; sfxGL=sfxNGL; sfxGR=sfxNGR; sfxNSet=0; } else { sfxStp=SFX_STEP; sfxGL=sfxGR=256; }   // (a voice: its speaker's pitch and place)
+    if(audHe) sfxStp=(u32)(((unsigned long long)sfxStp*audHe)>>8);   // (helium: squeaky, and quicker)
     ssrc=b+4; sn=*(const u32*)b; sPos=0; sFr=0; sRd=0; spred=0; sidx=0; sS0=sS1=0;
     sfxLoop=0; sfxFade=sfxFadeT=256;
     sfxOn=1; sfxV=1;
@@ -5713,6 +5723,7 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "expand.h"        // EXPANSION PACKS: missions with scenarios (BORE-OUT MAN!, BOREZIES!, WORLD WAR BORE, BORTUA FIGHTER, BOREAGOTCHI!, BOREPILOGUE)
 #include "space.h"         // BORE-OUT MAN!: the launch and the spacewalk
 #include "gotchi.h"        // BOREAGOTCHI!: THE HANDHELD (a blob on a keychain that needs you constantly)
+#include "bortua.h"        // BORTUA FIGHTER: ARCADE MODE (polygon fighters, a ladder of nine, the chrome boss)
 #include "xmodes.h"        // the packs' MODES: BORTUA FIGHTER's ARCADE MODE, BOREAGOTCHI's HANDHELD
 // ---------- main menu (The Sims 3 look): a glossy panel over your town, lit for the time of day of your life's clock ----------
 #define MM_N 8
@@ -5987,6 +5998,7 @@ int boreMain(void){
     wdLoad();                // ...and its stash (weed.h)
     bdLoad();                // ...and whether it owns a board (board.h)
     goLoad();                // ...and its BOREAGOTCHI (gotchi.h)
+    bfLoad();                // ...and its arcade record (bortua.h)
     hhLoad();                // ...and the household, which holds your first and last name
     mainMenu();
     return 0;

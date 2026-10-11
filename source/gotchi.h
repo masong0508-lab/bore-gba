@@ -14,7 +14,7 @@ _Static_assert(GO_OFF+GO_LEN<=BD_OFF,"the handheld's block runs into the board b
 enum { GS_EGG, GS_BABY, GS_CHILD, GS_TEEN, GS_ADULT };
 enum { GF_SICK=1, GF_SLEEP=2, GF_DARK=4, GF_CALL=8, GF_FAKE=16, GF_ON=32 };
 typedef struct { u8 stage, form; u16 age; u8 hun, hap, disc, wt, poop, fl, miss, needT, snk, meal, nm, sub; } Gotchi;
-static Gotchi go;
+static Gotchi go EWRAM_BSS;
 static const char* const goNames[8]={"BLOBERT","SNORLOCK","MEH-CHAN","DOZY","SIR SIGH","YAWNIE","PUDDLE","KEVIN"};
 static const char* const goStNm[5]={"EGG","BABY","CHILD","TEEN","ADULT"};
 static const char* const goFormNm[5][3]={{"EGG","",""},{"BLOBBY","",""},{"BORELET","",""},{"ANGSTY BORE","SLOUCHY BORE",""},{"SUPER BORE","SLOB BORE","CHILL BORE"}};
@@ -65,7 +65,7 @@ static void goMinute(void){   // sims.h simMinute: it lives on while you play, a
 #define GL_X 56
 #define GL_Y 50
 #define GL_P 4
-static u8 goDot[16][32];
+static u8 goDot[16][32] EWRAM_BSS;
 static void gdClear(void){ for(int y=0;y<16;y++) for(int x=0;x<32;x++) goDot[y][x]=0; }
 static void gdArt(const char* const*a,int h,int x0,int y0,int fl){ for(int r=0;r<h;r++){ const char*s=a[r]; for(int q=0;s[q];q++){ if(s[q]!='#') continue; int x=x0+(fl?(int)(15-q):q), y=y0+r; if(x>=0&&x<32&&y>=0&&y<16) goDot[y][x]=1; } } }
 static const char* const gaEgg[2][12]={{"....####....","..##....##..",".#..##....#.","#..####....#","#...##..#..#","#......###.#","#.#.....#..#","#.##.......#",".#....##..#.","..##.####...","....####....","............"},
