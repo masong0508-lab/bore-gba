@@ -52,7 +52,8 @@ ENTRY(_start)
 
 MEMORY {
 
-	rom	: ORIGIN = 0x08000000, LENGTH = 32M
+	rom	: ORIGIN = 0x08000000, LENGTH = 24M   /* BORE: the base game */
+	xprom	: ORIGIN = 0x09800000, LENGTH = 8M    /* BORE: the expansion packs' slots (tools/packs.ld, source/packslots.h) */
 	iwram	: ORIGIN = 0x03000000, LENGTH = 32K
 	ewram	: ORIGIN = 0x02000000, LENGTH = 256K
 }
@@ -85,6 +86,8 @@ SECTIONS
 		*(.plt)
 		. = ALIGN(4);   /* REQUIRED. LD is flaky without it. */
 	} >rom
+
+	INCLUDE tools/packs.ld   /* BORE: the expansion packs claim their code and tables first (tools/make_packs.py) */
 
 	.text  :   /* ALIGN (4): */
 	{

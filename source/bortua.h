@@ -448,7 +448,7 @@ static void bfCardShow(int both){   // in the vblank: the picture, and the fight
     bfPlace(0,BF_SLOT0+2,bfF[0].x>>8,BF_GROUND+bfF[0].y); if(both) bfPlace(1,BF_SLOT0+4,bfF[1].x>>8,BF_GROUND+bfF[1].y);
 }
 // ---- ARCADE MODE (expand.h exModeRun) ----
-static int bfRun(void){
+XPF static int bfRun(void){
     objHideAll(); zoomOff(); u16 al=R_BLDAL; REG_DISPCNT=0x1443; R_BLDCNT=0x0400; R_BLDAL=(u16)(16|(9<<8)); R_BLDY=0;   // (shadows: the arena at 9/16 under them)
     bfLoad(); bfFxTiles(); bfFxPal(); for(int i=0;i<2;i++) bfF[i].shown=-1;
     int stage=0, won=0, out=0;

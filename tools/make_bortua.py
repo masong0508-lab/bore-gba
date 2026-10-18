@@ -439,7 +439,7 @@ def wtf():
         f.write('#define BFA_WTF_N %d\n#define BFA_WTF_W0 %d\n#define BFA_WTF_W1 %d\n' % (len(xs), widths[0], widths[1]))
         f.write('static const u8 bfaWtfX[BFA_WTF_N]={%s};   // each letter\'s column in its line\n' % ','.join(str(v) for v in xs))
         f.write('static const u8 bfaWtfL[BFA_WTF_N]={%s};   // its line\n' % ','.join(str(v) for v in ln))
-        f.write('__asm__(".pushsection .rodata\\n.balign 4\\n.global bfaWtf\\nbfaWtf:\\n.incbin \\"source/art/bortua_wtf.bin\\"\\n.popsection\\n");\nextern const u32 bfaWtf[];\n')
+        f.write('__asm__(".pushsection .rodata.bfaArt,\\"a\\"\\n.balign 4\\n.global bfaWtf\\nbfaWtf:\\n.incbin \\"source/art/bortua_wtf.bin\\"\\n.popsection\\n");\nextern const u32 bfaWtf[];\n')
     sheet = np.zeros((2 * 34, 240, 3), np.uint8) + np.array([40, 30, 60], np.uint8); pal = [(0, 0, 0), (10, 5, 20), (255, 200, 40), (255, 250, 200)]
     for cell, x, l in zip(preview, xs, ln):
         ox = 120 - widths[l] // 2 + x
@@ -530,7 +530,7 @@ def main():
         f.write('static const s8 bfaReach[BFA_NFR]={%s};   // px in front of the root each frame reaches at body height (the standard body)\n' % ','.join(str(max(-128, min(127, r))) for r in reaches))
         f.write('static const u8 bfaAx[BFA_BODIES*BFA_BUTTS*BFA_NFR]={%s};   // the root\'s column in each frame\n' % ','.join(str(a) for a in axs))
         f.write('#define BFA_GROUND %d   // the arena row the fighters stand on\n#define BFA_RINGL %d\n#define BFA_RINGR %d   // the ring\'s edges on that row (a little inside)\n' % (ground, ringL, ringR))
-        f.write('__asm__(".pushsection .rodata\\n.balign 4\\n.global bfaFighters\\nbfaFighters:\\n.incbin \\"source/art/bortua_fighters.bin\\"\\n.balign 4\\n.global bfaArena\\nbfaArena:\\n.incbin \\"source/art/bortua_arena.bin\\"\\n.balign 4\\n.global bfaFx\\nbfaFx:\\n.incbin \\"source/art/bortua_fx.bin\\"\\n.popsection\\n");\n')
+        f.write('__asm__(".pushsection .rodata.bfaArt,\\"a\\"\\n.balign 4\\n.global bfaFighters\\nbfaFighters:\\n.incbin \\"source/art/bortua_fighters.bin\\"\\n.balign 4\\n.global bfaArena\\nbfaArena:\\n.incbin \\"source/art/bortua_arena.bin\\"\\n.balign 4\\n.global bfaFx\\nbfaFx:\\n.incbin \\"source/art/bortua_fx.bin\\"\\n.popsection\\n");\n')
         f.write('extern const u32 bfaFighters[]; extern const u16 bfaArena[]; extern const u32 bfaFx[];   // bfaFx: 4 spark frames (32 x 32, 512 bytes each), a 32 x 8 shadow, a 16 x 8 one, 3 frames of the TOOT cloud (32 x 32)\n')
     preview(prev, n, os.path.join(ROOT, 'tools', 'bortua_preview.png'), 1)
     Image.fromarray(argb).resize((480, 320), Image.NEAREST).save(os.path.join(ROOT, 'tools', 'bortua_arena_preview.png'))

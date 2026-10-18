@@ -17,6 +17,7 @@ IWRAM_MAX ?= 32512   # 32768 minus the top 256 B the BIOS uses; .bss + .data + .
 all: $(TARGET).gba
 
 $(TARGET).elf: source/main.c source/logo.c $(wildcard source/*.h) $(wildcard source/sfx/*.adp) $(wildcard source/music/*.adp) $(wildcard source/music/*.bin)
+	python3 tools/make_packs.py ld   # the expansion packs' slots (source/packslots.h for the game, tools/packs.ld INCLUDEd by tools/bore.ld)
 	$(CC) $(CFLAGS) -c source/main.c -o main.o
 	$(CC) $(CFLAGS) -c source/logo.c -o logo.o
 	sh tools/bss2ewram.sh $(OBJDUMP) $(OBJCOPY) main.o   # statics no IWRAM code touches go to EWRAM: IWRAM is kept for the fast code and its data
@@ -24,13 +25,16 @@ $(TARGET).elf: source/main.c source/logo.c $(wildcard source/*.h) $(wildcard sou
 	@arm-none-eabi-size -A $@ | awk -v lim=$(EWRAM_STATIC_MAX) '$$1==".sbss"||$$1==".ewram"{e+=$$2} END{ if(e>lim){ printf("ERROR: EWRAM statics %d B > %d B: the top %d KB of EWRAM is the stack (see main.c)\n",e,lim,$(STACK_EWRAM)/1024); exit 1 } }'
 	@arm-none-eabi-size -A $@ | awk -v lim=$(IWRAM_MAX) '$$1==".bss"||$$1==".data"||$$1==".iwram"{i+=$$2} $$1~/^\.iwram[0-9]$$/{ if($$2>o) o=$$2 } END{ i+=o; printf("IWRAM: %d B used of %d (%d B free; overlays %d B)\n",i,lim,lim-i,o); if(i>lim){ printf("ERROR: IWRAM %d B > %d B: new code must not be IWRAM_*, new statics need EWRAM_BSS\n",i,lim); exit 1 } }'
 
+# bore.gba is the base game; bore-complete.gba has every expansion pack in; packs/ holds one BPS patch per pack (they go on in any order)
 $(TARGET).gba: $(TARGET).elf
-	$(OBJCOPY) -O binary $< $@
-	gbafix $@ -tBORE
+	$(OBJCOPY) -O binary --gap-fill 0xff $< $(TARGET)-complete.gba
+	gbafix $(TARGET)-complete.gba -tBORE
+	NM=arm-none-eabi-nm python3 tools/make_packs.py split $< $(TARGET)-complete.gba $@ packs
 
 # THE CREATOR DEMO (source/ccdemo.h): the same game built with -DCC_DEMO, only the creature creator, a gallery and share codes
 creator: $(TARGET)-creator.gba
 $(TARGET)-creator.elf: source/main.c source/logo.c $(wildcard source/*.h) $(wildcard source/sfx/*.adp) $(wildcard source/music/*.adp) $(wildcard source/music/*.bin)
+	python3 tools/make_packs.py ld
 	$(CC) $(CFLAGS) -DCC_DEMO -c source/main.c -o main-cc.o
 	$(CC) $(CFLAGS) -c source/logo.c -o logo.o
 	sh tools/bss2ewram.sh $(OBJDUMP) $(OBJCOPY) main-cc.o
@@ -38,11 +42,11 @@ $(TARGET)-creator.elf: source/main.c source/logo.c $(wildcard source/*.h) $(wild
 	@arm-none-eabi-size -A $@ | awk -v lim=$(EWRAM_STATIC_MAX) '$$1==".sbss"||$$1==".ewram"{e+=$$2} END{ if(e>lim){ printf("ERROR: EWRAM statics %d B > %d B\n",e,lim); exit 1 } }'
 	@arm-none-eabi-size -A $@ | awk -v lim=$(IWRAM_MAX) '$$1==".bss"||$$1==".data"||$$1==".iwram"{i+=$$2} $$1~/^\.iwram[0-9]$$/{ if($$2>o) o=$$2 } END{ i+=o; if(i>lim){ printf("ERROR: IWRAM %d B > %d B\n",i,lim); exit 1 } }'
 $(TARGET)-creator.gba: $(TARGET)-creator.elf
-	$(OBJCOPY) -O binary $< $@
+	$(OBJCOPY) -O binary --wildcard -R '.xp*' $< $@   # (the demo never plays a pack: their slots stay out of its ROM)
 	gbafix $@ -tBORECREATOR
 
 clean:
-	rm -f $(TARGET).elf $(TARGET).gba main.o logo.o $(TARGET)-creator.elf $(TARGET)-creator.gba main-cc.o
+	rm -f $(TARGET).elf $(TARGET).gba $(TARGET)-complete.gba main.o logo.o $(TARGET)-creator.elf $(TARGET)-creator.gba main-cc.o; rm -rf packs
 
 # Memory report: EWRAM = .sbss (+ .ewram), IWRAM = .bss + .data + .iwram (the stack gets what is left of it), ROM = the .gba file.
 # Prints a table (and appends it to the GitHub job summary when run in Actions).

@@ -35,7 +35,7 @@ static int arSpot(int x,int y,int far){   // may a barrel stand at (x,y)?
     for(int i=0;i<petN;i++) if(arNear(x,y,petM[i].w.fx,petM[i].w.fy,3)) return 0;
     return 1;
 }
-static void arScatter(int again){   // the barrels and canisters, set down at random (again: the last ones are cleared away first)
+XPF static void arScatter(int again){   // the barrels and canisters, set down at random (again: the last ones are cleared away first)
     if(!arOn) return;
     if(again) for(int i=0;i<arPosN;i++){ lifeMap[arPos[i][1]][arPos[i][0]]='.'; wallMap[arPos[i][1]][arPos[i][0]]=0; }
     arPosN=0; int a=arOn-1, nk=arKindN(a), n=arCount[a], tries=n*60;
@@ -47,14 +47,14 @@ static void arScatter(int again){   // the barrels and canisters, set down at ra
     }
     wDirty=1; liveInvalidate();
 }
-static void arTank(void){   // THE LAB, chapter 4, tank not found yet: the white tank goes somewhere far from the start
+XPF static void arTank(void){   // THE LAB, chapter 4, tank not found yet: the white tank goes somewhere far from the start
     arTankOn=0; const XMs*x=exMs(); if(!x||x->ar!=3||hzOn) return;
     for(int i=0;i<3;i++) if(x->t[i].k==QK_EV&&x->t[i].a==QE_TANK&&((exTk>>i)&1)) return;
     for(int t=0;t<600;t++){ int px=3+rnd8()%(MW-6), py=3+rnd8()%(MH-6);
         if(!arSpot(px,py,1)) continue;
         lifeMap[py][px]=AR_TANK_T; wallMap[py][px]=AR_TANK_LK; arTx=(u8)px; arTy=(u8)py; arTankOn=1; return; }
 }
-static void arLoad(int id){   // 1..AR_N: that arena stands in for the lot (prison.h prTransfer)
+XPF static void arLoad(int id){   // 1..AR_N: that arena stands in for the lot (prison.h prTransfer)
     if(id<1||id>AR_N) return;
     if(!arOn){
         for(int y=0;y<MH;y++) for(int x=0;x<MW;x++){ int i=y*MW+x; arSt[0][i]=(u8)lifeMap[y][x]; arSt[1][i]=floorMap[y][x]; arSt[2][i]=wallMap[y][x]; }
@@ -71,7 +71,7 @@ static void arRestore(void){   // your lot comes back
     spx=arSv[0]; spy=arSv[1]; bdx=arSv[2]; bdy=arSv[3];
     arOn=0; arTankOn=0; arPosN=0; wDirty=1; liveInvalidate(); camSnap=1;
 }
-static void arAfter(void){   // lifeInit has just placed everybody again: the visitors' arrival clocks are set again
+XPF static void arAfter(void){   // lifeInit has just placed everybody again: the visitors' arrival clocks are set again
     if(hzOn){ for(int k=0;k<TW_N;k++){ twOn[k]=0; twWait[k]=30000; } }   // (a horde lets them in itself, hzTick)
     else if(exHMode()) for(int k=0;k<TW_N;k++) if(twHas[k]&&!twOn[k]) twWait[k]=(short)(150+k*240);
 }
@@ -86,7 +86,7 @@ static void arTick(void){   // once per logic step in the life game (main.c, nex
     }
 }
 // ---- the map picker (HORDE MODE's set-up screen) ----
-static void arThumb(int a,int x0,int y0,int sc){   // a map in 40 x 40 dots (sc pixels each); 0 = your lot
+XPF static void arThumb(int a,int x0,int y0,int sc){   // a map in 40 x 40 dots (sc pixels each); 0 = your lot
     for(int y=0;y<MH;y++) for(int x=0;x<MW;x++){
         u16 c;
         if(a) c=arSym[arCell[a-1][y*MW+x]].col;
@@ -95,7 +95,7 @@ static void arThumb(int a,int x0,int y0,int sc){   // a map in 40 x 40 dots (sc 
         rect(x0+x*sc,y0+y*sc,sc,sc,c);
     }
 }
-static int arPick(int cur){   // HORDE MODE: choose where it is fought. 0 = your own lot, 1..AR_N = an arena. B keeps the old pick
+XPF static int arPick(int cur){   // HORDE MODE: choose where it is fought. 0 = your own lot, 1..AR_N = an arena. B keeps the old pick
     int sel=cur; u16 prev=keyNow(); u32 cnt=0; int dirty=1;
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;

@@ -34,7 +34,7 @@ static void swGuy(int x,int y,int fl){   // the astronaut, 7 x 9
     for(int r=0;r<9;r++) for(int q=0;q<7;q++){ char c=g[r][fl?6-q:q]; if(c=='.') continue; px(x+q,y+r,c=='W'?RGB(30,30,31):c=='G'?RGB(31,24,6):RGB(16,16,18)); }
 }
 // THE SPACEWALK. real 1 = in orbit (3 panels), 0 = training (2). 1 = fixed them all
-static int exSpacewalk(int real){
+XPF static int exSpacewalk(int real){
     static const short spX[3]={62,178,118}, spY[3]={47,47,15};
     int nsp=real?3:2; u8 fixd[3]={0,0,0}; int prog[3]={0,0,0};
     s32 ax=120<<8, ay=100<<8, vx=0, vy=0; int fl=0, o2=1000, done=0, t=0, res=-1, hud=1;
@@ -94,7 +94,7 @@ static void lnRocket(int cx,int y,int t,int fire,int sh){   // y = the bottom of
     for(int r=0;r<10;r++){ rect(cx-6-r/2,y-10+r,3+r/3,1,RGB(26,5,3)); rect(cx+6+r/2-(3+r/3),y-10+r,3+r/3,1,RGB(26,5,3)); }   // the fins
     if(fire){ int n=fire>2?28:fire*9; for(int r=0;r<n;r++){ int w=4-r/8+(int)((swHash(t,r)>>30)); if(w<1) w=1; u16 c=r<6?RGB(31,31,20):r<14?RGB(31,26,6):RGB(31,14,4); rect(cx-w,y+r,w*2,1,c); } }
 }
-static void exLaunch(void){
+XPF static void exLaunch(void){
     int tourist=!exSeatFree(), night=simIsNight(), padY=134;
     static s16 smX[24] EWRAM_BSS, smY[24] EWRAM_BSS; static u8 smR[24] EWRAM_BSS, smL[24] EWRAM_BSS; int smN=0;
     char who[40]; { char*e=slCat(who,tourist?"SPACE TOURIST ":"MAJOR "); slCat(e,hhPName); }

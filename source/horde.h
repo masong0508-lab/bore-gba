@@ -53,7 +53,7 @@ static int hzToughPct(void){ if(!hzOn) return 100; static const u8 t[4]={50,100,
 static int hzBiteMul(void){ if(!hzOn) return 100; static const u8 t[4]={40,70,110,200}; int p=t[hzOpt[HZO_BITE]]; if(hzPerks&(1<<HZP_SKIN)) p=p*70/100; return p; }   // (NORMAL: a bite takes 7 of the 100)
 static int hzCureRule(void){ return hzOn?hzOpt[HZO_CURE]:0; }
 static int hzDmgPct(void){ return hzOn&&(hzPerks&(1<<HZP_FISTS))?125:100; }
-static int hzUnlocked(void){ return sUnlock||exPackDone(XP_ZOMB)>=exPackPlay(XP_ZOMB); }
+static int hzUnlocked(void){ return xpHave(XP_ZOMB)&&(sUnlock||exPackDone(XP_ZOMB)>=exPackPlay(XP_ZOMB)); }
 // ---- records ----
 static u8 hzSum(volatile const u8*m){ u8 s=0x6B; for(int i=2;i<HZ_LEN-1;i++) s=(u8)(s*7+m[i]); return s; }
 static void hzSave(void){
@@ -103,7 +103,7 @@ static int hzCanStart(const char**why){
     if(HH_MAX-hhN<1){ *why="NO ROOM  A SMALLER HOUSEHOLD FIRST"; return 0; }
     return 1;
 }
-static int hzStartRun(void){   // 1 = it started
+XPF static int hzStartRun(void){   // 1 = it started
     exHClearAll(); if(exP){ exQuit(); }
     for(int k=0;k<TW_N;k++){ exHPend[k]=0; exHT[k]=0; exHDie[k]=exHDz[k]=0; }
     hzOn=(u8)(hzMode?2:1); twLim=(u8)hzCapMax(); if(twLim<2) twLim=2; twKeep=0; hhBakeAll(); ldEnd(); liveInvalidate();   // (a place for each one of the crowd: the first time in a session they are baked, about a second each; the same faces come back after that)
@@ -135,7 +135,7 @@ static void hzEnd(int res){   // 0 bored stiff, 1 the hundred waves beaten, 2 le
     if(res==1) voxPlay(V_yahoo);
 }
 static void hzNextWave(void){ hzWave++; hzPhase=0; hzT=300; }
-static void hzBegin(void){
+XPF static void hzBegin(void){
     int w=hzWave, n=hzCount(w); hzSpawnLeft=(u16)n; hzBossLeft=0;
     if(hzOpt[HZO_BOSS]==0&&w%10==0){ hzBossLeft=(u8)(1+(w-10)/30); if(hzBossLeft>3) hzBossLeft=3; if(hzBossLeft>hzSpawnLeft) hzSpawnLeft=hzBossLeft; }
     hzPhase=1; hzSpT=20; hzBites=0;
@@ -149,7 +149,7 @@ static int hzPick(void){
     int r=rnd8()*100>>8, sp=w>=3?(w-2)*4:0, br=w>=6?(w-5)*3:0; if(sp>40) sp=40; if(br>25) br=25;
     if(r<br) return XH_BRUTE; if(r<br+sp) return XH_SPRINT; return XH_BORE;
 }
-static void hzClear(void){   // the wave is over
+XPF static void hzClear(void){   // the wave is over
     int bonus=250*hzWave+(hzBites==0?500:0);
     if(hzPerks&(1<<HZP_KING)) bonus=bonus*3/2; hzScore+=(u32)bonus;
     hzPhase=2; hzT=360; hzCombo=0; hzComboT=0; if(arOn) arScatter(1);   // (the breather: new barrels and canisters in new places)
@@ -193,7 +193,7 @@ static void hzTick(void){   // once per logic step in the life game (main.c, nex
 static void hzReset(void){ if(hzOn){ hzOn=0; twLim=2; } for(int k=0;k<TW_N;k++){ exHPend[k]=0; exHDie[k]=exHDz[k]=0; } exIF=0; }   // (entering the life game: a run does not survive a load)
 // ---- the set-up screen ----
 static void hzPill(int x,int y,const char*s,int on){ int w=tw(s,1)+8; s2rr(x,y,w,9,on?GOLD:RGB(10,20,30)); s2rr(x+1,y+1,w-2,7,on?RGB(13,18,28):RGB(3,9,17)); text(x+4,y+1,s,on?WHITE:RGB(17,29,31),1); }
-static int hzSetup(void){   // 1 = a run starts (the pause menu closes behind it)
+XPF static int hzSetup(void){   // 1 = a run starts (the pause menu closes behind it)
     const char*why; if(!hzCanStart(&why)){ toast(why); return 0; }
     int sel=HZO_N+2, top=0, rows=HZO_N+3; u16 prev=keyNow(); u32 cnt=0; int dirty=1;   // (rows: MODE, MAP, the mutators, START)
     for(;;){
@@ -226,7 +226,7 @@ static int hzSetup(void){   // 1 = a run starts (the pause menu closes behind it
     }
 }
 // ---- the cards: the run starts (exModal 4), a perk (5), the run is over (6) ----
-static void hzIntroCard(void){
+XPF static void hzIntroCard(void){
     u16 prev=keyNow(); u32 cnt=0;
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
@@ -245,7 +245,7 @@ static void hzIntroCard(void){
         present();
     }
 }
-static void hzPerkCard(void){
+XPF static void hzPerkCard(void){
     int sel=0; u16 prev=keyNow(); u32 cnt=0; int n=0; for(int i=0;i<3;i++) if(hzPerkOpt[i]<HZP_N) n++;
     if(!n) return;
     for(;;){
@@ -263,7 +263,7 @@ static void hzPerkCard(void){
         present();
     }
 }
-static void hzResultCard(void){
+XPF static void hzResultCard(void){
     u16 prev=keyNow(); u32 cnt=0;
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;

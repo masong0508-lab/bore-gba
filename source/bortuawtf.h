@@ -4,5 +4,5 @@
 #define BFA_WTF_W1 200
 static const u8 bfaWtfX[BFA_WTF_N]={0,13,26,39,59,72,85,105,118,131,144,0,13,26,39,59,72,85,98,111,124,137,150,163,176,189};   // each letter's column in its line
 static const u8 bfaWtfL[BFA_WTF_N]={0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};   // its line
-__asm__(".pushsection .rodata\n.balign 4\n.global bfaWtf\nbfaWtf:\n.incbin \"source/art/bortua_wtf.bin\"\n.popsection\n");
+__asm__(".pushsection .rodata.bfaArt,\"a\"\n.balign 4\n.global bfaWtf\nbfaWtf:\n.incbin \"source/art/bortua_wtf.bin\"\n.popsection\n");
 extern const u32 bfaWtf[];

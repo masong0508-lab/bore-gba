@@ -12,6 +12,7 @@ typedef uint8_t u8; typedef uint16_t u16; typedef uint32_t u32;
 #define REG_DMA3CNT (*(volatile u32*)0x040000DC)
 #define VRAM_ADDR 0x06000000u
 #define EWRAM_BSS __attribute__((section(".sbss"), aligned(4)))
+#define XPF __attribute__((noinline))   // an expansion pack's entry point: never inlined into the base game, so its code stays in the pack's ROM slot (expand.h)
 // Hot loops run as ARM code from IWRAM (32-bit, zero-wait bus) instead of Thumb from the 16-bit ROM bus. noinline: else the compiler may copy an IWRAM
 // function into a ROM caller (wallBlock ran from ROM inside stageWall, the flash commands inside ROM code), which defeats the point.
 #define IWRAM_CODE __attribute__((section(".iwram"), long_call, noinline))
@@ -3410,7 +3411,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
     fxTick();   // ghosts and weather (fx.h): every step, also while you lie dead
     if(!ldead){   // needs: hunger and bladder, then how they (and the skating) make the skater feel
         if(stage==AG_BABY){ if(lfood<70) lfood=70; if(lbl>30) lbl=30; if(sNrg<60) sNrg=60; if(sHyg<60) sHyg=60; if(sCom<60) sCom=60; }   // looked after
-        moodTick(); simsTick(pr,(int)(lfx>>8),(int)(lfy>>8)); hhTick(); phTick(); stTick(); exTick(); hzTick(); arTick(); homeTick(); wdTick();
+        moodTick(); simsTick(pr,(int)(lfx>>8),(int)(lfy>>8)); hhTick(); phTick(); stTick(); exTick(); if(hzOn) hzTick(); if(arOn) arTick();   // (both live in the BOREZIES! pack: only a horde or an arena, which need the pack, call them) homeTick(); wdTick();
         if(gGrow){ gGrow=0; setStage(stage+1); bakeSprites(); lnote=growNote[stage]; lnoteT=120; lstun=lstun>30?lstun:30; lsp=0; }
         { int fe=oFoodEvery(), we=oWcEvery();   // FOOD AND WC option
           if(fe&&lfr%fe==0&&lfood>0) lfood--;

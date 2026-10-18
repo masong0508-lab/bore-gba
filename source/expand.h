@@ -37,8 +37,23 @@
 _Static_assert(GO_OFF+50<=BD_OFF,"the handheld's block runs into the board block");
 _Static_assert(WD_OFF+WD_LEN<=EX_OFF&&EX_OFF+EX_LEN<=EXD_OFF&&EXD_OFF+EXD_LEN<=BF_OFF&&BF_OFF+8<=GO_OFF&&GO_OFF<LG_OFF,"the expansion blocks sit between the stash and the life stats");
 enum { XP_SPACE, XP_ZOMB, XP_WAR, XP_FIGHT, XP_GOTCHI, XP_EPI, XP_BASE, XP_N };   // (XP_BASE last: the saved pack numbers stay valid; the shelf shows it first)
+// EXPANSION PACKS AS PATCHES. The base game (bore.gba) ships without the six packs: each is a BPS patch (packs/, tools/make_packs.py) that fills
+// its own fixed slot at the top of the ROM (packslots.h, GENERATED: its header first, then its code, its mission table and its data,
+// tools/bore.ld + tools/packs.ld). A pack is there when its header is (xpHave). Every slot ends with four bytes that keep the whole ROM's CRC32
+// unchanged, so each patch finds the checksum it expects whichever other packs are already in: they apply in any order, alone or together.
+#include "packslots.h"
+#define XP_MAGIC 0x4B505842u   // 'BXPK'
 enum { XS_NONE, XS_SOON, XS_ZOMB, XS_WAR, XS_ARENA, XS_PUDDLE, XS_GHOST, XS_GRANT, XS_RAMPS, XS_PARTY, XS_BILLS, XS_SEEDS };
 enum { XMODE_NONE, XMODE_FIGHTER, XMODE_GOTCHI, XMODE_HORDE };
+typedef struct { u32 magic, pack, ver, slot; } XpHd;   // the first 16 bytes of a pack's slot
+#define XP_HD(n) static const XpHd xpHd##n __attribute__((section(".xphd" #n),used))={XP_MAGIC,n,1,XP_AT##n}; \
+                 static const u32 xpCp##n __attribute__((section(".xpc" #n),used))=0xFFFFFFFFu;   // (the slot's last word: make_packs.py sets it so the slot leaves the CRC32 alone)
+XP_HD(0) XP_HD(1) XP_HD(2) XP_HD(3) XP_HD(4) XP_HD(5)
+static int xpHave(int p){   // is pack p in this ROM? (the base game's own missions always are)
+    if(p==XP_BASE) return 1; if(p<0||p>XP_BASE) return 0;
+    static const u32 at[6]={XP_AT0,XP_AT1,XP_AT2,XP_AT3,XP_AT4,XP_AT5};
+    const volatile u32*h=(const volatile u32*)at[p]; return h[0]==XP_MAGIC&&h[1]==(u32)p; }
+static const char* const xpFile[6]={"BORE-EP1-BORE-OUT-MAN.BPS","BORE-EP2-BOREZIES.BPS","BORE-EP3-WORLD-WAR-BORE.BPS","BORE-EP4-BORTUA-FIGHTER.BPS","BORE-EP7-BOREAGOTCHI.BPS","BORE-EP8-BOREPILOGUE.BPS"};
 // task kinds the packs add to story.h's (QK_EV, QK_AT ... QK_FREE)
 enum { QK_PETS=QK_FREE+1, QK_PLOVE, QK_PTRICKS, QK_POTTY, QK_STAGE, QK_CNT, QK_DAYS, QK_SECURE, QK_HAPPY, QK_BFW, QK_BFCHAMP, QK_GOTCHI,
        QK_DO, QK_SOC, QK_PETDO, QK_GDO };   // the last four tick on an event that names one thing (a venue action, a social, a pet action, a handheld action)
@@ -46,7 +61,9 @@ enum { QK_PETS=QK_FREE+1, QK_PLOVE, QK_PTRICKS, QK_POTTY, QK_STAGE, QK_CNT, QK_D
 enum { GA_FEED, GA_SNACK, GA_PLAY, GA_CLEAN, GA_MED, GA_SCOLD, GA_LIGHT, GA_N };
 // the pet actions of the pet's pie menu (petui.h petPie)
 enum { PD_PET, PD_CUDDLE, PD_PLAY, PD_TRICK, PD_TRAIN, PD_FEED, PD_OUT, PD_POTTY, PD_SCOLD, PD_SHOO };
-typedef struct { const char*nm; const char*br[2]; u8 sc, pay; StT t[3]; u8 ar; const char*in,*out; } XMs;   // ar: the arena the mission is played on (AMAP_, arena.h; 0 = your own lot), in / out: the story told before and after it (pages split by |)
+typedef struct { u8 k, a; u32 n; char nm[31]; } XT;   // a mission's task: story.h's StT with its name inline
+typedef struct { char nm[28]; char br[2][42]; u8 sc, pay; XT t[3]; u8 ar; const char*in,*out; } XMs;   // the words are inline (not pointers into the shared strings) so a pack's table carries them into its own ROM slot (EXPANSION PACKS AS PATCHES below)
+// ar: the arena the mission is played on (AMAP_, arena.h; 0 = your own lot), in / out: the story told before and after it (pages split by |)   // ar: the arena the mission is played on (AMAP_, arena.h; 0 = your own lot), in / out: the story told before and after it (pages split by |)
 typedef struct { const char*nm,*sub,*bl[3]; const XMs*ms; u8 n, no, mode, adult; u16 a, b; const char*modeNm; } XPk;
 #define XM(nm,b0,b1,sc,pay,...) {nm,{b0,b1},sc,pay,{__VA_ARGS__}}
 #define XMS(nm,b0,b1,sc,pay,ar,in,out,...) {nm,{b0,b1},sc,pay,{__VA_ARGS__},ar,in,out}   // a story mission: it is played on an arena and tells a story
@@ -75,41 +92,62 @@ static const XMs xmSpace[]={
      {QK_HOME,0,0,"GET BACK HOME"},TS(SC_HUG,"HUG SOMEONE"),{QK_GUEST,0,0,"HAVE SOMEONE OVER"}),
 };
 // ---- 2 BOREZIES! ----
+// the chapters' story pages: arrays of their own (not pointers into the shared strings) so they ride in the BOREZIES! patch with the table
+static const char xz1In[]=
+  "It started with the neighbor. He stood at your fence all morning, staring at nothing, groaning one word. Booooore.|"
+  "Nobody is sure when the town got so bored it turned. The TV was on. The feed was refreshed. Somebody said: there is nothing to do.|"
+  "Now he is shuffling your way. Fists daze them. Fun cures them. Hold L when you hear the groan: that is the bite coming.";
+static const char xz1Out[]=
+  "He blinked. He said: wow, I was gone for a while there. Then he went home to watch a documentary. One down.|"
+  "The rest of the street is still groaning. Your phone has fourteen messages that all say the same word.";
+static const char xz2In[]=
+  "Dawn. Every house on the cul-de-sac has gone quiet and grey, except yours. They are coming out of their front doors in bathrobes.|"
+  "The mail carrier survived by walking very fast. He says boredom spreads through eye contact and small talk. Do not say nice weather.|"
+  "Hold the block. They come from every road. There are barrels and cones lying about: they make good cover, and different ones every time.";
+static const char xz2Out[]=
+  "The sun came up on a street full of people blinking in their bathrobes. Somebody asked what day it was. Nobody knew. It was a good sign.|"
+  "The mail carrier is still walking very fast. He says he has to. It is his job.";
+static const char xz3In[]=
+  "The plan is simple. Go to the Winchester. Have a nice cold pint. Wait for all of this to blow over.|"
+  "The plan was not simple. The pub is full of regulars who went bored with a drink in their hand. The jukebox is stuck on one song.|"
+  "Tables are cover. Kegs are cover. The barman says nothing. He has heard worse. Mind the back door.";
+static const char xz3Out[]=
+  "Last orders was called, and nobody drifted off, for the first time in years. The jukebox skipped to a new song. Round of applause.|"
+  "The barman said the pint was on the house. It was a very flat pint. You drank it anyway.";
+static const char xz4In[]=
+  "A signal from a lab outside town: we know what cures boredom for good. It is in a white tank. Do not open the yellow ones.|"
+  "The scientists went bored mid experiment. The lab is full of canisters, all labelled, none legibly. The white tank is the only one that matters.|"
+  "Walk up to the white tank and the lab will tell you warmer or colder. The cure is simple: puff puff pass. Be quick, they are still coming.";
+static const char xz4Out[]=
+  "The cure works by reminding everyone that they are still alive and have the whole weekend off.|"
+  "The scientists went back to their experiment. It turned out to be a sandwich. They had been staring at it for nine days.";
+static const char xz5In[]=
+  "Patient Zero. The first of the bored. He stands in the arcade, staring at a screen that says: insert coin.|"
+  "He has played the same level for nine days. He is the high score. He is also the last one left.|"
+  "He comes in with a crowd. Cure them, then go for Zero. He hits harder than the rest, and he blocks bad jokes.";
+static const char xz5Out[]=
+  "Zero blinked. He looked at the score. He looked at you. He said: that was... fun? And the whole town woke up.|"
+  "They came back the next night, all of them, wanting more. The town missed you. It is not over: it never is.";
 static const XMs xmZomb[]={
   XMS("NIGHT OF THE LIVING BORED","A NEIGHBOR SHUFFLES OVER","GROANING  BOOORE  CHEER THEM UP",XS_ZOMB,30,AMAP_HOME,
-      "It started with the neighbor. He stood at your fence all morning, staring at nothing, groaning one word. Booooore.|"
-      "Nobody is sure when the town got so bored it turned. The TV was on. The feed was refreshed. Somebody said: there is nothing to do.|"
-      "Now he is shuffling your way. Fists daze them. Fun cures them. Hold L when you hear the groan: that is the bite coming.",
-      "He blinked. He said: wow, I was gone for a while there. Then he went home to watch a documentary. One down.|"
-      "The rest of the street is still groaning. Your phone has fourteen messages that all say the same word.",
+      xz1In,
+      xz1Out,
       TK(QK_CNT,1,"CURE A BOREZIE"),TE(SE_LAUGH,1,"TELL A JOKE")),
   XMS("DAWN OF THE BORED","THE STREET HAS GONE GREY","HOLD THE CUL-DE-SAC",XS_ZOMB,35,AMAP_CULDESAC,
-      "Dawn. Every house on the cul-de-sac has gone quiet and grey, except yours. They are coming out of their front doors in bathrobes.|"
-      "The mail carrier survived by walking very fast. He says boredom spreads through eye contact and small talk. Do not say nice weather.|"
-      "Hold the block. They come from every road. There are barrels and cones lying about: they make good cover, and different ones every time.",
-      "The sun came up on a street full of people blinking in their bathrobes. Somebody asked what day it was. Nobody knew. It was a good sign.|"
-      "The mail carrier is still walking very fast. He says he has to. It is his job.",
+      xz2In,
+      xz2Out,
       TK(QK_CNT,3,"CURE 3 BOREZIES"),TS(SC_HIGH5,"GIVE A HIGH FIVE"),TE(QE_PARRY,1,"PARRY A BITE")),
   XMS("SHAUN OF THE BORED","THE PLAN: THE WINCHESTER","A COLD PINT  AND WAIT FOR IT TO BLOW OVER",XS_ZOMB,40,AMAP_PUB,
-      "The plan is simple. Go to the Winchester. Have a nice cold pint. Wait for all of this to blow over.|"
-      "The plan was not simple. The pub is full of regulars who went bored with a drink in their hand. The jukebox is stuck on one song.|"
-      "Tables are cover. Kegs are cover. The barman says nothing. He has heard worse. Mind the back door.",
-      "Last orders was called, and nobody drifted off, for the first time in years. The jukebox skipped to a new song. Round of applause.|"
-      "The barman said the pint was on the house. It was a very flat pint. You drank it anyway.",
+      xz3In,
+      xz3Out,
       TK(QK_CNT,4,"CURE 4 BOREZIES"),TS(SC_HUG,"HUG IT OUT"),TE(QE_KO,1,"KNOCK ONE OUT COLD")),
   XMS("28 BONGS LATER","THE LAB HAS THE CURE","FIND THE WHITE TANK  PASS IT ON",XS_ZOMB,45,AMAP_LAB,
-      "A signal from a lab outside town: we know what cures boredom for good. It is in a white tank. Do not open the yellow ones.|"
-      "The scientists went bored mid experiment. The lab is full of canisters, all labelled, none legibly. The white tank is the only one that matters.|"
-      "Walk up to the white tank and the lab will tell you warmer or colder. The cure is simple: puff puff pass. Be quick, they are still coming.",
-      "The cure works by reminding everyone that they are still alive and have the whole weekend off.|"
-      "The scientists went back to their experiment. It turned out to be a sandwich. They had been staring at it for nine days.",
+      xz4In,
+      xz4Out,
       TE(QE_TANK,1,"FIND THE WHITE TANK"),TK(QK_CNT,4,"CURE 4 BOREZIES"),TS(SC_PASS,"PUFF PUFF PASS")),
   XMS("BORED OF THE DEAD","PATIENT ZERO IS AT THE ARCADE","BEAT HIS HIGH SCORE",XS_ZOMB,60,AMAP_ARCADE,
-      "Patient Zero. The first of the bored. He stands in the arcade, staring at a screen that says: insert coin.|"
-      "He has played the same level for nine days. He is the high score. He is also the last one left.|"
-      "He comes in with a crowd. Cure them, then go for Zero. He hits harder than the rest, and he blocks bad jokes.",
-      "Zero blinked. He looked at the score. He looked at you. He said: that was... fun? And the whole town woke up.|"
-      "They came back the next night, all of them, wanting more. The town missed you. It is not over: it never is.",
+      xz5In,
+      xz5Out,
       TK(QK_CNT,5,"CURE 5 BOREZIES"),TE(QE_ZERO,1,"BEAT PATIENT ZERO")),
 };
 // ---- 3 WORLD WAR BORE ----
@@ -263,9 +301,9 @@ static u16 exHPal[TW_N][16] EWRAM_BSS;        // a hostile visitor's own colours
 static u8 bfWins, bfChamp, goStage;           // the modes: arcade fights won, the ladder beaten, the handheld blob's stage (bortua.h, gotchi.h keep them)
 static char exB[52] EWRAM_BSS;
 static u8 exDay8(void){ u8 b=(u8)(simDay&255); return b==255?254:b; }
-static const XMs* exMs(void){ return (exP>=1&&exP<=XP_N&&exM<xPk[exP-1].n)?&xPk[exP-1].ms[exM]:0; }
+static const XMs* exMs(void){ return (exP>=1&&exP<=XP_N&&exM<xPk[exP-1].n&&xpHave(exP-1))?&xPk[exP-1].ms[exM]:0; }   // (a pack that is not in the ROM: no mission; it waits in the save until the pack is back)
 static int exTkN(const XMs*x){ int n=0; if(x) while(n<3&&x->t[n].k) n++; return n; }
-static int exSoon(int p,int m){ return xPk[p].ms[m].sc==XS_SOON; }
+static int exSoon(int p,int m){ return !xpHave(p)||xPk[p].ms[m].sc==XS_SOON; }   // (a pack not in the ROM has nothing to play)
 // ---- saving ----
 static u8 exSum(volatile const u8*m){ u8 s=0x58; for(int i=2;i<EX_LEN-1;i++) s=(u8)(s*3+m[i]); return s; }
 static void exSave(void){ volatile u8*m=SRAM_BASE+EX_OFF; m[0]='X'; m[1]='P'; m[2]=1; m[3]=exP; m[4]=exM; m[5]=exTk; m[6]=exCnt; m[7]=exDay; m[8]=exSum(m); }
@@ -273,7 +311,7 @@ static void exClear(void){ exP=exM=exTk=exCnt=0; exDay=255; }
 static int exLoadFrom(volatile const u8*m){   // 1 = a sound block
     if(m[0]!='X'||m[1]!='P'||m[2]!=1||m[8]!=exSum(m)||m[3]>XP_N) return 0;
     exP=m[3]; exM=m[4]; exTk=m[5]; exCnt=m[6]; exDay=m[7];
-    if(exP&&(exM>=xPk[exP-1].n||exSoon(exP-1,exM))) exClear();
+    if(exP&&xpHave(exP-1)&&(exM>=xPk[exP-1].n||exSoon(exP-1,exM))) exClear();   // (a mission of a pack not in the ROM is kept for when it is)
     return 1;
 }
 static void exLoad(void){ exClear(); if(!exLoadFrom(SRAM_BASE+EX_OFF)) exClear(); }
@@ -501,7 +539,7 @@ static void exSparCall(void){   // the DOJO's CALL OUT A CHALLENGER: a visitor h
 }
 // ---- the mission's tasks ----
 static int exPetBest(int what){ int b=0; for(int i=0;i<petN;i++){ const Pet*p=&petM[i]; int v=what==0?p->love:what==1?p->potty:0; if(what==2){ for(int q=0;q<PET_TRK;q++) v+=(p->tricks>>q)&1; } if(v>b) b=v; } return b; }
-static int exVal(const StT*t){   // the number a task counts (-1: it has none to show)
+static int exVal(const XT*t){   // the number a task counts (-1: it has none to show)
     int me=hhPUid;
     switch(t->k){
     case QK_CNT: return exCnt;
@@ -524,7 +562,7 @@ static int exVal(const StT*t){   // the number a task counts (-1: it has none to
     return -1;
 }
 static int exEvKind(int k){ return k==QK_EV||k==QK_DO||k==QK_SOC||k==QK_PETDO||k==QK_GDO; }   // ticked by an event, never by a state
-static int exTkNow(const StT*t){   // is a task's state met right now?
+static int exTkNow(const XT*t){   // is a task's state met right now?
     switch(t->k){
     case QK_AT: return trvHere(t->a);
     case QK_HOME: return !nbOk||nbT.cur==nbT.home;
@@ -541,13 +579,13 @@ static int exTkNow(const StT*t){   // is a task's state met right now?
 static void exTkDone(int i,const XMs*x){ exTk|=(u8)(1<<i); exSave(); char*e=simCat(exB,"DONE  "); simCat(e,x->t[i].nm); lnote=exB; lnoteT=150; sfxPlay(SFX_STICK); }
 static void exQEvent(int ev,int v){   // story.h stQEvent passes every life event and story event on
     const XMs*x=exMs(); if(!x) return; int n=exTkN(x);
-    for(int i=0;i<n;i++){ const StT*t=&x->t[i]; if((exTk>>i)&1) continue;
+    for(int i=0;i<n;i++){ const XT*t=&x->t[i]; if((exTk>>i)&1) continue;
         int hit=(t->k==QK_EV&&t->a==ev&&v>=(int)t->n)||(t->k==QK_DO&&ev==QE_VACT&&v==t->a)||(t->k==QK_SOC&&ev==QE_SOC&&v==t->a)
               ||(t->k==QK_PETDO&&ev==QE_PET&&v==t->a)||(t->k==QK_GDO&&ev==QE_GOTCHI&&v==t->a);
         if(hit) exTkDone(i,x); }
     if(ev==SE_TRICK&&x->sc==XS_RAMPS) exCountUp(4); if(ev==QE_BOUGHT&&x->sc==XS_GRANT) exCountUp(5);   // the base game's counters
 }
-static void exTkText(const StT*t,int ok,char*b){   // "+ CURE 3 BOREZIES" / "- CURE 3 BOREZIES  1/3"
+static void exTkText(const XT*t,int ok,char*b){   // "+ CURE 3 BOREZIES" / "- CURE 3 BOREZIES  1/3"
     char*e=slCat(b,ok?"+ ":"- "); e=slCat(e,t->nm);
     if(ok||exEvKind(t->k)||t->k==QK_LSKILL||t->k==QK_STAGE) return;
     int v=exVal(t); if(v<0||t->n<2||t->n>9999) return;
@@ -629,12 +667,12 @@ static void exTick(void){   // once per logic step in the life game (main.c, nex
     if(exIF&&!hzOn) exIF--;   // (the bite immunity runs out; in a horde hzTick does it)
     if(!exP) return;
     static u8 c; if(++c<60) return; c=0;
-    const XMs*x=exMs(); if(!x){ exQuit(); return; }
+    const XMs*x=exMs(); if(!x){ if(exP&&!xpHave(exP-1)) return; exQuit(); return; }   // (its pack is not in the ROM: the mission sleeps)
     if(exDay==255){ exDay=exDay8(); exSave(); }
     for(int k=0;k<TW_N;k++) if(twOn[k]==2&&!exHT[k]&&!(exTk&0x80)){ exTk|=0x80; exSave(); }   // someone came over (and is not here to bite)
     exScTick(x);
     int n=exTkN(x);
-    for(int i=0;i<n;i++){ if((exTk>>i)&1) continue; const StT*t=&x->t[i]; if(!exEvKind(t->k)&&exTkNow(t)) exTkDone(i,x); }
+    for(int i=0;i<n;i++){ if((exTk>>i)&1) continue; const XT*t=&x->t[i]; if(!exEvKind(t->k)&&exTkNow(t)) exTkDone(i,x); }
     if(n&&(exTk&((1<<n)-1))==(1<<n)-1) exComplete();
 }
 static void hzReset(void);
@@ -661,7 +699,22 @@ static void exCover(int p,int x,int y,int w,int h,int on){   // a pack's box: it
 }
 static int exModeRun(int p);   // the packs' modes (bortua.h, gotchi.h)
 // ---- PACK: its missions ----
+static void exNotIn(int p){   // a pack that is not in this ROM: what to do about it
+    u16 prev=keyNow(); u32 cnt=0;
+    for(;;){
+        u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
+        if(cnt>10&&(pr&(K_A|K_B|K_START))) return;
+        stBack(xPk[p].nm,(int)cnt);
+        s2rr(8,22,224,118,RGB(16,27,31)); s2rr(9,23,222,116,RGB(2,6,13)); s2grad(10,24,220,114,3,9,19,1,4,10);
+        exIcon(p,16,30,4,xPk[p].b); text(60,30,"NOT INSTALLED",GOLD,2); text(60,50,xPk[p].sub,RGB(17,29,31),1);
+        rect(14,64,212,1,RGB(14,26,31));
+        text(16,72,"THIS EXPANSION PACK IS A PATCH",WHITE,1); text(16,82,"PATCH YOUR BORE ROM WITH",WHITE,1); text(16,94,xpFile[p],GOLD,1);
+        text(16,108,"PACKS GO ON IN ANY ORDER",RGB(20,26,31),1); text(16,117,"ONE AT A TIME OR ALL TOGETHER",RGB(20,26,31),1); text(16,126,"YOUR SAVE KEEPS WORKING",RGB(20,26,31),1);
+        s2pill(5,147,40,"A OK"); present();
+    }
+}
 static void exPackScreen(int p,int ingame){
+    if(!xpHave(p)){ exNotIn(p); return; }
     const XPk*P=&xPk[p]; int hasMode=P->mode!=XMODE_NONE, rows=P->n+hasMode, sel=0, top=0;
     for(int i=0;i<P->n;i++) if(exOpen(p,i)&&!exDone(p,i)){ sel=i+hasMode; break; }   // (the first open mission not done yet)
     u16 prev=keyNow(); int dirty=1; u32 cnt=0;
@@ -728,7 +781,8 @@ static void exShelf(int ingame){
         text(48,93,P->nm,GOLD,1); text(48,102,P->sub,RGB(17,29,31),1);
         for(int i=0;i<3;i++) text(48,113+i*9,P->bl[i],RGB(20,26,31),1);
         exIcon(exOrd[sel],15,96,3,P->b);
-        { char b[32]; char*e=slNum(b,exPackDone(exOrd[sel])); e=slCat(e,"/"); e=slNum(e,exPackPlay(exOrd[sel])); slCat(e," DONE"); text(229-tw(b,1),93,b,WHITE,1);
+        if(!xpHave(exOrd[sel])){ text(229-tw("NOT INSTALLED",1),93,"NOT INSTALLED",RGB(31,14,8),1); text(229-tw("A PATCH",1),102,"A PATCH",DIMC,1); }
+        else { char b[32]; char*e=slNum(b,exPackDone(exOrd[sel])); e=slCat(e,"/"); e=slNum(e,exPackPlay(exOrd[sel])); slCat(e," DONE"); text(229-tw(b,1),93,b,WHITE,1);
           char*f=slNum(b,P->n); slCat(f," MISSIONS"); text(229-tw(b,1),102,b,DIMC,1); }
         if(P->mode) text(229-tw("+ A MODE",1),113,"+ A MODE",GOLD,1);
         { const char*a="A OPEN"; s2pill(5,147,tw(a,1)+10,a); s2pill(9+tw(a,1)+10,147,tw("LEFT RIGHT PICK",1)+10,"LEFT RIGHT PICK"); }
@@ -786,7 +840,7 @@ static void exTell(int p,int m,int outro){   // a mission's story before it star
 static void exRunModal(void){   // the mission card (1 a mission starts, 2 one is done and the next starts, 3 the last one is done)
     int kind=exModal; exModal=0; u16 prev=keyNow(); u32 cnt=0; int p=kind==1?exP-1:exLastP;
     if(kind==4){ hzIntroCard(); return; } if(kind==5){ hzPerkCard(); return; } if(kind==6){ hzResultCard(); return; }   // (HORDE MODE's cards: horde.h)
-    if(p<0||p>=XP_N) return;
+    if(p<0||p>=XP_N||!xpHave(p)) return;
     if(kind==1&&exStoryOn){ exStoryOn=0; exTell(p,exM,0); prev=keyNow(); }   // (a mission begins: its story first)
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
@@ -844,6 +898,8 @@ static void exStoryTile(void){   // pause menu > STORY: the mission, the story j
 // ---- a screen that takes over the life game (lifeModeRun plays it like the TV's clips) ----
 static void exLaunch(void); static int exSpacewalk(int real);
 static void exTakeRun(int t){
+    { int need=(t==EXT_LAUNCH||t==EXT_SWTRAIN)?XP_SPACE:t==EXT_FIGHTER?XP_FIGHT:t==EXT_GOTCHI?XP_GOTCHI:-1;   // (the spaceport's launch and spacewalk, the arcade's cabinet, the handheld: their pack must be in)
+      if(need>=0&&!xpHave(need)){ exNotIn(need); hhExtraDone(); return; } }
     if(t==EXT_LAUNCH) exLaunch();
     else if(t==EXT_SWTRAIN){ if(exSpacewalk(0)){ stQEvent(QE_SPACEWALK,1); toast("TRAINING PASSED  YOU ARE READY"); } else toast("MISSION CONTROL REELED YOU IN"); }
     else if(t==EXT_FIGHTER) exModeRun(XP_FIGHT);

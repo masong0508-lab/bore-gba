@@ -29,13 +29,17 @@ jobs:
           export DEVKITPRO=/opt/devkitpro
           export DEVKITARM=/opt/devkitpro/devkitARM
           export PATH=$DEVKITARM/bin:$DEVKITPRO/tools/bin:$PATH
+          command -v python3 >/dev/null || { apt-get update && apt-get install -y python3; }   # (tools/make_packs.py lays out and patches the expansion packs)
           make
           make size
           make creator
       - uses: actions/upload-artifact@v4
         with:
           name: bore-gba
-          path: bore.gba
+          path: |
+            bore.gba
+            bore-complete.gba
+            packs/*.bps
       - uses: actions/upload-artifact@v4
         with:
           name: bore-creator-demo
@@ -46,14 +50,19 @@ jobs:
         with:
           tag_name: latest
           name: Latest build (${{ github.sha }})
-          body: The newest bore.gba built from main, commit ${{ github.sha }}. Download bore.gba below and open it in mGBA, Pizza Boy, a PSP emulator or a flash cart.
+          body: The newest build from main, commit ${{ github.sha }}. bore.gba is the base game; bore-complete.gba has every expansion pack in. The BORE-EP*.bps files are the expansion packs one by one; patch them onto bore.gba in any order, alone or together (Flips, Rom Patcher JS, ...). Open the ROM in mGBA, Pizza Boy, a PSP emulator or a flash cart.
           target_commitish: ${{ github.sha }}
           make_latest: true
           files: |
             bore.gba
+            bore-complete.gba
             bore-creator.gba
+            packs/*.bps
       - name: Publish release on tag
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: bore.gba
+          files: |
+            bore.gba
+            bore-complete.gba
+            packs/*.bps

@@ -56,5 +56,5 @@ static const u8 bfaAx[BFA_BODIES*BFA_BUTTS*BFA_NFR]={30,30,30,30,27,31,32,29,26,
 #define BFA_GROUND 137   // the arena row the fighters stand on
 #define BFA_RINGL 29
 #define BFA_RINGR 210   // the ring's edges on that row (a little inside)
-__asm__(".pushsection .rodata\n.balign 4\n.global bfaFighters\nbfaFighters:\n.incbin \"source/art/bortua_fighters.bin\"\n.balign 4\n.global bfaArena\nbfaArena:\n.incbin \"source/art/bortua_arena.bin\"\n.balign 4\n.global bfaFx\nbfaFx:\n.incbin \"source/art/bortua_fx.bin\"\n.popsection\n");
+__asm__(".pushsection .rodata.bfaArt,\"a\"\n.balign 4\n.global bfaFighters\nbfaFighters:\n.incbin \"source/art/bortua_fighters.bin\"\n.balign 4\n.global bfaArena\nbfaArena:\n.incbin \"source/art/bortua_arena.bin\"\n.balign 4\n.global bfaFx\nbfaFx:\n.incbin \"source/art/bortua_fx.bin\"\n.popsection\n");
 extern const u32 bfaFighters[]; extern const u16 bfaArena[]; extern const u32 bfaFx[];   // bfaFx: 4 spark frames (32 x 32, 512 bytes each), a 32 x 8 shadow, a 16 x 8 one, 3 frames of the TOOT cloud (32 x 32)

@@ -182,7 +182,7 @@ static void goAct(int i){
     goTick(); goSave();
 }
 // ---- THE HANDHELD (expand.h exModeRun) ----
-static int goRun(void){
+XPF static int goRun(void){
     objHideAll(); REG_DISPCNT=0x0403;
     if(!(go.fl&GF_ON)){ goNew(); goSave(); }
     goBody(); int sel=0, fr=0; u16 prev=keyNow(); static char nb[28]; goMa=goMb=0; goMT=0;
