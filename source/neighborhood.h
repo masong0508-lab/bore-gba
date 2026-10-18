@@ -130,6 +130,7 @@ static void nbFlagSync(int j){   // the flags on the live lot j (main.c, FLAGS) 
     L->type=(u8)t; char q[24]; slCat(slCat(q,"NOW  "),ctNm[t]); toast(q);
 }
 static int nbStore(int j){   // the live map into lot j's house slot (keeps the slot it had when it still fits, else finds a free run)
+    if(arOn) arRestore();   // (a BOREZIES arena is never a lot: whatever got us here, the real lot is put back first)
     NbLot*L=&nbT.lot[j]; nbValueLive(j); slScan();
     if(L->slot>=0){
         if(slOwner[L->slot]==L->slot&&slI[L->slot].kind==SLK_HOUSE){ int e=houseSave(L->slot,L->name); if(e==SLE_OK) return 0; if(e!=SLE_NOROOM) return e; slDelete(L->slot); slScan(); }

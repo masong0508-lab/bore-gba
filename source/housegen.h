@@ -49,8 +49,8 @@ static int hgOk(void){
 // put c on a free floor tile inside the room (inner tiles x0..x1, y0..y1) against a wall (side 1: the back wall only), never in front of a door,
 // and only where the house can still be walked. 1 = placed
 static int hgLook(char c){   // a catalog look for a piece of furniture, one time in three (never the GROWN-UPS tab): the generated houses differ more
-    if(hgRnd(3)) return 0; int n=0; for(int i=0;i<CAT_N;i++) if(catTab[i].ch==c&&!catCatAdult[catTab[i].cat]) n++;
-    if(!n) return 0; int k=hgRnd(n); for(int i=0;i<CAT_N;i++) if(catTab[i].ch==c&&!catCatAdult[catTab[i].cat]&&k--==0) return catTab[i].lk; return 0; }
+    if(hgRnd(3)) return 0; int n=0; for(int i=0;i<CAT_N;i++) if(catTab[i].ch==c&&!catCatAdult[catTab[i].cat]&&catTab[i].cat!=CAT_C_HAZARD) n++;   // (no toxic barrels in a family home)
+    if(!n) return 0; int k=hgRnd(n); for(int i=0;i<CAT_N;i++) if(catTab[i].ch==c&&!catCatAdult[catTab[i].cat]&&catTab[i].cat!=CAT_C_HAZARD&&k--==0) return catTab[i].lk; return 0; }
 static int hgLookNm(const char*nm){ for(int i=0;i<CAT_N;i++){ const char*a=catTab[i].nm,*b=nm; while(*a&&*a==*b){ a++; b++; } if(!*a&&!*b) return catTab[i].lk; } return 0; }   // a look by name
 static int hgPut(int x0,int y0,int x1,int y1,int side,char c){
     u16 cand[64]; int n=0;

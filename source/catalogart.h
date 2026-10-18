@@ -1923,6 +1923,29 @@ MAT(mC1881,pCLeaf,1,1,"c")
 MAT(mC1882,pCLeaf,1,1,"c")
 MAT(mC1883,pCLeaf,1,1,"c")
 MAT(mC1884,pCLeaf,1,1,"c")
+MAT(mC1885,pCGreen,6,5,"cccccc","cccccc","cccccc","eeeeee","eeeeee")
+MAT(mC1886,pCGreen,6,5,"cccccc","cccccc","cccccc","eeeeee","eeeeee")
+MAT(mC1887,pCGreen,1,1,"d")
+MAT(mC1888,pCYellow,6,2,"cecece","cecece")
+MAT(mC1889,pCYellow,6,2,"cecece","cecece")
+MAT(mC1890,pCYellow,1,1,"d")
+MAT(mC1891,pCGreen,6,6,"cccccc","cccccc","cccccc","eeeeee","eeeeee","eeeeee")
+MAT(mC1892,pCGreen,6,6,"cccccc","cccccc","cccccc","eeeeee","eeeeee","eeeeee")
+MAT(mC1893,pCGreen,6,6,"bbbbbb","bccccb","bcddcb","bcddcb","bccccb","bbbbbb")
+MAT(mC1894,pCRed,6,13,"cccccc","cccccc","cccccc","cccccc","bbbbbb","bbbbbb","bbbbbb","bbbbbb","cccccc","cccccc","cccccc","cccccc","bbbbbb")
+MAT(mC1895,pCRed,6,13,"cccccc","cccccc","cccccc","cccccc","bbbbbb","bbbbbb","bbbbbb","bbbbbb","cccccc","cccccc","cccccc","cccccc","bbbbbb")
+MAT(mC1896,pCRed,6,6,"bbbbbb","bccccb","bcddcb","bcddcb","bccccb","bbbbbb")
+MAT(mC1897,pCSteel,1,1,"c")
+MAT(mC1898,pCMust,4,12,"ccbb","ccbb","ccbb","ccbb","ccbb","ccbb","ccbb","ccbb","ccbb","ccbb","ccbb","ccbb")
+MAT(mC1899,pCMust,4,12,"ccbb","ccbb","ccbb","ccbb","ccbb","ccbb","ccbb","ccbb","ccbb","ccbb","ccbb","ccbb")
+MAT(mC1900,pCMust,1,1,"d")
+MAT(mC1901,pCSteel,1,1,"c")
+MAT(mC1902,pCSteel,1,1,"b")
+MAT(mC1903,pCWhiteW,6,8,"cccccc","cccccc","cccccc","cccccc","bbbbbb","bbbbbb","bbbbbb","bbbbbb")
+MAT(mC1904,pCWhiteW,6,8,"cccccc","cccccc","cccccc","cccccc","bbbbbb","bbbbbb","bbbbbb","bbbbbb")
+MAT(mC1905,pCWhiteW,1,1,"d")
+MAT(mC1906,pCSteel,1,1,"b")
+MAT(mC1907,pCSteel,1,1,"c")
 static const IBox bxCat0[6]={ // OAK CHAIR
  {1,1,2,2,0,5,{&mC1,&mC1,&mC1,&mC1,&mC1}},
  {6,1,7,2,0,5,{&mC1,&mC1,&mC1,&mC1,&mC1}},
@@ -3444,3 +3467,18 @@ static const IBox bxCat281[13]={ // TRELLIS
  {4,3,5,4,8,10,{&mC1882,&mC1882,&mC1882,&mC1882,&mC1882}},
  {1,3,2,4,10,12,{&mC1883,&mC1883,&mC1883,&mC1883,&mC1883}},
  {4,3,5,4,12,14,{&mC1884,&mC1884,&mC1884,&mC1884,&mC1884}} };
+static const IBox bxCat282[3]={ // TOXIC BARREL
+ {1,1,7,7,0,5,{&mC1885,&mC1886,&mC1885,&mC1886,&mC1887}},
+ {1,1,7,7,5,7,{&mC1888,&mC1889,&mC1888,&mC1889,&mC1890}},
+ {1,1,7,7,7,13,{&mC1891,&mC1892,&mC1891,&mC1892,&mC1893}} };
+static const IBox bxCat283[2]={ // RED FUEL DRUM
+ {1,1,7,7,0,13,{&mC1894,&mC1895,&mC1894,&mC1895,&mC1896}},
+ {3,3,5,5,13,14,{&mC1897,&mC1897,&mC1897,&mC1897,&mC1897}} };
+static const IBox bxCat284[3]={ // GAS CANISTER
+ {2,2,6,6,0,12,{&mC1898,&mC1899,&mC1898,&mC1899,&mC1900}},
+ {3,3,5,5,12,15,{&mC1901,&mC1901,&mC1901,&mC1901,&mC1901}},
+ {2,3,6,5,15,16,{&mC1902,&mC1902,&mC1902,&mC1902,&mC1902}} };
+static const IBox bxCat285[3]={ // PROPANE TANK
+ {1,1,7,7,0,8,{&mC1903,&mC1904,&mC1903,&mC1904,&mC1905}},
+ {2,2,6,6,8,9,{&mC1906,&mC1906,&mC1906,&mC1906,&mC1906}},
+ {3,3,5,5,9,12,{&mC1907,&mC1907,&mC1907,&mC1907,&mC1907}} };

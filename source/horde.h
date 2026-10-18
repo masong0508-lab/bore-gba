@@ -1,6 +1,6 @@
 // horde.h - HORDE MODE: the BOREZIES! pack's endless mode (opens when all five of its missions are done; expand.h).
 //
-// WAVES   Borezies pour in wave after wave while you stand your ground on your own lot: 100 WAVES (win at the hundredth) or ENDLESS (until you are
+// WAVES   Borezies pour in wave after wave while you stand your ground on your own lot or an arena (the MAP row, arena.h): 100 WAVES (win at the hundredth) or ENDLESS (until you are
 //         bored stiff). Each wave is a count of enemies (hzCount: grows with the wave, at most 48), let in a few at a time up to the HORDE SIZE
 //         (hzCap: 3, 4 or 6 on the lot at once, never more than the household leaves free places for: the fewer Sims you live with, the bigger the
 //         crowd). Between waves a breather: a supply drop (a little FUN and HEALTH back, the clock for a snack) and every five waves a PERK to pick.
@@ -28,6 +28,7 @@ static const u8 hzoDef[HZO_N]={1,1,1,1,1,0,0,0,0,0,0,0,1,0};
 static const char* const hzoDesc[HZO_N]={"HOW MANY ON THE LOT AT ONCE","HOW FAST THEY SHAMBLE","HOW MUCH PUNISHMENT THEY SOAK","HOW MUCH FUN A BITE TAKES","A BORED STIFF SIM COSTS A LIFE","A PUNCH OR A JOKE  OR ONLY ONE","FREEZE THE CLOCK AT NOON OR MIDNIGHT","THE SPECIAL METER AS YOU LIKE IT","PATIENT ZERO EVERY TEN WAVES","A BREATHER AND A SNACK BETWEEN WAVES","HUNGER AND SLEEP WAIT  OR DO NOT","THE WHOLE ZOO  OR ONE KIND","HOW FAST THE CROWD GETS BIGGER","SKIP AHEAD  FOR THE BRAVE"};
 static u8 hzOpt[HZO_N];                        // the chosen option of each mutator
 static u8 hzMode;                              // set-up: 0 a hundred waves, 1 endless
+static u8 hzMap;                               // set-up: where it is fought: 0 your own lot, 1..AR_N an arena (arena.h)
 static const u8 hzStartW[4]={1,10,25,50};
 // ---- the run ----
 enum { HZP_SKIN, HZP_FISTS, HZP_CHEER, HZP_WIND, HZP_SLOW, HZP_CHARGE, HZP_HEART, HZP_KING, HZP_N };
@@ -59,16 +60,16 @@ static void hzSave(void){
     volatile u8*m=SRAM_BASE+HZ_OFF; m[0]='H'; m[1]='Z'; m[2]=1; m[3]=hzFlags; m[4]=hzBestW[0]; m[5]=hzBestW[1];
     for(int i=0;i<4;i++){ m[6+i]=(u8)(hzBestS[0]>>(8*i)); m[10+i]=(u8)(hzBestS[1]>>(8*i)); m[14+i]=0; }
     for(int o=0;o<HZO_N;o++) m[14+o/4]=(u8)(m[14+o/4]|(hzOpt[o]&3)<<(2*(o&3)));
-    m[18]=hzMode; m[19]=0; m[20]=hzSum(m);
+    m[18]=hzMode; m[19]=hzMap; m[20]=hzSum(m);
 }
 static void hzLoad(void){
     for(int o=0;o<HZO_N;o++) hzOpt[o]=hzoDef[o];
-    hzMode=0; hzFlags=0; hzBestW[0]=hzBestW[1]=0; hzBestS[0]=hzBestS[1]=0;
+    hzMode=0; hzMap=0; hzFlags=0; hzBestW[0]=hzBestW[1]=0; hzBestS[0]=hzBestS[1]=0;
     volatile const u8*m=SRAM_BASE+HZ_OFF; if(m[0]!='H'||m[1]!='Z'||m[2]!=1||m[20]!=hzSum(m)) return;
     hzFlags=m[3]; hzBestW[0]=m[4]; hzBestW[1]=m[5];
     for(int i=0;i<4;i++){ hzBestS[0]|=(u32)m[6+i]<<(8*i); hzBestS[1]|=(u32)m[10+i]<<(8*i); }
     for(int o=0;o<HZO_N;o++){ int v=(m[14+o/4]>>(2*(o&3)))&3; hzOpt[o]=(u8)(v<hzoN[o]?v:hzoDef[o]); }
-    hzMode=m[18]&1;
+    hzMode=m[18]&1; hzMap=m[19]<=AR_N?m[19]:0;
 }
 // ---- the HUD text and the score ----
 static const char* hzHudText(void){   // the top bar's right end: "W12 L3 7" (wave, lives, how many are left), "W12 READY", "W12 CLEAR"; a combo of three or more tags on if it fits
@@ -112,13 +113,13 @@ static int hzStartRun(void){   // 1 = it started
     { static const u8 lv[4]={1,3,5,255}; hzLives=lv[hzOpt[HZO_LIVES]]; }
     hzLot=nbOk?nbT.cur:0; hzClock0=(u16)simMin;
     moodFun=moodClamp(85*MOOD_ONE); lstun=0; if(lhp<60) lhp=60;
-    hzSave(); exModal=4; return 1;
+    arPend=(u8)(hzMap?hzMap+1:(arOn?1:0)); hzSave(); exModal=4; return 1;   // (the arena goes up once the first card is read)
 }
 static void hzCleanup(void){
     for(int k=0;k<TW_N;k++){ exHPend[k]=0; if(exHT[k]) exHGone(k); else { exHDie[k]=exHDz[k]=0; } }
     hzOn=0; twLim=2; for(int k=0;k<TW_N;k++){ if(k>=2) twHas[k]=0; twOn[k]=0; twWait[k]=(short)(400+k*500); }
     if(hzOpt[HZO_TIME]) simMin=hzClock0;
-    exIF=0; liveInvalidate();
+    exIF=0; if(arOn) arPend=1; liveInvalidate();   // (and the lot comes back after the result card)
 }
 static int hzRecOk(void){ return hzOpt[HZO_LIVES]!=3&&hzStartWave==1; }   // a practice run (endless lives, or a start past wave 1) leaves no record
 static void hzEnd(int res){   // 0 bored stiff, 1 the hundred waves beaten, 2 left the lot, 3 gave up
@@ -151,7 +152,7 @@ static int hzPick(void){
 static void hzClear(void){   // the wave is over
     int bonus=250*hzWave+(hzBites==0?500:0);
     if(hzPerks&(1<<HZP_KING)) bonus=bonus*3/2; hzScore+=(u32)bonus;
-    hzPhase=2; hzT=360; hzCombo=0; hzComboT=0;
+    hzPhase=2; hzT=360; hzCombo=0; hzComboT=0; if(arOn) arScatter(1);   // (the breather: new barrels and canisters in new places)
     if(hzOpt[HZO_DROP]==0){ moodFun=moodClamp(moodFun+30*MOOD_ONE); hpHeal(30); sSoc=sSoc<90?sSoc+10:100; }
     char*e=simCat(exB,"WAVE "); e=simCatN(e,hzWave); e=simCat(e," CLEAR  +"); e=simCatN(e,bonus); lnote=exB; lnoteT=150; sfxPlay(SFX_CASH);
     if(hzOn==1&&hzWave>=100){ hzEnd(1); return; }
@@ -194,16 +195,17 @@ static void hzReset(void){ if(hzOn){ hzOn=0; twLim=2; } for(int k=0;k<TW_N;k++){
 static void hzPill(int x,int y,const char*s,int on){ int w=tw(s,1)+8; s2rr(x,y,w,9,on?GOLD:RGB(10,20,30)); s2rr(x+1,y+1,w-2,7,on?RGB(13,18,28):RGB(3,9,17)); text(x+4,y+1,s,on?WHITE:RGB(17,29,31),1); }
 static int hzSetup(void){   // 1 = a run starts (the pause menu closes behind it)
     const char*why; if(!hzCanStart(&why)){ toast(why); return 0; }
-    int sel=HZO_N+1, top=0, rows=HZO_N+2; u16 prev=keyNow(); u32 cnt=0; int dirty=1;
+    int sel=HZO_N+2, top=0, rows=HZO_N+3; u16 prev=keyNow(); u32 cnt=0; int dirty=1;   // (rows: MODE, MAP, the mutators, START)
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
         if(pr&(K_B|K_START)){ hzSave(); return 0; }
         if(pr&K_DOWN){ sel=(sel+1)%rows; dirty=1; } if(pr&K_UP){ sel=(sel+rows-1)%rows; dirty=1; }
         if(pr&(K_LEFT|K_RIGHT)){ int d=(pr&K_RIGHT)?1:-1;
             if(sel==0){ hzMode^=1; dirty=1; }
-            else if(sel<=HZO_N){ int o=sel-1; hzOpt[o]=(u8)((hzOpt[o]+d+hzoN[o])%hzoN[o]); dirty=1; } }
-        if(pr&K_SEL){ for(int o=0;o<HZO_N;o++) hzOpt[o]=hzoDef[o]; hzMode=0; dirty=1; }
-        if(pr&K_A){ if(sel==HZO_N+1){ hzSave(); if(hzStartRun()) return 1; dirty=1; prev=keyNow(); continue; } if(sel==0){ hzMode^=1; dirty=1; } else if(sel<=HZO_N){ int o=sel-1; hzOpt[o]=(u8)((hzOpt[o]+1)%hzoN[o]); dirty=1; } }
+            else if(sel==1){ hzMap=(u8)((hzMap+d+AR_N+1)%(AR_N+1)); dirty=1; }
+            else if(sel<=HZO_N+1){ int o=sel-2; hzOpt[o]=(u8)((hzOpt[o]+d+hzoN[o])%hzoN[o]); dirty=1; } }
+        if(pr&K_SEL){ for(int o=0;o<HZO_N;o++) hzOpt[o]=hzoDef[o]; hzMode=0; hzMap=0; dirty=1; }
+        if(pr&K_A){ if(sel==HZO_N+2){ hzSave(); if(hzStartRun()) return 1; dirty=1; prev=keyNow(); continue; } if(sel==0){ hzMode^=1; dirty=1; } else if(sel==1){ hzMap=(u8)arPick(hzMap); dirty=1; prev=keyNow(); } else if(sel<=HZO_N+1){ int o=sel-2; hzOpt[o]=(u8)((hzOpt[o]+1)%hzoN[o]); dirty=1; } }
         if(!dirty&&(cnt&15)){ vsync(); continue; }
         dirty=0;
         if(sel<top) top=sel; if(sel>=top+9) top=sel-8;
@@ -211,12 +213,13 @@ static int hzSetup(void){   // 1 = a run starts (the pause menu closes behind it
         for(int r=0;r<9&&top+r<rows;r++){ int i=top+r, y=21+r*11, on=i==sel;
             if(on) s2grad(8,y-1,224,11,6,16,26,3,9,17);
             if(i==0){ text(14,y,"MODE",on?WHITE:GOLD,1); text(229-tw(hzMode?"ENDLESS":"100 WAVES",1),y,hzMode?"ENDLESS":"100 WAVES",on?WHITE:RGB(14,30,10),1); continue; }
-            if(i==HZO_N+1){ text(14,y,"START THE HORDE",on?WHITE:GOLD,1); if(on) text(229-tw("A",1),y,"A",GOLD,1); continue; }
-            int o=i-1; const char*v=hzoCh[o][hzOpt[o]]; u16 vc=hzOpt[o]==hzoDef[o]?RGB(17,29,31):RGB(31,24,8);
+            if(i==1){ const char*v=hzMap?arNm[hzMap-1]:"YOUR OWN LOT"; text(14,y,"MAP",on?WHITE:RGB(20,26,31),1); int x=229-tw(v,1); text(x,y,v,on?WHITE:hzMap?RGB(31,24,8):RGB(17,29,31),1); if(on){ text(x-8,y,"<",GOLD,1); text(229+2,y,">",GOLD,1); } continue; }
+            if(i==HZO_N+2){ text(14,y,"START THE HORDE",on?WHITE:GOLD,1); if(on) text(229-tw("A",1),y,"A",GOLD,1); continue; }
+            int o=i-2; const char*v=hzoCh[o][hzOpt[o]]; u16 vc=hzOpt[o]==hzoDef[o]?RGB(17,29,31):RGB(31,24,8);
             text(14,y,hzoNm[o],on?WHITE:RGB(20,26,31),1);
             { int x=229-tw(v,1); text(x,y,v,on?WHITE:vc,1); if(on){ text(x-8,y,"<",GOLD,1); text(229+2,y,">",GOLD,1); } } }
         rect(8,121,224,1,RGB(14,26,31));
-        if(sel>=1&&sel<=HZO_N) text(12,125,hzoDesc[sel-1],RGB(20,26,31),1); else if(sel==0) text(12,125,"A HUNDRED WAVES TO WIN  OR NO END AT ALL",RGB(20,26,31),1); else text(12,125,"YOUR LOT  YOUR FISTS  YOUR JOKES",RGB(20,26,31),1);
+        if(sel>=2&&sel<=HZO_N+1) text(12,125,hzoDesc[sel-2],RGB(20,26,31),1); else if(sel==0) text(12,125,"A HUNDRED WAVES TO WIN  OR NO END AT ALL",RGB(20,26,31),1); else if(sel==1) text(12,125,hzMap?arBl[hzMap-1]:"YOUR OWN LOT  A  PICKS A MAP WITH A PICTURE",RGB(20,26,31),1); else text(12,125,"YOUR FISTS  YOUR JOKES  YOUR LOT OR NOT",RGB(20,26,31),1);
         { char b[40]; char*e=simCat(b,hzMode?"BEST ENDLESS  WAVE ":"BEST 100  WAVE "); e=simCatN(e,hzBestW[hzMode]); e=simCat(e,"  SCORE "); simCatN(e,(int)hzBestS[hzMode]); text(12,134,b,GOLD,1); }
         s2pill(5,147,tw("A START",1)+10,"A START"); s2pill(9+tw("A START",1)+10,147,tw("LEFT RIGHT CHANGE",1)+10,"LEFT RIGHT CHANGE");
         present();
@@ -232,7 +235,7 @@ static void hzIntroCard(void){
         s2rr(8,22,224,118,RGB(16,27,31)); s2rr(9,23,222,116,RGB(2,6,13)); s2grad(10,24,220,114,3,9,19,1,4,10);
         exIcon(XP_ZOMB,16,30,4,xPk[XP_ZOMB].b);
         text(60,30,hzOn==1?"A HUNDRED WAVES":"ENDLESS",GOLD,1); text(60,40,"BOREZIES  PUNCH OR CHEER THEM UP",RGB(17,29,31),1);
-        { char b[28]; char*e=simCat(b,"START AT WAVE "); simCatN(e,hzStartWave); text(60,52,b,WHITE,1); }
+        { char b[40]; char*e=simCat(b,"START AT WAVE "); simCatN(e,hzStartWave); e=simCat(e,"  "); simCat(e,hzMap?arNm[hzMap-1]:"YOUR LOT"); text(60,52,b,WHITE,1); }
         { char b[28]; char*e=simCat(b,hzLives==255?"ENDLESS LIVES":"LIVES  "); if(hzLives!=255) simCatN(e,hzLives); text(60,62,b,WHITE,1); }
         rect(14,72,212,1,RGB(14,26,31));
         { int y=77; for(int o=0;o<HZO_N&&y<118;o++) if(hzOpt[o]!=hzoDef[o]&&o!=HZO_START&&o!=HZO_LIVES){ char b[40]; char*e=simCat(b,hzoNm[o]); e=simCat(e,"  "); simCat(e,hzoCh[o][hzOpt[o]]); text(16,y,b,RGB(31,24,8),1); y+=9; }

@@ -1,0 +1,44 @@
+THE ARCADE - CABINETS  NEON  ONE HIGH SCORE
+wwwwwwwwwwwwwwwww......wwwwwwwwwwwwwwwww
+w......................................w
+w.WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW.w
+w.W.vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv.W.w
+w.W..................................W.w
+w.W..................................W.w
+w.W..................................W.w
+w.W.v..............................v.W.w
+w.W.v..............................v.W.w
+w.W..................................W.w
+w.W.v..vvvvvvv............vvvvvvv..v.W.w
+w.W.v..vvvvvvv............vvvvvvv..v.W.w
+w.W..................................W.w
+w.W.v.:::::::::::::dR:::::::::::::.v.W.w
+w.W.v.::::::::::::::::::::::::::::.v.W.w
+w.W...::::::::::::::::::::::::::::...W.w
+w.W.v.::::::::::::::::::::::::::::.v.W.w
+..W...::::::::::::::::::::::::::::...W..
+......::::::::::::::::::::::::::::......
+......::::::::::::::::::::::::::::......
+......::::::::::::::::::::::::::::......
+......::::::::::::::::::::::::::::......
+..W...::::::::::::::::::::::::::::...W..
+w.W.v.::::::::::::::::::::::::::::.v.W.w
+w.W...::::::::::::::::::::::::::::...W.w
+w.W.v.::::::::::::::::::::::::::::.v.W.w
+w.W.v.::::::::::U:::::::::::::::::.v.W.w
+w.W...........::::::::::::...........W.w
+w.W.v.........::::::::::::.........v.W.w
+w.W.v..vvvvvvv::::::::::::vvvvvvv..v.W.w
+w.W....vvvvvvv:::::P::::::vvvvvvv....W.w
+w.W.vd.d.d....::::::::::::.........v.W.w
+w.W.v.........::::::::::::.........v.W.w
+w.W...........::::::::::::...........W.w
+w.W...........::::::::::::...........W.w
+w.W..................................W.w
+w.W..................................W.w
+w.WWWWWWWWWWWWWWWW....WWWWWWWWWWWWWWWW.w
+w......................................w
+wwwwwwwwwwwwwwwww......wwwwwwwwwwwwwwwww
+
+. open floor   : open floor where a barrel or canister may land   W wall   w fence   P you start here
+every other letter is a catalogue item (the game stands the real item there); the floor and wallpaper per cell are in arenas.h

@@ -241,7 +241,9 @@ static int prTransfer(int code){   // main.c lifeMode: 1 = to the prison, 2 = ho
     if(code==1){ int lot=prLotGet(); if(lot<0){ toast("NO ROOM IN TOWN FOR A PRISON"); prCancel(); return 0; }
         if(!nbGo(lot)){ toast(nbErr); prCancel(); return 0; } }
     else if(code==2){ if(!nbGo(nbT.home)){ toast(nbErr); return 0; } }
-    else if(code==3){ if(trvLot>=NB_LOTS||!nbGo(trvLot)){ toast(trvLot>=NB_LOTS?"NOWHERE TO GO":nbErr); return 0; } }   // travel.h: a cab ride (CALL A CAB, the story's GO THERE)
+    else if(code==3){ if(trvLot>=NB_LOTS||!nbGo(trvLot)){ toast(trvLot>=NB_LOTS?"NOWHERE TO GO":nbErr); return 0; } }
+    else if(code==4) arLoad(arWant);   // arena.h: a BOREZIES arena stands in for the lot (the lot itself waits in RAM)
+    else if(code==5) arRestore();      // ... and the lot comes back   // travel.h: a cab ride (CALL A CAB, the story's GO THERE)
     return 1;
 }
 static void prCard(void);
@@ -327,7 +329,7 @@ static int prLifeSwitch(int code){   // main.c lifeModeRun: 1 = to the prison, 2
     int f=lfood, b=lbl, h=lhp, mf=moodFun, mh=moodHap;   // (lifeInit starts fresh: the Sim keeps what they have)
     simsSaveNow(); hhSave();                              // the life and the household first: lifeInit loads them again
     if(!prTransfer(code)) return 0;
-    pkHome=-1; lifeInit(); prApply(0); phoneEnsure();
+    pkHome=-1; lifeInit(); prApply(0); phoneEnsure(); if(code==4||code==5) arAfter();
     lfood=f; lbl=b; lhp=h; moodFun=mf; moodHap=mh; moodSt=moodState();
     lcN=lcPts=lcT=lcBank=lcBankT=lcamPend=0; lcNmN=0; vbase=cview=0; lcamF=0;
     return 1;

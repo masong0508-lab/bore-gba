@@ -39,6 +39,7 @@ static int trvPlace1(int ct){
 static int trvGo(int lot){
     if(!nbOk||lot<0||lot>=NB_LOTS||!nbT.lot[lot].on){ toast("NOWHERE TO GO"); return 0; }
     if(prIn()){ toast("NOT WHILE YOU ARE DOING TIME"); return 0; }
+    if(arOn){ toast("NOT WHILE THE BOREZIES ARE HERE"); return 0; }
     if(lot==nbT.cur){ toast("YOU ARE ALREADY HERE"); return 0; }
     trvLot=(u8)lot; prGo=3; return 1;
 }

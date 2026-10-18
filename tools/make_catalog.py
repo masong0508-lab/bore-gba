@@ -487,8 +487,15 @@ item('BOULDER', 'O', 30, C, block(1, 1, 7, 7, 0, 5, faces(dots(STONE, 6, 5, 'c',
 item('FLOWER POTS', 'p', 35, C, [Box(1, 1, 4, 4, 0, 3, solid(TERRA, 'c')), Box(4, 4, 7, 7, 0, 3, solid(TERRA, 'c')), Box(2, 2, 3, 3, 3, 6, solid(LEAF, 'c')), Box(5, 5, 6, 6, 3, 6, solid(LEAF, 'c')), Box(2, 2, 3, 3, 6, 7, solid(RED, 'd')), Box(5, 5, 6, 6, 6, 7, solid(YELLOW, 'd'))], col=(22, 11, 5))
 item('TRELLIS', '#', 90, C, [Box(0, 3, 8, 4, 0, 1, solid(WHITEW, 'c'))] + [Box(i, 3, i + 1, 4, 1, 16, solid(WHITEW, 'c')) for i in (0, 3, 7)] + [Box(0, 3, 8, 4, z, z + 1, solid(WHITEW, 'c')) for z in (5, 10, 15)] + [Box(1 + (i * 3) % 6, 3, 2 + (i * 3) % 6, 4, 2 + i * 2, 4 + i * 2, solid(LEAF, 'c')) for i in range(6)], col=(28, 28, 29))
 
+# ====================================================================== HAZARD: the barrels and canisters the BOREZIES arenas scatter about (also for sale in build mode)
+C = cat('HAZARD')
+item('TOXIC BARREL', 'O', 90, C, block(1, 1, 7, 7, 0, 5, faces(stripes(GREEN, 6, 5, 'c', 'e', True, 3), stripes(GREEN, 6, 5, 'c', 'e', True, 3), flat(GREEN, 'd'))) + block(1, 1, 7, 7, 5, 7, faces(stripes(YELLOW, 6, 2, 'c', 'e', False, 1), stripes(YELLOW, 6, 2, 'c', 'e', False, 1), flat(YELLOW, 'd'))) + block(1, 1, 7, 7, 7, 13, faces(stripes(GREEN, 6, 6, 'c', 'e', True, 3), stripes(GREEN, 6, 6, 'c', 'e', True, 3), M(GREEN, ['bbbbbb', 'bccccb', 'bcddcb', 'bcddcb', 'bccccb', 'bbbbbb']))), col=(6, 20, 8))
+item('RED FUEL DRUM', 'O', 70, C, block(1, 1, 7, 7, 0, 13, faces(stripes(RED, 6, 13, 'c', 'b', True, 4), stripes(RED, 6, 13, 'c', 'b', True, 4), M(RED, ['bbbbbb', 'bccccb', 'bcddcb', 'bcddcb', 'bccccb', 'bbbbbb']))) + [Box(3, 3, 5, 5, 13, 14, solid(STEEL, 'c'))], col=(26, 5, 5))
+item('GAS CANISTER', 'Y', 60, C, block(2, 2, 6, 6, 0, 12, faces(stripes(MUST, 4, 12, 'c', 'b', False, 2), stripes(MUST, 4, 12, 'c', 'b', False, 2), flat(MUST, 'd'))) + [Box(3, 3, 5, 5, 12, 15, solid(STEEL, 'c')), Box(2, 3, 6, 5, 15, 16, solid(STEEL, 'b'))], col=(26, 20, 4))
+item('PROPANE TANK', 'Y', 80, C, block(1, 1, 7, 7, 0, 8, faces(stripes(WHITEW, 6, 8, 'c', 'b', True, 4), stripes(WHITEW, 6, 8, 'c', 'b', True, 4), flat(WHITEW, 'd'))) + [Box(2, 2, 6, 6, 8, 9, solid(STEEL, 'b')), Box(3, 3, 5, 5, 9, 12, solid(STEEL, 'c'))], col=(28, 28, 29))
+
 CAT_BUILD0 = 200   # the first 200 are the #76 batch; the rest the BUILD batch
-assert len(ITEMS) == 282, len(ITEMS)
+assert len(ITEMS) == 286, len(ITEMS)
 assert all(len([i for i in ITEMS if i['cat'] == c]) <= 12 for c in range(len(CATS))), 'a category holds at most 12 (the swatch row)'
 
 # ====================================================================== emit

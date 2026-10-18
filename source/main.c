@@ -1662,6 +1662,8 @@ static void lcAdd(const char*s){   // "SWITCH " is written "SW " here, and the p
 }
 static char lnBuf[24] EWRAM_BSS; static u8 lnPerf; static int lLand, lLandD;   // lnBuf: the name of the trick just landed ("KICK 360 GRAB"); lLand: frames of landing crouch left, lLandD: how far the fall was
 static int tvClip; static void tvClipRun(int ch);   // skills.h / tvclip.h: the TV asks for a clip (channel + 1); lifeModeRun plays it like a pause menu
+static u8 arOn EWRAM_BSS, arPend EWRAM_BSS, arWant EWRAM_BSS;   // (arPend: the change waiting: 0 none, else the arena + 1, so 1 = your own lot)
+ static void arRestore(void), arLoad(int id), arTick(void), arAfter(void);   // arena.h: which BOREZIES arena stands in place of your lot (0 none), the change waiting to be made, the one being made
 static u8 hzOn; static u32 hzScore; static const char* hzHudText(void); static void hzTick(void), hzLoad(void);   // horde.h: HORDE MODE runs (0 no, 1 a hundred waves, 2 endless), its score and the wave line for the top bar
 static u8 exModal, exTake; enum { EXT_NONE, EXT_LAUNCH, EXT_SWTRAIN, EXT_FIGHTER, EXT_GOTCHI };   // expand.h: a mission card is waiting; a screen wants to take over (the launch, spacewalk training, a pack's mode)
 static void exTick(void); static void exRunModal(void); static void exTakeRun(int t); static void exEnter(void); static void exStoryTile(void); static void exShelf(int ingame);   // (expand.h)
@@ -3203,7 +3205,7 @@ static u8 clx[CL_N] EWRAM_BSS, cly[CL_N] EWRAM_BSS, clGot EWRAM_BSS, clLive EWRA
 static void clPlace(void){
     int i, n=0, x, y, t; clGot=0; clLive=0;
     for(y=0;y<MH;y++)for(x=0;x<MW;x++){ char c=lifeMap[y][x]; if(c=='='||c=='L'||c=='N'||c=='J'||c=='X'||c=='M'||isRamp(c)||isKicker(c)||isQPipe(c)) n++; }
-    if(!n) return;   // nothing to skate here: no collectibles
+    if(!n||arOn) return;   // nothing to skate here (and no tape in a BOREZIES arena): no collectibles
     tgSeen();   // this lot has a tape: it counts in the town's tape total (goals.h)
     for(i=0;i<CL_N;i++){
         int ok=0;
@@ -3406,7 +3408,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
     fxTick();   // ghosts and weather (fx.h): every step, also while you lie dead
     if(!ldead){   // needs: hunger and bladder, then how they (and the skating) make the skater feel
         if(stage==AG_BABY){ if(lfood<70) lfood=70; if(lbl>30) lbl=30; if(sNrg<60) sNrg=60; if(sHyg<60) sHyg=60; if(sCom<60) sCom=60; }   // looked after
-        moodTick(); simsTick(pr,(int)(lfx>>8),(int)(lfy>>8)); hhTick(); phTick(); stTick(); exTick(); hzTick(); homeTick(); wdTick();
+        moodTick(); simsTick(pr,(int)(lfx>>8),(int)(lfy>>8)); hhTick(); phTick(); stTick(); exTick(); hzTick(); arTick(); homeTick(); wdTick();
         if(gGrow){ gGrow=0; setStage(stage+1); bakeSprites(); lnote=growNote[stage]; lnoteT=120; lstun=lstun>30?lstun:30; lsp=0; }
         { int fe=oFoodEvery(), we=oWcEvery();   // FOOD AND WC option
           if(fe&&lfr%fe==0&&lfood>0) lfood--;
@@ -4456,6 +4458,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
             else if(c==PM_FAMILY) hhMenu();
             else if(c==PM_STORY){ if(prShown()) prisonScreen(); else exStoryTile(); }   // (STORIES AND PACKS: the mission, the story journal, the expansion packs)   // (while a sentence runs the STORY tile is the PRISON)
             else if(c==PM_OPTS){ settingsScreen(); if(!ed&&xo[XO_TUTOR]==2) tutBegin(); }
+            else if(c==PM_BUILD&&arOn) toast("NOT WHILE THE BOREZIES ARE HERE");
             else if(c==PM_BUILD){   // EDIT MAP, BLUEPRINTS (the old room slots) and NEW LIFE share one entry
                 int b=menu("BUILD AND HOUSES",buildItems,3);
                 if(b==0){ if(edGate()){ cview=0; vpFull(); mapEditor(); lifeInit(); cview=vbase; } }
@@ -4493,6 +4496,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
             if(pkHome<0) for(int s=0;s<steps;s++){ u16 q=s?0:pr; if(fgGate(&q)) lifeStep(k,q,fr++); }   // (fgGate: fight.h hit-stop and K.O. slow motion)   // catch up if a frame took long; button presses count once   (peeking at another floor: the world holds still)
             if(lcamPend){ lcamPend=0; if(sCam){ lcamF=1; cview=vbase; } }
         }
+        if(arPend&&!ed&&!exModal&&!stModal&&!tutModal&&!prGo){ arWant=(u8)(arPend-1); arPend=0; if(arWant!=arOn&&!curFl&&!prHere()&&!prIn()) prGo=(u8)(arWant?4:5); }   // arena.h: an arena goes up / your lot comes back once the cards are read
         if(prGo&&!ed){   // prison.h: busted (to the cell), released or switched (home): the live lot changes
             int pc=prGo; prGo=0; lcamF=0; peekEnd(); mGainT=128; sfxStop();
             if(prLifeSwitch(pc)){ winFull(); REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=vbase; continue; }
@@ -4500,6 +4504,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
         gmTick(); ambTick(); lifeDraw(); workT+=(u16)(lifeVs-w0);
         fpsN++; if(fpsT>=65536){ lfpsV=fpsN; lloadV=(int)(workT/(u32)fpsN*100/(u32)((sFps+1)*TICKS_FRAME)); workT=0; fpsN=0; fpsT-=65536; }
     }
+    if(arOn){ arRestore(); arPend=0; }   // (an arena never outlives the game: your lot is put back before anything is saved or stored)
     tutOn=0; tutModal=TM_NONE; stModal=0; exModal=0; exTake=0; trnOn=trnDone=0;
     objHideAll(); REG_DISPCNT=0x0403;
     simsSave(); hhSave(); R_TM2CNT=0; ambOff(); gmStop(); sfxStop(); lcamF=0; vbase=cview=0; vpFull(); clipAll(); liveInvalidate();   // leaving the life game saves it
@@ -5843,6 +5848,7 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "gotchi.h"        // BOREAGOTCHI!: THE HANDHELD (a blob on a keychain that needs you constantly)
 #include "bortua.h"        // BORTUA FIGHTER: ARCADE MODE (polygon fighters, a ladder of nine, the chrome boss)
 #include "xmodes.h"        // the packs' MODES: BORTUA FIGHTER's ARCADE MODE, BOREAGOTCHI's HANDHELD
+#include "arena.h"         // BOREZIES! ARENAS: bitmapped maps with scattered barrels and canisters that stand in for your lot during a fight
 #include "horde.h"         // BOREZIES!'s HORDE MODE: waves, mutators, perks (100 waves or endless)
 // ---------- main menu (The Sims 3 look): a glossy panel over your town, lit for the time of day of your life's clock ----------
 #define MM_N 8

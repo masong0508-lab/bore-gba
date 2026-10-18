@@ -3,7 +3,8 @@
 // the career, pets, fights, the neighbours, the green), each staged by a scenario (a housewarming grant, ramps dropped in your yard with a
 // board, three neighbours at the door, a bill in the mail, a challenger, seeds with no note).
 //   1 BORE-OUT MAN!  a space oddity    5 missions    a burnt-out desk jockey becomes an astronaut: the SPACEPORT, a launch, a spacewalk
-//   2 BOREZIES!                        5 missions + HORDE MODE   the town got so bored it turned: Borezies shamble in; fun cures them, fists daze them. After the five: waves (horde.h)
+//   2 BOREZIES!                        5 missions + HORDE MODE   the town got so bored it turned: Borezies shamble in; fun cures them, fists daze them. A story in five
+//                                      chapters, each on its own arena (arena.h). After the five: waves (horde.h), on your lot or any arena
 //   3 WORLD WAR BORE                  10 missions    the East Side trimmed your hedge: boot camp, the arms race, soldiers on your lawn
 //   4 BORTUA FIGHTER                   5 missions + ARCADE MODE: challengers want a fight, the DOJO, the cabinet at the arcade
 //   7 BOREagotchi!                    15 missions + THE HANDHELD: a pixel blob on a keychain, and the real pets
@@ -45,9 +46,12 @@ enum { QK_PETS=QK_FREE+1, QK_PLOVE, QK_PTRICKS, QK_POTTY, QK_STAGE, QK_CNT, QK_D
 enum { GA_FEED, GA_SNACK, GA_PLAY, GA_CLEAN, GA_MED, GA_SCOLD, GA_LIGHT, GA_N };
 // the pet actions of the pet's pie menu (petui.h petPie)
 enum { PD_PET, PD_CUDDLE, PD_PLAY, PD_TRICK, PD_TRAIN, PD_FEED, PD_OUT, PD_POTTY, PD_SCOLD, PD_SHOO };
-typedef struct { const char*nm; const char*br[2]; u8 sc, pay; StT t[3]; } XMs;
+typedef struct { const char*nm; const char*br[2]; u8 sc, pay; StT t[3]; u8 ar; const char*in,*out; } XMs;   // ar: the arena the mission is played on (AMAP_, arena.h; 0 = your own lot), in / out: the story told before and after it (pages split by |)
 typedef struct { const char*nm,*sub,*bl[3]; const XMs*ms; u8 n, no, mode, adult; u16 a, b; const char*modeNm; } XPk;
 #define XM(nm,b0,b1,sc,pay,...) {nm,{b0,b1},sc,pay,{__VA_ARGS__}}
+#define XMS(nm,b0,b1,sc,pay,ar,in,out,...) {nm,{b0,b1},sc,pay,{__VA_ARGS__},ar,in,out}   // a story mission: it is played on an arena and tells a story
+enum { AMAP_HOME, AMAP_CULDESAC, AMAP_PUB, AMAP_LAB, AMAP_ARCADE, AMAP_SCRAP, AMAP_CARPARK };   // (the arenas of arenas.h, in its order)
+static const char* arName(int a);   // arena.h
 #define XSOON(nm) {nm,{"COMING SOON","A MISSION STILL BEING WRITTEN"},XS_SOON,0,{{0,0,0,0}}}
 #define TA(c,nm)   {QK_AT,c,0,nm}
 #define TE(e,n,nm) {QK_EV,e,n,nm}
@@ -72,16 +76,41 @@ static const XMs xmSpace[]={
 };
 // ---- 2 BOREZIES! ----
 static const XMs xmZomb[]={
-  XM("NIGHT OF THE LIVING BORED","A NEIGHBOR SHUFFLES OVER","GROANING  BOOORE  CHEER THEM UP",XS_ZOMB,30,
-     TK(QK_CNT,1,"CURE A BOREZIE"),TE(SE_LAUGH,1,"TELL A JOKE")),
-  XM("DAWN OF THE BORED","THEY COME AT NIGHT NOW  STOCK","UP AND HOLD THE HOUSE",XS_ZOMB,35,
-     TD(VA_GROCER,"BUY GROCERIES FOR HOME"),TK(QK_CNT,3,"CURE 3 BOREZIES"),TK(QK_DAYS,2,"HOLD OUT FOR 2 DAYS")),
-  XM("SHAUN OF THE BORED","THE PLAN: GO TO THE BAR  EAT","SOMETHING  WAIT FOR IT TO BLOW OVER",XS_ZOMB,40,
-     TA(CT_BAR,"GO TO THE BAR"),TD(VA_BARSNACK,"ORDER BAR SNACKS"),TK(QK_CNT,2,"CURE 2 BOREZIES")),
-  XM("28 BONGS LATER","THE LAB SAYS ONE THING CURES","BOREDOM FOR GOOD  PASS IT ON",XS_ZOMB,45,
-     TK(QK_CNT,4,"CURE 4 BOREZIES"),TK(QK_HAPPY,0,"FEEL HAPPY RIGHT NOW")),
-  XM("BORED OF THE DEAD","PATIENT ZERO HIDES AT THE","ARCADE  BEAT HIS HIGH SCORE",XS_ZOMB,60,
-     TA(CT_ARCADE,"GO TO THE ARCADE"),TD(VA_CABINET,"PLAY A CABINET"),TK(QK_CNT,5,"CURE 5 BOREZIES")),
+  XMS("NIGHT OF THE LIVING BORED","A NEIGHBOR SHUFFLES OVER","GROANING  BOOORE  CHEER THEM UP",XS_ZOMB,30,AMAP_HOME,
+      "It started with the neighbor. He stood at your fence all morning, staring at nothing, groaning one word. Booooore.|"
+      "Nobody is sure when the town got so bored it turned. The TV was on. The feed was refreshed. Somebody said: there is nothing to do.|"
+      "Now he is shuffling your way. Fists daze them. Fun cures them. Hold L when you hear the groan: that is the bite coming.",
+      "He blinked. He said: wow, I was gone for a while there. Then he went home to watch a documentary. One down.|"
+      "The rest of the street is still groaning. Your phone has fourteen messages that all say the same word.",
+      TK(QK_CNT,1,"CURE A BOREZIE"),TE(SE_LAUGH,1,"TELL A JOKE")),
+  XMS("DAWN OF THE BORED","THE STREET HAS GONE GREY","HOLD THE CUL-DE-SAC",XS_ZOMB,35,AMAP_CULDESAC,
+      "Dawn. Every house on the cul-de-sac has gone quiet and grey, except yours. They are coming out of their front doors in bathrobes.|"
+      "The mail carrier survived by walking very fast. He says boredom spreads through eye contact and small talk. Do not say nice weather.|"
+      "Hold the block. They come from every road. There are barrels and cones lying about: they make good cover, and different ones every time.",
+      "The sun came up on a street full of people blinking in their bathrobes. Somebody asked what day it was. Nobody knew. It was a good sign.|"
+      "The mail carrier is still walking very fast. He says he has to. It is his job.",
+      TK(QK_CNT,3,"CURE 3 BOREZIES"),TS(SC_HIGH5,"GIVE A HIGH FIVE"),TE(QE_PARRY,1,"PARRY A BITE")),
+  XMS("SHAUN OF THE BORED","THE PLAN: THE WINCHESTER","A COLD PINT  AND WAIT FOR IT TO BLOW OVER",XS_ZOMB,40,AMAP_PUB,
+      "The plan is simple. Go to the Winchester. Have a nice cold pint. Wait for all of this to blow over.|"
+      "The plan was not simple. The pub is full of regulars who went bored with a drink in their hand. The jukebox is stuck on one song.|"
+      "Tables are cover. Kegs are cover. The barman says nothing. He has heard worse. Mind the back door.",
+      "Last orders was called, and nobody drifted off, for the first time in years. The jukebox skipped to a new song. Round of applause.|"
+      "The barman said the pint was on the house. It was a very flat pint. You drank it anyway.",
+      TK(QK_CNT,4,"CURE 4 BOREZIES"),TS(SC_HUG,"HUG IT OUT"),TE(QE_KO,1,"KNOCK ONE OUT COLD")),
+  XMS("28 BONGS LATER","THE LAB HAS THE CURE","FIND THE WHITE TANK  PASS IT ON",XS_ZOMB,45,AMAP_LAB,
+      "A signal from a lab outside town: we know what cures boredom for good. It is in a white tank. Do not open the yellow ones.|"
+      "The scientists went bored mid experiment. The lab is full of canisters, all labelled, none legibly. The white tank is the only one that matters.|"
+      "Walk up to the white tank and the lab will tell you warmer or colder. The cure is simple: puff puff pass. Be quick, they are still coming.",
+      "The cure works by reminding everyone that they are still alive and have the whole weekend off.|"
+      "The scientists went back to their experiment. It turned out to be a sandwich. They had been staring at it for nine days.",
+      TE(QE_TANK,1,"FIND THE WHITE TANK"),TK(QK_CNT,4,"CURE 4 BOREZIES"),TS(SC_PASS,"PUFF PUFF PASS")),
+  XMS("BORED OF THE DEAD","PATIENT ZERO IS AT THE ARCADE","BEAT HIS HIGH SCORE",XS_ZOMB,60,AMAP_ARCADE,
+      "Patient Zero. The first of the bored. He stands in the arcade, staring at a screen that says: insert coin.|"
+      "He has played the same level for nine days. He is the high score. He is also the last one left.|"
+      "He comes in with a crowd. Cure them, then go for Zero. He hits harder than the rest, and he blocks bad jokes.",
+      "Zero blinked. He looked at the score. He looked at you. He said: that was... fun? And the whole town woke up.|"
+      "They came back the next night, all of them, wanting more. The town missed you. It is not over: it never is.",
+      TK(QK_CNT,5,"CURE 5 BOREZIES"),TE(QE_ZERO,1,"BEAT PATIENT ZERO")),
 };
 // ---- 3 WORLD WAR BORE ----
 static const XMs xmWar[]={
@@ -435,7 +464,7 @@ static void exCountUp(int kind){
 static void exCure(int k){   // a Borezie laughs and comes back to life
     HhSim*s=&hhM[TW_V(k)]; int u=s->uid, kind=exHT[k];
     if(hhPUid>=0&&hhPUid<RU_N&&u<RU_N){ relD[u][hhPUid]=(signed char)clampR(relD[u][hhPUid]+15); relL[u][hhPUid]=(signed char)clampR(relL[u][hhPUid]+8); }
-    hhSay(u,IC_STAR,"I FEEL ALIVE"); moodEvent(M_WANT); stQEvent(QE_ZCURE,1); exCountUp(1);
+    hhSay(u,IC_STAR,"I FEEL ALIVE"); moodEvent(M_WANT); stQEvent(QE_ZCURE,1); if(kind==XH_BOSS) stQEvent(QE_ZERO,1); exCountUp(1);
     if(hzOn){ hzKillScore(kind,1); exRestorePal(k); exHDz[k]=0; exHDie[k]=36; s->act=HA_SOC; s->t=600; }   // (HORDE MODE: its own colours, a wave goodbye, and it is gone)
     else { exUntint(k); twWait[k]=(short)(420+rnd8()); }
 }
@@ -533,8 +562,10 @@ static int exPlace(int*ct){   // the place the mission still wants you at (*ct =
     return 0;
 }
 // ---- scenarios ----
+static u8 exStoryOn;   // a mission just began in this session: its story is told once (not again when a save is loaded)
 static void exScSetup(const XMs*x){   // a mission starts: its places are in the town, its scenario begins
     if(!x) return;
+    arPend=(u8)(x->ar?x->ar+1:(arOn?1:0)); exStoryOn=1;   // (the arena goes up after the cards; arena.h)
     for(int i=0;i<exTkN(x);i++){ if(x->t[i].k==QK_AT) trvPlace(x->t[i].a);
         if(x->t[i].k==QK_DO) for(unsigned v=0;v<sizeof(venues)/sizeof(venues[0]);v++) if(x->t[i].a>=venues[v].a0&&x->t[i].a<venues[v].a0+venues[v].an) trvPlace(venues[v].ct); }   // (a venue action: that venue is in town)
     if(x->sc==XS_GRANT){ simMoneyAdd(1500); lnote="A HOUSEWARMING GIFT  1500 SIMOLEONS  SPEND IT"; lnoteT=200; sfxPlay(SFX_CASH); }
@@ -583,7 +614,7 @@ static void exStart(int p,int m){
     exHClearAll(); exP=(u8)(p+1); exM=(u8)m; exTk=0; exCnt=0; exDay=exDay8(); exSave(); sgDirty=1;
     exScSetup(exMs()); exShown=(u8)(exP*32+exM+1); exModal=1;
 }
-static void exQuit(void){ exHClearAll(); exClear(); exSave(); sgDirty=1; }
+static void exQuit(void){ exHClearAll(); exClear(); exSave(); sgDirty=1; if(arOn) arPend=1; }   // (your lot comes back)
 static void exComplete(void){
     const XMs*x=exMs(); if(!x) return; int p=exP-1;
     simMoneyAdd((money_t)x->pay*100); dnaAdd(15); persSave(); simsSave();
@@ -591,7 +622,7 @@ static void exComplete(void){
     exHClearAll(); exLastP=(u8)p; exLastM=exM;
     int nx=exNext(p,exM);
     if(nx>=0){ exM=(u8)nx; exTk=0; exCnt=0; exDay=exDay8(); exSave(); exScSetup(exMs()); exShown=(u8)(exP*32+exM+1); exModal=2; }
-    else { exClear(); exSave(); exModal=3; }
+    else { exClear(); exSave(); exModal=3; if(arOn) arPend=1; }
     sgDirty=1; voxPlay(V_yahoo);
 }
 static void exTick(void){   // once per logic step in the life game (main.c, next to stTick)
@@ -607,7 +638,7 @@ static void exTick(void){   // once per logic step in the life game (main.c, nex
     if(n&&(exTk&((1<<n)-1))==(1<<n)-1) exComplete();
 }
 static void hzReset(void);
-static void exEnter(void){ exLoad(); hzReset(); for(int k=0;k<TW_N;k++) exHT[k]=0; exSpar=0; if(exP){ exAnnounce(); if(exShown!=(u8)(exP*32+exM+1)){ exShown=(u8)(exP*32+exM+1); exModal=1; } } }   // entering the life game
+static void exEnter(void){ exLoad(); hzReset(); for(int k=0;k<TW_N;k++) exHT[k]=0; exSpar=0; exStoryOn=0; if(exP){ exAnnounce(); { const XMs*x=exMs(); if(x&&x->ar) arPend=(u8)(x->ar+1); } if(exShown!=(u8)(exP*32+exM+1)){ exShown=(u8)(exP*32+exM+1); exModal=1; } } }   // entering the life game
 // ---- the look ----
 static void exIcon(int p,int x,int y,int sc,u16 c){   // a picture per pack (9 x 8): a rocket, a zombie hand, a helmet, a fist, an egg, an hourglass
     static const char* const pic[XP_N][8]={
@@ -652,6 +683,7 @@ static void exPackScreen(int p,int ingame){
             else if(P->adult&&stage<AG_ADULT) toast("THIS PACK IS FOR GROWN-UPS");
             else if(xPk[p].ms[m].sc==XS_SEEDS&&stage<AG_ADULT) toast("THIS MISSION IS FOR GROWN-UPS");
             else if(prIn()) toast("NOT FROM A PRISON CELL");
+            else if(xPk[p].ms[m].ar&&(curFl||prHere())) toast("NOT FROM UPSTAIRS OR A PRISON LOT");
             else { static const char* const yn[2]={"START THIS MISSION","NOT NOW"}; const char*q=exP?"YOUR MISSION NOW ENDS":xPk[p].ms[m].nm;
                 if(menu(q,yn,2)==0){ exStart(p,m); return; } }
             prev=keyNow(); dirty=1; continue; }
@@ -710,13 +742,55 @@ static void exCardBody(int p,int m,int y,int live){   // a mission's title, its 
     text(16,y+10,x->br[0],RGB(20,26,31),1); text(16,y+19,x->br[1],RGB(20,26,31),1);
     exTkList(x,16,y+30,9,live);
 }
+// ---- a mission's story: pages of text told before the mission card and after the mission ----
+static char exPg[8][56] EWRAM_BSS; static u8 exPgN;
+static void exWrap(const char*s,int n){   // one page of a story, broken into lines that fit the card
+    exPgN=0; char t[56]; int l=0, i=0;
+    while(i<n&&exPgN<8){
+        int j=i; while(j<n&&s[j]!=' ') j++;
+        char c[56]; int cl=0; for(int q=0;q<l&&cl<54;q++) c[cl++]=t[q];
+        if(l&&cl<54) c[cl++]=' ';
+        for(int q=i;q<j&&cl<54;q++) c[cl++]=s[q];
+        c[cl]=0;
+        if(l&&tw(c,1)>204){ t[l]=0; for(int q=0;q<=l;q++) exPg[exPgN][q]=t[q]; exPgN++; l=0; continue; }   // (that word starts the next line)
+        for(int q=0;q<=cl;q++) t[q]=c[q]; l=cl; i=j+1;
+    }
+    if(l&&exPgN<8){ t[l]=0; for(int q=0;q<=l;q++) exPg[exPgN][q]=t[q]; exPgN++; }
+}
+static void exStoryRead(const char*txt,const char*head,const char*ttl,const char*loc,int p){   // the pages one after the other, typed out; A fills the page and turns it, B skips the lot
+    int np=1; for(const char*c=txt;*c;c++) if(*c=='|') np++;
+    int pg=0, shown=-1, rev=0, tot=0; u16 prev=keyNow(); u32 cnt=0;
+    for(;;){
+        u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
+        if(shown!=pg){ shown=pg; const char*s=txt; for(int q=0;q<pg;q++){ while(*s&&*s!='|') s++; if(*s) s++; }
+            int n=0; while(s[n]&&s[n]!='|') n++; exWrap(s,n); rev=0; tot=0; for(int i=0;i<exPgN;i++){ int l=0; while(exPg[i][l]) l++; tot+=l; } }
+        if(pr&(K_B|K_START)) return;
+        if(pr&K_A){ if(rev<tot) rev=tot; else if(++pg>=np) return; }
+        if(rev<tot) rev+=4;   // (a frame takes a few vsyncs to draw: four letters a pass is about a letter a frame)
+        stBack(head,(int)cnt);
+        s2rr(8,22,224,118,RGB(16,27,31)); s2rr(9,23,222,116,RGB(2,6,13)); s2grad(10,24,220,114,3,9,19,1,4,10);
+        exIcon(p,16,28,3,xPk[p].b);
+        text(48,28,ttl,GOLD,1); text(48,38,loc,RGB(17,29,31),1);
+        { char b[12]; char*e=slNum(b,pg+1); e=slCat(e," / "); slNum(e,np); text(229-tw(b,1),38,b,DIMC,1); }
+        rect(14,56,212,1,RGB(14,26,31));
+        { int done=0; for(int i=0;i<exPgN;i++){ int l=0; while(exPg[i][l]) l++; int left=rev-done; if(left<=0) break; char b[56]; int m=left<l?left:l; for(int q=0;q<m;q++) b[q]=exPg[i][q]; b[m]=0; text(16,62+i*10,b,WHITE,1); done+=l; } }
+        { const char*a=rev<tot?"A SKIP":pg+1<np?"A NEXT":"A OK"; s2pill(5,147,tw(a,1)+10,a); s2pill(9+tw(a,1)+10,147,tw("B SKIP ALL",1)+10,"B SKIP ALL"); }
+        present();
+    }
+}
+static void exTell(int p,int m,int outro){   // a mission's story before it starts (outro 0) or after it is done (1)
+    const XMs*x=&xPk[p].ms[m]; const char*t=outro?x->out:x->in; if(!t) return;
+    char h[24]; char*e=slCat(h,"CHAPTER "); e=slNum(e,m+1); if(outro) slCat(e," DONE"); else { e=slCat(e," OF "); slNum(e,xPk[p].n); }
+    exStoryRead(t,h,x->nm,x->ar?arName(x->ar):"YOUR OWN LOT",p);
+}
 static void exRunModal(void){   // the mission card (1 a mission starts, 2 one is done and the next starts, 3 the last one is done)
     int kind=exModal; exModal=0; u16 prev=keyNow(); u32 cnt=0; int p=kind==1?exP-1:exLastP;
     if(kind==4){ hzIntroCard(); return; } if(kind==5){ hzPerkCard(); return; } if(kind==6){ hzResultCard(); return; }   // (HORDE MODE's cards: horde.h)
     if(p<0||p>=XP_N) return;
+    if(kind==1&&exStoryOn){ exStoryOn=0; exTell(p,exM,0); prev=keyNow(); }   // (a mission begins: its story first)
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
-        if(pr&(K_A|K_B|K_START)) return;
+        if(pr&(K_A|K_B|K_START)) break;
         stBack(kind==1?"EXPANSION PACK":"MISSION COMPLETE",(int)cnt);
         s2rr(8,22,224,118,RGB(16,27,31)); s2rr(9,23,222,116,RGB(2,6,13)); s2grad(10,24,220,114,3,9,19,1,4,10);
         exIcon(p,16,30,4,xPk[p].b);
@@ -734,6 +808,7 @@ static void exRunModal(void){   // the mission card (1 a mission starts, 2 one i
         { int ct; if(kind!=3&&exPlace(&ct)) text(50,149,"GO THERE  PAUSE  STORY  MISSION",RGB(17,29,31),1); }
         present();
     }
+    if(kind>=2){ exTell(p,exLastM,1); if(kind==2&&exStoryOn){ exStoryOn=0; exTell(p,exM,0); } }   // (the end of the one just done, then the start of the next)
 }
 static void exJournal(void){   // pause menu > STORY > the mission: what it asks, live. A goes there, SELECT gives it up
     u16 prev=keyNow(); u32 cnt=0, lt=~0u;
