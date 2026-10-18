@@ -720,6 +720,20 @@ def quickbullet_pan(pat, row, ch, i, n):
     if ch == 13: return 0.4
     if ch == 14: return -0.25
     return None
+def ohio_pan(pat, row, ch, i, n):
+    """OHIO HOE (tools/make_ohio_hoe.py): kick, snare, sub / 808 and the reese in the middle; ghosts left, hats right, the open hat / glitches
+       hard left; the four supersaw voices fanned wide; the vox a touch left with its echo / the HOE right; the pluck arp ping-ponging; bells /
+       chip right of centre; crashes, impacts and risers in the middle."""
+    if ch in (0, 1, 5, 6, 15): return 0.0
+    if ch == 2: return -0.35
+    if ch == 3: return 0.4
+    if ch == 4: return -0.6
+    if ch in (7, 8, 9, 10): return (-0.7, -0.25, 0.25, 0.7)[ch - 7]
+    if ch == 11: return -0.12
+    if ch == 12: return 0.45
+    if ch == 13: return -0.5 if (row >> 2) & 1 else 0.5
+    if ch == 14: return 0.3
+    return None
 def voice_pan(pat, row, ch, i, n):
     """OVER MY VOICE (tools/make_overmyvoice_rework.py): kick, clap, the organ bass and the sung line in the middle, its double right; hats
        right, open hats left; the organ / piano / brass a little left; the choir and the sung hook fanned; the 8-bit lead just right with its
@@ -829,7 +843,7 @@ def bomb_pan(pat, row, ch, i, n):
     if ch == 14: return 0.5 * __import__('math').sin(pat * .7)
     return {2: 0.2, 3: -0.5, 5: -0.6, 6: 0.6, 7: 0.5, 8: -0.3, 9: 0.4, 10: -0.15, 11: 0.6, 12: 0.25, 13: -0.3}.get(ch, 0.0)
 
-OVERRIDES = {"the_ticking_bomb": bomb_pan, "nursery_time": nursery_pan, "magic_act": magic_pan, "the_dipper_man": title_pan, "excuses_house": excuses_pan, "whistler_shuffle": whistler_pan, "whistler_shuffle_old": whistler_pan, "emergency_hitech": hitech_pan, "worthless_clouds": clouds_pan, "cynicaller_dnb": cynic_pan, "hotdamn_rave": hotdamn_pan, "hotdamn_rave_old": hotdamn_pan, "aim_and_shoot": aim_pan, "spanish_flexicode": flexicode_pan, "gottcho_barracho_ii": barracho_pan, "condensed_music": condensed_pan, "staged": staged_pan, "quickbullet": quickbullet_pan, "over_my_voice": voice_pan}
+OVERRIDES = {"ohio_hoe": ohio_pan, "the_ticking_bomb": bomb_pan, "nursery_time": nursery_pan, "magic_act": magic_pan, "the_dipper_man": title_pan, "excuses_house": excuses_pan, "whistler_shuffle": whistler_pan, "whistler_shuffle_old": whistler_pan, "emergency_hitech": hitech_pan, "worthless_clouds": clouds_pan, "cynicaller_dnb": cynic_pan, "hotdamn_rave": hotdamn_pan, "hotdamn_rave_old": hotdamn_pan, "aim_and_shoot": aim_pan, "spanish_flexicode": flexicode_pan, "gottcho_barracho_ii": barracho_pan, "condensed_music": condensed_pan, "staged": staged_pan, "quickbullet": quickbullet_pan, "over_my_voice": voice_pan}
 
 def design_pan(S, used, insts, sid=None):
     """Pan plan for one song. Returns pan(pat, row, ch, inst, note) -> bus.  Rules (a small 'mix engineer'):

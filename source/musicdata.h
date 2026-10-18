@@ -473,6 +473,27 @@ __asm__(".pushsection .rodata\n"
   ".global xm_youre_winner_S5\nxm_youre_winner_S5:\n.incbin \"source/music/xmdata.bin\",5813512,36752\n"
   ".global xm_youre_winner_S6\nxm_youre_winner_S6:\n.incbin \"source/music/xmdata.bin\",5850264,13350\n"
   ".global xm_youre_winner_S7\nxm_youre_winner_S7:\n.incbin \"source/music/xmdata.bin\",5863614,20025\n"
+  ".global xm_ohio_hoe_ev\nxm_ohio_hoe_ev:\n.incbin \"source/music/xmdata.bin\",5883639,26470\n"
+  ".global xm_ohio_hoe_S0\nxm_ohio_hoe_S0:\n.incbin \"source/music/xmdata.bin\",5910109,1056\n"
+  ".global xm_ohio_hoe_S1\nxm_ohio_hoe_S1:\n.incbin \"source/music/xmdata.bin\",5911165,3604\n"
+  ".global xm_ohio_hoe_S2\nxm_ohio_hoe_S2:\n.incbin \"source/music/xmdata.bin\",5914769,2450\n"
+  ".global xm_ohio_hoe_S3\nxm_ohio_hoe_S3:\n.incbin \"source/music/xmdata.bin\",5917219,857\n"
+  ".global xm_ohio_hoe_S4\nxm_ohio_hoe_S4:\n.incbin \"source/music/xmdata.bin\",5918076,537\n"
+  ".global xm_ohio_hoe_S5\nxm_ohio_hoe_S5:\n.incbin \"source/music/xmdata.bin\",5918613,4180\n"
+  ".global xm_ohio_hoe_S6\nxm_ohio_hoe_S6:\n.incbin \"source/music/xmdata.bin\",5922793,14988\n"
+  ".global xm_ohio_hoe_S7\nxm_ohio_hoe_S7:\n.incbin \"source/music/xmdata.bin\",5937781,2480\n"
+  ".global xm_ohio_hoe_S8\nxm_ohio_hoe_S8:\n.incbin \"source/music/xmdata.bin\",5940261,1652\n"
+  ".global xm_ohio_hoe_S9\nxm_ohio_hoe_S9:\n.incbin \"source/music/xmdata.bin\",5941913,4401\n"
+  ".global xm_ohio_hoe_S10\nxm_ohio_hoe_S10:\n.incbin \"source/music/xmdata.bin\",5946314,3299\n"
+  ".global xm_ohio_hoe_S11\nxm_ohio_hoe_S11:\n.incbin \"source/music/xmdata.bin\",5949613,13265\n"
+  ".global xm_ohio_hoe_S12\nxm_ohio_hoe_S12:\n.incbin \"source/music/xmdata.bin\",5962878,3409\n"
+  ".global xm_ohio_hoe_S13\nxm_ohio_hoe_S13:\n.incbin \"source/music/xmdata.bin\",5966287,17971\n"
+  ".global xm_ohio_hoe_S14\nxm_ohio_hoe_S14:\n.incbin \"source/music/xmdata.bin\",5984258,14419\n"
+  ".global xm_ohio_hoe_S15\nxm_ohio_hoe_S15:\n.incbin \"source/music/xmdata.bin\",5998677,2602\n"
+  ".global xm_ohio_hoe_S16\nxm_ohio_hoe_S16:\n.incbin \"source/music/xmdata.bin\",6001279,14998\n"
+  ".global xm_ohio_hoe_S17\nxm_ohio_hoe_S17:\n.incbin \"source/music/xmdata.bin\",6016277,7480\n"
+  ".global xm_ohio_hoe_S18\nxm_ohio_hoe_S18:\n.incbin \"source/music/xmdata.bin\",6023757,16698\n"
+  ".global xm_ohio_hoe_S19\nxm_ohio_hoe_S19:\n.incbin \"source/music/xmdata.bin\",6040455,1459\n"
   ".popsection\n");
 extern const u8 xm_the_dipper_man_ev[];
 extern const s8 xm_the_dipper_man_S0[];
@@ -944,6 +965,27 @@ extern const s8 xm_youre_winner_S4[];
 extern const s8 xm_youre_winner_S5[];
 extern const s8 xm_youre_winner_S6[];
 extern const s8 xm_youre_winner_S7[];
+extern const u8 xm_ohio_hoe_ev[];
+extern const s8 xm_ohio_hoe_S0[];
+extern const s8 xm_ohio_hoe_S1[];
+extern const s8 xm_ohio_hoe_S2[];
+extern const s8 xm_ohio_hoe_S3[];
+extern const s8 xm_ohio_hoe_S4[];
+extern const s8 xm_ohio_hoe_S5[];
+extern const s8 xm_ohio_hoe_S6[];
+extern const s8 xm_ohio_hoe_S7[];
+extern const s8 xm_ohio_hoe_S8[];
+extern const s8 xm_ohio_hoe_S9[];
+extern const s8 xm_ohio_hoe_S10[];
+extern const s8 xm_ohio_hoe_S11[];
+extern const s8 xm_ohio_hoe_S12[];
+extern const s8 xm_ohio_hoe_S13[];
+extern const s8 xm_ohio_hoe_S14[];
+extern const s8 xm_ohio_hoe_S15[];
+extern const s8 xm_ohio_hoe_S16[];
+extern const s8 xm_ohio_hoe_S17[];
+extern const s8 xm_ohio_hoe_S18[];
+extern const s8 xm_ohio_hoe_S19[];
 static const u32 xmT[12]={1073741824,1137589835,1205234447,1276901417,1352829926,1433273380,1518500250,1608794974,1704458901,1805811301,1913190429,2026954652};   // 2^(j/12) in Q30: with a per-instrument anchor this gives every note's playback step (see xmStep in main.c)
 // ---- the_dipper_man  (from tools/the_dipper_man.xm) ----
 static const u8 xm_the_dipper_man_order[89]={0,0,1,1,2,2,2,2,3,4,3,5,3,4,3,6,7,8,9,2,7,8,10,11,12,4,3,5,3,4,
@@ -2012,3 +2054,31 @@ static const u8 xm_youre_winner_busL[7]={199,179,153,122,88,51,13,
 static const u8 xm_youre_winner_busR[7]={13,51,88,122,152,179,199,
 };
 static const XmSong xm_youre_winner={xm_youre_winner_order,xm_youre_winner_rows,xm_youre_winner_patOff,xm_youre_winner_ev,xm_youre_winner_vt,xm_youre_winner_anc,xm_youre_winner_fx,xm_youre_winner_len,xm_youre_winner_data,xm_youre_winner_busL,xm_youre_winner_busR,200,0,1389,145};
+// ---- ohio_hoe  (from tools/ohio_hoe.xm) ----
+static const u8 xm_ohio_hoe_order[57]={0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,
+30,31,32,33,34,35,30,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,
+};
+static const u16 xm_ohio_hoe_rows[56]={128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,
+128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,
+};
+static const u32 xm_ohio_hoe_patOff[56]={0,71,178,316,487,960,1481,1866,2426,2930,3525,4161,4888,5369,5940,6436,7055,7694,8397,8875,9533,9690,9912,10071,
+10410,10748,11124,11476,11979,12623,13326,13804,14399,14858,15398,16037,16764,17335,17831,18513,18808,19158,19453,19907,20522,21216,21963,22789,
+23381,24051,24658,25376,25662,26009,26186,26445,
+};
+static const u16 xm_ohio_hoe_vt[28]={1755,2318,1647,2780,2796,1536,2115,1669,695,1208,2233,2746,2813,765,711,1224,
+2249,1839,1553,820,1663,1702,596,1074,1569,1685,2762,2334,
+};
+static const u32 xm_ohio_hoe_anc[20]={61819841,247279365,247279365,247279365,247279365,247279365,247279365,41259794,
+41259794,41259794,82519588,165039176,247279365,247279365,247279365,247279365,
+247279365,247279365,165039176,247279365,
+};
+static const u8 xm_ohio_hoe_fx[1]={255,
+};
+static const u32 xm_ohio_hoe_len[20]={1055,3603,2449,856,536,4179,14987,2479,1651,4400,3298,13264,3408,17970,14418,2601,14997,7479,16697,1458,
+};
+static const s8* const xm_ohio_hoe_data[20]={xm_ohio_hoe_S0,xm_ohio_hoe_S1,xm_ohio_hoe_S2,xm_ohio_hoe_S3,xm_ohio_hoe_S4,xm_ohio_hoe_S5,xm_ohio_hoe_S6,xm_ohio_hoe_S7,xm_ohio_hoe_S8,xm_ohio_hoe_S9,xm_ohio_hoe_S10,xm_ohio_hoe_S11,xm_ohio_hoe_S12,xm_ohio_hoe_S13,xm_ohio_hoe_S14,xm_ohio_hoe_S15,xm_ohio_hoe_S16,xm_ohio_hoe_S17,xm_ohio_hoe_S18,xm_ohio_hoe_S19};
+static const u8 xm_ohio_hoe_busL[7]={199,179,152,122,88,51,13,
+};
+static const u8 xm_ohio_hoe_busR[7]={13,51,88,122,152,179,199,
+};
+static const XmSong xm_ohio_hoe={xm_ohio_hoe_order,xm_ohio_hoe_rows,xm_ohio_hoe_patOff,xm_ohio_hoe_ev,xm_ohio_hoe_vt,xm_ohio_hoe_anc,xm_ohio_hoe_fx,xm_ohio_hoe_len,xm_ohio_hoe_data,xm_ohio_hoe_busL,xm_ohio_hoe_busR,57,0,394,184};

@@ -62,6 +62,8 @@ In the room builder (BUILD ROOM, the pause menu's EDIT MAP, or BUILD on a lot in
 
 **THE BUILD BATCH:** 200 more build-mode things: 65 floors, 49 wallpapers (12 of them see-through FENCES the WALL tool builds low), 12 window styles, 12 doors and 82 pool, beach, garden, tree and yard items (282 catalog items in all). And POOLS: pick a water in the FLOOR tool and it digs one, tiled edge and all; walk in and you swim (slower, cleaner, no boards). The COMMUNITY POOL has a real one, and big modern houses and mansions come with one in the yard.
 
+**OHIO HOE:** a new VaninBlack song in the jukebox, hyperpop drum & bass at 172 BPM built from three old sketches (`tools/make_ohio_hoe.py`): supersaw hook, a pitched-up vocal synth, a reese on the bass line, and a HOE that slides down an octave.
+
 **New items:** a RADIO and a SOUND SYSTEM (R next to one tunes a station by genre (HOUSE & DANCE, BREAKS & BASS, CHILL & WORLD, LATIN, ROCK & PROG, HIP HOP, or ALL SONGS; genres live in source/genres.h); see docs/NOTES.md, Sound pack). Older: the DeadSet 3Thousand VYBE (5000), a parody VR headset on a display bust. Stand next to it and press R to jack in.
 
 **TV:** R at the TV changes channel. MACHINI-TV is the first one and plays a 3 second clip (drawn by code, no video in the ROM; A or B skips it). More channels get their own clips later (source/tvclip.h).

@@ -1091,3 +1091,17 @@ HAPPENED??? ("RATED M FOR MUNCHIES"), and the end card ("IT'S LIKE LIFE. BUT WIT
          and the lifeguard's chair (venueBuild). Big MODERN and MANSION lots get a 5 x 2 pool in the front yard one time in two, with a ladder
          and two loungers (hgHouse: the yard is 3 rows deeper for it).
 - MEMORY   EWRAM 236 KB (was 230): wFq +3.2 KB, winColT +2.3 KB, udRF +1 KB. ROM +1 MB of sprites (549 catalog sprites).
+
+## OHIO HOE: VaninBlack's hyperpop drum & bass (tools/make_ohio_hoe.py)
+- FROM   three sketches that sat in tools/: ohio_hoe.mid (the hook: an E6/9 stack with a C# - D walk under it, 4 bars), hsu1.mid (a 12-bar
+         bass line in Eb minor, played a semitone up so it sits under the hook in E) and woover.mid (a stuttering E F G# figure and a few
+         melody fragments: the builds; the F is bent to F#).
+- SOUND  172 BPM two-step (kick on 1 and the "a" of 2, snare on 2 and 4, 16th hats with accents, ghosts, hat rolls and 64th snare fills),
+         a reese and a sub on the hsu1 line, the hook on seven detuned supersaws, a pitched-up "vocal" (a vowel synth two octaves above a
+         voice) singing the hook's top notes with an echo, the HOE (a vowel sliding down an octave at the end of every phrase), bitcrushed
+         808s and glitch bursts in the break and the bridge, FM plucks arpeggiating the chords, risers and snare rolls into every drop, four
+         bars of halftime trap in the middle of the second drop. 112 bars, 2:38, 20 instruments, 56 patterns.
+- MIX    levelled in the emulator against the songs round it (drops at 0.10-0.12 RMS, the break at 0.07); the pan plan is ohio_pan in
+         xm2gba.py (supersaws fanned wide, the arp ping-ponging, the HOE right). Genres: BREAKS and HOUSE stations. tools/studio_render.py
+         knows the generator for the soundtrack render.
+- REMAKE python3 tools/make_ohio_hoe.py, then python3 tools/xm2gba.py.

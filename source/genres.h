@@ -35,4 +35,5 @@ GENRE("EARTH AND THE SPACE CITIZENS",G_HIPHOP)
 GENRE("AMIGA MUSIC",G_HIPHOP)
 GENRE("MISTER QUICKBULLET",G_HIPHOP|G_BREAKS)
 GENRE("OVER MY VOICE",G_HOUSE)
+GENRE("OHIO HOE",G_BREAKS|G_HOUSE)
 // WORTHLESS CLOUDS is left out on purpose: it is on no genre station. It only plays on ALL SONGS FM, and only once it is unlocked (unlocks.h).
