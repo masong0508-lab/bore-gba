@@ -21,8 +21,13 @@ At power on the game plays the **DippInn Productions** logo, about 8 s long. It 
 Arm, leg, eye and ear are mirrored automatically across the body.
 
 ## Build
-Push to GitHub: the **Build GBA ROM** workflow produces `bore.gba` as an artifact (tag a commit to get it as a release).
-Locally with devkitARM installed: `make`. Run in mGBA or on hardware.
+Push to GitHub: the **Build GBA ROM** workflow produces `bore.gba` as an artifact (every push to main also updates the *Latest build* release; tag a commit for a release of its own).
+Locally with devkitARM and Python 3 installed: `make`. Run in mGBA or on hardware.
+
+**The ROMs.** `bore.gba` is the **whole game**, all six expansion packs in: the one to play, so nothing ever looks missing. `bore-base.gba` is the base game alone (every pack's slot blank) and `packs/` has one BPS patch per pack (BORE-EP1-BORE-OUT-MAN, EP2-BOREZIES, EP3-WORLD-WAR-BORE, EP4-BORTUA-FIGHTER, EP7-BOREAGOTCHI, EP8-BOREPILOGUE). The patches go onto `bore-base.gba` in any order, alone or together; patching all six gives `bore.gba` byte for byte.
+- *The slots* (`tools/make_packs.py`, `tools/bore.ld`, `tools/packs.ld` and `source/packslots.h` written by `make_packs.py ld`): each pack owns a fixed slot at the top of the ROM (0x09800000 up; BORTUA FIGHTER's art needs 4 MB, the others 512 KB or 1 MB). The link puts the pack's header (`XP_HD`: 'BXPK', the pack, a version) first in its slot, then its code and tables, by section name. `xpHave(p)` reads the header; every way into a pack checks it first, and a pack that is not in says NOT INSTALLED (`exNotIn`).
+- *Any order* (`make_packs.py split`): a BPS patch checks the CRC32 of the ROM it is given, so the last word of every slot is solved (over GF(2)) to cancel that slot out of the CRC32: the ROM's CRC32 is the same with any set of packs in it, every patch sees the checksum it expects, and each writes only its own slot. The split checks all 64 sets of packs, seven orders of all six, and a pack patched twice.
+- The CREATOR DEMO (`make creator`) leaves the slots out of its ROM altogether.
 
 ## Life stages (BABY, CHILD, TEEN, ADULT, ELDER)
 The creature has an **AGE**: pick it on the BODY tab of the creator (first row), or, in the classic creator, on the AGE entry of the list (A or Left/Right). The creative space grows with the age (and an elder is a little stooped):
@@ -1136,3 +1141,11 @@ HAPPENED??? ("RATED M FOR MUNCHIES"), and the end card ("IT'S LIKE LIFE. BUT WIT
 4. 28 BONGS LATER (THE LAB): FIND THE WHITE TANK (the only white canister, set down far from the start; the lab says FREEZING / COLD / WARM / HOT / BURNING; walking up to it is `QE_TANK` and a full special), cure 4, puff puff pass.
 5. BORED OF THE DEAD (THE ARCADE): Patient Zero comes with the third arrival. Cure 5, BEAT PATIENT ZERO (`QE_ZERO`, his cure).
 - The story reader (`exStoryRead`): the pages typed out on a chapter card (CHAPTER 2 OF 5, the title, the place), A fills a page then turns it, B skips the lot. A mission begun in this session tells its story before its card; a finished one its ending, then the next one's beginning. Loading a save mid-chapter puts you back on its arena without the story again.
+
+## THE WATTERSONS and the cat parts (house.h hhFams, main.c buildLook / drawPointEars, sharecode.h)
+A pre-made family of five from The Amazing World of Gumball, the 13th family: GUMBALL (12, a blue cat), DARWIN (10, an orange fish who grew legs), ANAIS (4, a pink rabbit), NICOLE (the mum, a blue cat) and RICHARD (the dad, a big pink rabbit). Ported from the `claude/loving-newton` branch (which had Gumball alone, bare furred): the children are dressed, as every child is (BARE is for grown-ups only).
+- **Looks by name.** `HhPre` looks can name any slot (`[LK_HIPW]=SLV(2)`; `SLV(e)` is a slider notch -4..4 as a look stores it). `HhPre.tr` sets a personality by hand (25 points, like everyone's); all zeros means the star sign's, as before.
+- **Five to a family.** `HhFam` holds five members; the family bin (`famPick`) fits five faces with the name pills in two rows, and the neighbours' visits (`nrMemPick`) pick from all five.
+- **Towns keep their families.** `nbFamOf` still deals the first 12 families round a town exactly as before (`HH_NFAM0`), so no lot of an old town changes hands; the Wattersons (and any later family) take the lots where a family used to come round a second time, in big towns.
+- **The cat parts**, in the creator for every Bore: TOON eyes (big white ovals with a tiny pupil; sprite 30, after every saved sprite id, so no saved face moves), a CAT nose (a pink triangle), CAT WHISKERS (three a side), POINTED ears (`drawPointEars`: a tall triangle on each top corner of the head in the fur colour, a lighter inner ear and a dark outline, scaled by EAR SIZE and lifted by EAR HEIGHT; the back view keeps the head furred), a LIGHT muzzle (the jaw in the LIGHT FUR colour), a CAT FUR tail (thin, curling up, in the skin colour) and LIGHT FUR body paint. LIGHT FUR is colour slot 9, the skin lightened four notches (`setColors`); the wallpaper colours moved up to 10.
+- **Share codes** (`sharecode.h`): a Bore that uses one of the new picks gets a version `C` code (the new option counts). Every other Bore still gets the `A` / `B` code it always had (`scOld` keeps the old counts for them), so codes already written down stay the same and still load.

@@ -256,8 +256,10 @@ static void hhUpTiles(volatile u16*d,int id,int v,int f,int t0){
 static inline const u16* hhPalOf(int id){ return id>=HH_MAX?inmPalOf(id-HH_MAX):hhPal[id]; }   // (an inmate: its body's palette with its own skin and hair colour, inmates.h)
 
 // ---- premade families (original characters) ----
-typedef struct { const char* name; u8 look[LK_N]; u8 stage, asp, sign, sex; } HhPre;   // the whole look (the first families only set the base picks); traits come from a sign
-typedef struct { const char* fam; u8 n; HhPre m[4]; } HhFam;
+typedef struct { const char* name; u8 look[LK_N]; u8 stage, asp, sign, sex; u8 tr[TR_N]; } HhPre;   // the whole look (the first families only set the base picks); traits come from a sign, or from tr when it is not all zeros
+typedef struct { const char* fam; u8 n; HhPre m[5]; } HhFam;
+#define SLV(e) ((u8)(((e)+9)%9))   // a slider notch (-4..4) as a look stores it (0 = the middle, 1..4 up, 5..8 down): a look can name any slot, [LK_HIPW]=SLV(3)
+#define HH_NFAM0 12   // the families before THE WATTERSONS: a town's lots keep the families they had (households.h nbFamOf)
 //                     look: SHAPE SKIN EYES MOUTH EARS HSTYLE HCOL TOP BOT  TONE EARSZ EARLF
 static const HhFam hhFams[]={
     {"THE GRINDERS",3,{ {"REX", {5,2,2,1,1,0,0,1,1, 0,0,0},AG_ADULT,AS_POP,  0,SX_MALE},
@@ -303,7 +305,30 @@ static const HhFam hhFams[]={
                 {"MAE",{5,6,2,1,1,0,2,3,4,7,2,6,2,3,2,3,0,0,3,0,0,4,0,0,0,7,2,0,4,0,0,8,7,3,3,0,0,6,7,5,7,1,0,3,3,1,3,3,2,1,2,8,8,3,4,8,8,4,2,0,4,5,8,8,7,5,8,6,1,0,2,5,7,4,5,0,6,6,0,5,0,1,2,4,3,4},AG_TEEN,AS_GROW, 5,SX_FEMALE},
                 {"OZZY",{3,0,7,4,1,8,6,7,7,1,7,4,3,0,2,0,0,0,2,0,0,1,0,0,3,7,4,0,1,8,7,0,8,0,0,0,0,1,5,6,8,7,5,5,0,3,2,0,1,3,8,4,1,1,7,8,0,2,0,6,5,1,6,2,0,3,4,2,2,0,6,0,3,3,5,0,7,4,0,1,1,7,0,1,4,3},AG_TEEN,AS_GROW, 6,SX_MALE},
                 {"TESS",{4,6,8,5,2,7,0,1,1,8,2,2,3,3,0,3,0,0,2,0,0,2,0,0,0,7,3,6,2,6,6,0,5,0,1,0,0,6,6,1,7,1,2,0,1,7,1,1,3,6,6,8,2,7,0,3,2,5,2,8,4,7,0,0,3,4,3,7,8,0,7,7,1,3,4,6,5,2,2,4,0,5,5,8,8,6},AG_ELDER,AS_KNOW, 7,SX_FEMALE} }},
+    // THE WATTERSONS (The Amazing World of Gumball), all five of them: cats and rabbits and a fish, in the cat parts (TOON eyes, a CAT nose, POINTED
+    // ears, a LIGHT muzzle, a CAT FUR tail) and the rabbit ones (BUNNY ears and tail: animal ears are in the hair colour, so the rabbits' hair is a
+    // red lightened to their pink, which a child may pick too). The children are dressed (BARE is for grown-ups only).
+    // Their personalities are set by hand, not by a star sign (NEAT OUTGOING ACTIVE PLAYFUL NICE, 0..10, 25 points in all like everyone's).
+    {"THE WATTERSONS",5,{
+        {"GUMBALL",{ [LK_SHAPE]=SH_AVG, [LK_SKIN]=5, [LK_EYES]=15, [LK_MOUTH]=3, [LK_HSTYLE]=3, [LK_TOP]=2, [LK_TTONE]=SLV(-3), [LK_TOPSTY]=1, [LK_BOT]=3,
+                     [LK_SHOE]=1, [LK_NOSE]=9, [LK_CHEEK]=8, [LK_FEARS]=5, [LK_MUZZLE]=4, [LK_FTAIL]=4,
+                     [LK_EYESZ]=SLV(2), [LK_EYESP]=SLV(1), [LK_MOUTHW]=SLV(2), [LK_HEADSZ]=SLV(1), [LK_HIPW]=SLV(2) },
+                   AG_CHILD,AS_GROW,1,SX_MALE, {1,8,6,7,3} },   // 12, a blue cat: a brown sweater, grey trousers, a big grin
+        {"DARWIN", { [LK_SHAPE]=SH_BELL, [LK_SKIN]=17, [LK_EYES]=15, [LK_MOUTH]=1, [LK_HSTYLE]=3, [LK_TOP]=3, [LK_BOT]=0, [LK_BOTSTY]=1, [LK_SHOE]=1,
+                     [LK_EARS]=0, [LK_EYESZ]=SLV(3), [LK_EYESP]=SLV(-1), [LK_HEADSZ]=SLV(2), [LK_LEGW]=SLV(-2), [LK_ARMW]=SLV(-2) },
+                   AG_CHILD,AS_GROW,11,SX_MALE, {3,5,3,5,9} },   // 10, an orange fish who grew legs: round, big eyed, the sweetest of them (white sneakers)
+        {"ANAIS",  { [LK_SHAPE]=SH_TODDLER, [LK_SKIN]=7, [LK_TONE]=SLV(1), [LK_HCOL]=3, [LK_HTONE]=SLV(4), [LK_EYES]=15, [LK_MOUTH]=1, [LK_HSTYLE]=3, [LK_TOP]=2, [LK_TTONE]=SLV(-1), [LK_BOT]=4, [LK_BOTSTY]=2,
+                     [LK_EARS]=0, [LK_NOSE]=9, [LK_FEARS]=3, [LK_EARSZ]=SLV(2), [LK_MUZZLE]=4, [LK_FTAIL]=3,
+                     [LK_HEIGHT]=SLV(-3), [LK_HEADSZ]=SLV(2), [LK_EYESZ]=SLV(1) },
+                   AG_CHILD,AS_GROW,5,SX_FEMALE, {8,3,4,3,7} },   // 4, a pink rabbit and the brains of the house: an orange dress
+        {"NICOLE", { [LK_SHAPE]=SH_SLIM, [LK_SKIN]=5, [LK_EYES]=15, [LK_MOUTH]=1, [LK_HSTYLE]=3, [LK_TOP]=6, [LK_BOT]=1, [LK_SHOE]=2,
+                     [LK_EARS]=0, [LK_NOSE]=9, [LK_CHEEK]=8, [LK_FEARS]=5, [LK_MUZZLE]=4, [LK_FTAIL]=4, [LK_HEIGHT]=SLV(1), [LK_WAISTW]=SLV(-1) },
+                   AG_ADULT,AS_FORTUNE,0,SX_FEMALE, {8,4,9,1,3} },   // the mum, a blue cat: a white top, black trousers, works all hours and never loses a fight
+        {"RICHARD",{ [LK_SHAPE]=SH_CHUBBY, [LK_SKIN]=7, [LK_TONE]=SLV(1), [LK_HCOL]=3, [LK_HTONE]=SLV(4), [LK_EYES]=15, [LK_MOUTH]=3, [LK_HSTYLE]=3, [LK_TOP]=6, [LK_TOPSTY]=1, [LK_BOT]=3,
+                     [LK_EARS]=0, [LK_NOSE]=9, [LK_FEARS]=3, [LK_EARSZ]=SLV(3), [LK_MUZZLE]=4, [LK_FTAIL]=3, [LK_WEIGHT]=SLV(3), [LK_BELLYW]=SLV(3) },
+                   AG_ADULT,AS_PLEAS,3,SX_MALE, {0,7,0,10,8} } }},   // the dad, a big pink rabbit: a white long sleeve shirt, the laziest Sim in town
 };
+_Static_assert(HH_NFAM0<(int)(sizeof(hhFams)/sizeof(hhFams[0])),"HH_NFAM0 counts the families before THE WATTERSONS");
 #define HH_NFAM ((int)(sizeof(hhFams)/sizeof(hhFams[0])))
 
 // ---- 16-bit sprite <-> 15 colours + clear, 4bpp tiles ----
@@ -542,7 +567,8 @@ static void hhRemove(int m){   // moves out: their sprites and relationships go 
 static void hhNew(HhSim*s,const HhPre*p){
     s->uid=(u8)hhFreeUid(); s->bubT=0; s->hp=HP_MAX;
     for(int i=0;i<LK_N;i++) s->look[i]=p->look[i]; s->look[LK_SEX]=p->sex;
-    s->stage=p->stage; s->asp=p->asp; s->ltw=0; for(int i=0;i<TR_N;i++) s->tr[i]=signTr[p->sign][i];
+    s->stage=p->stage; s->asp=p->asp; s->ltw=0; int own=0; for(int i=0;i<TR_N;i++) own|=p->tr[i];
+    for(int i=0;i<TR_N;i++) s->tr[i]=own?p->tr[i]:signTr[p->sign][i];
     int i=0; for(;p->name[i]&&i<HH_NM-1;i++) s->name[i]=p->name[i]; s->name[i]=0; s->last[0]=0;
     for(int k=0;k<HN_N;k++) s->need[k]=(u8)(70+(rnd8()&15));
     s->act=HA_IDLE; s->jt=s->jl=s->ji=0; s->think=(short)(rnd8()&63); s->hd=0;

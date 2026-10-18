@@ -25,11 +25,13 @@ $(TARGET).elf: source/main.c source/logo.c $(wildcard source/*.h) $(wildcard sou
 	@arm-none-eabi-size -A $@ | awk -v lim=$(EWRAM_STATIC_MAX) '$$1==".sbss"||$$1==".ewram"{e+=$$2} END{ if(e>lim){ printf("ERROR: EWRAM statics %d B > %d B: the top %d KB of EWRAM is the stack (see main.c)\n",e,lim,$(STACK_EWRAM)/1024); exit 1 } }'
 	@arm-none-eabi-size -A $@ | awk -v lim=$(IWRAM_MAX) '$$1==".bss"||$$1==".data"||$$1==".iwram"{i+=$$2} $$1~/^\.iwram[0-9]$$/{ if($$2>o) o=$$2 } END{ i+=o; printf("IWRAM: %d B used of %d (%d B free; overlays %d B)\n",i,lim,lim-i,o); if(i>lim){ printf("ERROR: IWRAM %d B > %d B: new code must not be IWRAM_*, new statics need EWRAM_BSS\n",i,lim); exit 1 } }'
 
-# bore.gba is the base game; bore-complete.gba has every expansion pack in; packs/ holds one BPS patch per pack (they go on in any order)
+# bore.gba is the WHOLE game, every expansion pack in. bore-base.gba is the base game alone (every pack's slot blank) and packs/ holds one
+# BPS patch per pack: they go onto bore-base.gba in any order, alone or together, and all six give bore.gba byte for byte
+.DELETE_ON_ERROR:   # (a failed split must not leave a half-made bore.gba behind)
 $(TARGET).gba: $(TARGET).elf
-	$(OBJCOPY) -O binary --gap-fill 0xff $< $(TARGET)-complete.gba
-	gbafix $(TARGET)-complete.gba -tBORE
-	NM=arm-none-eabi-nm python3 tools/make_packs.py split $< $(TARGET)-complete.gba $@ packs
+	$(OBJCOPY) -O binary --gap-fill 0xff $< $@
+	gbafix $@ -tBORE
+	NM=arm-none-eabi-nm python3 tools/make_packs.py split $< $@ $(TARGET)-base.gba packs
 
 # THE CREATOR DEMO (source/ccdemo.h): the same game built with -DCC_DEMO, only the creature creator, a gallery and share codes
 creator: $(TARGET)-creator.gba
@@ -46,7 +48,7 @@ $(TARGET)-creator.gba: $(TARGET)-creator.elf
 	gbafix $@ -tBORECREATOR
 
 clean:
-	rm -f $(TARGET).elf $(TARGET).gba $(TARGET)-complete.gba main.o logo.o $(TARGET)-creator.elf $(TARGET)-creator.gba main-cc.o; rm -rf packs
+	rm -f $(TARGET).elf $(TARGET).gba $(TARGET)-base.gba main.o logo.o $(TARGET)-creator.elf $(TARGET)-creator.gba main-cc.o; rm -rf packs
 
 # Memory report: EWRAM = .sbss (+ .ewram), IWRAM = .bss + .data + .iwram (the stack gets what is left of it), ROM = the .gba file.
 # Prints a table (and appends it to the GitHub job summary when run in Actions).

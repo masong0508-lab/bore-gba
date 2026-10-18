@@ -245,7 +245,7 @@ static const u16 stMaskHair[AG_N]={9,11|0x1F0|0x6E00,15|0x1F0|0x7E00,15|0x1F0|0x
 static inline int shapeMask(void){ int m=(int)stMaskShape[stage]; if(!sUnlock) m&=~4; else if(stage<AG_TEEN) m|=(int)SHHUM; else m|=(int)SHB(SH_SPIDER); return m; }   // BIG HEAD, and V-SHAPE / CURVY / SOFT / POWER / LONG LEGS below teen, are only on offer with the debug code
 static const u8 stSwatches[AG_N]={4,6,8,8,8};       // how many colours of each row are on offer
 #define BX0 ((W-BXW)/2)
-static u16 base[9+NWP], sT[9+NWP], sL[9+NWP], sR[9+NWP];   // slots 1..8 = body colours, 9.. = wallpaper average colours
+static u16 base[10+NWP], sT[10+NWP], sL[10+NWP], sR[10+NWP];   // slots 1..8 = body colours, 9 = LIGHT FUR (a pale muzzle, an inner ear: the skin well lightened), 10.. = wallpaper average colours
 static u16 wpEdge[NWP][3];   // wall block outline colours (top, left face, right face): set by setColors
 static u16 dL[9], dR[9];   // face-sprite palette (k w r s i b g h l) pre-shaded for the left / right cube face
 #define EDGE RGB(3,2,5)
@@ -274,8 +274,9 @@ static void setColors(void) {
     base[2]=RGB(31,31,31); base[3]=RGB(3,3,6);
     base[4]=RGB(29,12,16);    base[5]=toneBy(hairTones[look[LK_HCOL]],slideEffS(look[LK_HTONE]));
     base[6]=toneBy(topTones[look[LK_TOP]],slideEffS(look[LK_TTONE])); base[7]=toneBy(botTones[look[LK_BOT]],slideEffS(look[LK_BTONE])); base[8]=RGB(31,30,16);
-    for (int i=1;i<9;i++){ sT[i]=base[i]; sL[i]=shade(base[i],12); sR[i]=shade(base[i],9); }
-    for (int i=0;i<NWP;i++){ int s=9+i; base[s]=wpAvg[i]; sT[s]=base[s]; sL[s]=shade(base[s],12); sR[s]=shade(base[s],9);
+    base[9]=toneBy(base[1],4);   // LIGHT FUR
+    for (int i=1;i<10;i++){ sT[i]=base[i]; sL[i]=shade(base[i],12); sR[i]=shade(base[i],9); }
+    for (int i=0;i<NWP;i++){ int s=10+i; base[s]=wpAvg[i]; sT[s]=base[s]; sL[s]=shade(base[s],12); sR[s]=shade(base[s],9);
         wpEdge[i][0]=shade(sT[s],9); wpEdge[i][1]=shade(sL[s],9); wpEdge[i][2]=shade(sR[s],9); }
     u16 sk=base[1], bl=RGB(((sk&31)+31)/2,(((sk>>5)&31)+8)/2,(((sk>>10)&31)+12)/2);
     u16 dc[9]={ base[3], base[2], base[4], shade(base[1],11),        // k dark, w white, r red, s lid shadow (also the nose and freckles)
@@ -429,7 +430,7 @@ static void bakeTex(void){   // needs hhT (filled by initTables)
 IWRAM_CODE static void wallBlock(int sx,int sy,int wp,int f){
     CNT(cntWB);
     if(sy+CB+CC<cY0||sy-CB-1>=cY0+(int)cH||sx+CA<cX0||sx-CA>=cX0+(int)cW) return;   // all of it outside the clip: nothing to do (a clipped redraw skips it whole)
-    const u8*hhp=hhT[0]; int sl=9+wp;
+    const u8*hhp=hhT[0]; int sl=10+wp;
     u16 T=sT[sl], eT=wpEdge[wp][0], eL=wpEdge[wp][1], eR=wpEdge[wp][2];
     int t0=-CA, t1=CA; if(sx+t0<cX0) t0=cX0-sx; if(sx+t1>=cX0+(int)cW) t1=cX0+(int)cW-1-sx;
     int ye=cY0+(int)cH-1;
@@ -494,8 +495,8 @@ __attribute__((noinline)) IWRAM_CODE static void tileTop(int sx,int sy,u16 c){
 // One cell = 9 x 8 px of art on a cube face. Wider sprites span cells: width = 10*cells-1 (the seam column is art too).
 // Palette: k dark, w white, r red, s skin shadow, i iris (EYE COLOUR), b blush, g glasses frame, h brow (hair colour), l dark lens, . clear
 #define NBROW 9    // face details: NONE + the art styles (new ones go at the end, so saved faces keep theirs)
-#define NNOSE 9
-#define NCHEEK 8
+#define NNOSE 10
+#define NCHEEK 9
 #define NGLASS 7
 #define B9  "........."
 #define B19 "..................."
@@ -530,10 +531,12 @@ static const char* const mPout[8]={ B19, B19, "........kkk........", ".......k.r
 static const char* const mBuck[8]={ B19, B19, "....kkkkkkkkkkk....", ".......kwwkwwk.....", ".......kwwkwwk.....", "........kkkkk......", B19, B19 };
 static const char* const mWonky[8]={ B19, "..............kkk..", "..........kkkk.....", "......kkkk.........", B19, B19, B19, B19 };
 static const char* const mScream[8]={ B19, "......kkkkkkk......", ".....kwwwwwwwk.....", ".....krrrrrrrk.....", ".....krrrrrrrk.....", "......kkkkkkk......", B19, B19 };
+static const char* const aToon[8]={ "..kkkkk..", ".kwwwwwk.", "kwwwwwwwk", "kwwwkwwwk", "kwwwkwwwk", "kwwwwwwwk", ".kwwwwwk.", "..kkkkk.." };   // TOON: big plain white ovals with a tiny pupil (a cartoon cat's)
 typedef struct { const char*name; u8 wc; const char* const*art; } Spr;   // wc = width in cells
 #define NEYE0 9        // the first eyes and mouths: sprite ids 0..17 never move (saved creatures hold them)
 #define NMOUTH0 9
-#define NEYE 15        // eye styles in the creator (the 6 new ones are sprites 18..23)
+#define NEYE1 15       // eye styles before TOON (the 6 after the first nine are sprites 18..23)
+#define NEYE 16        // eye styles in the creator: + TOON, sprite 30 (after the newer mouths, so no saved face moves)
 #define NMOUTH 15      // mouth styles (the 6 new ones are sprites 24..29)
 #define NSPR (NEYE+NMOUTH)
 static const Spr spr[NSPR]={ {"SLEEPY",1,aHalf},{"ROUND",1,aRound},{"HAPPY",1,aHappy},{"WIDE",1,aWide},{"ANGRY",1,aAngry},
@@ -541,7 +544,8 @@ static const Spr spr[NSPR]={ {"SLEEPY",1,aHalf},{"ROUND",1,aRound},{"HAPPY",1,aH
                              {"FLAT",2,mFlat},{"SMILE",2,mSmile},{"OH",2,mOh},{"GRIN",2,mGrin},{"SMIRK",2,mSmirk},
                              {"FROWN",2,mFrown},{"TONGUE",2,mTongue},{"FANGS",2,mFangs},{"KITTY",2,mCat},
                              {"STAR",1,aStar},{"TIRED",1,aTired},{"SQUINT",1,aSquint},{"DIZZY",1,aDizzy},{"ANIME",1,aAnime},{"SIDE",1,aSide},
-                             {"LAUGH",2,mLaugh},{"WAVY",2,mWavy},{"POUT",2,mPout},{"BUCK",2,mBuck},{"WONKY",2,mWonky},{"SCREAM",2,mScream} };
+                             {"LAUGH",2,mLaugh},{"WAVY",2,mWavy},{"POUT",2,mPout},{"BUCK",2,mBuck},{"WONKY",2,mWonky},{"SCREAM",2,mScream},
+                             {"TOON",1,aToon} };
 // Details drawn over the eyes (brows, glasses) and over the mouth (nose, cheeks), from the look: [style-1][row], art in the same grid.
 static const char* const brArt[NBROW-1][2]={ {"..hhhhh..",B9},{".hhhhhhh.",".hhhhhhh."},{".hhh.....","....hhh.."},{".....hhh.","..hhh...."},{"hhhhhhhhh","hhhhhhhhh"},
                                          {"...hhh...","..h...h.."},{"...hhh...",B9},{"hhhhhhhh.",".hhhhhhhh"} };   // THIN THICK ANGRY SAD UNIBROW ARCHED SHORT BUSHY
@@ -554,15 +558,17 @@ static const char* const glArt[NGLASS-1][8]={ {B9,"..ggggg..",".g.....g.","gg...
 static const char* const noArt[NNOSE-1][2]={ {"........sss........",B19},{".........ss........",".........kss......."},
                                        {".......sssss.......",".......s...s......."},{"........sss........","........k.k........"},
                                        {".......kkkkk.......","........kkk........"},
-                                       {".........s.........",B19},{"......sssssss......","......k.....k......"},{"........sss........",".........ssk......."} };   // BUTTON POINTY WIDE PIG ANIMAL TINY BROAD HOOKED
+                                       {".........s.........",B19},{"......sssssss......","......k.....k......"},{"........sss........",".........ssk......."},
+                                       {".......rrrrr.......","........rrr........"} };   // BUTTON POINTY WIDE PIG ANIMAL TINY BROAD HOOKED CAT (a pink triangle)
 static const char* const chArt[NCHEEK-1][4]={ {".bbb...........bbb.",".bbb...........bbb.",B19,B19},{".s.s...........s.s.","..s.............s..",B19,B19},
                                        {B19,"kkk.............kkk",B19,"kkk.............kkk"},{"................r..","...............r...","..............r....",B19},
-                                       {B19,B19,"..k.............k..",B19},{B19,"................k..",B19,B19},{"rrr.............rrr",B19,"rrr.............rrr",B19} };   // BLUSH FRECKLES WHISKERS SCAR DIMPLES MOLE WAR PAINT
+                                       {B19,B19,"..k.............k..",B19},{B19,"................k..",B19,B19},{"rrr.............rrr",B19,"rrr.............rrr",B19},
+                                       {"kkk.............kkk","..kkk.........kkk..",B19,"kkk.............kkk"} };   // BLUSH FRECKLES WHISKERS SCAR DIMPLES MOLE WAR PAINT CAT WHISKERS (three a side, fanned)
 static int sty[2];                     // chosen style per kind: 0 = eye, 1 = mouth
 // style -> sprite id. Styles 0..8 are the first eyes / mouths (ids 0..8 / 9..17); the newer styles sit after them, so no saved face changes.
-static inline int eyeSpr(int st){ return st<NEYE0?st:NEYE0+NMOUTH0+(st-NEYE0); }
-static inline int mouthSpr(int st){ return st<NMOUTH0?NEYE0+st:NEYE0+NMOUTH0+(NEYE-NEYE0)+(st-NMOUTH0); }
-static inline int sprIsEye(int id){ return id<NEYE0||(id>=NEYE0+NMOUTH0&&id<NEYE0+NMOUTH0+(NEYE-NEYE0)); }
+static inline int eyeSpr(int st){ return st<NEYE0?st:st<NEYE1?NEYE0+NMOUTH0+(st-NEYE0):NEYE0+NMOUTH+(NEYE1-NEYE0)+(st-NEYE1); }   // (TOON and later eyes: after the newer mouths)
+static inline int mouthSpr(int st){ return st<NMOUTH0?NEYE0+st:NEYE0+NMOUTH0+(NEYE1-NEYE0)+(st-NMOUTH0); }
+static inline int sprIsEye(int id){ return id<NEYE0||(id>=NEYE0+NMOUTH0&&id<NEYE0+NMOUTH0+(NEYE1-NEYE0))||id>=NEYE0+NMOUTH+(NEYE1-NEYE0); }
 #define SPRID(k) ((k)?mouthSpr(sty[1]):eyeSpr(sty[0]))
 static inline int decSpr(u16 c){ return (c&7)|((c>>8)&0x78); }            // sprite+1: bits 0-2 and 11-14 of the code
 static inline u16 decSprBits(int n){ return (u16)((n&7)|((n>>3)<<11)); }
@@ -926,7 +932,8 @@ static void buildLook(void){
             if(fe==2){ vw(x,top,zb,5,xp,xm,0,1); if(top>0) vw(x,top-1,zb,5,0,0,0,0); vw(x,top,zb+1<zf+1?zb+1:zb,5,xp,xm,0,0); }   // FOX: bigger, deeper
             if(fe==3){ for(int y=top-1;y<=top;y++) if(y>=0) vw(x,y,zb,5,0,0,0,y==top); }          // BUNNY: tall and upright
             if(fe==4) vw(x,top,zb,5,0,0,0,1); }                                                    // BEAR: round
-        if(mz&&zf+1<BXD) for(int x=hx;x<hx+hw;x++){                                         // the muzzle: the mouth goes onto its front
+        if(mz==4) for(int x=hx;x<hx+hw;x++){ u8 v=vox[hy][zf][x]; if(v) vox[hy][zf][x]=(u8)((v&0xF0)|9); }   // LIGHT: the bottom of the face in the light fur colour, flush like a beard (a cat's pale muzzle)
+        if(mz&&mz<4&&zf+1<BXD) for(int x=hx;x<hx+hw;x++){                                   // the muzzle: the mouth goes onto its front
             if(mz==1) vw(x,hy,zf+1,1,0,0,1,0);                                                      // SNOUT: sloping down to the nose
             if(mz==2) vb(x,hy,zf+1,1);                                                              // MUZZLE: square
             if(mz==3) vw(x,hy,zf+1,8,x==hx+hw-1,x==hx,1,0); }                                       // BEAK: gold, pointed
@@ -934,6 +941,7 @@ static void buildLook(void){
         if(ft==1) for(int x=tx;x<tx+2;x++){ vb(x,yb,0,5); if(yb>0) vw(x,yb-1,0,2,x==tx+1,x==tx,0,1); }   // FOX: bushy, with a white tip
         if(ft==2){ vb(tx,yb,0,5); if(yb+1<BXH) vw(tx,yb+1,0,5,0,0,0,1); }                 // CAT: thin, curling up
         if(ft==3) vw(tx+1,yb,0,2,1,1,0,1);                                                          // BUNNY: a white puff
+        if(ft==4){ vb(tx,yb,0,1); if(yb+1<BXH) vw(tx,yb+1,0,1,0,0,0,1); }                       // CAT FUR: thin and curling up, in the fur (skin) colour
     }
     {   // clothes: the arms are the columns with a hand (skin) at the row below the torso
         int ts=look[LK_TOPSTY], bs=look[LK_BOTSTY];
@@ -958,7 +966,7 @@ static void buildLook(void){
             else { if(z+1<D&&!vox[y][z+1][x]) vw(x,y,z+1,2,0,0,1,0); if(!vox[y-1][z][x]) vw(x,y-1,z,2,0,0,1,0); } }   // BLADES: a white blade out of the front AND under each hand
     }
     {   // PATTERN: Spore-style body paint over the skin (and the shirt for stripes and a belly), in a colour slot the creature has
-        static const u8 pcs[6]={5,4,8,2,3,7}; int pt=look[LK_PATTERN], pc=pcs[look[LK_PATCOL]%6];
+        static const u8 pcs[7]={5,4,8,2,3,7,9}; int pt=look[LK_PATTERN], pc=pcs[look[LK_PATCOL]%7];
         if(pt) for(int y=0;y<H;y++)for(int z=0;z<D;z++)for(int x=0;x<W;x++){ u8 v=vox[y][z][x], c=v&15; if(c!=1&&c!=6) continue;
             int on=0;
             if(pt==1) on=(y&1)&&(c==1||y<hy);                                    // STRIPES: every other layer
@@ -1061,7 +1069,7 @@ static const char* const backNm[3]={"NONE","SPIKES","WINGS"};
 static const char* const clawNm[4]={"NONE","CLAWS","PINCERS","BLADES"};
 static const char* const antNm[3]={"NONE","FEELERS","EYE STALKS"};
 static const char* const patNm[7]={"NONE","STRIPES","SPOTS","BELLY","TIGER","SOCKS","MASK"};
-static const char* const patColNm[6]={"AS THE HAIR","RED","GOLD","WHITE","BLACK","AS THE BOTTOM"};
+static const char* const patColNm[7]={"AS THE HAIR","RED","GOLD","WHITE","BLACK","AS THE BOTTOM","LIGHT FUR"};
 #define NPART 5   // the parts DNA can buy: TAIL, HORNS, BACK, CLAWS, ANTENNAE (unlock bits part*3+option, 15 of pUnl's 16)
 static const short partCost[NPART][4]={{0,0,60,0},{0,0,60,0},{0,40,120,0},{0,30,90,110},{0,0,70,0}};   // DNA to unlock each option
 static const signed char abShape[NSHAPE][AB_N]={   // ability changes (SPEED JUMP GRIP STYLE STAMINA) per body type, in half bars
@@ -1167,7 +1175,7 @@ static void stageWall(int tx,int ty,int j32){   // one wall cell (tx or ty is -1
     int sx=OXC+(tx-ty)*CA, sy=ST_Y0+(tx+ty+1)*CB;
     for(int j=1;j<=ST_WH;j++){
         int f=(j<ST_WH?1:0)|(j>1?2:0)|j32;
-        if(sWp) wallBlock(sx,sy-j*CC,ST_WP,f); else cube(sx,sy-j*CC,9+ST_WP,0,f);
+        if(sWp) wallBlock(sx,sy-j*CC,ST_WP,f); else cube(sx,sy-j*CC,10+ST_WP,0,f);
     }
 }
 // THE STAGE CACHE: the creator's room never changes while you shape a Bore, but drawing it was most of every redraw (5 of 8 frames). The creator lends
@@ -1204,10 +1212,29 @@ __attribute__((noinline)) static void drawStageNow(void){   // ROM: the creator 
 // proud of the face so they read as ears. The ear on the far side is drawn before the blocks (only its rim peeks out past the head),
 // the near one after them. Each is an oval in the side face's plane: wide along the head's depth, tall up the head, with a rim and a hollow.
 // ---- ANTENNAE: FEELERS (thin, a bead on top) or EYE STALKS (thicker, an eye on each), drawn from the top of the head like the ears ----
+// ---- POINTED EARS (ANIMAL EARS > POINTED): a flat, tall triangle stood on each top corner of the head, in the fur colour with a lighter inner
+// ear and a dark outline, leaning out (a cat's). Drawn over the blocks like the antennae; EAR SIZE and EAR HEIGHT scale and lift it ----
+__attribute__((noinline)) static void drawPointEars(void){
+    if(look[LK_FEARS]!=5||custom) return;
+    int hx,hy,hz,hs; headBox(&hx,&hy,&hz,&hs); int hw=2*hs, hd=2*hs, hh=2*hs, f=10+slideEff(look[LK_EARSZ])*2;
+    u16 fur=sT[1], furD=sL[1], in=sT[9], edge=shade(sT[1],5);
+    for(int sd=0;sd<2;sd++){
+        int u=2*hx+(sd?2*hw:0)-W, w=2*hz+hd-D;                                 // the outer top corner of the head, half way back
+        int x0,y0,a,b; projC(u,w,hy+hh,&x0,&y0); rotUW(sd?1:-1,0,&a,&b);
+        int bw=(7*hs+1)*f/10, len=(19*hs)*f/10, lean=(a-b)*4*hs; y0+=2-slideEff(look[LK_EARLF]); x0-=(a-b)*hs;   // (EAR HEIGHT lifts it)
+        if(bw<2) bw=2; if(len<4) len=4;
+        int x1=x0+lean, y1=y0-len;
+        for(int yy=y1;yy<=y0;yy++){
+            int d=yy-y1, xl=x1+(x0-bw-x1)*d/len, xr=x1+(x0+bw-x1)*d/len, c=x1+(x0-x1)*d/len;   // this row's left and right edge, and the middle
+            rect(xl,yy,c-xl+1,1,fur); rect(c+1,yy,xr-c,1,furD); px(xl,yy,edge); px(xr,yy,edge);   // (the right half a shade darker)
+            if(d>len*2/5&&d<len-1){ int iw=(bw*(d-len*2/5)/len)*2/3; rect(c-iw,yy,2*iw+1,1,in); } }   // the inner ear
+        rect(x0-bw,y0,2*bw+1,1,edge); px(x1,y1,edge);
+    }
+}
 __attribute__((noinline)) static void drawAntennae(void){
     int an=look[LK_ANTENNA]; if(!an||custom) return;
     int hx,hy,hz,hs; headBox(&hx,&hy,&hz,&hs); int hw=2*hs, hd=2*hs, hh=2*hs, ty=((BXH-(hy+hh)>=1)?hy+hh:hy+hh-1)+1;   // just above the hair (or the head)
-    static const u8 pcs[6]={5,4,8,2,3,7}; u16 col=shade(sL[1],an==1?14:12), tip=sT[an==1?pcs[look[LK_PATCOL]%6]:2];
+    static const u8 pcs[7]={5,4,8,2,3,7,9}; u16 col=shade(sL[1],an==1?14:12), tip=sT[an==1?pcs[look[LK_PATCOL]%7]:2];
     for(int sd=0;sd<2;sd++){
         int u=2*hx+(sd?2*hw-1:1)-W+(sd?1:-1)*(slideEff(look[LK_ANTGAP])/2), w=2*hz+2*hd-1-D-slideEff(look[LK_ANTFB])*hs;   // ANT GAP: wider / closer; ANT FRONT BACK                        // the front corners of the head's top
         int x0,y0,x1,y1,a,b; projC(u,w,ty,&x0,&y0); rotUW(sd?1:-1,0,&a,&b); int lean=(a-b)*(2+slideEff(look[LK_ANTSPR]));   // ANT SPREAD: how far they lean out
@@ -1452,7 +1479,7 @@ IWRAM_OVL0 static void drawSceneO(int blink){
         if(dc&&fv>=0){ drawDeco(sx,sy,dc,fv,tint); if(!sprIsEye(decSpr(dc)-1)){ nsx=sx; nsy=sy; ndc=dc; ntint=tint; } }
     } }
     if(ndc&&decLook&&look[LK_NOSE]&&slideEff(look[LK_NOSEHT])>0){ decNose=1; drawDeco(nsx,nsy,ndc,fv,ntint); decNose=0; }   // a raised nose, over the block above the mouth
-    drawEars(1); drawTail(1); drawWings(1); drawHorns(1); drawAntennae();
+    drawEars(1); drawTail(1); drawWings(1); drawHorns(1); drawAntennae(); drawPointEars();
 }
 static volatile int mWantOff; static void audIdleStop(void);   // set by the mixer interrupt when nothing is left to play: vsync() then switches it off
 static void ldTick(void);   // loading.h: once per frame, lets the music come back after a loading screen
@@ -2469,7 +2496,7 @@ static void bakeShrink(u8 (*ss)[SPW*SPH],int v){   // view v, just drawn at full
             if(best>14&&c!=SKY) for(int yy=sy0;yy<sy1;yy++){ const u16*r=&fb[(SPY0+yy)*SW+SPX0]; for(int xx=sx0;xx<sx1;xx++){ u16 q=r[xx]; int sm=(q&31)+((q>>5)&31)+((q>>10)&31); if(sm<=11&&sm<best){ best=sm; c=q; } } }
             ss[v][y*SPW+x]=(u8)sprIdx(c); } }
     // seen from behind the head shows hair, not a face: repaint the head's skin in the hair colour so the way he is facing reads at a glance
-    if(!custom&&(v==1||v==2)){
+    if(!custom&&(v==1||v==2)&&look[LK_FEARS]!=5){   // (POINTED ears: the head is fur, so it stays furred from behind)
         int hx,hy,hz,hs; headBox(&hx,&hy,&hz,&hs);
         int ax=SW,az=SH,bx=0,bz=0;   // head box on screen (full size)
         for(int yy=hy;yy<hy+2*hs;yy++)for(int zz=hz;zz<hz+2*hs;zz++)for(int xx=hx;xx<hx+2*hs;xx++){
@@ -4884,14 +4911,14 @@ enum { PS_ASP, PS_LTW, PS_SIGN };
 typedef struct { const char*lab,*sub; u8 kind,id,n; } Row;   // sub = second line of a button
 static const char* const tabNm[NTAB]={"BODY","FACE","HAIR","CLOTHES","PARTS","ASPIRE","DONE"};
 static const char* const shapeNm[NSHAPE]={"AVERAGE","BROAD","BIG HEAD","STUBBY","SLIM","ATHLETIC","TALL","CHUBBY","PEAR","LANKY","STOCKY","HUNCHED","POTBELLY","MUSCLE","PETITE","BARREL","DIGITIGRADE","V-SHAPE","CURVY","RUNNER","SOFT","POWER","LONG LEGS","PUDGY","TODDLER","SPROUT","SPORTY","BELL","STURDY","SPIDER"};
-static const char* const eyeNm[NEYE]={"SLEEPY","ROUND","HAPPY","WIDE","ANGRY","CUTE","CAT","DOT","LASHES","STAR","TIRED","SQUINT","DIZZY","ANIME","SIDE"};
+static const char* const eyeNm[NEYE]={"SLEEPY","ROUND","HAPPY","WIDE","ANGRY","CUTE","CAT","DOT","LASHES","STAR","TIRED","SQUINT","DIZZY","ANIME","SIDE","TOON"};
 static const char* const mouthNm[NMOUTH]={"FLAT","SMILE","OH","GRIN","SMIRK","FROWN","TONGUE","FANGS","KITTY","LAUGH","WAVY","POUT","BUCK","WONKY","SCREAM"};
 static const char* const browNm[NBROW]={"NONE","THIN","THICK","ANGRY","WORRIED","UNIBROW","ARCHED","SHORT","BUSHY"};
-static const char* const noseNm[NNOSE]={"NONE","BUTTON","POINTY","WIDE","PIG","ANIMAL","TINY","BROAD","HOOKED"};
-static const char* const fearNm[5]={"NONE","CAT","FOX","BUNNY","BEAR"};
-static const char* const muzNm[4]={"NONE","SNOUT","MUZZLE","BEAK"};
-static const char* const ftailNm[4]={"NONE","FOX","CAT","BUNNY"};
-static const char* const cheekNm[NCHEEK]={"NONE","BLUSH","FRECKLES","WHISKERS","SCAR","DIMPLES","MOLE","WAR PAINT"};
+static const char* const noseNm[NNOSE]={"NONE","BUTTON","POINTY","WIDE","PIG","ANIMAL","TINY","BROAD","HOOKED","CAT"};
+static const char* const fearNm[6]={"NONE","CAT","FOX","BUNNY","BEAR","POINTED"};
+static const char* const muzNm[5]={"NONE","SNOUT","MUZZLE","BEAK","LIGHT"};
+static const char* const ftailNm[5]={"NONE","FOX","CAT","BUNNY","CAT FUR"};
+static const char* const cheekNm[NCHEEK]={"NONE","BLUSH","FRECKLES","WHISKERS","SCAR","DIMPLES","MOLE","WAR PAINT","CAT WHISKERS"};
 static const char* const glassNm[NGLASS]={"NONE","ROUND","SQUARE","SHADES","CAT-EYE","GOGGLES","VISOR"};
 static const char* const earNm[3]={"NONE","SMALL","BIG"};
 static const char* const hairNm[NHAIR]={"CROP","BOWL","LONG","BALD","SPIKY","AFRO","FLAT TOP","SIDE TAIL","BUN","BOB","PONYTAIL","PIGTAILS","MOHAWK","PIXIE","CURLS"};
@@ -4922,7 +4949,7 @@ static const Row tabRow[NTAB][TROWS]={
   {{"STYLE",0,RK_PICK,LK_HSTYLE,NHAIR},{"COLOUR",0,RK_SWATCH,LK_HCOL,NSW},{"HAIR TONE",0,RK_SLIDE,LK_HTONE,9},{"BEARD",0,RK_PICK,LK_BEARD,3},{"HAT",0,RK_PICK,LK_HAT,6},{"HAT COLOUR",0,RK_PICK,LK_HATCOL,6}},
   {{"TOP",0,RK_SWATCH,LK_TOP,NSW},{"TOP TONE",0,RK_SLIDE,LK_TTONE,9},{"BOTTOM",0,RK_SWATCH,LK_BOT,NSW},{"BOTTOM TONE",0,RK_SLIDE,LK_BTONE,9},{"TOP STYLE",0,RK_PICK,LK_TOPSTY,5},{"BOTTOM STYLE",0,RK_PICK,LK_BOTSTY,4},{"SHOES",0,RK_PICK,LK_SHOE,6}},
   {{"TAIL",0,RK_PICK,LK_TAIL,3},{"HORNS",0,RK_PICK,LK_HORNS,3},{"BACK",0,RK_PICK,LK_BACK,3},{"HANDS",0,RK_PICK,LK_CLAWS,4},{"ANTENNAE",0,RK_PICK,LK_ANTENNA,3},
-   {"PATTERN",0,RK_PICK,LK_PATTERN,7},{"PAINT",0,RK_PICK,LK_PATCOL,6},{"ANIMAL EARS",0,RK_PICK,LK_FEARS,5},{"MUZZLE",0,RK_PICK,LK_MUZZLE,4},{"FUR TAIL",0,RK_PICK,LK_FTAIL,4},
+   {"PATTERN",0,RK_PICK,LK_PATTERN,7},{"PAINT",0,RK_PICK,LK_PATCOL,7},{"ANIMAL EARS",0,RK_PICK,LK_FEARS,6},{"MUZZLE",0,RK_PICK,LK_MUZZLE,5},{"FUR TAIL",0,RK_PICK,LK_FTAIL,5},
    {"ANT LENGTH",0,RK_SLIDE,LK_ANTLEN,9},{"ANT SPREAD",0,RK_SLIDE,LK_ANTSPR,9},{"ANT TIP SIZE",0,RK_SLIDE,LK_ANTTIP,9},
    {"TAIL LENGTH",0,RK_SLIDE,LK_TAILLEN,9},{"TAIL CURL",0,RK_SLIDE,LK_TAILCURL,9},{"TAIL THICKNESS",0,RK_SLIDE,LK_TAILTHK,9},{"TAIL TIP",0,RK_PICK,LK_TAILTIP,7},{"WING SIZE",0,RK_SLIDE,LK_WINGSZ,9},
    {"HORN SIZE",0,RK_SLIDE,LK_HORNSZ,9},{"HORN SPREAD",0,RK_SLIDE,LK_HORNSPR,9},{"HORN CURVE",0,RK_SLIDE,LK_HORNCRV,9},{"HORN HEIGHT",0,RK_SLIDE,LK_HORNHT,9},
@@ -5319,7 +5346,7 @@ static void famMenu(void){
     custom=0; ageDays=0; fixLook(); buildLook(); setColors(); ageSave(); persSave(); hhSave();
     static char t[32] EWRAM_BSS; simCat(simCat(t,"NOW EDITING "),hhPName); toast(t);
 }
-static const u8 lkCnt[LK_N]={NSHAPE,NSKIN,NEYE,NMOUTH,3,NHAIR,NSW,NSW,NSW,9,9,9,3,3,3,6,6,3,4,3,6, NBROW,NNOSE,NCHEEK,NGLASS,NSW, 9,9,9,9,9,9,9, 4,3,7,6, 9,9,9,9,9,9,9,9,9, 5,4,4, 9,9,9, 9,9,9,9,9,9,9, 9,9,9,9,9,9,9, 9,9,9,7, 9,9,9, 9, [LK_THIGHW ... LK_NECKW]=9, [LK_SEX]=SX_N, [LK_BROWSP ... LK_CHEEKHT]=9, [LK_VOICE]=3};   // how many options each look row has (sliders: 9)
+static const u8 lkCnt[LK_N]={NSHAPE,NSKIN,NEYE,NMOUTH,3,NHAIR,NSW,NSW,NSW,9,9,9,3,3,3,6,6,3,4,3,6, NBROW,NNOSE,NCHEEK,NGLASS,NSW, 9,9,9,9,9,9,9, 4,3,7,7, 9,9,9,9,9,9,9,9,9, 6,5,5, 9,9,9, 9,9,9,9,9,9,9, 9,9,9,9,9,9,9, 9,9,9,7, 9,9,9, 9, [LK_THIGHW ... LK_NECKW]=9, [LK_SEX]=SX_N, [LK_BROWSP ... LK_CHEEKHT]=9, [LK_VOICE]=3};   // how many options each look row has (sliders: 9)
 #include "sharecode.h"   // SHARE CODES: a Bore as letters and digits (both the game and the CREATOR DEMO)
 #include "hhcreate.h"   // CREATE-A-HOUSEHOLD: the DONE tab's HOUSEHOLD row (add Sims, who is whose mother / sister / roommate; ADD FROM A CODE)
 #ifdef CC_DEMO

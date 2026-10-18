@@ -7,8 +7,8 @@ THE LAYOUT  Each pack owns a fixed slot at the top of the ROM (SLOTS below; sour
             literals stay in the base game (main.c is one translation unit: a literal lives once, wherever it was first used); the text that
             is a pack's own (its mission table, its story pages) is in named arrays, so it rides in the slot. What a pack keeps
             in the base game (KEEP: its save chunk, the little checks the life game asks every step) stays in the base ROM.
-THE SPLIT   `make_packs.py split bore.elf bore-complete.gba bore.gba packs/` takes the complete ROM (every pack in), writes the base ROM (every slot
-            blank, 0xFF) and one .bps per pack (base -> base + that pack).
+THE SPLIT   `make_packs.py split bore.elf bore.gba bore-base.gba packs/` takes the complete ROM (bore.gba, every pack in: the game as you play
+            it), writes the base ROM (bore-base.gba, every slot blank, 0xFF) and one .bps per pack (base -> base + that pack).
 ANY ORDER   A BPS patch checks the CRC32 of the ROM it is given. So every slot's last word is chosen to cancel the slot out of the CRC32: the
             ROM's CRC32 is the same with any set of packs in it. Each patch then sees exactly the checksum it expects whichever packs are
             already there, and writes only its own slot (SourceRead outside it, its own bytes inside), so the packs commute: any order, any
@@ -196,7 +196,7 @@ def split(elf, complete, base_out, packdir):
     for p, (lo, hi) in enumerate(slots):
         used = hi
         while used > lo and full[used - 1] == 0xFF: used -= 1
-        meta = ('BORE expansion pack: %s. Patch bore.gba (the base game). Packs go on in any order, alone or together.' % TITLES[p]).encode()
+        meta = ('BORE expansion pack: %s. Patch bore-base.gba (the base game). Packs go on in any order, alone or together.' % TITLES[p]).encode()
         bp = bps_make(size, lo, hi, full, crc, meta)
         open(os.path.join(packdir, FILES[p]), 'wb').write(bp); patches.append(bp)
         print('make_packs: %-30s %7d B (pack %d uses %d of %d KB of its slot)' % (FILES[p], len(bp), p, (used - lo + 1023) // 1024, SLOTS[p][1] // 1024))

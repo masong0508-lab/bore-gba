@@ -106,7 +106,7 @@ static void famNotice(const char*title,const char*l1,const char*l2,const int*us,
 static int famPick(int*fp,int lock){   // the member you become (*fp: the family, changed with UP / DOWN unless lock); -1 = back
     int f=*fp, sel=0, dirty=1; u16 prev=keyNow();
     for(;;){
-        const HhFam*F=&hhFams[f]; int n=F->n>4?4:F->n; char last[HH_NM]; famLast(F,last);
+        const HhFam*F=&hhFams[f]; int n=F->n>5?5:F->n; char last[HH_NM]; famLast(F,last);
         u16 k=keyNow(), pr=k&~prev; prev=k;
         if(!lock&&(pr&(K_DOWN|K_UP))){ f=(f+((pr&K_DOWN)?1:HH_NFAM-1))%HH_NFAM; sel=0; dirty=1; sfxPlay(SFX_TICK); continue; }
         if(n>1&&(pr&(K_RIGHT|K_R))){ sel=(sel+1)%n; dirty=1; sfxPlay(SFX_TICK); }
@@ -120,16 +120,16 @@ static int famPick(int*fp,int lock){   // the member you become (*fp: the family
         famBar(14,16,212,F->fam);
         if(!lock){ char c[8]; char*e=simCatN(c,f+1); *e++='/'; simCatN(e,HH_NFAM); text(222-tw(c,1),20,c,RGB(17,29,31),1); }   // 3/12
         text(120-tw("WHO DO YOU PLAY?",1)/2,34,"WHO DO YOU PLAY?",RGB(17,29,31),1);
-        int gap=n>1?196/n:0, x0=120-gap*(n-1)/2;
+        int five=n>4, gap=n>1?(five?42:196/n):0, x0=120-gap*(n-1)/2, ty=five?115:108;   // (five: the faces closer, the name pills in two rows)
         for(int i=0;i<n;i++){ const HhPre*p=&F->m[i]; int cx=x0+i*gap, on=i==sel;
-            famFaceL(cx,68,on?21:16,p->look,p->stage,p->sex,hudExpr[on?4:2]);
-            int w=tw(p->name,1)+14; s3Pill(cx-w/2,92,w,11,on,p->name); }
+            famFaceL(cx,66,on?(five?19:21):(five?14:16),p->look,p->stage,p->sex,hudExpr[on?4:2]);
+            int w=tw(p->name,1)+14; s3Pill(cx-w/2,(five&&(i&1))?101:90,w,11,on,p->name); }
         { const HhPre*p=&F->m[sel]; char b[40]; char*e=simCat(b,p->name); if(last[0]){ e=simCat(e," "); simCat(e,last); }
-          text(120-tw(b,1)/2,108,b,WHITE,1);
+          text(120-tw(b,1)/2,ty,b,WHITE,1);
           e=simCat(b,stageNm[p->stage<AG_N?p->stage:AG_ADULT]); e=simCat(e,"  "); simCat(e,sexNm[p->sex<SX_N?p->sex:SX_NB]);
-          text(120-tw(b,1)/2,118,b,RGB(17,29,31),1);
+          text(120-tw(b,1)/2,ty+10,b,RGB(17,29,31),1);
           e=simCat(b,"ASPIRES TO "); simCat(e,aspNm[p->asp<AS_N?p->asp:0]);
-          text(120-tw(b,1)/2,128,b,GOLD,1); }
+          text(120-tw(b,1)/2,ty+20,b,GOLD,1); }
         { const char*h=lock?"< > WHO   A PLAY   B BACK":"UP DOWN FAMILY   < > WHO   A PLAY   B BACK"; text(120-tw(h,1)/2,150,h,RGB(12,18,26),1); }
         present();
     }

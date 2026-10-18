@@ -104,9 +104,10 @@ static void hhFresh(int f,int who){   // pre-made family f moves in for the firs
 
 // ---------- who lives where ----------
 static int nbFamOf(const Town*t,int li){   // the pre-made family on lot li, -1 = none (your home, community lots, the free lots)
-    int base=nbKey(t)%HH_NFAM, c=0;
-    for(int i=0;i<NB_LOTS;i++){ const NbLot*L=&t->lot[i]; if(!L->on||L->kind!=LKIND_RES) continue;
-        if(i==li) return (i==t->home||c%3==2)?-1:(base+c-c/3)%HH_NFAM;
+    int base=nbKey(t)%HH_NFAM0, c=0;   // (HH_NFAM0: the families a town had before THE WATTERSONS, so every lot keeps its family; the new families
+    for(int i=0;i<NB_LOTS;i++){ const NbLot*L=&t->lot[i]; if(!L->on||L->kind!=LKIND_RES) continue;   //  take the lots after one of each of the old ones, where a family came round again)
+        if(i==li){ if(i==t->home||c%3==2) return -1; int k=c-c/3; if(k<HH_NFAM0) return (base+k)%HH_NFAM0;
+                   return k<HH_NFAM?k:(base+k-(HH_NFAM-HH_NFAM0))%HH_NFAM0; }
         c++; }
     return -1;
 }

@@ -38,7 +38,7 @@ jobs:
           name: bore-gba
           path: |
             bore.gba
-            bore-complete.gba
+            bore-base.gba
             packs/*.bps
       - uses: actions/upload-artifact@v4
         with:
@@ -50,12 +50,12 @@ jobs:
         with:
           tag_name: latest
           name: Latest build (${{ github.sha }})
-          body: The newest build from main, commit ${{ github.sha }}. bore.gba is the base game; bore-complete.gba has every expansion pack in. The BORE-EP*.bps files are the expansion packs one by one; patch them onto bore.gba in any order, alone or together (Flips, Rom Patcher JS, ...). Open the ROM in mGBA, Pizza Boy, a PSP emulator or a flash cart.
+          body: The newest build from main, commit ${{ github.sha }}. bore.gba is the whole game with every expansion pack in - play that one. bore-base.gba is the base game alone, and the BORE-EP*.bps files are the expansion packs one by one; patch them onto bore-base.gba in any order, alone or together (Flips, Rom Patcher JS, ...). Open the ROM in mGBA, Pizza Boy, a PSP emulator or a flash cart.
           target_commitish: ${{ github.sha }}
           make_latest: true
           files: |
             bore.gba
-            bore-complete.gba
+            bore-base.gba
             bore-creator.gba
             packs/*.bps
       - name: Publish release on tag
@@ -64,5 +64,5 @@ jobs:
         with:
           files: |
             bore.gba
-            bore-complete.gba
+            bore-base.gba
             packs/*.bps

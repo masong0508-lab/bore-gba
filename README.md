@@ -3,14 +3,16 @@
 A Game Boy Advance game: a **voxel creature creator** that is growing into a **life sim** (Sims-style rooms, a household, needs, a career, skate tricks). Pseudo-3D isometric view, everything drawn by the CPU, no libraries.
 
 ## Build and run
-- **GitHub:** push; the *Build GBA ROM* workflow makes `bore.gba` (download it from the run's artifacts; tag a commit to get a release).
-- **Locally:** install devkitARM, then `make`. Play `bore.gba` in mGBA or on a flash cart.
+- **GitHub:** push; the *Build GBA ROM* workflow makes `bore.gba` (download it from the run's artifacts, or from the *Latest build* release that every push to main updates).
+- **Locally:** install devkitARM (and Python 3), then `make`. Play `bore.gba` in mGBA or on a flash cart.
+- **`bore.gba` is the whole game**, every expansion pack in: that is the one to play. The build also makes `bore-base.gba` (the base game alone) and `packs/BORE-EP*.bps`, one BPS patch per expansion pack. The patches go onto `bore-base.gba` in any order, alone or together, and all six give `bore.gba` byte for byte (the ROM's CRC32 is the same whatever packs are in, so no patch ever refuses another: `tools/make_packs.py`). A pack that is not in says NOT INSTALLED where you would start it.
 - **The Creator Demo:** `make creator` builds `bore-creator.gba` (the workflow uploads it too): only the creature creator, like Spore's Creature Creator. Every part and slider is free; save your Bores to **MY CREATIONS** and flip through them, and every Bore has a **SHARE CODE**.
 
 ## Share codes
 A Bore (its look, age, aspiration and personality) as up to about 72 letters and digits, e.g. `AG9E FK8H W7R8 ...`. The code alphabet has no I, O, 0 or 1, and a mistyped code is refused rather than loaded as some other Bore.
 - In the demo: hub > ENTER A SHARE CODE, or a creation's START in MY CREATIONS to see its code.
 - In the game: the creator's DONE tab > SHARE CODE / ENTER A CODE (the code's Bore becomes the one on screen), or DONE > HOUSEHOLD > ADD FROM A CODE (the code's Bore joins your household).
+- A Bore that uses one of the cat parts gets a `C` code; every other Bore keeps the `A` / `B` code it always had, and old codes still load.
 
 ## Playing
 Power on, then START on the title screen. The **main menu** has:
@@ -63,6 +65,8 @@ In the room builder (BUILD ROOM, the pause menu's EDIT MAP, or BUILD on a lot in
 **THE BUILD BATCH:** 200 more build-mode things: 65 floors, 49 wallpapers (12 of them see-through FENCES the WALL tool builds low), 12 window styles, 12 doors and 82 pool, beach, garden, tree and yard items (282 catalog items then; 286 now). And POOLS: pick a water in the FLOOR tool and it digs one, tiled edge and all; walk in and you swim (slower, cleaner, no boards). The COMMUNITY POOL has a real one, and big modern houses and mansions come with one in the yard.
 
 **BOREZIES! ARENAS AND STORY:** six bitmapped fight maps (CUL-DE-SAC, THE WINCHESTER, THE LAB, THE ARCADE, THE SCRAPYARD, THE CAR PARK) with barrels and canisters scattered at random every run and every wave. HORDE MODE's new MAP row picks your own lot or any arena (with a picture of each). The five BOREZIES! missions are now a story in five chapters told in pages before and after each, every chapter on its own map: the cul-de-sac at dawn, a pint at the Winchester, the white tank in the lab, Patient Zero at the arcade. Your own lot is never touched while you are away. Four HAZARD items join the catalogue (286 items, 26 tabs). See docs/NOTES.md, ARENAS.
+
+**THE WATTERSONS AND THE CAT PARTS:** a pre-made family of five from The Amazing World of Gumball: GUMBALL (a blue cat), DARWIN (an orange fish with legs), ANAIS (a pink rabbit), NICOLE (a blue cat) and RICHARD (a big pink rabbit), each with their own personality. Start them from NEW GAME's family bin (the faces of all five, pick who you play) or HOUSEHOLD > MOVE IN A FAMILY; in a big town they get a lot of their own. The parts they are made of are in the creator for everyone: **TOON** eyes, a **CAT** nose, **CAT WHISKERS**, **POINTED** ears, a **LIGHT** muzzle, a **CAT FUR** tail and **LIGHT FUR** body paint (a pale version of the skin). Ported from the old `claude/loving-newton` branch, so nothing of it is left behind.
 
 **OHIO HOE:** a new VaninBlack song in the jukebox, hyperpop drum & bass at 172 BPM built from three old sketches (`tools/make_ohio_hoe.py`): supersaw hook, a pitched-up vocal synth, a reese on the bass line, and a HOE that slides down an octave.
 

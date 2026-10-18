@@ -59,12 +59,12 @@ static int nrPullOf(const NrE*q){ int p=(q->l1+q->l2+q->d1/2)/10; if(p<0) p=nrAb
 static int nrMine(int u){ return u==hhPUid||hhMemOf(u)>=0; }   // a uid of this household (not a guest)
 static int nrLotPull(int lot){ int p=0; for(int e=0;e<nrN;e++){ const NrE*q=&nrT[e]; if(q->lot==lot&&q->own<GU0&&nrMine(q->own)) p+=nrPullOf(q); } return p>60?60:p; }
 static int nrMemPick(int lot,const HhFam*F){   // which member of pre-made family F (on lot) comes: the ones who mean most to you more often; -1 = they all moved in with you
-    int w[4], sum=0; u8 nh[4];
-    for(int i=0;i<F->n&&i<4;i++){ nh[i]=nrHash(F->m[i].name); w[i]=0; if(nrLost(lot,i,nh[i])) continue;
+    int w[5], sum=0; u8 nh[5];
+    for(int i=0;i<F->n&&i<5;i++){ nh[i]=nrHash(F->m[i].name); w[i]=0; if(nrLost(lot,i,nh[i])) continue;
         w[i]=6; for(int e=0;e<nrN;e++){ const NrE*q=&nrT[e]; if(q->lot==lot&&q->mem==i&&q->nh==nh[i]&&q->own<GU0&&nrMine(q->own)) w[i]+=nrPullOf(q); }
         sum+=w[i]; }
     if(!sum) return -1;
-    int x=(rnd8()*sum)>>8; for(int i=0;i<F->n&&i<4;i++){ if(x<w[i]) return i; x-=w[i]; }
+    int x=(rnd8()*sum)>>8; for(int i=0;i<F->n&&i<5;i++){ if(x<w[i]) return i; x-=w[i]; }
     for(int i=F->n-1;i>=0;i--) if(w[i]) return i; return -1;
 }
 static int nrPull(int k){ int g=GU0+k; return nrGuestOk(k)&&(relD[g][hhPUid]>=30||(relF[hhPUid][g]&(RF_STEADY|RF_LOVE|RF_BFF))); }   // visitor k likes you: back sooner

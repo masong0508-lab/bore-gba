@@ -221,8 +221,8 @@ static int slDecPerson(SlR*c,int apply){
     for(int i=LK_CHESTW;i<=LK_HORNTONE;i++) if(lk[i]>=9) return 0;
     for(int i=LK_TAILTAPER;i<=LK_WINGTONE;i++) if(lk[i]>=9) return 0;
     for(int i=LK_JAWW;i<=LK_NECKW;i++) if(lk[i]>=9) return 0;
-    if(lk[LK_CLAWS]>=4||lk[LK_ANTENNA]>=3||lk[LK_PATTERN]>=7||lk[LK_PATCOL]>=6) return 0;
-    if(lk[LK_FEARS]>=5||lk[LK_MUZZLE]>=4||lk[LK_FTAIL]>=4) return 0;
+    if(lk[LK_CLAWS]>=4||lk[LK_ANTENNA]>=3||lk[LK_PATTERN]>=7||lk[LK_PATCOL]>=7) return 0;
+    if(lk[LK_FEARS]>=6||lk[LK_MUZZLE]>=5||lk[LK_FTAIL]>=5) return 0;
     if(cu>1) return 0;
     if(cu){
         if(!slDecPlane(c,0)||!slDecPlane(c,1)||!slDecPlane(c,2)) return 0;
