@@ -2444,6 +2444,8 @@ static int wallClear(s32 ax,s32 ay,s32 bx,s32 by){
 // The sprites hold about 40 colours, so a lookup is one or two probes instead of a walk through the list.
 #define HQ_N 512
 static u16 bfsQ[MH*MW] EWRAM_BSS;   // (the search queue, defined again further down: the same array)
+static u16 hhDist[MH*MW] EWRAM_BSS; // (the Sims' path marks, defined again in house.h: the same array. Every search fills it first, so a search
+                                    //  that is not a path, like the floors' open-air flood and the hidden board's, borrows it for its own marks)
 #define hqKey ((u16*)bfsQ)                 // the bake's colour hash lives in the search queue: it is scratch of a bake (hqClear / sprHashBuild start every use),
 #define hqVal (((u8*)bfsQ)+HQ_N*2)         // and no search runs during a bake (the bake already borrows hhDist the same way: hhQs). 1.5 KB of EWRAM
 _Static_assert(HQ_N*3<=MH*MW*2,"the bake's colour hash must fit in the search queue");
@@ -2875,7 +2877,7 @@ static void flLoad(int f){   // floor f becomes the live map
 static void flMigrateAir(void){
     for(int x=0;x<MW;x++){ if(lifeMap[0][x]!='w'||lifeMap[MH-1][x]!='w') return; }   // (only the old slab has its low wall all round)
     for(int y=0;y<MH;y++){ if(lifeMap[y][0]!='w'||lifeMap[y][MW-1]!='w') return; }
-    static u8 seen[MH][MW] EWRAM_BSS; static u16 q[MSZ] EWRAM_BSS; int qh=0, qt=0;
+    u8 (*seen)[MW]=(u8(*)[MW])(void*)hhDist; u16*q=bfsQ; int qh=0, qt=0;   // (the shared search queue and marks: 4.8 KB it no longer keeps for itself)
     for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ seen[y][x]=0; if(x==0||y==0||x==MW-1||y==MH-1){ seen[y][x]=1; lifeMap[y][x]='.'; wallMap[y][x]=0; floorMap[y][x]=FL_AIR; q[qt++]=(u16)(y*MW+x); } }
     static const signed char d4[4][2]={{1,0},{-1,0},{0,1},{0,-1}};
     while(qh<qt){ int p=q[qh++], x=p%MW, y=p/MW;

@@ -10,7 +10,7 @@
 // LIMITS         UD_ACT steps and UD_REC tiles in all (4 bytes a tile). The oldest steps fall off the back. One step bigger than UD_REC
 //                (a whole 40 x 40 fill) cannot be undone: it clears the history instead and says so.
 // KEYS           SELECT + B = UNDO, SELECT + START = REDO, and the MAP MENU (START) lists both with the number of steps left.
-// MEMORY         about 5.2 KB of EWRAM (udR 4000 B + udRF 1000 B + udA 136 B). IWRAM is untouched. Lower UD_REC if EWRAM gets tight (make size).
+// MEMORY         136 B of its own (udA): the 5000 B of records (udR 4000 + udRF 1000) borrow the inmates' room, inmS. IWRAM is untouched.
 // WHERE          included by main.c just before the map editor; mapPlace / edPay (earlier in main.c) call udRec / count the cash through
 //                the forward declarations at the top, edSet / eApply and mapEditor use the rest.
 #define UD_REC 1000
@@ -18,7 +18,11 @@
 _Static_assert(NFL<=256&&NWALL<=256&&MW*MH<=2048,"undo.h packs a tile into 4 bytes (11 bits of position, 8 of wallpaper, 8 of item) and a byte of floor (udRF)");
 #define UD_PACK(i,f,w,c) ((u32)(i)|((u32)(w)<<15)|((u32)(u8)(c)<<23))
 typedef struct { u16 s,n; s32 cash; u8 fl,pad; } UdAct;   // a step: its first record, how many, what it cost (negative: it sold), and its floor
-static u32 udR[UD_REC] EWRAM_BSS; static u8 udRF[UD_REC] EWRAM_BSS;   // the recorded tiles, and their floors
+// the recorded tiles, and their floors: they live in the prison population's room (inmS, house.h), which nobody uses while the room builder
+// is open (a prison is a community lot: never built from inside; the town view's BUILD runs no life; an arena, which borrows it too, refuses it)
+_Static_assert(UD_REC*5<=sizeof(inmS),"the undo records must fit the inmates' room");
+#define udR ((u32*)(void*)inmS)
+#define udRF (((u8*)(void*)inmS)+UD_REC*4)
 static UdAct udA[UD_ACT+1] EWRAM_BSS;                      // the steps (one spare slot: the step being drawn)
 static u16 udNR EWRAM_BSS;                                 // records in use
 static u8 udNA EWRAM_BSS, udCur EWRAM_BSS, udOpen EWRAM_BSS, udOver EWRAM_BSS, udBig EWRAM_BSS;   // steps kept, steps applied (the rest can be redone), one is being drawn, it outgrew the history, tell the player

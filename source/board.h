@@ -24,7 +24,7 @@ static void bdLotInit(void){   // main.c lifeInit: the old free pickup goes, the
     if(nbOk&&bdx>=0){ if(lifeMap[bdy][bdx]=='B') lifeMap[bdy][bdx]='.'; bdx=bdy=-1; }   // (towns: no board lying by the door)
     bdHx=bdHy=-1;
     if(!bdOwn&&bdHides()&&spx>=0&&!curFl){   // the floor tile farthest from the arrival you can walk to (a breadth-first search over the lot)
-        static u16 q[MW*MH] EWRAM_BSS; static u8 seen[MH][MW] EWRAM_BSS;
+        u16*q=bfsQ; u8 (*seen)[MW]=(u8(*)[MW])(void*)hhDist;   // (the shared search queue and marks)
         for(int y=0;y<MH;y++) for(int x=0;x<MW;x++) seen[y][x]=0;
         int h=0, t=0; q[t++]=(u16)(spy*MW+spx); seen[spy][spx]=1; int last=-1;
         while(h<t){ int c=q[h++], cx=c%MW, cy=c/MW; if(lifeMap[cy][cx]=='.'&&(cx!=spx||cy!=spy)) last=c;

@@ -436,7 +436,8 @@ static void nbDrawTown(int ccx,int ccy,int tool,int ghostW,int ghostH,int ghostO
     if(nbPart) rect(cX0,cY0,(int)cW,(int)cH,sky);
     else if(bd){ clipAll(); nbSky(); } else { clipAll(); fillCols(0,ROW_W,sky); clipSet(0,12,SW,122); }
     int qx0=cX0, qy0=cY0, qx1=cX0+(int)cW, qy1=cY0+(int)cH;   // (the clip: a part redraw skips what is outside it)
-    static signed char lm[NB_HMAX][NB_WMAX] EWRAM_BSS;   // which lot each cell is on, worked out once a picture (nbAt searched every lot for every cell, twice)
+    signed char (*lm)[NB_WMAX]=(signed char(*)[NB_WMAX])(void*)hhDist;   // which lot each cell is on, worked out once a picture (nbAt searched every lot for every cell, twice); in the path marks, which no search uses while the town is drawn
+    _Static_assert(NB_HMAX*NB_WMAX<=sizeof(hhDist),"the town's lot map must fit the path marks");
     for(int y=0;y<NB_H;y++)for(int x=0;x<NB_W;x++) lm[y][x]=-1;
     for(int i=NB_LOTS-1;i>=0;i--){ const NbLot*L=&nbT.lot[i]; if(!L->on) continue;   // (backwards: where lots overlap, the first one wins, as in nbAt)
         for(int y=L->y;y<L->y+L->h&&y<NB_H;y++)for(int x=L->x;x<L->x+L->w&&x<NB_W;x++) if(x>=0&&y>=0) lm[y][x]=(signed char)i; }
