@@ -104,7 +104,8 @@ static inline int iuPick(const HhSim*s,int need,int f){   // a usable item for t
 }
 // ---- relationships (Sims 2 style): for every pair a DAILY and a LIFETIME score, -100..100, kept by uid and one-way (how a feels about b) ----
 #define HU_N (HH_MAX+1)
-#define TW_N 2                                   // visitors at a time (the neighbours who drop by: see VISITORS below)
+#define TW_N 6                                   // visitor places (the neighbours who drop by: see VISITORS below). Normally twLim = 2 of them are used; a pack's hostile modes (the BOREZIES missions, HORDE MODE) open up to 6
+static u8 twLim=2;                              // how many visitor places are in use right now (twPick, expand.h exHCapMax)
 // GUESTS: while a neighbour is on the lot, visitor k has a uid of its own, GU0+k, so every social, balloon and relationship rule works on them
 // as on the household. Their rows of the tables come from TOWN RELATIONSHIPS (townrel.h) when they arrive and go back there (nrSync).
 #define GU0  HU_N
@@ -413,22 +414,26 @@ static u8 twKeep; static u8 inmN EWRAM_BSS; static void inmPick(void); static vo
 static u8 twCall[TW_N];     // visitor k was CALLED OVER on the phone: they come at night too
 static u8 twWel[TW_N];      // visitor k is the WELCOME visit: the first neighbour of a new home rings the bell soon after you move in (twPick), at night too, and brings a gift
 static u8 twHas[TW_N], twOn[TW_N]; static short twWait[TW_N]={240,900}; static char twFrom[TW_N][12];
-static u8 exHT[TW_N];   // expand.h: visitor k is HOSTILE (1 a Borezie, 2 a soldier, 3 a challenger): the packs' scenarios
+static u8 exHT[TW_N];   // expand.h: visitor k is HOSTILE (1 a Borezie, 2 a soldier, 3 a challenger, 4 a sprinter, 5 a brute, 6 a boss): the packs' scenarios
+static int hzDmgPct(void); static int exHFull(void); static int exHTaken(int uid); static void exHMove(int k,HhSim*s);   // (expand.h) the crowd is as big as the scenario allows; the percent of a blow a hostile visitor takes
 static int exHMode(void); static void exHArrive(int k); static int exHStay(int k,int*planned); static void exUntint(int k); static void exSoc(int a,int b,int i,int ok); static void exKO(int uid);   // (expand.h)   // visitor k: set up, on the lot (1 coming, 2 staying, 3 going), the lot they live on
 static int nbVisitor(HhSim*s,char*from,int not);   // households.h: a Sim of another household of the town (s), the lot it lives on; not = a family to skip
 static u8 nbMem;   // households.h: which member of that household it was (nbSimFrom / nbVisitor set it)
 static void nrGuestIn(int k); static void nrForget(int u); static u8 nrHash(const char*s); static void nrGuestChat(int k); static int nrPull(int k);   // townrel.h
 static void twWho(int k,int lot){ HhSim*s=&hhM[TW_V(k)]; twLot[k]=(u8)(lot<0?255:lot>=100?0x80|(lot-100):lot); twMem[k]=nbMem; twNh[k]=nrHash(s->name); s->uid=(u8)(GU0+k); nrGuestIn(k); }   // visitor k is that Sim of the town: their uid and rows (townrel.h)
 static void twPick(void){   // who comes by while you are on this lot: Sims from the town's other households
+    u32 rsave=lrng; if(hzOn) lrng=0x20B0BE5u;   // (a HORDE always has the same faces: the bakes are kept from one run to the next)
     int f0=-1; nrSync();   // (the visitors who were here keep what they feel)
     for(int k=0;k<TW_N;k++){ int v=TW_V(k); twHas[k]=0; twOn[k]=0; twWait[k]=(short)(240+k*700);
         exUntint(k);   // (a hostile visitor's own colours back first: the same Sim may be picked again)
-        if(v<hhN||(!xo[XO_SIMPRE]&&!exHMode())) continue;
+        if(k>=twLim||v<hhN||(!xo[XO_SIMPRE]&&!exHMode())) continue;
         HhSim*s=&hhM[v]; int f=nbVisitor(s,twFrom[k],f0); if(f==-2) continue; f0=f;
+        if(exHMode()&&s->stage<AG_TEEN) s->stage=AG_ADULT;   // (nobody little turns up hostile)
         s->bubT=0; s->hp=HP_MAX; s->ltw=0; s->act=HA_IDLE; s->jt=s->jl=s->ji=0; s->think=0; s->hd=0; s->pn=s->pi=0; for(int q=0;q<HN_N;q++) s->need[q]=80;
         twWho(k,f); twHas[k]=1; }
     for(int k=0;k<TW_N;k++) twWel[k]=0;
     for(int k=0;k<TW_N;k++) if(twHas[k]){ twWel[k]=1; twWait[k]=180; break; }   // SCRIPTED ARRIVAL: the first neighbour walks in about 3 seconds after you move in
+    if(hzOn) lrng=rsave;
 }
 static void twDrop(int place){ for(int k=0;k<TW_N;k++) if(TW_V(k)==place){ twHas[k]=0; twOn[k]=0; hhKey[place]=0; } }   // a member moves into a visitor's place
 static void hkAdd(u32*h,const void*p,int n){ const u8*b=(const u8*)p; u32 x=*h; for(int i=0;i<n;i++) x=(x^b[i])*16777619u; *h=x; }
@@ -699,6 +704,7 @@ static void hhStepAlong(HhSim*s){   // one step along the path, tile centre to t
 static char twMsg[40] EWRAM_BSS;   // "ROXY STACK FROM MAPLE 2 DROPS BY"
 static int twFar(void){   // where a visitor comes from / goes to: a way off the lot, or (walls all round) somewhere walkable well away from you. -1 = nowhere
     if(FLG(0)){ int f=rnd8()%flgN[0]; return flgY[0][f]*MW+flgX[0][f]; }   // a COMMUNITY FLAG on the lot: visitors walk in from it and out to it (main.c, FLAGS)
+    if(hzOn&&hhExN>0){ int px=(int)(lfx>>8), py=(int)(lfy>>8), c[16], n=0; for(int i=0;i<hhExN&&n<16;i++){ int x=hhEx[i]%MW, y=hhEx[i]/MW, d=(x>px?x-px:px-x)+(y>py?y-py:py-y); if(d>=9&&d<=26) c[n++]=hhEx[i]; } if(n) return c[rnd8()%n]; }   // (a HORDE comes in through the entrances 9 to 26 tiles away: not the farthest corner of the lot)
     if(hhExN>0) return hhEx[rnd8()%hhExN];
     int px=(int)(lfx>>8), py=(int)(lfy>>8);
     for(int t=0;t<60;t++){ int x=(int)(((u32)rnd8()<<8|rnd8())%MW), y=(int)(((u32)rnd8()<<8|rnd8())%MH), d=(x>px?x-px:px-x)+(y>py?y-py:py-y);
@@ -711,6 +717,7 @@ static void twTick(int*planned){   // VISITORS: someone from another household w
         if(!twOn[k]){
             if(twWait[k]>0){ twWait[k]--; continue; }
             if(*planned||(simIsNight()&&!twWel[k]&&!twCall[k]&&!exHMode())){ twWait[k]=60; continue; }   // (Borezies come at night too)
+            if(exHMode()&&exHFull()){ twWait[k]=40; continue; }   // (the scenario's crowd is as big as it gets: wait for a place in it)
             int a=twFar(); if(a<0){ twWait[k]=120; continue; } s->fx=(a%MW)*256+128; s->fy=(a/MW)*256+128; *planned=1;
             hhGX=(int)(lfx>>8); hhGY=(int)(lfy>>8);
             if(hhPlan(s,1)>1){ twOn[k]=1; s->act=HA_WALK; twCall[k]=0;   // walking in, over to you
@@ -718,7 +725,7 @@ static void twTick(int*planned){   // VISITORS: someone from another household w
                 if(twWel[k]){ const char*p=" SAYS WELCOME"; while(*p) *e++=*p++; }   // (the welcome visit)
                 else if(twFrom[k][0]){ const char*p=" FROM "; while(*p) *e++=*p++; for(p=twFrom[k];*p;) *e++=*p++; } else { const char*p=" DROPS BY"; while(*p) *e++=*p++; }
                 *e=0;
-                lnote=twMsg; lnoteT=90; exHArrive(k); }   // (a pack's scenario may make them hostile: expand.h)
+                lnote=twMsg; lnoteT=90; exHArrive(k); if(exHT[k]) twOn[k]=2; }   // (a pack's scenario may make them hostile: expand.h; a hostile one chases from the first step, exHStay)
             else twWait[k]=120;
             continue;
         }
@@ -734,7 +741,7 @@ static void twTick(int*planned){   // VISITORS: someone from another household w
                 if(!sfxV&&!curFl) sfxPlay(SFX_BELL); }   // the doorbell (when nothing else is sounding)
             else { twOn[k]=0; twWait[k]=(short)(nrPull(k)?600+(rnd8()<<3):900+(rnd8()<<4)); nrSync(); }   // gone: the next visit in a while (sooner when they like you)
             continue; }
-        hhStepAlong(s);
+        if(exHT[k]) exHMove(k,s); else hhStepAlong(s);   // (a hostile visitor walks in at its own pace: expand.h)
     }
 }
 // ---- SIMS ON FLOORS (floors step 2): where each Sim is, and what each floor has ----
@@ -1025,6 +1032,8 @@ static void fightHit(int a,int b){
     { int tk=fkTaken(lb); if(la[LK_CLAWS]==3) tk+=(100-tk)/4; dmg=dmg*tk/100; } if(fgMul) dmg=dmg*fgMul/100; if(dmg<1) dmg=1;   // BLADES cut through a quarter of the armour
     int crit=(rnd8()*100>>8)<8+(la[LK_CLAWS]==3?10:0)+(uTr(a,TR_ACT)>>2);   // a CRITICAL HIT: one blow in twelve or so (BLADES and active Sims more) lands half as hard again
     if(crit){ dmg=dmg*3/2; hhSay(b,IC_BAIL,"CRIT"); }
+    if(a==hhPUid) dmg=dmg*hzDmgPct()/100;   // (the IRON FISTS perk: horde.h)
+    if(b>=GU0){ dmg=dmg*exHTaken(b)/100; if(dmg<1) dmg=1; }   // (a brute or a boss soaks it up: expand.h)
     if(lb[LK_BACK]==1&&dmg>3){ fkLose(a,4); if(a==hhPUid&&lnoteT<=0){ lnote="OUCH  SPIKES"; lnoteT=40; } }   // spikes prick the one that hits them
     int m=hhMemOf(b);
     if(m<0){ fightHurt(dmg); return; }
@@ -1376,7 +1385,7 @@ static void hhCalc(void){   // (the places above hhN that hold a visitor too)
 #define HB_UP 44     // the bar sits this far above the Sim's feet (a balloon moves up by HB_BAL to make room)
 #define HB_BAL 7
 static u8 hhBarT EWRAM_BSS, hhBarM EWRAM_BSS, hhBarG EWRAM_BSS, hhBarH EWRAM_BSS;   // steps left, whose bar (member), ghost health, steps the ghost holds
-static int hhBarOn(int m){ return hhBarT&&hhBarM==m&&m<hhN; }
+static int hhBarOn(int m){ return hhBarT&&hhBarM==m&&(m<hhN||(HH_MAX-1-m<TW_N&&exHT[HH_MAX-1-m])); }   // (a hostile visitor's health shows too)
 static int hhBarHp(int m){ return (hhM[m].act==HA_SOC&&hhM[m].t>=500)?0:hhM[m].hp; }   // (a knocked out Sim is kept at 30 HP inside: show it empty)
 static void hhBarHit(int m,int hp0){   // a blow landed on member m that had hp0 before it
     if(hhBarT&&hhBarM==m&&hhBarG>hp0) hp0=hhBarG;   // the same foe again: the ghost keeps the whole combo's damage
@@ -1384,7 +1393,7 @@ static void hhBarHit(int m,int hp0){   // a blow landed on member m that had hp0
 }
 static void hhBarTick(void){
     if(!hhBarT) return;
-    hhBarT--; if(hhBarM>=hhN){ hhBarT=0; return; }
+    hhBarT--; if(hhBarM>=hhN&&!hhBarOn(hhBarM)){ hhBarT=0; return; }
     int cur=hhBarHp(hhBarM);
     if(hhBarG<cur) hhBarG=(u8)cur;
     else if(hhBarH) hhBarH--;
@@ -1453,7 +1462,7 @@ static void fxObjUpdate(void); static void hhObjUpdate0(void){   // in vblank: h
         if(id>=HH_MAX){ int j=id-HH_MAX; if(!inmOn(j)) continue; s=&inmS[j]; x=inX[j]-16; y=inY[j]-SPF-inH[j]; v=inV[j]; dep=inB[j]; f=inmWalk(j); }   // an inmate
         else if(id>=hhN){ int k=HH_MAX-1-id; if(k>=TW_N||!twHas[k]||!twOn[k]||curFl) continue;   // a visitor
             s=&hhM[id]; x=hhX[id]-16; y=hhY[id]-SPF-hhH[id]; v=hhV[id]; dep=hhB[id];
-            f=twOn[k]!=2?((lfr+k*3)>>3)&1:0;   // walking in or out: stepping; staying: standing
+            f=(twOn[k]!=2||(exHT[k]&&s->act==HA_WALK))?((lfr+k*3)>>3)&1:0;   // walking in or out (or a hostile one on the move): stepping; staying: standing
         } else {
             if(hhM[id].act==HA_AWAY) continue;
             s=&hhM[id]; x=hhX[id]-16; y=hhY[id]-SPF-hhH[id]; v=hhV[id]; dep=hhB[id];

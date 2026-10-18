@@ -20,7 +20,7 @@
 #define FG_HOLD 6     // steps L is held before it is a guard (shorter = a tap = the board swap)
 #define FG_PARRY 10   // steps after the guard goes up in which a blow is a PARRY
 enum { FG_JAB, FG_CROSS, FG_HOOK, FG_KICK, FG_N };
-static const u8 fgReach[FG_N]={17,19,20,26};   // 1/16 tiles
+static const u8 fgReach[FG_N]={19,21,22,28};   // 1/16 tiles (a jab reaches 1.19 tiles: as far as a Borezie can bite from, expand.h EX_BITE)
 static const u8 fgPct[FG_N]  ={70,100,160,135}; // percent of a normal blow
 static const u8 fgCdT[FG_N]  ={9,12,20,22};     // steps before the next blow (you stand still meanwhile)
 static const u8 fgStunT[FG_N]={24,28,50,40};    // steps the one hit stands stunned
@@ -56,7 +56,10 @@ static int fgFind(int R,int ax,int ay){
     int best=-1, bd=0x7FFFFFFF;
     for(int m=0;m<HH_MAX;m++){ if(!fgTgt(m)) continue;
         int dx=(int)(hhM[m].fx-lfx), dy=(int)(hhM[m].fy-lfy), d=dx*dx+dy*dy;
-        if(d>R*R||dx*ax+dy*ay<=0||d>=bd||!wallClear(lfx,lfy,hhM[m].fx,hhM[m].fy)) continue;   // (a wall in between: out of reach)
+        int dt=dx*ax+dy*ay; if(d>R*R||dt<=0||!wallClear(lfx,lfy,hhM[m].fx,hhM[m].fy)) continue;   // (a wall in between: out of reach)
+        int a2=ax*ax+ay*ay, c2=(int)((long long)dt*dt*256/((long long)d*a2+1)); if(c2>256) c2=256;   // how squarely it is in front of you (256 = dead ahead)
+        d=(int)((long long)d*(512-c2)/256);   // in a crowd the one you are facing wins over one that is a touch nearer off to the side
+        if(d>=bd) continue;
         best=m; bd=d; }
     return best;
 }

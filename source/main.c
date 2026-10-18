@@ -1662,6 +1662,7 @@ static void lcAdd(const char*s){   // "SWITCH " is written "SW " here, and the p
 }
 static char lnBuf[24] EWRAM_BSS; static u8 lnPerf; static int lLand, lLandD;   // lnBuf: the name of the trick just landed ("KICK 360 GRAB"); lLand: frames of landing crouch left, lLandD: how far the fall was
 static int tvClip; static void tvClipRun(int ch);   // skills.h / tvclip.h: the TV asks for a clip (channel + 1); lifeModeRun plays it like a pause menu
+static u8 hzOn; static u32 hzScore; static const char* hzHudText(void); static void hzTick(void), hzLoad(void);   // horde.h: HORDE MODE runs (0 no, 1 a hundred waves, 2 endless), its score and the wave line for the top bar
 static u8 exModal, exTake; enum { EXT_NONE, EXT_LAUNCH, EXT_SWTRAIN, EXT_FIGHTER, EXT_GOTCHI };   // expand.h: a mission card is waiting; a screen wants to take over (the launch, spacewalk training, a pack's mode)
 static void exTick(void); static void exRunModal(void); static void exTakeRun(int t); static void exEnter(void); static void exStoryTile(void); static void exShelf(int ingame);   // (expand.h)
 static int stModal; static void stRunModal(void);   // story.h: a chapter card is waiting (1 chapter intro, 2 chapter done); lifeModeRun shows it like the pause menu
@@ -3405,7 +3406,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
     fxTick();   // ghosts and weather (fx.h): every step, also while you lie dead
     if(!ldead){   // needs: hunger and bladder, then how they (and the skating) make the skater feel
         if(stage==AG_BABY){ if(lfood<70) lfood=70; if(lbl>30) lbl=30; if(sNrg<60) sNrg=60; if(sHyg<60) sHyg=60; if(sCom<60) sCom=60; }   // looked after
-        moodTick(); simsTick(pr,(int)(lfx>>8),(int)(lfy>>8)); hhTick(); phTick(); stTick(); exTick(); homeTick(); wdTick();
+        moodTick(); simsTick(pr,(int)(lfx>>8),(int)(lfy>>8)); hhTick(); phTick(); stTick(); exTick(); hzTick(); homeTick(); wdTick();
         if(gGrow){ gGrow=0; setStage(stage+1); bakeSprites(); lnote=growNote[stage]; lnoteT=120; lstun=lstun>30?lstun:30; lsp=0; }
         { int fe=oFoodEvery(), we=oWcEvery();   // FOOD AND WC option
           if(fe&&lfr%fe==0&&lfood>0) lfood--;
@@ -5842,6 +5843,7 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "gotchi.h"        // BOREAGOTCHI!: THE HANDHELD (a blob on a keychain that needs you constantly)
 #include "bortua.h"        // BORTUA FIGHTER: ARCADE MODE (polygon fighters, a ladder of nine, the chrome boss)
 #include "xmodes.h"        // the packs' MODES: BORTUA FIGHTER's ARCADE MODE, BOREAGOTCHI's HANDHELD
+#include "horde.h"         // BOREZIES!'s HORDE MODE: waves, mutators, perks (100 waves or endless)
 // ---------- main menu (The Sims 3 look): a glossy panel over your town, lit for the time of day of your life's clock ----------
 #define MM_N 8
 static const char* const mmName[MM_N]={"Play","Create a Bore","Build Mode","Toukebox","Room Slots","Options","Expansions","?"};
@@ -6116,6 +6118,7 @@ int boreMain(void){
     bdLoad();                // ...and whether it owns a board (board.h)
     goLoad();                // ...and its BOREAGOTCHI (gotchi.h)
     bfLoad();                // ...and its arcade record (bortua.h)
+    hzLoad();                // ...and the HORDE record and options (horde.h)
     hhLoad();                // ...and the household, which holds your first and last name
     mainMenu();
     return 0;

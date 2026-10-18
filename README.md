@@ -64,6 +64,8 @@ In the room builder (BUILD ROOM, the pause menu's EDIT MAP, or BUILD on a lot in
 
 **OHIO HOE:** a new VaninBlack song in the jukebox, hyperpop drum & bass at 172 BPM built from three old sketches (`tools/make_ohio_hoe.py`): supersaw hook, a pitched-up vocal synth, a reese on the bass line, and a HOE that slides down an octave.
 
+**BOREZIES!, properly:** a Borezie's bite now has a groan you can read, a guard that blocks it and a parry that turns it round; a knock-out dazes one so a joke finishes it; sprinters, brutes and PATIENT ZERO join the missions. Finish all five and **HORDE MODE** opens: 100 WAVES or ENDLESS on your own lot, 14 mutators (size, pace, toughness, bite, lives, how a fight is won, the clock, the special meter, boss waves, supply drops, needs, who comes, how fast it grows, where to start), a perk every five waves, records saved.
+
 **New items:** a RADIO and a SOUND SYSTEM (R next to one tunes a station by genre (HOUSE & DANCE, BREAKS & BASS, CHILL & WORLD, LATIN, ROCK & PROG, HIP HOP, or ALL SONGS; genres live in source/genres.h); see docs/NOTES.md, Sound pack). Older: the DeadSet 3Thousand VYBE (5000), a parody VR headset on a display bust. Stand next to it and press R to jack in.
 
 **TV:** R at the TV changes channel. MACHINI-TV is the first one and plays a 3 second clip (drawn by code, no video in the ROM; A or B skips it). More channels get their own clips later (source/tvclip.h).

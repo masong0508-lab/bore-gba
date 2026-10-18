@@ -74,7 +74,8 @@ static void hudTopStatic(void){
 }
 static void hudTopUpdate(int all){
     if(all) hudTopStatic();
-    if(hudChg(all,HK_SCORE,(unsigned)lscore)){ hudClear(3,0,58,HUD_TOPH-2); numText(text(4,1,"SCORE",HC_LABEL,1)+3,1,lscore,WHITE); hudMark(3,0,58,HUD_TOPH-2); }
+    { int shown=hzOn?(int)hzScore:lscore;   // (a HORDE shows its own score)
+    if(hudChg(all,HK_SCORE,(unsigned)shown)){ hudClear(3,0,58,HUD_TOPH-2); numText(text(4,1,"SCORE",HC_LABEL,1)+3,1,shown,WHITE); hudMark(3,0,58,HUD_TOPH-2); } }
     {
         int w=(lspec*56)/SPEC_MAX; unsigned sk=(unsigned)w*4u+(unsigned)(lspecOn?2u+((lfr>>3)&1u):0u);
         if(hudChg(all,HK_SPEC,sk)){
@@ -127,9 +128,10 @@ static void hudTopUpdate(int all){
         if(flOn){ u16 bc=pkHome>=0?RGB(14,24,31):HC_GOLD; rect(flX,1,flW,HUD_TOPH-4,bc); rect(flX+1,2,flW-2,HUD_TOPH-6,HC_BG0); text(flX+3,1,flT,bc,1); }
         hudMark(102,0,78,HUD_TOPH-1);
     }
-    if(hudChg(all,HK_CLOCK,trnOn?0x40000000u+(unsigned)(trnLeft<600?trnLeft/15:1000+trnLeft/60):(unsigned)simMin*8u+(unsigned)simInShift()*4u+(unsigned)xo[XO_CLOCK]+(unsigned)(simIsNight()?64:0)*100000u+(unsigned)fxWxHud()*10000000u)){
+    if(hudChg(all,HK_CLOCK,hzOn?0x20000000u+hudHash(hzHudText()):trnOn?0x40000000u+(unsigned)(trnLeft<600?trnLeft/15:1000+trnLeft/60):(unsigned)simMin*8u+(unsigned)simInShift()*4u+(unsigned)xo[XO_CLOCK]+(unsigned)(simIsNight()?64:0)*100000u+(unsigned)fxWxHud()*10000000u)){
         hudClear(182,0,56,HUD_TOPH-1);
-        if(trnOn){   // TIMED RUN: the countdown replaces the clock (red and blinking in the last 10 seconds)
+        if(hzOn){ const char*ht=hzHudText(); text(SW-4-tw(ht,1),1,ht,HC_GOLD,1); }   // HORDE MODE: the wave, the lives and how many are left replace the clock
+        else if(trnOn){   // TIMED RUN: the countdown replaces the clock (red and blinking in the last 10 seconds)
             char tb[8]; int ts=(trnLeft+59)/60; tb[0]=(char)('0'+ts/60); tb[1]=':'; tb[2]=(char)('0'+ts%60/10); tb[3]=(char)('0'+ts%10); tb[4]=0;
             u16 tc=trnLeft<600?(((trnLeft/15)&1)?RGB(31,8,6):WHITE):HC_GOLD;
             text(SW-4-tw(tb,1),1,tb,tc,1); text(SW-4-tw(tb,1)-tw("TIME ",1),1,"TIME",HC_LABEL,1);
