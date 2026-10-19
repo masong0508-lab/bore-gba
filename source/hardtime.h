@@ -274,7 +274,7 @@ static void htLife(void){   // pause menu > PRISON > WORK AND GANG
 typedef struct { const char*q,*a,*b; s8 ra,rb,ca,cb,ma,mb; } HtTalk;   // ra / rb: rep for answer a / b; ca / cb: comfort; ma / mb: money
 static const HtTalk htTk[8]={
     {"GIVE ME YOUR DESSERT","HAND IT OVER","GET LOST",              -4, 4,  -6, -2,  0,  0},
-    {"YOU LOOK LIKE NEW MEAT","I KNOW THE ROPES","PLEASE DONT",     2,-3,   3, -8,  0,  0},
+    {"YOU LOOK LIKE NEW MEAT","I KNOW THE ROPES","PLEASE DON'T",     2,-3,   3, -8,  0,  0},
     {"HEARD YOU ARE TOUGH","WANT TO TEST ME","JUST WORDS",          4,-2,  -3,  2,  0,  0},
     {"LEND ME TEN","SURE","NO",                                    -2, 2,   4, -2,-10,  0},
     {"NICE ARMS","THANKS","MIND YOUR BUSINESS",                     1, 2,   8, -3,  0,  0},
@@ -287,7 +287,7 @@ static void htChat(void){
     int i=(int)(rnd8()&7); const HtTalk*t=&htTk[i]; const char*it[2]={t->a,t->b};
     int c=menu(t->q,it,2); if(c<0) return;
     int r=c?t->rb:t->ra, cm=c?t->cb:t->ca, m=c?t->mb:t->ma; htTalks++;
-    if(m<0){ if(simMoney<-m){ toast("YOU CANT PAY  REP -3"); htRepAdd(-3); htSave(); return; } simMoney+=m; }
+    if(m<0){ if(simMoney<-m){ toast("YOU CAN'T PAY  REP -3"); htRepAdd(-3); htSave(); return; } simMoney+=m; }
     if(i==5&&c==0&&prDays!=PR_LIFE&&prDays>1) prDays--;   // doing what the warden says shaves a day off (and costs you respect)
     htRepAdd(r); htMdAdd(cm>=0?30:-30); hmNeed(&sCom,cm); if(cm>=0) moodEvent(M_SOFA); else moodEvent(M_HURT_BIG); htSave();
     htNote("REP ",r,i==5&&c==0?"  A DAY OFF":0);

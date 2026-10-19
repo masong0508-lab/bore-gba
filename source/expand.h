@@ -151,6 +151,22 @@ static const XMs xmZomb[]={
       TK(QK_CNT,5,"CURE 5 BOREZIES"),TE(QE_ZERO,1,"BEAT PATIENT ZERO")),
 };
 // ---- 3 WORLD WAR BORE ----
+// BORE WORLD WAR chapters 8 and 9: their story pages ride in the WORLD WAR BORE patch with the table
+static const char xw8In[]=
+  "They took Dennis. Nobody knows why. He is not a soldier. He is a dental receptionist who once waved at the East Side.|"
+  "They are holding him in the scrapyard, behind a fence and a sign that says KEEP OUT in two different handwritings.|"
+  "Get in, get Dennis, and hug him on the way out. He will hug back. Dennis hugs everyone. It is the whole reason he was taken.";
+static const char xw8Out[]=
+  "Dennis walked out of the scrapyard holding a clipboard. He had spent the whole time reorganising their filing. They were sorry to see him go.|"
+  "He says the East Side has a lot of feelings about that hedge. You nod. You did not know hedges could cause feelings.";
+static const char xw9In[]=
+  "Intelligence says the East Side has one plan: all of them, at once, through the car park, at lunchtime. It is not a good plan. It is the only one they have.|"
+  "You have a hedge trimmer, a grudge and an excellent view of the entrance. Their general is a man called Gary. He is holding a megaphone.|"
+  "Hold the car park. Knock them out and parry what you cannot dodge. Nobody gets hurt badly. The East Side has a very good medical plan.";
+static const char xw9Out[]=
+  "Gary dropped the megaphone. He said: honestly, I forgot what we were fighting about.|"
+  "You said: the hedge. He said: ah. Then you both looked at the hedge, which was fine, and stood there for a while.|"
+  "Armistice talks are on Friday. Bring snacks.";
 static const XMs xmWar[]={
   XM("THE HEDGE INCIDENT","SOMEONE FROM THE EAST SIDE","TRIMMED YOUR HEDGE  UNFORGIVABLE",XS_NONE,30,
      TS(SC_ARGUE,"ARGUE WITH SOMEONE"),TK(QK_FRIENDS,2,"RECRUIT 2 FRIENDS")),
@@ -166,8 +182,14 @@ static const XMs xmWar[]={
      TE(SE_RADIO,1,"PLAY THE RADIO"),TA(CT_PLAZA,"GO TO THE PLAZA"),TK(QK_FRIENDS,4,"WIN 4 FRIENDS")),
   XM("BEHIND ENEMY LINES","SNEAK INTO OLD TOWN AND TAKE","OUT THEIR BEST  QUIETLY",XS_WAR,55,
      TA(CT_OLDTOWN,"SNEAK INTO OLD TOWN"),TK(QK_CNT,2,"KNOCK OUT 2 SOLDIERS")),
-  XSOON("PRISONER OF BORE"),
-  XSOON("THE BIG PUSH"),
+  XMS("PRISONER OF BORE","THEY TOOK DENNIS  HE IS A DENTAL","RECEPTIONIST  BREAK HIM OUT",XS_WAR,60,AMAP_SCRAP,
+      xw8In,
+      xw8Out,
+      TK(QK_CNT,3,"KNOCK OUT 3 GUARDS"),TE(QE_PARRY,1,"PARRY A SWING"),TS(SC_HUG,"HUG DENNIS ON THE WAY OUT")),
+  XMS("THE BIG PUSH","ALL OF THEM  AT ONCE  AT LUNCH","HOLD THE CAR PARK",XS_WAR,70,AMAP_CARPARK,
+      xw9In,
+      xw9Out,
+      TK(QK_CNT,5,"KNOCK OUT 5 SOLDIERS"),TE(QE_PARRY,2,"PARRY 2 BLOWS")),
   XM("ARMISTICE DAY","NOBODY REMEMBERS WHAT THE","HEDGE LOOKED LIKE  MAKE PEACE",XS_NONE,80,
      TS(SC_SORRY,"SAY SORRY"),TS(SC_HUG,"HUG IT OUT"),TK(QK_FRIENDS,6,"MAKE 6 FRIENDS")),
 };
@@ -185,6 +207,35 @@ static const XMs xmFight[]={
      TK(QK_BFCHAMP,0,"BEAT ARCADE MODE"),TK(QK_CNT,3,"KNOCK OUT 3 CHALLENGERS")),
 };
 // ---- 7 BOREagotchi! ----
+// BOREagotchi! chapters 11 to 14: their story pages ride in the BOREagotchi! patch with the table
+static const char xg11In[]=
+  "The blob made an account. It has two followers and one of them is a bot. It posts at 3 a.m. about snacks.|"
+  "You did not set this up. The blob did it from the keychain. Nobody is sure how.|"
+  "Spend some time with it before it starts a podcast. Play a game, then tell your friends. Let them judge.";
+static const char xg11Out[]=
+  "The blob hit ten followers. Seven are real. It posted: thank you for the support, I am just a little guy. Then it asked for a snack.|"
+  "You are not sure whether to be proud or worried. It is both. It is always both.";
+static const char xg12In[]=
+  "Two pets, one sofa, zero agreements. The cat holds the cushions. The dog holds a grudge.|"
+  "The blob watches from the keychain and takes notes. It will repeat all of this at the worst possible moment.|"
+  "Bring a second pet home if you only have one. Play with them both, and scold whoever started it. It was the cat.";
+static const char xg12Out[]=
+  "A truce, sort of. The cat sits at one end of the sofa and the dog at the other. Between them is an invisible line. Neither crosses it.|"
+  "You sit in the middle. You are the line now.";
+static const char xg13In[]=
+  "The gate was open for four seconds. That was enough. A pet is out in the world, and it is not coming back for dinner.|"
+  "The blob is no help. It just beeps. It says it will help, then asks for a snack.|"
+  "Let a pet out, go to the park, and remind them who feeds them. It works better if they love you.";
+static const char xg13Out[]=
+  "Found it. It was sitting in the park next to a stranger's sandwich, looking at you like it had been waiting for you to be late.|"
+  "It came home. The gate is now locked, taped and guarded by the blob, which is not helping.";
+static const char xg14In[]=
+  "The dog says the blob is not a real pet. The blob says the dog has no pixels. Neither of them is wrong.|"
+  "It has become a thing. Food bowls are being compared. Somebody is keeping score and it is not you.|"
+  "Feed the blob first, then feed the dog, and be fair about it. Fair is the whole job. Also, the dog needs to stop doing that on the rug.";
+static const char xg14Out[]=
+  "A draw. The dog got a bone, the blob got a snack, and you got a very long look from both of them.|"
+  "They are sitting side by side now, watching the same wall. You think this is friendship. It could also be a plot.";
 static const XMs xmGotchi[]={
   XM("IT HATCHED","AN EGG ON A KEYCHAIN BEEPS","IT WANTS YOU  CONSTANTLY",XS_NONE,30,
      TK(QK_GOTCHI,1,"HATCH YOUR BOREAGOTCHI"),TG(GA_FEED,"FEED IT A MEAL")),
@@ -206,14 +257,90 @@ static const XMs xmGotchi[]={
      TK(QK_GOTCHI,3,"RAISE IT TO A TEEN"),TG(GA_SCOLD,"DISCIPLINE IT")),
   XM("BEST IN SHOW","THE JUDGES WANT TRICKS","AND THEY WANT LOVE",XS_NONE,60,
      TK(QK_PTRICKS,3,"A PET KNOWS 3 TRICKS"),TK(QK_PLOVE,90,"A PET LOVES YOU 90")),
-  XSOON("THE BLOB GOES ONLINE"),
-  XSOON("PAWS AND CLAWS"),
-  XSOON("THE GREAT ESCAPE"),
-  XSOON("BLOB VERSUS DOG"),
+  XMS("THE BLOB GOES ONLINE","IT MADE AN ACCOUNT FROM A KEYCHAIN","IT HAS TWO FOLLOWERS  ONE IS A BOT",XS_NONE,50,AMAP_HOME,
+      xg11In,
+      xg11Out,
+      TS(SC_TALK,"TELL A FRIEND ABOUT IT"),TG(GA_PLAY,"PLAY A GAME WITH IT"),TK(QK_FRIENDS,3,"HAVE 3 FRIENDS")),
+  XMS("PAWS AND CLAWS","THE CAT HOLDS THE CUSHIONS  THE DOG","HOLDS A GRUDGE  KEEP THE PEACE",XS_NONE,50,AMAP_HOME,
+      xg12In,
+      xg12Out,
+      TK(QK_PETS,2,"HAVE 2 PETS"),TP(PD_PLAY,"PLAY WITH A PET"),TP(PD_SCOLD,"SCOLD A PET")),
+  XMS("THE GREAT ESCAPE","THE GATE WAS OPEN FOR FOUR SECONDS","THAT WAS ENOUGH  GO AND FIND THEM",XS_NONE,55,AMAP_HOME,
+      xg13In,
+      xg13Out,
+      TP(PD_OUT,"LET A PET OUT"),TA(CT_PARK,"GO TO THE PARK"),TK(QK_PLOVE,95,"A PET LOVES YOU 95")),
+  XMS("BLOB VERSUS DOG","THE DOG SAYS THE BLOB IS NOT REAL","THE BLOB SAYS THE DOG HAS NO PIXELS",XS_NONE,60,AMAP_HOME,
+      xg14In,
+      xg14Out,
+      TG(GA_FEED,"FEED THE BLOB FIRST"),TP(PD_FEED,"FEED A PET SECOND"),TK(QK_POTTY,60,"A PET 60% HOUSE TRAINED")),
   XM("FOREVER FRIENDS","THE BLOB IS ALL GROWN UP","AND SO ARE THE PETS",XS_NONE,90,
      TK(QK_GOTCHI,4,"RAISE IT TO AN ADULT"),TK(QK_PETS,1,"KEEP A PET"),TK(QK_PLOVE,100,"A PET LOVES YOU 100")),
 };
 // ---- 8 BOREpilogue ----
+// BOREpilogue chapters 11 to 19: their story pages ride in the BOREpilogue patch with the table
+static const char xe11In[]=
+  "A lawyer in a very small hat says it is time to write the will. You say you are not dead. He says: yet.|"
+  "Decide who gets what. The house, the money, the good armchair. Somebody gets the armchair and somebody gets the nice speech about the armchair.|"
+  "Save up, read the fine print and tell someone they are in it. Do not tell them how much. It is never as much as they hoped.";
+static const char xe11Out[]=
+  "The will is signed. Everyone got something. The dog got the armchair. Nobody has been told, but the dog knows.|"
+  "Your lawyer shook your hand and left. The hat stayed behind. It is yours now. It is in the will.";
+static const char xe12In[]=
+  "You woke up this morning without a single noise. No creaking, no popping, no sigh. It was unsettling.|"
+  "Apparently you have a second wind. Doctors do not know where it came from. They have asked you not to waste it.|"
+  "Use it. Swim some laps, survive spin class and drink the shake that tastes like chalk and ambition.";
+static const char xe12Out[]=
+  "You did not die. In fact you feel good, which is suspicious. You called the doctor, who said: enjoy it.|"
+  "You are enjoying it. You are also not trusting it.";
+static const char xe13In[]=
+  "The invitation says: the class of long ago, thirty years on. It does not say which year. It does not need to.|"
+  "Everyone will be there. The one who peaked at prom. The one who peaked later and will not stop mentioning it. The one who owes you money.|"
+  "Invite them over, hug the ones who deserve it, and keep a straight face when someone says you have not changed.";
+static const char xe13Out[]=
+  "It was a good night. The one who owed you money paid you back in a nicely wrapped sandwich. You counted it.|"
+  "Someone made a speech. Someone cried. Someone said: we should do this more often. Nobody meant it, and everybody did.";
+static const char xe14In[]=
+  "Every winter the old folks go south. They stay at a place called Sunny Palms, or Shady Pines, or the Sunset Whatever.|"
+  "You are going. You have a hat, a lawn chair and a book you will not read. The sun is a bit much. You like it.|"
+  "Go to the pool, go to the cafe and make a day of it. Do not do anything useful. That is the entire point.";
+static const char xe14Out[]=
+  "A tan like a walnut. A pool full of people who talk about their knees. You had a great time and told nobody in case it spread.|"
+  "You are home now. The hat is by the door. It is already packed for next year.";
+static const char xe15In[]=
+  "The board is in the attic. It is dusty. It is also, somehow, still good. The hip is another matter.|"
+  "The kids at the skate park do not know who you are. That is about to change.|"
+  "Get to the park and catch a little air. Land a combo if the hip allows. If not, land a bail. A dignified bail is still a trick.";
+static const char xe15Out[]=
+  "You landed it. Mostly. The kids went quiet, then somebody said: wait, who is that? And somebody else said: that is the one from the old video.|"
+  "You left with a limp and a legend. The legend lasted longer.";
+static const char xe16In[]=
+  "Thursday is bingo. Nobody misses bingo. It is the most serious event in town, and that includes the elections.|"
+  "There is a woman called Maureen who has not lost since 1994. People say she has a system. People say she has a cousin.|"
+  "Go to the lounge and dispute a call, politely and with the whole room watching. Then charm the caller. That is how you get the good numbers.";
+static const char xe16Out[]=
+  "You shouted BINGO. It was not a bingo. There was a long, terrible silence. Then Maureen started clapping, slowly, and the whole room followed.|"
+  "It was the best night of your retirement. You are banned for a month.";
+static const char xe17In[]=
+  "The recipe card is stained, creased and written in a hand nobody can read. It says: a little of this, a bit of that, until it looks right.|"
+  "Grandma never measured anything. She said measuring was for people who did not trust themselves. She was also never wrong.|"
+  "Get the ingredients, taste as you go, then feed somebody who will tell you the truth. If they cry, it worked. Either way.";
+static const char xe17Out[]=
+  "It tasted exactly like hers. Not close: exactly. You stood there holding the spoon for a long moment.|"
+  "Someone asked what was in it. You said: a little of this, a bit of that. The whole table nodded. Everyone knew.";
+static const char xe18In[]=
+  "What are you leaving behind? A house, a bank account, some opinions. A well organised sock drawer.|"
+  "A legacy is not what you own. It is what people say about you at the party afterwards. You would like them to say something nice. Failing that, something short.|"
+  "Save up, make a room that does you proud, and fill your life with friends. Seven is a good number. It is lucky.";
+static const char xe18Out[]=
+  "The house looks good. The people are good. The sock drawer is, frankly, a masterpiece.|"
+  "One day somebody will say something about you. You hope it is: they were fun. Anything beyond that is a bonus.";
+static const char xe19In[]=
+  "Goodbyes take time. You have been saying yours for about ten years, and some of them keep not noticing.|"
+  "There are people you want to hold. There are things you want to say. Most of them are just thank you. A few are I told you so.|"
+  "Hug them, tell them what they mean to you, and then come home. The kettle is on. It is always on.";
+static const char xe19Out[]=
+  "Everyone got their goodbye. Some of them said it back. Some of them said: stop it, you are not going anywhere.|"
+  "You smiled and went to make tea. You are not going anywhere. Not yet. There is one more chapter, and it is a big one.";
 static const XMs xmEpi[]={
   XM("THE GOLD WATCH","FORTY YEARS AT ONE DESK","ONE LAST SHIFT  THEN FREEDOM",XS_NONE,30,
      TE(SE_SHIFT,1,"WORK ONE LAST SHIFT"),TK(QK_MONEY,20000,"SAVE 20000 SIMOLEONS")),
@@ -235,8 +362,42 @@ static const XMs xmEpi[]={
      TE(QE_SPOOK,1,"GET SPOOKED"),TE(SE_SLEEP,1,"SLEEP IT OFF")),
   XM("ONE LAST PARTY","INVITE EVERYONE YOU EVER","LOVED  AND A FEW YOU DID NOT",XS_NONE,70,
      TK(QK_FRIENDS,5,"MAKE 5 FRIENDS"),{QK_GUEST,0,0,"HAVE SOMEONE OVER"},TE(SE_RADIO,1,"CRANK THE STEREO")),
-  XSOON("THE WILL"), XSOON("SECOND WIND"), XSOON("THE REUNION"), XSOON("SNOWBIRDS"), XSOON("ONE LAST SKATE"),
-  XSOON("BINGO NIGHT"), XSOON("GRANDMA'S RECIPE"), XSOON("LEGACY"), XSOON("THE LONG GOODBYE"),
+  XMS("THE WILL","A LAWYER IN A SMALL HAT ASKS WHO","GETS THE GOOD ARMCHAIR",XS_NONE,50,AMAP_HOME,
+      xe11In,
+      xe11Out,
+      TK(QK_MONEY,40000,"SAVE 40000 SIMOLEONS"),TD(VA_STUDY,"READ THE FINE PRINT"),TS(SC_COMPL,"TELL SOMEONE THEY ARE IN IT")),
+  XMS("SECOND WIND","YOU WOKE UP WITHOUT A SINGLE CREAK","DOCTORS SAY DO NOT WASTE IT",XS_NONE,55,AMAP_HOME,
+      xe12In,
+      xe12Out,
+      TD(VA_SWIM,"SWIM LAPS"),TD(VA_SPIN,"SURVIVE SPIN CLASS"),TD(VA_SHAKE,"DOWN A PROTEIN SHAKE")),
+  XMS("THE REUNION","THIRTY YEARS ON  THE WHOLE CLASS","COMES  EVEN THE ONE WHO OWES YOU",XS_NONE,60,AMAP_HOME,
+      xe13In,
+      xe13Out,
+      TK(QK_FRIENDS,6,"HAVE 6 FRIENDS"),{QK_GUEST,0,0,"HAVE SOMEONE OVER"},TS(SC_HUG,"HUG AN OLD FRIEND")),
+  XMS("SNOWBIRDS","PACK THE HAT AND THE LAWN CHAIR","DO ABSOLUTELY NOTHING USEFUL",XS_NONE,60,AMAP_HOME,
+      xe14In,
+      xe14Out,
+      TA(CT_POOL,"GO TO THE POOL"),TA(CT_CAFE,"GO TO THE CAFE"),TK(QK_DAYS,1,"ENJOY A WHOLE DAY OF IT")),
+  XMS("ONE LAST SKATE","THE BOARD IS IN THE ATTIC  THE HIP","IS NOT  GO ANYWAY",XS_NONE,65,AMAP_HOME,
+      xe15In,
+      xe15Out,
+      TA(CT_SKATE,"GO TO THE SKATE PARK"),TE(SE_AIR,1,"CATCH AIR ONE LAST TIME"),TE(SE_COMBO,1,"LAND A COMBO")),
+  XMS("BINGO NIGHT","MAUREEN HAS NOT LOST SINCE 1994","PEOPLE SAY SHE HAS A COUSIN",XS_NONE,65,AMAP_HOME,
+      xe16In,
+      xe16Out,
+      TA(CT_LOUNGE,"GO TO THE LOUNGE"),TS(SC_ARGUE,"DISPUTE A BINGO CALL"),TS(SC_JOKE,"CHARM THE CALLER")),
+  XMS("GRANDMA'S RECIPE","A LITTLE OF THIS  A BIT OF THAT","UNTIL IT LOOKS RIGHT",XS_NONE,70,AMAP_HOME,
+      xe17In,
+      xe17Out,
+      TA(CT_GROCER,"BUY THE INGREDIENTS"),TE(SE_EAT,1,"TASTE IT"),{QK_GUEST,0,0,"FEED SOMEONE ELSE"}),
+  XMS("LEGACY","A HOUSE  SOME SAVINGS  AND OPINIONS","MAKE THEM SAY SOMETHING NICE",XS_NONE,80,AMAP_HOME,
+      xe18In,
+      xe18Out,
+      TK(QK_MONEY,60000,"SAVE 60000 SIMOLEONS"),{QK_ROOM,0,0,"MAKE A ROOM LOOK GREAT"},TK(QK_FRIENDS,7,"HAVE 7 FRIENDS")),
+  XMS("THE LONG GOODBYE","SOME OF THEM KEEP NOT NOTICING","HUG THEM ANYWAY  THEN PUT THE KETTLE ON",XS_NONE,90,AMAP_HOME,
+      xe19In,
+      xe19Out,
+      TS(SC_HUG,"HUG SOMEONE GOODBYE"),TS(SC_COMPL,"TELL SOMEONE THEY ARE LOVED"),{QK_HOME,0,0,"GET BACK HOME"}),
   XM("THE END  AND THE ONE AFTER","GROW OLD  GROW WISE  AND","LEAVE THE TOWN BETTER",XS_NONE,120,
      TK(QK_STAGE,AG_ELDER,"GROW INTO AN ELDER"),TK(QK_MONEY,100000,"LEAVE 100000 SIMOLEONS"),TK(QK_FRIENDS,8,"MAKE 8 FRIENDS")),
 };

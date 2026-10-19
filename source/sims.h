@@ -738,11 +738,11 @@ static void jobPromote(void){   // enough good shifts: a promotion, if the track
 static const char* const simCameoNm="DAYBAR STROLL IN";
 static const char* const simCameoLn[5]={"TWO BOYS ONE KEYTAR DARLING","WE MATCH ON PURPOSE","LOVE IS A KEY CHANGE","FABULOUS IS A WORK ETHIC","MORE SHINE DARLING"};
 static const char* const simSk9mNm="SK9M ROLLS UP";
-static const char* const simSk9mLn[6]={"SK9M  IM KIND OF A BIG DEAL","YEAHHHH","THE DROP IS THE PLAN","BASS WILL NOT BE DENIED","WOBBLE FIRST ASK LATER","STILL KIND OF A BIG DEAL"};
+static const char* const simSk9mLn[6]={"SK9M  I'M KIND OF A BIG DEAL","YEAHHHH","THE DROP IS THE PLAN","BASS WILL NOT BE DENIED","WOBBLE FIRST ASK LATER","STILL KIND OF A BIG DEAL"};
 static void simCameo(void){   // a good shift: the duo (or Sk9m) and one of their lines, after the pay note (uses the spare note slots)
     if(simRnd()%6) return;
     if(simRnd()&1){ simQPush(simCameoNm); simQPush(simCameoLn[simRnd()%5]); return; }
-    int r=simRnd()%5;   // the catchphrase is the favourite (2 of 5): it names him and fills both free notes, "SK9M  IM KIND OF A BIG DEAL" then "YEAHHHH"
+    int r=simRnd()%5;   // the catchphrase is the favourite (2 of 5): it names him and fills both free notes, "SK9M  I'M KIND OF A BIG DEAL" then "YEAHHHH"
     if(r<2){ simQPush(simSk9mLn[0]); simQPush(simSk9mLn[1]); } else { simQPush(simSk9mNm); simQPush(simSk9mLn[r]); }
 }
 static char spMsg[32] EWRAM_BSS;   // the sponsor note
