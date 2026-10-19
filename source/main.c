@@ -4906,6 +4906,7 @@ static int slkGift(int story){   // a whole story finished: the next locked slid
 enum { TB_BODY, TB_FACE, TB_HAIR, TB_CLOTHES, TB_PARTS, TB_ASPIRE, TB_DONE, NTAB };
 enum { RK_PICK, RK_SWATCH, RK_ACT, RK_SLIDE, RK_PERS, RK_TRAIT, RK_DUO };   // RK_DUO: two buttons side by side in one row (LEFT RIGHT picks the side; id = left action, n = right action, lab/sub = what each side says it does)   // a row picks from named options, picks a colour, is a button, a slider, a persona choice or a trait
 enum { AC_PLAY, AC_MAP, AC_MENU, AC_RAND, AC_ADD, AC_FAM, AC_FNAME, AC_LNAME, AC_TRAND, AC_HOUSE, AC_CSAVE, AC_CSHOW, AC_CENTER };
+static u8 ceFromMenu, ngHaveBore;   // the main menu's CREATE A BORE (GO LIVE LIFE! then starts a new player: sets ceMoveIn 3); newGame: the Bore is already made, go to the town map
 static u8 ceMoveIn;   // a NEW PLAYER's creator (newGame): 1 = GO LIVE LIFE leaves the creator to MOVE IN on the town map first (it sets 2)
 enum { PS_ASP, PS_LTW, PS_SIGN };
 typedef struct { const char*lab,*sub; u8 kind,id,n; } Row;   // sub = second line of a button
@@ -5415,7 +5416,7 @@ static int creatorNew(void){   // returns 1 when the secret code switched screen
             if(pressed&K_A){
                 partsSettle();   // a part still locked comes off before the creature leaves the creator
                 switch(aid){
-                    case AC_PLAY:  if(ceMoveIn){ ceMoveIn=2; stageOn=0; return 0; } lifeMode(0); if(gToMenu){ stageOn=0; return 0; } break;   // (a new player picks a home first: newGame)
+                    case AC_PLAY:  if(ceFromMenu){ ceMoveIn=3; stageOn=0; return 0; } if(ceMoveIn){ ceMoveIn=2; stageOn=0; return 0; } lifeMode(0); if(gToMenu){ stageOn=0; return 0; } break;   // (a new player picks a home first: newGame)
                     case AC_MAP:   if(edGate()) mapEditor(); break;
                     case AC_RAND:  lookRandom(); break;
                     case AC_TRAND: lookTrueRandomMe(); break;
@@ -5517,7 +5518,7 @@ static int creatorClassic(void){   // returns 1 when the secret code switched sc
             if(TRIG(K_R,8)){cy++;dirty=1;}      if(TRIG(K_L,9)){cy--;dirty=1;}
             }
             if((pressed&K_A)&&part!=NPARTS&&part!=NPARTS+1){
-                if(part==NPARTS+2){ if(ceMoveIn){ ceMoveIn=2; return 0; } lifeMode(0); if(gToMenu) return 0; }
+                if(part==NPARTS+2){ if(ceFromMenu){ ceMoveIn=3; return 0; } if(ceMoveIn){ ceMoveIn=2; return 0; } lifeMode(0); if(gToMenu) return 0; }
                 else if(part==NPARTS+3){ if(edGate()) mapEditor(); }
                 else if(part==NPARTS+4) return 0;   // MAIN MENU
                 else { doPart(1,part,size,cx,cy,cz); custom=1; }
@@ -5967,7 +5968,7 @@ static const char* const ngIt[4]={"CREATE A BORE","A PRE-MADE FAMILY","A TRULY R
 static void nbMoveInTown(void){ if(!nbOk){ lifeMode(0); return; } nbMoveMode=1; neighborhoodScreen(); nbMoveMode=0; }   // MOVE IN: the town map, buy a home, play there (neighborhood.h)
 static int newGame(int slot){   // 1 = it started (and ended: back to the main menu)
     wdClear(); wdSave(); exQuit(); bdOwn=0; bdSave(); goClear(); goSave();   // (a new life starts with an empty stash, no mission, no board (buy one or find one) and no handheld
-    int c=menu("HOW DO YOU START?",ngIt,4); if(c<0) return 0;
+    int c=0; if(!ngHaveBore){ c=menu("HOW DO YOU START?",ngIt,4); if(c<0) return 0; }   // (CREATE A BORE already made the Bore: on to the town map)
     int story=0; if(c==3){ story=storyPick(); if(!story) return 0; }
     int f=0, me=0; if(c==1){ me=famPick(&f,0); if(me<0) return 0; }   // the family bin: the family and who of them you play, on one screen
     static const char* const yn[2]={"YES  NEW LIFE","NO"}; if(!sgWant&&menu("START OVER?",yn,2)!=0) return 0;   // (a NEW PLAYER has nothing to start over: the player in play was saved first)
@@ -5982,7 +5983,8 @@ static int newGame(int slot){   // 1 = it started (and ended: back to the main m
     hhSave(); sprKey=0; if(sgPid) sgSave();   // (the save file exists from the first minute)
     // A NEW PLAYER moves in like The Sims 2: make your Sim (or pick a family / roll one), then the town map to buy a home, then play there.
     // (A story has its own house: storylot.h. A new life that is not a new player plays on where it is.)
-    if(c==0){ ceMoveIn=sgPid?1:0; creatureEditor(); int go=ceMoveIn==2; ceMoveIn=0; if(go) nbMoveInTown(); }
+    if(c==0&&ngHaveBore){ ngHaveBore=0; nbMoveInTown(); }   // (the Bore from the main menu's creator: buy a home for it)
+    else if(c==0){ ceMoveIn=sgPid?1:0; creatureEditor(); int go=ceMoveIn==2; ceMoveIn=0; if(go) nbMoveInTown(); }
     else if(c==3||!sgPid) lifeMode(0);
     else nbMoveInTown();
     return 1;
@@ -6018,7 +6020,7 @@ __attribute__((noinline)) static void plDraw(const int*l,int n,int sel,int act,i
     else if(tile==0) s3Tip("THE TOWN MAP  LOTS  MOVE IN AND BUILD");
     else s3Tip("A NEW PLAYER WHO LIVES IN THIS TOWN");
 }
-static void sgNewPlayerIn(int slot);   // savegame.h: a NEW PLAYER who lives in town slot
+static void sgNewPlayerIn(int slot); static void sgNewPlayer(void);   // savegame.h: a NEW PLAYER who lives in town slot
 __attribute__((noinline)) static int nbDelTown(int s){   // DELETE: the town in slot s and the houses on its lots (the town read on the stack, out of line). 1 = done
     Town t; if(!nbRead(s,&t)) return 0;
     for(int i=0;i<NB_LOTS;i++) if(t.lot[i].on&&t.lot[i].slot>=0) slDelete(t.lot[i].slot);
@@ -6082,7 +6084,7 @@ static void mainMenu(void){
         if(pr&K_UP){ sel=(sel+MM_N-1)%MM_N; dirty|=1; }
         if(pr&(K_A|K_START)){
             if(sel==0) playerScreen();
-            else if(sel==1) creatureEditor();
+            else if(sel==1){ ceFromMenu=1; creatureEditor(); ceFromMenu=0; if(ceMoveIn==3){ ceMoveIn=0; int tl[SLOT_MAX]; if(nbTownList(tl,SLOT_MAX)>0){ ngHaveBore=1; sgNewPlayer(); ngHaveBore=0; } else lifeMode(0); } }   // (no town yet: there is nothing to move into, so play on as before)   // GO LIVE LIFE! there: a new player, then the town map to buy a home
             else if(sel==2){ if(edGate()) mapEditor(); }   // (the menu song plays on in the room builder)
             else if(sel==3) jukeboxScreen();
             else if(sel==4){ slotScreen(); if(nbOk) nbBoot(); }   // (a slot screen can delete or replace the town)
