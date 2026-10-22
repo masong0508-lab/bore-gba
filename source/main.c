@@ -202,7 +202,7 @@ static inline int mcOn(void){ return sUnlock||dbgOn; }
 static inline int mcDbl(void){ return mcOn()&&xo[XO_MCSLIDE]; }
 static inline int mcBig(void){ return mcOn()&&xo[XO_MCBOX]; }
 __attribute__((noinline)) static int slideEffS(int v){ int e=slidePos(v)-4; return mcDbl()?2*e:e; }   // a SIZE slider (in ROM, out of line: the drawing code in IWRAM stays small)
-static u8 look[LK_N];
+static u8 look[LK_N] EWRAM_BSS;
 // ---- life stages ----  BABY (cannot be steered, walks about by itself), CHILD, TEEN, ADULT, ELDER (the last stage, slower and stooped). The creator's room to build in is smaller
 // when young and grows with the age: a box of stBW x stBD x stBH blocks centred on the floor, a biggest block size and a list of looks
 // each part picker may use. The adult box is the whole 6x4x8 space, so every old person and save is an ADULT.
@@ -246,7 +246,7 @@ static inline int shapeMask(void){ int m=(int)stMaskShape[stage]; if(!sUnlock) m
 static const u8 stSwatches[AG_N]={4,6,8,8,8};       // how many colours of each row are on offer
 #define BX0 ((W-BXW)/2)
 static u16 base[10+NWP], sT[10+NWP], sL[10+NWP], sR[10+NWP];   // slots 1..8 = body colours, 9 = LIGHT FUR (a pale muzzle, an inner ear: the skin well lightened), 10.. = wallpaper average colours
-static u16 wpEdge[NWP][3];   // wall block outline colours (top, left face, right face): set by setColors
+static u16 wpEdge[NWP][3] EWRAM_BSS;   // wall block outline colours (top, left face, right face): set by setColors
 static u16 dL[9], dR[9];   // face-sprite palette (k w r s i b g h l) pre-shaded for the left / right cube face
 #define EDGE RGB(3,2,5)
 #define SKY  RGB(20,26,31)
@@ -411,7 +411,7 @@ IWRAM_OVL0 static void cube(int sx,int sy,int ci,int shape,int f){   // (overlay
 #include "fltab.h"   // flTab[floor][odd tile][row][column]: pre-sampled onto the iso diamond, now baked into ROM (tools/gen_fltab.c) instead of 8.5 KB of EWRAM
 static u8 rowHW[CB+1];   // rowHW[|y|] = half width of the diamond on that row
 static signed char rowMaxT[CA+2];   // rowMaxT[d] = the last row |y| whose half width still reaches d columns from the centre (-1: none): a thin strip d away touches only rows -r..r
-static u16 flFlat[NFL][2];                             // plain-colour fallback ("floor patterns off")
+static u16 flFlat[NFL][2] EWRAM_BSS;                             // plain-colour fallback ("floor patterns off")
 static u16 avgTex(const Tex*t){
     int r=0,g=0,b=0;
     for(int v=0;v<8;v++)for(int u=0;u<8;u++){ u16 c=t->c[t->p[v][u]-'0']; r+=c&31; g+=(c>>5)&31; b+=(c>>10)&31; }
@@ -700,7 +700,7 @@ static void moveView(int sx,int sz){   // screen-relative step -> grid step
     cx+=gx; cz+=gz;
 }
 
-static u8 vox[H][D][W], ghost[H][D][W] EWRAM_BSS;   // (the cursor preview is read once per voxel: EWRAM is fine)
+static u8 vox[H][D][W] EWRAM_BSS, ghost[H][D][W] EWRAM_BSS;   // (the cursor preview is read once per voxel: EWRAM is fine)
 static u16 dec[H][D][W] EWRAM_BSS, gdec[H][D][W] EWRAM_BSS;   // face sprites per voxel (+Z face) and their cursor preview
 static int gAny;
 
@@ -1145,7 +1145,7 @@ IWRAM_CODE static void fillCols(int w0,int w1,u16 c){
     u32 v=c|((u32)c<<16), *row=(u32*)fb;
     for(int y=0;y<SH;y++,row+=ROW_W) for(int w=w0;w<w1;w++) row[w]=v;
 }
-static u8 ord[4][W*D];   // per view: cells (x | z<<4) sorted back to front, so the draw loop needs no search
+static u8 ord[4][W*D] EWRAM_BSS;   // per view: cells (x | z<<4) sorted back to front, so the draw loop needs no search
 static void initTables(void){
     for(int sh=0;sh<4;sh++){ int r=rTab[sh]; for(int at=0;at<=r;at++) hhT[sh][at]=(u8)((r/2)*(r-at)/r); }
     for(int a=0;a<=CB;a++){ int w=0; for(int at=0;at<=CA;at++) if(hhT[0][at]>=a) w=at; rowHW[a]=(u8)w; }
@@ -2917,7 +2917,7 @@ static void flMigrateAir(void){
 }
 // THE FLOOR BELOW: on an upper floor, what the floor under it shows through the open air (a floor style, FL_BWALL its walls, FL_AIR nothing), dimmed
 #define FL_BWALL NFL
-static u8 flBel[MH][MW] EWRAM_BSS; static u16 flBelC[NFL+1];
+static u8 flBel[MH][MW] EWRAM_BSS; static u16 flBelC[NFL+1] EWRAM_BSS;
 static void flBelowBuild(void){
     if(!curFl) return;
     int f=curFl-1;
@@ -3989,7 +3989,7 @@ static void drawRoom(int ed){   // the whole screen (editor, speed test)
 
 // Camera zoom: scale the finished picture up around (cx,cy) in place. zk = 256 / zoom. Source pixels are always nearer the
 // centre than their destination, so working outward from the centre never reads a pixel that was already overwritten.
-static short zxm[SW], zym[SH];
+static short zxm[SW] EWRAM_BSS, zym[SH] EWRAM_BSS;   // (zoom tables: 800 B of IWRAM back; costs ~2 cycles per gathered pixel while zooming. Move back to plain statics if the zoom feels slower)
 IWRAM_OVL1 static void zoomFbO(int cx,int cy,int zk);
 static inline void zoomFb(int cx,int cy,int zk){ ovlUse(1); zoomFbO(cx,cy,zk); }
 static void zoomSrc(int cx,int cy,int zk,int ya,int yb,int*x0,int*y0,int*x1,int*y1){   // the part of the unzoomed picture that zoomFb(cx,cy,zk) reads to make the rows ya..yb-1 (same maths as zoomFbO): only that needs drawing
