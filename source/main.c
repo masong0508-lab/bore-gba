@@ -5909,7 +5909,7 @@ static void mmBackdrop(void){   // your town close up around a random lot (no to
     int on[NB_LOTS], n=0; for(int i=0;i<NB_LOTS;i++) if(nbT.lot[i].on) on[n++]=i;
     int cx=NB_W/2, cy=NB_H/2;
     if(n){ if(mmLot<0||!nbT.lot[(int)mmLot].on) mmLot=(s8)on[rnd8()%n]; const NbLot*L=&nbT.lot[(int)mmLot]; cx=L->x+L->w/2; cy=L->y+L->h/2; }
-    nbDrawTown(cx,cy,-2,0,0,0);
+    nbDrawTown(cx,cy,cx,cy,-2,0,0,0);
     nbT.tod=st; nbT.zoom=sz; if(!had) nbT.tag[0]=0;
 }
 static void mmLogo(int x,int y){ for(int j=0;j<LOGO_SH;j++){ const char*r=logoSmallArt[j]; u16*o=&fb[(y+j)*SW+x]; for(int i=0;i<LOGO_SW;i++){ char c=r[i]; if(c!='0') o[i]=logoPal[(c<='9'?c-'0':c-'a'+10)-1]; } } }
