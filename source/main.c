@@ -2329,7 +2329,8 @@ static void sfxPlay(int id){   // a new sound replaces whatever effect is playin
     sfxV=0;   // (the interrupt does not touch the voice while sfxV is 0)
     if(sfxNSet){ sfxStp=sfxNStp; sfxGL=sfxNGL; sfxGR=sfxNGR; sfxNSet=0; } else { sfxStp=SFX_STEP; sfxGL=sfxGR=256; }   // (a voice: its speaker's pitch and place)
     if(audHe) sfxStp=(u32)(((unsigned long long)sfxStp*audHe)>>8);   // (helium: squeaky, and quicker)
-    ssrc=b+4; sn=*(const u32*)b; sPos=0; sFr=0; sRd=0; spred=0; sidx=0; sS0=sS1=0;
+    { u32 rc=*(const u32*)b>>24; if(rc) sfxStp=(u32)(((unsigned long long)sfxStp*rc)>>4); }   // (a clip stored at rc/16 of the rate, the voices: stepped through that much slower per mixer sample)
+    ssrc=b+4; sn=*(const u32*)b&0xFFFFFF; sPos=0; sFr=0; sRd=0; spred=0; sidx=0; sS0=sS1=0;
     sfxLoop=0; sfxFade=sfxFadeT=256;
     sfxOn=1; sfxV=1;
     if(!mOn) audStart();

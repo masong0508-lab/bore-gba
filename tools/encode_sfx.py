@@ -25,7 +25,7 @@ def load(path):
     x[-f:] = (x[-f:] * np.linspace(1, 0, f)).astype(np.int32)
     return x
 
-def encode(x):
+def encode(x, rc=0):   # rc: the clip is stored at rc/16 of RATE (0 = RATE); the top byte of the count says so, the player steps by rc/16
     pred, idx, out = 0, 0, []
     for s in x:
         step = STEP[idx]; d = int(s) - pred; n = 0
@@ -43,11 +43,11 @@ def encode(x):
         out.append(n)
     if len(out) & 1: out.append(0)
     b = bytes((out[i] | (out[i+1] << 4)) for i in range(0, len(out), 2))
-    b = struct.pack("<I", len(x)) + b
+    b = struct.pack("<I", len(x) | (rc << 24)) + b
     return b + bytes((-len(b)) % 4)
 
 def decode(b):
-    n = struct.unpack("<I", b[:4])[0]; pred, idx, y = 0, 0, []
+    n = struct.unpack("<I", b[:4])[0] & 0xFFFFFF; pred, idx, y = 0, 0, []
     for i in range(n):
         v = b[4 + (i >> 1)]; v = (v >> 4) if (i & 1) else (v & 15)
         step = STEP[idx]; diff = step >> 3

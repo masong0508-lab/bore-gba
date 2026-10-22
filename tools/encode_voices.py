@@ -9,6 +9,8 @@ from scipy.signal import resample_poly, butter, sosfilt
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from encode_sfx import encode, decode, RATE
 
+VRC = int(os.environ.get("VOICE_RC", "10"))   # stored rate = VRC/16 of 6554 Hz (10: 4096 Hz, 38 % smaller); the game plays it back at the same pitch
+VRATE = RATE * VRC // 16
 src = sys.argv[1] if len(sys.argv) > 1 else "tools/voices_src"
 os.makedirs("source/sfx", exist_ok=True)
 slugs, total = [], 0
@@ -17,12 +19,12 @@ for f in sorted(glob.glob(src + "/*.wav"), key=lambda p: os.path.basename(p).low
     w = wave.open(f); sr = w.getframerate(); x = np.frombuffer(w.readframes(w.getnframes()), dtype="<i2").astype(np.float64)
     if w.getnchannels() == 2: x = x.reshape(-1, 2).mean(1)
     from math import gcd
-    g = gcd(RATE, sr); x = resample_poly(x, RATE // g, sr // g)
-    x = sosfilt(butter(4, 3000, "lp", fs=RATE, output="sos"), x)
+    g = gcd(VRATE, sr); x = resample_poly(x, VRATE // g, sr // g)
+    x = sosfilt(butter(4, min(3000, int(VRATE * 0.47)), "lp", fs=VRATE, output="sos"), x)
     x = np.round(np.clip(x, -32768, 32767)).astype(np.int32)
-    b = encode(x); open(f"source/sfx/v_{slug}.adp", "wb").write(b); total += len(b)
+    b = encode(x, VRC); open(f"source/sfx/v_{slug}.adp", "wb").write(b); total += len(b)
     y = decode(b); snr = 10 * np.log10(np.sum(x.astype(float) ** 2) / max(1, np.sum((x - y).astype(float) ** 2)))
-    print(f"v_{slug}: {len(x)/RATE:.2f}s {len(b)} bytes SNR {snr:.1f} dB"); slugs.append(slug)
+    print(f"v_{slug}: {len(x)/VRATE:.2f}s {len(b)} bytes SNR {snr:.1f} dB"); slugs.append(slug)
 
 L = " \\\n".join(f"    X({s})" for s in slugs)
 with open("source/voices.h", "w") as h:
