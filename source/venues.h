@@ -166,10 +166,33 @@ static int venueLook(int ct,char c){   // the props of a place wear the catalog 
     }
     return 0;
 }
+// THE ARCADE'S HALL (venueBuild calls it): a prize counter with the prizes on the shelf behind it (the ticket desk), a vending machine for change and
+// snacks, rows of cabinets and pinball with a walking lane between them, a jukebox, and a real bathroom (two toilets, two sinks) in the back corner.
+// Everything is placed relative to the room, so it fits the small and the big lots; gFree-style guards keep it off walls and each other.
+static void vPut(int x,int y,char c,const char*nm){ if(x>0&&y>0&&x<MW-1&&y<MH-1&&lifeMap[y][x]=='.'){ gPut(x,y,c); wallMap[y][x]=(u8)catFind(nm); } }
+static void arcadeBuild(int rx0,int ry0,int rx1,int ry1,int cx,int wp){
+    // the bathroom: back right corner, 4 tiles wide inside, its door opens onto the hall
+    int bx0=rx1-5, by1=ry0+3;
+    gLine(bx0,ry0,bx0,by1,'W',wp); gLine(bx0,by1,rx1,by1,'W',wp); gBox(bx0+1,ry0+1,rx1-1,by1-1,5); gPut(bx0+2,by1,'D');
+    vPut(bx0+1,ry0+1,'T',"PINK TOILET"); vPut(bx0+2,ry0+1,'T',"BLACK TOILET"); vPut(bx0+3,ry0+1,'H',"BATHROOM SINK"); vPut(bx0+4,ry0+1,'H',"BATHROOM SINK");
+    // the prize counter (ticket desk) along the back wall, left: counter tiles in front, the prizes on the shelf behind it
+    for(int x=rx0+1;x<=rx0+4;x++){ gPut(x,ry0+2,'@'); }
+    vPut(rx0+1,ry0+1,'p',"TEDDY BEAR"); vPut(rx0+2,ry0+1,'l',"TROPHY CASE"); vPut(rx0+3,ry0+1,'b',"GIFT PILE"); vPut(rx0+4,ry0+1,'p',"PINATA");
+    vPut(rx0+5,ry0+1,'F',"VENDING MACHINE"); vPut(rx0+6,ry0+1,'l',"NEON BORE SIGN"); vPut(rx0+7,ry0+1,'l',"DISCO BALL");   // change and snacks, the sign, the ball
+    vPut(rx0+1,ry0+3,'R',"JUKEBOX");
+    // the floor: cabinets in a row, pinball and the dartboard in the next, a lane (every third row) to walk in
+    for(int y=ry0+4;y<=ry1-2;y+=3){
+        for(int x=rx0+1;x<=rx1-1;x++){ if(x==cx||x==cx+1||((x-rx0)%4)==0||(y==ry0+4&&x>=bx0+1&&x<=bx0+3)) continue;   // gaps to walk through, and the way from the door
+            vPut(x,y,'v',"ARCADE CABINET");
+            if(y+1<=ry1-2) vPut(x,y+1,'v',((x-rx0)&1)?"PINBALL":"CONSOLE AND TV"); }
+    }
+    vPut(rx1-1,ry1-1,'p',"BALL PIT"); vPut(rx0+1,ry1-1,'p',"TEDDY BEAR");
+}
 static void venueBuild(int x0,int y0,int x1,int y1,int ct){   // nbTemplate: a walled room, the counter across it, the props round the walls, you arrive outside the door
     const Venue*v=venueOf(ct); if(!v) return;
     int cx=(x0+x1)/2, rx0=x0+1, ry0=y0+1, rx1=x1-1, ry1=y1-3, my=(ry0+ry1)/2;
     gBox(x0,y0,x1,y1,v->fl==6?6:7); gRoom(rx0,ry0,rx1,ry1,v->fl,v->wp); gPut(cx,ry1,'D');
+    if(ct==CT_ARCADE){ arcadeBuild(rx0,ry0,rx1,ry1,cx,v->wp); return; }   // the arcade has its own hall (above)
     for(int x=cx-2;x<=cx+2;x++) gPut(x,ry0+3,'@');
     const int sp[8][2]={{rx0+1,ry0+1},{rx1-1,ry0+1},{rx0+1,ry1-1},{rx1-1,ry1-1},{rx0+1,my},{rx1-1,my},{rx0+2,ry1-1},{rx1-2,ry1-1}};
     for(int i=0;v->props[i]&&i<8;i++){ int x=sp[i][0], y=sp[i][1]; if(x>rx0&&x<rx1&&y>ry0&&y<ry1&&lifeMap[y][x]=='.'&&!(x==cx&&y==ry1-1)){ gPut(x,y,v->props[i]); wallMap[y][x]=(u8)venueLook(ct,v->props[i]); } }
