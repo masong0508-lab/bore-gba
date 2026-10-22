@@ -5904,7 +5904,7 @@ static int mmPickTod(void){   // 5-8 dawn, 8-17 day, 17-20 dusk, else night (no 
 static void mmPick(void){ mmTod=(u8)mmPickTod(); mmLot=-1; mmAcid=(u8)(xo[XO_MENUBG]==2||(xo[XO_MENUBG]==0&&(rnd8()&1))); }   // a new view (MENU BACKDROP option)
 static void mmBackdrop(void){   // your town close up around a random lot (no town yet: BOREVILLE as it will look), or the acid rainbow
     if(mmAcid){ acidBg(acT); return; }
-    int had=nbOk; if(!had){ nbGen(NS_SUBURB,nsTown[NS_SUBURB]); nbT.cur=0; }
+    int had=nbOk; if(!had){ nbGenStart(NS_SUBURB,nsTown[NS_SUBURB]); nbT.cur=0; }
     u8 st=nbT.tod, sz=nbT.zoom; nbT.tod=mmTod; nbT.zoom=1;
     int on[NB_LOTS], n=0; for(int i=0;i<NB_LOTS;i++) if(nbT.lot[i].on) on[n++]=i;
     int cx=NB_W/2, cy=NB_H/2;

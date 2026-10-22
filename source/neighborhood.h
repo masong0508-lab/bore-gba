@@ -225,7 +225,8 @@ static void nbLotAdd(int i,const char*nm,int x,int y,int w,int h,int kind,int ty
 enum { NS_SUBURB, NS_DESERT, NS_LAKE, NS_EMPTY, NS_N };
 static const char* const nsNm[NS_N]={"GREEN SUBURB","DESERT TOWN","LAKESIDE","EMPTY LAND"};
 static const char* const nsTown[NS_N]={"BOREVILLE","MESA FLATS","PINE COVE","NEW TOWN"};
-static void nbDistricts(int style,int ox,int oy);
+static void nbDistricts(int style,int ox,int oy); static void nbEnsureHomes(int want);
+static u8 nbStarterOn;   // 1 while a STARTER town is made (nbGenStart): it must always have homes to pick from
 static void nbGenS(int style,const char*name,int size){   // a new town in nbT (not saved), size x size cells. Its live lot is none yet (cur 255): going there builds the home lot
     u8*z=(u8*)&nbT; for(unsigned i=0;i<sizeof(Town);i++) z[i]=0;
     nbT.tag[0]='T'; nbT.tag[1]='W'; nbT.tag[2]='N'; nbT.tag[3]='2'; if(size<24) size=24; if(size>NB_WMAX) size=NB_WMAX; nbT.w=nbT.h=(u8)size; nbT.ver=2;
@@ -254,6 +255,7 @@ static void nbGenS(int style,const char*name,int size){   // a new town in nbT (
         for(int y=0;y<NB_H;y++)for(int x=0;x<NB_W;x++) if(nbAt(x,y)<0&&nbT.cell[y][x]!=NT_ROAD&&(x-17)*(x-17)+(y-6)*(y-6)*3/2<34) nbT.cell[y][x]=NT_WATER;   // the lake
     } else nbLotAdd(0,"YOUR PLACE",2,3,6,6,LKIND_RES,0);
     if(nbT.w>24||nbT.h>24) nbDistricts(style,24,24);   // a bigger town: more streets, more homes, more places to go
+    if(nbStarterOn) nbEnsureHomes(12);   // (a starter town: homes for the new players)
     u32 r=0x2F6E2B1u+(u32)style*7919u; int dens=style==NS_EMPTY?25:style==NS_DESERT?45:70;
     for(int y=0;y<NB_H;y++)for(int x=0;x<NB_W;x++){
         r=r*1103515245u+12345u; int v=(int)(r>>16)&255;
@@ -270,6 +272,7 @@ static void nbGenS(int style,const char*name,int size){   // a new town in nbT (
     if(style==NS_SUBURB){ nbT.cell[22][7]=(u8)(NT_SAND); nbT.cell[23][7]=(u8)(NT_SAND|(DC_ROCK<<3)); nbT.cell[20][9]=(u8)(NT_GRASS|(DC_BENCH<<3)); nbT.cell[10][4]=(u8)(NT_PLAZA|(DC_FOUNTAIN<<3)); }
 }
 static void nbGen(int style,const char*name){ nbGenS(style,name,24); }
+static void nbGenStart(int style,const char*name){ nbStarterOn=1; nbGenS(style,name,32); nbStarterOn=0; }   // the town a new game starts with: 32 x 32 (MEDIUM), with room for plenty of homes
 // DISTRICTS: the land past the first 24 x 24 of a bigger town gets a grid of streets (every 12 cells) and is filled with lots: mostly homes
 // on tree-named streets, every fourth or so a public place, the kinds in turn (so a big town has several parks, skate parks, lounges, dispensaries ...).
 static const char* const nbStreet[12]={"ELM","BIRCH","CEDAR","WILLOW","ASPEN","HOLLY","IVY","LARCH","ALDER","POPLAR","SPRUCE","HAZEL"};
@@ -295,6 +298,22 @@ static void nbDistricts(int style,int ox,int oy){   // the land past ox / oy (th
         else { int st=(int)((r>>24)%12); char nm[NB_NAME+1]; char*e=nm; for(const char*p=nbStreet[st];*p;) *e++=*p++; *e++=' '; homes[st]+=2; int no=homes[st]; if(no>=10) *e++=(char)('0'+no/10); *e++=(char)('0'+no%10); *e=0;
             nbLotAdd(n,nm,x,y,w,h2,LKIND_RES,0); }
         n++; }
+}
+// STARTER HOMES: every third home lot of a town stands empty (households.h nbFamOf: the others have a family), and those are the houses a new player can move
+// into (an empty lot with its own furnished house, or just the land). A starter town is made with at least 12 home lots, so there are always 3 or more to pick
+// from (4 with the home lot, which a new player can take too). The extra lots are small (4 x 4 to 5 x 5): with the house they cost less than the starting cash.
+static void nbEnsureHomes(int want){
+    static const u8 sz[3][2]={{5,5},{4,4},{5,4}};
+    int r=0, n=0; for(int i=0;i<NB_LOTS;i++) if(nbT.lot[i].on){ n++; if(nbT.lot[i].kind==LKIND_RES) r++; }
+    for(int p=0;p<3&&r<want;p++){ int w=sz[p][0], h=sz[p][1];
+        for(int y=0;y+h<=nbT.h&&r<want&&n<NB_LOTS;y++) for(int x=0;x+w<=nbT.w&&r<want&&n<NB_LOTS;x++){
+            if(!nbRoomFor(x,y,w,h)) continue;
+            int i=0; while(i<NB_LOTS&&nbT.lot[i].on) i++; if(i>=NB_LOTS) return;
+            char nm[NB_NAME+1]; char*e=nm; for(const char*q=nbStreet[(i*5)%12];*q;) *e++=*q++; *e++=' ';
+            int no=2*r+1; if(no>=10) *e++=(char)('0'+no/10%10); *e++=(char)('0'+no%10); *e=0;
+            nbLotAdd(i,nm,x,y,w,h,LKIND_RES,0);
+            for(int j=y;j<y+h;j++) for(int k=x;k<x+w;k++) nbT.cell[j][k]&=7;   // (what stood there is cleared)
+            r++; n++; } }
 }
 // GROW THE TOWN (the town menu; the cab when it needs land for a new place): 8 more cells each way, up to 48. The new land takes the ground of
 // the old town's far corner, the streets that ran to the old edge go on, new districts fill it, and it gets its trees.
@@ -832,8 +851,8 @@ static int nbSwitch(int s){   // make the town in slot s the one you live in (yo
 static int nbFirstTowns(int*l){   // the towns saved (their slots into l). The first time: three towns to start with (one on a 32 KB SRAM chip)
     int n=nbTownList(l,SLOT_MAX);
     if(!n){
-        nbGen(NS_SUBURB,nsTown[NS_SUBURB]); nbT.cur=0; nbT.NB_ACT=1; nbTS=-1; nbSave();   // (the room you have is YOUR PLACE in BOREVILLE)
-        if(SLOT_N>=26){ int keep=nbTS; for(int st=NS_DESERT;st<=NS_LAKE;st++){ nbGen(st,nsTown[st]); nbTS=-1; nbSave(); } nbTS=keep; }
+        nbGenStart(NS_SUBURB,nsTown[NS_SUBURB]); nbT.cur=0; nbT.NB_ACT=1; nbTS=-1; nbSave();   // (the room you have is YOUR PLACE in BOREVILLE: a starter town, 32 x 32 with homes to pick from)
+        if(SLOT_N>=26){ int keep=nbTS; for(int st=NS_DESERT;st<=NS_LAKE;st++){ nbGenStart(st,nsTown[st]); nbTS=-1; nbSave(); } nbTS=keep; }
         n=nbTownList(l,SLOT_MAX);
     }
     return n;
