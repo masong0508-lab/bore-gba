@@ -19,10 +19,10 @@ import os, re, sys, zlib, itertools, random
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
 ROM0 = 0x08000000
-# the slots: where each pack lives and how big it may grow (BORTUA FIGHTER's polygon fighters take 3.4 MB of art). The base game has
-# everything below the first (24 MB); the last megabyte, 0x09F00000 up, is kept for the packs still to come.
-SLOTS = [(0x09800000, 0x080000), (0x09880000, 0x100000), (0x09980000, 0x080000), (0x09A00000, 0x400000), (0x09E00000, 0x080000), (0x09E80000, 0x080000)]
-SLOTS_END = 0x09F00000
+# the slots: where each pack lives and how big it may grow (BORTUA FIGHTER's polygon fighters take 3.4 MB of art, packed to 0.94 MB by tools/pack_fighters.py: its slot is 1.25 MB). The base game has
+# everything below the first (24 MB); the ROM ends where the last slot does (SLOTS_END).
+SLOTS = [(0x09800000, 0x080000), (0x09880000, 0x100000), (0x09980000, 0x080000), (0x09A00000, 0x140000), (0x09B40000, 0x080000), (0x09BC0000, 0x080000)]
+SLOTS_END = 0x09C40000
 FILES = ['BORE-EP1-BORE-OUT-MAN.bps', 'BORE-EP2-BOREZIES.bps', 'BORE-EP3-WORLD-WAR-BORE.bps',
          'BORE-EP4-BORTUA-FIGHTER.bps', 'BORE-EP7-BOREAGOTCHI.bps', 'BORE-EP8-BOREPILOGUE.bps']
 TITLES = ['BORE-OUT MAN!', 'BOREZIES!', 'WORLD WAR BORE', 'BORTUA FIGHTER', 'BOREagotchi!', 'BOREpilogue']

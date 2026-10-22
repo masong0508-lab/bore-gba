@@ -514,6 +514,7 @@ def main():
         if butt == 'ROUND': prev += [(img, ax) for packed, img, ax, r in fr]
     reaches = [r for packed, img, ax, r in res[0]]   # (the standard body, flat: what the hits are measured against)
     open(os.path.join(ROOT, 'source', 'art', 'bortua_fighters.bin'), 'wb').write(blob)
+    import subprocess; subprocess.check_call([sys.executable, os.path.join(ROOT, 'tools', 'pack_fighters.py'), '--check'])   # .bin -> .lz (what goes in the ROM)
     open(os.path.join(ROOT, 'source', 'art', 'bortua_fx.bin'), 'wb').write(fx())
     wtf()
     a555, argb, ground, ringL, ringR = arena()
@@ -530,7 +531,7 @@ def main():
         f.write('static const s8 bfaReach[BFA_NFR]={%s};   // px in front of the root each frame reaches at body height (the standard body)\n' % ','.join(str(max(-128, min(127, r))) for r in reaches))
         f.write('static const u8 bfaAx[BFA_BODIES*BFA_BUTTS*BFA_NFR]={%s};   // the root\'s column in each frame\n' % ','.join(str(a) for a in axs))
         f.write('#define BFA_GROUND %d   // the arena row the fighters stand on\n#define BFA_RINGL %d\n#define BFA_RINGR %d   // the ring\'s edges on that row (a little inside)\n' % (ground, ringL, ringR))
-        f.write('__asm__(".pushsection .rodata.bfaArt,\\"a\\"\\n.balign 4\\n.global bfaFighters\\nbfaFighters:\\n.incbin \\"source/art/bortua_fighters.bin\\"\\n.balign 4\\n.global bfaArena\\nbfaArena:\\n.incbin \\"source/art/bortua_arena.bin\\"\\n.balign 4\\n.global bfaFx\\nbfaFx:\\n.incbin \\"source/art/bortua_fx.bin\\"\\n.popsection\\n");\n')
+        f.write('__asm__(".pushsection .rodata.bfaArt,\\"a\\"\\n.balign 4\\n.global bfaFighters\\nbfaFighters:\\n.incbin \\"source/art/bortua_fighters.lz\\"\\n.balign 4\\n.global bfaArena\\nbfaArena:\\n.incbin \\"source/art/bortua_arena.bin\\"\\n.balign 4\\n.global bfaFx\\nbfaFx:\\n.incbin \\"source/art/bortua_fx.bin\\"\\n.popsection\\n");\n')
         f.write('extern const u32 bfaFighters[]; extern const u16 bfaArena[]; extern const u32 bfaFx[];   // bfaFx: 4 spark frames (32 x 32, 512 bytes each), a 32 x 8 shadow, a 16 x 8 one, 3 frames of the TOOT cloud (32 x 32)\n')
     preview(prev, n, os.path.join(ROOT, 'tools', 'bortua_preview.png'), 1)
     Image.fromarray(argb).resize((480, 320), Image.NEAREST).save(os.path.join(ROOT, 'tools', 'bortua_arena_preview.png'))

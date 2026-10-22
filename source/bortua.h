@@ -132,9 +132,19 @@ static void bfObj(int i,int x,int y,u16 shape,u16 size,int tile,int pal,int hf,i
     if(y>=SH||y<=-128||x>=SW||x<=-64){ o[0]=0x200; return; }
     o[0]=(u16)((y&255)|shape|(semi?0x400:0)); o[1]=(u16)((x&511)|size|(hf?0x1000:0)); o[2]=(u16)(tile|(pal<<12));
 }
+// One packed frame (GBA BIOS LZ77, type 0x10) into OBJ VRAM: BIOS call 0x12, LZ77UnCompReadNormalWrite16bit (the packer never uses displacement 1, which this
+// version cannot do). The BIOS clobbers r0-r3 only; no DMA is running here (bfTiles is called from the main loop).
+static inline void bfUnLz(const u8*src,void*dst){
+    register const u8*r0 __asm__("r0")=src; register void*r1 __asm__("r1")=dst;
+#ifdef __thumb__
+    __asm__ volatile("swi 0x12" : "+r"(r0),"+r"(r1) :: "r2","r3","memory","cc");
+#else
+    __asm__ volatile("swi 0x120000" : "+r"(r0),"+r"(r1) :: "r2","r3","memory","cc");
+#endif
+}
 static void bfTiles(int i){   // fighter i's frame into its tiles, if it is not there already
     Bf*f=&bfF[i]; if(f->shown==f->fr) return;
-    REG_DMA3SAD=(u32)(uintptr_t)(bfaFighters+(u32)((f->body*BFA_BUTTS+f->butt)*BFA_NFR+f->fr)*(BFA_FRB/4)); REG_DMA3DAD=(u32)(uintptr_t)(OBJ_VRAM+i*128*16); REG_DMA3CNT=(BFA_FRB/4)|0x84000000u;
+    bfUnLz((const u8*)bfaFighters+bfaFighters[(f->body*BFA_BUTTS+f->butt)*BFA_NFR+f->fr], (void*)(uintptr_t)(OBJ_VRAM+i*128*16));   // (packed: tools/pack_fighters.py)
     f->shown=f->fr;
 }
 static void bfWtfTiles(void){ REG_DMA3SAD=(u32)(uintptr_t)bfaWtf; REG_DMA3DAD=(u32)(uintptr_t)(OBJ_VRAM+(BF_TWTF-512)*16); REG_DMA3CNT=(BFA_WTF_N*8*32/4)|0x84000000u; }

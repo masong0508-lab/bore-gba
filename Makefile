@@ -16,7 +16,7 @@ IWRAM_MAX ?= 32512   # 32768 minus the top 256 B the BIOS uses; .bss + .data + .
 
 all: $(TARGET).gba
 
-$(TARGET).elf: source/main.c source/logo.c $(wildcard source/*.h) $(wildcard source/sfx/*.adp) $(wildcard source/music/*.adp) $(wildcard source/music/*.bin)
+$(TARGET).elf: source/main.c source/logo.c $(wildcard source/*.h) $(wildcard source/sfx/*.adp) $(wildcard source/music/*.adp) $(wildcard source/music/*.bin) $(wildcard source/art/*.lz)
 	python3 tools/make_packs.py ld   # the expansion packs' slots (source/packslots.h for the game, tools/packs.ld INCLUDEd by tools/bore.ld)
 	$(CC) $(CFLAGS) -c source/main.c -o main.o
 	$(CC) $(CFLAGS) -c source/logo.c -o logo.o
@@ -35,7 +35,7 @@ $(TARGET).gba: $(TARGET).elf
 
 # THE CREATOR DEMO (source/ccdemo.h): the same game built with -DCC_DEMO, only the creature creator, a gallery and share codes
 creator: $(TARGET)-creator.gba
-$(TARGET)-creator.elf: source/main.c source/logo.c $(wildcard source/*.h) $(wildcard source/sfx/*.adp) $(wildcard source/music/*.adp) $(wildcard source/music/*.bin)
+$(TARGET)-creator.elf: source/main.c source/logo.c $(wildcard source/*.h) $(wildcard source/sfx/*.adp) $(wildcard source/music/*.adp) $(wildcard source/music/*.bin) $(wildcard source/art/*.lz)
 	python3 tools/make_packs.py ld
 	$(CC) $(CFLAGS) -DCC_DEMO -c source/main.c -o main-cc.o
 	$(CC) $(CFLAGS) -c source/logo.c -o logo.o
