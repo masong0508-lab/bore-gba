@@ -244,6 +244,37 @@ static const char* venueHint(void){ const Venue*v=venueHere(); return v&&vNear()
 static void vAdd(int*v,int d){ *v+=d; if(*v>100) *v=100; if(*v<0) *v=0; }
 static u32 vWorkAt EWRAM_BSS;   // a shift: one every two game hours
 static int exSeatFree(void); static void exSparCall(void);   // expand.h
+// ARCADE TICKETS: the cabinets, the ticket game and the dance machine pay out tickets; the PRIZE COUNTER spends them. (Kept for the session: they are not in the save.)
+static u16 vTix EWRAM_BSS;
+typedef struct { const char*nm; u16 cost; signed char food, nrg, com, soc; u8 mood; const char*say; } VPrize;
+static const VPrize vPrz[]={
+    {"CANDY",             10, 15,0,0,0, M_EAT,  "SUGAR RUSH"},
+    {"BOUNCY BALL",       25, 0,5,10,5, M_WANT, "BOING BOING BOING"},
+    {"PLUSH TEDDY",       60, 0,0,25,5, M_COMBO,"IT HAS A TINY HAT"},
+    {"MEGA TROPHY",      150, 0,0,10,30,M_WANT, "NUMBER ONE  AT SOMETHING"},
+    {"GOLDEN TICKET",    400, 0,0,0,0,  M_PAY,  "TRADED FOR 500 SIMOLEONS"},
+};
+#define NPRZ ((int)(sizeof(vPrz)/sizeof(vPrz[0])))
+static void vTixEarn(int i){   // i: the action's row in vAct (cabinet 12, ticket game 13, dance machine 14)
+    int t=i==13?(lnote==vMsg?18:4):3+(int)(rnd8()%5); vTix=(u16)(vTix+t>9999?9999:vTix+t);
+    char*e; if(lnote==vMsg){ e=vMsg; while(*e) e++; } else e=simCat(vMsg,lnote?lnote:"");
+    e=simCat(e,"  +"); e=simCatN(e,t); simCat(e," TIX"); lnote=vMsg; lnoteT=110;
+}
+static void arcadePrizes(void){
+    for(;;){
+        char tt[32]; const char* it[6]; char lb[6][30]; int n=0;
+        { char*e=simCat(tt,"PRIZES  "); e=simCatN(e,vTix); simCat(e," TIX"); }
+        for(int i=0;i<NPRZ;i++){ char*e=simCat(lb[n],vPrz[i].nm); e=simCat(e,"  "); e=simCatN(e,vPrz[i].cost); simCat(e," TIX"); it[n]=lb[n]; n++; }
+        int c=menu(tt,it,n); liveInvalidate(); camSnap=1; while((~REG_KEYINPUT)&0x3FF) vsync();
+        if(c<0) return;
+        const VPrize*p=&vPrz[c];
+        if(vTix<p->cost){ lnote="NOT ENOUGH TICKETS"; lnoteT=60; voxPlay(V_nah); continue; }
+        vTix=(u16)(vTix-p->cost);
+        vAdd(&lfood,p->food); vAdd(&sNrg,p->nrg); vAdd(&sCom,p->com); vAdd(&sSoc,p->soc); if(p->mood) moodEvent(p->mood);
+        if(c==NPRZ-1) simMoneyAdd(500);   // the golden ticket
+        lnote=p->say; lnoteT=110; voxPlay(V_yahoo); simsSave(); return;
+    }
+}
 static void venueDo(const VAct*a){
     int price=a->price; if(a->sp==VS_LAUNCH&&exSeatFree()) price=0;   // (BORE-OUT MAN!: the mission booked your seat)
     if(a->fl&VF_ADULT&&stage<AG_ADULT){ lnote="GROWN-UPS ONLY"; lnoteT=60; voxPlay(V_nah); return; }
@@ -279,6 +310,7 @@ static void venueDo(const VAct*a){
         case VS_BOARD: if(bdOwn){ simMoney+=price; lnote="YOU ALREADY HAVE A BOARD"; break; } bdGot(1,"A BRAND NEW BOARD  RIDE IT OUTSIDE"); break;
         case VS_PRODECK: if(bdOwn>=2){ simMoney+=price; lnote="YOU ALREADY RIDE A PRO DECK"; break; } bdGot(2,"A PRO DECK  FASTER  MORE POP"); break;
         default: break; }
+    if(a->nm&&(a-vAct==VA_CABINET||a-vAct==13||a-vAct==14)) vTixEarn((int)(a-vAct));
     stQEvent(QE_VACT,(int)(a-vAct));   // (the packs' missions: expand.h TD)
     simsSave();
 }
@@ -289,8 +321,10 @@ static int venueUse(void){   // R next to a venue's counter. 1 = handled
     for(int i=0;i<v->an&&n<10;i++){ const VAct*a=&vAct[v->a0+i]; char*e=simCat(lb[n],a->nm);
         if(a->price>0){ e=simCat(e,"  \xC2\xA7"); simCatN(e,a->price); } else if(a->price<0){ e=simCat(e,"  +\xC2\xA7"); simCatN(e,-a->price); }
         it[n]=lb[n]; id[n++]=v->a0+i; }
+    if(v->ct==CT_ARCADE&&n<10){ char*e=simCat(lb[n],"PRIZE COUNTER  "); e=simCatN(e,vTix); simCat(e," TIX"); it[n]=lb[n]; id[n++]=-1; }
     int c=menu(tt,it,n); liveInvalidate(); camSnap=1; while((~REG_KEYINPUT)&0x3FF) vsync();
     if(c<0) return 1;
+    if(id[c]<0){ arcadePrizes(); return 1; }
     venueDo(&vAct[id[c]]);
     return 1;
 }
