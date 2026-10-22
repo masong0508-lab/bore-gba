@@ -3992,6 +3992,10 @@ static void drawRoom(int ed){   // the whole screen (editor, speed test)
 static short zxm[SW], zym[SH];
 IWRAM_OVL1 static void zoomFbO(int cx,int cy,int zk);
 static inline void zoomFb(int cx,int cy,int zk){ ovlUse(1); zoomFbO(cx,cy,zk); }
+static void zoomSrc(int cx,int cy,int zk,int ya,int yb,int*x0,int*y0,int*x1,int*y1){   // the part of the unzoomed picture that zoomFb(cx,cy,zk) reads to make the rows ya..yb-1 (same maths as zoomFbO): only that needs drawing
+    *x0=cx+(((0-cx)*zk)>>8); *x1=cx+(((SW-1-cx)*zk)>>8)+1;
+    *y0=cy+(((ya-cy)*zk)>>8); *y1=cy+(((yb-1-cy)*zk)>>8)+1;
+}
 IWRAM_OVL1 static void zoomFbO(int cx,int cy,int zk){   // only the scene rows (vpY0..vpY1-1) are zoomed: the HUD panels stay put
     for(int x=0;x<SW;x++) zxm[x]=(short)(cx+(((x-cx)*zk)>>8));
     for(int y=vpY0;y<vpY1;y++) zym[y]=(short)(cy+(((y-cy)*zk)>>8));
@@ -4136,13 +4140,16 @@ static void liveHud(int all){   // bring the panels up to date (into fb); the pi
 #endif
 }
 static void liveFull(void){   // the whole scene and both panels, from scratch
-    drawRoomRect(vpX0,vpY0,vpX1,vpY1,0);
+    int camZ=0, camCx=0, camCy=0, camK=256, rx0=vpX0, ry0=vpY0, rx1=vpX1, ry1=vpY1;   // action cam: ease in, spin through all 4 views, ease out
+    if(lcamF>0){ int f=lcamF; camZ=f<12?f:(f>CAM_LEN-12?CAM_LEN-f:12);   // 0..12 zoom amount
+        if(camZ>0){ camCx=lpsx<vpX0?vpX0:lpsx>=vpX1?vpX1-1:lpsx; camCy=lpsy<vpY0?vpY0:lpsy>=vpY1?vpY1-1:lpsy; camK=256-camZ*(CAM_ZOOM)/12;
+            int a,b,c,d; zoomSrc(camCx,camCy,camK,vpY0,vpY1,&a,&c,&b,&d);   // the zoom only reads this part of the picture: draw just that
+            if(a>rx0) rx0=a; if(b<rx1) rx1=b; if(c>ry0) ry0=c; if(d<ry1) ry1=d;
+            if(rx0>=rx1||ry0>=ry1){ rx0=vpX0; ry0=vpY0; rx1=vpX1; ry1=vpY1; } } }
+    drawRoomRect(rx0,ry0,rx1,ry1,0);
     Rc o; unsigned osg; ovOn=ovNow(&o,&osg);
     if(ovOn){ ovSaveFb(&o); ovRc=o; ovSig=osg; clipSet(vpX0,vpY0,vpX1,vpY1); hudOverlayDraw(); clipAll(); }
-    if(lcamF>0){   // action cam: ease in, spin through all 4 views, ease out
-        int f=lcamF, z=f<12?f:(f>CAM_LEN-12?CAM_LEN-f:12);   // 0..12 zoom amount
-        if(z>0){ int cx=lpsx<vpX0?vpX0:lpsx>=vpX1?vpX1-1:lpsx, cy=lpsy<vpY0?vpY0:lpsy>=vpY1?vpY1-1:lpsy; zoomFb(cx,cy,256-z*(CAM_ZOOM)/12); }
-    }
+    if(camZ>0) zoomFb(camCx,camCy,camK);
     liveHud(1);
     if(sHud>=2) rect(0,sbY1,SW,SH-sbY1,RGB(0,0,0));
     lifeVs=R_TM2D;
@@ -4813,12 +4820,16 @@ static void mapEditor(void){
         if(msgT>0&&--msgT==0) msg="";
         if(wDirty) dirty=1;   // the walls changed: the inside map (the floors under walls, which tiles are in a room) is drawn again everywhere
         int bl=(efr>>3)&1;   // the editor only redraws when something changed or the cursor blinks
-        const char*sm=msgT>0?msg:""; int pmsg=sm!=shownMsg, part=pcur||pmap||phud||pmsg||bl!=lastBl||scx||scy;
+        const char*sm=msgT>0?msg:""; int pmsg=sm!=shownMsg, part=pcur||pmap||phud||pmsg||(bl!=lastBl&&!edZ)||scx||scy;   // (zoomed, a blink would redraw and stretch the whole room: the cursor just stays lit)
         { int py=eTool==T_ITEM?98:120; if((scx||scy)&&(scx>=SW||-scx>=SW||scy>=py-15||-scy>=py-15)) dirty=1; }   // (a jump bigger than the view: all of it)
         if(dirty||(edZ&&part)){   // the whole picture (a zoomed one is always whole)
-            drawRoom(1);
-            if(edZ){ static const short zk[4]={256,192,128,96}; int zx=LOX+(ecx-ecy)*CA, zy=LOY+(ecx+ecy+1)*CB;
-                if(zx<0)zx=0; if(zx>SW-1)zx=SW-1; if(zy<vpY0+1)zy=vpY0+1; if(zy>vpY1-2)zy=vpY1-2; zoomFb(zx,zy,zk[edZ]); }
+            { int spy=eTool==T_ITEM?98:120;   // only the scene rows (15..spy-1) are drawn: the panels above and below paint their own
+              if(edZ){ static const short zk[4]={256,192,128,96}; int zx=LOX+(ecx-ecy)*CA, zy=LOY+(ecx+ecy+1)*CB, v0=vpY0, v1=vpY1, a,b,c,d;
+                if(zx<0)zx=0; if(zx>SW-1)zx=SW-1; if(zy<16)zy=16; if(zy>spy-2)zy=spy-2;
+                zoomSrc(zx,zy,zk[edZ],15,spy,&a,&c,&b,&d); if(a<0)a=0; if(b>SW)b=SW; if(c<15)c=15; if(d>spy)d=spy;   // a zoomed picture reads only a small window of the room: draw just that, then stretch it
+                drawRoomRect(a,c,b,d,1); clipSet(a,c,b,d); edOverlays(); clipAll();
+                vpY0=15; vpY1=spy; zoomFb(zx,zy,zk[edZ]); vpY0=v0; vpY1=v1; }
+              else { drawRoomRect(0,15,SW,spy,1); clipSet(0,15,SW,spy); edOverlays(); clipAll(); } }
             drawEditorHud(sm); if(xo[XO_MINI]) miniMap();
             edPresent(); dirty=0; part=1;   // (part: what is shown is noted below)
         } else if(part){   // just what changed
