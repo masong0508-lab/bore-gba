@@ -6003,26 +6003,26 @@ static int newGame(int slot){   // 1 = it started (and ended: back to the main m
 
 // ---------- PLAY (The Sims 3 New Game panel): pick a town, then CONTINUE your life, VISIT the town, or a NEW GAME there ----------
 __attribute__((noinline)) static void plDraw(const int*l,int n,int sel,int act,int foc,int tile,int full){   // full 0: only what the cursor changes (the dropdown, the tiles, the tip)
-    Town nbTmp; int ok=n&&nbRead(l[sel],&nbTmp);   // (the town shown: on the stack while it is drawn, kept out of line so the PLAY screen's own frame stays small)
+    Town*nbTp=&nbScr.t; int ok=n&&nbRead(l[sel],nbTp);   // (the town shown: read into the shared scratch (nbScr) each time, not onto the stack: a 64 x 64 town is 5 KB)
     if(full){
     s3Panel(8,16,224,124); text(22,24,"Play",RGB(3,9,20),1);
     s3Well(16,31,208,55);
     rect(20,35,74,47,RGB(3,8,18));
-    if(ok) nbThumb(&nbTmp,21,36,72,45);
+    if(ok) nbThumb(nbTp,21,36,72,45);
     text(100,34,"Select a Town:",RGB(3,9,20),1);
     }
     s3Box(100,43,118,13,4,foc==0?RGB(12,20,31):RGB(8,14,27),foc==0?RGB(6,12,26):RGB(4,9,20));
     rect(100,56,118,1,foc==0?RGB(14,27,6):RGB(23,29,31));
-    text(106,46,ok?nbTmp.name:"NO TOWNS",WHITE,1); text(196,46,"<>",RGB(20,26,31),1);
-    if(ok&&full){ int lots=0,homes=0,wat=0,sand=0; for(int i=0;i<NB_LOTS;i++) if(nbTmp.lot[i].on){ lots++; if(nbTmp.lot[i].kind==LKIND_RES&&nbTmp.lot[i].slot>=0) homes++; }
-        for(int y=0;y<nbTmp.h;y++)for(int x=0;x<nbTmp.w;x++){ int g=NB_GR(nbTmp.cell[y][x]); wat+=g==NT_WATER; sand+=g==NT_SAND; }
+    text(106,46,ok?nbTp->name:"NO TOWNS",WHITE,1); text(196,46,"<>",RGB(20,26,31),1);
+    if(ok&&full){ int lots=0,homes=0,wat=0,sand=0; for(int i=0;i<NB_LOTS;i++) if(nbTp->lot[i].on){ lots++; if(nbTp->lot[i].kind==LKIND_RES&nbTp.lot[i].slot>=0) homes++; }
+        for(int y=0;y<nbTp->h;y++)for(int x=0;x<nbTp->w;x++){ int g=NB_GR(nbTp->cell[y][x]); wat+=g==NT_WATER; sand+=g==NT_SAND; }
         char b[40]; char*e=slNum(b,lots); e=slCat(e," LOTS  "); e=slNum(e,homes); slCat(e,homes==1?" HOUSE":" HOUSES");
         text(102,60,sand>100?"OUT IN THE DESERT":wat>40?"A TOWN BY THE WATER":"A QUIET GREEN SUBURB",RGB(3,9,20),1);
-        text(102,69,b,RGB(5,12,22),1); text(102,78,l[sel]==act?"YOU LIVE HERE":seasNm[nbTmp.season&3],l[sel]==act?RGB(4,16,2):RGB(5,12,22),1); }
+        text(102,69,b,RGB(5,12,22),1); text(102,78,l[sel]==act?"YOU LIVE HERE":seasNm[nbTp->season&3],l[sel]==act?RGB(4,16,2):RGB(5,12,22),1); }
     s3Well(16,89,208,42);
     for(int i=0;i<2;i++){ int x=40+i*94, y=92, on=foc==1&&tile==i;   // the two things a town is for: look round it, or start a new player there
         s3Box(x,y,66,36,5,on?RGB(14,27,6):RGB(9,15,25),on?RGB(8,20,3):RGB(7,12,22)); s3Box(x+1,y+1,64,34,4,on?RGB(26,31,20):RGB(27,30,31),on?RGB(20,29,12):RGB(20,26,31));
-        if(i==0){ if(ok) nbThumb(&nbTmp,x+13,y+4,40,18); }   // (small: cheap enough to draw again)
+        if(i==0){ if(ok) nbThumb(nbTp,x+13,y+4,40,18); }   // (small: cheap enough to draw again)
         else { disc(x+33,y+13,10,on?RGB(4,10,2):RGB(5,10,20)); disc(x+33,y+13,9,on?RGB(14,27,6):RGB(18,25,31)); rect(x+28,y+12,11,2,on?RGB(1,4,0):WHITE); rect(x+32,y+8,2,11,on?RGB(1,4,0):WHITE); }
         text(x+33-tw(i?"New Player":"Visit Town",1)/2,y+25,i?"New Player":"Visit Town",RGB(2,5,11),1); }
     if(full){ disc(120,140,9,RGB(3,8,19)); disc(120,140,7,RGB(10,18,30)); for(int d=0;d<2;d++){ line(116,140+d,119,143+d,WHITE); line(119,143+d,125,136+d,WHITE); }   // the check button (A)
@@ -6057,10 +6057,10 @@ static void playScreen(void){
         }
         if(pr&K_SEL){
             int st=menu("A NEW NEIGHBORHOOD",nsNm,NS_N), sz=-1;
-            static const char* const szNm[4]={"SMALL  24 X 24","MEDIUM  32 X 32","LARGE  40 X 40","HUGE  48 X 48"};
-            if(st>=0) sz=menu("HOW BIG",szNm,4);
+            static const char* const szNm[5]={"SMALL  24 X 24","MEDIUM  32 X 32","LARGE  40 X 40","HUGE  48 X 48","MASSIVE  64 X 64"};
+            if(st>=0) sz=menu("HOW BIG",szNm,5);
             if(st>=0&&sz>=0){ char nm[SLOT_NAME+1]; int i=0; for(;nsTown[st][i];i++) nm[i]=nsTown[st][i]; nm[i]=0;
-                if(slEditName(nm)){ nbGenS(st,nm,24+sz*8); nbTS=-1; int e=nbSave(); toast(e?"NO FREE SLOTS FOR A TOWN THAT BIG":"NEIGHBORHOOD MADE"); }
+                if(slEditName(nm)){ nbGenS(st,nm,sz==4?64:24+sz*8); nbTS=-1; int e=nbSave(); toast(e?"NO FREE SLOTS FOR A TOWN THAT BIG":"NEIGHBORHOOD MADE"); }
                 nbOk=nbLoad(); n=nbTownList(l,SLOT_MAX); act=nbTS; }
             prev=keyNow(); dirty=2;
         }

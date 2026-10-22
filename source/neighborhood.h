@@ -1,7 +1,7 @@
 // neighborhood.h - THE NEIGHBORHOOD: a town of lots to live in, visit and build on (The Sims 1 neighbourhood screen, with the later games'
 // town editing: paint the land, lay roads, plant trees, place and remove lots, seasons and the time of day).
 //
-// THE TOWN   a grid of cells (SMALL 24 x 24, MEDIUM 32, LARGE 40, HUGE 48: picked when the town is made, nbT.w / nbT.h), each a terrain (grass, dirt, sand, water, plaza, road) and an optional decoration (tree, pine, bush,
+// THE TOWN   a grid of cells (SMALL 24 x 24, MEDIUM 32, LARGE 40, HUGE 48, MASSIVE 64: picked when the town is made, nbT.w / nbT.h), each a terrain (grass, dirt, sand, water, plaza, road) and an optional decoration (tree, pine, bush,
 //            flowers, rock, lamp, bench, fountain).
 // LOTS       up to 48 rectangles of 4 to 10 cells a side (a bigger town gets whole districts of them: nbDistricts). A cell is 4 x 4 tiles of the room map, so lots run from 16 x 16 to 40 x 40 tiles.
 //            RESIDENTIAL (a house to live in; one of them is your HOME) or COMMUNITY (park, skate park, plaza, lounge, old town).
@@ -16,8 +16,8 @@
 // Needs before it: the map and floors (lifeMap, floorMap, wallMap, mapGen, gRoom, gBox, gPut, gLine, mapSave, mapScan, flHome, flBlankUpper,
 // flEnsure, flPlaneAt, curFl), slots.h, lifeMode, mapEditor, the UI kit (box, menu, toast, helpScreen, text, rect, px, line, disc, present,
 // keyNow), sims.h (simsDefaults, simsLoad, simsSaveNow, simMoney).
-#define NB_WMAX 48
-#define NB_HMAX 48
+#define NB_WMAX 64
+#define NB_HMAX 64
 #define NB_W (nbT.w)   // the live town's size (every town keeps its own)
 #define NB_H (nbT.h)
 #define NB_LOTS 48
@@ -157,8 +157,12 @@ static int nbGo(int i){   // make lot i the live map. 1 = done (nbErr says why n
 static int nbTownList(int*l,int max){ slScan(); int n=0; for(int i=0;i<SLOT_N&&n<max;i++) if(slOwner[i]==i&&slI[i].kind==SLK_TOWN&&slGood[i]&&slI[i].len>=(int)sizeof(TownHd)) l[n++]=i; return n; }
 #define NB_PHDR 28   // a 'TWN2' town: the TownHd (23 bytes), then w, h, lots, version, reserved
 static int nbPackLen(const Town*t){ return NB_PHDR+t->w*t->h+NB_LOTS*(int)sizeof(NbLot)+NB_LOTS*5; }
-_Static_assert(NB_PHDR+NB_WMAX*NB_HMAX+NB_LOTS*sizeof(NbLot)+NB_LOTS*5<=2*SLOT_SZ-SLOT_HDR,"the biggest town must fit two slots");
-static u8 nbBuf[NB_PHDR+NB_WMAX*NB_HMAX+NB_LOTS*sizeof(NbLot)+NB_LOTS*5] EWRAM_BSS;   // a town packed for the save chip
+_Static_assert(NB_PHDR+NB_WMAX*NB_HMAX+NB_LOTS*sizeof(NbLot)+NB_LOTS*5<=3*SLOT_SZ-SLOT_HDR,"the biggest town must fit three slots");
+// ONE SCRATCH for the town's three short-lived uses (they never overlap: none of them calls another): a town packed for the save chip (nbSave), the lot of every cell
+// while the town is drawn (nbDrawTown), and a second town read only to be shown (the PLAY screen's plDraw, which used to keep a whole Town on the stack).
+typedef union { Town t; u8 pack[NB_PHDR+NB_WMAX*NB_HMAX+NB_LOTS*sizeof(NbLot)+NB_LOTS*5]; signed char lm[NB_HMAX][NB_WMAX]; } NbScratch;
+static NbScratch nbScr EWRAM_BSS;
+#define nbBuf (nbScr.pack)
 static int nbPack(const Town*t,u8*b){   // -> the length
     const u8*h=(const u8*)t; for(unsigned i=0;i<sizeof(TownHd);i++) b[i]=h[i];
     b[0]='T'; b[1]='W'; b[2]='N'; b[3]='2'; b[23]=t->w; b[24]=t->h; b[25]=NB_LOTS; b[26]=2; b[27]=0;
@@ -315,7 +319,7 @@ static void nbEnsureHomes(int want){
             for(int j=y;j<y+h;j++) for(int k=x;k<x+w;k++) nbT.cell[j][k]&=7;   // (what stood there is cleared)
             r++; n++; } }
 }
-// GROW THE TOWN (the town menu; the cab when it needs land for a new place): 8 more cells each way, up to 48. The new land takes the ground of
+// GROW THE TOWN (the town menu; the cab when it needs land for a new place): 8 more cells each way, up to 64. The new land takes the ground of
 // the old town's far corner, the streets that ran to the old edge go on, new districts fill it, and it gets its trees.
 static int nbExpand(void){
     int ow=nbT.w, oh=nbT.h; if(ow>=NB_WMAX&&oh>=NB_HMAX) return 0;
@@ -454,17 +458,19 @@ static int nbBoxSeen(int x,int y,int w,int h,int up,int qx0,int qy0,int qx1,int 
 }
 // ccx, ccy: the cursor. camx, camy: the cell the zoomed map is centred on (neighborhoodScreen lets the cursor wander inside a dead zone before it recentres: a cursor step
 // then only repaints round the cursor, as in the whole-town view, and the whole map is drawn again only when the camera moves).
+static int nbCamHw(void){   // 0: the whole town fits the screen. Else half a cell's width while the map follows the camera: CLOSE 8, MEDIUM 4, and the whole view of a town past 48 x 48
+    return nbT.zoom?(nbT.zoom==2?4:8):(nbT.w+nbT.h>96?2:0);
+}
 static void nbDrawTown(int ccx,int ccy,int camx,int camy,int tool,int ghostW,int ghostH,int ghostOk){
-    int bd=tool==-2;
-    if(nbT.zoom&&tool!=-1){ int mid=nbT.zoom==2; nbHw=mid?4:8; nbHh=nbHw/2; nbK=mid?1:2; nbOx=120-(camx-camy)*nbHw; nbOy=62-(camx+camy)*nbHh+(bd?14:0); }   // close (or, in a big town, MEDIUM): the map follows the camera
+    int bd=tool==-2, hwS=nbCamHw();
+    if(hwS&&tool!=-1){ nbHw=hwS; nbHh=hwS/2; nbK=hwS==8?2:1; nbOx=120-(camx-camy)*nbHw; nbOy=62-(camx+camy)*nbHh+(bd?14:0); }   // close (or, in a big town, MEDIUM): the map follows the camera
     else { int big=nbT.w>24||nbT.h>24; nbHw=big?2:4; nbHh=big?1:2; nbK=1; nbOx=120; nbOy=big?12+(110-(nbT.w+nbT.h)*nbHh)/2:20; }   // the whole town at once
     u16 sky=nbT.tod==2?RGB(1,1,4):nbT.tod==1?RGB(10,6,8):RGB(4,7,12);
     int yT=bd?-2*nbHh:4, yB=bd?SH:130, yB2=bd?SH+48:140;
     if(nbPart) rect(cX0,cY0,(int)cW,(int)cH,sky);
     else if(bd){ clipAll(); nbSky(); } else { clipAll(); fillCols(0,ROW_W,sky); clipSet(0,12,SW,122); }
     int qx0=cX0, qy0=cY0, qx1=cX0+(int)cW, qy1=cY0+(int)cH;   // (the clip: a part redraw skips what is outside it)
-    signed char (*lm)[NB_WMAX]=(signed char(*)[NB_WMAX])(void*)hhDist;   // which lot each cell is on, worked out once a picture (nbAt searched every lot for every cell, twice); in the path marks, which no search uses while the town is drawn
-    _Static_assert(NB_HMAX*NB_WMAX<=sizeof(hhDist),"the town's lot map must fit the path marks");
+    signed char (*lm)[NB_WMAX]=nbScr.lm;   // which lot each cell is on, worked out once a picture; in the shared scratch (nbScr), which nothing else uses while the town is drawn
     for(int y=0;y<NB_H;y++)for(int x=0;x<NB_W;x++) lm[y][x]=-1;
     for(int i=NB_LOTS-1;i>=0;i--){ const NbLot*L=&nbT.lot[i]; if(!L->on) continue;   // (backwards: where lots overlap, the first one wins, as in nbAt)
         if(!nbBoxSeen(L->x,L->y,L->w,L->h,(40+6*L->floors)*nbK,qx0,qy0,qx1,qy1)) continue;   // (a lot wholly off the picture: none of its cells is ever looked at, and zoomed in there are many of them)
@@ -766,8 +772,8 @@ static void neighborhoodScreen(void){
             if(ccx>=NB_W)ccx=NB_W-1;
             if(ccy>=NB_H)ccy=NB_H-1;
             step=1;
-            if(nbT.zoom){ int hw=nbT.zoom==2?4:8, ox=((ccx-ccy)-(camx-camy))*hw, oy=((ccx+ccy)-(camx+camy))*(hw/2);   // the cursor's offset from the middle of the screen, in pixels
-                if(ox<-72||ox>72||oy<-28||oy>32){ camx=ccx; camy=ccy; dirty=1; } } }   // (out of the dead zone: the map follows, centred on the cursor again)
+            { int hw=nbCamHw(); if(hw){ int ox=((ccx-ccy)-(camx-camy))*hw, oy=((ccx+ccy)-(camx+camy))*(hw/2);   // the cursor's offset from the middle of the screen, in pixels
+                if(ox<-72||ox>72||oy<-28||oy>32){ camx=ccx; camy=ccy; dirty=1; } } } }   // (out of the dead zone: the map follows, centred on the cursor again)
         if(!nbMoveMode&&(pr&K_R)){ tool=(tool+1)%5; dirty=1; } if(!nbMoveMode&&(pr&K_L)){ tool=(tool+4)%5; dirty=1; }   // (moving in: the lots only)
         if(pr&K_SEL){ int n=tool==1?NT_ROAD:tool==3?DC_N:tool==4?6:1; sub[tool]=(sub[tool]+1)%n; dirty=1; }
         int gw=nbSizes[sub[4]][0], gh=nbSizes[sub[4]][1], gok=nbFree(ccx,ccy,gw,gh,-1);
