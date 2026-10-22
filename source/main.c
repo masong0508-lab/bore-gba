@@ -6014,7 +6014,7 @@ __attribute__((noinline)) static void plDraw(const int*l,int n,int sel,int act,i
     s3Box(100,43,118,13,4,foc==0?RGB(12,20,31):RGB(8,14,27),foc==0?RGB(6,12,26):RGB(4,9,20));
     rect(100,56,118,1,foc==0?RGB(14,27,6):RGB(23,29,31));
     text(106,46,ok?nbTp->name:"NO TOWNS",WHITE,1); text(196,46,"<>",RGB(20,26,31),1);
-    if(ok&&full){ int lots=0,homes=0,wat=0,sand=0; for(int i=0;i<NB_LOTS;i++) if(nbTp->lot[i].on){ lots++; if(nbTp->lot[i].kind==LKIND_RES&nbTp.lot[i].slot>=0) homes++; }
+    if(ok&&full){ int lots=0,homes=0,wat=0,sand=0; for(int i=0;i<NB_LOTS;i++) if(nbTp->lot[i].on){ lots++; if(nbTp->lot[i].kind==LKIND_RES&&nbTp->lot[i].slot>=0) homes++; }
         for(int y=0;y<nbTp->h;y++)for(int x=0;x<nbTp->w;x++){ int g=NB_GR(nbTp->cell[y][x]); wat+=g==NT_WATER; sand+=g==NT_SAND; }
         char b[40]; char*e=slNum(b,lots); e=slCat(e," LOTS  "); e=slNum(e,homes); slCat(e,homes==1?" HOUSE":" HOUSES");
         text(102,60,sand>100?"OUT IN THE DESERT":wat>40?"A TOWN BY THE WATER":"A QUIET GREEN SUBURB",RGB(3,9,20),1);

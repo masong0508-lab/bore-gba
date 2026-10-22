@@ -9,7 +9,8 @@
 //   SELL      the dispensary buys your harvest (less money, perfectly legal). SELL ON THE CORNER (YOUR ACTIONS > FUN, away from home) pays more, and every
 //             buyer is a roll: somebody may call it in (npc.h copCrime: the cops come). Teens roll three times as often. Visitors who drop by may buy a bag too.
 //   DISPENSARY  a community lot (CT_DISP; a cab takes you, and if the town has none the cab makes one). The counter ('&'): PRE-ROLL, AN EIGHTH, SEEDS,
-//             GUMMIES (they kick in later, and hard), SELL YOUR HARVEST, ASK THE BUDTENDER.
+//             GUMMIES (they kick in later, and hard), BY THE GRAM (any strain), ROLL AND SMOKE HERE, a FREE SAMPLE a day, SELL YOUR HARVEST, ASK THE
+//             BUDTENDER. Regulars (100 g sold: 10% off, 300 g: 20% off). The shop has a lounge: couches, a bong, a hookah, snacks from the vending machine.
 #define WD_N 8
 #define WD_OFF 7440   // SRAM: 'W' 'D' 1, grams (2 bytes each), seeds, grow skill, sold (2), checksum
 #define WD_LEN (3+2*WD_N+WD_N+1+2+1)
@@ -130,38 +131,94 @@ static void wdSellTo(const char*nm,int stg){   // SELL A BAG: they take a few gr
     char*e=simCat(wdMsg,nm); e=simCat(e," BOUGHT "); e=simCatN(e,g); e=simCat(e,"G  \xC2\xA7"); simCatN(e,cash); lnote=wdMsg; lnoteT=150;
     if(wdRisk(stg==AG_TEEN?10:5)){ copCrime(stage==AG_TEEN?4:2); simQPush("A NEIGHBOR SAW THE DEAL"); voxPlay(V_shriek); }
 }
-// ---- THE DISPENSARY: a community lot with a counter ('&') ----
-static void dispBuild(int x0,int y0,int x1,int y1){   // nbTemplate: a green shop: the counter across it, plants, lava lamps, a beanbag corner
-    int cx=(x0+x1)/2, rx0=x0+1, ry0=y0+1, rx1=x1-1, ry1=y1-3;
+// ---- THE DISPENSARY: a community lot with a counter ('&'), a back wall of jars and shelves, and a smoking lounge ----
+static int catFind(const char*nm);   // venues.h
+static int dpX0,dpY0,dpX1,dpY1,dpCx;   // the room being laid out (dispBuild)
+static void dpPut(int x,int y,char c,const char*look){   // a prop on free floor inside the room (never in the way of the door)
+    if(x<=dpX0||x>=dpX1||y<=dpY0||y>=dpY1||lifeMap[y][x]!='.'||(x==dpCx&&y>=dpY1-1)) return;
+    gPut(x,y,c); if(look) wallMap[y][x]=(u8)catFind(look);
+}
+static void dispBuild(int x0,int y0,int x1,int y1){   // nbTemplate: a green shop: the counter across it, jars and shelves behind, a lounge with couches and pipes
+    int cx=(x0+x1)/2, rx0=x0+1, ry0=y0+1, rx1=x1-1, ry1=y1-3, hw=(rx1-rx0>=12)?3:2, ly=ry0+5;
+    dpX0=rx0; dpY0=ry0; dpX1=rx1; dpY1=ry1; dpCx=cx;
     gBox(x0,y0,x1,y1,4); gRoom(rx0,ry0,rx1,ry1,11,11); gPut(cx,ry1,'D');
-    for(int x=cx-2;x<=cx+2;x++) gPut(x,ry0+3,'&');
-    gPut(rx0+1,ry0+1,'p'); gPut(rx1-1,ry0+1,'p'); gPut(rx0+1,ry0+2,'V'); gPut(rx1-1,ry0+2,'V');
+    for(int x=cx-hw;x<=cx+hw;x++) gPut(x,ry0+3,'&');
+    for(int d=-3;d<=3;d++){ int x=cx+d;   // the back wall: shelves of jars, lava lamps, the neon sign over the middle
+        if(d==0) dpPut(x,ry0+1,'l',"NEON BORE SIGN");
+        else if(d==-2||d==2) dpPut(x,ry0+1,'l',d<0?"GREEN LAVA LAMP":"PINK LAVA LAMP");
+        else dpPut(x,ry0+1,'b',(d&1)?"TALL BOOKSHELF":"WHITE BOOKSHELF"); }
+    dpPut(rx0+1,ry0+1,'p',"POTTED PALM"); dpPut(rx1-1,ry0+1,'p',"FICUS");
+    dpPut(rx0+1,ry0+2,'V',0); dpPut(rx1-1,ry0+2,'R',0);   // the DeadSet VYBE and a radio by the counter
+    dpPut(rx1-1,ry0+4,'F',"VENDING MACHINE");   // snacks: you will want them
+    if(ry1-2>=ly+2){   // the smoking lounge: couches, a bong table and a hookah, beanbags, stools
+        dpPut(rx0+1,ly,'C',"VELVET SOFA"); dpPut(rx0+1,ly+1,'C',"VELVET SOFA"); dpPut(rx0+3,ly,'G',"BONG"); dpPut(rx0+3,ly+2,'U',0); dpPut(rx0+1,ly+3,'l',"PINK LAVA LAMP");
+        dpPut(rx1-1,ly+1,'C',"GREY COUCH"); dpPut(rx1-1,ly+2,'C',"GREY COUCH"); dpPut(rx1-3,ly+1,'G',"HOOKAH"); dpPut(rx1-3,ly+3,'U',0); dpPut(rx1-1,ly+3,'l',"GREEN LAVA LAMP");
+        dpPut(cx-2,ly+2,'h',"BAR STOOL"); dpPut(cx+2,ly+2,'h',"BAR STOOL"); }
     if(ry1-2>ry0+4){ gPut(rx0+1,ry1-1,'U'); gPut(rx0+2,ry1-1,'U'); gPut(rx1-1,ry1-1,'u'); gPut(rx1-2,ry1-1,'r'); wpSet(rx1-1,ry1-1,WP_READY,3,1); }   // a show plant by the door (PURPLE HAZE, ready, behind glass)
 }
-static void drawDispCounter(int sx,int sy,int t){   // the counter: a glass case of jars on a pale wood base, a green cross light
-    rect(sx-8,sy-9,17,8,RGB(20,16,10)); rect(sx-8,sy-2,17,1,RGB(12,9,5));
+static void drawDispCounter(int sx,int sy,int t){   // the counter: a glass case of jars (the day's strains) on a pale wood base, a green cross light
+    rect(sx-8,sy-9,17,8,RGB(20,16,10)); rect(sx-8,sy-2,17,1,RGB(12,9,5)); rect(sx-8,sy-6,17,1,RGB(15,11,6));
     rect(sx-8,sy-11,17,3,RGB(18,26,28)); rect(sx-8,sy-11,17,1,RGB(28,31,31));   // the glass top
-    for(int k=0;k<3;k++){ rect(sx-6+k*5,sy-15,3,4,RGB(24,28,26)); rect(sx-6+k*5,sy-14,3,2,k==1?RGB(18,9,24):RGB(10,22,8)); }   // jars of flower
-    if((t>>3)&1){ rect(sx+5,sy-19,1,5,RGB(6,30,8)); rect(sx+3,sy-17,5,1,RGB(6,30,8)); } else { rect(sx+5,sy-19,1,5,RGB(4,18,6)); rect(sx+3,sy-17,5,1,RGB(4,18,6)); }
+    for(int k=0;k<4;k++){ int jx=sx-7+k*4; rect(jx,sy-15,3,4,RGB(24,28,26)); rect(jx,sy-14,3,2,wdS[(simDay+k*2)%WD_N].bud); rect(jx,sy-16,3,1,RGB(9,11,11)); }   // jars of flower
+    u16 g=((t>>3)&1)?RGB(6,30,8):RGB(4,18,6); rect(sx,sy-24,1,5,g); rect(sx-2,sy-22,5,1,g);   // the cross, blinking
+}
+static short wdSamp=-1;   // the game day you had the free sample (not saved: tomorrow there is another)
+static int dpPrice(int p){ int d=wdSold>=300?20:wdSold>=100?10:0; return p-p*d/100; }   // regulars (100 g sold here: 10% off, 300 g: 20% off)
+static void wdSmokeUp(int s,int g,int fancy){   // g grams rolled and lit; your own roll (fancy) can come out sloppy, and every one makes you better at it
+    int sloppy=fancy&&(((int)rnd8()*100>>8)<26-wdSk/5);
+    int ch=(1200+wdS[s].pot*240)*(g==1?10:g==2?17:23)/10; if(sloppy) ch=ch*2/3;
+    lchill=ch; lstun=110+g*30; lsp=0; lgrind=0; moodEventN(M_CHILL,1+wdS[s].pot/2+(g>1));
+    voxChain(V_lighter_spark,V_spark_inhale,(rnd8()&1)?V_after_smoke_cough:V_after_smoke_cough_2);
+    if(fancy) wdSk=(u8)(wdSk<100?wdSk+1:100);
+    char*e=simCat(wdMsg,sloppy?"SLOPPY ROLL  BURNS UNEVEN  ":g==1?"LIT A JOINT  ":g==2?"LIT A FAT ONE  ":"LIT A BLUNT  "); simCat(e,wdS[s].nm); lnote=wdMsg; lnoteT=150;
+}
+static int dpBuy(int s,int g,int cost){   // grams off the shelf into the stash
+    if(simMoney<cost){ toast("NOT ENOUGH SIMOLEONS"); return 0; }
+    simMoney-=cost; wdG[s]=(u16)(wdG[s]+g>9999?9999:wdG[s]+g); sfxPlay(SFX_CASH); wdSave(); simsSave();
+    char*e=simCat(wdMsg,"BOUGHT "); e=simCatN(e,g); e=simCat(e,"G OF "); simCat(e,wdS[s].nm); toast(wdMsg); return 1;
+}
+static void dpJars(void){   // BY THE GRAM: any strain, 1 / 4 / 8 grams (the more, the cheaper)
+    char sl[WD_N][34]; const char* si[WD_N];
+    for(;;){
+        for(int i=0;i<WD_N;i++){ char*q=simCat(sl[i],wdS[i].nm); q=simCat(q,"  POT "); q=simCatN(q,wdS[i].pot); q=simCat(q,"  \xC2\xA7"); simCatN(q,dpPrice(wdS[i].price+3)); si[i]=sl[i]; }
+        int s=menu("THE JARS  A GRAM",si,WD_N); if(s<0) return;
+        static const char* const am[3]={"1 GRAM","4 GRAMS  10% OFF","8 GRAMS  20% OFF"}; static const u8 ng[3]={1,4,8}, pc[3]={100,90,80};
+        int a=menu(wdS[s].nm,am,3); if(a<0) continue;
+        dpBuy(s,ng[a],dpPrice(wdS[s].price+3)*ng[a]*pc[a]/100);
+    }
 }
 static void wdCounter(void){   // R at the dispensary counter
     if(stage<AG_ADULT){ static const char* const no[3]={"21 AND UP  NICE TRY KID","THEY CHECKED YOUR ID  NOPE","COME BACK WITH A BEARD"}; lnote=no[rnd8()%3]; lnoteT=110; voxPlay(V_disagree); return; }
-    static const char* const tips[6]={"START LOW AND GO SLOW","GUMMIES TAKE A WHILE  TRUST ME","WATER YOUR PLANTS  NOT TOO MUCH","PURPLE HAZE  GOOD FOR THE SOUL","SNACKS FIRST  YOU WILL THANK ME","THE CORNER IS RISKY  JUST SAYING"};
-    char tt[40]; const char* it[8]; char lb[3][28];
+    static const char* const tips[8]={"START LOW AND GO SLOW","GUMMIES TAKE A WHILE  TRUST ME","WATER YOUR PLANTS  NOT TOO MUCH","PURPLE HAZE  GOOD FOR THE SOUL","SNACKS FIRST  YOU WILL THANK ME","THE CORNER IS RISKY  JUST SAYING","ROLL ONE UP HERE  THE COUCHES ARE FREE","THE FREE SAMPLE IS ONCE A DAY"};
+    char tt[40]; const char* it[10]; char lb[5][34]; int id[10];
     for(;;){
+        int sd=(simDay+3)%WD_N, n=0, c;
         char*e=simCat(tt,"GREEN BORE  \xC2\xA7"); simCatMoney(e,simMoney,1);
-        it[0]="PRE-ROLL  \xC2\xA7" "15"; { char*q=simCat(lb[0],"EIGHTH OF "); simCat(q,wdS[(simDay+3)%WD_N].nm); it[1]=lb[0]; }   // (the strain of the day)
-        it[2]="SEEDS  \xC2\xA7" "60 A PACK"; it[3]="GUMMIES  \xC2\xA7" "25";
-        { char*q=simCat(lb[1],"SELL YOUR HARVEST  "); q=simCatN(q,wdAll()); simCat(q,"G"); it[4]=lb[1]; }
-        it[5]="ASK THE BUDTENDER"; it[6]="LEAVE";
-        int c=menu(tt,it,7); if(c<0||c==6) break;
-        if(c==5){ toast(tips[rnd8()%6]); continue; }
-        if(c==4){ int cash=0, g=0; for(int i=0;i<WD_N;i++){ cash+=wdG[i]*wdS[i].price*3/5; g+=wdG[i]; wdG[i]=0; } if(!g){ toast("NOTHING TO SELL"); continue; } simMoneyAdd(cash); wdSold=(u16)(wdSold+g); wdSave(); sfxPlay(SFX_CASH); stQEvent(QE_SOLD,g); char*q=simCat(wdMsg,"SOLD "); q=simCatN(q,g); q=simCat(q,"G  \xC2\xA7"); simCatN(q,cash); toast(wdMsg); continue; }
-        if(c==2){ char sl[WD_N][28]; const char* si[WD_N]; for(int i=0;i<WD_N;i++){ char*q=simCat(sl[i],wdS[i].nm); q=simCat(q,"  HAVE "); simCatN(q,wdSeed[i]); si[i]=sl[i]; }
-            int s=menu("SEEDS  \xC2\xA7" "60 A PACK",si,WD_N); if(s<0) continue; if(simMoney<60){ toast("NOT ENOUGH SIMOLEONS"); continue; } simMoney-=60; wdSeed[s]=(u8)(wdSeed[s]<99?wdSeed[s]+1:99); wdSave(); sfxPlay(SFX_CASH); toast("A PACK OF SEEDS  PLANT IT AT HOME"); continue; }
-        int price=c==0?15:c==1?45:25; if(simMoney<price){ toast("NOT ENOUGH SIMOLEONS"); continue; } simMoney-=price; sfxPlay(SFX_CASH);
+        { char*q=simCat(lb[0],"PRE-ROLL  \xC2\xA7"); simCatN(q,dpPrice(15)); it[n]=lb[0]; id[n++]=0; }
+        { char*q=simCat(lb[1],"1/8TH "); q=simCat(q,wdS[sd].nm); q=simCat(q,"  \xC2\xA7"); simCatN(q,dpPrice(45)); it[n]=lb[1]; id[n++]=1; }   // (the strain of the day)
+        it[n]="BY THE GRAM"; id[n++]=2;
+        it[n]="ROLL AND SMOKE HERE"; id[n++]=3;
+        if(wdSamp!=simDay){ it[n]="FREE SAMPLE"; id[n++]=4; }
+        { char*q=simCat(lb[2],"SEEDS  \xC2\xA7"); q=simCatN(q,dpPrice(60)); simCat(q," A PACK"); it[n]=lb[2]; id[n++]=5; }
+        { char*q=simCat(lb[3],"GUMMIES  \xC2\xA7"); simCatN(q,dpPrice(25)); it[n]=lb[3]; id[n++]=6; }
+        { char*q=simCat(lb[4],"SELL YOUR HARVEST  "); q=simCatN(q,wdAll()); simCat(q,"G"); it[n]=lb[4]; id[n++]=7; }
+        it[n]="ASK THE BUDTENDER"; id[n++]=8; it[n]="LEAVE"; id[n++]=9;
+        c=menu(tt,it,n); if(c<0||id[c]==9) break; c=id[c];
+        if(c==8){ if(rnd8()%3==0){ if(wdSold>=300) toast("YOU ARE A REGULAR  20% OFF"); else if(wdSold>=100) toast("YOU ARE A REGULAR  10% OFF"); else toast("SELL US 100G AND YOU ARE A REGULAR"); } else toast(tips[rnd8()&7]); continue; }
+        if(c==7){ int cash=0, g=0; for(int i=0;i<WD_N;i++){ cash+=wdG[i]*wdS[i].price*3/5; g+=wdG[i]; wdG[i]=0; } if(!g){ toast("NOTHING TO SELL"); continue; } simMoneyAdd(cash); wdSold=(u16)(wdSold+g); wdSave(); sfxPlay(SFX_CASH); stQEvent(QE_SOLD,g); char*q=simCat(wdMsg,"SOLD "); q=simCatN(q,g); q=simCat(q,"G  \xC2\xA7"); simCatN(q,cash); toast(wdMsg); continue; }
+        if(c==2){ dpJars(); continue; }
+        if(c==3){   // ROLL AND SMOKE HERE: pick the strain from your stash, then the size; it goes straight in the lounge
+            int s=wdPickStrain("ROLL WITH WHICH",0); if(s<0){ if(!wdAll()) toast("NOTHING TO ROLL  TRY THE JARS"); continue; }
+            static const char* const sz[3]={"JOINT  1 G","FAT ONE  2 G","BLUNT  3 G"}; int z=menu("HOW BIG",sz,3); if(z<0) continue;
+            if(wdG[s]<z+1){ toast("NOT ENOUGH OF THAT"); continue; }
+            wdG[s]=(u16)(wdG[s]-(z+1)); wdSmokeUp(s,z+1,1); wdSave(); simsSave(); break; }
+        if(c==4){ wdSamp=(short)simDay; lchill=500; lstun=70; lsp=0; lgrind=0; moodEventN(M_CHILL,1); voxChain(V_lighter_spark,V_spark_inhale,V_after_smoke_cough);
+            char*q=simCat(wdMsg,"A FREE TOKE OF "); simCat(q,wdS[sd].nm); lnote=wdMsg; lnoteT=140; break; }
+        if(c==5){ char sl[WD_N][28]; const char* si[WD_N]; for(int i=0;i<WD_N;i++){ char*q=simCat(sl[i],wdS[i].nm); q=simCat(q,"  HAVE "); simCatN(q,wdSeed[i]); si[i]=sl[i]; }
+            int s=menu("SEEDS  A PACK",si,WD_N); if(s<0) continue; if(simMoney<dpPrice(60)){ toast("NOT ENOUGH SIMOLEONS"); continue; } simMoney-=dpPrice(60); wdSeed[s]=(u8)(wdSeed[s]<99?wdSeed[s]+1:99); wdSave(); sfxPlay(SFX_CASH); toast("A PACK OF SEEDS  PLANT IT AT HOME"); continue; }
+        int price=c==0?dpPrice(15):c==1?dpPrice(45):dpPrice(25); if(simMoney<price){ toast("NOT ENOUGH SIMOLEONS"); continue; } simMoney-=price; sfxPlay(SFX_CASH);
         if(c==0){ wdG[0]++; toast("A PRE-ROLL OF BORE KUSH"); }
-        else if(c==1){ wdG[(simDay+3)%WD_N]+=4; toast("AN EIGHTH  PLUS A LITTLE EXTRA"); }
+        else if(c==1){ wdG[sd]+=4; toast("AN EIGHTH  PLUS A LITTLE EXTRA"); }
         else { wdEdT=600; toast("YOU EAT ONE  NOTHING HAPPENS  YET"); }
         wdSave(); simsSave();
     }
