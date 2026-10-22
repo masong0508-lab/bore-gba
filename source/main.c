@@ -5889,6 +5889,7 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "mysim.h"         // MY SIM: the pause menu tile with CAREER / SKILLS / PEOPLE / MORE tabs
 #include "expand.h"        // EXPANSION PACKS: missions with scenarios (BORE-OUT MAN!, BOREZIES!, WORLD WAR BORE, BORTUA FIGHTER, BOREAGOTCHI!, BOREPILOGUE)
 #include "space.h"         // BORE-OUT MAN!: the launch and the spacewalk
+#include "lunrado.h"       // LUNRADO: the moonbase, the damaged approach, the landing
 #include "gotchi.h"        // BOREAGOTCHI!: THE HANDHELD (a blob on a keychain that needs you constantly)
 #include "bortua.h"        // BORTUA FIGHTER: ARCADE MODE (polygon fighters, a ladder of nine, the chrome boss)
 #include "xmodes.h"        // the packs' MODES: BORTUA FIGHTER's ARCADE MODE, BOREAGOTCHI's HANDHELD

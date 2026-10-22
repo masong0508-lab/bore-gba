@@ -9,7 +9,8 @@
 // Needs: neighborhood.h (nbT, nbOk, nbAt, nbLotAdd, nbSave, nbLives, ctNm), prison.h (prGo, prIn, prLotGet), armsshop.h (armsLotGet, later: declared).
 static u8 trvLot=255;    // where the cab goes (prGo code 3)
 static int armsLotGet(void);   // armsshop.h
-static int trvIs(const NbLot*L,int ct){ return L->on&&L->kind==LKIND_COMM&&(L->type==ct||((ct==CT_SKATE||ct==CT_PARK)&&L->type==CT_BOTH)); }
+static int lnLot(const NbLot*L);   // lunrado.h: the moonbase lot is a SPACEPORT-kind lot that is not the spaceport
+static int trvIs(const NbLot*L,int ct){ if(lnLot(L)) return ct==250; if(ct==250) return 0; return L->on&&L->kind==LKIND_COMM&&(L->type==ct||((ct==CT_SKATE||ct==CT_PARK)&&L->type==CT_BOTH)); }
 static int trvFind(int ct){
     if(!nbOk) return -1;
     if(nbT.cur<NB_LOTS&&trvIs(&nbT.lot[nbT.cur],ct)) return nbT.cur;   // (the one you are on first)
@@ -50,7 +51,7 @@ static void trvMenu(void){   // the phone: CALL A CAB  GO SOMEWHERE (home first,
     if(!nbOk){ toast("NO TOWN TO GO ABOUT IN"); return; }
     const char* it[NB_LOTS+2]; int lot[NB_LOTS+2], n=0; char lb[NB_LOTS+1][28];
     if(nbT.home<NB_LOTS&&nbT.home!=nbT.cur){ char*e=slCat(lb[n],"HOME  "); slCat(e,nbT.lot[nbT.home].name); it[n]=lb[n]; lot[n++]=nbT.home; }
-    for(int i=0;i<NB_LOTS;i++){ const NbLot*L=&nbT.lot[i]; if(!L->on||L->kind!=LKIND_COMM||i==nbT.cur) continue;
+    for(int i=0;i<NB_LOTS;i++){ const NbLot*L=&nbT.lot[i]; if(!L->on||L->kind!=LKIND_COMM||i==nbT.cur||lnLot(L)) continue;
         if(L->type==CT_PRISON&&!prIn()) continue;   // (nobody takes a cab to the prison)
         char*e=slCat(lb[n],L->name); if(L->type<CT_N&&!trvHas(L->name,ctNm[L->type])){ e=slCat(e,"  "); slCat(e,ctNm[L->type]); } it[n]=lb[n]; lot[n++]=i; }   // ("MAIN SQUARE  PLAZA", but not "SKATE PARK  SKATE PARK")
     it[n]="SOMEWHERE NEW"; lot[n++]=-3;   // a kind of place the town has none of yet: the cab finds land for one (a dispensary, TACO BORE, a gym ...)

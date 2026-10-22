@@ -5,6 +5,7 @@
 //                  next to a broken panel to fix it. Fix them all before the oxygen runs out. Training (the SPACEWALK TRAINING) has two panels.
 // Drawing: the launch redraws the screen every other frame (a cutscene). The spacewalk draws its backdrop once; after that only the little
 // boxes that change (you, the panels, the readout) are drawn again and copied: the backdrop can be worked out for any pixel (swBg).
+static int swDone;   // the panels the last spacewalk fixed (lunrado.h counts them)
 static u32 swHash(int x,int y){ return ((u32)x*73856093u^(u32)y*19349663u)*2654435761u; }
 static int swNoise(int x,int y){   // smooth-ish land and cloud blobs for the Earth: 3 octaves of value noise
     int v=0; for(int o=0;o<3;o++){ int s=16>>o, gx=x/s, gy=y/s, fx=x%s, fy=y%s;
@@ -71,6 +72,7 @@ XPF static int exSpacewalk(int real){
         if(hud){ swCopy(0,0,SW,10); hud=0; }
         ox=gx; oy=gy;
     }
+    swDone=done;
     rect(30,62,180,34,RGB(2,3,8)); rect(30,62,180,1,GOLD); rect(30,95,180,1,GOLD);
     const char*m1=res?"ALL FIXED":"MISSION CONTROL REELS YOU IN", *m2=res?"GROUND CONTROL IS CHEERING":"BETTER LUCK NEXT TIME";
     text((SW-tw(m1,2))/2,67,m1,res?RGB(10,30,12):RGB(31,10,8),2); text((SW-tw(m2,1))/2,84,m2,WHITE,1); present();
@@ -94,6 +96,7 @@ static void lnRocket(int cx,int y,int t,int fire,int sh){   // y = the bottom of
     for(int r=0;r<10;r++){ rect(cx-6-r/2,y-10+r,3+r/3,1,RGB(26,5,3)); rect(cx+6+r/2-(3+r/3),y-10+r,3+r/3,1,RGB(26,5,3)); }   // the fins
     if(fire){ int n=fire>2?28:fire*9; for(int r=0;r<n;r++){ int w=4-r/8+(int)((swHash(t,r)>>30)); if(w<1) w=1; u16 c=r<6?RGB(31,31,20):r<14?RGB(31,26,6):RGB(31,14,4); rect(cx-w,y+r,w*2,1,c); } }
 }
+static void lnrApproach(int orbitOk);   // lunrado.h
 XPF static void exLaunch(void){
     int tourist=!exSeatFree(), night=simIsNight(), padY=134;
     static s16 smX[24] EWRAM_BSS, smY[24] EWRAM_BSS; static u8 smR[24] EWRAM_BSS, smL[24] EWRAM_BSS; int smN=0;
@@ -125,12 +128,6 @@ XPF static void exLaunch(void){
     }
     stQEvent(QE_LAUNCH,1);
     int ok=exSpacewalk(1); if(ok) stQEvent(QE_SPACEWALK,2);
-    for(int i=0;i<240;i++) simMinute();   // (four hours went by up there)
-    lnSky(0,simIsNight(),0); rect(0,120,SW,40,RGB(4,10,24));
-    for(int r=0;r<6;r++) rect(100-r*2,100+r*3,40+r*4,3,RGB(28,10,6));   // the capsule's parachute, roughly
-    text((SW-tw("SPLASHDOWN",3))/2,20,"SPLASHDOWN",WHITE,3);
-    { const char*m=ok?"YOU WENT TO SPACE  AND FIXED IT":"YOU WENT TO SPACE  MOSTLY FLOATED"; text((SW-tw(m,1))/2,60,m,GOLD,1); }
-    text((SW-tw("NOBODY NOTICED YOU WERE GONE",1))/2,72,"NOBODY NOTICED YOU WERE GONE",RGB(20,26,31),1);
-    present(); moodEvent(M_PROMO); simsSave();
-    { u16 p0=keyNow(); for(int i=0;i<240;i++){ vsync(); u16 k=keyNow(); if((k&~p0)&(K_A|K_B|K_START)) break; p0=k; } }
+    lnrApproach(ok);   // lunrado.h: the damaged ship, the repairs, the landing on LUNRADO (or the explosion)
+    simsSave();
 }
