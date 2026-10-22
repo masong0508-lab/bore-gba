@@ -1065,6 +1065,7 @@ static void exTakeRun(int t){
     else if(t==EXT_SWTRAIN){ if(exSpacewalk(0)){ stQEvent(QE_SPACEWALK,1); toast("TRAINING PASSED  YOU ARE READY"); } else toast("MISSION CONTROL REELED YOU IN"); }
     else if(t==EXT_FIGHTER) exModeRun(XP_FIGHT);
     else if(t==EXT_GOTCHI) exModeRun(XP_GOTCHI);
+    else if(t==EXT_ARCADE) arcGameRun();
     hhExtraDone();   // (the ghosts' and the cops' sprites go back into OBJ VRAM: a mode may have used it)
 }
 static int exSeatFree(void){ const XMs*x=exMs(); if(!x) return 0; for(int i=0;i<exTkN(x);i++) if(x->t[i].k==QK_EV&&x->t[i].a==QE_LAUNCH&&!((exTk>>i)&1)) return 1; return 0; }   // the mission booked your seat on the rocket

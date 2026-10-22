@@ -104,9 +104,8 @@ static const VAct vAct[]={
     {"KATA",0, -4,-12,-8,0,0, M_WANT,SK_BODY,2,150,0,VS_NONE,"WAX ON  WAX OFF"},
     {"MEDITATE",0, 0,5,0,20,0, M_SOFA,NO,0,150,0,VS_NONE,"OMMMMMM"},
     {"CALL OUT A CHALLENGER",5, 0,0,0,0,0, 0,NO,0,30,0,VS_SPAR,0},
-    {"BORTUA FIGHTER",1, 0,-3,0,0,0, 0,NO,0,0,0,VS_FIGHTER,0},
     {"TEACH A CLASS",0, 0,-12,-6,0,6, 0,SK_BODY,1,200,0,VS_WORK,"BOW TO YOUR SENSEI"},
-    // SKATE SHOP (77)
+    // SKATE SHOP (76)
     {"A COMPLETE BOARD",120, 0,0,0,0,0, 0,NO,0,30,0,VS_BOARD,0},
     {"A PRO DECK",450, 0,0,0,0,0, 0,NO,0,30,0,VS_PRODECK,0},
     {"WATCH SKATE VIDEOS",0, 0,-2,0,5,0, M_COMBO,NO,0,120,0,VS_NONE,"THE NINETIES WERE A TIME"},
@@ -135,8 +134,8 @@ static const Venue venues[]={
     {CT_CINEMA,  5,13,RGB(6,4,8),RGB(30,28,20),  "vCCCCv",58,4,"R THE BOX OFFICE"},
     {CT_POOL,    0, 6,RGB(24,26,28),RGB(6,18,30),"HHNNpZ",62,4,"R THE LIFEGUARD"},
     {CT_SPACE,   5, 2,RGB(4,6,14),RGB(28,28,30), "QvVQpl",66,6,"R MISSION CONTROL"},
-    {CT_DOJO,    4, 4,RGB(20,5,4),RGB(30,26,18), "mmHHpl",72,5,"R THE SENSEI"},
-    {CT_SKSHOP,  3, 2,RGB(20,20,22),RGB(31,22,4),"bbVQpl",77,5,"R THE SHOP DUDE"},
+    {CT_DOJO,    4, 4,RGB(20,5,4),RGB(30,26,18), "mmHHpl",72,4,"R THE SENSEI"},
+    {CT_SKSHOP,  3, 2,RGB(20,20,22),RGB(31,22,4),"bbVQpl",76,5,"R THE SHOP DUDE"},
 };
 #define NVEN ((int)(sizeof(venues)/sizeof(venues[0])))
 static const Venue* venueOf(int ct){ for(int i=0;i<NVEN;i++) if(venues[i].ct==ct) return &venues[i]; return 0; }
@@ -275,6 +274,7 @@ static void arcadePrizes(void){
         lnote=p->say; lnoteT=110; voxPlay(V_yahoo); simsSave(); return;
     }
 }
+#include "arcgames.h"   // the arcade's MINI GAMES (arcadeGames, arcGameRun)
 static void venueDo(const VAct*a){
     int price=a->price; if(a->sp==VS_LAUNCH&&exSeatFree()) price=0;   // (BORE-OUT MAN!: the mission booked your seat)
     if(a->fl&VF_ADULT&&stage<AG_ADULT){ lnote="GROWN-UPS ONLY"; lnoteT=60; voxPlay(V_nah); return; }
@@ -321,9 +321,11 @@ static int venueUse(void){   // R next to a venue's counter. 1 = handled
     for(int i=0;i<v->an&&n<10;i++){ const VAct*a=&vAct[v->a0+i]; char*e=simCat(lb[n],a->nm);
         if(a->price>0){ e=simCat(e,"  \xC2\xA7"); simCatN(e,a->price); } else if(a->price<0){ e=simCat(e,"  +\xC2\xA7"); simCatN(e,-a->price); }
         it[n]=lb[n]; id[n++]=v->a0+i; }
+    if(v->ct==CT_ARCADE&&n<10){ it[n]="MINI GAMES"; id[n++]=-2; }
     if(v->ct==CT_ARCADE&&n<10){ char*e=simCat(lb[n],"PRIZE COUNTER  "); e=simCatN(e,vTix); simCat(e," TIX"); it[n]=lb[n]; id[n++]=-1; }
     int c=menu(tt,it,n); liveInvalidate(); camSnap=1; while((~REG_KEYINPUT)&0x3FF) vsync();
     if(c<0) return 1;
+    if(id[c]==-2){ arcadeGames(); return 1; }
     if(id[c]<0){ arcadePrizes(); return 1; }
     venueDo(&vAct[id[c]]);
     return 1;
