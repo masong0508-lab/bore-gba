@@ -66,7 +66,8 @@ static int nbBarred(void){   // 1 = the live room is a COMMUNITY lot and you got
 }
 static int nbFlagOk(void){ return nbOk&&nbEditPass&&nbT.cur<NB_LOTS&&nbT.lot[nbT.cur].on&&nbT.cur!=nbT.home&&!nbLives(nbT.cur); }   // flags can only be placed while the town view's BUILD has a free lot open (never in your home, never in normal play)
 static int nbFlagsOn(void){ return nbOk&&nbT.cur<NB_LOTS&&nbT.lot[nbT.cur].on&&nbT.lot[nbT.cur].kind==LKIND_COMM; }   // flags only do anything on a community lot
-static int nbAt(int cx,int cy){ for(int i=0;i<NB_LOTS;i++){ const NbLot*L=&nbT.lot[i]; if(L->on&&cx>=L->x&&cy>=L->y&&cx<L->x+L->w&&cy<L->y+L->h) return i; } return -1; }
+static int lnLot(const NbLot*L);   // lunrado.h: the moonbase is a hidden lot (not on the map, not under the cursor)
+static int nbAt(int cx,int cy){ for(int i=0;i<NB_LOTS;i++){ const NbLot*L=&nbT.lot[i]; if(L->on&&!lnLot(L)&&cx>=L->x&&cy>=L->y&&cx<L->x+L->w&&cy<L->y+L->h) return i; } return -1; }
 static int nbItemValue(char c){   // what a tile of c is worth in simoleons: the catalog price (main.c palPrice); anything that is not in the catalog counts a little
     if(c=='.'||c=='P') return 0;
     int i=palIdx(c); return i<0?50:(int)palPrice[i];
@@ -472,7 +473,7 @@ static void nbDrawTown(int ccx,int ccy,int camx,int camy,int tool,int ghostW,int
     int qx0=cX0, qy0=cY0, qx1=cX0+(int)cW, qy1=cY0+(int)cH;   // (the clip: a part redraw skips what is outside it)
     signed char (*lm)[NB_WMAX]=nbScr.lm;   // which lot each cell is on, worked out once a picture; in the shared scratch (nbScr), which nothing else uses while the town is drawn
     for(int y=0;y<NB_H;y++)for(int x=0;x<NB_W;x++) lm[y][x]=-1;
-    for(int i=NB_LOTS-1;i>=0;i--){ const NbLot*L=&nbT.lot[i]; if(!L->on) continue;   // (backwards: where lots overlap, the first one wins, as in nbAt)
+    for(int i=NB_LOTS-1;i>=0;i--){ const NbLot*L=&nbT.lot[i]; if(!L->on||lnLot(L)) continue;   // (backwards: where lots overlap, the first one wins, as in nbAt)
         if(!nbBoxSeen(L->x,L->y,L->w,L->h,(40+6*L->floors)*nbK,qx0,qy0,qx1,qy1)) continue;   // (a lot wholly off the picture: none of its cells is ever looked at, and zoomed in there are many of them)
         for(int y=L->y;y<L->y+L->h&&y<NB_H;y++)for(int x=L->x;x<L->x+L->w&&x<NB_W;x++) if(x>=0&&y>=0) lm[y][x]=(signed char)i; }
     int sA=0, sB=NB_W+NB_H-2, sC=sB;   // the diagonal rows (cx+cy) to visit: all, or (a part redraw) only those that can reach the clip
@@ -494,7 +495,7 @@ static void nbDrawTown(int ccx,int ccy,int camx,int camy,int tool,int ghostW,int
         if(li<0&&NB_GR(c)==NT_WATER&&nbT.season!=3&&((cx*5+cy*3)&3)==0) rect(sx-1,sy+nbHh,3,1,nbTint(RGB(14,22,30)));
       }
     }
-    for(int i=0;i<NB_LOTS;i++) if(nbT.lot[i].on){ const NbLot*L=&nbT.lot[i];
+    for(int i=0;i<NB_LOTS;i++) if(nbT.lot[i].on&&!lnLot(&nbT.lot[i])){ const NbLot*L=&nbT.lot[i];
         if(!nbBoxSeen(L->x,L->y,L->w,L->h,0,qx0,qy0,qx1,qy1)) continue;   // (line() walks a whole outline even where it is clipped away: zoomed in, 48 lots of them were most of a redraw)
         nbOutline(L->x,L->y,L->w,L->h,nbTint(i==nbT.home?GOLD:RGB(25,25,24))); }
     int oA=nbCD(-8-nbOy,nbHh), oB=nbFD(yB2-nbOy,nbHh), oDl=nbCD(-24-nbOx,nbHw), oDh=nbFD(SW+24-nbOx,nbHw);
@@ -825,7 +826,7 @@ static void neighborhoodScreen(void){
 }
 // ---------- CHOOSE A NEIGHBORHOOD (the screen before the town: one thumbnail per town, made new from a style) ----------
 static u16 nbThumbCol(const Town*t,int cx,int cy){
-    for(int i=0;i<NB_LOTS;i++){ const NbLot*L=&t->lot[i]; if(!L->on||cx<L->x||cy<L->y||cx>=L->x+L->w||cy>=L->y+L->h) continue;
+    for(int i=0;i<NB_LOTS;i++){ const NbLot*L=&t->lot[i]; if(!L->on||lnLot(L)||cx<L->x||cy<L->y||cx>=L->x+L->w||cy>=L->y+L->h) continue;
         int mx=cx-L->x, my=cy-L->y, mid=mx>=L->w/2-1&&mx<=L->w/2&&my>=L->h/2-1&&my<=L->h/2;
         if(L->kind==LKIND_COMM) return mid?RGB(12,12,14):RGB(19,19,18);
         if(mid&&(L->slot>=0||(t->NB_ACT&&t->cur==i))) return RGB(22,6,5);   // a house: its roof

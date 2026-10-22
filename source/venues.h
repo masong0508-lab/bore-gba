@@ -241,8 +241,45 @@ static void venueDrawCounter(int sx,int sy,int t){
         case CT_DOJO: rect(ix-2,iy+2,9,2,RGB(3,3,4)); rect(ix+1,iy+1,3,4,RGB(3,3,4)); px(ix+1,iy+5,RGB(3,3,4)); px(ix+3,iy+5,RGB(3,3,4)); break;                              // a black belt
         default: break; }
 }
+// ---- the spacecraft: drawn by code, in the live room and on the town map ----
+static int lnrHere(void);   // lunrado.h
+static void vnRocket(int bx,int by,int t){   // the rocket on its pad, bx = its middle, by = where it stands (the live room: standing behind the counter, 52 px tall)
+    for(int r=0;r<14;r++){ int w=1+r*5/13; rect(bx-w,by-50+r,w*2,1,RGB(30,6,4)); }   // the nose cone
+    rect(bx-6,by-36,12,36,RGB(29,29,30)); rect(bx-6,by-36,2,36,RGB(21,21,23)); rect(bx+3,by-36,2,36,RGB(31,31,31));   // the body, shaded left, lit right
+    rect(bx-6,by-20,12,3,RGB(30,6,4)); rect(bx-6,by-36,12,1,RGB(18,18,20));            // a stripe, the seam under the nose
+    rect(bx-2,by-32,4,4,RGB(4,10,22)); px(bx-1,by-31,RGB(14,24,31)); rect(bx-2,by-26,4,4,RGB(4,10,22)); px(bx-1,by-25,RGB(14,24,31));   // two portholes
+    for(int r=0;r<12;r++){ rect(bx-6-r/2-1,by-12+r,2+r/3,1,RGB(26,5,3)); rect(bx+5+r/2-r/3,by-12+r,2+r/3,1,RGB(26,5,3)); }   // the fins
+    rect(bx-3,by-2,6,2,RGB(8,8,10));   // the nozzle
+    rect(bx+9,by-46,2,46,RGB(12,12,14)); for(int y=by-44;y<by;y+=6) rect(bx+9,y,2,1,RGB(20,20,22)); rect(bx+6,by-34,4,2,RGB(16,16,18));   // the gantry, its arm to the hatch
+    if((t>>2)&1) px(bx,by-52,RGB(31,6,4)); if((t>>3)&1) px(bx+10,by-47,RGB(31,28,6));   // the beacons
+}
+static void vnLander(int bx,int by,int t){   // LUNRADO: a lunar lander on its legs and a flag on the regolith (26 px tall)
+    line(bx-8,by-8,bx-15,by,RGB(20,20,22)); line(bx+8,by-8,bx+15,by,RGB(20,20,22)); line(bx-4,by-6,bx-5,by,RGB(18,18,20)); line(bx+4,by-6,bx+5,by,RGB(18,18,20));   // the legs
+    rect(bx-17,by,6,1,RGB(26,26,27)); rect(bx+11,by,6,1,RGB(26,26,27));                // the foot pads
+    rect(bx-9,by-18,18,11,RGB(27,20,6)); rect(bx-9,by-18,18,1,RGB(31,26,10)); rect(bx-9,by-8,18,1,RGB(18,13,3));   // the foil-wrapped descent stage
+    rect(bx-7,by-26,14,8,RGB(23,23,24)); rect(bx-7,by-26,2,8,RGB(16,16,18)); rect(bx-3,by-24,6,3,RGB(4,10,22)); px(bx-2,by-23,RGB(14,24,31));   // the crew cabin and its window
+    line(bx+3,by-26,bx+8,by-34,RGB(24,24,25)); rect(bx+6,by-36,5,2,RGB(28,28,29));       // the antenna and its dish
+    rect(bx-19,by-22,1,22,RGB(24,24,25)); rect(bx-18,by-22,6,4,RGB(30,6,4)); rect(bx-18,by-18,6,2,WHITE);   // a flag on a pole
+    if((t>>2)&1) px(bx,by-27,RGB(31,6,4));
+}
+static void venueDrawShip(int sx,int sy,int ox,int oy,int t){   // the middle tile of the SPACEPORT's counter: its spacecraft stands behind it (before the counter is drawn, so the counter hides its foot)
+    const Venue*v=venueHere(); if(!v||v->ct!=CT_SPACE) return;
+    int mid=(ox>=2&&ox+2<MW&&lifeMap[oy][ox-2]=='@'&&lifeMap[oy][ox+2]=='@')||(oy>=2&&oy+2<MH&&lifeMap[oy-2][ox]=='@'&&lifeMap[oy+2][ox]=='@'); if(!mid) return;
+    if(lnrHere()) vnLander(sx,sy-6,t); else vnRocket(sx,sy-6,t);
+}
+static void vnShipIcon(int sx,int sy,int k,int hw2){   // the town map: a launch pad, the gantry and the rocket standing on it
+    nbIsoBox(sx,sy,hw2,k,hw2/2,nbTint(RGB(16,16,18)),nbTint(RGB(21,21,23)),nbTint(RGB(10,10,12)),nbTint(RGB(13,13,15)));   // the pad
+    int by=sy-k, w=k+k/2+1;   // the rocket: base, half width
+    rect(sx-w,by-12*k,w*2,10*k,nbTint(RGB(29,29,30))); rect(sx-w,by-12*k,k,10*k,nbTint(RGB(21,21,23)));   // body, shaded left
+    for(int r=0;r<4*k;r++){ int ww=(r*w)/(4*k)+(r>0); rect(sx-ww,by-16*k+r,ww*2+1,1,nbTint(RGB(30,6,4))); }   // the nose
+    rect(sx-w,by-7*k,w*2,k,nbTint(RGB(30,6,4))); rect(sx-k/2,by-10*k,k+1,k,nbTint(RGB(4,10,22)));        // a stripe, a porthole
+    rect(sx-w-k,by-5*k,k,3*k,nbTint(RGB(26,5,3))); rect(sx+w,by-5*k,k,3*k,nbTint(RGB(26,5,3)));           // the fins
+    int gx=sx+w+2*k; rect(gx,by-14*k,k,14*k,nbTint(RGB(12,12,14))); rect(gx-k,by-9*k,k,k,nbTint(RGB(16,16,18)));   // the gantry and its arm
+    if((uiTicks>>4)&1) px(sx,by-17*k,nbTint(RGB(31,6,4)));
+}
 static void venueDrawIcon(int ct,int sx,int sy,int k,int hw2){   // the town map: a box in the venue's colours, a sign in the other
     const Venue*v=venueOf(ct); if(!v) return;
+    if(ct==CT_SPACE){ vnShipIcon(sx,sy,k,hw2); return; }   // (the spaceport: its rocket on the pad)
     nbIsoBox(sx,sy,hw2,3*k,hw2/2,nbTint(v->a),nbTint(nbLit(v->a,4)),nbTint(v->b),nbTint(nbLit(v->b,-4)));
     rect(sx-hw2/3,sy-4*k,2*hw2/3+1,k,nbTint(v->b));
 }

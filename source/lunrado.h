@@ -4,7 +4,7 @@
 //   THE LANDING    smooth, HARD (hurts: health, energy, comfort) or the ship EXPLODES. boom % = 4 + 9 a part left broken - 2 a LOGIC level (3 to 70),
 //                  hard % = 50 - 7 a part fixed - 3 a LOGIC level. An explosion sends you home, SHUTS THE SPACEPORT (Town.pad[2] bit 0, saved with the town)
 //                  and the spaceport counter offers FUND THE SPACEPORT (300000) to open it again.
-//   THE PLACE      the moonbase is a lot of the town (a SPACEPORT-kind lot named LUNRADO, made on the first landing; the cab never goes there). Its counter:
+//   THE PLACE      the moonbase is a HIDDEN lot of the town (a SPACEPORT-kind lot named LUNRADO, made on the first landing: not on the map, not under the cursor, never in the cab list; only the rocket goes there). Its room has a lunar lander behind the counter; the spaceport's has the rocket (venues.h venueDrawShip). Its counter:
 //                  LUNAR RATIONS, LOW GRAVITY BOUNCE, MOONBASE SHIFT and RETURN TO EARTH (a safe flight home to the spaceport).
 #define LN_CT 250        // trvFind's pseudo kind for the moonbase lot
 #define LN_FUND 300000
@@ -16,12 +16,7 @@ static int lnrLotGet(void){   // the moonbase lot, made once there is a landing
     if(!nbOk) return -1;
     for(int i=0;i<NB_LOTS;i++) if(lnLot(&nbT.lot[i])) return i;
     int fi=-1; for(int i=0;i<NB_LOTS&&fi<0;i++) if(!nbT.lot[i].on) fi=i;
-    if(fi>=0) for(int sz=4;sz>=3;sz--) for(int y=0;y+sz<=NB_H;y++) for(int x=0;x+sz<=NB_W;x++){
-        int ok=1; for(int yy=y;yy<y+sz&&ok;yy++) for(int xx=x;xx<x+sz;xx++) if(nbAt(xx,yy)>=0||NB_GR(nbT.cell[yy][xx])==NT_WATER){ ok=0; break; }
-        if(!ok) continue;
-        nbLotAdd(fi,"LUNRADO",x,y,sz,sz,LKIND_COMM,CT_SPACE);
-        for(int yy=y;yy<y+sz;yy++) for(int xx=x;xx<x+sz;xx++) nbT.cell[yy][xx]=(u8)NT_PLAZA;
-        nbSave(); return fi; }
+    if(fi>=0){ nbLotAdd(fi,"LUNRADO",0,0,4,4,LKIND_COMM,CT_SPACE); nbSave(); return fi; }   // a HIDDEN lot: it takes no land and shows nowhere on the map (lnLot: nbAt, the map and the thumbnails skip it); only the rocket goes there
     for(int i=0;i<NB_LOTS;i++){ NbLot*L=&nbT.lot[i];   // no free land: a lot nobody built on and nobody lives on
         if(L->on&&L->kind==LKIND_RES&&i!=nbT.home&&i!=nbT.cur&&L->slot<0&&!nbLives(i)){
             L->kind=LKIND_COMM; L->type=CT_SPACE; const char*nm="LUNRADO"; int k=0; for(;nm[k]&&k<NB_NAME;k++) L->name[k]=nm[k]; L->name[k]=0; nbSave(); return i; } }
