@@ -108,8 +108,9 @@ static int fgMove(void){
     { static const u8 sp[3]={2,0,2}; if(fgSeq(sp,3)) return FS_SP; }
     return FS_NONE;
 }
+static int djCost(int cost);   // dojo.h: a higher belt, cheaper specials
 static int fgSpecial(int sp,u16 k){
-    int cost=sp==FS_FB?FG_SPCOST_FB:sp==FS_DP?FG_SPCOST_DP:FG_SPCOST_SP;
+    int cost=djCost(sp==FS_FB?FG_SPCOST_FB:sp==FS_DP?FG_SPCOST_DP:FG_SPCOST_SP);
     if(!lspecOn&&lspec<cost){ if(lnoteT<=0){ lnote="NEED MORE SPECIAL"; lnoteT=40; } return 0; }
     if(!lspecOn) lspec-=cost;
     for(int i=0;i<6;i++){ fgHm[i]=0; } fgHl=0;

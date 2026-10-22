@@ -5876,6 +5876,7 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "hardcourt.h"       // COURT: wardens beat you and drag you before the judge (plea, verdict, days and rep)
 #include "inmates.h"        // INMATES: the prison population, voxel Sims in prison clothes (needs prison.h)
 #include "weapons.h"       // WEAPONS: the weapon button, melee, the arsenal (shots: wpshot.h; shop: armsshop.h; stashes: wpsecret.h)
+#include "dojo.h"          // THE DOJO CLASS: classes, the heavy bag, belts
 #include "fight.h"         // FIGHT: guard, jab / cross / hook / kick, counter blows (module 1)
 #include "self.h"          // YOUR ACTIONS: the self pie menu (BODY / MIND / FUN / CARE)
 #include "wpshot.h"        // WEAPONS 2: bullets and guided missiles

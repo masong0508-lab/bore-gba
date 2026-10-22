@@ -8,7 +8,7 @@
 #define VF_ADULT 1   // grown-ups only
 #define VF_NIGHT 2   // only after 6 PM
 enum { VS_NONE, VS_MUNCH, VS_ADOPT, VS_MOVIE, VS_GAMBLE, VS_HEAL, VS_HAIR, VS_WORK, VS_ROB, VS_GROCER, VS_PETFOOD, VS_PETTOY, VS_PETGROOM,
-       VS_LAUNCH, VS_SPACEWALK, VS_SPAR, VS_FIGHTER, VS_BOARD, VS_PRODECK };   // (board.h: a skateboard, a pro deck)   // (the packs, expand.h: a seat on the rocket, spacewalk training, a challenger, the BORTUA FIGHTER cabinet)
+       VS_LAUNCH, VS_SPACEWALK, VS_SPAR, VS_FIGHTER, VS_BOARD, VS_PRODECK, VS_CLASS, VS_BAG, VS_BELT };   // (board.h: a skateboard, a pro deck)   // (the packs, expand.h: a seat on the rocket, spacewalk training, a challenger, the BORTUA FIGHTER cabinet)
 typedef struct { const char*nm; short price; signed char food, nrg, hyg, com, soc; u8 mood, sk, skn, stun, fl, sp; const char*say; } VAct;   // (VS_GAMBLE: sk = payout x, skn = win %)
 #define NO 255
 static const VAct vAct[]={
@@ -105,6 +105,9 @@ static const VAct vAct[]={
     {"MEDITATE",0, 0,5,0,20,0, M_SOFA,NO,0,150,0,VS_NONE,"OMMMMMM"},
     {"CALL OUT A CHALLENGER",5, 0,0,0,0,0, 0,NO,0,30,0,VS_SPAR,0},
     {"TEACH A CLASS",0, 0,-12,-6,0,6, 0,SK_BODY,1,200,0,VS_WORK,"BOW TO YOUR SENSEI"},
+    {"ATTEND CLASS",10, 0,0,0,0,0, 0,NO,0,0,0,VS_CLASS,0},
+    {"DRILL THE BAG",0, 0,0,0,0,0, 0,NO,0,0,0,VS_BAG,0},
+    {"BELT AND SCHEDULE",0, 0,0,0,0,0, 0,NO,0,0,0,VS_BELT,0},
     // SKATE SHOP (76)
     {"A COMPLETE BOARD",120, 0,0,0,0,0, 0,NO,0,30,0,VS_BOARD,0},
     {"A PRO DECK",450, 0,0,0,0,0, 0,NO,0,30,0,VS_PRODECK,0},
@@ -134,8 +137,8 @@ static const Venue venues[]={
     {CT_CINEMA,  5,13,RGB(6,4,8),RGB(30,28,20),  "vCCCCv",58,4,"R THE BOX OFFICE"},
     {CT_POOL,    0, 6,RGB(24,26,28),RGB(6,18,30),"HHNNpZ",62,4,"R THE LIFEGUARD"},
     {CT_SPACE,   5, 2,RGB(4,6,14),RGB(28,28,30), "QvVQpl",66,6,"R MISSION CONTROL"},
-    {CT_DOJO,    4, 4,RGB(20,5,4),RGB(30,26,18), "mmHHpl",72,4,"R THE SENSEI"},
-    {CT_SKSHOP,  3, 2,RGB(20,20,22),RGB(31,22,4),"bbVQpl",76,5,"R THE SHOP DUDE"},
+    {CT_DOJO,    4, 4,RGB(20,5,4),RGB(30,26,18), "mmHHpl",72,7,"R THE SENSEI"},
+    {CT_SKSHOP,  3, 2,RGB(20,20,22),RGB(31,22,4),"bbVQpl",79,5,"R THE SHOP DUDE"},
 };
 #define NVEN ((int)(sizeof(venues)/sizeof(venues[0])))
 static const Venue* venueOf(int ct){ for(int i=0;i<NVEN;i++) if(venues[i].ct==ct) return &venues[i]; return 0; }
@@ -242,6 +245,7 @@ static int vNear(void){ int tx=(int)(lfx>>8), ty=(int)(lfy>>8); for(int dy=-1;dy
 static const char* venueHint(void){ const Venue*v=venueHere(); return v&&vNear()?v->hint:0; }
 static void vAdd(int*v,int d){ *v+=d; if(*v>100) *v=100; if(*v<0) *v=0; }
 static u32 vWorkAt EWRAM_BSS;   // a shift: one every two game hours
+static int djCanDo(int sp); static void djDo(int sp);   // dojo.h
 static int exSeatFree(void); static void exSparCall(void);   // expand.h
 // ARCADE TICKETS: the cabinets, the ticket game and the dance machine pay out tickets; the PRIZE COUNTER spends them. (Saved: the TK_OFF block below, and the player save's chunk 'I'.)
 static u16 vTix EWRAM_BSS;
@@ -286,6 +290,7 @@ static void venueDo(const VAct*a){
     int price=a->price; if(a->sp==VS_LAUNCH&&exSeatFree()) price=0;   // (BORE-OUT MAN!: the mission booked your seat)
     if(a->fl&VF_ADULT&&stage<AG_ADULT){ lnote="GROWN-UPS ONLY"; lnoteT=60; voxPlay(V_nah); return; }
     if(a->fl&VF_NIGHT&&simMin<18*60&&simMin>=4*60){ lnote="COME BACK AFTER 6 PM"; lnoteT=70; return; }
+    if(!djCanDo(a->sp)) return;
     if(price>0&&simMoney<price){ lnote="NOT ENOUGH SIMOLEONS"; lnoteT=60; voxPlay(V_nah); return; }
     if((a->sp==VS_LAUNCH||a->sp==VS_SPACEWALK||a->sp==VS_SPAR)&&stage<AG_TEEN){ lnote="KIDS WAIT OUTSIDE"; lnoteT=60; voxPlay(V_nah); return; }
     if(a->sp==VS_WORK){ u32 now=(u32)simDay*1440u+(u32)simMin; if(vWorkAt&&now<vWorkAt){ lnote="YOUR SHIFT IS NOT UP YET"; lnoteT=60; return; } if(sNrg<20){ lnote="TOO TIRED TO WORK"; lnoteT=60; return; } vWorkAt=now+120; }
@@ -313,6 +318,7 @@ static void venueDo(const VAct*a){
         case VS_LAUNCH: exTake=EXT_LAUNCH; lnote=price?"STRAP IN":"YOUR SEAT IS BOOKED  STRAP IN"; break;
         case VS_SPACEWALK: exTake=EXT_SWTRAIN; lnote="SUIT UP"; break;
         case VS_SPAR: exSparCall(); break;
+        case VS_CLASS: case VS_BAG: case VS_BELT: djDo(a->sp); break;
         case VS_FIGHTER: exTake=EXT_FIGHTER; lnote="INSERT COIN"; break;
         case VS_BOARD: if(bdOwn){ simMoney+=price; lnote="YOU ALREADY HAVE A BOARD"; break; } bdGot(1,"A BRAND NEW BOARD  RIDE IT OUTSIDE"); break;
         case VS_PRODECK: if(bdOwn>=2){ simMoney+=price; lnote="YOU ALREADY RIDE A PRO DECK"; break; } bdGot(2,"A PRO DECK  FASTER  MORE POP"); break;
