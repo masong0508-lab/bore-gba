@@ -17,6 +17,7 @@
 #define HZ_OFF 7524
 #define HZ_LEN 21
 _Static_assert(HZ_OFF>=GO_OFF+GO_LEN&&HZ_OFF+HZ_LEN<=BD_OFF,"the HORDE record block must sit in the free end of the handheld's block");
+_Static_assert(TK_OFF>=HZ_OFF+HZ_LEN&&TK_OFF+TK_LEN<=BD_OFF,"the ticket block must sit after the HORDE record and before the board block");
 enum { HZO_DENS, HZO_SPEED, HZO_TOUGH, HZO_BITE, HZO_LIVES, HZO_CURE, HZO_TIME, HZO_SPECIAL, HZO_BOSS, HZO_DROP, HZO_NEEDS, HZO_KIND, HZO_RAMP, HZO_START, HZO_N };
 static const char* const hzoNm[HZO_N]={"HORDE SIZE","ENEMY PACE","ENEMY TOUGHNESS","BITE STRENGTH","LIVES","HOW A FIGHT IS WON","TIME OF DAY","SPECIAL METER","BOSS WAVES","SUPPLY DROPS","NEEDS","WHO COMES","WAVES GROW","START AT WAVE"};
 static const char* const hzoCh[HZO_N][4]={

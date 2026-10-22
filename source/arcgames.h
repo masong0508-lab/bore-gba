@@ -177,7 +177,7 @@ static void arcGameRun(void){   // expand.h exTakeRun: the screen is ours (bitma
     switch(g){ case 0: tix=acBreaker(); break; case 1: tix=acCatch(); break; case 2: tix=acWhack(); break; default: tix=acStriker(); break; }
     if(tix<0) tix=0;
     acResult(g,acPts,tix);
-    vTix=(u16)(vTix+tix>9999?9999:vTix+tix);
+    vTix=(u16)(vTix+tix>9999?9999:vTix+tix); tkSave(); sgDirty=1;
     vAdd(&sNrg,-5); skGain(g==2?SK_BODY:SK_LOGIC,1);
     if(tix>=8){ moodEvent(M_WANT); voxPlay(V_yahoo); } else { moodEvent(M_COMBO); if(tix==0) voxPlay(V_nah); }
     { char*e=simCat(vMsg,acG[g].nm); e=simCat(e,"  +"); e=simCatN(e,tix); simCat(e," TIX"); lnote=vMsg; lnoteT=110; }

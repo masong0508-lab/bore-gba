@@ -23,6 +23,7 @@
 #define SLC_ARCADE 'A'   // bortua.h: the ARCADE MODE record (the BF_OFF block, byte for byte)
 #define SLC_GOTCHI 'H'   // gotchi.h: the handheld (the GO_OFF block, byte for byte)
 #define SLC_EXP    'X'   // expand.h: the pack mission you are on (the EX_OFF block, byte for byte)
+#define SLC_TIX    'I'   // venues.h: the arcade tickets (the TK_OFF block, byte for byte)
 #define SLC_GHOST  'G'   // fx.h: the ghosts of this life (12 bytes, the same block as in the life in SRAM)
 static void fxGhostSave(volatile unsigned char*m); static void fxGhostLoad(volatile unsigned char*m); static void fxGhostClear(void);
 static void sgEncGhost(SlW*w){ unsigned char t[12]; fxGhostSave(t); for(int i=0;i<12;i++) slwPut(w,t[i]); }
@@ -64,6 +65,7 @@ static int sgBuild(SlW*w){
     slChunk(w,SLC_BOARD,sgEncBoard);
     slChunk(w,SLC_GOTCHI,sgEncGotchi);
     slChunk(w,SLC_ARCADE,sgEncArcade);
+    slChunk(w,SLC_TIX,sgEncTix);
     slChunk(w,SLC_STATS,sgEncStats);
     slChunk(w,SLC_MEMS,sgEncMems);
     slwPut(w,0); return w->pos;
@@ -132,6 +134,7 @@ static int sgParse(volatile u8*body,int len,int apply){   // apply 0: check ever
         else if(tag==SLC_GOTCHI){ if(cl!=GO_LEN) return SLE_FMT; if(apply){ goClear(); if(goUnpack(c.p)) goStage=(go.fl&GF_ON)?go.stage:0; goSave(); } }
         else if(tag==SLC_BOARD){ if(cl!=4) return SLE_FMT; if(apply&&bdLoadFrom(c.p)) bdSave(); }
         else if(tag==SLC_EXP){ if(cl!=EX_LEN) return SLE_FMT; if(apply){ exClear(); if(!exLoadFrom(c.p)) exClear(); exSave(); } }
+        else if(tag==SLC_TIX){ if(cl!=TK_LEN) return SLE_FMT; if(apply&&tkLoadFrom(c.p)) tkSave(); }
         // anything else: a later version's chunk, skipped on purpose
     }
     return (gotP&&gotC)?SLE_OK:SLE_FMT;
@@ -156,7 +159,7 @@ static int sgLoadPlayer(int slot){   // 0 = the player is in play now, else a SL
     volatile u8*b=SLB(slot)+SLOT_HDR;
     if(slSumOf(b,I.len)!=I.sum) return SLE_BAD;
     int e=sgParse(b,I.len,0); if(e) return e;
-    skReset(); lsReset(); memReset(); wdClear(); wdSave(); exHClearAll(); exClear(); exSave(); bdOwn=1; bdSave(); goClear(); goSave(); bfWins=0; bfChamp=0; bfSave(); sgParse(b,I.len,1);   // (a file from before the skills has no 'K' chunk: they start at zero)
+    skReset(); lsReset(); memReset(); wdClear(); wdSave(); exHClearAll(); exClear(); exSave(); bdOwn=1; bdSave(); goClear(); goSave(); bfWins=0; bfChamp=0; bfSave(); vTix=0; tkSave(); sgParse(b,I.len,1);   // (a file from before the skills has no 'K' chunk: they start at zero)
     svCommit(); hhLoad(); stLoad(); ageLoad(); if(stId==STY_TVSHOW&&stCh==0&&stKidDay==255) stShown=0;   /* cutfix: the opening was not saved: it plays again */
     twKeep=0; sprKey=0; for(int m=0;m<HH_MAX;m++) hhKey[m]=0; hhSlotsFree(); moodReset(); lscore=0; simLastScore=0;
     sgPid=I.pid; sgDirty=0;

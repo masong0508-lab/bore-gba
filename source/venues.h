@@ -243,8 +243,15 @@ static const char* venueHint(void){ const Venue*v=venueHere(); return v&&vNear()
 static void vAdd(int*v,int d){ *v+=d; if(*v>100) *v=100; if(*v<0) *v=0; }
 static u32 vWorkAt EWRAM_BSS;   // a shift: one every two game hours
 static int exSeatFree(void); static void exSparCall(void);   // expand.h
-// ARCADE TICKETS: the cabinets, the ticket game and the dance machine pay out tickets; the PRIZE COUNTER spends them. (Kept for the session: they are not in the save.)
+// ARCADE TICKETS: the cabinets, the ticket game and the dance machine pay out tickets; the PRIZE COUNTER spends them. (Saved: the TK_OFF block below, and the player save's chunk 'I'.)
 static u16 vTix EWRAM_BSS;
+#define TK_OFF 7545   // SRAM: 'T' 'K', tickets (2 bytes), checksum. The free end of the handheld's block (after the HORDE record, before the board: horde.h checks it)
+#define TK_LEN 5
+static u8 tkSum(volatile const u8*m){ return (u8)(0x54+m[2]*3+m[3]*7); }
+static void tkSave(void){ volatile u8*m=SRAM_BASE+TK_OFF; m[0]='T'; m[1]='K'; m[2]=(u8)vTix; m[3]=(u8)(vTix>>8); m[4]=tkSum(m); }
+static int tkLoadFrom(volatile const u8*m){ if(m[0]!='T'||m[1]!='K'||m[4]!=tkSum(m)) return 0; int v=m[2]|(m[3]<<8); if(v>9999) return 0; vTix=(u16)v; return 1; }
+static void tkLoad(void){ vTix=0; tkLoadFrom(SRAM_BASE+TK_OFF); }   // (no block yet: no tickets)
+static void sgEncTix(SlW*w){ tkSave(); volatile u8*m=SRAM_BASE+TK_OFF; for(int i=0;i<TK_LEN;i++) slwPut(w,m[i]); }   // the player save's chunk 'I' (savegame.h)
 typedef struct { const char*nm; u16 cost; signed char food, nrg, com, soc; u8 mood; const char*say; } VPrize;
 static const VPrize vPrz[]={
     {"CANDY",             10, 15,0,0,0, M_EAT,  "SUGAR RUSH"},
@@ -255,7 +262,7 @@ static const VPrize vPrz[]={
 };
 #define NPRZ ((int)(sizeof(vPrz)/sizeof(vPrz[0])))
 static void vTixEarn(int i){   // i: the action's row in vAct (cabinet 12, ticket game 13, dance machine 14)
-    int t=i==13?(lnote==vMsg?18:4):3+(int)(rnd8()%5); vTix=(u16)(vTix+t>9999?9999:vTix+t);
+    int t=i==13?(lnote==vMsg?18:4):3+(int)(rnd8()%5); vTix=(u16)(vTix+t>9999?9999:vTix+t); tkSave(); sgDirty=1;
     char*e; if(lnote==vMsg){ e=vMsg; while(*e) e++; } else e=simCat(vMsg,lnote?lnote:"");
     e=simCat(e,"  +"); e=simCatN(e,t); simCat(e," TIX"); lnote=vMsg; lnoteT=110;
 }
@@ -268,7 +275,7 @@ static void arcadePrizes(void){
         if(c<0) return;
         const VPrize*p=&vPrz[c];
         if(vTix<p->cost){ lnote="NOT ENOUGH TICKETS"; lnoteT=60; voxPlay(V_nah); continue; }
-        vTix=(u16)(vTix-p->cost);
+        vTix=(u16)(vTix-p->cost); tkSave(); sgDirty=1;
         vAdd(&lfood,p->food); vAdd(&sNrg,p->nrg); vAdd(&sCom,p->com); vAdd(&sSoc,p->soc); if(p->mood) moodEvent(p->mood);
         if(c==NPRZ-1) simMoneyAdd(500);   // the golden ticket
         lnote=p->say; lnoteT=110; voxPlay(V_yahoo); simsSave(); return;

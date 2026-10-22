@@ -5978,7 +5978,7 @@ static void howToPlay(void){
 static const char* const ngIt[4]={"CREATE A BORE","A PRE-MADE FAMILY","A TRULY RANDOM SIM","STORY MODE"};
 static void nbMoveInTown(void){ if(!nbOk){ lifeMode(0); return; } nbMoveMode=1; neighborhoodScreen(); nbMoveMode=0; }   // MOVE IN: the town map, buy a home, play there (neighborhood.h)
 static int newGame(int slot){   // 1 = it started (and ended: back to the main menu)
-    wdClear(); wdSave(); exQuit(); bdOwn=0; bdSave(); goClear(); goSave();   // (a new life starts with an empty stash, no mission, no board (buy one or find one) and no handheld
+    wdClear(); wdSave(); exQuit(); bdOwn=0; bdSave(); goClear(); goSave(); vTix=0; tkSave();   // (a new life starts with an empty stash, no mission, no board (buy one or find one) and no handheld
     int c=0; if(!ngHaveBore){ c=menu("HOW DO YOU START?",ngIt,4); if(c<0) return 0; }   // (CREATE A BORE already made the Bore: on to the town map)
     int story=0; if(c==3){ story=storyPick(); if(!story) return 0; }
     int f=0, me=0; if(c==1){ me=famPick(&f,0); if(me<0) return 0; }   // the family bin: the family and who of them you play, on one screen
@@ -6167,6 +6167,7 @@ int boreMain(void){
     bdLoad();                // ...and whether it owns a board (board.h)
     goLoad();                // ...and its BOREAGOTCHI (gotchi.h)
     bfLoad();                // ...and its arcade record (bortua.h)
+    tkLoad();                // ...and its arcade tickets (venues.h)
     hzLoad();                // ...and the HORDE record and options (horde.h)
     hhLoad();                // ...and the household, which holds your first and last name
     mainMenu();
