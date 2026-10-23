@@ -658,25 +658,22 @@ static int slActions(int s){
 }
 static const char* const slotHelp[]={
     ">Keep What You Make",
-    "Slots are your storage. They hold the rooms",
-    "and houses you build, the creatures you make",
-    "and the households you gather, so you can come",
-    "back to any of them.",
+    "Slots store the rooms and houses you build, the",
+    "creatures you make and the households you gather.",
     ">Rooms and Houses",
-    "A room slot keeps a single floor, and a house slot",
-    "keeps all three. Loading a room makes it the one",
-    "you are playing in.",
+    "A room slot keeps one floor and a house slot keeps",
+    "all three. Loading one makes it the place you play.",
     ">People and Households",
-    "A person slot keeps your creature with its",
-    "life, cash and clock. A household slot keeps the",
-    "Sims who live with you, along with their",
-    "friendships and family ties.",
+    "A person slot keeps a Bore with its life, cash and",
+    "clock. A household slot keeps the Sims who live",
+    "with you, with their friendships and family ties.",
     ">Saving Your Life",
-    "Save Game keeps your life safe. Each player has a",
-    "save file of their own, while the town is shared.",
+    "SAVE in the pause menu keeps your life. Each",
+    "player has a save file; the town is shared.",
     ">How Much Fits",
-    "A cartridge with flash memory holds 58 slots.",
-    "Without it, there are 12."};
+    "A cart with flash holds 58 slots. Without it, 12.",
+    "DATA > SAVE MEMORY TEST checks your cart keeps",
+    "saves."};
 static int slotScreen(void){   // returns 1 if something was loaded
     int sel=0, dirty=1, changed=0; u16 prev=keyNow();
     slScan();
