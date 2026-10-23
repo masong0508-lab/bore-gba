@@ -8,7 +8,7 @@
 #define VF_ADULT 1   // grown-ups only
 #define VF_NIGHT 2   // only after 6 PM
 enum { VS_NONE, VS_MUNCH, VS_ADOPT, VS_MOVIE, VS_GAMBLE, VS_HEAL, VS_HAIR, VS_WORK, VS_ROB, VS_GROCER, VS_PETFOOD, VS_PETTOY, VS_PETGROOM,
-       VS_LAUNCH, VS_SPACEWALK, VS_SPAR, VS_FIGHTER, VS_BOARD, VS_PRODECK, VS_CLASS, VS_BAG, VS_BELT, VS_FUND, VS_HOME };   // (board.h: a skateboard, a pro deck)   // (the packs, expand.h: a seat on the rocket, spacewalk training, a challenger, the BORTUA FIGHTER cabinet)
+       VS_LAUNCH, VS_SPACEWALK, VS_SPAR, VS_FIGHTER, VS_BOARD, VS_PRODECK, VS_CLASS, VS_BAG, VS_BELT, VS_FUND, VS_HOME, VS_PHOTO, VS_TOUR, VS_ROCK };   // (board.h: a skateboard, a pro deck)   // (the packs, expand.h: a seat on the rocket, spacewalk training, a challenger, the BORTUA FIGHTER cabinet)
 typedef struct { const char*nm; short price; signed char food, nrg, hyg, com, soc; u8 mood, sk, skn, stun, fl, sp; const char*say; } VAct;   // (VS_GAMBLE: sk = payout x, skn = win %)
 #define NO 255
 static const VAct vAct[]={
@@ -119,9 +119,12 @@ static const VAct vAct[]={
     {"LOW GRAVITY BOUNCE",0, -4,-10,-8,0,0, M_COMBO,SK_BODY,2,150,0,VS_NONE,"YOU BOUNCE  FOREVER"},
     {"MOONBASE SHIFT",0, 0,-12,-6,0,6, 0,SK_LOGIC,1,200,0,VS_WORK,"MOON ROCKS ARE HEAVY ANYWAY"},
     {"RETURN TO EARTH",0, 0,0,0,0,0, 0,NO,0,0,0,VS_HOME,0},
+    {"EARTHRISE PHOTO",5, 0,0,0,0,0, 0,NO,0,0,0,VS_PHOTO,0},
+    {"CRATER TOUR",15, 0,0,0,0,0, 0,NO,0,0,0,VS_TOUR,0},
+    {"MOON ROCK SOUVENIR",25, 0,0,0,0,0, 0,NO,0,0,0,VS_ROCK,0},
     {"FUND THE SPACEPORT",0, 0,0,0,0,0, 0,NO,0,0,0,VS_FUND,0},
 };
-#define VA_LUN ((int)(sizeof(vAct)/sizeof(vAct[0]))-5)   // the four moonbase rows; the FUND row is the last
+#define VA_LUN ((int)(sizeof(vAct)/sizeof(vAct[0]))-8)   // the seven moonbase rows (four, then the tourist three); the FUND row is the last
 // the rows the packs' missions name (expand.h TD): keep them in step with the table above
 enum { VA_FOURTH=5, VA_LIFT=7, VA_SPIN=8, VA_SHAKE=9, VA_CABINET=12, VA_BORTUA=15, VA_GROCER=21, VA_CHECKUP=30, VA_LATTE=34, VA_KARAOKE=39, VA_BARSNACK=41,
        VA_TOY=48, VA_GROOM=49, VA_STUDY=50, VA_NOVEL=51, VA_MOVIE=58, VA_SWIM=62, VA_CANNON=63, VA_CENTRI=67, VA_SPACEWALK=69, VA_SEAT=70, VA_KATA=72, VA_SPAR=74 };
@@ -364,7 +367,7 @@ static void venueDo(const VAct*a){
         case VS_SPACEWALK: exTake=EXT_SWTRAIN; lnote="SUIT UP"; break;
         case VS_SPAR: exSparCall(); break;
         case VS_CLASS: case VS_BAG: case VS_BELT: djDo(a->sp); break;
-        case VS_FUND: case VS_HOME: lnrDo(a->sp); break;
+        case VS_FUND: case VS_HOME: case VS_PHOTO: case VS_TOUR: case VS_ROCK: lnrDo(a->sp); break;
         case VS_FIGHTER: exTake=EXT_FIGHTER; lnote="INSERT COIN"; break;
         case VS_BOARD: if(bdOwn){ simMoney+=price; lnote="YOU ALREADY HAVE A BOARD"; break; } bdGot(1,"A BRAND NEW BOARD  RIDE IT OUTSIDE"); break;
         case VS_PRODECK: if(bdOwn>=2){ simMoney+=price; lnote="YOU ALREADY RIDE A PRO DECK"; break; } bdGot(2,"A PRO DECK  FASTER  MORE POP"); break;
@@ -377,11 +380,11 @@ static int venueUse(void){   // R next to a venue's counter. 1 = handled
     const Venue*v=venueHere(); if(!v||!vNear()) return 0;
     char tt[40]; const char* it[10]; char lb[10][32]; int id[10], n=0;
     { char*e=simCat(tt,ctNm[v->ct]); e=simCat(e,"  \xC2\xA7"); simCatMoney(e,simMoney,1); }
-    int a0=v->a0, an=v->an; if(v->ct==CT_SPACE&&lnrHere()){ a0=VA_LUN; an=4; }
+    int a0=v->a0, an=v->an; if(v->ct==CT_SPACE&&lnrHere()){ a0=VA_LUN; an=7; }
     for(int i=0;i<an&&n<10;i++){ const VAct*a=&vAct[a0+i]; char*e=simCat(lb[n],a->nm);
         if(a->price>0){ e=simCat(e,"  \xC2\xA7"); simCatN(e,a->price); } else if(a->price<0){ e=simCat(e,"  +\xC2\xA7"); simCatN(e,-a->price); }
         it[n]=lb[n]; id[n++]=a0+i; }
-    if(v->ct==CT_SPACE&&!lnrHere()&&lnrShut()&&n<10){ it[n]="FUND THE SPACEPORT  \xC2\xA7" "300000"; id[n++]=VA_LUN+4; }
+    if(v->ct==CT_SPACE&&!lnrHere()&&lnrShut()&&n<10){ it[n]="FUND THE SPACEPORT  \xC2\xA7" "300000"; id[n++]=VA_LUN+7; }
     if(v->ct==CT_ARCADE&&n<10){ it[n]="MINI GAMES"; id[n++]=-2; }
     if(v->ct==CT_ARCADE&&n<10){ char*e=simCat(lb[n],"PRIZE COUNTER  "); e=simCatN(e,vTix); simCat(e," TIX"); it[n]=lb[n]; id[n++]=-1; }
     int c=menu(tt,it,n); liveInvalidate(); camSnap=1; while((~REG_KEYINPUT)&0x3FF) vsync();
