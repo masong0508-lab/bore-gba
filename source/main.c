@@ -1017,7 +1017,9 @@ static void ageLoad(void){   // at power on, after the person came back from its
     if(m[2]!=stage){ stage=m[2]; fixLook(); if(custom) clipCustom(); else buildLook(); setColors(); }
 }
 static int gGrow;   // set at midnight when the creature has lived long enough in its stage: the life loop grows it (setStage) and re-bakes its sprites
-static inline int ojob(void){ return xo[XO_JOB]&&stage>=AG_TEEN&&stage<AG_ELDER; }   // career: shifts, quota and bills for teens and adults (an elder is retired)
+static int jobNone;   // jobhunt.h: 1 = unemployed (a new life starts so; saved in bit 7 of the strike byte)
+static inline int ojobOn(void){ return xo[XO_JOB]&&stage>=AG_TEEN&&stage<AG_ELDER; }   // careers are on and you are old enough (and not retired)
+static inline int ojob(void){ return ojobOn()&&!jobNone; }   // career: shifts, quota and bills for teens and adults with a job (an elder is retired)   // career: shifts, quota and bills for teens and adults (an elder is retired)
 static void starter(void){
     cx=2;cy=0;cz=1;part=0;size=1;
     buildLook();   // the starter creature is look 0 everywhere: legs, torso, arms, head, eyes, mouth and hair
@@ -3334,7 +3336,7 @@ static u16 babyPad(void){
     if(--t<=0||still>10){ int r=rnd8(); dir=(r&3)==0?0:1+((r>>2)&7); t=40+(rnd8()&63); still=0; }
     return dm[dir];
 }
-static void phoneMenu(void); static void phTick(void);   // households.h: the PHONE, and the food it ordered
+static int jbUse(void); static void phoneMenu(void); static void phTick(void);   // households.h: the PHONE, and the food it ordered
 static void trnTick(void);   // timedrun.h
 static void storyScreen(void); static void stTick(void); static void stEnter(void); static void stOff(void);   // story.h
 static void lifeStep(u16 k,u16 pr,int fr){
@@ -3488,7 +3490,8 @@ static void lifeStep(u16 k,u16 pr,int fr){
             char c=lifeMap[ty][tx]; if(c=='F') nf=1; if(c=='T') nt=1; if(c=='S') nb=1; if(c=='H') nh=1; if(c=='C'||c=='U') nc=1; if(c=='G') np=1; if(c=='Q') nq=1; if(c=='I') nph=1; if(c=='R') nrd=1; if(c=='A') nsy=1; if(c=='v') ntv=1; if(c=='b') nbk=1; if(c=='c') ncf=1; if(c=='q') naq=1; if(c=='m') ntm=1; if(c=='W'&&prFence(tx,ty)) nfe=1; if(c=='y') nck|=ctrFn(tx,ty); }
         lnear=nf?1:(nt?2:(nb?3:(nh?4:(np?6:(nq?7:(nph?8:(nrd?9:(nsy?10:(ntv?11:(nbk?12:(ncf?13:(naq?14:(ntm?15:(nfe?16:(nc?5:0)))))))))))))));   // 7 the DeadSet   // 1 fridge, 2 toilet, 3 bed, 4 shower, 6 water pipe, 5 sofa or beanbag
         ctrM=(u8)nck; if(nck&&(!lnear||lnear==5)) lnear=17;   // counters.h: a sink or a microwave in reach (a fridge, a bed ... in reach come first; the sofa does not)
-        if((pr&K_R)&&lstun<=0&&lz<=fh&&!simAct&&!lskate&&venueUse()) pr&=~K_R;   // venues.h: a venue's counter in reach
+        if((pr&K_R)&&lstun<=0&&lz<=fh&&!simAct&&!lskate&&venueUse()) pr&=~K_R;
+        if((pr&K_R)&&lstun<=0&&lz<=fh&&!simAct&&!lskate&&jbUse()) pr&=~K_R;   // jobhunt.h: a COMPUTER in reach: the job board   // venues.h: a venue's counter in reach
         if((pr&K_R)&&lstun<=0&&lz<=fh&&!simAct&&!lskate&&wdUse()) pr&=~K_R;   // weed.h: a GROW PLANTER or the dispensary counter in reach
         if((pr&K_R)&&lstun<=0&&lz<=fh&&!simAct&&!lskate&&petR()) pr&=~K_R;   // petui.h: next to a pet (or a puddle), unless a Sim is nearer
         if((pr&K_R)&&lstun<=0&&lz<=fh&&!simAct&&hhSocR(lnear>=16?0:lnear)) pr&=~K_R;   // next to a household Sim: the social menu (it offers the furniture too)
@@ -5933,6 +5936,7 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "story.h"          // STORY MODE: chapters with goals (NEW GAME > STORY MODE)
 #include "storylot.h"      // STORY LOTS: every story starts in its own furnished house (storyHome)
 #include "career.h"         // CAREER TRACKS: the screen on the phone (the tracks are in sims.h)
+#include "jobhunt.h"        // THE JOB HUNT: a new life starts unemployed; the daily newspaper and the COMPUTER job board get you hired (needs career.h)
 #include "tvclip.h"       // the TV's 3 second clips (tvClipRun)
 #include "skills.h"         // SKILLS (life and skater) and the home pack items: TV, bookshelf, coffee maker, aquarium, treadmill
 #include "counters.h"       // COUNTERS WITH A JOB: a sink to wash up at, a microwave to heat a snack (the COUNTERS tab of BUY)

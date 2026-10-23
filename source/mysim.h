@@ -19,6 +19,10 @@ static void msTab(int x,int w,const char*nm,int on){
 static void msPanel(int y,int h){ s2rr(6,y,228,h,RGB(10,20,30)); s2rr(7,y+1,226,h-2,RGB(2,6,13)); s2grad(8,y+2,224,h-4,3,9,19,1,4,10); }
 static void msCareer(void){
     const JobTr*t=jobT(); char b[56], *e; msPanel(35,110);
+    if(jobNone&&ojobOn()){   // jobhunt.h: no job yet
+        text(14,40,"UNEMPLOYED",GOLD,2); text(14,66,"NO JOB  NO SHIFTS  NO BILLS",WHITE,1); text(14,80,"THE PAPERBOY BRINGS THE NEWS AT 6",WHITE,1);
+        text(14,92,"READ IT: YOUR ACTIONS  MIND",RGB(17,29,31),1); text(14,104,"OR USE A COMPUTER FOR THE JOB BOARD",RGB(17,29,31),1); text(14,147,"A  SEE THE TRACKS",RGB(12,14,16),1);
+        return; }
     if(!ojob()){
         text(14,42,stage<AG_TEEN?"TOO YOUNG FOR A JOB":stage>=AG_ELDER?"RETIRED":"JOBS ARE OFF",GOLD,1);
         text(14,56,stage<AG_TEEN?"KIDS GO TO SCHOOL ON WEEKDAYS":stage>=AG_ELDER?"ENJOY THE REST":"TURN THEM ON IN OPTIONS  GAMEPLAY",WHITE,1);
@@ -182,7 +186,7 @@ static void mySimScreen(void){
         if(tab==1){ if(simWishes()){ if(pr&K_DOWN){ sel=(sel+1)%SIM_WS; dirty=1; } if(pr&K_UP){ sel=(sel+SIM_WS-1)%SIM_WS; dirty=1; }
                 if((pr&K_A)&&simW[sel]>=0){ simLock=(simLock>>sel&1)?0:(1<<sel); dirty=1; }   // one lock: locking another want moves it
                 if(pr&K_SEL){ aspRewards(); prev=keyNow(); dirty=1; } } }
-        if(tab==2&&(pr&K_A)&&ojob()){ careerScreen(); prev=keyNow(); dirty=1; }
+        if(tab==2&&(pr&K_A)&&ojobOn()){ careerScreen(); prev=keyNow(); dirty=1; }
         if(tab==3){ if(pr&K_DOWN){ sel=(sel+1)%(SK_N+1); dirty=1; } if(pr&K_UP){ sel=(sel+SK_N)%(SK_N+1); dirty=1; } }
         if(tab==4){ if(dirty) ppl=pplCount(); if((pr&K_DOWN)&&top+6<ppl){ top++; dirty=1; } if((pr&K_UP)&&top>0){ top--; dirty=1; }
             if((pr&K_SEL)&&dbgOn){ hhInvite(); prev=keyNow(); ppl=pplCount(); if(top+6>ppl) top=ppl>6?ppl-6:0; dirty=1; } }

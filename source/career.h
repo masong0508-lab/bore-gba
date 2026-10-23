@@ -23,10 +23,11 @@ static void careerScreen(void){
         if(pr&(K_RIGHT|K_R)) sel=(sel+1)%JT_N;
         if(pr&(K_LEFT|K_L)) sel=(sel+JT_N-1)%JT_N;
         if(pr&(K_B|K_START)) return;
-        const JobTr*t=&jobTr[sel]; int me=sel==jobTrack, ok=jobAllowed(sel), nl=t->top+1;
+        const JobTr*t=&jobTr[sel]; int me=sel==jobTrack&&!jobNone, ok=jobAllowed(sel), nl=t->top+1;
         if(pr&K_A){
             if(me){ if(jobLvl>=3&&t->top>=3) jobBranchMenu(); }
             else if(!ok) toast("ADULTS ONLY");
+            else if(jobNone) toast("GET HIRED  PAPER OR COMPUTER");
             else { static char q[40] EWRAM_BSS; char*e=simCat(q,"JOIN "); simCat(e,t->nm); static const char* const yn[2]={"YES  TRANSFER","NO"};
                 if(menu(q,yn,2)==0){ int nlv=jobStartLvl(sel); jobTrack=sel; jobLvl=nlv; jobBr=0; jobChosen=0; jobGood=jobBad=0; shiftPts=0; simsSave();
                     static char m[40] EWRAM_BSS; char*e2=simCat(m,"NEW JOB  "); simCat(e2,jobTitle()); toast(m); } }
@@ -61,7 +62,7 @@ static void careerScreen(void){
           else { e=simCat(b,"A TRANSFER  YOU START AT "); simCat(e,jobTitleOf(sel,jobStartLvl(sel),0)); text(14,117,b,RGB(24,27,30),1); } }
         for(int i=0;i<JT_N;i++) s2rr(86+i*9,131,6,4,i==sel?GOLD:i==jobTrack?RGB(10,26,12):RGB(7,14,22));   // which track this is (green: yours)
         text(14,129,"<",GOLD,1); text(223,129,">",GOLD,1);
-        { int br=me&&jobLvl>=3&&t->top>=3; const char*a=me?(br?"A BRANCH":"A OK"):"A TRANSFER"; int x=5, w=tw("LEFT RIGHT TRACK",1)+10;   // buttons as wide as their words
+        { int br=me&&jobLvl>=3&&t->top>=3; const char*a=me?(br?"A BRANCH":"A OK"):jobNone?"A HOW TO":"A TRANSFER"; int x=5, w=tw("LEFT RIGHT TRACK",1)+10;   // buttons as wide as their words
           s2pill(x,147,w,"LEFT RIGHT TRACK"); x+=w+4; w=tw(a,1)+10; s2pill(x,147,w,a); x+=w+4; s2pill(x,147,tw("B BACK",1)+10,"B BACK"); }
         present();
     }

@@ -116,6 +116,7 @@ static int slfMenu(void){
         int c=pieMenu(tl,ft,slfCatNm,slfCatCol,4,cs); if(c<0) break;
         cs=c; const char* l[8]; u16 col[8]; int id[8], q=0;
         for(int i=0;i<SL_N&&q<8;i++) if(slfT[i].cat==c){ l[q]=slfT[i].nm; col[q]=slfCatCol[c]; id[q++]=i; }
+        if(c==1&&jbPaperOk()&&q<8){ l[q]="READ THE NEWSPAPER"; col[q]=slfCatCol[c]; id[q++]=-14; }   // jobhunt.h: the classifieds
         if(c==2&&goHas()&&q<8){ l[q]="CHECK THE BOREAGOTCHI"; col[q]=RGB(28,14,24); id[q++]=-12; }   // gotchi.h: the handheld on your keychain
         if(c==2&&wdOk()&&stCount()&&q<8){ l[q]="MY STASH"; col[q]=RGB(8,24,10); id[q++]=-13; }   // stash.h
         if(c==2&&wdOk()&&wdAll()&&q<8){ l[q]="ROLL ONE UP"; col[q]=RGB(8,24,10); id[q++]=-10; }   // weed.h: a gram of your best
@@ -125,6 +126,6 @@ static int slfMenu(void){
     }
     liveInvalidate();
     while((~REG_KEYINPUT)&0x3FF) vsync();
-    if(pick==-12) exTake=EXT_GOTCHI; else if(pick==-10) wdRoll(); else if(pick==-11) wdCorner(); else if(pick==-13) stInv(0); else if(pick>=0) slfDo(pick);
+    if(pick==-12) exTake=EXT_GOTCHI; else if(pick==-10) wdRoll(); else if(pick==-11) wdCorner(); else if(pick==-13) stInv(0); else if(pick==-14) jbPaper(); else if(pick>=0) slfDo(pick);
     return 1;
 }

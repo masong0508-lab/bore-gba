@@ -518,7 +518,7 @@ static void simsPack(volatile unsigned char*m){   // write the life into any SIM
     m[0]='S'; m[1]='I'; m[2]='M'; m[3]='3';
     m[4]=(unsigned char)sNrg; m[5]=(unsigned char)sHyg; m[6]=(unsigned char)sCom; m[7]=(unsigned char)sRoom;
     simPut16(m,10,simAsp); simPut16(m,12,simDone); simPut16(m,14,simDay); simPut16(m,16,simMin);
-    m[18]=(unsigned char)(jobLvl|((jobTrack&7)<<3)|(jobBr<<6)|(jobChosen<<7)); m[19]=(unsigned char)jobGood; m[20]=(unsigned char)jobBad; simPut16(m,21,skillPts);
+    m[18]=(unsigned char)(jobLvl|((jobTrack&7)<<3)|(jobBr<<6)|(jobChosen<<7)); m[19]=(unsigned char)jobGood; m[20]=(unsigned char)(jobBad|(jobNone<<7)); simPut16(m,21,skillPts);
     simPut16(m,23,simMeter); m[25]=(unsigned char)simFlags; simPut16(m,26,simTricks); simPut16(m,28,simBestCombo); simPut16(m,30,simStokedS);
     m[32]=(unsigned char)simNights; m[33]=(unsigned char)(simAspUsed<0?255:simAspUsed);
     for(int s=0;s<SIM_WS;s++){ m[34+s]=(unsigned char)(simW[s]+1); simPut16(m,42+s*2,simWP[s]); }
@@ -548,7 +548,7 @@ static int simsUnpack(volatile unsigned char*m){   // 1 = a valid life was read 
     if(!simsCheck(m)) return 0;
     sNrg=m[4]&0x7F; sHyg=m[5]&0x7F; sCom=m[6]&0x7F; sRoom=m[7]&0x7F;
     simMoney=simsVer(m)==3?simMoneyUnpack(m):(money_t)simGet16(m,8); simAsp=simGet16(m,10); simDone=simGet16(m,12); simDay=simGet16(m,14); simMin=simGet16(m,16)&0x7FF;
-    jobLvl=m[18]&7; jobTrack=(m[18]>>3)&7; jobBr=(m[18]>>6)&1; jobChosen=(m[18]>>7)&1; jobGood=m[19]&15; jobBad=m[20]&15; skillPts=simGet16(m,21);
+    jobLvl=m[18]&7; jobTrack=(m[18]>>3)&7; jobBr=(m[18]>>6)&1; jobChosen=(m[18]>>7)&1; jobGood=m[19]&15; jobBad=m[20]&15; jobNone=simsVer(m)==3?((m[20]>>7)&1):0; skillPts=simGet16(m,21);
     if(simsVer(m)==3&&(m[41]&0x80)) jobTrack|=8;   // PRO SKATER (track 8): the high bit is in the lock byte
     if(jobTrack>=JT_N){ jobTrack=0; }
     if(jobLvl>jobT()->top){ jobLvl=jobT()->top; }
@@ -569,7 +569,7 @@ static void fxGhostLoad(volatile unsigned char*m); static int simsLoad(void){ in
 
 static void fxGhostClear(void); static void simsDefaults(void){ fxGhostClear();   // a brand new life (nothing is written to SRAM)
     sNrg=100; sHyg=100; sCom=80; sRoom=40; sSoc=70; simMoney=SIM_CASH0; simAsp=0; simDone=0; simDay=0; simMin=480;
-    jobLvl=0; jobGood=0; jobBad=0; skillPts=0; jobTrack=JT_SKATE; jobBr=0; jobChosen=0; skReset();
+    jobLvl=0; jobGood=0; jobBad=0; skillPts=0; jobTrack=JT_SKATE; jobBr=0; jobChosen=0; jobNone=1; skReset();   // (a new life starts unemployed: jobhunt.h)
     simMeter=SIM_METER0; simFlags=0; simTricks=simBestCombo=simStokedS=simNights=0; simAspUsed=-1; simLock=0;
     for(int s=0;s<SIM_WS;s++){ simW[s]=-1; simWP[s]=0; } for(int s=0;s<SIM_FS;s++) simF[s]=-1;
 }
@@ -778,10 +778,12 @@ static void ageTick(void){   // once per game day: each stage lasts the days set
 }
 static void petMinute(void); static void petDay(void);   // pets.h
 static void wdHour(void);   // weed.h
+static void jbDeliver(void);   // jobhunt.h
 static void goMinute(void);   // gotchi.h: the handheld lives on while you play
 static void simMinute(void){   // once per game minute
     simMin++;
     petMinute(); wdHour(); goMinute();
+    if(simMin==360||(simMin==485&&simDay==0)) jbDeliver();   // the paperboy (jobhunt.h)
     if(simMin==simJobFrom()&&simInShift()&&!ldead) simQueue((jobTrack!=JT_SKATE&&simAtWork()==1)?"GO TO YOUR WORK MARKER":jobFlav[jobTrack]);
     else if(simMin%30==0&&jobTrack!=JT_SKATE&&simInShift()&&!simAct&&!ldead&&lnoteT<=0&&simAtWork()==1){ lnote="NOT AT WORK  FIND THE MARKER"; lnoteT=60; }   // a nudge every half hour   // clocking in: a line for the job
     if(jobTrack!=JT_SKATE&&simInShift()&&!simAct&&!ldead&&simAtWork()!=1) shiftPts+=(moodState()==MS_STOKED)?2:1;   // a normal job: work minutes (see jobQuotaOf)
