@@ -48,7 +48,7 @@ static void wdGrowTick(void){   // every two game hours (simMinute): every plant
         wpSet(x,y,st,wa,sn); if(wallMap[y][x]!=was) ch=1; }
     if(ch) liveInvalidate();   // (only when a planter changed: no redraw for nothing)
 }
-static void lwPlanter(int x,int y); static void lwPlantSeed(int x,int y); static int lwSeedsN(void); static int lwPlantDays(void); static void lwDrawPlant(int sx,int sy,int t); static void lwMinute(void); static void lwTick(void); static void lwCounter(void);   // lunrado.h: LUNAR WEED
+static void lwPlanter(int x,int y); static void lwPlantSeed(int x,int y); static int lwSeedsN(void); static void lwDrawPlant(int sx,int sy,int d,int t); static void lwMinute(void); static int lwDaysOf(int b); static void lwTick(void); static void lwCounter(void);   // lunrado.h: LUNAR WEED
 static void wdFan(int cx,int cy,int big,u16 c,u16 d){   // a cannabis fan leaf: fingers spread from the stem (big: seven, small: five)
     if(big){ px(cx-3,cy-3,c); px(cx,cy-4,c); px(cx+3,cy-3,c); px(cx-2,cy-2,c); px(cx,cy-3,c); px(cx+2,cy-2,c); px(cx-1,cy-1,c); px(cx,cy-2,c); px(cx+1,cy-1,c);
         px(cx-3,cy,c); px(cx+3,cy,c); px(cx-2,cy,d); px(cx+2,cy,d); px(cx-1,cy,c); px(cx+1,cy,c); px(cx,cy-1,d); px(cx,cy,d); px(cx,cy+1,d); }
@@ -57,7 +57,7 @@ static void wdFan(int cx,int cy,int big,u16 c,u16 d){   // a cannabis fan leaf: 
 static void drawPlanterS(int sx,int sy,int st,int wa,int sn,int t){   // a planter (drawn by code): a clay pot, the plant by its stage, the buds in the strain's colour
     rect(sx-4,sy-6,9,5,RGB(22,10,5)); rect(sx-5,sy-7,11,2,RGB(26,14,7)); rect(sx-3,sy-1,7,1,RGB(14,6,3)); rect(sx+2,sy-6,3,5,RGB(17,7,4));   // the pot
     rect(sx-4,sy-7,9,1,wa?RGB(9,6,3):RGB(17,13,8));   // the soil: dark when watered
-    if(st==6){ lwDrawPlant(sx,sy,t); return; }   // the lunar plant (lunrado.h)
+    if(st>=6){ int b=st|(wa<<3)|(sn<<5); lwDrawPlant(sx,sy,lwDaysOf(b),t); return; }   // (lunrado.h: the pot's byte holds the planting day)   // the lunar plant (lunrado.h)
     u16 lf=RGB(6,20,6), ld=RGB(4,13,4), bud=wdS[sn].bud;
     if(st==WP_DEAD){ rect(sx-1,sy-12,1,5,RGB(14,11,5)); rect(sx-4,sy-10,3,1,RGB(16,12,5)); rect(sx+1,sy-11,3,1,RGB(15,11,4)); return; }
     if(st==WP_SPROUT){ rect(sx,sy-10,1,3,lf); rect(sx-2,sy-11,2,1,lf); rect(sx+1,sy-11,2,1,lf); }
@@ -82,14 +82,15 @@ static int wdPickStrain(const char*title,int seeds){   // a strain you have seed
     if(!n) return -1;
     int c=menu(title,it,n); return c<0?-1:id[c];
 }
+static int stPots(void); static int stPlantAll(int s); static int stBuySeeds(int s,int each); static void stInv(int sell);   // stash.h
 static void wdPlanter(int x,int y){   // R next to a planter
     if(!wdOk()){ lnote=stage==AG_TEEN?"NOT OLD ENOUGH YET":"GROWN-UPS ONLY"; lnoteT=60; return; }
     int st=wpSt(x,y), wa=wpWa(x,y), sn=wpSn(x,y);
-    if(st==6){ lwPlanter(x,y); return; }   // the lunar plant (lunrado.h)
+    if(st>=6){ lwPlanter(x,y); return; }   // the lunar plant (lunrado.h)
     static const char* const stNm[6]={"AN EMPTY POT","A SPROUT","GROWING","FLOWERING","READY TO HARVEST","WITHERED"};
     char tl[40]; { char*e=simCat(tl,st?wdS[sn].nm:"GROW PLANTER"); e=simCat(e,"  GROW "); simCatN(e,wdSk); }
-    const char* it[4]; int id[4], n=0;
-    if(st==WP_EMPTY){ it[n]="PLANT SEEDS"; id[n++]=0; if(lwSeedsN()>0&&!lwPlantDays()){ it[n]="PLANT LUNAR SEED"; id[n++]=6; } }
+    const char* it[6]; int id[6], n=0;
+    if(st==WP_EMPTY){ it[n]="PLANT SEEDS"; id[n++]=0; if(stPots()>1){ it[n]="PLANT EVERY EMPTY POT"; id[n++]=7; } if(lwSeedsN()>0){ it[n]="PLANT LUNAR SEED"; id[n++]=6; } }
     if(st>=WP_SPROUT&&st<=WP_FLOWER){ if(wa<3){ it[n]="WATER IT"; id[n++]=1; } it[n]="CHECK ON IT"; id[n++]=2; it[n]="TALK TO IT"; id[n++]=3; }
     if(st==WP_READY){ it[n]="HARVEST"; id[n++]=4; }
     if(st==WP_DEAD){ it[n]="CLEAR THE POT"; id[n++]=5; }
@@ -97,6 +98,7 @@ static void wdPlanter(int x,int y){   // R next to a planter
     lstun=50; lsp=0; lgrind=0;
     switch(id[c]){
         case 0: { int s=wdPickStrain("PLANT WHICH SEEDS",1); if(s<0){ toast("NO SEEDS  THE DISPENSARY SELLS THEM"); lstun=0; return; } wdSeed[s]--; wpSet(x,y,WP_SPROUT,3,s); wdSk=(u8)(wdSk<100?wdSk+1:100); lnote="PLANTED  WATER IT NOW AND THEN"; lnoteT=120; wdSave(); break; }
+        case 7: { int s=wdPickStrain("PLANT WHICH SEEDS",1); if(s<0){ toast("NO SEEDS  THE DISPENSARY SELLS THEM"); lstun=0; return; } stPlantAll(s); break; }   // stash.h
         case 1: wpSet(x,y,st,3,sn); lnote="WATERED"; lnoteT=50; sfxPlay(SFX_SPLASH); break;
         case 2: { char*e=simCat(wdMsg,stNm[st]); simCat(e,wa?"  NOT THIRSTY":"  NEEDS WATER"); lnote=wdMsg; lnoteT=100; break; }
         case 3: { static const char* const tk[4]={"YOU TELL IT ABOUT YOUR DAY","IT SEEMS TO LIKE JAZZ","YOU CALL IT A GOOD GIRL","IT GROWS A LITTLE PROUDER"}; lnote=tk[rnd8()&3]; lnoteT=110; moodEvent(M_CHILL); if(((int)rnd8()*100>>8)<20&&st<WP_READY) wpSet(x,y,st+1,wa,sn); break; }
@@ -195,7 +197,7 @@ static int lnrHere(void);   // lunrado.h: the moonbase's dispensary is LUNARWEED
 static void wdCounter(void){   // R at the dispensary counter
     if(stage<AG_ADULT){ static const char* const no[3]={"21 AND UP  NICE TRY KID","THEY CHECKED YOUR ID  NOPE","COME BACK WITH A BEARD"}; lnote=no[rnd8()%3]; lnoteT=110; voxPlay(V_disagree); return; }
     static const char* const tips[8]={"START LOW AND GO SLOW","GUMMIES TAKE A WHILE  TRUST ME","WATER YOUR PLANTS  NOT TOO MUCH","PURPLE HAZE  GOOD FOR THE SOUL","SNACKS FIRST  YOU WILL THANK ME","THE CORNER IS RISKY  JUST SAYING","ROLL ONE UP HERE  THE COUCHES ARE FREE","THE FREE SAMPLE IS ONCE A DAY"};
-    char tt[40]; const char* it[10]; char lb[5][34]; int id[10];
+    char tt[40]; const char* it[12]; char lb[5][34]; int id[12];
     for(;;){
         int sd=(simDay+3)%WD_N, n=0, c;
         char*e=simCat(tt,lnrHere()?"LUNARWEED  \xC2\xA7":"GREEN BORE  \xC2\xA7"); simCatMoney(e,simMoney,1);
@@ -207,10 +209,12 @@ static void wdCounter(void){   // R at the dispensary counter
         { char*q=simCat(lb[2],"SEEDS  \xC2\xA7"); q=simCatN(q,dpPrice(60)); simCat(q," A PACK"); it[n]=lb[2]; id[n++]=5; }
         { char*q=simCat(lb[3],"GUMMIES  \xC2\xA7"); simCatN(q,dpPrice(25)); it[n]=lb[3]; id[n++]=6; }
         { char*q=simCat(lb[4],"SELL YOUR HARVEST  "); q=simCatN(q,wdAll()); simCat(q,"G"); it[n]=lb[4]; id[n++]=7; }
+        it[n]="SELL SOME"; id[n++]=10;   // stash.h
         it[n]="ASK THE BUDTENDER"; id[n++]=8; it[n]="LEAVE"; id[n++]=9;
         c=menu(tt,it,n); if(c<0||id[c]==9) break; c=id[c];
         if(c==8){ if(rnd8()%3==0){ if(wdSold>=300) toast("YOU ARE A REGULAR  20% OFF"); else if(wdSold>=100) toast("YOU ARE A REGULAR  10% OFF"); else toast("SELL US 100G AND YOU ARE A REGULAR"); } else toast(tips[rnd8()&7]); continue; }
         if(c==7){ int cash=0, g=0; for(int i=0;i<WD_N;i++){ cash+=wdG[i]*wdS[i].price*3/5; g+=wdG[i]; wdG[i]=0; } if(!g){ toast("NOTHING TO SELL"); continue; } simMoneyAdd(cash); wdSold=(u16)(wdSold+g); wdSave(); sfxPlay(SFX_CASH); stQEvent(QE_SOLD,g); char*q=simCat(wdMsg,"SOLD "); q=simCatN(q,g); q=simCat(q,"G  \xC2\xA7"); simCatN(q,cash); toast(wdMsg); continue; }
+        if(c==10){ stInv(1); continue; }   // stash.h
         if(c==2){ dpJars(); continue; }
         if(c==3){   // ROLL AND SMOKE HERE: pick the strain from your stash, then the size; it goes straight in the lounge
             int s=wdPickStrain("ROLL WITH WHICH",0); if(s<0){ if(!wdAll()) toast("NOTHING TO ROLL  TRY THE JARS"); continue; }
@@ -220,7 +224,7 @@ static void wdCounter(void){   // R at the dispensary counter
         if(c==4){ wdSamp=(short)simDay; lchill=500; lstun=70; lsp=0; lgrind=0; moodEventN(M_CHILL,1); voxChain(V_lighter_spark,V_spark_inhale,V_after_smoke_cough);
             char*q=simCat(wdMsg,"A FREE TOKE OF "); simCat(q,wdS[sd].nm); lnote=wdMsg; lnoteT=140; break; }
         if(c==5){ char sl[WD_N][28]; const char* si[WD_N]; for(int i=0;i<WD_N;i++){ char*q=simCat(sl[i],wdS[i].nm); q=simCat(q,"  HAVE "); simCatN(q,wdSeed[i]); si[i]=sl[i]; }
-            int s=menu("SEEDS  A PACK",si,WD_N); if(s<0) continue; if(simMoney<dpPrice(60)){ toast("NOT ENOUGH SIMOLEONS"); continue; } simMoney-=dpPrice(60); wdSeed[s]=(u8)(wdSeed[s]<99?wdSeed[s]+1:99); wdSave(); sfxPlay(SFX_CASH); toast("A PACK OF SEEDS  PLANT IT AT HOME"); continue; }
+            int s=menu("SEEDS  A PACK",si,WD_N); if(s<0) continue; if(stBuySeeds(s,dpPrice(60))) toast("SEEDS  PLANT THEM AT HOME"); continue; }   // stash.h: 1, 5 or 10 packs
         int price=c==0?dpPrice(15):c==1?dpPrice(45):dpPrice(25); if(simMoney<price){ toast("NOT ENOUGH SIMOLEONS"); continue; } simMoney-=price; sfxPlay(SFX_CASH);
         if(c==0){ wdG[0]++; toast("A PRE-ROLL OF BORE KUSH"); }
         else if(c==1){ wdG[sd]+=4; toast("AN EIGHTH  PLUS A LITTLE EXTRA"); }

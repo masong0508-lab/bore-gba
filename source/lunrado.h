@@ -174,7 +174,8 @@ static void lwWr(u32 v){ if(!nbOk){ lwFb=v; return; } nbT.spare=(u8)v; nbT.pad[1
 static int lwG(u32 v,int o,int n){ return (int)((v>>o)&((1u<<n)-1)); }
 static u32 lwP(u32 v,int o,int n,int x){ u32 m=((1u<<n)-1)<<o; return (v&~m)|(((u32)x<<o)&m); }
 static int lwSeedsN(void){ return lwG(lwRd(),15,2); }
-static int lwPlantDays(void){ return lwG(lwRd(),17,5); }   // 0 none, 1 planted .. 31 ready (30 days on)
+static int lwAgeS(int stamp){ return ((int)simDay-stamp)&31; }   // days since planted (the pot keeps the day, mod 32); 30 = ready. A visit locks a ready plant (stage 7)
+static int lwDaysOf(int b){ return (b&7)==7?31:lwAgeS(b>>3)+1; }   // 1 planted .. 31 ready, from the pot's byte
 static int lwNeed(int st){ static const u8 pct[4]={0,200,100,50}; int d=oStageDays(st); if(!d||!xo[XO_AGING]) return 30; int n=d*pct[xo[XO_AGING]]/100; return n<1?1:n; }
 static int lwDaysLeft(void){ if(stage>=AG_ELDER) return LW_ELDER-(int)ageDays; int d=lwNeed(stage)-(int)ageDays; for(int s=stage+1;s<AG_ELDER;s++) d+=lwNeed(s); return d+LW_ELDER; }
 static char lwMsg[72] EWRAM_BSS;
@@ -207,7 +208,7 @@ static void lwMinute(void){   // every game minute (weed.h wdHour)
     if(lwHigh>0&&--lwHigh==0){ lwSess=0; if(lwPlat){ lwPlat=0; simQueue("THE HIGH FADES  THE MOON WANTS YOU BACK"); } }
     if(lwPlat&&simMeter<920) simMeter=920;   // PLATINUM while you keep it up
     if(lnrHere()&&!lwEnc&&((rnd8()<<8|rnd8())%700)==0) lwEnc=1;   // a stranger, now and then
-    if(simMin==0){ u32 v=lwRd(); int p=lwG(v,17,5); if(p>=1&&p<31) lwWr(lwP(v,17,5,p+1)); }   // a day on: the lunar plant grows
+    if(simMin==0) for(int y=0;y<MH;y++) for(int x=0;x<MW;x++) if(lifeMap[y][x]=='u'&&(wallMap[y][x]&7)==6&&lwAgeS(wallMap[y][x]>>3)>=30) wallMap[y][x]=7;   // a day on: a plant that is ready stays ready (the pots keep their own clocks)
 }
 static void lwEncounter(void){
     static const char* const who[4]={"A TOURIST IN A TOO BIG SPACE SUIT","A MAN WHO SAYS HE IS THE MOON MAYOR","A KID WHO SHOULD BE ON EARTH","A ROBOT PRETENDING TO BE A TOURIST"};
@@ -216,33 +217,33 @@ static void lwEncounter(void){
         int c=menu(who[(int)(simDay+simMin)&3],ask,3); liveInvalidate(); camSnap=1; while((~REG_KEYINPUT)&0x3FF) vsync();
         if(c==2){ static const char* const w[3]={"PSST  A LUNAR SEED  30 DAYS  50 GRAND","THEY SAY IT GROWS ON EARTH TOO","DO NOT TELL THE MAYOR  OR DO"}; toast(w[rnd8()%3]); continue; }
         if(c==0){ u32 v=lwRd(); int s=lwG(v,15,2);
-            if(s>=2){ toast("YOUR POCKETS ARE FULL OF SEEDS"); return; }
-            int g=(rnd8()<20)?2:1; s=s+g>2?2:s+g; lwWr(lwP(v,15,2,s)); voxPlay(V_yahoo); lnote=g==2?"TWO SEEDS  THEY MUST LIKE YOU":"YOU GOT A LUNAR SEED"; lnoteT=140; }
+            if(s>=3){ toast("YOUR POCKETS ARE FULL OF SEEDS"); return; }
+            int g=(rnd8()<20)?2:1; s=s+g>3?3:s+g; lwWr(lwP(v,15,2,s)); voxPlay(V_yahoo); lnote=g==2?"TWO SEEDS  THEY MUST LIKE YOU":"YOU GOT A LUNAR SEED"; lnoteT=140; }
         return; }
 }
 static void lwTick(void){ if(lwEnc&&lstun<=0&&!ldead){ lwEnc=0; lwEncounter(); } }   // every logic step (weed.h wdTick)
-static void lwDrawPlant(int sx,int sy,int t){   // the lunar plant in its pot: it grows taller with the days, blue-green, glowing when ready
-    int d=lwPlantDays(); int h=3+d*21/31, top=sy-7-h;
+static void lwDrawPlant(int sx,int sy,int d,int t){   // the lunar plant in its pot: it grows taller with the days, blue-green, glowing when ready
+    int h=3+d*21/31, top=sy-7-h;
     rect(sx,top,1,h,RGB(4,16,18));
     for(int k=0,y=sy-10;y>top+2;k++,y-=5){ int side=(k&1)?1:-1; wdFan(sx+side*3,y,y>top+8,(k&1)?RGB(8,24,26):RGB(5,18,22),RGB(3,12,16)); }
     if(d>=31){ rect(sx-1,top-3,3,3,((t>>1)&1)?RGB(20,31,31):RGB(9,28,31)); if((t>>2)&1) px(sx+3,top-5,RGB(24,31,31)); }
     else if(d>=20) rect(sx,top-1,1,2,RGB(12,28,30));
 }
 static void lwPlanter(int x,int y){   // R next to a planter that holds the lunar plant
-    int d=lwPlantDays(), ready=d>=31;
+    int d=lwDaysOf(wallMap[y][x]), ready=d>=31; if(ready) wallMap[y][x]=7;
     char tl[40]; { char*e=simCat(tl,"LUNAR PLANT  DAY "); e=simCatN(e,d>30?30:d>0?d-1:0); simCat(e," OF 30"); }
     const char* it[3]; int id[3], n=0;
     if(ready){ it[n]="HARVEST AND SELL  \xC2\xA7" "50000"; id[n++]=0; } else { it[n]="CHECK ON IT"; id[n++]=1; }
     it[n]="TALK TO IT"; id[n++]=2;
     int c=menu(tl,it,n); liveInvalidate(); camSnap=1; if(c<0) return;
     lstun=60; lsp=0; lgrind=0;
-    if(id[c]==0){ simMoneyAdd(50000); wpSet(x,y,WP_EMPTY,0,0); lwWr(lwP(lwRd(),17,5,0)); moodEvent(M_PAY); voxPlay(V_yahoo); lnote="THE MOON MAYOR CRIES  YOU SELL IT FOR 50000"; lnoteT=170; }
+    if(id[c]==0){ simMoneyAdd(50000); wpSet(x,y,WP_EMPTY,0,0); moodEvent(M_PAY); voxPlay(V_yahoo); lnote="THE MOON MAYOR CRIES  YOU SELL IT FOR 50000"; lnoteT=170; }
     else if(id[c]==1){ static const char* const w[3]={"IT HUMS  QUIETLY","THE LEAVES POINT AT EARTH","NOT YET  PATIENCE IS A VIRTUE"}; lnote=w[rnd8()%3]; lnoteT=100; }
     else { static const char* const w[4]={"YOU TELL IT ABOUT THE DUST","IT SEEMS TO LIKE ZERO GRAVITY","YOU CALL IT A GOOD MOON GIRL","IT GROWS A LITTLE PROUDER  SOMEHOW"}; lnote=w[rnd8()&3]; lnoteT=110; moodEvent(M_CHILL); }
 }
 static void lwPlantSeed(int x,int y){
-    u32 v=lwRd(); int s=lwG(v,15,2); if(s<=0||lwG(v,17,5)){ toast("NO LUNAR SEED  OR ONE IS ALREADY GROWING"); return; }
-    wpSet(x,y,6,0,0); lwWr(lwP(lwP(v,15,2,s-1),17,5,1)); lnote="PLANTED  30 DAYS  DO NOT FORGET IT"; lnoteT=140; lstun=50;
+    u32 v=lwRd(); int s=lwG(v,15,2); if(s<=0){ toast("NO LUNAR SEED"); return; }
+    wallMap[y][x]=(u8)(6|((simDay&31)<<3)); lwWr(lwP(v,15,2,s-1)); lnote="PLANTED  30 DAYS  DO NOT FORGET IT"; lnoteT=140; lstun=50;
 }
 static void lwCounter(void){   // R at the LUNARWEED counter
     if(stage<AG_ADULT){ lnote="21 AND UP  THIS IS THE MOON  NOT A PLAYGROUND"; lnoteT=110; voxPlay(V_disagree); return; }

@@ -5862,6 +5862,7 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "npc.h"             // AI SKATERS and POLICE: hardware sprites on the last spare OBJ tiles (see the top of npc.h)             // GHOSTS and WEATHER: hardware sprites on the spare OBJ slots (see the top of the file)
 #include "petui.h"           // PETS: the pie menu, ADOPT A PET, the PET CREATOR, HOUSEHOLD > PETS (needs npc.h)
 #include "weed.h"            // THE GREEN: grow planters, the stash, the corner, the DISPENSARY (needs npc.h, neighborhood.h)
+#include "stash.h"           // THE STASH: seeds and grams one by one: USE, PLANT, SELL (needs weed.h)
 #include "venues.h"          // PLACES WITH THINGS TO DO: TACO BORE, GYM, ARCADE, NIGHTCLUB, GROCERY, BANK, HOSPITAL, CAFE, BAR, SALON, PET SHOP, LIBRARY, CASINO, CINEMA, POOL
 #include "prison.h"         // PRISON
 #include "travel.h"         // GETTING ABOUT: CALL A CAB, the story's GO THERE (a lot change without leaving the game): when the cops catch you, the sentence depends on your record; you serve it in a prison of the town
