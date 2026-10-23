@@ -122,7 +122,7 @@ The **Expansions** shelf on the main menu (and STORY in the pause menu) holds th
 | **The base game** | Ten missions, one for each thing the game does: build, skate, the town, romance, a career, pets, fights, the neighbours and the green |
 | **BORE-OUT MAN!** | Five missions. A burnt-out desk jockey becomes an astronaut: the spaceport, a launch, a spacewalk |
 | **BOREZIES!** | Five missions told as a five-chapter story on six arenas (the cul-de-sac, the Winchester, the lab, the arcade, the scrapyard, the car park). The town has turned into the bored undead; fun and fists calm them. Finish all five and **HORDE MODE** opens: 100 waves or endless, fourteen mutators, a perk every five waves, saved records |
-| **WORLD WAR BORE** | Ten missions. The East Side has come to trim your hedge: boot camp, the arms race, soldiers on your lawn |
+| **WORLD WAR BORE** | Ten missions. The Eastern Army has cut down your hedge: enlistment, boot camp, requisitions, a front line on your lawn |
 | **BORTUA FIGHTER** | Five missions and **ARCADE MODE**: one-on-one best-of-three fights up a ladder of eight to the chrome boss BORAL. Also at the arcade cabinet and the dojo |
 | **BOREagotchi!** | Fifteen missions and **THE HANDHELD**: a pixel blob on a keychain, plus the real pets. Feed it, clean it, scold it, put the light out at night |
 | **BOREpilogue** | Twenty missions, grown-ups only: retire, remember, settle scores, leave a legacy |

@@ -5,7 +5,7 @@
 //   1 BORE-OUT MAN!  a space oddity    5 missions    a burnt-out desk jockey becomes an astronaut: the SPACEPORT, a launch, a spacewalk
 //   2 BOREZIES!                        5 missions + HORDE MODE   the town got so bored it turned: Borezies shamble in; fun cures them, fists daze them. A story in five
 //                                      chapters, each on its own arena (arena.h). After the five: waves (horde.h), on your lot or any arena
-//   3 WORLD WAR BORE                  10 missions    the East Side trimmed your hedge: boot camp, the arms race, soldiers on your lawn
+//   3 WORLD WAR BORE                  10 missions    the Eastern Army cut down your hedge: enlistment, boot camp, requisitions, a front line on your lawn
 //   4 BORTUA FIGHTER                   5 missions + ARCADE MODE: challengers want a fight, the DOJO, the cabinet at the arcade
 //   7 BOREagotchi!                    15 missions + THE HANDHELD: a pixel blob on a keychain, and the real pets
 //   8 BOREpilogue                     20 missions    grown-ups only: retire, remember, settle scores, leave a legacy
@@ -19,7 +19,7 @@
 //          and story.h's own: {QK_HOME,0,0,"..."}, {QK_GUEST,0,0,"..."}, {QK_ROOM,0,0,"..."} ...
 // SCENARIOS  XS_ZOMB   BOREZIES: every visitor turns up grey-green and groaning, day and night, shambles after you and bores you (FUN drains).
 //                      A joke, a hug, a high five, a compliment or a trick cures one (the mission's counter); PUFF PUFF PASS cures them all.
-//            XS_WAR    EAST SIDE SOLDIERS: visitors in khaki come to fight; they wind up (HIYAH: guard!) and swing. Knock them out (the counter).
+//            XS_WAR    ENEMY SOLDIERS: visitors in khaki come to fight; they wind up (HIYAH: guard!) and swing. Knock them out (the counter).
 //            XS_ARENA  CHALLENGERS: the same, the BORTUA way (a purse for every win). The DOJO's CALL OUT A CHALLENGER brings one any time.
 //            XS_PUDDLE a pet had an accident: a puddle to mop when the mission starts.   XS_GHOST  a ghost turns up the first night.
 //            XS_GRANT  1500 simoleons to spend (the counter: things bought in buy mode).  XS_RAMPS  a board if you have none, and a kicker and a
@@ -62,7 +62,7 @@ enum { GA_FEED, GA_SNACK, GA_PLAY, GA_CLEAN, GA_MED, GA_SCOLD, GA_LIGHT, GA_N };
 // the pet actions of the pet's pie menu (petui.h petPie)
 enum { PD_PET, PD_CUDDLE, PD_PLAY, PD_TRICK, PD_TRAIN, PD_FEED, PD_OUT, PD_POTTY, PD_SCOLD, PD_SHOO };
 typedef struct { u8 k, a; u32 n; char nm[31]; } XT;   // a mission's task: story.h's StT with its name inline
-typedef struct { char nm[28]; char br[2][42]; u8 sc, pay; XT t[3]; u8 ar; const char*in,*out; } XMs;   // the words are inline (not pointers into the shared strings) so a pack's table carries them into its own ROM slot (EXPANSION PACKS AS PATCHES below)
+typedef struct { char nm[28]; char br[2][120]; u8 sc, pay; XT t[3]; u8 ar; const char*in,*out; } XMs;   // the words are inline (not pointers into the shared strings) so a pack's table carries them into its own ROM slot (EXPANSION PACKS AS PATCHES below)
 // ar: the arena the mission is played on (AMAP_, arena.h; 0 = your own lot), in / out: the story told before and after it (pages split by |)   // ar: the arena the mission is played on (AMAP_, arena.h; 0 = your own lot), in / out: the story told before and after it (pages split by |)
 typedef struct { const char*nm,*sub,*bl[3]; const XMs*ms; u8 n, no, mode, adult; u16 a, b; const char*modeNm; } XPk;
 #define XM(nm,b0,b1,sc,pay,...) {nm,{b0,b1},sc,pay,{__VA_ARGS__}}
@@ -153,45 +153,45 @@ static const XMs xmZomb[]={
 // ---- 3 WORLD WAR BORE ----
 // BORE WORLD WAR chapters 8 and 9: their story pages ride in the WORLD WAR BORE patch with the table
 static const char xw8In[]=
-  "They took Dennis. Nobody knows why. He is not a soldier. He is a dental receptionist who once waved at the East Side.|"
+  "They took Dennis. Nobody knows why. He is not a soldier. He is a dental receptionist who once waved at the enemy.|"
   "They are holding him in the scrapyard, behind a fence and a sign that says KEEP OUT in two different handwritings.|"
   "Get in, get Dennis, and hug him on the way out. He will hug back. Dennis hugs everyone. It is the whole reason he was taken.";
 static const char xw8Out[]=
   "Dennis walked out of the scrapyard holding a clipboard. He had spent the whole time reorganising their filing. They were sorry to see him go.|"
-  "He says the East Side has a lot of feelings about that hedge. You nod. You did not know hedges could cause feelings.";
+  "He says the Eastern Army has a lot of feelings about that hedge. You nod. You did not know hedges could cause feelings.";
 static const char xw9In[]=
-  "Intelligence says the East Side has one plan: all of them, at once, through the car park, at lunchtime. It is not a good plan. It is the only one they have.|"
+  "Intelligence says the Eastern Army has one plan: all of them, at once, through the car park, at lunchtime. It is not a good plan. It is the only one they have.|"
   "You have a hedge trimmer, a grudge and an excellent view of the entrance. Their general is a man called Gary. He is holding a megaphone.|"
-  "Hold the car park. Knock them out and parry what you cannot dodge. Nobody gets hurt badly. The East Side has a very good medical plan.";
+  "Hold the car park. Knock them out and parry what you cannot dodge. Nobody gets hurt badly. The Eastern Army has a very good medical plan.";
 static const char xw9Out[]=
   "Gary dropped the megaphone. He said: honestly, I forgot what we were fighting about.|"
   "You said: the hedge. He said: ah. Then you both looked at the hedge, which was fine, and stood there for a while.|"
   "Armistice talks are on Friday. Bring snacks.";
 static const XMs xmWar[]={
-  XM("THE HEDGE INCIDENT","SOMEONE FROM THE EAST SIDE","TRIMMED YOUR HEDGE  UNFORGIVABLE",XS_NONE,30,
-     TS(SC_ARGUE,"ARGUE WITH SOMEONE"),TK(QK_FRIENDS,2,"RECRUIT 2 FRIENDS")),
-  XM("BOOT CAMP","THE WEST SIDE NEEDS YOU","DROP AND GIVE ME TWENTY",XS_NONE,35,
-     TA(CT_GYM,"REPORT TO THE GYM"),TD(VA_SPIN,"SURVIVE SPIN CLASS"),TL(SK_BODY,2,"REACH BODY LEVEL 2")),
-  XM("ARMS RACE","THEY HAVE A SUPER SOAKER","YOU NEED SOMETHING BIGGER",XS_NONE,40,
-     TA(CT_ARMS,"GO TO THE ARMS SHOP"),TE(QE_BUY,1,"BUY A WEAPON")),
-  XM("DIG IN","THE FRONT LINE IS YOUR LAWN","GATES  CAMERAS  HOLD THE LINE",XS_WAR,45,
+  XM("BORDER INCIDENT","Enemy troops crossed the border and cut down your hedge. Command calls it an act of war.","Debate the enemy envoy, and enlist two recruits before the first shots are fired.",XS_NONE,30,
+     TS(SC_ARGUE,"DEBATE THE ENEMY ENVOY"),TK(QK_FRIENDS,2,"ENLIST 2 RECRUITS")),
+  XM("BOOT CAMP","The Bore Defence Force needs soldiers, and you are the only volunteer.","Report to the gym, survive the sergeant's spin class, and get fit for duty.",XS_NONE,35,
+     TA(CT_GYM,"REPORT TO THE GYM"),TD(VA_SPIN,"SURVIVE THE SARGE'S SPIN CLASS"),TL(SK_BODY,2,"REACH BODY LEVEL 2")),
+  XM("REQUISITION","Intelligence says the enemy has a super soaker, and command wants something bigger.","Visit the arms shop and requisition a weapon.",XS_NONE,40,
+     TA(CT_ARMS,"GO TO THE ARMS SHOP"),TE(QE_BUY,1,"REQUISITION A WEAPON")),
+  XM("DIG IN","The front line runs straight across your lawn, and the enemy is on the way.","Fortify with two gates or cameras, then hold the line for a full day.",XS_WAR,45,
      TK(QK_SECURE,2,"PUT UP 2 GATES OR CAMERAS"),TK(QK_DAYS,1,"HOLD THE LINE FOR A DAY")),
-  XM("THE FRONT","THE EAST SIDE IS COMING OVER","THE FENCE  SEND THEM HOME",XS_WAR,50,
+  XM("FIRST CONTACT","An enemy patrol has reached your fence, and not one of them can be allowed through.","Knock out three soldiers, and parry what you cannot dodge.",XS_WAR,50,
      TK(QK_CNT,3,"KNOCK OUT 3 SOLDIERS"),TE(QE_PARRY,1,"PARRY A BLOW")),
-  XM("PROPAGANDA","WIN HEARTS AND MINDS ON THE","RADIO  AND DOWN AT THE PLAZA",XS_NONE,50,
-     TE(SE_RADIO,1,"PLAY THE RADIO"),TA(CT_PLAZA,"GO TO THE PLAZA"),TK(QK_FRIENDS,4,"WIN 4 FRIENDS")),
-  XM("BEHIND ENEMY LINES","SNEAK INTO OLD TOWN AND TAKE","OUT THEIR BEST  QUIETLY",XS_WAR,55,
+  XM("MORALE","A war is won on the airwaves as much as on the field, and morale is low.","Broadcast on the radio, rally the plaza, and win four allies.",XS_NONE,50,
+     TE(SE_RADIO,1,"PLAY THE RADIO"),TA(CT_PLAZA,"GO TO THE PLAZA"),TK(QK_FRIENDS,4,"WIN 4 ALLIES")),
+  XM("BEHIND ENEMY LINES","Their officers are dug in around old town. A small, quiet team could end this fast.","Slip in unseen and take out two soldiers.",XS_WAR,55,
      TA(CT_OLDTOWN,"SNEAK INTO OLD TOWN"),TK(QK_CNT,2,"KNOCK OUT 2 SOLDIERS")),
-  XMS("PRISONER OF BORE","THEY TOOK DENNIS  HE IS A DENTAL","RECEPTIONIST  BREAK HIM OUT",XS_WAR,60,AMAP_SCRAP,
+  XMS("RESCUE MISSION","The enemy captured Private Dennis, a dental receptionist and a loyal soldier.","Raid the scrapyard, free him, and bring him home.",XS_WAR,60,AMAP_SCRAP,
       xw8In,
       xw8Out,
       TK(QK_CNT,3,"KNOCK OUT 3 GUARDS"),TE(QE_PARRY,1,"PARRY A SWING"),TS(SC_HUG,"HUG DENNIS ON THE WAY OUT")),
-  XMS("THE BIG PUSH","ALL OF THEM  AT ONCE  AT LUNCH","HOLD THE CAR PARK",XS_WAR,70,AMAP_CARPARK,
+  XMS("THE BIG PUSH","Every enemy soldier is coming through the car park at lunchtime. It is their only plan.","Hold the position, knock out five soldiers, and parry two blows.",XS_WAR,70,AMAP_CARPARK,
       xw9In,
       xw9Out,
       TK(QK_CNT,5,"KNOCK OUT 5 SOLDIERS"),TE(QE_PARRY,2,"PARRY 2 BLOWS")),
-  XM("ARMISTICE DAY","NOBODY REMEMBERS WHAT THE","HEDGE LOOKED LIKE  MAKE PEACE",XS_NONE,80,
-     TS(SC_SORRY,"SAY SORRY"),TS(SC_HUG,"HUG IT OUT"),TK(QK_FRIENDS,6,"MAKE 6 FRIENDS")),
+  XM("ARMISTICE DAY","The war has dragged on until nobody remembers why it started.","Say sorry, share a hug, and sign a lasting peace with six friends.",XS_NONE,80,
+     TS(SC_SORRY,"SAY SORRY"),TS(SC_HUG,"HUG IT OUT"),TK(QK_FRIENDS,6,"SIGN THE PEACE WITH 6 FRIENDS")),
 };
 // ---- 4 BORTUA FIGHTER ----
 static const XMs xmFight[]={
@@ -403,25 +403,25 @@ static const XMs xmEpi[]={
 };
 // ---- THE BASE GAME: ten missions, one for each thing the game does ----
 static const XMs xmBase[]={
-  XM("MOVING IN","EMPTY WALLS  A GIFT OF 1500 TO SPEND","BUILD AND BUY TILL IT FEELS LIKE HOME",XS_GRANT,5,
+  XM("MOVING IN","The walls are bare, and the town has just handed you 1500 simoleons to spend.","Build, buy and decorate until this place finally feels like home.",XS_GRANT,5,
      TK(QK_CNT,3,"BUY THREE THINGS FOR THE PLACE"),{QK_ROOM,0,0,"MAKE A ROOM LOOK GREAT"}),
-  XM("DROP IN","A BOARD AND TWO RAMPS LANDED IN YOUR","YARD OVERNIGHT  GO AND RIDE THEM",XS_RAMPS,8,
+  XM("DROP IN","Overnight, a skateboard and two ramps appeared in your yard. There was no note.","Don't question it. Go and ride them, and see what you can land.",XS_RAMPS,8,
      TE(SE_AIR,1,"CATCH AIR OFF A RAMP"),TK(QK_CNT,3,"LAND THREE TRICKS"),TE(SE_COMBO,1,"LAND A COMBO")),
-  XM("TACO TUESDAY","THE TOWN IS OUT THERE  EAT A TACO","LIFT A WEIGHT  LOSE A QUARTER  GO",XS_NONE,6,
+  XM("TACO TUESDAY","The whole town is out there waiting, and you have been indoors far too long.","Grab a taco, pump some iron, and lose a few quarters at the arcade.",XS_NONE,6,
      TD(0,"A CRUNCHY TACO AT TACO BORE"),TD(VA_LIFT,"PUMP IRON AT THE GYM"),TD(VA_CABINET,"A CABINET AT THE ARCADE")),
-  XM("ICEBREAKER","THREE NEIGHBOURS ARE AT THE DOOR","THE PIE MENU IS YOUR FRIEND  USE IT",XS_PARTY,6,
+  XM("ICEBREAKER","Three neighbours are standing at your door, and none of them knows what to say.","Open the pie menu, break the ice, and make a friend.",XS_PARTY,6,
      TS(SC_JOKE,"TELL SOMEBODY A JOKE"),TS(SC_HIGH5,"HIGH FIVE SOMEBODY"),TK(QK_FRIENDS,1,"MAKE A FRIEND")),
-  XM("SPARKS","SOMEBODY AT THE DOOR CAUGHT YOUR EYE","FLIRT  KISS  SEE WHERE IT GOES",XS_PARTY,8,
+  XM("SPARKS","Somebody at the door caught your eye, and it looks like they noticed you too.","Flirt a little, steal a kiss, and see where the night takes you.",XS_PARTY,8,
      TS(SC_FLIRT,"FLIRT WITH SOMEBODY"),TE(SE_KISS,1,"A FIRST KISS"),TE(SE_LOVE,1,"FALL IN LOVE")),
-  XM("NINE TO FIVE","THE BILLS CAME  THE PHONE HAS JOBS","WORK A SHIFT  ACE ONE  MOVE UP",XS_BILLS,10,
+  XM("NINE TO FIVE","The bills came, and the phone is full of job offers.","Work a shift, do it well enough to be noticed, and earn a promotion.",XS_BILLS,10,
      TE(SE_SHIFT,1,"WORK A SHIFT"),TE(SE_ACE,1,"ACE A SHIFT"),TE(SE_PROMO,1,"GET PROMOTED")),
-  XM("GOOD BOY","A FACE IN THE PET SHOP WINDOW  IT","PICKED YOU  TAKE IT HOME  TEACH IT",XS_NONE,8,
+  XM("GOOD BOY","A little face in the pet shop window picked you, and it will not take no for an answer.","Bring it home and teach it its first trick.",XS_NONE,8,
      TA(CT_PETSHOP,"GO TO THE PET SHOP"),TK(QK_PETS,1,"ADOPT A PET"),TP(PD_TRICK,"TEACH IT A TRICK")),
-  XM("FIGHT NIGHT","SOMEBODY TALKED  NOW THEY WANT A","PIECE OF YOU  GUARD  PARRY  SWING",XS_ARENA,10,
+  XM("FIGHT NIGHT","Somebody has been talking, and now they want a piece of you.","Train at the gym, learn to guard and parry, then beat your challenger.",XS_ARENA,10,
      TA(CT_GYM,"TRAIN AT THE GYM"),TE(QE_PARRY,1,"PARRY A PUNCH"),TK(QK_CNT,1,"BEAT A CHALLENGER")),
-  XM("OPEN HOUSE","THE WHOLE STREET WANTS TO MEET YOU","FEED THEM  AND KEEP ONE OF THEM",XS_PARTY,10,
+  XM("OPEN HOUSE","Word got around, and the whole street wants to meet you.","Feed everyone, make them welcome, and see if one of them stays.",XS_PARTY,10,
      {QK_GUEST,0,0,"HAVE A NEIGHBOUR OVER"},TE(QE_FOOD,1,"ORDER FOOD FOR EVERYONE"),TK(QK_HOUSE,2,"SOMEBODY MOVES IN")),
-  XM("THE GREEN THUMB","SEEDS IN THE MAIL  NO NOTE  GROWN-UPS","PLANT  HARVEST  SELL  THE LEGAL WAY",XS_SEEDS,15,
+  XM("THE GREEN THUMB","A package of seeds arrived in the mail with no note. Grown-ups only.","Plant them, harvest the crop, and sell it the legal way.",XS_SEEDS,15,
      TE(QE_HARVEST,1,"HARVEST A PLANT"),TA(CT_DISP,"GO TO THE DISPENSARY"),TE(QE_SOLD,1,"SELL SOME OF IT")),
 };
 #undef XM
@@ -438,7 +438,7 @@ static const XMs xmBase[]={
 static const XPk xPk[XP_N]={
   {"BORE-OUT MAN!","A SPACE ODDITY",{"BURNT OUT AT A DESK JOB","ONE FLYER LATER YOU ARE","AN ASTRONAUT  SORT OF"},xmSpace,XN(xmSpace),1,XMODE_NONE,0,RGB(2,3,12),RGB(10,24,31),0},
   {"BOREZIES!","THE BORED WALK AMONG US",{"THE TOWN GOT SO BORED IT","TURNED  CURE THEM WITH FUN","JOKES  HUGS  PASS THE DUTCHIE"},xmZomb,XN(xmZomb),2,XMODE_HORDE,0,RGB(3,9,3),RGB(14,30,10),"HORDE MODE"},
-  {"WORLD WAR BORE","THE HEDGE THAT STARTED IT",{"EAST SIDE VERSUS WEST SIDE","A VERY SMALL  VERY STUPID","WAR  PICK A SIDE  YOURS"},xmWar,XN(xmWar),3,XMODE_NONE,0,RGB(9,9,3),RGB(27,23,9),0},
+  {"WORLD WAR BORE","A WAR OVER A HEDGE",{"The Bore Defence Force against","the Eastern Army. A very small,","very silly war. Enlist today."},xmWar,XN(xmWar),3,XMODE_NONE,0,RGB(9,9,3),RGB(27,23,9),0},
   {"BORTUA FIGHTER","THE 3D FIGHTING SENSATION",{"ONE VIRAL PUNCH AND NOW","EVERY BORE WANTS A PIECE","PLUS A WHOLE ARCADE MODE"},xmFight,XN(xmFight),4,XMODE_FIGHTER,0,RGB(13,2,2),RGB(31,22,4),"ARCADE MODE"},
   {"BOREAGOTCHI!","IT NEEDS YOU  CONSTANTLY",{"A PIXEL BLOB ON A KEYCHAIN","AND REAL PETS WHO ARE","JEALOUS  PLUS THE HANDHELD"},xmGotchi,XN(xmGotchi),7,XMODE_GOTCHI,0,RGB(14,3,12),RGB(31,20,27),"THE HANDHELD"},
   {"BOREPILOGUE","THE LAST CHAPTER",{"RETIRE  REMINISCE  SETTLE","OLD SCORES AND LEAVE A","LEGACY  GROWN-UPS ONLY"},xmEpi,XN(xmEpi),8,XMODE_NONE,1,RGB(7,5,10),RGB(25,22,29),0},
@@ -500,7 +500,7 @@ static int exOpen(int p,int m){   // can mission m be played: not a placeholder,
 }
 static int exNext(int p,int m){ for(int i=m+1;i<xPk[p].n;i++) if(!exSoon(p,i)) return i; return -1; }
 // ---- the HOSTILE VISITORS: Borezies, soldiers and challengers (house.h twTick calls exHArrive and exHStay) ----
-// KINDS   1 a BOREZIE (shambles, bites FUN, cured by fun)   2 an EAST SIDE SOLDIER   3 a CHALLENGER (the last two: fists, fight.h fgCounter)
+// KINDS   1 a BOREZIE (shambles, bites FUN, cured by fun)   2 an ENEMY SOLDIER   3 a CHALLENGER (the last two: fists, fight.h fgCounter)
 //         4 a FIDGETY BOREZIE (a sprinter: quick, frail)    5 a HEAVY BOREZIE (a brute: slow, soaks blows, needs two cheer-ups)
 //         6 PATIENT ZERO (the boss: soaks nearly everything, needs four cheer-ups, bites hard)   (4 to 6 come in the last missions and in HORDE MODE, horde.h)
 // A BOREZIE'S BITE IS A MOVE, NOT A DICE ROLL: it stops at the edge of your reach, faces you, groans (the wind-up, 16 steps: that is your cue), then bites.
@@ -568,7 +568,7 @@ static void exHMake(int k,int kind){   // visitor k turns hostile
     HhSim*s=&hhM[TW_V(k)]; exTint(k,kind); exHT[k]=(u8)kind; exHA[k]=0; exHS[k]=0; exHHp[k]=s->hp=HP_MAX; exHStats(k,kind); exHAcc[k]=0; exHR[k]=0; exHW[k]=0; exHDz[k]=0; exHDie[k]=0; exHTx[k]=exHTy[k]=0;
     char*e=exB; int say=!hzOn||kind==XH_BOSS;   // (HORDE MODE keeps the top bar for the wave: only a boss gets a note)
     if(exBz(kind)){ e=simCat(e,kind==XH_BOSS?"PATIENT ZERO  ":kind==XH_SPRINT?"A FIDGETY BOREZIE  ":kind==XH_BRUTE?"A HEAVY BOREZIE  ":"A BOREZIE SHAMBLES IN  "); simCat(e,s->name); if(say||!sSnd) exGroan(s->uid); }
-    else if(kind==2){ e=simCat(e,"EAST SIDE SOLDIER  "); simCat(e,s->name); voxSay(s->uid,V_lets_fight); }
+    else if(kind==2){ e=simCat(e,"ENEMY SOLDIER  "); simCat(e,s->name); voxSay(s->uid,V_lets_fight); }
     else { e=simCat(e,s->name); simCat(e," WANTS A FIGHT"); voxSay(s->uid,V_lets_fight); exSpar=0; }
     if(say){ lnote=exB; lnoteT=150; }
 }
@@ -874,6 +874,14 @@ static void exNotIn(int p){   // a pack that is not in this ROM: what to do abou
         s2pill(5,147,40,"A OK"); present();
     }
 }
+// a mission's brief line: written as sentences; when it is wider than the card it scrolls (a pause, a slow slide to the end, a pause, again)
+static u32 exMqT;   // the frame counter of the screen that draws it
+static int exOver(const XMs*x,int w){ return tw(x->br[0],1)>w||tw(x->br[1],1)>w; }
+static void exMarq(int x,int y,const char*s,u16 c,int w){
+    int tl=tw(s,1); if(tl<=w){ text(x,y,s,c,1); return; }
+    int span=tl-w+8, ph=(int)(exMqT%(u32)(span+120)), o=ph<60?0:ph<60+span?ph-60:span;
+    clipSet(x,y-3,x+w,y+11); text(x-o,y,s,c,1); clipAll();
+}
 static void exPackScreen(int p,int ingame){
     if(!xpHave(p)){ exNotIn(p); return; }
     const XPk*P=&xPk[p]; int hasMode=P->mode!=XMODE_NONE, rows=P->n+hasMode, sel=0, top=0;
@@ -901,7 +909,7 @@ static void exPackScreen(int p,int ingame){
             else { static const char* const yn[2]={"START THIS MISSION","NOT NOW"}; const char*q=exP?"YOUR MISSION NOW ENDS":xPk[p].ms[m].nm;
                 if(menu(q,yn,2)==0){ exStart(p,m); return; } }
             prev=keyNow(); dirty=1; continue; }
-        if(!dirty&&(cnt&15)) { vsync(); continue; }
+        exMqT=cnt; { int so=sel>=hasMode&&exOver(&P->ms[sel-hasMode],216); if(!dirty&&(cnt&(so?1:15))) { vsync(); continue; } }
         dirty=0;
         if(sel<top) top=sel; if(sel>=top+9) top=sel-8;
         stBack(P->nm,(int)cnt);
@@ -919,7 +927,7 @@ static void exPackScreen(int p,int ingame){
         rect(8,121,224,1,RGB(14,26,31));
         if(hasMode&&sel==0){ if(p==XP_ZOMB){ text(12,125,"AFTER THE FIVE MISSIONS  A HORDE OF YOUR OWN",RGB(20,26,31),1); text(12,134,hzUnlocked()?"100 WAVES OR ENDLESS  14 MUTATORS":"FINISH ALL FIVE MISSIONS TO OPEN IT",RGB(17,29,31),1); }
           else { text(12,125,"A MODE OF ITS OWN  NO LIFE NEEDED",RGB(20,26,31),1); text(12,134,P->bl[2],RGB(17,29,31),1); } }
-        else { const XMs*x=&P->ms[sel-hasMode]; text(12,125,x->br[0],RGB(20,26,31),1); text(12,134,x->br[1],RGB(20,26,31),1); }
+        else { const XMs*x=&P->ms[sel-hasMode]; exMarq(12,125,x->br[0],RGB(20,26,31),216); exMarq(12,134,x->br[1],RGB(20,26,31),216); }
         s2pill(5,147,tw("A START",1)+10,"A START"); s2pill(9+tw("A START",1)+10,147,tw("B BACK",1)+10,"B BACK");
         present();
     }
@@ -954,7 +962,7 @@ static void exShelf(int ingame){
 static void exCardBody(int p,int m,int y,int live){   // a mission's title, its two lines and its tasks
     const XMs*x=&xPk[p].ms[m];
     { char b[48]; char*e=slCat(b,"MISSION "); e=slNum(e,m+1); e=slCat(e,"  "); slCat(e,x->nm); text(16,y,b,GOLD,1); }
-    text(16,y+10,x->br[0],RGB(20,26,31),1); text(16,y+19,x->br[1],RGB(20,26,31),1);
+    exMarq(16,y+10,x->br[0],RGB(20,26,31),208); exMarq(16,y+19,x->br[1],RGB(20,26,31),208);
     exTkList(x,16,y+30,9,live);
 }
 // ---- a mission's story: pages of text told before the mission card and after the mission ----
@@ -1006,6 +1014,7 @@ static void exRunModal(void){   // the mission card (1 a mission starts, 2 one i
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
         if(pr&(K_A|K_B|K_START)) break;
+        exMqT=cnt;
         stBack(kind==1?"EXPANSION PACK":"MISSION COMPLETE",(int)cnt);
         s2rr(8,22,224,118,RGB(16,27,31)); s2rr(9,23,222,116,RGB(2,6,13)); s2grad(10,24,220,114,3,9,19,1,4,10);
         exIcon(p,16,30,4,xPk[p].b);
@@ -1033,8 +1042,7 @@ static void exJournal(void){   // pause menu > STORY > the mission: what it asks
         { int ct; if((pr&K_A)&&exPlace(&ct)){ int lot=ct==-2?nbT.home:trvPlace(ct); if(lot>=0&&trvGo(lot)){ sfxPlay(SFX_CASH); toast("THE CAB IS HERE"); } else if(lot<0) toast("NO SUCH PLACE IN TOWN"); return; } }
         if(pr&K_SEL){ static const char* const yn[2]={"KEEP GOING","GIVE IT UP"}; if(menu("GIVE UP THIS MISSION?",yn,2)==1){ exQuit(); toast("MISSION OVER  START IT AGAIN ANY TIME"); return; } prev=keyNow(); lt=~0u; continue; }
         if(pr&(K_A|K_B|K_START)) return;
-        if(!pr&&(cnt>>4)==lt){ vsync(); continue; }
-        lt=cnt>>4;
+        exMqT=cnt; { int sh=exOver(&xPk[exP-1].ms[exM],208)?1:4; if(!pr&&(cnt>>sh)==lt){ vsync(); continue; } lt=cnt>>sh; }
         int p=exP-1; stBack("MISSION",(int)cnt);
         exIcon(p,9,21,2,xPk[p].b); text(32,21,xPk[p].nm,GOLD,1); text(32,30,xPk[p].sub,RGB(17,29,31),1);
         { char b[24]; char*e=slNum(b,exM+1); e=slCat(e," OF "); slNum(e,xPk[p].n); text(233-tw(b,1),21,b,WHITE,1); }
