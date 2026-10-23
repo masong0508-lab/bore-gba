@@ -48,6 +48,7 @@ static void wdGrowTick(void){   // every two game hours (simMinute): every plant
         wpSet(x,y,st,wa,sn); if(wallMap[y][x]!=was) ch=1; }
     if(ch) liveInvalidate();   // (only when a planter changed: no redraw for nothing)
 }
+static void lwPlanter(int x,int y); static void lwPlantSeed(int x,int y); static int lwSeedsN(void); static int lwPlantDays(void); static void lwDrawPlant(int sx,int sy,int t); static void lwMinute(void); static void lwTick(void); static void lwCounter(void);   // lunrado.h: LUNAR WEED
 static void wdFan(int cx,int cy,int big,u16 c,u16 d){   // a cannabis fan leaf: fingers spread from the stem (big: seven, small: five)
     if(big){ px(cx-3,cy-3,c); px(cx,cy-4,c); px(cx+3,cy-3,c); px(cx-2,cy-2,c); px(cx,cy-3,c); px(cx+2,cy-2,c); px(cx-1,cy-1,c); px(cx,cy-2,c); px(cx+1,cy-1,c);
         px(cx-3,cy,c); px(cx+3,cy,c); px(cx-2,cy,d); px(cx+2,cy,d); px(cx-1,cy,c); px(cx+1,cy,c); px(cx,cy-1,d); px(cx,cy,d); px(cx,cy+1,d); }
@@ -56,6 +57,7 @@ static void wdFan(int cx,int cy,int big,u16 c,u16 d){   // a cannabis fan leaf: 
 static void drawPlanterS(int sx,int sy,int st,int wa,int sn,int t){   // a planter (drawn by code): a clay pot, the plant by its stage, the buds in the strain's colour
     rect(sx-4,sy-6,9,5,RGB(22,10,5)); rect(sx-5,sy-7,11,2,RGB(26,14,7)); rect(sx-3,sy-1,7,1,RGB(14,6,3)); rect(sx+2,sy-6,3,5,RGB(17,7,4));   // the pot
     rect(sx-4,sy-7,9,1,wa?RGB(9,6,3):RGB(17,13,8));   // the soil: dark when watered
+    if(st==6){ lwDrawPlant(sx,sy,t); return; }   // the lunar plant (lunrado.h)
     u16 lf=RGB(6,20,6), ld=RGB(4,13,4), bud=wdS[sn].bud;
     if(st==WP_DEAD){ rect(sx-1,sy-12,1,5,RGB(14,11,5)); rect(sx-4,sy-10,3,1,RGB(16,12,5)); rect(sx+1,sy-11,3,1,RGB(15,11,4)); return; }
     if(st==WP_SPROUT){ rect(sx,sy-10,1,3,lf); rect(sx-2,sy-11,2,1,lf); rect(sx+1,sy-11,2,1,lf); }
@@ -83,10 +85,11 @@ static int wdPickStrain(const char*title,int seeds){   // a strain you have seed
 static void wdPlanter(int x,int y){   // R next to a planter
     if(!wdOk()){ lnote=stage==AG_TEEN?"NOT OLD ENOUGH YET":"GROWN-UPS ONLY"; lnoteT=60; return; }
     int st=wpSt(x,y), wa=wpWa(x,y), sn=wpSn(x,y);
+    if(st==6){ lwPlanter(x,y); return; }   // the lunar plant (lunrado.h)
     static const char* const stNm[6]={"AN EMPTY POT","A SPROUT","GROWING","FLOWERING","READY TO HARVEST","WITHERED"};
     char tl[40]; { char*e=simCat(tl,st?wdS[sn].nm:"GROW PLANTER"); e=simCat(e,"  GROW "); simCatN(e,wdSk); }
     const char* it[4]; int id[4], n=0;
-    if(st==WP_EMPTY){ it[n]="PLANT SEEDS"; id[n++]=0; }
+    if(st==WP_EMPTY){ it[n]="PLANT SEEDS"; id[n++]=0; if(lwSeedsN()>0&&!lwPlantDays()){ it[n]="PLANT LUNAR SEED"; id[n++]=6; } }
     if(st>=WP_SPROUT&&st<=WP_FLOWER){ if(wa<3){ it[n]="WATER IT"; id[n++]=1; } it[n]="CHECK ON IT"; id[n++]=2; it[n]="TALK TO IT"; id[n++]=3; }
     if(st==WP_READY){ it[n]="HARVEST"; id[n++]=4; }
     if(st==WP_DEAD){ it[n]="CLEAR THE POT"; id[n++]=5; }
@@ -100,7 +103,8 @@ static void wdPlanter(int x,int y){   // R next to a planter
         case 4: { int g=wdS[sn].yield+wdSk/12+(rnd8()&3); wdG[sn]=(u16)(wdG[sn]+g>9999?9999:wdG[sn]+g); if(((int)rnd8()*100>>8)<25) wdSeed[sn]++;
             wpSet(x,y,WP_EMPTY,0,0); wdSk=(u8)(wdSk+3>100?100:wdSk+3); moodEvent(M_PAY); voxPlay(V_yahoo);
             char*e=simCat(wdMsg,"HARVESTED "); e=simCatN(e,g); e=simCat(e,"G OF "); simCat(e,wdS[sn].nm); lnote=wdMsg; lnoteT=150; wdSave(); stQEvent(QE_HARVEST,g); break; }
-        case 5: wpSet(x,y,WP_EMPTY,0,0); lnote="CLEARED  TRY AGAIN"; lnoteT=60; break; }
+        case 5: wpSet(x,y,WP_EMPTY,0,0); lnote="CLEARED  TRY AGAIN"; lnoteT=60; break;
+        case 6: lwPlantSeed(x,y); break; }
 }
 // ---- smoking and selling (YOUR ACTIONS > FUN, self.h) ----
 static void wdRoll(void){
@@ -227,12 +231,13 @@ static void wdCounter(void){   // R at the dispensary counter
 }
 static int wdUse(void){   // R: a planter or the counter within reach. 1 = handled
     int x,y;
-    if(wdNear('&',0,0)){ wdCounter(); return 1; }
+    if(wdNear('&',0,0)){ if(lnrHere()) lwCounter(); else wdCounter(); return 1; }
     if(wdNear('u',&x,&y)){ wdPlanter(x,y); return 1; }
     return 0;
 }
 static const char* wdHint(void){ if(wdNear('&',0,0)) return "R THE COUNTER"; if(wdNear('u',0,0)) return "R TEND THE PLANT"; return 0; }   // hud.h
 static void wdTick(void){   // every logic step: the gummy
+    lwTick();   // lunrado.h: a stranger with a seed
     if(wdEdT>0&&--wdEdT==0){ lchill=3600; moodEventN(M_CHILL,3); lstun=60; lsp=0; lnote="THE GUMMY KICKED IN  OH NO"; lnoteT=150; voxChain(V_laughing,V_laughing_2,V_im_hungryrururyry); }
 }
-static void wdHour(void){ if(simMin%120==0) wdGrowTick(); }   // simMinute
+static void wdHour(void){ if(simMin%120==0) wdGrowTick(); lwMinute(); }   // simMinute

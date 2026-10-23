@@ -168,7 +168,7 @@ static NbScratch nbScr EWRAM_BSS;
 #define nbBuf (nbScr.pack)
 static int nbPack(const Town*t,u8*b){   // -> the length
     const u8*h=(const u8*)t; for(unsigned i=0;i<sizeof(TownHd);i++) b[i]=h[i];
-    b[0]='T'; b[1]='W'; b[2]='N'; b[3]='2'; b[23]=t->w; b[24]=t->h; b[25]=NB_LOTS; b[26]=2; b[27]=0;
+    b[0]='T'; b[1]='W'; b[2]='N'; b[3]='2'; b[23]=t->w; b[24]=t->h; b[25]=NB_LOTS; b[26]=2; b[27]=t->spare;
     int k=NB_PHDR; for(int y=0;y<t->h;y++) for(int x=0;x<t->w;x++) b[k++]=t->cell[y][x];
     const u8*L=(const u8*)t->lot; for(unsigned i=0;i<NB_LOTS*sizeof(NbLot);i++) b[k++]=L[i];
     for(int i=0;i<NB_LOTS;i++) for(int q=0;q<5;q++) b[k++]=t->roof[i][q];
@@ -187,7 +187,7 @@ static int nbRead(int s,Town*t){   // a town from its slot (1 = ok): 'TWN2', or 
         for(int i=NB_LOTS1;i<NB_LOTS;i++) t->lot[i].slot=-1;
     } else {
         int w=b[23], h=b[24], nl=b[25]; if(w<8||h<8||w>NB_WMAX||h>NB_HMAX||nl>NB_LOTS||(unsigned)(NB_PHDR+w*h+nl*(int)sizeof(NbLot)+nl*5)>n) return 0;
-        t->w=(u8)w; t->h=(u8)h; int k=NB_PHDR;
+        t->w=(u8)w; t->h=(u8)h; t->spare=b[27]; int k=NB_PHDR;
         for(int y=0;y<h;y++) for(int x=0;x<w;x++) t->cell[y][x]=b[k++];
         u8*L=(u8*)t->lot; for(unsigned i=0;i<(unsigned)nl*sizeof(NbLot);i++) L[i]=b[k++];
         for(int i=0;i<nl;i++) for(int q=0;q<5;q++) t->roof[i][q]=b[k++];
