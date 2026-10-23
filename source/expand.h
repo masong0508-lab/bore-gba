@@ -878,12 +878,9 @@ static void exNotIn(int p){   // a pack that is not in this ROM: what to do abou
 }
 // a mission's brief line: written as sentences; when it is wider than the card it scrolls (a pause, a slow slide to the end, a pause, again)
 static u32 exMqT;   // the frame counter of the screen that draws it
-static int exOver(const XMs*x,int w){ return tw(x->br[0],1)>w||tw(x->br[1],1)>w; }
-static void exMarq(int x,int y,const char*s,u16 c,int w){
-    int tl=tw(s,1); if(tl<=w){ text(x,y,s,c,1); return; }
-    int span=tl-w+8, ph=(int)(exMqT%(u32)(span+120)), o=ph<60?0:ph<60+span?ph-60:span;
-    clipSet(x,y-3,x+w,y+11); text(x-o,y,s,c,1); clipAll();
-}
+static const char* exBrT(const XMs*x){ static char b[244] EWRAM_BSS; char*e=slCat(b,x->br[0]); e=slCat(e," "); slCat(e,x->br[1]); return b; }   // the two lines as one text
+static int exOver(const XMs*x,int w){ return vsOver(exBrT(x),w,2); }   // does the brief need the scroll (more than two lines)?
+static void exBrief(int x,int y,int w,const XMs*m,u16 c){ vsDraw(x,y,w,2,c,exBrT(m),exMqT); }   // two lines show, the rest scrolls up
 static void exPackScreen(int p,int ingame){
     if(!xpHave(p)){ exNotIn(p); return; }
     const XPk*P=&xPk[p]; int hasMode=P->mode!=XMODE_NONE, rows=P->n+hasMode, sel=0, top=0;
@@ -929,7 +926,7 @@ static void exPackScreen(int p,int ingame){
         rect(8,121,224,1,RGB(14,26,31));
         if(hasMode&&sel==0){ if(p==XP_ZOMB){ text(12,125,"AFTER THE FIVE MISSIONS  A HORDE OF YOUR OWN",RGB(20,26,31),1); text(12,134,hzUnlocked()?"100 WAVES OR ENDLESS  14 MUTATORS":"FINISH ALL FIVE MISSIONS TO OPEN IT",RGB(17,29,31),1); }
           else { text(12,125,"A MODE OF ITS OWN  NO LIFE NEEDED",RGB(20,26,31),1); text(12,134,P->bl[2],RGB(17,29,31),1); } }
-        else { const XMs*x=&P->ms[sel-hasMode]; exMarq(12,125,x->br[0],RGB(20,26,31),216); exMarq(12,134,x->br[1],RGB(20,26,31),216); }
+        else { const XMs*x=&P->ms[sel-hasMode]; exBrief(12,125,216,x,RGB(20,26,31)); }
         s2pill(5,147,tw("A START",1)+10,"A START"); s2pill(9+tw("A START",1)+10,147,tw("B BACK",1)+10,"B BACK");
         present();
     }
@@ -964,7 +961,7 @@ static void exShelf(int ingame){
 static void exCardBody(int p,int m,int y,int live){   // a mission's title, its two lines and its tasks
     const XMs*x=&xPk[p].ms[m];
     { char b[48]; char*e=slCat(b,"MISSION "); e=slNum(e,m+1); e=slCat(e,"  "); slCat(e,x->nm); text(16,y,b,GOLD,1); }
-    exMarq(16,y+10,x->br[0],RGB(20,26,31),208); exMarq(16,y+19,x->br[1],RGB(20,26,31),208);
+    exBrief(16,y+10,208,x,RGB(20,26,31));
     exTkList(x,16,y+30,9,live);
 }
 // ---- a mission's story: pages of text told before the mission card and after the mission ----

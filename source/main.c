@@ -5827,18 +5827,43 @@ static int jbNextSong(int from,int manual){   // the song after `from` for the c
 }
 // ---- drawing ----
 static void jbOutline(int x,int y,int w,int h,u16 c){ rect(x,y,w,1,c); rect(x,y+h-1,w,1,c); rect(x,y,1,h,c); rect(x+w-1,y,1,h,c); }
+// VERTICAL SCROLLING TEXT: a text too long for its box is broken into lines at the spaces, and the lines scroll UP through the box one at a time
+// (a pause, a short slide, a pause, ...), then it starts again. Used by the mission briefs (expand.h) and the Toukebox's long titles.
+#define VS_L 8
+static int vsLines(const char*s,int w,char L[VS_L][44]){   // the text broken into lines no wider than w (a single word wider than that keeps its own line)
+    int n=0, l=0; char c[44]; c[0]=0;
+    while(*s&&n<VS_L){
+        while(*s==' ') s++; if(!*s) break;
+        int k=0; while(s[k]&&s[k]!=' ') k++;
+        char t[44]; int tl=0; for(int i=0;i<l;i++) t[tl++]=c[i]; if(l) t[tl++]=' '; for(int i=0;i<k&&tl<42;i++) t[tl++]=s[i]; t[tl]=0;
+        if(l&&tw(t,1)>w){
+            c[l]=0; for(int i=0;i<=l;i++) L[n][i]=c[i]; n++; if(n>=VS_L){ l=0; break; }
+            tl=0; for(int i=0;i<k&&tl<42;i++) t[tl++]=s[i]; t[tl]=0;
+        }
+        for(int i=0;i<=tl;i++) c[i]=t[i]; l=tl; s+=k;
+    }
+    if(l&&n<VS_L){ c[l]=0; for(int i=0;i<=l;i++) L[n][i]=c[i]; n++; }
+    return n;
+}
+static int vsOver(const char*s,int w,int rows){ char L[VS_L][44]; return vsLines(s,w,L)>rows; }   // 1 = it needs the scroll
+static void vsDraw(int x,int y,int w,int rows,u16 c,const char*s,u32 t){   // rows lines of 9 px show at a time; t counts frames
+    char L[VS_L][44]; int n=vsLines(s,w,L);
+    if(n<=rows){ for(int i=0;i<n;i++) text(x,y+i*9,L[i],c,1); return; }
+    int steps=n-rows, k=(int)((t/90u)%(u32)(steps+1)), ph=(int)(t%90u), off=0;
+    if(k<steps&&ph>=72) off=(ph-72)*9/18;   // the last 18 frames of each pause slide the text up one line
+    clipSet(x,y-1,x+w+1,y+rows*9-1);
+    for(int i=0;i<=rows&&k+i<n;i++) text(x,y+i*9-off,L[k+i],c,1);
+    clipAll();
+}
 // text in a column w wide: as is when it fits; else cut with ".." (or, with a scroll offset >= 0, scrolled inside the column)
 static void jbCol(int x,int y,int w,const char*s,u16 c,int scroll){
     int fw=tw(s,1);
     if(fw<=w){ text(x,y,s,c,1); return; }
-    if(scroll>=0){ clipSet(x,0,x+w,SH); text(x-scroll,y,s,c,1); clipAll(); return; }
+    if(scroll>=0){ vsDraw(x,y,w,1,c,s,(u32)scroll); return; }   // (scroll = the frame count: the lines scroll up)
     char b[48]; int n=0, ew=tw("..",1); const char*p=s;
     for(;;){ const char*q=p; if(!*q) break; fNext(&q); int k=(int)(q-s); if(k>=(int)sizeof b-3) break; for(int i=0;i<k;i++) b[i]=s[i]; b[k]=0; if(tw(b,1)+ew>w) break; n=k; p=q; }
     for(int i=0;i<n;i++) b[i]=s[i];
     b[n]='.'; b[n+1]='.'; b[n+2]=0; text(x,y,b,c,1);
-}
-static int jbMq(int fw,int w,int t){   // scroll offset for a text fw wide in a column w wide: waits, scrolls, waits, starts over (t counts about 15 per second)
-    int r=fw-w; if(r<=0) return 0; int p=t%(r+60); return p<30?0:(p-30<r?p-30:r);
 }
 static void jbSpeaker(int x,int y,u16 c){ rect(x,y+2,3,3,c); rect(x+3,y+1,1,5,c); rect(x+4,y,1,7,c); rect(x+6,y+2,1,3,c); rect(x+8,y+1,1,5,c); }
 static void jbBox(int x,int y,int on,u16 c){   // the check box: 7 x 7, with a tick when the song is on
@@ -5869,7 +5894,7 @@ static void jbPaintHead(int fr){
     else text(nx,23,live?"NOW PLAYING":jbCur>=0?"STOPPED":"PICK A SONG",live?RGB(14,26,13):JB_DIM,1);
     if(jbCur>=0){
         const Song*ns=&songs[jbMap[jbCur]]; int fw=tw(ns->name,1); u16 nc=live?WHITE:JB_TXT;
-        jbCol(nx,31,nw,ns->name,nc,fw>nw?jbMq(fw,nw,fr>>2):-1);
+        jbCol(nx,31,nw,ns->name,nc,fw>nw?(int)fr:-1);
         const char*ar=songArtist(ns);
         if(jbMsgT>0) text(nx,40,jbMsg,GOLD,1); else if(ar) text(nx,40,ar,live?GOLD:JB_DIM,1);
         int tot=jbSecs(jbMap[jbCur]), el=0; u32 es=0, ts=jbTotalSamp(ns);
@@ -5899,7 +5924,7 @@ static void jbPaintList(int cur,int fr){
         if(pl) jbSpeaker(7,y+1,GOLD);
         jbBox(18,y+1,on,sel?WHITE:on?JB_TXT:JB_DIM);
         int fw=tw(sg->name,1);
-        jbCol(JB_NX,y+1,JB_NW,sg->name,tc,(sel&&fw>JB_NW)?jbMq(fw,JB_NW,fr>>2):-1);
+        jbCol(JB_NX,y+1,JB_NW,sg->name,tc,(sel&&fw>JB_NW)?(int)fr:-1);
         if(ar) jbCol(JB_AX,y+1,JB_AW,ar,sel?GOLD:pl?WHITE:on?RGB(15,19,25):JB_DIM,-1);
         jbTimeR(JB_TR,y+1,jbSecs(jbMap[v]),sel?WHITE:pl?GOLD:on?RGB(15,19,25):JB_DIM);
     }
