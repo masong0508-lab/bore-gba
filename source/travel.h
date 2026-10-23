@@ -20,7 +20,7 @@ static int trvFind(int ct){
 static int trvHere(int ct){ return nbOk&&nbT.cur<NB_LOTS&&trvIs(&nbT.lot[nbT.cur],ct); }   // are you on a place of that kind right now?
 static int nbExpand(void);   // neighborhood.h
 static int trvPlace1(int ct);
-static int trvPlace(int ct){ int i=trvPlace1(ct); if(i<0&&nbOk&&nbExpand()) i=trvPlace1(ct); return i; }   // no land left: the town grows (8 cells each way) and the new districts make room
+static int trvPlace(int ct){ int i=trvPlace1(ct); if(i<0&&nbOk&&!(nbT.pad[0]&2)&&nbExpand()) i=trvPlace1(ct); return i; }   // no land left: the town grows (8 cells each way) and the new districts make room
 static int trvPlace1(int ct){
     int i=trvFind(ct); if(i>=0||!nbOk) return i;
     if(ct==CT_PRISON) return prLotGet();

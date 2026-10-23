@@ -49,7 +49,7 @@ static u8 nbOk;                  // nbT holds a town
 static int nbTS=-1;              // the slot nbT was loaded from (or -1: a new town, it gets a free slot)
 typedef struct { char tag[4]; char name[NB_NAME+1]; u8 season,tod,home,cur,zoom,pad[3]; } TownHd;   // the start of a Town: enough to know a town by name and whether it is the live one
 _Static_assert(sizeof(TownHd)==__builtin_offsetof(Town,w),"TownHd must be the start of Town");
-#define NB_ACT pad[0]            // 1 = the live room belongs to this town (its lot cur)
+#define NB_ACT pad[0]            // bit 0: 1 = the live room belongs to this town (its lot cur). Bit 1: a BLANK town (grows as empty land, see nbGenS / nbExpand). Test bit 0 only: (x.NB_ACT&1)
 #define NB_GR(c) ((c)&7)
 #define NB_DC(c) ((c)>>3)
 
@@ -215,10 +215,10 @@ static int nbReadHd(int s,TownHd*t){   // only the start of a town (its name, an
 }
 static int nbLoad(void){   // the town the live room belongs to (or the first one)
     int l[SLOT_MAX], n=nbTownList(l,SLOT_MAX), pick=-1; TownHd h;
-    for(int i=0;i<n&&pick<0;i++){ if(nbReadHd(l[i],&h)&&h.NB_ACT) pick=l[i]; }
+    for(int i=0;i<n&&pick<0;i++){ if(nbReadHd(l[i],&h)&&(h.NB_ACT&1)) pick=l[i]; }
     if(pick<0&&n) pick=l[0];
     if(pick<0||!nbRead(pick,&nbT)) return 0;
-    nbT.NB_ACT=1; nbTS=pick; return 1;
+    nbT.NB_ACT|=1; nbTS=pick; return 1;
 }
 static int nbSave(void){   // into its slot run (one slot, two for a big town); a town that grew past its run moves to a free one
     int len=nbPack(&nbT,nbBuf), span=(SLOT_HDR+len+SLOT_SZ-1)/SLOT_SZ;
@@ -240,19 +240,19 @@ static void nbLotAdd(int i,const char*nm,int x,int y,int w,int h,int kind,int ty
     NbLot*L=&nbT.lot[i]; L->on=1; L->x=(u8)x; L->y=(u8)y; L->w=(u8)w; L->h=(u8)h; L->kind=(u8)kind; L->type=(u8)type; L->slot=-1; L->floors=1; for(int q=0;q<5;q++) nbT.roof[i][q]=0;
     int k=0; for(;nm[k]&&k<NB_NAME;k++) L->name[k]=nm[k]; L->name[k]=0; L->value=(u16)(w*h*8);
 }
-enum { NS_SUBURB, NS_DESERT, NS_LAKE, NS_EMPTY, NS_N };
-static const char* const nsNm[NS_N]={"GREEN SUBURB","DESERT TOWN","LAKESIDE","EMPTY LAND"};
-static const char* const nsTown[NS_N]={"BOREVILLE","MESA FLATS","PINE COVE","NEW TOWN"};
+enum { NS_SUBURB, NS_DESERT, NS_LAKE, NS_EMPTY, NS_BLANK, NS_N };
+static const char* const nsNm[NS_N]={"GREEN SUBURB","DESERT TOWN","LAKESIDE","EMPTY LAND","BLANK 16 X 16"};
+static const char* const nsTown[NS_N]={"BOREVILLE","MESA FLATS","PINE COVE","NEW TOWN","BLANK TOWN"};
 static void nbDistricts(int style,int ox,int oy); static void nbEnsureHomes(int want);
 static u8 nbStarterOn;   // 1 while a STARTER town is made (nbGenStart): it must always have homes to pick from
 static void nbGenS(int style,const char*name,int size){   // a new town in nbT (not saved), size x size cells. Its live lot is none yet (cur 255): going there builds the home lot
     u8*z=(u8*)&nbT; for(unsigned i=0;i<sizeof(Town);i++) z[i]=0;
-    nbT.tag[0]='T'; nbT.tag[1]='W'; nbT.tag[2]='N'; nbT.tag[3]='2'; if(size<24) size=24; if(size>NB_WMAX) size=NB_WMAX; nbT.w=nbT.h=(u8)size; nbT.ver=2;
+    nbT.tag[0]='T'; nbT.tag[1]='W'; nbT.tag[2]='N'; nbT.tag[3]='2'; if(size<16) size=16; if(size>NB_WMAX) size=NB_WMAX; nbT.w=nbT.h=(u8)size; nbT.ver=2;
     { int k=0; for(;name[k]&&k<NB_NAME;k++) nbT.name[k]=name[k]; }
     nbT.season=(u8)(style==NS_LAKE?2:1); nbT.home=0; nbT.cur=255;
     for(int i=0;i<NB_LOTS;i++) nbT.lot[i].slot=-1;
     int rx=11, ry=11, base=style==NS_DESERT?NT_SAND:NT_GRASS;
-    if(style==NS_DESERT){ rx=8; ry=15; } else if(style==NS_LAKE){ rx=5; ry=13; } else if(style==NS_EMPTY){ rx=-1; ry=12; }
+    if(style==NS_DESERT){ rx=8; ry=15; } else if(style==NS_LAKE){ rx=5; ry=13; } else if(style==NS_EMPTY){ rx=-1; ry=12; } else if(style==NS_BLANK){ rx=-1; ry=-1; nbT.pad[0]|=2; }   // BLANK: no road at all, and the town is marked blank (it grows as empty land)
     for(int y=0;y<NB_H;y++)for(int x=0;x<NB_W;x++) nbT.cell[y][x]=(u8)((x==rx||y==ry)?NT_ROAD:base);
     if(style==NS_SUBURB){
         nbLotAdd(0,"YOUR PLACE",0,0,10,10,LKIND_RES,0); nbLotAdd(1,"MAPLE 2",12,0,4,4,LKIND_RES,0); nbLotAdd(2,"MAPLE 4",17,0,6,6,LKIND_RES,0);
@@ -271,10 +271,11 @@ static void nbGenS(int style,const char*name,int size){   // a new town in nbT (
         nbLotAdd(3,"BIRCH 2",0,6,4,6,LKIND_RES,0); nbLotAdd(4,"HARBOR PARK",0,15,5,6,LKIND_COMM,CT_PARK); nbLotAdd(5,"BOARDWALK",14,15,6,4,LKIND_COMM,CT_PLAZA);
         nbLotAdd(6,"CABIN",20,15,4,4,LKIND_COMM,CT_LOUNGE); nbLotAdd(7,"OLD DOCKS",6,17,8,5,LKIND_COMM,CT_OLDTOWN); nbLotAdd(8,"RIDGE SKATE",14,20,6,4,LKIND_COMM,CT_SKATE);
         for(int y=0;y<NB_H;y++)for(int x=0;x<NB_W;x++) if(nbAt(x,y)<0&&nbT.cell[y][x]!=NT_ROAD&&(x-17)*(x-17)+(y-6)*(y-6)*3/2<34) nbT.cell[y][x]=NT_WATER;   // the lake
-    } else nbLotAdd(0,"YOUR PLACE",2,3,6,6,LKIND_RES,0);
+    } else if(style==NS_BLANK) nbLotAdd(0,"YOUR PLACE",5,5,6,6,LKIND_RES,0);   // (the one lot to start on, in the middle of the 16 x 16)
+    else nbLotAdd(0,"YOUR PLACE",2,3,6,6,LKIND_RES,0);
     if(nbT.w>24||nbT.h>24) nbDistricts(style,24,24);   // a bigger town: more streets, more homes, more places to go
     if(nbStarterOn) nbEnsureHomes(12);   // (a starter town: homes for the new players)
-    u32 r=0x2F6E2B1u+(u32)style*7919u; int dens=style==NS_EMPTY?25:style==NS_DESERT?45:70;
+    u32 r=0x2F6E2B1u+(u32)style*7919u; int dens=style==NS_BLANK?0:style==NS_EMPTY?25:style==NS_DESERT?45:70;
     for(int y=0;y<NB_H;y++)for(int x=0;x<NB_W;x++){
         r=r*1103515245u+12345u; int v=(int)(r>>16)&255;
         if(nbAt(x,y)>=0) continue;
@@ -344,12 +345,32 @@ static int nbExpand(void){
     for(int y=0;y<nh;y++) for(int x=0;x<nw;x++) if(x>=ow||y>=oh) nbT.cell[y][x]=(u8)g;
     for(int x=0;x<ow;x++) if(NB_GR(nbT.cell[oh-1][x])==NT_ROAD) for(int y=oh;y<nh;y++) nbT.cell[y][x]=NT_ROAD;
     for(int y=0;y<oh;y++) if(NB_GR(nbT.cell[y][ow-1])==NT_ROAD) for(int x=ow;x<nw;x++) nbT.cell[y][x]=NT_ROAD;
-    nbT.w=(u8)nw; nbT.h=(u8)nh; nbDistricts(g==NT_SAND?NS_DESERT:NS_SUBURB,ow,oh);
+    nbT.w=(u8)nw; nbT.h=(u8)nh; if(!(nbT.pad[0]&2)) nbDistricts(g==NT_SAND?NS_DESERT:NS_SUBURB,ow,oh);   // (a BLANK town grows as empty land: no districts, no trees)
     u32 r=0x7E57u+(u32)nw*131u;
     for(int y=0;y<nh;y++) for(int x=0;x<nw;x++){ if(x<ow&&y<oh) continue; r=r*1103515245u+12345u; int v=(int)(r>>16)&255;
-        if(nbAt(x,y)>=0||NB_GR(nbT.cell[y][x])!=g) continue;
+        if((nbT.pad[0]&2)||nbAt(x,y)>=0||NB_GR(nbT.cell[y][x])!=g) continue;
         if(v<50) nbT.cell[y][x]|=(u8)((g==NT_SAND?(v<10?DC_TREE:v<30?DC_ROCK:DC_BUSH):(v<20?DC_TREE:v<32?DC_PINE:v<42?DC_BUSH:DC_FLOWER))<<3); }
     nbSave(); return 1;
+}
+// SHRINK THE TOWN (the town menu): 8 cells less each way, down to 16 x 16: the way back from GROW THE TOWN. Every lot that is not wholly inside what stays is
+// deleted: its house slot is freed and the household that lived there leaves the bank. Your HOME and the lot you are standing in are never cut (it says so, and
+// nothing changes): move home, or go to another lot, first. (The moonbase is not on the map: it stays.)
+static int bkFind(u16 key,int lot); static void bkDel(int i); static u16 nbKey(const Town*t);   // households.h
+static int nbCutOff(const NbLot*L,int nw,int nh){ return L->on&&!lnLot(L)&&(L->x+L->w>nw||L->y+L->h>nh); }
+static int nbShrink(void){   // 1 = shrunk, 0 = nothing happened (it said why)
+    int ow=nbT.w, oh=nbT.h; if(ow<=16&&oh<=16){ toast("THE TOWN IS AS SMALL AS IT GETS"); return 0; }
+    int nw=ow-8<16?16:ow-8, nh=oh-8<16?16:oh-8, cut=0;
+    for(int i=0;i<NB_LOTS;i++){ if(!nbCutOff(&nbT.lot[i],nw,nh)) continue;
+        if(i==nbT.home){ toast("YOUR HOME IS IN THE WAY"); return 0; }
+        if(i==nbT.cur){ toast("GO TO ANOTHER LOT FIRST"); return 0; }
+        cut++; }
+    if(cut){ char t[24]; char*e=slCat(t,"DELETE "); e=slNum(e,cut); slCat(e,cut==1?" LOT":" LOTS");
+        const char*yn[2]={"NO","YES"}; if(menu(t,yn,2)!=1) return 0; }
+    for(int i=0;i<NB_LOTS;i++){ NbLot*L=&nbT.lot[i]; if(!nbCutOff(L,nw,nh)) continue;
+        if(L->slot>=0) slDelete(L->slot);
+        L->slot=-1; L->on=0; for(int q=0;q<5;q++) nbT.roof[i][q]=0;
+        int b=bkFind(nbKey(&nbT),i); if(b>=0) bkDel(b); }   // (a household that lived there is gone with the lot)
+    nbT.w=(u8)nw; nbT.h=(u8)nh; nbBounds(); nbSave(); return 1;
 }
 // ---------- drawing ----------
 static int nbHw, nbHh, nbOx, nbOy, nbK;   // half width / height of a cell, where cell (0,0) is, the object scale
@@ -737,14 +758,15 @@ static int nbNewLot(int x,int y,int w,int h){
     nbSave(); toast("LOT PLACED"); return 1;
 }
 static void nbTownMenu(int*quit){
-    static const char* const it[7]={"ZOOM","SEASON","TIME OF DAY","RENAME TOWN","GROW THE TOWN","ALL NEIGHBORHOODS","LEAVE"};
-    int c=menu("TOWN",it,7);
+    static const char* const it[8]={"ZOOM","SEASON","TIME OF DAY","RENAME TOWN","GROW THE TOWN","SHRINK THE TOWN","ALL NEIGHBORHOODS","LEAVE"};
+    int c=menu("TOWN",it,8);
     if(c==0) nbT.zoom=(u8)(nbT.zoom==0?((nbT.w>24||nbT.h>24)?2:1):nbT.zoom==2?1:0);   // the whole town, then (in a big town) MEDIUM, then CLOSE, each following the cursor
     else if(c==1) nbT.season=(u8)((nbT.season+1)&3);
     else if(c==2) nbT.tod=(u8)((nbT.tod+1)%3);
     else if(c==3){ char nm[SLOT_NAME+1]; for(int i=0;i<=NB_NAME;i++) nm[i]=nbT.name[i]; if(slEditName(nm)) for(int i=0;i<=NB_NAME;i++) nbT.name[i]=nm[i]; }
     else if(c==4){ if(nbExpand()){ char t[24]; char*e=slCat(t,"NOW "); e=slNum(e,nbT.w); e=slCat(e," X "); slNum(e,nbT.h); toast(t); } else toast("THE TOWN IS AS BIG AS IT GETS"); }
-    else if(c==5||c==6) *quit=1;
+    else if(c==5){ if(nbShrink()){ char t[24]; char*e=slCat(t,"NOW "); e=slNum(e,nbT.w); e=slCat(e," X "); slNum(e,nbT.h); toast(t); } }
+    else if(c==6||c==7) *quit=1;
 }
 // MOVE IN (The Sims 2): a new player's household picks its home on the town map. main.c newGame opens the town in this mode right after the creator
 // (or the family bin): the tools and the town menu are off, the panel shows each lot's price against your money, A on a home lot buys it and moves
@@ -816,7 +838,7 @@ static void neighborhoodScreen(void){
                          else { tool=4; } prev=keyNow(); dirty=1; }
             else if(tool==4){ if(!gok) toast("NO ROOM THERE"); else if(nbNewLot(ccx,ccy,gw,gh)) tool=0; prev=keyNow(); dirty=1; }
         }
-        if(!nbMoveMode&&(pr&K_START)){ nbTownMenu(&quit); prev=keyNow(); dirty=1; played=1; camx=ccx; camy=ccy; }   // (a new zoom: the map centres on the cursor)
+        if(!nbMoveMode&&(pr&K_START)){ nbTownMenu(&quit); prev=keyNow(); dirty=1; played=1; if(ccx>=NB_W) ccx=NB_W-1; if(ccy>=NB_H) ccy=NB_H-1; camx=ccx; camy=ccy; }   // (a new zoom: the map centres on the cursor)
         if(step&&tool==4) dirty=1;   // (the NEW LOT ghost is a block of cells: all of it. The lots tool and the paint tools only repaint round the cursor, zoomed in too)
         if(dirty){ nbDrawTown(ccx,ccy,camx,camy,tool,gw,gh,gok); nbPanel(ccx,ccy,tool,sub[tool]); present(); dirty=0; step=0; pcx=ccx; pcy=ccy; }
         else if(step||(uiTicks&15)==0){   // a cursor step on the lots, or the lot outline's blink: only round the old and the new spot (the whole town took a third of a second)
@@ -845,7 +867,7 @@ static u16 nbThumbCol(const Town*t,int cx,int cy){
     for(int i=0;i<NB_LOTS;i++){ const NbLot*L=&t->lot[i]; if(!L->on||lnLot(L)||cx<L->x||cy<L->y||cx>=L->x+L->w||cy>=L->y+L->h) continue;
         int mx=cx-L->x, my=cy-L->y, mid=mx>=L->w/2-1&&mx<=L->w/2&&my>=L->h/2-1&&my<=L->h/2;
         if(L->kind==LKIND_COMM) return mid?RGB(12,12,14):RGB(19,19,18);
-        if(mid&&(L->slot>=0||(t->NB_ACT&&t->cur==i))) return RGB(22,6,5);   // a house: its roof
+        if(mid&&(L->slot>=0||((t->NB_ACT&1)&&t->cur==i))) return RGB(22,6,5);   // a house: its roof
         return mid&&L->slot<0?RGB(29,29,29):t->season==3?RGB(28,29,31):RGB(11,22,8); }
     u8 c=t->cell[cy][cx]; int g=NB_GR(c), d=NB_DC(c);
     if(d==DC_TREE||d==DC_PINE||d==DC_BUSH) return t->season==2?RGB(22,12,4):t->season==3?RGB(24,25,27):RGB(4,13,4);
@@ -861,20 +883,20 @@ static void nbThumb(const Town*t,int x0,int y0,int w,int h){   // the whole town
         px(x0+px_,y0+py,nbThumbCol(t,cx,cy)); }
 }
 static int nbSwitch(int s){   // make the town in slot s the one you live in (your lot there becomes the live room). 1 = done
-    if(nbTS==s&&nbT.NB_ACT) return 1;
+    if(nbTS==s&&(nbT.NB_ACT&1)) return 1;
     if(nbLoad()){ if(nbT.cur<NB_LOTS&&nbT.lot[nbT.cur].on){ box(60,64,120,24); text(76,72,"PACKING UP...",WHITE,1); present();
             ldShow("PACKING UP YOUR LOT",0,3);
             int e=nbStore(nbT.cur); if(e){ nbErr=e==SLE_NOROOM?"NO FREE SLOTS FOR YOUR LOT":slErrMsg(e); ldEnd(); return 0; } }
-        nbT.NB_ACT=0; nbSave(); }
+        nbT.NB_ACT&=(u8)~1; nbSave(); }
     if(!nbRead(s,&nbT)){ nbErr="THAT TOWN IS DAMAGED"; nbLoad(); ldEnd(); return 0; }
-    nbTS=s; int want=nbT.cur<NB_LOTS&&nbT.lot[nbT.cur].on?nbT.cur:nbT.home; nbT.cur=255; nbT.NB_ACT=1;
+    nbTS=s; int want=nbT.cur<NB_LOTS&&nbT.lot[nbT.cur].on?nbT.cur:nbT.home; nbT.cur=255; nbT.NB_ACT|=1;
     if(!nbGo(want)){ nbSave(); ldEnd(); return 0; }
     return 1;
 }
 static int nbFirstTowns(int*l){   // the towns saved (their slots into l). The first time: three towns to start with (one on a 32 KB SRAM chip)
     int n=nbTownList(l,SLOT_MAX);
     if(!n){
-        nbGenStart(NS_SUBURB,nsTown[NS_SUBURB]); nbT.cur=0; nbT.NB_ACT=1; nbTS=-1; nbSave();   // (the room you have is YOUR PLACE in BOREVILLE: a starter town, 32 x 32 with homes to pick from)
+        nbGenStart(NS_SUBURB,nsTown[NS_SUBURB]); nbT.cur=0; nbT.NB_ACT|=1; nbTS=-1; nbSave();   // (the room you have is YOUR PLACE in BOREVILLE: a starter town, 32 x 32 with homes to pick from)
         if(SLOT_N>=26){ int keep=nbTS; for(int st=NS_DESERT;st<=NS_LAKE;st++){ nbGenStart(st,nsTown[st]); nbTS=-1; nbSave(); } nbTS=keep; }
         n=nbTownList(l,SLOT_MAX);
     }

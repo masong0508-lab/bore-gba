@@ -6063,9 +6063,9 @@ static void playScreen(void){
         if(pr&K_SEL){
             int st=menu("A NEW NEIGHBORHOOD",nsNm,NS_N), sz=-1;
             static const char* const szNm[5]={"SMALL  24 X 24","MEDIUM  32 X 32","LARGE  40 X 40","HUGE  48 X 48","MASSIVE  64 X 64"};
-            if(st>=0) sz=menu("HOW BIG",szNm,5);
+            if(st>=0) sz=(st==NS_BLANK)?0:menu("HOW BIG",szNm,5);   // (BLANK is always 16 x 16)
             if(st>=0&&sz>=0){ char nm[SLOT_NAME+1]; int i=0; for(;nsTown[st][i];i++) nm[i]=nsTown[st][i]; nm[i]=0;
-                if(slEditName(nm)){ nbGenS(st,nm,sz==4?64:24+sz*8); nbTS=-1; int e=nbSave(); toast(e?"NO FREE SLOTS FOR A TOWN THAT BIG":"NEIGHBORHOOD MADE"); }
+                if(slEditName(nm)){ nbGenS(st,nm,st==NS_BLANK?16:(sz==4?64:24+sz*8)); nbTS=-1; int e=nbSave(); toast(e?"NO FREE SLOTS FOR A TOWN THAT BIG":"NEIGHBORHOOD MADE"); }
                 nbOk=nbLoad(); n=nbTownList(l,SLOT_MAX); act=nbTS; }
             prev=keyNow(); dirty=2;
         }
