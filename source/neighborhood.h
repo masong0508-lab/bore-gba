@@ -66,6 +66,7 @@ static int nbBarred(void){   // 1 = the live room is a COMMUNITY lot and you got
 }
 static int nbFlagOk(void){ return nbOk&&nbEditPass&&nbT.cur<NB_LOTS&&nbT.lot[nbT.cur].on&&nbT.cur!=nbT.home&&!nbLives(nbT.cur); }   // flags can only be placed while the town view's BUILD has a free lot open (never in your home, never in normal play)
 static int nbFlagsOn(void){ return nbOk&&nbT.cur<NB_LOTS&&nbT.lot[nbT.cur].on&&nbT.lot[nbT.cur].kind==LKIND_COMM; }   // flags only do anything on a community lot
+static void lnrBuild(int x0,int y0,int x1,int y1);   // lunrado.h
 static int lnLot(const NbLot*L);   // lunrado.h: the moonbase is a hidden lot (not on the map, not under the cursor)
 static int nbAt(int cx,int cy){ for(int i=0;i<NB_LOTS;i++){ const NbLot*L=&nbT.lot[i]; if(L->on&&!lnLot(L)&&cx>=L->x&&cy>=L->y&&cx<L->x+L->w&&cy<L->y+L->h) return i; } return -1; }
 static int nbItemValue(char c){   // what a tile of c is worth in simoleons: the catalog price (main.c palPrice); anything that is not in the catalog counts a little
@@ -106,7 +107,7 @@ static void nbTemplate(int i){   // a lot's starting layout: the land, the stree
             else if(L->type==CT_PRISON) prisonBuild(x0,y0,x1,y1);
             else if(L->type==CT_ARMS) armsBuild(x0,y0,x1,y1);   // armsshop.h
             else if(L->type==CT_DISP) dispBuild(x0,y0,x1,y1);   // weed.h
-            else if(L->type>=CT_TACO) venueBuild(x0,y0,x1,y1,L->type);   // venues.h
+            else if(L->type>=CT_TACO){ if(lnLot(L)) lnrBuild(x0,y0,x1,y1); else venueBuild(x0,y0,x1,y1,L->type); }   // venues.h; lunrado.h: the moonbase mall (two floors)
         }
         if(L->kind==LKIND_COMM){   // sound pack: a RADIO / SOUND SYSTEM on the community lots (only onto empty floor; R next to one tunes a station)
             int my=(y0+y1)/2;
@@ -116,8 +117,9 @@ static void nbTemplate(int i){   // a lot's starting layout: the land, the stree
         }
         gPut(cx,y1-1,'P'); if(lifeMap[y1-1][cx+1]=='.') gPut(cx+1,y1-1,'B');   // you arrive at the front, your board beside you
     }
-    flBlankUpper(); mapSave(); mapScan(); hhSlotsFree(); liveInvalidate(); camSnap=1;
-    L->floors=1; nbValueLive(i);
+    if(!(L->kind==LKIND_COMM&&lnLot(L))) flBlankUpper();   // (the moonbase mall keeps its second floor)
+    mapSave(); mapScan(); hhSlotsFree(); liveInvalidate(); camSnap=1;
+    L->floors=(L->kind==LKIND_COMM&&lnLot(L))?2:1; nbValueLive(i);
 }
 static void nbFlagSync(int j){   // the flags on the live lot j (main.c, FLAGS) say what kind of place it is. No flags: nothing changes
     NbLot*L=&nbT.lot[j]; int f=0, conv=0;

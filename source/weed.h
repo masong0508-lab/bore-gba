@@ -187,13 +187,14 @@ static void dpJars(void){   // BY THE GRAM: any strain, 1 / 4 / 8 grams (the mor
         dpBuy(s,ng[a],dpPrice(wdS[s].price+3)*ng[a]*pc[a]/100);
     }
 }
+static int lnrHere(void);   // lunrado.h: the moonbase's dispensary is LUNARWEED
 static void wdCounter(void){   // R at the dispensary counter
     if(stage<AG_ADULT){ static const char* const no[3]={"21 AND UP  NICE TRY KID","THEY CHECKED YOUR ID  NOPE","COME BACK WITH A BEARD"}; lnote=no[rnd8()%3]; lnoteT=110; voxPlay(V_disagree); return; }
     static const char* const tips[8]={"START LOW AND GO SLOW","GUMMIES TAKE A WHILE  TRUST ME","WATER YOUR PLANTS  NOT TOO MUCH","PURPLE HAZE  GOOD FOR THE SOUL","SNACKS FIRST  YOU WILL THANK ME","THE CORNER IS RISKY  JUST SAYING","ROLL ONE UP HERE  THE COUCHES ARE FREE","THE FREE SAMPLE IS ONCE A DAY"};
     char tt[40]; const char* it[10]; char lb[5][34]; int id[10];
     for(;;){
         int sd=(simDay+3)%WD_N, n=0, c;
-        char*e=simCat(tt,"GREEN BORE  \xC2\xA7"); simCatMoney(e,simMoney,1);
+        char*e=simCat(tt,lnrHere()?"LUNARWEED  \xC2\xA7":"GREEN BORE  \xC2\xA7"); simCatMoney(e,simMoney,1);
         { char*q=simCat(lb[0],"PRE-ROLL  \xC2\xA7"); simCatN(q,dpPrice(15)); it[n]=lb[0]; id[n++]=0; }
         { char*q=simCat(lb[1],"1/8TH "); q=simCat(q,wdS[sd].nm); q=simCat(q,"  \xC2\xA7"); simCatN(q,dpPrice(45)); it[n]=lb[1]; id[n++]=1; }   // (the strain of the day)
         it[n]="BY THE GRAM"; id[n++]=2;

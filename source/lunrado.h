@@ -14,9 +14,10 @@ static int lnrShut(void){ return nbOk&&(nbT.pad[2]&1); }
 static void lnrSetShut(int v){ if(!nbOk) return; if(v) nbT.pad[2]|=1; else nbT.pad[2]&=(u8)~1; nbSave(); }
 static int lnrLotGet(void){   // the moonbase lot, made once there is a landing
     if(!nbOk) return -1;
-    for(int i=0;i<NB_LOTS;i++) if(lnLot(&nbT.lot[i])) return i;
+    for(int i=0;i<NB_LOTS;i++) if(lnLot(&nbT.lot[i])){ NbLot*L=&nbT.lot[i]; if(L->w<9||L->h<7){ if(L->slot>=0) slDelete(L->slot); L->slot=-1; L->w=9; L->h=7; nbSave(); }   // (an older, smaller moonbase becomes the mall; its room is built again)
+        return i; }
     int fi=-1; for(int i=0;i<NB_LOTS&&fi<0;i++) if(!nbT.lot[i].on) fi=i;
-    if(fi>=0){ nbLotAdd(fi,"LUNRADO",0,0,4,4,LKIND_COMM,CT_SPACE); nbSave(); return fi; }   // a HIDDEN lot: it takes no land and shows nowhere on the map (lnLot: nbAt, the map and the thumbnails skip it); only the rocket goes there
+    if(fi>=0){ nbLotAdd(fi,"LUNRADO",0,0,9,7,LKIND_COMM,CT_SPACE); nbSave(); return fi; }   // a HIDDEN lot: it takes no land and shows nowhere on the map (lnLot: nbAt, the map and the thumbnails skip it); only the rocket goes there
     for(int i=0;i<NB_LOTS;i++){ NbLot*L=&nbT.lot[i];   // no free land: a lot nobody built on and nobody lives on
         if(L->on&&L->kind==LKIND_RES&&i!=nbT.home&&i!=nbT.cur&&L->slot<0&&!nbLives(i)){
             L->kind=LKIND_COMM; L->type=CT_SPACE; const char*nm="LUNRADO"; int k=0; for(;nm[k]&&k<NB_NAME;k++) L->name[k]=nm[k]; L->name[k]=0; nbSave(); return i; } }
@@ -92,4 +93,51 @@ static int lnrCanDo(int sp){   // venueDo asks before it takes the money
 static void lnrDo(int sp){
     if(sp==VS_FUND){ simMoney-=LN_FUND; lnrSetShut(0); lnote="THE SPACEPORT IS OPEN AGAIN"; lnoteT=120; voxPlay(V_yahoo); moodEvent(M_PROMO); }
     else if(sp==VS_HOME){ for(int i=0;i<240;i++) simMinute(); lnote="BACK TO EARTH"; lnoteT=100; lnrReturnHome(); }
+}
+// ---- THE MOONBASE MALL: a sprawling two-storey strip mall (nbTemplate -> lnrBuild; the lot is 9 x 7 cells = the room's 36 x 28) ----
+//   GROUND FLOOR  a long concourse under the dome: the LUNARWEED dispensary (the weed.h counter and its menu) between the MOON MARKET and the LOW-G ARCADE, the
+//                 STAR LOUNGE on the end; in the middle the spaceport desk (its lunar menu) with the lander behind it, a food court, planters, vending machines,
+//                 and the stairs up on the right.
+//   SECOND FLOOR  a gallery round an open atrium (you look down on the concourse): the MOON ARCHIVE, the LUNARWEED LOUNGE (couches, a bong, a hookah) and the MOON GYM.
+static void lnPut(int x,int y,char c,const char*look){ if(x<=0||y<=0||x>=MW-1||y>=MH-1||lifeMap[y][x]!='.') return; gPut(x,y,c); if(look) wallMap[y][x]=(u8)catFind(look); }
+static void lnUnit(int a,int y0,int b,int y1,int fl,int wp){ gRoom(a,y0,b,y1,fl,wp); gPut((a+b)/2,y1,'D'); }   // a shop: a walled room with its door in the front wall
+static void lnrUpper(int rx0,int ry0,int rx1,int ry1){   // the second floor (live while this runs)
+    for(int y=0;y<MH;y++) for(int x=0;x<MW;x++){ lifeMap[y][x]='.'; floorMap[y][x]=FL_AIR; wallMap[y][x]=0; }
+    gRoom(rx0,ry0,rx1,ry1,2,5);
+    int uy0=ry0, uy1=ry0+7, a0=rx0, a1=rx0+11, a2=rx0+22, a3=rx1;   // three shops along the back
+    lnUnit(a0,uy0,a1,uy1,2,6); lnUnit(a1,uy0,a2,uy1,4,11); lnUnit(a2,uy0,a3,uy1,3,5);
+    for(int y=ry0+12;y<=ry0+20;y++) for(int x=rx0+9;x<=rx1-9;x++) floorMap[y][x]=FL_AIR;   // the atrium: nothing under your feet, the concourse far below
+    gLine(rx0+8,ry0+11,rx1-8,ry0+11,'w',13); gLine(rx0+8,ry0+21,rx1-8,ry0+21,'w',13); gLine(rx0+8,ry0+11,rx0+8,ry0+21,'w',13); gLine(rx1-8,ry0+11,rx1-8,ry0+21,'w',13);   // its railing
+    gPut(rx1-3,ry0+12,'~'); floorMap[ry0+12][rx1-3]=2;   // the stairs down, over the ones below
+    for(int x=a0+1;x<a1;x+=2) lnPut(x,uy0+1,'b',(x&2)?"TALL BOOKSHELF":"WHITE BOOKSHELF");   // the MOON ARCHIVE
+    lnPut(a0+1,uy0+4,'C',"GREY COUCH"); lnPut(a0+1,uy0+5,'C',"GREY COUCH"); lnPut(a1-1,uy0+4,'l',"GREEN LAVA LAMP"); lnPut(a0+4,uy0+5,'h',"BAR STOOL");
+    lnPut((a1+a2)/2,uy0+1,'l',"NEON BORE SIGN"); lnPut(a1+1,uy0+1,'l',"GREEN LAVA LAMP"); lnPut(a2-1,uy0+1,'l',"PINK LAVA LAMP");   // the LUNARWEED LOUNGE
+    lnPut(a1+1,uy0+3,'C',"VELVET SOFA"); lnPut(a1+1,uy0+4,'C',"VELVET SOFA"); lnPut(a1+3,uy0+3,'G',"BONG"); lnPut(a2-1,uy0+4,'C',"GREY COUCH"); lnPut(a2-1,uy0+5,'C',"GREY COUCH");
+    lnPut(a2-3,uy0+4,'G',"HOOKAH"); lnPut((a1+a2)/2-2,uy0+5,'h',"BAR STOOL"); lnPut((a1+a2)/2+2,uy0+5,'h',"BAR STOOL"); lnPut(a1+1,uy0+6,'p',"POTTED PALM");
+    for(int x=a2+2;x<a3-1;x+=2) lnPut(x,uy0+1,'m',"PUNCHING BAG");   // the MOON GYM
+    lnPut(a2+1,uy0+5,'l',"TOTEM POLE"); lnPut(a3-1,uy0+5,'l',"TOTEM POLE");
+    for(int x=rx0+2;x<=rx1-2;x+=7){ lnPut(x,ry0+9,'Z',0); lnPut(x,ry1-2,'Z',0); }   // planters on the gallery
+    lnPut(rx0+2,ry0+14,'C',"VELVET SOFA"); lnPut(rx0+2,ry0+15,'C',"VELVET SOFA"); lnPut(rx1-2,ry0+16,'C',"GREY COUCH"); lnPut(rx1-2,ry0+17,'C',"GREY COUCH");
+    lnPut(rx0+3,ry0+19,'p',"POTTED PALM"); lnPut(rx1-3,ry0+20,'p',"FICUS");
+}
+static void lnrBuild(int x0,int y0,int x1,int y1){
+    int cx=(x0+x1)/2, rx0=x0+1, ry0=y0+1, rx1=x1-1, ry1=y1-3;
+    gBox(x0,y0,x1,y1,7); gRoom(rx0,ry0,rx1,ry1,2,5); gPut(cx,ry1,'D');   // the dome: the concourse hall, its door at the front
+    int u0=rx0, u1=rx0+8, u2=rx0+16, u3=rx0+24, uy0=ry0, uy1=ry0+7;      // four shops along the back, sharing walls
+    dispBuild(u1-1,uy0-1,u2+1,uy1+3);                                    // LUNARWEED: the dispensary (weed.h), the counter and its jars; its walls are the shops' next to it
+    lnUnit(u0,uy0,u1,uy1,2,6); lnUnit(u2,uy0,u3,uy1,3,11); lnUnit(u3,uy0,rx1,uy1,4,5);
+    for(int x=u0+1;x<u1;x+=2) lnPut(x,uy0+1,'b',(x&2)?"TALL BOOKSHELF":"WHITE BOOKSHELF");   // the MOON MARKET: shelves, vending machines, a few stools
+    lnPut(u0+1,uy0+3,'F',"VENDING MACHINE"); lnPut(u0+1,uy0+4,'F',"VENDING MACHINE"); lnPut(u1-1,uy0+3,'F',"VENDING MACHINE"); lnPut(u0+3,uy0+5,'h',"BAR STOOL"); lnPut(u0+5,uy0+5,'h',"BAR STOOL");
+    for(int x=u2+1;x<u3;x++) lnPut(x,uy0+1,'v',(x&1)?"ARCADE CABINET":"PINBALL");           // the LOW-G ARCADE
+    for(int x=u2+1;x<u3;x+=2) lnPut(x,uy0+3,'v',"ARCADE CABINET"); lnPut(u3-1,uy0+5,'v',"CONSOLE AND TV"); lnPut(u2+1,uy0+5,'v',"CONSOLE AND TV");
+    lnPut(u3+1,uy0+1,'l',"PINK LAVA LAMP"); lnPut(rx1-1,uy0+1,'l',"GREEN LAVA LAMP");               // the STAR LOUNGE
+    for(int y=uy0+3;y<=uy0+4;y++){ lnPut(u3+1,y,'C',"VELVET SOFA"); lnPut(rx1-1,y,'C',"GREY COUCH"); }
+    lnPut(u3+4,uy0+3,'G',"HOOKAH"); lnPut(u3+3,uy0+5,'h',"BAR STOOL"); lnPut(u3+5,uy0+5,'h',"BAR STOOL"); lnPut(rx1-1,uy0+6,'p',"POTTED PALM");
+    int dy=ry1-7; for(int x=cx-2;x<=cx+2;x++) gPut(x,dy,'@');   // the spaceport desk in the middle of the concourse: its lunar menu, the lander behind it
+    for(int x=rx0+3;x<=rx1-3;x+=6){ lnPut(x,uy1+2,'Z',0); lnPut(x+2,ry1-1,'Z',0); }              // planters down the concourse
+    lnPut(rx0+1,ry0+13,'F',"VENDING MACHINE"); lnPut(rx1-1,ry0+17,'F',"VENDING MACHINE");
+    for(int i=0;i<2;i++){ lnPut(rx0+4,ry0+14+i*4,'K',0); lnPut(rx0+3,ry0+14+i*4,'N',0); lnPut(rx1-4,ry0+14+i*4,'K',0); lnPut(rx1-3,ry0+14+i*4,'N',0); }   // the food court
+    gPut(rx1-3,ry0+12,'^'); floorMap[ry0+12][rx1-3]=2;           // the stairs up
+    if(flGoF(1,0)){ lnrUpper(rx0,ry0,rx1,ry1); if(!flGoF(0,0)) flGoF(0,1); }   // the second floor; (if it did not fit in the floor store the stairs lead to a blank one)
+    else gPut(rx1-3,ry0+12,'.');
 }
