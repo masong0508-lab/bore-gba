@@ -16,13 +16,7 @@
 
 SONG_XM(the_dipper_man,"THE DIPPER MAN","tools/the_dipper_man.xm")
 
-// ---- PLACEHOLDERS (short test tunes so shuffle / select can be heard now) ----
-// Hidden in the jukebox unless the title-screen code UP UP DOWN DOWN LEFT LEFT RIGHT B A START is entered (any song named PLACEHOLDER...).
-// Delete these 3 lines and the 3 files in source/music/ when you add your real songs.
-SONG_ADP(placeholder_a,"PLACEHOLDER A","source/music/placeholder_a.adp")
-SONG_ADP(placeholder_b,"PLACEHOLDER B","source/music/placeholder_b.adp")
-SONG_ADP(placeholder_c,"PLACEHOLDER C","source/music/placeholder_c.adp")
-
+// (the three PLACEHOLDER test tunes were deleted: 173 KB of ROM. A song named PLACEHOLDER... is still hidden the same way.)
 // ---- songs added by tools/encode_song.py go below this line ----
 SONG_XM(earth_and_the_space_citizens,"EARTH AND THE SPACE CITIZENS","tools/earth_and_the_space_citizens.xm")
 SONG_XM(amiga_music,"AMIGA MUSIC","tools/amiga_music.xm")

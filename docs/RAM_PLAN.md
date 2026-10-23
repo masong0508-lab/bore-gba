@@ -1,8 +1,21 @@
 # RAM plan: getting room for more features
 
-Numbers come from the CI job summary (EWRAM 236,352 B of 262,144 = 90.2%, IWRAM 29,032 of 32,768 = 88.6%, ROM only 18.8% used)
+Numbers come from the CI job summary (EWRAM 236,352 B of 262,144 = 90.2%, IWRAM 29,032 of 32,768 = 88.6%, the old "ROM only 18.8% used" figure predates the songs: see the measured table below)
 plus a host-side size count of every `EWRAM_BSS` symbol (no ARM compiler needed: `gcc -S` on a copy, read the `.size` lines).
 Pointer-holding structs count a little high on the host, so trust the CI table for the final number.
+
+## Measured numbers (22 Oct 2026; keep this table current)
+ROM, measured from the published release files of the latest build (bore.gba, bore-base.gba and the creator demo, built from the same sources):
+| item | bytes | note |
+|---|---|---|
+| bore.gba / bore-base.gba | 29,622,272 | 28.25 MB: padded to the end of the last pack slot (before this change) |
+| bore-creator.gba | 21,412,840 | 20.4 MB: the same source built with CC_DEMO and no pack slots, so a lower bound for the base game |
+| base game ceiling | 25,165,824 before, 29,097,984 after | the first pack slot moved from 0x09800000 (24 MB) to 0x09BC0000 (27.75 MB) |
+| BORTUA FIGHTER patch (EP4) | 1,062,709 | slot 1,310,720: about 81% full |
+| other packs' patches (EP1, EP2, EP3, EP7, EP8) | 12,735 / 23,542 / 3,016 / 10,933 / 8,519 | slots 512 KB / 1 MB / 512 KB / 512 KB / 512 KB: almost empty, so mission and mode work has plenty of room |
+| deleted | 173,208 | the three placeholder songs |
+
+RAM: the CI job summary now has a "Biggest users and ROM headroom" section (EWRAM, IWRAM and ROM top symbols, and the base game's exact ROM use). **Copy its numbers here after the first build with that step.** The EWRAM 236,352 B and IWRAM 29,032 B figures above are the last ones written down and are older than the sprite-pool work.
 
 ## What the EWRAM is made of (about 232 KB)
 | symbol | bytes | what it is |
@@ -52,7 +65,7 @@ Pointer-holding structs count a little high on the host, so trust the CI table f
 | 6 | ~~Player sprite to 8bpp + palette~~ done (see above). Going further: the player as a hardware sprite like the Sims (walls in front need the x-ray trick, the zoom does not scale OBJ) | 15 KB more | high |
 | 7 | **fb is the elephant** (76.8 KB). Mode 4 (8bpp, 2 pages) would halve it, but needs a 256-colour palette; skip unless the art is redone | 38 KB | very high |
 
-Since ROM is 81% free (27 MB), anything that can be computed at build time or kept as a table should go to ROM first
+ROM is no longer mostly free (the base game is about 20.4 MB of its 27.75 MB ceiling), but anything that can be computed at build time or kept as a table should go to ROM first
 (items 4, 5 and the earlier itemSpan). Anything that is only needed in one screen (builder, save menu, chooser) goes in the shared pool (3).
 
 ## Budget rule of thumb

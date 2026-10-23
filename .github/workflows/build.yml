@@ -33,6 +33,35 @@ jobs:
           make
           make size
           make creator
+      - name: Biggest users and ROM headroom
+        run: |
+          export PATH=/opt/devkitpro/devkitARM/bin:$PATH
+          first=$(awk '/XP_AT0/{gsub("u","",$3); print $3}' source/packslots.h)
+          python3 - "$first" <<'PYX' >> "$GITHUB_STEP_SUMMARY"
+          import re, subprocess, sys, os
+          first = int(sys.argv[1], 16)
+          def run(*a): return subprocess.run(a, capture_output=True, text=True).stdout
+          nm = run("arm-none-eabi-nm", "-S", "--size-sort", "-r", "bore.elf").splitlines()
+          def top(prefix, n):
+              out = []
+              for l in nm:
+                  p = l.split()
+                  if len(p) >= 4 and re.match(prefix, p[0]): out.append("%8d  %s" % (int(p[1], 16), p[3]))
+                  if len(out) >= n: break
+              return "\n".join(out)
+          end = 0
+          for l in run("arm-none-eabi-objdump", "-h", "bore.elf").splitlines():
+              m = re.match(r"\s*\d+\s+\S+\s+([0-9a-f]+)\s+([0-9a-f]+)\s+([0-9a-f]+)\s", l)
+              if m:
+                  size, lma = int(m.group(1), 16), int(m.group(3), 16)
+                  if 0x08000000 <= lma < first and size: end = max(end, lma + size)
+          lim = first - 0x08000000; used = end - 0x08000000
+          print("### ROM headroom")
+          print("Base game: %d of %d bytes (%.1f%%), **%d bytes free** before the first pack slot." % (used, lim, used * 100.0 / lim, lim - used))
+          print("bore.gba %d B, bore-base.gba %d B, bore-creator.gba %d B" % (os.path.getsize("bore.gba"), os.path.getsize("bore-base.gba"), os.path.getsize("bore-creator.gba")))
+          for title, pre, n in (("Top EWRAM statics", r"02", 30), ("Top IWRAM statics", r"03", 20), ("Top ROM symbols", r"0[89]", 30)):
+              print("### " + title); print("```"); print(top(pre, n)); print("```")
+          PYX
       - uses: actions/upload-artifact@v4
         with:
           name: bore-gba
