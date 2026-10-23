@@ -4030,9 +4030,52 @@ static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
     if(!ed) fgDraw();   // fight.h: punch trails and the guard
     clipAll();
 }
+// ---- BLUEPRINT COPY / PASTE (the builder's map menu): edStamp 1 = picking the area to copy, 2 = a blueprint in hand, an outline follows the cursor ----
+// A tile is three bytes, like UNDO's: the item char, the floor, the wallpaper / look. Only the room builder uses this (about 1.2 KB of EWRAM).
+#define BP_MAX 20
+static u8 edStamp EWRAM_BSS, bpW EWRAM_BSS, bpH EWRAM_BSS;
+static char bpC[BP_MAX][BP_MAX] EWRAM_BSS; static u8 bpF[BP_MAX][BP_MAX] EWRAM_BSS, bpL[BP_MAX][BP_MAX] EWRAM_BSS;
+static int bpOrg(int c,int lo,int hi,int n){ int m=hi<MW-1?hi:MW-1; if(c>m-n+1) c=m-n+1; if(c<lo) c=lo; return c; }   // the blueprint's top-left corner: the cursor, pulled back inside the lot
+static int bpSkip(char c){ return c=='P'||c=='B'||c=='a'||c=='k'||rwLockedCh(c); }   // the spawn, the board, the lot flags and locked items are never pasted (the floor under them is)
+static int bpFits(void){ return bpW&&bpH&&bpW<=(edX1<MW-1?edX1:MW-1)-edX0+1&&bpH<=(edY1<MH-1?edY1:MH-1)-edY0+1; }
+static int bpNet(int ox,int oy){   // what a paste would cost (negative: it pays you back), tile by tile like placing each one by hand
+    int net=0;
+    for(int y=0;y<bpH;y++)for(int x=0;x<bpW;x++){ int X=ox+x, Y=oy+y; char c=bpC[y][x], o=lifeMap[Y][X]; if(bpSkip(c)) c='.';
+        int look=isLookCh(c)?catIdOf(c,bpL[y][x]):0;
+        if(!(c==o&&(!isLookCh(c)||look==catIdAt(X,Y)))) net+=edCostL(c,look)-edSellAt(X,Y);
+        if(xo[XO_BUYCOST]&&!curFl&&isWaterFl(bpF[y][x])&&!isWaterFl(floorMap[Y][X])&&!isWallCh(c)) net+=POOL_COST; }
+    return net;
+}
+#define BP_GHOST 36   // a blueprint of up to this many tiles shows as a see-through ghost; a bigger one only as four corner brackets (moving it stays cheap)
+static void tileTint(int tx,int ty,int up,u16 col){   // a see-through diamond on a tile, lifted up px (half the picture, half the colour)
+    char c=lifeMap[ty][tx]; int hgt=isWallCh(c)?0:tileH(tx,ty);
+    int sx=LOX+(tx-ty)*CA, sy=LOY+(tx+ty+1)*CB-hgt-up;
+    if(sx+CA<cX0||sx-CA>=cX0+(int)cW||sy+CB+2<cY0||sy-CB-2>=cY0+(int)cH) return;   // outside the part being repainted
+    u16 h=(u16)((col>>1)&0x3DEF);
+    for(int t=-CA;t<=CA;t++){ int X=sx+t; if((unsigned)(X-cX0)>=cW) continue; int hh=hhT[0][t<0?-t:t];
+        for(int y=sy-hh;y<=sy+hh;y++){ if((unsigned)(y-cY0)>=cH) continue; u16*p=&fb[y*SW+X]; *p=(u16)(((*p>>1)&0x3DEF)+h); } }
+}
+static void bpGhost(int ox,int oy){   // the blueprint where it would land
+    u16 pc=bpFits()?RGB(10,28,10):RGB(31,10,8);
+    if(bpW*bpH<=BP_GHOST){
+        for(int y=0;y<bpH;y++)for(int x=0;x<bpW;x++){ char c=bpSkip(bpC[y][x])?'.':bpC[y][x]; int X=ox+x, Y=oy+y;
+            if(c=='W'||c=='w'||isWinCh(c)){ u16 wc=RGB(10,18,31); tileTint(X,Y,0,wc); if(c!='w'){ tileTint(X,Y,8,wc); tileTint(X,Y,16,wc); } }
+            else if(c=='D') tileTint(X,Y,0,GOLD);
+            else if(c!='.'){ tileTint(X,Y,0,RGB(10,28,10)); tileTint(X,Y,5,RGB(10,28,10)); }
+            if(x==0||y==0||x==bpW-1||y==bpH-1) tileMark(X,Y,pc); }
+    } else {
+        for(int k=0;k<4;k++){ int cx=(k&1)?ox+bpW-1:ox, cy=(k&2)?oy+bpH-1:oy, sx=(k&1)?-1:1, sy=(k&2)?-1:1;
+            for(int i=0;i<3;i++){ if(i<bpW) tileMark(cx+sx*i,cy,pc); if(i>0&&i<bpH) tileMark(cx,cy+sy*i,pc); } }
+    }
+}
 static void edOverlays(void){   // the builder's marks over the room: the preview of what A builds, the item you would place, the cursor
     {
-        if(eAct&&eTool!=T_ITEM){   // preview of what the next A will build
+        if(edStamp==1&&eAct){   // the area to copy (red: bigger than a blueprint can be)
+            int x0=eAx<ecx?eAx:ecx, x1=eAx<ecx?ecx:eAx, y0=eAy<ecy?eAy:ecy, y1=eAy<ecy?ecy:eAy; u16 pc=(x1-x0>=BP_MAX||y1-y0>=BP_MAX)?RGB(31,10,8):RGB(10,28,10);
+            for(int y=y0;y<=y1;y++)for(int x=x0;x<=x1;x++) tileMark(x,y,pc);
+        }
+        if(edStamp==2&&bpW) bpGhost(bpOrg(ecx,edX0,edX1,bpW),bpOrg(ecy,edY0,edY1,bpH));   // the blueprint's ghost (or its corners), where it would land
+        if(eAct&&eTool!=T_ITEM&&!edStamp){   // preview of what the next A will build
             int x0,y0,x1,y1; eRect(&x0,&y0,&x1,&y1);
             u16 pc=eTool==T_ERASE?RGB(31,10,8):RGB(10,28,10);
             for(int y=y0;y<=y1;y++)for(int x=x0;x<=x1;x++){
@@ -4617,7 +4660,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
 #include "undo.h"   // UNDO / REDO for the room builder (SELECT + B / SELECT + START, and the MAP MENU)
 // ---------- map editor ----------
 // Tools: ROOM (two corners -> walls + floor + a door), WALL (a straight line), FLOOR (fill an area), ITEM (single tiles), ERASE (clear an area).
-enum { MI_TEST, MI_SAVE, MI_UNDO, MI_REDO, MI_LVUP, MI_LVDN, MI_PLANS, MI_OPTS, MI_RESET, MI_BACK, MI_N };
+enum { MI_TEST, MI_SAVE, MI_UNDO, MI_REDO, MI_LVUP, MI_LVDN, MI_COPY, MI_PASTE, MI_PLANS, MI_OPTS, MI_RESET, MI_BACK, MI_N };
 static char mapUndoNm[12] EWRAM_BSS, mapRedoNm[12] EWRAM_BSS;   // "UNDO 3" / "REDO 1": the steps left, in the MAP MENU
 static const char* const yesNo[2]={"NO","YES RESET"};
 static const char* const toolNm[NTOOL]={"ROOM","WALL","FLOOR","BUY","SELL"};
@@ -4734,6 +4777,16 @@ static void drawEditorHud(const char*msg){
         h1="A BUY  B SELL  HOLD A AND MOVE TO PAINT  SEL+A TURN";
         h2="L R ITEM  SEL+L R CATEGORY  SEL BUILD  START MENU";
     }
+    if(edStamp){   // COPY AREA / PASTE BLUEPRINT: its own bottom panel
+        edPanel(120,SH); rect(0,120,SW,1,RGB(14,20,28)); rect(0,121,SW,1,RGB(2,3,7));
+        text(6,124,edStamp==1?"COPY AREA":"PASTE BLUEPRINT",WHITE,1);
+        if(edStamp==1){ if(eAct){ int w=(eAx<ecx?ecx-eAx:eAx-ecx)+1, h=(eAy<ecy?ecy-eAy:eAy-ecy)+1; int xx=numText(text(6,134,"SIZE",GOLD,1)+3,134,w,WHITE)+3; xx=text(xx,134,"X",GOLD,1)+3; xx=numText(xx,134,h,WHITE); text(xx+8,134,"UP TO 20 X 20",DIMC,1); } else text(6,134,"PICK A CORNER OF THE AREA",GOLD,1); }
+        else { int xx=numText(text(6,134,"SIZE",GOLD,1)+3,134,bpW,WHITE)+3; xx=text(xx,134,"X",GOLD,1)+3; xx=numText(xx,134,bpH,WHITE);
+            if(!bpFits()) text(xx+8,134,"DOES NOT FIT THIS LOT",RGB(31,10,8),1);
+            else if(xo[XO_BUYCOST]){ int n=bpNet(bpOrg(ecx,edX0,edX1,bpW),bpOrg(ecy,edY0,edY1,bpH)); if(n){ int x2=text(120,124,n>0?"COST":"REFUND",DIMC,1)+3; edMoney(b,n>0?n:-n); text(x2,124,b,(n>0&&edCharged()&&n>simMoney)?RGB(31,10,8):WHITE,1); } } }
+        h1=edStamp==1?"A CORNER  A AGAIN COPIES  B CANCEL":"A PASTES HERE  B DONE  MOVE THE OUTLINE";
+        h2=edStamp==1?"START MENU  SEL+B UNDO":"SEL+B UNDO  START MENU  COPY AREA FOR ANOTHER";
+    }
     text(3,150,h1,RGB(16,18,21),1); text(3,155,h2,RGB(16,18,21),1);
 }
 static void edCamSnap(void){ camX=(ecx-ecy)*CA; camY=24+(ecx+ecy+1)*CB-80; camClamp(1); }
@@ -4788,8 +4841,15 @@ static void edBoxTiles(int tx0,int ty0,int tx1,int ty1){   // the screen box of 
     int ax=LOX+(tx0-ty1)*CA, bx=LOX+(tx1-ty0)*CA, ay=LOY+(tx0+ty0+1)*CB, by=LOY+(tx1+ty1+1)*CB;
     edBoxAdd(ax-CA-14,ay-CB-48,bx+CA+14,by+CB+8);
 }
-static short edSt[6][4]; static int edStN;   // strips a scroll uncovered (drawn on their own: added to the box they would make it the whole band)
-static void edStrip(int x0,int y0,int x1,int y1){ if(edStN<6&&x0<x1&&y0<y1){ edSt[edStN][0]=(short)x0; edSt[edStN][1]=(short)y0; edSt[edStN][2]=(short)x1; edSt[edStN][3]=(short)y1; edStN++; } }
+static short edSt[14][4]; static int edStN;   // strips a scroll uncovered (drawn on their own: added to the box they would make it the whole band)
+static void edStrip(int x0,int y0,int x1,int y1){ if(edStN<14&&x0<x1&&y0<y1){ edSt[edStN][0]=(short)x0; edSt[edStN][1]=(short)y0; edSt[edStN][2]=(short)x1; edSt[edStN][3]=(short)y1; edStN++; } }
+static void edStripTiles(int tx0,int ty0,int tx1,int ty1,int py){   // the strip of the scene round a block of tiles (as edBoxTiles, but its own strip: far-apart boxes are not joined into one big one)
+    int ax=LOX+(tx0-ty1)*CA-CA-14, bx=LOX+(tx1-ty0)*CA+CA+14, ay=LOY+(tx0+ty0+1)*CB-CB-48, by=LOY+(tx1+ty1+1)*CB+CB+8;
+    if(ax<0){ ax=0; } if(bx>SW){ bx=SW; } if(ay<15){ ay=15; } if(by>py){ by=py; }
+    edStrip(ax,ay,bx,by);
+}
+static void bpCornerStrips(int ox,int oy,int py){ for(int k=0;k<4;k++){ int cx=(k&1)?ox+bpW-1:ox, cy=(k&2)?oy+bpH-1:oy;
+    edStripTiles((k&1)?cx-2:cx,(k&2)?cy-2:cy,(k&1)?cx:cx+2,(k&2)?cy:cy+2,py); } }
 static void edShift(int y0,int y1,int dx,int dy){   // a scroll: the picture in rows y0..y1-1 moves by (-dx,-dy) (the camera moved by dx,dy); what comes into view is drawn after
     int w=SW-(dx<0?-dx:dx); if(w<=0) return;
     int sx=dx>0?dx:0, tx=dx>0?0:-dx;
@@ -4807,7 +4867,7 @@ static void mapEditor(void){
     int pcur=0, pmap=0, phud=0, dcx=ecx, dcy=ecy, dAct=0, dAx=0, dAy=0, scx=0, scy=0; const char*shownMsg=0; KRep erp[4]={{0,0},{0,0},{0,0},{0,0}};   // a part to redraw: the cursor moved, an item went in or out, the HUD changed; d*: what the last picture showed
     static const u16 dirK[4]={K_RIGHT,K_LEFT,K_UP,K_DOWN};
     edTried=0; edLife=0; edCashDirty=0; if(xo[XO_BUYCOST]&&!gInPlay) edLoadLife();   // the life's cash, for the prices
-    udClear(); udOn=1;   // a fresh UNDO history for this visit to the builder
+    udClear(); udOn=1; edStamp=0;   // a fresh UNDO history for this visit to the builder (and no copy or paste going on)
     eAct=0; if(ecx<edX0)ecx=edX0; if(ecy<edY0)ecy=edY0; if(ecx>edX1)ecx=edX1; if(ecy>edY1)ecy=edY1; edCamSnap();
     for(efr=0;;efr++){
         u16 k=keyNow(), pr=k&~prev, rel=prev&~k; prev=k;
@@ -4826,7 +4886,7 @@ static void mapEditor(void){
         else if(lrHold>12&&(lrHold&3)==0) pr|=(u16)(k&(K_L|K_R));
         if(lrCombo&&(pr&(K_UP|K_DOWN))){ int nf=curFl+((pr&K_UP)?1:-1); udEnd(); eAct=0; comboUsed=1; dirty=1;   // L + R held, UP / DOWN: the floor above / below
             if(nf>=0&&nf<FLR_N){ if(flGo(nf)){ msg=flNm[nf]; msgT=50; } else { msg="TOO MUCH BUILT TO CHANGE FLOOR"; msgT=60; } } else { msg=nf<0?"NO FLOOR BELOW":"NO FLOOR ABOVE"; msgT=40; } }
-        if(k&K_SEL){   // SELECT + D-pad never moves the cursor: UP / DOWN zoom in / out, LEFT / RIGHT the tool (BUY: the category)
+        if((k&K_SEL)&&!edStamp){   // SELECT + D-pad never moves the cursor: UP / DOWN zoom in / out, LEFT / RIGHT the tool (BUY: the category)
             ux=uy=0;
             if(pr&(K_UP|K_DOWN)){ static const char* const zn[4]={"ZOOM 1X","ZOOM 1.3X","ZOOM 2X","ZOOM 2.7X"}; int nz=edZ+((pr&K_UP)?1:-1); comboUsed=1; if(nz>=0&&nz<4){ edZ=nz; msg=zn[nz]; msgT=30; dirty=1; } }
             if(pr&(K_LEFT|K_RIGHT)){ int d=(pr&K_RIGHT)?1:-1; comboUsed=1; eAct=0; dirty=1;
@@ -4834,6 +4894,24 @@ static void mapEditor(void){
         }
         if((k&K_SEL)&&(pr&K_B)){ comboUsed=1; eAct=0; msg=udUndo(); msgT=50; dirty=1; pr&=(u16)~K_B; }       // SELECT + B: UNDO
         if((k&K_SEL)&&(pr&K_START)){ comboUsed=1; eAct=0; msg=udRedo(); msgT=50; dirty=1; pr&=(u16)~K_START; }   // SELECT + START: REDO (the MAP MENU has both too)
+        if(edStamp){   // BLUEPRINT: A / B are the copy and paste keys (L R do nothing), the picture is drawn whole whenever something moved
+            if(pr&K_B){ if(edStamp==1&&eAct) eAct=0; else { edStamp=0; eAct=0; dirty=1; msg="BACK TO BUILDING"; msgT=40; } }
+            else if(pr&K_A){
+                if(edStamp==1){
+                    if(!eAct){ eAct=1; eAx=ecx; eAy=ecy; }
+                    else { int x0=eAx<ecx?eAx:ecx, x1=eAx<ecx?ecx:eAx, y0=eAy<ecy?eAy:ecy, y1=eAy<ecy?ecy:eAy, w=x1-x0+1, h=y1-y0+1;
+                        if(w>BP_MAX||h>BP_MAX){ msg="TOO BIG  20 X 20 AT MOST"; msgT=70; }
+                        else { for(int y=0;y<h;y++)for(int x=0;x<w;x++){ bpC[y][x]=lifeMap[y0+y][x0+x]; bpF[y][x]=floorMap[y0+y][x0+x]; bpL[y][x]=wallMap[y0+y][x0+x]; }
+                            bpW=(u8)w; bpH=(u8)h; eAct=0; edStamp=2; dirty=1; msg="BLUEPRINT COPIED  A PASTES"; msgT=70; } }
+                } else if(!bpFits()){ msg="DOES NOT FIT THIS LOT"; msgT=60; }
+                else { int ox=bpOrg(ecx,edX0,edX1,bpW), oy=bpOrg(ecy,edY0,edY1,bpH), net=bpNet(ox,oy);
+                    if(!net||edPay(net)){   // (not enough cash: dsMsg says so below)
+                        for(int y=0;y<bpH;y++)for(int x=0;x<bpW;x++){ char c=bpC[y][x]; int nl=bpL[y][x], nf=bpF[y][x]; if(bpSkip(c)){ c='.'; nl=0; } if(curFl&&isWaterFl(nf)) nf=-1;   // (pools are only dug on the ground floor)
+                            edSet(ox+x,oy+y,c,nf,nl); }
+                        wDirty=1; msg=net>0?"PASTED  PAID":"PASTED"; msgT=40; sfxPlay(SFX_POP); } }
+            }
+            pr&=(u16)~(K_A|K_B|K_L|K_R);
+        }
         if(ux||uy){   // screen-relative like walking: up = away from the camera
             int dx=ux+uy, dy=uy-ux; dx=(dx>0)-(dx<0); dy=(dy>0)-(dy<0);
             if(fast&&eTool!=T_ITEM){ dx*=2; dy*=2; }
@@ -4849,7 +4927,7 @@ static void mapEditor(void){
             else if(eTool==T_WALL) eWp=(eWp+d+NWALL)%NWALL;
             else if(eTool!=T_ERASE) eFl=flStep(eFl,d);
         }
-        if(rel&K_SEL){ if(!comboUsed){ if(eTool==T_ITEM) eTool=edLast; else { edLast=eTool; eTool=T_ITEM; } eAct=0; } comboUsed=0; }   // SELECT alone: BUILD <-> BUY (back to the tool you had)
+        if((rel&K_SEL)&&!edStamp){ if(!comboUsed){ if(eTool==T_ITEM) eTool=edLast; else { edLast=eTool; eTool=T_ITEM; } eAct=0; } comboUsed=0; }   // SELECT alone: BUILD <-> BUY (back to the tool you had)
         if(pr&K_A){
             if(eTool==T_ITEM&&(k&K_SEL)){ eRot=(eRot+1)&3; comboUsed=1; msg="TURNED"; msgT=20; }   // SEL+A: turn the next ramp
             else if(eTool==T_ITEM){ money_t m0=simMoney; pmap=1; if(eOb==OB_HALF){ edHalf(ecx,ecy); dirty=1; } else edPlace(ecx,ecy); if(xo[XO_BUYCOST]&&simMoney!=m0){ msg=simMoney<m0?"BOUGHT":"SOLD"; msgT=30; } }
@@ -4863,7 +4941,7 @@ static void mapEditor(void){
             udEnd();
             const char*mi[MI_N]; { int nu=udCur, nr=udNA-udCur; char*e=mapUndoNm; const char*q="UNDO"; while(*q) *e++=*q++; if(nu){ *e++=' '; e+=numStr(e,nu); } *e=0;
                 e=mapRedoNm; q="REDO"; while(*q) *e++=*q++; if(nr){ *e++=' '; e+=numStr(e,nr); } *e=0; }
-            mi[MI_TEST]="PLAY TEST"; mi[MI_SAVE]="SAVE MAP"; mi[MI_UNDO]=mapUndoNm; mi[MI_REDO]=mapRedoNm; mi[MI_LVUP]="LEVEL UP"; mi[MI_LVDN]="LEVEL DOWN"; mi[MI_PLANS]="BLUEPRINTS"; mi[MI_OPTS]="OPTIONS"; mi[MI_RESET]="RESET MAP"; mi[MI_BACK]="BACK";
+            mi[MI_TEST]="PLAY TEST"; mi[MI_SAVE]="SAVE MAP"; mi[MI_UNDO]=mapUndoNm; mi[MI_REDO]=mapRedoNm; mi[MI_LVUP]="LEVEL UP"; mi[MI_LVDN]="LEVEL DOWN"; mi[MI_COPY]="COPY AREA"; mi[MI_PASTE]=bpW?"PASTE BLUEPRINT":"PASTE (COPY FIRST)"; mi[MI_PLANS]="BLUEPRINTS"; mi[MI_OPTS]="OPTIONS"; mi[MI_RESET]="RESET MAP"; mi[MI_BACK]="BACK";
             int c=menu("MAP MENU",mi,MI_N);
             if(c==MI_TEST){ edCashSave(); mapScan(); lifeMode(1); }
             else if(c==MI_UNDO||c==MI_REDO){ eAct=0; const char*r=c==MI_UNDO?udUndo():udRedo(); toast(r); }
@@ -4873,6 +4951,8 @@ static void mapEditor(void){
                 if(!mapSaved()) toast("SAVE NOT SUPPORTED HERE");
                 else if(xo[XO_SLOTSYNC]&&slotSyncActive()) toast("MAP AND SLOT SAVED");   // MAP SAVE TO SLOT option
                 else toast("MAP SAVED"); }
+            else if(c==MI_COPY){ eAct=0; if(eTool==T_ITEM) eTool=T_ROOM; edStamp=1; toast("PICK TWO CORNERS  A  A"); }
+            else if(c==MI_PASTE){ if(!bpW) toast("COPY AN AREA FIRST"); else { eAct=0; if(eTool==T_ITEM) eTool=T_ROOM; edStamp=2; } }
             else if(c==MI_PLANS){ if(slotScreen()) udClear(); }   // (a loaded blueprint replaces the room: the old steps no longer fit it)
             else if(c==MI_OPTS){ settingsScreen(); if(xo[XO_BUYCOST]&&!gInPlay) edLoadLife(); }
             else if(c==MI_RESET){ if(!xo[XO_RESETASK]||menu("RESET THE MAP",yesNo,2)==1){ if(curFl) flBlankLive(); else if(!nbResetLot()) mapReset(); eAct=0; udClear(); toast("MAP RESET"); } }
@@ -4884,6 +4964,7 @@ static void mapEditor(void){
         { int ox=camX, oy=camY; if(edCamStep()){ scx+=camX-ox; scy+=camY-oy; } }   // a scroll: the picture slides, only what comes into view is drawn
         if(msgT>0&&--msgT==0) msg="";
         if(wDirty) dirty=1;   // the walls changed: the inside map (the floors under walls, which tiles are in a room) is drawn again everywhere
+        int sMv=0; if(edStamp==2&&bpW&&(ecx!=dcx||ecy!=dcy)&&(bpOrg(ecx,edX0,edX1,bpW)!=bpOrg(dcx,edX0,edX1,bpW)||bpOrg(ecy,edY0,edY1,bpH)!=bpOrg(dcy,edY0,edY1,bpH))){ sMv=1; phud=1; pcur=1; }   // the blueprint moved: its cost changes too
         int bl=(efr>>3)&1;   // the editor only redraws when something changed or the cursor blinks
         const char*sm=msgT>0?msg:""; int pmsg=sm!=shownMsg, part=pcur||pmap||phud||pmsg||(bl!=lastBl&&!edZ)||scx||scy;   // (zoomed, a blink would redraw and stretch the whole room: the cursor just stays lit)
         { int py=eTool==T_ITEM?98:120; if((scx||scy)&&(scx>=SW||-scx>=SW||scy>=py-15||-scy>=py-15)) dirty=1; }   // (a jump bigger than the view: all of it)
@@ -4910,12 +4991,18 @@ static void mapEditor(void){
                 pcur=1; }
             if(pcur||bl!=lastBl){ edBoxTiles(dcx,dcy,dcx,dcy); edBoxTiles(ecx,ecy,ecx,ecy); }
             if(pmap) edBoxTiles(ecx-1,ecy-1,ecx+1,ecy+1);
+            if(sMv){   // the blueprint's preview: a small one repaints where it was and where it is; a big one only its four corners (each its own strip)
+                int nx=bpOrg(ecx,edX0,edX1,bpW), ny=bpOrg(ecy,edY0,edY1,bpH), mx=bpOrg(dcx,edX0,edX1,bpW), my=bpOrg(dcy,edY0,edY1,bpH);
+                if(bpW*bpH<=BP_GHOST){ edBoxTiles(nx,ny,nx+bpW-1,ny+bpH-1); edBoxTiles(mx,my,mx+bpW-1,my+bpH-1); }
+                else { bpCornerStrips(nx,ny,py); bpCornerStrips(mx,my,py); }
+            }
             if(dAct&&(dcx!=ecx||dcy!=ecy||!eAct)) edBoxTiles(dAx<dcx?dAx:dcx,dAy<dcy?dAy:dcy,dAx>dcx?dAx:dcx,dAy>dcy?dAy:dcy);   // the selection as it was
             if(eAct) edBoxTiles(eAx<ecx?eAx:ecx,eAy<ecy?eAy:ecy,eAx>ecx?eAx:ecx,eAy>ecy?eAy:ecy);   // and as it is
             if(pmsg) edBoxAdd(0,15,SW,28);   // the note under the top bar came or went
             if(edBy0<15) edBy0=15; if(edBy1>py) edBy1=py; if(edBx0<0) edBx0=0; if(edBx1>SW) edBx1=SW;
             int box=edBx0<edBx1&&edBy0<edBy1;
             for(int i=0;i<edStN;i++){ int a=edSt[i][0], b=edSt[i][1], c=edSt[i][2], d=edSt[i][3]; drawRoomRect(a,b,c,d,1); clipSet(a,b,c,d); edOverlays(); clipAll(); }
+            if(sMv&&!(scx||scy)) for(int i=0;i<edStN;i++) edCopyRows(edSt[i][0],edSt[i][1],edSt[i][2],edSt[i][3]);   // (the corner strips go to the screen; a scroll copies the whole scene)
             if(box){ drawRoomRect(edBx0,edBy0,edBx1,edBy1,1); clipSet(edBx0,edBy0,edBx1,edBy1); edOverlays(); clipAll(); }
             int hud=phud||pmsg||(box&&sm[0]&&edBy0<28)||((scx||scy)&&sm[0]);
             if(hud) drawEditorHud(sm);
