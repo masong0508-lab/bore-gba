@@ -2611,9 +2611,9 @@ static char edObjCh(void){ if(eOb>=CAT_OB0) return catTab[eOb-CAT_OB0].ch; if(eO
 #define DS_PRICE 75000
 #define NCAT 8
 static const char* const catNm[NCAT]={"SEAT","HOME","TECH","SKATE","DECOR","WALLS","MISC","REWARDS"};
-static const u8 catN[NCAT]={5,10,5,11,7,8,8,4};
+static const u8 catN[NCAT]={5,10,5,11,7,7,8,4};
 static int catCnt(int c){ return (c==6&&!nbFlagOk())?catN[c]-2:catN[c]; }   // the two FLAGS (the end of MISC) only show in the palette while the town view's BUILD has a free lot open
-static const u8 catItems[NCAT][12]={ {13,16,27,22,50}, {5,6,14,15,36,49,51,54,56,57}, {31,32,26,25,34}, {3,4,10,11,12,17,18,19,23,24,47}, {20,21,35,48,52,53,55}, {1,2,7,28,29,39,40,41}, {0,8,9,44,45,46,42,43}, {37,38,33,30} };   // (the last row is REWARDS: aquarium, treadmill, sound system, DeadSet)
+static const u8 catItems[NCAT][12]={ {13,16,27,22,50}, {5,6,14,15,36,49,51,54,56,57}, {31,32,26,25,34}, {3,4,10,11,12,17,18,19,23,24,47}, {20,21,35,48,52,53,55}, {1,2,28,29,39,40,41}, {0,8,9,44,45,46,42,43}, {37,38,33,30} };   // (the last row is REWARDS: aquarium, treadmill, sound system, DeadSet)
 static const u32 palPrice[NOBJ]={0,50,100,120,250,1200,600,250,0,0,450,900,300,350,1500,1100,1400,700,800,80,60,150,700,200,150,400,250,300,900,900,DS_PRICE,200,150,2500,1800,600,250,1000,1500,400,450,500,0,0,0,300,200,3600,120,350,150,500,200,120,450,1200,700,350};   // simoleons: a starter room (bed, fridge, toilet, shower, sofa, TV) is about 8000 of the 15000 you start with
 // the BUY tabs: the NCAT classic categories, then THE CATALOG's CAT_CATS (its GROWN-UPS tab only for grown-ups, or teens with the pipe option: pipeOk)
 #define TCAT (NCAT+CAT_CATS)
@@ -2627,7 +2627,10 @@ static int edCatOf(int idx,int*pos){
     if(idx>=CAT_OB0){ int i=idx-CAT_OB0, c=catTab[i].cat; if(pos) *pos=i-catCatFirst[c]; return NCAT+c; }
     for(int c=0;c<NCAT;c++) for(int j=0;j<catCnt(c);j++) if(catItems[c][j]==idx){ if(pos) *pos=j; return c; } if(pos) *pos=0; return 0; }
 static void edItemStep(int d){ int p, c=edCatOf(eOb,&p), n=edCatCnt(c); p=(p+d+n)%n; eOb=edCatItem(c,p); }   // L / R: the next item of this category
-static void edCatStep(int d){ int c=edCatOf(eOb,0); do c=(c+d+TCAT)%TCAT; while(!edCatOpen(c)); eOb=edCatItem(c,0); }   // SELECT + L / R: the next category
+#define ED_DOORS (NCAT+CAT_C_DOORS)
+static int edOrd(int i){ if(i<=5) return i; if(i==6) return ED_DOORS; if(i<=ED_DOORS) return i-1; return i; }   // tab slot -> category: the catalog's DOORS tab sits right after WALLS
+static int edPos(int c){ if(c<=5) return c; if(c==ED_DOORS) return 6; if(c<ED_DOORS) return c+1; return c; }
+static void edCatStep(int d){ int p=edPos(edCatOf(eOb,0)); do p=(p+d+TCAT)%TCAT; while(!edCatOpen(edOrd(p))); eOb=edCatItem(edOrd(p),0); }   // SELECT + L / R: the next category
 // ---- REWARDS (BUY): the last category. Its items open as STORY MISSIONS are finished (all lives together, each mission counted once: jbStoryDone in story.h). ----
 // Nothing is saved for it: rwTotal (story.h) counts the mission bits that are already in SRAM. The Konami code (sUnlock) opens everything.
 // Items you already placed stay, and selling or erasing always works; the lock only stops BUYING (mapPlace, edAffordable) and says how many missions are left.
@@ -4759,11 +4762,11 @@ static void drawEditorHud(const char*msg){
         h1=eTool==T_ROOM?(eAct?"A BUILD THE ROOM  B CANCEL  L R FLOOR  SEL+L R WALL":"A FIRST CORNER  L R FLOOR  SEL+L R WALL"):eTool==T_WALL?(eAct?"A DRAW THE WALL  B CANCEL  L R WALLPAPER":"A START THE WALL  L R WALLPAPER"):eTool==T_FLOOR?(eAct?"A FILL THE AREA  B CANCEL  L R FLOOR":"A FIRST CORNER  L R FLOOR"):(eAct?"A SELL THE AREA  B CANCEL":"A FIRST CORNER  B BACK");
         h2="SEL+LEFT RIGHT TOOL  SEL BUY  START MENU  SEL+B UNDO";
     } else {
-        { int cc=edCatOf(eOb,0), xx=3; static u8 tab0 EWRAM_BSS;   // the category tabs (26: they scroll so the picked one stays in view), then this category's items
-          if(cc<tab0) tab0=(u8)cc;
-          for(;;){ int w=0; for(int c=tab0;c<=cc;c++) if(edCatOpen(c)) w+=tw(edCatNm(c),1)+6; if(w<=224||tab0>=cc) break; do tab0++; while(!edCatOpen(tab0)); }
+        { int cc=edCatOf(eOb,0), cp=edPos(cc), xx=3; static u8 tab0 EWRAM_BSS;   // the category tabs (26: they scroll so the picked one stays in view), then this category's items
+          if(cp<tab0) tab0=(u8)cp;
+          for(;;){ int w=0; for(int c=tab0;c<=cp;c++) if(edCatOpen(edOrd(c))) w+=tw(edCatNm(edOrd(c)),1)+6; if(w<=224||tab0>=cp) break; do tab0++; while(!edCatOpen(edOrd(tab0))); }
           if(tab0){ text(xx,103,"<",DIMC,1); xx+=5; }
-          for(int c=tab0;c<TCAT;c++){ if(!edCatOpen(c)) continue; int w=tw(edCatNm(c),1)+5; if(xx+w>232){ text(233,103,">",DIMC,1); break; } edBtn(xx,101,w,10,c==cc); text(xx+3,103,edCatNm(c),c==cc?WHITE:DIMC,1); xx+=w+1; }
+          for(int q=tab0;q<TCAT;q++){ int c=edOrd(q); if(!edCatOpen(c)) continue; int w=tw(edCatNm(c),1)+5; if(xx+w>232){ text(233,103,">",DIMC,1); break; } edBtn(xx,101,w,10,c==cc); text(xx+3,103,edCatNm(c),c==cc?WHITE:DIMC,1); xx+=w+1; }
           for(int j=0;j<edCatCnt(cc);j++){ int id=edCatItem(cc,j), x2=3+j*14; if(id==eOb) rect(x2-1,111,15,12,GOLD); rect(x2,112,13,10,RGB(3,4,7)); rect(x2+1,113,11,8,rwLocked(id)?RGB(6,7,10):edObCol(id)); } }
         if(rwLocked(eOb)){ static char lb[36] EWRAM_BSS; int rm=rwNeedOf(eOb)-rwTotal(); char*e=simCatN(simCat(lb,"LOCKED  "),rm); simCat(e,rm==1?" MORE STORY MISSION":" MORE STORY MISSIONS"); text(3,134,lb,RGB(31,10,8),1); } else { int xx=text(3,134,"PRICE",DIMC,1)+3; edMoney(b,edCatId()?edCostL(0,edCatId()):edCost(palCh[eOb])); xx=text(xx,134,b,WHITE,1)+8;
           if(xo[XO_BUYCOST]&&edCharged()){ text(xx,134,"CASH",DIMC,1); edMoney(b,simMoney); text(xx+26,134,b,edAffordable(ecx,ecy)?RGB(14,30,14):RGB(31,10,8),1); } }
@@ -4983,7 +4986,8 @@ static void mapEditor(void){
                 drawRoomRect(a,c,b,d,1); clipSet(a,c,b,d); edOverlays(); clipAll();
                 vpY0=15; vpY1=spy; zoomFb(zx,zy,zk[edZ]); vpY0=v0; vpY1=v1; }
               else { drawRoomRect(0,15,SW,spy,1); clipSet(0,15,SW,spy); edOverlays(); clipAll(); } }
-            drawEditorHud(sm); if(xo[XO_MINI]) miniMap();
+            if(dirty||!edZ||phud||pmsg||sm[0]) drawEditorHud(sm);   // (zoomed, the zoom only rewrites the scene rows: the panels keep their picture, so a plain cursor step skips the HUD text)
+            if(xo[XO_MINI]) miniMap();
             edPresent(); dirty=0; part=1;   // (part: what is shown is noted below)
         } else if(part){   // just what changed
             int py=eTool==T_ITEM?98:120;   // (the bottom panel starts here: drawEditorHud)
