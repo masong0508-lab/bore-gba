@@ -48,13 +48,13 @@ def legs(a0, b0, a1, b1, h, m, t=1, z0=0): return [Box(a0, b0, a0 + t, b0 + t, z
 def block(a0, b0, a1, b1, z0, z1, fm): return [Box(a0, b0, a1, b1, z0, z1, fm)]
 
 MAXB = 40   # boxes an item may have (drawObj's painter table in itembake.h)
-def item(name, ch, price, cat, boxes, rot=0, nsh=11, col=None, fn=0):   # fn: what R does at it (counters.h): bit 0 a sink, bit 1 a microwave
+def item(name, ch, price, cat, boxes, rot=0, nsh=11, col=None, fn=0, alt=None):   # fn: what R does at it (counters.h): bit 0 a sink, bit 1 a microwave
     assert len(name) <= 18, name
     assert 1 <= len(boxes) <= MAXB, (name, len(boxes))
     for x in boxes:   # inside the tile, no taller than the canvas (z1 <= 28 keeps the back corner on the sprite), 5 real faces
         assert 0 <= x.a0 < x.a1 <= 8 and 0 <= x.b0 < x.b1 <= 8 and 0 <= x.z0 < x.z1 <= 28, (name, vars(x))
         assert len(x.m) == 5 and all(isinstance(m, Mat) for m in x.m), name
-    ITEMS.append(dict(name=name, ch=ch, price=price, cat=cat, boxes=boxes, rot=rot, nsh=nsh, col=col or (20, 20, 20), fn=fn))
+    ITEMS.append(dict(name=name, ch=ch, price=price, cat=cat, boxes=boxes, rot=rot, nsh=nsh, col=col or (20, 20, 20), fn=fn, alt=alt))   # rot 2: a bed that joins its neighbour (alt = the boxes of its two halves)
 
 # ====================================================================== builders
 def chair(p, wood=None, cushion=True):
@@ -516,8 +516,37 @@ item('NAVY ISLAND', 'y', 700, C, counter(BLUE, M(MARBLE, ['cccccccc', 'ccdccccc'
 FRIDGEF = M(STEEL, ['bbbbbbbb', 'bccccccb', 'bccccccb', 'bccccccb', 'bccccccb', 'bcccccdb', 'bcccccdb', 'bccccccb', 'bccccccb', 'bccccccb', 'bbbbbbbb'])
 item('FRIDGE COUNTER', 'F', 850, C, counterf(STEEL, FRIDGEF, grain(STEEL, 8, 8)), col=(20, 22, 26))   # an F: it is a fridge to eat from, like the others
 
+# ---- BEDS 2: single beds and DOUBLE beds that are really two tiles wide. rot 2: a lone bed, and when a bed of the same look stands beside it along the wall the two
+# draw as the left and the right half of one wide bed (a shared headboard and quilt, a pillow each, a rail only on the outer sides). The model faces +b, headboard at b 0. ----
+def twinbed(p, wood):
+    quilt = faces(flat(p, 'b'), flat(p, 'b'), dots(p, 6, 8, 'c', 'd', 2)); pil = solid(P_WHITE, 'b')
+    return (block(1, 0, 7, 8, 0, 2, solid(wood, 'c')) + block(1, 1, 7, 7, 2, 5, quilt) + block(1, 7, 7, 8, 2, 5, faces(flat(wood, 'c'), flat(wood, 'b'), flat(wood, 'd')))
+            + block(1, 0, 7, 1, 2, 9, faces(panel(wood, 6, 7, 'b', 'c'), flat(wood, 'b'), flat(wood, 'd'))) + block(2, 1, 6, 3, 5, 6, pil))
+def sleepbag(p):
+    bag = faces(stripes(p, 8, 3, 'c', 'b', False, 2), flat(p, 'b'), M(p, ['cccccccc', 'cdcccccc', 'cccccdcc', 'cccccccc', 'cccdcccc', 'cccccccc', 'cdcccccc', 'cccccccc']))
+    return block(1, 0, 7, 8, 0, 3, bag) + block(2, 1, 6, 3, 3, 4, solid(P_WHITE, 'b')) + block(1, 6, 7, 8, 3, 4, solid(p, 'd'))
+def floormat(p):
+    return block(0, 0, 8, 8, 0, 2, faces(flat(p, 'b'), flat(p, 'b'), dots(p, 8, 8, 'c', 'd', 3))) + block(2, 1, 6, 3, 2, 3, solid(P_WHITE, 'b'))
+def widebed(p, wood, half, king=False):   # half 0: alone; 1: its partner is on the +a side (it is the -a half); 2: its partner is on the -a side
+    quilt = faces(flat(p, 'b'), flat(p, 'b'), dots(p, 8, 8, 'c', 'd', 2)); pil = solid(P_WHITE, 'b'); hb = 13 if king else 9
+    head = faces(panel(wood, 8, 7, 'b', 'c'), flat(wood, 'b'), flat(wood, 'd'))
+    bx = block(0, 0, 8, 8, 0, 2, solid(wood, 'c')) + block(1 if half != 2 else 0, 1, 7 if half != 1 else 8, 8, 2, 5, quilt) + block(0, 0, 8, 1, 2, hb, head)
+    if king: bx += block(0, 0, 8, 1, hb, hb + 1, solid(P_GOLD, 'd'))
+    if half != 2: bx += block(0, 1, 1, 8, 2, 4, solid(wood, 'c'))
+    if half != 1: bx += block(7, 1, 8, 8, 2, 4, solid(wood, 'c'))
+    pa, pb = ((2, 6), (2, 7), (1, 6))[half]
+    return bx + block(pa, 1, pb, 3, 5, 6, pil)
+def wide(name, price, p, wood, col, king=False): item(name, 'S', price, C, widebed(p, wood, 0, king), 2, col=col, alt=[widebed(p, wood, 1, king), widebed(p, wood, 2, king)])
+C = cat('BEDS 2')
+item('TWIN BED BLUE', 'S', 250, C, twinbed(BLUE, WHITEW), 1, col=(6, 10, 26)); item('TWIN BED PINK', 'S', 250, C, twinbed(P_PINK, WHITEW), 1, col=(30, 14, 22))
+item('TWIN BED GREEN', 'S', 250, C, twinbed(GREEN, PINE), 1, col=(6, 20, 8)); item('TWIN BED RED', 'S', 250, C, twinbed(RED, OAK), 1, col=(26, 5, 5))
+item('SLEEPING BAG', 'S', 40, C, sleepbag(ORANGE), 1, col=(28, 14, 3)); item('FLOOR MATTRESS', 'S', 60, C, floormat(GREY), 1, col=(15, 15, 17))
+wide('DOUBLE BED BLUE', 450, BLUE, OAK, (6, 10, 26)); wide('DOUBLE BED RED', 450, RED, DARK, (26, 5, 5))
+wide('DOUBLE BED GREEN', 450, GREEN, PINE, (6, 20, 8)); wide('DOUBLE BED PINK', 450, P_PINK, WHITEW, (30, 14, 22))
+wide('QUEEN BED PURPLE', 700, PURP, DARK, (16, 6, 24)); wide('KING BED NAVY', 1200, BLUE, DARK, (6, 10, 26), True)
+
 CAT_BUILD0 = 200   # the first 200 are the #76 batch; the rest the BUILD batch
-assert len(ITEMS) == 296, len(ITEMS)
+assert len(ITEMS) == 308, len(ITEMS)
 assert all(len([i for i in ITEMS if i['cat'] == c]) <= 12 for c in range(len(CATS))), 'a category holds at most 12 (the swatch row)'
 
 # ====================================================================== emit
@@ -529,12 +558,17 @@ def emit():
     for k, it in enumerate(ITEMS):
         b = it['boxes']; L.append('static const IBox bxCat%d[%d]={ // %s' % (k, len(b), it['name']))
         for i, x in enumerate(b): L.append(' {%d,%d,%d,%d,%d,%d,{%s}}%s' % (x.a0, x.b0, x.a1, x.b1, x.z0, x.z1, ','.join('&' + m.name for m in x.m), ',' if i < len(b) - 1 else ' };'))
+        for hn, hb in zip('AB', it['alt'] or []):   # the two halves of a joinable bed (rot 2)
+            L.append('static const IBox bxCat%d%s[%d]={ // %s, half %s' % (k, hn, len(hb), it['name'], hn))
+            for i, x in enumerate(hb): L.append(' {%d,%d,%d,%d,%d,%d,{%s}}%s' % (x.a0, x.b0, x.a1, x.b1, x.z0, x.z1, ','.join('&' + m.name for m in x.m), ',' if i < len(hb) - 1 else ' };'))
     return '\n'.join(L) + '\n'
 def emit_bake():
     L = ['// catalogbake.h - GENERATED by tools/make_catalog.py: included inside bakeAll() (itembake.h). One sprite an item, four for the ones that turn.']
     spr = 0
     for k, it in enumerate(ITEMS):
-        if it['rot']: L.append('    for(int r=0;r<4;r++) bakeOne(V_CAT0+%d+r,bxCat%d,%d,r,%d);' % (spr, k, len(it['boxes']), it['nsh'])); spr += 4
+        if it['rot'] == 2:   # a bed that joins: 4 turns alone, 4 as the half with its partner on the +a side, 4 as the half with it on the -a side (catDraw in items.h)
+            L.append('    for(int r=0;r<4;r++){ bakeOne(V_CAT0+%d+r,bxCat%d,%d,r,%d); bakeOne(V_CAT0+%d+r,bxCat%dA,%d,r,%d); bakeOne(V_CAT0+%d+r,bxCat%dB,%d,r,%d); }' % (spr, k, len(it['boxes']), it['nsh'], spr + 4, k, len(it['alt'][0]), it['nsh'] + 2, spr + 8, k, len(it['alt'][1]), it['nsh'] + 2)); spr += 12
+        elif it['rot']: L.append('    for(int r=0;r<4;r++) bakeOne(V_CAT0+%d+r,bxCat%d,%d,r,%d);' % (spr, k, len(it['boxes']), it['nsh'])); spr += 4
         else: L.append('    bakeOne(V_CAT0+%d,bxCat%d,%d,0,%d);' % (spr, k, len(it['boxes']), it['nsh'])); spr += 1
     return '\n'.join(L) + '\n', spr
 def emit_table(spr_n):
@@ -547,7 +581,7 @@ def emit_table(spr_n):
          'static const CatItem catTab[CAT_N]={']
     spr = 0
     for it in ITEMS:
-        L.append('  {"%s",\'%s\',%d,%d,%d,%d,RGB(%d,%d,%d),%d},' % (it['name'], it['ch'], it['price'], spr, it['rot'], it['cat'], *it['col'], it['lk'])); spr += 4 if it['rot'] else 1
+        L.append('  {"%s",\'%s\',%d,%d,%d,%d,RGB(%d,%d,%d),%d},' % (it['name'], it['ch'], it['price'], spr, it['rot'], it['cat'], *it['col'], it['lk'])); spr += 12 if it['rot'] == 2 else 4 if it['rot'] else 1
     L.append('};')
     first = []; n = 0
     for c in range(len(CATS)): first.append(n); n += len([i for i in ITEMS if i['cat'] == c])

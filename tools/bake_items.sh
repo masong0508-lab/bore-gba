@@ -3,4 +3,4 @@
 cd "$(dirname "$0")" || exit 1
 CC=${CC:-$(command -v cc || command -v gcc || command -v clang)}
 [ -n "$CC" ] || { echo "no C compiler found (Termux: pkg install clang)"; exit 1; }
-$CC -O1 -o /tmp/bake_items bake_items.c && /tmp/bake_items ../source/itemrom.h && echo "wrote source/itemrom.h"
+$CC -O1 -o /data/data/com.termux/files/usr/tmp/bake_items bake_items.c && /data/data/com.termux/files/usr/tmp/bake_items ../source/itemrom.h && echo "wrote source/itemrom.h"

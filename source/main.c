@@ -3744,6 +3744,7 @@ static const u8 faceView[16]={3,3,0,0,0,0,0,1,1,1,2,2,2,2,3,3};
 #include "house.h"   // households: up to 7 more Sims with free will, SELECT switches who you control
 #include "pets.h"    // PETS: dogs and cats that live with the household (the screens are in petui.h)
 static int plX, plY, plZ, plFh, plV, plBob;   // feet on screen, height above the floor, floor height under the feet, which baked view   // the waters' frame (roomFloors), whether the lot has any (wFqBuild), the player is in one (SWIMMING)
+static void lieTick(void); static u8 lieOn;   // lying.h: asleep on a bed
 static signed char plSq EWRAM_BSS;   // ALIVE tier 3: rows the sprite is squashed towards its feet (landing, sad slump, sleeping slump); 0 = normal
 static signed char plPopX EWRAM_BSS, plPopY EWRAM_BSS;   // ALIVE tier 2: px the sprite is moved by a reaction (hop up, shake sideways, flinch down); the shadow stays
 static int plDip, plMk;   // plDip: px the skater crouches for a few frames after a landing; plMk: the landing mark under a spinning skater (0 none, 1 red = bail, 2 yellow = sketchy, 3 green = clean, 4 bright = perfect)
@@ -3765,6 +3766,7 @@ static void playerCalc(void){
         if(alvPopK==1&&alvPopT<=3&&plZ<=plFh) q=alvPopT>1?2:1;                                                     // the end of a hop
         if(!lskate&&!lvx&&!lvy&&!lsp&&plZ<=plFh){ int m=moodState(); int s=simAct==1?4:m==MS_SAD?2:sNrg<20?1:0; if(s>q) q=s; }   // asleep: slumped; SAD: a slump; worn out: a little
         plSq=(signed char)q; }
+    lieTick();   // lying.h
     slfFx();   // self.h: the animation of the action you are doing (nudge, hop, squash, facing)
     lpsx=plX; lpsy=plY-20;
     plDip=(lskate&&lLand>0&&plZ<=plFh)?(lLand>4?(lLandD>=10?3:2):1):0;   // landing crouch: the harder the drop the lower, easing back up over 7 frames
@@ -3809,6 +3811,7 @@ static void drawBoard(void){
     }
     if(bdSpk){ px(tx+bdSpk-2,ty-bdSpk,RGB(31,29,8)); px(tx-bdSpk,ty-(bdSpk>>1)-1,RGB(31,31,24)); px(tx+(bdSpk>>1),ty-bdSpk-2,RGB(31,20,4)); }
 }
+#include "lying.h"   // the sleeping pose: lying on the bed
 #include "poses.h"   // ALIVE tier 4: wave, cheer and sit poses, kept as runs that differ from standing
 static void blitSq(const u8*s,int x0,int y0,int k){   // ALIVE tier 3: blit with the rows above the feet squeezed together by k rows (feet stay put); rows are dropped evenly, nothing is invented
     int sqH=SPF-spBy0; if(sqH<8||k<1){ blit(s,x0,y0); return; } if(k>sqH/4) k=sqH/4; int Hn=sqH-k;
@@ -3827,6 +3830,7 @@ static void drawPlayerNow(void){
     u16 rc=RGB(22,29,31); int ph=(lfr>>3)&1; rect(plX-9+ph,plY-6,8,1,rc); rect(plX+2-ph,plY-6,8,1,rc); rect(plX-7-ph,plY-4,5,1,rc); rect(plX+3+ph,plY-4,5,1,rc); rect(plX-4,plY-2,9,1,rc);
 }
 static void drawPlayerBody(int dy){
+    if(lieOn) return;   // asleep on a bed: drawn lying on it (lying.h)
     if(sShad&&!dy){ rect(plX-3,plY-plFh-1,7,2,RGB(10,8,5)); rect(plX-1,plY-plFh-2,3,4,RGB(10,8,5)); }   // shadow
     if(plMk){   // the landing mark: a bar under the shadow, red / yellow / green, wider when it is a perfect landing
         u16 mc=plMk==1?RGB(30,8,6):plMk==2?RGB(30,26,6):plMk==3?RGB(8,27,11):RGB(14,31,16); int w=plMk==4?6:4;
@@ -3980,6 +3984,7 @@ static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
             if(c=='.'&&(ox!=BDX||oy!=BDY)) continue;
             if(isWallCh(c)) drawWall(tx,ty,sx,sy);
             if(isItemCh(c)){ int id=catIdAt(ox,oy); if(id) catDraw(id,sx,sy,ox,oy); else drawItemTile(c,sx,sy,ox,oy); }   // (a catalog look, or the classic art of the character)
+            if(lieOn&&!ed&&ox==lieX&&oy==lieY) lieDraw(sx,sy);   // the sleeper on its bed
             if((ed&&c=='B')||(!ed&&!lhave&&ox==BDX&&oy==BDY)) blitItem(V_BOARD,sx,sy-(ed?0:((lfr>>4)&1)));   // the skateboard pickup, bobbing
             if(ed&&c=='P') drawSpawn(sx,sy+1);   // little person = spawn
             if(c=='g') drawCounter(sx,sy+1,(int)(lfr>>3));   // the arms shop counter (armsshop.h)
@@ -4100,10 +4105,11 @@ static void actorRc(Rc*r){   // everything the player puts on screen: sprite, sh
     if(sShad){ if(plX-3<x0) x0=plX-3; if(plX+4>x1) x1=plX+4; if(plY-plFh+2>y1) y1=plY-plFh+2; }
     if(plMk){ if(plX-7<x0) x0=plX-7; if(plX+8>x1) x1=plX+8; if(plY-plFh+4>y1) y1=plY-plFh+4; }   // the landing mark on the floor
     if(lskate){ if(plX-19<x0) x0=plX-19; if(plX+20>x1) x1=plX+20; if(plY-plZ-17<y0) y0=plY-plZ-17; if(plY-plZ+14>y1) y1=plY-plZ+14; }   // the whole board, nose up, rolled or lifted
+    if(lieOn){ if(lieSX-16<x0) x0=lieSX-16; if(lieSX+16>x1) x1=lieSX+16; if(lieSY-26<y0) y0=lieSY-26; if(lieSY+8>y1) y1=lieSY+8; }   // lying on the bed
     r->x0=(short)x0; r->x1=(short)x1; r->y0=(short)y0; r->y1=(short)y1;
 }
 static unsigned actSigBase(void){ return (unsigned)(plX&0x3FF)|((unsigned)(plY&0x3FF)<<10)|((unsigned)(plZ&0x3F)<<20)|((unsigned)plV<<26)|((unsigned)lskate<<28)|((unsigned)sShad<<29)|((unsigned)(plFh&1)<<30)|((unsigned)plBob<<31); }
-static unsigned actSigNow(void){ unsigned b=actSigBase(); if(lswim) b^=0x5BD1E995u^(unsigned)((lfr>>3)&1); if(plSq) b^=(unsigned)plSq*0x9E3779B1u; b^=(unsigned)poseSel()*0x85EBCA6Bu; if(plPopX|plPopY) b^=(unsigned)((plPopX+4)|((plPopY+4)<<4))*2654435761u; if(lskate) b^=((unsigned)bdA|((unsigned)(bdPitch+4)<<8)|((unsigned)bdRaise<<12)|((unsigned)bdRoll<<16)|((unsigned)bdSpk<<24)|((unsigned)plDip<<27)|((unsigned)plMk<<29))*2654435761u; return b; }   // + the board's pose: any change redraws
+static unsigned actSigNow(void){ unsigned b=actSigBase(); if(lswim) b^=0x5BD1E995u^(unsigned)((lfr>>3)&1); if(plSq) b^=(unsigned)plSq*0x9E3779B1u; if(lieOn) b^=(unsigned)(1+((lfr>>5)&1)+((lfr>>4)&3)*2+lieX*17+lieY*131)*0x2545F491u; b^=(unsigned)poseSel()*0x85EBCA6Bu; if(plPopX|plPopY) b^=(unsigned)((plPopX+4)|((plPopY+4)<<4))*2654435761u; if(lskate) b^=((unsigned)bdA|((unsigned)(bdPitch+4)<<8)|((unsigned)bdRaise<<12)|((unsigned)bdRoll<<16)|((unsigned)bdSpk<<24)|((unsigned)plDip<<27)|((unsigned)plMk<<29))*2654435761u; return b; }   // + the board's pose: any change redraws
 // ---- getting pixels to the screen ----
 static void dmaRows16(u32 src,u32 dst,int w,int rows,int sstride,int dstride){   // rows of w halfwords, strides in halfwords
     for(int j=0;j<rows;j++){ REG_DMA3SAD=src; REG_DMA3DAD=dst; REG_DMA3CNT=(u32)w|0x80000000u; src+=(u32)(sstride*2); dst+=(u32)(dstride*2); }

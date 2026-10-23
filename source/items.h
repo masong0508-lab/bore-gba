@@ -70,8 +70,10 @@ static int itemFacing(int x,int y){
     for(int d=0;d<4;d++) if(itemOpen(x+dx[d],y+dy[d])) return d;
     return 0;
 }
+static int lieFace(int x,int y); static int bedJoin(int x,int y,int id,int d);   // (lying.h)
 static void catDraw(int id,int sx,int sy,int x,int y){   // a catalog look (catalog.h) on tile (x, y): one sprite, or the one of its 4 turns that faces away from the wall
-    const CatItem*t=&catTab[id-1]; blitItem(V_CAT0+t->spr+(t->rot?((itemFacing(x,y)-cview)&3):0),sx,sy); }
+    const CatItem*t=&catTab[id-1]; if(t->rot==2){ int d=lieFace(x,y); blitItem(V_CAT0+t->spr+4*bedJoin(x,y,id,d)+((d-cview)&3),sx,sy); return; }   // (a bed that joins its neighbour: lying.h)
+    blitItem(V_CAT0+t->spr+(t->rot?((itemFacing(x,y)-cview)&3):0),sx,sy); }
 static int itemAlongU(int x,int y,char ch){   // rails / ledges / benches link up with neighbours of their own kind; in the rotated view the axis may swap
     int ax=(x>0&&lifeMap[y][x-1]==ch)+(x<MW-1&&lifeMap[y][x+1]==ch), ay=(y>0&&lifeMap[y-1][x]==ch)+(y<MH-1&&lifeMap[y+1][x]==ch);
     int axisX=!(ay>0&&ax==0); return axisX?!(cview&1):(cview&1);
