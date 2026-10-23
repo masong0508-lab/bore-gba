@@ -489,8 +489,8 @@ static void exDoneSet(int b){
     v[b>>3]|=(u8)(1<<(b&7)); x=0x3C; for(int i=0;i<8;i++) x^=v[i];
     m[0]='X'; m[1]='D'; for(int i=0;i<8;i++) m[2+i]=v[i]; m[10]=x;
 }
-static int bmDoneBits(void){ volatile u8*m=SRAM_BASE+BM_OFF; if(m[0]!='M'||m[3]!=(u8)(0x4D^m[1]^m[2])) return 0; return m[1]|(m[2]<<8); }
-static void bmDoneSet(int b){ int v=bmDoneBits()|(1<<b); volatile u8*m=SRAM_BASE+BM_OFF; m[0]='M'; m[1]=(u8)v; m[2]=(u8)(v>>8); m[3]=(u8)(0x4D^m[1]^m[2]); }
+static int bmDoneBits(void){ volatile u8*m=SRAM_BASE+BM_OFF; if(m[0]!='N'||m[3]!=(u8)(0x4D^m[1]^m[2])) return 0; return m[1]|(m[2]<<8); }
+static void bmDoneSet(int b){ int v=bmDoneBits()|(1<<b); volatile u8*m=SRAM_BASE+BM_OFF; m[0]='N'; m[1]=(u8)v; m[2]=(u8)(v>>8); m[3]=(u8)(0x4D^m[1]^m[2]); }
 static int exDone(int p,int m){ return p==XP_BASE?(bmDoneBits()>>m)&1:exDoneBit(xpBase[p]+m); }
 static int exPackDone(int p){ int n=0; for(int i=0;i<xPk[p].n;i++) n+=exDone(p,i); return n; }
 static int exPackPlay(int p){ int n=0; for(int i=0;i<xPk[p].n;i++) n+=!exSoon(p,i); return n; }
@@ -762,6 +762,7 @@ static int exPlace(int*ct){   // the place the mission still wants you at (*ct =
     return 0;
 }
 // ---- scenarios ----
+static void stSeeds(void){ wdSeed[0]=(u8)(wdSeed[0]+2); wdSave(); }   // THE GREEN THUMB story: two seed packs in the mail
 static u8 exStoryOn;   // a mission just began in this session: its story is told once (not again when a save is loaded)
 static void exScSetup(const XMs*x){   // a mission starts: its places are in the town, its scenario begins
     if(!x) return;
@@ -1060,7 +1061,7 @@ static void exStoryTile(void){   // pause menu > STORY: the mission, the story j
         const char* it[5]; int id[5], n=0; static char mt[40] EWRAM_BSS;
         if(exP){ const XMs*x=exMs(); char*e=simCat(mt,"MISSION  "); simCat(e,x?x->nm:""); it[n]=mt; id[n++]=0; }
         if(hzOn){ it[n]="GIVE UP THE HORDE"; id[n++]=3; }
-        it[n]="STORY JOURNAL"; id[n++]=1; it[n]="STORY MISSIONS"; id[n++]=4; it[n]="EXPANSION PACKS"; id[n++]=2;
+        it[n]="STORY JOURNAL"; id[n++]=1; it[n]="EXPANSION PACKS"; id[n++]=2;
         int c=menu("STORIES AND PACKS",it,n); if(c<0) return;
         if(id[c]==0) exJournal(); else if(id[c]==1){ storyScreen(); return; } else if(id[c]==3){ static const char* const yn[2]={"KEEP FIGHTING","GIVE UP"}; if(menu("GIVE UP THE HORDE?",yn,2)==1){ hzEnd(3); return; } } else if(id[c]==4){ exPackScreen(XP_BASE,1); if(exModal) return; } else { exShelf(1); if(exModal) return; }
     }

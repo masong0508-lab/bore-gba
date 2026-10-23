@@ -21,9 +21,19 @@ static const StLot stLots[STY_N]={
     {"NEW DIGS",2,1,SL_SOFA|SL_BOX},                   // NEW IN TOWN: still half unpacked
     {"2ND CHANCE",2,1,SL_KIT|SL_SOFA},                 // SECOND CHANCE
     {"SET HOUSE",2,1,SL_KIT|SL_SOFA|SL_SHELF|SL_PHONE},  // TV SHOW & TELL: a fashionable mansion (and a room for Mamesy)
+    {"FIXER UP",1,0,SL_KIT|SL_BOX},   // MOVING IN
+    {"RAMP PAD",1,0,SL_SOFA|SL_RAIL},   // DROP IN
+    {"TACO FLAT",1,0,SL_KIT|SL_SOFA|SL_PHONE},   // TACO TUESDAY
+    {"THE STOOP",2,1,SL_KIT|SL_SOFA|SL_PHONE},   // ICEBREAKER
+    {"LOVE SHACK",1,0,SL_KIT|SL_SOFA},   // SPARKS
+    {"THE OFFICE",1,0,SL_KIT|SL_SOFA|SL_SHELF|SL_PHONE},   // NINE TO FIVE
+    {"PET HOUSE",2,1,SL_KIT|SL_SOFA|SL_SHELF},   // GOOD BOY
+    {"THE DOJO",1,0,SL_SOFA|SL_SHELF},   // FIGHT NIGHT
+    {"OPEN DOORS",3,1,SL_KIT|SL_SOFA|SL_PHONE},   // OPEN HOUSE
+    {"THE GARDEN",1,0,SL_KIT|SL_SOFA|SL_SHELF},   // GREEN THUMB
 };
 _Static_assert(sizeof(stLots)/sizeof(stLots[0])==STY_N,"stLots needs one row per story (the STY_ enum order)");
-static const u8 stLotStyle[STY_N]={0,HS_FAMILY,HS_MODERN,HS_FAMILY,HS_LOFT,HS_FAMILY,HS_FAMILY,HS_COTTAGE,HS_MODERN,HS_COTTAGE,HS_FAMILY,HS_MANSION};   // the kind of house each story gets (housegen.h); the plan, papers and furniture are new every time
+static const u8 stLotStyle[STY_N]={0,HS_FAMILY,HS_MODERN,HS_FAMILY,HS_LOFT,HS_FAMILY,HS_FAMILY,HS_COTTAGE,HS_MODERN,HS_COTTAGE,HS_FAMILY,HS_MANSION,HS_COTTAGE,HS_LOFT,HS_MODERN,HS_FAMILY,HS_COTTAGE,HS_MODERN,HS_FAMILY,HS_LOFT,HS_FAMILY,HS_COTTAGE};   // the kind of house each story gets (housegen.h); the plan, papers and furniture are new every time
 
 static void stBuildHouse(int s,int x0,int y0,int x1,int y1){   // the story's furnished house on the live map, inside the lot rectangle (the street side is at the bottom): its own kind, a new plan each time
     const StLot*q=&stLots[s]; u32 seed=((u32)rnd8()<<8|(u32)rnd8())^(u32)(s*977);

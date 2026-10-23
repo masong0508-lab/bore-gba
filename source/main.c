@@ -6002,8 +6002,8 @@ static const char* const jbHelp[]={
     "the volume."};
 static const char* const packHelp[]={
     ">Expansions",
-    "The Expansions shelf holds the base game's ten",
-    "missions and six packs. A mission is a short scene",
+    "The Expansions shelf holds the six packs. A",
+    "mission is a short scene",
     "inside your life: up to three tasks, done in any",
     "order, for a payout. A pack's missions open one",
     "after another. Start them from the main menu or",

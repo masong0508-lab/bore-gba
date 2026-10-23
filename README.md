@@ -115,7 +115,7 @@ Skating is the heart of the game, and it is also the default job.
 - **The TV**, radio and sound system are things to use with R. The TV plays short clips. The radio and sound system tune the jukebox by genre.
 
 ## Expansion packs
-The **Expansions** shelf on the main menu (and STORY in the pause menu) holds the base game's ten missions and six packs. A **mission** is a short scene played inside your own life: a title, two lines of what is going on, up to three tasks that tick off in any order, and a payout. A pack's missions open one after another. Missions never touch your own lot's contents while you are away on an arena.
+The **Expansions** shelf on the main menu (and STORY in the pause menu) holds the six packs (the base game's ten missions are now ten Story Mode stories). A **mission** is a short scene played inside your own life: a title, two lines of what is going on, up to three tasks that tick off in any order, and a payout. A pack's missions open one after another. Missions never touch your own lot's contents while you are away on an arena.
 
 | Pack | What it is |
 |---|---|
