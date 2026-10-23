@@ -445,7 +445,8 @@ static const XPk xPk[XP_N]={
   {"BORE","THE BASE GAME  TEN MISSIONS",{"ONE MISSION FOR EACH THING","THE GAME DOES  BUILD  SKATE","LOVE  WORK  FIGHT  GROW"},xmBase,XN(xmBase),0,XMODE_NONE,0,RGB(3,6,12),RGB(31,26,6),0},
 };
 static const u8 xpBase[XP_N]={0,5,10,20,25,40,0};   // where each pack's missions start in the done bits (the base game has its own block: BM_OFF)
-static const u8 exOrd[XP_N]={XP_BASE,XP_SPACE,XP_ZOMB,XP_WAR,XP_FIGHT,XP_GOTCHI,XP_EPI};   // the shelf's order
+#define EX_SHELF (XP_N-1)   // the shelf lists the six packs; the base game's ten missions are in story mode (pause menu > STORY > STORY MISSIONS)
+static const u8 exOrd[EX_SHELF]={XP_SPACE,XP_ZOMB,XP_WAR,XP_FIGHT,XP_GOTCHI,XP_EPI};   // the shelf's order
 _Static_assert(XN(xmSpace)==5&&XN(xmZomb)==5&&XN(xmWar)==10&&XN(xmFight)==5&&XN(xmGotchi)==15&&XN(xmEpi)==20&&XN(xmBase)==10,"the packs have 5, 5, 10, 5, 15, 20 and 10 missions");
 #define BM_OFF 7556   // SRAM: the base game's missions done ('M', ten bits in two bytes, checksum)
 _Static_assert(BD_OFF+4<=BM_OFF&&BM_OFF+4<=LG_OFF,"the base missions' block sits between the board block and the life stats");
@@ -912,7 +913,7 @@ static void exPackScreen(int p,int ingame){
         exMqT=cnt; { int so=sel>=hasMode&&exOver(&P->ms[sel-hasMode],216); if(!dirty&&(cnt&(so?1:15))) { vsync(); continue; } }
         dirty=0;
         if(sel<top) top=sel; if(sel>=top+9) top=sel-8;
-        stBack(P->nm,(int)cnt);
+        stBack(p==XP_BASE?"STORY MISSIONS":P->nm,(int)cnt);
         { char b[24]; char*e=slNum(b,exPackDone(p)); e=slCat(e," OF "); e=slNum(e,exPackPlay(p)); slCat(e," DONE"); text(231-tw(b,1),7,b,GOLD,1); }
         for(int r=0;r<9&&top+r<rows;r++){ int i=top+r, y=21+r*11, on=i==sel;
             if(on) s2grad(8,y-1,224,11,6,16,26,3,9,17);
@@ -934,17 +935,17 @@ static void exPackScreen(int p,int ingame){
 }
 // ---- THE SHELF: every pack ----
 static void exShelf(int ingame){
-    int sel=0; if(exP) for(int i=0;i<XP_N;i++) if(exOrd[i]==exP-1) sel=i;   // (sel: a place on the shelf; exOrd[sel] the pack)
+    int sel=0; if(exP) for(int i=0;i<EX_SHELF;i++) if(exOrd[i]==exP-1) sel=i;   // (sel: a place on the shelf; exOrd[sel] the pack)
     u16 prev=keyNow(); int dirty=1; u32 cnt=0;
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
         if(pr&(K_B|K_START)) return;
-        if(pr&(K_RIGHT|K_R)){ sel=(sel+1)%XP_N; dirty=1; } if(pr&(K_LEFT|K_L)){ sel=(sel+XP_N-1)%XP_N; dirty=1; }
+        if(pr&(K_RIGHT|K_R)){ sel=(sel+1)%EX_SHELF; dirty=1; } if(pr&(K_LEFT|K_L)){ sel=(sel+EX_SHELF-1)%EX_SHELF; dirty=1; }
         if(pr&K_A){ exPackScreen(exOrd[sel],ingame); if(ingame&&exModal) return; prev=keyNow(); dirty=1; continue; }
         if(!dirty){ vsync(); continue; }
         dirty=0;
         stBack("EXPANSION PACKS",(int)cnt);
-        for(int i=0;i<XP_N;i++){ int on=i==sel; exCover(exOrd[i],8+i*32,on?20:25,30,on?62:56,on); }
+        for(int i=0;i<EX_SHELF;i++){ int on=i==sel; exCover(exOrd[i],8+i*32,on?20:25,30,on?62:56,on); }
         const XPk*P=&xPk[exOrd[sel]];
         s2rr(8,88,224,54,RGB(10,20,30)); s2rr(9,89,222,52,RGB(2,6,13));
         text(48,93,P->nm,GOLD,1); text(48,102,P->sub,RGB(17,29,31),1);
@@ -1015,7 +1016,7 @@ static void exRunModal(void){   // the mission card (1 a mission starts, 2 one i
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
         if(pr&(K_A|K_B|K_START)) break;
         exMqT=cnt;
-        stBack(kind==1?"EXPANSION PACK":"MISSION COMPLETE",(int)cnt);
+        stBack(kind==1?(p==XP_BASE?"STORY MISSION":"EXPANSION PACK"):"MISSION COMPLETE",(int)cnt);
         s2rr(8,22,224,118,RGB(16,27,31)); s2rr(9,23,222,116,RGB(2,6,13)); s2grad(10,24,220,114,3,9,19,1,4,10);
         exIcon(p,16,30,4,xPk[p].b);
         text(60,30,xPk[p].nm,GOLD,1); text(60,40,xPk[p].sub,RGB(17,29,31),1);
@@ -1056,12 +1057,12 @@ static void exJournal(void){   // pause menu > STORY > the mission: what it asks
 }
 static void exStoryTile(void){   // pause menu > STORY: the mission, the story journal, the packs
     for(;;){
-        const char* it[4]; int id[4], n=0; static char mt[40] EWRAM_BSS;
+        const char* it[5]; int id[5], n=0; static char mt[40] EWRAM_BSS;
         if(exP){ const XMs*x=exMs(); char*e=simCat(mt,"MISSION  "); simCat(e,x?x->nm:""); it[n]=mt; id[n++]=0; }
         if(hzOn){ it[n]="GIVE UP THE HORDE"; id[n++]=3; }
-        it[n]="STORY JOURNAL"; id[n++]=1; it[n]="EXPANSION PACKS"; id[n++]=2;
+        it[n]="STORY JOURNAL"; id[n++]=1; it[n]="STORY MISSIONS"; id[n++]=4; it[n]="EXPANSION PACKS"; id[n++]=2;
         int c=menu("STORIES AND PACKS",it,n); if(c<0) return;
-        if(id[c]==0) exJournal(); else if(id[c]==1){ storyScreen(); return; } else if(id[c]==3){ static const char* const yn[2]={"KEEP FIGHTING","GIVE UP"}; if(menu("GIVE UP THE HORDE?",yn,2)==1){ hzEnd(3); return; } } else { exShelf(1); if(exModal) return; }
+        if(id[c]==0) exJournal(); else if(id[c]==1){ storyScreen(); return; } else if(id[c]==3){ static const char* const yn[2]={"KEEP FIGHTING","GIVE UP"}; if(menu("GIVE UP THE HORDE?",yn,2)==1){ hzEnd(3); return; } } else if(id[c]==4){ exPackScreen(XP_BASE,1); if(exModal) return; } else { exShelf(1); if(exModal) return; }
     }
 }
 // ---- a screen that takes over the life game (lifeModeRun plays it like the TV's clips) ----
