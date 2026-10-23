@@ -5444,6 +5444,7 @@ static int creatorNew(void){   // returns 1 when the secret code switched screen
     int tab=0, rs[NTAB]={0}, dirty=3, hold[10]={0}; u16 prev=keyNow(); slkLoad(); KRep rpR={0,0}, rpL={0,0};
     stgArm();   // (house.h: the stage is kept in the household sprite pool while you are here)
     if(!(shapeMask()>>look[LK_SHAPE]&1)){ look[LK_SHAPE]=(u8)maskPick(shapeMask(),look[LK_SHAPE],NSHAPE); if(!custom) buildLook(); }   // BIG HEAD goes away when the Konami code is off
+    clipAll(); rect(0,0,PANEL_X,SH,SKY); edCopyRows(0,0,PANEL_X,SH);   // at once: the old menu picture goes, the Bore draws in a moment later
     for(;;){
         u16 k=keyNow(), pressed=k&~prev; prev=k;
         for(int i=0;i<10;i++) hold[i]=(k>>i&1)?hold[i]+1:0;
@@ -5498,6 +5499,7 @@ static int creatorNew(void){   // returns 1 when the secret code switched screen
             else if(dirty&4){ drawCreatorRows(tab,rs[tab]); edCopyRows(CDX,CDY+20,CDX+CDW,CDY+CDH); edCopyRows(PANEL_X,CDY+CDH+1,SW,SH); }
             if(dirty&1){ clipSet(0,0,PANEL_X,SH); drawCreatorScene(); clipAll(); edCopyRows(0,0,PANEL_X,SH); }   // (clipped: nothing spills onto the panel drawn before it)
             vsyncUi(); dirty=0;
+            if(ceMusPend){ ceMusPend=0; creatorMusStart(); }   // the first picture is up: now the tune
         } else vsync();
     }
 }
@@ -5592,7 +5594,8 @@ static int creatorClassic(void){   // returns 1 when the secret code switched sc
 }
 
 
-static void creatureEditor(void){ creatorMusStart(); for(;;){ int sw=(sUnlock&&sClassic)?creatorClassic():creatorNew(); if(!sw) break; } }   // main menu entry: the new creator, or the classic one once the code has been entered
+static u8 ceMusPend;   // the creator's music waits for its first picture
+static void creatureEditor(void){ if(sUnlock&&sClassic) creatorMusStart(); else ceMusPend=1; for(;;){ int sw=(sUnlock&&sClassic)?creatorClassic():creatorNew(); if(!sw) break; } }   // main menu entry: the new creator, or the classic one once the code has been entered
 
 // ---------- jukebox: the MUSIC PLAYER ----------
 // ONE screen: a NOW PLAYING card (song, artist, elapsed / total time, progress bar, equalizer, play mode) above the song list. Every row shows a check
