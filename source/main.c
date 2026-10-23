@@ -2093,6 +2093,25 @@ static void deckSwap(MDeck*d){   // exchange the main deck (the globals) with d
     { u32*a=(u32*)mvc,*b=(u32*)d->vc; for(unsigned i=0;i<sizeof(mvc)/4;i++){ u32 t=a[i]; a[i]=b[i]; b[i]=t; } }
     { u32*a=(u32*)mDly,*b=(u32*)d->dly; for(int i=0;i<64;i++){ u32 t=a[i]; a[i]=b[i]; b[i]=t; } }
 }
+// TOUKEBOX VISUALIZER: the real sound. While the Toukebox is open (vzLive counts down from 30 frames, set by its screen), every buffer the mixer finishes is
+// split into 8 bands by a bank of one-pole low passes (x, then the difference of neighbouring low passes), every second sample. vzOut[b] = the average size
+// of band b in that buffer (b 0 = treble ... 7 = bass). The screen turns it into bar heights (vzLevel).
+static volatile u8 vzLive; static volatile u16 vzOut[8]; static s32 vzLp[7];
+IWRAM_ARM static void vzAnalyze(const s8*L,const s8*R){
+    static const u8 al[7]={230,150,90,50,28,15,8};   // each low pass: how much of the new sample it takes (/256), the cut-off halves roughly each step
+    s32 lp[7]; u32 e[8]; for(int k=0;k<7;k++) lp[k]=vzLp[k]; for(int k=0;k<8;k++) e[k]=0;
+    for(int i=0;i<MUS_N;i+=2){
+        s32 x=((int)L[i]+(int)R[i])<<2, prev=x;
+        for(int k=0;k<7;k++){ lp[k]+=((x-lp[k])*al[k])>>8; s32 d=prev-lp[k]; e[k]+=(u32)(d<0?-d:d); prev=lp[k]; }
+        e[7]+=(u32)(prev<0?-prev:prev);
+    }
+    for(int k=0;k<7;k++) vzLp[k]=lp[k];
+    for(int k=0;k<8;k++) vzOut[k]=(u16)(e[k]/((MUS_N+1)>>1)>65535?65535:e[k]/((MUS_N+1)>>1));
+}
+static int vzLevel(int b){   // bar height 1..12 for band b (the treble bands are boosted: music has far less of them)
+    static const u8 g[8]={10,7,5,4,3,2,2,2}; static const u16 th[11]={6,10,16,25,38,57,85,125,185,270,400};
+    int v=((int)vzOut[b]*g[b])>>2, h=1; while(h<12&&v>=th[h-1]) h++; return h;
+}
 IWRAM_ARM static void musMixAny(int b){
     if(!mPlay&&!xfOn){ for(int i=0;i<MUS_N;i++){ mbufL[b][i]=0; mbufR[b][i]=0; } if(ambG) ambMix(mbufL[b],mbufR[b]); if(sfxV) sfxMix(mbufL[b],mbufR[b]); else if(!ambG) mWantOff=1; return; }   // only an effect or the nature sounds (or nothing: switch the mixer off)
     if(ldG==0&&ldGT==0&&!xfOn){ for(int i=0;i<MUS_N;i++){ mbufL[b][i]=0; mbufR[b][i]=0; } if(sfxV) sfxMix(mbufL[b],mbufR[b]); return; }   // the song is stepped aside for a loading screen: frozen where it is, no decoding at all (only the tick-tock is mixed)
@@ -2114,6 +2133,7 @@ IWRAM_ARM static void musMixAny(int b){
     if(mGain<256){ int g=mGain; for(int i=0;i<MUS_N;i++){ mbufL[b][i]=(s8)((mbufL[b][i]*g)>>8); mbufR[b][i]=(s8)((mbufR[b][i]*g)>>8); } }
     if(ldG!=ldGT){ int g=ldG+((ldGT>ldG)?6:-8); if((ldGT>ldG)?g>ldGT:g<ldGT) g=ldGT; ldG=g; }   // LOADING fade: out 8/256 a frame (~0.5 s), back in 6/256 (~0.7 s)
     if(ldG<256){ int g=ldG; for(int i=0;i<MUS_N;i++){ mbufL[b][i]=(s8)((mbufL[b][i]*g)>>8); mbufR[b][i]=(s8)((mbufR[b][i]*g)>>8); } }
+    if(vzLive) vzAnalyze(mbufL[b],mbufR[b]);   // the Toukebox's equalizer: what the song really sounds like
     if(ambG) ambMix(mbufL[b],mbufR[b]);   // the nature sounds under the song
     if(sfxV) sfxMix(mbufL[b],mbufR[b]);   // an effect plays on top of the song (it used to pause it)
 }
@@ -2142,7 +2162,7 @@ static int kHeld(const KRep*r,int down,int frames){ return down&&vblN-r->t0>=(u3
 __attribute__((used)) IWRAM_ARM void irqMain(void){
     u16 f=R_IF;
     if(f&1){   // vblank: start the buffer that was filled last frame, in step with the screen
-        R_IF=1; keySample(); vblN++;   // (the buttons, 60 times a second whatever the main loop is doing: the key latch)
+        R_IF=1; keySample(); vblN++; if(vzLive) vzLive--;   // (the buttons, 60 times a second whatever the main loop is doing: the key latch)
         if(zoomShow&&zoomDma) zoomArm();   // the ZOOM's per-line scaling, every frame
         if(mOn){   // LATENCY-PROOF: the sample clock (timer 0) never stops and timer 1 counts the samples it has played, so however late this
             // interrupt comes (a long DMA, a section with interrupts off) the DMA is re-pointed to exactly where it was reading in the ring: nothing
@@ -5835,7 +5855,7 @@ static void jbPaintHead(int fr){
     rect(JB_PX0+3,JB_CY0,JB_PX1-JB_PX0-6,JB_CY1-JB_CY0,JB_CARD); jbOutline(JB_PX0+3,JB_CY0,JB_PX1-JB_PX0-6,JB_CY1-JB_CY0,JB_EDGE);
     int nx=48, nr=232, nw=nr-nx; int live=(sSnd&&jbPlaying&&jbCur>=0);
     for(int b=0;b<8;b++){   // equalizer (flat when nothing plays)
-        int e=jbEq[b], t=live?2+((rnd8()*11)>>8):1; e=(t>e)?t:(e>1?e-1:1); jbEq[b]=(u8)e; int ex=11+b*4;
+        if(live) vzLive=30; int e=jbEq[b], t=live?vzLevel(b):1; e=(t>e)?t:(e>1?e-1:1); jbEq[b]=(u8)e; int ex=11+b*4;   // (the real sound: vzAnalyze)
         for(int k=0;k<e;k++) rect(ex,54-k*2,3,1,!live?RGB(6,8,13):k<7?RGB(8,26,8):k<10?RGB(28,26,5):RGB(30,9,6));
     }
     const char*mn=jbModeName[jbMode]; int mw=tw(mn,1)+8;   // the play mode chip, START changes it
