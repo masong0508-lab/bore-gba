@@ -3007,6 +3007,12 @@ static u16 keyNow(void){   // BUTTONS option: A/B and L/R can be swapped here, s
     if(b&2){ u16 l=k&K_L, r=k&K_R; k=(u16)((k&~(K_L|K_R))|(l?K_R:0)|(r?K_L:0)); }
     return k;
 }
+static void keyUnget(u16 m){   // presses a screen read but did not use go back to the key latch: the next keyNow hands them out again (m is in the swapped, in-game buttons)
+    int b=xo[XO_BTN]; m&=0x3FF;
+    if(b&2){ u16 l=m&K_L, r=m&K_R; m=(u16)((m&~(K_L|K_R))|(l?K_R:0)|(r?K_L:0)); }
+    if(b&1){ u16 a=m&K_A, c=m&K_B; m=(u16)((m&~(K_A|K_B))|(a?K_B:0)|(c?K_A:0)); }
+    u16 ime=R_IMEK; R_IMEK=0; u16 now=R_TM3D; for(int i=0;i<10;i++) if((m>>i)&1){ if(kQ[i]<3) kQ[i]++; kT[i]=now; } R_IMEK=ime;
+}
 static void objHideAll(void){ for(int i=0;i<128;i++) ((volatile u16*)0x07000000)[i*4]=0x200; *(volatile u16*)0x04000050=0x0400; *(volatile u16*)0x04000054=0; }   /* all 128 OAM entries (fx.h uses 16..58), and no weather dimming behind a menu */    // household sprites off (menus, other screens)
 static void box(int x,int y,int w,int h){ objHideAll(); rect(x-1,y-1,w+2,h+2,GOLD); rect(x,y,w,h,RGB(3,4,7)); }
 static int menu(const char*title,const char*const*it,int n){   // UP/DOWN + A to choose, B or START to cancel (returns -1). Long lists scroll (L R jump a page).
@@ -3052,7 +3058,7 @@ static void helpScreen(const char*title,const char*const*ln,int n){   // lines s
     }
 }
 static void toast(const char*msg){ int w=tw(msg,1)+16;
-    box((SW-w)/2,66,w,22); text((SW-w)/2+8,74,msg,WHITE,1); { u16 pv=keyNow(); for(int i=0,n=oToastLen();i<n;i++){ present(); u16 k=keyNow(); if(k&~pv&(K_A|K_B|K_START)) break; pv=k; } } }
+    box((SW-w)/2,66,w,22); text((SW-w)/2+8,74,msg,WHITE,1); { u16 pv=keyNow(), keep=0; for(int i=0,n=oToastLen();i<n;i++){ present(); u16 k=keyNow(), np=(u16)(k&~pv); keep|=(u16)(np&~(K_A|K_B|K_START)); if(np&(K_A|K_B|K_START)) break; pv=k; } keyUnget(keep); } }
 static int edGate(void){ if(!nbBarred()) return 1; toast("COMMUNITY LOT  BUILD IN THE TOWN"); return 0; }   // every way into the room builder asks first: a community lot can only be built from the neighborhood view
 static const char* const lifeHelp[]={
     ">Welcome to BORE",
