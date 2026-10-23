@@ -174,8 +174,14 @@ static void lwWr(u32 v){ if(!nbOk){ lwFb=v; return; } nbT.spare=(u8)v; nbT.pad[1
 static int lwG(u32 v,int o,int n){ return (int)((v>>o)&((1u<<n)-1)); }
 static u32 lwP(u32 v,int o,int n,int x){ u32 m=((1u<<n)-1)<<o; return (v&~m)|(((u32)x<<o)&m); }
 static int lwSeedsN(void){ return lwG(lwRd(),15,2); }
-static int lwAgeS(int stamp){ return ((int)simDay-stamp)&31; }   // days since planted (the pot keeps the day, mod 32); 30 = ready. A visit locks a ready plant (stage 7)
-static int lwDaysOf(int b){ return (b&7)==7?31:lwAgeS(b>>3)+1; }   // 1 planted .. 31 ready, from the pot's byte
+static int lwStamp(void){ return (((int)simDay>>1)%31)+1; }   // the pot keeps the day it was planted in 2 day steps (1..31; 0 = a plant from the old one-counter version)
+static int lwUnits(int b){ int s=b>>3; if(!s) return 0; return ((((int)simDay>>1)%31)-(s-1)+31)%31; }   // 2 day steps since planted; 15 = ready (30 days)
+static int lwDaysOf(int b){ return (b&7)==7?31:lwUnits(b)>=15?31:lwUnits(b)*2+1; }   // 1 planted .. 31 ready, from the pot's byte
+static void lwLock(void){   // AUTOMATIC: every game minute and on every room load, each lunar pot on the live floor: a ready plant locks as ready (stage 7); an old-version plant takes its age from the old counter
+    for(int y=0;y<MH;y++) for(int x=0;x<MW;x++){ if(lifeMap[y][x]!='u') continue; int b=wallMap[y][x], st=b&7; if(st!=6) continue;
+        if(!(b>>3)){ u32 v=lwRd(); int p=lwG(v,17,5); int u=p>1?(p-1)/2:0; if(p) lwWr(lwP(v,17,5,0)); wallMap[y][x]=(u8)(6|((((((int)simDay>>1)%31)-u+31)%31+1)<<3)); continue; }
+        if(lwUnits(b)>=15) wallMap[y][x]=7; } }
+
 static int lwNeed(int st){ static const u8 pct[4]={0,200,100,50}; int d=oStageDays(st); if(!d||!xo[XO_AGING]) return 30; int n=d*pct[xo[XO_AGING]]/100; return n<1?1:n; }
 static int lwDaysLeft(void){ if(stage>=AG_ELDER) return LW_ELDER-(int)ageDays; int d=lwNeed(stage)-(int)ageDays; for(int s=stage+1;s<AG_ELDER;s++) d+=lwNeed(s); return d+LW_ELDER; }
 static char lwMsg[72] EWRAM_BSS;
@@ -208,7 +214,7 @@ static void lwMinute(void){   // every game minute (weed.h wdHour)
     if(lwHigh>0&&--lwHigh==0){ lwSess=0; if(lwPlat){ lwPlat=0; simQueue("THE HIGH FADES  THE MOON WANTS YOU BACK"); } }
     if(lwPlat&&simMeter<920) simMeter=920;   // PLATINUM while you keep it up
     if(lnrHere()&&!lwEnc&&((rnd8()<<8|rnd8())%700)==0) lwEnc=1;   // a stranger, now and then
-    if(simMin==0) for(int y=0;y<MH;y++) for(int x=0;x<MW;x++) if(lifeMap[y][x]=='u'&&(wallMap[y][x]&7)==6&&lwAgeS(wallMap[y][x]>>3)>=30) wallMap[y][x]=7;   // a day on: a plant that is ready stays ready (the pots keep their own clocks)
+    lwLock();   // the pots keep their own clocks: a ready plant locks as ready, on any floor you are on, at once
 }
 static void lwEncounter(void){
     static const char* const who[4]={"A TOURIST IN A TOO BIG SPACE SUIT","A MAN WHO SAYS HE IS THE MOON MAYOR","A KID WHO SHOULD BE ON EARTH","A ROBOT PRETENDING TO BE A TOURIST"};
@@ -243,7 +249,7 @@ static void lwPlanter(int x,int y){   // R next to a planter that holds the luna
 }
 static void lwPlantSeed(int x,int y){
     u32 v=lwRd(); int s=lwG(v,15,2); if(s<=0){ toast("NO LUNAR SEED"); return; }
-    wallMap[y][x]=(u8)(6|((simDay&31)<<3)); lwWr(lwP(v,15,2,s-1)); lnote="PLANTED  30 DAYS  DO NOT FORGET IT"; lnoteT=140; lstun=50;
+    wallMap[y][x]=(u8)(6|(lwStamp()<<3)); lwWr(lwP(v,15,2,s-1)); lnote="PLANTED  30 DAYS  DO NOT FORGET IT"; lnoteT=140; lstun=50;
 }
 static void lwCounter(void){   // R at the LUNARWEED counter
     if(stage<AG_ADULT){ lnote="21 AND UP  THIS IS THE MOON  NOT A PLAYGROUND"; lnoteT=110; voxPlay(V_disagree); return; }

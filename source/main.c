@@ -2690,8 +2690,9 @@ static void mapReset(void){ mapGen(); }
 #define FLG_MAX 4
 static u8 flgN[2] EWRAM_BSS, flgX[2][FLG_MAX] EWRAM_BSS, flgY[2][FLG_MAX] EWRAM_BSS;   // [0] community, [1] skate
 #define FLG(t) (nbFlagsOn()?flgN[t]:0)   // the flags that count: none outside a community lot
+static void lwLock(void);   // lunrado.h
 static void mapScan(void){   // find the skateboard (B), the spawn point (P) and the flags (a, k); fall back to sane defaults
-    wDirty=1;
+    wDirty=1; lwLock();   // (lunrado.h: lunar pots lock as ready on every room load)
     int fx=-1, fy=-1; bdx=bdy=spx=spy=-1; flgN[0]=flgN[1]=0;
     for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ char c=lifeMap[y][x];
         if(c=='B'){ bdx=x; bdy=y; } if(c=='P'){ spx=x; spy=y; }
