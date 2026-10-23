@@ -4509,6 +4509,7 @@ static int gmCur;   // visible number of the song that plays
 static u8 radioSt EWRAM_BSS;   // 0 = off, else the tuned station + 1
 static int menuOn, creOn, musCtx;   // who owns the music: the main menus' song, the creator's chiptune loop (musCtx = the screen the game was started from: 0 menu, 1 creator)
 static void creatorMusStart(void); static void menuMusStart(void);
+static u8 ceMusPend;   // the creator's music waits for its first picture
 static void gmPlay(void){ const Song*sg=&songs[jbMap[gmCur]]; if(xo[XO_GAMEXF]) musFadeTo(sg->adp?1:0,sg->adp,sg->xm,XF_SONG); else musBegin(sg->adp?1:0,sg->adp,sg->xm); }   // OPTIONS > AUDIO > GAME CROSSFADE: off = a hard start
 static void gmStart(void){   // entering the game: crossfade into a random checked song (OPTIONS > AUDIO > GAME MUSIC), or fade out the last screen's music
     if(gMusic) return;
@@ -5715,7 +5716,6 @@ static int creatorClassic(void){   // returns 1 when the secret code switched sc
 }
 
 
-static u8 ceMusPend;   // the creator's music waits for its first picture
 static void creatureEditor(void){ if(sUnlock&&sClassic) creatorMusStart(); else ceMusPend=1; for(;;){ int sw=(sUnlock&&sClassic)?creatorClassic():creatorNew(); if(!sw) break; } }   // main menu entry: the new creator, or the classic one once the code has been entered
 
 // ---------- jukebox: the MUSIC PLAYER ----------
