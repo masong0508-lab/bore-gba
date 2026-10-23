@@ -309,8 +309,11 @@ static void nbDistricts(int style,int ox,int oy){   // the land past ox / oy (th
     int kc=n, homes[12]={0};   // (the kinds go on from where the town's count is: a grown town gets the next ones)
     for(int y=0;y<th_&&n<NB_LOTS;y++) for(int x=0;x<tw_&&n<NB_LOTS;x++){
         if(x<ox&&y<oy) continue;
-        r=r*1103515245u+12345u; int sz=4+(int)((r>>16)%3), h2=sz-(int)((r>>20)&1);
-        int w=sz; if(!nbRoomFor(x,y,w,h2)){ w=4; h2=4; if(!nbRoomFor(x,y,w,h2)) continue; }
+        r=r*1103515245u+12345u;
+        static const u8 shp[12][2]={{4,4},{4,5},{5,4},{6,4},{5,5},{4,6},{6,5},{7,4},{5,6},{6,6},{7,5},{8,5}};   // the lot shapes, smallest first (a lot that does not fit takes the next one down)
+        if(((r>>26)&7)==0) continue;   // now and then a gap of green: more room between the lots
+        int w=0, h2=0; for(int q=(int)((r>>16)%12);q>=0;q--){ if(nbRoomFor(x,y,shp[q][0],shp[q][1])){ w=shp[q][0]; h2=shp[q][1]; break; } }
+        if(!w) continue;
         int comm=((r>>12)&3)==0;
         if(comm){ int t=kinds[kc++%(int)sizeof(kinds)]; if(t==CT_BAR&&nbRoomFor(x,y,7,6)){ w=7; h2=6; } nbLotAdd(n,ctNm[t],x,y,w,h2,LKIND_COMM,t); }   // (a bar is a big place)
         else { int st=(int)((r>>24)%12); char nm[NB_NAME+1]; char*e=nm; for(const char*p=nbStreet[st];*p;) *e++=*p++; *e++=' '; homes[st]+=2; int no=homes[st]; if(no>=10) *e++=(char)('0'+no/10); *e++=(char)('0'+no%10); *e=0;
@@ -321,9 +324,9 @@ static void nbDistricts(int style,int ox,int oy){   // the land past ox / oy (th
 // into (an empty lot with its own furnished house, or just the land). A starter town is made with at least 12 home lots, so there are always 3 or more to pick
 // from (4 with the home lot, which a new player can take too). The extra lots are small (4 x 4 to 5 x 5): with the house they cost less than the starting cash.
 static void nbEnsureHomes(int want){
-    static const u8 sz[3][2]={{5,5},{4,4},{5,4}};
+    static const u8 sz[4][2]={{5,5},{4,4},{5,4},{4,5}};
     int r=0, n=0; for(int i=0;i<NB_LOTS;i++) if(nbT.lot[i].on){ n++; if(nbT.lot[i].kind==LKIND_RES) r++; }
-    for(int p=0;p<3&&r<want;p++){ int w=sz[p][0], h=sz[p][1];
+    for(int p=0;p<4&&r<want;p++){ int w=sz[p][0], h=sz[p][1];
         for(int y=0;y+h<=nbT.h&&r<want&&n<NB_LOTS;y++) for(int x=0;x+w<=nbT.w&&r<want&&n<NB_LOTS;x++){
             if(!nbRoomFor(x,y,w,h)) continue;
             int i=0; while(i<NB_LOTS&&nbT.lot[i].on) i++; if(i>=NB_LOTS) return;
