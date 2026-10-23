@@ -2096,7 +2096,10 @@ static void deckSwap(MDeck*d){   // exchange the main deck (the globals) with d
 // TOUKEBOX VISUALIZER: the real sound. While the Toukebox is open (vzLive counts down from 30 frames, set by its screen), every buffer the mixer finishes is
 // split into 8 bands by a bank of one-pole low passes (x, then the difference of neighbouring low passes), every second sample. vzOut[b] = the average size
 // of band b in that buffer (b 0 = treble ... 7 = bass). The screen turns it into bar heights (vzLevel).
-static volatile u8 vzLive; static volatile u16 vzOut[8]; static s32 vzLp[7];
+// TOUKEBOX VISUALIZER: the real sound. While the Toukebox is open (vzLive counts down from 30 frames, set by its screen), every buffer the mixer finishes is
+// split into 8 bands by a bank of one-pole low passes (x, then the difference of neighbouring low passes), every second sample. vzOut[b] = the average size
+// of band b in that buffer (b 0 = treble ... 7 = bass). The screen turns it into bar heights (vzLevel).
+static volatile u8 vzLive; static volatile u16 vzOut[8]; static s32 vzLp[7]; static u32 vzPk=1600;
 IWRAM_ARM static void vzAnalyze(const s8*L,const s8*R){
     static const u8 al[7]={230,150,90,50,28,15,8};   // each low pass: how much of the new sample it takes (/256), the cut-off halves roughly each step
     s32 lp[7]; u32 e[8]; for(int k=0;k<7;k++) lp[k]=vzLp[k]; for(int k=0;k<8;k++) e[k]=0;
@@ -2106,11 +2109,13 @@ IWRAM_ARM static void vzAnalyze(const s8*L,const s8*R){
         e[7]+=(u32)(prev<0?-prev:prev);
     }
     for(int k=0;k<7;k++) vzLp[k]=lp[k];
-    for(int k=0;k<8;k++) vzOut[k]=(u16)(e[k]/((MUS_N+1)>>1)>65535?65535:e[k]/((MUS_N+1)>>1));
+    for(int k=0;k<8;k++){ u32 v=e[k]/((MUS_N+1)>>1); vzOut[k]=(u16)(v>65535?65535:v); }
+    { u32 b7=(u32)vzOut[7]<<4; if(b7>vzPk) vzPk=b7; else vzPk-=vzPk>>9; }   // the loudest the bass has been lately (<<4), slowly forgotten: the bars adapt to the song and to the volume
 }
-static int vzLevel(int b){   // bar height 1..12 for band b (the treble bands are boosted: music has far less of them)
-    static const u8 g[8]={10,7,5,4,3,2,2,2}; static const u16 th[11]={6,10,16,25,38,57,85,125,185,270,400};
-    int v=((int)vzOut[b]*g[b])>>2, h=1; while(h<12&&v>=th[h-1]) h++; return h;
+static int vzLevel(int b){   // bar height 1..12 for band b. Tuned on two real songs (a drum and bass track and a house track), each at full and at half volume:
+    // every band has its own floor and ceiling (th, a geometric ladder), and the readings are first scaled so the recent bass peak counts as 100.
+    static const u8 th[8][11]={{1,1,2,2,3,3,4,5,6,8,10},{3,4,5,6,7,9,11,13,16,20,25},{5,6,7,8,9,10,12,14,16,19,22},{6,7,8,10,11,13,15,18,21,24,28},{6,7,8,10,12,14,17,20,24,29,34},{7,8,10,12,15,18,22,26,32,38,46},{7,8,10,12,15,18,22,27,33,40,48},{20,23,28,32,38,45,53,62,72,85,100}};
+    int pk=(int)(vzPk>>4); if(pk<40) pk=40; int v=((int)vzOut[b]*100)/pk, h=1; while(h<12&&v>=th[b][h-1]) h++; return h;
 }
 IWRAM_ARM static void musMixAny(int b){
     if(!mPlay&&!xfOn){ for(int i=0;i<MUS_N;i++){ mbufL[b][i]=0; mbufR[b][i]=0; } if(ambG) ambMix(mbufL[b],mbufR[b]); if(sfxV) sfxMix(mbufL[b],mbufR[b]); else if(!ambG) mWantOff=1; return; }   // only an effect or the nature sounds (or nothing: switch the mixer off)
