@@ -65,7 +65,6 @@ Saves use the cart's 128 KB of flash (58 slots). A cart without flash falls back
 | **Play** | Your life. Pick a town, then CONTINUE the life you saved, VISIT the town, or start a NEW GAME there |
 | **Create a Bore** | The creature creator |
 | **Toukebox** | The jukebox and music player |
-| **Room Slots** | Save and load rooms, houses, people and households |
 | **Options** | Video, gameplay, time, audio, controls and more |
 | **Expansions** | The shelf of expansion packs, and the extra modes some of them add |
 | **?** | HOW TO PLAY, the in-game manual |

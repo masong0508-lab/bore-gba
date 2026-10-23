@@ -5973,9 +5973,9 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "arena.h"         // BOREZIES! ARENAS: bitmapped maps with scattered barrels and canisters that stand in for your lot during a fight
 #include "horde.h"         // BOREZIES!'s HORDE MODE: waves, mutators, perks (100 waves or endless)
 // ---------- main menu (The Sims 3 look): a glossy panel over your town, lit for the time of day of your life's clock ----------
-#define MM_N 7
-static const char* const mmName[MM_N]={"Play","Create a Bore","Toukebox","Room Slots","Options","Expansions","?"};
-static const char* const mmDesc[MM_N]={"YOUR LIFE  YOUR TOWNS  OR A NEW GAME","DESIGN YOUR OWN VOXEL CHARACTER","LISTEN  PICK  OR SHUFFLE THE SONGS","SAVE AND LOAD ROOMS  PEOPLE AND LIVES","SPEED  GAMEPLAY  SOUND  BUTTONS AND MORE","SIX PACKS OF MISSIONS  AND TWO MODES","HOW TO PLAY  LEARN THE CONTROLS"};
+#define MM_N 6
+static const char* const mmName[MM_N]={"Play","Create a Bore","Toukebox","Options","Expansions","?"};
+static const char* const mmDesc[MM_N]={"YOUR LIFE  YOUR TOWNS  OR A NEW GAME","DESIGN YOUR OWN VOXEL CHARACTER","LISTEN  PICK  OR SHUFFLE THE SONGS","SPEED  GAMEPLAY  SOUND  BUTTONS AND MORE","SIX PACKS OF MISSIONS  AND TWO MODES","HOW TO PLAY  LEARN THE CONTROLS"};
 static u8 mmTod, mmAcid; static s8 mmLot=-1;   // the time of day, and the acid rainbow in place of the town (picked on each visit)
 static int mmPickTod(void){   // 5-8 dawn, 8-17 day, 17-20 dusk, else night (no life yet: any)
     int m=simsCheck(SIM_SRAM)?simGet16(SIM_SRAM,16):-1; if(m<0) return rnd8()&3;
@@ -6177,11 +6177,10 @@ static void mainMenu(void){
             if(sel==0) playerScreen();
             else if(sel==1){ ceFromMenu=1; creatureEditor(); ceFromMenu=0; if(ceMoveIn==3){ ceMoveIn=0; int tl[SLOT_MAX]; if(nbTownList(tl,SLOT_MAX)>0){ ngHaveBore=1; sgNewPlayer(); ngHaveBore=0; } else lifeMode(0); } }   // (no town yet: there is nothing to move into, so play on as before)   // GO LIVE LIFE! there: a new player, then the town map to buy a home
             else if(sel==2) jukeboxScreen();
-            else if(sel==3){ slotScreen(); if(nbOk) nbBoot(); }   // (a slot screen can delete or replace the town)
-            else if(sel==4) settingsScreen();
-            else if(sel==5) exShelf(0);   // EXPANSIONS: the packs, their missions and modes (missions are played from your life: PAUSE > STORY)
+            else if(sel==3) settingsScreen();
+            else if(sel==4) exShelf(0);   // EXPANSIONS: the packs, their missions and modes (missions are played from your life: PAUSE > STORY)
             else howToPlay();
-            gToMenu=0; prev=keyNow(); dirty=2; if(sel<=1||sel==3||sel==4) mmPick();   // back from a game (or OPTIONS): a new view and the time of day again
+            gToMenu=0; prev=keyNow(); dirty=2; if(sel<=1||sel==3) mmPick();   // back from a game (or OPTIONS): a new view and the time of day again
             menuMusSync();   // the menu's song comes back (a crossfade) if the screen took the music; OPTIONS may have switched SOUND or MENU MUSIC
             continue;
         }
