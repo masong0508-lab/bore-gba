@@ -1057,15 +1057,16 @@ static void exStoryTile(void){   // pause menu > STORY: the mission, the story j
     }
 }
 // ---- a screen that takes over the life game (lifeModeRun plays it like the TV's clips) ----
-static void exLaunch(void); static int exSpacewalk(int real);
+static void exLaunch(void); static int exSpacewalk(int real); static void lnJobRun(int t);   // (lunrado.h)
 static void exTakeRun(int t){
-    { int need=(t==EXT_LAUNCH||t==EXT_SWTRAIN)?XP_SPACE:t==EXT_FIGHTER?XP_FIGHT:t==EXT_GOTCHI?XP_GOTCHI:-1;   // (the spaceport's launch and spacewalk, the arcade's cabinet, the handheld: their pack must be in)
+    { int need=(t==EXT_LAUNCH||t==EXT_SWTRAIN||t==EXT_SYSJOB||t==EXT_SATJOB)?XP_SPACE:t==EXT_FIGHTER?XP_FIGHT:t==EXT_GOTCHI?XP_GOTCHI:-1;   // (the spaceport's launch and spacewalk, the arcade's cabinet, the handheld: their pack must be in)
       if(need>=0&&!xpHave(need)){ exNotIn(need); hhExtraDone(); return; } }
     if(t==EXT_LAUNCH) exLaunch();
     else if(t==EXT_SWTRAIN){ if(exSpacewalk(0)){ stQEvent(QE_SPACEWALK,1); toast("TRAINING PASSED  YOU ARE READY"); } else toast("MISSION CONTROL REELED YOU IN"); }
     else if(t==EXT_FIGHTER) exModeRun(XP_FIGHT);
     else if(t==EXT_GOTCHI) exModeRun(XP_GOTCHI);
     else if(t==EXT_ARCADE) arcGameRun();
+    else if(t==EXT_SYSJOB||t==EXT_SATJOB) lnJobRun(t);
     hhExtraDone();   // (the ghosts' and the cops' sprites go back into OBJ VRAM: a mode may have used it)
 }
 static int exSeatFree(void){ const XMs*x=exMs(); if(!x) return 0; for(int i=0;i<exTkN(x);i++) if(x->t[i].k==QK_EV&&x->t[i].a==QE_LAUNCH&&!((exTk>>i)&1)) return 1; return 0; }   // the mission booked your seat on the rocket

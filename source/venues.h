@@ -8,7 +8,7 @@
 #define VF_ADULT 1   // grown-ups only
 #define VF_NIGHT 2   // only after 6 PM
 enum { VS_NONE, VS_MUNCH, VS_ADOPT, VS_MOVIE, VS_GAMBLE, VS_HEAL, VS_HAIR, VS_WORK, VS_ROB, VS_GROCER, VS_PETFOOD, VS_PETTOY, VS_PETGROOM,
-       VS_LAUNCH, VS_SPACEWALK, VS_SPAR, VS_FIGHTER, VS_BOARD, VS_PRODECK, VS_CLASS, VS_BAG, VS_BELT, VS_FUND, VS_HOME, VS_PHOTO, VS_TOUR, VS_ROCK };   // (board.h: a skateboard, a pro deck)   // (the packs, expand.h: a seat on the rocket, spacewalk training, a challenger, the BORTUA FIGHTER cabinet)
+       VS_LAUNCH, VS_SPACEWALK, VS_SPAR, VS_FIGHTER, VS_BOARD, VS_PRODECK, VS_CLASS, VS_BAG, VS_BELT, VS_FUND, VS_HOME, VS_PHOTO, VS_TOUR, VS_ROCK, VS_SYSJOB, VS_SATJOB, VS_GAUGE, VS_REFUEL10, VS_REFUEL35 };   // (board.h: a skateboard, a pro deck)   // (the packs, expand.h: a seat on the rocket, spacewalk training, a challenger, the BORTUA FIGHTER cabinet)
 typedef struct { const char*nm; short price; signed char food, nrg, hyg, com, soc; u8 mood, sk, skn, stun, fl, sp; const char*say; } VAct;   // (VS_GAMBLE: sk = payout x, skn = win %)
 #define NO 255
 static const VAct vAct[]={
@@ -122,9 +122,14 @@ static const VAct vAct[]={
     {"EARTHRISE PHOTO",5, 0,0,0,0,0, 0,NO,0,0,0,VS_PHOTO,0},
     {"CRATER TOUR",15, 0,0,0,0,0, 0,NO,0,0,0,VS_TOUR,0},
     {"MOON ROCK SOUVENIR",25, 0,0,0,0,0, 0,NO,0,0,0,VS_ROCK,0},
+    {"SYSTEMS CHECK JOB",0, 0,0,0,0,0, 0,NO,0,0,0,VS_SYSJOB,0},
+    {"SATELLITE REPAIR JOB",0, 0,0,0,0,0, 0,NO,0,0,0,VS_SATJOB,0},
     {"FUND THE SPACEPORT",0, 0,0,0,0,0, 0,NO,0,0,0,VS_FUND,0},
+    {"FUEL GAUGE",0, 0,0,0,0,0, 0,NO,0,0,0,VS_GAUGE,0},
+    {"REFUEL  10 TRIPS",0, 0,0,0,0,0, 0,NO,0,0,0,VS_REFUEL10,0},
+    {"REFUEL  35 TRIPS",0, 0,0,0,0,0, 0,NO,0,0,0,VS_REFUEL35,0},
 };
-#define VA_LUN ((int)(sizeof(vAct)/sizeof(vAct[0]))-8)   // the seven moonbase rows (four, then the tourist three); the FUND row is the last
+#define VA_LUN ((int)(sizeof(vAct)/sizeof(vAct[0]))-13)   // the nine moonbase rows (four, the tourist three, the two jobs), then the Earth counter's FUND, FUEL GAUGE, REFUEL 10 and REFUEL 35 (VA_LUN+9 to +12)
 // the rows the packs' missions name (expand.h TD): keep them in step with the table above
 enum { VA_FOURTH=5, VA_LIFT=7, VA_SPIN=8, VA_SHAKE=9, VA_CABINET=12, VA_BORTUA=15, VA_GROCER=21, VA_CHECKUP=30, VA_LATTE=34, VA_KARAOKE=39, VA_BARSNACK=41,
        VA_TOY=48, VA_GROOM=49, VA_STUDY=50, VA_NOVEL=51, VA_MOVIE=58, VA_SWIM=62, VA_CANNON=63, VA_CENTRI=67, VA_SPACEWALK=69, VA_SEAT=70, VA_KATA=72, VA_SPAR=74 };
@@ -311,7 +316,7 @@ static int vNear(void){ int tx=(int)(lfx>>8), ty=(int)(lfy>>8); for(int dy=-1;dy
 static const char* venueHint(void){ const Venue*v=venueHere(); return v&&vNear()?v->hint:0; }
 static void vAdd(int*v,int d){ *v+=d; if(*v>100) *v=100; if(*v<0) *v=0; }
 static u32 vWorkAt EWRAM_BSS;   // a shift: one every two game hours
-static int lnrCanDo(int sp); static void lnrDo(int sp); static int lnrHere(void); static int lnrShut(void);   // lunrado.h
+static int lnrCanDo(int sp); static void lnrDo(int sp); static int lnrHere(void); static int lnrShut(void); static int lnrFuel(void);   // lunrado.h
 static int djCanDo(int sp); static void djDo(int sp);   // dojo.h
 static int exSeatFree(void); static void exSparCall(void);   // expand.h
 // ARCADE TICKETS: the cabinets, the ticket game and the dance machine pay out tickets; the PRIZE COUNTER spends them. (Saved: the TK_OFF block below, and the player save's chunk 'I'.)
@@ -386,7 +391,7 @@ static void venueDo(const VAct*a){
         case VS_SPACEWALK: exTake=EXT_SWTRAIN; lnote="SUIT UP"; break;
         case VS_SPAR: exSparCall(); break;
         case VS_CLASS: case VS_BAG: case VS_BELT: djDo(a->sp); break;
-        case VS_FUND: case VS_HOME: case VS_PHOTO: case VS_TOUR: case VS_ROCK: lnrDo(a->sp); break;
+        case VS_FUND: case VS_HOME: case VS_PHOTO: case VS_TOUR: case VS_ROCK: case VS_SYSJOB: case VS_SATJOB: case VS_GAUGE: case VS_REFUEL10: case VS_REFUEL35: lnrDo(a->sp); break;
         case VS_FIGHTER: exTake=EXT_FIGHTER; lnote="INSERT COIN"; break;
         case VS_BOARD: if(bdOwn){ simMoney+=price; lnote="YOU ALREADY HAVE A BOARD"; break; } bdGot(1,"A BRAND NEW BOARD  RIDE IT OUTSIDE"); break;
         case VS_PRODECK: if(bdOwn>=2){ simMoney+=price; lnote="YOU ALREADY RIDE A PRO DECK"; break; } bdGot(2,"A PRO DECK  FASTER  MORE POP"); break;
@@ -399,11 +404,15 @@ static int venueUse(void){   // R next to a venue's counter. 1 = handled
     const Venue*v=venueHere(); if(!v||!vNear()) return 0;
     char tt[40]; const char* it[10]; char lb[10][32]; int id[10], n=0;
     { char*e=simCat(tt,ctNm[v->ct]); e=simCat(e,"  \xC2\xA7"); simCatMoney(e,simMoney,1); }
-    int a0=v->a0, an=v->an; if(v->ct==CT_SPACE&&lnrHere()){ a0=VA_LUN; an=7; }
+    int a0=v->a0, an=v->an; if(v->ct==CT_SPACE&&lnrHere()){ a0=VA_LUN; an=9; }
     for(int i=0;i<an&&n<10;i++){ const VAct*a=&vAct[a0+i]; char*e=simCat(lb[n],a->nm);
         if(a->price>0){ e=simCat(e,"  \xC2\xA7"); simCatN(e,a->price); } else if(a->price<0){ e=simCat(e,"  +\xC2\xA7"); simCatN(e,-a->price); }
         it[n]=lb[n]; id[n++]=a0+i; }
-    if(v->ct==CT_SPACE&&!lnrHere()&&lnrShut()&&n<10){ it[n]="FUND THE SPACEPORT  \xC2\xA7" "300000"; id[n++]=VA_LUN+7; }
+    if(v->ct==CT_SPACE&&!lnrHere()&&lnrShut()&&n<10){ it[n]="FUND THE SPACEPORT  \xC2\xA7" "300000"; id[n++]=VA_LUN+9; }
+    if(v->ct==CT_SPACE&&!lnrHere()){   // the rocket's tank: the gauge, and the two ways to fill it
+        if(n<10){ int f=lnrFuel(); char*e=simCat(lb[n],"FUEL GAUGE  "); e=simCatN(e,f); simCat(e,f==1?" TRIP":" TRIPS"); it[n]=lb[n]; id[n++]=VA_LUN+10; }
+        if(n<10){ it[n]="REFUEL  10 TRIPS  \xC2\xA7" "50000"; id[n++]=VA_LUN+11; }
+        if(n<10){ it[n]="REFUEL  35 TRIPS  \xC2\xA7" "250000"; id[n++]=VA_LUN+12; } }
     if(v->ct==CT_ARCADE&&n<10){ it[n]="MINI GAMES"; id[n++]=-2; }
     if(v->ct==CT_ARCADE&&n<10){ char*e=simCat(lb[n],"PRIZE COUNTER  "); e=simCatN(e,vTix); simCat(e," TIX"); it[n]=lb[n]; id[n++]=-1; }
     int c=menu(tt,it,n); liveInvalidate(); camSnap=1; while((~REG_KEYINPUT)&0x3FF) vsync();

@@ -12,6 +12,14 @@ static int lnLot(const NbLot*L){ return L->on&&L->kind==LKIND_COMM&&L->type==CT_
 static int lnrHere(void){ return nbOk&&nbT.cur<NB_LOTS&&lnLot(&nbT.lot[nbT.cur]); }
 static int lnrShut(void){ return nbOk&&(nbT.pad[2]&1); }
 static void lnrSetShut(int v){ if(!nbOk) return; if(v) nbT.pad[2]|=1; else nbT.pad[2]&=(u8)~1; nbSave(); }
+// ---- THE ROCKET'S TANK: trips to LUNRADO. Town.pad[0] bits 2-7 (bits 0 and 1 are the town's own): 0 = a fresh tank (10 trips), else trips left + 1. A paid seat burns one; empty, no seat is sold ----
+#define LN_FUEL10 50000
+#define LN_FUEL35 250000
+#define LN_TANKMAX 60
+static char lnFb[44] EWRAM_BSS;
+static int lnrFuel(void){ if(!nbOk) return 10; int v=nbT.pad[0]>>2; return v?v-1:10; }
+static void lnrSetFuel(int n){ if(!nbOk) return; if(n<0) n=0; if(n>LN_TANKMAX) n=LN_TANKMAX; nbT.pad[0]=(u8)((nbT.pad[0]&3)|((n+1)<<2)); nbSave(); }
+static void lnrBurn(void){ int f=lnrFuel(); if(f>0) lnrSetFuel(f-1); }
 static int lnrLotGet(void){   // the moonbase lot, made once there is a landing
     if(!nbOk) return -1;
     for(int i=0;i<NB_LOTS;i++) if(lnLot(&nbT.lot[i])){ NbLot*L=&nbT.lot[i]; if(L->w<9||L->h<7){ if(L->slot>=0) slDelete(L->slot); L->slot=-1; L->w=9; L->h=7; nbSave(); }   // (an older, smaller moonbase becomes the mall; its room is built again)
@@ -88,12 +96,24 @@ static void lnrApproach(int orbitOk){
     lnEv=(u8)(rnd8()&3); if(l>=0&&trvGo(l)){ toast(lnEvNm[lnEv]); if((rnd8()&15)==0) lwEnc=1; }
 }
 static int lnrCanDo(int sp){   // venueDo asks before it takes the money
+    if(sp==VS_LAUNCH&&!lnrShut()&&!exSeatFree()&&lnrFuel()<=0){ lnote="OUT OF FUEL  REFUEL AT THE COUNTER"; lnoteT=110; voxPlay(V_nah); return 0; }   // (a seat the mission booked needs none)
+    if((sp==VS_SYSJOB||sp==VS_SATJOB)&&stage<AG_TEEN){ lnote="KIDS WAIT OUTSIDE"; lnoteT=60; voxPlay(V_nah); return 0; }
+    if((sp==VS_SYSJOB||sp==VS_SATJOB)&&sNrg<20){ lnote="TOO TIRED  EAT OR REST FIRST"; lnoteT=80; voxPlay(V_nah); return 0; }
+    if(sp==VS_REFUEL10||sp==VS_REFUEL35){ int c=sp==VS_REFUEL10?LN_FUEL10:LN_FUEL35;
+        if(lnrFuel()>=LN_TANKMAX){ lnote="THE TANK IS FULL"; lnoteT=70; return 0; }
+        if(simMoney<c){ lnote=sp==VS_REFUEL10?"YOU NEED 50000 SIMOLEONS":"YOU NEED 250000 SIMOLEONS"; lnoteT=80; voxPlay(V_nah); return 0; } }
     if(sp==VS_LAUNCH&&lnrShut()){ lnote="THE SPACEPORT IS SHUT  FUND IT AGAIN"; lnoteT=100; voxPlay(V_nah); return 0; }
     if(sp==VS_FUND){ if(!lnrShut()){ lnote="THE SPACEPORT IS ALREADY OPEN"; lnoteT=70; return 0; } if(simMoney<LN_FUND){ lnote="YOU NEED 300000 SIMOLEONS"; lnoteT=80; voxPlay(V_nah); return 0; } }
     return 1;
 }
 static void lnrDo(int sp){
-    if(sp==VS_FUND){ simMoney-=LN_FUND; lnrSetShut(0); lnote="THE SPACEPORT IS OPEN AGAIN"; lnoteT=120; voxPlay(V_yahoo); moodEvent(M_PROMO); }
+    if(sp==VS_SYSJOB){ exTake=EXT_SYSJOB; lnote="TO THE CONSOLE"; lnoteT=60; }
+    else if(sp==VS_SATJOB){ exTake=EXT_SATJOB; lnote="SUIT UP"; lnoteT=60; }
+    else if(sp==VS_GAUGE){ int f=lnrFuel(); char*e=simCat(lnFb,"THE TANK HOLDS  "); e=simCatN(e,f); simCat(e,f==1?" TRIP":" TRIPS"); lnote=lnFb; lnoteT=110; }
+    else if(sp==VS_REFUEL10||sp==VS_REFUEL35){ int c=sp==VS_REFUEL10?LN_FUEL10:LN_FUEL35, n=sp==VS_REFUEL10?10:35;
+        simMoney-=c; lnrSetFuel(lnrFuel()+n); sfxPlay(SFX_CASH); voxPlay(V_yahoo); moodEvent(M_PAY);
+        char*e=simCat(lnFb,"REFUELLED  "); e=simCatN(e,lnrFuel()); simCat(e," TRIPS IN THE TANK"); lnote=lnFb; lnoteT=130; }
+    else if(sp==VS_FUND){ simMoney-=LN_FUND; lnrSetShut(0); lnote="THE SPACEPORT IS OPEN AGAIN"; lnoteT=120; voxPlay(V_yahoo); moodEvent(M_PROMO); }
     else if(sp==VS_PHOTO){ static const char* const c[5]={"EARTH LOOKS TINY  YOU LOOK GREAT","YOU AND THE BLUE MARBLE","SMILE  YOU ARE 384000 KM FROM HOME","THE PHOTOGRAPHER SAYS  ONE MORE","EARTHRISE BEHIND YOU  PERFECT"};
         vAdd(&sSoc,12+(lnEv==1?12:0)); moodEvent(M_COMBO); lstun=90; lnote=c[rnd8()%5]; lnoteT=120; voxPlay(V_yeha); }
     else if(sp==VS_TOUR){ static const char* const c[6]={"THE CRATER IS ICE  NOT CHEESE","DUST HERE NEVER SETTLES  IT SLIDES","THE DOME HOLDS 40 THOUSAND TOURISTS","EVERY STEP LASTS TWO SECONDS","THE FLAG WAS STUCK IN BY A TOURIST","THE GUIDE HAS NEVER BEEN TO EARTH"};
@@ -281,4 +301,16 @@ static void lwCounter(void){   // R at the LUNARWEED counter
         else if(k==5){ wdCounter(); return; }
         else { static const char* const w[6]={"THE MOON HAS NO WEATHER  JUST VIBES","EVERY PUFF IS A SMALL STEP FOR YOU  A GIANT LEAP FOR YOUR LUNGS","NO REFUNDS  NO ATMOSPHERE","A STRANGER MAY OFFER YOU A SEED  SAY YES  THEN SAY NOTHING","30 DAYS AND A PLANT PAYS 50 GRAND  DO NOT TELL THE MAYOR","TOLERANCE IS JUST YOUR LUNGS GETTING TO KNOW THE MOON"}; toast(w[rnd8()%6]); }
     }
+}
+
+// ---- MOONBASE JOBS (the counter's SYSTEMS CHECK JOB and SATELLITE REPAIR JOB): repeatable work outside the missions; expand.h exTakeRun hands over the screen ----
+//   SYSTEMS CHECK  the three-gauge repair game: 350 a gauge, 300 more for all three.   SATELLITE  the real spacewalk: 500 a panel, 400 more for all three.   Both cost 12 energy.
+static void lnJobRun(int t){
+    int pay=0;
+    if(t==EXT_SYSJOB){ int f=lnConsole(); pay=f*350+(f==3?300:0); if(f>0) skGain(SK_LOGIC,1); }
+    else { swDone=0; int ok=exSpacewalk(1); pay=swDone*500+(ok?400:0); }
+    vAdd(&sNrg,-12);
+    if(pay>0){ simMoneyAdd(pay); moodEvent(M_PAY); char*e=simCat(lnFb,"JOB DONE  \xC2\xA7"); simCatN(e,pay); toast(lnFb); }
+    else toast("NO PAY  THE MOON WANTS RESULTS");
+    simsSave();
 }

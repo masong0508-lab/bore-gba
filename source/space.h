@@ -96,9 +96,9 @@ static void lnRocket(int cx,int y,int t,int fire,int sh){   // y = the bottom of
     for(int r=0;r<10;r++){ rect(cx-6-r/2,y-10+r,3+r/3,1,RGB(26,5,3)); rect(cx+6+r/2-(3+r/3),y-10+r,3+r/3,1,RGB(26,5,3)); }   // the fins
     if(fire){ int n=fire>2?28:fire*9; for(int r=0;r<n;r++){ int w=4-r/8+(int)((swHash(t,r)>>30)); if(w<1) w=1; u16 c=r<6?RGB(31,31,20):r<14?RGB(31,26,6):RGB(31,14,4); rect(cx-w,y+r,w*2,1,c); } }
 }
-static void lnrApproach(int orbitOk);   // lunrado.h
+static void lnrApproach(int orbitOk); static void lnrBurn(void);   // lunrado.h
 XPF static void exLaunch(void){
-    int tourist=!exSeatFree(), night=simIsNight(), padY=134;
+    int tourist=!exSeatFree(), night=simIsNight(), padY=134; if(tourist) lnrBurn();   // (a seat the mission booked burns no fuel)
     static s16 smX[24] EWRAM_BSS, smY[24] EWRAM_BSS; static u8 smR[24] EWRAM_BSS, smL[24] EWRAM_BSS; int smN=0;
     char who[40]; { char*e=slCat(who,tourist?"SPACE TOURIST ":"MAJOR "); slCat(e,hhPName); }
     u16 prev=keyNow(); int t=0, alt=0, skip=0;
