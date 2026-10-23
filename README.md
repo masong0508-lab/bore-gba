@@ -64,7 +64,6 @@ Saves use the cart's 128 KB of flash (58 slots). A cart without flash falls back
 |---|---|
 | **Play** | Your life. Pick a town, then CONTINUE the life you saved, VISIT the town, or start a NEW GAME there |
 | **Create a Bore** | The creature creator |
-| **Build Mode** | The room builder: walls, floors, wallpaper and furniture |
 | **Toukebox** | The jukebox and music player |
 | **Room Slots** | Save and load rooms, houses, people and households |
 | **Options** | Video, gameplay, time, audio, controls and more |
@@ -132,7 +131,7 @@ The **Expansions** shelf on the main menu (and STORY in the pause menu) holds th
 **Story Mode** (New Game > Story Mode) is separate: Roommates, Newlyweds and Single Parent each set you six chapters, and each chapter pays cash and Jenes.
 
 ## Building
-Enter the builder with **Build Mode** on the main menu, with EDIT MAP in the pause menu's BUILD page, or with BUILD on a lot in the town.
+Enter the builder with EDIT MAP in the pause menu's BUILD page, or with BUILD on a lot in the town.
 
 - **Tools** (SELECT changes tool): ROOM, WALL, FLOOR, BUY and SELL. A places, B cancels. SELECT + L / R changes wallpaper, SELECT + UP / DOWN changes floor, and START opens the map menu.
 - **Undo and redo.** SELECT + B undoes and SELECT + START redoes. A step is everything between pressing A and letting go, and the last three are kept.
