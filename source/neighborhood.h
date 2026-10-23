@@ -143,6 +143,16 @@ static int nbStore(int j){   // the live map into lot j's house slot (keeps the 
     return SLE_NOROOM;
 }
 static int nbSave(void);
+static int nbFree(int x,int y,int w,int h,int skip);
+static void nbBarUp(int i){   // a small BAR is renovated: it grows to 7 x 6 (or 6 x 5) where there is land, and its room is built again with the new layout
+    NbLot*L=&nbT.lot[i]; if(!L->on||L->kind!=LKIND_COMM||L->type!=CT_BAR||(L->w>=6&&L->h>=5)) return;
+    static const u8 tg[2][2]={{7,6},{6,5}};
+    for(int k=0;k<2;k++){ int w=tg[k][0]>L->w?tg[k][0]:L->w, h=tg[k][1]>L->h?tg[k][1]:L->h;
+        for(int oy=0;oy<=h-L->h;oy++) for(int ox=0;ox<=w-L->w;ox++){ int x=L->x-ox, y=L->y-oy; if(x<0||y<0||!nbFree(x,y,w,h,i)) continue;
+            int ok=1; for(int j=y-1;j<=y+h&&ok;j++) for(int q=x-1;q<=x+w;q++){ int o=(q>=0&&j>=0&&q<NB_W&&j<NB_H)?nbAt(q,j):-1; if(o>=0&&o!=i){ ok=0; break; } }
+            if(!ok) continue;
+            L->x=(u8)x; L->y=(u8)y; L->w=(u8)w; L->h=(u8)h; if(L->slot>=0) slDelete(L->slot); L->slot=-1; return; } }
+}
 static int nbGo(int i){   // make lot i the live map. 1 = done (nbErr says why not)
     if(nbT.cur==i) return 1;
     box(60,64,120,24); text(76,72,"MOVING...",WHITE,1); present();
@@ -150,6 +160,7 @@ static int nbGo(int i){   // make lot i the live map. 1 = done (nbErr says why n
     if(nbT.cur<NB_LOTS&&nbT.lot[nbT.cur].on){ int e=nbStore(nbT.cur); if(e){ nbErr=e==SLE_NOROOM?"NO FREE SLOTS FOR THIS LOT":slErrMsg(e); ldEnd(); return 0; } }
     ldShow("OPENING THE NEW LOT",1,3);
     NbLot*L=&nbT.lot[i]; int ok=0;
+    nbBarUp(i);   // (a small bar is renovated)
     if(L->slot>=0){ slScan(); if(slOwner[L->slot]==L->slot&&slI[L->slot].kind==SLK_HOUSE) ok=(houseLoad(L->slot)==SLE_OK); if(!ok) L->slot=-1; }
     if(!ok) nbTemplate(i);
     ldShow("SAVING THE TOWN",2,3);
@@ -301,7 +312,7 @@ static void nbDistricts(int style,int ox,int oy){   // the land past ox / oy (th
         r=r*1103515245u+12345u; int sz=4+(int)((r>>16)%3), h2=sz-(int)((r>>20)&1);
         int w=sz; if(!nbRoomFor(x,y,w,h2)){ w=4; h2=4; if(!nbRoomFor(x,y,w,h2)) continue; }
         int comm=((r>>12)&3)==0;
-        if(comm){ int t=kinds[kc++%(int)sizeof(kinds)]; nbLotAdd(n,ctNm[t],x,y,w,h2,LKIND_COMM,t); }
+        if(comm){ int t=kinds[kc++%(int)sizeof(kinds)]; if(t==CT_BAR&&nbRoomFor(x,y,7,6)){ w=7; h2=6; } nbLotAdd(n,ctNm[t],x,y,w,h2,LKIND_COMM,t); }   // (a bar is a big place)
         else { int st=(int)((r>>24)%12); char nm[NB_NAME+1]; char*e=nm; for(const char*p=nbStreet[st];*p;) *e++=*p++; *e++=' '; homes[st]+=2; int no=homes[st]; if(no>=10) *e++=(char)('0'+no/10); *e++=(char)('0'+no%10); *e=0;
             nbLotAdd(n,nm,x,y,w,h2,LKIND_RES,0); }
         n++; }

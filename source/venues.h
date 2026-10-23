@@ -200,11 +200,30 @@ static void arcadeBuild(int rx0,int ry0,int rx1,int ry1,int cx,int wp){
     }
     vPut(rx1-1,ry1-1,'p',"BALL PIT"); vPut(rx0+1,ry1-1,'p',"TEDDY BEAR");
 }
+// ---- THE BAR, renovated: a back bar of bottles and kegs, the long counter with stools, a pool and dart corner, a stage with a drum kit and speakers, tables and booths. The middle aisle from the door to the counter stays clear ----
+static void barBuild(int rx0,int ry0,int rx1,int ry1,int cx){
+#define BP(x,y,c,nm) do{ int _x=(x), _y=(y); if(_x>rx0&&_x<rx1&&_y>ry0&&_y<ry1) vPut(_x,_y,c,nm); }while(0)
+    int b=ry0+1, cy=ry0+3;   // the back shelf row, the counter row
+    for(int d=-4;d<=4;d+=2){ BP(cx+d,b,'b',(d&2)?"TALL BOOKSHELF":"WHITE BOOKSHELF"); }
+    BP(cx,b,'l',"NEON BEER SIGN"); BP(cx-2,b,'F',"WINE FRIDGE"); BP(cx+2,b,'F',"WINE FRIDGE"); BP(cx-4,b,'F',"BEER KEG"); BP(cx+4,b,'F',"BEER KEG"); BP(cx-3,b,'b',"CIGAR HUMIDOR"); BP(cx+3,b,'l',"BRASS LAMP");
+    for(int x=cx-2;x<=cx+2;x++) gPut(x,cy,'@');   // the counter you serve at (R)
+    BP(cx-3,cy,'y',"BAR COUNTER"); BP(cx-4,cy,'y',"BAR COUNTER"); BP(cx+3,cy,'y',"BAR COUNTER"); BP(cx+4,cy,'y',"BAR COUNTER");
+    BP(cx-4,cy+1,'h',"BAR STOOL"); BP(cx-3,cy+1,'h',"BAR STOOL"); BP(cx+3,cy+1,'h',"BAR STOOL"); BP(cx+4,cy+1,'h',"BAR STOOL");
+    BP(rx0+1,b,'R',"JUKEBOX"); BP(rx0+3,b,'l',"NEON BORE SIGN"); BP(rx0+1,cy+1,'v',"DARTBOARD");   // the left corner: music and darts
+    BP(rx0+3,cy+4,'t',"POOL TABLE"); BP(rx0+4,cy+4,'t',"POOL TABLE"); BP(rx0+2,cy+6,'h',"BAR STOOL"); BP(rx0+5,cy+6,'h',"BAR STOOL");
+    BP(rx1-1,b,'R',"DRUM KIT"); BP(rx1-3,b,'R',"GUITAR STAND"); BP(rx1-1,cy,'A',"BIG SPEAKERS"); BP(rx1-5,b,'A',"BIG SPEAKERS"); BP(rx1-2,cy+1,'l',"DISCO BALL");   // the right corner: the stage
+    for(int y=ry0+8;y<ry1-1;y+=4) for(int s=-1;s<=1;s+=2) for(int o=5;o<=9;o+=4){ int tx=cx+s*o;   // tables, a chair each side, a row every four
+        BP(tx,y,'t',"ROUND TABLE"); BP(tx-1,y,'h',s<0?"RED ARMCHAIR":"GREEN ARMCHAIR"); BP(tx+1,y,'h',s<0?"GREEN ARMCHAIR":"RED ARMCHAIR"); }
+    for(int y=ry0+8;y<ry1-2;y+=3){ BP(rx0+1,y,'C',"VELVET SOFA"); BP(rx1-1,y,'C',"VELVET SOFA"); }   // booths along the walls
+    BP(rx0+1,ry1-1,'p',"POTTED PALM"); BP(rx1-1,ry1-1,'p',"FICUS"); BP(rx0+1,ry1-2,'l',"BRASS LAMP"); BP(rx1-1,ry1-2,'l',"BRASS LAMP");
+#undef BP
+}
 static void venueBuild(int x0,int y0,int x1,int y1,int ct){   // nbTemplate: a walled room, the counter across it, the props round the walls, you arrive outside the door
     const Venue*v=venueOf(ct); if(!v) return;
     int cx=(x0+x1)/2, rx0=x0+1, ry0=y0+1, rx1=x1-1, ry1=y1-3, my=(ry0+ry1)/2;
     gBox(x0,y0,x1,y1,v->fl==6?6:7); gRoom(rx0,ry0,rx1,ry1,v->fl,v->wp); gPut(cx,ry1,'D');
     if(ct==CT_ARCADE){ arcadeBuild(rx0,ry0,rx1,ry1,cx,v->wp); return; }   // the arcade has its own hall (above)
+    if(ct==CT_BAR){ gPut(cx,ry1,'D'); barBuild(rx0,ry0,rx1,ry1,cx); return; }   // the bar too: the renovated one
     for(int x=cx-2;x<=cx+2;x++) gPut(x,ry0+3,'@');
     const int sp[8][2]={{rx0+1,ry0+1},{rx1-1,ry0+1},{rx0+1,ry1-1},{rx1-1,ry1-1},{rx0+1,my},{rx1-1,my},{rx0+2,ry1-1},{rx1-2,ry1-1}};
     for(int i=0;v->props[i]&&i<8;i++){ int x=sp[i][0], y=sp[i][1]; if(x>rx0&&x<rx1&&y>ry0&&y<ry1&&lifeMap[y][x]=='.'&&!(x==cx&&y==ry1-1)){ gPut(x,y,v->props[i]); wallMap[y][x]=(u8)venueLook(ct,v->props[i]); } }
