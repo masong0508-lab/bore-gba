@@ -364,8 +364,26 @@ static int nbShrink(void){   // 1 = shrunk, 0 = nothing happened (it said why)
         if(i==nbT.home){ toast("YOUR HOME IS IN THE WAY"); return 0; }
         if(i==nbT.cur){ toast("GO TO ANOTHER LOT FIRST"); return 0; }
         cut++; }
-    if(cut){ char t[24]; char*e=slCat(t,"DELETE "); e=slNum(e,cut); slCat(e,cut==1?" LOT":" LOTS");
-        const char*yn[2]={"NO","YES"}; if(menu(t,yn,2)!=1) return 0; }
+    if(cut){   // the warning: which lots, what is built on them, who lives there; then a NO / YES that starts on NO
+        static char b[14][52]; const char*ln[18]; int n=0, nb=0, built=0, fam=0, shown=0; char*e;
+        for(int i=0;i<NB_LOTS;i++){ const NbLot*L=&nbT.lot[i]; if(!nbCutOff(L,nw,nh)) continue; if(L->slot>=0) built++; if(bkFind(nbKey(&nbT),i)>=0||nbWho(i,0)) fam++; }
+        ln[n++]=">THIS CANNOT BE UNDONE";
+        e=slCat(b[nb],"THE TOWN GOES FROM "); e=slNum(e,ow); e=slCat(e," X "); e=slNum(e,oh); e=slCat(e," TO "); e=slNum(e,nw); e=slCat(e," X "); slNum(e,nh); ln[n++]=b[nb++];
+        ln[n++]=">LOTS THAT WILL BE DELETED";
+        for(int i=0;i<NB_LOTS;i++){ const NbLot*L=&nbT.lot[i]; if(!nbCutOff(L,nw,nh)) continue;
+            if(shown<4){ e=slCat(b[nb],"- "); e=slCat(e,L->name); e=slCat(e,L->kind==LKIND_COMM?"  PUBLIC":"  HOME LOT"); slCat(e,L->slot>=0?"  BUILT ON":"  EMPTY"); ln[n++]=b[nb++]; }
+            shown++; }
+        if(shown>4){ e=slCat(b[nb],"AND "); e=slNum(e,shown-4); slCat(e," MORE"); ln[n++]=b[nb++]; }
+        ln[n++]=">WHAT YOU LOSE";
+        e=slNum(b[nb],built); e=slCat(e,built==1?" LOT HAS A HOUSE OR BUILD ON IT":" LOTS HAVE A HOUSE OR BUILD ON THEM"); ln[n++]=b[nb++];
+        ln[n++]="ALL OF IT GOES WITH THE LOT  FLOORS AND FURNITURE";
+        e=slNum(b[nb],fam); e=slCat(e,fam==1?" LOT HAS A HOUSEHOLD  THEY LEAVE":" LOTS HAVE HOUSEHOLDS  THEY LEAVE"); ln[n++]=b[nb++];
+        ln[n++]="GROWING BACK BRINGS NONE OF IT BACK";
+        ln[n++]=">KEPT SAFE";
+        ln[n++]="YOUR HOME  THE LOT YOU ARE ON  AND LOTS INSIDE";
+        helpScreen("SHRINK THE TOWN",ln,n);
+        e=slCat(b[nb],"LOSE "); e=slNum(e,cut); slCat(e,cut==1?" LOT":" LOTS");
+        const char*yn[2]={"NO  KEEP THE TOWN","YES  SHRINK IT"}; if(menu(b[nb],yn,2)!=1){ toast("NOTHING CHANGED"); return 0; } }
     for(int i=0;i<NB_LOTS;i++){ NbLot*L=&nbT.lot[i]; if(!nbCutOff(L,nw,nh)) continue;
         if(L->slot>=0) slDelete(L->slot);
         L->slot=-1; L->on=0; for(int q=0;q<5;q++) nbT.roof[i][q]=0;
