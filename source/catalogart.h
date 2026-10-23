@@ -1946,6 +1946,91 @@ MAT(mC1904,pCWhiteW,6,8,"cccccc","cccccc","cccccc","cccccc","bbbbbb","bbbbbb","b
 MAT(mC1905,pCWhiteW,1,1,"d")
 MAT(mC1906,pCSteel,1,1,"b")
 MAT(mC1907,pCSteel,1,1,"c")
+MAT(mC1908,pCSteel,8,8,"cccccccc","cbbbbbbc","cbaaaabc","cbaaaabc","cbbbbbbc","cccccccc","cccddccc","cccccccc")
+MAT(mC1909,pCOak,8,7,"bbbbbbbb","bcccbccc","bcbcbcbc","bcccbccc","bbbbbbbb","bcccbccc","bbbbbbbb")
+MAT(mC1910,pCOak,1,1,"c")
+MAT(mC1911,pCOak,1,1,"c")
+MAT(mC1912,pCOak,1,1,"d")
+MAT(mC1913,pCOak,1,1,"d")
+MAT(mC1914,pCSteel,1,1,"d")
+MAT(mC1915,pCSteel,1,1,"c")
+MAT(mC1916,pCSteel,8,8,"cccccccc","cbbccbbc","cbaccabc","cbaccabc","cbbccbbc","cccccccc","cdccccdc","cccccccc")
+MAT(mC1917,pCSteel,8,7,"bbbbbbbb","bcccbccc","bcbcbcbc","bcccbccc","bbbbbbbb","bcccbccc","bbbbbbbb")
+MAT(mC1918,pCSteel,1,1,"c")
+MAT(mC1919,pCSteel,1,1,"c")
+MAT(mC1920,pCSteel,1,1,"d")
+MAT(mC1921,pCSteel,1,1,"d")
+MAT(mC1922,pCSteel,1,1,"d")
+MAT(mC1923,pCSteel,1,1,"c")
+MAT(mC1924,pCWhiteW,8,11,"bbbbbbbb","bccccccb","bcddddcb","bcddddcb","bccccccb","bbbbbbbb","bcccbccb","bcccbccb","bcccbccb","bcccbccb","bbbbbbbb")
+MAT(mC1925,pCSteel,8,8,"cccccccc","cbbbbbbc","cbaaaabc","cbaaaabc","cbaaaabc","cbbbbbbc","cccddccc","cccccccc")
+MAT(mC1926,pCWhiteW,1,1,"c")
+MAT(mC1927,pCWhiteW,1,1,"c")
+MAT(mC1928,pCWhiteW,1,1,"d")
+MAT(mC1929,pCWhiteW,1,1,"d")
+MAT(mC1930,pCSteel,1,1,"d")
+MAT(mC1931,pCSteel,1,1,"c")
+MAT(mC1932,pCWhiteW,6,4,"bbbbbb","baaaac","baaaad","bbbbbb")
+MAT(mC1933,pCPine,8,8,"bccbccbc","ccbccbcc","cbccbccb","bccbccbc","ccbccbcc","cbccbccb","bccbccbc","ccbccbcc")
+MAT(mC1934,pCWhiteW,8,7,"bbbbbbbb","bcccbccc","bcbcbcbc","bcccbccc","bbbbbbbb","bcccbccc","bbbbbbbb")
+MAT(mC1935,pCWhiteW,1,1,"c")
+MAT(mC1936,pCWhiteW,1,1,"c")
+MAT(mC1937,pCWhiteW,1,1,"d")
+MAT(mC1938,pCWhiteW,1,1,"d")
+MAT(mC1939,pCWhiteW,1,1,"c")
+MAT(mC1940,pCWhiteW,1,1,"d")
+MAT(mC1941,pCSteel,8,8,"bccbccbc","ccbccbcc","cbccbccb","bccbccbc","ccbccbcc","cbccbccb","bccbccbc","ccbccbcc")
+MAT(mC1942,pCSteel,8,7,"bbbbbbbb","bcccbccc","bcbcbcbc","bcccbccc","bbbbbbbb","bcccbccc","bbbbbbbb")
+MAT(mC1943,pCSteel,1,1,"c")
+MAT(mC1944,pCSteel,1,1,"c")
+MAT(mC1945,pCSteel,1,1,"d")
+MAT(mC1946,pCSteel,1,1,"d")
+MAT(mC1947,pCDark,6,4,"bbbbbb","baaacb","baaadb","bbbbbb")
+MAT(mC1948,pCDark,1,1,"c")
+MAT(mC1949,pCDark,1,1,"c")
+MAT(mC1950,pCSteel,8,8,"cccccccc","cbbbcccc","cbaabccc","cbaabccc","cbbbcccc","cccccccc","cdcccccc","cccccccc")
+MAT(mC1951,pCWhiteW,8,7,"bbbbbbbb","bcccbccc","bcbcbcbc","bcccbccc","bbbbbbbb","bcccbccc","bbbbbbbb")
+MAT(mC1952,pCWhiteW,1,1,"c")
+MAT(mC1953,pCWhiteW,1,1,"c")
+MAT(mC1954,pCWhiteW,1,1,"d")
+MAT(mC1955,pCWhiteW,1,1,"d")
+MAT(mC1956,pCSteel,1,1,"d")
+MAT(mC1957,pCSteel,1,1,"c")
+MAT(mC1958,pCDark,4,4,"bbbb","baac","baad","bbbb")
+MAT(mC1959,pCDark,1,1,"c")
+MAT(mC1960,pCDark,1,1,"c")
+MAT(mC1961,pCPine,8,8,"bccbccbc","ccbccbcc","cbccbccb","bccbccbc","ccbccbcc","cbccbccb","bccbccbc","ccbccbcc")
+MAT(mC1962,pCPine,8,7,"bbbbbbbb","bcccbccc","bcbcbcbc","bcccbccc","bbbbbbbb","bcccbccc","bbbbbbbb")
+MAT(mC1963,pCPine,1,1,"c")
+MAT(mC1964,pCPine,1,1,"c")
+MAT(mC1965,pCPine,1,1,"d")
+MAT(mC1966,pCPine,1,1,"d")
+MAT(mC1967,pCOak,1,1,"c")
+MAT(mC1968,pCDark,1,1,"c")
+MAT(mC1969,pCOak,8,8,"bccbccbc","ccbccbcc","cbccbccb","bccbccbc","ccbccbcc","cbccbccb","bccbccbc","ccbccbcc")
+MAT(mC1970,pCDark,8,7,"bbbbbbbb","bcccbccc","bcbcbcbc","bcccbccc","bbbbbbbb","bcccbccc","bbbbbbbb")
+MAT(mC1971,pCDark,1,1,"c")
+MAT(mC1972,pCDark,1,1,"c")
+MAT(mC1973,pCDark,1,1,"d")
+MAT(mC1974,pCDark,1,1,"d")
+MAT(mC1975,pCOak,1,1,"c")
+MAT(mC1976,pCOak,1,1,"b")
+MAT(mC1977,pCOak,8,8,"bccbccbc","ccbccbcc","cbccbccb","bccbccbc","ccbccbcc","cbccbccb","bccbccbc","ccbccbcc")
+MAT(mC1978,pCWhiteW,1,1,"d")
+MAT(mC1979,pCWhiteW,1,1,"d")
+MAT(mC1980,pCMarble,8,8,"cccccccc","ccdccccc","cccccdcc","cdcccccc","cccccccc","cccdcccc","cccccccd","cccccccc")
+MAT(mC1981,pCBlue,8,7,"bbbbbbbb","bcccbccc","bcbcbcbc","bcccbccc","bbbbbbbb","bcccbccc","bbbbbbbb")
+MAT(mC1982,pCBlue,1,1,"c")
+MAT(mC1983,pCBlue,1,1,"c")
+MAT(mC1984,pCBlue,1,1,"d")
+MAT(mC1985,pCBlue,1,1,"d")
+MAT(mC1986,pCMust,1,1,"c")
+MAT(mC1987,pCSteel,8,11,"bbbbbbbb","bccccccb","bccccccb","bccccccb","bccccccb","bcccccdb","bcccccdb","bccccccb","bccccccb","bccccccb","bbbbbbbb")
+MAT(mC1988,pCSteel,8,8,"bccbccbc","ccbccbcc","cbccbccb","bccbccbc","ccbccbcc","cbccbccb","bccbccbc","ccbccbcc")
+MAT(mC1989,pCSteel,1,1,"c")
+MAT(mC1990,pCSteel,1,1,"c")
+MAT(mC1991,pCSteel,1,1,"d")
+MAT(mC1992,pCSteel,1,1,"d")
 static const IBox bxCat0[6]={ // OAK CHAIR
  {1,1,2,2,0,5,{&mC1,&mC1,&mC1,&mC1,&mC1}},
  {6,1,7,2,0,5,{&mC1,&mC1,&mC1,&mC1,&mC1}},
@@ -3482,3 +3567,50 @@ static const IBox bxCat285[3]={ // PROPANE TANK
  {1,1,7,7,0,8,{&mC1903,&mC1904,&mC1903,&mC1904,&mC1905}},
  {2,2,6,6,8,9,{&mC1906,&mC1906,&mC1906,&mC1906,&mC1906}},
  {3,3,5,5,9,12,{&mC1907,&mC1907,&mC1907,&mC1907,&mC1907}} };
+static const IBox bxCat286[4]={ // SINK COUNTER
+ {0,1,8,8,0,11,{&mC1909,&mC1910,&mC1909,&mC1911,&mC1908}},
+ {0,0,8,8,11,12,{&mC1912,&mC1913,&mC1912,&mC1913,&mC1908}},
+ {3,1,5,2,12,17,{&mC1914,&mC1914,&mC1914,&mC1914,&mC1914}},
+ {3,2,5,4,16,17,{&mC1915,&mC1915,&mC1915,&mC1915,&mC1915}} };
+static const IBox bxCat287[4]={ // DOUBLE SINK
+ {0,1,8,8,0,11,{&mC1917,&mC1918,&mC1917,&mC1919,&mC1916}},
+ {0,0,8,8,11,12,{&mC1920,&mC1921,&mC1920,&mC1921,&mC1916}},
+ {3,1,5,2,12,18,{&mC1922,&mC1922,&mC1922,&mC1922,&mC1922}},
+ {3,2,5,4,17,18,{&mC1923,&mC1923,&mC1923,&mC1923,&mC1923}} };
+static const IBox bxCat288[4]={ // FARM SINK
+ {0,1,8,8,0,11,{&mC1924,&mC1926,&mC1924,&mC1927,&mC1925}},
+ {0,0,8,8,11,12,{&mC1928,&mC1929,&mC1928,&mC1929,&mC1925}},
+ {3,1,5,2,12,19,{&mC1930,&mC1930,&mC1930,&mC1930,&mC1930}},
+ {3,2,5,4,18,19,{&mC1931,&mC1931,&mC1931,&mC1931,&mC1931}} };
+static const IBox bxCat289[3]={ // MICROWAVE COUNTER
+ {0,1,8,8,0,11,{&mC1934,&mC1935,&mC1934,&mC1936,&mC1933}},
+ {0,0,8,8,11,12,{&mC1937,&mC1938,&mC1937,&mC1938,&mC1933}},
+ {1,2,7,6,12,17,{&mC1932,&mC1939,&mC1932,&mC1939,&mC1940}} };
+static const IBox bxCat290[3]={ // STEEL MICROWAVE
+ {0,1,8,8,0,11,{&mC1942,&mC1943,&mC1942,&mC1944,&mC1941}},
+ {0,0,8,8,11,12,{&mC1945,&mC1946,&mC1945,&mC1946,&mC1941}},
+ {1,2,7,6,12,17,{&mC1947,&mC1948,&mC1947,&mC1948,&mC1949}} };
+static const IBox bxCat291[5]={ // SINK + MICROWAVE
+ {0,1,8,8,0,11,{&mC1951,&mC1952,&mC1951,&mC1953,&mC1950}},
+ {0,0,8,8,11,12,{&mC1954,&mC1955,&mC1954,&mC1955,&mC1950}},
+ {1,1,3,2,12,17,{&mC1956,&mC1956,&mC1956,&mC1956,&mC1956}},
+ {1,2,3,4,16,17,{&mC1957,&mC1957,&mC1957,&mC1957,&mC1957}},
+ {4,2,8,6,12,16,{&mC1958,&mC1959,&mC1958,&mC1959,&mC1960}} };
+static const IBox bxCat292[4]={ // BUTCHER BLOCK
+ {0,1,8,8,0,11,{&mC1962,&mC1963,&mC1962,&mC1964,&mC1961}},
+ {0,0,8,8,11,12,{&mC1965,&mC1966,&mC1965,&mC1966,&mC1961}},
+ {1,2,5,7,12,13,{&mC1967,&mC1967,&mC1967,&mC1967,&mC1967}},
+ {5,3,7,5,12,16,{&mC1968,&mC1968,&mC1968,&mC1968,&mC1968}} };
+static const IBox bxCat293[5]={ // BREAKFAST BAR
+ {0,1,8,8,0,11,{&mC1970,&mC1971,&mC1970,&mC1972,&mC1969}},
+ {0,0,8,8,11,12,{&mC1973,&mC1974,&mC1973,&mC1974,&mC1969}},
+ {0,0,8,2,12,16,{&mC1975,&mC1976,&mC1975,&mC1976,&mC1977}},
+ {2,4,4,6,12,13,{&mC1978,&mC1978,&mC1978,&mC1978,&mC1978}},
+ {5,4,7,6,12,13,{&mC1979,&mC1979,&mC1979,&mC1979,&mC1979}} };
+static const IBox bxCat294[3]={ // NAVY ISLAND
+ {0,1,8,8,0,11,{&mC1981,&mC1982,&mC1981,&mC1983,&mC1980}},
+ {0,0,8,8,11,12,{&mC1984,&mC1985,&mC1984,&mC1985,&mC1980}},
+ {3,3,5,5,12,14,{&mC1986,&mC1986,&mC1986,&mC1986,&mC1986}} };
+static const IBox bxCat295[2]={ // FRIDGE COUNTER
+ {0,1,8,8,0,11,{&mC1987,&mC1989,&mC1987,&mC1990,&mC1988}},
+ {0,0,8,8,11,12,{&mC1991,&mC1992,&mC1991,&mC1992,&mC1988}} };

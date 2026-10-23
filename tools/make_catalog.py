@@ -48,13 +48,13 @@ def legs(a0, b0, a1, b1, h, m, t=1, z0=0): return [Box(a0, b0, a0 + t, b0 + t, z
 def block(a0, b0, a1, b1, z0, z1, fm): return [Box(a0, b0, a1, b1, z0, z1, fm)]
 
 MAXB = 40   # boxes an item may have (drawObj's painter table in itembake.h)
-def item(name, ch, price, cat, boxes, rot=0, nsh=11, col=None):
+def item(name, ch, price, cat, boxes, rot=0, nsh=11, col=None, fn=0):   # fn: what R does at it (counters.h): bit 0 a sink, bit 1 a microwave
     assert len(name) <= 18, name
     assert 1 <= len(boxes) <= MAXB, (name, len(boxes))
     for x in boxes:   # inside the tile, no taller than the canvas (z1 <= 28 keeps the back corner on the sprite), 5 real faces
         assert 0 <= x.a0 < x.a1 <= 8 and 0 <= x.b0 < x.b1 <= 8 and 0 <= x.z0 < x.z1 <= 28, (name, vars(x))
         assert len(x.m) == 5 and all(isinstance(m, Mat) for m in x.m), name
-    ITEMS.append(dict(name=name, ch=ch, price=price, cat=cat, boxes=boxes, rot=rot, nsh=nsh, col=col or (20, 20, 20)))
+    ITEMS.append(dict(name=name, ch=ch, price=price, cat=cat, boxes=boxes, rot=rot, nsh=nsh, col=col or (20, 20, 20), fn=fn))
 
 # ====================================================================== builders
 def chair(p, wood=None, cushion=True):
@@ -494,8 +494,30 @@ item('RED FUEL DRUM', 'O', 70, C, block(1, 1, 7, 7, 0, 13, faces(stripes(RED, 6,
 item('GAS CANISTER', 'Y', 60, C, block(2, 2, 6, 6, 0, 12, faces(stripes(MUST, 4, 12, 'c', 'b', False, 2), stripes(MUST, 4, 12, 'c', 'b', False, 2), flat(MUST, 'd'))) + [Box(3, 3, 5, 5, 12, 15, solid(STEEL, 'c')), Box(2, 3, 6, 5, 15, 16, solid(STEEL, 'b'))], col=(26, 20, 4))
 item('PROPANE TANK', 'Y', 80, C, block(1, 1, 7, 7, 0, 8, faces(stripes(WHITEW, 6, 8, 'c', 'b', True, 4), stripes(WHITEW, 6, 8, 'c', 'b', True, 4), flat(WHITEW, 'd'))) + [Box(2, 2, 6, 6, 8, 9, solid(STEEL, 'b')), Box(3, 3, 5, 5, 9, 12, solid(STEEL, 'c'))], col=(28, 28, 29))
 
+# ====================================================================== COUNTERS: counters with a job (a sink to wash up at, a microwave to heat a snack, a fridge built in)
+# R next to one of these (or the KITCHEN SINK / MICROWAVE STAND above) does it: counters.h. Appended LAST so no sprite number and no look byte that is already saved moves.
+C = cat('COUNTERS')
+def counterf(p, front, top, cap=None):   # a counter with its own front (and a plain cap over the cabinet)
+    return block(0, 1, 8, 8, 0, 11, [front, flat(p, 'c'), front, flat(p, 'c'), top]) + block(0, 0, 8, 8, 11, 12, faces(flat(p, 'd'), flat(p, 'd'), cap or top))
+def tap(a0=3, a1=5, h=17):   # a tall tap at the back of the top and its spout
+    return [Box(a0, 1, a1, 2, 12, h, solid(STEEL, 'd')), Box(a0, 2, a1, 4, h - 1, h, solid(STEEL, 'c'))]
+BASIN = ['cccccccc', 'cbbbbbbc', 'cbaaaabc', 'cbaaaabc', 'cbbbbbbc', 'cccccccc', 'cccddccc', 'cccccccc']
+item('SINK COUNTER', 'y', 380, C, counter(OAK, M(STEEL, BASIN)) + tap(), col=(22, 14, 6), fn=1)
+item('DOUBLE SINK', 'y', 520, C, counter(STEEL, M(STEEL, ['cccccccc', 'cbbccbbc', 'cbaccabc', 'cbaccabc', 'cbbccbbc', 'cccccccc', 'cdccccdc', 'cccccccc'])) + tap(3, 5, 18), col=(20, 22, 26), fn=1)
+FARMF = M(WHITEW, ['bbbbbbbb', 'bccccccb', 'bcddddcb', 'bcddddcb', 'bccccccb', 'bbbbbbbb', 'bcccbccb', 'bcccbccb', 'bcccbccb', 'bcccbccb', 'bbbbbbbb'])
+item('FARM SINK', 'y', 650, C, counterf(WHITEW, FARMF, M(STEEL, ['cccccccc', 'cbbbbbbc', 'cbaaaabc', 'cbaaaabc', 'cbaaaabc', 'cbbbbbbc', 'cccddccc', 'cccccccc'])) + tap(3, 5, 19), col=(28, 28, 29), fn=1)
+MICROF = M(WHITEW, ['bbbbbb', 'baaaac', 'baaaad', 'bbbbbb'])
+item('MICROWAVE COUNTER', 'y', 320, C, counter(WHITEW, grain(PINE, 8, 8)) + block(1, 2, 7, 6, 12, 17, faces(MICROF, flat(WHITEW, 'c'), flat(WHITEW, 'd'))), col=(28, 28, 29), fn=2)
+item('STEEL MICROWAVE', 'y', 420, C, counter(STEEL, grain(STEEL, 8, 8)) + block(1, 2, 7, 6, 12, 17, faces(M(DARK, ['bbbbbb', 'baaacb', 'baaadb', 'bbbbbb']), flat(DARK, 'c'), flat(DARK, 'c'))), col=(20, 22, 26), fn=2)
+item('SINK + MICROWAVE', 'y', 620, C, counter(WHITEW, M(STEEL, ['cccccccc', 'cbbbcccc', 'cbaabccc', 'cbaabccc', 'cbbbcccc', 'cccccccc', 'cdcccccc', 'cccccccc'])) + tap(1, 3, 17) + block(4, 2, 8, 6, 12, 16, faces(M(DARK, ['bbbb', 'baac', 'baad', 'bbbb']), flat(DARK, 'c'), flat(DARK, 'c'))), col=(20, 22, 26), fn=3)
+item('BUTCHER BLOCK', 'y', 300, C, counter(PINE, grain(PINE, 8, 8)) + [Box(1, 2, 5, 7, 12, 13, solid(OAK, 'c')), Box(5, 3, 7, 5, 12, 16, solid(DARK, 'c'))], col=(26, 20, 11))
+item('BREAKFAST BAR', 'y', 450, C, counter(DARK, grain(OAK, 8, 8)) + [Box(0, 0, 8, 2, 12, 16, faces(flat(OAK, 'c'), flat(OAK, 'b'), grain(OAK, 8, 8))), Box(2, 4, 4, 6, 12, 13, solid(WHITEW, 'd')), Box(5, 4, 7, 6, 12, 13, solid(WHITEW, 'd'))], col=(9, 6, 4))
+item('NAVY ISLAND', 'y', 700, C, counter(BLUE, M(MARBLE, ['cccccccc', 'ccdccccc', 'cccccdcc', 'cdcccccc', 'cccccccc', 'cccdcccc', 'cccccccd', 'cccccccc'])) + [Box(3, 3, 5, 5, 12, 14, solid(MUST, 'c'))], col=(6, 10, 26))
+FRIDGEF = M(STEEL, ['bbbbbbbb', 'bccccccb', 'bccccccb', 'bccccccb', 'bccccccb', 'bcccccdb', 'bcccccdb', 'bccccccb', 'bccccccb', 'bccccccb', 'bbbbbbbb'])
+item('FRIDGE COUNTER', 'F', 850, C, counterf(STEEL, FRIDGEF, grain(STEEL, 8, 8)), col=(20, 22, 26))   # an F: it is a fridge to eat from, like the others
+
 CAT_BUILD0 = 200   # the first 200 are the #76 batch; the rest the BUILD batch
-assert len(ITEMS) == 286, len(ITEMS)
+assert len(ITEMS) == 296, len(ITEMS)
 assert all(len([i for i in ITEMS if i['cat'] == c]) <= 12 for c in range(len(CATS))), 'a category holds at most 12 (the swatch row)'
 
 # ====================================================================== emit
@@ -530,6 +552,7 @@ def emit_table(spr_n):
     first = []; n = 0
     for c in range(len(CATS)): first.append(n); n += len([i for i in ITEMS if i['cat'] == c])
     first.append(n)
+    L.append('static const u8 catFn[CAT_N]={%s};   // what R does at the item (counters.h): bit 0 a sink, bit 1 a microwave' % ','.join(str(it['fn']) for it in ITEMS))
     L.append('static const u16 catCatFirst[CAT_CATS+1]={%s};   // the items of category c are ids catCatFirst[c]+1 .. catCatFirst[c+1]' % ','.join(str(v) for v in first))
     # the look byte -> id decoder: per map character, its items in order (catIdOf in main.c)
     chs = sorted(set(it['ch'] for it in ITEMS)); idx = [255] * 128
@@ -547,6 +570,9 @@ def emit_table(spr_n):
 def main():
     cnt = {}
     for it in ITEMS: cnt[it['ch']] = cnt.get(it['ch'], 0) + 1; it['lk'] = cnt[it['ch']]; assert it['lk'] <= 255
+    for it in ITEMS:   # (the kitchen's own sink and microwave work too)
+        if it['name'] == 'KITCHEN SINK': it['fn'] = 1
+        if it['name'] == 'MICROWAVE STAND': it['fn'] = 2
     bake, spr_n = emit_bake()
     open(os.path.join(ROOT, 'source', 'catalogart.h'), 'w').write(emit())
     open(os.path.join(ROOT, 'source', 'catalogbake.h'), 'w').write(bake)

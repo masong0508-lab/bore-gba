@@ -285,3 +285,13 @@
     bakeOne(V_CAT0+550,bxCat283,2,0,11);
     bakeOne(V_CAT0+551,bxCat284,3,0,11);
     bakeOne(V_CAT0+552,bxCat285,3,0,11);
+    bakeOne(V_CAT0+553,bxCat286,4,0,11);
+    bakeOne(V_CAT0+554,bxCat287,4,0,11);
+    bakeOne(V_CAT0+555,bxCat288,4,0,11);
+    bakeOne(V_CAT0+556,bxCat289,3,0,11);
+    bakeOne(V_CAT0+557,bxCat290,3,0,11);
+    bakeOne(V_CAT0+558,bxCat291,5,0,11);
+    bakeOne(V_CAT0+559,bxCat292,4,0,11);
+    bakeOne(V_CAT0+560,bxCat293,5,0,11);
+    bakeOne(V_CAT0+561,bxCat294,3,0,11);
+    bakeOne(V_CAT0+562,bxCat295,2,0,11);
