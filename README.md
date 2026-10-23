@@ -132,8 +132,10 @@ The **Expansions** shelf on the main menu (and STORY in the pause menu) holds th
 ## Building
 Enter the builder with EDIT MAP in the pause menu's BUILD page, or with BUILD on a lot in the town.
 
-- **Tools** (SELECT changes tool): ROOM, WALL, FLOOR, BUY and SELL. A places, B cancels. SELECT + L / R changes wallpaper, SELECT + UP / DOWN changes floor, and START opens the map menu.
+- **Tools.** SELECT + LEFT / RIGHT picks ROOM, WALL, FLOOR or SELL; tapping SELECT swaps BUILD and BUY. In the build tools press A on a corner, move, and press A again; B cancels. L / R change the floor (WALL: the wallpaper), SELECT + L / R change the wallpaper, and the bottom panel always says what A and B do at that step.
+- **Moving around.** The D-pad moves the cursor (hold it to go faster). SELECT + UP / DOWN zooms. Hold L and R, then UP / DOWN, to change floor. START opens the map menu.
 - **Undo and redo.** SELECT + B undoes and SELECT + START redoes. A step is everything between pressing A and letting go, and the last three are kept.
+- **Copy and paste.** START > COPY AREA, then A on two corners (up to 20 x 20 tiles). START > PASTE BLUEPRINT shows an outline that follows the cursor; A stamps the blueprint over whatever is there and B stops. Floors, walls, wallpaper, doors, windows and items come along, the spawn point, board and flags do not. With BUILD COSTS on, a paste costs what its items and walls cost minus what it replaces gives back. SELECT + B undoes it. The blueprint stays until the console is switched off.
 - **Floors.** A house can have three floors joined by stairs. Floors can be open to the sky.
 - **BUY** is a shop of looks. Everything you place keeps working as the thing it is: a catalog chair is still sat on, a catalog bed is still slept in. The catalog has close to three hundred items in tabs: chairs, sofas, beds, tables, desks, storage, lights, plants, kitchen, bath, tech, art, outdoor, kids, skate, grown-ups, seasonal, and the rest, up to the **COUNTERS** tab.
 - **Counters with a job.** In the COUNTERS tab (and the kitchen's own sink and microwave stand), R at a sink washes you up and R at a microwave heats a quick snack. A fridge counter is a fridge.

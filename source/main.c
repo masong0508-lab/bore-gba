@@ -3164,12 +3164,35 @@ static const char* const creatureHelp[]={
 static const char* const mapHelp[]={
     ">The Room Builder",
     "Open it with EDIT MAP in the pause menu's BUILD",
-    "page, or BUILD on a lot in town.",
-    ">Tools",
-    "SELECT changes tool. ROOM draws a room, WALL",
-    "draws a wall, FLOOR paints floors and digs pools,",
-    "BUY places furniture and items, SELL gives them",
-    "back. A places, B cancels, START opens the map menu.",
+    "page, or BUILD on a lot in town. The top bar",
+    "shows BUILD or BUY, your cash and the UNDO count.",
+    "The bottom panel names what A and B do now.",
+    ">Building (BUILD)",
+    "SELECT + LEFT or RIGHT picks the tool: ROOM,",
+    "WALL, FLOOR or SELL. Press A on one corner, move,",
+    "then A again. B cancels. L and R change the floor",
+    "or wallpaper. SELECT + L or R changes the walls.",
+    ">Buying (BUY)",
+    "Tap SELECT to swap BUILD and BUY. L and R pick",
+    "the item, SELECT + L or R the category. A buys,",
+    "B sells, hold A and move to paint a row, SELECT",
+    "+ A turns ramps. With BUILD COSTS on, items cost",
+    "cash and selling gives half back.",
+    ">Moving Around",
+    "The D-pad moves the cursor (hold it to go faster",
+    "in the build tools). SELECT + UP or DOWN zooms.",
+    "Hold L and R, then press UP or DOWN to change",
+    "floor. START opens the map menu.",
+    ">Undo and Redo",
+    "SELECT + B undoes, SELECT + START redoes. A step",
+    "is everything from pressing A until you let go.",
+    "Three steps are kept.",
+    ">Copy and Paste",
+    "START > COPY AREA: press A on two corners, up to",
+    "20 x 20. Then START > PASTE BLUEPRINT: an outline",
+    "follows the cursor, A stamps it, B stops. It",
+    "carries floors, walls, wallpaper and items, and",
+    "stays until you switch the console off.",
     ">Furniture That Works",
     "Things keep working as what they are. The fridge",
     "feeds you; the toilet, bed, shower and sofa fill",
@@ -3188,10 +3211,9 @@ static const char* const mapHelp[]={
     "A community or skate flag turns a lot into a park",
     "or skate park. Community lots are visited, not",
     "built in. Build them from the town view.",
-    ">Controls",
-    "SELECT + L or R changes wallpaper, SELECT + UP or",
-    "DOWN changes floor. SELECT + B undoes and",
-    "SELECT + START redoes, up to three steps."};
+    ">Saving",
+    "START > SAVE MAP keeps the room. BLUEPRINTS in",
+    "the same menu saves and loads whole rooms."};
 
 // ---------- settings screen ----------
 static void drawRoom(int ed);
@@ -4675,7 +4697,7 @@ static void drawEditorHud(const char*msg){
             if(eTool==T_WALL) numText(text(75,131,"LENGTH",GOLD,1)+3,131,w+h-1,WHITE);
             else { int xx=numText(text(75,131,"SIZE",GOLD,1)+3,131,w,WHITE)+3; xx=text(xx,131,"X",GOLD,1)+3; numText(xx,131,h,WHITE); }
             if(xo[XO_BUYCOST]){ int n=eNet(x0,y0,x1,y1); if(n){ int xx=text(150,124,n>0?"COST":"REFUND",DIMC,1)+3; edMoney(b,n>0?n:-n); text(xx,124,b,(n>0&&edCharged()&&n>simMoney)?RGB(31,10,8):WHITE,1); } } }
-        else text(75,131,eTool==T_WALL?"PICK A START":"PICK A CORNER",GOLD,1);
+        else text(75,131,eTool==T_WALL?"STEP 1  PICK THE START":"STEP 1  PICK A CORNER",GOLD,1);
         if(eTool==T_ROOM){ text(3,142,"FLOOR",DIMC,1); int xx=34; rect(xx-2,138,12,12,GOLD); texSwatch(&flTex[eFl],xx,140); text(xx+13,142,flTex[eFl].nm,WHITE,1);
             text(112,142,"WALL",DIMC,1); xx=136; rect(xx-2,138,12,12,GOLD); rect(xx-1,139,10,10,RGB(3,4,7)); wallSwatch(eWp,xx,140); text(xx+13,142,wpName(eWp),WHITE,1); }
         else if(eTool==T_WALL||eTool==T_FLOOR){ int fl=(eTool==T_FLOOR); text(3,142,fl?"FLOOR":"WALL",DIMC,1);   // five swatches, the picked one in the middle
@@ -4683,9 +4705,9 @@ static void drawEditorHud(const char*msg){
                 if(k==0){ rect(xx-2,138,12,12,GOLD); rect(xx-1,139,10,10,RGB(3,4,7)); } else if(!fl) rect(xx-1,139,10,10,RGB(8,11,17));
                 if(fl) texSwatch(&flTex[i],xx,140); else wallSwatch(i,xx,140); }
             text(32+5*13+4,142,fl?flTex[eFl].nm:wpName(eWp),WHITE,1); }
-        else text(3,142,"PICK TWO CORNERS TO SELL WALLS ITEMS AND FLOORS",DIMC,1);
-        h1=eTool==T_ROOM?"A CORNER  A AGAIN BUILDS  L R FLOOR  SEL+L R WALL":eTool==T_WALL?"A START  A AGAIN DRAWS  L R WALLPAPER  B CANCEL":eTool==T_FLOOR?"A CORNER  A AGAIN FILLS  L R FLOOR  B CANCEL":"A CORNER  A AGAIN SELLS  B CANCEL";
-        h2="L+R HELD UP DN LEVEL  SEL+LEFT RIGHT TOOL  SEL BUY";
+        else text(3,142,"SELLS THE WALLS  ITEMS AND FLOORS IN THE AREA",DIMC,1);
+        h1=eTool==T_ROOM?(eAct?"A BUILD THE ROOM  B CANCEL  L R FLOOR  SEL+L R WALL":"A FIRST CORNER  L R FLOOR  SEL+L R WALL"):eTool==T_WALL?(eAct?"A DRAW THE WALL  B CANCEL  L R WALLPAPER":"A START THE WALL  L R WALLPAPER"):eTool==T_FLOOR?(eAct?"A FILL THE AREA  B CANCEL  L R FLOOR":"A FIRST CORNER  L R FLOOR"):(eAct?"A SELL THE AREA  B CANCEL":"A FIRST CORNER  B BACK");
+        h2="SEL+LEFT RIGHT TOOL  SEL BUY  START MENU  SEL+B UNDO";
     } else {
         { int cc=edCatOf(eOb,0), xx=3; static u8 tab0 EWRAM_BSS;   // the category tabs (26: they scroll so the picked one stays in view), then this category's items
           if(cc<tab0) tab0=(u8)cc;
@@ -4709,8 +4731,8 @@ static void drawEditorHud(const char*msg){
                 case 14:blitItem(V_BED,221,141);break; case 15:blitItem(V_SHOWER,221,141);break; case 16:blitItem(V_SOFA,221,141);break; case 25:blitItem(V_PIPE,221,141);break; case 26:blitItem(V_LAVA,221,141);break; case 27:blitItem(V_BEANBAG,221,141);break; case 28:case 29:drawStairs(221,141,eOb==28);break; case 30:blitItem(V_DEADSET,221,141);break; case 31:blitItem(V_PHONE,221,141);break; case 32:blitItem(V_RADIO,221,141);break; case 33:blitItem(V_STEREO,221,141);break;
                 case 34:blitItem(V_TV,221,141);break; case 35:blitItem(V_SHELF,221,141);break; case 36:blitItem(V_COFFEE,221,141);break; case 37:blitItem(V_AQUA,221,141);break; case 38:blitItem(V_TREAD,221,141);break; case OB_HALF:blitItem(V_QPIPE+((eRot-cview)&3),221,141);break; case 48:blitItem(V_RUG,221,141);break; case 49:blitItem(V_TABLE,221,141);break; case 50:blitItem(V_CHAIR,221,141);break; case 51:blitItem(V_DESK,221,141);break; case 52:blitItem(V_LAMP,221,141);break; case 53:blitItem(V_PLANT,221,141);break; case 54:blitItem(V_DRESSER,221,141);break; case 55:blitItem(V_FIRE,221,141);break; case 56:blitItem(V_COUNTER,221,141);break; case 57:drawPlanterS(221,143,3,3,1,0);break; case 39:case 40:case 41:{ u16 wb[WALL_H]; for(int u=0;u<8;u++){ winCol(eOb-39,0,u,wb); for(int r=0;r<12;r++) px(215+u+(u>3),136+r,wb[3+r*2]); } break; } default:drawSpawn(221,142); } }
         if(eOb==1||eOb==2){ wallSwatch(eWp,212,137); }
-        h1="A BUY  B SELL  A AND MOVE PAINTS  SEL+A TURN";
-        h2="L R ITEM  SEL+L R TYPE  L+R HELD UP DN LEVEL";
+        h1="A BUY  B SELL  HOLD A AND MOVE TO PAINT  SEL+A TURN";
+        h2="L R ITEM  SEL+L R CATEGORY  SEL BUILD  START MENU";
     }
     text(3,150,h1,RGB(16,18,21),1); text(3,155,h2,RGB(16,18,21),1);
 }
