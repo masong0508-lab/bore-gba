@@ -6113,7 +6113,7 @@ static void mmBackdrop(void){   // your town close up around a random lot (no to
 }
 static void mmLogo(int x,int y){ for(int j=0;j<LOGO_SH;j++){ const char*r=logoSmallArt[j]; u16*o=&fb[(y+j)*SW+x]; for(int i=0;i<LOGO_SW;i++){ char c=r[i]; if(c!='0') o[i]=logoPal[(c<='9'?c-'0':c-'a'+10)-1]; } } }
 static void mmMove(int ps,int sel){   // a cursor move on the main menu: only the two buttons and the tip change (the panel stays), and only they are copied
-    for(int k=0;k<2;k++){ int i=k?sel:ps; if(i==MM_N-1) s3Round(73,136,sel==MM_N-1,"?"); else s3Pill(70,i?50+(i-1)*13:31,100,i?12:17,i==sel,mmName[i]); }
+    for(int k=0;k<2;k++){ int i=k?sel:ps; if(i==MM_N-1) s3Round(75,136,sel==MM_N-1,"?"); else s3Pill(70,i?50+(i-1)*13:31,100,i?12:17,i==sel,mmName[i]); }
     s3Tip(mmDesc[sel]);
     vsync(); vramCopy(64,29,172,145); vramCopy(0,150,SW,160);
 }
@@ -6121,8 +6121,8 @@ static void drawMainMenu(int sel,int full){
     if(full) mmBackdrop();
     s3Panel(60,20,120,128);
     for(int i=0;i<MM_N-1;i++) s3Pill(70,i?50+(i-1)*13:31,100,i?12:17,i==sel,mmName[i]);
-    s3Round(73,136,sel==MM_N-1,"?");   // HOW TO PLAY
-    s3Box(84,129,86,14,7,RGB(6,12,24),RGB(3,8,18)); s3Round(108,136,1,"A"); text(118,133,"Select",WHITE,1);
+    s3Round(75,136,sel==MM_N-1,"?");   // HOW TO PLAY
+    s3Box(86,129,86,14,7,RGB(6,12,24),RGB(3,8,18)); s3Round(110,136,1,"A"); text(120,133,"Select",WHITE,1);
     mmLogo(SW/2-LOGO_SW/2,1); s3Tip(mmDesc[sel]);
 }
 // ---------- HOW TO PLAY: the Sims 3 look of the main menu (the town behind, a glossy panel under the logo, pill tabs, a well with the text) ----------

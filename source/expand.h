@@ -946,7 +946,7 @@ static void exShelf(int ingame){
         if(!dirty){ vsync(); continue; }
         dirty=0;
         stBack("EXPANSION PACKS",(int)cnt);
-        for(int i=0;i<EX_SHELF;i++){ int on=i==sel; exCover(exOrd[i],8+i*32,on?20:25,30,on?62:56,on); }
+        for(int i=0;i<EX_SHELF;i++){ int on=i==sel; exCover(exOrd[i],25+i*32,on?20:25,30,on?62:56,on); }
         const XPk*P=&xPk[exOrd[sel]];
         s2rr(8,88,224,54,RGB(10,20,30)); s2rr(9,89,222,52,RGB(2,6,13));
         text(48,93,P->nm,GOLD,1); text(48,102,P->sub,RGB(17,29,31),1);
