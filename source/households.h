@@ -223,6 +223,7 @@ static void phInvite(void){   // someone from another household comes over (they
     static char t[40] EWRAM_BSS; char*e=simCat(t,s->name); simCat(e," IS COMING OVER"); toast(t);
 }
 static void careerScreen(void);   // career.h
+static void jbCommute(void);   // jobhunt.h
 static void htFavors(void);   // hardtime.h
 static void trvMenu(void);   // travel.h
 static void petAdopt(void);   // petui.h
@@ -232,6 +233,7 @@ static void phoneMenu(void){   // pause menu > PHONE
     if(hhN&&!prIn()){ it[n]="CALL SOMEONE OVER"; id[n++]=7; }   // (house.h TOGETHER: COME HERE, WATCH TV WITH ME, COME TO BED)
     if(!prIn()){ it[n]="ADOPT A PET  \xC2\xA7" "150"; id[n++]=8; }   // petui.h: the PET CREATOR
     if(ojobOn()){ it[n]="CAREER  JOBS AND PAY"; id[n++]=4; }   // (the career tracks: career.h)
+    if(ojob()&&nbOk&&!prIn()){ it[n]="COMMUTE  WORK OR HOME"; id[n++]=9; }   // jobhunt.h
     it[n]="ORDER PIZZA  \xC2\xA7" "80"; id[n++]=1;
     it[n]="ORDER CHINESE  \xC2\xA7" "60"; id[n++]=2;
     if(prIn()){ it[n]="FAVORS  PRISON JOBS"; id[n++]=5; }   // (in the prison: hardtime.h)
@@ -241,6 +243,7 @@ static void phoneMenu(void){   // pause menu > PHONE
     switch(id[c]){
         case 0: phInvite(); break;
         case 4: careerScreen(); break;
+        case 9: jbCommute(); break;
         case 5: htFavors(); break;
         case 6: trvMenu(); break;
         case 7: jtCall(); break;

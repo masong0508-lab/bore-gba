@@ -778,15 +778,15 @@ static void ageTick(void){   // once per game day: each stage lasts the days set
 }
 static void petMinute(void); static void petDay(void);   // pets.h
 static void wdHour(void);   // weed.h
-static void jbDeliver(void);   // jobhunt.h
+static void jbDeliver(void); static int jbWorkOk(void);   // jobhunt.h
 static void goMinute(void);   // gotchi.h: the handheld lives on while you play
 static void simMinute(void){   // once per game minute
     simMin++;
     petMinute(); wdHour(); goMinute();
     if(simMin==360||(simMin==485&&simDay==0)) jbDeliver();   // the paperboy (jobhunt.h)
-    if(simMin==simJobFrom()&&simInShift()&&!ldead) simQueue((jobTrack!=JT_SKATE&&simAtWork()==1)?"GO TO YOUR WORK MARKER":jobFlav[jobTrack]);
+    if(simMin==simJobFrom()&&simInShift()&&!ldead) simQueue(!jbWorkOk()?"SHIFT TIME  COMMUTE FROM THE PHONE":(jobTrack!=JT_SKATE&&simAtWork()==1)?"GO TO YOUR WORK MARKER":jobFlav[jobTrack]);
     else if(simMin%30==0&&jobTrack!=JT_SKATE&&simInShift()&&!simAct&&!ldead&&lnoteT<=0&&simAtWork()==1){ lnote="NOT AT WORK  FIND THE MARKER"; lnoteT=60; }   // a nudge every half hour   // clocking in: a line for the job
-    if(jobTrack!=JT_SKATE&&simInShift()&&!simAct&&!ldead&&simAtWork()!=1) shiftPts+=(moodState()==MS_STOKED)?2:1;   // a normal job: work minutes (see jobQuotaOf)
+    if(jobTrack!=JT_SKATE&&simInShift()&&!simAct&&!ldead&&simAtWork()!=1&&jbWorkOk()) shiftPts+=(moodState()==MS_STOKED)?2:1;   // a normal job: work minutes (see jobQuotaOf)
     if(simMin==16*60+20&&(simHave&SR_PIPE)&&pipeOk()) simQueue("IT IS 4:20  PUFF PUFF PASS");   // the house gathers at the water pipe (house.h)
     if(simMin>=1440){   // midnight: new day, bills, autosave
         simMin=0; simDay++; if(simDay>30000) simDay=0; lsAdd(LS_DAYS,1);
@@ -896,7 +896,7 @@ static void simsTick(unsigned pr,int tx,int ty){
     int spm=oStepsMin();   // DAY LENGTH option (0 = the clock is stopped)
     if(spm>0){ simClkCr+=(simAct==1)?spm:1; while(simClkCr>=spm){ simClkCr-=spm; simMinute(); sgDirty=1; } }
     // the day's quota counts trick points scored during the shift
-    if(lscore>simLastScore&&simInShift()&&jobTrack==JT_SKATE) shiftPts+=lscore-simLastScore;   // only the skater job is paid in trick points
+    if(lscore>simLastScore&&simInShift()&&jobTrack==JT_SKATE&&jbWorkOk()) shiftPts+=lscore-simLastScore;   // only the skater job is paid in trick points
     if(lscore!=simLastScore) sgDirty=1;   // (progress since the last save file: MANUAL saving asks before it is thrown away)
     if(lscore>simLastScore) lsAdd(LS_SCORE,(u32)(lscore-simLastScore));   // lifetime score: every point earned, in every life
     simLastScore=lscore;
