@@ -15,6 +15,7 @@ static void csMenu(void){   // OPTIONS > SIM > CHEAT > PLAY CUTSCENES: pick one 
 #include "voicenames.h"   // GENERATED (tools/encode_voices.py): the voice clips' names
 // ---- SOUND TEST (debug menu): every song, every sound effect and every voice clip, played by picking it. A plays, B goes back; the cursor stays where it was. ----
 //   MUSIC: all the songs in songs.h, the secret and locked ones too (what the jukebox hides). The song replaces whatever plays; STOP SOUND ends it.
+//   CREATOR LOOPS: the chiptunes of the creator (chips.h), the secret ones too.   NATURE SOUNDS: the four outdoor beds (ambience.h), or back to weather and hour.
 //   SOUND EFFECTS: SFX_BONK .. SFX_KO and the TOOT.   VOICES: the 54 clips; the top row picks the pitch they are said at (100 is the recording, 133 a female Sim, ...).
 static const char* const sdSfxN[]={"BONK","HIT","GASP","SCREAM","CRY","GROAN","NEARLY","DEATH","INSTANT","TICK","POP","LAND","STICK","GRIND","THUNDER","GHOST","BELL","DIAL","FLUSH","SHOWER","MUNCH","CASH","PAGE","BREW","TV","SPLASH","BOOT","YELP","KO","TOOT"};
 _Static_assert(sizeof(sdSfxN)/sizeof(sdSfxN[0])==SFX_VOICE0+1,"dbgmenu.h: sdSfxN must name every effect in front of SFX_VOICE0, then the TOOT");
@@ -35,10 +36,22 @@ static void sdVoices(void){
         if(s==0){ pi=(pi+1)%5; continue; }
         if(sSnd) voxSayP(hhPUid,s-1,pit[pi].p); else toast("SOUND IS OFF"); }
     menuQuiet=0; }
+static void sdChips(void){ const char* it[NCHIPS]; for(int i=0;i<NCHIPS;i++) it[i]=chips[i].name; int at=0;   // the creator's loops, the secret ones too
+    menuQuiet=1; for(;;){ menuInit=at; int s=menu("CREATOR LOOPS",it,NCHIPS); if(s<0) break; at=s;
+        if(!sSnd){ toast("SOUND IS OFF"); continue; } menuOn=0; creOn=0; mGain=mGainT=256; musBegin(2,chipsyn+chips[s].off,0); }   // (as creatorMusStart does, without the fade)
+    menuQuiet=0; }
+static void sdAmb(void){   // the nature sounds: the four beds, or back to weather and hour
+    static const char* const it[5]={"AUTOMATIC  WEATHER AND HOUR","DAY  BIRDS AND A BREEZE","NIGHT  CRICKETS AND FROGS","RAIN","WIND"}; int at=0;
+    menuQuiet=1; for(;;){ menuInit=at; int s=menu("NATURE SOUNDS",it,5); if(s<0) break; at=s;
+        if(!sSnd){ toast("SOUND IS OFF"); continue; }
+        if(!xo[XO_AMBV]){ toast("NATURE SOUNDS ARE OFF  SEE OPTIONS"); continue; }
+        ambForce=(u8)s;   // 0 automatic, then AMB_DAY .. AMB_WIND in this order
+        for(int f=0;f<120;f++){ ambTick(); vsync(); } }   // (the game's own tick fades the old bed out and the new one in, about a second and a half; the menu stops it)
+    ambForce=0; menuQuiet=0; }
 static void sdMenu(void){
-    static const char* const it[5]={"MUSIC","SOUND EFFECTS","VOICES","STOP SOUND","BACK"}; int at=0;
-    for(;;){ menuInit=at; int c=menu("SOUND TEST",it,5); if(c<0||c==4) return; at=c;
-        if(c==0) sdMusic(); else if(c==1) sdEffects(); else if(c==2) sdVoices(); else { sfxStop(); musStop(); toast("SOUND STOPPED"); } }
+    static const char* const it[7]={"MUSIC","CREATOR LOOPS","NATURE SOUNDS","SOUND EFFECTS","VOICES","STOP SOUND","BACK"}; int at=0;
+    for(;;){ menuInit=at; int c=menu("SOUND TEST",it,7); if(c<0||c==6) return; at=c;
+        if(c==0) sdMusic(); else if(c==1) sdChips(); else if(c==2) sdAmb(); else if(c==3) sdEffects(); else if(c==4) sdVoices(); else { ambForce=0; ambOff(); sfxStop(); musStop(); toast("SOUND STOPPED"); } }
 }
 static void dbgMenu(void){
     static const char* const it[12]={"GIVE ALL WEAPONS","MAX AMMO","TAKE ALL WEAPONS","RESET STASHES","MONEY +100000","FULL HEALTH + NEEDS","CLEAR WANTED","FREE FROM PRISON","STORY NEXT CHAPTER","PLAY CUTSCENE","SOUND TEST","BACK"};

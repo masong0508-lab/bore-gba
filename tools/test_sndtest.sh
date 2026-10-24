@@ -19,7 +19,10 @@ typedef struct { int x; } XmSong;
 typedef struct { const char*name; const u8*adp; const XmSong*xm; } Song;
 static const Song songs[]={ {"A",0,0},{"B",0,0} };
 #define NSONGS ((int)(sizeof(songs)/sizeof(songs[0])))
-static int sSnd=1, menuOn, creOn, hhPUid, menuInit, menuQuiet;
+static int sSnd=1, menuOn, creOn, hhPUid, menuInit, menuQuiet, mGain, mGainT, xo[4]={1,1,1,1}; enum { XO_AMBV=1 };
+typedef struct { const char*name; u32 off; u8 secret; } Chip; static const Chip chips[]={ {"C",0,0},{"D",4,1} };
+#define NCHIPS ((int)(sizeof(chips)/sizeof(chips[0])))
+static const u8 chipsyn[16]; static u8 ambForce; static void ambTick(void){} static void ambOff(void){} static void vsync(void){}
 static void toast(const char*m){(void)m;} static void sfxPlay(int i){(void)i;} static void sfxStop(void){} static void musStop(void){}
 static void musBegin(int k,const u8*a,const XmSong*x){(void)k;(void)a;(void)x;}
 static void voxSayP(int u,int v,int p){(void)u;(void)v;(void)p;}

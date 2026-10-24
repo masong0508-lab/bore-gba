@@ -8,13 +8,14 @@
 // (with MASTER VOLUME), 0 switches it off, and SOUND OFF silences it with everything else. Only in play: ambOff when you leave.
 // Needs before it: main.c's ambD / ambN / ambP / ambG / ambK and audStart, fx.h (wx, simIsNight), wInside, the player (lfx, lfy, curFl).
 enum { AMB_NONE, AMB_DAY, AMB_NIGHT, AMB_RAIN, AMB_WIND };
-static u8 ambCur EWRAM_BSS;   // the bed loaded in the channel now
+static u8 ambCur EWRAM_BSS;
+static u8 ambForce EWRAM_BSS;   // the debug SOUND TEST (dbgmenu.h): a bed (AMB_DAY .. AMB_WIND) to play whatever the weather and the hour say; 0 = by weather and hour   // the bed loaded in the channel now
 static const u8* ambBed(int b){ return b==AMB_DAY?amb_day:b==AMB_NIGHT?amb_night:b==AMB_RAIN?amb_rain:b==AMB_WIND?amb_wind:0; }
 static void ambTick(void){   // once a frame in play
     int want=AMB_NONE, lvl=0, k=256;
     if(sSnd&&xo[XO_AMBV]&&!prShown()){
         u8 w=wx;
-        want=(w==WX_RAIN||w==WX_STORM)?AMB_RAIN:w==WX_SNOW?AMB_WIND:simIsNight()?AMB_NIGHT:AMB_DAY;
+        want=ambForce?ambForce:(w==WX_RAIN||w==WX_STORM)?AMB_RAIN:w==WX_SNOW?AMB_WIND:simIsNight()?AMB_NIGHT:AMB_DAY;
         static const u8 trim[5]={0,210,190,150,170};   // each bed's level (out of 256) at the default NATURE SOUNDS: there to hear, never in the way of the music
         lvl=(oAmbGain()*trim[want])>>8;
         int tx=(int)(lfx>>8), ty=(int)(lfy>>8), in=curFl>0||(tx>=0&&ty>=0&&tx<MW&&ty<MH&&wInside[ty][tx]);
