@@ -16,14 +16,14 @@
 enum { PF_STAND, PF_WALK1, PF_WALK2, PF_SIT, PF_LIE, PF_SLEEP, PF_EAT, PF_HAPPY, PF_PEE };
 enum { PN_FOOD, PN_BLAD, PN_NRG, PN_FUN, PN_N };
 enum { PTR_SMART, PTR_HYPER, PTR_FRIEND, PTR_N };
-enum { PA_IDLE, PA_WANDER, PA_FOLLOW, PA_BEG, PA_SLEEP, PA_ZOOM, PA_OUT, PA_BARK, PA_GREET, PA_SIT, PA_LIE, PA_PEE, PA_EAT, PA_TRICK, PA_HOLD };
+enum { PA_IDLE, PA_WANDER, PA_FOLLOW, PA_BEG, PA_SLEEP, PA_ZOOM, PA_OUT, PA_BARK, PA_GREET, PA_SIT, PA_LIE, PA_PEE, PA_EAT, PA_TRICK, PA_HOLD, PA_PALS, PA_STAY };   // PA_PALS: off to play with another pet; PA_STAY: told to stay put
 #define PET_NC 18
 #define PET_OAMT 960     // first OBJ tile of the pets: slot 14 (two pets) and slot 15 (the third)
 #define PET_TRK 5        // tricks a pet can learn
 typedef struct {
     HhSim w;                       // where it is, its heading and its path (the household's walking: hhPlan / hhStepAlong)
     char name[HH_NM];
-    u8 look, size, adult, coat, acc, tr[PTR_N], need[PN_N], love, tricks, potty, age;
+    u8 look, size, adult, coat, acc, tr[PTR_N], need[PN_N], love, tricks, potty, age, groom;   // groom 0..100: how well kept it is (saved in a spare byte)
     u8 act, go, bub, bubT, pose, view, flip, tgt;   // act and go (0 there, 1 on the way), balloon, the frame shown, whom it walks to (uid+1, 0 you)
     short t, think;
 } Pet;
@@ -61,7 +61,7 @@ static void petPack(volatile u8*m,const Pet*p){
     int k=HH_NM; m[k++]=p->look; m[k++]=(u8)(p->size|(p->adult<<2)); m[k++]=p->coat; m[k++]=p->acc;
     for(int j=0;j<PTR_N;j++) m[k++]=p->tr[j];
     for(int j=0;j<PN_N;j++) m[k++]=p->need[j];
-    m[k++]=p->love; m[k++]=p->tricks; m[k++]=p->potty; m[k++]=p->age; m[k++]=0; m[k++]=0;   // (two spare bytes)
+    m[k++]=p->love; m[k++]=p->tricks; m[k++]=p->potty; m[k++]=p->age; m[k++]=p->groom; m[k++]=0;   // (one spare byte)
 }
 _Static_assert(HH_NM+4+PTR_N+PN_N+6==PET_B,"PET_B is the size of a saved pet");
 static int petUnpack(volatile const u8*m,Pet*p){   // 0 = not a pet (the household then has no pets)
@@ -69,7 +69,7 @@ static int petUnpack(volatile const u8*m,Pet*p){   // 0 = not a pet (the househo
     int k=HH_NM; p->look=m[k++]; { int s=m[k++]; p->size=(u8)(s&3); p->adult=(u8)((s>>2)&3); } p->coat=m[k++]; p->acc=m[k++];
     for(int j=0;j<PTR_N;j++){ p->tr[j]=m[k++]; if(p->tr[j]>10) p->tr[j]=5; }
     for(int j=0;j<PN_N;j++){ p->need[j]=m[k++]; if(p->need[j]>100) p->need[j]=80; }
-    p->love=m[k++]; p->tricks=m[k++]; p->potty=m[k++]; p->age=m[k++];
+    p->love=m[k++]; p->tricks=m[k++]; p->potty=m[k++]; p->age=m[k++]; p->groom=m[k++]; if(p->groom==0||p->groom>100) p->groom=70;   // (a pet saved before grooming: decently kept)
     if(p->look>=PET_LOOKS||p->size>2||p->adult>2||p->coat>=PET_NC||p->acc>=PET_NC||!p->name[0]) return 0;
     if(p->love>100) p->love=50; if(p->potty>100) p->potty=0;
     return 1;
@@ -112,10 +112,10 @@ static void petPose(void){   // the frame each pet shows this step
             case PA_SLEEP: f=p->go?PF_STAND:PF_SLEEP; break;
             case PA_EAT: f=PF_EAT; break;
             case PA_BEG: f=((lfr>>5)&1)&&!petCat(p)?PF_HAPPY:PF_SIT; break;
-            case PA_SIT: case PA_HOLD: f=PF_SIT; break;
+            case PA_SIT: case PA_HOLD: case PA_STAY: f=PF_SIT; break;
             case PA_LIE: f=PF_LIE; break;
             case PA_PEE: f=PF_PEE; break;
-            case PA_BARK: case PA_GREET: f=((lfr>>3)&1)?PF_HAPPY:PF_STAND; break;
+            case PA_BARK: case PA_GREET: case PA_PALS: f=((lfr>>3)&1)?PF_HAPPY:PF_STAND; break;
             case PA_TRICK: f=p->tgt; break;
             case PA_FOLLOW: f=PF_SIT; break;
             default: f=PF_STAND; }
@@ -159,6 +159,22 @@ static int petOvList(PetOv*o){
 static void petSay(Pet*p,int ic,int t){ p->bub=(u8)ic; p->bubT=(u8)t; }
 static void petNote(const Pet*p,const char*w){ if(lnoteT>40) return; char*e=simCat(petMsg,p->name); simCat(e,w); lnote=petMsg; lnoteT=150; }   // (a long note slides along the top bar: hud.h MARQUEE)
 static int petNear(const Pet*p,s32 fx,s32 fy,int d){ s32 dx=p->w.fx-fx, dy=p->w.fy-fy; return dx<d&&dx>-d&&dy<d&&dy>-d; }
+static const char* petMood(const Pet*p){   // how it is, in a word (the pet card)
+    if(p->need[PN_BLAD]<22) return "DESPERATE TO GO";
+    if(p->need[PN_FOOD]<30) return "HUNGRY";
+    if(p->need[PN_NRG]<20) return "EXHAUSTED";
+    if(p->groom<20) return "SCRUFFY";
+    if(p->need[PN_FUN]<30) return "BORED";
+    if(p->love<25) return "LONELY";
+    if(p->love>=80&&p->need[PN_FOOD]>=50&&p->need[PN_FUN]>=50) return "DELIGHTED";
+    return p->love>=50?"CONTENT":"OKAY";
+}
+static void petCry(Pet*p){   // now and then it says what it needs in a balloon, or shows it is glad you are near
+    int ic=-1;
+    if(p->need[PN_BLAD]<30) ic=IC_WC; else if(p->need[PN_FOOD]<30) ic=IC_FOOD; else if(p->need[PN_NRG]<22) ic=IC_ZZZ; else if(p->groom<20) ic=IC_STINK; else if(p->need[PN_FUN]<25) ic=IC_SAD;
+    else if(p->love>=70&&petNear(p,lfx,lfy,3*256)) ic=IC_HEART;
+    if(ic>=0) petSay(p,ic,90);
+}
 // A search from the pet (the household's BFS scratch): the nearest tile that fits mode, a path there in p->w. Modes: 0 somewhere random, 1 next to (gx, gy),
 // 2 outdoors, 3 a place to sleep (a rug, next to a bed or a sofa), 4 next to the fridge. 1 = a way was found (or it is there already).
 static int petPlan(Pet*p,int mode,int gx,int gy){
@@ -222,6 +238,9 @@ static void petDecide(Pet*p){
         if(petPlan(p,4,0,0)){ petStartAct(p,PA_BEG,420); petSay(p,IC_FOOD,200); return; } }
     { int cx,cy; if(!cat&&petCopAt(&cx,&cy)&&petPlan(p,1,cx,cy)){ petStartAct(p,PA_BARK,150); petSay(p,IC_ANGRY,150); petNote(p," BARKS AT THE COPS"); return; } }
     for(int k=0;k<TW_N;k++){ int v=TW_V(k); if(v>=hhN&&twHas[k]&&twOn[k]==1&&!cat&&fr>=4&&(rnd8()&3)==0){ HhSim*s=&hhM[v]; if(petPlan(p,1,(int)(s->fx>>8),(int)(s->fy>>8))){ petStartAct(p,PA_GREET,120); petSay(p,IC_HEART,120); return; } } }   // a visitor walking in: the dog runs to say hello
+    if(petN>1&&p->need[PN_FUN]<65&&(rnd8()&3)==0){   // bored with a pal in the house: go and play together
+        int o=-1; for(int j=0;j<petN;j++){ const Pet*q=&petM[j]; if(q!=p&&q->act!=PA_SLEEP&&(o<0||(rnd8()&1))) o=j; }
+        if(o>=0&&petPlan(p,1,(int)(petM[o].w.fx>>8),(int)(petM[o].w.fy>>8))){ petStartAct(p,PA_PALS,60); petSay(p,IC_HEART,100); return; } }
     int r=((int)rnd8()*100>>8);
     if(p->need[PN_FUN]<35||r<hy*3){   // the zoomies (a cat: a mad dash and a pounce)
         if(petPlan(p,0,0,0)){ petStartAct(p,PA_ZOOM,0); if((rnd8()&3)==0) petNote(p,cat?" HAS THE MIDNIGHT CRAZIES":" HAS THE ZOOMIES"); return; } }
@@ -234,6 +253,7 @@ static void petTick(int*planned){
     if(!petN||!petAtHome()) return;
     for(int i=0;i<petN;i++){ Pet*p=&petM[i];
         if(p->bubT) p->bubT--;
+        if(!p->bubT&&((lfr+i*61)&255)==0) petCry(p);   // (it tells you what it wants)
         if(petMoving(p)){ petStep(p);
             if(p->act==PA_BARK){ int cx,cy; if(petCopAt(&cx,&cy)&&(lfr&31)==0) petSay(p,IC_ANGRY,40); }
             continue; }
@@ -242,6 +262,11 @@ static void petTick(int*planned){
                 case PA_OUT: p->act=PA_PEE; p->t=60; p->need[PN_BLAD]=100; if(p->potty<100) p->potty+=2; break;
                 case PA_BEG: case PA_FOLLOW: petFace(p,lfx,lfy); break;
                 case PA_WANDER: case PA_ZOOM: p->think=(short)(p->act==PA_ZOOM&&p->need[PN_FUN]<90?8:60+(rnd8()&63)); p->act=PA_IDLE; break;   // (the zoomies go on to the next spot)
+                case PA_PALS: { p->t=150; for(int j=0;j<petN;j++){ Pet*q=&petM[j]; if(q==p||!petNear(q,p->w.fx,p->w.fy,3*256)) continue;   // it reached a pal: they play
+                        q->need[PN_FUN]=(u8)(q->need[PN_FUN]>80?100:q->need[PN_FUN]+20); q->love=(u8)(q->love>98?100:q->love+2); petSay(q,IC_HEART,100); petFace(p,q->w.fx,q->w.fy);
+                        p->need[PN_FUN]=(u8)(p->need[PN_FUN]>80?100:p->need[PN_FUN]+20); p->love=(u8)(p->love>98?100:p->love+2);
+                        if(lnoteT<=40){ char*e=simCat(petMsg,p->name); e=simCat(e," AND "); e=simCat(e,q->name); simCat(e," PLAY TOGETHER"); lnote=petMsg; lnoteT=150; }
+                        break; } break; }
                 case PA_BARK: case PA_GREET: p->t=90; break;
                 default: break; }
             continue; }
@@ -267,7 +292,9 @@ static void petMinute(void){   // once per game minute: needs
         if(m%(7-p->tr[PTR_HYPER]/4)==0&&p->act!=PA_SLEEP&&p->need[PN_NRG]>0) p->need[PN_NRG]--;
         if(m%6==i&&p->need[PN_FUN]>0) p->need[PN_FUN]--;
         if(m%90==0&&p->love>0&&p->need[PN_FOOD]<20) p->love--;   // a hungry pet sulks
-        if(p->act==PA_ZOOM&&p->need[PN_FUN]<100) p->need[PN_FUN]+=2; }
+        if(m%40==i&&p->groom>0) p->groom--;   // coats get scruffy
+        if(m%90==0&&p->groom<20&&p->love>0) p->love--;   // a scruffy pet sulks
+        if((p->act==PA_ZOOM||p->act==PA_PALS)&&p->need[PN_FUN]<100) p->need[PN_FUN]+=2; }
 }
 static void petDay(void){   // midnight: a day older; a puppy or kitten grows; the floor is mopped by morning
     for(int i=0;i<petN;i++){ Pet*p=&petM[i]; if(p->age<255) p->age++; if(p->size<p->adult&&p->age>=3*(p->size+1)){ p->size++; petTk[i]=0xFFFF; } }

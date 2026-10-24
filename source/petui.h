@@ -15,7 +15,7 @@ static void petNew(Pet*p,int breed){   // a new pet of a breed (its colours and 
     const PetBreed*b=&petBreed[breed]; for(int j=0;j<(int)sizeof(Pet);j++) ((u8*)p)[j]=0;
     p->look=b->look; p->size=p->adult=b->size; p->coat=b->coat; p->acc=b->acc;
     for(int j=0;j<PTR_N;j++) p->tr[j]=(u8)(3+rnd8()%5);
-    p->need[PN_FOOD]=80; p->need[PN_BLAD]=90; p->need[PN_NRG]=90; p->need[PN_FUN]=70; p->love=40; petRandName(p);
+    p->need[PN_FOOD]=80; p->need[PN_BLAD]=90; p->need[PN_NRG]=90; p->need[PN_FUN]=70; p->love=40; p->groom=85; petRandName(p);
 }
 // ---- the PET CREATOR: every row LEFT / RIGHT, A on NAME types one, L / R turn the pet, START or A on DONE keeps it, B cancels ----
 enum { PE_BREED, PE_BODY, PE_SIZE, PE_YOUNG, PE_COAT, PE_ACC, PE_SMART, PE_HYPER, PE_FRIEND, PE_NAME, PE_DONE, PE_N };
@@ -83,8 +83,9 @@ static void petCard(int i){
         rect(8,26,100,100,RGB(9,14,9)); petBlit(p,0,p->need[PN_NRG]<30?PF_LIE:PF_SIT,10,22,3,0);
         static const char* const nn[PN_N+1]={"FOOD","BLADDER","ENERGY","FUN","LOVE"};
         for(int n=0;n<=PN_N;n++){ int y=28+n*11; text(116,y,nn[n],WHITE,1); petBar(170,y+1,56,n<PN_N?p->need[n]:p->love); }
+        text(116,83,"GROOMING",WHITE,1); petBar(170,84,56,p->groom); text(150,6,petMood(p),RGB(17,29,31),1);
         static const char* const tn[PTR_N]={"SMART","HYPER","FRIENDLY"};
-        for(int t=0;t<PTR_N;t++){ int y=86+t*10; text(116,y,tn[t],DIMC,1); for(int q=0;q<10;q++) rect(170+q*6,y+1,5,6,q<p->tr[t]?RGB(20,22,26):RGB(6,7,10)); }
+        for(int t=0;t<PTR_N;t++){ int y=92+t*10; text(116,y,tn[t],DIMC,1); for(int q=0;q<10;q++) rect(170+q*6,y+1,5,6,q<p->tr[t]?RGB(20,22,26):RGB(6,7,10)); }
         { char t[48]; char*e=simCat(t,"HOUSE TRAINED "); e=simCatN(e,p->potty); simCat(e,"%"); text(10,130,t,DIMC,1); }
         { char t[64]; char*e=simCat(t,"TRICKS "); int any=0; for(int q=0;q<PET_TRK;q++) if(p->tricks>>q&1){ if(any) e=simCat(e,", "); e=simCat(e,petTrickNm[petCat(p)][q]); any=1; } if(!any) simCat(e,"NONE YET"); text(10,139,t,WHITE,1); }
         text(10,149,"A BACK",DIMC,1); present(); }
@@ -109,17 +110,21 @@ static void petTricks(Pet*p,int train){
 }
 static int petPie(int i){
     Pet*p=&petM[i]; int cat=petCat(p);
-    static const char* it[12] EWRAM_BSS; static char tl[40] EWRAM_BSS; int id[12], ct[12], n=0;
+    static const char* it[16] EWRAM_BSS; static char tl[40] EWRAM_BSS; int id[16], ct[16], n=0;
     it[n]=cat?"SCRATCH CHIN":"PET"; ct[n]=0; id[n++]=0;
     if(p->love>=40){ it[n]="CUDDLE"; ct[n]=0; id[n++]=1; }
+    it[n]="GIVE A TREAT  \xC2\xA7" "3"; ct[n]=0; id[n++]=11;
     it[n]=cat?"DANGLE A STRING":"PLAY FETCH"; ct[n]=1; id[n++]=2;
     if(p->tricks){ it[n]="DO A TRICK"; ct[n]=1; id[n++]=3; }
     it[n]="TRAIN A TRICK"; ct[n]=1; id[n++]=4;
+    it[n]="COME HERE"; ct[n]=1; id[n++]=12;
+    it[n]="STAY"; ct[n]=1; id[n++]=13;
     it[n]="FEED  \xC2\xA7" "5"; ct[n]=4; id[n++]=5;
     it[n]="LET IT OUT"; ct[n]=4; id[n++]=6;
     it[n]="HOUSE TRAIN"; ct[n]=4; id[n++]=7;
     it[n]="SCOLD"; ct[n]=3; id[n++]=8;
     it[n]="SHOO"; ct[n]=3; id[n++]=9;
+    it[n]="BRUSH"; ct[n]=4; id[n++]=14;
     it[n]="ABOUT"; ct[n]=4; id[n++]=10;
     { char*e=simCat(tl,p->name); e=simCat(e,"  LOVE "); simCatN(e,p->love); }
     piePet=(u8)(i+1); int c=pieCats(tl,it,ct,n); piePet=0; liveInvalidate();
@@ -144,8 +149,19 @@ static int petPie(int i){
         case 7: { int g=3+p->tr[PTR_SMART]/2; p->potty=(u8)(p->potty+g>100?100:p->potty+g); p->act=PA_SIT; p->t=60; lstun=50; lsp=0; char*e=simCat(petMsg,p->name); e=simCat(e," IS "); e=simCatN(e,p->potty); simCat(e,"% HOUSE TRAINED"); lnote=petMsg; lnoteT=150; break; }
         case 8: p->love=(u8)(p->love>5?p->love-5:0); if(pudN&&p->potty<100) p->potty=(u8)(p->potty+4>100?100:p->potty+4); p->act=PA_LIE; p->t=90; petSay(p,IC_SAD,90); lstun=30; lsp=0; petNote(p,cat?" DOES NOT CARE":" LOOKS ASHAMED"); voxPlay(V_angered); break;
         case 9: p->love=(u8)(p->love>2?p->love-2:0); if(petPlan(p,0,0,0)) petStartAct(p,PA_WANDER,0); petNote(p," WANDERS OFF"); break;
+        case 11: if(p->need[PN_FOOD]>=95){ petNote(p," IS FULL"); break; } if(simMoney<3){ toast("NOT ENOUGH SIMOLEONS"); break; }
+            simMoney-=3; p->need[PN_FOOD]=(u8)(p->need[PN_FOOD]>92?100:p->need[PN_FOOD]+8); p->love=(u8)(p->love>94?100:p->love+5); if(p->need[PN_FUN]<95) p->need[PN_FUN]+=5;
+            p->act=PA_EAT; p->t=40; petSay(p,IC_HEART,80); sfxPlay(SFX_MUNCH); lstun=30; lsp=0; petNote(p,cat?" PURRS AT THE TREAT":" GULPS IT DOWN"); break;
+        case 12: { int pct=30+p->tr[PTR_SMART]*4+p->love/3+p->tr[PTR_FRIEND]*2-(cat?25:0); if(pct<10) pct=10; lstun=30; lsp=0;   // COME HERE: a smart, loving, friendly pet obeys; a cat does as it likes
+            if((int)(((int)rnd8()*100>>8))<pct&&petPlan(p,1,(int)(lfx>>8),(int)(lfy>>8))){ petStartAct(p,PA_FOLLOW,300+p->tr[PTR_FRIEND]*30); petSay(p,IC_HEART,80); petNote(p,cat?" CONDESCENDS TO COME":" COMES RUNNING"); }
+            else { p->act=PA_SIT; p->t=90; petSay(p,IC_ANGRY,60); petNote(p,cat?" PRETENDS NOT TO HEAR":" IS BUSY WITH SOMETHING"); } break; }
+        case 13: { int pct=30+p->tr[PTR_SMART]*4+p->love/3-(cat?25:0); if(pct<10) pct=10; lstun=30; lsp=0;   // STAY: it holds still for about fifteen seconds
+            if((int)(((int)rnd8()*100>>8))<pct){ p->act=PA_STAY; p->go=0; p->t=900; petSay(p,IC_STAR,60); petNote(p," STAYS PUT"); }
+            else { if(petPlan(p,0,0,0)) petStartAct(p,PA_WANDER,0); petNote(p," WANDERS OFF ANYWAY"); } break; }
+        case 14: p->groom=(u8)(p->groom>55?100:p->groom+45); p->love=(u8)(p->love>97?100:p->love+3); p->act=PA_SIT; p->t=100; petSay(p,IC_HEART,90);
+            moodEvent(M_CHILL); lstun=70; lsp=0; petNote(p,cat?" PURRS LOUDLY":" LEANS INTO THE BRUSH"); voxPlay(V_laughing_small_or_not); break;
         case 10: petCard(i); break; }
-    stQEvent(QE_PET,id[c]);   // (the packs' pet tasks: expand.h PD_)
+    if(id[c]<=10) stQEvent(QE_PET,id[c]);   // (the packs' pet tasks know the first eleven actions)   // (the packs' pet tasks: expand.h PD_)
     return 1;
 }
 static int petR(void){   // R: a puddle within reach is mopped; else the nearest pet's menu (a Sim who is nearer gets theirs)
