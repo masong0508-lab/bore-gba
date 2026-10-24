@@ -30,4 +30,34 @@ static inline int khAct(KHand*B,KSim*S,int x,int y){
 }
 // the cursor's look: bank 15 of the palette is bank 0 brightened, so a blinking cell shows where A will act
 static inline u16 khPalCur(u16 c){ int r=c&31, g=(c>>5)&31, b=(c>>10)&31; r+=(31-r)*2/3; g+=(31-g)*2/3; b+=(31-b)*2/3; return (u16)(r|(g<<5)|(b<<10)); }
+
+// ---- the text layer (step 4e): two lines of text over the map, as the tiles of a second background (BG1) ----
+// What is under the cursor, as text, and the one-line status; both fit 38 characters (the strip is 240 pixels). No libc: the two helpers below write numbers and words.
+static inline char* khCat(char*d,const char*s){ while(*s) *d++=*s++; *d=0; return d; }
+static inline char* khNum(char*d,long v){ char t[12]; int n=0; if(v<0){ *d++='-'; v=-v; } do{ t[n++]=(char)('0'+v%10); v/=10; }while(v&&n<11); while(n) *d++=t[--n]; *d=0; return d; }
+static const char* const khTerrain[7]={ "GRASS", "FOREST", "ROCK", "DEEP WATER", "CRYSTAL", "MEADOW", "ROAD" };
+static inline void khInfo(const KSim*S,int x,int y,char*out){   // out: at least 48 bytes
+    int d=S->dim; char*e=out; *e=0;
+    if(x<0||y<0||x>=d||y>=d){ khCat(out,"THE EDGE OF THE WORLD"); return; }
+    int i=khBldAt(S,x,y);
+    if(i>=0){ const KBld*b=&S->B[i]; const KsType*T=ksT(b->type); e=khCat(e,khName[b->type+1]);
+        if(!b->lvl){ e=khCat(e,"  SITE  GOODS "); e=khNum(e,ksIn(b)); e=khCat(e," OF "); khNum(e,T->costN); }
+        else if(T->kind==KK_HOME){ e=khCat(e,"  NUBBINS "); e=khNum(e,b->work); e=khCat(e," OF "); khNum(e,T->house); }
+        else if(T->kind==KK_STORE){ khCat(e,"  STOCKPILE"); }
+        else { khCat(e,b->work?"  WORKING":"  NO WORKER"); }
+        return; }
+    { int v=S->cells[y*d+x]&7; khCat(out,khTerrain[v<7?v:0]); }
+}
+static inline void khStatus(char*out,int mode,long day,int pop,int spd){   // "ROAD   DAY 12  NUBBINS 7  X4"
+    char*e=khCat(out,khName[mode]); e=khCat(e,"   DAY "); e=khNum(e,day>99999?99999:day); e=khCat(e,"  NUBBINS "); e=khNum(e,pop); e=khCat(e,"  X"); khNum(e,spd==0?1:spd==1?4:16);
+}
+// A strip of the screen (240 x 16 pixels of the game's 15 bit bitmap, row stride 240) as 60 tiles of 4 bits a pixel, 16 half words a tile, tile (tx,ty) at index ty*30+tx:
+// pixel 0 stays 0 (see through), the shadow colour becomes 2, anything else 1. A tile row is 8 pixels, low nibble first.
+#define KH_TILES 60
+static inline void khStrip(const u16*fb,u16 shadow,u16*out){
+    for(int ty=0;ty<2;ty++) for(int tx=0;tx<30;tx++){ u16*t=out+(ty*30+tx)*16;
+        for(int r=0;r<8;r++){ unsigned w[2]={0,0};
+            for(int c=0;c<8;c++){ u16 px=fb[(ty*8+r)*240+tx*8+c]; unsigned n=px==0?0u:px==shadow?2u:1u; w[c>>2]|=n<<((c&3)*4); }
+            t[r*2]=(u16)w[0]; t[r*2+1]=(u16)w[1]; } }
+}
 #endif

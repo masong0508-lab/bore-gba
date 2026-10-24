@@ -42,20 +42,32 @@ static int kpSettle(KmMem*m){
 #endif
 #include "kingview.h"
 #include "kinghand.h"   // Phase 4d: building by hand (the cell under the middle of the screen is the cursor)
+#define KH_BLANK (KV_TILES+KH_TILES)   // the see-through tile, after the text tiles
+#define KH_SHADOW RGB(1,1,3)
 // ---- the hardware: mode 0, BG0 = the realm (tiles in charblock 0, the 32 x 32 map in screenblock 8). Both live in the bitmap's VRAM, so leaving mode 0 repaints the bitmap from fb. ----
 static void kvScroll(const KView*V){ *(volatile u16*)0x04000010=(u16)(V->x&255); *(volatile u16*)0x04000012=(u16)(V->y&255); }
 static void kvHwEnter(KView*V){
-    vsync(); REG_DISPCNT=0x0100;                                                   // mode 0, BG0 only (no sprites, no windows)
+    vsync(); REG_DISPCNT=0x0300;                                                   // mode 0, BG0 and BG1 (the text), no sprites, no windows
     volatile u16*pal=(volatile u16*)0x05000000; for(int b=0;b<8;b++) for(int i=0;i<16;i++) pal[b*16+i]=kvPalAt(b,i);
     for(int i=0;i<16;i++) pal[15*16+i]=khPalCur(kvPalAt(0,i));                       // bank 15: the cursor cell, blinking
     volatile u16*tg=(volatile u16*)0x06000000; for(int t=0;t<KV_TILES;t++){ u8 g[32]; kvTileGfx(t,g); for(int i=0;i<16;i++) tg[t*16+i]=(u16)(g[2*i]|(g[2*i+1]<<8)); }
-    *(volatile u16*)0x04000008=0x0800;                                             // BG0CNT: charblock 0, screenblock 8, 16 colours, 32 x 32
+    *(volatile u16*)0x0400000A=0x0900;                                             // BG1CNT: priority 0 (above the map), charblock 0, screenblock 9
+    pal[14*16+1]=0x7FFF; pal[14*16+2]=RGB(1,1,3);                                  // bank 14: the text, white with a dark shadow
+    { volatile u16*z=(volatile u16*)(0x06000000+KH_BLANK*32); for(int i=0;i<16;i++) z[i]=0;   // a see-through tile fills the whole text map but the two text rows
+      volatile u16*mp=(volatile u16*)0x06004800; for(int i=0;i<1024;i++) mp[i]=(u16)(KH_BLANK|(14<<12));
+      for(int i=0;i<KH_TILES;i++) mp[18*32+(i/30)*32+(i%30)]=(u16)((KV_TILES+i)|(14<<12)); }
+    *(volatile u16*)0x04000014=0; *(volatile u16*)0x04000016=0;                    // BG1 never scrolls
+    *(volatile u16*)0x04000008=0x0801;                                             // BG0CNT: charblock 0, screenblock 8, 16 colours, 32 x 32
     V->ok=0; kvSync(V); kvScroll(V);
 }
 static void kvHwLeave(void){ vsync(); REG_DISPCNT=0x0403; dmaRows(fb,VRAM_ADDR,0,ROW_W,0,SH); }   // mode 3 again, the bitmap painted back from fb
 static void khShow(const KView*V,int cx,int cy,int on){   // the cursor cell: its tile in bank 15 while it blinks on, its own tile otherwise
     if(!V->ok||cx<V->tx0||cy<V->ty0||cx>=V->tx0+KV_W||cy>=V->ty0+KV_H) return;
     KV_PUT(cx&31,cy&31,on?(u16)(kvEntry(V,cx,cy)|0xF000):kvEntry(V,cx,cy)); }
+static void kpHud(const KSim*S,const KRealm*R,const KHand*h,int cx,int cy,int spd,const char*msg){   // draws the two lines in the bitmap (not shown in mode 0), makes tiles of them
+    char l1[64], l2[64]; khStatus(l1,h->mode,(long)R->day,S->pop,spd); if(msg) khCat(l2,msg); else khInfo(S,cx,cy,l2);
+    rect(0,0,240,16,0); text(1,1,l1,KH_SHADOW,1); text(0,0,l1,GOLD,1); text(1,9,l2,KH_SHADOW,1); text(0,8,l2,WHITE,1);
+    static u16 t[KH_TILES*16]; khStrip(fb,KH_SHADOW,t); volatile u16*vt=(volatile u16*)(0x06000000+KV_TILES*32); for(int i=0;i<KH_TILES*16;i++) vt[i]=t[i]; }
 static int kpDraw(const KmMem*m,const char*nm,int spd,u32 cnt){   // the status screen
     const KSim*S=m->S; const KRealm*R=m->R; char b[40]; char*e; int built=0; for(int i=0;i<R->nB;i++) built+=m->B[i].lvl;
     stBack("KINGDOM MODE",(int)cnt);
@@ -74,28 +86,29 @@ static int kpRun(int slot){   // returns 0: the KINGDOM list should rescan (the 
     KmMem m; int e=kpOpen(&m,slot); if(e){ toast(kpWhy(e)); return 0; }
     char nm[SLOT_NAME+1]; { int i=0; for(;i<SLOT_NAME&&slI[slot].name[i];i++) nm[i]=slI[slot].name[i]; nm[i]=0; if(!i){ nm[0]='R'; nm[1]='E'; nm[2]='A'; nm[3]='L'; nm[4]='M'; nm[5]=0; } }
     kpSettle(&m);
-    static const int per[3]={1,4,16}; int spd=0, mapOn=1, ocx=-1, ocy=-1; u32 cnt=0; u16 prev=keyNow(); KHand hand; khInit(&hand);
+    static const int per[3]={1,4,16}; int spd=0, mapOn=1, ocx=-1, ocy=-1, hudT=0, hudD=1; const char*hmsg=0; u32 cnt=0; u16 prev=keyNow(); KHand hand; khInit(&hand); int hcx=-1, hcy=-1;
     KView V; kvInit(&V,m.cells,m.S->dim,m.B,m.R->nB); kvCenter(&V,m.S->dim/2,m.S->dim/2); kvHwEnter(&V);
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
         if(pr&K_SEL) spd=(spd+1)%3;
-        if(pr&K_B){ if(mapOn){ kvHwLeave(); mapOn=0; kpDraw(&m,nm,spd,cnt); } else { mapOn=1; kvHwEnter(&V); } }
+        if(pr&K_B){ if(mapOn){ kvHwLeave(); mapOn=0; kpDraw(&m,nm,spd,cnt); } else { mapOn=1; kvHwEnter(&V); hudD=1; ocx=-1; } }
         if(pr&K_START){
             static const char* const mn[4]={"SAVE AND LEAVE","SAVE AND KEEP PLAYING","LEAVE WITHOUT SAVING","KEEP PLAYING"};
             if(mapOn) kvHwLeave();
             int ch=menu(nm,mn,4);
             if(ch==0||ch==1){ int s=kpSave(&m,slot); if(s>=0){ slot=s; toast("KINGDOM SAVED"); if(ch==0) return 0; } else toast(s==SLE_NOROOM?"NO ROOM  FREE A SLOT":slErrMsg(s)); }   // (a failed save never leaves: the realm in play is the only copy of its progress)
             else if(ch==2){ static const char* const yn[2]={"YES  LEAVE","NO  KEEP PLAYING"}; if(menu("EVERYTHING SINCE THE LAST SAVE IS LOST",yn,2)==0) return 0; }
-            prev=keyNow(); if(mapOn) kvHwEnter(&V); else kpDraw(&m,nm,spd,cnt); continue; }
+            prev=keyNow(); if(mapOn){ kvHwEnter(&V); hudD=1; ocx=-1; } else kpDraw(&m,nm,spd,cnt); continue; }
         if(mapOn){                                                                 // the map: scroll 3 pixels a frame, write what came into view, refresh one row
             vsync();
             V.x+=(k&K_RIGHT?3:0)-(k&K_LEFT?3:0); V.y+=(k&K_DOWN?3:0)-(k&K_UP?3:0); kvClamp(&V); V.nB=m.R->nB;
             kvSync(&V); kvRefreshRow(&V); kvScroll(&V);
             int cx=khCx(V.x), cy=khCy(V.y); if(cx!=ocx||cy!=ocy){ khShow(&V,ocx,ocy,0); ocx=cx; ocy=cy; }
-            int msg=-1;
-            if(pr&(K_L|K_R)){ khCycle(&hand,pr&K_R?1:-1); msg=-2; }
-            else if(pr&K_A){ int r=khAct(&hand,m.S,cx,cy); if(r>=KHR_ROAD&&r<=KHR_RAZED){ V.nB=m.R->nB; kvFull(&V); } else msg=r; }   // (a success shows on the map; a refusal is said)
-            if(msg!=-1){ kvHwLeave(); toast(msg==-2?khName[hand.mode]:khMsg[msg]); prev=keyNow(); kvHwEnter(&V); ocx=-1; }
+            if(pr&(K_L|K_R)){ khCycle(&hand,pr&K_R?1:-1); hudD=1; }
+            else if(pr&K_A){ int r=khAct(&hand,m.S,cx,cy); if(r>=KHR_ROAD&&r<=KHR_RAZED){ V.nB=m.R->nB; kvFull(&V); } hmsg=khMsg[r]; hudT=75; hudD=1; }   // (said in the text layer for 1.25 seconds)
+            if(hudT&&!--hudT){ hmsg=0; hudD=1; }
+            if(cx!=hcx||cy!=hcy||!(cnt&63)||pr&K_SEL){ hcx=cx; hcy=cy; hudD=1; }
+            if(hudD){ hudD=0; kpHud(m.S,m.R,&hand,cx,cy,spd,hmsg); }
             khShow(&V,cx,cy,(cnt>>3)&1);
         } else if(cnt&7) vsync(); else kpDraw(&m,nm,spd,cnt);
         for(int i=0;i<per[spd];i++) ksStep(m.S);

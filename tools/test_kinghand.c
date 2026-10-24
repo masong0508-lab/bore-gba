@@ -50,6 +50,20 @@ int main(void){
             if(k%500==0){ CHECK(ksCheck(&S)==0,"books after %d presses: %d",k,ksCheck(&S)); V.nB=R.nB; V.x=(int)(rnd()%(u32)(d*8)); V.y=(int)(rnd()%(u32)(d*8)); kvClamp(&V); CHECK(viewBad(&V)==0,"view after %d presses",k); } }
           CHECK(roads>100&&sites>20&&razed>5,"the random run did real work (roads %d, sites %d, razed %d)",roads,sites,razed); printf("  tier %d: %d roads, %d sites, %d demolitions, books balanced\n",tier,roads,sites,razed); }
         }
+    // ---- the text layer: info text, status line, strip -> tiles ----
+    { char b[64]; int worst=0; CHECK(fresh(1,9u)==KSE_OK,"init");
+      for(int y=-1;y<=S.dim;y++) for(int x=-1;x<=S.dim;x++){ khInfo(&S,x,y,b); int n=(int)strlen(b); if(n>worst) worst=n; CHECK(n>0,"empty info at %d %d",x,y); }
+      int x,y; K.mode=KHM_STORE; findKind(KT_GRASS,&x,&y); khAct(&K,&S,x,y); khInfo(&S,x,y,b); CHECK(strstr(b,"STOREHOUSE")&&strstr(b,"SITE")&&strstr(b,"GOODS 0 OF"),"site text: %s",b);
+      khInfo(&S,x+1,y+1,b); CHECK(strstr(b,"STOREHOUSE")!=0,"far corner: %s",b); S.B[0].lvl=1; khInfo(&S,x,y,b); CHECK(strstr(b,"STOCKPILE")!=0,"store text: %s",b);
+      K.mode=KHM_HUT; findKind(KT_GRASS,&x,&y); int xs=x+3; (void)xs; for(int yy=4;yy<S.dim-4;yy++) for(int xx=4;xx<S.dim-4;xx++) if(khAct(&K,&S,xx,yy)==KHR_SITE){ x=xx; y=yy; yy=S.dim; break; }
+      S.B[R.nB-1].lvl=1; S.B[R.nB-1].work=3; khInfo(&S,x,y,b); CHECK(strstr(b,"HUT  NUBBINS 3 OF 4")!=0,"hut text: %s",b);
+      khStatus(b,KHM_DEMO,123456,7,2); CHECK(strcmp(b,"DEMOLISH   DAY 99999  NUBBINS 7  X16")==0,"status: %s",b); khStatus(b,KHM_ROAD,12,0,0); CHECK(strcmp(b,"ROAD   DAY 12  NUBBINS 0  X1")==0,"status: %s",b);
+      CHECK(worst<=24,"longest info line is %d characters",worst);
+      static u16 fbs[240*16], tiles[KH_TILES*16]; memset(fbs,0,sizeof fbs); const u16 SH=0x0821, WH=0x7FFF;
+      for(int yy=0;yy<16;yy++) for(int xx=0;xx<240;xx++){ u32 h=(u32)(xx*7+yy*13)%5; fbs[yy*240+xx]=h==0?SH:h==1?WH:h==2?0x1234:0; }
+      khStrip(fbs,SH,tiles); int bad=0;
+      for(int yy=0;yy<16;yy++) for(int xx=0;xx<240;xx++){ int tile=(yy>>3)*30+(xx>>3); int row=yy&7, col=xx&7; unsigned got=(tiles[tile*16+row*2+(col>>2)]>>((col&3)*4))&15; u16 px=fbs[yy*240+xx]; unsigned want=px==0?0:px==SH?2:1; bad+=got!=want; }
+      CHECK(bad==0,"%d wrong pixels in the tiles",bad); printf("  text layer: info lines up to %d characters, strip -> tiles exact\n",worst); }
     CHECK(khPalCur(0x0000)!=0&&khPalCur(0x7FFF)==0x7FFF,"the cursor palette lightens and never overflows");
     for(int c=0;c<32768;c+=37){ u16 v=khPalCur((u16)c); if((v&31)<(c&31)||((v>>5)&31)<((c>>5)&31)||((v>>10)&31)<((c>>10)&31)||v>0x7FFF){ CHECK(0,"palette %d",c); break; } }
     if(fails){ printf("kinghand: %d FAILURE(S)\n",fails); return 1; } printf("kinghand: ALL PASSED: 0 failure(s)\n"); return 0; }
