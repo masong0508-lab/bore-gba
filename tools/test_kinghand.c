@@ -22,10 +22,10 @@ static int viewBad(KView*V){ kvFull(V); int bad=0; for(int j=0;j<KV_H;j++) for(i
 int main(void){
     printf("== kinghand: building by hand\n");
     KHand K; khInit(&K); CHECK(K.mode==KHM_HAND,"starts on the hand");
-    for(int i=0;i<KHM_N;i++) khCycle(&K,1); CHECK(K.mode==KHM_HAND,"R cycles round"); khCycle(&K,-1); CHECK(K.mode==KHM_DEMO,"L from HAND is DEMOLISH"); khCycle(&K,1);
+    for(int i=0;i<KHM_N;i++) khCycle(&K,1); CHECK(K.mode==KHM_HAND,"R cycles round"); khCycle(&K,-1); CHECK(K.mode==KHM_NUBBIN,"L from HAND is NUBBIN"); khCycle(&K,1);
     CHECK(khCx(0)==15&&khCy(0)==10&&khCx(8*40-1)==(8*40+119)/8,"the cell under the middle of the screen");
-    CHECK(KHM_ROAD==1&&KHM_HUT==2&&KHM_STORE-KHM_HUT==KB_STORE&&KHM_DEMO==KS_NTYPES+2&&KHM_N==KS_NTYPES+3,"modes line up with the building types");
-    CHECK(KHR_N==11&&KHR_GOT>KHR_RAZED&&KHR_GOT<KHR_NOTHING,"result codes: the map-changing ones come first"); for(int r=0;r<KHR_N;r++) CHECK(r==0||(khMsg[r]&&khMsg[r][0]),"message for result %d",r);
+    CHECK(KHM_ROAD==1&&KHM_HUT==2&&KHM_STORE-KHM_HUT==KB_STORE&&KHM_DEMO==KS_NTYPES+2&&KHM_MOVE==KHM_DEMO+1&&KHM_NUBBIN==KHM_MOVE+1&&KHM_N==KS_NTYPES+5,"modes line up with the building types");
+    CHECK(KHR_N==29&&KHR_GOT>KHR_RAZED&&KHR_GOT<KHR_NOTHING&&khRedraw(KHR_RAZED)&&khRedraw(KHR_LIFT)&&khRedraw(KHR_SET)&&!khRedraw(KHR_GOT)&&!khRedraw(KHR_TAKE),"result codes: the map-changing ones come first"); for(int r=0;r<KHR_N;r++) CHECK(r==0||(khMsg[r]&&khMsg[r][0]),"message for result %d",r);
     for(int tier=0;tier<3;tier++){
         CHECK(fresh(tier,31u+(u32)tier)==KSE_OK,"init tier %d",tier); int d=S.dim; int x,y;
         KView V; kvInit(&V,S.cells,d,S.B,0); V.x=V.y=0; kvClamp(&V);
@@ -68,7 +68,7 @@ int main(void){
     // ---- the build menu lines ----
     { CHECK(fresh(0,5u)==KSE_OK,"init"); char b[64]; int worst=0; R.goods[G_WOOD]=12; R.goods[G_PLANKS]=0; R.goods[G_STONE]=70000;
       for(int m=0;m<KHM_N;m++){ khCost(b,&S,m); int n=(int)strlen(b); if(n>worst) worst=n; CHECK(n>0&&n<=40,"menu line %d is %d long: %s",m,n,b); }
-      khCost(b,&S,KHM_HAND); CHECK(strcmp(b,"HAND  GATHERS WOOD STONE CRYSTAL")==0,"%s",b); khCost(b,&S,KHM_ROAD); CHECK(strcmp(b,"ROAD  FREE")==0,"%s",b); khCost(b,&S,KHM_DEMO); CHECK(strcmp(b,"DEMOLISH  GOODS COME BACK")==0,"%s",b);
+      khCost(b,&S,KHM_HAND); CHECK(strcmp(b,"HAND  GATHER AND CARRY GOODS")==0,"%s",b); khCost(b,&S,KHM_ROAD); CHECK(strcmp(b,"ROAD  FREE")==0,"%s",b); khCost(b,&S,KHM_DEMO); CHECK(strcmp(b,"DEMOLISH  GOODS COME BACK")==0,"%s",b);
       khCost(b,&S,KHM_SAWMILL); CHECK(strcmp(b,"SAWMILL  4 WOOD  HAVE 12")==0,"%s",b); khCost(b,&S,KHM_MASON); CHECK(strcmp(b,"MASON  3 PLANKS  HAVE 0")==0,"%s",b);
       R.goods[G_WOOD]=65000; khCost(b,&S,KHM_HUT); CHECK(strcmp(b,"HUT  3 WOOD  HAVE 65000")==0,"%s",b);
       for(int m=KHM_HUT;m<KHM_DEMO;m++){ khCost(b,&S,m); const KsType*T=ksT(m-KHM_HUT); CHECK(strstr(b,khGood[T->costG])!=0,"good named for mode %d: %s",m,b); }
@@ -88,7 +88,7 @@ int main(void){
         { int wx,wy; KHand H; khInit(&H); if(findKind(KT_WATER,&wx,&wy)) CHECK(khAct(&H,&S,wx,wy)==KHR_NOGATHER,"water gives nothing"); }
         { KHand H; khInit(&H); CHECK(khAct(&H,&S,-1,3)==KHR_ARG&&khAct(&H,&S,3,d)==KHR_ARG,"off the realm"); }
         // a building's cell cannot be gathered (a site on a tree cell is impossible, but a finished woodcutter's own footprint is fine to test: bit 7 refuses)
-        { KHand H; K.mode=KHM_STORE; if(findKind(KT_GRASS,&x,&y)){ khAct(&K,&S,x,y); khInit(&H); CHECK(khAct(&H,&S,x,y)==KHR_NOGATHER,"a building is not gathered"); } }
+        { KHand H; K.mode=KHM_STORE; if(findKind(KT_GRASS,&x,&y)){ khAct(&K,&S,x,y); khInit(&H); CHECK(khAct(&H,&S,x,y)==KHR_NOLOAD,"a building is not gathered (an empty hand has nothing to take from a site)"); } }
         // the stockpile ceiling: a full stockpile loses the gift and the books know
         { KHand H; khInit(&H); R.giant=0; int fx=-1,fy=-1; for(int yy=2;yy<d-2&&fx<0;yy++) for(int xx=2;xx<d-2;xx++) if(S.cells[yy*d+xx]==KT_FOREST){ fx=xx; fy=yy; break; }
           if(fx>=0){ ksGift(&S,G_WOOD,KG_GOODMAX-1-R.goods[G_WOOD]); CHECK(R.goods[G_WOOD]==KG_GOODMAX-1,"setup"); CHECK(khAct(&H,&S,fx,fy)==KHR_GOT&&R.goods[G_WOOD]==KG_GOODMAX&&ksCheck(&S)==0,"ceiling: %d books %d",R.goods[G_WOOD],ksCheck(&S)); } }

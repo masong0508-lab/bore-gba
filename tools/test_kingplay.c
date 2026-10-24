@@ -69,7 +69,9 @@ int main(void){
         CHECK(m.R->nB==3,"nB %d",m.R->nB);
         for(long k=0;k<KS_DAYT*30;k++) ksStep(m.S);
         CHECK(ksCheck(m.S)==0,"ksCheck %d",ksCheck(m.S)); CHECK(m.B[1].lvl==1&&m.B[2].lvl==1,"huts not built (%d %d)",m.B[1].lvl,m.B[2].lvl); CHECK(m.R->day>=30,"day %u",m.R->day);
-        int s2=kpSave(&m,slot); CHECK(s2>=0,"kpSave %d",s2); CHECK(m.S->pop>0,"nobody lives here");
+        { m.S->hd.k=KHD_BLD; m.S->hd.bt=KB_HUT; CHECK(kpSave(&m,slot)==KP_E_HELD,"a lifted building must stop the save"); CHECK(m.S->hd.k==KHD_BLD,"the lifted building stays in the hand"); m.S->hd.k=KHD_NONE;
+          ksGift(m.S,G_WOOD,4); m.R->goods[G_WOOD]-=4; m.S->hd.k=KHD_GOODS; m.S->hd.g=G_WOOD; m.S->hd.n=4; CHECK(ksCheck(m.S)==0,"the books count the load in the hand (%d)",ksCheck(m.S)); }   // (step 4h: a load of goods goes home with the save)
+        int s2=kpSave(&m,slot); CHECK(s2>=0,"kpSave %d",s2); CHECK(m.S->pop>0,"nobody lives here"); CHECK(m.S->hd.k==KHD_NONE&&ksCheck(m.S)==0,"the load went home (%d)",ksCheck(m.S));
         u32 h1=hashState(&m); KRealm Rc=*m.R; long held[KG_GOODS]; for(int g=0;g<KG_GOODS;g++) held[g]=m.R->goods[g];
         KmMem m2; e=kpOpen(&m2,s2); CHECK(e==KP_OK,"reopen %d",e);
         CHECK(Rc.day==m2.R->day&&Rc.seed==m2.R->seed&&Rc.nB==m2.R->nB,"header differs after reopen");

@@ -4,11 +4,18 @@
 // NOTE (step 4c): main.c #defines W, D and H. No single capital letters as names here.
 #ifndef KINGHAND_H
 #define KINGHAND_H
-enum { KHM_HAND, KHM_ROAD, KHM_HUT, KHM_HOUSE, KHM_WOODCUT, KHM_QUARRY, KHM_SAWMILL, KHM_MASON, KHM_STORE, KHM_DEMO, KHM_N };   // KHM_HUT + building type = the building's mode; KHM_HAND (the first) gathers by hand
-enum { KHR_NONE, KHR_ROAD, KHR_UNROAD, KHR_SITE, KHR_RAZED, KHR_GOT, KHR_NOTHING, KHR_SPOT, KHR_FULL, KHR_ARG, KHR_NOGATHER, KHR_N };   // (KHR_ROAD to KHR_GOT: the map changed, redraw it)   // what an A press did
+enum { KHM_HAND, KHM_ROAD, KHM_HUT, KHM_HOUSE, KHM_WOODCUT, KHM_QUARRY, KHM_SAWMILL, KHM_MASON, KHM_STORE, KHM_DEMO, KHM_MOVE, KHM_NUBBIN, KHM_N };   // KHM_HUT + building type = the building's mode; KHM_HAND (the first) gathers by hand and carries goods (step 4h); MOVE lifts and puts down buildings; NUBBIN lifts and puts down Nubbins
+enum { KHR_NONE, KHR_ROAD, KHR_UNROAD, KHR_SITE, KHR_RAZED, KHR_GOT, KHR_NOTHING, KHR_SPOT, KHR_FULL, KHR_ARG, KHR_NOGATHER,
+             KHR_TAKE, KHR_GIVE, KHR_BACK, KHR_NOLOAD, KHR_NOWANT, KHR_REFUSE, KHR_ENOUGH, KHR_BUSY,                       // step 4h, goods: load taken, delivered, put back; nothing to carry; no one asks; not wanted here; has enough; hands full
+             KHR_LIFT, KHR_SET,                                                                                              // a building lifted, put down (the map changed, redraw it: khRedraw)
+             KHR_HEAD, KHR_SETTLE, KHR_NOBODY, KHR_HOMEFULL, KHR_STAFFED, KHR_LASTHAND, KHR_NOTYET, KHR_NOWORK, KHR_N };   // Nubbins: picked up, put down, none here, home full, already staffed, nobody left to carry, not built yet, no work for him there
+// (KHR_ROAD to KHR_RAZED, KHR_LIFT and KHR_SET: the map changed, redraw it. See khRedraw.)   // what an A press did
 typedef struct { int mode; } KHand;
-static const char* const khName[KHM_N]={ "HAND", "ROAD", "HUT", "HOUSE", "WOODCUTTER", "QUARRY", "SAWMILL", "MASON", "STOREHOUSE", "DEMOLISH" };
-static const char* const khMsg[KHR_N]={ "", "ROAD LAID", "ROAD LIFTED", "SITE PLACED", "DEMOLISHED", "GATHERED", "NOTHING HERE", "CANNOT BUILD HERE", "NO ROOM FOR MORE", "OUT OF THE REALM", "NOTHING TO GATHER" };
+static const char* const khName[KHM_N]={ "HAND", "ROAD", "HUT", "HOUSE", "WOODCUTTER", "QUARRY", "SAWMILL", "MASON", "STOREHOUSE", "DEMOLISH", "MOVE", "NUBBIN" };
+static const char* const khMsg[KHR_N]={ "", "ROAD LAID", "ROAD LIFTED", "SITE PLACED", "DEMOLISHED", "GATHERED", "NOTHING HERE", "CANNOT BUILD HERE", "NO ROOM FOR MORE", "OUT OF THE REALM", "NOTHING TO GATHER",
+    "LOAD TAKEN", "LOAD DELIVERED", "LOAD PUT BACK", "NOTHING TO CARRY HERE", "NO ONE WANTS GOODS", "NOT WANTED HERE", "ALREADY HAS ENOUGH", "YOUR HANDS ARE FULL",
+    "BUILDING LIFTED", "BUILDING PUT DOWN",
+    "NUBBIN PICKED UP", "NUBBIN PUT DOWN", "NO NUBBIN HERE", "HOME IS FULL", "ALREADY STAFFED", "NO ONE LEFT TO CARRY", "NOT BUILT YET", "NO WORK FOR HIM THERE" };
 static inline void khInit(KHand*B){ B->mode=KHM_HAND; }
 static inline void khCycle(KHand*B,int dir){ B->mode=(B->mode+(dir>0?1:KHM_N-1))%KHM_N; }
 // the cell under the middle of the screen, from the camera in pixels (the screen is 240 x 160: its middle is 120, 80)
@@ -18,6 +25,10 @@ static inline int khCy(int camy){ return (camy+80)>>3; }
 static inline int khBldAt(const KSim*S,int x,int y){
     for(int i=0;i<S->R->nB;i++){ const KBld*b=&S->B[i]; if(x>=b->x&&x<b->x+kgFootW(b->type)&&y>=b->y&&y<b->y+kgFootH(b->type)) return i; }
     return -1; }
+// (step 4h) pick up and put down: kinghold.h, included at the end of this file
+static inline int khGoods(KSim*S,int i,int x,int y,int giant);
+static inline int khHoldAct(KSim*S,int mode,int x,int y);
+static inline int khRedraw(int r){ return (r>=KHR_ROAD&&r<=KHR_RAZED)||r==KHR_LIFT||r==KHR_SET; }   // did this press change what the map shows (apart from KHR_GOT, one cell)?
 // ---- the giant (step 4g): its stats, and gathering by hand. The five giants of KRealm.giant: A the all-rounder, B the runner, C the lifter, D the builder, then your own Bore (average). [ASSUMED values, tune freely] ----
 static const unsigned char khStrideT[5]={ 3, 4, 2, 3, 3 };   // pixels a frame on the map (a Nubbin's worker is far slower)
 static const unsigned char khWorkT[5]={ 2, 2, 3, 2, 2 };     // goods one hand-gathered tree, rock or crystal gives (a woodcutter gives 1 and takes 90 frames)
@@ -34,7 +45,8 @@ static inline int khWork(KSim*S,int x,int y){
 // A pressed in a mode on cell (x,y). A building's top-left corner is the cursor cell. Returns a KHR_ code; the caller redraws the map when it is not a refusal.
 static inline int khAct(KHand*B,KSim*S,int x,int y){
     int d=S->dim; if(x<0||y<0||x>=d||y>=d) return KHR_ARG;
-    if(B->mode==KHM_HAND) return khWork(S,x,y);
+    if(B->mode==KHM_HAND){ int i=khBldAt(S,x,y); if(i>=0) return khGoods(S,i,x,y,S->R->giant); return khWork(S,x,y); }   // (step 4h: on a building the hand carries goods)
+    if(B->mode==KHM_MOVE||B->mode==KHM_NUBBIN) return khHoldAct(S,B->mode,x,y);
     if(B->mode==KHM_DEMO){ int i=khBldAt(S,x,y); if(i<0) return KHR_NOTHING; return ksDemolish(S,i)==KSE_OK?KHR_RAZED:KHR_ARG; }
     if(B->mode==KHM_ROAD){ int c=S->cells[y*d+x];
         if(c&KC_BLD) return KHR_SPOT;
@@ -65,6 +77,11 @@ static inline void khInfo(const KSim*S,int x,int y,char*out){   // out: at least
 static inline void khStatus(char*out,int mode,long day,int pop,int spd){   // "ROAD   DAY 12  NUBBINS 7  X4"
     char*e=khCat(out,khName[mode]); e=khCat(e,"   DAY "); e=khNum(e,day>99999?99999:day); e=khCat(e,"  NUBBINS "); e=khNum(e,pop); e=khCat(e,"  X"); khNum(e,spd==0?1:spd==1?4:16);
 }
+// the status line while the giant carries something: no speed, so it still fits ("STOREHOUSE  A STOREHOUSE  DAY 99999"); khHeld (kinghold.h) says what it holds
+static inline void khStatus2(char*out,int mode,long day,int pop,int spd,const char*held){
+    if(!held||!held[0]){ khStatus(out,mode,day,pop,spd); return; }
+    char*e=khCat(out,khName[mode]); e=khCat(e,"  "); e=khCat(e,held); e=khCat(e,"  DAY "); khNum(e,day>99999?99999:day);
+}
 // A strip of the screen (240 x 16 pixels of the game's 15 bit bitmap, row stride 240) as 60 tiles of 4 bits a pixel, 16 half words a tile, tile (tx,ty) at index ty*30+tx:
 // pixel 0 stays 0 (see through), the shadow colour becomes 2, anything else 1. A tile row is 8 pixels, low nibble first.
 #define KH_TILES 60
@@ -79,10 +96,13 @@ static inline void khStrip(const u16*fb,u16 shadow,u16*out){
 static const char* const khGood[8]={ "WOOD", "STONE", "WOOL", "CRYSTAL", "PLANKS", "CUT STONE", "CLOTH", "POLISHED" };
 static inline void khCost(char*out,const KSim*S,int mode){   // out: at least 48 bytes. "SAWMILL  4 WOOD  HAVE 12", "ROAD  FREE", "DEMOLISH  GOODS COME BACK"
     char*e=khCat(out,khName[mode]);
-    if(mode==KHM_HAND){ khCat(e,"  GATHERS WOOD STONE CRYSTAL"); return; }
+    if(mode==KHM_HAND){ khCat(e,"  GATHER AND CARRY GOODS"); return; }
+    if(mode==KHM_MOVE){ khCat(e,"  LIFT AND PUT DOWN  FREE"); return; }
+    if(mode==KHM_NUBBIN){ khCat(e,"  MOVE A RESIDENT OR WORKER"); return; }
     if(mode==KHM_ROAD){ khCat(e,"  FREE"); return; }
     if(mode==KHM_DEMO){ khCat(e,"  GOODS COME BACK"); return; }
     const KsType*T=ksT(mode-KHM_HUT); int g=T->costG<8?T->costG:0; long have=S->R->goods[g];
     e=khCat(e,"  "); e=khNum(e,T->costN); e=khCat(e," "); e=khCat(e,khGood[g]); e=khCat(e,"  HAVE "); khNum(e,have>99999?99999:have);
 }
+#include "kinghold.h"   // Phase 4h: pick up and put down (goods, buildings, Nubbins); needs kinglog.h before this file
 #endif

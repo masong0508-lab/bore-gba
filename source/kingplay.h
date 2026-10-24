@@ -3,13 +3,14 @@
 // settlement of a brand new realm) and kpRun (KINGDOM MODE > PLAY: runs the economy at three speeds, shows day / population / goods, saves or leaves from a menu).
 // STEP b: the MAP. PLAY opens on the realm drawn with the hardware tile background (kingview.h); the D-pad scrolls it, A switches to the status screen and back.
 // STEP g: the GIANT (kinggiant.h): the D-pad walks it (B held runs), the camera follows, A acts on the cell under its feet (HAND gathers, the other modes build), SELECT shows the status screen.
-// WHAT IS NOT: pick up and put down, the overview map.
+// STEP h: PICK UP AND PUT DOWN (kinghold.h): HAND carries goods, MOVE lifts buildings, NUBBIN lifts a resident or a worker. WHAT IS NOT: the overview map.
 // Needs before it: kingdom.h, kingslot.h, kingsim.h, kinglog.h, kingmem.h, house.h (hhPool, stgClaim, stgOk) and, unless KP_NOSCREEN, kingscreen.h's helpers.
 #define KP_OK      0
 #define KP_E_READ (-1)    // the realm could not be read from its slot
 #define KP_E_FIT  (-2)    // it does not fit the pool (never happens for the three sizes: tools/test_kingmem.c)
 #define KP_E_LOAD (-3)    // the save did not load (damaged, or newer than this game)
 #define KP_E_SIM  (-4)    // the simulation refused it (more than KS_MAXB buildings, too many road cells)
+#define KP_E_HELD (-40)   // (kpSave, step 4h) the giant has a building lifted: put it down before saving
 static const char* kpWhy(int e){ return e==KP_E_READ?"THIS REALM CANNOT BE READ":e==KP_E_FIT?"NOT ENOUGH MEMORY":e==KP_E_LOAD?"THIS REALM DID NOT LOAD":"THIS REALM IS TOO BIG TO RUN"; }
 // OPEN: the realm in `slot` is loaded and running-ready in the pool. Leaves the household's sprites let go (they bake again by themselves, house.h) whatever the result.
 static int kpOpen(KmMem*m,int slot){
@@ -24,6 +25,7 @@ static int kpOpen(KmMem*m,int slot){
 // SAVE: a fresh copy in the flash (kingslot.h; the old copy goes only when the new one reads back). ksPrepSave first: the carriers' goods go home and the maps are let go,
 // which is what frees the cache for the scratch. The realm keeps running afterwards. Returns the slot it now lives in (it MOVES), or a negative SLE_ error with the realm untouched.
 static int kpSave(KmMem*m,int slot){
+    if(ksHoldHome(m->S)) return KP_E_HELD;   // (step 4h: a load of goods goes back on the pile, a Nubbin home; a lifted building stops the save)
     int id=slI[slot].pid; ksPrepSave(m->S);
     return kgsSave(id,0,m->R,m->B,m->cells,m->sscr,m->sN,&id);
 }
@@ -72,7 +74,7 @@ static void khShow(const KView*V,int cx,int cy,int on){   // the cursor cell: it
     if(!V->ok||cx<V->tx0||cy<V->ty0||cx>=V->tx0+KV_W||cy>=V->ty0+KV_H) return;
     KV_PUT(cx&31,cy&31,on?(u16)(kvEntry(V,cx,cy)|0xF000):kvEntry(V,cx,cy)); }
 static void kpHud(const KSim*S,const KRealm*R,const KHand*h,int cx,int cy,int spd,const char*msg){   // draws the two lines in the bitmap (not shown in mode 0), makes tiles of them
-    char l1[64], l2[64]; khStatus(l1,h->mode,(long)R->day,S->pop,spd); if(msg) khCat(l2,msg); else khInfo(S,cx,cy,l2);
+    char l1[64], l2[64], hb[24]; khHeld(S,hb); khStatus2(l1,h->mode,(long)R->day,S->pop,spd,hb); if(msg) khCat(l2,msg); else khInfo(S,cx,cy,l2);
     rect(0,0,240,16,0); text(1,1,l1,KH_SHADOW,1); text(0,0,l1,GOLD,1); text(1,9,l2,KH_SHADOW,1); text(0,8,l2,WHITE,1);
     static u16 t[KH_TILES*16]; khStrip(fb,KH_SHADOW,t); volatile u16*vt=(volatile u16*)(0x06000000+KV_TILES*32); for(int i=0;i<KH_TILES*16;i++) vt[i]=t[i]; }
 static int kpDraw(const KmMem*m,const char*nm,int spd,u32 cnt){   // the status screen
@@ -106,7 +108,7 @@ static int kpRun(int slot){   // returns 0: the KINGDOM list should rescan (the 
             int ch=menu(nm,mn,6);
             if(ch==0){ char bl[KHM_N][48]; const char*bi[KHM_N]; for(int i=0;i<KHM_N;i++){ khCost(bl[i],m.S,i); bi[i]=bl[i]; } int c=menu("BUILD",bi,KHM_N); if(c>=0) hand.mode=c; }   // (A sets the mode, B backs out)
             else if(ch==1) spd=(spd+1)%3;                                          // (the speed moved here from SELECT: B is now RUN)
-            else if(ch==2||ch==3){ int s=kpSave(&m,slot); if(s>=0){ slot=s; toast("KINGDOM SAVED"); if(ch==2) return 0; } else toast(s==SLE_NOROOM?"NO ROOM  FREE A SLOT":slErrMsg(s)); }   // (a failed save never leaves: the realm in play is the only copy of its progress)
+            else if(ch==2||ch==3){ int s=kpSave(&m,slot); if(s>=0){ slot=s; toast("KINGDOM SAVED"); if(ch==2) return 0; } else toast(s==KP_E_HELD?"PUT THE BUILDING DOWN FIRST":s==SLE_NOROOM?"NO ROOM  FREE A SLOT":slErrMsg(s)); }   // (a failed save never leaves: the realm in play is the only copy of its progress)
             else if(ch==4){ static const char* const yn[2]={"YES  LEAVE","NO  KEEP PLAYING"}; if(menu("EVERYTHING SINCE THE LAST SAVE IS LOST",yn,2)==0) return 0; }
             prev=keyNow(); if(mapOn){ kvHwEnter(&V); hudD=1; ocx=-1; } else kpDraw(&m,nm,spd,cnt); continue; }
         if(mapOn){                                                                 // the map: the giant walks, the camera follows, what came into view is written, one row is refreshed
@@ -116,7 +118,7 @@ static int kpRun(int slot){   // returns 0: the KINGDOM list should rescan (the 
             kvSync(&V); kvRefreshRow(&V); kvScroll(&V); kgShow(&G,&V);
             int cx=kgCx(&G), cy=kgCy(&G); if(cx!=ocx||cy!=ocy){ khShow(&V,ocx,ocy,0); ocx=cx; ocy=cy; }
             if(pr&(K_L|K_R)){ khCycle(&hand,pr&K_R?1:-1); hudD=1; }
-            else if(pr&K_A){ int r=khAct(&hand,m.S,cx,cy); if(r==KHR_GOT) kvPoke(&V,cx,cy); else if(r>=KHR_ROAD&&r<=KHR_RAZED){ V.nB=m.R->nB; kvFull(&V); } hmsg=khMsg[r]; hudT=75; hudD=1; }   // (said in the text layer for 1.25 seconds)
+            else if(pr&K_A){ int r=khAct(&hand,m.S,cx,cy); if(r==KHR_GOT) kvPoke(&V,cx,cy); else if(khRedraw(r)){ V.nB=m.R->nB; kvFull(&V); } hmsg=khMsg[r]; hudT=75; hudD=1; }   // (said in the text layer for 1.25 seconds)
             if(hudT&&!--hudT){ hmsg=0; hudD=1; }
             if(cx!=hcx||cy!=hcy||!(cnt&63)){ hcx=cx; hcy=cy; hudD=1; }
             if(hudD){ hudD=0; kpHud(m.S,m.R,&hand,cx,cy,spd,hmsg); }

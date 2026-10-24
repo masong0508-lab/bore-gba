@@ -45,6 +45,8 @@ static const KsType KS_T[KS_NTYPES]={
 static inline const KsType*ksT(int type){ return &KS_T[type<KS_NTYPES?type:0]; }
 
 typedef struct { u16 cell; u8 st, src, dst, good, md; u16 stall; } KsWk;   // a carrier (kinglog.h): st 0 free, 1 walking with a good
+enum { KHD_NONE, KHD_GOODS, KHD_BLD, KHD_NUB };   // (step 4h) what the giant carries: nothing, goods, a lifted building, a Nubbin
+typedef struct { u8 k, g, n, bt, bl, bw; } KHold;   // the giant's hold, ONE thing at a time. goods: g the good, n how many. building: bt type, bl level, bw workers or residents. Nubbin: bt 1 a resident, 0 a worker. Never saved (kpSave sends it home first)
 typedef struct {
     KRealm*R; KBld*B; u8*cells; int dim;
     u32 t, delivered, timeouts, aborts, mrr;
@@ -55,6 +57,7 @@ typedef struct {
     u8 mapB[KS_MAPS], mapReady[KS_MAPS], mapRef[KS_MAPS]; u32 mapUse[KS_MAPS];   // kinglog.h: a distance map is for one building
     KsWk wk[KS_MAXW];
     u32 opMatch, opWalk, opBfs, opSearch, opProd;   // work counters (the PC test turns them into cycles)
+    KHold hd;                                       // (step 4h) what the giant carries: goods in it are still the realm's goods, so ksHeld counts them
     u8 dist[KS_MAPS][KS_MAXN]; u16 queue[KS_MAXN];   // KEEP THESE TWO LAST (step 4a): they are only a cache, rebuilt by ksBfs, and once ksPrepSave has run they are free for kingmem.h's save scratch
 } KSim;
 
@@ -89,9 +92,18 @@ static inline long ksHeld(const KSim*S,int g){   // everything that exists of a 
         if(!b->lvl){ if(T->costG==g) v+=ksIn(b); continue; }
         if((T->kind==KK_GATHER||T->kind==KK_PROC)&&T->outG==g) v+=ksOut(b);
         if(T->kind==KK_PROC&&T->inG==g) v+=ksIn(b); }
+    if(S->hd.k==KHD_GOODS&&S->hd.g==g) v+=S->hd.n;   // (the giant's load)
     return v+ksCarried(S,g);
 }
 static inline int ksLedger(const KSim*S){ for(int g=0;g<KG_GOODS;g++) if(ksHeld(S,g)!=S->made[g]) return 1+g; return 0; }
+// (step 4h) before a save: what the giant carries goes home. Goods go back on the pile, a resident moves into a home with room (none free: he is simply not counted, new Nubbins move in daily),
+// a worker is just a free Nubbin again. A lifted BUILDING cannot be sent home: returns 1 and keeps it (the save is refused until it is put down). Returns 0 otherwise.
+static inline int ksHoldHome(KSim*S){
+    KHold*h=&S->hd; if(h->k==KHD_BLD) return 1;
+    if(h->k==KHD_GOODS) ksPool(S,h->g,h->n);
+    else if(h->k==KHD_NUB&&h->bt){ for(int i=0;i<S->R->nB;i++){ KBld*b=&S->B[i]; const KsType*T=ksT(b->type); if(b->lvl&&T->kind==KK_HOME&&b->work<T->house){ b->work++; break; } } ksCensus(S); }
+    __builtin_memset(h,0,sizeof *h); return 0;
+}
 
 // ---- road cells ----
 static inline void ksNodeBuild(KSim*S){ int n=S->dim*S->dim, k=0; for(int c=0;c<n;c++) if(S->cells[c]==KT_ROAD&&k<KS_MAXN) S->nodeCell[k++]=(u16)c; S->nN=k; }
