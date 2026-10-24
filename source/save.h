@@ -55,6 +55,36 @@ static int svWr(u32 off,int v){   // 1 = written. Flash: off must be erased, or 
     return 1;
 }
 static int svEraseSec(u32 off){ svBankTo((int)(off>>16)); if(!flEraseRaw((int)(off&0xF000))){ svErr=1; return 0; } return 1; }
+// THE SCRATCH JOURNAL. While a sector is erased and its other half copied back, that half lives ONLY in the scratch sector: a power cut then used to lose it
+// (a neighbouring save, whatever it was). So once the parked copy is whole, svJWrite programs a 10 byte journal into the scratch sector at the bytes that stand
+// for the erased range (they are 0xFF there: only the kept half is copied): 'J' 'R', the sector number (2 bytes), where the erased range starts and ends inside
+// the sector (2 + 2), two check bytes. svErase voids it ('J' goes to 0) when the copy back is finished. svRecover (every start, after svInit knows the chip)
+// finds a live journal, checks it hard (the checks, and that the whole erased range of the scratch sector really is blank), and does the erase and the copy
+// back again: it is the same work on the same data, so it can be repeated after any cut. Only sectors above the RAM copy of sector 1 are journalled.
+#define SV_JN 10
+static int svJWrite(u32 s,u32 a,u32 b){   // the journal's place in the scratch sector, or -1 (not journalled: the range is too small, or sector 1)
+    if(s<SV_LOW0+SV_LOWN||b-a<SV_JN) return -1;
+    u32 p=a-s, n=s/SV_SEC; u8 d[SV_JN]={'J','R',(u8)n,(u8)(n>>8),(u8)p,(u8)(p>>8),(u8)(b-s),(u8)((b-s)>>8),0,0}; u8 x=0x5A,y=0;
+    for(int k=0;k<8;k++){ x^=d[k]; y=(u8)(y+d[k]); } d[8]=x; d[9]=y;
+    for(int k=2;k<SV_JN;k++) svWr(svScr+p+(u32)k,d[k]);
+    svWr(svScr+p,d[0]); svWr(svScr+p+1,d[1]);                  // (the magic goes in last)
+    return (int)p;
+}
+static void svRecover(void){
+    if(svType!=SV_FLASH) return;
+    for(u32 p=0;p+SV_JN<=SV_SEC;p++){
+        if(svChip(svScr+p)!='J'||svChip(svScr+p+1)!='R') continue;
+        u8 d[SV_JN]; for(int k=0;k<SV_JN;k++) d[k]=svChip(svScr+p+(u32)k);
+        u8 x=0x5A,y=0; for(int k=0;k<8;k++){ x^=d[k]; y=(u8)(y+d[k]); } if(d[8]!=x||d[9]!=y) continue;
+        u32 s=(u32)(d[2]|(d[3]<<8))*SV_SEC, a=(u32)(d[4]|(d[5]<<8)), b=(u32)(d[6]|(d[7]<<8));
+        if(a!=p||b>SV_SEC||b-a<SV_JN||s<SV_LOW0+SV_LOWN||s+SV_SEC>svScr) continue;
+        int blank=1; for(u32 i=a+SV_JN;i<b;i++) if(svChip(svScr+i)!=0xFF){ blank=0; break; }
+        if(!blank) continue;                                   // (not a journal: some data that looks like one)
+        svEraseSec(s);
+        for(u32 i=0;i<SV_SEC;i++){ if(i>=a&&i<b) continue; int v=svChip(svScr+i); if(v!=0xFF) svWr(s+i,v); }
+        svWr(svScr+p,0); return;
+    }
+}
 // Make off..off+len-1 read 0xFF. Whatever else shares a sector with it is kept (copied to the scratch sector and back).
 static void svErase(u32 off,u32 len){
     if(svType!=SV_FLASH){ for(u32 i=0;i<len&&off+i<32768;i++) svWr(off+i,0xFF); return; }
@@ -65,8 +95,10 @@ static void svErase(u32 off,u32 len){
         if(!dirty) continue;                                   // already blank
         for(u32 i=s;i<s+SV_SEC;i++) if((i<a||i>=b)&&svChip(i)!=0xFF){ keep=1; break; }
         if(keep){ svEraseSec(svScr); for(u32 i=0;i<SV_SEC;i++){ u32 p=s+i; if(p>=a&&p<b) continue; int v=svChip(p); if(v!=0xFF) svWr(svScr+i,v); } }
+        int jp=keep?svJWrite(s,a,b):-1;                        // (the parked copy is whole: say so, so a power cut from here on is undone at the next start, svRecover)
         svEraseSec(s);
         if(keep) for(u32 i=0;i<SV_SEC;i++){ u32 p=s+i; if(p>=a&&p<b) continue; int v=svChip(svScr+i); if(v!=0xFF) svWr(p,v); }
+        if(jp>=0) svWr(svScr+(u32)jp,0);                       // (done: the journal is void, the scratch copy is stale from now on)
     }
 }
 static void svShadLoad(void){ int ob=svBank; svBankTo(0); u8*d=(u8*)svShad; for(u32 i=0;i<SV_LOWN;i++) d[i]=SVB[SV_LOW0+i]; svBankTo(ob); }
@@ -126,5 +158,6 @@ static void svInit(void){
     for(u32 i=0;i<SV_LOWN;i++) svLow[i]=SVB[SV_LOW0+i];
     svShadLoad();
     svBase=svLow-SV_LOW0;
+    svRecover();   // a power cut in the middle of svErase: put the parked half back
 }
 static const char* svName(void){ return svType!=SV_FLASH?"32 KB SRAM":svSize>65536?"128 KB FLASH":"64 KB FLASH"; }
