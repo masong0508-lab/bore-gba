@@ -7,6 +7,7 @@
 //                                      chapters, each on its own arena (arena.h). After the five: waves (horde.h), on your lot or any arena
 //   3 WORLD WAR BORE                  10 missions    the Eastern Army cut down your hedge: enlistment, boot camp, requisitions, a front line on your lawn
 //   4 BORTUA FIGHTER                   5 missions + ARCADE MODE: challengers want a fight, the DOJO, the cabinet at the arcade
+//   6 THE LAND BOREFORE TIME          3 placeholder missions so far (EP6, docs/EP6_STEP1.md): a giant in a land of tiny folk; the kingdom builder comes in later phases
 //   7 BOREagotchi!                    15 missions + THE HANDHELD: a pixel blob on a keychain, and the real pets
 //   8 BOREpilogue                     20 missions    grown-ups only: retire, remember, settle scores, leave a legacy
 // A MISSION is a scene like a story chapter: a title, two lines of what is going on, up to three TASKS that tick off in any order, a SCENARIO
@@ -36,7 +37,7 @@
 #define GO_OFF  7502   // gotchi.h (up to 7551: the board block is at 7552, board.h)
 _Static_assert(GO_OFF+50<=BD_OFF,"the handheld's block runs into the board block");
 _Static_assert(WD_OFF+WD_LEN<=EX_OFF&&EX_OFF+EX_LEN<=EXD_OFF&&EXD_OFF+EXD_LEN<=BF_OFF&&BF_OFF+8<=GO_OFF&&GO_OFF<LG_OFF,"the expansion blocks sit between the stash and the life stats");
-enum { XP_SPACE, XP_ZOMB, XP_WAR, XP_FIGHT, XP_GOTCHI, XP_EPI, XP_BASE, XP_N };   // (XP_BASE last: the saved pack numbers stay valid; the shelf shows it first)
+enum { XP_SPACE, XP_ZOMB, XP_WAR, XP_FIGHT, XP_GOTCHI, XP_EPI, XP_BASE, XP_KING, XP_N };   // (XP_BASE stays 6 so the saved pack numbers stay valid; XP_KING, EP6, comes after it: its ROM slot is number 6 (XP_AT6), its pack number 7)
 // EXPANSION PACKS AS PATCHES. The base game (bore.gba) ships without the six packs: each is a BPS patch (packs/, tools/make_packs.py) that fills
 // its own fixed slot at the top of the ROM (packslots.h, GENERATED: its header first, then its code, its mission table and its data,
 // tools/bore.ld + tools/packs.ld). A pack is there when its header is (xpHave). Every slot ends with four bytes that keep the whole ROM's CRC32
@@ -46,14 +47,15 @@ enum { XP_SPACE, XP_ZOMB, XP_WAR, XP_FIGHT, XP_GOTCHI, XP_EPI, XP_BASE, XP_N }; 
 enum { XS_NONE, XS_SOON, XS_ZOMB, XS_WAR, XS_ARENA, XS_PUDDLE, XS_GHOST, XS_GRANT, XS_RAMPS, XS_PARTY, XS_BILLS, XS_SEEDS };
 enum { XMODE_NONE, XMODE_FIGHTER, XMODE_GOTCHI, XMODE_HORDE };
 typedef struct { u32 magic, pack, ver, slot; } XpHd;   // the first 16 bytes of a pack's slot
-#define XP_HD(n) static const XpHd xpHd##n __attribute__((section(".xphd" #n),used))={XP_MAGIC,n,1,XP_AT##n}; \
+#define XP_HD(n) XP_HD2(n,n)   // (a slot's number is its pack's number, except EP6: slot 6, pack XP_KING)
+#define XP_HD2(n,pk) static const XpHd xpHd##n __attribute__((section(".xphd" #n),used))={XP_MAGIC,pk,1,XP_AT##n}; \
                  static const u32 xpCp##n __attribute__((section(".xpc" #n),used))=0xFFFFFFFFu;   // (the slot's last word: make_packs.py sets it so the slot leaves the CRC32 alone)
-XP_HD(0) XP_HD(1) XP_HD(2) XP_HD(3) XP_HD(4) XP_HD(5)
+XP_HD(0) XP_HD(1) XP_HD(2) XP_HD(3) XP_HD(4) XP_HD(5) XP_HD2(6,XP_KING)
 static int xpHave(int p){   // is pack p in this ROM? (the base game's own missions always are)
-    if(p==XP_BASE) return 1; if(p<0||p>XP_BASE) return 0;
-    static const u32 at[6]={XP_AT0,XP_AT1,XP_AT2,XP_AT3,XP_AT4,XP_AT5};
+    if(p==XP_BASE) return 1; if(p<0||p>=XP_N) return 0;
+    static const u32 at[XP_N]={XP_AT0,XP_AT1,XP_AT2,XP_AT3,XP_AT4,XP_AT5,0,XP_AT6};   // (by pack number; the base game, 6, has no slot)
     const volatile u32*h=(const volatile u32*)at[p]; return h[0]==XP_MAGIC&&h[1]==(u32)p; }
-static const char* const xpFile[6]={"BORE-EP1-BORE-OUT-MAN.BPS","BORE-EP2-BOREZIES.BPS","BORE-EP3-WORLD-WAR-BORE.BPS","BORE-EP4-BORTUA-FIGHTER.BPS","BORE-EP7-BOREAGOTCHI.BPS","BORE-EP8-BOREPILOGUE.BPS"};
+static const char* const xpFile[XP_N]={"BORE-EP1-BORE-OUT-MAN.BPS","BORE-EP2-BOREZIES.BPS","BORE-EP3-WORLD-WAR-BORE.BPS","BORE-EP4-BORTUA-FIGHTER.BPS","BORE-EP7-BOREAGOTCHI.BPS","BORE-EP8-BOREPILOGUE.BPS","","BORE-EP6-BOREFORE-TIME.BPS"};
 // task kinds the packs add to story.h's (QK_EV, QK_AT ... QK_FREE)
 enum { QK_PETS=QK_FREE+1, QK_PLOVE, QK_PTRICKS, QK_POTTY, QK_STAGE, QK_CNT, QK_DAYS, QK_SECURE, QK_HAPPY, QK_BFW, QK_BFCHAMP, QK_GOTCHI,
        QK_DO, QK_SOC, QK_PETDO, QK_GDO };   // the last four tick on an event that names one thing (a venue action, a social, a pet action, a handheld action)
@@ -424,6 +426,18 @@ static const XMs xmBase[]={
   XM("THE GREEN THUMB","A package of seeds arrived in the mail with no note. Grown-ups only.","Plant them, harvest the crop, and sell it the legal way.",XS_SEEDS,15,
      TE(QE_HARVEST,1,"HARVEST A PLANT"),TA(CT_DISP,"GO TO THE DISPENSARY"),TE(QE_SOLD,1,"SELL SOME OF IT")),
 };
+// ---- 6 THE LAND BOREFORE TIME (EP6, step 1: the empty pack) ----
+// You are a giant in a land of tiny folk. Three PLACEHOLDER missions so far: they open and close, and pay a little, so the pack can be
+// patched, shelved, started and finished like the others. The kingdom builder (docs EP6 roadmap, Phase 2 on) comes later.
+// (The done bits hold 64: the five older packs use 0 to 59, this one 60 to 63. See the _Static_assert below and docs/EP6_STEP1.md.)
+static const XMs xmKing[]={
+  XM("BIG FEET, SMALL FIELD","You wake up enormous in a muddy field, with a very small crowd looking up at you and clearing their throats.","Say hello with a hug, tell a joke, and get your head around being this tall.",XS_NONE,20,
+     TS(SC_HUG,"SAY HELLO WITH A HUG"),TE(SE_LAUGH,1,"TELL A JOKE")),
+  XM("TIMBER!","The little folk need wood, and you are, to be fair, a walking forest management plan.","Put in a shift of honest work, then hit the library to study the plans for the first buildings.",XS_NONE,25,
+     TE(SE_SHIFT,1,"WORK A SHIFT"),TD(VA_STUDY,"STUDY THE PLANS")),
+  XM("THE FIRST OF MANY","That is all the kingdom there is for now: the real thing is still being built.","Head home, and have someone over to celebrate a very small beginning.",XS_NONE,30,
+     {QK_HOME,0,0,"GET BACK HOME"},{QK_GUEST,0,0,"HAVE SOMEONE OVER"}),
+};
 #undef XM
 #undef XSOON
 #undef TA
@@ -443,14 +457,16 @@ static const XPk xPk[XP_N]={
   {"BOREAGOTCHI!","IT NEEDS YOU  CONSTANTLY",{"A PIXEL BLOB ON A KEYCHAIN","AND REAL PETS WHO ARE","JEALOUS  PLUS THE HANDHELD"},xmGotchi,XN(xmGotchi),7,XMODE_GOTCHI,0,RGB(14,3,12),RGB(31,20,27),"THE HANDHELD"},
   {"BOREPILOGUE","THE LAST CHAPTER",{"RETIRE  REMINISCE  SETTLE","OLD SCORES AND LEAVE A","LEGACY  GROWN-UPS ONLY"},xmEpi,XN(xmEpi),8,XMODE_NONE,1,RGB(7,5,10),RGB(25,22,29),0},
   {"BORE","THE BASE GAME  TEN MISSIONS",{"ONE MISSION FOR EACH THING","THE GAME DOES  BUILD  SKATE","LOVE  WORK  FIGHT  GROW"},xmBase,XN(xmBase),0,XMODE_NONE,0,RGB(3,6,12),RGB(31,26,6),0},
+  {"BOREFORE TIME","A GIANT AMONG THE SMALL",{"BE A GIANT IN A LAND OF TINY","FOLK  GATHER  HAUL  BUILD","A CASTLE FIT FOR A KING"},xmKing,XN(xmKing),6,XMODE_NONE,0,RGB(3,10,4),RGB(20,30,12),0},
 };
-static const u8 xpBase[XP_N]={0,5,10,20,25,40,0};   // where each pack's missions start in the done bits (the base game has its own block: BM_OFF)
-#define EX_SHELF (XP_N-1)   // the shelf lists the six packs; the base game's ten missions are in story mode (pause menu > STORY > STORY MISSIONS)
-static const u8 exOrd[EX_SHELF]={XP_SPACE,XP_ZOMB,XP_WAR,XP_FIGHT,XP_GOTCHI,XP_EPI};   // the shelf's order
-_Static_assert(XN(xmSpace)==5&&XN(xmZomb)==5&&XN(xmWar)==10&&XN(xmFight)==5&&XN(xmGotchi)==15&&XN(xmEpi)==20&&XN(xmBase)==10,"the packs have 5, 5, 10, 5, 15, 20 and 10 missions");
+static const u8 xpBase[XP_N]={0,5,10,20,25,40,0,60};   // where each pack's missions start in the done bits (the base game has its own block: BM_OFF)
+#define EX_SHELF (XP_N-1)   // the shelf lists the seven packs; the base game's ten missions are in story mode (pause menu > STORY > STORY MISSIONS)
+static const u8 exOrd[EX_SHELF]={XP_SPACE,XP_ZOMB,XP_WAR,XP_FIGHT,XP_KING,XP_GOTCHI,XP_EPI};   // the shelf's order
+_Static_assert(XN(xmSpace)==5&&XN(xmZomb)==5&&XN(xmWar)==10&&XN(xmFight)==5&&XN(xmGotchi)==15&&XN(xmEpi)==20&&XN(xmBase)==10&&XN(xmKing)==3,"the packs have 5, 5, 10, 5, 15, 20, 10 and 3 missions");
 #define BM_OFF 7556   // SRAM: the base game's missions done ('M', ten bits in two bytes, checksum)
 _Static_assert(BD_OFF+4<=BM_OFF&&BM_OFF+4<=LG_OFF,"the base missions' block sits between the board block and the life stats");
 _Static_assert(40+20<=64,"the done bits (8 bytes) are full");
+_Static_assert(60+XN(xmKing)<=64,"EP6 has only done bits 60 to 63: more than four missions need a bigger done block (EXD_LEN, docs/EP6_STEP1.md)");
 #undef XN
 // ---- state ----
 static u8 exP, exM, exTk, exCnt, exDay=255;   // exP: pack + 1 (0: no mission), the mission, its tasks done (bits 0-2; bit 7: someone came over), its counter, the day it began
@@ -849,7 +865,8 @@ static void exIcon(int p,int x,int y,int sc,u16 c){   // a picture per pack (9 x
       {"..XXXX...",".XXXXXX..",".XXXXXXX.","XXXXXXXX.","XXXXXXXX.",".XXXXXX..","..XXXX...","..XXXX..."},
       {"...XXX...","..XXXXX..",".XX.X.XX.",".XXXXXXX.","XX.XXX.XX","XXXXXXXXX",".XXXXXXX.","..XXXXX.."},
       {"XXXXXXXXX",".X.....X.","..X...X..","...XXX...","...X.X...","..X...X..",".XXXXXXX.","XXXXXXXXX"},
-      {"....X....","...XXX...","..XXXXX..",".XXXXXXX.","XXXXXXXXX",".XXX.XXX.",".XXX.XXX.",".XXX.XXX."}};   // (the base game: a house)
+      {"....X....","...XXX...","..XXXXX..",".XXXXXXX.","XXXXXXXXX",".XXX.XXX.",".XXX.XXX.",".XXX.XXX."},
+      {"X.X.X.X.X","XXXXXXXXX","XXXXXXXXX",".XXXXXXX.",".XX.X.XX.",".XXXXXXX.",".XXX.XXX.",".XXX.XXX."}};   // (the base game: a house; EP6: a castle)
     for(int r=0;r<8;r++) for(int q=0;q<9;q++) if(pic[p][r][q]=='X') rect(x+q*sc,y+r*sc,sc,sc,c);
 }
 static u16 exMix(u16 a,u16 b,int t){ int r=(a&31)+(((b&31)-(a&31))*t>>4), g=((a>>5)&31)+((((b>>5)&31)-((a>>5)&31))*t>>4), bb=((a>>10)&31)+((((b>>10)&31)-((a>>10)&31))*t>>4); return RGB(r,g,bb); }
@@ -943,7 +960,7 @@ static void exShelf(int ingame){
         if(!dirty){ vsync(); continue; }
         dirty=0;
         stBack("EXPANSION PACKS",(int)cnt);
-        for(int i=0;i<EX_SHELF;i++){ int on=i==sel; exCover(exOrd[i],25+i*32,on?20:25,30,on?62:56,on); }
+        for(int i=0;i<EX_SHELF;i++){ int on=i==sel; exCover(exOrd[i],9+i*32,on?20:25,30,on?62:56,on); }
         const XPk*P=&xPk[exOrd[sel]];
         s2rr(8,88,224,54,RGB(10,20,30)); s2rr(9,89,222,52,RGB(2,6,13));
         text(48,93,P->nm,GOLD,1); text(48,102,P->sub,RGB(17,29,31),1);

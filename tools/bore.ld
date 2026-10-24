@@ -53,7 +53,7 @@ ENTRY(_start)
 MEMORY {
 
 	rom	: ORIGIN = 0x08000000, LENGTH = 0x1800000   /* BORE: the base game (24.00 MB: everything below the first pack slot) */
-	xprom	: ORIGIN = 0x09800000, LENGTH = 0x2A0000    /* BORE: the expansion packs' slots (tools/packs.ld, source/packslots.h) */
+	xprom	: ORIGIN = 0x09800000, LENGTH = 0x360000    /* BORE: the expansion packs' slots (tools/packs.ld, source/packslots.h) */
 	iwram	: ORIGIN = 0x03000000, LENGTH = 32K
 	ewram	: ORIGIN = 0x02000000, LENGTH = 256K
 }
