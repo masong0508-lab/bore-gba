@@ -22,7 +22,7 @@ static u8 cells[128*128], cells2[128*128];
 static KRealm R, R2; static KBld B[KG_MAXB], B2[KG_MAXB];
 
 static void scenario(int tier,int bld,int roads,int cleared){   // a realm as a player might have built it
-    int d=kgDim(tier); memset(&R,0,sizeof R); R.tier=(u8)tier; R.giant=(u8)(rnd()%KG_GIANTS); R.castle=(u8)(rnd()%5); R.genVer=KG_GENVER; R.seed=rnd(); R.day=rnd()%100000; R.rng=rnd();
+    int d=kgDim(tier); memset(&R,0,sizeof R); R.tier=(u8)tier; R.giant=(u8)(rnd()%KG_GIANTS); R.castle=(u8)(rnd()%5); R.genVer=KG_GENVER; R.seed=rnd(); R.day=rnd()%100000; R.rng=rnd(); R.gx=(u8)(rnd()%5==0?KG_NOPOS:(int)(rnd()%(unsigned)d)); R.gy=(u8)(R.gx==KG_NOPOS?KG_NOPOS:(int)(rnd()%(unsigned)d));
     for(int i=0;i<KG_GOODS;i++) R.goods[i]=(u16)(rnd()%2000);
     kgGen(cells,R.seed,tier);
     for(int k=0;k<cleared;k+=12){ int cx=(int)(rnd()%d), cy=(int)(rnd()%d); for(int j=-2;j<=2;j++)for(int i=-2;i<=2;i++){ int x=cx+i,y=cy+j; if(x<0||y<0||x>=d||y>=d) continue; int t=cells[y*d+x]&7; if(t==KT_FOREST||t==KT_ROCK||t==KT_CRYSTAL||t==KT_MEADOW) cells[y*d+x]=KT_GRASS; } }
@@ -31,7 +31,7 @@ static void scenario(int tier,int bld,int roads,int cleared){   // a realm as a 
     kgStamp(cells,tier,B,bld);
 }
 static int same(void){   // R,B,cells == R2,B2,cells2 (field by field: the structs have padding bytes nobody sets)
-    if(R.tier!=R2.tier||R.giant!=R2.giant||R.castle!=R2.castle||R.genVer!=R2.genVer||R.flags!=R2.flags||R.seed!=R2.seed||R.day!=R2.day||R.rng!=R2.rng||R.nB!=R2.nB) return 0;
+    if(R.tier!=R2.tier||R.giant!=R2.giant||R.castle!=R2.castle||R.genVer!=R2.genVer||R.flags!=R2.flags||R.seed!=R2.seed||R.day!=R2.day||R.rng!=R2.rng||R.nB!=R2.nB||R.gx!=R2.gx||R.gy!=R2.gy) return 0;
     for(int i=0;i<KG_GOODS;i++) if(R.goods[i]!=R2.goods[i]) return 0;
     for(int i=0;i<R.nB;i++) if(B[i].type!=B2[i].type||B[i].x!=B2[i].x||B[i].y!=B2[i].y||B[i].lvl!=B2[i].lvl||B[i].work!=B2[i].work||B[i].stock!=B2[i].stock) return 0;
     return memcmp(cells,cells2,kgCells(R.tier))==0;

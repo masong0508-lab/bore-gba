@@ -51,7 +51,7 @@ static int kgsHeal(int id){
 // what a realm is, without loading it: reads the header bytes of its payload. 1 = ok. (the KINGDOM screen's list rows)
 static int kgsPeek(int slot,int*tier,int*giant,int*castle,u32*day){
     SlInfo I; if(!slInfo(slot,&I)||I.kind!=SLK_KING||I.len<KGS_PRE+KG_HDR+2) return 0;
-    volatile u8*p=SLB(slot)+SLOT_HDR+KGS_PRE; if(p[0]!=KG_FMT) return 0;
+    volatile u8*p=SLB(slot)+SLOT_HDR+KGS_PRE; if(p[0]!=KG_FMT&&p[0]!=KG_FMT1) return 0;
     if(tier){ *tier=p[2]; }
     if(giant){ *giant=p[3]; }
     if(castle){ *castle=p[4]; }

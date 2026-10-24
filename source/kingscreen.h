@@ -41,7 +41,7 @@ static int ksFound(void){
     int t=menu("HOW BIG IS THE LAND",ti,ksTiers()); if(t<0) return -1;
     char nm[SLOT_NAME+1]; slNameN(nm,"REALM ",ksN+1);
     if(!slEditName(nm)) return -1;
-    KRealm R; R.tier=(u8)t; R.giant=(u8)g; R.castle=0; R.genVer=KG_GENVER; R.flags=0; R.day=0; R.nB=0;
+    KRealm R; R.tier=(u8)t; R.giant=(u8)g; R.castle=0; R.genVer=KG_GENVER; R.flags=0; R.day=0; R.nB=0; R.gx=KG_NOPOS; R.gy=KG_NOPOS;
     lrng^=((u32)R_TM2D<<8^uiTicks)*2654435761u;                                  // (how long you sat in the menus stirs the seed)
     R.seed=0; for(int i=0;i<4;i++) R.seed=(R.seed<<8)|(u32)rnd8();
     R.rng=0; for(int i=0;i<4;i++) R.rng=(R.rng<<8)|(u32)rnd8(); if(!R.rng) R.rng=1;

@@ -54,7 +54,7 @@ static Snap SA, SB, SC;
 static void take(Snap*s){ s->R=R; memcpy(s->B,B,sizeof B); memcpy(s->cells,cells,sizeof cells); }
 static void give(const Snap*s){ R=s->R; memcpy(B,s->B,sizeof B); memcpy(cells,s->cells,sizeof cells); }
 static int sameAs(const Snap*s){   // the realm just loaded into R2,B2,cells2 is this snapshot
-    const KRealm*a=&s->R; if(a->tier!=R2.tier||a->giant!=R2.giant||a->castle!=R2.castle||a->seed!=R2.seed||a->day!=R2.day||a->rng!=R2.rng||a->nB!=R2.nB||a->flags!=R2.flags) return 0;
+    const KRealm*a=&s->R; if(a->tier!=R2.tier||a->giant!=R2.giant||a->castle!=R2.castle||a->seed!=R2.seed||a->day!=R2.day||a->rng!=R2.rng||a->nB!=R2.nB||a->flags!=R2.flags||a->gx!=R2.gx||a->gy!=R2.gy) return 0;
     for(int i=0;i<KG_GOODS;i++) if(a->goods[i]!=R2.goods[i]) return 0;
     for(int i=0;i<a->nB;i++) if(s->B[i].type!=B2[i].type||s->B[i].x!=B2[i].x||s->B[i].y!=B2[i].y||s->B[i].lvl!=B2[i].lvl||s->B[i].work!=B2[i].work||s->B[i].stock!=B2[i].stock) return 0;
     return memcmp(s->cells,cells2,kgCells(a->tier))==0;

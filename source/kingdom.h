@@ -17,9 +17,13 @@
 //    0 fmt(1)  1 genVer(1)  2 tier(1: 0 hamlet 48, 1 realm 96, 2 kingdom 128)  3 giant(1: 0..3 the four, 4 your own Bore)  4 castle stage(1: 0..4)
 //    5 flags(1, 0 now)  6..9 seed  10..13 day  14..17 random state  18..33 goods (8 x u16)  34..35 building count  then the buildings
 //    (type, x, y, level, workers, stock u16)  then the edit run count (u16) and the runs (gap varint, length-1 varint, value)  then a Fletcher-16 of all of it.
+// FORMAT 2 (step 4j, the giant's position): the same, with two bytes after the building count: gx, gy (36, 37), the cell the giant stood on when the realm was saved,
+//    or 255 (KG_NOPOS) for none. Format 1 saves (made before 4j) still load, with no position; the next save of them is format 2. A format 1 reader cannot read a format 2 save.
 // Needs before it: u8, u16, u32 (main.c, or the test's own).
 
-#define KG_FMT      1
+#define KG_FMT      2          // (format 1, before step 4j, is still read: KG_FMT1)
+#define KG_FMT1     1
+#define KG_NOPOS    255        // gx, gy: no saved position for the giant
 #define KG_GENVER   1
 #define KG_TIERS    3
 #define KG_MAXB     250        // buildings a realm may hold
@@ -41,7 +45,7 @@ enum { KT_GRASS, KT_FOREST, KT_ROCK, KT_WATER, KT_CRYSTAL, KT_MEADOW, KT_ROAD, K
 #define KC_BLD 0x80            // a cell's bit 7: a building stands on it (not saved; kgStamp)
 enum { KGE_OK=0, KGE_BIG=-1, KGE_ARG=-2, KGE_FMT=-3, KGE_SUM=-4, KGE_RANGE=-5, KGE_SHORT=-6 };
 
-typedef struct { u8 tier, giant, castle, genVer, flags; u32 seed, day, rng; u16 goods[KG_GOODS]; u16 nB; } KRealm;
+typedef struct { u8 tier, giant, castle, genVer, flags; u32 seed, day, rng; u16 goods[KG_GOODS]; u16 nB; u8 gx, gy; } KRealm;   // gx, gy: the giant's cell (step 4j), KG_NOPOS for none
 typedef struct { u8 type, x, y, lvl, work; u16 stock; } KBld;
 
 static inline int kgDim(int tier){ return tier==0?48:tier==1?96:tier==2?128:0; }
@@ -96,11 +100,12 @@ static inline u32 krVar(KRd*r){ u32 v=0; for(int s=0;s<35;s+=7){ int c=krGet(r);
 // ---- encode: the realm as bytes. cells is the map as it stands (bit 7 is ignored); 0 = the made land with no edits. Returns the length, or KGE_BIG / KGE_ARG. ----
 static inline int kgEncode(u8*out,int cap,const KRealm*R,const KBld*B,const u8*cells){
     if(R->tier>=KG_TIERS||R->giant>=KG_GIANTS||R->castle>KG_CASTLE||R->nB>KG_MAXB||R->genVer!=KG_GENVER) return KGE_ARG;
+    if((R->gx!=KG_NOPOS&&R->gx>=kgDim(R->tier))||(R->gy!=KG_NOPOS&&R->gy>=kgDim(R->tier))) return KGE_ARG;
     KBuf w; kbInit(&w,out,cap);
     kbPut(&w,KG_FMT); kbPut(&w,R->genVer); kbPut(&w,R->tier); kbPut(&w,R->giant); kbPut(&w,R->castle); kbPut(&w,R->flags);
     kbPut32(&w,R->seed); kbPut32(&w,R->day); kbPut32(&w,R->rng);
     for(int i=0;i<KG_GOODS;i++) kbPut16(&w,R->goods[i]>KG_GOODMAX?KG_GOODMAX:R->goods[i]);
-    kbPut16(&w,R->nB);
+    kbPut16(&w,R->nB); kbPut(&w,R->gx); kbPut(&w,R->gy);
     for(int i=0;i<R->nB;i++){ const KBld*b=&B[i]; if(b->type>=KG_BTYPES) return KGE_ARG; kbPut(&w,b->type); kbPut(&w,b->x); kbPut(&w,b->y); kbPut(&w,b->lvl); kbPut(&w,b->work); kbPut16(&w,b->stock); }
     int d=kgDim(R->tier), n=d*d, runsAt=w.pos; kbPut16(&w,0);
     int runs=0, last=0, i=0;                                    // last: the cell after the previous run
@@ -124,7 +129,7 @@ static inline int kgDecode(const u8*p,int len,KRealm*R,KBld*B,u8*cells,int apply
     if(kgSum16(p,len-2)!=(p[len-2]|(p[len-1]<<8))) return KGE_SUM;
     KRd r; r.p=p; r.pos=0; r.len=len-2; r.bad=0;
     int fmt=krGet(&r), gv=krGet(&r), tier=krGet(&r), giant=krGet(&r), castle=krGet(&r), flags=krGet(&r);
-    if(fmt!=KG_FMT||gv!=KG_GENVER) return KGE_FMT;
+    if((fmt!=KG_FMT&&fmt!=KG_FMT1)||gv!=KG_GENVER) return KGE_FMT;
     if(tier>=KG_TIERS||giant>=KG_GIANTS||castle>KG_CASTLE) return KGE_RANGE;
     KRealm t; t.tier=(u8)tier; t.giant=(u8)giant; t.castle=(u8)castle; t.genVer=(u8)gv; t.flags=(u8)flags;
     t.seed=krGet32(&r); t.day=krGet32(&r); t.rng=krGet32(&r);
@@ -134,6 +139,8 @@ static inline int kgDecode(const u8*p,int len,KRealm*R,KBld*B,u8*cells,int apply
     if(nB>KG_MAXB) return KGE_RANGE;
     t.nB=(u16)nB;
     int d=kgDim(tier), n=d*d;
+    t.gx=KG_NOPOS; t.gy=KG_NOPOS;                                // (format 1 has no position)
+    if(fmt==KG_FMT){ int gx=krGet(&r), gy=krGet(&r); if(r.bad) return KGE_SHORT; if((gx!=KG_NOPOS&&gx>=d)||(gy!=KG_NOPOS&&gy>=d)) return KGE_RANGE; t.gx=(u8)gx; t.gy=(u8)gy; }
     for(int i=0;i<nB;i++){
         KBld b; b.type=(u8)krGet(&r); b.x=(u8)krGet(&r); b.y=(u8)krGet(&r); b.lvl=(u8)krGet(&r); b.work=(u8)krGet(&r); b.stock=(u16)krGet16(&r);
         if(r.bad) return KGE_SHORT;

@@ -20,6 +20,11 @@ static inline int kgSpawn(KGiant*G,const KSim*S){
         if(kgcWalk(S,x*8+4,y*8+4)){ G->x=x*8+4; G->y=y*8+4; return 1; } }
     return 0;
 }
+// put the giant back on the cell (cx,cy) a save left it on (step 4j): 1 if it stands there; 0 if it cannot (no saved position, off the land, the border or water), and it then starts as kgSpawn starts it
+static inline int kgPlace(KGiant*G,const KSim*S,int cx,int cy){
+    int d=S->dim; if(cx<0||cy<0||cx>=d||cy>=d||!kgcWalk(S,cx*8+4,cy*8+4)){ kgSpawn(G,S); return 0; }
+    G->face=0; G->step=0; G->moving=0; G->x=cx*8+4; G->y=cy*8+4; return 1;
+}
 // one frame of walking: (dx,dy) are -1, 0 or 1 from the D-pad, sp pixels (under 8) from khStride or khRun. Each axis on its own, so the giant slides along water and the edge. Returns 1 if it moved.
 static inline int kgMove(KGiant*G,const KSim*S,int dx,int dy,int sp){
     int lim=S->dim*8, moved=0; G->moving=0;
