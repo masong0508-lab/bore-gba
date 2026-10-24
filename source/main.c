@@ -6225,7 +6225,8 @@ static void howToPlay(void){
 // ---------- NEW GAME: a fresh life in the chosen town, started three ways (the story mode can start from here later) ----------
 #include "homepick.h"   // PICK YOUR HOME: a new player chooses land or a house after the creator
 static const char* const ngIt[4]={"CREATE A BORE","A PRE-MADE FAMILY","A TRULY RANDOM SIM","STORY MODE"};
-static void nbMoveInTown(void){ if(!nbOk){ lifeMode(0); return; } nbMoveMode=1; neighborhoodScreen(); nbMoveMode=0; }   // MOVE IN: the town map, buy a home, play there (neighborhood.h)
+static void nbMoveInTown(void){ if(!nbOk){ lifeMode(0); nbMovedIn=1; return; } nbMoveMode=1; neighborhoodScreen(); nbMoveMode=0; }   // MOVE IN: the town map, buy a home, play there (neighborhood.h)
+static int sgReload(void);   // savegame.h
 static int newGame(int slot){   // 1 = it started (and ended: back to the main menu)
     wdClear(); wdSave(); exQuit(); bdOwn=0; bdSave(); goClear(); goSave(); vTix=0; tkSave();   // (a new life starts with an empty stash, no mission, no board (buy one or find one) and no handheld
     int c=0; if(!ngHaveBore){ c=menu("HOW DO YOU START?",ngIt,4); if(c<0) return 0; }   // (CREATE A BORE already made the Bore: on to the town map)
@@ -6233,20 +6234,26 @@ static int newGame(int slot){   // 1 = it started (and ended: back to the main m
     int f=0, me=0; if(c==1){ me=famPick(&f,0); if(me<0) return 0; }   // the family bin: the family and who of them you play, on one screen
     static const char* const yn[2]={"YES  NEW LIFE","NO"}; if(!sgWant&&menu("START OVER?",yn,2)!=0) return 0;   // (a NEW PLAYER has nothing to start over: the player in play was saved first)
     if(slot>=0){ if(!nbSwitch(slot)){ nbOk=nbLoad(); toast(nbErr); return 0; } nbOk=1; nbBounds(); }
-    if(sgWant){ sgPickHome(); sgPid=sgWant; sgWant=0; lsReset(); memReset(); } else sgPid=0;   // a NEW PLAYER gets a home lot and a save file of their own; a new life started elsewhere belongs to no save file
+    int prevPid=sgPid;   // the player who was in play (they come back if the new one gives up)
+    if(sgWant){ if(c==3) sgPickHome(); sgPid=sgWant; sgWant=0; lsReset(); memReset(); } else sgPid=0;   // (only a STORY gets a starter lot: everyone else must BUY a home on the town map)
+    int homeFirst=sgPid&&c!=3;   // a new player with no home yet: no save file until they have bought one   // a NEW PLAYER gets a home lot and a save file of their own; a new life started elsewhere belongs to no save file
     twKeep=0; simsNewLife(); prClear(); moodReset(); lscore=0; simLastScore=0;
     hhN=0; for(int a=0;a<HU_N;a++)for(int b=0;b<HU_N;b++){ relD[a][b]=relL[a][b]=0; relF[a][b]=0; } kinClear();   // the old household moves out
     stOff();
     if(c==1&&hhMoveIn(&hhFams[f])>0){ if(me>=hhN) me=0; hhSwap(&hhM[me]); hhRemove(me); }   // you are the family member you picked (who you were leaves)
     else if(c==2) lookTrueRandomMe();
     else if(c==3){ if(!storyLead(story)) lookTrueRandomMe(); storySetup(story); storyHome(story); }   // STORY MODE: you play the story's own pre-made lead (no creator), then who you live with, and chapter 1
-    hhSave(); sprKey=0; if(sgPid) sgSave();   // (the save file exists from the first minute)
+    hhSave(); sprKey=0; if(sgPid&&!homeFirst) sgSave();   // (the save file exists from the first minute)
     // A NEW PLAYER moves in like The Sims 2: make your Sim (or pick a family / roll one), then the town map to buy a home, then play there.
     // (A story has its own house: storylot.h. A new life that is not a new player plays on where it is.)
+    nbMovedIn=0; nbMoveCancel=0;
     if(c==0&&ngHaveBore){ ngHaveBore=0; nbMoveInTown(); }   // (the Bore from the main menu's creator: buy a home for it)
     else if(c==0){ ceMoveIn=sgPid?1:0; creatureEditor(); int go=ceMoveIn==2; ceMoveIn=0; if(go) nbMoveInTown(); }
     else if(c==3||!sgPid) lifeMode(0);
     else nbMoveInTown();
+    if(homeFirst&&!nbMovedIn){   // left the creator or the town map without buying a home: nothing was saved, the new player never existed
+        sgPid=0; if(prevPid){ sgPid=(u8)prevPid; int e=sgReload(); toast(e?slErrMsg(e):"NEW PLAYER GIVEN UP"); } else toast("NEW PLAYER GIVEN UP");
+        return 0; }
     return 1;
 }
 

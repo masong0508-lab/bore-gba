@@ -583,9 +583,9 @@ static const char* const nbTools[5]={"LOTS","PAINT","ROADS","DECOR","NEW LOT"};
 static const u8 nbSizes[6][2]={{4,4},{5,5},{6,6},{8,8},{10,10},{8,5}};
 static const char* const nbSizeNm[6]={"16 X 16","20 X 20","24 X 24","32 X 32","40 X 40","32 X 20"};
 // MOVE IN (below, neighborhoodScreen): the lots a new household may buy, and what they cost
-static u8 nbMoveMode;
+static u8 nbMoveMode, nbMovedIn, nbMoveCancel;   // nbMovedIn: this MOVE IN bought a home; nbMoveCancel: a new player gave up before buying one
 static int nbOthersHome(int li);   // main.c: another player calls this lot home
-static int nbMoveOk(int li){ const NbLot*L=&nbT.lot[li]; return L->on&&L->kind==LKIND_RES&&(li==nbT.home||(!nbWho(li,0)&&!nbOthersHome(li))); }
+static int nbMoveOk(int li){ const NbLot*L=&nbT.lot[li]; return L->on&&L->kind==LKIND_RES&&(!nbWho(li,0)&&!nbOthersHome(li)); }   // (no shortcut for the town's current home: it may be another player's)
 static int nbMovePrice(int li){ return nbPrice(&nbT.lot[li]); }   // (every lot has its price: no free lot set aside)
 static u32 nbLotSeed(int li){ u32 h=2166136261u; for(int i=0;i<NB_NAME&&nbT.name[i];i++) h=(h^(u8)nbT.name[i])*16777619u; return h^((u32)(li+1)*2654435761u); }   // a lot's own seed: its house is always the same one
 static int nbLotStyle(int li){ return hgStyleFor((int)nbLotSeed(li),nbT.lot[li].w*nbT.lot[li].h); }   // the kind of house an empty lot comes with (housegen.h)
@@ -704,6 +704,7 @@ static int nbLotMenu(int li){   // returns 1 when the screen should close (play 
             if(id[c]==A_BUILD) nbFlagSync(li);   // (flags placed while building set what kind of place the lot is)
             nbValueLive(li); nbStore(li); nbSave(); menuMusSync(); return 0;
         case A_MOVE: {
+            if(nbOthersHome(li)){ toast("ANOTHER PLAYER LIVES HERE"); return 0; }
             money_t have; int price=nbPrice(L), sale=nbT.home<NB_LOTS&&nbT.lot[nbT.home].on?nbPrice(&nbT.lot[nbT.home]):0, net=price-sale;
             if(nbCash(&have)){
                 char q[40]; char*e=slCat(q,net>=0?"PAY ":"GET "); nbMoney(e,net>=0?net:-net);
@@ -804,10 +805,12 @@ static int nbMoveInAt(int li){   // A on lot li while moving in: 1 = bought, mov
     int c=menu(house?"MOVE IN HERE":"EMPTY LAND",it,n); if(c<0||c==n-1) return 0;
     if(!house&&c==0){ build=1; price=land+hsCost[nbLotStyle(li)]; }
     if(price>simMoney){ toast("NOT ENOUGH SIMOLEONS"); return 0; }
+    simMoneyAdd(-(money_t)price); simsSaveNow();   // PAY FIRST and keep it: a power cut now costs money, it never gives the lot away
     int old=nbT.home; nbT.home=(u8)li;
-    if(!nbGo(li)){ nbT.home=(u8)old; nbSave(); toast(nbErr); return 0; }
+    if(!nbGo(li)){ nbT.home=(u8)old; simMoneyAdd((money_t)price); simsSaveNow(); nbSave(); toast(nbErr); return 0; }
     if(!house){ nbTemplate(li); if(build) stStarterHouse(li,nbLotStyle(li)); }   // (empty land is bare when you get it: nothing left over from before)
-    simMoneyAdd(-(money_t)price); simsSaveNow(); nbSave(); toast("WELCOME HOME"); return 1;
+    nbSave(); nbMovedIn=1; if(sgPid) sgSave();   // (a new player's save file is made only now, when the home is bought)
+    toast("WELCOME HOME"); return 1;
 }
 static void neighborhoodScreen(void){
     nbBounds();
@@ -847,7 +850,7 @@ static void neighborhoodScreen(void){
             dirty=1;
         }
         if(pr&K_B){ if(tool){ tool=0; dirty=1; }
-            else if(nbMoveMode){ static const char* const it[2]={"KEEP LOOKING","MOVE IN LATER"}; if(menu("YOU HAVE NOT MOVED IN",it,2)==1) quit=1; prev=keyNow(); dirty=1; }
+            else if(nbMoveMode){ static const char* const it[2]={"KEEP LOOKING","GIVE UP  NOT SAVED"}; if(menu("YOU HAVE NOT MOVED IN",it,2)==1){ nbMoveCancel=1; quit=1; } prev=keyNow(); dirty=1; }
             else quit=1; }
         if(pr&K_A){
             if(tool==0&&nbMoveMode){ int li=nbAt(ccx,ccy);   // MOVE IN: buy the lot and live there
