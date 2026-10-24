@@ -100,3 +100,15 @@ Not done in bit e yet (so Phase 2 is not finished):
 - Not run on a cart: the fake chip stands in for the raw flash commands (`flCmd`, `flProgRaw`, `flEraseRaw`, `flBankRaw`), which are the one layer still untested. Because this is the base game's save code and every save goes through it, it needs a devkitARM build and a run in Pizza Boy (save, update, rename, delete a few realms and players) before it is trusted.
 - Host parse baseline unchanged: 14 errors (all `target("arm")`), 131 warnings.
 - Still open in bit e: the bigger done-bits block (needs your call on where it lives).
+
+---
+# Bit e (second half, part 2): EP6's own missions-done block (step 2g)
+
+`source/kingdone.h`: the shared done block (`EXD_OFF`, 8 bits of 64 per pack slot range) was full, and the one spare byte before the arcade record meant a block had to move. Nothing moves instead: EP6 gets its OWN 3 bytes in the free gap at SRAM 7607..7609 (after the game totals, which end at 7606, before the life stats at 7610; an assert in expand.h holds both ends). Layout: bits 0..7, bits 8..15, a check byte (`0x4B ^ lo ^ 3*hi`, so a blank 0x00 or an erased 0xFF block reads as invalid, i.e. nothing done). That is room for 16 missions (`KD_MAX`); the old compile-time stop at 4 missions is now a stop at 16.
+- Compatibility: no existing block moved or changed size, so every old save loads as before. The three placeholder missions already done sit in the old shared bits 60..62; `exDone` for EP6 reads the new block OR those four old bits, so nothing earned is lost. New completions go to the new block only.
+- A damaged block reads as nothing done and is rebuilt from zero by the next completion (the old shared bits still show for missions 1 to 4).
+- Why not the kingdom's own save: the done bits are per cart, like the other packs'; a realm save is deleted with its realm, which would un-finish the campaign.
+- Test: `sh tools/test_kingdone.sh` (blank, erased, set one by one, all 16, every single-bit and every single-byte damage is refused, a set keeps the others, the old bits 60..63 still count).
+- Not run on a cart; host parse baseline unchanged by this step (14 errors all `target("arm")`, 131 warnings), but re-check it on your machine.
+
+Phase 2 is now finished apart from a devkitARM build and an emulator look. Next is Phase 0 (the drawing and hauling prototypes).

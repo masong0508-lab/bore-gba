@@ -429,7 +429,7 @@ static const XMs xmBase[]={
 // ---- 6 THE LAND BOREFORE TIME (EP6, step 1: the empty pack) ----
 // You are a giant in a land of tiny folk. Three PLACEHOLDER missions so far: they open and close, and pay a little, so the pack can be
 // patched, shelved, started and finished like the others. The kingdom builder (docs EP6 roadmap, Phase 2 on) comes later.
-// (The done bits hold 64: the five older packs use 0 to 59, this one 60 to 63. See the _Static_assert below and docs/EP6_STEP1.md.)
+// (The shared done bits hold 64: the five older packs use 0 to 59. EP6 keeps its own block now (kingdone.h, sixteen missions); its old shared bits 60 to 63 still count as done.)
 static const XMs xmKing[]={
   XM("BIG FEET, SMALL FIELD","You wake up enormous in a muddy field, with a very small crowd looking up at you and clearing their throats.","Say hello with a hug, tell a joke, and get your head around being this tall.",XS_NONE,20,
      TS(SC_HUG,"SAY HELLO WITH A HUG"),TE(SE_LAUGH,1,"TELL A JOKE")),
@@ -465,8 +465,10 @@ static const u8 exOrd[EX_SHELF]={XP_SPACE,XP_ZOMB,XP_WAR,XP_FIGHT,XP_KING,XP_GOT
 _Static_assert(XN(xmSpace)==5&&XN(xmZomb)==5&&XN(xmWar)==10&&XN(xmFight)==5&&XN(xmGotchi)==15&&XN(xmEpi)==20&&XN(xmBase)==10&&XN(xmKing)==3,"the packs have 5, 5, 10, 5, 15, 20, 10 and 3 missions");
 #define BM_OFF 7556   // SRAM: the base game's missions done ('M', ten bits in two bytes, checksum)
 _Static_assert(BD_OFF+4<=BM_OFF&&BM_OFF+4<=LG_OFF,"the base missions' block sits between the board block and the life stats");
+#include "kingdone.h"   // EP6's own missions-done block (KD_OFF, 3 bytes after the game totals; 16 bits)
+_Static_assert(KD_OFF>=LG_OFF+3+4*LG_N&&KD_OFF+KD_LEN<=LS_OFF,"the EP6 done block sits in the gap between the game totals and the life stats");
 _Static_assert(40+20<=64,"the done bits (8 bytes) are full");
-_Static_assert(60+XN(xmKing)<=64,"EP6 has only done bits 60 to 63: more than four missions need a bigger done block (EXD_LEN, docs/EP6_STEP1.md)");
+_Static_assert(XN(xmKing)<=KD_MAX,"EP6 has only sixteen done bits (kingdone.h): more missions need a bigger block");
 #undef XN
 // ---- state ----
 static u8 exP, exM, exTk, exCnt, exDay=255;   // exP: pack + 1 (0: no mission), the mission, its tasks done (bits 0-2; bit 7: someone came over), its counter, the day it began
@@ -507,7 +509,7 @@ static void exDoneSet(int b){
 }
 static int bmDoneBits(void){ volatile u8*m=SRAM_BASE+BM_OFF; if(m[0]!='N'||m[3]!=(u8)(0x4D^m[1]^m[2])) return 0; return m[1]|(m[2]<<8); }
 static void bmDoneSet(int b){ int v=bmDoneBits()|(1<<b); volatile u8*m=SRAM_BASE+BM_OFF; m[0]='N'; m[1]=(u8)v; m[2]=(u8)(v>>8); m[3]=(u8)(0x4D^m[1]^m[2]); }
-static int exDone(int p,int m){ return p==XP_BASE?(bmDoneBits()>>m)&1:exDoneBit(xpBase[p]+m); }
+static int exDone(int p,int m){ if(p==XP_BASE) return (bmDoneBits()>>m)&1; if(p==XP_KING) return kdGet(m)||(m<4&&exDoneBit(xpBase[p]+m)); return exDoneBit(xpBase[p]+m); }   // (EP6: its own block, and the old shared bits 60..63 still count)
 static int exPackDone(int p){ int n=0; for(int i=0;i<xPk[p].n;i++) n+=exDone(p,i); return n; }
 static int exPackPlay(int p){ int n=0; for(int i=0;i<xPk[p].n;i++) n+=!exSoon(p,i); return n; }
 static int exOpen(int p,int m){   // can mission m be played: not a placeholder, and the playable one before it is done
@@ -835,7 +837,7 @@ static void exQuit(void){ exHClearAll(); exClear(); exSave(); sgDirty=1; if(arOn
 static void exComplete(void){
     const XMs*x=exMs(); if(!x) return; int p=exP-1;
     simMoneyAdd((money_t)x->pay*100); dnaAdd(15); persSave(); simsSave();
-    if(p==XP_BASE) bmDoneSet(exM); else exDoneSet(xpBase[p]+exM);
+    if(p==XP_BASE) bmDoneSet(exM); else if(p==XP_KING) kdSet(exM); else exDoneSet(xpBase[p]+exM);
     exHClearAll(); exLastP=(u8)p; exLastM=exM;
     int nx=exNext(p,exM);
     if(nx>=0){ exM=(u8)nx; exTk=0; exCnt=0; exDay=exDay8(); exSave(); exScSetup(exMs()); exShown=(u8)(exP*32+exM+1); exModal=2; }
