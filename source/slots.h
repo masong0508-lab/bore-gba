@@ -67,7 +67,7 @@ _Static_assert(SL_MIG_TAG+3<=SET_OFF&&SET_OFF+16<=OPT_OFF&&OPT_OFF+3+XO_N+1<=SLO
 _Static_assert(PERS_OFF+PERS_LEN<=JB_OFF&&JB_OFF+5+JB_MAX<=SIM_OFF&&SIM_OFF+SIM_BLOCK<=SRAM_TEST&&SRAM_TEST+16<=SL_HH_OFF&&SL_HH_OFF+SL_HH_LEN<=SLOT_BASE&&SL_MIG_HH<=SL_HH_LEN,"the small SRAM blocks overlap (2)");
 _Static_assert(NWALL<=255&&NFL<=255,"a run stores the floor and the wallpaper in a byte each");
 
-enum { SLK_ROOM=0, SLK_HOUSE=1, SLK_HHOLD=2, SLK_TOWN=3, SLK_PLAYER=4 };   // SLK_PLAYER: a PLAYER SAVE FILE (savegame.h)
+enum { SLK_ROOM=0, SLK_HOUSE=1, SLK_HHOLD=2, SLK_TOWN=3, SLK_PLAYER=4, SLK_KING=5 };   // SLK_PLAYER: a PLAYER SAVE FILE (savegame.h). SLK_KING: a REALM of EP6 THE LAND BOREFORE TIME (kingslot.h; header byte 28 = the realm's number)
 static u8 sgPid EWRAM_BSS, sgWant EWRAM_BSS, slHPid EWRAM_BSS;   // player in play (0 none) / a new player about to start / extra header byte for the next slHeader
 static int sgSave(void); static int sgDeletePid(int pid); static void sgPickHome(void); static int sgList(int*l); static int sgHomeOf(int slot);   // savegame.h
 enum { SLH_ROOM=1, SLH_PERSON=2, SLH_LIFE=4 };                 // what a slot holds / what to load
@@ -280,7 +280,7 @@ static int slInfo(int slot,SlInfo*I){
     int e=SLOT_NAME; for(int i=0;i<SLOT_NAME;i++){ char c=(char)m[16+i]; I->name[i]=((c>='A'&&c<='Z')||(c>='0'&&c<='9'))?c:' '; }
     while(e>0&&I->name[e-1]==' ') e--;
     I->name[e]=0;
-    if(I->kind>SLK_PLAYER||!slFits(slot,I->span)||I->len>I->span*SLOT_SZ-SLOT_HDR) return 0;
+    if(I->kind>SLK_KING||!slFits(slot,I->span)||I->len>I->span*SLOT_SZ-SLOT_HDR) return 0;
     I->ok=1; return 1;
 }
 static void slScan(void){
@@ -509,7 +509,7 @@ static void slThumb(int slot,int x0,int y0){   // the room of a slot at 1 pixel 
     }
 }
 #define SL_ROWS 6
-static int slLocked(int i){ int o=slOwner[i]; return o>=0&&(slI[o].kind==SLK_PLAYER||slI[o].kind==SLK_TOWN); }   // saves that SAVE GAME and the town keep for you: shown, never picked
+static int slLocked(int i){ int o=slOwner[i]; return o>=0&&(slI[o].kind==SLK_PLAYER||slI[o].kind==SLK_TOWN||slI[o].kind==SLK_KING); }   // saves that SAVE GAME and the town keep for you: shown, never picked
 static int slTop(int sel){ int t=sel-2; if(t>SLOT_N-SL_ROWS) t=SLOT_N-SL_ROWS; if(t<0) t=0; return t; }   // first slot shown: the cursor sits near the middle of the six rows
 static void slDraw(int sel){
     fillCols(0,ROW_W,RGB(3,4,8));
@@ -523,7 +523,7 @@ static void slDraw(int sel){
         if(i==sel){ rect(8,y-2,142,14,RGB(6,16,8)); rect(8,y-2,2,14,GOLD); }
         char nb[4]; slNum(nb,i+1); text(13,y+2,nb,i==sel?GOLD:DIMC,1);
         u16 nc=i==sel?WHITE:DIMC;
-        if(slLocked(i)){ text(28,y,slI[slOwner[i]].kind==SLK_TOWN?"THE TOWN":"PLAYER SAVE",RGB(9,11,15),1); text(28,y+7,"KEPT BY SAVE GAME",RGB(7,9,13),1); }
+        if(slLocked(i)){ int kk=slI[slOwner[i]].kind==SLK_KING; text(28,y,kk?"A KINGDOM":slI[slOwner[i]].kind==SLK_TOWN?"THE TOWN":"PLAYER SAVE",RGB(9,11,15),1); text(28,y+7,kk?"KEPT BY THE KINGDOM":"KEPT BY SAVE GAME",RGB(7,9,13),1); }
         else if(slOwner[i]<0) text(28,y,"EMPTY",i==sel?RGB(20,23,26):RGB(9,11,15),1);
         else if(slOwner[i]!=i) text(28,y,"PART OF A BIG SAVE",RGB(14,16,22),1);
         else {
@@ -533,6 +533,7 @@ static void slDraw(int sel){
             else if(I->kind==SLK_HOUSE) e=slCat(e,"HOUSE");
             else if(I->kind==SLK_TOWN) e=slCat(e,"NEIGHBORHOOD");
             else if(I->kind==SLK_PLAYER) e=slCat(e,"PLAYER SAVE");
+            else if(I->kind==SLK_KING) e=slCat(e,"KINGDOM");
             else if(I->kind==SLK_HHOLD){ e=slCat(e,"HOUSEHOLD "); e=slNum(e,SLB(i)[SLOT_HDR+2]+1); e=slCat(e," SIMS"); *e=0; }
             else { if(I->has&SLH_ROOM) e=slCat(e,"ROOM "); if(I->has&SLH_PERSON) e=slCat(e,"PERSON "); if(I->has&SLH_LIFE) e=slCat(e,"LIFE "); }
             if(I->kind!=SLK_HHOLD&&I->kind!=SLK_TOWN){ e=slCat(e," "); slSize(e,SLOT_HDR+I->len); }
@@ -545,7 +546,7 @@ static void slDraw(int sel){
     if(slOwner[sel]==sel&&slGood[sel]){
         SlInfo*I=&slI[sel]; char b[24]; char*e=slCat(b,"SAVED "); e=slNum(e,I->seq); slCat(e,I->seq==1?" TIME":" TIMES");
         text(158,64,b,DIMC,1);
-        text(158,72,I->kind==SLK_HOUSE?"A HOUSE":I->kind==SLK_HHOLD?"A HOUSEHOLD":I->kind==SLK_TOWN?"THE TOWN":I->kind==SLK_PLAYER?"A PLAYER":"ONE ROOM",DIMC,1);
+        text(158,72,I->kind==SLK_HOUSE?"A HOUSE":I->kind==SLK_HHOLD?"A HOUSEHOLD":I->kind==SLK_TOWN?"THE TOWN":I->kind==SLK_PLAYER?"A PLAYER":I->kind==SLK_KING?"A KINGDOM":"ONE ROOM",DIMC,1);
     } else if(slOwner[sel]<0) text(158,64,"A FREE SLOT",DIMC,1);
     // bottom: how full the slots are
     int used=slotUsedBytes(), tot=SLOT_N*SLOT_SZ, cnt=0; for(int i=0;i<SLOT_N;i++) if(slOwner[i]>=0) cnt++;
@@ -583,7 +584,7 @@ static char slLn[9][30] EWRAM_BSS; static const char* slLp[9];
 static void slInfoScreen(int s){
     SlInfo*I=&slI[s]; int n=0; char*e;
     slLn[n][0]='>'; slCat(slLn[n]+1,I->name[0]?I->name:"NO NAME"); n++;
-    e=slCat(slLn[n],"KIND   "); slCat(e,I->kind==SLK_HOUSE?"HOUSE":I->kind==SLK_HHOLD?"HOUSEHOLD":I->kind==SLK_TOWN?"NEIGHBORHOOD":I->kind==SLK_PLAYER?"PLAYER SAVE":"ROOM"); n++;
+    e=slCat(slLn[n],"KIND   "); slCat(e,I->kind==SLK_HOUSE?"HOUSE":I->kind==SLK_HHOLD?"HOUSEHOLD":I->kind==SLK_TOWN?"NEIGHBORHOOD":I->kind==SLK_PLAYER?"PLAYER SAVE":I->kind==SLK_KING?"KINGDOM":"ROOM"); n++;
     e=slCat(slLn[n],"SIZE   "); e=slSize(e,SLOT_HDR+I->len); e=slCat(e," OF "); slSize(e,SLOT_SZ*I->span); n++;
     e=slCat(slLn[n],"SAVED  "); e=slNum(e,I->seq); slCat(e,I->seq==1?" TIME":" TIMES"); n++;
     e=slCat(slLn[n],"MAP    "); e=slNum(e,I->mw); e=slCat(e," X "); slNum(e,I->mh); n++;
