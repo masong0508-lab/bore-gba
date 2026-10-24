@@ -426,18 +426,12 @@ static const XMs xmBase[]={
   XM("THE GREEN THUMB","A package of seeds arrived in the mail with no note. Grown-ups only.","Plant them, harvest the crop, and sell it the legal way.",XS_SEEDS,15,
      TE(QE_HARVEST,1,"HARVEST A PLANT"),TA(CT_DISP,"GO TO THE DISPENSARY"),TE(QE_SOLD,1,"SELL SOME OF IT")),
 };
-// ---- 6 THE LAND BOREFORE TIME (EP6, step 1: the empty pack) ----
-// You are a giant in a land of tiny folk. Three PLACEHOLDER missions so far: they open and close, and pay a little, so the pack can be
-// patched, shelved, started and finished like the others. The kingdom builder (docs EP6 roadmap, Phase 2 on) comes later.
-// (The shared done bits hold 64: the five older packs use 0 to 59. EP6 keeps its own block now (kingdone.h, sixteen missions); its old shared bits 60 to 63 still count as done.)
-static const XMs xmKing[]={
-  XM("BIG FEET, SMALL FIELD","You wake up enormous in a muddy field, with a very small crowd looking up at you and clearing their throats.","Say hello with a hug, tell a joke, and get your head around being this tall.",XS_NONE,20,
-     TS(SC_HUG,"SAY HELLO WITH A HUG"),TE(SE_LAUGH,1,"TELL A JOKE")),
-  XM("TIMBER!","The little folk need wood, and you are, to be fair, a walking forest management plan.","Put in a shift of honest work, then hit the library to study the plans for the first buildings.",XS_NONE,25,
-     TE(SE_SHIFT,1,"WORK A SHIFT"),TD(VA_STUDY,"STUDY THE PLANS")),
-  XM("THE FIRST OF MANY","That is all the kingdom there is for now: the real thing is still being built.","Head home, and have someone over to celebrate a very small beginning.",XS_NONE,30,
-     {QK_HOME,0,0,"GET BACK HOME"},{QK_GUEST,0,0,"HAVE SOMEONE OVER"}),
-};
+// ---- 6 THE LAND BOREFORE TIME (EP6, Phase 5c: the ten missions) ----
+// You are a giant in a land of tiny folk. The ten missions (kingmis.h) are played in your own life and done in the realm: kingtask.h's numbers from the open realm tick their tasks (exKingTick below).
+// (The shared done bits hold 64: the five older packs use 0 to 59. EP6 keeps its own block (kingdone.h, sixteen missions).)
+#include "kingq.h"       // the kingdom task kinds and the realm's numbers they count (pure C)
+#include "kingtask.h"    // ktFeed: the numbers from the running simulation (kingdom.h, kingsim.h and kinglog.h come first in main.c)
+#include "kingmis.h"     // the ten missions: xmKing
 #undef XM
 #undef XSOON
 #undef TA
@@ -462,7 +456,7 @@ static const XPk xPk[XP_N]={
 static const u8 xpBase[XP_N]={0,5,10,20,25,40,0,60};   // where each pack's missions start in the done bits (the base game has its own block: BM_OFF)
 #define EX_SHELF (XP_N-1)   // the shelf lists the seven packs; the base game's ten missions are in story mode (pause menu > STORY > STORY MISSIONS)
 static const u8 exOrd[EX_SHELF]={XP_SPACE,XP_ZOMB,XP_WAR,XP_FIGHT,XP_KING,XP_GOTCHI,XP_EPI};   // the shelf's order
-_Static_assert(XN(xmSpace)==5&&XN(xmZomb)==5&&XN(xmWar)==10&&XN(xmFight)==5&&XN(xmGotchi)==15&&XN(xmEpi)==20&&XN(xmBase)==10&&XN(xmKing)==3,"the packs have 5, 5, 10, 5, 15, 20, 10 and 3 missions");
+_Static_assert(XN(xmSpace)==5&&XN(xmZomb)==5&&XN(xmWar)==10&&XN(xmFight)==5&&XN(xmGotchi)==15&&XN(xmEpi)==20&&XN(xmBase)==10&&XN(xmKing)==10,"the packs have 5, 5, 10, 5, 15, 20, 10 and 10 missions");
 #define BM_OFF 7556   // SRAM: the base game's missions done ('M', ten bits in two bytes, checksum)
 _Static_assert(BD_OFF+4<=BM_OFF&&BM_OFF+4<=LG_OFF,"the base missions' block sits between the board block and the life stats");
 #include "kingdone.h"   // EP6's own missions-done block (KD_OFF, 3 bytes after the game totals; 16 bits)
@@ -471,6 +465,7 @@ _Static_assert(40+20<=64,"the done bits (8 bytes) are full");
 _Static_assert(XN(xmKing)<=KD_MAX,"EP6 has only sixteen done bits (kingdone.h): more missions need a bigger block");
 #undef XN
 // ---- state ----
+static int exKv[EXK_N] EWRAM_BSS;   // the realm's numbers as of the last second played in KINGDOM MODE (kingq.h): for the task list only
 static u8 exP, exM, exTk, exCnt, exDay=255;   // exP: pack + 1 (0: no mission), the mission, its tasks done (bits 0-2; bit 7: someone came over), its counter, the day it began
 static u8 exShown, exLastP, exLastM;          // the mission whose card was shown (a card once per mission and power on); the one just finished (its card)
 // (hzOn, hzScore: main.c, before the HUD. horde.h has the rest)
@@ -509,7 +504,7 @@ static void exDoneSet(int b){
 }
 static int bmDoneBits(void){ volatile u8*m=SRAM_BASE+BM_OFF; if(m[0]!='N'||m[3]!=(u8)(0x4D^m[1]^m[2])) return 0; return m[1]|(m[2]<<8); }
 static void bmDoneSet(int b){ int v=bmDoneBits()|(1<<b); volatile u8*m=SRAM_BASE+BM_OFF; m[0]='N'; m[1]=(u8)v; m[2]=(u8)(v>>8); m[3]=(u8)(0x4D^m[1]^m[2]); }
-static int exDone(int p,int m){ if(p==XP_BASE) return (bmDoneBits()>>m)&1; if(p==XP_KING) return kdGet(m)||(m<4&&exDoneBit(xpBase[p]+m)); return exDoneBit(xpBase[p]+m); }   // (EP6: its own block, and the old shared bits 60..63 still count)
+static int exDone(int p,int m){ if(p==XP_BASE) return (bmDoneBits()>>m)&1; if(p==XP_KING) return kdGet(m); return exDoneBit(xpBase[p]+m); }   // (EP6: its own block; the old placeholder missions' shared bits 60..63 no longer count: the missions are different now)
 static int exPackDone(int p){ int n=0; for(int i=0;i<xPk[p].n;i++) n+=exDone(p,i); return n; }
 static int exPackPlay(int p){ int n=0; for(int i=0;i<xPk[p].n;i++) n+=!exSoon(p,i); return n; }
 static int exOpen(int p,int m){   // can mission m be played: not a placeholder, and the playable one before it is done
@@ -739,6 +734,7 @@ static int exVal(const XT*t){   // the number a task counts (-1: it has none to 
     case QK_TRICKS: return (int)simTricks;
     case QK_WANTS: return simDone;
     }
+    if(exkIs(t->k)) return exkVal(t->k,t->a,exKv);   // (the last numbers the realm gave: shown in the list; only exKingTick ticks these)
     return -1;
 }
 static int exEvKind(int k){ return k==QK_EV||k==QK_DO||k==QK_SOC||k==QK_PETDO||k==QK_GDO; }   // ticked by an event, never by a state
@@ -754,6 +750,7 @@ static int exTkNow(const XT*t){   // is a task's state met right now?
     case QK_ROOM: return sRoom>=80;
     case QK_FREE: return !prDays&&!prIn();
     }
+    if(exkIs(t->k)) return 0;   // (ticked in the realm, by exKingTick)
     { int v=exVal(t); return v>=0&&v>=(int)t->n; }
 }
 static void exTkDone(int i,const XMs*x){ exTk|=(u8)(1<<i); exSave(); char*e=simCat(exB,"DONE  "); simCat(e,x->t[i].nm); lnote=exB; lnoteT=150; sfxPlay(SFX_STICK); }
@@ -770,6 +767,13 @@ static void exTkText(const XT*t,int ok,char*b){   // "+ CURE 3 BOREZIES" / "- CU
     if(ok||exEvKind(t->k)||t->k==QK_LSKILL||t->k==QK_STAGE) return;
     int v=exVal(t); if(v<0||t->n<2||t->n>9999) return;
     if(v>(int)t->n) v=(int)t->n; e=slCat(e,"  "); e=slNum(e,v); e=slCat(e,"/"); slNum(e,(int)t->n);
+}
+static int exKingTick(const KSim*S){   // KINGDOM MODE, about once a second: tick the open mission's realm tasks. Returns 0, or 1 + the task that just came true (exB says so). The life game completes the mission (exTick).
+    if(exP!=XP_KING+1) return 0; const XMs*x=exMs(); if(!x) return 0;
+    ktFeed(S,exKv); int n=exTkN(x), got=0;
+    for(int i=0;i<n;i++){ const XT*t=&x->t[i]; if((exTk>>i)&1||!exkIs(t->k)) continue;
+        int v=exkVal(t->k,t->a,exKv); if(v>=(int)t->n){ exTkDone(i,x); if(!got) got=i+1; } }
+    return got;
 }
 static void exTkList(const XMs*x,int x0,int y,int dy,int live){
     for(int i=0;i<exTkN(x);i++){ int ok=live&&((exTk>>i)&1); char l[60]; exTkText(&x->t[i],ok,l); if(!live) l[0]='-'; text(x0,y+i*dy,l,ok?RGB(10,28,12):WHITE,1); }

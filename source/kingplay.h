@@ -132,6 +132,7 @@ static int kpRun(int slot){   // returns 0: the KINGDOM list should rescan (the 
             khShow(&V,cx,cy,(cnt>>3)&1);
         } else if(cnt&7) vsync(); else if(ov) kpOver(&m,&G,cnt); else kpDraw(&m,nm,spd,cnt);
         for(int i=0;i<per[spd];i++) ksStep(m.S);
+        if(!(cnt%60)){ if(exKingTick(m.S)){ hmsg=exB; hudT=150; hudD=1; } }   // (Phase 5c: the open mission's tasks, checked against this realm)
         if(m.S->ev){ int ev=m.S->ev; m.S->ev=0; if(ev>=1&&ev<=KG_CASTLE){ hmsg=kpStageMsg[ev-1]; hudT=240; hudD=1; } }
     }
 }
