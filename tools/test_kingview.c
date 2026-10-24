@@ -17,7 +17,7 @@ static int fails=0;
 static u32 rs=12345; static u32 rnd(void){ rs^=rs<<13; rs^=rs>>17; rs^=rs<<5; return rs; }
 static u16 expect(const u8*cells,int d,const KBld*B,int nB,int x,int y){   // written out again, differently: by asking each building which of its four cells this is
     if(x<0||y<0||x>=d||y>=d) return 7;
-    int v=cells[y*d+x]; if(!(v&KC_BLD)) return (u16)(v&7);
+    int v=cells[y*d+x]; if(!(v&KC_BLD)) return (u16)((v&7)==KT_BRIDGE?KT_ROAD:(v&7));   /* a bridge is drawn as the road tile */
     for(int i=0;i<nB;i++) for(int q=0;q<4;q++) if(B[i].x+(q&1)==x&&B[i].y+(q>>1)==y) return (u16)((B[i].lvl?8+q:12+q)|(B[i].lvl?(1+B[i].type)<<12:0));
     return 3; }
 static int shown(const KView*V,const KBld*B){   // how many of the tiles the screen shows are wrong

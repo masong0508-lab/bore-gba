@@ -30,7 +30,7 @@
 enum { KB_HUT, KB_HOUSE, KB_WOODCUT, KB_QUARRY, KB_SAWMILL, KB_MASON, KB_STORE, KB_SHEEP, KB_CRYMINE, KB_WEAVER, KB_CUTTER, KB_CASTLE, KS_NTYPES };   // (step 5a: the wool chain and the crystal chain)
 enum { KK_HOME, KK_GATHER, KK_PROC, KK_STORE, KK_CASTLE };
 enum { G_WOOD, G_STONE, G_WOOL, G_CRYSTAL, G_PLANKS, G_CUT, G_CLOTH, G_POLISH };
-enum { KSE_OK=0, KSE_ARG=-1, KSE_CAP=-2, KSE_SPOT=-3, KSE_ROAD=-4 };
+enum { KSE_OK=0, KSE_ARG=-1, KSE_CAP=-2, KSE_SPOT=-3, KSE_ROAD=-4, KSE_POOR=-5 };   // (KSE_POOR, step 5d: not enough cut stone for a bridge)
 typedef struct { u8 kind, costG, costN, staff, house, inG, outG, res, period; } KsType;
 static const KsType KS_T[KS_NTYPES]={
  /* kind     costG    costN staff house inG     outG     resource   period */
@@ -72,7 +72,9 @@ static inline int ksIn(const KBld*b){ return b->stock&255; }
 static inline int ksOut(const KBld*b){ return b->stock>>8; }
 static inline void ksSetIn(KBld*b,int v){ b->stock=(u16)((b->stock&0xFF00)|(v&255)); }
 static inline void ksSetOut(KBld*b,int v){ b->stock=(u16)((b->stock&255)|((v&255)<<8)); }
-static inline int ksIsRoad(const KSim*S,int c){ return c>=0&&c<S->dim*S->dim&&S->cells[c]==KT_ROAD; }
+#define ksRoadV(v) ((v)==KT_ROAD||(v)==KT_BRIDGE)   // a road cell: a road on land or a bridge over water (step 5d); the carriers walk both
+#define KS_BRIDGE_N 1                                // a bridge cell costs this much cut stone from the stockpile [ASSUMED]
+static inline int ksIsRoad(const KSim*S,int c){ return c>=0&&c<S->dim*S->dim&&ksRoadV(S->cells[c]); }
 static inline int ksNode(KSim*S,int c){   // the place of a road cell in the list, or -1 (a binary search: about 10 steps)
     int lo=0, hi=S->nN-1; while(lo<=hi){ int m=(lo+hi)>>1; S->opSearch++; int v=S->nodeCell[m]; if(v==c) return m; if(v<c) lo=m+1; else hi=m-1; } return -1;
 }
@@ -132,7 +134,7 @@ static inline int ksHoldHome(KSim*S){
 }
 
 // ---- road cells ----
-static inline void ksNodeBuild(KSim*S){ int n=S->dim*S->dim, k=0; for(int c=0;c<n;c++) if(S->cells[c]==KT_ROAD&&k<KS_MAXN) S->nodeCell[k++]=(u16)c; S->nN=k; }
+static inline void ksNodeBuild(KSim*S){ int n=S->dim*S->dim, k=0; for(int c=0;c<n;c++) if(ksRoadV(S->cells[c])&&k<KS_MAXN) S->nodeCell[k++]=(u16)c; S->nN=k; }
 static inline void ksMapsDirty(KSim*S){ for(int m=0;m<KS_MAPS;m++) S->mapReady[m]=0; S->bfsSlot=-1; }
 static inline void ksSnap(KSim*S,KsWk*k){   // the road cell under a carrier is gone: step to a neighbouring road cell, else the nearest one, else off the map (0xFFFF)
     int d=S->dim, c=k->cell, nb[4]={c+1,c-1,c+d,c-d};
@@ -153,9 +155,11 @@ static inline void ksRecall(KSim*S){ for(int w=0;w<KS_MAXW;w++) if(S->wk[w].st) 
 static inline int ksRoadSet(KSim*S,int x,int y,int on){
     int d=S->dim; if(x<2||y<2||x>=d-2||y>=d-2) return KSE_ARG;
     int c=y*d+x, v=S->cells[c];
-    if(on){ if(v==KT_ROAD) return KSE_OK; if(v!=KT_GRASS&&v!=KT_MEADOW) return KSE_SPOT; if(S->nN>=KS_MAXN) return KSE_CAP;
-        int i=S->nN; while(i>0&&S->nodeCell[i-1]>c){ S->nodeCell[i]=S->nodeCell[i-1]; i--; } S->nodeCell[i]=(u16)c; S->nN++; S->cells[c]=KT_ROAD; }
-    else { if(v!=KT_ROAD) return KSE_OK; int i=0; while(i<S->nN&&S->nodeCell[i]!=c) i++;
+    if(on){ if(ksRoadV(v)) return KSE_OK; if(v!=KT_GRASS&&v!=KT_MEADOW&&v!=KT_WATER) return KSE_SPOT; if(S->nN>=KS_MAXN) return KSE_CAP;
+        int br=v==KT_WATER; if(br&&S->R->goods[G_CUT]<KS_BRIDGE_N) return KSE_POOR;   // (a bridge: its cut stone leaves the stockpile and the books together, so ksCheck stays balanced)
+        if(br){ S->R->goods[G_CUT]=(u16)(S->R->goods[G_CUT]-KS_BRIDGE_N); S->made[G_CUT]-=KS_BRIDGE_N; }
+        int i=S->nN; while(i>0&&S->nodeCell[i-1]>c){ S->nodeCell[i]=S->nodeCell[i-1]; i--; } S->nodeCell[i]=(u16)c; S->nN++; S->cells[c]=(u8)(br?KT_BRIDGE:KT_ROAD); }
+    else { if(!ksRoadV(v)) return KSE_OK; int i=0; while(i<S->nN&&S->nodeCell[i]!=c) i++;
         for(;i+1<S->nN;i++){ S->nodeCell[i]=S->nodeCell[i+1]; }
         S->nN--;
         S->cells[c]=(u8)kgCell(S->R->seed,S->R->tier,x,y); }       // the land underneath comes back
@@ -197,9 +201,10 @@ static inline int ksInit(KSim*S,KRealm*R,KBld*B,u8*cells){
     for(int c=0;c<d*d;c++){ int v=cells[c]&7; cells[c]=(u8)v; if(v>=KT_N){ cells[c]=(u8)kgCell(R->seed,R->tier,c%d,c/d); } }   // a damaged cell value is made again from the land
     for(int i=0;i<R->nB;i++) for(int j=0;j<2;j++) for(int k=0;k<2;k++){ int c=(B[i].y+j)*d+B[i].x+k;   // a building on a road or on another building: refused
         if(cells[c]&KC_BLD) return KSE_ARG;
+        if(cells[c]==KT_BRIDGE) return KSE_ARG;   // (no building stands on a bridge)
         if(cells[c]==KT_ROAD) cells[c]=(u8)kgCell(R->seed,R->tier,c%d,c/d);
         cells[c]|=KC_BLD; }
-    { int n=0; for(int c=0;c<d*d;c++) n+=(cells[c]&7)==KT_ROAD&&!(cells[c]&KC_BLD); if(n>KS_MAXN) return KSE_CAP; }
+    { int n=0; for(int c=0;c<d*d;c++) n+=ksRoadV(cells[c]&7)&&!(cells[c]&KC_BLD); if(n>KS_MAXN) return KSE_CAP; }
     ksNodeBuild(S);
     for(int i=0;i<R->nB;i++){ KBld*b=&B[i]; const KsType*T=ksT(b->type);   // clamp what a damaged save could hold
         if(b->lvl>1){ b->lvl=1; }

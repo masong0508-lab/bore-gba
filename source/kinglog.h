@@ -122,8 +122,8 @@ static inline void ksPrepSave(KSim*S){ ksRecall(S); }   // before kgEncode: the 
 // 0 = all well; else a code: 1..8 a good's books (ksLedger), 11 roads, 12 a carrier, 13 a claim, 14 a map reference, 15 a building, 16 a carrier's map
 static inline int ksCheck(KSim*S){
     int e=ksLedger(S); if(e) return e;
-    for(int n=0;n<S->nN;n++){ if(S->cells[S->nodeCell[n]]!=KT_ROAD||(n&&S->nodeCell[n-1]>=S->nodeCell[n])) return 11; }
-    { int cnt=0; for(int c=0;c<S->dim*S->dim;c++) cnt+=S->cells[c]==KT_ROAD; if(cnt!=S->nN) return 11; }
+    for(int n=0;n<S->nN;n++){ if(!ksRoadV(S->cells[S->nodeCell[n]])||(n&&S->nodeCell[n-1]>=S->nodeCell[n])) return 11; }
+    { int cnt=0; for(int c=0;c<S->dim*S->dim;c++) cnt+=ksRoadV(S->cells[c]); if(cnt!=S->nN) return 11; }
     int res[KS_MAXB]={0}, mr[KS_MAPS]={0}, act=0;
     for(int w=0;w<KS_MAXW;w++){ const KsWk*k=&S->wk[w]; if(!k->st) continue; act++;
         if(k->dst>=S->R->nB||k->good>=KG_GOODS||k->md>=KS_MAPS) return 12;

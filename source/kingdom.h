@@ -34,7 +34,7 @@
 #define KG_GOODMAX  60000      // a stockpile's ceiling: counters saturate here (endless play, roadmap 4.3)
 #define KG_HDR      36
 #define KG_BLD      7
-enum { KT_GRASS, KT_FOREST, KT_ROCK, KT_WATER, KT_CRYSTAL, KT_MEADOW, KT_ROAD, KT_N };   // terrain values (bits 0..2 of a cell). The made land has 0..5; a road is only ever an edit
+enum { KT_GRASS, KT_FOREST, KT_ROCK, KT_WATER, KT_CRYSTAL, KT_MEADOW, KT_ROAD, KT_BRIDGE, KT_N };   // terrain values (bits 0..2 of a cell). The made land has 0..5; a road and a bridge (a road over water, step 5d) are only ever edits
 // the made land's numbers (part of genVer 1: NEVER change them, make genVer 2 instead): island bias and fall-off, the water line, the rock line, the forest and meadow moisture lines
 #define KG_ISL_BIAS 70
 #define KG_ISL_FALL 130

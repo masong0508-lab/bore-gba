@@ -28,6 +28,7 @@ static int scene(u32 seed){
     for(int y=c+6;y<=c+10;y++) for(int x=c-4;x<=c+6;x++) cells[y*d+x]=KT_ROCK;
     for(int y=c-6;y<=c-3;y++) for(int x=c+16;x<=c+26;x++) cells[y*d+x]=KT_MEADOW;
     for(int y=c+5;y<=c+7;y++) for(int x=c+16;x<=c+26;x++) cells[y*d+x]=KT_CRYSTAL;
+    for(int y=c-12;y<=c+14;y++) for(int x=c+35;x<=c+38;x++) cells[y*d+x]=KT_WATER;   // a river four cells wide, east of the village (THE FAR BANK)
     return ksInit(&S,&R,B,cells);
 }
 int main(void){
@@ -49,6 +50,21 @@ int main(void){
       CHECK(v[EXK_BUILT]==5&&v[EXK_BT+KB_STORE]==1&&v[EXK_BT+KB_HUT]==1&&v[EXK_BT+KB_WOODCUT]==1&&v[EXK_BT+KB_QUARRY]==1&&v[EXK_BT+KB_HOUSE]==1,"built %d (a site is not built)",v[EXK_BUILT]);
       CHECK(v[EXK_ROAD]==19&&v[EXK_GOOD+G_WOOD]==7&&v[EXK_CASTLE]==0&&v[EXK_POP]==S.pop,"road %d wood %d",v[EXK_ROAD],v[EXK_GOOD+G_WOOD]);
       CHECK(exkVal(QK_KBT,KB_HUT,v)==1&&exkVal(QK_KGOOD,G_WOOD,v)==7&&exkVal(QK_KBT,99,v)==0&&exkVal(QK_KGOOD,99,v)==0&&exkVal(5,0,v)==-1,"exkVal"); printf("  the feed matches the realm\n"); }
+    // 2b bridges: a road over water costs cut stone, balances the books, carries a save, and lifts back to water
+    { CHECK(scene(5u)==KSE_OK,"init"); int c=48, d=96, w0=c+35; for(int x=c+30;x<=c+34;x++) ksRoadSet(&S,x,c+1,1);
+      CHECK(ksRoadSet(&S,w0,c+1,1)==KSE_POOR&&S.cells[(c+1)*d+w0]==KT_WATER&&S.nN==5,"no cut stone: no bridge (%d)",S.nN);
+      ksGift(&S,G_CUT,3); for(int i=0;i<3;i++) CHECK(ksRoadSet(&S,w0+i,c+1,1)==KSE_OK&&S.cells[(c+1)*d+w0+i]==KT_BRIDGE,"bridge cell %d",i);
+      CHECK(R.goods[G_CUT]==0&&S.nN==8&&ksCheck(&S)==0&&ksRoadSet(&S,w0+3,c+1,1)==KSE_POOR,"3 cut stone, 3 cells, the books balanced (%d goods, %d nodes, check %d)",R.goods[G_CUT],S.nN,ksCheck(&S));
+      int v[EXK_N]; ktFeed(&S,v); CHECK(v[EXK_BRIDGE]==3&&v[EXK_ROAD]==8&&exkVal(QK_KBRIDGE,0,v)==3,"the feed counts 3 bridge cells (%d) and 8 road cells (%d)",v[EXK_BRIDGE],v[EXK_ROAD]);
+      ksPrepSave(&S); static u8 sv[40000]; int len=kgEncode(sv,sizeof sv,&R,B,cells); CHECK(len>0,"encode %d",len);
+      static KSim S2; static KRealm R2; static KBld B2[KS_MAXB]; static u8 c2[128*128]; memset(&R2,0,sizeof R2); memset(c2,0xEE,sizeof c2);
+      CHECK(kgDecode(sv,len,&R2,B2,0,0)==0&&kgDecode(sv,len,&R2,B2,c2,1)==0&&ksInit(&S2,&R2,B2,c2)==KSE_OK,"the bridge saves and loads");
+      CHECK(c2[(c+1)*d+w0]==KT_BRIDGE&&S2.nN==8&&ksCheck(&S2)==0,"it came back a bridge, in the network (%d nodes)",S2.nN);
+      { int wx=-1, wy=-1; for(int y=4;y<d-4&&wx<0;y++) for(int x=4;x<d-4;x++) if(kgCell(R.seed,R.tier,x,y)==KT_WATER&&S.cells[y*d+x]==KT_WATER){ wx=x; wy=y; break; }   // a natural water cell
+        ksGift(&S,G_CUT,1); CHECK(wx>=0&&ksRoadSet(&S,wx,wy,1)==KSE_OK&&S.cells[wy*d+wx]==KT_BRIDGE,"a bridge on natural water (%d,%d)",wx,wy);
+        CHECK(ksRoadSet(&S,wx,wy,0)==KSE_OK&&S.cells[wy*d+wx]==KT_WATER&&ksCheck(&S)==0&&R.goods[G_CUT]==0,"lifted: water again, the stone stays sunk"); }
+      CHECK(ksPlace(&S,KB_HUT,w0,c+1,1)<0,"no building goes on a bridge or the water");
+      printf("  bridges: no stone no bridge, 1 cut stone a cell, books balanced, saved and loaded, lifted back to water\n"); }
     // 3 a player plays the missions in order: each mission's buildings go up when it opens (nothing is built before it asks)
     for(int run=0;run<3;run++){
         CHECK(scene(40u+(u32)run*17u)==KSE_OK,"init"); int c=48; for(int x=c-8;x<=c+34;x++) ksRoadSet(&S,x,c+1,1);
@@ -64,6 +80,7 @@ int main(void){
                 case 7: ksPlace(&S,KB_STORE,c+10,c-1,0); ksPlace(&S,KB_HOUSE,c+29,c-1,0); ksPlace(&S,KB_HOUSE,c+32,c-1,0); break;
                 case 8: ksPlace(&S,KB_CASTLE,c+14,c-1,0); break; } }
             if(cur==3&&v[EXK_GOOD+G_WOOL]>=10&&!v[EXK_BT+KB_WEAVER]){ ksPlace(&S,KB_WEAVER,c+10,c+2,0); }   // the weaver once there is wool to spare
+            if(cur==7&&v[EXK_BRIDGE]<4&&v[EXK_GOOD+G_CUT]>0){ for(int x=c+35;x<=c+38;x++) if(ksRoadSet(&S,x,c+1,1)==KSE_POOR) break; }   // a cell of the bridge whenever there is cut stone
             if(cur==2&&v[EXK_GOOD+G_STONE]>=20&&!v[EXK_BT+KB_MASON]&&R.nB<KS_MAXB) ksPlace(&S,KB_MASON,c+1,c+2,0);   // the mason once there is stone to spare
             const XMs*x=&xmKing[cur]; int n=0; while(n<3&&x->t[n].k) n++;
             for(int i=0;i<n;i++) if(!((done>>i)&1)&&exkVal(x->t[i].k,x->t[i].a,v)>=(int)x->t[i].n) done|=(u8)(1<<i);

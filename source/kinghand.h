@@ -8,14 +8,14 @@ enum { KHM_HAND, KHM_ROAD, KHM_HUT, KHM_HOUSE, KHM_WOODCUT, KHM_QUARRY, KHM_SAWM
 enum { KHR_NONE, KHR_ROAD, KHR_UNROAD, KHR_SITE, KHR_RAZED, KHR_GOT, KHR_NOTHING, KHR_SPOT, KHR_FULL, KHR_ARG, KHR_NOGATHER,
              KHR_TAKE, KHR_GIVE, KHR_BACK, KHR_NOLOAD, KHR_NOWANT, KHR_REFUSE, KHR_ENOUGH, KHR_BUSY,                       // step 4h, goods: load taken, delivered, put back; nothing to carry; no one asks; not wanted here; has enough; hands full
              KHR_LIFT, KHR_SET,                                                                                              // a building lifted, put down (the map changed, redraw it: khRedraw)
-             KHR_HEAD, KHR_SETTLE, KHR_NOBODY, KHR_HOMEFULL, KHR_STAFFED, KHR_LASTHAND, KHR_NOTYET, KHR_NOWORK, KHR_KEEP, KHR_N };   // Nubbins: picked up, put down, none here, home full, already staffed, nobody left to carry, not built yet, no work for him there
+             KHR_HEAD, KHR_SETTLE, KHR_NOBODY, KHR_HOMEFULL, KHR_STAFFED, KHR_LASTHAND, KHR_NOTYET, KHR_NOWORK, KHR_KEEP, KHR_NOCUT, KHR_N };   // Nubbins: picked up, put down, none here, home full, already staffed, nobody left to carry, not built yet, no work for him there
 // (KHR_ROAD to KHR_RAZED, KHR_LIFT and KHR_SET: the map changed, redraw it. See khRedraw.)   // what an A press did
 typedef struct { int mode; } KHand;
 static const char* const khName[KHM_N]={ "HAND", "ROAD", "HUT", "HOUSE", "WOODCUTTER", "QUARRY", "SAWMILL", "MASON", "STOREHOUSE", "SHEEP PEN", "MINE", "WEAVER", "CUTTER", "CASTLE", "DEMOLISH", "MOVE", "NUBBIN" };
 static const char* const khMsg[KHR_N]={ "", "ROAD LAID", "ROAD LIFTED", "SITE PLACED", "DEMOLISHED", "GATHERED", "NOTHING HERE", "CANNOT BUILD HERE", "NO ROOM FOR MORE", "OUT OF THE REALM", "NOTHING TO GATHER",
     "LOAD TAKEN", "LOAD DELIVERED", "LOAD PUT BACK", "NOTHING TO CARRY HERE", "NO ONE WANTS GOODS", "NOT WANTED HERE", "ALREADY HAS ENOUGH", "YOUR HANDS ARE FULL",
     "BUILDING LIFTED", "BUILDING PUT DOWN",
-    "NUBBIN PICKED UP", "NUBBIN PUT DOWN", "NO NUBBIN HERE", "HOME IS FULL", "ALREADY STAFFED", "NO ONE LEFT TO CARRY", "NOT BUILT YET", "NO WORK FOR HIM THERE", "THE CASTLE STAYS" };
+    "NUBBIN PICKED UP", "NUBBIN PUT DOWN", "NO NUBBIN HERE", "HOME IS FULL", "ALREADY STAFFED", "NO ONE LEFT TO CARRY", "NOT BUILT YET", "NO WORK FOR HIM THERE", "THE CASTLE STAYS", "A BRIDGE NEEDS CUT STONE" };
 static inline void khInit(KHand*B){ B->mode=KHM_HAND; }
 static inline void khCycle(KHand*B,int dir){ B->mode=(B->mode+(dir>0?1:KHM_N-1))%KHM_N; }
 // the cell under the middle of the screen, from the camera in pixels (the screen is 240 x 160: its middle is 120, 80)
@@ -50,8 +50,8 @@ static inline int khAct(KHand*B,KSim*S,int x,int y){
     if(B->mode==KHM_DEMO){ int i=khBldAt(S,x,y); if(i<0) return KHR_NOTHING; if(S->B[i].type==KB_CASTLE) return KHR_KEEP; return ksDemolish(S,i)==KSE_OK?KHR_RAZED:KHR_ARG; }
     if(B->mode==KHM_ROAD){ int c=S->cells[y*d+x];
         if(c&KC_BLD) return KHR_SPOT;
-        if((c&7)==KT_ROAD){ return ksRoadSet(S,x,y,0)==KSE_OK?KHR_UNROAD:KHR_ARG; }
-        int e=ksRoadSet(S,x,y,1); return e==KSE_OK?KHR_ROAD:e==KSE_CAP?KHR_FULL:e==KSE_ARG?KHR_ARG:KHR_SPOT; }
+        if(ksRoadV(c&7)){ return ksRoadSet(S,x,y,0)==KSE_OK?KHR_UNROAD:KHR_ARG; }
+        int e=ksRoadSet(S,x,y,1); return e==KSE_OK?KHR_ROAD:e==KSE_CAP?KHR_FULL:e==KSE_ARG?KHR_ARG:e==KSE_POOR?KHR_NOCUT:KHR_SPOT; }
     { int e=ksPlace(S,B->mode-KHM_HUT,x,y,0); return e>=0?KHR_SITE:e==KSE_CAP?KHR_FULL:e==KSE_ARG?KHR_ARG:KHR_SPOT; }
 }
 // the cursor's look: bank 15 of the palette is bank 0 brightened, so a blinking cell shows where A will act
@@ -62,7 +62,7 @@ static inline u16 khPalCur(u16 c){ int r=c&31, g=(c>>5)&31, b=(c>>10)&31; r+=(31
 static inline char* khCat(char*d,const char*s){ while(*s) *d++=*s++; *d=0; return d; }
 static inline char* khNum(char*d,long v){ char t[12]; int n=0; if(v<0){ *d++='-'; v=-v; } do{ t[n++]=(char)('0'+v%10); v/=10; }while(v&&n<11); while(n) *d++=t[--n]; *d=0; return d; }
 static const char* const khGood[8]={ "WOOD", "STONE", "WOOL", "CRYSTAL", "PLANKS", "CUT STONE", "CLOTH", "POLISHED" };   // (moved up in step 5b: the site text names the castle's goods)
-static const char* const khTerrain[7]={ "GRASS", "FOREST", "ROCK", "DEEP WATER", "CRYSTAL", "MEADOW", "ROAD" };
+static const char* const khTerrain[8]={ "GRASS", "FOREST", "ROCK", "DEEP WATER", "CRYSTAL", "MEADOW", "ROAD", "BRIDGE" };
 static inline void khInfo(const KSim*S,int x,int y,char*out){   // out: at least 48 bytes
     int d=S->dim; char*e=out; *e=0;
     if(x<0||y<0||x>=d||y>=d){ khCat(out,"THE EDGE OF THE WORLD"); return; }
@@ -77,7 +77,7 @@ static inline void khInfo(const KSim*S,int x,int y,char*out){   // out: at least
         else if(T->kind==KK_STORE){ khCat(e,"  STOCKPILE"); }
         else { khCat(e,b->work?"  WORKING":"  NO WORKER"); }
         return; }
-    { int v=S->cells[y*d+x]&7; khCat(out,khTerrain[v<7?v:0]); }
+    { int v=S->cells[y*d+x]&7; khCat(out,khTerrain[v<8?v:0]); }
 }
 static inline void khStatus(char*out,int mode,long day,int pop,int spd){   // "ROAD   DAY 12  NUBBINS 7  X4"
     char*e=khCat(out,khName[mode]); e=khCat(e,"   DAY "); e=khNum(e,day>99999?99999:day); e=khCat(e,"  NUBBINS "); e=khNum(e,pop); e=khCat(e,"  X"); khNum(e,spd==0?1:spd==1?4:16);

@@ -9,6 +9,7 @@
 //   QK_KGOOD a, n       n of good a (kingsim.h's G_ numbers) that EXIST: the stockpile, the buildings and the carriers (a good used up at once is not seen)
 //   QK_KCASTLE n        the castle's stages done: 1 foundation, 2 walls, 3 towers, 4 crowned
 //   QK_KROAD n          n road cells laid
+//   QK_KBRIDGE n        n bridge cells laid over water (step 5d)
 //   QK_KDELIV n         n loads the Nubbins have delivered since this realm was opened (not saved with the realm)
 #ifndef KINGQ_H
 #define KINGQ_H
@@ -20,6 +21,7 @@
 #define QK_KCASTLE 105
 #define QK_KROAD   106
 #define QK_KDELIV  107
+#define QK_KBRIDGE 108
 #define EXK_BUILT  0
 #define EXK_POP    1
 #define EXK_EMP    2
@@ -29,9 +31,10 @@
 #define EXK_GOOD   6      // 8 goods: 6 to 13
 #define EXK_BT     14     // 12 building types: 14 to 25
 #define EXK_NBT    12
-#define EXK_N      26
+#define EXK_BRIDGE 26     // bridge cells
+#define EXK_N      27
 #define EXK_CAP    9999   // no number is above this (a task's n is never more)
-static inline int exkIs(int kind){ return kind>=QK_KBLD&&kind<=QK_KDELIV; }
+static inline int exkIs(int kind){ return kind>=QK_KBLD&&kind<=QK_KBRIDGE; }
 // the number a kingdom task counts, from the realm's numbers v[EXK_N]; -1 if the kind is not one of these. a is the task's second field.
 static inline int exkVal(int kind,int a,const int*v){
     switch(kind){
@@ -43,6 +46,7 @@ static inline int exkVal(int kind,int a,const int*v){
     case QK_KCASTLE: return v[EXK_CASTLE];
     case QK_KROAD:   return v[EXK_ROAD];
     case QK_KDELIV:  return v[EXK_DELIV];
+    case QK_KBRIDGE: return v[EXK_BRIDGE];
     }
     return -1;
 }

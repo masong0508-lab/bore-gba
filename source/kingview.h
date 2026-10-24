@@ -27,7 +27,8 @@ static inline u16 kvEntry(const KView*V,int x,int y){
             if(x>=b->x&&x<b->x+w&&y>=b->y&&y<b->y+h){ int q=(y-b->y>0?2:0)+(x-b->x>0?1:0); return (u16)(b->lvl?(8+q)|((1+(b->type<KS_NTYPES?b->type:KS_NTYPES-1))<<12):12+q); } }
         return 3;   // (bit 7 with no building under it: a damaged map; water is the least harmful thing to show)
     }
-    v&=7; return (u16)(v<KT_N?v:0);
+    v&=7; if(v==KT_BRIDGE) return KT_ROAD;   // (a bridge is drawn as the road tile for now; tile 7 is the deep water off the map)
+    return (u16)(v<KT_N?v:0);
 }
 static inline void kvPoke(const KView*V,int x,int y){ if(!V->ok) return; if(x<V->tx0||y<V->ty0||x>=V->tx0+KV_W||y>=V->ty0+KV_H) return; KV_PUT(x&31,y&31,kvEntry(V,x,y)); }
 static inline void kvRow(const KView*V,int ty){ for(int tx=V->tx0;tx<V->tx0+KV_W;tx++) KV_PUT(tx&31,ty&31,kvEntry(V,tx,ty)); }
