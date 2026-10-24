@@ -74,7 +74,7 @@ int main(void){
       for(int m=KHM_HUT;m<KHM_DEMO;m++){ khCost(b,&S,m); const KsType*T=ksT(m-KHM_HUT); CHECK(strstr(b,khGood[T->costG])!=0,"good named for mode %d: %s",m,b); }
       printf("  build menu: %d modes, longest line %d characters\n",KHM_N,worst); }
     // ---- the giant's hands (step 4g): stats and gathering ----
-    { for(int g=0;g<5;g++){ CHECK(khStride(g)>=2&&khStride(g)<=4,"stride %d",g); CHECK(khRun(g)>khStride(g)&&khRun(g)<8,"run %d is %d",g,khRun(g)); CHECK(khYield(g)>=2,"yield %d",g); }
+    { for(int g=0;g<5;g++){ CHECK(khStride(g)>=2&&khStride(g)<=4,"stride %d",g); CHECK(khRun(g)>khStride(g)&&khRun(g)<8,"run %d is %d",g,khRun(g)); CHECK(khYield(g)>=1,"yield %d",g); }
       CHECK(khStride(9)==khStride(0)&&khYield(-1)==khYield(0),"a bad giant number falls back to the first");
       for(int tier=0;tier<3;tier++){ CHECK(fresh(tier,70u+(u32)tier)==KSE_OK,"init"); int d=S.dim; int x,y,got=0;
         const int kinds[3]={KT_FOREST,KT_ROCK,KT_CRYSTAL}, goods[3]={G_WOOD,G_STONE,G_CRYSTAL}; int perKind[3]={0,0,0};

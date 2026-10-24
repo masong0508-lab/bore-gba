@@ -13,7 +13,8 @@ typedef uint8_t u8; typedef uint16_t u16; typedef uint32_t u32;
 
 static int fails=0;
 #define CHECK(c,...) do{ if(!(c)){ fails++; printf("FAIL line %d: ",__LINE__); printf(__VA_ARGS__); printf("\n"); } }while(0)
-static u32 rs=987654321u; static u32 rnd(void){ rs^=rs<<13; rs^=rs>>17; rs^=rs<<5; return rs; }
+static u32 rs=987654321u;   // (KSEED=n in the environment starts the random run elsewhere, to check the scenarios do not depend on one lucky sequence)
+ static u32 rnd(void){ rs^=rs<<13; rs^=rs>>17; rs^=rs<<5; return rs; }
 static u8 cells[128*128]; static KRealm R; static KBld B[KG_MAXB]; static KSim S0; static KSim*S=&S0;
 
 // ---- cycle model: a cost per operation (ASSUMED, like docs/EP6_PHASE0.md; replace with a cart measurement) ----
@@ -161,7 +162,7 @@ static void soak(const char*name,int tier,int days,int nB){
     int seed= nB>20?findSeed(tier,6,6,4,2,2,1,2):spec(); printf("== soak: %s, %d days (%ld frames), faults injected on the way\n",name,days,(long)days*KS_DAYT);
     if(seed<0){ CHECK(0,"no seed for the %s scenario",name); return; }
     int bp0=blueprints(); printf("  seed %d: %d buildings (%d blueprints at the start), %d road cells\n",seed,R.nB,bp0,S->nN);
-    resetBudget(); long T=(long)days*KS_DAYT; int cutC=-1, sawI=-1, isoI=-1, ph=0; long mark[12]={0}; u32 dl0=0, maxCar=0; int sawX=0, sawY=0; u32 delivered0=0; (void)delivered0;
+    resetBudget(); long T=(long)days*KS_DAYT; int cutC=-1, sawI=-1, isoI=-1, ph=0; long mark[12]={0}; u32 dl0=0, maxCar=0; int maxPop=0; int sawX=0, sawY=0; u32 delivered0=0; (void)delivered0;
     for(long t=0;t<T;t++){
         if(ph==0&&t==T*2/10){ waitBusy(); int best=-1; for(int n=0;n<S->nN;n++){ int c=S->nodeCell[n], k=0, nb[4]={c+1,c-1,c+S->dim,c-S->dim}; for(int j=0;j<4;j++) k+=ksIsRoad(S,nb[j]); if(k==2){ best=c; break; } } cutC=best; if(cutC>=0) ksRoadSet(S,cutC%S->dim,cutC/S->dim,0); mark[ph++]=t; }
         else if(ph==1&&t==T*3/10){ if(cutC>=0) ksRoadSet(S,cutC%S->dim,cutC/S->dim,1); mark[ph++]=t; }
@@ -172,9 +173,9 @@ static void soak(const char*name,int tier,int days,int nB){
         else if(ph==6&&t==T*8/10){ for(int g=0;g<KG_GOODS;g++){ ksGift(S,g,KG_GOODMAX); } mark[ph++]=t; }
         else if(ph==7&&t==T*9/10){ for(int i=R.nB-1;i>=0;i--) if(B[i].type==KB_STORE) ksDemolish(S,i); mark[ph++]=t; }
         else if(ph==8&&t==T*95/100){ int r=spotFor(KB_STORE,0,0); if(r>=0) route(r); mark[ph++]=t; }
-        if(t%(2*KS_DAYT)==0&&t>0&&R.nB<KS_MAXB-8&&(rnd()%3)){ int r=spotFor((rnd()&1)?KB_HUT:KB_HOUSE,(int)(rnd()%6),0); if(r>=0) route(r); }   // a busy player keeps building
+        if(t%(2*KS_DAYT)==0&&t>0&&R.nB<KS_MAXB-8&&(rnd()%3)){ int ty=(rnd()&1)?KB_HUT:KB_HOUSE; int sd=(int)(rnd()%6); int r=spotFor(ty,sd,0); if(r>=0) route(r); }   // (two random draws in a fixed order: C does not say which argument is evaluated first, and gcc and clang differ)   // a busy player keeps building
         else if(t%(2*KS_DAYT)==KS_DAYT){ int homes=0; for(int i=0;i<R.nB;i++) homes+=B[i].type==KB_HUT||B[i].type==KB_HOUSE; if(homes>5){ for(int k=0;k<20;k++){ int i=(int)(rnd()%(u32)R.nB); if(B[i].type==KB_HUT||B[i].type==KB_HOUSE){ ksDemolish(S,i); break; } } } }
-        ksStep(S); cycles(); if((u32)active()>maxCar) maxCar=(u32)active();
+        ksStep(S); cycles(); if((u32)active()>maxCar) maxCar=(u32)active(); if(S->pop>maxPop) maxPop=S->pop;
         if(t%20011==0){ int e=ksCheck(S); if(e){ CHECK(0,"ksCheck %d at frame %ld",e,t); break; } }
         for(int p=0;p<9;p++) if(mark[p]==t&&t>0&&(p==0||mark[p-1]<t)){ printf("  day %ld: fault %d\n",t/KS_DAYT,p); }
         if(ph<=8&&t==mark[0]&&0) dl0=S->delivered;
@@ -182,14 +183,14 @@ static void soak(const char*name,int tier,int days,int nB){
     int e=ksCheck(S); CHECK(e==0,"final ksCheck %d",e); int stuck=0; for(int w=0;w<KS_MAXW;w++) stuck+=S->wk[w].st&&S->wk[w].stall>=KS_TIMEOUT;
     printf("  RESULT: books %s; carriers stuck at the end %d; timeouts %u, aborts %u; carriers in use at most %u; delivered %u in all\n",e?"BROKEN":"balanced",stuck,S->timeouts,S->aborts,maxCar,S->delivered);
     CHECK(stuck==0,"%d carriers stuck",stuck); CHECK(S->delivered>(u32)days*2,"only %u goods delivered in %d days: the scenario did not run",S->delivered,days); CHECK(blueprints()<=R.nB/2,"%d of %d buildings are still blueprints",blueprints(),R.nB);
-    CHECK(S->pop>KS_PARTY,"nobody ever moved in"); printf("  caps: day %u, pop %d (cap %d), buildings %d (cap %d), road cells %d (cap %d), goods all <= %d: checked\n",R.day,S->pop,KS_POPCAP,R.nB,KS_MAXB,S->nN,KS_MAXN,KG_GOODMAX);
+    CHECK(maxPop>KS_PARTY,"nobody ever moved in (the most Nubbins at any time: %d)",maxPop);   // (not the end state: the soak destroys every storehouse at 90% of the run and cuts roads at random, so a village that waits for its player at the very end is expected; what must hold is that it lived and worked) printf("  caps: day %u, pop %d now, %d at most (cap %d), buildings %d (cap %d), road cells %d (cap %d), goods all <= %d: checked\n",R.day,S->pop,maxPop,KS_POPCAP,R.nB,KS_MAXB,S->nN,KS_MAXN,KG_GOODMAX);
     budget(name); (void)dl0;
 }
 static void footprint(void){
     printf("== footprint\n  KSim (everything the simulation keeps beside the realm): %d bytes\n    distance maps %d x %d = %d, road list %d, queue %d, carriers %d x %d = %d\n",(int)sizeof(KSim),KS_MAPS,KS_MAXN,KS_MAPS*KS_MAXN,KS_MAXN*2,KS_MAXN*2,KS_MAXW,(int)sizeof(KsWk),KS_MAXW*(int)sizeof(KsWk));
     for(int t=0;t<3;t++) printf("  %-9s %3dx%-3d: map %5d + sim %d + building list %d = %d bytes (%.1f KB)\n",t==0?"hamlet":t==1?"realm":"kingdom",kgDim(t),kgDim(t),kgCells(t),(int)sizeof(KSim),KS_MAXB*(int)sizeof(KBld),kgCells(t)+(int)sizeof(KSim)+KS_MAXB*(int)sizeof(KBld),(kgCells(t)+(int)sizeof(KSim)+KS_MAXB*(int)sizeof(KBld))/1024.0);
 }
-int main(int argc,char**argv){
+int main(int argc,char**argv){ { const char*ks=getenv("KSEED"); if(ks) rs^=(u32)atoi(ks)*2654435761u; if(!rs) rs=1; }
     int days=600, quick=1; if(argc>1&&!strcmp(argv[1],"soak")){ quick=0; days=argc>2?atoi(argv[2]):10000; }
     testEconomy(); testHealing(); testSave(); testDeterminism(); testCaps(); testHostile(); testFuzz(quick?30000:60000);
     soak("spec (10 to 11 buildings)",1,days,10); soak("stretch (about 30 buildings)",2,quick?days:days/3,30); footprint();

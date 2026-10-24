@@ -25,7 +25,7 @@
 static inline int ksMapFor(KSim*S,int b){   // the map slot of a building (made if there is room), or -1
     for(int m=0;m<KS_MAPS;m++) if(S->mapB[m]==b){ S->mapUse[m]=S->t; return m; }
     int v=-1; for(int m=0;m<KS_MAPS;m++){ if(S->mapB[m]==0xFF){ v=m; break; }
-        if(!S->mapRef[m]&&(S->mapReady[m]||S->t-S->mapUse[m]>KS_MAPWAIT)&&(v<0||S->mapUse[m]<S->mapUse[v])) v=m; }
+        if(!S->mapRef[m]&&(S->mapReady[m]||ksAge(S,S->mapUse[m])>KS_MAPWAIT)&&(v<0||ksAge(S,S->mapUse[m])>ksAge(S,S->mapUse[v]))) v=m; }
     if(v<0) return -1;
     if(S->bfsSlot==v) S->bfsSlot=-1;
     S->mapB[v]=(u8)b; S->mapReady[v]=0; S->mapUse[v]=S->t; return v;
@@ -68,7 +68,7 @@ static inline int ksWant(const KSim*S,int i,int*g){   // how many more of which 
 static inline int ksMatch(KSim*S){
     KRealm*R=S->R; int jobs=0; if(R->nB<=0) return 0;
     for(int s=0;s<KS_SCAN&&jobs<KS_JOBS;s++){
-        int i=(int)(S->mrr++%(u32)R->nB); S->opMatch++; int g=0;
+        if(S->mrr>=(1u<<30)) S->mrr=0; int i=(int)(S->mrr++%(u32)R->nB); S->opMatch++; int g=0;
         int want=ksWant(S,i,&g), started=0;
         if(want>0){   // someone must bring it
             int any=S->nStore>0&&R->goods[g]>0;   // no source anywhere: do not take a map slot (wanters with nothing to get used to evict each other's maps)
@@ -98,24 +98,24 @@ static inline int ksMatch(KSim*S){
 }
 static inline void ksWalk(KSim*S){
     for(int w=0;w<KS_MAXW;w++){ KsWk*k=&S->wk[w]; if(!k->st) continue; S->opWalk++;
-        if(k->stall>=KS_TIMEOUT){ S->timeouts++; ksDrop(S,k,1); continue; }
+        if(k->stall>=KS_TIMEOUT){ ksInc(&S->timeouts); ksDrop(S,k,1); continue; }
         if((S->t+(u32)w)%KS_WALK) continue;
         int m=k->md, n=ksNode(S,k->cell);
-        if(n<0){ ksSnap(S,k); if(k->cell==0xFFFF){ S->aborts++; ksDrop(S,k,1); } else k->stall++; continue; }
+        if(n<0){ ksSnap(S,k); if(k->cell==0xFFFF){ ksInc(&S->aborts); ksDrop(S,k,1); } else k->stall++; continue; }
         if(!S->mapReady[m]||S->mapB[m]==0xFF){ k->stall+=KS_WALK; continue; }
         int dv=S->dist[m][n];
-        if(dv==255){ k->stall+=KS_WALK; if(k->stall>=KS_CUT){ S->aborts++; ksDrop(S,k,1); } continue; }
+        if(dv==255){ k->stall+=KS_WALK; if(k->stall>=KS_CUT){ ksInc(&S->aborts); ksDrop(S,k,1); } continue; }
         if(dv==0){   // at the door: hand it over
             KBld*b=&S->B[k->dst]; const KsType*T=ksT(b->type);
             if(b->lvl&&T->kind==KK_STORE) ksPool(S,k->good,1); else ksSetIn(b,ksIn(b)+1);
             if(S->inRes[k->dst]) S->inRes[k->dst]--;
             if(S->mapRef[m]) S->mapRef[m]--;
-            k->st=0; S->delivered++; continue; }
+            k->st=0; ksInc(&S->delivered); continue; }
         int c=k->cell, d=S->dim, nb[4]={c+1,c-1,c+d,c-d}, moved=0;
         for(int j=0;j<4&&!moved;j++){ if(!ksIsRoad(S,nb[j])) continue; int q=ksNode(S,nb[j]); if(q>=0&&S->dist[m][q]<dv){ k->cell=(u16)nb[j]; moved=1; } }
         if(moved) k->stall=0; else k->stall+=KS_WALK; }
 }
-static inline void ksStep(KSim*S){ S->t++; ksEcon(S); ksBfs(S); ksMatch(S); ksWalk(S); }
+static inline void ksStep(KSim*S){ if(++S->t>=KS_TMAX) S->t=0; ksEcon(S); ksBfs(S); ksMatch(S); ksWalk(S); }
 static inline void ksPrepSave(KSim*S){ ksRecall(S); }   // before kgEncode: the carriers' goods go back in the stockpile (the save has no carriers)
 
 // ---- the checks (the PC test runs them all the time; the cart may run ksLedger now and then) ----

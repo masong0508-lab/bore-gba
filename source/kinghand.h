@@ -30,11 +30,19 @@ static inline int khGoods(KSim*S,int i,int x,int y,int giant);
 static inline int khHoldAct(KSim*S,int mode,int x,int y);
 static inline int khRedraw(int r){ return (r>=KHR_ROAD&&r<=KHR_RAZED)||r==KHR_LIFT||r==KHR_SET; }   // did this press change what the map shows (apart from KHR_GOT, one cell)?
 // ---- the giant (step 4g): its stats, and gathering by hand. The five giants of KRealm.giant: A the all-rounder, B the runner, C the lifter, D the builder, then your own Bore (average). [ASSUMED values, tune freely] ----
-static const unsigned char khStrideT[5]={ 3, 4, 2, 3, 3 };   // pixels a frame on the map (a Nubbin's worker is far slower)
-static const unsigned char khWorkT[5]={ 2, 2, 3, 2, 2 };     // goods one hand-gathered tree, rock or crystal gives (a woodcutter gives 1 and takes 90 frames)
-static inline int khStride(int giant){ return khStrideT[giant>=0&&giant<5?giant:0]; }
+// step 5e: ONE table for the four stats of the roadmap's section 4.3, a point up on one, a point down on another, so none is best. Columns: stride (map pixels a frame), carry (goods in a load, kinghold.h),
+// work (goods one hand-gathered tree, rock or crystal gives; a woodcutter gives 1 and takes 90 frames), build (1 plain; 2 or more: a site the giant's hands finish gives back build-1 goods, see khGoods)
+//                                        stride carry work build
+static const unsigned char khStatT[5][4]={ {3, 5, 2, 1},    // A the all-rounder
+                                           {4, 4, 2, 1},    // B the runner: faster, carries less
+                                           {2, 7, 2, 1},    // C the lifter: slower, carries more
+                                           {3, 5, 1, 2},    // D the builder: gathers less, builds better
+                                           {3, 5, 2, 1} };  // your own Bore: average until Phase 7 sets it from the Sim's skills
+static inline int khStat(int giant,int col){ return khStatT[giant>=0&&giant<5?giant:0][col&3]; }
+static inline int khStride(int giant){ return khStat(giant,0); }
 static inline int khRun(int giant){ int s=khStride(giant); return s+(s+1)/2; }   // B held: 3 -> 5, 4 -> 6, 2 -> 3 (always under 8, so a frame never skips a cell)
-static inline int khYield(int giant){ return khWorkT[giant>=0&&giant<5?giant:0]; }
+static inline int khYield(int giant){ return khStat(giant,2); }
+static inline int khBuild(int giant){ return khStat(giant,3); }
 // the giant gathers what is on cell (x,y): a tree, a rock or a crystal becomes grass and its goods go to the stockpile (ksGift, so the books stay balanced)
 static inline int khWork(KSim*S,int x,int y){
     int d=S->dim; if(x<0||y<0||x>=d||y>=d) return KHR_ARG;
@@ -79,6 +87,7 @@ static inline void khInfo(const KSim*S,int x,int y,char*out){   // out: at least
         return; }
     { int v=S->cells[y*d+x]&7; khCat(out,khTerrain[v<8?v:0]); }
 }
+static inline long khDay(u32 day){ return day>99999u?99999L:(long)day; }   // (step 5f) the day for the screen: capped, and never negative where a long is 32 bits
 static inline void khStatus(char*out,int mode,long day,int pop,int spd){   // "ROAD   DAY 12  NUBBINS 7  X4"
     char*e=khCat(out,khName[mode]); e=khCat(e,"   DAY "); e=khNum(e,day>99999?99999:day); e=khCat(e,"  NUBBINS "); e=khNum(e,pop); e=khCat(e,"  X"); khNum(e,spd==0?1:spd==1?4:16);
 }

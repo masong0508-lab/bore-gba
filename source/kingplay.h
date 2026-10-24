@@ -75,7 +75,7 @@ static void khShow(const KView*V,int cx,int cy,int on){   // the cursor cell: it
     if(!V->ok||cx<V->tx0||cy<V->ty0||cx>=V->tx0+KV_W||cy>=V->ty0+KV_H) return;
     KV_PUT(cx&31,cy&31,on?(u16)(kvEntry(V,cx,cy)|0xF000):kvEntry(V,cx,cy)); }
 static void kpHud(const KSim*S,const KRealm*R,const KHand*h,int cx,int cy,int spd,const char*msg){   // draws the two lines in the bitmap (not shown in mode 0), makes tiles of them
-    char l1[64], l2[64], hb[24]; khHeld(S,hb); khStatus2(l1,h->mode,(long)R->day,S->pop,spd,hb); if(msg) khCat(l2,msg); else khInfo(S,cx,cy,l2);
+    char l1[64], l2[64], hb[24]; khHeld(S,hb); khStatus2(l1,h->mode,khDay(R->day),S->pop,spd,hb); if(msg) khCat(l2,msg); else khInfo(S,cx,cy,l2);
     rect(0,0,240,16,0); text(1,1,l1,KH_SHADOW,1); text(0,0,l1,GOLD,1); text(1,9,l2,KH_SHADOW,1); text(0,8,l2,WHITE,1);
     static u16 t[KH_TILES*16]; khStrip(fb,KH_SHADOW,t); volatile u16*vt=(volatile u16*)(0x06000000+KV_TILES*32); for(int i=0;i<KH_TILES*16;i++) vt[i]=t[i]; }
 static int kpDraw(const KmMem*m,const char*nm,int spd,u32 cnt){   // the status screen

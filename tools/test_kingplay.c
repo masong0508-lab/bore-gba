@@ -52,9 +52,11 @@ static void reboot(void){   // a restart: the RAM copy of sector 1 comes from th
 static void blank(void){ memset(chip,0xFF,sizeof chip); cutAt=-1; reboot(); }
 static int fails=0;
 #define CHECK(c,...) do{ if(!(c)){ fails++; if(fails<30){ printf("FAIL line %d: ",__LINE__); printf(__VA_ARGS__); printf("\n"); } } }while(0)
-static u32 hashState(KmMem*m){ u32 h=2166136261u; const u8*p;
-    p=(const u8*)m->R; for(size_t i=0;i<sizeof(KRealm);i++) h=(h^p[i])*16777619u;
-    p=(const u8*)m->B; for(size_t i=0;i<(size_t)m->R->nB*sizeof(KBld);i++) h=(h^p[i])*16777619u;
+static u32 hashState(KmMem*m){ u32 h=2166136261u;   // field by field: the padding bytes of a struct are not part of the realm (a copy need not keep them, and clang does not)
+#define HX(v) h=(h^(u32)(v))*16777619u
+    const KRealm*r=m->R; HX(r->tier); HX(r->giant); HX(r->castle); HX(r->genVer); HX(r->flags); HX(r->seed); HX(r->day); HX(r->rng); for(int g=0;g<KG_GOODS;g++) HX(r->goods[g]); HX(r->nB); HX(r->gx); HX(r->gy);
+    for(int i=0;i<r->nB;i++){ const KBld*b=&m->B[i]; HX(b->type); HX(b->x); HX(b->y); HX(b->lvl); HX(b->work); HX(b->stock); }
+#undef HX
     int d=kgDim(m->R->tier); for(int i=0;i<d*d;i++) h=(h^(m->cells[i]&7))*16777619u; return h; }
 static int found(int tier,int*slot){   // what ksFound does: no cells, no buildings, 10 of each raw good
     KRealm Rn; memset(&Rn,0,sizeof Rn); Rn.tier=(u8)tier; Rn.giant=1; Rn.genVer=KG_GENVER; Rn.seed=rnd(); Rn.rng=rnd()|1; for(int i=0;i<4;i++) Rn.goods[i]=10;

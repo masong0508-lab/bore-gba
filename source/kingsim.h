@@ -25,6 +25,7 @@
 #define KS_PARTY   4        // the founding party
 #define KS_BUF     8        // goods a building holds
 #define KS_DAYT    600      // frames in a realm day
+#define KS_TMAX    (KS_DAYT*7158278u)   // the frame clock S->t counts 0 .. KS_TMAX-1 and starts again: a whole number of days (and of KS_WALK steps), so a day never comes early or late at the wrap, and it fits a u32 (step 5f)
 #define KS_GR      6        // a gatherer's reach: this many cells each way from the middle of its 2 x 2
 #define KS_REGROW  12       // tries a day a working woodcutter makes to plant a tree on bare grass in its reach
 enum { KB_HUT, KB_HOUSE, KB_WOODCUT, KB_QUARRY, KB_SAWMILL, KB_MASON, KB_STORE, KB_SHEEP, KB_CRYMINE, KB_WEAVER, KB_CUTTER, KB_CASTLE, KS_NTYPES };   // (step 5a: the wool chain and the crystal chain)
@@ -67,6 +68,8 @@ typedef struct {
     u8 dist[KS_MAPS][KS_MAXN]; u16 queue[KS_MAXN];   // KEEP THESE TWO LAST (step 4a): they are only a cache, rebuilt by ksBfs, and once ksPrepSave has run they are free for kingmem.h's save scratch
 } KSim;
 
+static inline void ksInc(u32*c){ if(*c!=0xFFFFFFFFu) (*c)++; }   // (step 5f) a run counter that stops at its ceiling instead of wrapping to 0
+static inline u32 ksAge(const KSim*S,u32 stamp){ return S->t>=stamp?S->t-stamp:S->t+(KS_TMAX-stamp); }   // frames since a stamp of the frame clock, across its wrap
 static inline u32 ksRnd(KSim*S){ u32 x=S->R->rng?S->R->rng:2463534242u; x^=x<<13; x^=x>>17; x^=x<<5; S->R->rng=x; return x; }
 static inline int ksIn(const KBld*b){ return b->stock&255; }
 static inline int ksOut(const KBld*b){ return b->stock>>8; }

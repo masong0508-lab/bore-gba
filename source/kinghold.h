@@ -8,8 +8,7 @@
 // NOTE (step 4c): main.c #defines W, D and H. No single capital letters as names here. [ASSUMED values, tune freely]
 #ifndef KINGHOLD_H
 #define KINGHOLD_H
-static const unsigned char khLoadT[5]={ 5, 5, 8, 6, 5 };   // goods in a load by giant: A, B, C the lifter, D the builder, your own Bore
-static inline int khLoad(int giant){ return khLoadT[giant>=0&&giant<5?giant:0]; }
+static inline int khLoad(int giant){ return khStat(giant,1); }   // goods in a load by giant (the carry column of khStatT in kinghand.h)
 // how many more of good g the sites and the working sawmills / masons still ask for (their want minus what is already on its way to them)
 static inline int khWantOf(const KSim*S,int i,int*g){
     const KBld*b=&S->B[i]; const KsType*T=ksT(b->type); int have=ksIn(b)+S->inRes[i], w=0; *g=-1;
@@ -26,7 +25,9 @@ static inline int khGoods(KSim*S,int i,int x,int y,int giant){
         int g=0, w=khWantOf(S,i,&g);
         if(g!=h->g) return KHR_REFUSE;                                // not the good this building asks for (a finished home, a woodcutter, the wrong good)
         if(w<=0) return KHR_ENOUGH;                                   // it has what it needs, or what is on its way covers it
-        int n=h->n<w?h->n:w; ksSetIn(b,ksIn(b)+n); h->n=(u8)(h->n-n); if(!h->n) h->k=KHD_NONE; return KHR_GIVE;
+        int n=h->n<w?h->n:w; ksSetIn(b,ksIn(b)+n); h->n=(u8)(h->n-n); if(!h->n) h->k=KHD_NONE;
+        if(!b->lvl&&n==w&&khBuild(giant)>1) ksGift(S,g,khBuild(giant)-1);   // (step 5e) the builder's hands finish a site: some of its goods come back (ksGift, so the books stay balanced)
+        return KHR_GIVE;
     }
     if(b->lvl&&T->kind==KK_STORE){   // empty hands on a storehouse: take what is asked for, from the stockpile
         int bg=-1, bd=1<<20;

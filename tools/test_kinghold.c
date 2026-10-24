@@ -23,7 +23,7 @@ static int bldCells(void){ int n=0; for(int c=0;c<S.dim*S.dim;c++) n+=(S.cells[c
 int main(void){
     printf("== kinghold: pick up and put down\n");
     // ---- tables ----
-    for(int g=0;g<5;g++) CHECK(khLoad(g)>=5&&khLoad(g)<=8,"load %d",g); CHECK(khLoad(9)==khLoad(0)&&khLoad(-1)==khLoad(0),"a bad giant number falls back");
+    for(int g=0;g<5;g++) CHECK(khLoad(g)>=4&&khLoad(g)<=8,"load %d",g); CHECK(khLoad(9)==khLoad(0)&&khLoad(-1)==khLoad(0),"a bad giant number falls back");
     CHECK(sizeof(KHold)==6,"the hold is 6 bytes (%d)",(int)sizeof(KHold));
     // ---- GOODS ----
     fresh(1,41); patch(); R.giant=0; ksGift(&S,G_WOOD,20); ksGift(&S,G_PLANKS,5);
