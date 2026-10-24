@@ -1,0 +1,11 @@
+
+# Phase 4, step a: a realm can be played (kingplay.h)
+
+Nothing in this step draws a map or a giant yet. It wires the realm into the game, end to end, with a plain status screen to watch it on. KINGDOM MODE > a realm > PLAY THIS KINGDOM.
+
+- `source/kingplay.h`: `kpOpen` (stgClaim, lay the realm out in hhPool, load, start the simulation), `kpSave` (the realm saves as a fresh copy and goes on running; its slot MOVES), `kpSettle` (a new realm gets a standing storehouse, two hut sites and 6 road cells on a cleared 8 x 8 patch in the middle [ASSUMED]) and `kpRun` (the status screen: day, Nubbins, goods; UP/DOWN speed x1, x4, x16; B or START opens SAVE AND LEAVE / SAVE AND KEEP PLAYING / LEAVE WITHOUT SAVING / KEEP PLAYING). A save that fails never leaves the realm.
+- A FINDING: the worst realm the simulation allows in the 128 x 128 tier (40 buildings, 512 road cells, thousands of felled trees) saves as 6.5 to 6.7 KB, but the pool has only 6,048 bytes spare there. So `kingmem.h` now puts the simulation LAST and gives two scratch areas that run to the end of the pool: `lscr` to load (the whole simulation area, not started yet) and `sscr` to save (from `KSim.dist`, which is only a cache after `ksPrepSave`, 12,192 bytes in the kingdom tier). `kingsim.h` moves `dist` and `queue` to the end of `KSim` for this. No other change to the simulation; its tests still pass.
+- The realm after a save lives exactly as one that was prepared for a save but encoded elsewhere (tested over 20 days).
+- Still true: the save format allows 4 slots (8,156 payload bytes). A realm with far more felled trees than the test's 3.9 thousand edits could still be refused with a full "too big" error; the sim's reach (40 buildings x 14 x 14 cells = 7,840) bounds it, and a checkerboard of all of them is not something play produces. To watch, not to fix yet.
+- Not compiled for the ARM. New to the ARM build: `memset` (the king files are the only code that calls it; devkitARM's newlib has it) and `_Alignof`/`uintptr_t` (stdint.h is already included). main.c gets four `#include` lines.
+- Tests: `sh tools/test_kingplay.sh` (found a realm, open it in a pool of hhPool's size, settle, run 30 days, save, reopen identical, the worst realm, mid-life save, a bad slot) on the real flash code; `test_kingmem.sh` updated for the new order.

@@ -6142,12 +6142,16 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "mysim.h"         // MY SIM: the pause menu tile with CAREER / SKILLS / PEOPLE / MORE tabs
 #include "kingdom.h"       // EP6 THE LAND BOREFORE TIME: the realm as data and its save bytes (pure functions: nothing calls them yet)
 #include "kingslot.h"     // EP6: a realm in the save slots (SLK_KING): save, load, list, delete (nothing calls them yet: the KINGDOM screen comes next)
+#include "kingsim.h"        // EP6 Phase 3: the economy (pure C, tested on a PC)
+#include "kinglog.h"        // EP6 Phase 3: carriers and hauling
+#include "kingmem.h"        // EP6 Phase 3e: the realm laid out inside hhPool
 #include "expand.h"        // EXPANSION PACKS: missions with scenarios (BORE-OUT MAN!, BOREZIES!, WORLD WAR BORE, BORTUA FIGHTER, BOREAGOTCHI!, BOREPILOGUE)
 #include "space.h"         // BORE-OUT MAN!: the launch and the spacewalk
 #include "lunrado.h"       // LUNRADO: the moonbase, the damaged approach, the landing
 #include "gotchi.h"        // BOREAGOTCHI!: THE HANDHELD (a blob on a keychain that needs you constantly)
 #include "bortua.h"        // BORTUA FIGHTER: ARCADE MODE (polygon fighters, a ladder of nine, the chrome boss)
 #include "kingscreen.h"   // EP6: the KINGDOM screen (KINGDOM MODE): lists realms, deletes one; founding and playing come next
+#include "kingplay.h"     // EP6 Phase 4a: PLAY THIS KINGDOM (the realm in hhPool, a status screen)
 #include "xmodes.h"        // the packs' MODES: BORTUA FIGHTER's ARCADE MODE, BOREAGOTCHI's HANDHELD
 #include "arena.h"         // BOREZIES! ARENAS: bitmapped maps with scattered barrels and canisters that stand in for your lot during a fight
 #include "horde.h"         // BOREZIES!'s HORDE MODE: waves, mutators, perks (100 waves or endless)

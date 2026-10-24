@@ -4,6 +4,7 @@
 // It lives in the base ROM for now (a few hundred bytes of code); it moves into the pack's slot with the rest of the pack when there is
 // something to play. Needs: slots.h, kingdom.h, kingslot.h, story.h (stBack), main.c's text and menu helpers.
 #define KS_MINSLOTS 26   // a cart with less save room (SRAM only: 12 slots) cannot hold realms safely: the mode is off there (roadmap 5.4)
+static int kpRun(int slot);   // kingplay.h (PLAY THIS KINGDOM)
 static const char* const ksTier[KG_TIERS]={"HAMLET 48 X 48","REALM 96 X 96","KINGDOM 128 X 128"};
 static const char* const ksCastle[KG_CASTLE+1]={"NO CASTLE YET","FOUNDATION","WALLS","TOWERS","CROWNED"};
 static const char* const ksGiant[KG_GIANTS]={"GIANT A","GIANT B","GIANT C","GIANT D","YOUR BORE"};   // (placeholder names, roadmap 4.3)
@@ -94,12 +95,13 @@ static int kgRun(void){   // KINGDOM MODE. Returns 0: nothing started that shoul
         if(pr&K_UP){ sel=(sel+ksN)%(ksN+1); dirty=1; }
         if(pr&K_A){
             if(sel==0){ int f=ksFound(); if(f>=0){ ksRefresh(); for(int i=0;i<ksN;i++) if(ksL[i]==f) sel=i+1; } }
-            else { static const char* const yn[3]={"RENAME THIS KINGDOM","DELETE THIS KINGDOM","LEAVE IT"}; int s=ksL[sel-1];
-                int ch=menu(slI[s].name[0]?slI[s].name:"THIS KINGDOM",yn,3);
-                if(ch==0){ char nm[SLOT_NAME+1]; int i=0; for(;i<SLOT_NAME&&slI[s].name[i];i++) nm[i]=slI[s].name[i]; nm[i]=0; int pid=slI[s].pid;
+            else { static const char* const yn[4]={"PLAY THIS KINGDOM","RENAME THIS KINGDOM","DELETE THIS KINGDOM","LEAVE IT"}; int s=ksL[sel-1];
+                int ch=menu(slI[s].name[0]?slI[s].name:"THIS KINGDOM",yn,4);
+                if(ch==0){ int pid=slI[s].pid; kpRun(s); ksRefresh(); for(int j=0;j<ksN;j++) if(slI[ksL[j]].pid==pid) sel=j+1; }
+                else if(ch==1){ char nm[SLOT_NAME+1]; int i=0; for(;i<SLOT_NAME&&slI[s].name[i];i++) nm[i]=slI[s].name[i]; nm[i]=0; int pid=slI[s].pid;
                     if(slEditName(nm)){ int e=kgsRename(pid,nm); ksRefresh(); for(int j=0;j<ksN;j++) if(slI[ksL[j]].pid==pid) sel=j+1;
                         toast(e>=0?"KINGDOM RENAMED":e==SLE_NOROOM?"NO ROOM  FREE A SLOT":slErrMsg(e)); } }
-                else if(ch==1){ static const char* const yn2[2]={"YES  DELETE FOR GOOD","NO  KEEP IT"};
+                else if(ch==2){ static const char* const yn2[2]={"YES  DELETE FOR GOOD","NO  KEEP IT"};
                     if(menu("THIS CANNOT BE UNDONE",yn2,2)==0){ kgsDelete(slI[s].pid); ksRefresh(); if(sel>ksN) sel=ksN; toast("KINGDOM DELETED"); } } }
             prev=keyNow(); dirty=1; continue; }
         if(sel<top){ top=sel; }

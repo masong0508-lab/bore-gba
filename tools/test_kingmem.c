@@ -17,8 +17,8 @@ int main(void){
         u8*raw=malloc((size_t)KM_POOL+(size_t)mis); u8*pool=raw+mis; int bytes=KM_POOL; if(mis) bytes=KM_POOL;   // (a pool that starts 0..7 bytes off a word boundary: it still has KM_POOL bytes)
         KmMem m; int r=kmLayout(pool,bytes,tier,&m); CHECK(r==0,"tier %d misalign %d: layout refused (%d)",tier,mis,r); if(r){ free(raw); continue; }
         CHECK(((uintptr_t)m.S%KM_AL)==0&&((uintptr_t)m.R%KM_AL)==0&&((uintptr_t)m.B%KM_AL)==0&&((uintptr_t)m.cells%KM_AL)==0,"a part is not word aligned");
-        CHECK((u8*)m.S>=pool&&m.cells+kgCells(tier)<=pool+bytes,"a part lies outside the pool");
-        CHECK((u8*)m.R>=(u8*)(m.S+1)&&(u8*)m.B>=(u8*)(m.R+1)&&m.cells>=(u8*)(m.B+KS_MAXB),"parts overlap");
+        CHECK((u8*)m.R>=pool&&(u8*)(m.S+1)<=pool+bytes,"a part lies outside the pool");
+        CHECK((u8*)m.B>=(u8*)(m.R+1)&&m.cells>=(u8*)(m.B+KS_MAXB)&&(u8*)m.S>=m.cells+kgCells(tier),"parts overlap");
         int d=kgDim(tier), c=d/2; m.R->tier=(u8)tier; m.R->genVer=KG_GENVER; m.R->seed=777u+(u32)tier; m.R->rng=99; kgGen(m.cells,m.R->seed,tier);
         CHECK(ksInit(m.S,m.R,m.B,m.cells)==KSE_OK,"ksInit"); KSim*S=m.S;
         int st=ksPlace(S,KB_STORE,c-1,c-1,1), hut=ksPlace(S,KB_HUT,c+2,c-1,0), hut2=ksPlace(S,KB_HUT,c-1,c+2,0);

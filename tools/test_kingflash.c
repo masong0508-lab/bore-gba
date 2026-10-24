@@ -43,7 +43,7 @@ static void ldShow(const char*s,int a,int b){ (void)s;(void)a;(void)b; } static 
 
 static void reboot(void){   // a restart: the RAM copy of sector 1 comes from the chip again
     svType=SV_FLASH; svSize=131072; svScr=svSize-SV_SEC; svErr=0; fkBank=0; svBank=0;
-    for(u32 i=0;i<SV_LOWN;i++) svLow[i]=chip[SV_LOW0+i]; svShadLoad(); svBase=svLow-SV_LOW0; svRecover();
+    for(u32 i=0;i<SV_LOWN;i++) svLow[i]=chip[SV_LOW0+i]; svShadLoad(); svBase=(volatile u8*)((uintptr_t)svLow-SV_LOW0); svRecover();
 }
 static void blank(void){ memset(chip,0xFF,sizeof chip); cutAt=-1; reboot(); }
 static int fails=0;

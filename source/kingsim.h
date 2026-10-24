@@ -53,9 +53,9 @@ typedef struct {
     u16 nodeCell[KS_MAXN];                     // the road cells, sorted: a road cell's number is its place in this list
     u16 timer[KS_MAXB]; u8 inRes[KS_MAXB];     // per building: the production clock; carriers on their way to it
     u8 mapB[KS_MAPS], mapReady[KS_MAPS], mapRef[KS_MAPS]; u32 mapUse[KS_MAPS];   // kinglog.h: a distance map is for one building
-    u8 dist[KS_MAPS][KS_MAXN]; u16 queue[KS_MAXN];
     KsWk W[KS_MAXW];
     u32 opMatch, opWalk, opBfs, opSearch, opProd;   // work counters (the PC test turns them into cycles)
+    u8 dist[KS_MAPS][KS_MAXN]; u16 queue[KS_MAXN];   // KEEP THESE TWO LAST (step 4a): they are only a cache, rebuilt by ksBfs, and once ksPrepSave has run they are free for kingmem.h's save scratch
 } KSim;
 
 static inline u32 ksRnd(KSim*S){ u32 x=S->R->rng?S->R->rng:2463534242u; x^=x<<13; x^=x>>17; x^=x<<5; S->R->rng=x; return x; }
