@@ -98,13 +98,13 @@ static inline int ksMatch(KSim*S){
 }
 static inline void ksWalk(KSim*S){
     for(int w=0;w<KS_MAXW;w++){ KsWk*k=&S->W[w]; if(!k->st) continue; S->opWalk++;
-        if(k->stall>=KS_TIMEOUT){ S->timeouts++; ksFree(S,k,1); continue; }
+        if(k->stall>=KS_TIMEOUT){ S->timeouts++; ksDrop(S,k,1); continue; }
         if((S->t+(u32)w)%KS_WALK) continue;
         int m=k->md, n=ksNode(S,k->cell);
-        if(n<0){ ksSnap(S,k); if(k->cell==0xFFFF){ S->aborts++; ksFree(S,k,1); } else k->stall++; continue; }
+        if(n<0){ ksSnap(S,k); if(k->cell==0xFFFF){ S->aborts++; ksDrop(S,k,1); } else k->stall++; continue; }
         if(!S->mapReady[m]||S->mapB[m]==0xFF){ k->stall+=KS_WALK; continue; }
         int dv=S->dist[m][n];
-        if(dv==255){ k->stall+=KS_WALK; if(k->stall>=KS_CUT){ S->aborts++; ksFree(S,k,1); } continue; }
+        if(dv==255){ k->stall+=KS_WALK; if(k->stall>=KS_CUT){ S->aborts++; ksDrop(S,k,1); } continue; }
         if(dv==0){   // at the door: hand it over
             KBld*b=&S->B[k->dst]; const KsType*T=ksT(b->type);
             if(b->lvl&&T->kind==KK_STORE) ksPool(S,k->good,1); else ksSetIn(b,ksIn(b)+1);

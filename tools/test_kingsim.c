@@ -79,7 +79,7 @@ static void testEconomy(void){
     long planks=S->made[G_PLANKS];
     printf("  seed %d, %d buildings (%d are blueprints), %d road cells, after 300 days: %d blueprints left, pop %d, carriers %d, delivered %u, wood made %ld, planks made %ld, stone made %ld\n",seed,n0,bp0,S->nN,blueprints(),S->pop,S->nWt,S->delivered,S->made[G_WOOD],planks,S->made[G_STONE]);
     CHECK(bp0>=6,"the start had only %d blueprints",bp0); CHECK(blueprints()==0,"%d blueprints never got built",blueprints());
-    CHECK(S->delivered>200,"only %u goods delivered",S->delivered); CHECK(ksCheck(S)==0,"ksCheck %d",ksCheck(S)); CHECK(S->pop>KS_START,"nobody moved in");
+    CHECK(S->delivered>200,"only %u goods delivered",S->delivered); CHECK(ksCheck(S)==0,"ksCheck %d",ksCheck(S)); CHECK(S->pop>KS_PARTY,"nobody moved in");
     int staffed=0; for(int i=0;i<R.nB;i++) staffed+=B[i].work&&ksT(B[i].type)->kind>=KK_GATHER&&ksT(B[i].type)->kind<=KK_PROC;
     CHECK(staffed>=3,"only %d buildings staffed",staffed); budget("economy");
 }
@@ -182,7 +182,7 @@ static void soak(const char*name,int tier,int days,int nB){
     int e=ksCheck(S); CHECK(e==0,"final ksCheck %d",e); int stuck=0; for(int w=0;w<KS_MAXW;w++) stuck+=S->W[w].st&&S->W[w].stall>=KS_TIMEOUT;
     printf("  RESULT: books %s; carriers stuck at the end %d; timeouts %u, aborts %u; carriers in use at most %u; delivered %u in all\n",e?"BROKEN":"balanced",stuck,S->timeouts,S->aborts,maxCar,S->delivered);
     CHECK(stuck==0,"%d carriers stuck",stuck); CHECK(S->delivered>(u32)days*2,"only %u goods delivered in %d days: the scenario did not run",S->delivered,days); CHECK(blueprints()<=R.nB/2,"%d of %d buildings are still blueprints",blueprints(),R.nB);
-    CHECK(S->pop>KS_START,"nobody ever moved in"); printf("  caps: day %u, pop %d (cap %d), buildings %d (cap %d), road cells %d (cap %d), goods all <= %d: checked\n",R.day,S->pop,KS_POPCAP,R.nB,KS_MAXB,S->nN,KS_MAXN,KG_GOODMAX);
+    CHECK(S->pop>KS_PARTY,"nobody ever moved in"); printf("  caps: day %u, pop %d (cap %d), buildings %d (cap %d), road cells %d (cap %d), goods all <= %d: checked\n",R.day,S->pop,KS_POPCAP,R.nB,KS_MAXB,S->nN,KS_MAXN,KG_GOODMAX);
     budget(name); (void)dl0;
 }
 static void footprint(void){

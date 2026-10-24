@@ -4,7 +4,7 @@
 //
 // THE RULES (all numbers are in the tables below, none of them are in a saved realm, so they can be tuned without breaking saves):
 //  - A building is a BLUEPRINT (level 0) until its cost (one good) has been carried to it, then it is built (level 1) and the cost is used up.
-//  - Homes (hut 4, house 8 Nubbins) take one new Nubbin a day. The founding party is KS_START Nubbins with no home, so a new realm can build.
+//  - Homes (hut 4, house 8 Nubbins) take one new Nubbin a day. The founding party is KS_PARTY Nubbins with no home, so a new realm can build.
 //  - A quarter of the Nubbins (and one) stay free to carry; the rest staff the gatherers and processors (b->work = 1 staffed).
 //  - A staffed gatherer fells a tree / quarries a rock in its reach every `period` frames and holds up to KS_BUF goods; a working woodcutter also plants.
 //  - A staffed processor turns 2 of its input into 1 output every `period` frames. A storehouse is the way into and out of the shared stockpile
@@ -22,7 +22,7 @@
 #endif
 #define KS_MAXW    40       // carriers
 #define KS_POPCAP  96
-#define KS_START   4        // the founding party
+#define KS_PARTY   4        // the founding party
 #define KS_BUF     8        // goods a building holds
 #define KS_DAYT    600      // frames in a realm day
 #define KS_GR      6        // a gatherer's reach: this many cells each way from the middle of its 2 x 2
@@ -76,7 +76,7 @@ static inline int ksAdj(const KSim*S,const KBld*b,int*out){   // the cells besid
 static inline void ksPool(KSim*S,int g,int n){ if(n<=0) return; long v=(long)S->R->goods[g]+n; if(v>KG_GOODMAX){ S->made[g]-=v-KG_GOODMAX; v=KG_GOODMAX; } S->R->goods[g]=(u16)v; }
 static inline void ksGift(KSim*S,int g,int n){ if(n<=0) return; S->made[g]+=n; ksPool(S,g,n); }   // goods the realm is given (the founding kit, a payout)
 static inline void ksCensus(KSim*S){
-    KRealm*R=S->R; int pop=KS_START, emp=0, st=0;
+    KRealm*R=S->R; int pop=KS_PARTY, emp=0, st=0;
     for(int i=0;i<R->nB;i++){ const KBld*b=&S->B[i]; const KsType*T=ksT(b->type); if(!b->lvl) continue;
         if(T->kind==KK_HOME) pop+=b->work; else if(T->kind==KK_STORE) st++; else emp+=b->work; }
     if(pop>KS_POPCAP) pop=KS_POPCAP;
@@ -103,13 +103,13 @@ static inline void ksSnap(KSim*S,KsWk*k){   // the road cell under a carrier is 
     for(int n=0;n<S->nN;n++){ int x=S->nodeCell[n]%d, y=S->nodeCell[n]/d; int m=(x>cx?x-cx:cx-x)+(y>cy?y-cy:cy-y); if(m<bd){ bd=m; best=n; } }
     k->cell=best>=0?S->nodeCell[best]:0xFFFF;
 }
-static inline void ksFree(KSim*S,KsWk*k,int giveBack){   // a carrier stops: its good goes back in the stockpile (or is lost at the ceiling), its claims are let go
+static inline void ksDrop(KSim*S,KsWk*k,int giveBack){   // a carrier stops: its good goes back in the stockpile (or is lost at the ceiling), its claims are let go
     if(giveBack) ksPool(S,k->good,1);
     if(k->md<KS_MAPS&&S->mapRef[k->md]) S->mapRef[k->md]--;
     if(k->dst<KS_MAXB&&S->inRes[k->dst]) S->inRes[k->dst]--;
     k->st=0;
 }
-static inline void ksRecall(KSim*S){ for(int w=0;w<KS_MAXW;w++) if(S->W[w].st) ksFree(S,&S->W[w],1);   // every carrier home with its good, every map let go (before a save, a demolition)
+static inline void ksRecall(KSim*S){ for(int w=0;w<KS_MAXW;w++) if(S->W[w].st) ksDrop(S,&S->W[w],1);   // every carrier home with its good, every map let go (before a save, a demolition)
     for(int m=0;m<KS_MAPS;m++){ S->mapB[m]=0xFF; S->mapReady[m]=0; S->mapRef[m]=0; S->mapUse[m]=0; }
     memset(S->inRes,0,sizeof S->inRes); S->bfsSlot=-1; }
 static inline int ksRoadSet(KSim*S,int x,int y,int on){
@@ -122,7 +122,7 @@ static inline int ksRoadSet(KSim*S,int x,int y,int on){
         S->nN--;
         S->cells[c]=(u8)kgCell(S->R->seed,S->R->tier,x,y); }       // the land underneath comes back
     ksMapsDirty(S);
-    for(int w=0;w<KS_MAXW;w++) if(S->W[w].st&&!ksIsRoad(S,S->W[w].cell)){ ksSnap(S,&S->W[w]); if(S->W[w].cell==0xFFFF) ksFree(S,&S->W[w],1); }
+    for(int w=0;w<KS_MAXW;w++) if(S->W[w].st&&!ksIsRoad(S,S->W[w].cell)){ ksSnap(S,&S->W[w]); if(S->W[w].cell==0xFFFF) ksDrop(S,&S->W[w],1); }
     return KSE_OK;
 }
 
