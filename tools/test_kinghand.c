@@ -21,10 +21,11 @@ static int findKind(int want,int*ox,int*oy){ int d=S.dim; for(int y=4;y<d-4;y++)
 static int viewBad(KView*V){ kvFull(V); int bad=0; for(int j=0;j<KV_H;j++) for(int i=0;i<KV_W;i++){ int wx=(V->x>>3)+i, wy=(V->y>>3)+j; if(sb[(wy&31)*32+(wx&31)]!=kvEntry(V,wx,wy)) bad++; } return bad; }
 int main(void){
     printf("== kinghand: building by hand\n");
-    KHand K; khInit(&K); CHECK(K.mode==KHM_ROAD,"starts on roads");
-    for(int i=0;i<KHM_N;i++) khCycle(&K,1); CHECK(K.mode==KHM_ROAD,"R cycles round"); khCycle(&K,-1); CHECK(K.mode==KHM_DEMO,"L from ROAD is DEMOLISH"); khCycle(&K,1);
+    KHand K; khInit(&K); CHECK(K.mode==KHM_HAND,"starts on the hand");
+    for(int i=0;i<KHM_N;i++) khCycle(&K,1); CHECK(K.mode==KHM_HAND,"R cycles round"); khCycle(&K,-1); CHECK(K.mode==KHM_DEMO,"L from HAND is DEMOLISH"); khCycle(&K,1);
     CHECK(khCx(0)==15&&khCy(0)==10&&khCx(8*40-1)==(8*40+119)/8,"the cell under the middle of the screen");
-    CHECK(KHM_HUT==1&&KHM_STORE-1==KB_STORE&&KHM_DEMO==KS_NTYPES+1,"modes line up with the building types");
+    CHECK(KHM_ROAD==1&&KHM_HUT==2&&KHM_STORE-KHM_HUT==KB_STORE&&KHM_DEMO==KS_NTYPES+2&&KHM_N==KS_NTYPES+3,"modes line up with the building types");
+    CHECK(KHR_N==11&&KHR_GOT>KHR_RAZED&&KHR_GOT<KHR_NOTHING,"result codes: the map-changing ones come first"); for(int r=0;r<KHR_N;r++) CHECK(r==0||(khMsg[r]&&khMsg[r][0]),"message for result %d",r);
     for(int tier=0;tier<3;tier++){
         CHECK(fresh(tier,31u+(u32)tier)==KSE_OK,"init tier %d",tier); int d=S.dim; int x,y;
         KView V; kvInit(&V,S.cells,d,S.B,0); V.x=V.y=0; kvClamp(&V);
@@ -67,11 +68,32 @@ int main(void){
     // ---- the build menu lines ----
     { CHECK(fresh(0,5u)==KSE_OK,"init"); char b[64]; int worst=0; R.goods[G_WOOD]=12; R.goods[G_PLANKS]=0; R.goods[G_STONE]=70000;
       for(int m=0;m<KHM_N;m++){ khCost(b,&S,m); int n=(int)strlen(b); if(n>worst) worst=n; CHECK(n>0&&n<=40,"menu line %d is %d long: %s",m,n,b); }
-      khCost(b,&S,KHM_ROAD); CHECK(strcmp(b,"ROAD  FREE")==0,"%s",b); khCost(b,&S,KHM_DEMO); CHECK(strcmp(b,"DEMOLISH  GOODS COME BACK")==0,"%s",b);
+      khCost(b,&S,KHM_HAND); CHECK(strcmp(b,"HAND  GATHERS WOOD STONE CRYSTAL")==0,"%s",b); khCost(b,&S,KHM_ROAD); CHECK(strcmp(b,"ROAD  FREE")==0,"%s",b); khCost(b,&S,KHM_DEMO); CHECK(strcmp(b,"DEMOLISH  GOODS COME BACK")==0,"%s",b);
       khCost(b,&S,KHM_SAWMILL); CHECK(strcmp(b,"SAWMILL  4 WOOD  HAVE 12")==0,"%s",b); khCost(b,&S,KHM_MASON); CHECK(strcmp(b,"MASON  3 PLANKS  HAVE 0")==0,"%s",b);
       R.goods[G_WOOD]=65000; khCost(b,&S,KHM_HUT); CHECK(strcmp(b,"HUT  3 WOOD  HAVE 65000")==0,"%s",b);
       for(int m=KHM_HUT;m<KHM_DEMO;m++){ khCost(b,&S,m); const KsType*T=ksT(m-KHM_HUT); CHECK(strstr(b,khGood[T->costG])!=0,"good named for mode %d: %s",m,b); }
       printf("  build menu: %d modes, longest line %d characters\n",KHM_N,worst); }
+    // ---- the giant's hands (step 4g): stats and gathering ----
+    { for(int g=0;g<5;g++){ CHECK(khStride(g)>=2&&khStride(g)<=4,"stride %d",g); CHECK(khRun(g)>khStride(g)&&khRun(g)<8,"run %d is %d",g,khRun(g)); CHECK(khYield(g)>=2,"yield %d",g); }
+      CHECK(khStride(9)==khStride(0)&&khYield(-1)==khYield(0),"a bad giant number falls back to the first");
+      for(int tier=0;tier<3;tier++){ CHECK(fresh(tier,70u+(u32)tier)==KSE_OK,"init"); int d=S.dim; int x,y,got=0;
+        const int kinds[3]={KT_FOREST,KT_ROCK,KT_CRYSTAL}, goods[3]={G_WOOD,G_STONE,G_CRYSTAL}; int perKind[3]={0,0,0};
+        for(int g=0;g<5;g++) for(int kk=0;kk<3;kk++){ R.giant=(u8)g; int found=0;
+            for(int yy=2;yy<d-2&&!found;yy++) for(int xx=2;xx<d-2;xx++) if(S.cells[yy*d+xx]==kinds[kk]){ x=xx; y=yy; found=1; break; }
+            if(!found) continue; long g0=R.goods[goods[kk]]; KHand H; khInit(&H);
+            CHECK(khAct(&H,&S,x,y)==KHR_GOT,"gathered kind %d",kinds[kk]); CHECK(S.cells[y*d+x]==KT_GRASS,"the cell is grass now"); CHECK(R.goods[goods[kk]]==g0+khYield(g),"giant %d got %ld not %d",g,R.goods[goods[kk]]-g0,khYield(g));
+            CHECK(khAct(&H,&S,x,y)==KHR_NOGATHER,"nothing left to gather"); CHECK(ksCheck(&S)==0,"books after gathering: %d",ksCheck(&S)); got++; perKind[kk]++; }
+        CHECK(perKind[0]>=3&&perKind[1]>=1&&perKind[2]>=1,"tier %d gathered %d trees, %d rocks, %d crystals",tier,perKind[0],perKind[1],perKind[2]);
+        if(findKind(KT_GRASS,&x,&y)){ KHand H; khInit(&H); CHECK(khAct(&H,&S,x,y)==KHR_NOGATHER,"grass gives nothing"); }
+        { int wx,wy; KHand H; khInit(&H); if(findKind(KT_WATER,&wx,&wy)) CHECK(khAct(&H,&S,wx,wy)==KHR_NOGATHER,"water gives nothing"); }
+        { KHand H; khInit(&H); CHECK(khAct(&H,&S,-1,3)==KHR_ARG&&khAct(&H,&S,3,d)==KHR_ARG,"off the realm"); }
+        // a building's cell cannot be gathered (a site on a tree cell is impossible, but a finished woodcutter's own footprint is fine to test: bit 7 refuses)
+        { KHand H; K.mode=KHM_STORE; if(findKind(KT_GRASS,&x,&y)){ khAct(&K,&S,x,y); khInit(&H); CHECK(khAct(&H,&S,x,y)==KHR_NOGATHER,"a building is not gathered"); } }
+        // the stockpile ceiling: a full stockpile loses the gift and the books know
+        { KHand H; khInit(&H); R.giant=0; int fx=-1,fy=-1; for(int yy=2;yy<d-2&&fx<0;yy++) for(int xx=2;xx<d-2;xx++) if(S.cells[yy*d+xx]==KT_FOREST){ fx=xx; fy=yy; break; }
+          if(fx>=0){ ksGift(&S,G_WOOD,KG_GOODMAX-1-R.goods[G_WOOD]); CHECK(R.goods[G_WOOD]==KG_GOODMAX-1,"setup"); CHECK(khAct(&H,&S,fx,fy)==KHR_GOT&&R.goods[G_WOOD]==KG_GOODMAX&&ksCheck(&S)==0,"ceiling: %d books %d",R.goods[G_WOOD],ksCheck(&S)); } }
+      }
+      printf("  the giant's hands: stats, yields for all five giants, refusals, books balanced\n"); }
     CHECK(khPalCur(0x0000)!=0&&khPalCur(0x7FFF)==0x7FFF,"the cursor palette lightens and never overflows");
     for(int c=0;c<32768;c+=37){ u16 v=khPalCur((u16)c); if((v&31)<(c&31)||((v>>5)&31)<((c>>5)&31)||((v>>10)&31)<((c>>10)&31)||v>0x7FFF){ CHECK(0,"palette %d",c); break; } }
     if(fails){ printf("kinghand: %d FAILURE(S)\n",fails); return 1; } printf("kinghand: ALL PASSED: 0 failure(s)\n"); return 0; }

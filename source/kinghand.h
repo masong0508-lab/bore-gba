@@ -4,12 +4,12 @@
 // NOTE (step 4c): main.c #defines W, D and H. No single capital letters as names here.
 #ifndef KINGHAND_H
 #define KINGHAND_H
-enum { KHM_ROAD, KHM_HUT, KHM_HOUSE, KHM_WOODCUT, KHM_QUARRY, KHM_SAWMILL, KHM_MASON, KHM_STORE, KHM_DEMO, KHM_N };   // KHM_ROAD + 1 + building type = the building's mode
-enum { KHR_NONE, KHR_ROAD, KHR_UNROAD, KHR_SITE, KHR_RAZED, KHR_NOTHING, KHR_SPOT, KHR_FULL, KHR_ARG };   // what an A press did
+enum { KHM_HAND, KHM_ROAD, KHM_HUT, KHM_HOUSE, KHM_WOODCUT, KHM_QUARRY, KHM_SAWMILL, KHM_MASON, KHM_STORE, KHM_DEMO, KHM_N };   // KHM_HUT + building type = the building's mode; KHM_HAND (the first) gathers by hand
+enum { KHR_NONE, KHR_ROAD, KHR_UNROAD, KHR_SITE, KHR_RAZED, KHR_GOT, KHR_NOTHING, KHR_SPOT, KHR_FULL, KHR_ARG, KHR_NOGATHER, KHR_N };   // (KHR_ROAD to KHR_GOT: the map changed, redraw it)   // what an A press did
 typedef struct { int mode; } KHand;
-static const char* const khName[KHM_N]={ "ROAD", "HUT", "HOUSE", "WOODCUTTER", "QUARRY", "SAWMILL", "MASON", "STOREHOUSE", "DEMOLISH" };
-static const char* const khMsg[9]={ "", "ROAD LAID", "ROAD LIFTED", "SITE PLACED", "DEMOLISHED", "NOTHING HERE", "CANNOT BUILD HERE", "NO ROOM FOR MORE", "OUT OF THE REALM" };
-static inline void khInit(KHand*B){ B->mode=KHM_ROAD; }
+static const char* const khName[KHM_N]={ "HAND", "ROAD", "HUT", "HOUSE", "WOODCUTTER", "QUARRY", "SAWMILL", "MASON", "STOREHOUSE", "DEMOLISH" };
+static const char* const khMsg[KHR_N]={ "", "ROAD LAID", "ROAD LIFTED", "SITE PLACED", "DEMOLISHED", "GATHERED", "NOTHING HERE", "CANNOT BUILD HERE", "NO ROOM FOR MORE", "OUT OF THE REALM", "NOTHING TO GATHER" };
+static inline void khInit(KHand*B){ B->mode=KHM_HAND; }
 static inline void khCycle(KHand*B,int dir){ B->mode=(B->mode+(dir>0?1:KHM_N-1))%KHM_N; }
 // the cell under the middle of the screen, from the camera in pixels (the screen is 240 x 160: its middle is 120, 80)
 static inline int khCx(int camx){ return (camx+120)>>3; }
@@ -18,9 +18,23 @@ static inline int khCy(int camy){ return (camy+80)>>3; }
 static inline int khBldAt(const KSim*S,int x,int y){
     for(int i=0;i<S->R->nB;i++){ const KBld*b=&S->B[i]; if(x>=b->x&&x<b->x+kgFootW(b->type)&&y>=b->y&&y<b->y+kgFootH(b->type)) return i; }
     return -1; }
+// ---- the giant (step 4g): its stats, and gathering by hand. The five giants of KRealm.giant: A the all-rounder, B the runner, C the lifter, D the builder, then your own Bore (average). [ASSUMED values, tune freely] ----
+static const unsigned char khStrideT[5]={ 3, 4, 2, 3, 3 };   // pixels a frame on the map (a Nubbin's worker is far slower)
+static const unsigned char khWorkT[5]={ 2, 2, 3, 2, 2 };     // goods one hand-gathered tree, rock or crystal gives (a woodcutter gives 1 and takes 90 frames)
+static inline int khStride(int giant){ return khStrideT[giant>=0&&giant<5?giant:0]; }
+static inline int khRun(int giant){ int s=khStride(giant); return s+(s+1)/2; }   // B held: 3 -> 5, 4 -> 6, 2 -> 3 (always under 8, so a frame never skips a cell)
+static inline int khYield(int giant){ return khWorkT[giant>=0&&giant<5?giant:0]; }
+// the giant gathers what is on cell (x,y): a tree, a rock or a crystal becomes grass and its goods go to the stockpile (ksGift, so the books stay balanced)
+static inline int khWork(KSim*S,int x,int y){
+    int d=S->dim; if(x<0||y<0||x>=d||y>=d) return KHR_ARG;
+    int c=S->cells[y*d+x]; if(c&KC_BLD) return KHR_NOGATHER; int v=c&7;
+    int g=v==KT_FOREST?G_WOOD:v==KT_ROCK?G_STONE:v==KT_CRYSTAL?G_CRYSTAL:-1; if(g<0) return KHR_NOGATHER;
+    S->cells[y*d+x]=KT_GRASS; ksGift(S,g,khYield(S->R->giant)); return KHR_GOT;
+}
 // A pressed in a mode on cell (x,y). A building's top-left corner is the cursor cell. Returns a KHR_ code; the caller redraws the map when it is not a refusal.
 static inline int khAct(KHand*B,KSim*S,int x,int y){
     int d=S->dim; if(x<0||y<0||x>=d||y>=d) return KHR_ARG;
+    if(B->mode==KHM_HAND) return khWork(S,x,y);
     if(B->mode==KHM_DEMO){ int i=khBldAt(S,x,y); if(i<0) return KHR_NOTHING; return ksDemolish(S,i)==KSE_OK?KHR_RAZED:KHR_ARG; }
     if(B->mode==KHM_ROAD){ int c=S->cells[y*d+x];
         if(c&KC_BLD) return KHR_SPOT;
@@ -40,7 +54,7 @@ static inline void khInfo(const KSim*S,int x,int y,char*out){   // out: at least
     int d=S->dim; char*e=out; *e=0;
     if(x<0||y<0||x>=d||y>=d){ khCat(out,"THE EDGE OF THE WORLD"); return; }
     int i=khBldAt(S,x,y);
-    if(i>=0){ const KBld*b=&S->B[i]; const KsType*T=ksT(b->type); e=khCat(e,khName[b->type+1]);
+    if(i>=0){ const KBld*b=&S->B[i]; const KsType*T=ksT(b->type); e=khCat(e,khName[KHM_HUT+b->type]);
         if(!b->lvl){ e=khCat(e,"  SITE  GOODS "); e=khNum(e,ksIn(b)); e=khCat(e," OF "); khNum(e,T->costN); }
         else if(T->kind==KK_HOME){ e=khCat(e,"  NUBBINS "); e=khNum(e,b->work); e=khCat(e," OF "); khNum(e,T->house); }
         else if(T->kind==KK_STORE){ khCat(e,"  STOCKPILE"); }
@@ -65,6 +79,7 @@ static inline void khStrip(const u16*fb,u16 shadow,u16*out){
 static const char* const khGood[8]={ "WOOD", "STONE", "WOOL", "CRYSTAL", "PLANKS", "CUT STONE", "CLOTH", "POLISHED" };
 static inline void khCost(char*out,const KSim*S,int mode){   // out: at least 48 bytes. "SAWMILL  4 WOOD  HAVE 12", "ROAD  FREE", "DEMOLISH  GOODS COME BACK"
     char*e=khCat(out,khName[mode]);
+    if(mode==KHM_HAND){ khCat(e,"  GATHERS WOOD STONE CRYSTAL"); return; }
     if(mode==KHM_ROAD){ khCat(e,"  FREE"); return; }
     if(mode==KHM_DEMO){ khCat(e,"  GOODS COME BACK"); return; }
     const KsType*T=ksT(mode-KHM_HUT); int g=T->costG<8?T->costG:0; long have=S->R->goods[g];

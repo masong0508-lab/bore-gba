@@ -2,7 +2,8 @@
 // WHAT IS HERE: kpOpen (stgClaim, lay the realm out in hhPool, load it, start the simulation), kpSave (save it, the realm goes on running), kpSettle (the first
 // settlement of a brand new realm) and kpRun (KINGDOM MODE > PLAY: runs the economy at three speeds, shows day / population / goods, saves or leaves from a menu).
 // STEP b: the MAP. PLAY opens on the realm drawn with the hardware tile background (kingview.h); the D-pad scrolls it, A switches to the status screen and back.
-// WHAT IS NOT: no giant, no building by hand yet. Those are the next steps of Phase 4 (the giant, the build menu).
+// STEP g: the GIANT (kinggiant.h): the D-pad walks it (B held runs), the camera follows, A acts on the cell under its feet (HAND gathers, the other modes build), SELECT shows the status screen.
+// WHAT IS NOT: pick up and put down, the overview map.
 // Needs before it: kingdom.h, kingslot.h, kingsim.h, kinglog.h, kingmem.h, house.h (hhPool, stgClaim, stgOk) and, unless KP_NOSCREEN, kingscreen.h's helpers.
 #define KP_OK      0
 #define KP_E_READ (-1)    // the realm could not be read from its slot
@@ -41,13 +42,17 @@ static int kpSettle(KmMem*m){
 #define KV_PUT(sx,sy,e) (*(volatile u16*)(0x06004000u+(u32)((sy)*32+(sx))*2u)=(u16)(e))   // BG0's screenblock 8
 #endif
 #include "kingview.h"
-#include "kinghand.h"   // Phase 4d: building by hand (the cell under the middle of the screen is the cursor)
+#include "kinghand.h"   // Phase 4d: building by hand (A acts on the cell under the giant's feet)
+#include "kinggiant.h"  // Phase 4g: the walking giant (pure C: movement, camera, sprite art, OAM words)
 #define KH_BLANK (KV_TILES+KH_TILES)   // the see-through tile, after the text tiles
 #define KH_SHADOW RGB(1,1,3)
+static int kpGiant=0;   // the realm's giant (0..4), for the sprite's colours
+// the giant's sprite: OAM entry 0
+static void kgShow(const KGiant*G,const KView*V){ unsigned a0,a1,a2; kgOam(G,V,&a0,&a1,&a2); volatile u16*o=(volatile u16*)0x07000000; o[0]=(u16)a0; o[1]=(u16)a1; o[2]=(u16)a2; }
 // ---- the hardware: mode 0, BG0 = the realm (tiles in charblock 0, the 32 x 32 map in screenblock 8). Both live in the bitmap's VRAM, so leaving mode 0 repaints the bitmap from fb. ----
 static void kvScroll(const KView*V){ *(volatile u16*)0x04000010=(u16)(V->x&255); *(volatile u16*)0x04000012=(u16)(V->y&255); }
 static void kvHwEnter(KView*V){
-    vsync(); REG_DISPCNT=0x0300;                                                   // mode 0, BG0 and BG1 (the text), no sprites, no windows
+    vsync(); objHideAll(); REG_DISPCNT=0x1340;                                     // mode 0, BG0 and BG1 (the text), sprites on (1D tiles), no windows
     volatile u16*pal=(volatile u16*)0x05000000; for(int b=0;b<8;b++) for(int i=0;i<16;i++) pal[b*16+i]=kvPalAt(b,i);
     for(int i=0;i<16;i++) pal[15*16+i]=khPalCur(kvPalAt(0,i));                       // bank 15: the cursor cell, blinking
     volatile u16*tg=(volatile u16*)0x06000000; for(int t=0;t<KV_TILES;t++){ u8 g[32]; kvTileGfx(t,g); for(int i=0;i<16;i++) tg[t*16+i]=(u16)(g[2*i]|(g[2*i+1]<<8)); }
@@ -56,11 +61,13 @@ static void kvHwEnter(KView*V){
     { volatile u16*z=(volatile u16*)(0x06000000+KH_BLANK*32); for(int i=0;i<16;i++) z[i]=0;   // a see-through tile fills the whole text map but the two text rows
       volatile u16*mp=(volatile u16*)0x06004800; for(int i=0;i<1024;i++) mp[i]=(u16)(KH_BLANK|(14<<12));
       for(int i=0;i<KH_TILES;i++) mp[18*32+(i/30)*32+(i%30)]=(u16)((KV_TILES+i)|(14<<12)); }
+    { u8 g[256]; kgGfxAll(g); volatile u16*ot=(volatile u16*)0x06010000; for(int i=0;i<128;i++) ot[i]=(u16)(g[2*i]|(g[2*i+1]<<8)); }   // the giant: OBJ tiles 0..7 (mode 0: 0x06010000; the bitmap repaints on leaving)
+    { u16 gp[16]; kgPal(kpGiant,gp); volatile u16*op=(volatile u16*)0x05000200; for(int i=0;i<16;i++) op[i]=gp[i]; }                      // OBJ palette bank 0
     *(volatile u16*)0x04000014=0; *(volatile u16*)0x04000016=0;                    // BG1 never scrolls
     *(volatile u16*)0x04000008=0x0801;                                             // BG0CNT: charblock 0, screenblock 8, 16 colours, 32 x 32
     V->ok=0; kvSync(V); kvScroll(V);
 }
-static void kvHwLeave(void){ vsync(); REG_DISPCNT=0x0403; dmaRows(fb,VRAM_ADDR,0,ROW_W,0,SH); }   // mode 3 again, the bitmap painted back from fb
+static void kvHwLeave(void){ vsync(); objHideAll(); REG_DISPCNT=0x0403; dmaRows(fb,VRAM_ADDR,0,ROW_W,0,SH); }   // mode 3 again, the bitmap painted back from fb
 static void khShow(const KView*V,int cx,int cy,int on){   // the cursor cell: its tile in bank 15 while it blinks on, its own tile otherwise
     if(!V->ok||cx<V->tx0||cy<V->ty0||cx>=V->tx0+KV_W||cy>=V->ty0+KV_H) return;
     KV_PUT(cx&31,cy&31,on?(u16)(kvEntry(V,cx,cy)|0xF000):kvEntry(V,cx,cy)); }
@@ -79,7 +86,7 @@ static int kpDraw(const KmMem*m,const char*nm,int spd,u32 cnt){   // the status 
     e=slCat(b,"WOOL "); e=slNum(e,R->goods[G_WOOL]); e=slCat(e,"   CRYSTAL "); slNum(e,R->goods[G_CRYSTAL]); text(14,88,b,DIMC,1);
     e=slCat(b,"DELIVERED "); slNum(e,(int)S->delivered); text(14,103,b,DIMC,1);
     e=slCat(b,"SPEED  X"); slNum(e,spd==0?1:spd==1?4:16); text(14,112,b,GOLD,1);
-    { const char*a="B MAP", *b="SEL SPEED", *c="START MENU"; int x=5; s2pill(x,147,tw(a,1)+10,a); x+=tw(a,1)+14; s2pill(x,147,tw(b,1)+10,b); x+=tw(b,1)+14; s2pill(x,147,tw(c,1)+10,c); }
+    { const char*a="SEL MAP", *b="START MENU"; int x=5; s2pill(x,147,tw(a,1)+10,a); x+=tw(a,1)+14; s2pill(x,147,tw(b,1)+10,b); }
     present(); return 0;
 }
 static int kpRun(int slot){   // returns 0: the KINGDOM list should rescan (the realm's slot moved)
@@ -87,28 +94,31 @@ static int kpRun(int slot){   // returns 0: the KINGDOM list should rescan (the 
     char nm[SLOT_NAME+1]; { int i=0; for(;i<SLOT_NAME&&slI[slot].name[i];i++) nm[i]=slI[slot].name[i]; nm[i]=0; if(!i){ nm[0]='R'; nm[1]='E'; nm[2]='A'; nm[3]='L'; nm[4]='M'; nm[5]=0; } }
     kpSettle(&m);
     static const int per[3]={1,4,16}; int spd=0, mapOn=1, ocx=-1, ocy=-1, hudT=0, hudD=1; const char*hmsg=0; u32 cnt=0; u16 prev=keyNow(); KHand hand; khInit(&hand); int hcx=-1, hcy=-1;
-    KView V; kvInit(&V,m.cells,m.S->dim,m.B,m.R->nB); kvCenter(&V,m.S->dim/2,m.S->dim/2); kvHwEnter(&V);
+    KGiant G; kgSpawn(&G,m.S); kpGiant=m.R->giant;
+    KView V; kvInit(&V,m.cells,m.S->dim,m.B,m.R->nB); kgCamera(&V,&G); kvHwEnter(&V);
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
-        if(pr&K_SEL) spd=(spd+1)%3;
-        if(pr&K_B){ if(mapOn){ kvHwLeave(); mapOn=0; kpDraw(&m,nm,spd,cnt); } else { mapOn=1; kvHwEnter(&V); hudD=1; ocx=-1; } }
+        if(pr&K_SEL||(!mapOn&&pr&K_B)){ if(mapOn){ kvHwLeave(); mapOn=0; kpDraw(&m,nm,spd,cnt); } else { mapOn=1; kvHwEnter(&V); hudD=1; ocx=-1; } }   // SELECT: the map and the status screen (B also leaves the status screen)
         if(pr&K_START){
-            static const char* const mn[5]={"BUILD MENU","SAVE AND LEAVE","SAVE AND KEEP PLAYING","LEAVE WITHOUT SAVING","KEEP PLAYING"};
+            static char sp[24]; static const char* const mn[6]={"BUILD MENU",sp,"SAVE AND LEAVE","SAVE AND KEEP PLAYING","LEAVE WITHOUT SAVING","KEEP PLAYING"};
+            { char*e=khCat(sp,"SPEED  X"); khNum(e,spd==0?1:spd==1?4:16); }
             if(mapOn) kvHwLeave();
-            int ch=menu(nm,mn,5);
+            int ch=menu(nm,mn,6);
             if(ch==0){ char bl[KHM_N][48]; const char*bi[KHM_N]; for(int i=0;i<KHM_N;i++){ khCost(bl[i],m.S,i); bi[i]=bl[i]; } int c=menu("BUILD",bi,KHM_N); if(c>=0) hand.mode=c; }   // (A sets the mode, B backs out)
-            else if(ch==1||ch==2){ int s=kpSave(&m,slot); if(s>=0){ slot=s; toast("KINGDOM SAVED"); if(ch==1) return 0; } else toast(s==SLE_NOROOM?"NO ROOM  FREE A SLOT":slErrMsg(s)); }   // (a failed save never leaves: the realm in play is the only copy of its progress)
-            else if(ch==3){ static const char* const yn[2]={"YES  LEAVE","NO  KEEP PLAYING"}; if(menu("EVERYTHING SINCE THE LAST SAVE IS LOST",yn,2)==0) return 0; }
+            else if(ch==1) spd=(spd+1)%3;                                          // (the speed moved here from SELECT: B is now RUN)
+            else if(ch==2||ch==3){ int s=kpSave(&m,slot); if(s>=0){ slot=s; toast("KINGDOM SAVED"); if(ch==2) return 0; } else toast(s==SLE_NOROOM?"NO ROOM  FREE A SLOT":slErrMsg(s)); }   // (a failed save never leaves: the realm in play is the only copy of its progress)
+            else if(ch==4){ static const char* const yn[2]={"YES  LEAVE","NO  KEEP PLAYING"}; if(menu("EVERYTHING SINCE THE LAST SAVE IS LOST",yn,2)==0) return 0; }
             prev=keyNow(); if(mapOn){ kvHwEnter(&V); hudD=1; ocx=-1; } else kpDraw(&m,nm,spd,cnt); continue; }
-        if(mapOn){                                                                 // the map: scroll 3 pixels a frame, write what came into view, refresh one row
+        if(mapOn){                                                                 // the map: the giant walks, the camera follows, what came into view is written, one row is refreshed
             vsync();
-            V.x+=(k&K_RIGHT?3:0)-(k&K_LEFT?3:0); V.y+=(k&K_DOWN?3:0)-(k&K_UP?3:0); kvClamp(&V); V.nB=m.R->nB;
-            kvSync(&V); kvRefreshRow(&V); kvScroll(&V);
-            int cx=khCx(V.x), cy=khCy(V.y); if(cx!=ocx||cy!=ocy){ khShow(&V,ocx,ocy,0); ocx=cx; ocy=cy; }
+            { int dx=(k&K_RIGHT?1:0)-(k&K_LEFT?1:0), dy=(k&K_DOWN?1:0)-(k&K_UP?1:0); if(dx||dy) kgMove(&G,m.S,dx,dy,k&K_B?khRun(m.R->giant):khStride(m.R->giant)); else G.moving=0; }
+            kgCamera(&V,&G); V.nB=m.R->nB;
+            kvSync(&V); kvRefreshRow(&V); kvScroll(&V); kgShow(&G,&V);
+            int cx=kgCx(&G), cy=kgCy(&G); if(cx!=ocx||cy!=ocy){ khShow(&V,ocx,ocy,0); ocx=cx; ocy=cy; }
             if(pr&(K_L|K_R)){ khCycle(&hand,pr&K_R?1:-1); hudD=1; }
-            else if(pr&K_A){ int r=khAct(&hand,m.S,cx,cy); if(r>=KHR_ROAD&&r<=KHR_RAZED){ V.nB=m.R->nB; kvFull(&V); } hmsg=khMsg[r]; hudT=75; hudD=1; }   // (said in the text layer for 1.25 seconds)
+            else if(pr&K_A){ int r=khAct(&hand,m.S,cx,cy); if(r==KHR_GOT) kvPoke(&V,cx,cy); else if(r>=KHR_ROAD&&r<=KHR_RAZED){ V.nB=m.R->nB; kvFull(&V); } hmsg=khMsg[r]; hudT=75; hudD=1; }   // (said in the text layer for 1.25 seconds)
             if(hudT&&!--hudT){ hmsg=0; hudD=1; }
-            if(cx!=hcx||cy!=hcy||!(cnt&63)||pr&K_SEL){ hcx=cx; hcy=cy; hudD=1; }
+            if(cx!=hcx||cy!=hcy||!(cnt&63)){ hcx=cx; hcy=cy; hudD=1; }
             if(hudD){ hudD=0; kpHud(m.S,m.R,&hand,cx,cy,spd,hmsg); }
             khShow(&V,cx,cy,(cnt>>3)&1);
         } else if(cnt&7) vsync(); else kpDraw(&m,nm,spd,cnt);
