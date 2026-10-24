@@ -73,3 +73,18 @@ Next: bit d, found a kingdom (giant, size, name; saves it with `kgsSave`), then 
 - Refused cleanly: more than 16 realms (the list's size) and no free slot (NOT ENOUGH FREE SLOTS). The proper quota and the reserve of room for players and towns are bit e.
 - The giant's names are still placeholders; there is no stat screen yet.
 Not run on a cart: the menus and name editor are the existing ones, but the flow needs an emulator look (giant, size, name, the toast, the new row, then delete it again).
+
+---
+# Bit e (first half): rename, the quota and the reserve
+
+`kingslot.h` `kgsRenameI` / `kgsRename`: renames a realm the same safe way as a save (a fresh copy into free slots, read back, and only then the old copy is dropped), but it copies the payload bytes as they stand, so it needs no map in RAM and decodes nothing. Only the header's name and seq change. It refuses a damaged realm (it is not listed, so it reads as "not there") and says `SLE_NOROOM` and touches nothing when no free run is big enough.
+`kingscreen.h`: A on a realm now opens RENAME / DELETE / LEAVE IT (delete is still asked twice). After a rename the cursor follows the realm to its new slot.
+- Quota, all [ASSUMED] and tunable: at most 4 realms on a 128 KB flash (`SLOT_N` >= 58), 2 on a 64 KB flash (`ksQuota`). The small cart only offers HAMLET in the size menu (`ksTiers`). The SRAM-only cart still has no KINGDOM MODE (`KS_MINSLOTS`).
+- Reserve: founding needs `KS_KEEP + 1` free slots: `KS_RESERVE` (8) stay free for players and towns, and `KGS_MAXSPAN` (4) more stay free so any realm can always be saved as a fresh copy. Refused with "NOT ENOUGH FREE SLOTS" or "KINGDOM LIMIT  DELETE ONE". The FOUND panel shows "n OF 4 KINGDOMS" and the free slots, and the reason when it is refused.
+- Tests (`tools/test_kingslot.sh`, checks 11 and 12): rename keeps the bytes, id and count, bumps seq, keeps the old name for an empty one, is refused with no room or a damaged copy and touches nothing; a power cut at every write of a rename (every point for a realm, every point near the ends and a stride between for a 4 slot realm) always leaves the old name or the new, the realm whole, the other realm untouched, and it can be renamed again.
+- Host parse baseline unchanged: 14 errors (all `target("arm")`), 131 warnings.
+
+Not done in bit e yet (so Phase 2 is not finished):
+- The bigger done-bits block. `EXD_OFF` (7482, 11 bytes) sits right before `BF_OFF` (7494) with one spare byte, so growing it means moving a block or finding free SRAM, which is a layout and save-compatibility decision. The compile-time check still stops EP6 at 4 missions.
+- The power-cut test on the REAL flash code. The slot tests run the real `slots.h` header, scan and verify code on a fake chip; the real `svWr` / `svCommit` / `svErase` are still only read, not run.
+- Not run on a cart: the rename flow and the FOUND panel text need an emulator look (rename, the new name in the list, a refused rename, founding at the quota).

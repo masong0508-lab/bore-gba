@@ -1,6 +1,6 @@
 // kingslot.h - EP6 THE LAND BOREFORE TIME: a REALM in the save slots (kind SLK_KING). Roadmap Phase 2, step b.
 // kingdom.h turns a realm into bytes; this puts those bytes in slots and gets them back, the way savegame.h does for a player.
-// Nothing calls it yet (the KINGDOM screen is step c), and every function is static, so an unused one costs no ROM.
+// The KINGDOM screen (kingscreen.h) calls it; every function is static, so an unused one costs no ROM.
 //
 // A realm's slot run:  header (32 B, slots.h)  then the payload:  'K', length (u16), the kgEncode bytes, 0 (the end of the chunks).
 //   header byte 28 = the REALM'S NUMBER (1..250), like a player's number: it is what ties a realm's copies together.
@@ -114,6 +114,33 @@ static int kgsLoad(int slot,KRealm*R,KBld*B,u8*cells,u8*tmp,int cap){
     e=kgDecode(tmp,n,R,B,cells,1); if(e) return kgsErr(e);           // pass 2: load
     return SLE_OK;
 }
+
+// RENAME a realm: the same fresh-copy way as a save, but the payload bytes are copied as they stand (no map in RAM, nothing decoded), so only the header's
+// name and seq change. The copy is written into free slots, read back, and only then is the old one dropped: a cut leaves the old name or the new, whole.
+// Returns the slot it now lives in (>= 0), or a negative SLE_ error with the realm untouched (SLE_NOROOM when no free run is big enough: the reserve of step e keeps one).
+static int kgsRenameI(int id,const char*name){
+    slScan();
+    int old=kgsFind(id); if(old<0) return SLE_EMPTY;
+    SlInfo I=slI[old]; int len=I.len, span=(SLOT_HDR+len+SLOT_SZ-1)/SLOT_SZ;
+    if(span>KGS_MAXSPAN) return SLE_BIG;
+    volatile u8*src=SLB(old)+SLOT_HDR;
+    if(slSumOf(src,len)!=I.sum) return SLE_BAD;                        // never copy a damaged realm
+    int dst=-1;
+    for(int s=0;s+span<=SLOT_N&&dst<0;s++){ if(!slFits(s,span)) continue; int f=1; for(int k=0;k<span;k++) if(slOwner[s+k]>=0) f=0; if(f) dst=s; }
+    if(dst<0) return SLE_NOROOM;
+    char nm[SLOT_NAME+1]; int i=0;
+    if(name){ for(;name[i]&&i<SLOT_NAME;i++) nm[i]=name[i]; }
+    if(!i){ for(;i<SLOT_NAME&&I.name[i];i++) nm[i]=I.name[i]; }       // (an empty name keeps the old one)
+    nm[i]=0;
+    slOpen(dst,span);                                                  // empty while we write
+    u32 o=SLO(dst)+SLOT_HDR; for(int k=0;k<len;k++) svWr(o+(u32)k,src[k]);
+    slHPid=(u8)id; slHeader(dst,SLK_KING,span,0,len,I.sum,I.seq+1,nm);   // (the header goes in last)
+    int e=slVerify(dst);
+    if(e){ svWr(SLO(dst),0); svWr(SLO(dst)+1,0); svCommit(); return e; }
+    svWr(SLO(old),0); svWr(SLO(old)+1,0); svCommit();                  // the old copy goes only now
+    return dst;
+}
+static int kgsRename(int id,const char*name){ ldShow("RENAMING THE KINGDOM",0,2); int e=kgsRenameI(id,name); ldShow("RENAMING THE KINGDOM",2,2); ldEnd(); return e; }
 
 // DELETE a realm: every copy of it. Returns how many slots were freed.
 static int kgsDelete(int id){

@@ -130,6 +130,35 @@ int main(void){
     for(int t=0;t<3;t++){ blank(); memset(&R,0,sizeof R); R.tier=(u8)t; R.giant=(u8)(t+1); R.genVer=KG_GENVER; R.seed=9000u+(u32)t; R.rng=5; R.goods[0]=10;
         u8 sb[64]; int fid=0; int fs=kgsSaveI(0,"FOUNDED",&R,0,0,sb,(int)sizeof sb,&fid); CHECK(fs>=0&&fid==1,"founding gave %d",fs);
         if(fs>=0){ CHECK(load(fs)==SLE_OK&&R2.tier==t&&R2.giant==t+1&&R2.nB==0&&R2.goods[0]==10&&R2.seed==9000u+(u32)t,"a founded realm did not load"); kgGen(cells,R.seed,t); CHECK(!memcmp(cells,cells2,kgCells(t)),"a founded realm has the wrong land (tier %d)",t); CHECK(slI[fs].span==1,"a new realm should take one slot"); } }
+    // 11 RENAME: same realm, same bytes, new name, seq counts up, no map needed; refused cleanly with no room or a damaged copy
+    blank(); scenario(2,120,1200,2500); take(&SA); { int idr=0; int s0=save(0,"OLD NAME",&idr); CHECK(s0>=0,"rename test save");
+        int r=kgsRenameI(idr,"NEW NAME"); CHECK(r>=0&&r!=s0,"rename gave %d",r); slScan();
+        if(r>=0){ CHECK(!strcmp(slI[r].name,"NEW NAME"),"name is '%s'",slI[r].name); CHECK(slI[r].pid==idr&&slI[r].kind==SLK_KING,"id/kind"); CHECK(slI[r].seq==2,"seq %d",slI[r].seq);
+            CHECK(copies(idr)==1&&count()==1,"copies %d, realms %d",copies(idr),count()); CHECK(load(r)==SLE_OK&&sameAs(&SA),"a renamed realm differs"); }
+        CHECK(kgsRenameI(99,"X")==SLE_EMPTY,"renaming a realm that is not there");
+        { int r2=kgsRenameI(idr,0); slScan(); CHECK(r2>=0&&!strcmp(slI[r2].name,"NEW NAME"),"an empty name must keep the old one"); }
+        // no room: every free slot taken
+        slScan(); for(int i=0;i<SLOT_N;i++) if(slOwner[i]<0) filler(i,1);
+        { int sl=kgsFind(idr); int e=kgsRenameI(idr,"NO ROOM"); CHECK(e==SLE_NOROOM,"full flash gave %d",e); slScan(); int s3=kgsFind(idr); CHECK(s3==sl&&!strcmp(slI[s3].name,"NEW NAME"),"a refused rename touched the realm"); } }
+    blank(); scenario(1,60,500,800); take(&SA); { int idr=0; int s0=save(0,"DAMAGED",&idr); flash[SLO(s0)+SLOT_HDR+20]^=0x55; int e=kgsRenameI(idr,"FIXED?"); CHECK(e<0,"a damaged realm was copied (%d)",e); CHECK(count()==0&&copies(idr)==0,"a damaged realm made a copy"); flash[SLO(s0)+SLOT_HDR+20]^=0x55; slScan(); CHECK(load(kgsFind(idr))==SLE_OK&&sameAs(&SA),"damage test restore"); }
+    // 12 POWER CUT while renaming, at every write: the old name or the new, the realm whole, the other realm untouched, and it can be renamed again
+    { struct { int tier,bld,roads,cleared,stride; const char*nm; } T[]={ {1,40,300,400,1,"realm"},{2,250,3000,6500,89,"kingdom (many slots)"} };
+      for(int t=0;t<2;t++){
+        blank(); scenario(T[t].tier,T[t].bld,T[t].roads,T[t].cleared); take(&SA); scenario(0,8,40,80); take(&SC);
+        int ia=0, ib=0; give(&SA); save(0,"BEFORE",&ia); give(&SC); save(0,"OTHER",&ib);
+        static u8 base[131072]; memcpy(base,flash,sizeof flash);
+        long total=0; { ops=0; cutAt=-1; kgsRenameI(ia,"AFTER"); total=ops; }
+        int old=0, nw=0, pts=0;
+        for(long k=0;k<=total;k+=(k<60||k>total-60)?1:T[t].stride){ memcpy(flash,base,sizeof flash); svErr=0; ops=0; cutAt=k;
+          if(!setjmp(cutJ)){ kgsRenameI(ia,"AFTER"); } cutAt=-1; pts++;
+          slScan(); int s=kgsFind(ia); CHECK(s>=0,"rename cut at %ld lost the realm",k);
+          if(s>=0){ int e=load(s); CHECK(e==SLE_OK&&sameAs(&SA),"rename cut at %ld: realm damaged or changed (%d)",k,e); if(!strcmp(slI[s].name,"BEFORE")) old++; else if(!strcmp(slI[s].name,"AFTER")) nw++; else CHECK(0,"rename cut at %ld: name '%s'",k,slI[s].name); }
+          for(int i=0;i<SLOT_N;i++) CHECK(!(slOwner[i]==i&&slI[i].kind==SLK_KING)||slGood[i],"rename cut at %ld left a damaged copy",k);
+          slScan(); int lb=kgsFind(ib); CHECK(lb>=0&&load(lb)==SLE_OK&&sameAs(&SC),"rename cut at %ld touched the other realm",k);
+          CHECK(count()==2,"rename cut at %ld: %d realms listed",k,count());
+          kgsHeal(ia); CHECK(copies(ia)==1,"rename cut at %ld: %d copies after heal",k,copies(ia));
+          { int e2=kgsRenameI(ia,"AGAIN"); CHECK(e2>=0,"rename cut at %ld: the next rename failed (%d)",k,e2); } }
+        printf("power cut while renaming a %s: %d cut points, old name kept %d, new name %d\n",T[t].nm,pts,old,nw); CHECK(old>0&&nw>0,"the rename sweep did not cover both outcomes"); } }
     printf(fails?"\n%d CHECK(S) FAILED\n":"\nall checks passed\n",fails);
     return fails?1:0;
 }

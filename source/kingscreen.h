@@ -1,6 +1,6 @@
 // kingscreen.h - EP6 THE LAND BOREFORE TIME: the KINGDOM screen (KINGDOM MODE on the pack's page). Roadmap Phase 2, step c.
-// It lists the realms in the save slots (kingslot.h), shows what the one under the cursor is, and deletes one (asked twice). No realm can be
-// PLAYED yet and none can be founded yet: that is step d (found a kingdom: giant, size, name) and Phase 3 on. Rename and the quota are step e.
+// It lists the realms in the save slots (kingslot.h), shows what the one under the cursor is, founds one (step d), renames one and deletes one
+// (asked twice). No realm can be PLAYED yet: that is Phase 3 on. Step e: rename, the quota and the reserve of room for players and towns.
 // It lives in the base ROM for now (a few hundred bytes of code); it moves into the pack's slot with the rest of the pack when there is
 // something to play. Needs: slots.h, kingdom.h, kingslot.h, story.h (stBack), main.c's text and menu helpers.
 #define KS_MINSLOTS 26   // a cart with less save room (SRAM only: 12 slots) cannot hold realms safely: the mode is off there (roadmap 5.4)
@@ -15,15 +15,29 @@ static void ksRefresh(void){   // rescan the slots, drop leftover older copies, 
     slScan(); ksN=kgsList(ksL,KGS_LISTMAX);
 }
 static int ksFree(void){ int n=0; for(int i=0;i<SLOT_N;i++) if(slOwner[i]<0) n++; return n; }
+// QUOTA AND RESERVE (roadmap 5.4). All three numbers are [ASSUMED] and tunable.
+//  - KS_QUOTA: how many realms at once (a full 128 KB flash: 4; a 64 KB flash: 2).
+//  - KS_RESERVE: save slots that must stay free for players and towns, whatever the realms do.
+//  - a realm saves as a FRESH COPY, so one more realm's worth of room (KGS_MAXSPAN slots) must also stay free, or the next save would be refused.
+//  - the small cart (under 58 slots, a 64 KB flash) only founds a HAMLET; the SRAM-only cart (12 slots) has no KINGDOM MODE at all (KS_MINSLOTS).
+#define KS_RESERVE 8
+#define KS_KEEP    (KS_RESERVE+KGS_MAXSPAN)
+static int ksQuota(void){ return SLOT_N>=58?4:2; }
+static int ksTiers(void){ return SLOT_N>=58?KG_TIERS:1; }       // how many sizes the menu offers (the first ones: hamlet, realm, kingdom)
+static const char* ksWhyNot(void){   // 0: a new realm may be founded; else the toast that says why not
+    if(ksN>=ksQuota()||ksN>=KGS_LISTMAX) return "KINGDOM LIMIT  DELETE ONE";
+    if(ksFree()<KS_KEEP+1) return "NOT ENOUGH FREE SLOTS";
+    return 0;
+}
 // FOUND A NEW KINGDOM: the giant, the size, the name; then the land is made from a fresh seed and saved (a new realm has no edits and no buildings: 40 bytes).
 // Phase 3 on gives a new realm its first settlement; until then it is the empty island with a few goods. Returns the realm's slot, or -1 (backed out or refused).
 #define KS_START 10   // [ASSUMED] each raw good a new realm starts with (a tunable constant)
 static int ksFound(void){
-    if(ksN>=KGS_LISTMAX){ toast("TOO MANY KINGDOMS  DELETE ONE"); return -1; }
+    { const char*why=ksWhyNot(); if(why){ toast(why); return -1; } }
     static const char* const gi[KG_GIANTS]={"GIANT A  THE ALL ROUNDER","GIANT B  THE RUNNER","GIANT C  THE LIFTER","GIANT D  THE BUILDER","YOUR OWN BORE"};
     static const char* const ti[KG_TIERS]={"HAMLET  SMALL AND QUICK","REALM  THE USUAL SIZE","KINGDOM  HUGE"};
     int g=menu("CHOOSE YOUR GIANT",gi,KG_GIANTS); if(g<0) return -1;
-    int t=menu("HOW BIG IS THE LAND",ti,KG_TIERS); if(t<0) return -1;
+    int t=menu("HOW BIG IS THE LAND",ti,ksTiers()); if(t<0) return -1;
     char nm[SLOT_NAME+1]; slNameN(nm,"REALM ",ksN+1);
     if(!slEditName(nm)) return -1;
     KRealm R; R.tier=(u8)t; R.giant=(u8)g; R.castle=0; R.genVer=KG_GENVER; R.flags=0; R.day=0; R.nB=0;
@@ -41,8 +55,8 @@ static void ksDetail(int r){   // the panel under the list: what the cursor is o
     if(r<0){
         text(14,93,"FOUND A NEW KINGDOM",GOLD,1);
         text(14,102,"PICK A GIANT  A SIZE  A NAME",RGB(20,26,31),1);
-        e=slNum(b,ksFree()); slCat(e," SAVE SLOTS FREE"); text(14,113,b,RGB(17,29,31),1);
-        text(14,122,"PRESS A TO BEGIN",DIMC,1); return;
+        e=slNum(b,ksN); e=slCat(e," OF "); e=slNum(e,ksQuota()); e=slCat(e," KINGDOMS   "); e=slNum(e,ksFree()); slCat(e," SLOTS FREE"); text(14,113,b,RGB(17,29,31),1);
+        { const char*why=ksWhyNot(); text(14,122,why?why:"PRESS A TO BEGIN",why?RGB(31,14,8):DIMC,1); } return;
     }
     int s=ksL[r], t=0, g=0, c=0; u32 d=0;
     if(!kgsPeek(s,&t,&g,&c,&d)||t>=KG_TIERS||g>=KG_GIANTS||c>KG_CASTLE){ text(14,93,slI[s].name,GOLD,1); text(14,102,"THIS REALM CANNOT BE READ",RGB(31,14,8),1); return; }
@@ -66,7 +80,7 @@ static void ksDraw(int sel,int top,u32 cnt){
     }
     rect(8,85,224,1,RGB(14,26,31));
     ksDetail(sel-1);
-    { const char*a=sel?"A DELETE":"A FOUND"; s2pill(5,147,tw(a,1)+10,a); s2pill(9+tw(a,1)+10,147,tw("B BACK",1)+10,"B BACK"); }
+    { const char*a=sel?"A OPTIONS":"A FOUND"; s2pill(5,147,tw(a,1)+10,a); s2pill(9+tw(a,1)+10,147,tw("B BACK",1)+10,"B BACK"); }
     present();
 }
 static int kgRun(void){   // KINGDOM MODE. Returns 0: nothing started that should close the menus.
@@ -80,8 +94,12 @@ static int kgRun(void){   // KINGDOM MODE. Returns 0: nothing started that shoul
         if(pr&K_UP){ sel=(sel+ksN)%(ksN+1); dirty=1; }
         if(pr&K_A){
             if(sel==0){ int f=ksFound(); if(f>=0){ ksRefresh(); for(int i=0;i<ksN;i++) if(ksL[i]==f) sel=i+1; } }
-            else { static const char* const yn[2]={"DELETE THIS KINGDOM","KEEP IT"}; int s=ksL[sel-1];
-                if(menu(slI[s].name[0]?slI[s].name:"THIS KINGDOM",yn,2)==0){ static const char* const yn2[2]={"YES  DELETE FOR GOOD","NO  KEEP IT"};
+            else { static const char* const yn[3]={"RENAME THIS KINGDOM","DELETE THIS KINGDOM","LEAVE IT"}; int s=ksL[sel-1];
+                int ch=menu(slI[s].name[0]?slI[s].name:"THIS KINGDOM",yn,3);
+                if(ch==0){ char nm[SLOT_NAME+1]; int i=0; for(;i<SLOT_NAME&&slI[s].name[i];i++) nm[i]=slI[s].name[i]; nm[i]=0; int pid=slI[s].pid;
+                    if(slEditName(nm)){ int e=kgsRename(pid,nm); ksRefresh(); for(int j=0;j<ksN;j++) if(slI[ksL[j]].pid==pid) sel=j+1;
+                        toast(e>=0?"KINGDOM RENAMED":e==SLE_NOROOM?"NO ROOM  FREE A SLOT":slErrMsg(e)); } }
+                else if(ch==1){ static const char* const yn2[2]={"YES  DELETE FOR GOOD","NO  KEEP IT"};
                     if(menu("THIS CANNOT BE UNDONE",yn2,2)==0){ kgsDelete(slI[s].pid); ksRefresh(); if(sel>ksN) sel=ksN; toast("KINGDOM DELETED"); } } }
             prev=keyNow(); dirty=1; continue; }
         if(sel<top){ top=sel; }
