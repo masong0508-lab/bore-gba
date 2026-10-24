@@ -2376,7 +2376,8 @@ static u8 sexGuess(const u8*lk){   // a Sim from a save made before GENDER: a be
 // VOICES ARE PEOPLE: every clip is said by someone. voxSay(uid, clip) plays it at that Sim's own pitch (voxPitch, house.h: their VOICE look or their gender,
 // their age, a little of their own, their mood) and from where they stand (voxPan: left or right on the screen). voxDuo: one says something, the other answers.
 static int voxPitch(int uid); static void voxPan(int uid,int*gl,int*gr);   // house.h
-static void voxSay(int uid,int v){ int p=voxPitch(uid); if(p<70) p=70; if(p>190) p=190; sfxNStp=(u32)SFX_STEP*(u32)p/100u; voxPan(uid,&sfxNGL,&sfxNGR); sfxNSet=1; sfxPlay(VS(v)); if(!sSnd) sfxNSet=0; }
+static void voxSayP(int uid,int v,int p){ if(p<70) p=70; if(p>190) p=190; sfxNStp=(u32)SFX_STEP*(u32)p/100u; voxPan(uid,&sfxNGL,&sfxNGR); sfxNSet=1; sfxPlay(VS(v)); if(!sSnd) sfxNSet=0; }
+static void voxSay(int uid,int v){ voxSayP(uid,v,voxPitch(uid)); }
 static void voxPlay(int v){ voxSay(hhPUid,v); }
 static void voxNag(int v){ if(!sfxV&&!vxQn) voxPlay(v); }
 static void voxChain(int a,int b,int c){ voxPlay(a); vxQ[0]=(signed char)b; vxQ[1]=(signed char)c; vxQU[0]=vxQU[1]=(signed char)hhPUid; vxQn=2; }

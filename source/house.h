@@ -1085,6 +1085,12 @@ static void voxPan(int uid,int*gl,int*gr){   // left / right by where they stand
     int p=(x-SW/2)*3/4; if(p>100) p=100; if(p<-100) p=-100;
     *gl=256-(p>0?p:0); *gr=256+(p<0?p:0);
 }
+#include "voxscare.h"   // the clips recorded in both voices (the ghost scare)
+_Static_assert(V_ghost_scared_female_4==V_ghost_scared_female_1+3&&V_ghost_scared_male_4==V_ghost_scared_male_1+3&&VOICE_N<127,"voxscare.h: the takes must follow one another");
+static void voxScare(int uid){   // a ghost scared this Sim: one of four screams, the take of their voice (fx.h)
+    const u8*lk; if(uid==hhPUid) lk=look; else { int m=hhMemOf(uid); if(m<0) return; lk=hhM[m].look; }
+    int clip,pct; vsPick(lk[LK_SEX],lk[LK_VOICE],uid,rnd8(),voxPitch(uid),&clip,&pct); voxSayP(uid,clip,pct);
+}
 // a does interaction i to b. Returns 1 if it was accepted (mean ones: 1 = it landed)
 // THE VOICES OF A SOCIAL: when you are in it, both of you speak: the one who starts says their line, the other answers in their own voice
 // (a joke that lands gets a laugh, one that does not gets a weak one or a NAH; a flirt gets flirted back or shut down). One exchange at a time; the newest wins.

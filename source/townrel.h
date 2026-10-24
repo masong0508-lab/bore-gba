@@ -158,9 +158,10 @@ static void nrAskIn(int a,int g){   // ASK TO MOVE IN: how they feel about you d
     int c=25+relD[g][a]/2+relL[g][a]/2+((relF[g][a]&(RF_STEADY|RF_LOVE))?30:0)+(uTr(g,TR_NICE)-5)*2; c=c<5?5:c>95?95:c;
     char*t=simMsg2; t=simCat(t,uName(g));
     hhFreeze(a,60); hhFreeze(g,60);
-    if((rnd8()*100>>8)>=c){ relD[g][a]=(signed char)clampR(relD[g][a]-5); hhSay(a,IC_HEART,"MOVE IN?"); hhSay(g,IC_BAIL,"NO"); voxPlay(V_nah); simCat(t," SAID NO  NOT YET"); lnote=simMsg2; lnoteT=110; return; }
-    hhSay(a,IC_HEART,"MOVE IN?"); voxPlay(V_yahoo);
+    if((rnd8()*100>>8)>=c){ relD[g][a]=(signed char)clampR(relD[g][a]-5); hhSay(a,IC_HEART,"MOVE IN?"); hhSay(g,IC_BAIL,"NO"); voxSay(g,V_move_in_rejecting); simCat(t," SAID NO  NOT YET"); lnote=simMsg2; lnoteT=110; return; }
+    hhSay(a,IC_HEART,"MOVE IN?");
     int u=nrMoveIn(g-GU0); if(u<0){ toast("THEY HAVE A HOUSEHOLD OF THEIR OWN"); return; }
+    voxDuo(a,V_move_in_welcome_asker,u,V_move_in_welcome_asked);   // the one who asked, then the new housemate answering (u: they are a household member now, with a voice of their own)
     relD[u][a]=(signed char)clampR(relD[u][a]+10); relL[u][a]=(signed char)clampR(relL[u][a]+5);
     simCat(t," MOVED IN"); simQueue(simMsg2); simEvent(SE_FRIEND); moodEvent(M_WANT);
 }

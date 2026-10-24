@@ -190,9 +190,10 @@ static void fxGhostTick(void){
         // haunting: someone close enough gets a scare, then the ghost leaves them alone for a while
         int scared=0;
         if(!ldead&&fxAbs((int)((lfx-g->fx)>>8))+fxAbs((int)((lfy-g->fy)>>8))<=4){
-            moodEvent(M_SPOOK); lnote=fxBoo[g->why]; lnoteT=70; sfxPlay(SFX_GHOST); scared=1; stQEvent(QE_SPOOK,1); }
+            moodEvent(M_SPOOK); lnote=fxBoo[g->why]; lnoteT=70; voxScare(hhPUid); scared=1; stQEvent(QE_SPOOK,1); }   // (the scream of your Sim's voice, in place of the wail)
+        int voiced=scared;   // one scream a scare: yours, else the first household member's
         for(int m=0;m<hhN;m++){ HhSim*s=&hhM[m]; if(s->act==HA_AWAY) continue;
-            if(fxAbs((int)((s->fx-g->fx)>>8))+fxAbs((int)((s->fy-g->fy)>>8))<=3){ s->bub=IC_SKULL; s->bubT=80; scared=1; } }
+            if(fxAbs((int)((s->fx-g->fx)>>8))+fxAbs((int)((s->fy-g->fy)>>8))<=3){ s->bub=IC_SKULL; s->bubT=80; scared=1; if(!voiced){ voiced=1; voxScare(s->uid); } } }
         g->cd=(u8)(scared?240:90);   // (a u8: about 4 s after a scare at 60 steps a second, about 1.5 s when nobody was near)
     }
 }

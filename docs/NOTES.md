@@ -1158,3 +1158,11 @@ A pre-made family of five from The Amazing World of Gumball, the 13th family: GU
 - Music, voices and effects are untouched.
 - The six slots moved to the top of the 32 MB ROM (`SLOTS` 0x09BC0000 to 0x0A000000 in `tools/make_packs.py`, `tools/bore.ld`: `rom` is 0x1BC0000 long and `xprom` starts at 0x09BC0000). The base game's ceiling went from 24 MB to 27.75 MB; every ROM (bore.gba, bore-base.gba) is 32 MB again, up from 28.25 MB. To get a smaller file back, move all six slots down together, keeping the sizes and the order, and set `SLOTS_END` to the end of the last one.
 - The three PLACEHOLDER songs are gone from `songs.h` (173 KB of ROM). The saved jukebox shuffle is re-rolled once because the song list changed size.
+
+## Voices: the ghost scare and the move-in reactions
+
+Eleven new clips (45.7 KB of ROM), made from m4a recordings with `tools/prep_voice.py` (8000 Hz mono 16 bit, 70 Hz high-pass, silence trimmed, peak 29,000: the spec of the clips already in `tools/voices_src`), then encoded by `tools/encode_voices.py` like all the others (4,096 Hz 4-bit ADPCM). The 43 older clips encode byte for byte as before.
+
+- **Ghost scare** (`ghost_scared_male_1..4`, `ghost_scared_female_1..4`): recorded in BOTH voices and already sped up. Every older clip is recorded once, as the male voice, and `voxPitch` (house.h) speeds it up for a female voice. These take no second speed-up: `voxscare.h` (`vsPick`, tested by `tools/test_voxscare.sh`) picks the female takes for a female voice (VOICE: FEMALE, or BY GENDER with a female Sim) and the male takes otherwise, a non-binary Sim by uid, half and half, and divides the gender speed-up back out of the pitch (age, mood and the Sim's own bit stay). One of the four takes at random. In fx.h the scream REPLACES the wail (SFX_GHOST) for your Sim; if only a household member is near the ghost, the first of them screams. One scream a scare.
+- **ASK TO MOVE IN** (townrel.h `nrAskIn`): a no is now said by the neighbour (`move_in_rejecting`, in their voice, it was your Sim saying NAH); a yes is the asker (`move_in_welcome_asker`) and then the new housemate answering (`move_in_welcome_asked`).
+- Not built with devkitARM and not heard in the game: the clips were checked as numbers (length, peak, codec SNR 14 to 19 dB, the older clips run 16 to 30), not by ear on the cart.
