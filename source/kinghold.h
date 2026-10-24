@@ -13,7 +13,7 @@ static inline int khLoad(int giant){ return khLoadT[giant>=0&&giant<5?giant:0]; 
 // how many more of good g the sites and the working sawmills / masons still ask for (their want minus what is already on its way to them)
 static inline int khWantOf(const KSim*S,int i,int*g){
     const KBld*b=&S->B[i]; const KsType*T=ksT(b->type); int have=ksIn(b)+S->inRes[i], w=0; *g=-1;
-    if(!b->lvl){ *g=T->costG; w=T->costN-have; }
+    if(!b->lvl){ int cn=0; ksCost(S,b,g,&cn); w=cn-have; }
     else if(T->kind==KK_PROC&&b->work){ *g=T->inG; w=KS_BUF-have; }
     return w>0?w:0;
 }
@@ -55,6 +55,7 @@ static inline int khMove(KSim*S,int x,int y){
     if(h->k) return KHR_BUSY;
     int i=-1; for(int j=0;j<S->R->nB;j++){ const KBld*q=&S->B[j]; if(x>=q->x&&x<q->x+kgFootW(q->type)&&y>=q->y&&y<q->y+kgFootH(q->type)){ i=j; break; } }
     if(i<0) return KHR_NOTHING;
+    if(S->B[i].type==KB_CASTLE) return KHR_KEEP;   // (the castle stays where it was founded)
     { KBld q=S->B[i]; if(ksDemolish(S,i)!=KSE_OK) return KHR_ARG; h->k=KHD_BLD; h->bt=q.type; h->bl=q.lvl; h->bw=q.work; h->g=0; h->n=0; }   // (ksDemolish: its goods to the stockpile, every carrier home, the cells free)
     return KHR_LIFT;
 }

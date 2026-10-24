@@ -139,7 +139,7 @@ int main(void){
             if(rnd()%5==0) for(int s=(int)(rnd()%90);s>0;s--) ksStep(&S);
             if(rnd()%12==0){ KHold keep=S.hd; if(keep.k!=KHD_BLD){ int e=ksCheck(&S); CHECK(e==0,"books before sending the hold home: %d",e); ksHoldHome(&S); e=ksCheck(&S); CHECK(e==0&&S.hd.k==KHD_NONE,"books after sending the hold home: %d",e); } }
             if(k%97==0){ int e=ksCheck(&S); CHECK(e==0,"tier %d press %d: books %d (hold k %d)",tier,k,e,S.hd.k); CHECK(bldCells()==4*R.nB,"footprints: %d cells for %d buildings",bldCells(),R.nB); CHECK(R.nB<=KS_MAXB,"too many buildings");
-                for(int i=0;i<R.nB;i++){ const KBld*b=&S.B[i]; const KsType*T=ksT(b->type); CHECK(b->type<KS_NTYPES&&b->lvl<=1&&(T->kind==KK_HOME?b->work<=T->house:b->work<=1)&&(b->lvl||!b->work),"building %d is damaged: type %d lvl %d work %d",i,b->type,b->lvl,b->work); } }
+                for(int i=0;i<R.nB;i++){ const KBld*b=&S.B[i]; const KsType*T=ksT(b->type); CHECK(b->type<KS_NTYPES&&b->lvl<=1&&(T->kind==KK_HOME?b->work<=T->house:b->work<=1)&&(b->lvl||!b->work||T->kind==KK_CASTLE),"building %d is damaged: type %d lvl %d work %d",i,b->type,b->lvl,b->work); } }
             if(fails>20) break; }
         { int e=ksCheck(&S); CHECK(e==0,"final books %d",e); }
         CHECK(cnt[KHR_TAKE]>30&&cnt[KHR_GIVE]>15&&cnt[KHR_LIFT]>30&&cnt[KHR_SET]>15&&cnt[KHR_HEAD]>15&&cnt[KHR_SETTLE]>5,"the soak did real work: take %d give %d back %d lift %d set %d head %d settle %d",cnt[KHR_TAKE],cnt[KHR_GIVE],cnt[KHR_BACK],cnt[KHR_LIFT],cnt[KHR_SET],cnt[KHR_HEAD],cnt[KHR_SETTLE]);

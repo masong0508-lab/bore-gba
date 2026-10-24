@@ -27,8 +27,8 @@
 #define KS_DAYT    600      // frames in a realm day
 #define KS_GR      6        // a gatherer's reach: this many cells each way from the middle of its 2 x 2
 #define KS_REGROW  12       // tries a day a working woodcutter makes to plant a tree on bare grass in its reach
-enum { KB_HUT, KB_HOUSE, KB_WOODCUT, KB_QUARRY, KB_SAWMILL, KB_MASON, KB_STORE, KB_SHEEP, KB_CRYMINE, KB_WEAVER, KB_CUTTER, KS_NTYPES };   // (step 5a: the wool chain and the crystal chain)
-enum { KK_HOME, KK_GATHER, KK_PROC, KK_STORE };
+enum { KB_HUT, KB_HOUSE, KB_WOODCUT, KB_QUARRY, KB_SAWMILL, KB_MASON, KB_STORE, KB_SHEEP, KB_CRYMINE, KB_WEAVER, KB_CUTTER, KB_CASTLE, KS_NTYPES };   // (step 5a: the wool chain and the crystal chain)
+enum { KK_HOME, KK_GATHER, KK_PROC, KK_STORE, KK_CASTLE };
 enum { G_WOOD, G_STONE, G_WOOL, G_CRYSTAL, G_PLANKS, G_CUT, G_CLOTH, G_POLISH };
 enum { KSE_OK=0, KSE_ARG=-1, KSE_CAP=-2, KSE_SPOT=-3, KSE_ROAD=-4 };
 typedef struct { u8 kind, costG, costN, staff, house, inG, outG, res, period; } KsType;
@@ -45,6 +45,7 @@ static const KsType KS_T[KS_NTYPES]={
  { KK_GATHER, G_PLANKS, 3, 1, 0, 0,       G_CRYSTAL,KT_CRYSTAL,180 },  // crystal mine: a crystal cell in reach becomes grass, like a quarried rock [ASSUMED]
  { KK_PROC,   G_PLANKS, 3, 1, 0, G_WOOL,  G_CLOTH, 0,         140 },   // weaver: 2 wool make 1 cloth
  { KK_PROC,   G_CUT,    3, 1, 0, G_CRYSTAL,G_POLISH,0,         180 },   // crystal cutter: 2 crystal make 1 polished crystal
+ { KK_CASTLE, G_PLANKS, 6, 0, 0, 0,       0,       0,         0   },   // castle (step 5b): the cost here is only the first lot of stage 1; the real costs are KS_CL, by stage
 };
 static inline const KsType*ksT(int type){ return &KS_T[type<KS_NTYPES?type:0]; }
 
@@ -62,6 +63,7 @@ typedef struct {
     KsWk wk[KS_MAXW];
     u32 opMatch, opWalk, opBfs, opSearch, opProd;   // work counters (the PC test turns them into cycles)
     KHold hd;                                       // (step 4h) what the giant carries: goods in it are still the realm's goods, so ksHeld counts them
+    u8 ev;                                          // (step 5b) a castle stage was finished: the number of stages done (1 to 4), 0 for none; the screen says it and clears it. Never saved
     u8 dist[KS_MAPS][KS_MAXN]; u16 queue[KS_MAXN];   // KEEP THESE TWO LAST (step 4a): they are only a cache, rebuilt by ksBfs, and once ksPrepSave has run they are free for kingmem.h's save scratch
 } KSim;
 
@@ -85,15 +87,35 @@ static inline void ksGift(KSim*S,int g,int n){ if(n<=0) return; S->made[g]+=n; k
 static inline void ksCensus(KSim*S){
     KRealm*R=S->R; int pop=KS_PARTY, emp=0, st=0;
     for(int i=0;i<R->nB;i++){ const KBld*b=&S->B[i]; const KsType*T=ksT(b->type); if(!b->lvl) continue;
-        if(T->kind==KK_HOME) pop+=b->work; else if(T->kind==KK_STORE) st++; else emp+=b->work; }
+        if(T->kind==KK_HOME) pop+=b->work; else if(T->kind==KK_STORE) st++; else if(T->kind!=KK_CASTLE) emp+=b->work; }
     if(pop>KS_POPCAP) pop=KS_POPCAP;
     S->pop=pop; S->emp=emp; S->nStore=st; int w=pop-emp; S->nWt=w<0?0:w>KS_MAXW?KS_MAXW:w;
+}
+// ---- (step 5b) THE CASTLE: one building, four stages (R->castle counts the stages done: 0 none, 1 foundation, 2 walls, 3 towers, 4 crowned). Each stage is two LOTS of goods carried to the
+// site like any building's cost (b->work is the lot, 0 or 1; b->stock the goods delivered to it). A lot is at most KS_BUF (8) goods. The second lot done finishes the stage; the fourth stage finishes the
+// castle (lvl 1) and crowns the monarch. [ASSUMED amounts: tune here, nothing of them is in a saved realm]
+static const u8 KS_CL[KG_CASTLE][2][2]={
+ { {G_PLANKS,6}, {G_CUT,6}    },   // 1 foundation
+ { {G_CUT,8},    {G_PLANKS,4} },   // 2 walls
+ { {G_CUT,6},    {G_POLISH,4} },   // 3 towers
+ { {G_POLISH,6}, {G_CLOTH,6}  },   // 4 throne room
+};
+static inline void ksCostType(const KSim*S,int type,int lot,int*g,int*n){   // the good and the number a new site of this type asks for (a castle: the lot of the stage it is at)
+    const KsType*T=ksT(type);
+    if(T->kind==KK_CASTLE){ int s=S->R->castle; if(s>KG_CASTLE-1) s=KG_CASTLE-1; *g=KS_CL[s][lot&1][0]; *n=KS_CL[s][lot&1][1]; }
+    else { *g=T->costG; *n=T->costN; }
+}
+static inline void ksCost(const KSim*S,const KBld*b,int*g,int*n){ ksCostType(S,b->type,b->work,g,n); }
+static inline void ksCastleLot(KSim*S,KBld*b){   // a lot is paid: the first moves to the second, the second finishes the stage
+    KRealm*R=S->R; if(b->work==0){ b->work=1; return; }
+    b->work=0; if(R->castle<KG_CASTLE) R->castle++; S->ev=R->castle;
+    if(R->castle>=KG_CASTLE){ b->lvl=1; ksCensus(S); }
 }
 static inline long ksCarried(const KSim*S,int g){ long n=0; for(int w=0;w<KS_MAXW;w++) if(S->wk[w].st&&S->wk[w].good==g) n++; return n; }
 static inline long ksHeld(const KSim*S,int g){   // everything that exists of a good
     long v=S->R->goods[g];
     for(int i=0;i<S->R->nB;i++){ const KBld*b=&S->B[i]; const KsType*T=ksT(b->type);
-        if(!b->lvl){ if(T->costG==g) v+=ksIn(b); continue; }
+        if(!b->lvl){ int cg=0,cn=0; ksCost(S,b,&cg,&cn); if(cg==g) v+=ksIn(b); continue; }
         if((T->kind==KK_GATHER||T->kind==KK_PROC)&&T->outG==g) v+=ksOut(b);
         if(T->kind==KK_PROC&&T->inG==g) v+=ksIn(b); }
     if(S->hd.k==KHD_GOODS&&S->hd.g==g) v+=S->hd.n;   // (the giant's load)
@@ -150,6 +172,7 @@ static inline int ksSpotOk(const KSim*S,int type,int x,int y){
 }
 static inline int ksPlace(KSim*S,int type,int x,int y,int built){   // returns the building's number or a KSE_ error
     KRealm*R=S->R; if(R->nB>=KS_MAXB) return KSE_CAP; if(!ksSpotOk(S,type,x,y)) return KSE_SPOT;
+    if(type==KB_CASTLE){ if(R->castle>=KG_CASTLE) return KSE_SPOT; for(int i=0;i<R->nB;i++) if(S->B[i].type==KB_CASTLE) return KSE_SPOT; built=0; }   // (one castle to a realm, and none after the crown)
     KBld*b=&S->B[R->nB]; __builtin_memset(b,0,sizeof *b); b->type=(u8)type; b->x=(u8)x; b->y=(u8)y; b->lvl=(u8)(built?1:0);
     for(int j=0;j<2;j++) for(int k=0;k<2;k++) S->cells[(y+j)*S->dim+x+k]|=KC_BLD;
     S->timer[R->nB]=0; S->inRes[R->nB]=0; R->nB++; ksCensus(S); return R->nB-1;
@@ -157,7 +180,7 @@ static inline int ksPlace(KSim*S,int type,int x,int y,int built){   // returns t
 static inline int ksDemolish(KSim*S,int i){   // what the building holds goes to the stockpile; every carrier goes home first (building numbers shift)
     KRealm*R=S->R; if(i<0||i>=R->nB) return KSE_ARG;
     ksRecall(S); KBld*b=&S->B[i]; const KsType*T=ksT(b->type);
-    if(!b->lvl) ksPool(S,T->costG,ksIn(b));
+    if(!b->lvl){ int cg=0,cn=0; ksCost(S,b,&cg,&cn); ksPool(S,cg,ksIn(b)); }
     else { if(T->kind==KK_GATHER||T->kind==KK_PROC) ksPool(S,T->outG,ksOut(b)); if(T->kind==KK_PROC) ksPool(S,T->inG,ksIn(b)); }
     for(int j=0;j<2;j++) for(int k=0;k<2;k++) S->cells[(b->y+j)*S->dim+b->x+k]&=(u8)~KC_BLD;
     for(int k=i;k+1<R->nB;k++){ S->B[k]=S->B[k+1]; S->timer[k]=S->timer[k+1]; }
@@ -168,6 +191,7 @@ static inline int ksDemolish(KSim*S,int i){   // what the building holds goes to
 static inline int ksInit(KSim*S,KRealm*R,KBld*B,u8*cells){
     int d=kgDim(R->tier); if(!d) return KSE_ARG; if(R->nB>KS_MAXB) return KSE_CAP;
     for(int i=0;i<R->nB;i++){ const KBld*b=&B[i]; if(b->type>=KS_NTYPES||b->x<2||b->y<2||b->x+2>d-2||b->y+2>d-2) return KSE_ARG; }
+    { int nc=0; for(int i=0;i<R->nB;i++) nc+=B[i].type==KB_CASTLE; if(nc>1) return KSE_ARG; }   // (one castle only)
     __builtin_memset(S,0,sizeof *S); S->R=R; S->B=B; S->cells=cells; S->dim=d; S->bfsSlot=-1;
     for(int m=0;m<KS_MAPS;m++) S->mapB[m]=0xFF;
     for(int c=0;c<d*d;c++){ int v=cells[c]&7; cells[c]=(u8)v; if(v>=KT_N){ cells[c]=(u8)kgCell(R->seed,R->tier,c%d,c/d); } }   // a damaged cell value is made again from the land
@@ -179,7 +203,8 @@ static inline int ksInit(KSim*S,KRealm*R,KBld*B,u8*cells){
     ksNodeBuild(S);
     for(int i=0;i<R->nB;i++){ KBld*b=&B[i]; const KsType*T=ksT(b->type);   // clamp what a damaged save could hold
         if(b->lvl>1){ b->lvl=1; }
-        if(!b->lvl&&ksIn(b)>T->costN){ ksSetIn(b,T->costN); }
+        if(T->kind==KK_CASTLE){ if(R->castle>=KG_CASTLE){ b->lvl=1; b->work=0; b->stock=0; } else { b->lvl=0; if(b->work>1) b->work=0; } }   // (a crowned realm has a finished castle, any other a site at its stage)
+        if(!b->lvl){ int cg=0,cn=0; ksCost(S,b,&cg,&cn); if(ksIn(b)>cn){ ksSetIn(b,cn); } }
         if(ksIn(b)>KS_BUF){ ksSetIn(b,KS_BUF); }
         if(ksOut(b)>KS_BUF){ ksSetOut(b,KS_BUF); }
         if(T->kind==KK_HOME&&b->work>T->house){ b->work=T->house; }
@@ -220,7 +245,7 @@ static inline void ksDay(KSim*S){
 static inline void ksEcon(KSim*S){
     KRealm*R=S->R;
     for(int i=0;i<R->nB;i++){ KBld*b=&S->B[i]; const KsType*T=ksT(b->type); S->opProd++;
-        if(!b->lvl){ if(ksIn(b)>=T->costN){ S->made[T->costG]-=T->costN; ksSetIn(b,0); b->lvl=1; ksCensus(S); } continue; }
+        if(!b->lvl){ int cg=0,cn=0; ksCost(S,b,&cg,&cn); if(ksIn(b)>=cn){ S->made[cg]-=cn; ksSetIn(b,0); if(T->kind==KK_CASTLE) ksCastleLot(S,b); else { b->lvl=1; ksCensus(S); } } continue; }
         if(T->kind==KK_GATHER&&b->work&&ksOut(b)<KS_BUF){ if(++S->timer[i]>=T->period){ S->timer[i]=0; ksGather(S,i); } }
         else if(T->kind==KK_PROC&&b->work&&ksIn(b)>=2&&ksOut(b)<KS_BUF){ if(++S->timer[i]>=T->period){ S->timer[i]=0; ksSetIn(b,ksIn(b)-2); S->made[T->inG]-=2; ksSetOut(b,ksOut(b)+1); S->made[T->outG]++; } } }
     if(S->t%KS_DAYT==0) ksDay(S);

@@ -87,14 +87,17 @@ static int kpDraw(const KmMem*m,const char*nm,int spd,u32 cnt){   // the status 
     e=slCat(b,"WOOD "); e=slNum(e,R->goods[G_WOOD]); e=slCat(e,"   STONE "); slNum(e,R->goods[G_STONE]); text(14,70,b,WHITE,1);
     e=slCat(b,"PLANKS "); e=slNum(e,R->goods[G_PLANKS]); e=slCat(e,"   CUT STONE "); slNum(e,R->goods[G_CUT]); text(14,79,b,WHITE,1);
     e=slCat(b,"WOOL "); e=slNum(e,R->goods[G_WOOL]); e=slCat(e,"   CRYSTAL "); slNum(e,R->goods[G_CRYSTAL]); text(14,88,b,DIMC,1);
-    e=slCat(b,"DELIVERED "); slNum(e,(int)S->delivered); text(14,103,b,DIMC,1);
-    e=slCat(b,"SPEED  X"); slNum(e,spd==0?1:spd==1?4:16); text(14,112,b,GOLD,1);
+    e=slCat(b,"CLOTH "); e=slNum(e,R->goods[G_CLOTH]); e=slCat(e,"   POLISHED "); slNum(e,R->goods[G_POLISH]); text(14,97,b,DIMC,1);
+    e=slCat(b,"DELIVERED "); slNum(e,(int)S->delivered); text(14,109,b,DIMC,1);
+    e=slCat(b,"SPEED  X"); slNum(e,spd==0?1:spd==1?4:16); text(14,118,b,GOLD,1);
+    e=slCat(b,"CASTLE  "); slCat(e,ksCastle[R->castle<=KG_CASTLE?R->castle:0]); text(14,127,b,RGB(17,29,31),1);
     { const char*a="SEL MAP", *b="START MENU"; int x=5; s2pill(x,147,tw(a,1)+10,a); x+=tw(a,1)+14; s2pill(x,147,tw(b,1)+10,b); }
     present(); return 0;
 }
 static void kpOver(const KmMem*m,const KGiant*G,u32 cnt){   // the overview screen (mode 3): the whole realm, the giant a blinking dot
     rect(0,0,240,160,RGB(0,0,2)); koDraw(fb,m->S,kgCx(G),kgCy(G),(int)((cnt>>3)&1)); text(2,1,"OVERVIEW",GOLD,1);
     { const char*a="SEL STATUS"; s2pill(5,147,tw(a,1)+10,a); } present(); }
+static const char* const kpStageMsg[KG_CASTLE]={ "FOUNDATION LAID", "WALLS STAND", "TOWERS RISE", "CASTLE DONE  A MONARCH IS CROWNED" };   // (step 5b) said in the text layer when a castle stage is finished
 static int kpRun(int slot){   // returns 0: the KINGDOM list should rescan (the realm's slot moved)
     KmMem m; int e=kpOpen(&m,slot); if(e){ toast(kpWhy(e)); return 0; }
     char nm[SLOT_NAME+1]; { int i=0; for(;i<SLOT_NAME&&slI[slot].name[i];i++) nm[i]=slI[slot].name[i]; nm[i]=0; if(!i){ nm[0]='R'; nm[1]='E'; nm[2]='A'; nm[3]='L'; nm[4]='M'; nm[5]=0; } }
@@ -129,6 +132,7 @@ static int kpRun(int slot){   // returns 0: the KINGDOM list should rescan (the 
             khShow(&V,cx,cy,(cnt>>3)&1);
         } else if(cnt&7) vsync(); else if(ov) kpOver(&m,&G,cnt); else kpDraw(&m,nm,spd,cnt);
         for(int i=0;i<per[spd];i++) ksStep(m.S);
+        if(m.S->ev){ int ev=m.S->ev; m.S->ev=0; if(ev>=1&&ev<=KG_CASTLE){ hmsg=kpStageMsg[ev-1]; hudT=240; hudD=1; } }
     }
 }
 #endif

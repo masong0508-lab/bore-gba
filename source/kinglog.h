@@ -61,7 +61,7 @@ static inline int ksStart(KSim*S,int src,int pool,int dst,int slot,int g,int cel
 }
 static inline int ksWant(const KSim*S,int i,int*g){   // how many more of which good a building asks for
     const KBld*b=&S->B[i]; const KsType*T=ksT(b->type); int have=ksIn(b)+S->inRes[i];
-    if(!b->lvl){ *g=T->costG; return T->costN-have; }
+    if(!b->lvl){ int cn=0; ksCost(S,b,g,&cn); return cn-have; }
     if(T->kind==KK_PROC&&b->work){ *g=T->inG; return KS_BUF-have; }
     return 0;
 }
@@ -133,7 +133,7 @@ static inline int ksCheck(KSim*S){
     (void)act;   // (more carriers out than free Nubbins is fine for a while: a new job needs a free one, the ones out finish theirs)
     for(int i=0;i<S->R->nB;i++){ if(res[i]!=S->inRes[i]) return 13; const KBld*b=&S->B[i]; const KsType*T=ksT(b->type);
         if(ksIn(b)>KS_BUF||ksOut(b)>KS_BUF){ return 15; }
-        if(!b->lvl&&ksIn(b)>T->costN){ return 15; } }
+        if(!b->lvl){ int cg=0,cn=0; ksCost(S,b,&cg,&cn); if(ksIn(b)>cn){ return 15; } } (void)T; }
     for(int m=0;m<KS_MAPS;m++) if(mr[m]!=S->mapRef[m]) return 14;
     return 0;
 }

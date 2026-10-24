@@ -25,7 +25,7 @@ int main(void){
     for(int i=0;i<KHM_N;i++) khCycle(&K,1); CHECK(K.mode==KHM_HAND,"R cycles round"); khCycle(&K,-1); CHECK(K.mode==KHM_NUBBIN,"L from HAND is NUBBIN"); khCycle(&K,1);
     CHECK(khCx(0)==15&&khCy(0)==10&&khCx(8*40-1)==(8*40+119)/8,"the cell under the middle of the screen");
     CHECK(KHM_ROAD==1&&KHM_HUT==2&&KHM_STORE-KHM_HUT==KB_STORE&&KHM_DEMO==KS_NTYPES+2&&KHM_MOVE==KHM_DEMO+1&&KHM_NUBBIN==KHM_MOVE+1&&KHM_N==KS_NTYPES+5,"modes line up with the building types");
-    CHECK(KHR_N==29&&KHR_GOT>KHR_RAZED&&KHR_GOT<KHR_NOTHING&&khRedraw(KHR_RAZED)&&khRedraw(KHR_LIFT)&&khRedraw(KHR_SET)&&!khRedraw(KHR_GOT)&&!khRedraw(KHR_TAKE),"result codes: the map-changing ones come first"); for(int r=0;r<KHR_N;r++) CHECK(r==0||(khMsg[r]&&khMsg[r][0]),"message for result %d",r);
+    CHECK(KHR_N==30&&KHR_GOT>KHR_RAZED&&KHR_GOT<KHR_NOTHING&&khRedraw(KHR_RAZED)&&khRedraw(KHR_LIFT)&&khRedraw(KHR_SET)&&!khRedraw(KHR_GOT)&&!khRedraw(KHR_TAKE),"result codes: the map-changing ones come first"); for(int r=0;r<KHR_N;r++) CHECK(r==0||(khMsg[r]&&khMsg[r][0]),"message for result %d",r);
     for(int tier=0;tier<3;tier++){
         CHECK(fresh(tier,31u+(u32)tier)==KSE_OK,"init tier %d",tier); int d=S.dim; int x,y;
         KView V; kvInit(&V,S.cells,d,S.B,0); V.x=V.y=0; kvClamp(&V);
@@ -40,7 +40,7 @@ int main(void){
             CHECK(khBldAt(&S,x+1,y+1)==n0&&khBldAt(&S,x+2,y)<0,"footprint");
             K.mode=KHM_ROAD; CHECK(khAct(&K,&S,x,y)==KHR_SPOT,"no road under a building"); K.mode=t; CHECK(khAct(&K,&S,x,y)==KHR_SPOT,"no building on a building");
             V.nB=R.nB; kvFull(&V); CHECK(viewBad(&V)==0,"view after a site"); 
-            K.mode=KHM_DEMO; CHECK(khAct(&K,&S,x+1,y+1)==KHR_RAZED&&R.nB==n0,"razed from its far corner"); CHECK(khAct(&K,&S,x,y)==KHR_NOTHING,"nothing left"); V.nB=R.nB; CHECK(viewBad(&V)==0,"view after demolish"); CHECK(ksCheck(&S)==0,"books %d",ksCheck(&S)); }
+            K.mode=KHM_DEMO; if(t==KHM_CASTLE){ CHECK(khAct(&K,&S,x+1,y+1)==KHR_KEEP&&R.nB==n0+1,"the castle stays"); ksDemolish(&S,khBldAt(&S,x,y)); } else CHECK(khAct(&K,&S,x+1,y+1)==KHR_RAZED&&R.nB==n0,"razed from its far corner"); CHECK(khAct(&K,&S,x,y)==KHR_NOTHING,"nothing left"); V.nB=R.nB; CHECK(viewBad(&V)==0,"view after demolish"); CHECK(ksCheck(&S)==0,"books %d",ksCheck(&S)); }
         // the cap: fill every building place, then the next is refused with KHR_FULL
         { int placed=0; K.mode=KHM_HUT; for(int yy=4;yy<d-4&&R.nB<KS_MAXB;yy+=3) for(int xx=4;xx<d-4&&R.nB<KS_MAXB;xx+=3) placed+=khAct(&K,&S,xx,yy)==KHR_SITE;
           if(R.nB==KS_MAXB){ int fullSeen=0; for(int yy=4;yy<d-4;yy+=3) for(int xx=4;xx<d-4;xx+=3) if(khAct(&K,&S,xx,yy)==KHR_FULL) fullSeen=1; CHECK(fullSeen,"the cap is reported"); } CHECK(placed>0,"placed some");
