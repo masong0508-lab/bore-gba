@@ -3044,11 +3044,12 @@ static void keyUnget(u16 m){   // presses a screen read but did not use go back 
 }
 static void objHideAll(void){ for(int i=0;i<128;i++) ((volatile u16*)0x07000000)[i*4]=0x200; *(volatile u16*)0x04000050=0x0400; *(volatile u16*)0x04000054=0; }   /* all 128 OAM entries (fx.h uses 16..58), and no weather dimming behind a menu */    // household sprites off (menus, other screens)
 static void box(int x,int y,int w,int h){ objHideAll(); rect(x-1,y-1,w+2,h+2,GOLD); rect(x,y,w,h,RGB(3,4,7)); }
+static int menuInit, menuQuiet;   // menu(): the row to start on (set before the call, used once), and 1 = no tick / pop sounds (the debug SOUND TEST listens to what it plays)
 static int menu(const char*title,const char*const*it,int n){   // UP/DOWN + A to choose, B or START to cancel (returns -1). Long lists scroll (L R jump a page).
     if(n<=0) return -1;
     int vis=n>9?9:n, w=tw(title,1)+40; for(int i=0;i<n;i++){ int q=tw(it[i],1)+30; if(q>w) w=q; } if(w<116) w=116; if(w>232) w=232;   // as wide as its longest line
-    int h=32+vis*10, x=(SW-w)/2, y=(SH-h)/2, sel=0, top=0, dirty=1, hold=0; u16 prev=keyNow();
-    sfxPlay(SFX_POP);
+    int h=32+vis*10, x=(SW-w)/2, y=(SH-h)/2, sel=menuInit<n?menuInit:n-1, top=0, dirty=1, hold=0; u16 prev=keyNow(); if(sel<0) sel=0; menuInit=0; if(sel>=vis) top=sel-vis+1;
+    if(!menuQuiet) sfxPlay(SFX_POP);
     { int pw=w*72/100, ph=h*72/100, qx=x+(w-pw)/2, qy=y+(h-ph)/2; box(qx,qy,pw,ph); rect(qx,qy,pw,9,RGB(5,12,24)); rect(qx,qy+9,pw,1,GOLD); uiPresent(); }   // pops open from the middle in one quick step (it only grows, so nothing needs wiping); the full panel follows at once
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; int ps=sel;
@@ -3057,8 +3058,8 @@ static int menu(const char*title,const char*const*it,int n){   // UP/DOWN + A to
         if(pr&K_UP) sel=(sel+n-1)%n;
         if(pr&K_R){ sel+=vis; if(sel>=n) sel=n-1; }
         if(pr&K_L){ sel-=vis; if(sel<0) sel=0; }
-        if(sel!=ps){ dirty=1; sfxPlay(SFX_TICK); if(sel<top) top=sel; if(sel>=top+vis) top=sel-vis+1; }
-        if(pr&K_A){ sfxPlay(SFX_POP); return sel; }
+        if(sel!=ps){ dirty=1; if(!menuQuiet) sfxPlay(SFX_TICK); if(sel<top) top=sel; if(sel>=top+vis) top=sel-vis+1; }
+        if(pr&K_A){ if(!menuQuiet) sfxPlay(SFX_POP); return sel; }
         if(pr&(K_B|K_START)) return -1;
         if(!dirty){ vsync(); continue; }   // nothing moved: the picture on the screen is still right
         dirty=0;
