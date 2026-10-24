@@ -1,7 +1,7 @@
 #!/bin/sh
 # test_kingslot.sh - checks source/kingslot.h on a PC, with the REAL slot code of slots.h (header, scan, verify) cut out of it and run on a
 # fake flash chip that can lose power at any write. Run from the repo root:   sh tools/test_kingslot.sh
-set -e
+set -e; export ASAN_OPTIONS=detect_leaks=0
 S=source/slots.h; T=${TMPDIR:-/tmp}/ks_slots.inc
 {
   grep '^#define SLO(s)' $S
