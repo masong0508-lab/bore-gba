@@ -54,6 +54,6 @@ int main(void){
     // the art: 16 tiles of 32 bytes, every nibble a palette index, the quarters of a building differ
     { u8 g[KV_TILES][32]; for(int t=0;t<KV_TILES;t++) kvTileGfx(t,g[t]); int diff=0; for(int a=0;a<KV_TILES;a++) for(int b=a+1;b<KV_TILES;b++) if(!memcmp(g[a],g[b],32)) diff++;
       CHECK(diff==0,"%d pairs of tiles are identical",diff); CHECK(kvPalAt(0,14)!=kvPalAt(1,14)&&kvPalAt(1,14)!=kvPalAt(2,14),"building banks not recoloured"); CHECK(kvPalAt(3,5)==kvPal[5],"banks change more than the roof");
-      printf("  art: %d tiles, %d bytes of tile data (a charblock is 16384), %d palette banks\n",KV_TILES,KV_TILES*32,8); }
+      printf("  art: %d tiles, %d bytes of tile data (a charblock is 16384), %d palette banks\n",KV_TILES,KV_TILES*32,KS_NTYPES+1); }
     printf("%s: %d failure(s)\n",fails?"FAILED":"ALL PASSED",fails); return fails?1:0;
 }

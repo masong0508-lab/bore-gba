@@ -27,7 +27,7 @@
 #define KS_DAYT    600      // frames in a realm day
 #define KS_GR      6        // a gatherer's reach: this many cells each way from the middle of its 2 x 2
 #define KS_REGROW  12       // tries a day a working woodcutter makes to plant a tree on bare grass in its reach
-enum { KB_HUT, KB_HOUSE, KB_WOODCUT, KB_QUARRY, KB_SAWMILL, KB_MASON, KB_STORE, KS_NTYPES };
+enum { KB_HUT, KB_HOUSE, KB_WOODCUT, KB_QUARRY, KB_SAWMILL, KB_MASON, KB_STORE, KB_SHEEP, KB_CRYMINE, KB_WEAVER, KB_CUTTER, KS_NTYPES };   // (step 5a: the wool chain and the crystal chain)
 enum { KK_HOME, KK_GATHER, KK_PROC, KK_STORE };
 enum { G_WOOD, G_STONE, G_WOOL, G_CRYSTAL, G_PLANKS, G_CUT, G_CLOTH, G_POLISH };
 enum { KSE_OK=0, KSE_ARG=-1, KSE_CAP=-2, KSE_SPOT=-3, KSE_ROAD=-4 };
@@ -41,6 +41,10 @@ static const KsType KS_T[KS_NTYPES]={
  { KK_PROC,   G_WOOD,   4, 1, 0, G_WOOD,  G_PLANKS,0,         120 },   // sawmill
  { KK_PROC,   G_PLANKS, 3, 1, 0, G_STONE, G_CUT,   0,         150 },   // mason
  { KK_STORE,  G_WOOD,   3, 0, 0, 0,       0,       0,         0   },   // storehouse
+ { KK_GATHER, G_WOOD,   3, 1, 0, 0,       G_WOOL,  KT_MEADOW, 120 },   // sheep pen: wool from the meadow in reach; the sheep graze, the meadow is not used up [ASSUMED]
+ { KK_GATHER, G_PLANKS, 3, 1, 0, 0,       G_CRYSTAL,KT_CRYSTAL,180 },  // crystal mine: a crystal cell in reach becomes grass, like a quarried rock [ASSUMED]
+ { KK_PROC,   G_PLANKS, 3, 1, 0, G_WOOL,  G_CLOTH, 0,         140 },   // weaver: 2 wool make 1 cloth
+ { KK_PROC,   G_CUT,    3, 1, 0, G_CRYSTAL,G_POLISH,0,         180 },   // crystal cutter: 2 crystal make 1 polished crystal
 };
 static inline const KsType*ksT(int type){ return &KS_T[type<KS_NTYPES?type:0]; }
 
@@ -195,7 +199,7 @@ static inline void ksGather(KSim*S,int i){
     KBld*b=&S->B[i]; const KsType*T=ksT(b->type); int d=S->dim, mx=b->x+1, my=b->y+1;
     for(int y=my-KS_GR;y<=my+KS_GR+1;y++) for(int x=mx-KS_GR;x<=mx+KS_GR+1;x++){
         S->opProd++; if(x<0||y<0||x>=d||y>=d) continue; int c=y*d+x; if(S->cells[c]!=T->res) continue;
-        S->cells[c]=KT_GRASS; ksSetOut(b,ksOut(b)+1); S->made[T->outG]++; return; }   // (a felled tree or a quarried rock is grass; it is an edit in the save)
+        if(T->res!=KT_MEADOW) S->cells[c]=KT_GRASS; ksSetOut(b,ksOut(b)+1); S->made[T->outG]++; return; }   // (a felled tree or a quarried rock is grass; it is an edit in the save)
 }
 static inline void ksDay(KSim*S){
     KRealm*R=S->R; if(R->day<0xFFFFFFFFu) R->day++;

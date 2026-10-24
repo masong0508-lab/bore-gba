@@ -56,7 +56,7 @@ static void kgShow(const KGiant*G,const KView*V){ unsigned a0,a1,a2; kgOam(G,V,&
 static void kvScroll(const KView*V){ *(volatile u16*)0x04000010=(u16)(V->x&255); *(volatile u16*)0x04000012=(u16)(V->y&255); }
 static void kvHwEnter(KView*V){
     vsync(); objHideAll(); REG_DISPCNT=0x1340;                                     // mode 0, BG0 and BG1 (the text), sprites on (1D tiles), no windows
-    volatile u16*pal=(volatile u16*)0x05000000; for(int b=0;b<8;b++) for(int i=0;i<16;i++) pal[b*16+i]=kvPalAt(b,i);
+    volatile u16*pal=(volatile u16*)0x05000000; for(int b=0;b<=KS_NTYPES;b++) for(int i=0;i<16;i++) pal[b*16+i]=kvPalAt(b,i);
     for(int i=0;i<16;i++) pal[15*16+i]=khPalCur(kvPalAt(0,i));                       // bank 15: the cursor cell, blinking
     volatile u16*tg=(volatile u16*)0x06000000; for(int t=0;t<KV_TILES;t++){ u8 g[32]; kvTileGfx(t,g); for(int i=0;i<16;i++) tg[t*16+i]=(u16)(g[2*i]|(g[2*i+1]<<8)); }
     *(volatile u16*)0x0400000A=0x0900;                                             // BG1CNT: priority 0 (above the map), charblock 0, screenblock 9

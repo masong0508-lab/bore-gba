@@ -5,7 +5,7 @@
 #define KINGOVER_H
 #define KO_RGB(r,g,b) ((u16)((r)|((g)<<5)|((b)<<10)))
 static const u16 koLand[7]={ KO_RGB(9,20,6), KO_RGB(3,12,4), KO_RGB(16,15,14), KO_RGB(3,9,22), KO_RGB(22,26,31), KO_RGB(15,23,8), KO_RGB(22,17,9) };   // grass forest rock water crystal meadow road
-static const u16 koRoof[KS_NTYPES]={ KO_RGB(28,8,6), KO_RGB(30,14,8), KO_RGB(18,10,3), KO_RGB(12,12,14), KO_RGB(24,16,4), KO_RGB(22,6,22), KO_RGB(31,28,6) };
+static const u16 koRoof[KS_NTYPES]={ KO_RGB(28,8,6), KO_RGB(30,14,8), KO_RGB(18,10,3), KO_RGB(12,12,14), KO_RGB(24,16,4), KO_RGB(22,6,22), KO_RGB(31,28,6), KO_RGB(31,30,25), KO_RGB(4,28,26), KO_RGB(31,15,23), KO_RGB(16,26,31) };
 static inline int koScale(int dim){ int s=160/dim; return s<1?1:s>3?3:s; }
 static inline int koW(int dim){ return dim*koScale(dim); }
 static inline int koX0(int dim){ return (240-koW(dim))/2; }
