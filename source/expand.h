@@ -45,7 +45,7 @@ enum { XP_SPACE, XP_ZOMB, XP_WAR, XP_FIGHT, XP_GOTCHI, XP_EPI, XP_BASE, XP_KING,
 #include "packslots.h"
 #define XP_MAGIC 0x4B505842u   // 'BXPK'
 enum { XS_NONE, XS_SOON, XS_ZOMB, XS_WAR, XS_ARENA, XS_PUDDLE, XS_GHOST, XS_GRANT, XS_RAMPS, XS_PARTY, XS_BILLS, XS_SEEDS };
-enum { XMODE_NONE, XMODE_FIGHTER, XMODE_GOTCHI, XMODE_HORDE };
+enum { XMODE_NONE, XMODE_FIGHTER, XMODE_GOTCHI, XMODE_HORDE, XMODE_KING };
 typedef struct { u32 magic, pack, ver, slot; } XpHd;   // the first 16 bytes of a pack's slot
 #define XP_HD(n) XP_HD2(n,n)   // (a slot's number is its pack's number, except EP6: slot 6, pack XP_KING)
 #define XP_HD2(n,pk) static const XpHd xpHd##n __attribute__((section(".xphd" #n),used))={XP_MAGIC,pk,1,XP_AT##n}; \
@@ -457,7 +457,7 @@ static const XPk xPk[XP_N]={
   {"BOREAGOTCHI!","IT NEEDS YOU  CONSTANTLY",{"A PIXEL BLOB ON A KEYCHAIN","AND REAL PETS WHO ARE","JEALOUS  PLUS THE HANDHELD"},xmGotchi,XN(xmGotchi),7,XMODE_GOTCHI,0,RGB(14,3,12),RGB(31,20,27),"THE HANDHELD"},
   {"BOREPILOGUE","THE LAST CHAPTER",{"RETIRE  REMINISCE  SETTLE","OLD SCORES AND LEAVE A","LEGACY  GROWN-UPS ONLY"},xmEpi,XN(xmEpi),8,XMODE_NONE,1,RGB(7,5,10),RGB(25,22,29),0},
   {"BORE","THE BASE GAME  TEN MISSIONS",{"ONE MISSION FOR EACH THING","THE GAME DOES  BUILD  SKATE","LOVE  WORK  FIGHT  GROW"},xmBase,XN(xmBase),0,XMODE_NONE,0,RGB(3,6,12),RGB(31,26,6),0},
-  {"BOREFORE TIME","A GIANT AMONG THE SMALL",{"BE A GIANT IN A LAND OF TINY","FOLK  GATHER  HAUL  BUILD","A CASTLE FIT FOR A KING"},xmKing,XN(xmKing),6,XMODE_NONE,0,RGB(3,10,4),RGB(20,30,12),0},
+  {"BOREFORE TIME","A GIANT AMONG THE SMALL",{"BE A GIANT IN A LAND OF TINY","FOLK  GATHER  HAUL  BUILD","A CASTLE FIT FOR A KING"},xmKing,XN(xmKing),6,XMODE_KING,0,RGB(3,10,4),RGB(20,30,12),"KINGDOM MODE"},
 };
 static const u8 xpBase[XP_N]={0,5,10,20,25,40,0,60};   // where each pack's missions start in the done bits (the base game has its own block: BM_OFF)
 #define EX_SHELF (XP_N-1)   // the shelf lists the seven packs; the base game's ten missions are in story mode (pause menu > STORY > STORY MISSIONS)

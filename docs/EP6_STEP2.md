@@ -49,3 +49,17 @@ Also run `tools/test_kingdom.c` (bit a) as before.
 Nothing here was built with devkitARM or run on a cart or in an emulator. Host parse baseline unchanged: 14 errors (all `target("arm")`), 131 warnings.
 
 ## Next: bit c (the KINGDOM screen listing realms), d (found a kingdom), e (rename, quota and reserve, power-cut test on the real flash code, bigger done-bits block).
+
+---
+# Bit c: the KINGDOM screen
+
+`source/kingscreen.h`: PACKS shelf > THE LAND BOREFORE TIME now has a first row, KINGDOM MODE (PLAY), like the other packs' modes. It opens the KINGDOM screen:
+- the realms in the save slots, one row each (name, castle stage), and a first row FOUND A NEW KINGDOM (founding is bit d: it only says so for now);
+- under the list, what the cursor is on: name, size, giant, day, castle stage, times saved, bytes and slots used (read with `kgsPeek`, no realm is loaded);
+- A on a realm: DELETE THIS KINGDOM, then a second YES, then `kgsDelete` (every copy). Leftover older copies from a power cut are dropped when the screen opens (`kgsHeal`);
+- a cart with fewer than 26 slots (SRAM only) shows NEEDS A SAVE CHIP WITH MORE ROOM and does not open (roadmap 5.4).
+Changes: `XMODE_KING` in expand.h (the pack's mode row and "KINGDOM MODE"), `exModeRun` in xmodes.h, one include in main.c. The code is in the base ROM for now; it moves into the pack's slot when there is something to play. Giant names are placeholders (GIANT A to D, YOUR BORE).
+
+Not tested: this is a screen, so it was only parsed on the PC (host baseline unchanged: 14 errors, 131 warnings). It needs a devkitARM build and a look in Pizza Boy: the shelf with the new MODE badge, the list with 0, 1 and several realms (none can be made yet except by a test build), delete, and B to go back. The save layer under it is the part tested by `tools/test_kingslot.sh`.
+
+Next: bit d, found a kingdom (giant, size, name; saves it with `kgsSave`), then bit e.

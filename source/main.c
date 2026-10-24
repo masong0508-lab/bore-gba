@@ -6147,6 +6147,7 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "lunrado.h"       // LUNRADO: the moonbase, the damaged approach, the landing
 #include "gotchi.h"        // BOREAGOTCHI!: THE HANDHELD (a blob on a keychain that needs you constantly)
 #include "bortua.h"        // BORTUA FIGHTER: ARCADE MODE (polygon fighters, a ladder of nine, the chrome boss)
+#include "kingscreen.h"   // EP6: the KINGDOM screen (KINGDOM MODE): lists realms, deletes one; founding and playing come next
 #include "xmodes.h"        // the packs' MODES: BORTUA FIGHTER's ARCADE MODE, BOREAGOTCHI's HANDHELD
 #include "arena.h"         // BOREZIES! ARENAS: bitmapped maps with scattered barrels and canisters that stand in for your lot during a fight
 #include "horde.h"         // BOREZIES!'s HORDE MODE: waves, mutators, perks (100 waves or endless)
