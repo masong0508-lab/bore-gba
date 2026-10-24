@@ -80,3 +80,9 @@ The giant carries ONE thing at a time, and the three kinds you asked for are all
 - **Parse guard:** `sh tools/test_kingparse.sh` passes (0 real errors, the 14 ARM-only ones), and the patch adds no compiler warning to main.c on the host.
 - **NOT tested (no cart, no emulator, no ARM build):** the feel (the loads and the lock of one-thing-at-a-time are guesses), the text layer's width with the longest held-item lines (about 38 characters; the font is proportional), and everything on hardware that 4g already listed. A lifted building is invisible while carried; a ghost of it at the giant's feet is Phase 6 art.
 - Still to do in Phase 4: the overview, a stockpile display beyond the status screen, a refusal when a site cannot be afforded.
+
+# Phase 4, step i: the overview (kingover.h)
+
+SELECT now cycles **map, OVERVIEW, status, map** (B goes back to the map from either screen). The overview is the whole realm on one screen, one cell a pixel (the 48 land: 3 x 3), centred, in the land's colours: roofs by building type, sites dimmer, roads, water, and the giant as a blinking white dot (it follows the giant's cell). It is drawn in mode 3 like the status screen and redrawn every 8 frames, so a growing village shows.
+- `source/kingover.h` is pure C (`koDraw` writes into a 240-wide bitmap). `tools/test_kingover.sh` checks every pixel of all three sizes, nothing drawn outside the map, the roof, road and site colours, and the blink.
+- Not tested on a cart: the colours' look, the redraw cost (the 128 land is 16,384 pixels plus a building lookup per building cell; every 8 frames, the map is off while it shows). Still to do in Phase 4: the giant's saved position, a stockpile display beyond the status screen, a refusal when a site cannot be afforded.

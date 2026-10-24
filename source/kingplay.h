@@ -3,7 +3,7 @@
 // settlement of a brand new realm) and kpRun (KINGDOM MODE > PLAY: runs the economy at three speeds, shows day / population / goods, saves or leaves from a menu).
 // STEP b: the MAP. PLAY opens on the realm drawn with the hardware tile background (kingview.h); the D-pad scrolls it, A switches to the status screen and back.
 // STEP g: the GIANT (kinggiant.h): the D-pad walks it (B held runs), the camera follows, A acts on the cell under its feet (HAND gathers, the other modes build), SELECT shows the status screen.
-// STEP h: PICK UP AND PUT DOWN (kinghold.h): HAND carries goods, MOVE lifts buildings, NUBBIN lifts a resident or a worker. WHAT IS NOT: the overview map.
+// STEP h: PICK UP AND PUT DOWN (kinghold.h): HAND carries goods, MOVE lifts buildings, NUBBIN lifts a resident or a worker. SELECT cycles map, OVERVIEW (kingover.h, step i), status. WHAT IS NOT: the giant's saved position.
 // Needs before it: kingdom.h, kingslot.h, kingsim.h, kinglog.h, kingmem.h, house.h (hhPool, stgClaim, stgOk) and, unless KP_NOSCREEN, kingscreen.h's helpers.
 #define KP_OK      0
 #define KP_E_READ (-1)    // the realm could not be read from its slot
@@ -46,6 +46,7 @@ static int kpSettle(KmMem*m){
 #include "kingview.h"
 #include "kinghand.h"   // Phase 4d: building by hand (A acts on the cell under the giant's feet)
 #include "kinggiant.h"  // Phase 4g: the walking giant (pure C: movement, camera, sprite art, OAM words)
+#include "kingover.h"   // Phase 4i: the overview (the whole realm, a pixel a cell)
 #define KH_BLANK (KV_TILES+KH_TILES)   // the see-through tile, after the text tiles
 #define KH_SHADOW RGB(1,1,3)
 static int kpGiant=0;   // the realm's giant (0..4), for the sprite's colours
@@ -91,16 +92,19 @@ static int kpDraw(const KmMem*m,const char*nm,int spd,u32 cnt){   // the status 
     { const char*a="SEL MAP", *b="START MENU"; int x=5; s2pill(x,147,tw(a,1)+10,a); x+=tw(a,1)+14; s2pill(x,147,tw(b,1)+10,b); }
     present(); return 0;
 }
+static void kpOver(const KmMem*m,const KGiant*G,u32 cnt){   // the overview screen (mode 3): the whole realm, the giant a blinking dot
+    rect(0,0,240,160,RGB(0,0,2)); koDraw(fb,m->S,kgCx(G),kgCy(G),(int)((cnt>>3)&1)); text(2,1,"OVERVIEW",GOLD,1);
+    { const char*a="SEL STATUS"; s2pill(5,147,tw(a,1)+10,a); } present(); }
 static int kpRun(int slot){   // returns 0: the KINGDOM list should rescan (the realm's slot moved)
     KmMem m; int e=kpOpen(&m,slot); if(e){ toast(kpWhy(e)); return 0; }
     char nm[SLOT_NAME+1]; { int i=0; for(;i<SLOT_NAME&&slI[slot].name[i];i++) nm[i]=slI[slot].name[i]; nm[i]=0; if(!i){ nm[0]='R'; nm[1]='E'; nm[2]='A'; nm[3]='L'; nm[4]='M'; nm[5]=0; } }
     kpSettle(&m);
-    static const int per[3]={1,4,16}; int spd=0, mapOn=1, ocx=-1, ocy=-1, hudT=0, hudD=1; const char*hmsg=0; u32 cnt=0; u16 prev=keyNow(); KHand hand; khInit(&hand); int hcx=-1, hcy=-1;
+    static const int per[3]={1,4,16}; int spd=0, mapOn=1, ov=0, ocx=-1, ocy=-1, hudT=0, hudD=1; const char*hmsg=0; u32 cnt=0; u16 prev=keyNow(); KHand hand; khInit(&hand); int hcx=-1, hcy=-1;
     KGiant G; kgSpawn(&G,m.S); kpGiant=m.R->giant;
     KView V; kvInit(&V,m.cells,m.S->dim,m.B,m.R->nB); kgCamera(&V,&G); kvHwEnter(&V);
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
-        if(pr&K_SEL||(!mapOn&&pr&K_B)){ if(mapOn){ kvHwLeave(); mapOn=0; kpDraw(&m,nm,spd,cnt); } else { mapOn=1; kvHwEnter(&V); hudD=1; ocx=-1; } }   // SELECT: the map and the status screen (B also leaves the status screen)
+        if(pr&K_SEL||(!mapOn&&pr&K_B)){ if(mapOn){ kvHwLeave(); mapOn=0; ov=1; kpOver(&m,&G,cnt); } else if(ov&&pr&K_SEL){ ov=0; kpDraw(&m,nm,spd,cnt); } else { mapOn=1; ov=0; kvHwEnter(&V); hudD=1; ocx=-1; } }   // SELECT: map, overview, status, map (B goes back to the map from either screen)
         if(pr&K_START){
             static char sp[24]; static const char* const mn[6]={"BUILD MENU",sp,"SAVE AND LEAVE","SAVE AND KEEP PLAYING","LEAVE WITHOUT SAVING","KEEP PLAYING"};
             { char*e=khCat(sp,"SPEED  X"); khNum(e,spd==0?1:spd==1?4:16); }
@@ -110,7 +114,7 @@ static int kpRun(int slot){   // returns 0: the KINGDOM list should rescan (the 
             else if(ch==1) spd=(spd+1)%3;                                          // (the speed moved here from SELECT: B is now RUN)
             else if(ch==2||ch==3){ int s=kpSave(&m,slot); if(s>=0){ slot=s; toast("KINGDOM SAVED"); if(ch==2) return 0; } else toast(s==KP_E_HELD?"PUT THE BUILDING DOWN FIRST":s==SLE_NOROOM?"NO ROOM  FREE A SLOT":slErrMsg(s)); }   // (a failed save never leaves: the realm in play is the only copy of its progress)
             else if(ch==4){ static const char* const yn[2]={"YES  LEAVE","NO  KEEP PLAYING"}; if(menu("EVERYTHING SINCE THE LAST SAVE IS LOST",yn,2)==0) return 0; }
-            prev=keyNow(); if(mapOn){ kvHwEnter(&V); hudD=1; ocx=-1; } else kpDraw(&m,nm,spd,cnt); continue; }
+            prev=keyNow(); if(mapOn){ kvHwEnter(&V); hudD=1; ocx=-1; } else if(ov) kpOver(&m,&G,cnt); else kpDraw(&m,nm,spd,cnt); continue; }
         if(mapOn){                                                                 // the map: the giant walks, the camera follows, what came into view is written, one row is refreshed
             vsync();
             { int dx=(k&K_RIGHT?1:0)-(k&K_LEFT?1:0), dy=(k&K_DOWN?1:0)-(k&K_UP?1:0); if(dx||dy) kgMove(&G,m.S,dx,dy,k&K_B?khRun(m.R->giant):khStride(m.R->giant)); else G.moving=0; }
@@ -123,7 +127,7 @@ static int kpRun(int slot){   // returns 0: the KINGDOM list should rescan (the 
             if(cx!=hcx||cy!=hcy||!(cnt&63)){ hcx=cx; hcy=cy; hudD=1; }
             if(hudD){ hudD=0; kpHud(m.S,m.R,&hand,cx,cy,spd,hmsg); }
             khShow(&V,cx,cy,(cnt>>3)&1);
-        } else if(cnt&7) vsync(); else kpDraw(&m,nm,spd,cnt);
+        } else if(cnt&7) vsync(); else if(ov) kpOver(&m,&G,cnt); else kpDraw(&m,nm,spd,cnt);
         for(int i=0;i<per[spd];i++) ksStep(m.S);
     }
 }
