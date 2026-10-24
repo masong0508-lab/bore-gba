@@ -29,3 +29,10 @@ Runs under AddressSanitizer and UBSan. Every scenario has to PROVE it ran (goods
 - Frame cost, a MODEL (the cost per operation is assumed, as in `EP6_PHASE0.md`; there is no cart measurement): average 0.23 to 0.41% of a frame for the spec, 0.55 to 1.18% for the 30-building stretch; worst frame 3.6 to 8.7% (spec) and 5.0 to 12.1% (stretch), the road-cell search in the matcher being most of it.
 - Memory: `KSim` is 13,064 bytes. With the map and a 40-building list: hamlet 15.3 KB, realm 22.1 KB, kingdom 29.1 KB. `RAM_AUDIT.md` and `RAM_PLAN.md` still disagree on how much EWRAM is free (the earlier figure was about 23.8 KB), so the kingdom size may not fit as it is: shrink the 12 distance maps or keep the map in ROM-backed edits before wiring it in.
 - Not run on a cart or devkitARM.
+
+## Step d: less EWRAM (`KS_MAPS` 12 -> 10, `KS_MAXN` 768 -> 512)
+- `KSim` is 7,928 bytes, down from 13,064 (5.1 KB saved). With the map and a 40-building list: hamlet 10.3 KB, realm 17.1 KB, kingdom 24.1 KB (were 15.3, 22.1 and 29.1). Both numbers are `-D` options (`-DKS_MAPS=..`, `-DKS_MAXN=..`) if a build wants another trade.
+- A road limit of 512 cells is plenty for the test realms (they use 50 to 160). A realm whose roads fill the limit refuses more roads, as before.
+- Tried and failed in the 30-building test: 8 maps (the soak ends with the storehouse never rebuilt), 6 maps (almost nothing is delivered). Fewer maps means more waiting for a rebuild; the cost model is unchanged at 0.23 to 0.41% (spec) and about 0.46 to 0.98% (30 buildings) on average.
+- A fix that came with it: a building that wants a good nobody holds no longer takes a map slot. Without it, wanters with nothing to get evicted each other's maps and a rebuilt storehouse could wait for ever.
+- Bigger savings need a decision, not a patch: the map and `KSim` (24 KB for a kingdom) could live in a scratch the base game already owns while kingdom mode runs (`hhPool` 30 KB, `sprBuf`, `flPool` 8 KB or `fb` 75 KB), which frees all of it. That means the life game's data there must be rebuilt on the way back, so it is left as open question 4.

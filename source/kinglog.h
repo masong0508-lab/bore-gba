@@ -71,6 +71,9 @@ static inline int ksMatch(KSim*S){
         int i=(int)(S->mrr++%(u32)R->nB); S->opMatch++; int g=0;
         int want=ksWant(S,i,&g), started=0;
         if(want>0){   // someone must bring it
+            int any=S->nStore>0&&R->goods[g]>0;   // no source anywhere: do not take a map slot (wanters with nothing to get used to evict each other's maps)
+            for(int j=0;j<R->nB&&!any;j++){ const KBld*pb=&S->B[j]; S->opMatch++; if(j!=i&&ksIsProd(pb)&&ksT(pb->type)->outG==g&&ksOut(pb)>0) any=1; }
+            if(!any) goto sink;
             int slot=ksMapFor(S,i); if(slot<0||!S->mapReady[slot]) goto sink;
             int best=-1, bd=1<<20, bcell=-1, pool=0;
             for(int j=0;j<R->nB;j++){ S->opMatch++; const KBld*b=&S->B[j]; const KsType*T=ksT(b->type);

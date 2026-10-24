@@ -14,8 +14,12 @@
 //  - b->stock in a saved building: low byte = goods delivered to it (a blueprint's cost, a processor's input), high byte = goods it holds to send out.
 // Needs: nothing but kingdom.h. Every function is static inline.
 #define KS_MAXB    40       // buildings the simulation runs (the save format allows 250; a bigger realm than this is refused on load: KSE_CAP)
-#define KS_MAXN    768      // road cells
-#define KS_MAPS    12       // distance maps kept at once (kinglog.h)
+#ifndef KS_MAXN
+#define KS_MAXN    512      // road cells (a build may change it with -DKS_MAXN=...: the road list, the queue and every distance map shrink or grow with it)
+#endif
+#ifndef KS_MAPS
+#define KS_MAPS    10       // distance maps kept at once (kinglog.h). Each is KS_MAXN bytes. 8 was tried and starves a 30 building realm in the test
+#endif
 #define KS_MAXW    40       // carriers
 #define KS_POPCAP  96
 #define KS_START   4        // the founding party
