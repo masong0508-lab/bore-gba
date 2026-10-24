@@ -93,11 +93,12 @@ static int kpRun(int slot){   // returns 0: the KINGDOM list should rescan (the 
         if(pr&K_SEL) spd=(spd+1)%3;
         if(pr&K_B){ if(mapOn){ kvHwLeave(); mapOn=0; kpDraw(&m,nm,spd,cnt); } else { mapOn=1; kvHwEnter(&V); hudD=1; ocx=-1; } }
         if(pr&K_START){
-            static const char* const mn[4]={"SAVE AND LEAVE","SAVE AND KEEP PLAYING","LEAVE WITHOUT SAVING","KEEP PLAYING"};
+            static const char* const mn[5]={"BUILD MENU","SAVE AND LEAVE","SAVE AND KEEP PLAYING","LEAVE WITHOUT SAVING","KEEP PLAYING"};
             if(mapOn) kvHwLeave();
-            int ch=menu(nm,mn,4);
-            if(ch==0||ch==1){ int s=kpSave(&m,slot); if(s>=0){ slot=s; toast("KINGDOM SAVED"); if(ch==0) return 0; } else toast(s==SLE_NOROOM?"NO ROOM  FREE A SLOT":slErrMsg(s)); }   // (a failed save never leaves: the realm in play is the only copy of its progress)
-            else if(ch==2){ static const char* const yn[2]={"YES  LEAVE","NO  KEEP PLAYING"}; if(menu("EVERYTHING SINCE THE LAST SAVE IS LOST",yn,2)==0) return 0; }
+            int ch=menu(nm,mn,5);
+            if(ch==0){ char bl[KHM_N][48]; const char*bi[KHM_N]; for(int i=0;i<KHM_N;i++){ khCost(bl[i],m.S,i); bi[i]=bl[i]; } int c=menu("BUILD",bi,KHM_N); if(c>=0) hand.mode=c; }   // (A sets the mode, B backs out)
+            else if(ch==1||ch==2){ int s=kpSave(&m,slot); if(s>=0){ slot=s; toast("KINGDOM SAVED"); if(ch==1) return 0; } else toast(s==SLE_NOROOM?"NO ROOM  FREE A SLOT":slErrMsg(s)); }   // (a failed save never leaves: the realm in play is the only copy of its progress)
+            else if(ch==3){ static const char* const yn[2]={"YES  LEAVE","NO  KEEP PLAYING"}; if(menu("EVERYTHING SINCE THE LAST SAVE IS LOST",yn,2)==0) return 0; }
             prev=keyNow(); if(mapOn){ kvHwEnter(&V); hudD=1; ocx=-1; } else kpDraw(&m,nm,spd,cnt); continue; }
         if(mapOn){                                                                 // the map: scroll 3 pixels a frame, write what came into view, refresh one row
             vsync();

@@ -60,4 +60,14 @@ static inline void khStrip(const u16*fb,u16 shadow,u16*out){
             for(int c=0;c<8;c++){ u16 px=fb[(ty*8+r)*240+tx*8+c]; unsigned n=px==0?0u:px==shadow?2u:1u; w[c>>2]|=n<<((c&3)*4); }
             t[r*2]=(u16)w[0]; t[r*2+1]=(u16)w[1]; } }
 }
+
+// ---- the build menu (step 4f): one line a mode, with what it costs and what the stockpile holds ----
+static const char* const khGood[8]={ "WOOD", "STONE", "WOOL", "CRYSTAL", "PLANKS", "CUT STONE", "CLOTH", "POLISHED" };
+static inline void khCost(char*out,const KSim*S,int mode){   // out: at least 48 bytes. "SAWMILL  4 WOOD  HAVE 12", "ROAD  FREE", "DEMOLISH  GOODS COME BACK"
+    char*e=khCat(out,khName[mode]);
+    if(mode==KHM_ROAD){ khCat(e,"  FREE"); return; }
+    if(mode==KHM_DEMO){ khCat(e,"  GOODS COME BACK"); return; }
+    const KsType*T=ksT(mode-KHM_HUT); int g=T->costG<8?T->costG:0; long have=S->R->goods[g];
+    e=khCat(e,"  "); e=khNum(e,T->costN); e=khCat(e," "); e=khCat(e,khGood[g]); e=khCat(e,"  HAVE "); khNum(e,have>99999?99999:have);
+}
 #endif

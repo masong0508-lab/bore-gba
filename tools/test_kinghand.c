@@ -64,6 +64,14 @@ int main(void){
       khStrip(fbs,SH,tiles); int bad=0;
       for(int yy=0;yy<16;yy++) for(int xx=0;xx<240;xx++){ int tile=(yy>>3)*30+(xx>>3); int row=yy&7, col=xx&7; unsigned got=(tiles[tile*16+row*2+(col>>2)]>>((col&3)*4))&15; u16 px=fbs[yy*240+xx]; unsigned want=px==0?0:px==SH?2:1; bad+=got!=want; }
       CHECK(bad==0,"%d wrong pixels in the tiles",bad); printf("  text layer: info lines up to %d characters, strip -> tiles exact\n",worst); }
+    // ---- the build menu lines ----
+    { CHECK(fresh(0,5u)==KSE_OK,"init"); char b[64]; int worst=0; R.goods[G_WOOD]=12; R.goods[G_PLANKS]=0; R.goods[G_STONE]=70000;
+      for(int m=0;m<KHM_N;m++){ khCost(b,&S,m); int n=(int)strlen(b); if(n>worst) worst=n; CHECK(n>0&&n<=40,"menu line %d is %d long: %s",m,n,b); }
+      khCost(b,&S,KHM_ROAD); CHECK(strcmp(b,"ROAD  FREE")==0,"%s",b); khCost(b,&S,KHM_DEMO); CHECK(strcmp(b,"DEMOLISH  GOODS COME BACK")==0,"%s",b);
+      khCost(b,&S,KHM_SAWMILL); CHECK(strcmp(b,"SAWMILL  4 WOOD  HAVE 12")==0,"%s",b); khCost(b,&S,KHM_MASON); CHECK(strcmp(b,"MASON  3 PLANKS  HAVE 0")==0,"%s",b);
+      R.goods[G_WOOD]=65000; khCost(b,&S,KHM_HUT); CHECK(strcmp(b,"HUT  3 WOOD  HAVE 65000")==0,"%s",b);
+      for(int m=KHM_HUT;m<KHM_DEMO;m++){ khCost(b,&S,m); const KsType*T=ksT(m-KHM_HUT); CHECK(strstr(b,khGood[T->costG])!=0,"good named for mode %d: %s",m,b); }
+      printf("  build menu: %d modes, longest line %d characters\n",KHM_N,worst); }
     CHECK(khPalCur(0x0000)!=0&&khPalCur(0x7FFF)==0x7FFF,"the cursor palette lightens and never overflows");
     for(int c=0;c<32768;c+=37){ u16 v=khPalCur((u16)c); if((v&31)<(c&31)||((v>>5)&31)<((c>>5)&31)||((v>>10)&31)<((c>>10)&31)||v>0x7FFF){ CHECK(0,"palette %d",c); break; } }
     if(fails){ printf("kinghand: %d FAILURE(S)\n",fails); return 1; } printf("kinghand: ALL PASSED: 0 failure(s)\n"); return 0; }

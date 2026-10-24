@@ -46,3 +46,10 @@ Replaces step 4d's toasts, which left the map. The map now has a second hardware
 - Tests: `tools/test_kinghand.sh` now also checks the info text on every cell of a realm including off the edge, a site, a finished store, a home with 3 Nubbins, the status line at its caps, and that `khStrip` makes exactly the pixels it is given into tiles (every pixel of a noisy strip). No info line is longer than 21 characters.
 - NOT tested on a cart or emulator: BG1 itself (priorities, the see-through tile, the palette bank). If the map shows junk instead of text, check the see-through fill first; if the text is under the map, check the two priorities.
 - The first 16 rows of `fb` are scratch while the map shows; the menu and the status screen repaint everything, so nothing leaks into them.
+
+# Phase 4, step f: the build menu (with costs)
+
+START now opens a menu whose first line is BUILD MENU (then SAVE AND LEAVE, SAVE AND KEEP PLAYING, LEAVE WITHOUT SAVING, KEEP PLAYING). BUILD MENU lists the nine modes one a line, each with its cost and what the stockpile holds: `SAWMILL  4 WOOD  HAVE 12`, `MASON  3 PLANKS  HAVE 0`, `ROAD  FREE`, `DEMOLISH  GOODS COME BACK`. A picks the mode (the map comes back in it), B backs out. L and R still cycle the modes quickly.
+- `khCost` (kinghand.h, pure C) writes the line; the cost is the building's `costN` of its `costG` good (a site is raised from goods the carriers bring, so this is what the site will ask the stockpile for; nothing is taken when you press A, and a site with no goods simply waits). The menu is the game's own `menu()`, run in mode 3 like the other menus, so it needs no new hardware.
+- Tests: every line is at most 40 characters (the longest is 27), the road and demolish wording, a sawmill and a mason with real stockpile numbers, a stockpile of 65,000 and of 70,000 (shown capped at 99,999), and that every building's line names its own good.
+- Not tested on a cart: the menu itself (it is the game's existing one).
