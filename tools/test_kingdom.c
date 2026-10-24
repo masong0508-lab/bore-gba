@@ -81,6 +81,10 @@ int main(void){
       static u8 big[40000]; memset(big,0x77,sizeof big); int e=kgEncode(big,16300,&R,B,cells); CHECK(e==KGE_BIG,"a worst-case realm gave %d",e); for(int i=16300;i<40000;i++) CHECK(big[i]==0x77,"wrote past the cap"); printf("worst case (every cell edited): %s\n",e==KGE_BIG?"too big, refused":"fits"); }
     // 6 bad arguments
     { memset(&R,0,sizeof R); R.genVer=KG_GENVER; R.tier=3; CHECK(kgEncode(buf,16300,&R,B,cells)==KGE_ARG,"tier 3 accepted"); R.tier=0; R.giant=5; CHECK(kgEncode(buf,16300,&R,B,cells)==KGE_ARG,"giant 5 accepted"); }
+    // 7 a new realm (cells 0 = no edits) gives the same bytes as the made land passed in, and loads back as it
+    { for(int t=0;t<3;t++){ memset(&R,0,sizeof R); R.tier=(u8)t; R.genVer=KG_GENVER; R.seed=4242u+(u32)t; R.giant=(u8)(t+1); R.rng=99; R.goods[0]=10; kgGen(cells,R.seed,t);
+        int a=kgEncode(buf,16300,&R,B,cells), b=kgEncode(buf2,16300,&R,0,0); CHECK(a>0&&a==b&&!memcmp(buf,buf2,a),"cells 0 differs from the made land (tier %d)",t);
+        CHECK(kgDecode(buf2,b,&R2,B2,cells2,1)==0&&R2.tier==t&&R2.nB==0&&R2.goods[0]==10&&!memcmp(cells,cells2,kgCells(t)),"a new realm did not load back (tier %d)",t); printf("a new %s realm is %d bytes\n",t==0?"hamlet":t==1?"realm":"kingdom",b); } }
     printf(fails?"\n%d CHECK(S) FAILED\n":"\nall checks passed\n",fails);
     return fails?1:0;
 }

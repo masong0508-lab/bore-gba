@@ -63,3 +63,13 @@ Changes: `XMODE_KING` in expand.h (the pack's mode row and "KINGDOM MODE"), `exM
 Not tested: this is a screen, so it was only parsed on the PC (host baseline unchanged: 14 errors, 131 warnings). It needs a devkitARM build and a look in Pizza Boy: the shelf with the new MODE badge, the list with 0, 1 and several realms (none can be made yet except by a test build), delete, and B to go back. The save layer under it is the part tested by `tools/test_kingslot.sh`.
 
 Next: bit d, found a kingdom (giant, size, name; saves it with `kgsSave`), then bit e.
+
+---
+# Bit d: found a kingdom
+
+`kingscreen.h` `ksFound`: A on the first row of the KINGDOM screen asks for the giant (GIANT A to D or YOUR OWN BORE), the size (HAMLET 48, REALM 96, KINGDOM 128) and a name (the slot name editor, 10 letters, default REALM n), makes a seed (the menu time stirs `lrng`), and saves the new realm through `kgsSave`. Then the cursor lands on it.
+- A new realm has no buildings and no edits: `kgEncode` takes `cells = 0` for "the made land, untouched" and the save is 40 bytes (one slot), so founding needs only a 64 byte scratch on the stack and no map in RAM (`tools/test_kingdom.c` check 7 holds that `0` gives the same bytes as the full map; `tools/test_kingslot.sh` check 10 saves and loads one in every size).
+- It starts with 10 of each raw good (`KS_START`, [ASSUMED], tunable). The first settlement comes with the simulation (Phase 3).
+- Refused cleanly: more than 16 realms (the list's size) and no free slot (NOT ENOUGH FREE SLOTS). The proper quota and the reserve of room for players and towns are bit e.
+- The giant's names are still placeholders; there is no stat screen yet.
+Not run on a cart: the menus and name editor are the existing ones, but the flow needs an emulator look (giant, size, name, the toast, the new row, then delete it again).

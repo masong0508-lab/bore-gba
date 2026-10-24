@@ -126,6 +126,10 @@ int main(void){
     blank(); scenario(1,5,10,10); CHECK(save(9,0,0)==SLE_EMPTY,"saving a realm that is not there"); R.tier=3; CHECK(save(0,0,0)==SLE_BAD,"a bad tier"); R.tier=1; CHECK(kgsDelete(9)==0,"deleting nothing");
     // 9 a slot of another kind is never a realm
     blank(); filler(0,1); { SlInfo I; CHECK(slInfo(0,&I)&&I.kind==SLK_ROOM,"filler"); CHECK(kgsLoad(0,&R2,B2,cells2,tmp,(int)sizeof tmp)==SLE_EMPTY,"a room loaded as a realm"); CHECK(count()==0,"a room listed as a realm"); }
+    // 10 FOUNDING: a new realm saved with no map and no buildings (cells 0, a 64 byte scratch) comes back as the made land, in every size
+    for(int t=0;t<3;t++){ blank(); memset(&R,0,sizeof R); R.tier=(u8)t; R.giant=(u8)(t+1); R.genVer=KG_GENVER; R.seed=9000u+(u32)t; R.rng=5; R.goods[0]=10;
+        u8 sb[64]; int fid=0; int fs=kgsSaveI(0,"FOUNDED",&R,0,0,sb,(int)sizeof sb,&fid); CHECK(fs>=0&&fid==1,"founding gave %d",fs);
+        if(fs>=0){ CHECK(load(fs)==SLE_OK&&R2.tier==t&&R2.giant==t+1&&R2.nB==0&&R2.goods[0]==10&&R2.seed==9000u+(u32)t,"a founded realm did not load"); kgGen(cells,R.seed,t); CHECK(!memcmp(cells,cells2,kgCells(t)),"a founded realm has the wrong land (tier %d)",t); CHECK(slI[fs].span==1,"a new realm should take one slot"); } }
     printf(fails?"\n%d CHECK(S) FAILED\n":"\nall checks passed\n",fails);
     return fails?1:0;
 }

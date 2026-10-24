@@ -93,7 +93,7 @@ static inline int krGet16(KRd*r){ int a=krGet(r); int b=krGet(r); return a|(b<<8
 static inline u32 krGet32(KRd*r){ u32 a=(u32)krGet16(r); u32 b=(u32)krGet16(r); return a|(b<<16); }
 static inline u32 krVar(KRd*r){ u32 v=0; for(int s=0;s<35;s+=7){ int c=krGet(r); if(r->bad) return 0; v|=(u32)(c&127)<<s; if(!(c&128)) return v; } r->bad=1; return 0; }   // (at most 5 bytes)
 
-// ---- encode: the realm as bytes. cells is the map as it stands (bit 7 is ignored). Returns the length, or KGE_BIG / KGE_ARG. ----
+// ---- encode: the realm as bytes. cells is the map as it stands (bit 7 is ignored); 0 = the made land with no edits. Returns the length, or KGE_BIG / KGE_ARG. ----
 static inline int kgEncode(u8*out,int cap,const KRealm*R,const KBld*B,const u8*cells){
     if(R->tier>=KG_TIERS||R->giant>=KG_GIANTS||R->castle>KG_CASTLE||R->nB>KG_MAXB||R->genVer!=KG_GENVER) return KGE_ARG;
     KBuf w; kbInit(&w,out,cap);
@@ -104,7 +104,7 @@ static inline int kgEncode(u8*out,int cap,const KRealm*R,const KBld*B,const u8*c
     for(int i=0;i<R->nB;i++){ const KBld*b=&B[i]; if(b->type>=KG_BTYPES) return KGE_ARG; kbPut(&w,b->type); kbPut(&w,b->x); kbPut(&w,b->y); kbPut(&w,b->lvl); kbPut(&w,b->work); kbPut16(&w,b->stock); }
     int d=kgDim(R->tier), n=d*d, runsAt=w.pos; kbPut16(&w,0);
     int runs=0, last=0, i=0;                                    // last: the cell after the previous run
-    while(i<n){
+    while(cells&&i<n){                                          // (cells 0: a land nobody has changed yet, no edits: how a new realm is saved)
         int v=cells[i]&7, base=kgCell(R->seed,R->tier,i%d,i/d);
         if(v==base){ i++; continue; }
         int j=i+1; while(j<n&&(cells[j]&7)==v&&kgCell(R->seed,R->tier,j%d,j/d)!=v) j++;   // a run: the same value, every cell of it differs from the land

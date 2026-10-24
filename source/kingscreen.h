@@ -15,6 +15,26 @@ static void ksRefresh(void){   // rescan the slots, drop leftover older copies, 
     slScan(); ksN=kgsList(ksL,KGS_LISTMAX);
 }
 static int ksFree(void){ int n=0; for(int i=0;i<SLOT_N;i++) if(slOwner[i]<0) n++; return n; }
+// FOUND A NEW KINGDOM: the giant, the size, the name; then the land is made from a fresh seed and saved (a new realm has no edits and no buildings: 40 bytes).
+// Phase 3 on gives a new realm its first settlement; until then it is the empty island with a few goods. Returns the realm's slot, or -1 (backed out or refused).
+#define KS_START 10   // [ASSUMED] each raw good a new realm starts with (a tunable constant)
+static int ksFound(void){
+    if(ksN>=KGS_LISTMAX){ toast("TOO MANY KINGDOMS  DELETE ONE"); return -1; }
+    static const char* const gi[KG_GIANTS]={"GIANT A  THE ALL ROUNDER","GIANT B  THE RUNNER","GIANT C  THE LIFTER","GIANT D  THE BUILDER","YOUR OWN BORE"};
+    static const char* const ti[KG_TIERS]={"HAMLET  SMALL AND QUICK","REALM  THE USUAL SIZE","KINGDOM  HUGE"};
+    int g=menu("CHOOSE YOUR GIANT",gi,KG_GIANTS); if(g<0) return -1;
+    int t=menu("HOW BIG IS THE LAND",ti,KG_TIERS); if(t<0) return -1;
+    char nm[SLOT_NAME+1]; slNameN(nm,"REALM ",ksN+1);
+    if(!slEditName(nm)) return -1;
+    KRealm R; R.tier=(u8)t; R.giant=(u8)g; R.castle=0; R.genVer=KG_GENVER; R.flags=0; R.day=0; R.nB=0;
+    lrng^=((u32)R_TM2D<<8^uiTicks)*2654435761u;                                  // (how long you sat in the menus stirs the seed)
+    R.seed=0; for(int i=0;i<4;i++) R.seed=(R.seed<<8)|(u32)rnd8();
+    R.rng=0; for(int i=0;i<4;i++) R.rng=(R.rng<<8)|(u32)rnd8(); if(!R.rng) R.rng=1;
+    for(int i=0;i<KG_GOODS;i++) R.goods[i]=(u16)(i<4?KS_START:0);
+    u8 buf[64]; int id=0; int e=kgsSave(0,nm,&R,0,0,buf,(int)sizeof buf,&id);
+    if(e<0){ toast(e==SLE_NOROOM?"NO FREE SAVE SLOT":slErrMsg(e)); return -1; }
+    toast("KINGDOM FOUNDED"); return e;
+}
 static void ksDetail(int r){   // the panel under the list: what the cursor is on
     s2rr(8,88,224,54,RGB(10,20,30)); s2rr(9,89,222,52,RGB(2,6,13));
     char b[48]; char*e;
@@ -22,7 +42,7 @@ static void ksDetail(int r){   // the panel under the list: what the cursor is o
         text(14,93,"FOUND A NEW KINGDOM",GOLD,1);
         text(14,102,"PICK A GIANT  A SIZE  A NAME",RGB(20,26,31),1);
         e=slNum(b,ksFree()); slCat(e," SAVE SLOTS FREE"); text(14,113,b,RGB(17,29,31),1);
-        text(14,122,"COMING IN THE NEXT STEP",DIMC,1); return;
+        text(14,122,"PRESS A TO BEGIN",DIMC,1); return;
     }
     int s=ksL[r], t=0, g=0, c=0; u32 d=0;
     if(!kgsPeek(s,&t,&g,&c,&d)||t>=KG_TIERS||g>=KG_GIANTS||c>KG_CASTLE){ text(14,93,slI[s].name,GOLD,1); text(14,102,"THIS REALM CANNOT BE READ",RGB(31,14,8),1); return; }
@@ -59,7 +79,7 @@ static int kgRun(void){   // KINGDOM MODE. Returns 0: nothing started that shoul
         if(pr&K_DOWN){ sel=(sel+1)%(ksN+1); dirty=1; }
         if(pr&K_UP){ sel=(sel+ksN)%(ksN+1); dirty=1; }
         if(pr&K_A){
-            if(sel==0) toast("FOUNDING A KINGDOM COMES NEXT");
+            if(sel==0){ int f=ksFound(); if(f>=0){ ksRefresh(); for(int i=0;i<ksN;i++) if(ksL[i]==f) sel=i+1; } }
             else { static const char* const yn[2]={"DELETE THIS KINGDOM","KEEP IT"}; int s=ksL[sel-1];
                 if(menu(slI[s].name[0]?slI[s].name:"THIS KINGDOM",yn,2)==0){ static const char* const yn2[2]={"YES  DELETE FOR GOOD","NO  KEEP IT"};
                     if(menu("THIS CANNOT BE UNDONE",yn2,2)==0){ kgsDelete(slI[s].pid); ksRefresh(); if(sel>ksN) sel=ksN; toast("KINGDOM DELETED"); } } }
