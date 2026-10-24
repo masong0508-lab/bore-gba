@@ -694,7 +694,7 @@ static int nbLotMenu(int li){   // returns 1 when the screen should close (play 
     switch(id[c]){
         case A_HH: case A_NEWHH:   // another household: yours waits in the bank, theirs (or new Sims, made in the creator) plays this lot
             if(!(id[c]==A_HH?hhPlayAt(li):hhNewAt(li))) return 0;
-            if(id[c]==A_NEWHH){ creatureEditor(); if(gToMenu) return 1; }
+            if(id[c]==A_NEWHH){ ceFreshBore(); creatureEditor(); if(gToMenu) return 1; }
             else { nbPlaying=1; lifeMode(0); nbPlaying=0; if(gToMenu) return 1; }
             nbValueLive(li); nbStore(li); nbSave(); menuMusSync(); return 0;
         case A_PLAY: case A_BUILD:

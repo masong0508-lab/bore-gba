@@ -103,7 +103,10 @@ static int sgSaveI(void){   // the player in play into a fresh copy of their fil
     for(int s=0;s+span<=SLOT_N&&dst<0;s++){ if(!slFits(s,span)) continue; int f=1; for(int k=0;k<span;k++) if(slOwner[s+k]>=0) f=0; if(f) dst=s; }
     if(dst<0&&old>=0&&slI[old].span>=span){ dst=old; inplace=1; }   // no spare room: written over itself
     if(dst<0) return SLE_NOROOM;
-    char nm[SLOT_NAME+1]; { int i=0; for(;i<SLOT_NAME&&hhPName[i];i++) nm[i]=hhPName[i]; if(!i) nm[i++]='P'; nm[i]=0; }
+    char nm[SLOT_NAME+1]; { int i=0;
+        if(old>=0){ for(;i<SLOT_NAME&&slI[old].name[i];i++) nm[i]=slI[old].name[i]; while(i>0&&nm[i-1]==' ') i--; }   // (the save keeps the name it has: a Sim switch or a story's lead does not rename it)
+        if(!i) for(;i<SLOT_NAME&&hhPName[i];i++) nm[i]=hhPName[i];
+        if(!i) nm[i++]='P'; nm[i]=0; }
     int seq=old>=0?slI[old].seq+1:1;
     slOpen(dst,span);
     SlW w; slwInit(&w,SLO(dst)+SLOT_HDR,span*SLOT_SZ-SLOT_HDR); sgBuild(&w);

@@ -5584,6 +5584,13 @@ static void lookTrueRandom(u8*lk,u8*stg){
     for(int i=0;i<LK_N;i++) look[i]=sl[i];
     stage=ss;
 }
+static void ceFreshBore(void){   // a NEW Bore's creator session starts from the plain starter Bore: nothing is borrowed from the last character or a story's lead
+    for(int i=0;i<LK_N;i++) look[i]=0;
+    stage=AG_ADULT; pAsp=AS_FORTUNE; pLtw=0; setSign(0); persSave();
+    look[LK_SEX]=sexRoll();   // (a new gender roll, not the last Sim's)
+    hhPName[0]='Y'; hhPName[1]='O'; hhPName[2]='U'; hhPName[3]=0; hhPLast[0]=0;   // (YOU is the stand-in: the name palette opens empty)
+    custom=0; fixLook(); buildLook(); setColors();
+}
 static void lookTrueRandomMe(void){   // the creator's TRUE RANDOM row: the same for you (your age stays), and a new personality
     slkLoad(); u8 lk[LK_N], st=stage; lookTrueRandom(lk,&st); for(int i=0;i<LK_N;i++) look[i]=lk[i]; slkMiddle();   // (a locked slider stays in the middle)
     setSign(rnd8()%12); pAsp=(u8)(rnd8()%AS_PICK); pLtw=(u8)(rnd8()%LTN); persSave();
@@ -6248,7 +6255,7 @@ static int newGame(int slot){   // 1 = it started (and ended: back to the main m
     // (A story has its own house: storylot.h. A new life that is not a new player plays on where it is.)
     nbMovedIn=0; nbMoveCancel=0;
     if(c==0&&ngHaveBore){ ngHaveBore=0; nbMoveInTown(); }   // (the Bore from the main menu's creator: buy a home for it)
-    else if(c==0){ ceMoveIn=sgPid?1:0; creatureEditor(); int go=ceMoveIn==2; ceMoveIn=0; if(go) nbMoveInTown(); }
+    else if(c==0){ ceFreshBore(); ceMoveIn=sgPid?1:0; creatureEditor(); int go=ceMoveIn==2; ceMoveIn=0; if(go) nbMoveInTown(); }
     else if(c==3||!sgPid) lifeMode(0);
     else nbMoveInTown();
     if(homeFirst&&!nbMovedIn){   // left the creator or the town map without buying a home: nothing was saved, the new player never existed
@@ -6351,7 +6358,7 @@ static void mainMenu(void){
         if(pr&K_UP){ sel=(sel+MM_N-1)%MM_N; dirty|=1; }
         if(pr&(K_A|K_START)){
             if(sel==0) playerScreen();
-            else if(sel==1){ ceFromMenu=1; creatureEditor(); ceFromMenu=0; if(ceMoveIn==3){ ceMoveIn=0; int tl[SLOT_MAX]; if(nbTownList(tl,SLOT_MAX)>0){ ngHaveBore=1; sgNewPlayer(); ngHaveBore=0; } else lifeMode(0); } }   // (no town yet: there is nothing to move into, so play on as before)   // GO LIVE LIFE! there: a new player, then the town map to buy a home
+            else if(sel==1){ ceFreshBore(); ceFromMenu=1; creatureEditor(); ceFromMenu=0; if(ceMoveIn==3){ ceMoveIn=0; int tl[SLOT_MAX]; if(nbTownList(tl,SLOT_MAX)>0){ ngHaveBore=1; sgNewPlayer(); ngHaveBore=0; } else lifeMode(0); } }   // (no town yet: there is nothing to move into, so play on as before)   // GO LIVE LIFE! there: a new player, then the town map to buy a home
             else if(sel==2) jukeboxScreen();
             else if(sel==3) settingsScreen();
             else if(sel==4) exShelf(0);   // EXPANSIONS: the packs, their missions and modes (missions are played from your life: PAUSE > STORY)
