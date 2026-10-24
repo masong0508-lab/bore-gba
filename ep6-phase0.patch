@@ -1,0 +1,282 @@
+From 8aae04abd715febb01a1900bcdbec345d37b3252 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 00:16:54 -0500
+Subject: [PATCH] EP6 Phase 0: hauling prototype, drawing cost model, results
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_018hgoLMuW6Rp9D4KCAwXdwg
+---
+ docs/EP6_PHASE0.md         |  37 ++++++++++
+ tools/phase0/draw_model.c  |  52 ++++++++++++++
+ tools/phase0/haul_proto.c  | 139 +++++++++++++++++++++++++++++++++++++
+ tools/phase0/run_phase0.sh |   9 +++
+ 4 files changed, 237 insertions(+)
+ create mode 100644 docs/EP6_PHASE0.md
+ create mode 100644 tools/phase0/draw_model.c
+ create mode 100644 tools/phase0/haul_proto.c
+ create mode 100644 tools/phase0/run_phase0.sh
+
+diff --git a/docs/EP6_PHASE0.md b/docs/EP6_PHASE0.md
+new file mode 100644
+index 0000000..8c4a756
+--- /dev/null
++++ b/docs/EP6_PHASE0.md
+@@ -0,0 +1,37 @@
++# EP6 Phase 0: spike results (PC only)
++
++**What this is:** prototypes in `tools/phase0/` (run `sh tools/phase0/run_phase0.sh`; Termux uses `$TMPDIR`). There is no ARM toolchain or emulator in the session that wrote them, so NOTHING here is a GBA measurement. The hauling prototype counts real work on a PC and turns it into cycles with stated per-operation costs; the drawing figures are a model from the GBA's bus speeds. Replace both with numbers from a cart or Pizza Boy before the go/no-go is final.
++
++## 1. Drawing: the walking giant breaks Plan A, Plan B holds
++Budget: 280,896 cycles a frame. The game draws in mode 3 into `fb` (76,800 B EWRAM) and DMAs it to VRAM.
++- Presenting the whole fb is about 153,600 cycles (55% of a frame). Shifting the fb inside EWRAM is about 230,400 (82%). Shifting inside VRAM is 76,800 but tears (mode 3 has one buffer and vblank is 83,776).
++- **Plan A (software, as the town screen does it) when the whole view scrolls:** about 425k to 467k cycles a frame, i.e. 150 to 166% of a frame, so **30 fps at best, with nothing else running**. Redrawing the whole view each frame is worse (164 to 246%, 20 to 30 fps). Tile-step scrolling keeps 60 fps between steps but hitches (a 2-frame frame) every 8 frames.
++- **Plan B (mode 0, hardware tile backgrounds, sprites for the giant and Nubbins):** about 3,100 cycles a frame (1.1%): scroll registers, streaming one new map column and row when the view crosses an 8 px line, about 49 sprites. **60 fps with about 99% of the frame left.**
++- **Recommendation: Plan B.** Costs: tile art for the ground and buildings (not drawn in code), 128-sprite limit, menus in mode 3 clobber BG VRAM so leaving a menu reloads about 32 KB of tiles and map (one frame's worth of DMA, once), and the realm gets no `fb`-based effects.
++- Constants are in `draw_model.c` (EWRAM 3 cycles a 16-bit access, VRAM 2 a word, software pixel 8 to 14 cycles).
++
++## 2. Hauling: cheap on average, spiky in the worst frame, memory is the cost
++Prototype (`haul_proto.c`): 128 x 128 map, road nodes, per-building distance maps (a worker steps to the neighbour with the lowest distance), a request/offer matcher (2 requesters a frame), one distance map rebuilt a frame. A realm day is 600 frames [ASSUMED].
++| setup | road nodes | average frame | worst frame | distance maps |
++|---|---|---|---|---|
++| 10 buildings, 40 workers (the spec) | 341 | 0.5 to 1.3% | 6.5 to 16% | 3.4 KB |
++| 24 buildings, 40 workers | 694 | 0.7 to 1.8% | 12 to 29% | 16.7 KB |
++| 24 buildings, 80 workers | 694 | 0.7 to 1.9% | 12 to 30% | 16.7 KB |
++| 30 buildings, 120 workers | 816 | 1.3 to 3.2% | 16 to 40% | 24.5 KB |
++(Cycle ranges use 25 to 60 per matcher step, 30 to 80 per worker step, 20 to 50 per BFS node [ASSUMED].)
++- 10,000 days with a road cut, a processor destroyed, and a building walled in: the goods ledger balanced every 1,000 days and at the end, **0 workers stuck**, longest stall 901 frames (the 900 timeout fired once and healed it). Throughput came back to the pre-fault level each time (about 49,500 goods per 1,000 days). A cut road with a loop round it cost about 5%. A destroyed processor stops the castle chain until rebuilt (expected: it needs all four better goods).
++- The worst frame is the distance-map rebuild (one whole map, 341 to 816 nodes) plus a full matcher scan. **Fix when built:** rebuild a map in slices of about 64 nodes a frame, which cuts the worst frame to near the average.
++- **Memory is the real cost.** Distance maps grow with buildings x road nodes. A plain u16 cell-to-node table would be 32 KB, so the real build needs a hash (about 4 KB) or node numbers kept beside the map. Keep maps only for buildings with open requests, or cap buildings at about 16.
++
++## 3. Saves: already done (Phase 2)
++Realms 40 bytes to 7.7 KB, power-cut tested on the real `save.h` on a fake chip, own done-bits block. Not repeated here.
++
++## 4. RAM: not measured, two conflicting figures in the repo
++Static limit is 253,952 B (`Makefile`: 262,144 minus the 8 KB stack). `docs/RAM_AUDIT.md` says 247,352 B used (about 6.6 KB free); `docs/RAM_PLAN.md` (22 Oct, CI) says 236,352 B (about 17.6 KB free). **Read the CI "GBA memory" job for the real number.**
++A realm needs roughly: map 16 KB (128 x 128) + distance maps 3 to 17 KB + workers, buildings, stocks about 3 KB = 22 to 36 KB. That does not fit in the free space, so it must share scratch with something the life game does not use while a realm is open. Candidates from the source: `hhPool` (about 30 KB, household sprites), `sprBuf` (about 15 KB, player sprites; `tfb` already reuses it as scratch), `flPool` 8 KB, and `fb` itself (76.8 KB, dead while the realm runs in mode 0 but wiped by any mode 3 menu). Whatever is chosen must be rebuilt on leaving the realm.
++
++## Go / no-go (provisional, until a cart run)
++- **Go**, with Plan B (hardware tiles) as the drawing plan. Plan A cannot hold 60 fps and probably not 30 with a giant that scrolls the whole view.
++- **Go** on hauling at the spec size; slice the distance-map rebuild, keep to about 16 buildings and 40 to 80 workers at first.
++- **Open (needs you):** the shared scratch choice, and a real RAM number from CI.
++- **Still to do on real hardware:** a mode 0 scrolling test on a cart or in Pizza Boy (this is the prototype I could not build), and the hauling code timed on the ARM.
+diff --git a/tools/phase0/draw_model.c b/tools/phase0/draw_model.c
+new file mode 100644
+index 0000000..32c3a30
+--- /dev/null
++++ b/tools/phase0/draw_model.c
+@@ -0,0 +1,52 @@
++// draw_model.c - EP6 Phase 0, drawing cost MODEL (PC). Not a measurement: it adds up GBA memory cycles from the known bus speeds for a giant that runs
++// across a 128 x 128 realm, for Plan A (the game's own software drawing in mode 3, fb in EWRAM) and Plan B (mode 0, hardware tile backgrounds
++// and sprites). Every constant is printed so it can be argued with, and replaced by a number from a cart. Run: sh tools/phase0/run_phase0.sh
++#include <stdio.h>
++#include <math.h>
++#define FRAME 280896.0            // 228 lines x 1232 cycles
++#define VBLANK 83776.0            // 68 lines x 1232
++// bus costs in CPU cycles (GBATEK): EWRAM 16-bit 3 (32-bit 6), IWRAM 1, VRAM/OAM/palette 16-bit bus: 16-bit 1, 32-bit 2, ROM (game pak, 3/1 waits) 16-bit sequential 2 / non-sequential 4
++#define EW32 6.0
++#define VR32 2.0
++#define IW32 1.0
++#define SW 240
++#define SH 160
++static double frames(double c){ return ceil(c/FRAME); }   // the game waits for vblank: a frame that runs over costs a whole extra frame
++static void row(const char*n,double c){ printf("  %-58s %9.0f cycles  %6.1f%% of a frame  -> %2.0f fps\n",n,c,c*100/FRAME,60.0/frames(c)); }
++int main(void){
++    double words=SW*SH/2.0;                                   // 19,200 words of 2 pixels
++    double present=words*(EW32+VR32);                         // DMA fb (EWRAM) -> VRAM
++    double shiftEW=words*(EW32+EW32);                         // DMA or LDM/STM fb -> fb, moving the picture by a few pixels
++    double shiftVR=words*(VR32+VR32);                         // VRAM -> VRAM (tears: mode 3 has one buffer; only 83,776 cycles of vblank)
++    printf("GBA frame %.0f cycles, vblank %.0f.  Whole-screen costs from the bus speeds:\n",FRAME,VBLANK);
++    printf("  present fb -> VRAM (DMA, 19,200 words x (EWRAM read %.0f + VRAM write %.0f)):  %.0f cycles = %.1f%% of a frame\n",EW32,VR32,present,present*100/FRAME);
++    printf("  shift fb inside EWRAM (read %.0f + write %.0f a word):                       %.0f cycles = %.1f%% of a frame\n",EW32,EW32,shiftEW,shiftEW*100/FRAME);
++    printf("  shift inside VRAM (read %.0f + write %.0f a word):                           %.0f cycles = %.1f%% of a frame, and more than the vblank gap leaves for the strip\n\n",VR32,VR32,shiftVR,shiftVR*100/FRAME);
++    double pxLo=8,pxHi=14;     // cycles to make one drawn pixel in software: ROM tile read (2) + transparency test + EWRAM 16-bit write (3) + loop (3..9)
++    int spd[3]={1,2,3};        // the giant moves 1 px a frame walking, 2 running, 3 sprinting [ASSUMED]; the camera follows, so the whole view scrolls
++    int nWork=40, wPix=8*12, giantPix=24*36;
++    for(int cs=0;cs<2;cs++){ double px=cs?pxHi:pxLo; printf("=== software pixel cost %.0f cycles ===\n",px);
++        printf("Plan A0, redraw the whole view every frame:\n");
++        row("A0 whole view: 38,400 px drawn + present",SW*SH*px+present);
++        printf("Plan A1, shift the picture, draw only the new strip, present everything (mode 3 shows the whole fb):\n");
++        for(int i=0;i<3;i++){ double strip=(double)spd[i]*(SW+SH)*px; double ents=(nWork*wPix+giantPix)*px;   // entities redrawn every frame (sorted over the ground): 40 Nubbins + the giant
++            char n[96]; snprintf(n,sizeof n,"A1 at %d px/frame: shift + strip %.0f px + %d workers and the giant + present",spd[i],strip/px,nWork); row(n,shiftEW+strip+ents+present); }
++        printf("Plan A2, tile steps: the picture moves 8 px at once every 8 frames; the other 7 frames only redraw the entities and present:\n");
++        { double strip=8.0*(SW+SH)*px, ents=(nWork*wPix+giantPix)*px; double big=shiftEW+strip+ents+present, small=ents+present; char n[96];
++          snprintf(n,sizeof n,"A2 the frame that scrolls (a hitch)"); row(n,big); snprintf(n,sizeof n,"A2 the 7 frames in between"); row(n,small); }
++        printf("\n"); }
++    // Plan B
++    printf("=== Plan B: mode 0, hardware backgrounds + sprites ===\n");
++    double regs=40;                                              // scroll registers, DISPCNT
++    double colTiles=22, rowTiles=32;                             // a new tile-map column (20 rows + slack) or row (30 columns + slack) when the view crosses an 8 px line
++    double perTile=25;                                           // cycles to turn one cell into a tile-map entry and write it to VRAM (a lookup, an or, a 16-bit store)
++    double stream=(colTiles+rowTiles)*perTile;                   // worst case: both a column and a row cross in one frame (running diagonally)
++    int sprites=nWork+1+8;                                       // workers, the giant (one 32x64 sprite), a few building overlays
++    double oam=sprites*35;                                       // compute the screen position, priority and attributes, three 16-bit OAM writes
++    double frameB=regs+stream+oam;
++    printf("  scroll registers %.0f + map streaming (worst frame, %.0f + %.0f entries x %.0f) %.0f + %d sprites x 35 = %.0f  =>  %.0f cycles = %.2f%% of a frame -> %.0f fps\n",regs,colTiles,rowTiles,perTile,stream,sprites,oam,frameB,frameB*100/FRAME,60.0/frames(frameB));
++    double reload=32768.0/4*8.0;
++    printf("  coming back from a mode 3 menu: tiles and map go back into VRAM (32 KB of DMA from ROM, about %.0f cycles = %.0f%% of one frame, once)\n",reload,reload*100/FRAME);
++    printf("  sprite limits: 128 sprites on screen; 40 Nubbins at 8 px wide use about %d of the %d cycles a scanline gives sprites, even if all stand on one line\n",40*8,1210);
++    printf("\nPlan B leaves about %.0f%% of every frame for the simulation, hauling (see haul_proto: up to 7-17%% in its worst frame) and the life game's own work.\n",100-frameB*100/FRAME);
++    return 0; }
+diff --git a/tools/phase0/haul_proto.c b/tools/phase0/haul_proto.c
+new file mode 100644
+index 0000000..f744db1
+--- /dev/null
++++ b/tools/phase0/haul_proto.c
+@@ -0,0 +1,139 @@
++// haul_proto.c - EP6 Phase 0, hauling prototype (PC). Run: sh tools/phase0/run_phase0.sh
++// 40 Nubbins, 10 buildings, a road network on a 128 x 128 map. Goods move by a request/offer matcher and per-building DISTANCE MAPS over the
++// road nodes (no path search per worker: a worker steps to the neighbour node with the lowest distance). It counts the work done each frame
++// (matcher comparisons, worker steps, BFS node visits) so the cost can be turned into GBA cycles, soaks 10,000 realm days, cuts a road and
++// destroys a building on the way, and checks that goods are conserved and no worker stays stuck. It is NOT a GBA measurement.
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <stdint.h>
++#define MAPW 128
++#define MAXB 32
++#define MAXW 128
++#define MAXN 3072
++#define DAYT 600          // frames per realm day (10 s at 60 fps) [ASSUMED]
++#define STEPT 6           // a Nubbin steps one road node every 6 frames
++#define TIMEOUT 900       // frames without progress before a job is dropped (heals stalls)
++enum { WOOD,STONE,WOOL,CRYS,PLANK,CUT,CLOTH,POL,NG };
++enum { K_GATHER,K_PROC,K_STORE,K_CASTLE };
++typedef struct { uint8_t kind,alive,x,y,dx,dy,g,gout; uint16_t node; uint16_t stock[NG],resv[NG],infl[NG],want[NG]; uint16_t phase; } Bld;
++typedef struct { uint8_t st; uint8_t good; int8_t src,dst; uint16_t node; uint32_t last; } Wk;   // st 0 idle, 1 to source, 2 to destination
++static uint8_t road[MAPW][MAPW]; static uint16_t nodeAt[MAPW][MAPW]; static uint16_t nodeX[MAXN],nodeY[MAXN]; static int NN;
++static Bld B[MAXB]; static int NB; static Wk W[MAXW]; static int NW;
++static uint8_t dist[MAXB][MAXN]; static uint8_t dDirty[MAXB];
++static long made[NG],used[NG],lost[NG],delivered; static long castleProgress;
++static uint32_t rs=12345; static uint32_t rnd(void){ rs=rs*1664525u+1013904223u; return rs>>8; }
++// ---- work counters (per frame) ----
++static long opMatch,opWalk,opBfs; static long sumMatch,sumWalk,sumBfs,maxMatch,maxWalk,maxBfs,maxTot; static long frames;
++static long maxStall; static long timeouts,aborts;
++static void buildNodes(void){ NN=0; memset(nodeAt,0xFF,sizeof nodeAt);
++    for(int y=0;y<MAPW;y++) for(int x=0;x<MAPW;x++) if(road[y][x]&&NN<MAXN){ nodeAt[y][x]=(uint16_t)NN; nodeX[NN]=(uint16_t)x; nodeY[NN]=(uint16_t)y; NN++; } }
++static void bfs(int b){ static uint16_t q[MAXN]; memset(dist[b],255,MAXN); if(!B[b].alive){ return; } int n0=nodeAt[B[b].dy][B[b].dx]; if(n0==0xFFFF) return;
++    int h=0,t=0; q[t++]=(uint16_t)n0; dist[b][n0]=0;
++    while(h<t){ int n=q[h++]; opBfs++; int x=nodeX[n],y=nodeY[n]; int nx[4]={x+1,x-1,x,x},ny[4]={y,y,y+1,y-1};
++        for(int k=0;k<4;k++){ if(nx[k]<0||ny[k]<0||nx[k]>=MAPW||ny[k]>=MAPW) continue; int m=nodeAt[ny[k]][nx[k]]; if(m==0xFFFF||dist[b][m]!=255) continue; if(dist[b][n]>=254) continue; dist[b][m]=(uint8_t)(dist[b][n]+1); q[t++]=(uint16_t)m; } } }
++static void markAllDirty(void){ for(int b=0;b<NB;b++) dDirty[b]=1; }
++static void carve(int x0,int y0,int x1,int y1){ int x=x0,y=y0; road[y][x]=1; while(x!=x1){ x+=x<x1?1:-1; road[y][x]=1; } while(y!=y1){ y+=y<y1?1:-1; road[y][x]=1; } }
++static int addB(int kind,int g,int gout,int x,int y){ Bld*b=&B[NB]; memset(b,0,sizeof *b); b->kind=(uint8_t)kind; b->alive=1; b->x=(uint8_t)x; b->y=(uint8_t)y; b->dx=(uint8_t)x; b->dy=(uint8_t)(y+1); b->g=(uint8_t)g; b->gout=(uint8_t)gout; b->phase=(uint16_t)(rnd()%40);
++    carve(b->dx,b->dy,64,64); return NB++; }
++static void layout(int nb,int nw){
++    memset(road,0,sizeof road); NB=0; NW=nw; road[64][64]=1;
++    // ring of buildings round a hub at (64,64): gatherers, processors, storehouses, the castle
++    int plan[MAXB][3]; int n=0;
++    for(int g=0;g<4;g++){ plan[n][0]=K_GATHER; plan[n][1]=g; plan[n][2]=g; n++; }           // wood, stone, wool, crystal
++    for(int g=0;g<4;g++){ plan[n][0]=K_PROC; plan[n][1]=g; plan[n][2]=g+4; n++; }          // sawmill, stonemason, weaver, cutter
++    plan[n][0]=K_STORE; n++; plan[n][0]=K_CASTLE; n++;
++    while(n<nb){ int g=n%4; plan[n][0]=(n%3==0)?K_STORE:(n%3==1)?K_GATHER:K_PROC; plan[n][1]=g; plan[n][2]=plan[n][0]==K_PROC?g+4:g; n++; }
++    if(nb<n) n=nb;
++    for(int i=0;i<n;i++){ int ang=i*360/n; double r=12+(i%3)*8; int x=64+(int)(r*(i%2?1.0:1.0)*((ang<90)?1:(ang<180)?-1:(ang<270)?-1:1)*((i*7)%5+4)/6.0)+(int)(rnd()%7)-3; int y=64+(int)(r*((ang<90)?1:(ang<180)?1:(ang<270)?-1:-1)*((i*3)%5+4)/6.0)+(int)(rnd()%7)-3;
++        if(x<4)x=4; if(y<4)y=4; if(x>MAPW-6)x=MAPW-6; if(y>MAPW-8)y=MAPW-8; addB(plan[i][0],plan[i][1],plan[i][2],x,y); }
++    // a few cross roads so the network has loops (a cut road can be routed round)
++    for(int i=0;i+1<NB;i+=2) carve(B[i].dx,B[i].dy,B[i+1].dx,B[i+1].dy);
++    buildNodes(); for(int b=0;b<NB;b++){ B[b].node=nodeAt[B[b].dy][B[b].dx]; }
++    for(int b=0;b<NB;b++){ Bld*p=&B[b];
++        if(p->kind==K_PROC) p->want[p->g]=6; if(p->kind==K_CASTLE) for(int g=4;g<8;g++) p->want[g]=4; if(p->kind==K_STORE) for(int g=0;g<NG;g++) p->want[g]=3; }
++    for(int w=0;w<NW;w++){ int b=w%NB; W[w].st=0; W[w].node=B[b].node; W[w].src=W[w].dst=-1; W[w].last=0; }
++    markAllDirty();
++}
++static int available(int b,int g){ return (int)B[b].stock[g]-(int)B[b].resv[g]; }
++static void release(Wk*w,int returnGood){   // end a job: free the reservations; goods in hand go back to the source (or the nearest store)
++    if(w->st==0) return;
++    if(w->src>=0&&w->dst>=0){ if(w->st==1){ if(B[w->src].resv[w->good]) B[w->src].resv[w->good]--; } if(B[w->dst].infl[w->good]) B[w->dst].infl[w->good]--; }
++    if(w->st==2&&returnGood){ int back=-1; if(B[w->src].alive) back=w->src; else for(int b=0;b<NB;b++) if(B[b].alive&&B[b].kind==K_STORE){ back=b; break; }
++        if(back>=0) B[back].stock[w->good]++; else lost[w->good]++; }
++    w->st=0; w->src=w->dst=-1; }
++static void matcher(long t){   // two requesters a frame, round robin
++    static int rr=0;
++    for(int k=0;k<2;k++){ int r=rr; rr=(rr+1)%NB; Bld*q=&B[r]; if(!q->alive) continue;
++        for(int g=0;g<NG;g++){ opMatch++; int need=(int)q->want[g]-(int)q->stock[g]-(int)q->infl[g]; if(need<=0) continue;
++            int best=-1,bd=255; for(int s=0;s<NB;s++){ opMatch++; if(s==r||!B[s].alive) continue; if(q->kind==K_STORE&&B[s].kind==K_STORE) continue;
++                if(available(s,g)<=0) continue; if(B[s].kind==K_STORE&&q->kind==K_STORE) continue; int d=B[s].node==0xFFFF||q->node==0xFFFF?255:dist[r][B[s].node]; if(d<bd){ bd=d; best=s; } }
++            if(best<0||bd>=255) continue;
++            int bw=-1,bwd=255; for(int w=0;w<NW;w++){ opMatch++; if(W[w].st!=0) continue; int d=dist[best][W[w].node]; if(d<bwd){ bwd=d; bw=w; } }
++            if(bw<0) continue;
++            W[bw].st=1; W[bw].good=(uint8_t)g; W[bw].src=(int8_t)best; W[bw].dst=(int8_t)r; W[bw].last=(uint32_t)t; B[best].resv[g]++; q->infl[g]++; } } }
++static void walkers(long t){
++    for(int w=0;w<NW;w++){ Wk*k=&W[w]; if(k->st==0) continue;
++        long stall=(long)(t-k->last); if(stall>maxStall) maxStall=stall;
++        int tgt=k->st==1?k->src:k->dst;
++        if(!B[tgt].alive||(stall>TIMEOUT)){ if(stall>TIMEOUT) timeouts++; else aborts++; release(k,1); continue; }
++        if((t+w)%STEPT) continue;
++        if(k->node==B[tgt].node){   // arrived
++            if(k->st==1){ Bld*s=&B[k->src]; if(s->stock[k->good]>0&&s->resv[k->good]>0){ s->stock[k->good]--; s->resv[k->good]--; k->st=2; k->last=(uint32_t)t; } else { release(k,0); }
++            } else { B[k->dst].stock[k->good]++; B[k->dst].infl[k->good]--; delivered++; k->st=0; k->src=k->dst=-1; }
++            continue; }
++        int n=k->node,x=nodeX[n],y=nodeY[n]; int nx[4]={x+1,x-1,x,x},ny[4]={y,y,y+1,y-1}; int bestn=-1,bd=dist[tgt][n]; opWalk++;
++        for(int d=0;d<4;d++){ opWalk++; if(nx[d]<0||ny[d]<0||nx[d]>=MAPW||ny[d]>=MAPW) continue; int m=nodeAt[ny[d]][nx[d]]; if(m==0xFFFF) continue; if(dist[tgt][m]<bd){ bd=dist[tgt][m]; bestn=m; } }
++        if(bestn>=0){ k->node=(uint16_t)bestn; k->last=(uint32_t)t; } } }
++static void produce(long t){
++    for(int b=0;b<NB;b++){ Bld*p=&B[b]; if(!p->alive) continue; int per=(t+p->phase)%(p->kind==K_GATHER?20:p->kind==K_PROC?30:p->kind==K_CASTLE?40:99999);
++        if(per) continue;
++        if(p->kind==K_GATHER&&p->stock[p->gout]<8){ p->stock[p->gout]++; made[p->gout]++; }
++        else if(p->kind==K_PROC&&p->stock[p->g]>=2&&p->stock[p->gout]<8){ p->stock[p->g]-=2; used[p->g]+=2; p->stock[p->gout]++; made[p->gout]++; }
++        else if(p->kind==K_CASTLE){ int all=1; for(int g=4;g<8;g++) if(!p->stock[g]) all=0; if(all){ for(int g=4;g<8;g++){ p->stock[g]--; used[g]++; } castleProgress++; } } } }
++static int conserved(void){ long carried[NG]={0},inst[NG]={0}; for(int w=0;w<NW;w++) if(W[w].st==2) carried[W[w].good]++;
++    for(int b=0;b<NB;b++) for(int g=0;g<NG;g++) inst[g]+=B[b].stock[g]; int ok=1; for(int g=0;g<NG;g++){ long l=made[g]-used[g]-lost[g]-inst[g]-carried[g]; if(l){ ok=0; printf("  LEDGER OFF good %d by %ld\n",g,l); } } return ok; }
++static void rebuildRoads(void){   // roads changed: new node numbers, workers keep their cell (a worker on a removed cell steps to a road next to it)
++    int ox[MAXW],oy[MAXW]; for(int w=0;w<NW;w++){ ox[w]=nodeX[W[w].node]; oy[w]=nodeY[W[w].node]; }
++    buildNodes(); for(int b=0;b<NB;b++) B[b].node=nodeAt[B[b].dy][B[b].dx];
++    for(int w=0;w<NW;w++){ int x=ox[w],y=oy[w]; int m=nodeAt[y][x];
++        if(m==0xFFFF){ int dx[4]={1,-1,0,0},dy[4]={0,0,1,-1}; for(int k=0;k<4&&m==0xFFFF;k++) if(x+dx[k]>=0&&y+dy[k]>=0&&x+dx[k]<MAPW&&y+dy[k]<MAPW) m=nodeAt[y+dy[k]][x+dx[k]]; }
++        if(m==0xFFFF) m=nodeAt[64][64]; W[w].node=(uint16_t)m; }
++    markAllDirty(); }
++static long delivRate(long a,long b){ return b-a; }
++int main(int argc,char**argv){
++    int nb=argc>1?atoi(argv[1]):10, nw=argc>2?atoi(argv[2]):40, days=argc>3?atoi(argv[3]):10000;
++    layout(nb,nw); long T=(long)days*DAYT; int cutDone=0,killDone=0,fixDone=0,rebuildDone=0,isoDone=0,unisoDone=0; int killV=-1; uint16_t saveWant[NG]; uint8_t isoSave[4]; long mark[8]={0}; int cutX=0,cutY=0; long afterCut=0,deliveredAtCut=0,deliveredAtFix=0;
++    int roadCells=0; for(int y=0;y<MAPW;y++) for(int x=0;x<MAPW;x++) roadCells+=road[y][x];
++    printf("map %dx%d  buildings %d  workers %d  road nodes %d  days %d (%ld frames)\n",MAPW,MAPW,NB,NW,NN,days,T);
++    for(long t=1;t<=T;t++){
++        opMatch=opWalk=opBfs=0;
++        if(!cutDone&&t==T*2/10){ // cut a road cell on a spine near the hub (the cross roads let traffic go round)
++            int best=-1; for(int n=0;n<NN;n++){ int c=0; int x=nodeX[n],y=nodeY[n]; if(nodeAt[y][x+1]!=0xFFFF)c++; if(nodeAt[y][x-1]!=0xFFFF)c++; if(nodeAt[y+1][x]!=0xFFFF)c++; if(nodeAt[y-1][x]!=0xFFFF)c++; if(c==2&&abs(x-64)+abs(y-64)>3&&abs(x-64)+abs(y-64)<14&&(rnd()%5==0)) best=n; }
++            if(best>=0){ cutX=nodeX[best]; cutY=nodeY[best]; road[cutY][cutX]=0; rebuildRoads(); printf("  day %ld: road cell (%d,%d) cut\n",t/DAYT,cutX,cutY); }
++            cutDone=1; mark[0]=delivered; }
++        if(!fixDone&&t==T*3/10){ if(road[cutY][cutX]==0){ road[cutY][cutX]=1; rebuildRoads(); printf("  day %ld: road mended\n",t/DAYT); } fixDone=1; mark[1]=delivered; }
++        if(!killDone&&t==T*4/10){ int v=-1; for(int b=NB-1;b>=0;b--) if(B[b].kind==K_PROC){ v=b; break; } killV=v; if(v>=0){ for(int g=0;g<NG;g++){ lost[g]+=B[v].stock[g]; B[v].stock[g]=0; saveWant[g]=B[v].want[g]; B[v].want[g]=0; B[v].infl[g]=0; } B[v].alive=0; markAllDirty(); printf("  day %ld: building %d destroyed (its stock is counted as lost)\n",t/DAYT,v); } killDone=1; mark[2]=delivered; }
++        if(!rebuildDone&&t==T*5/10){ if(killV>=0){ Bld*p=&B[killV]; p->alive=1; for(int g=0;g<NG;g++){ p->want[g]=saveWant[g]; p->resv[g]=0; } markAllDirty(); printf("  day %ld: building %d rebuilt\n",t/DAYT,killV); } rebuildDone=1; mark[3]=delivered; }
++        if(!isoDone&&t==T*6/10){ // wall in building 0: the roads round its door are removed, so it cannot be reached at all
++            int x=B[0].dx,y=B[0].dy; int dx[4]={1,-1,0,0},dy[4]={0,0,1,-1}; for(int k=0;k<4;k++){ int nx=x+dx[k],ny=y+dy[k]; isoSave[k]=road[ny][nx]; road[ny][nx]=0; }
++            rebuildRoads(); printf("  day %ld: building 0 walled in (no road reaches it)\n",t/DAYT); isoDone=1; mark[4]=delivered; }
++        if(!unisoDone&&t==T*7/10){ int x=B[0].dx,y=B[0].dy; int dx[4]={1,-1,0,0},dy[4]={0,0,1,-1}; for(int k=0;k<4;k++) road[y+dy[k]][x+dx[k]]=isoSave[k]; rebuildRoads(); printf("  day %ld: building 0 reachable again\n",t/DAYT); unisoDone=1; mark[5]=delivered; }
++        // time slice: one distance map rebuilt a frame
++        for(int b=0;b<NB;b++) if(dDirty[b]){ bfs(b); dDirty[b]=0; break; }
++        matcher(t); walkers(t); produce(t);
++        frames++; sumMatch+=opMatch; sumWalk+=opWalk; sumBfs+=opBfs; if(opMatch>maxMatch)maxMatch=opMatch; if(opWalk>maxWalk)maxWalk=opWalk; if(opBfs>maxBfs)maxBfs=opBfs; if(opMatch+opWalk+opBfs>maxTot)maxTot=opMatch+opWalk+opBfs;
++        if(t%(DAYT*1000)==0) printf("  day %ld: delivered %ld, castle progress %ld, conserved %s\n",t/DAYT,delivered,castleProgress,conserved()?"yes":"NO");
++    }
++    int stuck=0; for(int w=0;w<NW;w++) if(W[w].st&&(T-(long)W[w].last)>TIMEOUT) stuck++;
++    printf("RESULT: goods ledger %s; workers stuck at the end %d; longest stall seen %ld frames (timeout %d); timeouts %ld, aborts %ld\n",conserved()?"balanced":"BROKEN",stuck,maxStall,TIMEOUT,timeouts,aborts);
++    printf("RESULT: delivered per 1000 days: before the cut %.0f | road cut %.0f | road mended %.0f | a processor destroyed %.0f | rebuilt %.0f | a building walled in %.0f | reachable again %.0f\n",
++        mark[0]*1000.0/(T*2/10/DAYT),(mark[1]-mark[0])*1000.0/(T/10/DAYT),(mark[2]-mark[1])*1000.0/(T/10/DAYT),(mark[3]-mark[2])*1000.0/(T/10/DAYT),(mark[4]-mark[3])*1000.0/(T/10/DAYT),(mark[5]-mark[4])*1000.0/(T/10/DAYT),(delivered-mark[5])*1000.0/(T*3/10/DAYT));
++    double am=(double)sumMatch/frames,aw=(double)sumWalk/frames,ab=(double)sumBfs/frames;
++    printf("OPS per frame  average: matcher %.1f  walker %.1f  BFS %.1f   worst frame: matcher %ld  walker %ld  BFS %ld  all three %ld\n",am,aw,ab,maxMatch,maxWalk,maxBfs,maxTot);
++    // cycle estimates: ARM7TDMI, code in ROM or IWRAM, data in EWRAM. LOW = 30 / 25 / 20 cycles an op, HIGH = 80 / 60 / 50 [ASSUMED, to be replaced by a measurement on a cart]
++    double lo=am*25+aw*30+ab*20, hi=am*60+aw*80+ab*50; double wlo=maxMatch*25+maxWalk*30+maxBfs*20, whi=maxMatch*60+maxWalk*80+maxBfs*50;
++    printf("CYCLES per frame (budget 280,896): average %.0f to %.0f (%.1f%% to %.1f%%)   worst frame %.0f to %.0f (%.1f%% to %.1f%%)\n",lo,hi,lo/2809.0,hi/2809.0,wlo,whi,wlo/2809.0,whi/2809.0);
++    printf("MEMORY: distance maps %d x %d road nodes = %d bytes (u8 each); workers %d x 10 B; buildings %d x ~90 B\n",NB,NN,NB*NN,NW,NB);
++    printf("MEMORY: a cell-to-node table as a plain u16 grid would be %d bytes: too big for the EWRAM left; the real build needs a hash or node ids kept in the map\n",MAPW*MAPW*2);
++    return 0; }
+diff --git a/tools/phase0/run_phase0.sh b/tools/phase0/run_phase0.sh
+new file mode 100644
+index 0000000..8b49cde
+--- /dev/null
++++ b/tools/phase0/run_phase0.sh
+@@ -0,0 +1,9 @@
++#!/bin/sh
++# run_phase0.sh - EP6 Phase 0 prototypes on the PC. From the repo root:   sh tools/phase0/run_phase0.sh   (Termux: TMPDIR is used)
++set -e
++T=${TMPDIR:-/tmp}; CC=${CC:-cc}; command -v $CC >/dev/null || CC=gcc
++$CC -O2 -Wno-unused -Wno-misleading-indentation -o $T/ep6haul tools/phase0/haul_proto.c
++$CC -O1 -o $T/ep6draw tools/phase0/draw_model.c -lm
++echo "######## DRAWING MODEL"; $T/ep6draw
++echo; echo "######## HAULING: the spec (10 buildings, 40 workers, 10,000 days, with a cut road, a destroyed building and a walled-in one)"; $T/ep6haul 10 40 10000
++echo; echo "######## HAULING: stretch (24 buildings, 80 workers, 3,000 days)"; $T/ep6haul 24 80 3000
+-- 
+2.43.0
+
