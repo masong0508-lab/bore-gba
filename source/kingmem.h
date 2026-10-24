@@ -31,6 +31,6 @@ static inline int kmLayout(void*pool,int bytes,int tier,KmMem*m){   // 0 or KM_N
     m->used=(int)(p+sizeof(KSim)-(uintptr_t)pool);
     m->lscr=(u8*)p; m->lN=(int)(end-p);
     m->sscr=(u8*)m->S->dist; m->sN=(int)(end-(uintptr_t)m->sscr);
-    memset(m->S,0,sizeof(KSim)); memset(m->R,0,sizeof(KRealm)); memset(m->B,0,(size_t)KS_MAXB*sizeof(KBld)); memset(m->cells,0,(size_t)(d*d));
+    __builtin_memset(m->S,0,sizeof(KSim)); __builtin_memset(m->R,0,sizeof(KRealm)); __builtin_memset(m->B,0,(unsigned)KS_MAXB*sizeof(KBld)); __builtin_memset(m->cells,0,(unsigned)(d*d));
     return 0;
 }

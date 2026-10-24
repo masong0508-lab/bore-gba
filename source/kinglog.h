@@ -34,7 +34,7 @@ static inline void ksBfs(KSim*S){   // one slice of one map
     if(S->bfsSlot<0){ int k=-1;
         for(int m=0;m<KS_MAPS;m++) if(S->mapB[m]!=0xFF&&!S->mapReady[m]&&(k<0||S->mapRef[m]>S->mapRef[k])) k=m;
         if(k<0) return;
-        memset(S->dist[k],255,KS_MAXN); S->bfsHead=S->bfsTail=0; S->bfsSlot=k;
+        __builtin_memset(S->dist[k],255,KS_MAXN); S->bfsHead=S->bfsTail=0; S->bfsSlot=k;
         int adj[8], n=ksAdj(S,&S->B[S->mapB[k]],adj);
         for(int i=0;i<n;i++){ int nd=ksNode(S,adj[i]); if(nd>=0&&S->dist[k][nd]==255){ S->dist[k][nd]=0; S->queue[S->bfsTail++]=(u16)nd; } } }
     int k=S->bfsSlot, d=S->dim;
@@ -53,10 +53,10 @@ static inline int ksDoor(KSim*S,int src,int slot){   // a road cell beside build
 static inline int ksDist(const KSim*S,int a,int b){ int x=S->B[a].x-S->B[b].x, y=S->B[a].y-S->B[b].y; return (x<0?-x:x)+(y<0?-y:y); }
 static inline int ksIsProd(const KBld*b){ const KsType*T=ksT(b->type); return b->lvl&&(T->kind==KK_GATHER||T->kind==KK_PROC); }
 static inline int ksStart(KSim*S,int src,int pool,int dst,int slot,int g,int cell){   // a carrier takes the good at once
-    int free=-1, act=0; for(int w=0;w<KS_MAXW;w++){ if(S->W[w].st) act++; else if(free<0) free=w; }
+    int free=-1, act=0; for(int w=0;w<KS_MAXW;w++){ if(S->wk[w].st) act++; else if(free<0) free=w; }
     if(free<0||act>=S->nWt) return 0;
     if(pool){ if(!S->R->goods[g]) return 0; S->R->goods[g]--; } else { KBld*b=&S->B[src]; if(ksOut(b)<1) return 0; ksSetOut(b,ksOut(b)-1); }
-    KsWk*k=&S->W[free]; k->cell=(u16)cell; k->st=1; k->src=(u8)src; k->dst=(u8)dst; k->good=(u8)g; k->md=(u8)slot; k->stall=0;
+    KsWk*k=&S->wk[free]; k->cell=(u16)cell; k->st=1; k->src=(u8)src; k->dst=(u8)dst; k->good=(u8)g; k->md=(u8)slot; k->stall=0;
     S->mapRef[slot]++; S->inRes[dst]++; S->opMatch+=4; return 1;
 }
 static inline int ksWant(const KSim*S,int i,int*g){   // how many more of which good a building asks for
@@ -97,7 +97,7 @@ static inline int ksMatch(KSim*S){
     return jobs;
 }
 static inline void ksWalk(KSim*S){
-    for(int w=0;w<KS_MAXW;w++){ KsWk*k=&S->W[w]; if(!k->st) continue; S->opWalk++;
+    for(int w=0;w<KS_MAXW;w++){ KsWk*k=&S->wk[w]; if(!k->st) continue; S->opWalk++;
         if(k->stall>=KS_TIMEOUT){ S->timeouts++; ksDrop(S,k,1); continue; }
         if((S->t+(u32)w)%KS_WALK) continue;
         int m=k->md, n=ksNode(S,k->cell);
@@ -125,7 +125,7 @@ static inline int ksCheck(KSim*S){
     for(int n=0;n<S->nN;n++){ if(S->cells[S->nodeCell[n]]!=KT_ROAD||(n&&S->nodeCell[n-1]>=S->nodeCell[n])) return 11; }
     { int cnt=0; for(int c=0;c<S->dim*S->dim;c++) cnt+=S->cells[c]==KT_ROAD; if(cnt!=S->nN) return 11; }
     int res[KS_MAXB]={0}, mr[KS_MAPS]={0}, act=0;
-    for(int w=0;w<KS_MAXW;w++){ const KsWk*k=&S->W[w]; if(!k->st) continue; act++;
+    for(int w=0;w<KS_MAXW;w++){ const KsWk*k=&S->wk[w]; if(!k->st) continue; act++;
         if(k->dst>=S->R->nB||k->good>=KG_GOODS||k->md>=KS_MAPS) return 12;
         if(S->mapB[k->md]!=k->dst) return 16;
         if(k->cell!=0xFFFF&&k->cell>=S->dim*S->dim) return 12;

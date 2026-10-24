@@ -65,7 +65,7 @@ static int findSeed(int tier,int huts,int houses,int cutters,int quarries,int sa
     return -1;
 }
 static int blueprints(void){ int n=0; for(int i=0;i<R.nB;i++) n+=!B[i].lvl; return n; }
-static int active(void){ int a=0; for(int w=0;w<KS_MAXW;w++) a+=S->W[w].st!=0; return a; }
+static int active(void){ int a=0; for(int w=0;w<KS_MAXW;w++) a+=S->wk[w].st!=0; return a; }
 static void waitBusy(void){ for(long k=0;k<6000&&active()<3;k++){ ksStep(S); cycles(); } }
 static u32 fnv(const void*p,int n){ const u8*b=p; u32 h=2166136261u; for(int i=0;i<n;i++){ h^=b[i]; h*=16777619u; } return h; }
 static u32 world(void){ return fnv(cells,S->dim*S->dim)^fnv(B,R.nB*(int)sizeof(KBld))^fnv(R.goods,sizeof R.goods)^R.day^(u32)S->delivered*31u; }
@@ -87,13 +87,13 @@ static void testEconomy(void){
 static void testHealing(void){
     printf("== healing: a vanished goal, a road that vanishes under a loaded carrier, a stalled job\n");
     int seed=spec(); if(seed<0) return; run(KS_DAYT*30); waitBusy(); CHECK(active()>0,"no carrier was ever busy");
-    int w=0; while(w<KS_MAXW&&!S->W[w].st) w++;
-    if(w<KS_MAXW){ int dst=S->W[w].dst; ksDemolish(S,dst); CHECK(active()==0,"a demolition left %d carriers out",active()); CHECK(ksCheck(S)==0,"books after a vanished goal: %d",ksCheck(S)); }
-    run(KS_DAYT*5); waitBusy(); w=0; while(w<KS_MAXW&&!S->W[w].st) w++;
-    if(w<KS_MAXW){ int c=S->W[w].cell; ksRoadSet(S,c%S->dim,c/S->dim,0); CHECK(ksCheck(S)==0,"books after a road vanished under a carrier: %d",ksCheck(S)); }
+    int w=0; while(w<KS_MAXW&&!S->wk[w].st) w++;
+    if(w<KS_MAXW){ int dst=S->wk[w].dst; ksDemolish(S,dst); CHECK(active()==0,"a demolition left %d carriers out",active()); CHECK(ksCheck(S)==0,"books after a vanished goal: %d",ksCheck(S)); }
+    run(KS_DAYT*5); waitBusy(); w=0; while(w<KS_MAXW&&!S->wk[w].st) w++;
+    if(w<KS_MAXW){ int c=S->wk[w].cell; ksRoadSet(S,c%S->dim,c/S->dim,0); CHECK(ksCheck(S)==0,"books after a road vanished under a carrier: %d",ksCheck(S)); }
     run(KS_DAYT*5); CHECK(ksCheck(S)==0,"books after healing: %d",ksCheck(S));
-    waitBusy(); w=0; while(w<KS_MAXW&&!S->W[w].st) w++;
-    if(w<KS_MAXW){ long t0=S->timeouts; S->W[w].stall=KS_TIMEOUT; run(2); CHECK(S->timeouts==t0+1,"a stalled carrier was not dropped"); CHECK(ksCheck(S)==0,"books after a timeout: %d",ksCheck(S)); }
+    waitBusy(); w=0; while(w<KS_MAXW&&!S->wk[w].st) w++;
+    if(w<KS_MAXW){ long t0=S->timeouts; S->wk[w].stall=KS_TIMEOUT; run(2); CHECK(S->timeouts==t0+1,"a stalled carrier was not dropped"); CHECK(ksCheck(S)==0,"books after a timeout: %d",ksCheck(S)); }
     printf("  timeouts %u, aborts %u, books balance\n",S->timeouts,S->aborts);
 }
 // ---- 3. save and load with goods in the carriers' hands ----
@@ -179,7 +179,7 @@ static void soak(const char*name,int tier,int days,int nB){
         for(int p=0;p<9;p++) if(mark[p]==t&&t>0&&(p==0||mark[p-1]<t)){ printf("  day %ld: fault %d\n",t/KS_DAYT,p); }
         if(ph<=8&&t==mark[0]&&0) dl0=S->delivered;
     }
-    int e=ksCheck(S); CHECK(e==0,"final ksCheck %d",e); int stuck=0; for(int w=0;w<KS_MAXW;w++) stuck+=S->W[w].st&&S->W[w].stall>=KS_TIMEOUT;
+    int e=ksCheck(S); CHECK(e==0,"final ksCheck %d",e); int stuck=0; for(int w=0;w<KS_MAXW;w++) stuck+=S->wk[w].st&&S->wk[w].stall>=KS_TIMEOUT;
     printf("  RESULT: books %s; carriers stuck at the end %d; timeouts %u, aborts %u; carriers in use at most %u; delivered %u in all\n",e?"BROKEN":"balanced",stuck,S->timeouts,S->aborts,maxCar,S->delivered);
     CHECK(stuck==0,"%d carriers stuck",stuck); CHECK(S->delivered>(u32)days*2,"only %u goods delivered in %d days: the scenario did not run",S->delivered,days); CHECK(blueprints()<=R.nB/2,"%d of %d buildings are still blueprints",blueprints(),R.nB);
     CHECK(S->pop>KS_PARTY,"nobody ever moved in"); printf("  caps: day %u, pop %d (cap %d), buildings %d (cap %d), road cells %d (cap %d), goods all <= %d: checked\n",R.day,S->pop,KS_POPCAP,R.nB,KS_MAXB,S->nN,KS_MAXN,KG_GOODMAX);

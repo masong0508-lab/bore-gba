@@ -53,7 +53,7 @@ typedef struct {
     u16 nodeCell[KS_MAXN];                     // the road cells, sorted: a road cell's number is its place in this list
     u16 timer[KS_MAXB]; u8 inRes[KS_MAXB];     // per building: the production clock; carriers on their way to it
     u8 mapB[KS_MAPS], mapReady[KS_MAPS], mapRef[KS_MAPS]; u32 mapUse[KS_MAPS];   // kinglog.h: a distance map is for one building
-    KsWk W[KS_MAXW];
+    KsWk wk[KS_MAXW];
     u32 opMatch, opWalk, opBfs, opSearch, opProd;   // work counters (the PC test turns them into cycles)
     u8 dist[KS_MAPS][KS_MAXN]; u16 queue[KS_MAXN];   // KEEP THESE TWO LAST (step 4a): they are only a cache, rebuilt by ksBfs, and once ksPrepSave has run they are free for kingmem.h's save scratch
 } KSim;
@@ -82,7 +82,7 @@ static inline void ksCensus(KSim*S){
     if(pop>KS_POPCAP) pop=KS_POPCAP;
     S->pop=pop; S->emp=emp; S->nStore=st; int w=pop-emp; S->nWt=w<0?0:w>KS_MAXW?KS_MAXW:w;
 }
-static inline long ksCarried(const KSim*S,int g){ long n=0; for(int w=0;w<KS_MAXW;w++) if(S->W[w].st&&S->W[w].good==g) n++; return n; }
+static inline long ksCarried(const KSim*S,int g){ long n=0; for(int w=0;w<KS_MAXW;w++) if(S->wk[w].st&&S->wk[w].good==g) n++; return n; }
 static inline long ksHeld(const KSim*S,int g){   // everything that exists of a good
     long v=S->R->goods[g];
     for(int i=0;i<S->R->nB;i++){ const KBld*b=&S->B[i]; const KsType*T=ksT(b->type);
@@ -109,9 +109,9 @@ static inline void ksDrop(KSim*S,KsWk*k,int giveBack){   // a carrier stops: its
     if(k->dst<KS_MAXB&&S->inRes[k->dst]) S->inRes[k->dst]--;
     k->st=0;
 }
-static inline void ksRecall(KSim*S){ for(int w=0;w<KS_MAXW;w++) if(S->W[w].st) ksDrop(S,&S->W[w],1);   // every carrier home with its good, every map let go (before a save, a demolition)
+static inline void ksRecall(KSim*S){ for(int w=0;w<KS_MAXW;w++) if(S->wk[w].st) ksDrop(S,&S->wk[w],1);   // every carrier home with its good, every map let go (before a save, a demolition)
     for(int m=0;m<KS_MAPS;m++){ S->mapB[m]=0xFF; S->mapReady[m]=0; S->mapRef[m]=0; S->mapUse[m]=0; }
-    memset(S->inRes,0,sizeof S->inRes); S->bfsSlot=-1; }
+    __builtin_memset(S->inRes,0,sizeof S->inRes); S->bfsSlot=-1; }
 static inline int ksRoadSet(KSim*S,int x,int y,int on){
     int d=S->dim; if(x<2||y<2||x>=d-2||y>=d-2) return KSE_ARG;
     int c=y*d+x, v=S->cells[c];
@@ -122,7 +122,7 @@ static inline int ksRoadSet(KSim*S,int x,int y,int on){
         S->nN--;
         S->cells[c]=(u8)kgCell(S->R->seed,S->R->tier,x,y); }       // the land underneath comes back
     ksMapsDirty(S);
-    for(int w=0;w<KS_MAXW;w++) if(S->W[w].st&&!ksIsRoad(S,S->W[w].cell)){ ksSnap(S,&S->W[w]); if(S->W[w].cell==0xFFFF) ksDrop(S,&S->W[w],1); }
+    for(int w=0;w<KS_MAXW;w++) if(S->wk[w].st&&!ksIsRoad(S,S->wk[w].cell)){ ksSnap(S,&S->wk[w]); if(S->wk[w].cell==0xFFFF) ksDrop(S,&S->wk[w],1); }
     return KSE_OK;
 }
 
@@ -134,7 +134,7 @@ static inline int ksSpotOk(const KSim*S,int type,int x,int y){
 }
 static inline int ksPlace(KSim*S,int type,int x,int y,int built){   // returns the building's number or a KSE_ error
     KRealm*R=S->R; if(R->nB>=KS_MAXB) return KSE_CAP; if(!ksSpotOk(S,type,x,y)) return KSE_SPOT;
-    KBld*b=&S->B[R->nB]; memset(b,0,sizeof *b); b->type=(u8)type; b->x=(u8)x; b->y=(u8)y; b->lvl=(u8)(built?1:0);
+    KBld*b=&S->B[R->nB]; __builtin_memset(b,0,sizeof *b); b->type=(u8)type; b->x=(u8)x; b->y=(u8)y; b->lvl=(u8)(built?1:0);
     for(int j=0;j<2;j++) for(int k=0;k<2;k++) S->cells[(y+j)*S->dim+x+k]|=KC_BLD;
     S->timer[R->nB]=0; S->inRes[R->nB]=0; R->nB++; ksCensus(S); return R->nB-1;
 }
@@ -152,7 +152,7 @@ static inline int ksDemolish(KSim*S,int i){   // what the building holds goes to
 static inline int ksInit(KSim*S,KRealm*R,KBld*B,u8*cells){
     int d=kgDim(R->tier); if(!d) return KSE_ARG; if(R->nB>KS_MAXB) return KSE_CAP;
     for(int i=0;i<R->nB;i++){ const KBld*b=&B[i]; if(b->type>=KS_NTYPES||b->x<2||b->y<2||b->x+2>d-2||b->y+2>d-2) return KSE_ARG; }
-    memset(S,0,sizeof *S); S->R=R; S->B=B; S->cells=cells; S->dim=d; S->bfsSlot=-1;
+    __builtin_memset(S,0,sizeof *S); S->R=R; S->B=B; S->cells=cells; S->dim=d; S->bfsSlot=-1;
     for(int m=0;m<KS_MAPS;m++) S->mapB[m]=0xFF;
     for(int c=0;c<d*d;c++){ int v=cells[c]&7; cells[c]=(u8)v; if(v>=KT_N){ cells[c]=(u8)kgCell(R->seed,R->tier,c%d,c/d); } }   // a damaged cell value is made again from the land
     for(int i=0;i<R->nB;i++) for(int j=0;j<2;j++) for(int k=0;k<2;k++){ int c=(B[i].y+j)*d+B[i].x+k;   // a building on a road or on another building: refused
