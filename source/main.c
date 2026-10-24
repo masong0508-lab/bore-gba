@@ -6140,6 +6140,7 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "goals.h"          // VIEW GOALS and the tape count per lot (the tape stays found)
 #include "statscreen.h"   // the LIFETIME STATS screen (PAUSE > MY SIM > MORE)
 #include "mysim.h"         // MY SIM: the pause menu tile with CAREER / SKILLS / PEOPLE / MORE tabs
+#include "kingdom.h"       // EP6 THE LAND BOREFORE TIME: the realm as data and its save bytes (pure functions: nothing calls them yet)
 #include "expand.h"        // EXPANSION PACKS: missions with scenarios (BORE-OUT MAN!, BOREZIES!, WORLD WAR BORE, BORTUA FIGHTER, BOREAGOTCHI!, BOREPILOGUE)
 #include "space.h"         // BORE-OUT MAN!: the launch and the spacewalk
 #include "lunrado.h"       // LUNRADO: the moonbase, the damaged approach, the landing
