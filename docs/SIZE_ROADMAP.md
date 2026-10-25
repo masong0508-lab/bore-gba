@@ -20,7 +20,7 @@ Measured on a real devkitARM build of the tree (`tools/budget.sh` prints the fir
 | 1.4 `here_today_old` (664 KB) | a design call, still open |
 | 2. `itemrom.h` | **done**: 1,252,860 B of sprites -> 328,762 B + 3,140 B of offsets. Only the opaque span of each row is stored (`itemPix`, `itemOff`; `itemSpan` as before), `blitItemO` (items.h) walks it. **Saves 921,560 B of ROM**; screenshots of three furnished houses, normal and zoomed, are byte-identical to the old ROM's. The generator proves every pixel outside a span is see-through (`tools/bake_items.c`) |
 | 2. `here_today_gone_tomorrow` (6.5 MB) | **done: rebuilt as a tracker module** (`tools/make_heretoday_xm.py` -> `tools/here_today_gone_tomorrow.xm`, then `xm2gba.py`): 370 KB of events and samples instead of the 6.5 MB stream, **saves about 6.1 MB**. The suite was also recomposed (four acts, the tune held back until the last two minutes). `xm2gba.py` output for every other song is byte-identical (checked by diffing `xmdata.bin` around the suite's blob). Played in the test ROM and correlated with `preview_xm.py`: 0.975 over a 22 s window |
-| 2b. `here_today_full` (2.5 MB), `here_today` (1.3 MB) | still streamed: both carry the sung voice, which does not sequence into 32 instruments |
+| 2b. `here_today_full` (2.5 MB), `here_today` (1.3 MB) | **done: both sequenced** (`tools/make_heretoday_here_xm.py`, sharing `tools/heretoday_kit.py` with the suite, so the shared samples are stored once). The sung voice is ten short samples of "ah" in two registers and five lengths. All three HERE TODAY songs together are 542 KB of events and samples instead of 10.5 MB: **about 9.9 MB off the ROM**. The scene-5 lyric beats and camera shots are re-timed to the tracker's fixed 78 BPM (`retime_cutscene`), and CI checks the module's length instead of the old stream (`tools/check_here_today.py`) |
 | 3.1 `zoomBuf` | **not possible as written**: the zoom's per-line table is read by DMA0, and DMA0 cannot read the cartridge (the note in main.c at zoomArm); DMA1 to DMA3 are the sound's or the picture's |
 | 3.2 `wpTab` | already ROM (3,584 B, `r`) |
 | 3.3 `wFq` | not possible: it packs four floors of 8 bits (NFL is 80) per tile in a u32 |
@@ -54,10 +54,10 @@ Written 22 Oct 2026 from the repo at commit 95ee19b. **Nothing here was built or
 ### Where the ROM goes (embedded files, bytes)
 | file | size | what it is |
 |---|---|---|
-| ~~music/here_today_gone_tomorrow.adp~~ | ~~6,533,272~~ | the 12 minute suite is now tracker data inside `xmdata.bin` (370 KB, see item 2) |
-| music/xmdata.bin | 6,411,842 | 37 tracker songs (events + samples). Top: over_my_voice 1.14 MB, magic_act 455 KB, nursery_time 365 KB, cocaine_cola_ii 333 KB, excuses_house 329 KB, earth_and_the_space_citizens 313 KB |
-| music/here_today_full.adp | 2,570,960 | the full version, locked until the story is done |
-| music/here_today.adp | 1,380,704 | Missy's song (CI checks this one is 150 s or longer) |
+| ~~music/here_today_gone_tomorrow.adp~~ | ~~6,533,272~~ | the 12 minute suite is now tracker data inside `xmdata.bin` (see item 2) |
+| music/xmdata.bin | 6,589,000 | 39 tracker songs (the three HERE TODAY songs are 542 KB of it) (events + samples). Top: over_my_voice 1.14 MB, magic_act 455 KB, nursery_time 365 KB, cocaine_cola_ii 333 KB, excuses_house 329 KB, earth_and_the_space_citizens 313 KB |
+| ~~music/here_today_full.adp~~ | ~~2,570,960~~ | now tracker data (item 2b) |
+| ~~music/here_today.adp~~ | ~~1,380,704~~ | Missy's song, now tracker data (CI checks `tools/here_today.xm` is at least 140 s) |
 | art/bortua_fighters.lz | 962,792 | BORTUA FIGHTER art (pack 4's slot is only 1.25 MB) |
 | music/here_today_old.adp | 664,100 | the secret chiptune placeholder |
 | sfx/amb_*.abd | 1,042,752 | four ambience loops |
