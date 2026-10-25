@@ -136,6 +136,7 @@ static const CsShot csShots[]={
     {1,12,0,  0,150, 900,120,68, 256,120,64},
 };
 static const CsShot* csShotFind(int t){   // the shot in use on this beat now, if any (several on a beat: the one with the latest start that has begun)
+    if(csMemOn) return 0;   // (a memory: the automatic camera frames it)
     const CsShot*s=0; int n=(int)(sizeof(csShots)/sizeof(csShots[0]));
     for(int i=0;i<n;i++){ const CsShot*c=&csShots[i]; if(c->sc==csCurSc&&c->bi==csCurBi&&t>=c->t0&&(!s||c->t0>=s->t0)) s=c; }
     return s;

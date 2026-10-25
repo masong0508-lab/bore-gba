@@ -25,6 +25,7 @@ static int csOx, csOy;   // the shake
 static int csMood=0, csLite=0;   // cutscene redo 12: the picture's mood (-1 brighter, 0 normal, 1 dimmer, 2 much dimmer) and a lightning flash in the hospital window
 static int csSlow=0;   // 1 while the frames are coming slowly: the backdrop lighting (glows, dust, vignette) is skipped until they speed up again
 static char csFull[208] EWRAM_BSS; static u8 csLs[16] EWRAM_BSS, csLl[16] EWRAM_BSS; static int csFullN, csNL, csPg, csTypingNow;   // the caption as one string, wrapped into lines for the big font; the page (two lines) on screen; typing now
+static int csMemOn;   // HERE TODAY: a flashback (or a cutaway) is on the screen in place of the beat's own picture
 static int csCurSc=-1, csCurBi=0;   // the scene and beat csPlay is on (csshot.h, the backdrops and csDraw look at them)
 static int csSeat, csGlassUp;   // the figure being drawn sits at the judges' table; the glass is in her hand (not on the table)
 static const signed char csSinT[64]={0,12,25,37,49,60,71,81,90,98,106,112,117,122,125,126,127,126,125,122,117,112,106,98,90,81,71,60,49,37,25,12,0,-12,-25,-37,-49,-60,-71,-81,-90,-98,-106,-112,-117,-122,-125,-126,-127,-126,-125,-122,-117,-112,-106,-98,-90,-81,-71,-60,-49,-37,-25,-12};
@@ -242,7 +243,44 @@ static void csTable(const CsBeat*b){   // STUDIO: the judges' table, in front of
     for(int k=0;k<2;k++){ int who=k?b->b:b->a, sp=k?(b->sp>>4):(b->sp&15), x=(k?b->bx:b->ax)*4; if(!who||(sp!=SP_SEAT&&sp!=SP_DESK)) continue;
         csR(x-11,104,22,6,RGB(26,26,28)); csR(x-8,106,16,2,RGB(8,8,12)); }                                  // their name plates
 }
+// ---- HERE TODAY: the memories. The song's beats keep their length (the music is cut to them), but inside a beat the picture can leave the stage for a memory and come back: GOOD ones
+// (kind 1: warm, a white photo border) and BAD or tender ones (kind 2: dim and cool, a grey border), and present-day cutaways (kind 0: Dex in the wings). The sung line stays on the caption
+// the whole time and Missy keeps singing it over the pictures. bi: the beat, t0..t1: the frames of it. Times are inside each beat's own length (about two frames a letter plus its wait).
+typedef struct { u8 bi; u16 t0, t1; u8 kind, bg, a, pa, ax, b, pb, bx, sp; } CsMem;
+static const CsMem csMem5[]={
+    {14,110,350, 2,CB_HOSP,CA_MAME,CP_HEAD,20,CA_MISSY,CP_LIE,41,0},                // please stay with me tonight: the bedside, nine days
+    {17,  0,240, 2,CB_HOSP,CA_MISSY,CP_HEAD,30,CA_MAME,CP_SLUMP,12,0},              // I wrote this in the hall, while you sat on the floor
+    {18,  0,149, 2,CB_HOSP,CA_MAME,CP_TALK,20,CA_MISSY,CP_LIE,41,0},                 // you whistled in the dark
+    {19,  0,170, 1,CB_BACK,CA_MISSY,CP_LAUGH,24,CA_MAME,CP_LAUGH,44,0},              // ...and that's how I got through: the good years, laughing in a dressing room
+    {19,170,340, 1,CB_HOME,CA_MAME,CP_DANCE,22,CA_MISSY,CP_DANCE,40,0},             //    dancing in the living room
+    {20,  0,183, 2,CB_STAGE,CA_MISSY,CP_FLAIL,37,CA_NONE,CP_STAND,0,0},             // I was so loud: the stage, the night it went wrong
+    {21,  0,103, 2,CB_STAGE,CA_MISSY,CP_HEAD,37,CA_NONE,CP_STAND,0,0},
+    {22,  0,263, 2,CB_HOME,CA_MISSY,CP_DRINK,40,CA_MAME,CP_HEAD,8,0},               // you there beside me: the bar cart, her sister at the door
+    {23,  0,148, 2,CB_HOSP,CA_MAME,CP_HEAD,20,CA_MISSY,CP_LIE,41,0},                // you held my hand all night
+    {24,  0,210, 2,CB_HOSP,CA_MAME,CP_STAND,20,CA_MISSY,CP_STIR,41,0},              // stayed anyway: the fingers move
+    {25,125,285, 0,CB_STAGE,CA_HOST,CP_CRY,30,CA_NONE,CP_STAND,0,0},                // (the present: Dex in the wings, wiping his eyes)
+    {27,  0,194, 1,CB_CAR,CA_MAME,CP_LAUGH,27,CA_NONE,CP_STAND,0,SP_SEAT},          // not yet: the drive, whistling, as if nothing could
+    {32,150,330, 0,CB_BIG,CA_NONE,CP_STAND,0,CA_NONE,CP_STAND,0,0},                  // the lights stay on for you: the whole house, every phone a light
+    {38, 80,230, 0,CB_BACK,CA_NONE,CP_STAND,0,CA_NONE,CP_STAND,0,0},                 // I miss you: her empty dressing room, the bulbs still on
+    {43,  0,130, 1,CB_HOME,CA_MAME,CP_STAND,24,CA_MISSY,CP_STAND,40,0},              // you were here: the two of them, at home
+    {33,  0,148, 2,CB_MIRROR,CA_NONE,CP_CRY,0,CA_NONE,CP_STAND,0,0},                // I was so hard to be with: the mirror
+    {34,  0,137, 2,CB_HOME,CA_MAME,CP_STAND,12,CA_MISSY,CP_SLUMP,36,0},             // you stayed through every single worst night
+    {35,  0,172, 2,CB_HOSP,CA_MAME,CP_HEAD,20,CA_MISSY,CP_LIE,41,0},               // you stayed, you stayed
+    {40,  0,126, 1,CB_BACK,CA_MAME,CP_LAUGH,24,CA_MISSY,CP_STAND,44,0},             // your seat is still so warm: a hug before a show
+    {46,  0,150, 1,CB_HOME,CA_MAME,CP_DANCE,22,CA_MISSY,CP_DANCE,40,0},             // I'm here, because you were: the good years, once more
+    {46,150,285, 1,CB_BACK,CA_MISSY,CP_LAUGH,24,CA_MAME,CP_LAUGH,44,0},
+};
+static const CsMem* csMemFind(int t){ if(csCurSc!=5) return 0; for(unsigned i=0;i<sizeof(csMem5)/sizeof(csMem5[0]);i++){ const CsMem*m=&csMem5[i]; if(m->bi==csCurBi&&t>=m->t0&&t<m->t1) return m; } return 0; }
+static void csMemFrame(int k,int t){   // the look of a memory, over the picture: warm light and a white border (good), or just the border (dim ones), and the odd scratch of old film
+    if(k==1) for(int y=12;y<116;y++) csGlowRow(0,SW,y,3,CSG_WARM);
+    u16 c=k==1?RGB(30,28,22):RGB(13,14,17);
+    rect(0,12,SW,3,c); rect(0,113,SW,3,c); rect(0,12,3,104,c); rect(SW-3,12,3,104,c);
+    if(rnd8()<70) rect(rnd8()%SW,15,1,98,k==1?RGB(31,30,26):RGB(17,18,21));
+    (void)t;
+}
 static void csDraw(const CsBeat*b,int t,int shown){   // one frame of one beat (shown: how many letters of the caption are typed)
+    static CsBeat csMb; int mk=0; csMemOn=0;   // HERE TODAY: a memory replaces the beat's picture for a while (its sound, its caption and its timing stay)
+    { const CsMem*mm=csMemFind(t); if(mm){ csMb=*b; csMb.bg=mm->bg; csMb.a=mm->a; csMb.pa=mm->pa; csMb.ax=mm->ax; csMb.b=mm->b; csMb.pb=mm->pb; csMb.bx=mm->bx; csMb.sp=mm->sp; csMb.sfx=0; csMb.fx=(u8)(b->fx&~(CF_FADEIN|CF_FADEOUT|CF_STROBE|CF_AUTO)); b=&csMb; mk=mm->kind; csMemOn=1; } }
     // G3: every sound startles except the quiet ones (cry, groan, tick, ghost, the skate landings), so new sounds need no list
     { int tot=0; for(int i=0;i<3&&b->t[i];i++) tot+=csLen(b->t[i]); csFrameNo++; csTalking=csTypingNow; (void)tot; csSpk=csWho(b->who); csOth=-1; csPuncS=csPunc(b,shown); csPuncL=csPunc(b,shown-5);
       { int sf=b->sfx-1; csStart=(b->sfx&&t<12&&sf>=0&&sf<SFX_VOICE0&&!(sf==SFX_CRY||sf==SFX_GROAN||sf==SFX_TICK||sf==SFX_INSTANT||sf==SFX_GHOST||sf==SFX_LAND||sf==SFX_STICK||sf==SFX_GRIND))?12-t:0; } csMirPose=(!b->a&&b->pa)?b->pa:CP_HEAD; }   // cutscene redo 10
@@ -283,7 +321,10 @@ static void csDraw(const CsBeat*b,int t,int shown){   // one frame of one beat (
     if(b->fx&CF_SICK){ int mx=b->bx*4, my=by-26; for(int k=0;k<9;k++) if(t>k*2) csR(mx+5+k*3,my+k*k/3-3,2,2,k&1?RGB(13,24,4):RGB(18,28,6)); }
     if(b->fx&CF_IRIS){ int r=130-t*2; if(r<0) r=0; int cx=csCamX(b->bx*4), cy=csCamY(by-27);
         for(int y=12;y<116;y++){ int dy=y-cy, v=r*r-dy*dy; if(v<=0){ rect(0,y,SW,1,0); continue; } int w=csIsq(v); if(cx-w>0) rect(0,y,cx-w,1,0); if(cx+w<SW) rect(cx+w,y,SW-cx-w,1,0); } }
-    if(!csSlow||csMood) csVig(b->bg); clipAll();
+    if(mk==2) csMood=1;
+    if(!csSlow||csMood) csVig(b->bg);
+    if(mk) csMemFrame(mk,t);
+    clipAll();
     if(b!=csCapB||csPg!=csCapP||shown<csCapN){   // the caption panel and the top bar are drawn once a page; after that only the letters typed since the last picture
         rect(0,0,SW,12,0); rect(0,116,SW,44,RGB(2,3,8)); rect(0,116,SW,1,RGB(14,11,3)); text(SW-4-tw("START SKIP",1),3,"START SKIP",RGB(8,9,11),1);
         if(b->who) text(8,119,b->who,GOLD,1);
