@@ -640,7 +640,7 @@ static void stqPage(void){   // the journal page of TV SHOW & TELL (L R): what t
 static void stTkPage(void){   // the journal page of the first ten stories (L R): this chapter's story and its tasks, live
     if(stCh>=stLen[stId]-1){ text(14,23,"THE END",GOLD,1); text(14,36,"YOUR STORY GOES ON  KEEP PLAYING",WHITE,1); return; }
     const StCh*c=&stChs[stId][stCh]; const StB*b=stBkNow();
-    { char t[44]; char*e=slCat(t,"CHAPTER "); e=slNum(e,stCh+1); e=slCat(e,"  "); slCat(e,c->nm); text(14,23,t,GOLD,1); }
+    { char t[56]; char*e=slCat(t,"CHAPTER "); e=slNum(e,stCh+1); e=slCat(e,"  "); slCat(e,c->nm); text(14,23,t,GOLD,1); }
     if(b){ text(14,36,b->br[0],RGB(20,26,31),1); text(14,45,b->br[1],RGB(20,26,31),1); }
     rect(14,56,212,1,RGB(14,26,31));
     if(c->goal==SG_TASKS){ text(14,60,"DO ALL OF THESE  IN ANY ORDER",RGB(17,29,31),1); stTkList(14,72,11); }
