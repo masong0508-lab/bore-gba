@@ -220,7 +220,7 @@ static void csDraw(const CsBeat*b,int t,int shown){   // one frame of one beat (
       if(sc==6&&bi==9&&((t<10)||(t>=16&&t<20))) csLite=1; }
     csOx=csOy=0; if(b->fx&CF_SHAKE){ csOx=(rnd8()%5)-2; csOy=(rnd8()%5)-2; }
     { int e=8; rect(0,12,SW,e,0); rect(0,116-e,SW,e,0); rect(0,12+e,e,104-2*e,0); rect(SW-e,12+e,e,104-2*e,0); }   // (every backdrop covers the picture: only a shake or a zoom's rounding can leave its edges, so only the edges are cleared)
-    { static const CsBeat*lb EWRAM_BSS; if(b!=lb){ lb=b; csBN++; } } csBT=t; csBgNow=b->bg;
+    { static const CsBeat*lb EWRAM_BSS; if(b!=lb){ lb=b; csBN++; } } csBT=t; csVar=csBN; csBgNow=b->bg;
     csFxNow=b->fx; csCamAim(b,t); csShotApply(b,t);
     int cdx=0, cdy=0; csGlassUp=0;
     if(csCz>=320&&b->bg!=CB_RATE&&b->bg!=CB_BLACK){ cdx=csSw(t,300)*14/127; cdy=csSw(t+77,230)*9/127; csCxF+=cdx; csCyF+=cdy; }   // handheld: a close shot never sits dead still (undone at the end of the frame)

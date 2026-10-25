@@ -125,17 +125,29 @@ static void csFig(int x,int y,int who,int pose,int t){   // t: the motion clock 
     if(csSeat&&(pose==CP_STAND||pose==CP_SWAY||pose==CP_DRINK)){ lv=7; lh=-7; if(pose!=CP_DRINK){ rv=7; rh=7; } }   // seated at the judges' table: the hands rest on it (a sip, a gesture or a nod lifts them)
     // cutscene redo 13 - ALIVE: everyone breathes and shifts their weight; whoever is speaking leans in, nods, gestures with BOTH hands and moves the mouth in syllables
     // (not just the TALK pose); the listener nods along; the eyes glance at the other person and now and then dart away. Layered on top of whatever the pose set.
-    csLook=csDir; csEm=0; csMh=5;
+    csLook=csDir; csEm=0; csMh=5; int csGs=(csBN*5+who*3+(csBN>>2))%6, csIs=(csBN*3+who*2+(csBN>>3))%5;   // this beat's gesture and standing style for this figure
     { int spk=csTalking&&csSpk==who, lis=csTalking&&csSpk&&csSpk!=who, syl=t>>2;
       int calm=(pose==CP_STAND||pose==CP_HEAD||pose==CP_SWAY||pose==CP_TALK||pose==CP_POINT||pose==CP_SHOCK||pose==CP_SLUMP);
       if(calm) bob+=(csWv(t+who*19,72)+8)/10;                                                                       // the chest rises a pixel every ~1.2 s
-      if(pose==CP_STAND){ lean+=csWv(t+who*31,150)/6; lv+=(csWv(t+who*7,90)+8)/12; rv+=(csWv(t+who*11,110)+8)/12; }   // weight shifts, hands drift
+      if(pose==CP_STAND){ lean+=csWv(t+who*31,110+csGs*17)/6; lv+=(csWv(t+who*7,90)+8)/12; rv+=(csWv(t+who*11,110)+8)/12;   // weight shifts, hands drift (a different slow rhythm each beat)
+          if(!spk&&!csSeat){ switch(csIs){   // and a different way of standing: arms folded, hands clasped, a hand on the hip, a hand at the chin (a listener's), or the plain drift
+              case 1: lh=3; lv=-3; rh=-3; rv=-3; break;
+              case 2: lh=2; lv=5; rh=-2; rv=5; break;
+              case 3: lh=-8; lv=3; break;
+              case 4: if(lis){ rh=3; rv=-11; } break; } } }
       if(spk&&calm){
           int g=csWv(t+who*9,52), g2=csWv(t+who*9+26,70); if(g<0) g=0; if(g2<0) g2=0;                             // two hands, out of step: emphasis strokes
           if(pose!=CP_POINT&&pose!=CP_SHOCK) lean+=csDir;                                                         // leans toward who they are talking to
-          if(((t>>3)&3)==0) hd+=1;                                                                                // a nod on the beat
-          if(pose==CP_STAND||pose==CP_SWAY){ rv-=g*5/4; rh+=g/3; lv-=g2*5/4; lh-=g2/3; }
-          if(pose==CP_TALK){ lv-=g2; lh-=g2/4; rv-=g/2; }
+          if(((t>>(2+csGs%3))&3)==0) hd+=1;                                                                       // a nod on the beat (its own rhythm each beat)
+          // LESS REPETITION: each beat gives each speaker its own way of using their hands (csGs picks one of six from the beat number), so two lines in a row never get the same strokes
+          if(pose==CP_STAND||pose==CP_SWAY){ switch(csGs){
+              case 0: rv-=g*5/4; rh+=g/3; lv-=g2*5/4; lh-=g2/3; break;                       // both hands, out of step
+              case 1: rv-=g*5/4; rh+=g/3; break;                                              // the right hand only
+              case 2: lv-=g2*5/4; lh-=g2/3; break;                                            // the left hand only
+              case 3: lh=-10; lv=-1-g2/2; rh=10; rv=-1-g/2; break;                            // open palms, wide
+              case 4: rh=3; rv=-5-g/5; lh=-6; lv=8; break;                                    // a hand to the chest (sincere)
+              default: lh=-8; lv=3; rv-=g*5/4; rh+=g/3; break; } }                            // one hand on the hip, the other makes the point
+          if(pose==CP_TALK){ if(csGs&1){ lv-=g2/2; rv-=g; rh+=g/4; } else { lv-=g2; lh-=g2/4; rv-=g/2; } }
           if(g>4||g2>4) csEm=1;
           if(pose!=CP_SHOCK){ open=(syl*syl+syl/3)%5<3; csMh=3+(syl*5)%4; }                                          // syllables, not a square wave
       } else if(lis&&calm){ int ph=(t+who*13)%96; if(ph<10&&(ph/3)%2==0) hd+=1; }                                    // listener: a double nod now and then

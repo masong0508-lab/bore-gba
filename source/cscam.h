@@ -5,6 +5,7 @@
 // a figure that walks or runs, from where the figure is NOW). A new size of shot, a new place or a move too big to pan is a CUT. Zooms are never animated (scaling the pixel art in
 // steps makes it swim): a change of size is always a cut. Positions are kept in 1/16 px, so a slow pan moves the picture by a pixel at a time, not in jumps.
 // Needs from cutscene.h: CsBeat, CB_* CA_* CF_* CP_*. Needs from main.c: rect, disc, line.
+static int csVar;   // the beat number (cutscene.h sets it): the framing varies from beat to beat
 static int csCz=256, csCxF=120<<4, csCyF=64<<4, csVx, csVy, csCbg=-1, csCtz=256;   // zoom; the centre (1/16 px); the pan's speed (1/16 px a frame); the backdrop; the framing's size
 static void csCamReset(void){ csCz=csCtz=256; csCxF=120<<4; csCyF=64<<4; csVx=csVy=0; csCbg=-1; }
 static int csCamX(int x){ return ((((x<<4)-csCxF)*csCz)>>12)+120; }
@@ -53,7 +54,9 @@ static void csCamAim(const CsBeat*b,int t){
     if(b->bg==CB_RATE||b->bg==CB_BLACK){ }                                                       // text and a graph: always the wide shot
     else {
         if(b->fx&(CF_SICK|CF_IRIS)){ if(b->b){ tx=xb; ty=by-26; tz=768; } }                     // the sick moment: extreme close-up on her face
-        else if(found){ int hot=(b->fx&CF_SHAKE)!=0; tx=fx; ty=fy-(hot?26:20); tz=hot?768:576; } // the speaker: medium close-up (tight when it is heated)
+        else if(found){ int hot=(b->fx&CF_SHAKE)!=0, v=(csVar*7+(csVar>>1))%5; tx=fx; ty=fy-(hot?26:20); tz=hot?768:576;   // the speaker: medium close-up (tight when it is heated)
+            if(!hot){ static const short zv[5]={576,448,512,640,480}; tz=zv[v]; ty=fy-(v==1?14:v==3?24:20);   // (LESS REPETITION: not the same size twice running; sometimes a looser shot, sometimes tighter)
+                if(b->a&&b->b){ int ox=b->a==id?xb:xa; if(v==2) tx+=(ox>fx?1:-1)*16; else if(v==4) tx+=(ox>fx?-1:1)*10; } } }   // (and sometimes the camera leans toward the listener, over the shoulder, or away)
         else if(id&&b->bg==CB_MIRROR){ tx=120; ty=68; tz=640; }                                 // the mirror: her reflection
         else if((b->fx&CF_SHAKE)&&b->b){ tx=xb; ty=by-18; tz=512; }
         else if(b->a&&b->b){ tx=(xa+xb)/2; ty=(ya+by)/2-14; }
