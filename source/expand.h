@@ -6,7 +6,7 @@
 //   2 BOREZIES!                        5 missions + HORDE MODE   the town got so bored it turned: Borezies shamble in; fun cures them, fists daze them. A story in five
 //                                      chapters, each on its own arena (arena.h). After the five: waves (horde.h), on your lot or any arena
 //   3 WORLD WAR BORE                  10 missions    the Eastern Army cut down your hedge: enlistment, boot camp, requisitions, a front line on your lawn
-//   4 BORTUA FIGHTER                   5 missions + ARCADE MODE: challengers want a fight, the DOJO, the cabinet at the arcade
+//   4 BORTUA FIGHTER                   5 missions + ARCADE MODE and BALLZ MODE (3D, bortua3d.h): challengers want a fight, the DOJO, the cabinet at the arcade
 //   6 THE LAND BOREFORE TIME          3 placeholder missions so far (EP6, docs/EP6_STEP1.md): a giant in a land of tiny folk; the kingdom builder comes in later phases
 //   7 BOREagotchi!                    15 missions + THE HANDHELD: a pixel blob on a keychain, and the real pets
 //   8 BOREpilogue                     20 missions    grown-ups only: retire, remember, settle scores, leave a legacy
@@ -447,7 +447,7 @@ static const XPk xPk[XP_N]={
   {"BORE-OUT MAN!","A SPACE ODDITY",{"Burnt out at a desk job. One flyer","later you are an astronaut.","Sort of."},xmSpace,XN(xmSpace),1,XMODE_NONE,0,RGB(2,3,12),RGB(10,24,31),0},
   {"BOREZIES!","THE BORED WALK AMONG US",{"The town got so bored it turned.","Cure them with fun: jokes, hugs,","and pass the dutchie."},xmZomb,XN(xmZomb),2,XMODE_HORDE,0,RGB(3,9,3),RGB(14,30,10),"HORDE MODE"},
   {"WORLD WAR BORE","A WAR OVER A HEDGE",{"The Bore Defence Force against","the Eastern Army. A very small,","very silly war. Enlist today."},xmWar,XN(xmWar),3,XMODE_NONE,0,RGB(9,9,3),RGB(27,23,9),0},
-  {"BORTUA FIGHTER","THE 3D FIGHTING SENSATION",{"One viral punch, and now every Bore","wants a piece of you.","Plus a whole arcade mode."},xmFight,XN(xmFight),4,XMODE_FIGHTER,0,RGB(13,2,2),RGB(31,22,4),"ARCADE MODE"},
+  {"BORTUA FIGHTER","THE 3D FIGHTING SENSATION",{"One viral punch, and now every Bore","wants a piece of you.","Plus an arcade mode, and BALLZ in 3D."},xmFight,XN(xmFight),4,XMODE_FIGHTER,0,RGB(13,2,2),RGB(31,22,4),"FIGHT MODES"},
   {"BOREAGOTCHI!","IT NEEDS YOU  CONSTANTLY",{"A pixel blob on a keychain, and","real pets who are jealous.","Plus the handheld."},xmGotchi,XN(xmGotchi),7,XMODE_GOTCHI,0,RGB(14,3,12),RGB(31,20,27),"THE HANDHELD"},
   {"BOREPILOGUE","THE LAST CHAPTER",{"Retire, reminisce, settle old scores","and leave a legacy.","Grown-ups only."},xmEpi,XN(xmEpi),8,XMODE_NONE,1,RGB(7,5,10),RGB(25,22,29),0},
   {"BORE","THE BASE GAME  TEN MISSIONS",{"One mission for each thing the game","does: build, skate, love, work,","fight, grow."},xmBase,XN(xmBase),0,XMODE_NONE,0,RGB(3,6,12),RGB(31,26,6),0},

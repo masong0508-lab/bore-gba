@@ -36,7 +36,7 @@ PACKS = [
      ['hzSpeedPct', 'hzToughPct', 'hzBiteMul', 'hzCureRule', 'hzDmgPct', 'hzCap', 'hzCapMax', 'hzLoad', 'hzReset', 'hzoN', 'hzoDef', 'hzSum'],
      ['xmZomb', 'xz1In', 'xz1Out', 'xz2In', 'xz2Out', 'xz3In', 'xz3Out', 'xz4In', 'xz4Out', 'xz5In', 'xz5Out']),
     ([], [], ['xmWar', 'xw8In', 'xw8Out', 'xw9In', 'xw9Out']),
-    (['bortua.h', 'bortuaart.h', 'bortuawtf.h'], ['bfSum', 'bfSave', 'bfLoadFrom', 'bfLoad', 'sgEncArcade'], ['xmFight', 'bfaArt']),   # (bfaArt: the fighters' and the arena's art, .incbin'd into .rodata.bfaArt)
+    (['bortua.h', 'bortuaart.h', 'bortuawtf.h', 'bortua3dcore.h', 'bortua3d.h'], ['bfSum', 'bfSave', 'bfLoadFrom', 'bfLoad', 'sgEncArcade'], ['xmFight', 'bfaArt']),   # (bfaArt: the fighters' and the arena's art, .incbin'd into .rodata.bfaArt)
     (['gotchi.h'], ['goSum', 'goPack', 'goUnpack', 'goClear', 'goSave', 'goLoad', 'goHas', 'goNew', 'goNeeds', 'goTick', 'goMinute',
                     'sgEncGotchi', 'goNames', 'goStNm', 'goFormNm'], ['xmGotchi'] + ['xg%d%s' % (n, w) for n in range(11, 15) for w in ('In', 'Out')]),
     ([], [], ['xmEpi'] + ['xe%d%s' % (n, w) for n in range(11, 20) for w in ('In', 'Out')]),

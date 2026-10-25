@@ -320,6 +320,13 @@ IWRAM_CODE static void rect(int x,int y,int w,int h,u16 c){
         else for(;m>0;m--) *q++=cc;
         if(n&1) *(u16*)q=c; }
 }
+IWRAM_ARM static void discLut(int cx,int cy,int r,u16 c,const u8*t){   // a filled disc from a table of half widths (t[dy], dy 0..r), clipped like rect(): BORTUA FIGHTER's balls (bortua3d.h) draw forty of these a frame
+    int y0=cy-r, y1=cy+r, lo=cY0, hi=cY0+(int)cH, xl=cX0, xr=cX0+(int)cW; if(y0<lo) y0=lo; if(y1>=hi) y1=hi-1;
+    for(int y=y0;y<=y1;y++){ int d=y-cy; if(d<0) d=-d; int hw=t[d], x0=cx-hw, x1=cx+hw+1; if(x0<xl) x0=xl; if(x1>xr) x1=xr;
+        u16*q=&fb[y*SW+x0]; int n=x1-x0;
+        for(;n>=2;n-=2){ q[0]=c; q[1]=c; q+=2; }
+        if(n>0) *q=c; }
+}
 IWRAM_THUMB static void line(int x0,int y0,int x1,int y1,u16 c){
     int dx=x1>x0?x1-x0:x0-x1, dy=y1>y0?y0-y1:y1-y0, sx=x0<x1?1:-1, sy=y0<y1?1:-1, e=dx+dy;
     for(;;){ px(x0,y0,c); if(x0==x1&&y0==y1)break; int e2=2*e;
@@ -6096,8 +6103,8 @@ static const char* const packHelp[]={
     "HORDE MODE opens after the five BOREZIES!",
     "chapters: 100 waves or endless, with mutators and",
     "perks.",
-    "BORTUA's ARCADE MODE: one-on-one, best of three,",
-    "up a ladder to the boss. Also at the arcade.",
+    "BORTUA's ARCADE and BALLZ modes: one-on-one,",
+    "best of three, up a ladder. BALLZ is real 3D.",
     "KINGDOM MODE: the Nubbins' realm with no end,",
     "built your way.",
     "BOREagotchi's HANDHELD: a keychain pet to feed,",
@@ -6172,6 +6179,8 @@ static void s3Tip(const char*t){ rect(0,150,SW,10,RGB(2,5,12)); rect(0,150,SW,1,
 #include "lunrado.h"       // LUNRADO: the moonbase, the damaged approach, the landing
 #include "gotchi.h"        // BOREAGOTCHI!: THE HANDHELD (a blob on a keychain that needs you constantly)
 #include "bortua.h"        // BORTUA FIGHTER: ARCADE MODE (polygon fighters, a ladder of nine, the chrome boss)
+#include "bortua3dcore.h"  // BORTUA FIGHTER: BALLZ MODE, the fighters, blows and camera (pure maths: tools/test_bortua3d.sh)
+#include "bortua3d.h"      // BORTUA FIGHTER: BALLZ MODE, the picture and the match (21 shaded balls a fighter, real 3D)
 #include "kingscreen.h"   // EP6: the KINGDOM screen (KINGDOM MODE): lists realms, deletes one; founding and playing come next
 #include "kingplay.h"     // EP6 Phase 4a: PLAY THIS KINGDOM (the realm in hhPool, a status screen)
 #include "xmodes.h"        // the packs' MODES: BORTUA FIGHTER's ARCADE MODE, BOREAGOTCHI's HANDHELD

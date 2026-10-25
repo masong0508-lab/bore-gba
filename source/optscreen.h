@@ -32,7 +32,7 @@ static const char* const lbNeed[5]={"OFF","SLOW","NORMAL","FAST","BRUTAL"}, *con
 static const char* const lbTut[3]={"OFFER","DONE","REPLAY"};
 static const char* const lbNight[4]={"OFF","SOFT","NORMAL","DEEP"}, *const lbWeather[7]={"AUTO","CLEAR","CLOUDY","FOG","RAIN","STORM","SNOW"}, *const lbGhost[3]={"OFF","ON","HAUNTED"}, *const lbTwins[4]={"NEVER","SOMETIMES","OFTEN","ALWAYS"};
 static const char* const lbPct[11]={"0 %","10 %","20 %","30 %","40 %","50 %","60 %","70 %","80 %","90 %","100 %"};   // the volume sliders (rows made with SR)
-static const char* const lbDiag[2]={"8 WAY","4 WAY"};
+static const char* const lbDiag[2]={"8 WAY","4 WAY"}, *const lbBzCam[3]={"SIDE","CHASE","HIGH"}, *const lbBzMove[2]={"SCREEN","ORBIT"};
 static const char* const lbBtn[4]={"NORMAL","A B SWAPPED","L R SWAPPED","BOTH SWAPPED"}, *const lbRep[3]={"SLOW","NORMAL","FAST"},
     *const lbClock[3]={"24 HOUR","12 HOUR","HIDDEN"}, *const lbToast[3]={"SHORT","NORMAL","LONG"}, *const lbCsTx[2]={"PLAY ON","WAIT FOR A"},
     *const lbCont[3]={"ROOM","ROOM+PERSON","ALL THREE"}, *const lbZoom[5]={"OFF","1.25X","1.5X","1.7X","2X"}, *const lbMenuBg[3]={"RANDOM","TOWN","ACID RAINBOW"};
@@ -125,6 +125,8 @@ static const OptRow pgInput[]={
  XR(XO_BTN,"BUTTONS",lbBtn,"Swap A and B, or L and R, on every screen.","Check it with the button test below."),
  XR(XO_REPEAT,"CURSOR REPEAT",lbRep,"How fast the cursor repeats while you","hold the D-pad."),
  XR(XO_DIAG,"DIAGONALS",lbDiag,"8 Way walks and aims on the diagonals.","4 Way keeps only the last direction you pressed."),
+ XR(XO_BZCAM,"BALLZ CAMERA",lbBzCam,"BORTUA FIGHTER's 3D mode. Side is square on,","Chase is over your shoulder, High sees the ring."),
+ XR(XO_BZMOVE,"BALLZ MOVEMENT",lbBzMove,"Screen moves you the way the pad points.","Orbit: up closes in, left and right circle them."),
  AR(OA_BTNTEST,"BUTTON TEST","Shows which buttons the game can see.","Press A. Leave with SELECT and START."),
 };
 static const OptRow pgHud[]={
