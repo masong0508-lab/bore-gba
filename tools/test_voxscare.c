@@ -21,18 +21,18 @@ int main(void){
             int clip=-1,pct=-1; vsPick(sx,voice,uid,r,p,&clip,&pct);
             CHECK(fem?isF(clip):isM(clip),"sx %d voice %d uid %d: %s take expected, got clip %d",sx,voice,uid,fem?"female":"male",clip);
             CHECK(clip==(fem?V_ghost_scared_female_1:V_ghost_scared_male_1)+(int)(r%4),"take does not follow r");
-            int want=p*100/base; CHECK(pct==want,"pitch %d, wanted %d",pct,want);
-            CHECK(pct>=(100*(100+ag[age])/100)-4&&pct<=(100*(100+ag[age])/100)+4,"sx %d voice %d age %d: pitch %d: the speed-up is not out of the female take",sx,voice,age,pct);
+            int want=p*100/base; if(fem) want=want*VS_FEM_LIFT/100; CHECK(pct==want,"pitch %d, wanted %d",pct,want);
+            CHECK(pct>=((100*(100+ag[age])/100)-4)*(fem?VS_FEM_LIFT:100)/100&&pct<=((100*(100+ag[age])/100)+4)*(fem?VS_FEM_LIFT:100)/100+1,"sx %d voice %d age %d: pitch %d: the speed-up is not out of the female take",sx,voice,age,pct);
             if(clip>=0&&clip<VOICE_N) seen[clip]=1; }
     }
     int all=1; for(int c=V_ghost_scared_female_1;c<=V_ghost_scared_female_4;c++) all&=seen[c]; for(int c=V_ghost_scared_male_1;c<=V_ghost_scared_male_4;c++) all&=seen[c];
     CHECK(all,"some of the eight scream takes can never be chosen");
     // the cases the player will meet
-    { int c,p; vsPick(SX_FEMALE,0,0,0,133,&c,&p); CHECK(isF(c)&&p==100,"a female Sim: her take at 100 %% (got %d)",p);
+    { int c,p; vsPick(SX_FEMALE,0,0,0,133,&c,&p); CHECK(isF(c)&&p==VS_FEM_LIFT,"a female Sim: her take at %d %% (got %d)",VS_FEM_LIFT,p);
       vsPick(SX_MALE,0,0,0,100,&c,&p); CHECK(isM(c)&&p==100,"a male Sim: his take at 100 %%");
-      vsPick(SX_MALE,2,0,0,133,&c,&p); CHECK(isF(c)&&p==100,"VOICE: FEMALE on a male body says the female take");
+      vsPick(SX_MALE,2,0,0,133,&c,&p); CHECK(isF(c)&&p==VS_FEM_LIFT,"VOICE: FEMALE on a male body says the female take");
       vsPick(SX_FEMALE,1,0,0,100,&c,&p); CHECK(isM(c)&&p==100,"VOICE: MALE on a female body says the male take");
-      vsPick(SX_NB,0,2,0,116,&c,&p); CHECK(isM(c)&&p==100,"non-binary, even uid: male take"); vsPick(SX_NB,0,3,0,116,&c,&p); CHECK(isF(c)&&p==100,"non-binary, odd uid: female take"); }
+      vsPick(SX_NB,0,2,0,116,&c,&p); CHECK(isM(c)&&p==100,"non-binary, even uid: male take"); vsPick(SX_NB,0,3,0,116,&c,&p); CHECK(isF(c)&&p==VS_FEM_LIFT,"non-binary, odd uid: female take"); }
     printf("  54 clips in the list (%d), 8 scream takes, every Sim / voice setting / age gets a take of its own voice at its own pitch\n",VOICE_N);
     printf("%s: %d failure(s)\n",fails?"FAILED":"ALL PASSED",fails); return fails?1:0;
 }
