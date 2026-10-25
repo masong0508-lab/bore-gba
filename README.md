@@ -185,6 +185,8 @@ Body shape and sliders, life stage, faces, hair and beards, hats and clothes are
 ## Options
 Eight pages, changed with L / R: **VIDEO** (presets, frame rate, zoom, performance info), **PLAY** (needs, jobs, bills, score, hurt level, free will), **TIME** (day length, clock, ageing), **AUDIO**, **INPUT** (swap buttons, button test), **HUD**, **ROOMS** and **DATA**. A gold dot marks anything you changed, SELECT puts a row back, and RESET ALL OPTIONS on the DATA page undoes everything, so feel free to experiment.
 
+Your Sim has free will too: with **SIM > BORES > YOUR SIM ALONE** on (LOW by default), put the pad down for 25 seconds (10 on HIGH) and it eats, sleeps, showers, watches TV and goes and chats to people by itself. Any button takes over at once. **LOW MOODS** makes a glum household Sim go looking for comfort and a friend, and kind Sims who notice come over to cheer it up.
+
 ## Saving
 - **SAVE** in the pause menu keeps your life and house. Each player has a save file of their own; the town is shared. AUTO SAVE LIFE is in OPTIONS > PLAY.
 - **Room Slots** keep rooms (one floor), houses (all three), people (a Bore with its life, cash and clock) and households.

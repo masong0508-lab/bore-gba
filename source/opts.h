@@ -79,10 +79,12 @@ enum {
     XO_DIAG,      // INPUT > DIAGONALS: 8 WAY (two D-pad keys make a diagonal: walking, aiming, the cursors) or 4 WAY (of two keys held, only the direction pressed last counts)
     XO_BZCAM,     // INPUT > BALLZ CAMERA: SIDE / CHASE / HIGH (bortua3d.h: BORTUA FIGHTER's 3D mode; SELECT changes it in a fight)
     XO_BZMOVE,    // INPUT > BALLZ MOVEMENT: SCREEN (the pad moves you as the screen sees it) / ORBIT (up closes in, down backs off, left and right circle them)
+    XO_SELFWILL,  // SIM > BORES: your own Sim, left alone: OFF / LOW (after 25 s) / HIGH (after 10 s) it eats, sleeps, chats and cheers itself up (selfwill.h)
+    XO_MOODWILL,  // SIM > BORES: OFF / ON the household Sims with a low mood go looking for comfort and friends cheer each other up (house.h)
     XO_N
 };
-static const u8 xoCnt[]={ 5,5,2,4,4,4,4,2,3,4,2,3,2,4,   4,3,   4,3,2,   3,6,3,   2,2,2,2,2,3,2, 4,10,10,10,11, 2, 3, 2, 2, 2, 2, 11, 11, 11, 2, 2, 2, 5, 3, 2, 2, 3, 7, 3 , 2, 2, 4, 2, 2, 3, 4, 11, 2, 2, 3, 2};
-static const u8 xoDef[]={ 2,1,1,2,1,1,1,1,0,2,1,1,1,1,   0,1,   0,0,1,   0,0,1,   1,1,1,0,1,2,1, 2,1,2,2,4, 0, 2, 1, 1, 1, 1, 10, 10, 10, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1 , 1, 1, 2, 1, 1, 1, 1, 6, 0, 0, 0, 0};
+static const u8 xoCnt[]={ 5,5,2,4,4,4,4,2,3,4,2,3,2,4,   4,3,   4,3,2,   3,6,3,   2,2,2,2,2,3,2, 4,10,10,10,11, 2, 3, 2, 2, 2, 2, 11, 11, 11, 2, 2, 2, 5, 3, 2, 2, 3, 7, 3 , 2, 2, 4, 2, 2, 3, 4, 11, 2, 2, 3, 2, 3, 2};
+static const u8 xoDef[]={ 2,1,1,2,1,1,1,1,0,2,1,1,1,1,   0,1,   0,0,1,   0,0,1,   1,1,1,0,1,2,1, 2,1,2,2,4, 0, 2, 1, 1, 1, 1, 10, 10, 10, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1 , 1, 1, 2, 1, 1, 1, 1, 6, 0, 0, 0, 0, 1, 1};
 _Static_assert(sizeof(xoCnt)==XO_N&&sizeof(xoDef)==XO_N,"xoCnt / xoDef must have one entry per XO_ name");
 static u8 xo[XO_N];
 static void optsDefaults(void){ for(int i=0;i<XO_N;i++) xo[i]=xoDef[i]; }

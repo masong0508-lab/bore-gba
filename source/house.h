@@ -662,6 +662,20 @@ static int hhItemGo(HhSim*s,int need){   // item module 3: serve 'need' with an 
         if(q==1){ s->pn=s->pi=0; s->gok=0; } s->act=HA_STAIR; s->use=(u8)need; s->item=(u8)(r2+1); return 1; }
     return 0;
 }
+// LOW MOODS (OPTIONS > SIM > LOW MOODS): a Sim whose needs average below 38 is glum. It does not just go for its lowest need: it looks for comfort first (a friend
+// to talk to, the sofa or the TV) or sits it out with a sad balloon, and nice, outgoing Sims who spot a glum one come over to cheer it up (hhSeek, socPick, hhArrive).
+static u8 hhGlumSeek;   // hhSeek: this walk is for comfort (the best friend, not the nearest face)
+static int hhGlum(const HhSim*s){ int v=0; for(int n=0;n<HN_N;n++) v+=s->need[n]; return v/HN_N<38; }
+static int hhGlumGo(HhSim*s){   // 1 = it has a plan
+    int r=rnd8();
+    if(r<120&&hhN>0){ hhGlumSeek=1; hhSeek(s); hhGlumSeek=0; if(s->act==HA_SEEK) return 1; }
+    if(r<200){
+        if(xo[XO_ITEMUSE]&&hhItemGo(s,HN_FUN)) return 1;
+        if(simHave&SR_SOFA){ int q=hhPlan(s,'C'); if(q==1){ s->act=HA_USE; s->use=HN_COMFY; s->t=hhUseT(s); return 1; } if(q>1){ s->act=HA_WALK; s->use=HN_COMFY; return 1; } } }
+    s->act=HA_IDLE; s->bub=IC_SAD; s->bubT=120;   // nothing to turn to: it sits it out
+    if(rnd8()<50) hhNote(s," IS FEELING LOW");
+    return 1;
+}
 static void hhDecide(HhSim*s){
     s->item=0; s->jl=s->ji=0;
     int best[2]={-1,-1}, bs[2]={0,0}, low=xo[XO_FREEWILL]==1?35:55;   // LOW free will waits until needs are lower
@@ -674,6 +688,7 @@ static void hhDecide(HhSim*s){
         if(u>bs[0]){ bs[1]=bs[0]; best[1]=best[0]; bs[0]=u; best[0]=n; } else if(u>bs[1]){ bs[1]=u; best[1]=n; }
     }
     int n=best[0]; if(best[1]>=0&&bs[1]*4>=bs[0]*3&&(rnd8()&1)) n=best[1];   // close call: either of the two
+    if(xo[XO_MOODWILL]&&s->stage>=AG_CHILD&&hhGlum(s)&&(n<0||s->need[n]>=15)&&(rnd8()&3)&&hhGlumGo(s)) return;   // a glum Sim looks for comfort first (an urgent need still goes first)
     if((simHave&SR_PIPE)&&s->stage>=AG_ADULT&&s->act!=HA_LEAVE){   // grown-ups and the water pipe: for fun, and everyone at 4:20
         int t420=simMin>=16*60+20&&simMin<17*60+20;
         if((t420&&rnd8()<200)||(n==HN_FUN&&(rnd8()&1))){ int r=hhPlan(s,'G'); if(r==1){ s->act=HA_USE; s->use=HN_FUN; s->t=HH_USE; s->bub=IC_LEAF; s->bubT=90; return; } if(r>1){ s->act=HA_WALK; s->use=HN_FUN; return; } } }
@@ -682,7 +697,7 @@ static void hhDecide(HhSim*s){
     if(n==HN_SOC){ if(xo[XO_ITEMUSE]&&rnd8()<90&&hhItemGo(s,HN_SOC)) return; hhSeek(s); return; }   // item module 5: sometimes lonely means the phone
     if(n<0&&rnd8()<30&&hhHasStairs()){   // nothing pressing: sometimes up the stairs for a while
         int r=hhPlan(s,'^'); if(r>=1){ if(r==1){ s->pn=s->pi=0; s->gok=0; } s->act=HA_STAIR; s->use=HN_FUN; return; } }
-    if(n<0&&hhN>0&&(rnd8()*100>>8)<25+s->tr[TR_OUT]*5){ hhSeek(s); return; }   // nothing pressing: go and see someone (outgoing Sims more often)
+    if(n<0&&hhN>0&&(rnd8()*100>>8)<25+s->tr[TR_OUT]*5+(xo[XO_FREEWILL]==2?15:0)){ hhSeek(s); return; }   // nothing pressing: go and see someone (outgoing Sims more often; FREE WILL HIGH more again)
     if(n<0){ if(hhPlan(s,0)>1){ s->act=HA_WANDER; s->use=HN_FUN; } else s->act=HA_IDLE; return; }
     if(hnFurn[n]&&!(hhCen[curFl]&(1<<n))&&hhElse(n)){ int q=hhPlan(s,hhElse(n)>0?'^':'~'); if(q>=1){ if(q==1){ s->pn=s->pi=0; s->gok=0; } s->act=HA_STAIR; s->use=(u8)n; } else s->act=HA_IDLE; return; }   // floors step 3: not on this floor: up the stairs
     int r=hhPlan(s,hnFurn[n]?hnFurn[n]:0);
@@ -1184,6 +1199,8 @@ static void hhSeek(HhSim*s){   // pick someone to go and see: friends most, enem
     for(int u=0;u<RU_N;u++){ if(u==me) continue; if(uGuest(u)?!guestHere(u):(u!=hhPUid&&hhMemOf(u)<0)) continue;   // (the neighbours staying over too)
         int x,y; if(!uTile(u,&x,&y)) continue;
         int d=relD[me][u], sc=d+(rnd8()&31); if(s->tr[TR_NICE]<=3&&d<-20) sc=-d+(rnd8()&31);   // grouchy Sims go looking for trouble
+        if(hhGlumSeek){ sc=d*2+(rnd8()&15); if(d<-5) sc-=60; }   // a glum Sim wants a friend, not an enemy
+        else if(xo[XO_MOODWILL]&&s->tr[TR_NICE]>=5&&uMood(u)<38&&d>=-10) sc+=35;   // somebody looks down: a kind Sim goes over to cheer them up
         if(relF[me][u]&(RF_CRUSH|RF_LOVE|RF_STEADY)) sc+=30;
         if(relD[me][u]==0&&relL[me][u]==0) sc+=20+s->tr[TR_OUT]*4;   // someone new: go and say hello (outgoing Sims more)
         if(u==hhPUid) sc+=15;                                          // and they like to come and see you
@@ -1194,6 +1211,8 @@ static void hhSeek(HhSim*s){   // pick someone to go and see: friends most, enem
 }
 static int socPick(int a,int b){   // what a free-will Sim says to b
     int d=relD[a][b], nice=uTr(a,TR_NICE), r=rnd8();
+    if(xo[XO_MOODWILL]&&d>=-10&&nice>=3&&(uMood(b)<38||uMood(a)<38)){   // one of them is glum: a hug, a kind word, or just a talk (they get nothing pushy, no proposals)
+        if(socAllowed(a,b,SC_HUG)&&r<120) return SC_HUG; if(uMood(b)<38&&socAllowed(a,b,SC_COMPL)&&r<190) return SC_COMPL; return SC_TALK; }
     if(d<-30||(nice<=2&&r<40)){ if(d<-30&&socAllowed(a,b,SC_PUNCH)&&r<50) return SC_PUNCH; if(d<=-20&&socAllowed(a,b,SC_SLAP)&&r<70) return SC_SLAP;   // (anyone can be mean to anyone now; free will still only hits when it is bad between them)
         if(d<=-20&&socAllowed(a,b,SC_SHOVE)&&r<110) return SC_SHOVE; return (r&2)?SC_TEASE:(r&1)?SC_ARGUE:SC_INSULT; }
     if(d<-5&&nice>=6&&socAllowed(a,b,SC_SORRY)) return SC_SORRY;
@@ -1219,7 +1238,9 @@ static void hhArrive(int m){   // a free-will Sim reached the one it wanted to s
     int bm=hhMemOf(b); if(bm>=0&&(hhM[bm].act==HA_SOC||hhM[bm].act==HA_USE)) return;
     if(bm<0&&(lstun>0||simAct||lz>(s32)(surfH(lfx,lfy)<<8))) return;   // you are busy, or in the air
     s->hd=(u8)(x>sx?0:x<sx?8:y>sy?4:12); if(bm>=0) hhM[bm].hd=(u8)((s->hd+8)&15);
-    socDo(s->uid,b,socPick(s->uid,b));
+    int low=xo[XO_MOODWILL]&&uMood(b)<38, lowA=xo[XO_MOODWILL]&&uMood(s->uid)<38;
+    int ok=socDo(s->uid,b,socPick(s->uid,b));
+    if(ok&&(low||lowA)){ needAdd(b,HN_FUN,10); needAdd(b,HN_SOC,6); needAdd(s->uid,HN_FUN,low?4:10); needAdd(s->uid,HN_SOC,low?3:6); }   // a cheer-up (or a good moan to a friend) lifts the glum one
 }
 // ---- TOGETHER (see jtAllowed above) ----
 static void jtAccept(int a,int b,int i){   // b said yes to a's invite i: whoever lives here (not you) goes there when the chat ends

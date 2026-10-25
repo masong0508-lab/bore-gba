@@ -69,6 +69,8 @@ static const OptRow pgSimScore[]={
 };
 static const OptRow pgSimSims[]={
  XR(XO_FREEWILL,"FREE WILL",lbFree,"Sims you are not steering look after themselves.","Low waits longer. Off leaves them standing around."),
+ XR(XO_SELFWILL,"YOUR SIM ALONE",lbFree,"Leave the pad alone and your Sim eats, sleeps,","chats and cheers itself up. Any button takes over."),
+ XR(XO_MOODWILL,"LOW MOODS",lbOnOff,"A glum Sim goes looking for comfort and a friend.","Friends who spot it come over to cheer it up."),
  XR(XO_MULTIFL,"SIMS ON FLOORS",lbOnOff,"Sims take the stairs to reach the bed, fridge and","so on. Off lets them vanish upstairs."),
  XR(XO_ITEMUSE,"SIMS USE ITEMS",lbOnOff,"Sims watch TV, read, run, feed the fish, make","coffee and ring friends. Off keeps the basics."),
  XR(XO_INMATES,"INMATES",lbPop,"How many inmates the prison holds: low 8,","medium 16, high 24. Counted when you walk in."),

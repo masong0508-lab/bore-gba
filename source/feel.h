@@ -90,8 +90,9 @@ static void feelVel(void){   // velocity chases heading*speed (grip), exact sub-
     lsp=F.spd>>4; lhd=((a+8)>>4)&15;
 }
 static inline int wEase(int e){ int s=e/F_WACC; return s?s:(e>0)-(e<0); }   // ease step, never stalls below 1 unit
+static u8 swDrv; static s8 swUx, swUy;   // selfwill.h: your Sim is walking itself: the pad's two axes it wants (they skip the 4 WAY filter), swDrv 0 = you are steering
 static void feelWalk(u16 k,u16 pr,int ongr){   // on foot: eased accel instead of instant speed, hop with buffer + coyote
-    int ux=((k&K_RIGHT)?1:0)-((k&K_LEFT)?1:0), uy=((k&K_DOWN)?1:0)-((k&K_UP)?1:0); padFour(&ux,&uy);   // (4 WAY: only the direction pressed last)
+    int ux=((k&K_RIGHT)?1:0)-((k&K_LEFT)?1:0), uy=((k&K_DOWN)?1:0)-((k&K_UP)?1:0); if(swDrv){ ux=swUx; uy=swUy; } else padFour(&ux,&uy);   // (4 WAY: only the direction pressed last)
     int dx=ux+uy, dy=uy-ux, spd=(k&K_B)?F_RUN:F_WALK;
     if(cview){ int t=dx; if(cview==1){ dx=dy; dy=-t; } else if(cview==2){ dx=-dx; dy=-dy; } else { dx=-dy; dy=t; } }   // the view is turned (SELECT + L / R): the D-pad still means "up the screen"
     spd=spd*stSpd[stage]/100; if(spd<2) spd=2; if(ux&&uy) spd=(spd*7)/8;   // the life stage scales the pace (a screen diagonal is two tile steps along one axis: 7/8 of the pace keeps it as quick on the screen as walking sideways)
