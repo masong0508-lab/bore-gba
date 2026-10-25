@@ -1469,6 +1469,7 @@ IWRAM_OVL0 static void drawSceneO(int blink){
         if(y<hyB&&(shape==2||(shape==3&&y==0))) bw+=handK;   // bigger or smaller hands and feet
         if(y<hyB&&shape==2) bw+=exHnd; else if(y<hyB&&shape==3&&y==0) bw+=exFt;   // HAND SIZE and FOOT SIZE on their own
         if(y==hyB&&shape<4) bw+=exJaw;   // JAW WIDTH: the bottom row of the head
+        if(y<hyB&&shape<4){ int lo=shape==0?-3:-1, hi=shape==0?5:4, wx=shape==0?exWst:0, g=bw+wx; if(g<lo) g=lo; if(g>hi) g=hi; bw=g-wx; }   // SLIDERS AT THE ENDS: the whole-body width (WEIGHT, type, WAIST) keeps 2 px of room under the block's minimum and over its maximum, so BELLY, CHEST, HIP, SHOULDER, THIGH, CALF, UPPER ARM and FOREARM still move when WEIGHT or the build is already at an end (cube() clamps the final size; the sum used to sit on that clamp and the local slider did nothing)
         if(y<hyB&&shape==0) bw+=exWst+(y==liftL?exHip:0)+(y==hyB-1?exSho:0)+(((y==hyB-2&&y>liftL)||(hyB-liftL<3&&y==hyB-1))?exChe:0)+(((hyB-liftL>=3&&y==liftL+1&&y<hyB-1)||(hyB-liftL<3&&y==liftL))?exBel:0);   // WAIST, HIP and SHOULDER width (the torso only), CHEST (the row under the shoulders) and BELLY (the row over the hips; on the usual 2 row torso: CHEST is the shoulder row and BELLY the hip row, else these sliders did nothing)
         else if(y<hyB&&(shape==1||shape==2)) bw+=(y>=(liftL+hyB)/2)?exUAr:exFAr;   // UPPER ARM (the top half of the arm) and FOREARM width
         else if(y<hyB&&shape==3) bw+=(y>=liftL/2)?exThi:exCal;                 // THIGH (upper half of the legs) and CALF (lower half) width
