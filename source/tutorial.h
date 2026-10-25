@@ -13,17 +13,17 @@ enum { TG_INFO, TG_WALK, TG_RUN, TG_HOP, TG_BOARD, TG_OLLIE, TG_FRIDGE, TG_PAUSE
 enum { TM_NONE, TM_OFFER, TM_CARD, TM_STUCK };
 typedef struct { u8 goal; const char*hd; const char*ln[4]; const char*hint; } TutStep;
 static const TutStep tutSteps[]={
- {TG_INFO,"WELCOME TO BORE",{"THIS SHORT TUTORIAL SHOWS THE BASICS","DO EACH TASK AND IT MOVES ON","NOBODY CAN DIE WHILE IT RUNS",0},""},
- {TG_WALK,"LESSON  WALKING",{"HOLD THE DPAD TO WALK AROUND","THE CAMERA FOLLOWS YOU","WALK ABOUT FOUR TILES",0},"WALK WITH THE DPAD"},
- {TG_RUN,"LESSON  RUNNING",{"HOLD B WHILE YOU WALK TO RUN","KEEP IT UP FOR A SECOND OR TWO",0,0},"HOLD B AND WALK"},
- {TG_HOP,"LESSON  HOPPING",{"PRESS A TO HOP","HOPS GET YOU OVER LOW THINGS",0,0},"PRESS A TO HOP"},
- {TG_BOARD,"LESSON  THE BOARD",{"PRESS L TO STEP ON THE BOARD","PRESS L AGAIN TO STEP OFF","ON THE BOARD A PUSHES  DPAD STEERS",0},"L GET ON BOARD"},
- {TG_OLLIE,"LESSON  TRICKS",{"PRESS B ON THE BOARD TO OLLIE","IN THE AIR THE DPAD SPINS","B IN THE AIR KICKFLIPS","LAND ON GREEN  RED IS A BAIL"},"B TO OLLIE"},
- {TG_INFO,"LESSON  YOUR NEEDS",{"THE BARS ON SCREEN ARE YOUR NEEDS","GREEN IS GOOD  RED IS URGENT","FOOD REST AND WC NEED LOOKING AFTER",0},""},
- {TG_FRIDGE,"LESSON  EATING",{"WALK TO THE FRIDGE","PRESS R WHEN IT SAYS R OPEN FRIDGE","THAT FILLS YOUR FOOD BAR",0},"R AT THE FRIDGE"},
- {TG_INFO,"WANTS AND WORK",{"WANTS FILL YOUR METER  FEARS DRAIN IT","PICK A CAREER ON THE PHONE","SKATER JOB PAYS FOR TRICK POINTS","R BY ANOTHER SIM TO TALK"},""},
- {TG_PAUSE,"LESSON  THE PAUSE MENU",{"PRESS START TO OPEN THE PAUSE MENU","IT HOLDS OPTIONS  HOUSEHOLD  PHONE","AND SAVES YOUR LIFE","PRESS B TO CLOSE IT AGAIN"},"PRESS START"},
- {TG_INFO,"TUTORIAL COMPLETE",{"THAT IS THE BASICS  HAVE FUN","HOW TO PLAY IN THE MAIN MENU HAS MORE","REPLAY THIS IN OPTIONS  TUTORIAL",0},""},
+ {TG_INFO,"WELCOME TO BORE",{"A quick tour of the basics. Do each little","task and it moves on by itself. Nobody","can die while this is running.",0},""},
+ {TG_WALK,"LESSON  WALKING",{"Hold the D-pad and your Bore walks. The","camera follows. Go for a stroll: about four","tiles will do.",0},"WALK WITH THE DPAD"},
+ {TG_RUN,"LESSON  RUNNING",{"Hold B while you walk and you run. Keep it","up for a second or two. Feel the wind in","your voxels.",0},"HOLD B AND WALK"},
+ {TG_HOP,"LESSON  HOPPING",{"Press A to hop. It gets you over low things,","and it looks great doing it.",0,0},"PRESS A TO HOP"},
+ {TG_BOARD,"LESSON  THE BOARD",{"Press L to step onto the board, and L again","to step off. On the board A pushes and the","D-pad steers.",0},"L GET ON BOARD"},
+ {TG_OLLIE,"LESSON  TRICKS",{"Press B on the board to ollie. In the air the","D-pad spins and B kickflips. Land on green","and you roll away. Land on red and you bail.","Everybody bails."},"B TO OLLIE"},
+ {TG_INFO,"LESSON  YOUR NEEDS",{"The bars on screen are your needs. Green is","fine, red is urgent. Food, rest and the","toilet will not look after themselves.",0},""},
+ {TG_FRIDGE,"LESSON  EATING",{"Walk to the fridge. When the screen says","R OPEN FRIDGE, press R. That fills your food","bar, and your Bore will be grateful.",0},"R AT THE FRIDGE"},
+ {TG_INFO,"WANTS AND WORK",{"Wants fill your meter and fears drain it.","Pick a career on the phone. The skater job","pays for trick points. R next to another Sim","starts a conversation."},""},
+ {TG_PAUSE,"LESSON  THE PAUSE MENU",{"Press START for the pause menu. Options, your","household and the phone live in there, and so","does the button that saves your life.","Press B to close it again."},"PRESS START"},
+ {TG_INFO,"TUTORIAL COMPLETE",{"That is the basics. Go and have fun.","HOW TO PLAY on the main menu has the rest.","Replay this any time in OPTIONS > TUTORIAL.",0},""},
 };
 #define TUT_N ((int)(sizeof(tutSteps)/sizeof(tutSteps[0])))
 static int tutI, tutModal, tutShown, tutT, tutAcc, tutDelay, tutSawPause, tutAsked; static s32 tutX0, tutY0;   // (tutOn lives in main.c: die() needs it)
@@ -94,7 +94,7 @@ static void tutRunModal(void){
     if(!tutOn) return;
     char ti[20]; { char*e=ti; const char*p="TUTORIAL "; while(*p)*e++=*p++; int n=tutI+1; if(n>=10)*e++=(char)('0'+n/10); *e++=(char)('0'+n%10); *e++='/'; *e++=(char)('0'+TUT_N/10); *e++=(char)('0'+TUT_N%10); *e=0; }
     if(m==TM_STUCK){
-        static const char* const ln[4]={"THIS ONE IS TAKING A WHILE","KEEP TRYING  OR SKIP THE LESSON",0,0};
+        static const char* const ln[4]={"This one is taking a while.","Keep trying, or skip the lesson. Nobody is","keeping score.",0};
         int r=tutCardRun(ti,"STUCK",ln,"A KEEP TRYING","B SKIP LESSON","SEL END");
         if(r==1) tutNext(); else if(r==2) tutEnd();
         return;

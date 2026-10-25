@@ -44,16 +44,16 @@ static inline char* kaCat(char*d,const char*s){ while(*s) *d++=*s++; *d=0; retur
 static inline void kaText(const KSim*S,const KAdv*t,char*b){
     char*e=b;
     switch(t->kind){
-    case KAT_STORE:  kaCat(b,"BUILD A STOREHOUSE: GOODS ARE KEPT THERE"); break;
-    case KAT_HOME:   kaCat(b,"NUBBINS NEED A HOME: BUILD A HUT"); break;
-    case KAT_ROAD:   e=kaCat(b,"LAY ROAD TO THE "); e=kaCat(e,khName[KHM_HUT+t->a]); break;
-    case KAT_EMPTY:  e=kaCat(b,khName[KHM_HUT+t->a]); kaCat(e," HAS NOTHING LEFT: MOVE IT"); break;
-    case KAT_WAIT:   e=kaCat(b,khName[KHM_HUT+t->a]); e=kaCat(e," NEEDS "); kaCat(e,khGood[t->b<8?t->b:0]); break;
-    case KAT_JOBS:   e=khNum(b,t->b); kaCat(e," JOBS WAIT: BUILD MORE HOMES"); break;
-    case KAT_FULL:   kaCat(b,"HOMES ARE FULL: BUILD MORE FOR MORE FOLK"); break;
-    case KAT_CASTLE: e=kaCat(b,"CASTLE WANTS "); e=khNum(e,t->b); e=kaCat(e," "); kaCat(e,khGood[t->a<8?t->a:0]); break;
-    case KAT_NOCASTLE: kaCat(b,"READY FOR A CASTLE: BUILD ONE"); break;
-    case KAT_STOCK:  e=kaCat(b,khGood[t->a<8?t->a:0]); kaCat(e," IS FULL: USE IT OR LOSE IT"); break;
+    case KAT_STORE:  kaCat(b,"NO STOREHOUSE YET  GOODS NEED A HOME"); break;
+    case KAT_HOME:   kaCat(b,"NOBODY LIVES HERE  BUILD A HUT"); break;
+    case KAT_ROAD:   e=kaCat(b,"NO ROAD REACHES THE "); e=kaCat(e,khName[KHM_HUT+t->a]); break;
+    case KAT_EMPTY:  e=kaCat(b,khName[KHM_HUT+t->a]); kaCat(e," HAS RUN DRY  MOVE IT"); break;
+    case KAT_WAIT:   e=kaCat(b,khName[KHM_HUT+t->a]); e=kaCat(e," IS WAITING FOR "); kaCat(e,khGood[t->b<8?t->b:0]); break;
+    case KAT_JOBS:   e=khNum(b,t->b); kaCat(e," JOBS GOING BEGGING  BUILD HOMES"); break;
+    case KAT_FULL:   kaCat(b,"EVERY HOME IS FULL  BUILD MORE"); break;
+    case KAT_CASTLE: e=kaCat(b,"CASTLE IS WAITING FOR "); e=khNum(e,t->b); e=kaCat(e," "); kaCat(e,khGood[t->a<8?t->a:0]); break;
+    case KAT_NOCASTLE: kaCat(b,"TIME FOR A CASTLE  YOU EARNED IT"); break;
+    case KAT_STOCK:  e=kaCat(b,khGood[t->a<8?t->a:0]); kaCat(e," IS OVERFLOWING  USE SOME"); break;
     default: b[0]=0; }
     (void)S;
 }

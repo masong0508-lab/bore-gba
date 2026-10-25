@@ -109,9 +109,9 @@ static void ccGallery(void){
     }
 }
 static void ccAbout(void){
-    static const char* const ln[]={">THE BORE CREATOR DEMO","EVERY PART, SLIDER AND COLOUR IS FREE.","MAKE A BORE, SAVE IT TO MY CREATIONS,","AND GIVE ITS SHARE CODE TO A FRIEND.","",
-        ">IN THE FULL GAME","YOUR BORE MOVES INTO A TOWN, FINDS A JOB,","FALLS IN LOVE, SKATES, GETS ARRESTED ...","TYPE ITS SHARE CODE IN THE FULL GAME'S","CREATOR (DONE TAB: ENTER A CODE).","",
-        ">KEYS","L R TABS   UP DOWN ROWS   LEFT RIGHT CHANGE","SELECT TURNS YOUR BORE   START DONE TAB"};
+    static const char* const ln[]={">The BORE Creator Demo","Every part, slider and colour is free here.","Make a Bore, save it to MY CREATIONS, and hand","its share code to a friend.","",
+        ">In the Full Game","Your Bore moves into a town, finds a job, falls","in love, skates, and gets arrested. Type its","share code into the full game's creator (DONE","tab, ENTER A CODE) and watch it all happen.","",
+        ">Keys","L R tabs. UP DOWN rows. LEFT RIGHT change.","SELECT turns your Bore. START jumps to DONE."};
     helpScreen("ABOUT",ln,(int)(sizeof ln/sizeof ln[0]));
 }
 static void ccMain(void){   // the demo's whole life after the title screen

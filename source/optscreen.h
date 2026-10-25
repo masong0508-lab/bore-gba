@@ -38,120 +38,120 @@ static const char* const lbBtn[4]={"NORMAL","A B SWAPPED","L R SWAPPED","BOTH SW
     *const lbCont[3]={"ROOM","ROOM+PERSON","ALL THREE"}, *const lbZoom[5]={"OFF","1.25X","1.5X","1.7X","2X"}, *const lbMenuBg[3]={"RANDOM","TOWN","ACID RAINBOW"};
 
 static const OptRow pgVideo[]={
- {OR_PRESET,0,0,0,0,"PRESET",0,"LOOKS  BALANCED  SPEED  OR BATTERY  ONE TAP","CHANGING ANYTHING BELOW MAKES IT CUSTOM"},
- AR(OA_TUNE,"AUTO TUNE","PRESS A TO TEST YOUR SCREEN AND PICK THE","PRETTIEST PRESET THAT STAYS SMOOTH"),
- VR(sFps,4,1,"FRAME RATE",lbFps,"HOW OFTEN THE PICTURE REDRAWS","LOWER DRAWS LESS  THE GAME KEEPS ITS SPEED"),
- VR(sWall,3,1,"WALLS",lbWalls,"FULL SHOWS EVERY WALL  CUTAWAY LOWERS THE","WALLS IN FRONT  LOW SHRINKS THEM ALL"),
- VR(sWp,2,1,"WALLPAPER",lbPat,"PATTERNED OR PLAIN COLOUR WALLS","PLAIN IS QUICKER TO DRAW"),
- VR(sFl,2,1,"FLOORS",lbPat,"PATTERNED OR PLAIN COLOUR FLOORS","PLAIN IS QUICKER TO DRAW"),
- VR(sShad,2,1,"SHADOWS",lbOnOff,"THE DARK SPOT UNDER YOUR FEET","OFF SAVES A LITTLE DRAWING"),
- VR(sShow,3,0,"PERFORMANCE INFO",lbShow,"FPS WHILE YOU PLAY  DETAIL ADDS THE LOAD","100 MEANS A FRAME JUST ABOUT FITS"),
- VR(sNoWarn,2,0,"SPEED WARNING",lbWarn,"ON SAYS TOO SLOW WHEN THE PICTURE CAN'T","KEEP UP  OFF HIDES THE NAGGING"),
- XR(XO_ZOOM,"ZOOM",lbZoom,"A CLOSER VIEW  ONLY THAT PART IS DRAWN","SO IT RUNS FASTER  SELECT + UP OR DOWN"),
- VR(sRom,2,0,"ROM SPEED",lbRom,"FAST SUITS MOST CARTS AND EMULATORS","SAFE IF A FLASH CART FREEZES OR GLITCHES"), AR(OA_CLEAN,"DEBUG CLEAR CACHES","KONAMI DEBUG  NOT A REAL CACHE DELETER","IT WON'T SPEED UP THE GAME  A FOR MORE"),   // LAST row of the page: hidden until the Konami code is on (pgRows)
+ {OR_PRESET,0,0,0,0,"PRESET",0,"Looks, Balanced, Speed or Battery in one tap.","Change anything below and it becomes Custom."},
+ AR(OA_TUNE,"AUTO TUNE","Press A and the game tests your screen, then","picks the prettiest preset that stays smooth."),
+ VR(sFps,4,1,"FRAME RATE",lbFps,"How often the picture redraws.","Lower means less drawing. The game keeps its speed."),
+ VR(sWall,3,1,"WALLS",lbWalls,"Full shows every wall. Cutaway lowers the ones","in front of you. Low shrinks them all."),
+ VR(sWp,2,1,"WALLPAPER",lbPat,"Patterned walls, or plain colour.","Plain is quicker to draw."),
+ VR(sFl,2,1,"FLOORS",lbPat,"Patterned floors, or plain colour.","Plain is quicker to draw."),
+ VR(sShad,2,1,"SHADOWS",lbOnOff,"The dark spot under your feet.","Off saves a little drawing."),
+ VR(sShow,3,0,"PERFORMANCE INFO",lbShow,"FPS shows the frame rate. Detail adds the load,","where 100 means a frame only just fits."),
+ VR(sNoWarn,2,0,"SPEED WARNING",lbWarn,"On tells you when the picture can't keep up.","Off stops the nagging."),
+ XR(XO_ZOOM,"ZOOM",lbZoom,"A closer view. Only that part gets drawn, so it","runs faster. SELECT + UP or DOWN zooms."),
+ VR(sRom,2,0,"ROM SPEED",lbRom,"Fast suits most carts and emulators.","Safe is for a flash cart that freezes or glitches."), AR(OA_CLEAN,"DEBUG CLEAR CACHES","A Konami code leftover. Not a real cache deleter,","and it won't speed anything up. A for more."),   // LAST row of the page: hidden until the Konami code is on (pgRows)
 };
 // ---- SIM: everything about your Sim, the household and the score, in sections (like TIME) ----
 static const OptRow pgSimNeeds[]={
- XR(XO_NEED,"NEEDS",lbNeed,"HOW FAST REST  CLEAN AND COMFY RUN DOWN","OFF FREEZES THEM  BRUTAL IS TWICE AS FAST"),
- XR(XO_HUNGER,"FOOD AND WC",lbHunger,"HOW FAST HUNGER AND THE BLADDER BUILD","OFF MEANS NO ACCIDENTS AND NO FAINTING"),
- XR(XO_MOODFX,"MOOD EFFECTS",lbOnOff,"SAD SLOWS YOU DOWN  STOKED SPEEDS YOU UP","AND MOOD CHANGES TRICK POINTS  OFF IGNORES IT"),
- XR(XO_HURT,"HURT",lbHurt,"GENTLE HALVES FALL DAMAGE","NO DEATH MEANS A FALL CAN NEVER KILL"),
+ XR(XO_NEED,"NEEDS",lbNeed,"How fast rest, clean and comfy run down.","Off freezes them. Brutal is twice as fast."),
+ XR(XO_HUNGER,"FOOD AND WC",lbHunger,"How fast hunger and the bladder fill up.","Off means no accidents and no fainting."),
+ XR(XO_MOODFX,"MOOD EFFECTS",lbOnOff,"Sad slows you down, stoked speeds you up, and","mood changes trick points. Off ignores all that."),
+ XR(XO_HURT,"HURT",lbHurt,"Gentle halves the damage from a fall.","No Death means a fall can never kill you."),
 };
 static const OptRow pgSimJob[]={
- XR(XO_JOB,"CAREER",lbOnOff,"OFF REMOVES SHIFTS  QUOTAS  PAY AND BILLS","A FREE PLAY LIFE  NO WORK  NO BOSS"),
- XR(XO_QUOTA,"SKATER QUOTA",lbQuota,"TRICK POINTS A SHIFT NEEDS TO COUNT","EASY 60  NORMAL 100  HARD 150  INSANE 200"),
- XR(XO_BILLS,"BILLS",lbBills,"WHAT THE MIDNIGHT BILL COSTS","NONE  HALF  NORMAL  OR DOUBLE"),
+ XR(XO_JOB,"CAREER",lbOnOff,"Off removes shifts, quotas, pay and bills.","A free-play life. No work, no boss."),
+ XR(XO_QUOTA,"SKATER QUOTA",lbQuota,"The trick points a shift needs before it counts.","Easy 60, Normal 100, Hard 150, Insane 200."),
+ XR(XO_BILLS,"BILLS",lbBills,"What the midnight bill costs.","None, half, normal or double."),
 };
 static const OptRow pgSimScore[]={
- XR(XO_SCORE,"SCORE",lbScore,"MULTIPLIES EVERY TRICK AND GRIND SCORE","THE PRO SKATER JOB COUNTS IT TOO"),
- XR(XO_SPEED,"TOP SPEED",lbSpeed,"HOW FAST YOU WALK  RUN AND SKATE","80 TO 150 % OF NORMAL"),
- VR(sCam,4,1,"ACTION CAM",lbCam,"A BIG COMBO ZOOMS AND SPINS THE CAMERA","PICK HOW BIG A COMBO MUST BE TO TRIGGER IT"),
+ XR(XO_SCORE,"SCORE",lbScore,"Multiplies every trick and grind score.","The Pro Skater job counts it too."),
+ XR(XO_SPEED,"TOP SPEED",lbSpeed,"How fast you walk, run and skate.","From 80 to 150 % of normal."),
+ VR(sCam,4,1,"ACTION CAM",lbCam,"A big combo zooms and spins the camera.","Pick how big a combo has to be to set it off."),
 };
 static const OptRow pgSimSims[]={
- XR(XO_FREEWILL,"FREE WILL",lbFree,"SIMS YOU DO NOT CONTROL LOOK AFTER","THEMSELVES  LOW WAITS LONGER  OFF IDLES THEM"),
- XR(XO_MULTIFL,"SIMS ON FLOORS",lbOnOff,"SIMS USE STAIRS TO REACH THE BED  FRIDGE","AND SO ON  OFF LETS THEM VANISH UPSTAIRS"),
- XR(XO_ITEMUSE,"SIMS USE ITEMS",lbOnOff,"SIMS WATCH TV  READ  RUN  FEED FISH  MAKE","COFFEE AND CALL FRIENDS  OFF KEEPS THE BASICS"),
- XR(XO_INMATES,"INMATES",lbPop,"HOW MANY INMATES THE PRISON HOLDS  LOW 8","MEDIUM 16  HIGH 24  CHECKED WHEN YOU ENTER"),
- XR(XO_SIMPRE,"PRE-MADE SIMS",lbOnOff,"THE FAMILIES YOU MOVE IN FROM THE","HOUSEHOLD MENU  OFF BLOCKS THEM"),
- XR(XO_SIMUSER,"USER-MADE SIMS",lbOnOff,"SIMS YOU MAKE IN THE CREATOR AND ADD","TO THE FAMILY  OFF BLOCKS THEM"),
- XR(XO_SIMRAND,"MADE-UP SIMS",lbOnOff,"RANDOM SIMS WHO MOVE IN OR WALK PAST","OFF MEANS NONE OF THEM TURN UP"),
- XR(XO_GHOSTS,"GHOSTS",lbGhost,"A GHOST STAYS WHERE YOU DIED AND HAUNTS","HAUNTED KEEPS ONE AROUND FOR TESTING"),
- XR(XO_TWINS,"TWINS",lbTwins,"HOW OFTEN A NEW BABY COMES WITH A TWIN","HALF ARE IDENTICAL  ONLY WITH ROOM FOR TWO"),
+ XR(XO_FREEWILL,"FREE WILL",lbFree,"Sims you are not steering look after themselves.","Low waits longer. Off leaves them standing around."),
+ XR(XO_MULTIFL,"SIMS ON FLOORS",lbOnOff,"Sims take the stairs to reach the bed, fridge and","so on. Off lets them vanish upstairs."),
+ XR(XO_ITEMUSE,"SIMS USE ITEMS",lbOnOff,"Sims watch TV, read, run, feed the fish, make","coffee and ring friends. Off keeps the basics."),
+ XR(XO_INMATES,"INMATES",lbPop,"How many inmates the prison holds: low 8,","medium 16, high 24. Counted when you walk in."),
+ XR(XO_SIMPRE,"PRE-MADE SIMS",lbOnOff,"The ready-made families you can move in from","the household menu. Off blocks them."),
+ XR(XO_SIMUSER,"USER-MADE SIMS",lbOnOff,"Sims you make in the creator and add to the","family. Off blocks them."),
+ XR(XO_SIMRAND,"MADE-UP SIMS",lbOnOff,"Random Sims who move in or wander past.","Off means none of them turn up."),
+ XR(XO_GHOSTS,"GHOSTS",lbGhost,"A ghost stays where you died, and haunts.","Haunted keeps one around for testing."),
+ XR(XO_TWINS,"TWINS",lbTwins,"How often a new baby arrives with a twin.","Half are identical. Only if there is room for two."),
 };
 static const char* const lbMcSl[2]={"NORMAL","DOUBLE"}, *const lbMcBox[2]={"BY AGE","LIMIT BREAK"};
 static const OptRow pgSimMaster[]={   // CHEAT console (debug code only) (the section is hidden without it, and has no effect)
- XR(XO_MCSLIDE,"SIZE SLIDERS",lbMcSl,"DOUBLE  EVERY SIZE TONE AND LENGTH SLIDER","GOES TWICE AS FAR  PARTS STAY ATTACHED"),
- XR(XO_MCBOX,"BODY BOX",lbMcBox,"LIMIT BREAK  EVERY AGE GETS THE ADULT BOX","AND ADULTS STRETCH PAST 8 BLOCKS TALL"),
- AR(OA_CUTS,"PLAY CUTSCENES","WATCH ANY TV SHOW AND TELL SCENE OR ALL OF THEM","IN STORY ORDER  START SKIPS A SCENE"),
+ XR(XO_MCSLIDE,"SIZE SLIDERS",lbMcSl,"Double: every size, tone and length slider goes","twice as far. The parts stay attached."),
+ XR(XO_MCBOX,"BODY BOX",lbMcBox,"Limit Break: every age gets the adult box, and","adults can stretch past 8 blocks tall."),
+ AR(OA_CUTS,"PLAY CUTSCENES","Watch any TV Show and Tell scene, or all of them","in story order. START skips a scene."),
 };
 static const OptRow pgSimMind[]={
- XR(XO_BUBBLE,"THOUGHT BUBBLE",lbBubble,"THE BUBBLE OVER YOUR HEAD","URGENT SHOWS ONLY NEEDS  ALL ADDS WANTS"),
- XR(XO_WANTS,"WANTS AND FEARS",lbShown,"THE WANT AND FEAR CELLS IN THE HUD","THEY STILL COUNT WHEN HIDDEN"),
+ XR(XO_BUBBLE,"THOUGHT BUBBLE",lbBubble,"The bubble over your head.","Urgent shows only needs. All adds wants."),
+ XR(XO_WANTS,"WANTS AND FEARS",lbShown,"The want and fear cells in the HUD.","They still count when hidden."),
 };
 // ---- TIME: everything about time, in three sections (UP from the top row picks the section strip, LEFT / RIGHT switch it) ----
 static const OptRow pgTimeDay[]={
- XR(XO_DAY,"DAY LENGTH",lbDay,"REAL MINUTES IN ONE GAME DAY  STOPPED","FREEZES THE CLOCK  SLEEP NO LONGER SKIPS TIME"),
- XR(XO_CLOCK,"CLOCK",lbClock,"HOW THE GAME CLOCK IS SHOWN","24 HOUR  12 HOUR  OR HIDDEN"),
- XR(XO_WEATHER,"WEATHER",lbWeather,"AUTO FOLLOWS THE SEASON  OR FORCES ONE KIND","RAIN ONLY FALLS OUTDOORS"),
- XR(XO_NIGHT,"NIGHT",lbNight,"HOW DARK IT GETS AT NIGHT  LAMPS KEEP","INDOORS BRIGHT  OFF KEEPS EVERY HOUR LIT"),
+ XR(XO_DAY,"DAY LENGTH",lbDay,"Real minutes in one game day. Stopped freezes","the clock, and sleep no longer skips time."),
+ XR(XO_CLOCK,"CLOCK",lbClock,"How the game clock is shown.","24 hour, 12 hour or hidden."),
+ XR(XO_WEATHER,"WEATHER",lbWeather,"Auto follows the season, or forces one kind.","Rain only falls outdoors."),
+ XR(XO_NIGHT,"NIGHT",lbNight,"How dark it gets at night. Lamps keep indoors","bright. Off keeps every hour lit."),
 };
 static const OptRow pgTimeAges[]={
- XR(XO_AGING,"AGING",lbAging,"OFF KEEPS THE AGE YOU PICKED  SLOW DOUBLES","EVERY STAGE BELOW  FAST HALVES THEM"),
- XR(XO_AGEB,"BABY LASTS",lbDays,"GAME DAYS AS A BABY  THE ONE STAGE","YOU CAN'T STEER"),
- XR(XO_AGEC,"CHILD LASTS",lbDays,"GAME DAYS AS A CHILD","BEFORE GROWING INTO A TEEN"),
- XR(XO_AGET,"TEEN LASTS",lbDays,"GAME DAYS AS A TEEN","THE CAREER STARTS HERE"),
- XR(XO_AGEA,"ADULT LASTS",lbDaysA,"GAME DAYS AS AN ADULT BEFORE BECOMING AN","ELDER  FOREVER MEANS NEVER GROWING OLD"),
- XR(XO_PIPEAGE,"PIPE AGE",lbPipe,"WHO MAY USE THE WATER PIPE  LATE TEENS IS","THE LAST QUARTER OF THE TEEN YEARS"),
- XR(XO_TUTOR,"TUTORIAL",lbTut,"OFFER ASKS ONCE ON YOUR FIRST PLAY","DONE STAYS QUIET  REPLAY RESTARTS THE LESSONS"),
+ XR(XO_AGING,"AGING",lbAging,"Off keeps the age you picked. Slow doubles every","stage below, Fast halves them."),
+ XR(XO_AGEB,"BABY LASTS",lbDays,"Game days as a baby. It is the one stage","you can't steer."),
+ XR(XO_AGEC,"CHILD LASTS",lbDays,"Game days as a child,","before growing into a teen."),
+ XR(XO_AGET,"TEEN LASTS",lbDays,"Game days as a teen.","Careers start here."),
+ XR(XO_AGEA,"ADULT LASTS",lbDaysA,"Game days as an adult before becoming an elder.","Forever means never growing old."),
+ XR(XO_PIPEAGE,"PIPE AGE",lbPipe,"Who may use the water pipe. Late Teens is the","last quarter of the teen years."),
+ XR(XO_TUTOR,"TUTORIAL",lbTut,"Offer asks once on your first play. Done stays","quiet. Replay restarts the lessons."),
 };
 static const OptRow pgTimeTimers[]={
- XR(XO_COMBO,"COMBO WINDOW",lbCombo,"TIME YOU HAVE TO LAND THE NEXT TRICK","BEFORE THE CHAIN IS BANKED"),
- XR(XO_TOAST,"MESSAGE TIME",lbToast,"HOW LONG POP UP MESSAGES STAY ON SCREEN","SHORT  NORMAL  OR LONG"),
- XR(XO_CSTEXT,"CUTSCENE TEXT",lbCsTx,"PLAY ON RUNS A STORY SCENE LIKE A FILM","A HURRIES IT  WAIT FOR A HOLDS EACH PAGE"),
+ XR(XO_COMBO,"COMBO WINDOW",lbCombo,"The time you have to land the next trick","before the chain is banked."),
+ XR(XO_TOAST,"MESSAGE TIME",lbToast,"How long pop-up messages stay on screen.","Short, normal or long."),
+ XR(XO_CSTEXT,"CUTSCENE TEXT",lbCsTx,"Play On runs a story scene like a film. A hurries","it along. Wait for A holds each page."),
 };
 static const OptRow pgAudio[]={
- VR(sSnd,2,1,"SOUND",lbOnOff,"OFF SKIPS DECODING THE SOUND","SAVES A LITTLE SPEED AND BATTERY"),
- SR(XO_MASTER,"MASTER VOLUME","HOW LOUD EVERYTHING IS  MUSIC AND EFFECTS","ARE SET BELOW  THEN SCALED BY THIS"),
- SR(XO_MUSV,"MUSIC VOLUME","THE TITLE MUSIC  MENU MUSIC AND THE TOUKEBOX","0 SILENCES THEM  ALSO SET IN THE TOUKEBOX"),
- SR(XO_SFXV,"SFX VOLUME","LOUDNESS OF GRUNTS BONKS AND CRIES","0 SILENCES THEM"),
- SR(XO_AMBV,"NATURE SOUNDS","BIRDS BY DAY  CRICKETS AT NIGHT  RAIN","AND WIND  SOFTER INDOORS  0 SILENCES THEM"),
- XR(XO_GAMEMUS,"GAME MUSIC",lbOnOff,"RANDOM TOUKEBOX SONGS WHILE YOU PLAY","MIXING COSTS SPEED  EFFECTS DUCK IT"),
- XR(XO_GAMEXF,"GAME CROSSFADE",lbOnOff,"GAME MUSIC BLENDS INTO THE NEXT SONG","OFF STARTS EACH SONG AT ONCE"),
- XR(XO_TITLEMUS,"TITLE MUSIC",lbOnOff,"PLAY THE DIPPER MAN ON THE TITLE SCREEN","OFF KEEPS THE TITLE QUIET"),
- XR(XO_MENUMUS,"MENU MUSIC",lbOnOff,"GOTTCHO BARRACHO PLAYS IN THE","MAIN MENUS  OFF KEEPS THEM QUIET"),
- XR(XO_CREMUS,"CREATOR MUSIC",lbOnOff,"A CHIPTUNE LOOP PLAYS IN THE CREATOR","OFF KEEPS IT QUIET")
+ VR(sSnd,2,1,"SOUND",lbOnOff,"Off skips decoding the sound.","Saves a little speed and battery."),
+ SR(XO_MASTER,"MASTER VOLUME","How loud everything is. Music and effects are","set below, then scaled by this."),
+ SR(XO_MUSV,"MUSIC VOLUME","The title music, menu music and the Toukebox.","0 silences them. Also set in the Toukebox."),
+ SR(XO_SFXV,"SFX VOLUME","How loud the grunts, bonks and cries are.","0 silences them."),
+ SR(XO_AMBV,"NATURE SOUNDS","Birds by day, crickets at night, rain and wind.","Softer indoors. 0 silences them."),
+ XR(XO_GAMEMUS,"GAME MUSIC",lbOnOff,"Random Toukebox songs while you play. Mixing","costs a little speed, and effects duck it."),
+ XR(XO_GAMEXF,"GAME CROSSFADE",lbOnOff,"Game music blends into the next song.","Off starts each song at once."),
+ XR(XO_TITLEMUS,"TITLE MUSIC",lbOnOff,"Plays The Dipper Man on the title screen.","Off keeps the title quiet."),
+ XR(XO_MENUMUS,"MENU MUSIC",lbOnOff,"Gottcho Barracho plays in the main menus.","Off keeps them quiet."),
+ XR(XO_CREMUS,"CREATOR MUSIC",lbOnOff,"A chiptune loop plays in the creator.","Off keeps it quiet.")
 };
 static const OptRow pgInput[]={
- XR(XO_BTN,"BUTTONS",lbBtn,"SWAP A AND B  OR L AND R  ON EVERY SCREEN","CHECK IT WITH THE BUTTON TEST BELOW"),
- XR(XO_REPEAT,"CURSOR REPEAT",lbRep,"HOW FAST THE CURSOR REPEATS WHEN YOU","HOLD THE D PAD"),
- XR(XO_DIAG,"DIAGONALS",lbDiag,"8 WAY WALKS AND AIMS ON THE DIAGONALS","4 WAY KEEPS ONLY THE LAST KEY PRESSED"),
- AR(OA_BTNTEST,"BUTTON TEST","SHOWS WHICH BUTTONS THE GAME SEES","PRESS A  LEAVE WITH SELECT AND START"),
+ XR(XO_BTN,"BUTTONS",lbBtn,"Swap A and B, or L and R, on every screen.","Check it with the button test below."),
+ XR(XO_REPEAT,"CURSOR REPEAT",lbRep,"How fast the cursor repeats while you","hold the D-pad."),
+ XR(XO_DIAG,"DIAGONALS",lbDiag,"8 Way walks and aims on the diagonals.","4 Way keeps only the last direction you pressed."),
+ AR(OA_BTNTEST,"BUTTON TEST","Shows which buttons the game can see.","Press A. Leave with SELECT and START."),
 };
 static const OptRow pgHud[]={
- VR(sHud,3,0,"INFO ON SCREEN",lbHud,"FULL SHOWS ALL  SLIM KEEPS SCORE AND BARS","OFF HIDES IT ALL  ALERTS STILL SHOW"),
- XR(XO_MENUBG,"MENU BACKDROP",lbMenuBg,"BEHIND THE MAIN MENU  YOUR TOWN AT THE","CURRENT TIME  THE ACID RAINBOW  OR EITHER"),
- XR(XO_ACCENT,"ACCENT COLOUR",accentNm,"COLOUR OF MENUS  HEADINGS AND HUD NUMBERS","WATCH IT CHANGE RIGHT HERE"),
+ VR(sHud,3,0,"INFO ON SCREEN",lbHud,"Full shows everything. Slim keeps score and bars.","Off hides it all. Alerts still show."),
+ XR(XO_MENUBG,"MENU BACKDROP",lbMenuBg,"Behind the main menu: your town at the current","time, the Acid Rainbow, or either."),
+ XR(XO_ACCENT,"ACCENT COLOUR",accentNm,"The colour of menus, headings and HUD numbers.","Watch it change right here."),
 };
 static const OptRow pgRooms[]={
- XR(XO_BUYCOST,"BUILD COSTS",lbOnOff,"ON CHARGES FOR WALLS AND ITEMS  SELLING","PAYS YOU BACK  OFF MAKES BUILDING FREE"),
- XR(XO_MINI,"EDITOR MINIMAP",lbOnOff,"THE SMALL MAP IN THE ROOM BUILDER","OFF GIVES A CLEARER VIEW"),
- XR(XO_EDSAVE,"SAVE ON EXIT",lbOnOff,"LEAVING THE ROOM BUILDER SAVES THE ROOM","OFF  USE SAVE MAP WHEN YOU WANT IT"),
- XR(XO_RESETASK,"ASK BEFORE RESET",lbOnOff,"ASK FIRST WHEN YOU CHOOSE RESET MAP","OFF RESETS AT ONCE"),
- XR(XO_SLOTCONT,"SLOTS SAVE",lbCont,"WHAT A SLOT STORES  THE ROOM  ROOM AND","PERSON  OR ROOM  PERSON AND LIFE"),
- XR(XO_SLOTCONF,"ASK IN SLOTS",lbOnOff,"ASK BEFORE OVERWRITING  LOADING OR DELETING","OFF DOES IT AT ONCE"),
- XR(XO_SLOTSYNC,"SAVE MAP TO SLOT",lbOnOff,"SAVE MAP IN THE ROOM BUILDER ALSO WRITES","THE ACTIVE SLOT"),
- XR(XO_SLOTBOOT,"BOOT LOADS PERSON",lbOnOff,"AT POWER ON THE CREATURE OF THE ACTIVE","SLOT COMES BACK  THE ROOM STAYS AS IT IS"),
+ XR(XO_BUYCOST,"BUILD COSTS",lbOnOff,"On charges for walls and items, and selling pays","you back. Off makes building free."),
+ XR(XO_MINI,"EDITOR MINIMAP",lbOnOff,"The small map in the room builder.","Off gives you a clearer view."),
+ XR(XO_EDSAVE,"SAVE ON EXIT",lbOnOff,"Leaving the room builder saves the room.","Off: use SAVE MAP when you want it."),
+ XR(XO_RESETASK,"ASK BEFORE RESET",lbOnOff,"Ask first when you choose RESET MAP.","Off resets at once."),
+ XR(XO_SLOTCONT,"SLOTS SAVE",lbCont,"What a slot stores: the room, room and person,","or room, person and life."),
+ XR(XO_SLOTCONF,"ASK IN SLOTS",lbOnOff,"Ask before overwriting, loading or deleting.","Off does it at once."),
+ XR(XO_SLOTSYNC,"SAVE MAP TO SLOT",lbOnOff,"SAVE MAP in the room builder also writes","the active slot."),
+ XR(XO_SLOTBOOT,"BOOT LOADS PERSON",lbOnOff,"At power on, the creature in the active slot","comes back. The room stays as it is."),
 };
 static const OptRow pgData[]={
- XR(XO_SAVEMODE,"SAVING",lbSaveMode,"AUTO SAVES YOUR PLAYER WHEN YOU LEAVE PLAY","MANUAL KEEPS PROGRESS ONLY ON SAVE GAME"),
- XR(XO_AUTOSAVE,"AUTO SAVE LIFE",lbOnOff,"SAVES AT MIDNIGHT  PAYDAY AND THE PAUSE MENU","OFF  ONLY SLOTS AND SAVE LIFE NOW SAVE IT"),
- AR(OA_LIFESAVE,"SAVE LIFE NOW","WRITES THE CURRENT LIFE TO SAVE MEMORY","USE IT FROM THE PAUSE MENU WHILE PLAYING"),
- AR(OA_LIFEERASE,"ERASE LIFE","DELETES THE SAVED LIFE  CASH  JOB AND CLOCK","THE NEXT PLAY STARTS A NEW ONE"),
- AR(OA_ROOMERASE,"ERASE SAVED MAP","DELETES THE AUTO SAVED MAP  SLOTS STAY","THE DEFAULT MAP RETURNS AT NEXT POWER ON"),
- AR(OA_SLOTSERASE,"ERASE ALL SLOTS","DELETES EVERY ROOM SLOT","THERE IS NO UNDO  ONLY REGRET"),
- AR(OA_ALLERASE,"ERASE EVERYTHING","WIPES ALL SAVE MEMORY  MAPS  LIFE  OPTIONS","AND TOUKEBOX  MAIN MENU ONLY  BE SURE"),
- AR(OA_SRAMTEST,"SAVE MEMORY TEST","CHECKS THAT THIS CART OR EMULATOR KEEPS","SAVES  A GOOD FIRST TEST ON NEW HARDWARE"),
- AR(OA_RESET,"RESET ALL OPTIONS","PUTS EVERY OPTION BACK TO NORMAL","PRESS A"),
+ XR(XO_SAVEMODE,"SAVING",lbSaveMode,"Auto saves your player when you leave play.","Manual keeps progress only when you save."),
+ XR(XO_AUTOSAVE,"AUTO SAVE LIFE",lbOnOff,"Saves at midnight, payday and the pause menu.","Off: only slots and SAVE LIFE NOW save it."),
+ AR(OA_LIFESAVE,"SAVE LIFE NOW","Writes the current life to save memory.","Use it from the pause menu while you play."),
+ AR(OA_LIFEERASE,"ERASE LIFE","Deletes the saved life: cash, job and clock.","The next Play starts a new one."),
+ AR(OA_ROOMERASE,"ERASE SAVED MAP","Deletes the auto-saved map. Slots stay.","The default map returns at the next power on."),
+ AR(OA_SLOTSERASE,"ERASE ALL SLOTS","Deletes every room slot.","There is no undo. Only regret."),
+ AR(OA_ALLERASE,"ERASE EVERYTHING","Wipes all save memory: maps, life, options and","Toukebox. Main menu only. Be very sure."),
+ AR(OA_SRAMTEST,"SAVE MEMORY TEST","Checks that this cart or emulator really keeps","saves. A good first test on new hardware."),
+ AR(OA_RESET,"RESET ALL OPTIONS","Puts every option back to normal.","Press A. Nothing else is touched."),
 };
 typedef struct { const char*nm; const OptRow*r; u8 n; const char*d0; const char*d1; } OptSub;   // a section of a page with sections
 typedef struct { const char*nm; const OptRow*r; u8 n; const OptSub*sub; u8 ns; } OptPage;   // ns > 0: the page is made of sections (sub[]), r / n are unused
@@ -160,17 +160,17 @@ typedef struct { const char*nm; const OptRow*r; u8 n; const OptSub*sub; u8 ns; }
 #define PGS(nm,t) {nm,0,0,t,(u8)(sizeof(t)/sizeof(t[0]))}
 #define SUB(nm,t,d0,d1) {nm,t,(u8)(sizeof(t)/sizeof(t[0])),d0,d1}
 static const OptSub simSubs[]={
- SUB("NEEDS",pgSimNeeds,"HOW FAST NEEDS RUN DOWN  MOOD AND HOW","MUCH A FALL HURTS"),
- SUB("JOB",pgSimJob,"THE CAREER  ITS QUOTA AND THE BILLS","AT MIDNIGHT"),
- SUB("SCORE",pgSimScore,"TRICK SCORES  YOUR TOP SPEED AND THE","ACTION CAM AFTER A BIG COMBO"),
- SUB("BORES",pgSimSims,"WHO MOVES IN OR WALKS PAST AND HOW","THE OTHERS LOOK AFTER THEMSELVES"),
- SUB("MIND",pgSimMind,"THE THOUGHT BUBBLE AND THE WANTS AND","FEARS IN THE HUD"),
- SUB("CHEAT",pgSimMaster,"DEBUG CHEAT CONSOLE  EXTREME BODY SLIDERS","AND A BIGGER BODY BOX  DEBUG CODE ONLY"),   // (keep it last: pgNs hides it)
+ SUB("NEEDS",pgSimNeeds,"How fast needs run down, how mood plays in,","and how much a fall hurts."),
+ SUB("JOB",pgSimJob,"The career, its quota and the bills","at midnight."),
+ SUB("SCORE",pgSimScore,"Trick scores, your top speed, and the action","cam that follows a big combo."),
+ SUB("BORES",pgSimSims,"Who moves in or walks past, and how the others","look after themselves."),
+ SUB("MIND",pgSimMind,"The thought bubble, and the wants and fears","in the HUD."),
+ SUB("CHEAT",pgSimMaster,"The debug cheat console: extreme body sliders","and a bigger body box. Debug code only."),   // (keep it last: pgNs hides it)
 };
 static const OptSub timeSubs[]={
- SUB("DAY",pgTimeDay,"HOW LONG A GAME DAY IS AND HOW THE","CLOCK SHOWS IT"),
- SUB("AGES",pgTimeAges,"HOW FAST EVERY LIFE STAGE PASSES AND WHO","MAY USE THE WATER PIPE"),
- SUB("TIMERS",pgTimeTimers,"HOW LONG THE COMBO CHAIN WAITS AND HOW","LONG POP UP MESSAGES STAY"),
+ SUB("DAY",pgTimeDay,"How long a game day is, and how the","clock shows it."),
+ SUB("AGES",pgTimeAges,"How fast every life stage passes, and who","may use the water pipe."),
+ SUB("TIMERS",pgTimeTimers,"How long the combo chain waits, and how","long pop-up messages stay."),
 };
 static const OptPage optPages[NOPG]={ PG("VIDEO",pgVideo), PGS("SIMU",simSubs), PGS("TIME",timeSubs), PG("AUDIO",pgAudio), PG("INPUT",pgInput), PG("HUD",pgHud), PG("ROOMS",pgRooms), PG("DATA",pgData) };
 static int opPage, opFocus; static u8 opSel[NOPG][5], opSub[NOPG];   // opFocus: the cursor is on the section strip; opSel is kept per page and per section
@@ -396,22 +396,24 @@ static void settingsScreen(void){   // the OPTIONS screen (the name stays so eve
 }
 static const char* const optHelp[]={
     ">Tuning the Game",
-    "Options change how BORE looks, runs and plays.",
-    "Pick a preset, or tune every detail. There are",
+    "Options change how BORE looks, runs and plays. Pick",
+    "a preset, or tune every detail yourself. There are",
     "eight pages: VIDEO, PLAY, TIME, AUDIO, INPUT,",
     "HUD, ROOMS and DATA.",
     ">Gameplay",
     "PLAY sets how demanding needs are, whether you",
-    "work, bills, score, how forgiving injuries are",
-    "(gentle or no death) and how free the Sims are.",
-    "TIME sets day length and ageing.",
+    "work, whether bills come, how score counts, how",
+    "forgiving injuries are (gentle, or no death at all) and",
+    "how free the Sims are. TIME sets how long a day",
+    "lasts and how fast everyone ages.",
     ">Audio and Buttons",
-    "GAME MUSIC plays your checked songs while you",
-    "play. INPUT swaps buttons and tests them.",
+    "GAME MUSIC plays your checked songs while you play.",
+    "INPUT swaps buttons and tests them.",
     ">Safe to Experiment",
-    "A gold dot marks every changed setting. SELECT",
-    "restores one, and RESET ALL OPTIONS on the DATA",
-    "page puts everything back.",
+    "A gold dot marks every setting you changed. SELECT",
+    "puts one back, and RESET ALL OPTIONS on the",
+    "DATA page puts everything back. Nothing here is",
+    "final.",
     ">Controls",
-    "L and R change page, UP and DOWN pick a row,",
-    "LEFT and RIGHT change it."};
+    "L and R change page, UP and DOWN pick a row, LEFT",
+    "and RIGHT change it."};

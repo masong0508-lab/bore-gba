@@ -367,20 +367,20 @@ static int nbShrink(void){   // 1 = shrunk, 0 = nothing happened (it said why)
     if(cut){   // the warning: which lots, what is built on them, who lives there; then a NO / YES that starts on NO
         static char b[14][52]; const char*ln[18]; int n=0, nb=0, built=0, fam=0, shown=0; char*e;
         for(int i=0;i<NB_LOTS;i++){ const NbLot*L=&nbT.lot[i]; if(!nbCutOff(L,nw,nh)) continue; if(L->slot>=0) built++; if(bkFind(nbKey(&nbT),i)>=0||nbWho(i,0)) fam++; }
-        ln[n++]=">THIS CANNOT BE UNDONE";
-        e=slCat(b[nb],"THE TOWN GOES FROM "); e=slNum(e,ow); e=slCat(e," X "); e=slNum(e,oh); e=slCat(e," TO "); e=slNum(e,nw); e=slCat(e," X "); slNum(e,nh); ln[n++]=b[nb++];
-        ln[n++]=">LOTS THAT WILL BE DELETED";
+        ln[n++]=">This cannot be undone";
+        e=slCat(b[nb],"The town goes from "); e=slNum(e,ow); e=slCat(e," x "); e=slNum(e,oh); e=slCat(e," to "); e=slNum(e,nw); e=slCat(e," x "); slNum(e,nh); ln[n++]=b[nb++];
+        ln[n++]=">Lots that will be deleted";
         for(int i=0;i<NB_LOTS;i++){ const NbLot*L=&nbT.lot[i]; if(!nbCutOff(L,nw,nh)) continue;
             if(shown<4){ e=slCat(b[nb],"- "); e=slCat(e,L->name); e=slCat(e,L->kind==LKIND_COMM?"  PUBLIC":"  HOME LOT"); slCat(e,L->slot>=0?"  BUILT ON":"  EMPTY"); ln[n++]=b[nb++]; }
             shown++; }
-        if(shown>4){ e=slCat(b[nb],"AND "); e=slNum(e,shown-4); slCat(e," MORE"); ln[n++]=b[nb++]; }
-        ln[n++]=">WHAT YOU LOSE";
-        e=slNum(b[nb],built); e=slCat(e,built==1?" LOT HAS A HOUSE OR BUILD ON IT":" LOTS HAVE A HOUSE OR BUILD ON THEM"); ln[n++]=b[nb++];
-        ln[n++]="ALL OF IT GOES WITH THE LOT  FLOORS AND FURNITURE";
-        e=slNum(b[nb],fam); e=slCat(e,fam==1?" LOT HAS A HOUSEHOLD  THEY LEAVE":" LOTS HAVE HOUSEHOLDS  THEY LEAVE"); ln[n++]=b[nb++];
-        ln[n++]="GROWING BACK BRINGS NONE OF IT BACK";
-        ln[n++]=">KEPT SAFE";
-        ln[n++]="YOUR HOME  THE LOT YOU ARE ON  AND LOTS INSIDE";
+        if(shown>4){ e=slCat(b[nb],"...and "); e=slNum(e,shown-4); slCat(e," more"); ln[n++]=b[nb++]; }
+        ln[n++]=">What you lose";
+        e=slNum(b[nb],built); e=slCat(e,built==1?" lot has a house or build on it":" lots have a house or build on them"); ln[n++]=b[nb++];
+        ln[n++]="All of it goes with the lot, floors and furniture.";
+        e=slNum(b[nb],fam); e=slCat(e,fam==1?" lot has a household. They leave town.":" lots have households. They all leave town."); ln[n++]=b[nb++];
+        ln[n++]="Growing the town again brings none of it back.";
+        ln[n++]=">Kept safe";
+        ln[n++]="Your home, the lot you are on, and lots inside.";
         helpScreen("SHRINK THE TOWN",ln,n);
         e=slCat(b[nb],"LOSE "); e=slNum(e,cut); slCat(e,cut==1?" LOT":" LOTS");
         const char*yn[2]={"NO  KEEP THE TOWN","YES  SHRINK IT"}; if(menu(b[nb],yn,2)!=1){ toast("NOTHING CHANGED"); return 0; } }
@@ -741,28 +741,28 @@ static int nbLotMenu(int li){   // returns 1 when the screen should close (play 
 }
 static const char* const nbHelp[]={
     ">The Neighborhood",
-    "A town is a map of lots, each a place to live,",
-    "visit or build. Choose a town under Play, or make",
-    "a new one.",
+    "A town is a map of lots. Each one is a place to live,",
+    "visit or build. Choose a town under Play, or make a",
+    "new one.",
     ">Moving In",
     "A on a lot offers Play, Build, Move In and Rename.",
-    "Moving in buys the lot and sells your old home.",
-    "Price depends on the land and what is built on it.",
+    "Moving in buys the lot and sells your old home. The",
+    "price follows the land and whatever stands on it.",
     ">Shaping the Land",
-    "Paint ground, lay roads, plant trees and add lots.",
-    "A lot can be a home, a park, a skate park, a plaza,",
-    "a lounge or part of the old town. L and R change",
-    "tool, and SELECT picks a lot's kind.",
+    "Paint ground, lay roads, plant trees, add lots. A lot",
+    "can be a home, a park, a skate park, a plaza, a lounge",
+    "or a piece of old town. L and R change tool, and",
+    "SELECT picks a lot's kind.",
     ">Community Lots",
-    "Parks and plazas are visited, not built in. To",
+    "Parks and plazas are for visiting, not building in. To",
     "change one, work on it from this town view. Make",
     "Community and Make Residential switch a lot.",
     ">Places to Go",
-    "Shops and venues: Skate Shop, Taco Bore, gym,",
-    "arcade, nightclub, grocery, bank, hospital, cafe,",
-    "bar, salon, pet shop, library, casino, cinema and",
-    "pool. Each has a counter and things to do. CALL A",
-    "CAB on the phone lists places your town lacks.",
+    "Skate Shop, Taco Bore, gym, arcade, nightclub,",
+    "grocery, bank, hospital, cafe, bar, salon, pet shop,",
+    "library, casino, cinema and pool. Each has a counter",
+    "and things to do. CALL A CAB on the phone lists the",
+    "places your town is missing.",
     ">The Town Menu",
     "START opens it: zoom, season, time of day, rename,",
     "grow or shrink the town, and leave."};

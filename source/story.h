@@ -210,25 +210,29 @@ static const StCh* const stChs[STY_N]={0,stRoom,stWed,stPar,stSkate,stHouse,stFr
 static const u8 stLen[STY_N]={0,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6};   // (6 each: the story card and the journal have room for six rows)
 static const char* const stNm[STY_N]={"","ROOMMATES","NEWLYWEDS","SINGLE PARENT","SKATE LIFE","HOUSEFULL","BEST FRIENDS","RAGS TO RICHES","CAREER CLIMBER","NEW IN TOWN","SECOND CHANCE","TV SHOW & TELL","MOVING IN","DROP IN","TACO TUESDAY","ICEBREAKER","SPARKS","NINE TO FIVE","GOOD BOY","FIGHT NIGHT","OPEN HOUSE","GREEN THUMB"};
 static int stRew(int ch){ return 5000+ch*1000; }   // the pay of a chapter rises with the story: 5000, 6000, 7000 ...
-static const char* const stAbout[STY_N]={"","A NEW ROOMMATE  AND MAYBE MORE","JUST MARRIED  A FAMILY TO START","YOU AND YOUR KID  ON YOUR OWN"};
+static const char* const stAbout[STY_N]={"","A new roommate, and maybe more.","Just married. A family to start.","You and your kid, on your own."};
 static const char* const stTag[STY_N]={"","ROMANCE","ROMANCE AND FAMILY","FAMILY","SKILL AND CAREER","FRIENDSHIP AND HOME","FRIENDSHIP","MONEY AND CAREER","CAREER AND SKILL","FRIENDSHIP AND TOWN","ROMANCE AND REPAIR","FAME AND RECOVERY","HOME AND BUILDING","SKATE AND RAMPS","TOWN AND FOOD","FRIENDSHIP","ROMANCE","MONEY AND CAREER","PETS AND FAMILY","FIGHTS AND GRIT","FRIENDSHIP AND HOME","GROWN-UPS AND PLANTS"};
-static const char* const stBlurb[STY_N][3]={{0,0,0},{"JAD MOVES INTO A FLATSHARE","WITH BRANNET  A STRANGER","THE TOWN DOES THE REST"},
-    {"NICK AND ELI  JUST MARRIED","BILLS  DATE NIGHTS  AND A","FAMILY TO START"},{"MARA AND HER GIRL JUNIE","ON THEIR OWN  MAKE THE","MONEY WORK  LET PEOPLE IN"},
-    {"DEX AND A BOARD  FROM THE","DRIVEWAY TO THE SKATE PARK","TO A PRO CONTRACT"},{"BRAM SHARES WITH IVAN  FIX","UP THE PLACE  FILL IT WITH","FRIENDS FROM OLD TOWN"},
-    {"SAM  KIKI AND RUSS  NIGHTS","AT THE LOUNGE  THE PLAZA","AND ONE TRUE BEST FRIEND"},{"PENNY HAS NOTHING  A SHADY","DEAL  A NIGHT IN THE CELLS","THEN THE STRAIGHT ROAD UP"},
-    {"WES HAS A DESK AND A PLAN","THE LOUNGE  OLD TOWN DEALS","AND THE CORNER OFFICE"},{"ROSA JUST MOVED IN WITH","GWEN  SEE EVERY CORNER OF","TOWN AND MAKE IT HOME"},
-    {"LEO AND VAL FELL OUT  THE","OLD CREW  THE PLAZA  ONE","LAST CHANCE TO FIX IT"},
-    {"A FALLEN TV JUDGE  WIN BACK","HER FANS  AND SHAKE THE URGE","FOR ONE MORE MARTINI"},
-    {"THE WALLS ARE BARE AND THE","TOWN SENT 1500 SIMOLEONS","MAKE IT FEEL LIKE HOME"},
-    {"A BOARD AND TWO RAMPS WERE","LEFT IN YOUR YARD  NO NOTE","RIDE THEM  THEN RIDE THE TOWN"},
-    {"YOU HAVE BEEN INDOORS FAR TOO","LONG  TACOS  THE GYM  THE","LOUNGE  AND A TOWN TO EAT"},
-    {"A NEIGHBOUR STANDS AT YOUR","DOOR  NEITHER OF YOU KNOWS","WHAT TO SAY  BREAK THE ICE"},
-    {"SOMEBODY AT THE DOOR CAUGHT","YOUR EYE  AND LOOKS LIKE","THEY NOTICED YOU TOO"},
-    {"THE BILLS CAME AND THE PHONE","IS FULL OF JOB OFFERS  WORK","WELL  GET NOTICED  CLIMB"},
-    {"A LITTLE FACE IN THE PET SHOP","WINDOW PICKED YOU  BRING IT","HOME AND TEACH IT MANNERS"},
-    {"SOMEBODY HAS BEEN TALKING AND","NOW THEY WANT A PIECE OF YOU","TRAIN  GUARD  AND BEAT THEM"},
-    {"WORD GOT AROUND AND THE WHOLE","STREET WANTS TO MEET YOU","FEED THEM  SEE WHO STAYS"},
-    {"A PACKAGE OF SEEDS CAME IN THE","MAIL WITH NO NOTE  PLANT","THEM  SELL THE CROP LEGALLY"}};
+static const char* const stBlurb[STY_N][3]={{0,0,0},{"Jad moves into a flatshare with","Brannet, a stranger. The town","does the rest."},
+    {"Nick and Eli just got married.","Bills, date nights and a family","to start."},
+    {"Mara and her girl Junie, on","their own. Make the money work,","and let people in."},
+    {"Dex and a board. From the","driveway to the skate park to","a pro contract."},
+    {"Bram shares with Ivan. Fix up","the place and fill it with","friends from old town."},
+    {"Sam, Kiki and Russ: nights at the","lounge, the plaza, and one","true best friend."},
+    {"Penny has nothing. A shady deal,","a night in the cells, then the","straight road up."},
+    {"Wes has a desk and a plan. The","lounge, old town deals, and the","corner office."},
+    {"Rosa just moved in with Gwen.","See every corner of town and","make it home."},
+    {"Leo and Val fell out. The old","crew, the plaza, one last","chance to fix it."},
+    {"A fallen TV judge. Win back her","fans, and shake the urge for","one more martini."},
+    {"The walls are bare and the town","sent 1500 simoleons. Make it","feel like home."},
+    {"A board and two ramps were left","in your yard. No note. Ride","them, then ride the town."},
+    {"You have been indoors far too","long. Tacos, the gym, the lounge,","and a town to eat."},
+    {"A neighbour stands at your door.","Neither of you knows what to say.","Break the ice."},
+    {"Somebody at the door caught your","eye, and looks like they noticed","you too."},
+    {"The bills came, and the phone is","full of job offers. Work well,","get noticed, climb."},
+    {"A little face in the pet shop","window picked you. Bring it home","and teach it manners."},
+    {"Somebody has been talking, and now","they want a piece of you. Train,","guard, and beat them."},
+    {"Word got around and the whole","street wants to meet you. Feed","them, see who stays."},
+    {"A package of seeds came in the","mail with no note. Plant them,","sell the crop legally."}};
 static u16 stShown;   // the chapter whose card was shown last (id*16+chapter+1): a card once per chapter
 static u8 stId, stCh, stPart=255, stKid=255, stKidDay=255, stGuest;   // the story, its chapter, your partner and your kid (uids), the day the promised child comes, a guest came
 static u8 stTkL;   // which tasks of the chapter are done (bits 0-2; saved in bits 3-5 of the chapter byte)

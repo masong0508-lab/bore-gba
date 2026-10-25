@@ -178,9 +178,9 @@ static void kpGoals(const KmMem*m){
 }
 static void kpHelp(void){
     static const char* const pg[3]={
-      "D PAD walks the giant, hold B to run. A does what the MODE in the text strip says. L and R change the mode: HAND, ROAD, a building, DEMOLISH, MOVE or NUBBIN. HAND gathers from the ground under your feet and picks up goods: A again puts them down. SELECT: overview, status, map. START: menu.",
-      "A site is a building waiting for goods. The Nubbins carry them along ROADS from the storehouse, so build a STOREHOUSE first and lay road to every door. Roads are the realm: a building with no road beside it is never served.",
-      "Homes bring Nubbins, Nubbins take jobs, jobs make goods. A well and a tavern near a workplace make it work faster. Build the castle in four stages and crown a monarch. The realm never ends: GOALS shows what is next and the ADVISOR what is stuck." };
+      "D pad walks the giant and B runs. A does whatever the MODE in the text strip says; L and R change it: HAND, ROAD, a building, DEMOLISH, MOVE or NUBBIN. The HAND lifts goods off the ground under your feet, and A again puts them down. SELECT: overview, status, map. START: menu.",
+      "A site is a building waiting for goods. The Nubbins carry them along ROADS from the storehouse, so build a STOREHOUSE first and lay road to every door. A building with no road beside it never gets served. Roads are the realm.",
+      "Homes bring Nubbins, Nubbins take jobs, jobs make goods. A well and a tavern near a workplace speed it up. Build the castle in four stages and a monarch is crowned. The realm never ends: GOALS shows what is next, and the ADVISOR tells you what is stuck." };
     int p=0; u32 cnt=0; u16 prev=keyNow();
     for(;;){ u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
         if(pr&K_B) return; if(pr&(K_A|K_RIGHT|K_START)){ if(p==2) return; p++; cnt=0; } if(pr&K_LEFT&&p) p--;

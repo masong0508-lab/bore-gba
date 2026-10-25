@@ -1,7 +1,7 @@
 #!/bin/sh
 # test_vslines.sh - the scrolling-text line breaker (main.c vsLines) on a PC, with the game's own font widths, under AddressSanitizer + UBSan.
 # It pulls vsLines out of source/main.c itself (so it tests the real code), then runs it on every mission brief in expand.h and kingmis.h and on
-# 200,000 random texts of narrow letters (the case that overflowed its 44 byte buffers and hung every expansion pack's page).
+# the kingdom's HOW TO PLAY pages, and 200,000 random texts of narrow letters (the case that overflowed its 44 byte buffers and hung every expansion pack's page).
 # Termux has no writable /tmp: it works in $TMPDIR, or in a folder of its own.
 cd "$(dirname "$0")/.." || exit 1
 W="${TMPDIR:-.}/vslines_test.$$"; mkdir -p "$W" || exit 1
@@ -11,6 +11,8 @@ python3 - "$W" <<'PYX'
 import re, sys
 src = open('source/expand.h').read() + open('source/kingmis.h').read()
 b = ['"%s %s"' % (m.group(2), m.group(3)) for m in re.finditer(r'XM\("((?:[^"\\]|\\.)*)",\s*"((?:[^"\\]|\\.)*)",\s*"((?:[^"\\]|\\.)*)"', src)]
+kp = open('source/kingplay.h').read(); m = re.search(r'static const char\* const pg\[3\]=\{(.*?)\};', kp, re.S)
+b += ['"%s"' % x for x in re.findall(r'"((?:[^"\\]|\\.)*)"', m.group(1))]                         # the kingdom's HOW TO PLAY pages (212 px wide, 8 rows)
 open(sys.argv[1] + '/briefs.h', 'w').write('static const char*B[]={%s};\n#define NB %d\n' % (",".join(b), len(b)))
 PYX
 cat > "$W/t.c" <<'CEOF'

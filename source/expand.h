@@ -444,14 +444,14 @@ static const XMs xmBase[]={
 #undef TL
 #define XN(a) ((u8)(sizeof(a)/sizeof(a[0])))
 static const XPk xPk[XP_N]={
-  {"BORE-OUT MAN!","A SPACE ODDITY",{"BURNT OUT AT A DESK JOB","ONE FLYER LATER YOU ARE","AN ASTRONAUT  SORT OF"},xmSpace,XN(xmSpace),1,XMODE_NONE,0,RGB(2,3,12),RGB(10,24,31),0},
-  {"BOREZIES!","THE BORED WALK AMONG US",{"THE TOWN GOT SO BORED IT","TURNED  CURE THEM WITH FUN","JOKES  HUGS  PASS THE DUTCHIE"},xmZomb,XN(xmZomb),2,XMODE_HORDE,0,RGB(3,9,3),RGB(14,30,10),"HORDE MODE"},
+  {"BORE-OUT MAN!","A SPACE ODDITY",{"Burnt out at a desk job. One flyer","later you are an astronaut.","Sort of."},xmSpace,XN(xmSpace),1,XMODE_NONE,0,RGB(2,3,12),RGB(10,24,31),0},
+  {"BOREZIES!","THE BORED WALK AMONG US",{"The town got so bored it turned.","Cure them with fun: jokes, hugs,","and pass the dutchie."},xmZomb,XN(xmZomb),2,XMODE_HORDE,0,RGB(3,9,3),RGB(14,30,10),"HORDE MODE"},
   {"WORLD WAR BORE","A WAR OVER A HEDGE",{"The Bore Defence Force against","the Eastern Army. A very small,","very silly war. Enlist today."},xmWar,XN(xmWar),3,XMODE_NONE,0,RGB(9,9,3),RGB(27,23,9),0},
-  {"BORTUA FIGHTER","THE 3D FIGHTING SENSATION",{"ONE VIRAL PUNCH AND NOW","EVERY BORE WANTS A PIECE","PLUS A WHOLE ARCADE MODE"},xmFight,XN(xmFight),4,XMODE_FIGHTER,0,RGB(13,2,2),RGB(31,22,4),"ARCADE MODE"},
-  {"BOREAGOTCHI!","IT NEEDS YOU  CONSTANTLY",{"A PIXEL BLOB ON A KEYCHAIN","AND REAL PETS WHO ARE","JEALOUS  PLUS THE HANDHELD"},xmGotchi,XN(xmGotchi),7,XMODE_GOTCHI,0,RGB(14,3,12),RGB(31,20,27),"THE HANDHELD"},
-  {"BOREPILOGUE","THE LAST CHAPTER",{"RETIRE  REMINISCE  SETTLE","OLD SCORES AND LEAVE A","LEGACY  GROWN-UPS ONLY"},xmEpi,XN(xmEpi),8,XMODE_NONE,1,RGB(7,5,10),RGB(25,22,29),0},
-  {"BORE","THE BASE GAME  TEN MISSIONS",{"ONE MISSION FOR EACH THING","THE GAME DOES  BUILD  SKATE","LOVE  WORK  FIGHT  GROW"},xmBase,XN(xmBase),0,XMODE_NONE,0,RGB(3,6,12),RGB(31,26,6),0},
-  {"BOREFORE TIME","A GIANT AMONG THE SMALL",{"BE A GIANT IN A LAND OF TINY","FOLK  GATHER  HAUL  BUILD","A CASTLE FIT FOR A KING"},xmKing,XN(xmKing),6,XMODE_KING,0,RGB(3,10,4),RGB(20,30,12),"KINGDOM MODE"},
+  {"BORTUA FIGHTER","THE 3D FIGHTING SENSATION",{"One viral punch, and now every Bore","wants a piece of you.","Plus a whole arcade mode."},xmFight,XN(xmFight),4,XMODE_FIGHTER,0,RGB(13,2,2),RGB(31,22,4),"ARCADE MODE"},
+  {"BOREAGOTCHI!","IT NEEDS YOU  CONSTANTLY",{"A pixel blob on a keychain, and","real pets who are jealous.","Plus the handheld."},xmGotchi,XN(xmGotchi),7,XMODE_GOTCHI,0,RGB(14,3,12),RGB(31,20,27),"THE HANDHELD"},
+  {"BOREPILOGUE","THE LAST CHAPTER",{"Retire, reminisce, settle old scores","and leave a legacy.","Grown-ups only."},xmEpi,XN(xmEpi),8,XMODE_NONE,1,RGB(7,5,10),RGB(25,22,29),0},
+  {"BORE","THE BASE GAME  TEN MISSIONS",{"One mission for each thing the game","does: build, skate, love, work,","fight, grow."},xmBase,XN(xmBase),0,XMODE_NONE,0,RGB(3,6,12),RGB(31,26,6),0},
+  {"BOREFORE TIME","A GIANT AMONG THE SMALL",{"Be a giant in a land of tiny folk.","Gather, haul, and build a","castle fit for a king."},xmKing,XN(xmKing),6,XMODE_KING,0,RGB(3,10,4),RGB(20,30,12),"KINGDOM MODE"},
 };
 static const u8 xpBase[XP_N]={0,5,10,20,25,40,0,60};   // where each pack's missions start in the done bits (the base game has its own block: BM_OFF)
 #define EX_SHELF (XP_N-1)   // the shelf lists the seven packs; the base game's ten missions are in story mode (pause menu > STORY > STORY MISSIONS)
@@ -947,8 +947,8 @@ static void exPackScreen(int p,int ingame){
             if(!rt){ char*e=slCat(pb,"+"); e=slNum(e,xPk[p].ms[m].pay*100); rt=pb; }
             text(229-tw(rt,1),y,rt,cur?GOLD:soon||!open?RGB(12,16,22):RGB(14,24,16),1); }
         rect(8,121,224,1,RGB(14,26,31));
-        if(hasMode&&sel==0){ if(p==XP_ZOMB){ text(12,125,"AFTER THE FIVE MISSIONS  A HORDE OF YOUR OWN",RGB(20,26,31),1); text(12,134,hzUnlocked()?"100 WAVES OR ENDLESS  14 MUTATORS":"FINISH ALL FIVE MISSIONS TO OPEN IT",RGB(17,29,31),1); }
-          else { text(12,125,"A MODE OF ITS OWN  NO LIFE NEEDED",RGB(20,26,31),1); text(12,134,P->bl[2],RGB(17,29,31),1); } }
+        if(hasMode&&sel==0){ if(p==XP_ZOMB){ text(12,125,"After the five missions, a horde of your own.",RGB(20,26,31),1); text(12,134,hzUnlocked()?"100 waves or endless, with 14 mutators.":"Finish all five missions to open it.",RGB(17,29,31),1); }
+          else { text(12,125,"A mode of its own. No life needed.",RGB(20,26,31),1); text(12,134,P->bl[2],RGB(17,29,31),1); } }
         else { const XMs*x=&P->ms[sel-hasMode]; exBrief(12,125,216,x,RGB(20,26,31)); }
         s2pill(5,147,tw("A START",1)+10,"A START"); s2pill(9+tw("A START",1)+10,147,tw("B BACK",1)+10,"B BACK");
         present();
@@ -1047,8 +1047,8 @@ static void exRunModal(void){   // the mission card (1 a mission starts, 2 one i
             { char b[40]; char*e=slCat(b,"+"); e=slNum(e,xPk[p].ms[exLastM].pay*100); slCat(e," SIMOLEONS  +15 JENES"); text(60,62,b,RGB(10,28,12),1); }
             stSparkle(cnt,12,26,216,100); rect(14,72,212,1,RGB(14,26,31));
             if(kind==2) exCardBody(p,exM,78,1);
-            else if(exPackDone(p)>=exPackPlay(p)){ text(16,80,"PACK COMPLETE",GOLD,2); text(16,100,"EVERY MISSION IN THIS PACK IS DONE",WHITE,1); }
-            else { text(16,80,"THAT IS ALL FOR NOW",GOLD,1); text(16,92,"MORE MISSIONS ARE COMING SOON",WHITE,1); }
+            else if(exPackDone(p)>=exPackPlay(p)){ text(16,80,"PACK COMPLETE",GOLD,2); text(16,100,"Every mission here is done. Take a bow.",WHITE,1); }
+            else { text(16,80,"THAT IS ALL FOR NOW",GOLD,1); text(16,92,"More missions are on the way.",WHITE,1); }
         }
         s2pill(5,147,40,"A OK");
         { int ct; if(kind!=3&&exPlace(&ct)) text(50,149,"GO THERE  PAUSE  STORY  MISSION",RGB(17,29,31),1); }

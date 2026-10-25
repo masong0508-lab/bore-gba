@@ -1200,3 +1200,13 @@ OPTIONS > INPUT has a new row, DIAGONALS (`XO_DIAG`, opts.h). 8 WAY (the default
 - **Bigger realms**: `KS_MAXB` 40 -> 64 buildings, `KS_MAPS` 10 -> 12 distance maps, `KS_POPCAP` 320 -> 400, `KGS_MAXSPAN` 4 -> 6 slots (the worst realm the simulation allows is now 9,119 bytes; it still saves through the cache scratch, which has 11,845). The pool use of a 128 x 128 realm is 26,008 of 30,720 bytes (`tools/test_kingmem.sh`). Old saves load unchanged.
 - **Frame rate**: the text strip's redraw (`khStrip`) took about two frames and ran every time the giant crossed a cell, so the sim got 40% of the frames while walking. It now works out each row's light once, and `kpHud` skips the redraw when the two lines are unchanged: measured in the emulator, the realm sim runs at 99% of the frames standing still and 88 to 96% while walking, in a sparse realm and in a crowded one.
 - Not run on a cart.
+
+
+## Help and info text: the voice, and the width check
+Every help screen, tutorial card, settings description, pack and story blurb is written like a person talking: plain words, second person, the odd dry aside,
+specific rather than generic (the WORLD WAR BORE mission copy and the EP6 GOALS screen are the model). Controls stay exact. Sentence case for prose; headings,
+labels and values stay in capitals. The font has no em dash and no curly quotes: use a full stop, a comma or a colon.
+`tools/check_helptext.py` (run by `tools/test_helptext.sh`) measures every hand-wrapped line in the game's own font: the eight HOW TO PLAY tabs (206 px, headings
+200), the creator demo's ABOUT page, the tutorial cards (214 px, goal hints 200), the advisor tips, the settings' two-line descriptions (214 px), the pack
+shelf blurbs and the story blurbs (166 px). `tools/test_vslines.sh` also runs the kingdom's HOW TO PLAY pages through the real line breaker.
+To rewrite a tab, edit the array and run the checker; or reflow a paragraph with the same widths (the checker prints the offending line and its width).
