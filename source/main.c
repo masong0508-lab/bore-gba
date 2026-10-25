@@ -3327,7 +3327,7 @@ static void trickName(int hs,int grab,int perfect){
 }
 static void swName(void){ int n=0; while(lnBuf[n]) n++; if(n>15) return; for(int i=n;i>=0;i--) lnBuf[i+7]=lnBuf[i]; const char*q="SWITCH "; for(int i=0;i<7;i++) lnBuf[i]=q[i]; }
 static void drawPlanter(int sx,int sy,int x,int y,int t); static void drawPlanterS(int sx,int sy,int st,int wa,int sn,int t); static void drawDispCounter(int sx,int sy,int t);   // weed.h
-static void venueDrawCounter(int sx,int sy,int t); static void venueDrawShip(int sx,int sy,int ox,int oy,int t); static int venueUse(void);   // venues.h
+static void venueDrawCounter(int sx,int sy,int ox,int oy,int t); static void venueDrawShip(int sx,int sy,int ox,int oy,int t); static int venueUse(void);   // venues.h
 static void hhStart(void); static void hhTick(void); static int hhSocR(int useLabel); static int hhCallFloors(void); static int petR(void); static int wdUse(void); static void wdTick(void);   // house.h (included further down, next to the drawing it hooks into)
 static void drawCounter(int sx,int sy,int t); static void dbgMenu(void); static void wpPre(u16*kp,u16*pp); static void fgPre(u16*kp,u16*pp); static int slfMenu(void); static void slfFx(void); static int slfPose(void); static void fgDraw(void); static int fgGate(u16*pr); static int fgRcNow(int*r); static void wpDraw(void); static void wpConfiscate(void);   // weapons.h
 // ---- COLLECTIBLES (like THPS): the letters S K A T E and one hidden tape float over the floor of a skate lot. Touch one to take it. ----
@@ -3402,6 +3402,7 @@ static void qpHold(void){   // in VERT: nothing carries you along the pipe (only
 // BABY: cannot be steered. A caretaker keeps the needs up and the baby toddles about by itself: stops now and then, picks a new way
 // every second or two, and turns round when it walks into something.
 static const char* const growNote[AG_N]={"","NOW A CHILD","NOW A TEEN","NOW AN ADULT","NOW AN ELDER"};
+static void swPre(u16*k,u16*pr);   // selfwill.h
 static u16 babyPad(void){
     static const u16 dm[9]={0,K_RIGHT,K_LEFT,K_UP,K_DOWN,K_RIGHT|K_DOWN,K_LEFT|K_DOWN,K_RIGHT|K_UP,K_LEFT|K_UP};
     static int t, dir, still; static s32 ox, oy;
@@ -3417,6 +3418,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
     padTrack(pr);   // (DIAGONALS, opts.h: which D-pad axis was pressed last)
     lsTick(); trnTick();   // TIMED RUN countdown: one game step
     if(stage==AG_BABY&&!ldead){ k=babyPad(); pr=0; }   // uncontrollable stage: the pad is ignored (the pause menu still works)
+    swPre(&k,&pr);   // selfwill.h: nobody on the pad: your Sim looks after itself
     fgPre(&k,&pr);   // fight.h: L = guard, L + R = fight stance, R = punches
     wpPre(&k,&pr);   // weapons.h: the weapon button (R with a weapon in hand, R + L = next weapon)
     int fh=surf8(lfx,lfy);
@@ -3818,6 +3820,7 @@ static int lpsx, lpsy;   // where the player is on screen (zoom centre)
 static const u8 faceView[16]={3,3,0,0,0,0,0,1,1,1,2,2,2,2,3,3};
 #include "house.h"   // households: up to 7 more Sims with free will, SELECT switches who you control
 #include "pets.h"    // PETS: dogs and cats that live with the household (the screens are in petui.h)
+#include "selfwill.h" // YOUR SIM ALONE: left alone, your own Sim eats, sleeps, chats and cheers itself up
 static int plX, plY, plZ, plFh, plV, plBob;   // feet on screen, height above the floor, floor height under the feet, which baked view   // the waters' frame (roomFloors), whether the lot has any (wFqBuild), the player is in one (SWIMMING)
 static void lieTick(void); static u8 lieOn;   // lying.h: asleep on a bed
 static signed char plSq EWRAM_BSS;   // ALIVE tier 3: rows the sprite is squashed towards its feet (landing, sad slump, sleeping slump); 0 = normal
@@ -4065,7 +4068,7 @@ static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
             if(c=='g') drawCounter(sx,sy+1,(int)(lfr>>3));   // the arms shop counter (armsshop.h)
             if(c=='u') drawPlanter(sx,sy+1,ox,oy,(int)(lfr>>3));   // weed.h: the GROW PLANTER (its plant is the tile's wallMap byte)
             if(c=='&') drawDispCounter(sx,sy+1,(int)(lfr>>3));   // weed.h: the dispensary counter
-            if(c=='@'){ venueDrawShip(sx,sy+1,ox,oy,(int)(lfr>>3)); venueDrawCounter(sx,sy+1,(int)(lfr>>3)); }   // venues.h: a venue's counter (its look comes from the lot)
+            if(c=='@'){ venueDrawShip(sx,sy+1,ox,oy,(int)(lfr>>3)); venueDrawCounter(sx,sy+1,ox,oy,(int)(lfr>>3)); }   // venues.h: a venue's counter (its look comes from the lot)
             if(c=='n') drawSecCam(sx,sy+1,(int)(lfr>>3));   // TV SHOW & TELL: the security camera and gate (drawn by code)
             if(c=='j') drawSecGate(sx,sy+1);
             if(c=='x') drawWork(sx,sy+1,(int)(lfr>>3));   // the WORK MARKER: a gold pad with a briefcase (a normal job's minutes count here)

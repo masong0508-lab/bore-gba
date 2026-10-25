@@ -505,11 +505,36 @@ static void venueBuild(int x0,int y0,int x1,int y1,int ct){   // nbTemplate: a w
     vFront(x0,y0,x1,y1,ry1,cx,"PARK BENCH",ct==CT_BANK||ct==CT_LIBRARY?"ROSE BUSH":"RED FLOWER BED");
 }
 // ---- the counter, drawn by code ----
-static void venueDrawCounter(int sx,int sy,int t){
+// Every '@' tile is one isometric block, so a run of them is one long counter (no more stair-stepped slabs). Each kind of lot dresses it
+// differently: its own top, a trim stripe in the lot's colour, and props that fit (the bar's taps and pints, the bank's brass bars, the
+// arcade's prize case ...). The middle tile of a run carries the lot's sign; the others alternate two small props.
+#define VC_H 9   // the counter's height in px
+static void vcBox(int sx,int sy,u16 cT,u16 cL,u16 cR,u16 tr){   // one block on the tile whose floor centre is (sx,sy): both side faces with a trim stripe, panel grooves and a dark foot, then the top
+    int top=sy-VC_H; u16 eT=shade(cT,11), dL=shade(cL,10), dR=shade(cR,10), rim=lite(cT,19);
+    for(int t=-8;t<=8;t++){ int x=sx+t, at=t<0?-t:t, hh=(8-at)/2, y0=top+hh, yb=y0+VC_H; u16 c=t<0?cL:cR;
+        vline(x,y0,yb,c);
+        vline(x,y0+1,y0+2,tr);                                   // the trim stripe under the top
+        vline(x,yb-1,yb,t<0?dL:dR);                              // the foot
+        if(at==4||at==8) vline(x,y0+3,yb-2,t<0?dL:dR);           // panel grooves and the two edges
+        vline(x,top-hh,y0,cT);                                   // the top
+        px(x,top-hh,eT); px(x,y0,rim); }
+}
+static void vcP(int x,int y,int w,int h,u16 c){ rect(x,y-h,w,h,c); }   // a prop standing with its feet on row y
+static void vcGlass(int x,int y,int w,int h){ rect(x,y-h,w,1,RGB(24,30,31)); rect(x,y-h,1,h,RGB(20,27,29)); rect(x+w-1,y-h,1,h,RGB(20,27,29)); rect(x+1,y-h+1,w-2,h-1,RGB(8,14,18)); }   // a glass case: frame and dark inside
+static void venueDrawCounter(int sx,int sy,int ox,int oy,int t){
     const Venue*v=venueHere(); u16 a=v?v->a:RGB(14,10,6), b=v?v->b:RGB(26,22,10); int ct=v?v->ct:-1;
-    rect(sx-8,sy-9,17,8,a); rect(sx-8,sy-10,17,2,b); rect(sx-8,sy-2,17,1,RGB(3,3,4));   // the counter, its trim on top
-    int ix=sx-2, iy=sy-16;   // the little sign on it
-    switch(ct){
+    u16 T;   // the top
+    switch(ct){ case CT_TACO: T=RGB(28,26,20); break; case CT_GYM: T=RGB(14,14,16); break; case CT_ARCADE: T=RGB(5,7,16); break; case CT_CLUB: T=RGB(7,5,10); break;
+        case CT_GROCER: T=RGB(28,28,28); break; case CT_BANK: T=RGB(26,25,22); break; case CT_HOSPITAL: T=RGB(29,29,30); break; case CT_CAFE: T=RGB(22,15,8); break;
+        case CT_BAR: T=RGB(17,10,5); break; case CT_SALON: T=RGB(30,26,28); break; case CT_PETSHOP: T=RGB(22,16,8); break; case CT_LIBRARY: T=RGB(18,12,7); break;
+        case CT_CASINO: T=RGB(4,16,8); break; case CT_CINEMA: T=RGB(14,4,6); break; case CT_POOL: T=RGB(28,30,31); break; case CT_SPACE: T=RGB(21,23,27); break;
+        case CT_DOJO: T=RGB(24,20,12); break; case CT_SKSHOP: T=RGB(22,22,24); break; default: T=lite(b,12); }
+    vcBox(sx,sy,T,shade(a,10),a,b);
+    int ax=ox>0&&lifeMap[oy][ox-1]=='@', bx=ox<MW-1&&lifeMap[oy][ox+1]=='@', ay=oy>0&&lifeMap[oy-1][ox]=='@', by=oy<MH-1&&lifeMap[oy+1][ox]=='@';   // where this tile is in its run
+    int vx=!(ay||by)||ax||bx, i=0, n=1; { int x=ox, y=oy; while(vx?(x>0&&lifeMap[y][x-1]=='@'):(y>0&&lifeMap[y-1][x]=='@')){ if(vx) x--; else y--; i++; n++; } x=ox; y=oy; while(vx?(x<MW-1&&lifeMap[y][x+1]=='@'):(y<MH-1&&lifeMap[y+1][x]=='@')){ if(vx) x++; else y++; n++; } }
+    int top=sy-VC_H, ev=!(i&1), mid=i==n/2;
+    int ix=sx-2, iy=sy-16;   // the little sign on the middle tile
+    if(mid) switch(ct){
         case CT_TACO: rect(ix-2,iy+2,9,3,RGB(31,24,6)); rect(ix-1,iy+1,7,1,RGB(31,24,6)); px(ix,iy+3,RGB(8,24,6)); px(ix+3,iy+2,RGB(30,6,4)); px(ix+5,iy+3,RGB(8,24,6)); break;   // a taco
         case CT_GYM: rect(ix-2,iy+2,9,1,RGB(20,20,22)); rect(ix-3,iy,2,5,RGB(8,8,10)); rect(ix+6,iy,2,5,RGB(8,8,10)); break;                                                  // a dumbbell
         case CT_ARCADE: rect(ix-2,iy-1,8,6,RGB(4,4,6)); rect(ix-1,iy,6,4,((t>>2)&1)?RGB(4,28,30):RGB(30,6,28)); break;                                                          // a flashing screen
@@ -518,7 +543,7 @@ static void venueDrawCounter(int sx,int sy,int t){
         case CT_BANK: rect(ix,iy-2,1,7,RGB(31,28,6)); rect(ix-2,iy,5,1,RGB(31,28,6)); rect(ix-2,iy+3,5,1,RGB(31,28,6)); break;                                                  // a dollar-ish sign
         case CT_HOSPITAL: rect(ix-1,iy,7,2,RGB(30,4,4)); rect(ix+2,iy-3,2,8,RGB(30,4,4)); break;                                                                                 // a red cross
         case CT_CAFE: rect(ix,iy+1,5,4,WHITE); px(ix+5,iy+2,WHITE); if((t>>3)&1) px(ix+2,iy-1,RGB(24,24,24)); break;                                                            // a cup, steaming
-        case CT_BAR: rect(ix,iy,4,5,RGB(30,22,6)); rect(ix,iy,4,1,WHITE); break;                                                                                                // a pint
+        case CT_BAR: rect(ix-5,iy+3,13,1,RGB(26,26,28)); for(int k=0;k<3;k++){ rect(ix-3+k*4,iy+4,1,2,RGB(26,26,28)); rect(ix-4+k*4,iy,3,3,k==1?RGB(28,6,4):k==2?RGB(6,16,28):RGB(28,22,4)); } break;   // the taps: a chrome rail and three handles
         case CT_SALON: line(ix,iy,ix+5,iy+5,RGB(26,26,28)); line(ix+5,iy,ix,iy+5,RGB(26,26,28)); break;                                                                       // scissors
         case CT_PETSHOP: rect(ix+1,iy+2,4,3,RGB(26,16,8)); px(ix,iy,RGB(26,16,8)); px(ix+2,iy-1,RGB(26,16,8)); px(ix+4,iy-1,RGB(26,16,8)); px(ix+6,iy,RGB(26,16,8)); break;   // a paw
         case CT_LIBRARY: rect(ix-1,iy,7,5,RGB(8,12,24)); rect(ix+2,iy,1,5,RGB(28,28,24)); break;                                                                                 // a book
@@ -528,6 +553,26 @@ static void venueDrawCounter(int sx,int sy,int t){
         case CT_SPACE: rect(ix+1,iy-1,3,5,WHITE); px(ix+2,iy-2,RGB(30,6,4)); px(ix,iy+3,RGB(30,6,4)); px(ix+4,iy+3,RGB(30,6,4)); px(ix+2,iy+4,((t>>1)&1)?RGB(31,28,6):RGB(31,14,4)); break;   // a rocket, its flame flickering
         case CT_SKSHOP: rect(ix-2,iy+1,9,2,RGB(26,14,6)); rect(ix-2,iy+1,9,1,RGB(31,22,4)); px(ix-1,iy+3,RGB(4,4,6)); px(ix+5,iy+3,RGB(4,4,6)); break;   // a skateboard
         case CT_DOJO: rect(ix-2,iy+2,9,2,RGB(3,3,4)); rect(ix+1,iy+1,3,4,RGB(3,3,4)); px(ix+1,iy+5,RGB(3,3,4)); px(ix+3,iy+5,RGB(3,3,4)); break;                              // a black belt
+        default: break; }
+    else switch(ct){   // the others: two small props, one after the other
+        case CT_TACO: if(ev){ rect(sx-3,top-1,7,2,RGB(30,24,6)); px(sx-1,top-2,RGB(8,24,6)); px(sx+1,top-2,RGB(30,6,4)); } else { vcP(sx,top+1,3,5,RGB(28,4,4)); rect(sx,top-4,3,1,WHITE); } break;   // a tray with a taco, a cup
+        case CT_GYM: if(ev){ vcP(sx-1,top+1,3,6,RGB(6,14,28)); rect(sx-1,top-5,3,1,WHITE); } else { vcP(sx-3,top+1,7,3,WHITE); rect(sx-3,top-1,7,1,RGB(20,22,26)); } break;   // a shaker, a towel stack
+        case CT_ARCADE: vcGlass(sx-6,top+1,13,6); rect(sx-4,top-3,3,3,RGB(30,8,24)); rect(sx,top-3,3,3,RGB(8,26,30)); rect(sx+4,top-2,2,2,RGB(31,28,6)); break;   // the prize case: plushies under glass
+        case CT_CLUB: if(ev){ rect(sx-3,top-3,7,3,RGB(3,3,5)); px(sx,top-2,((t>>1)&1)?RGB(4,28,30):WHITE); } else { rect(sx-3,top-3,7,3,RGB(14,14,16)); for(int k=0;k<3;k++) px(sx-2+k*2,top-2,((t>>1)+k)&1?RGB(30,6,28):RGB(4,28,30)); } break;   // a turntable, a mixer with blinking lights
+        case CT_GROCER: if(ev){ vcP(sx-3,top+1,7,4,RGB(18,18,20)); rect(sx-2,top-6,5,2,RGB(6,22,10)); } else { vcP(sx-3,top+1,7,3,RGB(26,10,6)); rect(sx-3,top-4,1,2,RGB(26,10,6)); rect(sx+3,top-4,1,2,RGB(26,10,6)); } break;   // the till, a basket
+        case CT_BANK: rect(sx-7,top-13,15,1,RGB(28,24,10)); for(int k=0;k<5;k++) rect(sx-7+k*4,top-12,1,9,RGB(28,24,10)); rect(sx-7,top-3,15,1,RGB(28,24,10)); break;   // the teller's brass bars
+        case CT_HOSPITAL: if(ev){ vcP(sx-2,top+1,5,6,WHITE); rect(sx-1,top-4,3,1,RGB(8,12,26)); rect(sx-1,top-2,3,1,RGB(8,12,26)); } else { vcP(sx-2,top+1,5,3,RGB(26,26,28)); px(sx,top-3,RGB(30,4,4)); } break;   // a clipboard, a call bell
+        case CT_CAFE: if(ev){ vcP(sx-4,top+1,8,7,RGB(18,18,20)); rect(sx-3,top-5,6,2,RGB(6,6,8)); if((t>>3)&1) px(sx,top-8,RGB(24,24,24)); } else { vcGlass(sx-4,top+1,9,5); rect(sx-3,top-3,2,2,RGB(30,16,22)); rect(sx,top-3,2,2,RGB(22,12,6)); rect(sx+2,top-3,2,2,RGB(31,26,12)); } break;   // the espresso machine, a pastry case
+        case CT_BAR: if(ev){ vcP(sx-4,top+1,3,5,RGB(30,22,6)); rect(sx-4,top-4,3,1,WHITE); vcP(sx+1,top+1,3,5,RGB(30,22,6)); rect(sx+1,top-4,3,1,WHITE); } else { vcP(sx-3,top+1,2,7,RGB(6,18,8)); vcP(sx+1,top+1,2,7,RGB(18,10,4)); rect(sx-3,top-7,2,1,RGB(26,26,26)); rect(sx+1,top-7,2,1,RGB(26,26,26)); } break;   // pints, bottles
+        case CT_SALON: if(ev){ vcP(sx-3,top+1,2,5,RGB(30,12,22)); vcP(sx+1,top+1,2,6,RGB(10,20,30)); } else { vcP(sx-3,top+1,6,3,RGB(24,24,26)); rect(sx+2,top-5,2,3,RGB(24,24,26)); } break;   // bottles, a hairdryer
+        case CT_PETSHOP: if(ev){ vcP(sx-3,top+1,7,6,RGB(8,18,28)); rect(sx-1,top-3,3,2,RGB(30,16,4)); } else { vcP(sx-2,top+1,5,6,RGB(22,28,28)); rect(sx-1,top-4,3,2,RGB(22,12,6)); } break;   // a fish bowl, a treat jar
+        case CT_LIBRARY: if(ev){ vcP(sx-3,top+1,7,2,RGB(24,6,6)); vcP(sx-3,top-1,7,2,RGB(6,10,22)); vcP(sx-2,top-3,6,2,RGB(8,18,8)); } else { vcP(sx-2,top+1,5,3,RGB(24,22,16)); rect(sx-1,top-5,3,2,RGB(10,6,4)); } break;   // a stack of books, the stamp
+        case CT_CASINO: if(ev){ for(int k=0;k<3;k++){ vcP(sx-5+k*4,top+1,3,2+k,k==0?RGB(28,4,4):k==1?RGB(6,10,28):RGB(5,5,6)); rect(sx-5+k*4,top-2-k,3,1,WHITE); } } else { vcP(sx-4,top+1,9,2,RGB(6,22,8)); rect(sx-3,top-2,2,1,RGB(31,28,6)); } break;   // chip stacks, the cash tray
+        case CT_CINEMA: if(ev){ vcP(sx-2,top+1,5,5,WHITE); for(int k=0;k<5;k+=2) rect(sx-2+k,top-4,1,4,RGB(28,4,4)); rect(sx-2,top-6,5,2,RGB(31,28,10)); } else { vcP(sx-3,top+1,7,2,RGB(30,26,16)); rect(sx-1,top-1,1,1,RGB(28,4,4)); } break;   // a popcorn tub, ticket stubs
+        case CT_POOL: if(ev){ vcP(sx-3,top+1,7,2,RGB(8,18,30)); vcP(sx-3,top-1,7,2,WHITE); vcP(sx-3,top-3,7,2,RGB(8,18,30)); } else { rect(sx-3,top-5,6,1,RGB(28,4,4)); rect(sx-3,top-1,6,1,RGB(28,4,4)); rect(sx-3,top-4,1,3,WHITE); rect(sx+2,top-4,1,3,WHITE); } break;   // towels, a lifebuoy
+        case CT_SPACE: if(ev){ vcP(sx-3,top+1,7,6,RGB(3,4,8)); for(int k=0;k<3;k++) rect(sx-2,top-5+k*2,5,1,((t>>3)+k)&1?RGB(4,28,8):RGB(4,16,6)); } else { vcP(sx-4,top+1,9,2,RGB(12,14,18)); for(int k=0;k<4;k++) px(sx-3+k*2,top-2,((t>>2)+k)&1?RGB(31,6,4):RGB(31,28,6)); } break;   // a monitor, switches and lights
+        case CT_DOJO: if(ev){ vcP(sx-3,top+1,7,1,RGB(3,3,4)); vcP(sx-3,top,7,1,RGB(28,4,4)); vcP(sx-3,top-1,7,1,WHITE); } else { vcP(sx,top+1,1,6,RGB(20,18,16)); px(sx,top-6,((t>>3)&1)?RGB(31,14,4):RGB(24,8,3)); } break;   // folded belts, an incense stick
+        case CT_SKSHOP: if(ev){ vcP(sx-1,top+1,3,8,RGB(28,10,6)); rect(sx-1,top-7,3,1,RGB(31,26,8)); } else { for(int k=0;k<2;k++){ px(sx-2+k*4,top-1,RGB(26,26,28)); px(sx-1+k*4,top-1,RGB(26,26,28)); px(sx-2+k*4,top,RGB(26,26,28)); px(sx-1+k*4,top,RGB(26,26,28)); } rect(sx-3,top-2,8,1,RGB(8,18,28)); } break;   // a deck on its tail, a pair of wheels
         default: break; }
 }
 // ---- the spacecraft: drawn by code, in the live room and on the town map ----
