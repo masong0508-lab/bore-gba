@@ -496,52 +496,80 @@ __asm__(".pushsection .rodata\n"
   ".global xm_here_today_S19\nxm_here_today_S19:\n.incbin \"source/music/xmdata.bin\",6105704,5069\n"
   ".global xm_here_today_S20\nxm_here_today_S20:\n.incbin \"source/music/xmdata.bin\",6110773,5497\n"
   ".global xm_here_today_S21\nxm_here_today_S21:\n.incbin \"source/music/xmdata.bin\",6116270,10442\n"
-  ".global xm_here_today_full_ev\nxm_here_today_full_ev:\n.incbin \"source/music/xmdata.bin\",6126712,9037\n"
-  ".global xm_here_today_full_S0\nxm_here_today_full_S0:\n.incbin \"source/music/xmdata.bin\",6135749,6063\n"
-  ".global xm_here_today_full_S1\nxm_here_today_full_S1:\n.incbin \"source/music/xmdata.bin\",6141812,12338\n"
-  ".global xm_here_today_full_S10\nxm_here_today_full_S10:\n.incbin \"source/music/xmdata.bin\",6154150,2068\n"
-  ".global xm_here_today_full_S11\nxm_here_today_full_S11:\n.incbin \"source/music/xmdata.bin\",6156218,8663\n"
-  ".global xm_here_today_full_S12\nxm_here_today_full_S12:\n.incbin \"source/music/xmdata.bin\",6164881,6152\n"
-  ".global xm_here_today_full_S13\nxm_here_today_full_S13:\n.incbin \"source/music/xmdata.bin\",6171033,9500\n"
-  ".global xm_here_today_full_S14\nxm_here_today_full_S14:\n.incbin \"source/music/xmdata.bin\",6180533,6321\n"
-  ".global xm_here_today_full_S15\nxm_here_today_full_S15:\n.incbin \"source/music/xmdata.bin\",6186854,5947\n"
-  ".global xm_here_today_full_S16\nxm_here_today_full_S16:\n.incbin \"source/music/xmdata.bin\",6192801,32675\n"
-  ".global xm_here_today_full_S30\nxm_here_today_full_S30:\n.incbin \"source/music/xmdata.bin\",6225476,1197\n"
-  ".global xm_here_today_gone_tomorrow_ev\nxm_here_today_gone_tomorrow_ev:\n.incbin \"source/music/xmdata.bin\",6226673,24214\n"
-  ".global xm_here_today_gone_tomorrow_S11\nxm_here_today_gone_tomorrow_S11:\n.incbin \"source/music/xmdata.bin\",6250887,8659\n"
-  ".global xm_here_today_gone_tomorrow_S12\nxm_here_today_gone_tomorrow_S12:\n.incbin \"source/music/xmdata.bin\",6259546,17378\n"
-  ".global xm_here_today_gone_tomorrow_S13\nxm_here_today_gone_tomorrow_S13:\n.incbin \"source/music/xmdata.bin\",6276924,35475\n"
-  ".global xm_here_today_gone_tomorrow_S14\nxm_here_today_gone_tomorrow_S14:\n.incbin \"source/music/xmdata.bin\",6312399,975\n"
-  ".global xm_here_today_gone_tomorrow_S16\nxm_here_today_gone_tomorrow_S16:\n.incbin \"source/music/xmdata.bin\",6313374,3463\n"
-  ".global xm_here_today_gone_tomorrow_S18\nxm_here_today_gone_tomorrow_S18:\n.incbin \"source/music/xmdata.bin\",6316837,13256\n"
-  ".global xm_here_today_gone_tomorrow_S19\nxm_here_today_gone_tomorrow_S19:\n.incbin \"source/music/xmdata.bin\",6330093,17823\n"
-  ".global xm_here_today_gone_tomorrow_S20\nxm_here_today_gone_tomorrow_S20:\n.incbin \"source/music/xmdata.bin\",6347916,6556\n"
-  ".global xm_here_today_gone_tomorrow_S21\nxm_here_today_gone_tomorrow_S21:\n.incbin \"source/music/xmdata.bin\",6354472,7207\n"
-  ".global xm_here_today_gone_tomorrow_S22\nxm_here_today_gone_tomorrow_S22:\n.incbin \"source/music/xmdata.bin\",6361679,10870\n"
-  ".global xm_here_today_gone_tomorrow_S25\nxm_here_today_gone_tomorrow_S25:\n.incbin \"source/music/xmdata.bin\",6372549,13709\n"
-  ".global xm_here_today_gone_tomorrow_S30\nxm_here_today_gone_tomorrow_S30:\n.incbin \"source/music/xmdata.bin\",6386258,3604\n"
-  ".global xm_here_today_gone_tomorrow_S31\nxm_here_today_gone_tomorrow_S31:\n.incbin \"source/music/xmdata.bin\",6389862,35728\n"
-  ".global xm_ohio_hoe_ev\nxm_ohio_hoe_ev:\n.incbin \"source/music/xmdata.bin\",6425590,26470\n"
-  ".global xm_ohio_hoe_S0\nxm_ohio_hoe_S0:\n.incbin \"source/music/xmdata.bin\",6452060,1056\n"
-  ".global xm_ohio_hoe_S1\nxm_ohio_hoe_S1:\n.incbin \"source/music/xmdata.bin\",6453116,3604\n"
-  ".global xm_ohio_hoe_S2\nxm_ohio_hoe_S2:\n.incbin \"source/music/xmdata.bin\",6456720,2450\n"
-  ".global xm_ohio_hoe_S3\nxm_ohio_hoe_S3:\n.incbin \"source/music/xmdata.bin\",6459170,857\n"
-  ".global xm_ohio_hoe_S4\nxm_ohio_hoe_S4:\n.incbin \"source/music/xmdata.bin\",6460027,537\n"
-  ".global xm_ohio_hoe_S5\nxm_ohio_hoe_S5:\n.incbin \"source/music/xmdata.bin\",6460564,4180\n"
-  ".global xm_ohio_hoe_S6\nxm_ohio_hoe_S6:\n.incbin \"source/music/xmdata.bin\",6464744,14988\n"
-  ".global xm_ohio_hoe_S7\nxm_ohio_hoe_S7:\n.incbin \"source/music/xmdata.bin\",6479732,2480\n"
-  ".global xm_ohio_hoe_S8\nxm_ohio_hoe_S8:\n.incbin \"source/music/xmdata.bin\",6482212,1652\n"
-  ".global xm_ohio_hoe_S9\nxm_ohio_hoe_S9:\n.incbin \"source/music/xmdata.bin\",6483864,4401\n"
-  ".global xm_ohio_hoe_S10\nxm_ohio_hoe_S10:\n.incbin \"source/music/xmdata.bin\",6488265,3299\n"
-  ".global xm_ohio_hoe_S11\nxm_ohio_hoe_S11:\n.incbin \"source/music/xmdata.bin\",6491564,13265\n"
-  ".global xm_ohio_hoe_S12\nxm_ohio_hoe_S12:\n.incbin \"source/music/xmdata.bin\",6504829,3409\n"
-  ".global xm_ohio_hoe_S13\nxm_ohio_hoe_S13:\n.incbin \"source/music/xmdata.bin\",6508238,17971\n"
-  ".global xm_ohio_hoe_S14\nxm_ohio_hoe_S14:\n.incbin \"source/music/xmdata.bin\",6526209,14419\n"
-  ".global xm_ohio_hoe_S15\nxm_ohio_hoe_S15:\n.incbin \"source/music/xmdata.bin\",6540628,2602\n"
-  ".global xm_ohio_hoe_S16\nxm_ohio_hoe_S16:\n.incbin \"source/music/xmdata.bin\",6543230,14998\n"
-  ".global xm_ohio_hoe_S17\nxm_ohio_hoe_S17:\n.incbin \"source/music/xmdata.bin\",6558228,7480\n"
-  ".global xm_ohio_hoe_S18\nxm_ohio_hoe_S18:\n.incbin \"source/music/xmdata.bin\",6565708,16698\n"
-  ".global xm_ohio_hoe_S19\nxm_ohio_hoe_S19:\n.incbin \"source/music/xmdata.bin\",6582406,1459\n"
+  ".global xm_here_today_old_ev\nxm_here_today_old_ev:\n.incbin \"source/music/xmdata.bin\",6126712,3296\n"
+  ".global xm_here_today_old_S0\nxm_here_today_old_S0:\n.incbin \"source/music/xmdata.bin\",6130008,2320\n"
+  ".global xm_here_today_old_S1\nxm_here_today_old_S1:\n.incbin \"source/music/xmdata.bin\",6132328,2783\n"
+  ".global xm_here_today_old_S2\nxm_here_today_old_S2:\n.incbin \"source/music/xmdata.bin\",6135111,3513\n"
+  ".global xm_here_today_old_S3\nxm_here_today_old_S3:\n.incbin \"source/music/xmdata.bin\",6138624,4446\n"
+  ".global xm_here_today_old_S4\nxm_here_today_old_S4:\n.incbin \"source/music/xmdata.bin\",6143070,6033\n"
+  ".global xm_here_today_old_S5\nxm_here_today_old_S5:\n.incbin \"source/music/xmdata.bin\",6149103,9850\n"
+  ".global xm_here_today_old_S6\nxm_here_today_old_S6:\n.incbin \"source/music/xmdata.bin\",6158953,18751\n"
+  ".global xm_here_today_old_S7\nxm_here_today_old_S7:\n.incbin \"source/music/xmdata.bin\",6177704,2317\n"
+  ".global xm_here_today_old_S8\nxm_here_today_old_S8:\n.incbin \"source/music/xmdata.bin\",6180021,2783\n"
+  ".global xm_here_today_old_S9\nxm_here_today_old_S9:\n.incbin \"source/music/xmdata.bin\",6182804,3515\n"
+  ".global xm_here_today_old_S10\nxm_here_today_old_S10:\n.incbin \"source/music/xmdata.bin\",6186319,4446\n"
+  ".global xm_here_today_old_S11\nxm_here_today_old_S11:\n.incbin \"source/music/xmdata.bin\",6190765,6032\n"
+  ".global xm_here_today_old_S12\nxm_here_today_old_S12:\n.incbin \"source/music/xmdata.bin\",6196797,9854\n"
+  ".global xm_here_today_old_S13\nxm_here_today_old_S13:\n.incbin \"source/music/xmdata.bin\",6206651,18749\n"
+  ".global xm_here_today_old_S14\nxm_here_today_old_S14:\n.incbin \"source/music/xmdata.bin\",6225400,13339\n"
+  ".global xm_here_today_old_S15\nxm_here_today_old_S15:\n.incbin \"source/music/xmdata.bin\",6238739,18639\n"
+  ".global xm_here_today_old_S16\nxm_here_today_old_S16:\n.incbin \"source/music/xmdata.bin\",6257378,23644\n"
+  ".global xm_here_today_old_S17\nxm_here_today_old_S17:\n.incbin \"source/music/xmdata.bin\",6281022,30722\n"
+  ".global xm_here_today_old_S18\nxm_here_today_old_S18:\n.incbin \"source/music/xmdata.bin\",6311744,34535\n"
+  ".global xm_here_today_old_S19\nxm_here_today_old_S19:\n.incbin \"source/music/xmdata.bin\",6346279,40716\n"
+  ".global xm_here_today_old_S20\nxm_here_today_old_S20:\n.incbin \"source/music/xmdata.bin\",6386995,35468\n"
+  ".global xm_here_today_old_S21\nxm_here_today_old_S21:\n.incbin \"source/music/xmdata.bin\",6422463,1969\n"
+  ".global xm_here_today_old_S22\nxm_here_today_old_S22:\n.incbin \"source/music/xmdata.bin\",6424432,4561\n"
+  ".global xm_here_today_old_S23\nxm_here_today_old_S23:\n.incbin \"source/music/xmdata.bin\",6428993,6557\n"
+  ".global xm_here_today_old_S24\nxm_here_today_old_S24:\n.incbin \"source/music/xmdata.bin\",6435550,9246\n"
+  ".global xm_here_today_old_S25\nxm_here_today_old_S25:\n.incbin \"source/music/xmdata.bin\",6444796,17562\n"
+  ".global xm_here_today_old_S26\nxm_here_today_old_S26:\n.incbin \"source/music/xmdata.bin\",6462358,4946\n"
+  ".global xm_here_today_full_ev\nxm_here_today_full_ev:\n.incbin \"source/music/xmdata.bin\",6467304,9037\n"
+  ".global xm_here_today_full_S0\nxm_here_today_full_S0:\n.incbin \"source/music/xmdata.bin\",6476341,6063\n"
+  ".global xm_here_today_full_S1\nxm_here_today_full_S1:\n.incbin \"source/music/xmdata.bin\",6482404,12338\n"
+  ".global xm_here_today_full_S10\nxm_here_today_full_S10:\n.incbin \"source/music/xmdata.bin\",6494742,2068\n"
+  ".global xm_here_today_full_S11\nxm_here_today_full_S11:\n.incbin \"source/music/xmdata.bin\",6496810,8663\n"
+  ".global xm_here_today_full_S12\nxm_here_today_full_S12:\n.incbin \"source/music/xmdata.bin\",6505473,6152\n"
+  ".global xm_here_today_full_S13\nxm_here_today_full_S13:\n.incbin \"source/music/xmdata.bin\",6511625,9500\n"
+  ".global xm_here_today_full_S14\nxm_here_today_full_S14:\n.incbin \"source/music/xmdata.bin\",6521125,6321\n"
+  ".global xm_here_today_full_S15\nxm_here_today_full_S15:\n.incbin \"source/music/xmdata.bin\",6527446,5947\n"
+  ".global xm_here_today_full_S16\nxm_here_today_full_S16:\n.incbin \"source/music/xmdata.bin\",6533393,32675\n"
+  ".global xm_here_today_full_S30\nxm_here_today_full_S30:\n.incbin \"source/music/xmdata.bin\",6566068,1197\n"
+  ".global xm_here_today_gone_tomorrow_ev\nxm_here_today_gone_tomorrow_ev:\n.incbin \"source/music/xmdata.bin\",6567265,24214\n"
+  ".global xm_here_today_gone_tomorrow_S11\nxm_here_today_gone_tomorrow_S11:\n.incbin \"source/music/xmdata.bin\",6591479,8659\n"
+  ".global xm_here_today_gone_tomorrow_S12\nxm_here_today_gone_tomorrow_S12:\n.incbin \"source/music/xmdata.bin\",6600138,17378\n"
+  ".global xm_here_today_gone_tomorrow_S13\nxm_here_today_gone_tomorrow_S13:\n.incbin \"source/music/xmdata.bin\",6617516,35475\n"
+  ".global xm_here_today_gone_tomorrow_S14\nxm_here_today_gone_tomorrow_S14:\n.incbin \"source/music/xmdata.bin\",6652991,975\n"
+  ".global xm_here_today_gone_tomorrow_S16\nxm_here_today_gone_tomorrow_S16:\n.incbin \"source/music/xmdata.bin\",6653966,3463\n"
+  ".global xm_here_today_gone_tomorrow_S18\nxm_here_today_gone_tomorrow_S18:\n.incbin \"source/music/xmdata.bin\",6657429,13256\n"
+  ".global xm_here_today_gone_tomorrow_S19\nxm_here_today_gone_tomorrow_S19:\n.incbin \"source/music/xmdata.bin\",6670685,17823\n"
+  ".global xm_here_today_gone_tomorrow_S20\nxm_here_today_gone_tomorrow_S20:\n.incbin \"source/music/xmdata.bin\",6688508,6556\n"
+  ".global xm_here_today_gone_tomorrow_S21\nxm_here_today_gone_tomorrow_S21:\n.incbin \"source/music/xmdata.bin\",6695064,7207\n"
+  ".global xm_here_today_gone_tomorrow_S22\nxm_here_today_gone_tomorrow_S22:\n.incbin \"source/music/xmdata.bin\",6702271,10870\n"
+  ".global xm_here_today_gone_tomorrow_S25\nxm_here_today_gone_tomorrow_S25:\n.incbin \"source/music/xmdata.bin\",6713141,13709\n"
+  ".global xm_here_today_gone_tomorrow_S30\nxm_here_today_gone_tomorrow_S30:\n.incbin \"source/music/xmdata.bin\",6726850,3604\n"
+  ".global xm_here_today_gone_tomorrow_S31\nxm_here_today_gone_tomorrow_S31:\n.incbin \"source/music/xmdata.bin\",6730454,35728\n"
+  ".global xm_ohio_hoe_ev\nxm_ohio_hoe_ev:\n.incbin \"source/music/xmdata.bin\",6766182,26470\n"
+  ".global xm_ohio_hoe_S0\nxm_ohio_hoe_S0:\n.incbin \"source/music/xmdata.bin\",6792652,1056\n"
+  ".global xm_ohio_hoe_S1\nxm_ohio_hoe_S1:\n.incbin \"source/music/xmdata.bin\",6793708,3604\n"
+  ".global xm_ohio_hoe_S2\nxm_ohio_hoe_S2:\n.incbin \"source/music/xmdata.bin\",6797312,2450\n"
+  ".global xm_ohio_hoe_S3\nxm_ohio_hoe_S3:\n.incbin \"source/music/xmdata.bin\",6799762,857\n"
+  ".global xm_ohio_hoe_S4\nxm_ohio_hoe_S4:\n.incbin \"source/music/xmdata.bin\",6800619,537\n"
+  ".global xm_ohio_hoe_S5\nxm_ohio_hoe_S5:\n.incbin \"source/music/xmdata.bin\",6801156,4180\n"
+  ".global xm_ohio_hoe_S6\nxm_ohio_hoe_S6:\n.incbin \"source/music/xmdata.bin\",6805336,14988\n"
+  ".global xm_ohio_hoe_S7\nxm_ohio_hoe_S7:\n.incbin \"source/music/xmdata.bin\",6820324,2480\n"
+  ".global xm_ohio_hoe_S8\nxm_ohio_hoe_S8:\n.incbin \"source/music/xmdata.bin\",6822804,1652\n"
+  ".global xm_ohio_hoe_S9\nxm_ohio_hoe_S9:\n.incbin \"source/music/xmdata.bin\",6824456,4401\n"
+  ".global xm_ohio_hoe_S10\nxm_ohio_hoe_S10:\n.incbin \"source/music/xmdata.bin\",6828857,3299\n"
+  ".global xm_ohio_hoe_S11\nxm_ohio_hoe_S11:\n.incbin \"source/music/xmdata.bin\",6832156,13265\n"
+  ".global xm_ohio_hoe_S12\nxm_ohio_hoe_S12:\n.incbin \"source/music/xmdata.bin\",6845421,3409\n"
+  ".global xm_ohio_hoe_S13\nxm_ohio_hoe_S13:\n.incbin \"source/music/xmdata.bin\",6848830,17971\n"
+  ".global xm_ohio_hoe_S14\nxm_ohio_hoe_S14:\n.incbin \"source/music/xmdata.bin\",6866801,14419\n"
+  ".global xm_ohio_hoe_S15\nxm_ohio_hoe_S15:\n.incbin \"source/music/xmdata.bin\",6881220,2602\n"
+  ".global xm_ohio_hoe_S16\nxm_ohio_hoe_S16:\n.incbin \"source/music/xmdata.bin\",6883822,14998\n"
+  ".global xm_ohio_hoe_S17\nxm_ohio_hoe_S17:\n.incbin \"source/music/xmdata.bin\",6898820,7480\n"
+  ".global xm_ohio_hoe_S18\nxm_ohio_hoe_S18:\n.incbin \"source/music/xmdata.bin\",6906300,16698\n"
+  ".global xm_ohio_hoe_S19\nxm_ohio_hoe_S19:\n.incbin \"source/music/xmdata.bin\",6922998,1459\n"
   ".popsection\n");
 extern const u8 xm_the_dipper_man_ev[];
 extern const s8 xm_the_dipper_man_S0[];
@@ -1036,6 +1064,34 @@ extern const s8 xm_here_today_S18[];
 extern const s8 xm_here_today_S19[];
 extern const s8 xm_here_today_S20[];
 extern const s8 xm_here_today_S21[];
+extern const u8 xm_here_today_old_ev[];
+extern const s8 xm_here_today_old_S0[];
+extern const s8 xm_here_today_old_S1[];
+extern const s8 xm_here_today_old_S2[];
+extern const s8 xm_here_today_old_S3[];
+extern const s8 xm_here_today_old_S4[];
+extern const s8 xm_here_today_old_S5[];
+extern const s8 xm_here_today_old_S6[];
+extern const s8 xm_here_today_old_S7[];
+extern const s8 xm_here_today_old_S8[];
+extern const s8 xm_here_today_old_S9[];
+extern const s8 xm_here_today_old_S10[];
+extern const s8 xm_here_today_old_S11[];
+extern const s8 xm_here_today_old_S12[];
+extern const s8 xm_here_today_old_S13[];
+extern const s8 xm_here_today_old_S14[];
+extern const s8 xm_here_today_old_S15[];
+extern const s8 xm_here_today_old_S16[];
+extern const s8 xm_here_today_old_S17[];
+extern const s8 xm_here_today_old_S18[];
+extern const s8 xm_here_today_old_S19[];
+extern const s8 xm_here_today_old_S20[];
+extern const s8 xm_here_today_old_S21[];
+extern const s8 xm_here_today_old_S22[];
+extern const s8 xm_here_today_old_S23[];
+extern const s8 xm_here_today_old_S24[];
+extern const s8 xm_here_today_old_S25[];
+extern const s8 xm_here_today_old_S26[];
 extern const u8 xm_here_today_full_ev[];
 extern const s8 xm_here_today_full_S0[];
 extern const s8 xm_here_today_full_S1[];
@@ -2175,6 +2231,41 @@ static const u8 xm_here_today_busL[7]={199,179,152,122,88,51,13,
 static const u8 xm_here_today_busR[7]={13,51,88,122,152,179,199,
 };
 static const XmSong xm_here_today={xm_here_today_order,xm_here_today_rows,xm_here_today_patOff,xm_here_today_ev,xm_here_today_vt,xm_here_today_anc,xm_here_today_fx,xm_here_today_len,xm_here_today_data,xm_here_today_busL,xm_here_today_busR,13,0,3491,187};
+// ---- here_today_old  (from tools/here_today_old.xm) ----
+static const u8 xm_here_today_old_order[15]={0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,
+};
+static const u16 xm_here_today_old_rows[15]={256,256,256,256,256,256,256,256,256,256,256,256,256,256,256,
+};
+static const u32 xm_here_today_old_patOff[15]={0,230,544,783,1001,1197,1475,1727,1942,2223,2483,2706,2934,3120,3293,
+};
+static const u16 xm_here_today_old_vt[164]={3264,3320,1801,1770,363,429,2242,3502,2243,1732,529,3436,2069,2582,3095,48,
+2840,1785,3338,379,1665,1074,1667,2101,1668,2614,1664,1671,1666,1669,2924,3352,
+297,1670,112,3191,2165,545,1651,2598,1652,3111,1138,1059,2085,3452,2625,1603,
+1092,71,859,264,1817,250,561,2990,1587,941,2640,2100,87,1109,598,1588,
+16,3386,396,2657,1125,1555,614,1556,2146,3168,103,1635,1636,513,3152,2053,
+1026,2131,3368,1849,3127,1075,2114,1604,1093,0,312,282,2566,3079,1539,1540,
+1042,2641,1620,1769,582,1768,32,1572,3136,625,144,2711,2710,1171,689,1715,
+2229,1684,3255,673,1186,1683,2213,1700,3280,215,726,2258,176,1716,2742,3239,
+160,657,2726,1170,656,1699,2197,2769,3223,2196,1237,688,2228,1202,2752,2212,
+1221,199,1731,624,2164,2678,1747,1748,710,395,2753,1139,875,328,1865,2890,
+1947,2115,583,2086,
+};
+static const u32 xm_here_today_old_anc[27]={261983362,261983362,261983362,261983362,261983362,261983362,261983362,261983362,
+261983362,261983362,261983362,261983362,261983362,261983362,130991681,130991681,
+130991681,130991681,130991681,130991681,130991681,65495840,65495840,65495840,
+65495840,65495840,261983362,
+};
+static const u8 xm_here_today_old_fx[1]={255,
+};
+static const u32 xm_here_today_old_len[27]={2319,2782,3512,4445,6032,9849,18750,2316,2782,3514,4445,6031,9853,18748,13338,18638,23643,30721,34534,40715,35467,1968,4560,6556,
+9245,17561,4945,
+};
+static const s8* const xm_here_today_old_data[27]={xm_here_today_old_S0,xm_here_today_old_S1,xm_here_today_old_S2,xm_here_today_old_S3,xm_here_today_old_S4,xm_here_today_old_S5,xm_here_today_old_S6,xm_here_today_old_S7,xm_here_today_old_S8,xm_here_today_old_S9,xm_here_today_old_S10,xm_here_today_old_S11,xm_here_today_old_S12,xm_here_today_old_S13,xm_here_today_old_S14,xm_here_today_old_S15,xm_here_today_old_S16,xm_here_today_old_S17,xm_here_today_old_S18,xm_here_today_old_S19,xm_here_today_old_S20,xm_here_today_old_S21,xm_here_today_old_S22,xm_here_today_old_S23,xm_here_today_old_S24,xm_here_today_old_S25,xm_here_today_old_S26};
+static const u8 xm_here_today_old_busL[7]={199,179,153,122,88,51,13,
+};
+static const u8 xm_here_today_old_busR[7]={13,51,88,122,152,179,199,
+};
+static const XmSong xm_here_today_old={xm_here_today_old_order,xm_here_today_old_rows,xm_here_today_old_patOff,xm_here_today_old_ev,xm_here_today_old_vt,xm_here_today_old_anc,xm_here_today_old_fx,xm_here_today_old_len,xm_here_today_old_data,xm_here_today_old_busL,xm_here_today_old_busR,15,0,363,36};
 // ---- here_today_full  (from tools/here_today_full.xm) ----
 static const u8 xm_here_today_full_order[23]={0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,
 };

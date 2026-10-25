@@ -98,8 +98,8 @@ SONG_XM(youre_winner,"YOU'RE WINNER (ORIGINAL)","tools/youre_winner.xm")
 // HERE TODAY (MISSY'S SONG): the author's own MIDI (tools/here_today.mid), sequenced by tools/make_heretoday_here_xm.py (the tune sung as short samples of "ah", a nylon guitar, a string quartet);
 // that script also re-times the scene-5 lyric beats (cutscene.h) and camera shots (csshot.h) to its phrases. Locked until TV SHOW & TELL chapter 5 is done (unlocks.h)
 SONG_XM(here_today,"HERE TODAY (MISSY'S SONG)","tools/here_today.xm")
-// HERE TODAY (ORIGINAL): the short chiptune placeholder (tools/make_heretoday.py, 1:13), the version that used to play in the last cutscene: a SECRET song (isDbgSong in main.c)
-SONG_ADP(here_today_old,"HERE TODAY (ORIGINAL)","source/music/here_today_old.adp")
+// HERE TODAY (ORIGINAL): the short chiptune placeholder (the recipe is tools/make_heretoday.py, 1:13; tools/make_heretoday_old_xm.py plays it note for note as a tracker module), the version that used to play in the last cutscene: a SECRET song (isDbgSong in main.c)
+SONG_XM(here_today_old,"HERE TODAY (ORIGINAL)","tools/here_today_old.xm")
 
 // HERE TODAY (FULL VERSION): longer, lusher, with an instrumental reprise of the bridge, sequenced (tools/make_heretoday_here_xm.py; the older streamed render is tools/make_heretoday_full.py).
 // Locked until the story is finished (unlocks.h)

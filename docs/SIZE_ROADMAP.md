@@ -17,7 +17,7 @@ Measured on a real devkitARM build of the tree (`tools/budget.sh` prints the fir
 | 1.1 slots to the top of the ROM | **not done, on purpose**: it would make the file 32 MB (it is 28.7 MB now) and the cartridge limit is what you are watching. The base game has 4.4 MB of room under the slots as they are. If the base ever needs more, change `SLOTS` in `tools/make_packs.py` |
 | 1.2 placeholder songs | done earlier (173 KB), `songs.h` says so |
 | 1.3 sample dedupe | done: `xm2gba.py` stores identical samples once for the whole ROM (`SHARED`), near-duplicates for one song (`NEARDUP`) |
-| 1.4 `here_today_old` (664 KB) | a design call, still open |
+| 1.4 `here_today_old` (664 KB) | **done: sequenced** (`tools/make_heretoday_old_xm.py`, the recipe of `tools/make_heretoday.py` played note for note on a 0.02 s grid). 340 KB of events and samples instead of the 664 KB stream: about 324 KB saved. Against the original render: the same notes within 10 ms, the envelope correlates 0.95, the spectrum within half a dB band to band up to 3 kHz (the top octave is 3 to 5 dB softer: the tracker stores 17.7 kHz samples) |
 | 2. `itemrom.h` | **done**: 1,252,860 B of sprites -> 328,762 B + 3,140 B of offsets. Only the opaque span of each row is stored (`itemPix`, `itemOff`; `itemSpan` as before), `blitItemO` (items.h) walks it. **Saves 921,560 B of ROM**; screenshots of three furnished houses, normal and zoomed, are byte-identical to the old ROM's. The generator proves every pixel outside a span is see-through (`tools/bake_items.c`) |
 | 2. `here_today_gone_tomorrow` (6.5 MB) | **done: rebuilt as a tracker module** (`tools/make_heretoday_xm.py` -> `tools/here_today_gone_tomorrow.xm`, then `xm2gba.py`): 370 KB of events and samples instead of the 6.5 MB stream, **saves about 6.1 MB**. The suite was also recomposed (four acts, the tune held back until the last two minutes). `xm2gba.py` output for every other song is byte-identical (checked by diffing `xmdata.bin` around the suite's blob). Played in the test ROM and correlated with `preview_xm.py`: 0.975 over a 22 s window |
 | 2b. `here_today_full` (2.5 MB), `here_today` (1.3 MB) | **done: both sequenced** (`tools/make_heretoday_here_xm.py`, sharing `tools/heretoday_kit.py` with the suite, so the shared samples are stored once). The sung voice is ten short samples of "ah" in two registers and five lengths. All three HERE TODAY songs together are 542 KB of events and samples instead of 10.5 MB: **about 9.9 MB off the ROM**. The scene-5 lyric beats and camera shots are re-timed to the tracker's fixed 78 BPM (`retime_cutscene`), and CI checks the module's length instead of the old stream (`tools/check_here_today.py`) |
@@ -59,7 +59,7 @@ Written 22 Oct 2026 from the repo at commit 95ee19b. **Nothing here was built or
 | ~~music/here_today_full.adp~~ | ~~2,570,960~~ | now tracker data (item 2b) |
 | ~~music/here_today.adp~~ | ~~1,380,704~~ | Missy's song, now tracker data (CI checks `tools/here_today.xm` is at least 140 s) |
 | art/bortua_fighters.lz | 962,792 | BORTUA FIGHTER art (pack 4's slot is only 1.25 MB) |
-| music/here_today_old.adp | 664,100 | the secret chiptune placeholder |
+| ~~music/here_today_old.adp~~ | ~~664,100~~ | the secret chiptune, now tracker data (item 1.4) |
 | sfx/amb_*.abd | 1,042,752 | four ambience loops |
 | music/chipsyn.bin | 179,573 | chiptunes |
 | music/placeholder_a/b/c.adp | 173,208 | three placeholders; songs.h says to delete them |
@@ -87,7 +87,7 @@ Written 22 Oct 2026 from the repo at commit 95ee19b. **Nothing here was built or
 | 1.1 | **Move the six pack slots to the top of the 32 MB ROM** (start 0x09BC0000 instead of 0x09800000; `tools/make_packs.py` generates `packslots.h` and `packs.ld`) | raises the base ceiling from 24 MB to about 27.75 MB: **+3.75 MB** | the ROM is padded to 32 MB; check your flash cart and emulator accept that. Pack patches are rebuilt on every build |
 | 1.2 | Delete the three placeholder songs (`songs.h` lines 22 to 24 and the files) | 173 KB | the file already says to delete them |
 | 1.3 | Dedupe samples in `xm2gba.py`: hash every sample and store each once across the 36 songs | unknown, maybe 5 to 15% of 6 MB | PC-side only, byte-identical playback |
-| 1.4 | Decide about `here_today_old` (secret placeholder, 664 KB) | 664 KB | a design call, not a technical one |
+| ~~1.4~~ | ~~Decide about `here_today_old`~~ done: sequenced, about 324 KB saved | 324 KB | see the table above |
 
 ### Phase 2: the two big ROM items (medium effort, pick what you need)
 - **here_today_gone_tomorrow (was 6.5 MB, 32% of all embedded data): DONE, option c below.** The options were, cheapest first:

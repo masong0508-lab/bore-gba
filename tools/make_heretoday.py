@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""HERE TODAY (MISSY'S SONG): a chiptune rendition of the original melody hummed by the game's author (the melody comes from a voice recording, tracked
+"""(This recipe is now PLAYED BY tools/make_heretoday_old_xm.py as a tracker module: that is what the game ships. This file stays as the reference render.)
+HERE TODAY (MISSY'S SONG): a chiptune rendition of the original melody hummed by the game's author (the melody comes from a voice recording, tracked
 note by note; the lyrics in source/cutscene.h are original too). Run from the project root:   python3 tools/make_heretoday.py
   1. writes /tmp/here_today.wav   2. encode it with  python3 tools/encode_song.py /tmp/here_today.wav  (or use encode_to_adp below, which does both)
 Edit PHRASES to change the tune: each phrase is [start s, end s, [[start s, length s, MIDI note], ...]]. The cutscene (cutscene.h, scene 5) shows one lyric line per
