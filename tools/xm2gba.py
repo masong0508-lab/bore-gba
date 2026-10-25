@@ -845,9 +845,9 @@ def bomb_pan(pat, row, ch, i, n):
 
 CURS = None                       # the song being converted (design_pan sets it), so a hand-made pan plan can look at instrument names
 def suite_pan(pat, row, ch, i, n):
-    """HERE TODAY GONE TOMORROW (tools/make_heretoday_xm.py): the Hammond pads in two wide pairs, mellotron strings fanned (violins out, viola / cello in), the lead
+    """HERE TODAY GONE TOMORROW (tools/make_heretoday_xm.py): the Hammond pad pair wide, mellotron strings fanned (violins out, viola / cello in), the lead
        (cello, flute, swell: centre-ish) , the 12-string left, the piano right, bass and drums in the middle, bells swinging a little either side."""
-    t = {0: -.7, 1: -.25, 2: .7, 3: .25, 4: -.4, 5: .4, 6: -.65, 7: .6, 9: -.55, 10: -.3, 11: -.7, 12: .35, 13: .6, 14: 0.0}
+    t = {0: -.6, 1: .6, 2: .2, 3: -.2, 4: -.4, 5: .4, 6: -.65, 7: .6, 9: -.55, 10: -.3, 11: -.7, 12: .35, 13: .6, 14: 0.0}
     if ch in t: return t[ch]
     nm = CURS['insts'][i - 1]['name'] if CURS and 0 < i <= len(CURS['insts']) else ''     # (the generator names every instrument)
     if ch == 8: return -.15 if nm.startswith('fl_') else 0.1
