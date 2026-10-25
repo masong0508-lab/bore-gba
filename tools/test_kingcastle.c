@@ -37,7 +37,7 @@ int main(void){
     { int made[8]={0}, used[8]={0}; for(int t=0;t<KS_NTYPES;t++){ const KsType*T=&KS_T[t]; if(T->kind==KK_GATHER||T->kind==KK_PROC) made[T->outG]=1; }
       for(int s=0;s<KG_CASTLE;s++) for(int l=0;l<2;l++){ int g=KS_CL[s][l][0], n=KS_CL[s][l][1]; CHECK(g<8&&made[g],"stage %d lot %d: good %d has no maker",s+1,l,g); CHECK(n>0&&n<=KS_BUF,"stage %d lot %d: %d goods (the most a site can hold is %d)",s+1,l,n,KS_BUF); CHECK(l==0||g!=KS_CL[s][0][0],"stage %d: two lots of the same good",s+1); if(g<8) used[g]=1; }
       CHECK(used[G_PLANKS]&&used[G_CUT]&&used[G_CLOTH]&&used[G_POLISH],"the four better goods are all used by the castle");
-      CHECK(KG_CASTLE==4&&KS_NTYPES==12&&KB_CASTLE==11&&KS_NTYPES<=14,"12 types, the castle the last, the palette banks fit");
+      CHECK(KG_CASTLE==4&&KS_NTYPES==14&&KB_CASTLE==11&&KB_WELL==12&&KB_TAVERN==13&&KS_NTYPES<=14,"14 types, the castle 11 (it never moved), the well 12 and the tavern 13, the palette banks fit");
       CHECK(KHM_CASTLE-KHM_HUT==KB_CASTLE&&KHM_N==KS_NTYPES+5&&strcmp(khName[KHM_CASTLE],"CASTLE")==0,"the castle's build mode lines up");
       for(int e=0;e<KB_CASTLE;e++){ CHECK(kvRoof[e]!=kvRoof[KB_CASTLE],"map roof %d is the castle's",e); CHECK(koRoof[e]!=koRoof[KB_CASTLE],"overview roof %d is the castle's",e); }
       CHECK(kvPalAt(KB_CASTLE+1,14)==kvRoof[KB_CASTLE]&&koRoof[KB_CASTLE]!=0,"the castle's palette bank");

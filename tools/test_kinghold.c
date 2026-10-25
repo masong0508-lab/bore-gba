@@ -122,8 +122,8 @@ int main(void){
         for(int x=mid+4;x<mid+22;x++) ksRoadSet(&S,x,mid+4,1); for(int y=mid+4;y<mid+14;y++) ksRoadSet(&S,mid+4,y,1); for(int x=mid+4;x<mid+20;x++) ksRoadSet(&S,x,mid+9,1);
         int cnt[KHR_N]; memset(cnt,0,sizeof cnt); int held[4]={0,0,0,0};
         for(int k=0;k<60000;k++){
-            int m, q=(int)(rnd()%100); m=q<35?KHM_HAND:q<60?KHM_MOVE:q<85?KHM_NUBBIN:q<95?KHM_HUT+(int)(rnd()%(KHM_DEMO-KHM_HUT)):q<99?KHM_ROAD:(k%40==0?KHM_DEMO:KHM_HAND);   // (mostly the three modes of this step; building and razing are rarer, so the town stays)
-            if(R.nB<9&&k%20==0){ KHand hb; hb.mode=KHM_HUT+(int)(rnd()%(KHM_DEMO-KHM_HUT)); khAct(&hb,&S,mid+(int)(rnd()%22),mid+(int)(rnd()%22)); }   // (a town that thins out is built up again)
+            int m, q=(int)(rnd()%100); m=q<35?KHM_HAND:q<60?KHM_MOVE:q<85?KHM_NUBBIN:q<95?KHM_HUT+(int)(rnd()%(KHM_DEMO-KHM_HUT-2)):q<99?KHM_ROAD:(k%40==0?KHM_DEMO:KHM_HAND);   // (mostly the three modes of this step; building and razing are rarer, so the town stays)
+            if(R.nB<9&&k%20==0){ KHand hb; hb.mode=KHM_HUT+(int)(rnd()%(KHM_DEMO-KHM_HUT-2)); khAct(&hb,&S,mid+(int)(rnd()%22),mid+(int)(rnd()%22)); }   // (a town that thins out is built up again)
             if(k%400==0){ ksGift(&S,G_WOOD,12); ksGift(&S,G_STONE,6); ksGift(&S,G_PLANKS,6); }
             int x,y; if(rnd()%3&&R.nB){ const KBld*q=&S.B[rnd()%(u32)R.nB]; x=q->x+(int)(rnd()%2); y=q->y+(int)(rnd()%2); if(m==KHM_MOVE&&S.hd.k==KHD_BLD&&rnd()%2){ x=mid+(int)(rnd()%22); y=mid+(int)(rnd()%22); } } else { x=mid+(int)(rnd()%24); y=mid+(int)(rnd()%24); if(rnd()%20==0){ x=(int)(rnd()%(u32)d); y=(int)(rnd()%(u32)d); } }
             if(rnd()%11==0) R.giant=(u8)(rnd()%5);

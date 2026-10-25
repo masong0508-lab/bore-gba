@@ -27,9 +27,10 @@
 #define KS_DAYT    600      // frames in a realm day
 #define KS_TMAX    (KS_DAYT*7158278u)   // the frame clock S->t counts 0 .. KS_TMAX-1 and starts again: a whole number of days (and of KS_WALK steps), so a day never comes early or late at the wrap, and it fits a u32 (step 5f)
 #define KS_GR      6        // a gatherer's reach: this many cells each way from the middle of its 2 x 2
+#define KS_CR      8        // (step 5g) a finished well or tavern helps the producers whose 2 x 2 is within this many cells (each way) of its own 2 x 2
 #define KS_REGROW  12       // tries a day a working woodcutter makes to plant a tree on bare grass in its reach
-enum { KB_HUT, KB_HOUSE, KB_WOODCUT, KB_QUARRY, KB_SAWMILL, KB_MASON, KB_STORE, KB_SHEEP, KB_CRYMINE, KB_WEAVER, KB_CUTTER, KB_CASTLE, KS_NTYPES };   // (step 5a: the wool chain and the crystal chain)
-enum { KK_HOME, KK_GATHER, KK_PROC, KK_STORE, KK_CASTLE };
+enum { KB_HUT, KB_HOUSE, KB_WOODCUT, KB_QUARRY, KB_SAWMILL, KB_MASON, KB_STORE, KB_SHEEP, KB_CRYMINE, KB_WEAVER, KB_CUTTER, KB_CASTLE, KB_WELL, KB_TAVERN, KS_NTYPES };   // (step 5a: the wool chain and the crystal chain; step 5g: the well and the tavern, numbers 12 and 13, after the castle so that no saved building changes its number)
+enum { KK_HOME, KK_GATHER, KK_PROC, KK_STORE, KK_CASTLE, KK_COMFORT };
 enum { G_WOOD, G_STONE, G_WOOL, G_CRYSTAL, G_PLANKS, G_CUT, G_CLOTH, G_POLISH };
 enum { KSE_OK=0, KSE_ARG=-1, KSE_CAP=-2, KSE_SPOT=-3, KSE_ROAD=-4, KSE_POOR=-5 };   // (KSE_POOR, step 5d: not enough cut stone for a bridge)
 typedef struct { u8 kind, costG, costN, staff, house, inG, outG, res, period; } KsType;
@@ -47,6 +48,8 @@ static const KsType KS_T[KS_NTYPES]={
  { KK_PROC,   G_PLANKS, 3, 1, 0, G_WOOL,  G_CLOTH, 0,         140 },   // weaver: 2 wool make 1 cloth
  { KK_PROC,   G_CUT,    3, 1, 0, G_CRYSTAL,G_POLISH,0,         180 },   // crystal cutter: 2 crystal make 1 polished crystal
  { KK_CASTLE, G_PLANKS, 6, 0, 0, 0,       0,       0,         0   },   // castle (step 5b): the cost here is only the first lot of stage 1; the real costs are KS_CL, by stage
+ { KK_COMFORT,G_STONE,  4, 0, 0, 0,       0,       0,         0   },   // well (step 5g) [ASSUMED]: no worker, no goods in or out; every working producer in KS_CR cells makes its goods 1/8 faster
+ { KK_COMFORT,G_PLANKS, 6, 0, 0, 0,       0,       0,         0   },   // tavern (step 5g) [ASSUMED]: the same, and a producer with both a well and a tavern in reach is 2/8 faster
 };
 static inline const KsType*ksT(int type){ return &KS_T[type<KS_NTYPES?type:0]; }
 
@@ -60,6 +63,7 @@ typedef struct {
     int pop, emp, nWt, nStore, nN, nW, bfsSlot, bfsHead, bfsTail;
     u16 nodeCell[KS_MAXN];                     // the road cells, sorted: a road cell's number is its place in this list
     u16 timer[KS_MAXB]; u8 inRes[KS_MAXB];     // per building: the production clock; carriers on their way to it
+    u8 cmf[KS_MAXB];                           // (step 5g) per building: 0..2 kinds of comfort (a well, a tavern) in reach; made by ksCensus, never saved
     u8 mapB[KS_MAPS], mapReady[KS_MAPS], mapRef[KS_MAPS]; u32 mapUse[KS_MAPS];   // kinglog.h: a distance map is for one building
     KsWk wk[KS_MAXW];
     u32 opMatch, opWalk, opBfs, opSearch, opProd;   // work counters (the PC test turns them into cycles)
@@ -89,12 +93,23 @@ static inline int ksAdj(const KSim*S,const KBld*b,int*out){   // the cells besid
 // put goods in the stockpile; what does not fit under the ceiling is lost and the books know
 static inline void ksPool(KSim*S,int g,int n){ if(n<=0) return; long v=(long)S->R->goods[g]+n; if(v>KG_GOODMAX){ S->made[g]-=v-KG_GOODMAX; v=KG_GOODMAX; } S->R->goods[g]=(u16)v; }
 static inline void ksGift(KSim*S,int g,int n){ if(n<=0) return; S->made[g]+=n; ksPool(S,g,n); }   // goods the realm is given (the founding kit, a payout)
+// (step 5g) COMFORT: a finished well or tavern makes the producers near it work faster. cmf[i] counts the KINDS (a well, a tavern) in reach, 0 to 2, so two wells are no better than one.
+static inline void ksComfort(KSim*S){
+    KRealm*R=S->R;
+    for(int i=0;i<R->nB;i++){ const KBld*b=&S->B[i]; S->cmf[i]=0; if(!b->lvl) continue; const KsType*T=ksT(b->type); if(T->kind!=KK_GATHER&&T->kind!=KK_PROC) continue;
+        int has=0; for(int j=0;j<R->nB;j++){ const KBld*c=&S->B[j]; if(!c->lvl||ksT(c->type)->kind!=KK_COMFORT) continue; int dx=c->x-b->x, dy=c->y-b->y; if(dx<0) dx=-dx; if(dy<0) dy=-dy; S->opProd++;
+            if(dx<=KS_CR&&dy<=KS_CR) has|=1<<(c->type-KB_WELL); }
+        S->cmf[i]=(u8)((has&1)+((has>>1)&1)); }
+}
+// the production period of building i, with its comfort: 1/8 shorter for each kind (never under 1)
+static inline unsigned ksPeriod(const KSim*S,int i){ unsigned p=ksT(S->B[i].type)->period; unsigned q=p-p*S->cmf[i]/8u; return q<1u?1u:q; }
 static inline void ksCensus(KSim*S){
     KRealm*R=S->R; int pop=KS_PARTY, emp=0, st=0;
     for(int i=0;i<R->nB;i++){ const KBld*b=&S->B[i]; const KsType*T=ksT(b->type); if(!b->lvl) continue;
-        if(T->kind==KK_HOME) pop+=b->work; else if(T->kind==KK_STORE) st++; else if(T->kind!=KK_CASTLE) emp+=b->work; }
+        if(T->kind==KK_HOME) pop+=b->work; else if(T->kind==KK_STORE) st++; else if(T->kind==KK_GATHER||T->kind==KK_PROC) emp+=b->work; }
     if(pop>KS_POPCAP) pop=KS_POPCAP;
     S->pop=pop; S->emp=emp; S->nStore=st; int w=pop-emp; S->nWt=w<0?0:w>KS_MAXW?KS_MAXW:w;
+    ksComfort(S);
 }
 // ---- (step 5b) THE CASTLE: one building, four stages (R->castle counts the stages done: 0 none, 1 foundation, 2 walls, 3 towers, 4 crowned). Each stage is two LOTS of goods carried to the
 // site like any building's cost (b->work is the lot, 0 or 1; b->stock the goods delivered to it). A lot is at most KS_BUF (8) goods. The second lot done finishes the stage; the fourth stage finishes the
@@ -217,6 +232,7 @@ static inline int ksInit(KSim*S,KRealm*R,KBld*B,u8*cells){
         if(ksOut(b)>KS_BUF){ ksSetOut(b,KS_BUF); }
         if(T->kind==KK_HOME&&b->work>T->house){ b->work=T->house; }
         if(T->kind!=KK_HOME&&b->work>1){ b->work=1; }
+        if(T->kind==KK_COMFORT){ b->work=0; }   // (a well or a tavern has no worker)
         if(b->lvl&&(T->kind==KK_STORE||T->kind==KK_HOME)){ b->stock=0; }
         if(b->lvl&&T->kind==KK_GATHER){ ksSetIn(b,0); }
         if(!b->lvl&&ksOut(b)){ ksSetOut(b,0); }
@@ -254,7 +270,7 @@ static inline void ksEcon(KSim*S){
     KRealm*R=S->R;
     for(int i=0;i<R->nB;i++){ KBld*b=&S->B[i]; const KsType*T=ksT(b->type); S->opProd++;
         if(!b->lvl){ int cg=0,cn=0; ksCost(S,b,&cg,&cn); if(ksIn(b)>=cn){ S->made[cg]-=cn; ksSetIn(b,0); if(T->kind==KK_CASTLE) ksCastleLot(S,b); else { b->lvl=1; ksCensus(S); } } continue; }
-        if(T->kind==KK_GATHER&&b->work&&ksOut(b)<KS_BUF){ if(++S->timer[i]>=T->period){ S->timer[i]=0; ksGather(S,i); } }
-        else if(T->kind==KK_PROC&&b->work&&ksIn(b)>=2&&ksOut(b)<KS_BUF){ if(++S->timer[i]>=T->period){ S->timer[i]=0; ksSetIn(b,ksIn(b)-2); S->made[T->inG]-=2; ksSetOut(b,ksOut(b)+1); S->made[T->outG]++; } } }
+        if(T->kind==KK_GATHER&&b->work&&ksOut(b)<KS_BUF){ if(++S->timer[i]>=ksPeriod(S,i)){ S->timer[i]=0; ksGather(S,i); } }
+        else if(T->kind==KK_PROC&&b->work&&ksIn(b)>=2&&ksOut(b)<KS_BUF){ if(++S->timer[i]>=ksPeriod(S,i)){ S->timer[i]=0; ksSetIn(b,ksIn(b)-2); S->made[T->inG]-=2; ksSetOut(b,ksOut(b)+1); S->made[T->outG]++; } } }
     if(S->t%KS_DAYT==0) ksDay(S);
 }

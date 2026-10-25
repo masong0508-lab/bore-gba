@@ -45,8 +45,9 @@ int main(void){
         CHECK(T->costG<8&&made[T->costG]&&T->costN>0,"type %d: its cost cannot be made",t);
         if(T->kind==KK_GATHER){ CHECK(T->staff==1&&T->outG<8&&(T->res==KT_FOREST||T->res==KT_ROCK||T->res==KT_CRYSTAL||T->res==KT_MEADOW)&&T->period>0,"type %d: gatherer row",t); }
         if(T->kind==KK_PROC){ CHECK(T->staff==1&&T->inG<8&&T->outG<8&&T->inG!=T->outG&&T->period>0,"type %d: processor row",t); int fed=0; for(int u=0;u<KS_NTYPES;u++) if(KS_T[u].kind==KK_GATHER&&KS_T[u].outG==T->inG) fed=1; CHECK(fed,"type %d: a processor that eats a good only another processor makes",t); }
-        if(T->kind==KK_HOME) CHECK(T->house>0,"type %d: a home with no room",t); }
-      CHECK(KS_NTYPES==12&&KS_NTYPES<=14,"12 types, and the palette banks fit (%d)",KS_NTYPES); }
+        if(T->kind==KK_HOME) CHECK(T->house>0,"type %d: a home with no room",t);
+        if(T->kind==KK_COMFORT) CHECK(T->staff==0&&T->house==0&&T->period==0&&T->costN>0,"type %d: a comfort row has no worker, no home, no clock",t); }
+      CHECK(KS_NTYPES==14&&KS_NTYPES<=14,"14 types, and the palette banks fit (%d)",KS_NTYPES); }
     // 2 modes, names, menu lines, roofs and banks
     { CHECK(KHM_N==KS_NTYPES+5&&KHM_DEMO==KHM_HUT+KS_NTYPES&&KHM_STORE-KHM_HUT==KB_STORE&&KHM_SHEEP-KHM_HUT==KB_SHEEP&&KHM_CRYMINE-KHM_HUT==KB_CRYMINE&&KHM_WEAVER-KHM_HUT==KB_WEAVER&&KHM_CUTTER-KHM_HUT==KB_CUTTER,"modes line up with the types");
       int worst=0; char b[64];
@@ -56,7 +57,7 @@ int main(void){
       for(int t=0;t<KS_NTYPES;t++){ CHECK(kvPalAt(t+1,14)==kvRoof[t]&&kvPalAt(t+1,3)==kvPal[3],"bank %d is type %d's roof and nothing else",t+1,t); CHECK(koRoof[t]!=0,"overview roof %d is black",t); }
       CHECK(kvPalAt(KS_NTYPES+1,14)==kvPal[14]&&kvPalAt(0,14)==kvPal[14],"banks past the roofs and the land are plain");
       b[0]=0; khCost(b,&S,KHM_SHEEP); CHECK(strcmp(b,"SHEEP PEN  3 WOOD  HAVE 0")==0,"%s",b); khCost(b,&S,KHM_CRYMINE); CHECK(strcmp(b,"MINE  3 PLANKS  HAVE 0")==0,"%s",b);
-      printf("  %d build modes, longest menu line %d characters; 12 roofs, all different on the map and the overview\n",KHM_N,worst);
+      printf("  %d build modes, longest menu line %d characters; 14 roofs, all different on the map and the overview\n",KHM_N,worst);
       // each mode builds its own type, as a site, at the giant's feet
       for(int t=0;t<KS_NTYPES;t++){ CHECK(scene(1,1,6u+(u32)t)==KSE_OK,"init"); KHand K; khInit(&K); K.mode=KHM_HUT+t; int r=khAct(&K,&S,60,60); CHECK(r==KHR_SITE&&R.nB==1&&B[0].type==t&&B[0].lvl==0,"mode %d: result %d, built type %d",K.mode,r,B[0].type); } }
     // 3 a pen with no meadow in reach makes nothing, and breaks nothing

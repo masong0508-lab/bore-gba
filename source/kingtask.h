@@ -3,7 +3,7 @@
 #ifndef KINGTASK_H
 #define KINGTASK_H
 #include "kingq.h"
-_Static_assert(KS_NTYPES<=EXK_NBT&&KG_GOODS==8,"kingq.h's layout holds 12 building types and 8 goods");
+_Static_assert(KS_NTYPES<=EXK_NBT&&KG_GOODS==8,"kingq.h's layout holds 14 building types and 8 goods");
 static inline int ktCap(long x){ return x<0?0:x>EXK_CAP?EXK_CAP:(int)x; }
 static inline void ktFeed(const KSim*S,int*v){
     const KRealm*R=S->R; for(int i=0;i<EXK_N;i++) v[i]=0;

@@ -60,7 +60,7 @@ static void kvHwEnter(KView*V){
     for(int i=0;i<16;i++) pal[15*16+i]=khPalCur(kvPalAt(0,i));                       // bank 15: the cursor cell, blinking
     volatile u16*tg=(volatile u16*)0x06000000; for(int t=0;t<KV_TILES;t++){ u8 g[32]; kvTileGfx(t,g); for(int i=0;i<16;i++) tg[t*16+i]=(u16)(g[2*i]|(g[2*i+1]<<8)); }
     *(volatile u16*)0x0400000A=0x0900;                                             // BG1CNT: priority 0 (above the map), charblock 0, screenblock 9
-    pal[14*16+1]=0x7FFF; pal[14*16+2]=RGB(1,1,3);                                  // bank 14: the text, white with a dark shadow
+    pal[14*16+1]=0x7FFF; pal[14*16+2]=RGB(1,1,3);                                  // bank 14: the text, white with a dark shadow (indices 1 and 2; bank 14 is also the tavern's roof bank, whose building tiles never use those two: tools/test_kingcomfort.sh checks it)
     { volatile u16*z=(volatile u16*)(0x06000000+KH_BLANK*32); for(int i=0;i<16;i++) z[i]=0;   // a see-through tile fills the whole text map but the two text rows
       volatile u16*mp=(volatile u16*)0x06004800; for(int i=0;i<1024;i++) mp[i]=(u16)(KH_BLANK|(14<<12));
       for(int i=0;i<KH_TILES;i++) mp[18*32+(i/30)*32+(i%30)]=(u16)((KV_TILES+i)|(14<<12)); }

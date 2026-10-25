@@ -29,10 +29,10 @@
 #define EXK_ROAD   4
 #define EXK_DELIV  5
 #define EXK_GOOD   6      // 8 goods: 6 to 13
-#define EXK_BT     14     // 12 building types: 14 to 25
-#define EXK_NBT    12
-#define EXK_BRIDGE 26     // bridge cells
-#define EXK_N      27
+#define EXK_BT     14     // 14 building types: 14 to 27 (step 5g: 12 before the well and the tavern)
+#define EXK_NBT    14
+#define EXK_BRIDGE 28     // bridge cells
+#define EXK_N      29
 #define EXK_CAP    9999   // no number is above this (a task's n is never more)
 static inline int exkIs(int kind){ return kind>=QK_KBLD&&kind<=QK_KBRIDGE; }
 // the number a kingdom task counts, from the realm's numbers v[EXK_N]; -1 if the kind is not one of these. a is the task's second field.

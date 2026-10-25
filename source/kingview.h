@@ -48,7 +48,7 @@ static inline void kvRefreshRow(KView*V){ if(!V->ok) return; if(V->rr>=KV_H) V->
 // ---- the art: 4 bits a pixel, 8 pixels a row, low nibble first (the GBA's order) ----
 #define KV_RGB(r,g,b) ((u16)((r)|((g)<<5)|((b)<<10)))
 static const u16 kvPal[16]={ KV_RGB(2,3,8), KV_RGB(6,17,5), KV_RGB(9,22,7), KV_RGB(3,11,4), KV_RGB(5,16,6), KV_RGB(14,9,4), KV_RGB(12,12,13), KV_RGB(19,19,20), KV_RGB(4,10,24), KV_RGB(8,16,28), KV_RGB(12,28,30), KV_RGB(17,24,8), KV_RGB(23,19,11), KV_RGB(17,13,7), KV_RGB(26,8,6), KV_RGB(29,27,22) };
-static const u16 kvRoof[KS_NTYPES]={ KV_RGB(20,12,6), KV_RGB(26,8,6), KV_RGB(6,20,6), KV_RGB(14,14,16), KV_RGB(28,16,4), KV_RGB(6,12,26), KV_RGB(18,8,24), KV_RGB(29,28,23), KV_RGB(3,25,23), KV_RGB(29,14,21), KV_RGB(14,23,31), KV_RGB(30,24,3) };
+static const u16 kvRoof[KS_NTYPES]={ KV_RGB(20,12,6), KV_RGB(26,8,6), KV_RGB(6,20,6), KV_RGB(14,14,16), KV_RGB(28,16,4), KV_RGB(6,12,26), KV_RGB(18,8,24), KV_RGB(29,28,23), KV_RGB(3,25,23), KV_RGB(29,14,21), KV_RGB(14,23,31), KV_RGB(30,24,3), KV_RGB(12,22,29), KV_RGB(22,4,14) };
 typedef char kvBanksFit[(KS_NTYPES<=14)?1:-1];   // bank 0 is the land, banks 1..KS_NTYPES the roofs, bank 15 the cursor (kingplay.h)   // roof colour by building type
 static inline u16 kvPalAt(int bank,int i){ return (bank>=1&&bank<=KS_NTYPES&&i==14)?kvRoof[bank-1]:kvPal[i]; }
 static inline void kvTileGfx(int t,u8*o32){   // fills 32 bytes
