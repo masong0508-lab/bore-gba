@@ -1218,3 +1218,10 @@ labels and values stay in capitals. The font has no em dash and no curly quotes:
 200), the creator demo's ABOUT page, the tutorial cards (214 px, goal hints 200), the advisor tips, the settings' two-line descriptions (214 px), the pack
 shelf blurbs and the story blurbs (166 px). `tools/test_vslines.sh` also runs the kingdom's HOW TO PLAY pages through the real line breaker.
 To rewrite a tab, edit the array and run the checker; or reflow a paragraph with the same widths (the checker prints the offending line and its width).
+
+## Lots: real layouts, halls, restrooms, bigger venues (venues.h, neighborhood.h)
+- Every venue kind now builds a laid out room, not a few items in a teal box. `venueBuild(x0,y0,x1,y1,ct)` frames the shell, sets the reserved band (`vL/vT/vR/vB`, counter row `vC`, door column `vX`), then calls a per-kind hall builder (`arcadeBuild`, `barBuild`, `poolBuild`, ...). LOUNGE, PLAZA and PARK have their own builders (`loungeBuild`, `plazaBuild`, `parkBuild`) called straight from `nbTemplate`.
+- Big halls (arcade, restaurant, bar and the rest) get restrooms (`vRestroom`, `vHasRestrooms`) in both back corners when the room is at least 15 wide and 8 deep. The doorway and the lobby stay reserved (`vRs`) so repair never eats them.
+- `vPut` refuses anything that lands in the door band or a reserved rect; `vRepair` walks the finished room from the door and removes pieces that would block a route or leave a chair facing nothing. If it removes a lot, `vRemoved` says how many.
+- Sizes come from the `nbVDim` table (units of four tiles). `nbVenueUp` grows old, smaller lots to the table size when they are opened and deletes their saved slot; `nbVenueOld` spots the old bare rooms by their signature tiles and sends them through the same rebuild, once. Homes are never touched.
+- `sh tools/test_lots.sh` builds every lot kind at every town shape on the PC (tools/lots_preview.py, same venues.h source), checks that every item is reachable from the door, and writes a contact sheet to /tmp/lots_test.png. It should end with "lots with problems: 0".

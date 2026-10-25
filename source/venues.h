@@ -186,7 +186,9 @@ static int venueLook(int ct,char c){   // the props of a place wear the catalog 
 // THE ARCADE'S HALL (venueBuild calls it): a prize counter with the prizes on the shelf behind it (the ticket desk), a vending machine for change and
 // snacks, rows of cabinets and pinball with a walking lane between them, a jukebox, and a real bathroom (two toilets, two sinks) in the back corner.
 // Everything is placed relative to the room, so it fits the small and the big lots; gFree-style guards keep it off walls and each other.
-static void vPut(int x,int y,char c,const char*nm){ if(x>0&&y>0&&x<MW-1&&y<MH-1&&lifeMap[y][x]=='.'){ gPut(x,y,c); wallMap[y][x]=(u8)catFind(nm); } }
+static int vRs[4][4], vNRs;   // rooms inside the hall that other pieces keep out of (the restrooms): x0, y0, x1, y1
+static int vResHit(int x,int y){ for(int i=0;i<vNRs;i++) if(x>=vRs[i][0]&&x<=vRs[i][2]&&y>=vRs[i][1]&&y<=vRs[i][3]) return 1; return 0; }
+static void vPut(int x,int y,char c,const char*nm){ if(x>0&&y>0&&x<MW-1&&y<MH-1&&lifeMap[y][x]=='.'&&!vResHit(x,y)){ gPut(x,y,c); wallMap[y][x]=(u8)catFind(nm); } }
 static void arcadeBuild(int rx0,int ry0,int rx1,int ry1,int cx,int wp){
     // the bathroom: back right corner, 4 tiles wide inside, its door opens onto the hall
     int bx0=rx1-5, by1=ry0+3;
@@ -223,24 +225,284 @@ static void barBuild(int rx0,int ry0,int rx1,int ry1,int cx){
     BP(rx0+1,ry1-1,'p',"POTTED PALM"); BP(rx1-1,ry1-1,'p',"FICUS"); BP(rx0+1,ry1-2,'l',"BRASS LAMP"); BP(rx1-1,ry1-2,'l',"BRASS LAMP");
 #undef BP
 }
-static void venueBuild(int x0,int y0,int x1,int y1,int ct){   // nbTemplate: a walled room, the counter across it, the props round the walls, you arrive outside the door
-    const Venue*v=venueOf(ct); if(!v) return;
-    int cx=(x0+x1)/2, rx0=x0+1, ry0=y0+1, rx1=x1-1, ry1=y1-3, my=(ry0+ry1)/2;
-    gBox(x0,y0,x1,y1,v->fl==6?6:7); gRoom(rx0,ry0,rx1,ry1,v->fl,v->wp); gPut(cx,ry1,'D');
-    if(ct==CT_ARCADE){ arcadeBuild(rx0,ry0,rx1,ry1,cx,v->wp); return; }   // the arcade has its own hall (above)
-    if(ct==CT_BAR){ gPut(cx,ry1,'D'); barBuild(rx0,ry0,rx1,ry1,cx); return; }   // the bar too: the renovated one
-    for(int x=cx-2;x<=cx+2;x++) gPut(x,ry0+3,'@');
-    const int sp[8][2]={{rx0+1,ry0+1},{rx1-1,ry0+1},{rx0+1,ry1-1},{rx1-1,ry1-1},{rx0+1,my},{rx1-1,my},{rx0+2,ry1-1},{rx1-2,ry1-1}};
-    for(int i=0;v->props[i]&&i<8;i++){ int x=sp[i][0], y=sp[i][1]; if(x>rx0&&x<rx1&&y>ry0&&y<ry1&&lifeMap[y][x]=='.'&&!(x==cx&&y==ry1-1)){ gPut(x,y,v->props[i]); wallMap[y][x]=(u8)venueLook(ct,v->props[i]); } }
-    if(ct==CT_POOL){   // THE COMMUNITY POOL: a real pool in the middle of the hall (water, its tiled edge), a ladder, the diving board, loungers and the lifeguard's chair
-        int px0=rx0+3, px1=rx1-3, py0=ry0+5, py1=ry1-4; if(px1-px0<2||py1-py0<1) return; if(px1>px0+9) px1=px0+9; if(py1>py0+4) py1=py0+4;   // (at most 10 x 5 of water)
-        for(int y=py0-1;y<=py1+1;y++)for(int x=px0-1;x<=px1+1;x++){ int in=x>=px0&&x<=px1&&y>=py0&&y<=py1; lifeMap[y][x]='.'; floorMap[y][x]=(u8)(in?FL_W0:FL_COPING); }
-        gPut(px1+1,py0,'p'); wallMap[py0][px1+1]=(u8)catFind("POOL LADDER");
-        gPut(px0-1,py1,'p'); wallMap[py1][px0-1]=(u8)catFind("DIVING BOARD");
-        for(int x=px0;x<=px1&&x<=px0+3;x+=2) if(py1+2<ry1&&lifeMap[py1+2][x]=='.'){ gPut(x,py1+2,'N'); wallMap[py1+2][x]=(u8)catFind(x==px0?"SUN LOUNGER":"STRIPED LOUNGER"); }
-        if(px1+2<rx1&&lifeMap[py0-1][px1+2]=='.'){ gPut(px1+2,py0-1,'h'); wallMap[py0-1][px1+2]=(u8)catFind("LIFEGUARD CHAIR"); }
-        if(px0-2>rx0&&lifeMap[py0-1][px0-2]=='.'){ gPut(px0-2,py0-1,'p'); wallMap[py0-1][px0-2]=(u8)catFind("BEACH UMBRELLA"); }
+// ---- THE HALLS: every place has its own room (the arcade's and the bar's are above). Each builder lays out the inside of a lot's room with the helpers below; the room is vL..vR by vT..vB
+// inside its walls, the counter's row is vC (two rows of back room above it, the customers' floor below), the door is in column vX. vIn never puts anything in the way from the door to the
+// counter. The back room behind a counter that runs wall to wall (vWings) is for show: fridges, safes, lockers, shelves. tools/lots_preview.py draws every hall at every lot shape on a PC. ----
+static int vL, vT, vR, vB, vC, vX;
+typedef struct { char c; const char*nm; } VI;
+static void vIn(int x,int y,char c,const char*nm){ if(x>=vL&&x<=vR&&y>=vT&&y<=vB&&!(y>vC&&x>=vX-1&&x<=vX+1)&&!(y==vC+1&&x>vL&&x<vR)) vPut(x,y,c,nm); }   // (the door's aisle and the row in front of the counter stay open)
+static void vRun(int x0,int x1,int y,char c,const char*nm,int st){ for(int x=x0;x<=x1;x+=st) vIn(x,y,c,nm); }
+static void vCol(int x,int y0,int y1,char c,const char*nm,int st){ for(int y=y0;y<=y1;y+=st) vIn(x,y,c,nm); }
+static void vSeq(int x0,int x1,int y,const VI*l,int n,int st){ int k=0; for(int x=x0;x<=x1;x+=st,k++) vIn(x,y,l[k%n].c,l[k%n].nm); }   // a run of different pieces, repeating
+static void vWings(char c,const char*nm){ vRun(vL,vX-3,vC,c,nm,1); vRun(vX+3,vR,vC,c,nm,1); }                                                  // the counter goes wall to wall
+static void vTable(int x,int y,const char*tn,const char*ch,int sides){ vIn(x,y,'t',tn); if(sides&1) vIn(x-1,y,'h',ch); if(sides&2) vIn(x+1,y,'h',ch); if(sides&4) vIn(x,y-1,'h',ch); if(sides&8) vIn(x,y+1,'h',ch); }
+static void vWindows(int rx0,int ry0,int rx1,int ry1,int cx,char w){   // windows in the outer walls: in the front wall either side of the door, down the sides, along the back
+    for(int x=rx0+2;x<=rx1-2;x+=3){ if(x<cx-1||x>cx+1){ if(lifeMap[ry1][x]=='W') lifeMap[ry1][x]=w; } if(lifeMap[ry0][x]=='W') lifeMap[ry0][x]=w; }
+    for(int y=ry0+3;y<=ry1-2;y+=3){ if(lifeMap[y][rx0]=='W') lifeMap[y][rx0]=w; if(lifeMap[y][rx1]=='W') lifeMap[y][rx1]=w; }
+}
+static void vFront(int x0,int y0,int x1,int y1,int ry1,int cx,const char*bench,const char*bush){   // the front yard: a bench and a flower bed either side of the door, lamps at the corners
+    int y=ry1+1; vPut(cx-4,y,'N',bench); vPut(cx+5,y,'N',bench); vPut(cx-2,y,'Z',bush); vPut(cx+3,y,'Z',bush); vPut(x0,y,'l',"STREET LAMP"); vPut(x1,y,'l',"STREET LAMP");
+    vPut(x0,y0,'p',"BOXWOOD"); vPut(x1,y0,'p',"BOXWOOD"); vPut(x0,ry1,'p',"OAK TREE"); vPut(x1,ry1,'p',"OAK TREE");
+}
+// THE WALK-THROUGH CHECK (as the houses have): after a hall is laid out, anything that cannot be walked to is taken away again. A floor tile in the customers' part (below the counter) that
+// cannot be reached from the door means something walled it in: the piece beside it that is least missed (a chair, a plant, a lamp, then the rest) goes. A piece with no reachable tile
+// beside it goes too. The search borrows bfsQ, which no search is using while a lot is built.
+static u8 vSeen[MH][MW] EWRAM_BSS; static int vRemoved;
+static int vReach(int sx,int sy,int x0,int y0,int x1,int y1){   // marks every tile of the room that can be walked to from (sx, sy); returns how many
+    for(int y=y0;y<=y1;y++) for(int x=x0;x<=x1;x++) vSeen[y][x]=0;
+    u16*q=bfsQ; int qh=0, qt=0, n=0; q[qt++]=(u16)(sy*MW+sx); vSeen[sy][sx]=1;
+    while(qh<qt){ int p=q[qh++], x=p%MW, y=p/MW; n++;
+        static const s8 d[4][2]={{1,0},{-1,0},{0,1},{0,-1}};
+        for(int k=0;k<4;k++){ int nx=x+d[k][0], ny=y+d[k][1]; if(nx<x0||nx>x1||ny<y0||ny>y1||vSeen[ny][nx]) continue; char c=lifeMap[ny][nx]; if(c!='.'&&c!='P'&&c!='B') continue; vSeen[ny][nx]=1; q[qt++]=(u16)(ny*MW+nx); } }
+    return n;
+}
+static int vRank(char c){ return c=='h'?0:c=='p'?1:c=='l'?2:c=='Z'?3:c=='t'?4:c=='N'?5:6; }   // what is missed least
+static void vRepair(int rx0,int ry0,int rx1,int ry1,int cx){
+    int x0=rx0+1, x1=rx1-1, y0=ry0+1, y1=ry1-1, cy=ry0+3; vRemoved=0;
+    for(int pass=0;pass<60;pass++){
+        vReach(cx,y1,x0,y0,x1,y1);   // (from the first tile inside the door)
+        int bx=-1, by=-1, br=99;
+        for(int y=cy+1;y<=y1;y++) for(int x=x0;x<=x1;x++){ char c=lifeMap[y][x];
+            if(c=='.'&&!vSeen[y][x]){   // a walled-in tile: the cheapest piece beside it that borders somewhere reachable (or any piece)
+                for(int k=0;k<4;k++){ int nx=x+(k==0)-(k==1), ny=y+(k==2)-(k==3); if(nx<x0||nx>x1||ny<=cy||ny>y1) continue; char e=lifeMap[ny][nx]; if(e=='.'||e=='W'||e=='D'||e=='@'||e=='E'||e=='f'||e=='e') continue;
+                    int r=vRank(e)+((vSeen[ny][nx])?0:0); int touch=0; for(int j=0;j<4;j++){ int tx=nx+(j==0)-(j==1), ty=ny+(j==2)-(j==3); if(tx>=x0&&tx<=x1&&ty>cy&&ty<=y1&&vSeen[ty][tx]) touch=1; }
+                    if(touch) r-=3; if(r<br){ br=r; bx=nx; by=ny; } } }
+            else if(c!='.'&&c!='W'&&c!='D'&&c!='@'&&c!='E'&&c!='f'&&c!='e'&&c!='P'&&c!='B'){   // a piece nobody can reach
+                int touch=0; for(int j=0;j<4;j++){ int tx=x+(j==0)-(j==1), ty=y+(j==2)-(j==3); if(tx>=x0&&tx<=x1&&ty>cy&&ty<=y1&&vSeen[ty][tx]) touch=1; }
+                if(!touch){ int r=vRank(c)-10; if(r<br){ br=r; bx=x; by=y; } } } }
+        if(bx<0) break;
+        lifeMap[by][bx]='.'; wallMap[by][bx]=0; vRemoved++;
     }
+}
+static void vFloorPatch(int x0,int y0,int x1,int y1,int fl){ for(int y=y0;y<=y1;y++) for(int x=x0;x<=x1;x++) if(x>=vL&&x<=vR&&y>vC&&y<=vB&&lifeMap[y][x]=='.') floorMap[y][x]=(u8)fl; }
+static void vSeats(int x,int y0,int y1,int dir,char c,const char*nm,int st){ for(int y=y0;y<=y1;y+=st) vIn(x,y,c,nm); (void)dir; }
+static void vRestroom(int side){   // a restroom in the bottom corner of the hall (side 0 left, 1 right): four tiles wide, three deep, walled on the hall's sides with a doorway; toilets on the front wall, sinks on the back
+    int x0=side?vR-3:vL, x1=side?vR:vL+3, wx=side?vR-4:vL+4, ty=vB-3;
+    if(ty<=vC+2) return;
+    for(int x=(side?vR-4:vL);x<=(side?vR:vL+4);x++){ lifeMap[ty][x]='W'; wallMap[ty][x]=7; }
+    for(int y=ty;y<=vB;y++){ lifeMap[y][wx]='W'; wallMap[y][wx]=7; }
+    lifeMap[vB-1][wx]='.'; wallMap[vB-1][wx]=0;                                                    // the doorway
+    for(int y=ty+1;y<=vB;y++) for(int x=x0;x<=x1;x++){ lifeMap[y][x]='.'; wallMap[y][x]=0; floorMap[y][x]=(u8)(side?6:5); }
+    vPut(x0,vB,'T',side?"BLACK TOILET":"PINK TOILET"); vPut(x0+1,vB,'T',side?"BLACK TOILET":"PINK TOILET"); vPut(x1,vB,'p',"FERN");
+    vPut(x0+1,ty+1,'H',"BATHROOM SINK"); vPut(x0+2,ty+1,'H',"BATHROOM SINK");
+    if(vNRs<4){ vRs[vNRs][0]=x0; vRs[vNRs][1]=ty+1; vRs[vNRs][2]=x1; vRs[vNRs][3]=vB; vNRs++; }   // (nothing else goes in there)
+    if(vNRs<4){ vRs[vNRs][0]=side?wx-2:wx; vRs[vNRs][1]=vB-2; vRs[vNRs][2]=side?wx:wx+2; vRs[vNRs][3]=vB; vNRs++; }   // (nor in the little lobby before its doorway)
+}
+static int vHasRestrooms(int ct){ return ct==CT_TACO||ct==CT_CAFE||ct==CT_CLUB||ct==CT_CINEMA||ct==CT_CASINO||ct==CT_LIBRARY||ct==CT_BAR||ct==CT_GROCER||ct==CT_SALON||ct==CT_DOJO||ct==CT_ARCADE; }
+static void tacoBuild(void){
+    static const VI line[]={{'F',"STEEL FRIDGE"},{'y',"STOVE"},{'y',"OVEN"},{'y',"STOVE"},{'y',"KITCHEN SINK"},{'F',"MINT FRIDGE"},{'y',"MICROWAVE STAND"}};
+    vSeq(vL,vR,vT,line,7,1); vWings('y',"OAK COUNTER"); vRun(vL+1,vR-1,vT+1,'y',"BUTCHER BLOCK",4); vIn(vX,vT+1,'l',"NEON BORE SIGN"); vIn(vX-4,vT+1,'l',"NEON ARROW"); vIn(vX+4,vT+1,'l',"NEON ARROW");
+    for(int y=vC+3;y<=vB-1;y+=3) for(int d=4;vX-d>=vL+3;d+=4){ vTable(vX-d,y+((d/4)&1),"ROUND TABLE","BAR STOOL",3); vTable(vX+d,y+((d/4)&1),"ROUND TABLE","BAR STOOL",3); }   // the dining room: clusters either side of the aisle
+    vIn(vR,vC+1,'F',"VENDING MACHINE"); vIn(vR,vC+2,'F',"VENDING MACHINE"); vIn(vL,vC+1,'p',"PINK FLAMINGO"); vIn(vL,vC+2,'p',"PINK FLAMINGO"); vIn(vR,vB,'l',"NEON ARROW");
+    for(int y=vB-2;y<=vB;y++) for(int x=vL;x<=vL+2;x++) vIn(x,y,'U',"BALL PIT");                                                                                           // the play area
+    vIn(vL+3,vB,'h',"ROCKING HORSE"); vIn(vL+3,vB-1,'p',"TEDDY BEAR"); vIn(vL+3,vB-2,'p',"BLOCKS TOWER");
+}
+static void gymBuild(void){
+    vWings('i',"PINE DRESSER"); vRun(vL,vR,vT,'i',"LOCKER",1); vIn(vX,vT,'l',"TROPHY CASE"); vIn(vX-3,vT,'l',"TROPHY CASE"); vIn(vX+3,vT,'l',"TROPHY CASE");
+    vRun(vL+1,vR-1,vT+1,'b',"WHITE BOOKSHELF",3);
+    vCol(vL,vC+1,vC+3,'H',"BLUE SHOWER",1); vIn(vL,vC+4,'H',"BATHROOM SINK"); vIn(vL,vC+5,'T',"PINK TOILET"); vIn(vL,vC+6,'T',"BLACK TOILET");   // the locker-room wall
+    vCol(vR,vC+2,vB-1,'i',"LOCKER",1);
+    for(int y=vC+3;y<=vB-3;y+=2){ for(int x=vL+3;x<=vX-3;x+=2) vIn(x,y,'m',"WEIGHT BENCH"); for(int x=vX+3;x<=vR-3;x+=2) vIn(x,y,'m',((x+y)&2)?"WEIGHT BENCH":"PUNCHING BAG"); }
+    if(vB-vC>=9){ vFloorPatch(vL+1,vB-3,vL+5,vB,1); vIn(vL+1,vB,'p',"FERN"); vIn(vL+5,vB,'p',"FERN"); vIn(vL+3,vB-3,'l',"BRASS LAMP"); }                      // a yoga corner on the carpet
+    if(vR-vL>=14&&vB-vC>=9){ vFloorPatch(vR-5,vB-3,vR-2,vB,13); vIn(vR-5,vB-3,'J',"RED BARRIER"); vIn(vR-2,vB-3,'J',"RED BARRIER"); vIn(vR-5,vB,'J',"RED BARRIER"); vIn(vR-2,vB,'J',"RED BARRIER"); }   // a boxing ring
+    vIn(vX-3,vB,'N',"PARK BENCH"); vIn(vX+3,vB,'N',"PARK BENCH"); vIn(vL+1,vC+1,'F',"VENDING MACHINE"); vIn(vR-1,vC+1,'v',"FLAT TV"); vIn(vR,vC+1,'v',"FLAT TV"); vIn(vL+8,vB,'A',"BIG SPEAKERS");
+}
+static void clubBuild(void){
+    vWings('y',"BAR COUNTER");
+    vRun(vL,vR,vT,'A',"BIG SPEAKERS",5); vIn(vX-1,vT,'d',"DJ BOOTH"); vIn(vX,vT,'d',"DJ BOOTH"); vIn(vX+1,vT,'d',"DJ BOOTH"); vIn(vX-2,vT,'R',"TURNTABLE"); vIn(vX+2,vT,'R',"TURNTABLE");
+    vIn(vX,vT+1,'l',"DISCO BALL"); vIn(vL+2,vT,'l',"NEON ARROW"); vIn(vR-2,vT,'l',"NEON ARROW"); vIn(vX-3,vT,'l',"NEON BORE SIGN"); vIn(vX+3,vT,'l',"NEON BORE SIGN");
+    vIn(vL,vC+1,'h',"BAR STOOL"); vIn(vR,vC+1,'h',"BAR STOOL");
+    int fx0=vX-4, fx1=vX+4; if(fx0<vL+3) fx0=vL+3; if(fx1>vR-3) fx1=vR-3; vFloorPatch(fx0,vC+2,fx1,vB-1,6);                                                        // the dance floor, lit
+    for(int y=vC+3;y<=vB-1;y+=3){ vIn(vL,y,'C',"VELVET SOFA"); vIn(vL+1,y,'t',"ROUND TABLE"); vIn(vL+2,y,'h',"RED ARMCHAIR"); vIn(vR,y,'C',"VELVET SOFA"); vIn(vR-1,y,'t',"ROUND TABLE"); vIn(vR-2,y,'h',"GREEN ARMCHAIR"); }   // the VIP booths
+    vIn(fx0,vC+2,'l',"DISCO BALL"); vIn(fx1,vC+2,'l',"DISCO BALL"); vIn(fx0,vB-1,'l',"DISCO BALL"); vIn(fx1,vB-1,'l',"DISCO BALL");
+    vIn(vL,vB,'A',"BIG SPEAKERS"); vIn(vR,vB,'A',"BIG SPEAKERS"); vIn(vL+4,vB,'p',"POTTED PALM"); vIn(vR-4,vB,'p',"POTTED PALM");
+    if(vB-vC>=8){ vIn(vL+4,vC+3,'U',"BALL PIT"); vIn(vR-4,vC+3,'U',"BALL PIT"); }
+}
+static void grocerBuild(void){
+    static const VI cold[]={{'F',"MINT FRIDGE"},{'F',"STEEL FRIDGE"},{'F',"RED FRIDGE"},{'b',"WINE RACK"}};
+    vSeq(vL,vR,vT,cold,4,1); vWings('b',"WHITE BOOKSHELF"); vRun(vL+1,vR-1,vT+1,'y',"MARBLE COUNTER",5);
+    vCol(vL,vC+2,vB-1,'F',"STEEL FRIDGE",1);                                                                                  // the dairy and drinks wall
+    for(int y=vC+2;y<=vB-1;y++) vIn(vR,y,'Z',(y&1)?"TULIP BED":(y&2)?"RED FLOWER BED":"YELLOW FLOWER BED");                  // the produce crates
+    for(int y=vC+3;y<=vB-2;y+=3){ vRun(vL+2,vX-3,y,'b',"WHITE BOOKSHELF",1); vRun(vX+3,vR-2,y,'b',"WHITE BOOKSHELF",1); vRun(vL+3,vX-4,y+1,'b',"WHITE BOOKSHELF",2); vRun(vX+4,vR-3,y+1,'b',"WHITE BOOKSHELF",2); }   // the aisles
+    vIn(vL+1,vB,'F',"VENDING MACHINE"); vIn(vR-1,vB,'p',"FICUS"); vIn(vX-3,vC+1,'y',"SNACK CART"); vIn(vX+3,vC+1,'y',"SNACK CART");
+    vIn(vL+1,vC+1,'y',"SNACK CART"); vIn(vR-1,vC+1,'p',"FICUS");
+}
+static void bankBuild(void){
+    vWings('d',"RECEPTION DESK"); vRun(vL,vR,vT,'i',"SAFE",3); vRun(vL+1,vR-1,vT,'i',"TRUNK",3); vRun(vL+1,vR-1,vT+1,'d',"COMPUTER DESK",2); vRun(vL+1,vR-1,vT+1,'h',"OFFICE CHAIR",2);
+    vIn(vL,vT,'i',"CABINET"); vIn(vR,vT,'i',"CABINET");
+    vIn(vX-2,vC+3,'Y',"BOLLARD"); vIn(vX+2,vC+3,'Y',"BOLLARD"); vIn(vX-2,vC+4,'Y',"BOLLARD"); vIn(vX+2,vC+4,'Y',"BOLLARD");                // the queue rope
+    for(int y=vC+3;y<=vB-1;y+=3){ vIn(vL,y,'C',"LEATHER SOFA"); vIn(vL,y+1,'C',"LEATHER SOFA"); vIn(vL+2,y,'t',"MARBLE TABLE"); vIn(vL+2,y+1,'p',"FICUS"); }   // the waiting area
+    int ox=vR-5;                                                                                                                  // the manager's office, walled in, its door facing the lobby
+    if(vR-vX>=7&&vB-vC>=6){ for(int y=vC+1;y<=vC+5;y++){ lifeMap[y][ox]='W'; wallMap[y][ox]=53; } for(int x=ox;x<=vR;x++){ lifeMap[vC+5][x]='W'; wallMap[vC+5][x]=53; } lifeMap[vC+5][ox+1]='D'; lifeMap[vC+5][ox+2]='.'; lifeMap[vC+5][ox+1]='.';
+        vIn(vR-1,vC+2,'d',"OAK DESK"); vIn(vR-2,vC+3,'h',"OFFICE CHAIR"); vIn(vR,vC+2,'b',"TALL BOOKSHELF"); vIn(vR,vC+4,'p',"FICUS"); vIn(vR-4,vC+2,'l',"BRASS LAMP"); vIn(vR-3,vC+2,'h',"OFFICE CHAIR"); vIn(vR-3,vC+4,'p',"BONSAI"); }
+    for(int x=vL+1;x<=vR-1;x+=4) if(!(x>=vX-3&&x<=vX+3)&&!(x>=vR-6)) vIn(x,vB,'p',(x&4)?"FICUS":"TALL VASE");
+    vIn(vX-5,vB-1,'d',"COMPUTER"); vIn(vX+4,vB-1,'d',"COMPUTER"); vIn(vX-5,vB,'h',"OFFICE CHAIR"); vIn(vX+4,vB,'h',"OFFICE CHAIR");
+}
+static void hospitalBuild(void){
+    static const VI sup[]={{'i',"CABINET"},{'i',"CABINET"},{'F',"STEEL FRIDGE"},{'i',"LOCKER"}};
+    vSeq(vL,vR,vT,sup,4,1); vWings('d',"LAB BENCH"); vRun(vL+1,vR-1,vT+1,'d',"COMPUTER DESK",3); vRun(vL+1,vR-1,vT+1,'h',"OFFICE CHAIR",3); vIn(vX,vT+1,'l',"TABLE LAMP");
+    for(int y=vC+3;y<=vB-1;y+=2){ for(int x=vL;x<=vX-5;x+=3){ vIn(x,y,'S',"CAMP COT"); vIn(x+1,y,'t',"SIDE TABLE"); } }                                  // the ward: cots, a side table between each pair
+    for(int y=vC+3;y<=vB-1;y+=2){ for(int x=vR;x>=vX+5;x-=3){ vIn(x,y,'S',(x&1)?"CAMP COT":"CAMP COT"); vIn(x-1,y,'t',"SIDE TABLE"); } }
+    for(int y=vC+3;y<=vB-3;y+=2){ vIn(vX-3,y,'h',"WHITE CHAIR"); vIn(vX-4,y,'h',"WHITE CHAIR"); vIn(vX+3,y,'h',"WHITE CHAIR"); vIn(vX+4,y,'h',"WHITE CHAIR"); }   // the waiting rows
+    vIn(vX-3,vC+2,'t',"COFFEE TABLE"); vIn(vX+3,vC+2,'F',"VENDING MACHINE"); vIn(vL,vC+1,'p',"FERN"); vIn(vR,vC+1,'p',"FERN"); vIn(vX-6,vC+2,'p',"FICUS"); vIn(vX+6,vC+2,'p',"FICUS");
+    if(vB-vC>=8){ vIn(vR,vB,'T',"PINK TOILET"); vIn(vR-1,vB,'H',"BATHROOM SINK"); vIn(vL,vB,'p',"FERN"); vIn(vX-3,vB,'p',"FICUS"); vIn(vX+3,vB,'p',"FICUS"); }
+}
+static void cafeBuild(void){
+    static const VI bar[]={{'c',"KETTLE STAND"},{'F',"STEEL FRIDGE"},{'c',"KETTLE STAND"},{'y',"OVEN"},{'F',"MINT FRIDGE"}};
+    vSeq(vL,vR,vT,bar,5,1); vWings('y',"MARBLE COUNTER"); vRun(vL+1,vR-1,vT+1,'y',"OAK COUNTER",3); vIn(vX,vT+1,'l',"BRASS LAMP");
+    for(int y=vC+3;y<=vB-3;y+=3) for(int d=4;vX-d>=vL+3;d+=4){ vTable(vX-d,y+(d/4&1),"ROUND TABLE","WICKER CHAIR",3); vTable(vX+d,y+(d/4&1),"ROUND TABLE","WICKER CHAIR",3); }   // tables, staggered
+    for(int y=vC+2;y<=vB-4;y+=2){ vIn(vL,y,'C',"BLUE COUCH"); vIn(vL+1,y,'t',"COFFEE TABLE"); }                                                                                      // the sofa wall
+    vIn(vR,vC+2,'b',"WHITE BOOKSHELF"); vIn(vR,vC+3,'b',"TALL BOOKSHELF"); vIn(vR,vC+4,'b',"WHITE BOOKSHELF"); vIn(vR-1,vC+4,'h',"RED ARMCHAIR"); vIn(vR-1,vC+2,'l',"BRASS LAMP");   // the book nook
+    vIn(vR,vB,'R',"GUITAR STAND"); vIn(vR-1,vB,'A',"BIG SPEAKERS"); vIn(vR,vB-1,'A',"BIG SPEAKERS"); vIn(vR-2,vB,'R',"SYNTHESIZER"); vIn(vR-3,vB,'R',"DRUM KIT");                      // the open-mic stage
+    vIn(vL,vC+1,'p',"FICUS"); vIn(vR,vC+1,'p',"MONSTERA"); vIn(vL,vB,'p',"FERN"); vIn(vL+1,vB,'p',"FICUS"); vIn(vX-4,vB,'l',"BRASS LAMP"); vIn(vX+4,vB,'l',"BRASS LAMP");
+}
+static void salonBuild(void){
+    vWings('d',"VANITY"); vRun(vL,vR,vT,'H',"BATHROOM SINK",2); vRun(vL+1,vR-1,vT,'i',"WHITE WARDROBE",2); vRun(vL+1,vR-1,vT+1,'l',"MARBLE BUST",7);
+    for(int y=vC+3;y<=vB-3;y+=2){ vIn(vL,y,'d',"VANITY"); vIn(vL+1,y,'h',"OFFICE CHAIR"); vIn(vR,y,'d',"VANITY"); vIn(vR-1,y,'h',"OFFICE CHAIR");
+        for(int d=5;vX-d>=vL+2;d+=4){ vIn(vX-d,y,'d',"VANITY"); vIn(vX-d+1,y,'h',"OFFICE CHAIR"); vIn(vX+d,y,'d',"VANITY"); vIn(vX+d-1,y,'h',"OFFICE CHAIR"); } }                          // the styling stations
+    vIn(vL,vB,'p',"FICUS"); vIn(vR,vB,'p',"FICUS");
+    if(vB-vC>=7){ vIn(vX+3,vB,'C',"PINK LOVESEAT"); vIn(vX+4,vB,'C',"PINK LOVESEAT"); vIn(vX+3,vB-1,'t',"SIDE TABLE"); vIn(vX-3,vB,'b',"COMIC RACK"); vIn(vX-4,vB,'b',"COMIC RACK"); vIn(vX-3,vB-1,'p',"POTTED PALM"); }
+    vIn(vL,vC+2,'p',"FICUS"); vIn(vR,vC+2,'p',"FICUS"); vIn(vX-3,vC+2,'l',"MARBLE BUST"); vIn(vX+3,vC+2,'l',"MARBLE BUST");
+}
+static void petBuild(void){
+    static const VI kennel[]={{'p',"DOG HOUSE"},{'b',"TOY BOX"},{'p',"DOG HOUSE"},{'p',"TEDDY BEAR"}};
+    vSeq(vL,vR,vT,kennel,4,1); vWings('b',"WHITE BOOKSHELF"); vRun(vL+1,vR-1,vT+1,'p',"BIRD FEEDER",4); vIn(vX,vT+1,'q',"FOUNTAIN");
+    for(int y=vC+2;y<=vC+4;y++) for(int x=vL;x<=vL+2;x++) vIn(x,y,'U',"SANDBOX"); vIn(vL+3,vC+2,'p',"DOG HOUSE"); vIn(vL+3,vC+3,'p',"TEDDY BEAR");    // the play pen
+    for(int y=vC+4;y<=vB-2;y+=3){ vRun(vL+3,vX-3,y,'b',"WHITE BOOKSHELF",1); vRun(vX+3,vR-3,y,'b',"WHITE BOOKSHELF",1); }                                      // food and toy aisles
+    for(int y=vC+2;y<=vB-1;y+=2){ vIn(vR,y,'p',"KIDDIE POOL"); vIn(vR,y+1,'q',"FOUNTAIN"); }                                                                  // the fish and bird side
+    vIn(vL,vB,'p',"TEDDY BEAR"); vIn(vL+1,vB,'p',"PINK FLAMINGO"); vIn(vX-3,vB,'p',"FERN"); vIn(vX+3,vB,'p',"TOPIARY BALL"); vIn(vR-1,vB,'p',"BIRD BATH"); vIn(vL,vC+1,'p',"DOG HOUSE");
+}
+static void libraryBuild(void){
+    vWings('d',"OAK DESK"); vRun(vL,vR,vT,'b',"TALL BOOKSHELF",1); vRun(vL+1,vR-1,vT+1,'d',"COMPUTER",5); vIn(vX,vT+1,'l',"GLOBE");
+    for(int x=vL;x<=vX-4;x+=3) vCol(x,vC+2,vB-3,'b',(x&1)?"TALL BOOKSHELF":"WHITE BOOKSHELF",1);                                                              // the stacks
+    for(int x=vR;x>=vX+4;x-=3) vCol(x,vC+2,vB-3,'b',(x&1)?"WHITE BOOKSHELF":"TALL BOOKSHELF",1);
+    vTable(vX-5,vB-1,"OAK DINING TABLE","OFFICE CHAIR",11); vTable(vX+5,vB-1,"OAK DINING TABLE","OFFICE CHAIR",11);                                              // the reading tables
+    vIn(vX-3,vB,'l',"GLOBE"); vIn(vX+3,vB,'d',"LECTERN"); vIn(vL,vB,'h',"RED ARMCHAIR"); vIn(vL+1,vB,'l',"BRASS LAMP"); vIn(vR,vB,'h',"GREEN ARMCHAIR"); vIn(vR-1,vB,'l',"BRASS LAMP");
+    vIn(vL+1,vB-1,'t',"KIDS TABLE"); vIn(vL+2,vB-1,'b',"TOY BOX"); vIn(vL+1,vB,'p',"BLOCKS TOWER");
+}
+static void casinoBuild(void){
+    vWings('y',"MARBLE COUNTER"); vRun(vL,vR,vT,'i',"SAFE",4); vRun(vL+1,vR-1,vT,'l',"TALL VASE",4); vIn(vX,vT+1,'l',"CHANDELIER"); vIn(vX-5,vT+1,'l',"CHANDELIER"); vIn(vX+5,vT+1,'l',"CHANDELIER");
+    vCol(vL,vC+2,vB-1,'v',"SLOT MACHINE",1); vCol(vR,vC+2,vB-1,'v',"SLOT MACHINE",1);
+    for(int y=vC+3;y<=vB-3;y+=3){ vIn(vL+3,y,'v',"SLOT MACHINE"); vIn(vL+4,y,'v',"SLOT MACHINE"); vIn(vR-3,y,'v',"SLOT MACHINE"); vIn(vR-4,y,'v',"SLOT MACHINE"); }  // slot islands
+    int ty=vC+3+((vB-vC-5)/2); vTable(vX-5,ty,"POKER TABLE","BAR STOOL",11); vTable(vX+5,ty,"POKER TABLE","BAR STOOL",11);
+    if(vB-vC>=11){ vTable(vX-5,ty+4,"CARD TABLE","BAR STOOL",11); vTable(vX+5,ty+4,"CARD TABLE","BAR STOOL",11); }
+    for(int x=vL+1;x<=vL+4;x++) vIn(x,vB,'y',"BAR COUNTER"); for(int x=vL+1;x<=vL+4;x+=2) vIn(x,vB-1,'h',"BAR STOOL");                                                // the bar
+    vIn(vR-1,vB,'p',"POTTED PALM"); vIn(vL+1,vC+1,'p',"POTTED PALM"); vIn(vR-1,vC+1,'p',"POTTED PALM"); vIn(vX-3,vB,'l',"CHANDELIER"); vIn(vX+3,vB,'l',"CHANDELIER");
+}
+static void cinemaBuild(void){
+    vRun(vL,vR,vT,'v',"FLAT TV",1); vWings('y',"BREAKFAST BAR"); vRun(vL,vR,vT+1,'l',"ABSTRACT ART",5);                                          // the screen wall (flat panels side by side)
+    for(int y=vC+3;y<=vB-1;y+=2){ for(int x=vL+1;x<=vX-3;x++) vIn(x,y,'C',(x&1)?"RED COUCH":"VELVET SOFA"); for(int x=vX+3;x<=vR-1;x++) vIn(x,y,'C',(x&1)?"VELVET SOFA":"RED COUCH"); }   // the rows of seats
+    vIn(vL,vC+1,'F',"VENDING MACHINE"); vIn(vL,vC+2,'F',"VENDING MACHINE"); vIn(vR,vC+1,'y',"SNACK CART"); vIn(vR,vC+2,'y',"SNACK CART"); vIn(vL,vB,'p',"POTTED PALM"); vIn(vR,vB,'p',"FICUS");
+    vIn(vX-3,vC+2,'l',"NEON BORE SIGN"); vIn(vX+3,vC+2,'l',"NEON ARROW");
+}
+static void spaceBuild(void){
+    vRun(vL,vR,vT,'v',"BIG TV",2); vWings('d',"LAB BENCH"); vRun(vL+1,vR-1,vT+1,'d',"COMPUTER",2); vRun(vL,vR,vT+1,'h',"OFFICE CHAIR",2);                                    // mission control: the big screens and a console a seat
+    for(int y=vC+3;y<=vB-3;y+=3){ vRun(vL+1,vX-3,y,'d',"COMPUTER DESK",2); vRun(vX+3,vR-1,y,'d',"COMPUTER DESK",2); vRun(vL+1,vX-3,y+1,'h',"OFFICE CHAIR",2); vRun(vX+3,vR-1,y+1,'h',"OFFICE CHAIR",2); }
+    vIn(vL,vB,'l',"GLOBE"); vIn(vR,vB,'v',"ROBOT BUDDY"); vIn(vL+2,vB,'p',"MANNEQUIN"); vIn(vR-2,vB,'p',"MANNEQUIN"); vIn(vX-3,vB,'l',"GLOBE"); vIn(vX+3,vB,'v',"ROBOT BUDDY");
+    vIn(vL,vC+1,'l',"GLOBE"); vIn(vR,vC+1,'v',"ROBOT BUDDY");
+}
+static void dojoBuild(void){
+    vWings('b',"BOARD RACK"); vRun(vL,vR,vT,'l',"TOTEM POLE",5); vRun(vL+2,vR-2,vT,'p',"BONSAI",5); vIn(vX,vT+1,'l',"TROPHY CASE");
+    int mx0=vL+3, mx1=vR-3, my0=vC+3, my1=vB-2; if(mx1-mx0>=4&&my1-my0>=2) vFloorPatch(mx0,my0,mx1,my1,13);                                          // the mat
+    for(int y=vC+2;y<=vB;y+=2){ vIn(vL,y,'m',"PUNCHING BAG"); vIn(vR,y,'m',"PUNCHING BAG"); }
+    vIn(vL,vC+1,'b',"BOARD RACK"); vIn(vR,vC+1,'b',"BOARD RACK"); vIn(vL+1,vB,'p',"BONSAI"); vIn(vR-1,vB,'p',"BONSAI"); vIn(vL+2,vB,'l',"STONE LANTERN"); vIn(vR-2,vB,'l',"STONE LANTERN");
+    vTable(vX-5,vB,"ROUND TABLE","FOLDING CHAIR",3); vTable(vX+5,vB,"ROUND TABLE","FOLDING CHAIR",3);
+}
+static void skshopBuild(void){
+    vWings('b',"BOARD RACK"); vRun(vL,vR,vT,'b',"BOARD RACK",1); vIn(vX,vT+1,'l',"NEON BORE SIGN"); vRun(vL+1,vR-1,vT+1,'b',"COMIC RACK",4);
+    vCol(vL,vC+2,vC+7,'b',"BOARD RACK",1); vIn(vR,vC+1,'F',"VENDING MACHINE"); vIn(vR,vC+2,'F',"VENDING MACHINE");
+    int gx=vR-7; if(gx<vX+3) gx=vX+3;                                                                                                              // a little demo street
+    vIn(gx,vB-1,'L',"GRIND BOX"); vIn(gx+1,vB-1,'L',"GRIND BOX"); vRun(gx-1,gx+4,vB-3,'=',"SHORT RAIL",1); vIn(gx+4,vB-1,'Y',"TRAFFIC CONE"); vIn(gx-2,vB-1,'Y',"TRAFFIC CONE"); vIn(gx+2,vB-1,'X',"A FRAME");
+    vIn(vL+1,vB,'C',"GREY COUCH"); vIn(vL+2,vB,'C',"GREY COUCH"); vIn(vL+1,vB-2,'v',"FLAT TV"); vIn(vL+3,vB,'t',"COFFEE TABLE"); vIn(vL,vB,'p',"TALL CACTUS");
+    for(int x=vX-4;x>=vL+2;x-=3){ vCol(x,vC+3,vC+4,'b',"BOARD RACK",1); vCol(x,vC+7,vC+8,'b',"BOARD RACK",1); }   // islands of decks
+    for(int x=vX+4;x<=vR-2;x+=3){ vCol(x,vC+3,vC+4,'b',"BOARD RACK",1); }
+    vRun(vL+1,vR-1,vB,'l',"NEON ARROW",9);
+}
+static void poolBuild(int rx0,int ry0,int rx1,int ry1,int cx){   // THE COMMUNITY POOL: changing rooms along the back (showers, toilets, towels), the water in the middle with its tiled edge, a ladder, the diving board, loungers and umbrellas, a lifeguard chair, a kiddie pool and a snack bar
+    int L=rx0+1, R=rx1-1, T=ry0+1, B=ry1-1;
+    for(int x=L;x<=L+3;x++) vPut(x,T,'H',"OUTDOOR SHOWER"); for(int x=R-4;x<=R-3;x++) vPut(x,T,'H',"BATHROOM SINK"); vPut(R-1,T,'T',"PINK TOILET"); vPut(R,T,'T',"BLACK TOILET"); vPut(L+4,T,'p',"TOWEL RACK"); vPut(L+5,T,'p',"TOWEL RACK"); vPut(R-2,T,'i',"CABINET");
+    vPut(L,T+1,'p',"POTTED PALM"); vPut(R,T+1,'p',"POTTED PALM"); vPut(cx-4,T+1,'p',"BEACH UMBRELLA"); vPut(cx+4,T+1,'p',"BEACH UMBRELLA"); vPut(cx-3,T+1,'p',"TOWEL RACK"); vPut(cx+3,T+1,'y',"SNACK CART");
+    int px0=L+3, px1=R-3, py0=T+4, py1=B-3; if(px1-px0<2||py1-py0<1) return; if(px1>px0+9) px1=px0+9; if(py1>py0+4) py1=py0+4;   // (at most 10 x 5 of water)
+    for(int y=py0-1;y<=py1+1;y++)for(int x=px0-1;x<=px1+1;x++){ int in=x>=px0&&x<=px1&&y>=py0&&y<=py1; lifeMap[y][x]='.'; floorMap[y][x]=(u8)(in?FL_W0:FL_COPING); }
+    vPut(px1+1,py0,'p',"POOL LADDER"); vPut(px0-1,py1,'p',"DIVING BOARD");
+    for(int x=px0-1;x<=px1+1;x+=2) if(py1+2<=B&&lifeMap[py1+2][x]=='.'){ vPut(x,py1+2,'N',(x&2)?"SUN LOUNGER":(x&4)?"STRIPED LOUNGER":"PINK LOUNGER"); vPut(x+1,py1+2,'p',"BEACH UMBRELLA"); }
+    for(int y=py0;y<=py1+1;y+=2){ vPut(px1+3,y,'N',"SUN LOUNGER"); }
+    vPut(px1+3,py0-1,'h',"LIFEGUARD CHAIR"); vPut(px0-3,py0-1,'p',"BEACH UMBRELLA"); vPut(px0-3,py0+1,'N',"STRIPED LOUNGER"); vPut(px0-3,py0+3,'N',"PINK LOUNGER");
+    vPut(L,B,'p',"KIDDIE POOL"); vPut(L+1,B,'p',"KIDDIE POOL"); vPut(L,B-1,'p',"KIDDIE POOL"); vPut(L+1,B-1,'p',"POOL FLOAT"); vPut(R,B,'y',"TIKI BAR"); vPut(R-1,B,'y',"TIKI BAR"); vPut(R,B-1,'h',"BAR STOOL"); vPut(R-1,B-1,'h',"BAR STOOL"); vPut(R-3,B,'l',"TIKI TORCH"); vPut(L+3,B,'l',"TIKI TORCH");
+}
+// ---- THE LOUNGE, THE PLAZA AND THE PARK: the community lots that are not shops. The lounge is a hangout with a stage, a bar corner, couches round low tables, hookahs and a ball pit; the plaza has a fountain,
+// benches, flower beds, a market with carts and stalls, trees and lamps; the park has paths, a pond, trees, a playground, picnic tables and grills. ----
+static void vGroup(int x,int y,const char*tn){   // a low table with a sofa either side and an armchair at one end
+    vIn(x,y,'t',tn); vIn(x-1,y,'C',(x&1)?"VELVET SOFA":"RED COUCH"); vIn(x+1,y,'C',(x&1)?"RED COUCH":"VELVET SOFA"); vIn(x,y+1,'h',(x&2)?"RED ARMCHAIR":"GREEN ARMCHAIR");
+}
+static void loungeBuild(int x0,int y0,int x1,int y1){
+    int rx0=x0+1, ry0=y0+1, rx1=x1-1, ry1=y1-3, cx=(x0+x1)/2;
+    gRoom(rx0,ry0,rx1,ry1,2,NWP+57); gPut(cx,ry1,'D');
+    vL=rx0+1; vT=ry0+1; vR=rx1-1; vB=ry1-1; vC=vT-3; vX=cx; vNRs=0;   // (no counter: nothing is held back for it)
+    if(vR-vL>=15&&vB-vT>=8){ vRestroom(0); vRestroom(1); }
+    vRun(vL,vR,vT,'A',"BIG SPEAKERS",7); vIn(vX-1,vT,'d',"DJ BOOTH"); vIn(vX,vT,'d',"DJ BOOTH"); vIn(vX+1,vT,'d',"DJ BOOTH"); vIn(vX-2,vT,'R',"TURNTABLE"); vIn(vX+2,vT,'R',"TURNTABLE"); vIn(vX-4,vT,'l',"PINK LAVA LAMP"); vIn(vX+4,vT,'l',"GREEN LAVA LAMP");
+    vIn(vX,vT+1,'l',"DISCO BALL");
+    for(int x=vL;x<=vL+4;x++) vIn(x,vT,'y',"BAR COUNTER"); for(int x=vL;x<=vL+4;x+=2) vIn(x,vT+1,'h',"BAR STOOL"); vIn(vL+5,vT,'F',"WINE FRIDGE");                       // the bar corner
+    vIn(vR,vT,'F',"VENDING MACHINE"); vIn(vR-1,vT,'F',"BEER KEG");
+    for(int y=vT+3;y<=vB-3;y+=4){ for(int d=5;vX-d>=vL+2;d+=6){ vGroup(vX-d,y,"COFFEE TABLE"); vGroup(vX+d,y,"COFFEE TABLE"); } }                                          // the lounging groups
+    for(int y=vT+5;y<=vB-3;y+=4){ vIn(vL,y,'G',"HOOKAH"); vIn(vL+1,y,'h',"BAR STOOL"); vIn(vR,y,'G',"BONG"); vIn(vR-1,y,'h',"BAR STOOL"); }                                       // hookahs and a bong or two
+    vIn(vL,vB,'U',"BALL PIT"); vIn(vL+1,vB,'U',"BALL PIT"); vIn(vR,vB,'U',"BALL PIT"); vIn(vR-1,vB,'U',"BALL PIT"); vIn(vL+3,vB,'p',"POTTED PALM"); vIn(vR-3,vB,'p',"MONSTERA");
+    vIn(vX-3,vB,'l',"BRASS LAMP"); vIn(vX+3,vB,'l',"BRASS LAMP"); vIn(vX-3,vT+2,'l',"DISCO BALL"); vIn(vX+3,vT+2,'l',"DISCO BALL");
+    vRepair(rx0,ry0,rx1,ry1,cx); vWindows(rx0,ry0,rx1,ry1,cx,'f');
+    vFront(x0,y0,x1,y1,ry1,cx,"PARK BENCH","TULIP BED");
+}
+static void plazaBuild(int x0,int y0,int x1,int y1){
+    int cx=(x0+x1)/2, my=(y0+y1)/2;
+    gBox(x0,y0,x1,y1,3); gBox(cx-4,my-3,cx+4,my+3,13); gBox(cx-3,my-2,cx+3,my+2,3);   // the checker paving with a red tiled ring round the fountain
+    vL=x0+1; vT=y0+1; vR=x1-1; vB=y1-2; vC=-5; vX=cx; vNRs=0;
+    vPut(cx,my,'q',"FOUNTAIN");
+    for(int d=-3;d<=3;d+=3){ vPut(cx+d,my-3,'N',"PARK BENCH"); vPut(cx+d,my+3,'N',"PARK BENCH"); } vPut(cx-4,my,'N',"PARK BENCH"); vPut(cx+4,my,'N',"PARK BENCH");
+    for(int x=x0+3;x<=x1-1;x+=3){ vPut(x,y0+1,'Z',(x&1)?"TULIP BED":"RED FLOWER BED"); vPut(x,y1-2,'Z',(x&1)?"YELLOW FLOWER BED":"TULIP BED"); }
+    for(int y=y0+3;y<=y1-4;y+=4){ vPut(x0+1,y,'p',"CHERRY BLOSSOM"); vPut(x1-1,y,'p',"BIRCH TREE"); vPut(x0+2,y,'l',"STREET LAMP"); vPut(x1-2,y,'l',"STREET LAMP"); }
+    vPut(x0+3,my-1,'y',"SNACK CART"); vPut(x0+5,my-1,'y',"SNACK CART"); vPut(x0+3,my+1,'t',"CARD TABLE"); vPut(x0+5,my+1,'t',"CARD TABLE"); vPut(x0+4,my+1,'h',"FOLDING CHAIR");   // the market end
+    vPut(x1-3,my-1,'y',"TIKI BAR"); vPut(x1-5,my-1,'y',"SNACK CART"); vPut(x1-3,my+1,'t',"CARD TABLE"); vPut(x1-5,my+1,'t',"CARD TABLE"); vPut(x1-4,my+1,'h',"FOLDING CHAIR");
+    vPut(cx-2,my-5,'l',"GARDEN STATUE"); vPut(cx+2,my-5,'p',"SUNDIAL"); vPut(cx,y0+2,'K',"WISHING WELL"); vPut(cx+2,my+5,'R',"BIG SPEAKERS");
+}
+static void parkBuild(int x0,int y0,int x1,int y1){
+    int cx=(x0+x1)/2, my=(y0+y1)/2;
+    for(int y=y0;y<=y1;y++) for(int x=x0;x<=x1;x++) floorMap[y][x]=11;
+    for(int y=y0+1;y<=y1-1;y++) floorMap[y][cx]=7; for(int x=x0+2;x<=x1-2;x++) floorMap[my][x]=7;                                   // a path from the gate to the middle and across
+    for(int y=my-3;y<=my+3;y++) for(int x=cx-5;x<=cx+5;x++){ int d=(x-cx)*(x-cx)*4/9+(y-my)*(y-my); if(d==9||d==10) floorMap[y][x]=7; }    // a ring round the middle
+    vL=x0+1; vT=y0+1; vR=x1-1; vB=y1-2; vC=-5; vX=cx; vNRs=0;
+    int px0=x1-7, py0=y0+3, px1=x1-2, py1=y0+7; if(px0>cx+2&&py1<my-1){ for(int y=py0-1;y<=py1+1;y++) for(int x=px0-1;x<=px1+1;x++){ int in=x>=px0&&x<=px1&&y>=py0&&y<=py1; lifeMap[y][x]='.'; floorMap[y][x]=(u8)(in?FL_W0:FL_COPING); } }   // a pond
+    static const char* const tr[6]={"OAK TREE","BIRCH TREE","PINE TREE","CHERRY BLOSSOM","AUTUMN MAPLE","WILLOW"};
+    for(int x=x0+1,k=0;x<=x1-1;x+=3,k++){ vPut(x,y0+1,'p',tr[k%6]); if(x<cx-1||x>cx+1) vPut(x+1,y1-2,'p',tr[(k+3)%6]); }
+    for(int y=y0+3,k=0;y<=y1-4;y+=4,k++){ vPut(x0+1,y,'p',tr[(k+1)%6]); vPut(x1-1,y,'p',tr[(k+4)%6]); }
+    vPut(cx-2,my-1,'N',"PARK BENCH"); vPut(cx+2,my-1,'N',"PARK BENCH"); vPut(cx-2,my+1,'N',"PARK BENCH"); vPut(cx+2,my+1,'N',"PARK BENCH"); vPut(cx,my-2,'q',"BIRD BATH"); vPut(cx,my+2,'Y',"HYDRANT");
+    vPut(x0+3,my-3,'t',"OAK DINING TABLE"); vPut(x0+2,my-3,'h',"FOLDING CHAIR"); vPut(x0+4,my-3,'h',"FOLDING CHAIR"); vPut(x0+3,my-4,'y',"BBQ GRILL");              // a picnic spot with a grill
+    vPut(x0+3,my+3,'t',"OAK DINING TABLE"); vPut(x0+2,my+3,'h',"FOLDING CHAIR"); vPut(x0+4,my+3,'h',"FOLDING CHAIR"); vPut(x0+5,my+3,'y',"BBQ GRILL");
+    vPut(x1-4,my+3,'U',"SWING SET"); vPut(x1-5,my+3,'U',"SWING SET"); vPut(x1-3,my+3,'U',"SANDBOX"); vPut(x1-2,my+3,'U',"SANDBOX"); vPut(x1-4,my+4,'h',"ROCKING HORSE"); vPut(x1-2,my+4,'U',"BOUNCY CASTLE");   // the playground
+    for(int x=x0+2;x<=x1-2;x+=5){ vPut(x,my+1,'Z',(x&1)?"TULIP BED":"RED FLOWER BED"); }
+    vPut(cx-5,y1-3,'l',"STREET LAMP"); vPut(cx+5,y1-3,'l',"STREET LAMP"); vPut(x0+2,y1-3,'p',"GARDEN GNOME"); vPut(x1-2,y1-3,'p',"BIRD FEEDER");
+}
+static void venueBuild(int x0,int y0,int x1,int y1,int ct){   // nbTemplate: a walled room, the counter across it, restrooms, then the hall of that kind of place (above), windows, and a front yard; you arrive outside the door
+    vRemoved=0;
+    if(ct==CT_LOUNGE){ loungeBuild(x0,y0,x1,y1); return; }   // (the lots that are not shops: nbTemplate calls these three for those kinds too)
+    if(ct==CT_PLAZA){ plazaBuild(x0,y0,x1,y1); return; }
+    if(ct==CT_PARK){ parkBuild(x0,y0,x1,y1); return; }
+    const Venue*v=venueOf(ct); if(!v) return;
+    int cx=(x0+x1)/2, rx0=x0+1, ry0=y0+1, rx1=x1-1, ry1=y1-3;
+    gBox(x0,y0,x1,y1,ct==CT_POOL?6:7); gRoom(rx0,ry0,rx1,ry1,v->fl,v->wp); gPut(cx,ry1,'D');
+    if(ct!=CT_ARCADE&&ct!=CT_BAR) for(int x=cx-2;x<=cx+2;x++) gPut(x,ry0+3,'@');   // (the arcade's and the bar's halls lay their own counters)
+    vL=rx0+1; vT=ry0+1; vR=rx1-1; vB=ry1-1; vC=ry0+3; vX=cx; vNRs=0;
+    if(vHasRestrooms(ct)&&vR-vL>=15&&vB-vC>=8){ vRestroom(0); if(ct!=CT_ARCADE) vRestroom(1); }   // (the arcade has its hall's own too)
+    switch(ct){
+        case CT_TACO: tacoBuild(); break;           case CT_GYM: gymBuild(); break;           case CT_CLUB: clubBuild(); break;         case CT_GROCER: grocerBuild(); break;
+        case CT_BANK: bankBuild(); break;           case CT_HOSPITAL: hospitalBuild(); break; case CT_CAFE: cafeBuild(); break;         case CT_SALON: salonBuild(); break;
+        case CT_PETSHOP: petBuild(); break;         case CT_LIBRARY: libraryBuild(); break;   case CT_CASINO: casinoBuild(); break;     case CT_CINEMA: cinemaBuild(); break;
+        case CT_SPACE: spaceBuild(); break;         case CT_DOJO: dojoBuild(); break;         case CT_SKSHOP: skshopBuild(); break;
+        case CT_ARCADE: arcadeBuild(rx0,ry0,rx1,ry1,cx,v->wp); break;   // the arcade has its own hall (above): it lays its own counter
+        case CT_BAR: barBuild(rx0,ry0,rx1,ry1,cx); break;               // the bar too
+        default: break; }
+    if(ct==CT_POOL) poolBuild(rx0,ry0,rx1,ry1,cx);
+    vRepair(rx0,ry0,rx1,ry1,cx);
+    vWindows(rx0,ry0,rx1,ry1,cx,ct==CT_SKSHOP||ct==CT_CLUB||ct==CT_SPACE?'f':'E');
+    vFront(x0,y0,x1,y1,ry1,cx,"PARK BENCH",ct==CT_BANK||ct==CT_LIBRARY?"ROSE BUSH":"RED FLOWER BED");
 }
 // ---- the counter, drawn by code ----
 static void venueDrawCounter(int sx,int sy,int t){

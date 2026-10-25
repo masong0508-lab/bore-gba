@@ -83,7 +83,7 @@ static const char* nbErr;
 static void prisonBuild(int x0,int y0,int x1,int y1);   // prison.h
 static void armsBuild(int x0,int y0,int x1,int y1); static int armsLotGet(void);   // prison.h: the compound of a PRISON lot
 static void dispBuild(int x0,int y0,int x1,int y1);   // weed.h
-static void venueBuild(int x0,int y0,int x1,int y1,int ct); static void venueDrawIcon(int ct,int sx,int sy,int k,int hw2);   // venues.h
+static void venueBuild(int x0,int y0,int x1,int y1,int ct); static void parkBuild(int x0,int y0,int x1,int y1); static void plazaBuild(int x0,int y0,int x1,int y1); static void loungeBuild(int x0,int y0,int x1,int y1); static void venueDrawIcon(int ct,int sx,int sy,int k,int hw2);   // venues.h
 static void nbTemplate(int i){   // a lot's starting layout: the land, the street in front, and what its kind brings
     NbLot*L=&nbT.lot[i]; flEnsure(); flHome();
     if(L->kind==LKIND_COMM&&L->type==CT_OLDTOWN) mapGen();
@@ -96,14 +96,13 @@ static void nbTemplate(int i){   // a lot's starting layout: the land, the stree
           lifeMap[y][MW]=0; }
         int cx=(x0+x1)/2;
         if(L->kind==LKIND_COMM){
-            if(L->type==CT_PARK){ for(int y=y0+2;y<=y1-2;y+=3)for(int x=x0+2;x<=x1-2;x+=4) gPut(x,y,(x/4+y/3)&1?'Z':'N'); gPut(cx-1,(y0+y1)/2,'Y'); gPut(cx+2,(y0+y1)/2,'K'); gPut(x0+1,y0+1,'a'); }   // (a community flag: visitors come and go there)
+            if(L->type==CT_PARK){ parkBuild(x0,y0,x1,y1); gPut(x0+1,y0+1,'a'); }   // (a community flag: visitors come and go there) (venues.h)
             else if(L->type==CT_SKATE||L->type==CT_BOTH){ gBox(x0,y0,x1,y1,12); gLine(x0+2,y0+2,x1-2,y0+2,'=',0); gPut(x0+2,y1-3,'1'); gPut(x1-2,y1-3,'3');
                 for(int x=x0+3;x<=x1-3;x++) gPut(x,y0+1,'5');
                 gPut(cx,(y0+y1)/2,'X'); gPut(cx+1,(y0+y1)/2,'X'); gPut(cx,(y0+y1)/2+1,'9'); gPut(x0+1,(y0+y1)/2,'L'); gPut(x1-1,(y0+y1)/2,'M'); gPut(x0+1,y0+1,'k');   // (a skate flag: a skater starts there)
                 if(L->type==CT_BOTH){ gPut(x1-1,y0+1,'a'); for(int x=x0+3;x<=x1-3;x+=5){ gFree(x,y1-1,(x/5)&1?'Z':'N'); } gFree(cx-3,y1-3,'K'); gFree(x1-3,y1-4,'Y'); } }   // + a community flag, benches, planters and a picnic table
-            else if(L->type==CT_PLAZA){ gBox(x0,y0,x1,y1,3); for(int x=x0+1;x<=x1-1;x+=3){ gPut(x,y0+1,'Z'); gPut(x,y1-1,'Z'); } gPut(cx-2,(y0+y1)/2,'N'); gPut(cx+2,(y0+y1)/2,'N'); gPut(cx,(y0+y1)/2-2,'K'); }
-            else if(L->type==CT_LOUNGE){ int rx0=x0+1, ry0=y0+1, rx1=x1-1, ry1=y1-3; gRoom(rx0,ry0,rx1,ry1,2,NWP+57); gPut(cx,ry1,'D');
-                gPut(rx0+1,ry0+1,'V'); gPut(rx1-1,ry0+1,'V'); gPut(rx0+2,ry0+2,'U'); gPut(rx1-2,ry0+2,'U'); gPut(cx,ry0+2,'G'); gPut(rx0+1,ry1-1,'C'); gPut(rx1-1,ry1-1,'C'); }
+            else if(L->type==CT_PLAZA) plazaBuild(x0,y0,x1,y1);   // venues.h
+            else if(L->type==CT_LOUNGE) loungeBuild(x0,y0,x1,y1);
             else if(L->type==CT_PRISON) prisonBuild(x0,y0,x1,y1);
             else if(L->type==CT_ARMS) armsBuild(x0,y0,x1,y1);   // armsshop.h
             else if(L->type==CT_DISP) dispBuild(x0,y0,x1,y1);   // weed.h
@@ -144,14 +143,32 @@ static int nbStore(int j){   // the live map into lot j's house slot (keeps the 
 }
 static int nbSave(void);
 static int nbFree(int x,int y,int w,int h,int skip);
-static void nbBarUp(int i){   // a small BAR is renovated: it grows to 7 x 6 (or 6 x 5) where there is land, and its room is built again with the new layout
-    NbLot*L=&nbT.lot[i]; if(!L->on||L->kind!=LKIND_COMM||L->type!=CT_BAR||(L->w>=6&&L->h>=5)) return;
-    static const u8 tg[2][2]={{7,6},{6,5}};
-    for(int k=0;k<2;k++){ int w=tg[k][0]>L->w?tg[k][0]:L->w, h=tg[k][1]>L->h?tg[k][1]:L->h;
+// THE PLACES' SIZES: a hall (venues.h) wants room, so a new place gets its size from this table where there is land (a lot that does not fit takes the next size down), and a place from
+// an older town GROWS to it when it is opened, if the land beside it is free. Its room is built again with the new hall then (its saved house goes). A place whose saved room has no
+// BOXWOOD at the lot's back-left corner (venueBuild's front yard puts one there) still has an old bare room: that is built again too, once.
+static const u8 nbVDim[CT_N][2]={ [CT_TACO]={8,5}, [CT_GYM]={7,5}, [CT_ARCADE]={8,6}, [CT_CLUB]={8,6}, [CT_GROCER]={7,5}, [CT_BANK]={6,5}, [CT_HOSPITAL]={7,5}, [CT_CAFE]={7,5}, [CT_BAR]={8,6},
+    [CT_SALON]={6,5}, [CT_PETSHOP]={6,5}, [CT_LIBRARY]={7,6}, [CT_CASINO]={8,6}, [CT_CINEMA]={8,6}, [CT_POOL]={8,6}, [CT_LOUNGE]={7,5}, [CT_PLAZA]={6,5}, [CT_PARK]={7,5}, [CT_DOJO]={6,5}, [CT_SKSHOP]={6,5}, [CT_SPACE]={7,5} };
+static int nbRoomFor(int x,int y,int w,int h);
+static void nbVenueFit(int t,int x,int y,int*w,int*h){   // a new place: the biggest of its size and the ones just under it that fits here and is no smaller than what the town gave it
+    if(t<0||t>=CT_N||!nbVDim[t][0]) return; int tw=nbVDim[t][0], th=nbVDim[t][1];
+    for(int sum=0;sum<=4;sum++) for(int a=0;a<=sum;a++){ int ww=tw-a, hh=th-(sum-a); if(ww>=*w&&hh>=*h&&nbRoomFor(x,y,ww,hh)){ *w=ww; *h=hh; return; } }
+}
+static void nbVenueUp(int i){   // a place from an older town grows to its size where there is land, and its room is built again
+    NbLot*L=&nbT.lot[i]; if(!L->on||L->kind!=LKIND_COMM||L->type>=CT_N||!nbVDim[L->type][0]||lnLot(L)) return;
+    int tw=nbVDim[L->type][0], th=nbVDim[L->type][1]; if(L->w>=tw&&L->h>=th) return;
+    for(int k=0;k<3;k++){ int w=tw-k>L->w?tw-k:L->w, h=th-k>L->h?th-k:L->h; if(w==L->w&&h==L->h) continue;
         for(int oy=0;oy<=h-L->h;oy++) for(int ox=0;ox<=w-L->w;ox++){ int x=L->x-ox, y=L->y-oy; if(x<0||y<0||!nbFree(x,y,w,h,i)) continue;
             int ok=1; for(int j=y-1;j<=y+h&&ok;j++) for(int q=x-1;q<=x+w;q++){ int o=(q>=0&&j>=0&&q<NB_W&&j<NB_H)?nbAt(q,j):-1; if(o>=0&&o!=i){ ok=0; break; } }
             if(!ok) continue;
             L->x=(u8)x; L->y=(u8)y; L->w=(u8)w; L->h=(u8)h; if(L->slot>=0) slDelete(L->slot); L->slot=-1; return; } }
+}
+static int nbVenueOld(const NbLot*L){   // 1 = the room on the live map is an old bare one: a shop without BOXWOOD in the lot's back-left corner, a park / plaza / lounge still with its first template's mark
+    if(!L->on||L->kind!=LKIND_COMM||L->type>=CT_N||!nbVDim[L->type][0]||lnLot(L)) return 0;
+    int x0,y0,x1,y1; nbRect(L,&x0,&y0,&x1,&y1);
+    if(L->type==CT_PARK) return lifeMap[y0+2][x0+2]=='Z'||lifeMap[y0+2][x0+2]=='N';
+    if(L->type==CT_PLAZA) return lifeMap[y0+1][x0+1]=='Z';
+    if(L->type==CT_LOUNGE) return lifeMap[y0+2][x0+2]=='V';
+    return lifeMap[y0][x0]!='p';
 }
 static int nbGo(int i){   // make lot i the live map. 1 = done (nbErr says why not)
     if(nbT.cur==i) return 1;
@@ -160,8 +177,9 @@ static int nbGo(int i){   // make lot i the live map. 1 = done (nbErr says why n
     if(nbT.cur<NB_LOTS&&nbT.lot[nbT.cur].on){ int e=nbStore(nbT.cur); if(e){ nbErr=e==SLE_NOROOM?"NO FREE SLOTS FOR THIS LOT":slErrMsg(e); ldEnd(); return 0; } }
     ldShow("OPENING THE NEW LOT",1,3);
     NbLot*L=&nbT.lot[i]; int ok=0;
-    nbBarUp(i);   // (a small bar is renovated)
+    nbVenueUp(i);   // (a place from an older town grows to its size)
     if(L->slot>=0){ slScan(); if(slOwner[L->slot]==L->slot&&slI[L->slot].kind==SLK_HOUSE) ok=(houseLoad(L->slot)==SLE_OK); if(!ok) L->slot=-1; }
+    if(ok&&nbVenueOld(L)){ slDelete(L->slot); L->slot=-1; ok=0; }   // (its saved room is an old bare one: the new hall is built)
     if(!ok) nbTemplate(i);
     ldShow("SAVING THE TOWN",2,3);
     nbT.cur=(u8)i; nbBounds(); nbSave(); twKeep=0; ldEnd(); return 1;   // (another lot: other passers-by)   // (ldEnd: the loading screen is over, the music may come back)
@@ -316,7 +334,7 @@ static void nbDistricts(int style,int ox,int oy){   // the land past ox / oy (th
         int w=0, h2=0; for(int q=(int)((r>>16)%12);q>=0;q--){ if(nbRoomFor(x,y,shp[q][0],shp[q][1])){ w=shp[q][0]; h2=shp[q][1]; break; } }
         if(!w) continue;
         int comm=((r>>12)&3)==0;
-        if(comm){ int t=kinds[kc++%(int)sizeof(kinds)]; if(t==CT_BAR&&nbRoomFor(x,y,7,6)){ w=7; h2=6; } nbLotAdd(n,ctNm[t],x,y,w,h2,LKIND_COMM,t); }   // (a bar is a big place)
+        if(comm){ int t=kinds[kc++%(int)sizeof(kinds)]; nbVenueFit(t,x,y,&w,&h2); nbLotAdd(n,ctNm[t],x,y,w,h2,LKIND_COMM,t); }   // (the places are big: nbVDim)
         else { int st=(int)((r>>24)%12); char nm[NB_NAME+1]; char*e=nm; for(const char*p=nbStreet[st];*p;) *e++=*p++; *e++=' '; homes[st]+=2; int no=homes[st]; if(no>=10) *e++=(char)('0'+no/10); *e++=(char)('0'+no%10); *e=0;
             nbLotAdd(n,nm,x,y,w,h2,LKIND_RES,0); }
         n++; }
