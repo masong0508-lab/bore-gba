@@ -5845,7 +5845,7 @@ static int vsLines(const char*s,int w,char L[VS_L][44]){   // the text broken in
         while(*s==' ') s++; if(!*s) break;
         int k=0; while(s[k]&&s[k]!=' ') k++;
         char t[44]; int tl=0; for(int i=0;i<l;i++) t[tl++]=c[i]; if(l) t[tl++]=' '; for(int i=0;i<k&&tl<42;i++) t[tl++]=s[i]; t[tl]=0;
-        if(l&&tw(t,1)>w){
+        if(l&&(tw(t,1)>w||l+1+k>42)){   // (also break when the joined line would not fit the 44 byte buffers: a line of many narrow letters is over 42 characters long before it is 216 pixels wide, and the next word then wrote past the end of t and c: a stack overflow that hung every pack page)
             c[l]=0; for(int i=0;i<=l;i++) L[n][i]=c[i]; n++; if(n>=VS_L){ l=0; break; }
             tl=0; for(int i=0;i<k&&tl<42;i++) t[tl++]=s[i]; t[tl]=0;
         }
