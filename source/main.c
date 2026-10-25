@@ -3398,6 +3398,7 @@ static int jbUse(void); static void phoneMenu(void); static void phTick(void);  
 static void trnTick(void);   // timedrun.h
 static void storyScreen(void); static void stTick(void); static void stEnter(void); static void stOff(void);   // story.h
 static void lifeStep(u16 k,u16 pr,int fr){
+    padTrack(pr);   // (DIAGONALS, opts.h: which D-pad axis was pressed last)
     lsTick(); trnTick();   // TIMED RUN countdown: one game step
     if(stage==AG_BABY&&!ldead){ k=babyPad(); pr=0; }   // uncontrollable stage: the pad is ignored (the pause menu still works)
     fgPre(&k,&pr);   // fight.h: L = guard, L + R = fight stance, R = punches
@@ -4910,7 +4911,7 @@ static void mapEditor(void){
         u16 k=keyNow(), pr=k&~prev, rel=prev&~k; prev=k;
         int tr[4];
         for(int i=0;i<4;i++){ hold[i]=(k&dirK[i])?hold[i]+1:0; tr[i]=kRepN(&erp[i],k&dirK[i],pr&dirK[i],oRepDelay(),oRepMask()+1); }   // (the REPEAT option, in frames by the clock)
-        int ux=tr[0]-tr[1], uy=tr[3]-tr[2];
+        int ux=tr[0]-tr[1], uy=tr[3]-tr[2]; padTrack(pr); padFour(&ux,&uy);   // (4 WAY: no diagonal cursor steps)
         int fast=0; for(int i=0;i<4;i++) if(kHeld(&erp[i],k&dirK[i],oRepDelay()+24)) fast=1;   // held a while: two tiles a step
         lrHold=(k&(K_L|K_R))?lrHold+1:0;   // L / R repeat while held, so the floors and wallpapers scroll by
         // FLOORS: hold L and R together, then press UP / DOWN = the floor above / below. A lone L or R waits 4 frames for its partner (SELECT + L / R and

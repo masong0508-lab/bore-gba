@@ -76,13 +76,19 @@ enum {
     XO_TWINS,     // SIM > BORES: how often a baby comes with a twin (family.h): NEVER SOMETIMES OFTEN ALWAYS
     XO_AMBV,      // AUDIO: NATURE SOUNDS slider 0..10, the outdoor ambience (main.c ambMix: birds by day, crickets at night, rain, wind)
     XO_CSTEXT,    // TIME > TIMERS: cutscene captions PLAY ON (each page waits long enough to read, then the scene goes on by itself; A hurries it) or WAIT FOR A
+    XO_DIAG,      // INPUT > DIAGONALS: 8 WAY (two D-pad keys make a diagonal: walking, aiming, the cursors) or 4 WAY (of two keys held, only the direction pressed last counts)
     XO_N
 };
-static const u8 xoCnt[]={ 5,5,2,4,4,4,4,2,3,4,2,3,2,4,   4,3,   4,3,2,   3,6,3,   2,2,2,2,2,3,2, 4,10,10,10,11, 2, 3, 2, 2, 2, 2, 11, 11, 11, 2, 2, 2, 5, 3, 2, 2, 3, 7, 3 , 2, 2, 4, 2, 2, 3, 4, 11, 2};
-static const u8 xoDef[]={ 2,1,1,2,1,1,1,1,0,2,1,1,1,1,   0,1,   0,0,1,   0,0,1,   1,1,1,0,1,2,1, 2,1,2,2,4, 0, 2, 1, 1, 1, 1, 10, 10, 10, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1 , 1, 1, 2, 1, 1, 1, 1, 6, 0};
+static const u8 xoCnt[]={ 5,5,2,4,4,4,4,2,3,4,2,3,2,4,   4,3,   4,3,2,   3,6,3,   2,2,2,2,2,3,2, 4,10,10,10,11, 2, 3, 2, 2, 2, 2, 11, 11, 11, 2, 2, 2, 5, 3, 2, 2, 3, 7, 3 , 2, 2, 4, 2, 2, 3, 4, 11, 2, 2};
+static const u8 xoDef[]={ 2,1,1,2,1,1,1,1,0,2,1,1,1,1,   0,1,   0,0,1,   0,0,1,   1,1,1,0,1,2,1, 2,1,2,2,4, 0, 2, 1, 1, 1, 1, 10, 10, 10, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1 , 1, 1, 2, 1, 1, 1, 1, 6, 0, 0};
 _Static_assert(sizeof(xoCnt)==XO_N&&sizeof(xoDef)==XO_N,"xoCnt / xoDef must have one entry per XO_ name");
 static u8 xo[XO_N];
 static void optsDefaults(void){ for(int i=0;i<XO_N;i++) xo[i]=xoDef[i]; }
+// ---- DIAGONALS (XO_DIAG): 8 WAY lets two D-pad directions make a diagonal; 4 WAY keeps only the direction (axis) pressed last, so the pad never walks, aims or moves a cursor on a diagonal ----
+// padTrack(pr) once a frame with the new presses; padFour(&ux,&uy) on the pad's two axes (-1, 0 or 1) before they are used. (Needs K_* from main.c.)
+static u8 padLastAx;   // the axis pressed last: 0 left / right, 1 up / down (both at once: left / right)
+static inline void padTrack(u16 pr){ if(pr&(K_LEFT|K_RIGHT)) padLastAx=0; else if(pr&(K_UP|K_DOWN)) padLastAx=1; }
+static inline void padFour(int*ux,int*uy){ if(xo[XO_DIAG]==1&&*ux&&*uy){ if(padLastAx) *ux=0; else *uy=0; } }
 
 // ---- accent colour (the GOLD of menus, HUD numbers and the editor) ----
 #define NACC 6

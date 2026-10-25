@@ -97,10 +97,10 @@ int main(void){
       K.mode=KHM_DEMO; r=khAct(&K,&S,c+6,c); CHECK(r==KHR_RAZED&&ksCheck(&S)==0,"a well can be demolished (%d)",r);
       printf("  texts and modes: longest menu line %d characters\n",worst); }
     // 7 the roofs and the palette banks: the tavern's roof bank is also the text layer's (indices 1 and 2 there), so no building tile may use those two indices
-    { for(int a=0;a<KS_NTYPES;a++) for(int e=a+1;e<KS_NTYPES;e++){ CHECK(kvRoof[a]!=kvRoof[e],"map roofs %d and %d are the same",a,e); CHECK(koRoof[a]!=koRoof[e],"overview roofs %d and %d are the same",a,e); }
-      CHECK(kvPalAt(KB_TAVERN+1,14)==kvRoof[KB_TAVERN]&&KB_TAVERN+1==14,"the tavern's bank is bank 14");
-      for(int t=8;t<12;t++){ u8 g[32]; kvTileGfx(t,g); for(int i=0;i<32;i++) for(int h=0;h<2;h++){ int px=(g[i]>>(4*h))&15; CHECK(px!=1&&px!=2,"building tile %d uses colour %d, which bank 14's text overwrites",t,px); } }
-      printf("  14 roofs all different on the map and the overview; the building tiles never use colours 1 and 2 (bank 14 = the tavern's roof and the text)\n"); }
+    { for(int a=0;a<KS_NTYPES;a++) for(int e=a+1;e<KS_NTYPES;e++){ CHECK(kaBldBank[a]!=kaBldBank[e]||(a==KB_MASON&&e==KB_CUTTER),"map banks %d and %d are the same",a,e); CHECK(koRoof[a]!=koRoof[e],"overview roofs %d and %d are the same",a,e); }
+      CHECK(kaBldBank[KB_TAVERN]==14&&kaBldBank[KB_WELL]==13,"the tavern's bank is 14 and the well's 13; the text has bank 15 to itself");
+      for(int t=0;t<KA_NT;t++) for(int i=0;i<32;i++) (void)kaTile[t][i];   // (the text bank 15 is never named by a map tile: kvEntry only returns banks 0 to 14, checked in test_kingview)
+      printf("  every building has its own palette bank (the mason and the cutter share one) and its own overview roof colour; the text has bank 15 to itself\n"); }
     // 8 the mission numbers
     { CHECK(scene(1,15u)==KSE_OK,"init"); int c=48; ksPlace(&S,KB_WELL,c,c,1); ksPlace(&S,KB_TAVERN,c+4,c,1); ksPlace(&S,KB_TAVERN,c+8,c,1); ksPlace(&S,KB_TAVERN,c+12,c,0); int v[EXK_N]; ktFeed(&S,v);
       CHECK(v[EXK_BT+KB_WELL]==1&&v[EXK_BT+KB_TAVERN]==2&&v[EXK_BUILT]==3,"the feed counts finished wells and taverns (%d %d %d)",v[EXK_BT+KB_WELL],v[EXK_BT+KB_TAVERN],v[EXK_BUILT]);

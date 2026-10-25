@@ -53,9 +53,8 @@ int main(void){
       int worst=0; char b[64];
       CHECK(scene(1,1,5u)==KSE_OK,"init");
       for(int m=0;m<KHM_N;m++){ CHECK(khName[m]&&khName[m][0],"mode %d has no name",m); khCost(b,&S,m); int n=(int)strlen(b); if(n>worst) worst=n; CHECK(n>0&&n<=40,"menu line %d is %d long: %s",m,n,b); }
-      for(int a=0;a<KS_NTYPES;a++) for(int e=a+1;e<KS_NTYPES;e++){ CHECK(kvRoof[a]!=kvRoof[e],"map roofs %d and %d are the same",a,e); CHECK(koRoof[a]!=koRoof[e],"overview roofs %d and %d are the same",a,e); }
-      for(int t=0;t<KS_NTYPES;t++){ CHECK(kvPalAt(t+1,14)==kvRoof[t]&&kvPalAt(t+1,3)==kvPal[3],"bank %d is type %d's roof and nothing else",t+1,t); CHECK(koRoof[t]!=0,"overview roof %d is black",t); }
-      CHECK(kvPalAt(KS_NTYPES+1,14)==kvPal[14]&&kvPalAt(0,14)==kvPal[14],"banks past the roofs and the land are plain");
+      for(int a=0;a<KS_NTYPES;a++) for(int e=a+1;e<KS_NTYPES;e++){ CHECK(kaBldBank[a]!=kaBldBank[e]||(a==KB_MASON&&e==KB_CUTTER),"map banks %d and %d are the same",a,e); CHECK(koRoof[a]!=koRoof[e],"overview roofs %d and %d are the same",a,e); }
+      for(int t=0;t<KS_NTYPES;t++){ CHECK(kaBldBank[t]>=2&&kaBldBank[t]<=14,"type %d's bank %d is a building bank",t,kaBldBank[t]); CHECK(koRoof[t]!=0,"overview roof %d is black",t); }
       b[0]=0; khCost(b,&S,KHM_SHEEP); CHECK(strcmp(b,"SHEEP PEN  3 WOOD  HAVE 0")==0,"%s",b); khCost(b,&S,KHM_CRYMINE); CHECK(strcmp(b,"MINE  3 PLANKS  HAVE 0")==0,"%s",b);
       printf("  %d build modes, longest menu line %d characters; 14 roofs, all different on the map and the overview\n",KHM_N,worst);
       // each mode builds its own type, as a site, at the giant's feet

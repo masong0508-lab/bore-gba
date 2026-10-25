@@ -19,8 +19,8 @@ static const char* const khMsg[KHR_N]={ "", "ROAD LAID", "ROAD LIFTED", "SITE PL
 static inline void khInit(KHand*B){ B->mode=KHM_HAND; }
 static inline void khCycle(KHand*B,int dir){ B->mode=(B->mode+(dir>0?1:KHM_N-1))%KHM_N; }
 // the cell under the middle of the screen, from the camera in pixels (the screen is 240 x 160: its middle is 120, 80)
-static inline int khCx(int camx){ return (camx+120)>>3; }
-static inline int khCy(int camy){ return (camy+80)>>3; }
+static inline int khCx(int camx){ return (camx+120)>>4; }   // (a cell is 16 pixels)
+static inline int khCy(int camy){ return (camy+80)>>4; }
 // the building whose 2 x 2 footprint covers cell (x,y), or -1
 static inline int khBldAt(const KSim*S,int x,int y){
     for(int i=0;i<S->R->nB;i++){ const KBld*b=&S->B[i]; if(x>=b->x&&x<b->x+kgFootW(b->type)&&y>=b->y&&y<b->y+kgFootH(b->type)) return i; }
@@ -97,13 +97,21 @@ static inline void khStatus2(char*out,int mode,long day,int pop,int spd,const ch
     if(!held||!held[0]){ khStatus(out,mode,day,pop,spd); return; }
     char*e=khCat(out,khName[mode]); e=khCat(e,"  "); e=khCat(e,held); e=khCat(e,"  DAY "); khNum(e,day>99999?99999:day);
 }
-// A strip of the screen (240 x 16 pixels of the game's 15 bit bitmap, row stride 240) as 60 tiles of 4 bits a pixel, 16 half words a tile, tile (tx,ty) at index ty*30+tx:
-// pixel 0 stays 0 (see through), the shadow colour becomes 2, anything else 1. A tile row is 8 pixels, low nibble first.
+// A strip of the screen (240 x 16 pixels of the game's 15 bit bitmap, row stride 240) as 60 tiles of 4 bits a pixel, 16 half words a tile, tile (tx,ty) at index ty*30+tx.
+// The text was drawn in white on black, anti-aliased: a pixel that is mostly white becomes colour 1 (the white letter; gold, 3, on the first line), a half-lit one a softer 4 (5), a black one touching a letter above, below or beside becomes colour 2
+// (its dark outline, so it reads on any ground), the rest stays 0 (see through). A tile row is 8 pixels, low nibble first.
 #define KH_TILES 60
-static inline void khStrip(const u16*fb,u16 shadow,u16*out){
+static inline int khLum(const u16*fb,int x,int y){ if(x<0||y<0||x>=240||y>=16) return 0; u16 px=fb[y*240+x]; return (px&31)+((px>>5)&31)+((px>>10)&31); }   // 0..93 (no table: nothing here may take RAM)
+static inline int khOn(const u16*fb,int x,int y){ return khLum(fb,x,y)>=62; }   // the body of a stroke: two thirds white or more
+static inline void khStrip(const u16*fb,u16 shadow,u16*out){   // (the font is anti-aliased and small: a stroke edge keeps a softer tone, 4 and 5, so the letters do not thin out)
+    (void)shadow;
     for(int ty=0;ty<2;ty++) for(int tx=0;tx<30;tx++){ u16*t=out+(ty*30+tx)*16;
         for(int r=0;r<8;r++){ unsigned w[2]={0,0};
-            for(int c=0;c<8;c++){ u16 px=fb[(ty*8+r)*240+tx*8+c]; unsigned n=px==0?0u:px==shadow?2u:1u; w[c>>2]|=n<<((c&3)*4); }
+            for(int c=0;c<8;c++){ int y=ty*8+r, x=tx*8+c; unsigned n=0, l=(unsigned)khLum(fb,x,y);
+                if(l>=62) n=ty==0?3u:1u;   // (the first line gold, the second white: palette colours 3 and 1 of the text bank)
+                else if(l>=24) n=ty==0?5u:4u;   // (the edge of a stroke: a softer gold or white)
+                else if(khOn(fb,x-1,y)||khOn(fb,x+1,y)||khOn(fb,x,y-1)||khOn(fb,x,y+1)) n=2;   // (the dark outline, so it reads on any ground)
+                w[c>>2]|=n<<((c&3)*4); }
             t[r*2]=(u16)w[0]; t[r*2+1]=(u16)w[1]; } }
 }
 

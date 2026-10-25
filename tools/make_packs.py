@@ -40,7 +40,7 @@ PACKS = [
     (['gotchi.h'], ['goSum', 'goPack', 'goUnpack', 'goClear', 'goSave', 'goLoad', 'goHas', 'goNew', 'goNeeds', 'goTick', 'goMinute',
                     'sgEncGotchi', 'goNames', 'goStNm', 'goFormNm'], ['xmGotchi'] + ['xg%d%s' % (n, w) for n in range(11, 15) for w in ('In', 'Out')]),
     ([], [], ['xmEpi'] + ['xe%d%s' % (n, w) for n in range(11, 20) for w in ('In', 'Out')]),
-    ([], [], ['xmKing']),   # EP6 THE LAND BOREFORE TIME (its mission table; the kingdom's code goes here in later phases)
+    ([], [], ['xmKing', 'kaTile', 'kaWaterB', 'kaPal', 'kaBldTile', 'kaBldBank', 'kaGiant0', 'kaGiant1', 'kaGiant2', 'kaGiant3', 'kaGiants', 'kaNub', 'kaGood', 'kaSmoke', 'kaCursor','kaCrowd', 'kaObjPal', 'kaGiantPal']),   # EP6 THE LAND BOREFORE TIME (its mission table; the kingdom's code goes here in later phases)
 ]
 
 def names_in(header):   # every top-level function and table a header defines

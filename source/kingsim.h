@@ -21,7 +21,7 @@
 #define KS_MAPS    10       // distance maps kept at once (kinglog.h). Each is KS_MAXN bytes. 8 was tried and starves a 30 building realm in the test
 #endif
 #define KS_MAXW    40       // carriers
-#define KS_POPCAP  96
+#define KS_POPCAP  320      // the most the 40 buildings can ever house (40 houses of 8): the homes are the real limit; kingfx.h draws all of them (crowds) at any count
 #define KS_PARTY   4        // the founding party
 #define KS_BUF     8        // goods a building holds
 #define KS_DAYT    600      // frames in a realm day

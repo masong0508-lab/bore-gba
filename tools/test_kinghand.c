@@ -23,7 +23,7 @@ int main(void){
     printf("== kinghand: building by hand\n");
     KHand K; khInit(&K); CHECK(K.mode==KHM_HAND,"starts on the hand");
     for(int i=0;i<KHM_N;i++) khCycle(&K,1); CHECK(K.mode==KHM_HAND,"R cycles round"); khCycle(&K,-1); CHECK(K.mode==KHM_NUBBIN,"L from HAND is NUBBIN"); khCycle(&K,1);
-    CHECK(khCx(0)==15&&khCy(0)==10&&khCx(8*40-1)==(8*40+119)/8,"the cell under the middle of the screen");
+    CHECK(khCx(0)==7&&khCy(0)==5&&khCx(16*40-1)==(16*40+119)/16,"the cell under the middle of the screen (a cell is 16 pixels)");
     CHECK(KHM_ROAD==1&&KHM_HUT==2&&KHM_STORE-KHM_HUT==KB_STORE&&KHM_DEMO==KS_NTYPES+2&&KHM_MOVE==KHM_DEMO+1&&KHM_NUBBIN==KHM_MOVE+1&&KHM_N==KS_NTYPES+5,"modes line up with the building types");
     CHECK(KHR_N==31&&KHR_GOT>KHR_RAZED&&KHR_GOT<KHR_NOTHING&&khRedraw(KHR_RAZED)&&khRedraw(KHR_LIFT)&&khRedraw(KHR_SET)&&!khRedraw(KHR_GOT)&&!khRedraw(KHR_TAKE),"result codes: the map-changing ones come first"); for(int r=0;r<KHR_N;r++) CHECK(r==0||(khMsg[r]&&khMsg[r][0]),"message for result %d",r);
     for(int tier=0;tier<3;tier++){
@@ -60,10 +60,14 @@ int main(void){
       S.B[R.nB-1].lvl=1; S.B[R.nB-1].work=3; khInfo(&S,x,y,b); CHECK(strstr(b,"HUT  NUBBINS 3 OF 4")!=0,"hut text: %s",b);
       khStatus(b,KHM_DEMO,123456,7,2); CHECK(strcmp(b,"DEMOLISH   DAY 99999  NUBBINS 7  X16")==0,"status: %s",b); khStatus(b,KHM_ROAD,12,0,0); CHECK(strcmp(b,"ROAD   DAY 12  NUBBINS 0  X1")==0,"status: %s",b);
       CHECK(worst<=24,"longest info line is %d characters",worst);
-      static u16 fbs[240*16], tiles[KH_TILES*16]; memset(fbs,0,sizeof fbs); const u16 SH=0x0821, WH=0x7FFF;
-      for(int yy=0;yy<16;yy++) for(int xx=0;xx<240;xx++){ u32 h=(u32)(xx*7+yy*13)%5; fbs[yy*240+xx]=h==0?SH:h==1?WH:h==2?0x1234:0; }
-      khStrip(fbs,SH,tiles); int bad=0;
-      for(int yy=0;yy<16;yy++) for(int xx=0;xx<240;xx++){ int tile=(yy>>3)*30+(xx>>3); int row=yy&7, col=xx&7; unsigned got=(tiles[tile*16+row*2+(col>>2)]>>((col&3)*4))&15; u16 px=fbs[yy*240+xx]; unsigned want=px==0?0:px==SH?2:1; bad+=got!=want; }
+      static u16 fbs[240*16], tiles[KH_TILES*16]; memset(fbs,0,sizeof fbs); const u16 WH=0x7FFF;
+      for(int yy=0;yy<16;yy++) for(int xx=0;xx<240;xx++){ u32 h=(u32)(xx*7+yy*13)%5; fbs[yy*240+xx]=h==0?0x0821:h==1?WH:h==2?0x4210:0; }   // dim noise, white, mid grey, black
+      khStrip(fbs,0,tiles); int bad=0;
+      #define LV(x,y) ((x)<0||(y)<0||(x)>=240||(y)>=16?0:((fbs[(y)*240+(x)]&31)+((fbs[(y)*240+(x)]>>5)&31)+((fbs[(y)*240+(x)]>>10)&31)))
+      #define LUM(x,y) (LV(x,y)>=62)
+      for(int yy=0;yy<16;yy++) for(int xx=0;xx<240;xx++){ int tile=(yy>>3)*30+(xx>>3); int row=yy&7, col=xx&7; unsigned got=(tiles[tile*16+row*2+(col>>2)]>>((col&3)*4))&15;
+        unsigned want=0; if(LUM(xx,yy)) want=yy<8?3u:1u; else if(LV(xx,yy)>=24) want=yy<8?5u:4u; else { int nb=LUM(xx-1,yy)||LUM(xx+1,yy)||LUM(xx,yy-1)||LUM(xx,yy+1); if(nb) want=2; }
+        if(got!=want) bad++; }
       CHECK(bad==0,"%d wrong pixels in the tiles",bad); printf("  text layer: info lines up to %d characters, strip -> tiles exact\n",worst); }
     // ---- the build menu lines ----
     { CHECK(fresh(0,5u)==KSE_OK,"init"); char b[64]; int worst=0; R.goods[G_WOOD]=12; R.goods[G_PLANKS]=0; R.goods[G_STONE]=70000;

@@ -39,8 +39,8 @@ int main(void){
       CHECK(used[G_PLANKS]&&used[G_CUT]&&used[G_CLOTH]&&used[G_POLISH],"the four better goods are all used by the castle");
       CHECK(KG_CASTLE==4&&KS_NTYPES==14&&KB_CASTLE==11&&KB_WELL==12&&KB_TAVERN==13&&KS_NTYPES<=14,"14 types, the castle 11 (it never moved), the well 12 and the tavern 13, the palette banks fit");
       CHECK(KHM_CASTLE-KHM_HUT==KB_CASTLE&&KHM_N==KS_NTYPES+5&&strcmp(khName[KHM_CASTLE],"CASTLE")==0,"the castle's build mode lines up");
-      for(int e=0;e<KB_CASTLE;e++){ CHECK(kvRoof[e]!=kvRoof[KB_CASTLE],"map roof %d is the castle's",e); CHECK(koRoof[e]!=koRoof[KB_CASTLE],"overview roof %d is the castle's",e); }
-      CHECK(kvPalAt(KB_CASTLE+1,14)==kvRoof[KB_CASTLE]&&koRoof[KB_CASTLE]!=0,"the castle's palette bank");
+      for(int e=0;e<KB_CASTLE;e++){ CHECK(kaBldBank[e]!=kaBldBank[KB_CASTLE],"map bank %d is the castle's",e); CHECK(koRoof[e]!=koRoof[KB_CASTLE],"overview roof %d is the castle's",e); }
+      CHECK(kaBldBank[KB_CASTLE]==12&&koRoof[KB_CASTLE]!=0,"the castle's palette bank");
       CHECK(scene(1u,0)==KSE_OK,"init"); char b[64]; khCost(b,&S,KHM_CASTLE); CHECK(strcmp(b,"CASTLE  6 PLANKS  HAVE 0")==0,"%s",b);
       printf("  4 stages of 2 lots: foundation 6 planks + 6 cut stone, walls 8 cut stone + 4 planks, towers 6 cut stone + 4 polished, throne room 6 polished + 6 cloth\n"); }
     // 2 the rules: one castle, it stays, none after the crown

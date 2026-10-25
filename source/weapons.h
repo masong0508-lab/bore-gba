@@ -49,7 +49,7 @@ static void wpNote(void){   // what is in your hand
 static void wpCycle(void){ int s=wpSel; for(int i=0;i<=WP_N;i++){ s++; if(s>=WP_N) s=-1; if(s<0||(wpOwn>>s&1)) break; } wpSel=(s8)s; sfxPlay(SFX_TICK); wpNote(); }
 // ---- aim: the D-pad as the screen shows it (like feelWalk), else the way you face. ax, ay are -1, 0 or 1 in tile axes ----
 static void wpAim(u16 k,int*ax,int*ay){
-    int ux=((k&K_RIGHT)?1:0)-((k&K_LEFT)?1:0), uy=((k&K_DOWN)?1:0)-((k&K_UP)?1:0);
+    int ux=((k&K_RIGHT)?1:0)-((k&K_LEFT)?1:0), uy=((k&K_DOWN)?1:0)-((k&K_UP)?1:0); padFour(&ux,&uy);
     if(ux||uy){ int dx=ux+uy, dy=uy-ux;
         if(cview){ int t=dx; if(cview==1){ dx=dy; dy=-t; } else if(cview==2){ dx=-dx; dy=-dy; } else { dx=-dy; dy=t; } }
         *ax=(dx>0)-(dx<0); *ay=(dy>0)-(dy<0); return; }

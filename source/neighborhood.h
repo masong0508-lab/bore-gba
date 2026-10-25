@@ -826,7 +826,7 @@ static void neighborhoodScreen(void){
     while(!quit){
         u16 k=keyNow(), pr=k&~prev; prev=k;
         int tr[4], fast=0; for(int i=0;i<4;i++){ hold[i]=(k&dirK[i])?hold[i]+1:0; tr[i]=kRepN(&nrp[i],k&dirK[i],pr&dirK[i],10,3); if(kHeld(&nrp[i],k&dirK[i],40)) fast=1; }   // (by the clock: a quick redraw no longer makes the cursor race)   // (a pass is a whole redraw: held, the cursor steps every pass, and two cells after a while)
-        int ux=tr[0]-tr[1], uy=tr[3]-tr[2];
+        int ux=tr[0]-tr[1], uy=tr[3]-tr[2]; padTrack(pr); padFour(&ux,&uy);
         if(ux||uy){ int dx=ux+uy, dy=uy-ux; dx=(dx>0)-(dx<0); dy=(dy>0)-(dy<0); ccx+=dx<<fast; ccy+=dy<<fast;   // screen-relative, like the room builder
             if(ccx<0)ccx=0;
             if(ccy<0)ccy=0;

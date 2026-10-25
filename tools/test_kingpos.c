@@ -72,16 +72,16 @@ int main(void){
     for(int tier=0;tier<3;tier++){
         mk(tier,555u+(u32)tier,3); int d=kgDim(tier); CHECK(ksInit(&S,&R,B,cells)==KSE_OK,"init"); KGiant G, N; kgSpawn(&N,&S);
         int dry=0, wet=-1, wx=0, wy=0; for(int y=2;y<d-2&&wet<0;y++) for(int x=2;x<d-2;x++) if(!(S.cells[y*d+x]&KC_BLD)&&(S.cells[y*d+x]&7)==KT_WATER){ wet=1; wx=x; wy=y; break; }
-        for(int y=1;y<d-1;y+=3) for(int x=1;x<d-1;x+=3){ if(!kgcWalk(&S,x*8+4,y*8+4)) continue; dry++; G.x=-1; CHECK(kgPlace(&G,&S,x,y)==1,"place on (%d,%d)",x,y); CHECK(kgCx(&G)==x&&kgCy(&G)==y&&G.x==x*8+4&&G.y==y*8+4&&!G.moving&&G.step==0&&G.face==0,"stands on its cell"); }
+        for(int y=1;y<d-1;y+=3) for(int x=1;x<d-1;x+=3){ if(!kgcWalk(&S,x*16+8,y*16+8)) continue; dry++; G.x=-1; CHECK(kgPlace(&G,&S,x,y)==1,"place on (%d,%d)",x,y); CHECK(kgCx(&G)==x&&kgCy(&G)==y&&G.x==x*16+8&&G.y==y*16+8&&!G.moving&&G.step==0&&G.face==0,"stands on its cell"); }
         CHECK(dry>20,"dry cells tried (%d)",dry);
         if(wet>0){ CHECK(kgPlace(&G,&S,wx,wy)==0,"water refuses"); CHECK(G.x==N.x&&G.y==N.y,"water: it starts as a new game does"); }
         CHECK(kgPlace(&G,&S,0,5)==0&&G.x==N.x&&G.y==N.y,"the border refuses"); CHECK(kgPlace(&G,&S,5,0)==0,"top border"); CHECK(kgPlace(&G,&S,d-1,5)==0,"right border"); CHECK(kgPlace(&G,&S,5,d-1)==0,"bottom border");
         CHECK(kgPlace(&G,&S,KG_NOPOS,KG_NOPOS)==0&&G.x==N.x&&G.y==N.y,"no position starts as new"); CHECK(kgPlace(&G,&S,KG_NOPOS,4)==0&&G.x==N.x,"half a position starts as new"); CHECK(kgPlace(&G,&S,d,d)==0&&G.x==N.x,"off the land"); CHECK(kgPlace(&G,&S,-1,3)==0,"negative");
         CHECK(kgPlace(&G,&S,0,0)==0&&G.x==N.x&&G.y==N.y,"a zeroed position (an old test realm, a memset) starts as new");
         // a giant left on a building stays there (it walks over buildings)
-        for(int i=0;i<S.R->nB;i++){ const KBld*b=&S.B[i]; if(kgcWalk(&S,b->x*8+4,b->y*8+4)){ CHECK(kgPlace(&G,&S,b->x,b->y)==1&&kgCx(&G)==b->x&&kgCy(&G)==b->y,"on a building"); break; } }
+        for(int i=0;i<S.R->nB;i++){ const KBld*b=&S.B[i]; if(kgcWalk(&S,b->x*16+8,b->y*16+8)){ CHECK(kgPlace(&G,&S,b->x,b->y)==1&&kgCx(&G)==b->x&&kgCy(&G)==b->y,"on a building"); break; } }
         // an all-water land: nowhere to stand, as for kgSpawn
-        for(int i=0;i<d*d;i++) cells[i]=KT_WATER; R.nB=0; CHECK(ksInit(&S,&R,B,cells)==KSE_OK,"init water"); CHECK(kgPlace(&G,&S,d/2,d/2)==0&&G.x==(d/2)*8+4,"all water");
+        for(int i=0;i<d*d;i++) cells[i]=KT_WATER; R.nB=0; CHECK(ksInit(&S,&R,B,cells)==KSE_OK,"init water"); CHECK(kgPlace(&G,&S,d/2,d/2)==0&&G.x==(d/2)*16+8,"all water");
     }
     // 6 walk, save, load, place: the same cell (through the real simulation start)
     int cyc=0;
