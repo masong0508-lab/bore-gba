@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""HERE TODAY GONE TOMORROW (by Singhs): a 12 minute SUITE of the HERE TODAY full version, played by a very early (1970) band. NO vocals and NO lead melody (the B2-G4 line is left empty to sing on), no key change (every section stays in the home key).
+"""SUPERSEDED by tools/make_heretoday_xm.py (the jukebox plays the sequenced, recomposed suite now; this renders the old streamed version as a WAV).
+HERE TODAY GONE TOMORROW (by Singhs): a 12 minute SUITE of the HERE TODAY full version, played by a very early (1970) band. NO vocals and NO lead melody (the B2-G4 line is left empty to sing on), no key change (every section stays in the home key).
 Form: wind prelude, 12-string intro, verses, bridge, chorus, interlude, a hush, a long build, bigger and bigger choruses, a pastoral return, a final chorus and the ending (the same MIDI and tempo, only the order and orchestration change).
 12-string acoustic, mellotron strings and flute, Hammond swell through a Leslie, piano arpeggios, fuzzed bass, bells that ease down once verse 1 starts, the master through a touch of tape.
 The only visible HERE TODAY in the jukebox: every other version is secret (isDbgSong in main.c).

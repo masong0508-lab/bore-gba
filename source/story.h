@@ -357,6 +357,7 @@ static int stDone(const StCh*c){   // is the chapter's goal met?
 // so a story has 5. Half of all of them (the missions of every story in the game) unlock CLOSER TO THE END and TREE-AGE IN ACTION.
 // Lives in story.h (it needs STY_N). Saved in the jukebox block at JB_OFF+40: 'M' 'S', 8 bytes (a bit per mission: story-1 * 5 + chapter, room for 12 stories), the bytes xor 0x5A (appended; nothing moved).
 #define SM_PER 5
+_Static_assert((STY_TVSHOW-1)*SM_PER+4==54,"jbEarnedOld in main.c reads the TV SHOW chapter 5 mission bit by number");
 _Static_assert(STY_TVSHOW*SM_PER<=64,"the story mission bits (8 bytes) are full: 12 stories at most");
 // The ten stories after TV SHOW & TELL do not fit those 8 bytes: each keeps ONE bit (the story finished = its 5 missions) in expand.h's small block (bmDoneBits / bmDoneSet).
 static int bmDoneBits(void); static void bmDoneSet(int b); static void stSeeds(void);
@@ -739,7 +740,7 @@ static void stRunModal0(void){
         { char b[24]; char*e=slCat(b,kind==2?"CHAPTER ":"CHAPTER "); e=slNum(e,kind==2?stCh:stCh+1); text(60,52,b,WHITE,2); }
         if(kind==2){ char b[40]; char*e=slCat(b,"DONE  +"); e=slNum(e,stRew(stCh-1)); slCat(e," SIMOLEONS  +25 JENES"); text(60,70,b,RGB(10,28,12),1); stSparkle(cnt,12,26,216,100); }
         if(kind==2&&stGotN){ static char gb[60] EWRAM_BSS; char*e=simCat(gb,"UNLOCKED  "); e=simCat(e,stGotP[0]); if(stGotN>1){ e=simCat(e,"  AND  "); simCat(e,stGotP[1]); } if(tw(gb,1)>206) simCat(gb,"UNLOCKED  2 NEW THINGS"); text(16,77,gb,GOLD,1); }   // (what this chapter opened: a BUY reward and / or a slider pack)
-        if(kind==2&&stCh==5) text(16,112,"NEW SONG  HERE TODAY (FULL VERSION)",GOLD,1);
+        if(kind==2&&stCh==5) text(16,112,"NEW SONGS  HERE TODAY, EVERY VERSION",GOLD,1);
         rect(14,84,212,1,RGB(14,26,31));
         if(bk){   // the first ten stories: the chapter's title, what is going on, and its tasks
             { char b[44]; char*e=slCat(b,kind==2?"NEXT  ":"NOW  "); slCat(e,c->nm); text(16,88,b,GOLD,1); }

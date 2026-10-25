@@ -19,7 +19,8 @@ Measured on a real devkitARM build of the tree (`tools/budget.sh` prints the fir
 | 1.3 sample dedupe | done: `xm2gba.py` stores identical samples once for the whole ROM (`SHARED`), near-duplicates for one song (`NEARDUP`) |
 | 1.4 `here_today_old` (664 KB) | a design call, still open |
 | 2. `itemrom.h` | **done**: 1,252,860 B of sprites -> 328,762 B + 3,140 B of offsets. Only the opaque span of each row is stored (`itemPix`, `itemOff`; `itemSpan` as before), `blitItemO` (items.h) walks it. **Saves 921,560 B of ROM**; screenshots of three furnished houses, normal and zoomed, are byte-identical to the old ROM's. The generator proves every pixel outside a span is see-through (`tools/bake_items.c`) |
-| 2. `here_today_gone_tomorrow` (6.5 MB), `here_today_full` (2.5), `here_today` (1.3) | open, and it is the big one (10.5 MB of the 19.8 MB base). Lower rates or bit depths change the sound, which needs your ears; a tracker rebuild is a larger job |
+| 2. `here_today_gone_tomorrow` (6.5 MB) | **done: rebuilt as a tracker module** (`tools/make_heretoday_xm.py` -> `tools/here_today_gone_tomorrow.xm`, then `xm2gba.py`): 370 KB of events and samples instead of the 6.5 MB stream, **saves about 6.1 MB**. The suite was also recomposed (four acts, the tune held back until the last two minutes). `xm2gba.py` output for every other song is byte-identical (checked by diffing `xmdata.bin` around the suite's blob). Played in the test ROM and correlated with `preview_xm.py`: 0.975 over a 22 s window |
+| 2b. `here_today_full` (2.5 MB), `here_today` (1.3 MB) | still streamed: both carry the sung voice, which does not sequence into 32 instruments |
 | 3.1 `zoomBuf` | **not possible as written**: the zoom's per-line table is read by DMA0, and DMA0 cannot read the cartridge (the note in main.c at zoomArm); DMA1 to DMA3 are the sound's or the picture's |
 | 3.2 `wpTab` | already ROM (3,584 B, `r`) |
 | 3.3 `wFq` | not possible: it packs four floors of 8 bits (NFL is 80) per tile in a u32 |
@@ -53,8 +54,8 @@ Written 22 Oct 2026 from the repo at commit 95ee19b. **Nothing here was built or
 ### Where the ROM goes (embedded files, bytes)
 | file | size | what it is |
 |---|---|---|
-| music/here_today_gone_tomorrow.adp | 6,533,272 | 12 minute instrumental suite, streamed 4-bit ADPCM at 18,157 Hz |
-| music/xmdata.bin | 6,041,914 | 36 tracker songs (events + samples). Top: over_my_voice 1.14 MB, magic_act 455 KB, nursery_time 365 KB, cocaine_cola_ii 333 KB, excuses_house 329 KB, earth_and_the_space_citizens 313 KB |
+| ~~music/here_today_gone_tomorrow.adp~~ | ~~6,533,272~~ | the 12 minute suite is now tracker data inside `xmdata.bin` (370 KB, see item 2) |
+| music/xmdata.bin | 6,411,842 | 37 tracker songs (events + samples). Top: over_my_voice 1.14 MB, magic_act 455 KB, nursery_time 365 KB, cocaine_cola_ii 333 KB, excuses_house 329 KB, earth_and_the_space_citizens 313 KB |
 | music/here_today_full.adp | 2,570,960 | the full version, locked until the story is done |
 | music/here_today.adp | 1,380,704 | Missy's song (CI checks this one is 150 s or longer) |
 | art/bortua_fighters.lz | 962,792 | BORTUA FIGHTER art (pack 4's slot is only 1.25 MB) |
@@ -89,7 +90,7 @@ Written 22 Oct 2026 from the repo at commit 95ee19b. **Nothing here was built or
 | 1.4 | Decide about `here_today_old` (secret placeholder, 664 KB) | 664 KB | a design call, not a technical one |
 
 ### Phase 2: the two big ROM items (medium effort, pick what you need)
-- **here_today_gone_tomorrow (6.5 MB, 32% of all embedded data).** Options, cheapest first:
+- **here_today_gone_tomorrow (was 6.5 MB, 32% of all embedded data): DONE, option c below.** The options were, cheapest first:
   a. Re-encode at a lower sample rate (about 11 kHz saves about 40%; ADPCM at 18 kHz is already a lot for a 1970 band joke song). Check the sound by ear.
   b. 2-bit ADPCM or a smaller bitrate for this one song only.
   c. Rebuild it as tracker data through the existing `xm2gba.py` pipeline instead of a rendered stream. `tools/make_heretoday_instrumental.py` already generates it from notes. This is the real fix (6.5 MB down to a few hundred KB) but it needs a tracker version of the instruments.

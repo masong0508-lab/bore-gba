@@ -2770,7 +2770,6 @@ static int isDbgSong(int i){
     const char*n=songs[i].name; int len=0; while(n[len]) len++;
     static const char orig[]=" (ORIGINAL)"; int ol=(int)sizeof(orig)-1;
     if(len>ol){ const char*t=n+len-ol; int k=0; while(k<ol&&t[k]==orig[k]) k++; if(k==ol) return 1; }
-    { const char*h="HERE TODAY ("; const char*q=n; while(*h&&*q==*h){ q++; h++; } if(!*h) return 1; }   // every other version of HERE TODAY is secret: only HERE TODAY GONE TOMORROW shows
     const char*p="PLACEHOLDER"; while(*p){ if(*n++!=*p++) return 0; } return 1;
 }
 static u16 jbNameHash(int upto){   // hash of the names of the first n songs: tells whether the saved on/off flags still belong to this list (jukebox.h)
@@ -2792,8 +2791,13 @@ static int isLockedSong(int i){
     for(const UnlockRow*r=unlockRows;r->song;r++){ const char*x=r->song,*y=songs[i].name; while(*x&&*x==*y){x++;y++;} if(!*x&&!*y) return !(jbUl&r->bit); }
     return 0;
 }
+static void jbEarnedOld(void){   // a save that finished TV SHOW & TELL (chapter 5 = mission bit 54, story.h) before HERE TODAY was locked gets it now
+    volatile u8*m=SRAM_BASE+JB_OFF+40; if(m[0]!='M'||m[1]!='S') return;
+    u8 x=0x5A; for(int i=0;i<8;i++) x^=m[2+i]; if(m[10]!=x) return;
+    if((m[2+(54>>3)]>>(54&7))&1) if(!(jbUl&UL_HERETODAY)){ jbUl|=UL_HERETODAY; jbUlSave(); }
+}
 static void jbSetup(void){   // build the list of songs the jukebox shows (no secret and no locked ones), then load the on/off flags
-    jbUlLoad(); jbModeLoad();
+    jbUlLoad(); jbEarnedOld(); jbModeLoad();
     int n=0; for(int i=0;i<NSONGS&&n<JB_MAX;i++) if(songs[i].xm!=&xm_the_dipper_man&&(dbgOn||(!isDbgSong(i)&&!isLockedSong(i)))) jbMap[n++]=(u8)i;   // THE DIPPER MAN is the title music only: never listed
     jbInit(NSONGS,n,jbNameHash);
 }

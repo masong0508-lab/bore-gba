@@ -11,5 +11,8 @@ UNLOCK("CLOSER TO THE END",UL_CLOSER)
 // TREE-AGE IN ACTION comes with the same half of the story missions
 UNLOCK("TREE-AGE IN ACTION",UL_TREE)
 
-// HERE TODAY (FULL VERSION): the longer, lusher rearrangement (tools/make_heretoday_full.py), earned by finishing the story
+// HERE TODAY: every version of the song the last TV SHOW & TELL chapter ends on (the 12 minute suite, the full version, Missy's song) is locked until that chapter is done:
+// the closing scene (story.h) sets UL_HERETODAY, and a save that already finished it gets the bit when the list is built (jbEarnedOld in main.c). Only the chiptune ORIGINAL stays secret.
+UNLOCK("HERE TODAY GONE TOMORROW",UL_HERETODAY)
 UNLOCK("HERE TODAY (FULL VERSION)",UL_HERETODAY)
+UNLOCK("HERE TODAY (MISSY'S SONG)",UL_HERETODAY)
