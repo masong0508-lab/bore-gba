@@ -1244,3 +1244,5 @@ The '@' counter is no longer a flat slab per tile. Every tile is an isometric bl
 
 ## HERE TODAY: the memories (cutscene.h csMem5, csMemFrame)
 The finale's beats are cut to the song, so they keep their length. Inside a beat, `csMem5` can swap the picture for a memory for a range of frames (`csDraw` substitutes a copy of the beat with another backdrop and figures; the caption, the sung line and the timing stay, and Missy keeps singing over it). Kind 1 = a GOOD memory (warm light, a white photo border), kind 2 = a BAD or tender one (dimmed, a grey border), kind 0 = a present-day cutaway (Dex crying in the wings, the lit house, her empty dressing room). A memory also scratches a vertical line now and then like old film. The hand-made shot list is skipped while one is on (`csMemOn`), so the automatic camera frames it. To add one, find the beat's length (about two frames a letter plus its wait) and add a row.
+
+Cover: docs/cover.png (1280x640, also the GitHub social preview image) is a screenshot of the BORE CREATOR title, so the repo, the itch page and the demo share one look.

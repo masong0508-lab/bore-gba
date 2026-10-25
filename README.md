@@ -1,3 +1,5 @@
+![BORE](docs/cover.png)
+
 # BORE
 
 A Game Boy Advance game about one voxel creature and the life it leads. You build the creature, give it a home, and then live: eat, work, skate, make friends, fall in love, raise a family, get into the odd fight. It started as a creature creator and grew into a life sim in the spirit of The Sims, with a skateboard.
