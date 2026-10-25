@@ -31,6 +31,14 @@ def env(n, a, r):
 def room(x, T=.9, wet=.3, dark=3800, seed=5):                        # a short dark tail baked into a plucked note (the player has no reverb)
     r = np.random.default_rng(seed); m = int(T * SR); t = np.arange(m) / SR; h = r.standard_normal(m) * np.exp(-6.9 * t / T); h = lp(h, dark, 1); h = np.concatenate([np.zeros(int(.02 * SR)), h]); h /= np.sqrt((h ** 2).sum())
     return x + wet * signal.fftconvolve(x, h)[:len(x)]
+def fdel(x, dfn):                                                  # fractional delay
+    idx = np.arange(len(x), dtype=float); pos = np.clip(idx - dfn(idx / SR) * SR, 0, len(x) - 2); p0 = pos.astype(int); fr = pos - p0
+    return x[p0] * (1 - fr) + x[p0 + 1] * fr
+def ens(x, seed=0):                                                # string-ensemble chorus: three moving taps (baked in; the player has no effects)
+    rg = np.random.default_rng(seed); out = .55 * x
+    for d, rate, dep in ((.017, .31, .004), (.024, .47, .006), (.031, .23, .005)):
+        ph = rg.uniform(0, 6.28); out = out + .3 * fdel(x, lambda tt, d=d, rate=rate, dep=dep, ph=ph: d + dep * np.sin(2 * np.pi * rate * tt + ph))
+    return out
 def tt(L): n = int(L * SR); return n, np.arange(n) / SR
 
 # ------------------------------------------------------------------------------------------------------------- the instruments (one note at its root pitch)
@@ -39,21 +47,28 @@ def pad(root, L):                                                # a Hammond swe
     x = np.sin(ph) + .5 * np.sin(2 * ph) + .35 * np.sin(3 * ph) + .2 * np.sin(4 * ph) + .1 * np.sin(6 * ph)
     y = np.sin(2 * np.pi * f * t) + .4 * np.sin(2 * np.pi * f * 2.003 * t) + .15 * np.sin(2 * np.pi * f * 3.001 * t)
     x = lp(x * (1 + .1 * np.sin(2 * np.pi * 6.3 * t + 1.2)), 2600) * .55 + lp(y, 1500) * .8
+    x = room(ens(x, int(root)), T=1.0, wet=.25, seed=int(root))
     return x * env(n, .4, 1.0) * (.15 + .85 * np.exp(-t / 1.3))      # the swell eases back like an expression pedal, so a chord that is changed early is cut when it is already quiet
 def strings(root, L, bright):                                    # MELLOTRON: three detuned saws with tape wow and flutter, a reedy dull top
     n, t = tt(L); f = hz(root)
     w = .0011 * np.sin(2 * np.pi * (.4 + rng.uniform(0, .25)) * t + rng.uniform(0, 6.3)) + .0006 * np.sin(2 * np.pi * (5.1 + rng.uniform(0, 1)) * t + rng.uniform(0, 6.3))
     ph = 2 * np.pi * np.cumsum(f * (1 + w)) / SR
     x = sum(signal.sawtooth(ph * 2 ** (c / 1200) + rng.uniform(0, 6)) for c in (-7, 0, 7)); x = lp(x, bright); x = x + .35 * bp(x, 900, 500) + .02 * lp(rng.standard_normal(n), 2500, 1)
+    x = room(ens(x, int(root) + 1), T=.9, wet=.25, seed=int(root) + 2)
     return x * env(n, min(.07, L * .15), min(.4, L * .3))
-def flute(root, L):                                              # the mellotron FLUTE: a nearly pure tone with a little breath
-    n, t = tt(L); f = hz(root) * (1 + .005 * np.sin(2 * np.pi * 5.3 * t) * np.clip((t - .3) / .5, 0, 1)); ph = 2 * np.pi * np.cumsum(f) / SR
-    x = np.sin(ph) + .22 * np.sin(2 * ph) + .08 * np.sin(3 * ph) + .05 * bp(rng.standard_normal(n), min(hz(root) * 2, 6000), hz(root)); x = lp(x, 3200)
-    return x * env(n, min(.1, L * .2), min(.45, L * .3))
+def flute(root, L):                                              # the mellotron FLUTE: three detuned voices with their own vibrato, a chiff of breath on the attack, a baked chorus and room
+    n, t = tt(L); x = 0
+    for cents in (-7, 0, 8):
+        f = hz(root) * 2 ** (cents / 1200) * (1 + (.004 + .002 * rng.random()) * np.sin(2 * np.pi * (5.0 + .6 * rng.random()) * t + rng.uniform(0, 6.3)) * np.clip((t - .25) / .5, 0, 1)); ph = 2 * np.pi * np.cumsum(f) / SR
+        x = x + np.sin(ph) + .3 * np.sin(2 * ph) + .12 * np.sin(3 * ph) + .05 * np.sin(4 * ph)
+    x = x + .05 * bp(rng.standard_normal(n), min(hz(root) * 2, 6000), hz(root)) + .5 * bp(rng.standard_normal(n), 2400, 1800) * np.exp(-t / .07)   # breath and the chiff
+    x = lp(x, 4200); x = room(ens(x, int(root) + 3), T=.9, wet=.3, seed=int(root) + 4)
+    return x * env(n, min(.08, L * .2), min(.45, L * .3))
 def cello(root, L):                                              # the solo cello: a delayed vibrato, a little scoop up into the note, a bow, a swell on long notes
     n, t = tt(L); vd = np.clip((t - .22) / .5, 0, 1)
     f = hz(root) * (1 + .0065 * np.sin(2 * np.pi * 5.0 * t) * vd) * 2 ** ((-.5 * np.exp(-t / .06)) / 12)
     x = signal.sawtooth(2 * np.pi * np.cumsum(f) / SR); x = lp(x, 1700) * 1.3 + .5 * lp(x, 700); x = x + .05 * bp(rng.standard_normal(n), 1200, 900) * np.exp(-t / .12)
+    x = room(x, T=1.0, wet=.3, seed=int(root))
     return x * env(n, min(.1, L * .25), min(.4, L * .3)) * (1 + .18 * np.sin(np.pi * np.clip(t / L, 0, 1)) * min(1, L / 1.8))
 def guitar(root, L):                                             # 12-string acoustic: octave pairs below, detuned unison pairs above, a loose pick
     n, t = tt(L); f = hz(root)
@@ -73,11 +88,11 @@ def bass(root, L):                                               # a growling, s
     return lp(np.tanh(1.8 * x), 1100) * env(n, .02, .35) * np.exp(-t * 1.25)
 def bell(root, L):
     n, t = tt(L); f = hz(root)
-    x = sum(a * np.sin(2 * np.pi * f * r * t) * np.exp(-t * d) for r, a, d in ((1, 1, 1.5), (2.76, .35, 3.0), (5.4, .12, 4.5), (.5, .25, 1.2)) if f * r < SR * .45)
+    x = sum(a * np.sin(2 * np.pi * f * r * t) * np.exp(-t * d) for r, a, d in ((1, 1, 2.2), (2.76, .35, 4.0), (5.4, .12, 6.0), (.5, .25, 1.8)) if f * r < SR * .45)
     return x * env(n, .002, .25)
 def thump(root, L):
     n, t = tt(L); ph = 2 * np.pi * np.cumsum(46 + 70 * np.exp(-t / .05)) / SR
-    return (np.sin(ph) * np.exp(-t / .22) + .15 * lp(rng.standard_normal(n), 400) * np.exp(-t / .02)) * env(n, .001, .05)
+    return (np.sin(ph) * np.exp(-t / .13) + .15 * lp(rng.standard_normal(n), 400) * np.exp(-t / .02)) * env(n, .001, .05)
 def timp(root, L):                                               # a timpani: a pitched skin, a short dip in pitch, a long soft body
     n, t = tt(L); f = hz(root); ph = 2 * np.pi * np.cumsum(f * (1 + .35 * np.exp(-t / .04))) / SR
     return (np.sin(ph) * np.exp(-t / .45) + .3 * np.sin(1.5 * ph) * np.exp(-t / .2) + .25 * lp(rng.standard_normal(n), 600) * np.exp(-t / .02)) * env(n, .001, .08)
@@ -219,7 +234,7 @@ def section(name, D, src, **L):
             if a <= r < b: put(T(r), rr_g.next(), gtkey(p), p, hum(L['gt'] * G(r) * (.55 + .45 * v / 86)))
     # chords: pad bed, bass, strums, piano, bells
     cs = [(max(c0, a), min(c1, b), c) for (c0, c), (c1, _) in zip(CH, CH[1:] + [(CHEND, None)]) if c0 < b and c1 > a]
-    setn = 0; lastpad = -99
+    bells = []; lastpad = -99
     for (c0, c1, c) in cs:
         tones = c['tones']; nt = len(tones); span = c1 - c0; s = T(c0)
         if L.get('pad') and (span >= 8 or c0 - lastpad >= 12):      # a passing chord shorter than half a bar keeps the pad of the one before it
@@ -265,7 +280,9 @@ def section(name, D, src, **L):
         if L.get('bl'):
             bk = L.get('blp', 'bell4')
             def Bl(off, p, vv=1.0):
-                if off < span: put(T(c0 + off) + 1, PCCH, 'bell', p, hum(L['bl'] * G(c0 + off) * vv))
+                if off < span:
+                    fade = 1 - .67 * min(1, (c0 + off - a) * ROW / 6.0) if L.get('bfade') else 1.0         # in verse 1 the bells ease down once it has started
+                    bells.append((T(c0 + off) + 1, p, L['bl'] * G(c0 + off) * vv * fade))
             bp2 = [t + 36 - (12 if t > 53 else 0) for t in tones]
             if bk == 'bell4':
                 for qn, k in enumerate((2, 3, 4, 3)): Bl(qn * 2, bp2[k % nt])
@@ -282,6 +299,9 @@ def section(name, D, src, **L):
         for k in range(b - nb, b):
             x = (k - (b - nb)) / nb; step = 4 if x < .5 else (2 if x < .85 else 1)
             if (k - (b - nb)) % step == 0: put(T(k), PCCH, 'timp', 40 + (0 if ((k - b) // 16) % 2 else 7), .25 + .75 * x * lv * r1)
+    for (r_, p_, v_) in bells:                                       # a bell waits for a drum that was hit in the last three rows
+        if any(PCCH in GRID.get(k_, {}) and GRID[k_][PCCH][1] != II['bell'] for k_ in range(r_ - 3, r_ + 1)): continue
+        put(r_, PCCH, 'bell', p_, hum(v_))
     if L.get('sw'): put(end - int(2.4 / ROW), LEADCH, 'swell', 49, L['sw'] * lv * r1)
     return end + L.get('gap', 0)
 
@@ -291,38 +311,38 @@ def S(**k): return {n: v * k.get(n, 1.0) for n, v in ALL.items()}
 def SC(w): return {n: v * w for n, v in ALL.items()}
 SECS = [
  # ---- I. THE FIELD
- ('wind',        OUTR, dict(lv=1.05, ramp=(.4, .9), pad=.7, fl=.9, bl=.8, blp='bell1', pn=.5, pnp='arp8')),
- ('prelude',     V1R,  dict(lv=0.7, ramp=(.55, .9), gt=1.0, bl=.8, blp='bell2', pad=.3, pn=.55, pnp='arp8b')),
- ('intro',       V1R,  dict(lv=0.53, ramp=(.7, 1.0), gt=1.0, pn=.85, pnp='arp8', st={'vc': .8, 'va': .5}, pad=.45, bl=.6, blp='bell1')),
- ('verse 1',     V1R,  dict(lv=0.47, gt=1.0, pad=.55, st=S(v1=.8, v2=.8), fl=.6, pn=.6, pnp='arp8', bs=.5, bsp='pedal', bl=.5, blp='bell1')),
- ('verse 2',     V2R,  dict(lv=0.47, gt=1.0, pad=.6, st=SC(.95), fl=.65, pn=.85, pnp='arp8b', bs=.6, bsp='rf')),
- ('bridge',      BRR,  dict(lv=0.53, gt=.9, pad=.7, st=SC(1.1), pn=.85, pnp='arp8', bs=.75, bsp='rf', fl=.7, bl=.4)),
- ('chorus',      CHR,  dict(lv=0.55, gt=.9, gs=.5, pad=.75, st=SC(1.15), fl=.75, pn=1.0, pnp='arp8', bs=.8, bsp='walk', pc='bar')),
+ ('wind',        OUTR, dict(lv=1.33, ramp=(.4, .9), pad=.7, fl=.9, pn=.5, pnp='arp8', bl=0.5, blp='bell4')),
+ ('prelude',     V1R,  dict(lv=0.88, ramp=(.55, .9), gt=1.0, pad=.3, pn=.55, pnp='arp8b', bl=0.9, blp='bell4')),
+ ('intro',       V1R,  dict(fl=.8, lv=0.53, ramp=(.7, 1.0), gt=1.0, pn=.85, pnp='arp8', st={'vc': .8, 'va': .5}, pad=.45, bl=0.9, blp='bell4')),
+ ('verse 1',     V1R,  dict(lv=0.6, gt=1.0, pad=.55, st=S(v1=.8, v2=.8), fl=.6, pn=.6, pnp='arp8', bs=.5, bsp='pedal', bl=0.9, blp='bell4', bfade=1)),
+ ('verse 2',     V2R,  dict(lv=0.61, gt=1.0, pad=.6, st=SC(.95), fl=.65, pn=.85, pnp='arp8b', bs=.6, bsp='rf', bl=0.3, blp='bell4')),
+ ('bridge',      BRR,  dict(lv=0.67, gt=.9, pad=.7, st=SC(1.1), pn=.85, pnp='arp8', bs=.75, bsp='rf', fl=.7, bl=0.35, blp='bell4')),
+ ('chorus',      CHR,  dict(lv=0.69, gt=.9, gs=.5, pad=.75, st=SC(1.15), fl=.75, pn=1.0, pnp='arp8', bs=.8, bsp='walk', pc='bar', bl=0.5, blp='bell4')),
  # ---- II. WEATHER
- ('interlude 1', V2R,  dict(lv=0.52, gt=.9, st=S(v1=.7, v2=1.1, va=1.1), pn=1.0, pnp='arp8c', bs=.65, bsp='rf', pad=.55, fl=.7)),
- ('hush',        V1R,  dict(lv=0.91, ramp=(.7, .4), gt=.8, pad=.5, bl=.9, blp='bell2', st={'vc': .5}, pn=.6, pnp='arp8b', gap=10)),
- ('build 1',     BRR,  dict(lv=0.67, ramp=(.45, 1.1), gt=.8, pad=.7, st=SC(1.1), fl=.7, pn=.85, pnp='arp8', bs=.75, bsp='pulse', pc='roll', rollbars=2, sw=.9)),
- ('chorus 2',    CHR,  dict(lv=0.59, gt=.9, gs=.6, pad=.8, st=SC(1.25), fl=.85, pn=1.1, pnp='arp8b', bs=.9, bsp='walk', pc='bar')),
- ('verse 3',     V3R,  dict(lv=0.51, gt=1.0, pad=.7, st=S(v1=.9), fl=.65, pn=.95, pnp='arp8', bs=.65, bsp='rf', bl=.4)),
- ('first ending', OUTR, dict(lv=0.55, ramp=(1, .5), gt=.9, pad=.8, st=SC(1.0), fl=.7, pn=.8, pnp='arp8c', bl=.9, blp='bell2', gap=8)),
- ('pastoral',    V2R,  dict(lv=0.63, ramp=(.6, .9), gt=1.0, fl=.9, pn=.9, pnp='arp8', pad=.6, bl=.5, blp='bell1')),
- ('second verse', V1R, dict(lv=0.45, gt=.9, st=S(v1=.8, v2=.9), fl=.6, pad=.6, pn=.8, pnp='arp8b', bs=.55, bsp='pedal')),
+ ('interlude 1', V2R,  dict(lv=0.67, gt=.9, st=S(v1=.7, v2=1.1, va=1.1), pn=1.0, pnp='arp8c', bs=.65, bsp='rf', pad=.55, fl=.7, bl=0.45, blp='bell4')),
+ ('hush',        V1R,  dict(lv=1.18, ramp=(.7, .4), gt=.8, pad=.5, st={'vc': .5}, pn=.6, pnp='arp8b', gap=10, bl=0.7, blp='bell4')),
+ ('build 1',     BRR,  dict(lv=0.85, ramp=(.45, 1.1), gt=.8, pad=.7, st=SC(1.1), fl=.7, pn=.85, pnp='arp8', bs=.75, bsp='pulse', pc='roll', rollbars=2, sw=.9, bl=0.3, blp='bell4')),
+ ('chorus 2',    CHR,  dict(lv=0.74, gt=.9, gs=.6, pad=.8, st=SC(1.25), fl=.85, pn=1.1, pnp='arp8b', bs=.9, bsp='walk', pc='bar', bl=0.5, blp='bell4')),
+ ('verse 3',     V3R,  dict(lv=0.65, gt=1.0, pad=.7, st=S(v1=.9), fl=.65, pn=.95, pnp='arp8', bs=.65, bsp='rf', bl=0.35, blp='bell4')),
+ ('first ending', OUTR, dict(lv=0.71, ramp=(1, .5), gt=.9, pad=.8, st=SC(1.0), fl=.7, pn=.8, pnp='arp8c', gap=8, bl=0.4, blp='bell4')),
+ ('pastoral',    V2R,  dict(lv=0.79, ramp=(.6, .9), gt=1.0, fl=.9, pn=.9, pnp='arp8', pad=.6, bl=0.6, blp='bell4')),
+ ('second verse', V1R, dict(lv=0.58, gt=.9, st=S(v1=.8, v2=.9), fl=.6, pad=.6, pn=.8, pnp='arp8b', bs=.55, bsp='pedal', bl=0.5, blp='bell4')),
  # ---- III. THE STORM
- ('second bridge', BRR, dict(lv=0.61, ramp=(.5, 1.15), gt=.8, pad=.7, st=SC(1.15), fl=.7, pn=1.0, pnp='arp8c', bs=.8, bsp='walk', pc='roll', rollbars=2, sw=1.0)),
- ('interlude 2', V3R,  dict(lv=0.57, gt=.9, st=S(v1=.8, va=1.1), fl=.65, pn=1.0, pnp='arp8', pad=.6, bs=.65, bsp='octave')),
- ('chorus 3',    CHR,  dict(lv=0.61, ramp=(.9, 1.1), gt=.9, gs=.7, pad=.85, st=SC(1.3), fl=.9, pn=1.1, pnp='arp8', bs=.95, bsp='walk', pc='bar')),
- ('storm',       V2R,  dict(lv=0.68, ramp=(1.0, 1.2), gt=.9, pad=.8, st=SC(1.2), tr=1, fl=.7, pn=1.0, pnp='arp8c', bs=.9, bsp='pulse', pc='bar')),
- ('interlude 3', V2R,  dict(lv=0.55, ramp=(.9, .45), gt=.9, pad=.7, st=S(v1=.7, va=.9), fl=.65, pn=.95, pnp='arp8b', bs=.5, bsp='pedal', bl=.5)),
- ('build 2',     BRR,  dict(lv=0.71, ramp=(.4, 1.3), gt=.7, pad=.7, st=SC(1.2), tr=1, fl=.7, pn=.9, pnp='arp8', bs=.85, bsp='pulse', pc='roll', rollbars=3, sw=1.0)),
- ('chorus 4',    CHR,  dict(lv=0.59, ramp=(1.05, 1.25), gt=.9, gs=.8, pad=.9, st=SC(1.4), fl=.95, pn=1.2, pnp='arp8b', bs=1.0, bsp='walk', pc='bar')),
- ('verse 4',     V3R,  dict(lv=0.69, ramp=(1.0, .6), gt=.9, pad=.7, st=S(v1=.8, v2=.9, va=.9), pn=.9, pnp='arp8c', bs=.6, bsp='rf', fl=.55)),
+ ('second bridge', BRR, dict(lv=0.78, ramp=(.5, 1.15), gt=.8, pad=.7, st=SC(1.15), fl=.7, pn=1.0, pnp='arp8c', bs=.8, bsp='walk', pc='roll', rollbars=2, sw=1.0, bl=0.35, blp='bell4')),
+ ('interlude 2', V3R,  dict(lv=0.72, gt=.9, st=S(v1=.8, va=1.1), fl=.65, pn=1.0, pnp='arp8', pad=.6, bs=.65, bsp='octave', bl=0.4, blp='bell4')),
+ ('chorus 3',    CHR,  dict(lv=0.78, ramp=(.9, 1.1), gt=.9, gs=.7, pad=.85, st=SC(1.3), fl=.9, pn=1.1, pnp='arp8', bs=.95, bsp='walk', pc='bar', bl=0.5, blp='bell4')),
+ ('storm',       V2R,  dict(lv=0.99, ramp=(1.0, 1.2), gt=.9, pad=.8, st=SC(1.2), tr=1, fl=.7, pn=1.0, pnp='arp8c', bs=.9, bsp='pulse', pc='bar', bl=0.4, blp='bell4')),
+ ('interlude 3', V2R,  dict(lv=0.71, ramp=(.9, .45), gt=.9, pad=.7, st=S(v1=.7, va=.9), fl=.65, pn=.95, pnp='arp8b', bs=.5, bsp='pedal', bl=0.55, blp='bell4')),
+ ('build 2',     BRR,  dict(lv=0.97, ramp=(.4, 1.3), gt=.7, pad=.7, st=SC(1.2), tr=1, fl=.7, pn=.9, pnp='arp8', bs=.85, bsp='pulse', pc='roll', rollbars=3, sw=1.0, bl=0.3, blp='bell4')),
+ ('chorus 4',    CHR,  dict(lv=1.16, ramp=(1.05, 1.25), gt=.9, gs=.8, pad=.9, st=SC(1.4), fl=.95, pn=1.2, pnp='arp8b', bs=1.0, bsp='walk', pc='bar', bl=0.5, blp='bell4')),
+ ('verse 4',     V3R,  dict(lv=0.88, ramp=(1.0, .6), gt=.9, pad=.7, st=S(v1=.8, v2=.9, va=.9), pn=.9, pnp='arp8c', bs=.6, bsp='rf', fl=.55, bl=0.35, blp='bell4')),
  # ---- IV. HOMECOMING  (the arpeggios stay, softer; the cello has the tune)
- ('ending 1',    OUTR, dict(lv=0.57, ramp=(.9, .5), gt=.8, pad=.8, st=SC(.9), fl=.55, pn=.8, pnp='arp8', bl=.9, blp='bell2', gap=10)),
- ('quiet again', V1R,  dict(lv=0.8, ramp=(.7, .55), gt=.9, pad=.3, pn=.55, pnp='arp8b', bl=.9, blp='bell1', gap=6)),
- ('third bridge', BRR, dict(lv=0.67, ramp=(.6, .8), gt=.7, pad=.45, st={'vc': .7, 'va': .55, 'v2': .4}, pn=.8, pnp='arp8', bs=.45, bsp='pedal', bl=.4, blp='bell1')),
- ('last verse',  V3R,  dict(lv=0.71, ramp=(.7, .85), ld=.85, gt=.8, pad=.4, st={'vc': .55, 'va': .3}, bl=.35, blp='bell1', pn=.5, pnp='arp8')),
- ('final chorus', CHR, dict(lv=0.81, ramp=(.7, .95), ld=.95, gt=.8, gs=.35, pad=.55, st=S(v1=.45, v2=.5, va=.6, vc=.7), fl=.3, pn=.65, pnp='arp8b', bs=.45, bsp='pedal', bl=.3, blp='bell1', pc='heart')),
- ('coda',        (672, 726), dict(lv=0.8, ramp=(.9, .45), rit=.5, ld=.9, gt=.7, pad=.6, st=S(v1=.3, v2=.4, va=.5, vc=.6), pn=.45, pnp='arp8', bs=.4, bsp='pedal', bl=.5, blp='bell1')),
+ ('ending 1',    OUTR, dict(lv=0.74, ramp=(.9, .5), gt=.8, pad=.8, st=SC(.9), fl=.55, pn=.8, pnp='arp8', gap=10, bl=0.4, blp='bell4')),
+ ('quiet again', V1R,  dict(lv=1.01, ramp=(.7, .55), gt=.9, pad=.3, pn=.55, pnp='arp8b', gap=6, bl=0.8, blp='bell4')),
+ ('third bridge', BRR, dict(lv=0.86, ramp=(.6, .8), gt=.7, pad=.45, st={'vc': .7, 'va': .55, 'v2': .4}, pn=.8, pnp='arp8', bs=.45, bsp='pedal', bl=0.35, blp='bell4')),
+ ('last verse',  V3R,  dict(lv=0.91, ramp=(.7, .85), ld=.85, gt=.8, pad=.4, st={'vc': .55, 'va': .3}, pn=.5, pnp='arp8', bl=0.35, blp='bell4')),
+ ('final chorus', CHR, dict(lv=1.0, ramp=(.7, .95), ld=.95, gt=.8, gs=.35, pad=.55, st=S(v1=.45, v2=.5, va=.6, vc=.7), fl=.3, pn=.65, pnp='arp8b', bs=.45, bsp='pedal', pc='heart', bl=0.3, blp='bell4')),
+ ('coda',        (672, 726), dict(lv=1.06, ramp=(.9, .45), rit=.5, ld=.9, gt=.7, pad=.6, st=S(v1=.3, v2=.4, va=.5, vc=.6), pn=.45, pnp='arp8', bs=.4, bsp='pedal', bl=0.5, blp='bell4')),
 ]
 LVF = json.load(open(os.environ['LVFILE'])) if os.environ.get('LVFILE') else {}
 def compose():
