@@ -32,7 +32,10 @@ static void csBgFx(int bg,int t,int fx){
         csGlow(120,73,58,3,3,CSG_ALL); csGlow(120,73,30,2,2,CSG_WARM);                                  // the pool of light on the boards
         for(int i=0;i<6;i++) csMote(100+((i*37+t/3)%40),22+((i*29+t/4)%48),1);                           // dust drifting in the beam
         break;
+    case CB_CAR: { int ph=(t/3)%90; if(ph<34) csGlow(20+ph*6,64,ph+6,ph/4+3,2,CSG_ALL); csGlow(178,98,24,7,2,0x03E0); break; }   // an oncoming car's headlights sweeping past, the radio's green
+    case CB_OFFICE: csGlowBox(14,18,212,56,3,CSG_COOL); break;                                           // the cold light off the glass
     case CB_HOME:
+        csGlow(104,100,20,9,((t>>2)&3)==0?1:2,CSG_WARM); csGlow(120,24,22,5,3,CSG_WARM);                 // the fire, the chandelier
         for(int y=52;y<112;y++) csGlowBox(178-(y-52)*3/2,y,32,1,3,CSG_COOL);                              // moonlight from the window across the floor
         for(int i=0;i<4;i++) csMote(40+((i*53+t/5)%120),30+((i*31+t/6)%60),2);
         break;

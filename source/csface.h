@@ -57,6 +57,7 @@ static void csFaceBig(int wx,int wy,int who,int pose,int t,int open,u16 sk,u16 h
     else if(who==CA_MAME){ csFE(2,-14,19,9,hr); csFR(-19,-9,6,13,hr); csFR(14,-9,5,11,hr); csFR(-8,-8,14,3,hr); csFR(-6,-19,10,2,csFLt(hr,8)); }
     else if(who==CA_HOST){ csFE(2,-15,19,9,hr); csFR(-19,-9,5,8,hr); csFR(-6,-8,12,3,hr); csFR(-4,-21,8,2,csFLt(hr,8)); csFR(-2,-18,2,9,ol); }
     else if(who==CA_DOC){ csFE(0,-14,19,9,hr); csFR(-20,-9,5,12,hr); csFR(15,-9,5,12,hr); csFE(10,-30,6,5,hr); csFR(-6,-20,8,2,csFLt(hr,8)); }
+    else if(who==CA_EXEC){ csFE(1,-15,19,9,hr); csFR(-19,-9,5,9,hr); csFR(15,-9,4,7,hr); csFR(-8,-8,16,2,hr); csFR(-8,-20,12,2,csFLt(hr,8)); csFR(-19,-8,2,5,csFLt(hr,10)); }   // slicked back, silver at the temples
     else if(who==CA_CREW){ csFR(-21,-8,5,10,hr); csFR(16,-8,5,10,hr); csFT(0,-4,23,18,ol); csFT(0,-5,22,17,hat); csFR(-2,-22,4,17,RGB(24,24,22)); csFR(-26,-6,52,4,RGB(20,20,19)); csFR(-26,-6,52,1,hat); }
     // glasses (Missy): frame, clear lens, bridge, arms
     csFOff(tn);

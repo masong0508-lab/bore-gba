@@ -5,13 +5,13 @@ static u16 csLt(u16 c,int k){ int r=(c&31)+k,g=((c>>5)&31)+k,b=((c>>10)&31)+k; i
 // cutscene redo 14 (step 2: BLENDING): when a beat changes a figure no longer snaps to the new pose. The eight pose numbers (lean, bob, both hands, legs, head) ease from where the
 // figure WAS to the new pose over 12 frames, with a small overshoot (it settles into the pose, like a spring). Per figure (indexed by who); state lives in EWRAM.
 typedef struct { short cur[8], from[8]; short lt, fn, bt, bn, x, x0, xt, y, y0, yt; u8 have, tw, bg; } CsPS;   // (bt: the beat frame the blend started; bn: the beat last drawn; x: where the figure stood last frame; x0 -> xt: a walk to a new spot; tw: walking last frame)
-static CsPS csPS[6] EWRAM_BSS;
+static CsPS csPS[7] EWRAM_BSS;
 static int csFrameNo;
 // cutscene redo 14 (step 3: SECONDARY MOTION): the hair strands and the skirt / coat hem trail behind the body and swing back past it (a small spring on the head's x), so a lean, a
 // step or a dance move has weight. csHL[who]: the smoothed head x (1/16 px), its speed, the last frame it was updated.
 typedef struct { short q, w, f; } CsHL;
-static CsHL csHL[6] EWRAM_BSS;
-static void csAliveReset(void){ for(int i=0;i<6;i++){ csPS[i].fn=-100; csPS[i].have=0; csPS[i].lt=0; csHL[i].f=-100; } csFrameNo=0; csHlag=0; }
+static CsHL csHL[7] EWRAM_BSS;
+static void csAliveReset(void){ for(int i=0;i<7;i++){ csPS[i].fn=-100; csPS[i].have=0; csPS[i].lt=0; csHL[i].f=-100; } csFrameNo=0; csHlag=0; }
 static int csHairLag(int who,int hx){   // spring the head x; returns how many px the hair trails (negative: behind a head that moved right), -3 .. 3
     CsHL*h=&csHL[who]; int t16=hx*16;
     if(csFrameNo-h->f>3){ h->q=(short)t16; h->w=0; } else { int w=(h->w+(t16-h->q)/5)*3/4; h->w=(short)w; h->q=(short)(h->q+w); }
@@ -70,14 +70,14 @@ static void csArm(int sx,int sy,int hx,int hy,int side,u16 ac,u16 ol,u16 sk){   
 // bends toward the way they go; the arms counter-swing (opposite hand to the forward foot) and their hands rise with the elbows; the body dips as the feet spread and rises as they pass.
 static int csStepLift(int t,int per,int mx){ int p=((t%per)+per)%per, h=per/2; if(p>=h) return 0; int q=p<h/2?p:h-p; return q*mx*2/h; }   // 0 .. mx .. 0 over half a cycle, then 0
 static void csGlassAt(int x,int y){ csR(x-1,y-6,3,6,RGB(15,21,29)); csR(x-1,y-6,3,1,RGB(31,31,31)); csR(x-1,y-3,3,3,RGB(9,16,26)); csR(x-2,y-1,2,2,RGB(24,16,10)); }   // a glass in a hand at (x,y): the rim, the water, the fingers round it
-static int csFigNowX(int who,int x){ if(who<=0||who>=6) return x; const CsPS*p=&csPS[who]; return (csFrameNo-p->fn<=3&&p->bg==csBgNow)?p->x:x; }   // where a figure is right now (on its way to a new spot), for the camera
-static int csFigNowY(int who,int y){ if(who<=0||who>=6) return y; const CsPS*p=&csPS[who]; return (csFrameNo-p->fn<=3&&p->bg==csBgNow)?p->y:y; }
+static int csFigNowX(int who,int x){ if(who<=0||who>=7) return x; const CsPS*p=&csPS[who]; return (csFrameNo-p->fn<=3&&p->bg==csBgNow)?p->x:x; }   // where a figure is right now (on its way to a new spot), for the camera
+static int csFigNowY(int who,int y){ if(who<=0||who>=7) return y; const CsPS*p=&csPS[who]; return (csFrameNo-p->fn<=3&&p->bg==csBgNow)?p->y:y; }
 static void csFig(int x,int y,int who,int pose,int t){   // t: the motion clock (csFt: on the tune's beat when one plays); csBT: frames since the beat began, for what happens once (walk in, leave, slump, the shock's jolt)
-    //                         -    MISSY        MAMESY       DEX          HAL          OKAFOR     (the game's own skinTones / hairTones / topTones / botTones)
-    static const u16 SKc[6]={0,RGB(24,16,10),RGB(24,16,10),RGB(30,23,17),RGB(19,12,7),RGB(13,8,5)};
-    static const u16 HRc[6]={0,RGB(5,3,2),RGB(14,8,4),RGB(5,3,2),RGB(14,8,4),RGB(5,3,2)};
-    static const u16 CLc[6]={0,RGB(8,10,26),RGB(8,20,22),RGB(8,9,14),RGB(30,16,4),RGB(29,29,30)};   // blazer, teal top, navy suit jacket, hi-vis vest, white coat
-    static const u16 BTc[6]={0,RGB(7,8,15),RGB(9,13,23),RGB(4,4,7),RGB(17,14,8),RGB(8,12,20)};   // pencil skirt, jeans, suit trousers, work trousers, scrub trousers
+    //                         -    MISSY        MAMESY       DEX          HAL          OKAFOR     (the game's own skinTones / hairTones / topTones / botTones), then VANCE (the network exec: a charcoal suit, silver slick hair)
+    static const u16 SKc[7]={0,RGB(24,16,10),RGB(24,16,10),RGB(30,23,17),RGB(19,12,7),RGB(13,8,5),RGB(28,21,16)};
+    static const u16 HRc[7]={0,RGB(5,3,2),RGB(14,8,4),RGB(5,3,2),RGB(14,8,4),RGB(5,3,2),RGB(15,15,17)};
+    static const u16 CLc[7]={0,RGB(8,10,26),RGB(8,20,22),RGB(8,9,14),RGB(30,16,4),RGB(29,29,30),RGB(10,10,12)};   // blazer, teal top, navy suit jacket, hi-vis vest, white coat
+    static const u16 BTc[7]={0,RGB(7,8,15),RGB(9,13,23),RGB(4,4,7),RGB(17,14,8),RGB(8,12,20),RGB(6,6,8)};   // pencil skirt, jeans, suit trousers, work trousers, scrub trousers
     u16 sk=SKc[who], hr=HRc[who], cl=CLc[who], bt=BTc[who], dk=RGB(3,2,3), ol=RGB(2,1,4);
     int tv=0, tgd=1;   // TRAVEL: a figure who stood somewhere else in the last beat (same backdrop, no fade) walks there, or runs in a RUN beat, instead of jumping to the new spot
     { CsPS*p=&csPS[who]; int can=!csEnt&&pose!=CP_LIE&&pose!=CP_STIR&&pose!=CP_CLIMB&&pose!=CP_FLAIL&&pose!=CP_WALK&&pose!=CP_LEAVE&&csBgNow!=CB_MIRROR&&!(csFxNow&CF_FADEIN);
@@ -198,7 +198,7 @@ static void csFig(int x,int y,int who,int pose,int t){   // t: the motion clock 
         csR(cx-w/2-1,yy,w+2,1,ol); csR(cx-w/2,yy,w,1,rc); csR(cx-w/2,yy,2,1,csSh(rc,4)); csR(cx+w/2-2,yy,1,1,csLt(rc,3));
         if(who==CA_MISSY){ if(i<4) csR(cx-(i<2?1:0),yy,i<2?3:1,1,WHITE); if(i==6) csR(cx,yy,1,1,csLt(cl,9)); }          // a white blouse in the V of the blazer, one button
         if(who==CA_MAME){ if(i<2) csR(cx-1,yy,3,1,csSh(sk,2)); if(i==10) csR(cx-w/2,yy,w,1,csSh(cl,3)); }                 // a round neck, a plain hem
-        if(who==CA_HOST){ if(i>=1&&i<7){ csR(cx-2,yy,1,1,csLt(cl,5)); csR(cx+2,yy,1,1,csLt(cl,5)); csR(cx-1,yy,1,1,WHITE); csR(cx+1,yy,1,1,WHITE); } if(i<2) csR(cx-1,yy,3,1,WHITE); if(i>=1&&i<8) csR(cx,yy,1,1,RGB(24,4,6)); }   // Dex: lapels, white shirt, red tie
+        if(who==CA_HOST||who==CA_EXEC){ if(i>=1&&i<7){ csR(cx-2,yy,1,1,csLt(cl,5)); csR(cx+2,yy,1,1,csLt(cl,5)); csR(cx-1,yy,1,1,WHITE); csR(cx+1,yy,1,1,WHITE); } if(i<2) csR(cx-1,yy,3,1,WHITE); if(i>=1&&i<8) csR(cx,yy,1,1,who==CA_EXEC?RGB(3,17,19):RGB(24,4,6)); }   // Dex: lapels, white shirt, red tie
         if(who==CA_DOC){ if(i<2) csR(cx-1,yy,3,1,RGB(8,18,20)); if(i>=2&&i<10) csR(cx,yy,1,1,csSh(cl,10)); if(i==4||i==5) csR(cx-w/2+1,yy,2,1,csSh(cl,8)); }   // Okafor: scrubs at the neck, the coat seam, a pocket
         if(who==CA_CREW){ if(i<2) csR(cx-1,yy,3,1,RGB(14,14,16)); if(i>1&&i<10){ csR(cx-w/2+2,yy,1,1,RGB(31,30,16)); csR(cx+w/2-3,yy,1,1,RGB(31,30,16)); } }   // Hal: the grey shirt, the reflective vest stripes
     }
@@ -212,7 +212,8 @@ static void csFig(int x,int y,int who,int pose,int t){   // t: the motion clock 
     csR(hx-4,hy+4,1,1,RGB(28,12,12)); csR(hx+4,hy+4,1,1,RGB(28,12,12));                                                   // blush
     if(who==CA_MISSY){ u16 gl=RGB(9,9,12); int gx=hx, gy=hy+1; csR(gx-4,gy-1,3,1,gl); csR(gx-4,gy+1,3,1,gl); csR(gx-4,gy,1,1,gl); csR(gx-2,gy,1,1,gl); csR(gx+1,gy-1,3,1,gl); csR(gx+1,gy+1,3,1,gl); csR(gx+1,gy,1,1,gl); csR(gx+3,gy,1,1,gl); csR(gx-1,gy,2,1,gl); csR(gx-3,gy,1,1,bl?sk:dk); csR(gx+2,gy,1,1,bl?sk:dk); csR(gx-3,gy-4,7,1,hr); csR(gx-3,gy-3,7,2,sk); csBrows(gx,(md==0&&!csEm)?gy-2:gy-3,hr,md); }   // small round glasses with a bridge, flat sleepy eyes, a thin fringe, and (G1) brows in the forehead gap above the glasses
     else csEyesS(hx,hy,bl,sk,hr,md);                    // eyes, brows
-    if(who==CA_HOST) csR(hx-4,hy-3,8,2,hr);                                                                               // Dex: swept fringe
+    if(who==CA_HOST) csR(hx-4,hy-3,8,2,hr);
+    if(who==CA_EXEC){ csR(hx-5,hy-4,10,2,hr); csR(hx-5,hy-3,2,4,hr); csR(hx-3,hy-5,6,1,csLt(hr,6)); }   // Vance: slicked back, silver at the temples                                                                               // Dex: swept fringe
     if(who==CA_CREW){ csR(hx-6,hy-3,12,3,RGB(31,31,28)); csR(hx-7,hy-1,14,1,RGB(24,24,22)); csR(hx-2,hy-4,4,1,RGB(31,31,31)); }   // Hal: the hard hat
     if(who==CA_DOC){ csLn(hx-3,hy+6,hx,hy+10,RGB(22,22,24)); csLn(hx+3,hy+6,hx,hy+10,RGB(22,22,24)); csD(hx,hy+11,1,RGB(26,26,28)); }   // Okafor: the stethoscope
     csMouthS(hx,hy,who,open,md);

@@ -44,7 +44,7 @@ static void csCamL(int x0,int y0,int x1,int y1,u16 c){
     int steep=(by>ay?by-ay:ay-by)>=(bx>ax?bx-ax:ax-bx);
     for(int i=0;i<n;i++){ int o=i-n/2; if(steep) line(ax+o,ay,bx+o,by,c); else line(ax,ay+o,bx,by+o,c); }   // a line as thick as the zoom
 }
-static int csWho(const char*s){ if(!s) return 0; if(s[0]=='M') return s[1]=='a'?CA_MAME:CA_MISSY; if(s[0]=='D') return s[1]=='r'?CA_DOC:CA_HOST; if(s[0]=='H') return CA_CREW; return 0; }   // the speaker's name -> who
+static int csWho(const char*s){ if(!s) return 0; if(s[0]=='M') return s[1]=='a'?CA_MAME:CA_MISSY; if(s[0]=='D') return s[1]=='r'?CA_DOC:CA_HOST; if(s[0]=='H') return CA_CREW; if(s[0]=='V') return CA_EXEC; return 0; }   // the speaker's name -> who
 static void csCamAim(const CsBeat*b,int t){
     if(b->bg!=csCbg){ csCbg=b->bg; csCtz=-1; }                                                   // a new place: whatever comes next is a cut
     if(csShotFind(t)) return;                                                                    // a hand-made shot has the camera (csShotApply)

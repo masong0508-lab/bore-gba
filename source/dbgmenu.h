@@ -5,11 +5,11 @@
 //   MONEY +100000         (up to 999,999,999,999)                     FULL HEALTH + NEEDS you and every Sim in the house
 //   SOUND TEST            every song, sound effect and voice clip, played by picking it (below)
 //   CLEAR WANTED          cops forget you, the record is wiped    FREE FROM PRISON   ends the sentence on the spot
-static void csMenu(void){   // OPTIONS > SIM > CHEAT > PLAY CUTSCENES: pick one scene, or play all eight in story order
-    static const u8 ord[8]={7,0,1,2,3,4,5,6};
-    const char* it[9]; it[0]="PLAY ALL IN STORY ORDER"; for(int i=0;i<8;i++) it[i+1]=csNames[i];
-    for(;;){ int s=menu("CUTSCENES",it,9); if(s<0) return;
-        if(s==0){ for(int i=0;i<8;i++) csPlay(ord[i]); } else csPlay(s-1);
+static void csMenu(void){   // OPTIONS > SIM > CHEAT > PLAY CUTSCENES: pick one scene, or play all thirteen in story order
+    static const u8 ord[13]={7,12,0,8,1,9,2,3,10,4,11,5,6};
+    const char* it[14]; it[0]="PLAY ALL IN STORY ORDER"; for(int i=0;i<13;i++) it[i+1]=csNames[i];
+    for(;;){ int s=menu("CUTSCENES",it,14); if(s<0) return;
+        if(s==0){ for(int i=0;i<13;i++) csPlay(ord[i]); } else csPlay(s-1);
         rect(0,0,SW,SH,RGB(2,4,8)); }
 }
 #include "voicenames.h"   // GENERATED (tools/encode_voices.py): the voice clips' names
@@ -67,7 +67,7 @@ static void dbgMenu(void){
         else if(c==6){ copHeat=0; copWant=0; copCool=3600; prRec=0; toast("CLEAN RECORD"); }
         else if(c==7){ if(prShown()){ prRelease(); toast("SENTENCE ENDED"); } else toast("NOT IN PRISON"); }
         else if(c==8){ if(stId&&stCh<stLen[stId]&&stChs[stId][stCh].goal!=SG_END){ stComplete(); toast("CHAPTER DONE"); } else toast("NO CHAPTER TO FINISH"); }   // (story.h: pays it and starts the next chapter, to test a story)
-        else if(c==9){ int s=menu("CUTSCENE",csNames,8); if(s>=0){ csPlay(s); rect(0,0,SW,SH,RGB(2,4,8)); } }   // (cutscene.h: preview any scene)
+        else if(c==9){ int s=menu("CUTSCENE",csNames,13); if(s>=0){ csPlay(s); rect(0,0,SW,SH,RGB(2,4,8)); } }   // (cutscene.h: preview any scene)
         else if(c==10) sdMenu();   // (the sound test, above)
     }
 }

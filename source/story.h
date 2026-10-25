@@ -730,7 +730,10 @@ static void stRunModal0(void){
     int kind=stModal; stModal=0; if(!stId) return;
     if(kind==3){ stPlugLose(); return; }   // (chapter 4 lost)
     if(stId==STY_TVSHOW&&kind==1&&stCh==0&&stKidDay==255){ csPlay(7); stKidDay=stqDay(); stGuest=0; stSave(); sgDirty=1; }   /* cutfix: unsaved until the game is saved */   // a brand new TV SHOW & TELL: the night it all started plays once, before chapter 1 (the chapter clock starts here, which is also what stops it playing again)
-    if(stId==STY_TVSHOW&&kind==2&&stCh>=1&&stCh<=5) { csPlay(stCh==5?5:stCh-1); if(stCh==4) csPlay(4); if(stCh==5) jbUnlock(UL_HERETODAY); }   // the scene that closes the chapter just finished (cutscene.h; chapter 5 closes with scene 5, its opening news is scene 4)
+    if(stId==STY_TVSHOW&&kind==2&&stCh>=1&&stCh<=5){   // the scenes that close the chapter just finished and open the next (cutscene.h): the bars (preceded by THE REFILL, followed by THE OFFER), the sweater (then THE GATE), the fall, waking up (then THE DRIVE and the news), here today (after THE WINGS)
+        static const u8 seq[6][4]={{255},{12,0,8,255},{1,9,255},{2,255},{3,10,4,255},{11,5,255}};
+        for(int i=0;i<4&&seq[stCh][i]!=255;i++) csPlay(seq[stCh][i]);
+        if(stCh==5) jbUnlock(UL_HERETODAY); }   // the scene that closes the chapter just finished (cutscene.h; chapter 5 closes with scene 5, its opening news is scene 4)
     stPlaces();   // (every place the chapter sends you to is in the town)
     u16 prev=keyNow(); u32 cnt=0; const StCh*c=&stChs[stId][stCh];
     int end=c->goal==SG_END; const StB*bk=end?0:stBkNow(); int pct; int place=stTkPlace(&pct);

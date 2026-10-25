@@ -6,7 +6,6 @@
 // across the set stays in the shot). A glide (same size) eases in and out; a change of size is a cut (at the start, the middle and, for a long one, a third of the way).
 // Needs cscam.h (csCz csCx csCy), cutscene.h (CsBeat). csCurSc / csCurBi say which scene and beat csPlay is on (csPlay sets them).
 typedef struct CsShot_ { u8 sc, bi, anc; short t0, dur, z0, x0, y0, z1, x1, y1; } CsShot;
-static int csCurSc=-1, csCurBi=0;
 static const CsShot csShots[]={
     // the sick moment, THE BARS (scene 0, beat 11): three cameras, three angles: side-on, closer, then her face and a slow push
     {0,11,1,  0, 24, 400,-34,84, 460,-24,84},
