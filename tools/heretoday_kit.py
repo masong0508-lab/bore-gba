@@ -218,7 +218,14 @@ def section(name, D, src, **L):
       ld + ldk  the melody on a solo cello / violin / flute    vx  the melody SUNG (a female ah, an octave up)    gk  the guitar family: 'gt' 12-string or 'ny' nylon
       sh   a key shift in semitones for the whole section    rit  ritardando (the last stretch gets slower)      gap  silent rows after the section"""
     a, b = src; n = b - a; lv = L.get('lv', 1.0); r0, r1 = L.get('ramp', (1, 1)); rit = L.get('rit', 0); SH = L.get('sh', 0); GKF = L.get('gk', 'gt')
-    def T(x): x = x - a; return D + int(round(x + rit * n * (x / n) ** 2))
+    WARP = L.get('warp') or []                                         # [(source row, extra rows from there on)]: pauses added between phrases, so a rubato performance can be followed on the fixed tracker grid
+    def sh_(x):
+        k = 0
+        for r_, e_ in WARP:
+            if x >= r_: k = e_
+            else: break
+        return k
+    def T(x): sx = x; x = x - a; return D + int(round(x + rit * n * (x / n) ** 2)) + sh_(sx)
     def G(x): return lv * (r0 + (r1 - r0) * (x - a) / n)
     rr_g, rr_p = RR(GTCH), RR(PNCH)
     end = T(b)

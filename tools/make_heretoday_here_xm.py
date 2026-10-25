@@ -20,7 +20,23 @@ LVF = json.load(open(os.environ['LVFILE'])) if os.environ.get('LVFILE') else {}
 
 # ------------------------------------------------------------------------------------------------------------- MISSY'S SONG
 TRIMROWS = 4                                                     # the old render started 0.8 s into the MIDI: the first note comes a moment after the music starts
-M_SECS = [('song', (TRIMROWS, 750), dict(lv=0.47, vx=1.0, gk='ny', gt=.9, st=S(v1=.5, v2=.5, va=.55, vc=.6)))]
+# the author's own performance of the song (where each of the 20 phrases starts in the way it was meant to be sung, in seconds, measured from the recording the author sent) is slightly slower than the grid and breathes between phrases. The tracker has one fixed tempo, so the phrases keep their rhythm and a few rows of rest are added
+# (or, where the MIDI has a long rest, taken out) between them so each one starts where the recording has it, to within half a row (0.1 s).
+REF_STARTS = [0.05, 2.77, 9.10, 21.77, 24.61, 30.85, 43.34, 46.38, 52.52, 61.11, 67.06, 70.44, 73.63, 81.57, 90.89, 98.44, 108.91, 111.45, 117.88, 129.49]
+def warp_for(refs):
+    ns = [(rw(a), rw(b)) for (a, b, m, v) in tnotes(tr[1])]; ph = [[ns[0]]]
+    for a, b in ns[1:]: (ph[-1].append((a, b)) if (a - ph[-1][-1][1]) * ROW <= .45 else ph.append([(a, b)]))
+    assert len(ph) == len(refs) == 20, (len(ph), len(refs))
+    out = []; prev_end = None; prev_sh = 0
+    for k, p in enumerate(ph):
+        r0 = p[0][0]; want = int(round(refs[k] / ROW)); sh = want - (r0 - TRIMROWS)
+        if prev_end is not None:
+            rest = r0 - prev_end                                  # rows of silence the MIDI has before this phrase
+            sh = max(sh, prev_sh + 2 - rest)                      # never squeeze a pause below two rows
+        out.append((r0, sh)); prev_sh = sh; prev_end = p[-1][1]
+    return out
+WARP = sorted(warp_for(REF_STARTS) + [(88, 1)])               # (and the breath the recording takes in the middle of the second chorus line, before the note at row 88)
+M_SECS = [('song', (TRIMROWS, 750), dict(lv=0.47, vx=1.0, gk='ny', gt=.9, st=S(v1=.5, v2=.5, va=.55, vc=.6), warp=WARP))]
 
 # ------------------------------------------------------------------------------------------------------------- THE FULL VERSION
 F_SECS = [
@@ -46,7 +62,7 @@ def compose(secs, tail):
 
 # ------------------------------------------------------------------------------------------------------------- the cutscene: lyric beats and camera shots, re-timed to the tracker's phrases
 FPS = 59.73; TRIM = 0.0
-def sec_of(row): return (row - TRIMROWS) * ROW
+def sec_of(row): return (row - TRIMROWS + max([e for r_, e in WARP if row >= r_] or [0])) * ROW
 def notes_for_retime():
     out = []
     for (a, b, m, v) in tnotes(tr[1]):
