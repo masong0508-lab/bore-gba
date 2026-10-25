@@ -456,7 +456,7 @@ static const XPk xPk[XP_N]={
 static const u8 xpBase[XP_N]={0,5,10,20,25,40,0,60};   // where each pack's missions start in the done bits (the base game has its own block: BM_OFF)
 #define EX_SHELF (XP_N-1)   // the shelf lists the seven packs; the base game's ten missions are in story mode (pause menu > STORY > STORY MISSIONS)
 static const u8 exOrd[EX_SHELF]={XP_SPACE,XP_ZOMB,XP_WAR,XP_FIGHT,XP_KING,XP_GOTCHI,XP_EPI};   // the shelf's order
-_Static_assert(XN(xmSpace)==5&&XN(xmZomb)==5&&XN(xmWar)==10&&XN(xmFight)==5&&XN(xmGotchi)==15&&XN(xmEpi)==20&&XN(xmBase)==10&&XN(xmKing)==10,"the packs have 5, 5, 10, 5, 15, 20, 10 and 10 missions");
+_Static_assert(XN(xmSpace)==5&&XN(xmZomb)==5&&XN(xmWar)==10&&XN(xmFight)==5&&XN(xmGotchi)==15&&XN(xmEpi)==20&&XN(xmBase)==10&&XN(xmKing)==16,"the packs have 5, 5, 10, 5, 15, 20, 10 and 16 missions");
 #define BM_OFF 7556   // SRAM: the base game's missions done ('M', ten bits in two bytes, checksum)
 _Static_assert(BD_OFF+4<=BM_OFF&&BM_OFF+4<=LG_OFF,"the base missions' block sits between the board block and the life stats");
 #include "kingdone.h"   // EP6's own missions-done block (KD_OFF, 3 bytes after the game totals; 16 bits)

@@ -103,16 +103,18 @@ static inline void khStatus2(char*out,int mode,long day,int pop,int spd,const ch
 #define KH_TILES 60
 static inline int khLum(const u16*fb,int x,int y){ if(x<0||y<0||x>=240||y>=16) return 0; u16 px=fb[y*240+x]; return (px&31)+((px>>5)&31)+((px>>10)&31); }   // 0..93 (no table: nothing here may take RAM)
 static inline int khOn(const u16*fb,int x,int y){ return khLum(fb,x,y)>=62; }   // the body of a stroke: two thirds white or more
+static inline void khRowLum(const u16*fb,int y,u8*d){ if(y<0||y>15){ for(int x=0;x<240;x++) d[x]=0; return; } const u16*p=fb+y*240; for(int x=0;x<240;x++){ u16 c=p[x]; d[x]=(u8)((c&31)+((c>>5)&31)+((c>>10)&31)); } }
 static inline void khStrip(const u16*fb,u16 shadow,u16*out){   // (the font is anti-aliased and small: a stroke edge keeps a softer tone, 4 and 5, so the letters do not thin out)
-    (void)shadow;
-    for(int ty=0;ty<2;ty++) for(int tx=0;tx<30;tx++){ u16*t=out+(ty*30+tx)*16;
-        for(int r=0;r<8;r++){ unsigned w[2]={0,0};
-            for(int c=0;c<8;c++){ int y=ty*8+r, x=tx*8+c; unsigned n=0, l=(unsigned)khLum(fb,x,y);
-                if(l>=62) n=ty==0?3u:1u;   // (the first line gold, the second white: palette colours 3 and 1 of the text bank)
-                else if(l>=24) n=ty==0?5u:4u;   // (the edge of a stroke: a softer gold or white)
-                else if(khOn(fb,x-1,y)||khOn(fb,x+1,y)||khOn(fb,x,y-1)||khOn(fb,x,y+1)) n=2;   // (the dark outline, so it reads on any ground)
-                w[c>>2]|=n<<((c&3)*4); }
-            t[r*2]=(u16)w[0]; t[r*2+1]=(u16)w[1]; } }
+    (void)shadow; u8 ring[3][240]; u8*L0=ring[0], *L1=ring[1], *L2=ring[2];   // the rows above, at and below the one being made: each row's light is worked out once (this ran about 25 reads a pixel and took two frames)
+    for(int i=0;i<KH_TILES*16;i++) out[i]=0;
+    khRowLum(fb,-1,L0); khRowLum(fb,0,L1); khRowLum(fb,1,L2);
+    for(int y=0;y<16;y++){ int ty=y>>3, r=y&7;
+        for(int x=0;x<240;x++){ int l=L1[x]; unsigned n;
+            if(l>=62) n=ty==0?3u:1u;   // (the first line gold, the second white: palette colours 3 and 1 of the text bank)
+            else if(l>=24) n=ty==0?5u:4u;   // (the edge of a stroke: a softer gold or white)
+            else n=((x>0&&L1[x-1]>=62)||(x<239&&L1[x+1]>=62)||L0[x]>=62||L2[x]>=62)?2u:0u;   // (the dark outline, so it reads on any ground)
+            if(n) out[(ty*30+(x>>3))*16+r*2+((x&7)>>2)]|=(u16)(n<<((x&3)*4)); }
+        u8*t=L0; L0=L1; L1=L2; L2=t; khRowLum(fb,y+2,L2); }
 }
 
 // ---- the build menu (step 4f): one line a mode, with what it costs and what the stockpile holds ----

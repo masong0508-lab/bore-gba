@@ -13,15 +13,15 @@
 //    ksLedger checks it against what does exist (stockpile + buildings + carriers).
 //  - b->stock in a saved building: low byte = goods delivered to it (a blueprint's cost, a processor's input), high byte = goods it holds to send out.
 // Needs: nothing but kingdom.h. Every function is static inline.
-#define KS_MAXB    40       // buildings the simulation runs (the save format allows 250; a bigger realm than this is refused on load: KSE_CAP)
+#define KS_MAXB    64       // buildings the simulation runs (the save format allows 250; a bigger realm than this is refused on load: KSE_CAP). 40 until the big realms: 64 holds a town of 48 houses and the crowds of THE LAND BOREFORE TIME's last missions
 #ifndef KS_MAXN
 #define KS_MAXN    512      // road cells (a build may change it with -DKS_MAXN=...: the road list, the queue and every distance map shrink or grow with it)
 #endif
 #ifndef KS_MAPS
-#define KS_MAPS    10       // distance maps kept at once (kinglog.h). Each is KS_MAXN bytes. 8 was tried and starves a 30 building realm in the test
+#define KS_MAPS    12       // distance maps kept at once (kinglog.h). Each is KS_MAXN bytes. 8 starved a 30 building realm in the test; 10 was enough for 40 buildings, 12 is for 64
 #endif
 #define KS_MAXW    40       // carriers
-#define KS_POPCAP  320      // the most the 40 buildings can ever house (40 houses of 8): the homes are the real limit; kingfx.h draws all of them (crowds) at any count
+#define KS_POPCAP  400      // the most a realm can hold: 50 houses of 8 (64 buildings leave room for them and the castle, the storehouses and the workplaces); the homes are the real limit; kingfx.h draws all of them (crowds) at any count
 #define KS_PARTY   4        // the founding party
 #define KS_BUF     8        // goods a building holds
 #define KS_DAYT    600      // frames in a realm day

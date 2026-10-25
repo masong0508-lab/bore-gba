@@ -1,4 +1,4 @@
-// kingmis.h - EP6 THE LAND BOREFORE TIME, Phase 5 step c: THE TEN MISSIONS. Included by expand.h in place of the old three placeholder missions (xmKing), after XM and before the macros are undefined.
+// kingmis.h - EP6 THE LAND BOREFORE TIME, Phase 5 step c: THE TEN MISSIONS, and after the crown THE ROYAL YEARS: six more (11 to 16) that lead a realm from a castle to a crowd of three hundred. Included by expand.h in place of the old three placeholder missions (xmKing), after XM and before the macros are undefined.
 // Played in your own life, done in the realm: each mission's tasks are checked against the open realm (kingq.h, kingtask.h; expand.h exKingTick) while you play KINGDOM MODE, and the mission closes, pays and
 // opens the next one when you are back in the life game. Words: up to 119 characters a line, 30 a task name. [ASSUMED numbers; the pay is in hundreds of Simoleons]
 // THE FAR BANK (8): a bridge is a road laid over water, one cut stone a cell (kingsim.h, step 5d). Expanding the map itself is still to come.
@@ -24,5 +24,18 @@ static const XMs xmKing[]={
      TQ(QK_KCASTLE,0,1,"LAY THE FOUNDATION"),TQ(QK_KCASTLE,0,2,"RAISE THE WALLS")),
   XM("A CROWN, PROPERLY","The walls are up and the little folk are getting emotional. One of them has made a crown out of a bottle cap.","Raise the towers, finish the throne room and crown a monarch. Then keep playing: the realm never ends.",XS_NONE,100,
      TQ(QK_KCASTLE,0,3,"RAISE THE TOWERS"),TQ(QK_KCASTLE,0,4,"CROWN A MONARCH"),TQ(QK_KPOP,0,25,"RULE 25 NUBBINS")),
+  // ---- THE ROYAL YEARS: after the crown. The realm never ends, so these ask for more of everything: a well and a tavern, a long bridge, a town, a full larder, a square with no room left, a crowd of three hundred. ----
+  XM("ROYAL TASTES","The monarch has opinions, mostly about drinks, and none of them are polite.","Dig a well, open a tavern and bring the folk to forty: a crowned head wants an audience.",XS_NONE,60,
+     TQ(QK_KBT,KB_WELL,1,"BUILD A WELL"),TQ(QK_KBT,KB_TAVERN,1,"BUILD A TAVERN"),TQ(QK_KPOP,0,40,"HAVE 40 NUBBINS")),
+  XM("THE LONG WAY ROUND","Every Nubbin has a cousin on the far bank, and every cousin has been told to visit.","Lay sixty road cells, a long bridge twelve cells across, and let the Nubbins deliver a hundred loads.",XS_NONE,65,
+     TQ(QK_KROAD,0,60,"LAY 60 ROAD CELLS"),TQ(QK_KBRIDGE,0,12,"LAY 12 BRIDGE CELLS"),TQ(QK_KDELIV,0,100,"DELIVER 100 LOADS")),
+  XM("A PROPER TOWN","Nobody calls it a hamlet any more. Somebody has put up a sign, and the sign has a typo.","Raise thirty buildings, put ten Nubbins to work and bring the crowd to eighty.",XS_NONE,70,
+     TQ(QK_KBLD,0,30,"RAISE 30 BUILDINGS"),TQ(QK_KWORK,0,10,"PUT 10 TO WORK"),TQ(QK_KPOP,0,80,"HAVE 80 NUBBINS")),
+  XM("THE FULL LARDER","The monarch has inspected the stockpile. The monarch is making a face.","Stack sixty planks, forty cut stone and twenty cloth: enough to build whatever comes next.",XS_NONE,75,
+     TQ(QK_KGOOD,G_PLANKS,60,"HAVE 60 PLANKS"),TQ(QK_KGOOD,G_CUT,40,"HAVE 40 CUT STONE"),TQ(QK_KGOOD,G_CLOTH,20,"HAVE 20 CLOTH")),
+  XM("STANDING ROOM ONLY","The tavern is full. So is the square. So, somehow, is the castle, and nobody remembers inviting them.","Open a second tavern, raise twelve houses and let a hundred and fifty Nubbins fill the square.",XS_NONE,80,
+     TQ(QK_KBT,KB_TAVERN,2,"BUILD 2 TAVERNS"),TQ(QK_KBT,KB_HOUSE,12,"BUILD 12 HOUSES"),TQ(QK_KPOP,0,150,"HAVE 150 NUBBINS")),
+  XM("A REALM THAT NEVER ENDS","You came for a field. You now have a kingdom, a crowd and a bridge that goes nowhere in particular.","Fifty buildings and three hundred Nubbins, a dozen of them at work. After this the realm is yours to keep.",XS_NONE,100,
+     TQ(QK_KBLD,0,50,"RAISE 50 BUILDINGS"),TQ(QK_KPOP,0,300,"RULE 300 NUBBINS"),TQ(QK_KWORK,0,12,"PUT 12 TO WORK")),
 };
 #undef TQ

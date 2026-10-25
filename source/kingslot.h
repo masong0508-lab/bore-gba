@@ -13,7 +13,7 @@
 //
 // Needs before it: slots.h (slInfo, slScan, slOwner, slI, slGood, slOpen, slHeader, slVerify, slFits, slSumOf, slHPid, SLE_*), kingdom.h.
 
-#define KGS_MAXSPAN 4          // slots a realm may span (8 KB: the measured worst case is 7.7 KB; roadmap 5.4)
+#define KGS_MAXSPAN 6          // slots a realm may span (12 KB: the measured worst case was 7.7 KB with 40 buildings; with 64 it is about 10 KB; roadmap 5.4)
 #define KGS_LISTMAX 16         // realms kgsList can return
 #define KGS_PRE     3          // payload bytes before the realm's bytes: 'K' and a u16 length
 
