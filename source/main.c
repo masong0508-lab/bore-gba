@@ -1618,11 +1618,11 @@ static void buildTitle(void){
 #ifdef CC_DEMO
     text(13,58,"CREATURE CREATOR DEMO",ink,1); text(12,57,"CREATURE CREATOR DEMO",RGB(31,14,24),1);
     { // THE CREATOR'S TITLE: a big glass pipe, its bowl full of a bunch of Bores sitting shoulder to shoulder (drawn in code, our own cast)
-      int cx=150, cy=96, R=40; for(int dy=-R;dy<=R;dy++){ int w=0; while((w+1)*(w+1)+dy*dy<=R*R) w++; int yy=cy+dy; if(yy<0||yy>=118) continue; for(int dx=-w;dx<=w;dx++){ int xx=cx+dx; if(xx<0||xx>=SW) continue; u16 c=fb[yy*SW+xx]; fb[yy*SW+xx]=shade(c,6); } }   // the glass: the picture seen darker through it
+      int cx=195, cy=104, R=28; for(int dy=-R;dy<=R;dy++){ int w=0; while((w+1)*(w+1)+dy*dy<=R*R) w++; int yy=cy+dy; if(yy<0||yy>=118) continue; for(int dx=-w;dx<=w;dx++){ int xx=cx+dx; if(xx<0||xx>=SW) continue; u16 c=fb[yy*SW+xx]; fb[yy*SW+xx]=shade(c,6); } }   // the glass: the picture seen darker through it
       for(int dy=-R;dy<=R;dy++){ int w=0; while((w+1)*(w+1)+dy*dy<=R*R) w++; if(cy+dy<118){ px(cx-w,cy+dy,RGB(14,30,31)); px(cx+w,cy+dy,RGB(14,30,31)); px(cx-w+1,cy+dy,RGB(6,20,26)); px(cx+w-1,cy+dy,RGB(6,20,26)); } }   // the rim
       rect(cx-R+8,cy+R-10,2*R-16,2,RGB(10,26,28)); rect(cx-R-26,cy+R-8,30,8,RGB(8,22,27)); rect(cx-R-26,cy+R-8,30,2,RGB(16,31,31));   // the foot of the bowl, the mouthpiece stem
       static const u16 skin[5]={RGB(27,20,15),RGB(21,13,8),RGB(29,23,18),RGB(16,10,6),RGB(25,17,12)}, top[5]={RGB(26,7,8),RGB(5,19,9),RGB(7,11,25),RGB(27,22,3),RGB(19,7,23)}, hair[5]={RGB(4,3,2),RGB(17,9,3),RGB(3,2,2),RGB(26,22,9),RGB(9,4,3)};
-      for(int i=0;i<5;i++){ int x=cx-25+i*12, y=cy+R-11-((i&1)?0:2); u16 sk=skin[i], tp=top[i], hr=hair[i], ol=RGB(2,1,4), jn=RGB(5,7,16+i), sd=shade(tp,9), lt=lite(tp,22);
+      for(int i=0;i<5;i++){ int x=cx-20+i*10, y=114-((i&1)?0:2); u16 sk=skin[i], tp=top[i], hr=hair[i], ol=RGB(2,1,4), jn=RGB(5,7,16+i), sd=shade(tp,9), lt=lite(tp,22);
           rect(x-6,y-3,13,4,ol); rect(x-5,y-3,11,3,jn); rect(x-5,y-3,11,1,shade(jn,18)); rect(x-6,y,5,2,ol); rect(x+2,y,5,2,ol); rect(x-5,y,3,1,RGB(24,24,26)); rect(x+3,y,3,1,RGB(24,24,26));   // thighs, knees, trainers
           rect(x-5,y-13,11,11,ol); rect(x-4,y-12,9,10,tp); rect(x-4,y-12,2,10,sd); rect(x+3,y-12,1,10,lt); rect(x-4,y-12,9,1,lt); rect(x-1,y-12,3,2,sk);   // torso: outline, shaded side, a lit shoulder line, the neck
           rect(x-7,y-12,3,9,ol); rect(x+5,y-12,3,9,ol); rect(x-6,y-11,2,6,tp); rect(x+5,y-11,2,6,sd); rect(x-6,y-6,2,3,sk); rect(x+5,y-6,2,3,sk);   // arms: sleeves, forearms on the knees

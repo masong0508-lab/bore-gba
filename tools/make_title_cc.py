@@ -6,7 +6,7 @@ from PIL import Image, ImageEnhance, ImageOps
 import os
 here=os.path.dirname(os.path.abspath(__file__))
 im=Image.open(os.path.join(here,'cover_bore_gba.jpg')).convert('RGB')
-im=im.crop((260,200,1088,717))                     # the hand and the glass piece (no GBA strip, no logo)
+im=im.crop((380,330,1088,802))                     # the hand and the pipe, its bowl up where the glass bubble sits
 im=im.resize((240,160),Image.LANCZOS)
 g=ImageOps.autocontrast(im.convert('L'),cutoff=0.5)
 g=ImageEnhance.Contrast(g).enhance(1.05)
