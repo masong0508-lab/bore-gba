@@ -4,7 +4,10 @@ Numbers come from the CI job summary (EWRAM 236,352 B of 262,144 = 90.2%, IWRAM 
 plus a host-side size count of every `EWRAM_BSS` symbol (no ARM compiler needed: `gcc -S` on a copy, read the `.size` lines).
 Pointer-holding structs count a little high on the host, so trust the CI table for the final number.
 
-## Measured numbers (22 Oct 2026; keep this table current)
+## Measured numbers
+The numbers of 25 Oct 2026 are in `docs/SIZE_ROADMAP.md` (status section at the top: EWRAM 232,212 B, IWRAM 29,160 B, base ROM 20,749,240 B of 25,165,824, packs and the padding). `tools/budget.sh` prints them after every link. The table below is of 22 Oct and older (the slots did NOT move: they are still at 0x09800000).
+
+## Measured numbers (22 Oct 2026, older)
 ROM, measured from the published release files of the latest build (bore.gba, bore-base.gba and the creator demo, built from the same sources):
 | item | bytes | note |
 |---|---|---|

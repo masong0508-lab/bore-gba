@@ -24,6 +24,7 @@ $(TARGET).elf: source/main.c source/logo.c $(wildcard source/*.h) $(wildcard sou
 	$(CC) main.o logo.o $(LDFLAGS) -o $@
 	@arm-none-eabi-size -A $@ | awk -v lim=$(EWRAM_STATIC_MAX) '$$1==".sbss"||$$1==".ewram"{e+=$$2} END{ if(e>lim){ printf("ERROR: EWRAM statics %d B > %d B: the top %d KB of EWRAM is the stack (see main.c)\n",e,lim,$(STACK_EWRAM)/1024); exit 1 } }'
 	@arm-none-eabi-size -A $@ | awk -v lim=$(IWRAM_MAX) '$$1==".bss"||$$1==".data"||$$1==".iwram"{i+=$$2} $$1~/^\.iwram[0-9]$$/{ if($$2>o) o=$$2 } END{ i+=o; printf("IWRAM: %d B used of %d (%d B free; overlays %d B)\n",i,lim,lim-i,o); if(i>lim){ printf("ERROR: IWRAM %d B > %d B: new code must not be IWRAM_*, new statics need EWRAM_BSS\n",i,lim); exit 1 } }'
+	@sh tools/budget.sh $@   # EWRAM, IWRAM and the base game's ROM against their limits: a NOTE above 92% / 95%, an ERROR if the base game runs into the packs' slots (tools/budget.sh)
 
 # bore.gba is the WHOLE game, every expansion pack in. bore-base.gba is the base game alone (every pack's slot blank) and packs/ holds one
 # BPS patch per pack: they go onto bore-base.gba in any order, alone or together, and all six give bore.gba byte for byte

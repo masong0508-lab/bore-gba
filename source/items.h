@@ -15,10 +15,13 @@ __attribute__((noclone)) IWRAM_OVL1 static void blitItemO(int k,int sx,int sy){
     int cx1=cX0+(int)cW, cy1=cY0+(int)cH;
     if(x0>=cx1||x0+IW<=cX0||y0>=cy1||y0+IH<=cY0) return;
     int j0=cY0-y0, j1=cy1-y0; if(j0<0) j0=0; if(j1>IH) j1=IH;
-    const u16*s=romSpr[k]; const u8*sp=itemSpan[k][j0];
+    const u16*s=itemPix+itemOff[k]; const u8*sp=itemSpan[k][0];   // (itemrom.h: only the opaque span of each row is stored, the rows one after another)
+    for(int j=0;j<j0;j++) s+=sp[2*j+1]-sp[2*j];                   // the rows above the clip are skipped, pixels and all
+    sp+=2*j0;
     for(int j=j0;j<j1;j++,sp+=2){
-        int a=sp[0], b=sp[1]; if(x0+a<cX0) a=cX0-x0; if(x0+b>cx1) b=cx1-x0; if(a>=b) continue;
-        const u16*q=s+j*IW+a; u16*d=&fb[(y0+j)*SW+x0+a];
+        int a=sp[0], b=sp[1]; const u16*row=s-a; s+=b-a;           // (row[i] is the pixel of column i, for i in the span)
+        if(x0+a<cX0) a=cX0-x0; if(x0+b>cx1) b=cx1-x0; if(a>=b) continue;
+        const u16*q=row+a; u16*d=&fb[(y0+j)*SW+x0+a];
         for(int i=a;i<b;i++,q++,d++){ u16 c=*q; if(c!=IKEY) *d=c; }
     }
 }
