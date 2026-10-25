@@ -1,10 +1,10 @@
 # itch.io page drafts (DippInn Productions)
 
 What the pages had when read: no description on any of the four, 2 to 8 tags each. Paste the text below into each game's Edit page.
-The two Empire-Ants drafts are built from the tags and file sizes only (I have not played them): please correct anything that is wrong.
+All four were downloaded from the pages and run in an emulator before writing, so the descriptions come from the games themselves. The creator and full-game builds on itch are the older ones (the creator's title is the old cover without the new bowl of Bores; the main menu on the full game is the Sims-3-style menu).
 
 ## BORE (GBA, FULL GAME)  https://dippertronics.itch.io/bore-gba-full-game
-Check first: the download is `bore-base.gba` (27 MB). That is the base game WITHOUT the expansion packs. The complete game (all packs built in) is `bore.gba` (about 28.7 MB). Upload that one as the main file.
+Check first: the file is called `bore-base.gba` but it is 28.7 MB, the size of the complete game, and its menu has EXPANSIONS. Rename it `bore.gba` so nobody thinks it is the base game without packs, and upload the latest build.
 
 Short description (tagline): A voxel life sim for the Game Boy Advance: make a Bore, build a house, skate the town, fall in love, start a fight, grow something green.
 
@@ -40,16 +40,32 @@ Hub: CREATE A NEW BORE, MY CREATIONS, ENTER A SHARE CODE, ABOUT. Runs in any GBA
 
 Update notes: the title now has its own look (the BORE cover art in cyan and pink, with a bowl of seated Bores).
 
-## Empire-Ants (GBA)  https://dippertronics.itch.io/empire-ants-gba   (draft from tags only)
-Tagline: A first-person ant colony strategy shooter in Mode 7 for the Game Boy Advance. 87 kB.
-Tags (7 is all it needs): Game Boy Advance, Mode 7, First-Person, Strategy, Ants, FPS, 3D.
-Description (fill in what is true):
-**You are an ant. So is everyone else.** A first-person colony game in the style of Mode 7 racing games, in under 90 kB. (Add: what you do, how you win, controls, what is still in development.)
+## Empire-Ants (GBA)  https://dippertronics.itch.io/empire-ants-gba   (written after downloading and playing it)
+What it is: a top-down colony god-game. You rule the black ants of Empire Ants but cannot give them orders: you shape the land (raise and lower tiles with a cursor, spending action points) and they walk around what you build. Goal: kill the red queen before they kill yours. Lessons 1 to 8 in a quick tour, difficulty (NORM), maps (MEADOW, "gentle hills and ponds"), perks to pick (CALM or QUEEN UP), popularity, disasters, 5 queens/hearts, records, a sandbox mode (hold SELECT).
+The current tags say First-Person, FPS, 3D and Mode-7. None of that matches the game: remove them.
+Tagline: Rule an ant colony without giving a single order: reshape the land and let the ants find their own way. 87 kB.
+Tags: Game Boy Advance, Strategy, God Game, Ants, Top-Down, Real-Time, Colony, Retro, Singleplayer, Pixel Art.
+Description:
 
-## Empire-Ants (GBC)  https://dippertronics.itch.io/empireants   (draft from tags only)
-Tagline: A tiny first-person ant roguelite for the Game Boy Color. 64 kB.
-Tags: Game Boy Color, Roguelite, First-Person, Ants, Life Simulation, 2D, Singleplayer, Retro.
-Note: the current tags say "Game Boy", not "Game Boy Color", and list Windows/macOS/Linux/Android because the file is a ROM: say "needs an emulator" in the first line. (Add: the loop of a run, what you collect, how it ends.)
+**You are the Antferor. You cannot give orders.** You rule the black ants of Empire Ants, but they do what they like. Your only tool is the ground: raise it, lower it, build ramps and bridges, flood a patch, and watch the colony walk around what you made. Kill the red queen before they kill yours.
+
+- **Shape the land.** A raises the tile under your yellow cursor, B lowers it. Each level costs action points. Ants climb one step at a time: build slopes, dark edges are cliffs.
+- **A colony with moods.** Popularity, food, queens (five hearts) and events like earthquakes. Pick a perk when the colony loves you: stay CALM (slower disasters) or go QUEEN UP.
+- **Learn it in minutes.** A quick tour of eight short lessons, then a normal game, or hold SELECT for a sandbox. Records are saved.
+- A whole strategy game in 87 kB. Needs a GBA emulator (mGBA) or a flash cart.
+
+## Empire-Ants (GBC)  https://dippertronics.itch.io/empireants   (written after downloading and playing it)
+What it is: the same colony god-game squeezed onto the Game Boy Color in 64 kB. Controls on the pause screen: A raise, B lower, SELECT+direction FLOOD 3x3, SELECT+A EMBEZZLE, SELECT+B FAST FORWARD, START pause, SELECT+START ANT EYE. HUD: MP (mana), F (food), Q 5/5 queens, A / R / P (ants, red ants, popularity). Events like EARTHQUAKE. Goal: KILL THE RED QUEEN. Save and records.
+The current tags say First-Person, 3D and Roguelite and "Game Boy"; the game is a top-down strategy / god game: replace them.
+Tagline: A tiny god-game for the Game Boy Color: raise land, flood valleys, and let your ants win a war you cannot command. 64 kB.
+Tags: Game Boy Color, Strategy, God Game, Ants, Top-Down, Real-Time, Retro, Singleplayer, Pixel Art, Demake.
+Description:
+
+**Rule a colony by moving the ground.** The black ants of Empire Ants take care of themselves; you spend mana to raise, lower and flood the land and to steer them toward the red queen. Spend carefully: mana and food run down, earthquakes happen, and the red ants are coming.
+
+- A raises, B lowers, SELECT + direction floods 3x3, SELECT + A embezzles, SELECT + B fast-forwards, START pauses and shows the controls.
+- Goal: kill the red queen. Five queens to keep alive. Records and saves in the cartridge.
+- Runs on Game Boy Color emulators and flash carts. 64 kB.
 
 ## Profile page  https://dippertronics.itch.io/
 Bio: DippInn Productions makes small, odd games that run on old hardware: a voxel life sim for the GBA, a creature creator, and tiny first-person ant games. Everything in a few megabytes or less.
