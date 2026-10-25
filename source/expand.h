@@ -81,16 +81,51 @@ static const char* arName(int a);   // arena.h
 #define TK(k,n,nm) {k,0,n,nm}
 #define TL(s,n,nm) {QK_LSKILL,s,n,nm}
 // ---- 1 BORE-OUT MAN!  a space oddity ----
+static const char xns1In[]=
+  "The printer is called Brenda. She has jammed four times since lunch and each time she makes a noise like a small disappointed whale. The report is due at five.|"
+  "On the noticeboard, between a lost umbrella and a yoga class nobody goes to, there is a flyer. ASTRONAUTS WANTED. NO EXPERIENCE. MUST BE ABLE TO SIT STILL.|"
+  "Work one last shift. Then go to the library and make your brain a bit bigger, because the flyer also says logic level 2 and you have been running on coffee since March.";
+static const char xns1Out[]=
+  "You handed in the report at 4:59. Nobody read it. Brenda printed one last page, all on her own, and it said GOOD LUCK in a font you did not know she had.|"
+  "An email arrives from the space program: Thank you for your interest. We have had one other applicant, and he was a pigeon. Please report for a physical.";
+static const char xns2In[]=
+  "Commander Pell looks you up and down, writes something on a clipboard, and turns the clipboard so you cannot see it. She has a face like a locked drawer.|"
+  "Dr. Fennimore, the flight surgeon, says your arms are decorative. He says the rocket does not care about decorative. He says it very kindly, which is worse.|"
+  "Go to the gym and lift something that is heavier than your lunch. Then drink the protein shake. It comes in a tub the size of a bin and it is called ULTRA MASS.";
+static const char xns2Out[]=
+  "The shake tasted like wet chalk with a rumour of vanilla. You finished it. Dr. Fennimore clapped once, quietly, like a man at a very tense golf tournament.|"
+  "Your arms are now merely average. Commander Pell crossed something out on her clipboard and wrote something else. You choose to believe it was a compliment.";
+static const char xns3In[]=
+  "The spaceport smells of hot metal and floor polish. The instructor is called Rook and he smiles at everything, including the fire exits. The centrifuge does not smile.|"
+  "It spins you at nine times your own weight. Your face moves to a different part of your head. Rook says this is called a learning experience and it is on a form you signed.|"
+  "Get yourself to the spaceport. Ride the centrifuge, then pass spacewalk training. The one rule is that nobody is sick in the helmet. Nobody has kept to it yet.";
+static const char xns3Out[]=
+  "You were not sick in the helmet. You were sick near the helmet, which Rook says counts, because the form only says in. He gave you a sticker. It says I SURVIVED.|"
+  "Commander Pell watched from the glass booth and did not smile. Then she did, very briefly, and put it away again as if she had been caught with something.";
+static const char xns4In[]=
+  "Your seat is booked. The countdown is on. Mission Control says in a calm voice that the main antenna is, technically, not working, and that this is a bit awkward.|"
+  "Somebody in Mission Control asks whether anybody has tried turning it off and on again. Somebody else says that is not a thing in space. Nobody is sure.|"
+  "Launch. Climb out into the dark with a spanner on a string and fix the antenna in orbit. Do not look down. Everyone says do not look down. Everyone looks down.";
+static const char xns4Out[]=
+  "The antenna clicked back into place. Mission Control cheered, then apologised for cheering, then cheered again. Somebody played a song over the radio. It was not a good one.|"
+  "You did look down. It was very blue and very small. You thought about your desk and Brenda and the lost umbrella. Then you came home. It is a long way, home.";
+static const char xns5In[]=
+  "You are back on the ground. The grass is where you left it. The neighbour waves and asks if you have been away. You tell him you were in space. He says: lovely.|"
+  "Nobody noticed. The town has been busy with a very serious argument about bins. You were in orbit for a week and the bin argument is still going.|"
+  "Get home. Hug somebody. Then have somebody over and tell the whole thing, from Brenda to the antenna. Somebody has to hear it, and it might as well be someone with biscuits.";
+static const char xns5Out[]=
+  "They listened to all of it. They said wow in the right places. Somebody asked if it was cold up there and you said yes, and that you had not minded, which surprised you.|"
+  "Brenda is gone, but there is a new printer. It jams on the first day. You pat it, and say: I know. And somewhere above the clouds, a very small antenna keeps working.";
 static const XMs xmSpace[]={
-  XM("BURNT OUT","The printer jammed again, the boss wants it by five, and a flyer on the noticeboard says astronauts are wanted.","Work one last shift, hit the library for some brains, and get your logic up to level 2.",XS_NONE,30,
+  XMS("BURNT OUT","The printer jammed again, the boss wants it by five, and a flyer on the noticeboard says astronauts are wanted.","Work one last shift, hit the library for some brains, and get your logic up to level 2.",XS_NONE,30,AMAP_HOME,xns1In,xns1Out,
      TE(SE_SHIFT,1,"WORK ONE LAST SHIFT"),TD(VA_STUDY,"STUDY AT THE LIBRARY"),TL(SK_LOGIC,2,"REACH LOGIC LEVEL 2")),
-  XM("TAKE YOUR PROTEIN PILLS","The space program took one look at you and politely said you are soft.","Hit the gym, lift something heavy, and choke down a protein shake to get your body to level 2.",XS_NONE,35,
+  XMS("TAKE YOUR PROTEIN PILLS","The space program took one look at you and politely said you are soft.","Hit the gym, lift something heavy, and choke down a protein shake to get your body to level 2.",XS_NONE,35,AMAP_HOME,xns2In,xns2Out,
      TD(VA_LIFT,"LIFT WEIGHTS"),TD(VA_SHAKE,"DOWN A PROTEIN SHAKE"),TL(SK_BODY,2,"REACH BODY LEVEL 2")),
-  XM("PUT YOUR HELMET ON","Training day at the spaceport, where the instructors smile a lot and the centrifuge does not.","Get over there, survive the spinning, and pass spacewalk training without being sick in your helmet.",XS_NONE,40,
+  XMS("PUT YOUR HELMET ON","Training day at the spaceport, where the instructors smile a lot and the centrifuge does not.","Get over there, survive the spinning, and pass spacewalk training without being sick in your helmet.",XS_NONE,40,AMAP_HOME,xns3In,xns3Out,
      TA(CT_SPACE,"GO TO THE SPACEPORT"),TD(VA_CENTRI,"RIDE THE CENTRIFUGE"),TE(QE_SPACEWALK,1,"PASS SPACEWALK TRAINING")),
-  XM("FLOATING IN A TIN CAN","Your seat is booked, the countdown has started, and the antenna up there is broken, naturally.","Launch into space and fix the antenna in orbit. Try not to look down.",XS_NONE,50,
+  XMS("FLOATING IN A TIN CAN","Your seat is booked, the countdown has started, and the antenna up there is broken, naturally.","Launch into space and fix the antenna in orbit. Try not to look down.",XS_NONE,50,AMAP_HOME,xns4In,xns4Out,
      TE(QE_LAUNCH,1,"LAUNCH INTO SPACE"),TE(QE_SPACEWALK,2,"FIX THE ANTENNA IN ORBIT")),
-  XM("PLANET EARTH IS BLUE","You are back on the ground and nobody noticed you were gone, which is both a relief and an insult.","Head home, hug somebody, and have a person over to hear the whole story.",XS_NONE,60,
+  XMS("PLANET EARTH IS BLUE","You are back on the ground and nobody noticed you were gone, which is both a relief and an insult.","Head home, hug somebody, and have a person over to hear the whole story.",XS_NONE,60,AMAP_HOME,xns5In,xns5Out,
      {QK_HOME,0,0,"GET BACK HOME"},TS(SC_HUG,"HUG SOMEONE"),{QK_GUEST,0,0,"HAVE SOMEONE OVER"}),
 };
 // ---- 2 BOREZIES! ----
@@ -169,20 +204,76 @@ static const char xw9Out[]=
   "Gary dropped the megaphone. He said: honestly, I forgot what we were fighting about.|"
   "You said: the hedge. He said: ah. Then you both looked at the hedge, which was fine, and stood there for a while.|"
   "Armistice talks are on Friday. Bring snacks.";
+static const char xnw1In[]=
+  "It was a very good hedge. Eight feet of privet, trimmed with love. Overnight, somebody from the Eastern Army cut it down to the height of a rather ambitious lawn.|"
+  "General Hedgewick calls an emergency meeting in his shed. He has a map, a kettle and four biscuits. He calls this an act of war. The kettle agrees.|"
+  "Before anybody fires a shot, hear the enemy envoy out. His name is Pomfrey and he has brought a folder. Then sign up two recruits. The army is currently you, a map and a shed.";
+static const char xnw1Out[]=
+  "Envoy Pomfrey said the hedge had been in the way of a view. You said you had planted it. He said that was the problem. Nobody could work out which of you was winning.|"
+  "Two recruits signed up: a postman and a man who just wanted to see what happened. General Hedgewick saluted them with a biscuit. The war was on.";
+static const char xnw2In[]=
+  "The Bore Defence Force has one rule: you cannot be in it if you cannot touch your toes. You have not seen your toes since a wedding in 2019.|"
+  "Sergeant Spinn runs boot camp from the gym. She has a whistle, a clipboard, and a bike that does not go anywhere. She calls this the front line. It is very loud.|"
+  "Report to the gym. Survive the Sarge's spin class, and come out at body level 2. Do not ask how many miles. It is the same number as when you started.";
+static const char xnw2Out[]=
+  "You survived. You fell off the bike twice, but the bike was not going anywhere, so it did not count. Sergeant Spinn gave you a certificate. It said GOOD EFFORT.|"
+  "You now have thighs. They are loud thighs. They have opinions and they want to be used. General Hedgewick says that is what an army marches on.";
+static const char xnw3In[]=
+  "Intelligence says the Eastern Army has acquired a super soaker. It holds two litres. It has a pump action. Command has looked at your garden hose and gone quiet.|"
+  "General Hedgewick presses a form into your hand. It is the requisition form, in triplicate, and it has been stamped by a man who does not know what a requisition is.|"
+  "Go to the arms shop. Requisition a proper weapon. The man behind the counter has seen everything and enjoyed none of it. Be polite. He has a very large drawer.";
+static const char xnw3Out[]=
+  "The man behind the counter looked at your form for a long time and then at you for a longer time. He sold you something heavy, wrapped in paper. He did not say a word.|"
+  "You carried it home as if it were a cake. General Hedgewick unwrapped it, nodded, and wrapped it up again. We will not be needing the hose, he said.";
+static const char xnw4In[]=
+  "Scouts report that the front line now runs across your lawn, at an angle, through the birdbath. The birds have filed a complaint. It is under review.|"
+  "General Hedgewick unfolds his map on the bonnet of a car. He draws a line on it with a biro. He says: this is where we make our stand. It is the patio.|"
+  "Put up two gates or cameras and fortify the lot. Then hold the line for a full day. They will come in waves, and they have been told you are soft.";
+static const char xnw4Out[]=
+  "Night fell. The line held. The birdbath did not, but the birds were kind about it. The enemy went home at dusk, as they always do, for tea.|"
+  "General Hedgewick said: that is how it is done. Then he asked if you had any more biscuits. You did not. The war had cost you your biscuits. The war was serious.";
+static const char xnw5In[]=
+  "A patrol of the Eastern Army has reached your fence. There are six of them. They are in khaki and the one at the front is holding a flag on a stick.|"
+  "Nobody has told them they are allowed to shout. They are doing it anyway. Their words are mostly vowels and one of them is clearly the word hedge.|"
+  "Not one of them may come through. Knock out three and parry what you cannot dodge. Hold L when you see the wind-up. Remember it is only a small, silly war.";
+static const char xnw5Out[]=
+  "The patrol retreated in good order. One of them stayed behind to apologise, then ran after the rest. The flag on the stick lay in the road for a long time.|"
+  "General Hedgewick picked it up and put it in the shed with the biscuits. It is a trophy now. Nobody has the heart to tell him it was a mop.";
+static const char xnw6In[]=
+  "A war is not only won with fists. It is won with songs, with posters, and with someone shouting reassurances into a radio in the middle of the night.|"
+  "Right now the town has the morale of a wet biscuit. People are saying that the hedge was not that good. This is dangerous talk. It is also true.|"
+  "Broadcast on the radio. Rally the plaza with a speech. Win four allies to the cause. It does not matter if they understand the cause. Few of us do.";
+static const char xnw6Out[]=
+  "The speech went well. A man cried and a dog barked, and both were taken as a good sign. Four allies signed up, and one of them brought a trumpet.|"
+  "On the radio they played your voice all night, between two songs about rain. Somewhere, in a dark kitchen, a man with a very small hedge nodded along.";
+static const char xnw7In[]=
+  "The enemy officers are dug in around old town, in a row of terraced houses with the curtains drawn. They are drinking tea. This is thought to be a tactic.|"
+  "General Hedgewick says it needs a small and quiet team. You are a small team. You are, at times, quiet. He gives you a balaclava that is slightly too big.|"
+  "Sneak into old town without being seen, and take out two soldiers. Do not use the front door. They know about the front door. It squeaks.";
+static const char xnw7Out[]=
+  "Two soldiers were put to sleep, gently, with a cushion. You left a note that said SORRY, and a biscuit, as is the custom in this war.|"
+  "You came home before dawn with a map you did not need and a story you cannot tell. General Hedgewick pretended he had never doubted you.";
+static const char xnw8In[]=
+  "The war has gone on so long that nobody remembers why it started. A man on the Eastern side thinks it was about a goose. A woman on yours thinks it was a parking space.|"
+  "General Hedgewick has gone quiet in his shed. He has been looking at a photograph of a hedge. It was a very good hedge. He has started to cry into the kettle.|"
+  "End it. Say sorry. Share a hug, because it is the only treaty anyone understands. Then sign a lasting peace with six friends. The pens are in the shed.";
+static const char xnw8Out[]=
+  "They signed. Gary shook your hand, then hugged you, then shook your hand again to be safe. A very small band played a very small anthem.|"
+  "The hedge is already growing back. It is only an inch. General Hedgewick measures it every morning, with a ruler, and says: that is how peace looks.";
 static const XMs xmWar[]={
-  XM("BORDER INCIDENT","Enemy troops crossed the border and cut down your hedge. Command calls it an act of war.","Debate the enemy envoy, and enlist two recruits before the first shots are fired.",XS_NONE,30,
+  XMS("BORDER INCIDENT","Enemy troops crossed the border and cut down your hedge. Command calls it an act of war.","Debate the enemy envoy, and enlist two recruits before the first shots are fired.",XS_NONE,30,AMAP_HOME,xnw1In,xnw1Out,
      TS(SC_ARGUE,"DEBATE THE ENEMY ENVOY"),TK(QK_FRIENDS,2,"ENLIST 2 RECRUITS")),
-  XM("BOOT CAMP","The Bore Defence Force needs soldiers, and you are the only volunteer.","Report to the gym, survive the sergeant's spin class, and get fit for duty.",XS_NONE,35,
+  XMS("BOOT CAMP","The Bore Defence Force needs soldiers, and you are the only volunteer.","Report to the gym, survive the sergeant's spin class, and get fit for duty.",XS_NONE,35,AMAP_HOME,xnw2In,xnw2Out,
      TA(CT_GYM,"REPORT TO THE GYM"),TD(VA_SPIN,"SURVIVE THE SARGE'S SPIN CLASS"),TL(SK_BODY,2,"REACH BODY LEVEL 2")),
-  XM("REQUISITION","Intelligence says the enemy has a super soaker, and command wants something bigger.","Visit the arms shop and requisition a weapon.",XS_NONE,40,
+  XMS("REQUISITION","Intelligence says the enemy has a super soaker, and command wants something bigger.","Visit the arms shop and requisition a weapon.",XS_NONE,40,AMAP_HOME,xnw3In,xnw3Out,
      TA(CT_ARMS,"GO TO THE ARMS SHOP"),TE(QE_BUY,1,"REQUISITION A WEAPON")),
-  XM("DIG IN","The front line runs straight across your lawn, and the enemy is on the way.","Fortify with two gates or cameras, then hold the line for a full day.",XS_WAR,45,
+  XMS("DIG IN","The front line runs straight across your lawn, and the enemy is on the way.","Fortify with two gates or cameras, then hold the line for a full day.",XS_WAR,45,AMAP_HOME,xnw4In,xnw4Out,
      TK(QK_SECURE,2,"PUT UP 2 GATES OR CAMERAS"),TK(QK_DAYS,1,"HOLD THE LINE FOR A DAY")),
-  XM("FIRST CONTACT","An enemy patrol has reached your fence, and not one of them can be allowed through.","Knock out three soldiers, and parry what you cannot dodge.",XS_WAR,50,
+  XMS("FIRST CONTACT","An enemy patrol has reached your fence, and not one of them can be allowed through.","Knock out three soldiers, and parry what you cannot dodge.",XS_WAR,50,AMAP_CULDESAC,xnw5In,xnw5Out,
      TK(QK_CNT,3,"KNOCK OUT 3 SOLDIERS"),TE(QE_PARRY,1,"PARRY A BLOW")),
-  XM("MORALE","A war is won on the airwaves as much as on the field, and morale is low.","Broadcast on the radio, rally the plaza, and win four allies.",XS_NONE,50,
+  XMS("MORALE","A war is won on the airwaves as much as on the field, and morale is low.","Broadcast on the radio, rally the plaza, and win four allies.",XS_NONE,50,AMAP_HOME,xnw6In,xnw6Out,
      TE(SE_RADIO,1,"PLAY THE RADIO"),TA(CT_PLAZA,"GO TO THE PLAZA"),TK(QK_FRIENDS,4,"WIN 4 ALLIES")),
-  XM("BEHIND ENEMY LINES","Their officers are dug in around old town. A small, quiet team could end this fast.","Slip in unseen and take out two soldiers.",XS_WAR,55,
+  XMS("BEHIND ENEMY LINES","Their officers are dug in around old town. A small, quiet team could end this fast.","Slip in unseen and take out two soldiers.",XS_WAR,55,AMAP_HOME,xnw7In,xnw7Out,
      TA(CT_OLDTOWN,"SNEAK INTO OLD TOWN"),TK(QK_CNT,2,"KNOCK OUT 2 SOLDIERS")),
   XMS("RESCUE MISSION","The enemy captured Private Dennis, a dental receptionist and a loyal soldier.","Raid the scrapyard, free him, and bring him home.",XS_WAR,60,AMAP_SCRAP,
       xw8In,
@@ -192,20 +283,55 @@ static const XMs xmWar[]={
       xw9In,
       xw9Out,
       TK(QK_CNT,5,"KNOCK OUT 5 SOLDIERS"),TE(QE_PARRY,2,"PARRY 2 BLOWS")),
-  XM("ARMISTICE DAY","The war has dragged on until nobody remembers why it started.","Say sorry, share a hug, and sign a lasting peace with six friends.",XS_NONE,80,
+  XMS("ARMISTICE DAY","The war has dragged on until nobody remembers why it started.","Say sorry, share a hug, and sign a lasting peace with six friends.",XS_NONE,80,AMAP_HOME,xnw8In,xnw8Out,
      TS(SC_SORRY,"SAY SORRY"),TS(SC_HUG,"HUG IT OUT"),TK(QK_FRIENDS,6,"SIGN THE PEACE WITH 6 FRIENDS")),
 };
 // ---- 4 BORTUA FIGHTER ----
+static const char xnf1In[]=
+  "A man called Skeeter filmed you punching somebody. You were defending a sandwich, but the video starts after that part. It has four million views and a drum solo.|"
+  "Now everybody in town has a take on it. People stop you in the shop. They do not say hello. They say: you are the punch guy. They say it like a job title.|"
+  "A challenger is on the way. Knock them out, then learn to parry before the next one turns up. Hold L when the wind-up starts. Skeeter will be filming. Skeeter is always filming.";
+static const char xnf1Out[]=
+  "The challenger went down, got up, shook your hand and asked for a selfie. Skeeter posted the fight before you had stopped breathing. It got more views than the first one.|"
+  "Your phone buzzes all night. Forty strangers want a rematch. One of them is a grandmother. She sounds very polite. She has a black belt in something.";
+static const char xnf2In[]=
+  "Every great fighter has a training montage. There are stairs, sweat, a man in a hood, and a song with the word fire in it. You have the hood. You will need the rest.|"
+  "There is no music budget, so you hum it yourself, quietly, between sets. Master Ume says that is allowed. He says it from behind a newspaper, without looking.|"
+  "Lift weights. Swim laps. Repeat until your body is at level 3. If anyone asks, you are not doing this for the video. You are doing it for the fire.";
+static const char xnf2Out[]=
+  "The montage ended the way they all do: running up some steps, arms in the air, in front of a very confused postman. He applauded. You think he understood.|"
+  "You can now carry two shopping bags at once. In a fight, this will not help, but at the supermarket it feels like winning.";
+static const char xnf3In[]=
+  "At the back of the arcade there is a Bortua Fighter cabinet that smells of cola and old thumbs. The top score has been there since you were at school. It says NAN.|"
+  "NAN has never been beaten. Nobody knows who NAN is. Some say it is a man, some say it is a machine, and one boy says it is his gran. He is not allowed to say that again.|"
+  "Go to the arcade and win three fights. Quarters are optional, but without them you will be standing there looking at the attract mode, and it is a very sad song.";
+static const char xnf3Out[]=
+  "You beat three opponents. Each of them was a very angry pixel. The last one said something rude in a language that does not exist, and you took it personally.|"
+  "NAN is still on top. But now the screen has a second name just below it, and it is yours. A boy at the next machine said: not bad. He was nine. He meant it.";
+static const char xnf4In[]=
+  "Master Ume runs the dojo from a cushion in the middle of the floor. He is very old and very still. He once held a sneeze for forty minutes. It is a long story.|"
+  "He says fireballs are real. He says it flatly, the way a man says the bins go out on Tuesday. He does not smile. This worries you more than anything.|"
+  "Go to the dojo, land a special move, and knock out two challengers to prove him right. The pad does a lot of the work. The belief is on you.";
+static const char xnf4Out[]=
+  "The fireball was small, and it was made of mostly sweat and noise, but there was a flicker at the end of it. Master Ume opened one eye. It was the most emotion he had shown all year.|"
+  "He said: again. You said you were tired. He said: again. You did it again. Neither of you said anything about the flicker, but he put a biscuit in your bag.";
+static const char xnf5In[]=
+  "The final boss is made of chrome. Her name is CHROME. She has never lost, never blinked and never been asked to turn her music down. She has been waiting for you.|"
+  "Nobody has seen her fight. People who have say she does not so much throw a punch as arrive in it. The arcade holds its breath when she is mentioned.|"
+  "Beat arcade mode all the way to the end. Then go out on the street and knock out three challengers, just to be sure. It is not the same when it counts, but you know that.";
+static const char xnf5Out[]=
+  "CHROME bowed, which no one expected. Then she said it was a very good fight and that she would be back, and that you were not allowed to practise without her.|"
+  "On the cabinet a new top score blinks. It says YOU. Underneath it, in a smaller font, somebody has typed: NAN WAS HERE. You are fairly sure that was Master Ume.";
 static const XMs xmFight[]={
-  XM("THE VIRAL VIDEO","Somebody filmed you punching a guy, and now everyone in town has seen it and wants a turn.","Knock out a challenger, and learn to parry a blow before the next one turns up.",XS_ARENA,30,
+  XMS("THE VIRAL VIDEO","Somebody filmed you punching a guy, and now everyone in town has seen it and wants a turn.","Knock out a challenger, and learn to parry a blow before the next one turns up.",XS_ARENA,30,AMAP_HOME,xnf1In,xnf1Out,
      TK(QK_CNT,1,"KNOCK OUT A CHALLENGER"),TE(QE_PARRY,1,"PARRY A BLOW")),
-  XM("TRAINING MONTAGE","Every great fighter has a training montage, with sweat, stairs and some very dramatic music.","Lift weights, swim laps, and repeat until your body is at level 3.",XS_NONE,35,
+  XMS("TRAINING MONTAGE","Every great fighter has a training montage, with sweat, stairs and some very dramatic music.","Lift weights, swim laps, and repeat until your body is at level 3.",XS_NONE,35,AMAP_HOME,xnf2In,xnf2Out,
      TD(VA_LIFT,"LIFT WEIGHTS"),TD(VA_SWIM,"SWIM LAPS"),TL(SK_BODY,3,"REACH BODY LEVEL 3")),
-  XM("THE CABINET","There is a Bortua Fighter machine at the arcade, and a high score on it that you plan to beat.","Go to the arcade and win three fights. Quarters are optional, but they help.",XS_NONE,40,
+  XMS("THE CABINET","There is a Bortua Fighter machine at the arcade, and a high score on it that you plan to beat.","Go to the arcade and win three fights. Quarters are optional, but they help.",XS_NONE,40,AMAP_HOME,xnf3In,xnf3Out,
      TA(CT_ARCADE,"GO TO THE ARCADE"),TK(QK_BFW,3,"WIN 3 ARCADE FIGHTS")),
-  XM("SPECIAL MOVES","The old master at the dojo swears that fireballs are real. He is not smiling, which is worrying.","Visit the dojo, land a special move, and knock out two challengers to prove him right.",XS_ARENA,50,
+  XMS("SPECIAL MOVES","The old master at the dojo swears that fireballs are real. He is not smiling, which is worrying.","Visit the dojo, land a special move, and knock out two challengers to prove him right.",XS_ARENA,50,AMAP_HOME,xnf4In,xnf4Out,
      TA(CT_DOJO,"GO TO THE DOJO"),TE(QE_SPECIAL,1,"LAND A SPECIAL MOVE"),TK(QK_CNT,2,"KNOCK OUT 2 CHALLENGERS")),
-  XM("BORTUA CHAMPION","The final boss is made of chrome, she has never lost, and she has been waiting for you.","Beat arcade mode, then knock out three challengers on the street to be sure.",XS_ARENA,80,
+  XMS("BORTUA CHAMPION","The final boss is made of chrome, she has never lost, and she has been waiting for you.","Beat arcade mode, then knock out three challengers on the street to be sure.",XS_ARENA,80,AMAP_HOME,xnf5In,xnf5Out,
      TK(QK_BFCHAMP,0,"BEAT ARCADE MODE"),TK(QK_CNT,3,"KNOCK OUT 3 CHALLENGERS")),
 };
 // ---- 7 BOREagotchi! ----
@@ -238,26 +364,103 @@ static const char xg14In[]=
 static const char xg14Out[]=
   "A draw. The dog got a bone, the blob got a snack, and you got a very long look from both of them.|"
   "They are sitting side by side now, watching the same wall. You think this is friendship. It could also be a plot.";
+static const char xng1In[]=
+  "The egg on your keychain has been quiet for three days. This morning it went tick, then tock, then a noise like a small kettle that has seen something.|"
+  "It hatched. It is a blob. It has two black eyes and no plan. You call it Beep, because that is the only word it knows, and it says it at three in the morning.|"
+  "It wants you, and it wants you constantly. Hatch it properly, and then feed it a meal before the beeping goes from cute to a medical concern.";
+static const char xng1Out[]=
+  "Beep ate. It made a happy noise, a short wet one, and then it fell asleep on your thumb. It weighs nothing. You have never been so afraid of dropping something.|"
+  "Three minutes later it woke up and needed feeding again. This, you realise, is the rest of your life. You are surprisingly fine with that.";
+static const char xng2In[]=
+  "Beep is lovely. Beep is also made of pixels, and cannot fetch a stick, or sit on your feet, or look at you with that disappointed face when you eat the last biscuit.|"
+  "You have started to notice animals in the street. A dog in a window. A cat on a wall. A parrot that said hello in your own voice and then looked embarrassed.|"
+  "Adopt a pet with actual fur. Then stroke it. Do both slowly. It is a very big decision for a very small creature, and she has been practising her face.";
+static const char xng2Out[]=
+  "She is a mongrel with one ear that stands up and one that does not. She leaned on your leg and sighed, and that was the end of the discussion.|"
+  "Beep watched from the keychain with its two small eyes. You told it: do not worry. It said beep, in a worried way, and you put it by the radiator.";
+static const char xng3In[]=
+  "Your pet follows you from room to room. It sits outside the bathroom. It sleeps on your coat, on purpose, so you cannot leave without waking it. This is love, probably.|"
+  "You have been given a look, up from the floor, that says: I would like to be loved at 60. The vet has charts for this. Dr. Whisk calls it the bonding curve.|"
+  "Cuddle your pet. Play with it. Do both until it loves you at 60. Do not pretend you are not enjoying it. It can tell. It has always known.";
+static const char xng3Out[]=
+  "At 60 it did a thing it had never done: it rolled onto its back, with all four legs in the air, and trusted you with the whole of itself. You have never felt so important.|"
+  "Dr. Whisk says that is the sign. She says some owners wait years. You tell her you will keep this one for years. She writes something down.";
+static const char xng4In[]=
+  "There is a stain on the good rug. It is the shape of a country nobody has heard of. Everyone in the room is looking at the pet, and the pet is looking at a wall.|"
+  "Dr. Whisk says pets do this out of confusion, not malice. She says it with the face of someone who has said it to a great many people, all holding the same rug.|"
+  "Mop up the puddle. Then house train your pet. It will take patience, treats and a roll of kitchen paper. At 30 per cent, you will be able to put the rug back.";
+static const char xng4Out[]=
+  "The rug will never be the same. It has a story now. You decided not to turn it over. When guests ask you say: that is a map of the day we learned.|"
+  "The pet sat by the door that evening, quietly, and waited. You let it out. It looked back at you as if it had passed an exam. It had.";
+static const char xng5In[]=
+  "Every good pet knows at least one trick. Even a bad pet can do something, if only a very small something, and look as if it meant it.|"
+  "Yours already has a look it does for the postman. You would like to turn that into something with a name. A trick. A thing a person can clap at.|"
+  "Teach a new trick. Then show it off to someone who will clap. It does not have to be a clever audience, only a kind one. Dr. Whisk is available on Thursdays.";
+static const char xng5Out[]=
+  "It sat. It stayed. It looked at you for a very long time, to make sure that you were watching. Then it did a small, proud spin and the audience lost its mind.|"
+  "The audience was one neighbour and a toddler, but both clapped. The pet bowed its head. You are not sure where it learned that. You think it was always in there.";
+static const char xng6In[]=
+  "Beep is not a baby any more. It has grown a second pixel. It has started to wander off the screen and come back with an attitude.|"
+  "It has also noticed that you are not as quick as you were. It sighs at your reflexes. It sighs at your pocket. It sighs a great deal, for something with no lungs.|"
+  "Raise it to a child, then play a game with it to celebrate. It will win. You will let it. That is how the whole thing works, with children, with blobs, with life.";
+static const char xng6Out[]=
+  "Beep won three rounds out of five. Then it looked at you, held for a second, and let you take the fourth. You did not say anything. It pretended it had not done it.|"
+  "On the little screen it does a victory dance. There are only two frames. It has been doing them all evening, and they have lost none of their power.";
+static const char xng7In[]=
+  "You have been good lately. You have fed everyone and cleaned everything. By any measure you have earned a treat, and the pets have decided it should be for them.|"
+  "The shop is run by Mr. Penhaligon, who wears a waistcoat with a dog on it. He says every animal in the shop is on a waiting list. He says it of the goldfish, too.|"
+  "Go to the pet shop. Buy a squeaky toy. Then book some grooming. Yes, the toy is for you really. Yes, you will squeak it when nobody is watching. Everybody does.";
+static const char xng7Out[]=
+  "The toy is shaped like a small hamburger. It squeaks in a key that does not exist. The pet adored it for nine minutes and then buried it in the garden.|"
+  "Grooming took an hour. It came back smelling of a meadow that has never been to a meadow. It sat on the sofa and looked, for once, better than you.";
+static const char xng8In[]=
+  "One pet looks lonely, says the pet shop, which is of course the place that sells pets. Mr. Penhaligon is on his best behaviour and has put a bell on the counter.|"
+  "To be fair, the pet has been looking out of the window a lot. It watches other animals pass. It does a small, quiet sigh, then goes to its bowl and pushes it around.|"
+  "Bring home a second pet. Make sure they both get fed. There will be some sniffing, some growling, and a great deal of looking away. This is called a friendship.";
+static const char xng8Out[]=
+  "They ignored each other for three hours. Then, at midnight, you found them both asleep on your coat, back to back, pretending it was an accident.|"
+  "Two bowls on the floor. Two noses in them. You sat on the stairs and watched. It was the best thing you had seen all week, and you would not tell anyone.";
+static const char xng9In[]=
+  "Beep has slammed its tiny pixel door. It says nobody understands it. It has put a poster on the wall of a blob you have never heard of, in a band with no members.|"
+  "It does not want to eat. It does want to be left alone, and it does want you to notice that it wants to be left alone. This is a teenage blob. It is entirely normal.|"
+  "Raise it to a teen and set some rules, with a firm voice and a soft heart. It will roll its eyes. It has only two, and they roll in a quite remarkable way.";
+static const char xng9Out[]=
+  "You said: bedtime is at nine. It said: that is so unfair. It went to bed at nine. Through the door you heard it say beep, once, in a voice that meant thank you.|"
+  "In the morning there was a note in tiny pixels. It said: sorry. It was spelled wrong, and the wrong spelling was the best thing you have ever read.";
+static const char xng10In[]=
+  "The judges at the Best in Show want tricks. They also want to see that your pet loves you back. They have a form for it. It has a box marked EYES, and a box marked DEVOTION.|"
+  "The head judge is a small, tidy woman who has been doing this for thirty years and has never once smiled. Every owner in the hall is sweating. Some of the dogs, too.|"
+  "Teach a pet three tricks and earn a love of 90. It is not about the ribbon. It is about the way your pet looks at you when the judges are not looking.";
+static const char xng10Out[]=
+  "The pet did all three tricks, one after another, with a dignity that suggested it had thought of them itself. The head judge wrote a number. Then she smiled.|"
+  "You did not win. You came second, to a poodle called Maurice. But as you left the hall your pet leaned against your leg and sighed, and that was the real prize.";
+static const char xng11In[]=
+  "Beep is all grown up now, and so are the pets. You find yourself standing in the kitchen looking at the three of them and getting rather misty-eyed about nothing.|"
+  "There are photographs on the fridge. In the first one Beep is a pixel. In the last it is a very smug adult blob, with an animal on each side, all looking at the camera.|"
+  "Raise it to an adult. Keep a pet by your side. Love it to a full 100. There is no prize. There is just the three of them, and the sound of them breathing at night.";
+static const char xng11Out[]=
+  "Beep did the two-frame victory dance one last time, and it did not feel like a game any more. It felt like an old friend, waving at you, from far away, on a good day.|"
+  "The pets are asleep. The blob is on the windowsill. The house hums. You stand in the doorway, in the dark, and decide not to turn the light on. Nobody needs to be told.";
 static const XMs xmGotchi[]={
-  XM("IT HATCHED","The egg on your keychain has hatched and it is beeping. It wants you, and it wants you constantly.","Hatch your Boreagotchi and feed it a meal before the beeping gets any worse.",XS_NONE,30,
+  XMS("IT HATCHED","The egg on your keychain has hatched and it is beeping. It wants you, and it wants you constantly.","Hatch your Boreagotchi and feed it a meal before the beeping gets any worse.",XS_NONE,30,AMAP_HOME,xng1In,xng1Out,
      TK(QK_GOTCHI,1,"HATCH YOUR BOREAGOTCHI"),TG(GA_FEED,"FEED IT A MEAL")),
-  XM("A REAL ONE","The blob is lovely, but it cannot fetch anything, and that is starting to bother you.","Adopt a pet with actual fur and give it a good stroke.",XS_NONE,35,
+  XMS("A REAL ONE","The blob is lovely, but it cannot fetch anything, and that is starting to bother you.","Adopt a pet with actual fur and give it a good stroke.",XS_NONE,35,AMAP_HOME,xng2In,xng2Out,
      TK(QK_PETS,1,"ADOPT A PET"),TP(PD_PET,"PET YOUR PET")),
-  XM("PUPPY LOVE","Your pet follows you from room to room, and it has been looking up at you for some time now.","Cuddle it, play with it, and love it back until it loves you at 60.",XS_NONE,35,
+  XMS("PUPPY LOVE","Your pet follows you from room to room, and it has been looking up at you for some time now.","Cuddle it, play with it, and love it back until it loves you at 60.",XS_NONE,35,AMAP_HOME,xng3In,xng3Out,
      TP(PD_CUDDLE,"CUDDLE YOUR PET"),TP(PD_PLAY,"PLAY WITH YOUR PET"),TK(QK_PLOVE,60,"A PET LOVES YOU 60")),
-  XM("WHO PEED ON THE RUG","Somebody has had an accident on the good rug, and everyone in the room is looking at the pet.","Mop up the puddle, then house train your pet so it does not happen again.",XS_PUDDLE,40,
+  XMS("WHO PEED ON THE RUG","Somebody has had an accident on the good rug, and everyone in the room is looking at the pet.","Mop up the puddle, then house train your pet so it does not happen again.",XS_PUDDLE,40,AMAP_HOME,xng4In,xng4Out,
      TE(QE_PMOP,1,"MOP UP THE PUDDLE"),TP(PD_POTTY,"HOUSE TRAIN YOUR PET"),TK(QK_POTTY,30,"A PET 30% HOUSE TRAINED")),
-  XM("SIT  STAY  GOOD","Every good pet knows at least one trick, or at the very least pretends to.","Teach a new trick, then show it off to somebody who will clap.",XS_NONE,40,
+  XMS("SIT  STAY  GOOD","Every good pet knows at least one trick, or at the very least pretends to.","Teach a new trick, then show it off to somebody who will clap.",XS_NONE,40,AMAP_HOME,xng5In,xng5Out,
      TE(QE_PLEARN,1,"TEACH A NEW TRICK"),TP(PD_TRICK,"SHOW OFF A TRICK")),
-  XM("THE BLOB GROWS UP","Your Boreagotchi is not a baby anymore, and it has started to notice that you are not as fast as you were.","Raise it to a child, and play a game with it to celebrate.",XS_NONE,40,
+  XMS("THE BLOB GROWS UP","Your Boreagotchi is not a baby anymore, and it has started to notice that you are not as fast as you were.","Raise it to a child, and play a game with it to celebrate.",XS_NONE,40,AMAP_HOME,xng6In,xng6Out,
      TK(QK_GOTCHI,2,"RAISE IT TO A CHILD"),TG(GA_PLAY,"PLAY A GAME WITH IT")),
-  XM("PET SHOP SPREE","You have been good lately, so treat yourself. Then treat the pets, since this is mostly about the pets.","Go to the pet shop, buy a squeaky toy, and book some grooming.",XS_NONE,45,
+  XMS("PET SHOP SPREE","You have been good lately, so treat yourself. Then treat the pets, since this is mostly about the pets.","Go to the pet shop, buy a squeaky toy, and book some grooming.",XS_NONE,45,AMAP_HOME,xng7In,xng7Out,
      TA(CT_PETSHOP,"GO TO THE PET SHOP"),TD(VA_TOY,"BUY A SQUEAKY TOY"),TD(VA_GROOM,"BOOK PET GROOMING")),
-  XM("TWO'S COMPANY","One pet looks lonely, according to the pet shop, which is of course the place that sells pets.","Bring home a second pet and make sure they both get fed.",XS_NONE,45,
+  XMS("TWO'S COMPANY","One pet looks lonely, according to the pet shop, which is of course the place that sells pets.","Bring home a second pet and make sure they both get fed.",XS_NONE,45,AMAP_HOME,xng8In,xng8Out,
      TK(QK_PETS,2,"HAVE 2 PETS"),TP(PD_FEED,"FEED A PET")),
-  XM("TEEN BLOB ANGST","The blob has slammed its tiny pixel door and says nobody understands it.","Raise it to a teen and set some rules, with a firm voice and a soft heart.",XS_NONE,50,
+  XMS("TEEN BLOB ANGST","The blob has slammed its tiny pixel door and says nobody understands it.","Raise it to a teen and set some rules, with a firm voice and a soft heart.",XS_NONE,50,AMAP_HOME,xng9In,xng9Out,
      TK(QK_GOTCHI,3,"RAISE IT TO A TEEN"),TG(GA_SCOLD,"DISCIPLINE IT")),
-  XM("BEST IN SHOW","The judges want tricks, and they want to see that your pet loves you back.","Teach a pet three tricks and earn a love of 90.",XS_NONE,60,
+  XMS("BEST IN SHOW","The judges want tricks, and they want to see that your pet loves you back.","Teach a pet three tricks and earn a love of 90.",XS_NONE,60,AMAP_HOME,xng10In,xng10Out,
      TK(QK_PTRICKS,3,"A PET KNOWS 3 TRICKS"),TK(QK_PLOVE,90,"A PET LOVES YOU 90")),
   XMS("THE BLOB GOES ONLINE","The blob made an account from a keychain. It has two followers, and one of them is a bot.","Tell a friend about it, play a game with it, and build up to three friends.",XS_NONE,50,AMAP_HOME,
       xg11In,
@@ -275,7 +478,7 @@ static const XMs xmGotchi[]={
       xg14In,
       xg14Out,
       TG(GA_FEED,"FEED THE BLOB FIRST"),TP(PD_FEED,"FEED A PET SECOND"),TK(QK_POTTY,60,"A PET 60% HOUSE TRAINED")),
-  XM("FOREVER FRIENDS","The blob is all grown up now, and so are the pets, and you are looking at them a bit misty-eyed.","Raise it to an adult, keep a pet by your side, and love it to a full 100.",XS_NONE,90,
+  XMS("FOREVER FRIENDS","The blob is all grown up now, and so are the pets, and you are looking at them a bit misty-eyed.","Raise it to an adult, keep a pet by your side, and love it to a full 100.",XS_NONE,90,AMAP_HOME,xng11In,xng11Out,
      TK(QK_GOTCHI,4,"RAISE IT TO AN ADULT"),TK(QK_PETS,1,"KEEP A PET"),TK(QK_PLOVE,100,"A PET LOVES YOU 100")),
 };
 // ---- 8 BOREpilogue ----
@@ -343,26 +546,103 @@ static const char xe19In[]=
 static const char xe19Out[]=
   "Everyone got their goodbye. Some of them said it back. Some of them said: stop it, you are not going anywhere.|"
   "You smiled and went to make tea. You are not going anywhere. Not yet. There is one more chapter, and it is a big one.";
+static const char xne1In[]=
+  "Forty years at the same desk. They give you a cake the size of a coaster and a watch that, you notice, is already two minutes slow. A man makes a speech. He gets your name wrong, twice.|"
+  "The speech goes: you have been a pillar of this company. You think about the pillar. It is a long way from the window and nobody has looked at it since 1992.|"
+  "Work one last shift, because it is rude not to. Then save up 20000 simoleons and walk out of the door a free person. The door is a bit stiff. It was always stiff.";
+static const char xne1Out[]=
+  "You walked out into the car park at 5:01. The air was different out here. It had no printer in it. You stood there for a good while, holding a watch, grinning like a man who has stolen something.|"
+  "The watch is two minutes slow. You have decided to leave it that way. From now on, you will always be two minutes behind, and nobody can ask you to hurry.";
+static const char xne2In[]=
+  "There is a list. It is on the back of an envelope, and the envelope is older than some of your friends. It says: 1. Cannonball. 2. Movie. 3. Sing. Number 4 is crossed out.|"
+  "You never worked out what number 4 was. You decide it is something to do with a goat. You are probably wrong. It does not matter, you have ticked it off in your head.|"
+  "Do a cannonball. Watch a movie, one that is not about money. Sing karaoke like nobody can hear you. Everybody can hear you. That is the whole point of karaoke.";
+static const char xne2Out[]=
+  "The cannonball was spectacular. A child in the shallow end gave it a score of nine. A man on a sunlounger gave it a four and left. He was jealous.|"
+  "The karaoke went on for some time. Nobody asked you to stop. When you finished a stranger bought you a drink, and said it was the worst and best thing he had ever heard.";
+static const char xne3In[]=
+  "Every retiree needs a garden. Yours has weeds, a broken gnome, and a patch of ground that has not grown anything since the last century, out of what feels like spite.|"
+  "You have a book called Gardening for Fools. Its cover has a smiling man holding a carrot. He is clearly lying. Nobody has ever been that pleased about a carrot.|"
+  "Read up on gardening, then harvest something from a planter. Anything at all. A single tomato, a stray herb, a handful of mud with a hint of hope.";
+static const char xne3Out[]=
+  "You harvested one radish. It was small, red and crooked, and you held it up to the light like a diamond. You ate it on the porch with some salt, and it was wonderful.|"
+  "The gnome has been mended. It leans a bit. You decide that it, too, has earned the right to lean. Together you watch the garden, doing what it does.";
+static const char xne4In[]=
+  "Rex still lives in town. He has the same laugh and a slightly different knee. You have seen him twice this month, once at the shop, once pretending not to see him at the shop.|"
+  "Nothing was ever finished between you. There was a summer, a bad haircut, a disagreement about a boat, and then thirty years, which took care of the rest.|"
+  "Have him over. Flirt like it is 1985. Wear something with shoulders. Do not mention the boat, whatever you do. It is a sore point, and a very large boat.";
+static const char xne4Out[]=
+  "He arrived with flowers and a bag of the biscuits you used to like. You both pretended you were not nervous, and failed, and laughed about it for an hour.|"
+  "He did mention the boat. You said: it was a good boat. He said: it was a terrible boat. It was the best conversation you had had in thirty years.";
+static const char xne5In[]=
+  "The kids have moved out. The house echoes now, in a way it never did when somebody was always in the bathroom. You can hear the fridge thinking.|"
+  "In the spare room there is a wall of height marks, pencil, going up in steps, with dates. You stand in front of it a long time. You do not tell anyone.|"
+  "Fill it back up. Get three people living here. Make one room look great, so that when they come round they have a reason to say: oh, this is nice.";
+static const char xne5Out[]=
+  "By Friday the house was loud again. Someone was in the bathroom, someone was shouting about socks, and someone had eaten something labelled DO NOT EAT.|"
+  "You sat on the stairs and listened, with a cup of tea. You have never been so happy to be annoyed. The pencil marks on the wall had one more line, and a new date.";
+static const char xne6In[]=
+  "There is a feud from 1997. Nobody can quite explain it. It involves a casserole dish, a wedding, and a remark that was said to have been about someone's hat.|"
+  "You have carried it for twenty-eight years. It has grown heavy and a bit smelly and it takes up room in the house of your mind. It is time to put it down.|"
+  "Say sorry. Make three friends while you are at it, because it is hard to stay cross with someone who is holding a plate of biscuits. Start with the casserole.";
+static const char xne6Out[]=
+  "You said sorry. They said: sorry for what? And then, after a pause, they said: oh, that. You both laughed so hard that a dog barked at the window.|"
+  "The casserole dish was returned. It had been in their attic since 1997. It had a note inside. The note said: this is yours. It had been the whole time.";
+static const char xne7In[]=
+  "You want to write it all down before you forget, and you have already forgotten where you put your glasses. They are on your head. They have been on your head for an hour.|"
+  "The title is MY LIFE AND OTHER MISTAKES. It has no first page. You have a pen, a pad and a very confident feeling that chapter one is going to be the one about the boat.|"
+  "Study at the library. Read a novel for ideas, because a good writer steals gently. Get your creativity to level 3. The librarian will shush you once. It is tradition.";
+static const char xne7Out[]=
+  "You wrote a page. It was a good page, and the next was a terrible one, and the third was a page of pure joy. You put the three together and called it a draft.|"
+  "The librarian read it over your shoulder, said nothing, and slipped a bookmark into your hand. It had a small drawing of a boat. She had been waiting a long time.";
+static const char xne8In[]=
+  "Everything is cheaper at your age if you ask loudly enough. Nobody is quite sure of the rules. You intend to find out, from the very front of the queue.|"
+  "You have a card. It has a photo of you from before the cardigan. It is held up in front of every till in town like a small badge from a very odd police force.|"
+  "Order an oat latte, and eat a fourth meal, since it is cheaper before four. Get a checkup while you are out. The nurse will say: you are in better shape than I am.";
+static const char xne8Out[]=
+  "The latte was two pounds off. The fourth meal was a cheese scone that tasted like victory. The nurse took your blood pressure and then, quietly, her own.|"
+  "You came home with a bag of free samples and a leaflet about knees. It was the best day out you have had in years. Tomorrow, you will do it all again.";
+static const char xne9In[]=
+  "Something goes bump in the night. Then it goes clank. Then, in the moonlight at the end of the landing, it looks a great deal like your old boss.|"
+  "He is wearing the same tie. He is holding the same clipboard. He says, in a hollow voice, from somewhere around his knees: have you finished that report?|"
+  "Get spooked, as is only polite. Then sleep it off. It is only a ghost. He cannot hurt you, he can only ask about deadlines, and you have no deadlines left.";
+static const char xne9Out[]=
+  "You told him: it is done. He said: oh. He looked at his clipboard, and for the first time in his life, or death, he had nothing to add. He faded out, quite peacefully.|"
+  "In the morning the clipboard was on the stairs. On it was a form. It was signed. It said: well done. You framed it. It is the best review you ever got.";
+static const char xne10In[]=
+  "You are throwing one last party. You have invited everyone you ever loved, and a handful you did not, because you have realised they were mostly the funny ones.|"
+  "There is a banner, and a cake, and a speaker the size of a fridge. The neighbours have been warned in writing, in a neat hand. Maureen has agreed to run the raffle.|"
+  "Make five friends, have someone over, and crank the stereo. Crank it until the windows tell a story. This is not a goodbye. It is a very loud hello.";
+static const char xne10Out[]=
+  "At midnight everyone sang, and nobody was in tune, and it was perfect. A man you had not seen in forty years hugged you for such a long time that you both lost track.|"
+  "When the last guest had gone you sat on the kitchen floor with a plate of crisps. You were tired. You were full. You were more alive than you could remember being.";
+static const char xne11In[]=
+  "You have grown old and grown wise, and somewhere on the way you grew a rather good moustache. You want to leave the town better than you found it. You have a plan.|"
+  "The plan is a very short list. Grow into an elder, because that takes time. Leave some money behind, because it helps. Make friends, because that is what money is for.|"
+  "Make it eight friends and 100000 simoleons. Leave the rest to the town. It is not much, but it is yours, and it has been a long, loud, ridiculous time.";
+static const char xne11Out[]=
+  "The town came to the house, in the end. Not for the money. They came with plates and stories, and they all stood in the garden in the evening sun.|"
+  "Somebody asked what you were going to do next. You thought about it for a good while. Then you said: I do not know. And for the first time in forty years, that felt exactly right.";
 static const XMs xmEpi[]={
-  XM("THE GOLD WATCH","Forty years at one desk, and all they give you is a watch and a slice of cake.","Work one last shift, save 20000 simoleons, and walk out the door a free person.",XS_NONE,30,
+  XMS("THE GOLD WATCH","Forty years at one desk, and all they give you is a watch and a slice of cake.","Work one last shift, save 20000 simoleons, and walk out the door a free person.",XS_NONE,30,AMAP_HOME,xne1In,xne1Out,
      TE(SE_SHIFT,1,"WORK ONE LAST SHIFT"),TK(QK_MONEY,20000,"SAVE 20000 SIMOLEONS")),
-  XM("BUCKET LIST","There is a list of things to do before you kick the bucket, and you are starting with the fun ones.","Do a cannonball, watch a movie, and sing karaoke like nobody can hear you.",XS_NONE,35,
+  XMS("BUCKET LIST","There is a list of things to do before you kick the bucket, and you are starting with the fun ones.","Do a cannonball, watch a movie, and sing karaoke like nobody can hear you.",XS_NONE,35,AMAP_HOME,xne2In,xne2Out,
      TD(VA_CANNON,"DO A CANNONBALL"),TD(VA_MOVIE,"WATCH A MOVIE"),TD(VA_KARAOKE,"SING KARAOKE")),
-  XM("GREEN THUMB","Every retiree needs a garden, and yours has mostly weeds and ambition.","Read up on gardening and harvest something from a planter, anything at all.",XS_NONE,40,
+  XMS("GREEN THUMB","Every retiree needs a garden, and yours has mostly weeds and ambition.","Read up on gardening and harvest something from a planter, anything at all.",XS_NONE,40,AMAP_HOME,xne3In,xne3Out,
      TE(QE_HARVEST,1,"HARVEST A PLANTER"),TE(SE_READ,1,"READ UP ON GARDENING")),
-  XM("OLD FLAMES","An old flame still lives in town, and you have been thinking about them far too often.","Have them over and flirt like it is 1985.",XS_NONE,40,
+  XMS("OLD FLAMES","An old flame still lives in town, and you have been thinking about them far too often.","Have them over and flirt like it is 1985.",XS_NONE,40,AMAP_HOME,xne4In,xne4Out,
      {QK_GUEST,0,0,"HAVE SOMEONE OVER"},TS(SC_FLIRT,"FLIRT LIKE IT IS 1985")),
-  XM("THE QUIET HOUSE","The kids have moved out and the house echoes in a way it never used to.","Fill it back up with three people living here, and make one room look great.",XS_NONE,45,
+  XMS("THE QUIET HOUSE","The kids have moved out and the house echoes in a way it never used to.","Fill it back up with three people living here, and make one room look great.",XS_NONE,45,AMAP_HOME,xne5In,xne5Out,
      TK(QK_HOUSE,3,"3 SIMS LIVING HERE"),{QK_ROOM,0,0,"MAKE A ROOM LOOK GREAT"}),
-  XM("MAKING AMENDS","There is a feud from 1997 that nobody can quite explain, and it is time to let it go.","Say sorry, and make three friends while you are at it.",XS_NONE,45,
+  XMS("MAKING AMENDS","There is a feud from 1997 that nobody can quite explain, and it is time to let it go.","Say sorry, and make three friends while you are at it.",XS_NONE,45,AMAP_HOME,xne6In,xne6Out,
      TS(SC_SORRY,"SAY SORRY"),TK(QK_FRIENDS,3,"MAKE 3 FRIENDS")),
-  XM("MEMOIRS","You want to write it all down before you forget, and you cannot remember where your glasses are.","Study at the library, read a novel for ideas, and get your creativity to level 3.",XS_NONE,50,
+  XMS("MEMOIRS","You want to write it all down before you forget, and you cannot remember where your glasses are.","Study at the library, read a novel for ideas, and get your creativity to level 3.",XS_NONE,50,AMAP_HOME,xne7In,xne7Out,
      TD(VA_STUDY,"STUDY AT THE LIBRARY"),TD(VA_NOVEL,"READ A NOVEL FOR IDEAS"),TL(SK_CREAT,3,"REACH CREATIVITY LEVEL 3")),
-  XM("SENIOR DISCOUNT","Everything is cheaper at your age if you ask loudly enough, and you intend to ask very loudly.","Order an oat latte, eat a fourth meal, and get a checkup while you are out.",XS_NONE,50,
+  XMS("SENIOR DISCOUNT","Everything is cheaper at your age if you ask loudly enough, and you intend to ask very loudly.","Order an oat latte, eat a fourth meal, and get a checkup while you are out.",XS_NONE,50,AMAP_HOME,xne8In,xne8Out,
      TD(VA_LATTE,"ORDER AN OAT LATTE"),TD(VA_FOURTH,"EAT FOURTH MEAL"),TD(VA_CHECKUP,"GET A CHECKUP")),
-  XM("THE GHOST OF BORES PAST","Something goes bump in the night, and in the moonlight it looks a lot like your old boss.","Get spooked, then sleep it off.",XS_GHOST,55,
+  XMS("THE GHOST OF BORES PAST","Something goes bump in the night, and in the moonlight it looks a lot like your old boss.","Get spooked, then sleep it off.",XS_GHOST,55,AMAP_HOME,xne9In,xne9Out,
      TE(QE_SPOOK,1,"GET SPOOKED"),TE(SE_SLEEP,1,"SLEEP IT OFF")),
-  XM("ONE LAST PARTY","You are throwing one last party and inviting everyone you ever loved, plus a few you did not.","Make five friends, have someone over, and crank the stereo.",XS_NONE,70,
+  XMS("ONE LAST PARTY","You are throwing one last party and inviting everyone you ever loved, plus a few you did not.","Make five friends, have someone over, and crank the stereo.",XS_NONE,70,AMAP_HOME,xne10In,xne10Out,
      TK(QK_FRIENDS,5,"MAKE 5 FRIENDS"),{QK_GUEST,0,0,"HAVE SOMEONE OVER"},TE(SE_RADIO,1,"CRANK THE STEREO")),
   XMS("THE WILL","A lawyer in a very small hat wants to know who gets the good armchair.","Save 40000 simoleons, read the fine print, and tell somebody they are in it.",XS_NONE,50,AMAP_HOME,
       xe11In,
@@ -400,30 +680,100 @@ static const XMs xmEpi[]={
       xe19In,
       xe19Out,
       TS(SC_HUG,"HUG SOMEONE GOODBYE"),TS(SC_COMPL,"TELL SOMEONE THEY ARE LOVED"),{QK_HOME,0,0,"GET BACK HOME"}),
-  XM("THE END  AND THE ONE AFTER","You have grown old and grown wise, and you want to leave the town better than you found it.","Grow into an elder, leave 100000 simoleons behind, and make eight friends.",XS_NONE,120,
+  XMS("THE END  AND THE ONE AFTER","You have grown old and grown wise, and you want to leave the town better than you found it.","Grow into an elder, leave 100000 simoleons behind, and make eight friends.",XS_NONE,120,AMAP_HOME,xne11In,xne11Out,
      TK(QK_STAGE,AG_ELDER,"GROW INTO AN ELDER"),TK(QK_MONEY,100000,"LEAVE 100000 SIMOLEONS"),TK(QK_FRIENDS,8,"MAKE 8 FRIENDS")),
 };
 // ---- THE BASE GAME: ten missions, one for each thing the game does ----
+static const char xnb1In[]=
+  "The walls are bare, the floor has a mystery stain, and a man from the council has just handed you an envelope. It holds 1500 simoleons and a form to say you have received 1500 simoleons.|"
+  "He says it is a welcome grant. He says the town has had a lot of people leave and would like one to stay. He says this without eye contact.|"
+  "Spend it. Build, buy and decorate until the place feels like home. Three new things is the minimum. A room that looks great is the aim. A lamp is a good start.";
+static const char xnb1Out[]=
+  "You stood in the middle of the room and turned slowly. It was not a palace. But the lamp was on, the sofa was where a sofa should be, and somebody had left a plant on the step.|"
+  "It smelled like paint and a little like possibility. You sat down on the sofa, which made a noise. You decided that this was home now, noise and all.";
+static const char xnb2In[]=
+  "You woke up and there was a skateboard in the yard. Beside it, two ramps, set up with the care of someone who knew what they were doing and did not want credit.|"
+  "There was no note. There is never a note. The neighbours say they saw nothing, in a way that suggests they saw everything and quite liked it.|"
+  "Do not question it. Go and ride them. Catch some air off a ramp, land three tricks and, if you are feeling brave, land a combo. Wear a helmet. Or do not. You will learn.";
+static const char xnb2Out[]=
+  "You landed it on the sixth go. It was not pretty. It was the sort of landing that makes strangers wince and children cheer. You will take it.|"
+  "The ramps are yours now. Somebody in the street clapped from a window. When you looked up, the curtain twitched. You waved anyway.";
+static const char xnb3In[]=
+  "The whole town is out there waiting. There is a taco on the other side of the street with your name on it, or at least, a name very like yours with the wrong spelling.|"
+  "You have been indoors for far too long. The sofa has a groove in it that is, frankly, a portrait. Time to be in the world and make bad decisions in it.|"
+  "Grab a crunchy taco at Taco Bore. Pump some iron at the gym. Lose a few quarters at the arcade. Do them in any order. Sauce is not optional.";
+static const char xnb3Out[]=
+  "The taco shattered on the first bite. Half of it was on you, the other half was on a pigeon, who looked at you with something like respect.|"
+  "You lost nine quarters to a machine that said INSERT COIN in a menacing voice. You went home sore, salty and happy. That is called Tuesday.";
+static const char xnb4In[]=
+  "Three neighbours are standing at your door. None of them knows what to say. One is holding a plant, one a casserole, and one is holding nothing, and seems very sorry about it.|"
+  "You can hear the clock. You can hear their shoes. The silence has got a texture, like felt, and it is going to take a joke, or a high five, to cut through it.|"
+  "Open the pie menu. Tell somebody a joke. High five somebody. Make a friend. It does not have to be a good joke. It only has to be brave.";
+static const char xnb4Out[]=
+  "The joke was bad. They laughed anyway, out of the sheer relief of it, and then the relief was funnier than the joke. By the end the casserole was in the oven.|"
+  "Nobody stood on the doorstep any more. Everyone had a place on a sofa, and the plant was on the table. A friend is a very small word for it.";
+static const char xnb5In[]=
+  "Somebody at the door caught your eye. Then they caught it again, on purpose, and held it a half a second longer than anybody needs to. Your hands have forgotten what to do.|"
+  "You are suddenly very interested in the carpet. They are suddenly very interested in the carpet. The carpet has never been so popular. This is a thing that is happening.|"
+  "Flirt a little. Steal a kiss, if the mood is right. See where the evening goes. Mind the plant. The plant has seen things, and is not impressed.";
+static const char xnb5Out[]=
+  "You did it. A first kiss, brief and clumsy, which knocked over a glass. Neither of you cared. Somebody in the kitchen said: oh. They said it very quietly.|"
+  "You said goodnight three times. On the fourth you stood in the doorway for so long that the porch light went off by itself. It was a very good night.";
+static const char xnb6In[]=
+  "The bills came. They arrived in a stack, with the look of something that had been waiting. The phone is full of job offers, mostly from people who sound tired.|"
+  "A job is not a personality, but it is a start. It pays for the kettle, and the kettle is the only thing you have not been able to live without.|"
+  "Work a shift. Do it well enough to be noticed, which is a quiet, dangerous achievement. Then earn a promotion. They will give you a desk plant. It will be dead already.";
+static const char xnb6Out[]=
+  "The boss said: nice work. He said it as if reading it from a card, but somebody had to have written the card. You felt, for a second, like a person with a future.|"
+  "The promotion came with a mug, a raise and a chair that spins. You spun it twice, alone, in the empty office. Nobody tells you the chair is the best part.";
+static const char xnb7In[]=
+  "In the window of the pet shop there is a very small face. It has been there all week. It has looked at you every day, and every day the look has gotten a little bit worse.|"
+  "Dr. Pim, the owner, says the face has picked you. She says this in a flat voice, like a woman who has seen it happen a hundred times and still hates the paperwork.|"
+  "Go to the pet shop. Adopt the pet. Bring it home and teach it its first trick. It will not be a good trick. It will be the best trick in the world.";
+static const char xnb7Out[]=
+  "It sat. Then it fell over. Then it sat again, looking very proud, and waited for a treat that had already been eaten. You gave it another one. This is how it starts.|"
+  "It is asleep on your foot. You have a cup of tea going cold and a programme you wanted to watch. You are not moving. Good boy. Good, good boy.";
+static const char xnb8In[]=
+  "Somebody has been talking. It started in the shop, went through the laundrette, and arrived at your door as a challenge, carried by a man with very large knuckles.|"
+  "You did not start it. You do not even know what was said. But it was said, and by now it has a weight of its own, like a suitcase that nobody remembers packing.|"
+  "Train at the gym. Learn to guard and parry, then beat your challenger. Hold L for the guard. Do not forget the guard. The guard is the whole thing.";
+static const char xnb8Out[]=
+  "He went down gently and got up quickly. He shook your hand and said: no hard feelings. There were a few, in your ribs, but you smiled and nodded.|"
+  "Later, at the shop, people nodded at you. Nobody said a word. It was the nicest thing that had ever happened in a queue, and it was, somehow, over a loaf of bread.";
+static const char xnb9In[]=
+  "Word got around. Word always does. A small crowd has formed at the end of the street and is walking, in single file, with the quiet energy of people who have heard of a sofa.|"
+  "The whole street wants to meet you. They have brought gifts: a vase, three spoons, and a lamp that does not work. It is the thought that counts, they say.|"
+  "Have a neighbour over, order food for everyone, and make them welcome. If you are very lucky, somebody will like it enough to stay. That is called a housemate, or a miracle.";
+static const char xnb9Out[]=
+  "The pizzas arrived in a pile, like a leaning tower. The room was loud and warm. Somebody put on a song, somebody else put on a different one, and nobody stopped them.|"
+  "At midnight a neighbour asked: do you have a spare room? You said: it is full of boxes. They said: I like boxes. And that was that, and the house was fuller than it had ever been.";
+static const char xnb10In[]=
+  "A packet of seeds arrived in the post. No note, no return address, a stamp from a country you cannot find on the map. It is for grown-ups only. It says so, in four languages.|"
+  "You hold it up to the light. It rattles gently, like a very small maraca. Somewhere in your head, a voice that sounds a lot like your gran says: do not be silly. Plant them.|"
+  "Plant them. Harvest the crop. Then go to the dispensary and sell some of it, the legal way, with a receipt. It is a very small business. It is, notably, a green one.";
+static const char xnb10Out[]=
+  "The first crop was lumpy, fragrant and rather smug. The dispensary man weighed it, nodded slowly, and gave you a receipt with a little leaf on it.|"
+  "You pinned the receipt to the fridge. It is your first real paycheque. It is very small and very green, and you look at it every morning like a man looking at the sea.";
 static const XMs xmBase[]={
-  XM("MOVING IN","The walls are bare, and the town has just handed you 1500 simoleons to spend.","Build, buy and decorate until this place finally feels like home.",XS_GRANT,5,
+  XMS("MOVING IN","The walls are bare, and the town has just handed you 1500 simoleons to spend.","Build, buy and decorate until this place finally feels like home.",XS_GRANT,5,AMAP_HOME,xnb1In,xnb1Out,
      TK(QK_CNT,3,"BUY THREE THINGS FOR THE PLACE"),{QK_ROOM,0,0,"MAKE A ROOM LOOK GREAT"}),
-  XM("DROP IN","Overnight, a skateboard and two ramps appeared in your yard. There was no note.","Don't question it. Go and ride them, and see what you can land.",XS_RAMPS,8,
+  XMS("DROP IN","Overnight, a skateboard and two ramps appeared in your yard. There was no note.","Don't question it. Go and ride them, and see what you can land.",XS_RAMPS,8,AMAP_HOME,xnb2In,xnb2Out,
      TE(SE_AIR,1,"CATCH AIR OFF A RAMP"),TK(QK_CNT,3,"LAND THREE TRICKS"),TE(SE_COMBO,1,"LAND A COMBO")),
-  XM("TACO TUESDAY","The whole town is out there waiting, and you have been indoors far too long.","Grab a taco, pump some iron, and lose a few quarters at the arcade.",XS_NONE,6,
+  XMS("TACO TUESDAY","The whole town is out there waiting, and you have been indoors far too long.","Grab a taco, pump some iron, and lose a few quarters at the arcade.",XS_NONE,6,AMAP_HOME,xnb3In,xnb3Out,
      TD(0,"A CRUNCHY TACO AT TACO BORE"),TD(VA_LIFT,"PUMP IRON AT THE GYM"),TD(VA_CABINET,"A CABINET AT THE ARCADE")),
-  XM("ICEBREAKER","Three neighbours are standing at your door, and none of them knows what to say.","Open the pie menu, break the ice, and make a friend.",XS_PARTY,6,
+  XMS("ICEBREAKER","Three neighbours are standing at your door, and none of them knows what to say.","Open the pie menu, break the ice, and make a friend.",XS_PARTY,6,AMAP_HOME,xnb4In,xnb4Out,
      TS(SC_JOKE,"TELL SOMEBODY A JOKE"),TS(SC_HIGH5,"HIGH FIVE SOMEBODY"),TK(QK_FRIENDS,1,"MAKE A FRIEND")),
-  XM("SPARKS","Somebody at the door caught your eye, and it looks like they noticed you too.","Flirt a little, steal a kiss, and see where the night takes you.",XS_PARTY,8,
+  XMS("SPARKS","Somebody at the door caught your eye, and it looks like they noticed you too.","Flirt a little, steal a kiss, and see where the night takes you.",XS_PARTY,8,AMAP_HOME,xnb5In,xnb5Out,
      TS(SC_FLIRT,"FLIRT WITH SOMEBODY"),TE(SE_KISS,1,"A FIRST KISS"),TE(SE_LOVE,1,"FALL IN LOVE")),
-  XM("NINE TO FIVE","The bills came, and the phone is full of job offers.","Work a shift, do it well enough to be noticed, and earn a promotion.",XS_BILLS,10,
+  XMS("NINE TO FIVE","The bills came, and the phone is full of job offers.","Work a shift, do it well enough to be noticed, and earn a promotion.",XS_BILLS,10,AMAP_HOME,xnb6In,xnb6Out,
      TE(SE_SHIFT,1,"WORK A SHIFT"),TE(SE_ACE,1,"ACE A SHIFT"),TE(SE_PROMO,1,"GET PROMOTED")),
-  XM("GOOD BOY","A little face in the pet shop window picked you, and it will not take no for an answer.","Bring it home and teach it its first trick.",XS_NONE,8,
+  XMS("GOOD BOY","A little face in the pet shop window picked you, and it will not take no for an answer.","Bring it home and teach it its first trick.",XS_NONE,8,AMAP_HOME,xnb7In,xnb7Out,
      TA(CT_PETSHOP,"GO TO THE PET SHOP"),TK(QK_PETS,1,"ADOPT A PET"),TP(PD_TRICK,"TEACH IT A TRICK")),
-  XM("FIGHT NIGHT","Somebody has been talking, and now they want a piece of you.","Train at the gym, learn to guard and parry, then beat your challenger.",XS_ARENA,10,
+  XMS("FIGHT NIGHT","Somebody has been talking, and now they want a piece of you.","Train at the gym, learn to guard and parry, then beat your challenger.",XS_ARENA,10,AMAP_HOME,xnb8In,xnb8Out,
      TA(CT_GYM,"TRAIN AT THE GYM"),TE(QE_PARRY,1,"PARRY A PUNCH"),TK(QK_CNT,1,"BEAT A CHALLENGER")),
-  XM("OPEN HOUSE","Word got around, and the whole street wants to meet you.","Feed everyone, make them welcome, and see if one of them stays.",XS_PARTY,10,
+  XMS("OPEN HOUSE","Word got around, and the whole street wants to meet you.","Feed everyone, make them welcome, and see if one of them stays.",XS_PARTY,10,AMAP_HOME,xnb9In,xnb9Out,
      {QK_GUEST,0,0,"HAVE A NEIGHBOUR OVER"},TE(QE_FOOD,1,"ORDER FOOD FOR EVERYONE"),TK(QK_HOUSE,2,"SOMEBODY MOVES IN")),
-  XM("THE GREEN THUMB","A package of seeds arrived in the mail with no note. Grown-ups only.","Plant them, harvest the crop, and sell it the legal way.",XS_SEEDS,15,
+  XMS("THE GREEN THUMB","A package of seeds arrived in the mail with no note. Grown-ups only.","Plant them, harvest the crop, and sell it the legal way.",XS_SEEDS,15,AMAP_HOME,xnb10In,xnb10Out,
      TE(QE_HARVEST,1,"HARVEST A PLANT"),TA(CT_DISP,"GO TO THE DISPENSARY"),TE(QE_SOLD,1,"SELL SOME OF IT")),
 };
 // ---- 6 THE LAND BOREFORE TIME (EP6, Phase 5c: the ten missions) ----
