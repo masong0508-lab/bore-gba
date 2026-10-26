@@ -6257,6 +6257,7 @@ static void s2rr(int x,int y,int w,int h,u16 c){ rect(x+1,y,w-2,h,c); rect(x,y+1
 static void s2grad(int x,int y,int w,int h,int r0,int g0,int b0,int r1,int g1,int b1){        // a vertical gradient
     for(int i=0;i<h;i++){ int t=h>1?i*256/(h-1):0; rect(x,y+i,w,1,RGB(r0+(r1-r0)*t/256,g0+(g1-g0)*t/256,b0+(b1-b0)*t/256)); } }
 static void s2pill(int x,int y,int w,const char*s){ s2rr(x,y,w,11,RGB(10,20,30)); s2grad(x+1,y+1,w-2,9,6,15,25,3,9,17); text(x+(w-tw(s,1))/2,y+2,s,RGB(20,27,31),1); }
+#include "babycare.h"       // BABY CARE: a baby cries until it is fed, changed, cuddled or put to bed; the FAMILY nursery things; toddlers; birthday cake
 #include "family.h"         // FAMILY LIFE: weddings, babies and twins, a household that grows up, the FAMILY panel and the birth notices
 static void howToPlay(void){
     static const char* const tn[8]={"PLAY","MAKE","BUILD","TOWN","PACKS","MUSIC","PLANS","OPTS"};

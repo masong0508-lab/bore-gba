@@ -182,7 +182,8 @@ static void famDay(void){   // midnight (simMinute, after your own birthday): ev
     int grew=0, born=0, gu[HH_MAX];
     for(int m=0;m<hhN;m++){ HhSim*s=&hhM[m]; int u=s->uid, need=famNeed(s->stage);
         if(!need){ famAge[u]=0; continue; }   // OFF or FOREVER: nobody grows
-        if(famAge[u]<255) famAge[u]++;
+        { int adv=bcDay(s,need); int before=famAge[u]; if(famAge[u]+adv<255) famAge[u]=(u8)(famAge[u]+adv); else famAge[u]=255;   // babycare.h: a neglected baby skips the day, a thriving one gains one
+          if(s->stage==AG_BABY&&need>=2&&before*2<need&&famAge[u]*2>=need&&famAge[u]<need) bcToddlerNote(s); }
         if(famAge[u]<need) continue;
         famAge[u]=0; famGrow(s); gu[grew++]=u; }
     if(famDue){ famDue--; if(!famDue) born=famBirth(); }
@@ -190,8 +191,8 @@ static void famDay(void){   // midnight (simMinute, after your own birthday): ev
         for(int k=0;k<hhN;k++){ hhOld[k].x0=hhOld[k].x1=0; hhOldSig[k]=0xFFFFFFFFu; }
         hhBakeAll();   // (the new faces first: the notices show them)
         if(born) famNotice(famT,famL1,famL2,famBorn,famBornN);
-        if(grew){ int m=hhMemOf(gu[0]);
-            if(grew==1&&m>=0){ char*e=simCat(famL1,hhM[m].name); *e++=' '; simCat(e,famGrewW[hhM[m].stage]); famNotice("HAPPY BIRTHDAY!",famL1,famGrewL2[hhM[m].stage],gu,1); }
+        if(grew){ int m=hhMemOf(gu[0]); int cake=m>=0&&bcCakeParty(&hhM[m]);   // a BIRTHDAY CAKE in the house: a party
+            if(grew==1&&m>=0){ char*e=simCat(famL1,hhM[m].name); *e++=' '; simCat(e,famGrewW[hhM[m].stage]); famNotice("HAPPY BIRTHDAY!",famL1,cake?"AND THERE WAS CAKE FOR EVERYONE":famGrewL2[hhM[m].stage],gu,1); }
             else famNotice("HAPPY BIRTHDAYS!","THE FAMILY GREW UP","A YEAR OLDER  A NEW LOOK",gu,grew); }
         hhSlotsFree(); liveInvalidate();
     }
@@ -228,7 +229,7 @@ static void famScreen(void){
             if(p>=0){ if(kinWed(kin[u][p])) famRing(x+8,y+7); else famHeart(x+8,y+7); }
             if(u==hhPUid){ s2rr(x+38,y+3,15,8,RGB(16,29,8)); text(x+39,y+4,"YOU",RGB(1,4,0),1); }
             int ty=big?y+67:y+34; const char*nm=uName(u); text(cx-tw(nm,1)/2,ty,nm,WHITE,1);
-            const char*w=whoWord(uStage(u),uSex(u)); text(cx-tw(w,1)/2,ty+8,w,RGB(17,29,31),1);
+            const char*w=bcWord(u,uSex(u)); text(cx-tw(w,1)/2,ty+8,w,RGB(17,29,31),1);
             if(big){ const char*r=u==hhPUid?"THAT'S YOU":kin[u][hhPUid]?kinNm[kin[u][hhPUid]]:relWord(hhPUid,u);
                 u16 rc=(u!=hhPUid&&(kinRom(kin[u][hhPUid])||(relF[hhPUid][u]&(RF_STEADY|RF_LOVE|RF_CRUSH))))?RGB(31,19,26):RGB(24,28,31);
                 text(cx-tw(r,1)/2,ty+19,r,rc,1); } }
@@ -237,9 +238,11 @@ static void famScreen(void){
           char*e=simCat(d1,uName(u));
           if(p>=0){ e=simCat(e,kinWed(kin[u][p])?"  MARRIED TO ":"  GOING STEADY WITH "); simCat(e,p==hhPUid?"YOU":uName(p)); }
           text(9,127,d1,WHITE,1);
-          e=d2; if(dl<0) e=simCat(e,uStage(u)>=AG_ELDER?"AN ELDER":"NOT AGING"); else { e=simCat(e,"GROWS UP IN "); e+=numStr(e,dl); simCat(e,dl==1?" DAY":" DAYS"); }
+          e=d2; if(dl<0) e=simCat(e,uStage(u)>=AG_ELDER?"AN ELDER":"NOT AGING"); else { e=simCat(e,bcStNext[uStage(u)<AG_ELDER?uStage(u):AG_ELDER]); e=simCat(e," IN "); e+=numStr(e,dl); simCat(e,dl==1?" DAY":" DAYS"); }
           text(9,136,d2,RGB(17,29,31),1);
-          if(u!=hhPUid){ text(140,127,"DAILY",RGB(17,29,31),1); famRelBar(172,127,60,relD[hhPUid][u]); text(140,136,"LIFE",RGB(17,29,31),1); famRelBar(172,136,60,relL[hhPUid][u]); } }
+          { int bm=hhMemOf(u); if(bm>=0&&hhM[bm].stage==AG_BABY){   // a baby: how it is being looked after, and what it wants
+                int v, k=bcWant(&hhM[bm],&v), mn=bcMeanNeed(&hhM[bm]); text(140,127,"CARE",RGB(17,29,31),1); famRelBar(172,127,60,mn*2-100); text(140,136,k<0?"HAPPY":bcCryW[k],k<0?RGB(18,31,16):RGB(31,22,14),1); } else
+          if(u!=hhPUid){ text(140,127,"DAILY",RGB(17,29,31),1); famRelBar(172,127,60,relD[hhPUid][u]); text(140,136,"LIFE",RGB(17,29,31),1); famRelBar(172,136,60,relL[hhPUid][u]); } } }
         s2pill(5,147,62,"DPAD PICK"); s2pill(70,147,46,"B BACK");
         { static const char* const twn[4]={"TWINS NEVER","TWINS SOMETIMES","TWINS OFTEN","TWINS ALWAYS"}; const char*tt=twn[xo[XO_TWINS]]; int w=tw(tt,1)+12; s2pill(235-w,147,w,tt);
           if(famDue){ char bb[20]; char*e=simCat(bb,"BABY IN "); e+=numStr(e,famDue); simCat(e,famDue==1?" DAY":" DAYS");

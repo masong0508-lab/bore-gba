@@ -545,8 +545,52 @@ wide('DOUBLE BED BLUE', 450, BLUE, OAK, (6, 10, 26)); wide('DOUBLE BED RED', 450
 wide('DOUBLE BED GREEN', 450, GREEN, PINE, (6, 20, 8)); wide('DOUBLE BED PINK', 450, P_PINK, WHITEW, (30, 14, 22))
 wide('QUEEN BED PURPLE', 700, PURP, DARK, (16, 6, 24)); wide('KING BED NAVY', 1200, BLUE, DARK, (6, 10, 26), True)
 
+# ---- FAMILY: the nursery and the family (babycare.h gives them jobs: a bassinet and a crib are where babies sleep, a high chair is for bottles, the changing table for nappies ...) ----
+def bassinet(p):
+    wick = faces(stripes(p, 8, 5, 'c', 'b', False, 1), stripes(p, 8, 5, 'c', 'b', False, 1), dots(SKY, 8, 8, 'c', 'd', 2))
+    return (legs(1, 1, 7, 7, 4, flat(p, 'b')) + block(0, 1, 8, 7, 4, 7, wick) + block(1, 2, 7, 6, 7, 8, faces(flat(P_WHITE, 'b'), flat(P_WHITE, 'b'), dots(P_PINK, 6, 4, 'c', 'd', 2)))
+            + block(0, 1, 8, 2, 7, 12, faces(stripes(p, 8, 5, 'c', 'b', False, 1), flat(p, 'b'), flat(p, 'd'))))
+def toddlerbed(p, wood):
+    quilt = faces(flat(p, 'b'), flat(p, 'b'), stripes(p, 8, 8, 'c', 'd', True, 2))
+    return (block(0, 0, 8, 8, 0, 3, solid(wood, 'c')) + block(0, 0, 8, 8, 3, 5, quilt) + block(0, 0, 8, 1, 3, 8, faces(panel(wood, 8, 5, 'b', 'c'), flat(wood, 'b'), flat(wood, 'd')))
+            + block(0, 7, 8, 8, 3, 7, faces(stripes(wood, 8, 4, 'c', 'a', False, 2), flat(wood, 'c'), flat(wood, 'd'))) + block(2, 1, 6, 3, 5, 6, solid(P_WHITE, 'b')))
+def highchair(p):
+    return (legs(1, 1, 7, 7, 9, flat(WHITEW, 'b')) + block(1, 1, 7, 7, 9, 11, faces(flat(p, 'b'), flat(p, 'b'), dots(p, 6, 6, 'c', 'd', 2))) + block(1, 1, 7, 2, 11, 18, faces(panel(p, 6, 7, 'b', 'c'), flat(p, 'b'), flat(p, 'd')))
+            + block(0, 5, 8, 8, 11, 12, solid(WHITEW, 'd')) + block(0, 7, 8, 8, 12, 14, solid(WHITEW, 'c')))
+def changing(p):
+    return (legs(0, 1, 8, 8, 8, flat(p, 'b')) + block(0, 1, 8, 8, 2, 8, faces(M(p, ['bbbbbbbb', 'bccdcccb', 'bbbbbbbb', 'bccdcccb', 'bbbbbbbb']), flat(p, 'b'), grain(p)))
+            + block(0, 1, 8, 8, 8, 9, faces(flat(MINT, 'c'), flat(MINT, 'c'), dots(MINT, 8, 8, 'c', 'd', 2))) + block(0, 1, 8, 2, 9, 12, solid(p, 'c')) + block(0, 7, 8, 8, 9, 11, solid(p, 'c'))
+            + block(0, 1, 1, 8, 9, 11, solid(p, 'c')) + block(7, 1, 8, 8, 9, 11, solid(p, 'c')))
+def playpen(p):
+    mesh = faces(stripes(p, 8, 7, 'c', 'a', False, 1), stripes(p, 8, 7, 'c', 'a', False, 1), M(P_BOOKS, ['abcdabcd', 'cdabcdab', 'bcdabcda', 'dabcdabc', 'abcdabcd', 'cdabcdab', 'bcdabcda', 'dabcdabc']))
+    return block(0, 0, 8, 8, 0, 1, solid(p, 'b')) + block(0, 0, 8, 1, 1, 8, mesh) + block(0, 7, 8, 8, 1, 8, mesh) + block(0, 1, 1, 7, 1, 8, mesh) + block(7, 1, 8, 7, 1, 8, mesh)
+def stroller(p):
+    wheel = flat(P_BLACK, 'b')
+    return ([Box(0, 1, 2, 3, 0, 3, [wheel] * 5), Box(6, 1, 8, 3, 0, 3, [wheel] * 5), Box(0, 5, 2, 7, 0, 3, [wheel] * 5), Box(6, 5, 8, 7, 0, 3, [wheel] * 5)]
+            + block(1, 1, 7, 7, 3, 6, solid(p, 'c')) + block(1, 1, 7, 4, 6, 12, faces(stripes(p, 6, 6, 'c', 'e', True, 1), flat(p, 'd'), flat(p, 'e'))) + block(1, 6, 7, 7, 6, 14, faces(flat(STEEL, 'c'), flat(STEEL, 'c'), flat(STEEL, 'd'))))
+def mobile(p):
+    return [Box(3, 3, 5, 5, 0, 2, solid(WHITEW, 'b')), Box(3, 3, 5, 5, 2, 20, solid(WHITEW, 'c')), Box(1, 3, 7, 5, 20, 22, solid(WHITEW, 'c')),
+            Box(0, 3, 2, 5, 14, 19, solid(RED, 'c')), Box(6, 3, 8, 5, 12, 17, solid(YELLOW, 'c')), Box(3, 3, 5, 5, 11, 15, solid(BLUE, 'c'))]
+def pail(p):
+    return block(2, 2, 6, 6, 0, 10, faces(stripes(p, 4, 10, 'c', 'b', False, 2), flat(p, 'c'), flat(p, 'd'))) + block(1, 1, 7, 7, 10, 12, faces(flat(p, 'd'), flat(p, 'd'), flat(P_METAL, 'c'))) + block(3, 3, 5, 5, 12, 13, solid(P_METAL, 'd'))
+def monitor2(p):
+    return block(2, 2, 6, 5, 0, 5, faces(M(p, ['cccc', 'cdbc', 'cbdc', 'cccc', 'cece']), flat(p, 'c'), flat(p, 'd'))) + [Box(5, 2, 6, 3, 5, 12, solid(P_BLACK, 'c')), Box(3, 3, 4, 4, 5, 7, solid(RED, 'e'))]
+def portrait2(p):
+    pic = M(p, ['bbbbbbbb', 'bccddccb', 'bcceeccb', 'bdccccdb', 'bddddddb', 'bbbbbbbb'])
+    return [Box(2, 3, 6, 5, 0, 1, solid(DARK, 'b')), Box(3, 3, 5, 5, 1, 10, solid(DARK, 'c')), Box(0, 3, 8, 5, 10, 22, faces(pic, flat(DARK, 'b'), flat(DARK, 'c')))]
+def cake(p):
+    return [Box(1, 1, 7, 7, 0, 3, solid(P_WHITE, 'c')), Box(2, 2, 6, 6, 3, 9, faces(stripes(p, 4, 6, 'c', 'e', True, 1), stripes(p, 4, 6, 'c', 'e', True, 1), solid(P_WHITE, 'e')[4])),
+            Box(3, 3, 5, 5, 9, 12, faces(flat(P_WHITE, 'c'), flat(P_WHITE, 'c'), flat(P_WHITE, 'd'))), Box(3, 3, 4, 4, 12, 15, solid(YELLOW, 'e')), Box(4, 4, 5, 5, 12, 15, solid(RED, 'e'))]
+C = cat('FAMILY')
+item('BASSINET', 'S', 220, C, bassinet(PINE), 1, col=(26, 20, 11)); item('TODDLER BED', 'S', 260, C, toddlerbed(SKY, WHITEW), 1, col=(12, 22, 31))
+item('HIGH CHAIR', 'h', 90, C, highchair(YELLOW), 1, col=(30, 26, 4)); item('NURSING CHAIR', 'h', 280, C, armchair(MINT, WHITEW), 1, col=(14, 28, 20))
+item('CHANGING TABLE', 't', 160, C, changing(WHITEW), 1, col=(28, 28, 29)); item('PLAYPEN', 'U', 140, C, playpen(P_PINK), col=(30, 14, 22))
+item('STROLLER', 'p', 200, C, stroller(TEAL), 1, col=(5, 20, 20)); item('BABY MOBILE', 'p', 70, C, mobile(WHITEW), col=(28, 28, 29))
+item('DIAPER PAIL', 'Y', 45, C, pail(MINT), col=(14, 28, 20)); item('BABY MONITOR', 'p', 60, C, monitor2(WHITEW), col=(28, 28, 29))
+item('FAMILY PORTRAIT', 'l', 350, C, portrait2(TERRA), col=(22, 11, 5)); item('BIRTHDAY CAKE', 'p', 40, C, cake(P_PINK), col=(30, 14, 22))
+
 CAT_BUILD0 = 200   # the first 200 are the #76 batch; the rest the BUILD batch
-assert len(ITEMS) == 308, len(ITEMS)
+assert len(ITEMS) == 320, len(ITEMS)
 assert all(len([i for i in ITEMS if i['cat'] == c]) <= 12 for c in range(len(CATS))), 'a category holds at most 12 (the swatch row)'
 
 # ====================================================================== emit

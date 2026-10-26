@@ -19,6 +19,7 @@
 #define SW_CHAT_GAP  1500   // after a chat: 25 s before the next walk to somebody
 #define SW_TMO        900   // longest walk it keeps at (15 s)
 
+static int bcNeedy(void); static void bcAuto(int bm);   // babycare.h
 static HhSim swS;                                      // the path holder (hhPlan, hhStepAlong's data)
 static u8 swMode;                                      // 0 nothing, 1 walking to furniture, 2 walking to somebody, 3 at the furniture
 static u8 swKind, swTgt, swHold; static char swCh;     // the lnear value expected, the uid being visited, steps waited next to the thing
@@ -94,6 +95,7 @@ static void swPick(void){
     for(int i=0;i<7;i++){ if(swBan&(1<<swFu[i].kind)) sc[i]=0; if(!(simHave&swFu[i].have)&&!(i==4&&swFloorHas('U'))) sc[i]=0; if(sc[i]) sc[i]+=rnd8()&7; }
     int bi=-1, bv=0; for(int i=0;i<7;i++) if(sc[i]>bv){ bv=sc[i]; bi=i; }
     // company: lonely, glum, or just for the sake of it (HIGH more than LOW)
+    if(hhN>0&&swChatCd<=0&&(rnd8()&3)){ int bu=bcNeedy(); if(bu>=0&&swPlanSim(bu)){ swSay("THE BABY NEEDS SOMETHING"); return; } }   // babycare.h: a crying baby comes first
     int soc=0, lone=sSoc<low?(100-sSoc)*(100-sSoc)/100*(100+uTr(hhPUid,TR_OUT)*8)/100:0;
     if(hhN>0&&swChatCd<=0){ soc=lone; if(sad) soc+=30; if(!soc&&(rnd8()*100>>8)<(hi?30:12)) soc=25; if(soc&&bi>=0&&bv>=soc&&bv>=60&&(rnd8()&1)) soc=0; }   // (something urgent goes first now and then)
     if(soc>bv){ int u=swWho(); if(u>=0&&swPlanSim(u)){ swSay(sad?"FEELING LOW  NEED A CHAT":lone?"LONELY  NEED A CHAT":"GOING TO SAY HI"); return; } }
@@ -118,6 +120,7 @@ static void swChat(void){   // next to the one it came for
     if(!uTile(b,&x,&y)) return;
     int bm=hhMemOf(b); if(bm>=0&&(hhM[bm].act==HA_SOC||hhM[bm].act==HA_USE)){ swStop(120); return; }
     int px=(int)(lfx>>8), py=(int)(lfy>>8); if((px-x)*(px-x)+(py-y)*(py-y)>4) return;   // they walked off
+    if(bm>=0&&hhM[bm].stage==AG_BABY){ swChatCd=SW_CHAT_GAP/3; hhM[bm].hd=(u8)((x>px?8:x<px?0:y>py?12:4)); bcAuto(bm); return; }   // babycare.h
     swChatCd=SW_CHAT_GAP; if(bm>=0) hhM[bm].hd=(u8)((x>px?8:x<px?0:y>py?12:4));
     socDo(hhPUid,b,swSocPick(hhPUid,b));
 }

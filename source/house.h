@@ -577,8 +577,12 @@ static void hhNew(HhSim*s,const HhPre*p){
 
 // ---- path finding: BFS from the member's tile; the goal is any free tile next to furniture c (or a random free tile for c=0) ----
 static int hhGX, hhGY;   // hhPlan(s,1): walk next to this tile (a person)
+static u8 hhBedKind;   // babycare.h: which beds hhPlan(s,'S') may use: 0 any, 1 nursery beds only (a baby), 2 not the nursery beds (everyone else)
+static int bcCribAt(int x,int y); static int bcBedKind(const HhSim*s); static int bcDecide(HhSim*s); static int bcArrive(int m); static void bcTick(void); static int bcPlayerAdd(const HhSim*s,const char**it,int*cat,int*id,int n); static void bcPlayer(int bm,int k);   // babycare.h
 static int hhNextTo(int x,int y,char c){   // (a beanbag 'U' is as good as the sofa 'C')
-    if(c==1){ int dx=x-hhGX, dy=y-hhGY; return (dx==0&&(dy==1||dy==-1))||(dy==0&&(dx==1||dx==-1)); } for(int d=0;d<4;d++){ int nx=x+hhDx[d], ny=y+hhDy[d]; if(nx>=0&&ny>=0&&nx<MW&&ny<MH&&(lifeMap[ny][nx]==c||(c=='C'&&lifeMap[ny][nx]=='U'))) return 1; } return 0; }
+    if(c==1){ int dx=x-hhGX, dy=y-hhGY; return (dx==0&&(dy==1||dy==-1))||(dy==0&&(dx==1||dx==-1)); }
+    if(c=='S'&&hhBedKind){ for(int d=0;d<4;d++){ int nx=x+hhDx[d], ny=y+hhDy[d]; if(nx>=0&&ny>=0&&nx<MW&&ny<MH&&lifeMap[ny][nx]=='S'&&(bcCribAt(nx,ny)==(hhBedKind==1))) return 1; } return 0; }
+    for(int d=0;d<4;d++){ int nx=x+hhDx[d], ny=y+hhDy[d]; if(nx>=0&&ny>=0&&nx<MW&&ny<MH&&(lifeMap[ny][nx]==c||(c=='C'&&lifeMap[ny][nx]=='U'))) return 1; } return 0; }
 static u16 hhTk[HH_MAX+1]; static int hhTkN;   // the tiles that are someone's spot (filled by hhTakenScan)
 static void hhTakenScan(const HhSim*self){   // the player's tile, and every other member's: where it stands, or where its walk ends
     hhTkN=0; hhTk[hhTkN++]=(u16)((int)(lfy>>8)*MW+(int)(lfx>>8));
@@ -598,6 +602,7 @@ static int hhOut(HhSim*s){   // standing where nobody can stand (a wall was buil
 }
 static int hhPlan(HhSim*s,char c){   // fills s->path; returns its length+1 (1 = already there), 0 = no way
     int sx=(int)(s->fx>>8), sy=(int)(s->fy>>8); if(!hhWalk(sx,sy)){ if(!hhOut(s)) return 0; sx=(int)(s->fx>>8); sy=(int)(s->fy>>8); }   // (inside a wall: step out of it first, never stuck there)
+    hhBedKind=c=='S'?(u8)bcBedKind(s):0;
     for(int i=0;i<MW*MH;i++) hhDist[i]=0xFFFF;
     hhTakenScan(s);
     if(c==1&&((sx-hhGX)*(sx-hhGX)+(sy-hhGY)*(sy-hhGY))<=2) return 1;   // already next to them
@@ -678,6 +683,7 @@ static int hhGlumGo(HhSim*s){   // 1 = it has a plan
 }
 static void hhDecide(HhSim*s){
     s->item=0; s->jl=s->ji=0;
+    if(bcDecide(s)) return;   // babycare.h: a baby cries and sleeps; a free-will Sim goes to a baby that needs something
     int best[2]={-1,-1}, bs[2]={0,0}, low=xo[XO_FREEWILL]==1?35:55;   // LOW free will waits until needs are lower
     for(int n=0;n<HN_N;n++){
         if(hnFurn[n]&&!(simHave&(n==HN_FOOD?SR_FRIDGE:n==HN_WC?SR_TOILET:n==HN_REST?SR_BED:n==HN_CLEAN?SR_SHOWER:SR_SOFA))&&!hhElse(n)) continue;   // no such furniture on this floor or above
@@ -843,7 +849,7 @@ static void hhTick(void){   // once per logic step in the life game
     if(!curFl){ copTick(&planned); inmTick(&planned); }   // npc.h: the police (a cop comes after you when you hurt Sims)
     petTick(&planned);   // pets.h (pets live with you even when nobody else does)
     if(!hhN) return;
-    relTick(); hhAmbient();
+    relTick(); hhAmbient(); bcTick();
     int fe=oFoodEvery(), we=oWcEvery();
     for(int m=0;m<hhN;m++){ HhSim*s=&hhM[m];
         // needs drain (gently: the Sims you do not watch should not be in constant crisis)
@@ -1232,6 +1238,7 @@ static int socPick(int a,int b){   // what a free-will Sim says to b
     return pool[(r*n)>>8];
 }
 static void hhArrive(int m){   // a free-will Sim reached the one it wanted to see
+    if(bcArrive(m)) return;   // babycare.h: it came to look after a baby
     HhSim*s=&hhM[m]; int b=s->tgt, x, y; s->act=HA_IDLE; s->think=(short)HH_THINK;
     if(!uTile(b,&x,&y)) return;
     int sx=(int)(s->fx>>8), sy=(int)(s->fy>>8); if((sx-x)*(sx-x)+(sy-y)*(sy-y)>4) return;   // they walked off
@@ -1374,11 +1381,12 @@ static int hhSocR(int useLabel){   // 1 = handled (a social, or the menu was clo
     if(m>=hhN){ int k=HH_MAX-1-m; if(k<0||k>=TW_N||hhM[m].uid!=GU0+k) return hhVisitorTalk(m,useLabel); }   // a neighbour is a GUEST (their own uid, every social); only one we cannot name gets the small menu
     HhSim*s=&hhM[m]; int b=s->uid, a=hhPUid;
     if(s->act==HA_USE){ lnote="THEY ARE BUSY"; lnoteT=50; return 0; }
-    static const char* it[SC_N+4] EWRAM_BSS; static char tl[40] EWRAM_BSS; int id[SC_N+4], cat[SC_N+4], n=0;   // (cat: the pie's category, 0 FRIENDLY 1 FUN 2 ROMANTIC 3 MEAN 4 USE)
+    static const char* it[SC_N+10] EWRAM_BSS; static char tl[40] EWRAM_BSS; int id[SC_N+10], cat[SC_N+10], n=0;   // (cat: the pie's category, 0 FRIENDLY 1 FUN 2 ROMANTIC 3 MEAN 4 USE)
     static const char* const useNm[6]={0,"USE THE FRIDGE","USE THE TOILET","SLEEP IN BED","TAKE A SHOWER","SIT ON SOFA"}; static const char* const useNm2[5]={"WATCH TV","READ A BOOK","MAKE COFFEE","FEED THE FISH","RUN ON TREADMILL"};
     static const u8 socCat[SC_N]={0,1,0,0,0,1,2,2,2,0,3,3,3,3,1,2,2,3,3,1,2,0};   // TALK JOKE COMPL HIGH5 HUG TRICK FLIRT KISS STEADY SORRY ARGUE INSULT SLAP PUNCH PASS PROPOSE BABY TEASE SHOVE TV BED COME
     if((useLabel>0&&useLabel<6)||useLabel>=8){ it[n]=useLabel==8?"USE THE PHONE":useLabel>=11?useNm2[useLabel-11]:useLabel>=9?"TUNE THE RADIO":useNm[useLabel]; cat[n]=4; id[n++]=-1; }
     it[n]="YOUR ACTIONS"; cat[n]=4; id[n++]=-2;   // self.h: the pie of what you can do on your own
+    n=bcPlayerAdd(s,it,cat,id,n);   // babycare.h: FEED BOTTLE / CHANGE DIAPER / CUDDLE / PLAY / PUT TO BED for a baby
     for(int i=0;i<SC_N;i++) if(socAllowed(a,b,i)){ it[n]=i==SC_PUNCH?fkMove(a,"PUNCH"):socT[i].name; cat[n]=socCat[i]; id[n++]=i; }
     if(uGuest(b)){   // a neighbour: they can be asked to live here, or sent home (townrel.h)
         if(nrCanAsk(a,b)){ it[n]="ASK TO MOVE IN"; cat[n]=0; id[n++]=-3; }
@@ -1393,6 +1401,7 @@ static int hhSocR(int useLabel){   // 1 = handled (a social, or the menu was clo
     if(id[c]==-3){ nrAskIn(a,b); return 1; }
     if(id[c]==-4){ nrBye(b); return 1; }
     if(id[c]==-5){ wdSellTo(s->name,s->stage); return 1; }
+    if(id[c]<=-10){ int px=(int)(lfx>>8), py=(int)(lfy>>8), sx=(int)(s->fx>>8), sy=(int)(s->fy>>8); s->hd=(u8)(px>sx?0:px<sx?8:py>sy?4:12); lhd=(s->hd+8)&15; bcPlayer(m,-10-id[c]); return 1; }   // babycare.h
     if(id[c]<0) return 0;
     int px=(int)(lfx>>8), py=(int)(lfy>>8), sx=(int)(s->fx>>8), sy=(int)(s->fy>>8);
     s->hd=(u8)(px>sx?0:px<sx?8:py>sy?4:12); lhd=(s->hd+8)&15;

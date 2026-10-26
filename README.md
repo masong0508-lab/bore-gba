@@ -90,6 +90,8 @@ Saves use the cart's 128 KB of flash (58 slots). A cart without flash falls back
 
 **Life stages.** Bores grow from baby to child, teen, adult and elder. Each stage has its own limits, and OPTIONS > TIME slows ageing down or switches it off.
 
+**Baby care.** A baby cannot look after itself: it cries until somebody feeds it, changes it, cuddles it, plays with it or puts it to bed. Household Sims with free will go to a crying baby (parents first), your own Sim does too when you put the pad down, and R next to a baby gives you FEED BOTTLE, CHANGE DIAPER, CUDDLE, PLAY and PUT TO BED. A baby is a newborn for the first half of its stage and a toddler for the second; one left hungry or wet all day does not grow that day, one that is really looked after grows a day faster, and a birthday cake in the house makes every birthday a party. The new **FAMILY** tab in BUY has a bassinet, toddler bed, high chair, changing table, nursing chair, playpen, mobile, stroller, diaper pail, baby monitor, family portrait and birthday cake, and the right ones make the care count for more.
+
 **Death and trouble.** You can be hurt, and in the default setting you can die. OPTIONS > PLAY has a gentler HURT setting and a no-death one. The cops notice crime, and a busted Sim goes to **prison**, where there is a yard, work, rep, gangs, visits from the household, and a fence to climb if you dare.
 
 ## Skating
