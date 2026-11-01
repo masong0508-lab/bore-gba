@@ -23,17 +23,20 @@
 #define NB_LOTS 48
 #define NB_LOTS1 16   // lots a 'TWN1' town held
 #define NB_NAME 10
-enum { NT_GRASS, NT_DIRT, NT_SAND, NT_WATER, NT_PLAZA, NT_ROAD, NT_N };
-enum { DC_NONE, DC_TREE, DC_PINE, DC_BUSH, DC_FLOWER, DC_ROCK, DC_LAMP, DC_BENCH, DC_FOUNTAIN, DC_SIGNAL, DC_STOP, DC_BUSSTOP, DC_HYDRANT, DC_CONE, DC_N };   // (new ones at the end: a saved town keeps its decor)
-#define NB_ROADDC(d) ((d)==DC_LAMP||(d)==DC_FOUNTAIN||(d)==DC_SIGNAL||(d)==DC_STOP||(d)==DC_CONE)   // what may stand on a road cell
+enum { NT_GRASS, NT_DIRT, NT_SAND, NT_WATER, NT_PLAZA, NT_ROAD, NT_AVENUE, NT_N };   // (AVENUE last: a saved town keeps its land)
+#define NB_RD(t) ((t)==NT_ROAD||(t)==NT_AVENUE)   // a road of any kind
+enum { DC_NONE, DC_TREE, DC_PINE, DC_BUSH, DC_FLOWER, DC_ROCK, DC_LAMP, DC_BENCH, DC_FOUNTAIN, DC_SIGNAL, DC_STOP, DC_BUSSTOP, DC_HYDRANT, DC_CONE, DC_OWE, DC_OWW, DC_OWS, DC_OWN, DC_PARKING, DC_N };   // (new ones at the end: a saved town keeps its decor)
+#define NB_ONEWAY(d) ((d)>=DC_OWE&&(d)<=DC_OWN)   // a one-way arrow: DC_OWE + the direction (0 +x, 1 -x, 2 +y, 3 -y, as nbCarTurn's table)
+#define NB_ROADDC(d) ((d)==DC_LAMP||(d)==DC_FOUNTAIN||(d)==DC_SIGNAL||(d)==DC_STOP||(d)==DC_CONE||NB_ONEWAY(d))   // what may stand on a road cell
+static u8 nbBrush, nbUndoOk; static u8 nbUndo[NB_HMAX][NB_WMAX] EWRAM_BSS;   // the brush (0 one cell, 1 three by three) and the last stroke's undo
 enum { LKIND_RES, LKIND_COMM };
 enum { CT_PARK, CT_SKATE, CT_PLAZA, CT_LOUNGE, CT_OLDTOWN, CT_BOTH, CT_PRISON, CT_ARMS, CT_DISP,
        CT_TACO, CT_GYM, CT_ARCADE, CT_CLUB, CT_GROCER, CT_BANK, CT_HOSPITAL, CT_CAFE, CT_BAR, CT_SALON, CT_PETSHOP, CT_LIBRARY, CT_CASINO, CT_CINEMA, CT_POOL,   // venues.h
        CT_SPACE, CT_DOJO,   // venues.h too: the packs' places (expand.h)
        CT_SKSHOP,   // venues.h: the SKATE SHOP (board.h: where boards come from)
        CT_N };   // CT_BOTH: a park and a skate park in one (what a community flag and a skate flag together make)
-static const char* const ntNm[NT_N]={"GRASS","DIRT","SAND","WATER","PLAZA","ROAD"};
-static const char* const dcNm[DC_N]={"CLEAR","TREE","PINE","BUSH","FLOWERS","ROCK","LAMP","BENCH","FOUNTAIN","TRAFFIC LIGHT","STOP SIGN","BUS STOP","HYDRANT","ROAD CONE"};
+static const char* const ntNm[NT_N]={"GRASS","DIRT","SAND","WATER","PLAZA","ROAD","AVENUE"};
+static const char* const dcNm[DC_N]={"CLEAR","TREE","PINE","BUSH","FLOWERS","ROCK","LAMP","BENCH","FOUNTAIN","TRAFFIC LIGHT","STOP SIGN","BUS STOP","HYDRANT","ROAD CONE","ONE WAY","ONE WAY","ONE WAY","ONE WAY","PARKING"};
 static const char* const ctNm[CT_N]={"PARK","SKATE PARK","PLAZA","LOUNGE","OLD TOWN","PARK + SKATE","PRISON","ARMS SHOP","DISPENSARY",
     "TACO BORE","GYM","ARCADE","NIGHTCLUB","GROCERY","BANK","HOSPITAL","CAFE","BAR","SALON","PET SHOP","LIBRARY","CASINO","CINEMA","POOL","SPACEPORT","DOJO","SKATE SHOP"};
 static const char* const seasNm[4]={"SPRING","SUMMER","FALL","WINTER"};
@@ -362,8 +365,8 @@ static int nbExpand(void){
     int ow=nbT.w, oh=nbT.h; if(ow>=NB_WMAX&&oh>=NB_HMAX) return 0;
     int nw=ow+8>NB_WMAX?NB_WMAX:ow+8, nh=oh+8>NB_HMAX?NB_HMAX:oh+8, g=NB_GR(nbT.cell[oh-1][ow-1]); if(g!=NT_SAND&&g!=NT_DIRT) g=NT_GRASS;
     for(int y=0;y<nh;y++) for(int x=0;x<nw;x++) if(x>=ow||y>=oh) nbT.cell[y][x]=(u8)g;
-    for(int x=0;x<ow;x++) if(NB_GR(nbT.cell[oh-1][x])==NT_ROAD) for(int y=oh;y<nh;y++) nbT.cell[y][x]=NT_ROAD;
-    for(int y=0;y<oh;y++) if(NB_GR(nbT.cell[y][ow-1])==NT_ROAD) for(int x=ow;x<nw;x++) nbT.cell[y][x]=NT_ROAD;
+    for(int x=0;x<ow;x++) if(NB_RD(NB_GR(nbT.cell[oh-1][x]))) for(int y=oh;y<nh;y++) nbT.cell[y][x]=(u8)NB_GR(nbT.cell[oh-1][x]);
+    for(int y=0;y<oh;y++) if(NB_RD(NB_GR(nbT.cell[y][ow-1]))) for(int x=ow;x<nw;x++) nbT.cell[y][x]=(u8)NB_GR(nbT.cell[y][ow-1]);
     nbT.w=(u8)nw; nbT.h=(u8)nh; if(!(nbT.pad[0]&2)) nbDistricts(g==NT_SAND?NS_DESERT:NS_SUBURB,ow,oh);   // (a BLANK town grows as empty land: no districts, no trees)
     u32 r=0x7E57u+(u32)nw*131u;
     for(int y=0;y<nh;y++) for(int x=0;x<nw;x++){ if(x<ow&&y<oh) continue; r=r*1103515245u+12345u; int v=(int)(r>>16)&255;
@@ -429,6 +432,7 @@ static u16 nbGround(int t,int cx,int cy){
         case NT_SAND: c=alt?RGB(27,24,15):RGB(26,23,14); break;
         case NT_WATER: c=nbT.season==3?RGB(21,25,29):(alt?RGB(5,12,24):RGB(6,14,25)); break;
         case NT_PLAZA: c=alt?RGB(19,19,18):RGB(17,17,16); break;
+        case NT_AVENUE: c=RGB(5,5,6); break;
         default: c=RGB(7,7,8); break;
     }
     return nbTint(c);
@@ -459,6 +463,9 @@ static void nbDecor(int d,int x,int y){   // x, y = the middle of the cell
         case DC_BUSSTOP: rect(x-2*k,y-6*k,4*k+1,k,nbTint(RGB(6,14,24))); rect(x-2*k,y-5*k,1,5*k,nbTint(RGB(10,10,12))); rect(x+2*k,y-5*k,1,5*k,nbTint(RGB(10,10,12))); rect(x-k,y-2*k,2*k+1,k,nbTint(RGB(16,9,4))); break;
         case DC_HYDRANT: rect(x-k/2,y-2*k,k+1,2*k,nbTint(RGB(28,5,4))); px(x,y-2*k-1,nbTint(RGB(24,24,24))); break;
         case DC_CONE: { u16 o=nbTint(RGB(31,14,2)); for(int i=0;i<3*k;i++) rect(x-i/3,y-3*k+i,2*(i/3)+1,1,(i==k)?WHITE:o); break; }
+        case DC_OWE: case DC_OWW: case DC_OWS: case DC_OWN: { int o=d-DC_OWE, ex=(o==0||o==3)?2*k:-2*k, ey=(o==0||o==2)?k:-k; u16 w=nbTint(RGB(28,28,28));   // the arrow painted on the road, pointing the way cars go
+            line(x-ex,y-ey,x+ex,y+ey,w); px(x+ex-(ex>0?1:-1),y+ey,w); px(x+ex,y+ey-(ey>0?1:-1),w); break; }
+        case DC_PARKING: { rect(x-3*k,y-k,6*k+1,2*k+1,nbTint(RGB(15,15,16))); rect(x-2*k,y-k,2*k,k,nbTint(RGB(26,5,5))); rect(x+k,y,2*k,k,nbTint(RGB(6,12,26))); px(x,y-k,WHITE); break; }   // a car park: two parked cars
         case DC_FOUNTAIN: rect(x-2*k,y-k,4*k+1,k+1,nbTint(RGB(22,22,22))); rect(x-k,y-k,2*k+1,1,nbTint(nbT.season==3?RGB(24,27,30):RGB(10,20,30))); rect(x,y-3*k,1,2*k,nbTint(RGB(26,29,31))); break;
     }
 }
@@ -568,10 +575,14 @@ static void nbDrawTown(int ccx,int ccy,int camx,int camy,int tool,int ghostW,int
         u16 g; if(li>=0){ const NbLot*L=&nbT.lot[li]; g=L->kind==LKIND_COMM&&L->type!=CT_PARK?nbTint(((cx+cy)&1)?RGB(20,20,19):RGB(18,18,17)):nbLit(nbGround(NT_GRASS,cx,cy),1); }   // a lot: mown lawn, or paving
         else g=nbGround(NB_GR(c),cx,cy);
         nbDia(sx,sy,g);
-        if(li<0&&NB_GR(c)==NT_ROAD&&nbT.zoom){   // lane marks
-            int h=(cx>0&&NB_GR(nbT.cell[cy][cx-1])==NT_ROAD)||(cx<NB_W-1&&NB_GR(nbT.cell[cy][cx+1])==NT_ROAD), v=(cy>0&&NB_GR(nbT.cell[cy-1][cx])==NT_ROAD)||(cy<NB_H-1&&NB_GR(nbT.cell[cy+1][cx])==NT_ROAD);
+        if(li<0&&NB_RD(NB_GR(c))&&nbT.zoom){   // lane marks
+            #define NBR(X,Y) NB_RD(NB_GR(nbT.cell[Y][X]))
+            int h=(cx>0&&NBR(cx-1,cy))||(cx<NB_W-1&&NBR(cx+1,cy)), v=(cy>0&&NBR(cx,cy-1))||(cy<NB_H-1&&NBR(cx,cy+1));
+            #undef NBR
+            int av=NB_GR(c)==NT_AVENUE;
             u16 m=nbTint(RGB(26,24,10)); if(h&&v&&nbHw>=8){ u16 w=nbTint(RGB(28,28,28)); for(int q=-3;q<=3;q+=2){ px(sx+q,sy+2,w); px(sx+q,sy+2*nbHh-3,w); } }   // a crossing: zebra stripes
-            else if(h&&!v) line(sx-2,sy+nbHh-1,sx+2,sy+nbHh+1,m); else if(v&&!h) line(sx+2,sy+nbHh-1,sx-2,sy+nbHh+1,m); }
+            else if(h&&!v){ line(sx-2,sy+nbHh-1,sx+2,sy+nbHh+1,m); if(av) line(sx-2,sy+nbHh-2,sx+2,sy+nbHh,m); }   // (an avenue: a double line)
+            else if(v&&!h){ line(sx+2,sy+nbHh-1,sx-2,sy+nbHh+1,m); if(av) line(sx+2,sy+nbHh-2,sx-2,sy+nbHh,m); } }
         if(li<0&&NB_GR(c)==NT_WATER&&nbT.season!=3&&((cx*5+cy*3)&3)==0) rect(sx-1,sy+nbHh,3,1,nbTint(RGB(14,22,30)));
       }
     }
@@ -641,19 +652,19 @@ static void nbPanel(int ccx,int ccy,int tool,int sub){
         return;
     }
     if(tool==1){ e=slCat(b,"PAINT "); slCat(e,ntNm[sub]); }
-    else if(tool==2) slCat(b,sub?"BULLDOZE  BACK TO GRASS":"LAY ROAD  CARS FIND THEIR WAY");
-    else if(tool==3){ e=slCat(b,"PLANT "); slCat(e,dcNm[sub]); }
+    else if(tool==2){ static const char* const rn[4]={"LAY ROAD","LAY AVENUE  CARS GO FASTER","ONE WAY  THE WAY YOU DRAW","BULLDOZE  BACK TO GRASS"}; slCat(b,rn[sub&3]); }
+    else if(tool==3){ e=slCat(b,"PLACE "); slCat(e,dcNm[sub]); }
     else if(tool==4){ e=slCat(b,"NEW LOT "); slCat(e,nbSizeNm[sub]); }
     else { e=slCat(b,ntNm[NB_GR(nbT.cell[ccy][ccx])]); if(NB_DC(nbT.cell[ccy][ccx])){ e=slCat(e,"  "); slCat(e,dcNm[NB_DC(nbT.cell[ccy][ccx])]); } }
     text(4,135,b,WHITE,1);
-    text(4,145,tool==0?"L R TOOLS   START TOWN MENU":tool==2?"HOLD A TO DRAW  SELECT ROAD/BULLDOZE":"SELECT CHANGES IT   A PLACES",DIMC,1);
-    text(4,153,tool?"B BACK TO THE LOTS TOOL":"B LEAVES THE NEIGHBORHOOD",RGB(12,14,16),1);
+    text(4,145,tool==0?"L R TOOLS   START TOWN MENU":tool==2?"HOLD A DRAWS STRAIGHT  SELECT KIND":(nbBrush?"SELECT KIND  BRUSH 3X3  SEL+DOWN 1X1":"SELECT KIND  SEL+UP BIG BRUSH"),DIMC,1);
+    text(4,153,tool?"B LOTS TOOL   SELECT+B UNDO":"B LEAVES THE NEIGHBORHOOD",RGB(12,14,16),1);
 }
 
 // ---------- actions ----------
 static int nbFree(int x,int y,int w,int h,int skip){   // can a lot go there?
     if(x<0||y<0||x+w>NB_W||y+h>NB_H) return 0;
-    for(int j=y;j<y+h;j++)for(int i=x;i<x+w;i++){ int l=nbAt(i,j); if((l>=0&&l!=skip)||NB_GR(nbT.cell[j][i])==NT_ROAD||NB_GR(nbT.cell[j][i])==NT_WATER) return 0; }
+    for(int j=y;j<y+h;j++)for(int i=x;i<x+w;i++){ int l=nbAt(i,j); if((l>=0&&l!=skip)||NB_RD(NB_GR(nbT.cell[j][i]))||NB_GR(nbT.cell[j][i])==NT_WATER) return 0; }
     return 1;
 }
 static int nbCash(money_t*have){ simsDefaults(); if(!simsLoad()){ *have=-1; return 0; } *have=simMoney; return 1; }   // the life's cash (0 = no life yet)
@@ -843,13 +854,23 @@ static int nbMoveInAt(int li){   // A on lot li while moving in: 1 = bought, mov
 typedef struct { u8 x,y,f,wait,col; s8 dx,dy; } NbCar;
 static NbCar nbCar[NB_CARS]; static int nbCarN;
 #define NBCAR_TILE 1016
-static int nbRoadOk(int x,int y){ return x>=0&&y>=0&&x<NB_W&&y<NB_H&&NB_GR(nbT.cell[y][x])==NT_ROAD&&NB_DC(nbT.cell[y][x])!=DC_CONE; }
-static void nbCarTurn(NbCar*c){   // at a cell: on to a road neighbour, never straight back unless it is a dead end
+static int nbRoadOk(int x,int y){ return x>=0&&y>=0&&x<NB_W&&y<NB_H&&NB_RD(NB_GR(nbT.cell[y][x]))&&NB_DC(nbT.cell[y][x])!=DC_CONE; }
+static int nbOwAt(int x,int y){ if(x<0||y<0||x>=NB_W||y>=NB_H) return -1; int d=NB_DC(nbT.cell[y][x]); return NB_ONEWAY(d)?d-DC_OWE:-1; }
+static void nbCarTurn(NbCar*c){   // at a cell: on to a road neighbour, never straight back unless it is a dead end; one-way streets only the way their arrows point
     static const s8 CD[4][2]={{1,0},{-1,0},{0,1},{0,-1}}; int ok[4], n=0;
-    for(int i=0;i<4;i++){ if(CD[i][0]==-c->dx&&CD[i][1]==-c->dy&&(c->dx|c->dy)) continue; if(nbRoadOk(c->x+CD[i][0],c->y+CD[i][1])) ok[n++]=i; }
+    { int ow=nbOwAt(c->x,c->y); if(ow>=0&&nbRoadOk(c->x+CD[ow][0],c->y+CD[ow][1])){ c->dx=CD[ow][0]; c->dy=CD[ow][1]; return; } }   // on a one-way cell: its way
+    for(int i=0;i<4;i++){ if(CD[i][0]==-c->dx&&CD[i][1]==-c->dy&&(c->dx|c->dy)) continue; int tx=c->x+CD[i][0], ty=c->y+CD[i][1]; if(!nbRoadOk(tx,ty)) continue; { int ow=nbOwAt(tx,ty); if(ow>=0&&ow!=i) continue; } ok[n++]=i; }
     if(!n){ c->dx=(s8)-c->dx; c->dy=(s8)-c->dy; if(!nbRoadOk(c->x+c->dx,c->y+c->dy)){ c->dx=c->dy=0; } return; }
-    int i=ok[(rnd8()*n)>>8]; if(n>1&&nbRoadOk(c->x+c->dx,c->y+c->dy)&&(c->dx|c->dy)&&rnd8()<150) return;   // (mostly straight on)
+    int i=ok[(rnd8()*n)>>8];
+    if(n>1&&(c->dx|c->dy)&&rnd8()<150){ for(int j=0;j<n;j++) if(CD[ok[j]][0]==c->dx&&CD[ok[j]][1]==c->dy) return; }   // (mostly straight on, where straight on is allowed)
     c->dx=CD[i][0]; c->dy=CD[i][1];
+}
+static int nbCarBlocked(int i){   // TRAFFIC JAMS: a car does not drive into the one in front of it (same way, next cell or just ahead in this one): queues form at lights and signs
+    const NbCar*c=&nbCar[i];
+    for(int j=0;j<nbCarN;j++){ if(j==i) continue; const NbCar*o=&nbCar[j]; if(o->dx!=c->dx||o->dy!=c->dy) continue;
+        if(o->x==c->x&&o->y==c->y&&o->f>c->f&&o->f-c->f<7) return 1;
+        if(o->x==c->x+c->dx&&o->y==c->y+c->dy&&c->f>=9&&o->f+16-c->f<7) return 1; }
+    return 0;
 }
 static void nbCarsInit(void){
     // a little car seen along the "\" diagonal: body 1, window 2, tyres 3 (4 bits a pixel, low nibble first)
@@ -871,7 +892,7 @@ static void nbCarsTick(void){   // move them a step and put them on the screen (
         if(i>=nbCarN){ o[0]=0x200; continue; }
         NbCar*c=&nbCar[i];
         if(c->wait) c->wait--;
-        else if(c->dx|c->dy){ if(++c->f>=16){ c->f=0; c->x=(u8)(c->x+c->dx); c->y=(u8)(c->y+c->dy);
+        else if((c->dx|c->dy)&&!nbCarBlocked(i)){ c->f=(u8)(c->f+(NB_GR(nbT.cell[c->y][c->x])==NT_AVENUE?2:1)); if(c->f>=16){   // (avenues are twice as quick) c->f=0; c->x=(u8)(c->x+c->dx); c->y=(u8)(c->y+c->dy);
                 if(!nbRoadOk(c->x,c->y)){ c->x=(u8)(c->x-c->dx); c->y=(u8)(c->y-c->dy); c->dx=(s8)-c->dx; c->dy=(s8)-c->dy; }   // (the road was bulldozed under it)
                 int d=NB_DC(nbT.cell[c->y][c->x]);
                 if(d==DC_STOP) c->wait=24;
@@ -895,14 +916,23 @@ static void neighborhoodScreen(void){
         if(best>=0){ ccx=nbT.lot[best].x+nbT.lot[best].w/2; ccy=nbT.lot[best].y+nbT.lot[best].h/2; }
         toast("PICK A HOME  A ON A LOT TO MOVE IN"); }
     int camx=ccx, camy=ccy;   // the zoomed map's centre: the cursor wanders inside a dead zone round it, the map is drawn again (whole) only when it leaves
+    int selUsed=0, dragLock=0, roadsNew=0, lastDx=1, lastDy=0; nbUndoOk=0;
     int tool=0, sub[5]={0,0,0,1,2}, hold[4]={0}, dirty=1, quit=0, played=0, pcx=ccx, pcy=ccy, step=0; u16 prev=keyNow(); KRep nrp[4]={{0,0},{0,0},{0,0},{0,0}};   // pcx, pcy: the cursor in the last picture; step: the cursor moved (a part redraw does)
     static const u16 dirK[4]={K_RIGHT,K_LEFT,K_UP,K_DOWN};
     nbCarsInit();
     while(!quit){
-        u16 k=keyNow(), pr=k&~prev; prev=k;
+        u16 k=keyNow(), pr=k&~prev, rel=prev&~k; prev=k;
         int tr[4], fast=0; for(int i=0;i<4;i++){ hold[i]=(k&dirK[i])?hold[i]+1:0; tr[i]=kRepN(&nrp[i],k&dirK[i],pr&dirK[i],10,3); if(kHeld(&nrp[i],k&dirK[i],40)) fast=1; }   // (by the clock: a quick redraw no longer makes the cursor race)   // (a pass is a whole redraw: held, the cursor steps every pass, and two cells after a while)
         int ux=tr[0]-tr[1], uy=tr[3]-tr[2]; padTrack(pr); padFour(&ux,&uy);
-        if(ux||uy){ int dx=ux+uy, dy=uy-ux; dx=(dx>0)-(dx<0); dy=(dy>0)-(dy<0); ccx+=dx<<fast; ccy+=dy<<fast;   // screen-relative, like the room builder
+        if(pr&K_SEL) selUsed=0;
+        if((k&K_SEL)&&(ux||uy)){ if(uy){ nbBrush=uy<0?1:0; toast(nbBrush?"BRUSH 3 X 3":"BRUSH 1 X 1"); dirty=1; } selUsed=1; ux=uy=0; }   // SELECT + UP / DOWN: a bigger or smaller brush
+        if((k&K_SEL)&&(pr&K_B)){ selUsed=1; pr&=(u16)~K_B; if(nbUndoOk){ for(int y=0;y<NB_H;y++)for(int x=0;x<NB_W;x++) nbT.cell[y][x]=nbUndo[y][x]; nbUndoOk=0; nbCarsInit(); toast("UNDONE"); played=1; dirty=1; } else toast("NOTHING TO UNDO"); }   // SELECT + B: undo the last stroke
+        if(!(k&K_A)) dragLock=0;
+        if((rel&K_A)&&roadsNew){ roadsNew=0; nbCarsInit(); }   // (the stroke is done: the traffic finds its way on the new roads)
+        if(ux||uy){ int dx=ux+uy, dy=uy-ux; dx=(dx>0)-(dx<0); dy=(dy>0)-(dy<0);
+            if((k&K_A)&&tool==2){ if(!dragLock) dragLock=dx?1:2; if(dragLock==1) dy=0; else dx=0; if(!dx&&!dy) goto nbNoMove; }   // ROADS: a held A draws in a straight line (the first way you move)
+            if(dx||dy){ lastDx=dx; lastDy=dy; }
+            ccx+=dx<<fast; ccy+=dy<<fast;   // screen-relative, like the room builder
             if(ccx<0)ccx=0;
             if(ccy<0)ccy=0;
             if(ccx>=NB_W)ccx=NB_W-1;
@@ -910,21 +940,29 @@ static void neighborhoodScreen(void){
             step=1;
             { int hw=nbCamHw(); if(hw){ int ox=((ccx-ccy)-(camx-camy))*hw, oy=((ccx+ccy)-(camx+camy))*(hw/2);   // the cursor's offset from the middle of the screen, in pixels
                 if(ox<-72||ox>72||oy<-28||oy>32){ camx=ccx; camy=ccy; dirty=1; } } } }   // (out of the dead zone: the map follows, centred on the cursor again)
+        nbNoMove:;
         if(!nbMoveMode&&(pr&K_R)){ tool=(tool+1)%5; dirty=1; } if(!nbMoveMode&&(pr&K_L)){ tool=(tool+4)%5; dirty=1; }   // (moving in: the lots only)
-        if(pr&K_SEL){ int n=tool==1?NT_ROAD:tool==2?2:tool==3?DC_N:tool==4?6:1; sub[tool]=(sub[tool]+1)%n; dirty=1; }
+        if((rel&K_SEL)&&!selUsed){ int n=tool==1?NT_ROAD:tool==2?4:tool==3?DC_N:tool==4?6:1; do sub[tool]=(sub[tool]+1)%n; while(tool==3&&NB_ONEWAY(sub[3])); dirty=1; }   // SELECT on its own (let go without UP / DOWN / B): the next kind
         int gw=nbSizes[sub[4]][0], gh=nbSizes[sub[4]][1], gok=nbFree(ccx,ccy,gw,gh,-1);
         int onLot=nbAt(ccx,ccy)>=0;
         if((k&K_A)&&(tool==1||tool==2||tool==3)&&(pr&K_A||ux||uy)){   // painting: hold A and move
-            if(onLot){ if(pr&K_A) toast("THAT IS A LOT"); }
-            else { u8*c=&nbT.cell[ccy][ccx];
+            if(pr&K_A){ for(int y=0;y<NB_H;y++)for(int x=0;x<NB_W;x++) nbUndo[y][x]=nbT.cell[y][x]; nbUndoOk=1; }   // (a new stroke: what it changes can be undone)
+            int bs=(tool==2&&sub[2]!=3)?0:nbBrush;   // (roads are drawn a cell wide; paint, decor and the bulldozer take the brush)
+            if(onLot&&!bs){ if(pr&K_A) toast("THAT IS A LOT"); }
+            else for(int jy=-bs;jy<=bs;jy++)for(int jx=-bs;jx<=bs;jx++){ int x=ccx+jx, y=ccy+jy; if(x<0||y<0||x>=NB_W||y>=NB_H||nbAt(x,y)>=0) continue;
+                u8*c=&nbT.cell[y][x];
                 if(tool==1) *c=(u8)((*c&~7)|sub[1]);
-                else if(tool==2) *c=(u8)(sub[2]?NT_GRASS:NT_ROAD);   // ROADS: lay, or BULLDOZE back to grass
+                else if(tool==2){ static const u8 rk[4]={NT_ROAD,NT_AVENUE,NT_ROAD,NT_GRASS};   // ROADS: road, avenue, one way (an arrow the way you draw), bulldoze
+                    if(sub[2]==2){ static const s8 od[4][2]={{1,0},{-1,0},{0,1},{0,-1}}; int o=0; for(int q=0;q<4;q++) if(od[q][0]==lastDx&&od[q][1]==lastDy) o=q;
+                        *c=(u8)(NT_ROAD|((DC_OWE+o)<<3));
+                        if(ux||uy){ int px_=x-lastDx, py_=y-lastDy; if(px_>=0&&py_>=0&&px_<NB_W&&py_<NB_H&&NB_RD(NB_GR(nbT.cell[py_][px_]))&&nbAt(px_,py_)<0) nbT.cell[py_][px_]=(u8)(NB_GR(nbT.cell[py_][px_])|((DC_OWE+o)<<3)); } }   // (the cell you came from points the same way)
+                    else *c=rk[sub[2]]; }
                 else *c=(u8)((*c&7)|(sub[3]<<3));
-                { int d=NB_DC(*c); if(NB_GR(*c)==NT_WATER&&d!=DC_LAMP&&d!=DC_FOUNTAIN&&d) *c&=7; else if(NB_GR(*c)==NT_ROAD&&d&&!NB_ROADDC(d)) *c&=7; }   // (a road keeps its lights, signs and cones)
+                { int d=NB_DC(*c); if(NB_GR(*c)==NT_WATER&&d!=DC_LAMP&&d!=DC_FOUNTAIN&&d) *c&=7; else if(NB_RD(NB_GR(*c))&&d&&!NB_ROADDC(d)) *c&=7; else if(!NB_RD(NB_GR(*c))&&NB_ONEWAY(d)) *c&=7; }   // (a road keeps its lights, signs, cones and arrows)
                 played=1; }
+            if(tool==2) roadsNew=1;
             dirty=1;
         }
-        if(pr&(K_A|K_B|K_START)) nbCarsOff();   // (a menu or another screen may open: the cars step off first)
         if(pr&K_B){ if(tool){ tool=0; dirty=1; }
             else if(nbMoveMode){ static const char* const it[2]={"KEEP LOOKING","GIVE UP  NOT SAVED"}; if(menu("YOU HAVE NOT MOVED IN",it,2)==1){ nbMoveCancel=1; quit=1; } prev=keyNow(); dirty=1; }
             else quit=1; }
@@ -970,7 +1008,7 @@ static u16 nbThumbCol(const Town*t,int cx,int cy){
         return mid&&L->slot<0?RGB(29,29,29):t->season==3?RGB(28,29,31):RGB(11,22,8); }
     u8 c=t->cell[cy][cx]; int g=NB_GR(c), d=NB_DC(c);
     if(d==DC_TREE||d==DC_PINE||d==DC_BUSH) return t->season==2?RGB(22,12,4):t->season==3?RGB(24,25,27):RGB(4,13,4);
-    switch(g){ case NT_ROAD: return RGB(7,7,8); case NT_WATER: return t->season==3?RGB(22,26,30):RGB(6,13,25); case NT_SAND: return RGB(27,24,15);
+    switch(g){ case NT_ROAD: return RGB(7,7,8); case NT_AVENUE: return RGB(5,5,6); case NT_WATER: return t->season==3?RGB(22,26,30):RGB(6,13,25); case NT_SAND: return RGB(27,24,15);
         case NT_DIRT: return RGB(16,11,6); case NT_PLAZA: return RGB(19,19,18);
         default: { static const u16 gs[4]={RGB(10,21,8),RGB(8,18,5),RGB(17,16,6),RGB(27,28,30)}; return gs[t->season&3]; } }
 }

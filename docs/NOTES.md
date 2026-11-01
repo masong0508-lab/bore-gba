@@ -1304,3 +1304,11 @@ FRONT LINE MODE is now an operation with a squad, orders and reinforcements, not
 **Pose 4, HANDS ON HIPS (`poses.h`, baker in `main.c`):** after ten seconds of standing about, each arm folds at the elbow out to the hip (waiting for you). Baked with the other three at the loading screen; the pose pool grew to 4 KB of EWRAM.
 
 **Town traffic and road tools (`neighborhood.h`):** zoomed in (TOWN > ZOOM: MEDIUM or CLOSE), up to 12 little cars (one per 8 road cells) drive the roads as hardware sprites (OAM 116..127, tile 1016, palettes 12..15), so the map is never redrawn for them. They mostly go straight, turn at junctions, U-turn at dead ends, stop at STOP SIGNS, wait for their side's green at TRAFFIC LIGHTS (the phase flips every 128 frames, the light shows it), and treat ROAD CONES as closed road. ROADS has two modes (SELECT): LAY ROAD and BULLDOZE (back to grass). New DECOR: TRAFFIC LIGHT, STOP SIGN, BUS STOP, HYDRANT, ROAD CONE (new values at the end of the list, so old towns load as they were); lights, signs and cones may stand on a road. Junctions get zebra crossings when zoomed in close.
+
+**Town editor, round 2 (`neighborhood.h`):**
+- ROADS (SELECT cycles): ROAD, AVENUE (a new land type `NT_AVENUE`, darker with a double line; cars drive it twice as fast), ONE WAY (draws road with an arrow the way you move the cursor; cars only enter a one-way cell along its arrow and leave it the same way), BULLDOZE (takes the brush). Holding A in ROADS draws a straight line: the first way you move locks the axis.
+- Brush: SELECT + UP = 3 x 3, SELECT + DOWN = 1 x 1 (paint, decor, bulldoze). SELECT on its own now changes the kind when you let go of it.
+- Undo: SELECT + B undoes the last stroke (a 4 KB copy of the town's cells in EWRAM, taken when A goes down).
+- DECOR: PARKING (a car park with two parked cars). The arrows are not in the DECOR list (the ONE WAY road draws them).
+- Traffic jams: a car waits rather than drive into the one in front going the same way, so queues build up at lights, stop signs and cones.
+- Old towns load unchanged: AVENUE and the new decor values sit at the ends of their lists.
