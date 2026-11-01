@@ -4828,7 +4828,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
 #include "undo.h"   // UNDO / REDO for the room builder (SELECT + B / SELECT + START, and the MAP MENU)
 // ---------- map editor ----------
 // Tools: ROOM (two corners -> walls + floor + a door), WALL (a straight line), FLOOR (fill an area), ITEM (single tiles), ERASE (clear an area).
-enum { MI_TEST, MI_SAVE, MI_UNDO, MI_REDO, MI_LVUP, MI_LVDN, MI_COPY, MI_PASTE, MI_PLANS, MI_OPTS, MI_RESET, MI_BACK, MI_N };
+enum { MI_HELP, MI_TEST, MI_SAVE, MI_UNDO, MI_REDO, MI_LVUP, MI_LVDN, MI_COPY, MI_PASTE, MI_PLANS, MI_OPTS, MI_RESET, MI_BACK, MI_N };
 static char mapUndoNm[12] EWRAM_BSS, mapRedoNm[12] EWRAM_BSS;   // "UNDO 3" / "REDO 1": the steps left, in the MAP MENU
 static const char* const yesNo[2]={"NO","YES RESET"};
 static const char* const toolNm[NTOOL]={"ROOM","WALL","FLOOR","BUY","SELL"};
@@ -4917,8 +4917,8 @@ static void drawEditorHud(const char*msg){
                 if(fl) texSwatch(&flTex[i],xx,140); else wallSwatch(i,xx,140); }
             text(32+5*13+4,142,fl?flTex[eFl].nm:wpName(eWp),WHITE,1); }
         else text(3,142,"SELLS THE WALLS  ITEMS AND FLOORS IN THE AREA",DIMC,1);
-        h1=eTool==T_ROOM?(eAct?"A BUILD THE ROOM  B CANCEL  L R FLOOR  SEL+L R WALL":"A FIRST CORNER  L R FLOOR  SEL+L R WALL"):eTool==T_WALL?(eAct?"A DRAW THE WALL  B CANCEL  L R WALLPAPER":"A START THE WALL  L R WALLPAPER"):eTool==T_FLOOR?(eAct?"A FILL THE AREA  B CANCEL  L R FLOOR":"A FIRST CORNER  L R FLOOR"):(eAct?"A SELL THE AREA  B CANCEL":"A FIRST CORNER  B BACK");
-        h2="SEL+LEFT RIGHT TOOL  SEL BUY  START MENU  SEL+B UNDO";
+        h1=eTool==T_ROOM?(eAct?"A  BUILD THE ROOM    B  CANCEL":"A  FIRST CORNER    L R  FLOOR"):eTool==T_WALL?(eAct?"A  DRAW THE WALL    B  CANCEL":"A  START THE WALL    L R  WALLPAPER"):eTool==T_FLOOR?(eAct?"A  FILL THE AREA    B  CANCEL":"A  FIRST CORNER    L R  FLOOR"):(eAct?"A  SELL THE AREA    B  CANCEL":"A  FIRST CORNER");
+        h2="START  MAP MENU AND CONTROLS";
     } else {
         { int cc=edCatOf(eOb,0), cp=edPos(cc), xx=3; static u8 tab0 EWRAM_BSS;   // the category tabs (26: they scroll so the picked one stays in view), then this category's items
           if(cp<tab0) tab0=(u8)cp;
@@ -4942,8 +4942,8 @@ static void drawEditorHud(const char*msg){
                 case 14:blitItem(V_BED,221,141);break; case 15:blitItem(V_SHOWER,221,141);break; case 16:blitItem(V_SOFA,221,141);break; case 25:blitItem(V_PIPE,221,141);break; case 26:blitItem(V_LAVA,221,141);break; case 27:blitItem(V_BEANBAG,221,141);break; case 28:case 29:drawStairs(221,141,eOb==28);break; case 30:blitItem(V_DEADSET,221,141);break; case 31:blitItem(V_PHONE,221,141);break; case 32:blitItem(V_RADIO,221,141);break; case 33:blitItem(V_STEREO,221,141);break;
                 case 34:blitItem(V_TV,221,141);break; case 35:blitItem(V_SHELF,221,141);break; case 36:blitItem(V_COFFEE,221,141);break; case 37:blitItem(V_AQUA,221,141);break; case 38:blitItem(V_TREAD,221,141);break; case OB_HALF:blitItem(V_QPIPE+((eRot-cview)&3),221,141);break; case 48:blitItem(V_RUG,221,141);break; case 49:blitItem(V_TABLE,221,141);break; case 50:blitItem(V_CHAIR,221,141);break; case 51:blitItem(V_DESK,221,141);break; case 52:blitItem(V_LAMP,221,141);break; case 53:blitItem(V_PLANT,221,141);break; case 54:blitItem(V_DRESSER,221,141);break; case 55:blitItem(V_FIRE,221,141);break; case 56:blitItem(V_COUNTER,221,141);break; case 57:drawPlanterS(221,143,3,3,1,0);break; case 39:case 40:case 41:{ u16 wb[WALL_H]; for(int u=0;u<8;u++){ winCol(eOb-39,0,u,wb); for(int r=0;r<12;r++) px(215+u+(u>3),136+r,wb[3+r*2]); } break; } default:drawSpawn(221,142); } }
         if(eOb==1||eOb==2){ wallSwatch(eWp,212,137); }
-        h1="A BUY  B SELL  HOLD A AND MOVE TO PAINT  SEL+A TURN";
-        h2="L R ITEM  SEL+L R CATEGORY  SEL BUILD  START MENU";
+        h1="A  BUY    B  SELL    L R  ITEM";
+        h2="START  MAP MENU AND CONTROLS";
     }
     if(edStamp){   // COPY AREA / PASTE BLUEPRINT: its own bottom panel
         edPanel(120,SH); rect(0,120,SW,1,RGB(14,20,28)); rect(0,121,SW,1,RGB(2,3,7));
@@ -4952,10 +4952,10 @@ static void drawEditorHud(const char*msg){
         else { int xx=numText(text(6,134,"SIZE",GOLD,1)+3,134,bpW,WHITE)+3; xx=text(xx,134,"X",GOLD,1)+3; xx=numText(xx,134,bpH,WHITE);
             if(!bpFits()) text(xx+8,134,"DOES NOT FIT THIS LOT",RGB(31,10,8),1);
             else if(xo[XO_BUYCOST]){ int n=bpNet(bpOrg(ecx,edX0,edX1,bpW),bpOrg(ecy,edY0,edY1,bpH)); if(n){ int x2=text(120,124,n>0?"COST":"REFUND",DIMC,1)+3; edMoney(b,n>0?n:-n); text(x2,124,b,(n>0&&edCharged()&&n>simMoney)?RGB(31,10,8):WHITE,1); } } }
-        h1=edStamp==1?"A CORNER  A AGAIN COPIES  B CANCEL":"A PASTES HERE  B DONE  MOVE THE OUTLINE";
-        h2=edStamp==1?"START MENU  SEL+B UNDO":"SEL+B UNDO  START MENU  COPY AREA FOR ANOTHER";
+        h1=edStamp==1?(eAct?"A  COPY THE AREA    B  CANCEL":"A  FIRST CORNER    B  DONE"):"A  PASTE HERE    B  DONE";
+        h2="START  MAP MENU AND CONTROLS";
     }
-    text(3,150,h1,RGB(16,18,21),1); text(3,155,h2,RGB(16,18,21),1);
+    text(3,148,h1,RGB(20,22,25),1); text(3,155,h2,RGB(12,14,17),1);
 }
 static void edCamSnap(void){ camX=(ecx-ecy)*CA; camY=24+(ecx+ecy+1)*CB-80; camClamp(1); }
 static int edCamStep(void){   // dead-zone camera: the view only scrolls when the cursor nears the edge of the screen
@@ -5109,9 +5109,15 @@ static void mapEditor(void){
             udEnd();
             const char*mi[MI_N]; { int nu=udCur, nr=udNA-udCur; char*e=mapUndoNm; const char*q="UNDO"; while(*q) *e++=*q++; if(nu){ *e++=' '; e+=numStr(e,nu); } *e=0;
                 e=mapRedoNm; q="REDO"; while(*q) *e++=*q++; if(nr){ *e++=' '; e+=numStr(e,nr); } *e=0; }
-            mi[MI_TEST]="PLAY TEST"; mi[MI_SAVE]="SAVE MAP"; mi[MI_UNDO]=mapUndoNm; mi[MI_REDO]=mapRedoNm; mi[MI_LVUP]="LEVEL UP"; mi[MI_LVDN]="LEVEL DOWN"; mi[MI_COPY]="COPY AREA"; mi[MI_PASTE]=bpW?"PASTE BLUEPRINT":"PASTE (COPY FIRST)"; mi[MI_PLANS]="BLUEPRINTS"; mi[MI_OPTS]="OPTIONS"; mi[MI_RESET]="RESET MAP"; mi[MI_BACK]="BACK";
+            mi[MI_HELP]="CONTROLS"; mi[MI_TEST]="PLAY TEST"; mi[MI_SAVE]="SAVE MAP"; mi[MI_UNDO]=mapUndoNm; mi[MI_REDO]=mapRedoNm; mi[MI_LVUP]="LEVEL UP"; mi[MI_LVDN]="LEVEL DOWN"; mi[MI_COPY]="COPY AREA"; mi[MI_PASTE]=bpW?"PASTE BLUEPRINT":"PASTE (COPY FIRST)"; mi[MI_PLANS]="BLUEPRINTS"; mi[MI_OPTS]="OPTIONS"; mi[MI_RESET]="RESET MAP"; mi[MI_BACK]="BACK";
             int c=menu("MAP MENU",mi,MI_N);
-            if(c==MI_TEST){ edCashSave(); mapScan(); lifeMode(1); }
+            if(c==MI_HELP){   // every key of build and buy in one place (the bottom line only says what A and B do right now)
+                static const char* const p1[]={">MOVING ABOUT","D-PAD|MOVE (HOLD: FASTER)","SELECT + UP DOWN|ZOOM IN AND OUT","L + R + UP DOWN|FLOOR ABOVE OR BELOW","SELECT|BUILD OR BUY","START|THIS MENU",
+                    ">EVERY TOOL","SELECT + B|UNDO","SELECT + START|REDO"};
+                static const char* const p2[]={">BUILD","SELECT + < >|ROOM  WALL  FLOOR  SELL","A  THEN A|FIRST CORNER, THEN BUILD","B|CANCEL","L  R|FLOOR PATTERN","SELECT + L  R|WALLPAPER",
+                    ">BUY","A|BUY ONE HERE","HOLD A + MOVE|PAINT A ROW","B|SELL WHAT IS HERE","L  R|NEXT ITEM","SELECT + L  R|NEXT CATEGORY","SELECT + A|TURN IT"};
+                helpScreen("CONTROLS  1 OF 2",p1,(int)(sizeof p1/sizeof p1[0])); helpScreen("CONTROLS  2 OF 2",p2,(int)(sizeof p2/sizeof p2[0])); }
+            else if(c==MI_TEST){ edCashSave(); mapScan(); lifeMode(1); }
             else if(c==MI_UNDO||c==MI_REDO){ eAct=0; const char*r=c==MI_UNDO?udUndo():udRedo(); toast(r); }
             else if(c==MI_LVUP||c==MI_LVDN){ int nf=curFl+(c==MI_LVUP?1:-1); udEnd(); eAct=0;   // the floor above / below (stairs: the ^ and ~ items)
                 if(nf>=0&&nf<FLR_N){ if(flGo(nf)) toast(flNm[nf]); else toast("TOO MUCH BUILT TO CHANGE FLOOR"); } else toast(nf<0?"NO FLOOR BELOW":"NO FLOOR ABOVE"); }
