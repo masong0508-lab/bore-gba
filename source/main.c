@@ -4688,7 +4688,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
           if((k&K_SEL)&&(pr&(K_A|K_B))&&lcamF==0){ selArm=0; peekStep((pr&K_A)?1:-1); }   // SELECT + A / B: look at the floor above / below (the FLOOR PEEK macro)
           if(k&K_SEL){ k&=(u16)~(K_UP|K_DOWN|K_L|K_R|K_A|K_B); pr&=(u16)~(K_UP|K_DOWN|K_L|K_R|K_A|K_B); }   // (SELECT held: UP / DOWN do not walk, L / R do not swap the board or interact)
           if(selArm&&!(k&K_SEL)){ selArm=0;
-              if(hzOn&&hzWar&&hzSquadN()) hzOrderCycle();   // (FRONT LINE: SELECT gives the squad its next order)
+              if(hzOn&&hzSquadN()) hzOrderCycle();   // (FRONT LINE: SELECT gives the squad its next order)
               else if(!hhN){ lnote="NO ONE ELSE LIVES HERE"; lnoteT=60; }
               else if(custom){ lnote="HAND BUILT SIMS CANNOT SWITCH"; lnoteT=60; }
               else if(prIn()) prSelect();   // prison.h: out of the cell, home as the next Sim

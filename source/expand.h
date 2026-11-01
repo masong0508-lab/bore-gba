@@ -874,14 +874,17 @@ static int exNext(int p,int m){ for(int i=m+1;i<xPk[p].n;i++) if(!exSoon(p,i)) r
 //   to the edge of the tile you stand next to, so a jab always reaches the one that can bite you.
 // A KNOCK-OUT DAZES A BOREZIE (it sees stars for about two seconds) instead of getting up at once: a dazed one is cured by any cheerful social, and a
 //   dazed one cannot be hit. So the way to play it is punch, punch, joke.
-enum { XH_NONE, XH_BORE, XH_SOLD, XH_CHAL, XH_SPRINT, XH_BRUTE, XH_BOSS, XH_N };
+enum { XH_NONE, XH_BORE, XH_SOLD, XH_CHAL, XH_SPRINT, XH_BRUTE, XH_BOSS, XH_SCREAM, XH_BLOAT, XH_N };   // (XH_SCREAM: a SCREAMER calls more of them; XH_BLOAT: a BLOATER bursts when it goes down)
 static inline int exBz(int kind){ return kind==XH_BORE||kind>=XH_SPRINT; }   // a member of the Borezie family
-static const u8  exHSpd[XH_N]={0,50,100,100,110,50,60};        // pace: percent of a walking step each tick
-static const u8  exHStg[XH_N]={0,24,24,24,18,12,6};            // steps it reels from a blow
-static const u8  exHCdT[XH_N]={0,70,85,75,45,95,60};           // steps between its attacks
-static const u16 exHArmT[XH_N]={0,170,100,100,220,70,25};      // percent of a blow that lands on it (a Borezie is soft: four blows; a sprinter is frail; the heavy ones soak)
-static const u8  exHBite[XH_N]={0,10,0,0,6,16,22};             // fun a bite takes
-static const u8  exHNeed[XH_N]={0,1,1,1,1,2,4};                // cheer-ups it takes to cure it
+static const u8  exHSpd[XH_N]={0,50,100,100,110,50,60,80,40};        // pace: percent of a walking step each tick
+static const u8  exHStg[XH_N]={0,24,24,24,18,12,6,16,22};            // steps it reels from a blow
+static const u8  exHCdT[XH_N]={0,70,85,75,45,95,60,80,100};           // steps between its attacks
+static const u16 exHArmT[XH_N]={0,170,100,100,220,70,25,150,55};      // percent of a blow that lands on it (a Borezie is soft: four blows; a sprinter is frail; the heavy ones soak)
+static const u8  exHBite[XH_N]={0,10,0,0,6,16,22,4,12};             // fun a bite takes
+static const u8  exHNeed[XH_N]={0,1,1,1,1,2,4,2,3};
+static const u8  exHInf[XH_N]={0,6,0,0,4,10,15,5,9};   // HORDE MODE: how much of INFECTION (out of 100) a bite adds
+static u8 exHScr[TW_N];   // a SCREAMER's steps since it last called for more
+static void hzInfect(int kind); static void hzInfCure(void); static int hzSquadN(void);   // horde.h                // cheer-ups it takes to cure it
 #define EX_BITE 300    // how far (1/256 tiles) a Borezie can bite from; a jab reaches 304 (fight.h fgReach)
 #define EX_CLOSE 150   // how close it comes (straight at you, inside its own tile) once its path has brought it next to you
 #define XH_ALLY 9   // (only ever an exHPend value or a tint: a recruit of your squad instead of an enemy)
@@ -914,6 +917,8 @@ static void exTint(int k,int kind){   // a Borezie goes grey-green, a sprinter s
         case XH_BRUTE:  r=l+5; g=l*2/5; b=l/3+2; break;
         case XH_BOSS:   r=l*3/4+5; g=l*5/6+6; b=l+6; break;
         case XH_ALLY:   r=l/2+1; g=l*3/4+4; b=l+8; break;   // YOUR squad: blue
+        case XH_SCREAM: r=l*3/4+5; g=l/3; b=l+5; break;     // a screamer: bruise purple
+        case XH_BLOAT:  r=l+3; g=l+6; b=l/4; break;         // a bloater: swollen and sickly yellow
         default:        r=(r+l+14)/3; g=(g+l+12)/3; b=(b+l)/4; }
         p[c]=RGB(r>31?31:r,g>31?31:g,b>31?31:b); }
     exPalBad(v);
@@ -934,8 +939,14 @@ static int exMKind(void){   // the mission's mix: Borezies, with sprinters, brut
     if(exP!=XP_ZOMB+1) return XH_BORE;
     int r=rnd8(), m=exM; exHArr++;
     if(m==4&&exHArr==3) return XH_BOSS;
-    if(m>=3&&r<100) return XH_SPRINT; if(m>=1&&m!=3&&r<70) return XH_SPRINT; if(m>=2&&r>=210) return XH_BRUTE;
+    if(m>=3&&r<100) return XH_SPRINT; if(m>=1&&m!=3&&r<70) return XH_SPRINT; if(m>=2&&r>=210) return XH_BRUTE; if(m>=1&&r>=170&&r<190) return XH_BLOAT;
     return XH_BORE;
+}
+static int hzScreamCall(void);   // horde.h: one more to the wave, if the wave can take it
+static void exBurst(int k){   // a BLOATER goes down: it bursts. Anyone close is bored stiff for a moment
+    if(exHT[k]!=XH_BLOAT) return; HhSim*b=&hhM[TW_V(k)]; s32 dx=b->fx-lfx, dy=b->fy-lfy;
+    if((int)((dx*dx+dy*dy)>>8)<(480*480>>8)){ moodFun=moodClamp(moodFun-14*MOOD_ONE); lstun=20; lnote="THE BLOATER BURSTS  YOU ARE SO BORED"; lnoteT=90; sfxPlay(SFX_GASP); }
+    for(int j=0;j<TW_N;j++){ if(!exAlly[j]||!twOn[j]) continue; HhSim*a=&hhM[TW_V(j)]; s32 ax=b->fx-a->fx, ay=b->fy-a->fy; if((int)((ax*ax+ay*ay)>>8)<(480*480>>8)&&a->hp>25) a->hp=(u8)(a->hp-20); }
 }
 static void exHStats(int k,int kind){ int pc=exHSpd[kind]*hzSpeedPct()/100, ar=exHArmT[kind]*100/hzToughPct(); exHPc[k]=(u16)(pc>250?250:pc<20?20:pc); exHAr[k]=(u16)(ar<4?4:ar>400?400:ar); exHN[k]=exHNeed[kind]; }
 static void exHWarStats(int k){   // FRONT LINE: the soldier's rank sets its pace and how much a blow does to it
@@ -944,17 +955,18 @@ static void exHWarStats(int k){   // FRONT LINE: the soldier's rank sets its pac
     exHPc[k]=(u16)(pc>250?250:pc<20?20:pc); exHAr[k]=(u16)(ar<4?4:ar>400?400:ar);
 }
 static void exHMake(int k,int kind){   // visitor k turns hostile
-    HhSim*s=&hhM[TW_V(k)]; exTint(k,exAlly[k]?XH_ALLY:kind); exHT[k]=(u8)kind; exHA[k]=0; exHS[k]=0; exHHp[k]=s->hp=HP_MAX; exHStats(k,kind); if(hzOn&&hzWar){ exHWarStats(k); if(exAlly[k]){ exHPc[k]=115; exHAr[k]=80; } else if(hzStrike){ s->hp=HP_MAX/2; exHHp[k]=s->hp; } } exHAcc[k]=0; exHR[k]=0; exHW[k]=0; exHDz[k]=0; exHDie[k]=0; exHTx[k]=exHTy[k]=0;
+    HhSim*s=&hhM[TW_V(k)]; exTint(k,exAlly[k]?XH_ALLY:kind); exHT[k]=(u8)kind; exHA[k]=0; exHS[k]=0; exHHp[k]=s->hp=HP_MAX; exHStats(k,kind); if(exAlly[k]){ exHPc[k]=115; exHAr[k]=80; } else if(hzOn&&hzWar){ exHWarStats(k); if(hzStrike){ s->hp=HP_MAX/2; exHHp[k]=s->hp; } } exHAcc[k]=0; exHR[k]=0; exHW[k]=0; exHDz[k]=0; exHDie[k]=0; exHTx[k]=exHTy[k]=0;
     char*e=exB; int say=!hzOn||kind==XH_BOSS;   // (HORDE MODE keeps the top bar for the wave: only a boss gets a note)
-    if(hzOn&&hzWar&&exAlly[k]){ e=simCat(e,"RECRUIT  "); e=simCat(e,s->name); simCat(e,"  REPORTS FOR DUTY"); lnote=exB; lnoteT=90; return; }
-    if(exBz(kind)){ e=simCat(e,kind==XH_BOSS?"PATIENT ZERO  ":kind==XH_SPRINT?"A FIDGETY BOREZIE  ":kind==XH_BRUTE?"A HEAVY BOREZIE  ":"A BOREZIE SHAMBLES IN  "); simCat(e,s->name); if(say||!sSnd) exGroan(s->uid); }
+    if(hzOn&&exAlly[k]){ if(hzWar){ e=simCat(e,"RECRUIT  "); e=simCat(e,s->name); simCat(e,"  REPORTS FOR DUTY"); } else { e=simCat(e,"SURVIVOR  "); e=simCat(e,s->name); simCat(e,"  JOINS THE FIGHT"); } lnote=exB; lnoteT=90; return; }
+    if(exBz(kind)){ e=simCat(e,kind==XH_BOSS?"PATIENT ZERO  ":kind==XH_SPRINT?"A FIDGETY BOREZIE  ":kind==XH_BRUTE?"A HEAVY BOREZIE  ":kind==XH_SCREAM?"A SCREAMER  ":kind==XH_BLOAT?"A BLOATER  ":"A BOREZIE SHAMBLES IN  "); simCat(e,s->name); if(say||!sSnd) exGroan(s->uid); if(kind==XH_SCREAM||kind==XH_BLOAT){ lnote=exB; lnoteT=110; } }
     else if(kind==2){ e=simCat(e,hzOn&&hzWar&&exHVar[k]==XH_BOSS?"THE GENERAL  ":"ENEMY SOLDIER  "); simCat(e,s->name); voxSay(s->uid,V_lets_fight); if(hzOn&&hzWar&&exHVar[k]==XH_BOSS){ lnote=exB; lnoteT=150; } }
     else { e=simCat(e,s->name); simCat(e," WANTS A FIGHT"); voxSay(s->uid,V_lets_fight); exSpar=0; }
     if(say){ lnote=exB; lnoteT=150; }
 }
 static void exHArrive(int k){   // twTick: visitor k starts walking in
     int kind=exHKind(); if(!kind) return;
-    if(hzOn){ kind=exHPend[k]?exHPend[k]:XH_BORE; exHPend[k]=0; exAlly[k]=0; if(hzWar){ if(kind==XH_ALLY){ exAlly[k]=1; exHVar[k]=0; } else exHVar[k]=(u8)kind; kind=XH_SOLD; } } else if(kind==XH_BORE) kind=exMKind();
+    if(hzOn){ kind=exHPend[k]?exHPend[k]:XH_BORE; exHPend[k]=0; exAlly[k]=0; exHScr[k]=0;
+        if(kind==XH_ALLY){ exAlly[k]=1; exHVar[k]=0; kind=XH_SOLD; } else if(hzWar){ exHVar[k]=(u8)kind; kind=XH_SOLD; } } else if(kind==XH_BORE) kind=exMKind();
     exHMake(k,kind);
 }
 static void exFaceTo(HhSim*s,s32 tx,s32 ty){ s32 dx=tx-s->fx, dy=ty-s->fy; s->hd=(u8)((dx<0?-dx:dx)>(dy<0?-dy:dy)?(dx>0?0:8):(dy>0?4:12)); }   // face a point
@@ -986,7 +998,7 @@ static void exBite(int k,HhSim*s){   // a Borezie gets to you: it is SO boring
     int blocking=fgG&&fgCd==0&&(bdx*fax+bdy*fay>=0);
     if(blocking&&fgGT<=FG_PARRY){ exHS[k]=60; exHA[k]=0; fgPar=50; exIF=25; sfxPlay(SFX_HIT); hhSay(s->uid,IC_BAIL,"WHOA"); lnote="PARRY"; lnoteT=50; specAdd(100); stQEvent(QE_PARRY,1); return; }
     if(blocking){ moodFun=moodClamp(moodFun-(fun/4>0?fun/4:1)*MOOD_ONE); exIF=25; sfxPlay(SFX_HIT); lnote="BLOCKED"; lnoteT=40; hhSay(s->uid,IC_SAD,"BOOORE"); return; }
-    moodFun=moodClamp(moodFun-fun*MOOD_ONE); if(sSoc>4) sSoc-=4; lstun=10; lsp=0; lgrind=0; exIF=45;
+    moodFun=moodClamp(moodFun-fun*MOOD_ONE); if(sSoc>4) sSoc-=4; lstun=10; lsp=0; lgrind=0; exIF=45; if(hzOn&&!hzWar) hzInfect(kind);
     exPush(s->fx,s->fy,kind==XH_BRUTE||kind==XH_BOSS?90:40);
     static const char* const moan[4]={"BOOORE","BRAAAINS ARE BORING","TELL ME ABOUT TAXES","LET ME SHOW YOU MY SPREADSHEET"};
     hhSay(s->uid,IC_SAD,"BOOORE"); exGroan(s->uid);
@@ -995,7 +1007,7 @@ static void exBite(int k,HhSim*s){   // a Borezie gets to you: it is SO boring
 }
 // ---- FRONT LINE: THE SQUAD. Recruits come in at the gate (the visitor places), fight beside you on your orders, earn stripes and fall like cannon fodder ----
 static void exAllyKill(int k,int j){   // squad member k knocked enemy j out: it is down for good, and k may earn a stripe
-    HhSim*e=&hhM[TW_V(j)]; hzKillScore(exHVar[j]?exHVar[j]:XH_BORE,0); exRestorePal(j); exHDie[j]=44; exHDz[j]=0; e->act=HA_SOC; e->t=600; voxSay(e->uid,V_lost_the_fight);
+    HhSim*e=&hhM[TW_V(j)]; exBurst(j); hzKillScore(exHT[j]!=XH_SOLD?exHT[j]:exHVar[j]?exHVar[j]:XH_BORE,0); exRestorePal(j); exHDie[j]=44; exHDz[j]=0; e->act=HA_SOC; e->t=600; voxSay(e->uid,V_lost_the_fight);
     int r0=exARank(exAKills[k]); if(exAKills[k]<250) exAKills[k]++; int r1=exARank(exAKills[k]);
     if(r1>r0){ HhSim*a=&hhM[TW_V(k)]; char*q=simCat(exB,exARankNm[r1]); *q++=' '; q=simCat(q,a->name); simCat(q,"  PROMOTED"); lnote=exB; lnoteT=110; sfxPlay(SFX_STICK); a->bub=IC_STAR; a->bubT=90; }
 }
@@ -1065,7 +1077,7 @@ static int exHStay(int k,int*planned){   // a hostile visitor on the lot: chase 
     if(s->hp<exHHp[k]){ exHS[k]=exHStg[kind]; exHA[k]=0; exHW[k]=0; }   // a blow landed: it reels, and its wind-up starts again
     exHHp[k]=s->hp; if(!hzOn&&s->hp<HP_MAX&&(lfr&63)==0) s->hp++;
     if(exHS[k]){ exHS[k]--; return 1; }
-    s32 tfx=lfx, tfy=lfy; int tal=-1; if(hzOn&&hzWar) tal=exFoeAlly(k,s,&tfx,&tfy);   // (FRONT LINE: it may go for one of your squad instead of you)
+    s32 tfx=lfx, tfy=lfy; int tal=-1; if(hzOn&&(hzWar||hzSquadN())) tal=exFoeAlly(k,s,&tfx,&tfy);   // (it may go for one of your squad, or a survivor, instead of you)
     if(curFl||(tal<0&&(ldead||prIn()||simAct))) return 1;   // (not while you are upstairs, down, inside or asleep)
     s32 dx=s->fx-tfx, dy=s->fy-tfy; int d2=(int)((dx*dx+dy*dy)>>8);
     if(d2>(EX_BITE*EX_BITE>>8)){   // far: walk at you at its own pace (the path ends next to you; then it closes in)
@@ -1080,6 +1092,7 @@ static int exHStay(int k,int*planned){   // a hostile visitor on the lot: chase 
         return 1; }
     s->pn=s->pi=0; s->act=HA_IDLE; exFaceTo(s,tfx,tfy); exHR[k]=0;
     exHNudge(k,s,dx,dy);   // (still closing in to the edge of its tile while it winds up)
+    if(kind==XH_SCREAM&&hzOn&&!hzWar&&++exHScr[k]>=200){ exHScr[k]=0; if(hzScreamCall()){ hhSay(s->uid,IC_SAD,"BOOOORE"); exGroan(s->uid); lnote="THE SCREAMER CALLS FOR MORE"; lnoteT=90; } }   // (it calls the horde: kill it first)
     int lim=exHCdT[kind]; if(hzOn) lim=lim*100/(hzSpeedPct()<60?60:hzSpeedPct());
     if(hzOn&&hzWar){ int v=exHVar[k]; lim=v==XH_SPRINT?lim*65/100:v==XH_BRUTE?lim*115/100:v==XH_BOSS?lim*80/100:lim; }   // (a scout swings quickly, a sergeant slowly)
     exHA[k]++;
@@ -1087,8 +1100,8 @@ static int exHStay(int k,int*planned){   // a hostile visitor on the lot: chase 
     if(exHA[k]<lim) return 1;
     exHA[k]=0; exHW[k]=0;
     if(!wallClear(s->fx,s->fy,tfx,tfy)) return 1;
+    if(tal>=0){ fightHit(s->uid,hhM[TW_V(tal)].uid); sfxPlay(SFX_HIT); return 1; }   // (a swing or a bite at one of your squad)
     if(exBz(kind)){ exBite(k,s); return 1; }
-    if(tal>=0){ fightHit(s->uid,hhM[TW_V(tal)].uid); sfxPlay(SFX_HIT); return 1; }   // (a swing at one of your squad)
     if(fgOk()){ if(!fgFoeT){ fgFoe=s->uid; fgFoeT=22; fgMode=300; } }   // it winds up (HIYAH at 14 steps: guard!) and swings (fight.h fgCounter)
     else socDo(s->uid,hhPUid,SC_SHOVE);   // (on a board, or too young for fists: a shove)
     return 1;
@@ -1106,7 +1119,7 @@ static void exCountUp(int kind){
 static void exCure(int k){   // a Borezie laughs and comes back to life
     HhSim*s=&hhM[TW_V(k)]; int u=s->uid, kind=exHT[k];
     if(hhPUid>=0&&hhPUid<RU_N&&u<RU_N){ relD[u][hhPUid]=(signed char)clampR(relD[u][hhPUid]+15); relL[u][hhPUid]=(signed char)clampR(relL[u][hhPUid]+8); }
-    hhSay(u,IC_STAR,"I FEEL ALIVE"); moodEvent(M_WANT); stQEvent(QE_ZCURE,1); if(kind==XH_BOSS) stQEvent(QE_ZERO,1); exCountUp(1);
+    hhSay(u,IC_STAR,"I FEEL ALIVE"); moodEvent(M_WANT); stQEvent(QE_ZCURE,1); if(kind==XH_BOSS) stQEvent(QE_ZERO,1); exCountUp(1); exBurst(k); if(hzOn) hzInfCure();
     if(hzOn){ hzKillScore(kind,1); exRestorePal(k); exHDz[k]=0; exHDie[k]=36; s->act=HA_SOC; s->t=600; }   // (HORDE MODE: its own colours, a wave goodbye, and it is gone)
     else { exUntint(k); twWait[k]=(short)(420+rnd8()); }
 }
@@ -1134,7 +1147,7 @@ static void exKO(int uid){   // house.h fightHit: you knocked someone out
     if(!uGuest(uid)) return; int k=uid-GU0; if(k<0||k>=TW_N||!exHT[k]||exHDie[k]) return;
     HhSim*s=&hhM[TW_V(k)]; int kind=exHT[k];
     if(exBz(kind)){
-        if(hzOn&&hzCureRule()!=1){ hzKillScore(kind,0); exHDie[k]=44; exHDz[k]=0; voxSay(uid,V_lost_the_fight); return; }   // (HORDE MODE: a knock-out is a kill)
+        if(hzOn&&hzCureRule()!=1){ exBurst(k); hzKillScore(kind,0); exHDie[k]=44; exHDz[k]=0; voxSay(uid,V_lost_the_fight); return; }   // (HORDE MODE: a knock-out is a kill)
         exHDz[k]=hzOn?110:150; s->act=HA_SOC; s->t=600; exHHp[k]=s->hp; exHW[k]=0; exHA[k]=0;
         lnote="IT SEES STARS  QUICK  CHEER IT UP"; lnoteT=110; exGroan(uid); return; }   // DAZED (the missions): fists and fun work together
     if(hzOn&&hzWar){ hzKillScore(exHVar[k]?exHVar[k]:XH_BORE,0); exRestorePal(k); exHDie[k]=44; exHDz[k]=0; s->act=HA_SOC; s->t=600; voxSay(uid,V_lost_the_fight); return; }   // (FRONT LINE: a knock-out is a kill)
