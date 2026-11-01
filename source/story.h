@@ -296,6 +296,21 @@ static const StQ stqT[5][5]={
     { {TQ_DAYS,5}, {TQ_FRIENDS,2}, {TQ_MONEY,12000}, {TQ_HAPPY,1}, {TQ_PLUG,1} },                          // 4 you are Mamesy: hold on, and keep the hospital from pulling the plug
     { {TQ_CLEAN,10}, {TQ_FRIENDS,4}, {TQ_HOUSE,4}, {TQ_MONEY,40000}, {TQ_HAPPY,1} } };                     // 5 the comeback: all of it, together
 static const u8 stqN[5]={3,4,5,5,5};
+// CONTINUITY (mission pass 2): every goal says what it means in the story, every chapter card opens with what just happened, and reaching a goal plays a
+// line of the story (who calls, what changes). Same order as stqT.
+static const char* const stqL[5][5]={
+    {"HAVE SOMEONE OVER TO SAY SORRY TO","FRIEND WHO STILL PICKS UP","SIMOLEONS FOR THE LAWYER"},
+    {"DAYS CLEAN FOR THE NETWORK","FRIENDS IN HER CORNER","SIMOLEONS PUT AWAY","FEEL LIKE HERSELF AGAIN"},
+    {"SIMS UNDER HER ROOF","DAYS CLEAN WITH CAMERAS OUT","SIMOLEONS FROM THE DEAL","FRIENDS WHO STAYED","LOCKS ON THE GATE"},
+    {"DAYS AT HER BEDSIDE","FRIENDS WHO VISIT","SIMOLEONS FOR THE BILLS","KEEP YOUR CHIN UP",0},
+    {"DAYS CLEAN","FRIENDS IN THE FRONT ROW","SIMS AT HOME","SIMOLEONS FOR THE COMEBACK","BE HAPPY. MEAN IT."} };
+static const char* const stqWhy[5]={"THE MORNING AFTER THE CLIP. START SMALL.","THE OFFER: ONE CLEAN WEEK OR NO SHOW.","THE DEAL BOUGHT A HOUSE. NOW THE GATE.","SHE FELL. YOU ARE MAMESY. HOLD ON.","SHE WOKE UP. ONE MORE SHOW, DONE RIGHT."};
+static const char* const stqBeat[5][5]={
+    {"Mamesy came by. Coffee, no lecture.","Dex texts: Still here. Call me.","The lawyer is paid. One fire out."},
+    {"Seven days. Vance calls it a start.","Two friends who don't want a clip.","Savings: a cushion, not a bottle.","She laughed today. A real one."},
+    {"A full house. Nobody here alone.","Clean, with a crew camped outside.","The deal clears. Vance smiles too much.","Friends who stayed when it got ugly.","The gate locks. The phones stay out."},
+    {"Five days. Okafor stops saying if.","Visitors bring flowers and bad jokes.","The bills are paid. For now.","You smile at her. Her finger moves.","Okafor backs off. Not tonight."},
+    {"Ten days. The longest she has gone.","Four friends. Front row, all of them.","Loud dinners at home again.","The comeback money is real.","Happy. Not for a camera."} };
 static u8 stqDay(void){ u8 b=(u8)(simDay&255); return b==255?254:b; }
 static int stqDays(void){ return stKidDay==255?0:((simDay&255)-stKidDay)&255; }
 static int stqVal(const StQ*q){
@@ -316,10 +331,11 @@ static int stqDone(void){ if(stCh>=5) return 0; int n=0; for(int i=0;i<stqN[stCh
 static int stqAll(void){ return stCh<5&&stqDone()==stqN[stCh]; }
 static void stqText(const StQ*q,char*b){   // one goal line, b at least 44 long: "+ 5 OF 7 DAYS CLEAN" / "- 1 OF 4 FRIENDS"
     int v=stqVal(q); char*e=slCat(b,stqOk(q)?"+ ":"- ");
-    if(q->k==TQ_GUEST||q->k==TQ_HAPPY){ slCat(e,stqNm[q->k]); return; }
+    const char*nm=stqNm[q->k]; { int ix=(int)(q-&stqT[stCh][0]); if(stCh<5&&ix>=0&&ix<stqN[stCh]&&stqL[stCh][ix]) nm=stqL[stCh][ix]; }   // (the story's own words for it)
+    if(q->k==TQ_GUEST||q->k==TQ_HAPPY){ slCat(e,nm); return; }
     if(q->k==TQ_PLUG){ e=slCat(e,"PLUG PRESSURE "); e=slNum(e,plugV); slCat(e," OF 60 MAX"); return; }
     if(v>(int)q->n) v=(int)q->n;
-    e=slNum(e,v); e=slCat(e," OF "); e=slNum(e,(int)q->n); e=slCat(e," "); slCat(e,stqNm[q->k]);
+    e=slNum(e,v); e=slCat(e," OF "); e=slNum(e,(int)q->n); e=slCat(e," "); slCat(e,nm);
 }
 static void stqList(int x,int y,int dy){ if(stCh>=5) return; for(int i=0;i<stqN[stCh];i++){ char b[48]; stqText(&stqT[stCh][i],b); text(x,y+i*dy,b,b[0]=='+'?RGB(10,28,12):WHITE,1); } }
 static void stTvEvent(int ev){   // sims.h simEventV calls this for every game event: a puff or a collapse in chapters 2, 3 and 5 starts the clock again
@@ -574,7 +590,14 @@ static void stTkList(int x,int y,int dy){   // the tasks of the chapter, ticked:
     const StB*b=stBkNow(); int n=stTkN(b);
     for(int i=0;i<n;i++){ int ok=stTkL>>i&1; char l[48]; char*e=slCat(l,ok?"+ ":"- "); slCat(e,b->t[i].nm); text(x,y+i*dy,l,ok?RGB(10,28,12):WHITE,1); }
 }
-static void stTick(void){ papTick(); plugTick(); stTick0(); if(stTvWant&&stId==STY_TVSHOW){ static u8 tc; if(++tc>=60){ tc=0; stTvControl(); } } }   // (TV SHOW & TELL: keep asking while the hand-over is waiting)
+static void stqBeatTick(void){   // a goal reached for the first time this chapter: its line of the story (goals already met when the chapter or the game starts stay quiet)
+    static u8 ch=255, got; static u16 id=0xFFFF; if(stId!=STY_TVSHOW||stCh>=5||stKidDay==255){ ch=255; return; }
+    u8 now=0; for(int i=0;i<stqN[stCh];i++) if(stqOk(&stqT[stCh][i])) now|=(u8)(1<<i);
+    if(ch!=stCh||id!=stId){ ch=(u8)stCh; id=(u16)stId; got=now; return; }
+    u8 nw=(u8)(now&~got); if(!nw) return; got|=nw;
+    for(int i=0;i<stqN[stCh];i++) if((nw>>i)&1){ lnote=stqBeat[stCh][i]; lnoteT=150; sfxPlay(SFX_POP); break; }
+}
+static void stTick(void){ { static u8 bt; if(++bt>=45){ bt=0; stqBeatTick(); } } papTick(); plugTick(); stTick0(); if(stTvWant&&stId==STY_TVSHOW){ static u8 tc; if(++tc>=60){ tc=0; stTvControl(); } } }   // (TV SHOW & TELL: keep asking while the hand-over is waiting)
 static void stFix(void);
 static void stEnter(void){ stLoad(); stFix(); if(stId){ stAnnounce(); if(stShown!=(u16)(stId*16+stCh+1)){ stShown=(u16)(stId*16+stCh+1); stModal=1; } } }   // (a chapter card once per chapter and power on)   // entering the life game: the current goal on the top bar
 // ---- the look: Sims 2 / Life Stories panels (the pieces live in main.c next to HOW TO PLAY) ----
@@ -754,7 +777,7 @@ static void stRunModal0(void){
             text(16,97,bk->br[0],RGB(20,26,31),1); text(16,105,bk->br[1],RGB(20,26,31),1);
             if(c->goal==SG_TASKS) stTkList(16,114,8); else if(c->goal==SG_KID) text(16,114,"+ A CHILD COMES HOME",WHITE,1);
         } else {
-        text(16,90,kind==2?(end?"THE END, IS HERE TODAY":"NEXT CHAPTER"):(end?"THE END, IS HERE TODAY":c->goal==SG_MULTI?"ALL OF THESE AT ONCE":"YOUR GOAL"),GOLD,1);
+        text(16,90,(stId==STY_TVSHOW&&!end&&stCh<5)?stqWhy[stCh]:kind==2?(end?"THE END, IS HERE TODAY":"NEXT CHAPTER"):(end?"THE END, IS HERE TODAY":c->goal==SG_MULTI?"ALL OF THESE AT ONCE":"YOUR GOAL"),GOLD,1);   // (TV SHOW & TELL: what just happened, in one line)
         if(c->goal!=SG_MULTI||end) text(16,102,end?(kind==2?"YOUR STORY GOES ON  KEEP PLAYING":"YOUR STORY GOES ON  KEEP PLAYING"):c->nm,WHITE,1);
         if(!end&&c->goal!=SG_MULTI){ char b[16]; if(stProg(c,b)) text(16,112,b,RGB(20,26,31),1); } }
         if(stId==STY_TVSHOW&&!end&&stCh<5) stqList(16,99,8);   // (the goals of the chapter, ticked as they hold)   // (what this chapter is about)
