@@ -221,7 +221,7 @@ static const char xnw2Out[]=
 static const char xnw3In[]=
   "Intelligence says the Eastern Army has acquired a super soaker. It holds two litres. It has a pump action. Command has looked at your garden hose and gone quiet.|"
   "General Hedgewick presses a form into your hand. It is the requisition form, in triplicate, and it has been stamped by a man who does not know what a requisition is.|"
-  "Go to the arms shop. Requisition a proper weapon. The man behind the counter has seen everything and enjoyed none of it. Be polite. He has a very large drawer.";
+  "Go to the arms shop. Requisition a proper weapon. The man behind the counter has seen everything and enjoyed none of it. Be polite. He has a very large drawer. Command has also sent a grant of 1500 simoleons, to be spent as if it were your own, only wiser.";
 static const char xnw3Out[]=
   "The man behind the counter looked at your form for a long time and then at you for a longer time. He sold you something heavy, wrapped in paper. He did not say a word.|"
   "You carried it home as if it were a cake. General Hedgewick unwrapped it, nodded, and wrapped it up again. We will not be needing the hose, he said.";
@@ -265,7 +265,7 @@ static const XMs xmWar[]={
      TS(SC_ARGUE,"DEBATE THE ENEMY ENVOY"),TK(QK_FRIENDS,2,"ENLIST 2 RECRUITS")),
   XMS("BOOT CAMP","The Bore Defence Force needs soldiers, and you are the only volunteer.","Report to the gym, survive the sergeant's spin class, and get fit for duty.",XS_NONE,35,AMAP_HOME,xnw2In,xnw2Out,
      TA(CT_GYM,"REPORT TO THE GYM"),TD(VA_SPIN,"SURVIVE THE SARGE'S SPIN CLASS"),TL(SK_BODY,2,"REACH BODY LEVEL 2")),
-  XMS("REQUISITION","Intelligence says the enemy has a super soaker, and command wants something bigger.","Visit the arms shop and requisition a weapon.",XS_NONE,40,AMAP_HOME,xnw3In,xnw3Out,
+  XMS("REQUISITION","Intelligence says the enemy has a super soaker, and command wants something bigger.","Visit the arms shop and requisition a weapon.",XS_GRANT,40,AMAP_HOME,xnw3In,xnw3Out,
      TA(CT_ARMS,"GO TO THE ARMS SHOP"),TE(QE_BUY,1,"REQUISITION A WEAPON")),
   XMS("DIG IN","The front line runs straight across your lawn, and the enemy is on the way.","Fortify with two gates or cameras, then hold the line for a full day.",XS_WAR,45,AMAP_HOME,xnw4In,xnw4Out,
      TK(QK_SECURE,2,"PUT UP 2 GATES OR CAMERAS"),TK(QK_DAYS,1,"HOLD THE LINE FOR A DAY")),
@@ -486,7 +486,7 @@ static const XMs xmGotchi[]={
 static const char xe11In[]=
   "A lawyer in a very small hat says it is time to write the will. You say you are not dead. He says: yet.|"
   "Decide who gets what. The house, the money, the good armchair. Somebody gets the armchair and somebody gets the nice speech about the armchair.|"
-  "Save up, read the fine print and tell someone they are in it. Do not tell them how much. It is never as much as they hoped.";
+  "Save up, read the fine print and tell someone they are in it. Do not tell them how much. It is never as much as they hoped. His invoice has already arrived. It charges 150 simoleons for the hat.";
 static const char xe11Out[]=
   "The will is signed. Everyone got something. The dog got the armchair. Nobody has been told, but the dog knows.|"
   "Your lawyer shook your hand and left. The hat stayed behind. It is yours now. It is in the will.";
@@ -500,7 +500,7 @@ static const char xe12Out[]=
 static const char xe13In[]=
   "The invitation says: the class of long ago, thirty years on. It does not say which year. It does not need to.|"
   "Everyone will be there. The one who peaked at prom. The one who peaked later and will not stop mentioning it. The one who owes you money.|"
-  "Invite them over, hug the ones who deserve it, and keep a straight face when someone says you have not changed.";
+  "Invite them over, hug the ones who deserve it, and keep a straight face when someone says you have not changed. The first three have already arrived, and one of them is holding a photo album like a weapon.";
 static const char xe13Out[]=
   "It was a good night. The one who owed you money paid you back in a nicely wrapped sandwich. You counted it.|"
   "Someone made a speech. Someone cried. Someone said: we should do this more often. Nobody meant it, and everybody did.";
@@ -563,7 +563,7 @@ static const char xne2Out[]=
 static const char xne3In[]=
   "Every retiree needs a garden. Yours has weeds, a broken gnome, and a patch of ground that has not grown anything since the last century, out of what feels like spite.|"
   "You have a book called Gardening for Fools. Its cover has a smiling man holding a carrot. He is clearly lying. Nobody has ever been that pleased about a carrot.|"
-  "Read up on gardening, then harvest something from a planter. Anything at all. A single tomato, a stray herb, a handful of mud with a hint of hope.";
+  "Read up on gardening, then harvest something from a planter. Anything at all. A single tomato, a stray herb, a handful of mud with a hint of hope. Two seed packets have arrived in the post with no note. You decide not to ask.";
 static const char xne3Out[]=
   "You harvested one radish. It was small, red and crooked, and you held it up to the light like a diamond. You ate it on the porch with some salt, and it was wonderful.|"
   "The gnome has been mended. It leans a bit. You decide that it, too, has earned the right to lean. Together you watch the garden, doing what it does.";
@@ -612,7 +612,7 @@ static const char xne9Out[]=
 static const char xne10In[]=
   "You are throwing one last party. You have invited everyone you ever loved, and a handful you did not, because you have realised they were mostly the funny ones.|"
   "There is a banner, and a cake, and a speaker the size of a fridge. The neighbours have been warned in writing, in a neat hand. Maureen has agreed to run the raffle.|"
-  "Make five friends, have someone over, and crank the stereo. Crank it until the windows tell a story. This is not a goodbye. It is a very loud hello.";
+  "Make five friends, have someone over, and crank the stereo. Crank it until the windows tell a story. This is not a goodbye. It is a very loud hello. Three early guests are already at the door, holding casseroles and grudges.";
 static const char xne10Out[]=
   "At midnight everyone sang, and nobody was in tune, and it was perfect. A man you had not seen in forty years hugged you for such a long time that you both lost track.|"
   "When the last guest had gone you sat on the kitchen floor with a plate of crisps. You were tired. You were full. You were more alive than you could remember being.";
@@ -628,7 +628,7 @@ static const XMs xmEpi[]={
      TE(SE_SHIFT,1,"WORK ONE LAST SHIFT"),TK(QK_MONEY,20000,"SAVE 20000 SIMOLEONS")),
   XMS("BUCKET LIST","There is a list of things to do before you kick the bucket, and you are starting with the fun ones.","Do a cannonball, watch a movie, and sing karaoke like nobody can hear you.",XS_NONE,35,AMAP_HOME,xne2In,xne2Out,
      TD(VA_CANNON,"DO A CANNONBALL"),TD(VA_MOVIE,"WATCH A MOVIE"),TD(VA_KARAOKE,"SING KARAOKE")),
-  XMS("GREEN THUMB","Every retiree needs a garden, and yours has mostly weeds and ambition.","Read up on gardening and harvest something from a planter, anything at all.",XS_NONE,40,AMAP_HOME,xne3In,xne3Out,
+  XMS("GREEN THUMB","Every retiree needs a garden, and yours has mostly weeds and ambition.","Read up on gardening and harvest something from a planter, anything at all.",XS_SEEDS,40,AMAP_HOME,xne3In,xne3Out,
      TE(QE_HARVEST,1,"HARVEST A PLANTER"),TE(SE_READ,1,"READ UP ON GARDENING")),
   XMS("OLD FLAMES","An old flame still lives in town, and you have been thinking about them far too often.","Have them over and flirt like it is 1985.",XS_NONE,40,AMAP_HOME,xne4In,xne4Out,
      {QK_GUEST,0,0,"HAVE SOMEONE OVER"},TS(SC_FLIRT,"FLIRT LIKE IT IS 1985")),
@@ -642,9 +642,9 @@ static const XMs xmEpi[]={
      TD(VA_LATTE,"ORDER AN OAT LATTE"),TD(VA_FOURTH,"EAT FOURTH MEAL"),TD(VA_CHECKUP,"GET A CHECKUP")),
   XMS("THE GHOST OF BORES PAST","Something goes bump in the night, and in the moonlight it looks a lot like your old boss.","Get spooked, then sleep it off.",XS_GHOST,55,AMAP_HOME,xne9In,xne9Out,
      TE(QE_SPOOK,1,"GET SPOOKED"),TE(SE_SLEEP,1,"SLEEP IT OFF")),
-  XMS("ONE LAST PARTY","You are throwing one last party and inviting everyone you ever loved, plus a few you did not.","Make five friends, have someone over, and crank the stereo.",XS_NONE,70,AMAP_HOME,xne10In,xne10Out,
+  XMS("ONE LAST PARTY","You are throwing one last party and inviting everyone you ever loved, plus a few you did not.","Make five friends, have someone over, and crank the stereo.",XS_PARTY,70,AMAP_HOME,xne10In,xne10Out,
      TK(QK_FRIENDS,5,"MAKE 5 FRIENDS"),{QK_GUEST,0,0,"HAVE SOMEONE OVER"},TE(SE_RADIO,1,"CRANK THE STEREO")),
-  XMS("THE WILL","A lawyer in a very small hat wants to know who gets the good armchair.","Save 40000 simoleons, read the fine print, and tell somebody they are in it.",XS_NONE,50,AMAP_HOME,
+  XMS("THE WILL","A lawyer in a very small hat wants to know who gets the good armchair.","Save 40000 simoleons, read the fine print, and tell somebody they are in it.",XS_BILLS,50,AMAP_HOME,
       xe11In,
       xe11Out,
       TK(QK_MONEY,40000,"SAVE 40000 SIMOLEONS"),TD(VA_STUDY,"READ THE FINE PRINT"),TS(SC_COMPL,"TELL SOMEONE THEY ARE IN IT")),
@@ -652,7 +652,7 @@ static const XMs xmEpi[]={
       xe12In,
       xe12Out,
       TD(VA_SWIM,"SWIM LAPS"),TD(VA_SPIN,"SURVIVE SPIN CLASS"),TD(VA_SHAKE,"DOWN A PROTEIN SHAKE")),
-  XMS("THE REUNION","Thirty years on, the whole class is coming, even the one who still owes you money.","Have six friends in, have someone over, and hug an old friend.",XS_NONE,60,AMAP_HOME,
+  XMS("THE REUNION","Thirty years on, the whole class is coming, even the one who still owes you money.","Have six friends in, have someone over, and hug an old friend.",XS_PARTY,60,AMAP_HOME,
       xe13In,
       xe13Out,
       TK(QK_FRIENDS,6,"HAVE 6 FRIENDS"),{QK_GUEST,0,0,"HAVE SOMEONE OVER"},TS(SC_HUG,"HUG AN OLD FRIEND")),
