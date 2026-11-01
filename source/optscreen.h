@@ -284,14 +284,15 @@ static void drawOptions(void){
     }
     rect(10,43,220,1,OPN); rect(10,44,220,1,RGB(29,31,31));
     if(opPage==0){   // the speed meter in a dark well: how much of the frame the picture needs. 60 / 30 / 20 marks show which frame rate it can hold.
-        int cap=capLevel(), want=sFps+1, fill=sCost*100/(3*TICKS_FRAME); if(fill>100) fill=100;
+        int pc=playEst(sCost), cap=pc<0?1:capLevelC(pc), want=sFps+1, fill=pc<0?0:pc*100/(3*TICKS_FRAME);   // (what a picture costs in play: see playEst) if(fill>100) fill=100;
         u16 mc=cap==1?heat[0]:cap<=2?heat[1]:heat[2];
         s3Box(8,47,218,17,5,RGB(3,8,19),RGB(2,5,13));
         text(13,50,"DRAW COST",RGB(18,24,30),1);
         rect(62,50,88,5,RGB(8,10,14)); rect(62,50,fill*88/100,5,mc);
         static const int mk[3]={20,50,79}; static const char* const ml[3]={"60","30","20"};
         for(int i=0;i<3;i++){ rect(62+mk[i],49,1,7,WHITE); text(62+mk[i]-3,56,ml[i],RGB(18,24,30),1); }
-        if(cap>want){ if(!sNoWarn){ text(157,49,"TOO SLOW FOR",heat[2],1); text(157,56,"THIS FRAME RATE",heat[2],1); } }
+        if(pc<0){ text(157,49,"PLAY A WHILE",RGB(18,24,30),1); text(157,56,"TO MEASURE IT",RGB(18,24,30),1); }
+        else if(cap>want){ if(!sNoWarn){ text(157,49,"TOO SLOW FOR",heat[2],1); text(157,56,"THIS FRAME RATE",heat[2],1); } }
         else { text(157,49,cap==1?"HOLDS 60 FPS":cap==2?"HOLDS 30 FPS":cap==3?"HOLDS 20 FPS":"HOLDS 15 FPS",heat[0],1); text(157,56,sTunedMsg?"TUNED FOR YOU":"SMOOTH",sTunedMsg?heat[0]:RGB(18,24,30),1); }
         y0=67; vis=5;
     }
@@ -335,7 +336,7 @@ static void buttonTest(void){
 }
 static void optAction(int a,int*remeasure){
     switch(a){
-        case OA_TUNE: autoTune(); costCache[costKey()]=(s16)sCost; *remeasure=0; break;
+        case OA_TUNE: if(playEst(measureDraw())<0){ toast("PLAY A WHILE FIRST  THEN TUNE"); break; } autoTune(); costCache[costKey()]=(s16)sCost; *remeasure=0; break;
         case OA_RESET: if(menu("RESET ALL OPTIONS",slYesNo,2)==1){ optsDefaults(); setDefaults(); sTunedMsg=0; *remeasure=1; toast("OPTIONS RESET"); } break;
         case OA_BTNTEST: buttonTest(); break;
         case OA_CUTS: csMenu(); *remeasure=0; break;

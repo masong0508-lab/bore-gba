@@ -3372,9 +3372,18 @@ static int capLevelC(int cost){   // how many 60 Hz frames one picture really ne
     return c<=TICKS_FRAME?1: c<=2*TICKS_FRAME?2: c<=3*TICKS_FRAME?3: 4;
 }
 static int capLevel(void){ return capLevelC(sCost); }
+// THE SPEED METER'S YARDSTICK: measureDraw times a whole-room picture, but play only redraws the patches that change, a small and room-dependent share
+// of that. The life loop measures what a picture really costs each second (sPlayCost, at the settings sPlayKey); the first full-room measure at those
+// same settings turns it into a ratio (sPlayK), and every preset's full-room cost is scaled by it. No play yet: no estimate (-1), never a guess.
+static int sPlayCost, sPlayKey=-1, sPlayK;
+static int playEst(int full){
+    if(!sPlayK){ if(sPlayKey<0||sPlayKey!=sWall*8+sWp*4+sFl*2+sShad||full<=0) return -1; sPlayK=sPlayCost*256/full; if(sPlayK<1) sPlayK=1; }
+    return full*sPlayK/256;
+}
 static void autoTune(void){
-    int p; for(p=0;p<4;p++){ setPreset(p); sCost=measureDraw(); if(capLevelC(sCost*2/5)<=sFps+1) break; }   // (playing redraws patches, about 2/5 of this full-room cost)
+    int p; for(p=0;p<4;p++){ setPreset(p); sCost=measureDraw(); if(capLevelC(playEst(sCost))<=sFps+1) break; }
     if(p==4){ setPreset(3); sCost=measureDraw(); }
+    if(capLevelC(playEst(sCost))==1) sFps=0;   // (these settings hold 60: no need for the preset's lower frame rate)
     sTunedMsg=1;
 }
 #include "loading.h"    // LOADING screen with a progress bar (ldShow)
@@ -4731,7 +4740,7 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
     tutOn=0; tutModal=TM_NONE;   // the tutorial: replay now, or offer it once (first PLAY, not in the test play of the editor)
     if(!ed){ if(xo[XO_TUTOR]==2) tutBegin(); else if(xo[XO_TUTOR]==0&&!tutAsked){ tutAsked=1; tutModal=TM_OFFER; } }
     if(!ed) introFly();   // the lot's goals: the camera pans to them first (skippable)
-    tmStart(); u16 tl=R_TM2D; int acc=0, fpsN=0, fr=0; u32 fpsT=0, workT=0; lfpsV=0; lloadV=0; lcpuV=laudV=ldropV=lunderV=0;
+    tmStart(); u16 tl=R_TM2D; int acc=0, fpsN=0, fr=0; u32 fpsT=0, workT=0, workMx=0; lfpsV=0; lloadV=0; lcpuV=laudV=ldropV=lunderV=0;
     u32 pfV0=vblN, pfW0=pfWait, pfI0=pfIsr, pfLast=vblN; int pfSlow=0; u16 pfU0=mUnder;
     for(;;){
         int need=(sFps+1)*TICKS_FRAME-100;
@@ -4810,9 +4819,10 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
             int pc=prGo; prGo=0; lcamF=0; peekEnd(); mGainT=128; sfxStop();
             if(prLifeSwitch(pc)){ winFull(); REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=vbase; continue; }
             winFull(); REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; }
-        gmTick(); ambTick(); lifeDraw(); workT+=(u16)(lifeVs-w0);
+        gmTick(); ambTick(); lifeDraw(); { u32 wc=(u16)(lifeVs-w0); workT+=wc; if(wc>workMx) workMx=wc; }
         { u32 vn=vblN; if(vn-pfLast>(u32)(sFps+1)) pfSlow++; pfLast=vn; }   // (a picture update that took longer than the frame it was meant for)
-        fpsN++; if(fpsT>=65536){ lfpsV=fpsN; lloadV=(int)(workT/(u32)fpsN*100/(u32)((sFps+1)*TICKS_FRAME));
+        fpsN++; if(fpsT>=65536){ lfpsV=fpsN; sPlayCost=(int)((workT/(u32)fpsN+workMx)/2); workMx=0;   // (halfway between the average picture and the slowest one: walking, not standing still)
+            sPlayKey=sWall*8+sWp*4+sFl*2+sShad; sPlayK=0; lloadV=(int)(workT/(u32)fpsN*100/(u32)((sFps+1)*TICKS_FRAME));
             { u32 fr_=vblN-pfV0; if(fr_<1) fr_=1; u32 tk=fr_*27431u/100u, idle=(pfWait-pfW0)*100u/(tk?tk:1), irq=(pfIsr-pfI0)*100u/(tk?tk:1);   // (1 frame = 274.3 ticks of 1024 cycles)
               lcpuV=idle>100?0:100-(int)idle; laudV=irq>100?100:(int)irq; ldropV=pfSlow*100/fpsN; lunderV=(u16)(mUnder-pfU0); }
             pfV0=vblN; pfW0=pfWait; pfI0=pfIsr; pfU0=mUnder; pfSlow=0; workT=0; fpsN=0; fpsT-=65536; }
