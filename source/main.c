@@ -3671,11 +3671,12 @@ static void camFollow(int snap){   // keep the skater near the middle of the scr
     s32 rfx,rfy; rotPos(flyOn?flyX:lfx+lvx*(lskate?14:10),flyOn?flyY:lfy+lvy*(lskate?14:10),&rfx,&rfy);   // look ahead of the skater (a little less on foot)
     int playY=vpY0+(vpY1-vpY0)*5/8;                                                  // screen row of the feet (100 on the full screen)
     int ox=camX, oy=camY; camX=(int)((rfx-rfy)>>5); camY=(int)((rfx+rfy)>>6)-(playY-24); camClamp(0);
-    int tx=camX, ty=camY; camX=ox; camY=oy;
+    int tx=camX&~1, ty=camY; camX=ox; camY=oy;   // (the camera sits on even columns: the picture scrolls in whole words, vramScroll's 32-bit DMA)
     if(cview!=camLastV){ camLastV=cview; snap=1; }
     if(snap){ camX=tx; camY=ty; return; }
+    if(camX&1){ camX=tx; return; }   // (an odd column from somewhere else: back on the even grid)
     int ease=lskate?4:3, dx=tx-camX, dy=ty-camY, sx=dx/ease, sy=dy/ease;   // on foot the camera catches up a bit faster
-    if(!sx) sx=(dx>0)-(dx<0);
+    sx&=~1; if(!sx) sx=dx>0?2:dx<0?-2:0;   // (dx is even now, so a step of 2 never overshoots)
     if(!sy) sy=(dy>0)-(dy<0);
     camX+=sx; camY+=sy;
 }
@@ -4022,18 +4023,22 @@ static u32 wFqOf(int tx,int ty){   // the four floors of screen tile (tx,ty), pa
     return (u32)fq[0]|(u32)fq[1]<<8|(u32)fq[2]<<16|(u32)fq[3]<<24;
 }
 static void wFqBuild(void){ wHasWater=0; for(int y=0;y<MH;y++)for(int x=0;x<MW;x++){ wFq[y][x]=wFqOf(x,y); if(isWaterFl(floorMap[y][x])) wHasWater=1; } wFqView=(u8)cview; }
+static inline __attribute__((always_inline)) void wfSpan(int y,int sx,int l,int r,int xa,int xz,int fl,int v,int ry){   // one run of a split tile's row: clip, then copy the tile's columns (or fill)
+    int x0=sx+l, x1=sx+r; if(x0<xa) x0=xa; if(x1>xz) x1=xz; if(x0>x1) return;
+    if(sFl) cpyHW(&fb[y*SW+x0],&flTab[fl][v][0][0]+(ry+CB)*(2*CA+1)+CA+(x0-sx),x1-x0+1);
+    else fillHW(&fb[y*SW+x0],x1-x0+1,flFlat[fl][v]);
+}
 IWRAM_OVL1 static void wallFloorDraw(int sx,int sy,u32 pk,int v){   // a split tile: each row is the left quarter, the middle one (top or bottom) and the right one, meeting where the two wall lines cross it
     int xa=cX0, xz=cX0+(int)cW-1;
     int d=sx-xz; if(xa-sx>d) d=xa-sx; int r=d<=0?CB:d>CA?-1:rowMaxT[d]; if(r<0) return;   // (a thin strip: only the rows wide enough to reach it)
+    int fq3=(int)((pk>>24)&255), fq1=(int)((pk>>8)&255), fqT=(int)(pk&255), fqB=(int)((pk>>16)&255);   // (the quarters, once: no per-row table, the stack is slow RAM)
     for(int ry=-r;ry<=r;ry++){
         int y=sy+ry; if((unsigned)(y-cY0)>=cH) continue;
-        int hw=rowHW[ry<0?-ry:ry], a=2*(ry<0?-ry:ry), mid=ry<0?0:2;
-        int sp[3][2]={{-hw,-a-1},{-a,a},{a+1,hw}}, qq[3]={3,mid,1};   // (near the top and bottom points the whole row is the middle quarter)
-        for(int k=0;k<3;k++){ int l=sp[k][0]<-hw?-hw:sp[k][0], r=sp[k][1]>hw?hw:sp[k][1]; if(l>r) continue;   // (inside the diamond only)
-            int x0=sx+l, x1=sx+r; if(x0<xa) x0=xa; if(x1>xz) x1=xz; if(x0>x1) continue;
-            int fl=(int)((pk>>(8*qq[k]))&255);
-            if(sFl) cpyHW(&fb[y*SW+x0],&flTab[fl][v][0][0]+(ry+CB)*(2*CA+1)+CA+(x0-sx),x1-x0+1);
-            else fillHW(&fb[y*SW+x0],x1-x0+1,flFlat[fl][v]); } }
+        int ar=ry<0?-ry:ry, hw=rowHW[ar], a=2*ar;   // (near the top and bottom points the whole row is the middle quarter)
+        int ll=-a-1; if(ll>=-hw) wfSpan(y,sx,-hw,ll,xa,xz,fq3,v,ry);                         // left quarter
+        { int l=-a<-hw?-hw:-a, rr=a>hw?hw:a; if(l<=rr) wfSpan(y,sx,l,rr,xa,xz,ry<0?fqT:fqB,v,ry); }   // the middle one: top (ry<0) or bottom
+        if(a+1<=hw) wfSpan(y,sx,a+1,hw,xa,xz,fq1,v,ry);                                    // right quarter
+    }
 }
 static inline __attribute__((always_inline)) void bandColsF(int s,int x0,int x1,int lox,int*a,int*b){   // bandCols, with fdiv(...,8) as a shift (it floors)
     int kmin=((x0-12-lox)>>3)-1, kmax=((x1+12-lox)>>3)+1;
@@ -4290,10 +4295,15 @@ static void vramScroll(int dx,int dy){   // the picture moves by (-dx,-dy) insid
     int w=(vpX1-vpX0)-(dx<0?-dx:dx), sx0=vpX0+(dx>0?dx:0), dx0=vpX0+(dx>0?0:-dx);
     int y0=dy>0?vpY0:vpY0-dy, y1=dy>0?vpY1-dy:vpY1;   // destination rows [y0,y1)
     int back=(dy<0)||(dy==0&&dx<0);                    // copy order that never overwrites what is still to be read
+    int wide=((dx|vpX0|vpX1)&1)==0;                    // every row starts and ends on a word: 32-bit DMA moves it in half the time (the camera steps in even columns, camFollow)
     for(int n=0,cnt=y1-y0;n<cnt;n++){
         int y=back?y1-1-n:y0+n;
         u32 src=VRAM_ADDR+(u32)(((y+dy)*SW+sx0)*2), dst=VRAM_ADDR+(u32)((y*SW+dx0)*2);
-        if(dy==0&&dx<0){ src+=(u32)((w-1)*2); dst+=(u32)((w-1)*2); REG_DMA3SAD=src; REG_DMA3DAD=dst; REG_DMA3CNT=(u32)w|(1u<<21)|(1u<<23)|0x80000000u; }
+        if(wide){
+            if(dy==0&&dx<0){ src+=(u32)((w-2)*2); dst+=(u32)((w-2)*2); REG_DMA3SAD=src; REG_DMA3DAD=dst; REG_DMA3CNT=(u32)(w/2)|(1u<<21)|(1u<<23)|0x84000000u; }
+            else { REG_DMA3SAD=src; REG_DMA3DAD=dst; REG_DMA3CNT=(u32)(w/2)|0x84000000u; }
+        }
+        else if(dy==0&&dx<0){ src+=(u32)((w-1)*2); dst+=(u32)((w-1)*2); REG_DMA3SAD=src; REG_DMA3DAD=dst; REG_DMA3CNT=(u32)w|(1u<<21)|(1u<<23)|0x80000000u; }
         else { REG_DMA3SAD=src; REG_DMA3DAD=dst; REG_DMA3CNT=(u32)w|0x80000000u; }
     }
 }
