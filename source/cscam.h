@@ -30,7 +30,7 @@ struct CsShot_; static const struct CsShot_* csShotFind(int t);   // csshot.h: a
 // PART REDRAWS (cutscene redo 16): while csFtrack is on (the figures being drawn), every shape grows csFb, the box (screen px) the figures cover this picture
 static int csFtrack, csFbx0, csFby0, csFbx1, csFby1;
 static inline void csTrack(int x0,int y0,int x1,int y1){ if(x0<csFbx0) csFbx0=x0; if(y0<csFby0) csFby0=y0; if(x1>csFbx1) csFbx1=x1; if(y1>csFby1) csFby1=y1; }
-static void csCamR(int x,int y,int w,int h,u16 c){
+IWRAM_OVL2 static void csCamR(int x,int y,int w,int h,u16 c){
     if(csCz==256){ if(csFtrack) csTrack(x,y,x+w,y+h); rect(x,y,w,h,c); return; }
     int x0=csCamX(x), y0=csCamY(y), x1=csCamX(x+w), y1=csCamY(y+h);
     if(w>0&&x1<=x0) x1=x0+1;
@@ -38,14 +38,14 @@ static void csCamR(int x,int y,int w,int h,u16 c){
     if(csFtrack) csTrack(x0,y0,x1,y1);
     rect(x0,y0,x1-x0,y1-y0,c);
 }
-static void csCamD(int x,int y,int r,u16 c){
+IWRAM_OVL2 static void csCamD(int x,int y,int r,u16 c){
     if(csCz==256){ if(csFtrack) csTrack(x-r,y-r,x+r+1,y+r+1); disc(x,y,r,c); return; }
     int cx=csCamX(x), cy=csCamY(y), rr=(r*csCz+128)>>8;
     if(cx+rr<0||cx-rr>=SW||cy+rr<12||cy-rr>=116) return;
     if(csFtrack) csTrack(cx-rr,cy-rr,cx+rr+1,cy+rr+1);
     disc(cx,cy,rr,c);
 }
-static void csCamL(int x0,int y0,int x1,int y1,u16 c){
+IWRAM_OVL2 static void csCamL(int x0,int y0,int x1,int y1,u16 c){
     if(csCz==256){ if(csFtrack) csTrack(x0<x1?x0:x1,y0<y1?y0:y1,(x0>x1?x0:x1)+1,(y0>y1?y0:y1)+1); line(x0,y0,x1,y1,c); return; }
     int ax=csCamX(x0), ay=csCamY(y0), bx=csCamX(x1), by=csCamY(y1), n=(csCz+128)>>8;
     if(csFtrack) csTrack((ax<bx?ax:bx)-n,(ay<by?ay:by)-n,(ax>bx?ax:bx)+n+1,(ay>by?ay:by)+n+1);

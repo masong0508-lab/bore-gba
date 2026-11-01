@@ -14,7 +14,7 @@ static u16 csFMix(u16 a,u16 b,int k){ return RGB(((a&31)*(8-k)+(b&31)*k)>>3,(((a
 static int csFu(int n){ return (n*csCz)/1024; }                       // quarter pixels -> screen pixels
 static int csFr(int n){ int v=csFu(n); return v<1?1:v; }             // a size: at least one pixel
 static int csFi(int v){ int w=0; while((w+1)*(w+1)<=v) w++; return w; }
-static void csFEl(int cx,int cy,int rx,int ry,int top,u16 c){        // a filled ellipse (top: only the upper half)
+IWRAM_OVL2 static void csFEl(int cx,int cy,int rx,int ry,int top,u16 c){        // a filled ellipse (top: only the upper half)
     if(csFtrack) csTrack(cx-rx,cy-ry,cx+rx+1,cy+(top?1:ry+1));   // (the figures' box, for part redraws)
     if(ry<1){ rect(cx-rx,cy,2*rx+1,1,c); return; }
     int q=0;   // the square root of 16*(ry*ry-y*y), walked from row to row instead of counted up from 0 every row (the same numbers; a big close-up face was tens of thousands of steps a frame)

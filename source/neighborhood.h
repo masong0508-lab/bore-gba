@@ -466,7 +466,13 @@ static void nbDecor(int d,int x,int y){   // x, y = the middle of the cell
         case DC_CONE: { u16 o=nbTint(RGB(31,14,2)); for(int i=0;i<3*k;i++) rect(x-i/3,y-3*k+i,2*(i/3)+1,1,(i==k)?WHITE:o); break; }
         case DC_OWE: case DC_OWW: case DC_OWS: case DC_OWN: { int o=d-DC_OWE, ex=(o==0||o==3)?2*k:-2*k, ey=(o==0||o==2)?k:-k; u16 w=nbTint(RGB(28,28,28));   // the arrow painted on the road, pointing the way cars go
             line(x-ex,y-ey,x+ex,y+ey,w); px(x+ex-(ex>0?1:-1),y+ey,w); px(x+ex,y+ey-(ey>0?1:-1),w); break; }
-        case DC_PARKING: { rect(x-3*k,y-k,6*k+1,2*k+1,nbTint(RGB(15,15,16))); rect(x-2*k,y-k,2*k,k,nbTint(RGB(26,5,5))); rect(x+k,y,2*k,k,nbTint(RGB(6,12,26))); px(x,y-k,WHITE); break; }   // a car park: two parked cars
+        case DC_PARKING: { int hw=nbHw, hh=nbHh; nbDia(x,y-hh,nbTint(RGB(9,9,11)));   // a car park: the whole cell paved, painted bays, cars parked in two of them
+            u16 ln=nbTint(RGB(25,25,22));
+            for(int q=1;q<4;q++){ int ax=x-hw+hw*q/4, ay=y-hh*q/4, bx=x+hw*q/4, by=y+hh-hh*q/4; line(ax+1,ay,bx,by-1,ln); }   // the bay lines, across the cell
+            if(hw>=8){ static const u16 cc[3]={RGB(26,5,5),RGB(6,12,26),RGB(28,24,4)};
+                for(int q=0;q<2;q++){ int t=q?5:3, cx=x-hw/2+hw*t/8, cy=y+hh/2-hh*t/8, w=hw/4+1, h=hh/3+1; u16 c=nbTint(cc[(x+y+q)%3]);
+                    rect(cx-w,cy-h,2*w,2*h,c); rect(cx-w/2,cy-h,w,h,nbTint(RGB(20,24,28))); rect(cx-w,cy+h-1,2*w,1,nbTint(RGB(4,4,5))); } }   // body, windscreen, shadow
+            break; }
         case DC_FOUNTAIN: rect(x-2*k,y-k,4*k+1,k+1,nbTint(RGB(22,22,22))); rect(x-k,y-k,2*k+1,1,nbTint(nbT.season==3?RGB(24,27,30):RGB(10,20,30))); rect(x,y-3*k,1,2*k,nbTint(RGB(26,29,31))); break;
     }
 }
@@ -881,7 +887,12 @@ static void nbCarTurn(NbCar*c){   // at a cell: on to a road neighbour, never st
     static const s8 CD[4][2]={{1,0},{-1,0},{0,1},{0,-1}}; int ok[4], n=0;
     { int ow=nbOwAt(c->x,c->y); if(ow>=0&&nbRoadOk(c->x+CD[ow][0],c->y+CD[ow][1])){ c->dx=CD[ow][0]; c->dy=CD[ow][1]; return; } }   // on a one-way cell: its way
     for(int i=0;i<4;i++){ if(CD[i][0]==-c->dx&&CD[i][1]==-c->dy&&(c->dx|c->dy)) continue; int tx=c->x+CD[i][0], ty=c->y+CD[i][1]; if(!nbRoadOk(tx,ty)) continue; { int ow=nbOwAt(tx,ty); if(ow>=0&&ow!=i) continue; } ok[n++]=i; }
-    if(!n){ c->dx=(s8)-c->dx; c->dy=(s8)-c->dy; if(!nbRoadOk(c->x+c->dx,c->y+c->dy)){ c->dx=c->dy=0; } return; }
+    if(!n){ int rx=c->x-c->dx, ry=c->y-c->dy, ow=nbOwAt(c->x,c->y), owb=nbOwAt(rx,ry), back=-1; for(int q=0;q<4;q++) if(CD[q][0]==-c->dx&&CD[q][1]==-c->dy) back=q;
+        if((c->dx|c->dy)&&(ow>=0||(owb>=0&&owb!=back))){   // a one-way street that ends (the map's edge, a bulldozed block): the car drives off and another comes in somewhere else, never back against the arrows
+            int roads=0; for(int y=0;y<NB_H;y++)for(int x=0;x<NB_W;x++) roads+=nbRoadOk(x,y);
+            if(roads){ int k=(rnd8()<<8|rnd8())%roads; for(int y=0;y<NB_H&&k>=0;y++)for(int x=0;x<NB_W&&k>=0;x++) if(nbRoadOk(x,y)&&k--==0){ c->x=(u8)x; c->y=(u8)y; }
+                c->f=0; c->dx=c->dy=0; c->col=(u8)((c->col+1)&3); if(nbOwAt(c->x,c->y)<0) nbCarTurn(c); else { int o=nbOwAt(c->x,c->y); c->dx=CD[o][0]; c->dy=CD[o][1]; } return; } }
+        c->dx=(s8)-c->dx; c->dy=(s8)-c->dy; if(!nbRoadOk(c->x+c->dx,c->y+c->dy)){ c->dx=c->dy=0; } return; }
     int i=ok[(rnd8()*n)>>8];
     if(n>1&&(c->dx|c->dy)&&rnd8()<150){ for(int j=0;j<n;j++) if(CD[ok[j]][0]==c->dx&&CD[ok[j]][1]==c->dy) return; }   // (mostly straight on, where straight on is allowed)
     c->dx=CD[i][0]; c->dy=CD[i][1];

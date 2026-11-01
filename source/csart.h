@@ -54,12 +54,12 @@ static void csMouthS(int hx,int hy,int who,int open,int md){   // the small spri
 }
 // cutscene redo 14 (step 1: ELBOWS): arms are two segments with a real elbow. The elbow bulges outward / down like a relaxed arm, and a raised hand folds the arm up.
 static int csIq(int v){ int w=0; while((w+1)*(w+1)<=v) w++; return w; }
-static void csLimb(int x0,int y0,int x1,int y1,u16 fill,u16 ol){   // a 2 px wide, outlined bone
+IWRAM_OVL2 static void csLimb(int x0,int y0,int x1,int y1,u16 fill,u16 ol){   // a 2 px wide, outlined bone
     int dx=x1-x0, dy=y1-y0; if(dx<0) dx=-dx; if(dy<0) dy=-dy;
     if(dy>=dx){ csLn(x0-1,y0,x1-1,y1,ol); csLn(x0+2,y0,x1+2,y1,ol); csLn(x0,y0,x1,y1,fill); csLn(x0+1,y0,x1+1,y1,fill); }
     else      { csLn(x0,y0-1,x1,y1-1,ol); csLn(x0,y0+2,x1,y1+2,ol); csLn(x0,y0,x1,y1,fill); csLn(x0,y0+1,x1,y1+1,fill); }
 }
-static void csArm(int sx,int sy,int hx,int hy,int side,u16 ac,u16 ol,u16 sk){   // side -1 left, +1 right; shoulder (sx,sy) to the hand at (hx,hy)
+IWRAM_OVL2 static void csArm(int sx,int sy,int hx,int hy,int side,u16 ac,u16 ol,u16 sk){   // side -1 left, +1 right; shoulder (sx,sy) to the hand at (hx,hy)
     int ax=sx+(side<0?1:-2), bx=hx+(side<0?0:-1), dx=bx-ax, dy=hy-sy, d=csIq(dx*dx+dy*dy), ex=ax+dx/2, ey=sy+dy/2;
     if(d>0&&d<10){ int px=-dy, py=dx; if(px*side<0||(px==0&&py<0)){ px=-px; py=-py; }     // the bulge points away from the body, or down
         int h=csIq(25-d*d/4)*3/5; ex+=px*h/d; ey+=py*h/d; }

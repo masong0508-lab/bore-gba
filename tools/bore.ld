@@ -248,7 +248,7 @@ SECTIONS
 	}>iwram = 0xff
 
 	__iwram_overlay_end = . ;
-	__ewram_lma = __load_stop_iwram1 ;   /* BORE: in ROM the overlays lie one after another, so what follows starts after the last one (not after the biggest) */
+	__ewram_lma = __load_stop_iwram2 ;   /* BORE: in ROM the overlays lie one after another, so what follows starts after the last one (not after the biggest) */
 
 	__iheap_start = . ;
 

@@ -39,11 +39,11 @@ static int csSpk=0, csLook=0, csMh=5, csEm=0, csHlag=0, csMd=0, csOth=-1, csPunc
 static int csEnt=0, csEntD=1;   // C8 (ENTRANCES AND EXITS): csEnt = how far (px) the figure being drawn is from its spot while it steps in or out, csEntD the way it walks
 static int csSpkDummy_;   // cutscene redo 13 (ALIVE): who is speaking now (CA_*), which way the eyes look (-1/0/1), how wide the mouth opens, 1 = an emphatic beat (brows lift)
 #include "cscam.h"
-static void csR(int x,int y,int w,int h,u16 c){ csCamR(x+csOx,y+csOy,w,h,c); }
-static void csD(int x,int y,int r,u16 c){ csCamD(x+csOx,y+csOy,r,c); }
-static void csLn(int x0,int y0,int x1,int y1,u16 c){ csCamL(x0+csOx,y0+csOy,x1+csOx,y1+csOy,c); }
+IWRAM_OVL2 static void csR(int x,int y,int w,int h,u16 c){ csCamR(x+csOx,y+csOy,w,h,c); }
+IWRAM_OVL2 static void csD(int x,int y,int r,u16 c){ csCamD(x+csOx,y+csOy,r,c); }
+IWRAM_OVL2 static void csLn(int x0,int y0,int x1,int y1,u16 c){ csCamL(x0+csOx,y0+csOy,x1+csOx,y1+csOy,c); }
 static int csWv(int t,int per){ int p=((t%per)+per)%per; return csSinT[((p*64/per)+48)&63]*8/127; }   // a smooth wave, -8 .. 8 (it was a triangle: constant speed and a snap at each end read as jerky): eases into and out of every turn
-static void csGrad(int y0,int h,int r0,int g0,int b0,int r1,int g1,int b1){   // rows of one colour go down as one band (t = i*256/(h-1), stepped without dividing)
+IWRAM_OVL2 static void csGrad(int y0,int h,int r0,int g0,int b0,int r1,int g1,int b1){   // rows of one colour go down as one band (t = i*256/(h-1), stepped without dividing)
     int n=h>1?h-1:1, tq=256/n, tr=256%n, t=0, a=0, s=0; u16 sc=0;
     for(int i=0;i<h;i++){ u16 c=RGB(r0+(r1-r0)*t/256,g0+(g1-g0)*t/256,b0+(b1-b0)*t/256);
         if(i&&c!=sc){ csR(0,y0+s,SW,i-s,sc); s=i; } sc=c;
@@ -706,6 +706,7 @@ static void csPresent(void){
 }
 static void csPlay(int id){   // play scene id; returns when it ends or START skips it
     volatile u16*bc=(volatile u16*)0x04000050; volatile u16*bl=(volatile u16*)0x04000054;
+    ovlUse(2);   // (the drawing code: overlay 2, fast RAM)
     const CsScene*sc=&csScenes[id]; clipAll(); objHideAll(); csCapB=0; csCamReset(); csAliveReset(); csRateSc=-1; csWholeOk=0; csCamKey=0; csCurSc=id; csSlow=0;
     u16 prev=keyNow(); int skip=0;
     { int tn=csTune[id]; if(tn>=0&&sSnd){ mGain=mGainT=256; musBegin(2,chipsyn+csTnT[tn].off,0); csSongOn=1; csTuneBS=csTnT[tn].bs; csMT=0; csMP=csy.step; } }   // the scene's chip tune, locked to the figures by csFt

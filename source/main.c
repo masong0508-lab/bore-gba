@@ -26,11 +26,12 @@ typedef uint8_t u8; typedef uint16_t u16; typedef uint32_t u32;
 // into the other, and no interrupt code lives in one. The startup code loads overlay 0.
 #define IWRAM_OVL0 __attribute__((section(".iwram0"), long_call, noinline))
 #define IWRAM_OVL1 __attribute__((section(".iwram1"), long_call, noinline))
-extern const unsigned char __load_start_iwram0[], __load_stop_iwram0[], __load_start_iwram1[], __load_stop_iwram1[];
+#define IWRAM_OVL2 __attribute__((section(".iwram2"), long_call, noinline))   // overlay 2: the cutscenes' drawing (cutscene.h csPlay loads it)
+extern const unsigned char __load_start_iwram0[], __load_stop_iwram0[], __load_start_iwram1[], __load_stop_iwram1[], __load_start_iwram2[], __load_stop_iwram2[];
 extern unsigned char __iwram_overlay_start[];
 static unsigned char ovlCur;   // the overlay in IWRAM now (0 at power on)
 __attribute__((noinline)) static void ovlLoad(int k){
-    const unsigned char*s=k?__load_start_iwram1:__load_start_iwram0, *e=k?__load_stop_iwram1:__load_stop_iwram0;
+    const unsigned char*s=k==2?__load_start_iwram2:k?__load_start_iwram1:__load_start_iwram0, *e=k==2?__load_stop_iwram2:k?__load_stop_iwram1:__load_stop_iwram0;
     REG_DMA3SAD=(unsigned)(unsigned long)s; REG_DMA3DAD=(unsigned)(unsigned long)__iwram_overlay_start; REG_DMA3CNT=((unsigned)(e-s+3)>>2)|0x84000000u;
     ovlCur=(unsigned char)k;
 }
