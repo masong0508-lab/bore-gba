@@ -36,6 +36,7 @@
 #define BF_OFF  7494   // bortua.h
 #define GO_OFF  7502   // gotchi.h (up to 7551: the board block is at 7552, board.h)
 _Static_assert(GO_OFF+50<=BD_OFF,"the handheld's block runs into the board block");
+_Static_assert(WD_OFF+WD_LEN<=STM_OFF&&STM_OFF<EX_OFF,"story.h STM_OFF: the story memory byte sits in the gap after the stash");
 _Static_assert(WD_OFF+WD_LEN<=EX_OFF&&EX_OFF+EX_LEN<=EXD_OFF&&EXD_OFF+EXD_LEN<=BF_OFF&&BF_OFF+8<=GO_OFF&&GO_OFF<LG_OFF,"the expansion blocks sit between the stash and the life stats");
 enum { XP_SPACE, XP_ZOMB, XP_WAR, XP_FIGHT, XP_GOTCHI, XP_EPI, XP_BASE, XP_KING, XP_N };   // (XP_BASE stays 6 so the saved pack numbers stay valid; XP_KING, EP6, comes after it: its ROM slot is number 6 (XP_AT6), its pack number 7)
 // EXPANSION PACKS AS PATCHES. The base game (bore.gba) ships without the six packs: each is a BPS patch (packs/, tools/make_packs.py) that fills

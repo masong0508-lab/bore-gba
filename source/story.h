@@ -296,6 +296,13 @@ static const StQ stqT[5][5]={
     { {TQ_DAYS,5}, {TQ_FRIENDS,2}, {TQ_MONEY,12000}, {TQ_HAPPY,1}, {TQ_PLUG,1} },                          // 4 you are Mamesy: hold on, and keep the hospital from pulling the plug
     { {TQ_CLEAN,10}, {TQ_FRIENDS,4}, {TQ_HOUSE,4}, {TQ_MONEY,40000}, {TQ_HAPPY,1} } };                     // 5 the comeback: all of it, together
 static const u8 stqN[5]={3,4,5,5,5};
+// STORY MEMORY (continuity pass 3): one SRAM byte in the gap after the stash block remembers what happened on the way, so later chapters remember it too.
+// Bits 0-1: slips in chapter 2 (up to 3), 2-3: slips in chapter 3, 4: chapter 4 needed the ONE MORE NIGHT. Cleared when a new TV SHOW & TELL starts.
+#define STM_OFF 7471
+static int stmGet(void){ return SRAM_BASE[STM_OFF]; }
+static void stmPut(int v){ SRAM_BASE[STM_OFF]=(u8)v; }
+static int stmSlips(void){ int m=stmGet(); return (m&3)+((m>>2)&3); }
+static void stmSlip(int ch){ int m=stmGet(), sh=ch==1?0:ch==2?2:-1; if(sh<0) return; int n=(m>>sh)&3; if(n<3) stmPut((m&~(3<<sh))|((n+1)<<sh)); }
 // CONTINUITY (mission pass 2): every goal says what it means in the story, every chapter card opens with what just happened, and reaching a goal plays a
 // line of the story (who calls, what changes). Same order as stqT.
 static const char* const stqL[5][5]={
@@ -303,7 +310,7 @@ static const char* const stqL[5][5]={
     {"DAYS CLEAN FOR THE NETWORK","FRIENDS IN HER CORNER","SIMOLEONS PUT AWAY","FEEL LIKE HERSELF AGAIN"},
     {"SIMS UNDER HER ROOF","DAYS CLEAN WITH CAMERAS OUT","SIMOLEONS FROM THE DEAL","FRIENDS WHO STAYED","LOCKS ON THE GATE"},
     {"DAYS AT HER BEDSIDE","FRIENDS WHO VISIT","SIMOLEONS FOR THE BILLS","KEEP YOUR CHIN UP",0},
-    {"DAYS CLEAN","FRIENDS IN THE FRONT ROW","SIMS AT HOME","SIMOLEONS FOR THE COMEBACK","BE HAPPY. MEAN IT."} };
+    {"DAYS CLEAN","FRIENDS IN THE FRONT ROW","SIMS AT HOME","COMEBACK SIMOLEONS","BE HAPPY. MEAN IT."} };
 static const char* const stqWhy[5]={"THE MORNING AFTER THE CLIP. START SMALL.","THE OFFER: ONE CLEAN WEEK OR NO SHOW.","THE DEAL BOUGHT A HOUSE. NOW THE GATE.","SHE FELL. YOU ARE MAMESY. HOLD ON.","SHE WOKE UP. ONE MORE SHOW, DONE RIGHT."};
 static const char* const stqBeat[5][5]={
     {"Mamesy came by. Coffee, no lecture.","Dex texts: Still here. Call me.","The lawyer is paid. One fire out."},
@@ -343,7 +350,7 @@ static void stTvEvent(int ev){   // sims.h simEventV calls this for every game e
         int d=ev==SE_BFF?15:10; plugV=(u8)(plugV>d?plugV-d:0); lnote=ev==SE_PROMO?"A raise. Okafor eases off.":"A friend helps. Okafor eases."; lnoteT=90; }
     if(stId!=STY_TVSHOW||stKidDay==255||(stCh!=1&&stCh!=2&&stCh!=4)) return;
     if(ev!=SE_PIPE&&ev!=SE_FAINT&&ev!=SE_PASSOUT) return;
-    stKidDay=stqDay(); stSave(); toast(ev==SE_PIPE?"You relapsed. The clock restarts.":"You collapsed. The clock resets.");
+    stmSlip(stCh); stKidDay=stqDay(); stSave(); toast(ev==SE_PIPE?"You relapsed. The clock restarts.":"You collapsed. The clock resets.");
 }
 static int stValue(const StCh*c){   // the number a goal counts (-1: the goal has none)
     switch(c->goal){
@@ -509,7 +516,7 @@ static void plugTick(void){   // once per logic step (stTick): the hospital's pr
     if(v>100) v=100;
     if(v>=100&&plugNight){ plugV=100; if(!stModal) stModal=3; return; }   // the second time there is no more night: the hospital pulls the plug (stModal 3: stRunModal0 plays the loss, then back to your last save)
     if(v>=100){   // the plug is nearly pulled: one more night, and everything you held on to starts over
-        v=50; stKidDay=stqDay(); stSave(); if(simMoney>=1000) simMoney-=1000; plugNight=1; toast("One more night. The days reset."); lnote="There won't be another one."; lnoteT=200; }
+        v=50; stKidDay=stqDay(); stSave(); if(simMoney>=1000) simMoney-=1000; plugNight=1; stmPut(stmGet()|16); toast("One more night. The days reset."); lnote="There won't be another one."; lnoteT=200; }
     else if(old<90&&v>=90){ static const char* const l90[3]={"Last chance. Save Missy.","She's almost out of time.","Mamesy, hurry. Please."}; lnote=l90[rnd8()%3]; lnoteT=150; }
     else if(old<75&&v>=75){ static const char* const l75[3]={"Okafor's losing patience.","Okafor won't stop hinting.","The hospital wants an answer."}; lnote=l75[rnd8()%3]; lnoteT=150; }
     plugV=(u8)v;
@@ -590,12 +597,28 @@ static void stTkList(int x,int y,int dy){   // the tasks of the chapter, ticked:
     const StB*b=stBkNow(); int n=stTkN(b);
     for(int i=0;i<n;i++){ int ok=stTkL>>i&1; char l[48]; char*e=slCat(l,ok?"+ ":"- "); slCat(e,b->t[i].nm); text(x,y+i*dy,l,ok?RGB(10,28,12):WHITE,1); }
 }
+static const char* stqWhyNow(void){   // the chapter card's first line, coloured by what happened before
+    int sl=stmSlips(), m=stmGet();
+    if(stCh==2&&(m&3)) return "THE DEAL CAME ANYWAY. VANCE KNOWS.";
+    if(stCh==3&&sl>=2) return "SHE FELL. THE SLIPS CAUGHT UP. HOLD ON.";
+    if(stCh==4&&(m&16)) return "ONE NIGHT FROM GONE. SHE WOKE UP.";
+    if(stCh==4&&!sl) return "SHE WOKE UP CLEAN. ONE MORE SHOW.";
+    return stqWhy[stCh];
+}
+static const char* stqBeatNow(int i){   // a goal's story line, coloured by what happened before
+    int sl=stmSlips(), m=stmGet();
+    if(stCh==4&&i==0) return sl?"Ten days. Longer than any stretch before.":"Ten days. Clean since that first week.";
+    if(stCh==3&&i==0&&sl) return "Five days. You stop counting her slips.";
+    if(stCh==4&&i==1&&(m&16)) return "Four friends. Okafor sends flowers too.";
+    if(stCh==2&&i==1&&(m&3)) return "Clean with cameras out. Vance hates it.";
+    return stqBeat[stCh][i];
+}
 static void stqBeatTick(void){   // a goal reached for the first time this chapter: its line of the story (goals already met when the chapter or the game starts stay quiet)
     static u8 ch=255, got; static u16 id=0xFFFF; if(stId!=STY_TVSHOW||stCh>=5||stKidDay==255){ ch=255; return; }
     u8 now=0; for(int i=0;i<stqN[stCh];i++) if(stqOk(&stqT[stCh][i])) now|=(u8)(1<<i);
     if(ch!=stCh||id!=stId){ ch=(u8)stCh; id=(u16)stId; got=now; return; }
     u8 nw=(u8)(now&~got); if(!nw) return; got|=nw;
-    for(int i=0;i<stqN[stCh];i++) if((nw>>i)&1){ lnote=stqBeat[stCh][i]; lnoteT=150; sfxPlay(SFX_POP); break; }
+    for(int i=0;i<stqN[stCh];i++) if((nw>>i)&1){ lnote=stqBeatNow(i); lnoteT=150; sfxPlay(SFX_POP); break; }
 }
 static void stTick(void){ { static u8 bt; if(++bt>=45){ bt=0; stqBeatTick(); } } papTick(); plugTick(); stTick0(); if(stTvWant&&stId==STY_TVSHOW){ static u8 tc; if(++tc>=60){ tc=0; stTvControl(); } } }   // (TV SHOW & TELL: keep asking while the hand-over is waiting)
 static void stFix(void);
@@ -752,7 +775,7 @@ static void stPlugLose(void){
 static void stRunModal0(void){
     int kind=stModal; stModal=0; if(!stId) return;
     if(kind==3){ stPlugLose(); return; }   // (chapter 4 lost)
-    if(stId==STY_TVSHOW&&kind==1&&stCh==0&&stKidDay==255){ csPlay(7); stKidDay=stqDay(); stGuest=0; stSave(); sgDirty=1; }   /* cutfix: unsaved until the game is saved */   // a brand new TV SHOW & TELL: the night it all started plays once, before chapter 1 (the chapter clock starts here, which is also what stops it playing again)
+    if(stId==STY_TVSHOW&&kind==1&&stCh==0&&stKidDay==255){ stmPut(0); csPlay(7); stKidDay=stqDay(); stGuest=0; stSave(); sgDirty=1; }   /* cutfix: unsaved until the game is saved */   // a brand new TV SHOW & TELL: the night it all started plays once, before chapter 1 (the chapter clock starts here, which is also what stops it playing again)
     if(stId==STY_TVSHOW&&kind==2&&stCh>=1&&stCh<=5){   // the scenes that close the chapter just finished and open the next (cutscene.h): the bars (preceded by THE REFILL, followed by THE OFFER), the sweater (then THE GATE), the fall, waking up (then THE DRIVE and the news), here today (after THE WINGS)
         static const u8 seq[6][4]={{255},{12,0,8,255},{1,9,255},{2,255},{3,10,4,255},{11,5,255}};
         for(int i=0;i<4&&seq[stCh][i]!=255;i++) csPlay(seq[stCh][i]);
@@ -777,7 +800,7 @@ static void stRunModal0(void){
             text(16,97,bk->br[0],RGB(20,26,31),1); text(16,105,bk->br[1],RGB(20,26,31),1);
             if(c->goal==SG_TASKS) stTkList(16,114,8); else if(c->goal==SG_KID) text(16,114,"+ A CHILD COMES HOME",WHITE,1);
         } else {
-        text(16,90,(stId==STY_TVSHOW&&!end&&stCh<5)?stqWhy[stCh]:kind==2?(end?"THE END, IS HERE TODAY":"NEXT CHAPTER"):(end?"THE END, IS HERE TODAY":c->goal==SG_MULTI?"ALL OF THESE AT ONCE":"YOUR GOAL"),GOLD,1);   // (TV SHOW & TELL: what just happened, in one line)
+        text(16,90,(stId==STY_TVSHOW&&!end&&stCh<5)?stqWhyNow():kind==2?(end?"THE END, IS HERE TODAY":"NEXT CHAPTER"):(end?"THE END, IS HERE TODAY":c->goal==SG_MULTI?"ALL OF THESE AT ONCE":"YOUR GOAL"),GOLD,1);   // (TV SHOW & TELL: what just happened, in one line)
         if(c->goal!=SG_MULTI||end) text(16,102,end?(kind==2?"YOUR STORY GOES ON  KEEP PLAYING":"YOUR STORY GOES ON  KEEP PLAYING"):c->nm,WHITE,1);
         if(!end&&c->goal!=SG_MULTI){ char b[16]; if(stProg(c,b)) text(16,112,b,RGB(20,26,31),1); } }
         if(stId==STY_TVSHOW&&!end&&stCh<5) stqList(16,99,8);   // (the goals of the chapter, ticked as they hold)   // (what this chapter is about)
