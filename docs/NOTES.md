@@ -1325,3 +1325,5 @@ FRONT LINE MODE is now an operation with a squad, orders and reinforcements, not
 **Sharper small text (`text()` in main.c):** the small size (5 px capitals) is drawn through a contrast curve (`crisp`: coverage 0,0,2,4,6,8,8,8,8 of 8), so half-covered pixels go solid and the faint fringes go: capitals read as clean strokes instead of a blur. The medium and large sizes are unchanged.
 
 **Build / buy controls page (`drawEditorHud`, MAP MENU in main.c):** the bottom of the build editor now says only what A, B and L R do right now, plus `START  MAP MENU AND CONTROLS`. Every key (zoom, floors, undo / redo, tools, wallpaper, categories, turning items) is on two CONTROLS pages, the first item of the MAP MENU, in the same KEY | WHAT IT DOES layout as the town map.
+
+**Playtest fixes (town map):** cars now really drive from cell to cell (a comment had swallowed the step code, so every car slid off its road into the sky and never turned, stopped or queued). The town card counts every home lot as a house. NEW LOT: when the lot does not fit, A jumps the cursor to the nearest spot where it does (`nbNearFree`), or says to GROW THE TOWN when there is no room anywhere.

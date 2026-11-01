@@ -659,7 +659,7 @@ static void nbPanel(int ccx,int ccy,int tool,int sub){
     else if(tool==2){ static const char* const rn[4]={"ROAD","AVENUE  FASTER TRAFFIC","ONE WAY  THE WAY YOU DRAW","BULLDOZE"}; e=slCat(b,rn[sub&3]); if((sub&3)==3&&nbBrush) slCat(e,"   3 X 3"); }
     else if(tool==3){ e=slCat(b,"PLACE  "); e=slCat(e,dcNm[sub]); if(nbBrush) slCat(e,"   3 X 3"); }
     else { e=slCat(b,"EMPTY LOT  "); e=slNum(e,nbNlW*4); e=slCat(e," X "); slNum(e,nbNlH*4);
-        int ok=nbFree(ccx,ccy,nbNlW,nbNlH,-1); slCat(c2,ok?"IT FITS HERE":"NO ROOM HERE"); c2c=ok?RGB(10,26,10):RGB(30,10,8); }
+        int ok=nbFree(ccx,ccy,nbNlW,nbNlH,-1); slCat(c2,ok?"IT FITS HERE  A PLACES IT":"NO ROOM HERE  A FINDS SPACE"); c2c=ok?RGB(10,26,10):RGB(30,10,8); }
     text(4,135,b,WHITE,1);
     text(4,145,c2,c2c,1);
     text(4,153,"START  TOWN MENU AND CONTROLS",RGB(12,14,16),1);
@@ -670,6 +670,12 @@ static int nbFree(int x,int y,int w,int h,int skip){   // can a lot go there?
     if(x<0||y<0||x+w>NB_W||y+h>NB_H) return 0;
     for(int j=y;j<y+h;j++)for(int i=x;i<x+w;i++){ int l=nbAt(i,j); if((l>=0&&l!=skip)||NB_RD(NB_GR(nbT.cell[j][i]))||NB_GR(nbT.cell[j][i])==NT_WATER) return 0; }
     return 1;
+}
+static int nbNearFree(int*cx,int*cy,int w,int h){   // the nearest spot (ring by ring round the cursor) where a w x h lot fits
+    int m=NB_W>NB_H?NB_W:NB_H;
+    for(int d=1;d<m;d++) for(int j=-d;j<=d;j++) for(int i=-d;i<=d;i++){ if(i!=-d&&i!=d&&j!=-d&&j!=d) continue;
+        if(nbFree(*cx+i,*cy+j,w,h,-1)){ *cx+=i; *cy+=j; return 1; } }
+    return 0;
 }
 static int nbCash(money_t*have){ simsDefaults(); if(!simsLoad()){ *have=-1; return 0; } *have=simMoney; return 1; }   // the life's cash (0 = no life yet)
 // ---- ROOF EDITOR (lot menu > ROOF): pick a style and colour, set the height and overhang, or mix your own colour. A saves, B cancels ----
@@ -907,7 +913,7 @@ static void nbCarsTick(void){   // move them a step and put them on the screen (
         if(i>=nbCarN){ o[0]=0x200; continue; }
         NbCar*c=&nbCar[i];
         if(c->wait) c->wait--;
-        else if((c->dx|c->dy)&&!nbCarBlocked(i)){ c->f=(u8)(c->f+(NB_GR(nbT.cell[c->y][c->x])==NT_AVENUE?2:1)); if(c->f>=16){   // (avenues are twice as quick) c->f=0; c->x=(u8)(c->x+c->dx); c->y=(u8)(c->y+c->dy);
+        else if((c->dx|c->dy)&&!nbCarBlocked(i)){ c->f=(u8)(c->f+(NB_GR(nbT.cell[c->y][c->x])==NT_AVENUE?2:1)); if(c->f>=16){ c->f=0; c->x=(u8)(c->x+c->dx); c->y=(u8)(c->y+c->dy);   // (avenues are twice as quick)
                 if(!nbRoadOk(c->x,c->y)){ c->x=(u8)(c->x-c->dx); c->y=(u8)(c->y-c->dy); c->dx=(s8)-c->dx; c->dy=(s8)-c->dy; }   // (the road was bulldozed under it)
                 int d=NB_DC(nbT.cell[c->y][c->x]);
                 if(d==DC_STOP) c->wait=24;
@@ -991,7 +997,7 @@ static void neighborhoodScreen(void){
                 prev=keyNow(); dirty=1; }
             else if(tool==0){ int li=nbAt(ccx,ccy); if(li>=0){ if(nbLotMenu(li)){ nbSave(); return; } }
                          else { tool=4; } prev=keyNow(); dirty=1; }
-            else if(tool==4){ if(!gok) toast("NO ROOM THERE"); else if(nbNewLot(ccx,ccy,gw,gh)) tool=0; prev=keyNow(); dirty=1; }
+            else if(tool==4){ if(!gok){ if(nbNearFree(&ccx,&ccy,gw,gh)){ camx=ccx; camy=ccy; toast("THE NEAREST SPACE"); } else toast("NO ROOM LEFT  GROW THE TOWN IN THE MENU"); } else if(nbNewLot(ccx,ccy,gw,gh)) tool=0; prev=keyNow(); dirty=1; }
         }
         if(!nbMoveMode&&(pr&K_START)){ nbTownMenu(&quit); prev=keyNow(); dirty=1; played=1; if(ccx>=NB_W) ccx=NB_W-1; if(ccy>=NB_H) ccy=NB_H-1; camx=ccx; camy=ccy; }   // (a new zoom: the map centres on the cursor)
         if(step&&tool==4) dirty=1;   // (the NEW LOT ghost is a block of cells: all of it. The lots tool and the paint tools only repaint round the cursor, zoomed in too)
