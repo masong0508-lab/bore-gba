@@ -3544,7 +3544,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
         if(bail){ specLose(); lnote="BAIL"; lnoteT=60; lsp=0; lstun=BAIL_STUN; lbailT=BAIL_STUN; lgrind=0; moodEvent(M_BAIL); }
         else{
             if(g==1){ F.spd=F.spd*3/5; lsp=F.spd>>4; pts/=2; lnote="SKETCHY"; lnoteT=40; }   // landed, but crooked: you lose speed and the trick is worth half
-            else if(g==3&&pts){ pts+=pts/4; if(lstrk<5) lstrk++; pts+=pts*lstrk/10; }                                                      // PERFECT: +25%
+            else if(g==3&&pts){ pts+=pts/4; if(lstrk<5) lstrk++; pts+=pts*lstrk/10; F.spd+=F.spd>>4; if(F.spd>F_SPD_MAX) F.spd=F_SPD_MAX; lsp=F.spd>>4; }   // (a PERFECT landing also carries a little speed: flow)                                                      // PERFECT: +25%
             if(pts){ if(hs||lflip||gb) pts=pts*(100+skLvl(SK_AIR)*4)/100; skGain(SK_AIR,(hs>=2?2:hs?1:0)+(lflip?1:0)+(gb?1:0)); skGain(SK_BAL,g==3?2:g==2?1:0); pts=moodPts(pts); if(lsw){ pts+=pts/4; simEvent(SE_SWITCH); } if(lspecOn) pts*=2; lscore+=pts; lpts=pts; lsMax(LS_BESTTRICK,(u32)pts); if(g!=1){ trickName(hs,gb,g==3); if(lsw) swName(); if(g==3&&lstrk>=2){ int n=0; while(lnBuf[n]) n++; if(n<20){ lnBuf[n++]=' '; lnBuf[n++]='X'; lnBuf[n++]=(char)('0'+lstrk); lnBuf[n]=0; } } } lnoteT=60; lcAdd(g!=1?lnBuf:"SKETCHY"); lcN++; lcPts+=pts; lcT=oComboLen(); moodEvent(M_TRICK); specAdd(60+pts/(lspecOn?8:4)); }
             if(onRail){ lgrind=1; skGain(SK_GRIND,1); lnote="GRIND"; lnoteT=30; lcAdd("GRIND"); lcN++; lcT=oComboLen(); moodEvent(M_GRIND_ON); sfxPlay(SFX_GRIND); specAdd(60); }
             else sfxPlay((pts&&g!=1)?SFX_STICK:SFX_LAND);   // the landing is heard: a thud, or the bright one for a trick
@@ -3850,6 +3850,7 @@ static const u8 faceView[16]={3,3,0,0,0,0,0,1,1,1,2,2,2,2,3,3};
 #include "selfwill.h" // YOUR SIM ALONE: left alone, your own Sim eats, sleeps, chats and cheers itself up
 static int plX, plY, plZ, plFh, plV, plBob;   // feet on screen, height above the floor, floor height under the feet, which baked view   // the waters' frame (roomFloors), whether the lot has any (wFqBuild), the player is in one (SWIMMING)
 static void lieTick(void); static u8 lieOn;   // lying.h: asleep on a bed
+static signed char plLean EWRAM_BSS;   // px the head is shifted sideways: a carve leans into the turn, a run leans forward (the picture only; blitLean)
 static signed char plSq EWRAM_BSS;   // ALIVE tier 3: rows the sprite is squashed towards its feet (landing, sad slump, sleeping slump); 0 = normal
 static signed char plPopX EWRAM_BSS, plPopY EWRAM_BSS;   // ALIVE tier 2: px the sprite is moved by a reaction (hop up, shake sideways, flinch down); the shadow stays
 static int plDip, plMk;   // plDip: px the skater crouches for a few frames after a landing; plMk: the landing mark under a spinning skater (0 none, 1 red = bail, 2 yellow = sketchy, 3 green = clean, 4 bright = perfect)
@@ -3871,6 +3872,9 @@ static void playerCalc(void){
         if(alvPopK==1&&alvPopT<=3&&plZ<=plFh) q=alvPopT>1?2:1;                                                     // the end of a hop
         if(!lskate&&!lvx&&!lvy&&!lsp&&plZ<=plFh){ int m=moodState(); int s=simAct==1?4:m==MS_SAD?2:sNrg<20?1:0; if(s>q) q=s; }   // asleep: slumped; SAD: a slump; worn out: a little
         plSq=(signed char)q; }
+    plLean=0; if(!ldead&&!lieOn&&plZ<=plFh&&lstun<=0){   // lean: into a carve (the inside of the turn, on the screen), forward into a run
+        if(lskate){ if(F.turn&&F.spd>40){ int h=(F.angF>>4)+64*cview, v=(((-fsin(h)-fcos(h))*F.turn)>>13)*(F.drift?3:2)/2; plLean=(signed char)(v>3?3:v<-3?-3:v); } }
+        else if(lvx|lvy){ s32 rvx,rvy; rotPos(lvx,lvy,&rvx,&rvy); int v=(int)(rvx-rvy); if(v>=0) v=v>>2; else v=-((-v)>>2); int cap=(lsp>=F_RUN*stSpd[stage]/100-2)?2:1; plLean=(signed char)(v>cap?cap:v<-cap?-cap:v); } }
     lieTick();   // lying.h
     slfFx();   // self.h: the animation of the action you are doing (nudge, hop, squash, facing)
     lpsx=plX; lpsy=plY-20;
@@ -3883,7 +3887,7 @@ static void playerCalc(void){
         if(air2&&F.grab>0) bdPitch+=gp/4;                              // a grab pulls it up and tips it
         bdRaise=(air2&&F.grab>0)?gp*5/8:0;                             // ... towards the hand
         bdRoll=(bFT>0&&bFT<BFLIP_LEN)?((bFD*bFT*256/BFLIP_LEN)&255):0; // kickflip / heelflip
-        bdSpk=lgrind?1+(lfr&3):0;                                      // grind sparks
+        bdSpk=(lgrind||(F.drift&&!air2))?1+(lfr&3):0;                                      // grind sparks
     } else { bdA=bdPitch=bdRoll=bdRaise=bdSpk=0; }
     hhCalc(); inmCalc(); petCalc();
 }
@@ -3925,6 +3929,13 @@ static void blitSq(const u8*s,int x0,int y0,int k){   // ALIVE tier 3: blit with
         const u8*sp=s+ys*SPW+ia; u16*d=&fb[yy*SW+x0+ia];
         for(int x=ia;x<ib;x++,sp++,d++){ u8 c=*sp; if(c) *d=sprPal[c]; } }
 }
+static void blitLean(const u8*s,int x0,int y0,int k){   // blit with the rows above the feet shifted sideways, more the higher they are (feet stay put): the body leans
+    int hh=SPF-spBy0; if(hh<8||!k){ blit(s,x0,y0); return; }
+    for(int yd=spBy0;yd<spBy1;yd++){ int yy=y0+yd; if((unsigned)(yy-cY0)>=cH) continue;
+        int sh=yd<SPF?(k*(SPF-yd)+(k>0?hh/2:-hh/2))/hh:0, xa=x0+sh, ia=cX0-xa, ib=cX0+(int)cW-xa; if(ia<spBx0) ia=spBx0; if(ib>spBx1) ib=spBx1; if(ia>=ib) continue;
+        const u8*sp=s+yd*SPW+ia; u16*d=&fb[yy*SW+xa+ia];
+        for(int x=ia;x<ib;x++,sp++,d++){ u8 c=*sp; if(c) *d=sprPal[c]; } }
+}
 static void drawPlayerBody(int dy);
 static void drawPlayerNow(void){
     if(!lswim){ drawPlayerBody(0); return; }
@@ -3944,6 +3955,7 @@ static void drawPlayerBody(int dy){
     if(lbailT>0&&((lbailT>>1)&1)) return;   // BAIL FLICKER: the skater blinks (every other 2 frames) while getting up
     { int pz=poseSel(); if(pz&&poseBlit(pz,plV,plX-16+plPopX,plY-SPF-plZ-plBob+plDip+plPopY+dy)) return; }   // ALIVE tier 4: a pose instead
     if(plSq) blitSq((plBob&&!lskate)?spr4s[plV]:spr4[plV],plX-16+plPopX,plY-SPF-plZ-plBob+plDip+plPopY+dy,plSq);
+    else if(plLean&&!dy) blitLean((plBob&&!lskate)?spr4s[plV]:spr4[plV],plX-16+plPopX,plY-SPF-plZ-plBob+plDip+plPopY,plLean);
     else blit((plBob&&!lskate)?spr4s[plV]:spr4[plV],plX-16+plPopX,plY-SPF-plZ-plBob+plDip+plPopY+dy);   // walking: the stride frame on the up-step
 }
 // The room inside the rectangle x0..x1 / y0..y1 (end excluded), drawn back to front and clipped to it: the same pixels a whole-screen
@@ -4250,6 +4262,7 @@ static int rcHit(const Rc*a,int x0,int y0,int x1,int y1){ return a->x0<x1&&a->x1
 static void actorRc(Rc*r){   // everything the player puts on screen: sprite, shadow, board
     int sx=plX-16+plPopX, sy=plY-SPF-plZ-plBob+plDip+plPopY;
     int x0=sx+spBx0, x1=sx+spBx1, y0=sy+spBy0, y1=sy+spBy1;
+    if(plLean){ x0-=3; x1+=3; }
     if(sShad){ if(plX-3<x0) x0=plX-3; if(plX+4>x1) x1=plX+4; if(plY-plFh+2>y1) y1=plY-plFh+2; }
     if(plMk){ if(plX-7<x0) x0=plX-7; if(plX+8>x1) x1=plX+8; if(plY-plFh+4>y1) y1=plY-plFh+4; }   // the landing mark on the floor
     if(lskate){ if(plX-19<x0) x0=plX-19; if(plX+20>x1) x1=plX+20; if(plY-plZ-17<y0) y0=plY-plZ-17; if(plY-plZ+14>y1) y1=plY-plZ+14; }   // the whole board, nose up, rolled or lifted
@@ -4257,7 +4270,7 @@ static void actorRc(Rc*r){   // everything the player puts on screen: sprite, sh
     r->x0=(short)x0; r->x1=(short)x1; r->y0=(short)y0; r->y1=(short)y1;
 }
 static unsigned actSigBase(void){ return (unsigned)(plX&0x3FF)|((unsigned)(plY&0x3FF)<<10)|((unsigned)(plZ&0x3F)<<20)|((unsigned)plV<<26)|((unsigned)lskate<<28)|((unsigned)sShad<<29)|((unsigned)(plFh&1)<<30)|((unsigned)plBob<<31); }
-static unsigned actSigNow(void){ unsigned b=actSigBase(); if(lswim) b^=0x5BD1E995u^(unsigned)((lfr>>3)&1); if(plSq) b^=(unsigned)plSq*0x9E3779B1u; if(lieOn) b^=(unsigned)(1+((lfr>>5)&1)+((lfr>>4)&3)*2+lieX*17+lieY*131)*0x2545F491u; b^=(unsigned)poseSel()*0x85EBCA6Bu; if(plPopX|plPopY) b^=(unsigned)((plPopX+4)|((plPopY+4)<<4))*2654435761u; if(lskate) b^=((unsigned)bdA|((unsigned)(bdPitch+4)<<8)|((unsigned)bdRaise<<12)|((unsigned)bdRoll<<16)|((unsigned)bdSpk<<24)|((unsigned)plDip<<27)|((unsigned)plMk<<29))*2654435761u; return b; }   // + the board's pose: any change redraws
+static unsigned actSigNow(void){ unsigned b=actSigBase(); if(lswim) b^=0x5BD1E995u^(unsigned)((lfr>>3)&1); if(plSq) b^=(unsigned)plSq*0x9E3779B1u; if(plLean) b^=(unsigned)(plLean+4)*0x7FEB352Du; if(lieOn) b^=(unsigned)(1+((lfr>>5)&1)+((lfr>>4)&3)*2+lieX*17+lieY*131)*0x2545F491u; b^=(unsigned)poseSel()*0x85EBCA6Bu; if(plPopX|plPopY) b^=(unsigned)((plPopX+4)|((plPopY+4)<<4))*2654435761u; if(lskate) b^=((unsigned)bdA|((unsigned)(bdPitch+4)<<8)|((unsigned)bdRaise<<12)|((unsigned)bdRoll<<16)|((unsigned)bdSpk<<24)|((unsigned)plDip<<27)|((unsigned)plMk<<29))*2654435761u; return b; }   // + the board's pose: any change redraws
 // ---- getting pixels to the screen ----
 static void dmaRows16(u32 src,u32 dst,int w,int rows,int sstride,int dstride){   // rows of w halfwords, strides in halfwords
     for(int j=0;j<rows;j++){ REG_DMA3SAD=src; REG_DMA3DAD=dst; REG_DMA3CNT=(u32)w|0x80000000u; src+=(u32)(sstride*2); dst+=(u32)(dstride*2); }

@@ -10,6 +10,7 @@
 #define F_TURN_LO 56    // turn rate at standstill (1/16 unit/frame, ~300 deg/s)
 #define F_TURN_HI 28    // ...at top speed (~150 deg/s)
 #define F_TURN_ACC 14   // turn rate ramp per frame (steering has weight, no snapping). Was 10: a touch quicker to bite
+#define F_DRIFT_SPD 140   // DRIFT: hold DOWN and steer at this speed or more: a hard carve (the turn bites 50% harder), the board slides (looser grip) and you keep your speed instead of braking
 #define F_GRIP    2     // velocity chases heading by 1/4 per frame (1<<2): slight slide in turns
 #define F_BUF     8     // jump input buffer (frames before landing). Was 6
 #define F_COY     6     // coyote time (frames after leaving a ledge). Was 5
@@ -29,9 +30,9 @@ static const short sinQ[65]={0,6,13,19,25,31,38,44,50,56,62,68,74,80,86,92,98,10
 static inline int fsin(int a){ int s=1; a&=255; if(a>=128){ a-=128; s=-1; } if(a>64) a=128-a; return s*sinQ[a]; }
 static inline int fcos(int a){ return fsin(a+64); }
 static inline int fabsi(int v){ return v<0?-v:v; }
-typedef struct { int angF, turn, spd, fvx, fvy, rx, ry, buf, coy, jh, spin, spinV, grab; } Feel;
+typedef struct { int angF, turn, spd, fvx, fvy, rx, ry, buf, coy, jh, spin, spinV, grab, drift; } Feel;
 static Feel F;
-static void feelReset(int hd16){ F.angF=hd16<<8; F.turn=F.spd=F.fvx=F.fvy=F.rx=F.ry=F.buf=F.coy=F.jh=F.spin=F.spinV=F.grab=0; }
+static void feelReset(int hd16){ F.angF=hd16<<8; F.turn=F.spd=F.fvx=F.fvy=F.rx=F.ry=F.buf=F.coy=F.jh=F.spin=F.spinV=F.grab=F.drift=0; }
 static void feelSync(void){   // main.c code that zeroes/reduces lsp (bumps, bails, stuns, death) wins over our speed
     if(lsp<(F.spd>>4)){ int o=F.spd; F.spd=lsp<<4; if(o){ F.fvx=F.fvx*F.spd/o; F.fvy=F.fvy*F.spd/o; } if(!F.spd) F.rx=F.ry=0; }
 }
@@ -42,7 +43,8 @@ static void feelTick(int ongr,int pressB){   // coyote + jump buffer bookkeeping
 }
 static void feelSteer(u16 k){
     int dir=((k&K_RIGHT)?1:0)-((k&K_LEFT)?1:0);
-    int mx=F_TURN_LO-(F.spd*(F_TURN_LO-F_TURN_HI)>>9), tg=dir*mx, d=tg-F.turn;
+    F.drift=((k&K_DOWN)&&dir&&F.spd>=F_DRIFT_SPD)?1:0;
+    int mx=F_TURN_LO-(F.spd*(F_TURN_LO-F_TURN_HI)>>9), tg, d; if(F.drift) mx+=mx>>1; tg=dir*mx; d=tg-F.turn;
     int acc=dir?F_TURN_ACC:F_TURN_ACC+4; if(d>acc) d=acc; if(d<-acc) d=-acc;
     F.turn+=d; F.angF=(F.angF+F.turn)&4095;
 }
@@ -50,7 +52,8 @@ static void feelPush(u16 k,int rail){
     int top=moodTop(F_TOP); if(lspecOn) top+=top/8; if(bdOwn==2) top+=top/16;   // (a PRO DECK: a touch faster)                             // mood: SAD drags the top speed, STOKED adds a touch
     if(k&K_A){ if(F.spd<top) F.spd+=((top-F.spd)>>F_PUSHDIV)+1; }
     else { F.spd-=(F.spd>>F_COAST)+((lfr&7)==0); }   // coasting rolls a long way (skating 2: was 1 + speed/128 a step, a dead stop in under 2 s)
-    if(k&K_DOWN) F.spd-=F_BRAKE+1+(F.spd>>4);
+    if(F.drift) F.spd-=1+(F.spd>>7);                   // a drift scrubs a little speed, no more
+    else if(k&K_DOWN) F.spd-=F_BRAKE+1+(F.spd>>4);
     F.spd-=(fabsi(F.turn)*F.spd)>>14;                  // carving costs a little speed
     { int fl=192+(abOf(AB_GRIP)-2)*16; if(rail&&F.spd<fl) F.spd=fl; }   // rails keep you rolling (GRIP ability: faster)
     if(F.spd<0) F.spd=0;
@@ -85,7 +88,7 @@ static int feelGrabPts(void){ int g=F.grab>>2; return g>150?150:g; }
 static void feelLandReset(void){ F.spin=F.spinV=F.grab=0; F.jh=0; }
 static void feelVel(void){   // velocity chases heading*speed (grip), exact sub-unit movement via remainder
     int a=F.angF>>4, tx=(fcos(a)*F.spd)>>8, ty=(fsin(a)*F.spd)>>8;
-    F.fvx+=(tx-F.fvx)/(1<<F_GRIP); F.fvy+=(ty-F.fvy)/(1<<F_GRIP);
+    { int gr=1<<(F_GRIP+(F.drift?1:0)); F.fvx+=(tx-F.fvx)/gr; F.fvy+=(ty-F.fvy)/gr; }
     F.rx+=F.fvx; F.ry+=F.fvy; lvx=F.rx/16; lvy=F.ry/16; F.rx-=lvx*16; F.ry-=lvy*16;
     lsp=F.spd>>4; lhd=((a+8)>>4)&15;
 }

@@ -7,7 +7,7 @@
 static int acT;                    // animation clock (the menu adds 2 per frame)
 
 
-IWRAM_CODE static void acidRect(int t,int xb0,int xb1,int yb0,int yb1){   // blocks xb0..xb1-1 (4 pixels wide) of rows yb0..yb1-1 (2 pixels tall)
+IWRAM_OVL1 static void acidRectO(int t,int xb0,int xb1,int yb0,int yb1){   // blocks xb0..xb1-1 (4 pixels wide) of rows yb0..yb1-1 (2 pixels tall)
     for(int yb=yb0;yb<yb1;yb++){
         u32 *r0=(u32*)fb+(yb*2)*ROW_W, *r1=r0+ROW_W;
         int dy=yb-37, wob=acSin[(yb*9+t*3)&255]>>4, sy=acSin[(yb*7-t*2)&255];   // wob: the row sways -8..7 blocks
@@ -21,4 +21,6 @@ IWRAM_CODE static void acidRect(int t,int xb0,int xb1,int yb0,int yb1){   // blo
         }
     }
 }
+// (overlay 1, which has 400 bytes to spare: the menu backdrop does not need to sit in IWRAM all the time)
+static inline void acidRect(int t,int xb0,int xb1,int yb0,int yb1){ ovlUse(1); acidRectO(t,xb0,xb1,yb0,yb1); }
 static void acidBg(int t){ acidRect(t,0,60,0,75); }   // the whole backdrop, rows 0..149
