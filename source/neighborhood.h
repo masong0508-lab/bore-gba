@@ -626,6 +626,7 @@ static int nbMoveOk(int li){ const NbLot*L=&nbT.lot[li]; return L->on&&L->kind==
 static int nbMovePrice(int li){ return nbPrice(&nbT.lot[li]); }   // (every lot has its price: no free lot set aside)
 static u32 nbLotSeed(int li){ u32 h=2166136261u; for(int i=0;i<NB_NAME&&nbT.name[i];i++) h=(h^(u8)nbT.name[i])*16777619u; return h^((u32)(li+1)*2654435761u); }   // a lot's own seed: its house is always the same one
 static int nbLotStyle(int li){ return hgStyleFor((int)nbLotSeed(li),nbT.lot[li].w*nbT.lot[li].h); }   // the kind of house an empty lot comes with (housegen.h)
+static int nbFree(int x,int y,int w,int h,int skip);
 static void nbPanel(int ccx,int ccy,int tool,int sub){
     rect(0,0,SW,12,PANEL); text(4,3,nbT.name,GOLD,1);
     { char b[24]; char*e=slCat(b,seasNm[nbT.season]); e=slCat(e," "); slCat(e,todNm[nbT.tod]); text(SW-4-tw(b,1),3,b,DIMC,1); }
@@ -643,23 +644,25 @@ static void nbPanel(int ccx,int ccy,int tool,int sub){
         return;
     }
     for(int t=0,x=4;t<5;t++){ int w=tw(nbTools[t],1)+6; if(t==tool) rect(x-2,124,w,9,RGB(6,16,8)); text(x+1,125,nbTools[t],t==tool?WHITE:DIMC,1); x+=w+2; }
-    int li=nbAt(ccx,ccy); char b[40]; char*e;
-    if(tool==0&&li>=0){
-        const NbLot*L=&nbT.lot[li]; text(4,135,L->name,WHITE,1);
-        e=slCat(b,L->kind==LKIND_RES?"HOME LOT ":ctNm[L->type]); e=slCat(e,"  "); e=slNum(e,L->w*4); e=slCat(e," X "); slNum(e,L->h*4); text(84,135,b,DIMC,1);
-        if(li==nbT.home) e=slCat(b,"YOUR HOME  "); else if(L->kind==LKIND_COMM) e=slCat(b,"COMMUNITY  "); else if(nbWho(li,0)){ char f[24]; f[0]=0; nbWho(li,f); e=slCat(b,f); e=slCat(e,"  "); } else if(L->slot<0&&nbT.cur!=li) e=slCat(b,"FREE LOT  "); else { e=slCat(b,"HOUSE "); e=slNum(e,L->floors); e=slCat(e,L->floors>1?" FLOORS  ":" FLOOR  "); }
-        nbMoney(e,nbPrice(L)); text(4,145,b,GOLD,1);
-        text(4,153,nbT.cur==li?"A  LOT MENU   YOU ARE HERE":"A  LOT MENU",RGB(12,14,16),1);
-        return;
-    }
-    if(tool==1){ e=slCat(b,"PAINT "); slCat(e,ntNm[sub]); }
-    else if(tool==2){ static const char* const rn[4]={"LAY ROAD","LAY AVENUE  CARS GO FASTER","ONE WAY  THE WAY YOU DRAW","BULLDOZE  BACK TO GRASS"}; slCat(b,rn[sub&3]); }
-    else if(tool==3){ e=slCat(b,"PLACE "); slCat(e,dcNm[sub]); }
-    else if(tool==4){ e=slCat(b,"NEW EMPTY LOT "); e=slNum(e,nbNlW*4); e=slCat(e," X "); slNum(e,nbNlH*4); (void)sub; }
-    else { e=slCat(b,ntNm[NB_GR(nbT.cell[ccy][ccx])]); if(NB_DC(nbT.cell[ccy][ccx])){ e=slCat(e,"  "); slCat(e,dcNm[NB_DC(nbT.cell[ccy][ccx])]); } }
+    // THE PANEL, the same three lines for every tool: what the tool will do (white), what is under the cursor (dim), and the one key that explains the rest.
+    // (Every control is in START > CONTROLS: the panel no longer lists keys.)
+    int li=nbAt(ccx,ccy); char b[48], c2[48]; char*e; u16 c2c=DIMC; b[0]=c2[0]=0;
+    u8 cl=nbT.cell[ccy][ccx];
+    { e=slCat(c2,li>=0?nbT.lot[li].name:ntNm[NB_GR(cl)]); if(li<0&&NB_DC(cl)){ e=slCat(e,"  "); e=slCat(e,dcNm[NB_DC(cl)]); } }   // (under the cursor)
+    if(tool==0){
+        if(li>=0){ const NbLot*L=&nbT.lot[li];
+            e=slCat(b,L->name); e=slCat(e,"   "); e=slCat(e,L->kind==LKIND_RES?"HOME":ctNm[L->type]); e=slCat(e," "); e=slNum(e,L->w*4); e=slCat(e," X "); slNum(e,L->h*4);
+            if(li==nbT.home) e=slCat(c2,"YOUR HOME  "); else if(L->kind==LKIND_COMM) e=slCat(c2,"COMMUNITY LOT  "); else if(nbWho(li,0)){ char f[24]; f[0]=0; nbWho(li,f); e=slCat(c2,f); e=slCat(e,"  "); } else e=slCat(c2,L->slot<0&&nbT.cur!=li?"FOR SALE  ":"EMPTY HOUSE  ");
+            e=nbMoney(e,nbPrice(L)); if(nbT.cur==li) e=slCat(e,"   YOU ARE HERE"); c2c=GOLD; }
+        else slCat(b,"A ON EMPTY LAND STARTS A NEW LOT"); }
+    else if(tool==1){ e=slCat(b,"PAINT  "); e=slCat(e,ntNm[sub]); if(nbBrush) slCat(e,"   3 X 3"); }
+    else if(tool==2){ static const char* const rn[4]={"ROAD","AVENUE  FASTER TRAFFIC","ONE WAY  THE WAY YOU DRAW","BULLDOZE"}; e=slCat(b,rn[sub&3]); if((sub&3)==3&&nbBrush) slCat(e,"   3 X 3"); }
+    else if(tool==3){ e=slCat(b,"PLACE  "); e=slCat(e,dcNm[sub]); if(nbBrush) slCat(e,"   3 X 3"); }
+    else { e=slCat(b,"EMPTY LOT  "); e=slNum(e,nbNlW*4); e=slCat(e," X "); slNum(e,nbNlH*4);
+        int ok=nbFree(ccx,ccy,nbNlW,nbNlH,-1); slCat(c2,ok?"IT FITS HERE":"NO ROOM HERE"); c2c=ok?RGB(10,26,10):RGB(30,10,8); }
     text(4,135,b,WHITE,1);
-    text(4,145,tool==0?"L R TOOLS   START TOWN MENU":tool==2?"HOLD A DRAWS STRAIGHT  SELECT KIND":tool==4?"SEL+ARROWS SIZE  SELECT PRESET  A":(nbBrush?"SELECT KIND  BRUSH 3X3  SEL+DOWN 1X1":"SELECT KIND  SEL+UP BIG BRUSH"),DIMC,1);
-    text(4,153,tool?"B LOTS TOOL   SELECT+B UNDO":"B LEAVES THE NEIGHBORHOOD",RGB(12,14,16),1);
+    text(4,145,c2,c2c,1);
+    text(4,153,"START  TOWN MENU AND CONTROLS",RGB(12,14,16),1);
 }
 
 // ---------- actions ----------
@@ -815,8 +818,15 @@ static int nbNewLot(int x,int y,int w,int h){
     nbSave(); toast("LOT PLACED"); return 1;
 }
 static void nbTownMenu(int*quit){
-    static const char* const it[8]={"ZOOM","SEASON","TIME OF DAY","RENAME TOWN","GROW THE TOWN","SHRINK THE TOWN","ALL NEIGHBORHOODS","LEAVE"};
-    int c=menu("TOWN",it,8);
+    static const char* const it[9]={"CONTROLS","ZOOM","SEASON","TIME OF DAY","RENAME TOWN","GROW THE TOWN","SHRINK THE TOWN","ALL NEIGHBORHOODS","LEAVE"};
+    int c=menu("TOWN",it,9);
+    if(c==0){   // every key of the town map, in one place (the panel only says what the tool will do)
+        static const char* const p1[]={">ON THE MAP","D-PAD|MOVE (HOLD: FASTER)","L  R|CHANGE TOOL","START|THIS MENU","B|LOTS TOOL, THEN LEAVE",
+            ">LOTS","A ON A LOT|ITS MENU","A ON EMPTY LAND|NEW LOT TOOL",">NEW LOT","SELECT + ARROWS|WIDTH AND DEPTH","SELECT|NEXT PRESET SIZE","A|PLACE IT"};
+        static const char* const p2[]={">PAINT  ROADS  DECOR","HOLD A + MOVE|PAINT, DRAW, PLACE","SELECT|NEXT KIND","SELECT + UP|3 X 3 BRUSH","SELECT + DOWN|1 X 1 BRUSH","SELECT + B|UNDO LAST STROKE",
+            ">ROADS","SELECT|ROAD, AVENUE, ONE WAY","|OR BULLDOZE","HOLD A|DRAWS A STRAIGHT LINE","ONE WAY|POINTS THE WAY YOU DRAW",">TRAFFIC","ZOOM IN|CARS DRIVE THE ROADS"};
+        helpScreen("CONTROLS  1 OF 2",p1,(int)(sizeof p1/sizeof p1[0])); helpScreen("CONTROLS  2 OF 2",p2,(int)(sizeof p2/sizeof p2[0])); return; }
+    c--;
     if(c==0) nbT.zoom=(u8)(nbT.zoom==0?((nbT.w>24||nbT.h>24)?2:1):nbT.zoom==2?1:0);   // the whole town, then (in a big town) MEDIUM, then CLOSE, each following the cursor
     else if(c==1) nbT.season=(u8)((nbT.season+1)&3);
     else if(c==2) nbT.tod=(u8)((nbT.tod+1)%3);

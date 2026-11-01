@@ -3155,7 +3155,10 @@ static void helpScreen(const char*title,const char*const*ln,int n){   // lines s
         if(!dirty){ vsync(); continue; }   // a help page never changes
         dirty=0;
         box(3,1,234,157); text(14,10,title,GOLD,1);
-        for(int i=0;i<n;i++){ const char*l=ln[i]; if(l[0]=='>') text(14,22+i*8,l+1,GOLD,1); else text(18,22+i*8,l,WHITE,1); }
+        for(int i=0;i<n;i++){ const char*l=ln[i]; if(l[0]=='>'){ text(14,22+i*8,l+1,GOLD,1); continue; }
+            int bar=-1; for(int j=0;l[j];j++) if(l[j]=='|'){ bar=j; break; }
+            if(bar<0){ text(18,22+i*8,l,WHITE,1); continue; }   // KEY|WHAT IT DOES: two columns (the font is not monospaced, so spaces never lined up)
+            char k[24]; int m=bar<23?bar:23; for(int j=0;j<m;j++) k[j]=l[j]; k[m]=0; text(18,22+i*8,k,GOLD,1); text(104,22+i*8,l+bar+1,WHITE,1); }
         text(14,144,"PRESS A TO CLOSE",DIMC,1);
         uiPresent();
     }
