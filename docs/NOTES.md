@@ -1312,3 +1312,10 @@ FRONT LINE MODE is now an operation with a squad, orders and reinforcements, not
 - DECOR: PARKING (a car park with two parked cars). The arrows are not in the DECOR list (the ONE WAY road draws them).
 - Traffic jams: a car waits rather than drive into the one in front going the same way, so queues build up at lights, stop signs and cones.
 - Old towns load unchanged: AVENUE and the new decor values sit at the ends of their lists.
+
+**Town, round 3:**
+- NEW LOT: any size. SELECT + LEFT / RIGHT sets the width, SELECT + UP / DOWN the depth (3 to 10 cells, 12 to 40 tiles), SELECT alone steps through the old presets. The panel shows NEW EMPTY LOT W X D.
+- New SUBURB towns no longer start with a 40 x 40 YOUR PLACE: it is 20 x 20, and the rest of that corner is three empty lots (ELM 1, 3, 5) of other sizes. Towns already saved keep their lots.
+- Painting redraws only the cells round the cursor (it was the whole town every step) and moves one cell a step while A is held, so a stroke has no gaps.
+- Traffic drives past the street lamps the town generator puts in the road line (they are plaza cells; `nbRoadOk` accepts a lamp cell with road on both sides).
+- DYNAMIC MENU MUSIC (`musStemPick`, main.c): every tracker channel has its own gain gliding to a target. While the main menus' song plays (`mStemsOk`), each menu you open picks a new mix (about a third of the channels the song really uses step out, never channel 0) and closing it goes back to the mix before; in the neighborhood every tool has its own mix. Any other song (game, Toukebox) always plays whole.

@@ -1862,6 +1862,10 @@ typedef struct { const s8*d; u32 pos,step,len; int vl,vr,ol,orr; } MVoice;   // 
 // ol / orr: DECLICK. A new note on a channel used to cut the old one mid-wave (a click). The jump between the old note's level and the new one's
 // first sample is kept as an offset (x32) that is added to the mix and fades out over ~2 ms, so the wave never steps.
 static MVoice mvc[MUS_VOICES];
+// STEMS: every tracker channel has its own gain (256 full) gliding to a target, so the menu music can drop and bring back its layers as you go through
+// menus and tools (musStemPick). A new song starts with every stem in (deckInit).
+static u8 mStemsOk; static u16 mChanSeen;   // mChanSeen: the channels the song has really played (the stems are picked among those)   // 1 while the main menus' song plays: only it changes its mix (a song in the game or the Toukebox always plays whole)
+static u16 mStemG[MUS_VOICES]={256,256,256,256,256,256,256,256,256,256,256,256,256,256,256,256}, mStemT[MUS_VOICES]={256,256,256,256,256,256,256,256,256,256,256,256,256,256,256,256};
 // STEREO: Direct Sound A plays the left buffers, Direct Sound B the right ones; both are fed by Timer0 and restarted together at vblank.
 #define M_RING (3*MUS_N)   // the ring: three buffers play in turn (0, 1, 2) and the fourth is a copy of 0 (see below). The mixer renders up to TWO buffers ahead of what plays, so a mix that runs long no longer replays old sound
 static s8 mbufL[4][MUS_N] __attribute__((aligned(4))), mbufR[4][MUS_N] __attribute__((aligned(4)));   // 0 and 1 play in turn; 2 is a copy of 0, so the DMA reading on past the end of 1 (the ring's wrap, before the vblank re-points it) still finds the right samples
@@ -1925,8 +1929,8 @@ IWRAM_ARM static void musMix(s8*outL,s8*outR){
         for(int i=0;i<n;i++) a[i]=0;
         // Left and right share one 32-bit word: acc = L*65536 + R (mod 2^32). Adding a voice's (l, r) is one add of (l<<16)+r, and at the end
         // R = the low 16 bits as signed, L = (acc - R) >> 16: exactly the two s16 sums of before, wrap-round and all (the output is bit for bit the same).
-        for(int vi=0;vi<MUS_VOICES;vi++){ MVoice*v=&mvc[vi]; if(!v->d) continue;
-            u32 pos=v->pos, st=v->step; const s8*d=v->d; int vl=v->vl, vr=v->vr, i=0;
+        for(int vi=0;vi<MUS_VOICES;vi++){ MVoice*v=&mvc[vi]; if(!v->d) continue; mChanSeen|=(u16)(1u<<vi);
+            u32 pos=v->pos, st=v->step; const s8*d=v->d; int sgn=mStemG[vi], vl=(v->vl*sgn)>>8, vr=(v->vr*sgn)>>8, i=0;   // (the stem's gain)
             if(pos>>16){ u32 k=pos>>16; d+=k; v->len-=k; pos&=0xFFFF; v->d=d; }   // keep pos small (see MVoice)
             u32 len=(v->len>0xFFFF?0xFFFFu:v->len)<<16;   // a frame moves a note far less than 65535 samples, so the cap never stops one early
             if(pos<len&&st*(u32)(n-1)<len-pos){   // the note cannot end inside this chunk (pos+st*(n-1) < len): no test per sample (steps are far below 2^22, so no overflow)
@@ -2160,6 +2164,7 @@ static int vzLevel(int b){   // bar height 1..12 for band b. Tuned on two real s
     int pk=(int)(vzPk>>4); if(pk<40) pk=40; int v=((int)vzOutB[mPlayI][b]*100)/pk, h=1; while(h<12&&v>=th[b][h-1]) h++; return h;
 }
 IWRAM_ARM static void musMixAny(int b){
+    for(int c=0;c<MUS_VOICES;c++){ int g=mStemG[c], t=mStemT[c]; if(g!=t) mStemG[c]=(u16)(g<t?(g+12>t?t:g+12):(g-12<t?t:g-12)); }   // stems glide in and out over a third of a second
     if(!mPlay&&!xfOn){ for(int i=0;i<MUS_N;i++){ mbufL[b][i]=0; mbufR[b][i]=0; } if(ambG) ambMix(mbufL[b],mbufR[b]); if(sfxV) sfxMix(mbufL[b],mbufR[b]); else if(!ambG) mWantOff=1; return; }   // only an effect or the nature sounds (or nothing: switch the mixer off)
     if(ldG==0&&ldGT==0&&!xfOn){ for(int i=0;i<MUS_N;i++){ mbufL[b][i]=0; mbufR[b][i]=0; } if(sfxV) sfxMix(mbufL[b],mbufR[b]); return; }   // the song is stepped aside for a loading screen: frozen where it is, no decoding at all (only the tick-tock is mixed)
     if(mPlay){ if(mKind==2) chipMix(mbufL[b],mbufR[b]); else if(mKind) adpMix(mbufL[b],mbufR[b]); else musMix(mbufL[b],mbufR[b]); }
@@ -2254,7 +2259,7 @@ static void audStart(void){   // start the mixer (the caller has set up what pla
 static void audStop(void){ irqOff(); mOn=0; R_DMA1CNT=0; R_DMA2CNT=0; R_TM0CNT=0; R_TM1CNT=0; R_SNDCNT_H=0; }
 // Start a song: kind 0 = the tracker song xm, kind 1 = the ADPCM data in adp, kind 2 = a chiptune loop (synth data in adp).
 static void deckInit(int kind,const u8*adp,const XmSong*xm){   // set the main deck up for a song (the sound hardware is not touched)
-    for(int i=0;i<MUS_VOICES;i++){ mvc[i].d=0; mvc[i].ol=mvc[i].orr=0; }
+    for(int i=0;i<MUS_VOICES;i++){ mvc[i].d=0; mvc[i].ol=mvc[i].orr=0; mStemT[i]=mStemG[i]=256; } mStemsOk=0; mChanSeen=0;
     mOrd=0; mRow=0; mLeft=0; mFrac=0; mLaps=0; mDone=0; aTail=0; mKind=kind; mSong=xm; mDp=0; mLp=0; for(int i=0;i<256;i++) mDly[i]=0;
     aLoop=0; aPred0=0; aIdx0=0;
     if(kind==2) csInit(adp);
@@ -3095,7 +3100,25 @@ static void keyUnget(u16 m){   // presses a screen read but did not use go back 
 static void objHideAll(void){ for(int i=0;i<128;i++) ((volatile u16*)0x07000000)[i*4]=0x200; *(volatile u16*)0x04000050=0x0400; *(volatile u16*)0x04000054=0; }   /* all 128 OAM entries (fx.h uses 16..58), and no weather dimming behind a menu */    // household sprites off (menus, other screens)
 static void box(int x,int y,int w,int h){ objHideAll(); rect(x-1,y-1,w+2,h+2,GOLD); rect(x,y,w,h,RGB(3,4,7)); }
 static int menuInit, menuQuiet;   // menu(): the row to start on (set before the call, used once), and 1 = no tick / pop sounds (the debug SOUND TEST listens to what it plays)
-static int menu(const char*title,const char*const*it,int n){   // UP/DOWN + A to choose, B or START to cancel (returns -1). Long lists scroll (L R jump a page).
+static void musStemPick(u32 key){   // key 0: every stem in. Else a mix of its own: a third of the channels the song really uses step out (never channel 0, the backbone)
+    if(!mStemsOk) key=0;
+    for(int c=0;c<MUS_VOICES;c++) mStemT[c]=256;
+    if(!key) return;
+    int ch[MUS_VOICES], n=0; for(int c=1;c<MUS_VOICES;c++) if(mChanSeen&(1u<<c)) ch[n++]=c;
+    int drop=n/3; if(drop<1&&n>=2) drop=1;
+    u32 h=key*2654435761u;
+    for(int i=0;i<drop&&n>0;i++){ h^=h>>13; h*=0x85EBCA6Bu; h^=h>>16; int j=(int)(h%(u32)n); mStemT[ch[j]]=0; ch[j]=ch[--n]; }
+}
+static int menuDepth; static u32 menuStemBase;   // how deep in menus you are, and the mix the screen under them uses (the neighborhood sets one per tool)
+static int menuIn(const char*title,const char*const*it,int n);
+static int menu(const char*title,const char*const*it,int n){   // every menu: the music picks a new mix of its stems as you go in, and goes back to the one before as you come out
+    u32 h=2166136261u; for(int i=0;title[i];i++) h=(h^(u8)title[i])*16777619u;
+    menuDepth++; musStemPick(h^(u32)menuDepth*0x51u|1u);
+    int r=menuIn(title,it,n);
+    menuDepth--; musStemPick(menuDepth?(menuStemBase^(u32)menuDepth*0x51u)|1u:menuStemBase);
+    return r;
+}
+static int menuIn(const char*title,const char*const*it,int n){   // UP/DOWN + A to choose, B or START to cancel (returns -1). Long lists scroll (L R jump a page).
     if(n<=0) return -1;
     int vis=n>9?9:n, w=tw(title,1)+40; for(int i=0;i<n;i++){ int q=tw(it[i],1)+30; if(q>w) w=q; } if(w<116) w=116; if(w>232) w=232;   // as wide as its longest line
     int h=32+vis*10, x=(SW-w)/2, y=(SH-h)/2, sel=menuInit<n?menuInit:n-1, top=0, dirty=1, hold=0; u16 prev=keyNow(); if(sel<0) sel=0; menuInit=0; if(sel>=vis) top=sel-vis+1;
@@ -6144,7 +6167,7 @@ static void menuMusStart(void){
     creOn=0;
     const Song*sg=menuSong();
     if(!sSnd||!xo[XO_MENUMUS]||!sg){ musFadeOut(XF_OUT); return; }
-    mGain=mGainT=256; musFadeTo(sg->adp?1:0,sg->adp,sg->xm,XF_SONG); menuOn=1;   // crossfades from whatever played before
+    mGain=mGainT=256; musFadeTo(sg->adp?1:0,sg->adp,sg->xm,XF_SONG); menuOn=1; mStemsOk=!sg->adp;   // (the stems: a tracker song only)   // crossfades from whatever played before
 }
 static void menuMusStop(void){ if(!menuOn) return; menuOn=0; musFadeOut(XF_OUT); }
 static void menuMusSync(void){ if(sSnd&&xo[XO_MENUMUS]) menuMusStart(); else menuMusStop(); }   // after OPTIONS: SOUND or MENU MUSIC may have changed
