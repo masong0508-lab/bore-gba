@@ -3,7 +3,7 @@
 static void csTint(int x0,int y0,int w,int h,int k){   // world coords; tints the pixels already drawn
     int sx0=csCamX(x0+csOx), sy0=csCamY(y0+csOy), sx1=csCamX(x0+csOx+w), sy1=csCamY(y0+csOy+h);
     if(sx1<=sx0) sx1=sx0+1; if(sy1<=sy0) sy1=sy0+1;
-    if(sx0<0) sx0=0; if(sx1>SW) sx1=SW; if(sy0<12) sy0=12; if(sy1>116) sy1=116;
+    if(sx0<cX0) sx0=cX0; if(sx1>cX0+(int)cW) sx1=cX0+(int)cW; if(sy0<cY0) sy0=cY0; if(sy1>cY0+(int)cH) sy1=cY0+(int)cH; if(sy0<12) sy0=12; if(sy1>116) sy1=116;
     for(int y=sy0;y<sy1;y++) for(int x=sx0;x<sx1;x++){ u16*p=&fb[y*SW+x]; int r=*p&31, g=(*p>>5)&31, b=(*p>>10)&31, d=(r+g+b)>48?-3:k;
         r+=d; g+=d; b+=d; if(r<0)r=0; if(g<0)g=0; if(b<0)b=0; if(r>31)r=31; if(g>31)g=31; if(b>31)b=31; *p=(u16)(r|(g<<5)|(b<<10)); }
 }

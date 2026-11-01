@@ -8,7 +8,7 @@
 static int csGi(int v){ int w=0; while((w+1)*(w+1)<=v) w++; return w; }
 static u16 csGm(int s){ return s==1?0x3DEF:s==2?0x1CE7:0x0C63; }                                       // the bits that survive a shift of s
 static void csGlowRow(int sx0,int sx1,int sy,int s,u16 ch){                                              // screen row: add a share of the missing light to the channels in ch
-    if(sy<12||sy>=116) return; if(sx0<0) sx0=0; if(sx1>SW) sx1=SW; u16 m=(u16)(csGm(s)&ch);
+    if(sy<12||sy>=116||(unsigned)(sy-cY0)>=cH) return; if(sx0<cX0) sx0=cX0; if(sx1>cX0+(int)cW) sx1=cX0+(int)cW; u16 m=(u16)(csGm(s)&ch);   // (inside the clip: a part redraw must not light a pixel twice)
     for(u16*p=&fb[sy*SW+sx0];sx0<sx1;sx0++,p++){ u16 c=*p; *p=(u16)(c+((((~c)&0x7FFF)>>s)&m)); }
 }
 static void csGlowBox(int wx,int wy,int w,int h,int s,u16 ch){                                           // a rectangle of world pixels
@@ -51,6 +51,7 @@ static void csBgFx(int bg,int t,int fx){
     }
 }
 static void csDk(int y,int x0,int x1,int s){                                                             // darken a screen row segment by 1/2, 1/4 or 1/8
+    if((unsigned)(y-cY0)>=cH) return; if(x0<cX0) x0=cX0; if(x1>cX0+(int)cW) x1=cX0+(int)cW; if(x0>=x1) return;   // (inside the clip: a part redraw must not darken a pixel twice)
     u16*p=&fb[y*SW+x0]; u16 m=csGm(s); u32 mm=(u32)m|((u32)m<<16);
     if(((uintptr_t)p&2)||((x1-x0)&1)){ for(;x0<x1;x0++,p++){ u16 c=*p; *p=(u16)(c-((c>>s)&m)); } return; }
     for(u32*q=(u32*)p;x0<x1;x0+=2,q++){ u32 v=*q; *q=v-((v>>s)&mm); }

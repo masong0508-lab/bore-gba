@@ -144,7 +144,7 @@ static const CsShot* csShotFind(int t){   // the shot in use on this beat now, i
 static void csShotApply(const CsBeat*b,int t){
     const CsShot*s=csShotFind(t); if(!s) return;
     int u=t-s->t0, d=s->dur>0?s->dur:1; if(u>d) u=d;
-    int cuts=d>=150?3:2, k=u>=d?cuts-1:u*cuts/d, z=s->z0+(s->z1-s->z0)*k/(cuts-1);   // the size steps (cuts), it never zooms
+    int ez=(u<<8)/d; ez=(ez*ez*(768-2*ez))>>16; int z=s->z0+(s->z1-s->z0)*ez/256;   // the lens moves (a real push in / pull back, eased): no more stepping in cuts
     if(s->anc>=3){ int sb=s->anc==3, who=sb?b->b:b->a;   // TRACKING: where the figure is now, plus the offset
         int fx=csFigNowX(who,(sb?b->bx:b->ax)*4), fy=csFigNowY(who,csFeet(b,sb?1:0,t)), ox=s->x0+(s->x1-s->x0)*u/d, oy=s->y0+(s->y1-s->y0)*u/d;
         if(u==0&&t==s->t0) csCamCut(z,(fx+ox)<<4,(fy+oy)<<4); else csCamPan(z,(fx+ox)<<4,(fy+oy)<<4);

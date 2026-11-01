@@ -21,6 +21,10 @@ static int csTuneBS, csMT, csMP;
 static int csFt(int t){ if(!csTuneBS) return t; int p=csy.step-4; if(p<0) p+=csy.nl; int d=p-csMP; if(d<0) d+=csy.nl; csMP=p; csMT+=d; return csMT*32/csTuneBS; }
 #endif
 
+static int csPrY0=12, csPrY1=116;   // the picture rows csPresent copies (a part redraw: only the rows round the figures)
+static int csPart, csWholeOk, csSinceWhole, csPbx[2][4];   // this picture is a part redraw; the last one finished whole-or-part cleanly; pictures since a whole one; the figures' boxes of the last two pictures
+static u32 csCamKey;
+static int csRateN, csRateSc=-1;   // the approval board: how far its line has got in this scene
 static int csOx, csOy;   // the shake
 static int csMood=0, csLite=0;   // cutscene redo 12: the picture's mood (-1 brighter, 0 normal, 1 dimmer, 2 much dimmer) and a lightning flash in the hospital window
 static int csSlow=0;   // 1 while the frames are coming slowly: the backdrop lighting (glows, dust, vignette) is skipped until they speed up again
@@ -38,7 +42,7 @@ static int csSpkDummy_;   // cutscene redo 13 (ALIVE): who is speaking now (CA_*
 static void csR(int x,int y,int w,int h,u16 c){ csCamR(x+csOx,y+csOy,w,h,c); }
 static void csD(int x,int y,int r,u16 c){ csCamD(x+csOx,y+csOy,r,c); }
 static void csLn(int x0,int y0,int x1,int y1,u16 c){ csCamL(x0+csOx,y0+csOy,x1+csOx,y1+csOy,c); }
-static int csWv(int t,int per){ int p=t%per, h=per/2, v=p<h?p:per-p; return v*16/h-8; }   // a triangle wave, -8 .. 8
+static int csWv(int t,int per){ int p=((t%per)+per)%per; return csSinT[((p*64/per)+48)&63]*8/127; }   // a smooth wave, -8 .. 8 (it was a triangle: constant speed and a snap at each end read as jerky): eases into and out of every turn
 static void csGrad(int y0,int h,int r0,int g0,int b0,int r1,int g1,int b1){   // rows of one colour go down as one band (t = i*256/(h-1), stepped without dividing)
     int n=h>1?h-1:1, tq=256/n, tr=256%n, t=0, a=0, s=0; u16 sc=0;
     for(int i=0;i<h;i++){ u16 c=RGB(r0+(r1-r0)*t/256,g0+(g1-g0)*t/256,b0+(b1-b0)*t/256);
@@ -131,9 +135,10 @@ static void csBg(int bg,int t,int fx){   // the picture area: y 12 .. 115
         csR(0,12,SW,104,RGB(2,3,6)); csR(14,18,212,92,RGB(1,2,4));
         for(int gy=30;gy<=90;gy+=15) csR(20,gy,200,1,RGB(4,6,9));
         csR(20,24,1,78,RGB(10,12,14)); csR(20,102,201,1,RGB(10,12,14));
-        int n=t*3; if(n>200) n=200; int py=92; u16 col=RGB(8,28,12);
+        { static int rb=-1, base; if(csRateSc!=csCurSc){ csRateSc=csCurSc; csRateN=0; rb=-1; } if(csBN!=rb){ rb=csBN; base=csRateN; } csRateN=base+t*3; if(csRateN>200) csRateN=200; }   // ONE line for the whole scene: the next beat carries on from where it got to (it used to start the climb and the crash all over again)
+        int n=csRateN; int py=92; u16 col=RGB(8,28,12);
         for(int i=0;i<n;i++){
-            int y; if(i<110) y=92-i*52/110-((i%9)==0?2:0); else if(i<134) y=40+(i-110)*54/24; else y=94+((i>>2)&1);
+            int y; if(i<110) y=92-i*52/110-((i%9)==0?2:0); else if(i<134) y=40+(i-110)*54/24; else { int k=i-134, h=(k*37+k*k*11)%23; y=94+k/22+(h<3?1:h>20?-1:0); }   // after the crash: a slow, ragged slide on down (no zigzag that repeats)
             col=i<110?RGB(8,28,12):RGB(31,6,6);
             if(i>0) csLn(20+i-1,py,20+i,y,col); csR(20+i,y,1,1,col); py=y;
         }
@@ -289,16 +294,28 @@ static void csDraw(const CsBeat*b,int t,int shown){   // one frame of one beat (
       if(sc==6&&bi==9&&((t<10)||(t>=16&&t<20))) csLite=1;
       if(sc==10&&bi>=7) csMood=1; if(sc==10&&bi>=8) csMood=2; }
     csOx=csOy=0; if(b->fx&CF_SHAKE){ csOx=(rnd8()%5)-2; csOy=(rnd8()%5)-2; }
-    { int e=8; rect(0,12,SW,e,0); rect(0,116-e,SW,e,0); rect(0,12+e,e,104-2*e,0); rect(SW-e,12+e,e,104-2*e,0); }   // (every backdrop covers the picture: only a shake or a zoom's rounding can leave its edges, so only the edges are cleared)
     { static const CsBeat*lb EWRAM_BSS; if(b!=lb){ lb=b; csBN++; } } csBT=t; csVar=csBN; csBgNow=b->bg;
     csFxNow=b->fx; csCamAim(b,t); csShotApply(b,t);
     int cdx=0, cdy=0; csGlassUp=0;
-    if(csCz>=320&&b->bg!=CB_RATE&&b->bg!=CB_BLACK){ cdx=csSw(t,300)*14/127; cdy=csSw(t+77,230)*9/127; csCxF+=cdx; csCyF+=cdy; }   // handheld: a close shot never sits dead still (undone at the end of the frame)
-    clipSet(0,12,SW,116); csBg(b->bg,t,b->fx); if(!csSlow) csBgFx(b->bg,t,b->fx);
+    if(csCz>=320&&b->bg!=CB_RATE&&b->bg!=CB_BLACK){ cdx=csSw(t,300)*14/127; cdy=csSw(t+77,230)*9/127; { int q=(4096+csCz-1)/csCz; cdx=cdx/q*q; cdy=cdy/q*q; } csCxF+=cdx; csCyF+=cdy; }   // (in whole screen pixels: between steps the camera is still, and only the figures need drawing)   // handheld: a close shot never sits dead still (undone at the end of the frame)
+    // PART REDRAW (cutscene redo 16): the camera is exactly where it was and nothing on the set flashes or moves on its own: only the box round the figures (where
+    // they were in the last two pictures, plus a margin) is drawn again and sent to the screen. Each 8th picture is whole, so the set's small lights still flicker.
+    { u32 key=(u32)csCz*2654435761u^(u32)(csCxF+cdx)*40503u^(u32)(csCyF+cdy)*2246822519u^(u32)(uintptr_t)b^(u32)(csOx*7+csOy*13)^(u32)(csMood*977+csLite*31+mk*5+csSlow*3);
+      csPart=key==csCamKey&&csWholeOk&&csSinceWhole<8&&b->bg!=CB_CAR&&b->bg!=CB_RATE&&b->bg!=CB_BLACK&&b->bg!=CB_MIRROR&&!mk&&!(b->fx&(CF_STROBE|CF_IRIS|CF_SHAKE|CF_SICK));
+      csCamKey=key; csPrY0=12; csPrY1=116;
+      if(csPart){ int x0=csPbx[0][0]<csPbx[1][0]?csPbx[0][0]:csPbx[1][0], y0=csPbx[0][1]<csPbx[1][1]?csPbx[0][1]:csPbx[1][1], x1=csPbx[0][2]>csPbx[1][2]?csPbx[0][2]:csPbx[1][2], y1=csPbx[0][3]>csPbx[1][3]?csPbx[0][3]:csPbx[1][3];
+          x0-=16; y0-=12; x1+=16; y1+=12; if(x0<0) x0=0; if(y0<12) y0=12; if(x1>SW) x1=SW; if(y1>116) y1=116;
+          if(x0>=x1||y0>=y1){ x0=0; x1=1; y0=12; y1=13; }
+          clipSet(x0,y0,x1,y1); csPrY0=y0; csPrY1=y1; csSinceWhole++; }
+      else { clipSet(0,12,SW,116); csSinceWhole=0; } }
+    { int e=8; rect(0,12,SW,e,0); rect(0,116-e,SW,e,0); rect(0,12+e,e,104-2*e,0); rect(SW-e,12+e,e,104-2*e,0); }   // (every backdrop covers the picture: only a shake or a zoom's rounding can leave its edges, so only the edges are cleared)
+    csFbx0=csFby0=9999; csFbx1=csFby1=-9999;
+    csBg(b->bg,t,b->fx); if(!csSlow) csBgFx(b->bg,t,b->fx);
     if(b->bg==CB_STUDIO&&csCurSc==7&&csCurBi>=15&&csCurBi<=21&&!csSlow) csGlow(120,57,15,22,2,CSG_WARM);   // the spotlight that finds her
     if(csCurSc==1&&b->bg==CB_HOME&&(csCurBi==4||csCurBi==5)){ int on=csCurBi==5||((t>>3)&1); csR(175,89,7,3,on?RGB(10,20,31):RGB(3,4,8)); if(on) csGlow(178,90,12,7,2,CSG_COOL); }   // cutscene redo 12: her phone lights up on the bar cart
     if(csCurSc==4&&b->bg==CB_BACK&&(csCurBi==17||csCurBi==19)&&b->b){ int px=b->bx*4+11; csR(px,84,4,7,RGB(2,2,4)); csR(px+1,85,2,5,((t>>3)&1)?RGB(12,24,31):RGB(5,12,20)); if((t>>2)&1){ csR(px-3,83,1,5,RGB(26,26,26)); csR(px+6,83,1,5,RGB(26,26,26)); } }   // the phone buzzing in her hand
     int ay=csFeet(b,0,t), by=csFeet(b,1,t);
+    csFtrack=1;   // (from here to the last figure, every shape grows the figures' box)
     if(b->bg==CB_STUDIO) csChairs(b);
     csSpeed(b,t,by);
     csEnt=0; if(csCurSc>=0&&csCurBi>0&&!(b->fx&CF_FADEIN)){   // C8: whoever was in the last beat and is not in this one walks out toward the nearer edge; whoever is new walks in (same backdrop only)
@@ -316,6 +333,11 @@ static void csDraw(const CsBeat*b,int t,int shown){   // one frame of one beat (
         if(csCurBi>0&&!(b->fx&CF_FADEIN)&&b->pb!=CP_WALK&&b->pb!=CP_LEAVE&&b->pb!=CP_LIE&&b->pb!=CP_STIR&&b->pb!=CP_CLIMB&&b->pb!=CP_FLAIL&&b->bg!=CB_BLACK&&b->bg!=CB_RATE&&b->bg!=CB_MIRROR){ const CsBeat*pv=&csScenes[csCurSc].b[csCurBi-1];
             if(pv->bg==b->bg&&b->b!=pv->a&&b->b!=pv->b&&t<28){ csEnt=(28-t)*2; csEntD=b->bx*4>120?-1:1; if(csEntD>0) csEnt=-csEnt; } }
         csSeat=(b->sp>>4)==SP_SEAT; csFig(b->bx*4,by,b->b,b->pb,csFt(t)); csEnt=0; csSeat=0; }
+    csFtrack=0;
+    { int x0=csFbx0, y0=csFby0, x1=csFbx1, y1=csFby1; if(x1<x0){ x0=x1=120; y0=y1=64; }
+      csWholeOk=!csPart||(x0>=(int)cX0&&y0>=(int)cY0&&x1<=(int)(cX0+cW)&&y1<=(int)(cY0+cH))||(cX0==0&&cW==SW&&cY0==12&&cH==104);   // (a figure got out of the box: the next picture is whole)
+      csPbx[1][0]=csPbx[0][0]; csPbx[1][1]=csPbx[0][1]; csPbx[1][2]=csPbx[0][2]; csPbx[1][3]=csPbx[0][3]; csPbx[0][0]=x0; csPbx[0][1]=y0; csPbx[0][2]=x1; csPbx[0][3]=y1;
+      if(!csPart){ csPbx[1][0]=x0; csPbx[1][1]=y0; csPbx[1][2]=x1; csPbx[1][3]=y1; } }
     if(b->bg==CB_STUDIO) csTable(b);
     if(b->bg==CB_CAR) csDash(t);
     if(b->fx&CF_SICK){ int mx=b->bx*4, my=by-26; for(int k=0;k<9;k++) if(t>k*2) csR(mx+5+k*3,my+k*k/3-3,2,2,k&1?RGB(13,24,4):RGB(18,28,6)); }
@@ -674,7 +696,7 @@ static void csTimeReset(void){ if(!(R_TM3CNT&0x80)) vsync(); csTl=R_TM3D; csAc=0
 // it did (csCapUp: 1 the caption, 2 the top bar too).
 static void csPresent(void){
     if(zoomShow&&!zoomKeep) zoomOff();
-    int a=csCapUp>1?0:12, b=csCapUp?SH:116; csCapUp=0;
+    int a=csCapUp>1?0:csPrY0, b=csCapUp?SH:csPrY1; csCapUp=0;
     { int v=REG_VCOUNT; if(v>=180) while(REG_VCOUNT>=160||REG_VCOUNT<40); }   // late in the vblank: too little of it left to get ahead, so start behind the beam once the mixer has run
     int last=REG_VCOUNT, wrap=0;
     for(int r=a;r<b;r+=8){ int e=r+8>b?b:r+8;
@@ -684,7 +706,7 @@ static void csPresent(void){
 }
 static void csPlay(int id){   // play scene id; returns when it ends or START skips it
     volatile u16*bc=(volatile u16*)0x04000050; volatile u16*bl=(volatile u16*)0x04000054;
-    const CsScene*sc=&csScenes[id]; clipAll(); objHideAll(); csCapB=0; csCamReset(); csAliveReset(); csCurSc=id; csSlow=0;
+    const CsScene*sc=&csScenes[id]; clipAll(); objHideAll(); csCapB=0; csCamReset(); csAliveReset(); csRateSc=-1; csWholeOk=0; csCamKey=0; csCurSc=id; csSlow=0;
     u16 prev=keyNow(); int skip=0;
     { int tn=csTune[id]; if(tn>=0&&sSnd){ mGain=mGainT=256; musBegin(2,chipsyn+csTnT[tn].off,0); csSongOn=1; csTuneBS=csTnT[tn].bs; csMT=0; csMP=csy.step; } }   // the scene's chip tune, locked to the figures by csFt
     for(int bi=0;bi<sc->n&&!skip;bi++){

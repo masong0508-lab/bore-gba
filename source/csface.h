@@ -15,6 +15,7 @@ static int csFu(int n){ return (n*csCz)/1024; }                       // quarter
 static int csFr(int n){ int v=csFu(n); return v<1?1:v; }             // a size: at least one pixel
 static int csFi(int v){ int w=0; while((w+1)*(w+1)<=v) w++; return w; }
 static void csFEl(int cx,int cy,int rx,int ry,int top,u16 c){        // a filled ellipse (top: only the upper half)
+    if(csFtrack) csTrack(cx-rx,cy-ry,cx+rx+1,cy+(top?1:ry+1));   // (the figures' box, for part redraws)
     if(ry<1){ rect(cx-rx,cy,2*rx+1,1,c); return; }
     int q=0;   // the square root of 16*(ry*ry-y*y), walked from row to row instead of counted up from 0 every row (the same numbers; a big close-up face was tens of thousands of steps a frame)
     int d=4*ry, inv=65536/d+1;   // (rx*q/d by a reciprocal, put right by a step either way: the same w as the division)
@@ -25,9 +26,9 @@ static void csFEl(int cx,int cy,int rx,int ry,int top,u16 c){        // a filled
 }
 static void csFE(int dx,int dy,int rx,int ry,u16 c){ csFEl(csFcx+csFu(dx),csFcy+csFu(dy),csFr(rx),csFr(ry),0,c); }
 static void csFT(int dx,int dy,int rx,int ry,u16 c){ csFEl(csFcx+csFu(dx),csFcy+csFu(dy),csFr(rx),csFr(ry),1,c); }
-static void csFR(int dx,int dy,int w,int h,u16 c){ rect(csFcx+csFu(dx),csFcy+csFu(dy),csFr(w),csFr(h),c); }
+static void csFR(int dx,int dy,int w,int h,u16 c){ int x=csFcx+csFu(dx), y=csFcy+csFu(dy), ww=csFr(w), hh=csFr(h); if(csFtrack) csTrack(x,y,x+ww,y+hh); rect(x,y,ww,hh,c); }
 static void csFStr(int x,int y,int w,int h,u16 c){ int a=h/3, l=csHlag*4; csFR(x,y,w,a,c); csFR(x+l/2,y+a,w,a,c); csFR(x+l,y+2*a,w,h-2*a,c); }   // a long strand of hair: the tip trails (csHlag)
-static void csFLn(int x0,int y0,int x1,int y1,u16 c){ line(csFcx+csFu(x0),csFcy+csFu(y0),csFcx+csFu(x1),csFcy+csFu(y1),c); }
+static void csFLn(int x0,int y0,int x1,int y1,u16 c){ int a=csFcx+csFu(x0), b=csFcy+csFu(y0), d=csFcx+csFu(x1), e=csFcy+csFu(y1); if(csFtrack) csTrack((a<d?a:d),(b<e?b:e),(a>d?a:d)+1,(b>e?b:e)+1); line(a,b,d,e,c); }
 
 static void csFaceBig(int wx,int wy,int who,int pose,int t,int open,u16 sk,u16 hr){
     csFcx=csCamX(wx+csOx); csFcy=csCamY(wy+csOy); int bx=csFcx;   // bx: the head's own centre; csFOff() slides the features off it for the turn
