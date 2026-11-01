@@ -645,6 +645,15 @@ def emit_table(spr_n):
     assert spr == spr_n
     return '\n'.join(L) + '\n'
 
+# ---- RETRO: seventies and eighties colours on the shapes the shop already has (a new category at the end, so no saved item changes its number) ----
+C = cat('RETRO')
+item('AVOCADO COUCH', 'C', 480, C, couch(GREEN, OAK), 1, col=(6, 20, 8)); item('ORANGE COUCH', 'C', 480, C, couch(ORANGE, DARK), 1, col=(28, 14, 3))
+item('TEAL ARMCHAIR', 'h', 280, C, armchair(TEAL, OAK), 1, col=(5, 20, 20)); item('MUSTARD ARMCHAIR', 'h', 280, C, armchair(MUST, DARK), 1, col=(26, 20, 4))
+item('PINK DINER STOOL', 'h', 100, C, stool(P_PINK, STEEL), 0, col=(30, 14, 22)); item('MINT DINER STOOL', 'h', 100, C, stool(MINT, STEEL), 0, col=(14, 28, 20))
+item('PURPLE ROCKER', 'h', 170, C, rocker(PURP), 1, col=(16, 6, 24)); item('NEON ARMCHAIR', 'h', 300, C, armchair(NEON, DARK), 1, col=(31, 8, 24))
+item('ORANGE LOVESEAT', 'C', 400, C, couch(ORANGE, OAK, False), 1, col=(28, 14, 3)); item('MINT LOVESEAT', 'C', 400, C, couch(MINT, WHITEW, False), 1, col=(14, 28, 20))
+item('BROWN CORD SOFA', 'C', 520, C, couch(BROWN, OAK, True, stripes(BROWN, 8, 6, 'c', 'd', False, 1)), 1, col=(16, 9, 4)); item('CYAN SOFA', 'C', 500, C, couch(CYAN, DARK), 1, col=(8, 26, 30))
+
 def main():
     cnt = {}
     for it in ITEMS: cnt[it['ch']] = cnt.get(it['ch'], 0) + 1; it['lk'] = cnt[it['ch']]; assert it['lk'] <= 255

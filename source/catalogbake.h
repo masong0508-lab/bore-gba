@@ -319,3 +319,15 @@
     bakeOne(V_CAT0+686,bxCat317,3,0,11);
     bakeOne(V_CAT0+687,bxCat318,3,0,11);
     bakeOne(V_CAT0+688,bxCat319,5,0,11);
+    for(int r=0;r<4;r++) bakeOne(V_CAT0+689+r,bxCat320,8,r,11);
+    for(int r=0;r<4;r++) bakeOne(V_CAT0+693+r,bxCat321,8,r,11);
+    for(int r=0;r<4;r++) bakeOne(V_CAT0+697+r,bxCat322,8,r,11);
+    for(int r=0;r<4;r++) bakeOne(V_CAT0+701+r,bxCat323,8,r,11);
+    bakeOne(V_CAT0+705,bxCat324,3,0,11);
+    bakeOne(V_CAT0+706,bxCat325,3,0,11);
+    for(int r=0;r<4;r++) bakeOne(V_CAT0+707+r,bxCat326,8,r,11);
+    for(int r=0;r<4;r++) bakeOne(V_CAT0+711+r,bxCat327,8,r,11);
+    for(int r=0;r<4;r++) bakeOne(V_CAT0+715+r,bxCat328,6,r,11);
+    for(int r=0;r<4;r++) bakeOne(V_CAT0+719+r,bxCat329,6,r,11);
+    for(int r=0;r<4;r++) bakeOne(V_CAT0+723+r,bxCat330,8,r,11);
+    for(int r=0;r<4;r++) bakeOne(V_CAT0+727+r,bxCat331,8,r,11);
