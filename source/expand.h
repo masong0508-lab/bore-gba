@@ -1237,7 +1237,7 @@ static int exPlace(int*ct){   // the place the mission still wants you at (*ct =
 static void stSeeds(void){ wdSeed[0]=(u8)(wdSeed[0]+2); wdSave(); }   // THE GREEN THUMB story: two seed packs in the mail
 static u8 exStoryOn;   // a mission just began in this session: its story is told once (not again when a save is loaded)
 static void exScSetup(const XMs*x){   // a mission starts: its places are in the town, its scenario begins
-    stbSet();   // (its money goals count from here)
+    if(!stId) stbSet();   // (its money goals count from here; inside a running story they share the chapter's count, so a mission never wipes a chapter's progress)
     if(!x) return;
     arPend=(u8)(x->ar?x->ar+1:(arOn?1:0)); exStoryOn=1;   // (the arena goes up after the cards; arena.h)
     for(int i=0;i<exTkN(x);i++){ if(x->t[i].k==QK_AT) trvPlace(x->t[i].a);

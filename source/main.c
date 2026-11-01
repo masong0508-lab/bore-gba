@@ -3165,7 +3165,8 @@ static void helpScreen(const char*title,const char*const*ln,int n){   // lines s
         uiPresent();
     }
 }
-static void toast(const char*msg){ int w=tw(msg,1)+16;
+static u16 toastN;   // counts toasts: a screen that redraws only parts of itself checks it and draws everything again (a toast is drawn over the picture)
+static void toast(const char*msg){ int w=tw(msg,1)+16; toastN++;
     box((SW-w)/2,66,w,22); text((SW-w)/2+8,74,msg,WHITE,1); { u16 pv=keyNow(), keep=0; for(int i=0,n=oToastLen();i<n;i++){ present(); u16 k=keyNow(), np=(u16)(k&~pv); keep|=(u16)(np&~(K_A|K_B|K_START)); if(np&(K_A|K_B|K_START)) break; pv=k; } keyUnget(keep); } }
 static int edGate(void){ if(!nbBarred()) return 1; toast("COMMUNITY LOT  BUILD IN THE TOWN"); return 0; }   // every way into the room builder asks first: a community lot can only be built from the neighborhood view
 static const char* const lifeHelp[]={

@@ -1000,6 +1000,7 @@ static void neighborhoodScreen(void){
             else if(tool==4){ if(!gok){ if(nbNearFree(&ccx,&ccy,gw,gh)){ camx=ccx; camy=ccy; toast("THE NEAREST SPACE"); } else toast("NO ROOM LEFT  GROW THE TOWN IN THE MENU"); } else if(nbNewLot(ccx,ccy,gw,gh)) tool=0; prev=keyNow(); dirty=1; }
         }
         if(!nbMoveMode&&(pr&K_START)){ nbTownMenu(&quit); prev=keyNow(); dirty=1; played=1; if(ccx>=NB_W) ccx=NB_W-1; if(ccy>=NB_H) ccy=NB_H-1; camx=ccx; camy=ccy; }   // (a new zoom: the map centres on the cursor)
+        { static u16 tn; if(tn!=toastN){ tn=toastN; dirty=1; } }   // (a toast covered part of the town: draw it all again)
         if(step&&tool==4) dirty=1;   // (the NEW LOT ghost is a block of cells: all of it. The lots tool and the paint tools only repaint round the cursor, zoomed in too)
         if(dirty){ nbDrawTown(ccx,ccy,camx,camy,tool,gw,gh,gok); nbPanel(ccx,ccy,tool,sub[tool]); present(); dirty=0; step=0; pcx=ccx; pcy=ccy; }
         else if(step||paintR||(uiTicks&15)==0){   // a cursor step on the lots, or the lot outline's blink: only round the old and the new spot (the whole town took a third of a second)

@@ -291,11 +291,11 @@ static u8 plugV=PLUG_START; static u16 plugDay=0xFFFF; static u8 plugSec, plugTe
 typedef struct { u8 k; u32 n; } StQ;
 static const StQ stqT[5][5]={
     { {TQ_GUEST,1}, {TQ_FRIENDS,1}, {TQ_MONEY,100000} },                                                   // 1 hungover: have somebody over, a friend, a little cash
-    { {TQ_CLEAN,7}, {TQ_FRIENDS,2}, {TQ_MONEY,6000}, {TQ_HAPPY,1} },                                       // 2 a week clean (a puff or a faint starts it again)
-    { {TQ_HOUSE,3}, {TQ_CLEAN,4}, {TQ_MONEY,20000}, {TQ_FRIENDS,2}, {TQ_SECURE,4} },                                      // 3 a private house with a crew around you
-    { {TQ_DAYS,5}, {TQ_FRIENDS,2}, {TQ_MONEY,12000}, {TQ_HAPPY,1}, {TQ_PLUG,1} },                          // 4 you are Mamesy: hold on, and keep the hospital from pulling the plug
-    { {TQ_CLEAN,10}, {TQ_FRIENDS,4}, {TQ_HOUSE,4}, {TQ_MONEY,40000}, {TQ_HAPPY,1} } };                     // 5 the comeback: all of it, together
-static const u8 stqN[5]={3,4,5,5,5};
+    { {TQ_CLEAN,7}, {TQ_FRIENDS,2}, {TQ_HAPPY,1} },                                                                                               // 2 a week clean (a puff or a faint starts it again)
+    { {TQ_HOUSE,3}, {TQ_CLEAN,4}, {TQ_MONEY,150000}, {TQ_FRIENDS,2}, {TQ_SECURE,4} },                                      // 3 a private house with a crew around you
+    { {TQ_DAYS,5}, {TQ_FRIENDS,2}, {TQ_MONEY,175000}, {TQ_HAPPY,1}, {TQ_PLUG,1} },                          // 4 you are Mamesy: hold on, and keep the hospital from pulling the plug
+    { {TQ_CLEAN,10}, {TQ_FRIENDS,4}, {TQ_HOUSE,4}, {TQ_MONEY,250000}, {TQ_HAPPY,1} } };                     // 5 the comeback: all of it, together
+static const u8 stqN[5]={3,3,5,5,5};
 // STORY MEMORY (continuity pass 3): one SRAM byte in the gap after the stash block remembers what happened on the way, so later chapters remember it too.
 // Bits 0-1: slips in chapter 2 (up to 3), 2-3: slips in chapter 3, 4: chapter 4 needed the ONE MORE NIGHT. Cleared when a new TV SHOW & TELL starts.
 #define STM_OFF 7471
@@ -316,15 +316,15 @@ static void stmSlip(int ch){ int m=stmGet(), sh=ch==1?0:ch==2?2:-1; if(sh<0) ret
 // line of the story (who calls, what changes). Same order as stqT.
 static const char* const stqL[5][5]={
     {"HAVE SOMEONE OVER TO SAY SORRY TO","FRIEND WHO STILL PICKS UP","EARNED FOR THE LAWYER"},
-    {"DAYS CLEAN FOR THE NETWORK","FRIENDS IN HER CORNER","EARNED AND PUT AWAY","FEEL LIKE HERSELF AGAIN"},
-    {"SIMS UNDER HER ROOF","DAYS CLEAN WITH CAMERAS OUT","EARNED FROM THE DEAL","FRIENDS WHO STAYED","LOCKS ON THE GATE"},
+    {"DAYS CLEAN FOR THE NETWORK","FRIENDS IN HER CORNER","FEEL LIKE HERSELF AGAIN"},
+    {"SIMS UNDER HER ROOF","DAYS CLEAN WITH CAMERAS OUT","EARNED FOR THE HOUSE","FRIENDS WHO STAYED","LOCKS ON THE GATE"},
     {"DAYS AT HER BEDSIDE","FRIENDS WHO VISIT","EARNED FOR THE BILLS","KEEP YOUR CHIN UP",0},
     {"DAYS CLEAN","FRIENDS IN THE FRONT ROW","SIMS AT HOME","EARNED FOR THE COMEBACK","BE HAPPY. MEAN IT."} };
 static const char* const stqWhy[5]={"THE MORNING AFTER THE CLIP. START SMALL.","THE OFFER: ONE CLEAN WEEK OR NO SHOW.","THE DEAL BOUGHT A HOUSE. NOW THE GATE.","SHE FELL. YOU ARE MAMESY. HOLD ON.","SHE WOKE UP. ONE MORE SHOW, DONE RIGHT."};
 static const char* const stqBeat[5][5]={
     {"Mamesy came by. Coffee, no lecture.","Dex texts: Still here. Call me.","The lawyer is paid. One fire out."},
-    {"Seven days. Vance calls it a start.","Two friends who don't want a clip.","Savings: a cushion, not a bottle.","She laughed today. A real one."},
-    {"A full house. Nobody here alone.","Clean, with a crew camped outside.","The deal clears. Vance smiles too much.","Friends who stayed when it got ugly.","The gate locks. The phones stay out."},
+    {"Seven days. Vance calls it a start.","Two friends who don't want a clip.","She laughed today. A real one."},
+    {"A full house. Nobody here alone.","Clean, with a crew camped outside.","The house is hers. Paid, not loaned.","Friends who stayed when it got ugly.","The gate locks. The phones stay out."},
     {"Five days. Okafor stops saying if.","Visitors bring flowers and bad jokes.","The bills are paid. For now.","You smile at her. Her finger moves.","Okafor backs off. Not tonight."},
     {"Ten days. The longest she has gone.","Four friends. Front row, all of them.","Loud dinners at home again.","The comeback money is real.","Happy. Not for a camera."} };
 static u8 stqDay(void){ u8 b=(u8)(simDay&255); return b==255?254:b; }
@@ -431,6 +431,9 @@ static void stAnnounce(void){ static char t[52] EWRAM_BSS; /* was 44: the longes
 static void stComplete(void){   // the current chapter is done: pay it, open what it unlocks and start the next one (stTick calls it when the goal is met; a scripted chapter's cutscene calls it too)
     if(!stId||stCh>=stLen[stId]||stChs[stId][stCh].goal==SG_END) return;
     const StCh*c=&stChs[stId][stCh];
+    if(stId==STY_TVSHOW&&(stCh==0||stCh==2||stCh==3)){   // MONEY WITH A PURPOSE: the lawyer (1), the house (3) and the hospital (4) are paid out of what the chapter earned
+        static const int due[4]={100000,0,150000,175000}; simMoneyAdd(-(money_t)due[stCh]);
+        simQPush(stCh==0?"THE LAWYER IS PAID":stCh==2?"THE HOUSE IS PAID FOR":"THE HOSPITAL IS PAID"); }
     simMoneyAdd(stRew(stCh)); dnaAdd(25); persSave(); simsSave();
     stGotN=0; int rwWas=rwTotal(); int slkWas=jbStoryCount(stId); if(jbStoryDone(stId,stCh)){ simQPush("MORE SCOOBY STUFF TO FIND"); simQPush("TOUCH GRASS TO FIND IT"); }   // half of all the story missions: secret songs (no names, go and look)
     if(slkWas<SM_PER&&jbStoryCount(stId)>=SM_PER){ int p=slkGift(stId); if(p>=0){ static char sg[32] EWRAM_BSS; simCat(simCat(sg,slkNm[p])," UNLOCKED"); simQPush(sg); stGotAdd(slkNm[p]); } }   // all 5 missions of this story are done: a free slider pack
