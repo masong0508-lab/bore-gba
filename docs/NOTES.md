@@ -1296,3 +1296,5 @@ FRONT LINE MODE is now an operation with a squad, orders and reinforcements, not
 **Idle breathing (ALIVE tier 1b, `main.c` next to the tier 1 glance):** after a second of standing still the body rises one pixel for about half a second in every one and a half (picture only, no physics; the dirty-rectangle signature already covers `plPopY`).
 
 **Cutaway wall steps (`drawWallO`):** a wall run that is cut down (OPTIONS > WALLS: CUTAWAY, or ALL LOW) now meets a full-height wall in two stages, full, `WALL_MID` (13 px), `WALL_CUT` (5 px), instead of one 19 px cliff at a corner or the end of the cut. No saved data or physics involved.
+
+**Doors stand up (`itembake.h`, `items.h`):** a door tile ('D') used to draw only the flat welcome mat. It still draws the mat, and now also a wooden frame (two posts and a lintel) with the leaf swung open toward the room: `V_DOORFX` / `V_DOORFY`, picked from the way the wall runs (turned with the view). Regenerate sprites with `sh tools/bake_items.sh`.

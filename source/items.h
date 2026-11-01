@@ -112,7 +112,8 @@ static void drawItemTile(char c,int sx,int sy,int x,int y){
     else if(c=='S') blitItem(V_BED+((itemFacing(x,y)-cview)&3),sx,sy);
     else if(c=='H') blitItem(V_SHOWER+((itemFacing(x,y)-cview)&3),sx,sy);
     else if(c=='C') blitItem(V_SOFA+((itemFacing(x,y)-cview)&3),sx,sy);
-    else if(c=='D') blitItem(V_DOOR,sx,sy);
+    else if(c=='D'){ blitItem(V_DOOR,sx,sy);   // the welcome mat stays on the floor, and the door stands in the wall line above it
+        int al=(wIsWall(x-1,y)&&wIsWall(x+1,y))?0:1; blitItem((al^(cview&1))?V_DOORFY:V_DOORFX,sx,sy); }
     else if(c=='G') blitItem(V_PIPE,sx,sy);                                   // chill pack
     else if(c=='V') blitItem(V_LAVA,sx,sy);
     else if(c=='U') blitItem(V_BEANBAG+((itemFacing(x,y)-cview)&3),sx,sy);

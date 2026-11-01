@@ -50,6 +50,12 @@ static const IBox bxToilet[3]={
 static const u16 pDr[4]={RGB(8,5,3),RGB(18,11,6),RGB(24,16,8),RGB(28,20,10)};
 MAT(mDrSide,pDr,1,1,"a")
 MAT(mDrTop,pDr,8,8,"aaaaaaaa","abbbbbba","abccccba","abcddcba","abcddcba","abccccba","abbbbbba","aaaaaaaa")
+// the DOOR itself: a frame (two posts and a lintel) in the wall line, with the leaf swung open toward the room. FX: the wall runs along the screen's x, FY: along y.
+MAT(mDrFr,pDr,1,1,"b")
+MAT(mDrFrT,pDr,1,1,"c")
+MAT(mDrLf,pDr,4,8,"bbbb","bccb","bccb","bbbb","bddb","bccb","bccb","bbbb")
+static const IBox bxDoorFX[4]={{0,3,1,5,0,22,{&mDrFr,&mDrFr,&mDrFr,&mDrFr,&mDrFrT}},{7,3,8,5,0,22,{&mDrFr,&mDrFr,&mDrFr,&mDrFr,&mDrFrT}},{0,3,8,5,20,23,{&mDrFr,&mDrFr,&mDrFr,&mDrFr,&mDrFrT}},{1,5,2,8,0,20,{&mDrLf,&mDrLf,&mDrLf,&mDrLf,&mDrFrT}}};
+static const IBox bxDoorFY[4]={{3,0,5,1,0,22,{&mDrFr,&mDrFr,&mDrFr,&mDrFr,&mDrFrT}},{3,7,5,8,0,22,{&mDrFr,&mDrFr,&mDrFr,&mDrFr,&mDrFrT}},{3,0,5,8,20,23,{&mDrFr,&mDrFr,&mDrFr,&mDrFr,&mDrFrT}},{5,1,8,2,0,20,{&mDrLf,&mDrLf,&mDrLf,&mDrLf,&mDrFrT}}};
 static const IBox bxDoor[1]={{0,0,8,8,0,1,{&mDrSide,&mDrSide,&mDrSide,&mDrSide,&mDrTop}}};
 
 // ---- skateboard pickup ----
@@ -288,7 +294,7 @@ static void bakeAll(void){
     for(int r=0;r<4;r++){ bakeOne(V_FRIDGE+r,bxFridge,1,r,11); bakeOne(V_TOILET+r,bxToilet,3,r,11);
         bakeOne(V_BED+r,bxBed,4,r,11); bakeOne(V_SHOWER+r,bxShower,4,r,11); bakeOne(V_SOFA+r,bxSofa,4,r,11); }
     bakeOne(V_RAILU,bxRailU,3,0,16); bakeOne(V_RAILV,bxRailV,3,0,16);
-    bakeOne(V_DOOR,bxDoor,1,0,13); bakeOne(V_BOARD,bxBoard,5,0,12);
+    bakeOne(V_DOOR,bxDoor,1,0,13); bakeOne(V_DOORFX,bxDoorFX,4,0,13); bakeOne(V_DOORFY,bxDoorFY,4,0,13); bakeOne(V_BOARD,bxBoard,5,0,12);
     for(int r=0;r<4;r++){ bakeOne(V_KICKER+r,bxKicker,8,r,11); bakeOne(V_QPIPE+r,bxQuarterPipe,8,r,11); }
     bakeOne(V_LEDGEU,bxLedgeU,1,0,12); bakeOne(V_LEDGEV,bxLedgeV,1,0,12); bakeOne(V_BENCHU,bxBenchU,3,0,12); bakeOne(V_BENCHV,bxBenchV,3,0,12);
     for(int r=0;r<4;r++) bakeOne(V_LAUNCH+r,bxLaunch,8,r,11);   // skate pack 2
