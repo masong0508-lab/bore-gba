@@ -50,7 +50,8 @@ static u16 fgPend EWRAM_BSS;   // R / A pressed while the game was held still: k
 static int fgOk(void){ return wpSel<0&&!lskate&&stage>=AG_TEEN&&!ldead&&!prIn()&&!lcamF&&!simAct&&lz<=(s32)(surfH(lfx,lfy)<<8); }
 static void fgFace(int ax,int ay){ for(int i=0;i<8;i++) if(fgDX[i]==ax&&fgDY[i]==ay){ lhd=i*2; return; } }
 static int fgLive(int m){ return wpLive(m)&&!(hhM[m].act==HA_SOC&&hhM[m].t>=500); }   // in this room and not knocked out
-static int fgTgt(int m){ return (m<hhN||hhVisitorHere(m))&&fgLive(m); }   // someone your blows can land on: the household, and a visitor on the lot (the packs' soldiers and challengers)
+static int exAllyM(int m);   // expand.h: member m is one of your FRONT LINE squad
+static int fgTgt(int m){ return (m<hhN||hhVisitorHere(m))&&fgLive(m)&&!exAllyM(m); }   // someone your blows can land on: the household, and a visitor on the lot (the packs' soldiers and challengers)
 // the nearest live Sim in reach R (1/256 tiles) in front of (ax,ay): its index or -1
 static int fgFind(int R,int ax,int ay){
     int best=-1, bd=0x7FFFFFFF;

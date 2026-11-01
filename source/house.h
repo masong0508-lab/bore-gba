@@ -440,7 +440,7 @@ static u8 twCall[TW_N];     // visitor k was CALLED OVER on the phone: they come
 static u8 twWel[TW_N];      // visitor k is the WELCOME visit: the first neighbour of a new home rings the bell soon after you move in (twPick), at night too, and brings a gift
 static u8 twHas[TW_N], twOn[TW_N]; static short twWait[TW_N]={240,900}; static char twFrom[TW_N][12];
 static u8 exHT[TW_N];   // expand.h: visitor k is HOSTILE (1 a Borezie, 2 a soldier, 3 a challenger, 4 a sprinter, 5 a brute, 6 a boss): the packs' scenarios
-static int hzDmgPct(void); static int exHFull(void); static int exHTaken(int uid); static void exHMove(int k,HhSim*s);   // (expand.h) the crowd is as big as the scenario allows; the percent of a blow a hostile visitor takes
+static int hzDmgPct(void); static int exHFull(void); static int exHFullFor(int k); static int exHTaken(int uid); static void exHMove(int k,HhSim*s);   // (expand.h) the crowd is as big as the scenario allows; the percent of a blow a hostile visitor takes
 static int exHMode(void); static void exHArrive(int k); static int exHStay(int k,int*planned); static void exUntint(int k); static void exSoc(int a,int b,int i,int ok); static void exKO(int uid);   // (expand.h)   // visitor k: set up, on the lot (1 coming, 2 staying, 3 going), the lot they live on
 static int nbVisitor(HhSim*s,char*from,int not);   // households.h: a Sim of another household of the town (s), the lot it lives on; not = a family to skip
 static u8 nbMem;   // households.h: which member of that household it was (nbSimFrom / nbVisitor set it)
@@ -764,7 +764,7 @@ static void twTick(int*planned){   // VISITORS: someone from another household w
         if(!twOn[k]){
             if(twWait[k]>0){ twWait[k]--; continue; }
             if(*planned||(simIsNight()&&!twWel[k]&&!twCall[k]&&!exHMode())){ twWait[k]=60; continue; }   // (Borezies come at night too)
-            if(exHMode()&&exHFull()){ twWait[k]=40; continue; }   // (the scenario's crowd is as big as it gets: wait for a place in it)
+            if(exHMode()&&exHFullFor(k)){ twWait[k]=40; continue; }   // (the scenario's crowd is as big as it gets: wait for a place in it)
             int a=twFar(); if(a<0){ twWait[k]=120; continue; } s->fx=(a%MW)*256+128; s->fy=(a/MW)*256+128; *planned=1;
             hhGX=(int)(lfx>>8); hhGY=(int)(lfy>>8);
             if(hhPlan(s,1)>1){ twOn[k]=1; s->act=HA_WALK; twCall[k]=0;   // walking in, over to you

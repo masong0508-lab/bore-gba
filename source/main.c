@@ -1729,7 +1729,7 @@ static int tvClip; static void tvClipRun(int ch);   // skills.h / tvclip.h: the 
 static u8 arOn EWRAM_BSS, arPend EWRAM_BSS, arWant EWRAM_BSS;   // (arPend: the change waiting: 0 none, else the arena + 1, so 1 = your own lot)
  static void arRestore(void), arLoad(int id), arTick(void), arAfter(void);   // arena.h: which BOREZIES arena stands in place of your lot (0 none), the change waiting to be made, the one being made
 static u8 hzOn, hzWar; static u32 hzScore; static void hzFunOut(void); static int hzBiteMul(void);   // hzWar: the run is WORLD WAR BORE's FRONT LINE (soldiers) and not BOREZIES' horde
-static const char* hzHudText(void); static void hzTick(void), hzLoad(void);   // horde.h: HORDE MODE runs (0 no, 1 a hundred waves, 2 endless), its score and the wave line for the top bar
+static const char* hzHudText(void); static void hzTick(void), hzLoad(void), hzOrderCycle(void); static int hzSquadN(void);   // horde.h: HORDE MODE runs (0 no, 1 a hundred waves, 2 endless), its score and the wave line for the top bar
 static u8 exModal, exTake; enum { EXT_NONE, EXT_LAUNCH, EXT_SWTRAIN, EXT_FIGHTER, EXT_GOTCHI, EXT_ARCADE, EXT_SYSJOB, EXT_SATJOB };   // expand.h: a mission card is waiting; a screen wants to take over (the launch, spacewalk training, a pack's mode)
 static void exTick(void); static void exRunModal(void); static void exTakeRun(int t); static void exEnter(void); static void exStoryTile(void); static void exShelf(int ingame);   // (expand.h)
 static int stModal; static void stRunModal(void);   // story.h: a chapter card is waiting (1 chapter intro, 2 chapter done); lifeModeRun shows it like the pause menu
@@ -4688,7 +4688,8 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
           if((k&K_SEL)&&(pr&(K_A|K_B))&&lcamF==0){ selArm=0; peekStep((pr&K_A)?1:-1); }   // SELECT + A / B: look at the floor above / below (the FLOOR PEEK macro)
           if(k&K_SEL){ k&=(u16)~(K_UP|K_DOWN|K_L|K_R|K_A|K_B); pr&=(u16)~(K_UP|K_DOWN|K_L|K_R|K_A|K_B); }   // (SELECT held: UP / DOWN do not walk, L / R do not swap the board or interact)
           if(selArm&&!(k&K_SEL)){ selArm=0;
-              if(!hhN){ lnote="NO ONE ELSE LIVES HERE"; lnoteT=60; }
+              if(hzOn&&hzWar&&hzSquadN()) hzOrderCycle();   // (FRONT LINE: SELECT gives the squad its next order)
+              else if(!hhN){ lnote="NO ONE ELSE LIVES HERE"; lnoteT=60; }
               else if(custom){ lnote="HAND BUILT SIMS CANNOT SWITCH"; lnoteT=60; }
               else if(prIn()) prSelect();   // prison.h: out of the cell, home as the next Sim
               else { hhSwitch(); lnote=hhPName; lnoteT=60; liveInvalidate(); camSnap=1; } } }

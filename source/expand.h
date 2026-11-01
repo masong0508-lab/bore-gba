@@ -819,7 +819,7 @@ static int exKv[EXK_N] EWRAM_BSS;   // the realm's numbers as of the last second
 static u8 exP, exM, exTk, exCnt, exDay=255;   // exP: pack + 1 (0: no mission), the mission, its tasks done (bits 0-2; bit 7: someone came over), its counter, the day it began
 static u8 exShown, exLastP, exLastM;          // the mission whose card was shown (a card once per mission and power on); the one just finished (its card)
 // (hzOn, hzScore: main.c, before the HUD. horde.h has the rest)
-static void hzIntroCard(void), hzPerkCard(void), hzResultCard(void), hzEnd(int res); static int hzSetup(void), hzUnlocked(void), hzUnlockedP(int p);
+static void hzIntroCard(void), hzPerkCard(void), hzResultCard(void), hzCommandCard(void), hzEnd(int res); static int hzSetup(void), hzUnlocked(void), hzUnlockedP(int p);
 static int hzCap(void), hzSpeedPct(void), hzToughPct(void), hzBiteMul(void), hzCureRule(void); static void hzKillScore(int kind,int cured), hzFunOut(void);   // (horde.h; the numbers are 100 when no horde runs)
 static u8 exHA[TW_N], exHS[TW_N], exHHp[TW_N], exSpar, exGhostDay=255;   // a hostile visitor's step counter, stun, last health; a challenger called; the ghost's night
 static u16 exHPal[TW_N][16] EWRAM_BSS;        // a hostile visitor's own colours (put back when cured or beaten)
@@ -884,6 +884,11 @@ static const u8  exHBite[XH_N]={0,10,0,0,6,16,22};             // fun a bite tak
 static const u8  exHNeed[XH_N]={0,1,1,1,1,2,4};                // cheer-ups it takes to cure it
 #define EX_BITE 300    // how far (1/256 tiles) a Borezie can bite from; a jab reaches 304 (fight.h fgReach)
 #define EX_CLOSE 150   // how close it comes (straight at you, inside its own tile) once its path has brought it next to you
+#define XH_ALLY 9   // (only ever an exHPend value or a tint: a recruit of your squad instead of an enemy)
+static u8 exAlly[TW_N], exAKills[TW_N], exAHit[TW_N];   // FRONT LINE: visitor k is one of YOUR squad, how many soldiers it has put down (its rank follows), its swing timer
+static u8 hzOrder, hzHoldX, hzHoldY, hzStrike, hzReserves; static u16 hzFallen, hzRecruitT, hzReq; static char hzFallenNm[6][12];   // the squad's order (0 FOLLOW ME, 1 HOLD HERE, 2 CHARGE) and where HOLD was given; the air strike is armed; recruits left (255 endless); soldiers lost; the next recruit; requisition points; the first six lost
+static const char* const exARankNm[4]={"PVT","CPL","SGT","LT"};
+static int exARank(int kills){ return kills>=12?3:kills>=7?2:kills>=3?1:0; }
 static u8 exHVar[TW_N];   // FRONT LINE: which kind of soldier it is (XH_BORE a private, XH_SPRINT a scout, XH_BRUTE a sergeant, XH_BOSS the general)
 static u8 exHAcc[TW_N], exHR[TW_N], exHW[TW_N], exHDz[TW_N], exHDie[TW_N], exHN[TW_N], exHTx[TW_N], exHTy[TW_N], exIF, exHArr, exHPend[TW_N];   // pace counter, replan timer, wind-up, daze, going (steps), cheer-ups still needed, where the path leads, bite immunity, arrivals this mission, the kind the horde asked for
 static u16 exHPc[TW_N], exHAr[TW_N];   // its pace (percent) and the percent of a blow that lands on it
@@ -892,7 +897,9 @@ static int exHCap(void){   // how many hostile visitors may be on the lot at onc
     const XMs*x=exMs(); if(x&&x->sc==XS_ZOMB&&exP==XP_ZOMB+1){ static const u8 c[5]={1,2,2,3,4}; return c[exM<5?exM:4]; }
     return 2;
 }
-static int exHFull(void){ int n=0; for(int k=0;k<TW_N;k++) if(exHT[k]&&twOn[k]&&!exHDie[k]) n++; return n>=exHCap(); }
+static int exHFull(void){ int n=0; for(int k=0;k<TW_N;k++) if(exHT[k]&&twOn[k]&&!exHDie[k]&&!exAlly[k]) n++; return n>=exHCap(); }
+static int exHFullFor(int k){ return exHPend[k]==XH_ALLY?0:exHFull(); }   // (a recruit is never kept waiting by the enemy's crowd limit)
+static int exAllyM(int m){ int k=HH_MAX-1-m; return k>=0&&k<TW_N&&exAlly[k]; }
 static int exHTaken(int uid){ int k=uid-GU0; if(k<0||k>=TW_N||!exHT[k]) return 100; return exHAr[k]; }
 static int exHKind(void){ if(hzOn) return hzWar?XH_SOLD:1; const XMs*x=exMs(); int sc=x?x->sc:0; return sc==XS_ZOMB?1:sc==XS_WAR?2:sc==XS_ARENA?3:exSpar?3:0; }   // what the next visitor is (0: a normal neighbour)
 static int exHMode(void){ return exHKind()!=0; }
@@ -906,6 +913,7 @@ static void exTint(int k,int kind){   // a Borezie goes grey-green, a sprinter s
         case XH_SPRINT: r=l*4/5+4; g=l*5/6+4; b=l/3; break;
         case XH_BRUTE:  r=l+5; g=l*2/5; b=l/3+2; break;
         case XH_BOSS:   r=l*3/4+5; g=l*5/6+6; b=l+6; break;
+        case XH_ALLY:   r=l/2+1; g=l*3/4+4; b=l+8; break;   // YOUR squad: blue
         default:        r=(r+l+14)/3; g=(g+l+12)/3; b=(b+l)/4; }
         p[c]=RGB(r>31?31:r,g>31?31:g,b>31?31:b); }
     exPalBad(v);
@@ -913,12 +921,13 @@ static void exTint(int k,int kind){   // a Borezie goes grey-green, a sprinter s
 static void exRestorePal(int k){ int v=TW_V(k); for(int c=0;c<16;c++) hhPal[v][c]=exHPal[k][c]; exPalBad(v); }   // its own colours back (it stays a hostile visitor a moment: cured, going)
 static void exUntint(int k){ if(!exHT[k]) return; exRestorePal(k); exHT[k]=0; }
 static void exHClearAll(void){
-    for(int k=0;k<TW_N;k++){ exUntint(k); exHDie[k]=exHDz[k]=0; }
+    for(int k=0;k<TW_N;k++){ exUntint(k); exHDie[k]=exHDz[k]=0; exAlly[k]=0; exAKills[k]=0; }
     exSpar=0; exHArr=0; exIF=0;
     if(!hzOn&&twLim>2){ twLim=2; for(int k=2;k<TW_N;k++){ twHas[k]=0; twOn[k]=0; } }   // (the extra places the crowd used: back to the neighbours' two)
 }
 static void exGroan(int uid){ sfxNStp=(u32)SFX_STEP*62u/100u; voxPan(uid,&sfxNGL,&sfxNGR); sfxNSet=1; sfxPlay(VS(V_death_of_hunger)); if(!sSnd) sfxNSet=0; }   // a Borezie's BOOORE: the hunger groan, slow and low
 static void exHGone(int k){   // it is over for this one: it leaves the lot at once and its place is free for the next
+    exAlly[k]=0; exAKills[k]=0; exAHit[k]=0;
     HhSim*s=&hhM[TW_V(k)]; exUntint(k); exHDie[k]=exHDz[k]=0; s->act=HA_IDLE; s->t=0; s->hp=HP_MAX; s->pn=s->pi=0; s->bubT=0; twOn[k]=0; twWait[k]=30000; liveInvalidate();
 }
 static int exMKind(void){   // the mission's mix: Borezies, with sprinters, brutes and PATIENT ZERO coming in as the missions go
@@ -935,8 +944,9 @@ static void exHWarStats(int k){   // FRONT LINE: the soldier's rank sets its pac
     exHPc[k]=(u16)(pc>250?250:pc<20?20:pc); exHAr[k]=(u16)(ar<4?4:ar>400?400:ar);
 }
 static void exHMake(int k,int kind){   // visitor k turns hostile
-    HhSim*s=&hhM[TW_V(k)]; exTint(k,kind); exHT[k]=(u8)kind; exHA[k]=0; exHS[k]=0; exHHp[k]=s->hp=HP_MAX; exHStats(k,kind); if(hzOn&&hzWar) exHWarStats(k); exHAcc[k]=0; exHR[k]=0; exHW[k]=0; exHDz[k]=0; exHDie[k]=0; exHTx[k]=exHTy[k]=0;
+    HhSim*s=&hhM[TW_V(k)]; exTint(k,exAlly[k]?XH_ALLY:kind); exHT[k]=(u8)kind; exHA[k]=0; exHS[k]=0; exHHp[k]=s->hp=HP_MAX; exHStats(k,kind); if(hzOn&&hzWar){ exHWarStats(k); if(exAlly[k]){ exHPc[k]=115; exHAr[k]=80; } else if(hzStrike){ s->hp=HP_MAX/2; exHHp[k]=s->hp; } } exHAcc[k]=0; exHR[k]=0; exHW[k]=0; exHDz[k]=0; exHDie[k]=0; exHTx[k]=exHTy[k]=0;
     char*e=exB; int say=!hzOn||kind==XH_BOSS;   // (HORDE MODE keeps the top bar for the wave: only a boss gets a note)
+    if(hzOn&&hzWar&&exAlly[k]){ e=simCat(e,"RECRUIT  "); e=simCat(e,s->name); simCat(e,"  REPORTS FOR DUTY"); lnote=exB; lnoteT=90; return; }
     if(exBz(kind)){ e=simCat(e,kind==XH_BOSS?"PATIENT ZERO  ":kind==XH_SPRINT?"A FIDGETY BOREZIE  ":kind==XH_BRUTE?"A HEAVY BOREZIE  ":"A BOREZIE SHAMBLES IN  "); simCat(e,s->name); if(say||!sSnd) exGroan(s->uid); }
     else if(kind==2){ e=simCat(e,hzOn&&hzWar&&exHVar[k]==XH_BOSS?"THE GENERAL  ":"ENEMY SOLDIER  "); simCat(e,s->name); voxSay(s->uid,V_lets_fight); if(hzOn&&hzWar&&exHVar[k]==XH_BOSS){ lnote=exB; lnoteT=150; } }
     else { e=simCat(e,s->name); simCat(e," WANTS A FIGHT"); voxSay(s->uid,V_lets_fight); exSpar=0; }
@@ -944,9 +954,10 @@ static void exHMake(int k,int kind){   // visitor k turns hostile
 }
 static void exHArrive(int k){   // twTick: visitor k starts walking in
     int kind=exHKind(); if(!kind) return;
-    if(hzOn){ kind=exHPend[k]?exHPend[k]:XH_BORE; exHPend[k]=0; if(hzWar){ exHVar[k]=(u8)kind; kind=XH_SOLD; } } else if(kind==XH_BORE) kind=exMKind();
+    if(hzOn){ kind=exHPend[k]?exHPend[k]:XH_BORE; exHPend[k]=0; exAlly[k]=0; if(hzWar){ if(kind==XH_ALLY){ exAlly[k]=1; exHVar[k]=0; } else exHVar[k]=(u8)kind; kind=XH_SOLD; } } else if(kind==XH_BORE) kind=exMKind();
     exHMake(k,kind);
 }
+static void exFaceTo(HhSim*s,s32 tx,s32 ty){ s32 dx=tx-s->fx, dy=ty-s->fy; s->hd=(u8)((dx<0?-dx:dx)>(dy<0?-dy:dy)?(dx>0?0:8):(dy>0?4:12)); }   // face a point
 static void exFace(HhSim*s){ s32 dx=lfx-s->fx, dy=lfy-s->fy; s->hd=(u8)((dx<0?-dx:dx)>(dy<0?-dy:dy)?(dx>0?0:8):(dy>0?4:12)); }
 static int exHOcc(int k,int tx,int ty){ for(int j=0;j<TW_N;j++){ if(j==k||!twHas[j]||!twOn[j]) continue; const HhSim*o=&hhM[TW_V(j)]; if((int)(o->fx>>8)==tx&&(int)(o->fy>>8)==ty) return 1; } return 0; }   // a crowd mate stands on that tile
 static void exHMove(int k,HhSim*s){   // one tick of walking at the Sim's own pace along its path, never onto a tile a crowd mate stands on
@@ -982,8 +993,67 @@ static void exBite(int k,HhSim*s){   // a Borezie gets to you: it is SO boring
     if(moodFun<=0){ if(hzOn) hzFunOut(); else { lstun=150; lnote="BORED STIFF  YOU NEARLY TURNED"; lnoteT=150; moodEvent(M_SPOOK); } }
     else { lnote=moan[(rnd8()+k)&3]; lnoteT=80; }
 }
+// ---- FRONT LINE: THE SQUAD. Recruits come in at the gate (the visitor places), fight beside you on your orders, earn stripes and fall like cannon fodder ----
+static void exAllyKill(int k,int j){   // squad member k knocked enemy j out: it is down for good, and k may earn a stripe
+    HhSim*e=&hhM[TW_V(j)]; hzKillScore(exHVar[j]?exHVar[j]:XH_BORE,0); exRestorePal(j); exHDie[j]=44; exHDz[j]=0; e->act=HA_SOC; e->t=600; voxSay(e->uid,V_lost_the_fight);
+    int r0=exARank(exAKills[k]); if(exAKills[k]<250) exAKills[k]++; int r1=exARank(exAKills[k]);
+    if(r1>r0){ HhSim*a=&hhM[TW_V(k)]; char*q=simCat(exB,exARankNm[r1]); *q++=' '; q=simCat(q,a->name); simCat(q,"  PROMOTED"); lnote=exB; lnoteT=110; sfxPlay(SFX_STICK); a->bub=IC_STAR; a->bubT=90; }
+}
+static void exAllyFall(int k){   // a recruit is down: it goes, its name goes on the BOOT HILL, and the next recruit is on the way
+    HhSim*s=&hhM[TW_V(k)]; if(hzFallen<6){ int i=0; for(;i<11&&s->name[i];i++) hzFallenNm[hzFallen][i]=s->name[i]; hzFallenNm[hzFallen][i]=0; } if(hzFallen<60000) hzFallen++;
+    char*e=simCat(exB,exARankNm[exARank(exAKills[k])]); *e++=' '; e=simCat(e,s->name); simCat(e,"  HAS FALLEN"); lnote=exB; lnoteT=130;
+    s->bub=IC_SKULL; s->bubT=120; exHDie[k]=50; s->act=HA_SOC; s->t=60; exAKills[k]=0; sfxPlay(SFX_CRY);
+    if(hzRecruitT<150) hzRecruitT=150;
+}
+static int exFoeAlly(int k,const HhSim*s,s32*tx,s32*ty){   // a soldier picks who to go for: the nearest of you and your squad. -1 = you, else the squad member's place
+    s32 dx=s->fx-lfx, dy=s->fy-lfy; int best=-1, bd=(int)((dx*dx+dy*dy)>>8);
+    for(int j=0;j<TW_N;j++){ if(!exAlly[j]||!twOn[j]||exHDie[j]) continue; const HhSim*a=&hhM[TW_V(j)]; if(a->act==HA_SOC&&a->t>=500) continue;
+        s32 ax=s->fx-a->fx, ay=s->fy-a->fy; int d=(int)((ax*ax+ay*ay)>>8); if(d<bd){ bd=d; best=j; } }
+    if(best>=0){ *tx=hhM[TW_V(best)].fx; *ty=hhM[TW_V(best)].fy; }
+    return best;
+}
+static int exAllyStay(int k,int*planned){   // one recruit's turn: rest, or the nearest enemy that matters for its orders, else follow them
+    int v=TW_V(k); HhSim*s=&hhM[v]; twWait[k]=600;
+    if(s->bubT) s->bubT--;
+    if(exHDie[k]){ if(--exHDie[k]==0) exHGone(k); return 1; }
+    if(s->act==HA_SOC&&s->t>=500){ exAllyFall(k); return 1; }
+    if(s->act==HA_SOC){ if(s->t>0) s->t--; else s->act=HA_IDLE; return 1; }
+    if(s->hp<exHHp[k]) exHS[k]=14;   // a blow landed: it reels
+    exHHp[k]=s->hp; if(s->hp<HP_MAX&&(lfr&127)==0) s->hp++;
+    if(exHS[k]){ exHS[k]--; return 1; }
+    if(curFl||ldead) return 1;
+    int ord=hzOrder, tj=-1, bd=0x7FFFFFFF;
+    for(int j=0;j<TW_N;j++){ if(j==k||!exHT[j]||exAlly[j]||exHDie[j]||!twOn[j]||exHDz[j]) continue;
+        const HhSim*o=&hhM[TW_V(j)]; if(o->act==HA_SOC&&o->t>=500) continue;
+        s32 dx=o->fx-s->fx, dy=o->fy-s->fy; int d=(int)((dx*dx+dy*dy)>>8);
+        if(ord==0){ s32 ex=o->fx-lfx, ey=o->fy-lfy; if((int)((ex*ex+ey*ey)>>8)>6400&&d>2304) continue; }                                   // FOLLOW: what is near you, or near it
+        else if(ord==1){ s32 hx=o->fx-(hzHoldX*256+128), hy=o->fy-(hzHoldY*256+128); if((int)((hx*hx+hy*hy)>>8)>6400&&d>1600) continue; }   // HOLD: what comes at the spot, or at it
+        if(d<bd){ bd=d; tj=j; } }
+    if(tj>=0){
+        HhSim*o=&hhM[TW_V(tj)]; s32 dx=s->fx-o->fx, dy=s->fy-o->fy; int d2=(int)((dx*dx+dy*dy)>>8);
+        if(d2>(EX_BITE*EX_BITE>>8)){   // walk at it
+            int ptx=(int)(o->fx>>8), pty=(int)(o->fy>>8), dtx=ptx-exHTx[k], dty=pty-exHTy[k], stale=!s->gok&&((dtx<0?-dtx:dtx)+(dty<0?-dty:dty)>=2);
+            if(s->pi<s->pn&&!stale){ exHMove(k,s); return 1; }
+            if(s->pi>=s->pn&&d2<(560*560>>8)&&exHNudge(k,s,dx,dy)) return 1;
+            if(!*planned&&++exHR[k]>=(stale?4:12)){ exHR[k]=0; hhGX=ptx; hhGY=pty; exHTx[k]=(u8)ptx; exHTy[k]=(u8)pty; *planned=1; s->act=hhPlan(s,1)>1?HA_WALK:HA_IDLE; }
+            else if(s->pi<s->pn) exHMove(k,s); else s->act=HA_IDLE;
+            return 1; }
+        s->pn=s->pi=0; s->act=HA_IDLE; exFaceTo(s,o->fx,o->fy); exHR[k]=0; exHNudge(k,s,dx,dy);
+        int rk=exARank(exAKills[k]);
+        if(++exAHit[k]<46-4*rk) return 1; exAHit[k]=0;
+        if(!wallClear(s->fx,s->fy,o->fx,o->fy)) return 1;
+        fgMul=100+25*rk; fightHit(s->uid,o->uid); fgMul=0; sfxPlay(SFX_HIT);
+        if(o->act==HA_SOC&&o->t>=500) exAllyKill(k,tj);
+        return 1; }
+    s32 gx=ord==1?hzHoldX*256+128:lfx, gy=ord==1?hzHoldY*256+128:lfy, dx=s->fx-gx, dy=s->fy-gy;   // nobody to fight: HOLD the spot, otherwise stay close to you
+    if((int)((dx*dx+dy*dy)>>8)<=(ord==1?600:1200)){ s->act=HA_IDLE; s->pn=s->pi=0; return 1; }
+    if(s->pi<s->pn){ exHMove(k,s); return 1; }
+    if(!*planned&&++exHR[k]>=10){ exHR[k]=0; hhGX=(int)(gx>>8); hhGY=(int)(gy>>8); *planned=1; s->act=hhPlan(s,1)>1?HA_WALK:HA_IDLE; } else s->act=HA_IDLE;
+    return 1;
+}
 static int exHStay(int k,int*planned){   // a hostile visitor on the lot: chase you, then wind up and bite or swing. 0 = not hostile (the normal visit)
     if(!exHT[k]) return 0;
+    if(exAlly[k]) return exAllyStay(k,planned);   // (one of your squad)
     int v=TW_V(k); HhSim*s=&hhM[v]; int kind=exHT[k];
     twWait[k]=600;   // (it does not go home while it is hostile)
     if(s->bubT) s->bubT--;
@@ -995,10 +1065,11 @@ static int exHStay(int k,int*planned){   // a hostile visitor on the lot: chase 
     if(s->hp<exHHp[k]){ exHS[k]=exHStg[kind]; exHA[k]=0; exHW[k]=0; }   // a blow landed: it reels, and its wind-up starts again
     exHHp[k]=s->hp; if(!hzOn&&s->hp<HP_MAX&&(lfr&63)==0) s->hp++;
     if(exHS[k]){ exHS[k]--; return 1; }
-    if(curFl||ldead||prIn()||simAct) return 1;   // (not while you are upstairs, down, inside or asleep)
-    s32 dx=s->fx-lfx, dy=s->fy-lfy; int d2=(int)((dx*dx+dy*dy)>>8);
+    s32 tfx=lfx, tfy=lfy; int tal=-1; if(hzOn&&hzWar) tal=exFoeAlly(k,s,&tfx,&tfy);   // (FRONT LINE: it may go for one of your squad instead of you)
+    if(curFl||(tal<0&&(ldead||prIn()||simAct))) return 1;   // (not while you are upstairs, down, inside or asleep)
+    s32 dx=s->fx-tfx, dy=s->fy-tfy; int d2=(int)((dx*dx+dy*dy)>>8);
     if(d2>(EX_BITE*EX_BITE>>8)){   // far: walk at you at its own pace (the path ends next to you; then it closes in)
-        int ptx=(int)(lfx>>8), pty=(int)(lfy>>8), dtx=ptx-exHTx[k], dty=pty-exHTy[k];
+        int ptx=(int)(tfx>>8), pty=(int)(tfy>>8), dtx=ptx-exHTx[k], dty=pty-exHTy[k];
         int stale=!s->gok&&((dtx<0?-dtx:dtx)+(dty<0?-dty:dty)>=2);   // (you have moved on: the path leads to where you were)
         if(hzOn&&d2>(2300*2300>>8)){ exHMove(k,s); if(d2>(3300*3300>>8)) exHMove(k,s); }   // (HORDE MODE: from far away they come at double and triple pace, so a wave does not spend its first ten seconds walking in)
         if(s->pi<s->pn&&!stale){ exHMove(k,s); return 1; }
@@ -1007,16 +1078,17 @@ static int exHStay(int k,int*planned){   // a hostile visitor on the lot: chase 
         else if(s->pi<s->pn) exHMove(k,s);
         else s->act=HA_IDLE;
         return 1; }
-    s->pn=s->pi=0; s->act=HA_IDLE; exFace(s); exHR[k]=0;
+    s->pn=s->pi=0; s->act=HA_IDLE; exFaceTo(s,tfx,tfy); exHR[k]=0;
     exHNudge(k,s,dx,dy);   // (still closing in to the edge of its tile while it winds up)
     int lim=exHCdT[kind]; if(hzOn) lim=lim*100/(hzSpeedPct()<60?60:hzSpeedPct());
     if(hzOn&&hzWar){ int v=exHVar[k]; lim=v==XH_SPRINT?lim*65/100:v==XH_BRUTE?lim*115/100:v==XH_BOSS?lim*80/100:lim; }   // (a scout swings quickly, a sergeant slowly)
     exHA[k]++;
-    if(exBz(kind)&&exHA[k]==lim-16&&wallClear(s->fx,s->fy,lfx,lfy)){ hhSay(s->uid,IC_SAD,"BOOORE"); exGroan(s->uid); exHW[k]=1; }   // the wind-up: the groan is your cue
+    if(exBz(kind)&&exHA[k]==lim-16&&wallClear(s->fx,s->fy,tfx,tfy)){ hhSay(s->uid,IC_SAD,"BOOORE"); exGroan(s->uid); exHW[k]=1; }   // the wind-up: the groan is your cue
     if(exHA[k]<lim) return 1;
     exHA[k]=0; exHW[k]=0;
-    if(!wallClear(s->fx,s->fy,lfx,lfy)) return 1;
+    if(!wallClear(s->fx,s->fy,tfx,tfy)) return 1;
     if(exBz(kind)){ exBite(k,s); return 1; }
+    if(tal>=0){ fightHit(s->uid,hhM[TW_V(tal)].uid); sfxPlay(SFX_HIT); return 1; }   // (a swing at one of your squad)
     if(fgOk()){ if(!fgFoeT){ fgFoe=s->uid; fgFoeT=22; fgMode=300; } }   // it winds up (HIYAH at 14 steps: guard!) and swings (fight.h fgCounter)
     else socDo(s->uid,hhPUid,SC_SHOVE);   // (on a board, or too young for fists: a shove)
     return 1;
@@ -1395,7 +1467,7 @@ static void exTell(int p,int m,int outro){   // a mission's story before it star
 }
 static void exRunModal(void){   // the mission card (1 a mission starts, 2 one is done and the next starts, 3 the last one is done)
     int kind=exModal; exModal=0; u16 prev=keyNow(); u32 cnt=0; int p=kind==1?exP-1:exLastP;
-    if(kind==4){ hzIntroCard(); return; } if(kind==5){ hzPerkCard(); return; } if(kind==6){ hzResultCard(); return; }   // (HORDE MODE's cards: horde.h)
+    if(kind==4){ hzIntroCard(); return; } if(kind==5){ hzPerkCard(); return; } if(kind==6){ hzResultCard(); return; } if(kind==7){ hzCommandCard(); return; }   // (HORDE MODE's cards: horde.h)
     if(p<0||p>=XP_N||!xpHave(p)) return;
     if(kind==1&&exStoryOn){ exStoryOn=0; exTell(p,exM,0); prev=keyNow(); }   // (a mission begins: its story first)
     for(;;){
