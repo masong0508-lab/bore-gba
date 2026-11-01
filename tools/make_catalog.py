@@ -654,6 +654,15 @@ item('PURPLE ROCKER', 'h', 170, C, rocker(PURP), 1, col=(16, 6, 24)); item('NEON
 item('ORANGE LOVESEAT', 'C', 400, C, couch(ORANGE, OAK, False), 1, col=(28, 14, 3)); item('MINT LOVESEAT', 'C', 400, C, couch(MINT, WHITEW, False), 1, col=(14, 28, 20))
 item('BROWN CORD SOFA', 'C', 520, C, couch(BROWN, OAK, True, stripes(BROWN, 8, 6, 'c', 'd', False, 1)), 1, col=(16, 9, 4)); item('CYAN SOFA', 'C', 500, C, couch(CYAN, DARK), 1, col=(8, 26, 30))
 
+# ---- RETRO 2: more of the same colours, for tables, lamps and beds (again at the end, so no saved item moves) ----
+C = cat('RETRO 2')
+item('ORANGE TABLE', 't', 150, C, table(ORANGE), col=(28, 14, 3)); item('TEAL TABLE', 't', 150, C, table(TEAL, flat(STEEL, 'c')), col=(5, 20, 20))
+item('PINK DINER TABLE', 't', 220, C, table(P_PINK, flat(STEEL, 'c'), tall=True), col=(30, 14, 22)); item('MINT DINER TABLE', 't', 220, C, table(MINT, flat(STEEL, 'c'), tall=True), col=(14, 28, 20))
+item('PURPLE LAMP', 'l', 140, C, lamp(PURP, WHITEW), col=(16, 6, 24)); item('ORANGE LAMP', 'l', 140, C, lamp(ORANGE, MUST), col=(28, 14, 3))
+item('TEAL LAMP', 'l', 140, C, lamp(TEAL, WHITEW), col=(5, 20, 20)); item('NEON LAMP', 'l', 220, C, lamp(NEON, DARK), col=(31, 8, 24))
+item('ORANGE BED', 'S', 320, C, bed(ORANGE, OAK, pillows=1), 1, col=(28, 14, 3)); item('TEAL BED', 'S', 320, C, bed(TEAL, DARK, pillows=1), 1, col=(5, 20, 20))
+item('PINK BED', 'S', 320, C, bed(P_PINK, WHITEW, pillows=1), 1, col=(30, 14, 22)); item('MINT BED', 'S', 320, C, bed(MINT, PINE, pillows=1), 1, col=(14, 28, 20))
+
 def main():
     cnt = {}
     for it in ITEMS: cnt[it['ch']] = cnt.get(it['ch'], 0) + 1; it['lk'] = cnt[it['ch']]; assert it['lk'] <= 255

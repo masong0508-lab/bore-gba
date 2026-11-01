@@ -2435,6 +2435,74 @@ MAT(mC2393,pCCyan,1,1,"b")
 MAT(mC2394,pCCyan,8,7,"ccccbbbb","ccccbbbb","ccccbbbb","ccccbbbb","ccccbbbb","ccccbbbb","ccccbbbb")
 MAT(mC2395,pCCyan,1,1,"b")
 MAT(mC2396,pCCyan,1,1,"d")
+MAT(mC2397,pCOrange,1,1,"b")
+MAT(mC2398,pCOrange,8,8,"bccbccbc","ccbccbcc","cbccbccb","bccbccbc","ccbccbcc","cbccbccb","bccbccbc","ccbccbcc")
+MAT(mC2399,pCOrange,1,1,"b")
+MAT(mC2400,pCOrange,1,1,"c")
+MAT(mC2401,pCSteel,1,1,"c")
+MAT(mC2402,pCTeal,8,8,"bccbccbc","ccbccbcc","cbccbccb","bccbccbc","ccbccbcc","cbccbccb","bccbccbc","ccbccbcc")
+MAT(mC2403,pCTeal,1,1,"b")
+MAT(mC2404,pCTeal,1,1,"c")
+MAT(mC2405,pCSteel,1,1,"c")
+MAT(mC2406,pCPink,8,8,"bccbccbc","ccbccbcc","cbccbccb","bccbccbc","ccbccbcc","cbccbccb","bccbccbc","ccbccbcc")
+MAT(mC2407,pCPink,1,1,"b")
+MAT(mC2408,pCPink,1,1,"c")
+MAT(mC2409,pCSteel,1,1,"c")
+MAT(mC2410,pCMint,8,8,"bccbccbc","ccbccbcc","cbccbccb","bccbccbc","ccbccbcc","cbccbccb","bccbccbc","ccbccbcc")
+MAT(mC2411,pCMint,1,1,"b")
+MAT(mC2412,pCMint,1,1,"c")
+MAT(mC2413,pCMetal,1,1,"c")
+MAT(mC2414,pCWhiteW,1,1,"c")
+MAT(mC2415,pCWhiteW,1,1,"c")
+MAT(mC2416,pCWhiteW,1,1,"d")
+MAT(mC2417,pCMetal,1,1,"c")
+MAT(mC2418,pCMust,1,1,"c")
+MAT(mC2419,pCMust,1,1,"c")
+MAT(mC2420,pCMust,1,1,"d")
+MAT(mC2421,pCMetal,1,1,"c")
+MAT(mC2422,pCWhiteW,1,1,"c")
+MAT(mC2423,pCWhiteW,1,1,"c")
+MAT(mC2424,pCWhiteW,1,1,"d")
+MAT(mC2425,pCMetal,1,1,"c")
+MAT(mC2426,pCDark,1,1,"c")
+MAT(mC2427,pCDark,1,1,"c")
+MAT(mC2428,pCDark,1,1,"d")
+MAT(mC2429,pCOak,1,1,"b")
+MAT(mC2430,pCOrange,1,1,"b")
+MAT(mC2431,pCOrange,1,1,"b")
+MAT(mC2432,pCOrange,8,8,"cccccccc","cdcdcdcd","cccccccc","cdcdcdcd","cccccccc","cdcdcdcd","cccccccc","cdcdcdcd")
+MAT(mC2433,pCWhite,1,1,"b")
+MAT(mC2434,pCOak,1,1,"c")
+MAT(mC2435,pCOak,8,7,"bbbbbbbb","bccccccb","bccccccb","bccccccb","bccccccb","bccccccb","bbbbbbbb")
+MAT(mC2436,pCOak,1,1,"b")
+MAT(mC2437,pCOak,1,1,"d")
+MAT(mC2438,pCDark,1,1,"b")
+MAT(mC2439,pCTeal,1,1,"b")
+MAT(mC2440,pCTeal,1,1,"b")
+MAT(mC2441,pCTeal,8,8,"cccccccc","cdcdcdcd","cccccccc","cdcdcdcd","cccccccc","cdcdcdcd","cccccccc","cdcdcdcd")
+MAT(mC2442,pCWhite,1,1,"b")
+MAT(mC2443,pCDark,1,1,"c")
+MAT(mC2444,pCDark,8,7,"bbbbbbbb","bccccccb","bccccccb","bccccccb","bccccccb","bccccccb","bbbbbbbb")
+MAT(mC2445,pCDark,1,1,"b")
+MAT(mC2446,pCDark,1,1,"d")
+MAT(mC2447,pCWhiteW,1,1,"b")
+MAT(mC2448,pCPink,1,1,"b")
+MAT(mC2449,pCPink,1,1,"b")
+MAT(mC2450,pCPink,8,8,"cccccccc","cdcdcdcd","cccccccc","cdcdcdcd","cccccccc","cdcdcdcd","cccccccc","cdcdcdcd")
+MAT(mC2451,pCWhite,1,1,"b")
+MAT(mC2452,pCWhiteW,1,1,"c")
+MAT(mC2453,pCWhiteW,8,7,"bbbbbbbb","bccccccb","bccccccb","bccccccb","bccccccb","bccccccb","bbbbbbbb")
+MAT(mC2454,pCWhiteW,1,1,"b")
+MAT(mC2455,pCWhiteW,1,1,"d")
+MAT(mC2456,pCPine,1,1,"b")
+MAT(mC2457,pCMint,1,1,"b")
+MAT(mC2458,pCMint,1,1,"b")
+MAT(mC2459,pCMint,8,8,"cccccccc","cdcdcdcd","cccccccc","cdcdcdcd","cccccccc","cdcdcdcd","cccccccc","cdcdcdcd")
+MAT(mC2460,pCWhite,1,1,"b")
+MAT(mC2461,pCPine,1,1,"c")
+MAT(mC2462,pCPine,8,7,"bbbbbbbb","bccccccb","bccccccb","bccccccb","bccccccb","bccccccb","bbbbbbbb")
+MAT(mC2463,pCPine,1,1,"b")
+MAT(mC2464,pCPine,1,1,"d")
 static const IBox bxCat0[6]={ // OAK CHAIR
  {1,1,2,2,0,5,{&mC1,&mC1,&mC1,&mC1,&mC1}},
  {6,1,7,2,0,5,{&mC1,&mC1,&mC1,&mC1,&mC1}},
@@ -4342,3 +4410,63 @@ static const IBox bxCat331[8]={ // CYAN SOFA
  {0,0,8,2,2,11,{&mC2394,&mC2395,&mC2394,&mC2395,&mC2396}},
  {0,2,1,8,6,8,{&mC2393,&mC2393,&mC2393,&mC2393,&mC2393}},
  {7,2,8,8,6,8,{&mC2393,&mC2393,&mC2393,&mC2393,&mC2393}} };
+static const IBox bxCat332[5]={ // ORANGE TABLE
+ {0,0,1,1,0,6,{&mC2397,&mC2397,&mC2397,&mC2397,&mC2397}},
+ {7,0,8,1,0,6,{&mC2397,&mC2397,&mC2397,&mC2397,&mC2397}},
+ {0,7,1,8,0,6,{&mC2397,&mC2397,&mC2397,&mC2397,&mC2397}},
+ {7,7,8,8,0,6,{&mC2397,&mC2397,&mC2397,&mC2397,&mC2397}},
+ {0,0,8,8,6,8,{&mC2399,&mC2400,&mC2399,&mC2400,&mC2398}} };
+static const IBox bxCat333[5]={ // TEAL TABLE
+ {0,0,1,1,0,6,{&mC2401,&mC2401,&mC2401,&mC2401,&mC2401}},
+ {7,0,8,1,0,6,{&mC2401,&mC2401,&mC2401,&mC2401,&mC2401}},
+ {0,7,1,8,0,6,{&mC2401,&mC2401,&mC2401,&mC2401,&mC2401}},
+ {7,7,8,8,0,6,{&mC2401,&mC2401,&mC2401,&mC2401,&mC2401}},
+ {0,0,8,8,6,8,{&mC2403,&mC2404,&mC2403,&mC2404,&mC2402}} };
+static const IBox bxCat334[5]={ // PINK DINER TABLE
+ {0,0,1,1,0,11,{&mC2405,&mC2405,&mC2405,&mC2405,&mC2405}},
+ {7,0,8,1,0,11,{&mC2405,&mC2405,&mC2405,&mC2405,&mC2405}},
+ {0,7,1,8,0,11,{&mC2405,&mC2405,&mC2405,&mC2405,&mC2405}},
+ {7,7,8,8,0,11,{&mC2405,&mC2405,&mC2405,&mC2405,&mC2405}},
+ {0,0,8,8,11,13,{&mC2407,&mC2408,&mC2407,&mC2408,&mC2406}} };
+static const IBox bxCat335[5]={ // MINT DINER TABLE
+ {0,0,1,1,0,11,{&mC2409,&mC2409,&mC2409,&mC2409,&mC2409}},
+ {7,0,8,1,0,11,{&mC2409,&mC2409,&mC2409,&mC2409,&mC2409}},
+ {0,7,1,8,0,11,{&mC2409,&mC2409,&mC2409,&mC2409,&mC2409}},
+ {7,7,8,8,0,11,{&mC2409,&mC2409,&mC2409,&mC2409,&mC2409}},
+ {0,0,8,8,11,13,{&mC2411,&mC2412,&mC2411,&mC2412,&mC2410}} };
+static const IBox bxCat336[3]={ // PURPLE LAMP
+ {2,2,6,6,0,1,{&mC2413,&mC2413,&mC2413,&mC2413,&mC2413}},
+ {3,3,5,5,1,16,{&mC2413,&mC2413,&mC2413,&mC2413,&mC2413}},
+ {1,1,7,7,16,22,{&mC2414,&mC2415,&mC2414,&mC2415,&mC2416}} };
+static const IBox bxCat337[3]={ // ORANGE LAMP
+ {2,2,6,6,0,1,{&mC2417,&mC2417,&mC2417,&mC2417,&mC2417}},
+ {3,3,5,5,1,16,{&mC2417,&mC2417,&mC2417,&mC2417,&mC2417}},
+ {1,1,7,7,16,22,{&mC2418,&mC2419,&mC2418,&mC2419,&mC2420}} };
+static const IBox bxCat338[3]={ // TEAL LAMP
+ {2,2,6,6,0,1,{&mC2421,&mC2421,&mC2421,&mC2421,&mC2421}},
+ {3,3,5,5,1,16,{&mC2421,&mC2421,&mC2421,&mC2421,&mC2421}},
+ {1,1,7,7,16,22,{&mC2422,&mC2423,&mC2422,&mC2423,&mC2424}} };
+static const IBox bxCat339[3]={ // NEON LAMP
+ {2,2,6,6,0,1,{&mC2425,&mC2425,&mC2425,&mC2425,&mC2425}},
+ {3,3,5,5,1,16,{&mC2425,&mC2425,&mC2425,&mC2425,&mC2425}},
+ {1,1,7,7,16,22,{&mC2426,&mC2427,&mC2426,&mC2427,&mC2428}} };
+static const IBox bxCat340[4]={ // ORANGE BED
+ {0,0,8,8,0,2,{&mC2434,&mC2434,&mC2434,&mC2434,&mC2434}},
+ {0,0,8,8,2,5,{&mC2430,&mC2431,&mC2430,&mC2431,&mC2432}},
+ {0,0,8,1,2,9,{&mC2435,&mC2436,&mC2435,&mC2436,&mC2437}},
+ {2,1,6,3,5,6,{&mC2433,&mC2433,&mC2433,&mC2433,&mC2433}} };
+static const IBox bxCat341[4]={ // TEAL BED
+ {0,0,8,8,0,2,{&mC2443,&mC2443,&mC2443,&mC2443,&mC2443}},
+ {0,0,8,8,2,5,{&mC2439,&mC2440,&mC2439,&mC2440,&mC2441}},
+ {0,0,8,1,2,9,{&mC2444,&mC2445,&mC2444,&mC2445,&mC2446}},
+ {2,1,6,3,5,6,{&mC2442,&mC2442,&mC2442,&mC2442,&mC2442}} };
+static const IBox bxCat342[4]={ // PINK BED
+ {0,0,8,8,0,2,{&mC2452,&mC2452,&mC2452,&mC2452,&mC2452}},
+ {0,0,8,8,2,5,{&mC2448,&mC2449,&mC2448,&mC2449,&mC2450}},
+ {0,0,8,1,2,9,{&mC2453,&mC2454,&mC2453,&mC2454,&mC2455}},
+ {2,1,6,3,5,6,{&mC2451,&mC2451,&mC2451,&mC2451,&mC2451}} };
+static const IBox bxCat343[4]={ // MINT BED
+ {0,0,8,8,0,2,{&mC2461,&mC2461,&mC2461,&mC2461,&mC2461}},
+ {0,0,8,8,2,5,{&mC2457,&mC2458,&mC2457,&mC2458,&mC2459}},
+ {0,0,8,1,2,9,{&mC2462,&mC2463,&mC2462,&mC2463,&mC2464}},
+ {2,1,6,3,5,6,{&mC2460,&mC2460,&mC2460,&mC2460,&mC2460}} };

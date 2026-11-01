@@ -1298,3 +1298,5 @@ FRONT LINE MODE is now an operation with a squad, orders and reinforcements, not
 **Cutaway wall steps (`drawWallO`):** a wall run that is cut down (OPTIONS > WALLS: CUTAWAY, or ALL LOW) now meets a full-height wall in two stages, full, `WALL_MID` (13 px), `WALL_CUT` (5 px), instead of one 19 px cliff at a corner or the end of the cut. No saved data or physics involved.
 
 **Doors stand up (`itembake.h`, `items.h`):** a door tile ('D') used to draw only the flat welcome mat. It still draws the mat, and now also a wooden frame (two posts and a lintel) with the leaf swung open toward the room: `V_DOORFX` / `V_DOORFY`, picked from the way the wall runs (turned with the view). Regenerate sprites with `sh tools/bake_items.sh`.
+
+**RETRO 2** (catalog tab 31): twelve more retro colourways: four tables, four lamps, four single beds (orange, teal, pink, mint, purple, neon). Last category again, so no saved item moves.
