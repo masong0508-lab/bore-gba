@@ -1292,3 +1292,5 @@ FRONT LINE MODE is now an operation with a squad, orders and reinforcements, not
 **PERFORMANCE INFO (OPTIONS > VIDEO):** FPS = picture updates in the last second. DETAIL adds CPU: 100 minus the real idle time (time in `vsync` minus the interrupts that ran during it, in `pfWait` / `pfIsr`), so 100 means no idle time at all (the old LOAD only counted work before the vsync wait and missed the copy to the screen). FULL shows `F C A D`: fps, CPU %, audio mixer share of the frame %, and the share of updates that missed their frame; the A turns red when the mixer underran in that second.
 
 **Drift boost:** a drift held for 24 frames (0.4 s) charges ("DRIFT CHARGED"); leaving it pays up to +36 speed (a 1.5 s drift), over the top speed it bleeds off on its own (`F_BOOST_MIN`, `F_BOOST_MAX`).
+
+**Idle breathing (ALIVE tier 1b, `main.c` next to the tier 1 glance):** after a second of standing still the body rises one pixel for about half a second in every one and a half (picture only, no physics; the dirty-rectangle signature already covers `plPopY`).

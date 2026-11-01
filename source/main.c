@@ -3879,6 +3879,7 @@ static void playerCalc(void){
         if(alvPopK==1){ if(plZ<=plFh){ n=18-t; plPopY=(signed char)-(n*(18-n)/27); } }                          // hop for joy: 3 px up and back down
         else if(alvPopK==2) plPopX=(signed char)(t>12?((t&2)?2:-2):t>4?((t&2)?1:-1):0);                         // head shake: a jitter that settles
         else if(alvPopK==3){ plPopY=(signed char)(t>10?2:t>6?1:0); plPopX=(signed char)(t>10?-1:0); } }          // flinch: a quick duck and recoil
+    if(!plPopY&&!lskate&&!lvx&&!lvy&&!lsp&&hhStill>=60&&!ldead&&!simAct&&!hhBubT&&plZ<=plFh) plPopY=(signed char)(((lfr>>5)%3==2)?-1:0);   // ALIVE tier 1b: breathing. Standing still for a second, the body rises a pixel for half a second in every one and a half (the picture only)
     plSq=0; if(!ldead){ int q=0;   // ALIVE tier 3: squash (the picture only)
         if(lskate&&lLand>0&&plZ<=plFh){ int b=lLandD>=10?3:1; q=lLand>4?b:lLand>2?b*2/3:b/3; }                   // landing: squashes, then springs back over the crouch
         if(alvPopK==1&&alvPopT<=3&&plZ<=plFh) q=alvPopT>1?2:1;                                                     // the end of a hop
