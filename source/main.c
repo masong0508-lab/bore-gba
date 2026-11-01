@@ -3823,6 +3823,20 @@ IWRAM_OVL1 static void wallSegO(int sx,int sy,int xa,int xb,int dir,int h,int wp
         else { const u16*c=col+v0+(ya-top-1); for(int y=ya;y<=yz;y++,d+=SW) *d=*c++; }
     }
 }
+// CUTAWAY: a wall that hides what is behind it drops low. Where such a run meets a full-height wall (a corner, a doorway's frame, the end of the cut) it steps down in two
+// stages (full, WALL_MID, WALL_CUT) instead of one cliff, so the cut reads as a slope. (In ROM: the overlay it is called from has no room for it.)
+#define WCX(x,y) (sWall==2||(sWall==1&&wInAt(x,(y)-1)))
+#define WCY(x,y) (sWall==2||(sWall==1&&wInAt((x)-1,y)))
+#define WFULL(x,y) (cellAt(x,y)!='w')   /* (a low fence is not a full wall) */
+__attribute__((noinline,long_call)) static void wallHts(int tx,int ty,int low,int nxm,int nxp,int nym,int nyp,int*phx,int*phy){
+    int hx=WALL_H, hy=WALL_H;
+    if(low){ hx=hy=WALL_LOW; }
+    else {
+        if(WCX(tx,ty)){ hx=WALL_CUT; if((nxm&&WFULL(tx-1,ty)&&!WCX(tx-1,ty))||(nxp&&WFULL(tx+1,ty)&&!WCX(tx+1,ty))) hx=WALL_MID; }
+        if(WCY(tx,ty)){ hy=WALL_CUT; if((nym&&WFULL(tx,ty-1)&&!WCY(tx,ty-1))||(nyp&&WFULL(tx,ty+1)&&!WCY(tx,ty+1))) hy=WALL_MID; }
+    }
+    *phx=hx; *phy=hy;
+}
 IWRAM_OVL1 static void drawWallO(int tx,int ty,int sx,int sy);
 static inline void drawWall(int tx,int ty,int sx,int sy){ ovlUse(1); drawWallO(tx,ty,sx,sy); }
 IWRAM_OVL1 static void drawWallO(int tx,int ty,int sx,int sy){   // tx,ty in screen-rotated tile coords
@@ -3830,17 +3844,7 @@ IWRAM_OVL1 static void drawWallO(int tx,int ty,int sx,int sy){   // tx,ty in scr
     int low=cellAt(tx,ty)=='w', wp=wpAt(tx,ty); if(wp>=NWALL) wp=0;
     { char wc=cellAt(tx,ty); if(isWinCh(wc)){ int mx,my; rotXY(tx,ty,&mx,&my); int id=catIdAt(mx,my); wp=WP_WIN+(id?3+id-catCatFirst[CAT_C_WINDOWS]-1:wc=='E'?0:wc=='e'?1:2); if(wp>=WP_WIN+NWIN) wp=WP_WIN; } }   // a window: its kind
     int nxm=wallAtR(tx-1,ty), nxp=wallAtR(tx+1,ty), nym=wallAtR(tx,ty-1), nyp=wallAtR(tx,ty+1);
-    // CUTAWAY: a wall that hides what is behind it drops low. Where such a run meets a full-height wall (a corner, a doorway's frame, the end of the cut) it steps down in two
-    // stages (full, WALL_MID, WALL_CUT) instead of one cliff, so the cut reads as a slope.
-    #define WCX(x,y) (sWall==2||(sWall==1&&wInAt(x,(y)-1)))
-    #define WCY(x,y) (sWall==2||(sWall==1&&wInAt((x)-1,y)))
-    #define WFULL(x,y) (cellAt(x,y)!='w')   /* (a low fence is not a full wall) */
-    int hx=WALL_H, hy=WALL_H;
-    if(low){ hx=hy=WALL_LOW; }
-    else {
-        if(WCX(tx,ty)){ hx=WALL_CUT; if((nxm&&WFULL(tx-1,ty)&&!WCX(tx-1,ty))||(nxp&&WFULL(tx+1,ty)&&!WCX(tx+1,ty))) hx=WALL_MID; }
-        if(WCY(tx,ty)){ hy=WALL_CUT; if((nym&&WFULL(tx,ty-1)&&!WCY(tx,ty-1))||(nyp&&WFULL(tx,ty+1)&&!WCY(tx,ty+1))) hy=WALL_MID; }
-    }
+    int hx, hy; wallHts(tx,ty,low,nxm,nxp,nym,nyp,&hx,&hy);
     int cx=(nxm||nxp), cy=(nym||nyp), corner=cx&&cy;
     if(!cx&&!cy){ wallSeg(sx,sy,sx-3,sx+3,0,hx,wp,3); return; }   // a lone pillar
     if(nxm) wallSeg(sx,sy,sx-4,sx,0,hx,wp,corner?2:0);             // back halves first, then the front ones
