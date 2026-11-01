@@ -214,7 +214,7 @@ static int kpRun(int slot){   // returns 0: the KINGDOM list should rescan (the 
         if(pr&K_START){
             static char sp[24]; static const char* const mn[8]={"GOALS","HOW TO PLAY","BUILD MENU",sp,"SAVE AND LEAVE","SAVE AND KEEP PLAYING","LEAVE WITHOUT SAVING","KEEP PLAYING"};
             { char*e=khCat(sp,"SPEED  X"); khNum(e,spd==0?1:spd==1?4:16); }
-            if(mapOn) kvHwLeave();
+            if(mapOn){ kvHwLeave(); rect(0,0,SW,SH,RGB(2,5,12)); rect(0,0,SW,13,RGB(5,12,22)); text(8,3,"THE LAND BOREFORE TIME",GOLD,1); }   // (a plain backdrop: the last screen the bitmap held, the realm list, showed through the menu)
             int ch=menu(nm,mn,8);
             if(ch==0) kpGoals(&m);                                                 // the open mission, live, and what the advisor says is stuck
             else if(ch==1) kpHelp();
