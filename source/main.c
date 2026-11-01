@@ -3714,6 +3714,7 @@ static void bandCols(int s,int x0,int x1,int*a,int*b){
 // Wallpapers 0..NWP-1 are the old 8x8 patterns (tiled up the wall), NWP.. are the textures in wallart.h (8 x WALL_H, ROM only).
 #define WALL_CUT 5    // a cut-away segment
 #define WALL_LOW 8    // a low wall ('w')
+#define WALL_MID 13   // the step between a cut-away wall and a full one
 static u8 wInside[MH][MW] EWRAM_BSS; static u8 wDirty=1;
 static u16 bfsQ[MH*MW] EWRAM_BSS;   // one queue for every breadth-first search (the walls' flood here, the Sims' paths in house.h)
 static int wIsWall(int x,int y){ return x>=0&&y>=0&&x<MW&&y<MH&&(lifeMap[y][x]=='W'||isWinCh(lifeMap[y][x])); }   // rooms are closed by full walls (a low wall is a fence)
@@ -3829,8 +3830,17 @@ IWRAM_OVL1 static void drawWallO(int tx,int ty,int sx,int sy){   // tx,ty in scr
     int low=cellAt(tx,ty)=='w', wp=wpAt(tx,ty); if(wp>=NWALL) wp=0;
     { char wc=cellAt(tx,ty); if(isWinCh(wc)){ int mx,my; rotXY(tx,ty,&mx,&my); int id=catIdAt(mx,my); wp=WP_WIN+(id?3+id-catCatFirst[CAT_C_WINDOWS]-1:wc=='E'?0:wc=='e'?1:2); if(wp>=WP_WIN+NWIN) wp=WP_WIN; } }   // a window: its kind
     int nxm=wallAtR(tx-1,ty), nxp=wallAtR(tx+1,ty), nym=wallAtR(tx,ty-1), nyp=wallAtR(tx,ty+1);
-    int hx=low?WALL_LOW:sWall==2?WALL_CUT:(sWall==1&&wInAt(tx,ty-1))?WALL_CUT:WALL_H;   // a wall along x hides what is at y-1
-    int hy=low?WALL_LOW:sWall==2?WALL_CUT:(sWall==1&&wInAt(tx-1,ty))?WALL_CUT:WALL_H;   // a wall along y hides what is at x-1
+    // CUTAWAY: a wall that hides what is behind it drops low. Where such a run meets a full-height wall (a corner, a doorway's frame, the end of the cut) it steps down in two
+    // stages (full, WALL_MID, WALL_CUT) instead of one cliff, so the cut reads as a slope.
+    #define WCX(x,y) (sWall==2||(sWall==1&&wInAt(x,(y)-1)))
+    #define WCY(x,y) (sWall==2||(sWall==1&&wInAt((x)-1,y)))
+    #define WFULL(x,y) (cellAt(x,y)!='w')   /* (a low fence is not a full wall) */
+    int hx=WALL_H, hy=WALL_H;
+    if(low){ hx=hy=WALL_LOW; }
+    else {
+        if(WCX(tx,ty)){ hx=WALL_CUT; if((nxm&&WFULL(tx-1,ty)&&!WCX(tx-1,ty))||(nxp&&WFULL(tx+1,ty)&&!WCX(tx+1,ty))) hx=WALL_MID; }
+        if(WCY(tx,ty)){ hy=WALL_CUT; if((nym&&WFULL(tx,ty-1)&&!WCY(tx,ty-1))||(nyp&&WFULL(tx,ty+1)&&!WCY(tx,ty+1))) hy=WALL_MID; }
+    }
     int cx=(nxm||nxp), cy=(nym||nyp), corner=cx&&cy;
     if(!cx&&!cy){ wallSeg(sx,sy,sx-3,sx+3,0,hx,wp,3); return; }   // a lone pillar
     if(nxm) wallSeg(sx,sy,sx-4,sx,0,hx,wp,corner?2:0);             // back halves first, then the front ones
