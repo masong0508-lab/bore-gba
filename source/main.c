@@ -368,12 +368,14 @@ IWRAM_THUMB __attribute__((noclone)) static int text(int x,int y,const char*s,u1
     const u32*fo=sc<=1?fo_s:sc==2?fo_m:fo_l; const u8*fw=sc<=1?fw_s:sc==2?fw_m:fw_l, *fa=sc<=1?fa_s:sc==2?fa_m:fa_l, *fp=sc<=1?fp_s:sc==2?fp_m:fp_l, *fx=sc<=1?fx_s:sc==2?fx_m:fx_l;
     int fh=sc<=1?FH_s:sc==2?FH_m:FH_l, sp=sc<=1?FSP_s:sc==2?FSP_m:FSP_l, ft=sc<=1?FTOP_s:sc==2?FTOP_m:FTOP_l;   // ft = extra rows above the capitals (room for accents on capitals); y is still the top of the capitals
     int cr=c&31, cg=(c>>5)&31, cb=(c>>10)&31;
+    static const u8 crisp[9]={0,0,2,4,6,8,8,8,8};   // the small size (5 px capitals) is sharpened: half-covered pixels become solid, faint fringes go, so the letters read as clean strokes instead of a blur
+    const u8*cv=sc<=1?crisp:0;
     while(*s){
         int i=fNext(&s); if(i<0){ x+=sp; continue; }
         int w=fw[i]; const u8*g=fp+fo[i]; int r0=fx[i]?0:ft; g+=r0*w;   // no ink above the capitals: start at the capitals
         for(int r=r0;r<fh;r++){ int yy=y-ft+r; if((unsigned)(yy-cY0)>=cH){ g+=w; continue; }
             u16*d=&fb[yy*SW];
-            for(int q=0;q<w;q++){ int a=g[q]; if(!a) continue; int xx=x+q; if((unsigned)(xx-cX0)>=cW) continue;
+            for(int q=0;q<w;q++){ int a=g[q]; if(cv) a=cv[a]; if(!a) continue; int xx=x+q; if((unsigned)(xx-cX0)>=cW) continue;
                 if(a>=8){ d[xx]=c; continue; }
                 u16 b=d[xx]; int ia=8-a;
                 int R=((b&31)*ia+cr*a)>>3, G=(((b>>5)&31)*ia+cg*a)>>3, B=(((b>>10)&31)*ia+cb*a)>>3;
