@@ -1463,7 +1463,8 @@ IWRAM_OVL0 static void drawSceneO(int blink){
         int py=y;   // POSES (poses.h): wave and cheer raise an arm up and out about the shoulder, sit folds the legs forward and drops the body
         if(poseK&&!onArm){
             if(poseK<3&&(shape==1||shape==2)&&y<hyB&&(poseK==2||x>=W/2)){ int d=hyB-1-y; py=hyB-1+d; u+=(x<W/2)?-d:d; }
-            else if(poseK==3&&y<hyB){ if(shape==3){ w+=(liftL-1-y)*-2; py=0; } else py=y-(liftL-1); } }
+            else if(poseK==3&&y<hyB){ if(shape==3){ w+=(liftL-1-y)*-2; py=0; } else py=y-(liftL-1); }
+            else if(poseK==4&&(shape==1||shape==2)&&y<hyB){ int d=(hyB-1-y)/2; py=y+d; u+=(x<W/2)?-d:d; } }   // HANDS ON HIPS: each arm folds at the elbow, out and up to the hip
         int sx,sy; projC(u,w,py+1,&sx,&sy);   // top-face centre
         if(onArm){ int sg=u<0?1:-1, a2,b2, hg=HUG-wk-armK-exWst-exSho; rotUW(sg,0,&a2,&b2); sx+=hg*(a2-b2); sy+=(hg*(a2+b2))/2; }   // and the hug (else they float off the hand)
         int bw=(y<hyB&&shape<4)?(shape==1||shape==2?wk/2+shA:shape==3?wk-shpDraw[look[LK_SHAPE]<NSHAPE?look[LK_SHAPE]:0][0]+shL:wk):(y>=hyB&&shape<4?headK:0);

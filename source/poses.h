@@ -2,9 +2,9 @@
 // The baker (main.c, poseK) draws the body in the pose; only what DIFFERS from the standing frame is kept: runs of (skip, n, n palette bytes) over the
 // 32 x SPH sprite, 0 = the standing pixel is gone. About 4 KB of EWRAM for all 3 poses x 4 views (full frames would be ~23 KB, tile patches ~11 KB).
 // Baked once with the player (at the existing loading screen, same cache key), nothing is baked while playing, no extra frame buffer is needed.
-#define POSE_POOL 3072
+#define POSE_POOL 4096
 static u8 poseBuf[POSE_POOL] EWRAM_BSS;
-static u16 poseOff[3][4], poseEnd[3][4]; static u16 poseTop; static u32 poseKey;
+static u16 poseOff[4][4], poseEnd[4][4]; static u16 poseTop; static u32 poseKey;
 static u8 poseFr[SPW*SPH] EWRAM_BSS; static u32 poseFrKey;   // the pose picture put together (poseBlit), and what it shows
 static int poseBx0=SPW, poseBx1=0, poseBy0=SPH, poseBy1=0;   // the box the poses reach (poseWiden: joins the blit box)
 static void poseEncode(int p,const u8*st,const u8*ps,int v){   // the pose frame ps as runs over the standing frame st
@@ -22,7 +22,7 @@ static void poseEncode(int p,const u8*st,const u8*ps,int v){   // the pose frame
 }
 static void poseBakeAll(void){   // the player is baked (standing in spr4): draw the three poses into spr4s one after another and keep their differences
     poseFrKey=0; poseTop=0; poseBx0=SPW; poseBx1=0; poseBy0=SPH; poseBy1=0; poseKey=0;
-    for(int p=0;p<3;p++){ poseK=p+1; bakeInto(spr4s); poseK=0; for(int v=0;v<4;v++) poseEncode(p,spr4[v],spr4s[v],v); }
+    for(int p=0;p<4;p++){ poseK=p+1; bakeInto(spr4s); poseK=0; for(int v=0;v<4;v++) poseEncode(p,spr4[v],spr4s[v],v); }
     poseKey=bakeKey();
 }
 static void poseWiden(void){ if(!poseKey||poseBx0>=poseBx1) return; if(poseBx0<spBx0) spBx0=poseBx0; if(poseBx1>spBx1) spBx1=poseBx1; if(poseBy0<spBy0) spBy0=poseBy0; if(poseBy1>spBy1) spBy1=poseBy1; }
@@ -32,17 +32,18 @@ static void poseWalk(int p,int v,PoseEmit em,int x0,int y0){   // the pose pictu
     while(t<te){ int sk=t[0], len=t[1]; t+=2; if(sk) em(st+i,i,sk,x0,y0); i+=sk; if(len) em(t,i,len,x0,y0); i+=len; t+=len; }
     if(i<n) em(st+i,i,n-i,x0,y0);
 }
-static int poseSel(void){   // 0 none, 1 wave, 2 cheer, 3 sit: for the Sim you control, standing still, never on the board (the picture only)
+static int poseSel(void){   // 0 none, 1 wave, 2 cheer, 3 sit, 4 hands on hips: for the Sim you control, standing still, never on the board (the picture only)
     if(!poseKey||poseKey!=sprKey||lskate||ldead||lvx||lvy||lsp||plZ>plFh||lbailT>0) return 0;
     { int sp=slfPose(); if(sp) return sp; }   // self.h: the pose of the action you are doing
     if(alvPopK==1&&alvPopT>0) return 2;
     if(hhBubT) return 1;
     if(simAct==3||(sNrg<20&&hhStill>=240)) return 3;
+    if(hhStill>=600) return 4;   // ten seconds of standing about: hands on hips, waiting for you
     return 0;
 }
 // The pose picture is put together once (when the pose, the view or the bake changes) into poseFr and then drawn with blit like the standing
 // frame, instead of pixel by pixel through poseDraw every frame (that cost a tenth of a frame whenever the Sim sat, waved or was worn out).
 static void poseCopy(const u8*s,int a,int n,int x0,int y0){ (void)x0; (void)y0; for(int k=0;k<n;k++) poseFr[a+k]=s[k]; }
-static int poseBlit(int p,int v,int x0,int y0){ if(p<1||p>3||poseEnd[p-1][v]==poseOff[p-1][v]) return 0;
+static int poseBlit(int p,int v,int x0,int y0){ if(p<1||p>4||poseEnd[p-1][v]==poseOff[p-1][v]) return 0;
     u32 key=(poseKey*31u+(u32)p*4u+(u32)v)|1u; if(key!=poseFrKey){ poseWalk(p-1,v,poseCopy,0,0); poseFrKey=key; }
     blit(poseFr,x0,y0); return 1; }

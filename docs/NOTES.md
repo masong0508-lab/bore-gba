@@ -1300,3 +1300,5 @@ FRONT LINE MODE is now an operation with a squad, orders and reinforcements, not
 **Doors stand up (`itembake.h`, `items.h`):** a door tile ('D') used to draw only the flat welcome mat. It still draws the mat, and now also a wooden frame (two posts and a lintel) with the leaf swung open toward the room: `V_DOORFX` / `V_DOORFY`, picked from the way the wall runs (turned with the view). Regenerate sprites with `sh tools/bake_items.sh`.
 
 **RETRO 2** (catalog tab 31): twelve more retro colourways: four tables, four lamps, four single beds (orange, teal, pink, mint, purple, neon). Last category again, so no saved item moves.
+
+**Pose 4, HANDS ON HIPS (`poses.h`, baker in `main.c`):** after ten seconds of standing about, each arm folds at the elbow out to the hip (waiting for you). Baked with the other three at the loading screen; the pose pool grew to 4 KB of EWRAM.
