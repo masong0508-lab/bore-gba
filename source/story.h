@@ -92,68 +92,68 @@ static const StB stBk[20][5]={
     {{"ELI MISSES GOING OUT  A CAB","TO THE LOUNGE AND SOME MUSIC"},{T_AT(CT_LOUNGE,"GO TO THE LOUNGE"),T_EV(SE_RADIO,1,"PLAY THE RADIO OR STEREO")}},
     {{"THE NURSERY IS READY","SOMEONE SMALL IS ON THE WAY"}},
     {{"A DAY AT THE PARK  THEN BE","THERE FOR YOUR KID"},{T_AT(CT_PARK,"GO TO THE PARK"),{QK_KIDFRIEND,0,0,"BECOME YOUR KID'S FRIEND"}}},
-    {{"A BIGGER FAMILY NEEDS A","BIGGER PAYCHECK"},{{QK_JOB,0,1,"GET A PROMOTION"},{QK_MONEY,0,100000,"SAVE 100000 SIMOLEONS"}}} },
+    {{"A BIGGER FAMILY NEEDS A","BIGGER PAYCHECK"},{T_EV(SE_PROMO,1,"GET A PROMOTION"),{QK_MONEY,0,100000,"EARN 100000 SIMOLEONS"}}} },
   { // SINGLE PARENT
     {{"JUNIE MISSES THE OLD HOUSE","TV TOGETHER  THEN WORK"},{T_EV(SE_TV,1,"WATCH TV"),T_EV(SE_SHIFT,1,"WORK A SHIFT")}},
     {{"A DAY AT THE PARK  YOU BOTH","COULD USE A FRIEND"},{T_AT(CT_PARK,"GO TO THE PARK"),{QK_FRIENDS,0,1,"MAKE A FRIEND"}}},
-    {{"READ UP AT HOME AND ASK THE","BOSS FOR MORE"},{T_EV(SE_READ,1,"READ A BOOK"),{QK_JOB,0,1,"GET A PROMOTION"}}},
+    {{"READ UP AT HOME AND ASK THE","BOSS FOR MORE"},{T_EV(SE_READ,1,"READ A BOOK"),T_EV(SE_PROMO,1,"GET A PROMOTION")}},
     {{"JUNIE WANTS COMPANY  CALL","A NEIGHBOR OVER"},{{QK_GUEST,0,0,"HAVE A NEIGHBOR OVER"},{QK_KIDFRIEND,0,0,"BECOME YOUR KID'S FRIEND"}}},
-    {{"ONE MORE STEP UP THE LADDER","AND A NEST EGG FOR JUNIE"},{{QK_JOB,0,2,"GET ANOTHER PROMOTION"},{QK_MONEY,0,32000,"SAVE 32000 SIMOLEONS"}}} },
+    {{"ONE MORE STEP UP THE LADDER","AND A NEST EGG FOR JUNIE"},{T_EV(SE_PROMO,1,"GET ANOTHER PROMOTION"),{QK_MONEY,0,32000,"EARN 32000 SIMOLEONS"}}} },
   { // SKATE LIFE: Dex and a board
-    {{"A RAIL AND A MANUAL PAD OUT","FRONT  WARM UP AT HOME"},{T_EV(SE_GRIND,1,"GRIND A RAIL"),T_EV(SE_MANUAL,1,"DO A MANUAL"),{QK_TRICKS,0,20,"LAND 20 TRICKS"}}},
+    {{"A RAIL AND A MANUAL PAD OUT","FRONT  WARM UP AT HOME"},{T_EV(SE_GRIND,1,"GRIND A RAIL"),T_EV(SE_MANUAL,1,"DO A MANUAL"),{QK_TRICKS,0,20,"LAND 20 TRICKS IN ALL"}}},
     {{"THE LOCALS ARE WATCHING","SHOW THEM WHAT YOU GOT"},{T_AT(CT_SKATE,"GO TO THE SKATE PARK"),T_EV(SE_COMBO,4,"LAND A 4 TRICK COMBO"),T_EV(SE_WALLTAP,1,"DO A WALL TAP")}},
     {{"LETTERS ARE HIDDEN ON EVERY","LOT  GRAB ONE AND LEVEL UP"},{T_EV(SE_LETTER,1,"GRAB A SKATE LETTER"),{QK_SKATE,0,2,"REACH SKATING LEVEL 2"}}},
-    {{"PRO SKATER IS YOUR JOB NOW","PUT IN A SHIFT  GET PROMOTED"},{T_EV(SE_SHIFT,1,"WORK A SHIFT"),{QK_JOB,0,1,"GET A PROMOTION"}}},
-    {{"THE WHOLE TOWN KNOWS YOUR","NAME  PROVE IT ONE LAST TIME"},{{QK_TRICKS,0,150,"LAND 150 TRICKS"},{QK_SKATE,0,4,"REACH SKATING LEVEL 4"}}} },
+    {{"PRO SKATER IS YOUR JOB NOW","PUT IN A SHIFT  GET PROMOTED"},{T_EV(SE_SHIFT,1,"WORK A SHIFT"),T_EV(SE_PROMO,1,"GET A PROMOTION")}},
+    {{"THE WHOLE TOWN KNOWS YOUR","NAME  PROVE IT ONE LAST TIME"},{{QK_TRICKS,0,150,"LAND 150 TRICKS IN ALL"},{QK_SKATE,0,4,"REACH SKATING LEVEL 4"}}} },
   { // HOUSEFULL: Bram and Ivan
     {{"IVAN HOGS THE TV AND EATS","YOUR FOOD  MAKE PEACE"},{T_EV(SE_TV,1,"WATCH TV"),{QK_FRIEND,0,0,"BECOME FRIENDS WITH IVAN"}}},
     {{"THE PLACE IS A MESS  BUILD","AND BUY TILL IT FEELS HOME"},{{QK_ROOM,0,0,"MAKE A ROOM LOOK GREAT"}}},
     {{"THROW THE DOORS OPEN  HAVE","THE NEIGHBORS OVER"},{{QK_GUEST,0,0,"HAVE A NEIGHBOR OVER"},{QK_FRIENDS,0,3,"MAKE 3 FRIENDS"}}},
     {{"THE FUN PEOPLE HANG OUT IN","OLD TOWN  BRING ONE HOME"},{T_AT(CT_OLDTOWN,"GO TO OLD TOWN"),{QK_HOUSE,0,4,"FILL THE HOUSE WITH 4 SIMS"}}},
-    {{"FOUR PEOPLE  ONE FRIDGE","KEEP THE BILLS PAID"},{{QK_JOB,0,1,"GET A PROMOTION"},{QK_MONEY,0,60000,"SAVE 60000 SIMOLEONS"}}} },
+    {{"FOUR PEOPLE  ONE FRIDGE","KEEP THE BILLS PAID"},{T_EV(SE_PROMO,1,"GET A PROMOTION"),{QK_MONEY,0,60000,"EARN 60000 SIMOLEONS"}}} },
   { // BEST FRIENDS: Sam, Kiki and Russ
     {{"KIKI AND RUSS JUST MOVED IN","BREAK THE ICE WITH A JOKE"},{T_EV(SE_LAUGH,1,"TELL A JOKE"),{QK_FRIEND,0,0,"BECOME FRIENDS WITH KIKI"}}},
     {{"KIKI KNOWS A PLACE  THE","LOUNGE  PLAY SOMETHING LOUD"},{T_AT(CT_LOUNGE,"GO TO THE LOUNGE"),T_EV(SE_RADIO,1,"PLAY THE RADIO OR STEREO"),{QK_FRIENDS,0,2,"MAKE 2 FRIENDS"}}},
     {{"KIKI HAD A BAD DAY  BE THE","ONE SHE CALLS"},{T_EV(SE_HUGGED,1,"GIVE A HUG"),{QK_BFF,0,0,"BE KIKI'S BEST FRIEND"}}},
     {{"EVERYONE MEETS AT THE PLAZA","THEN BACK TO YOURS"},{T_AT(CT_PLAZA,"GO TO THE PLAZA"),{QK_GUEST,0,0,"HAVE A NEIGHBOR OVER"}}},
-    {{"DREAMS COME TRUE WITH","FRIENDS AROUND"},{{QK_WANTS,0,5,"FULFIL 5 WANTS"},{QK_MONEY,0,20000,"SAVE 20000 SIMOLEONS"}}} },
+    {{"DREAMS COME TRUE WITH","FRIENDS AROUND"},{{QK_WANTS,0,5,"FULFIL 5 WANTS IN ALL"},{QK_MONEY,0,20000,"EARN 20000 SIMOLEONS"}}} },
   { // RAGS TO RICHES: Penny, from nothing (and a night in the cells)
-    {{"ONE BED  ONE FRIDGE  NO","MONEY  GET TO WORK"},{T_EV(SE_SHIFT,1,"WORK A SHIFT"),{QK_MONEY,0,12000,"SAVE 12000 SIMOLEONS"}}},
+    {{"ONE BED  ONE FRIDGE  NO","MONEY  GET TO WORK"},{T_EV(SE_SHIFT,1,"WORK A SHIFT"),{QK_MONEY,0,12000,"EARN 12000 SIMOLEONS"}}},
     {{"A GUY AT THE ARMS SHOP HAS","A JOB FOR YOU  NO QUESTIONS"},{T_AT(CT_ARMS,"GO TO THE ARMS SHOP"),T_EV(QE_BUY,1,"BUY A WEAPON")}},
     {{"IT WAS A SETUP  THE COPS","GRAB YOU  DO YOUR TIME"},{{QK_BUSTED,0,0,"GET BOOKED"},T_EV(QE_PJOB,1,"TAKE A PRISON JOB"),T_EV(SE_RUN,1,"WORK OUT IN THE GYM")}},
     {{"SERVE YOUR DAYS  PAY BAIL","OR MAKE A RUN FOR IT"},{{QK_FREE,0,0,"GET OUT OF PRISON"},{QK_HOME,0,0,"GET BACK HOME"}}},
-    {{"A CLEAN RECORD AND A REAL","JOB  THIS TIME IT PAYS"},{{QK_JOB,0,1,"GET A PROMOTION"},{QK_MONEY,0,120000,"SAVE 120000 SIMOLEONS"}}} },
+    {{"A CLEAN RECORD AND A REAL","JOB  THIS TIME IT PAYS"},{T_EV(SE_PROMO,1,"GET A PROMOTION"),{QK_MONEY,0,120000,"EARN 120000 SIMOLEONS"}}} },
   { // CAREER CLIMBER: Wes
     {{"A DESK  A PHONE  A FUTURE","WORK HARD AND STUDY UP"},{T_EV(SE_SHIFT,1,"WORK A SHIFT"),T_EV(SE_READ,1,"READ A BOOK")}},
     {{"EVERYONE WHO MATTERS GOES","TO THE LOUNGE  MAKE A CONTACT"},{T_AT(CT_LOUNGE,"GO TO THE LOUNGE"),{QK_FRIENDS,0,1,"MAKE A FRIEND"}}},
-    {{"THE BOSS NOTICED YOU","NOW EARN IT"},{{QK_JOB,0,1,"GET A PROMOTION"},{QK_MONEY,0,24000,"SAVE 24000 SIMOLEONS"}}},
-    {{"A CLIENT WANTS TO MEET IN","OLD TOWN  DON'T BE LATE"},{T_AT(CT_OLDTOWN,"GO TO OLD TOWN"),{QK_WANTS,0,5,"FULFIL 5 WANTS"}}},
-    {{"ONE MORE PROMOTION AND YOU","ARE THE BOSS"},{{QK_JOB,0,2,"GET ANOTHER PROMOTION"},{QK_LSKILL,SK_LOGIC,3,"REACH LOGIC LEVEL 3"}}} },
+    {{"THE BOSS NOTICED YOU","NOW EARN IT"},{T_EV(SE_PROMO,1,"GET A PROMOTION"),{QK_MONEY,0,24000,"EARN 24000 SIMOLEONS"}}},
+    {{"A CLIENT WANTS TO MEET IN","OLD TOWN  DON'T BE LATE"},{T_AT(CT_OLDTOWN,"GO TO OLD TOWN"),{QK_WANTS,0,5,"FULFIL 5 WANTS IN ALL"}}},
+    {{"ONE MORE PROMOTION AND YOU","ARE THE BOSS"},{T_EV(SE_PROMO,1,"GET ANOTHER PROMOTION"),{QK_LSKILL,SK_LOGIC,3,"REACH LOGIC LEVEL 3"}}} },
   { // NEW IN TOWN: Rosa and Gwen
     {{"BOXES EVERYWHERE AND A","HOUSEMATE YOU DON'T KNOW"},{T_EV(QE_FOOD,1,"ORDER FOOD ON THE PHONE"),{QK_FRIEND,0,0,"BECOME FRIENDS WITH GWEN"}}},
     {{"TAKE A CAB ROUND TOWN  THE","PLAZA  THEN THE PARK"},{T_AT(CT_PLAZA,"GO TO THE PLAZA"),T_AT(CT_PARK,"GO TO THE PARK")}},
     {{"OLD TOWN IS WHERE THE","STORIES ARE  MEET SOMEONE"},{T_AT(CT_OLDTOWN,"GO TO OLD TOWN"),{QK_FRIENDS,0,2,"MAKE 2 FRIENDS"}}},
     {{"HAVE THE NEW FRIENDS OVER","MAYBE ONE OF THEM STAYS"},{{QK_GUEST,0,0,"HAVE A NEIGHBOR OVER"},{QK_HOUSE,0,3,"FILL THE HOUSE WITH 3 SIMS"}}},
-    {{"THE SKATE PARK CROWD WANTS","TO MEET YOU  LIVE A LITTLE"},{T_AT(CT_SKATE,"GO TO THE SKATE PARK"),{QK_WANTS,0,8,"FULFIL 8 WANTS"}}} },
+    {{"THE SKATE PARK CROWD WANTS","TO MEET YOU  LIVE A LITTLE"},{T_AT(CT_SKATE,"GO TO THE SKATE PARK"),{QK_WANTS,0,8,"FULFIL 8 WANTS IN ALL"}}} },
   { // SECOND CHANCE: Leo and Val
     {{"VAL WON'T LOOK AT YOU","START SMALL  A JOKE  A CHAT"},{T_EV(SE_LAUGH,1,"TELL A JOKE"),{QK_FRIEND,0,0,"BECOME FRIENDS AGAIN"}}},
     {{"THE OLD CREW HANGS AT THE","PLAZA  TELL THEM YOU ARE DONE"},{T_AT(CT_PLAZA,"GO TO THE PLAZA"),T_EV(SE_FIGHT,1,"STAND UP TO SOMEONE")}},
     {{"VAL HEARD YOU WALKED AWAY","SHE IS SOFTENING"},{T_EV(SE_HUGGED,1,"GIVE A HUG"),{QK_LOVE,0,0,"FALL BACK IN LOVE"}}},
     {{"MAKE IT REAL THIS TIME AND","TAKE HER SOMEWHERE NICE"},{{QK_STEADY,0,0,"GO STEADY AGAIN"},T_AT(CT_PARK,"GO TO THE PARK")}},
-    {{"A HOME WORTH COMING BACK TO","SAVE UP  MAKE IT NICE"},{{QK_MONEY,0,32000,"SAVE 32000 SIMOLEONS"},{QK_ROOM,0,0,"MAKE A ROOM LOOK GREAT"}}} },
+    {{"A HOME WORTH COMING BACK TO","SAVE UP  MAKE IT NICE"},{{QK_MONEY,0,32000,"EARN 32000 SIMOLEONS"},{QK_ROOM,0,0,"MAKE A ROOM LOOK GREAT"}}} },
   // THE TEN BASE MISSIONS as stories (the order of STY_MOVEIN ...)
   { // MOVING IN
     {{"THE WALLS ARE BARE  AND THE","TOWN SENT 1500 TO FILL THEM"},{T_EV(QE_BOUGHT,1,"BUY SOMETHING FOR THE PLACE"),{QK_ROOM,0,0,"MAKE A ROOM LOOK GREAT"}}},
     {{"FIRST NIGHT IN THE NEW PLACE","EAT AT HOME  SLEEP IN YOUR BED"},{T_EV(SE_EAT,1,"EAT A MEAL AT HOME"),T_EV(SE_SLEEP,1,"SLEEP IN YOUR OWN BED")}},
     {{"THE NEIGHBOURS WANT A LOOK","INSIDE  SHOW OFF THE PLACE"},{{QK_GUEST,0,0,"HAVE A NEIGHBOR OVER"},{QK_FRIENDS,0,1,"MAKE A FRIEND"}}},
-    {{"THE MONEY WON'T LAST  GET TO","WORK AND KEEP THE BILLS PAID"},{T_EV(SE_SHIFT,1,"WORK A SHIFT"),{QK_MONEY,0,15000,"SAVE 15000 SIMOLEONS"}}},
-    {{"ONE LAST PUSH  MAKE IT THE","NICEST HOUSE ON THE STREET"},{{QK_ROOM,0,0,"MAKE A ROOM LOOK GREAT"},{QK_WANTS,0,5,"FULFIL 5 WANTS"}}} },
+    {{"THE MONEY WON'T LAST  GET TO","WORK AND KEEP THE BILLS PAID"},{T_EV(SE_SHIFT,1,"WORK A SHIFT"),{QK_MONEY,0,15000,"EARN 15000 SIMOLEONS"}}},
+    {{"ONE LAST PUSH  MAKE IT THE","NICEST HOUSE ON THE STREET"},{{QK_ROOM,0,0,"MAKE A ROOM LOOK GREAT"},{QK_WANTS,0,5,"FULFIL 5 WANTS IN ALL"}}} },
   { // DROP IN
-    {{"A BOARD AND TWO RAMPS WERE","LEFT IN YOUR YARD  NO NOTE"},{T_EV(SE_AIR,1,"CATCH AIR OFF A RAMP"),{QK_TRICKS,0,3,"LAND 3 TRICKS"}}},
+    {{"A BOARD AND TWO RAMPS WERE","LEFT IN YOUR YARD  NO NOTE"},{T_EV(SE_AIR,1,"CATCH AIR OFF A RAMP"),{QK_TRICKS,0,3,"LAND 3 TRICKS IN ALL"}}},
     {{"ONE TRICK IS A FLUKE  LINK","A FEW INTO A COMBO"},{T_EV(SE_COMBO,3,"LAND A 3 TRICK COMBO"),T_EV(SE_GRIND,1,"GRIND A RAIL")}},
     {{"WORD GOT ROUND  THE LOCALS","WANT TO SEE WHAT YOU HAVE"},{T_AT(CT_SKATE,"GO TO THE SKATE PARK"),T_EV(SE_WALLTAP,1,"DO A WALL TAP")}},
-    {{"THE YARD IS TOO SMALL NOW","LEVEL UP AND KEEP LANDING"},{{QK_SKATE,0,2,"REACH SKATING LEVEL 2"},{QK_TRICKS,0,40,"LAND 40 TRICKS"}}},
-    {{"EVERY KID ON THE STREET","KNOWS THE YARD  OWN IT"},{{QK_SKATE,0,3,"REACH SKATING LEVEL 3"},{QK_TRICKS,0,100,"LAND 100 TRICKS"},{QK_FRIENDS,0,2,"MAKE 2 FRIENDS"}}} },
+    {{"THE YARD IS TOO SMALL NOW","LEVEL UP AND KEEP LANDING"},{{QK_SKATE,0,2,"REACH SKATING LEVEL 2"},{QK_TRICKS,0,40,"LAND 40 TRICKS IN ALL"}}},
+    {{"EVERY KID ON THE STREET","KNOWS THE YARD  OWN IT"},{{QK_SKATE,0,3,"REACH SKATING LEVEL 3"},{QK_TRICKS,0,100,"LAND 100 TRICKS IN ALL"},{QK_FRIENDS,0,2,"MAKE 2 FRIENDS"}}} },
   { // TACO TUESDAY
     {{"THE WHOLE TOWN IS OUT THERE","AND YOU ARE HUNGRY  TACOS"},{T_AT(CT_TACO,"GO TO TACO BORE"),T_EV(SE_EAT,1,"EAT SOMETHING")}},
     {{"EARN THE TACO FIRST  THE GYM","IS RIGHT THERE"},{T_AT(CT_GYM,"GO TO THE GYM"),T_EV(SE_RUN,1,"WORK OUT IN THE GYM")}},
@@ -165,43 +165,43 @@ static const StB stBk[20][5]={
     {{"DEV BROUGHT TWO MORE PEOPLE","MAKE THEM FEEL WELCOME"},{{QK_GUEST,0,0,"HAVE A NEIGHBOR OVER"},{QK_FRIENDS,0,3,"MAKE 3 FRIENDS"}}},
     {{"EVERYONE IS HUNGRY AND SHY","FOOD AND A HUG HELP"},{T_EV(QE_FOOD,1,"ORDER FOOD ON THE PHONE"),T_EV(SE_HUGGED,1,"GIVE A HUG")}},
     {{"DEV WANTS TO SHOW YOU THE","PLAZA  BRING THE WHOLE CREW"},{T_AT(CT_PLAZA,"GO TO THE PLAZA"),{QK_FRIENDS,0,5,"MAKE 5 FRIENDS"}}},
-    {{"THE STREET KNOWS YOUR NAME","AND DEV IS YOUR BEST FRIEND"},{{QK_BFF,0,0,"BE DEV'S BEST FRIEND"},{QK_WANTS,0,5,"FULFIL 5 WANTS"}}} },
+    {{"THE STREET KNOWS YOUR NAME","AND DEV IS YOUR BEST FRIEND"},{{QK_BFF,0,0,"BE DEV'S BEST FRIEND"},{QK_WANTS,0,5,"FULFIL 5 WANTS IN ALL"}}} },
   { // SPARKS
     {{"SOMEBODY AT THE DOOR CAUGHT","YOUR EYE  TALK TO THEM"},{T_EV(SE_TALK,1,"HAVE A CHAT"),{QK_FRIEND,0,0,"BECOME FRIENDS WITH JUNO"}}},
     {{"THEY NOTICED YOU TOO  MAKE","THEM LAUGH  STEAL A KISS"},{T_EV(SE_LAUGH,1,"TELL A JOKE"),T_EV(SE_KISS,1,"A FIRST KISS")}},
     {{"A FIRST REAL DATE AT THE","LOUNGE  SEE WHERE IT GOES"},{T_AT(CT_LOUNGE,"GO TO THE LOUNGE"),{QK_LOVE,0,0,"FALL IN LOVE WITH JUNO"}}},
     {{"A WALK IN THE PARK  THEN","MAKE IT OFFICIAL"},{T_AT(CT_PARK,"GO TO THE PARK"),{QK_STEADY,0,0,"GO STEADY WITH JUNO"}}},
-    {{"LOVE NEEDS A NICE HOME  AND","A LITTLE MONEY PUT BY"},{{QK_ROOM,0,0,"MAKE A ROOM LOOK GREAT"},{QK_MONEY,0,20000,"SAVE 20000 SIMOLEONS"}}} },
+    {{"LOVE NEEDS A NICE HOME  AND","A LITTLE MONEY PUT BY"},{{QK_ROOM,0,0,"MAKE A ROOM LOOK GREAT"},{QK_MONEY,0,20000,"EARN 20000 SIMOLEONS"}}} },
   { // NINE TO FIVE
-    {{"THE BILLS CAME  THE PHONE IS","FULL OF JOB OFFERS"},{T_EV(SE_SHIFT,1,"WORK A SHIFT"),{QK_MONEY,0,10000,"SAVE 10000 SIMOLEONS"}}},
+    {{"THE BILLS CAME  THE PHONE IS","FULL OF JOB OFFERS"},{T_EV(SE_SHIFT,1,"WORK A SHIFT"),{QK_MONEY,0,10000,"EARN 10000 SIMOLEONS"}}},
     {{"DO IT WELL ENOUGH AND THE","BOSS WILL NOTICE"},{T_EV(SE_ACE,1,"ACE A SHIFT"),T_EV(SE_READ,1,"READ A BOOK")}},
-    {{"A PROMOTION IS ON THE TABLE","EARN IT"},{T_EV(SE_PROMO,1,"GET PROMOTED"),{QK_MONEY,0,20000,"SAVE 20000 SIMOLEONS"}}},
+    {{"A PROMOTION IS ON THE TABLE","EARN IT"},{T_EV(SE_PROMO,1,"GET PROMOTED"),{QK_MONEY,0,20000,"EARN 20000 SIMOLEONS"}}},
     {{"THE LOUNGE IS WHERE DEALS GET","MADE  MAKE A CONTACT"},{T_AT(CT_LOUNGE,"GO TO THE LOUNGE"),{QK_FRIENDS,0,2,"MAKE 2 FRIENDS"}}},
-    {{"ONE MORE STEP UP AND THE","DESK IS NEARLY YOURS"},{{QK_JOB,0,2,"GET ANOTHER PROMOTION"},{QK_MONEY,0,40000,"SAVE 40000 SIMOLEONS"}}} },
+    {{"ONE MORE STEP UP AND THE","DESK IS NEARLY YOURS"},{T_EV(SE_PROMO,1,"GET ANOTHER PROMOTION"),{QK_MONEY,0,40000,"EARN 40000 SIMOLEONS"}}} },
   { // GOOD BOY
     {{"A LITTLE FACE IN THE PET SHOP","WINDOW PICKED YOU"},{T_AT(CT_PETSHOP,"GO TO THE PET SHOP"),{QK_HOME,0,0,"BRING IT HOME"}}},
-    {{"IT FOLLOWS YOU EVERYWHERE  IT","NEEDS TO LEARN A TRICK"},{T_EV(QE_PLEARN,1,"TEACH IT A TRICK"),{QK_WANTS,0,3,"FULFIL 3 WANTS"}}},
+    {{"IT FOLLOWS YOU EVERYWHERE  IT","NEEDS TO LEARN A TRICK"},{T_EV(QE_PLEARN,1,"TEACH IT A TRICK"),{QK_WANTS,0,3,"FULFIL 3 WANTS IN ALL"}}},
     {{"SOMEBODY HAD AN ACCIDENT ON","THE RUG  MOP IT UP"},{T_EV(QE_PMOP,1,"MOP UP A PUDDLE"),{QK_FRIENDS,0,1,"MAKE A FRIEND"}}},
     {{"THE PARK IS FULL OF DOGS AND","PEOPLE  TAKE IT OUT"},{T_AT(CT_PARK,"GO TO THE PARK"),{QK_FRIENDS,0,3,"MAKE 3 FRIENDS"}}},
-    {{"A PET IS FOR LIFE  SHOW IT","ALL YOU HAVE LEARNED"},{T_EV(QE_PLEARN,1,"TEACH IT ANOTHER TRICK"),{QK_WANTS,0,6,"FULFIL 6 WANTS"}}} },
+    {{"A PET IS FOR LIFE  SHOW IT","ALL YOU HAVE LEARNED"},{T_EV(QE_PLEARN,1,"TEACH IT ANOTHER TRICK"),{QK_WANTS,0,6,"FULFIL 6 WANTS IN ALL"}}} },
   { // FIGHT NIGHT
     {{"SOMEBODY HAS BEEN TALKING AND","NOW THEY WANT A PIECE OF YOU"},{T_AT(CT_GYM,"GO TO THE GYM"),T_EV(SE_RUN,1,"WORK OUT IN THE GYM")}},
     {{"LEARN TO GUARD AND TO PARRY","BEFORE THE BELL"},{T_EV(QE_PARRY,1,"PARRY A PUNCH"),T_EV(SE_FIGHT,1,"STAND UP TO SOMEONE")}},
     {{"THE ARMS SHOP SELLS WHAT THE","GYM CAN'T  BE READY"},{T_AT(CT_ARMS,"GO TO THE ARMS SHOP"),T_EV(QE_BUY,1,"BUY A WEAPON")}},
     {{"YOUR CHALLENGER IS ASKING","AROUND  FIND YOUR NERVE"},{T_EV(QE_KO,1,"KNOCK SOMEBODY OUT"),{QK_FRIENDS,0,2,"MAKE 2 FRIENDS"}}},
-    {{"WIN OR LOSE  THE STREET WILL","TALK  KEEP YOUR HEAD UP"},{T_EV(QE_KO,1,"BEAT YOUR CHALLENGER"),{QK_MONEY,0,20000,"SAVE 20000 SIMOLEONS"}}} },
+    {{"WIN OR LOSE  THE STREET WILL","TALK  KEEP YOUR HEAD UP"},{T_EV(QE_KO,1,"BEAT YOUR CHALLENGER"),{QK_MONEY,0,20000,"EARN 20000 SIMOLEONS"}}} },
   { // OPEN HOUSE
     {{"WORD GOT AROUND  THE WHOLE","STREET WANTS TO MEET YOU"},{{QK_GUEST,0,0,"HAVE A NEIGHBOR OVER"},T_EV(QE_FOOD,1,"ORDER FOOD FOR EVERYONE")}},
     {{"MAKE THE PLACE NICE FOR YOUR","GUESTS  AND MAKE FRIENDS"},{{QK_ROOM,0,0,"MAKE A ROOM LOOK GREAT"},{QK_FRIENDS,0,2,"MAKE 2 FRIENDS"}}},
     {{"SOME PEOPLE ARE WORTH KEEPING","SEE IF ONE WANTS TO STAY"},{{QK_HOUSE,0,2,"SOMEBODY MOVES IN"},{QK_FRIENDS,0,3,"MAKE 3 FRIENDS"}}},
     {{"OLD TOWN HAS MORE PEOPLE TO","MEET  BRING THEM HOME"},{T_AT(CT_OLDTOWN,"GO TO OLD TOWN"),{QK_HOUSE,0,3,"FILL THE HOUSE WITH 3 SIMS"}}},
-    {{"A FULL HOUSE NEEDS A FULL","FRIDGE  KEEP THE PARTY GOING"},{{QK_HOUSE,0,4,"FILL THE HOUSE WITH 4 SIMS"},{QK_MONEY,0,30000,"SAVE 30000 SIMOLEONS"}}} },
+    {{"A FULL HOUSE NEEDS A FULL","FRIDGE  KEEP THE PARTY GOING"},{{QK_HOUSE,0,4,"FILL THE HOUSE WITH 4 SIMS"},{QK_MONEY,0,30000,"EARN 30000 SIMOLEONS"}}} },
   { // GREEN THUMB
-    {{"A PACKAGE OF SEEDS CAME IN THE","MAIL  NO NOTE  PLANT THEM"},{T_EV(QE_HARVEST,1,"HARVEST A PLANT"),{QK_WANTS,0,2,"FULFIL 2 WANTS"}}},
+    {{"A PACKAGE OF SEEDS CAME IN THE","MAIL  NO NOTE  PLANT THEM"},{T_EV(QE_HARVEST,1,"HARVEST A PLANT"),{QK_WANTS,0,2,"FULFIL 2 WANTS IN ALL"}}},
     {{"THE DISPENSARY BUYS THE CROP","THE LEGAL WAY"},{T_AT(CT_DISP,"GO TO THE DISPENSARY"),T_EV(QE_SOLD,1,"SELL SOME OF IT")}},
-    {{"THE FIRST CROP PAID FOR THE","NEXT  KEEP IT GOING"},{T_EV(QE_HARVEST,1,"HARVEST ANOTHER PLANT"),{QK_MONEY,0,15000,"SAVE 15000 SIMOLEONS"}}},
+    {{"THE FIRST CROP PAID FOR THE","NEXT  KEEP IT GOING"},{T_EV(QE_HARVEST,1,"HARVEST ANOTHER PLANT"),{QK_MONEY,0,15000,"EARN 15000 SIMOLEONS"}}},
     {{"WORD GETS AROUND  BE CAREFUL","WHO YOU TRUST"},{{QK_FRIENDS,0,2,"MAKE 2 FRIENDS"},T_EV(QE_SOLD,1,"SELL MORE OF IT")}},
-    {{"A GARDEN THAT PAYS  THE GREEN","THUMB OF THE STREET"},{{QK_MONEY,0,40000,"SAVE 40000 SIMOLEONS"},{QK_ROOM,0,0,"MAKE A ROOM LOOK GREAT"}}} },
+    {{"A GARDEN THAT PAYS  THE GREEN","THUMB OF THE STREET"},{{QK_MONEY,0,40000,"EARN 40000 SIMOLEONS"},{QK_ROOM,0,0,"MAKE A ROOM LOOK GREAT"}}} },
 };
 #undef T_AT
 #undef T_EV
@@ -290,7 +290,7 @@ enum { TQ_CLEAN, TQ_DAYS, TQ_FRIENDS, TQ_MONEY, TQ_HOUSE, TQ_GUEST, TQ_HAPPY, TQ
 static u8 plugV=PLUG_START; static u16 plugDay=0xFFFF; static u8 plugSec, plugTen, plugNight;   // plugNight: the ONE MORE NIGHT was used (the next time the pressure hits 100 Missy dies)
 typedef struct { u8 k; u32 n; } StQ;
 static const StQ stqT[5][5]={
-    { {TQ_GUEST,1}, {TQ_FRIENDS,1}, {TQ_MONEY,4000} },                                                     // 1 hungover: have somebody over, a friend, a little cash
+    { {TQ_GUEST,1}, {TQ_FRIENDS,1}, {TQ_MONEY,100000} },                                                   // 1 hungover: have somebody over, a friend, a little cash
     { {TQ_CLEAN,7}, {TQ_FRIENDS,2}, {TQ_MONEY,6000}, {TQ_HAPPY,1} },                                       // 2 a week clean (a puff or a faint starts it again)
     { {TQ_HOUSE,3}, {TQ_CLEAN,4}, {TQ_MONEY,20000}, {TQ_FRIENDS,2}, {TQ_SECURE,4} },                                      // 3 a private house with a crew around you
     { {TQ_DAYS,5}, {TQ_FRIENDS,2}, {TQ_MONEY,12000}, {TQ_HAPPY,1}, {TQ_PLUG,1} },                          // 4 you are Mamesy: hold on, and keep the hospital from pulling the plug
@@ -302,15 +302,24 @@ static const u8 stqN[5]={3,4,5,5,5};
 static int stmGet(void){ return SRAM_BASE[STM_OFF]; }
 static void stmPut(int v){ SRAM_BASE[STM_OFF]=(u8)v; }
 static int stmSlips(void){ int m=stmGet(); return (m&3)+((m>>2)&3); }
+// NO HEAD STARTS: a money goal counts what was EARNED since the chapter began (cash now minus the cash it began with), so money carried over from the last
+// chapter (or the cash a story starts with) can never tick a goal before the chapter has asked for anything. The starting cash: 3 SRAM bytes (64 simoleon units)
+// in the gap after the life stats, set when the story starts and at every new chapter; if it is ever above the cash now (an old save, another household) it
+// starts again from the cash now, so a goal can lose progress there but is never met for free.
+#define STB_OFF 8189
+_Static_assert(LS_OFF+3+4*LS_N*LS_CH<=STB_OFF&&STB_OFF+3<=SLOT_BASE,"story.h STB_OFF: the chapter's starting cash sits in the gap after the life stats");
+static long long stbGet(void){ volatile u8*m=SRAM_BASE+STB_OFF; return (long long)((u32)m[0]|((u32)m[1]<<8)|((u32)m[2]<<16))*64; }
+static void stbSet(void){ long long c=(long long)simMoneyI(); if(c<0) c=0; u32 v=(u32)((c+63)/64); if(v>0xFFFFFF) v=0xFFFFFF; volatile u8*m=SRAM_BASE+STB_OFF; m[0]=(u8)v; m[1]=(u8)(v>>8); m[2]=(u8)(v>>16); }
+static int stbEarned(void){ long long c=(long long)simMoneyI(), b=stbGet(); if(b>c+64){ stbSet(); b=stbGet(); } long long e=c-b; return e<0?0:e>0x7FFFFFFF?0x7FFFFFFF:(int)e; }
 static void stmSlip(int ch){ int m=stmGet(), sh=ch==1?0:ch==2?2:-1; if(sh<0) return; int n=(m>>sh)&3; if(n<3) stmPut((m&~(3<<sh))|((n+1)<<sh)); }
 // CONTINUITY (mission pass 2): every goal says what it means in the story, every chapter card opens with what just happened, and reaching a goal plays a
 // line of the story (who calls, what changes). Same order as stqT.
 static const char* const stqL[5][5]={
-    {"HAVE SOMEONE OVER TO SAY SORRY TO","FRIEND WHO STILL PICKS UP","SIMOLEONS FOR THE LAWYER"},
-    {"DAYS CLEAN FOR THE NETWORK","FRIENDS IN HER CORNER","SIMOLEONS PUT AWAY","FEEL LIKE HERSELF AGAIN"},
-    {"SIMS UNDER HER ROOF","DAYS CLEAN WITH CAMERAS OUT","SIMOLEONS FROM THE DEAL","FRIENDS WHO STAYED","LOCKS ON THE GATE"},
-    {"DAYS AT HER BEDSIDE","FRIENDS WHO VISIT","SIMOLEONS FOR THE BILLS","KEEP YOUR CHIN UP",0},
-    {"DAYS CLEAN","FRIENDS IN THE FRONT ROW","SIMS AT HOME","COMEBACK SIMOLEONS","BE HAPPY. MEAN IT."} };
+    {"HAVE SOMEONE OVER TO SAY SORRY TO","FRIEND WHO STILL PICKS UP","EARNED FOR THE LAWYER"},
+    {"DAYS CLEAN FOR THE NETWORK","FRIENDS IN HER CORNER","EARNED AND PUT AWAY","FEEL LIKE HERSELF AGAIN"},
+    {"SIMS UNDER HER ROOF","DAYS CLEAN WITH CAMERAS OUT","EARNED FROM THE DEAL","FRIENDS WHO STAYED","LOCKS ON THE GATE"},
+    {"DAYS AT HER BEDSIDE","FRIENDS WHO VISIT","EARNED FOR THE BILLS","KEEP YOUR CHIN UP",0},
+    {"DAYS CLEAN","FRIENDS IN THE FRONT ROW","SIMS AT HOME","EARNED FOR THE COMEBACK","BE HAPPY. MEAN IT."} };
 static const char* const stqWhy[5]={"THE MORNING AFTER THE CLIP. START SMALL.","THE OFFER: ONE CLEAN WEEK OR NO SHOW.","THE DEAL BOUGHT A HOUSE. NOW THE GATE.","SHE FELL. YOU ARE MAMESY. HOLD ON.","SHE WOKE UP. ONE MORE SHOW, DONE RIGHT."};
 static const char* const stqBeat[5][5]={
     {"Mamesy came by. Coffee, no lecture.","Dex texts: Still here. Call me.","The lawyer is paid. One fire out."},
@@ -324,7 +333,7 @@ static int stqVal(const StQ*q){
     switch(q->k){
     case TQ_CLEAN: case TQ_DAYS: return stqDays();
     case TQ_FRIENDS: { int me=hhPUid, ex=stCh==3?(int)stKid:(int)stPart, n=0; for(int u=0;u<HU_N;u++) if(u!=me&&u!=ex&&(relF[me][u]&RF_FRIEND)) n++; return n; }   // (Missy's sister does not count once she is gone, and in chapter 4 Missy is in a coma)
-    case TQ_MONEY: return (int)simMoneyI();
+    case TQ_MONEY: return stbEarned();   // (earned this chapter: see stbGet)
     case TQ_HOUSE: { int n=hhN+1; if(stCh==4&&stPart!=255&&stMember(stPart)>=0) n--; return n; }
     case TQ_SECURE: { int c=secCount('n'), g=secCount('j'); return (c>2?2:c)+(g>2?2:g); }   // chapter 3: tight security = 2 SECURITY CAMERAS and 2 SECURITY GATES on the lot you are on
     case TQ_GUEST: return stGuest?1:0;
@@ -427,7 +436,7 @@ static void stComplete(void){   // the current chapter is done: pay it, open wha
     if(slkWas<SM_PER&&jbStoryCount(stId)>=SM_PER){ int p=slkGift(stId); if(p>=0){ static char sg[32] EWRAM_BSS; simCat(simCat(sg,slkNm[p])," UNLOCKED"); simQPush(sg); stGotAdd(slkNm[p]); } }   // all 5 missions of this story are done: a free slider pack
     for(int j=0;j<RW_N;j++) if(rwWas<rwNeed[j]&&rwTotal()>=rwNeed[j]){ simQPush("NEW REWARD IN BUY MODE"); stGotAdd(palNm[catItems[NCAT-1][j]]); break; }
     if(c->goal==SG_DAYS||c->goal==SG_MULTI){ stKidDay=255; if(c->goal==SG_MULTI) stGuest=0; }
-    stCh++; stTkL=0; stSave(); stAnnounce(); stShown=(u16)(stId*16+stCh+1); stModal=2;   // the CHAPTER COMPLETE card (stRunModal)
+    stCh++; stTkL=0; stbSet(); stSave(); stAnnounce(); stShown=(u16)(stId*16+stCh+1); stModal=2;   // the CHAPTER COMPLETE card (stRunModal)
 }
 // TV SHOW & TELL, chapter 4 (YOU ARE MAMESY NOW): the CAST ARRIVAL and the hand-over of control.
 // Cast arrival = a person the chapter needs moves in as a real Sim of the household (not only a figure in a cutscene). Here: Mamesy, Missy's sister.
@@ -560,7 +569,7 @@ static int stTkNow(const StT*t){   // is a task's state met right now? (QK_EV on
     case QK_STEADY: return pu>=0&&(relF[me][pu]&RF_STEADY);
     case QK_BFF: return pu>=0&&(relF[me][pu]&RF_BFF);
     case QK_FRIENDS: { int n=0; for(int u=0;u<HU_N;u++) if(u!=me&&(relF[me][u]&RF_FRIEND)) n++; return n>=(int)t->n; }
-    case QK_MONEY: return simMoney>=(money_t)t->n;
+    case QK_MONEY: return stbEarned()>=(int)t->n;   // (earned since the chapter began: no head start from the cash you came in with)
     case QK_JOB: return jobLvl>=(int)t->n;
     case QK_SKATE: return skillLvl>=(int)t->n;
     case QK_LSKILL: return skLvl(t->a)>=(int)t->n;
@@ -775,7 +784,7 @@ static void stPlugLose(void){
 static void stRunModal0(void){
     int kind=stModal; stModal=0; if(!stId) return;
     if(kind==3){ stPlugLose(); return; }   // (chapter 4 lost)
-    if(stId==STY_TVSHOW&&kind==1&&stCh==0&&stKidDay==255){ stmPut(0); csPlay(7); stKidDay=stqDay(); stGuest=0; stSave(); sgDirty=1; }   /* cutfix: unsaved until the game is saved */   // a brand new TV SHOW & TELL: the night it all started plays once, before chapter 1 (the chapter clock starts here, which is also what stops it playing again)
+    if(stId==STY_TVSHOW&&kind==1&&stCh==0&&stKidDay==255){ stmPut(0); stbSet(); csPlay(7); stKidDay=stqDay(); stGuest=0; stSave(); sgDirty=1; }   /* cutfix: unsaved until the game is saved */   // a brand new TV SHOW & TELL: the night it all started plays once, before chapter 1 (the chapter clock starts here, which is also what stops it playing again)
     if(stId==STY_TVSHOW&&kind==2&&stCh>=1&&stCh<=5){   // the scenes that close the chapter just finished and open the next (cutscene.h): the bars (preceded by THE REFILL, followed by THE OFFER), the sweater (then THE GATE), the fall, waking up (then THE DRIVE and the news), here today (after THE WINGS)
         static const u8 seq[6][4]={{255},{12,0,8,255},{1,9,255},{2,255},{3,10,4,255},{11,5,255}};
         for(int i=0;i<4&&seq[stCh][i]!=255;i++) csPlay(seq[stCh][i]);
@@ -920,7 +929,7 @@ static int stCastSim(const StCast*c){   // one of the story's people moves in (t
 }
 static void bdSave(void);   // board.h
 static void storySetup(int s){   // after the new life is set up and the old household has gone
-    stId=(u8)s; stCh=0; stPart=stKid=stKidDay=255; stGuest=0; stTkL=0;
+    stId=(u8)s; stCh=0; stPart=stKid=stKidDay=255; stGuest=0; stTkL=0; stbSet();
     int m;
     switch(s){
     case STY_ROOM: m=stCastSim(&stCast[s][0]); if(m>=0){ stRel(hhPUid,hhM[m].uid,10,0,0); stPart=hhM[m].uid; } break;

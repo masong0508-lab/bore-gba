@@ -626,7 +626,7 @@ static const char xne11Out[]=
   "Somebody asked what you were going to do next. You thought about it for a good while. Then you said: I do not know. And for the first time in forty years, that felt exactly right.";
 static const XMs xmEpi[]={
   XMS("THE GOLD WATCH","Forty years at one desk, and all they give you is a watch and a slice of cake.","Work one last shift, save 20000 simoleons, and walk out the door a free person.",XS_NONE,30,AMAP_HOME,xne1In,xne1Out,
-     TE(SE_SHIFT,1,"WORK ONE LAST SHIFT"),TK(QK_MONEY,20000,"SAVE 20000 SIMOLEONS")),
+     TE(SE_SHIFT,1,"WORK ONE LAST SHIFT"),TK(QK_MONEY,20000,"EARN 20000 SIMOLEONS")),
   XMS("BUCKET LIST","There is a list of things to do before you kick the bucket, and you are starting with the fun ones.","Do a cannonball, watch a movie, and sing karaoke like nobody can hear you.",XS_NONE,35,AMAP_HOME,xne2In,xne2Out,
      TD(VA_CANNON,"DO A CANNONBALL"),TD(VA_MOVIE,"WATCH A MOVIE"),TD(VA_KARAOKE,"SING KARAOKE")),
   XMS("GREEN THUMB","Every retiree needs a garden, and yours has mostly weeds and ambition.","Read up on gardening and harvest something from a planter, anything at all.",XS_SEEDS,40,AMAP_HOME,xne3In,xne3Out,
@@ -648,7 +648,7 @@ static const XMs xmEpi[]={
   XMS("THE WILL","A lawyer in a very small hat wants to know who gets the good armchair.","Save 40000 simoleons, read the fine print, and tell somebody they are in it.",XS_BILLS,50,AMAP_HOME,
       xe11In,
       xe11Out,
-      TK(QK_MONEY,40000,"SAVE 40000 SIMOLEONS"),TD(VA_STUDY,"READ THE FINE PRINT"),TS(SC_COMPL,"TELL SOMEONE THEY ARE IN IT")),
+      TK(QK_MONEY,40000,"EARN 40000 SIMOLEONS"),TD(VA_STUDY,"READ THE FINE PRINT"),TS(SC_COMPL,"TELL SOMEONE THEY ARE IN IT")),
   XMS("SECOND WIND","You woke up without a single creak, and the doctors say not to waste it.","Swim laps, survive spin class, and down a protein shake.",XS_NONE,55,AMAP_HOME,
       xe12In,
       xe12Out,
@@ -676,13 +676,13 @@ static const XMs xmEpi[]={
   XMS("LEGACY","A house, some savings, and a lot of opinions. Now make people say something nice.","Save 60000 simoleons, make a room look great, and have seven friends.",XS_NONE,80,AMAP_HOME,
       xe18In,
       xe18Out,
-      TK(QK_MONEY,60000,"SAVE 60000 SIMOLEONS"),{QK_ROOM,0,0,"MAKE A ROOM LOOK GREAT"},TK(QK_FRIENDS,7,"HAVE 7 FRIENDS")),
+      TK(QK_MONEY,60000,"EARN 60000 SIMOLEONS"),{QK_ROOM,0,0,"MAKE A ROOM LOOK GREAT"},TK(QK_FRIENDS,7,"HAVE 7 FRIENDS")),
   XMS("THE LONG GOODBYE","Some of them have started not to notice, so hug them anyway and put the kettle on.","Hug someone goodbye, tell someone they are loved, and get back home.",XS_NONE,90,AMAP_HOME,
       xe19In,
       xe19Out,
       TS(SC_HUG,"HUG SOMEONE GOODBYE"),TS(SC_COMPL,"TELL SOMEONE THEY ARE LOVED"),{QK_HOME,0,0,"GET BACK HOME"}),
   XMS("THE END  AND THE ONE AFTER","You have grown old and grown wise, and you want to leave the town better than you found it.","Grow into an elder, leave 100000 simoleons behind, and make eight friends.",XS_NONE,120,AMAP_HOME,xne11In,xne11Out,
-     TK(QK_STAGE,AG_ELDER,"GROW INTO AN ELDER"),TK(QK_MONEY,100000,"LEAVE 100000 SIMOLEONS"),TK(QK_FRIENDS,8,"MAKE 8 FRIENDS")),
+     TK(QK_STAGE,AG_ELDER,"GROW INTO AN ELDER"),TK(QK_MONEY,100000,"EARN 100000 SIMOLEONS"),TK(QK_FRIENDS,8,"MAKE 8 FRIENDS")),
 };
 // ---- THE BASE GAME: ten missions, one for each thing the game does ----
 static const char xnb1In[]=
@@ -1170,7 +1170,7 @@ static int exVal(const XT*t){   // the number a task counts (-1: it has none to 
     case QK_CNT: return exCnt;
     case QK_DAYS: return exDay==255?0:((simDay&255)-exDay)&255;
     case QK_FRIENDS: { int n=0; for(int u=0;u<HU_N;u++) if(u!=me&&(relF[me][u]&RF_FRIEND)) n++; return n; }
-    case QK_MONEY: return simMoneyI();
+    case QK_MONEY: return stbEarned();   // (earned since the mission began: story.h stbGet)
     case QK_PETS: return petN;
     case QK_PLOVE: return exPetBest(0);
     case QK_POTTY: return exPetBest(1);
@@ -1237,6 +1237,7 @@ static int exPlace(int*ct){   // the place the mission still wants you at (*ct =
 static void stSeeds(void){ wdSeed[0]=(u8)(wdSeed[0]+2); wdSave(); }   // THE GREEN THUMB story: two seed packs in the mail
 static u8 exStoryOn;   // a mission just began in this session: its story is told once (not again when a save is loaded)
 static void exScSetup(const XMs*x){   // a mission starts: its places are in the town, its scenario begins
+    stbSet();   // (its money goals count from here)
     if(!x) return;
     arPend=(u8)(x->ar?x->ar+1:(arOn?1:0)); exStoryOn=1;   // (the arena goes up after the cards; arena.h)
     for(int i=0;i<exTkN(x);i++){ if(x->t[i].k==QK_AT) trvPlace(x->t[i].a);
