@@ -32,8 +32,8 @@ TITLES = ['BORE-OUT MAN!', 'BOREZIES!', 'WORLD WAR BORE', 'BORTUA FIGHTER', 'BOR
 # pack -> (headers whose functions and tables go in the slot, names that stay in the base game, extra names that go in the slot)
 PACKS = [
     (['space.h'], [], ['xmSpace']),
-    (['horde.h', 'arena.h', 'arenas.h'],
-     ['hzSpeedPct', 'hzToughPct', 'hzBiteMul', 'hzCureRule', 'hzDmgPct', 'hzCap', 'hzCapMax', 'hzLoad', 'hzReset', 'hzoN', 'hzoDef', 'hzSum'],
+    ([],   # (horde.h, arena.h and arenas.h are in the base game: WORLD WAR BORE's FRONT LINE mode runs on the same engine, with or without BOREZIES!)
+     [],
      ['xmZomb', 'xz1In', 'xz1Out', 'xz2In', 'xz2Out', 'xz3In', 'xz3Out', 'xz4In', 'xz4Out', 'xz5In', 'xz5Out']),
     ([], [], ['xmWar', 'xw8In', 'xw8Out', 'xw9In', 'xw9Out']),
     (['bortua.h', 'bortuaart.h', 'bortuawtf.h', 'bortua3dcore.h', 'bortua3d.h'], ['bfSum', 'bfSave', 'bfLoadFrom', 'bfLoad', 'sgEncArcade'], ['xmFight', 'bfaArt']),   # (bfaArt: the fighters' and the arena's art, .incbin'd into .rodata.bfaArt)

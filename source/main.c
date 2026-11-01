@@ -1728,7 +1728,8 @@ static char lnBuf[24] EWRAM_BSS; static u8 lnPerf; static int lLand, lLandD;   /
 static int tvClip; static void tvClipRun(int ch);   // skills.h / tvclip.h: the TV asks for a clip (channel + 1); lifeModeRun plays it like a pause menu
 static u8 arOn EWRAM_BSS, arPend EWRAM_BSS, arWant EWRAM_BSS;   // (arPend: the change waiting: 0 none, else the arena + 1, so 1 = your own lot)
  static void arRestore(void), arLoad(int id), arTick(void), arAfter(void);   // arena.h: which BOREZIES arena stands in place of your lot (0 none), the change waiting to be made, the one being made
-static u8 hzOn; static u32 hzScore; static const char* hzHudText(void); static void hzTick(void), hzLoad(void);   // horde.h: HORDE MODE runs (0 no, 1 a hundred waves, 2 endless), its score and the wave line for the top bar
+static u8 hzOn, hzWar; static u32 hzScore; static void hzFunOut(void); static int hzBiteMul(void);   // hzWar: the run is WORLD WAR BORE's FRONT LINE (soldiers) and not BOREZIES' horde
+static const char* hzHudText(void); static void hzTick(void), hzLoad(void);   // horde.h: HORDE MODE runs (0 no, 1 a hundred waves, 2 endless), its score and the wave line for the top bar
 static u8 exModal, exTake; enum { EXT_NONE, EXT_LAUNCH, EXT_SWTRAIN, EXT_FIGHTER, EXT_GOTCHI, EXT_ARCADE, EXT_SYSJOB, EXT_SATJOB };   // expand.h: a mission card is waiting; a screen wants to take over (the launch, spacewalk training, a pack's mode)
 static void exTick(void); static void exRunModal(void); static void exTakeRun(int t); static void exEnter(void); static void exStoryTile(void); static void exShelf(int ingame);   // (expand.h)
 static int stModal; static void stRunModal(void);   // story.h: a chapter card is waiting (1 chapter intro, 2 chapter done); lifeModeRun shows it like the pause menu
@@ -2476,9 +2477,11 @@ static u16 fgMul EWRAM_BSS, fgMode EWRAM_BSS;   // fight.h: percent a blow lands
 static void fightHurt(int dmg){
     fgMode=300;   // a blow on you puts you in the fight stance
     if(xo[XO_HURT]==1) dmg/=2;                                              // GENTLE
+    if(hzOn&&hzWar){ dmg=dmg*hzBiteMul()/70; if(dmg<1) dmg=1; }              // FRONT LINE: the HIT STRENGTH mutator (NORMAL is 70)
     static u8 vxLosing; if(lhp>=60) vxLosing=0;
     lhp-=dmg; lsp=0; lgrind=0; sfxPlay(SFX_HIT);
-    if(lhp<=0){ lhp=25; lstun=240; voxPlay(V_lost_the_fight); lnote="KNOCKED OUT"; lnoteT=120; moodEvent(M_HURT_BIG); htKnocked(); }
+    if(lhp<=0&&hzOn&&hzWar){ lhp=70; lstun=60; voxPlay(V_lost_the_fight); hzFunOut(); }   // FRONT LINE: a knock-out costs a life (the crowd falls back)
+    else if(lhp<=0){ lhp=25; lstun=240; voxPlay(V_lost_the_fight); lnote="KNOCKED OUT"; lnoteT=120; moodEvent(M_HURT_BIG); htKnocked(); }
     else { if(lhp<35&&!vxLosing){ vxLosing=1; voxPlay(V_losing_the_fight); }   // still on your feet, but losing
         static char fhB[16] EWRAM_BSS; char*e=simCat(fhB,dmg>=30?"OUCH ":"OW "); *e++='-'; simCatN(e,dmg); if(lstun<30) lstun=30; lnote=fhB; lnoteT=40; }   // and how much
 }

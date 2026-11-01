@@ -796,7 +796,7 @@ static const XMs xmBase[]={
 static const XPk xPk[XP_N]={
   {"BORE-OUT MAN!","A SPACE ODDITY",{"Burnt out at a desk job. One flyer","later you are an astronaut.","Sort of."},xmSpace,XN(xmSpace),1,XMODE_NONE,0,RGB(2,3,12),RGB(10,24,31),0},
   {"BOREZIES!","THE BORED WALK AMONG US",{"The town got so bored it turned.","Cure them with fun: jokes, hugs,","and pass the dutchie."},xmZomb,XN(xmZomb),2,XMODE_HORDE,0,RGB(3,9,3),RGB(14,30,10),"HORDE MODE"},
-  {"WORLD WAR BORE","A WAR OVER A HEDGE",{"The Bore Defence Force against","the Eastern Army. A very small,","very silly war. Enlist today."},xmWar,XN(xmWar),3,XMODE_NONE,0,RGB(9,9,3),RGB(27,23,9),0},
+  {"WORLD WAR BORE","A WAR OVER A HEDGE",{"The Bore Defence Force against","the Eastern Army. A very small,","very silly war. Enlist today."},xmWar,XN(xmWar),3,XMODE_HORDE,0,RGB(9,9,3),RGB(27,23,9),"FRONT LINE MODE"},
   {"BORTUA FIGHTER","THE 3D FIGHTING SENSATION",{"One viral punch, and now every Bore","wants a piece of you.","Plus an arcade mode, and BALLZ in 3D."},xmFight,XN(xmFight),4,XMODE_FIGHTER,0,RGB(13,2,2),RGB(31,22,4),"FIGHT MODES"},
   {"BOREAGOTCHI!","IT NEEDS YOU  CONSTANTLY",{"A pixel blob on a keychain, and","real pets who are jealous.","Plus the handheld."},xmGotchi,XN(xmGotchi),7,XMODE_GOTCHI,0,RGB(14,3,12),RGB(31,20,27),"THE HANDHELD"},
   {"BOREPILOGUE","THE LAST CHAPTER",{"Retire, reminisce, settle old scores","and leave a legacy.","Grown-ups only."},xmEpi,XN(xmEpi),8,XMODE_NONE,1,RGB(7,5,10),RGB(25,22,29),0},
@@ -819,7 +819,7 @@ static int exKv[EXK_N] EWRAM_BSS;   // the realm's numbers as of the last second
 static u8 exP, exM, exTk, exCnt, exDay=255;   // exP: pack + 1 (0: no mission), the mission, its tasks done (bits 0-2; bit 7: someone came over), its counter, the day it began
 static u8 exShown, exLastP, exLastM;          // the mission whose card was shown (a card once per mission and power on); the one just finished (its card)
 // (hzOn, hzScore: main.c, before the HUD. horde.h has the rest)
-static void hzIntroCard(void), hzPerkCard(void), hzResultCard(void), hzEnd(int res); static int hzSetup(void), hzUnlocked(void);
+static void hzIntroCard(void), hzPerkCard(void), hzResultCard(void), hzEnd(int res); static int hzSetup(void), hzUnlocked(void), hzUnlockedP(int p);
 static int hzCap(void), hzSpeedPct(void), hzToughPct(void), hzBiteMul(void), hzCureRule(void); static void hzKillScore(int kind,int cured), hzFunOut(void);   // (horde.h; the numbers are 100 when no horde runs)
 static u8 exHA[TW_N], exHS[TW_N], exHHp[TW_N], exSpar, exGhostDay=255;   // a hostile visitor's step counter, stun, last health; a challenger called; the ghost's night
 static u16 exHPal[TW_N][16] EWRAM_BSS;        // a hostile visitor's own colours (put back when cured or beaten)
@@ -884,6 +884,7 @@ static const u8  exHBite[XH_N]={0,10,0,0,6,16,22};             // fun a bite tak
 static const u8  exHNeed[XH_N]={0,1,1,1,1,2,4};                // cheer-ups it takes to cure it
 #define EX_BITE 300    // how far (1/256 tiles) a Borezie can bite from; a jab reaches 304 (fight.h fgReach)
 #define EX_CLOSE 150   // how close it comes (straight at you, inside its own tile) once its path has brought it next to you
+static u8 exHVar[TW_N];   // FRONT LINE: which kind of soldier it is (XH_BORE a private, XH_SPRINT a scout, XH_BRUTE a sergeant, XH_BOSS the general)
 static u8 exHAcc[TW_N], exHR[TW_N], exHW[TW_N], exHDz[TW_N], exHDie[TW_N], exHN[TW_N], exHTx[TW_N], exHTy[TW_N], exIF, exHArr, exHPend[TW_N];   // pace counter, replan timer, wind-up, daze, going (steps), cheer-ups still needed, where the path leads, bite immunity, arrivals this mission, the kind the horde asked for
 static u16 exHPc[TW_N], exHAr[TW_N];   // its pace (percent) and the percent of a blow that lands on it
 static int exHCap(void){   // how many hostile visitors may be on the lot at once
@@ -893,7 +894,7 @@ static int exHCap(void){   // how many hostile visitors may be on the lot at onc
 }
 static int exHFull(void){ int n=0; for(int k=0;k<TW_N;k++) if(exHT[k]&&twOn[k]&&!exHDie[k]) n++; return n>=exHCap(); }
 static int exHTaken(int uid){ int k=uid-GU0; if(k<0||k>=TW_N||!exHT[k]) return 100; return exHAr[k]; }
-static int exHKind(void){ if(hzOn) return 1; const XMs*x=exMs(); int sc=x?x->sc:0; return sc==XS_ZOMB?1:sc==XS_WAR?2:sc==XS_ARENA?3:exSpar?3:0; }   // what the next visitor is (0: a normal neighbour)
+static int exHKind(void){ if(hzOn) return hzWar?XH_SOLD:1; const XMs*x=exMs(); int sc=x?x->sc:0; return sc==XS_ZOMB?1:sc==XS_WAR?2:sc==XS_ARENA?3:exSpar?3:0; }   // what the next visitor is (0: a normal neighbour)
 static int exHMode(void){ return exHKind()!=0; }
 static void exPalBad(int v){ for(int b=0;b<16;b++) if(hhPkey[b]==v) hhPkey[b]=-1; }   // the bank holding that palette loads again next frame
 static void exTint(int k,int kind){   // a Borezie goes grey-green, a sprinter sickly yellow, a brute bruised red, PATIENT ZERO ghost pale, a soldier khaki (a challenger keeps their own colours)
@@ -928,17 +929,22 @@ static int exMKind(void){   // the mission's mix: Borezies, with sprinters, brut
     return XH_BORE;
 }
 static void exHStats(int k,int kind){ int pc=exHSpd[kind]*hzSpeedPct()/100, ar=exHArmT[kind]*100/hzToughPct(); exHPc[k]=(u16)(pc>250?250:pc<20?20:pc); exHAr[k]=(u16)(ar<4?4:ar>400?400:ar); exHN[k]=exHNeed[kind]; }
+static void exHWarStats(int k){   // FRONT LINE: the soldier's rank sets its pace and how much a blow does to it
+    int v=exHVar[k], pc=exHPc[k], ar=exHAr[k];
+    if(v==XH_SPRINT){ pc=pc*150/100; ar=ar*140/100; } else if(v==XH_BRUTE){ pc=pc*80/100; ar=ar*45/100; } else if(v==XH_BOSS){ pc=pc*90/100; ar=ar*18/100; }
+    exHPc[k]=(u16)(pc>250?250:pc<20?20:pc); exHAr[k]=(u16)(ar<4?4:ar>400?400:ar);
+}
 static void exHMake(int k,int kind){   // visitor k turns hostile
-    HhSim*s=&hhM[TW_V(k)]; exTint(k,kind); exHT[k]=(u8)kind; exHA[k]=0; exHS[k]=0; exHHp[k]=s->hp=HP_MAX; exHStats(k,kind); exHAcc[k]=0; exHR[k]=0; exHW[k]=0; exHDz[k]=0; exHDie[k]=0; exHTx[k]=exHTy[k]=0;
+    HhSim*s=&hhM[TW_V(k)]; exTint(k,kind); exHT[k]=(u8)kind; exHA[k]=0; exHS[k]=0; exHHp[k]=s->hp=HP_MAX; exHStats(k,kind); if(hzOn&&hzWar) exHWarStats(k); exHAcc[k]=0; exHR[k]=0; exHW[k]=0; exHDz[k]=0; exHDie[k]=0; exHTx[k]=exHTy[k]=0;
     char*e=exB; int say=!hzOn||kind==XH_BOSS;   // (HORDE MODE keeps the top bar for the wave: only a boss gets a note)
     if(exBz(kind)){ e=simCat(e,kind==XH_BOSS?"PATIENT ZERO  ":kind==XH_SPRINT?"A FIDGETY BOREZIE  ":kind==XH_BRUTE?"A HEAVY BOREZIE  ":"A BOREZIE SHAMBLES IN  "); simCat(e,s->name); if(say||!sSnd) exGroan(s->uid); }
-    else if(kind==2){ e=simCat(e,"ENEMY SOLDIER  "); simCat(e,s->name); voxSay(s->uid,V_lets_fight); }
+    else if(kind==2){ e=simCat(e,hzOn&&hzWar&&exHVar[k]==XH_BOSS?"THE GENERAL  ":"ENEMY SOLDIER  "); simCat(e,s->name); voxSay(s->uid,V_lets_fight); if(hzOn&&hzWar&&exHVar[k]==XH_BOSS){ lnote=exB; lnoteT=150; } }
     else { e=simCat(e,s->name); simCat(e," WANTS A FIGHT"); voxSay(s->uid,V_lets_fight); exSpar=0; }
     if(say){ lnote=exB; lnoteT=150; }
 }
 static void exHArrive(int k){   // twTick: visitor k starts walking in
     int kind=exHKind(); if(!kind) return;
-    if(hzOn){ kind=exHPend[k]?exHPend[k]:XH_BORE; exHPend[k]=0; } else if(kind==XH_BORE) kind=exMKind();
+    if(hzOn){ kind=exHPend[k]?exHPend[k]:XH_BORE; exHPend[k]=0; if(hzWar){ exHVar[k]=(u8)kind; kind=XH_SOLD; } } else if(kind==XH_BORE) kind=exMKind();
     exHMake(k,kind);
 }
 static void exFace(HhSim*s){ s32 dx=lfx-s->fx, dy=lfy-s->fy; s->hd=(u8)((dx<0?-dx:dx)>(dy<0?-dy:dy)?(dx>0?0:8):(dy>0?4:12)); }
@@ -1004,6 +1010,7 @@ static int exHStay(int k,int*planned){   // a hostile visitor on the lot: chase 
     s->pn=s->pi=0; s->act=HA_IDLE; exFace(s); exHR[k]=0;
     exHNudge(k,s,dx,dy);   // (still closing in to the edge of its tile while it winds up)
     int lim=exHCdT[kind]; if(hzOn) lim=lim*100/(hzSpeedPct()<60?60:hzSpeedPct());
+    if(hzOn&&hzWar){ int v=exHVar[k]; lim=v==XH_SPRINT?lim*65/100:v==XH_BRUTE?lim*115/100:v==XH_BOSS?lim*80/100:lim; }   // (a scout swings quickly, a sergeant slowly)
     exHA[k]++;
     if(exBz(kind)&&exHA[k]==lim-16&&wallClear(s->fx,s->fy,lfx,lfy)){ hhSay(s->uid,IC_SAD,"BOOORE"); exGroan(s->uid); exHW[k]=1; }   // the wind-up: the groan is your cue
     if(exHA[k]<lim) return 1;
@@ -1034,7 +1041,13 @@ static void exCure(int k){   // a Borezie laughs and comes back to life
 static void exSoc(int a,int b,int i,int ok){   // house.h socDo: a social happened (you did it: the packs' social tasks; to a Borezie: maybe a cure)
     if(a!=hhPUid) return;
     if(ok) stQEvent(QE_SOC,i);   // (a mean one always lands)
-    if(!uGuest(b)) return; int k=b-GU0; if(k<0||k>=TW_N||!exBz(exHT[k])||exHDie[k]) return;
+    if(!uGuest(b)) return; int k=b-GU0;
+    if(hzOn&&hzWar&&k>=0&&k<TW_N&&exHT[k]==XH_SOLD&&!exHDie[k]&&hzCureRule()==0&&(i==SC_SORRY||i==SC_HUG||i==SC_HIGH5||i==SC_COMPL)){   // FRONT LINE: a beaten soldier will lay down his arms for a kind word
+        HhSim*sd=&hhM[TW_V(k)];
+        if(sd->hp>=HP_MAX/2){ hhSay(b,IC_ANGRY,"NEVER"); lnote="NOT BEATEN YET  WEAR HIM DOWN FIRST"; lnoteT=90; return; }
+        if(hhPUid>=0&&hhPUid<RU_N&&b<RU_N){ relD[b][hhPUid]=(signed char)clampR(relD[b][hhPUid]+15); relL[b][hhPUid]=(signed char)clampR(relL[b][hhPUid]+8); }
+        hhSay(b,IC_STAR,"I SURRENDER"); moodEvent(M_WANT); hzKillScore(exHVar[k]?exHVar[k]:XH_BORE,1); exRestorePal(k); exHDz[k]=0; exHDie[k]=36; sd->act=HA_SOC; sd->t=600; return; }
+    if(k<0||k>=TW_N||!exBz(exHT[k])||exHDie[k]) return;
     if(hzCureRule()==2){ if(i==SC_JOKE||i==SC_HIGH5||i==SC_HUG||i==SC_COMPL||i==SC_PASS){ hhSay(b,IC_SAD,"BOOORE"); lnote="THIS ONE ONLY RESPECTS FISTS"; lnoteT=80; } return; }   // (HORDE MODE: FISTS ONLY)
     if(i==SC_PASS){ int n=0; for(int j=0;j<TW_N;j++) if(exBz(exHT[j])&&!exHDie[j]&&exHT[j]!=XH_BOSS){ exCure(j); n++; }
         if(n>1){ lnote="PUFF PUFF PASS  THE WHOLE STREET MELLOWS OUT"; lnoteT=160; } else if(!n&&exHT[k]==XH_BOSS){ exHN[k]=exHN[k]>1?exHN[k]-1:1; lnote="PATIENT ZERO COUGHS  IT IS WORKING"; lnoteT=90; } return; }
@@ -1052,6 +1065,7 @@ static void exKO(int uid){   // house.h fightHit: you knocked someone out
         if(hzOn&&hzCureRule()!=1){ hzKillScore(kind,0); exHDie[k]=44; exHDz[k]=0; voxSay(uid,V_lost_the_fight); return; }   // (HORDE MODE: a knock-out is a kill)
         exHDz[k]=hzOn?110:150; s->act=HA_SOC; s->t=600; exHHp[k]=s->hp; exHW[k]=0; exHA[k]=0;
         lnote="IT SEES STARS  QUICK  CHEER IT UP"; lnoteT=110; exGroan(uid); return; }   // DAZED (the missions): fists and fun work together
+    if(hzOn&&hzWar){ hzKillScore(exHVar[k]?exHVar[k]:XH_BORE,0); exRestorePal(k); exHDie[k]=44; exHDz[k]=0; s->act=HA_SOC; s->t=600; voxSay(uid,V_lost_the_fight); return; }   // (FRONT LINE: a knock-out is a kill)
     exUntint(k); twWait[k]=200;   // beaten: it lies there a while, then limps home
     voxSay(uid,V_lost_the_fight);
     if(kind==3){ simMoneyAdd(50); }   // the purse
@@ -1266,14 +1280,14 @@ static void exPackScreen(int p,int ingame){
         if(pr&K_R){ sel=sel+8<rows?sel+8:rows-1; dirty=1; } if(pr&K_L){ sel=sel>8?sel-8:0; dirty=1; }
         if(pr&K_A){
             if(hasMode&&sel==0){
-                if(p==XP_ZOMB){ if(!ingame) toast("PLAY YOUR LIFE  THEN PAUSE  STORY  PACKS"); else if(hzOn) toast("A HORDE IS ALREADY RUNNING"); else if(hzSetup()) return; }
+                if(p==XP_ZOMB||p==XP_WAR){ if(!ingame) toast("PLAY YOUR LIFE  THEN PAUSE  STORY  PACKS"); else if(hzOn) toast(hzWar?"A BATTLE IS ALREADY RUNNING":"A HORDE IS ALREADY RUNNING"); else { hzWar=(u8)(p==XP_WAR); if(hzSetup()) return; } }
                 else exModeRun(p);
                 prev=keyNow(); dirty=1; continue; }
             int m=sel-hasMode;
             if(exSoon(p,m)) toast("COMING SOON  A MISSION STILL BEING WRITTEN");
             else if(!exOpen(p,m)) toast("FINISH THE MISSION BEFORE IT FIRST");
             else if(!ingame) toast("PLAY YOUR LIFE  THEN PAUSE  STORY  PACKS");
-            else if(hzOn) toast("GIVE UP THE HORDE FIRST");
+            else if(hzOn) toast(hzWar?"GIVE UP THE BATTLE FIRST":"GIVE UP THE HORDE FIRST");
             else if(P->adult&&stage<AG_ADULT) toast("THIS PACK IS FOR GROWN-UPS");
             else if(xPk[p].ms[m].sc==XS_SEEDS&&stage<AG_ADULT) toast("THIS MISSION IS FOR GROWN-UPS");
             else if(prIn()) toast("NOT FROM A PRISON CELL");
@@ -1288,7 +1302,7 @@ static void exPackScreen(int p,int ingame){
         { char b[24]; char*e=slNum(b,exPackDone(p)); e=slCat(e," OF "); e=slNum(e,exPackPlay(p)); slCat(e," DONE"); text(231-tw(b,1),7,b,GOLD,1); }
         for(int r=0;r<9&&top+r<rows;r++){ int i=top+r, y=21+r*11, on=i==sel;
             if(on) s2grad(8,y-1,224,11,6,16,26,3,9,17);
-            if(hasMode&&i==0){ const char*pl=(p==XP_ZOMB&&!hzUnlocked())?"LOCKED":"PLAY"; rect(11,y+1,8,7,RGB(31,22,4)); text(23,y,P->modeNm,on?WHITE:GOLD,1); text(229-tw(pl,1),y,pl,pl[0]=='L'?RGB(12,16,22):GOLD,1); continue; }
+            if(hasMode&&i==0){ const char*pl=((p==XP_ZOMB||p==XP_WAR)&&!hzUnlockedP(p))?"LOCKED":"PLAY"; rect(11,y+1,8,7,RGB(31,22,4)); text(23,y,P->modeNm,on?WHITE:GOLD,1); text(229-tw(pl,1),y,pl,pl[0]=='L'?RGB(12,16,22):GOLD,1); continue; }
             int m=i-hasMode, done=exDone(p,m), soon=exSoon(p,m), open=exOpen(p,m), cur=exP==p+1&&exM==m;
             u16 bx=done?RGB(8,26,10):cur?GOLD:open?RGB(14,22,30):RGB(7,10,16); rect(11,y+1,8,7,bx); rect(12,y+2,6,5,RGB(2,6,13));
             if(done) text(12,y,"+",WHITE,1); else if(soon) text(13,y,"?",DIMC,1);
@@ -1298,6 +1312,7 @@ static void exPackScreen(int p,int ingame){
             text(229-tw(rt,1),y,rt,cur?GOLD:soon||!open?RGB(12,16,22):RGB(14,24,16),1); }
         rect(8,121,224,1,RGB(14,26,31));
         if(hasMode&&sel==0){ if(p==XP_ZOMB){ text(12,125,"After the five missions, a horde of your own.",RGB(20,26,31),1); text(12,134,hzUnlocked()?"100 waves or endless, with 14 mutators.":"Finish all five missions to open it.",RGB(17,29,31),1); }
+          else if(p==XP_WAR){ text(12,125,"After the ten missions, the Eastern Army again.",RGB(20,26,31),1); text(12,134,hzUnlockedP(p)?"Waves of soldiers, ranks and a general.":"Finish all ten missions to open it.",RGB(17,29,31),1); }
           else { text(12,125,"A mode of its own. No life needed.",RGB(20,26,31),1); text(12,134,P->bl[2],RGB(17,29,31),1); } }
         else { const XMs*x=&P->ms[sel-hasMode]; exBrief(12,125,216,x,RGB(20,26,31)); }
         s2pill(5,147,tw("A START",1)+10,"A START"); s2pill(9+tw("A START",1)+10,147,tw("B BACK",1)+10,"B BACK");
@@ -1430,10 +1445,10 @@ static void exStoryTile(void){   // pause menu > STORY: the mission, the story j
     for(;;){
         const char* it[5]; int id[5], n=0; static char mt[40] EWRAM_BSS;
         if(exP){ const XMs*x=exMs(); char*e=simCat(mt,"MISSION  "); simCat(e,x?x->nm:""); it[n]=mt; id[n++]=0; }
-        if(hzOn){ it[n]="GIVE UP THE HORDE"; id[n++]=3; }
+        if(hzOn){ it[n]=hzWar?"GIVE UP THE BATTLE":"GIVE UP THE HORDE"; id[n++]=3; }
         it[n]="STORY JOURNAL"; id[n++]=1; it[n]="EXPANSION PACKS"; id[n++]=2;
         int c=menu("STORIES AND PACKS",it,n); if(c<0) return;
-        if(id[c]==0) exJournal(); else if(id[c]==1){ storyScreen(); return; } else if(id[c]==3){ static const char* const yn[2]={"KEEP FIGHTING","GIVE UP"}; if(menu("GIVE UP THE HORDE?",yn,2)==1){ hzEnd(3); return; } } else if(id[c]==4){ exPackScreen(XP_BASE,1); if(exModal) return; } else { exShelf(1); if(exModal) return; }
+        if(id[c]==0) exJournal(); else if(id[c]==1){ storyScreen(); return; } else if(id[c]==3){ static const char* const yn[2]={"KEEP FIGHTING","GIVE UP"}; if(menu(hzWar?"GIVE UP THE BATTLE?":"GIVE UP THE HORDE?",yn,2)==1){ hzEnd(3); return; } } else if(id[c]==4){ exPackScreen(XP_BASE,1); if(exModal) return; } else { exShelf(1); if(exModal) return; }
     }
 }
 // ---- a screen that takes over the life game (lifeModeRun plays it like the TV's clips) ----

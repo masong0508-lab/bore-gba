@@ -27,6 +27,8 @@ static const char* const hzoCh[HZO_N][4]={
 static const u8 hzoN[HZO_N]={3,4,4,4,4,3,3,3,2,2,2,4,3,4};
 static const u8 hzoDef[HZO_N]={1,1,1,1,1,0,0,0,0,0,0,0,1,0};
 static const char* const hzoDesc[HZO_N]={"HOW MANY ON THE LOT AT ONCE","HOW FAST THEY SHAMBLE","HOW MUCH PUNISHMENT THEY SOAK","HOW MUCH FUN A BITE TAKES","A BORED STIFF SIM COSTS A LIFE","A PUNCH OR A JOKE  OR ONLY ONE","FREEZE THE CLOCK AT NOON OR MIDNIGHT","THE SPECIAL METER AS YOU LIKE IT","PATIENT ZERO EVERY TEN WAVES","A BREATHER AND A SNACK BETWEEN WAVES","HUNGER AND SLEEP WAIT  OR DO NOT","THE WHOLE ZOO  OR ONE KIND","HOW FAST THE CROWD GETS BIGGER","SKIP AHEAD  FOR THE BRAVE"};
+#define HZW_OFF 7550   // SRAM: the FRONT LINE's best wave (100 waves, endless): two bytes in the gap after the ticket block
+_Static_assert(TK_OFF+TK_LEN<=HZW_OFF&&HZW_OFF+2<=BD_OFF,"the FRONT LINE's two bytes must sit between the tickets and the board block");
 static u8 hzOpt[HZO_N];                        // the chosen option of each mutator
 static u8 hzMode;                              // set-up: 0 a hundred waves, 1 endless
 static u8 hzMap;                               // set-up: where it is fought: 0 your own lot, 1..AR_N an arena (arena.h)
@@ -37,8 +39,8 @@ static const char* const hzPerkNm[HZP_N]={"THICK SKIN","IRON FISTS","CHEERFUL","
 static const char* const hzPerkDs[HZP_N]={"BITES TAKE 30% LESS FUN","YOUR BLOWS LAND 25% HARDER","CURING ONE CHEERS YOU UP MORE","ONE EXTRA LIFE  AT ONCE","NEW ENEMIES 15% SLOWER","SPECIAL FULL AT ONCE  FILLS FAST","FUN BACK TO FULL  REGROWS FASTER","COMBOS LAST AND SCORE 50% MORE"};
 static u16 hzSpawnLeft, hzKills, hzCures, hzT, hzSpT, hzComboT;
 static u8 hzWave, hzPhase, hzLives, hzCombo, hzPerks, hzBossLeft, hzBites, hzLot, hzDeadSeen, hzStartWave;
-static u8 hzPerkOpt[3], hzFlags, hzBestW[2];
-static u32 hzBestS[2];
+static u8 hzPerkOpt[3], hzFlags, hzBestW[4];   // (0, 1: the horde's 100 waves and endless; 2, 3: the FRONT LINE's)
+static u32 hzBestS[4];   // (the front line's scores are not kept past the run)
 static u16 hzClock0;
 // the last run's result card (exModal 6)
 static u8 hzRes, hzRWave, hzRNew, hzRMode; static u32 hzRScore; static u16 hzRKills, hzRCures;
@@ -54,7 +56,14 @@ static int hzToughPct(void){ if(!hzOn) return 100; static const u8 t[4]={50,100,
 static int hzBiteMul(void){ if(!hzOn) return 100; static const u8 t[4]={40,70,110,200}; int p=t[hzOpt[HZO_BITE]]; if(hzPerks&(1<<HZP_SKIN)) p=p*70/100; return p; }   // (NORMAL: a bite takes 7 of the 100)
 static int hzCureRule(void){ return hzOn?hzOpt[HZO_CURE]:0; }
 static int hzDmgPct(void){ return hzOn&&(hzPerks&(1<<HZP_FISTS))?125:100; }
-static int hzUnlocked(void){ return xpHave(XP_ZOMB)&&(sUnlock||exPackDone(XP_ZOMB)>=exPackPlay(XP_ZOMB)); }
+static int hzUnlockedP(int p){ return xpHave(p)&&(sUnlock||exPackDone(p)>=exPackPlay(p)); }
+static int hzUnlocked(void){ return hzUnlockedP(hzWar?XP_WAR:XP_ZOMB); }
+static int hzNOf(int o){ return (hzWar&&o==HZO_CURE)?2:hzoN[o]; }   // (the front line's "how a fight is won" has two choices: hugs accepted, or to the end)
+static const char* hzNmOf(int o){ static const char* const w[HZO_N]={"ARMY SIZE","MARCH PACE","ARMOUR","HIT STRENGTH",0,"SURRENDERS",0,0,"GENERAL WAVES",0,0,"WHO COMES","ARMY GROWS",0}; return hzWar&&w[o]?w[o]:hzoNm[o]; }
+static const char* hzChOf(int o,int v){ if(hzWar){ if(o==HZO_CURE) return v?"TO THE END":"HUGS ACCEPTED"; if(o==HZO_KIND){ static const char* const k[4]={"EVERYONE","PRIVATES","SCOUTS","SERGEANTS"}; return k[v]; } if(o==HZO_BITE){ static const char* const b[4]={"LIGHT","NORMAL","HEAVY","DEADLY"}; return b[v]; } } return hzoCh[o][v]; }
+static const char* hzDescOf(int o){ if(hzWar){ switch(o){ case HZO_DENS: return "HOW MANY SOLDIERS ON THE LOT AT ONCE"; case HZO_SPEED: return "HOW FAST THEY MARCH AND SWING"; case HZO_TOUGH: return "HOW MUCH PUNISHMENT THEY SOAK"; case HZO_BITE: return "HOW MUCH HEALTH A HIT TAKES"; case HZO_LIVES: return "A KNOCK-OUT COSTS A LIFE"; case HZO_CURE: return "A BEATEN SOLDIER YIELDS TO A SORRY OR A HUG"; case HZO_BOSS: return "THE GENERAL EVERY TEN WAVES"; case HZO_KIND: return "THE WHOLE ARMY  OR ONE RANK"; case HZO_RAMP: return "HOW FAST THE ARMY GETS BIGGER"; } } return hzoDesc[o]; }
+static const char* hzPerkDsOf(int p){ if(hzWar){ if(p==HZP_SKIN) return "HITS TAKE 30% LESS HEALTH"; if(p==HZP_CHEER) return "A SURRENDER CHEERS YOU UP MORE"; if(p==HZP_HEART) return "HEALTH BACK TO FULL  REGROWS FASTER"; } return hzPerkDs[p]; }
+static const char* hzTitle(void){ return hzWar?"FRONT LINE":"HORDE MODE"; }
 // ---- records ----
 static u8 hzSum(volatile const u8*m){ u8 s=0x6B; for(int i=2;i<HZ_LEN-1;i++) s=(u8)(s*7+m[i]); return s; }
 static void hzSave(void){
@@ -62,10 +71,12 @@ static void hzSave(void){
     for(int i=0;i<4;i++){ m[6+i]=(u8)(hzBestS[0]>>(8*i)); m[10+i]=(u8)(hzBestS[1]>>(8*i)); m[14+i]=0; }
     for(int o=0;o<HZO_N;o++) m[14+o/4]=(u8)(m[14+o/4]|(hzOpt[o]&3)<<(2*(o&3)));
     m[18]=hzMode; m[19]=hzMap; m[20]=hzSum(m);
+    { volatile u8*w=SRAM_BASE+HZW_OFF; w[0]=hzBestW[2]; w[1]=hzBestW[3]; }
 }
 static void hzLoad(void){
     for(int o=0;o<HZO_N;o++) hzOpt[o]=hzoDef[o];
-    hzMode=0; hzMap=0; hzFlags=0; hzBestW[0]=hzBestW[1]=0; hzBestS[0]=hzBestS[1]=0;
+    hzMode=0; hzMap=0; hzFlags=0; for(int i=0;i<4;i++){ hzBestW[i]=0; hzBestS[i]=0; }
+    { volatile const u8*w=SRAM_BASE+HZW_OFF; hzBestW[2]=w[0]<=100?w[0]:0; hzBestW[3]=w[1]<=250?w[1]:0; }
     volatile const u8*m=SRAM_BASE+HZ_OFF; if(m[0]!='H'||m[1]!='Z'||m[2]!=1||m[20]!=hzSum(m)) return;
     hzFlags=m[3]; hzBestW[0]=m[4]; hzBestW[1]=m[5];
     for(int i=0;i<4;i++){ hzBestS[0]|=(u32)m[6+i]<<(8*i); hzBestS[1]|=(u32)m[10+i]<<(8*i); }
@@ -86,20 +97,20 @@ static void hzKillScore(int kind,int cured){   // exCure / exKO: one down. cured
     int m=100+25*(hzCombo<12?hzCombo:12); if(hzPerks&(1<<HZP_KING)) m=m*3/2;
     hzScore+=(u32)p*(u32)m/100u; if(hzCombo<250) hzCombo++; hzComboT=(hzPerks&(1<<HZP_KING))?360:200;
     if(cured){ hzCures++; moodFun=moodClamp(moodFun+((hzPerks&(1<<HZP_CHEER))?10:4)*MOOD_ONE); } else hzKills++;
-    if(kind==XH_BOSS){ lnote="PATIENT ZERO IS DOWN  +BIG"; lnoteT=150; sfxPlay(SFX_KO); }
+    if(kind==XH_BOSS){ lnote=hzWar?"THE GENERAL IS DOWN  +BIG":"PATIENT ZERO IS DOWN  +BIG"; lnoteT=150; sfxPlay(SFX_KO); }
 }
 static void hzEnd(int res);
 static void hzFunOut(void){   // exBite: Fun ran out
     hzBites++; hzCombo=0; hzComboT=0;
     if(hzLives!=255&&--hzLives==0){ hzEnd(0); return; }
-    moodFun=moodClamp(60*MOOD_ONE); lstun=50; exIF=140; moodEvent(M_SPOOK); sfxPlay(SFX_NEARLY);
+    moodFun=moodClamp(60*MOOD_ONE); lstun=50; exIF=140; moodEvent(M_SPOOK); sfxPlay(SFX_NEARLY); if(hzWar&&lhp<60) lhp=60;
     for(int k=0;k<TW_N;k++) if(exHT[k]&&twOn[k]){ s32 dx=hhM[TW_V(k)].fx-lfx, dy=hhM[TW_V(k)].fy-lfy; if((int)((dx*dx+dy*dy)>>8)<(800*800>>8)){ exHS[k]=90; exHA[k]=0; exHW[k]=0; } }   // (the crowd reels back for a moment)
-    lnote="BORED STIFF  A LIFE LOST"; lnoteT=150;
+    lnote=hzWar?"KNOCKED OUT  A LIFE LOST":"BORED STIFF  A LIFE LOST"; lnoteT=150;
 }
 // ---- starting and ending a run ----
 static int hzCanStart(const char**why){
-    if(!hzUnlocked()){ *why="FINISH ALL FIVE BOREZIES MISSIONS FIRST"; return 0; }
-    if(stage<AG_TEEN){ *why="TOO YOUNG FOR A HORDE"; return 0; }
+    if(!hzUnlocked()){ *why=hzWar?"FINISH ALL TEN WAR MISSIONS FIRST":"FINISH ALL FIVE BOREZIES MISSIONS FIRST"; return 0; }
+    if(stage<AG_TEEN){ *why=hzWar?"TOO YOUNG FOR A WAR":"TOO YOUNG FOR A HORDE"; return 0; }
     if(curFl||prIn()||prHere()){ *why="NOT FROM UPSTAIRS OR A PRISON CELL"; return 0; }
     if(HH_MAX-hhN<1){ *why="NO ROOM  A SMALLER HOUSEHOLD FIRST"; return 0; }
     return 1;
@@ -125,12 +136,12 @@ static void hzCleanup(void){
 static int hzRecOk(void){ return hzOpt[HZO_LIVES]!=3&&hzStartWave==1; }   // a practice run (endless lives, or a start past wave 1) leaves no record
 static void hzEnd(int res){   // 0 bored stiff, 1 the hundred waves beaten, 2 left the lot, 3 gave up
     if(!hzOn) return;
-    int mode=hzOn-1, wave=hzPhase==2?hzWave:hzWave-1; if(wave<0) wave=0;   // (the wave you were in does not count until it is cleared)
+    int mode=hzOn-1+(hzWar?2:0), wave=hzPhase==2?hzWave:hzWave-1; if(wave<0) wave=0;   // (the wave you were in does not count until it is cleared)
     hzRes=(u8)res; hzRWave=(u8)wave; hzRMode=(u8)mode; hzRScore=hzScore; hzRKills=hzKills; hzRCures=hzCures; hzRNew=0;
     if(hzRecOk()){
         if(wave>hzBestW[mode]){ hzBestW[mode]=(u8)wave; hzRNew|=1; }
         if(hzScore>hzBestS[mode]){ hzBestS[mode]=hzScore; hzRNew|=2; }
-        if(res==1&&mode==0) hzFlags|=1;
+        if(res==1&&mode==0) hzFlags|=1; else if(res==1&&mode==2) hzFlags|=2;
     }
     hzSave(); hzCleanup(); exModal=6; sgDirty=1;
     if(res==1) voxPlay(V_yahoo);
@@ -140,7 +151,7 @@ XPF static void hzBegin(void){
     int w=hzWave, n=hzCount(w); hzSpawnLeft=(u16)n; hzBossLeft=0;
     if(hzOpt[HZO_BOSS]==0&&w%10==0){ hzBossLeft=(u8)(1+(w-10)/30); if(hzBossLeft>3) hzBossLeft=3; if(hzBossLeft>hzSpawnLeft) hzSpawnLeft=hzBossLeft; }
     hzPhase=1; hzSpT=20; hzBites=0;
-    char*e=simCat(exB,"WAVE "); e=simCatN(e,w); if(hzBossLeft) e=simCat(e,"  PATIENT ZERO IS COMING"); else { e=simCat(e,"  "); e=simCatN(e,n); e=simCat(e," BOREZIES"); }
+    char*e=simCat(exB,"WAVE "); e=simCatN(e,w); if(hzBossLeft) e=simCat(e,hzWar?"  THE GENERAL IS COMING":"  PATIENT ZERO IS COMING"); else { e=simCat(e,"  "); e=simCatN(e,n); e=simCat(e,hzWar?" SOLDIERS":" BOREZIES"); }
     lnote=exB; lnoteT=140; sfxPlay(SFX_BELL);
 }
 static int hzPick(void){
@@ -154,10 +165,10 @@ XPF static void hzClear(void){   // the wave is over
     int bonus=250*hzWave+(hzBites==0?500:0);
     if(hzPerks&(1<<HZP_KING)) bonus=bonus*3/2; hzScore+=(u32)bonus;
     hzPhase=2; hzT=360; hzCombo=0; hzComboT=0; if(arOn) arScatter(1);   // (the breather: new barrels and canisters in new places)
-    if(hzOpt[HZO_DROP]==0){ moodFun=moodClamp(moodFun+30*MOOD_ONE); hpHeal(30); sSoc=sSoc<90?sSoc+10:100; }
+    if(hzOpt[HZO_DROP]==0){ moodFun=moodClamp(moodFun+30*MOOD_ONE); hpHeal(hzWar?60:30); sSoc=sSoc<90?sSoc+10:100; }
     char*e=simCat(exB,"WAVE "); e=simCatN(e,hzWave); e=simCat(e," CLEAR  +"); e=simCatN(e,bonus); lnote=exB; lnoteT=150; sfxPlay(SFX_CASH);
     if(hzOn==1&&hzWave>=100){ hzEnd(1); return; }
-    if(hzRecOk()){ int m=hzOn-1; if(hzWave>hzBestW[m]) hzBestW[m]=hzWave; if(hzScore>hzBestS[m]) hzBestS[m]=hzScore; hzSave(); }   // (saved as each wave is cleared: a power cut keeps it)
+    if(hzRecOk()){ int m=hzOn-1+(hzWar?2:0); if(hzWave>hzBestW[m]) hzBestW[m]=hzWave; if(hzScore>hzBestS[m]) hzBestS[m]=hzScore; hzSave(); }   // (saved as each wave is cleared: a power cut keeps it)
     if(hzWave%5==0){   // a perk: three of the ones you do not have
         int c[HZP_N], n=0; for(int i=0;i<HZP_N;i++) if(!(hzPerks&(1<<i))) c[n++]=i;
         if(n){ for(int i=0;i<3;i++){ int j=n>0?rnd8()%n:0; hzPerkOpt[i]=(u8)(n>0?c[j]:255); if(n>0){ c[j]=c[--n]; } } exModal=5; }
@@ -175,6 +186,7 @@ static void hzTick(void){   // once per logic step in the life game (main.c, nex
         if((hzPerks&(1<<HZP_CHARGE))&&lspec<SPEC_MAX) lspec=lspec+30>SPEC_MAX?SPEC_MAX:lspec+30;
     }
     if(hzComboT&&!--hzComboT) hzCombo=0;
+    if(hzWar&&!(lfr&127)) hpHeal((hzPerks&(1<<HZP_HEART))?4:2);   // (the front line: a little health comes back too)
     if(!(lfr&127)&&!exIF&&moodFunPct()<100) moodFun=moodClamp(moodFun+((hzPerks&(1<<HZP_HEART))?2:1)*MOOD_ONE);   // a little Fun comes back between bites
     if(ldead){ if(!hzDeadSeen){ hzDeadSeen=1; hzFunOut(); } } else hzDeadSeen=0;
     if(!hzOn) return;
@@ -204,24 +216,24 @@ XPF static int hzSetup(void){   // 1 = a run starts (the pause menu closes behin
         if(pr&(K_LEFT|K_RIGHT)){ int d=(pr&K_RIGHT)?1:-1;
             if(sel==0){ hzMode^=1; dirty=1; }
             else if(sel==1){ hzMap=(u8)((hzMap+d+AR_N+1)%(AR_N+1)); dirty=1; }
-            else if(sel<=HZO_N+1){ int o=sel-2; hzOpt[o]=(u8)((hzOpt[o]+d+hzoN[o])%hzoN[o]); dirty=1; } }
+            else if(sel<=HZO_N+1){ int o=sel-2; hzOpt[o]=(u8)((hzOpt[o]+d+hzNOf(o))%hzNOf(o)); dirty=1; } }
         if(pr&K_SEL){ for(int o=0;o<HZO_N;o++) hzOpt[o]=hzoDef[o]; hzMode=0; hzMap=0; dirty=1; }
         if(pr&K_A){ if(sel==HZO_N+2){ hzSave(); if(hzStartRun()) return 1; dirty=1; prev=keyNow(); continue; } if(sel==0){ hzMode^=1; dirty=1; } else if(sel==1){ hzMap=(u8)arPick(hzMap); dirty=1; prev=keyNow(); } else if(sel<=HZO_N+1){ int o=sel-2; hzOpt[o]=(u8)((hzOpt[o]+1)%hzoN[o]); dirty=1; } }
         if(!dirty&&(cnt&15)){ vsync(); continue; }
         dirty=0;
         if(sel<top) top=sel; if(sel>=top+9) top=sel-8;
-        stBack("HORDE MODE",(int)cnt);
+        stBack(hzTitle(),(int)cnt);
         for(int r=0;r<9&&top+r<rows;r++){ int i=top+r, y=21+r*11, on=i==sel;
             if(on) s2grad(8,y-1,224,11,6,16,26,3,9,17);
             if(i==0){ text(14,y,"MODE",on?WHITE:GOLD,1); text(229-tw(hzMode?"ENDLESS":"100 WAVES",1),y,hzMode?"ENDLESS":"100 WAVES",on?WHITE:RGB(14,30,10),1); continue; }
             if(i==1){ const char*v=hzMap?arNm[hzMap-1]:"YOUR OWN LOT"; text(14,y,"MAP",on?WHITE:RGB(20,26,31),1); int x=229-tw(v,1); text(x,y,v,on?WHITE:hzMap?RGB(31,24,8):RGB(17,29,31),1); if(on){ text(x-8,y,"<",GOLD,1); text(229+2,y,">",GOLD,1); } continue; }
-            if(i==HZO_N+2){ text(14,y,"START THE HORDE",on?WHITE:GOLD,1); if(on) text(229-tw("A",1),y,"A",GOLD,1); continue; }
-            int o=i-2; const char*v=hzoCh[o][hzOpt[o]]; u16 vc=hzOpt[o]==hzoDef[o]?RGB(17,29,31):RGB(31,24,8);
-            text(14,y,hzoNm[o],on?WHITE:RGB(20,26,31),1);
+            if(i==HZO_N+2){ text(14,y,hzWar?"START THE BATTLE":"START THE HORDE",on?WHITE:GOLD,1); if(on) text(229-tw("A",1),y,"A",GOLD,1); continue; }
+            int o=i-2; const char*v=hzChOf(o,hzOpt[o]); u16 vc=hzOpt[o]==hzoDef[o]?RGB(17,29,31):RGB(31,24,8);
+            text(14,y,hzNmOf(o),on?WHITE:RGB(20,26,31),1);
             { int x=229-tw(v,1); text(x,y,v,on?WHITE:vc,1); if(on){ text(x-8,y,"<",GOLD,1); text(229+2,y,">",GOLD,1); } } }
         rect(8,121,224,1,RGB(14,26,31));
-        if(sel>=2&&sel<=HZO_N+1) text(12,125,hzoDesc[sel-2],RGB(20,26,31),1); else if(sel==0) text(12,125,"A HUNDRED WAVES TO WIN  OR NO END AT ALL",RGB(20,26,31),1); else if(sel==1) text(12,125,hzMap?arBl[hzMap-1]:"YOUR OWN LOT  A  PICKS A MAP WITH A PICTURE",RGB(20,26,31),1); else text(12,125,"YOUR FISTS  YOUR JOKES  YOUR LOT OR NOT",RGB(20,26,31),1);
-        { char b[40]; char*e=simCat(b,hzMode?"BEST ENDLESS  WAVE ":"BEST 100  WAVE "); e=simCatN(e,hzBestW[hzMode]); e=simCat(e,"  SCORE "); simCatN(e,(int)hzBestS[hzMode]); text(12,134,b,GOLD,1); }
+        if(sel>=2&&sel<=HZO_N+1) text(12,125,hzDescOf(sel-2),RGB(20,26,31),1); else if(sel==0) text(12,125,"A HUNDRED WAVES TO WIN  OR NO END AT ALL",RGB(20,26,31),1); else if(sel==1) text(12,125,hzMap?arBl[hzMap-1]:"YOUR OWN LOT  A  PICKS A MAP WITH A PICTURE",RGB(20,26,31),1); else text(12,125,"YOUR FISTS  YOUR JOKES  YOUR LOT OR NOT",RGB(20,26,31),1);
+        { char b[40]; char*e=simCat(b,hzMode?"BEST ENDLESS  WAVE ":"BEST 100  WAVE "); int bi=hzMode+(hzWar?2:0); e=simCatN(e,hzBestW[bi]); if(!hzWar){ e=simCat(e,"  SCORE "); simCatN(e,(int)hzBestS[bi]); } text(12,134,b,GOLD,1); }
         s2pill(5,147,tw("A START",1)+10,"A START"); s2pill(9+tw("A START",1)+10,147,tw("LEFT RIGHT CHANGE",1)+10,"LEFT RIGHT CHANGE");
         present();
     }
@@ -232,16 +244,16 @@ XPF static void hzIntroCard(void){
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
         if(pr&(K_A|K_B|K_START)) return;
-        stBack("HORDE MODE",(int)cnt);
+        stBack(hzTitle(),(int)cnt);
         s2rr(8,22,224,118,RGB(16,27,31)); s2rr(9,23,222,116,RGB(2,6,13)); s2grad(10,24,220,114,3,9,19,1,4,10);
-        exIcon(XP_ZOMB,16,30,4,xPk[XP_ZOMB].b);
-        text(60,30,hzOn==1?"A HUNDRED WAVES":"ENDLESS",GOLD,1); text(60,40,"BOREZIES  PUNCH OR CHEER THEM UP",RGB(17,29,31),1);
+        { int pk=hzWar?XP_WAR:XP_ZOMB; exIcon(pk,16,30,4,xPk[pk].b); }
+        text(60,30,hzOn==1?"A HUNDRED WAVES":"ENDLESS",GOLD,1); text(60,40,hzWar?"EASTERN ARMY  FISTS OR A KIND WORD":"BOREZIES  PUNCH OR CHEER THEM UP",RGB(17,29,31),1);
         { char b[40]; char*e=simCat(b,"START AT WAVE "); simCatN(e,hzStartWave); e=simCat(e,"  "); simCat(e,hzMap?arNm[hzMap-1]:"YOUR LOT"); text(60,52,b,WHITE,1); }
         { char b[28]; char*e=simCat(b,hzLives==255?"ENDLESS LIVES":"LIVES  "); if(hzLives!=255) simCatN(e,hzLives); text(60,62,b,WHITE,1); }
         rect(14,72,212,1,RGB(14,26,31));
-        { int y=77; for(int o=0;o<HZO_N&&y<118;o++) if(hzOpt[o]!=hzoDef[o]&&o!=HZO_START&&o!=HZO_LIVES){ char b[40]; char*e=simCat(b,hzoNm[o]); e=simCat(e,"  "); simCat(e,hzoCh[o][hzOpt[o]]); text(16,y,b,RGB(31,24,8),1); y+=9; }
+        { int y=77; for(int o=0;o<HZO_N&&y<118;o++) if(hzOpt[o]!=hzoDef[o]&&o!=HZO_START&&o!=HZO_LIVES){ char b[40]; char*e=simCat(b,hzNmOf(o)); e=simCat(e,"  "); simCat(e,hzChOf(o,hzOpt[o])); text(16,y,b,RGB(31,24,8),1); y+=9; }
           if(y==77) text(16,77,"EVERYTHING AS IT COMES",RGB(20,26,31),1);
-          if(hzOpt[HZO_LIVES]==3||hzStartWave!=1) text(16,121,"PRACTICE RUN  NO RECORD",RGB(31,12,8),1); else text(16,121,"HOLD L TO GUARD  GROAN MEANS BITE",RGB(20,26,31),1); }
+          if(hzOpt[HZO_LIVES]==3||hzStartWave!=1) text(16,121,"PRACTICE RUN  NO RECORD",RGB(31,12,8),1); else text(16,121,hzWar?"HOLD L TO GUARD  HIYAH MEANS SWING":"HOLD L TO GUARD  GROAN MEANS BITE",RGB(20,26,31),1); }
         s2pill(5,147,40,"A GO");
         present();
     }
@@ -253,13 +265,13 @@ XPF static void hzPerkCard(void){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
         if(pr&K_DOWN) sel=(sel+1)%n; if(pr&K_UP) sel=(sel+n-1)%n;
         if(pr&K_A){ int p=hzPerkOpt[sel]; hzPerks|=(u8)(1<<p);
-            if(p==HZP_WIND&&hzLives!=255&&hzLives<250) hzLives++; if(p==HZP_CHARGE) lspec=SPEC_MAX; if(p==HZP_HEART) moodFun=moodClamp(100*MOOD_ONE);
+            if(p==HZP_WIND&&hzLives!=255&&hzLives<250) hzLives++; if(p==HZP_CHARGE) lspec=SPEC_MAX; if(p==HZP_HEART){ moodFun=moodClamp(100*MOOD_ONE); if(hzWar) hpHeal(100); }
             sfxPlay(SFX_STICK); return; }
         stBack("A PERK",(int)cnt);
         s2rr(8,22,224,118,RGB(16,27,31)); s2rr(9,23,222,116,RGB(2,6,13)); s2grad(10,24,220,114,3,9,19,1,4,10);
         { char b[28]; char*e=simCat(b,"WAVE "); e=simCatN(e,hzWave); simCat(e," CLEAR"); text(16,30,b,GOLD,1); } text(16,40,"PICK ONE  IT STAYS FOR THE RUN",RGB(17,29,31),1);
         for(int i=0;i<n;i++){ int y=56+i*26, on=i==sel, p=hzPerkOpt[i]; if(on) s2grad(12,y-3,216,24,6,16,26,3,9,17);
-            text(18,y,hzPerkNm[p],on?WHITE:GOLD,1); text(18,y+10,hzPerkDs[p],on?RGB(20,28,31):RGB(14,22,28),1); }
+            text(18,y,hzPerkNm[p],on?WHITE:GOLD,1); text(18,y+10,hzPerkDsOf(p),on?RGB(20,28,31):RGB(14,22,28),1); }
         s2pill(5,147,tw("A TAKE IT",1)+10,"A TAKE IT");
         present();
     }
@@ -269,18 +281,18 @@ XPF static void hzResultCard(void){
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
         if(cnt>30&&(pr&(K_A|K_B|K_START))) return;
-        stBack(hzRes==1?"HORDE BEATEN":"HORDE OVER",(int)cnt);
+        stBack(hzWar?(hzRes==1?"THE HEDGE HOLDS":"BATTLE OVER"):(hzRes==1?"HORDE BEATEN":"HORDE OVER"),(int)cnt);
         s2rr(8,22,224,118,RGB(16,27,31)); s2rr(9,23,222,116,RGB(2,6,13)); s2grad(10,24,220,114,3,9,19,1,4,10);
         if(hzRes==1) stSparkle(cnt,12,26,216,100);
-        exIcon(XP_ZOMB,16,30,4,xPk[XP_ZOMB].b);
-        text(60,30,hzRes==1?"A HUNDRED WAVES  DONE":hzRes==0?"BORED STIFF":hzRes==2?"YOU LEFT THE LOT":"YOU GAVE UP",hzRes==1?GOLD:WHITE,1);
+        { int pk=hzWar?XP_WAR:XP_ZOMB; exIcon(pk,16,30,4,xPk[pk].b); }
+        text(60,30,hzRes==1?"A HUNDRED WAVES  DONE":hzRes==0?(hzWar?"KNOCKED OUT":"BORED STIFF"):hzRes==2?"YOU LEFT THE LOT":"YOU GAVE UP",hzRes==1?GOLD:WHITE,1);
         { char b[28]; char*e=simCat(b,"WAVES CLEARED  "); simCatN(e,hzRWave); text(60,42,b,WHITE,2); }
         rect(14,72,212,1,RGB(14,26,31));
         { char b[40]; char*e=simCat(b,"SCORE  "); simCatN(e,(int)hzRScore); text(16,78,b,GOLD,1); if(hzRNew&2) text(229-tw("NEW BEST",1),78,"NEW BEST",RGB(10,28,12),1); }
-        { char b[40]; char*e=simCat(b,"KNOCKED OUT  "); e=simCatN(e,hzRKills); e=simCat(e,"   CHEERED UP  "); simCatN(e,hzRCures); text(16,90,b,RGB(20,26,31),1); }
+        { char b[40]; char*e=simCat(b,"KNOCKED OUT  "); e=simCatN(e,hzRKills); e=simCat(e,hzWar?"   SURRENDERED  ":"   CHEERED UP  "); simCatN(e,hzRCures); text(16,90,b,RGB(20,26,31),1); }
         { char b[40]; char*e=simCat(b,"BEST WAVE  "); e=simCatN(e,hzBestW[hzRMode]); if(hzRNew&1) text(229-tw("NEW BEST",1),102,"NEW BEST",RGB(10,28,12),1); text(16,102,b,RGB(20,26,31),1); }
-        if(hzRes==1){ text(16,118,"THE TOWN IS SAFE  FOR NOW",WHITE,1); }
-        else text(16,118,hzRNew?"A PERSONAL BEST":"THEY WILL BE BACK",RGB(17,29,31),1);
+        if(hzRes==1){ text(16,118,hzWar?"THE HEDGE IS SAFE  FOR NOW":"THE TOWN IS SAFE  FOR NOW",WHITE,1); }
+        else text(16,118,hzRNew?"A PERSONAL BEST":hzWar?"THE ARMY WILL BE BACK":"THEY WILL BE BACK",RGB(17,29,31),1);
         s2pill(5,147,40,"A OK");
         present();
     }
