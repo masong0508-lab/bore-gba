@@ -21,7 +21,7 @@ typedef struct { u8 kind, idx, n, def; u8*v; const char*nm; const char* const* l
 // gInPlay (main.c): 1 while the life game runs (some actions only make sense, or are only safe, in one place)
 
 static const char* const lbFps[4]={"60 FPS","30 FPS","20 FPS","15 FPS"}, *const lbWalls[3]={"FULL","CUTAWAY","LOW"}, *const lbPat[2]={"PLAIN","PATTERNS"},
-    *const lbOnOff[2]={"OFF","ON"}, *const lbFree[3]={"OFF","LOW","HIGH"}, *const lbPop[3]={"LOW","MEDIUM","HIGH"}, *const lbPipe[2]={"ADULTS ONLY","LATE TEENS"}, *const lbShow[3]={"OFF","FPS","DETAIL"}, *const lbWarn[2]={"ON","OFF"}, *const lbRom[2]={"FAST","SAFE"},
+    *const lbOnOff[2]={"OFF","ON"}, *const lbFree[3]={"OFF","LOW","HIGH"}, *const lbPop[3]={"LOW","MEDIUM","HIGH"}, *const lbPipe[2]={"ADULTS ONLY","LATE TEENS"}, *const lbShow[4]={"OFF","FPS","DETAIL","FULL"}, *const lbWarn[2]={"ON","OFF"}, *const lbRom[2]={"FAST","SAFE"},
     *const lbCam[4]={"OFF","OVER 10000","OVER 5000","OVER 2000"}, *const lbHud[3]={"FULL","SLIM","OFF"};
 static const char* const lbNeed[5]={"OFF","SLOW","NORMAL","FAST","BRUTAL"}, *const lbHunger[4]={"OFF","SLOW","NORMAL","FAST"},
     *const lbDay[5]={"3 MIN","6 MIN","12 MIN","24 MIN","STOPPED"}, *const lbBills[4]={"NONE","HALF","NORMAL","DOUBLE"},
@@ -45,7 +45,7 @@ static const OptRow pgVideo[]={
  VR(sWp,2,1,"WALLPAPER",lbPat,"Patterned walls, or plain colour.","Plain is quicker to draw."),
  VR(sFl,2,1,"FLOORS",lbPat,"Patterned floors, or plain colour.","Plain is quicker to draw."),
  VR(sShad,2,1,"SHADOWS",lbOnOff,"The dark spot under your feet.","Off saves a little drawing."),
- VR(sShow,3,0,"PERFORMANCE INFO",lbShow,"FPS shows the frame rate. Detail adds the load,","where 100 means a frame only just fits."),
+ VR(sShow,4,0,"PERFORMANCE INFO",lbShow,"FPS = updates a second. DETAIL adds the CPU load.","FULL: F fps, C cpu, A audio, D dropped frames %."),
  VR(sNoWarn,2,0,"SPEED WARNING",lbWarn,"On tells you when the picture can't keep up.","Off stops the nagging."),
  XR(XO_ZOOM,"ZOOM",lbZoom,"A closer view. Only that part gets drawn, so it","runs faster. SELECT + UP or DOWN zooms."),
  VR(sRom,2,0,"ROM SPEED",lbRom,"Fast suits most carts and emulators.","Safe is for a flash cart that freezes or glitches."), AR(OA_CLEAN,"DEBUG CLEAR CACHES","A Konami code leftover. Not a real cache deleter,","and it won't speed anything up. A for more."),   // LAST row of the page: hidden until the Konami code is on (pgRows)
@@ -218,7 +218,7 @@ static int rowHeat(const OptRow*r){   // VIDEO page colours: 0 light (green), 1 
     if(v==&sFl) return sFl?1:0;
     if(v==&sShad) return sShad?1:0;
     if(v==&sRom) return sRom?1:0;
-    if(v==&sShow) return sShow==2?1:0;
+    if(v==&sShow) return sShow>=2?1:0;
     return 3;
 }
 static s16 costCache[24] EWRAM_BSS;   // draw cost per walls/wallpaper/floors/shadows combo, 0 = not measured yet

@@ -176,11 +176,14 @@ static void hudBotUpdate(int all){
     int rx=165;
     // header: PERFORMANCE INFO option, else the aspiration and the shift (or the meter's zone)
     int wish=simWishes();
-    unsigned hk=sShow?(unsigned)(lfpsV*1000+lloadV*10+sShow)+5000000u:(unsigned)(aspNow()*100000+simZone*10000+wish*5000+(simInShift()?shiftPts+1:0));
+    unsigned hk=sShow?(unsigned)(lfpsV*100000+lcpuV*1000+laudV*10+sShow)+ldropV*1000003u+(unsigned)lunderV*77u+5000000u:(unsigned)(aspNow()*100000+simZone*10000+wish*5000+(simInShift()?shiftPts+1:0));
     if(!sShow&&simInShift()) hk=hk*31u+(unsigned)simQuota();
     if(hudChg(all,HK_HEAD,hk)){
         hudClear(rx,HUD_BOTY+2,72,8); clipSet(rx,HUD_BOTY+2,rx+72,HUD_BOTY+10);
-        if(sShow){ int nx=numText(text(rx,HUD_BOTY+2,"FPS",HC_LABEL,1)+3,HUD_BOTY+2,lfpsV,HC_GOLD)+5; if(sShow==2) numText(text(nx,HUD_BOTY+2,"LOAD",HC_LABEL,1)+3,HUD_BOTY+2,lloadV,lloadV>=100?RGB(30,10,8):HC_GOLD); }
+        if(sShow==1){ numText(text(rx,HUD_BOTY+2,"FPS",HC_LABEL,1)+3,HUD_BOTY+2,lfpsV,lfpsV<30?RGB(30,10,8):HC_GOLD); }
+        else if(sShow==2){ int nx=numText(text(rx,HUD_BOTY+2,"FPS",HC_LABEL,1)+3,HUD_BOTY+2,lfpsV,lfpsV<30?RGB(30,10,8):HC_GOLD)+5; numText(text(nx,HUD_BOTY+2,"CPU",HC_LABEL,1)+3,HUD_BOTY+2,lcpuV,lcpuV>=97?RGB(30,10,8):HC_GOLD); }   // CPU: 100 = no idle time left
+        else if(sShow>=3){ int x=numText(rx,HUD_BOTY+2,lfpsV,lfpsV<30?RGB(30,10,8):HC_GOLD); x=text(x,HUD_BOTY+2,"F",HC_LABEL,1)+3; x=numText(x,HUD_BOTY+2,lcpuV,lcpuV>=97?RGB(30,10,8):HC_GOLD); x=text(x,HUD_BOTY+2,"C",HC_LABEL,1)+3;
+            x=numText(x,HUD_BOTY+2,laudV,lunderV?RGB(30,10,8):HC_GOLD); x=text(x,HUD_BOTY+2,"A",HC_LABEL,1)+3; x=numText(x,HUD_BOTY+2,ldropV,ldropV>=25?RGB(30,10,8):HC_GOLD); text(x,HUD_BOTY+2,"D",HC_LABEL,1); }   // FPS, CPU busy %, audio mixer %, dropped-frame % (the A goes red when the sound caught up with the mixer)
         else if(!wish) text(rx,HUD_BOTY+2,"BABY  NO WANTS YET",HC_DIM,1);
         else {
             int nx=text(rx,HUD_BOTY+2,aspNm[aspNow()],HC_GOLD,1);

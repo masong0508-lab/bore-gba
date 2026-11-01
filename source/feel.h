@@ -11,6 +11,8 @@
 #define F_TURN_HI 28    // ...at top speed (~150 deg/s)
 #define F_TURN_ACC 14   // turn rate ramp per frame (steering has weight, no snapping). Was 10: a touch quicker to bite
 #define F_DRIFT_SPD 140   // DRIFT: hold DOWN and steer at this speed or more: a hard carve (the turn bites 50% harder), the board slides (looser grip) and you keep your speed instead of braking
+#define F_BOOST_MIN 24  // a drift this many frames long (0.4 s) earns a boost when you let go of DOWN or the turn; ...
+#define F_BOOST_MAX 36  // ...up to this much speed (a 1.5 s drift). Over the top speed it bleeds off by itself
 #define F_GRIP    2     // velocity chases heading by 1/4 per frame (1<<2): slight slide in turns
 #define F_BUF     8     // jump input buffer (frames before landing). Was 6
 #define F_COY     6     // coyote time (frames after leaving a ledge). Was 5
@@ -30,9 +32,9 @@ static const short sinQ[65]={0,6,13,19,25,31,38,44,50,56,62,68,74,80,86,92,98,10
 static inline int fsin(int a){ int s=1; a&=255; if(a>=128){ a-=128; s=-1; } if(a>64) a=128-a; return s*sinQ[a]; }
 static inline int fcos(int a){ return fsin(a+64); }
 static inline int fabsi(int v){ return v<0?-v:v; }
-typedef struct { int angF, turn, spd, fvx, fvy, rx, ry, buf, coy, jh, spin, spinV, grab, drift; } Feel;
+typedef struct { int angF, turn, spd, fvx, fvy, rx, ry, buf, coy, jh, spin, spinV, grab, drift, driftT; } Feel;
 static Feel F;
-static void feelReset(int hd16){ F.angF=hd16<<8; F.turn=F.spd=F.fvx=F.fvy=F.rx=F.ry=F.buf=F.coy=F.jh=F.spin=F.spinV=F.grab=F.drift=0; }
+static void feelReset(int hd16){ F.angF=hd16<<8; F.turn=F.spd=F.fvx=F.fvy=F.rx=F.ry=F.buf=F.coy=F.jh=F.spin=F.spinV=F.grab=F.drift=F.driftT=0; }
 static void feelSync(void){   // main.c code that zeroes/reduces lsp (bumps, bails, stuns, death) wins over our speed
     if(lsp<(F.spd>>4)){ int o=F.spd; F.spd=lsp<<4; if(o){ F.fvx=F.fvx*F.spd/o; F.fvy=F.fvy*F.spd/o; } if(!F.spd) F.rx=F.ry=0; }
 }
@@ -44,6 +46,9 @@ static void feelTick(int ongr,int pressB){   // coyote + jump buffer bookkeeping
 static void feelSteer(u16 k){
     int dir=((k&K_RIGHT)?1:0)-((k&K_LEFT)?1:0);
     F.drift=((k&K_DOWN)&&dir&&F.spd>=F_DRIFT_SPD)?1:0;
+    if(F.drift){ if(F.driftT<255) F.driftT++; if(F.driftT==F_BOOST_MIN){ lnote="DRIFT CHARGED"; lnoteT=30; } }   // DRIFT BOOST: a long carve pays out when you straighten up
+    else { if(F.driftT>=F_BOOST_MIN&&F.spd>=F_DRIFT_SPD/2){ int b=F.driftT<F_BOOST_MAX*3?F.driftT/3:F_BOOST_MAX; F.spd+=b; if(F.spd>F_TOP+F_BOOST_MAX*2) F.spd=F_TOP+F_BOOST_MAX*2; lnote=b>=F_BOOST_MAX?"DRIFT BOOST MAX":"DRIFT BOOST"; lnoteT=40; sfxPlay(SFX_STICK); }
+        F.driftT=0; }
     int mx=F_TURN_LO-(F.spd*(F_TURN_LO-F_TURN_HI)>>9), tg, d; if(F.drift) mx+=mx>>1; tg=dir*mx; d=tg-F.turn;
     int acc=dir?F_TURN_ACC:F_TURN_ACC+4; if(d>acc) d=acc; if(d<-acc) d=-acc;
     F.turn+=d; F.angF=(F.angF+F.turn)&4095;

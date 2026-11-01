@@ -96,7 +96,8 @@ static u8 sCam=1;    // action cam after a big combo: 0 off, 1 over 10000, 2 ove
 static const int camThr[4]={0,10000,5000,2000};
 #define CAM_LEN 84    // action cam length in game steps (1.4 s)
 #define CAM_ZOOM 62   // zoom in by 256/(256-62) = 1.3x
-static int lloadV;   // work per drawn frame as a percent of its time budget (PERFORMANCE INFO: DETAIL)
+static int lloadV;   // work per drawn frame as a percent of its time budget (the old LOAD)
+static int lcpuV, laudV, ldropV, lunderV;   // PERFORMANCE INFO, measured over the last second: how busy the CPU was (100 = no idle time at all), how much of it the mixer took, the share of picture updates that missed their frame, and mixer underruns
 #define NWP 14       // wallpapers: the old 8x8 patterns ...
 #define WALL_H 24     // (full wall height in px, 3 blocks: the textures in wallart.h are this tall)
 #include "wallart.h"  // ... and NWX textures from the KHLVH wallpaper set (ROM only), wallpapers NWP.. (see the walls section)
@@ -1530,13 +1531,16 @@ static u16 keyRaw(void){   // keyNow before the BUTTONS swap
         else { out|=bit; kQ[b]--; svQuiet=SV_QUIET; } }         // the press, even if the button is already up again (and no flash commit for a moment: save.h)
     kRet=out; R_IMEK=ime; return out;
 }
+static volatile u32 pfWait, pfIsr;   // PERFORMANCE INFO: ticks (1024 cycles) the CPU spent waiting in vsync, and ticks spent inside interrupts (the mixer): the wait minus the interrupts that ran during it is the real idle time
 static void vsync(void){
     if(!(R_TM3CNT&0x80)){ R_TM3CNT=0; R_TM3D=0; R_TM3CNT=0x83; }
     keySampleM();
+    u16 pw0=R_TM3D; u32 pi0=pfIsr;
     while(REG_VCOUNT>=160);
     while(REG_VCOUNT<160){ if((*(volatile u16*)0x04000208&1)&&(*(volatile u16*)0x04000200&1)&&(*(volatile u16*)0x04000004&8)) *(volatile u8*)0x04000301=0; }   // the vblank interrupt is on: halt the CPU until it fires instead of spinning (emulators skip the idle time, so menus get the speed back)
     keySampleM();
-    vsT=R_TM3D; if(mWantOff) audIdleStop(); svTick(); ldTick(); }
+    vsT=R_TM3D; { u32 w=(u16)(vsT-pw0), q=pfIsr-pi0; if(w>q) pfWait+=w-q; }
+    if(mWantOff) audIdleStop(); svTick(); ldTick(); }
 static void vsyncUi(void){   // vsync for the menus: if the last redraw ran over a whole frame (we are already inside the NEXT vblank), do not wait out another full frame
     if(REG_VCOUNT>=160&&(R_TM3CNT&0x80)&&(u16)(R_TM3D-vsT)>180){ vsT=R_TM3D; if(mWantOff) audIdleStop(); svTick(); ldTick(); return; }
     vsync(); }
@@ -1858,13 +1862,15 @@ typedef struct { const s8*d; u32 pos,step,len; int vl,vr,ol,orr; } MVoice;   // 
 // first sample is kept as an offset (x32) that is added to the mix and fades out over ~2 ms, so the wave never steps.
 static MVoice mvc[MUS_VOICES];
 // STEREO: Direct Sound A plays the left buffers, Direct Sound B the right ones; both are fed by Timer0 and restarted together at vblank.
-static s8 mbufL[3][MUS_N] __attribute__((aligned(4))), mbufR[3][MUS_N] __attribute__((aligned(4)));   // 0 and 1 play in turn; 2 is a copy of 0, so the DMA reading on past the end of 1 (the ring's wrap, before the vblank re-points it) still finds the right samples
+#define M_RING (3*MUS_N)   // the ring: three buffers play in turn (0, 1, 2) and the fourth is a copy of 0 (see below). The mixer renders up to TWO buffers ahead of what plays, so a mix that runs long no longer replays old sound
+static s8 mbufL[4][MUS_N] __attribute__((aligned(4))), mbufR[4][MUS_N] __attribute__((aligned(4)));   // 0 and 1 play in turn; 2 is a copy of 0, so the DMA reading on past the end of 1 (the ring's wrap, before the vblank re-points it) still finds the right samples
+static volatile int mW, mAhead, mPlayI; static volatile u16 mUnder;   // mW: the next buffer to render; mAhead: rendered buffers that have not started yet (0..2); mPlayI: the buffer playing; mUnder: times playback caught up with the mixer
 static u16 mTmLast; static int mPos;   // the sample counter (timer 1) at the last vblank, and where playback is in the ring (0 .. 2*MUS_N-1)
 static u32 macc[MUS_N];   // musMix: per sample, left in the top 16 bits and right in the bottom 16 (one load and one store per voice and sample)
 #define maccL ((s16*)macc)            // chipMix's scratch: two plain s16 rows in the same memory
 #define maccR (((s16*)macc)+MUS_N)
 static s8 mDly[256] __attribute__((aligned(4))); static int mDp, mLp;   // pseudo-stereo for streamed songs: 256-sample (14 ms) delay line + a low-pass state that keeps the bass centred
-static int mOrd, mRow, mLeft, mFrac; static volatile int mCur, mFilled; static const XmSong*mSong;
+static int mOrd, mRow, mLeft, mFrac; static const XmSong*mSong;
 static volatile int ldG=256, ldGT=256; static volatile int ldHold, ldRel;   // LOADING: the song steps aside while a slow job runs (loading.h). ldG = its own gain (256 full) gliding to ldGT; at 0 the song is FROZEN, not mixed at all (that is the CPU the job gets back). ldHold = a song is stepped aside; ldRel = frames until it comes back
 static volatile int mGain=256, mGainT=256;   // music loudness 256 = full; mGain glides to mGainT a little every frame (half while a menu is open)
 static int mKind, aTail; static volatile int mLaps, mDone;   // mKind 0 = tracker song, 1 = streamed ADPCM; mLaps = times the tracker song has wrapped; mDone = ADPCM song finished
@@ -2134,8 +2140,8 @@ static void deckSwap(MDeck*d){   // exchange the main deck (the globals) with d
 // TOUKEBOX VISUALIZER: the real sound. While the Toukebox is open (vzLive counts down from 30 frames, set by its screen), every buffer the mixer finishes is
 // split into 8 bands by a bank of one-pole low passes (x, then the difference of neighbouring low passes), every second sample. vzOut[b] = the average size
 // of band b in that buffer (b 0 = treble ... 7 = bass). The screen turns it into bar heights (vzLevel).
-static volatile u8 vzLive; static volatile u16 vzOut[8]; static s32 vzLp[7]; static u32 vzPk=1600;
-IWRAM_ARM static void vzAnalyze(const s8*L,const s8*R){
+static volatile u8 vzLive; static volatile u16 vzOutB[3][8]; static s32 vzLp[7]; static u32 vzPk=1600;   // vzOutB: the readings per buffer, so the screen can show the buffer that is playing, not the one just rendered
+IWRAM_ARM static void vzAnalyze(const s8*L,const s8*R,int bi){
     static const u8 al[7]={230,150,90,50,28,15,8};   // each low pass: how much of the new sample it takes (/256), the cut-off halves roughly each step
     s32 lp[7]; u32 e[8]; for(int k=0;k<7;k++) lp[k]=vzLp[k]; for(int k=0;k<8;k++) e[k]=0;
     for(int i=0;i<MUS_N;i+=2){
@@ -2144,13 +2150,13 @@ IWRAM_ARM static void vzAnalyze(const s8*L,const s8*R){
         e[7]+=(u32)(prev<0?-prev:prev);
     }
     for(int k=0;k<7;k++) vzLp[k]=lp[k];
-    for(int k=0;k<8;k++){ u32 v=e[k]/((MUS_N+1)>>1); vzOut[k]=(u16)(v>65535?65535:v); }
-    { u32 b7=(u32)vzOut[7]<<4; if(b7>vzPk) vzPk=b7; else vzPk-=vzPk>>9; }   // the loudest the bass has been lately (<<4), slowly forgotten: the bars adapt to the song and to the volume
+    for(int k=0;k<8;k++){ u32 v=e[k]/((MUS_N+1)>>1); vzOutB[bi][k]=(u16)(v>65535?65535:v); }
+    { u32 b7=(u32)vzOutB[bi][7]<<4; if(b7>vzPk) vzPk=b7; else vzPk-=vzPk>>9; }   // the loudest the bass has been lately (<<4), slowly forgotten: the bars adapt to the song and to the volume
 }
 static int vzLevel(int b){   // bar height 1..12 for band b. Tuned on two real songs (a drum and bass track and a house track), each at full and at half volume:
     // every band has its own floor and ceiling (th, a geometric ladder), and the readings are first scaled so the recent bass peak counts as 100.
     static const u8 th[8][11]={{1,1,2,2,3,3,4,5,6,8,10},{3,4,5,6,7,9,11,13,16,20,25},{5,6,7,8,9,10,12,14,16,19,22},{6,7,8,10,11,13,15,18,21,24,28},{6,7,8,10,12,14,17,20,24,29,34},{7,8,10,12,15,18,22,26,32,38,46},{7,8,10,12,15,18,22,27,33,40,48},{20,23,28,32,38,45,53,62,72,85,100}};
-    int pk=(int)(vzPk>>4); if(pk<40) pk=40; int v=((int)vzOut[b]*100)/pk, h=1; while(h<12&&v>=th[b][h-1]) h++; return h;
+    int pk=(int)(vzPk>>4); if(pk<40) pk=40; int v=((int)vzOutB[mPlayI][b]*100)/pk, h=1; while(h<12&&v>=th[b][h-1]) h++; return h;
 }
 IWRAM_ARM static void musMixAny(int b){
     if(!mPlay&&!xfOn){ for(int i=0;i<MUS_N;i++){ mbufL[b][i]=0; mbufR[b][i]=0; } if(ambG) ambMix(mbufL[b],mbufR[b]); if(sfxV) sfxMix(mbufL[b],mbufR[b]); else if(!ambG) mWantOff=1; return; }   // only an effect or the nature sounds (or nothing: switch the mixer off)
@@ -2173,7 +2179,7 @@ IWRAM_ARM static void musMixAny(int b){
     if(mGain<256){ int g=mGain; for(int i=0;i<MUS_N;i++){ mbufL[b][i]=(s8)((mbufL[b][i]*g)>>8); mbufR[b][i]=(s8)((mbufR[b][i]*g)>>8); } }
     if(ldG!=ldGT){ int g=ldG+((ldGT>ldG)?6:-8); if((ldGT>ldG)?g>ldGT:g<ldGT) g=ldGT; ldG=g; }   // LOADING fade: out 8/256 a frame (~0.5 s), back in 6/256 (~0.7 s)
     if(ldG<256){ int g=ldG; for(int i=0;i<MUS_N;i++){ mbufL[b][i]=(s8)((mbufL[b][i]*g)>>8); mbufR[b][i]=(s8)((mbufR[b][i]*g)>>8); } }
-    if(vzLive) vzAnalyze(mbufL[b],mbufR[b]);   // the Toukebox's equalizer: what the song really sounds like
+    if(vzLive) vzAnalyze(mbufL[b],mbufR[b],b);   // the Toukebox's equalizer: what the song really sounds like
     if(ambG) ambMix(mbufL[b],mbufR[b]);   // the nature sounds under the song
     if(sfxV) sfxMix(mbufL[b],mbufR[b]);   // an effect plays on top of the song (it used to pause it)
 }
@@ -2200,7 +2206,7 @@ static int kRepN(KRep*r,int down,int press,int delay,int every){ u32 n=vblN; if(
 static int kRep(KRep*r,int down,int press){ return kRepN(r,down,press,14,4); }
 static int kHeld(const KRep*r,int down,int frames){ return down&&vblN-r->t0>=(u32)frames; }   // held at least that long
 __attribute__((used)) IWRAM_ARM void irqMain(void){
-    u16 f=R_IF;
+    u16 pt0=R_TM3D; u16 f=R_IF;
     if(f&1){   // vblank: start the buffer that was filled last frame, in step with the screen
         R_IF=1; keySample(); vblN++; if(vzLive) vzLive--;   // (the buttons, 60 times a second whatever the main loop is doing: the key latch)
         if(zoomShow&&zoomDma) zoomArm();   // the ZOOM's per-line scaling, every frame
@@ -2209,29 +2215,31 @@ __attribute__((used)) IWRAM_ARM void irqMain(void){
             // is replayed or skipped. (Restarting the clock and the DMA at the buffer's start, as before, replayed the samples fetched during the
             // delay and let the FIFO's fill drift a little every frame until a whole 16-sample chunk repeated: the clicks under load.)
             u16 t; int p;
-            for(;;){ t=R_TM1D; p=mPos+(u16)(t-mTmLast); while(p>=2*MUS_N) p-=2*MUS_N; if(((p+2)&15)>=4) break; }   // samples played, in the ring. The FIFO asks for its next 16 as a 16-boundary passes: within 2 samples of one, wait it out (the DMA could be mid-request), so the re-point below never races it
+            for(;;){ t=R_TM1D; p=mPos+(u16)(t-mTmLast); while(p>=M_RING) p-=M_RING; if(((p+2)&15)>=4) break; }   // samples played, in the ring. The FIFO asks for its next 16 as a 16-boundary passes: within 2 samples of one, wait it out (the DMA could be mid-request), so the re-point below never races it
             mTmLast=t; mPos=p;
-            int at=((p>>4)+2)<<4; if(at>=2*MUS_N) at-=2*MUS_N;   // the FIFO takes 16 at a time and holds 16..32 ahead of what plays: where the DMA reads next
+            int at=((p>>4)+2)<<4; if(at>=M_RING) at-=M_RING;   // the FIFO takes 16 at a time and holds 16..32 ahead of what plays: where the DMA reads next
             R_DMA1CNT=0; R_DMA2CNT=0;
             R_DMA1SAD=(u32)(uintptr_t)(&mbufL[0][0]+at); R_DMA1DAD=0x040000A0u;   // left  -> Direct Sound A
             R_DMA2SAD=(u32)(uintptr_t)(&mbufR[0][0]+at); R_DMA2DAD=0x040000A4u;   // right -> Direct Sound B
             R_DMA1CNT=0xB6400000u; R_DMA2CNT=0xB6400000u;                         // enable, FIFO timing, repeat, 32-bit, fixed dest
-            { int q=p+MUS_N/2; if(q>=2*MUS_N) q-=2*MUS_N; mCur=q<MUS_N?1:0; }     // the buffer playback will not touch this frame: the line-0 interrupt fills it
-            mFilled=0;
+            { int q=p+MUS_N/2; if(q>=M_RING) q-=M_RING; int P=q/MUS_N, c=P-mPlayI; if(c<0) c+=3; mPlayI=P;   // the buffer that plays for most of this frame, and how many buffers playback has used up since the last vblank
+              if(c>mAhead){ mAhead=0; mUnder++; } else mAhead-=c; }   // (more than were rendered: playback caught up, counted)
         }
     }
     if(f&4){   // line 0: render the idle buffer, it plays at the next vblank
         R_IF=4;
-        if(mOn&&!mFilled){ musMixAny(mCur); if(mCur==0) for(int i=0;i<MUS_N;i++){ mbufL[2][i]=mbufL[0][i]; mbufR[2][i]=mbufR[0][i]; } mFilled=1; }   // (buffer 2: the wrap copy of 0)
+        while(mOn&&mAhead<2){ int b=mW; musMixAny(b); if(b==0) for(int i=0;i<MUS_N;i++){ mbufL[3][i]=mbufL[0][i]; mbufR[3][i]=mbufR[0][i]; } mW=b==2?0:b+1; mAhead++; }   // render in play order until two buffers are ready (buffer 3: the wrap copy of 0). Normally one a frame; after a late frame, two
+
     }
+    pfIsr+=(u16)(R_TM3D-pt0);
 }
 static void zoomIrq(void){ R_IRQVEC=(u32)(uintptr_t)irqEntry; R_DISPSTAT|=0x0008; R_IE|=1; R_IME=1; }   // the vblank IRQ on (for the ZOOM, also without sound)
 static void irqOff(void){ R_IME=0; R_IE=0; R_DISPSTAT=0; R_IF=0xFFFF; zoomIrq(); }   // the sound interrupts off; the vblank one stays (the ZOOM, the key latch)
 // AUDIO: one mixer for everything. While a song or an effect plays, the interrupts above run it; with neither, they are switched off.
 static void audStart(void){   // start the mixer (the caller has set up what plays)
     irqOff(); R_DMA1CNT=0; R_DMA2CNT=0; R_TM0CNT=0; R_TM1CNT=0;
-    musMixAny(0); for(int i=0;i<MUS_N;i++){ mbufL[2][i]=mbufL[0][i]; mbufR[2][i]=mbufR[0][i]; }   // buffer 0 is primed here and plays first; the line-0 IRQ then renders buffer 1
-    mCur=1; mFilled=0; mOn=1; mPos=0; mTmLast=0;
+    musMixAny(0); for(int i=0;i<MUS_N;i++){ mbufL[3][i]=mbufL[0][i]; mbufR[3][i]=mbufR[0][i]; } musMixAny(1);   // buffers 0 and 1 are primed here, 0 plays first; the line-0 IRQ then renders buffer 2
+    mW=2; mAhead=1; mPlayI=0; mOn=1; mPos=0; mTmLast=0;
     R_SNDCNT_X=0x80; R_SNDCNT_L=0; R_SNDCNT_H=0x9A0C;   // stereo: Direct Sound A -> left only, B -> right only, both 100%, Timer0, FIFOs reset
     R_DMA1SAD=(u32)(uintptr_t)mbufL[0]; R_DMA1DAD=0x040000A0u; R_DMA2SAD=(u32)(uintptr_t)mbufR[0]; R_DMA2DAD=0x040000A4u;
     while(REG_VCOUNT!=154);          // the clock starts 6 lines (8 samples) before the blank: a buffer's edge and the FIFO's 16-boundaries then fall mid-way between vblank interrupts, never on one
@@ -2263,7 +2271,7 @@ static void ldDrop(void){
 }
 static void musBeginRaw(int kind,const u8*adp,const XmSong*xm){
     irqOff(); mOn=0; R_DMA1CNT=0; R_DMA2CNT=0; R_TM0CNT=0; R_TM1CNT=0;
-    sfxV=0; sfxOn=0; sfxLoop=0; mCur=0; mFilled=0;
+    sfxV=0; sfxOn=0; sfxLoop=0; mW=0; mAhead=0; mPlayI=0;
     deckInit(kind,adp,xm); audStart();
 }
 static void musBegin(int kind,const u8*adp,const XmSong*xm){ ldDrop(); xfOn=0; xdk.play=0; xdkG=256; musBeginRaw(kind,adp,xm); }   // a hard start: whatever played is cut
@@ -4679,7 +4687,8 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
     tutOn=0; tutModal=TM_NONE;   // the tutorial: replay now, or offer it once (first PLAY, not in the test play of the editor)
     if(!ed){ if(xo[XO_TUTOR]==2) tutBegin(); else if(xo[XO_TUTOR]==0&&!tutAsked){ tutAsked=1; tutModal=TM_OFFER; } }
     if(!ed) introFly();   // the lot's goals: the camera pans to them first (skippable)
-    tmStart(); u16 tl=R_TM2D; int acc=0, fpsN=0, fr=0; u32 fpsT=0, workT=0; lfpsV=0; lloadV=0;
+    tmStart(); u16 tl=R_TM2D; int acc=0, fpsN=0, fr=0; u32 fpsT=0, workT=0; lfpsV=0; lloadV=0; lcpuV=laudV=ldropV=lunderV=0;
+    u32 pfV0=vblN, pfW0=pfWait, pfI0=pfIsr, pfLast=vblN; int pfSlow=0; u16 pfU0=mUnder;
     for(;;){
         int need=(sFps+1)*TICKS_FRAME-100;
         for(;;){ u16 now=R_TM2D, dt=(u16)(now-tl); tl=now; acc+=dt; fpsT+=dt; if(acc>=need) break; vsync(); }
@@ -4758,7 +4767,11 @@ static void lifeModeRun(int ed){   // ed=1: test play started from the map edito
             if(prLifeSwitch(pc)){ winFull(); REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; gmSync(); prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; lcamF=0; cview=vbase; continue; }
             winFull(); REG_DISPCNT=0x3443; hudApplyLayout(); liveInvalidate(); camSnap=1; mGainT=256; prev=keyNow(); tmStart(); tl=R_TM2D; acc=0; }
         gmTick(); ambTick(); lifeDraw(); workT+=(u16)(lifeVs-w0);
-        fpsN++; if(fpsT>=65536){ lfpsV=fpsN; lloadV=(int)(workT/(u32)fpsN*100/(u32)((sFps+1)*TICKS_FRAME)); workT=0; fpsN=0; fpsT-=65536; }
+        { u32 vn=vblN; if(vn-pfLast>(u32)(sFps+1)) pfSlow++; pfLast=vn; }   // (a picture update that took longer than the frame it was meant for)
+        fpsN++; if(fpsT>=65536){ lfpsV=fpsN; lloadV=(int)(workT/(u32)fpsN*100/(u32)((sFps+1)*TICKS_FRAME));
+            { u32 fr_=vblN-pfV0; if(fr_<1) fr_=1; u32 tk=fr_*27431u/100u, idle=(pfWait-pfW0)*100u/(tk?tk:1), irq=(pfIsr-pfI0)*100u/(tk?tk:1);   // (1 frame = 274.3 ticks of 1024 cycles)
+              lcpuV=idle>100?0:100-(int)idle; laudV=irq>100?100:(int)irq; ldropV=pfSlow*100/fpsN; lunderV=(u16)(mUnder-pfU0); }
+            pfV0=vblN; pfW0=pfWait; pfI0=pfIsr; pfU0=mUnder; pfSlow=0; workT=0; fpsN=0; fpsT-=65536; }
     }
     if(arOn){ arRestore(); arPend=0; }   // (an arena never outlives the game: your lot is put back before anything is saved or stored)
     tutOn=0; tutModal=TM_NONE; stModal=0; exModal=0; exTake=0; trnOn=trnDone=0;
@@ -5860,7 +5873,7 @@ static void creatureEditor(void){ if(sUnlock&&sClassic) creatorMusStart(); else 
 #define JB_DIM   RGB(14,17,22)   // a song that is switched off, labels
 #define JB_BAR   RGB(11,24,31)   // volume dashes and progress, like the blue of the original
 static int jbPlaying, jbCur=-1, jbMsgT;   // jbCur = visible number of the song that plays (or played last)
-static const char*jbMsg; static u8 jbEq[8];
+static const char*jbMsg; static u8 jbEq4[14], jbPk4[14], jbPkT[14]; static u8 jbBeat;   // the visualizer: bar heights and hold-caps in quarter levels, and a beat flash
 static u8 jbHist[8]; static int jbHN;      // the songs played before this one (L goes back through them)
 static u16 jbLenC[JB_MAX] EWRAM_BSS;                 // length of each songs[] entry in seconds + 1 (0 = not worked out yet)
 static const char* const jbModeName[3]={"SHUFFLE","IN ORDER","REPEAT"};
@@ -5957,6 +5970,32 @@ static int jbKey(int x,int y,const char*k){   // a key cap, returns the x after 
     int w=tw(k,1)+5; rect(x,y-2,w,10,RGB(20,16,5)); rect(x+1,y-1,w-2,8,RGB(7,8,14)); text(x+3,y,k,GOLD,1); return x+w+2;
 }
 static int jbLab(int x,int y,const char*t){ return text(x,y,t,RGB(22,25,29),1)+7; }
+// ---- the visualizer: 14 bars from the 8 real bands (bass at the left), LED segments, falling hold-caps, and a beat flash. Own small region, redrawn 30 times a second ----
+#define JB_VX0 9
+#define JB_VX1 65                 // 14 bars of 4 px
+#define JB_VY0 28                 // its box: y 28 .. 57
+#define JB_VY1 57
+static void jbPaintViz(int live){
+    rect(JB_VX0-1,JB_VY0,JB_VX1-JB_VX0+2,JB_VY1-JB_VY0,JB_CARD);
+    static const u8 mapB[14]={7,6,6,5,5,4,4,3,3,2,2,1,1,0};   // bar i listens to this band: the 8 bands stretched over 14 bars, bass first (the two end bars share a band with a neighbour: they are smoothed below)
+    int lv[8]; for(int b=0;b<8;b++) lv[b]=live?vzLevel(b):1;
+    if(live) vzLive=30;
+    int bass=lv[7]+lv[6]; { static int pb; if(bass>=pb+3) jbBeat=4; pb=bass; }   // a jump in the low end: the beat
+    for(int i=0;i<14;i++){
+        int t=lv[mapB[i]]*4; if(i>0&&i<13) t=(lv[mapB[i]]*8+lv[mapB[i-1]]*2+lv[mapB[i+1]]*2)/3;   // (the neighbours blend in: a smooth curve instead of eight steps)
+        int e=jbEq4[i]; if(!live) t=4; if(t>e) e+=(t-e+1)>>1; else e=e>t+2?e-2:t; jbEq4[i]=(u8)e;   // quick to rise, easy to fall
+        if(e>=jbPk4[i]){ jbPk4[i]=(u8)e; jbPkT[i]=22; } else if(jbPkT[i]) jbPkT[i]--; else if(jbPk4[i]>e) jbPk4[i]--;   // the cap holds, then drops
+        int x=JB_VX0+i*4, full=e>>2;
+        for(int k=0;k<12;k++){
+            int y=JB_VY1-3-k*2; u16 c;
+            if(k<full||(k==full&&(e&3)>=2)) { c=!live?RGB(6,8,13):k<6?RGB(6,24,8):k<9?RGB(24,26,5):k<11?RGB(30,16,4):RGB(31,8,6); if(k==full-1&&live&&k>2) c=k<6?RGB(14,31,14):k<9?RGB(31,31,12):k<11?RGB(31,24,10):RGB(31,16,14); }
+            else c=RGB(4,6,10);   // an unlit segment
+            rect(x,y,3,1,c); rect(x,y+1,3,1,c==RGB(4,6,10)?RGB(3,4,8):(u16)((c>>1)&0x3DEF));
+        }
+        if(live&&jbPk4[i]>4){ int k=jbPk4[i]>>2; if(k>12) k=12; rect(x,JB_VY1-3-(k-1)*2-2,3,1,WHITE); }
+    }
+    if(jbBeat){ rect(JB_VX0-1,JB_VY1-1,JB_VX1-JB_VX0+2,1,jbBeat>2?GOLD:RGB(20,16,5)); jbBeat--; }   // the beat: a gold line under the bars
+}
 static void jbPaintHead(int fr){
     rect(JB_PX0+1,JB_PY0+1,JB_PX1-JB_PX0-2,JB_HY1-JB_PY0-1,JB_BODY); rect(JB_PX0+1,JB_PY0+1,JB_PX1-JB_PX0-2,15,JB_HEAD);
     // title bar: name, how many songs are checked, volume
@@ -5966,11 +6005,8 @@ static void jbPaintHead(int fr){
     for(int i=0;i<10;i++){ int h=2+i*6/9; rect(160+i*7,15-h,5,h,i<v?JB_BAR:RGB(6,8,13)); }
     // the NOW PLAYING card
     rect(JB_PX0+3,JB_CY0,JB_PX1-JB_PX0-6,JB_CY1-JB_CY0,JB_CARD); jbOutline(JB_PX0+3,JB_CY0,JB_PX1-JB_PX0-6,JB_CY1-JB_CY0,JB_EDGE);
-    int nx=48, nr=232, nw=nr-nx; int live=(sSnd&&jbPlaying&&jbCur>=0);
-    for(int b=0;b<8;b++){   // equalizer (flat when nothing plays)
-        if(live) vzLive=30; int e=jbEq[b], t=live?vzLevel(b):1; e=(t>e)?t:(e>1?e-1:1); jbEq[b]=(u8)e; int ex=11+b*4;   // (the real sound: vzAnalyze)
-        for(int k=0;k<e;k++) rect(ex,54-k*2,3,1,!live?RGB(6,8,13):k<7?RGB(8,26,8):k<10?RGB(28,26,5):RGB(30,9,6));
-    }
+    int nx=JB_VX1+6, nr=232, nw=nr-nx; int live=(sSnd&&jbPlaying&&jbCur>=0);
+    jbPaintViz(live);
     const char*mn=jbModeName[jbMode]; int mw=tw(mn,1)+8;   // the play mode chip, START changes it
     rect(nr-mw,21,mw,10,RGB(8,10,16)); rect(nr-mw,21,mw,1,GOLD); text(nr-mw+4,23,mn,GOLD,1);
     if(!sSnd) text(nx,23,"SOUND IS OFF IN OPTIONS",RGB(30,12,8),1);
@@ -6035,7 +6071,7 @@ static void jbPaintAll(int cur,int fr){
 }
 static void jbSay(const char*m,int t){ jbMsg=m; jbMsgT=t; }
 static void jukeboxScreen(void){
-    int cur=0, dH=1, dL=1, dF=1, fr=0, held=0; u16 prev=keyNow();
+    int cur=0, dH=1, dL=1, dF=1, dV=0, fr=0, held=0; u16 prev=keyNow();
     jbMsgT=0; jbPlaying=0; jbCur=-1; jbHN=0;
     if(jbN<=0){ toast("NO SONGS"); return; }
     if(sSnd){ jbStart(pickSong(),1); if(jbCur>=0) cur=jbCur; }              // opening the jukebox plays ONE random checked song
@@ -6064,10 +6100,15 @@ static void jukeboxScreen(void){
         if(pr&K_START){ jbMode=(u8)((jbMode+1)%3); jbModeSave(); jbSay(jbModeInfo[jbMode],90); dH=1; }   // SHUFFLE -> IN ORDER -> REPEAT
         if(jbPlaying&&(mKind?mDone:mLaps>=1)){   // song over (no crossfade: the next one starts right at the end): the mode picks the next one
             jbGo(jbNextSong(jbCur,0)); if(jbCur>=0) cur=jbCur; dH=dL=dF=1; }
-        if((fr&3)==0){ if(jbPlaying) dH=1; { int fw=tw(songs[jbMap[cur]].name,1); if(fw>JB_NW) dL=1; } }   // now playing card + equalizer; a long name on the cursor row scrolls
+        { int liveNow=(sSnd&&jbPlaying&&jbCur>=0);
+          if(liveNow&&(fr&1)==0&&!dH){ jbPaintViz(1); dV=1; }   // the visualizer: 30 pictures a second, only its own box
+          if(liveNow&&(fr%15)==0) dH=1;                         // the clock and the progress bar: twice a second is plenty
+          if(liveNow&&(fr&1)==0&&tw(songs[jbMap[jbCur]].name,1)>232-(JB_VX1+6)) dH=1;   // a long title on the card scrolls: that needs the quicker picture
+          if((fr&3)==0){ int fw=tw(songs[jbMap[cur]].name,1); if(fw>JB_NW) dL=1; } }   // a long name on the cursor row scrolls
         if(jbMsgT>0&&--jbMsgT==0) dH=1;
         { int st=(cur==jbCur&&jbPlaying); if(st!=lastStop){ lastStop=st; dF=1; } }   // A says STOP while the cursor is on the playing song
         int y0=SH, y1=0;
+        if(dV&&!dH){ y0=JB_VY0; y1=JB_VY1; } dV=0;
         if(dH){ jbPaintHead(fr); y0=0; y1=JB_HY1; dH=0; }
         if(dL){ jbPaintList(cur,fr); if(JB_HY1<y0) y0=JB_HY1; y1=JB_LY1+1; dL=0; }
         if(dF){ jbPaintFoot(cur); if(JB_LY1+1<y0) y0=JB_LY1+1; y1=SH; dF=0; }
