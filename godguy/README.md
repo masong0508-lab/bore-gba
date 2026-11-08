@@ -63,4 +63,5 @@ Volcanoes now creep: lava spreads over nearby ground (scorching life and buildin
 Chill pack 2: Dave the Couch Wizard joins the story (chapters 4, 10 and 13), 16 more snacks/seeds/relics in total, 8 joke weapons and 8 joke armours, 3 more subspecies (COUCH-LOCKED, LUCKY, SPACED OUT) and new loading tips.
 
 ## Five great suites
-Aural Sculptures gained five long medleys (open from the start, gold in the list): ONE LONG DAWN (7:40), THE WHOLE ROAD (11:00), A GOD'S AFTERNOON ON THE LONG COUCH (13:55), ALL THE KINGS AND ALL THE STORMS (17:10) and THE ENDLESS BORE: THE WHOLE SOUNDTRACK (23:00). Each is woven by tools/gm3_compose.py from excerpts of the other tracks, time-scaled to one tempo and moved along a key plan.
+Aural Sculptures gained six long medleys (the sixth, ALL OF IT, ONCE MORE, 26 min, is woven from every track including the other suites, with a newly composed sparkle line over it)
+The first five: (open from the start, gold in the list): ONE LONG DAWN (7:40), THE WHOLE ROAD (11:00), A GOD'S AFTERNOON ON THE LONG COUCH (13:55), ALL THE KINGS AND ALL THE STORMS (17:10) and THE ENDLESS BORE (23:00). Each is woven by tools/gm3_compose.py from excerpts of the other tracks, time-scaled to one tempo and moved along a key plan.
