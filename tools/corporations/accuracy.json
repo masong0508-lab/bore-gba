@@ -1,0 +1,59 @@
+{
+ "bass": {
+  "chroma_cosine": 0.554,
+  "spectrum_cosine": 0.889,
+  "loudness_correlation": 0.811,
+  "onsets_vs_stem": {
+   "precision": 0.76,
+   "recall": 0.924,
+   "f1": 0.834
+  },
+  "notes": 1116,
+  "rendered_pitch_vs_stem": {
+   "frames": 27386,
+   "within_50_cents": 0.947,
+   "within_a_semitone_octave_ignored": 0.989,
+   "octave_off": 0.0
+  }
+ },
+ "piano": {
+  "chroma_cosine": 0.694,
+  "spectrum_cosine": 0.284,
+  "loudness_correlation": 0.8,
+  "onsets_vs_stem": {
+   "precision": 0.092,
+   "recall": 0.911,
+   "f1": 0.167
+  },
+  "notes": 1108
+ },
+ "drums": {
+  "kick": {
+   "loudness_correlation": 0.544,
+   "onsets_vs_stem": {
+    "precision": 0.728,
+    "recall": 0.811,
+    "f1": 0.767
+   },
+   "hits": 1335
+  },
+  "snare": {
+   "loudness_correlation": 0.545,
+   "onsets_vs_stem": {
+    "precision": 0.698,
+    "recall": 0.964,
+    "f1": 0.81
+   },
+   "hits": 1546
+  },
+  "hat": {
+   "loudness_correlation": 0.66,
+   "onsets_vs_stem": {
+    "precision": 0.825,
+    "recall": 0.936,
+    "f1": 0.877
+   },
+   "hits": 1277
+  }
+ }
+}

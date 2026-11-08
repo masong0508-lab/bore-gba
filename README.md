@@ -220,3 +220,6 @@ Things you will want to know:
 
 ### CORPORATIONS (YOU'RE WINNER)
 A song with vocals from six isolated stems: the singing is compressed hard and given its own room in the mix, saved as a streamed ADPCM song (source/music/corporations.adp) and analysed for a vocal-track version (2-bit clips + timing table). See docs/CORPORATIONS.md.
+
+### CORPORATIONS hybrid
+Bass, piano and drums transcribed (tracker module + MIDI, key of E, 131 BPM, 40 cents flat), guitar / vocals / synths kept as 4-bit ADPCM clips. See docs/CORPORATIONS_HYBRID.md.
