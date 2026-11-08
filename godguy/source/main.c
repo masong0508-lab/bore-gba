@@ -153,11 +153,12 @@ static int vnoise(int x,int y,int cell,int s){   // value noise 0..255, cell pix
     int t=a+(b-a)*fx/cell, u=c+(d-c)*fx/cell; return t+(u-t)*fy/cell;
 }
 static int fbm(int x,int y,int s){ return (vnoise(x,y,32,s)*8+vnoise(x,y,16,s+1)*4+vnoise(x,y,8,s+2)*2+vnoise(x,y,4,s+3))/15; }
+static int cShape, cSea, cClim, cWet, cLife=2;   // create-a-planet choices: land shape (0 continents, 1 one supercontinent, 2 islands), sea level, climate, wetness (all 0 = the classic planet), amount of starting life 0..3
 static void genWorld(u32 seed){
     int s=(int)(seed&0xFFFF);
     for(int y=0;y<WH;y++) for(int x=0;x<WW;x++){
-        int h=fbm(x,y,s), m=fbm(x+300,y+300,s+9), lat=(y<WH/2?y:WH-1-y)*128/WH, temp=40+lat*3+(fbm(x,y,s+20)-128)/3;
-        int dx=(x-WW/2)*128/WW, dy=(y-WH/2)*128/WH; h-= (dx*dx+dy*dy)/90; h+=18;   // a little pull to ocean at the edges
+        int h=fbm(x,y,s), m=fbm(x+300,y+300,s+9), lat=(y<WH/2?y:WH-1-y)*128/WH, temp=40+lat*3+(fbm(x,y,s+20)-128)/3+cClim*28; m+=cWet*30;
+        int dx=(x-WW/2)*128/WW, dy=(y-WH/2)*128/WH; if(cShape==1){ h-=(dx*dx+dy*dy)/30; h+=24; } else if(cShape==2){ h-=(dx*dx+dy*dy)/260; h-=6; if(((x/3+y/3)&1)&&h>110) h-=8; } else { h-=(dx*dx+dy*dy)/90; h+=18; } h+=cSea*7;   // a little pull to ocean at the edges
         u8 t;
         if(h<62) t=T_DEEP; else if(h<84) t=T_WATER; else if(h<94) t=(temp<70)?T_SNOW:T_SAND;
         else if(h>205) t=(temp<150)?T_SNOW:T_MOUNT; else if(h>170) t=T_HILL;
@@ -220,11 +221,34 @@ static u16*mapPtr;
 static int winX=-99, winY=-99;
 static u8 bld[MAXD][MAXD], bldv[MAXD][MAXD];   // what stands on a tile (B_*) and which village owns it (+1)
 static u8 vilRace(int v);
+// Transition tiles: where two kinds of ground meet, the "stronger" one bleeds a dithered fringe into the other, and water gets a foam line on the shore.
+// They are made on demand (64 bytes each) into spare tile slots and remembered, so a window of the map needs only a few dozen of them.
+#define TR0 128
+#define TR_SLOTS 500
+static const u8 terrRank[T_N]={0,10,3,1,5,6,7,8,9,3,4,5,2};
+static u16 trMap[32768]; static int trUsed;
+static int trTile(int t,int n,int mask,int v,int foam){
+    int key=(((t*16+n)*16+mask)*4+v)*2+foam; u16 e=trMap[key]; if(e) return e-1;
+    if(trUsed>=TR_SLOTS) return -1;
+    static u8 tl[64] __attribute__((aligned(4)));
+    for(int y=0;y<8;y++) for(int x=0;x<8;x++){ int px=tilePix(t,v,x,y); int d=9;
+        if(mask&1) if(y<d) d=y; if(mask&2) if(7-x<d) d=7-x; if(mask&4) if(7-y<d) d=7-y; if(mask&8) if(x<d) d=x;
+        int h=(int)(hsh(x+v*8,y+t*3+n*7,21)&7);
+        if(foam){ if(d==0&&h<5) px=T_WATER*8+7; else if(d==1&&h<2) px=T_WATER*8+7; }
+        else if(d<4&&h<(4-d)*2-(d==0?0:1)+(d==0?1:0)) px=tilePix(n,(x+y+v)&3,x,y);
+        tl[y*8+x]=(u8)px; }
+    int slot=TR0+trUsed++; vramCopy((u8*)BG_TILE_RAM(1)+slot*64,tl,64); trMap[key]=(u16)(slot+1); return slot; }
 static inline void putCell(int x,int y){   // world cell -> background entry (a 64 x 64 torus of 8 pixel tiles)
-    int mx=x&63, my=y&63; int blk=(my>=32?2:0)+(mx>=32?1:0); u16 e=(u16)(world[y][x]*4+(int)(hsh(x,y,3)&3)); if(bld[y][x]) e=(u16)(BT0+bld[y][x]*8+(bldv[y][x]?vilRace(bldv[y][x]-1):0)); mapPtr[blk*1024+(my&31)*32+(mx&31)]=e; }
+    int mx=x&63, my=y&63; int blk=(my>=32?2:0)+(mx>=32?1:0); int t=world[y][x], v=(int)(hsh(x,y,3)&3); u16 e=(u16)(t*4+v);
+    if(bld[y][x]) e=(u16)(BT0+bld[y][x]*8+(bldv[y][x]?vilRace(bldv[y][x]-1):0));
+    else { int nb[4]; nb[0]=y>0?world[y-1][x]:t; nb[1]=x<WW-1?world[y][x+1]:t; nb[2]=y<WH-1?world[y+1][x]:t; nb[3]=x>0?world[y][x-1]:t;
+        int best=-1, br=-1, foam=0, wat=t<=T_WATER;
+        for(int i=0;i<4;i++){ int n=nb[i]; if(n==t) continue; if(wat&&n>T_WATER){ foam=1; best=n; continue; } if(!wat&&terrRank[n]>terrRank[t]&&terrRank[n]>br){ br=terrRank[n]; best=n; } }
+        if(best>=0){ int mask=0; for(int i=0;i<4;i++) if(foam?(nb[i]>T_WATER):(nb[i]==best)) mask|=1<<i; int k=trTile(t,best,mask,v,foam); if(k>=0) e=(u16)k; } }
+    mapPtr[blk*1024+(my&31)*32+(mx&31)]=e; }
 static void refillWindow(void){ int x0=camX>>3, y0=camY>>3; if(x0==winX&&y0==winY) return; winX=x0; winY=y0;
     for(int y=y0-1;y<y0+26&&y<WH;y++) for(int x=x0-1;x<x0+34&&x<WW;x++) if(x>=0&&y>=0) putCell(x,y); }
-static void setCell(int x,int y,u8 t){ if(x<0||y<0||x>=WW||y>=WH) return; world[y][x]=t; if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); }
+static void setCell(int x,int y,u8 t){ if(x<0||y<0||x>=WW||y>=WH) return; world[y][x]=t; for(int k=0;k<5;k++){ int xx=x+(k==1)-(k==2), yy=y+(k==3)-(k==4); if(xx<0||yy<0||xx>=WW||yy>=WH) continue; if(xx>=winX-1&&xx<winX+34&&yy>=winY-1&&yy<winY+26) putCell(xx,yy); } }
 
 // ---------------------------------------------------------------------------------------------- creatures
 static int curExtra;      // the extra ground the creature being moved can cross (its traits)
@@ -519,10 +543,10 @@ static void (*loadHook)(const char*,int);
 static void newWorld(void){ LOADING("THE VOID",4); gW=gH=planetSize; nCr=0; memset(occ,0,sizeof occ); memset(bld,0,sizeof bld); memset(bldv,0,sizeof bldv); memset(vil,0,sizeof vil); nVilOn=0; worldSeed=seedFix?seedFix:rnd(); genWorld(worldSeed); LOADING("SHAPING THE LAND",35); winX=-99; refillWindow();
     LOADING("SEEDING LIFE",50);
     // the first life: a few of each of the first animals on their own ground
-    int nAn=260*WW*WH/16384; if(nAn>900) nAn=900;
+    int nAn=260*WW*WH/16384*cLife/2; if(nAn>900) nAn=900;
     for(int k=0;k<nAn;k++){ int a=8+(int)(rnd()%(ARCH_A-8)); int s=8+(a-8)*16+(int)(rnd()%16); int x=rnd()%WW, y=rnd()%WH; if(arch[a].diet==3&&k%2) continue; addCr(s,x,y); }
     LOADING("RAISING THE FIRST VILLAGES",80);
-    for(int r=0;r<8;r++){ if(r>=5&&(rnd()&1)) continue; for(int k=0;k<80;k++){ int x=rnd()%WW, y=rnd()%WH; int v=vilFound(r,x,y); if(v>=0){ for(int q=0;q<5;q++) addCr(r,x+(int)(rnd()%5)-2,y+(int)(rnd()%5)-2); break; } } }   // the peoples start with a village each (the restless ones sometimes stay away)
+    for(int r=0;r<8&&cLife>0;r++){ if(r>=5&&(rnd()&1)) continue; for(int k=0;k<80;k++){ int x=rnd()%WW, y=rnd()%WH; int v=vilFound(r,x,y); if(v>=0){ for(int q=0;q<5;q++) addCr(r,x+(int)(rnd()%5)-2,y+(int)(rnd()%5)-2); break; } } }   // the peoples start with a village each (the restless ones sometimes stay away)
     info[0]=0; LOADING("READY",100); }
 // ---------------------------------------------------------------------------------------------- saving: the whole world, the villages and the story, to one file (the SD card on the DS)
 static int shape3;
@@ -565,8 +589,8 @@ static void applyLight(void){
     if(weather==1||weather==2){ Lr=Lr*78/100; Lg=Lg*80/100; Lb=Lb*90/100; } else if(weather==3){ Lr=Lr*95/100; Lg=Lg*97/100; }
     if(flashT>0){ Lr=Lg=Lb=256; }
     int sh=(tick>>4)&3;
-    for(int i=0;i<144;i++){ int src=i; if(i>=T_WATER*8+5&&i<T_WATER*8+8) src=T_WATER*8+5+((i-T_WATER*8-5+sh)%3);
-        u16 c=basePal[src]; int r=(c&31)*Lr>>8, g=((c>>5)&31)*Lg>>8, b=((c>>10)&31)*Lb>>8; if(r>31) r=31; if(g>31) g=31; if(b>31) b=31; BG_PALETTE[i]=(u16)(r|(g<<5)|(b<<10)); }
+    for(int i=0;i<144;i++){ int src=i; if(i>=T_WATER*8+5&&i<T_WATER*8+8) src=T_WATER*8+5+((i-T_WATER*8-5+sh)%3); else if(i>=T_DEEP*8+4&&i<T_DEEP*8+7) src=T_DEEP*8+4+((i-T_DEEP*8-4+(sh>>1))%3);
+        u16 c=basePal[src]; int r=(c&31)*Lr>>8, g=((c>>5)&31)*Lg>>8, b=((c>>10)&31)*Lb>>8; if(i>=T_LAVA*8&&i<T_LAVA*8+8){ int pu=((tick>>3)&15); pu=pu<8?pu:15-pu; r=r*(24+pu)/28; g=g*(20+pu*2)/28; } if(r>31) r=31; if(g>31) g=31; if(b>31) b=31; BG_PALETTE[i]=(u16)(r|(g<<5)|(b<<10)); }
     BG_PALETTE[0]=0;
 }
 #include "ui.h"
@@ -745,8 +769,41 @@ static void uiLoadHook(const char*msg,int pct){   // a loading screen: the plane
     uiPlanetSprite(128,76,8+pct*46/100); uiTextC(128,138,"BORE: GODGUY",U_GOLD,1); uiTextC(128,150,msg,U_WHITE,1);
     uiBar(48,162,160,9,pct,100,U_GREEN); { char b[8]; siprintf(b,"%d%%",pct); uiTextC(128,163,b,U_WHITE,1); }
     uiText(6,182,tipTxt[(year+pct/20+n)%6],U_DIM,1); uiFlush(); }
+static int mScr, mSel; static u32 cSeed; static int cSel, cT=-1, cLand;
+static const char*const cShapeN[]={"CONTINENTS","SUPERCONTINENT","ISLANDS"}, *const cSeaN[]={"DRY","LOW","NORMAL","HIGH","FLOODED"}, *const cClimN[]={"ICE AGE","COOL","TEMPERATE","WARM","SCORCHED"}, *const cWetN[]={"ARID","NORMAL","LUSH"}, *const cLifeN[]={"EMPTY","SPARSE","NORMAL","TEEMING"};
+static void previewWorld(void){ gW=gH=planetSize; nCr=0; memset(occ,0,sizeof occ); memset(bld,0,sizeof bld); memset(bldv,0,sizeof bldv); memset(vil,0,sizeof vil); nVilOn=0; genWorld(cSeed); camX=(WW*8-256)/2; camY=(WH*8-192)/2; winX=-99; refillWindow();
+    int l=0; for(int y=0;y<WH;y++) for(int x=0;x<WW;x++) if(world[y][x]>T_WATER) l++; cLand=l*100/(WW*WH); cT=-1; }
+static void createStart(void){ if(!cSeed) cSeed=(rnd()&0xFFFF)|1; cSel=0; previewWorld(); }
+static void createInput(int kd){
+    int d=((kd&KEY_RIGHT)?1:0)-((kd&KEY_LEFT)?1:0); int ch=0;
+    if(kd&KEY_UP) cSel=(cSel+9)%10; if(kd&KEY_DOWN) cSel=(cSel+1)%10;
+    if(kd&KEY_B){ mScr=0; mSel=1; return; }
+    if(cSel==9&&(kd&KEY_A)){ seedFix=cSeed; startWorld(storyOn); seedFix=0; return; }
+    if(d||(kd&KEY_A)){ if(!d) d=1; switch(cSel){
+        case 0: setSize(d>0?(planetSize==128?192:planetSize==192?256:128):(planetSize==256?192:planetSize==192?128:256)); ch=1; break;
+        case 1: storyOn^=1; break;
+        case 2: cShape=(cShape+3+d)%3; ch=1; break; case 3: cSea=(cSea+7+d)%5-2; ch=1; break; case 4: cClim=(cClim+7+d)%5-2; ch=1; break; case 5: cWet=(cWet+4+d)%3-1; ch=1; break;
+        case 6: cLife=(cLife+4+d)%4; break; case 7: diff=(diff+3+d)%3; break;
+        case 8: if(kd&KEY_A) cSeed=(rnd()&0xFFFF)|1; else cSeed=(cSeed+d)&0xFFFF; ch=1; break; } }
+    if(kd&(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT|KEY_A)) fxReq(FX_MENU_MOVE);
+    if(ch) cT=8; }
+static void uiCreate(void){
+    uiRect(0,0,256,192,U_BG); for(int y=0;y<192;y+=4) uiRect(0,y,256,1,U_PANEL);
+    uiRect(0,0,256,15,U_PANELHI); uiText(6,4,"CREATE A PLANET",U_GOLD,1); uiTextR(250,4,"B: BACK",U_DIM);
+    char l[10][16], v[10][20]; const char*lb[10]={"SIZE","TYPE","LAND","SEA","CLIMATE","WETNESS","LIFE","DIFFICULTY","SEED","CREATE!"};
+    siprintf(v[0],"%dx%d",planetSize,planetSize); strcpy(v[1],storyOn?"STORY":"FREE PLAY"); strcpy(v[2],cShapeN[cShape]); strcpy(v[3],cSeaN[cSea+2]); strcpy(v[4],cClimN[cClim+2]); strcpy(v[5],cWetN[cWet+1]); strcpy(v[6],cLifeN[cLife]); strcpy(v[7],diff==0?"CALM":diff==1?"NORMAL":"BRUTAL"); siprintf(v[8],"%04X  A:ROLL",(unsigned)cSeed); v[9][0]=0; (void)l;
+    for(int i=0;i<10;i++){ int y=19+i*15, sel=i==cSel; uiRound(4,y,156,13,sel?U_SEL:U_PANELHI,sel?U_GOLD:U_BHI); uiText(10,y+2,lb[i],sel?U_WHITE:U_LGREY,1);
+        if(i==9){ uiTextC(82+30,y+2,"",U_GOLD,1); continue; }
+        int vw=uiTextW(v[i],1); if(sel&&i!=8){ uiIcon8(154-vw-14,y+1,IC8_LEFT); uiIcon8(150,y+1,IC8_RIGHT); } uiTextR(148,y+2,v[i],sel?U_GOLD:U_DIM); }
+    // the preview of the planet as it will be
+    uiFrame(163,19,90,90,U_SHADOW,U_BLO,U_BHI);
+    for(int y=0;y<88;y++) for(int x=0;x<88;x++){ int wx=x*WW/88, wy=y*WH/88; int t=world[wy][wx]; uiPx(164+x,20+y,100+t*3+((wx+wy)&1)); }
+    char b[24]; siprintf(b,"LAND %d%%",cLand); uiTextC(208,113,b,U_WHITE,1); siprintf(b,"SEED %04X",(unsigned)cSeed); uiTextC(208,124,b,U_DIM,1);
+    uiTextC(208,140,cT>=0?"SHAPING...":"READY",cT>=0?U_ORANGE:U_GREEN,1);
+    uiText(6,172,cSel==9?"A: BEGIN YOUR WORLD":"PAD: UP DOWN  LEFT RIGHT CHANGE",U_DIM,1);
+    uiFlush(); }
 enum { MI_CONT, MI_STORY, MI_FREE, MI_OPT, MI_EXTRA, MI_BACK, MI_SIZE, MI_DIFF, MI_VOL, MI_MON, MI_SCULPT, MI_BEST, MI_CODEX, MI_HELP, MI_CRED, MI_DEBUG, MI_RESUME, MI_SAVE, MI_NEW, MI_MODE, MI_TITLE, MI_CREATE, MI_GO, MI_STYPE };
-static int mScr, mSel, extrasView;      // which menu (0 main, 1 options, 2 extras), the highlighted row, a pending "are you sure", and whether an extras page is open
+static int extrasView;      // which menu (0 main, 1 options, 2 extras), the highlighted row, a pending "are you sure", and whether an extras page is open
 static int menuList(int*ids){ int n=0, ctx=titleOn?0:1;
     if(mScr==0){ if(ctx==0){ ids[n++]=MI_CONT; ids[n++]=MI_CREATE; } else { ids[n++]=MI_RESUME; ids[n++]=MI_SAVE; } ids[n++]=MI_OPT; ids[n++]=MI_EXTRA; if(ctx){ ids[n++]=MI_NEW; ids[n++]=MI_MODE; ids[n++]=MI_TITLE; } }
     else if(mScr==3){ ids[n++]=MI_SIZE; ids[n++]=MI_STYPE; ids[n++]=MI_DIFF; ids[n++]=MI_GO; ids[n++]=MI_BACK; }
@@ -769,6 +826,7 @@ static void uiMenuList(int x,int y,int w,int rh){
         uiText(x+8,yy+(rh-9)/2,l,sel?U_WHITE:U_LGREY,1);
         if(v[0]){ if(menuAdj(ids[i])&&sel){ uiIcon8(x+w-72,yy+(rh-10)/2,IC8_LEFT); uiIcon8(x+w-12,yy+(rh-10)/2,IC8_RIGHT); uiTextC(x+w-42,yy+(rh-9)/2,v,U_GOLD,1); } else uiTextR(x+w-8,yy+(rh-9)/2,v,sel?U_GOLD:U_DIM); } } }
 static void uiTitle(void){
+    if(mScr==3){ uiCreate(); return; }
     uiRect(0,0,256,192,U_BG); for(int y=0;y<192;y++) if((y&3)==0) uiRect(0,y,256,1,U_PANEL);
     for(int k=0;k<70;k++){ int x=(int)(hsh(k,1,7)%256), y=(int)(hsh(k,2,7)%192); uiPx(x,y,(k&3)==0?U_WHITE:U_DIM); }
     uiPlanetSprite(204,128,planetSize==128?36:planetSize==192?42:48);
@@ -871,6 +929,7 @@ static void menuInput(int kd){
     int ids[10]; int n=menuList(ids); int d=((kd&KEY_RIGHT)?1:0)-((kd&KEY_LEFT)?1:0);
     if(menuAsk){ if(kd&KEY_A){ int a=menuAsk; menuAsk=0; menuOn=0; if(a==5) startWorld(!storyOn); else if(a==6) startWorld(storyOn); else if(a==8){ doSave(); titleOn=1; paused=1; mScr=0; mSel=0; newWorld(); camX=(WW*8-256)/2; camY=(WH*8-192)/2; hasSave=sdOk; musReq(GM_TITLE); } } if(kd&(KEY_B|KEY_START)){ menuAsk=0; menuOn=1; } return; }
     if(titleOn&&konami>=4) return;          // the secret code is in progress: the menu holds still
+    if(mScr==3){ createInput(kd); return; }
     if(!titleOn&&(kd&KEY_START)){ menuOn=0; paused=dlgPaused; return; }
     if(kd&KEY_UP) mSel=(mSel+n-1)%n; if(kd&KEY_DOWN) mSel=(mSel+1)%n;
     if(kd&KEY_B){ if(mScr){ mSel=mScr==3?1:(titleOn?2:2)+(mScr==2); mScr=0; } else if(!titleOn){ menuOn=0; paused=dlgPaused; } return; }
@@ -879,7 +938,7 @@ static void menuInput(int kd){
             case MI_DIFF: diff=(diff+3+d)%3; break; case MI_VOL: gmMaster+=d*10; if(gmMaster<0) gmMaster=0; if(gmMaster>100) gmMaster=100; break; case MI_MON: monOn^=1; break; } }
     if(kd&KEY_A){ switch(id){
         case MI_CONT: if(hasSave){ LOADING("LOADING YOUR WORLD",30); loadGame(savePath); endShown=storyDone; titleOn=0; paused=0; refillWindow(); LOADING("READY",100); musReq(GM_NEWWORLD); } else startWorld(1); break;
-        case MI_CREATE: mScr=3; mSel=0; break; case MI_GO: startWorld(storyOn); break;
+        case MI_CREATE: mScr=3; mSel=0; createStart(); break; case MI_GO: startWorld(storyOn); break;
         case MI_OPT: mScr=1; mSel=0; break; case MI_EXTRA: mScr=2; mSel=0; break; case MI_BACK: mSel=mScr==3?1:2+(mScr==2); mScr=0; break;
         case MI_SIZE: case MI_DIFF: case MI_VOL: case MI_MON: break;
         case MI_SCULPT: if(auralOK()) menuOpenPage(3); else { siprintf(info,"UNLOCK IN STORY CHAPTER 3"); fxReq(FX_ERROR); } break;
@@ -938,6 +997,7 @@ int main(void){
                 menuInput(kd);
                 if(kd){ if(kd&code[konami]) konami++; else konami=(kd&code[0])?1:0; if(konami==10){ konami=0; debugOn=1; auralOpen=1; fxReq(FX_UNLOCK); siprintf(info,"DEBUG MENU UNLOCKED"); ch=1; } } }
             if(!titleOn) continue;
+            if(mScr==3&&cT>=0&&--cT<0){ previewWorld(); ch=1; }
             refillWindow(); swiWaitForVBlank(); bgSetScroll(0,camX&511,camY&511); bgUpdate(); drawSprites(); oamUpdate(&oamMain); if((tick&7)==0) applyLight(); if(ch||(tick&31)==0){ drawMinimap(); hud(); }
             continue; }
         if(titleOn) kh&=~KEY_TOUCH;

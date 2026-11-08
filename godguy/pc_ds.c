@@ -9,7 +9,7 @@ typedef struct { int f0, f1, keys, tx, ty; } Ev;
 #define K_ (KEY_TOUCH)
 static const Ev script[]={
  {20,22,KEY_UP,0,0},{26,28,KEY_UP,0,0},{32,34,KEY_DOWN,0,0},{38,40,KEY_DOWN,0,0},{44,46,KEY_LEFT,0,0},{50,52,KEY_LEFT,0,0},{56,58,KEY_RIGHT,0,0},{62,64,KEY_B,0,0},{68,70,KEY_A,0,0},{74,76,KEY_START,0,0},   // the debug code
- {90,92,KEY_DOWN,0,0},{104,106,KEY_A,0,0},{112,114,KEY_RIGHT,0,0},{140,142,KEY_B,0,0},{150,152,KEY_DOWN,0,0},{154,156,KEY_DOWN,0,0},{158,160,KEY_A,0,0},{170,172,KEY_DOWN,0,0},{174,176,KEY_A,0,0},{185,187,KEY_START,0,0},{188,190,KEY_B,0,0},{192,194,KEY_UP,0,0},{196,198,KEY_UP,0,0},{200,202,KEY_UP,0,0},{208,210,KEY_A,0,0},   // title: options, extras, bestiary, back, then new story world
+ {90,92,KEY_DOWN,0,0},{104,106,KEY_A,0,0},{108,110,KEY_DOWN,0,0},{112,114,KEY_DOWN,0,0},{116,118,KEY_RIGHT,0,0},{120,122,KEY_DOWN,0,0},{124,126,KEY_RIGHT,0,0},{128,130,KEY_DOWN,0,0},{132,134,KEY_LEFT,0,0},{140,142,KEY_B,0,0},{150,152,KEY_DOWN,0,0},{154,156,KEY_DOWN,0,0},{158,160,KEY_A,0,0},{170,172,KEY_DOWN,0,0},{174,176,KEY_A,0,0},{185,187,KEY_START,0,0},{188,190,KEY_B,0,0},{192,194,KEY_UP,0,0},{196,198,KEY_UP,0,0},{200,202,KEY_UP,0,0},{208,210,KEY_A,0,0},   // title: options, extras, bestiary, back, then new story world
  {270,272,KEY_A,0,0},                       // dismiss the intro scene
  {400,402,KEY_A,0,0},{480,482,KEY_A,0,0},{560,562,KEY_A,0,0},{640,642,KEY_A,0,0},{720,722,KEY_A,0,0},{800,802,KEY_A,0,0},   // the first dialogue
  {900,920,KEY_TOUCH,160,180},{950,970,KEY_TOUCH,185,180},   // tap toolbar slots
