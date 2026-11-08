@@ -293,6 +293,7 @@ XPF static void hzIntroCard(void){
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
         if(pr&(K_A|K_B|K_START)) return;
+        if(cnt>1&&(cnt&31)){ exBannerLive(hzWar?XP_WAR:XP_ZOMB,3,3,234,19,(int)cnt,hzTitle(),0); continue; }   // (the card does not change: only its banner moves)
         stBack(hzTitle(),(int)cnt); exBanner(hzWar?XP_WAR:XP_ZOMB,3,3,234,19,(int)cnt,hzTitle(),0);
         s2rr(8,22,224,118,RGB(16,27,31)); s2rr(9,23,222,116,RGB(2,6,13)); s2grad(10,24,220,114,3,9,19,1,4,10);
         { int pk=hzWar?XP_WAR:XP_ZOMB; exIcon(pk,16,30,4,xPk[pk].b); }

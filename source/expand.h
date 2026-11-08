@@ -1342,6 +1342,7 @@ static void exNotIn(int p){   // a pack that is not in this ROM: what to do abou
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
         if(cnt>10&&(pr&(K_A|K_B|K_START))) return;
+        if(cnt>1&&(cnt&31)){ exBannerLive(p,3,3,234,19,(int)cnt,xPk[p].nm,0); continue; }   // (the card does not change: only its banner moves)
         stBack(xPk[p].nm,(int)cnt); exBanner(p,3,3,234,19,(int)cnt,xPk[p].nm,0);
         s2rr(8,22,224,118,RGB(16,27,31)); s2rr(9,23,222,116,RGB(2,6,13)); s2grad(10,24,220,114,3,9,19,1,4,10);
         exIcon(p,16,30,4,xPk[p].b); text(60,30,"NOT INSTALLED",GOLD,2); text(60,50,xPk[p].sub,RGB(17,29,31),1);
