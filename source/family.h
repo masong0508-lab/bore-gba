@@ -143,6 +143,7 @@ static int famBaby(const u8*lk,int pa,int pb){   // one baby moves in: its place
     int u=hhM[m].uid; famAge[u]=0; hhM[m].asp=AS_GROW;
     for(int k=0;k<hhN;k++){ int c=hhM[k].uid; if(c!=u&&(famKidOf(c,pa)||famKidOf(c,pb))) kinSib(c,u); }   // the parents' other children: its sisters and brothers
     if(hhPUid!=u&&(famKidOf(hhPUid,pa)||famKidOf(hhPUid,pb))) kinSib(hhPUid,u);
+    famInherit(&hhM[m],pa,pb);   // (famtree.h: its personality comes from theirs)
     if(pa!=255){ stRel(pa,u,60,50,RF_FRIEND); kinParent(pa,u); }
     if(pb!=255){ stRel(pb,u,60,50,RF_FRIEND); kinParent(pb,u); }
     return m;
@@ -196,6 +197,7 @@ static void famDay(void){   // midnight (simMinute, after your own birthday): ev
             else famNotice("HAPPY BIRTHDAYS!","THE FAMILY GREW UP","A YEAR OLDER  A NEW LOOK",gu,grew); }
         hhSlotsFree(); liveInvalidate();
     }
+    famWarmth();   // (famtree.h: a family under one roof grows a little closer)
     hhSave();   // (the family tail goes with it)
 }
 
@@ -215,11 +217,13 @@ static void famScreen(void){
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k;
         if(pr&(K_B|K_START|K_A)) return;
+        if(pr&K_SEL){ famTree(); prev=keyNow(); dirty=1; continue; }
         if(pr&K_RIGHT){ sel=(sel+1)%n; dirty=1; } if(pr&K_LEFT){ sel=(sel+n-1)%n; dirty=1; }
         if((pr&K_DOWN)&&sel+4<n){ sel+=4; dirty=1; } if((pr&K_UP)&&sel>=4){ sel-=4; dirty=1; }
         if(!dirty){ vsync(); continue; }
         dirty=0; famBack(); famBar(3,3,234,t);
         { char c[12]; char*e=c; e+=numStr(e,n); simCat(e,n==1?" SIM":" SIMS"); text(233-tw(c,1),7,c,RGB(17,29,31),1); }
+        { const char*h="SEL TREE"; text(233-tw("00 SIMS",1)-tw(h,1)-8,7,h,GOLD,1); }
         int big=n<=4, ch=big?102:51, pr2=big?21:13, x0=big?(SW-(n*57-2))/2:6;   // four or fewer: tall cards in the middle with bigger faces
         for(int i=0;i<n;i++){ int u=us[i], x=x0+(i&3)*57, y=19+(i>>2)*54, on=i==sel, cx=x+27, p=famPartner(u);
             if(on) s3Box(x-2,y-2,59,ch+4,7,RGB(28,31,18),RGB(16,29,8));   // the picked card glows green

@@ -268,6 +268,7 @@ static void stKidHome(void){   // the promised child moves in: a mix of you and 
     if(p>=0) stMixLook(lk,look,hhM[p].look,AG_CHILD); else { u8 st=AG_CHILD; lookTrueRandom(lk,&st); }
     lk[LK_SEX]=sexRoll();   // (a girl, a boy or neither: a surprise)
     int m=stAddSim(lk,AG_CHILD,hhPLast); if(m<0){ toast("The house is full. No room for a kid."); return; }
+    famInherit(&hhM[m],hhPUid,p>=0?hhM[p].uid:255);   // (famtree.h)
     stRel(hhPUid,hhM[m].uid,50,40,RF_FRIEND); if(p>=0) stRel(hhM[p].uid,hhM[m].uid,50,40,RF_FRIEND);
     kinParent(hhPUid,hhM[m].uid); if(p>=0) kinParent(hhM[p].uid,hhM[m].uid);   // your DAUGHTER / SON / CHILD
     for(int k=0;k<hhN;k++){ hhOld[k].x0=hhOld[k].x1=0; hhOldSig[k]=0xFFFFFFFFu; }

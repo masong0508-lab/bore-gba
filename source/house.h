@@ -157,6 +157,7 @@ static NrE nrT[NR_N] EWRAM_BSS; static u8 nrN EWRAM_BSS; static u16 nrKey EWRAM_
 static u8 twLot[TW_N] EWRAM_BSS, twMem[TW_N] EWRAM_BSS, twNh[TW_N] EWRAM_BSS;   // who visitor k is in the town (twLot 255: nobody we can remember)
 static void nrSync(void);   // townrel.h: the guests' rows back into the town table
 static void famForget(int u); static void famScreen(void);   // family.h
+static void famTree(void); static void famWarmth(void); static void famInherit(HhSim*s,int pa,int pb);   // famtree.h
 static void copCrime(int n); static void copTick(int*planned);   // npc.h: the police
 static int prHeld(const HhSim*s); static int prHere(void); static void prSave(void); static int prSwitchHook(int m);   // prison.h
 static int hhPUid;                         // the uid of the Sim you control
@@ -1825,12 +1826,13 @@ static void hhSwitchMenu(void){   // pick the Sim you control
 }
 static void hhMenu(void){
     if(!dbgOn){   // moving in / out and every other change to the household is the DEBUG CODE's (title screen, see main.c): without it, RELATIONSHIPS and who you control
-        static const char* const it2[4]={"RELATIONSHIPS","FAMILY","SWITCH TO A SIM","PETS"}; int c=menu("HOUSEHOLD",it2,4);
-        if(c==0) relScreen(); else if(c==1) famScreen(); else if(c==2) hhSwitchMenu(); else if(c==3) petScreen();
+        static const char* const it2[5]={"RELATIONSHIPS","FAMILY","FAMILY TREE","SWITCH TO A SIM","PETS"}; int c=menu("HOUSEHOLD",it2,5);
+        if(c==0) relScreen(); else if(c==1) famScreen(); else if(c==2) famTree(); else if(c==3) hhSwitchMenu(); else if(c==4) petScreen();
         return; }
-    static const char* const it[9]={"RELATIONSHIPS","MOVE IN A FAMILY","INVITE A NEW SIM","TRULY RANDOM SIM","MOVE SOMEONE OUT","MOVE EVERYONE OUT","SWITCH TO A SIM","FAMILY","PETS"};
+    static const char* const it[10]={"RELATIONSHIPS","MOVE IN A FAMILY","INVITE A NEW SIM","TRULY RANDOM SIM","MOVE SOMEONE OUT","MOVE EVERYONE OUT","SWITCH TO A SIM","FAMILY","PETS","FAMILY TREE"};
     char t[24]; { char*e=t; const char*p="HOUSEHOLD  "; while(*p) *e++=*p++; e+=numStr(e,hhN+1); p=" OF "; while(*p) *e++=*p++; e+=numStr(e,HH_MAX+1); *e=0; }
-    int c=menu(t,it,9); if(c<0) return;
+    int c=menu(t,it,10); if(c<0) return;
+    if(c==9){ famTree(); return; }
     if(c==8){ petScreen(); return; }
     if(c==6){ hhSwitchMenu(); return; }
     if(c==7){ famScreen(); return; }

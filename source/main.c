@@ -6395,6 +6395,7 @@ static void s2grad(int x,int y,int w,int h,int r0,int g0,int b0,int r1,int g1,in
 static void s2pill(int x,int y,int w,const char*s){ s2rr(x,y,w,11,RGB(10,20,30)); s2grad(x+1,y+1,w-2,9,6,15,25,3,9,17); text(x+(w-tw(s,1))/2,y+2,s,RGB(20,27,31),1); }
 #include "babycare.h"       // BABY CARE: a baby cries until it is fed, changed, cuddled or put to bed; the FAMILY nursery things; toddlers; birthday cake
 #include "family.h"         // FAMILY LIFE: weddings, babies and twins, a household that grows up, the FAMILY panel and the birth notices
+#include "famtree.h"        // THE FAMILY TREE (pause menu > HOUSEHOLD): the household as generations, inherited personality, a family that grows closer
 static void howToPlay(void){
     static const char* const tn[8]={"PLAY","MAKE","BUILD","TOWN","PACKS","MUSIC","PLANS","OPTS"};
     const char* const* ln[8]={lifeHelp,creatureHelp,mapHelp,nbHelp,packHelp,jbHelp,slotHelp,optHelp};
