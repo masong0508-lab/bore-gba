@@ -71,3 +71,6 @@ Suites v2: every excerpt join has a drum fill and crash, some excerpts open drum
 ## Memory, and three platforms in step (v0.10)
 - The music streams are now stored LZ-compressed in the ROM (tools/lz.py; 1.85 MB became 193 KB) and unpacked into one 99 KB buffer when a song starts. The transition-tile table became a small hash. The DS ROM went from 2.16 MB to 0.5 MB and the program now uses about 1.2 MB of the 3.0 MB of RAM it may use, so there is room for many more songs, bigger data and features.
 - `./build_all.sh` builds all targets from the one shared source and runs the tests: `godguy_hw.nds` (DS, caches on), `godguy_hw_safe.nds` (DS, no sound), `godguy_dsi.nds` (DSi build, `-DGG_DSI`; normal header so a DSi runs it in DS mode), `godguy_dsi_mode.nds` (EXPERIMENTAL: unit code 3 so a DSi starts it in DSi mode with 16 MB RAM; untested, it may need proper DSi header fields) and `godguy.3dsx`. Every new feature goes into the shared source; anything only the DSi may use goes behind `#ifdef GG_DSI`.
+
+## v0.10.1 features
+New powers: EARTHQUAKE, TSUNAMI, BLOOM and GOOD VIBES (gives a chill trait and calms a village). Options now has GAME SPEED (1x 2x 4x). The world has its own events now and then: comet showers, bountiful harvests, the great munchies and festivals that end feuds.

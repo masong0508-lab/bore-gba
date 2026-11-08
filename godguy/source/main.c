@@ -404,6 +404,12 @@ static void volcanoTick(void){   // lava creeps over nearby ground now and then,
     if(weather==1||weather==2){ if(rnd()%6==0){ setCell(x,y,T_MOUNT); } return; }
     if(rnd()%90==0&&(t==T_MOUNT||t==T_HILL||t==T_DIRT||t==T_GRASS||t==T_FOREST||t==T_DESERT)){ setCell(nx,ny,T_LAVA); if(occ[ny][nx]) killCr(occ[ny][nx]-1); if(bld[ny][nx]){ bld[ny][nx]=0; putCell(nx,ny); } }
     else if(rnd()%400==0) setCell(x,y,T_MOUNT); }
+static void eventTick(void){   // now and then the world has an event of its own
+    if(tick<1500||(tick%1500)!=0||rnd()%3) return; int e=(int)(rnd()%4);
+    if(e==0){ for(int k=0;k<6;k++){ int x=rnd()%WW, y=rnd()%WH; burnAt(x,y,255); if(world[y][x]!=T_WATER&&world[y][x]!=T_DEEP&&world[y][x]!=T_MOUNT) setCell(x,y,(rnd()&1)?T_DIRT:T_LAVA); if(occ[y][x]) killCr(occ[y][x]-1); } siprintf(info,"A COMET SHOWER"); flashT=8; fxReq(FX_METEOR); }
+    else if(e==1){ for(int v=0;v<VIL_N;v++) if(vil[v].on) vil[v].stock=(u16)(vil[v].stock+100>400?400:vil[v].stock+100); siprintf(info,"A BOUNTIFUL HARVEST"); fxReq(FX_BLESS); }
+    else if(e==2){ int n=0; for(int i=0;i<nCr&&n<12;i++) if(cr[i].alive&&arch[sp[cr[i].sp].a].diet!=5&&cr[i].tr2==0&&(rnd()&7)==0){ giveTrait(&cr[i],TR_MUNCH,0); cr[i].food=200; n++; } siprintf(info,"THE GREAT MUNCHIES"); fxReq(FX_BIRTH); }
+    else { for(int v=0;v<VIL_N;v++) vil[v].foe=0; warMatrix(); siprintf(info,"A FESTIVAL: ALL FEUDS FORGOTTEN"); fxReq(FX_PEACE); } }
 static void weatherTick(void){
     if(--weatherT<=0){ int r=(int)(rnd()%100), cold=(year&3)==3; weather=r<55?0:r<80?(cold?3:1):r<90?(cold?3:2):(cold?3:1); weatherT=weather?1200+(int)(rnd()%2400):900+(int)(rnd()%1800);
         siprintf(info,"%s",weather==1?"IT BEGINS TO RAIN":weather==2?"A STORM ROLLS IN":weather==3?"SNOW FALLS":"THE SKY CLEARS"); }
@@ -420,7 +426,7 @@ static void simulate(void){
     for(int k=0;k<12;k++){ int x=rnd()%WW, y=rnd()%WH; u8 t=world[y][x]; if(t==T_DIRT){ int d=rnd()&3; int nx=x+dxs[d], ny=y+dys[d]; if(nx>=0&&ny>=0&&nx<WW&&ny<WH&&(world[ny][nx]==T_GRASS||world[ny][nx]==T_FOREST)) setCell(x,y,T_GRASS); }
         else if(t==T_GRASS&&(rnd()&63)==0){ int d=rnd()&3; int nx=x+dxs[d], ny=y+dys[d]; if(nx>=0&&ny>=0&&nx<WW&&ny<WH&&world[ny][nx]==T_FOREST&&(rnd()&7)==0) setCell(x,y,T_FOREST); } }
     if((tick&31)==0){ vilCur=(vilCur+1)%VIL_N; vilTick(vilCur); if(vilCur==0) warMatrix(); }
-    weatherTick(); volcanoTick();
+    weatherTick(); volcanoTick(); eventTick();
     if((tick&63)==0) monSpawn();
     if((tick&15)==0) towerFire();
     if(((tick)&255)==0){ compact(); if((tick%2048)==0){ year++; fxReq(FX_YEAR); } unlockTiers(); }
@@ -520,15 +526,15 @@ static void unlockTiers(void){   // every 256 ticks: is the chapter you are on d
     chapterDone(); }
 // ---------------------------------------------------------------------------------------------- powers (the table is the catalogue)
 typedef struct { const char*nm; u8 kind, arg; } Pw;
-enum { PK_INSPECT, PK_PAINT, PK_SPAWN, PK_RAIN, PK_FIRE, PK_BOLT, PK_METEOR, PK_KILL, PK_HEAL, PK_FEED, PK_SETTLE, PK_WAR, PK_PEACE, PK_BLESS, PK_GIFT, PK_MUTATE };
+enum { PK_INSPECT, PK_PAINT, PK_SPAWN, PK_RAIN, PK_FIRE, PK_BOLT, PK_METEOR, PK_KILL, PK_HEAL, PK_FEED, PK_SETTLE, PK_WAR, PK_PEACE, PK_BLESS, PK_GIFT, PK_MUTATE, PK_QUAKE, PK_FLOOD, PK_BLOOM, PK_VIBE };
 static const Pw pw[]={ {"INSPECT",PK_INSPECT,0},{"WATER",PK_PAINT,T_WATER},{"DEEP SEA",PK_PAINT,T_DEEP},{"SAND",PK_PAINT,T_SAND},{"GRASS",PK_PAINT,T_GRASS},{"FOREST",PK_PAINT,T_FOREST},{"JUNGLE",PK_PAINT,T_JUNGLE},
     {"HILLS",PK_PAINT,T_HILL},{"MOUNTAIN",PK_PAINT,T_MOUNT},{"SNOW",PK_PAINT,T_SNOW},{"DESERT",PK_PAINT,T_DESERT},{"SWAMP",PK_PAINT,T_SWAMP},{"LAVA",PK_PAINT,T_LAVA},
-    {"SPAWN",PK_SPAWN,0},{"RAIN",PK_RAIN,0},{"FIRE",PK_FIRE,0},{"LIGHTNING",PK_BOLT,0},{"METEOR",PK_METEOR,0},{"SMITE",PK_KILL,0},{"HEAL",PK_HEAL,0},{"FEED",PK_FEED,0},{"SETTLE",PK_SETTLE,0},{"WAR",PK_WAR,0},{"PEACE",PK_PEACE,0},{"BLESS",PK_BLESS,0},{"GIFT",PK_GIFT,0},{"MUTATE",PK_MUTATE,0} };
+    {"SPAWN",PK_SPAWN,0},{"RAIN",PK_RAIN,0},{"FIRE",PK_FIRE,0},{"LIGHTNING",PK_BOLT,0},{"METEOR",PK_METEOR,0},{"SMITE",PK_KILL,0},{"HEAL",PK_HEAL,0},{"FEED",PK_FEED,0},{"SETTLE",PK_SETTLE,0},{"WAR",PK_WAR,0},{"PEACE",PK_PEACE,0},{"BLESS",PK_BLESS,0},{"GIFT",PK_GIFT,0},{"MUTATE",PK_MUTATE,0},{"EARTHQUAKE",PK_QUAKE,0},{"TSUNAMI",PK_FLOOD,0},{"BLOOM",PK_BLOOM,0},{"GOOD VIBES",PK_VIBE,0} };
 #define PW_N ((int)(sizeof(pw)/sizeof(pw[0])))
 static int inspected=-1, trSel=1;
 static void usePower(int tx,int ty,int fresh){
     const Pw*P=&pw[power]; int r=brush;
-    if(fresh){ stUse++; if(P->kind==PK_GIFT) stGift++; static const u8 fxOf[16]={FX_INSPECT,FX_PAINT,FX_SPAWN,FX_RAIN,FX_FIRE,FX_LIGHTNING,FX_METEOR,FX_SMITE,FX_HEAL,FX_FEED,FX_SETTLE,FX_WAR,FX_PEACE,FX_BLESS,FX_GIFT,FX_BIRTH}; fxReq(fxOf[P->kind]); } if(P->kind==PK_GIFT&&(it[itSel].kind==IK_WEAPON||it[itSel].kind==IK_ARMOR||it[itSel].kind==IK_RELIC||it[itSel].kind==IK_GEM)) r=1;
+    if(fresh){ stUse++; if(P->kind==PK_GIFT) stGift++; static const u8 fxOf[20]={FX_INSPECT,FX_PAINT,FX_SPAWN,FX_RAIN,FX_FIRE,FX_LIGHTNING,FX_METEOR,FX_SMITE,FX_HEAL,FX_FEED,FX_SETTLE,FX_WAR,FX_PEACE,FX_BLESS,FX_GIFT,FX_BIRTH,FX_METEOR,FX_RAIN,FX_BIRTH,FX_BLESS}; fxReq(fxOf[P->kind]); } if(P->kind==PK_GIFT&&(it[itSel].kind==IK_WEAPON||it[itSel].kind==IK_ARMOR||it[itSel].kind==IK_RELIC||it[itSel].kind==IK_GEM)) r=1;
     for(int dy=-r;dy<=r;dy++) for(int dx=-r;dx<=r;dx++){ if(dx*dx+dy*dy>r*r+r/2) continue; int x=tx+dx, y=ty+dy; if(x<0||y<0||x>=WW||y>=WH) continue;
         switch(P->kind){
         case PK_PAINT: if(bld[y][x]){ bld[y][x]=0; bldv[y][x]=0; } setCell(x,y,P->arg); if(occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; if(!walkable(&sp[c->sp],x,y)&&(rnd()&3)==0) killCr(occ[y][x]-1); } break;
@@ -556,6 +562,11 @@ static void usePower(int tx,int ty,int fresh){
                 switch(t){ case 0: if(w==T_DIRT) setCell(x,y,T_GRASS); break; case 1: if(w==T_GRASS||w==T_SAND||w==T_DIRT) setCell(x,y,T_WATER); break; case 2: if(w==T_GRASS||w==T_FOREST) setCell(x,y,T_HILL); else if(w==T_HILL) setCell(x,y,T_MOUNT); break; case 3: if(w==T_DIRT||w==T_SAND||w==T_DESERT) setCell(x,y,T_GRASS); break;
                     case 4: if(w==T_GRASS||w==T_FOREST) setCell(x,y,T_DIRT); break; case 5: if(w==T_LAVA) setCell(x,y,T_MOUNT); break; case 6: if(w==T_MOUNT) setCell(x,y,T_HILL); else if(w==T_HILL) setCell(x,y,T_GRASS); break; case 7: if(w==T_FOREST||w==T_JUNGLE) setCell(x,y,T_GRASS); break;
                     case 8: if(w==T_WATER) setCell(x,y,T_SAND); break; case 9: if(w==T_SWAMP) setCell(x,y,T_GRASS); break; case 10: if(w==T_GRASS&&(rnd()&1)) setCell(x,y,T_FOREST); break; default: if(w==T_HILL||w==T_MOUNT||w==T_FOREST||w==T_JUNGLE) setCell(x,y,T_GRASS); } } break; } } break;
+        case PK_QUAKE: { int rr=dx*dx+dy*dy; if(fresh&&dx==0&&dy==0) flashT=6; u8 t=world[y][x]; if(t==T_MOUNT||t==T_HILL){ if(rnd()%3==0) setCell(x,y,(rnd()&1)?T_HILL:T_DIRT); } else if(t!=T_WATER&&t!=T_DEEP&&t!=T_LAVA&&rnd()%7==0) setCell(x,y,T_DIRT);
+            if(bld[y][x]&&rnd()%3==0){ bld[y][x]=0; bldv[y][x]=0; putCell(x,y); } if(occ[y][x]&&rnd()%3==0){ Cr*c=&cr[occ[y][x]-1]; if(c->hp>8) c->hp-=8; else killCr(occ[y][x]-1); } (void)rr; } break;
+        case PK_FLOOD: { u8 t=world[y][x]; if(t!=T_MOUNT&&t!=T_DEEP&&(rnd()&3)!=0){ if(bld[y][x]){ bld[y][x]=0; bldv[y][x]=0; } setCell(x,y,t==T_LAVA?T_MOUNT:T_WATER); if(occ[y][x]&&!walkable(&sp[cr[occ[y][x]-1].sp],x,y)&&(rnd()&1)) killCr(occ[y][x]-1); } } break;
+        case PK_BLOOM: { u8 t=world[y][x]; if(t==T_GRASS){ if(rnd()&1) setCell(x,y,T_FOREST); } else if(t==T_DIRT||t==T_SAND){ setCell(x,y,T_GRASS); } else if(t==T_DESERT&&(rnd()&3)==0) setCell(x,y,T_GRASS); if(occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; c->hp=(u8)maxHp(c); c->food=120; } } break;
+        case PK_VIBE: if(fresh&&dx==0&&dy==0){ int v=vilAny(x,y,5); if(v>=0){ vil[v].foe=0; warMatrix(); } if(occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; if(c->tr2==0&&!(HAS(c,TR_CHILL)||HAS(c,TR_MUNCH)||HAS(c,TR_GIGGLY)||HAS(c,TR_ZEN)||HAS(c,TR_FLOATY))){ giveTrait(c,TR_CHILL+(int)(rnd()%8),1); siprintf(info,"GOOD VIBES"); } else siprintf(info,"ALREADY VIBING"); } else if(v>=0) siprintf(info,"THE VILLAGE CHILLS OUT"); } break;
         case PK_MUTATE: if(fresh&&dx==0&&dy==0&&occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; if(trSel==0){ c->tr=c->tr2=0; siprintf(info,"TRAITS CLEARED"); } else { giveTrait(c,trSel,1); char nm[48]; crName(c,nm); siprintf(info,"%.46s",nm); } c->hp=(u8)maxHp(c); } break;
         case PK_INSPECT: if(dx==0&&dy==0){ if(occ[y][x]) inspected=occ[y][x]-1; else if(bldv[y][x]){ int v=bldv[y][x]-1; char nm[24]; vilName(v,nm); siprintf(info,"%s %s POP%d HOMES%d",arch[vil[v].race].nm,nm,vil[v].pop,vil[v].houses); inspected=-2; } } break; } }
     if(P->kind==PK_INSPECT&&inspected!=-2){ if(inspected>=0&&inspected<nCr&&cr[inspected].alive){ Cr*c=&cr[inspected]; char nm[48]; crName(c,nm); siprintf(info,"%.30s HP%d/%d",nm,c->hp,maxHp(c)); } else siprintf(info,"%s",bioNm[world[ty<WH?ty:0][tx<WW?tx:0]]); }
@@ -825,24 +836,24 @@ static void uiCreate(void){
     uiTextC(208,140,cT>=0?"SHAPING...":"READY",cT>=0?U_ORANGE:U_GREEN,1);
     uiText(6,172,cSel==9?"A: BEGIN YOUR WORLD":"PAD: UP DOWN  LEFT RIGHT CHANGE",U_DIM,1);
     uiFlush(); }
-enum { MI_CONT, MI_STORY, MI_FREE, MI_OPT, MI_EXTRA, MI_BACK, MI_SIZE, MI_DIFF, MI_VOL, MI_MON, MI_SCULPT, MI_BEST, MI_CODEX, MI_HELP, MI_CRED, MI_DEBUG, MI_RESUME, MI_SAVE, MI_NEW, MI_MODE, MI_TITLE, MI_CREATE, MI_GO, MI_STYPE };
+enum { MI_CONT, MI_STORY, MI_FREE, MI_OPT, MI_EXTRA, MI_BACK, MI_SIZE, MI_DIFF, MI_VOL, MI_MON, MI_SCULPT, MI_BEST, MI_CODEX, MI_HELP, MI_CRED, MI_DEBUG, MI_RESUME, MI_SAVE, MI_NEW, MI_MODE, MI_TITLE, MI_CREATE, MI_GO, MI_STYPE, MI_SPEED };
 static int extrasView;      // which menu (0 main, 1 options, 2 extras), the highlighted row, a pending "are you sure", and whether an extras page is open
 static int menuList(int*ids){ int n=0, ctx=titleOn?0:1;
     if(mScr==0){ if(ctx==0){ ids[n++]=MI_CONT; ids[n++]=MI_CREATE; } else { ids[n++]=MI_RESUME; ids[n++]=MI_SAVE; } ids[n++]=MI_OPT; ids[n++]=MI_EXTRA; if(ctx){ ids[n++]=MI_NEW; ids[n++]=MI_MODE; ids[n++]=MI_TITLE; } }
     else if(mScr==3){ ids[n++]=MI_SIZE; ids[n++]=MI_STYPE; ids[n++]=MI_DIFF; ids[n++]=MI_GO; ids[n++]=MI_BACK; }
-    else if(mScr==1){ ids[n++]=MI_DIFF; ids[n++]=MI_VOL; ids[n++]=MI_MON; ids[n++]=MI_BACK; }
+    else if(mScr==1){ ids[n++]=MI_DIFF; ids[n++]=MI_SPEED; ids[n++]=MI_VOL; ids[n++]=MI_MON; ids[n++]=MI_BACK; }
     else { ids[n++]=MI_SCULPT; ids[n++]=MI_BEST; ids[n++]=MI_CODEX; ids[n++]=MI_HELP; ids[n++]=MI_CRED; if(debugOn) ids[n++]=MI_DEBUG; ids[n++]=MI_BACK; }
     return n; }
 static void menuText(int id,char*l,char*v){ v[0]=0;
     switch(id){ case MI_CONT: strcpy(l,hasSave?"CONTINUE YOUR WORLD":"START THE STORY"); break; case MI_STORY: strcpy(l,"NEW STORY WORLD"); break; case MI_FREE: strcpy(l,"NEW FREE PLAY WORLD"); break;
-        case MI_CREATE: strcpy(l,"CREATE A PLANET"); strcpy(v,">"); break; case MI_GO: strcpy(l,"CREATE THE PLANET!"); break; case MI_STYPE: strcpy(l,"WORLD TYPE"); strcpy(v,storyOn?"STORY":"FREE PLAY"); break;
+        case MI_SPEED: strcpy(l,"GAME SPEED"); siprintf(v,"%dx",speedMul); break; case MI_CREATE: strcpy(l,"CREATE A PLANET"); strcpy(v,">"); break; case MI_GO: strcpy(l,"CREATE THE PLANET!"); break; case MI_STYPE: strcpy(l,"WORLD TYPE"); strcpy(v,storyOn?"STORY":"FREE PLAY"); break;
         case MI_OPT: strcpy(l,"OPTIONS"); strcpy(v,">"); break; case MI_EXTRA: strcpy(l,"EXTRAS"); strcpy(v,">"); break; case MI_BACK: strcpy(l,"BACK"); break;
         case MI_SIZE: strcpy(l,"PLANET SIZE"); siprintf(v,"%dx%d",planetSize,planetSize); break; case MI_DIFF: strcpy(l,"DIFFICULTY"); strcpy(v,diff==0?"CALM":diff==1?"NORMAL":"BRUTAL"); break;
         case MI_VOL: strcpy(l,"MUSIC VOLUME"); siprintf(v,"%d%%",gmMaster); break; case MI_MON: strcpy(l,"MONSTERS"); strcpy(v,monOn?"ON":"OFF"); break;
         case MI_SCULPT: strcpy(l,"AURAL SCULPTURES"); strcpy(v,auralOK()?"":"LOCKED"); break; case MI_BEST: strcpy(l,"BESTIARY"); siprintf(v,"%d/320",seenN); break; case MI_CODEX: strcpy(l,"SUBSPECIES"); siprintf(v,"%d/%d",__builtin_popcount(trSeen),TR_N-1); break;
         case MI_HELP: strcpy(l,"HELP"); break; case MI_CRED: strcpy(l,"CREDITS"); break; case MI_DEBUG: strcpy(l,"DEBUG MENU"); break;
         case MI_RESUME: strcpy(l,"RESUME"); break; case MI_SAVE: strcpy(l,"SAVE GAME"); break; case MI_NEW: strcpy(l,"NEW WORLD"); break; case MI_MODE: strcpy(l,"MODE"); strcpy(v,storyOn?"STORY":"FREE PLAY"); break; case MI_TITLE: strcpy(l,"TITLE SCREEN"); break; } }
-static int menuAdj(int id){ return id==MI_SIZE||id==MI_STYPE||id==MI_DIFF||id==MI_VOL||id==MI_MON; }
+static int menuAdj(int id){ return id==MI_SIZE||id==MI_STYPE||id==MI_SPEED||id==MI_DIFF||id==MI_VOL||id==MI_MON; }
 static void uiMenuList(int x,int y,int w,int rh){
     int ids[10]; int n=menuList(ids); if(mSel>=n) mSel=n-1; char l[32], v[16];
     for(int i=0;i<n;i++){ menuText(ids[i],l,v); int yy=y+i*rh, sel=i==mSel; uiRound(x,yy,w,rh-2,sel?U_SEL:U_PANELHI,sel?U_GOLD:U_BHI);
@@ -958,12 +969,12 @@ static void menuInput(int kd){
     if(kd&KEY_B){ if(mScr){ mSel=mScr==3?1:(titleOn?2:2)+(mScr==2); mScr=0; } else if(!titleOn){ menuOn=0; paused=dlgPaused; } return; }
     int id=ids[mSel];
     if(d){ switch(id){ case MI_SIZE: setSize(d>0?(planetSize==128?192:planetSize==192?256:128):(planetSize==256?192:planetSize==192?128:256)); fxReq(FX_MENU_MOVE); break; case MI_STYPE: storyOn^=1; break;
-            case MI_DIFF: diff=(diff+3+d)%3; break; case MI_VOL: gmMaster+=d*10; if(gmMaster<0) gmMaster=0; if(gmMaster>100) gmMaster=100; break; case MI_MON: monOn^=1; break; } }
+            case MI_DIFF: diff=(diff+3+d)%3; break; case MI_SPEED: speedMul=d>0?(speedMul==1?2:speedMul==2?4:1):(speedMul==1?4:speedMul==2?1:2); break; case MI_VOL: gmMaster+=d*10; if(gmMaster<0) gmMaster=0; if(gmMaster>100) gmMaster=100; break; case MI_MON: monOn^=1; break; } }
     if(kd&KEY_A){ switch(id){
         case MI_CONT: if(hasSave){ LOADING("LOADING YOUR WORLD",30); loadGame(savePath); endShown=storyDone; titleOn=0; paused=0; refillWindow(); LOADING("READY",100); musReq(GM_NEWWORLD); } else startWorld(1); break;
         case MI_CREATE: mScr=3; mSel=0; createStart(); break; case MI_GO: startWorld(storyOn); break;
         case MI_OPT: mScr=1; mSel=0; break; case MI_EXTRA: mScr=2; mSel=0; break; case MI_BACK: mSel=mScr==3?1:2+(mScr==2); mScr=0; break;
-        case MI_SIZE: case MI_DIFF: case MI_VOL: case MI_MON: break;
+        case MI_SIZE: case MI_DIFF: case MI_VOL: case MI_MON: case MI_SPEED: break;
         case MI_SCULPT: if(auralOK()) menuOpenPage(3); else { siprintf(info,"UNLOCK IN STORY CHAPTER 3"); fxReq(FX_ERROR); } break;
         case MI_BEST: menuOpenPage(2); break; case MI_CODEX: menuOpenPage(5); break; case MI_HELP: menuOpenPage(6); break; case MI_DEBUG: menuOpenPage(4); break;
         case MI_CRED: menuOn=0; sceneStart(credTxt,1); musReq(GM_CREDITS); break;

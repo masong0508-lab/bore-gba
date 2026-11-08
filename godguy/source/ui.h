@@ -32,7 +32,7 @@ static void uiBar(int x,int y,int w,int h,int val,int max,int col){ uiFrame(x,y,
 static void uiIcon10(int x,int y,int idx){ for(int j=0;j<10;j++) for(int i=0;i<10;i++){ int c=icon10[idx][j*10+i]; if(c) uiPx(x+i,y+j,c); } }
 static void uiIcon8(int x,int y,int idx){ for(int j=0;j<8;j++) for(int i=0;i<8;i++){ int c=icon8[idx][j*8+i]; if(c) uiPx(x+i,y+j,c); } }
 // ---- a power's icon: paints show the ground they paint, everything else has its own picture
-static const u8 uiKindIcon[16]={IC10_INSPECT,0,IC10_SPAWN,IC10_RAIN,IC10_FIRE,IC10_BOLT,IC10_METEOR,IC10_SMITE,IC10_HEAL,IC10_FEED,IC10_SETTLE,IC10_WAR,IC10_PEACE,IC10_BLESS,IC10_GIFT,IC10_MUTATE};
+static const u8 uiKindIcon[20]={IC10_INSPECT,0,IC10_SPAWN,IC10_RAIN,IC10_FIRE,IC10_BOLT,IC10_METEOR,IC10_SMITE,IC10_HEAL,IC10_FEED,IC10_SETTLE,IC10_WAR,IC10_PEACE,IC10_BLESS,IC10_GIFT,IC10_MUTATE,IC10_METEOR,IC10_RAIN,IC10_HEAL,IC10_BLESS};
 // ground swatches use three shades per terrain: 100.. in the top palette, 200.. in the toolbar's
 static int uiSwatch(int t,int i,int j,int base){ int p=tilePix(t,0,(i*8)/10,(j*8)/10)%8; return base+t*3+(p<=2?0:p<=4?1:2); }
 static void uiShadePal(void){ for(int t=0;t<T_N;t++) for(int j=0;j<3;j++){ int r,g,b; shadeRGB(t*8+2+j*2,&r,&g,&b); BG_PALETTE_SUB[100+t*3+j]=RGB15(r,g,b); BG_PALETTE[200+t*3+j]=RGB15(r,g,b); } }
