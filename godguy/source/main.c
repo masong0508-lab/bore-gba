@@ -106,10 +106,29 @@ static int tilePix(int t,int v,int x,int y){   // palette entry (terrain * 8 + s
     return pix;
 }
 static void shadeRGB(int idx,int*r,int*g,int*b){ int t=idx/8,k=idx%8,f=60+k*20; *r=terrCol[t][0]*f/160; *g=terrCol[t][1]*f/160; *b=terrCol[t][2]*f/160; if(*r>31)*r=31; if(*g>31)*g=31; if(*b>31)*b=31; }
+// buildings: B_*; a building tile is ground (grass) with the building on it, in the colours of the people who built it
+enum { B_NONE, B_HUT, B_HOUSE, B_HALL, B_FARM, B_TOWER, B_RUIN, B_N };
+#define BT0 (T_N*4)
+static const u8 roofCol[8][3]={ {27,4,4},{6,22,8},{8,14,26},{14,3,3},{28,24,4},{29,15,3},{20,8,26},{14,9,4} };   // human elf dwarf orc goblin halfling gnome ogre
+static const u8 bldCol[8][3]={ {27,22,14},{14,10,5},{16,16,19},{20,20,22},{4,24,6},{12,8,3},{10,10,12},{31,31,31} };   // wall, dark wood, door, stone, crop, soil, ruin, flag
+static int bldPix(int type,int race,int x,int y){
+    int bg=tilePix(T_GRASS,(x+y)&3,x,y), roof=128+race, wall=136, dark=137, door=138, stone=139, crop=140, soil=141, ruin=142, flag=143;
+    switch(type){
+    case B_HUT: if(y>=1&&y<=3){ int h=y; if(x>=4-h&&x<=3+h) return roof; } if(y>=4&&y<=6&&x>=2&&x<=5) return (y>=5&&x>=3&&x<=4)?door:wall; break;
+    case B_HOUSE: if(y>=1&&y<=3){ if(x>=3-y&&x<=4+y) return roof; } if(y>=4&&y<=7&&x>=1&&x<=6) return (y>=5&&x>=3&&x<=4)?door:(y==5&&(x==1||x==6))?dark:wall; break;
+    case B_HALL: if(y<=2&&x==2) return dark; if(y<=1&&x>=3&&x<=5) return flag; if(y==2&&(x&1)==0&&x>=1&&x<=7) return stone; if(y>=3) return (y>=5&&x>=3&&x<=4)?dark:((x==1||x==6)&&y==4)?dark:stone; break;
+    case B_FARM: if(x==0||x==7||y==0||y==7) return (x+y)&1?dark:bg; return (y&1)?crop:soil;
+    case B_TOWER: if(y==1&&(x==2||x==3||x==5)) return stone; if(y>=2&&x>=2&&x<=5) return (y==4&&x==3)?dark:stone; break;
+    case B_RUIN: if((hsh(x,y,17)&3)==0) return ruin; if((hsh(x,y,18)&7)==1) return stone; break; }
+    return bg;
+}
 #ifndef PCTEST
 static void makeTiles(void){
     for(int t=0;t<T_N;t++) for(int k=0;k<8;k++){ int r,g,b; shadeRGB(t*8+k,&r,&g,&b); BG_PALETTE[t*8+k]=RGB15(r,g,b); }
     BG_PALETTE[0]=RGB15(0,0,0);
+    for(int r=0;r<8;r++) BG_PALETTE[128+r]=RGB15(roofCol[r][0],roofCol[r][1],roofCol[r][2]);
+    for(int k=0;k<8;k++) BG_PALETTE[136+k]=RGB15(bldCol[k][0],bldCol[k][1],bldCol[k][2]);
+    { u8*bb=(u8*)BG_TILE_RAM(1); for(int ty=1;ty<B_N;ty++) for(int r=0;r<8;r++){ u8*tile=bb+(BT0+ty*8+r)*64; for(int y=0;y<8;y++) for(int x=0;x<8;x++) tile[y*8+x]=(u8)bldPix(ty,r,x,y); } }
     u8*base=(u8*)BG_TILE_RAM(1);
     for(int t=0;t<T_N;t++) for(int v=0;v<4;v++){ u8*tile=base+(t*4+v)*64; for(int y=0;y<8;y++) for(int x=0;x<8;x++) tile[y*8+x]=(u8)tilePix(t,v,x,y); }
 }
@@ -121,8 +140,10 @@ static u16 pcm[4096]; static u16*mapPtr=pcm;
 static u16*mapPtr;
 #endif
 static int winX=-99, winY=-99;
+static u8 bld[WH][WW], bldv[WH][WW];   // what stands on a tile (B_*) and which village owns it (+1)
+static u8 vilRace(int v);
 static inline void putCell(int x,int y){   // world cell -> background entry (a 64 x 64 torus of 8 pixel tiles)
-    int mx=x&63, my=y&63; int blk=(my>=32?2:0)+(mx>=32?1:0); mapPtr[blk*1024+(my&31)*32+(mx&31)]=(u16)(world[y][x]*4+(int)(hsh(x,y,3)&3)); }
+    int mx=x&63, my=y&63; int blk=(my>=32?2:0)+(mx>=32?1:0); u16 e=(u16)(world[y][x]*4+(int)(hsh(x,y,3)&3)); if(bld[y][x]) e=(u16)(BT0+bld[y][x]*8+(bldv[y][x]?vilRace(bldv[y][x]-1):0)); mapPtr[blk*1024+(my&31)*32+(mx&31)]=e; }
 static void refillWindow(void){ int x0=camX>>3, y0=camY>>3; if(x0==winX&&y0==winY) return; winX=x0; winY=y0;
     for(int y=y0-1;y<y0+26&&y<WH;y++) for(int x=x0-1;x<x0+34&&x<WW;x++) if(x>=0&&y>=0) putCell(x,y); }
 static void setCell(int x,int y,u8 t){ if(x<0||y<0||x>=WW||y>=WH) return; world[y][x]=t; if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); }
@@ -140,6 +161,56 @@ static void compact(void){   // the dead are squeezed out of the list
 }
 static const s8 dxs[4]={1,0,-1,0}, dys[4]={0,1,0,-1};
 static void moveTo(Cr*c,int i,int nx,int ny){ occ[c->y][c->x]=0; c->ox=(s8)((c->x-nx)*8); c->oy=(s8)((c->y-ny)*8); c->x=(u8)nx; c->y=(u8)ny; occ[ny][nx]=(u16)(i+1); c->dir=(u8)(nx>c->x?0:0); }
+// ---------------------------------------------------------------------------------------------- villages
+#define VIL_N 24
+typedef struct { u8 on, race, x, y, lvl, houses, farms, towers, foe, dead, nm1, nm2; u16 pop, stock; } Vil;   // foe: the village (+1) it is at war with
+static Vil vil[VIL_N]; static int nVilOn;
+static u8 warM[8][8];   // [a][b]: the people of a are fighting the people of b
+static u8 vilRace(int v){ return vil[v].race; }
+static const char* const vn1[12]={"BRAN","DUN","MOR","TAL","KAR","EL","OR","ISH","VAL","GRO","HAR","NIM"}, * const vn2[8]={"TON","HOLM","BURG","DELL","FORD","MERE","STEAD","HOLD"};
+static void vilName(int v,char*out){ strcpy(out,vn1[vil[v].nm1%12]); strcat(out,vn2[vil[v].nm2%8]); }
+static int aggressive(int race){ return race==3||race==4||race==7; }   // the orcs, the goblins and the ogres go looking for trouble
+static int vilNear(int race,int x,int y,int r){ int best=-1,bd=r*r+1; for(int v=0;v<VIL_N;v++){ if(!vil[v].on||vil[v].race!=race) continue; int dx=vil[v].x-x, dy=vil[v].y-y, d=dx*dx+dy*dy; if(d<bd){ bd=d; best=v; } } return best; }
+static int vilAny(int x,int y,int r){ int best=-1,bd=r*r+1; for(int v=0;v<VIL_N;v++){ if(!vil[v].on) continue; int dx=vil[v].x-x, dy=vil[v].y-y, d=dx*dx+dy*dy; if(d<bd){ bd=d; best=v; } } return best; }
+static int buildable(int x,int y){ if(x<2||y<2||x>=WW-2||y>=WH-2||bld[y][x]) return 0; u8 t=world[y][x]; return t==T_GRASS||t==T_DIRT||t==T_FOREST; }
+static void putBld(int v,int x,int y,int type){ if(world[y][x]==T_FOREST) setCell(x,y,T_GRASS); bld[y][x]=(u8)type; bldv[y][x]=(u8)(v+1); if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); }
+static int placeBld(int v,int type,int cost){
+    Vil*V=&vil[v]; if(V->stock<cost) return 0; int R=3+V->lvl*3;
+    for(int k=0;k<14;k++){ int x=V->x+(int)(rnd()%(2*R+1))-R, y=V->y+(int)(rnd()%(2*R+1))-R; if(!buildable(x,y)) continue; if(type==B_HOUSE||type==B_HUT){ int near=0; for(int d=0;d<4;d++) if(bld[y+dys[d]][x+dxs[d]]) near=1; if(!near&&V->houses>1) continue; }
+        putBld(v,x,y,type); V->stock-=(u16)cost; return 1; }
+    return 0;
+}
+static int vilFound(int race,int x,int y){
+    if(!buildable(x,y)) return -1; if(vilAny(x,y,9)>=0) return -1; int v=-1; for(int i=0;i<VIL_N;i++) if(!vil[i].on){ v=i; break; } if(v<0) return -1;
+    Vil*V=&vil[v]; memset(V,0,sizeof *V); V->on=1; V->race=(u8)race; V->x=(u8)x; V->y=(u8)y; V->lvl=1; V->stock=30; V->nm1=(u8)(rnd()%12); V->nm2=(u8)(rnd()%8);
+    putBld(v,x,y,B_HALL); for(int k=0;k<2;k++) placeBld(v,B_HUT,0); nVilOn++; return v;
+}
+static void vilRaze(int v,int ruins){ Vil*V=&vil[v]; if(!V->on) return; for(int y=0;y<WH;y++) for(int x=0;x<WW;x++) if(bldv[y][x]==v+1){ bld[y][x]=ruins&&(rnd()&1)?B_RUIN:B_NONE; if(!bld[y][x]) bldv[y][x]=0; else bldv[y][x]=0; if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); }
+    for(int u=0;u<VIL_N;u++) if(vil[u].on&&vil[u].foe==v+1) vil[u].foe=0; V->on=0; nVilOn--; }
+static void burnAt(int x,int y,int chance){   // fire, lightning and meteors on a building
+    if(x<0||y<0||x>=WW||y>=WH||!bld[y][x]||bld[y][x]==B_RUIN) return; if((int)(rnd()&255)>=chance) return; int v=bldv[y][x]-1;
+    if(v>=0&&vil[v].on){ Vil*V=&vil[v]; if(bld[y][x]==B_HOUSE||bld[y][x]==B_HUT){ if(V->houses) V->houses--; } else if(bld[y][x]==B_FARM){ if(V->farms) V->farms--; } else if(bld[y][x]==B_TOWER){ if(V->towers) V->towers--; } }
+    bld[y][x]=B_RUIN; bldv[y][x]=0; if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); }
+static void vilTick(int v){
+    Vil*V=&vil[v]; if(!V->on) return; int pop=0;
+    for(int i=0;i<nCr;i++){ const Cr*c=&cr[i]; if(c->alive&&sp[c->sp].a==V->race&&sp[c->sp].a<8){ int dx=c->x-V->x, dy=c->y-V->y; if(dx*dx+dy*dy<=100) pop++; } }
+    V->pop=(u16)pop; if(!pop){ if(++V->dead>=6){ vilRaze(v,1); return; } } else V->dead=0;
+    int gain=pop+V->farms*3; V->stock=(u16)(V->stock+gain>400?400:V->stock+gain);
+    // what to build next: homes for everyone, fields to feed them, then towers, then a bigger hall
+    if(V->lvl>=2&&V->towers<V->houses/3&&V->stock>=25&&(rnd()&3)==0){ if(placeBld(v,B_TOWER,25)) V->towers++; }
+    else if(V->houses<2||pop>V->houses*3){ if(placeBld(v,(rnd()&3)?B_HOUSE:B_HUT,12)) V->houses++; }
+    else if(V->farms*2<V->houses&&V->stock>=10){ if(placeBld(v,B_FARM,10)) V->farms++; }
+    else if(V->lvl>=2&&V->towers<V->houses/3&&V->stock>=25){ if(placeBld(v,B_TOWER,25)) V->towers++; }
+    if(V->lvl==1&&V->houses>=6&&V->stock>=40){ if(placeBld(v,B_HALL,40)) V->lvl=2; }
+    else if(V->lvl==2&&V->houses>=14&&V->stock>=80){ if(placeBld(v,B_HALL,80)) V->lvl=3; }
+    // war: the restless races pick a neighbour of another people; it ends when one side is gone
+    if(V->foe&&(!vil[V->foe-1].on)) V->foe=0;
+    if(!V->foe&&aggressive(V->race)&&pop>=6&&(rnd()&7)==0){ int best=-1,bd=900; for(int u=0;u<VIL_N;u++){ if(!vil[u].on||u==v||vil[u].race==V->race) continue; int dx=vil[u].x-V->x, dy=vil[u].y-V->y, d=dx*dx+dy*dy; if(d<bd){ bd=d; best=u; } } if(best>=0) V->foe=(u8)(best+1); }
+    if(V->foe&&(rnd()&15)==0&&pop<3) V->foe=0;   // a beaten army goes home
+}
+static void warMatrix(void){ memset(warM,0,sizeof warM); for(int v=0;v<VIL_N;v++) if(vil[v].on&&vil[v].foe&&vil[vil[v].foe-1].on){ int a=vil[v].race, b=vil[vil[v].foe-1].race; warM[a][b]=warM[b][a]=1; } }
+static int vilTotals(int*houses){ int pop=0,h=0; for(int v=0;v<VIL_N;v++) if(vil[v].on){ pop+=vil[v].pop; h+=vil[v].houses; } if(houses) *houses=h; return pop; }
+
 static void think(int i){
     Cr*c=&cr[i]; if(!c->alive) return; const Sp*s=&sp[c->sp]; const Arch*A=&arch[s->a];
     c->age++; if(c->food>2) c->food-=2; else c->food=0;
@@ -153,7 +224,21 @@ static void think(int i){
     if(c->food<100){
         if(diet==0||diet==2){ if(t==T_GRASS||t==T_JUNGLE||t==T_FOREST){ c->food+=45; if(c->food>120) c->food=120; if(t==T_GRASS&&(rnd()&3)==0) setCell(c->x,c->y,T_DIRT); return; } }
         if(diet==3){ c->food=100; }
-        if(diet==4){ if(t==T_GRASS||t==T_FOREST||t==T_JUNGLE){ c->food+=25; if(c->food>120) c->food=120; return; } }
+        if(diet==4){ int v=vilNear(s->a,c->x,c->y,6); if(v>=0&&vil[v].stock>0){ vil[v].stock--; c->food+=35; if(c->food>120) c->food=120; return; }
+            if(t==T_GRASS||t==T_FOREST||t==T_JUNGLE){ c->food+=25; if(c->food>120) c->food=120; return; } }
+    }
+    if(diet==4){
+        int home=vilNear(s->a,c->x,c->y,14);
+        // fight: an enemy people within reach is attacked; otherwise an army walks to the enemy village
+        { int best=-1,bd=99; for(int dy=-3;dy<=3;dy++) for(int dx=-3;dx<=3;dx++){ int x=c->x+dx,y=c->y+dy; if(x<0||y<0||x>=WW||y>=WH||!occ[y][x]) continue; int j=occ[y][x]-1; int ra=sp[cr[j].sp].a; if(ra>=8||!warM[s->a][ra]) continue; int d=(dx<0?-dx:dx)+(dy<0?-dy:dy); if(d<bd){ bd=d; best=j; } }
+          if(best>=0){ Cr*p=&cr[best]; if(bd<=1){ int dm=A->atk+(int)(rnd()&3); if(p->hp>dm) p->hp-=(u8)dm; else { killCr(best); c->food+=20; } return; }
+              int dx=p->x-c->x, dy=p->y-c->y; int ax=dx>0?1:dx<0?-1:0, ay=dy>0?1:dy<0?-1:0; if(((dx<0?-dx:dx)<(dy<0?-dy:dy))) ax=0; else ay=0; int nx=c->x+ax, ny=c->y+ay; if(walkable(s,nx,ny)&&!occ[ny][nx]) moveTo(c,i,nx,ny); return; } }
+        if(home>=0&&vil[home].foe&&vil[vil[home].foe-1].on&&c->age>6&&c->hp>8){ const Vil*F=&vil[vil[home].foe-1]; int dx=F->x-c->x, dy=F->y-c->y; if(dx*dx+dy*dy>4){ int ax=dx>0?1:dx<0?-1:0, ay=dy>0?1:dy<0?-1:0; if(((dx<0?-dx:dx)<(dy<0?-dy:dy))) ax=0; else ay=0; int nx=c->x+ax, ny=c->y+ay; if(walkable(s,nx,ny)&&!occ[ny][nx]){ moveTo(c,i,nx,ny); return; } }
+            else { int fv=vil[home].foe-1; vil[fv].stock=(u16)(vil[fv].stock>10?vil[fv].stock-10:0); if(rnd()%12==0&&vil[fv].pop<2){ vilRaze(fv,1); } } }
+        // settle: a grown person far from their own village starts one
+        if(home<0&&c->age>12&&c->food>60&&(rnd()%6)==0&&vilFound(s->a,c->x,c->y)>=0) return;
+        // stay close to home
+        if(home>=0){ int dx=vil[home].x-c->x, dy=vil[home].y-c->y; if(dx*dx+dy*dy>64){ int ax=dx>0?1:dx<0?-1:0, ay=dy>0?1:dy<0?-1:0; if(((dx<0?-dx:dx)<(dy<0?-dy:dy))) ax=0; else ay=0; int nx=c->x+ax, ny=c->y+ay; if(walkable(s,nx,ny)&&!occ[ny][nx]){ moveTo(c,i,nx,ny); return; } } }
     }
     // hunt
     if((diet==1||(diet==2&&c->food<50))&&c->food<90){
@@ -165,7 +250,8 @@ static void think(int i){
             int dx=p->x-c->x, dy=p->y-c->y; int sx=dx>0?1:dx<0?-1:0, sy=dy>0?1:dy<0?-1:0; int try1=(((dx<0?-dx:dx)>(dy<0?-dy:dy))?0:1);
             for(int k=0;k<2;k++){ int ax=(k==try1)?sx:0, ay=(k==try1)?0:sy; if(!ax&&!ay) continue; int nx=c->x+ax, ny=c->y+ay; if(walkable(s,nx,ny)&&!occ[ny][nx]){ moveTo(c,i,nx,ny); return; } } } }
     // breed
-    if(c->food>=80&&c->age>8&&(int)(rnd()%100)<A->breed&&nCr<MAXC-4){ int d=rnd()&3; int nx=c->x+dxs[d], ny=c->y+dys[d]; int n=addCr(c->sp,nx,ny); if(n>=0){ cr[n].age=0; cr[n].food=50; c->food-=40; return; } }
+    int bch=A->breed; if(diet==4&&vilNear(s->a,c->x,c->y,8)>=0) bch*=2;
+    if(c->food>=80&&c->age>8&&(int)(rnd()%100)<bch&&nCr<MAXC-4){ int d=rnd()&3; int nx=c->x+dxs[d], ny=c->y+dys[d]; int n=addCr(c->sp,nx,ny); if(n>=0){ cr[n].age=0; cr[n].food=50; c->food-=40; return; } }
     // wander
     if((rnd()&3)!=0){ int d=rnd()&3; int nx=c->x+dxs[d], ny=c->y+dys[d]; if(walkable(s,nx,ny)&&!occ[ny][nx]) moveTo(c,i,nx,ny); }
 }
@@ -178,15 +264,16 @@ static void simulate(void){
     // the ground heals: dirt turns back to grass beside grass, lava cools
     for(int k=0;k<12;k++){ int x=rnd()%WW, y=rnd()%WH; u8 t=world[y][x]; if(t==T_DIRT){ int d=rnd()&3; int nx=x+dxs[d], ny=y+dys[d]; if(nx>=0&&ny>=0&&nx<WW&&ny<WH&&(world[ny][nx]==T_GRASS||world[ny][nx]==T_FOREST)) setCell(x,y,T_GRASS); }
         else if(t==T_GRASS&&(rnd()&63)==0){ int d=rnd()&3; int nx=x+dxs[d], ny=y+dys[d]; if(nx>=0&&ny>=0&&nx<WW&&ny<WH&&world[ny][nx]==T_FOREST&&(rnd()&7)==0) setCell(x,y,T_FOREST); } }
+    { static int vc; if((tick&31)==0){ vc=(vc+1)%VIL_N; vilTick(vc); if(vc==0) warMatrix(); } }
     if(((tick)&255)==0){ compact(); year+=(tick%2048)==0; }
 }
 
 // ---------------------------------------------------------------------------------------------- powers (the table is the catalogue)
 typedef struct { const char*nm; u8 kind, arg; } Pw;
-enum { PK_INSPECT, PK_PAINT, PK_SPAWN, PK_RAIN, PK_FIRE, PK_BOLT, PK_METEOR, PK_KILL, PK_HEAL, PK_FEED };
+enum { PK_INSPECT, PK_PAINT, PK_SPAWN, PK_RAIN, PK_FIRE, PK_BOLT, PK_METEOR, PK_KILL, PK_HEAL, PK_FEED, PK_SETTLE, PK_WAR, PK_PEACE, PK_BLESS };
 static const Pw pw[]={ {"INSPECT",PK_INSPECT,0},{"WATER",PK_PAINT,T_WATER},{"DEEP SEA",PK_PAINT,T_DEEP},{"SAND",PK_PAINT,T_SAND},{"GRASS",PK_PAINT,T_GRASS},{"FOREST",PK_PAINT,T_FOREST},{"JUNGLE",PK_PAINT,T_JUNGLE},
     {"HILLS",PK_PAINT,T_HILL},{"MOUNTAIN",PK_PAINT,T_MOUNT},{"SNOW",PK_PAINT,T_SNOW},{"DESERT",PK_PAINT,T_DESERT},{"SWAMP",PK_PAINT,T_SWAMP},{"LAVA",PK_PAINT,T_LAVA},
-    {"SPAWN",PK_SPAWN,0},{"RAIN",PK_RAIN,0},{"FIRE",PK_FIRE,0},{"LIGHTNING",PK_BOLT,0},{"METEOR",PK_METEOR,0},{"SMITE",PK_KILL,0},{"HEAL",PK_HEAL,0},{"FEED",PK_FEED,0} };
+    {"SPAWN",PK_SPAWN,0},{"RAIN",PK_RAIN,0},{"FIRE",PK_FIRE,0},{"LIGHTNING",PK_BOLT,0},{"METEOR",PK_METEOR,0},{"SMITE",PK_KILL,0},{"HEAL",PK_HEAL,0},{"FEED",PK_FEED,0},{"SETTLE",PK_SETTLE,0},{"WAR",PK_WAR,0},{"PEACE",PK_PEACE,0},{"BLESS",PK_BLESS,0} };
 #define PW_N ((int)(sizeof(pw)/sizeof(pw[0])))
 static char info[40];
 static int inspected=-1;
@@ -194,22 +281,27 @@ static void usePower(int tx,int ty,int fresh){
     const Pw*P=&pw[power]; int r=brush;
     for(int dy=-r;dy<=r;dy++) for(int dx=-r;dx<=r;dx++){ if(dx*dx+dy*dy>r*r+r/2) continue; int x=tx+dx, y=ty+dy; if(x<0||y<0||x>=WW||y>=WH) continue;
         switch(P->kind){
-        case PK_PAINT: setCell(x,y,P->arg); if(occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; if(!walkable(&sp[c->sp],x,y)&&(rnd()&3)==0) killCr(occ[y][x]-1); } break;
+        case PK_PAINT: if(bld[y][x]){ bld[y][x]=0; bldv[y][x]=0; } setCell(x,y,P->arg); if(occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; if(!walkable(&sp[c->sp],x,y)&&(rnd()&3)==0) killCr(occ[y][x]-1); } break;
         case PK_SPAWN: if(fresh&&dx==0&&dy==0){ for(int k=0;k<brush;k++) addCr(spSel,x+(k?(int)(rnd()%3)-1:0),y+(k?(int)(rnd()%3)-1:0)); } break;
         case PK_RAIN: if(world[y][x]==T_DIRT||world[y][x]==T_SAND||world[y][x]==T_DESERT) { if((rnd()&3)==0) setCell(x,y,T_GRASS); } else if(world[y][x]==T_LAVA) setCell(x,y,T_MOUNT); else if(world[y][x]==T_GRASS&&(rnd()&15)==0) setCell(x,y,T_FOREST); break;
-        case PK_FIRE: if(world[y][x]==T_FOREST||world[y][x]==T_GRASS||world[y][x]==T_JUNGLE){ if((rnd()&1)==0) setCell(x,y,T_DIRT); } if(occ[y][x]&&(rnd()&1)) { Cr*c=&cr[occ[y][x]-1]; if(c->hp>10) c->hp-=10; else killCr(occ[y][x]-1); } break;
-        case PK_BOLT: if(dx==0&&dy==0){ if(occ[y][x]) killCr(occ[y][x]-1); if(world[y][x]==T_FOREST) setCell(x,y,T_DIRT); } break;
-        case PK_METEOR: if(fresh){ int rr=dx*dx+dy*dy; if(rr<=2) setCell(x,y,T_LAVA); else if(rr<=r*r) setCell(x,y,(rnd()&1)?T_DIRT:T_HILL); if(occ[y][x]) killCr(occ[y][x]-1); } break;
+        case PK_FIRE: burnAt(x,y,90); if(world[y][x]==T_FOREST||world[y][x]==T_GRASS||world[y][x]==T_JUNGLE){ if((rnd()&1)==0) setCell(x,y,T_DIRT); } if(occ[y][x]&&(rnd()&1)) { Cr*c=&cr[occ[y][x]-1]; if(c->hp>10) c->hp-=10; else killCr(occ[y][x]-1); } break;
+        case PK_BOLT: if(dx==0&&dy==0){ burnAt(x,y,255); if(occ[y][x]) killCr(occ[y][x]-1); if(world[y][x]==T_FOREST) setCell(x,y,T_DIRT); } break;
+        case PK_METEOR: if(fresh){ int rr=dx*dx+dy*dy; burnAt(x,y,255); if(rr<=2) setCell(x,y,T_LAVA); else if(rr<=r*r) setCell(x,y,(rnd()&1)?T_DIRT:T_HILL); if(occ[y][x]) killCr(occ[y][x]-1); } break;
         case PK_KILL: if(occ[y][x]) killCr(occ[y][x]-1); break;
         case PK_HEAL: if(occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; c->hp=arch[sp[c->sp].a].hp; } break;
         case PK_FEED: if(occ[y][x]) cr[occ[y][x]-1].food=120; else if(world[y][x]==T_DIRT) setCell(x,y,T_GRASS); break;
-        case PK_INSPECT: if(dx==0&&dy==0&&occ[y][x]) inspected=occ[y][x]-1; break; } }
-    if(P->kind==PK_INSPECT){ if(inspected>=0&&inspected<nCr&&cr[inspected].alive){ Cr*c=&cr[inspected]; char nm[32]; spName(c->sp,nm); siprintf(info,"%s HP%d FOOD%d AGE%d",nm,c->hp,c->food,c->age); } else siprintf(info,"%s",bioNm[world[ty<WH?ty:0][tx<WW?tx:0]]); }
+        case PK_SETTLE: if(fresh&&dx==0&&dy==0){ int race=spSel<8?sp[spSel].a:0; if(vilFound(race,x,y)<0) siprintf(info,"NO ROOM FOR A VILLAGE"); else { for(int k=0;k<4;k++) addCr(spSel<8?spSel:0,x+(int)(rnd()%5)-2,y+(int)(rnd()%5)-2); } } break;
+        case PK_WAR: if(fresh&&dx==0&&dy==0){ int v=vilAny(x,y,4); if(v>=0){ int best=-1,bd=2000; for(int u=0;u<VIL_N;u++){ if(!vil[u].on||u==v||vil[u].race==vil[v].race) continue; int ddx=vil[u].x-vil[v].x, ddy=vil[u].y-vil[v].y, d=ddx*ddx+ddy*ddy; if(d<bd){ bd=d; best=u; } } if(best>=0){ vil[v].foe=(u8)(best+1); siprintf(info,"WAR! %s ATTACKS %s",arch[vil[v].race].nm,arch[vil[best].race].nm); } } } break;
+        case PK_PEACE: if(fresh&&dx==0&&dy==0){ for(int v=0;v<VIL_N;v++) vil[v].foe=0; warMatrix(); siprintf(info,"PEACE"); } break;
+        case PK_BLESS: if(fresh&&dx==0&&dy==0){ int v=vilAny(x,y,4); if(v>=0){ vil[v].stock=(u16)(vil[v].stock+150>400?400:vil[v].stock+150); } } break;
+        case PK_INSPECT: if(dx==0&&dy==0){ if(occ[y][x]) inspected=occ[y][x]-1; else if(bldv[y][x]){ int v=bldv[y][x]-1; char nm[24]; vilName(v,nm); siprintf(info,"%s %s POP%d HOMES%d",arch[vil[v].race].nm,nm,vil[v].pop,vil[v].houses); inspected=-2; } } break; } }
+    if(P->kind==PK_INSPECT&&inspected!=-2){ if(inspected>=0&&inspected<nCr&&cr[inspected].alive){ Cr*c=&cr[inspected]; char nm[32]; spName(c->sp,nm); siprintf(info,"%s HP%d FOOD%d AGE%d",nm,c->hp,c->food,c->age); } else siprintf(info,"%s",bioNm[world[ty<WH?ty:0][tx<WW?tx:0]]); }
 }
-static void newWorld(void){ nCr=0; memset(occ,0,sizeof occ); genWorld(rnd()); winX=-99; refillWindow();
+static void newWorld(void){ nCr=0; memset(occ,0,sizeof occ); memset(bld,0,sizeof bld); memset(bldv,0,sizeof bldv); memset(vil,0,sizeof vil); nVilOn=0; genWorld(rnd()); winX=-99; refillWindow();
     // the first life: a few of each of the first animals on their own ground
     for(int k=0;k<260;k++){ int a=8+(int)(rnd()%(ARCH_N-8)); int s=8+(a-8)*16+(int)(rnd()%16); int x=rnd()%WW, y=rnd()%WH; if(arch[a].diet==3&&k%2) continue; addCr(s,x,y); }
-    for(int k=0;k<20;k++){ int s=(int)(rnd()%8); addCr(s,rnd()%WW,rnd()%WH); } info[0]=0; }
+    for(int r=0;r<8;r++){ if(r>=5&&(rnd()&1)) continue; for(int k=0;k<80;k++){ int x=rnd()%WW, y=rnd()%WH; int v=vilFound(r,x,y); if(v>=0){ for(int q=0;q<5;q++) addCr(r,x+(int)(rnd()%5)-2,y+(int)(rnd()%5)-2); break; } } }   // the peoples start with a village each (the restless ones sometimes stay away)
+    info[0]=0; }
 #ifndef PCTEST
 // ---------------------------------------------------------------------------------------------- screens
 static u16*gfxF[SHAPE_N][2];
@@ -230,13 +322,14 @@ static void drawMinimap(void){
     u8*bm=(u8*)bgGetGfxPtr(3);
     for(int y=0;y<WH;y++) for(int x=0;x<WW;x++){ bm[(y+8)*256+x+64]=(u8)(64+world[y][x]); }
     for(int i=0;i<nCr;i++){ Cr*c=&cr[i]; if(c->alive) bm[(c->y+8)*256+c->x+64]=(u8)(arch[sp[c->sp].a].diet==4?80:arch[sp[c->sp].a].diet==1?81:82); }
+    for(int v=0;v<VIL_N;v++) if(vil[v].on){ for(int dy=-1;dy<=1;dy++) for(int dx=-1;dx<=1;dx++){ int x=vil[v].x+dx,y=vil[v].y+dy; if(x>=0&&y>=0&&x<WW&&y<WH) bm[(y+8)*256+x+64]=(u8)(vil[v].foe?81:84); } }
     int cx0=camX>>3, cy0=camY>>3; for(int x=cx0;x<cx0+32&&x<WW;x++){ bm[(cy0+8)*256+x+64]=83; if(cy0+24<WH) bm[(cy0+24+8)*256+x+64]=83; } for(int y=cy0;y<cy0+24&&y<WH;y++){ bm[(y+8)*256+cx0+64]=83; if(cx0+32<WW) bm[(y+8)*256+cx0+32+64]=83; }
 }
 static void hud(void){
     char nm[32]; spName(spSel,nm); int alive=0; for(int i=0;i<nCr;i++) alive+=cr[i].alive;
     consoleClear(); iprintf("\x1b[0;0HBORE: GODGUY  v0.1%s\n",paused?"  [PAUSED]":"");
     iprintf("\x1b[19;0HPOWER < %s > BRUSH %d\n",pw[power].nm,brush); iprintf("\x1b[20;0HSPECIES %s (%d/%d)\n",nm,spSel+1,nSp);
-    iprintf("\x1b[21;0HLIFE %d   YEAR %d\n",alive,year); iprintf("\x1b[22;0H%s\n",info);
+    { int hh; int pp=vilTotals(&hh); iprintf("\x1b[21;0HLIFE %d  YEAR %d  VILLAGES %d  FOLK %d  HOMES %d\n",alive,year,nVilOn,pp,hh); } iprintf("\x1b[22;0H%s\n",info);
     iprintf("\x1b[23;0HDPAD PAN  L R POWER  X Y SIZE/KIND\n");
 }
 
@@ -250,7 +343,7 @@ int main(void){
     int sb=bgInitSub(3,BgType_Bmp8,BgSize_B8_256x256,0,0); (void)sb;
     consoleInit(NULL,0,BgType_Text4bpp,BgSize_T_256x256,40,4,false,true);
     for(int t=0;t<T_N;t++){ int f=t; BG_PALETTE_SUB[64+t]=RGB15(terrCol[t][0],terrCol[t][1],terrCol[t][2]); (void)f; }
-    BG_PALETTE_SUB[80]=RGB15(31,31,6); BG_PALETTE_SUB[81]=RGB15(31,3,3); BG_PALETTE_SUB[82]=RGB15(31,31,31); BG_PALETTE_SUB[83]=RGB15(31,31,0);
+    BG_PALETTE_SUB[80]=RGB15(31,31,6); BG_PALETTE_SUB[81]=RGB15(31,3,3); BG_PALETTE_SUB[82]=RGB15(31,31,31); BG_PALETTE_SUB[83]=RGB15(31,31,0); BG_PALETTE_SUB[84]=RGB15(31,24,6);
     memset(bgGetGfxPtr(3),0,256*192);
     rs^=(u32)(REG_VCOUNT*2654435761u)^0xA5A5; for(int i=0;i<8;i++) rnd();
     makeSpecies(); makeTiles(); makeSprites(); newWorld(); camX=(WW*8-256)/2; camY=(WH*8-192)/2;
