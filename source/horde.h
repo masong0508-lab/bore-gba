@@ -293,7 +293,7 @@ XPF static void hzIntroCard(void){
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
         if(pr&(K_A|K_B|K_START)) return;
-        stBack(hzTitle(),(int)cnt);
+        stBack(hzTitle(),(int)cnt); exBanner(hzWar?XP_WAR:XP_ZOMB,3,3,234,19,(int)cnt,hzTitle(),0);
         s2rr(8,22,224,118,RGB(16,27,31)); s2rr(9,23,222,116,RGB(2,6,13)); s2grad(10,24,220,114,3,9,19,1,4,10);
         { int pk=hzWar?XP_WAR:XP_ZOMB; exIcon(pk,16,30,4,xPk[pk].b); }
         if(hzWar){ text(60,30,hzOpName(),GOLD,1); text(60,40,hzOn==1?"A HUNDRED WAVES  EASTERN ARMY":"ENDLESS  EASTERN ARMY",RGB(17,29,31),1); } else { text(60,30,hzOn==1?"A HUNDRED WAVES":"ENDLESS",GOLD,1); text(60,40,"BOREZIES  PUNCH OR CHEER THEM UP",RGB(17,29,31),1); }
@@ -316,7 +316,7 @@ XPF static void hzPerkCard(void){
         if(pr&K_A){ int p=hzPerkOpt[sel]; hzPerks|=(u8)(1<<p);
             if(p==HZP_WIND&&hzLives!=255&&hzLives<250) hzLives++; if(p==HZP_CHARGE) lspec=SPEC_MAX; if(p==HZP_HEART){ moodFun=moodClamp(100*MOOD_ONE); if(hzWar) hpHeal(100); }
             sfxPlay(SFX_STICK); return; }
-        stBack("A PERK",(int)cnt);
+        stBack("A PERK",(int)cnt); exBanner(hzWar?XP_WAR:XP_ZOMB,3,3,234,19,(int)cnt,"A PERK",0);
         s2rr(8,22,224,118,RGB(16,27,31)); s2rr(9,23,222,116,RGB(2,6,13)); s2grad(10,24,220,114,3,9,19,1,4,10);
         { char b[28]; char*e=simCat(b,"WAVE "); e=simCatN(e,hzWave); simCat(e," CLEAR"); text(16,30,b,GOLD,1); } text(16,40,"PICK ONE  IT STAYS FOR THE RUN",RGB(17,29,31),1);
         for(int i=0;i<n;i++){ int y=56+i*26, on=i==sel, p=hzPerkOpt[i]; if(on) s2grad(12,y-3,216,24,6,16,26,3,9,17);
@@ -330,7 +330,7 @@ XPF static void hzResultCard(void){
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
         if(cnt>30&&(pr&(K_A|K_B|K_START))) return;
-        stBack(hzWar?(hzRes==1?"THE HEDGE HOLDS":"BATTLE OVER"):(hzRes==1?"HORDE BEATEN":"HORDE OVER"),(int)cnt);
+        { const char*rt=hzWar?(hzRes==1?"THE HEDGE HOLDS":"BATTLE OVER"):(hzRes==1?"HORDE BEATEN":"HORDE OVER"); stBack(rt,(int)cnt); exBanner(hzWar?XP_WAR:XP_ZOMB,3,3,234,19,(int)cnt,rt,0); }
         s2rr(8,22,224,118,RGB(16,27,31)); s2rr(9,23,222,116,RGB(2,6,13)); s2grad(10,24,220,114,3,9,19,1,4,10);
         if(hzRes==1) stSparkle(cnt,12,26,216,100);
         { int pk=hzWar?XP_WAR:XP_ZOMB; exIcon(pk,16,30,4,xPk[pk].b); }

@@ -1356,9 +1356,9 @@ static u32 exMqT;   // the frame counter of the screen that draws it
 static const char* exBrT(const XMs*x){ static char b[244] EWRAM_BSS; char*e=slCat(b,x->br[0]); e=slCat(e," "); slCat(e,x->br[1]); return b; }   // the two lines as one text
 static int exOver(const XMs*x,int w){ return vsOver(exBrT(x),w,2); }   // does the brief need the scroll (more than two lines)?
 static void exBrief(int x,int y,int w,const XMs*m,u16 c){ vsDraw(x,y,w,2,c,exBrT(m),exMqT); }   // two lines show, the rest scrolls up
-static void exPackHead(int p,u32 cnt){   // the pack screen's banner: its scene, its name, how many missions are done
+static void exPackHead(int p,u32 cnt,int live){   // the pack screen's banner: its scene, its name, how many missions are done
     char b[24]; char*e=slNum(b,exPackDone(p)); e=slCat(e," OF "); e=slNum(e,exPackPlay(p)); slCat(e," DONE");
-    exBanner(p,3,3,234,31,(int)cnt,p==XP_BASE?"STORY MISSIONS":xPk[p].nm,b);
+    (live?exBannerLive:exBanner)(p,3,3,234,31,(int)cnt,p==XP_BASE?"STORY MISSIONS":xPk[p].nm,b);
 }
 #define EXR 8   // mission rows on a pack screen
 static void exPackScreen(int p,int ingame){
@@ -1388,10 +1388,10 @@ static void exPackScreen(int p,int ingame){
             else { static const char* const yn[2]={"START THIS MISSION","NOT NOW"}; const char*q=exP?"YOUR MISSION NOW ENDS":xPk[p].ms[m].nm;
                 if(menu(q,yn,2)==0){ exStart(p,m); return; } }
             prev=keyNow(); dirty=1; continue; }
-        exMqT=cnt; { int so=sel>=hasMode&&exOver(&P->ms[sel-hasMode],216); if(!dirty&&(cnt&(so?1:15))){ exPackHead(p,cnt); present(); continue; } }   // (between redraws only the banner moves)
+        exMqT=cnt; { int so=sel>=hasMode&&exOver(&P->ms[sel-hasMode],216); if(!dirty&&(cnt&(so?1:15))){ exPackHead(p,cnt,1); continue; } }   // (between redraws only the banner moves)
         dirty=0;
         if(sel<top) top=sel; if(sel>=top+EXR) top=sel-(EXR-1);
-        stBack(p==XP_BASE?"STORY MISSIONS":P->nm,(int)cnt); exPackHead(p,cnt);
+        stBack(p==XP_BASE?"STORY MISSIONS":P->nm,(int)cnt); exPackHead(p,cnt,0);
         int tr=P->b&31, tg=(P->b>>5)&31, tb=(P->b>>10)&31;   // (the chosen row is lit in the pack's own colour)
         for(int r=0;r<EXR&&top+r<rows;r++){ int i=top+r, y=37+r*10, on=i==sel;
             if(on){ s2grad(8,y-1,224,10,tr*6/10,tg*6/10,tb*6/10,tr*2/10,tg*2/10,tb*2/10); rect(8,y-1,2,10,GOLD); }
@@ -1421,7 +1421,7 @@ static void exShelf(int ingame){
         if(pr&(K_B|K_START)) return;
         if(pr&(K_RIGHT|K_R)){ sel=(sel+1)%EX_SHELF; dirty=1; } if(pr&(K_LEFT|K_L)){ sel=(sel+EX_SHELF-1)%EX_SHELF; dirty=1; }
         if(pr&K_A){ exPackScreen(exOrd[sel],ingame); if(ingame&&exModal) return; prev=keyNow(); dirty=1; continue; }
-        if(!dirty){ exBanner(exOrd[sel],3,3,234,30,(int)cnt,xPk[exOrd[sel]].nm,"EXPANSION PACKS"); present(); continue; }   // (the banner moves)
+        if(!dirty){ exBannerLive(exOrd[sel],3,3,234,30,(int)cnt,xPk[exOrd[sel]].nm,"EXPANSION PACKS"); continue; }   // (the banner moves)
         dirty=0;
         stBack("EXPANSION PACKS",(int)cnt);
         const XPk*P=&xPk[exOrd[sel]]; exBanner(exOrd[sel],3,3,234,30,(int)cnt,P->nm,"EXPANSION PACKS");
@@ -1522,7 +1522,7 @@ static void exJournal(void){   // pause menu > STORY > the mission: what it asks
         { int ct; if((pr&K_A)&&exPlace(&ct)){ int lot=ct==-2?nbT.home:trvPlace(ct); if(lot>=0&&trvGo(lot)){ sfxPlay(SFX_CASH); toast("THE CAB IS HERE"); } else if(lot<0) toast("NO SUCH PLACE IN TOWN"); return; } }
         if(pr&K_SEL){ static const char* const yn[2]={"KEEP GOING","GIVE IT UP"}; if(menu("GIVE UP THIS MISSION?",yn,2)==1){ exQuit(); toast("MISSION OVER  START IT AGAIN ANY TIME"); return; } prev=keyNow(); lt=~0u; continue; }
         if(pr&(K_A|K_B|K_START)) return;
-        exMqT=cnt; { int sh=exOver(&xPk[exP-1].ms[exM],208)?1:4; if(!pr&&(cnt>>sh)==lt){ exBanner(exP-1,3,3,234,19,(int)cnt,"MISSION",xPk[exP-1].nm); present(); continue; } lt=cnt>>sh; }
+        exMqT=cnt; { int sh=exOver(&xPk[exP-1].ms[exM],208)?1:4; if(!pr&&(cnt>>sh)==lt){ exBannerLive(exP-1,3,3,234,19,(int)cnt,"MISSION",xPk[exP-1].nm); continue; } lt=cnt>>sh; }
         int p=exP-1; stBack("MISSION",(int)cnt); exBanner(p,3,3,234,19,(int)cnt,"MISSION",xPk[p].nm);
         exIcon(p,9,21,2,xPk[p].b); text(32,21,xPk[p].nm,GOLD,1); text(32,30,xPk[p].sub,RGB(17,29,31),1);
         { char b[24]; char*e=slNum(b,exM+1); e=slCat(e," OF "); slNum(e,xPk[p].n); text(233-tw(b,1),21,b,WHITE,1); }

@@ -127,15 +127,28 @@ static void exScene(int p,int X,int Y,int BW,int BH,int t){
 static void exDarken(int x,int y,int w,int h,int fade){   // halve the light in a box (a plate under the lettering); the last `fade` columns thin out to every other pixel
     for(int j=0;j<h;j++){ int yy=y+j; if(yy<0||yy>=SH) continue; for(int i=0;i<w;i++){ int xx=x+i; if(xx<0||xx>=SW) continue; if(i>=w-fade&&((i+j)&1)) continue; u16*q=&fb[yy*SW+xx]; *q=(u16)((*q>>1)&0x3DEF); } }
 }
+static int exPlateW(int p,int w,int h,const char*title){   // how wide the dark plate under the lettering is: the title, and the subtitle on a tall banner
+    int pw=tw(title,h>=19?2:1)+22; if(h>=26){ int sw=tw(xPk[p].sub,1)+18; if(sw>pw) pw=sw; } return pw>w-40?w-40:pw;
+}
 // the banner: the pack's scene, then its name (big on a tall banner) on a darkened plate; tag goes small at the right
 static void exBanner(int p,int x,int y,int w,int h,int t,const char*title,const char*tag){
     clipSet(x,y,x+w,y+h);
     exScene(p,x,y,w,h,t);
     int big=h>=19, tx=x+8;
-    int pw=tw(title,big?2:1)+22; if(pw>w-40) pw=w-40; exDarken(x,y,pw,h,10);
+    int pw=exPlateW(p,w,h,title); exDarken(x,y,pw,h,10);
     if(tag){ int tg=tw(tag,1)+10; exDarken(x+w-tg,y,tg,10,4); text(x+w-tg+5,y+2,tag,RGB(31,26,6),1); }
     if(big){ text(tx+1,y+h/2-6,title,RGB(1,1,3),2); text(tx,y+h/2-7,title,WHITE,2); if(h>=26) text(tx,y+h-9,xPk[p].sub,exMix(xPk[p].b,WHITE,6),1); }
     else text(tx,y+h/2-3,title,WHITE,1);
     rect(x,y+h-1,w,1,exMix(xPk[p].b,WHITE,5));
     clipAll();
+}
+// the same banner between redraws of the screen (it moves, nothing else does): the lettering and its plate stay as they were drawn, only the scene to the right of the plate is
+// worked out again, and only the banner's rows are copied up. Every 16th picture it is drawn whole again (the plate shows the scene behind it a little).
+static void exBannerLive(int p,int x,int y,int w,int h,int t,const char*title,const char*tag){
+    if((t&15)==0){ exBanner(p,x,y,w,h,t,title,tag); vsync(); vramCopy(x&~1,y,(x+w+1)&~1,y+h); return; }
+    int pw=exPlateW(p,w,h,title);
+    clipSet(x+pw,y,x+w,y+h); exScene(p,x,y,w,h,t); clipAll();
+    if(tag){ int tg=tw(tag,1)+10; exDarken(x+w-tg,y,tg,10,4); text(x+w-tg+5,y+2,tag,RGB(31,26,6),1); }
+    rect(x+pw,y+h-1,w-pw,1,exMix(xPk[p].b,WHITE,5));
+    vsync(); vramCopy((x+pw)&~1,y,(x+w+1)&~1,y+h);
 }
