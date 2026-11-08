@@ -226,9 +226,9 @@ static u8 vilRace(int v);
 #define TR0 128
 #define TR_SLOTS 500
 static const u8 terrRank[T_N]={0,10,3,1,5,6,7,8,9,3,4,5,2};
-static u16 trMap[32768]; static int trUsed;
+static u16 trKey[1024], trVal[1024]; static int trUsed;   // a small hash of the transition tiles made so far
 static int trTile(int t,int n,int mask,int v,int foam){
-    int key=(((t*16+n)*16+mask)*4+v)*2+foam; u16 e=trMap[key]; if(e) return e-1;
+    int key=(((t*16+n)*16+mask)*4+v)*2+foam; unsigned hi=(unsigned)(key*2654435761u>>22)&1023; while(trKey[hi]){ if(trKey[hi]==key+1) return trVal[hi]; hi=(hi+1)&1023; }
     if(trUsed>=TR_SLOTS) return -1;
     static u8 tl[64] __attribute__((aligned(4)));
     for(int y=0;y<8;y++) for(int x=0;x<8;x++){ int px=tilePix(t,v,x,y); int d=9;
@@ -241,7 +241,7 @@ static int trTile(int t,int n,int mask,int v,int foam){
 #ifndef PCTEST
     vramCopy((u8*)BG_TILE_RAM(1)+slot*64,tl,64);
 #endif
-    trMap[key]=(u16)(slot+1); return slot; }
+    trKey[hi]=(u16)(key+1); trVal[hi]=(u16)slot; return slot; }
 static inline void putCell(int x,int y){   // world cell -> background entry (a 64 x 64 torus of 8 pixel tiles)
     int mx=x&63, my=y&63; int blk=(my>=32?2:0)+(mx>=32?1:0); int t=world[y][x], v=(int)(hsh(x,y,3)&3); u16 e=(u16)(t*4+v);
     if(bld[y][x]) e=(u16)(BT0+bld[y][x]*8+(bldv[y][x]?vilRace(bldv[y][x]-1):0));

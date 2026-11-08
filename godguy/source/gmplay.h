@@ -17,6 +17,9 @@ static int gmCur=-1, gmAcc, gmRow, gmMaster=100, gmPaused, gmTick;
 static int gmPos[11], gmRem[11], gmNote[11], gmAge[11], gmRel[11], gmAlt[11];
 static int gmHz64[128], gmSin[32], gmInit;
 static int gmSlotA, gmSlotB;
+static unsigned char gmBuf[GM_BUFMAX]; static const unsigned char*gmStr[11];   // the song's streams, unpacked when it starts (the ROM keeps them compressed)
+static void gmUnpack(const unsigned char*s,unsigned char*d,int n){   // flag byte (1 = literal), or a 2-byte match: 12 bits back, 4 bits length-3 (15 = 18 + one more byte)
+    int o=0; while(o<n){ int fl=*s++|0x100; while(fl>1&&o<n){ if(fl&1) d[o++]=*s++; else { int a=s[0], b=s[1]; s+=2; int off=((a<<4)|(b>>4))+1, len=(b&15)+3; if(len==18) len+=*s++; while(len--&&o<n){ d[o]=d[o-off]; o++; } } fl>>=1; } } }
 static int fxCur=-1, fxPos, fxFrames, fxAge, fxNote, fxVol, fxKind, fxSlide, fxPitch8, fxOn, fxNoiseOn;
 // envelope per voice: attack frames, decay frames, sustain %, release frames
 static const u8 gmEnv[GMV][4]={ {1,10,86,3}, {1,10,80,3}, {1,14,70,2}, {2,10,88,3}, {10,1,100,8}, {10,1,100,8}, {1,6,85,2}, {1,8,45,1}, {1,16,25,1}, {1,10,86,3} };
@@ -29,14 +32,14 @@ static void gmTables(void){
 static void gmSeek(int row){
     const GmSong*S=&gmSongs[gmCur];
     for(int v=0;v<11;v++){ int pos=0, acc=0; gmNote[v]=0; gmRem[v]=0; gmAge[v]=0; gmRel[v]=-1;
-        while(pos<S->n[v]){ int len=S->v[v][pos+1]; if(acc+len>row){ gmNote[v]=S->v[v][pos]; gmRem[v]=acc+len-row; pos+=2; break; } acc+=len; pos+=2; }
+        while(pos<S->n[v]){ int len=gmStr[v][pos+1]; if(acc+len>row){ gmNote[v]=gmStr[v][pos]; gmRem[v]=acc+len-row; pos+=2; break; } acc+=len; pos+=2; }
         gmPos[v]=pos; }
     gmRow=row;
 }
 static void gmStop(void){ for(int v=0;v<GMV;v++) gb_vstop(v); gmCur=-1; }
 static void gmPlay(int s){
     gmTables(); if(s==gmCur) return; if(gmCur>=0) gmStop(); if(s<0||s>=GM_SONGS) return;
-    gmCur=s; gmAcc=0; gmSlotA=gmSlotB=0; gmSeek(0); gmRow=0; ldRate=gmHz64[60]; ldVol=0; ldPan=64;
+    gmCur=s; { int o=0; for(int v=0;v<11;v++){ gmStr[v]=gmBuf+o; gmUnpack(gmSongs[s].v[v],gmBuf+o,gmSongs[s].n[v]); o+=gmSongs[s].n[v]; } } gmAcc=0; gmSlotA=gmSlotB=0; gmSeek(0); gmRow=0; ldRate=gmHz64[60]; ldVol=0; ldPan=64;
     for(int v=0;v<GMV;v++){ gb_vstart(v,gmSongs[s].inst[v<9?v:0]); gmAge[v]=0; gmRel[v]=-1; gmAlt[v]=0; }
 }
 static int gmFadeMul(void){ const GmSong*S=&gmSongs[gmCur]; if(!S->fade||gmRow<S->fade) return 256; int r=S->rows-S->fade; if(r<=0||gmRow>=S->rows) return 0; int m=256*(S->rows-gmRow)/r; return m*m>>8; }   // the closing fade of a long suite
@@ -81,7 +84,7 @@ static void gmFrame(void){
         while(gmAcc>=65536){ gmAcc-=65536;
             if(gmRow>=S->rows){ if(S->loopRow==65535){ gmStop(); break; } gmSeek(S->loopRow); for(int v=0;v<GMV;v++){ gmAge[v]=8; } }
             for(int v=0;v<11;v++){
-                if(gmRem[v]==0){ if(gmPos[v]>=S->n[v]) continue; int n=S->v[v][gmPos[v]], len=S->v[v][gmPos[v]+1]; gmPos[v]+=2; gmRem[v]=len;
+                if(gmRem[v]==0){ if(gmPos[v]>=S->n[v]) continue; int n=gmStr[v][gmPos[v]], len=gmStr[v][gmPos[v]+1]; gmPos[v]+=2; gmRem[v]=len;
                     if(v<GMV){ if(n){ if(!(n==gmNote[v]&&(v==4||v==5))) gmNoteOn(v,n); else gmRel[v]=-1; } else if(gmNote[v]&&gmRel[v]<0) gmRel[v]=0; }
                     else gmDrum(v-9,n); }
                 if(gmRem[v]>0) gmRem[v]--; }
