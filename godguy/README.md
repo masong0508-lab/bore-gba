@@ -65,3 +65,5 @@ Chill pack 2: Dave the Couch Wizard joins the story (chapters 4, 10 and 13), 16 
 ## Five great suites
 Aural Sculptures gained six long medleys (the sixth, ALL OF IT, ONCE MORE, 26 min, is woven from every track including the other suites, with a newly composed sparkle line over it)
 The first five: (open from the start, gold in the list): ONE LONG DAWN (7:40), THE WHOLE ROAD (11:00), A GOD'S AFTERNOON ON THE LONG COUCH (13:55), ALL THE KINGS AND ALL THE STORMS (17:10) and THE ENDLESS BORE (23:00). Each is woven by tools/gm3_compose.py from excerpts of the other tracks, time-scaled to one tempo and moved along a key plan.
+
+Suites v2: every excerpt join has a drum fill and crash, some excerpts open drum-less, with an octave-up echo or with the lead laying out; each suite ends with a long drawn-out ending (the music slows to three times its length while the voices leave one by one, then held chords and a few bell notes) and a real master-volume fade to silence (GmSong.fade).

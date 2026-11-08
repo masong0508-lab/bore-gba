@@ -39,12 +39,13 @@ static void gmPlay(int s){
     gmCur=s; gmAcc=0; gmSlotA=gmSlotB=0; gmSeek(0); gmRow=0; ldRate=gmHz64[60]; ldVol=0; ldPan=64;
     for(int v=0;v<GMV;v++){ gb_vstart(v,gmSongs[s].inst[v<9?v:0]); gmAge[v]=0; gmRel[v]=-1; gmAlt[v]=0; }
 }
+static int gmFadeMul(void){ const GmSong*S=&gmSongs[gmCur]; if(!S->fade||gmRow<S->fade) return 256; int r=S->rows-S->fade; if(r<=0||gmRow>=S->rows) return 0; int m=256*(S->rows-gmRow)/r; return m*m>>8; }   // the closing fade of a long suite
 static void gmDrum(int part,int id){
     int soft=(id>>7)&1; id&=127; if(!id) return; int vol, pan, idx, slot;
     if(part==0){ static const u8 dv[8]={0,120,105,95,100,100,100,80}, dp[8]={0,64,64,70,38,62,88,76}; if(id>7) return; idx=id-1; vol=dv[id]; pan=dp[id]; slot=(gmSlotA^=1); }
     else { static const u8 dv[7]={0,60,62,80,66,45,42}; if(id>6) return; idx=id-1; vol=dv[id]; gmAlt[10]^=1;
         pan=id==3?34:id==4?100:id==2?92:(gmAlt[10]?46:82); slot=2+(gmSlotB^=1); }
-    if(soft) vol=vol*55/100; vol=vol*gmMaster/100*40/100;
+    if(soft) vol=vol*55/100; vol=vol*gmMaster/100*40/100; vol=vol*gmFadeMul()>>8;
     gb_hit(slot,part,idx,vol,pan);
 }
 static void gmNoteOn(int v,int n){
@@ -67,7 +68,7 @@ static void gmVoiceFrame(int v,const GmSong*S){
     int pan=S->pan[v];
     if(v==0) pan+=gmSin[(gmTick>>4)&31]*10>>7; else if(v==4) pan+=gmSin[(gmTick>>5)&31]*8>>7; else if(v==5) pan-=gmSin[(gmTick>>5)&31]*8>>7;
     else if(v==7) pan=gmAlt[v]?26:102; else if(v==8) pan=gmAlt[v]?104:24; else if(v==2) pan=gmAlt[v]?24:104;
-    int vol=S->vol[v]*lev/100*gmMaster/100*56/100;
+    int vol=S->vol[v]*lev/100*gmMaster/100*56/100; vol=vol*gmFadeMul()>>8;
     if(pan<0) pan=0; if(pan>127) pan=127;
     gb_vset(v,rate,vol,pan);
     if(v==0){ ldRate=rate; ldVol=vol; ldPan=pan; }

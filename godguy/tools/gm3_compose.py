@@ -42,26 +42,58 @@ def build_suites(G, base_tracks, built):
             b0 = rnd.choice(wins); ln = 16 if nb - b0 >= 16 else 8
             key = (S['home'] + S['plan'][k % len(S['plan'])]) % 12; k += 1
             pieces.append((i, b0, ln, key)); bars += ln
-        i = choose(); used[i] = used.get(i, 0) + 1; nb = built[i][0].cells // 16; pieces.append((i, nb - 8, 8, S['home'])); bars += 8
+        i = choose(); used[i] = used.get(i, 0) + 1; nb = built[i][0].cells // 16; pieces.append((i, max(0, nb - 16), 16, S['home'], 'end'))
         # the weave
-        total_cells = 0; segs = []
-        for (i, b0, ln, key) in pieces:
-            sc, lb, bpm, kt, mt = built[i]; f = S['bpm'] / bpm; n = int(round(ln * 16 * f)); segs.append((i, b0, ln, key, f, n, kt)); total_cells += n
-        out_sc = G.Sc((total_cells + 15) // 16 + 1); pos = 0
-        for (i, b0, ln, key, f, n, kt) in segs:
-            sc = built[i][0]; shift = ((key - kt + 6) % 12) - 6; c0 = b0 * 16; c1 = c0 + ln * 16
+        def ramp(C):    # time-stretch ramp for the ending: the music slows to three times its length
+            st = [0.0]; acc = 0.0
+            for c in range(C): acc += 1.0 + 2.0 * (float(c) / C) ** 1.5; st.append(acc)
+            return st
+        segs = []; total_cells = 0
+        for pc in pieces:
+            i, b0, ln, key = pc[:4]; kind = pc[4] if len(pc) > 4 else 'x'
+            sc, lb, bpm, kt, mt = built[i]; f = S['bpm'] / bpm
+            if kind == 'end': n = int(ramp(ln * 16)[-1] * f) + 12 * 16 * 3 // 2 + 16
+            else: n = int(round(ln * 16 * f))
+            segs.append((i, b0, ln, key, f, n, kt, kind)); total_cells += n
+        out_sc = G.Sc((total_cells + 15) // 16 + 1); pos = 0; segno = 0
+        KICK_, SNARE_, CRASH_, HATSOFT = 1, 2, 3, 6 | 0x80
+        for (i, b0, ln, key, f, n, kt, kind) in segs:
+            sc = built[i][0]; shift = ((key - kt + 6) % 12) - 6; c0 = b0 * 16; c1 = c0 + ln * 16; C = ln * 16
+            st = ramp(C) if kind == 'end' else None
+            def mp(c):   # source cell -> output offset
+                return (st[c - c0] * f) if st else (c - c0) * f
             for vc in range(G.NV):
                 cells = sc.v[vc]
                 for c in range(c0, c1):
                     nt, l = cells[c]
                     if nt <= 0: continue
-                    nc = pos + int(round((c - c0) * f)); ne = pos + int(round((min(c + l, c1) - c0) * f)); l2 = max(1, ne - nc)
+                    nc = pos + int(round(mp(c))); ne = pos + int(round(mp(min(c + l, c1)))); l2 = max(1, ne - nc)
+                    if kind == 'end':
+                        pr = float(c - c0) / C   # voices leave one by one as the ending draws out
+                        if (vc in (9, 10) and pr > 0.2) or (vc == 8 and pr > 0.35) or (vc == 7 and pr > 0.3) or (vc == 3 and pr > 0.55) or (vc == 2 and pr > 0.5) or (vc == 1 and pr > 0.7) or (vc == 6 and pr > 0.8): continue
+                        if vc == 0 and pr > 0.9: continue
                     if vc < 9:
                         nt += shift
                         while nt > G.MAXN: nt -= 12
                         while 0 < nt < 24: nt += 12
                     if nc < out_sc.cells: out_sc.v[vc][nc] = (nt, min(l2, out_sc.cells - nc))
-            if S.get('newlayer'):   # a brand new line of our own over every excerpt: a pentatonic motif that is reborn each time
+            if kind == 'x' or kind == 'i':
+                seg_end = pos + n
+                # spice: a drum fill and crash at every join, sometimes a drum-less build, an octave-up echo, or the lead laying out for a while
+                r = rnd.random()
+                if kind == 'x':
+                    if r < 0.28:
+                        for c in range(pos, min(pos + 64, seg_end)): out_sc.v[10][c] = (0, 0); out_sc.v[9][c] = (0, 0)
+                    elif r < 0.5 and not S.get('newlayer'):
+                        for c in range(pos, seg_end):
+                            nt, l = out_sc.v[0][c]
+                            if nt > 0 and ((c - pos) // 64) % 2 == 1: out_sc.v[8][c] = (min(nt + 12, G.MAXN), max(1, l // 2))
+                    elif r < 0.66:
+                        for c in range(pos + 32, min(pos + 96, seg_end)): out_sc.v[0][c] = (0, 0)
+                for k_, d_ in enumerate((SNARE_ | 0x80, SNARE_ | 0x80, SNARE_, SNARE_)):
+                    if seg_end - 4 + k_ >= 0 and seg_end - 4 + k_ < out_sc.cells and segno + 1 < len(segs): out_sc.v[9][seg_end - 4 + k_] = (d_, 1)
+                if segno + 1 < len(segs) and seg_end < out_sc.cells: out_sc.v[10][seg_end] = (CRASH_, 1)
+            if S.get('newlayer') and kind != 'end':   # a brand new line of our own over every excerpt: a pentatonic motif that is reborn each time
                 sc8 = out_sc.v[8]
                 for c in range(pos, pos + n): sc8[c] = (0, 0)
                 pent = [0, 2, 4, 7, 9]; root = 60 + key % 12; motif = [(rnd.choice(pent) + 12 * rnd.choice([0, 0, 1]), rnd.choice([2, 2, 3, 4])) for _ in range(5)]
@@ -71,10 +103,18 @@ def build_suites(G, base_tracks, built):
                     while nt > G.MAXN: nt -= 12
                     if rnd.random() < 0.78: sc8[c] = (nt, min(l, pos + n - c))
                     c += l * 2; j += 1
-            pos += n
-        out_sc.cells = pos; 
+            if kind == 'end': out_sc.fade = pos + int(0.25 * n)   # the master volume falls away from here to the last row
+            if kind == 'end':   # the tail: held chords, a few bell notes further and further apart, then silence
+                t0 = pos + int(ramp(C)[-1] * f); R_ = 48 + S['home'] % 12; T = 12 * 16 * 3 // 2
+                for vc, nt in ((4, R_ + 4 + 12), (5, R_ + 7 + 12), (6, R_)): out_sc.v[vc][t0] = (nt, min(T - 16, out_sc.cells - t0))
+                gap = 8; c = t0 + 4
+                for q in range(6):
+                    if c < out_sc.cells: out_sc.v[0][c] = (min(R_ + 24 + (0, 7, 4, 12, 7, 0)[q], G.MAXN), 24)
+                    c += gap; gap = gap * 2 - 2
+            pos += n; segno += 1
+        out_sc.cells = pos
         for vc in range(G.NV): out_sc.v[vc] = out_sc.v[vc][:pos]
         mins = pos * 15.0 / S['bpm'] / 60
         base_tracks.append(dict(name=S['name'], mood=S['mood'], form='suite')); built.append((out_sc, 0, S['bpm'], S['home'], 'maj'))
-        out.append((S, out_sc, [(base_tracks[i]['name'], b0, ln) for (i, b0, ln, key, f, n, kt) in segs], mins))
+        out.append((S, out_sc, [(base_tracks[i]['name'], b0, ln) for (i, b0, ln, key, f, n, kt, kind) in segs], mins))
     return out
