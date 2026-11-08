@@ -102,7 +102,11 @@ static inline void ksComfort(KSim*S){
         S->cmf[i]=(u8)((has&1)+((has>>1)&1)); }
 }
 // the production period of building i, with its comfort: 1/8 shorter for each kind (never under 1)
-static inline unsigned ksPeriod(const KSim*S,int i){ unsigned p=ksT(S->B[i].type)->period; unsigned q=p-p*S->cmf[i]/8u; return q<1u?1u:q; }
+static u8 ksSeasonsOn;   // 1: the realm has seasons (KINGDOM MODE sets it; the PC tests leave it 0, so their sums stay as they were). Eight realm days to a season, spring first (kingamb.h)
+static inline unsigned ksPeriod(const KSim*S,int i){ unsigned p=ksT(S->B[i].type)->period; unsigned q=p-p*S->cmf[i]/8u;
+    if(ksSeasonsOn){ int sn=(int)((S->R->day>>3)&3u), c=S->cmf[i];   // winter slows the work by a quarter (a well in reach: an eighth; a well and a tavern: not at all); the autumn harvest speeds it by an eighth
+        if(sn==3) q+=c>=2?0u:c==1?q/8u:q/4u; else if(sn==2) q-=q/8u; }
+    return q<1u?1u:q; }
 static inline void ksCensus(KSim*S){
     KRealm*R=S->R; int pop=KS_PARTY, emp=0, st=0;
     for(int i=0;i<R->nB;i++){ const KBld*b=&S->B[i]; const KsType*T=ksT(b->type); if(!b->lvl) continue;

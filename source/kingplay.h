@@ -47,6 +47,7 @@ static int kpSettle(KmMem*m){
 #include "kinghand.h"   // Phase 4d: building by hand (A acts on the cell under the giant's feet)
 #include "kinggiant.h"  // Phase 4g: the walking giant (pure C: movement, camera, OAM words)
 #include "kingfx.h"     // Phase 6: the life on the map (carriers, workers, smoke, the cursor)
+#include "kingamb.h"    // the seasons and the ambient life (snow, leaves, butterflies, birds, fireflies, bats)
 #include "kingadv.h"    // the advisor: what is stuck, what comes next (the GOALS screen)
 #include "kingover.h"   // Phase 4i: the overview (the whole realm, a pixel a cell)
 #define KH_BLANK (KV_TILES+KH_TILES)   // the see-through tile, after the text tiles (tile 492 of 512: the map's tiles, the text's, this one)
@@ -60,7 +61,8 @@ static void kpFxShow(const u16*pl,int n){ volatile u16*o=(volatile u16*)0x070000
 // the light of the day: every palette scaled by a tint that follows the realm's day (kvDayTint). Bank 15 (the text) and the cursor are left alone.
 static void kpTint(const KSim*S){
     int tr,tg,tb; kvDayTint((unsigned)(S->t%KS_DAYT),&tr,&tg,&tb);
-    volatile u16*pal=(volatile u16*)0x05000000; for(int b=0;b<15;b++) for(int i=0;i<16;i++) pal[b*16+i]=kvTintC(kaPal[b][i],tr,tg,tb);
+    int sn,nx,sk; kaSeason(S,&sn,&nx,&sk);   // the season: the land's own colours (bank 0) first, then the light of the day over everything
+    volatile u16*pal=(volatile u16*)0x05000000; for(int b=0;b<15;b++) for(int i=0;i<16;i++) pal[b*16+i]=kvTintC((b==0||(b>=2&&i>=1&&i<=3))?kaSeasonMix(kaPal[b][i],sn,nx,sk):kaPal[b][i],tr,tg,tb);   // (the land, and the three greens every building's own picture keeps for the ground round it)
     volatile u16*op=(volatile u16*)0x05000200; for(int i=0;i<16;i++) op[i]=kvTintC(kpGiantPal[i],tr,tg,tb);
     for(int b=1;b<7;b++) for(int i=0;i<16;i++) op[b*16+i]=kvTintC(kaObjPal[b][i],tr,tg,tb);
     for(int i=0;i<16;i++) op[8*16+i]=kvTintC(kaObjPal[8][i],tr,tg,tb);                // (bank 8: the crowds)
@@ -117,6 +119,8 @@ static void kvHwEnter(KView*V,const KSim*S){
       for(int t=0;t<4;t++) for(int i=0;i<16;i++) ot[t*16+i]=(u16)(kaSmoke[t][2*i]|(kaSmoke[t][2*i+1]<<8)); ot+=4*16;
       for(int t=0;t<4;t++) for(int i=0;i<16;i++) ot[t*16+i]=(u16)(kaCursor[t][2*i]|(kaCursor[t][2*i+1]<<8)); ot+=4*16;
       for(int t=0;t<56;t++) for(int i=0;i<16;i++) ot[t*16+i]=(u16)(kaCrowd[t][2*i]|(kaCrowd[t][2*i+1]<<8)); }   // the crowds: OBJ tiles 316..371
+    { volatile u16*at=(volatile u16*)(0x06010000+KA_AMB*32); u16 tl[16]; for(int t=0;t<KA_AMB_N;t++){ kaAmbTile(t,tl); for(int i=0;i<16;i++) at[t*16+i]=tl[i]; }   // the weather's and the wildlife's pictures: OBJ tiles KA_AMB.., bank 9
+      volatile u16*ap=(volatile u16*)(0x05000200+KA_AMBPAL*32); for(int i=0;i<16;i++) ap[i]=kaAmbPal[i]; }
     kpTint(S); { volatile u16*op=(volatile u16*)0x05000200; for(int i=0;i<16;i++) op[7*16+i]=kaObjPal[7][i]; }   // (the cursor is never tinted)
     { volatile u16*pal=(volatile u16*)0x05000000; pal[15*16+1]=0x7FFF; pal[15*16+2]=RGB(1,1,3); pal[15*16+3]=RGB(31,26,6); pal[15*16+4]=RGB(19,19,22); pal[15*16+5]=RGB(21,16,3); }   // bank 15: the text: white, a dark outline, gold, soft white, soft gold
     *(volatile u16*)0x0400000A=0x0900;                                             // BG1CNT: priority 0 (above the map), charblock 0, screenblock 9
@@ -199,6 +203,66 @@ static void kpOver(const KmMem*m,const KGiant*G,u32 cnt){   // the overview scre
     rect(0,0,240,160,RGB(0,0,2)); koDraw(fb,m->S,kgCx(G),kgCy(G),(int)((cnt>>3)&1)); text(2,1,"OVERVIEW",GOLD,1);
     { const char*a="SEL STATUS"; s2pill(5,147,tw(a,1)+10,a); } present(); }
 static const char* const kpStageMsg[KG_CASTLE]={ "FOUNDATION LAID", "WALLS STAND", "TOWERS RISE", "CASTLE DONE  A MONARCH IS CROWNED" };   // (step 5b) said in the text layer when a castle stage is finished
+// THE CARAVAN's counter (kingamb.h): with a load in the hands, A sells it; with empty hands a list of every good in the stockpile opens, A sells up to ten of the one picked (the money is the life game's:
+// simMoneyAdd), B leaves. The books stay true: what is sold leaves the stockpile and S->made together, like a bridge's stone.
+static void kpTrade(KmMem*m,KView*V,const char**say){
+    KSim*S=m->S; static char sb[44]; KHold*h=&S->hd;
+    if(h->k==KHD_GOODS&&h->n>0){ int g=h->g, n=h->n, v=kaPay(S,g,n); S->made[g]-=n; h->k=KHD_NONE; h->n=0; simMoneyAdd((money_t)v);
+        char*e=khCat(sb,"SOLD "); e=khNum(e,n); e=khCat(e," "); e=khCat(e,kaGoodNm[g&7]); e=khCat(e,"  +"); e=khNum(e,v); khCat(e," SIMOLEONS"); *say=sb; sfxPlay(SFX_CASH); return; }
+    if(h->k){ *say="PUT THAT DOWN FIRST"; sfxPlay(SFX_BONK); return; }
+    kvHwLeave(); int sold=0, total=0, cur=0;
+    for(;;){
+        char bl[KG_GOODS][40]; const char*bi[KG_GOODS]; char ttl[40];
+        for(int g=0;g<KG_GOODS;g++){ char*e=khCat(bl[g],kaGoodNm[g]); e=khCat(e,"  "); e=khNum(e,kaPrice[g]); e=khCat(e," EACH  HAVE "); e=khNum(e,m->R->goods[g]); if(g==kaWanted(S)) khCat(e,"  WANTED"); bi[g]=bl[g]; }
+        { char*e=khCat(ttl,"THE CARAVAN WANTS "); khCat(e,kaGoodNm[kaWanted(S)]); }
+        rect(0,0,SW,SH,RGB(2,5,12)); rect(0,0,SW,13,RGB(5,12,22)); text(8,3,"THE LAND BOREFORE TIME",GOLD,1);
+        int c=menu(ttl,bi,KG_GOODS); if(c<0) break; cur=c;
+        int n=m->R->goods[c]; if(n>10) n=10; if(n<=0){ toast("NONE IN THE STOREHOUSE"); continue; }
+        int v=kaPay(S,c,n); m->R->goods[c]=(u16)(m->R->goods[c]-n); S->made[c]-=n; simMoneyAdd((money_t)v); sold+=n; total+=v; sfxPlay(SFX_CASH);
+        { char*e=khCat(sb,"SOLD "); e=khNum(e,n); e=khCat(e," "); e=khCat(e,kaGoodNm[c]); e=khCat(e,"  +"); e=khNum(e,v); khCat(e," SIMOLEONS"); toast(sb); } }
+    (void)cur; kvHwEnter(V,S);
+    if(sold){ char*e=khCat(sb,"SOLD "); e=khNum(e,sold); e=khCat(e," GOODS  +"); e=khNum(e,total); khCat(e," SIMOLEONS"); *say=sb; } else *say="THE TRADER SHRUGS";
+}
+// THE CEREMONY: a castle stage done (1 foundation, 2 walls, 3 towers) or the crown (4). A real-time scene of its own (the map's hardware mode is left and entered again by the caller): the castle as far as it
+// has come, the Nubbins at its foot, and for the crown a night of fireworks, bells and flags. It runs on the vblank clock, so it takes the same time at any picture rate; A skips it once it has had its moment.
+static void kpRoof(int cx,int top,int half,int h,u16 c,u16 d){ for(int r=0;r<h;r++){ int w=half*(r+1)/h; rect(cx-w,top+r,2*w,1,(r&1)?d:c); } }
+static void kpCeremony(int stage,const char*title,const char*sub){
+    int crown=stage>=KG_CASTLE, T=crown?480:130, skipAt=crown?110:36; u32 vb0=vblN, fired=0; u16 prev=keyNow();
+    static const u16 fwc[4]={ RGB(31,26,6), RGB(31,10,8), RGB(12,26,31), RGB(22,31,10) };
+#define CY(v) ((v)+14)
+    for(;;){
+        int t=(int)(vblN-vb0); if(t>=T) break;
+        u16 k=keyNow(), pr=k&~prev; prev=k; if(t>skipAt&&(pr&(K_A|K_B|K_START))) break;
+        for(int y=0;y<SH;y+=2) rect(0,y,SW,2,crown?exMix(RGB(0,0,5),RGB(8,4,14),y*16/SH):exMix(RGB(3,6,16),RGB(31,17,8),y*16/SH));   // the sky: a night for the crown, a dusk for a stage
+        for(int i=0;i<(crown?46:22);i++){ unsigned h=kvHash(i,7); int x=(int)(h%240u), y=(int)((h>>9)%100u); px(x,y,(((t>>3)+i)&7)<6?RGB(28,28,31):RGB(12,12,18)); }
+        disc(34,44,8,RGB(29,29,26)); disc(37,42,7,crown?RGB(3,2,9):RGB(11,9,15));   // the moon, thin
+        { int hy=CY(120); for(int x=0;x<SW;x+=6){ int hh=8+exSn(x*2+11,150)/20; rect(x,hy-hh,6,hh+2,RGB(2,7,5)); } rect(0,hy,SW,SH-hy,RGB(2,6,4));
+          for(int y=hy;y<SH;y++){ int hw=6+(y-hy)/2; rect(120-hw,y,2*hw,1,RGB(9,6,3)); } }   // the hills, and the road widening towards us
+        u16 st=RGB(17,17,20), sh=RGB(11,11,13), hl=RGB(23,23,25);
+        rect(62,CY(112),116,8,sh); rect(62,CY(112),116,1,hl);   // the footing
+        if(stage==1){ for(int x=70;x<=166;x+=24){ rect(x,CY(84),2,28,RGB(14,9,4)); } rect(70,CY(84),98,2,RGB(14,9,4)); rect(70,CY(98),98,2,RGB(14,9,4)); }   // scaffolding
+        if(stage>=2){ rect(68,CY(84),104,28,st); rect(68,CY(84),2,28,hl); for(int y=90;y<112;y+=6) rect(68,CY(y),104,1,sh); for(int x=68;x<172;x+=8) rect(x,CY(80),5,4,st); rect(110,CY(96),20,16,RGB(2,2,4)); disc(120,CY(98),10,RGB(2,2,4)); rect(110,CY(96),20,1,RGB(2,2,4)); }
+        if(stage>=3){ for(int q=0;q<2;q++){ int tx=q?160:56; rect(tx,CY(54),24,58,st); rect(tx,CY(54),2,58,hl); for(int y=60;y<112;y+=6) rect(tx,CY(y),24,1,sh); for(int x=tx;x<tx+24;x+=8) rect(x,CY(50),5,4,st); kpRoof(tx+12,CY(34),15,16,RGB(26,5,4),RGB(18,3,3)); rect(tx+10,CY(66),4,8,(((t>>4)+q)&3)?RGB(31,26,6):RGB(12,9,2)); }
+            rect(96,CY(40),48,46,st); rect(96,CY(40),2,46,hl); for(int y=46;y<84;y+=6) rect(96,CY(y),48,1,sh); kpRoof(120,CY(16),28,24,RGB(26,5,4),RGB(18,3,3)); rect(116,CY(52),8,12,RGB(31,26,6)); rect(117,CY(54),2,8,RGB(12,9,2)); }
+        if(crown){ for(int q=0;q<3;q++){ int fx=q==0?66:q==1?170:117, fy=q==2?CY(0):CY(18); rect(fx+13,fy,1,16,RGB(8,6,6)); for(int i=0;i<14;i++) rect(fx+14+i,fy+exSn(t*2+i*7,34)/50,1,7-i/3,RGB(31,8,6)); }
+            for(int q=0;q<4;q++){ int tx=q<2?(q?150:92):(q==2?58:166); rect(tx,CY(102),2,3,RGB(31,22,4)); if(((t>>2)+q)&1) px(tx,CY(101),RGB(31,31,12)); } }
+        // the crowd at the foot: a head, a body, arms up and jumping once the crown is on
+        for(int i=0;i<26;i++){ unsigned h=kvHash(i,31); int x=8+i*9+(int)(h%4u), y=CY(132)+(int)((h>>5)%9u), j=(crown&&exSn(t*3+i*17,24)>50)?-3:0; u16 c=((h>>9)&3)==0?RGB(28,8,6):((h>>9)&3)==1?RGB(8,14,28):((h>>9)&3)==2?RGB(10,24,10):RGB(28,24,6);
+            rect(x,y+j,4,5,c); rect(x,y-3+j,4,3,RGB(27,20,15)); if(crown||((t>>5)+i)&1){ px(x-1,y-2+j,RGB(27,20,15)); px(x+4,y-2+j,RGB(27,20,15)); } }
+        if(crown){ for(int b=0;b<7;b++){ int tb=30+b*58, age=t-tb; if(age<0||age>110) continue; unsigned h=kvHash(b,3); int bx=40+(int)(h%160u), by=36+(int)((h>>9)%34u); u16 c=fwc[(b+(int)(h>>20))&3];
+                if(!(fired&(1u<<b))){ fired|=1u<<b; sfxPlay((b&1)?SFX_THUNDER:SFX_POP); }
+                if(age<6){ int fr=age<3?8+age*6:26-age*3; disc(bx,by,fr,exMix(c,WHITE,8)); }   // the flash
+                for(int p=0;p<36;p++){ int a=(p*64/36+b*5)&63, r=(50+(p&1)*14)*age/(age+14), x=bx+exS64[(a+16)&63]*r/127, y=by+exS64[a]*r/127+age*age/120; u16 f=exMix(c,RGB(0,0,4),age>40?(age-40)*16/70:0);
+                    rect(x,y,3,3,f); if(age<70&&(p&1)) rect(x-exS64[(a+16)&63]/30,y-exS64[a]/30,2,2,exMix(f,RGB(0,0,4),8)); } }
+            if((t&63)==2) sfxPlay(SFX_BELL); }
+        // the words on a dark plate
+        exDarken(0,0,SW,crown?30:26,0); rect(0,crown?30:26,SW,1,GOLD);
+        text((SW-tw(title,2))/2,3,title,crown?GOLD:WHITE,2); text((SW-tw(sub,1))/2,crown?19:17,sub,RGB(20,26,31),1);
+        if(t>skipAt) text(SW-tw("A CONTINUE",1)-4,SH-10,"A CONTINUE",DIMC,1);
+        present();
+    }
+#undef CY
+}
 static int kpRun(int slot){   // returns 0: the KINGDOM list should rescan (the realm's slot moved)
     KmMem m; int e=kpOpen(&m,slot); if(e){ toast(kpWhy(e)); return 0; }
     char nm[SLOT_NAME+1]; { int i=0; for(;i<SLOT_NAME&&slI[slot].name[i];i++) nm[i]=slI[slot].name[i]; nm[i]=0; if(!i){ nm[0]='R'; nm[1]='E'; nm[2]='A'; nm[3]='L'; nm[4]='M'; nm[5]=0; } }
@@ -206,7 +270,8 @@ static int kpRun(int slot){   // returns 0: the KINGDOM list should rescan (the 
     static const int per[3]={1,4,16}; int spd=0, mapOn=1, ov=0, hudT=0, hudD=1; const char*hmsg=0; u32 cnt=0; u16 prev=keyNow(); KHand hand; khInit(&hand); int hcx=-1, hcy=-1, lrx=-1, lry=-1;   // lrx, lry: the last cell a road was laid on by holding A
     KGiant G; kgPlace(&G,m.S,m.R->gx,m.R->gy); kpGiant=m.R->giant; kpBk=0;
     KView V; kvInit(&V,m.cells,m.S->dim,m.B,m.R->nB); V.castle=m.R->castle; kgCamera(&V,&G); kvHwEnter(&V,m.S);
-    KFx fx; kfInit(&fx); u16 plan[KF_MAX*3]; int water=0, lastCastle=m.R->castle, mil=0; static char tipB[48];
+    u32 vbPrev=vblN; int stCap=16, stOk=0;
+    KFx fx; kfInit(&fx); ksSeasonsOn=1; int lastCv=kaCaravanHere(m.S); int lastSn=(int)((m.R->day>>3)&3u); u16 plan[128*3]; int water=0, lastCastle=m.R->castle, mil=0; static char tipB[48];
     while(mil<8&&m.S->pop>=kpMil[mil]) mil++;   // (the ones it is past already are not said again)   // (the plan of the sprites: 720 bytes, once; the carriers' tracking: 200)
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
@@ -231,17 +296,24 @@ static int kpRun(int slot){   // returns 0: the KINGDOM list should rescan (the 
             int cx=kgCx(&G), cy=kgCy(&G);
             if(!(cnt&23)){ water^=1; kpWater(water); }                              // the waves
             if(!(cnt&7)) kpTint(m.S);                                               // the light of the day (eight frames: 75 small steps a day)
-            { int n=kfPlan(plan,&fx,m.S,&V,&G,(unsigned)cnt,spd==0); kpFxShow(plan,n); }   // carriers, workers, smoke, the cursor
+            { int n=kfPlan(plan,&fx,m.S,&V,&G,(unsigned)cnt,spd==0); n=kaCaravan(plan,n,m.S,&V,(unsigned)cnt); n=kaAmbient(plan,n,m.S,(unsigned)cnt); kpFxShow(plan,n); }   // carriers, workers, smoke, the cursor
             if(pr&(K_L|K_R)){ khCycle(&hand,pr&K_R?1:-1); hudD=1; }
+            else if((pr&K_A)&&hand.mode==KHM_HAND&&kaNearWagon(m.S,cx,cy)){ const char*say=0; kpTrade(&m,&V,&say); prev=keyNow(); hmsg=say; hudT=200; kpHud(m.S,m.R,&hand,cx,cy,spd,hmsg); hudD=0; }   // (the caravan's counter: HAND + A beside the wagon)
             else if((pr&K_A)||(hand.mode==KHM_ROAD&&(k&K_A)&&(cx!=lrx||cy!=lry)&&!ksIsRoad(m.S,cy*m.S->dim+cx))){ lrx=cx; lry=cy; int r=khAct(&hand,m.S,cx,cy); if(kpSfx[r<KHR_N?r:0]) sfxPlay(kpSfx[r<KHR_N?r:0]); if(r==KHR_GOT) kvPoke(&V,cx,cy); else if(khRedraw(r)){ V.nB=m.R->nB; kvFull(&V); } hmsg=khMsg[r]; hudT=75; hudD=1; }   // (said in the text layer for 1.25 seconds)
             if(hudT&&!--hudT){ hmsg=0; hudD=1; }
-            if(cx!=hcx||cy!=hcy||!(cnt&63)){ hcx=cx; hcy=cy; hudD=1; }
+            if(((cx!=hcx||cy!=hcy)&&!(cnt&3))||!(cnt&63)){ hcx=cx; hcy=cy; hudD=1; }   // (walking: the text strip follows the cell every fourth frame, it is the costliest thing the map draws)
             if(hudD){ hudD=0; kpHud(m.S,m.R,&hand,cx,cy,spd,hmsg); }
         } else if(cnt&7) vsync(); else if(ov) kpOver(&m,&G,cnt); else kpDraw(&m,nm,spd,cnt);
-        for(int i=0;i<per[spd];i++) ksStep(m.S);
+        { int late=(int)(vblN-vbPrev); vbPrev=vblN;   // the realm runs as fast as the picture allows: a frame that came late means fewer steps next time (X16 is "as fast as it can" in a big realm; the map keeps its 60 pictures a second), and the allowance creeps back up while frames are on time
+          if(late>1&&late<8){ stCap=stCap*3/4; if(stCap<2) stCap=2; stOk=0; } else if(late<=1&&++stOk>=20){ stOk=0; if(stCap<16) stCap++; }
+          int want=per[spd]; if(want>stCap) want=stCap; for(int i=0;i<want;i++) ksStep(m.S); }
         kfTrack(&fx,m.S); if(m.R->castle!=lastCastle){ lastCastle=m.R->castle; V.castle=lastCastle; if(mapOn) kvFull(&V); }   // (a castle stage finished: the castle looks different)
+        if(!(cnt%60)){ int cv=kaCaravanHere(m.S); if(cv!=lastCv){ lastCv=cv; if(cv){ static char cvB[44]; char*e=khCat(cvB,"CARAVAN AT THE STORE  WANTS "); khCat(e,kaGoodNm[kaWanted(m.S)]); hmsg=cvB; sfxPlay(SFX_BELL); } else hmsg="THE CARAVAN HAS MOVED ON"; hudT=300; hudD=1; } }
+        if(!(cnt%60)){ int sn=(int)((m.R->day>>3)&3u); if(sn!=lastSn){ lastSn=sn; hmsg=kaSeasonMsg[sn]; hudT=300; hudD=1; sfxPlay(SFX_BELL); } }   // (a season turns: said in the text strip)
         if(!(cnt%60)){ if(exKingTick(m.S)){ hmsg=exB; hudT=150; hudD=1; } }   // (Phase 5c: the open mission's tasks, checked against this realm)
-        if(m.S->ev){ int ev=m.S->ev; m.S->ev=0; if(ev>=1&&ev<=KG_CASTLE){ hmsg=kpStageMsg[ev-1]; if(ev==KG_CASTLE){ static char crB[40]; char mb[24]; kpMonarch(m.R,mb); char*e=khCat(crB,mb); khCat(e," IS CROWNED"); hmsg=crB; sfxPlay(SFX_CASH); } hudT=240; hudD=1; sfxPlay(SFX_BELL); } }
+        if(m.S->ev){ int ev=m.S->ev; m.S->ev=0; if(ev>=1&&ev<=KG_CASTLE){ hmsg=kpStageMsg[ev-1]; if(ev==KG_CASTLE){ static char crB[40]; char mb[24]; kpMonarch(m.R,mb); char*e=khCat(crB,mb); khCat(e," IS CROWNED"); hmsg=crB; sfxPlay(SFX_CASH); } hudT=240; hudD=1; sfxPlay(SFX_BELL);
+            if(mapOn){ char tt[40], sb[44]; const char*sub; if(ev==KG_CASTLE){ char mb[24]; kpMonarch(m.R,mb); khCat(sb,mb); khCat(tt,"CROWNED"); sub=sb; } else { khCat(tt,kpStageMsg[ev-1]); char*e=khCat(sb,"CASTLE  STAGE "); e=khNum(e,ev); khCat(e," OF 4"); sub=sb; }
+                kvHwLeave(); kpCeremony(ev,tt,sub); prev=keyNow(); kvHwEnter(&V,m.S); kpHud(m.S,m.R,&hand,kgCx(&G),kgCy(&G),spd,hmsg); hudD=0; vbPrev=vblN; } } }   // (the text strip is drawn at once: its tiles are empty until it is)
         if(!(cnt%60)&&mil<8&&m.S->pop>=kpMil[mil]){ static char milB[40]; char*e=khNum(milB,kpMil[mil]); khCat(e," NUBBINS LIVE HERE"); hmsg=milB; hudT=200; hudD=1; mil++; sfxPlay(SFX_POP); }   // (a crowd to be proud of)
         if(cnt%5400==2700&&!hmsg){ KAdv ad; if(kaAdvise(m.S,&ad,1)){ char t[48]; kaText(m.S,&ad,t); char*e=khCat(tipB,"> "); khCat(e,t); hmsg=tipB; hudT=270; hudD=1; } }   // (every 90 seconds: the most pressing thing that is stuck)
     }
