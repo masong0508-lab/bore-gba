@@ -26,5 +26,5 @@ int main(int argc,char**argv){
         }
         if(chapter!=lastCh||t%2048==0){ int hh; int pp=vilTotals(&hh); int mon=monCount(); if(t%2048==0||chapter!=lastCh) printf("y%02d t=%6d ch=%2d/%d tier=%2d | alive %4d folk %3d homes %3d vill %2d | monsters %2d seen %3d slain %4u smites %ld | %s\n",year,t,chapter,CHAP_N,tierOpen,nCr,pp,hh,nVilOn,mon,seenN,(unsigned)stKill,smites,info); lastCh=chapter; }
     }
-    int open; int tot=itCount(&open); printf("END: aural sculptures %s, chapter %d/%d done=%d, items open %d/%d, bestiary %d/320, slain %u, used %u, gifts %u\n",auralOpen?"OPEN":"LOCKED",chapter,CHAP_N,storyDone,open,tot,seenN,(unsigned)stKill,(unsigned)stUse,(unsigned)stGift);
+    int open; int tot=itCount(&open); printf("100%%: %s (remixes %s)\n",fullDone?"DONE":"not yet",fullDone?"OPEN":"LOCKED"); printf("END: aural sculptures %s, chapter %d/%d done=%d, items open %d/%d, bestiary %d/320, slain %u, used %u, gifts %u\n",auralOpen?"OPEN":"LOCKED",chapter,CHAP_N,storyDone,open,tot,seenN,(unsigned)stKill,(unsigned)stUse,(unsigned)stGift);
     return 0; }
