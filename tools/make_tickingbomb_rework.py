@@ -88,8 +88,8 @@ def build(p):
                 rr = r * 2 if half else r
                 if rr < 32: put(rr, ch, key, m + p.get('oct', 0), p['riff'])
                 if key == 'flute' and rr + 3 < 32: put(rr + 3, 11, 'flute', m + p.get('oct', 0), p['riff'] * .4)
-    if p.get('vib') and h == 1:
-        for r, m in STING2: put(r, 12, 'vibes', m, p['vib'])   # (the vibes only sound it in the second measure)
+    if p.get('vib'):
+        for r, m in (STING2 if h else STING): put(r, 12, 'vibes', m, p['vib'])   # vibes: F# D# F# on the first measure, G# D# G# on the second
     if p.get('bell'):
         for r, m in (STING2 if h else STING): put(r + 2, 13, 'bell', m + 12, p['bell'] - r)   # bells: F# D# F# first, G# D# G# second
     if p.get('whine'): put(0, 14, 'whine', 70 - 2 * h, p['whine'])
