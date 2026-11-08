@@ -10,7 +10,8 @@ static const u8 uiRgb[U_N][3]={ {0,0,0},{2,3,8},{4,6,13},{7,10,19},{16,19,28},{2
     {31,30,12},{31,28,9},{31,25,7},{31,22,5},{30,18,4},{28,14,3},{25,10,3},{20,6,3},{31,31,8},{8,29,31},{14,8,3},{23,24,27},{10,11,14},{31,18,24},{6,22,20} };
 #define UI_PAL0 160           // the toolbar's colours live at 160.. of the main palette (the day / night light only touches 0..143)
 static u8 uiBuf[256*192] __attribute__((aligned(4))); static int uiPages, uiPageNow, uiPageOpen, uiDotX=96;   // page dots in the title bar
-static void uiPalette(void){ for(int i=0;i<U_N;i++){ u16 c=RGB15(uiRgb[i][0],uiRgb[i][1],uiRgb[i][2]); BG_PALETTE_SUB[i]=c; BG_PALETTE[UI_PAL0+i]=c; } BG_PALETTE_SUB[0]=0; }
+static const u8 uiKCol[8][3]={{31,8,8},{8,16,31},{10,28,10},{31,26,6},{24,10,30},{31,16,4},{6,28,28},{31,14,22}};   // kingdom colours (sub palette 40..47)
+static void uiPalette(void){ for(int k=0;k<8;k++) BG_PALETTE_SUB[40+k]=RGB15(uiKCol[k][0],uiKCol[k][1],uiKCol[k][2]); for(int i=0;i<U_N;i++){ u16 c=RGB15(uiRgb[i][0],uiRgb[i][1],uiRgb[i][2]); BG_PALETTE_SUB[i]=c; BG_PALETTE[UI_PAL0+i]=c; } BG_PALETTE_SUB[0]=0; }
 #ifdef NDSHW
 static void uiFlush(void){ hwSubFlush(uiBuf); }
 #else
@@ -32,7 +33,7 @@ static void uiBar(int x,int y,int w,int h,int val,int max,int col){ uiFrame(x,y,
 static void uiIcon10(int x,int y,int idx){ for(int j=0;j<10;j++) for(int i=0;i<10;i++){ int c=icon10[idx][j*10+i]; if(c) uiPx(x+i,y+j,c); } }
 static void uiIcon8(int x,int y,int idx){ for(int j=0;j<8;j++) for(int i=0;i<8;i++){ int c=icon8[idx][j*8+i]; if(c) uiPx(x+i,y+j,c); } }
 // ---- a power's icon: paints show the ground they paint, everything else has its own picture
-static const u8 uiKindIcon[20]={IC10_INSPECT,0,IC10_SPAWN,IC10_RAIN,IC10_FIRE,IC10_BOLT,IC10_METEOR,IC10_SMITE,IC10_HEAL,IC10_FEED,IC10_SETTLE,IC10_WAR,IC10_PEACE,IC10_BLESS,IC10_GIFT,IC10_MUTATE,IC10_METEOR,IC10_RAIN,IC10_HEAL,IC10_BLESS};
+static const u8 uiKindIcon[20]={IC10_INSPECT,0,IC10_SPAWN,IC10_RAIN,IC10_FIRE,IC10_BOLT,IC10_METEOR,IC10_SMITE,IC10_HEAL,IC10_FEED,IC10_SETTLE,IC10_WAR,IC10_PEACE,IC10_BLESS,IC10_GIFT,IC10_MUTATE,IC10_QUAKE,IC10_FLOOD,IC10_BLOOM,IC10_VIBE};
 // ground swatches use three shades per terrain: 100.. in the top palette, 200.. in the toolbar's
 static int uiSwatch(int t,int i,int j,int base){ int p=tilePix(t,0,(i*8)/10,(j*8)/10)%8; return base+t*3+(p<=2?0:p<=4?1:2); }
 static void uiShadePal(void){ for(int t=0;t<T_N;t++) for(int j=0;j<3;j++){ int r,g,b; shadeRGB(t*8+2+j*2,&r,&g,&b); BG_PALETTE_SUB[100+t*3+j]=RGB15(r,g,b); BG_PALETTE[200+t*3+j]=RGB15(r,g,b); } }
@@ -40,7 +41,8 @@ static void uiPowerIcon(int pwi,int x,int y){ const Pw*P=&pw[pwi];
     if(P->kind==PK_PAINT){ for(int j=0;j<10;j++) for(int i=0;i<10;i++) uiPx(x+i,y+j,uiSwatch(P->arg,i,j,100)); return; }
     uiIcon10(x,y,uiKindIcon[P->kind]); }
 // ---- window furniture
-static void uiWin(const char*title,const char*right,const char*hint){
+static int uiBackHint;   // set while an Extras page is open: START goes back to the menu, so the page hint says so
+static void uiWin(const char*title,const char*right,const char*hint){ if(uiBackHint&&hint&&(!strcmp(hint,"SELECT NEXT PAGE")||!strcmp(hint,"SELECT PAGE"))) hint="START: BACK TO THE MENU";
     uiRect(0,0,256,192,U_BG); for(int y=0;y<192;y+=2) for(int x=((y>>1)&1)*2;x<256;x+=4) uiPx(x,y,U_PANEL);
     for(int j=0;j<13;j++){ int c=j<2?U_PANELHI:j<11?U_PANEL:U_SHADOW; uiRect(0,j,256,1,c); } uiRect(0,12,256,1,U_BHI);
     uiText(6,3,title,U_GOLD,1); if(right) uiTextR(250,3,right,U_DIM);
@@ -53,6 +55,7 @@ static void uiScroll(int total,int top,int vis,int y0,int h){ uiRect(248,y0,5,h,
 static void uiMinimap(int ox,int oy){
     for(int y=0;y<128;y++) for(int x=0;x<128;x++) uiPx(ox+x,oy+y,64+world[y*WH/128][x*WW/128]);
     for(int i=0;i<nCr;i++){ const Cr*c=&cr[i]; if(c->alive){ int da=arch[sp[c->sp].a].diet; if(da==5||da==4||c->rk) uiPx(ox+c->x*128/WW,oy+c->y*128/WH,da==4?80:da==5?85:82); } }
+    for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]){ int cx=ox+vil[v].x*128/WW, cy=oy+vil[v].y*128/WH, R=14*128/WW+1; for(int a=0;a<28;a++){ int rx=(int)(R*cosf(a*0.2244f)+0.5f), ry=(int)(R*sinf(a*0.2244f)+0.5f); if((a&1)==0) uiPx(cx+rx,cy+ry,40+vilK[v]-1); } }   // each kingdom's territory, a dotted ring round its cities
     for(int v=0;v<VIL_N;v++) if(vil[v].on){ for(int dy=-1;dy<=1;dy++) for(int dx=-1;dx<=1;dx++) uiPx(ox+vil[v].x*128/WW+dx,oy+vil[v].y*128/WH+dy,vil[v].foe?81:84); }
     int cx0=(camX>>3)*128/WW, cy0=(camY>>3)*128/WH, cw=32*128/WW, ch=24*128/WH; for(int x=cx0;x<cx0+cw;x++){ uiPx(ox+x,oy+cy0,83); uiPx(ox+x,oy+cy0+ch,83); } for(int y=cy0;y<=cy0+ch;y++){ uiPx(ox+cx0,oy+y,83); uiPx(ox+cx0+cw,oy+y,83); } }
 // ---- the toolbar (bottom of the touch screen): ten power slots with arrows, a second tile layer

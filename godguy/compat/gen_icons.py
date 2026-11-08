@@ -15,6 +15,10 @@ P10 = {  # by power kind (see PK_ enum order in main.c)
  'PEACE':   ["......ww..", ".....wwww.", "...wwwwww.", "..wwwwwww.", ".wwwwww...", "ywwww.....", ".yww......", "..n.n.....", ".nn.nn....", "..n..n...."],
  'BLESS':   ["....yy....", "....yy....", "..yyyyyy..", "yyyyyyyyyy", ".yyyyyyyy.", "..yyyyyy..", "..yyyyyy..", ".yyy..yyy.", ".yy....yy.", ".y......y."],
  'GIFT':    ["..rr..rr..", "...rrrr...", "..gggggg..", ".gggrrggg.", ".gggrrggg.", ".gggrrggg.", ".ggrrrrgg.", ".gggrrggg.", ".gggggggg.", ".........."],
+ 'QUAKE':   ["..........", "...s...s..", "..ss..ss..", "..s..ds...", "sss.dss.ss", "...dd.s...", "..s.ds.ss.", ".ss..s....", "ss....ss..", ".........."],
+ 'FLOOD':   ["..........", "..cc......", ".cccc..cc.", "cc..cccccc", "..........", ".cc...cc..", "cccc.cccc.", "..cccc..cc", "..........", "cccccccccc"],
+ 'BLOOM':   ["...rr.....", "..rrrr....", "...rr.yy..", "....n.yyy.", "...nn..y..", "..nnnn.n..", ".nn.nn.n..", "....n.nn..", "....n.....", "..........",],
+ 'VIBE':    ["..........", "...pp.....", "..p..p....", "...pp.p...", "....pp....", "...p..p...", "..pp.pp...", "...pppp...", "....pp....", ".........."],
  'MUTATE':  ["..p....p..", "..pp..pp..", "...pppp...", "....pp....", "...pppp...", "..pp..pp..", "..p....p..", "..pp..pp..", "...pppp...", "....pp...."],
 }
 P8 = {
