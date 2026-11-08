@@ -54,3 +54,5 @@ The CPU-cache build is now the main one: `godguy_hw.nds`. The old no-cache build
 
 ## v0.9.2 create a planet and ground transitions
 CREATE A PLANET now has land shape (continents / supercontinent / islands), sea level, climate, wetness, amount of starting life, seed (A rolls a new one) and a live preview map; the world behind the menu is regenerated as you choose. The map now blends where biomes meet (dithered fringes, shore foam on water edges, drawn from on-demand transition tiles) and deep water and lava animate.
+
+Volcanoes now creep: lava spreads over nearby ground (scorching life and buildings) and cools to rock in rain.
