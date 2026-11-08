@@ -250,7 +250,9 @@ static void hhUpTiles(volatile u16*d,int id,int v,int f,int t0){
         if(hd) dp+=32;
         if(t<t0) continue;
         volatile u16*q=d+t*16;
-        if(src){ for(int k=0;k<16;k++) q[k]=src[k]; } else { for(int k=0;k<16;k++) q[k]=0; }
+        if(src&&!((uintptr_t)src&3)){ const u32*a=(const u32*)src; volatile u32*b=(volatile u32*)q; b[0]=a[0]; b[1]=a[1]; b[2]=a[2]; b[3]=a[3]; b[4]=a[4]; b[5]=a[5]; b[6]=a[6]; b[7]=a[7]; }   // (32-bit writes: half the cycles of the 16 halfwords, and a walking Sim's tiles are uploaded every few frames)
+        else if(src){ for(int k=0;k<16;k++) q[k]=src[k]; }
+        else { volatile u32*b=(volatile u32*)q; b[0]=b[1]=b[2]=b[3]=b[4]=b[5]=b[6]=b[7]=0; }
     }
 }
 static inline const u16* hhPalOf(int id){ return id>=HH_MAX?inmPalOf(id-HH_MAX):hhPal[id]; }   // (an inmate: its body's palette with its own skin and hair colour, inmates.h)
@@ -600,21 +602,24 @@ static int hhOut(HhSim*s){   // standing where nobody can stand (a wall was buil
         int x=sx+dx, y=sy+dy; if(hhWalk(x,y)&&!hhTakenAt(x,y)){ s->fx=x*256+128; s->fy=y*256+128; s->pn=s->pi=0; s->gok=0; return 1; } }
     return 0;
 }
+static u8 hhWm[MW*MH] EWRAM_BSS;   // hhWalk of the tiles this search asked about (0 not asked yet, 1 free, 2 not): a tile is asked about from up to four neighbours
+static inline int hhWalkM(int x,int y){ if((unsigned)x>=(unsigned)MW||(unsigned)y>=(unsigned)MH) return 0; u8*m=&hhWm[y*MW+x]; if(!*m) *m=hhWalk(x,y)?1:2; return *m==1; }
 static int hhPlan(HhSim*s,char c){   // fills s->path; returns its length+1 (1 = already there), 0 = no way
     int sx=(int)(s->fx>>8), sy=(int)(s->fy>>8); if(!hhWalk(sx,sy)){ if(!hhOut(s)) return 0; sx=(int)(s->fx>>8); sy=(int)(s->fy>>8); }   // (inside a wall: step out of it first, never stuck there)
     hhBedKind=c=='S'?(u8)bcBedKind(s):0;
     for(int i=0;i<MW*MH;i++) hhDist[i]=0xFFFF;
+    __builtin_memset(hhWm,0,sizeof hhWm);
     hhTakenScan(s);
     if(c==1&&((sx-hhGX)*(sx-hhGX)+(sy-hhGY)*(sy-hhGY))<=2) return 1;   // already next to them
     int qh=0, qt=0, goal=-1, pick=c?0:(rnd8()*4+rnd8())%400+40;   // wander: the pick-th tile the search reaches
     hhDist[sy*MW+sx]=0; hhQ[qt++]=(u16)(sy*MW+sx);
-    while(qh<qt){ int p=hhQ[qh++], x=p%MW, y=p/MW;
+    while(qh<qt){ int p=hhQ[qh++], y=(p*1639)>>16, x=p-y*MW;   // (p < 1600: p / 40 by a multiply, the division is a library call)
         if((c?hhNextTo(x,y,c):(qh>=pick))&&(c==1||!hhTakenAt(x,y))){ goal=p; break; }   // (a spot someone already has is skipped: no two Sims on one tile)
         if(hhDist[p]>=HH_PATH) continue;
-        for(int d=0;d<4;d++){ int nx=x+hhDx[d], ny=y+hhDy[d], np=ny*MW+nx; if(hhWalk(nx,ny)&&hhDist[np]==0xFFFF){ hhDist[np]=(u16)(hhDist[p]+1); hhQ[qt++]=(u16)np; } } }
+        for(int d=0;d<4;d++){ int nx=x+hhDx[d], ny=y+hhDy[d], np=ny*MW+nx; if(hhWalkM(nx,ny)&&hhDist[np]==0xFFFF){ hhDist[np]=(u16)(hhDist[p]+1); hhQ[qt++]=(u16)np; } } }
     if(goal<0) return 0;
     int n=hhDist[goal], p=goal; s->pn=(u8)n; s->pi=0; s->gok=0;
-    for(int k=n-1;k>=0;k--){ int x=p%MW, y=p/MW;   // walk back down the distances
+    for(int k=n-1;k>=0;k--){ int y=(p*1639)>>16, x=p-y*MW;   // walk back down the distances
         for(int d=0;d<4;d++){ int px=x-hhDx[d], py=y-hhDy[d], pp=py*MW+px; if(px>=0&&py>=0&&px<MW&&py<MH&&hhDist[pp]==hhDist[p]-1){ s->path[k]=(u8)d; p=pp; break; } } }
     return n+1;
 }
@@ -723,12 +728,13 @@ static int hhExN, hhExX, hhExY; static u16 hhEx[16];
 static void hhFindExits(void){
     hhExN=0; hhExX=spx; hhExY=spy; if(!hhWalk(spx,spy)) return;
     for(int i=0;i<MW*MH;i++) hhDist[i]=0xFFFF;
+    __builtin_memset(hhWm,0,sizeof hhWm);
     int qh=0, qt=0, seen=0; hhDist[spy*MW+spx]=0; hhQ[qt++]=(u16)(spy*MW+spx);
-    while(qh<qt){ int p=hhQ[qh++], x=p%MW, y=p/MW;
+    while(qh<qt){ int p=hhQ[qh++], y=(p*1639)>>16, x=p-y*MW;   // (p < 1600: p / 40 by a multiply, the division is a library call)
         if(x==0||y==0||x==MW-1||y==MH-1){
             if(!seen){ hhExX=x; hhExY=y; }   // the nearest way off: where the household comes and goes
             seen++; if(hhExN<16) hhEx[hhExN++]=(u16)p; else { int r=((rnd8()<<8)|rnd8())%seen; if(r<16) hhEx[r]=(u16)p; } }
-        for(int d=0;d<4;d++){ int nx=x+hhDx[d], ny=y+hhDy[d], np=ny*MW+nx; if(hhWalk(nx,ny)&&hhDist[np]==0xFFFF){ hhDist[np]=(u16)(hhDist[p]+1); hhQ[qt++]=(u16)np; } } }
+        for(int d=0;d<4;d++){ int nx=x+hhDx[d], ny=y+hhDy[d], np=ny*MW+nx; if(hhWalkM(nx,ny)&&hhDist[np]==0xFFFF){ hhDist[np]=(u16)(hhDist[p]+1); hhQ[qt++]=(u16)np; } } }
 }
 static int hhSched(const HhSim*s,int*from,int*to){   // 1 work, 2 school (weekdays), 0 nothing: everyone leaves and comes back a little apart
     if(!simWorkday()) return 0;

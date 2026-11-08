@@ -2505,10 +2505,14 @@ static void fightHurt(int dmg){
 
 static inline __attribute__((always_inline)) int isWinCh(char c){ return c=='E'||c=='e'||c=='f'; }   // the window items: a wall piece you can see through (drawn as a wall, blocks like a full wall)
 #include "ramps.h"
+static int tileHc(char c){   // the surface height of a kind of tile (ramps: -1, they need the cell: rampTop)
+    return (c=='j')?2*CC: (c=='n')?CC: (c=='#'||c=='F'||c=='W'||c=='H'||isWinCh(c))?2*CC: (c=='X'||c=='Y')?SOLID_H: (c=='O')?BARREL_H: (c=='b')?2*CC: (c=='m')?5: (c=='w'||c=='T'||c=='S'||c=='C'||c=='t'||c=='h'||c=='d'||c=='l'||c=='p'||c=='i'||c=='o'||c=='y'||c=='G'||c=='V'||c=='U'||c=='Q'||c=='A'||c=='v'||c=='c'||c=='q')?CC: (c=='='||c=='L'||c=='N'||c=='Z'||c=='K'||c=='J')?GRIND_H: (c=='I'||c=='R'||c=='g'||c=='&'||c=='@')?6: (c=='u')?CC: (c=='M')?3: isRamp(c)?-1: 0; }
+static s16 thTab[256] EWRAM_BSS; static u8 thOk;   // tileH by character, worked out once (the chain of tests it came from ran for every tile every planner step and every drawn tile)
 static int tileH(int tx,int ty){   // surface height in px (ramps: their highest point). Grind height is 6: rails, ledges and benches
     if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
-    char c=lifeMap[ty][tx];
-    return (c=='j')?2*CC: (c=='n')?CC: (c=='#'||c=='F'||c=='W'||c=='H'||isWinCh(c))?2*CC: (c=='X'||c=='Y')?SOLID_H: (c=='O')?BARREL_H: (c=='b')?2*CC: (c=='m')?5: (c=='w'||c=='T'||c=='S'||c=='C'||c=='t'||c=='h'||c=='d'||c=='l'||c=='p'||c=='i'||c=='o'||c=='y'||c=='G'||c=='V'||c=='U'||c=='Q'||c=='A'||c=='v'||c=='c'||c=='q')?CC: (c=='='||c=='L'||c=='N'||c=='Z'||c=='K'||c=='J')?GRIND_H: (c=='I'||c=='R'||c=='g'||c=='&'||c=='@')?6: (c=='u')?CC: (c=='M')?3: isRamp(c)?rampTop(tx,ty,c): 0;   // X funbox and Y trash can SOLID_H, O barrel BARREL_H, rail / ledge / bench / Z planter / K table / J jersey GRIND_H (rampdata.h), phone / radio / counter 6, M manual pad 3
+    if(!thOk){ for(int i=0;i<256;i++) thTab[i]=(s16)tileHc((char)i); thOk=1; }
+    char c=lifeMap[ty][tx]; int v=thTab[(u8)c];
+    return v>=0?v:rampTop(tx,ty,c);   // X funbox and Y trash can SOLID_H, O barrel BARREL_H, rail / ledge / bench / Z planter / K table / J jersey GRIND_H (rampdata.h), phone / radio / counter 6, M manual pad 3
 }
 static inline int isGrindH(int h){ return h==GRIND_H||h==6; }   // a surface you can grind: the skate pieces (GRIND_H) and the old 6 px things (phone, radio, counter)
 static int surfH(s32 fx,s32 fy){   // surface height at an exact position (1/256 tiles): same as tileH, but ramps slope
@@ -4161,6 +4165,8 @@ static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
     int ss=0; if(!ed){ s32 rfx,rfy; rotPos(lfx,lfy,&rfx,&rfy); ss=(int)((rfx>>8)+(rfy>>8)); }
     int pap=papN&&!ed&&!curFl, bidx=(ed||lhave)?-1:BDY*(MW+1)+BDX;   // (the board pickup: its map index, when it can be there)
     static u8 rsT[MW] EWRAM_BSS;   // the tiles of a band that roomScan found
+    u32 hbm[4]={0,0,0,0}; int hbAll=0, hbOn=!ed&&hhN&&(xo[XO_MULTIFL]?pkHome<0:!curFl);   // the bands that hold a household member: hhDrawBand is asked only for those (it used to be asked for every band, and looped over every member each time)
+    if(hbOn) for(int m=0;m<hhN;m++){ if(hhM[m].act==HA_AWAY) continue; int bb=hhB[m]; if(bb<0||bb>127) hbAll=1; else hbm[bb>>5]|=1u<<(bb&31); }
     for(int s=s0;s<=s1;s++){ int a,b, nt=0;
         if(pap) bandCols(s,x0,x1,&a,&b); else { nt=roomScan(s,x0,y0,x1,y1,bidx,rsT); a=0; b=nt-1; }   // (TV SHOW & TELL's paparazzi stand on plain floor: that lot keeps the plain loop)
         for(int k=a;k<=b;k++){ int tx=pap?k:rsT[k], ty=s-tx;
@@ -4185,7 +4191,7 @@ static void drawRoomRect(int x0,int y0,int x1,int y1,int ed){
             if((c=='a'||c=='k')&&(nbFlagsOn()||(ed&&nbFlagOk()))) drawFlag(sx,sy+1,c=='k',(int)(lfr>>3));   // a flag on a pole (blue = community, orange = skate); it waves in play too
         }
         if(cln) for(int i=0;i<CL_N;i++) if(cls[i]==s){ int sx=LOX+(clr[i][0]-clr[i][1])*CA, sy=LOY+(clr[i][0]+clr[i][1]+1)*CB; if(sx+11>x0&&sx-11<x1&&sy+6>y0&&sy-24<y1) clDraw(i,sx,sy); }
-        if(!ed&&hhN&&(xo[XO_MULTIFL]?pkHome<0:!curFl)) hhDrawBand(s,s);
+        if(hbOn&&(hbAll||s>127||(hbm[s>>5]>>(s&31)&1))) hhDrawBand(s,s);
         if(!ed&&(petN||pudN)&&petAtHome()) petDrawBand(s,s);
         if(!ed&&s==ss) drawPlayerNow();
     }
