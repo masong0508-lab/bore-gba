@@ -2,6 +2,7 @@
 #define PCTEST 1
 #include <stdlib.h>
 #include "source/main.c"
+int walk_test(void);
 int main(void){
     rs=5; makeSpecies(); makeItems(); newWorld();
     for(int sh=0;sh<3;sh++) for(int rot=0;rot<3;rot++){ shape3=sh; buildMesh(); rotX=rot==0?0:(rot==1?30:-50); rotY=rot*70+10; zoom3=40;
@@ -13,4 +14,10 @@ int main(void){
             float zz=z2-dist; int px=(int)(128+x1/(-zz)*184.4f), py=(int)(96-(y1/(-zz))*184.4f); int tx,ty; n++;
             if(pick3D(px,py,&tx,&ty)){ int ex=i*128/MN, ey=j*128/MN; int d=abs(tx-ex)>abs(ty-ey)?abs(tx-ex):abs(ty-ey); if(d>worst) worst=d; if(d<=3) ok++; } }
         printf("shape %d rot %d/%d: %d/%d within 3 tiles, worst %d\n",sh,rotX,rotY,ok,n,worst); }
+    walk_test(); return 0; }
+// (appended) walk mode: turning the planet with faceTile must bring a tile to the middle of the screen
+int walk_test(void){
+    int worst=0, bad=0, n=0; for(int sh=0;sh<2;sh++){ shape3=sh; buildMesh(); zoom3=22;
+        for(int y=12;y<WH-12;y+=23) for(int x=0;x<WW;x+=17){ int rx,ry; faceTile(x,y,&rx,&ry); rotX=rx; rotY=ry; int tx,ty; n++; if(!pick3D(128,96,&tx,&ty)){ bad++; continue; } int dx=abs(tx-x); if(dx>WW/2) dx=WW-dx; int d=dx>abs(ty-y)?dx:abs(ty-y); if(d>worst) worst=d; if(d>6) bad++; }
+        printf("walk mode, shape %d: %d tiles faced, %d off by more than 6 tiles, worst %d\n",sh,n,bad,worst); n=0; bad=0; worst=0; }
     return 0; }

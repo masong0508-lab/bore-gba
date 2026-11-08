@@ -4,7 +4,7 @@
 #include "source/main.c"
 static u32 hashAll(void){ u32 h=2166136261u; const u8*p; 
 #define H(ptr,n) p=(const u8*)(ptr); for(size_t i=0;i<(size_t)(n);i++) h=(h^p[i])*16777619u;
-    for(int y=0;y<gH;y++){ H(world[y],gW); H(bld[y],gW); H(bldv[y],gW); } H(cr,nCr*sizeof(Cr)); H(vil,sizeof vil); H(&nCr,sizeof nCr); H(&year,sizeof year); H(&chapter,sizeof chapter); H(&tierOpen,sizeof tierOpen); H(&stKill,sizeof stKill); H(&rs,sizeof rs); H(seenB,sizeof seenB); H(slainB,sizeof slainB); H(&trSeen,sizeof trSeen); H(&stMut,sizeof stMut); H(&diff,sizeof diff); H(&worldSeed,sizeof worldSeed); return h; }
+    for(int y=0;y<gH;y++){ H(world[y],gW); H(bld[y],gW); H(bldv[y],gW); } H(cr,nCr*sizeof(Cr)); H(vil,sizeof vil); H(&nCr,sizeof nCr); H(&year,sizeof year); H(&chapter,sizeof chapter); H(&tierOpen,sizeof tierOpen); H(&stKill,sizeof stKill); H(&rs,sizeof rs); H(seenB,sizeof seenB); H(slainB,sizeof slainB); H(&trSeen,sizeof trSeen); H(&stMut,sizeof stMut); H(&diff,sizeof diff); H(&worldSeed,sizeof worldSeed); H(&weather,sizeof weather); H(&weatherT,sizeof weatherT); return h; }
 int main(int argc,char**argv){
     int bad=0; for(int size=128;size<=256;size+=64){
         planetSize=size; rs=99u*2654435761u+size; makeSpecies(); makeItems(); newWorld(); chapter=3; tierOpen=4; stKill=11; monOn=1;

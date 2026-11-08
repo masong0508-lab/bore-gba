@@ -9,7 +9,7 @@ enum { U_CLEAR, U_BG, U_PANEL, U_PANELHI, U_BHI, U_BLO, U_WHITE, U_DIM, U_GOLD, 
 static const u8 uiRgb[U_N][3]={ {0,0,0},{2,3,8},{4,6,13},{7,10,19},{16,19,28},{2,3,7},{31,31,31},{17,19,25},{31,26,6},{8,26,10},{29,6,6},{9,17,31},{20,9,28},{31,17,4},{9,14,27},{0,0,2},
     {31,30,12},{31,28,9},{31,25,7},{31,22,5},{30,18,4},{28,14,3},{25,10,3},{20,6,3},{31,31,8},{8,29,31},{14,8,3},{23,24,27},{10,11,14},{31,18,24},{6,22,20} };
 #define UI_PAL0 160           // the toolbar's colours live at 160.. of the main palette (the day / night light only touches 0..143)
-static u8 uiBuf[256*192];
+static u8 uiBuf[256*192]; static int uiPages, uiPageNow, uiPageOpen, uiDotX=96;   // page dots in the title bar
 static void uiPalette(void){ for(int i=0;i<U_N;i++){ u16 c=RGB15(uiRgb[i][0],uiRgb[i][1],uiRgb[i][2]); BG_PALETTE_SUB[i]=c; BG_PALETTE[UI_PAL0+i]=c; } BG_PALETTE_SUB[0]=0; }
 static void uiFlush(void){ vramCopy(bgGetGfxPtr(3),uiBuf,256*192); }
 static inline void uiPx(int x,int y,int c){ if((unsigned)x<256&&(unsigned)y<192) uiBuf[y*256+x]=(u8)c; }
@@ -40,6 +40,7 @@ static void uiWin(const char*title,const char*right,const char*hint){
     uiRect(0,0,256,192,U_BG); for(int y=0;y<192;y+=2) for(int x=((y>>1)&1)*2;x<256;x+=4) uiPx(x,y,U_PANEL);
     for(int j=0;j<13;j++){ int c=j<2?U_PANELHI:j<11?U_PANEL:U_SHADOW; uiRect(0,j,256,1,c); } uiRect(0,12,256,1,U_BHI);
     uiText(6,3,title,U_GOLD,1); if(right) uiTextR(250,3,right,U_DIM);
+    if(uiPages>0){ for(int i=0;i<uiPages;i++) uiRect(uiDotX+i*8,5,5,4,i==uiPageNow?U_GOLD:(uiPageOpen&(1<<i))?U_LGREY:U_SHADOW); }
     uiRect(0,179,256,13,U_PANEL); uiRect(0,179,256,1,U_BHI); if(hint) uiText(6,183,hint,U_DIM,1); }
 static void uiListRow(int y,int sel,int n,const char*left,const char*right,int col){ if(sel) uiRect(4,y-1,240,10,U_SEL); else if(n&1) uiRect(4,y-1,240,10,U_PANEL);
     if(sel) uiText(6,y,">",U_GOLD,1); uiText(14,y,left,col,1); if(right&&right[0]) uiTextR(242,y,right,sel?U_WHITE:U_DIM); }

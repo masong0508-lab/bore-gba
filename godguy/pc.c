@@ -17,7 +17,7 @@ int main(int argc,char**argv){
     // a zoomed window at 8 px a tile with real tile art and sprite shapes
     int Z=3, X0=argc>3?atoi(argv[3]):40, Y0=argc>4?atoi(argv[4]):40, TW=32, TH=24; f=fopen("/tmp/gg_zoom.ppm","wb"); fprintf(f,"P6\n%d %d\n255\n",TW*8*Z,TH*8*Z);
     for(int y=0;y<TH*8*Z;y++) for(int x=0;x<TW*8*Z;x++){ int px8=x/Z, py8=y/Z; int tx=X0+px8/8, ty=Y0+py8/8; int t=world[ty][tx]; int v=(int)(hsh(tx,ty,3)&3); int r,g,b; int pi=bld[ty][tx]?bldPix(bld[ty][tx],bldv[ty][tx]?vil[bldv[ty][tx]-1].race:0,px8%8,py8%8):tilePix(t,v,px8%8,py8%8); u8 px[3]; if(pi>=128){ int k=pi-128; if(k<8){ px[0]=(u8)(roofCol[k][0]*8); px[1]=(u8)(roofCol[k][1]*8); px[2]=(u8)(roofCol[k][2]*8);} else { px[0]=(u8)(bldCol[k-8][0]*8); px[1]=(u8)(bldCol[k-8][1]*8); px[2]=(u8)(bldCol[k-8][2]*8);} } else { shadeRGB(pi,&r,&g,&b); px[0]=(u8)(r*8); px[1]=(u8)(g*8); px[2]=(u8)(b*8); }
-        if(occ[ty][tx]){ const Cr*c=&cr[occ[ty][tx]-1]; char ch=shp[arch[sp[c->sp].a].shape][0][py8%8][px8%8]; int fm=sp[c->sp].fam; int k=ch=='b'?0:ch=='d'?1:ch=='a'?2:-1;
+        if(occ[ty][tx]){ const Cr*c=&cr[occ[ty][tx]-1]; char ch=shpRow(arch[sp[c->sp].a].shape,0,py8%8)[px8%8]; int fm=sp[c->sp].fam; int k=ch=='b'?0:ch=='d'?1:ch=='a'?2:-1;
             if(k>=0){ px[0]=(u8)(famCol[fm][k][0]*8); px[1]=(u8)(famCol[fm][k][1]*8); px[2]=(u8)(famCol[fm][k][2]*8); } else if(ch=='e'){ px[0]=px[1]=px[2]=255; } }
         fwrite(px,1,3,f); } fclose(f);
     for(int v=0;v<VIL_N;v++) if(vil[v].on) printf("village %d race %s at %d,%d lvl %d homes %d farms %d towers %d pop %d\n",v,arch[vil[v].race].nm,vil[v].x,vil[v].y,vil[v].lvl,vil[v].houses,vil[v].farms,vil[v].towers,vil[v].pop);

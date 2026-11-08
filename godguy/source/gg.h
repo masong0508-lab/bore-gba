@@ -16,7 +16,8 @@ extern int gW,gH;               // the planet in play: 128, 192 or 256 tiles a s
 #define WW gW
 #define WH gH
 #define MAXC 2400
-#define SHAPE_N 20
+#define SHAPE_OLD 20             // hand-drawn two-frame shapes
+#define SHAPE_N 42               // plus the one-frame shapes drawn below (their second frame is made by swapping the feet) and the crown, rain and snow sprites
 #define ARCH_A 32                 // archetypes below this are people and animals
 #define ARCH_N 52                 // 32..51 are monsters
 #define SP_N 720

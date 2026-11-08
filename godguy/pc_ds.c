@@ -9,26 +9,20 @@ typedef struct { int f0, f1, keys, tx, ty; } Ev;
 #define K_ (KEY_TOUCH)
 static const Ev script[]={
  {20,22,KEY_UP,0,0},{26,28,KEY_UP,0,0},{32,34,KEY_DOWN,0,0},{38,40,KEY_DOWN,0,0},{44,46,KEY_LEFT,0,0},{50,52,KEY_LEFT,0,0},{56,58,KEY_RIGHT,0,0},{62,64,KEY_B,0,0},{68,70,KEY_A,0,0},{74,76,KEY_START,0,0},   // the debug code
- {3200,3202,KEY_SELECT,0,0},{3210,3212,KEY_SELECT,0,0},{3220,3222,KEY_SELECT,0,0},{3230,3232,KEY_SELECT,0,0},{3240,3242,KEY_SELECT,0,0},   // to the aural sculptures page (3) after 0..6 wraps
-
  {200,203,KEY_X,0,0},                       // title: new story world
- {260,262,KEY_A,0,0},                       // the intro scene: dismiss
- {300,1900,0,0,0},
- {400,420,KEY_TOUCH,100,90},                // use the power under the stylus (INSPECT)
- {2000,2002,KEY_R,0,0},{2010,2012,KEY_R,0,0},{2020,2022,KEY_R,0,0},{2030,2032,KEY_R,0,0},{2040,2042,KEY_R,0,0},{2050,2052,KEY_R,0,0},
- {2060,2062,KEY_R,0,0},{2070,2072,KEY_R,0,0},{2080,2082,KEY_R,0,0},{2090,2092,KEY_R,0,0},{2100,2102,KEY_R,0,0},{2110,2112,KEY_R,0,0},{2120,2122,KEY_R,0,0},   // to SPAWN, then touch
- {2200,2230,KEY_TOUCH,128,96},
- {2400,2402,KEY_SELECT,0,0},                // page 1: story
- {2500,2502,KEY_SELECT,0,0},                // page 2: bestiary
- {2600,2602,KEY_SELECT,0,0},                // page 5 (3 is locked): subspecies  [page 3 locked, 4 debug locked]
- {2700,2702,KEY_SELECT,0,0},                // page 6: help
- {2800,2802,KEY_SELECT,0,0},                // back to 0
- {3000,3002,KEY_SELECT|KEY_L|KEY_R,0,0},    // L+R+SELECT: save now
+ {260,262,KEY_A,0,0},                       // dismiss the intro scene
+ {400,402,KEY_A,0,0},{480,482,KEY_A,0,0},{560,562,KEY_A,0,0},{640,642,KEY_A,0,0},{720,722,KEY_A,0,0},{800,802,KEY_A,0,0},   // the first dialogue
+ {900,920,KEY_TOUCH,160,180},{950,970,KEY_TOUCH,185,180},   // tap toolbar slots
+ {1000,1002,KEY_R,0,0},{1010,1012,KEY_R,0,0},{1020,1022,KEY_R,0,0},{1030,1032,KEY_R,0,0},{1040,1042,KEY_R,0,0},{1050,1052,KEY_R,0,0},{1060,1062,KEY_R,0,0},{1070,1072,KEY_R,0,0},{1080,1082,KEY_R,0,0},{1090,1092,KEY_R,0,0},{1100,1102,KEY_R,0,0},{1110,1112,KEY_R,0,0},{1120,1122,KEY_R,0,0},   // to SPAWN
+ {1400,1402,KEY_START,0,0},{1470,1472,KEY_DOWN,0,0},{1480,1482,KEY_DOWN,0,0},{1500,1502,KEY_RIGHT,0,0},{1540,1542,KEY_START,0,0},   // the pause menu
+ {1700,1702,KEY_SELECT,0,0},{1760,1762,KEY_SELECT,0,0},{1820,1822,KEY_SELECT,0,0},{1880,1882,KEY_SELECT,0,0},{1940,1942,KEY_SELECT,0,0},{2000,2002,KEY_SELECT,0,0},   // through the pages
+ {2100,2102,KEY_SELECT|KEY_L|KEY_R,0,0},
 };
-static int shots[]={100,3250,3300,150,230,280,2300,2450,2550,2650,2750,2850,3100,-1};
+static int shots[]={100,150,300,500,1150,1250,1300,1450,1520,1740,1800,1860,1920,1980,2050,-1};
 void shimInput(int frame,int*held,int*tx,int*ty){
+    if(frame==1140){ weather=2; weatherT=3000; } if(frame==1248||frame==1249) flashT=6; if(frame==1290){ weather=3; weatherT=3000; }
     *held=0; for(unsigned i=0;i<sizeof script/sizeof script[0];i++) if(frame>=script[i].f0&&frame<script[i].f1){ *held|=script[i].keys; if(script[i].keys&KEY_TOUCH){ *tx=script[i].tx; *ty=script[i].ty; } }
-    if(frame>=3400){ char fn[200]; sprintf(fn,"%s/audio.wav",outDir); FILE*w=fopen(fn,"wb"); int dl=(int)(audioN*4); unsigned hdr[11]={0x46464952,36+dl,0x45564157,0x20746d66,16,0x00020001,SHIM_SR,SHIM_SR*4,0x00100004,0x61746164,dl}; fwrite(hdr,4,11,w); fwrite(audio,4,audioN,w); fclose(w);
+    if(frame>=2200){ char fn[200]; sprintf(fn,"%s/audio.wav",outDir); FILE*w=fopen(fn,"wb"); int dl=(int)(audioN*4); unsigned hdr[11]={0x46464952,36+dl,0x45564157,0x20746d66,16,0x00020001,SHIM_SR,SHIM_SR*4,0x00100004,0x61746164,dl}; fwrite(hdr,4,11,w); fwrite(audio,4,audioN,w); fclose(w);
         printf("frames %d, audio %.1fs, peak %.2f, clipped samples %ld, failed channel allocations %d, creatures %d, year %d, chapter %d, stUse %u\n",frame,audioN/(double)SHIM_SR,shimPeak,shimClip,shimChFail,nCr,year,chapter,(unsigned)stUse);
         printf("sound channels in use now: "); int u=0; for(int i=0;i<16;i++) u+=shimCh[i].on; printf("%d of 16\n",u); exit(0); } }
 void shimPresent(void){

@@ -2,6 +2,13 @@
 
 A god game spun off from BORE: shape a 128 x 128 world with the stylus, drop in life, and watch it live, eat, hunt and breed.
 
+**v0.8: A CAST, WEATHER, WALKING THE GLOBE, BETTER SPRITES, A BETTER FLOW.**
+- **Narrative**: a cast with portraits and typed dialogue (Wisp, Mira, Gruul, Elowen, Thorgrim, the Hollow King): a scene at the start of every chapter and an epilogue before the ending and credits. The Hollow King is the last god before you, who gave up; the story is about what to do with him.
+- **Sprites**: 22 new creature shapes (each of the eight peoples now looks different; wolf, boar, sheep, cow; imp, werewolf, cyclops, demon, lich, hydra, scorpion, troll), crowns on elite and boss monsters.
+- **Weather**: rain, storms (lightning strikes the land and flashes the screen), snow; it dims the light, greens dirt, kills fire and has its own music. Rain and snow are sprites.
+- **Walking the globe** (3D): Y + A turns walking on; the pad moves an avatar tile by tile, the planet turns to keep it in front of the camera, A uses the current power on it. Checked on the PC (sphere: every tile faced within one tile); the cube world is not accurate enough so walking uses the sphere.
+- **Flow**: START opens a pause menu (save, volume, difficulty, monsters, mode, new world, help, title) with confirmations, so a new world is never one stray button away; tool descriptions; a picker panel showing the choice before and after for spawn / gift / mutate; page dots; toast messages.
+
 **v0.7: SUBSPECIES, A REAL INTERFACE, THE 3DS.**
 - **23 heritable subspecies traits** (venomous, thick-hided, swift, giant, tiny, fire-born, amphibious, winged, pack, regenerating, camouflaged, spitting, symbiotic...). Children inherit their parent's traits and now and then mutate; a creature can carry two. The MUTATE power (X / Y picks a trait you have met) makes a subspecies on purpose; page 5 of the top screen is the codex with live counts. These are my own design: the WorldBox wiki page could not be read from here (it sits behind a bot check), so nothing is copied from it. Monsters now also come as ELITE and BOSS ranks.
 - **Interface**: the text console is gone. The top screen is a drawn interface (title screen with a spinning planet, status panels with the minimap, bars and icons, story / bestiary / codex / sculptures / debug / help windows with scroll bars), and the touch screen has a **toolbar with 10 power icons** you tap (arrows scroll; the 12 ground-painting powers show the ground they paint). The DS cannot write single bytes to VRAM, so every bitmap, tile and sprite is built in RAM and copied 16 bits at a time (the earlier build did not do this and would have drawn garbage on hardware).
