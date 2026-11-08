@@ -665,6 +665,7 @@ static const Pw pw[]={ {"INSPECT",PK_INSPECT,0},{"WATER",PK_PAINT,T_WATER},{"DEE
     {"SPAWN",PK_SPAWN,0},{"RAIN",PK_RAIN,0},{"FIRE",PK_FIRE,0},{"LIGHTNING",PK_BOLT,0},{"METEOR",PK_METEOR,0},{"SMITE",PK_KILL,0},{"HEAL",PK_HEAL,0},{"FEED",PK_FEED,0},{"SETTLE",PK_SETTLE,0},{"WAR",PK_WAR,0},{"PEACE",PK_PEACE,0},{"BLESS",PK_BLESS,0},{"GIFT",PK_GIFT,0},{"MUTATE",PK_MUTATE,0},{"EARTHQUAKE",PK_QUAKE,0},{"TSUNAMI",PK_FLOOD,0},{"BLOOM",PK_BLOOM,0},{"GOOD VIBES",PK_VIBE,0} };
 #define PW_N ((int)(sizeof(pw)/sizeof(pw[0])))
 static int inspected=-1, trSel=1;
+static int inspT, inspKind, inspIdx;   // the inspect card: what was looked at (1 creature, 2 village) and for how long it stays up
 static void usePower(int tx,int ty,int fresh){
     const Pw*P=&pw[power]; int r=brush;
     if(fresh){ stUse++; if(P->kind==PK_GIFT) stGift++; static const u8 fxOf[20]={FX_INSPECT,FX_PAINT,FX_SPAWN,FX_RAIN,FX_FIRE,FX_LIGHTNING,FX_METEOR,FX_SMITE,FX_HEAL,FX_FEED,FX_SETTLE,FX_WAR,FX_PEACE,FX_BLESS,FX_GIFT,FX_BIRTH,FX_METEOR,FX_RAIN,FX_BIRTH,FX_BLESS}; fxReq(fxOf[P->kind]); } if(P->kind==PK_GIFT&&(it[itSel].kind==IK_WEAPON||it[itSel].kind==IK_ARMOR||it[itSel].kind==IK_RELIC||it[itSel].kind==IK_GEM)) r=1;
@@ -701,7 +702,7 @@ static void usePower(int tx,int ty,int fresh){
         case PK_BLOOM: { u8 t=world[y][x]; if(t==T_GRASS){ if(rnd()&1) setCell(x,y,T_FOREST); } else if(t==T_DIRT||t==T_SAND){ setCell(x,y,T_GRASS); } else if(t==T_DESERT&&(rnd()&3)==0) setCell(x,y,T_GRASS); if(occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; c->hp=(u8)maxHp(c); c->food=120; } } break;
         case PK_VIBE: if(fresh&&dx==0&&dy==0){ int v=vilAny(x,y,5); if(v>=0){ vil[v].foe=0; warMatrix(); } if(occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; if(c->tr2==0&&!(HAS(c,TR_CHILL)||HAS(c,TR_MUNCH)||HAS(c,TR_GIGGLY)||HAS(c,TR_ZEN)||HAS(c,TR_FLOATY))){ giveTrait(c,TR_CHILL+(int)(rnd()%8),1); siprintf(info,"GOOD VIBES"); } else siprintf(info,"ALREADY VIBING"); } else if(v>=0) siprintf(info,"THE VILLAGE CHILLS OUT"); } break;
         case PK_MUTATE: if(fresh&&dx==0&&dy==0&&occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; if(trSel==0){ c->tr=c->tr2=0; siprintf(info,"TRAITS CLEARED"); } else { giveTrait(c,trSel,1); char nm[48]; crName(c,nm); siprintf(info,"%.46s",nm); } c->hp=(u8)maxHp(c); } break;
-        case PK_INSPECT: if(dx==0&&dy==0){ if(occ[y][x]) inspected=occ[y][x]-1; else if(bldv[y][x]){ int v=bldv[y][x]-1; char nm[24]; vilName(v,nm); { char kn[24]=""; if(vilK[v]) kdName(vilK[v]-1,kn); siprintf(info,"%s %s POP%d [%s]",arch[vil[v].race].nm,nm,vil[v].pop,kn); } inspected=-2; } } break; } }
+        case PK_INSPECT: if(dx==0&&dy==0){ if(occ[y][x]){ inspected=occ[y][x]-1; inspKind=1; inspIdx=inspected; inspT=420; } else if(bldv[y][x]){ int v=bldv[y][x]-1; inspKind=2; inspIdx=v; inspT=420; char nm[24]; vilName(v,nm); { char kn[24]=""; if(vilK[v]) kdName(vilK[v]-1,kn); siprintf(info,"%s %s POP%d [%s]",arch[vil[v].race].nm,nm,vil[v].pop,kn); } inspected=-2; } } break; } }
     if(P->kind==PK_INSPECT&&inspected!=-2){ if(inspected>=0&&inspected<nCr&&cr[inspected].alive){ Cr*c=&cr[inspected]; char nm[48]; crName(c,nm); siprintf(info,"%.30s HP%d/%d",nm,c->hp,maxHp(c)); } else siprintf(info,"%s",bioNm[world[ty<WH?ty:0][tx<WW?tx:0]]); }
 }
 static int planetSize=128;
@@ -992,34 +993,63 @@ static void menuText(int id,char*l,char*v){ v[0]=0;
         case MI_HELP: strcpy(l,"HELP"); break; case MI_CRED: strcpy(l,"CREDITS"); break; case MI_DEBUG: strcpy(l,"DEBUG MENU"); break;
         case MI_RESUME: strcpy(l,"RESUME"); break; case MI_SAVE: strcpy(l,"SAVE GAME"); break; case MI_NEW: strcpy(l,"NEW WORLD"); break; case MI_MODE: strcpy(l,"MODE"); strcpy(v,storyOn?"STORY":"FREE PLAY"); break; case MI_TITLE: strcpy(l,"TITLE SCREEN"); break; } }
 static int menuAdj(int id){ return id==MI_SIZE||id==MI_STYPE||id==MI_SPEED||id==MI_DIFF||id==MI_VOL||id==MI_MON; }
+static const u8 extOrder[10]={7,10,11,8,9,2,5,6,3,4};
+static const char* extName(int pg){ switch(pg){ case 2: return "BESTIARY"; case 3: return "AURAL"; case 4: return "DEBUG"; case 5: return "TRAITS"; case 6: return "HELP"; case 7: return "KINGDOMS"; case 8: return "JOURNAL"; case 9: return "GOALS"; case 10: return "CULTURE"; default: return "LANGUAGES"; } }
+static int extOpen(int pg){ return !(pg==3&&!auralOK())&&!(pg==4&&!debugOn); }
+static int extStep(int d){ int i=0; for(int k=0;k<10;k++) if(extOrder[k]==page) i=k; for(int n=0;n<10;n++){ i=(i+d+10)%10; if(extOpen(extOrder[i])) return extOrder[i]; } return page; }
+static const char* menuDesc(int id){ switch(id){
+    case MI_CONT: return hasSave?"PICK UP YOUR SAVED WORLD WHERE YOU LEFT IT":"BEGIN THE STORY ON A NEW PLANET"; case MI_CREATE: return "CHOOSE SIZE, LAND, CLIMATE AND SEED OF A NEW PLANET"; case MI_OPT: return "DIFFICULTY, SPEED, VOLUME, MONSTERS"; case MI_EXTRA: return "KINGDOMS, MUSIC, BESTIARY, HELP AND MORE";
+    case MI_DIFF: return "HOW HARD THE MONSTERS BITE"; case MI_SPEED: return "HOW FAST TIME RUNS"; case MI_VOL: return "MUSIC AND EFFECT LOUDNESS"; case MI_MON: return "TURN THE NIGHTMARES ON OR OFF";
+    case MI_SCULPT: return "THE JUKEBOX: ALL THE TRACKS AND SUITES"; case MI_KING: return "WHO RULES WHAT: WARS, ALLIES, VASSALS"; case MI_CULT: return "WHAT EACH KINGDOM HAS LEARNED"; case MI_LANG: return "THE FIVE TONGUES AND THEIR NAMES"; case MI_JOURNAL: return "THE LAST EVENTS OF THE WORLD"; case MI_ACH: return "THINGS YOU HAVE DONE AS A GOD"; case MI_BEST: return "EVERY NIGHTMARE YOU HAVE MET"; case MI_CODEX: return "SUBSPECIES AND WHAT THEY DO"; case MI_HELP: return "THE CONTROLS"; case MI_CRED: return "WHO MADE THIS"; case MI_DEBUG: return "CHEATS AND TOOLS";
+    case MI_RESUME: return "BACK TO THE WORLD"; case MI_SAVE: return "WRITE THE WORLD TO THE CARD"; case MI_NEW: return "REPLACE THIS WORLD WITH A NEW ONE"; case MI_MODE: return "SWITCH BETWEEN STORY AND FREE PLAY"; case MI_TITLE: return "SAVE AND GO TO THE TITLE SCREEN"; case MI_SIZE: return "BIGGER PLANETS TAKE LONGER TO MAKE"; case MI_STYPE: return "STORY HAS CHAPTERS, FREE PLAY HAS NONE"; case MI_GO: return "MAKE THE PLANET AND BEGIN"; default: return ""; } }
 static void uiMenuList(int x,int y,int w,int rh){
     int ids[14]; int n=menuList(ids); if(mSel>=n) mSel=n-1; char l[32], v[16]; if(y+n*rh>176) rh=(176-y)/n;
-    for(int i=0;i<n;i++){ menuText(ids[i],l,v); int yy=y+i*rh, sel=i==mSel; uiRound(x,yy,w,rh-2,sel?U_SEL:U_PANELHI,sel?U_GOLD:U_BHI);
-        uiText(x+8,yy+(rh-9)/2,l,sel?U_WHITE:U_LGREY,1);
+    for(int i=0;i<n;i++){ menuText(ids[i],l,v); int yy=y+i*rh, sel=i==mSel; uiRound(x,yy,w,rh-2,sel?U_SEL:U_PANELHI,sel?((tick>>3)&1?U_GOLD:U_YELLOW):U_BHI);
+        if(sel) uiText(x+3,yy+(rh-9)/2,">",U_GOLD,1); uiText(x+(sel?11:8),yy+(rh-9)/2,l,sel?U_WHITE:U_LGREY,1);
         if(v[0]){ if(menuAdj(ids[i])&&sel){ uiIcon8(x+w-72,yy+(rh-10)/2,IC8_LEFT); uiIcon8(x+w-12,yy+(rh-10)/2,IC8_RIGHT); uiTextC(x+w-42,yy+(rh-9)/2,v,U_GOLD,1); } else uiTextR(x+w-8,yy+(rh-9)/2,v,sel?U_GOLD:U_DIM); } } }
 static void uiTitle(void){
     if(mScr==3){ uiCreate(); return; }
     uiRect(0,0,256,192,U_BG); for(int y=0;y<192;y++) if((y&3)==0) uiRect(0,y,256,1,U_PANEL);
     for(int k=0;k<70;k++){ int x=(int)(hsh(k,1,7)%256), y=(int)(hsh(k,2,7)%192); uiPx(x,y,(k&3)==0?U_WHITE:U_DIM); }
     uiPlanetSprite(204,128,planetSize==128?36:planetSize==192?42:48);
-    if(mScr==2){ uiText(10,6,"MAIN MENU  >  EXTRAS",U_GOLD,1); uiMenuList(8,18,148,15); }
+    if(mScr==2){ uiText(10,6,"MAIN MENU  >  EXTRAS",U_GOLD,1); uiMenuList(8,18,148,15); { int ids[14]; menuList(ids); uiFrame(160,18,92,56,U_PANEL,U_BHI,U_BLO); uiWrap(164,22,14,6,menuDesc(ids[mSel]),U_LGREY); } }
     else { uiTextS(12,8,"BORE",U_LGREY,3); for(int i=0;i<6;i++){ char g[2]={"GODGUY"[i],0}; int c=U_G0+i; uiTextS(12+i*28,30,g,c,4); }
     uiText(14,60,"A GOD GAME FOR THE TOUCH SCREEN",U_DIM,1);
     uiText(10,72,mScr==0?"MAIN MENU":"MAIN MENU  >  OPTIONS",U_GOLD,1);
-    uiMenuList(8,83,148,15); }
-    { int o; int tot=itCount(&o); char b[48]; siprintf(b,"STORY CH %d/%d   ITEMS %d/%d",chapter<CHAP_N?chapter+1:CHAP_N,CHAP_N,o,tot); uiText(8,180,b,U_DIM,1);
-      (void)0; }
+    uiMenuList(8,83,148,15); { int ids[14]; menuList(ids); uiWrap(8,168,34,2,menuDesc(ids[mSel]),U_LGREY); } }
     uiFlush(); }
 static void uiScene(void){
     int n=sceneLines(sceneTxt); uiRect(0,0,256,192,U_BG); for(int y=0;y<192;y+=2) uiRect(0,y,256,1,U_PANEL);
     if(sceneScroll){ for(int r=0;r<24;r++){ int l=sceneOff+r; if(l>=0&&l<n){ int yy=r*8; int c=(yy<24||yy>160)?U_DIM:U_WHITE; if(sceneTxt[l][0]) uiTextC(128,yy,sceneTxt[l],c,1); } } uiText(6,184,"A SKIP",U_DIM,1); }
     else { uiFrame(14,10,228,160,U_PANEL,U_BHI,U_BLO); uiFrame(17,13,222,154,U_PANELHI,U_BLO,U_BHI); for(int l=0;l<n;l++) uiTextC(128,20+l*9,sceneTxt[l],U_WHITE,1); if((tick>>4)&1) uiTextC(128,160,"PRESS A",U_GOLD,1); }
     uiFlush(); }
+
+static void uiBig(int x,int y,int idx,int sc){ for(int j=0;j<8;j++) for(int i=0;i<8;i++){ int c=icon8[idx][j*8+i]; if(c) uiRect(x+i*sc,y+j*sc,sc,sc,c); } }
+static void uiInspectCard(void){
+    uiFrame(138,15,116,132,U_PANEL,U_GOLD,U_BLO); char b[64], nm[48]; int y=19;
+    if(inspKind==1&&inspIdx>=0&&inspIdx<nCr&&cr[inspIdx].alive){ Cr*c=&cr[inspIdx]; int fam=sp[c->sp].fam, shape=arch[sp[c->sp].a].shape;
+        for(int k=0;k<3;k++) BG_PALETTE_SUB[200+k]=RGB15(famCol[fam][k][0],famCol[fam][k][1],famCol[fam][k][2]); BG_PALETTE_SUB[203]=RGB15(31,31,31);
+        uiFrame(142,19,38,38,U_SHADOW,U_BHI,U_BLO); for(int j=0;j<8;j++) for(int i=0;i<8;i++){ char ch=shpRow(shape,(tick>>4)&1,j)[i]; int col=ch=='b'?200:ch=='d'?201:ch=='a'?202:ch=='e'?203:0; if(col) uiRect(144+i*4,21+j*4,4,4,col); }
+        crName(c,nm); uiWrap(184,20,11,4,nm,U_WHITE); spName(c->sp,nm); (void)nm; y=62;
+        uiText(142,y,"HEALTH",U_DIM,1); uiBar(142,y+9,108,7,c->hp,maxHp(c),c->hp*3<maxHp(c)?U_RED:U_GREEN); y+=19;
+        uiText(142,y,"HUNGER",U_DIM,1); uiBar(142,y+9,108,7,c->food>200?200:c->food,200,U_ORANGE); y+=19;
+        siprintf(b,"AGE %d   %s",c->age,arch[sp[c->sp].a].diet==5?"MONSTER":arch[sp[c->sp].a].diet==4?"FOLK":"BEAST"); uiText(142,y,b,U_LGREY,1); y+=10;
+        if(c->wep) uiText(142,y,it[c->wep-1].nm,U_YELLOW,1),y+=10; if(c->arm) uiText(142,y,it[c->arm-1].nm,U_CYAN,1),y+=10;
+        if(c->tr){ uiText(142,y,trNm[c->tr],U_PURPLE,1); y+=10; uiWrap(142,y,18,2,trDesc[c->tr],U_DIM); y+=18; } if(c->tr2){ uiText(142,y,trNm[c->tr2],U_PURPLE,1); y+=10; } }
+    else if(inspKind==2&&inspIdx>=0&&inspIdx<VIL_N&&vil[inspIdx].on){ Vil*V=&vil[inspIdx]; int v=inspIdx; char vn[24]; vilName(v,vn);
+        uiFrame(142,19,38,38,U_SHADOW,U_BHI,U_BLO); uiBig(145,22,IC8_HOME,4); uiText(184,20,vn,U_WHITE,1); uiText(184,30,arch[V->race].nm,U_DIM,1); { static const char* const tier[4]={"","HAMLET","TOWN","CITY"}; int k=vilK[v]-1; uiText(184,40,(k>=0&&kd[k].cap==v+1)?"CAPITAL":tier[V->lvl>3?3:V->lvl],(k>=0&&kd[k].cap==v+1)?U_GOLD:U_LGREY,1); }
+        y=62; if(vilK[v]){ int k=vilK[v]-1; char kn[24]; kdName(k,kn); uiRect(142,y,8,8,40+k); uiText(153,y,kn,U_WHITE,1); y+=11; uiText(142,y,"LOYALTY",U_DIM,1); int lo=vilL[v]<0?0:vilL[v]; uiBar(142,y+9,108,7,lo,100,vilL[v]<20?U_RED:U_GREEN); y+=19; }
+        uiText(142,y,"STORE",U_DIM,1); uiBar(142,y+9,108,7,V->stock,400,U_YELLOW); y+=19;
+        siprintf(b,"POP %d  HOMES %d",V->pop,V->houses); uiText(142,y,b,U_WHITE,1); y+=10; siprintf(b,"FARMS %d  TOWERS %d",V->farms,V->towers); uiText(142,y,b,U_WHITE,1); y+=10;
+        if(V->foe&&vil[V->foe-1].on){ char fn[24]; vilName(V->foe-1,fn); siprintf(b,"AT WAR: %s",fn); uiText(142,y,b,U_RED,1); } }
+    else { uiText(142,24,"NOTHING HERE",U_DIM,1); }
+    uiText(142,136,"A: INSPECT AGAIN",U_DIM,1); }
 static void uiStatus(void){
     int alive=0; for(int i=0;i<nCr;i++) alive+=cr[i].alive; int hh; int folk=vilTotals(&hh); char b[64];
     siprintf(b,"%s  YEAR %d",storyOn?"STORY":"FREE PLAY",year); uiWin(view3d?(walkOn?"BORE: GODGUY  WALKING":"BORE: GODGUY  GLOBE"):"BORE: GODGUY",b,0);
     { int p=(tick>>1)&2047; uiIcon8(238-uiTextW(b,1)-10,3,(p<256||p>1792)?IC8_MOON:IC8_SUN); if(paused) uiText(82,3,"PAUSED",U_RED,1); }
     uiFrame(2,15,132,132,U_SHADOW,U_BHI,U_BLO); uiMinimap(4,17);
+    if(inspT>0){ uiInspectCard(); } else {
     uiFrame(138,15,116,86,U_PANEL,U_BHI,U_BLO);
     { struct { int ic; const char*l; int v; } r[6]={{IC8_LIFE,"LIFE",alive},{IC8_FOLK,"FOLK",folk},{IC8_HOME,"HOMES",hh},{IC8_FLAG,"VILLAGES",nVilOn},{IC8_SKULL,"MONSTERS",monCount()},{IC8_STAR,"SLAIN",(int)stKill}};
       for(int i=0;i<6;i++){ int y=19+i*13; uiIcon8(143,y,r[i].ic); uiText(155,y+1,r[i].l,U_DIM,1); siprintf(b,"%d",r[i].v); uiTextR(250,y+1,b,U_WHITE); } }
@@ -1031,10 +1061,11 @@ static void uiStatus(void){
     else if(storyOn&&chapter<CHAP_N){ const Chap*C=&chap[chapter]; int v=chapVal(C->kind); if(v>(int)C->target) v=C->target; siprintf(b,"CHAPTER %d",chapter+1); uiText(143,108,b,U_GOLD,1); uiWrap(143,118,18,2,C->goal,U_WHITE); uiBar(143,137,106,9,v,C->target,U_GREEN); siprintf(b,"%d/%d",v,C->target); uiTextC(196,138,b,U_WHITE,1); }
     else if(storyOn){ uiText(143,108,"STORY TOLD",U_GOLD,1); uiText(143,120,"YOU ARE A GOD",U_WHITE,1); }
     else { int o; int tot=itCount(&o); uiText(143,108,"FREE PLAY",U_GOLD,1); siprintf(b,"ITEMS %d/%d",o,tot); uiText(143,120,b,U_WHITE,1); siprintf(b,"MET %d/320",seenN); uiText(143,132,b,U_DIM,1); }
+    }
     uiFrame(2,150,252,28,U_PANEL,U_BHI,U_BLO); uiRect(5,153,14,14,U_SHADOW); uiPowerIcon(power,7,155);
     { char nm[40]; if(pw[power].kind==PK_SPAWN){ spName(spSel,nm); siprintf(b,"%s",nm); } else if(pw[power].kind==PK_GIFT){ itSay(nm,itSel); siprintf(b,"%.28s",nm); } else if(pw[power].kind==PK_MUTATE) siprintf(b,"TRAIT: %s",trSel?trNm[trSel]:"CLEAR"); else if(pw[power].kind==PK_PAINT) siprintf(b,"BRUSH %d",brush); else siprintf(b,"BRUSH %d",brush);
       uiText(24,154,pw[power].nm,U_GOLD,1); uiText(24+uiTextW(pw[power].nm,1)+6,154,b,U_WHITE,1); if(toastT>0&&info[0]) uiText(24,166,info,U_YELLOW,1); else uiText(24,166,pw[power].kind<PW_N?pwDesc[power]:"",U_DIM,1); }
-    uiIcon8(4,182,IC8_NOTE); uiText(14,183,gmCur>=0?gmSongs[gmCur].name:"",U_DIM,1); uiTextR(250,183,"SELECT PAGE",U_DIM);
+    uiIcon8(4,182,IC8_NOTE); { char mn[24]=""; if(gmCur>=0){ strncpy(mn,gmSongs[gmCur].name,19); mn[19]=0; } uiText(14,183,mn,U_DIM,1); } { static const char* const wn[4]={"CLEAR","RAIN","STORM","SNOW"}; siprintf(b,"%s %s",ageN[worldAge()],wn[weather&3]); uiTextR(250,183,b,U_DIM); }
     uiFlush(); }
 static int achSel, kingSel, jrSel;
 static void uiAch(void){
@@ -1142,10 +1173,10 @@ static void uiMenu(void){
     uiStatus(); for(int y=0;y<192;y++) for(int x=(y&1);x<256;x+=2) uiPx(x,y,U_SHADOW);
     uiRect(30,12,196,168,U_SHADOW); uiFrame(32,14,192,164,U_PANEL,U_GOLD,U_BLO); uiRect(33,15,190,16,U_PANELHI); uiText(42,19,mScr==0?"PAUSED":mScr==1?"PAUSED  >  OPTIONS":"PAUSED  >  EXTRAS",U_GOLD,1); if(mScr==0) uiTextR(214,19,"START: RESUME",U_DIM);
     uiMenuList(38,36,180,16);
-    if(menuAsk){ uiRect(40,154,176,20,U_RED); uiTextC(128,160,"ARE YOU SURE?   A YES   B NO",U_WHITE,1); } else if(mScr==0) uiTextC(128,164,"A SELECT     B BACK",U_DIM,1); else if(mScr==1) uiTextC(128,164,"L R CHANGE   B BACK",U_DIM,1);
+    if(menuAsk){ uiRect(40,154,176,20,U_RED); uiTextC(128,160,"ARE YOU SURE?   A YES   B NO",U_WHITE,1); } else if(mScr<2){ int ids[14]; menuList(ids); uiWrap(40,152,30,2,menuDesc(ids[mSel]),U_LGREY); uiTextC(128,168,mScr==0?"A SELECT     B BACK":"L R CHANGE   B BACK",U_DIM,1); }
     uiFlush(); }
 static void hud(void){
-    uiBackHint=extrasView; uiPageOpen=1|2|4|(auralOK()?8:0)|(debugOn?16:0)|32|64; uiPages=titleOn||sceneOn||dlgOn||extrasView?0:7; uiPageNow=page; uiDotX=124;
+    uiBackHint=extrasView; if(extrasView&&page!=3&&page!=4){ uiTabPrev=extName(extStep(-1)); uiTabNext=extName(extStep(1)); } else uiTabPrev=uiTabNext=0; uiPageOpen=1|2|4|(auralOK()?8:0)|(debugOn?16:0)|32|64; uiPages=titleOn||sceneOn||dlgOn||extrasView?0:7; uiPageNow=page; uiDotX=124;
     if(dlgOn){ uiDialog(); return; } if(sceneOn){ uiScene(); return; } if(!extrasView){ if(titleOn){ uiTitle(); return; } if(menuOn){ uiMenu(); return; } }
     switch(page){ case 1: uiStory(); break; case 2: uiBest(); break; case 3: uiAural(); break; case 4: uiDebug(); break; case 5: uiCodex(); break; case 6: uiHelp(); break; case 7: uiKing(); break; case 8: uiJournal(); break; case 9: uiAch(); break; case 10: uiCult(); break; case 11: uiLang(); break; default: uiStatus(); }
 }
@@ -1206,7 +1237,7 @@ int main(void){
     musReq(GM_TITLE); musUpdate();
     int held=0, lastTx=-9, lastTy=-9; hud();
     while(1){
-        scanKeys(); int kd=keysDown(), kh=keysHeld(); tick++;
+        scanKeys(); int kd=keysDown(), kh=keysHeld(); tick++; if(inspT>0) inspT--;
         musUpdate();
         if(view3d&&(sceneOn||dlgOn||menuOn||titleOn)) leaveGlobe();
         if(sceneOn){ sceneT++; int n=sceneLines(sceneTxt); if(sceneScroll&&(sceneT&7)==0) sceneOff++; int done=(kd&(KEY_A|KEY_START))!=0; if(sceneScroll&&sceneOff>n+2) done=1;
@@ -1233,6 +1264,7 @@ int main(void){
         if((kd&KEY_SELECT)&&!extrasView){ if(0){ } else if(kh&KEY_L&&kh&KEY_R){ doSave(); } else { do page=(page+1)%7; while((page==3&&!auralOK())||(page==4&&!debugOn)); if(page==3) juke=gmCur>=0?gmCur:0; } dirty=1; }
         if((kd&(KEY_X|KEY_Y))&&(kh&KEY_X)&&(kh&KEY_Y)){ if(view3d) leaveGlobe(); else globeEnter(); dirty=1; kd&=~(KEY_X|KEY_Y); }
         if(kd&KEY_START){ if((kh&KEY_L)&&(kh&KEY_R)){ unlockAll=1; siprintf(info,"EVERYTHING UNLOCKED"); } else if(!(kh&KEY_SELECT)){ menuOn=1; menuSel=0; menuAsk=0; mScr=0; mSel=0; dlgPaused=paused; paused=1; } dirty=1; }
+        if(extrasView&&page!=3&&page!=4&&(kd&(KEY_L|KEY_R))){ page=(kd&KEY_L)?extStep(-1):extStep(1); kd&=~(KEY_L|KEY_R); dirty=1; fxReq(FX_MENU_MOVE); }
         if(page==2){ if(kd&KEY_UP) bestSel=bestSel>0?bestSel-1:0; if(kd&KEY_DOWN) bestSel=bestSel<319?bestSel+1:319; if(kd&KEY_LEFT) bestSel=bestSel>=10?bestSel-10:0; if(kd&KEY_RIGHT) bestSel=bestSel<310?bestSel+10:319; if(kd) dirty=1; kd&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); kh&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); }
         else if(page>=7&&page<=11){ int*sel=(page==7||page==10)?&kingSel:page==8?&jrSel:page==11?&langSel:&achSel; int mx=(page==7||page==10)?KN_N-1:page==8?(jrN>14?jrN-14:0):page==11?4:ACH_N-1; if(kd&KEY_UP) *sel=*sel>0?*sel-1:0; if(kd&KEY_DOWN) *sel=*sel<mx?*sel+1:mx; if(kd) dirty=1; kd&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); kh&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); }
         else if(page==5){ if(kd&KEY_UP) trPage=trPage>1?trPage-1:1; if(kd&KEY_DOWN) trPage=trPage<TR_N-1?trPage+1:TR_N-1; if(kd) dirty=1; kd&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); kh&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); }

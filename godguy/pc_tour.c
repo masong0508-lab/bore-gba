@@ -19,6 +19,9 @@ void shimInput(int frame,int*held,int*tx,int*ty){
             case 22: page=3; extrasView=1; auralOpen=1; break; case 23: dlgSet=dlgTab[3]; dlgIdx=1; dlgChars=999; dlgOn=1; break; case 24: sceneStart(introTxt,0); break; case 25: sceneStart(credTxt,1); sceneOff=10; break;
             case 26: menuOn=1; mScr=2; mSel=5; break; case 27: titleOn=1; mScr=2; mSel=3; break; case 28: menuOn=1; mScr=1; mSel=1; break;
             case 29: page=10; extrasView=1; break; case 30: page=11; extrasView=1; langSel=2; break; case 31: page=7; extrasView=1; break;
+            case 32: { int v=0; for(int i=0;i<VIL_N;i++) if(vil[i].on&&vil[i].pop>3){ v=i; break; } inspKind=2; inspIdx=v; inspT=900; page=0; } break;
+            case 33: { int ci=0; for(int i=0;i<nCr;i++) if(cr[i].alive&&cr[i].rk){ ci=i; break; } if(!cr[ci].rk) for(int i=0;i<nCr;i++) if(cr[i].alive&&arch[sp[cr[i].sp].a].diet==5){ ci=i; break; } inspKind=1; inspIdx=ci; inspT=900; page=0; } break;
+            case 34: inspT=0; page=0; power=24; break; case 35: page=8; extrasView=1; break; case 36: titleOn=1; mScr=0; mSel=1; break;
             default: page=0; break; } hud(); } }
     if(frame==1140){ weather=2; weatherT=3000; } if(frame==1248||frame==1249) flashT=6; if(frame==1290){ weather=3; weatherT=3000; }
     *held=0; for(unsigned i=0;i<sizeof script/sizeof script[0];i++) if(frame>=script[i].f0&&frame<script[i].f1){ *held|=script[i].keys; if(script[i].keys&KEY_TOUCH){ *tx=script[i].tx; *ty=script[i].ty; } }

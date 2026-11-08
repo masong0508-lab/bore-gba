@@ -42,12 +42,14 @@ static void uiPowerIcon(int pwi,int x,int y){ const Pw*P=&pw[pwi];
     uiIcon10(x,y,uiKindIcon[P->kind]); }
 // ---- window furniture
 static int uiBackHint;   // set while an Extras page is open: START goes back to the menu, so the page hint says so
-static void uiWin(const char*title,const char*right,const char*hint){ if(uiBackHint&&hint&&(!strcmp(hint,"SELECT NEXT PAGE")||!strcmp(hint,"SELECT PAGE"))) hint="START: BACK TO THE MENU";
+static const char* uiTabPrev, *uiTabNext;   // names of the neighbouring Extras pages (L and R switch between them)
+static void uiWin(const char*title,const char*right,const char*hint){ if(uiBackHint) hint=0;
     uiRect(0,0,256,192,U_BG); for(int y=0;y<192;y+=2) for(int x=((y>>1)&1)*2;x<256;x+=4) uiPx(x,y,U_PANEL);
     for(int j=0;j<13;j++){ int c=j<2?U_PANELHI:j<11?U_PANEL:U_SHADOW; uiRect(0,j,256,1,c); } uiRect(0,12,256,1,U_BHI);
     uiText(6,3,title,U_GOLD,1); if(right) uiTextR(250,3,right,U_DIM);
     if(uiPages>0){ char pg[8]; int n=0; for(int i=0;i<=uiPageNow;i++) if(uiPageOpen&(1<<i)) n++; int t=0; for(int i=0;i<uiPages;i++) if(uiPageOpen&(1<<i)) t++; pg[0]='0'+n; pg[1]='/'; pg[2]='0'+t; pg[3]=0; uiText(uiDotX,3,pg,U_LGREY,1); }
-    uiRect(0,179,256,13,U_PANEL); uiRect(0,179,256,1,U_BHI); if(hint) uiText(6,183,hint,U_DIM,1); }
+    uiRect(0,179,256,13,U_PANEL); uiRect(0,179,256,1,U_BHI); if(hint) uiText(6,183,hint,U_DIM,1);
+    if(uiBackHint){ if(uiTabPrev){ uiRound(3,181,12,10,U_SEL,U_BHI); uiText(7,183,"L",U_GOLD,1); uiText(19,183,uiTabPrev,U_DIM,1); } uiTextC(128,183,"START: BACK",U_LGREY,1); if(uiTabNext){ uiRound(241,181,12,10,U_SEL,U_BHI); uiText(245,183,"R",U_GOLD,1); uiTextR(237,183,uiTabNext,U_DIM); } } }
 static void uiListRow(int y,int sel,int n,const char*left,const char*right,int col){ if(sel) uiRect(4,y-1,240,10,U_SEL); else if(n&1) uiRect(4,y-1,240,10,U_PANEL);
     if(sel) uiText(6,y,">",U_GOLD,1); uiText(14,y,left,col,1); if(right&&right[0]) uiTextR(242,y,right,sel?U_WHITE:U_DIM); }
 static void uiScroll(int total,int top,int vis,int y0,int h){ uiRect(248,y0,5,h,U_SHADOW); if(total>vis){ int bh=h*vis/total; if(bh<6) bh=6; int by=y0+(h-bh)*top/(total-vis); uiRect(248,by,5,bh,U_BHI); } }
@@ -72,6 +74,7 @@ static void tbDraw(void){
     for(int s=0;s<TB_SLOTS;s++){ int pi=tbTop+s; int x0=12+s*23, y0=3, sel=pi==power;
         for(int j=0;j<19;j++) for(int i=0;i<21;i++){ int edge=(i==0||j==0||i==20||j==18); int c=sel?(edge?U_GOLD:U_SEL):(edge?U_BLO:U_SHADOW); TBP(x0+i,y0+j,UI_PAL0+c); }
         // icon (10 x 10, doubled would be too coarse: drawn once, centred)
+        { int kk=pw[pi].kind, cc=kk==PK_PAINT?U_BROWN:(kk==PK_SPAWN||kk==PK_HEAL||kk==PK_FEED||kk==PK_BLOOM||kk==PK_VIBE)?U_GREEN:(kk==PK_RAIN||kk==PK_FIRE||kk==PK_BOLT||kk==PK_METEOR||kk==PK_KILL||kk==PK_QUAKE||kk==PK_FLOOD)?U_RED:(kk==PK_SETTLE||kk==PK_WAR||kk==PK_PEACE||kk==PK_BLESS)?U_BLUE:U_GOLD; for(int i=1;i<20;i++){ TBP(x0+i,y0+1,UI_PAL0+cc); TBP(x0+i,y0+2,UI_PAL0+cc); } }   // a colour strip says what kind of power it is: land, life, disaster, people, tools
         const Pw*P=&pw[pi]; for(int j=0;j<10;j++) for(int i=0;i<10;i++){ int c;
             if(P->kind==PK_PAINT){ c=uiSwatch(P->arg,i,j,200); } else { c=icon10[uiKindIcon[P->kind]][j*10+i]; if(!c) continue; c+=UI_PAL0; }
             TBP(x0+5+i,y0+4+j,c); } }
