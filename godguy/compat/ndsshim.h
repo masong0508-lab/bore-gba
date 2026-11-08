@@ -49,7 +49,8 @@ static void*bgGetGfxPtr(int id){ (void)id; return shimBmp; }
 static int shimScrollX, shimScrollY;
 static inline void videoSetMode(int m){ (void)m; } static inline void videoSetModeSub(int m){ (void)m; }
 static inline void vramSetBankA(int b){ (void)b; } static inline void vramSetBankB(int b){ (void)b; } static inline void vramSetBankC(int b){ (void)b; } static inline void vramSetBankD(int b){ (void)b; }
-static inline void lcdMainOnBottom(void){} static inline void lcdMainOnTop(void){}
+static int shimSwap;
+static inline void lcdMainOnBottom(void){ shimSwap=0; } static inline void lcdMainOnTop(void){ shimSwap=1; }
 static inline int bgInit(int l,int t,int s,int m,int tb){ (void)t;(void)s;(void)m;(void)tb; return l; }
 static inline void bgSetPriority(int id,int p){ (void)id;(void)p; }
 static inline int bgInitSub(int l,int t,int s,int m,int tb){ (void)l;(void)t;(void)s;(void)m;(void)tb; return 3; }
@@ -150,15 +151,16 @@ static inline void swiWaitForVBlank(void){ shimFrame++; shimPresent(); }
 static inline void shimRGB(u16 c,u8*o){ o[0]=(u8)((c&31)*255/31); o[1]=(u8)(((c>>5)&31)*255/31); o[2]=(u8)(((c>>10)&31)*255/31); }
 static void shimRender(u8*top,u8*bot){
     memset(top,0,400*240*3); memset(bot,0,320*240*3);
+    u8*mb=shimSwap?top:bot; int mw=shimSwap?400:320, mox=shimSwap?72:32; u8*sb=shimSwap?bot:top; int sw=shimSwap?320:400, sox=shimSwap?32:72;   // which screen shows which engine
     // bottom: BG0 + sprites at (32,24)
     for(int sy=0;sy<192;sy++) for(int sx=0;sx<256;sx++){ int wx=(sx+shimScrollX)&511, wy=(sy+shimScrollY)&511, mx=wx>>3, my=wy>>3; u16 e=shimMap[((my>=32?2:0)+(mx>=32?1:0))*1024+(my&31)*32+(mx&31)]; int idx=shimTiles[(e&0x3FF)*64+(wy&7)*8+(wx&7)];
-        shimRGB(BG_PALETTE[idx],&bot[((24+sy)*320+32+sx)*3]); }
-    for(int sy=0;sy<192;sy++) for(int sx=0;sx<256;sx++){ u16 e=shimMap1[(sy>>3)*32+(sx>>3)]; int idx=shimTiles[(e&0x3FF)*64+(sy&7)*8+(sx&7)]; if(idx) shimRGB(BG_PALETTE[idx],&bot[((24+sy)*320+32+sx)*3]); }   // BG1 (the toolbar) over the world, under nothing
+        shimRGB(BG_PALETTE[idx],&mb[((24+sy)*mw+mox+sx)*3]); }
+    for(int sy=0;sy<192;sy++) for(int sx=0;sx<256;sx++){ u16 e=shimMap1[(sy>>3)*32+(sx>>3)]; int idx=shimTiles[(e&0x3FF)*64+(sy&7)*8+(sx&7)]; if(idx) shimRGB(BG_PALETTE[idx],&mb[((24+sy)*mw+mox+sx)*3]); }   // BG1 (the toolbar) over the world, under nothing
     for(int n=127;n>=0;n--){ const ShimSpr*s=&shimSpr[n]; if(!s->on||!s->gfx) continue; for(int y=0;y<8;y++) for(int x=0;x<8;x++){ int xx=s->hflip?7-x:x; int b=s->gfx[y*4+xx/2]; int idx=(xx&1)?(b>>4):(b&15); if(!idx) continue; int px=s->x+x, py=s->y+y; if(px<0||py<0||px>=256||py>=192) continue;
-            shimRGB(SPRITE_PALETTE[s->pal*16+idx],&bot[((24+py)*320+32+px)*3]); } }
+            shimRGB(SPRITE_PALETTE[s->pal*16+idx],&mb[((24+py)*mw+mox+px)*3]); } }
     // top: bitmap + text at (72,24)
-    for(int sy=0;sy<192;sy++) for(int sx=0;sx<256;sx++){ int idx=shimBmp[sy*256+sx]; if(idx) shimRGB(BG_PALETTE_SUB[idx],&top[((24+sy)*400+72+sx)*3]); }
+    for(int sy=0;sy<192;sy++) for(int sx=0;sx<256;sx++){ int idx=shimBmp[sy*256+sx]; if(idx) shimRGB(BG_PALETTE_SUB[idx],&sb[((24+sy)*sw+sox+sx)*3]); }
     for(int r=0;r<24;r++) for(int c=0;c<32;c++){ int ch=shimCon[r][c]; if(ch>='a'&&ch<='z') ch-=32; if(ch<32||ch>=96) continue; const unsigned char*g=font5x7[ch-32];
-        for(int y=0;y<7;y++) for(int x=0;x<5;x++) if((g[y]>>(4-x))&1){ u8*o=&top[((24+r*8+y)*400+72+c*8+x+1)*3]; o[0]=o[1]=o[2]=255; } }
+        for(int y=0;y<7;y++) for(int x=0;x<5;x++) if((g[y]>>(4-x))&1){ u8*o=&sb[((24+r*8+y)*sw+sox+c*8+x+1)*3]; o[0]=o[1]=o[2]=255; } }
 }
 #endif

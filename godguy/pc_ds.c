@@ -1,5 +1,6 @@
 // Runs the REAL Bore: GodGuy program (source/main.c, DS user interface and all) on the PC through compat/ndsshim.h with scripted keys and stylus, saves screenshots of both screens
 // and the sound it produced. gcc -O2 -DNDSSHIM -Icompat -Isource -o pc_ds pc_ds.c -lm && ./pc_ds outdir
+#define UI_NOTRANS 1
 #define main ds_main
 #include "source/main.c"
 #undef main

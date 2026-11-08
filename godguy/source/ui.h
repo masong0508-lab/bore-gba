@@ -13,10 +13,29 @@ static u8 uiBuf[256*192] __attribute__((aligned(4))); static int uiPages, uiPage
 static const u8 uiKCol[8][3]={{31,8,8},{8,16,31},{10,28,10},{31,26,6},{24,10,30},{31,16,4},{6,28,28},{31,14,22}};   // kingdom colours (sub palette 40..47)
 static void uiPalette(void){ for(int k=0;k<8;k++) BG_PALETTE_SUB[40+k]=RGB15(uiKCol[k][0],uiKCol[k][1],uiKCol[k][2]); for(int i=0;i<U_N;i++){ u16 c=RGB15(uiRgb[i][0],uiRgb[i][1],uiRgb[i][2]); BG_PALETTE_SUB[i]=c; BG_PALETTE[UI_PAL0+i]=c; } BG_PALETTE_SUB[0]=0; }
 #ifdef NDSHW
-static void uiFlush(void){ hwSubFlush(uiBuf); }
+static void uiFlushRaw(void){ hwSubFlush(uiBuf); }
 #else
-static void uiFlush(void){ vramCopy(bgGetGfxPtr(3),uiBuf,256*192); }
+static void uiFlushRaw(void){ vramCopy(bgGetGfxPtr(3),uiBuf,256*192); }
 #endif
+#ifndef UI_NOTRANS
+#define UI_NOTRANS 0
+#endif
+// ---- screen transitions: when the screen changes, the old picture slides out and the new one in (dir 1 forward, -1 back) or dissolves (dir 2)
+static u8 uiPrev[256*192], uiNew[256*192]; static int uiTrans, uiHavePrev;
+static void uiFlush(void){
+    if(uiTrans&&uiHavePrev&&!UI_NOTRANS){ int dir=uiTrans; uiTrans=0; memcpy(uiNew,uiBuf,sizeof uiNew);
+        for(int f=1;f<=7;f++){ int p=f*256/7, sh=256-(256-p)*(256-p)/256;
+            if(dir==2){ static const u8 bay[16]={0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5}; int th=f*16/7; for(int y=0;y<192;y++) for(int x=0;x<256;x++) uiBuf[y*256+x]=bay[(y&3)*4+(x&3)]<th?uiNew[y*256+x]:uiPrev[y*256+x]; }
+            else for(int y=0;y<192;y++){ u8*o=&uiBuf[y*256], *a=&uiPrev[y*256], *n=&uiNew[y*256];
+                if(dir>0){ for(int x=0;x<256;x++) o[x]=x<256-sh?a[x+sh]:n[x-(256-sh)]; } else { for(int x=0;x<256;x++) o[x]=x>=sh?a[x-sh]:n[x+(256-sh)]; } }
+            uiFlushRaw(); swiWaitForVBlank(); }
+        memcpy(uiBuf,uiNew,sizeof uiNew); }
+    uiFlushRaw(); memcpy(uiPrev,uiBuf,sizeof uiPrev); uiHavePrev=1; }
+// ---- touch buttons: each drawn control registers a rectangle; a tap on it sets *sp=sv (if given) and presses key (key2 instead when it was already selected)
+typedef struct { short x,y,w,h; unsigned short key,key2; int*sp; int sv; } UiBtn;
+static UiBtn uiBtns[64]; static int uiNBtn;
+static void uiBtn(int x,int y,int w,int h,int key,int key2,int*sp,int sv){ if(uiNBtn<64){ UiBtn*b=&uiBtns[uiNBtn++]; b->x=(short)x; b->y=(short)y; b->w=(short)w; b->h=(short)h; b->key=(unsigned short)key; b->key2=(unsigned short)key2; b->sp=sp; b->sv=sv; } }
+static int uiHit(int px,int py){ for(int i=uiNBtn-1;i>=0;i--){ const UiBtn*b=&uiBtns[i]; if(px>=b->x&&px<b->x+b->w&&py>=b->y&&py<b->y+b->h) return i; } return -1; }
 static inline void uiPx(int x,int y,int c){ if((unsigned)x<256&&(unsigned)y<192) uiBuf[y*256+x]=(u8)c; }
 static void uiRect(int x,int y,int w,int h,int c){ for(int j=0;j<h;j++) for(int i=0;i<w;i++) uiPx(x+i,y+j,c); }
 static void uiFrame(int x,int y,int w,int h,int fill,int hi,int lo){ uiRect(x,y,w,h,fill); for(int i=0;i<w;i++){ uiPx(x+i,y,hi); uiPx(x+i,y+h-1,lo); } for(int j=0;j<h;j++){ uiPx(x,y+j,hi); uiPx(x+w-1,y+j,lo); } }
@@ -49,7 +68,8 @@ static void uiWin(const char*title,const char*right,const char*hint){ if(uiBackH
     uiText(6,3,title,U_GOLD,1); if(right) uiTextR(250,3,right,U_DIM);
     if(uiPages>0){ char pg[8]; int n=0; for(int i=0;i<=uiPageNow;i++) if(uiPageOpen&(1<<i)) n++; int t=0; for(int i=0;i<uiPages;i++) if(uiPageOpen&(1<<i)) t++; pg[0]='0'+n; pg[1]='/'; pg[2]='0'+t; pg[3]=0; uiText(uiDotX,3,pg,U_LGREY,1); }
     uiRect(0,179,256,13,U_PANEL); uiRect(0,179,256,1,U_BHI); if(hint) uiText(6,183,hint,U_DIM,1);
-    if(uiBackHint){ if(uiTabPrev){ uiRound(3,181,12,10,U_SEL,U_BHI); uiText(7,183,"L",U_GOLD,1); uiText(19,183,uiTabPrev,U_DIM,1); } uiTextC(128,183,"START: BACK",U_LGREY,1); if(uiTabNext){ uiRound(241,181,12,10,U_SEL,U_BHI); uiText(245,183,"R",U_GOLD,1); uiTextR(237,183,uiTabNext,U_DIM); } } }
+    if(uiBackHint){ if(uiTabPrev){ uiRound(3,181,12,10,U_SEL,U_BHI); uiText(7,183,"L",U_GOLD,1); uiText(19,183,uiTabPrev,U_DIM,1); uiBtn(2,180,84,12,KEY_L,0,0,0); } uiRound(98,180,60,12,U_SEL,U_GOLD); uiTextC(128,183,"BACK",U_WHITE,1); uiBtn(96,179,64,13,KEY_START,0,0,0); if(uiTabNext){ uiRound(241,181,12,10,U_SEL,U_BHI); uiText(245,183,"R",U_GOLD,1); uiTextR(237,183,uiTabNext,U_DIM); uiBtn(170,180,84,12,KEY_R,0,0,0); }
+        uiRound(240,147,13,13,U_SEL,U_BHI); uiIcon8(243,150,IC8_UP); uiBtn(236,145,19,17,KEY_UP,0,0,0); uiRound(240,163,13,13,U_SEL,U_BHI); uiIcon8(243,166,IC8_DOWN); uiBtn(236,162,19,16,KEY_DOWN,0,0,0); } }
 static void uiListRow(int y,int sel,int n,const char*left,const char*right,int col){ if(sel) uiRect(4,y-1,240,10,U_SEL); else if(n&1) uiRect(4,y-1,240,10,U_PANEL);
     if(sel) uiText(6,y,">",U_GOLD,1); uiText(14,y,left,col,1); if(right&&right[0]) uiTextR(242,y,right,sel?U_WHITE:U_DIM); }
 static void uiScroll(int total,int top,int vis,int y0,int h){ uiRect(248,y0,5,h,U_SHADOW); if(total>vis){ int bh=h*vis/total; if(bh<6) bh=6; int by=y0+(h-bh)*top/(total-vis); uiRect(248,by,5,bh,U_BHI); } }
@@ -75,6 +95,7 @@ static void tbDraw(void){
         for(int j=0;j<19;j++) for(int i=0;i<21;i++){ int edge=(i==0||j==0||i==20||j==18); int c=sel?(edge?U_GOLD:U_SEL):(edge?U_BLO:U_SHADOW); TBP(x0+i,y0+j,UI_PAL0+c); }
         // icon (10 x 10, doubled would be too coarse: drawn once, centred)
         { int kk=pw[pi].kind, cc=kk==PK_PAINT?U_BROWN:(kk==PK_SPAWN||kk==PK_HEAL||kk==PK_FEED||kk==PK_BLOOM||kk==PK_VIBE)?U_GREEN:(kk==PK_RAIN||kk==PK_FIRE||kk==PK_BOLT||kk==PK_METEOR||kk==PK_KILL||kk==PK_QUAKE||kk==PK_FLOOD)?U_RED:(kk==PK_SETTLE||kk==PK_WAR||kk==PK_PEACE||kk==PK_BLESS)?U_BLUE:U_GOLD; for(int i=1;i<20;i++){ TBP(x0+i,y0+1,UI_PAL0+cc); TBP(x0+i,y0+2,UI_PAL0+cc); } }   // a colour strip says what kind of power it is: land, life, disaster, people, tools
+        if(favPow[pi]){ for(int j=0;j<3;j++) for(int i=0;i<3;i++) TBP(x0+16+i,y0+4+j,UI_PAL0+U_YELLOW); }   // a starred power
         const Pw*P=&pw[pi]; for(int j=0;j<10;j++) for(int i=0;i<10;i++){ int c;
             if(P->kind==PK_PAINT){ c=uiSwatch(P->arg,i,j,200); } else { c=icon10[uiKindIcon[P->kind]][j*10+i]; if(!c) continue; c+=UI_PAL0; }
             TBP(x0+5+i,y0+4+j,c); } }
