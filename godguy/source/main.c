@@ -2,7 +2,7 @@
 // Bottom screen (touch): the world, 8 x 8 pixel tiles on a hardware background, creatures as sprites. Top screen: the HUD and the whole-planet map.
 // Controls: D-pad pans (B = fast), L / R pick a power, X / Y change the brush size (or the species when SPAWN is picked), SELECT jumps ten species, A pauses, START makes a new world.
 // The catalogue (species, powers) is data: tables below, generated names, so it grows by adding rows.
-#if !defined(PCTEST)&&!defined(NDSSHIM)
+#if !defined(PCTEST)&&!defined(NDSSHIM)&&!defined(NDSHW)
 #include <nds.h>
 #include <fat.h>
 #endif
@@ -605,8 +605,8 @@ static void applyLight(void){
 #include "ui.h"
 // ---- the planet in 3D: sphere, cube-planet and ring-world, all wearing the 128 x 128 map as a texture ----
 static void enter3D(void){
-#ifdef NDSSHIM
-    siprintf(info,"3D GLOBE: DS ONLY"); return;
+#if defined(NDSSHIM)||defined(NDSHW)
+    siprintf(info,"3D GLOBE: NOT IN THIS BUILD"); return;
 #endif
     videoSetMode(MODE_0_3D);
     if(!glOn){ glInit(); glEnable(GL_TEXTURE_2D); glEnable(GL_ANTIALIAS); vramSetBankD(VRAM_D_TEXTURE); glClearColor(0,0,3,31); glClearPolyID(63); glClearDepth(0x7FFF); glViewport(0,0,255,191); glOn=1; }
@@ -831,7 +831,7 @@ static void hud(void){
 }
 
 int main(void){
-#ifndef NDSSHIM
+#if !defined(NDSSHIM)&&!defined(NDSHW)
     defaultExceptionHandler();      // a crash shows its registers on screen instead of a frozen display
 #endif
     videoSetMode(MODE_0_2D|DISPLAY_BG0_ACTIVE|DISPLAY_BG1_ACTIVE|DISPLAY_SPR_ACTIVE|DISPLAY_SPR_1D_LAYOUT|DISPLAY_SPR_1D_SIZE_32);

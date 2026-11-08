@@ -7,3 +7,4 @@ build/
 3ds/*.elf
 3ds/*.smdh
 ds9-800.specs
+build_hw/

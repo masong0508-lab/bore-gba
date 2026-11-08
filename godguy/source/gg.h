@@ -8,6 +8,8 @@ typedef uint8_t u8; typedef uint16_t u16; typedef uint32_t u32; typedef int8_t s
 #define siprintf sprintf
 #elif defined(NDSSHIM)
 #include "ndsshim.h"
+#elif defined(NDSHW)
+#include "ndshw.h"
 #else
 #include <nds.h>
 #endif
