@@ -186,7 +186,7 @@ static int hhMoveOut(int m){   // member m moves out: to a free lot of the town 
     int lot=-1; if(nbOk) for(int li=0;li<NB_LOTS&&lot<0;li++){ const NbLot*L=&nbT.lot[li]; if(L->on&&L->kind==LKIND_RES&&li!=nbT.home&&!nbLives(li)) lot=li; }
     int r=lot>=0?bkFree():-1, there=0;
     if(r>=0&&bkPutSim(r,nbKey(&nbT),lot,&hhM[m])){ there=1; nrMovedOut(m,lot); }   // (they stay someone you know: townrel.h)
-    hhRemove(m); for(int k=0;k<hhN;k++){ hhOld[k].x0=hhOld[k].x1=0; hhOldSig[k]=0xFFFFFFFFu; } hhSave();
+    linRecord(m,1); hhRemove(m); for(int k=0;k<hhN;k++){ hhOld[k].x0=hhOld[k].x1=0; hhOldSig[k]=0xFFFFFFFFu; } hhSave();
     if(there){ static char t[40] EWRAM_BSS; char*e=slCat(t,"THEY LIVE ON "); slCat(e,nbT.lot[lot].name); toast(t); nbSave(); } else toast("MOVED OUT OF TOWN");
     return 1;
 }

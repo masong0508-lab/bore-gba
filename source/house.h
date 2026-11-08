@@ -157,7 +157,7 @@ static NrE nrT[NR_N] EWRAM_BSS; static u8 nrN EWRAM_BSS; static u16 nrKey EWRAM_
 static u8 twLot[TW_N] EWRAM_BSS, twMem[TW_N] EWRAM_BSS, twNh[TW_N] EWRAM_BSS;   // who visitor k is in the town (twLot 255: nobody we can remember)
 static void nrSync(void);   // townrel.h: the guests' rows back into the town table
 static void famForget(int u); static void famScreen(void);   // family.h
-static void famTree(void); static void famWarmth(void); static void famInherit(HhSim*s,int pa,int pb);   // famtree.h
+static void famTree(void); static void famWarmth(void); static void famInherit(HhSim*s,int pa,int pb); static void linRecord(int m,int cause); static void famPassCheck(void);   // famtree.h
 static void copCrime(int n); static void copTick(int*planned);   // npc.h: the police
 static int prHeld(const HhSim*s); static int prHere(void); static void prSave(void); static int prSwitchHook(int m);   // prison.h
 static int hhPUid;                         // the uid of the Sim you control
@@ -1844,7 +1844,7 @@ static void hhMenu(void){
         int m=menu("WHO MOVES OUT?",who,hhN); if(m<0) return;
         static const char* const yn[2]={"YES  GOODBYE","NO"}; if(menu("ARE YOU SURE?",yn,2)!=0) return;
         hhMoveOut(m); return; }   // (to a free lot of the town if there is one: they live there and come to visit)
-    if(c==5){ for(int m=0;m<hhN;m++) famForget(hhM[m].uid); hhN=0; for(int a=0;a<HU_N;a++)for(int b=0;b<HU_N;b++){ relD[a][b]=relL[a][b]=0; relF[a][b]=0; } kinClear(); hhSave(); toast("ONLY YOU LIVE HERE NOW"); return; }
+    if(c==5){ for(int m=0;m<hhN;m++) linRecord(m,1); for(int m=0;m<hhN;m++) famForget(hhM[m].uid); hhN=0; for(int a=0;a<HU_N;a++)for(int b=0;b<HU_N;b++){ relD[a][b]=relL[a][b]=0; relF[a][b]=0; } kinClear(); hhSave(); toast("ONLY YOU LIVE HERE NOW"); return; }
     { const char* fm[HH_NFAM]; for(int f=0;f<HH_NFAM;f++) fm[f]=hhFams[f].fam;   // MOVE IN A FAMILY: the list of families
       c=menu("MOVE IN A FAMILY",fm,HH_NFAM); if(c<0) return; }
     if(!xo[XO_SIMPRE]){ toast("PRE-MADE SIMS ARE OFF"); return; }

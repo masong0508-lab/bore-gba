@@ -182,7 +182,7 @@ static int famNeed(int st){ static const u8 pct[4]={0,200,100,50}; if(st>=AG_ELD
 static void famDay(void){   // midnight (simMinute, after your own birthday): everyone else grows, and the baby may come
     int grew=0, born=0, gu[HH_MAX];
     for(int m=0;m<hhN;m++){ HhSim*s=&hhM[m]; int u=s->uid, need=famNeed(s->stage);
-        if(!need){ famAge[u]=0; continue; }   // OFF or FOREVER: nobody grows
+        if(!need){ if(s->stage==AG_ELDER&&xo[XO_AGING]){ if(famAge[u]<255) famAge[u]++; } else famAge[u]=0; continue; }   // OFF or FOREVER: nobody grows (an elder counts their days: famPassCheck, famtree.h)
         { int adv=bcDay(s,need); int before=famAge[u]; if(famAge[u]+adv<255) famAge[u]=(u8)(famAge[u]+adv); else famAge[u]=255;   // babycare.h: a neglected baby skips the day, a thriving one gains one
           if(s->stage==AG_BABY&&need>=2&&before*2<need&&famAge[u]*2>=need&&famAge[u]<need) bcToddlerNote(s); }
         if(famAge[u]<need) continue;
@@ -197,6 +197,7 @@ static void famDay(void){   // midnight (simMinute, after your own birthday): ev
             else famNotice("HAPPY BIRTHDAYS!","THE FAMILY GREW UP","A YEAR OLDER  A NEW LOOK",gu,grew); }
         hhSlotsFree(); liveInvalidate();
     }
+    famPassCheck();   // (famtree.h: an elder may pass away)
     famWarmth();   // (famtree.h: a family under one roof grows a little closer)
     hhSave();   // (the family tail goes with it)
 }

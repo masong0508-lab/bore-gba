@@ -6452,6 +6452,7 @@ static int newGame(int slot){   // 1 = it started (and ended: back to the main m
     int homeFirst=sgPid&&c!=3;   // a new player with no home yet: no save file until they have bought one   // a NEW PLAYER gets a home lot and a save file of their own; a new life started elsewhere belongs to no save file
     twKeep=0; simsNewLife(); prClear(); moodReset(); lscore=0; simLastScore=0;
     hhN=0; for(int a=0;a<HU_N;a++)for(int b=0;b<HU_N;b++){ relD[a][b]=relL[a][b]=0; relF[a][b]=0; } kinClear();   // the old household moves out
+    lnClear();   // (famtree.h: a new player starts a family line of their own)
     stOff();
     if(c==1&&hhMoveIn(&hhFams[f])>0){ if(me>=hhN) me=0; hhSwap(&hhM[me]); hhRemove(me); }   // you are the family member you picked (who you were leaves)
     else if(c==2) lookTrueRandomMe();
