@@ -42,7 +42,7 @@ enum { MODE_0_2D=1, MODE_0_3D, MODE_5_2D, DISPLAY_BG0_ACTIVE=0x100, DISPLAY_BG1_
 static int hwDispMain=0x10000, hwDispSub=0x10000;
 static inline void videoSetMode(int m){   // m: the shim's MODE_ + DISPLAY_ bits -> DISPCNT
     u32 d=0x10000; if(m&DISPLAY_BG0_ACTIVE) d|=0x100; if(m&DISPLAY_BG1_ACTIVE) d|=0x200; if(m&DISPLAY_SPR_ACTIVE) d|=0x1000; if(m&DISPLAY_SPR_1D_LAYOUT) d|=0x10; HW_REG32(0x04000000)=hwDispMain=(int)d; }
-static inline void videoSetModeSub(int m){ u32 d=0x10000|5; if(m&DISPLAY_BG3_ACTIVE) d|=0x800; HW_REG32(0x04001000)=hwDispSub=(int)d; }
+static inline void videoSetModeSub(int m){ (void)m; HW_REG32(0x04001000)=hwDispSub=(int)(0x10000|0x100); }   // the top screen is a plain tile layer (mode 0, BG0): see hwSubFlush
 static inline void vramSetBankA(int b){ (void)b; *(volatile u8*)0x04000240=0x81; }   // A: main BG (0x06000000)
 static inline void vramSetBankB(int b){ (void)b; *(volatile u8*)0x04000241=0x82; }   // B: main sprites (0x06400000)
 static inline void vramSetBankC(int b){ (void)b; *(volatile u8*)0x04000242=0x84; }   // C: sub BG (0x06200000)
@@ -51,7 +51,12 @@ static inline void lcdMainOnBottom(void){ HW_REG16(0x04000304)=HW_REG16(0x040003
 static inline void lcdMainOnTop(void){ HW_REG16(0x04000304)=HW_REG16(0x04000304)|0x8000; }
 static inline int bgInit(int l,int t,int s,int m,int tb){ (void)t; if(l==0) HW_REG16(0x04000008)=(u16)(0x0001|(tb<<2)|(m<<8)|0x80|(s==BgSize_T_512x512?(3<<14):0)); else HW_REG16(0x0400000A)=(u16)(0x0000|(tb<<2)|(m<<8)|0x80); return l; }
 static inline int bgInitSub(int l,int t,int s,int m,int tb){ (void)l;(void)t;(void)s;(void)m;(void)tb;
-    HW_REG16(0x0400100E)=0x4080; HW_REG16(0x04001020)=256; HW_REG16(0x04001022)=0; HW_REG16(0x04001024)=0; HW_REG16(0x04001026)=256; HW_REG32(0x04001028)=0; HW_REG32(0x0400102C)=0; return 3; }
+    HW_REG16(0x04001008)=(u16)(0x0080|(1<<2)|(0<<8));            // BG0: 8 bit tiles, tiles at 16 KB, map at 0, 256 x 256
+    vu16*map=(vu16*)0x06200000; for(int i=0;i<1024;i++) map[i]=(u16)i;   // tile i = screen block i (32 wide)
+    return 3; }
+// the 256 x 192 picture the UI draws in RAM goes to the top screen as 768 tiles of 8 x 8 pixels (32-bit stores only)
+static void hwSubFlush(const u8*buf){
+    for(int ty=0;ty<24;ty++) for(int tx=0;tx<32;tx++){ vu32*d=(vu32*)(0x06204000+(ty*32+tx)*64); for(int y=0;y<8;y++){ const u8*r=buf+(ty*8+y)*256+tx*8; d[y*2]=(u32)r[0]|((u32)r[1]<<8)|((u32)r[2]<<16)|((u32)r[3]<<24); d[y*2+1]=(u32)r[4]|((u32)r[5]<<8)|((u32)r[6]<<16)|((u32)r[7]<<24); } } }
 static inline void bgSetPriority(int id,int p){ u32 a=id==0?0x04000008:0x0400000A; HW_REG16(a)=(u16)((HW_REG16(a)&~3)|(p&3)); }
 static inline void bgSetScroll(int id,int x,int y){ HW_REG16(0x04000010+id*4)=(u16)x; HW_REG16(0x04000012+id*4)=(u16)y; }
 static inline void bgUpdate(void){}
