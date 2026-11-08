@@ -46,3 +46,6 @@ Controls: stylus = use the power; D-pad = pan (B faster); L / R = power; X / Y =
 Build: `make` with devkitARM + libnds. PC test of the world and the ecosystem: `gcc -O2 -DPCTEST -o pc pc.c && ./pc <seed> <years>` (prints populations, writes /tmp/gg_world.ppm and /tmp/gg_zoom.ppm).
 
 Roadmap: villages and civilisations that build, wars, disasters over time, 300+ items and tools, 300+ enemies, the story mode that unlocks free-play items, bigger planets (the world arrays are the limit: 256 x 256 fits the DS's 4 MB), saves, then PSP / Vita / 3DS ports.
+
+## v0.9.1 menus and loading screens
+The title and pause menus are now structured with sub-menus: CONTINUE, CREATE A PLANET (size, world type, difficulty, create), OPTIONS (difficulty, music volume, monsters) and EXTRAS (Aural Sculptures, Bestiary, Subspecies, Help, Credits, Debug). The pause menu has RESUME, SAVE, OPTIONS, EXTRAS, NEW WORLD, MODE, TITLE SCREEN. START leaves an Extras page back to the menu. Making, loading or enlarging a world shows a loading screen with a growing planet and progress bar.

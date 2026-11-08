@@ -9,8 +9,8 @@ typedef struct { int f0, f1, keys, tx, ty; } Ev;
 #define K_ (KEY_TOUCH)
 static const Ev script[]={
  {20,22,KEY_UP,0,0},{26,28,KEY_UP,0,0},{32,34,KEY_DOWN,0,0},{38,40,KEY_DOWN,0,0},{44,46,KEY_LEFT,0,0},{50,52,KEY_LEFT,0,0},{56,58,KEY_RIGHT,0,0},{62,64,KEY_B,0,0},{68,70,KEY_A,0,0},{74,76,KEY_START,0,0},   // the debug code
- {200,203,KEY_X,0,0},                       // title: new story world
- {260,262,KEY_A,0,0},                       // dismiss the intro scene
+ {90,92,KEY_DOWN,0,0},{104,106,KEY_A,0,0},{112,114,KEY_RIGHT,0,0},{140,142,KEY_B,0,0},{150,152,KEY_DOWN,0,0},{154,156,KEY_DOWN,0,0},{158,160,KEY_A,0,0},{170,172,KEY_DOWN,0,0},{174,176,KEY_A,0,0},{185,187,KEY_START,0,0},{188,190,KEY_B,0,0},{192,194,KEY_UP,0,0},{196,198,KEY_UP,0,0},{200,202,KEY_UP,0,0},{208,210,KEY_A,0,0},   // title: options, extras, bestiary, back, then new story world
+ {270,272,KEY_A,0,0},                       // dismiss the intro scene
  {400,402,KEY_A,0,0},{480,482,KEY_A,0,0},{560,562,KEY_A,0,0},{640,642,KEY_A,0,0},{720,722,KEY_A,0,0},{800,802,KEY_A,0,0},   // the first dialogue
  {900,920,KEY_TOUCH,160,180},{950,970,KEY_TOUCH,185,180},   // tap toolbar slots
  {1000,1002,KEY_R,0,0},{1010,1012,KEY_R,0,0},{1020,1022,KEY_R,0,0},{1030,1032,KEY_R,0,0},{1040,1042,KEY_R,0,0},{1050,1052,KEY_R,0,0},{1060,1062,KEY_R,0,0},{1070,1072,KEY_R,0,0},{1080,1082,KEY_R,0,0},{1090,1092,KEY_R,0,0},{1100,1102,KEY_R,0,0},{1110,1112,KEY_R,0,0},{1120,1122,KEY_R,0,0},   // to SPAWN
@@ -19,7 +19,7 @@ static const Ev script[]={
  {2100,2102,KEY_SELECT|KEY_L|KEY_R,0,0},
  {2150,2154,KEY_X|KEY_Y,0,0},{2300,2330,KEY_RIGHT,0,0},{2400,2403,KEY_A|KEY_Y,0,0},{2450,2490,KEY_RIGHT,0,0},{2520,2540,KEY_TOUCH,140,80},{2560,2564,KEY_X|KEY_Y,0,0},
 };
-static int shots[]={2250,2340,2430,2500,2600,100,150,300,500,1150,1250,1300,1450,1520,1740,1800,1860,1920,1980,2050,-1};
+static int shots[]={110,135,162,180,2250,2340,2430,2500,2600,100,150,300,500,1150,1250,1300,1450,1520,1740,1800,1860,1920,1980,2050,-1};
 void shimInput(int frame,int*held,int*tx,int*ty){
     if(frame==1140){ weather=2; weatherT=3000; } if(frame==1248||frame==1249) flashT=6; if(frame==1290){ weather=3; weatherT=3000; }
     *held=0; for(unsigned i=0;i<sizeof script/sizeof script[0];i++) if(frame>=script[i].f0&&frame<script[i].f1){ *held|=script[i].keys; if(script[i].keys&KEY_TOUCH){ *tx=script[i].tx; *ty=script[i].ty; } }

@@ -514,12 +514,16 @@ static void usePower(int tx,int ty,int fresh){
     if(P->kind==PK_INSPECT&&inspected!=-2){ if(inspected>=0&&inspected<nCr&&cr[inspected].alive){ Cr*c=&cr[inspected]; char nm[48]; crName(c,nm); siprintf(info,"%.30s HP%d/%d",nm,c->hp,maxHp(c)); } else siprintf(info,"%s",bioNm[world[ty<WH?ty:0][tx<WW?tx:0]]); }
 }
 static int planetSize=128;
-static void newWorld(void){ gW=gH=planetSize; nCr=0; memset(occ,0,sizeof occ); memset(bld,0,sizeof bld); memset(bldv,0,sizeof bldv); memset(vil,0,sizeof vil); nVilOn=0; worldSeed=seedFix?seedFix:rnd(); genWorld(worldSeed); winX=-99; refillWindow();
+static void (*loadHook)(const char*,int);
+#define LOADING(m,p) do{ if(loadHook) loadHook(m,p); }while(0)
+static void newWorld(void){ LOADING("THE VOID",4); gW=gH=planetSize; nCr=0; memset(occ,0,sizeof occ); memset(bld,0,sizeof bld); memset(bldv,0,sizeof bldv); memset(vil,0,sizeof vil); nVilOn=0; worldSeed=seedFix?seedFix:rnd(); genWorld(worldSeed); LOADING("SHAPING THE LAND",35); winX=-99; refillWindow();
+    LOADING("SEEDING LIFE",50);
     // the first life: a few of each of the first animals on their own ground
     int nAn=260*WW*WH/16384; if(nAn>900) nAn=900;
     for(int k=0;k<nAn;k++){ int a=8+(int)(rnd()%(ARCH_A-8)); int s=8+(a-8)*16+(int)(rnd()%16); int x=rnd()%WW, y=rnd()%WH; if(arch[a].diet==3&&k%2) continue; addCr(s,x,y); }
+    LOADING("RAISING THE FIRST VILLAGES",80);
     for(int r=0;r<8;r++){ if(r>=5&&(rnd()&1)) continue; for(int k=0;k<80;k++){ int x=rnd()%WW, y=rnd()%WH; int v=vilFound(r,x,y); if(v>=0){ for(int q=0;q<5;q++) addCr(r,x+(int)(rnd()%5)-2,y+(int)(rnd()%5)-2); break; } } }   // the peoples start with a village each (the restless ones sometimes stay away)
-    info[0]=0; }
+    info[0]=0; LOADING("READY",100); }
 // ---------------------------------------------------------------------------------------------- saving: the whole world, the villages and the story, to one file (the SD card on the DS)
 static int shape3;
 #define SAVE_MAGIC 0x31534747u
@@ -729,26 +733,51 @@ static void setSize(int sz){ planetSize=sz; }
 static void startWorld(int story){ storyOn=story; newWorld(); camX=(WW*8-256)/2; camY=(WH*8-192)/2; winX=-99; refillWindow(); titleOn=0; paused=0; endShown=storyDone; musReq(GM_NEWWORLD); if(story&&chapter==0&&stUse==0){ sceneStart(introTxt,0); dlgPend=0; } }
 static void monName(int m,char*out){ int a=ARCH_A+m/16, fam=m%16; strcpy(out,advNm[fam]); strcat(out," "); strcat(out,arch[a].nm); }
 static short plLon[109*109], plWy[109*109]; static u8 plJ[109*109]; static int plInit; static short plHalo[180][2];
-static void uiPlanetSprite(int cx,int cy,int R){   // the planet as a lit ball for the title screen (the sphere maths is done once; turning it is an integer shift)
-    if(!plInit){ plInit=1; for(int y=-R;y<=R;y++) for(int x=-R;x<=R;x++){ int k=(y+R)*109+(x+R); plJ[k]=255; if(x*x+y*y>R*R) continue; float nx=(float)x/R, ny=(float)y/R, z=sqrtf(1.f-nx*nx-ny*ny);
+static void uiPlanetSprite(int cx,int cy,int R){   // the planet as a lit ball (the sphere maths is done once for radius 54; any smaller radius samples it)
+    const int B=54; if(!plInit){ plInit=1; for(int y=-B;y<=B;y++) for(int x=-B;x<=B;x++){ int k=(y+B)*109+(x+B); plJ[k]=255; if(x*x+y*y>B*B) continue; float nx=(float)x/B, ny=(float)y/B, z=sqrtf(1.f-nx*nx-ny*ny);
             float lon=atan2f(nx,z), lat=asinf(ny); plLon[k]=(short)((0.5f+lon/6.2831853f)*4096); plWy[k]=(short)((0.5f+lat/3.1415927f)*4096); float l=0.3f+0.7f*(-nx*0.45f-ny*0.45f+z*0.8f); plJ[k]=(u8)(l<0.5f?0:l<0.78f?1:2); }
-        for(int a=0;a<180;a++){ float r=(float)R+1.5f; plHalo[a][0]=(short)(r*cosf(a*2*0.0174533f)); plHalo[a][1]=(short)(r*sinf(a*2*0.0174533f)); } }
-    int shift=(tick>>5)*WW/600; for(int y=-R;y<=R;y++) for(int x=-R;x<=R;x++){ int k=(y+R)*109+(x+R); if(plJ[k]==255) continue; int wx=((plLon[k]*WW>>12)+shift)%WW, wy=plWy[k]*WH>>12; if(wy<0) wy=0; if(wy>=WH) wy=WH-1; uiPx(cx+x,cy+y,100+world[wy][wx]*3+plJ[k]); }
-    for(int a=0;a<180;a++) uiPx(cx+plHalo[a][0],cy+plHalo[a][1],U_CYAN); }
+        for(int a=0;a<180;a++){ float r=(float)B+1.5f; plHalo[a][0]=(short)(r*cosf(a*2*0.0174533f)); plHalo[a][1]=(short)(r*sinf(a*2*0.0174533f)); } }
+    if(R<4) R=4; if(R>B) R=B; int shift=(tick>>5)*WW/600;
+    for(int y=-R;y<=R;y++) for(int x=-R;x<=R;x++){ if(x*x+y*y>R*R) continue; int k=((y*B/R)+B)*109+((x*B/R)+B); if(plJ[k]==255) continue; int wx=((plLon[k]*WW>>12)+shift)%WW, wy=plWy[k]*WH>>12; if(wy<0) wy=0; if(wy>=WH) wy=WH-1; uiPx(cx+x,cy+y,100+world[wy][wx]*3+plJ[k]); }
+    for(int a=0;a<180;a++) uiPx(cx+plHalo[a][0]*R/B,cy+plHalo[a][1]*R/B,U_CYAN); }
+static void uiLoadHook(const char*msg,int pct){   // a loading screen: the planet grows as the world is made
+    static int n; n++; uiRect(0,0,256,192,U_BG); for(int y=0;y<192;y+=3) uiRect(0,y,256,1,U_PANEL); for(int k=0;k<60;k++){ int x=(int)(hsh(k,1,7)%256), y=(int)(hsh(k,2,7)%192); uiPx(x,y,(k&3)==0?U_WHITE:U_DIM); }
+    uiPlanetSprite(128,76,8+pct*46/100); uiTextC(128,138,"BORE: GODGUY",U_GOLD,1); uiTextC(128,150,msg,U_WHITE,1);
+    uiBar(48,162,160,9,pct,100,U_GREEN); { char b[8]; siprintf(b,"%d%%",pct); uiTextC(128,163,b,U_WHITE,1); }
+    uiText(6,182,tipTxt[(year+pct/20+n)%6],U_DIM,1); uiFlush(); }
+enum { MI_CONT, MI_STORY, MI_FREE, MI_OPT, MI_EXTRA, MI_BACK, MI_SIZE, MI_DIFF, MI_VOL, MI_MON, MI_SCULPT, MI_BEST, MI_CODEX, MI_HELP, MI_CRED, MI_DEBUG, MI_RESUME, MI_SAVE, MI_NEW, MI_MODE, MI_TITLE, MI_CREATE, MI_GO, MI_STYPE };
+static int mScr, mSel, extrasView;      // which menu (0 main, 1 options, 2 extras), the highlighted row, a pending "are you sure", and whether an extras page is open
+static int menuList(int*ids){ int n=0, ctx=titleOn?0:1;
+    if(mScr==0){ if(ctx==0){ ids[n++]=MI_CONT; ids[n++]=MI_CREATE; } else { ids[n++]=MI_RESUME; ids[n++]=MI_SAVE; } ids[n++]=MI_OPT; ids[n++]=MI_EXTRA; if(ctx){ ids[n++]=MI_NEW; ids[n++]=MI_MODE; ids[n++]=MI_TITLE; } }
+    else if(mScr==3){ ids[n++]=MI_SIZE; ids[n++]=MI_STYPE; ids[n++]=MI_DIFF; ids[n++]=MI_GO; ids[n++]=MI_BACK; }
+    else if(mScr==1){ ids[n++]=MI_DIFF; ids[n++]=MI_VOL; ids[n++]=MI_MON; ids[n++]=MI_BACK; }
+    else { ids[n++]=MI_SCULPT; ids[n++]=MI_BEST; ids[n++]=MI_CODEX; ids[n++]=MI_HELP; ids[n++]=MI_CRED; if(debugOn) ids[n++]=MI_DEBUG; ids[n++]=MI_BACK; }
+    return n; }
+static void menuText(int id,char*l,char*v){ v[0]=0;
+    switch(id){ case MI_CONT: strcpy(l,hasSave?"CONTINUE YOUR WORLD":"START THE STORY"); break; case MI_STORY: strcpy(l,"NEW STORY WORLD"); break; case MI_FREE: strcpy(l,"NEW FREE PLAY WORLD"); break;
+        case MI_CREATE: strcpy(l,"CREATE A PLANET"); strcpy(v,">"); break; case MI_GO: strcpy(l,"CREATE THE PLANET!"); break; case MI_STYPE: strcpy(l,"WORLD TYPE"); strcpy(v,storyOn?"STORY":"FREE PLAY"); break;
+        case MI_OPT: strcpy(l,"OPTIONS"); strcpy(v,">"); break; case MI_EXTRA: strcpy(l,"EXTRAS"); strcpy(v,">"); break; case MI_BACK: strcpy(l,"BACK"); break;
+        case MI_SIZE: strcpy(l,"PLANET SIZE"); siprintf(v,"%dx%d",planetSize,planetSize); break; case MI_DIFF: strcpy(l,"DIFFICULTY"); strcpy(v,diff==0?"CALM":diff==1?"NORMAL":"BRUTAL"); break;
+        case MI_VOL: strcpy(l,"MUSIC VOLUME"); siprintf(v,"%d%%",gmMaster); break; case MI_MON: strcpy(l,"MONSTERS"); strcpy(v,monOn?"ON":"OFF"); break;
+        case MI_SCULPT: strcpy(l,"AURAL SCULPTURES"); strcpy(v,auralOK()?"":"LOCKED"); break; case MI_BEST: strcpy(l,"BESTIARY"); siprintf(v,"%d/320",seenN); break; case MI_CODEX: strcpy(l,"SUBSPECIES"); siprintf(v,"%d/%d",__builtin_popcount(trSeen),TR_N-1); break;
+        case MI_HELP: strcpy(l,"HELP"); break; case MI_CRED: strcpy(l,"CREDITS"); break; case MI_DEBUG: strcpy(l,"DEBUG MENU"); break;
+        case MI_RESUME: strcpy(l,"RESUME"); break; case MI_SAVE: strcpy(l,"SAVE GAME"); break; case MI_NEW: strcpy(l,"NEW WORLD"); break; case MI_MODE: strcpy(l,"MODE"); strcpy(v,storyOn?"STORY":"FREE PLAY"); break; case MI_TITLE: strcpy(l,"TITLE SCREEN"); break; } }
+static int menuAdj(int id){ return id==MI_SIZE||id==MI_STYPE||id==MI_DIFF||id==MI_VOL||id==MI_MON; }
+static void uiMenuList(int x,int y,int w,int rh){
+    int ids[10]; int n=menuList(ids); if(mSel>=n) mSel=n-1; char l[32], v[16];
+    for(int i=0;i<n;i++){ menuText(ids[i],l,v); int yy=y+i*rh, sel=i==mSel; uiRound(x,yy,w,rh-2,sel?U_SEL:U_PANELHI,sel?U_GOLD:U_BHI);
+        uiText(x+8,yy+(rh-9)/2,l,sel?U_WHITE:U_LGREY,1);
+        if(v[0]){ if(menuAdj(ids[i])&&sel){ uiIcon8(x+w-72,yy+(rh-10)/2,IC8_LEFT); uiIcon8(x+w-12,yy+(rh-10)/2,IC8_RIGHT); uiTextC(x+w-42,yy+(rh-9)/2,v,U_GOLD,1); } else uiTextR(x+w-8,yy+(rh-9)/2,v,sel?U_GOLD:U_DIM); } } }
 static void uiTitle(void){
     uiRect(0,0,256,192,U_BG); for(int y=0;y<192;y++) if((y&3)==0) uiRect(0,y,256,1,U_PANEL);
     for(int k=0;k<70;k++){ int x=(int)(hsh(k,1,7)%256), y=(int)(hsh(k,2,7)%192); uiPx(x,y,(k&3)==0?U_WHITE:U_DIM); }
-    uiPlanetSprite(196,132,54);
-    uiTextS(12,10,"BORE",U_LGREY,3); for(int i=0;i<6;i++){ char g[2]={"GODGUY"[i],0}; int x=12+i*28; int c=U_G0+i; uiTextS(x,32,g,c,4); }
-    uiText(14,62,"A GOD GAME FOR THE TOUCH SCREEN",U_DIM,1);
-    static const char* const lab[5]={"X","B","Y","L","A"}; (void)lab;
-    char b[40]; int y0=78; const int bw=124;
-    struct { const char*key,*txt; } it[5]; it[0].key="A"; it[0].txt=hasSave?"CONTINUE YOUR WORLD":"START THE STORY"; it[1].key="X"; it[1].txt="NEW STORY WORLD"; it[2].key="B"; it[2].txt="NEW FREE WORLD";
-    siprintf(b,"PLANET %dx%d",planetSize,planetSize); it[3].key="Y"; it[3].txt=b; char d[24]; siprintf(d,"%s",diff==0?"CALM":diff==1?"NORMAL":"BRUTAL"); it[4].key="L"; it[4].txt=d;
-    for(int i=0;i<5;i++){ int y=y0+i*18; uiRound(8,y,bw,15,i==0?U_SEL:U_PANELHI,U_BHI); uiRound(11,y+3,10,10,U_SHADOW,U_GOLD); uiText(14,y+5,it[i].key,U_GOLD,1);
-        if(i==4){ uiText(26,y+4,"DIFFICULTY",U_DIM,1); uiTextR(8+bw-5,y+4,d,U_WHITE); } else if(i==3){ uiText(26,y+4,"PLANET",U_DIM,1); char sz[16]; siprintf(sz,"%dx%d",planetSize,planetSize); uiTextR(8+bw-5,y+4,sz,U_WHITE); } else uiText(26,y+4,it[i].txt,U_WHITE,1); }
-    int o; int tot=itCount(&o); siprintf(b,"STORY CH %d/%d   ITEMS %d/%d",chapter<CHAP_N?chapter+1:CHAP_N,CHAP_N,o,tot); uiText(8,172,b,U_DIM,1);
-    siprintf(b,"%s%s%s",sdOk?"SD SAVE ON":"NO SD",auralOK()?"  SCULPTURES":"",debugOn?"  DEBUG":""); uiText(8,182,b,U_DIM,1);
+    uiPlanetSprite(204,128,planetSize==128?36:planetSize==192?42:48);
+    uiTextS(12,8,"BORE",U_LGREY,3); for(int i=0;i<6;i++){ char g[2]={"GODGUY"[i],0}; int c=U_G0+i; uiTextS(12+i*28,30,g,c,4); }
+    uiText(14,60,"A GOD GAME FOR THE TOUCH SCREEN",U_DIM,1);
+    uiText(10,72,mScr==0?"MAIN MENU":mScr==1?"MAIN MENU  >  OPTIONS":mScr==3?"MAIN MENU  >  CREATE A PLANET":"MAIN MENU  >  EXTRAS",U_GOLD,1);
+    uiMenuList(8,83,172,mScr==2?13:15);
+    { int o; int tot=itCount(&o); char b[48]; siprintf(b,"STORY CH %d/%d   ITEMS %d/%d",chapter<CHAP_N?chapter+1:CHAP_N,CHAP_N,o,tot); uiText(8,180,b,U_DIM,1);
+      (void)0; }
     uiFlush(); }
 static void uiScene(void){
     int n=sceneLines(sceneTxt); uiRect(0,0,256,192,U_BG); for(int y=0;y<192;y+=2) uiRect(0,y,256,1,U_PANEL);
@@ -825,20 +854,39 @@ static void uiDialog(void){
     if(dlgChars>=tl&&((tick>>4)&1)) uiText(222,164,"A >",U_GOLD,1); else if(dlgChars<tl) uiText(196,164,"A: HURRY  B: SKIP",U_DIM,1);
     uiFlush(); }
 static void uiMenu(void){
-    uiStatus(); for(int y=0;y<192;y++) for(int x=(y&1);x<256;x+=2) uiPx(x,y,U_SHADOW);        // dim the screen behind the window
-    uiRect(30,14,196,164,U_SHADOW); uiFrame(32,16,192,160,U_PANEL,U_GOLD,U_BLO); uiRect(33,17,190,16,U_PANELHI); uiText(42,21,"PAUSED",U_GOLD,1); uiTextR(214,21,"START: RESUME",U_DIM);
-    char v[9][16]; siprintf(v[2],"%d%%",gmMaster); siprintf(v[3],"%s",diff==0?"CALM":diff==1?"NORMAL":"BRUTAL"); siprintf(v[4],"%s",monOn?"ON":"OFF"); siprintf(v[5],"%s",storyOn?"STORY":"FREE PLAY");
-    static const char*const it[9]={"RESUME","SAVE GAME","MUSIC VOLUME","DIFFICULTY","MONSTERS","MODE","NEW WORLD","HELP AND PAGES","TITLE SCREEN"};
-    for(int i=0;i<9;i++){ int y=37+i*13; if(i==menuSel){ uiRect(36,y-2,184,12,U_SEL); uiRect(36,y-2,3,12,U_GOLD); }
-        uiText(46,y+1,it[i],i==menuSel?U_WHITE:U_LGREY,1);
-        if(i>=2&&i<=5){ if(i==menuSel){ uiIcon8(150,y,IC8_LEFT); uiIcon8(206,y,IC8_RIGHT); } uiTextC(180,y+1,v[i],i==menuSel?U_GOLD:U_DIM,1); } }
-    if(menuAsk){ uiRect(40,154,176,18,U_RED); uiTextC(128,159,"ARE YOU SURE?   A YES   B NO",U_WHITE,1); } else uiTextC(128,162,"UP DOWN CHOOSE   L R CHANGE   A SELECT",U_DIM,1);
+    uiStatus(); for(int y=0;y<192;y++) for(int x=(y&1);x<256;x+=2) uiPx(x,y,U_SHADOW);
+    uiRect(30,12,196,168,U_SHADOW); uiFrame(32,14,192,164,U_PANEL,U_GOLD,U_BLO); uiRect(33,15,190,16,U_PANELHI); uiText(42,19,mScr==0?"PAUSED":mScr==1?"PAUSED  >  OPTIONS":"PAUSED  >  EXTRAS",U_GOLD,1); uiTextR(214,19,"START: RESUME",U_DIM);
+    uiMenuList(38,36,180,16);
+    if(menuAsk){ uiRect(40,154,176,20,U_RED); uiTextC(128,160,"ARE YOU SURE?   A YES   B NO",U_WHITE,1); } else uiTextC(128,164,"L R CHANGE   A SELECT   B BACK",U_DIM,1);
     uiFlush(); }
 static void hud(void){
-    uiPageOpen=1|2|4|(auralOK()?8:0)|(debugOn?16:0)|32|64; uiPages=titleOn||sceneOn||dlgOn?0:7; uiPageNow=page; uiDotX=118;
-    if(dlgOn){ uiDialog(); return; } if(sceneOn){ uiScene(); return; } if(titleOn){ uiTitle(); return; } if(menuOn){ uiMenu(); return; }
+    uiPageOpen=1|2|4|(auralOK()?8:0)|(debugOn?16:0)|32|64; uiPages=titleOn||sceneOn||dlgOn||extrasView?0:7; uiPageNow=page; uiDotX=118;
+    if(dlgOn){ uiDialog(); return; } if(sceneOn){ uiScene(); return; } if(!extrasView){ if(titleOn){ uiTitle(); return; } if(menuOn){ uiMenu(); return; } }
     switch(page){ case 1: uiStory(); break; case 2: uiBest(); break; case 3: uiAural(); break; case 4: uiDebug(); break; case 5: uiCodex(); break; case 6: uiHelp(); break; default: uiStatus(); }
 }
+
+static void menuToWorld(void){ setSize(planetSize); newWorld(); paused=1; camX=(WW*8-256)/2; camY=(WH*8-192)/2; winX=-99; refillWindow(); }
+static void menuOpenPage(int pg){ extrasView=1; page=pg; if(pg==3) juke=gmCur>=0?gmCur:0; menuOn=0; siprintf(info,"START: BACK TO MENU"); }
+static void menuInput(int kd){
+    int ids[10]; int n=menuList(ids); int d=((kd&KEY_RIGHT)?1:0)-((kd&KEY_LEFT)?1:0);
+    if(menuAsk){ if(kd&KEY_A){ int a=menuAsk; menuAsk=0; menuOn=0; if(a==5) startWorld(!storyOn); else if(a==6) startWorld(storyOn); else if(a==8){ doSave(); titleOn=1; paused=1; mScr=0; mSel=0; newWorld(); camX=(WW*8-256)/2; camY=(WH*8-192)/2; hasSave=sdOk; musReq(GM_TITLE); } } if(kd&(KEY_B|KEY_START)){ menuAsk=0; menuOn=1; } return; }
+    if(titleOn&&konami>=4) return;          // the secret code is in progress: the menu holds still
+    if(!titleOn&&(kd&KEY_START)){ menuOn=0; paused=dlgPaused; return; }
+    if(kd&KEY_UP) mSel=(mSel+n-1)%n; if(kd&KEY_DOWN) mSel=(mSel+1)%n;
+    if(kd&KEY_B){ if(mScr){ mSel=mScr==3?1:(titleOn?2:2)+(mScr==2); mScr=0; } else if(!titleOn){ menuOn=0; paused=dlgPaused; } return; }
+    int id=ids[mSel];
+    if(d){ switch(id){ case MI_SIZE: setSize(d>0?(planetSize==128?192:planetSize==192?256:128):(planetSize==256?192:planetSize==192?128:256)); fxReq(FX_MENU_MOVE); break; case MI_STYPE: storyOn^=1; break;
+            case MI_DIFF: diff=(diff+3+d)%3; break; case MI_VOL: gmMaster+=d*10; if(gmMaster<0) gmMaster=0; if(gmMaster>100) gmMaster=100; break; case MI_MON: monOn^=1; break; } }
+    if(kd&KEY_A){ switch(id){
+        case MI_CONT: if(hasSave){ LOADING("LOADING YOUR WORLD",30); loadGame(savePath); endShown=storyDone; titleOn=0; paused=0; refillWindow(); LOADING("READY",100); musReq(GM_NEWWORLD); } else startWorld(1); break;
+        case MI_CREATE: mScr=3; mSel=0; break; case MI_GO: startWorld(storyOn); break;
+        case MI_OPT: mScr=1; mSel=0; break; case MI_EXTRA: mScr=2; mSel=0; break; case MI_BACK: mSel=mScr==3?1:2+(mScr==2); mScr=0; break;
+        case MI_SIZE: case MI_DIFF: case MI_VOL: case MI_MON: break;
+        case MI_SCULPT: if(auralOK()) menuOpenPage(3); else { siprintf(info,"UNLOCK IN STORY CHAPTER 3"); fxReq(FX_ERROR); } break;
+        case MI_BEST: menuOpenPage(2); break; case MI_CODEX: menuOpenPage(5); break; case MI_HELP: menuOpenPage(6); break; case MI_DEBUG: menuOpenPage(4); break;
+        case MI_CRED: menuOn=0; sceneStart(credTxt,1); musReq(GM_CREDITS); break;
+        case MI_RESUME: menuOn=0; paused=dlgPaused; break; case MI_SAVE: doSave(); menuOn=0; paused=dlgPaused; break;
+        case MI_NEW: menuAsk=6; break; case MI_MODE: menuAsk=5; break; case MI_TITLE: menuAsk=8; break; } } }
 
 int main(void){
 #if !defined(NDSSHIM)&&!defined(NDSHW)
@@ -854,7 +902,7 @@ int main(void){
     { int b1=bgInit(1,BgType_Text8bpp,BgSize_T_256x256,4,1); bgSetPriority(b1,0); bgSetPriority(bg,1); mapPtr1=(u16*)bgGetMapPtr(b1); }
     for(int t=0;t<T_N;t++){ int f=t; BG_PALETTE_SUB[64+t]=RGB15(terrCol[t][0],terrCol[t][1],terrCol[t][2]); (void)f; }
     BG_PALETTE_SUB[80]=RGB15(31,31,6); BG_PALETTE_SUB[81]=RGB15(31,3,3); BG_PALETTE_SUB[82]=RGB15(31,31,31); BG_PALETTE_SUB[83]=RGB15(31,31,0); BG_PALETTE_SUB[84]=RGB15(31,24,6); BG_PALETTE_SUB[85]=RGB15(31,0,31);
-    memset(uiBuf,0,sizeof uiBuf); uiPalette(); uiRect(0,0,256,192,U_BG); uiTextC(128,84,"BORE: GODGUY",U_GOLD,2); uiTextC(128,110,"LOADING...",U_DIM,1);
+    loadHook=uiLoadHook; memset(uiBuf,0,sizeof uiBuf); uiPalette(); uiRect(0,0,256,192,U_BG); uiTextC(128,84,"BORE: GODGUY",U_GOLD,2); uiTextC(128,110,"LOADING...",U_DIM,1);
 #ifdef GG_SAFE
     uiTextC(128,124,"SAFE BUILD: NO SOUND, NO SD",U_DIM,1);
 #endif
@@ -882,24 +930,18 @@ int main(void){
         if(dlgOn){ const Dl*d=&dlgSet[dlgIdx]; int tl=(int)strlen(d->txt); if(dlgChars<tl) dlgChars+=2; if(kd&KEY_A){ if(dlgChars<tl) dlgChars=tl; else { dlgIdx++; dlgChars=0; if(!dlgSet[dlgIdx].txt){ dlgOn=0; paused=dlgPaused; } } } if(kd&KEY_B){ dlgOn=0; paused=dlgPaused; }
             refillWindow(); swiWaitForVBlank(); bgSetScroll(0,camX&511,camY&511); bgUpdate(); drawSprites(); oamUpdate(&oamMain); if((tick&7)==0) applyLight(); if(dlgOn&&((tick&1)==0||(kd))) hud(); else if(!dlgOn) hud(); continue; }
         if(!titleOn&&!sceneOn&&strcmp(info,lastInfo)){ strcpy(lastInfo,info); toastT=420; } if(toastT>0) toastT--;
-        if(menuOn){ int d=((kd&KEY_RIGHT)?1:0)-((kd&KEY_LEFT)?1:0);
-            if(menuAsk){ if(kd&KEY_A){ int a=menuAsk; menuAsk=0; menuOn=0; if(a==5) startWorld(!storyOn); else if(a==6) startWorld(storyOn); else if(a==8){ doSave(); titleOn=1; paused=1; newWorld(); camX=(WW*8-256)/2; camY=(WH*8-192)/2; hasSave=sdOk; musReq(GM_TITLE); } } if(kd&(KEY_B|KEY_START)) menuAsk=0; }
-            else { if(kd&KEY_UP) menuSel=(menuSel+8)%9; if(kd&KEY_DOWN) menuSel=(menuSel+1)%9; if(kd&(KEY_B|KEY_START)){ menuOn=0; paused=dlgPaused; }
-                if(menuSel==2&&d){ gmMaster+=d*10; if(gmMaster<0) gmMaster=0; if(gmMaster>100) gmMaster=100; } if(menuSel==3&&d) diff=(diff+3+d)%3; if(menuSel==4&&d) monOn^=1;
-                if(kd&KEY_A){ switch(menuSel){ case 0: menuOn=0; paused=dlgPaused; break; case 1: doSave(); menuOn=0; paused=dlgPaused; break; case 2: case 3: case 4: break; case 5: menuAsk=5; break; case 6: menuAsk=6; break; case 7: menuOn=0; paused=dlgPaused; page=6; break; case 8: menuAsk=8; break; } } }
-            refillWindow(); swiWaitForVBlank(); bgSetScroll(0,camX&511,camY&511); bgUpdate(); drawSprites(); oamUpdate(&oamMain); hud(); continue; }
+        if(menuOn){ menuInput(kd); refillWindow(); swiWaitForVBlank(); bgSetScroll(0,camX&511,camY&511); bgUpdate(); drawSprites(); oamUpdate(&oamMain); hud(); continue; }
         if(storyDone&&!endShown&&!titleOn&&!dlgOn&&dlgPend<0){ endShown=1; if(view3d) leave3D(); sceneNext=credTxt; sceneStart(endTxt,0); }
         if(!titleOn&&!sceneOn&&stUse<12&&tick>300&&(tick%600)==0){ siprintf(info,"%.32s",tipTxt[tipN++%6]); }
-        if(titleOn){
-            int ch=0, inCode=konami>0; { static const u16 code[10]={KEY_UP,KEY_UP,KEY_DOWN,KEY_DOWN,KEY_LEFT,KEY_LEFT,KEY_RIGHT,KEY_B,KEY_A,KEY_START};
+        if(titleOn&&!extrasView){
+            int ch=kd!=0; { static const u16 code[10]={KEY_UP,KEY_UP,KEY_DOWN,KEY_DOWN,KEY_LEFT,KEY_LEFT,KEY_RIGHT,KEY_B,KEY_A,KEY_START};
+                menuInput(kd);
                 if(kd){ if(kd&code[konami]) konami++; else konami=(kd&code[0])?1:0; if(konami==10){ konami=0; debugOn=1; auralOpen=1; fxReq(FX_UNLOCK); siprintf(info,"DEBUG MENU UNLOCKED"); ch=1; } } }
-            if(!inCode&&konami==0&&(kd&KEY_L)){ diff=(diff+1)%3; ch=1; }
-            if(!inCode&&konami==0&&(kd&KEY_Y)){ setSize(planetSize==128?192:planetSize==192?256:128); newWorld(); paused=1; camX=(WW*8-256)/2; camY=(WH*8-192)/2; ch=1; }
-            if(!inCode&&konami==0&&(kd&KEY_A)){ if(hasSave){ loadGame(savePath); endShown=storyDone; titleOn=0; paused=0; refillWindow(); musReq(GM_NEWWORLD); } else startWorld(1); ch=1; }
-            if(!inCode&&konami==0&&(kd&KEY_X)){ startWorld(1); ch=1; }
-            if(!inCode&&konami==0&&(kd&KEY_B)){ startWorld(0); ch=1; }
+            if(!titleOn) continue;
             refillWindow(); swiWaitForVBlank(); bgSetScroll(0,camX&511,camY&511); bgUpdate(); drawSprites(); oamUpdate(&oamMain); if((tick&7)==0) applyLight(); if(ch||(tick&31)==0){ drawMinimap(); hud(); }
             continue; }
+        if(titleOn) kh&=~KEY_TOUCH;
+        if(extrasView&&(kd&KEY_START)){ extrasView=0; page=0; kd&=~KEY_START; if(titleOn) mScr=2; else { menuOn=1; mScr=2; } mSel=3; }
         int sp_=(kh&KEY_B)?6:3; int dirty=0;
         if(kd&KEY_SELECT){ if(0){ } else if(kh&KEY_L&&kh&KEY_R){ doSave(); } else { do page=(page+1)%7; while((page==3&&!auralOK())||(page==4&&!debugOn)); if(page==3) juke=gmCur>=0?gmCur:0; } dirty=1; }
         if((kd&(KEY_X|KEY_Y))&&(kh&KEY_X)&&(kh&KEY_Y)){ if(view3d) leaveGlobe(); else globeEnter(); dirty=1; kd&=~(KEY_X|KEY_Y); }
