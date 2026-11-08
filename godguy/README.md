@@ -59,3 +59,5 @@ Volcanoes now creep: lava spreads over nearby ground (scorching life and buildin
 
 ## Chill pack
 32 new items: 12 munchie snacks (eating one can give a creature a chill trait), 8 chill-plant seed bags and 12 couch-culture relics; 5 new subspecies: CHILLED, MUNCHY, GIGGLY, ENLIGHTENED, FLOATY.
+
+Chill pack 2: Dave the Couch Wizard joins the story (chapters 4, 10 and 13), 16 more snacks/seeds/relics in total, 8 joke weapons and 8 joke armours, 3 more subspecies (COUCH-LOCKED, LUCKY, SPACED OUT) and new loading tips.
