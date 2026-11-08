@@ -15,6 +15,10 @@ include $(DEVKITARM)/ds_rules
 # INCLUDES is a list of directories containing extra header files
 #---------------------------------------------------------------------------------
 TARGET		:=	godguy
+GAME_TITLE := Bore: GodGuy
+GAME_SUBTITLE1 := A god game
+GAME_SUBTITLE2 := Bore spinoff
+GAME_ICON := $(CURDIR)/icon.bmp
 BUILD		:=	build
 SOURCES		:=	source
 INCLUDES	:=	include build
