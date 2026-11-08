@@ -2,6 +2,8 @@
 
 A god game spun off from BORE: shape a 128 x 128 world with the stylus, drop in life, and watch it live, eat, hunt and breed.
 
+**DS BUILDS (which one to use).** `godguy_hw.nds` (made by `build_hw.sh`) is the one that runs in DraStic: it uses NO libnds and NO calico (own ARM9 start-up, own ARM7 for sound and touch, direct hardware registers, the top screen as a tile layer) in the classic ROM layout. It has no SD saving and no 3D globe. `godguy.nds` (made by `build_rom.sh` / `make`) is the libnds 2 / calico build for emulators and hardware that support it (melonDS, recent flashcarts) and has saving and the globe. `godguy_hw_safe.nds` is the hardware build with all sound off, for finding crashes.
+
 **v0.8: A CAST, WEATHER, WALKING THE GLOBE, BETTER SPRITES, A BETTER FLOW.**
 - **Narrative**: a cast with portraits and typed dialogue (Wisp, Mira, Gruul, Elowen, Thorgrim, the Hollow King): a scene at the start of every chapter and an epilogue before the ending and credits. The Hollow King is the last god before you, who gave up; the story is about what to do with him.
 - **Sprites**: 22 new creature shapes (each of the eight peoples now looks different; wolf, boar, sheep, cow; imp, werewolf, cyclops, demon, lich, hydra, scorpion, troll), crowns on elite and boss monsters.
