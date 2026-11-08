@@ -61,3 +61,6 @@ Volcanoes now creep: lava spreads over nearby ground (scorching life and buildin
 32 new items: 12 munchie snacks (eating one can give a creature a chill trait), 8 chill-plant seed bags and 12 couch-culture relics; 5 new subspecies: CHILLED, MUNCHY, GIGGLY, ENLIGHTENED, FLOATY.
 
 Chill pack 2: Dave the Couch Wizard joins the story (chapters 4, 10 and 13), 16 more snacks/seeds/relics in total, 8 joke weapons and 8 joke armours, 3 more subspecies (COUCH-LOCKED, LUCKY, SPACED OUT) and new loading tips.
+
+## Five great suites
+Aural Sculptures gained five long medleys (open from the start, gold in the list): ONE LONG DAWN (7:40), THE WHOLE ROAD (11:00), A GOD'S AFTERNOON ON THE LONG COUCH (13:55), ALL THE KINGS AND ALL THE STORMS (17:10) and THE ENDLESS BORE: THE WHOLE SOUNDTRACK (23:00). Each is woven by tools/gm3_compose.py from excerpts of the other tracks, time-scaled to one tempo and moved along a key plan.
