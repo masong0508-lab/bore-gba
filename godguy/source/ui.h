@@ -9,7 +9,7 @@ enum { U_CLEAR, U_BG, U_PANEL, U_PANELHI, U_BHI, U_BLO, U_WHITE, U_DIM, U_GOLD, 
 static const u8 uiRgb[U_N][3]={ {0,0,0},{2,3,8},{4,6,13},{7,10,19},{16,19,28},{2,3,7},{31,31,31},{17,19,25},{31,26,6},{8,26,10},{29,6,6},{9,17,31},{20,9,28},{31,17,4},{9,14,27},{0,0,2},
     {31,30,12},{31,28,9},{31,25,7},{31,22,5},{30,18,4},{28,14,3},{25,10,3},{20,6,3},{31,31,8},{8,29,31},{14,8,3},{23,24,27},{10,11,14},{31,18,24},{6,22,20} };
 #define UI_PAL0 160           // the toolbar's colours live at 160.. of the main palette (the day / night light only touches 0..143)
-static u8 uiBuf[256*192]; static int uiPages, uiPageNow, uiPageOpen, uiDotX=96;   // page dots in the title bar
+static u8 uiBuf[256*192] __attribute__((aligned(4))); static int uiPages, uiPageNow, uiPageOpen, uiDotX=96;   // page dots in the title bar
 static void uiPalette(void){ for(int i=0;i<U_N;i++){ u16 c=RGB15(uiRgb[i][0],uiRgb[i][1],uiRgb[i][2]); BG_PALETTE_SUB[i]=c; BG_PALETTE[UI_PAL0+i]=c; } BG_PALETTE_SUB[0]=0; }
 static void uiFlush(void){ vramCopy(bgGetGfxPtr(3),uiBuf,256*192); }
 static inline void uiPx(int x,int y,int c){ if((unsigned)x<256&&(unsigned)y<192) uiBuf[y*256+x]=(u8)c; }
@@ -69,12 +69,12 @@ static void tbDraw(void){
             TBP(x0+5+i,y0+4+j,c); } }
     // arrows
     for(int j=0;j<7;j++){ int w=j<4?j+1:7-j; for(int i=0;i<w;i++){ TBP(6-i,8+j,UI_PAL0+(tbTop>0?U_WHITE:U_DGREY)); TBP(249+i,8+j,UI_PAL0+(tbTop<PW_N-TB_SLOTS?U_WHITE:U_DGREY)); } }
-    for(int ty=0;ty<3;ty++) for(int tx=0;tx<32;tx++){ u8 tile[64]; for(int y=0;y<8;y++) for(int x=0;x<8;x++) tile[y*8+x]=tbPix[ty*8+y][tx*8+x]; vramCopy((u8*)BG_TILE_RAM(1)+(TB_TILE0+ty*32+tx)*64,tile,64); }
+    for(int ty=0;ty<3;ty++) for(int tx=0;tx<32;tx++){ u8 tile[64] __attribute__((aligned(4))); for(int y=0;y<8;y++) for(int x=0;x<8;x++) tile[y*8+x]=tbPix[ty*8+y][tx*8+x]; vramCopy((u8*)BG_TILE_RAM(1)+(TB_TILE0+ty*32+tx)*64,tile,64); }
     #undef TBP
 }
 static void tbInit(void){   // the layer: all blank except the three bottom rows
     for(int i=0;i<1024;i++) mapPtr1[i]=TB_BLANK; for(int ty=0;ty<3;ty++) for(int tx=0;tx<32;tx++) mapPtr1[(21+ty)*32+tx]=(u16)(TB_TILE0+ty*32+tx);
-    u8 z[64]; memset(z,0,64); vramCopy((u8*)BG_TILE_RAM(1)+TB_BLANK*64,z,64);
+    u8 z[64] __attribute__((aligned(4))); memset(z,0,64); vramCopy((u8*)BG_TILE_RAM(1)+TB_BLANK*64,z,64);
     uiShadePal();
     tbDraw(); }
 static int tbTouch(int px,int py){   // a touch in the toolbar: returns 1 if it was used
