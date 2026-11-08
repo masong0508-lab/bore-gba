@@ -6,6 +6,8 @@
 #include <nds.h>
 #endif
 #include <stdio.h>
+#include <math.h>
+#include <stdlib.h>
 #include <string.h>
 #include "gg.h"
 
@@ -14,6 +16,8 @@ static u16 occ[WH][WW];            // creature index + 1 standing on a tile
 static Cr cr[MAXC]; static int nCr;
 static int camX, camY;             // camera, in world pixels
 static int power=1, brush=2, spSel=ARCH_N, paused=0, tick=0, year=0;
+static char info[40];
+static int gearAtk(const Cr*c); static void unlockTiers(void);
 static u32 rs=12345;
 u32 rnd(void){ rs^=rs<<13; rs^=rs>>17; rs^=rs<<5; return rs; }
 
@@ -231,7 +235,7 @@ static void think(int i){
         int home=vilNear(s->a,c->x,c->y,14);
         // fight: an enemy people within reach is attacked; otherwise an army walks to the enemy village
         { int best=-1,bd=99; for(int dy=-3;dy<=3;dy++) for(int dx=-3;dx<=3;dx++){ int x=c->x+dx,y=c->y+dy; if(x<0||y<0||x>=WW||y>=WH||!occ[y][x]) continue; int j=occ[y][x]-1; int ra=sp[cr[j].sp].a; if(ra>=8||!warM[s->a][ra]) continue; int d=(dx<0?-dx:dx)+(dy<0?-dy:dy); if(d<bd){ bd=d; best=j; } }
-          if(best>=0){ Cr*p=&cr[best]; if(bd<=1){ int dm=A->atk+(int)(rnd()&3); if(p->hp>dm) p->hp-=(u8)dm; else { killCr(best); c->food+=20; } return; }
+          if(best>=0){ Cr*p=&cr[best]; if(bd<=1){ int dm=A->atk+gearAtk(c)+(int)(rnd()&3); if(p->hp>dm) p->hp-=(u8)dm; else { killCr(best); c->food+=20; } return; }
               int dx=p->x-c->x, dy=p->y-c->y; int ax=dx>0?1:dx<0?-1:0, ay=dy>0?1:dy<0?-1:0; if(((dx<0?-dx:dx)<(dy<0?-dy:dy))) ax=0; else ay=0; int nx=c->x+ax, ny=c->y+ay; if(walkable(s,nx,ny)&&!occ[ny][nx]) moveTo(c,i,nx,ny); return; } }
         if(home>=0&&vil[home].foe&&vil[vil[home].foe-1].on&&c->age>6&&c->hp>8){ const Vil*F=&vil[vil[home].foe-1]; int dx=F->x-c->x, dy=F->y-c->y; if(dx*dx+dy*dy>4){ int ax=dx>0?1:dx<0?-1:0, ay=dy>0?1:dy<0?-1:0; if(((dx<0?-dx:dx)<(dy<0?-dy:dy))) ax=0; else ay=0; int nx=c->x+ax, ny=c->y+ay; if(walkable(s,nx,ny)&&!occ[ny][nx]){ moveTo(c,i,nx,ny); return; } }
             else { int fv=vil[home].foe-1; vil[fv].stock=(u16)(vil[fv].stock>10?vil[fv].stock-10:0); if(rnd()%12==0&&vil[fv].pop<2){ vilRaze(fv,1); } } }
@@ -246,7 +250,7 @@ static void think(int i){
                 const Arch*B=&arch[sp[cr[j].sp].a]; if(B->diet==1||B->diet==4&&diet!=1||sp[cr[j].sp].a==s->a) continue; if(diet==2&&B->diet!=0) continue;
                 int d=(dx<0?-dx:dx)+(dy<0?-dy:dy); if(d<bd){ bd=d; best=j; } }
         if(best>=0){ Cr*p=&cr[best];
-            if(bd<=1){ int dm=A->atk+(int)(rnd()&3); if(p->hp>dm) p->hp-=(u8)dm; else { c->food+=80; if(c->food>120) c->food=120; killCr(best); } return; }
+            if(bd<=1){ int dm=A->atk+gearAtk(c)+(int)(rnd()&3); if(p->hp>dm) p->hp-=(u8)dm; else { c->food+=80; if(c->food>120) c->food=120; killCr(best); } return; }
             int dx=p->x-c->x, dy=p->y-c->y; int sx=dx>0?1:dx<0?-1:0, sy=dy>0?1:dy<0?-1:0; int try1=(((dx<0?-dx:dx)>(dy<0?-dy:dy))?0:1);
             for(int k=0;k<2;k++){ int ax=(k==try1)?sx:0, ay=(k==try1)?0:sy; if(!ax&&!ay) continue; int nx=c->x+ax, ny=c->y+ay; if(walkable(s,nx,ny)&&!occ[ny][nx]){ moveTo(c,i,nx,ny); return; } } } }
     // breed
@@ -265,20 +269,52 @@ static void simulate(void){
     for(int k=0;k<12;k++){ int x=rnd()%WW, y=rnd()%WH; u8 t=world[y][x]; if(t==T_DIRT){ int d=rnd()&3; int nx=x+dxs[d], ny=y+dys[d]; if(nx>=0&&ny>=0&&nx<WW&&ny<WH&&(world[ny][nx]==T_GRASS||world[ny][nx]==T_FOREST)) setCell(x,y,T_GRASS); }
         else if(t==T_GRASS&&(rnd()&63)==0){ int d=rnd()&3; int nx=x+dxs[d], ny=y+dys[d]; if(nx>=0&&ny>=0&&nx<WW&&ny<WH&&world[ny][nx]==T_FOREST&&(rnd()&7)==0) setCell(x,y,T_FOREST); } }
     { static int vc; if((tick&31)==0){ vc=(vc+1)%VIL_N; vilTick(vc); if(vc==0) warMatrix(); } }
-    if(((tick)&255)==0){ compact(); year+=(tick%2048)==0; }
+    if(((tick)&255)==0){ compact(); year+=(tick%2048)==0; unlockTiers(); }
 }
 
+// ---------------------------------------------------------------------------------------------- the item catalogue (generated: materials x kinds, plus potions, seeds, foods, relics, gems, god tools)
+enum { IK_WEAPON, IK_ARMOR, IK_POTION, IK_SEED, IK_FOOD, IK_RELIC, IK_GEM, IK_TOOL };
+typedef struct { char nm[26]; u8 kind, tier, val, sub; } Item;
+#define IT_N 400
+static Item it[IT_N]; static int nIt, itSel=0, tierOpen=1, unlockAll=0;
+static const char* const matNm[14]={"WOODEN","STONE","BONE","COPPER","BRONZE","IRON","STEEL","SILVER","GOLDEN","CRYSTAL","OBSIDIAN","MITHRIL","DRAGON","STAR"};
+static const char* const wepNm[8]={"SWORD","AXE","SPEAR","BOW","MACE","DAGGER","STAFF","HAMMER"}; static const u8 wepAtk[8]={5,6,5,4,7,3,4,8};
+static const char* const armNm[6]={"HELM","SHIELD","BREASTPLATE","BOOTS","GAUNTLETS","CLOAK"}; static const u8 armHp[6]={6,9,14,4,5,6};
+static const char* const potNm[20]={"HEALING","FEEDING","YOUTH","FERTILITY","RAGE","GIANT","SWIFT","CALM","LUCK","VIGOR","PURITY","WONDER","BRAVERY","SLEEP","GLOW","STONESKIN","HARVEST","FRIENDSHIP","FIRE BREATH","REBIRTH"};
+static const char* const seedNm[20]={"OAK","PINE","BIRCH","PALM","JUNGLE","CACTUS","FERN","MOSS","REED","BAMBOO","WILLOW","MAPLE","CYPRESS","BERRY","WHEAT","CLOVER","LOTUS","IVY","MUSHROOM","SUNFLOWER"}; static const u8 seedTerr[20]={T_FOREST,T_FOREST,T_FOREST,T_JUNGLE,T_JUNGLE,T_DESERT,T_GRASS,T_GRASS,T_SWAMP,T_JUNGLE,T_SWAMP,T_FOREST,T_SWAMP,T_GRASS,T_GRASS,T_GRASS,T_WATER,T_JUNGLE,T_FOREST,T_GRASS};
+static const char* const foodNm[20]={"BREAD","APPLE","FISH","MEAT","CHEESE","HONEY","STEW","PIE","CAKE","SOUP","BERRIES","MUSHROOMS","NUTS","CARROT","PUMPKIN","SAUSAGE","EGGS","RICE","MELON","FEAST"};
+static const char* const relNm[40]={"GOLDEN IDOL","WAR DRUM","SACRED FLAME","LUCKY CHARM","ANCIENT TOME","RAIN STONE","SUN DISC","MOON MIRROR","STORM HORN","HEARTH STONE","KING'S CROWN","PEACE BANNER","TRADE SEAL","HARVEST BELL","FOUNDERS STATUE","DRAGON EGG","STAR MAP","WORLD TREE SEED","TITAN BONE","SPIRIT LANTERN","BLOOD OATH","WISHING WELL","BUILDER'S GAVEL","SCOUT'S COMPASS","HEALER'S STAFF","ORACLE EYE","THUNDER MASK","IRON THRONE","SILVER HARP","JESTER'S CAP","SCHOLAR'S QUILL","MINER'S LAMP","FISHER'S NET","SMITH'S ANVIL","WEAVER'S LOOM","TIDE PEARL","FROST CROWN","EMBER HEART","SAND CLOCK","DREAM CATCHER"};
+static const char* const gemNm[20]={"QUARTZ","AMBER","JADE","GARNET","OPAL","TOPAZ","PEARL","ONYX","RUBY","SAPPHIRE","EMERALD","DIAMOND","AMETHYST","TURQUOISE","MOONSTONE","SUNSTONE","BLOODSTONE","AGATE","LAPIS","STAR GEM"};
+static const char* const toolNm[12]={"HOE","SHOVEL","PICKAXE","WATERING CAN","TORCH","BELLOWS","CHISEL","SCYTHE","BROOM","SPONGE","SEED BAG","LEVELLER"}; static const char* const toolFx[12]={"DIRT TO GRASS","DIG A LAKE","RAISE HILLS","GROW GRASS","BURN FIELDS","LAVA TO ROCK","FLATTEN HILLS","CLEAR FOREST","DRAIN WATER","DRY SWAMPS","PLANT FOREST","FLATTEN ALL"};
+static void makeItems(void){
+    nIt=0;
+    for(int m=0;m<14;m++) for(int w=0;w<8;w++){ Item*I=&it[nIt++]; strcpy(I->nm,matNm[m]); strcat(I->nm," "); strcat(I->nm,wepNm[w]); I->kind=IK_WEAPON; I->tier=(u8)m; I->val=(u8)(wepAtk[w]+m*2); I->sub=(u8)w; }
+    for(int m=0;m<14;m++) for(int a=0;a<6;a++){ Item*I=&it[nIt++]; strcpy(I->nm,matNm[m]); strcat(I->nm," "); strcat(I->nm,armNm[a]); I->kind=IK_ARMOR; I->tier=(u8)m; I->val=(u8)(armHp[a]+m*3); I->sub=(u8)a; }
+    for(int k=0;k<20;k++){ Item*I=&it[nIt++]; strcpy(I->nm,"POTION OF "); strcat(I->nm,potNm[k]); I->kind=IK_POTION; I->tier=(u8)(1+k*13/20); I->val=(u8)k; I->sub=(u8)k; }
+    for(int k=0;k<20;k++){ Item*I=&it[nIt++]; strcpy(I->nm,seedNm[k]); strcat(I->nm," SEEDS"); I->kind=IK_SEED; I->tier=(u8)(k/3); I->val=seedTerr[k]; I->sub=(u8)k; }
+    for(int k=0;k<20;k++){ Item*I=&it[nIt++]; strcpy(I->nm,foodNm[k]); I->kind=IK_FOOD; I->tier=(u8)(k*6/20); I->val=(u8)(30+k*4); I->sub=(u8)k; }
+    for(int k=0;k<40;k++){ Item*I=&it[nIt++]; strcpy(I->nm,relNm[k]); I->kind=IK_RELIC; I->tier=(u8)(2+k*11/40); I->val=(u8)(k%5); I->sub=(u8)k; }
+    for(int k=0;k<20;k++){ Item*I=&it[nIt++]; strcpy(I->nm,gemNm[k]); I->kind=IK_GEM; I->tier=(u8)(1+k*12/20); I->val=(u8)(10+k*8); I->sub=(u8)k; }
+    for(int m=0;m<4;m++) for(int t=0;t<12;t++){ Item*I=&it[nIt++]; strcpy(I->nm,m==0?"":m==1?"IRON ":m==2?"GOLD ":"STAR "); strcat(I->nm,toolNm[t]); I->kind=IK_TOOL; I->tier=(u8)(m*4+t/3); I->val=(u8)t; I->sub=(u8)m; }
+}
+static int itOpen(int i){ return unlockAll||it[i].tier<=tierOpen; }
+static int itNext(int from,int d){ for(int k=1;k<=nIt;k++){ int j=(from+d*k%nIt+nIt*2)%nIt; if(itOpen(j)) return j; } return from; }
+static int itCount(int*open){ int o=0; for(int i=0;i<nIt;i++) o+=itOpen(i); if(open) *open=o; return nIt; }
+static int gearAtk(const Cr*c){ return c->wep?it[c->wep-1].val:0; }
+static void itSay(char*out,int i){ const Item*I=&it[i]; static const char*kn[8]={"ATK","HP","POTION","SEED","FOOD","RELIC","GEM","TOOL"}; if(I->kind==IK_WEAPON||I->kind==IK_ARMOR) siprintf(out,"%s %s+%d",I->nm,kn[I->kind],I->val); else if(I->kind==IK_TOOL) siprintf(out,"%s: %s",I->nm,toolFx[I->val]); else siprintf(out,"%s",I->nm); }
+static void unlockTiers(void){   // free play: the age of the world opens better things (years, folk, homes, level 3 halls)
+    int hh; int folk=vilTotals(&hh); int l3=0; for(int v=0;v<VIL_N;v++) l3+=vil[v].on&&vil[v].lvl>=3; int score=year*4+folk/2+hh*3+l3*40;
+    int t=0; while(t<13&&score>=(t+1)*(t+1)*10) t++; t++; if(t>14) t=14; if(t>tierOpen){ tierOpen=t; char nm[24]; strcpy(nm,matNm[t-1<14?t-1:13]); siprintf(info,"NEW ITEMS: THE %s AGE",nm); } }
 // ---------------------------------------------------------------------------------------------- powers (the table is the catalogue)
 typedef struct { const char*nm; u8 kind, arg; } Pw;
-enum { PK_INSPECT, PK_PAINT, PK_SPAWN, PK_RAIN, PK_FIRE, PK_BOLT, PK_METEOR, PK_KILL, PK_HEAL, PK_FEED, PK_SETTLE, PK_WAR, PK_PEACE, PK_BLESS };
+enum { PK_INSPECT, PK_PAINT, PK_SPAWN, PK_RAIN, PK_FIRE, PK_BOLT, PK_METEOR, PK_KILL, PK_HEAL, PK_FEED, PK_SETTLE, PK_WAR, PK_PEACE, PK_BLESS, PK_GIFT };
 static const Pw pw[]={ {"INSPECT",PK_INSPECT,0},{"WATER",PK_PAINT,T_WATER},{"DEEP SEA",PK_PAINT,T_DEEP},{"SAND",PK_PAINT,T_SAND},{"GRASS",PK_PAINT,T_GRASS},{"FOREST",PK_PAINT,T_FOREST},{"JUNGLE",PK_PAINT,T_JUNGLE},
     {"HILLS",PK_PAINT,T_HILL},{"MOUNTAIN",PK_PAINT,T_MOUNT},{"SNOW",PK_PAINT,T_SNOW},{"DESERT",PK_PAINT,T_DESERT},{"SWAMP",PK_PAINT,T_SWAMP},{"LAVA",PK_PAINT,T_LAVA},
-    {"SPAWN",PK_SPAWN,0},{"RAIN",PK_RAIN,0},{"FIRE",PK_FIRE,0},{"LIGHTNING",PK_BOLT,0},{"METEOR",PK_METEOR,0},{"SMITE",PK_KILL,0},{"HEAL",PK_HEAL,0},{"FEED",PK_FEED,0},{"SETTLE",PK_SETTLE,0},{"WAR",PK_WAR,0},{"PEACE",PK_PEACE,0},{"BLESS",PK_BLESS,0} };
+    {"SPAWN",PK_SPAWN,0},{"RAIN",PK_RAIN,0},{"FIRE",PK_FIRE,0},{"LIGHTNING",PK_BOLT,0},{"METEOR",PK_METEOR,0},{"SMITE",PK_KILL,0},{"HEAL",PK_HEAL,0},{"FEED",PK_FEED,0},{"SETTLE",PK_SETTLE,0},{"WAR",PK_WAR,0},{"PEACE",PK_PEACE,0},{"BLESS",PK_BLESS,0},{"GIFT",PK_GIFT,0} };
 #define PW_N ((int)(sizeof(pw)/sizeof(pw[0])))
-static char info[40];
 static int inspected=-1;
 static void usePower(int tx,int ty,int fresh){
-    const Pw*P=&pw[power]; int r=brush;
+    const Pw*P=&pw[power]; int r=brush; if(P->kind==PK_GIFT&&(it[itSel].kind==IK_WEAPON||it[itSel].kind==IK_ARMOR||it[itSel].kind==IK_RELIC||it[itSel].kind==IK_GEM)) r=1;
     for(int dy=-r;dy<=r;dy++) for(int dx=-r;dx<=r;dx++){ if(dx*dx+dy*dy>r*r+r/2) continue; int x=tx+dx, y=ty+dy; if(x<0||y<0||x>=WW||y>=WH) continue;
         switch(P->kind){
         case PK_PAINT: if(bld[y][x]){ bld[y][x]=0; bldv[y][x]=0; } setCell(x,y,P->arg); if(occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; if(!walkable(&sp[c->sp],x,y)&&(rnd()&3)==0) killCr(occ[y][x]-1); } break;
@@ -294,6 +330,18 @@ static void usePower(int tx,int ty,int fresh){
         case PK_WAR: if(fresh&&dx==0&&dy==0){ int v=vilAny(x,y,4); if(v>=0){ int best=-1,bd=2000; for(int u=0;u<VIL_N;u++){ if(!vil[u].on||u==v||vil[u].race==vil[v].race) continue; int ddx=vil[u].x-vil[v].x, ddy=vil[u].y-vil[v].y, d=ddx*ddx+ddy*ddy; if(d<bd){ bd=d; best=u; } } if(best>=0){ vil[v].foe=(u8)(best+1); siprintf(info,"WAR! %s ATTACKS %s",arch[vil[v].race].nm,arch[vil[best].race].nm); } } } break;
         case PK_PEACE: if(fresh&&dx==0&&dy==0){ for(int v=0;v<VIL_N;v++) vil[v].foe=0; warMatrix(); siprintf(info,"PEACE"); } break;
         case PK_BLESS: if(fresh&&dx==0&&dy==0){ int v=vilAny(x,y,4); if(v>=0){ vil[v].stock=(u16)(vil[v].stock+150>400?400:vil[v].stock+150); } } break;
+        case PK_GIFT: { const Item*I=&it[itSel]; Cr*c=occ[y][x]?&cr[occ[y][x]-1]:0; int cen=(dx==0&&dy==0);
+            switch(I->kind){
+            case IK_WEAPON: if(c&&cen&&fresh){ c->wep=(u16)(itSel+1); } break;
+            case IK_ARMOR: if(c&&cen&&fresh){ int old=c->arm?it[c->arm-1].val:0; c->arm=(u16)(itSel+1); int hp=c->hp+I->val*2-old*2; c->hp=(u8)(hp>250?250:hp<1?1:hp); } break;
+            case IK_FOOD: if(c){ int f=c->food+I->val*2; c->food=(u8)(f>250?250:f); } else if(world[y][x]==T_DIRT) setCell(x,y,T_GRASS); break;
+            case IK_POTION: if(c){ switch(I->sub){ case 0: case 19: c->hp=arch[sp[c->sp].a].hp; if(I->sub==19){ c->age=0; c->food=120; } break; case 1: case 16: c->food=250; break; case 2: c->age=0; break; case 3: if(cen&&fresh){ int n=addCr(c->sp,c->x+1,c->y); if(n<0) addCr(c->sp,c->x,c->y+1); } break; case 4: c->wep=(u16)(c->wep?c->wep:1); break; case 5: { int hp=c->hp+40; c->hp=(u8)(hp>250?250:hp); } break; case 15: { int hp=c->hp+60; c->hp=(u8)(hp>250?250:hp); } break; default: c->food=100; } } break;
+            case IK_SEED: if(world[y][x]!=T_WATER&&world[y][x]!=T_DEEP&&world[y][x]!=T_LAVA&&!bld[y][x]&&(rnd()&1)) setCell(x,y,(u8)I->val); break;
+            case IK_RELIC: case IK_GEM: if(cen&&fresh){ int v=vilAny(x,y,5); if(v>=0){ Vil*V=&vil[v]; if(I->kind==IK_GEM) V->stock=(u16)(V->stock+I->val*3>400?400:V->stock+I->val*3); else switch(I->val){ case 0: V->stock=400; break; case 1: for(int k=0;k<3;k++) if(placeBld(v,B_HOUSE,0)) V->houses++; break; case 2: if(V->lvl<3) V->lvl++; break; case 3: V->foe=0; break; default: for(int k=0;k<8;k++) addCr(0,V->x+(int)(rnd()%5)-2,V->y+(int)(rnd()%5)-2); } } } break;
+            case IK_TOOL: { int t=I->val; u8 w=world[y][x]; if(bld[y][x]) break;
+                switch(t){ case 0: if(w==T_DIRT) setCell(x,y,T_GRASS); break; case 1: if(w==T_GRASS||w==T_SAND||w==T_DIRT) setCell(x,y,T_WATER); break; case 2: if(w==T_GRASS||w==T_FOREST) setCell(x,y,T_HILL); else if(w==T_HILL) setCell(x,y,T_MOUNT); break; case 3: if(w==T_DIRT||w==T_SAND||w==T_DESERT) setCell(x,y,T_GRASS); break;
+                    case 4: if(w==T_GRASS||w==T_FOREST) setCell(x,y,T_DIRT); break; case 5: if(w==T_LAVA) setCell(x,y,T_MOUNT); break; case 6: if(w==T_MOUNT) setCell(x,y,T_HILL); else if(w==T_HILL) setCell(x,y,T_GRASS); break; case 7: if(w==T_FOREST||w==T_JUNGLE) setCell(x,y,T_GRASS); break;
+                    case 8: if(w==T_WATER) setCell(x,y,T_SAND); break; case 9: if(w==T_SWAMP) setCell(x,y,T_GRASS); break; case 10: if(w==T_GRASS&&(rnd()&1)) setCell(x,y,T_FOREST); break; default: if(w==T_HILL||w==T_MOUNT||w==T_FOREST||w==T_JUNGLE) setCell(x,y,T_GRASS); } } break; } } break;
         case PK_INSPECT: if(dx==0&&dy==0){ if(occ[y][x]) inspected=occ[y][x]-1; else if(bldv[y][x]){ int v=bldv[y][x]-1; char nm[24]; vilName(v,nm); siprintf(info,"%s %s POP%d HOMES%d",arch[vil[v].race].nm,nm,vil[v].pop,vil[v].houses); inspected=-2; } } break; } }
     if(P->kind==PK_INSPECT&&inspected!=-2){ if(inspected>=0&&inspected<nCr&&cr[inspected].alive){ Cr*c=&cr[inspected]; char nm[32]; spName(c->sp,nm); siprintf(info,"%s HP%d FOOD%d AGE%d",nm,c->hp,c->food,c->age); } else siprintf(info,"%s",bioNm[world[ty<WH?ty:0][tx<WW?tx:0]]); }
 }
@@ -302,8 +350,68 @@ static void newWorld(void){ nCr=0; memset(occ,0,sizeof occ); memset(bld,0,sizeof
     for(int k=0;k<260;k++){ int a=8+(int)(rnd()%(ARCH_N-8)); int s=8+(a-8)*16+(int)(rnd()%16); int x=rnd()%WW, y=rnd()%WH; if(arch[a].diet==3&&k%2) continue; addCr(s,x,y); }
     for(int r=0;r<8;r++){ if(r>=5&&(rnd()&1)) continue; for(int k=0;k<80;k++){ int x=rnd()%WW, y=rnd()%WH; int v=vilFound(r,x,y); if(v>=0){ for(int q=0;q<5;q++) addCr(r,x+(int)(rnd()%5)-2,y+(int)(rnd()%5)-2); break; } } }   // the peoples start with a village each (the restless ones sometimes stay away)
     info[0]=0; }
+#define MN 28
+static int shape3=0, texId=-1;   // zoom3: camera distance in 1/16 planet radii
+static s16 mvx[(MN+1)*(MN+1)], mvy[(MN+1)*(MN+1)], mvz[(MN+1)*(MN+1)], mnx[(MN+1)*(MN+1)], mny[(MN+1)*(MN+1)], mnz[(MN+1)*(MN+1)];
+static u16 tex[128*128];
+static float csp(float a,float e){ float c=cosf(a); float r=powf(fabsf(c)+1e-6f,e); return c<0?-r:r; }
+static float snp(float a,float e){ float c=sinf(a); float r=powf(fabsf(c)+1e-6f,e); return c<0?-r:r; }
+static void buildMesh(void){
+    for(int j=0;j<=MN;j++) for(int i=0;i<=MN;i++){ int k=j*(MN+1)+i; float x,y,z,nx,ny,nz;
+        if(shape3==2){ float u=6.2831853f*i/MN, v=6.2831853f*j/MN, R=0.72f, r=0.36f; x=(R+r*cosf(v))*cosf(u); z=(R+r*cosf(v))*sinf(u); y=r*sinf(v); nx=cosf(v)*cosf(u); ny=sinf(v); nz=cosf(v)*sinf(u); }
+        else { float u=6.2831853f*i/MN, v=-1.5707963f+3.1415927f*j/MN, e=shape3==0?1.0f:0.28f;
+            x=csp(v,e)*csp(u,e); y=snp(v,e); z=csp(v,e)*snp(u,e); nx=csp(v,2-e)*csp(u,2-e); ny=snp(v,2-e); nz=csp(v,2-e)*snp(u,2-e); }
+        float l=sqrtf(nx*nx+ny*ny+nz*nz)+1e-6f; nx/=l; ny/=l; nz/=l;
+        mvx[k]=(s16)(x*4096*0.9f); mvy[k]=(s16)(y*4096*0.9f); mvz[k]=(s16)(z*4096*0.9f); mnx[k]=(s16)(nx*500); mny[k]=(s16)(ny*500); mnz[k]=(s16)(nz*500); }
+}
+static void fillTexture(void){
+    for(int y=0;y<128;y++) for(int x=0;x<128;x++){ int t=world[y][x]; int r,g,b; shadeRGB(t*8+3+(int)(hsh(x,y,5)&3),&r,&g,&b);
+        if(bld[y][x]&&bld[y][x]!=B_RUIN){ int rc=bldv[y][x]?vil[bldv[y][x]-1].race:0; r=roofCol[rc][0]; g=roofCol[rc][1]; b=roofCol[rc][2]; }
+        if(occ[y][x]&&arch[sp[cr[occ[y][x]-1].sp].a].diet==4){ r=31; g=31; b=24; }
+        tex[y*128+x]=(u16)(r|(g<<5)|(b<<10)|0x8000); }
+}
+#ifndef PCTEST
+static void uploadTexture(void){ fillTexture();
+    glResetTextures(); glGenTextures(1,&texId); glBindTexture(0,texId); glTexImage2D(0,0,GL_RGB,TEXTURE_SIZE_128,TEXTURE_SIZE_128,0,TEXGEN_TEXCOORD|GL_TEXTURE_WRAP_S|GL_TEXTURE_WRAP_T,(u8*)tex);
+}
+#endif
+static int view3d=0, rotX=0, rotY=0, zoom3=40, glOn=0;
 #ifndef PCTEST
 // ---------------------------------------------------------------------------------------------- screens
+// ---- light: the day goes round and the water shimmers (a tint on the background palette) ----
+static u16 basePal[256];
+static void saveBasePal(void){ for(int i=0;i<144;i++) basePal[i]=BG_PALETTE[i]; }
+static void applyLight(void){
+    int p=(tick>>1)&2047, sun=p<1024?p:2047-p; int L=70+sun*186/1024, Lr=L*236/256, Lg=L*246/256, Lb=L+(256-L)/5+14; if(Lb>256) Lb=256; if(L>256) L=256;
+    int sh=(tick>>4)&3;
+    for(int i=0;i<144;i++){ int src=i; if(i>=T_WATER*8+5&&i<T_WATER*8+8) src=T_WATER*8+5+((i-T_WATER*8-5+sh)%3);
+        u16 c=basePal[src]; int r=(c&31)*Lr>>8, g=((c>>5)&31)*Lg>>8, b=((c>>10)&31)*Lb>>8; if(r>31) r=31; if(g>31) g=31; if(b>31) b=31; BG_PALETTE[i]=(u16)(r|(g<<5)|(b<<10)); }
+    BG_PALETTE[0]=0;
+}
+// ---- the planet in 3D: sphere, cube-planet and ring-world, all wearing the 128 x 128 map as a texture ----
+static void enter3D(void){
+    videoSetMode(MODE_0_3D);
+    if(!glOn){ glInit(); glEnable(GL_TEXTURE_2D); glEnable(GL_ANTIALIAS); vramSetBankD(VRAM_D_TEXTURE); glClearColor(0,0,3,31); glClearPolyID(63); glClearDepth(0x7FFF); glViewport(0,0,255,191); glOn=1; }
+    lcdMainOnTop(); buildMesh(); uploadTexture(); view3d=1;
+}
+static void leave3D(void){
+    videoSetMode(MODE_0_2D|DISPLAY_BG0_ACTIVE|DISPLAY_SPR_ACTIVE|DISPLAY_SPR_1D_LAYOUT|DISPLAY_SPR_1D_SIZE_32); lcdMainOnBottom();
+    bgInit(0,BgType_Text8bpp,BgSize_T_512x512,0,1); mapPtr=(u16*)bgGetMapPtr(0); winX=-99; view3d=0;
+}
+static void draw3D(void){
+    glMatrixMode(GL_PROJECTION); glLoadIdentity(); gluPerspective(55,256.0/192.0,0.05,40);
+    glMatrixMode(GL_MODELVIEW); glLoadIdentity();
+    glLight(0,RGB15(31,31,29),floattov10(-0.55),floattov10(-0.35),floattov10(-0.75));
+    glTranslatef32(0,0,-(zoom3*4096/16)); glRotateX((float)rotX); glRotateY((float)rotY);
+    glMaterialf(GL_AMBIENT,RGB15(13,13,14)); glMaterialf(GL_DIFFUSE,RGB15(20,20,19)); glMaterialf(GL_SPECULAR,RGB15(0,0,0)); glMaterialf(GL_EMISSION,RGB15(2,2,3));
+    glPolyFmt(POLY_ALPHA(31)|POLY_CULL_NONE|POLY_FORMAT_LIGHT0);
+    glBindTexture(0,texId);
+    glBegin(GL_QUAD);
+    for(int j=0;j<MN;j++) for(int i=0;i<MN;i++){
+        int k0=j*(MN+1)+i, k1=k0+1, k2=k0+MN+2, k3=k0+MN+1; int ks[4]={k0,k1,k2,k3}; int us[4]={i,i+1,i+1,i}, vs[4]={j,j,j+1,j+1};
+        for(int q=0;q<4;q++){ int k=ks[q]; glNormal(NORMAL_PACK(mnx[k],mny[k],mnz[k])); GFX_TEX_COORD=TEXTURE_PACK(inttot16(us[q]*128/MN),inttot16(vs[q]*128/MN)); glVertex3v16(mvx[k],mvy[k],mvz[k]); } }
+    glEnd(); glFlush(0);
+}
 static u16*gfxF[SHAPE_N][2];
 static void makeSprites(void){
     for(int b=0;b<16;b++){ SPRITE_PALETTE[b*16+0]=0; for(int k=0;k<3;k++) SPRITE_PALETTE[b*16+1+k]=RGB15(famCol[b][k][0],famCol[b][k][1],famCol[b][k][2]); SPRITE_PALETTE[b*16+4]=RGB15(31,31,31); }
@@ -327,8 +435,8 @@ static void drawMinimap(void){
 }
 static void hud(void){
     char nm[32]; spName(spSel,nm); int alive=0; for(int i=0;i<nCr;i++) alive+=cr[i].alive;
-    consoleClear(); iprintf("\x1b[0;0HBORE: GODGUY  v0.1%s\n",paused?"  [PAUSED]":"");
-    iprintf("\x1b[19;0HPOWER < %s > BRUSH %d\n",pw[power].nm,brush); iprintf("\x1b[20;0HSPECIES %s (%d/%d)\n",nm,spSel+1,nSp);
+    consoleClear(); iprintf("\x1b[0;0HBORE: GODGUY  v0.3 %s%s\n",view3d?(shape3==0?"SPHERE":shape3==1?"CUBE WORLD":"RING WORLD"):"",paused?"  [PAUSED]":"");
+    iprintf("\x1b[19;0HPOWER < %s > BRUSH %d\n",pw[power].nm,brush); if(pw[power].kind==PK_GIFT){ char ib[40]; itSay(ib,itSel); int op; int tot=itCount(&op); iprintf("\x1b[20;0HITEM %s (%d/%d OPEN)\n",ib,op,tot); } else iprintf("\x1b[20;0HSPECIES %s (%d/%d)\n",nm,spSel+1,nSp);
     { int hh; int pp=vilTotals(&hh); iprintf("\x1b[21;0HLIFE %d  YEAR %d  VILLAGES %d  FOLK %d  HOMES %d\n",alive,year,nVilOn,pp,hh); } iprintf("\x1b[22;0H%s\n",info);
     iprintf("\x1b[23;0HDPAD PAN  L R POWER  X Y SIZE/KIND\n");
 }
@@ -346,7 +454,7 @@ int main(void){
     BG_PALETTE_SUB[80]=RGB15(31,31,6); BG_PALETTE_SUB[81]=RGB15(31,3,3); BG_PALETTE_SUB[82]=RGB15(31,31,31); BG_PALETTE_SUB[83]=RGB15(31,31,0); BG_PALETTE_SUB[84]=RGB15(31,24,6);
     memset(bgGetGfxPtr(3),0,256*192);
     rs^=(u32)(REG_VCOUNT*2654435761u)^0xA5A5; for(int i=0;i<8;i++) rnd();
-    makeSpecies(); makeTiles(); makeSprites(); newWorld(); camX=(WW*8-256)/2; camY=(WH*8-192)/2;
+    makeSpecies(); makeItems(); makeTiles(); saveBasePal(); makeSprites(); newWorld(); camX=(WW*8-256)/2; camY=(WH*8-192)/2;
     int held=0, lastTx=-9, lastTy=-9; hud();
     while(1){
         scanKeys(); int kd=keysDown(), kh=keysHeld(); tick++;
@@ -355,14 +463,22 @@ int main(void){
         if(camX<0) camX=0; if(camY<0) camY=0; if(camX>WW*8-256) camX=WW*8-256; if(camY>WH*8-192) camY=WH*8-192;
         int dirty=0;
         if(kd&KEY_R){ power=(power+1)%PW_N; dirty=1; } if(kd&KEY_L){ power=(power+PW_N-1)%PW_N; dirty=1; }
-        if(kd&(KEY_X|KEY_Y)){ int d=(kd&KEY_X)?1:-1; if(pw[power].kind==PK_SPAWN){ spSel=(spSel+nSp+d)%nSp; } else { brush+=d; if(brush<0) brush=0; if(brush>8) brush=8; } dirty=1; }
-        if(kd&KEY_SELECT){ spSel=(spSel+10)%nSp; dirty=1; }
+        if(kd&KEY_SELECT){ if(kh&KEY_START){ unlockAll=1; siprintf(info,"FREE PLAY: EVERYTHING UNLOCKED"); } else { if(view3d) leave3D(); else enter3D(); } dirty=1; }
+        if(view3d){
+            int ts=(kh&KEY_B)?4:2; if(kh&KEY_LEFT) rotY-=ts; if(kh&KEY_RIGHT) rotY+=ts; if(kh&KEY_UP) rotX-=ts; if(kh&KEY_DOWN) rotX+=ts; if(!(kh&(KEY_LEFT|KEY_RIGHT|KEY_UP|KEY_DOWN))) rotY+=1;
+            if(rotX>85) rotX=85; if(rotX<-85) rotX=-85;
+            if(kh&KEY_X){ zoom3-=1; if(zoom3<19) zoom3=19; } if(kh&KEY_Y){ zoom3+=1; if(zoom3>110) zoom3=110; }
+            if(kd&KEY_A){ shape3=(shape3+1)%3; buildMesh(); dirty=1; }
+            if(kd&KEY_R){ power=(power+1)%PW_N; dirty=1; } if(kd&KEY_L){ power=(power+PW_N-1)%PW_N; dirty=1; }
+            if(!paused) simulate(); if((tick&63)==0) uploadTexture(); swiWaitForVBlank(); draw3D(); if((tick&15)==0||dirty){ drawMinimap(); hud(); } if((tick&7)==0) applyLight(); continue; }
+        if(kd&(KEY_X|KEY_Y)){ int d=(kd&KEY_X)?1:-1; if(kh&KEY_B){ if(pw[power].kind==PK_GIFT) itSel=itNext(itSel,10*d); else spSel=(spSel+nSp+10*d)%nSp; } else if(pw[power].kind==PK_SPAWN){ spSel=(spSel+nSp+d)%nSp; } else if(pw[power].kind==PK_GIFT){ itSel=itNext(itSel,d); } else { brush+=d; if(brush<0) brush=0; if(brush>8) brush=8; } dirty=1; }
         if(kd&KEY_A){ paused^=1; dirty=1; }
         if(kd&KEY_START){ newWorld(); dirty=1; }
         if(kh&KEY_TOUCH){ touchPosition tp; touchRead(&tp); int tx=(tp.px+camX)>>3, ty=(tp.py+camY)>>3; int fresh=!held||tx!=lastTx||ty!=lastTy; if(pw[power].kind==PK_PAINT||fresh) usePower(tx,ty,!held); held=1; lastTx=tx; lastTy=ty; dirty=1; } else held=0;
         refillWindow(); simulate();
         swiWaitForVBlank();
         bgSetScroll(0,camX&511,camY&511); bgUpdate(); drawSprites(); oamUpdate(&oamMain);
+        if((tick&7)==0) applyLight();
         if((tick&15)==0||dirty){ drawMinimap(); hud(); }
     }
     return 0;
