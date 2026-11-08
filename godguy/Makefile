@@ -35,7 +35,7 @@ CFLAGS	+=	$(INCLUDE) -DARM9 $(GG_FLAGS)
 CXXFLAGS	:= $(CFLAGS) -fno-rtti -fno-exceptions
 
 ASFLAGS	:=	-g $(ARCH)
-LDFLAGS	=	-specs=$(CALICO)/share/ds9-legacy.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
+LDFLAGS	=	-specs=$(CURDIR)/../ds9-800.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 
 #---------------------------------------------------------------------------------
 # any extra libraries we wish to link with the project
