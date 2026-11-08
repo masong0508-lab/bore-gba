@@ -61,7 +61,7 @@ json.dump(rep, open(OUT + "/accuracy.json", "w"), indent=1)
 # hybrid preview: the module + the decoded 4-bit clips at their exact samples (rate 18157 -> 44100)
 total = len(synth["bass"]); mix = np.zeros(total)
 off = int(round(-G["origin"] * SR)); mod = (synth["bass"] + synth["piano"] + synth["drums"]); mod = mod[off:] if off > 0 else mod; mix[:len(mod)] += mod[:total] * 0.55
-for st, gain in (("vocals", 1.0), ("guitar", 1.0), ("other", 0.8)):
+for st, gain in (("vocals", 0.55), ("guitar", 1.0), ("other", 0.8)):      # the vocals play softer than before (they were 1.0)
     blob = open("%s/digital/%s.adp" % (OUT, st), "rb").read()
     for c in DJ["stems"][st]["clips"]:
         pcm = decode(blob[c["offset"]:c["offset"] + c["bytes"]]).astype(np.float64) / 32768 * c["vol_peak"] * gain

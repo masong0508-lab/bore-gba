@@ -14,7 +14,7 @@
    "sixteenth": 10,
    "gba_sample": 26872,
    "gba_frame": 89,
-   "vol_q8": 197,
+   "vol_q8": 189,
    "clip_offset": 0,
    "clip_samples": 33360,
    "clip_bytes": 8340
@@ -27,7 +27,7 @@
    "sixteenth": 64,
    "gba_sample": 139264,
    "gba_frame": 460,
-   "vol_q8": 200,
+   "vol_q8": 197,
    "clip_offset": 8340,
    "clip_samples": 44640,
    "clip_bytes": 11160
@@ -40,7 +40,7 @@
    "sixteenth": 112,
    "gba_sample": 238220,
    "gba_frame": 787,
-   "vol_q8": 110,
+   "vol_q8": 114,
    "clip_offset": 19500,
    "clip_samples": 38000,
    "clip_bytes": 9500
@@ -53,7 +53,7 @@
    "sixteenth": 154,
    "gba_sample": 324829,
    "gba_frame": 1073,
-   "vol_q8": 50,
+   "vol_q8": 48,
    "clip_offset": 29000,
    "clip_samples": 12080,
    "clip_bytes": 3020
@@ -66,7 +66,7 @@
    "sixteenth": 173,
    "gba_sample": 365137,
    "gba_frame": 1207,
-   "vol_q8": 37,
+   "vol_q8": 36,
    "clip_offset": 32020,
    "clip_samples": 5120,
    "clip_bytes": 1280
@@ -79,7 +79,7 @@
    "sixteenth": 276,
    "gba_sample": 579753,
    "gba_frame": 1916,
-   "vol_q8": 205,
+   "vol_q8": 194,
    "clip_offset": 33300,
    "clip_samples": 20320,
    "clip_bytes": 5080
@@ -92,7 +92,7 @@
    "sixteenth": 403,
    "gba_sample": 843030,
    "gba_frame": 2786,
-   "vol_q8": 213,
+   "vol_q8": 199,
    "clip_offset": 38380,
    "clip_samples": 11120,
    "clip_bytes": 2780
@@ -105,7 +105,7 @@
    "sixteenth": 420,
    "gba_sample": 877709,
    "gba_frame": 2900,
-   "vol_q8": 225,
+   "vol_q8": 222,
    "clip_offset": 41160,
    "clip_samples": 10480,
    "clip_bytes": 2620
@@ -118,7 +118,7 @@
    "sixteenth": 435,
    "gba_sample": 909666,
    "gba_frame": 3006,
-   "vol_q8": 237,
+   "vol_q8": 217,
    "clip_offset": 43780,
    "clip_samples": 26080,
    "clip_bytes": 6520
@@ -131,7 +131,7 @@
    "sixteenth": 467,
    "gba_sample": 976483,
    "gba_frame": 3227,
-   "vol_q8": 235,
+   "vol_q8": 221,
    "clip_offset": 50300,
    "clip_samples": 30320,
    "clip_bytes": 7580
@@ -144,7 +144,7 @@
    "sixteenth": 499,
    "gba_sample": 1042938,
    "gba_frame": 3446,
-   "vol_q8": 205,
+   "vol_q8": 203,
    "clip_offset": 57880,
    "clip_samples": 26160,
    "clip_bytes": 6540
@@ -157,7 +157,7 @@
    "sixteenth": 531,
    "gba_sample": 1109937,
    "gba_frame": 3668,
-   "vol_q8": 220,
+   "vol_q8": 215,
    "clip_offset": 64420,
    "clip_samples": 38800,
    "clip_bytes": 9700
@@ -170,7 +170,7 @@
    "sixteenth": 573,
    "gba_sample": 1195638,
    "gba_frame": 3951,
-   "vol_q8": 222,
+   "vol_q8": 211,
    "clip_offset": 74120,
    "clip_samples": 26720,
    "clip_bytes": 6680
@@ -183,7 +183,7 @@
    "sixteenth": 601,
    "gba_sample": 1253922,
    "gba_frame": 4144,
-   "vol_q8": 219,
+   "vol_q8": 210,
    "clip_offset": 80800,
    "clip_samples": 32320,
    "clip_bytes": 8080
@@ -196,7 +196,7 @@
    "sixteenth": 635,
    "gba_sample": 1324916,
    "gba_frame": 4378,
-   "vol_q8": 218,
+   "vol_q8": 225,
    "clip_offset": 88880,
    "clip_samples": 28480,
    "clip_bytes": 7120
@@ -209,7 +209,7 @@
    "sixteenth": 665,
    "gba_sample": 1387195,
    "gba_frame": 4584,
-   "vol_q8": 210,
+   "vol_q8": 197,
    "clip_offset": 96000,
    "clip_samples": 32080,
    "clip_bytes": 8020
@@ -222,7 +222,7 @@
    "sixteenth": 699,
    "gba_sample": 1457644,
    "gba_frame": 4817,
-   "vol_q8": 210,
+   "vol_q8": 203,
    "clip_offset": 104020,
    "clip_samples": 30080,
    "clip_bytes": 7520
@@ -235,7 +235,7 @@
    "sixteenth": 731,
    "gba_sample": 1525733,
    "gba_frame": 5042,
-   "vol_q8": 208,
+   "vol_q8": 211,
    "clip_offset": 111540,
    "clip_samples": 30240,
    "clip_bytes": 7560
@@ -248,7 +248,7 @@
    "sixteenth": 763,
    "gba_sample": 1592006,
    "gba_frame": 5261,
-   "vol_q8": 211,
+   "vol_q8": 207,
    "clip_offset": 119100,
    "clip_samples": 30240,
    "clip_bytes": 7560
@@ -261,7 +261,7 @@
    "sixteenth": 795,
    "gba_sample": 1658279,
    "gba_frame": 5480,
-   "vol_q8": 218,
+   "vol_q8": 214,
    "clip_offset": 126660,
    "clip_samples": 30960,
    "clip_bytes": 7740
@@ -274,7 +274,7 @@
    "sixteenth": 828,
    "gba_sample": 1726186,
    "gba_frame": 5704,
-   "vol_q8": 218,
+   "vol_q8": 217,
    "clip_offset": 134400,
    "clip_samples": 45520,
    "clip_bytes": 11380
@@ -287,7 +287,7 @@
    "sixteenth": 889,
    "gba_sample": 1853285,
    "gba_frame": 6124,
-   "vol_q8": 184,
+   "vol_q8": 177,
    "clip_offset": 145780,
    "clip_samples": 4160,
    "clip_bytes": 1040
@@ -300,7 +300,7 @@
    "sixteenth": 893,
    "gba_sample": 1862727,
    "gba_frame": 6155,
-   "vol_q8": 153,
+   "vol_q8": 150,
    "clip_offset": 146820,
    "clip_samples": 10400,
    "clip_bytes": 2600
@@ -313,7 +313,7 @@
    "sixteenth": 906,
    "gba_sample": 1889054,
    "gba_frame": 6242,
-   "vol_q8": 152,
+   "vol_q8": 146,
    "clip_offset": 149420,
    "clip_samples": 14480,
    "clip_bytes": 3620
@@ -326,7 +326,7 @@
    "sixteenth": 954,
    "gba_sample": 1989281,
    "gba_frame": 6574,
-   "vol_q8": 229,
+   "vol_q8": 230,
    "clip_offset": 153040,
    "clip_samples": 35760,
    "clip_bytes": 8940
@@ -339,7 +339,7 @@
    "sixteenth": 996,
    "gba_sample": 2076071,
    "gba_frame": 6860,
-   "vol_q8": 250,
+   "vol_q8": 249,
    "clip_offset": 161980,
    "clip_samples": 10400,
    "clip_bytes": 2600
@@ -352,7 +352,7 @@
    "sixteenth": 1009,
    "gba_sample": 2102944,
    "gba_frame": 6949,
-   "vol_q8": 223,
+   "vol_q8": 224,
    "clip_offset": 164580,
    "clip_samples": 28640,
    "clip_bytes": 7160
@@ -365,7 +365,7 @@
    "sixteenth": 1043,
    "gba_sample": 2174301,
    "gba_frame": 7185,
-   "vol_q8": 218,
+   "vol_q8": 213,
    "clip_offset": 171740,
    "clip_samples": 11040,
    "clip_bytes": 2760
@@ -378,7 +378,7 @@
    "sixteenth": 1060,
    "gba_sample": 2208981,
    "gba_frame": 7300,
-   "vol_q8": 228,
+   "vol_q8": 235,
    "clip_offset": 174500,
    "clip_samples": 11760,
    "clip_bytes": 2940
@@ -391,7 +391,7 @@
    "sixteenth": 1075,
    "gba_sample": 2239848,
    "gba_frame": 7402,
-   "vol_q8": 219,
+   "vol_q8": 224,
    "clip_offset": 177440,
    "clip_samples": 26480,
    "clip_bytes": 6620
@@ -404,7 +404,7 @@
    "sixteenth": 1122,
    "gba_sample": 2337714,
    "gba_frame": 7725,
-   "vol_q8": 214,
+   "vol_q8": 206,
    "clip_offset": 184060,
    "clip_samples": 9840,
    "clip_bytes": 2460
@@ -417,7 +417,7 @@
    "sixteenth": 1136,
    "gba_sample": 2367310,
    "gba_frame": 7823,
-   "vol_q8": 228,
+   "vol_q8": 225,
    "clip_offset": 186520,
    "clip_samples": 10160,
    "clip_bytes": 2540
@@ -443,7 +443,7 @@
    "sixteenth": 1205,
    "gba_sample": 2510750,
    "gba_frame": 8297,
-   "vol_q8": 227,
+   "vol_q8": 222,
    "clip_offset": 195420,
    "clip_samples": 46320,
    "clip_bytes": 11580
@@ -456,7 +456,7 @@
    "sixteenth": 1255,
    "gba_sample": 2613519,
    "gba_frame": 8636,
-   "vol_q8": 95,
+   "vol_q8": 84,
    "clip_offset": 207000,
    "clip_samples": 9840,
    "clip_bytes": 2460
@@ -469,7 +469,7 @@
    "sixteenth": 1754,
    "gba_sample": 3653007,
    "gba_frame": 12071,
-   "vol_q8": 221,
+   "vol_q8": 216,
    "clip_offset": 209460,
    "clip_samples": 28400,
    "clip_bytes": 7100
@@ -482,7 +482,7 @@
    "sixteenth": 1786,
    "gba_sample": 3718009,
    "gba_frame": 12286,
-   "vol_q8": 222,
+   "vol_q8": 217,
    "clip_offset": 216560,
    "clip_samples": 31840,
    "clip_bytes": 7960
@@ -495,7 +495,7 @@
    "sixteenth": 1819,
    "gba_sample": 3787913,
    "gba_frame": 12517,
-   "vol_q8": 211,
+   "vol_q8": 206,
    "clip_offset": 224520,
    "clip_samples": 29441,
    "clip_bytes": 7361
@@ -508,7 +508,7 @@
    "sixteenth": 1850,
    "gba_sample": 3852371,
    "gba_frame": 12730,
-   "vol_q8": 224,
+   "vol_q8": 219,
    "clip_offset": 231881,
    "clip_samples": 23040,
    "clip_bytes": 5760
@@ -521,7 +521,7 @@
    "sixteenth": 1874,
    "gba_sample": 3902302,
    "gba_frame": 12895,
-   "vol_q8": 214,
+   "vol_q8": 211,
    "clip_offset": 237641,
    "clip_samples": 38080,
    "clip_bytes": 9520
@@ -547,7 +547,7 @@
    "sixteenth": 1947,
    "gba_sample": 4053732,
    "gba_frame": 13396,
-   "vol_q8": 225,
+   "vol_q8": 221,
    "clip_offset": 254841,
    "clip_samples": 38240,
    "clip_bytes": 9560
@@ -560,7 +560,7 @@
    "sixteenth": 1988,
    "gba_sample": 4138162,
    "gba_frame": 13675,
-   "vol_q8": 226,
+   "vol_q8": 220,
    "clip_offset": 264401,
    "clip_samples": 48800,
    "clip_bytes": 12200
@@ -573,7 +573,7 @@
    "sixteenth": 2040,
    "gba_sample": 4246559,
    "gba_frame": 14033,
-   "vol_q8": 224,
+   "vol_q8": 225,
    "clip_offset": 276601,
    "clip_samples": 33520,
    "clip_bytes": 8380
@@ -586,7 +586,7 @@
    "sixteenth": 2075,
    "gba_sample": 4320277,
    "gba_frame": 14276,
-   "vol_q8": 220,
+   "vol_q8": 219,
    "clip_offset": 284981,
    "clip_samples": 29440,
    "clip_bytes": 7360
@@ -599,7 +599,7 @@
    "sixteenth": 2106,
    "gba_sample": 4384734,
    "gba_frame": 14489,
-   "vol_q8": 206,
+   "vol_q8": 204,
    "clip_offset": 292341,
    "clip_samples": 30400,
    "clip_bytes": 7600
@@ -612,7 +612,7 @@
    "sixteenth": 2139,
    "gba_sample": 4451370,
    "gba_frame": 14710,
-   "vol_q8": 210,
+   "vol_q8": 208,
    "clip_offset": 299941,
    "clip_samples": 30960,
    "clip_bytes": 7740
@@ -625,7 +625,7 @@
    "sixteenth": 2171,
    "gba_sample": 4519277,
    "gba_frame": 14934,
-   "vol_q8": 211,
+   "vol_q8": 209,
    "clip_offset": 307681,
    "clip_samples": 30241,
    "clip_bytes": 7561
@@ -638,7 +638,7 @@
    "sixteenth": 2203,
    "gba_sample": 4585550,
    "gba_frame": 15153,
-   "vol_q8": 222,
+   "vol_q8": 221,
    "clip_offset": 315242,
    "clip_samples": 29840,
    "clip_bytes": 7460
@@ -651,7 +651,7 @@
    "sixteenth": 2234,
    "gba_sample": 4650915,
    "gba_frame": 15369,
-   "vol_q8": 215,
+   "vol_q8": 209,
    "clip_offset": 322702,
    "clip_samples": 18560,
    "clip_bytes": 4640
@@ -664,7 +664,7 @@
    "sixteenth": 2254,
    "gba_sample": 4690679,
    "gba_frame": 15500,
-   "vol_q8": 222,
+   "vol_q8": 218,
    "clip_offset": 327342,
    "clip_samples": 39600,
    "clip_bytes": 9900
@@ -677,7 +677,7 @@
    "sixteenth": 2296,
    "gba_sample": 4778196,
    "gba_frame": 15790,
-   "vol_q8": 166,
+   "vol_q8": 170,
    "clip_offset": 337242,
    "clip_samples": 42000,
    "clip_bytes": 10500
@@ -690,7 +690,7 @@
    "sixteenth": 2340,
    "gba_sample": 4871160,
    "gba_frame": 16097,
-   "vol_q8": 86,
+   "vol_q8": 92,
    "clip_offset": 347742,
    "clip_samples": 12640,
    "clip_bytes": 3160
@@ -703,7 +703,7 @@
    "sixteenth": 2619,
    "gba_sample": 5450368,
    "gba_frame": 18011,
-   "vol_q8": 113,
+   "vol_q8": 110,
    "clip_offset": 350902,
    "clip_samples": 3040,
    "clip_bytes": 760
@@ -716,7 +716,7 @@
    "sixteenth": 2624,
    "gba_sample": 5459991,
    "gba_frame": 18043,
-   "vol_q8": 115,
+   "vol_q8": 118,
    "clip_offset": 351662,
    "clip_samples": 9600,
    "clip_bytes": 2400
@@ -729,7 +729,7 @@
    "sixteenth": 2644,
    "gba_sample": 5502479,
    "gba_frame": 18183,
-   "vol_q8": 152,
+   "vol_q8": 145,
    "clip_offset": 354062,
    "clip_samples": 12400,
    "clip_bytes": 3100

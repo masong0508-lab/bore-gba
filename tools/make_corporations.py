@@ -20,6 +20,7 @@ from encode_sfx import encode, decode
 import encode_song
 
 SR = 44100
+VOICE_DB = -2.0     # the voice's level against the instruments while it sings (the first version: +2.5 dB; the original stems: -6.2 dB)
 STEMS = ["bass", "drums", "other", "guitar", "piano", "vocals"]
 SRC = os.environ.get("STEM_DIR", "/root/.claude/uploads/2b9164b2-7e8c-59d8-8b67-0e06180c3de2")
 GBA = 18157
@@ -87,6 +88,17 @@ def tempo(d):   # BPM and the time of the first strong beat from the drum stem
             if sc > best[0]: best = (sc, bpm, ph * hop / SR)
     return best[1], best[2]
 
+def vocal_chain(voc, act):
+    """The singing, squeezed and softened: high-pass 110 Hz, a little warmth at 200 Hz, mud out at 350 Hz, a gentle presence lift at 2.2 kHz, the harsh band (4.5 kHz) pulled down, a de-esser
+    on 5-9 kHz, then a fast 8:1 and a slow 3:1 compressor and a soft clipper. (The first version lifted 2.8 kHz by 3.5 dB and had no de-esser: it was bright and sharp in a 4-bit stream.)"""
+    v = signal.sosfilt(signal.butter(2, 110, "hp", fs=SR, output="sos"), voc)
+    for f0, g, q in ((200, 1.5, 0.8), (350, -2.0, 1.0), (2200, 1.2, 0.9), (4500, -3.0, 1.2)):
+        b, a = biquad_peak(f0, g, q); v = signal.lfilter(b, a, v)
+    hi = signal.sosfilt(signal.butter(3, [5000, 9000], "bp", fs=SR, output="sos"), v); m0 = np.repeat(act, 441)[:len(v)] if len(act) * 441 >= len(v) else np.pad(np.repeat(act, 441), (0, len(v) - len(act) * 441))
+    hr = rms(hi[m0 > 0]) if (m0 > 0).any() else rms(hi); v = v - hi + compress(hi, db(hr) + 2.0, 4.0, 0.001, 0.030)      # sibilants above the band's usual level are squeezed
+    pre = rms(v[m0 > 0]) if (m0 > 0).any() else rms(v)
+    v = compress(v, db(pre) - 6, 8.0, 0.002, 0.060); v = compress(v, db(pre) - 4, 3.0, 0.012, 0.220); return np.tanh(v / (3 * rms(v))) * 3 * rms(v) * 0.9
+
 # ---- 2-bit adaptive delta (IMA step table, one sign bit + one magnitude bit): the singing alone, 2 bits per sample
 STEP = np.array([7,8,9,10,11,12,13,14,16,17,19,21,23,25,28,31,34,37,41,45,50,55,60,66,73,80,88,97,107,118,130,143,157,173,190,209,230,253,279,307,337,371,408,449,494,544,598,658,724,796,876,963,1060,1166,1282,1411,1552,1707,1878,2066,2272,2499,2749,3024,3327,3660,4026,4428,4871,5358,5894,6484,7132,7845,8630,9493,10442,11487,12635,13899,15289,16818,18500,20350,22385,24623,27086,29794,32767])
 def enc2(x):
@@ -109,11 +121,8 @@ def main():
     st = {n: load(find_stem(n)) for n in STEMS}; L = min(len(v) for v in st.values()); st = {k: v[:L] for k, v in st.items()}
     print("stems: %.1f s" % (L / SR)); [print("  %-7s rms %6.1f dBFS peak %6.1f" % (k, db(rms(v)), db(np.abs(v).max()))) for k, v in st.items()]
     voc = st["vocals"]; act, ph = vad(voc); bpm, t0 = tempo(st["drums"]); print("vocal phrases: %d, singing %.0f s of %.0f s;  tempo %.2f BPM, first beat at %.3f s" % (len(ph), sum(b - a for a, b in ph), L / SR, bpm, t0))
-    # --- the singing, squeezed
-    v = signal.sosfilt(signal.butter(2, 95, "hp", fs=SR, output="sos"), voc)
-    b, a = biquad_peak(2800, 3.5, 0.9); v = signal.lfilter(b, a, v); b, a = biquad_peak(300, -2.0, 1.0); v = signal.lfilter(b, a, v)
-    pre = rms(v[np.repeat(act, 441)[:len(v)] if len(act) * 441 >= len(v) else np.pad(np.repeat(act, 441), (0, len(v) - len(act) * 441))]) if act.any() else rms(v)
-    v = compress(v, db(pre) - 6, 8.0, 0.002, 0.060); v = compress(v, db(pre) - 4, 3.0, 0.012, 0.220); v = np.tanh(v / (3 * rms(v))) * 3 * rms(v) * 0.9
+    # --- the singing, squeezed and softened
+    v = vocal_chain(voc, act)
     actmask = np.pad(np.repeat(act, 441), (0, max(0, len(v) - len(act) * 441)))[:len(v)] > 0
     print("singing: %.1f dB (original active %.1f dB), crest %.1f dB" % (db(rms(v[actmask])), db(rms(voc[actmask])), db(np.abs(v).max()) - db(rms(v[actmask]))))
     # --- the instruments, with room cut out for the voice
@@ -121,7 +130,7 @@ def main():
     lo = signal.sosfilt(signal.butter(3, 600, "lp", fs=SR, output="sos"), inst); hi = signal.sosfilt(signal.butter(3, 5000, "hp", fs=SR, output="sos"), inst); mid = inst - lo - hi
     sc = smooth(actmask[::110].astype(float), 0.020, 0.150, SR / 110); duck = np.interp(np.arange(len(v)), (np.arange(len(sc)) + 0.5) * 110, sc)
     inst2 = lo + mid * 10 ** (-5.0 * duck / 20) + hi * 10 ** (-1.5 * duck / 20)
-    ir = rms(inst2[actmask]); vr = rms(v[actmask]); gain = ir / vr * 10 ** (2.5 / 20)      # the voice sits 2.5 dB above the instruments while it sings
+    ir = rms(inst2[actmask]); vr = rms(v[actmask]); gain = ir / vr * 10 ** (VOICE_DB / 20)      # the voice sits VOICE_DB under / over the instruments while it sings
     mix = inst2 + v * gain; mix = np.tanh(mix / (0.9 * np.abs(mix).max()) * 1.4) / np.tanh(1.4)
     print("voice over instruments while singing: %+.1f dB (originally %+.1f dB)" % (db(rms(v[actmask]) * gain / ir), db(rms(voc[actmask]) / rms((st["bass"] + st["drums"] + st["other"] + st["guitar"] + st["piano"])[actmask]))))
     wav = "/tmp/corporations_mix.wav"; pcm = (np.clip(mix, -1, 1) * 32767).astype("<i2")

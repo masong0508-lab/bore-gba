@@ -15,7 +15,7 @@ import numpy as np, librosa, mido
 from scipy import signal
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import xmwrite as X
-from make_corporations import find_stem, load, SR, vad, compress, biquad_peak, smooth, db, rms
+from make_corporations import find_stem, load, SR, vad, compress, biquad_peak, smooth, db, rms, vocal_chain, VOICE_DB
 from encode_sfx import encode, decode
 
 OUT = "tools/corporations"; GBA = 18157
@@ -99,11 +99,7 @@ def digital(origin):
     os.makedirs(OUT + "/digital", exist_ok=True); info = {}; cues = {}
     stems = {n: load(find_stem(n)) for n in ("vocals", "guitar", "other")}; L = min(len(v) for v in stems.values())
     # vocals: the same squeeze as the single-stream song (compression, presence, level), kept as 4-bit
-    voc = stems["vocals"][:L]; act_v, _ = vad(voc)
-    v = __import__("scipy.signal", fromlist=["x"]).sosfilt(signal.butter(2, 95, "hp", fs=SR, output="sos"), voc)
-    b, a = biquad_peak(2800, 3.5, 0.9); v = signal.lfilter(b, a, v); b, a = biquad_peak(300, -2.0, 1.0); v = signal.lfilter(b, a, v)
-    m = np.pad(np.repeat(act_v, 441), (0, max(0, len(v) - len(act_v) * 441)))[:len(v)] > 0; pre = rms(v[m])
-    v = compress(v, db(pre) - 6, 8.0, 0.002, 0.060); v = compress(v, db(pre) - 4, 3.0, 0.012, 0.220); v = np.tanh(v / (3 * rms(v))) * 3 * rms(v) * 0.9
+    voc = stems["vocals"][:L]; act_v, _ = vad(voc); v = vocal_chain(voc, act_v)
     stems["vocals"] = v / np.abs(v).max() * 0.85
     for name, x in stems.items():
         x = x[:L]; act, ph = vad(x) if name != "vocals" else vad(voc)
@@ -122,7 +118,7 @@ def digital(origin):
             q = np.frombuffer(pcm, dtype="<i2").astype(np.int32); data = encode(q); n = len(q)
             clips.append(dict(i=i, start_s=round(s0 / SR, 4), end_s=round(s1 / SR, 4), gba_sample=int(round(s0 / SR * GBA)), samples=n, offset=len(blob), bytes=len(data), vol_peak=round(pk, 4), cue_row=qrow(s0 / SR, origin)))
             blob += data
-        open("%s/digital/%s.adp" % (OUT, name), "wb").write(bytes(blob)); info[name] = dict(clips=clips, total_bytes=len(blob), active_s=round(sum(c["samples"] for c in clips) / GBA, 1))
+        open("%s/digital/%s.adp" % (OUT, name), "wb").write(bytes(blob)); info[name] = dict(clips=clips, total_bytes=len(blob), default_gain=(round(10 ** (VOICE_DB / 20), 3) if name == "vocals" else 1.0), active_s=round(sum(c["samples"] for c in clips) / GBA, 1))
         print("digital %-7s %3d clips %6.0f KB  (%.0f s of audio)" % (name, len(clips), len(blob) / 1024, info[name]["active_s"]))
     json.dump(dict(rate=GBA, format="IMA-ADPCM 4-bit, mono, 18157 Hz (the game's song format); each clip starts at gba_sample (music samples from the start of the song, t = 0)", stems=info), open(OUT + "/digital.json", "w"), indent=1)
     return info
