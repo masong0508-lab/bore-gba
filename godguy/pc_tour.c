@@ -18,6 +18,7 @@ void shimInput(int frame,int*held,int*tx,int*ty){
             case 18: page=6; extrasView=1; break; case 19: paused=0; planetSize=192; rs=777u*2654435761u+31337u; newWorld(); monOn=1; for(int t=1;t<=45000;t++){ tick=t; year=t/1200; simulate(); } tick=700; page=7; extrasView=1; break; case 20: page=8; extrasView=1; break; case 21: page=9; extrasView=1; break;
             case 22: page=3; extrasView=1; auralOpen=1; break; case 23: dlgSet=dlgTab[3]; dlgIdx=1; dlgChars=999; dlgOn=1; break; case 24: sceneStart(introTxt,0); break; case 25: sceneStart(credTxt,1); sceneOff=10; break;
             case 26: menuOn=1; mScr=2; mSel=5; break; case 27: titleOn=1; mScr=2; mSel=3; break; case 28: menuOn=1; mScr=1; mSel=1; break;
+            case 29: page=10; extrasView=1; break; case 30: page=11; extrasView=1; langSel=2; break; case 31: page=7; extrasView=1; break;
             default: page=0; break; } hud(); } }
     if(frame==1140){ weather=2; weatherT=3000; } if(frame==1248||frame==1249) flashT=6; if(frame==1290){ weather=3; weatherT=3000; }
     *held=0; for(unsigned i=0;i<sizeof script/sizeof script[0];i++) if(frame>=script[i].f0&&frame<script[i].f1){ *held|=script[i].keys; if(script[i].keys&KEY_TOUCH){ *tx=script[i].tx; *ty=script[i].ty; } }

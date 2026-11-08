@@ -285,7 +285,26 @@ static Vil vil[VIL_N]; static int nVilOn;
 static u8 warM[8][8];   // [a][b]: the people of a are fighting the people of b
 static u8 vilRace(int v){ return vil[v].race; }
 static const char* const vn1[12]={"BRAN","DUN","MOR","TAL","KAR","EL","OR","ISH","VAL","GRO","HAR","NIM"}, * const vn2[8]={"TON","HOLM","BURG","DELL","FORD","MERE","STEAD","HOLD"};
-static void vilName(int v,char*out){ strcpy(out,vn1[vil[v].nm1%12]); strcat(out,vn2[vil[v].nm2%8]); }
+// ---------------------------------------------------------------------------------------------- languages and the name system
+// Five tongues, each with its own words, kingdom endings, city endings and person-name syllables. Every name in the game is built from them: a kingdom speaks the language it was founded in
+// (kingdom name), a city by the language of its people, a ruler by the kingdom's current language (title word + name), a faith by its language's words for god and for its dogma.
+static const char* const cptN[16]={"STONE","RIVER","FIRE","STAR","OAK","WOLF","MOON","SUN","KING","WAR","PEACE","GOLD","HOME","GOD","DEATH","LIFE"};
+static const char* const lwords[5][16]={
+ {"ETH","ILUV","NAUR","ELEN","TAUR","DHAN","ITHIL","ANOR","ARAN","MACIL","IRMA","MALTA","ONDO","ILU","MORN","CUIV"},
+ {"STAN","RIV","FYR","STERR","AK","WULF","MON","SUNN","KYNG","WYR","FRITH","GOLD","HAM","GOD","DETH","LIF"},
+ {"KAZ","DUR","BARAZ","ZIL","BELEG","GRIMM","NAR","AZAN","THRAIN","KHAZ","SOL","ORIN","BARUK","MAHAL","MORG","DRAK"},
+ {"OLI","UMA","FELA","SELI","ANI","LUPE","LUNA","SOLI","REI","MARTA","PACE","ORO","KASA","DEO","MORI","VITA"},
+ {"GRUK","SLOSH","GRAKK","ZUG","MOKK","FANGG","NAKH","GAZ","KHAN","WAAG","PUNGH","SHINY","GROT","UGG","DRAKK","ZAK"} };
+static const char* const lsufK[5][4]={{"IEL","ANOR","IA","ORE"},{"LAND","MARK","SHIRE","HOLM"},{"HEIM","GARD","DUM","KAZ"},{"LI","RA","NIA","VELLA"},{"ZAG","GOR","UKK","TAR"}};
+static const char* const lsufC[5][4]={{"LOND","DELL","RIL","WEN"},{"TON","FORD","BURG","STEAD"},{"KAR","DUM","GROT","HOLD"},{"ELLA","ONA","INO","ASA"},{"GRUB","RUK","SKAR","MOZ"}};
+static const char* const pn1[5][6]={{"EL","AR","LU","TH","CE","IL"},{"AL","BRY","CED","DOR","EM","FAR"},{"BAR","DUR","GIM","THOR","KHAZ","BOR"},{"LU","MA","OR","SE","IL","NA"},{"GRU","ZUG","MOK","SKA","KRA","UR"}};
+static const char* const pn2[5][6]={{"AN","IR","AE","OL","IA","EN"},{"RI","N","RA","E","BE","IN"},{"A","I","UN","IN","O","AD"},{"CI","RI","NE","LI","VA","DE"},{"K","ZZ","G","RAK","TH","NG"}};
+static const char* const pn3[5][6]={{"DIL","WEN","RIEL","DOR","NA","MIR"},{"C","N","D","RICK","TH","WIN"},{"IN","LI","GRIM","DAR","RUK","MUND"},{"A","ELLA","O","ANA","IO","ETTA"},{"GA","UK","OSH","AZ","ASH","TOK"}};
+static int raceLang(int race){ static const u8 m[8]={1,0,2,4,4,3,2,4}; return m[race&7]; }
+static void langKing(int l,int a,int b,char*o){ strcpy(o,lwords[l%5][a%8]); strcat(o,lsufK[l%5][b%4]); }
+static void langCity(int l,int a,int b,char*o){ strcpy(o,lwords[l%5][a%8]); strcat(o,lsufC[l%5][b%4]); }
+static void langPerson(int l,int a,int b,char*o){ strcpy(o,pn1[l%5][a%6]); strcat(o,pn2[l%5][b%6]); strcat(o,pn3[l%5][(a+b)%6]); }
+static void vilName(int v,char*out){ langCity(raceLang(vil[v].race),vil[v].nm1,vil[v].nm2,out); }
 static int aggressive(int race){ return race==3||race==4||race==7; }   // the orcs, the goblins and the ogres go looking for trouble
 static int vilNear(int race,int x,int y,int r){ int best=-1,bd=r*r+1; for(int v=0;v<VIL_N;v++){ if(!vil[v].on||vil[v].race!=race) continue; int dx=vil[v].x-x, dy=vil[v].y-y, d=dx*dx+dy*dy; if(d<bd){ bd=d; best=v; } } return best; }
 static int vilAny(int x,int y,int r){ int best=-1,bd=r*r+1; for(int v=0;v<VIL_N;v++){ if(!vil[v].on) continue; int dx=vil[v].x-x, dy=vil[v].y-y, d=dx*dx+dy*dy; if(d<bd){ bd=d; best=v; } } return best; }
@@ -331,7 +350,8 @@ static int vilTotals(int*houses){ int pop=0,h=0; for(int v=0;v<VIL_N;v++) if(vil
 // Villages group into kingdoms (at most 8). A kingdom has a ruler with a temper, gold, technology, relations with every other kingdom (-100 hatred .. +100 love), allies, wars,
 // and may be another kingdom's vassal. Wars are declared from bad relations and fought by the villages' soldiers (the old village war marches); cities are captured, not just razed.
 #define KN_N 8
-typedef struct { u8 on, race, tech, rtr, rn1, rn2, n1, n2, lord, allies, war, empire, weary, reign, trade, cul, cap, plot, plotT, truce, spite, rlg, lang, clan, ctr, tradeW, pcool, pad2; s8 rel[KN_N]; u16 gold, born; } Kd;   // rel[b]: this kingdom's opinion of b; cul: culture; cap: capital village (+1); plot: the kingdom it is plotting war against (+1)
+typedef struct { u8 on, race, tech, rtr, rn1, rn2, n1, n2, lord, allies, war, empire, weary, reign, trade, cul, cap, plot, plotT, truce, spite, rlg, lang, clan, ctr, tradeW, pcool, nlang; s8 rel[KN_N]; u16 gold, born, cpts; u32 know; } Kd;   // rel[b]: this kingdom's opinion of b; cul: culture; cap: capital village (+1); plot: the kingdom it is plotting war against (+1)
+static int kdKnow(int k,int b);
 static Kd kd[KN_N]; static u8 vilK[VIL_N]; static s8 vilL[VIL_N]; /* a city's loyalty to its kingdom */ static char jr[24][34]; static u16 jrYear[24]; static int jrN;
 static const char* const kn1[12]={"AR","BEL","COR","DRA","EST","FEN","GAL","HOR","ISK","JOR","KEL","LUN"}, * const kn2[8]={"IA","ANIA","OTH","MARK","LAND","VIA","ELL","UM"};
 static const char* const rnA[12]={"ALDRIC","BRYN","CEDRA","DORN","EMBER","FARIN","GRETA","HALDOR","ISOLDE","JORAN","KIRA","LOTHAR"}, * const rnB[8]={"THE BOLD","THE WISE","THE FAT","THE MAD","THE KIND","THE LATE","THE GREEDY","THE PALE"};
@@ -340,24 +360,29 @@ static const char* const ctrN[6]={"XENOPHOBIC","SCHOLARLY","MERCANTILE","MARTIAL
 static int worldAge(void){ return (year/12+(int)(worldSeed&3))%5; }   /* ages of the world, twelve years each: they tilt growth, monsters, rebellion, learning and peace */
 static const char* const techN[10]={"NONE","AGRICULTURE","IRON TOOLS","MASONRY","TRADE ROADS","STEEL","ENGINEERING","ALCHEMY","ASTRONOMY","FEUDALISM"};
 static void logEv(const char*s){ if(jrN<24){ strncpy(jr[jrN],s,33); jr[jrN][33]=0; jrYear[jrN]=(u16)year; jrN++; } else { memmove(jr[0],jr[1],23*34); memmove(jrYear,jrYear+1,23*2); strncpy(jr[23],s,33); jr[23][33]=0; jrYear[23]=(u16)year; } siprintf(info,"%.32s",s); }
-static void kdName(int k,char*o){ strcpy(o,kn1[kd[k].n1%12]); strcat(o,kn2[kd[k].n2%8]); }
-static void kdRuler(int k,char*o){ strcpy(o,rnA[kd[k].rn1%12]); strcat(o," "); strcat(o,rnB[kd[k].rn2%8]); }
-static void kdStats(int k,int*cities,int*pop,int*power){ int c=0,p=0,w=0; for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==k+1){ c++; p+=vil[v].pop; w+=vil[v].pop+vil[v].towers*3+vil[v].houses; } w+=kd[k].tech*4; if(kd[k].ctr>>3&1) w=w*5/4; if(cities) *cities=c; if(pop) *pop=p; if(power) *power=w; }
+static void kdName(int k,char*o){ langKing(kd[k].nlang,kd[k].n1,kd[k].n2,o); }
+static void kdRuler(int k,char*o){ strcpy(o,lwords[kd[k].lang%5][8]); strcat(o," "); char p[24]; langPerson(kd[k].lang,kd[k].rn1,kd[k].rn2,p); strcat(o,p); strcat(o," "); strcat(o,rnB[kd[k].rn2%8]); }
+static void kdFaith(int k,char*o){ static const u8 dn[4]={7,6,0,14}; strcpy(o,lwords[kd[k].lang%5][13]); strcat(o,"-"); strcat(o,lwords[kd[k].lang%5][dn[kd[k].rlg&3]]); }   /* the faith's local name: the tongue's word for god and for its dogma */
+static void kdStats(int k,int*cities,int*pop,int*power){ int c=0,p=0,w=0; for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==k+1){ c++; p+=vil[v].pop; w+=vil[v].pop+vil[v].towers*3+vil[v].houses; } w+=kd[k].tech*4; if(kd[k].ctr>>3&1) w=w*5/4; w=w*(100+10*kdKnow(k,2))/100; if(kd[k].rlg==0) w=w*11/10; if(cities) *cities=c; if(pop) *pop=p; if(power) *power=w; }
 static int kdDist(int a,int b){ int best=9999; for(int u=0;u<VIL_N;u++) if(vil[u].on&&vilK[u]==a+1) for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==b+1){ int dx=vil[u].x-vil[v].x, dy=vil[u].y-vil[v].y; int d=dx*dx+dy*dy; if(d<best) best=d; } int r=0; while(r*r<best&&r<200) r++; return r; }
 static int kdFound(int v){
     int k=-1; for(int i=0;i<KN_N;i++) if(!kd[i].on){ k=i; break; } if(k<0) return -1;
-    Kd*K=&kd[k]; memset(K,0,sizeof *K); K->on=1; K->race=vil[v].race; K->n1=(u8)(rnd()%12); K->n2=(u8)(rnd()%8); K->rn1=(u8)(rnd()%12); K->rn2=(u8)(rnd()%8); K->rtr=(u8)(aggressive(K->race)?0:rnd()%4); K->born=(u16)year; K->gold=30; K->cul=(u8)(rnd()%5); K->rlg=(u8)(rnd()%4); K->lang=(u8)(rnd()%5); K->clan=(u8)(rnd()%8); K->cap=(u8)(v+1);
+    Kd*K=&kd[k]; memset(K,0,sizeof *K); K->on=1; K->race=vil[v].race; K->n1=(u8)(rnd()%12); K->n2=(u8)(rnd()%8); K->rn1=(u8)(rnd()%12); K->rn2=(u8)(rnd()%8); K->rtr=(u8)(aggressive(K->race)?0:rnd()%4); K->born=(u16)year; K->gold=30; K->cul=(u8)(rnd()%5); K->rlg=(u8)(rnd()%4); K->lang=(u8)(rnd()%5==0?rnd()%5:raceLang(K->race)); K->nlang=K->lang; K->clan=(u8)(rnd()%8); K->cap=(u8)(v+1);
     vilK[v]=(u8)(k+1); vilL[v]=60; char n[24], b[72]; kdName(k,n); siprintf(b,"THE KINGDOM OF %s RISES",n); logEv(b); return k; }
 static void kdAssign(void){
     for(int v=0;v<VIL_N;v++){ if(!vil[v].on){ vilK[v]=0; continue; } if(vilK[v]&&kd[vilK[v]-1].on) continue; vilK[v]=0;
         int best=-1, bd=40*40; for(int u=0;u<VIL_N;u++) if(u!=v&&vil[u].on&&vilK[u]&&vil[u].race==vil[v].race){ int dx=vil[u].x-vil[v].x, dy=vil[u].y-vil[v].y, d=dx*dx+dy*dy; if(d<bd){ bd=d; best=u; } }
         if(best>=0) vilK[v]=vilK[best]; else if(kdFound(v)<0){ int nb=vilAny(vil[v].x,vil[v].y,60); (void)nb; for(int u=0;u<VIL_N;u++) if(u!=v&&vilK[u]){ vilK[v]=vilK[u]; break; } } } }
 static void kdWar(int a,int b,int on){ if(on){ kd[a].war|=(u8)(1<<b); kd[b].war|=(u8)(1<<a); kd[a].weary=kd[b].weary=0; } else { kd[a].war&=(u8)~(1<<b); kd[b].war&=(u8)~(1<<a); } }
-static int kdMaxCities(int k){ return 3+(kd[k].tech>=3)+(kd[k].tech>=6)+(kd[k].tech>=9); }   // governance: each of three techs allows one more city
-static int kdZones(int k){ int z=0; for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==k+1) z+=3+vil[v].lvl*3+vil[v].houses/3; return z; }
+static const char* const knBr[6]={"GOVERNANCE","ZONE CONTROL","WARFARE","ECONOMY","ARCHITECTURE","EDUCATION"};
+static const char* const knN[6][3]={{"TRIBAL LAW","KINGS COURT","ROYAL CHARTER"},{"BOUNDARY STONES","BORDER FORTS","GRAND SURVEY"},{"DRILLED LEVIES","STEEL ARMS","SIEGECRAFT"},{"BARTER","COINAGE","BANKING"},{"MASONRY","ARCHES","CATHEDRALS"},{"WRITING","SCHOLARS","UNIVERSITIES"}};
+static const char* const dogN[4]={"CRUSADERS: +10% POWER","PEACEKEEPERS: BETTER TALKS","BUILDERS: RICHER CITIES","MYSTICS: ODD GIFTS"};
+static int kdKnow(int k,int b){ int n=0; for(int i=0;i<3;i++) n+=(kd[k].know>>(b*3+i))&1; return n; }
+static int kdMaxCities(int k){ return 3+kdKnow(k,0)+(kd[k].tech>=6); }   // governance: each level allows one more city
+static int kdZones(int k){ int z=0; for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==k+1) z+=3+vil[v].lvl*3+vil[v].houses/3+kdKnow(k,1)*3; return z; }
 static void kdDeclareX(int a,int b,int spite){
     if(a==b||!kd[a].on||!kd[b].on||(kd[a].war>>b&1)) return; if(spite){ kd[a].spite=kd[b].spite=1; } char x[24], y[24], s[72]; kdName(a,x); kdName(b,y); kdWar(a,b,1); stWars++; kd[a].allies&=(u8)~(1<<b); kd[b].allies&=(u8)~(1<<a); kd[a].rel[b]=kd[b].rel[a]=-60;
-    siprintf(s,"%s DECLARES WAR ON %s",x,y); logEv(s);
+    if(kd[a].rlg!=kd[b].rlg&&((kd[a].ctr>>5&1)||kd[a].rlg==0)) siprintf(s,"%s DECLARES HOLY WAR ON %s",x,y); else siprintf(s,"%s DECLARES WAR ON %s",x,y); logEv(s);
     for(int c=0;c<KN_N;c++) if(c!=a&&c!=b&&kd[c].on&&(kd[a].allies>>c&1)&&!(kd[b].allies>>c&1)&&kd[c].rel[b]<20&&!(kd[c].war>>b&1)){ kdWar(c,b,1); char z[24]; kdName(c,z); siprintf(s,"%s JOINS THE WAR",z); logEv(s); } }
 static void kdDeclare(int a,int b){ kdDeclareX(a,b,0); }
 static void kdDie(int k){ char n[24], s[72]; kdName(k,n); siprintf(s,"THE KINGDOM OF %s FALLS",n); logEv(s); for(int o=0;o<KN_N;o++){ kd[o].allies&=(u8)~(1<<k); kd[o].war&=(u8)~(1<<k); if(kd[o].lord==k+1) kd[o].lord=0; kd[o].rel[k]=0; } memset(&kd[k],0,sizeof kd[k]); }
@@ -369,21 +394,26 @@ static void kingdomTick(void){
     { static int lastAge=-1; int ag=worldAge(); if(ag!=lastAge){ if(lastAge>=0){ char s2[72]; siprintf(s2,"THE AGE OF %s BEGINS",ageN[ag]); logEv(s2); } lastAge=ag; } }
     kdAssign();
     for(int k=0;k<KN_N;k++) if(kd[k].on){ int c,p,w; kdStats(k,&c,&p,&w); if(!c){ kdDie(k); continue; }
-        Kd*K=&kd[k]; { int g=p/6+c*2+(K->trade?(K->ctr>>2&1)?10:4:0); if(worldAge()==0) g=g*5/4; K->gold=(u16)(K->gold+g>60000?60000:K->gold+g); } K->trade=0; K->tradeW=0;
-        if(K->ctr>>4&1) for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==k+1&&vil[v].stock<390) vil[v].stock+=3;
+        Kd*K=&kd[k]; { int g=p/6+c*2+(K->trade?(K->ctr>>2&1)?10:4:0); if(worldAge()==0) g=g*5/4; g=g*(100+15*kdKnow(k,3))/100; K->gold=(u16)(K->gold+g>60000?60000:K->gold+g); } K->trade=0; K->tradeW=0;
+        { int bon=(K->ctr>>4&1?3:0)+kdKnow(k,4)*2+(K->rlg==2?2:0); if(bon) for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==k+1&&vil[v].stock<390) vil[v].stock=(u16)(vil[v].stock+bon); }
+        { /* the culture tree: points from people and scholars buy the next node of the branch the ruler cares about */ static const u8 pref[4][6]={{2,1,0,3,4,5},{0,4,5,3,1,2},{3,1,4,0,2,5},{5,0,3,4,1,2}}; int lv=0; for(int b=0;b<6;b++) lv+=kdKnow(k,b); K->cpts=(u16)(K->cpts+p/8+c+((K->ctr>>1&1)?4:0)+kdKnow(k,5)*2); int cost=(30+lv*20)*(100-10*kdKnow(k,5))/100;
+          if(lv<18&&K->cpts>=cost){ for(int q=0;q<6;q++){ int b=pref[K->rtr&3][q]; int l=kdKnow(k,b); if(l<3){ K->know|=1u<<(b*3+l); K->cpts-=(u16)cost; char y[24], s2[72]; kdName(k,y); siprintf(s2,"%s LEARNS %s",y,knN[b][l]); logEv(s2); break; } } } }
+        if(K->rlg==3&&nCr&&(rnd()%100)<4){ for(int t=0;t<24;t++){ int i=(int)(rnd()%nCr); Cr*c2=&cr[i]; if(c2->alive&&sp[c2->sp].a==K->race&&c2->tr2==0){ giveTrait(c2,1+(int)(rnd()%(TR_N-1)),0); break; } } }
+        if(((K->ctr>>5&1)||K->rlg==0)&&(rnd()%100)<5){ for(int o=0;o<KN_N;o++) if(o!=k&&kd[o].on&&kd[o].rlg!=K->rlg&&kd[o].rel[k]>-30&&kdDist(k,o)<40){ kd[o].rlg=K->rlg; char y[24], f[24], s2[72]; kdName(o,y); kdFaith(k,f); siprintf(s2,"%s ADOPTS FAITH %s",y,f); logEv(s2); break; } }
         if(++K->reign>90+(rnd()%70)){ K->reign=0; K->rn1=(u8)(rnd()%12); K->rn2=(u8)(rnd()%8); if(!aggressive(K->race)) K->rtr=(u8)(rnd()%4); else if(rnd()&1) K->rtr=(u8)(rnd()%4); }
         if(K->reign==0){ int old=K->clan; if(rnd()%10>=7) K->clan=(u8)(rnd()%8); if(K->clan!=old){ char y[24], s2[72]; kdName(k,y); siprintf(s2,"HOUSE %s TAKES %s",clanN[K->clan],y); logEv(s2); } }
         if(__builtin_popcount(K->ctr)<4&&(rnd()%100)<3){ int t=(int)(rnd()%6); if(!(K->ctr>>t&1)){ K->ctr|=(u8)(1<<t); char y[24], s2[72]; kdName(k,y); siprintf(s2,"%s TURNS %s",y,ctrN[t]); logEv(s2); } }
         if(K->lord&&kd[K->lord-1].on&&(rnd()%100)<8){ Kd*L=&kd[K->lord-1]; int w2=(int)(rnd()%3); if(w2==0) K->cul=L->cul; else if(w2==1) K->rlg=L->rlg; else K->lang=L->lang; }   /* a vassal slowly takes on its lord's ways */
+        if(K->gold>1500){ K->gold-=600; for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==k+1) vil[v].stock=(u16)(vil[v].stock+40>400?400:vil[v].stock+40); }
         if(K->gold>400){ K->gold-=150; for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==k+1&&vil[v].stock<350){ vil[v].stock+=50; break; } }
-        int tcost=(70+K->tech*60)*((K->ctr>>1&1)?8:10)/10*(worldAge()==3?7:10)/10; if(K->tech<9&&K->gold>=(u16)tcost){ K->gold-=(u16)tcost; K->tech++; char y[24], s[72]; kdName(k,y); siprintf(s,"%s LEARNS %s",y,techN[K->tech]); logEv(s); }
+        int tcost=(70+K->tech*60)*((K->ctr>>1&1)?8:10)/10*(worldAge()==3?7:10)/10*(100-10*kdKnow(k,5))/100; if(K->tech<9&&K->gold>=(u16)tcost){ K->gold-=(u16)tcost; K->tech++; char y[24], s[72]; kdName(k,y); siprintf(s,"%s LEARNS %s",y,techN[K->tech]); logEv(s); }
         int emp=c>=5||(0); for(int o=0;o<KN_N;o++) if(kd[o].on&&kd[o].lord==k+1) emp+=0; { int vs=0; for(int o=0;o<KN_N;o++) vs+=kd[o].on&&kd[o].lord==k+1; if(vs>=2) emp=1; }
         if(emp&&!K->empire){ K->empire=1; char y[24], s[72]; kdName(k,y); siprintf(s,"%s BECOMES AN EMPIRE",y); logEv(s); } else if(!emp) K->empire=0;
         if(K->lord){ int l=K->lord-1; if(!kd[l].on) K->lord=0; else { int tr=K->gold/8; K->gold-=(u16)tr; kd[l].gold=(u16)(kd[l].gold+tr>60000?60000:kd[l].gold+tr); int c2,p2,w2; kdStats(l,&c2,&p2,&w2); if(w2*2<w||(rnd()%300)==0){ K->lord=0; char y[24], z[24], s[72]; kdName(k,y); kdName(l,z); kdWar(k,l,1); K->rel[l]=kd[l].rel[k]=-70; siprintf(s,"%s REVOLTS AGAINST %s",y,z); logEv(s); } } } }
     // opinions (each kingdom's view of every other: distance, species, culture, alliance, size, ruler tempers), then plots: war, peace and alliance
     for(int a=0;a<KN_N;a++) if(kd[a].on){ if(kd[a].truce) kd[a].truce--; for(int b=0;b<KN_N;b++) if(b!=a&&kd[b].on){
             int d=kdDist(a,b), op=0; if(d<16) op-=15; else if(d>45) op+=10;
-            op+=kd[a].race==kd[b].race?15:-10; op+=kd[a].cul==kd[b].cul?15:-15; op+=kd[a].rlg==kd[b].rlg?15:-15; op+=kd[a].lang==kd[b].lang?8:-8; op+=kd[a].clan==kd[b].clan?10:-12; if((kd[a].ctr&1)&&(kd[a].cul!=kd[b].cul||kd[a].race!=kd[b].race)) op-=12; if(worldAge()==4) op+=10; if(kd[a].allies>>b&1) op+=30; if(kd[a].war>>b&1) op-=500; if(kd[a].truce) op+=20; if(kd[a].lord==b+1||kd[b].lord==a+1) op+=15;
+            op+=kd[a].race==kd[b].race?15:-10; op+=kd[a].cul==kd[b].cul?15:-15; op+=kd[a].rlg==kd[b].rlg?15:-15; op+=kd[a].lang==kd[b].lang?8:-8; op+=kd[a].clan==kd[b].clan?10:-12; if((kd[a].ctr&1)&&(kd[a].cul!=kd[b].cul||kd[a].race!=kd[b].race)) op-=12; if(worldAge()==4) op+=10; if(kd[a].rlg==1) op+=5; if(kd[a].allies>>b&1) op+=30; if(kd[a].war>>b&1) op-=500; if(kd[a].truce) op+=20; if(kd[a].lord==b+1||kd[b].lord==a+1) op+=15;
             { int za=kdZones(a), zb=kdZones(b); if(zb>za){ int t=(zb-za)/5; op-=t>20?20:t; } int ca,pa,wa,cb,pb,wb; kdStats(a,&ca,&pa,&wa); kdStats(b,&cb,&pb,&wb); if(wb>wa){ int t=(wb-wa)/30; op-=t>15?15:t; } }
             if(kd[a].rtr==0&&kd[b].rtr!=0) op-=10; else if(kd[a].rtr==1&&kd[b].rtr==0) op-=10; else if(kd[a].rtr==kd[b].rtr) op+=5;
             op+=worldAge()==2?(int)(rnd()%17)-8:(int)(rnd()%5)-2; if(op>100) op=100; if(op<-100) op=-100; kd[a].rel[b]=(s8)op; } }
@@ -394,7 +424,7 @@ static void kingdomTick(void){
         for(int b=a+1;b<KN_N;b++) if(kd[b].on){
             int war=kd[a].war>>b&1, ally=kd[a].allies>>b&1; int ca,pa,wa,cb,pb,wb; kdStats(a,&ca,&pa,&wa); kdStats(b,&cb,&pb,&wb);
             if(war){ kd[a].weary++; kd[b].weary++; int ww=kd[a].weary; int spite=kd[a].spite||kd[b].spite;
-                int stop=ww>40||wa*5<wb||wb*5<wa||(!spite&&ww>=8&&(int)(rnd()%100)<ww*3&&(kd[a].rtr==1||kd[b].rtr==1||wa*2<wb||wb*2<wa||ww>20));   // peace talks
+                int stop=ww>40||wa*5<wb||wb*5<wa||(!spite&&ww>=8&&(int)(rnd()%100)<ww*3+((kd[a].rlg==1||kd[b].rlg==1)?10:0)&&(kd[a].rtr==1||kd[b].rtr==1||wa*2<wb||wb*2<wa||ww>20));   // peace talks
                 if(stop){ kdWar(a,b,0); kd[a].spite=kd[b].spite=0; kd[a].truce=kd[b].truce=10; char x[24], y[24], s[72]; kdName(a,x); kdName(b,y);
                     int win=wa*2<=wb?b:wb*2<=wa?a:-1; if(win>=0){ int lo=win==a?b:a; if(!kd[lo].lord&&!kd[win].lord){ kd[lo].lord=(u8)(win+1); char t[24], u[24]; kdName(lo,t); kdName(win,u); siprintf(s,"%s BECOMES A VASSAL OF %s",t,u); logEv(s); } else { siprintf(s,"PEACE BETWEEN %s AND %s",x,y); logEv(s); } } else { siprintf(s,"PEACE BETWEEN %s AND %s",x,y); logEv(s); } } }
             else if(!ally&&!(kd[a].lord==b+1||kd[b].lord==a+1)){
@@ -696,7 +726,7 @@ static SV*svOpen(const char*p,const char*m){ return fopen(p,m); } static size_t 
 static int saveGame(const char*path){
     compact(); cursor=0;     // the dead are dropped first, so a loaded game goes on exactly as this one would
     SV*f=svOpen(path,"wb"); if(!f) return 0; SaveHdr h; memset(&h,0,sizeof h); h.vcur=(u8)vilCur;
-    h.magic=SAVE_MAGIC; h.ver=8; h.weather=(u8)weather; h.weatherT=(u16)weatherT; h.trSeen=trSeen; h.stMut=stMut; h.seed=worldSeed; h.diff=(u8)diff; h.full=(u8)fullDone; h.aural=(u8)auralOpen; h.debug=(u8)debugOn; h.gw=(u16)gW; h.szCr=sizeof(Cr); h.szVil=sizeof(Vil); h.tick=(u32)tick; h.year=(u32)year; h.rs=rs; h.stKill=stKill; h.stGift=stGift; h.stUse=stUse; h.nCr=(u16)nCr; h.seenN=(u16)seenN; h.camX=(u16)camX; h.camY=(u16)camY;
+    h.magic=SAVE_MAGIC; h.ver=9; h.weather=(u8)weather; h.weatherT=(u16)weatherT; h.trSeen=trSeen; h.stMut=stMut; h.seed=worldSeed; h.diff=(u8)diff; h.full=(u8)fullDone; h.aural=(u8)auralOpen; h.debug=(u8)debugOn; h.gw=(u16)gW; h.szCr=sizeof(Cr); h.szVil=sizeof(Vil); h.tick=(u32)tick; h.year=(u32)year; h.rs=rs; h.stKill=stKill; h.stGift=stGift; h.stUse=stUse; h.nCr=(u16)nCr; h.seenN=(u16)seenN; h.camX=(u16)camX; h.camY=(u16)camY;
     h.chapter=(u8)chapter; h.tierOpen=(u8)tierOpen; h.storyOn=(u8)storyOn; h.storyDone=(u8)storyDone; h.monOn=(u8)monOn; h.shape3=(u8)shape3; h.nVilOn=(u8)nVilOn; h.planet=(u8)planetSize/2; memcpy(h.seen,seenB,sizeof seenB); memcpy(h.slain,slainB,sizeof slainB);
     int ok=svWrite(&h,sizeof h,1,f)==1;
     for(int y=0;y<gH&&ok;y++){ ok&=svWrite(world[y],1,gW,f)==(size_t)gW; ok&=svWrite(bld[y],1,gW,f)==(size_t)gW; ok&=svWrite(bldv[y],1,gW,f)==(size_t)gW; }
@@ -705,12 +735,12 @@ static int saveGame(const char*path){
     svClose(f); return ok; }
 static int loadGame(const char*path){
     SV*f=svOpen(path,"rb"); if(!f) return 0; SaveHdr h; int ok=svRead(&h,sizeof h,1,f)==1;
-    if(!ok||h.magic!=SAVE_MAGIC||(h.ver<5||h.ver>8)||h.szCr!=sizeof(Cr)||h.szVil!=sizeof(Vil)||(h.gw!=128&&h.gw!=192&&h.gw!=256)||h.nCr>MAXC){ svClose(f); return 0; }
+    if(!ok||h.magic!=SAVE_MAGIC||(h.ver<5||h.ver>9)||h.szCr!=sizeof(Cr)||h.szVil!=sizeof(Vil)||(h.gw!=128&&h.gw!=192&&h.gw!=256)||h.nCr>MAXC){ svClose(f); return 0; }
     gW=gH=h.gw; planetSize=gW; memset(world,0,sizeof world); memset(bld,0,sizeof bld); memset(bldv,0,sizeof bldv); memset(occ,0,sizeof occ);
     for(int y=0;y<gH&&ok;y++){ ok&=svRead(world[y],1,gW,f)==(size_t)gW; ok&=svRead(bld[y],1,gW,f)==(size_t)gW; ok&=svRead(bldv[y],1,gW,f)==(size_t)gW; }
     nCr=h.nCr; if(ok&&nCr) ok&=svRead(cr,sizeof(Cr),nCr,f)==(size_t)nCr; memset(vil,0,sizeof vil); { int nv=h.ver>=8?VIL_N:VIL_OLD; if(ok) ok&=svRead(vil,sizeof(Vil),nv,f)==(size_t)nv; }
     memset(kd,0,sizeof kd); memset(vilK,0,sizeof vilK); memset(vilL,0,sizeof vilL); jrN=0; achBits=stWars=stCapt=stAllies=stSnack=0;
-    if(ok&&h.ver>=8){ ok&=svRead(kd,sizeof(Kd),KN_N,f)==(size_t)KN_N; if(ok) ok&=svRead(vilL,1,VIL_N,f)==(size_t)VIL_N; if(ok) ok&=svRead(vilK,1,VIL_N,f)==(size_t)VIL_N; if(ok){ int n=0; ok&=svRead(&n,sizeof n,1,f)==1; ok&=svRead(jr,34,24,f)==24; ok&=svRead(jrYear,2,24,f)==24; jrN=n<0?0:n>24?24:n; u32 sx[8]={0}; if(svRead(sx,4,8,f)==8){ achBits=sx[0]; stWars=sx[1]; stCapt=sx[2]; stAllies=sx[3]; stSnack=sx[4]; } } }
+    if(ok&&h.ver>=9){ ok&=svRead(kd,sizeof(Kd),KN_N,f)==(size_t)KN_N; if(ok) ok&=svRead(vilL,1,VIL_N,f)==(size_t)VIL_N; if(ok) ok&=svRead(vilK,1,VIL_N,f)==(size_t)VIL_N; if(ok){ int n=0; ok&=svRead(&n,sizeof n,1,f)==1; ok&=svRead(jr,34,24,f)==24; ok&=svRead(jrYear,2,24,f)==24; jrN=n<0?0:n>24?24:n; u32 sx[8]={0}; if(svRead(sx,4,8,f)==8){ achBits=sx[0]; stWars=sx[1]; stCapt=sx[2]; stAllies=sx[3]; stSnack=sx[4]; } } }
     svClose(f);
     if(!ok){ return 0; }
     tick=(int)h.tick; year=(int)h.year; rs=h.rs; stKill=h.stKill; stGift=h.stGift; stUse=h.stUse; seenN=h.seenN; camX=h.camX; camY=h.camY; chapter=h.chapter; tierOpen=h.tierOpen; storyOn=h.storyOn; storyDone=h.storyDone; monOn=h.monOn; shape3=h.shape3; nVilOn=h.nVilOn;
@@ -944,17 +974,17 @@ static void uiCreate(void){
     uiTextC(208,140,cT>=0?"SHAPING...":"READY",cT>=0?U_ORANGE:U_GREEN,1);
     uiText(6,172,cSel==9?"A: BEGIN YOUR WORLD":"PAD: UP DOWN  LEFT RIGHT CHANGE",U_DIM,1);
     uiFlush(); }
-enum { MI_CONT, MI_STORY, MI_FREE, MI_OPT, MI_EXTRA, MI_BACK, MI_SIZE, MI_DIFF, MI_VOL, MI_MON, MI_SCULPT, MI_BEST, MI_CODEX, MI_HELP, MI_CRED, MI_DEBUG, MI_RESUME, MI_SAVE, MI_NEW, MI_MODE, MI_TITLE, MI_CREATE, MI_GO, MI_STYPE, MI_SPEED, MI_KING, MI_JOURNAL, MI_ACH };
+enum { MI_CONT, MI_STORY, MI_FREE, MI_OPT, MI_EXTRA, MI_BACK, MI_SIZE, MI_DIFF, MI_VOL, MI_MON, MI_SCULPT, MI_BEST, MI_CODEX, MI_HELP, MI_CRED, MI_DEBUG, MI_RESUME, MI_SAVE, MI_NEW, MI_MODE, MI_TITLE, MI_CREATE, MI_GO, MI_STYPE, MI_SPEED, MI_KING, MI_JOURNAL, MI_ACH, MI_CULT, MI_LANG };
 static int extrasView;      // which menu (0 main, 1 options, 2 extras), the highlighted row, a pending "are you sure", and whether an extras page is open
 static int menuList(int*ids){ int n=0, ctx=titleOn?0:1;
     if(mScr==0){ if(ctx==0){ ids[n++]=MI_CONT; ids[n++]=MI_CREATE; } else { ids[n++]=MI_RESUME; ids[n++]=MI_SAVE; } ids[n++]=MI_OPT; ids[n++]=MI_EXTRA; if(ctx){ ids[n++]=MI_NEW; ids[n++]=MI_MODE; ids[n++]=MI_TITLE; } }
     else if(mScr==3){ ids[n++]=MI_SIZE; ids[n++]=MI_STYPE; ids[n++]=MI_DIFF; ids[n++]=MI_GO; ids[n++]=MI_BACK; }
     else if(mScr==1){ ids[n++]=MI_DIFF; ids[n++]=MI_SPEED; ids[n++]=MI_VOL; ids[n++]=MI_MON; ids[n++]=MI_BACK; }
-    else { ids[n++]=MI_SCULPT; ids[n++]=MI_KING; ids[n++]=MI_JOURNAL; ids[n++]=MI_ACH; ids[n++]=MI_BEST; ids[n++]=MI_CODEX; ids[n++]=MI_HELP; ids[n++]=MI_CRED; if(debugOn) ids[n++]=MI_DEBUG; ids[n++]=MI_BACK; }
+    else { ids[n++]=MI_SCULPT; ids[n++]=MI_KING; ids[n++]=MI_CULT; ids[n++]=MI_LANG; ids[n++]=MI_JOURNAL; ids[n++]=MI_ACH; ids[n++]=MI_BEST; ids[n++]=MI_CODEX; ids[n++]=MI_HELP; ids[n++]=MI_CRED; if(debugOn) ids[n++]=MI_DEBUG; ids[n++]=MI_BACK; }
     return n; }
 static void menuText(int id,char*l,char*v){ v[0]=0;
     switch(id){ case MI_CONT: strcpy(l,hasSave?"CONTINUE YOUR WORLD":"START THE STORY"); break; case MI_STORY: strcpy(l,"NEW STORY WORLD"); break; case MI_FREE: strcpy(l,"NEW FREE PLAY WORLD"); break;
-        case MI_KING: strcpy(l,"KINGDOMS"); break; case MI_JOURNAL: strcpy(l,"JOURNAL"); siprintf(v,"%d",jrN); break; case MI_ACH: { strcpy(l,"ACHIEVEMENTS"); int c=0; for(int i=0;i<ACH_N;i++) c+=(achBits>>i)&1; siprintf(v,"%d/%d",c,ACH_N); } break; case MI_SPEED: strcpy(l,"GAME SPEED"); siprintf(v,"%dx",speedMul); break; case MI_CREATE: strcpy(l,"CREATE A PLANET"); strcpy(v,">"); break; case MI_GO: strcpy(l,"CREATE THE PLANET!"); break; case MI_STYPE: strcpy(l,"WORLD TYPE"); strcpy(v,storyOn?"STORY":"FREE PLAY"); break;
+        case MI_KING: strcpy(l,"KINGDOMS"); break; case MI_CULT: strcpy(l,"CULTURE TREE"); break; case MI_LANG: strcpy(l,"LANGUAGES"); break; case MI_JOURNAL: strcpy(l,"JOURNAL"); siprintf(v,"%d",jrN); break; case MI_ACH: { strcpy(l,"ACHIEVEMENTS"); int c=0; for(int i=0;i<ACH_N;i++) c+=(achBits>>i)&1; siprintf(v,"%d/%d",c,ACH_N); } break; case MI_SPEED: strcpy(l,"GAME SPEED"); siprintf(v,"%dx",speedMul); break; case MI_CREATE: strcpy(l,"CREATE A PLANET"); strcpy(v,">"); break; case MI_GO: strcpy(l,"CREATE THE PLANET!"); break; case MI_STYPE: strcpy(l,"WORLD TYPE"); strcpy(v,storyOn?"STORY":"FREE PLAY"); break;
         case MI_OPT: strcpy(l,"OPTIONS"); strcpy(v,">"); break; case MI_EXTRA: strcpy(l,"EXTRAS"); strcpy(v,">"); break; case MI_BACK: strcpy(l,"BACK"); break;
         case MI_SIZE: strcpy(l,"PLANET SIZE"); siprintf(v,"%dx%d",planetSize,planetSize); break; case MI_DIFF: strcpy(l,"DIFFICULTY"); strcpy(v,diff==0?"CALM":diff==1?"NORMAL":"BRUTAL"); break;
         case MI_VOL: strcpy(l,"MUSIC VOLUME"); siprintf(v,"%d%%",gmMaster); break; case MI_MON: strcpy(l,"MONSTERS"); strcpy(v,monOn?"ON":"OFF"); break;
@@ -1039,6 +1069,27 @@ static void uiKing(void){
     { int fit=(177-y0-5)/10; int show[9]; for(int i=0;i<nl;i++) show[i]=1; int cnt=nl; while(cnt>fit&&cnt>1){ int bi=-1; for(int i=0;i<nl;i++) if(show[i]&&(bi<0||pri[i]>pri[bi])) bi=i; show[bi]=0; cnt--; }
       int y=y0+4; for(int i=0;i<nl;i++) if(show[i]){ uiText(10,y,L[i],col[i],1); y+=10; } }
     uiFlush(); }
+static int langSel;
+static void uiCult(void){
+    int n=0; for(int k=0;k<KN_N;k++) n+=kd[k].on; uiWin("CULTURE TREE","","UP DOWN CHOOSE    START: BACK");
+    if(!n){ uiText(10,30,"NO KINGDOMS YET.",U_DIM,1); uiFlush(); return; }
+    int ids[KN_N], m=0; for(int k=0;k<KN_N;k++) if(kd[k].on) ids[m++]=k; if(kingSel>=m) kingSel=m-1; if(kingSel<0) kingSel=0; int k=ids[kingSel]; char nm[24], f[24], b[64]; kdName(k,nm); kdFaith(k,f);
+    uiRect(7,17,8,8,40+k); siprintf(b,"%s  (%d/%d)",nm,kingSel+1,m); uiText(20,17,b,U_WHITE,1); siprintf(b,"POINTS %d",kd[k].cpts); uiTextR(246,17,b,U_GOLD);
+    for(int br=0;br<6;br++){ int y=28+br*17, lv=kdKnow(k,br); uiRect(4,y,248,17,br&1?U_PANEL:U_PANELHI); uiText(8,y+1,knBr[br],lv?U_WHITE:U_DIM,1);
+        for(int i=0;i<3;i++){ int on=(kd[k].know>>(br*3+i))&1; uiRect(96+i*12,y+2,9,9,on?U_GOLD:U_SHADOW); uiRect(97+i*12,y+3,7,7,on?U_YELLOW:U_BG); }
+        { static const char* const fx[6]={"MORE CITIES","MORE ZONES","STRONGER ARMY","MORE GOLD","RICHER CITIES","FASTER LEARNING"}; uiText(8,y+9,fx[br],lv?U_GREEN:U_DGREY,1); }
+        if(lv) uiTextR(246,y+1,knN[br][lv-1],U_CYAN); }
+    uiFrame(4,133,248,44,U_PANELHI,U_BHI,U_BLO); siprintf(b,"FAITH %s",rlgN[kd[k].rlg]); uiText(10,137,b,U_GOLD,1); siprintf(b,"CALLED %s",f); uiText(10,147,b,U_WHITE,1); uiText(10,157,dogN[kd[k].rlg],U_CYAN,1);
+    { char t2[48]=""; for(int q=0;q<6;q++) if(kd[k].ctr>>q&1){ if(strlen(t2)+strlen(ctrN[q])<34){ strcat(t2,ctrN[q]); strcat(t2," "); } } uiText(10,167,t2[0]?t2:"NO CULTURE TRAITS YET",t2[0]?U_PURPLE:U_DIM,1); }
+    uiFlush(); }
+static void uiLang(void){
+    uiWin("LANGUAGES","","UP DOWN CHOOSE    START: BACK"); int l=langSel; char b[64], t[32];
+    uiRect(4,16,248,14,U_PANELHI); uiText(8,19,langN[l],U_GOLD,1); { char s2[48]=""; int any=0; for(int k=0;k<KN_N;k++) if(kd[k].on&&kd[k].lang==l){ char z[24]; kdName(k,z); if(strlen(s2)+strlen(z)<22){ strcat(s2,z); strcat(s2," "); any=1; } } siprintf(b,"SPOKEN: %s",any?s2:"NOBODY NOW"); uiTextR(246,19,b,U_DIM); }
+    for(int i=0;i<16;i++){ int col=i/8, row=i%8; int x=8+col*124, y=36+row*11; uiText(x,y,cptN[i],U_DIM,1); uiText(x+54,y,lwords[l][i],U_WHITE,1); }
+    uiFrame(4,128,248,49,U_PANELHI,U_BHI,U_BLO); uiText(10,132,"HOW ITS NAMES ARE MADE",U_GOLD,1);
+    langKing(l,2,1,t); siprintf(b,"KINGDOM  %s",t); uiText(10,142,b,U_WHITE,1); langCity(l,5,3,t); siprintf(b,"CITY     %s",t); uiText(10,152,b,U_WHITE,1);
+    langPerson(l,3,2,t); siprintf(b,"PERSON   %s %s",lwords[l][8],t); uiText(10,162,b,U_WHITE,1); siprintf(b,"FAITH    %s-%s",lwords[l][13],lwords[l][7]); uiText(130,142,b,U_CYAN,1);
+    uiFlush(); }
 static void uiHelp(void){ uiWin("HELP","UP DOWN SCROLL","SELECT NEXT PAGE"); int n=sceneLines(helpTxt); for(int r=0;r<15;r++){ int l=helpSel+r; if(l>=n) break; uiText(10,18+r*10,helpTxt[l],helpTxt[l][0]&&helpTxt[l][0]!=' '&&l<n&&helpTxt[l][1]!=' '&&!(helpTxt[l][0]=='B'&&helpTxt[l][1]==' ')?U_WHITE:U_DIM,1); } uiScroll(n,helpSel,15,16,160); uiFlush(); }
 static void uiStory(void){
     char b[64]; uiWin("STORY",storyOn?(storyDone?"FINISHED":"STORY MODE"):"FREE PLAY: PAUSED","SELECT NEXT PAGE");
@@ -1096,7 +1147,7 @@ static void uiMenu(void){
 static void hud(void){
     uiBackHint=extrasView; uiPageOpen=1|2|4|(auralOK()?8:0)|(debugOn?16:0)|32|64; uiPages=titleOn||sceneOn||dlgOn||extrasView?0:7; uiPageNow=page; uiDotX=124;
     if(dlgOn){ uiDialog(); return; } if(sceneOn){ uiScene(); return; } if(!extrasView){ if(titleOn){ uiTitle(); return; } if(menuOn){ uiMenu(); return; } }
-    switch(page){ case 1: uiStory(); break; case 2: uiBest(); break; case 3: uiAural(); break; case 4: uiDebug(); break; case 5: uiCodex(); break; case 6: uiHelp(); break; case 7: uiKing(); break; case 8: uiJournal(); break; case 9: uiAch(); break; default: uiStatus(); }
+    switch(page){ case 1: uiStory(); break; case 2: uiBest(); break; case 3: uiAural(); break; case 4: uiDebug(); break; case 5: uiCodex(); break; case 6: uiHelp(); break; case 7: uiKing(); break; case 8: uiJournal(); break; case 9: uiAch(); break; case 10: uiCult(); break; case 11: uiLang(); break; default: uiStatus(); }
 }
 
 static void menuToWorld(void){ setSize(planetSize); newWorld(); paused=1; camX=(WW*8-256)/2; camY=(WH*8-192)/2; winX=-99; refillWindow(); }
@@ -1118,7 +1169,7 @@ static void menuInput(int kd){
         case MI_OPT: mScr=1; mSel=0; break; case MI_EXTRA: mScr=2; mSel=0; break; case MI_BACK: mSel=mScr==3?1:2+(mScr==2); mScr=0; break;
         case MI_SIZE: case MI_DIFF: case MI_VOL: case MI_MON: case MI_SPEED: break;
         case MI_SCULPT: if(auralOK()) menuOpenPage(3); else { siprintf(info,"UNLOCK IN STORY CHAPTER 3"); fxReq(FX_ERROR); } break;
-        case MI_KING: menuOpenPage(7); break; case MI_JOURNAL: menuOpenPage(8); jrSel=0; break; case MI_ACH: menuOpenPage(9); break; case MI_BEST: menuOpenPage(2); break; case MI_CODEX: menuOpenPage(5); break; case MI_HELP: menuOpenPage(6); break; case MI_DEBUG: menuOpenPage(4); break;
+        case MI_KING: menuOpenPage(7); break; case MI_CULT: menuOpenPage(10); break; case MI_LANG: menuOpenPage(11); break; case MI_JOURNAL: menuOpenPage(8); jrSel=0; break; case MI_ACH: menuOpenPage(9); break; case MI_BEST: menuOpenPage(2); break; case MI_CODEX: menuOpenPage(5); break; case MI_HELP: menuOpenPage(6); break; case MI_DEBUG: menuOpenPage(4); break;
         case MI_CRED: menuOn=0; sceneStart(credTxt,1); musReq(GM_CREDITS); break;
         case MI_RESUME: menuOn=0; paused=dlgPaused; break; case MI_SAVE: doSave(); menuOn=0; paused=dlgPaused; break;
         case MI_NEW: menuAsk=6; break; case MI_MODE: menuAsk=5; break; case MI_TITLE: menuAsk=8; break; } } }
@@ -1183,7 +1234,7 @@ int main(void){
         if((kd&(KEY_X|KEY_Y))&&(kh&KEY_X)&&(kh&KEY_Y)){ if(view3d) leaveGlobe(); else globeEnter(); dirty=1; kd&=~(KEY_X|KEY_Y); }
         if(kd&KEY_START){ if((kh&KEY_L)&&(kh&KEY_R)){ unlockAll=1; siprintf(info,"EVERYTHING UNLOCKED"); } else if(!(kh&KEY_SELECT)){ menuOn=1; menuSel=0; menuAsk=0; mScr=0; mSel=0; dlgPaused=paused; paused=1; } dirty=1; }
         if(page==2){ if(kd&KEY_UP) bestSel=bestSel>0?bestSel-1:0; if(kd&KEY_DOWN) bestSel=bestSel<319?bestSel+1:319; if(kd&KEY_LEFT) bestSel=bestSel>=10?bestSel-10:0; if(kd&KEY_RIGHT) bestSel=bestSel<310?bestSel+10:319; if(kd) dirty=1; kd&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); kh&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); }
-        else if(page==7||page==8||page==9){ int*sel=page==7?&kingSel:page==8?&jrSel:&achSel; int mx=page==7?KN_N-1:page==8?(jrN>14?jrN-14:0):ACH_N-1; if(kd&KEY_UP) *sel=*sel>0?*sel-1:0; if(kd&KEY_DOWN) *sel=*sel<mx?*sel+1:mx; if(kd) dirty=1; kd&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); kh&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); }
+        else if(page>=7&&page<=11){ int*sel=(page==7||page==10)?&kingSel:page==8?&jrSel:page==11?&langSel:&achSel; int mx=(page==7||page==10)?KN_N-1:page==8?(jrN>14?jrN-14:0):page==11?4:ACH_N-1; if(kd&KEY_UP) *sel=*sel>0?*sel-1:0; if(kd&KEY_DOWN) *sel=*sel<mx?*sel+1:mx; if(kd) dirty=1; kd&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); kh&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); }
         else if(page==5){ if(kd&KEY_UP) trPage=trPage>1?trPage-1:1; if(kd&KEY_DOWN) trPage=trPage<TR_N-1?trPage+1:TR_N-1; if(kd) dirty=1; kd&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); kh&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); }
         else if(page==6){ int hn=sceneLines(helpTxt); if(kd&KEY_UP) helpSel=helpSel>0?helpSel-1:0; if(kd&KEY_DOWN) helpSel=helpSel<hn-10?helpSel+1:helpSel; if(kd) dirty=1; kd&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); kh&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); }
         else if(page==3){ if(kd&KEY_LEFT) juke=(juke+GM_SONGS-1)%GM_SONGS; if(kd&KEY_RIGHT) juke=(juke+1)%GM_SONGS; if(kd&KEY_UP) juke=(juke+GM_SONGS-10)%GM_SONGS; if(kd&KEY_DOWN) juke=(juke+10)%GM_SONGS;
