@@ -217,3 +217,6 @@ Things you will want to know:
 - **Missions.** One `XM(...)` row in a pack's table; see `source/expand.h`.
 - **In-game help.** The pages are the `*Help[]` arrays (`lifeHelp`, `creatureHelp`, `mapHelp`, `nbHelp`, `packHelp`, `jbHelp`, `slotHelp`, `optHelp`) shown by `howToPlay()`. Keep each line under about 52 characters.
 - **The commercial.** `assets/trailer/bore_commercial.mp4` is a 65-second late-night TV spot cut from the game itself (`tools/make_trailer.py`, pipeline in `tools/trailer/README.md`). Rated M for munchies.
+
+### CORPORATIONS (YOU'RE WINNER)
+A song with vocals from six isolated stems: the singing is compressed hard and given its own room in the mix, saved as a streamed ADPCM song (source/music/corporations.adp) and analysed for a vocal-track version (2-bit clips + timing table). See docs/CORPORATIONS.md.
