@@ -543,51 +543,10 @@ static int loadGame(const char*path){
     tick=(int)h.tick; year=(int)h.year; rs=h.rs; stKill=h.stKill; stGift=h.stGift; stUse=h.stUse; seenN=h.seenN; camX=h.camX; camY=h.camY; chapter=h.chapter; tierOpen=h.tierOpen; storyOn=h.storyOn; storyDone=h.storyDone; monOn=h.monOn; shape3=h.shape3; nVilOn=h.nVilOn;
     memcpy(seenB,h.seen,sizeof seenB); memcpy(slainB,h.slain,sizeof slainB); nVilOn=0; for(int v=0;v<VIL_N;v++) nVilOn+=vil[v].on;
     for(int i=0;i<nCr;i++) if(cr[i].alive&&cr[i].x<gW&&cr[i].y<gH) occ[cr[i].y][cr[i].x]=(u16)(i+1); vilCur=h.vcur; weather=h.weather; weatherT=h.weatherT; trSeen=h.trSeen; stMut=h.stMut; worldSeed=h.seed; diff=h.diff; fullDone=h.full; auralOpen=h.aural; debugOn=h.debug; cursor=0; compact(); warMatrix(); winX=-99; return 1; }
-#define MN 28
-static int shape3=0, texId=-1;   // zoom3: camera distance in 1/16 planet radii
-static s16 mvx[(MN+1)*(MN+1)], mvy[(MN+1)*(MN+1)], mvz[(MN+1)*(MN+1)], mnx[(MN+1)*(MN+1)], mny[(MN+1)*(MN+1)], mnz[(MN+1)*(MN+1)];
-static u16 tex[128*128];
-static float csp(float a,float e){ float c=cosf(a); float r=powf(fabsf(c)+1e-6f,e); return c<0?-r:r; }
-static float snp(float a,float e){ float c=sinf(a); float r=powf(fabsf(c)+1e-6f,e); return c<0?-r:r; }
-static void buildMesh(void){
-    for(int j=0;j<=MN;j++) for(int i=0;i<=MN;i++){ int k=j*(MN+1)+i; float x,y,z,nx,ny,nz;
-        if(shape3==2){ float u=6.2831853f*i/MN, v=6.2831853f*j/MN, R=0.72f, r=0.36f; x=(R+r*cosf(v))*cosf(u); z=(R+r*cosf(v))*sinf(u); y=r*sinf(v); nx=cosf(v)*cosf(u); ny=sinf(v); nz=cosf(v)*sinf(u); }
-        else { float u=6.2831853f*i/MN, v=-1.5707963f+3.1415927f*j/MN, e=shape3==0?1.0f:0.28f;
-            x=csp(v,e)*csp(u,e); y=snp(v,e); z=csp(v,e)*snp(u,e); nx=csp(v,2-e)*csp(u,2-e); ny=snp(v,2-e); nz=csp(v,2-e)*snp(u,2-e); }
-        float l=sqrtf(nx*nx+ny*ny+nz*nz)+1e-6f; nx/=l; ny/=l; nz/=l;
-        mvx[k]=(s16)(x*4096*0.9f); mvy[k]=(s16)(y*4096*0.9f); mvz[k]=(s16)(z*4096*0.9f); mnx[k]=(s16)(nx*500); mny[k]=(s16)(ny*500); mnz[k]=(s16)(nz*500); }
-}
 static int walkOn, walkX=64, walkY=64;     // walking the globe: the avatar's tile
-static void fillTexture(void){
-    int bs=(WW+127)/128;   // a bigger planet is squeezed into the 128 x 128 texture: a texel covers bs x bs tiles, and a house or a person in any of them shows
-    for(int y=0;y<128;y++) for(int x=0;x<128;x++){ int wx=x*WW/128, wy=y*WH/128; int t=world[wy][wx]; int r,g,b; shadeRGB(t*8+3+(int)(hsh(x,y,5)&3),&r,&g,&b);
-        for(int dy=0;dy<bs&&wy+dy<WH;dy++) for(int dx=0;dx<bs&&wx+dx<WW;dx++){ int yy=wy+dy, xx=wx+dx;
-            if(bld[yy][xx]&&bld[yy][xx]!=B_RUIN){ int rc=bldv[yy][xx]?vil[bldv[yy][xx]-1].race:0; r=roofCol[rc][0]; g=roofCol[rc][1]; b=roofCol[rc][2]; }
-            if(occ[yy][xx]){ int da=arch[sp[cr[occ[yy][xx]-1].sp].a].diet; if(da==4){ r=31; g=31; b=24; } else if(da==5){ r=31; g=2; b=2; } } }
-        tex[y*128+x]=(u16)(r|(g<<5)|(b<<10)|0x8000); }
-    if(walkOn){ int ax=walkX*128/WW, ay=walkY*128/WH; int pulse=(tick>>3)&1; for(int d=-3;d<=3;d++){ int c=pulse?0x7FFF:0x03FF; int xs[2]={ax+d,ax}, ys[2]={ay,ay+d}; for(int k=0;k<2;k++){ int xx=(xs[k]+128)&127, yy=(ys[k]+128)&127; tex[yy*128+xx]=(u16)(c|0x8000); } } }
-}
-#ifndef PCTEST
-static void uploadTexture(void){ fillTexture();
-    glResetTextures(); glGenTextures(1,&texId); glBindTexture(0,texId); glTexImage2D(0,0,GL_RGB,TEXTURE_SIZE_128,TEXTURE_SIZE_128,0,TEXGEN_TEXCOORD|GL_TEXTURE_WRAP_S|GL_TEXTURE_WRAP_T,(u8*)tex);
-}
-#endif
-static void faceTile(int x,int y,int*rx,int*ry){ *ry=(int)((x*360)/WW)-90; int la=(int)(y*180/WH)-90; *rx=la>85?85:la<-85?-85:la; }
-static int view3d=0, rotX=0, rotY=0, zoom3=40, glOn=0, texDirty=0;
-// where the stylus touches the planet: every grid point is moved and projected exactly as the 3D hardware does (turn about Y, then X, then away from the camera, perspective 55 degrees),
-// then the nearest quad under the pixel gives the point on the map. Returns 1 and the map tile if the planet was hit.
-static int pick3D(int px,int py,int*tx,int*ty){
-    static float P[(MN+1)*(MN+1)][3]; static float uu[(MN+1)*(MN+1)], vv[(MN+1)*(MN+1)];
-    float dist=zoom3/16.0f, ra=rotY*0.0174533f, rb=rotX*0.0174533f, cy=cosf(ra), sy=sinf(ra), cx=cosf(rb), sx=sinf(rb), f=184.4f;
-    for(int j=0;j<=MN;j++) for(int i=0;i<=MN;i++){ int k=j*(MN+1)+i; float x=mvx[k]/4096.f, y=mvy[k]/4096.f, z=mvz[k]/4096.f;
-        float x1=cy*x+sy*z, z1=-sy*x+cy*z, y1=cx*y-sx*z1, z2=sx*y+cx*z1+0.f; float zz=z2-dist; P[k][0]=128+x1/(-zz)*f; P[k][1]=96-y1/(-zz)*f; P[k][2]=-zz; uu[k]=(float)i; vv[k]=(float)j; }
-    float best=1e9f, bu=0, bv=0;
-    for(int j=0;j<MN;j++) for(int i=0;i<MN;i++){ int k0=j*(MN+1)+i, k1=k0+1, k2=k0+MN+2, k3=k0+MN+1; int tri[2][3]={{k0,k1,k2},{k0,k2,k3}};
-        for(int q=0;q<2;q++){ const float*A=P[tri[q][0]],*B=P[tri[q][1]],*C=P[tri[q][2]]; float d=(B[1]-C[1])*(A[0]-C[0])+(C[0]-B[0])*(A[1]-C[1]); if(d>-1e-6f&&d<1e-6f) continue;
-            float a=((B[1]-C[1])*(px-C[0])+(C[0]-B[0])*(py-C[1]))/d, b=((C[1]-A[1])*(px-C[0])+(A[0]-C[0])*(py-C[1]))/d, c=1-a-b; if(a<0||b<0||c<0) continue;
-            float z=a*A[2]+b*B[2]+c*C[2]; if(z<best){ best=z; bu=a*uu[tri[q][0]]+b*uu[tri[q][1]]+c*uu[tri[q][2]]; bv=a*vv[tri[q][0]]+b*vv[tri[q][1]]+c*vv[tri[q][2]]; } } }
-    if(best>=1e8f) return 0; int x=(int)(bu*WW/MN), y=(int)(bv*WH/MN); if(x<0) x=0; if(x>WW-1) x=WW-1; if(y<0) y=0; if(y>WH-1) y=WH-1; *tx=x; *ty=y; return 1;
-}
+static int view3d=0, rotX=20, rotY=0, zoom3=40, gClouds=1;       // the globe: rotY = longitude of the centre, rotX = latitude of the centre (degrees), zoom3 = how big
+static void faceTile(int x,int y,int*lat,int*lon){ *lon=x*360/WW; int la=90-y*180/WH; *lat=la>85?85:la<-85?-85:la; }
+static int shape3;
 #ifndef PCTEST
 // ---------------------------------------------------------------------------------------------- screens
 // ---- light: the day goes round and the water shimmers (a tint on the background palette) ----
@@ -603,33 +562,77 @@ static void applyLight(void){
     BG_PALETTE[0]=0;
 }
 #include "ui.h"
-// ---- the planet in 3D: sphere, cube-planet and ring-world, all wearing the 128 x 128 map as a texture ----
-static void enter3D(void){
-#if defined(NDSSHIM)||defined(NDSHW)
-    siprintf(info,"3D GLOBE: NOT IN THIS BUILD"); return;
-#endif
-    videoSetMode(MODE_0_3D);
-    if(!glOn){ glInit(); glEnable(GL_TEXTURE_2D); glEnable(GL_ANTIALIAS); vramSetBankD(VRAM_D_TEXTURE); glClearColor(0,0,3,31); glClearPolyID(63); glClearDepth(0x7FFF); glViewport(0,0,255,191); glOn=1; }
-    lcdMainOnBottom(); buildMesh(); uploadTexture(); view3d=1;   // (the planet is on the touch screen: the stylus uses the powers on it)
+// ---------------------------------------------------------------------------------------------- the globe: a planet drawn by the CPU (no 3D hardware, so it works in every build)
+// Every pixel of the disc has a normal (from a table made once per size); a small matrix turns it into a direction on the planet, two table lookups give the longitude and latitude, and the
+// map gives the ground. Lit from the upper left, a dark side with city lights, a glowing atmosphere, drifting clouds, a sparkle on the water. Picking a point with the stylus is the same
+// maths backwards, so it is exact. The picture is drawn in RAM and sent to the screen as 768 tiles.
+#define GR_MAX 120
+static u8 gbuf[256*192] __attribute__((aligned(4)));
+static u16 gnz[GR_MAX*GR_MAX+1]; static s16 gxn[2*GR_MAX+1]; static int gR=0;
+static u16 gAtan[257]; static u16 gAsin[4097]; static u8 gCloud[64][64]; static int gInit;
+static u16 gSavedPal[256];
+// palette: 1 space, 2 3 stars, 8.. ground (13 kinds x 8 light levels), 112.. clouds, 120.. atmosphere, 126 127 128 lights, 129 sparkle
+#define GP_GROUND 8
+#define GP_CLOUD 112
+#define GP_ATMO 120
+static int isqrt32(u32 v){ u32 r=0, b=1u<<30; while(b>v) b>>=2; while(b){ if(v>=r+b){ v-=r+b; r=(r>>1)+b; } else r>>=1; b>>=2; } return (int)r; }
+static void globeTables(int R){
+    if(!gInit){ gInit=1;
+        for(int i=0;i<=256;i++) gAtan[i]=(u16)(atanf(i/256.0f)/6.2831853f*65536.0f);
+        for(int i=0;i<=4096;i++){ float v=(i-2048)/2048.0f; gAsin[i]=(u16)((0.5f-asinf(v>1?1:v<-1?-1:v)/3.1415927f)*4095.0f); }
+        for(int y=0;y<64;y++) for(int x=0;x<64;x++) gCloud[y][x]=(u8)((vnoise(x*3,y*3,8,77)*3+vnoise(x*3,y*3,4,78))>>2); }
+    if(R==gR) return; gR=R; for(int i=0;i<=2*R;i++) gxn[i]=(s16)((i-R)*16384/R);
+    for(int d2=0;d2<=R*R;d2++){ u32 num=(u32)(((unsigned long long)(R*R-d2)<<28)/(unsigned)(R*R)); gnz[d2]=(u16)isqrt32(num); } }
+static int atan2Turn(int y,int x){   // angle of (x forward, y sideways) as a fraction of a turn, 0..65535 (0 = straight ahead)
+    int ax=x<0?-x:x, ay=y<0?-y:y; if(!ax&&!ay) return 32768; int r=ax>=ay?gAtan[(ay<<8)/ax]:16384-gAtan[(ax<<8)/ay];   // 0..16384 (quarter turn)
+    int psi=x>=0?r:32768-r; if(y<0) psi=-psi; return psi&65535; }
+static int gSin[360], gCos[360];
+static void globeAim(int lon,int lat,int*cL,int*sL,int*cP,int*sP){ lon%=360; if(lon<0) lon+=360; int la=lat<0?lat+360:lat; if(!gSin[90]){ for(int i=0;i<360;i++){ gSin[i]=(int)(sinf(i*0.0174533f)*16384.0f); gCos[i]=(int)(cosf(i*0.0174533f)*16384.0f); } } *cL=gCos[lon]; *sL=gSin[lon]; *cP=gCos[la]; *sP=gSin[la]; }
+static inline void globeDir(int nx,int ny,int nz,int cL,int sL,int cP,int sP,int*tx,int*ty){
+    int t=(-sP*ny+cP*nz)>>14; int mx=(cL*nx+sL*t)>>14, my=(cP*ny+sP*nz)>>14, mz=(-sL*nx+cL*t)>>14;
+    *tx=(atan2Turn(mx,mz)*WW)>>16; int ix=(my+16384)>>3; if(ix<0) ix=0; if(ix>4096) ix=4096; int yy=gAsin[ix]; *ty=(yy*WH)>>12; if(*tx>=WW) *tx=WW-1; if(*ty>=WH) *ty=WH-1; if(*ty<0) *ty=0; }
+static int globeR(void){ int R=3500/zoom3; return R>GR_MAX?GR_MAX:R<26?26:R; }
+static int globePick(int px,int py,int*tx,int*ty){
+    int R=globeR(); globeTables(R); int x=px-128, y=96-py; int d2=x*x+y*y; if(d2>R*R) return 0; int cL,sL,cP,sP; globeAim(rotY,rotX,&cL,&sL,&cP,&sP);
+    globeDir(gxn[x+R],gxn[y+R],gnz[d2],cL,sL,cP,sP,tx,ty); return 1; }
+static void globePalette(void){
+    BG_PALETTE[0]=0; BG_PALETTE[1]=RGB15(0,0,2); BG_PALETTE[2]=RGB15(12,12,16); BG_PALETTE[3]=RGB15(31,31,31);
+    for(int t=0;t<T_N;t++) for(int l=0;l<8;l++){ int r,g,b; shadeRGB(t*8+(l<1?0:l),&r,&g,&b); int f=l==0?9:l==1?14:18+l*2; r=r*f/26; g=g*f/26; b=b*f/26; if(l==0){ b+=3; } if(r>31) r=31; if(g>31) g=31; if(b>31) b=31; BG_PALETTE[GP_GROUND+t*8+l]=RGB15(r,g,b); }
+    for(int l=0;l<8;l++){ int v=6+l*3; BG_PALETTE[GP_CLOUD+l]=RGB15(v,v,v+(l>5?0:2)); }
+    for(int l=0;l<6;l++) BG_PALETTE[GP_ATMO+l]=RGB15(2+l,6+l*3,14+l*3);
+    BG_PALETTE[126]=RGB15(31,28,10); BG_PALETTE[127]=RGB15(31,18,4); BG_PALETTE[128]=RGB15(31,6,2); BG_PALETTE[129]=RGB15(31,31,28); }
+static void globeDraw(void){
+    int R=globeR(); globeTables(R); int cL,sL,cP,sP; globeAim(rotY,rotX,&cL,&sL,&cP,&sP);
+    memset(gbuf,1,sizeof gbuf); for(int k=0;k<44;k++){ int x=(int)(hsh(k,1,9)%256), y=(int)(hsh(k,2,9)%192); gbuf[y*256+x]=(u8)(2+((k+(tick>>5))&1)); }
+    int drift=(tick>>6); int R2=R*R, H=R+3;
+    for(int sy=96-H;sy<96+H;sy+=2){ if(sy<0||sy>=192) continue; int y=96-sy; for(int sx=128-H;sx<128+H;sx+=2){ if(sx<0||sx>=256) continue; int x=sx-128; int d2=x*x+y*y; u8 col;
+            if(d2>R2){ if(d2<=(R+3)*(R+3)){ int lam=(-x*5-y*5+R*3)>0?5:2; col=(u8)(GP_ATMO+(lam>3?(d2<=(R+1)*(R+1)?5:3):1)); } else continue; }
+            else { int nx=gxn[x+R], ny=gxn[y+R], nz=gnz[d2]; int tx,ty; globeDir(nx,ny,nz,cL,sL,cP,sP,&tx,&ty);
+                int lam=(-nx*7+ny*7+nz*12)/26;   // light from the upper left, toward the viewer (about -0.43, 0.43, 0.75 in Q14)
+                int terr=world[ty][tx]; int lvl; if(lam<-1500) lvl=0; else lvl=(lam+1500)*7/17000; if(lvl>7) lvl=7; if(lvl<0) lvl=0;
+                col=(u8)(GP_GROUND+terr*8+lvl);
+                if(bld[ty][tx]&&bld[ty][tx]!=B_RUIN){ col=lam<2000?(u8)(126+((tick>>4)&1)):(u8)(GP_GROUND+T_DIRT*8+7); }
+                else if(terr==T_LAVA&&lam<3000) col=128;
+                else if((terr==T_WATER||terr==T_DEEP)&&lam>11000&&nz>9000&&((nx+ny)&255)<120) col=129;
+                if(gClouds){ int cv=gCloud[(ty*64/WH)&63][((tx*64/WW)+drift)&63]; int thr=weather==1||weather==2?105:weather==3?125:165; if(cv>thr){ int cl=lvl+(cv-thr)/12; if(cl>7) cl=7; col=(u8)(GP_CLOUD+cl); } }
+                if(nz<3800){ int a=(3800-nz)/700; if(a>5) a=5; if(lam>-2000||a>3) col=(u8)(GP_ATMO+a); } }
+            gbuf[sy*256+sx]=col; if(sx+1<256) gbuf[sy*256+sx+1]=col; if(sy+1<192){ gbuf[(sy+1)*256+sx]=col; if(sx+1<256) gbuf[(sy+1)*256+sx+1]=col; } } }
+    if(walkOn){ int c=((tick>>3)&1)?3:129; for(int d=4;d<=8;d++){ gbuf[96*256+128+d]=(u8)c; gbuf[96*256+128-d]=(u8)c; gbuf[(96+d)*256+128]=(u8)c; gbuf[(96-d)*256+128]=(u8)c; } }
 }
-static void leave3D(void){
-    videoSetMode(MODE_0_2D|DISPLAY_BG0_ACTIVE|DISPLAY_BG1_ACTIVE|DISPLAY_SPR_ACTIVE|DISPLAY_SPR_1D_LAYOUT|DISPLAY_SPR_1D_SIZE_32); lcdMainOnBottom();
-    { int b0=bgInit(0,BgType_Text8bpp,BgSize_T_512x512,0,1); int b1=bgInit(1,BgType_Text8bpp,BgSize_T_256x256,4,1); bgSetPriority(b1,0); bgSetPriority(b0,1); mapPtr=(u16*)bgGetMapPtr(b0); mapPtr1=(u16*)bgGetMapPtr(b1); } winX=-99; view3d=0; tbInit();
-}
-static void draw3D(void){
-    glMatrixMode(GL_PROJECTION); glLoadIdentity(); gluPerspective(55,256.0/192.0,0.05,40);
-    glMatrixMode(GL_MODELVIEW); glLoadIdentity();
-    glLight(0,RGB15(31,31,29),floattov10(-0.55),floattov10(-0.35),floattov10(-0.75));
-    glTranslatef32(0,0,-(zoom3*4096/16)); glRotateX((float)rotX); glRotateY((float)rotY);
-    glMaterialf(GL_AMBIENT,RGB15(13,13,14)); glMaterialf(GL_DIFFUSE,RGB15(20,20,19)); glMaterialf(GL_SPECULAR,RGB15(0,0,0)); glMaterialf(GL_EMISSION,RGB15(2,2,3));
-    glPolyFmt(POLY_ALPHA(31)|POLY_CULL_NONE|POLY_FORMAT_LIGHT0);
-    glBindTexture(0,texId);
-    glBegin(GL_QUAD);
-    for(int j=0;j<MN;j++) for(int i=0;i<MN;i++){
-        int k0=j*(MN+1)+i, k1=k0+1, k2=k0+MN+2, k3=k0+MN+1; int ks[4]={k0,k1,k2,k3}; int us[4]={i,i+1,i+1,i}, vs[4]={j,j,j+1,j+1};
-        for(int q=0;q<4;q++){ int k=ks[q]; glNormal(NORMAL_PACK(mnx[k],mny[k],mnz[k])); GFX_TEX_COORD=TEXTURE_PACK(inttot16(us[q]*128/MN),inttot16(vs[q]*128/MN)); glVertex3v16(mvx[k],mvy[k],mvz[k]); } }
-    glEnd(); glFlush(0);
-}
+static void globeFlush(void){
+    static u8 tl[64] __attribute__((aligned(4)));
+    for(int ty=0;ty<24;ty++) for(int tx=0;tx<32;tx++){ for(int y=0;y<8;y++){ const u8*r=gbuf+(ty*8+y)*256+tx*8; for(int x=0;x<8;x++) tl[y*8+x]=r[x]; } vramCopy((u8*)BG_TILE_RAM(1)+(ty*32+tx)*64,tl,64); } }
+static void globeEnter(void){
+    for(int i=0;i<256;i++) gSavedPal[i]=BG_PALETTE[i]; globePalette();
+    videoSetMode(MODE_0_2D|DISPLAY_BG0_ACTIVE|DISPLAY_SPR_ACTIVE|DISPLAY_SPR_1D_LAYOUT|DISPLAY_SPR_1D_SIZE_32); lcdMainOnBottom();
+    for(int i=0;i<128;i++) oamSetHidden(&oamMain,i,true);
+    bgSetScroll(0,0,0); for(int my=0;my<32;my++) for(int mx=0;mx<32;mx++) mapPtr[my*32+mx]=(u16)(my<24?my*32+mx:0);
+    globeDraw(); globeFlush(); view3d=1; }
+static void leaveGlobe(void){
+    walkOn=0; makeTiles(); { int b0=0; (void)b0; } videoSetMode(MODE_0_2D|DISPLAY_BG0_ACTIVE|DISPLAY_BG1_ACTIVE|DISPLAY_SPR_ACTIVE|DISPLAY_SPR_1D_LAYOUT|DISPLAY_SPR_1D_SIZE_32); lcdMainOnBottom();
+    uiPalette(); tbInit(); saveBasePal(); winX=-99; view3d=0; }
+#define enter3D globeEnter
+#define leave3D leaveGlobe
 // ---- the sound backend: the libnds channels behind gmplay.h. Wave voices are looped 64-sample PCM channels that are only retuned (never restarted) while a song plays; drums are one-shots.
 static void gb_vstart(int v,int wave); static void gb_vstop(int v); static void gb_vset(int v,int rate,int vol,int pan); static void gb_hit(int slot,int part,int idx,int vol,int pan);
 static void gb_ptone(int midi8,int vol,int duty); static void gb_poff(void); static void gb_pnoise(int freq,int vol); static void gb_pnoff(void);
@@ -652,7 +655,7 @@ static int isJingle(int s){ return s>=0&&gmSongs[s].loopRow==65535; }
 static int musDirector(void){
     if(paused) return GM_PAUSE;
     if(weather==2&&!view3d) return GM_STORM;
-    if(view3d) return shape3==0?GM_SPHERE:shape3==1?GM_CUBE:GM_RING;
+    if(view3d) return GM_SPHERE;
     int cx=(camX>>3)+16, cy=(camY>>3)+12;
     for(int i=0;i<nCr;i++){ const Cr*c=&cr[i]; if(!c->alive) continue; int a=sp[c->sp].a; if(arch[a].diet!=5||c->hp<100) continue; int dx=c->x-cx, dy=c->y-cy; if(dx*dx+dy*dy>900) continue;
         if(a==ARCH_A+19) return GM_DRAGON; if(a==ARCH_A+17) return GM_DEMON; if(a==ARCH_A+18) return GM_LICH; if(a==ARCH_A+13||a==ARCH_A+12) return GM_KRAKEN; if(a==ARCH_A+16) return GM_DRAGON; }
@@ -750,7 +753,7 @@ static void uiScene(void){
     uiFlush(); }
 static void uiStatus(void){
     int alive=0; for(int i=0;i<nCr;i++) alive+=cr[i].alive; int hh; int folk=vilTotals(&hh); char b[64];
-    siprintf(b,"%s  YEAR %d",storyOn?"STORY":"FREE PLAY",year); uiWin(view3d?(shape3==0?"BORE: GODGUY  SPHERE":shape3==1?"BORE: GODGUY  CUBE":"BORE: GODGUY  RING"):"BORE: GODGUY",b,0);
+    siprintf(b,"%s  YEAR %d",storyOn?"STORY":"FREE PLAY",year); uiWin(view3d?(walkOn?"BORE: GODGUY  WALKING":"BORE: GODGUY  GLOBE"):"BORE: GODGUY",b,0);
     { int p=(tick>>1)&2047; uiIcon8(238-uiTextW(b,1)-10,3,(p<256||p>1792)?IC8_MOON:IC8_SUN); if(paused) uiText(120,3,"PAUSED",U_RED,1); }
     uiFrame(2,15,132,132,U_SHADOW,U_BHI,U_BLO); uiMinimap(4,17);
     uiFrame(138,15,116,86,U_PANEL,U_BHI,U_BLO);
@@ -774,9 +777,9 @@ static void uiStory(void){
     char b[64]; uiWin("STORY",storyOn?(storyDone?"FINISHED":"STORY MODE"):"FREE PLAY: PAUSED","SELECT NEXT PAGE");
     if(chapter<CHAP_N){ const Chap*C=&chap[chapter]; int v=chapVal(C->kind); if(v>(int)C->target) v=C->target; uiFrame(4,16,248,34,U_PANELHI,U_GOLD,U_BLO); siprintf(b,"CHAPTER %d: %s",chapter+1,C->nm); uiText(10,20,b,U_GOLD,1); uiText(10,30,C->goal,U_WHITE,1); uiBar(10,40,200,7,v,C->target,U_GREEN); siprintf(b,"%d/%d",v,C->target); uiText(216,40,b,U_WHITE,1); }
     else { uiFrame(4,16,248,34,U_PANELHI,U_GOLD,U_BLO); uiText(10,28,"THE STORY IS TOLD. YOU ARE A GOD.",U_GOLD,1); }
-    for(int c=0;c<CHAP_N;c++){ int y=54+c*8; int done=c<chapter; uiRect(4,y-1,248,8,c&1?U_PANEL:U_BG); uiRect(8,y,7,7,done?U_GREEN:U_SHADOW); if(done){ uiPx(10,y+3,U_WHITE); uiPx(11,y+4,U_WHITE); uiPx(12,y+2,U_WHITE); }
+    for(int c=0;c<CHAP_N;c++){ int y=52+c*8; int done=c<chapter; uiRect(4,y-1,248,8,c&1?U_PANEL:U_BG); uiRect(8,y,7,7,done?U_GREEN:U_SHADOW); if(done){ uiPx(10,y+3,U_WHITE); uiPx(11,y+4,U_WHITE); uiPx(12,y+2,U_WHITE); }
         siprintf(b,"%2d",c+1); uiText(20,y,b,U_DIM,1); uiText(36,y,done?chap[c].nm:"??????????",done?U_WHITE:U_DIM,1); }
-    { int o; int tot=itCount(&o); siprintf(b,"ITEMS %d/%d  MET %d/320  SLAIN %u",o,tot,seenN,(unsigned)stKill); uiText(6,169,b,U_DIM,1); }
+    { int o; int tot=itCount(&o); siprintf(b,"ITEMS %d/%d  MET %d/320  SLAIN %u",o,tot,seenN,(unsigned)stKill); uiText(6,172,b,U_DIM,1); }
     uiFlush(); }
 static void uiBest(void){
     char b[64]; siprintf(b,"%d/320 MET",seenN); uiWin("BESTIARY",b,"UP DOWN  LEFT RIGHT +10   * = SLAIN"); int first=bestSel-7; if(first<0) first=0; if(first>320-15) first=320-15;
@@ -813,19 +816,22 @@ static void uiDialog(void){
     const Dl*d=&dlgSet[dlgIdx]; uiRect(0,0,256,192,U_BG); for(int y=0;y<192;y+=2) uiRect(0,y,256,1,U_PANEL);
     uiFrame(8,10,66,66,U_SHADOW,U_GOLD,U_BLO); { int fam=whoFam[d->who]; for(int k=0;k<3;k++) BG_PALETTE_SUB[200+k]=RGB15(famCol[fam][k][0],famCol[fam][k][1],famCol[fam][k][2]); BG_PALETTE_SUB[203]=RGB15(31,31,31);
         for(int y=0;y<8;y++) for(int x=0;x<8;x++){ char ch=shpRow(whoShape[d->who],((tick>>4)&1),y)[x]; int c=ch=='b'?200:ch=='d'?201:ch=='a'?202:ch=='e'?203:0; if(c) uiRect(13+x*7,15+y*7,7,7,c); } }
-    int len=(int)strlen(whoNm[d->who]); uiTextS(84,18,whoNm[d->who],U_GOLD,len>9?1:2); uiRect(84,38,160,1,U_BHI); { char b[16]; siprintf(b,"%d/%d",dlgIdx+1,0); int n=0; while(dlgSet[n].txt) n++; siprintf(b,"%d/%d",dlgIdx+1,n); uiTextR(246,28,b,U_DIM); }
+    int len=(int)strlen(whoNm[d->who]); uiTextS(84,18,whoNm[d->who],U_GOLD,len>9?1:2); uiRect(84,38,160,1,U_BHI); { char b[32]; int n=0; while(dlgSet[n].txt) n++; siprintf(b,"%d/%d",dlgIdx+1,n); uiTextR(246,28,b,U_DIM); }
     uiFrame(8,84,240,92,U_PANEL,U_BHI,U_BLO); char buf[160]; int tl=(int)strlen(d->txt); int cc=dlgChars<tl?dlgChars:tl; memcpy(buf,d->txt,cc); buf[cc]=0; uiWrap(14,90,37,9,buf,U_WHITE);
     if(dlgChars>=tl&&((tick>>4)&1)) uiText(222,164,"A >",U_GOLD,1); else if(dlgChars<tl) uiText(196,164,"A: HURRY  B: SKIP",U_DIM,1);
     uiFlush(); }
 static void uiMenu(void){
-    uiStatus(); uiRect(46,26,164,138,U_SHADOW); uiFrame(48,28,160,134,U_PANEL,U_GOLD,U_BLO); uiText(54,32,"PAUSED",U_GOLD,2);
-    char v[8][16]; siprintf(v[2],"%d%%",gmMaster); siprintf(v[3],"%s",diff==0?"CALM":diff==1?"NORMAL":"BRUTAL"); siprintf(v[4],"%s",monOn?"ON":"OFF"); siprintf(v[5],"%s",storyOn?"STORY":"FREE");
+    uiStatus(); for(int y=0;y<192;y++) for(int x=(y&1);x<256;x+=2) uiPx(x,y,U_SHADOW);        // dim the screen behind the window
+    uiRect(30,14,196,164,U_SHADOW); uiFrame(32,16,192,160,U_PANEL,U_GOLD,U_BLO); uiRect(33,17,190,16,U_PANELHI); uiText(42,21,"PAUSED",U_GOLD,1); uiTextR(214,21,"START: RESUME",U_DIM);
+    char v[9][16]; siprintf(v[2],"%d%%",gmMaster); siprintf(v[3],"%s",diff==0?"CALM":diff==1?"NORMAL":"BRUTAL"); siprintf(v[4],"%s",monOn?"ON":"OFF"); siprintf(v[5],"%s",storyOn?"STORY":"FREE PLAY");
     static const char*const it[9]={"RESUME","SAVE GAME","MUSIC VOLUME","DIFFICULTY","MONSTERS","MODE","NEW WORLD","HELP AND PAGES","TITLE SCREEN"};
-    for(int i=0;i<9;i++){ int y=50+i*11; if(i==menuSel) uiRect(52,y-1,152,11,U_SEL); uiText(58,y+1,it[i],i==menuSel?U_WHITE:U_LGREY,1); if(i>=2&&i<=5) uiTextR(198,y+1,v[i],i==menuSel?U_GOLD:U_DIM); }
-    if(menuAsk){ uiRect(56,146,144,14,U_RED); uiTextC(128,150,"SURE?  A YES   B NO",U_WHITE,1); } else uiText(54,150,"UP DOWN  L R  A  B CLOSE",U_DIM,1);
+    for(int i=0;i<9;i++){ int y=37+i*13; if(i==menuSel){ uiRect(36,y-2,184,12,U_SEL); uiRect(36,y-2,3,12,U_GOLD); }
+        uiText(46,y+1,it[i],i==menuSel?U_WHITE:U_LGREY,1);
+        if(i>=2&&i<=5){ if(i==menuSel){ uiIcon8(150,y,IC8_LEFT); uiIcon8(206,y,IC8_RIGHT); } uiTextC(180,y+1,v[i],i==menuSel?U_GOLD:U_DIM,1); } }
+    if(menuAsk){ uiRect(40,154,176,18,U_RED); uiTextC(128,159,"ARE YOU SURE?   A YES   B NO",U_WHITE,1); } else uiTextC(128,162,"UP DOWN CHOOSE   L R CHANGE   A SELECT",U_DIM,1);
     uiFlush(); }
 static void hud(void){
-    uiPageOpen=1|2|4|(auralOK()?8:0)|(debugOn?16:0)|32|64; uiPages=titleOn||sceneOn||dlgOn?0:7; uiPageNow=page; uiDotX=90;
+    uiPageOpen=1|2|4|(auralOK()?8:0)|(debugOn?16:0)|32|64; uiPages=titleOn||sceneOn||dlgOn?0:7; uiPageNow=page; uiDotX=118;
     if(dlgOn){ uiDialog(); return; } if(sceneOn){ uiScene(); return; } if(titleOn){ uiTitle(); return; } if(menuOn){ uiMenu(); return; }
     switch(page){ case 1: uiStory(); break; case 2: uiBest(); break; case 3: uiAural(); break; case 4: uiDebug(); break; case 5: uiCodex(); break; case 6: uiHelp(); break; default: uiStatus(); }
 }
@@ -864,6 +870,7 @@ int main(void){
     while(1){
         scanKeys(); int kd=keysDown(), kh=keysHeld(); tick++;
         musUpdate();
+        if(view3d&&(sceneOn||dlgOn||menuOn||titleOn)) leaveGlobe();
         if(sceneOn){ sceneT++; int n=sceneLines(sceneTxt); if(sceneScroll&&(sceneT&7)==0) sceneOff++; int done=(kd&(KEY_A|KEY_START))!=0; if(sceneScroll&&sceneOff>n+2) done=1;
             if(done){ if(sceneNext){ const char*const*nx=sceneNext; int sp0=scenePaused; sceneNext=0; sceneOn=0; sceneStart(nx,1); scenePaused=sp0; musReq(GM_CREDITS); } else { sceneOn=0; paused=scenePaused; } }
             refillWindow(); swiWaitForVBlank(); bgSetScroll(0,camX&511,camY&511); bgUpdate(); drawSprites(); oamUpdate(&oamMain); if((tick&7)==0){ applyLight(); hud(); } continue; }
@@ -891,7 +898,7 @@ int main(void){
             continue; }
         int sp_=(kh&KEY_B)?6:3; int dirty=0;
         if(kd&KEY_SELECT){ if(0){ } else if(kh&KEY_L&&kh&KEY_R){ doSave(); } else { do page=(page+1)%7; while((page==3&&!auralOK())||(page==4&&!debugOn)); if(page==3) juke=gmCur>=0?gmCur:0; } dirty=1; }
-        if((kd&(KEY_X|KEY_Y))&&(kh&KEY_X)&&(kh&KEY_Y)){ if(view3d) leave3D(); else enter3D(); dirty=1; kd&=~(KEY_X|KEY_Y); }
+        if((kd&(KEY_X|KEY_Y))&&(kh&KEY_X)&&(kh&KEY_Y)){ if(view3d) leaveGlobe(); else globeEnter(); dirty=1; kd&=~(KEY_X|KEY_Y); }
         if(kd&KEY_START){ if((kh&KEY_L)&&(kh&KEY_R)){ unlockAll=1; siprintf(info,"EVERYTHING UNLOCKED"); } else if(!(kh&KEY_SELECT)){ menuOn=1; menuSel=0; menuAsk=0; dlgPaused=paused; paused=1; } dirty=1; }
         if(page==2){ if(kd&KEY_UP) bestSel=bestSel>0?bestSel-1:0; if(kd&KEY_DOWN) bestSel=bestSel<319?bestSel+1:319; if(kd&KEY_LEFT) bestSel=bestSel>=10?bestSel-10:0; if(kd&KEY_RIGHT) bestSel=bestSel<310?bestSel+10:319; if(kd) dirty=1; kd&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); kh&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); }
         else if(page==5){ if(kd&KEY_UP) trPage=trPage>1?trPage-1:1; if(kd&KEY_DOWN) trPage=trPage<TR_N-1?trPage+1:TR_N-1; if(kd) dirty=1; kd&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); kh&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); }
@@ -929,21 +936,20 @@ int main(void){
         if(kd&KEY_R){ power=(power+1)%PW_N; dirty=1; } if(kd&KEY_L){ power=(power+PW_N-1)%PW_N; dirty=1; }
         if(year!=savedYear&&year>0&&(tick&255)==1){ doSave(); dirty=1; }
         if(view3d){
-            int ts=(kh&KEY_B)?4:2; if(!walkOn){ if(kh&KEY_LEFT) rotY-=ts; if(kh&KEY_RIGHT) rotY+=ts; if(kh&KEY_UP) rotX-=ts; if(kh&KEY_DOWN) rotX+=ts; } if(!walkOn&&!(kh&(KEY_LEFT|KEY_RIGHT|KEY_UP|KEY_DOWN))) rotY+=1;
-            if(rotX>85) rotX=85; if(rotX<-85) rotX=-85;
-            if(kh&KEY_X){ zoom3-=1; if(zoom3<19) zoom3=19; } if(kh&KEY_Y){ zoom3+=1; if(zoom3>110) zoom3=110; }
-            if((kd&KEY_A)&&(kh&KEY_Y)){ walkOn^=1; if(walkOn){ shape3=0; buildMesh(); int tx2=-1,ty2=-1; (void)tx2; (void)ty2; walkX=(camX>>3)+16; walkY=(camY>>3)+12; if(walkX>=WW) walkX=WW-1; if(walkY>=WH) walkY=WH-1; zoom3=22; siprintf(info,"WALKING: PAD MOVES, A USES POWER"); } else siprintf(info,"WALK OFF"); texDirty=1; dirty=1; kd&=~KEY_A; }
-            if(walkOn){ static int wt=0; int mv=(kh&KEY_B)?2:4; if(++wt>=mv){ wt=0; int dx2=((kh&KEY_RIGHT)?1:0)-((kh&KEY_LEFT)?1:0), dy2=((kh&KEY_DOWN)?1:0)-((kh&KEY_UP)?1:0); if(dx2||dy2){ walkX=(walkX+dx2+WW)%WW; walkY+=dy2; if(walkY<0) walkY=0; if(walkY>=WH) walkY=WH-1; texDirty=1; } }
-                faceTile(walkX,walkY,&rotX,&rotY); if(kh&KEY_A){ static int at=0; if(kd&KEY_A||++at>=4){ at=0; usePower(walkX,walkY,(kd&KEY_A)?1:(pw[power].kind==PK_PAINT)); texDirty=1; } } if((tick&3)==0) texDirty=1; kd&=~KEY_A; kh&=~(KEY_LEFT|KEY_RIGHT|KEY_UP|KEY_DOWN); }
-            if(kd&KEY_A){ shape3=(shape3+1)%3; buildMesh(); dirty=1; }
+            int ts=(kh&KEY_B)?4:2; if(!walkOn){ if(kh&KEY_LEFT) rotY-=ts; if(kh&KEY_RIGHT) rotY+=ts; if(kh&KEY_UP) rotX+=ts; if(kh&KEY_DOWN) rotX-=ts; if(!(kh&(KEY_LEFT|KEY_RIGHT|KEY_UP|KEY_DOWN))&&(tick&3)==0) rotY+=1; }
+            if(rotX>85) rotX=85; if(rotX<-85) rotX=-85; rotY%=360; if(rotY<0) rotY+=360;
+            if(kh&KEY_X){ zoom3-=1; if(zoom3<30) zoom3=30; } if(kh&KEY_Y){ zoom3+=1; if(zoom3>110) zoom3=110; }
+            if((kd&KEY_A)&&(kh&KEY_Y)){ walkOn^=1; if(walkOn){ walkX=(camX>>3)+16; walkY=(camY>>3)+12; if(walkX>=WW) walkX=WW-1; if(walkY>=WH) walkY=WH-1; zoom3=30; siprintf(info,"WALKING: PAD MOVES, A USES POWER"); } else siprintf(info,"WALK OFF"); dirty=1; kd&=~KEY_A; }
+            if(walkOn){ static int wt=0; int mv=(kh&KEY_B)?2:4; if(++wt>=mv){ wt=0; int dx2=((kh&KEY_RIGHT)?1:0)-((kh&KEY_LEFT)?1:0), dy2=((kh&KEY_DOWN)?1:0)-((kh&KEY_UP)?1:0); if(dx2||dy2){ walkX=(walkX+dx2+WW)%WW; walkY+=dy2; if(walkY<0) walkY=0; if(walkY>=WH) walkY=WH-1; } }
+                faceTile(walkX,walkY,&rotX,&rotY); if(kh&KEY_A){ static int at=0; if((kd&KEY_A)||++at>=4){ at=0; usePower(walkX,walkY,(kd&KEY_A)?1:(pw[power].kind==PK_PAINT)); } } kd&=~KEY_A; }
+            if(kd&KEY_A){ gClouds^=1; dirty=1; }
             { static int h3=0, l3x=-9, l3y=-9, lpx=-1, lpy=-1;
               if(kh&KEY_TOUCH){ touchPosition tp; touchRead(&tp);
-                  if(kh&KEY_B){ if(lpx>=0){ rotY+=(tp.px-lpx)/2; rotX-=(tp.py-lpy)/2; } lpx=tp.px; lpy=tp.py; h3=0; }   // B held: drag to turn the planet
-                  else { lpx=-1; int tx,ty; if(pick3D(tp.px,tp.py,&tx,&ty)){ int fresh=!h3||tx!=l3x||ty!=l3y; if(pw[power].kind==PK_PAINT||fresh) usePower(tx,ty,!h3); h3=1; l3x=tx; l3y=ty; texDirty=1; dirty=1; } } }
+                  if(kh&KEY_B){ if(lpx>=0){ rotY-=(tp.px-lpx)/2; rotX+=(tp.py-lpy)/2; } lpx=tp.px; lpy=tp.py; h3=0; }   // B held: drag to turn the planet
+                  else { lpx=-1; int tx,ty; if(globePick(tp.px,tp.py,&tx,&ty)){ int fresh=!h3||tx!=l3x||ty!=l3y; if(pw[power].kind==PK_PAINT||fresh) usePower(tx,ty,!h3); h3=1; l3x=tx; l3y=ty; dirty=1; } } }
               else { h3=0; lpx=-1; } }
-            if(rotX>85) rotX=85; if(rotX<-85) rotX=-85;
             for(int k=1;k<speedMul&&!paused;k++){ tick++; simulate(); }
-            if(!paused) simulate(); if((texDirty&&(tick%6)==0)||(tick&63)==0){ uploadTexture(); texDirty=0; } swiWaitForVBlank(); draw3D(); if((tick&15)==0||dirty){ drawMinimap(); hud(); } if((tick&7)==0) applyLight(); continue; }
+            if(!paused) simulate(); globeDraw(); swiWaitForVBlank(); globeFlush(); if((tick&15)==0||dirty){ drawMinimap(); hud(); } continue; }
         if(kd&(KEY_X|KEY_Y)){ int d=(kd&KEY_X)?1:-1; if(kh&KEY_B){ if(pw[power].kind==PK_GIFT) itSel=itNext(itSel,10*d); else spSel=(spSel+nSp+10*d)%nSp; } else if(pw[power].kind==PK_SPAWN){ spSel=(spSel+nSp+d)%nSp; } else if(pw[power].kind==PK_GIFT){ itSel=itNext(itSel,d); } else if(pw[power].kind==PK_MUTATE){ for(int k=1;k<=TR_N;k++){ int t=(trSel+TR_N*2+d*k)%TR_N; if(t==0||((trSeen>>t)&1)||debugOn||unlockAll){ trSel=t; break; } } } else { brush+=d; if(brush<0) brush=0; if(brush>8) brush=8; } dirty=1; }
         if(kd&KEY_A&&page!=3){ paused^=1; dirty=1; }
         if(kh&KEY_TOUCH){ touchPosition tp; touchRead(&tp); if(tp.py>=168){ if(!held){ tbTouch(tp.px,tp.py); fxReq(FX_MENU_MOVE); dirty=1; } held=1; } else { int tx=(tp.px+camX)>>3, ty=(tp.py+camY)>>3; int fresh=!held||tx!=lastTx||ty!=lastTy; if(pw[power].kind==PK_PAINT||fresh) usePower(tx,ty,!held); held=1; lastTx=tx; lastTy=ty; dirty=1; } } else held=0;

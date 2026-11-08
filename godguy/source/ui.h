@@ -44,7 +44,7 @@ static void uiWin(const char*title,const char*right,const char*hint){
     uiRect(0,0,256,192,U_BG); for(int y=0;y<192;y+=2) for(int x=((y>>1)&1)*2;x<256;x+=4) uiPx(x,y,U_PANEL);
     for(int j=0;j<13;j++){ int c=j<2?U_PANELHI:j<11?U_PANEL:U_SHADOW; uiRect(0,j,256,1,c); } uiRect(0,12,256,1,U_BHI);
     uiText(6,3,title,U_GOLD,1); if(right) uiTextR(250,3,right,U_DIM);
-    if(uiPages>0){ for(int i=0;i<uiPages;i++) uiRect(uiDotX+i*8,5,5,4,i==uiPageNow?U_GOLD:(uiPageOpen&(1<<i))?U_LGREY:U_SHADOW); }
+    if(uiPages>0){ char pg[8]; int n=0; for(int i=0;i<=uiPageNow;i++) if(uiPageOpen&(1<<i)) n++; int t=0; for(int i=0;i<uiPages;i++) if(uiPageOpen&(1<<i)) t++; pg[0]='0'+n; pg[1]='/'; pg[2]='0'+t; pg[3]=0; uiText(uiDotX,3,pg,U_LGREY,1); }
     uiRect(0,179,256,13,U_PANEL); uiRect(0,179,256,1,U_BHI); if(hint) uiText(6,183,hint,U_DIM,1); }
 static void uiListRow(int y,int sel,int n,const char*left,const char*right,int col){ if(sel) uiRect(4,y-1,240,10,U_SEL); else if(n&1) uiRect(4,y-1,240,10,U_PANEL);
     if(sel) uiText(6,y,">",U_GOLD,1); uiText(14,y,left,col,1); if(right&&right[0]) uiTextR(242,y,right,sel?U_WHITE:U_DIM); }
