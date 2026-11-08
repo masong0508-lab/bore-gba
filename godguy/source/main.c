@@ -237,7 +237,11 @@ static int trTile(int t,int n,int mask,int v,int foam){
         if(foam){ if(d==0&&h<5) px=T_WATER*8+7; else if(d==1&&h<2) px=T_WATER*8+7; }
         else if(d<4&&h<(4-d)*2-(d==0?0:1)+(d==0?1:0)) px=tilePix(n,(x+y+v)&3,x,y);
         tl[y*8+x]=(u8)px; }
-    int slot=TR0+trUsed++; vramCopy((u8*)BG_TILE_RAM(1)+slot*64,tl,64); trMap[key]=(u16)(slot+1); return slot; }
+    int slot=TR0+trUsed++;
+#ifndef PCTEST
+    vramCopy((u8*)BG_TILE_RAM(1)+slot*64,tl,64);
+#endif
+    trMap[key]=(u16)(slot+1); return slot; }
 static inline void putCell(int x,int y){   // world cell -> background entry (a 64 x 64 torus of 8 pixel tiles)
     int mx=x&63, my=y&63; int blk=(my>=32?2:0)+(mx>=32?1:0); int t=world[y][x], v=(int)(hsh(x,y,3)&3); u16 e=(u16)(t*4+v);
     if(bld[y][x]) e=(u16)(BT0+bld[y][x]*8+(bldv[y][x]?vilRace(bldv[y][x]-1):0));
