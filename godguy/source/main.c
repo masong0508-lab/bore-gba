@@ -524,21 +524,25 @@ static void newWorld(void){ gW=gH=planetSize; nCr=0; memset(occ,0,sizeof occ); m
 static int shape3;
 #define SAVE_MAGIC 0x31534747u
 typedef struct { u32 magic; u16 ver, gw, szCr, szVil; u32 tick, year, rs; u32 stKill, stGift, stUse, trSeen, stMut, seed; u16 nCr, seenN, camX, camY; u8 chapter, tierOpen, storyOn, storyDone, monOn, shape3, nVilOn, planet, vcur, aural, debug, full, diff, weather; u16 weatherT; u8 pad_[2]; u8 seen[(SP_N+7)/8], slain[(SP_N+7)/8]; } SaveHdr;
+#ifndef NDSHW
+typedef FILE SV;
+static SV*svOpen(const char*p,const char*m){ return fopen(p,m); } static size_t svWrite(const void*b,size_t s,size_t n,SV*f){ return fwrite(b,s,n,f); } static size_t svRead(void*b,size_t s,size_t n,SV*f){ return fread(b,s,n,f); } static int svClose(SV*f){ return fclose(f); }
+#endif
 static int saveGame(const char*path){
     compact(); cursor=0;     // the dead are dropped first, so a loaded game goes on exactly as this one would
-    FILE*f=fopen(path,"wb"); if(!f) return 0; SaveHdr h; memset(&h,0,sizeof h); h.vcur=(u8)vilCur;
+    SV*f=svOpen(path,"wb"); if(!f) return 0; SaveHdr h; memset(&h,0,sizeof h); h.vcur=(u8)vilCur;
     h.magic=SAVE_MAGIC; h.ver=5; h.weather=(u8)weather; h.weatherT=(u16)weatherT; h.trSeen=trSeen; h.stMut=stMut; h.seed=worldSeed; h.diff=(u8)diff; h.full=(u8)fullDone; h.aural=(u8)auralOpen; h.debug=(u8)debugOn; h.gw=(u16)gW; h.szCr=sizeof(Cr); h.szVil=sizeof(Vil); h.tick=(u32)tick; h.year=(u32)year; h.rs=rs; h.stKill=stKill; h.stGift=stGift; h.stUse=stUse; h.nCr=(u16)nCr; h.seenN=(u16)seenN; h.camX=(u16)camX; h.camY=(u16)camY;
     h.chapter=(u8)chapter; h.tierOpen=(u8)tierOpen; h.storyOn=(u8)storyOn; h.storyDone=(u8)storyDone; h.monOn=(u8)monOn; h.shape3=(u8)shape3; h.nVilOn=(u8)nVilOn; h.planet=(u8)planetSize/2; memcpy(h.seen,seenB,sizeof seenB); memcpy(h.slain,slainB,sizeof slainB);
-    int ok=fwrite(&h,sizeof h,1,f)==1;
-    for(int y=0;y<gH&&ok;y++){ ok&=fwrite(world[y],1,gW,f)==(size_t)gW; ok&=fwrite(bld[y],1,gW,f)==(size_t)gW; ok&=fwrite(bldv[y],1,gW,f)==(size_t)gW; }
-    if(ok&&nCr) ok&=fwrite(cr,sizeof(Cr),nCr,f)==(size_t)nCr; if(ok) ok&=fwrite(vil,sizeof(Vil),VIL_N,f)==(size_t)VIL_N;
-    fclose(f); return ok; }
+    int ok=svWrite(&h,sizeof h,1,f)==1;
+    for(int y=0;y<gH&&ok;y++){ ok&=svWrite(world[y],1,gW,f)==(size_t)gW; ok&=svWrite(bld[y],1,gW,f)==(size_t)gW; ok&=svWrite(bldv[y],1,gW,f)==(size_t)gW; }
+    if(ok&&nCr) ok&=svWrite(cr,sizeof(Cr),nCr,f)==(size_t)nCr; if(ok) ok&=svWrite(vil,sizeof(Vil),VIL_N,f)==(size_t)VIL_N;
+    svClose(f); return ok; }
 static int loadGame(const char*path){
-    FILE*f=fopen(path,"rb"); if(!f) return 0; SaveHdr h; int ok=fread(&h,sizeof h,1,f)==1;
-    if(!ok||h.magic!=SAVE_MAGIC||h.ver!=5||h.szCr!=sizeof(Cr)||h.szVil!=sizeof(Vil)||(h.gw!=128&&h.gw!=192&&h.gw!=256)||h.nCr>MAXC){ fclose(f); return 0; }
+    SV*f=svOpen(path,"rb"); if(!f) return 0; SaveHdr h; int ok=svRead(&h,sizeof h,1,f)==1;
+    if(!ok||h.magic!=SAVE_MAGIC||h.ver!=5||h.szCr!=sizeof(Cr)||h.szVil!=sizeof(Vil)||(h.gw!=128&&h.gw!=192&&h.gw!=256)||h.nCr>MAXC){ svClose(f); return 0; }
     gW=gH=h.gw; planetSize=gW; memset(world,0,sizeof world); memset(bld,0,sizeof bld); memset(bldv,0,sizeof bldv); memset(occ,0,sizeof occ);
-    for(int y=0;y<gH&&ok;y++){ ok&=fread(world[y],1,gW,f)==(size_t)gW; ok&=fread(bld[y],1,gW,f)==(size_t)gW; ok&=fread(bldv[y],1,gW,f)==(size_t)gW; }
-    nCr=h.nCr; if(ok&&nCr) ok&=fread(cr,sizeof(Cr),nCr,f)==(size_t)nCr; if(ok) ok&=fread(vil,sizeof(Vil),VIL_N,f)==(size_t)VIL_N; fclose(f);
+    for(int y=0;y<gH&&ok;y++){ ok&=svRead(world[y],1,gW,f)==(size_t)gW; ok&=svRead(bld[y],1,gW,f)==(size_t)gW; ok&=svRead(bldv[y],1,gW,f)==(size_t)gW; }
+    nCr=h.nCr; if(ok&&nCr) ok&=svRead(cr,sizeof(Cr),nCr,f)==(size_t)nCr; if(ok) ok&=svRead(vil,sizeof(Vil),VIL_N,f)==(size_t)VIL_N; svClose(f);
     if(!ok){ return 0; }
     tick=(int)h.tick; year=(int)h.year; rs=h.rs; stKill=h.stKill; stGift=h.stGift; stUse=h.stUse; seenN=h.seenN; camX=h.camX; camY=h.camY; chapter=h.chapter; tierOpen=h.tierOpen; storyOn=h.storyOn; storyDone=h.storyDone; monOn=h.monOn; shape3=h.shape3; nVilOn=h.nVilOn;
     memcpy(seenB,h.seen,sizeof seenB); memcpy(slainB,h.slain,sizeof slainB); nVilOn=0; for(int v=0;v<VIL_N;v++) nVilOn+=vil[v].on;

@@ -1,7 +1,7 @@
 // the ARM7 program for the no-libnds build: it plays sound for the ARM9 (commands arrive in a ring in main RAM) and reads the stylus and the X / Y buttons for it. No libnds, no BIOS calls.
 typedef unsigned char u8; typedef unsigned short u16; typedef unsigned int u32; typedef volatile unsigned short vu16; typedef volatile unsigned int vu32;
 typedef struct { u32 op, ch, a, b, c, d; } HwCmd;
-typedef struct { volatile u32 head, tail, busy, keys, pen, px, py, alive; HwCmd q[64]; } HwIpc;
+typedef struct { volatile u32 head, tail, busy, keys, pen, px, py, alive, svType, svBusy, svOK; HwCmd q[64]; } HwIpc;
 #define IPC ((HwIpc*)0x023F0000)
 #define R16(a) (*(vu16*)(a))
 #define R32(a) (*(vu32*)(a))
@@ -16,7 +16,20 @@ static u32 kind[16];
 static void spiWait(void){ while(SPICNT&0x80){} }
 static u16 tsc(u32 cmd){   // one 12-bit conversion from the touch controller
     SPICNT=0x8A01; SPIDAT=cmd; spiWait(); SPIDAT=0; spiWait(); u16 r1=SPIDAT; SPICNT=0x8201; SPIDAT=0; spiWait(); u16 r2=SPIDAT; return (u16)(((r1&0x7F)<<5)|(r2>>3)); }
+// ---- the cartridge's save memory (SPI): flash (3 byte addresses, 256 byte pages) or EEPROM (2 byte addresses, 128 byte pages)
+#define AUXCNT R16(0x040001A0)
+#define AUXDAT R16(0x040001A2)
+static u8 aux(u8 b,int hold){ AUXCNT=(u16)(0xA000|(hold?0x40:0)); AUXDAT=b; u32 t=200000; while((AUXCNT&0x80)&&--t){} return (u8)AUXDAT; }
+static int svWait(void){ for(u32 t=0;t<2000000u;t++){ aux(0x05,1); u8 st=aux(0,0); if(!(st&1)) return 1; } return 0; }
+static void svAddr(u32 off,int fl){ if(fl) aux((u8)(off>>16),1); aux((u8)(off>>8),1); aux((u8)off,1); }
+static void svDetect(void){ aux(0x9F,1); u8 id0=aux(0,1); aux(0,1); aux(0,0); if(id0!=0x00&&id0!=0xFF){ IPC->svType=1; return; }
+    aux(0x05,1); u8 st=aux(0,0); IPC->svType=(st==0xFF)?0:2; }
+static void svOp(HwCmd*c){ int fl=IPC->svType==1; u8*mem=(u8*)c->a; u32 len=c->b, off=c->c, page=fl?256:128; IPC->svOK=1;
+    if(!IPC->svType){ IPC->svOK=0; return; }
+    if(c->op==9){ aux(0x03,1); svAddr(off,fl); for(u32 i=0;i<len;i++) mem[i]=aux(0,i+1<len); return; }
+    for(u32 done=0;done<len;){ u32 n=len-done; u32 room=page-((off+done)%page); if(n>room) n=room; aux(0x06,0); aux(fl?0x0A:0x02,1); svAddr(off+done,fl); for(u32 i=0;i<n;i++) aux(mem[done+i],i+1<n); if(!svWait()){ IPC->svOK=0; return; } done+=n; } }
 static void doCmd(HwCmd*c){
+    if(c->op==8||c->op==9){ svOp(c); IPC->svBusy=0; return; }
     u32 ch=c->ch&15, vol=c->d&0x7F, pan=(c->d>>8)&0x7F;
     switch(c->op){
     case 1: { u32 loop=(c->d>>16)&1; CH_CNT(ch)=0; kind[ch]=1; CH_SAD(ch)=c->a; CH_TMR(ch)=(u16)(-(0x1000000/(c->c?c->c:1))); CH_PNT(ch)=0; CH_LEN(ch)=c->b>>2; CH_CNT(ch)=0x80000000u|(loop?(1u<<27):(2u<<27))|vol|(pan<<16); } break;
@@ -30,8 +43,9 @@ static void doCmd(HwCmd*c){
 void arm7main(void){
     R16(0x04000304)=1;                       // sound on (POWCNT2)
     R16(0x04000500)=0x8000|0x7F;             // sound master enable, full volume
-    int done=0;
+    int done=0, det=0;
     for(;;){
+        if(IPC->alive==0x41524D39&&!det){ det=1; svDetect(); }
         if(IPC->alive==0x41524D39){ while(IPC->tail!=IPC->head){ doCmd(&IPC->q[IPC->tail]); IPC->tail=(IPC->tail+1)&63; } }
         u32 b=0; for(int i=0;i<16;i++) if(CH_CNT(i)&0x80000000u) b|=1u<<i; IPC->busy=b;
         u16 vc=R16(0x04000006);

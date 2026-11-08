@@ -74,7 +74,7 @@ static inline void oamSetHidden(OamState*o,int id,bool h){ (void)o; vu16*a=(vu16
 static inline void oamUpdate(OamState*o){ (void)o; }
 // ---- input: the d-pad and buttons are read here, X, Y and the stylus come from the ARM7 through the shared block
 typedef struct { u32 op, ch, a, b, c, d; } HwCmd;
-typedef struct { volatile u32 head, tail, busy, keys, pen, px, py, alive; HwCmd q[64]; } HwIpc;
+typedef struct { volatile u32 head, tail, busy, keys, pen, px, py, alive, svType, svBusy, svOK; HwCmd q[64]; } HwIpc;
 #define HWIPC ((HwIpc*)0x023F0000)
 static int hwHeld, hwTx, hwTy;
 static inline void scanKeys(void){ u32 k=~HW_REG16(0x04000130)&0x3FF; int h=(int)k; if(HWIPC->keys&1) h|=KEY_X; if(HWIPC->keys&2) h|=KEY_Y; if(HWIPC->pen){ h|=KEY_TOUCH; hwTx=(int)HWIPC->px; hwTy=(int)HWIPC->py; } hwHeld=h; }
@@ -82,7 +82,22 @@ static int hwPrev;
 static inline int keysHeld(void){ return hwHeld; }
 static inline int keysDown(void){ int d=hwHeld&~hwPrev; hwPrev=hwHeld; return d; }
 static inline void touchRead(touchPosition*t){ t->px=hwTx; t->py=hwTy; }
-static inline int fatInitDefault(void){ return 0; }
+// ---- saving: the world is run-length packed and written to the cartridge's save memory (flash or EEPROM) by the ARM7. The buffers sit in a part of RAM the data cache never touches.
+#define SVBUF ((u8*)0x02340000)
+#define SVCMP ((u8*)0x023A0000)
+#define SVMAX (300*1024)
+typedef struct { int dummy; } SV; static SV svDummy; static u32 svLen, svPos; static int svMode;
+static int fatInitDefault(void){ for(int i=0;i<60;i++){ while(REG_VCOUNT!=192){} while(REG_VCOUNT==192){} if(HWIPC->svType) break; } return HWIPC->svType!=0; }
+static void hwFlash(u32 op,u32 mem,u32 len,u32 off){ HWIPC->svBusy=1; HWIPC->svOK=0; HwIpc*q=HWIPC; while(((q->head+1)&63)==q->tail){} HwCmd*m=&q->q[q->head]; m->op=op; m->ch=0; m->a=mem; m->b=len; m->c=off; m->d=0; q->head=(q->head+1)&63; u32 t=0; while(HWIPC->svBusy&&++t<50000000u){} }
+static u32 rleEnc(const u8*in,u32 n,u8*out){ u32 o=0,i=0; while(i<n){ u32 r=1; while(i+r<n&&in[i+r]==in[i]&&r<129) r++; if(r>=3){ out[o++]=(u8)(126+r); out[o++]=in[i]; i+=r; } else { u32 st=i; u32 l=0; while(i<n&&l<128){ u32 rr=1; while(i+rr<n&&in[i+rr]==in[i]&&rr<3) rr++; if(rr>=3) break; i++; l++; } out[o++]=(u8)(l-1); for(u32 k=0;k<l;k++) out[o++]=in[st+k]; } } return o; }
+static u32 rleDec(const u8*in,u32 n,u8*out,u32 max){ u32 o=0,i=0; while(i<n){ u8 c=in[i++]; if(c<128){ u32 l=c+1; if(o+l>max||i+l>n) return 0; for(u32 k=0;k<l;k++) out[o++]=in[i++]; } else { u32 r=c-126; if(o+r>max||i>=n) return 0; for(u32 k=0;k<r;k++) out[o++]=in[i]; i++; } } return o; }
+static SV*svOpen(const char*p,const char*m){ (void)p; if(!HWIPC->svType) return 0; svPos=0;
+    if(m[0]=='w'){ svMode=1; svLen=0; return &svDummy; }
+    hwFlash(9,(u32)SVCMP,12,0); if(!HWIPC->svOK||SVCMP[0]!='G'||SVCMP[1]!='G'||SVCMP[2]!='S'||SVCMP[3]=='\0') return 0; u32 clen=*(u32*)(SVCMP+4), raw=*(u32*)(SVCMP+8); if(clen==0||clen>SVMAX-16||raw>SVMAX) return 0;
+    hwFlash(9,(u32)SVCMP,clen+12,0); if(!HWIPC->svOK) return 0; svLen=rleDec(SVCMP+12,clen,SVBUF,SVMAX); if(svLen!=raw) return 0; svMode=0; return &svDummy; }
+static size_t svWrite(const void*b,size_t s,size_t n,SV*f){ (void)f; u32 t=(u32)(s*n); if(svLen+t>SVMAX) return 0; memcpy(SVBUF+svLen,b,t); svLen+=t; return n; }
+static size_t svRead(void*b,size_t s,size_t n,SV*f){ (void)f; u32 t=(u32)(s*n); if(svPos+t>svLen) return 0; memcpy(b,SVBUF+svPos,t); svPos+=t; return n; }
+static int svClose(SV*f){ (void)f; if(svMode==1){ u32 clen=rleEnc(SVBUF,svLen,SVCMP+12); SVCMP[0]='G'; SVCMP[1]='G'; SVCMP[2]='S'; SVCMP[3]=1; *(u32*)(SVCMP+4)=clen; *(u32*)(SVCMP+8)=svLen; hwFlash(8,(u32)SVCMP,clen+12,0); return HWIPC->svOK?0:-1; } return 0; }
 // ---- sound: channels are allocated here, played by the ARM7
 static int hwUsed[16], hwAge[16]; static u32 hwKind[16];
 static void hwSend(u32 op,u32 ch,u32 a,u32 b,u32 c,u32 d){ HwIpc*q=HWIPC; while(((q->head+1)&63)==q->tail){} HwCmd*m=&q->q[q->head]; m->op=op; m->ch=ch; m->a=a; m->b=b; m->c=c; m->d=d; q->head=(q->head+1)&63; }
