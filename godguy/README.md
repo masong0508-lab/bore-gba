@@ -49,3 +49,5 @@ Roadmap: villages and civilisations that build, wars, disasters over time, 300+ 
 
 ## v0.9.1 menus and loading screens
 The title and pause menus are now structured with sub-menus: CONTINUE, CREATE A PLANET (size, world type, difficulty, create), OPTIONS (difficulty, music volume, monsters) and EXTRAS (Aural Sculptures, Bestiary, Subspecies, Help, Credits, Debug). The pause menu has RESUME, SAVE, OPTIONS, EXTRAS, NEW WORLD, MODE, TITLE SCREEN. START leaves an Extras page back to the menu. Making, loading or enlarging a world shows a loading screen with a growing planet and progress bar.
+
+The CPU-cache build is now the main one: `godguy_hw.nds`. The old no-cache build is `godguy_hw_nocache.nds` (build it with `GG_NOCACHE=" " ./build_hw.sh`), and `godguy_hw_safe.nds` stays as the no-sound fallback.
