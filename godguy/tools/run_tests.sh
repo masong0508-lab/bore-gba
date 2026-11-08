@@ -9,3 +9,5 @@ gcc $F -o /tmp/gg_pick pick_test.c -lm && /tmp/gg_pick | tail -3
 gcc $F -o /tmp/gg_save pc_save.c -lm && /tmp/gg_save
 gcc $F -o /tmp/gg_story pc_story.c -lm && for sz in 128 192 256; do /tmp/gg_story 7 24 $sz | grep -E "planet|END"; done
 tools/gm_check.sh /tmp/gm_check 100
+# the real DS program, run headless through compat/ndsshim.h with scripted keys and stylus (screenshots in /tmp/gg_ds)
+gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_ds_run pc_ds.c -lm && rm -rf /tmp/gg_ds && /tmp/gg_ds_run /tmp/gg_ds | head -2

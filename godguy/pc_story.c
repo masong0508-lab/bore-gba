@@ -27,4 +27,5 @@ int main(int argc,char**argv){
         if(chapter!=lastCh||t%2048==0){ int hh; int pp=vilTotals(&hh); int mon=monCount(); if(t%2048==0||chapter!=lastCh) printf("y%02d t=%6d ch=%2d/%d tier=%2d | alive %4d folk %3d homes %3d vill %2d | monsters %2d seen %3d slain %4u smites %ld | %s\n",year,t,chapter,CHAP_N,tierOpen,nCr,pp,hh,nVilOn,mon,seenN,(unsigned)stKill,smites,info); lastCh=chapter; }
     }
     int open; int tot=itCount(&open); printf("100%%: %s (remixes %s)\n",fullDone?"DONE":"not yet",fullDone?"OPEN":"LOCKED"); printf("END: aural sculptures %s, chapter %d/%d done=%d, items open %d/%d, bestiary %d/320, slain %u, used %u, gifts %u\n",auralOpen?"OPEN":"LOCKED",chapter,CHAP_N,storyDone,open,tot,seenN,(unsigned)stKill,(unsigned)stUse,(unsigned)stGift);
+    countTraits(); printf("subspecies: %d of %d traits met, %u mutations; living:",__builtin_popcount(trSeen),TR_N-1,(unsigned)stMut); for(int t=1;t<TR_N;t++) if(trCount[t]) printf(" %s=%d",trNm[t],trCount[t]); printf("\n"); int el=0,bo=0; for(int i=0;i<nCr;i++) if(cr[i].alive){ el+=cr[i].rk==1; bo+=cr[i].rk==2; } printf("elite %d boss %d alive\n",el,bo);
     return 0; }

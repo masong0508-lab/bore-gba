@@ -2,3 +2,7 @@ build/
 *.elf
 *.nds
 *.map
+*.3dsx
+3ds/*.o
+3ds/*.elf
+3ds/*.smdh
