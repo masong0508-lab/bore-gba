@@ -2,6 +2,8 @@
 
 A god game spun off from BORE: shape a 128 x 128 world with the stylus, drop in life, and watch it live, eat, hunt and breed.
 
+**v0.5.1: AURAL SCULPTURES AND DEBUG.** The jukebox is now the *Aural Sculptures* menu (page 3 of the top screen): it unlocks by finishing story chapter 3 (or with the debug code), plays any of the 82 tracks and also tests any of the 29 sound effects (X / Y). The code UP UP DOWN DOWN LEFT LEFT RIGHT B A START on the title screen unlocks the **debug menu** (page 4): sim speed x1/2/4/8, freeze, set the year, chapter and item tier, unlock all items, monsters on/off, spawn any of the 320 monsters at the camera, kill or meet them all, heal and feed everyone, fill village stores, found a village, add stats, finish the chapter now, save / load / erase the save (B+A), play any effect, lock or open the sculptures, and a live creature / tick / seed readout. Both flags are kept in the save file (format version 2).
+
 **v0.5: ENEMIES, STORY, SAVES, BIG PLANETS, 82 TRACKS.**
 - **320 monsters** (20 kinds x 16 colours, from imps and ghouls to krakens, liches and the elder dragon; four new sprite shapes). They rise from rifts far from the villages, hunt people first, burn houses and are shot by towers; stronger kinds come as the world ages and as you finish chapters. Villagers fight back, and gifts of weapons and armour decide who wins.
 - **Story**: 14 chapters (use your powers, found a people, build homes, meet and slay monsters, give gifts, grow a hall, reach years...). Each chapter you finish opens a tier of items for good, so free play only has what the story has earned (L+R+START opens everything). Page 1 of the top screen (SELECT) shows the chapter; page 2 is the **bestiary** (320 entries, ? until met, * when slain).
