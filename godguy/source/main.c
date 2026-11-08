@@ -375,7 +375,21 @@ static void uploadTexture(void){ fillTexture();
     glResetTextures(); glGenTextures(1,&texId); glBindTexture(0,texId); glTexImage2D(0,0,GL_RGB,TEXTURE_SIZE_128,TEXTURE_SIZE_128,0,TEXGEN_TEXCOORD|GL_TEXTURE_WRAP_S|GL_TEXTURE_WRAP_T,(u8*)tex);
 }
 #endif
-static int view3d=0, rotX=0, rotY=0, zoom3=40, glOn=0;
+static int view3d=0, rotX=0, rotY=0, zoom3=40, glOn=0, texDirty=0;
+// where the stylus touches the planet: every grid point is moved and projected exactly as the 3D hardware does (turn about Y, then X, then away from the camera, perspective 55 degrees),
+// then the nearest quad under the pixel gives the point on the map. Returns 1 and the map tile if the planet was hit.
+static int pick3D(int px,int py,int*tx,int*ty){
+    static float P[(MN+1)*(MN+1)][3]; static float uu[(MN+1)*(MN+1)], vv[(MN+1)*(MN+1)];
+    float dist=zoom3/16.0f, ra=rotY*0.0174533f, rb=rotX*0.0174533f, cy=cosf(ra), sy=sinf(ra), cx=cosf(rb), sx=sinf(rb), f=184.4f;
+    for(int j=0;j<=MN;j++) for(int i=0;i<=MN;i++){ int k=j*(MN+1)+i; float x=mvx[k]/4096.f, y=mvy[k]/4096.f, z=mvz[k]/4096.f;
+        float x1=cy*x+sy*z, z1=-sy*x+cy*z, y1=cx*y-sx*z1, z2=sx*y+cx*z1+0.f; float zz=z2-dist; P[k][0]=128+x1/(-zz)*f; P[k][1]=96-y1/(-zz)*f; P[k][2]=-zz; uu[k]=(float)i; vv[k]=(float)j; }
+    float best=1e9f, bu=0, bv=0;
+    for(int j=0;j<MN;j++) for(int i=0;i<MN;i++){ int k0=j*(MN+1)+i, k1=k0+1, k2=k0+MN+2, k3=k0+MN+1; int tri[2][3]={{k0,k1,k2},{k0,k2,k3}};
+        for(int q=0;q<2;q++){ const float*A=P[tri[q][0]],*B=P[tri[q][1]],*C=P[tri[q][2]]; float d=(B[1]-C[1])*(A[0]-C[0])+(C[0]-B[0])*(A[1]-C[1]); if(d>-1e-6f&&d<1e-6f) continue;
+            float a=((B[1]-C[1])*(px-C[0])+(C[0]-B[0])*(py-C[1]))/d, b=((C[1]-A[1])*(px-C[0])+(A[0]-C[0])*(py-C[1]))/d, c=1-a-b; if(a<0||b<0||c<0) continue;
+            float z=a*A[2]+b*B[2]+c*C[2]; if(z<best){ best=z; bu=a*uu[tri[q][0]]+b*uu[tri[q][1]]+c*uu[tri[q][2]]; bv=a*vv[tri[q][0]]+b*vv[tri[q][1]]+c*vv[tri[q][2]]; } } }
+    if(best>=1e8f) return 0; int x=(int)(bu*128/MN), y=(int)(bv*128/MN); if(x<0) x=0; if(x>127) x=127; if(y<0) y=0; if(y>127) y=127; *tx=x; *ty=y; return 1;
+}
 #ifndef PCTEST
 // ---------------------------------------------------------------------------------------------- screens
 // ---- light: the day goes round and the water shimmers (a tint on the background palette) ----
@@ -392,7 +406,7 @@ static void applyLight(void){
 static void enter3D(void){
     videoSetMode(MODE_0_3D);
     if(!glOn){ glInit(); glEnable(GL_TEXTURE_2D); glEnable(GL_ANTIALIAS); vramSetBankD(VRAM_D_TEXTURE); glClearColor(0,0,3,31); glClearPolyID(63); glClearDepth(0x7FFF); glViewport(0,0,255,191); glOn=1; }
-    lcdMainOnTop(); buildMesh(); uploadTexture(); view3d=1;
+    lcdMainOnBottom(); buildMesh(); uploadTexture(); view3d=1;   // (the planet is on the touch screen: the stylus uses the powers on it)
 }
 static void leave3D(void){
     videoSetMode(MODE_0_2D|DISPLAY_BG0_ACTIVE|DISPLAY_SPR_ACTIVE|DISPLAY_SPR_1D_LAYOUT|DISPLAY_SPR_1D_SIZE_32); lcdMainOnBottom();
@@ -470,7 +484,13 @@ int main(void){
             if(kh&KEY_X){ zoom3-=1; if(zoom3<19) zoom3=19; } if(kh&KEY_Y){ zoom3+=1; if(zoom3>110) zoom3=110; }
             if(kd&KEY_A){ shape3=(shape3+1)%3; buildMesh(); dirty=1; }
             if(kd&KEY_R){ power=(power+1)%PW_N; dirty=1; } if(kd&KEY_L){ power=(power+PW_N-1)%PW_N; dirty=1; }
-            if(!paused) simulate(); if((tick&63)==0) uploadTexture(); swiWaitForVBlank(); draw3D(); if((tick&15)==0||dirty){ drawMinimap(); hud(); } if((tick&7)==0) applyLight(); continue; }
+            { static int h3=0, l3x=-9, l3y=-9, lpx=-1, lpy=-1;
+              if(kh&KEY_TOUCH){ touchPosition tp; touchRead(&tp);
+                  if(kh&KEY_B){ if(lpx>=0){ rotY+=(tp.px-lpx)/2; rotX-=(tp.py-lpy)/2; } lpx=tp.px; lpy=tp.py; h3=0; }   // B held: drag to turn the planet
+                  else { lpx=-1; int tx,ty; if(pick3D(tp.px,tp.py,&tx,&ty)){ int fresh=!h3||tx!=l3x||ty!=l3y; if(pw[power].kind==PK_PAINT||fresh) usePower(tx,ty,!h3); h3=1; l3x=tx; l3y=ty; texDirty=1; dirty=1; } } }
+              else { h3=0; lpx=-1; } }
+            if(rotX>85) rotX=85; if(rotX<-85) rotX=-85;
+            if(!paused) simulate(); if((texDirty&&(tick%6)==0)||(tick&63)==0){ uploadTexture(); texDirty=0; } swiWaitForVBlank(); draw3D(); if((tick&15)==0||dirty){ drawMinimap(); hud(); } if((tick&7)==0) applyLight(); continue; }
         if(kd&(KEY_X|KEY_Y)){ int d=(kd&KEY_X)?1:-1; if(kh&KEY_B){ if(pw[power].kind==PK_GIFT) itSel=itNext(itSel,10*d); else spSel=(spSel+nSp+10*d)%nSp; } else if(pw[power].kind==PK_SPAWN){ spSel=(spSel+nSp+d)%nSp; } else if(pw[power].kind==PK_GIFT){ itSel=itNext(itSel,d); } else { brush+=d; if(brush<0) brush=0; if(brush>8) brush=8; } dirty=1; }
         if(kd&KEY_A){ paused^=1; dirty=1; }
         if(kd&KEY_START){ newWorld(); dirty=1; }
