@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Builds tools/the_ticking_bomb.xm : "The Ticking Bomb", an El B.D'ees Latin house rework of tools/the_dipper_man_ticking_bomb.xm.
-Kept from the original: the offbeat riff (F# F# F# F# B B E E), the A/D bass and the G-E-G stinger.  New: dusty breakbeat drums under a
+Kept from the original: the offbeat riff (F# F# F# F# B B E E), the A/D bass and the G-E-G stinger (F# D# F#, and G# D# G# on the second measure of each two-bar cycle).  New: dusty breakbeat drums under a
 four-on-the-floor kick, congas and timbales, a low menacing bass, and a half-time "downgroove" in the middle (the fuse and the blast of
 the original become the way in and out of it).  El B.D'ees's palette: nylon, flute, marimba, vibes, bell, pads (shared with Flexicode).
 Channels: 0 kick | 1 snare / rim | 2 hat | 3 conga | 4 sub | 5 6 pad | 7 timbale | 8 nylon | 9 marimba | 10 flute | 11 flute echo
@@ -47,7 +47,8 @@ F.KEYS = KEYS; F.INST = INST
 RIFF = [(4, 65), (12, 65), (20, 65), (28, 65), (36, 70), (44, 70), (52, 63), (60, 63)]   # 2 bars, rows at 16 a beat-pair: F F F F Bb Bb Eb Eb
 BASS = [(0, 32), (8, 37)]                          # Ab / Db (the original's A / D, a semitone down) alternating each half bar
 CHORD = {0: (56, 60, 63, 65), 1: (58, 61, 65, 68)}  # Fm7 / Bbm7-ish colour over the two-bar cycle
-STING = [(0, 78), (8, 75), (16, 78)]               # G-E-G, down a semitone
+STING = [(0, 78), (8, 75), (16, 78)]               # G-E-G, down a semitone: F# D# F#
+STING2 = [(0, 80), (8, 75), (16, 80)]              # ... and on the second measure of each two-bar cycle it goes up: G# D# G#
 def build(p):
     P = [[(0, 0, 0)] * NCH for _ in range(ROWS)]
     half = p.get('half', 0); h = p.get('bar', 0) % 2
@@ -88,9 +89,9 @@ def build(p):
                 if rr < 32: put(rr, ch, key, m + p.get('oct', 0), p['riff'])
                 if key == 'flute' and rr + 3 < 32: put(rr + 3, 11, 'flute', m + p.get('oct', 0), p['riff'] * .4)
     if p.get('vib') and h == 1:
-        for r, m in STING: put(r, 12, 'vibes', m, p['vib'])
+        for r, m in STING2: put(r, 12, 'vibes', m, p['vib'])   # (the vibes only sound it in the second measure)
     if p.get('bell'):
-        for r, m in STING: put(r + 2, 13, 'bell', m + 12, p['bell'] - r)
+        for r, m in (STING2 if h else STING): put(r + 2, 13, 'bell', m + 12, p['bell'] - r)   # bells: F# D# F# first, G# D# G# second
     if p.get('whine'): put(0, 14, 'whine', 70 - 2 * h, p['whine'])
     for (r, key, vol) in p.get('fx', ()): put(r, 15, key, None, vol)
     for (r, vol) in p.get('roll', ()): put(r, 1, 'snare', None, vol)

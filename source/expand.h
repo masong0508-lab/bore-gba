@@ -1327,6 +1327,7 @@ static void exIcon(int p,int x,int y,int sc,u16 c){   // a picture per pack (9 x
     for(int r=0;r<8;r++) for(int q=0;q<9;q++) if(pic[p][r][q]=='X') rect(x+q*sc,y+r*sc,sc,sc,c);
 }
 static u16 exMix(u16 a,u16 b,int t){ int r=(a&31)+(((b&31)-(a&31))*t>>4), g=((a>>5)&31)+((((b>>5)&31)-((a>>5)&31))*t>>4), bb=((a>>10)&31)+((((b>>10)&31)-((a>>10)&31))*t>>4); return RGB(r,g,bb); }
+#include "exart.h"   // the packs' animated banners
 static void exCover(int p,int x,int y,int w,int h,int on){   // a pack's box: its colours, its picture, its roadmap number
     const XPk*P=&xPk[p];
     for(int j=0;j<h;j++) rect(x,y+j,w,1,exMix(P->a,P->b,j*10/h));
@@ -1341,7 +1342,7 @@ static void exNotIn(int p){   // a pack that is not in this ROM: what to do abou
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
         if(cnt>10&&(pr&(K_A|K_B|K_START))) return;
-        stBack(xPk[p].nm,(int)cnt);
+        stBack(xPk[p].nm,(int)cnt); exBanner(p,3,3,234,19,(int)cnt,xPk[p].nm,0);
         s2rr(8,22,224,118,RGB(16,27,31)); s2rr(9,23,222,116,RGB(2,6,13)); s2grad(10,24,220,114,3,9,19,1,4,10);
         exIcon(p,16,30,4,xPk[p].b); text(60,30,"NOT INSTALLED",GOLD,2); text(60,50,xPk[p].sub,RGB(17,29,31),1);
         rect(14,64,212,1,RGB(14,26,31));
@@ -1355,6 +1356,11 @@ static u32 exMqT;   // the frame counter of the screen that draws it
 static const char* exBrT(const XMs*x){ static char b[244] EWRAM_BSS; char*e=slCat(b,x->br[0]); e=slCat(e," "); slCat(e,x->br[1]); return b; }   // the two lines as one text
 static int exOver(const XMs*x,int w){ return vsOver(exBrT(x),w,2); }   // does the brief need the scroll (more than two lines)?
 static void exBrief(int x,int y,int w,const XMs*m,u16 c){ vsDraw(x,y,w,2,c,exBrT(m),exMqT); }   // two lines show, the rest scrolls up
+static void exPackHead(int p,u32 cnt){   // the pack screen's banner: its scene, its name, how many missions are done
+    char b[24]; char*e=slNum(b,exPackDone(p)); e=slCat(e," OF "); e=slNum(e,exPackPlay(p)); slCat(e," DONE");
+    exBanner(p,3,3,234,31,(int)cnt,p==XP_BASE?"STORY MISSIONS":xPk[p].nm,b);
+}
+#define EXR 8   // mission rows on a pack screen
 static void exPackScreen(int p,int ingame){
     if(!xpHave(p)){ exNotIn(p); return; }
     const XPk*P=&xPk[p]; int hasMode=P->mode!=XMODE_NONE, rows=P->n+hasMode, sel=0, top=0;
@@ -1364,7 +1370,7 @@ static void exPackScreen(int p,int ingame){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
         if(pr&(K_B|K_START)) return;
         if(pr&K_DOWN){ sel=(sel+1)%rows; dirty=1; } if(pr&K_UP){ sel=(sel+rows-1)%rows; dirty=1; }
-        if(pr&K_R){ sel=sel+8<rows?sel+8:rows-1; dirty=1; } if(pr&K_L){ sel=sel>8?sel-8:0; dirty=1; }
+        if(pr&K_R){ sel=sel+EXR<rows?sel+EXR:rows-1; dirty=1; } if(pr&K_L){ sel=sel>EXR?sel-EXR:0; dirty=1; }
         if(pr&K_A){
             if(hasMode&&sel==0){
                 if(p==XP_ZOMB||p==XP_WAR){ if(!ingame) toast("PLAY YOUR LIFE  THEN PAUSE  STORY  PACKS"); else if(hzOn) toast(hzWar?"A BATTLE IS ALREADY RUNNING":"A HORDE IS ALREADY RUNNING"); else { hzWar=(u8)(p==XP_WAR); if(hzSetup()) return; } }
@@ -1382,13 +1388,13 @@ static void exPackScreen(int p,int ingame){
             else { static const char* const yn[2]={"START THIS MISSION","NOT NOW"}; const char*q=exP?"YOUR MISSION NOW ENDS":xPk[p].ms[m].nm;
                 if(menu(q,yn,2)==0){ exStart(p,m); return; } }
             prev=keyNow(); dirty=1; continue; }
-        exMqT=cnt; { int so=sel>=hasMode&&exOver(&P->ms[sel-hasMode],216); if(!dirty&&(cnt&(so?1:15))) { vsync(); continue; } }
+        exMqT=cnt; { int so=sel>=hasMode&&exOver(&P->ms[sel-hasMode],216); if(!dirty&&(cnt&(so?1:15))){ exPackHead(p,cnt); present(); continue; } }   // (between redraws only the banner moves)
         dirty=0;
-        if(sel<top) top=sel; if(sel>=top+9) top=sel-8;
-        stBack(p==XP_BASE?"STORY MISSIONS":P->nm,(int)cnt);
-        { char b[24]; char*e=slNum(b,exPackDone(p)); e=slCat(e," OF "); e=slNum(e,exPackPlay(p)); slCat(e," DONE"); text(231-tw(b,1),7,b,GOLD,1); }
-        for(int r=0;r<9&&top+r<rows;r++){ int i=top+r, y=21+r*11, on=i==sel;
-            if(on) s2grad(8,y-1,224,11,6,16,26,3,9,17);
+        if(sel<top) top=sel; if(sel>=top+EXR) top=sel-(EXR-1);
+        stBack(p==XP_BASE?"STORY MISSIONS":P->nm,(int)cnt); exPackHead(p,cnt);
+        int tr=P->b&31, tg=(P->b>>5)&31, tb=(P->b>>10)&31;   // (the chosen row is lit in the pack's own colour)
+        for(int r=0;r<EXR&&top+r<rows;r++){ int i=top+r, y=37+r*10, on=i==sel;
+            if(on){ s2grad(8,y-1,224,10,tr*6/10,tg*6/10,tb*6/10,tr*2/10,tg*2/10,tb*2/10); rect(8,y-1,2,10,GOLD); }
             if(hasMode&&i==0){ const char*pl=((p==XP_ZOMB||p==XP_WAR)&&!hzUnlockedP(p))?"LOCKED":"PLAY"; rect(11,y+1,8,7,RGB(31,22,4)); text(23,y,P->modeNm,on?WHITE:GOLD,1); text(229-tw(pl,1),y,pl,pl[0]=='L'?RGB(12,16,22):GOLD,1); continue; }
             int m=i-hasMode, done=exDone(p,m), soon=exSoon(p,m), open=exOpen(p,m), cur=exP==p+1&&exM==m;
             u16 bx=done?RGB(8,26,10):cur?GOLD:open?RGB(14,22,30):RGB(7,10,16); rect(11,y+1,8,7,bx); rect(12,y+2,6,5,RGB(2,6,13));
@@ -1415,12 +1421,12 @@ static void exShelf(int ingame){
         if(pr&(K_B|K_START)) return;
         if(pr&(K_RIGHT|K_R)){ sel=(sel+1)%EX_SHELF; dirty=1; } if(pr&(K_LEFT|K_L)){ sel=(sel+EX_SHELF-1)%EX_SHELF; dirty=1; }
         if(pr&K_A){ exPackScreen(exOrd[sel],ingame); if(ingame&&exModal) return; prev=keyNow(); dirty=1; continue; }
-        if(!dirty){ vsync(); continue; }
+        if(!dirty){ exBanner(exOrd[sel],3,3,234,30,(int)cnt,xPk[exOrd[sel]].nm,"EXPANSION PACKS"); present(); continue; }   // (the banner moves)
         dirty=0;
         stBack("EXPANSION PACKS",(int)cnt);
-        for(int i=0;i<EX_SHELF;i++){ int on=i==sel; exCover(exOrd[i],9+i*32,on?20:25,30,on?62:56,on); }
-        const XPk*P=&xPk[exOrd[sel]];
-        s2rr(8,88,224,54,RGB(10,20,30)); s2rr(9,89,222,52,RGB(2,6,13));
+        const XPk*P=&xPk[exOrd[sel]]; exBanner(exOrd[sel],3,3,234,30,(int)cnt,P->nm,"EXPANSION PACKS");
+        for(int i=0;i<EX_SHELF;i++){ int on=i==sel; exCover(exOrd[i],9+i*32,on?36:39,30,on?46:40,on); }
+        s2rr(8,86,224,56,RGB(10,20,30)); s2rr(9,87,222,54,RGB(2,6,13));
         text(48,93,P->nm,GOLD,1); text(48,102,P->sub,RGB(17,29,31),1);
         for(int i=0;i<3;i++) text(48,113+i*9,P->bl[i],RGB(20,26,31),1);
         exIcon(exOrd[sel],15,96,3,P->b);
@@ -1464,7 +1470,7 @@ static void exStoryRead(const char*txt,const char*head,const char*ttl,const char
         if(pr&(K_B|K_START)) return;
         if(pr&K_A){ if(rev<tot) rev=tot; else if(++pg>=np) return; }
         if(rev<tot) rev+=4;   // (a frame takes a few vsyncs to draw: four letters a pass is about a letter a frame)
-        stBack(head,(int)cnt);
+        stBack(head,(int)cnt); exBanner(p,3,3,234,19,(int)cnt,head,0);
         s2rr(8,22,224,118,RGB(16,27,31)); s2rr(9,23,222,116,RGB(2,6,13)); s2grad(10,24,220,114,3,9,19,1,4,10);
         exIcon(p,16,28,3,xPk[p].b);
         text(48,28,ttl,GOLD,1); text(48,38,loc,RGB(17,29,31),1);
@@ -1489,7 +1495,7 @@ static void exRunModal(void){   // the mission card (1 a mission starts, 2 one i
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
         if(pr&(K_A|K_B|K_START)) break;
         exMqT=cnt;
-        stBack(kind==1?(p==XP_BASE?"STORY MISSION":"EXPANSION PACK"):"MISSION COMPLETE",(int)cnt);
+        stBack(kind==1?(p==XP_BASE?"STORY MISSION":"EXPANSION PACK"):"MISSION COMPLETE",(int)cnt); exBanner(p,3,3,234,19,(int)cnt,kind==1?(p==XP_BASE?"STORY MISSION":"NEW MISSION"):"MISSION COMPLETE",xPk[p].nm);
         s2rr(8,22,224,118,RGB(16,27,31)); s2rr(9,23,222,116,RGB(2,6,13)); s2grad(10,24,220,114,3,9,19,1,4,10);
         exIcon(p,16,30,4,xPk[p].b);
         text(60,30,xPk[p].nm,GOLD,1); text(60,40,xPk[p].sub,RGB(17,29,31),1);
@@ -1516,8 +1522,8 @@ static void exJournal(void){   // pause menu > STORY > the mission: what it asks
         { int ct; if((pr&K_A)&&exPlace(&ct)){ int lot=ct==-2?nbT.home:trvPlace(ct); if(lot>=0&&trvGo(lot)){ sfxPlay(SFX_CASH); toast("THE CAB IS HERE"); } else if(lot<0) toast("NO SUCH PLACE IN TOWN"); return; } }
         if(pr&K_SEL){ static const char* const yn[2]={"KEEP GOING","GIVE IT UP"}; if(menu("GIVE UP THIS MISSION?",yn,2)==1){ exQuit(); toast("MISSION OVER  START IT AGAIN ANY TIME"); return; } prev=keyNow(); lt=~0u; continue; }
         if(pr&(K_A|K_B|K_START)) return;
-        exMqT=cnt; { int sh=exOver(&xPk[exP-1].ms[exM],208)?1:4; if(!pr&&(cnt>>sh)==lt){ vsync(); continue; } lt=cnt>>sh; }
-        int p=exP-1; stBack("MISSION",(int)cnt);
+        exMqT=cnt; { int sh=exOver(&xPk[exP-1].ms[exM],208)?1:4; if(!pr&&(cnt>>sh)==lt){ exBanner(exP-1,3,3,234,19,(int)cnt,"MISSION",xPk[exP-1].nm); present(); continue; } lt=cnt>>sh; }
+        int p=exP-1; stBack("MISSION",(int)cnt); exBanner(p,3,3,234,19,(int)cnt,"MISSION",xPk[p].nm);
         exIcon(p,9,21,2,xPk[p].b); text(32,21,xPk[p].nm,GOLD,1); text(32,30,xPk[p].sub,RGB(17,29,31),1);
         { char b[24]; char*e=slNum(b,exM+1); e=slCat(e," OF "); slNum(e,xPk[p].n); text(233-tw(b,1),21,b,WHITE,1); }
         rect(14,42,212,1,RGB(14,26,31));

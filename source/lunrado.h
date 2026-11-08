@@ -33,65 +33,139 @@ static int lnrLotGet(void){   // the moonbase lot, made once there is a landing
 }
 static u8 lwEnc; static u8 lnEv; static const char* const lnEvNm[4]={"A METEOR SHOWER TONIGHT","THE EARTHRISE FESTIVAL IS ON","THE MOON FAIR IS IN TOWN","IT IS LOW GRAVITY WEEK"};
 static void lnWait(int frames){ u16 p0=keyNow(); for(int i=0;i<frames;i++){ vsync(); u16 k=keyNow(); if((k&~p0)&(K_A|K_B|K_START)) break; p0=k; } }
-static void lnStars(int seed){ rect(0,0,SW,SH,RGB(0,0,3)); for(int i=0;i<50;i++){ u32 h=swHash(i,seed); px((int)(h%SW),(int)((h>>8)%SH),RGB(24,24,28)); } }
-static void lnMoon(int y){ rect(0,y,SW,SH-y,RGB(15,15,16)); for(int i=0;i<7;i++){ u32 h=swHash(i,5); disc((int)(h%SW),y+6+(int)((h>>8)%20),3+(int)(h&3),RGB(11,11,12)); } }
+static void lnStars(int seed){   // deep space: a faint gradient, a smudge of Milky Way, stars of three brightnesses (a few with a glint)
+    for(int y=0;y<SH;y+=2) rect(0,y,SW,2,exMix(RGB(0,0,2),RGB(2,2,9),(y*13)>>7));
+    for(int i=0;i<30;i++){ u32 h=swHash(i,seed+40); int x=(int)(h%SW), y=20+x/3+(int)((h>>9)%14); px(x,y,RGB(5,5,12)); px(x+1,y,RGB(4,4,9)); }
+    for(int i=0;i<64;i++){ u32 h=swHash(i,seed); int x=(int)(h%SW), y=(int)((h>>8)%SH), b=(int)(h>>20)&3; px(x,y,b==0?RGB(31,31,31):b==1?RGB(22,22,28):RGB(13,13,19));
+        if(((h>>24)&15)==0){ u16 g=RGB(11,11,18); px(x-1,y,g); px(x+1,y,g); px(x,y-1,g); px(x,y+1,g); } }
+}
+static void lnMoon(int y){   // the lunar ground from row y down: a bright ridge, grey fading to shadow, craters with a lit rim and a dark floor, rocks
+    int hgt=SH-y; if(hgt<4) return;
+    for(int j=0;j<hgt;j+=2) rect(0,y+j,SW,2,exMix(RGB(22,22,24),RGB(8,8,10),j*16/hgt));
+    rect(0,y,SW,1,RGB(29,29,30));
+    for(int i=0;i<9;i++){ u32 h=swHash(i,5); int cx=(int)(h%SW), cy=y+4+(int)((h>>8)%(hgt>10?hgt-8:3)), r=3+(int)(h&3)+(cy-y)/9;
+        disc(cx,cy,r,RGB(8,8,10)); disc(cx+1,cy+1,r>1?r-1:1,RGB(12,12,14)); rect(cx-r,cy-1,2,2,RGB(27,27,28)); px(cx-r+1,cy-r+2,RGB(27,27,28)); px(cx-r+2,cy-r+1,RGB(27,27,28)); }
+    for(int i=0;i<12;i++){ u32 h=swHash(i,23); int rx=(int)(h%SW), ry=y+3+(int)((h>>8)%(hgt>8?hgt-4:2)); rect(rx,ry,3,2,RGB(11,11,13)); px(rx,ry,RGB(26,26,27)); }
+}
+static void lnEarthSmall(int cx,int cy,int r){   // the Earth far away: a disc of ocean with land, cloud and a dark limb
+    disc(cx,cy,r+1,RGB(8,18,31)); disc(cx,cy,r,RGB(3,9,24)); disc(cx-r/3,cy-r/4,r/3,RGB(4,17,7)); disc(cx+r/3,cy+r/3,r/4,RGB(4,17,7)); rect(cx-r/2,cy+1,r,1,RGB(26,27,29)); rect(cx-r/3,cy-r/2,r/2,1,RGB(26,27,29));
+    for(int k=0;k<r;k+=2) rect(cx+r/2+k/3,cy-r+k+2,r/3,2,RGB(0,2,8));   // (the night side)
+}
+static void spLander(int x,int y,int fl){   // the lander: x,y the middle of the cabin. gold-foiled descent stage, cabin with a window, four legs, a thruster flame fl rows long
+    u16 g=RGB(24,19,7), m=RGB(26,26,28), d=RGB(13,13,16), hl=RGB(31,31,31);
+    line(x-7,y+7,x-13,y+17,d); line(x+7,y+7,x+13,y+17,d); line(x-5,y+8,x-9,y+17,m); line(x+5,y+8,x+9,y+17,m);
+    rect(x-16,y+17,6,2,m); rect(x+10,y+17,6,2,m); rect(x-11,y+17,4,2,d); rect(x+7,y+17,4,2,d);
+    rect(x-8,y+3,16,6,g); rect(x-6,y+2,12,1,g); rect(x-8,y+3,16,1,RGB(30,26,11)); rect(x-8,y+8,16,1,RGB(14,10,3)); rect(x-4,y+4,2,3,RGB(18,13,4)); rect(x+2,y+4,2,3,RGB(18,13,4));
+    rect(x-2,y+9,4,3,d);
+    rect(x-6,y-6,12,9,m); rect(x-5,y-8,10,2,m); rect(x-6,y-6,2,9,hl); rect(x+4,y-6,2,9,d); rect(x-3,y-5,6,4,RGB(3,9,22)); px(x-2,y-4,RGB(16,24,31)); rect(x-6,y-1,12,1,RGB(18,18,20));
+    line(x+5,y-8,x+9,y-14,m); disc(x+10,y-14,1,hl);
+    for(int r=0;r<fl;r++){ int w=3-r*3/(fl+1); if(w<1) w=1; rect(x-w,y+12+r,w*2,1,r<fl/3?RGB(31,31,22):r<fl*2/3?RGB(31,24,6):RGB(31,12,4)); }
+}
+static void spGlyph(int i,int cx,int cy){   // a picture per system, 28 px wide
+    u16 c=RGB(17,29,31), d=RGB(2,3,7);
+    if(i==0){ rect(cx-14,cy+2,28,6,RGB(6,12,18)); rect(cx-14,cy+2,28,1,c); rect(cx-14,cy+7,28,1,RGB(3,6,10)); disc(cx,cy-6,8,c); disc(cx,cy-6,6,d); rect(cx-1,cy-14,3,16,c); rect(cx-8,cy-7,17,3,c); }
+    else if(i==1){ disc(cx,cy,13,c); disc(cx,cy,11,d); disc(cx,cy,6,c); disc(cx,cy,4,d); rect(cx-14,cy,29,1,c); rect(cx,cy-14,1,29,c); disc(cx,cy,1,RGB(31,12,8)); }
+    else { rect(cx-2,cy-13,5,18,c); line(cx-12,cy+11,cx-2,cy+1,c); line(cx+12,cy+11,cx+2,cy+1,c); line(cx-11,cy+11,cx-1,cy+1,c); line(cx+11,cy+11,cx+1,cy+1,c); rect(cx-15,cy+11,11,3,c); rect(cx+5,cy+11,11,3,c); }
+}
+static void spPanel(int t){   // the cockpit: a dark console, scan lines, a bezel, rivets
+    rect(0,0,SW,SH,RGB(11,13,19)); rect(4,4,SW-8,SH-8,RGB(2,3,7));
+    for(int y=16;y<SH-5;y+=4) rect(5,y,SW-10,1,RGB(3,4,9));
+    for(int k=0;k<4;k++){ int rx=k&1?SW-3:2, ry=k&2?SH-3:2; px(rx,ry,RGB(24,24,26)); px(rx+1,ry,RGB(8,8,10)); }
+    (void)t;
+}
 static int lnConsole(void){   // inside: three systems, stop the cursor in the green. 0..3 fixed
-    static const char* const nm[3]={"FUEL VALVE","GUIDANCE","LANDING GEAR"};
+    static const char* const nm[3]={"FUEL VALVE","GUIDANCE","LANDING GEAR"}, * const why[3]={"THE TANK IS VENTING","THE SHIP IS DRIFTING","THE LEGS WILL NOT LOCK"};
     int zw=20+skLvl(SK_LOGIC)*7, fixed=0;
     for(int i=0;i<3;i++){
-        int zx=20+rnd8()%(200-zw), x=20, dir=1, sp=2+i, res=-1;
-        u16 prev=keyNow();
+        int zx=20+rnd8()%(200-zw), x=20, dir=1, sp=2+i, res=-1, acc=0; s16 tr[5]={20,20,20,20,20};
+        u16 prev=keyNow(); u32 vb=vblN;
         for(int t=0;res<0&&t<900;t++){
-            u16 k=keyNow(), pr=k&~prev; prev=k;
-            x+=dir*sp; if(x>=220){ x=220; dir=-1; } if(x<=20){ x=20; dir=1; }
+            u16 k=keyNow(), pr=k&~prev; prev=k; int dt=(int)(vblN-vb); vb=vblN; if(dt<1) dt=1; if(dt>6) dt=6;   // (the cursor moves by the clock, not by how long a picture took)
+            acc+=sp*dt; { int st=acc/2; acc-=st*2; while(st-->0){ x+=dir; if(x>=220){ x=220; dir=-1; } if(x<=20){ x=20; dir=1; } } }
+            for(int q=4;q>0;q--) tr[q]=tr[q-1]; tr[0]=(s16)x;
             if(pr&K_A) res=(x>=zx&&x<=zx+zw);
             if(pr&K_B) res=0;
-            rect(0,0,SW,SH,RGB(2,3,8)); rect(0,0,SW,12,RGB(24,4,3)); text(6,3,"WARNING  SYSTEM DAMAGE",WHITE,1);
-            text((SW-tw(nm[i],2))/2,34,nm[i],GOLD,2);
-            text((SW-tw("A  STOP THE CURSOR IN THE GREEN",1))/2,60,"A  STOP THE CURSOR IN THE GREEN",RGB(17,29,31),1);
-            rect(20,86,200,16,RGB(6,6,10)); rect(zx,86,zw,16,RGB(6,24,8)); rect(x-1,82,3,24,WHITE);
-            { char b[16]; char*e=slCat(b,"REPAIRED "); e=slNum(e,fixed); slCat(e," OF 3"); text(6,SH-12,b,GOLD,1); }
-            present(); vsync(); }
+            spPanel(t); rect(5,5,SW-10,10,((t>>3)&1)?RGB(26,4,3):RGB(13,2,2)); text(10,7,"WARNING  SYSTEM DAMAGE",WHITE,1); disc(SW-12,10,2,((t>>3)&1)?RGB(31,28,8):RGB(12,6,2));
+            rect(12,24,36,36,RGB(5,8,14)); rect(12,24,36,1,RGB(14,22,31)); spGlyph(i,30,43);
+            text(58,26,nm[i],GOLD,2); text(58,44,why[i],RGB(31,12,8),1); text(58,54,"A  STOP THE CURSOR IN THE GREEN",((t>>4)&1)?RGB(22,31,31):RGB(14,24,28),1);
+            int mx=20,my=88,mh=16; rect(mx-4,my-4,208,mh+8,RGB(17,21,30)); rect(mx-2,my-2,204,mh+4,RGB(2,3,7)); rect(mx,my,200,mh,RGB(4,5,10));
+            for(int q=0;q<=20;q++) rect(mx+q*10,my+mh+3,1,(q%5==0)?5:3,RGB(12,16,22));
+            rect(zx,my,zw,mh,RGB(4,17,7)); rect(zx,my,zw,2,RGB(12,30,14)); rect(zx,my+mh-2,zw,2,RGB(2,10,4)); rect(zx+zw/2,my,1,mh,RGB(10,26,12));
+            for(int q=4;q>0;q--) rect(tr[q]-1,my+2,2,mh-4,exMix(RGB(4,5,10),RGB(14,18,26),5-q));
+            rect(x-1,my-5,3,mh+10,WHITE); line(x-4,my-7,x+4,my-7,WHITE); line(x-3,my-6,x+3,my-6,WHITE); line(x-4,my+mh+7,x+4,my+mh+7,WHITE);
+            for(int j=0;j<3;j++){ disc(96+j*24,SH-18,5,RGB(17,21,30)); disc(96+j*24,SH-18,4,j<fixed?RGB(6,28,10):j==i?((t>>4)&1?RGB(30,24,6):RGB(8,8,10)):RGB(4,5,10)); }
+            text(10,SH-21,"REPAIRED",RGB(17,29,31),1); present(); }
         if(res<0) res=0;
-        rect(0,0,SW,SH,RGB(2,3,8)); const char*m=res?"FIXED":"BOTCHED"; text((SW-tw(m,3))/2,50,m,res?RGB(10,30,12):RGB(31,10,8),3); present();
-        if(res){ fixed++; sfxPlay(SFX_STICK); voxPlay(V_yahoo); } else voxPlay(V_nah); lnWait(50); }
+        for(int f=0;f<36;f++){ spPanel(f); u16 c=res?RGB(6,28,10):RGB(31,10,8); int w=f*6; rect(120-w,50,w*2,60,exMix(RGB(2,3,7),c,f<14?f:14));
+            if(res){ line(96,84,112,98,WHITE); line(97,84,113,98,WHITE); line(112,98,146,64,WHITE); line(113,98,147,64,WHITE); } else { line(100,66,140,96,WHITE); line(101,66,141,96,WHITE); line(140,66,100,96,WHITE); line(141,66,101,96,WHITE); if(f<12) for(int q=0;q<10;q++){ int a=(q*13+f)&63; px(120+exS64[(a+16)&63]*(f*5)/127,80+exS64[a]*(f*3)/127,RGB(31,24,8)); } }
+            const char*m=res?"FIXED":"BOTCHED"; text((SW-tw(m,3))/2,20,m,res?RGB(10,31,12):RGB(31,12,8),3); present(); if(f==2){ if(res){ sfxPlay(SFX_STICK); voxPlay(V_yahoo); } else voxPlay(V_nah); } }
+        if(res) fixed++; }
     return fixed;
 }
 static void lnrReturnHome(void){ int h=trvPlace(CT_SPACE); if(h>=0) trvGo(h); }
 static void lnrBoom(void){   // the ship explodes: back to Earth, the spaceport is shut until it is funded again
-    for(int i=0;i<40;i++){ lnStars(3); int r=i*5; disc(120,90,r,i<20?RGB(31,26,6):RGB(31,12,3)); disc(120,90,r/2,i<14?RGB(31,31,22):RGB(31,20,4)); present(); vsync(); if(i==3) sfxPlay(SFX_THUNDER); }
-    rect(0,0,SW,SH,RGB(31,31,31)); present(); vsync(); vsync(); lnStars(9);
-    text((SW-tw("THE SHIP EXPLODED",2))/2,40,"THE SHIP EXPLODED",RGB(31,10,6),2);
-    text((SW-tw("YOU WAKE UP BACK ON EARTH",1))/2,66,"YOU WAKE UP BACK ON EARTH",WHITE,1);
-    text((SW-tw("THE SPACEPORT IS SHUT",1))/2,80,"THE SPACEPORT IS SHUT",GOLD,1);
-    text((SW-tw("FUND IT AGAIN  300000 SIMOLEONS",1))/2,92,"FUND IT AGAIN  300000 SIMOLEONS",GOLD,1); present(); voxPlay(V_shriek); lnWait(300);
+    for(int i=0;i<46;i++){ lnStars(3); int r=i*4, cx=120, cy=88;
+        if(i>3){ int rr=r-12; for(int a=0;a<64;a+=1){ int x=cx+rr*exS64[(a+16)&63]/127, y=cy+rr*exS64[a&63]*3/4/127; px(x,y,exMix(RGB(31,31,31),RGB(4,4,10),i*16/46)); px(x+1,y,exMix(RGB(31,26,12),RGB(4,4,10),i*16/46)); } }   // the shock wave
+        { int fr=i<24?r*3/4:(46-i)*5/2; if(fr>0){ disc(cx,cy,fr,i<20?RGB(31,26,6):RGB(31,12,3)); disc(cx,cy,fr*2/3,i<14?RGB(31,31,22):RGB(31,20,4)); disc(cx,cy,fr/3,RGB(31,31,31)); } }
+        for(int k=0;k<24;k++){ int a=(k*29+7)&63, dist=i*(2+k%4)+(k%5)*3; if(dist<2) continue; int x=cx+dist*exS64[(a+16)&63]/127, y=cy+dist*exS64[a&63]*3/4/127+i*i/40; u16 c=(k&1)?RGB(31,18,5):RGB(18,18,20); rect(x,y,2,2,c); if(k%3==0) px(x-1,y-1,RGB(31,31,22)); }
+        present(); if(i==3) sfxPlay(SFX_THUNDER); }
+    for(int k=0;k<7;k++){ rect(0,0,SW,SH,exMix(RGB(31,31,31),RGB(0,0,3),k*16/7)); present(); }
+    lnStars(9); for(int k=0;k<40;k++){ u32 h=swHash(k,31); rect((int)(h%SW),(int)((h>>8)%SH),2,1,(k&1)?RGB(20,10,4):RGB(14,14,16)); }   // the debris drifting
+    exDarken(14,28,212,76,0); rect(14,28,212,1,RGB(31,10,6)); rect(14,103,212,1,RGB(31,10,6));
+    text((SW-tw("THE SHIP EXPLODED",2))/2,36,"THE SHIP EXPLODED",RGB(31,10,6),2);
+    text((SW-tw("YOU WAKE UP BACK ON EARTH",1))/2,62,"YOU WAKE UP BACK ON EARTH",WHITE,1);
+    text((SW-tw("THE SPACEPORT IS SHUT",1))/2,76,"THE SPACEPORT IS SHUT",GOLD,1);
+    text((SW-tw("FUND IT AGAIN  300000 SIMOLEONS",1))/2,88,"FUND IT AGAIN  300000 SIMOLEONS",GOLD,1); present(); voxPlay(V_shriek); lnWait(300);
     lnrSetShut(1); lhp=HP_MAX/4; vAdd(&sNrg,-50); vAdd(&sCom,-40); vAdd(&sSoc,-20);
     lnrReturnHome(); toast("YOU LOST THE SHIP  FUND THE SPACEPORT AGAIN");
+}
+static void lnLanded(int smooth,int t){   // the lander down on the Moon: dust settling, the flag going up after a smooth landing, smoke and sparks after a hard one
+    lnStars(1); lnMoon(128); lnEarthSmall(204,30,12);
+    int lx=120+(smooth?0:3), ly=110; spLander(lx,ly,0);
+    int d=t<40?t:40; for(int k=0;k<14;k++){ int a=(k*11)&63, x=lx+exS64[(a+16)&63]*(d+8)/127, y=128-(d*(k%3+1))/6; if(y<100) continue; disc(x,y,2+(40-d)/12,exMix(RGB(14,14,15),RGB(8,8,10),d*16/40)); }
+    if(smooth){ int fh=t<30?t:30; rect(168,127-fh,1,fh,RGB(24,24,26)); if(fh>=30){ for(int q=0;q<12;q++) rect(169+q,97+exSn(t*2+q*8,48)/70,1,7,q<6?RGB(30,5,4):RGB(30,30,31)); } }
+    else { for(int k=0;k<6;k++){ int sx=lx-4+(k*5)%12, sy=ly-8-((t+k*9)%30); disc(sx,sy,2+(t+k)%3,RGB(6,6,8)); } if((t&3)==0) for(int q=0;q<4;q++) px(lx-8+rnd8()%16,ly+4+rnd8()%12,RGB(31,26,8)); }
 }
 // called by exLaunch after the orbit. orbitOk: the orbit repair worked (a head start)
 static void lnrApproach(int orbitOk){
     for(int i=0;i<240;i++) simMinute();   // (six hours to the moon)
-    lnStars(1); lnMoon(130); disc(200,40,12,RGB(18,24,31));
-    text((SW-tw("APPROACHING LUNRADO",2))/2,20,"APPROACHING LUNRADO",WHITE,2);
-    text((SW-tw("ALARMS ARE GOING OFF  REPAIR THE SHIP",1))/2,50,"ALARMS ARE GOING OFF  REPAIR THE SHIP",RGB(31,10,8),1);
-    text((SW-tw("INSIDE: FUEL  GUIDANCE  GEAR    OUTSIDE: PANELS",1))/2,64,"INSIDE: FUEL  GUIDANCE  GEAR    OUTSIDE: PANELS",GOLD,1);
-    text((SW-tw("YOUR LOGIC IS YOUR MECHANICAL SKILL",1))/2,78,"YOUR LOGIC IS YOUR MECHANICAL SKILL",RGB(17,29,31),1); present(); voxPlay(V_nah); lnWait(240);
+    static const char* const lg[5]={"T+6:00  LUNAR ORBIT","ALARMS ARE GOING OFF","FUEL  GUIDANCE  GEAR  PANELS","REPAIR THE SHIP","LOGIC IS YOUR MECHANICAL SKILL"};
+    lnStars(1); lnEarthSmall(30,34,15);
+    { int cy=SH+200-70; disc(120,cy,203,RGB(6,6,9)); disc(120,cy,201,RGB(23,23,25)); disc(120,cy,199,RGB(16,16,18));
+      for(int k=0;k<16;k++){ u32 h=swHash(k,41); int bx=(int)(h%SW), by=SH-70+6+(int)((h>>8)%58), r=3+(int)(h&3); int dx=bx-120, dy=by-cy; if(dx*dx+dy*dy<192*192){ disc(bx,by,r,RGB(10,10,12)); disc(bx+1,by+1,r>1?r-1:1,RGB(13,13,15)); rect(bx-r,by-1,2,2,RGB(26,26,27)); } } }
+    for(int k=0;k<10;k++){ u32 h=swHash(k,77); rect(150+(int)(h%80),SH-62+(int)((h>>8)%60),2,2,RGB(3,3,5)); }
+    exDarken(70,6,164,70,6); rect(70,6,164,1,RGB(14,26,31)); rect(70,75,164,1,RGB(14,26,31));
+    text(76,10,"MISSION LOG",RGB(17,29,31),1);
+    u16 p0=keyNow(); int shown=0, tot=0; for(int i=0;i<5;i++){ int l=0; while(lg[i][l]) l++; tot+=l; }
+    for(int f=0;f<300;f++){
+        if(shown<tot) shown+=1;
+        int done=0; for(int i=0;i<5;i++){ int l=0; while(lg[i][l]) l++; int left=shown-done; if(left<=0) break; char b[40]; int m=left<l?left:l; for(int q=0;q<m;q++) b[q]=lg[i][q]; b[m]=0;
+            rect(76,22+i*10,154,9,exMix(RGB(1,2,5),RGB(1,2,5),0)); text(76,22+i*10,b,i==1?RGB(31,10,8):i==3?GOLD:WHITE,1); done+=l; }
+        disc(SW-14,12,3,((f>>3)&1)?RGB(31,10,8):RGB(9,3,3)); disc(SW-14,12,1,((f>>3)&1)?RGB(31,28,22):RGB(9,3,3));
+        present(); u16 k=keyNow(); if(f>30&&((k&~p0)&(K_A|K_B|K_START))) break; p0=k; }
     int fixed=lnConsole();
     swDone=0; exSpacewalk(1); fixed+=swDone;   // 0..6
     if(orbitOk&&fixed<6) fixed++;
-    int lg=skLvl(SK_LOGIC), boom=4+(6-fixed)*9-lg*2, hard=50-fixed*7-lg*3;
+    int lg2=skLvl(SK_LOGIC), boom=4+(6-fixed)*9-lg2*2, hard=50-fixed*7-lg2*3;
     if(boom<3) boom=3; if(boom>70) boom=70; if(hard<0) hard=0;
     int r=rnd8()*100>>8, res=r<boom?2:r<boom+hard?1:0;
-    for(int y=10;y<=118;y+=2){ lnStars(1); lnMoon(130); int sh=(res==1&&y>90)?(int)(rnd8()&3)-1:0;   // the descent
-        rect(112+sh,y,16,12,RGB(28,28,29)); rect(110+sh,y+12,20,2,RGB(20,20,22)); rect(108+sh,y+14,3,4,RGB(20,20,22)); rect(129+sh,y+14,3,4,RGB(20,20,22));
-        if(y<110) rect(117+sh,y+18,6,(int)(rnd8()&7)+3,RGB(31,22,6));
-        { char b[24]; char*e=slCat(b,"PARTS FIXED "); e=slNum(e,fixed); slCat(e," OF 6"); text(6,4,b,GOLD,1); }
-        if(res==2&&y>=60) break; present(); vsync(); vsync(); }
+    u32 vb=vblN; int y=10;
+    while(y<=112){   // the descent: the Moon coming up, the thruster working, dust kicked up near the ground
+        int dt=(int)(vblN-vb); vb=vblN; if(dt<1) dt=1; if(dt>6) dt=6; y+=dt;   // (by the clock: about 2 rows a frame at 60 pictures a second)
+        lnStars(1); lnMoon(128); lnEarthSmall(204,30,12);
+        int sh=(res==1&&y>90)?(int)(rnd8()&3)-1:0, fl=y<104?5+(int)(rnd8()&5):2+(int)(rnd8()&3);
+        spLander(120+sh,y,fl);
+        if(y>84){ int dd=y-84; for(int q=0;q<12;q++){ int a=(q*5)&63, x=120+exS64[(a+16)&63]*dd/20+(int)(rnd8()&7)-3, yy=127-(int)(rnd8()&(dd>>1)); if(yy<110) continue; px(x,yy,RGB(18,18,20)); px(x+1,yy,RGB(14,14,16)); } }
+        { char b[24]; char*e=slCat(b,"PARTS FIXED "); e=slNum(e,fixed); slCat(e," OF 6"); text(6,4,b,GOLD,1); e=slCat(b,"ALT "); e=slNum(e,(128-(y+18))*5>0?(128-(y+18))*5:0); slCat(e," M"); text(SW-6-tw(b,1),4,b,RGB(17,29,31),1); }
+        if(res==2&&y>=60) break; present(); }
     if(res==2){ lnrBoom(); return; }
     stQEvent(QE_LAUNCH,1);
     if(res==1){ int d=30+(6-fixed)*7; hpLose(d); vAdd(&sNrg,-40); vAdd(&sCom,-35); vAdd(&lfood,-10); voxPlay(V_shriek); sfxPlay(SFX_THUNDER);
-        rect(0,60,SW,40,RGB(2,3,8)); text((SW-tw("HARD LANDING",3))/2,66,"HARD LANDING",RGB(31,12,6),3); text((SW-tw("THAT HURT  YOUR BODY TOOK IT",1))/2,88,"THAT HURT  YOUR BODY TOOK IT",WHITE,1); present(); lnWait(200); }
-    else { moodEvent(M_PROMO); voxPlay(V_yahoo); rect(0,60,SW,40,RGB(2,3,8)); text((SW-tw("SMOOTH LANDING",3))/2,66,"SMOOTH LANDING",RGB(10,30,12),3); text((SW-tw("WELCOME TO LUNRADO",1))/2,88,"WELCOME TO LUNRADO",WHITE,1); present(); lnWait(200); }
+        for(int f=0;f<60;f++){ lnLanded(0,f); if(f>=8){ exDarken(20,6,200,44,0); rect(20,6,200,1,RGB(31,12,6)); text((SW-tw("HARD LANDING",2))/2,12,"HARD LANDING",RGB(31,12,6),2); text((SW-tw("THAT HURT  YOUR BODY TOOK IT",1))/2,38,"THAT HURT  YOUR BODY TOOK IT",WHITE,1); } present(); }
+        lnWait(160); }
+    else { moodEvent(M_PROMO); voxPlay(V_yahoo);
+        for(int f=0;f<60;f++){ lnLanded(1,f); if(f>=8){ exDarken(20,6,200,44,0); rect(20,6,200,1,RGB(10,30,12)); text((SW-tw("SMOOTH LANDING",2))/2,12,"SMOOTH LANDING",RGB(10,30,12),2); text((SW-tw("WELCOME TO LUNRADO",1))/2,38,"WELCOME TO LUNRADO",WHITE,1); } present(); }
+        lnWait(160); }
     int l=lnrLotGet(); if(l>=0){ NbLot*L=&nbT.lot[l]; if(L->slot>=0) slDelete(L->slot); L->slot=-1; }   // (every landing builds the resort again: three pods drawn by luck)
     lnEv=(u8)(rnd8()&3); if(l>=0&&trvGo(l)){ toast(lnEvNm[lnEv]); if((rnd8()&15)==0) lwEnc=1; }
 }
