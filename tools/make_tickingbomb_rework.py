@@ -52,7 +52,8 @@ STING2 = [(0, 80), (8, 75), (16, 80)]              # ... and on the second measu
 def build(p):
     P = [[(0, 0, 0)] * NCH for _ in range(ROWS)]
     half = p.get('half', 0); h = p.get('bar', 0) % 2
-    mh = 0 if half else h      # the bell / vibes motif: in the slow breakdown it is ONE measure only (F# D# F# every bar); the two-measure line (F# D# F#, then G# D# G#) is back when the groove returns
+    mh = 0 if half else h      # the bell / vibes motif: in the slow breakdown it is ONE measure only (F# D# F#), played on the 1st measure, silent on the 2nd, played again on the 3rd ...; the two-measure line (F# D# F#, then G# D# G#) is back when the groove returns
+    rest_motif = half and h == 1
     def put(r, ch, key, midi=None, vol=64):
         if 0 <= r < ROWS: P[r][ch] = (F.xmnote(midi, key) if midi is not None else 49, INST[key], 0x10 + max(0, min(64, int(vol))))
     d = p.get('drums', 0)
@@ -89,9 +90,9 @@ def build(p):
                 rr = r * 2 if half else r
                 if rr < 32: put(rr, ch, key, m + p.get('oct', 0), p['riff'])
                 if key == 'flute' and rr + 3 < 32: put(rr + 3, 11, 'flute', m + p.get('oct', 0), p['riff'] * .4)
-    if p.get('vib'):
+    if p.get('vib') and not rest_motif:
         for r, m in (STING2 if mh else STING): put(r, 12, 'vibes', m, p['vib'])   # vibes: F# D# F# on the first measure, G# D# G# on the second
-    if p.get('bell'):
+    if p.get('bell') and not rest_motif:
         for r, m in (STING2 if mh else STING): put(r + 2, 13, 'bell', m + 12, p['bell'] - r)   # bells: F# D# F# first, G# D# G# second
     if p.get('whine'): put(0, 14, 'whine', 70 - 2 * h, p['whine'])
     for (r, key, vol) in p.get('fx', ()): put(r, 15, key, None, vol)
