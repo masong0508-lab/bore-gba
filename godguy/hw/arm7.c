@@ -1,7 +1,7 @@
 // the ARM7 program for the no-libnds build: it plays sound for the ARM9 (commands arrive in a ring in main RAM) and reads the stylus and the X / Y buttons for it. No libnds, no BIOS calls.
 typedef unsigned char u8; typedef unsigned short u16; typedef unsigned int u32; typedef volatile unsigned short vu16; typedef volatile unsigned int vu32;
 typedef struct { u32 op, ch, a, b, c, d; } HwCmd;
-typedef struct { volatile u32 head, tail, busy, keys, pen, px, py, alive, svType, svBusy, svOK; HwCmd q[64]; volatile u32 seq, tapX, tapY, rawX, rawY, tapRawX, tapRawY; } HwIpc;
+typedef struct { volatile u32 head, tail, busy, keys, pen, px, py, alive, svType, svBusy, svOK; HwCmd q[64]; volatile u32 seq, tapX, tapY, rawX, rawY, tapRawX, tapRawY, svSize; } HwIpc;
 #define IPC ((HwIpc*)0x023F0000)
 #define R16(a) (*(vu16*)(a))
 #define R32(a) (*(vu32*)(a))
@@ -22,7 +22,7 @@ static u16 tsc(u32 cmd){   // one 12-bit conversion from the touch controller
 static u8 aux(u8 b,int hold){ AUXCNT=(u16)(0xA000|(hold?0x40:0)); AUXDAT=b; u32 t=200000; while((AUXCNT&0x80)&&--t){} return (u8)AUXDAT; }
 static int svWait(void){ for(u32 t=0;t<2000000u;t++){ aux(0x05,1); u8 st=aux(0,0); if(!(st&1)) return 1; } return 0; }
 static void svAddr(u32 off,int fl){ if(fl) aux((u8)(off>>16),1); aux((u8)(off>>8),1); aux((u8)off,1); }
-static void svDetect(void){ aux(0x9F,1); u8 id0=aux(0,1); aux(0,1); aux(0,0); if(id0!=0x00&&id0!=0xFF){ IPC->svType=1; return; }
+static void svDetect(void){ aux(0x9F,1); u8 id0=aux(0,1); aux(0,1); u8 id2=aux(0,0); if(id0!=0x00&&id0!=0xFF){ IPC->svType=1; IPC->svSize=(id2>=0x10&&id2<=0x17)?(1u<<id2):0; return; }
     aux(0x05,1); u8 st=aux(0,0); IPC->svType=(st==0xFF)?0:2; }
 static void svOp(HwCmd*c){ int fl=IPC->svType==1; u8*mem=(u8*)c->a; u32 len=c->b, off=c->c, page=fl?256:128; IPC->svOK=1;
     if(!IPC->svType){ IPC->svOK=0; return; }

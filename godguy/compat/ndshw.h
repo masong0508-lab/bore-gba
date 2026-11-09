@@ -74,12 +74,16 @@ static inline void oamSetHidden(OamState*o,int id,bool h){ (void)o; vu16*a=(vu16
 static inline void oamUpdate(OamState*o){ (void)o; }
 // ---- input: the d-pad and buttons are read here, X, Y and the stylus come from the ARM7 through the shared block
 typedef struct { u32 op, ch, a, b, c, d; } HwCmd;
-typedef struct { volatile u32 head, tail, busy, keys, pen, px, py, alive, svType, svBusy, svOK; HwCmd q[64]; volatile u32 seq, tapX, tapY, rawX, rawY, tapRawX, tapRawY; } HwIpc;
+typedef struct { volatile u32 head, tail, busy, keys, pen, px, py, alive, svType, svBusy, svOK; HwCmd q[64]; volatile u32 seq, tapX, tapY, rawX, rawY, tapRawX, tapRawY, svSize; } HwIpc;
 #define HWIPC ((HwIpc*)0x023F0000)
 static int hwHeld, hwTx, hwTy; static u32 hwSeq;
 #define HW_CAL 1
 // touch calibration: the 12-bit readings from the ARM7 are turned into pixels with two reference points (rx1 ry1 sx1 sy1 rx2 ry2 sx2 sy2) tapped on the calibration screen
 static int hwCalOn, hwCal[8], hwRx, hwRy;
+#define HWCAL_MAGIC 0x4C414347u   /* "GCAL" */
+static void hwCalPack(u8*o){ u32 r[10]; r[0]=HWCAL_MAGIC; u32 c=0xA5A5A5A5u; for(int i=0;i<8;i++){ r[1+i]=(u32)hwCal[i]; c=c*31u+r[1+i]; } r[9]=c; memcpy(o,r,40); }
+static int hwCalUnpack(const u8*in){ u32 r[10]; memcpy(r,in,40); if(r[0]!=HWCAL_MAGIC) return 0; u32 c=0xA5A5A5A5u; for(int i=0;i<8;i++) c=c*31u+r[1+i]; if(c!=r[9]) return 0;
+    int v[8]; for(int i=0;i<8;i++) v[i]=(int)r[1+i]; int dx=v[4]-v[0], dy=v[5]-v[1]; if(dx<2200||dx>4800||dy<2000||dy>4800) return 0; for(int i=0;i<8;i++) hwCal[i]=v[i]; hwCalOn=1; return 1; }
 static inline void hwMapRaw(int rx,int ry,int*px,int*py){ int x=hwCal[2]+(rx-hwCal[0])*(hwCal[6]-hwCal[2])/(hwCal[4]-hwCal[0]), y=hwCal[3]+(ry-hwCal[1])*(hwCal[7]-hwCal[3])/(hwCal[5]-hwCal[1]); *px=x<0?0:x>255?255:x; *py=y<0?0:y>191?191:y; }
 static inline void scanKeys(void){ u32 k=~HW_REG16(0x04000130)&0x3FF; int h=(int)k; if(HWIPC->keys&1) h|=KEY_X; if(HWIPC->keys&2) h|=KEY_Y; if(HWIPC->pen){ h|=KEY_TOUCH; hwTx=(int)HWIPC->px; hwTy=(int)HWIPC->py; hwRx=(int)HWIPC->rawX; hwRy=(int)HWIPC->rawY; hwSeq=HWIPC->seq; } else if(HWIPC->seq!=hwSeq){ hwSeq=HWIPC->seq; h|=KEY_TOUCH; hwTx=(int)HWIPC->tapX; hwTy=(int)HWIPC->tapY; hwRx=(int)HWIPC->tapRawX; hwRy=(int)HWIPC->tapRawY; } if((h&KEY_TOUCH)&&hwCalOn) hwMapRaw(hwRx,hwRy,&hwTx,&hwTy); hwHeld=h; }   // (a tap shorter than a frame still counts: the ARM7 counts every new contact)
 static int hwPrev;
@@ -101,7 +105,15 @@ static SV*svOpen(const char*p,const char*m){ (void)p; if(!HWIPC->svType) return 
     hwFlash(9,(u32)SVCMP,clen+12,0); if(!HWIPC->svOK) return 0; svLen=rleDec(SVCMP+12,clen,SVBUF,SVMAX); if(svLen!=raw) return 0; svMode=0; return &svDummy; }
 static size_t svWrite(const void*b,size_t s,size_t n,SV*f){ (void)f; u32 t=(u32)(s*n); if(svLen+t>SVMAX) return 0; memcpy(SVBUF+svLen,b,t); svLen+=t; return n; }
 static size_t svRead(void*b,size_t s,size_t n,SV*f){ (void)f; u32 t=(u32)(s*n); if(svPos+t>svLen) return 0; memcpy(b,SVBUF+svPos,t); svPos+=t; return n; }
-static int svClose(SV*f){ (void)f; if(svMode==1){ u32 clen=rleEnc(SVBUF,svLen,SVCMP+12); SVCMP[0]='G'; SVCMP[1]='G'; SVCMP[2]='S'; SVCMP[3]=1; *(u32*)(SVCMP+4)=clen; *(u32*)(SVCMP+8)=svLen; hwFlash(8,(u32)SVCMP,clen+12,0); return HWIPC->svOK?0:-1; } return 0; }
+static u32 hwSvLimit(void){ return HWIPC->svSize?HWIPC->svSize:65536u; }   // the end of the save memory (65536 when the chip does not say: the largest EEPROM)
+static int svClose(SV*f){ (void)f; if(svMode==1){ u32 clen=rleEnc(SVBUF,svLen,SVCMP+12); SVCMP[0]='G'; SVCMP[1]='G'; SVCMP[2]='S'; SVCMP[3]=1; *(u32*)(SVCMP+4)=clen; *(u32*)(SVCMP+8)=svLen; u32 tot=clen+12;
+    if(hwCalOn&&tot+40<=SVMAX&&tot+40<=hwSvLimit()){ hwCalPack(SVCMP+tot); tot+=40; }   // the touch calibration rides along right behind the world, in the same write
+    hwFlash(8,(u32)SVCMP,tot,0); return HWIPC->svOK?0:-1; } return 0; }
+// ---- the touch calibration is kept in the save memory: right behind the world data when a world is saved (so the old save layout still loads), at the very start when there is none
+static u32 hwCalOff(void){ hwFlash(9,(u32)SVCMP,12,0); if(HWIPC->svOK&&SVCMP[0]=='G'&&SVCMP[1]=='G'&&SVCMP[2]=='S'&&SVCMP[3]){ u32 clen; memcpy(&clen,SVCMP+4,4); if(clen&&clen<=SVMAX-16) return 12+clen; } return 0; }
+static int hwCalLoad(void){ if(!HWIPC->svType) return 0; u32 off=hwCalOff(); hwFlash(9,(u32)SVCMP,40,off); if(!HWIPC->svOK) return 0; return hwCalUnpack(SVCMP); }
+static void hwCalStore(void){ if(!HWIPC->svType||!hwCalOn) return; u32 off=hwCalOff(), base=off&~255u; if(base+512>hwSvLimit()) return;   // a page or two are read, patched and written back whole, so the world around the record is not touched
+    hwFlash(9,(u32)SVCMP,512,base); if(!HWIPC->svOK) return; hwCalPack(SVCMP+(off-base)); hwFlash(8,(u32)SVCMP,512,base); }
 // ---- sound: channels are allocated here, played by the ARM7
 static int hwUsed[16], hwAge[16]; static u32 hwKind[16];
 static void hwSend(u32 op,u32 ch,u32 a,u32 b,u32 c,u32 d){ HwIpc*q=HWIPC; while(((q->head+1)&63)==q->tail){} HwCmd*m=&q->q[q->head]; m->op=op; m->ch=ch; m->a=a; m->b=b; m->c=c; m->d=d; q->head=(q->head+1)&63; }

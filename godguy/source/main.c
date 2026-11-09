@@ -1350,7 +1350,8 @@ static int gOnTop=-1;
 // The player holds two crosses near opposite corners and every touch after that is converted from those two readings (one straight line per axis).
 static int calOn, calPh, calN, calSx, calSy, calCnt, calDirty, calMsg, calPrev, calRx[2], calRy[2], calPx=-1, calPy=-1;
 static const int calTx[2]={16,240}, calTy[2]={16,176};
-static void calStart(void){ calOn=1; calPh=0; calN=0; calSx=calSy=0; calCnt=0; calDirty=1; calMsg=0; calPrev=0; hwCalOn=0; calPx=calPy=-1; pen.held=0; pen.age=-1; uiTrans=0; }
+static int calBakOn, calBak[8];   // the calibration in force before a redo, put back if the redo is skipped
+static void calStart(void){ calBakOn=hwCalOn; for(int i=0;i<8;i++) calBak[i]=hwCal[i]; calOn=1; calPh=0; calN=0; calSx=calSy=0; calCnt=0; calDirty=1; calMsg=0; calPrev=0; hwCalOn=0; calPx=calPy=-1; pen.held=0; pen.age=-1; uiTrans=0; }
 static void calDraw(int down){
     uiGrad(0,0,256,192,G_BG); uiGrad(0,0,256,13,G_HEAD); uiRect(0,12,256,1,U_BHI); uiRect(0,12,44,1,U_GOLD); uiTextS(6,3,"TOUCH CALIBRATION",U_GOLD,1);
     uiGrad(0,179,256,13,G_FOOT); uiRect(0,179,256,1,U_BHI);
@@ -1370,7 +1371,7 @@ static void calDraw(int down){
 static void calStep(int kd,int kh){
     int down=(kh&KEY_TOUCH)!=0;
     if(calPh<2){
-        if(kd&KEY_START){ calOn=0; gOnTop=-1; pen.held=0; pen.age=-1; return; }   // skipped: the plain mapping stays
+        if(kd&KEY_START){ calOn=0; gOnTop=-1; pen.held=0; pen.age=-1; hwCalOn=calBakOn; for(int i=0;i<8;i++) hwCal[i]=calBak[i]; return; }   // skipped: what was in force before stays
         if(down){ calCnt++; if(calCnt>=2){ calSx+=hwRx; calSy+=hwRy; calN++; } if(calCnt==1) calDirty=1; }
         else { if(calPrev){ if(calN>=2){ calRx[calPh]=calSx/calN; calRy[calPh]=calSy/calN; calPh++; calMsg=0;
                     if(calPh==2){ int dxr=calRx[1]-calRx[0], dyr=calRy[1]-calRy[0];
@@ -1380,7 +1381,7 @@ static void calStep(int kd,int kh){
                 calDirty=1; } calSx=calSy=calN=calCnt=0; }
         calPrev=down; }
     else { touchPosition tp; touchRead(&tp); int px=down?tp.px:-1, py=down?tp.py:-1; if(px!=calPx||py!=calPy){ calPx=px; calPy=py; calDirty=1; }
-        if(kd&(KEY_A|KEY_START)){ calOn=0; gOnTop=-1; pen.held=0; pen.age=-1; }
+        if(kd&(KEY_A|KEY_START)){ calOn=0; gOnTop=-1; pen.held=0; pen.age=-1; hwCalStore(); }
         else if(kd&KEY_B) calStart(); } }
 #endif
 static void menuInput(int kd){
@@ -1441,7 +1442,7 @@ int main(void){
     musReq(GM_TITLE); musUpdate();
     int held=0, lastTx=-9, lastTy=-9; hud();
 #ifdef HW_CAL
-    calStart();   // first thing on a console or emulator: two taps, so the stylus lands where it is touched (START skips)
+    if(!(sdOk&&hwCalLoad())) calStart();   // a saved calibration is used as it is; otherwise the first thing on a console or emulator is two taps, so the stylus lands where it is touched (START skips)
 #endif
     while(1){
         scanKeys(); int kd=keysDown(), kh=keysHeld(); tick++; if(inspT>0) inspT--;

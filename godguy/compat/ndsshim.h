@@ -83,7 +83,13 @@ static int shimFrame, shimHeld, shimPrev, shimTx, shimTy;
 // PC model of a panel whose readings do not map linearly onto the screen (DraStic: the bottom reads about 14 px too high until calibrated)
 #define HW_CAL 1
 static int hwCalOn, hwCal[8], hwRx, hwRy;
+#define HWCAL_MAGIC 0x4C414347u   /* "GCAL" */
+static void hwCalPack(u8*o){ u32 r[10]; r[0]=HWCAL_MAGIC; u32 c=0xA5A5A5A5u; for(int i=0;i<8;i++){ r[1+i]=(u32)hwCal[i]; c=c*31u+r[1+i]; } r[9]=c; memcpy(o,r,40); }
+static int hwCalUnpack(const u8*in){ u32 r[10]; memcpy(r,in,40); if(r[0]!=HWCAL_MAGIC) return 0; u32 c=0xA5A5A5A5u; for(int i=0;i<8;i++) c=c*31u+r[1+i]; if(c!=r[9]) return 0;
+    int v[8]; for(int i=0;i<8;i++) v[i]=(int)r[1+i]; int dx=v[4]-v[0], dy=v[5]-v[1]; if(dx<2200||dx>4800||dy<2000||dy>4800) return 0; for(int i=0;i<8;i++) hwCal[i]=v[i]; hwCalOn=1; return 1; }
 static inline void hwMapRaw(int rx,int ry,int*px,int*py){ int x=hwCal[2]+(rx-hwCal[0])*(hwCal[6]-hwCal[2])/(hwCal[4]-hwCal[0]), y=hwCal[3]+(ry-hwCal[1])*(hwCal[7]-hwCal[3])/(hwCal[5]-hwCal[1]); *px=x<0?0:x>255?255:x; *py=y<0?0:y>191?191:y; }
+static int hwCalLoad(void){ FILE*f=fopen("godguy.cal","rb"); if(!f) return 0; u8 b[40]; int n=(int)fread(b,1,40,f); fclose(f); return n==40&&hwCalUnpack(b); }
+static void hwCalStore(void){ if(!hwCalOn) return; u8 b[40]; hwCalPack(b); FILE*f=fopen("godguy.cal","wb"); if(f){ fwrite(b,1,40,f); fclose(f); } }
 static inline void scanKeys(void){ shimPrev=shimHeld; int tx=0,ty=0; shimInput(shimFrame,&shimHeld,&tx,&ty); if(shimHeld&KEY_TOUCH){ hwRx=528+(tx-32)*1640/100; hwRy=352+(ty-32)*216/10; if(hwCalOn) hwMapRaw(hwRx,hwRy,&tx,&ty); else { tx=hwRx>>4; ty=hwRy*192/4096; if(tx>255) tx=255; if(ty>191) ty=191; } } shimTx=tx; shimTy=ty; }
 #else
 static inline void scanKeys(void){ shimPrev=shimHeld; int tx=0,ty=0; shimInput(shimFrame,&shimHeld,&tx,&ty); shimTx=tx; shimTy=ty; }
