@@ -79,7 +79,15 @@ static int shimPrintf(const char*fmt,...){
 // ---- input
 extern void shimInput(int frame,int*held,int*tx,int*ty);
 static int shimFrame, shimHeld, shimPrev, shimTx, shimTy;
+#ifdef SHIM_DISTORT
+// PC model of a panel whose readings do not map linearly onto the screen (DraStic: the bottom reads about 14 px too high until calibrated)
+#define HW_CAL 1
+static int hwCalOn, hwCal[8], hwRx, hwRy;
+static inline void hwMapRaw(int rx,int ry,int*px,int*py){ int x=hwCal[2]+(rx-hwCal[0])*(hwCal[6]-hwCal[2])/(hwCal[4]-hwCal[0]), y=hwCal[3]+(ry-hwCal[1])*(hwCal[7]-hwCal[3])/(hwCal[5]-hwCal[1]); *px=x<0?0:x>255?255:x; *py=y<0?0:y>191?191:y; }
+static inline void scanKeys(void){ shimPrev=shimHeld; int tx=0,ty=0; shimInput(shimFrame,&shimHeld,&tx,&ty); if(shimHeld&KEY_TOUCH){ hwRx=528+(tx-32)*1640/100; hwRy=352+(ty-32)*216/10; if(hwCalOn) hwMapRaw(hwRx,hwRy,&tx,&ty); else { tx=hwRx>>4; ty=hwRy*192/4096; if(tx>255) tx=255; if(ty>191) ty=191; } } shimTx=tx; shimTy=ty; }
+#else
 static inline void scanKeys(void){ shimPrev=shimHeld; int tx=0,ty=0; shimInput(shimFrame,&shimHeld,&tx,&ty); shimTx=tx; shimTy=ty; }
+#endif
 static inline int keysDown(void){ return shimHeld&~shimPrev; } static inline int keysHeld(void){ return shimHeld; }
 static inline void touchRead(touchPosition*t){ t->px=shimTx; t->py=shimTy; }
 // ---- files: the SD card is the current directory

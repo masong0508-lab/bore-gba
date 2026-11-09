@@ -1,7 +1,7 @@
 // the ARM7 program for the no-libnds build: it plays sound for the ARM9 (commands arrive in a ring in main RAM) and reads the stylus and the X / Y buttons for it. No libnds, no BIOS calls.
 typedef unsigned char u8; typedef unsigned short u16; typedef unsigned int u32; typedef volatile unsigned short vu16; typedef volatile unsigned int vu32;
 typedef struct { u32 op, ch, a, b, c, d; } HwCmd;
-typedef struct { volatile u32 head, tail, busy, keys, pen, px, py, alive, svType, svBusy, svOK; HwCmd q[64]; volatile u32 seq, tapX, tapY; } HwIpc;
+typedef struct { volatile u32 head, tail, busy, keys, pen, px, py, alive, svType, svBusy, svOK; HwCmd q[64]; volatile u32 seq, tapX, tapY, rawX, rawY, tapRawX, tapRawY; } HwIpc;
 #define IPC ((HwIpc*)0x023F0000)
 #define R16(a) (*(vu16*)(a))
 #define R32(a) (*(vu32*)(a))
@@ -50,6 +50,7 @@ static void calInit(void){   // the user settings the firmware leaves in main RA
     if(ab((cAx1>>4)-cSx1)>20||ab((cAx2>>4)-cSx2)>20||ab(cAy1*192/4096-cSy1)>20||ab(cAy2*192/4096-cSy2)>20) return;   // far from the plain mapping: do not trust it
     calOk=1; }
 static void sort5(u32*a){ for(int i=1;i<5;i++){ u32 v=a[i]; int j=i-1; while(j>=0&&a[j]>v){ a[j+1]=a[j]; j--; } a[j+1]=v; } }
+static u32 gRawX, gRawY;
 static int penRead(u32*ox,u32*oy){   // 1 = a good position, 0 = the pen is up, -1 = touching but noisy
     if(R16(0x04000136)&0x40) return 0;
     u32 xs[5], ys[5]; tsc(0xD0); tsc(0x90);   // the first pair settles the converter
@@ -58,7 +59,7 @@ static int penRead(u32*ox,u32*oy){   // 1 = a good position, 0 = the pen is up, 
     sort5(xs); sort5(ys);
     if(xs[3]-xs[1]>80||ys[3]-ys[1]>80) return -1;   // the samples disagree by more than about 5 pixels
     u32 rx=(xs[1]+xs[2]+xs[3])/3, ry=(ys[1]+ys[2]+ys[3])/3; if(rx==0||ry==0||rx>=4095||ry>=4095) return -1;
-    int px, py;
+    gRawX=rx; gRawY=ry; int px, py;
     if(calOk){ px=cSx1+((int)rx-cAx1)*(cSx2-cSx1)/(cAx2-cAx1); py=cSy1+((int)ry-cAy1)*(cSy2-cSy1)/(cAy2-cAy1); }
     else { px=(int)(rx>>4); py=(int)(ry*192/4096); }
     if(px<0) px=0; if(px>255) px=255; if(py<0) py=0; if(py>191) py=191; *ox=(u32)px; *oy=(u32)py; return 1; }
@@ -66,7 +67,7 @@ static int penUp, penBad;
 static void penTick(void){
     if(!calOk&&calTry<8) calInit();
     u32 x=0, y=0; int r=penRead(&x,&y);
-    if(r>0){ penUp=0; penBad=0; if(!IPC->pen){ IPC->tapX=x; IPC->tapY=y; IPC->seq++; } IPC->px=x; IPC->py=y; IPC->pen=1; }
+    if(r>0){ penUp=0; penBad=0; if(!IPC->pen){ IPC->tapX=x; IPC->tapY=y; IPC->tapRawX=gRawX; IPC->tapRawY=gRawY; IPC->seq++; } IPC->px=x; IPC->py=y; IPC->rawX=gRawX; IPC->rawY=gRawY; IPC->pen=1; }
     else if(r<0){ if(IPC->pen&&++penBad>4) IPC->pen=0; }
     else { penBad=0; if(IPC->pen&&++penUp>=2) IPC->pen=0; if(!IPC->pen) penUp=0; } }
 void arm7main(void){

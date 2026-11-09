@@ -1056,18 +1056,22 @@ static void uiCreate(void){
     uiRound(170,168,76,11,U_PANELHI,cT>=0?U_ORANGE:U_GREEN); uiTextC(208,170,cT>=0?"SHAPING...":"READY",cT>=0?U_ORANGE:U_GREEN,1);
     gfxHint(cHelp[cSel],U_LGREY);
     uiFlush(); }
-enum { MI_CONT, MI_STORY, MI_FREE, MI_OPT, MI_EXTRA, MI_BACK, MI_SIZE, MI_DIFF, MI_VOL, MI_MON, MI_SCULPT, MI_BEST, MI_CODEX, MI_HELP, MI_CRED, MI_DEBUG, MI_RESUME, MI_SAVE, MI_NEW, MI_MODE, MI_TITLE, MI_CREATE, MI_GO, MI_STYPE, MI_SPEED, MI_KING, MI_JOURNAL, MI_ACH, MI_CULT, MI_LANG, MI_BROWSE, MI_STATS, MI_FAVS, MI_MISSION, MI_WORLD, MI_LOAD, MI_SLOT };
+enum { MI_CONT, MI_STORY, MI_FREE, MI_OPT, MI_EXTRA, MI_BACK, MI_SIZE, MI_DIFF, MI_VOL, MI_MON, MI_SCULPT, MI_BEST, MI_CODEX, MI_HELP, MI_CRED, MI_DEBUG, MI_RESUME, MI_SAVE, MI_NEW, MI_MODE, MI_TITLE, MI_CREATE, MI_GO, MI_STYPE, MI_SPEED, MI_KING, MI_JOURNAL, MI_ACH, MI_CULT, MI_LANG, MI_BROWSE, MI_STATS, MI_FAVS, MI_MISSION, MI_WORLD, MI_LOAD, MI_SLOT, MI_CAL };
 static int extrasView;      // which menu (0 main, 1 options, 2 extras), the highlighted row, a pending "are you sure", and whether an extras page is open
 static int menuList(int*ids){ int n=0, ctx=titleOn?0:1;
     if(mScr==0){ if(ctx==0){ ids[n++]=MI_CONT; ids[n++]=MI_CREATE; ids[n++]=MI_OPT; ids[n++]=MI_EXTRA; if(slotOn) ids[n++]=MI_SLOT; } else { ids[n++]=MI_RESUME; if(storyOn&&chapter<CHAP_N) ids[n++]=MI_MISSION; ids[n++]=MI_JOURNAL; ids[n++]=MI_STATS; ids[n++]=MI_FAVS; ids[n++]=MI_WORLD; ids[n++]=MI_SAVE; if(sdOk) ids[n++]=MI_LOAD; if(slotOn) ids[n++]=MI_SLOT; ids[n++]=MI_OPT; ids[n++]=MI_EXTRA; } }
     else if(mScr==3){ ids[n++]=MI_SIZE; ids[n++]=MI_STYPE; ids[n++]=MI_DIFF; ids[n++]=MI_GO; ids[n++]=MI_BACK; }
-    else if(mScr==1){ ids[n++]=MI_DIFF; ids[n++]=MI_SPEED; ids[n++]=MI_VOL; ids[n++]=MI_MON; if(ctx){ ids[n++]=MI_NEW; ids[n++]=MI_MODE; ids[n++]=MI_TITLE; } ids[n++]=MI_BACK; }
+    else if(mScr==1){ ids[n++]=MI_DIFF; ids[n++]=MI_SPEED; ids[n++]=MI_VOL; ids[n++]=MI_MON;
+#ifdef HW_CAL
+ ids[n++]=MI_CAL;
+#endif
+ if(ctx){ ids[n++]=MI_NEW; ids[n++]=MI_MODE; ids[n++]=MI_TITLE; } ids[n++]=MI_BACK; }
     else { ids[n++]=MI_SCULPT; ids[n++]=MI_BROWSE; ids[n++]=MI_KING; ids[n++]=MI_CULT; ids[n++]=MI_LANG; if(!ctx) ids[n++]=MI_JOURNAL; ids[n++]=MI_ACH; ids[n++]=MI_BEST; ids[n++]=MI_CODEX; ids[n++]=MI_HELP; ids[n++]=MI_CRED; if(debugOn) ids[n++]=MI_DEBUG; ids[n++]=MI_BACK; }
     return n; }
 static void menuText(int id,char*l,char*v){ v[0]=0;
     switch(id){ case MI_CONT: strcpy(l,hasSave?"CONTINUE YOUR WORLD":"START THE STORY"); break; case MI_STORY: strcpy(l,"NEW STORY WORLD"); break; case MI_FREE: strcpy(l,"NEW FREE PLAY WORLD"); break;
         case MI_BROWSE: strcpy(l,"WORLD BROWSER"); break; case MI_KING: strcpy(l,"KINGDOMS"); break; case MI_CULT: strcpy(l,"CULTURE TREE"); break; case MI_LANG: strcpy(l,"LANGUAGES"); break; case MI_JOURNAL: strcpy(l,"JOURNAL"); siprintf(v,"%d",jrN); break; case MI_ACH: { strcpy(l,"ACHIEVEMENTS"); int c=0; for(int i=0;i<ACH_N;i++) c+=(achBits>>i)&1; siprintf(v,"%d/%d",c,ACH_N); } break; case MI_SPEED: strcpy(l,"GAME SPEED"); siprintf(v,"%dx",speedMul); break; case MI_CREATE: strcpy(l,"CREATE A PLANET"); strcpy(v,">"); break; case MI_GO: strcpy(l,"CREATE THE PLANET!"); break; case MI_STYPE: strcpy(l,"WORLD TYPE"); strcpy(v,storyOn?"STORY":"FREE PLAY"); break;
-        case MI_OPT: strcpy(l,"OPTIONS"); strcpy(v,">"); break; case MI_EXTRA: strcpy(l,"EXTRAS"); strcpy(v,">"); break; case MI_BACK: strcpy(l,"BACK"); break;
+        case MI_CAL: strcpy(l,"CALIBRATE TOUCH"); strcpy(v,">"); break; case MI_OPT: strcpy(l,"OPTIONS"); strcpy(v,">"); break; case MI_EXTRA: strcpy(l,"EXTRAS"); strcpy(v,">"); break; case MI_BACK: strcpy(l,"BACK"); break;
         case MI_SIZE: strcpy(l,"PLANET SIZE"); siprintf(v,"%dx%d",planetSize,planetSize); break; case MI_DIFF: strcpy(l,"DIFFICULTY"); strcpy(v,diff==0?"CALM":diff==1?"NORMAL":"BRUTAL"); break;
         case MI_VOL: strcpy(l,"MUSIC VOLUME"); siprintf(v,"%d%%",gmMaster); break; case MI_MON: strcpy(l,"MONSTERS"); strcpy(v,monOn?"ON":"OFF"); break;
         case MI_SCULPT: strcpy(l,"AURAL SCULPTURES"); strcpy(v,auralOK()?"":"LOCKED"); break; case MI_BEST: strcpy(l,"BESTIARY"); siprintf(v,"%d/320",seenN); break; case MI_CODEX: strcpy(l,"SUBSPECIES"); siprintf(v,"%d/%d",__builtin_popcount(trSeen),TR_N-1); break;
@@ -1080,7 +1084,7 @@ static int extOpen(int pg){ return !(pg==3&&!auralOK())&&!(pg==4&&!debugOn); }
 static int extStep(int d){ int i=0; for(int k=0;k<14;k++) if(extOrder[k]==page) i=k; for(int n=0;n<14;n++){ i=(i+d+14)%14; if(extOpen(extOrder[i])) return extOrder[i]; } return page; }
 static const char* menuDesc(int id){ switch(id){
     case MI_CONT: return hasSave?"PICK UP YOUR SAVED WORLD WHERE YOU LEFT IT":"BEGIN THE STORY ON A NEW PLANET"; case MI_CREATE: return "CHOOSE SIZE, LAND, CLIMATE AND SEED OF A NEW PLANET"; case MI_OPT: return "DIFFICULTY, SPEED, VOLUME, MONSTERS"; case MI_EXTRA: return "KINGDOMS, MUSIC, BESTIARY, HELP AND MORE";
-    case MI_DIFF: return "HOW HARD THE MONSTERS BITE"; case MI_SPEED: return "HOW FAST TIME RUNS"; case MI_VOL: return "MUSIC AND EFFECT LOUDNESS"; case MI_MON: return "TURN THE NIGHTMARES ON OR OFF";
+    case MI_CAL: return "TAP TWO CROSSES SO THE STYLUS LANDS WHERE YOU TOUCH"; case MI_DIFF: return "HOW HARD THE MONSTERS BITE"; case MI_SPEED: return "HOW FAST TIME RUNS"; case MI_VOL: return "MUSIC AND EFFECT LOUDNESS"; case MI_MON: return "TURN THE NIGHTMARES ON OR OFF";
     case MI_SCULPT: return "THE JUKEBOX: ALL THE TRACKS AND SUITES"; case MI_BROWSE: return "FIND AND STAR CITIES, FOLK, ITEMS, POWERS"; case MI_KING: return "WHO RULES WHAT: WARS, ALLIES, VASSALS"; case MI_CULT: return "WHAT EACH KINGDOM HAS LEARNED"; case MI_LANG: return "THE FIVE TONGUES AND THEIR NAMES"; case MI_JOURNAL: return "THE LAST EVENTS OF THE WORLD"; case MI_ACH: return "THINGS YOU HAVE DONE AS A GOD"; case MI_BEST: return "EVERY NIGHTMARE YOU HAVE MET"; case MI_CODEX: return "SUBSPECIES AND WHAT THEY DO"; case MI_HELP: return "THE CONTROLS"; case MI_CRED: return "WHO MADE THIS"; case MI_DEBUG: return "CHEATS AND TOOLS";
     case MI_STATS: return "COUNTS OF EVERYTHING"; case MI_FAVS: return "YOUR STARRED CITIES, KINGS, ITEMS"; case MI_WORLD: return "CHANGE THE RULES OF THE WORLD"; case MI_MISSION: return "THE CURRENT CHAPTER GOAL"; case MI_RESUME: return "BACK TO THE WORLD"; case MI_SAVE: return "WRITE THE WORLD TO THE CARD"; case MI_LOAD: return "GO BACK TO THE LAST SAVE"; case MI_SLOT: return "PICK THE SAVE FILE FOR SAVE AND CONTINUE"; case MI_NEW: return "REPLACE THIS WORLD WITH A NEW ONE"; case MI_MODE: return "SWITCH BETWEEN STORY AND FREE PLAY"; case MI_TITLE: return "SAVE AND GO TO THE TITLE SCREEN"; case MI_SIZE: return "BIGGER PLANETS TAKE LONGER TO MAKE"; case MI_STYPE: return "STORY HAS CHAPTERS, FREE PLAY HAS NONE"; case MI_GO: return "MAKE THE PLANET AND BEGIN"; default: return ""; } }
 static const char* gfxDesc(int id){ if(menuNoteT>0&&info[0]) return info; const char*d=menuDesc(id); if(d[0]) return d; return id==MI_BACK?"GO BACK TO THE LAST MENU":""; }
@@ -1340,6 +1344,45 @@ static void hud(void){
 
 static void menuToWorld(void){ setSize(planetSize); newWorld(); paused=1; camX=(WW*8-256)/2; camY=(WH*8-192)/2; winX=-99; refillWindow(); }
 static void menuOpenPage(int pg){ menuRetScr=mScr; menuRetSel=mSel; extrasView=1; page=pg; if(pg==3) juke=gmCur>=0?gmCur:0; menuOn=0; siprintf(info,"START: BACK TO MENU"); }
+static int gOnTop=-1;
+#ifdef HW_CAL
+// ---- touch calibration: the stylus comes up as a 12-bit number per axis and an emulator's (or a console's) numbers do not always line up with the picture, worst along the edges.
+// The player holds two crosses near opposite corners and every touch after that is converted from those two readings (one straight line per axis).
+static int calOn, calPh, calN, calSx, calSy, calCnt, calDirty, calMsg, calPrev, calRx[2], calRy[2], calPx=-1, calPy=-1;
+static const int calTx[2]={16,240}, calTy[2]={16,176};
+static void calStart(void){ calOn=1; calPh=0; calN=0; calSx=calSy=0; calCnt=0; calDirty=1; calMsg=0; calPrev=0; hwCalOn=0; calPx=calPy=-1; pen.held=0; pen.age=-1; uiTrans=0; }
+static void calDraw(int down){
+    uiGrad(0,0,256,192,G_BG); uiGrad(0,0,256,13,G_HEAD); uiRect(0,12,256,1,U_BHI); uiRect(0,12,44,1,U_GOLD); uiTextS(6,3,"TOUCH CALIBRATION",U_GOLD,1);
+    uiGrad(0,179,256,13,G_FOOT); uiRect(0,179,256,1,U_BHI);
+    if(calPh<2){ int cx=calTx[calPh], cy=calTy[calPh];
+        for(int r=5;r<=9;r+=4) for(int a=0;a<24;a++){ int dx=(int)(r*cosf(a*0.2618f)+0.5f), dy=(int)(r*sinf(a*0.2618f)+0.5f); uiPx(cx+dx,cy+dy,down?U_GREEN:U_GOLD); }
+        uiRect(cx-12,cy,25,1,down?U_GREEN:U_GOLD); uiRect(cx,cy-12,1,25,down?U_GREEN:U_GOLD); uiRect(cx-1,cy-1,3,3,U_WHITE);
+        uiTextC(128,70,"TAP AND HOLD THE CROSS",U_WHITE,1); uiTextC(128,84,"WITH THE TIP OF THE STYLUS",U_LGREY,1);
+        char b[24]; siprintf(b,"POINT %d OF 2",calPh+1); uiTextC(128,104,b,U_GOLD,1);
+        if(calMsg==1) uiTextC(128,124,"THAT DID NOT LOOK RIGHT. AGAIN.",U_RED,1); else if(calMsg==2) uiTextC(128,124,"HOLD A LITTLE LONGER",U_ORANGE,1);
+        uiText(6,183,"START: SKIP",U_DIM,1); }
+    else { uiTextC(128,60,"TOUCH THE SCREEN TO TEST",U_WHITE,1); uiTextC(128,74,"THE GREEN CROSS FOLLOWS THE STYLUS",U_LGREY,1);
+        for(int k=0;k<4;k++){ int cx=k&1?240:16, cy=k&2?176:16; uiRect(cx-4,cy-4,9,9,U_DGREY); uiRect(cx-3,cy-3,7,7,U_PANEL); }
+        uiTextC(128,100,"A: KEEP IT      B: DO IT AGAIN",U_GOLD,1);
+        if(calPx>=0){ uiRect(calPx-9,calPy,19,1,U_GREEN); uiRect(calPx,calPy-9,1,19,U_GREEN); uiPx(calPx,calPy,U_WHITE); }
+        uiText(6,183,"A KEEP   B REDO",U_DIM,1); }
+    uiFlush(); }
+static void calStep(int kd,int kh){
+    int down=(kh&KEY_TOUCH)!=0;
+    if(calPh<2){
+        if(kd&KEY_START){ calOn=0; gOnTop=-1; pen.held=0; pen.age=-1; return; }   // skipped: the plain mapping stays
+        if(down){ calCnt++; if(calCnt>=2){ calSx+=hwRx; calSy+=hwRy; calN++; } if(calCnt==1) calDirty=1; }
+        else { if(calPrev){ if(calN>=2){ calRx[calPh]=calSx/calN; calRy[calPh]=calSy/calN; calPh++; calMsg=0;
+                    if(calPh==2){ int dxr=calRx[1]-calRx[0], dyr=calRy[1]-calRy[0];
+                        if(dxr<2200||dxr>4800||dyr<2000||dyr>4800){ calPh=0; calMsg=1; }
+                        else { hwCal[0]=calRx[0]; hwCal[1]=calRy[0]; hwCal[2]=calTx[0]; hwCal[3]=calTy[0]; hwCal[4]=calRx[1]; hwCal[5]=calRy[1]; hwCal[6]=calTx[1]; hwCal[7]=calTy[1]; hwCalOn=1; } } }
+                else calMsg=2;
+                calDirty=1; } calSx=calSy=calN=calCnt=0; }
+        calPrev=down; }
+    else { touchPosition tp; touchRead(&tp); int px=down?tp.px:-1, py=down?tp.py:-1; if(px!=calPx||py!=calPy){ calPx=px; calPy=py; calDirty=1; }
+        if(kd&(KEY_A|KEY_START)){ calOn=0; gOnTop=-1; pen.held=0; pen.age=-1; }
+        else if(kd&KEY_B) calStart(); } }
+#endif
 static void menuInput(int kd){
     int ids[14]; int n=menuList(ids); int d=((kd&KEY_RIGHT)?1:0)-((kd&KEY_LEFT)?1:0); if(menuNoteT>0) menuNoteT--;
     if(menuAsk){ if(kd&KEY_B) fxReq(FX_MENU_BACK); else if(kd&KEY_A) fxReq(FX_MENU_OK); if(kd&KEY_A){ int a=menuAsk; menuAsk=0; menuOn=0; if(a==5) startWorld(!storyOn); else if(a==6) startWorld(storyOn); else if(a==9){ if(loadGame(savePath)){ refillWindow(); paused=dlgPaused; siprintf(info,"LOADED"); } else { siprintf(info,"NO SAVE TO LOAD"); menuOn=1; menuNoteT=100; } } else if(a==8){ doSave(); titleOn=1; paused=1; mScr=0; mSel=0; newWorld(); camX=(WW*8-256)/2; camY=(WH*8-192)/2; hasSave=sdOk; musReq(GM_TITLE); } } if(kd&(KEY_B|KEY_START)){ menuAsk=0; menuOn=1; } return; }
@@ -1354,6 +1397,9 @@ static void menuInput(int kd){
     if(kd&KEY_A){ switch(id){
         case MI_CONT: if(hasSave){ LOADING("LOADING YOUR WORLD",30); if(!loadGame(savePath)){ planetSize=128; newWorld(); hasSave=0; siprintf(info,"SAVE UNREADABLE"); menuNoteT=100; break; } endShown=storyDone; titleOn=0; paused=0; refillWindow(); LOADING("READY",100); musReq(GM_NEWWORLD); } else startWorld(1); break;
         case MI_CREATE: mScr=3; mSel=0; createStart(); break; case MI_GO: startWorld(storyOn); break;
+#ifdef HW_CAL
+        case MI_CAL: calStart(); break;
+#endif
         case MI_OPT: mScr=1; mSel=0; break; case MI_EXTRA: mScr=2; mSel=0; break; case MI_BACK: { int bk=mScr==3?MI_CREATE:mScr==2?MI_EXTRA:MI_OPT; mScr=0; menuSelId(bk); } break;
         case MI_SLOT: slotStep(1); fxReq(FX_MENU_MOVE); break; case MI_SIZE: case MI_DIFF: case MI_VOL: case MI_MON: case MI_SPEED: break;
         case MI_SCULPT: if(auralOK()) menuOpenPage(3); else { siprintf(info,"UNLOCK IN STORY CHAPTER 3"); menuNoteT=100; fxReq(FX_ERROR); } break;
@@ -1394,9 +1440,15 @@ int main(void){
     if(!hasSave){ planetSize=128; newWorld(); } camX=(WW*8-256)/2; camY=(WH*8-192)/2; paused=1; if(hasSave){ camX=camX>WW*8-256?WW*8-256:camX; }
     musReq(GM_TITLE); musUpdate();
     int held=0, lastTx=-9, lastTy=-9; hud();
+#ifdef HW_CAL
+    calStart();   // first thing on a console or emulator: two taps, so the stylus lands where it is touched (START skips)
+#endif
     while(1){
         scanKeys(); int kd=keysDown(), kh=keysHeld(); tick++; if(inspT>0) inspT--;
-        { static int onTop=-1; int ui=titleOn||menuOn||extrasView||sceneOn||dlgOn; penPoll((kh&KEY_TOUCH)!=0,ui); if(ui!=onTop){ onTop=ui; if(ui) lcdMainOnTop(); else lcdMainOnBottom(); }   // menus move to the touch screen, the world goes up
+#ifdef HW_CAL
+        if(calOn){ if(gOnTop!=1){ lcdMainOnTop(); gOnTop=1; } calStep(kd,kh); musUpdate(); if(calDirty){ calDirty=0; calDraw((kh&KEY_TOUCH)!=0); } swiWaitForVBlank(); continue; }
+#endif
+        { int ui=titleOn||menuOn||extrasView||sceneOn||dlgOn; penPoll((kh&KEY_TOUCH)!=0,ui); if(ui!=gOnTop){ gOnTop=ui; if(ui) lcdMainOnTop(); else lcdMainOnBottom(); }   // menus move to the touch screen, the world goes up
           if(ui){ if(pen.press||pen.rep){ int h=uiHitSlop(pen.x,pen.y); if(pen.rep&&h>=0&&!(uiBtns[h].key&(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT))) h=-1; if(h>=0){ const UiBtn*bt=&uiBtns[h]; int was=bt->sp&&*bt->sp==bt->sv; if(bt->sp) *bt->sp=bt->sv; kd|=was&&bt->key2?bt->key2:bt->key; if(bt->key&(KEY_L|KEY_R)) uiTabDir=(bt->key&KEY_L)?-1:1; } } kd&=~KEY_TOUCH; kh&=~KEY_TOUCH; } }
         { static int rpT; int ui2=(titleOn||menuOn||extrasView)&&!sceneOn&&!dlgOn&&!(titleOn&&konami>0), dir=kh&(KEY_UP|KEY_DOWN);   // GFX1: a held UP or DOWN repeats
           if(ui2&&dir&&!(kd&dir)){ rpT++; if(rpT>=18&&((rpT-18)&3)==0) kd|=dir; } else rpT=0; }

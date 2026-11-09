@@ -74,10 +74,14 @@ static inline void oamSetHidden(OamState*o,int id,bool h){ (void)o; vu16*a=(vu16
 static inline void oamUpdate(OamState*o){ (void)o; }
 // ---- input: the d-pad and buttons are read here, X, Y and the stylus come from the ARM7 through the shared block
 typedef struct { u32 op, ch, a, b, c, d; } HwCmd;
-typedef struct { volatile u32 head, tail, busy, keys, pen, px, py, alive, svType, svBusy, svOK; HwCmd q[64]; volatile u32 seq, tapX, tapY; } HwIpc;
+typedef struct { volatile u32 head, tail, busy, keys, pen, px, py, alive, svType, svBusy, svOK; HwCmd q[64]; volatile u32 seq, tapX, tapY, rawX, rawY, tapRawX, tapRawY; } HwIpc;
 #define HWIPC ((HwIpc*)0x023F0000)
 static int hwHeld, hwTx, hwTy; static u32 hwSeq;
-static inline void scanKeys(void){ u32 k=~HW_REG16(0x04000130)&0x3FF; int h=(int)k; if(HWIPC->keys&1) h|=KEY_X; if(HWIPC->keys&2) h|=KEY_Y; if(HWIPC->pen){ h|=KEY_TOUCH; hwTx=(int)HWIPC->px; hwTy=(int)HWIPC->py; hwSeq=HWIPC->seq; } else if(HWIPC->seq!=hwSeq){ hwSeq=HWIPC->seq; h|=KEY_TOUCH; hwTx=(int)HWIPC->tapX; hwTy=(int)HWIPC->tapY; } hwHeld=h; }   // (a tap shorter than a frame still counts: the ARM7 counts every new contact)
+#define HW_CAL 1
+// touch calibration: the 12-bit readings from the ARM7 are turned into pixels with two reference points (rx1 ry1 sx1 sy1 rx2 ry2 sx2 sy2) tapped on the calibration screen
+static int hwCalOn, hwCal[8], hwRx, hwRy;
+static inline void hwMapRaw(int rx,int ry,int*px,int*py){ int x=hwCal[2]+(rx-hwCal[0])*(hwCal[6]-hwCal[2])/(hwCal[4]-hwCal[0]), y=hwCal[3]+(ry-hwCal[1])*(hwCal[7]-hwCal[3])/(hwCal[5]-hwCal[1]); *px=x<0?0:x>255?255:x; *py=y<0?0:y>191?191:y; }
+static inline void scanKeys(void){ u32 k=~HW_REG16(0x04000130)&0x3FF; int h=(int)k; if(HWIPC->keys&1) h|=KEY_X; if(HWIPC->keys&2) h|=KEY_Y; if(HWIPC->pen){ h|=KEY_TOUCH; hwTx=(int)HWIPC->px; hwTy=(int)HWIPC->py; hwRx=(int)HWIPC->rawX; hwRy=(int)HWIPC->rawY; hwSeq=HWIPC->seq; } else if(HWIPC->seq!=hwSeq){ hwSeq=HWIPC->seq; h|=KEY_TOUCH; hwTx=(int)HWIPC->tapX; hwTy=(int)HWIPC->tapY; hwRx=(int)HWIPC->tapRawX; hwRy=(int)HWIPC->tapRawY; } if((h&KEY_TOUCH)&&hwCalOn) hwMapRaw(hwRx,hwRy,&hwTx,&hwTy); hwHeld=h; }   // (a tap shorter than a frame still counts: the ARM7 counts every new contact)
 static int hwPrev;
 static inline int keysHeld(void){ return hwHeld; }
 static inline int keysDown(void){ int d=hwHeld&~hwPrev; hwPrev=hwHeld; return d; }
