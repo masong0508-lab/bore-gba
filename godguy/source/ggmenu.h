@@ -16,11 +16,11 @@ static void penPoll(int touching,int uiOn){
     int x=rx, y=ry;
     if(pen.n==3){ int xl=pen.sx[0], xh=xl, yl=pen.sy[0], yh=yl; for(int i=1;i<3;i++){ if(pen.sx[i]<xl) xl=pen.sx[i]; if(pen.sx[i]>xh) xh=pen.sx[i]; if(pen.sy[i]<yl) yl=pen.sy[i]; if(pen.sy[i]>yh) yh=pen.sy[i]; }
         if(xh-xl<=2&&yh-yl<=2){ x=med3(pen.sx[0],pen.sx[1],pen.sx[2]); y=med3(pen.sy[0],pen.sy[1],pen.sy[2]); } }
-    if(!pen.held){ pen.held=1; pen.press=1; pen.fromUi=uiOn; pen.fromBar=!uiOn&&y>=168; pen.x=pen.lx=x; pen.y=pen.ly=y; pen.t=0; return; }
+    if(!pen.held){ pen.held=1; pen.press=1; pen.fromUi=uiOn; pen.fromBar=!uiOn&&y>=TB_Y; pen.x=pen.lx=x; pen.y=pen.ly=y; pen.t=0; return; }
     if(iabs(x-pen.x)>1||iabs(y-pen.y)>1){ pen.x=x; pen.y=y; pen.moved=1; }
     pen.t++; if(pen.t>=22&&((pen.t-22)%5)==0) pen.rep=1; }
 static int uiHitSlop(int px,int py){   // the exact button, or the nearest one within 4 pixels (fingers are fat, styluses drift)
-    int h=uiHit(px,py); if(h>=0) return h; int best=-1, bd=17;
+    int h=uiHit(px,py); if(h>=0) return h; int sl=4+3*hwUiScale, best=-1, bd=sl*sl+1;
     for(int i=uiNBtn-1;i>=0;i--){ const UiBtn*b=&uiBtns[i]; if(b->w>=200&&b->h>=150) continue; int dx=px<b->x?b->x-px:px>=b->x+b->w?px-(b->x+b->w-1):0, dy=py<b->y?b->y-py:py>=b->y+b->h?py-(b->y+b->h-1):0, d=dx*dx+dy*dy; if(d<bd){ bd=d; best=i; } }
     return best; }
 static int menuRetScr=2, menuRetSel=3;
