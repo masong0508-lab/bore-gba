@@ -159,7 +159,8 @@ static int vnoise(int x,int y,int cell,int s){   // value noise 0..255, cell pix
 }
 static int fbm(int x,int y,int s){ return (vnoise(x,y,32,s)*8+vnoise(x,y,16,s+1)*4+vnoise(x,y,8,s+2)*2+vnoise(x,y,4,s+3))/15; }
 static int cShape, cSea, cClim, cWet, cLife=2;   // create-a-planet choices: land shape (0 continents, 1 one supercontinent, 2 islands), sea level, climate, wetness (all 0 = the classic planet), amount of starting life 0..3
-static void genWorld(u32 seed){
+#include "worldgen.h"
+static void genWorldOld(u32 seed){   // (the old generator, replaced by worldgen.h)
     int s=(int)(seed&0xFFFF);
     for(int y=0;y<WH;y++) for(int x=0;x<WW;x++){
         int h=fbm(x,y,s), m=fbm(x+300,y+300,s+9), lat=(y<WH/2?y:WH-1-y)*128/WH, temp=40+lat*3+(fbm(x,y,s+20)-128)/3+cClim*28; m+=cWet*30;
@@ -264,6 +265,11 @@ static void setCell(int x,int y,u8 t){ if(x<0||y<0||x>=WW||y>=WH) return; world[
 // ---------------------------------------------------------------------------------------------- creatures
 static int curExtra;      // the extra ground the creature being moved can cross (its traits)
 static int walkable(const Sp*s,int x,int y){ if(x<0||y<0||x>=WW||y>=WH) return 0; return ((arch[s->a].mask|curExtra)>>world[y][x])&1; }
+static int edgeOut;     // a creature tried to walk off the map (EDGE = VANISH)
+static int stepOk(const Sp*s,int*nx,int*ny){   // can the creature step to (*nx,*ny)? Off the map it wraps round (EDGE 2), leaves the world (1) or is stopped (0)
+    int x=*nx, y=*ny;
+    if(x<0||y<0||x>=WW||y>=WH){ if(cEdge==2){ x=(x+WW)%WW; y=(y+WH)%WH; *nx=x; *ny=y; } else { if(cEdge==1) edgeOut=1; return 0; } }
+    return walkable(s,x,y)&&!occ[y][x]; }
 static int addCr(int s,int x,int y){
     if(nCr>=MAXC||x<0||y<0||x>=WW||y>=WH||occ[y][x]) return -1; if(!walkable(&sp[s],x,y)) return -1;
     Cr*c=&cr[nCr]; memset(c,0,sizeof *c); c->sp=(u16)s; c->x=(u8)x; c->y=(u8)y; c->hp=(u8)maxHp(c); c->food=70; c->age=(u8)(rnd()&15); c->t=(u8)(rnd()&15); c->alive=1; occ[y][x]=(u16)(nCr+1);
@@ -279,7 +285,7 @@ static void compact(void){   // the dead are squeezed out of the list
     memset(occ,0,sizeof occ); for(int i=0;i<nCr;i++) occ[cr[i].y][cr[i].x]=(u16)(i+1);
 }
 
-static void moveTo(Cr*c,int i,int nx,int ny){ occ[c->y][c->x]=0; c->ox=(s8)((c->x-nx)*8); c->oy=(s8)((c->y-ny)*8); c->x=(u8)nx; c->y=(u8)ny; occ[ny][nx]=(u16)(i+1); c->dir=(u8)(nx>c->x?0:0); }
+static void moveTo(Cr*c,int i,int nx,int ny){ occ[c->y][c->x]=0; { int ddx=c->x-nx, ddy=c->y-ny; if(ddx>1||ddx<-1) ddx=0; if(ddy>1||ddy<-1) ddy=0; c->ox=(s8)(ddx*8); c->oy=(s8)(ddy*8); } c->x=(u8)nx; c->y=(u8)ny; occ[ny][nx]=(u16)(i+1); c->dir=(u8)(nx>c->x?0:0); }
 // ---------------------------------------------------------------------------------------------- villages
 #define VIL_N 40
 #define VIL_OLD 24     // older saves held 24 villages
@@ -460,7 +466,7 @@ static int achOK(int i){ int c=0,p=0,w=0,king=0,emp=0,vas=0,tech=0,l3=0,nv=0; fo
 static void achCheck(void){ for(int i=0;i<ACH_N;i++) if(!((achBits>>i)&1)&&achOK(i)){ achBits|=1u<<i; char b[40]; siprintf(b,"ACHIEVED: %s",ach[i].nm); logEv(b); fxReq(FX_UNLOCK); } }
 static int stepToward(Cr*c,int i,const Sp*s,int tx,int ty){   // one step towards a tile along the longer axis, then the other
     int dx=tx-c->x, dy=ty-c->y; int sx=dx>0?1:dx<0?-1:0, sy=dy>0?1:dy<0?-1:0; int ax=dx<0?-dx:dx, ay=dy<0?-dy:dy; int first=ax>=ay;
-    for(int k=0;k<2;k++){ int mx=((k==0)==first)?sx:0, my=((k==0)==first)?0:sy; if(!mx&&!my) continue; int nx=c->x+mx, ny=c->y+my; if(walkable(s,nx,ny)&&!occ[ny][nx]){ moveTo(c,i,nx,ny); return 1; } }
+    for(int k=0;k<2;k++){ int mx=((k==0)==first)?sx:0, my=((k==0)==first)?0:sy; if(!mx&&!my) continue; int nx=c->x+mx, ny=c->y+my; if(stepOk(s,&nx,&ny)){ moveTo(c,i,nx,ny); return 1; } }
     return 0; }
 static void thinkBody(int i){
     Cr*c=&cr[i]; if(!c->alive) return; const Sp*s=&sp[c->sp]; const Arch*A=&arch[s->a];
@@ -482,7 +488,7 @@ static void thinkBody(int i){
             if(rd<=1+HAS(c,TR_SPIT)){ int dm=hitDmg(c,p); if(p->hp>dm) p->hp-=(u8)dm; else { killCr(best); c->hp=(u8)(c->hp+12>A->hp?A->hp:c->hp+12); } return; }
             if(stepToward(c,i,s,p->x,p->y)) return; }
         else { int v=vilAny(c->x,c->y,60); if(v>=0&&(rnd()&7)) { if(stepToward(c,i,s,vil[v].x,vil[v].y)) return; } }
-        if((rnd()&3)!=0){ int d=rnd()&3; int nx=c->x+dxs[d], ny=c->y+dys[d]; if(walkable(s,nx,ny)&&!occ[ny][nx]) moveTo(c,i,nx,ny); }
+        if((rnd()&3)!=0){ int d=rnd()&3; int nx=c->x+dxs[d], ny=c->y+dys[d]; if(stepOk(s,&nx,&ny)) moveTo(c,i,nx,ny); }
         return; }
     // eat
     if(c->food<100){
@@ -496,13 +502,13 @@ static void thinkBody(int i){
         // fight: an enemy people within reach is attacked; otherwise an army walks to the enemy village
         { int best=-1,bd=99; for(int dy=-3;dy<=3;dy++) for(int dx=-3;dx<=3;dx++){ int x=c->x+dx,y=c->y+dy; if(x<0||y<0||x>=WW||y>=WH||!occ[y][x]) continue; int j=occ[y][x]-1; int ra=sp[cr[j].sp].a; if(arch[ra].diet!=5&&(ra>=8||!warM[s->a][ra])) continue; int d=(dx<0?-dx:dx)+(dy<0?-dy:dy); if(d<bd){ bd=d; best=j; } }
           if(best>=0){ Cr*p=&cr[best]; if(bd<=1+HAS(c,TR_SPIT)){ int dm=hitDmg(c,p); if(p->hp>dm) p->hp-=(u8)dm; else { killCr(best); c->food+=20; } return; }
-              int dx=p->x-c->x, dy=p->y-c->y; int ax=dx>0?1:dx<0?-1:0, ay=dy>0?1:dy<0?-1:0; if(((dx<0?-dx:dx)<(dy<0?-dy:dy))) ax=0; else ay=0; int nx=c->x+ax, ny=c->y+ay; if(walkable(s,nx,ny)&&!occ[ny][nx]) moveTo(c,i,nx,ny); return; } }
-        if(home>=0&&vil[home].foe&&vil[vil[home].foe-1].on&&c->age>6&&c->hp>8){ const Vil*F=&vil[vil[home].foe-1]; int dx=F->x-c->x, dy=F->y-c->y; if(dx*dx+dy*dy>4){ int ax=dx>0?1:dx<0?-1:0, ay=dy>0?1:dy<0?-1:0; if(((dx<0?-dx:dx)<(dy<0?-dy:dy))) ax=0; else ay=0; int nx=c->x+ax, ny=c->y+ay; if(walkable(s,nx,ny)&&!occ[ny][nx]){ moveTo(c,i,nx,ny); return; } }
+              int dx=p->x-c->x, dy=p->y-c->y; int ax=dx>0?1:dx<0?-1:0, ay=dy>0?1:dy<0?-1:0; if(((dx<0?-dx:dx)<(dy<0?-dy:dy))) ax=0; else ay=0; int nx=c->x+ax, ny=c->y+ay; if(stepOk(s,&nx,&ny)) moveTo(c,i,nx,ny); return; } }
+        if(home>=0&&vil[home].foe&&vil[vil[home].foe-1].on&&c->age>6&&c->hp>8){ const Vil*F=&vil[vil[home].foe-1]; int dx=F->x-c->x, dy=F->y-c->y; if(dx*dx+dy*dy>4){ int ax=dx>0?1:dx<0?-1:0, ay=dy>0?1:dy<0?-1:0; if(((dx<0?-dx:dx)<(dy<0?-dy:dy))) ax=0; else ay=0; int nx=c->x+ax, ny=c->y+ay; if(stepOk(s,&nx,&ny)){ moveTo(c,i,nx,ny); return; } }
             else { int fv=vil[home].foe-1; vil[fv].stock=(u16)(vil[fv].stock>10?vil[fv].stock-10:0); if(rnd()%12==0&&vil[fv].pop<2){ if(!vilConquer(fv,home)) vilRaze(fv,1); } } }
         // settle: a grown person far from their own village starts one
         if(home<0&&c->age>12&&c->food>60&&(rnd()%6)==0&&vilFound(s->a,c->x,c->y)>=0) return;
         // stay close to home
-        if(home>=0){ int dx=vil[home].x-c->x, dy=vil[home].y-c->y; if(dx*dx+dy*dy>64){ int ax=dx>0?1:dx<0?-1:0, ay=dy>0?1:dy<0?-1:0; if(((dx<0?-dx:dx)<(dy<0?-dy:dy))) ax=0; else ay=0; int nx=c->x+ax, ny=c->y+ay; if(walkable(s,nx,ny)&&!occ[ny][nx]){ moveTo(c,i,nx,ny); return; } } }
+        if(home>=0){ int dx=vil[home].x-c->x, dy=vil[home].y-c->y; if(dx*dx+dy*dy>64){ int ax=dx>0?1:dx<0?-1:0, ay=dy>0?1:dy<0?-1:0; if(((dx<0?-dx:dx)<(dy<0?-dy:dy))) ax=0; else ay=0; int nx=c->x+ax, ny=c->y+ay; if(stepOk(s,&nx,&ny)){ moveTo(c,i,nx,ny); return; } } }
     }
     // hunt
     if((diet==1||(diet==2&&c->food<50))&&c->food<(HAS(c,TR_FIERCE)?115:90)){
@@ -512,14 +518,16 @@ static void thinkBody(int i){
         if(best>=0){ Cr*p=&cr[best];
             if(bd<=1+HAS(c,TR_SPIT)){ int dm=hitDmg(c,p); if(p->hp>dm) p->hp-=(u8)dm; else { c->food+=80; if(c->food>120) c->food=120; killCr(best); } return; }
             int dx=p->x-c->x, dy=p->y-c->y; int sx=dx>0?1:dx<0?-1:0, sy=dy>0?1:dy<0?-1:0; int try1=(((dx<0?-dx:dx)>(dy<0?-dy:dy))?0:1);
-            for(int k=0;k<2;k++){ int ax=(k==try1)?sx:0, ay=(k==try1)?0:sy; if(!ax&&!ay) continue; int nx=c->x+ax, ny=c->y+ay; if(walkable(s,nx,ny)&&!occ[ny][nx]){ moveTo(c,i,nx,ny); return; } } } }
+            for(int k=0;k<2;k++){ int ax=(k==try1)?sx:0, ay=(k==try1)?0:sy; if(!ax&&!ay) continue; int nx=c->x+ax, ny=c->y+ay; if(stepOk(s,&nx,&ny)){ moveTo(c,i,nx,ny); return; } } } }
     // breed
     int bch=A->breed; if(diet==4&&vilNear(s->a,c->x,c->y,8)>=0) bch*=2; if(HAS(c,TR_FERTILE)) bch=bch*3/2; if(HAS(c,TR_TINY)) bch=bch*13/10; if(HAS(c,TR_CLEVER)) bch=bch*13/10; if(HAS(c,TR_MUNCH)) bch=bch*14/10;
     if(c->food>=80&&c->age>8&&(int)(rnd()%100)<bch&&nCr<MAXC-4){ int d=rnd()&3; int nx=c->x+dxs[d], ny=c->y+dys[d]; int n=addCr(c->sp,nx,ny); if(n>=0){ cr[n].age=0; cr[n].food=50; born(&cr[n],&cr[i]); c->food-=40; return; } }
     // wander
-    if((rnd()&3)!=0){ int d=rnd()&3; int nx=c->x+dxs[d], ny=c->y+dys[d]; if(walkable(s,nx,ny)&&!occ[ny][nx]) moveTo(c,i,nx,ny); }
+    if((rnd()&3)!=0){ int d=rnd()&3; int nx=c->x+dxs[d], ny=c->y+dys[d]; if(stepOk(s,&nx,&ny)) moveTo(c,i,nx,ny); }
 }
-static void think(int i){ Cr*c=&cr[i]; curExtra=c->alive?trMask(c):0; thinkBody(i); curExtra=0; }
+static void think(int i){ Cr*c=&cr[i]; curExtra=c->alive?trMask(c):0; int x0=c->x, y0=c->y; edgeOut=0; thinkBody(i); curExtra=0;
+    if(edgeOut&&cEdge==1&&c->alive&&c->x==x0&&c->y==y0&&arch[sp[c->sp].a].diet!=4) killNat(i);   // VANISH: an animal or monster that walks off the map is gone (the peoples turn back)
+    edgeOut=0; }
 static int monTierMax(void){ int t=(tierOpen-1)/3+year/4; return t>4?4:t; }
 static int monCount(void){ int n=0; for(int i=0;i<nCr;i++) n+=cr[i].alive&&arch[sp[cr[i].sp].a].diet==5; return n; }
 static void monSpawn(void){   // rifts open: monsters of the strength the world has earned appear far from the villages
@@ -730,7 +738,7 @@ static SV*svOpen(const char*p,const char*m){ return fopen(p,m); } static size_t 
 static int saveGame(const char*path){
     compact(); cursor=0;     // the dead are dropped first, so a loaded game goes on exactly as this one would
     SV*f=svOpen(path,"wb"); if(!f) return 0; SaveHdr h; memset(&h,0,sizeof h); h.vcur=(u8)vilCur;
-    h.magic=SAVE_MAGIC; h.ver=9; h.weather=(u8)weather; h.weatherT=(u16)weatherT; h.trSeen=trSeen; h.stMut=stMut; h.seed=worldSeed; h.diff=(u8)diff; h.full=(u8)fullDone; h.aural=(u8)auralOpen; h.debug=(u8)debugOn; h.gw=(u16)gW; h.szCr=sizeof(Cr); h.szVil=sizeof(Vil); h.tick=(u32)tick; h.year=(u32)year; h.rs=rs; h.stKill=stKill; h.stGift=stGift; h.stUse=stUse; h.nCr=(u16)nCr; h.seenN=(u16)seenN; h.camX=(u16)camX; h.camY=(u16)camY;
+    h.magic=SAVE_MAGIC; h.pad_[0]=(u8)cEdge; h.ver=9; h.weather=(u8)weather; h.weatherT=(u16)weatherT; h.trSeen=trSeen; h.stMut=stMut; h.seed=worldSeed; h.diff=(u8)diff; h.full=(u8)fullDone; h.aural=(u8)auralOpen; h.debug=(u8)debugOn; h.gw=(u16)gW; h.szCr=sizeof(Cr); h.szVil=sizeof(Vil); h.tick=(u32)tick; h.year=(u32)year; h.rs=rs; h.stKill=stKill; h.stGift=stGift; h.stUse=stUse; h.nCr=(u16)nCr; h.seenN=(u16)seenN; h.camX=(u16)camX; h.camY=(u16)camY;
     h.chapter=(u8)chapter; h.tierOpen=(u8)tierOpen; h.storyOn=(u8)storyOn; h.storyDone=(u8)storyDone; h.monOn=(u8)monOn; h.shape3=(u8)shape3; h.nVilOn=(u8)nVilOn; h.planet=(u8)planetSize/2; memcpy(h.seen,seenB,sizeof seenB); memcpy(h.slain,slainB,sizeof slainB);
     int ok=svWrite(&h,sizeof h,1,f)==1;
     for(int y=0;y<gH&&ok;y++){ ok&=svWrite(world[y],1,gW,f)==(size_t)gW; ok&=svWrite(bld[y],1,gW,f)==(size_t)gW; ok&=svWrite(bldv[y],1,gW,f)==(size_t)gW; }
@@ -749,7 +757,7 @@ static int loadGame(const char*path){
     if(!ok){ return 0; }
     tick=(int)h.tick; year=(int)h.year; rs=h.rs; stKill=h.stKill; stGift=h.stGift; stUse=h.stUse; seenN=h.seenN; camX=h.camX; camY=h.camY; chapter=h.chapter; tierOpen=h.tierOpen; storyOn=h.storyOn; storyDone=h.storyDone; monOn=h.monOn; shape3=h.shape3; nVilOn=h.nVilOn;
     memcpy(seenB,h.seen,sizeof seenB); memcpy(slainB,h.slain,sizeof slainB); nVilOn=0; for(int v=0;v<VIL_N;v++) nVilOn+=vil[v].on;
-    for(int i=0;i<nCr;i++) if(cr[i].alive&&cr[i].x<gW&&cr[i].y<gH) occ[cr[i].y][cr[i].x]=(u16)(i+1); vilCur=h.vcur; weather=h.weather; weatherT=h.weatherT; trSeen=h.trSeen; stMut=h.stMut; worldSeed=h.seed; diff=h.diff; fullDone=h.full; auralOpen=h.aural; debugOn=h.debug; cursor=0; compact(); warMatrix(); winX=-99; return 1; }
+    for(int i=0;i<nCr;i++) if(cr[i].alive&&cr[i].x<gW&&cr[i].y<gH) occ[cr[i].y][cr[i].x]=(u16)(i+1); vilCur=h.vcur; weather=h.weather; weatherT=h.weatherT; trSeen=h.trSeen; stMut=h.stMut; worldSeed=h.seed; cEdge=h.pad_[0]<3?h.pad_[0]:0; diff=h.diff; fullDone=h.full; auralOpen=h.aural; debugOn=h.debug; cursor=0; compact(); warMatrix(); winX=-99; return 1; }
 static int walkOn, walkX=64, walkY=64;     // walking the globe: the avatar's tile
 static int view3d=0, rotX=20, rotY=0, zoom3=40, gClouds=1;       // the globe: rotY = longitude of the centre, rotX = latitude of the centre (degrees), zoom3 = how big
 static void faceTile(int x,int y,int*lat,int*lon){ *lon=x*360/WW; int la=90-y*180/WH; *lat=la>85?85:la<-85?-85:la; }
@@ -961,39 +969,40 @@ static void uiLoadHook(const char*msg,int pct){   // a loading screen: the plane
     uiPlanetSprite(128,76,8+pct*46/100); uiTextC(128,138,"BORE: GODGUY",U_GOLD,1); uiTextC(128,150,msg,U_WHITE,1);
     uiBar(48,162,160,9,pct,100,U_GREEN); { char b[8]; siprintf(b,"%d%%",pct); uiTextC(128,163,b,U_WHITE,1); }
     uiText(6,182,tipTxt[(year+pct/20+n)%11],U_DIM,1); uiFlush(); }
-static int mScr, mSel; static u32 cSeed; static int cSel, cT=-1, cLand;
-static const char*const cShapeN[]={"CONTINENTS","SUPERCONTINENT","ISLANDS"}, *const cSeaN[]={"DRY","LOW","NORMAL","HIGH","FLOODED"}, *const cClimN[]={"ICE AGE","COOL","TEMPERATE","WARM","SCORCHED"}, *const cWetN[]={"ARID","NORMAL","LUSH"}, *const cLifeN[]={"EMPTY","SPARSE","NORMAL","TEEMING"};
+static int mScr, mSel; static u32 cSeed; static int cSel, cT=-1, cLand; static const char*const cEdgeN[]={"WALLS","VANISH","WRAP"};
+static const char*const cShapeN[]={"CONTINENTS","SUPERCONTINENT","ISLANDS","ARCHIPELAGO","TWO CONTINENTS","INLAND SEAS"}, *const cSeaN[]={"DRY","LOW","NORMAL","HIGH","FLOODED"}, *const cClimN[]={"ICE AGE","COOL","TEMPERATE","WARM","SCORCHED"}, *const cWetN[]={"ARID","NORMAL","LUSH"}, *const cLifeN[]={"EMPTY","SPARSE","NORMAL","TEEMING"};
 static void previewWorld(void){ gW=gH=planetSize; nCr=0; memset(occ,0,sizeof occ); memset(bld,0,sizeof bld); memset(bldv,0,sizeof bldv); memset(vil,0,sizeof vil); nVilOn=0; genWorld(cSeed); camX=(WW*8-256)/2; camY=(WH*8-192)/2; winX=-99; refillWindow();
     int l=0; for(int y=0;y<WH;y++) for(int x=0;x<WW;x++) if(world[y][x]>T_WATER) l++; cLand=l*100/(WW*WH); cT=-1; }
 static void createStart(void){ if(!cSeed) cSeed=(rnd()&0xFFFF)|1; cSel=0; previewWorld(); }
 static void createInput(int kd){
     int d=((kd&KEY_RIGHT)?1:0)-((kd&KEY_LEFT)?1:0); int ch=0;
-    if(kd&KEY_UP) cSel=(cSel+9)%10; if(kd&KEY_DOWN) cSel=(cSel+1)%10;
+    if(kd&KEY_UP) cSel=(cSel+10)%11; if(kd&KEY_DOWN) cSel=(cSel+1)%11;
     if(kd&KEY_B){ mScr=0; mSel=1; return; }
-    if(cSel==9&&(kd&KEY_A)){ seedFix=cSeed; startWorld(storyOn); seedFix=0; return; }
+    if(cSel==10&&(kd&KEY_A)){ seedFix=cSeed; startWorld(storyOn); seedFix=0; return; }
     if(d||(kd&KEY_A)){ if(!d) d=1; switch(cSel){
         case 0: setSize(d>0?(planetSize==128?192:planetSize==192?256:128):(planetSize==256?192:planetSize==192?128:256)); ch=1; break;
         case 1: storyOn^=1; break;
-        case 2: cShape=(cShape+3+d)%3; ch=1; break; case 3: cSea=(cSea+7+d)%5-2; ch=1; break; case 4: cClim=(cClim+7+d)%5-2; ch=1; break; case 5: cWet=(cWet+4+d)%3-1; ch=1; break;
+        case 2: cShape=(cShape+6+d)%6; ch=1; break; case 3: cSea=(cSea+7+d)%5-2; ch=1; break; case 4: cClim=(cClim+7+d)%5-2; ch=1; break; case 5: cWet=(cWet+4+d)%3-1; ch=1; break;
         case 6: cLife=(cLife+4+d)%4; break; case 7: diff=(diff+3+d)%3; break;
-        case 8: if(kd&KEY_A) cSeed=(rnd()&0xFFFF)|1; else cSeed=(cSeed+d)&0xFFFF; ch=1; break; } }
+        case 8: if(kd&KEY_A) cSeed=(rnd()&0xFFFF)|1; else cSeed=(cSeed+d)&0xFFFF; ch=1; break;
+        case 9: cEdge=(cEdge+3+d)%3; ch=1; break; } }
     if(kd&(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT|KEY_A)) fxReq(FX_MENU_MOVE);
     if(ch) cT=8; }
 static void uiCreate(void){
     uiRect(0,0,256,192,U_BG); for(int y=0;y<192;y+=4) uiRect(0,y,256,1,U_PANEL);
     uiRect(0,0,256,15,U_PANELHI); uiText(6,4,"CREATE A PLANET",U_GOLD,1); uiRound(204,2,48,11,U_SEL,U_GOLD); uiTextC(228,4,"BACK",U_WHITE,1); uiBtn(202,0,52,15,KEY_B,0,0,0);
-    char l[10][16], v[10][20]; const char*lb[10]={"SIZE","TYPE","LAND","SEA","CLIMATE","WETNESS","LIFE","DIFFICULTY","SEED","CREATE!"};
-    siprintf(v[0],"%dx%d",planetSize,planetSize); strcpy(v[1],storyOn?"STORY":"FREE PLAY"); strcpy(v[2],cShapeN[cShape]); strcpy(v[3],cSeaN[cSea+2]); strcpy(v[4],cClimN[cClim+2]); strcpy(v[5],cWetN[cWet+1]); strcpy(v[6],cLifeN[cLife]); strcpy(v[7],diff==0?"CALM":diff==1?"NORMAL":"BRUTAL"); siprintf(v[8],"%04X  A:ROLL",(unsigned)cSeed); v[9][0]=0; (void)l;
-    for(int i=0;i<10;i++){ int y=19+i*15, sel=i==cSel; uiRound(4,y,156,13,sel?U_SEL:U_PANELHI,sel?U_GOLD:U_BHI); uiText(10,y+2,lb[i],sel?U_WHITE:U_LGREY,1);
-        uiBtn(4,y,156,13,i==9?KEY_A:0,0,&cSel,i); if(i<8){ uiBtn(90,y,34,13,KEY_LEFT,0,&cSel,i); uiBtn(124,y,36,13,KEY_RIGHT,0,&cSel,i); } if(i==8) uiBtn(124,y,36,13,KEY_A,0,&cSel,i);
-        if(i==9){ uiTextC(82+30,y+2,"",U_GOLD,1); continue; }
+    char l[11][16], v[11][20]; const char*lb[11]={"SIZE","TYPE","LAND","SEA","CLIMATE","WETNESS","LIFE","DIFFICULTY","SEED","EDGE","CREATE!"};
+    siprintf(v[0],"%dx%d",planetSize,planetSize); strcpy(v[1],storyOn?"STORY":"FREE PLAY"); strcpy(v[2],cShapeN[cShape]); strcpy(v[3],cSeaN[cSea+2]); strcpy(v[4],cClimN[cClim+2]); strcpy(v[5],cWetN[cWet+1]); strcpy(v[6],cLifeN[cLife]); strcpy(v[7],diff==0?"CALM":diff==1?"NORMAL":"BRUTAL"); siprintf(v[8],"%04X  A:ROLL",(unsigned)cSeed); strcpy(v[9],cEdgeN[cEdge]); v[10][0]=0; (void)l;
+    for(int i=0;i<11;i++){ int y=19+i*15, sel=i==cSel; uiRound(4,y,156,13,sel?U_SEL:U_PANELHI,sel?U_GOLD:U_BHI); uiText(10,y+2,lb[i],sel?U_WHITE:U_LGREY,1);
+        uiBtn(4,y,156,13,i==10?KEY_A:0,0,&cSel,i); if(i<8||i==9){ uiBtn(90,y,34,13,KEY_LEFT,0,&cSel,i); uiBtn(124,y,36,13,KEY_RIGHT,0,&cSel,i); } if(i==8) uiBtn(124,y,36,13,KEY_A,0,&cSel,i);
+        if(i==10){ uiTextC(82+30,y+2,"",U_GOLD,1); continue; }
         int vw=uiTextW(v[i],1); if(sel&&i!=8){ uiIcon8(154-vw-14,y+1,IC8_LEFT); uiIcon8(150,y+1,IC8_RIGHT); } uiTextR(148,y+2,v[i],sel?U_GOLD:U_DIM); }
     // the preview of the planet as it will be
     uiFrame(163,19,90,90,U_SHADOW,U_BLO,U_BHI);
     for(int y=0;y<88;y++) for(int x=0;x<88;x++){ int wx=x*WW/88, wy=y*WH/88; int t=world[wy][wx]; uiPx(164+x,20+y,100+t*3+((wx+wy)&1)); }
     char b[24]; siprintf(b,"LAND %d%%",cLand); uiTextC(208,113,b,U_WHITE,1); siprintf(b,"SEED %04X",(unsigned)cSeed); uiTextC(208,124,b,U_DIM,1);
     uiTextC(208,140,cT>=0?"SHAPING...":"READY",cT>=0?U_ORANGE:U_GREEN,1);
-    uiText(6,172,cSel==9?"A: BEGIN YOUR WORLD":"PAD: UP DOWN  LEFT RIGHT CHANGE",U_DIM,1);
+    uiText(6,184,cSel==10?"A: BEGIN YOUR WORLD":"PAD: UP DOWN  LEFT RIGHT CHANGE",U_DIM,1);
     uiFlush(); }
 enum { MI_CONT, MI_STORY, MI_FREE, MI_OPT, MI_EXTRA, MI_BACK, MI_SIZE, MI_DIFF, MI_VOL, MI_MON, MI_SCULPT, MI_BEST, MI_CODEX, MI_HELP, MI_CRED, MI_DEBUG, MI_RESUME, MI_SAVE, MI_NEW, MI_MODE, MI_TITLE, MI_CREATE, MI_GO, MI_STYPE, MI_SPEED, MI_KING, MI_JOURNAL, MI_ACH, MI_CULT, MI_LANG, MI_BROWSE };
 static int extrasView;      // which menu (0 main, 1 options, 2 extras), the highlighted row, a pending "are you sure", and whether an extras page is open
