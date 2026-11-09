@@ -114,4 +114,4 @@ SONG_XM(here_today_gone_tomorrow,"HERE TODAY GONE TOMORROW","tools/here_today_go
 SONG_XM(ohio_hoe,"OHIO HOE","tools/ohio_hoe.xm")
 SONG_ADP(corporations,"CORPORATIONS (YOU'RE WINNER)","source/music/corporations.adp")
 // DUCK & COVER: a Koala Sampler project (145 BPM) rebuilt as a 174 BPM drum & bass tracker song (tools/make_duckcover.py): the sampled chops are 4-bit ADPCM-quality samples
-SONG_XM(duck_cover_dnb,"DUCK & COVER","tools/duckcover/duck_cover_dnb.xm")
+SONG_XM(duck_cover_dnb,"DUCK & COVER (ORIGINAL)","tools/duckcover/duck_cover_dnb.xm")

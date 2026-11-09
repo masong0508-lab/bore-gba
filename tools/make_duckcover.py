@@ -29,7 +29,7 @@ from xm2gba import wsola_fit
 
 SR = 44100; OLD = 145.0; NEW = 174.0; BEAT = 60.0 / NEW; RATE = 18157
 OUT = "tools/duckcover"; ROWB = 8                       # rows per beat (1/32 notes at speed 3, XM BPM 174)
-SID, TITLE, XMP = "duck_cover_dnb", "DUCK & COVER", "tools/duckcover/duck_cover_dnb.xm"
+SID, TITLE, XMP = "duck_cover_dnb", "DUCK & COVER (ORIGINAL)", "tools/duckcover/duck_cover_dnb.xm"
 VOX_SEMI = -1                                          # the vocal / sampled chops sat a semitone above the song: every chop note is played this many semitones lower (0 = as in Koala)
 rng = np.random.default_rng(7)
 if len(sys.argv) < 2: sys.exit(__doc__)
