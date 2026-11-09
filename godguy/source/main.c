@@ -1477,14 +1477,15 @@ int main(void){
                 faceTile(walkX,walkY,&rotX,&rotY); if(kh&KEY_A){ static int at=0; if((kd&KEY_A)||++at>=4){ at=0; usePower(walkX,walkY,(kd&KEY_A)?1:(pw[power].kind==PK_PAINT)); } } kd&=~KEY_A; }
             if(kd&KEY_A){ gClouds^=1; dirty=1; }
             { static int h3=0, l3x=-9, l3y=-9, lpx=-1, lpy=-1;
-              if(kh&KEY_TOUCH){ touchPosition tp; touchRead(&tp);
-                  if(kh&KEY_B){ if(lpx>=0){ rotY-=(tp.px-lpx)/2; rotX+=(tp.py-lpy)/2; } lpx=tp.px; lpy=tp.py; h3=0; }   // B held: drag to turn the planet
+              static int sax=0, say=0;
+              if(pen.held&&!pen.fromUi){ touchPosition tp; tp.px=pen.x; tp.py=pen.y;   // the filtered pen, the same one the 2D world uses
+                  if(kh&KEY_B){ if(lpx>=0){ sax+=tp.px-lpx; say+=tp.py-lpy; rotY-=sax/2; rotX+=say/2; sax%=2; say%=2; } else { sax=say=0; } lpx=tp.px; lpy=tp.py; h3=0; }   // B held: drag to turn the planet (the odd pixel is carried over, nothing is lost)
                   else { lpx=-1; int tx,ty; if(globePick(tp.px,tp.py,&tx,&ty)){ int fresh=!h3||tx!=l3x||ty!=l3y; if(pw[power].kind==PK_PAINT||fresh) usePower(tx,ty,!h3); h3=1; l3x=tx; l3y=ty; dirty=1; } } }
               else { h3=0; lpx=-1; } }
             if(!paused) simulate(); for(int k=1;k<speedMul&&!paused;k++){ tick++; simulate(); } globeDraw(); swiWaitForVBlank(); globeFlush(); if((tick&15)==0||dirty){ drawMinimap(); hud(); } continue; }
         if(kd&(KEY_X|KEY_Y)){ int d=(kd&KEY_X)?1:-1; if(kh&KEY_B){ if(pw[power].kind==PK_GIFT) itSel=itNext(itSel,10*d); else spSel=(spSel+nSp+10*d)%nSp; } else if(pw[power].kind==PK_SPAWN){ spSel=(spSel+nSp+d)%nSp; } else if(pw[power].kind==PK_GIFT){ itSel=itNext(itSel,d); } else if(pw[power].kind==PK_MUTATE){ for(int k=1;k<=TR_N;k++){ int t=(trSel+TR_N*2+d*k)%TR_N; if(t==0||((trSeen>>t)&1)||debugOn||unlockAll){ trSel=t; break; } } } else { brush+=d; if(brush<0) brush=0; if(brush>8) brush=8; } dirty=1; }
         if(kd&KEY_A&&page!=3){ paused^=1; dirty=1; }
-        if(pen.held&&!pen.fromUi){ if(pen.y>=168){ if(pen.press||pen.rep){ tbTouch(pen.x,pen.y); fxReq(FX_MENU_MOVE); dirty=1; } held=1; } else { int tx=(pen.x+camX)>>3, ty=(pen.y+camY)>>3; int fresh=!held||tx!=lastTx||ty!=lastTy; if(pw[power].kind==PK_PAINT&&held&&(abs(tx-lastTx)>1||abs(ty-lastTy)>1)){ int n=abs(tx-lastTx)>abs(ty-lastTy)?abs(tx-lastTx):abs(ty-lastTy); if(n>24) n=24; for(int q=1;q<n;q++) usePower(lastTx+(tx-lastTx)*q/n,lastTy+(ty-lastTy)*q/n,0); } if(pw[power].kind==PK_PAINT||fresh) usePower(tx,ty,!held); held=1; lastTx=tx; lastTy=ty; dirty=1; } } else held=0;
+        if(pen.held&&!pen.fromUi){ if(pen.fromBar){ if((pen.press||pen.rep)&&pen.y>=168){ tbTouch(pen.x,pen.y); fxReq(FX_MENU_MOVE); dirty=1; } held=1; } else if(pen.y>=168){ held=1; } else {   /* a touch that starts on the toolbar stays on it, a drift upward never paints; a stroke that slides down onto it just stops */ int tx=(pen.x+camX)>>3, ty=(pen.y+camY)>>3; int fresh=!held||tx!=lastTx||ty!=lastTy; if(pw[power].kind==PK_PAINT&&held&&(abs(tx-lastTx)>1||abs(ty-lastTy)>1)){ int n=abs(tx-lastTx)>abs(ty-lastTy)?abs(tx-lastTx):abs(ty-lastTy); if(n>24) n=24; for(int q=1;q<n;q++) usePower(lastTx+(tx-lastTx)*q/n,lastTy+(ty-lastTy)*q/n,0); } if(pw[power].kind==PK_PAINT||fresh) usePower(tx,ty,!held); held=1; lastTx=tx; lastTy=ty; dirty=1; } } else held=0;
         refillWindow(); simulate();   // (this tick first, then the extra ones of 2x / 4x: each tick is simulated once. Before, the tick the frame started on was never simulated and the last one twice, so at 2x a year, a chapter or a monster wave that fell on the skipped ticks never came)
         for(int k=1;k<speedMul&&!paused;k++){ tick++; simulate(); }
         swiWaitForVBlank();

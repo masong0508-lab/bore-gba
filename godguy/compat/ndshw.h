@@ -74,10 +74,10 @@ static inline void oamSetHidden(OamState*o,int id,bool h){ (void)o; vu16*a=(vu16
 static inline void oamUpdate(OamState*o){ (void)o; }
 // ---- input: the d-pad and buttons are read here, X, Y and the stylus come from the ARM7 through the shared block
 typedef struct { u32 op, ch, a, b, c, d; } HwCmd;
-typedef struct { volatile u32 head, tail, busy, keys, pen, px, py, alive, svType, svBusy, svOK; HwCmd q[64]; } HwIpc;
+typedef struct { volatile u32 head, tail, busy, keys, pen, px, py, alive, svType, svBusy, svOK; HwCmd q[64]; volatile u32 seq, tapX, tapY; } HwIpc;
 #define HWIPC ((HwIpc*)0x023F0000)
-static int hwHeld, hwTx, hwTy;
-static inline void scanKeys(void){ u32 k=~HW_REG16(0x04000130)&0x3FF; int h=(int)k; if(HWIPC->keys&1) h|=KEY_X; if(HWIPC->keys&2) h|=KEY_Y; if(HWIPC->pen){ h|=KEY_TOUCH; hwTx=(int)HWIPC->px; hwTy=(int)HWIPC->py; } hwHeld=h; }
+static int hwHeld, hwTx, hwTy; static u32 hwSeq;
+static inline void scanKeys(void){ u32 k=~HW_REG16(0x04000130)&0x3FF; int h=(int)k; if(HWIPC->keys&1) h|=KEY_X; if(HWIPC->keys&2) h|=KEY_Y; if(HWIPC->pen){ h|=KEY_TOUCH; hwTx=(int)HWIPC->px; hwTy=(int)HWIPC->py; hwSeq=HWIPC->seq; } else if(HWIPC->seq!=hwSeq){ hwSeq=HWIPC->seq; h|=KEY_TOUCH; hwTx=(int)HWIPC->tapX; hwTy=(int)HWIPC->tapY; } hwHeld=h; }   // (a tap shorter than a frame still counts: the ARM7 counts every new contact)
 static int hwPrev;
 static inline int keysHeld(void){ return hwHeld; }
 static inline int keysDown(void){ int d=hwHeld&~hwPrev; hwPrev=hwHeld; return d; }

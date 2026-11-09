@@ -1,7 +1,7 @@
 // the ARM7 program for the no-libnds build: it plays sound for the ARM9 (commands arrive in a ring in main RAM) and reads the stylus and the X / Y buttons for it. No libnds, no BIOS calls.
 typedef unsigned char u8; typedef unsigned short u16; typedef unsigned int u32; typedef volatile unsigned short vu16; typedef volatile unsigned int vu32;
 typedef struct { u32 op, ch, a, b, c, d; } HwCmd;
-typedef struct { volatile u32 head, tail, busy, keys, pen, px, py, alive, svType, svBusy, svOK; HwCmd q[64]; } HwIpc;
+typedef struct { volatile u32 head, tail, busy, keys, pen, px, py, alive, svType, svBusy, svOK; HwCmd q[64]; volatile u32 seq, tapX, tapY; } HwIpc;
 #define IPC ((HwIpc*)0x023F0000)
 #define R16(a) (*(vu16*)(a))
 #define R32(a) (*(vu32*)(a))
@@ -40,16 +40,44 @@ static void doCmd(HwCmd*c){
     case 6: CH_CNT(ch)=(CH_CNT(ch)&~0x7Fu)|(c->c&0x7F); break;
     case 7: CH_CNT(ch)=(CH_CNT(ch)&~(0x7Fu<<16))|((c->c&0x7F)<<16); break;
     } }
+// ---- the stylus. Sampled twice a frame (so a very short tap is not missed), five conversions each time with the middle three averaged, a noisy sample keeps the last good position
+// instead of dropping the pen, a release must be seen twice, and the firmware's own calibration is used when it looks sane (otherwise the plain 12-bit scaling).
+static int calOk, calTry; static int cAx1, cAy1, cSx1, cSy1, cAx2, cAy2, cSx2, cSy2;
+static int ab(int v){ return v<0?-v:v; }
+static void calInit(void){   // the user settings the firmware leaves in main RAM: ADC x1 y1, screen x1 y1, ADC x2 y2, screen x2 y2
+    volatile u8*u=(volatile u8*)0x027FFC80; calTry++; cAx1=u[0x58]|(u[0x59]<<8); cAy1=u[0x5A]|(u[0x5B]<<8); cSx1=u[0x5C]; cSy1=u[0x5D]; cAx2=u[0x5E]|(u[0x5F]<<8); cAy2=u[0x60]|(u[0x61]<<8); cSx2=u[0x62]; cSy2=u[0x63];
+    calOk=0; if(cAx2<cAx1+0x200||cAy2<cAy1+0x200||cSx2<cSx1+100||cSy2<cSy1+80||cAx2>4095||cAy2>4095) return;
+    if(ab((cAx1>>4)-cSx1)>20||ab((cAx2>>4)-cSx2)>20||ab(cAy1*192/4096-cSy1)>20||ab(cAy2*192/4096-cSy2)>20) return;   // far from the plain mapping: do not trust it
+    calOk=1; }
+static void sort5(u32*a){ for(int i=1;i<5;i++){ u32 v=a[i]; int j=i-1; while(j>=0&&a[j]>v){ a[j+1]=a[j]; j--; } a[j+1]=v; } }
+static int penRead(u32*ox,u32*oy){   // 1 = a good position, 0 = the pen is up, -1 = touching but noisy
+    if(R16(0x04000136)&0x40) return 0;
+    u32 xs[5], ys[5]; tsc(0xD0); tsc(0x90);   // the first pair settles the converter
+    for(int i=0;i<5;i++){ xs[i]=tsc(0xD0); ys[i]=tsc(0x90); }
+    if(R16(0x04000136)&0x40) return 0;       // lifted while reading
+    sort5(xs); sort5(ys);
+    if(xs[3]-xs[1]>80||ys[3]-ys[1]>80) return -1;   // the samples disagree by more than about 5 pixels
+    u32 rx=(xs[1]+xs[2]+xs[3])/3, ry=(ys[1]+ys[2]+ys[3])/3; if(rx==0||ry==0||rx>=4095||ry>=4095) return -1;
+    int px, py;
+    if(calOk){ px=cSx1+((int)rx-cAx1)*(cSx2-cSx1)/(cAx2-cAx1); py=cSy1+((int)ry-cAy1)*(cSy2-cSy1)/(cAy2-cAy1); }
+    else { px=(int)(rx>>4); py=(int)(ry*192/4096); }
+    if(px<0) px=0; if(px>255) px=255; if(py<0) py=0; if(py>191) py=191; *ox=(u32)px; *oy=(u32)py; return 1; }
+static int penUp, penBad;
+static void penTick(void){
+    if(!calOk&&calTry<8) calInit();
+    u32 x=0, y=0; int r=penRead(&x,&y);
+    if(r>0){ penUp=0; penBad=0; if(!IPC->pen){ IPC->tapX=x; IPC->tapY=y; IPC->seq++; } IPC->px=x; IPC->py=y; IPC->pen=1; }
+    else if(r<0){ if(IPC->pen&&++penBad>4) IPC->pen=0; }
+    else { penBad=0; if(IPC->pen&&++penUp>=2) IPC->pen=0; if(!IPC->pen) penUp=0; } }
 void arm7main(void){
     R16(0x04000304)=1;                       // sound on (POWCNT2)
     R16(0x04000500)=0x8000|0x7F;             // sound master enable, full volume
-    int done=0, det=0;
+    int done=0, mid=0, det=0; calInit();
     for(;;){
         if(IPC->alive==0x41524D39&&!det){ det=1; svDetect(); }
         if(IPC->alive==0x41524D39){ while(IPC->tail!=IPC->head){ doCmd(&IPC->q[IPC->tail]); IPC->tail=(IPC->tail+1)&63; } }
         u32 b=0; for(int i=0;i<16;i++) if(CH_CNT(i)&0x80000000u) b|=1u<<i; IPC->busy=b;
         u16 vc=R16(0x04000006);
-        if(vc==192){ if(!done){ done=1; u16 ext=R16(0x04000136); IPC->keys=(u32)(((~ext)&3));
-                if(!(ext&0x40)){ u32 x=tsc(0xD0), y=tsc(0x90); if(x&&y&&x<4096){ IPC->px=(x>>4)>255?255:(x>>4); u32 py=y*192/4096; IPC->py=py>191?191:py; IPC->pen=1; } else IPC->pen=0; } else IPC->pen=0; } }
-        else done=0;
+        if(vc>=192){ mid=0; if(!done){ done=1; u16 ext=R16(0x04000136); IPC->keys=(u32)(((~ext)&3)); penTick(); } }
+        else { done=0; if(vc>=96&&!mid){ mid=1; penTick(); } }
     } }
