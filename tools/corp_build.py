@@ -94,16 +94,16 @@ def assign(ev, origin):
             c = min(ok, key=lambda c: free_at[c]); put(first_ch + c, r0, n["pitch"] - 11, inst, vv(n["vel"]), True); free_at[c] = r1
             if (first_ch + c, r1) not in rows: rows[(first_ch + c, r1)] = (97, 0, 0)
     poly(ev["bass_oct"], 1, 1, 1)
-    poly(ev["piano"], 2, 5, 2)
-    poly(ev["other"], 7, 4, 6, 3)
+    poly(ev["piano"], 2, 4, 2)
+    poly(ev["other"], 6, 3, 6, 3)
     for h in ev["drums"]:
-        ch = {"kick": 11, "snare": 12, "hat": 13}[h["kind"]]; inst = {"kick": 3, "snare": 4, "hat": 5}[h["kind"]]; put(ch, qrow(h["t"], origin), 49, inst, vv(h["vel"]))
+        ch = {"kick": 9, "snare": 10, "hat": 11}[h["kind"]]; inst = {"kick": 3, "snare": 4, "hat": 5}[h["kind"]]; put(ch, qrow(h["t"], origin), 49, inst, vv(h["vel"]))
     return rows
 
 # ------------------------------------------------------------------------------------------------ digital stems (4-bit ADPCM clips)
 def digital(origin):
     os.makedirs(OUT + "/digital", exist_ok=True); info = {}; cues = {}
-    stems = {n: load(find_stem(n)) for n in ("vocals", "guitar")}; L = min(len(v) for v in stems.values())
+    stems = {n: load(find_stem(n)) for n in ("vocals", "guitar", "other")}; L = min(len(v) for v in stems.values())
     # vocals: the same squeeze as the single-stream song (compression, presence, level), kept as 4-bit
     voc = stems["vocals"][:L]; act_v, _ = vad(voc); v = vocal_chain(voc, act_v)
     stems["vocals"] = v / np.abs(v).max() * 0.85
@@ -131,8 +131,8 @@ def digital(origin):
 
 # ------------------------------------------------------------------------------------------------ the module
 def build_xm(rows, origin, nbars, info):
-    NCH = 16; nrows = nbars * 32; npat = (nrows + 63) // 64
-    for k, name in ((14, "vocals"), (15, "guitar")):
+    NCH = 15; nrows = nbars * 32; npat = (nrows + 63) // 64
+    for k, name in ((12, "vocals"), (13, "guitar"), (14, "other")):
         for c in info[name]["clips"]:
             r = c["cue_row"]
             if 0 <= r < npat * 64: rows[(k, r)] = (1 + c["i"] if c["i"] < 96 else 96, CUE, 0x50)
@@ -154,8 +154,8 @@ def build_xm(rows, origin, nbars, info):
 # ------------------------------------------------------------------------------------------------ player (the instruments played back with the tracker's pitch maths)
 def play_module(rows, origin, nrows, sr=SR):
     total = int((nrows * ROW) * sr) + sr; out = np.zeros(total); stems = {k: np.zeros(total) for k in ("bass", "bass_oct", "piano", "other", "drums")}
-    for ch in range(14):
-        evs = sorted([(r, v) for (c, r), v in rows.items() if c == ch]); name = "bass" if ch == 0 else "bass_oct" if ch == 1 else "piano" if ch < 7 else "other" if ch < 11 else "drums"
+    for ch in range(12):
+        evs = sorted([(r, v) for (c, r), v in rows.items() if c == ch]); name = "bass" if ch == 0 else "bass_oct" if ch == 1 else "piano" if ch < 6 else "other" if ch < 9 else "drums"
         for k, (r, (note, inst, vol)) in enumerate(evs):
             if note == 97 or inst == 0: continue
             I = INST[inst - 1]; start = int((r * ROW) * sr); end_r = evs[k + 1][0] if k + 1 < len(evs) else r + 400; end = min(total, int(end_r * ROW * sr))

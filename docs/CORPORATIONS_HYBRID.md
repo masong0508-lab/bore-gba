@@ -58,3 +58,8 @@ each clip must start). The song that plays in the jukebox today is still the sin
   dense pad / lead texture, so it is the roughest part (chroma 0.58, loudness correlation 0.45). The 3.2 MB `other.adp` is gone; only the vocals (1,569 KB) and the guitar (167 KB) stay digital.
 * **The vocals** sit 3.5 dB under the instruments while they sing (was 2.0 dB under, 2.5 dB above before that), and play at 0.45 gain in the hybrid preview.
 * Module: 16 channels (1 bass, 2 bass octave, 3-7 piano, 8-11 synths, 12-14 drums, 15-16 cue lanes for the vocals and guitar clips), 7 instruments.
+
+## Sax samples back
+The "other" stem (where the sax lives) is digital again: 11 clips, 3,237 KB, 4-bit ADPCM, with their own cue lane, and the hybrid preview plays those clips instead of the synth stand-in. The transcribed synth voices
+stay in the module (channels 7-9) and in the MIDI file ("other synth") for remixing, but they are muted in the preview so the sax is not doubled. Module now: 15 channels (1 bass, 2 bass octave, 3-6 piano,
+7-9 synth, 10-12 drums, 13-15 cue lanes for the vocal, guitar and other clips). The stem is a mixture, so the sax cannot be cut out of it by itself: the clips carry the synths with it.

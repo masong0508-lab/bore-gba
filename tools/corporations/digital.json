@@ -686,6 +686,134 @@
    "total_bytes": 171068,
    "default_gain": 1.0,
    "active_s": 18.8
+  },
+  "other": {
+   "clips": [
+    {
+     "i": 0,
+     "start_s": 0.0,
+     "end_s": 30.06,
+     "gba_sample": 0,
+     "samples": 545800,
+     "offset": 0,
+     "bytes": 272904,
+     "vol_peak": 0.2818,
+     "cue_row": 29
+    },
+    {
+     "i": 1,
+     "start_s": 29.96,
+     "end_s": 61.7129,
+     "gba_sample": 543984,
+     "samples": 576538,
+     "offset": 272904,
+     "bytes": 288276,
+     "vol_peak": 0.0311,
+     "cue_row": 553
+    },
+    {
+     "i": 2,
+     "start_s": 61.6129,
+     "end_s": 100.1087,
+     "gba_sample": 1118706,
+     "samples": 698968,
+     "offset": 561180,
+     "bytes": 349488,
+     "vol_peak": 0.1045,
+     "cue_row": 1106
+    },
+    {
+     "i": 3,
+     "start_s": 100.0087,
+     "end_s": 130.1087,
+     "gba_sample": 1815858,
+     "samples": 546526,
+     "offset": 910668,
+     "bytes": 273268,
+     "vol_peak": 0.0009,
+     "cue_row": 1776
+    },
+    {
+     "i": 4,
+     "start_s": 130.0087,
+     "end_s": 168.8309,
+     "gba_sample": 2360568,
+     "samples": 704894,
+     "offset": 1183936,
+     "bytes": 352452,
+     "vol_peak": 0.2909,
+     "cue_row": 2300
+    },
+    {
+     "i": 5,
+     "start_s": 168.7309,
+     "end_s": 208.1136,
+     "gba_sample": 3063647,
+     "samples": 715072,
+     "offset": 1536388,
+     "bytes": 357540,
+     "vol_peak": 0.3471,
+     "cue_row": 2977
+    },
+    {
+     "i": 6,
+     "start_s": 208.0136,
+     "end_s": 242.7014,
+     "gba_sample": 3776903,
+     "samples": 629827,
+     "offset": 1893928,
+     "bytes": 314920,
+     "vol_peak": 0.2359,
+     "cue_row": 3663
+    },
+    {
+     "i": 7,
+     "start_s": 242.6014,
+     "end_s": 281.644,
+     "gba_sample": 4404914,
+     "samples": 708896,
+     "offset": 2208848,
+     "bytes": 354452,
+     "vol_peak": 0.4646,
+     "cue_row": 4267
+    },
+    {
+     "i": 8,
+     "start_s": 281.544,
+     "end_s": 311.9662,
+     "gba_sample": 5111994,
+     "samples": 552376,
+     "offset": 2563300,
+     "bytes": 276192,
+     "vol_peak": 0.4694,
+     "cue_row": 4947
+    },
+    {
+     "i": 9,
+     "start_s": 311.8662,
+     "end_s": 347.788,
+     "gba_sample": 5662555,
+     "samples": 652232,
+     "offset": 2839492,
+     "bytes": 326120,
+     "vol_peak": 0.3704,
+     "cue_row": 5477
+    },
+    {
+     "i": 10,
+     "start_s": 347.688,
+     "end_s": 364.061,
+     "gba_sample": 6312970,
+     "samples": 297285,
+     "offset": 3165612,
+     "bytes": 148648,
+     "vol_peak": 0.189,
+     "cue_row": 6103
+    }
+   ],
+   "total_bytes": 3314260,
+   "default_gain": 1.0,
+   "active_s": 365.1
   }
  }
 }

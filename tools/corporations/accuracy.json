@@ -17,9 +17,9 @@
   }
  },
  "piano": {
-  "chroma_cosine": 0.663,
-  "spectrum_cosine": 0.251,
-  "loudness_correlation": 0.791,
+  "chroma_cosine": 0.661,
+  "spectrum_cosine": 0.25,
+  "loudness_correlation": 0.775,
   "onsets_vs_stem": {
    "precision": 0.124,
    "recall": 0.732,
@@ -28,9 +28,9 @@
   "notes": 659
  },
  "other": {
-  "chroma_cosine": 0.579,
-  "spectrum_cosine": 0.632,
-  "loudness_correlation": 0.448,
+  "chroma_cosine": 0.573,
+  "spectrum_cosine": 0.624,
+  "loudness_correlation": 0.441,
   "onsets_vs_stem": {
    "precision": 0.019,
    "recall": 0.613,
