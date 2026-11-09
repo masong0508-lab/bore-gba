@@ -1,0 +1,77 @@
+# GODGUY DS ROMS v1  - builds the Nintendo DS ROMs of godguy/ with devkitARM. Separate from build.yml (the GBA game), so neither slows the other.
+name: Build GodGuy DS ROMs
+on:
+  push:
+    paths:
+      - 'godguy/**'
+      - '.github/workflows/godguy-nds.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+# only the newest push of a branch may publish, so an old slow run can never overwrite a newer ROM
+concurrency:
+  group: godguy-nds-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  nds:
+    runs-on: ubuntu-latest
+    container: mirror.gcr.io/devkitpro/devkitarm:latest
+    env:
+      DEVKITPRO: /opt/devkitpro
+      DEVKITARM: /opt/devkitpro/devkitARM
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tools (python3, make, ndstool, libnds + calico)
+        run: |
+          command -v python3 >/dev/null || { apt-get update && apt-get install -y python3; }
+          [ -x /usr/bin/python3 ] || ln -sf "$(command -v python3)" /usr/bin/python3     # (the build scripts call /usr/bin/python3)
+          dkp-pacman -Syu --noconfirm || true
+          dkp-pacman -S --needed --noconfirm nds-dev ndstool || true
+          ls "$DEVKITPRO/tools/bin/ndstool" "$DEVKITPRO/calico" 2>&1 | head -5
+
+      # 1. the main one: no libnds, no calico. Runs in DraStic and melonDS. No SD saving (it saves to the cartridge chip, or use DraStic save states).
+      - name: godguy_hw.nds  (DraStic / melonDS / hardware, no libnds)
+        working-directory: godguy
+        run: |
+          chmod +x build_hw.sh build_rom.sh build_dsi.sh
+          ./build_hw.sh
+          mkdir -p ../out && cp godguy_hw.nds ../out/godguy_hw.nds
+
+      # 2. the libnds 2 / calico build: SD saving, three save slots, globe. For melonDS and flashcarts.
+      - name: godguy.nds  (libnds + calico, SD saves)
+        continue-on-error: true
+        working-directory: godguy
+        run: |
+          ./build_rom.sh
+          cp godguy.nds ../out/godguy.nds
+
+      # 3. extras: the DSi build, the no-sound crash finder, the no-cache build
+      - name: godguy_dsi.nds, godguy_hw_safe.nds, godguy_hw_nocache.nds
+        continue-on-error: true
+        working-directory: godguy
+        run: |
+          ./build_dsi.sh && cp godguy_dsi.nds godguy_dsi_mode.nds ../out/
+          GG_FLAGS=-DGG_SAFE ./build_hw.sh && cp godguy_hw.nds ../out/godguy_hw_safe.nds
+          GG_NOCACHE=" " ./build_hw.sh && cp godguy_hw.nds ../out/godguy_hw_nocache.nds
+
+      - name: What was built
+        if: always()
+        run: |
+          { echo "### GodGuy DS ROMs"; echo '```'; ls -la out 2>&1; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          test -f out/godguy_hw.nds
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: godguy-nds
+          path: out/*.nds
+          if-no-files-found: error
+      - name: Publish as the "GodGuy DS (latest)" release
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: godguy-latest
+          name: GodGuy DS (latest) - ${{ github.sha }}
+          body: "The newest GodGuy DS build from main, commit ${{ github.sha }}. godguy_hw.nds runs in DraStic and melonDS (no SD saving). godguy.nds is the libnds build with SD saving and three save slots (melonDS, flashcarts). godguy_dsi*.nds are the DSi builds, godguy_hw_safe.nds has all sound off (for finding crashes)."
+          target_commitish: ${{ github.sha }}
+          make_latest: false
+          files: out/*.nds
