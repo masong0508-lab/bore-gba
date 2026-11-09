@@ -570,6 +570,29 @@ __asm__(".pushsection .rodata\n"
   ".global xm_ohio_hoe_S17\nxm_ohio_hoe_S17:\n.incbin \"source/music/xmdata.bin\",6898819,7480\n"
   ".global xm_ohio_hoe_S18\nxm_ohio_hoe_S18:\n.incbin \"source/music/xmdata.bin\",6906299,16698\n"
   ".global xm_ohio_hoe_S19\nxm_ohio_hoe_S19:\n.incbin \"source/music/xmdata.bin\",6922997,1459\n"
+  ".global xm_duck_cover_dnb_ev\nxm_duck_cover_dnb_ev:\n.incbin \"source/music/xmdata.bin\",6924456,8924\n"
+  ".global xm_duck_cover_dnb_S0\nxm_duck_cover_dnb_S0:\n.incbin \"source/music/xmdata.bin\",6933380,1643\n"
+  ".global xm_duck_cover_dnb_S1\nxm_duck_cover_dnb_S1:\n.incbin \"source/music/xmdata.bin\",6935023,5279\n"
+  ".global xm_duck_cover_dnb_S2\nxm_duck_cover_dnb_S2:\n.incbin \"source/music/xmdata.bin\",6940302,917\n"
+  ".global xm_duck_cover_dnb_S4\nxm_duck_cover_dnb_S4:\n.incbin \"source/music/xmdata.bin\",6941219,22378\n"
+  ".global xm_duck_cover_dnb_S5\nxm_duck_cover_dnb_S5:\n.incbin \"source/music/xmdata.bin\",6963597,15191\n"
+  ".global xm_duck_cover_dnb_S6\nxm_duck_cover_dnb_S6:\n.incbin \"source/music/xmdata.bin\",6978788,2700\n"
+  ".global xm_duck_cover_dnb_S7\nxm_duck_cover_dnb_S7:\n.incbin \"source/music/xmdata.bin\",6981488,3295\n"
+  ".global xm_duck_cover_dnb_S8\nxm_duck_cover_dnb_S8:\n.incbin \"source/music/xmdata.bin\",6984783,17545\n"
+  ".global xm_duck_cover_dnb_S9\nxm_duck_cover_dnb_S9:\n.incbin \"source/music/xmdata.bin\",7002328,42806\n"
+  ".global xm_duck_cover_dnb_S10\nxm_duck_cover_dnb_S10:\n.incbin \"source/music/xmdata.bin\",7045134,14971\n"
+  ".global xm_duck_cover_dnb_S11\nxm_duck_cover_dnb_S11:\n.incbin \"source/music/xmdata.bin\",7060105,39135\n"
+  ".global xm_duck_cover_dnb_S12\nxm_duck_cover_dnb_S12:\n.incbin \"source/music/xmdata.bin\",7099240,49654\n"
+  ".global xm_duck_cover_dnb_S13\nxm_duck_cover_dnb_S13:\n.incbin \"source/music/xmdata.bin\",7148894,183067\n"
+  ".global xm_duck_cover_dnb_S14\nxm_duck_cover_dnb_S14:\n.incbin \"source/music/xmdata.bin\",7331961,25019\n"
+  ".global xm_duck_cover_dnb_S15\nxm_duck_cover_dnb_S15:\n.incbin \"source/music/xmdata.bin\",7356980,18080\n"
+  ".global xm_duck_cover_dnb_S16\nxm_duck_cover_dnb_S16:\n.incbin \"source/music/xmdata.bin\",7375060,39713\n"
+  ".global xm_duck_cover_dnb_S17\nxm_duck_cover_dnb_S17:\n.incbin \"source/music/xmdata.bin\",7414773,16293\n"
+  ".global xm_duck_cover_dnb_S18\nxm_duck_cover_dnb_S18:\n.incbin \"source/music/xmdata.bin\",7431066,38683\n"
+  ".global xm_duck_cover_dnb_S19\nxm_duck_cover_dnb_S19:\n.incbin \"source/music/xmdata.bin\",7469749,29996\n"
+  ".global xm_duck_cover_dnb_S20\nxm_duck_cover_dnb_S20:\n.incbin \"source/music/xmdata.bin\",7499745,12502\n"
+  ".global xm_duck_cover_dnb_S21\nxm_duck_cover_dnb_S21:\n.incbin \"source/music/xmdata.bin\",7512247,12440\n"
+  ".global xm_duck_cover_dnb_S22\nxm_duck_cover_dnb_S22:\n.incbin \"source/music/xmdata.bin\",7524687,60824\n"
   ".popsection\n");
 extern const u8 xm_the_dipper_man_ev[];
 extern const s8 xm_the_dipper_man_S0[];
@@ -1138,6 +1161,29 @@ extern const s8 xm_ohio_hoe_S16[];
 extern const s8 xm_ohio_hoe_S17[];
 extern const s8 xm_ohio_hoe_S18[];
 extern const s8 xm_ohio_hoe_S19[];
+extern const u8 xm_duck_cover_dnb_ev[];
+extern const s8 xm_duck_cover_dnb_S0[];
+extern const s8 xm_duck_cover_dnb_S1[];
+extern const s8 xm_duck_cover_dnb_S2[];
+extern const s8 xm_duck_cover_dnb_S4[];
+extern const s8 xm_duck_cover_dnb_S5[];
+extern const s8 xm_duck_cover_dnb_S6[];
+extern const s8 xm_duck_cover_dnb_S7[];
+extern const s8 xm_duck_cover_dnb_S8[];
+extern const s8 xm_duck_cover_dnb_S9[];
+extern const s8 xm_duck_cover_dnb_S10[];
+extern const s8 xm_duck_cover_dnb_S11[];
+extern const s8 xm_duck_cover_dnb_S12[];
+extern const s8 xm_duck_cover_dnb_S13[];
+extern const s8 xm_duck_cover_dnb_S14[];
+extern const s8 xm_duck_cover_dnb_S15[];
+extern const s8 xm_duck_cover_dnb_S16[];
+extern const s8 xm_duck_cover_dnb_S17[];
+extern const s8 xm_duck_cover_dnb_S18[];
+extern const s8 xm_duck_cover_dnb_S19[];
+extern const s8 xm_duck_cover_dnb_S20[];
+extern const s8 xm_duck_cover_dnb_S21[];
+extern const s8 xm_duck_cover_dnb_S22[];
 static const u32 xmT[12]={1073741824,1137589835,1205234447,1276901417,1352829926,1433273380,1518500250,1608794974,1704458901,1805811301,1913190429,2026954652};   // 2^(j/12) in Q30: with a per-instrument anchor this gives every note's playback step (see xmStep in main.c)
 // ---- the_dipper_man  (from tools/the_dipper_man.xm) ----
 static const u8 xm_the_dipper_man_order[89]={0,0,1,1,2,2,2,2,3,4,3,5,3,4,3,6,7,8,9,2,7,8,10,11,12,4,3,5,3,4,
@@ -2354,3 +2400,30 @@ static const u8 xm_ohio_hoe_busL[7]={199,179,152,122,88,51,13,
 static const u8 xm_ohio_hoe_busR[7]={13,51,88,122,152,179,199,
 };
 static const XmSong xm_ohio_hoe={xm_ohio_hoe_order,xm_ohio_hoe_rows,xm_ohio_hoe_patOff,xm_ohio_hoe_ev,xm_ohio_hoe_vt,xm_ohio_hoe_anc,xm_ohio_hoe_fx,xm_ohio_hoe_len,xm_ohio_hoe_data,xm_ohio_hoe_busL,xm_ohio_hoe_busR,57,0,394,184};
+// ---- duck_cover_dnb  (from tools/duckcover/duck_cover_dnb.xm) ----
+static const u8 xm_duck_cover_dnb_order[40]={0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,
+30,31,32,33,34,35,36,37,38,39,
+};
+static const u16 xm_duck_cover_dnb_rows[40]={64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,
+64,64,64,64,64,64,64,64,64,64,
+};
+static const u32 xm_duck_cover_dnb_patOff[40]={0,131,304,526,755,987,1133,1293,1469,1629,1808,2022,2261,2457,2694,2954,3230,3430,3646,3852,4054,4311,4597,4895,
+5134,5392,5636,5869,6131,6440,6720,6942,7174,7446,7702,7960,8238,8570,8835,8916,
+};
+static const u16 xm_duck_cover_dnb_vt[29]={1536,34,67,3106,2184,1636,629,1622,1623,2200,3089,168,17,184,1357,2264,
+117,3427,2760,349,249,2824,3352,296,3384,1141,232,1769,3306,
+};
+static const u32 xm_duck_cover_dnb_anc[23]={81483472,325933887,325933887,0,236581912,134222956,40741736,40741736,
+268445913,268445913,268445913,268445913,268445913,162966944,268445913,268445913,
+268445913,268445913,268445913,268445913,268445913,268445913,162966944,
+};
+static const u8 xm_duck_cover_dnb_fx[1]={255,
+};
+static const u32 xm_duck_cover_dnb_len[23]={1642,5278,916,0,22377,15190,2699,3294,17544,42805,14970,39134,49653,183066,25018,18079,39712,16292,38682,29995,12501,12439,60823,
+};
+static const s8* const xm_duck_cover_dnb_data[23]={xm_duck_cover_dnb_S0,xm_duck_cover_dnb_S1,xm_duck_cover_dnb_S2,0,xm_duck_cover_dnb_S4,xm_duck_cover_dnb_S5,xm_duck_cover_dnb_S6,xm_duck_cover_dnb_S7,xm_duck_cover_dnb_S8,xm_duck_cover_dnb_S9,xm_duck_cover_dnb_S10,xm_duck_cover_dnb_S11,xm_duck_cover_dnb_S12,xm_duck_cover_dnb_S13,xm_duck_cover_dnb_S14,xm_duck_cover_dnb_S15,xm_duck_cover_dnb_S16,xm_duck_cover_dnb_S17,xm_duck_cover_dnb_S18,xm_duck_cover_dnb_S19,xm_duck_cover_dnb_S20,xm_duck_cover_dnb_S21,xm_duck_cover_dnb_S22};
+static const u8 xm_duck_cover_dnb_busL[7]={199,179,152,122,88,51,13,
+};
+static const u8 xm_duck_cover_dnb_busR[7]={13,51,88,122,152,179,199,
+};
+static const XmSong xm_duck_cover_dnb={xm_duck_cover_dnb_order,xm_duck_cover_dnb_rows,xm_duck_cover_dnb_patOff,xm_duck_cover_dnb_ev,xm_duck_cover_dnb_vt,xm_duck_cover_dnb_anc,xm_duck_cover_dnb_fx,xm_duck_cover_dnb_len,xm_duck_cover_dnb_data,xm_duck_cover_dnb_busL,xm_duck_cover_dnb_busR,40,0,782,161};
