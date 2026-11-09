@@ -20,7 +20,7 @@ from encode_sfx import encode, decode
 import encode_song
 
 SR = 44100
-VOICE_DB = -2.0     # the voice's level against the instruments while it sings (the first version: +2.5 dB; the original stems: -6.2 dB)
+VOICE_DB = -3.5     # the voice's level against the instruments while it sings (second pass -2.0 dB, the first version +2.5 dB; the original stems -6.2 dB)
 STEMS = ["bass", "drums", "other", "guitar", "piano", "vocals"]
 SRC = os.environ.get("STEM_DIR", "/root/.claude/uploads/2b9164b2-7e8c-59d8-8b67-0e06180c3de2")
 GBA = 18157

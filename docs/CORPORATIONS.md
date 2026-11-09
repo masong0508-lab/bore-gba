@@ -40,3 +40,5 @@ and the same step table, so a vocal voice needs `{u32 startSample, u32 offset, u
 The first version had the voice 2.5 dB above the instruments with a +3.5 dB lift at 2.8 kHz and no de-esser: bright and a little sharp in a 4-bit stream. Now (`vocal_chain` in tools/make_corporations.py, shared with
 tools/corp_build.py): high-pass 110 Hz, +1.5 dB warmth at 200 Hz, -2 dB at 350 Hz (mud), +1.2 dB presence at 2.2 kHz, **-3 dB at 4.5 kHz** (the harsh band), a **de-esser** on 5-9 kHz (4:1 above its
 usual level), the same two compressors, and the voice **2 dB under the instruments** while it sings (`VOICE_DB`). In the hybrid preview the vocal clips play at 0.55 of their old gain (`default_gain` in digital.json).
+
+Third pass: the voice sits 3.5 dB under the instruments (`VOICE_DB = -3.5`).

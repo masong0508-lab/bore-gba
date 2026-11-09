@@ -14,7 +14,7 @@ from make_corporations import find_stem, load, SR
 from encode_sfx import decode
 OUT = "tools/corporations"; GBA = 18157
 ND = json.load(open(OUT + "/notes.json")); TUNE = ND["tuning_semitones"]; G = json.load(open(OUT + "/grid.json")); DJ = json.load(open(OUT + "/digital.json"))
-S = np.load("/tmp/corp_synth_stems.npy"); synth = dict(bass=S[0], piano=S[1], drums=S[2])
+S = np.load("/tmp/corp_synth_stems.npy"); synth = dict(bass=S[0] + S[1], piano=S[2], other=S[3], drums=S[4], bass_only=S[0])
 
 def cos(a, b):
     n = min(a.shape[1], b.shape[1]); a = a[:, :n]; b = b[:, :n]; d = np.linalg.norm(a, axis=0) * np.linalg.norm(b, axis=0) + 1e-9; return (a * b).sum(axis=0) / d
@@ -32,7 +32,7 @@ def stem_onsets(x, lo, hi):
     return list(librosa.onset.onset_detect(onset_envelope=e, sr=SR, hop_length=256, delta=0.25, wait=8, units="time"))
 
 rep = {}
-for name, lo, hi in (("bass", 35, 450), ("piano", 60, 4000)):
+for name, lo, hi in (("bass", 35, 450), ("piano", 60, 4000), ("other", 80, 4000)):
     x = load(find_stem(name)); y = synth[name][:len(x)]; x = x[:len(y)]
     xs = signal.sosfiltfilt(signal.butter(4, [lo, hi], "bp", fs=SR, output="sos"), x); ys = signal.sosfiltfilt(signal.butter(4, [lo, hi], "bp", fs=SR, output="sos"), y)
     # the module starts at the grid origin: line the two up (the origin is where row 0 sits on the stem's clock)
@@ -60,8 +60,8 @@ print("drums", rep["drums"])
 json.dump(rep, open(OUT + "/accuracy.json", "w"), indent=1)
 # hybrid preview: the module + the decoded 4-bit clips at their exact samples (rate 18157 -> 44100)
 total = len(synth["bass"]); mix = np.zeros(total)
-off = int(round(-G["origin"] * SR)); mod = (synth["bass"] + synth["piano"] + synth["drums"]); mod = mod[off:] if off > 0 else mod; mix[:len(mod)] += mod[:total] * 0.55
-for st, gain in (("vocals", 0.55), ("guitar", 1.0), ("other", 0.8)):      # the vocals play softer than before (they were 1.0)
+off = int(round(-G["origin"] * SR)); mod = (synth["bass"] + synth["piano"] + synth["other"] + synth["drums"]); mod = mod[off:] if off > 0 else mod; mix[:len(mod)] += mod[:total] * 0.55
+for st, gain in (("vocals", 0.45), ("guitar", 1.0)):      # the vocals play softer than before (0.55, and 1.0 before that)
     blob = open("%s/digital/%s.adp" % (OUT, st), "rb").read()
     for c in DJ["stems"][st]["clips"]:
         pcm = decode(blob[c["offset"]:c["offset"] + c["bytes"]]).astype(np.float64) / 32768 * c["vol_peak"] * gain

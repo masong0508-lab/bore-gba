@@ -91,20 +91,67 @@ def bass(sr=16000):
             elif d in (12, 19, 24, 28, 31): harm += 1
             else: other += 1
         else: other += 1
-    return out, tune, dict(notes=len(out), tuning_cents=round(tune * 100, 1), pyin_voiced_frames=int(voiced.sum()), basic_pitch_notes=len(bpn), bp_same_pitch=same, bp_harmonics_of_ours=harm, bp_other=other)
+    # the bass is OCTAVE-DOUBLED: basic-pitch hears B1 and B2 together on every note (1,080 notes a twelve above ours overlap ours). Those are real (a +12 above the bass note it sits on), the twelfths and
+    # higher partials (+19, +24 ...) are not: the doubled voice is kept as its own line
+    octv = []
+    for b_ in bpn:
+        if b_["amp"] < 0.15 or b_["t1"] - b_["t0"] < 0.05: continue
+        mid = (b_["t0"] + b_["t1"]) / 2; i = np.searchsorted(ts, mid, "right") - 1
+        if i >= 0 and mid < te[i] and b_["pitch"] - pp[i] == 12:
+            o = dict(t0=max(b_["t0"], ts[i]), t1=min(b_["t1"], te[i]), pitch=b_["pitch"], amp=b_["amp"], vel=int(np.clip(30 + 90 * (b_["amp"] - 0.1) / 0.5, 30, 110)))
+            if o["t1"] - o["t0"] >= 0.05: octv.append(o)
+    octv = merge_restrikes(sorted(octv, key=lambda n: n["t0"]), 0.04)
+    return out, tune, octv, dict(octave_notes=len(octv), notes=len(out), tuning_cents=round(tune * 100, 1), pyin_voiced_frames=int(voiced.sum()), basic_pitch_notes=len(bpn), bp_same_pitch=same, bp_harmonics_of_ours=harm, bp_other=other)
+
+E_MAJOR = {4, 6, 8, 9, 11, 1, 3}
+
+def clean(notes, max_poly, min_dur=0.09, beat=60.0 / 131.0):
+    """Take the clutter out of a polyphonic transcription (the model hears overtones, bleed and reverb as extra notes): short weak notes go, notes outside the key of E go unless long and strong,
+    per beat only the pitch classes that carry the beat's energy stay, clusters of 3+ semitone neighbours at one onset keep the strongest, and the polyphony is capped."""
+    ns = [dict(n) for n in notes if (n["t1"] - n["t0"] >= min_dur or n["amp"] >= 0.5)]
+    ns = [n for n in ns if n["pitch"] % 12 in E_MAJOR or (n["amp"] >= 0.55 and n["t1"] - n["t0"] >= 0.25)]
+    # the beat's own pitch classes: the 4 with the most weight (amplitude x duration) in a window of one beat
+    keep = []; end = max(n["t1"] for n in ns) if ns else 0
+    wins = {}
+    for n in ns:
+        for w in range(int(n["t0"] / beat), int(n["t1"] / beat) + 1):
+            lo = max(n["t0"], w * beat); hi = min(n["t1"], (w + 1) * beat)
+            if hi > lo: wins.setdefault(w, collections.Counter())[n["pitch"] % 12] += n["amp"] * (hi - lo)
+    top = {w: {pc for pc, _ in c.most_common(4)} for w, c in wins.items()}
+    for n in ns:
+        w = int((n["t0"] + 0.02) / beat)
+        if n["pitch"] % 12 in top.get(w, set()) or n["amp"] >= 0.6: keep.append(n)
+    ns = keep
+    # clusters: notes starting within 40 ms of each other and within 3 semitones of the strongest
+    ns.sort(key=lambda n: n["t0"]); out = []; used = set()
+    for i, n in enumerate(ns):
+        if i in used: continue
+        grp = [j for j in range(i, min(len(ns), i + 12)) if abs(ns[j]["t0"] - n["t0"]) < 0.04 and abs(ns[j]["pitch"] - n["pitch"]) <= 3 and j not in used]
+        if len(grp) >= 3:
+            best = max(grp, key=lambda j: ns[j]["amp"]); used |= set(grp); out.append(ns[best])
+        else: out.append(n)
+    ns = merge_restrikes(out, 0.05)
+    # polyphony cap: when too many notes sound, the weakest goes
+    ev = sorted([(n["t0"], 1, i) for i, n in enumerate(ns)] + [(n["t1"], 0, i) for i, n in enumerate(ns)]); act = []; drop = set()
+    for t, k, i in ev:
+        if k:
+            act.append(i)
+            if len(act) > max_poly: w = min(act, key=lambda j: ns[j]["amp"]); act.remove(w); drop.add(w)
+        elif i in act: act.remove(i)
+    return [n for i, n in enumerate(ns) if i not in drop], dict(input=len(notes), output=len(ns) - len(drop))
 
 def piano(tune=0.0):
-    # thresholds picked by playing the notes back and comparing the chroma with the stem (chroma cosine 0.635 at 0.5/0.3 -> 0.695 at 0.3/0.2 -> 0.70 at 0.25/0.15 with twice the notes)
-    notes = [n for n in bp_notes("piano", tune, onset_threshold=0.3, frame_threshold=0.2, minimum_note_length=60, minimum_frequency=60, maximum_frequency=2200) if n["amp"] >= 0.15 or n["t1"] - n["t0"] > 0.4]
-    notes = merge_restrikes(notes, 0.04)
+    raw = [n for n in bp_notes("piano", tune, onset_threshold=0.3, frame_threshold=0.2, minimum_note_length=60, minimum_frequency=60, maximum_frequency=2200) if n["amp"] >= 0.15 or n["t1"] - n["t0"] > 0.4]
+    notes, info = clean(merge_restrikes(raw, 0.04), 5)
     for n in notes: n["vel"] = int(np.clip(30 + 97 * (n["amp"] - 0.15) / 0.6, 30, 127))
-    ev = sorted([(n["t0"], 1, i) for i, n in enumerate(notes)] + [(n["t1"], 0, i) for i, n in enumerate(notes)]); act = []; drop = set(); 
-    for t, k, i in ev:
-        if k: 
-            act.append(i)
-            if len(act) > 8: weakest = min(act, key=lambda j: notes[j]["amp"]); act.remove(weakest); drop.add(weakest)
-        elif i in act: act.remove(i)
-    return [n for i, n in enumerate(notes) if i not in drop], dict(dropped_for_polyphony=len(drop))
+    return notes, info
+
+def other(tune=0.0):
+    """the synth stem: a pad / lead texture, transcribed like the piano (the same cleaning, 4 voices)"""
+    raw = [n for n in bp_notes("other", tune, onset_threshold=0.4, frame_threshold=0.25, minimum_note_length=100, minimum_frequency=70, maximum_frequency=2400) if n["amp"] >= 0.2 or n["t1"] - n["t0"] > 0.5]
+    notes, info = clean(merge_restrikes(raw, 0.05), 4, min_dur=0.12)
+    for n in notes: n["vel"] = int(np.clip(30 + 90 * (n["amp"] - 0.2) / 0.6, 30, 120))
+    return notes, info
 
 def drums(sr=SR):
     x = load(find_stem("drums"), sr); hop = 256; hits = []; res = {}
@@ -139,14 +186,15 @@ def find_key(bass_n, piano_n):
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    b, tune, binfo = bass(); print("bass:", len(b), "notes", binfo)
+    b, tune, boct, binfo = bass(); print("bass:", len(b), "notes", len(boct), "octave notes", binfo)
     p, pinfo = piano(tune); print("piano:", len(p), "notes", pinfo)
+    o, oinfo = other(tune); print("other:", len(o), "notes", oinfo)
     d, dinfo = drums(); print("drums:", len(d), "hits", dinfo)
     kick = [h["t"] for h in d if h["kind"] == "kick"]; bpm, t0, err = refine_grid([n["t0"] for n in b] + kick, 131.0, 0.344)
     g16 = 60.0 / bpm / 4; pos = collections.Counter(int(round((t - t0) / g16)) % 16 for t in kick); down = max(range(0, 16, 2), key=lambda q: pos[q])      # the downbeat: the even sixteenth where the kick lands most
     t0 += down * g16; t0 -= int(t0 / (16 * g16)) * 16 * g16
     print("grid: %.3f BPM, downbeat at %.3f s (kick per sixteenth of the bar: %s), mean onset distance to the 1/32 grid %.1f ms" % (bpm, t0, [pos[(q + down) % 16] for q in range(16)], err))
     key = find_key(b, p); print("key:", key["best_major"], key["best_minor"])
-    json.dump(dict(tuning_semitones=tune, tuning_cents=tune * 100, bpm=bpm, t0=t0, grid_err_ms=err, key=key, bass_info=binfo, piano_info=pinfo, drum_info=dinfo, bass=b, piano=p, drums=d), open(OUT + "/notes.json", "w"))
+    json.dump(dict(tuning_semitones=tune, tuning_cents=tune * 100, bpm=bpm, t0=t0, grid_err_ms=err, key=key, bass_info=binfo, piano_info=pinfo, other_info=oinfo, drum_info=dinfo, bass=b, bass_oct=boct, piano=p, other=o, drums=d), open(OUT + "/notes.json", "w"))
 
 if __name__ == "__main__": main()

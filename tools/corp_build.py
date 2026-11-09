@@ -54,16 +54,19 @@ def inst_snare():
 def inst_hat():
     Rs = 16000; t = np.arange(int(Rs * 0.09)) / Rs; rng = np.random.RandomState(3); nz = signal.sosfilt(signal.butter(3, 4500, "hp", fs=Rs, output="sos"), rng.randn(len(t)))
     y = nz * np.exp(-t / 0.022); y = y / np.abs(y).max() * 110; return dict(name="HAT", data=y.astype(np.int8), loop=False, P=None, Rs=Rs)
-INST = [inst_bass(), inst_piano(), inst_kick(), inst_snare(), inst_hat()]
+def inst_synth():       # the synth stem's stand-in: a soft, slightly detuned pair of saws (looped), brighter than the bass
+    N = 96; n = np.arange(N); w = sum(np.sin(2 * np.pi * k * n / N + 0.4 * k) / (k ** 0.9) for k in range(1, 14)) * 0.7 + 0.5 * sum(np.sin(2 * np.pi * k * n / N) / (k ** 1.3) for k in range(1, 5))
+    w = w / np.abs(w).max() * 110; return dict(name="SYNTH", data=w.astype(np.int8), loop=True, P=N, Rs=None)
+INST = [inst_bass(), inst_piano(), inst_kick(), inst_snare(), inst_hat(), inst_synth()]
 for I in INST:
     if I["P"] is not None: I["rel"], I["fine"] = pitch_rel(I["P"])
     else: I["rel"], I["fine"] = rate_rel(I["Rs"])
-CUE = 6
+CUE = 7
 
 # ------------------------------------------------------------------------------------------------ quantising
 def prep_events():
-    ev = {"bass": ND["bass"], "piano": ND["piano"], "drums": ND["drums"]}
-    first = min([n["t0"] for n in ND["bass"] + ND["piano"]] + [h["t"] for h in ND["drums"]]); end = max([n["t1"] for n in ND["bass"] + ND["piano"]] + [h["t"] for h in ND["drums"]])
+    ev = {"bass": ND["bass"], "bass_oct": ND["bass_oct"], "piano": ND["piano"], "other": ND["other"], "drums": ND["drums"]}
+    first = min([n["t0"] for n in ND["bass"] + ND["piano"] + ND["other"]] + [h["t"] for h in ND["drums"]]); end = max([n["t1"] for n in ND["bass"] + ND["piano"] + ND["other"]] + [h["t"] for h in ND["drums"]])
     origin = T0 - BAR * int(np.ceil((T0 - first + 0.05) / BAR))
     return ev, origin, int(np.ceil((end - origin) / BAR)) + 2
 def qrow(t, origin): return int(round((t - origin) / ROW))
@@ -83,21 +86,24 @@ def assign(ev, origin):
         nxt = None
         put_off = (r1, 97)
         rows.setdefault((0, r1), (97, 0, 0)) if (0, r1) not in rows else None
-    # piano: first free voice (the one released longest ago)
-    free_at = [-1] * 8
-    for n in sorted(ev["piano"], key=lambda n: n["t0"]):
-        r0 = qrow(n["t0"], origin); r1 = max(r0 + 2, qrow(n["t1"], origin)); same = [c for c in range(8) if free_at[c] <= r0 and (1 + c, r0) not in rows]
-        if not same: continue
-        c = min(same, key=lambda c: free_at[c]); put(1 + c, r0, n["pitch"] - 11, 2, vv(n["vel"]), True); free_at[c] = r1
-        if (1 + c, r1) not in rows: rows[(1 + c, r1)] = (97, 0, 0)
+    def poly(notes, first_ch, nvoice, inst, hold=2):
+        free_at = [-1] * nvoice
+        for n in sorted(notes, key=lambda n: n["t0"]):
+            r0 = qrow(n["t0"], origin); r1 = max(r0 + hold, qrow(n["t1"], origin)); ok = [c for c in range(nvoice) if free_at[c] <= r0 and (first_ch + c, r0) not in rows]
+            if not ok: continue
+            c = min(ok, key=lambda c: free_at[c]); put(first_ch + c, r0, n["pitch"] - 11, inst, vv(n["vel"]), True); free_at[c] = r1
+            if (first_ch + c, r1) not in rows: rows[(first_ch + c, r1)] = (97, 0, 0)
+    poly(ev["bass_oct"], 1, 1, 1)
+    poly(ev["piano"], 2, 5, 2)
+    poly(ev["other"], 7, 4, 6, 3)
     for h in ev["drums"]:
-        ch = {"kick": 9, "snare": 10, "hat": 11}[h["kind"]]; inst = {"kick": 3, "snare": 4, "hat": 5}[h["kind"]]; put(ch, qrow(h["t"], origin), 49, inst, vv(h["vel"]))
+        ch = {"kick": 11, "snare": 12, "hat": 13}[h["kind"]]; inst = {"kick": 3, "snare": 4, "hat": 5}[h["kind"]]; put(ch, qrow(h["t"], origin), 49, inst, vv(h["vel"]))
     return rows
 
 # ------------------------------------------------------------------------------------------------ digital stems (4-bit ADPCM clips)
 def digital(origin):
     os.makedirs(OUT + "/digital", exist_ok=True); info = {}; cues = {}
-    stems = {n: load(find_stem(n)) for n in ("vocals", "guitar", "other")}; L = min(len(v) for v in stems.values())
+    stems = {n: load(find_stem(n)) for n in ("vocals", "guitar")}; L = min(len(v) for v in stems.values())
     # vocals: the same squeeze as the single-stream song (compression, presence, level), kept as 4-bit
     voc = stems["vocals"][:L]; act_v, _ = vad(voc); v = vocal_chain(voc, act_v)
     stems["vocals"] = v / np.abs(v).max() * 0.85
@@ -125,8 +131,8 @@ def digital(origin):
 
 # ------------------------------------------------------------------------------------------------ the module
 def build_xm(rows, origin, nbars, info):
-    NCH = 15; nrows = nbars * 32; npat = (nrows + 63) // 64
-    for k, name in ((12, "vocals"), (13, "guitar"), (14, "other")):
+    NCH = 16; nrows = nbars * 32; npat = (nrows + 63) // 64
+    for k, name in ((14, "vocals"), (15, "guitar")):
         for c in info[name]["clips"]:
             r = c["cue_row"]
             if 0 <= r < npat * 64: rows[(k, r)] = (1 + c["i"] if c["i"] < 96 else 96, CUE, 0x50)
@@ -147,9 +153,9 @@ def build_xm(rows, origin, nbars, info):
 
 # ------------------------------------------------------------------------------------------------ player (the instruments played back with the tracker's pitch maths)
 def play_module(rows, origin, nrows, sr=SR):
-    total = int((nrows * ROW) * sr) + sr; out = np.zeros(total); stems = {"bass": np.zeros(total), "piano": np.zeros(total), "drums": np.zeros(total)}
-    for ch in range(12):
-        evs = sorted([(r, v) for (c, r), v in rows.items() if c == ch]); name = "bass" if ch == 0 else "piano" if ch < 9 else "drums"
+    total = int((nrows * ROW) * sr) + sr; out = np.zeros(total); stems = {k: np.zeros(total) for k in ("bass", "bass_oct", "piano", "other", "drums")}
+    for ch in range(14):
+        evs = sorted([(r, v) for (c, r), v in rows.items() if c == ch]); name = "bass" if ch == 0 else "bass_oct" if ch == 1 else "piano" if ch < 7 else "other" if ch < 11 else "drums"
         for k, (r, (note, inst, vol)) in enumerate(evs):
             if note == 97 or inst == 0: continue
             I = INST[inst - 1]; start = int((r * ROW) * sr); end_r = evs[k + 1][0] if k + 1 < len(evs) else r + 400; end = min(total, int(end_r * ROW * sr))
@@ -171,7 +177,7 @@ def main():
     ev, origin, nbars = prep_events(); rows = assign(ev, origin); nrows = nbars * 32
     print("grid: row %.4f s (1/32 at %.3f BPM), origin %.3f s, %d bars; events: %d cells" % (ROW, BPM, origin, nbars, len(rows)))
     # timing error introduced by the 1/32 grid
-    errs = [abs(n["t0"] - (origin + qrow(n["t0"], origin) * ROW)) for n in ev["bass"] + ev["piano"]]; print("quantising error: mean %.1f ms, max %.1f ms (the MIDI files keep the exact times)" % (1000 * np.mean(errs), 1000 * np.max(errs)))
+    errs = [abs(n["t0"] - (origin + qrow(n["t0"], origin) * ROW)) for n in ev["bass"] + ev["piano"] + ev["other"]]; print("quantising error: mean %.1f ms, max %.1f ms (the MIDI files keep the exact times)" % (1000 * np.mean(errs), 1000 * np.max(errs)))
     info = digital(origin); build_xm(rows, origin, nbars, info)
     # MIDI: exact performance and the quantised grid version
     for tag, qz in (("performance", False), ("grid", True)):
@@ -193,14 +199,14 @@ def main():
             for t, on, n in evs:
                 tr.append(mido.Message("note_on" if on else "note_off", channel=ch, note=n["pitch"], velocity=n["vel"] if on else 0, time=max(0, t - last))); last = t
             return tr
-        mid.tracks.append(track("bass", 0, 38, ev["bass"])); mid.tracks.append(track("piano", 1, 0, ev["piano"]))
+        mid.tracks.append(track("bass", 0, 38, ev["bass"])); mid.tracks.append(track("bass octave", 2, 38, ev["bass_oct"])); mid.tracks.append(track("piano", 1, 0, ev["piano"])); mid.tracks.append(track("other synth", 3, 90, ev["other"]))
         dn = [dict(t0=h["t"], t1=h["t"] + 0.05, pitch={"kick": 36, "snare": 38, "hat": 42}[h["kind"]], vel=h["vel"]) for h in ev["drums"]]; mid.tracks.append(track("drums", 9, 0, dn))
         mid.save("%s/corporations_%s.mid" % (OUT, tag))
     print("MIDI: corporations_performance.mid (exact), corporations_grid.mid (1/32 grid), tuning RPN %.0f cents" % (TUNE * 100))
     # preview + accuracy
     out, stems = play_module(rows, origin, nrows)
     json.dump(dict(origin=origin, nrows=nrows), open(OUT + "/grid.json", "w"))
-    np.save("/tmp/corp_synth_stems.npy", np.stack([stems["bass"], stems["piano"], stems["drums"]]))
+    np.save("/tmp/corp_synth_stems.npy", np.stack([stems[k] for k in ("bass", "bass_oct", "piano", "other", "drums")]))
     print("rendered the module: %.0f s" % (len(out) / SR))
 
 if __name__ == "__main__": main()

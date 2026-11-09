@@ -4,8 +4,8 @@ The six stems (6:04) split into two groups so the song can be remixed and revise
 
 | group | stems | how it is kept |
 |---|---|---|
-| **notes** (editable) | bass, piano, drums | transcribed: `tools/corporations/corporations_hybrid.xm` (tracker), `corporations_performance.mid` (exact times) and `corporations_grid.mid` (1/32 grid) |
-| **digital** (4-bit samples) | vocals, guitar (and the other synths, which cannot be transcribed) | IMA-ADPCM 4-bit, mono, 18157 Hz (the game's song format), cut into clips with exact start samples: `tools/corporations/digital/*.adp` + `digital.json` |
+| **notes** (editable) | bass (two voices: the low note and its octave double), piano, other (the synths), drums | transcribed: `tools/corporations/corporations_hybrid.xm` (tracker), `corporations_performance.mid` (exact times) and `corporations_grid.mid` (1/32 grid) |
+| **digital** (4-bit samples) | vocals, guitar | IMA-ADPCM 4-bit, mono, 18157 Hz (the game's song format), cut into clips with exact start samples: `tools/corporations/digital/*.adp` + `digital.json` |
 
 Rebuild with `python3 tools/corp_transcribe.py && python3 tools/corp_build.py && python3 tools/corp_eval.py` (needs ffmpeg, numpy, scipy, librosa, mido, soundfile and `basic-pitch[onnx]`; the stems directory is `STEM_DIR`).
 
@@ -45,3 +45,16 @@ notes ring until the next note on their channel.
 
 Playing it on the GBA would need the music mixer to run the tracker and an ADPCM voice together (the effect voice already plays 4-bit clips beside the music; the clip table gives the sample at which
 each clip must start). The song that plays in the jukebox today is still the single 4-bit stream of docs/CORPORATIONS.md.
+
+
+## Second pass: octave bass, cleaner piano, the synths transcribed, softer vocals
+* **The bass is octave-doubled.** basic-pitch hears B1 and B2 together on every note of the riff (B1-B2, A1-A2, G#1-G#2, F#1-F#2 ...): 1,080 of its notes sit exactly a twelve above the bass note under them (the other
+  intervals are partials: +19 and +24 are not kept). The first transcription kept only the low note, which is why it read as a still baseline. The doubled voice (937 notes, with its own timing and velocity)
+  is now its own line: channel 2 of the module, the track "bass octave" in the MIDI files. The low line is unchanged (pitch 94.4 % within 50 cents of the stem, none an octave off).
+* **The piano is cleaned** (`clean()` in tools/corp_transcribe.py): short weak notes out, notes outside E major out unless long and strong, per beat only the pitch classes that carry the beat's energy,
+  clusters of three or more semitone neighbours at one onset reduced to the strongest note, at most 5 voices, re-strikes merged. 1,108 notes became 659; chroma similarity to the stem moved 0.69 -> 0.66 (the
+  extra notes were mostly overtones and reverb).
+* **The other synths are transcribed** instead of kept digital (979 notes, 4 voices, the same cleaning, a soft detuned-saw stand-in): channels 8-11 of the module, track "other synth" in the MIDI files. This stem is a
+  dense pad / lead texture, so it is the roughest part (chroma 0.58, loudness correlation 0.45). The 3.2 MB `other.adp` is gone; only the vocals (1,569 KB) and the guitar (167 KB) stay digital.
+* **The vocals** sit 3.5 dB under the instruments while they sing (was 2.0 dB under, 2.5 dB above before that), and play at 0.45 gain in the hybrid preview.
+* Module: 16 channels (1 bass, 2 bass octave, 3-7 piano, 8-11 synths, 12-14 drums, 15-16 cue lanes for the vocals and guitar clips), 7 instruments.
