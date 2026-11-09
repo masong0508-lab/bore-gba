@@ -12,10 +12,12 @@ static const u8 uiRgb[U_N][3]={ {0,0,0},{2,3,8},{4,6,13},{7,10,19},{16,19,28},{2
 static u8 uiBuf[256*192] __attribute__((aligned(4))); static int uiPages, uiPageNow, uiPageOpen, uiDotX=96;   // page dots in the title bar
 static const u8 uiKCol[8][3]={{31,8,8},{8,16,31},{10,28,10},{31,26,6},{24,10,30},{31,16,4},{6,28,28},{31,14,22}};   // kingdom colours (sub palette 40..47)
 static void uiPalette(void){ for(int k=0;k<8;k++) BG_PALETTE_SUB[40+k]=RGB15(uiKCol[k][0],uiKCol[k][1],uiKCol[k][2]); for(int i=0;i<U_N;i++){ u16 c=RGB15(uiRgb[i][0],uiRgb[i][1],uiRgb[i][2]); BG_PALETTE_SUB[i]=c; BG_PALETTE[UI_PAL0+i]=c; } BG_PALETTE_SUB[0]=0; }
+static unsigned uiFlushes;   // pictures sent to the screen so far (the tests count them: a menu must send one per redraw, never two)
+static int uiHold;           // while set, uiFlush sends nothing: a screen that is drawn on top of another one (the pause menu over the status screen) must not show the one underneath for a frame
 #ifdef NDSHW
-static void uiFlushRaw(void){ hwSubFlush(uiBuf); }
+static void uiFlushRaw(void){ uiFlushes++; hwSubFlush(uiBuf); }
 #else
-static void uiFlushRaw(void){ vramCopy(bgGetGfxPtr(3),uiBuf,256*192); }
+static void uiFlushRaw(void){ uiFlushes++; vramCopy(bgGetGfxPtr(3),uiBuf,256*192); }
 #endif
 #ifndef UI_NOTRANS
 #define UI_NOTRANS 0
@@ -23,6 +25,7 @@ static void uiFlushRaw(void){ vramCopy(bgGetGfxPtr(3),uiBuf,256*192); }
 // ---- screen transitions: when the screen changes, the old picture slides out and the new one in (dir 1 forward, -1 back) or dissolves (dir 2)
 static u8 uiPrev[256*192], uiNew[256*192]; static int uiTrans, uiHavePrev;
 static void uiFlush(void){
+    if(uiHold) return;
     if(uiTrans&&uiHavePrev&&!UI_NOTRANS){ int dir=uiTrans; uiTrans=0; memcpy(uiNew,uiBuf,sizeof uiNew);
         for(int f=1;f<=7;f++){ int p=f*256/7, sh=256-(256-p)*(256-p)/256;
             if(dir==2){ static const u8 bay[16]={0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5}; int th=f*16/7; for(int y=0;y<192;y++) for(int x=0;x<256;x++) uiBuf[y*256+x]=bay[(y&3)*4+(x&3)]<th?uiNew[y*256+x]:uiPrev[y*256+x]; }

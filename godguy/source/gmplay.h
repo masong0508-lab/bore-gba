@@ -14,6 +14,8 @@
 #include "gmdata.h"
 #define GMV 10                      // voice 9 is a Haas double of the lead (one frame late, a hair sharp, on the other side): it widens the lead
 static int gmCur=-1, gmAcc, gmRow, gmMaster=100, gmPaused, gmTick;
+static int gmInT, gmInN;                       // a song that follows another one fades in: frames left, frames in all
+static int (*gmNextHook)(int);                 // asked when a song reaches its end: which song follows it (-1 = none: the music fades to silence and stops). Set by the game; without one every song just ends
 static int gmPos[11], gmRem[11], gmNote[11], gmAge[11], gmRel[11], gmAlt[11];
 static int gmHz64[128], gmSin[32], gmInit;
 static int gmSlotA, gmSlotB;
@@ -39,10 +41,17 @@ static void gmSeek(int row){
 static void gmStop(void){ for(int v=0;v<GMV;v++) gb_vstop(v); gmCur=-1; }
 static void gmPlay(int s){
     gmTables(); if(s==gmCur) return; if(gmCur>=0) gmStop(); if(s<0||s>=GM_SONGS) return;
-    gmCur=s; { int o=0; for(int v=0;v<11;v++){ gmStr[v]=gmBuf+o; gmUnpack(gmSongs[s].v[v],gmBuf+o,gmSongs[s].n[v]); o+=gmSongs[s].n[v]; } } gmAcc=0; gmSlotA=gmSlotB=0; gmSeek(0); gmRow=0; ldRate=gmHz64[60]; ldVol=0; ldPan=64;
+    gmInT=0; gmCur=s; { int o=0; for(int v=0;v<11;v++){ gmStr[v]=gmBuf+o; gmUnpack(gmSongs[s].v[v],gmBuf+o,gmSongs[s].n[v]); o+=gmSongs[s].n[v]; } } gmAcc=0; gmSlotA=gmSlotB=0; gmSeek(0); gmRow=0; ldRate=gmHz64[60]; ldVol=0; ldPan=64;
     for(int v=0;v<GMV;v++){ gb_vstart(v,gmSongs[s].inst[v<9?v:0]); gmAge[v]=0; gmRel[v]=-1; gmAlt[v]=0; }
 }
-static int gmFadeMul(void){ const GmSong*S=&gmSongs[gmCur]; if(!S->fade||gmRow<S->fade) return 256; int r=S->rows-S->fade; if(r<=0||gmRow>=S->rows) return 0; int m=256*(S->rows-gmRow)/r; return m*m>>8; }   // the closing fade of a long suite
+// THE END OF A SONG. A song plays through once (from row 0 to its last row) and then it is over: it fades out over its last seconds and the next song takes over
+// (gmNextHook), or the music stops. (The old player wrapped to the song's loop row and played the same song for ever.) A long suite brings its own closing fade (S->fade is the
+// row it starts at); every other song gets one of 4 seconds. A jingle (loopRow 65535) is short and just ends.
+static int gmFadeStart(const GmSong*S){ if(S->fade) return S->fade; if(S->loopRow==65535) return 0; int f=S->rows-S->bpm*4/15; return f<S->rows/2?S->rows/2:f; }
+static int gmFadeMul(void){ const GmSong*S=&gmSongs[gmCur]; int fs=gmFadeStart(S), m=256;   // the closing fade, then the fade-in of a song that follows another
+    if(fs&&gmRow>=fs){ int r=S->rows-fs; if(r<=0||gmRow>=S->rows) return 0; m=256*(S->rows-gmRow)/r; m=m*m>>8; }
+    if(gmInT>0){ int a=256-256*gmInT/gmInN; m=m*(a*a>>8)>>8; }
+    return m; }
 static void gmDrum(int part,int id){
     int soft=(id>>7)&1; id&=127; if(!id) return; int vol, pan, idx, slot;
     if(part==0){ static const u8 dv[8]={0,120,105,95,100,100,100,80}, dp[8]={0,64,64,70,38,62,88,76}; if(id>7) return; idx=id-1; vol=dv[id]; pan=dp[id]; slot=(gmSlotA^=1); }
@@ -82,14 +91,16 @@ static void gmFrame(void){
     if(gmCur>=0){ const GmSong*S=&gmSongs[gmCur];
         gmAcc+=S->bpm*4*65536/3600;
         while(gmAcc>=65536){ gmAcc-=65536;
-            if(gmRow>=S->rows){ if(S->loopRow==65535){ gmStop(); break; } gmSeek(S->loopRow); for(int v=0;v<GMV;v++){ gmAge[v]=8; } }
+            if(gmRow>=S->rows){ int nx=(S->loopRow!=65535&&gmNextHook)?gmNextHook(gmCur):-1; gmStop();   // the song is over (it has faded out): the next one follows, or silence
+                if(nx>=0&&nx<GM_SONGS){ gmPlay(nx); gmInN=gmInT=45; } break; }
             for(int v=0;v<11;v++){
                 if(gmRem[v]==0){ if(gmPos[v]>=S->n[v]) continue; int n=gmStr[v][gmPos[v]], len=gmStr[v][gmPos[v]+1]; gmPos[v]+=2; gmRem[v]=len;
                     if(v<GMV){ if(n){ if(!(n==gmNote[v]&&(v==4||v==5))) gmNoteOn(v,n); else gmRel[v]=-1; } else if(gmNote[v]&&gmRel[v]<0) gmRel[v]=0; }
                     else gmDrum(v-9,n); }
                 if(gmRem[v]>0) gmRem[v]--; }
             gmRow++; }
-        if(gmCur>=0){ gmVoiceFrame(9,S); for(int v=0;v<9;v++) gmVoiceFrame(v,S); } }
+        if(gmInT>0) gmInT--;
+        if(gmCur>=0){ const GmSong*S=&gmSongs[gmCur]; gmVoiceFrame(9,S); for(int v=0;v<9;v++) gmVoiceFrame(v,S); } }
     // the sound effect channel
     if(fxCur>=0){ const GmFx*F=&gmFx[fxCur];
         if(fxAge==0){ if(fxPos>=F->n){ if(fxOn){ gb_poff(); fxOn=0; } if(fxNoiseOn){ gb_pnoff(); fxNoiseOn=0; } fxCur=-1; return; }

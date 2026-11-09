@@ -872,16 +872,30 @@ static int musDirector(void){
     int p=(tick>>1)&2047; if(fullDone&&(year&1)) return GM_REMIX0+(year*7+(p>>9))%GM_REMIXES; if(!storyOn&&(year%5==4)) return GM_FREEPLAY;
     return (p<256||p>1792)?GM_NIGHT:p<640?GM_MORNING:p<1408?GM_NOON:GM_SUNSET;
 }
+static int musLast=-1;   // what the director wanted when it last chose: the music only changes when that changes (a song picked by musNext keeps playing until the world gives a new reason)
+static unsigned musRot=12345;
+static int trackOpen(int i);
+// A song has run to its end (it has faded out). In the Aural Sculptures (a song played on its own) the music stops: it faded to silence. In the game the next song takes over:
+// what the world calls for if that is a different song, else another open song from the jukebox, the remixes and the rebirths (never the same one twice in a row).
+static int musNext(int cur){
+    if(jukeOn) return -1;
+    int want=musDirector(); musLast=want; musHold=1800;
+    if(want!=cur&&!isJingle(want)) return want;
+    int pool[GM_SONGS], n=0;
+    for(int i=0;i<GM_EPIC0;i++){ if(i==cur||!trackOpen(i)||isJingle(i)) continue; if(i<GM_REMIX0&&gmSongs[i].use[0]!='j') continue; pool[n++]=i; }   // (the place and moment tracks are for the director; "jukebox: ..." songs are free to play anywhere)
+    if(!n) return want!=cur?want:-1;
+    musRot=musRot*1103515245u+12345u+(unsigned)tick; return pool[(musRot>>16)%(unsigned)n]; }
 static void musUpdate(void){
 #ifdef GG_SAFE
     return;     // the safe build has no sound at all
 #endif
+    gmNextHook=musNext;
     gmFrame();
     if(fxCool>0) fxCool--; if(fxQ>=0){ if(fxQ!=FX_PAINT||fxCool==0){ fxPlay(fxQ); if(fxQ==FX_PAINT) fxCool=10; } fxQ=-1; }
     if(musHold>0) musHold--;
-    if(musQ>=0){ gmPlay(musQ); musHold=1800; musQ=-1; return; }
+    if(musQ>=0){ gmPlay(musQ); musHold=1800; musQ=-1; musLast=-1; return; }
     if(jukeOn) return;
-    if((tick&31)==0){ int want=musDirector(); if(gmCur<0) gmPlay(want); else if(want!=gmCur&&musHold<=0&&!isJingle(gmCur)){ gmPlay(want); musHold=1800; } }
+    if((tick&31)==0){ int want=musDirector(); if(gmCur<0){ gmPlay(want); musLast=want; } else if(want==gmCur) musLast=want; else if(want!=musLast&&musHold<=0&&!isJingle(gmCur)){ gmPlay(want); musLast=want; musHold=1800; } }
 }
 static u16*gfxF[SHAPE_N][2];
 static void makeSprites(void){
@@ -1222,7 +1236,8 @@ static void uiDialog(void){
     if(dlgChars>=tl&&((tick>>4)&1)) uiText(222,164,"A >",U_GOLD,1); else if(dlgChars<tl) uiText(196,164,"A: HURRY  B: SKIP",U_DIM,1);
     uiFlush(); }
 static void uiMenu(void){
-    uiStatus(); for(int y=0;y<192;y++) for(int x=(y&1);x<256;x+=2) uiPx(x,y,U_SHADOW);
+    uiHold=1; uiStatus(); uiHold=0;   // (the status screen is only the backdrop: it is drawn but not sent, or the screen flickered between it and the menu every frame)
+    for(int y=0;y<192;y++) for(int x=(y&1);x<256;x+=2) uiPx(x,y,U_SHADOW);
     uiRect(30,12,196,168,U_SHADOW); uiFrame(32,14,192,164,U_PANEL,U_GOLD,U_BLO); uiRect(33,15,190,16,U_PANELHI); uiText(42,19,mScr==0?"PAUSED":mScr==1?"PAUSED  >  OPTIONS":"PAUSED  >  EXTRAS",U_GOLD,1); if(mScr==0) uiTextR(214,19,"START: RESUME",U_DIM);
     uiMenuList(38,36,180,16);
     if(mScr>0){ uiRound(176,162,44,12,U_SEL,U_GOLD); uiTextC(198,165,"BACK",U_WHITE,1); uiBtn(174,160,48,16,KEY_B,0,0,0); }
@@ -1306,7 +1321,8 @@ int main(void){
         if(dlgOn){ const Dl*d=&dlgSet[dlgIdx]; int tl=(int)strlen(d->txt); if(dlgChars<tl) dlgChars+=2; if(kd&KEY_A){ if(dlgChars<tl) dlgChars=tl; else { dlgIdx++; dlgChars=0; if(!dlgSet[dlgIdx].txt){ dlgOn=0; paused=dlgPaused; } } } if(kd&KEY_B){ dlgOn=0; paused=dlgPaused; }
             refillWindow(); swiWaitForVBlank(); bgSetScroll(0,camX&511,camY&511); bgUpdate(); drawSprites(); oamUpdate(&oamMain); if((tick&7)==0) applyLight(); if(dlgOn&&((tick&1)==0||(kd))) hud(); else if(!dlgOn) hud(); continue; }
         if(!titleOn&&!sceneOn&&strcmp(info,lastInfo)){ strcpy(lastInfo,info); toastT=420; } if(toastT>0) toastT--;
-        if(menuOn){ menuInput(kd); refillWindow(); swiWaitForVBlank(); bgSetScroll(0,camX&511,camY&511); bgUpdate(); drawSprites(); oamUpdate(&oamMain); hud(); continue; }
+        if(menuOn){ menuInput(kd); refillWindow(); swiWaitForVBlank(); bgSetScroll(0,camX&511,camY&511); bgUpdate(); drawSprites(); oamUpdate(&oamMain); if(kd||(tick&15)==0) hud(); continue; }   // (redrawn when a button was pressed, and now and then for the clock: a full redraw and copy every frame took longer than a frame)
+        if(!titleOn&&(tick&15)==0) unlockTiers();   // the chapter goal is checked here as well as in simulate(): a paused world, or a speed that steps over the 256th tick, never reached the check there
         if(storyDone&&!endShown&&!titleOn&&!dlgOn&&dlgPend<0){ endShown=1; if(view3d) leave3D(); sceneNext=credTxt; sceneStart(endTxt,0); }
         if(!titleOn&&!sceneOn&&stUse<12&&tick>300&&(tick%600)==0){ siprintf(info,"%.32s",tipTxt[tipN++%11]); }
         if(titleOn&&!extrasView){
@@ -1362,7 +1378,7 @@ int main(void){
         if(kh&KEY_LEFT) camX-=sp_; if(kh&KEY_RIGHT) camX+=sp_; if(kh&KEY_UP) camY-=sp_; if(kh&KEY_DOWN) camY+=sp_;
         if(camX<0) camX=0; if(camY<0) camY=0; if(camX>WW*8-256) camX=WW*8-256; if(camY>WH*8-192) camY=WH*8-192;
         if(kd&KEY_R){ power=(power+1)%PW_N; dirty=1; } if(kd&KEY_L){ power=(power+PW_N-1)%PW_N; dirty=1; }
-        if(year!=savedYear&&year>0&&(tick&255)==1){ doSave(); dirty=1; }
+        if(year!=savedYear&&year>0&&(tick&255)>=1&&(tick&255)<=(unsigned)speedMul){ doSave(); dirty=1; }
         if(view3d){
             int ts=(kh&KEY_B)?4:2; if(!walkOn){ if(kh&KEY_LEFT) rotY-=ts; if(kh&KEY_RIGHT) rotY+=ts; if(kh&KEY_UP) rotX+=ts; if(kh&KEY_DOWN) rotX-=ts; if(!(kh&(KEY_LEFT|KEY_RIGHT|KEY_UP|KEY_DOWN))&&(tick&3)==0) rotY+=1; }
             if(rotX>85) rotX=85; if(rotX<-85) rotX=-85; rotY%=360; if(rotY<0) rotY+=360;
@@ -1376,13 +1392,12 @@ int main(void){
                   if(kh&KEY_B){ if(lpx>=0){ rotY-=(tp.px-lpx)/2; rotX+=(tp.py-lpy)/2; } lpx=tp.px; lpy=tp.py; h3=0; }   // B held: drag to turn the planet
                   else { lpx=-1; int tx,ty; if(globePick(tp.px,tp.py,&tx,&ty)){ int fresh=!h3||tx!=l3x||ty!=l3y; if(pw[power].kind==PK_PAINT||fresh) usePower(tx,ty,!h3); h3=1; l3x=tx; l3y=ty; dirty=1; } } }
               else { h3=0; lpx=-1; } }
-            for(int k=1;k<speedMul&&!paused;k++){ tick++; simulate(); }
-            if(!paused) simulate(); globeDraw(); swiWaitForVBlank(); globeFlush(); if((tick&15)==0||dirty){ drawMinimap(); hud(); } continue; }
+            if(!paused) simulate(); for(int k=1;k<speedMul&&!paused;k++){ tick++; simulate(); } globeDraw(); swiWaitForVBlank(); globeFlush(); if((tick&15)==0||dirty){ drawMinimap(); hud(); } continue; }
         if(kd&(KEY_X|KEY_Y)){ int d=(kd&KEY_X)?1:-1; if(kh&KEY_B){ if(pw[power].kind==PK_GIFT) itSel=itNext(itSel,10*d); else spSel=(spSel+nSp+10*d)%nSp; } else if(pw[power].kind==PK_SPAWN){ spSel=(spSel+nSp+d)%nSp; } else if(pw[power].kind==PK_GIFT){ itSel=itNext(itSel,d); } else if(pw[power].kind==PK_MUTATE){ for(int k=1;k<=TR_N;k++){ int t=(trSel+TR_N*2+d*k)%TR_N; if(t==0||((trSeen>>t)&1)||debugOn||unlockAll){ trSel=t; break; } } } else { brush+=d; if(brush<0) brush=0; if(brush>8) brush=8; } dirty=1; }
         if(kd&KEY_A&&page!=3){ paused^=1; dirty=1; }
         if(kh&KEY_TOUCH){ touchPosition tp; touchRead(&tp); if(tp.py>=168){ if(!held){ tbTouch(tp.px,tp.py); fxReq(FX_MENU_MOVE); dirty=1; } held=1; } else { int tx=(tp.px+camX)>>3, ty=(tp.py+camY)>>3; int fresh=!held||tx!=lastTx||ty!=lastTy; if(pw[power].kind==PK_PAINT||fresh) usePower(tx,ty,!held); held=1; lastTx=tx; lastTy=ty; dirty=1; } } else held=0;
+        refillWindow(); simulate();   // (this tick first, then the extra ones of 2x / 4x: each tick is simulated once. Before, the tick the frame started on was never simulated and the last one twice, so at 2x a year, a chapter or a monster wave that fell on the skipped ticks never came)
         for(int k=1;k<speedMul&&!paused;k++){ tick++; simulate(); }
-        refillWindow(); simulate();
         swiWaitForVBlank();
         bgSetScroll(0,camX&511,camY&511); bgUpdate(); drawSprites(); oamUpdate(&oamMain);
         if((tick&7)==0||flashT>0) applyLight();
