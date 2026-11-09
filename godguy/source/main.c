@@ -792,6 +792,7 @@ static void applyLight(void){
     BG_PALETTE[0]=0;
 }
 #include "ui.h"
+#include "title3d.h"
 // ---------------------------------------------------------------------------------------------- the globe: a planet drawn by the CPU (no 3D hardware, so it works in every build)
 // Every pixel of the disc has a normal (from a table made once per size); a small matrix turns it into a direction on the planet, two table lookups give the longitude and latitude, and the
 // map gives the ground. Lit from the upper left, a dark side with city lights, a glowing atmosphere, drifting clouds, a sparkle on the water. Picking a point with the stylus is the same
@@ -1103,6 +1104,10 @@ static void uiMenuList(int x,int y,int w,int rh,int vis){   // rows with a stead
     if(sc){ int sx=x+w-8, sh=vis*rh-2, th=(sh-20)*vis/n; if(th<5) th=5; int t0=y+10+(sh-20-th)*mTop/(n-vis);
         uiRect(sx,y,8,sh,U_SHADOW); uiRect(sx+2,t0,4,th,U_BHI); if(mTop>0) uiIcon8(sx,y+1,IC8_UP); if(mTop<n-vis) uiIcon8(sx,y+sh-9,IC8_DOWN);
         uiBtn(sx-3,y,12,sh/2,KEY_UP,0,0,0); uiBtn(sx-3,y+sh/2,12,sh-sh/2,KEY_DOWN,0,0,0); } }
+// the 3D title logo (title3d.h): BORE in chrome over GODGUY in stone slabs. The 50 colours sit at 204.. of the sub palette (free on the title screen), set on every draw.
+static void uiTitleArt(int x0,int y0){
+    for(int i=0;i<TT_N;i++) BG_PALETTE_SUB[TT_PAL0+i]=ttPal[i];
+    int p=0; for(int k=0;k<(int)(sizeof ttRle/sizeof ttRle[0]);k++){ int v=ttRle[k]>>8, n=ttRle[k]&255; if(v) for(int j=0;j<n;j++){ int q=p+j; uiPx(x0+q%TT_W,y0+q/TT_W,TT_PAL0+v-1); } p+=n; } }
 static void uiTitle(void){
     if(mScr==3){ uiCreate(); return; }
     uiGrad(0,0,256,192,G_BG); for(int y=0;y<192;y++) if((y&3)==0) uiRect(0,y,256,1,U_PANEL);
@@ -1110,8 +1115,7 @@ static void uiTitle(void){
     int ids[14];
     if(mScr==0){
         uiPlanetSprite(206,128,planetSize==128?34:planetSize==192?40:46);
-        uiTextS(12,6,"BORE",U_LGREY,3); for(int i=0;i<6;i++){ char g[2]={"GODGUY"[i],0}; uiTextS(12+i*28,29,g,U_G0+i,4); }
-        uiText(14,62,"A GOD GAME FOR THE TOUCH SCREEN",U_DIM,1);
+        uiTitleArt(6,2);
         uiRect(8,73,148,1,U_BHI); uiRect(8,73,36,1,U_GOLD); uiText(10,77,"MAIN MENU",U_GOLD,1);
         uiMenuList(8,88,148,slotOn?13:16,slotOn?5:4); menuList(ids); gfxDescBox(8,154,148,34,gfxDesc(ids[mSel])); }
     else { uiPlanetSprite(215,108,planetSize==128?30:36);
