@@ -11,7 +11,16 @@ static const u8 uiRgb[U_N][3]={ {0,0,0},{2,3,8},{4,6,13},{7,10,19},{16,19,28},{2
 #define UI_PAL0 160           // the toolbar's colours live at 160.. of the main palette (the day / night light only touches 0..143)
 static u8 uiBuf[256*192] __attribute__((aligned(4))); static int uiPages, uiPageNow, uiPageOpen, uiDotX=96;   // page dots in the title bar
 static const u8 uiKCol[8][3]={{31,8,8},{8,16,31},{10,28,10},{31,26,6},{24,10,30},{31,16,4},{6,28,28},{31,14,22}};   // kingdom colours (sub palette 40..47)
-static void uiPalette(void){ for(int k=0;k<8;k++) BG_PALETTE_SUB[40+k]=RGB15(uiKCol[k][0],uiKCol[k][1],uiKCol[k][2]); for(int i=0;i<U_N;i++){ u16 c=RGB15(uiRgb[i][0],uiRgb[i][1],uiRgb[i][2]); BG_PALETTE_SUB[i]=c; BG_PALETTE[UI_PAL0+i]=c; } BG_PALETTE_SUB[0]=0; }
+// ---- v2 look: vertical gradients (8 palette steps each, 140.. of the sub palette, free of everything else) for window bars, buttons, selected rows and backdrops
+enum { G_HEAD, G_SEL, G_BTN, G_BG, G_FOOT, G_N };
+#define UI_GRAD0 140
+static const u8 uiGradRgb[G_N][2][3]={ {{14,18,31},{4,6,17}}, {{17,25,31},{7,12,25}}, {{10,14,25},{4,7,15}}, {{5,7,16},{1,2,6}}, {{6,8,18},{2,3,9}} };
+static void uiGradPal(void){ for(int g=0;g<G_N;g++) for(int k=0;k<8;k++){ int r=uiGradRgb[g][0][0]+(uiGradRgb[g][1][0]-uiGradRgb[g][0][0])*k/7, gg=uiGradRgb[g][0][1]+(uiGradRgb[g][1][1]-uiGradRgb[g][0][1])*k/7, b=uiGradRgb[g][0][2]+(uiGradRgb[g][1][2]-uiGradRgb[g][0][2])*k/7; BG_PALETTE_SUB[UI_GRAD0+g*8+k]=RGB15(r,gg,b); } }
+static inline void uiPx(int x,int y,int c);
+static void uiGrad(int x,int y,int w,int h,int g){ for(int j=0;j<h;j++){ int k=h>1?j*7/(h-1):0; int c=UI_GRAD0+g*8+k; for(int i=0;i<w;i++) uiPx(x+i,y+j,c); } }
+static void uiGradRound(int x,int y,int w,int h,int g,int edge){ for(int j=0;j<h;j++){ int k=h>1?j*7/(h-1):0; int c=UI_GRAD0+g*8+k; int a=(j==0||j==h-1)?1:0; for(int i=a;i<w-a;i++) uiPx(x+i,y+j,c); }
+    for(int i=1;i<w-1;i++){ uiPx(x+i,y,edge); uiPx(x+i,y+h-1,edge); } for(int j=1;j<h-1;j++){ uiPx(x,y+j,edge); uiPx(x+w-1,y+j,edge); } }
+static void uiPalette(void){ uiGradPal(); for(int k=0;k<8;k++) BG_PALETTE_SUB[40+k]=RGB15(uiKCol[k][0],uiKCol[k][1],uiKCol[k][2]); for(int i=0;i<U_N;i++){ u16 c=RGB15(uiRgb[i][0],uiRgb[i][1],uiRgb[i][2]); BG_PALETTE_SUB[i]=c; BG_PALETTE[UI_PAL0+i]=c; } BG_PALETTE_SUB[0]=0; }
 static unsigned uiFlushes;   // pictures sent to the screen so far (the tests count them: a menu must send one per redraw, never two)
 static int uiHold;           // while set, uiFlush sends nothing: a screen that is drawn on top of another one (the pause menu over the status screen) must not show the one underneath for a frame
 #ifdef NDSHW
@@ -66,11 +75,11 @@ static void uiPowerIcon(int pwi,int x,int y){ const Pw*P=&pw[pwi];
 static int uiBackHint;   // set while an Extras page is open: START goes back to the menu, so the page hint says so
 static const char* uiTabPrev, *uiTabNext;   // names of the neighbouring Extras pages (L and R switch between them)
 static void uiWin(const char*title,const char*right,const char*hint){ if(uiBackHint) hint=0;
-    uiRect(0,0,256,192,U_BG); for(int y=0;y<192;y+=2) for(int x=((y>>1)&1)*2;x<256;x+=4) uiPx(x,y,U_PANEL);
-    for(int j=0;j<13;j++){ int c=j<2?U_PANELHI:j<11?U_PANEL:U_SHADOW; uiRect(0,j,256,1,c); } uiRect(0,12,256,1,U_BHI);
-    uiText(6,3,title,U_GOLD,1); if(right) uiTextR(250,3,right,U_DIM);
+    uiGrad(0,0,256,192,G_BG); for(int y=0;y<192;y+=2) for(int x=((y>>1)&1)*2;x<256;x+=4) uiPx(x,y,U_PANEL);
+    uiGrad(0,0,256,13,G_HEAD); uiRect(0,0,256,1,U_BHI); uiRect(0,12,256,1,U_BHI); uiRect(0,12,44,1,U_GOLD); uiRect(0,13,256,1,U_SHADOW);
+    uiTextS(6,3,title,U_GOLD,1); if(right) uiTextR(250,3,right,U_DIM);
     if(uiPages>0){ char pg[8]; int n=0; for(int i=0;i<=uiPageNow;i++) if(uiPageOpen&(1<<i)) n++; int t=0; for(int i=0;i<uiPages;i++) if(uiPageOpen&(1<<i)) t++; pg[0]='0'+n; pg[1]='/'; pg[2]='0'+t; pg[3]=0; uiText(uiDotX,3,pg,U_LGREY,1); }
-    uiRect(0,179,256,13,U_PANEL); uiRect(0,179,256,1,U_BHI); if(hint) uiText(6,183,hint,U_DIM,1);
+    uiGrad(0,179,256,13,G_FOOT); uiRect(0,179,256,1,U_BHI); uiRect(0,178,256,1,U_SHADOW); if(hint) uiText(6,183,hint,U_DIM,1);
     if(uiBackHint){ if(uiTabPrev){ uiRound(3,181,12,10,U_SEL,U_BHI); uiText(7,183,"L",U_GOLD,1); uiText(19,183,uiTabPrev,U_DIM,1); uiBtn(2,180,84,12,KEY_L,0,0,0); } uiRound(98,180,60,12,U_SEL,U_GOLD); uiTextC(128,183,"BACK",U_WHITE,1); uiBtn(96,179,64,13,KEY_START,0,0,0); if(uiTabNext){ uiRound(241,181,12,10,U_SEL,U_BHI); uiText(245,183,"R",U_GOLD,1); uiTextR(237,183,uiTabNext,U_DIM); uiBtn(170,180,84,12,KEY_R,0,0,0); }
         uiRound(240,147,13,13,U_SEL,U_BHI); uiIcon8(243,150,IC8_UP); uiBtn(236,145,19,17,KEY_UP,0,0,0); uiRound(240,163,13,13,U_SEL,U_BHI); uiIcon8(243,166,IC8_DOWN); uiBtn(236,162,19,16,KEY_DOWN,0,0,0); } }
 static void uiListRow(int y,int sel,int n,const char*left,const char*right,int col){ if(sel) uiRect(4,y-1,240,10,U_SEL); else if(n&1) uiRect(4,y-1,240,10,U_PANEL);
@@ -95,7 +104,7 @@ static void tbDraw(void){
     for(int y=0;y<24;y++) for(int x=0;x<256;x++) tbPix[y][x]=(u8)(UI_PAL0+(y==0?U_BHI:y==1?U_PANELHI:U_PANEL));
     if(power<tbTop) tbTop=power; if(power>=tbTop+TB_SLOTS) tbTop=power-TB_SLOTS+1; if(tbTop<0) tbTop=0; if(tbTop>PW_N-TB_SLOTS) tbTop=PW_N-TB_SLOTS;
     for(int s=0;s<TB_SLOTS;s++){ int pi=tbTop+s; int x0=12+s*23, y0=3, sel=pi==power;
-        for(int j=0;j<19;j++) for(int i=0;i<21;i++){ int edge=(i==0||j==0||i==20||j==18); int c=sel?(edge?U_GOLD:U_SEL):(edge?U_BLO:U_SHADOW); TBP(x0+i,y0+j,UI_PAL0+c); }
+        for(int j=0;j<19;j++) for(int i=0;i<21;i++){ int edge=(i==0||j==0||i==20||j==18); int c=sel?(edge?U_GOLD:(j<=2?U_BHI:U_SEL)):(edge?U_BLO:(j==1?U_PANEL:U_SHADOW)); TBP(x0+i,y0+j,UI_PAL0+c); }
         // icon (10 x 10, doubled would be too coarse: drawn once, centred)
         { int kk=pw[pi].kind, cc=kk==PK_PAINT?U_BROWN:(kk==PK_SPAWN||kk==PK_HEAL||kk==PK_FEED||kk==PK_BLOOM||kk==PK_VIBE)?U_GREEN:(kk==PK_RAIN||kk==PK_FIRE||kk==PK_BOLT||kk==PK_METEOR||kk==PK_KILL||kk==PK_QUAKE||kk==PK_FLOOD)?U_RED:(kk==PK_SETTLE||kk==PK_WAR||kk==PK_PEACE||kk==PK_BLESS)?U_BLUE:U_GOLD; for(int i=1;i<20;i++){ TBP(x0+i,y0+1,UI_PAL0+cc); TBP(x0+i,y0+2,UI_PAL0+cc); } }   // a colour strip says what kind of power it is: land, life, disaster, people, tools
         if(favPow[pi]){ for(int j=0;j<3;j++) for(int i=0;i<3;i++) TBP(x0+16+i,y0+4+j,UI_PAL0+U_YELLOW); }   // a starred power

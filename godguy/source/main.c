@@ -1028,10 +1028,10 @@ static void createInput(int kd){
 // GFX1 menus: shared pieces so every menu looks and behaves the same: a header strip, a hint strip, a framed description box
 static int menuNoteT, mTop;   // how long a note ("SAVED") stays in the hint strip; the first visible row of a scrolling list
 static void gfxHead(const char*t,int back){
-    uiRect(0,0,256,15,U_PANELHI); uiRect(0,15,256,1,U_BHI); uiRect(0,15,36,1,U_GOLD); uiText(6,4,t,U_GOLD,1);
-    if(back){ uiRound(204,2,48,11,U_SEL,U_GOLD); uiTextC(228,4,"BACK",U_WHITE,1); uiBtn(202,0,52,15,KEY_B,0,0,0); } }
-static void gfxHint(const char*t,int col){ uiRect(0,180,256,12,U_PANEL); uiRect(0,180,256,1,U_BHI); uiTextC(128,183,t,col,1); }
-static void gfxDescBox(int x,int y,int w,int h,const char*t){ uiFrame(x,y,w,h,U_SHADOW,U_BLO,U_BHI); uiWrap(x+5,y+(h>=24?5:h>=22?4:3),w/6-2,h>=30?3:2,t,U_LGREY); }
+    uiGrad(0,0,256,15,G_HEAD); uiRect(0,0,256,1,U_BHI); uiRect(0,15,256,1,U_BHI); uiRect(0,15,44,1,U_GOLD); uiRect(0,16,256,1,U_SHADOW); uiTextS(6,4,t,U_GOLD,1);
+    if(back){ uiGradRound(204,2,48,11,G_SEL,U_GOLD); uiTextC(228,4,"BACK",U_WHITE,1); uiBtn(202,0,52,15,KEY_B,0,0,0); } }
+static void gfxHint(const char*t,int col){ uiGrad(0,180,256,12,G_FOOT); uiRect(0,180,256,1,U_BHI); uiTextC(128,183,t,col,1); }
+static void gfxDescBox(int x,int y,int w,int h,const char*t){ uiFrame(x,y,w,h,U_SHADOW,U_BLO,U_BHI); uiGrad(x+1,y+1,w-2,h-2,G_BG); uiRect(x+1,y+2,2,h-4,U_GOLD); uiWrap(x+5,y+(h>=24?5:h>=22?4:3),w/6-2,h>=30?3:2,t,U_LGREY); }
 static const char* const cHelp[11]={"BIGGER PLANETS HOLD MORE LIVES","STORY HAS CHAPTERS, FREE PLAY HAS NONE","THE SHAPE OF THE LAND","HOW MUCH OF THE PLANET IS WATER","FROM ICE AGE TO SCORCHED","HOW LUSH OR DRY THE LAND IS","HOW MANY CREATURES START OUT","HOW HARD THE MONSTERS BITE","THE SAME SEED MAKES THE SAME PLANET","WALLS STOP, VANISH ERASES, WRAP LOOPS","MAKE THE PLANET AND BEGIN"};
 static void uiCreate(void){
     uiRect(0,0,256,192,U_BG); for(int y=0;y<192;y+=4) uiRect(0,y,256,1,U_PANEL);
@@ -1089,8 +1089,8 @@ static void uiMenuList(int x,int y,int w,int rh,int vis){   // rows with a stead
     int sc=n>vis; if(!sc) vis=n; if(mSel<mTop) mTop=mSel; if(mSel>=mTop+vis) mTop=mSel-vis+1; if(mTop>n-vis) mTop=n-vis; if(mTop<0) mTop=0;
     int rw=sc?w-10:w;
     for(int r=0;r<vis;r++){ int i=mTop+r, id=ids[i]; menuText(id,l,v); int yy=y+r*rh, sel=i==mSel, ty=yy+(rh-9)/2, vx=x+rw;
-        uiRound(x,yy,rw,rh-2,sel?U_SEL:U_PANELHI,sel?U_GOLD:U_BHI);
-        if(sel) uiText(x+3,ty,">",U_GOLD,1); uiText(x+(sel?11:8),ty,l,sel?U_WHITE:U_LGREY,1);
+        uiRect(x+2,yy+rh-2,rw-3,1,U_SHADOW); uiGradRound(x,yy,rw,rh-2,sel?G_SEL:G_BTN,sel?U_GOLD:U_BHI); if(sel){ uiRect(x+1,yy+2,2,rh-6,U_GOLD); uiRect(x+3,yy+1,rw-6,1,U_WHITE); }
+        if(sel) uiText(x+5,ty,">",U_GOLD,1); uiText(x+(sel?13:8),ty,l,sel?U_WHITE:U_LGREY,1);
         uiBtn(x,yy,rw,rh-1,menuAdj(id)?0:KEY_A,0,&mSel,i); if(menuAdj(id)){ uiBtn(vx-78,yy,30,rh-1,KEY_LEFT,0,&mSel,i); uiBtn(vx-30,yy,30,rh-1,KEY_RIGHT,0,&mSel,i); }
         if(v[0]){ if(v[0]=='>'&&!v[1]) uiIcon8(vx-13,yy+(rh-10)/2,IC8_RIGHT);
             else if(menuAdj(id)){ if(sel){ uiIcon8(vx-72,yy+(rh-10)/2,IC8_LEFT); uiIcon8(vx-12,yy+(rh-10)/2,IC8_RIGHT); } uiTextC(vx-42,ty,v,sel?U_GOLD:U_LGREY,1); }
@@ -1100,7 +1100,7 @@ static void uiMenuList(int x,int y,int w,int rh,int vis){   // rows with a stead
         uiBtn(sx-3,y,12,sh/2,KEY_UP,0,0,0); uiBtn(sx-3,y+sh/2,12,sh-sh/2,KEY_DOWN,0,0,0); } }
 static void uiTitle(void){
     if(mScr==3){ uiCreate(); return; }
-    uiRect(0,0,256,192,U_BG); for(int y=0;y<192;y++) if((y&3)==0) uiRect(0,y,256,1,U_PANEL);
+    uiGrad(0,0,256,192,G_BG); for(int y=0;y<192;y++) if((y&3)==0) uiRect(0,y,256,1,U_PANEL);
     for(int k=0;k<70;k++){ int x=(int)(hsh(k,1,7)%256), y=(int)(hsh(k,2,7)%192); uiPx(x,y,(k&3)==0?U_WHITE:U_DIM); }
     int ids[14];
     if(mScr==0){
