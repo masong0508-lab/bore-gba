@@ -98,10 +98,24 @@ def compose():
     # un-premultiply is not needed: BOX of straight RGBA averaged transparent black into the edges, so recover colour with alpha weighting
     sm=np.array(big.resize((CW,CH),Image.BOX)).astype(np.float32)
     canvas[hard]=np.dstack([np.clip(sm[...,:3]*255./np.maximum(sm[...,3:],1)* (sm[...,3:]/255.)*0+sm[...,:3],0,255),np.full((CH,CW),255)]).astype(np.uint8)[hard]
-    # BORE at the top-left, in front
-    ox,oy=4,0
-    bh_mask=bore[...,3]>=128
-    sub=canvas[oy:oy+bh,ox:ox+bw]; sub[bh_mask]=bore[bh_mask]; sub[bh_mask,3]=255
+    # BORE: its own 3D, extruded to the right (same direction as GODGUY), steel sides fading dark with depth, centred over the word
+    D=6; dx,dy=-1.0,0.7; FX=D+1
+    pw,ph=bw+D+3,bh+int(D*dy)+2
+    L=np.zeros((ph,pw,4),np.uint8)
+    solid=bore[...,3]>=128
+    for i in range(D,0,-1):
+        u=i/D; col=[int(120-84*u),int(138-92*u),int(176-110*u),255]
+        ox_,oy_=FX+int(round(i*dx)),int(round(i*dy))
+        sub=L[oy_:oy_+bh,ox_:ox_+bw]; sub[solid]=col
+    # dark outline round the extrusion
+    m=L[...,3]>0; edge=np.zeros_like(m)
+    for ddx,ddy in ((1,0),(-1,0),(0,1),(0,-1)):
+        sh=np.roll(np.roll(m,ddx,1),ddy,0); edge|=sh
+    edge&=~m; L[edge]=[10,8,26,255]
+    sub=L[0:bh,FX:FX+bw]; sub[solid]=bore[solid]
+    bx=int(round((CW-bw)/2))-14-FX+D//2; by=0
+    h2,w2=L.shape[:2]
+    reg=canvas[by:by+h2,bx:bx+w2]; mk=L[...,3]>0; reg[mk]=L[mk]; reg[mk,3]=255
     return canvas
 if __name__=='__main__':
     cv=compose(); Image.fromarray(cv).save('title_rgba.png')
