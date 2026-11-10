@@ -99,37 +99,57 @@ static int hwUiScale;
 #endif
 #define TB_TILE0 640
 #define TB_BLANK 1023
-static const u8 tbRowsT[3]={3,4,5}, tbSlotsT[3]={10,8,6}, tbPitchT[3]={23,29,38}, tbBoxW[3]={21,27,36}, tbBoxH[3]={19,25,34}, tbIcoT[3]={10,15,20};
+// TBCAT: the toolbox has categories. A strip of tabs along its top (ALL, LAND, LIFE, WRATH, FOLK) picks which powers the slots below show; INSPECT is in every one.
+// Choosing a power by the L and R keys (or from the favourites) that is not in the open category opens the one it belongs to.
+static const u8 tbRowsT[3]={4,5,7}, tbTabT[3]={9,10,13}, tbSlotsT[3]={10,8,6}, tbPitchT[3]={23,29,38}, tbBoxW[3]={21,27,36}, tbBoxH[3]={19,25,34}, tbIcoT[3]={10,15,20};
 #define TB_ROWS (tbRowsT[hwUiScale])
 #define TB_H (TB_ROWS*8)
 #define TB_Y (192-TB_H)
 #define TB_SLOTS (tbSlotsT[hwUiScale])
-static u8 tbPix[40][256]; static int tbTop=0; static u16*mapPtr1;
+#define TB_NCAT 5
+static const char* const tbCatNm[TB_NCAT]={"ALL","LAND","LIFE","WRATH","FOLK"};
+static const u8 tbCatCol[TB_NCAT]={U_GOLD,U_BROWN,U_GREEN,U_RED,U_BLUE};
+static u8 tbPix[56][256]; static int tbTop=0, tbCat=0, tbN=0; static u8 tbList[64]; static u16*mapPtr1;
+static int tbHome(int pi){ int k=pw[pi].kind; if(k==PK_INSPECT) return 0; if(k==PK_PAINT) return 1;
+    if(k==PK_SPAWN||k==PK_HEAL||k==PK_FEED||k==PK_BLOOM||k==PK_VIBE||k==PK_MUTATE) return 2;
+    if(k==PK_SETTLE||k==PK_WAR||k==PK_PEACE||k==PK_BLESS||k==PK_GIFT) return 4; return 3; }
+static void tbBuild(void){ tbN=0; for(int i=0;i<PW_N&&tbN<64;i++) if(tbCat==0||pw[i].kind==PK_INSPECT||tbHome(i)==tbCat) tbList[tbN++]=(u8)i; }
+static int tbPos(int p){ for(int i=0;i<tbN;i++) if(tbList[i]==p) return i; return -1; }
+static void tbText(int x,int y,const char*s,int c){ for(;*s;s++){ int ch=(unsigned char)*s; if(ch<32||ch>=96) ch=32; const unsigned char*g=font5x7[ch-32];
+    for(int r=0;r<7;r++) for(int q=0;q<5;q++) if((g[r]>>(4-q))&1){ int xx=x+q, yy=y+r; if((unsigned)xx<256&&(unsigned)yy<56) tbPix[yy][xx]=(u8)c; } x+=6; } }
 static void tbDraw(void){
-    const int H=TB_H, SW=tbBoxW[hwUiScale], SH=tbBoxH[hwUiScale], PI=tbPitchT[hwUiScale], IS=tbIcoT[hwUiScale], K=hwUiScale?2:1, Y0=(H-SH)/2+1;
+    const int H=TB_H, TT=tbTabT[hwUiScale], SW=tbBoxW[hwUiScale], SH=tbBoxH[hwUiScale], PI=tbPitchT[hwUiScale], IS=tbIcoT[hwUiScale], K=hwUiScale?2:1, Y0=TT+(H-TT-SH)/2+1;
     #define TBP(x,y,c) do{ if((unsigned)(x)<256&&(unsigned)(y)<(unsigned)H) tbPix[y][x]=(u8)(c); }while(0)
     for(int y=0;y<H;y++) for(int x=0;x<256;x++) tbPix[y][x]=(u8)(UI_PAL0+(y==0?U_BHI:y==1?U_PANELHI:U_PANEL));
-    if(power<tbTop) tbTop=power; if(power>=tbTop+TB_SLOTS) tbTop=power-TB_SLOTS+1; if(tbTop<0) tbTop=0; if(tbTop>PW_N-TB_SLOTS) tbTop=PW_N-TB_SLOTS;
-    for(int s=0;s<TB_SLOTS;s++){ int pi=tbTop+s; int x0=12+s*PI, y0=Y0, sel=pi==power;
+    if(!tbN) tbBuild(); if(tbPos(power)<0){ tbCat=tbHome(power); tbBuild(); }
+    int pp=tbPos(power); if(pp<tbTop) tbTop=pp; if(pp>=tbTop+TB_SLOTS) tbTop=pp-TB_SLOTS+1; if(tbTop>tbN-TB_SLOTS) tbTop=tbN-TB_SLOTS; if(tbTop<0) tbTop=0;
+    for(int c=0;c<TB_NCAT;c++){ int x0=c*256/TB_NCAT+1, x1=(c+1)*256/TB_NCAT-1, sel=c==tbCat;   // the tabs
+        for(int y=1;y<TT;y++) for(int x=x0;x<x1;x++){ int edge=(x==x0||x==x1-1||y==1); int cc=sel?(edge?U_GOLD:U_SEL):(edge?U_BLO:U_SHADOW); TBP(x,y,UI_PAL0+cc); }
+        if(!sel) for(int x=x0+1;x<x1-1;x++) TBP(x,TT-1,UI_PAL0+tbCatCol[c]);
+        int tw=(int)strlen(tbCatNm[c])*6-1; tbText((x0+x1)/2-tw/2,1+(TT-1-7)/2,tbCatNm[c],UI_PAL0+(sel?U_WHITE:U_LGREY)); }
+    for(int s=0;s<TB_SLOTS&&tbTop+s<tbN;s++){ int pi=tbList[tbTop+s]; int x0=12+s*PI, y0=Y0, sel=pi==power;
         for(int j=0;j<SH;j++) for(int i=0;i<SW;i++){ int edge=(i==0||j==0||i==SW-1||j==SH-1); int c=sel?(edge?U_GOLD:(j<=2?U_BHI:U_SEL)):(edge?U_BLO:(j==1?U_PANEL:U_SHADOW)); TBP(x0+i,y0+j,UI_PAL0+c); }
-        { int kk=pw[pi].kind, cc=kk==PK_PAINT?U_BROWN:(kk==PK_SPAWN||kk==PK_HEAL||kk==PK_FEED||kk==PK_BLOOM||kk==PK_VIBE)?U_GREEN:(kk==PK_RAIN||kk==PK_FIRE||kk==PK_BOLT||kk==PK_METEOR||kk==PK_KILL||kk==PK_QUAKE||kk==PK_FLOOD)?U_RED:(kk==PK_SETTLE||kk==PK_WAR||kk==PK_PEACE||kk==PK_BLESS)?U_BLUE:U_GOLD; for(int i=1;i<SW-1;i++){ for(int j=1;j<=2+(K>1);j++) TBP(x0+i,y0+j,UI_PAL0+cc); } }   // a colour strip says what kind of power it is
+        { int kk=pw[pi].kind, cc=kk==PK_PAINT?U_BROWN:(kk==PK_SPAWN||kk==PK_HEAL||kk==PK_FEED||kk==PK_BLOOM||kk==PK_VIBE)?U_GREEN:(kk==PK_RAIN||kk==PK_FIRE||kk==PK_BOLT||kk==PK_METEOR||kk==PK_KILL||kk==PK_QUAKE||kk==PK_FLOOD)?U_RED:(kk==PK_SETTLE||kk==PK_WAR||kk==PK_PEACE||kk==PK_BLESS)?U_BLUE:U_GOLD; for(int i=1;i<SW-1;i++){ for(int j=1;j<=2+(K>1);j++) TBP(x0+i,y0+j,UI_PAL0+cc); } }   // a colour
         if(favPow[pi]){ for(int j=0;j<3*K;j++) for(int i=0;i<3*K;i++) TBP(x0+SW-5*K+i,y0+3+K+j,UI_PAL0+U_YELLOW); }   // a starred power
         const Pw*P=&pw[pi]; int ix=x0+(SW-IS)/2, iy=y0+(SH-IS)/2+(K>1);
         for(int j=0;j<IS;j++) for(int i=0;i<IS;i++){ int si=i*10/IS, sj=j*10/IS, c;   // 10 x 10 icons, drawn 1.5 or 2 times as big when the scale is up
             if(P->kind==PK_PAINT){ c=uiSwatch(P->arg,si,sj,200); } else { c=icon10[uiKindIcon[P->kind]][sj*10+si]; if(!c) continue; c+=UI_PAL0; }
             TBP(ix+i,iy+j,c); } }
-    // arrows (twice the size when the scale is up)
-    { int ay=(H-7*K)/2, lx=K>1?9:6, rx=K>1?246:249; for(int j=0;j<7*K;j++){ int jj=j/K, w=(jj<4?jj+1:7-jj)*K; for(int i=0;i<w;i++){ TBP(lx-i,ay+j,UI_PAL0+(tbTop>0?U_WHITE:U_DGREY)); TBP(rx+i,ay+j,UI_PAL0+(tbTop<PW_N-TB_SLOTS?U_WHITE:U_DGREY)); } } }
+    // arrows (twice the size when the scale is up): they scroll the open category
+    { int ay=TT+(H-TT-7*K)/2, lx=K>1?9:6, rx=K>1?246:249; for(int j=0;j<7*K;j++){ int jj=j/K, w=(jj<4?jj+1:7-jj)*K; for(int i=0;i<w;i++){ TBP(lx-i,ay+j,UI_PAL0+(tbTop>0?U_WHITE:U_DGREY)); TBP(rx+i,ay+j,UI_PAL0+(tbTop<tbN-TB_SLOTS?U_WHITE:U_DGREY)); } } }
     for(int ty=0;ty<TB_ROWS;ty++) for(int tx=0;tx<32;tx++){ u8 tile[64] __attribute__((aligned(4))); for(int y=0;y<8;y++) for(int x=0;x<8;x++) tile[y*8+x]=tbPix[ty*8+y][tx*8+x]; vramCopy((u8*)BG_TILE_RAM(1)+(TB_TILE0+ty*32+tx)*64,tile,64); }
     #undef TBP
 }
 static void tbInit(void){   // the layer: all blank except the bottom rows
     for(int i=0;i<1024;i++) mapPtr1[i]=TB_BLANK; for(int ty=0;ty<TB_ROWS;ty++) for(int tx=0;tx<32;tx++) mapPtr1[(24-TB_ROWS+ty)*32+tx]=(u16)(TB_TILE0+ty*32+tx);
     u8 z[64] __attribute__((aligned(4))); memset(z,0,64); vramCopy((u8*)BG_TILE_RAM(1)+TB_BLANK*64,z,64);
-    uiShadePal();
+    uiShadePal(); tbBuild();
     tbDraw(); }
 static int tbTouch(int px,int py){   // a touch in the toolbar: returns 1 if it was used
     if(py<TB_Y) return 0;
-    if(px<12){ power=power>0?power-1:0; return 1; } if(px>=244){ power=power<PW_N-1?power+1:PW_N-1; return 1; }
-    int s=(px-12)/tbPitchT[hwUiScale]; if(s>=0&&s<TB_SLOTS) power=tbTop+s; return 1; }
+    if(py-TB_Y<tbTabT[hwUiScale]){ int c=px*TB_NCAT/256; if(c<0) c=0; if(c>=TB_NCAT) c=TB_NCAT-1;   // a tab: open that category (the power stays if it is in it, otherwise the first real power of it)
+        if(c!=tbCat){ tbCat=c; tbBuild(); tbTop=0; if(tbPos(power)<0) power=tbList[(c&&tbN>1)?1:0]; } return 1; }
+    int p=tbPos(power); if(p<0) p=0;
+    if(px<12){ if(p>0) power=tbList[p-1]; return 1; } if(px>=244){ if(p<tbN-1) power=tbList[p+1]; return 1; }
+    int s=(px-12)/tbPitchT[hwUiScale]; if(s>=0&&s<TB_SLOTS&&tbTop+s<tbN) power=tbList[tbTop+s]; return 1; }
 #endif
