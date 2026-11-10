@@ -1,14 +1,18 @@
 // ggmenu.h - GODGUY: filtered stylus input, touch hit slop, the STATS page and the WORLD page (parameters of the world, peoples, cities and kingdoms).
 // ---- the stylus. The DS pen is noisy: the first sample of a contact bounces, the last one before release drifts, and now and then a (0,0) ghost comes through.
 // penPoll() drops the first sample, ignores ghosts and wild jumps (once), takes the median of three, holds a 1 pixel dead zone against jitter and makes a hold repeat.
-static struct { int held, press, rel, rep, moved, x, y, lx, ly, age, t, n, bad, out, fromUi, fromBar, sx[3], sy[3]; } pen = { .age=-1 };
+static struct { int held, press, rel, rep, moved, x, y, lx, ly, age, t, n, bad, out, fromUi, fromBar, sx[3], sy[3], pend, px0, py0, pn; } pen = { .age=-1 };
 static int med3(int a,int b,int c){ int t; if(a>b){ t=a; a=b; b=t; } if(b>c) b=c; return a>b?a:b; }
 static inline int iabs(int v){ return v<0?-v:v; }
 static void penPoll(int touching,int uiOn){
     // v2: no sample is thrown away (the ARM7 already averages five conversions and holds a contact through noise), so a tap lands on the frame it happens and a stroke starts at once;
     // the median only smooths a hand that is nearly still, a moving pen is followed exactly (a median of three lags a stroke by a frame).
     pen.press=pen.rel=pen.rep=pen.moved=0; pen.lx=pen.x; pen.ly=pen.y;
-    if(!touching){ if(pen.held) pen.rel=1; pen.held=0; pen.age=-1; pen.n=0; pen.bad=0; pen.out=0; return; }
+    if(!touching){
+#ifndef NDSHW
+        if(pen.pend&&!pen.held){ pen.pend=0; pen.held=1; pen.press=1; pen.fromUi=uiOn; pen.fromBar=!uiOn&&pen.py0>=TB_Y; pen.x=pen.lx=pen.px0; pen.y=pen.ly=pen.py0; pen.t=0; pen.age=-1; pen.n=0; return; }   // a tap over before it settled: delivered from its one sample
+#endif
+        pen.pend=0; if(pen.held) pen.rel=1; pen.held=0; pen.age=-1; pen.n=0; pen.bad=0; pen.out=0; return; }
     pen.age++; touchPosition tp; touchRead(&tp); int rx=tp.px, ry=tp.py;
     if((rx==0&&ry==0&&pen.held)||rx<0||ry<0||rx>255||ry>191){ pen.bad++; return; }   // ghost sample (a (0,0) is believed on the first frame of a contact: the top left corner is a real place)
     if(pen.held&&pen.out<2){ int dx=rx-pen.x, dy=ry-pen.y; if(iabs(dx)+iabs(dy)>110){ pen.out++; return; } }   // a wild jump is believed only if it repeats
@@ -16,6 +20,12 @@ static void penPoll(int touching,int uiOn){
     int x=rx, y=ry;
     if(pen.n==3){ int xl=pen.sx[0], xh=xl, yl=pen.sy[0], yh=yl; for(int i=1;i<3;i++){ if(pen.sx[i]<xl) xl=pen.sx[i]; if(pen.sx[i]>xh) xh=pen.sx[i]; if(pen.sy[i]<yl) yl=pen.sy[i]; if(pen.sy[i]>yh) yh=pen.sy[i]; }
         if(xh-xl<=2&&yh-yl<=2){ x=med3(pen.sx[0],pen.sx[1],pen.sx[2]); y=med3(pen.sy[0],pen.sy[1],pen.sy[2]); } }
+#ifndef NDSHW
+    if(!pen.held){   // STYLUS v2: the first sample of a contact bounces; the press waits for a second one that agrees within 3 pixels (at most 3 samples), and takes that one
+        if(!pen.pend){ pen.pend=1; pen.px0=x; pen.py0=y; pen.pn=1; return; }
+        if(!(iabs(x-pen.px0)<=3&&iabs(y-pen.py0)<=3)&&pen.pn<3){ pen.px0=x; pen.py0=y; pen.pn++; return; }
+        pen.pend=0; }
+#endif
     if(!pen.held){ pen.held=1; pen.press=1; pen.fromUi=uiOn; pen.fromBar=!uiOn&&y>=TB_Y; pen.x=pen.lx=x; pen.y=pen.ly=y; pen.t=0; return; }
     if(iabs(x-pen.x)>1||iabs(y-pen.y)>1){ pen.x=x; pen.y=y; pen.moved=1; }
     pen.t++; if(pen.t>=22&&((pen.t-22)%5)==0) pen.rep=1; }
