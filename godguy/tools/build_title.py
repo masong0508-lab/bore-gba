@@ -113,7 +113,7 @@ def compose():
         sh=np.roll(np.roll(m,ddx,1),ddy,0); edge|=sh
     edge&=~m; L[edge]=[10,8,26,255]
     sub=L[0:bh,FX:FX+bw]; sub[solid]=bore[solid]
-    bx=int(round((CW-bw)/2))-14-FX+D//2; by=0
+    bx=20; by=0
     h2,w2=L.shape[:2]
     reg=canvas[by:by+h2,bx:bx+w2]; mk=L[...,3]>0; reg[mk]=L[mk]; reg[mk,3]=255
     return canvas
