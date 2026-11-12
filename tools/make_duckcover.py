@@ -64,7 +64,7 @@ def retune(y, maxshift=2.0):
     cands = [n + 12 * o for o in range(3, 8) for n in EMIN]; tgt = min(cands, key=lambda c: abs(c - m)); sh = tgt - m
     if abs(sh) > maxshift or abs(sh) < 0.03: return y, 0.0
     return librosa.effects.pitch_shift(y.astype(np.float32), sr=SR, n_steps=sh).astype(np.float64), sh
-def vocal_fx(y, target_rms=0.085, wet=0.16):
+def vocal_fx(y, target_rms=0.085, wet=0.16, double=True, delay=True):
     """the vocal chain: high-pass, de-ess, presence lift, compression (4:1) and a short plate, level-matched so every chop sits at the same loudness"""
     y = signal.sosfiltfilt(signal.butter(2, 170 / (SR / 2), "hp", output="sos"), y)
     b, a = signal.butter(2, [5500 / (SR / 2), 9500 / (SR / 2)], "band"); es = signal.lfilter(b, a, y); ee = np.abs(es); k = int(0.004 * SR); ee = np.convolve(ee, np.ones(k) / k, "same")
@@ -75,10 +75,19 @@ def vocal_fx(y, target_rms=0.085, wet=0.16):
     for i, v in enumerate(env): st = v if v > st else st * 0.93 + v * 0.07; sm[i] = st
     thr = 0.05; gr = np.where(sm > thr, (sm / thr) ** (1 / 4.0 - 1), 1.0); gfull = np.interp(np.arange(len(y)), (np.arange(n) + 0.5) * hop, gr); y = y * gfull
     r = np.sqrt((y ** 2).mean()) + 1e-9; y = y / r * target_rms
-    ir = rng.standard_normal(int(0.32 * SR)) * np.exp(-np.arange(int(0.32 * SR)) / (0.08 * SR)); ir = signal.sosfilt(signal.butter(2, 3500 / (SR / 2), "lp", output="sos"), ir); ir /= np.abs(ir).max()
-    ir = np.concatenate([np.zeros(int(0.015 * SR)), ir]); rv = signal.fftconvolve(y, ir)[:len(y) + len(ir) - 1] * 0.035
-    out = np.concatenate([y, np.zeros(len(ir))]); out += wet * rv[:len(out)] if len(rv) >= len(out) else 0
-    out[:len(rv)] += wet * rv[:len(out)] if len(rv) < len(out) else 0
+    n0 = len(y); tail = int(1.3 * SR); out = np.zeros((n0 + tail, 2)); out[:n0, 0] += y; out[:n0, 1] += y                  # dry, centre
+    hpf = signal.butter(2, 450 / (SR / 2), "hp", output="sos"); yh = signal.sosfilt(hpf, y)
+    if double:                                                                                         # a Haas double: the bright part delayed 17 / 27 ms, opposite polarity, wide
+        d1, d2 = int(0.017 * SR), int(0.027 * SR); out[d1:d1 + n0, 0] += 0.30 * yh; out[d2:d2 + n0, 1] -= 0.30 * yh
+    if delay:                                                                                          # ping-pong throw on the dotted eighth, two repeats, dark
+        lpf = signal.butter(2, 3200 / (SR / 2), "lp", output="sos"); yd = signal.sosfilt(lpf, yh); dt = int(0.75 * BEAT * SR)
+        for k_, (ch_, gk) in enumerate(((1, 0.30), (0, 0.16), (1, 0.08)), start=1):
+            o = dt * k_
+            if o + n0 <= len(out): out[o:o + n0, ch_] += gk * yd
+    for ch in range(2):                                                                                # stereo plate: a different noise tail per side
+        r_ = np.random.default_rng(11 + ch); m = int(0.4 * SR); ir = r_.standard_normal(m) * np.exp(-np.arange(m) / (0.10 * SR))
+        ir = signal.sosfilt(signal.butter(2, 3500 / (SR / 2), "lp", output="sos"), ir); ir /= np.abs(ir).max(); ir = np.concatenate([np.zeros(int(0.015 * SR) + ch * 160), ir])
+        rv = signal.fftconvolve(y, ir) * 0.035 * wet / 0.16; k2 = min(len(rv), len(out)); out[:k2, ch] += rv[:k2]
     return np.tanh(out * 1.6) / 1.6
 def crush(y, bits=13, rate=12400):   # the bus-A BITCOOKER, lightly
     ys = signal.resample_poly(y, rate, SR); q = 2.0 ** (bits - 1); ys = np.round(ys * q) / q
@@ -254,16 +263,21 @@ drums(t, 6, "a", kick_on=True); place_pattern(5, t, 6, pluck_oct=-12)
 drums(t + 24, 2, "ride"); ev(t + 24, "crash", v=0.8)
 t += 6 * 4 + 8
 TOTAL = t
+for key_ in ("drop1", "drop2", "drop3"):
+    for q_ in range(8): ev(POS[key_] - 2 + q_ * 0.25, "stutter", pad="3", q=q_, v=0.4 + 0.6 * q_ / 7)
 EV.sort(key=lambda e: e["t"])
 # the per-section gain
 for e in EV:
     e["v"] = float(e.get("v", 1.0))
 
 # ------------------------------------------------------------------------------------------------------------ render
-N = int((TOTAL * BEAT + 4) * SR); mix = np.zeros(N)
-def add(y, t, g=1.0):
-    a = int(round(t * BEAT * SR)); b = min(N, a + len(y))
-    if a < N and b > a: mix[a:b] += y[:b - a] * g
+N = int((TOTAL * BEAT + 4) * SR + 2.5 * SR); mix = np.zeros((N, 2))
+PAN = {"0": -0.35, "2": 0.30, "3": -0.50, "4": 0.45, "5": -0.20, "6": 0.0, "7": 0.50, "8": -0.45, "10": 0.25, "11": -0.30, "12": 0.40, "13": -0.15}      # a fixed place for every chop
+def add(y, t, g=1.0, pan=0.0):
+    """mono y is panned (constant power, centre = unchanged level); a stereo y gets a balance"""
+    a = int(round(t * BEAT * SR)); b = min(N, a + len(y)); l_, r_ = np.sqrt(2) * np.cos((pan + 1) * np.pi / 4), np.sqrt(2) * np.sin((pan + 1) * np.pi / 4)
+    st = np.stack([y * l_, y * r_], 1) if y.ndim == 1 else y * np.array([l_, r_])
+    if a < N and b > a: mix[a:b] += st[:b - a] * g
 def chopaudio(pad, g, p):
     d = CH[pad]; y = d["y"]
     if pad == "9": return y
@@ -278,11 +292,14 @@ for e in EV:
     k = e["kind"]; v = e["v"]
     if k == "kick": add(K, e["t"], 1.0 * v)
     elif k == "snare": add(S, e["t"], 0.85 * v)
-    elif k == "hat": add(HC, e["t"], v)
-    elif k == "ohat": add(HO, e["t"], v)
-    elif k == "crash": add(CR, e["t"], 0.7 * v)
-    elif k == "riser": add(riser(e["beats"]), e["t"], 1.0)
-    elif k == "pluck": add(pluck(e["m"], e["g"]), e["t"], 1.0 * (0.6 + 0.4 * v))
+    elif k == "hat": add(HC, e["t"], v, pan=-0.3 if int(round(e["t"] * 4)) % 2 else 0.3)
+    elif k == "ohat": add(HO, e["t"], v, pan=0.4)
+    elif k == "crash": add(CR, e["t"], 0.7 * v, pan=-0.3)
+    elif k == "riser":
+        rs_ = riser(e["beats"]); d_ = int(0.012 * SR); add(np.stack([rs_, np.concatenate([np.zeros(d_), rs_[:-d_]])], 1), e["t"], 1.0)
+    elif k == "pluck":
+        py = pluck(e["m"], e["g"]); sd = 1 if int(round(e["t"] * 2)) % 2 else -1; d_ = int(0.014 * SR)      # alternate sides, the other side a Haas echo: wide but still tight
+        add(py, e["t"], 1.0 * (0.6 + 0.4 * v), pan=0.35 * sd); add(np.concatenate([np.zeros(d_), py]) * 0.45, e["t"], 1.0 * (0.6 + 0.4 * v), pan=-0.6 * sd)
     elif k == "bass":
         key = (e["m"], round(e["g"], 3))
         if key not in PCACHE: PCACHE[key] = mixlen(sub(e["m"], e["g"]) * 0.55, reese(e["m"] + 12, e["g"]) * 0.42)
@@ -290,16 +307,19 @@ for e in EV:
     elif k == "chop":
         key = ("c", e["pad"], round(e["g"], 2), e["p"])
         if key not in PCACHE: PCACHE[key] = vocal_fx(chopaudio(e["pad"], e["g"], e["p"]))
-        add(PCACHE[key], e["t"], 2.4 * (0.55 + 0.45 * v) * (0.6 if e["pad"] == "6" else 1))
+        add(PCACHE[key], e["t"], 2.4 * (0.55 + 0.45 * v) * (0.6 if e["pad"] == "6" else 1), pan=PAN.get(e["pad"], 0.0))
+    elif k == "stutter":                                                                               # the stutter edit into a drop: the first syllable of a chop, retriggered on 16ths, climbing in pitch and level
+        q = e["q"]; sl = CH[e["pad"]]["y"][:int(0.11 * SR)]; sp = 1 + 0.07 * q; sl = signal.resample(sl, int(len(sl) / sp)); sl = fade(hp180(sl), 0.002, 0.012)
+        add(vocal_fx(sl, 0.085, 0.05, double=False, delay=False), e["t"], 2.2 * (0.4 + 0.6 * e["v"]), pan=0.45 if q % 2 else -0.45)
     elif k == "extra":
         y = EXTRA[e["i"]]["y"]; y = y[::-1] if e["rev"] else y
-        add(fade(vocal_fx(y, 0.06, 0.1), 0.01, 0.05), e["t"], 0.8 * e["v"])
+        add(fade(vocal_fx(y, 0.06, 0.1), 0.01, 0.05)[:, None] * 1.0 if False else vocal_fx(fade(y, 0.01, 0.05), 0.06, 0.1), e["t"], 0.8 * e["v"], pan=0.6 if e["i"] % 2 else -0.6)
 # master: a sidechain duck of everything but the drums under every kick (the "duck" of Duck & Cover), tilt, soft clip, level
 duck = np.ones(N)
 for e in EV:
     if e["kind"] == "kick":
         a = int(e["t"] * BEAT * SR); n = int(0.16 * SR); c = np.linspace(0.45, 1, n) ** 1.5; duck[a:a + n] = np.minimum(duck[a:a + n], c[:max(0, min(n, N - a))])
-dr = np.zeros(N)
+dr = np.zeros((N, 2))
 def render_drums():
     global mix
     keep = mix.copy(); mix[:] = 0
@@ -307,21 +327,21 @@ def render_drums():
         k = e["kind"]; v = e["v"]
         if k == "kick": add(K, e["t"], v)
         elif k == "snare": add(S, e["t"], 0.85 * v)
-        elif k == "hat": add(HC, e["t"], v)
-        elif k == "ohat": add(HO, e["t"], v)
-        elif k == "crash": add(CR, e["t"], 0.7 * v)
+        elif k == "hat": add(HC, e["t"], v, pan=-0.3 if int(round(e["t"] * 4)) % 2 else 0.3)
+        elif k == "ohat": add(HO, e["t"], v, pan=0.4)
+        elif k == "crash": add(CR, e["t"], 0.7 * v, pan=-0.3)
     d = mix.copy(); mix[:] = keep; return d
-dr = render_drums(); body = (mix - dr) * duck
+dr = render_drums(); body = (mix - dr) * duck[:, None]
 y = body * 0.9 + dr * 1.0
-b, a = signal.butter(2, 28 / (SR / 2), "high"); y = signal.lfilter(b, a, y)
+b, a = signal.butter(2, 28 / (SR / 2), "high"); y = signal.lfilter(b, a, y, axis=0)
 y = np.tanh(y * 1.5) / np.tanh(1.5) * 0.98
-tail = int(2.5 * SR); y[-tail:] *= np.linspace(1, 0, tail)               # the outro's end fades
+tail = int(2.5 * SR); y[-tail:] *= np.linspace(1, 0, tail)[:, None]               # the outro's end fades
 y = y / np.abs(y).max() * 0.94
 os.makedirs(OUT, exist_ok=True); sf.write(OUT + "/duck_cover_dnb.wav", y, SR, subtype="PCM_16")
 print("rendered %d bars, %.1f s" % (TOTAL / 4, len(y) / SR))
 
 # ------------------------------------------------------------------------------------------------------------ the game stream
-tmp = OUT + "/_gba.wav"; sf.write(tmp, y, SR)
+tmp = OUT + "/_gba.wav"; sf.write(tmp, y.mean(1), SR)      # the game stream is mono
 x = encode_song.load(tmp); os.remove(tmp)
 b4 = encode(x); yy = decode(b4); snr = 10 * np.log10(np.sum(x.astype(float) ** 2) / max(1, np.sum((x - yy).astype(float) ** 2)))
 open("source/music/duck_cover.adp", "wb").write(b4); print("source/music/duck_cover.adp: %.0f s, %d KB, ADPCM SNR %.1f dB" % (len(x) / GBA, len(b4) / 1024, snr))
@@ -350,8 +370,9 @@ assert len(INS) <= 32, len(INS)
 
 ROWS = int(round(TOTAL * ROWB)) + 32; NCH = 16
 grid = [[None] * NCH for _ in range(ROWS)]; busy = [-1] * NCH
-def put(ch, row, note, inst, v=64):
-    if 0 <= row < ROWS and grid[row][ch] is None: grid[row][ch] = (int(max(1, min(96, round(note)))) if note != 97 else 97, inst, 0x10 + max(1, min(64, int(v))), 0, 0); return True
+def put(ch, row, note, inst, v=64, pan=None):
+    """pan: -1..1, written as the XM effect 8xx (set panning)"""
+    if 0 <= row < ROWS and grid[row][ch] is None: grid[row][ch] = (int(max(1, min(96, round(note)))) if note != 97 else 97, inst, 0x10 + max(1, min(64, int(v))), 8 if pan is not None else 0, int(128 + 127 * max(-1, min(1, pan))) if pan is not None else 0); return True
     return False
 def free(row, lo, hi):
     for c in range(lo, hi):
@@ -361,8 +382,8 @@ C4 = 49
 for e in EV:
     k = e["kind"]; row = int(round(e["t"] * ROWB)); v = e["v"]
     if k in ("kick", "snare"): put(0 if k == "kick" else 1, row, C4, NAMES[k], 64 * v)
-    elif k in ("hat", "ohat"): put(2, row, C4, NAMES[k], 40 * v)
-    elif k == "crash": put(3, row, C4, NAMES["crash"], 44 * v)
+    elif k in ("hat", "ohat"): put(2, row, C4, NAMES[k], 40 * v, pan=0.4 if k == "ohat" else (-0.3 if row % 2 else 0.3))
+    elif k == "crash": put(3, row, C4, NAMES["crash"], 44 * v, pan=-0.3)
     elif k == "riser": put(3, row, C4, NAMES["riser"], 40)
     elif k == "bass":
         gr = max(1, int(round(e["g"] / BEAT * ROWB)))
@@ -372,18 +393,18 @@ for e in EV:
     elif k == "pluck":
         c = free(row, 6, 8)
         if c is None: continue
-        if put(c, row, C4 + (e["m"] - 59), NAMES["pluck"], 56 * (0.6 + 0.4 * v)):
+        if put(c, row, C4 + (e["m"] - 59), NAMES["pluck"], 56 * (0.6 + 0.4 * v), pan=0.35 if c == 6 else -0.35):
             gr = max(1, int(round(e["g"] / BEAT * ROWB))); busy[c] = row + gr - 1
             if row + gr < ROWS and grid[row + gr][c] is None: grid[row + gr][c] = (97, 0, 0, 0, 0)
     elif k == "chop":
         c = free(row, 8, 13)
         if c is None: continue
         d = CH[e["pad"]]; busy[c] = row + int(d["beats"] * ROWB)
-        put(c, row, C4 + int(round(e["p"])), NAMES["pad" + e["pad"]], 56 * v)
+        put(c, row, C4 + int(round(e["p"])), NAMES["pad" + e["pad"]], 56 * v, pan=PAN.get(e["pad"], 0.0))
     elif k == "extra":
         c = free(row, 13, 16)
         if c is None: continue
-        busy[c] = row + int(EXTRA[e["i"]]["beats"] * ROWB); put(c, row, C4, NAMES["x%d" % e["i"]], 50 * e["v"])
+        busy[c] = row + int(EXTRA[e["i"]]["beats"] * ROWB); put(c, row, C4, NAMES["x%d" % e["i"]], 50 * e["v"], pan=0.6 if e["i"] % 2 else -0.6)
 PLEN = 256; pats = []; orders = []
 for p0 in range(0, ROWS, PLEN):
     rows = min(PLEN, ROWS - p0); rows = rows if rows >= 32 else 32
@@ -396,7 +417,8 @@ print("module: %d patterns, %d instruments" % (len(pats), len(INS)))
 mid = mido.MidiFile(ticks_per_beat=480); tr0 = mido.MidiTrack(); tr0.append(mido.MetaMessage("set_tempo", tempo=mido.bpm2tempo(NEW), time=0)); tr0.append(mido.MetaMessage("track_name", name="DUCK & COVER (DNB REVISION) 174 BPM, F minor", time=0)); mid.tracks.append(tr0)
 def track(name, ch, prog, evs):
     tr = mido.MidiTrack(); tr.append(mido.MetaMessage("track_name", name=name, time=0))
-    if ch != 9: tr.append(mido.Message("program_change", channel=ch, program=prog, time=0))
+    if ch != 9:
+        tr.append(mido.Message("program_change", channel=ch, program=prog, time=0)); tr.append(mido.Message("control_change", channel=ch, control=10, value={0: 64, 1: 64, 2: 64}.get(ch, 64), time=0))
     ms = []
     for t0, t1, n, vel in evs: ms.append((int(round(t0 * 480)), 1, n, vel)); ms.append((int(round(t1 * 480)), 0, n, 0))
     ms.sort(key=lambda m: (m[0], m[1])); last = 0

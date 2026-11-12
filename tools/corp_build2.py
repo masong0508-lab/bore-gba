@@ -16,6 +16,8 @@ import xmwrite as X
 from encode_sfx import encode, decode
 
 BASS_TUNE = -0.455
+PAN_PIANO = [-0.55, -0.28, 0.0, 0.28, 0.55]        # the piano stem is the widest of the tracked parts (side/mid 1.0 in the stem); bass and drums are mono in the stems (0.02 / 0.05)
+PAN_OTHER = [0.6, -0.6, 0.3, -0.3]                 # the other stem: medium width (0.53)
 LEAD_RANGES = [(75, 111), (118, 123), (130, 134), (142, 196)]     # the bars where the other stem is a horn / slide guitar / sax lead (an instrument tagger and a text-audio model agree)
 NCH = 16
 def rel_fine(P, tune=0.0):
@@ -42,13 +44,13 @@ def make_instruments():
     I["cue"] = dict(name="CUE", data=np.array([0], dtype=np.int8), loop=False, rel=0, fine=0, Rs=None, P=None)
     return I
 
-def alloc(notes, first, nvoice, grid, free):
+def alloc(notes, first, nvoice, grid, free, pans=None):
     """round-robin voices; fills grid[(ch, row)] = (note, inst, vol); a voice is free again at its note's end"""
     for n in sorted(notes, key=lambda n: (n["start"], n["pitch"])):
         ok = [c for c in range(nvoice) if free[first + c] <= n["start"] and (first + c, n["start"]) not in grid]
         if not ok: continue
         c = min(ok, key=lambda c: free[first + c]); ch = first + c
-        grid[(ch, n["start"])] = (n["pitch"] - 11, n["inst"], 0x10 + max(1, round(n["vel"] / 127 * 64 * n.get("gain", 1.0))))
+        grid[(ch, n["start"])] = (n["pitch"] - 11, n["inst"], 0x10 + max(1, round(n["vel"] / 127 * 64 * n.get("gain", 1.0))), 8, int(128 + 127 * pans[c])) if pans else (n["pitch"] - 11, n["inst"], 0x10 + max(1, round(n["vel"] / 127 * 64 * n.get("gain", 1.0))))
         end = max(n["end"], n["start"] + 2)
         if (ch, end) not in grid: grid[(ch, end)] = (97, 0, 0)
         free[ch] = end
@@ -87,7 +89,7 @@ def main():
     # the bass is one voice (notes cannot overlap: the next note ends the one before)
     bass.sort(key=lambda n: n["start"])
     for a, b in zip(bass[:-1], bass[1:]): a["end"] = min(a["end"], b["start"])
-    alloc(bass, 0, 1, grid, free); alloc(kp, 1, 5, grid, free); alloc(ko, 6, 4, grid, free)
+    alloc(bass, 0, 1, grid, free); alloc(kp, 1, 5, grid, free, PAN_PIANO); alloc(ko, 6, 4, grid, free, PAN_OTHER)
     # drums
     chmap = dict(kick=(10, "kick"), snare=(11, "snare"), tom=(11, "tom"), hat=(12, "hat"), hat_open=(12, "hat_open"))
     nd = 0
@@ -95,7 +97,7 @@ def main():
         ch, nm = chmap[v["k"]]; g = time_to_gtick(v["s"] / SR - (0.0 if v["k"] != "kick" else 0.0) - 0.002)
         vol = max(6, min(64, int(round(40 * min(1.6, max(0.15, v["g"])) ** 0.8))))
         if (ch, g) in grid and grid[(ch, g)][2] >= 0x10 + vol: continue
-        grid[(ch, g)] = (49, ID[nm], 0x10 + vol); nd += 1
+        grid[(ch, g)] = (49, ID[nm], 0x10 + vol, 8, int(128 + 127 * (0.0 if ch != 12 else (0.15 if (g // 6) % 2 else -0.15)))); nd += 1
     # cues
     for k, (name, ch) in enumerate((("vocals", 13), ("guitar", 14), ("lead", 15))):
         for c in info[name]["clips"]:
@@ -135,12 +137,13 @@ def main():
     render(grid, I, ID, info, nbars)
 
 def render(grid, I, ID, info, nbars):
-    total = int(gtick_time(nbars * TPB) * SR) + SR; mix = np.zeros(total); inv = {v: k for k, v in ID.items()}
+    total = int(gtick_time(nbars * TPB) * SR) + SR; mix = np.zeros((total, 2)); inv = {v: k for k, v in ID.items()}
     chev = {}
     for (ch, g), v in grid.items(): chev.setdefault(ch, []).append((g, v))
     for ch, lst in chev.items():
         lst.sort()
-        for j, (g, (note, inst, vol)) in enumerate(lst):
+        for j, (g, cell) in enumerate(lst):
+            note, inst, vol = cell[0], cell[1], cell[2]; pan = ((cell[4] - 128) / 127.0) if len(cell) == 5 and cell[3] == 8 else 0.0
             if note == 97 or inst == 0 or inv[inst] == "cue": continue
             ins = I[inv[inst]]; start = int(gtick_time(g) * SR); nxt = lst[j + 1][0] if j + 1 < len(lst) else g + 400
             end = min(total, int(gtick_time(nxt) * SR))
@@ -152,16 +155,22 @@ def render(grid, I, ID, info, nbars):
             if n <= 0: continue
             i0 = np.floor(pos).astype(int); fr = pos - i0; y = d[i0] * (1 - fr) + d[np.minimum(i0 + 1, len(d) - 1)] * fr
             env_ = np.ones(n); f = min(n, int(0.012 * SR)); env_[-f:] = np.linspace(1, 0, f)
-            seg = y * ((vol - 0x10) / 64.0) * env_; mix[start:start + n] += seg[:max(0, min(n, total - start))]
+            seg = y * ((vol - 0x10) / 64.0) * env_; k = max(0, min(n, total - start)); l_, r_ = np.sqrt(2) * np.cos((pan + 1) * np.pi / 4), np.sqrt(2) * np.sin((pan + 1) * np.pi / 4)
+            mix[start:start + k, 0] += seg[:k] * l_; mix[start:start + k, 1] += seg[:k] * r_
     tracked = mix.copy()
-    dig = np.zeros(total)
+    dig = np.zeros((total, 2))
+    WIDTH = dict(vocals=(0.5, (0.011, 0.019)), guitar=(0.9, (0.014, 0.023)), lead=(0.55, (0.012, 0.021)))      # side/mid of the stems; the clips are mono, so the width is a Haas pair
     for name, gain in (("vocals", 10 ** (-3.5 / 20)), ("guitar", 1.0), ("lead", 1.0)):
-        blob = open("%s/digital/%s.adp" % (OUT, name), "rb").read()
+        blob = open("%s/digital/%s.adp" % (OUT, name), "rb").read(); wd, (d1, d2) = WIDTH[name]; d1, d2 = int(d1 * SR), int(d2 * SR)
         for c in info[name]["clips"]:
             pcm = decode(blob[c["offset"]:c["offset"] + c["bytes"]]).astype(np.float64) / 32768.0 * c["vol_peak"]
-            y = signal.resample_poly(pcm, SR, GBA); a = int(c["start_s"] * SR); n = min(len(y), total - a)
-            if n > 0: dig[a:a + n] += y[:n] * gain
+            y = signal.resample_poly(pcm, SR, GBA); yh = signal.sosfilt(signal.butter(2, 400 / (SR / 2), "hp", output="sos"), y); a = int(c["start_s"] * SR); n = min(len(y), total - a)
+            if n <= 0: continue
+            dig[a:a + n, 0] += y[:n] * gain; dig[a:a + n, 1] += y[:n] * gain
+            m1 = min(len(y), total - a - d1); m2 = min(len(y), total - a - d2)
+            if m1 > 0: dig[a + d1:a + d1 + m1, 0] += wd * 0.6 * gain * yh[:m1]
+            if m2 > 0: dig[a + d2:a + d2 + m2, 1] -= wd * 0.6 * gain * yh[:m2]
     y = tracked * 0.9 + dig; y = np.tanh(y * 1.2) / np.tanh(1.2); y = y / max(1e-9, np.abs(y).max()) * 0.9
     sf.write(OUT + "/preview_v2.wav", y.astype(np.float32), SR); np.save(os.path.join(CACHE, "v2_tracked.npy"), tracked.astype(np.float32))
-    print("preview_v2.wav: %.0f s" % (len(y) / SR))
+    print("preview_v2.wav (stereo): %.0f s" % (len(y) / SR))
 if __name__ == "__main__": main()

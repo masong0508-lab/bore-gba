@@ -6,79 +6,38 @@
     "onset_corr": 0.895,
     "lag_ms": 0.0,
     "chroma": 0.878,
-    "mel": 0.716
+    "mel": 0.715
    },
    "verse (17-70)": {
-    "onset_corr": 0.634,
+    "onset_corr": 0.638,
     "lag_ms": 0.0,
-    "chroma": 0.927,
-    "mel": 0.739
+    "chroma": 0.929,
+    "mel": 0.743
    },
    "chorus (70-110)": {
-    "onset_corr": 0.73,
+    "onset_corr": 0.732,
     "lag_ms": 0.0,
     "chroma": 0.946,
-    "mel": 0.755
+    "mel": 0.757
    },
    "bridge (110-142)": {
-    "onset_corr": 0.706,
+    "onset_corr": 0.71,
     "lag_ms": 0.0,
-    "chroma": 0.945,
+    "chroma": 0.947,
     "mel": 0.827
    },
    "outro (142-196)": {
-    "onset_corr": 0.765,
+    "onset_corr": 0.766,
     "lag_ms": 0.0,
     "chroma": 0.942,
     "mel": 0.802
    }
   },
   "overall": {
-   "onset_corr": 0.746,
+   "onset_corr": 0.748,
    "chroma": 0.928,
-   "mel": 0.768,
+   "mel": 0.769,
    "mean_abs_lag_ms": 0.0
-  }
- },
- "old_hybrid.wav": {
-  "label": "old_hybrid.wav",
-  "sections": {
-   "intro (0-17)": {
-    "onset_corr": -0.028,
-    "lag_ms": -60.0,
-    "chroma": 0.858,
-    "mel": 0.538
-   },
-   "verse (17-70)": {
-    "onset_corr": 0.102,
-    "lag_ms": 20.0,
-    "chroma": 0.806,
-    "mel": 0.423
-   },
-   "chorus (70-110)": {
-    "onset_corr": 0.08,
-    "lag_ms": 0.0,
-    "chroma": 0.767,
-    "mel": 0.308
-   },
-   "bridge (110-142)": {
-    "onset_corr": 0.162,
-    "lag_ms": -60.0,
-    "chroma": 0.822,
-    "mel": 0.627
-   },
-   "outro (142-196)": {
-    "onset_corr": 0.168,
-    "lag_ms": 0.0,
-    "chroma": 0.786,
-    "mel": 0.619
-   }
-  },
-  "overall": {
-   "onset_corr": 0.097,
-   "chroma": 0.808,
-   "mel": 0.503,
-   "mean_abs_lag_ms": 28.0
   }
  },
  "drums_v2": {
