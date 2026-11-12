@@ -53,6 +53,32 @@ def trim_onset(y, pre=0.006, thr=0.12):
     """cut the silence / breath before the first syllable so the first transient lands exactly on the grid (the pads start 40-136 ms before their sound)"""
     e = np.abs(y); k = max(1, int(0.003 * SR)); e = np.convolve(e, np.ones(k) / k, "same"); i = int(np.argmax(e > thr * e.max()))
     return y[max(0, i - int(pre * SR)):]
+EMIN = {4, 6, 7, 9, 11, 0, 2}          # E minor (natural): E F# G A B C D
+def retune(y, maxshift=2.0):
+    """auto-tune a chop as a whole: if it is sung / pitched, shift it so its median voiced pitch lands on the nearest note of E minor (pitch kept apart from the later tempo stretch)"""
+    y16 = signal.resample_poly(y, 16000, SR).astype(np.float32)
+    f0, vf, vp = librosa.pyin(y16, fmin=80, fmax=600, sr=16000, frame_length=1024, hop_length=160); ok = vf & (vp > 0.6)
+    if ok.sum() < 10: return y, 0.0
+    m = float(np.median(69 + 12 * np.log2(f0[ok] / 440.0)))
+    cands = [n + 12 * o for o in range(3, 8) for n in EMIN]; tgt = min(cands, key=lambda c: abs(c - m)); sh = tgt - m
+    if abs(sh) > maxshift or abs(sh) < 0.03: return y, 0.0
+    return librosa.effects.pitch_shift(y.astype(np.float32), sr=SR, n_steps=sh).astype(np.float64), sh
+def vocal_fx(y, target_rms=0.085, wet=0.16):
+    """the vocal chain: high-pass, de-ess, presence lift, compression (4:1) and a short plate, level-matched so every chop sits at the same loudness"""
+    y = signal.sosfiltfilt(signal.butter(2, 170 / (SR / 2), "hp", output="sos"), y)
+    b, a = signal.butter(2, [5500 / (SR / 2), 9500 / (SR / 2)], "band"); es = signal.lfilter(b, a, y); ee = np.abs(es); k = int(0.004 * SR); ee = np.convolve(ee, np.ones(k) / k, "same")
+    g = np.clip(0.02 / (ee + 1e-6), 0.35, 1.0); y = y - es * (1 - g)                               # de-esser: pull the 5.5-9.5 kHz band down where it spikes
+    w = 2 * np.pi * 3000 / SR; A = 10 ** (2.5 / 40); al = np.sin(w) / (2 * 0.9); c = np.cos(w)
+    y = signal.lfilter(np.array([1 + al * A, -2 * c, 1 - al * A]) / (1 + al / A), np.array([1, -2 * c / (1 + al / A), (1 - al / A) / (1 + al / A)]), y)
+    hop = 64; n = len(y) // hop; env = np.abs(y[:n * hop]).reshape(n, hop).max(1); sm = np.zeros(n); st = 0.0
+    for i, v in enumerate(env): st = v if v > st else st * 0.93 + v * 0.07; sm[i] = st
+    thr = 0.05; gr = np.where(sm > thr, (sm / thr) ** (1 / 4.0 - 1), 1.0); gfull = np.interp(np.arange(len(y)), (np.arange(n) + 0.5) * hop, gr); y = y * gfull
+    r = np.sqrt((y ** 2).mean()) + 1e-9; y = y / r * target_rms
+    ir = rng.standard_normal(int(0.32 * SR)) * np.exp(-np.arange(int(0.32 * SR)) / (0.08 * SR)); ir = signal.sosfilt(signal.butter(2, 3500 / (SR / 2), "lp", output="sos"), ir); ir /= np.abs(ir).max()
+    ir = np.concatenate([np.zeros(int(0.015 * SR)), ir]); rv = signal.fftconvolve(y, ir)[:len(y) + len(ir) - 1] * 0.035
+    out = np.concatenate([y, np.zeros(len(ir))]); out += wet * rv[:len(out)] if len(rv) >= len(out) else 0
+    out[:len(rv)] += wet * rv[:len(out)] if len(rv) < len(out) else 0
+    return np.tanh(out * 1.6) / 1.6
 def crush(y, bits=13, rate=12400):   # the bus-A BITCOOKER, lightly
     ys = signal.resample_poly(y, rate, SR); q = 2.0 ** (bits - 1); ys = np.round(ys * q) / q
     return signal.resample_poly(ys, SR, rate)[:len(y)] if len(y) else y
@@ -62,6 +88,7 @@ for k, p in PADS.items():
     if p.get("type") == "synth" or "sampleId" not in p: continue
     y, sr = wav(p["sampleId"]); a, b = int(p["start"] * SR / sr), int(p["end"] * SR / sr); y = mono44(y, sr)
     seg = y[a:b] if k == "9" else trim_onset(y[a:b])
+    if k != "9": seg, _sh = retune(seg); print("pad %s retune %+.2f semitones" % (k, _sh))
     if k == "9": CH[k] = dict(y=fade(seg, 0.001, 0.05), beats=len(seg) / SR * OLD / 60)            # the sub: pitched, not stretched
     elif k == "6": CH[k] = dict(y=fade(stretch(seg, NEW / OLD)), beats=len(seg) / SR * OLD / 60)      # the break: tempo conversion, exact
     else:
@@ -255,15 +282,15 @@ for e in EV:
     elif k == "pluck": add(pluck(e["m"], e["g"]), e["t"], 1.0 * (0.6 + 0.4 * v))
     elif k == "bass":
         key = (e["m"], round(e["g"], 3))
-        if key not in PCACHE: PCACHE[key] = mixlen(sub(e["m"], e["g"]) * 0.70, reese(e["m"] + 12, e["g"]) * 0.55)
+        if key not in PCACHE: PCACHE[key] = mixlen(sub(e["m"], e["g"]) * 0.55, reese(e["m"] + 12, e["g"]) * 0.42)
         add(PCACHE[key], e["t"], 1.15 * v)
     elif k == "chop":
         key = ("c", e["pad"], round(e["g"], 2), e["p"])
-        if key not in PCACHE: PCACHE[key] = hp180(crush(chopaudio(e["pad"], e["g"], e["p"]), 14, 16000))
-        add(PCACHE[key], e["t"], 2.2 * CH[e["pad"]]["vol"] * (0.5 + 0.5 * v) * (0.45 if e["pad"] == "6" else 1))
+        if key not in PCACHE: PCACHE[key] = vocal_fx(chopaudio(e["pad"], e["g"], e["p"]))
+        add(PCACHE[key], e["t"], 2.4 * (0.55 + 0.45 * v) * (0.6 if e["pad"] == "6" else 1))
     elif k == "extra":
         y = EXTRA[e["i"]]["y"]; y = y[::-1] if e["rev"] else y
-        add(fade(hp180(y), 0.01, 0.05), e["t"], 1.6 * e["v"])
+        add(fade(vocal_fx(y, 0.06, 0.1), 0.01, 0.05), e["t"], 0.8 * e["v"])
 # master: a sidechain duck of everything but the drums under every kick (the "duck" of Duck & Cover), tilt, soft clip, level
 duck = np.ones(N)
 for e in EV:
