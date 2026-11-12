@@ -7,7 +7,7 @@ What it does
   * reads the Koala project: sequence.json (6 filled pattern slots, 16384 ticks per bar = 4096 per beat; every note: pad, pitch, length, velocity) and sampler/*.wav (12 sample pads
     + the QUOKKA synth pad 1, a filtered saw pluck: its envelope / cutoff / drive settings are copied from sampler.json)
   * the notes are transcribed to 1/32-note rows (pad 1 = the pluck, pad 9 = a pitched 62 Hz sub sample, everything else = the sampled chops). Pitch 0 of the pluck is B, the same B as the
-    sub sample's own pitch (B1): that is the key of E minor the rest of the notes agree on
+    sub sample's own pitch (B1): that is the key of F minor the rest of the notes agree on
   * every sampled chop is TIME-FITTED to the new tempo: stretched (pitch kept, phase vocoder) to a whole number of half beats of 174 BPM; the 22 s break (pad 6) is stretched by exactly 145/174
   * "whatever is unused" is used: the parts of the recordings that no pad plays (before / after the pad's start-end window) are cut into 4-beat chunks, the 11 loudest become instruments
     and come back as reverse swells, offbeat stabs and fill-ins; the pads' own tails and the bus-FX (bit-crusher / ring-mod / vocoder) are approximated by light crushing
@@ -53,9 +53,10 @@ def trim_onset(y, pre=0.006, thr=0.12):
     """cut the silence / breath before the first syllable so the first transient lands exactly on the grid (the pads start 40-136 ms before their sound)"""
     e = np.abs(y); k = max(1, int(0.003 * SR)); e = np.convolve(e, np.ones(k) / k, "same"); i = int(np.argmax(e > thr * e.max()))
     return y[max(0, i - int(pre * SR)):]
-EMIN = {4, 6, 7, 9, 11, 0, 2}          # E minor (natural): E F# G A B C D
+KEY_SHIFT = 1                          # the project's pluck / bass are written around E, but the vocal chops are in F minor (their pitch centres are C, Ab, Db, F, Bb): the whole track goes up a semitone
+EMIN = {5, 7, 8, 10, 0, 1, 3}          # F minor (natural): F G Ab Bb C Db Eb
 def retune(y, maxshift=2.0):
-    """auto-tune a chop as a whole: if it is sung / pitched, shift it so its median voiced pitch lands on the nearest note of E minor (pitch kept apart from the later tempo stretch)"""
+    """auto-tune a chop as a whole: if it is sung / pitched, shift it so its median voiced pitch lands on the nearest note of F minor (pitch kept apart from the later tempo stretch)"""
     y16 = signal.resample_poly(y, 16000, SR).astype(np.float32)
     f0, vf, vp = librosa.pyin(y16, fmin=80, fmax=600, sr=16000, frame_length=1024, hop_length=160); ok = vf & (vp > 0.6)
     if ok.sum() < 10: return y, 0.0
@@ -155,7 +156,9 @@ K, S, HC, HO, CR = kick(), snare(), hat(), hat(True), crash()
 
 # ------------------------------------------------------------------------------------------------------------ the score (beat positions; the arrangement)
 EV = []       # dicts: t (beats), kind, + params
-def ev(t, kind, **kw): EV.append(dict(t=round(t * ROWB) / ROWB, kind=kind, **kw))
+def ev(t, kind, **kw):
+    if kind in ("pluck", "bass"): kw["m"] = kw["m"] + KEY_SHIFT
+    EV.append(dict(t=round(t * ROWB) / ROWB, kind=kind, **kw))
 def tb(tick): return tick / 4096.0
 
 def drums(b0, bars, style="a", fill_every=4, kick_on=True):
@@ -390,7 +393,7 @@ X.write(OUT + "/duck_cover_dnb.xm", "DUCK & COVER (DNB REVISION)", NCH, pats, IN
 print("module: %d patterns, %d instruments" % (len(pats), len(INS)))
 
 # ------------------------------------------------------------------------------------------------------------ MIDI
-mid = mido.MidiFile(ticks_per_beat=480); tr0 = mido.MidiTrack(); tr0.append(mido.MetaMessage("set_tempo", tempo=mido.bpm2tempo(NEW), time=0)); tr0.append(mido.MetaMessage("track_name", name="DUCK & COVER (DNB REVISION) 174 BPM, E minor", time=0)); mid.tracks.append(tr0)
+mid = mido.MidiFile(ticks_per_beat=480); tr0 = mido.MidiTrack(); tr0.append(mido.MetaMessage("set_tempo", tempo=mido.bpm2tempo(NEW), time=0)); tr0.append(mido.MetaMessage("track_name", name="DUCK & COVER (DNB REVISION) 174 BPM, F minor", time=0)); mid.tracks.append(tr0)
 def track(name, ch, prog, evs):
     tr = mido.MidiTrack(); tr.append(mido.MetaMessage("track_name", name=name, time=0))
     if ch != 9: tr.append(mido.Message("program_change", channel=ch, program=prog, time=0))
