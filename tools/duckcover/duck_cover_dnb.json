@@ -1,0 +1,24 @@
+{
+ "bpm": 174.0,
+ "original_bpm": 145.0,
+ "bars": 101.0,
+ "sections": {
+  "intro": 0.0,
+  "drop1": 44.0,
+  "break": 132.0,
+  "drop2": 196.0,
+  "drop3": 316.0,
+  "outro": 372.0
+ },
+ "events": 3211,
+ "extras": [
+  {
+   "src": 202,
+   "beats": 4.0
+  },
+  {
+   "src": 202,
+   "beats": 4.0
+  }
+ ]
+}

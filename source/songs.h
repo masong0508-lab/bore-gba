@@ -113,3 +113,4 @@ SONG_XM(here_today_gone_tomorrow,"HERE TODAY GONE TOMORROW","tools/here_today_go
 // a reese on the hsu1 line, the E6/9 hook on supersaws and a pitched-up vocal synth, a "HOE" vowel sliding down an octave (tools/make_ohio_hoe.py, about 2:40)
 SONG_XM(ohio_hoe,"OHIO HOE","tools/ohio_hoe.xm")
 SONG_ADP(corporations,"CORPORATIONS (YOU'RE WINNER)","source/music/corporations.adp")
+SONG_ADP(duck_cover,"DUCK & COVER (DNB REVISION)","source/music/duck_cover.adp")

@@ -45,3 +45,10 @@ python3 tools/corp_eval2.py          # accuracy_v2.json
 Needs ffmpeg, numpy, scipy, librosa, mido, soundfile (`STEM_DIR` = the stems directory). The tagging study used PANNs Cnn14 and `laion/larger_clap_music_and_speech` (not needed to rebuild).
 Helper modules: `corp_lib.py` (grid / ticks), `corp_hnmf.py`, `corp_bass_f0.py`, `corp_score.py`.
 The game itself still plays the single-stream version of the stems (`tools/make_corporations.py`, `source/music/corporations.adp`), which is the stems themselves and unchanged.
+
+---
+# DUCK & COVER (DNB REVISION)
+`python3 tools/make_duckcover.py path/to/Duck__Cover.koala` rebuilds it: the Koala Sampler project (145 BPM; every note already on an eighth of a beat) re-written as a 174 BPM drum & bass track.
+All 12 sample pads are spoken / rap vocal chops (CLAP tagging), pad 9 is a 62 Hz (B1) sub sample, pad 1 the QUOKKA filtered-saw pluck (E minor: pluck pitch 0 = B, bass notes E/G and D/F#).
+Fixes: each chop's lead-in (40-136 ms of breath before the first syllable) is trimmed so the syllable lands on the beat; chops are time-stretched (pitch kept) to a whole number of half beats at 174 BPM, the break exactly by 145/174; unused parts of the recordings come back as swells / stabs; new kick, snare, ghost snares, hats, fills, risers, sidechain duck; sub + reese bass on the project's own bass rhythm.
+Files: `tools/duckcover/duck_cover_dnb.xm` (16 channels, speed 3 / 174 BPM), `.mid`, `source/music/duck_cover.adp` (the game's stream, SONG_ADP in songs.h). 101 bars, 2:23.
