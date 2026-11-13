@@ -176,3 +176,6 @@ Found a readable copy of the Official WorldBox Wiki (its API is open; the pages 
 
 ### v0.26 temples and statues
 - A level-2 village with 16 folk builds a **temple** (+12 mood; its priests end the village's sickness); a village with a levelled-up or elite fighter among its folk raises a **statue** to its hero (+6 mood). New building art, journal lines, saved with the world (the flags are rebuilt from the map). Mean mood in villages with a temple was 56 against 27 without in the test (pc_temples.c). Bonfires are not in yet.
+
+### v0.27 libraries
+- Level-2 villages with 14 folk open a **library** (+4 mood); each library in a kingdom cuts the gold cost of its next technology by 5% (up to six). Statues stay conditional on a levelled hero. Bonfires, tumors and biomass, jobs and resources, and more kingdom traits are still not done.
