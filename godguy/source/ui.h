@@ -82,6 +82,7 @@ static void uiWin(const char*title,const char*right,const char*hint){ if(uiBackH
 static void uiListRow(int y,int sel,int n,const char*left,const char*right,int col){ if(sel) uiRect(4,y-1,240,10,U_SEL); else if(n&1) uiRect(4,y-1,240,10,U_PANEL);
     if(sel) uiText(6,y,">",U_GOLD,1); uiText(14,y,left,col,1); if(right&&right[0]) uiTextR(242,y,right,sel?U_WHITE:U_DIM); }
 static void uiScroll(int total,int top,int vis,int y0,int h){ uiRect(248,y0,5,h,U_SHADOW); if(total>vis){ int bh=h*vis/total; if(bh<6) bh=6; int by=y0+(h-bh)*top/(total-vis); uiRect(248,by,5,bh,U_BHI); } }
+static int uiVx, uiVy, uiVw=32, uiVh=24;      // the view's top left tile and size in tiles, for the minimap's frame
 // ---- the minimap (the whole planet squeezed to 128 x 128) with creatures, villages and the camera
 static void uiMinimap(int ox,int oy){
     for(int y=0;y<128;y++) for(int x=0;x<128;x++) uiPx(ox+x,oy+y,64+world[y*WH/128][x*WW/128]);
@@ -89,10 +90,10 @@ static void uiMinimap(int ox,int oy){
     for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]){ int cx=ox+vil[v].x*128/WW, cy=oy+vil[v].y*128/WH, R=14*128/WW+1; for(int a=0;a<28;a++){ int rx=(int)(R*cosf(a*0.2244f)+0.5f), ry=(int)(R*sinf(a*0.2244f)+0.5f); if((a&1)==0) uiPx(cx+rx,cy+ry,40+vilK[v]-1); } }   // each kingdom's territory, a dotted ring round its cities
     for(int a=0;a<KN_N;a++) if(kd[a].on&&kd[a].cap) for(int b=a+1;b<KN_N;b++) if(kd[b].on&&kd[b].cap&&(kd[a].tradeW>>b&1)){ const Vil*A=&vil[kd[a].cap-1], *B=&vil[kd[b].cap-1]; int x0=ox+A->x*128/WW, y0=oy+A->y*128/WH, x1=ox+B->x*128/WW, y1=oy+B->y*128/WH; int st=abs(x1-x0)>abs(y1-y0)?abs(x1-x0):abs(y1-y0); for(int i=0;i<=st;i++) if(((i+(tick>>3))&3)==0) uiPx(x0+(x1-x0)*i/(st?st:1),y0+(y1-y0)*i/(st?st:1),U_YELLOW); }   // trade routes: gold dots running between trading capitals
     for(int v=0;v<VIL_N;v++) if(vil[v].on){ for(int dy=-1;dy<=1;dy++) for(int dx=-1;dx<=1;dx++) uiPx(ox+vil[v].x*128/WW+dx,oy+vil[v].y*128/WH+dy,vil[v].foe?81:84); }
-    int cx0=(camX>>3)*128/WW, cy0=(camY>>3)*128/WH, cw=32*128/WW, ch=24*128/WH; for(int x=cx0;x<cx0+cw;x++){ uiPx(ox+x,oy+cy0,83); uiPx(ox+x,oy+cy0+ch,83); } for(int y=cy0;y<=cy0+ch;y++){ uiPx(ox+cx0,oy+y,83); uiPx(ox+cx0+cw,oy+y,83); } }
+    int cx0=uiVx*128/WW, cy0=uiVy*128/WH, cw=uiVw*128/WW, ch=uiVh*128/WH; if(cx0<0) cx0=0; if(cy0<0) cy0=0; if(cx0+cw>127) cx0=127-cw; if(cy0+ch>127) cy0=127-ch; for(int x=cx0;x<cx0+cw;x++){ uiPx(ox+x,oy+cy0,83); uiPx(ox+x,oy+cy0+ch,83); } for(int y=cy0;y<=cy0+ch;y++){ uiPx(ox+cx0,oy+y,83); uiPx(ox+cx0+cw,oy+y,83); } }
 // ---- the toolbar (bottom of the touch screen): ten power slots with arrows, a second tile layer
 #define TB_SLOTS 10
-#define TB_TILE0 640
+#define TB_TILE0 704
 #define TB_BLANK 1023
 static u8 tbPix[24][256]; static int tbTop=0; static u16*mapPtr1;
 static void tbDraw(void){

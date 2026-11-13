@@ -247,30 +247,38 @@ static u8 vilRace(int v);
 #define TR_SLOTS 500
 static const u8 terrRank[T_N]={0,10,3,1,5,6,7,8,9,3,4,5,2};
 static u16 trKey[1024], trVal[1024]; static int trUsed;   // a small hash of the transition tiles made so far
+static int edgePix(int t,int n,int mask,int v,int foam,int x,int y){   // one pixel of a transition tile: ground t with a dithered fringe of n along the sides in mask (or a foam line on a shore)
+    int px=tilePix(t,v,x,y); int d=9;
+    if(mask&1) if(y<d) d=y; if(mask&2) if(7-x<d) d=7-x; if(mask&4) if(7-y<d) d=7-y; if(mask&8) if(x<d) d=x;
+    int h=(int)(hsh(x+v*8,y+t*3+n*7,21)&7);
+    if(foam){ if(d==0&&h<5) px=T_WATER*8+7; else if(d==1&&h<2) px=T_WATER*8+7; }
+    else if(d<4&&h<(4-d)*2-(d==0?0:1)+(d==0?1:0)) px=tilePix(n,(x+y+v)&3,x,y);
+    return px; }
+static int cellEdge(int x,int y,int*mask,int*foam){   // the ground that bleeds into the cell (x,y) (-1: none), which sides it touches, and whether it is a shore
+    int t=world[y][x]; int nb[4]; nb[0]=y>0?world[y-1][x]:t; nb[1]=x<WW-1?world[y][x+1]:t; nb[2]=y<WH-1?world[y+1][x]:t; nb[3]=x>0?world[y][x-1]:t;
+    int best=-1, br=-1, fm=0, wat=t<=T_WATER;
+    for(int i=0;i<4;i++){ int n=nb[i]; if(n==t) continue; if(wat&&n>T_WATER){ fm=1; best=n; continue; } if(!wat&&terrRank[n]>terrRank[t]&&terrRank[n]>br){ br=terrRank[n]; best=n; } }
+    int m=0; if(best>=0) for(int i=0;i<4;i++) if(fm?(nb[i]>T_WATER):(nb[i]==best)) m|=1<<i;
+    *mask=m; *foam=fm; return best; }
 static int trTile(int t,int n,int mask,int v,int foam){
     int key=(((t*16+n)*16+mask)*4+v)*2+foam; unsigned hi=(unsigned)(key*2654435761u>>22)&1023; while(trKey[hi]){ if(trKey[hi]==key+1) return trVal[hi]; hi=(hi+1)&1023; }
     if(trUsed>=TR_SLOTS) return -1;
     static u8 tl[64] __attribute__((aligned(4)));
-    for(int y=0;y<8;y++) for(int x=0;x<8;x++){ int px=tilePix(t,v,x,y); int d=9;
-        if(mask&1) if(y<d) d=y; if(mask&2) if(7-x<d) d=7-x; if(mask&4) if(7-y<d) d=7-y; if(mask&8) if(x<d) d=x;
-        int h=(int)(hsh(x+v*8,y+t*3+n*7,21)&7);
-        if(foam){ if(d==0&&h<5) px=T_WATER*8+7; else if(d==1&&h<2) px=T_WATER*8+7; }
-        else if(d<4&&h<(4-d)*2-(d==0?0:1)+(d==0?1:0)) px=tilePix(n,(x+y+v)&3,x,y);
-        tl[y*8+x]=(u8)px; }
+    for(int y=0;y<8;y++) for(int x=0;x<8;x++) tl[y*8+x]=(u8)edgePix(t,n,mask,v,foam,x,y);
     int slot=TR0+trUsed++;
 #ifndef PCTEST
     vramCopy((u8*)BG_TILE_RAM(1)+slot*64,tl,64);
 #endif
     trKey[hi]=(u16)(key+1); trVal[hi]=(u16)slot; return slot; }
+static int zl=3;          // the zoom level (Z_* below): 0 planet .. 5 micro, 3 = the normal view
+static int zBmp=0;       // 1 while the background holds the zoom picture (a bitmap in tiles) instead of the map's own tiles
 static inline void putCell(int x,int y){   // world cell -> background entry (a 64 x 64 torus of 8 pixel tiles)
+    if(zBmp) return;
     int mx=x&63, my=y&63; int blk=(my>=32?2:0)+(mx>=32?1:0); int t=world[y][x], v=(int)(hsh(x,y,3)&3); u16 e=(u16)(t*4+v);
     if(bld[y][x]) e=(u16)(BT0+bld[y][x]*8+(bldv[y][x]?vilRace(bldv[y][x]-1):0));
-    else { int nb[4]; nb[0]=y>0?world[y-1][x]:t; nb[1]=x<WW-1?world[y][x+1]:t; nb[2]=y<WH-1?world[y+1][x]:t; nb[3]=x>0?world[y][x-1]:t;
-        int best=-1, br=-1, foam=0, wat=t<=T_WATER;
-        for(int i=0;i<4;i++){ int n=nb[i]; if(n==t) continue; if(wat&&n>T_WATER){ foam=1; best=n; continue; } if(!wat&&terrRank[n]>terrRank[t]&&terrRank[n]>br){ br=terrRank[n]; best=n; } }
-        if(best>=0){ int mask=0; for(int i=0;i<4;i++) if(foam?(nb[i]>T_WATER):(nb[i]==best)) mask|=1<<i; int k=trTile(t,best,mask,v,foam); if(k>=0) e=(u16)k; } }
+    else { int mask,foam; int best=cellEdge(x,y,&mask,&foam); if(best>=0){ int k=trTile(t,best,mask,v,foam); if(k>=0) e=(u16)k; } }
     mapPtr[blk*1024+(my&31)*32+(mx&31)]=e; }
-static void refillWindow(void){ int x0=camX>>3, y0=camY>>3; if(x0==winX&&y0==winY) return; winX=x0; winY=y0;
+static void refillWindow(void){ if(zBmp) return; int x0=camX>>3, y0=camY>>3; if(x0==winX&&y0==winY) return; winX=x0; winY=y0;
     for(int y=y0-1;y<y0+26&&y<WH;y++) for(int x=x0-1;x<x0+34&&x<WW;x++) if(x>=0&&y>=0) putCell(x,y); }
 static void setCell(int x,int y,u8 t){ if(x<0||y<0||x>=WW||y>=WH) return; world[y][x]=t; for(int k=0;k<5;k++){ int xx=x+(k==1)-(k==2), yy=y+(k==3)-(k==4); if(xx<0||yy<0||xx>=WW||yy>=WH) continue; if(xx>=winX-1&&xx<winX+34&&yy>=winY-1&&yy<winY+26) putCell(xx,yy); } }
 
@@ -935,8 +943,87 @@ static void globeEnter(void){
     bgSetScroll(0,0,0); for(int my=0;my<32;my++) for(int mx=0;mx<32;mx++) mapPtr[my*32+mx]=(u16)(my<24?my*32+mx:0);
     globeForce=1; globeDraw(); globeFlush(); view3d=1; }
 static void leaveGlobe(void){
-    walkOn=0; makeTiles(); { int b0=0; (void)b0; } videoSetMode(MODE_0_2D|DISPLAY_BG0_ACTIVE|DISPLAY_BG1_ACTIVE|DISPLAY_SPR_ACTIVE|DISPLAY_SPR_1D_LAYOUT|DISPLAY_SPR_1D_SIZE_32); lcdMainOnBottom();
+    walkOn=0; memset(trKey,0,sizeof trKey); trUsed=0; zl=3; makeTiles(); { int b0=0; (void)b0; } videoSetMode(MODE_0_2D|DISPLAY_BG0_ACTIVE|DISPLAY_BG1_ACTIVE|DISPLAY_SPR_ACTIVE|DISPLAY_SPR_1D_LAYOUT|DISPLAY_SPR_1D_SIZE_32); lcdMainOnBottom();
     uiPalette(); tbInit(); saveBasePal(); winX=-99; view3d=0; }
+// ---------------------------------------------------------------------------------------------- zoom: six levels, from the whole planet down to single creatures
+// 0 PLANET (the globe), 1 VERY FAR (2 pixels a tile), 2 FAR (4), 3 NORMAL (8: the map's own tiles and the hardware sprites), 4 CLOSE (16), 5 MICRO (32).
+// All but the planet and normal are drawn by the CPU into the same 256 x 168 picture the globe uses (sent to the screen as tiles, under the toolbar). The ground is the normal view's own tile art
+// enlarged (with its transitions, shores, buildings and the day/night palette), and every creature on screen is drawn as an animated sprite, so a crowd of thousands shows, not just 100.
+enum { Z_PLANET, Z_VFAR, Z_FAR, Z_NORMAL, Z_CLOSE, Z_MICRO };
+static int zcx=0, zcy=0, zForce=1;        // zcx, zcy: the centre of the view, in 1/8 tile units (the normal view's pixels)
+static const u8 zSc[6]={0,2,4,8,16,32}; static const u8 zSh[6]={0,1,2,3,4,5};
+static const char* const zNm[6]={"PLANET","VERY FAR","FAR","NORMAL","CLOSE","MICRO"};
+#define ZH 168                                    // rows above the toolbar
+typedef struct { u16 xy; u32 sig; u8 px[64]; } ZArt; static ZArt zart[512];     // the 8 x 8 art of the tiles in view, so a scroll builds only the new column
+static const u8 zPool[12]={144,147,150,153,156,192,195,239,242,245,248,251};  // palette slots for creature colours (3 each); 12 families at a time, the rest share
+static inline int zFamPal(int fam){ return zPool[fam%12]; }
+static int zCol(int fam,int k){ return zFamPal(fam)+k; }
+static const u8* zArtOf(int x,int y){
+    ZArt*z=&zart[((y&15)<<5)|(x&31)]; int t=world[y][x]; int mask=0,foam=0; int bld_=bld[y][x]; int race=bld_&&bldv[y][x]?vilRace(bldv[y][x]-1):0; int best=bld_?-1:cellEdge(x,y,&mask,&foam);
+    u32 sig=(u32)(t|((best+1)<<4)|(mask<<8)|(foam<<12)|(bld_<<13)|(race<<17))+1u; u16 xy=(u16)(x|(y<<8));
+    if(z->sig==sig&&z->xy==xy) return z->px;
+    int v=(int)(hsh(x,y,3)&3);
+    for(int j=0;j<8;j++) for(int i=0;i<8;i++) z->px[j*8+i]=(u8)(bld_?bldPix(bld_,race,i,j):best>=0?edgePix(t,best,mask,v,foam,i,j):tilePix(t,v,i,j));
+    z->sig=sig; z->xy=xy; return z->px; }
+static inline void zPut(int x,int y,int c){ if((unsigned)x<256&&(unsigned)y<ZH) gbuf[y*256+x]=(u8)c; }
+static void zRect(int x,int y,int w,int h,int c){ for(int j=0;j<h;j++){ int yy=y+j; if((unsigned)yy>=ZH) continue; for(int i=0;i<w;i++){ int xx=x+i; if((unsigned)xx<256) gbuf[yy*256+xx]=(u8)c; } } }
+static int zOx(void){ return zcx*zSc[zl]/8-128; } static int zOy(void){ return zcy*zSc[zl]/8-ZH/2; }
+static void zClamp(void){ int S=zSc[zl]; int hx=128*8/S, hy=(ZH/2)*8/S; int mx=WW*8, my=WH*8;
+    if(2*hx>=mx) zcx=mx/2; else { if(zcx<hx) zcx=hx; if(zcx>mx-hx) zcx=mx-hx; } if(2*hy>=my) zcy=my/2; else { if(zcy<hy) zcy=hy; if(zcy>my-hy) zcy=my-hy; } }
+static void zSyncCam(void){ camX=zcx-128; camY=zcy-ZH/2; if(camX<0) camX=0; if(camY<0) camY=0; if(camX>WW*8-256) camX=WW*8-256; if(camY>WH*8-192) camY=WH*8-192; }
+static int zHit(int px,int py,int*tx,int*ty){ int sh=zSh[zl]; int x=(zOx()+px)>>sh, y=(zOy()+py)>>sh; if(x<0||y<0||x>=WW||y>=WH) return 0; *tx=x; *ty=y; return 1; }
+static void zCrit(int i,int px,int py,int S){   // one creature, its tile's top left corner at (px, py), enlarged to S pixels
+    const Cr*c=&cr[i]; const Sp*s=&sp[c->sp]; const Arch*A=&arch[s->a]; int fam=s->fam;
+    if(S<=2){ zRect(px,py,2,2,zCol(fam,0)); return; }
+    int mv=(c->ox||c->oy); int fr=mv?(((tick>>3)+i)&1):0; int flip=(i&1)&&c->dir; if(!mv) fr=0;
+    int gx=c->ox*S/8, gy=c->oy*S/8; px+=gx; py+=gy;
+    u8 g[64]; for(int y=0;y<8;y++){ const char*row=shpRow(A->shape,fr,y); for(int x=0;x<8;x++){ char ch=row[flip?7-x:x]; g[y*8+x]=(u8)(ch=='b'?zCol(fam,0):ch=='d'?zCol(fam,1):ch=='a'?zCol(fam,2):ch=='e'?UI_PAL0+U_WHITE:0); } }
+    if(S>=16){ int sh=S/8; for(int r=0;r<sh;r++){ int yy=py+S-sh+r; for(int xx=px+S/8+r;xx<px+S-S/8-r;xx++){ if((unsigned)xx<256&&(unsigned)yy<ZH){ u8 v=gbuf[yy*256+xx]; if(v<128) gbuf[yy*256+xx]=(u8)((v&~7)|((v&7)>2?(v&7)-3:0)); } } } }   // a shadow: the ground under its feet darkened
+    if(S>=16&&mv&&((tick>>1)&1)) py-=S/16;      // a hop while it walks
+    if(S==4){ for(int dy=0;dy<4;dy++) for(int dx=0;dx<4;dx++){ int c2=g[(dy*2)*8+dx*2]; if(!c2) c2=g[(dy*2)*8+dx*2+1]; if(!c2) c2=g[(dy*2+1)*8+dx*2]; if(!c2) c2=g[(dy*2+1)*8+dx*2+1]; if(c2) zPut(px+dx,py+dy,c2); } }
+    else { int k=S/8; for(int y=0;y<8;y++) for(int x=0;x<8;x++){ int c2=g[y*8+x]; if(c2) zRect(px+x*k,py+y*k,k,k,c2); } }
+    if(c->rk&&S>=16){ int cc=c->rk==2?UI_PAL0+U_RED:UI_PAL0+U_GOLD; zRect(px+S/2-S/8,py-S/8,S/4,S/8,cc); zRect(px+S/2-S/4,py-S/4+1,S/8,S/8,cc); zRect(px+S/2+S/8,py-S/4+1,S/8,S/8,cc); }      // a crown
+    if((sick[i]==1||sick[i]==3)&&S>=16&&((tick>>2)&1)) zRect(px+S*5/8,py-S/8,S/4,S/4,sick[i]==3?UI_PAL0+U_PURPLE:UI_PAL0+U_GREEN);     // the plague's flicker
+    if(S>=16&&c->wep){ zRect(px+(flip?0:S-S/8),py+S/4,S/8,S/2,UI_PAL0+U_LGREY); } }
+static int zKey=-1;
+static int zDraw(void){
+    int S=zSc[zl], sh=zSh[zl]; int ox=zOx(), oy=zOy();
+    int key=(ox*131+oy*17+zl*7)^((tick>>(zl>=Z_CLOSE?0:2))*257)^(weather*977)^(nCr*29); if(!zForce&&key==zKey) return 0; zKey=key; zForce=0;
+    memset(gbuf,0,256*ZH);
+    int tx0=ox>>sh, tx1=(ox+255)>>sh, ty0=oy>>sh, ty1=(oy+ZH-1)>>sh;
+    if(S>=16){ int r8=sh-3;      // enlarge the tile art: each screen row takes one art row of every tile it crosses
+        for(int sy=0;sy<ZH;sy++){ int v=oy+sy; int ty=v>>sh; if(ty<0||ty>=WH) continue; int ry=(v&(S-1))>>r8; u8*d=gbuf+sy*256;
+            for(int tx=tx0;tx<=tx1;tx++){ if(tx<0||tx>=WW) continue; const u8*a=zArtOf(tx,ty)+ry*8; int sx=(tx<<sh)-ox;
+                for(int i=0;i<8;i++){ u8 c=a[i]; int x0=sx+(i<<r8); for(int q=0;q<(1<<r8);q++){ int xx=x0+q; if((unsigned)xx<256) d[xx]=c; } } } } }
+    else { for(int ty=ty0;ty<=ty1;ty++){ if(ty<0||ty>=WH) continue; int sy0=(ty<<sh)-oy;
+            for(int tx=tx0;tx<=tx1;tx++){ if(tx<0||tx>=WW) continue; int sx0=(tx<<sh)-ox; int t=world[ty][tx]; int c; int b=bld[ty][tx];
+                if(b&&b!=B_RUIN){ int race=bldv[ty][tx]?vilRace(bldv[ty][tx]-1):0; c=(b==B_HALL||b==B_TOWER)?139:b==B_FARM?140:128+race; }
+                else { int h=(int)(hsh(tx,ty,3)&3); c=t*8+((t==T_WATER||t==T_DEEP)?3+((h+(tick>>4))&1):2+h); if(b==B_RUIN) c=142; }
+                zRect(sx0,sy0,S,S,c);
+                if(S==4){ int h2=(int)(hsh(tx,ty,5)&3); if(b==B_NONE||b==B_RUIN){ if(h2==0) zPut(sx0+1,sy0+2,c^1); else if(h2==1) zPut(sx0+2,sy0+1,c^1); } else if(b==B_HUT||b==B_HOUSE) zRect(sx0,sy0+2,4,2,136); } } } }
+    // creatures: every one on screen
+    for(int ty=ty0-1;ty<=ty1+1;ty++){ if(ty<0||ty>=WH) continue; for(int tx=tx0-1;tx<=tx1+1;tx++){ if(tx<0||tx>=WW) continue; int i=(int)occ[ty][tx]-1; if(i<0||!cr[i].alive) continue; zCrit(i,(tx<<sh)-ox,(ty<<sh)-oy,S); } }
+    return 1; }
+static void zFlush(void){
+    static u8 tl[64] __attribute__((aligned(4)));
+    for(int ty=0;ty<ZH/8;ty++) for(int tx=0;tx<32;tx++){ for(int y=0;y<8;y++){ const u8*r=gbuf+(ty*8+y)*256+tx*8; for(int x=0;x<8;x++) tl[y*8+x]=r[x]; } vramCopy((u8*)BG_TILE_RAM(1)+(ty*32+tx)*64,tl,64); } }
+static void zPalette(void){ for(int f=0;f<12;f++) for(int k=0;k<3;k++) BG_PALETTE[zPool[f]+k]=RGB15(famCol[f][k][0],famCol[f][k][1],famCol[f][k][2]); }
+static void zEnterBmp(void){
+    zPalette(); for(int i=0;i<128;i++) oamSetHidden(&oamMain,i,true);
+    zBmp=1; bgSetScroll(0,0,0); for(int my=0;my<32;my++) for(int mx=0;mx<32;mx++) mapPtr[my*32+mx]=(u16)(my<ZH/8?my*32+mx:0);
+    memset(zart,0,sizeof zart); zForce=1; }
+static void zLeaveBmp(void){
+    zBmp=0; memset(trKey,0,sizeof trKey); trUsed=0; makeTiles(); winX=-99; }
+static void zSet(int nz){
+    if(nz<0) nz=0; if(nz>5) nz=5; if(nz==zl) return;
+    int old=zl;
+    if(old==Z_PLANET){ int tx=rotY*WW/360, ty=(90-rotX)*WH/180; if(tx<0) tx=0; if(tx>=WW) tx=WW-1; if(ty<0) ty=0; if(ty>=WH) ty=WH-1; zcx=tx*8+4; zcy=ty*8+4; leaveGlobe(); }     // (back on the map, with its own tiles)
+    else if(old==Z_NORMAL){ zcx=camX+128; zcy=camY+ZH/2; }
+    zl=nz;
+    if(nz==Z_PLANET){ if(zBmp) zLeaveBmp(); zl=Z_PLANET; faceTile(zcx/8,zcy/8,&rotX,&rotY); globeEnter(); }
+    else if(nz==Z_NORMAL){ if(zBmp){ zClamp(); zLeaveBmp(); } camX=zcx-128; camY=zcy-ZH/2; if(camX<0) camX=0; if(camY<0) camY=0; if(camX>WW*8-256) camX=WW*8-256; if(camY>WH*8-192) camY=WH*8-192; winX=-99; }
+    else { if(!zBmp) zEnterBmp(); zClamp(); zSyncCam(); zForce=1; }
+    siprintf(info,"ZOOM: %s",zNm[zl]); }
 #define enter3D globeEnter
 #define leave3D leaveGlobe
 // ---- the sound backend: the libnds channels behind gmplay.h. Wave voices are looped 64-sample PCM channels that are only retuned (never restarted) while a song plays; drums are one-shots.
@@ -991,6 +1078,7 @@ static void makeSprites(void){
 }
 static struct { short x, y; } wpt[20]; static int wptInit;
 static void drawSprites(void){
+    if(zBmp){ for(int k=0;k<128;k++) oamSetHidden(&oamMain,k,true); return; }       // the zoom picture draws its own creatures
     int n=0, nc=100;       // creatures use sprites 0..99, rank crowns 100..107, weather 108..127
     for(int ty=(camY>>3)-1;ty<(camY>>3)+26&&n<100;ty++) for(int tx=(camX>>3)-1;tx<(camX>>3)+34&&n<100;tx++){ if(tx<0||ty<0||tx>=WW||ty>=WH) continue; int i=occ[ty][tx]-1; if(i<0) continue; Cr*c=&cr[i]; if(!c->alive) continue; int px=c->x*8+c->ox-camX, py=c->y*8+c->oy-camY; if(px<-8||px>=256||py<-8||py>=162) continue;   // (the bottom 24 pixels are the toolbar)
         const Sp*s=&sp[c->sp]; const Arch*A=&arch[s->a]; int fr=((tick>>3)+i)&1; if(!c->ox&&!c->oy) fr=0;
@@ -1009,11 +1097,11 @@ static void drawSprites(void){
 }
 static u8 mmCol[T_N];
 static int page=0, titleOn=1, sceneOn=0;
-static void drawMinimap(void){}   // (the minimap is part of the status screen now: see uiStatus)
+static void drawMinimap(void){ if(zBmp&&!view3d){ int S=zSc[zl]; uiVw=256/S; uiVh=ZH/S; uiVx=zOx()/S; uiVy=zOy()/S; } else { uiVw=32; uiVh=24; uiVx=camX>>3; uiVy=camY>>3; } }   // (the minimap is part of the status screen now: see uiStatus)
 static const char* const introTxt[]={"","  IN THE BEGINNING THERE WAS","  ONLY A QUIET, EMPTY PLANET.","","  THEN YOU WOKE.","","  YOUR HANDS MAKE LAND, RAIN","  AND FIRE. YOUR WORD MAKES LIFE.","","  TEACH THE FIRST FOLK TO LIVE.","","  BUT THE DARK IS PATIENT,","  AND IT HAS TEETH.","","  TOUCH THE WORLD TO BEGIN.",0};
 static const char* const endTxt[]={"","  THE FOLK HAVE CITIES NOW,","  AND SONGS, AND WAR, AND PEACE.","","  YOU MET EVERY NIGHTMARE","  AND GAVE IT A NAME.","","  THEY DO NOT KNOW YOUR FACE.","  THEY KNOW THE RAIN,","  THE HARVEST, THE SPARK THAT","  LEAPS FROM THE SKY.","","  THE STORY IS TOLD.","","  THE WORLD IS YOURS, GODGUY.",0};
 static const char* const credTxt[]={"","","       BORE: GODGUY","","  A SPINOFF OF BORE","","  DESIGN, CODE, MUSIC","  AND MONSTERS","  BY CLAUDE, FOR YOU","","  MUSIC AMALGAMATED FROM","  THE SONGS OF BORE","  (THE DIPPER MAN, AND ALL","  THE REST)","","  320 MONSTERS","  392 CREATURES","  364 ITEMS","  23 TRAITS","  134 TRACKS","","  THANK YOU FOR PLAYING","","","","",0};
-static const char* const helpTxt[]={"TOUCH THE WORLD: USE POWER","L R      CHOOSE POWER","B + L R  NEXT GROUP OF POWERS","X Y      BRUSH SIZE","         (SPAWN: SPECIES)","         (GIFT: ITEM)","         (MUTATE: TRAIT)","B + X Y  JUMP TEN","D-PAD    PAN (B = FAST)","A        PAUSE","X + Y    3D GLOBE ON / OFF","  3D: TOUCH = USE POWER","  B + DRAG = SPIN, A = SHAPE","SELECT   NEXT INFO PAGE","START    PAUSE MENU","Y + A   WALK THE GLOBE (3D)","L+R+SELECT    SAVE NOW","","STORY: FINISH CHAPTERS TO","OPEN ITEMS FOR FREE PLAY.","100%: MEET AND SLAY ALL 320","MONSTERS AFTER THE STORY.","","TRAITS: CHILDREN INHERIT AND","SOMETIMES MUTATE. MUTATE","MAKES A SUBSPECIES ON PURPOSE.","","TOWERS SHOOT MONSTERS.","GIFTS DECIDE WHO WINS.",0};
+static const char* const helpTxt[]={"TOUCH THE WORLD: USE POWER","L R      CHOOSE POWER","B + L R  NEXT GROUP OF POWERS","X Y      BRUSH SIZE","         (SPAWN: SPECIES)","         (GIFT: ITEM)","         (MUTATE: TRAIT)","B + X Y  JUMP TEN","D-PAD    PAN (B = FAST)","A        PAUSE","L + R    ZOOM IN","X + Y    ZOOM OUT","  6 LEVELS: PLANET, VERY FAR,","  FAR, NORMAL, CLOSE, MICRO","  PLANET: TOUCH = POWER,","  B + DRAG = SPIN, A = SHAPE","SELECT   NEXT INFO PAGE","START    PAUSE MENU","Y + A   WALK THE GLOBE (3D)","L+R+SELECT    SAVE NOW","","STORY: FINISH CHAPTERS TO","OPEN ITEMS FOR FREE PLAY.","100%: MEET AND SLAY ALL 320","MONSTERS AFTER THE STORY.","","TRAITS: CHILDREN INHERIT AND","SOMETIMES MUTATE. MUTATE","MAKES A SUBSPECIES ON PURPOSE.","","TOWERS SHOOT MONSTERS.","GIFTS DECIDE WHO WINS.",0};
 static const char* const tipTxt[]={"TOUCH THE WORLD TO USE A POWER","L R CHANGES THE POWER","TRY SPAWN, THEN RAIN AND FIRE","START A VILLAGE: SETTLE","SELECT: STORY, BESTIARY, HELP","X+Y SHOWS THE WORLD AS A GLOBE","SNACKS MAY GIVE FOLK CHILL TRAITS","DAVE SAYS: HAVE YOU TRIED SITTING","FEED A MONSTER A NACHO. SEE WHAT HAPPENS","THE COUCH HAS ROOM FOR EVERYONE","MUNCHIES ARE NOT A BUG"};
 static const char* const*sceneTxt, *const*sceneNext; static int menuOn, menuSel, menuAsk, toastT, dlgOn, dlgIdx, dlgChars, dlgPaused, sceneOff, sceneT, sceneScroll, endShown, scenePaused, helpSel, trPage, tipN;
 static const Dl*dlgSet; static char lastInfo[64];
@@ -1422,14 +1510,15 @@ int main(void){
           if(ui){ if(kd&KEY_TOUCH){ touchPosition tp; touchRead(&tp); int h=uiHit(tp.px,tp.py); if(h>=0){ const UiBtn*bt=&uiBtns[h]; int was=bt->sp&&*bt->sp==bt->sv; if(bt->sp) *bt->sp=bt->sv; kd|=was&&bt->key2?bt->key2:bt->key; if(bt->key&(KEY_L|KEY_R)) uiTabDir=(bt->key&KEY_L)?-1:1; } } kd&=~KEY_TOUCH; kh&=~KEY_TOUCH; } }
         musUpdate();
         if(view3d&&(sceneOn||dlgOn||menuOn||titleOn)) leaveGlobe();
+        if(zBmp&&(sceneOn||titleOn)) zSet(Z_NORMAL);
         if(sceneOn){ sceneT++; int n=sceneLines(sceneTxt); if(sceneScroll&&(sceneT&7)==0) sceneOff++; int done=(kd&(KEY_A|KEY_START))!=0; if(sceneScroll&&sceneOff>n+2) done=1;
             if(done){ if(sceneNext){ const char*const*nx=sceneNext; int sp0=scenePaused; sceneNext=0; sceneOn=0; sceneStart(nx,1); scenePaused=sp0; musReq(GM_CREDITS); } else { sceneOn=0; paused=scenePaused; } }
-            swiWaitForVBlank(); refillWindow(); bgSetScroll(0,camX&511,camY&511); bgUpdate(); drawSprites(); oamUpdate(&oamMain); if((tick&7)==0){ applyLight(); hud(); } continue; }
+            swiWaitForVBlank(); refillWindow(); bgSetScroll(0,zBmp?0:camX&511,zBmp?0:camY&511); bgUpdate(); drawSprites(); oamUpdate(&oamMain); if((tick&7)==0){ applyLight(); hud(); } continue; }
         if(!titleOn&&!sceneOn&&!dlgOn&&dlgPend>=0&&storyOn){ dlgSet=dlgTab[dlgPend]; dlgPend=-1; dlgIdx=0; dlgChars=0; dlgOn=1; dlgPaused=paused; paused=1; }
         if(dlgOn){ const Dl*d=&dlgSet[dlgIdx]; int tl=(int)strlen(d->txt); if(dlgChars<tl) dlgChars+=2; if(kd&KEY_A){ if(dlgChars<tl) dlgChars=tl; else { dlgIdx++; dlgChars=0; if(!dlgSet[dlgIdx].txt){ dlgOn=0; paused=dlgPaused; } } } if(kd&KEY_B){ dlgOn=0; paused=dlgPaused; }
-            swiWaitForVBlank(); refillWindow(); bgSetScroll(0,camX&511,camY&511); bgUpdate(); drawSprites(); oamUpdate(&oamMain); if((tick&7)==0) applyLight(); if(dlgOn&&((tick&1)==0||(kd))) hud(); else if(!dlgOn) hud(); continue; }
+            swiWaitForVBlank(); refillWindow(); bgSetScroll(0,zBmp?0:camX&511,zBmp?0:camY&511); bgUpdate(); drawSprites(); oamUpdate(&oamMain); if((tick&7)==0) applyLight(); if(dlgOn&&((tick&1)==0||(kd))) hud(); else if(!dlgOn) hud(); continue; }
         if(!titleOn&&!sceneOn&&strcmp(info,lastInfo)){ strcpy(lastInfo,info); toastT=420; } if(toastT>0) toastT--;
-        if(menuOn){ menuInput(kd); swiWaitForVBlank(); refillWindow(); bgSetScroll(0,camX&511,camY&511); bgUpdate(); drawSprites(); oamUpdate(&oamMain); if(kd||kh||(tick&15)==0) hud(); continue; }      // (the menu is rebuilt when something was pressed or touched, and every 16 frames for its slow animation)
+        if(menuOn){ menuInput(kd); swiWaitForVBlank(); refillWindow(); bgSetScroll(0,zBmp?0:camX&511,zBmp?0:camY&511); bgUpdate(); drawSprites(); oamUpdate(&oamMain); if(kd||kh||(tick&15)==0) hud(); continue; }      // (the menu is rebuilt when something was pressed or touched, and every 16 frames for its slow animation)
         if(storyDone&&!endShown&&!titleOn&&!dlgOn&&dlgPend<0){ endShown=1; if(view3d) leave3D(); sceneNext=credTxt; sceneStart(endTxt,0); }
         if(!titleOn&&!sceneOn&&stUse<12&&tick>300&&(tick%600)==0){ siprintf(info,"%.32s",tipTxt[tipN++%11]); }
         if(titleOn&&!extrasView){
@@ -1438,13 +1527,14 @@ int main(void){
                 if(kd){ if(kd&code[konami]) konami++; else konami=(kd&code[0])?1:0; if(konami==10){ konami=0; debugOn=1; auralOpen=1; fxReq(FX_UNLOCK); siprintf(info,"DEBUG MENU UNLOCKED"); ch=1; } } }
             if(!titleOn) continue;
             if(mScr==3&&cT>=0&&--cT<0){ previewWorld(); ch=1; }
-            swiWaitForVBlank(); refillWindow(); bgSetScroll(0,camX&511,camY&511); bgUpdate(); drawSprites(); oamUpdate(&oamMain); if((tick&7)==0) applyLight(); if(ch||(tick&31)==0){ drawMinimap(); hud(); }
+            swiWaitForVBlank(); refillWindow(); bgSetScroll(0,zBmp?0:camX&511,zBmp?0:camY&511); bgUpdate(); drawSprites(); oamUpdate(&oamMain); if((tick&7)==0) applyLight(); if(ch||(tick&31)==0){ drawMinimap(); hud(); }
             continue; }
         if(titleOn) kh&=~KEY_TOUCH;
         if(extrasView&&(kd&KEY_START)){ extrasView=0; page=0; kd&=~KEY_START; if(titleOn) mScr=2; else { menuOn=1; mScr=2; } mSel=3; }
         int sp_=(kh&KEY_B)?6:3; int dirty=0;
         if((kd&KEY_SELECT)&&!extrasView){ if(0){ } else if(kh&KEY_L&&kh&KEY_R){ doSave(); } else { do page=(page+1)%7; while((page==3&&!auralOK())||(page==4&&!debugOn)); if(page==3) juke=gmCur>=0?gmCur:0; } dirty=1; }
-        if((kd&(KEY_X|KEY_Y))&&(kh&KEY_X)&&(kh&KEY_Y)){ if(view3d) leaveGlobe(); else globeEnter(); dirty=1; kd&=~(KEY_X|KEY_Y); }
+        if((kd&(KEY_X|KEY_Y))&&(kh&KEY_X)&&(kh&KEY_Y)){ zSet(zl-1); dirty=1; kd&=~(KEY_X|KEY_Y); }      // X + Y: zoom out one level (planet, very far, far, NORMAL, close, micro)
+        if((kd&(KEY_L|KEY_R))&&(kh&KEY_L)&&(kh&KEY_R)&&!(kh&(KEY_START|KEY_SELECT))){ zSet(zl+1); dirty=1; kd&=~(KEY_L|KEY_R); }      // L + R: zoom in
         if(kd&KEY_START){ if((kh&KEY_L)&&(kh&KEY_R)){ unlockAll=1; siprintf(info,"EVERYTHING UNLOCKED"); } else if(!(kh&KEY_SELECT)){ menuOn=1; menuSel=0; menuAsk=0; mScr=0; mSel=0; dlgPaused=paused; paused=1; } dirty=1; }
         if(extrasView&&page!=3&&page!=4&&(kd&(KEY_L|KEY_R))){ uiTabDir=(kd&KEY_L)?-1:1; page=(kd&KEY_L)?extStep(-1):extStep(1); kd&=~(KEY_L|KEY_R); dirty=1; fxReq(FX_MENU_MOVE); }
         if(page==2){ if(kd&KEY_UP) bestSel=bestSel>0?bestSel-1:0; if(kd&KEY_DOWN) bestSel=bestSel<319?bestSel+1:319; if(kd&KEY_LEFT) bestSel=bestSel>=10?bestSel-10:0; if(kd&KEY_RIGHT) bestSel=bestSel<310?bestSel+10:319; if(kd) dirty=1; kd&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); kh&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); }
@@ -1482,8 +1572,10 @@ int main(void){
                     case 19: if(go||d){ fullDone^=1; siprintf(info,fullDone?"100%% SET: REMIXES OPEN":"100%% CLEARED"); } break; }
                 dirty=1; }
             if(kd) dirty=1; kd&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT|KEY_L|KEY_R|KEY_A); kh&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); }
+        if(zBmp&&!view3d){ int st=sp_*8/zSc[zl]; if(st<1) st=1; if(kh&KEY_LEFT) zcx-=st; if(kh&KEY_RIGHT) zcx+=st; if(kh&KEY_UP) zcy-=st; if(kh&KEY_DOWN) zcy+=st; zClamp(); zSyncCam(); }      // zoomed: the pad moves the view's centre
+        else {
         if(kh&KEY_LEFT) camX-=sp_; if(kh&KEY_RIGHT) camX+=sp_; if(kh&KEY_UP) camY-=sp_; if(kh&KEY_DOWN) camY+=sp_;
-        if(camX<0) camX=0; if(camY<0) camY=0; if(camX>WW*8-256) camX=WW*8-256; if(camY>WH*8-192) camY=WH*8-192;
+        if(camX<0) camX=0; if(camY<0) camY=0; if(camX>WW*8-256) camX=WW*8-256; if(camY>WH*8-192) camY=WH*8-192; }
         if((kd&(KEY_L|KEY_R))&&(kh&KEY_B)){ pwCatJump((kd&KEY_R)?1:-1); dirty=1; fxReq(FX_MENU_MOVE); kd&=~(KEY_L|KEY_R); }
         if(kd&KEY_R){ power=(power+1)%PW_N; dirty=1; } if(kd&KEY_L){ power=(power+PW_N-1)%PW_N; dirty=1; }
         if(year!=savedYear&&year>0&&(tick&255)==1){ doSave(); dirty=1; }
@@ -1504,11 +1596,12 @@ int main(void){
             if(!paused) simulate(); { int gd=globeDraw(); swiWaitForVBlank(); if(gd) globeFlush(); } if((tick&15)==0||dirty){ drawMinimap(); hud(); } continue; }
         if(kd&(KEY_X|KEY_Y)){ int d=(kd&KEY_X)?1:-1; if(kh&KEY_B){ if(pw[power].kind==PK_GIFT) itSel=itNext(itSel,10*d); else spSel=(spSel+nSp+10*d)%nSp; } else if(pw[power].kind==PK_SPAWN){ spSel=(spSel+nSp+d)%nSp; } else if(pw[power].kind==PK_GIFT){ itSel=itNext(itSel,d); } else if(pw[power].kind==PK_MUTATE){ for(int k=1;k<=TR_N;k++){ int t=(trSel+TR_N*2+d*k)%TR_N; if(t==0||((trSeen>>t)&1)||debugOn||unlockAll){ trSel=t; break; } } } else { brush+=d; if(brush<0) brush=0; if(brush>8) brush=8; } dirty=1; }
         if(kd&KEY_A&&page!=3){ paused^=1; dirty=1; }
-        if(kh&KEY_TOUCH){ touchPosition tp; touchRead(&tp); if(tp.py>=168){ if(!held){ tbTouch(tp.px,tp.py); fxReq(FX_MENU_MOVE); dirty=1; } held=1; } else { int tx=(tp.px+camX)>>3, ty=(tp.py+camY)>>3; int fresh=!held||tx!=lastTx||ty!=lastTy; if(pw[power].kind==PK_PAINT||fresh) usePower(tx,ty,!held); held=1; lastTx=tx; lastTy=ty; dirty=1; } } else held=0;
+        if(kh&KEY_TOUCH){ touchPosition tp; touchRead(&tp); if(tp.py>=168){ if(!held){ tbTouch(tp.px,tp.py); fxReq(FX_MENU_MOVE); dirty=1; } held=1; } else { int tx=(tp.px+camX)>>3, ty=(tp.py+camY)>>3; if(zBmp&&!zHit(tp.px,tp.py,&tx,&ty)){ held=1; } else { int fresh=!held||tx!=lastTx||ty!=lastTy; if(pw[power].kind==PK_PAINT||fresh) usePower(tx,ty,!held); held=1; lastTx=tx; lastTy=ty; dirty=1; } } } else held=0;
         for(int k=1;k<speedMul&&!paused;k++){ tick++; simulate(); }
         simulate();
-        swiWaitForVBlank(); refillWindow();       // everything that touches video memory happens right after the blank begins; the thinking is done before it
-        bgSetScroll(0,camX&511,camY&511); bgUpdate(); drawSprites(); oamUpdate(&oamMain);
+        int zd=0; if(zBmp){ if(winX==-99){ zForce=1; winX=-98; zcx=camX+128; zcy=camY+ZH/2; zClamp(); } zd=zDraw(); }      // (a zoomed picture is drawn before the blank, sent after it)
+        swiWaitForVBlank(); refillWindow(); if(zd) zFlush();       // everything that touches video memory happens right after the blank begins; the thinking is done before it
+        bgSetScroll(0,zBmp?0:camX&511,zBmp?0:camY&511); bgUpdate(); drawSprites(); oamUpdate(&oamMain);
         if((tick&7)==0||flashT>0) applyLight();
         if(dirty) tbDraw();
         if((tick&15)==0||dirty){ drawMinimap(); hud(); }

@@ -134,3 +134,10 @@ Found a readable copy of the Official WorldBox Wiki (its API is open; the pages 
 - RAM on DS: ARM9 code + data now ends at 0x022AD400 (stack 0x022F0000, heap in between).
 - 3DS: fixed a missing brace in the touch edge clamp that stopped the 3DS port from building.
 - Tests: the zombie bite chain is now tested deterministically (bites infect, a fallen victim rises).
+
+### v0.18 six zoom levels
+- **L + R** zooms in, **X + Y** zooms out: PLANET (the 3D globe), VERY FAR (2 pixels a tile), FAR (4), NORMAL (8, the old view and its hardware sprites), CLOSE (16) and MICRO (32).
+- Very far to micro are drawn by the CPU into the same picture the globe uses, under the toolbar. The ground is the normal view's own tile art enlarged (transitions, shores, buildings, the day and night light), creatures are drawn as animated sprites (walk cycle, a hop while moving, a shadow, crowns for elites and bosses, the plague's flicker, a carried weapon), so every creature on screen shows, not only the 100 the hardware sprites allow. The pad pans the zoomed view, the stylus maps straight to tiles, and the minimap frame follows the view.
+- Tile art of the visible window is cached, so scrolling builds only the new column.
+- Fixed on the way: leaving the globe left stale transition tiles; the toolbar's tile numbers moved up (704) to make room for the 672-tile picture.
+- Test: pc_zoom.c drives all six levels, panning and the stylus mapping (screenshots in /tmp/gg_zoom).
