@@ -1,7 +1,7 @@
 // the ARM7 program for the no-libnds build: it plays sound for the ARM9 (commands arrive in a ring in main RAM) and reads the stylus and the X / Y buttons for it. No libnds, no BIOS calls.
 typedef unsigned char u8; typedef unsigned short u16; typedef unsigned int u32; typedef volatile unsigned short vu16; typedef volatile unsigned int vu32;
 typedef struct { u32 op, ch, a, b, c, d; } HwCmd;
-typedef struct { volatile u32 head, tail, busy, keys, pen, px, py, alive, svType, svBusy, svOK; HwCmd q[64]; } HwIpc;
+typedef struct { volatile u32 head, tail, busy, keys, pen, px, py, alive, svType, svBusy, svOK, svSize; HwCmd q[64]; } HwIpc;
 #define IPC ((HwIpc*)0x023F0000)
 #define R16(a) (*(vu16*)(a))
 #define R32(a) (*(vu32*)(a))
@@ -29,12 +29,21 @@ static u16 tsc(u32 cmd){   // one 12-bit conversion from the touch controller
 static u8 aux(u8 b,int hold){ AUXCNT=(u16)(0xA000|(hold?0x40:0)); AUXDAT=b; u32 t=200000; while((AUXCNT&0x80)&&--t){} return (u8)AUXDAT; }
 static int svWait(void){ for(u32 t=0;t<2000000u;t++){ aux(0x05,1); u8 st=aux(0,0); if(!(st&1)) return 1; } return 0; }
 static void svAddr(u32 off,int fl){ if(fl) aux((u8)(off>>16),1); aux((u8)(off>>8),1); aux((u8)off,1); }
-static void svDetect(void){ aux(0x9F,1); u8 id0=aux(0,1); aux(0,1); aux(0,0); if(id0!=0x00&&id0!=0xFF){ IPC->svType=1; return; }
-    aux(0x05,1); u8 st=aux(0,0); IPC->svType=(st==0xFF)?0:2; }
-static void svOp(HwCmd*c){ int fl=IPC->svType==1; u8*mem=(u8*)c->a; u32 len=c->b, off=c->c, page=fl?256:128; IPC->svOK=1;
+static void svRd(u32 off,u8*mem,u32 len,int fl){ aux(0x03,1); svAddr(off,fl); for(u32 i=0;i<len;i++) mem[i]=aux(0,i+1<len); }
+static int svWr(u32 off,const u8*mem,u32 len,int fl){ u32 page=fl?256:128; for(u32 done=0;done<len;){ u32 n=len-done; u32 room=page-((off+done)%page); if(n>room) n=room; aux(0x06,0); aux(fl?0x0A:0x02,1); svAddr(off+done,fl); for(u32 i=0;i<n;i++) aux(mem[done+i],i+1<n); if(!svWait()) return 0; done+=n; } return 1; }
+static int svUniform(const u8*a){ for(int i=1;i<16;i++) if(a[i]!=a[0]) return 0; return 1; }
+static int svSame(const u8*a,const u8*b){ for(int i=0;i<16;i++) if(a[i]!=b[i]) return 0; return 1; }
+static u32 svProbe(int fl){      // how big is the save memory? 0 = no idea
+    if(fl){ aux(0x9F,1); aux(0,1); aux(0,1); u8 id2=aux(0,0); return (id2>=0x0F&&id2<=0x18)?(1u<<id2):0; }      // flash: the JEDEC capacity code is the power of two
+    u8 a[16], b[16], pat[16]={0xC3,0x3C,0xA5,0x5A,0x96,0x69,0xE1,0x1E,0xD2,0x2D,0xB4,0x4B,0x87,0x78,0xF0,0x0F};       // EEPROM: 8 KB or 64 KB (16-bit addresses): does 0x2000 read back what is at 0?
+    svRd(0,a,16,0); svRd(0x2000,b,16,0); if(!svUniform(a)) return svSame(a,b)?8192:65536;
+    if(!svWr(0,pat,16,0)) return 0; svRd(0x2000,b,16,0); u32 cap=svSame(b,pat)?8192:65536; svWr(0,a,16,0); return cap; }      // (an empty chip: write a pattern, look, put it back)
+static void svDetect(void){ aux(0x9F,1); u8 id0=aux(0,1); aux(0,1); aux(0,0); if(id0!=0x00&&id0!=0xFF){ IPC->svSize=svProbe(1); IPC->svType=1; return; }      // (the size first: the ARM9 reads it as soon as it sees the type)
+    aux(0x05,1); u8 st=aux(0,0); if(st==0xFF){ IPC->svSize=0; IPC->svType=0; return; } IPC->svSize=svProbe(0); IPC->svType=2; }
+static void svOp(HwCmd*c){ int fl=IPC->svType==1; u8*mem=(u8*)c->a; u32 len=c->b, off=c->c; IPC->svOK=1;
     if(!IPC->svType){ IPC->svOK=0; return; }
-    if(c->op==9){ aux(0x03,1); svAddr(off,fl); for(u32 i=0;i<len;i++) mem[i]=aux(0,i+1<len); return; }
-    for(u32 done=0;done<len;){ u32 n=len-done; u32 room=page-((off+done)%page); if(n>room) n=room; aux(0x06,0); aux(fl?0x0A:0x02,1); svAddr(off+done,fl); for(u32 i=0;i<n;i++) aux(mem[done+i],i+1<n); if(!svWait()){ IPC->svOK=0; return; } done+=n; } }
+    if(c->op==9){ svRd(off,mem,len,fl); return; }
+    if(!svWr(off,mem,len,fl)) IPC->svOK=0; }
 static void doCmd(HwCmd*c){
     if(c->op==8||c->op==9){ svOp(c); IPC->svBusy=0; return; }
     u32 ch=c->ch&15, vol=c->d&0x7F, pan=(c->d>>8)&0x7F;

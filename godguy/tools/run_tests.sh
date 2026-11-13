@@ -29,3 +29,5 @@ gcc $F -DGG_BIG -w -o /tmp/gg_big pc_big.c -lm && /tmp/gg_big 1024 3000 | tail -
 gcc $F -w -o /tmp/gg_gen pc_gen.c -lm && /tmp/gg_gen | tail -1
 # saves keep every village across builds with different village counts (write as a 40-village build, read as 64 and as 200)
 gcc $F -DGG_VILN=40 -DVS_WRITE -w -o /tmp/gg_vsw pc_vilsave.c -lm && /tmp/gg_vsw >/dev/null && gcc $F -w -o /tmp/gg_vsr pc_vilsave.c -lm && /tmp/gg_vsr | tail -1 && gcc $F -DGG_BIG -w -o /tmp/gg_vsr2 pc_vilsave.c -lm && /tmp/gg_vsr2 | tail -1
+# save slots (the 3DS / PC file layout): nine files, listed from their headers, the furthest world is the one the game starts on
+gcc $F -w -o /tmp/gg_slotsrun pc_slots.c -lm && /tmp/gg_slotsrun | tail -1

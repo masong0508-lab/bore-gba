@@ -984,6 +984,56 @@ static int walkOn, walkX=64, walkY=64;     // walking the globe: the avatar's ti
 static int view3d=0, rotX=20, rotY=0, zoom3=40, gClouds=1;       // the globe: rotY = longitude of the centre, rotX = latitude of the centre (degrees), zoom3 = how big
 static void faceTile(int x,int y,int*lat,int*lon){ *lon=x*360/WW; int la=90-y*180/WH; *lat=la>85?85:la<-85?-85:la; }
 static int shape3;
+// ---------------------------------------------------------------------------------------------- save slots
+// 3DS and PC: nine files (godguy.sav is slot 1, godguy_2.sav ... godguy_9.sav). DS and DSi: 1 to 4 slots cut out of the cartridge's save memory (see compat/ndshw.h).
+#ifndef SAVE_PATH
+#define SAVE_PATH "godguy.sav"
+#endif
+#ifndef NDSHW
+#define FSLOTS 9
+#endif
+#define MAXSLOTS 9
+static int nSlots=1, curSlot=0, hasSave=0;      // hasSave: the current slot holds a world
+typedef struct { u8 used, story; u16 gw; u32 year, tick; int nCr; } SlotMeta;
+static SlotMeta slotMeta[MAXSLOTS];
+static void slotPath(int k,char*b){
+#ifdef NDSHW
+    (void)k; b[0]=0;      // (the cartridge has no file names)
+#else
+    const char*base=SAVE_PATH; int n=(int)strlen(base); if(k==0){ strcpy(b,base); return; } int dot=(n>4&&!strcmp(base+n-4,".sav"))?n-4:n; memcpy(b,base,(size_t)dot); siprintf(b+dot,"_%d.sav",k+1);
+#endif
+}
+static int slotPeekHdr(int k,SaveHdr*h){
+    memset(h,0,sizeof *h);
+#ifdef NDSHW
+    if(!svPeek(k,h,sizeof *h)) return 0;
+#else
+    char p[96]; slotPath(k,p); FILE*f=fopen(p,"rb"); if(!f) return 0; int ok=fread(h,sizeof *h,1,f)==1; fclose(f); if(!ok) return 0;
+#endif
+    return h->magic==SAVE_MAGIC&&h->ver>=5&&h->ver<=9; }
+static void slotsRefresh(void){ for(int k=0;k<nSlots&&k<MAXSLOTS;k++){ SaveHdr h; SlotMeta*m=&slotMeta[k]; memset(m,0,sizeof *m); if(slotPeekHdr(k,&h)){ m->used=1; m->gw=h.gw; m->year=h.year; m->tick=h.tick; m->nCr=(int)h.nCr|((int)h.pad_[0]<<16); m->story=h.storyOn; } } }
+static void slotSelect(int k){ curSlot=k;
+#ifdef NDSHW
+    hwSlotCur=k;
+#endif
+}
+static int slotSave(int k){ char p[96]; slotPath(k,p); slotSelect(k); return saveGame(p); }
+static int slotLoad(int k){ char p[96]; slotPath(k,p); slotSelect(k); return loadGame(p); }
+static void slotDelete(int k){
+#ifdef NDSHW
+    hwSlotErase(k);
+#else
+    char p[96]; slotPath(k,p); remove(p);
+#endif
+    slotsRefresh(); }
+static void slotsSettle(void){ int best=-1; u32 bt=0; if(!slotMeta[curSlot].used){ for(int k=0;k<nSlots;k++) if(slotMeta[k].used&&(best<0||slotMeta[k].tick>bt)){ best=k; bt=slotMeta[k].tick; } if(best>=0) slotSelect(best); } hasSave=slotMeta[curSlot].used; }      // after a slot is cleared: move to the furthest world left
+static void slotsInit(void){      // after the save memory (or card) is known: how many slots, what is in them, and which one the game starts on (the furthest along)
+#ifdef NDSHW
+    hwSlotsInit(); nSlots=hwSlots;
+#else
+    nSlots=FSLOTS;
+#endif
+    slotsRefresh(); int best=-1; u32 bt=0; for(int k=0;k<nSlots;k++) if(slotMeta[k].used&&(best<0||slotMeta[k].tick>bt)){ best=k; bt=slotMeta[k].tick; } slotSelect(best<0?0:best); }
 #ifndef PCTEST
 // ---------------------------------------------------------------------------------------------- screens
 // ---- light: the day goes round and the water shimmers (a tint on the background palette) ----
@@ -1253,12 +1303,17 @@ static void sceneStart(const char*const*t,int scroll){ sceneTxt=t; sceneScroll=s
 static int dbgSel=0, dbgMon=0, dbgFx=0, fxSel=0, konami=0;
 static int trackOpen(int i){ return i<GM_REMIX0||i>=GM_EPIC0||fullDone||debugOn||unlockAll; }
 static int auralOK(void){ return auralOpen||debugOn||unlockAll; }
-static int bestSel=0, juke=0, sdOk=0, savedYear=-1, hasSave=0;
+static int bestSel=0, juke=0, sdOk=0, savedYear=-1;
 #ifndef SAVE_PATH
 #define SAVE_PATH "godguy.sav"
 #endif
-static const char*savePath=SAVE_PATH;
-static void doSave(void){ if(!sdOk) { siprintf(info,"NO SD CARD: NOT SAVED"); return; } if(saveGame(savePath)){ savedYear=year; siprintf(info,"SAVED"); fxReq(FX_SAVE); } else siprintf(info,"SAVE FAILED"); }
+static int slotSel=0, slotAsk=0; static char slotMsg[48];
+static void slotFail(void){
+#ifdef NDSHW
+    if(svTooBig){ siprintf(info,"TOO BIG: %d KB, SLOT HOLDS %d KB",svTooBig,(int)(hwSlotSz/1024)); return; }
+#endif
+    siprintf(info,"SAVE FAILED"); }
+static void doSave(void){ if(!sdOk) { siprintf(info,"NO SD CARD: NOT SAVED"); return; } if(slotSave(curSlot)){ savedYear=year; slotsRefresh(); if(nSlots>1) siprintf(info,"SAVED: SLOT %d",curSlot+1); else siprintf(info,"SAVED"); fxReq(FX_SAVE); } else slotFail(); }
 static void setSize(int sz){ planetSize=sz; }
 static void startWorld(int story){ storyOn=story; newWorld(); camX=(WW*8-256)/2; camY=(WH*8-192)/2; winX=-99; refillWindow(); titleOn=0; paused=0; endShown=storyDone; musReq(GM_NEWWORLD); if(story&&chapter==0&&stUse==0){ sceneStart(introTxt,0); dlgPend=0; } }
 static void monName(int m,char*out){ int a=ARCH_A+m/16, fam=m%16; strcpy(out,advNm[fam]); strcat(out," "); strcat(out,arch[a].nm); }
@@ -1311,11 +1366,35 @@ static void uiCreate(void){
     uiTextC(208,140,cT>=0?"SHAPING...":"READY",cT>=0?U_ORANGE:U_GREEN,1);
     uiText(6,178,cSel==11?"A: BEGIN YOUR WORLD":"PAD: UP DOWN  LEFT RIGHT CHANGE",U_DIM,1);
     uiFlush(); }
-enum { MI_CONT, MI_STORY, MI_FREE, MI_OPT, MI_EXTRA, MI_BACK, MI_SIZE, MI_DIFF, MI_VOL, MI_MON, MI_SCULPT, MI_BEST, MI_CODEX, MI_HELP, MI_CRED, MI_DEBUG, MI_RESUME, MI_SAVE, MI_NEW, MI_MODE, MI_TITLE, MI_CREATE, MI_GO, MI_STYPE, MI_SPEED, MI_KING, MI_JOURNAL, MI_ACH, MI_CULT, MI_LANG, MI_BROWSE, MI_LAW0, MI_LAW1, MI_LAW2, MI_LAW3, MI_LAW4, MI_LAW5, MI_LAW6, MI_LAW7, MI_LAW8, MI_LAW9, MI_LAW10, MI_LAW11, MI_LAW12, MI_LAW13, MI_LAW14, MI_LAW15, MI_LAW16, MI_LAW17, MI_LAW18, MI_LAW19, MI_LAW20, MI_LAW21, MI_LAWS, MI_FAVS, MI_PEOPLE, MI_COLL, MI_MORE, MI_AIR };
+static void uiSlots(void){
+    uiRect(0,0,256,192,U_BG); for(int y=0;y<192;y+=4) uiRect(0,y,256,1,U_PANEL);
+    uiRect(0,0,256,15,U_PANELHI); uiText(6,4,"SAVE SLOTS",U_GOLD,1); uiRound(204,2,48,11,U_SEL,U_GOLD); uiTextC(228,4,"BACK",U_WHITE,1); uiBtn(202,0,52,15,KEY_B,0,0,0);
+    int n=nSlots, rh=n<=4?30:n<=6?23:15; char b[64];
+    for(int i=0;i<n;i++){ int y=18+i*rh, sel=i==slotSel; const SlotMeta*m=&slotMeta[i]; uiRound(4,y,248,rh-2,sel?U_SEL:U_PANELHI,sel?U_GOLD:U_BHI); uiBtn(4,y,248,rh-2,0,0,&slotSel,i);
+        siprintf(b,"%d",i+1); uiText(10,y+(rh>=23?3:3),b,sel?U_GOLD:U_LGREY,1);
+        int act=i==curSlot&&m->used;
+        if(m->used){ if(rh>=23){ siprintf(b,"YEAR %u   %dX%d   %d CREATURES",(unsigned)m->year,m->gw,m->gw,m->nCr); uiText(24,y+3,b,sel?U_WHITE:U_LGREY,1); uiText(24,y+14,m->story?"STORY":"FREE PLAY",U_DIM,1); if(act) uiTextR(246,y+3,"ACTIVE",U_GOLD); }
+            else { siprintf(b,"YEAR %u  %dX%d  %d CR",(unsigned)m->year,m->gw,m->gw,m->nCr); uiText(24,y+3,b,sel?U_WHITE:U_LGREY,1); uiTextR(246,y+3,act?"ACTIVE":m->story?"STORY":"FREE",act?U_GOLD:U_DIM); } }
+        else uiText(24,y+3,"EMPTY",U_DIM,1); }
+    int fy=18+n*rh+1;
+#ifdef NDSHW
+    if(hwCap) siprintf(b,"SAVE MEMORY %u KB: %d SLOT%s OF %u KB",(unsigned)(hwCap/1024),nSlots,nSlots>1?"S":"",(unsigned)(hwSlotSz/1024)); else strcpy(b,"SAVE MEMORY SIZE UNKNOWN: ONE SLOT");
+#else
+    siprintf(b,"SD CARD: %d SLOTS, EACH ITS OWN FILE",nSlots);
+#endif
+    uiText(6,fy,b,U_DIM,1); if(slotMsg[0]) uiText(6,fy+10,slotMsg,U_YELLOW,1);
+    int by=172; uiRound(4,by,56,14,U_SEL,U_BHI); uiTextC(32,by+3,"A LOAD",U_WHITE,1); uiBtn(4,by,56,14,KEY_A,0,0,0);
+    if(!titleOn){ uiRound(64,by,56,14,U_SEL,U_BHI); uiTextC(92,by+3,"X SAVE",U_WHITE,1); uiBtn(64,by,56,14,KEY_X,0,0,0); }
+    uiRound(124,by,56,14,U_SEL,U_BHI); uiTextC(152,by+3,"Y CLEAR",U_WHITE,1); uiBtn(124,by,56,14,KEY_Y,0,0,0);
+#ifdef NDSHW
+    if(hwCap>=192u*1024){ uiRound(184,by,32,14,U_SEL,U_BHI); uiTextC(200,by+3,"L -",U_WHITE,1); uiBtn(184,by,32,14,KEY_L,0,0,0); uiRound(220,by,32,14,U_SEL,U_BHI); uiTextC(236,by+3,"R +",U_WHITE,1); uiBtn(220,by,32,14,KEY_R,0,0,0); }
+#endif
+    uiFlush(); }
+enum { MI_CONT, MI_STORY, MI_FREE, MI_OPT, MI_EXTRA, MI_BACK, MI_SIZE, MI_DIFF, MI_VOL, MI_MON, MI_SCULPT, MI_BEST, MI_CODEX, MI_HELP, MI_CRED, MI_DEBUG, MI_RESUME, MI_SAVE, MI_NEW, MI_MODE, MI_TITLE, MI_CREATE, MI_GO, MI_STYPE, MI_SPEED, MI_KING, MI_JOURNAL, MI_ACH, MI_CULT, MI_LANG, MI_BROWSE, MI_LAW0, MI_LAW1, MI_LAW2, MI_LAW3, MI_LAW4, MI_LAW5, MI_LAW6, MI_LAW7, MI_LAW8, MI_LAW9, MI_LAW10, MI_LAW11, MI_LAW12, MI_LAW13, MI_LAW14, MI_LAW15, MI_LAW16, MI_LAW17, MI_LAW18, MI_LAW19, MI_LAW20, MI_LAW21, MI_LAWS, MI_FAVS, MI_PEOPLE, MI_COLL, MI_MORE, MI_AIR, MI_SLOTS };
 static int extrasView;      // which menu (0 main, 1 options, 2 extras), the highlighted row, a pending "are you sure", and whether an extras page is open
 static int menuList(int*ids){ int n=0, ctx=titleOn?0:1;
     if(ctx==1){          // the pause menu: a short root (what you do most), and five small screens behind it. L / R walk through them
-        if(mScr==0){ ids[n++]=MI_RESUME; ids[n++]=MI_SAVE; ids[n++]=MI_FAVS; ids[n++]=MI_LAWS; ids[n++]=MI_PEOPLE; ids[n++]=MI_COLL; ids[n++]=MI_OPT; ids[n++]=MI_MORE; }
+        if(mScr==0){ ids[n++]=MI_RESUME; ids[n++]=MI_SAVE; ids[n++]=MI_SLOTS; ids[n++]=MI_FAVS; ids[n++]=MI_LAWS; ids[n++]=MI_PEOPLE; ids[n++]=MI_COLL; ids[n++]=MI_OPT; ids[n++]=MI_MORE; }
         else if(mScr==1){ ids[n++]=MI_DIFF; ids[n++]=MI_SPEED; ids[n++]=MI_VOL; ids[n++]=MI_MON; ids[n++]=MI_BACK; }
         else if(mScr==4){ for(int i=0;i<11;i++) ids[n++]=MI_LAW0+lawScrA[i]; }
         else if(mScr==8){ for(int i=0;i<11;i++) ids[n++]=MI_LAW0+lawScrB[i]; }
@@ -1323,7 +1402,7 @@ static int menuList(int*ids){ int n=0, ctx=titleOn?0:1;
         else if(mScr==6){ ids[n++]=MI_BROWSE; ids[n++]=MI_AIR; ids[n++]=MI_BEST; ids[n++]=MI_CODEX; ids[n++]=MI_ACH; ids[n++]=MI_SCULPT; ids[n++]=MI_BACK; }
         else { ids[n++]=MI_NEW; ids[n++]=MI_MODE; ids[n++]=MI_TITLE; ids[n++]=MI_HELP; ids[n++]=MI_CRED; if(debugOn) ids[n++]=MI_DEBUG; ids[n++]=MI_BACK; }
         return n; }
-    if(mScr==0){ ids[n++]=MI_CONT; ids[n++]=MI_CREATE; ids[n++]=MI_OPT; ids[n++]=MI_COLL; ids[n++]=MI_MORE; }
+    if(mScr==0){ ids[n++]=MI_CONT; ids[n++]=MI_SLOTS; ids[n++]=MI_CREATE; ids[n++]=MI_OPT; ids[n++]=MI_COLL; ids[n++]=MI_MORE; }
     else if(mScr==6){ ids[n++]=MI_BROWSE; ids[n++]=MI_AIR; ids[n++]=MI_BEST; ids[n++]=MI_CODEX; ids[n++]=MI_ACH; ids[n++]=MI_SCULPT; ids[n++]=MI_BACK; }
     else if(mScr==7){ ids[n++]=MI_HELP; ids[n++]=MI_CRED; if(debugOn) ids[n++]=MI_DEBUG; ids[n++]=MI_BACK; }
     else if(mScr==3){ ids[n++]=MI_SIZE; ids[n++]=MI_STYPE; ids[n++]=MI_DIFF; ids[n++]=MI_GO; ids[n++]=MI_BACK; }
@@ -1336,6 +1415,9 @@ static void toggleLaw(int i){ if(i==LW_MONSTER) monOn^=1; else lawOff^=1u<<i; si
 static void menuText(int id,char*l,char*v){ v[0]=0;
     if(id>=MI_LAW0&&id<MI_LAW0+LW_N){ strcpy(l,lawNm[id-MI_LAW0]); strcpy(v,lawOn(id-MI_LAW0)?"ON":"OFF"); return; }
     switch(id){ case MI_LAWS: { strcpy(l,"WORLD LAWS"); int ch=0; for(int i=0;i<LW_N;i++) ch+=(i==LW_MONSTER?!monOn:(int)((lawOff>>i)&1)); if(ch) siprintf(v,"%d CHANGED",ch); else strcpy(v,">"); } return; case MI_FAVS: strcpy(l,"FAVORITES"); siprintf(v,"%d",favCount()); return; case MI_PEOPLE: strcpy(l,"KINGDOMS & FOLK"); strcpy(v,">"); return; case MI_COLL: strcpy(l,"COLLECTIONS"); strcpy(v,">"); return; case MI_MORE: strcpy(l,"MORE"); strcpy(v,">"); return; }
+    if(id==MI_SLOTS){ strcpy(l,"SAVE SLOTS"); int u=0; for(int k=0;k<nSlots;k++) u+=slotMeta[k].used; siprintf(v,"%d/%d",u,nSlots); return; }
+    if(id==MI_SAVE&&nSlots>1){ strcpy(l,"SAVE GAME"); siprintf(v,"SLOT %d",curSlot+1); return; }
+    if(id==MI_CONT&&hasSave&&nSlots>1){ strcpy(l,"CONTINUE YOUR WORLD"); siprintf(v,"SLOT %d",curSlot+1); return; }
     switch(id){ case MI_CONT: strcpy(l,hasSave?"CONTINUE YOUR WORLD":"START THE STORY"); break; case MI_STORY: strcpy(l,"NEW STORY WORLD"); break; case MI_FREE: strcpy(l,"NEW FREE PLAY WORLD"); break;
         case MI_BROWSE: strcpy(l,"WORLD BROWSER"); break; case MI_AIR: strcpy(l,"ATMOSPHERE"); break; case MI_KING: strcpy(l,"KINGDOMS"); break; case MI_CULT: strcpy(l,"CULTURE TREE"); break; case MI_LANG: strcpy(l,"LANGUAGES"); break; case MI_JOURNAL: strcpy(l,"JOURNAL"); siprintf(v,"%d",jrN); break; case MI_ACH: { strcpy(l,"ACHIEVEMENTS"); int c=0; for(int i=0;i<ACH_N;i++) c+=(achBits>>i)&1; siprintf(v,"%d/%d",c,ACH_N); } break; case MI_SPEED: strcpy(l,"GAME SPEED"); siprintf(v,"%dx",speedMul); break; case MI_CREATE: strcpy(l,"CREATE A PLANET"); strcpy(v,">"); break; case MI_GO: strcpy(l,"CREATE THE PLANET!"); break; case MI_STYPE: strcpy(l,"WORLD TYPE"); strcpy(v,storyOn?"STORY":"FREE PLAY"); break;
         case MI_OPT: strcpy(l,titleOn?"OPTIONS":"SETTINGS"); strcpy(v,">"); break; case MI_EXTRA: strcpy(l,"EXTRAS"); strcpy(v,">"); break; case MI_BACK: strcpy(l,"BACK"); break;
@@ -1352,7 +1434,7 @@ static int extStep(int d){ int i=0; for(int k=0;k<12;k++) if(extOrder[k]==page) 
 static const char* menuDesc(int id){ if(id>=MI_LAW0&&id<MI_LAW0+LW_N) return lawDs[id-MI_LAW0]; switch(id){ case MI_LAWS: return "SWITCH THE RULES OF THE WORLD ON AND OFF"; case MI_FAVS: return "YOUR STARRED CITIES, FOLK, ITEMS AND POWERS"; case MI_PEOPLE: return "KINGDOMS, CULTURE, LANGUAGES, JOURNAL"; case MI_COLL: return "BROWSER, BESTIARY, SUBSPECIES, GOALS, JUKEBOX"; case MI_MORE: return "NEW WORLD, MODE, TITLE SCREEN, HELP, CREDITS";
     case MI_CONT: return hasSave?"PICK UP YOUR SAVED WORLD WHERE YOU LEFT IT":"BEGIN THE STORY ON A NEW PLANET"; case MI_CREATE: return "CHOOSE SIZE, LAND, CLIMATE AND SEED OF A NEW PLANET"; case MI_OPT: return "DIFFICULTY, SPEED, VOLUME, MONSTERS"; case MI_EXTRA: return "KINGDOMS, MUSIC, BESTIARY, HELP AND MORE";
     case MI_DIFF: return "HOW HARD THE MONSTERS BITE"; case MI_SPEED: return "HOW FAST TIME RUNS"; case MI_VOL: return "MUSIC AND EFFECT LOUDNESS"; case MI_MON: return "TURN THE NIGHTMARES ON OR OFF";
-    case MI_SCULPT: return "THE JUKEBOX: ALL THE TRACKS AND SUITES"; case MI_BROWSE: return "FIND AND STAR CITIES, FOLK, ITEMS, POWERS"; case MI_AIR: return "OXYGEN, CO2, DUST AND THE WORLD'S WARMTH"; case MI_KING: return "WHO RULES WHAT: WARS, ALLIES, VASSALS"; case MI_CULT: return "WHAT EACH KINGDOM HAS LEARNED"; case MI_LANG: return "THE FIVE TONGUES AND THEIR NAMES"; case MI_JOURNAL: return "THE LAST EVENTS OF THE WORLD"; case MI_ACH: return "THINGS YOU HAVE DONE AS A GOD"; case MI_BEST: return "EVERY NIGHTMARE YOU HAVE MET"; case MI_CODEX: return "SUBSPECIES AND WHAT THEY DO"; case MI_HELP: return "THE CONTROLS"; case MI_CRED: return "WHO MADE THIS"; case MI_DEBUG: return "CHEATS AND TOOLS";
+    case MI_SCULPT: return "THE JUKEBOX: ALL THE TRACKS AND SUITES"; case MI_SLOTS: return "PICK, LOAD, SAVE OR CLEAR A SAVE SLOT"; case MI_BROWSE: return "FIND AND STAR CITIES, FOLK, ITEMS, POWERS"; case MI_AIR: return "OXYGEN, CO2, DUST AND THE WORLD'S WARMTH"; case MI_KING: return "WHO RULES WHAT: WARS, ALLIES, VASSALS"; case MI_CULT: return "WHAT EACH KINGDOM HAS LEARNED"; case MI_LANG: return "THE FIVE TONGUES AND THEIR NAMES"; case MI_JOURNAL: return "THE LAST EVENTS OF THE WORLD"; case MI_ACH: return "THINGS YOU HAVE DONE AS A GOD"; case MI_BEST: return "EVERY NIGHTMARE YOU HAVE MET"; case MI_CODEX: return "SUBSPECIES AND WHAT THEY DO"; case MI_HELP: return "THE CONTROLS"; case MI_CRED: return "WHO MADE THIS"; case MI_DEBUG: return "CHEATS AND TOOLS";
     case MI_RESUME: return "BACK TO THE WORLD"; case MI_SAVE: return "WRITE THE WORLD TO THE CARD"; case MI_NEW: return "REPLACE THIS WORLD WITH A NEW ONE"; case MI_MODE: return "SWITCH BETWEEN STORY AND FREE PLAY"; case MI_TITLE: return "SAVE AND GO TO THE TITLE SCREEN"; case MI_SIZE: return "BIGGER PLANETS TAKE LONGER TO MAKE"; case MI_STYPE: return "STORY HAS CHAPTERS, FREE PLAY HAS NONE"; case MI_GO: return "MAKE THE PLANET AND BEGIN"; default: return ""; } }
 static void uiMenuList(int x,int y,int w,int rh){
     int ids[14]; int n=menuList(ids); if(mSel>=n) mSel=n-1; char l[32], v[16]; if(y+n*rh>176) rh=(176-y)/n;
@@ -1362,6 +1444,7 @@ static void uiMenuList(int x,int y,int w,int rh){
         if(v[0]){ if(law){ uiTextR(x+w-8,yy+(rh-9)/2,v,v[1]=='N'?U_GREEN:U_RED); } else if(menuAdj(ids[i])&&sel){ uiIcon8(x+w-72,yy+(rh-10)/2,IC8_LEFT); uiIcon8(x+w-12,yy+(rh-10)/2,IC8_RIGHT); uiTextC(x+w-42,yy+(rh-9)/2,v,U_GOLD,1); } else uiTextR(x+w-8,yy+(rh-9)/2,v,sel?U_GOLD:U_DIM); } } }
 static void uiTitle(void){
     if(mScr==3){ uiCreate(); return; }
+    if(mScr==9){ uiSlots(); return; }
     uiRect(0,0,256,192,U_BG); for(int y=0;y<192;y++) if((y&3)==0) uiRect(0,y,256,1,U_PANEL);
     for(int k=0;k<70;k++){ int x=(int)(hsh(k,1,7)%256), y=(int)(hsh(k,2,7)%192); uiPx(x,y,(k&3)==0?U_WHITE:U_DIM); }
     uiPlanetSprite(204,128,planetSize==128?36:planetSize==192?42:planetSize==256?48:planetSize==384?50:planetSize==512?52:planetSize==768?54:56);
@@ -1583,6 +1666,7 @@ static void uiDialog(void){
     if(dlgChars>=tl&&((tick>>4)&1)) uiText(222,164,"A >",U_GOLD,1); else if(dlgChars<tl) uiText(196,164,"A: HURRY  B: SKIP",U_DIM,1);
     uiFlush(); }
 static void uiMenu(void){
+    if(mScr==9){ uiSlots(); return; }
     uiStatus(); for(int y=0;y<192;y++) for(int x=(y&1);x<256;x+=2) uiPx(x,y,U_SHADOW);
     uiRect(30,12,196,168,U_SHADOW); uiFrame(32,14,192,164,U_PANEL,U_GOLD,U_BLO); uiRect(33,15,190,16,U_PANELHI); uiText(42,19,mScr==0?"PAUSED":mScr==1?"SETTINGS":mScr==4?"WORLD LAWS 1/2":mScr==8?"WORLD LAWS 2/2":mScr==5?"KINGDOMS & FOLK":mScr==6?"COLLECTIONS":mScr==7?"MORE":"EXTRAS",U_GOLD,1); uiTextR(214,19,"L R: SCREENS",U_DIM);
     uiMenuList(38,(mScr==4||mScr==8)?34:36,180,(mScr==4||mScr==8)?11:mScr==0?14:16);
@@ -1602,12 +1686,32 @@ static void hud(void){
 static void menuToWorld(void){ setSize(planetSize); newWorld(); paused=1; camX=(WW*8-256)/2; camY=(WH*8-192)/2; winX=-99; refillWindow(); }
 static void menuOpenPage(int pg){ extrasView=1; page=pg; if(pg==3) juke=gmCur>=0?gmCur:0; menuOn=0; siprintf(info,"START: BACK TO MENU"); }
 static int menuRootIndex(int opener){ int save=mScr; mScr=0; int ids[14]; int n=menuList(ids); mScr=save; for(int i=0;i<n;i++) if(ids[i]==opener) return i; return 0; }
-static void menuBack(void){ int op=mScr==1?MI_OPT:mScr==2?MI_EXTRA:mScr==3?MI_CREATE:(mScr==4||mScr==8)?MI_LAWS:mScr==5?MI_PEOPLE:mScr==6?MI_COLL:mScr==7?MI_MORE:MI_RESUME; int i=menuRootIndex(op); mScr=0; mSel=i; }
+static void menuBack(void){ int op=mScr==1?MI_OPT:mScr==2?MI_EXTRA:mScr==3?MI_CREATE:(mScr==4||mScr==8)?MI_LAWS:mScr==5?MI_PEOPLE:mScr==6?MI_COLL:mScr==7?MI_MORE:mScr==9?MI_SLOTS:MI_RESUME; int i=menuRootIndex(op); mScr=0; mSel=i; }
+static void slotsInput(int kd){
+    char b[48];
+    if(kd&(KEY_B|KEY_START)){ menuBack(); fxReq(FX_MENU_MOVE); return; }
+    int n=nSlots; if(slotSel>=n) slotSel=n-1; SlotMeta*m=&slotMeta[slotSel];
+    if(kd&(KEY_UP|KEY_DOWN)){ slotSel=(slotSel+n+((kd&KEY_DOWN)?1:-1))%n; slotAsk=0; slotMsg[0]=0; fxReq(FX_MENU_MOVE); return; }
+    if(kd&KEY_A){ if(!m->used){ strcpy(slotMsg,"THIS SLOT IS EMPTY"); slotAsk=0; fxReq(FX_ERROR); }
+        else if(!titleOn&&slotAsk!=1){ slotAsk=1; strcpy(slotMsg,"PRESS A AGAIN: UNSAVED PROGRESS IS LOST"); }
+        else { slotAsk=0; LOADING("LOADING YOUR WORLD",30); if(slotLoad(slotSel)){ hasSave=1; endShown=storyDone; titleOn=0; menuOn=0; mScr=0; paused=0; if(zl!=Z_NORMAL) zSet(Z_NORMAL); refillWindow(); LOADING("READY",100); musReq(GM_NEWWORLD); siprintf(info,"LOADED SLOT %d",slotSel+1); } else { slotMeta[slotSel].used=0; strcpy(slotMsg,"THAT SAVE CANNOT BE READ"); fxReq(FX_ERROR); } } return; }
+    if((kd&KEY_X)&&!titleOn){ if(m->used&&slotAsk!=2){ slotAsk=2; siprintf(slotMsg,"PRESS X AGAIN TO OVERWRITE SLOT %d",slotSel+1); }
+        else { slotAsk=0; if(slotSave(slotSel)){ savedYear=year; hasSave=1; slotsRefresh(); siprintf(slotMsg,"SAVED TO SLOT %d",slotSel+1); fxReq(FX_SAVE); } else { slotFail(); strncpy(slotMsg,info,47); slotMsg[47]=0; fxReq(FX_ERROR); } } return; }
+    if(kd&KEY_Y){ if(!m->used){ strcpy(slotMsg,"THIS SLOT IS EMPTY"); slotAsk=0; }
+        else if(slotAsk!=3){ slotAsk=3; siprintf(slotMsg,"PRESS Y AGAIN TO CLEAR SLOT %d",slotSel+1); }
+        else { slotAsk=0; slotDelete(slotSel); slotsSettle(); siprintf(slotMsg,"SLOT %d CLEARED",slotSel+1); fxReq(FX_MENU_MOVE); } return; }
+#ifdef NDSHW
+    if(kd&(KEY_L|KEY_R)){ int nn=nSlots+((kd&KEY_R)?1:-1); if(!hwLayoutOk(nn)){ strcpy(slotMsg,nn<1?"ONE SLOT IS THE FEWEST":"SLOTS WOULD BE TOO SMALL"); return; }
+        int others=0; for(int k=1;k<nSlots;k++) others+=slotMeta[k].used; if(others&&slotAsk!=4){ slotAsk=4; strcpy(slotMsg,"SLOTS 2+ ARE CLEARED: PRESS AGAIN"); return; }
+        slotAsk=0; if(hwLayoutSet(nn)){ nSlots=hwSlots; slotsRefresh(); if(slotSel>=nSlots) slotSel=nSlots-1; if(curSlot>=nSlots) slotSelect(0); slotsSettle(); siprintf(slotMsg,"NOW %d SLOT%s OF %u KB",nSlots,nSlots>1?"S":"",(unsigned)(hwSlotSz/1024)); } else strcpy(slotMsg,"SLOT 1 IS TOO BIG FOR THAT"); return; }
+#endif
+    (void)b; }
 static void menuInput(int kd){
     int ids[14]; int n=menuList(ids); int d=((kd&KEY_RIGHT)?1:0)-((kd&KEY_LEFT)?1:0);
     if(menuAsk){ if(kd&KEY_A){ int a=menuAsk; menuAsk=0; menuOn=0; if(a==5) startWorld(!storyOn); else if(a==6) startWorld(storyOn); else if(a==8){ doSave(); titleOn=1; paused=1; mScr=0; mSel=0; newWorld(); camX=(WW*8-256)/2; camY=(WH*8-192)/2; hasSave=sdOk; musReq(GM_TITLE); } } if(kd&(KEY_B|KEY_START)){ menuAsk=0; menuOn=1; } return; }
     if(titleOn&&konami>=4) return;          // the secret code is in progress: the menu holds still
     if(mScr==3){ createInput(kd); return; }
+    if(mScr==9){ slotsInput(kd); return; }
     if(!titleOn&&(kd&KEY_START)){ menuOn=0; paused=dlgPaused; return; }
     if(kd&KEY_UP) mSel=(mSel+n-1)%n; if(kd&KEY_DOWN) mSel=(mSel+1)%n;
     if(!titleOn&&(kd&(KEY_L|KEY_R))&&mScr!=3){ static const u8 tabs[7]={0,4,8,5,6,1,7}; int cur=0; for(int k=0;k<7;k++) if(tabs[k]==mScr) cur=k; cur=(cur+((kd&KEY_R)?1:6))%7; mScr=tabs[cur]; mSel=0; fxReq(FX_MENU_MOVE); return; }      // L / R: the next / previous screen of the pause menu
@@ -1616,13 +1720,13 @@ static void menuInput(int kd){
     if(d){ switch(id){ case MI_SIZE: setSize(sizeStep(planetSize,d>0?1:-1)); fxReq(FX_MENU_MOVE); break; case MI_STYPE: storyOn^=1; break;
             case MI_DIFF: diff=(diff+3+d)%3; break; case MI_SPEED: speedMul=d>0?(speedMul==1?2:speedMul==2?4:1):(speedMul==1?4:speedMul==2?1:2); break; case MI_VOL: gmMaster+=d*10; if(gmMaster<0) gmMaster=0; if(gmMaster>100) gmMaster=100; break; case MI_MON: monOn^=1; break; default: if(id>=MI_LAW0&&id<MI_LAW0+LW_N) toggleLaw(id-MI_LAW0); break; } }
     if(kd&KEY_A){ switch(id){
-        case MI_CONT: if(hasSave){ LOADING("LOADING YOUR WORLD",30); loadGame(savePath); endShown=storyDone; titleOn=0; paused=0; refillWindow(); LOADING("READY",100); musReq(GM_NEWWORLD); } else startWorld(1); break;
+        case MI_CONT: if(hasSave){ LOADING("LOADING YOUR WORLD",30); slotLoad(curSlot); endShown=storyDone; titleOn=0; paused=0; refillWindow(); LOADING("READY",100); musReq(GM_NEWWORLD); } else startWorld(1); break;
         case MI_CREATE: mScr=3; mSel=0; createStart(); break; case MI_GO: startWorld(storyOn); break;
         case MI_OPT: mScr=1; mSel=0; break; case MI_EXTRA: mScr=2; mSel=0; break; case MI_BACK: menuBack(); break;
         case MI_LAWS: mScr=4; mSel=0; break; case MI_PEOPLE: mScr=5; mSel=0; break; case MI_COLL: mScr=6; mSel=0; break; case MI_MORE: mScr=7; mSel=0; break; case MI_FAVS: brCat=0; brSel=0; menuOpenPage(12); break;
         case MI_SIZE: case MI_DIFF: case MI_VOL: case MI_MON: case MI_SPEED: break;
         case MI_SCULPT: if(auralOK()) menuOpenPage(3); else { siprintf(info,"UNLOCK IN STORY CHAPTER 3"); fxReq(FX_ERROR); } break;
-        case MI_BROWSE: menuOpenPage(12); break; case MI_AIR: menuOpenPage(13); break; case MI_KING: menuOpenPage(7); break; case MI_CULT: menuOpenPage(10); break; case MI_LANG: menuOpenPage(11); break; case MI_JOURNAL: menuOpenPage(8); jrSel=0; break; case MI_ACH: menuOpenPage(9); break; case MI_BEST: menuOpenPage(2); break; case MI_CODEX: menuOpenPage(5); break; case MI_HELP: menuOpenPage(6); break; case MI_DEBUG: menuOpenPage(4); break;
+        case MI_BROWSE: menuOpenPage(12); break; case MI_AIR: menuOpenPage(13); break; case MI_SLOTS: mScr=9; mSel=0; slotSel=curSlot; slotAsk=0; slotMsg[0]=0; slotsRefresh(); break; case MI_KING: menuOpenPage(7); break; case MI_CULT: menuOpenPage(10); break; case MI_LANG: menuOpenPage(11); break; case MI_JOURNAL: menuOpenPage(8); jrSel=0; break; case MI_ACH: menuOpenPage(9); break; case MI_BEST: menuOpenPage(2); break; case MI_CODEX: menuOpenPage(5); break; case MI_HELP: menuOpenPage(6); break; case MI_DEBUG: menuOpenPage(4); break;
         case MI_CRED: menuOn=0; sceneStart(credTxt,1); musReq(GM_CREDITS); break;
         case MI_RESUME: menuOn=0; paused=dlgPaused; break; case MI_SAVE: doSave(); menuOn=0; paused=dlgPaused; break;
         default: if(id>=MI_LAW0&&id<MI_LAW0+LW_N) toggleLaw(id-MI_LAW0); break; case MI_NEW: menuAsk=6; break; case MI_MODE: menuAsk=5; break; case MI_TITLE: menuAsk=8; break; } } }
@@ -1657,7 +1761,7 @@ int main(void){
     gpId=soundPlayPSG(DutyCycle_50,440,0,64); gnId=soundPlayNoise(8000,0,64);
 #endif
     makeSpecies(); makeItems(); makeTiles(); makeSprites(); tbInit(); saveBasePal();
-    if(sdOk){ hasSave=loadGame(savePath); }
+    if(sdOk){ slotsInit(); hasSave=slotMeta[curSlot].used&&slotLoad(curSlot); }
     if(!hasSave){ planetSize=128; newWorld(); } camX=(WW*8-256)/2; camY=(WH*8-192)/2; paused=1; if(hasSave){ camX=camX>WW*8-256?WW*8-256:camX; }
     musReq(GM_TITLE); musUpdate();
     int held=0, lastTx=-9, lastTy=-9; hud();
@@ -1721,7 +1825,7 @@ int main(void){
                     case 13: if(go){ int r=spSel<8?sp[spSel].a:0; siprintf(info,vilFound(r,cx,cy)>=0?"VILLAGE FOUNDED":"NO ROOM"); } break;
                     case 14: if(go){ for(int m=0;m<320;m++){ int sI=8+(ARCH_A+m/16-8)*16+m%16; slainB[sI>>3]|=(u8)(1<<(sI&7)); } stKill+=50; siprintf(info,"ALL 320 SLAIN"); } break;
                     case 15: if(go&&chapter<CHAP_N) chapterDone(); break;
-                    case 16: if(d<0) doSave(); else if(d>0||go){ if(sdOk&&loadGame(savePath)){ refillWindow(); siprintf(info,"LOADED"); } else siprintf(info,"NO SAVE TO LOAD"); } if(go&&(kh&KEY_B)){ if(sdOk){ remove(savePath); hasSave=0; siprintf(info,"SAVE ERASED"); } } break;
+                    case 16: if(d<0) doSave(); else if(d>0||go){ if(sdOk&&slotLoad(curSlot)){ refillWindow(); siprintf(info,"LOADED"); } else siprintf(info,"NO SAVE TO LOAD"); } if(go&&(kh&KEY_B)){ if(sdOk){ slotDelete(curSlot); slotsSettle(); siprintf(info,"SLOT ERASED"); } } break;
                     case 17: dbgFx=(dbgFx+GM_FX+d)%GM_FX; if(go||d) fxPlay(dbgFx); break; case 18: if(go||d) auralOpen^=1; break; case 20: seedFix=(seedFix?seedFix:worldSeed)+(d?d:0); if(!seedFix) seedFix=1; break;
                     case 21: if(go){ if(!seedFix) seedFix=worldSeed; startWorld(storyOn); seedFix=0; siprintf(info,"SEED %04X",(unsigned)(worldSeed&0xFFFF)); page=0; } break;
                     case 22: if(go){ int n=0; for(int k=0;k<400&&n<50;k++){ int i=rnd()%(nCr?nCr:1); if(nCr&&cr[i].alive){ giveTrait(&cr[i],1+(int)(rnd()%(TR_N-1)),0); cr[i].hp=(u8)maxHp(&cr[i]); n++; } } siprintf(info,"%d MUTATED",n); } break;
