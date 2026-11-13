@@ -182,3 +182,6 @@ Found a readable copy of the Official WorldBox Wiki (its API is open; the pages 
 
 ### v0.28 crowding
 - Breeding now slows as the 5 x 5 tiles around a creature fill up (half full: births taper; 13 of 25: none), so the land is no longer wall-to-wall creatures and villages and buildings stay visible at close zoom. A 128 planet settles near 3,600 creatures after 20,000 ticks instead of 4,000 to 7,000.
+
+### v0.29 laws against endless growth
+- Two new world laws on the second law screen, both ON like the original's growth limits: **CROWDING** (no births where the 5 x 5 tiles around a creature are packed) and **WORLD LIMIT** (animals stop breeding when creatures fill a third of the planet's tiles). Switch them off for the old unlimited growth. The law screen was re-spaced to fit 13 rows.

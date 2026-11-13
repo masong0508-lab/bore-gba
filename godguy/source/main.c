@@ -24,15 +24,15 @@ static u8 vilK[VIL_N]; static s8 vilL[VIL_N];
 static int zombA=-1; static u8 vilSick[VIL_N>64?VIL_N:64];     // vilSick: sick folk met near a village this season (for the journal line)
 static u32 lawOff;      // World Laws (the list and the defaults of WorldBox's own law panel, as far as this game has the mechanics): stored as the switches that differ from the defaults, so 0 = all defaults
 enum { LW_AGE, LW_HUNGER, LW_CIVBABY, LW_ANIBABY, LW_PEACEMON, LW_MUTBOX, LW_MUTATE, LW_EROSION, LW_TREES, LW_LAVA, LW_WEATHER,
-       LW_DIPLOMACY, LW_REBEL, LW_GROWTH, LW_POP100, LW_GAIA, LW_NATDIS, LW_OTHERDIS, LW_PLAGUE, LW_MONSTER, LW_BIOME, LW_ATMO, LW_N };
+       LW_DIPLOMACY, LW_REBEL, LW_GROWTH, LW_POP100, LW_GAIA, LW_NATDIS, LW_OTHERDIS, LW_PLAGUE, LW_MONSTER, LW_BIOME, LW_ATMO, LW_CROWD, LW_LIMIT, LW_N };
 #define LAWDEF (~((1u<<LW_PEACEMON)|(1u<<LW_MUTBOX)|(1u<<LW_LAVA)|(1u<<LW_POP100)|(1u<<LW_GAIA)))      // off by default, like WorldBox: peaceful monsters, mutant box, eternal lava, 100 people, Gaia's covenant
 #define LAW(i) (((((u32)LAWDEF)>>(i))&1)^((lawOff>>(i))&1))
 static const char* const lawNm[LW_N]={"OLD AGE","HUNGER","CIV BABIES","ANIMAL BABIES","PEACEFUL MONSTERS","MUTANT BOX","MUTATIONS","EROSION","TREES GROWTH","ETERNAL LAVA","WEATHER",
-    "DIPLOMACY","REBELLIONS","CITY GROWTH","100 PEOPLE","GAIA'S COVENANT","NATURAL DISASTERS","OTHER DISASTERS","PLAGUE","MONSTERS","BIOME SPREAD","ATMOSPHERE"};
+    "DIPLOMACY","REBELLIONS","CITY GROWTH","100 PEOPLE","GAIA'S COVENANT","NATURAL DISASTERS","OTHER DISASTERS","PLAGUE","MONSTERS","BIOME SPREAD","ATMOSPHERE","CROWDING","WORLD LIMIT"};
 static const char* const lawDs[LW_N]={"CREATURES CAN DIE OF OLD AGE","EVERYONE NEEDS FOOD TO LIVE","CHILDREN ARE BORN IN VILLAGES","BABY ANIMALS AND MONSTERS ARE BORN","ANIMALS AND MONSTERS WON'T ATTACK ANYONE","NEW CREATURES ARE BORN WITH RANDOM TRAITS","NEW SUBSPECIES APPEAR ON THEIR OWN","SHORES SLOWLY TURN TO SAND","FORESTS GROW AND SPREAD","LAVA STAYS FOREVER AND NEVER COOLS","RAIN, STORMS AND SNOW COME AND GO",
-    "KINGDOMS MAKE WARS, ALLIANCES AND PEACE","CITIES WITH LOW LOYALTY LEAVE THEIR KINGDOM","VILLAGES GROW, BUILD AND SPREAD","VILLAGES HOLD AT MOST 100 PEOPLE","FIRE, BOMBS AND DISASTERS DO NOT DAMAGE THE LAND","COMETS, TORNADOES AND STORMS HAPPEN BY THEMSELVES","DRAGONS, WILD MAGES, ACID RAIN AND OTHER TROUBLE","SICKNESS SPREADS AND ZOMBIES RISE","MONSTERS ROAM THE WILD","CORRUPTION, INFERNO AND ENCHANTMENT CREEP","AIR, WARMTH AND DUST CHANGE WITH LIFE AND FIRE"};
+    "KINGDOMS MAKE WARS, ALLIANCES AND PEACE","CITIES WITH LOW LOYALTY LEAVE THEIR KINGDOM","VILLAGES GROW, BUILD AND SPREAD","VILLAGES HOLD AT MOST 100 PEOPLE","FIRE, BOMBS AND DISASTERS DO NOT DAMAGE THE LAND","COMETS, TORNADOES AND STORMS HAPPEN BY THEMSELVES","DRAGONS, WILD MAGES, ACID RAIN AND OTHER TROUBLE","SICKNESS SPREADS AND ZOMBIES RISE","MONSTERS ROAM THE WILD","CORRUPTION, INFERNO AND ENCHANTMENT CREEP","AIR, WARMTH AND DUST CHANGE WITH LIFE AND FIRE","NO BIRTHS WHERE THE GROUND IS PACKED","ANIMALS STOP BREEDING WHEN THEY FILL A THIRD OF THE WORLD"};
 static const u8 lawScrA[11]={LW_AGE,LW_HUNGER,LW_CIVBABY,LW_ANIBABY,LW_PEACEMON,LW_MUTBOX,LW_MUTATE,LW_EROSION,LW_TREES,LW_LAVA,LW_WEATHER};      // the first law screen: life and land
-static const u8 lawScrB[11]={LW_DIPLOMACY,LW_REBEL,LW_GROWTH,LW_POP100,LW_GAIA,LW_NATDIS,LW_OTHERDIS,LW_PLAGUE,LW_MONSTER,LW_BIOME,LW_ATMO};                        // the second: kingdoms and disasters
+static const u8 lawScrB[13]={LW_DIPLOMACY,LW_REBEL,LW_GROWTH,LW_POP100,LW_GAIA,LW_NATDIS,LW_OTHERDIS,LW_PLAGUE,LW_MONSTER,LW_BIOME,LW_ATMO,LW_CROWD,LW_LIMIT};                        // the second: kingdoms and disasters
 static coord_t zq[16][2]; static int zqN;      // where plague victims turned zombie fell: they rise at the end of the tick
 static BIGMEM u8 sick[MAXC];     // plague: 0 healthy, 1 sick (loses health, slow, spreads to neighbours), 2 recovered and immune. (Not saved: a loaded world starts healthy.)
 static int camX, camY;             // camera, in world pixels
@@ -667,7 +667,7 @@ static void thinkBody(int i){
             for(int k=0;k<2;k++){ int ax=(k==try1)?sx:0, ay=(k==try1)?0:sy; if(!ax&&!ay) continue; int nx=c->x+ax, ny=c->y+ay; if(walkable(s,nx,ny)&&!occ[ny][nx]){ moveTo(c,i,nx,ny); return; } } } }
     // breed
     int crowd=0; for(int dy=-2;dy<=2;dy++){ int yy=c->y+dy; if(yy<0||yy>=WH) continue; for(int dx=-2;dx<=2;dx++){ int xx=c->x+dx; if(xx>=0&&xx<WW&&occ[yy][xx]) crowd++; } }      // crowding: no room, fewer births (a packed tile block stops breeding at 13 of 25)
-    int bch=A->breed; if(crowd>=13) bch=0; else if(crowd>6) bch=bch*(13-crowd)/7; if(diet==4){ int vn=vilNear(s->a,c->x,c->y,8); if(vn>=0){ bch*=2; bch=bch*(100+vilMood(vn)/2)/100; } } if(HAS(c,TR_FERTILE)) bch=bch*3/2; if(HAS(c,TR_TINY)) bch=bch*13/10; if(HAS(c,TR_CLEVER)) bch=bch*13/10; if(HAS(c,TR_MUNCH)) bch=bch*14/10;
+    int bch=A->breed; if(LAW(LW_CROWD)){ if(crowd>=13) bch=0; else if(crowd>6) bch=bch*(13-crowd)/7; } if(LAW(LW_LIMIT)&&diet!=4&&diet!=5&&nCr>WW*WH/3) bch=0; if(diet==4){ int vn=vilNear(s->a,c->x,c->y,8); if(vn>=0){ bch*=2; bch=bch*(100+vilMood(vn)/2)/100; } } if(HAS(c,TR_FERTILE)) bch=bch*3/2; if(HAS(c,TR_TINY)) bch=bch*13/10; if(HAS(c,TR_CLEVER)) bch=bch*13/10; if(HAS(c,TR_MUNCH)) bch=bch*14/10;
     if(((A->diet==4||sp[c->sp].a<8)?LAW(LW_CIVBABY):LAW(LW_ANIBABY))&&!(LAW(LW_POP100)&&A->diet==4&&({ int full=0; for(int vv=0;vv<VIL_N&&!full;vv++){ int dx_=vil[vv].x-c->x, dy_=vil[vv].y-c->y; if(vil[vv].on&&vil[vv].race==s->a&&dx_*dx_+dy_*dy_<=100&&vil[vv].pop>=100) full=1; } full; }))&&c->food>=80&&c->age>8&&(int)(rnd()%100)<bch&&nCr<MAXC-4){ int d=rnd()&3; int nx=c->x+dxs[d], ny=c->y+dys[d]; int n=addCr(c->sp,nx,ny); if(n>=0){ cr[n].age=0; cr[n].food=50; born(&cr[n],&cr[i]); c->food-=40; return; } }
     // wander
     if((rnd()&3)!=0){ int d=rnd()&3; int nx=c->x+dxs[d], ny=c->y+dys[d]; if(walkable(s,nx,ny)&&!occ[ny][nx]) moveTo(c,i,nx,ny); }
@@ -1443,14 +1443,14 @@ static void uiSlots(void){
     if(hwCap>=192u*1024){ uiRound(184,by,32,14,U_SEL,U_BHI); uiTextC(200,by+3,"L -",U_WHITE,1); uiBtn(184,by,32,14,KEY_L,0,0,0); uiRound(220,by,32,14,U_SEL,U_BHI); uiTextC(236,by+3,"R +",U_WHITE,1); uiBtn(220,by,32,14,KEY_R,0,0,0); }
 #endif
     uiFlush(); }
-enum { MI_CONT, MI_STORY, MI_FREE, MI_OPT, MI_EXTRA, MI_BACK, MI_SIZE, MI_DIFF, MI_VOL, MI_MON, MI_SCULPT, MI_BEST, MI_CODEX, MI_HELP, MI_CRED, MI_DEBUG, MI_RESUME, MI_SAVE, MI_NEW, MI_MODE, MI_TITLE, MI_CREATE, MI_GO, MI_STYPE, MI_SPEED, MI_KING, MI_JOURNAL, MI_ACH, MI_CULT, MI_LANG, MI_BROWSE, MI_LAW0, MI_LAW1, MI_LAW2, MI_LAW3, MI_LAW4, MI_LAW5, MI_LAW6, MI_LAW7, MI_LAW8, MI_LAW9, MI_LAW10, MI_LAW11, MI_LAW12, MI_LAW13, MI_LAW14, MI_LAW15, MI_LAW16, MI_LAW17, MI_LAW18, MI_LAW19, MI_LAW20, MI_LAW21, MI_LAWS, MI_FAVS, MI_PEOPLE, MI_COLL, MI_MORE, MI_AIR, MI_SLOTS };
+enum { MI_CONT, MI_STORY, MI_FREE, MI_OPT, MI_EXTRA, MI_BACK, MI_SIZE, MI_DIFF, MI_VOL, MI_MON, MI_SCULPT, MI_BEST, MI_CODEX, MI_HELP, MI_CRED, MI_DEBUG, MI_RESUME, MI_SAVE, MI_NEW, MI_MODE, MI_TITLE, MI_CREATE, MI_GO, MI_STYPE, MI_SPEED, MI_KING, MI_JOURNAL, MI_ACH, MI_CULT, MI_LANG, MI_BROWSE, MI_LAW0, MI_LAW1, MI_LAW2, MI_LAW3, MI_LAW4, MI_LAW5, MI_LAW6, MI_LAW7, MI_LAW8, MI_LAW9, MI_LAW10, MI_LAW11, MI_LAW12, MI_LAW13, MI_LAW14, MI_LAW15, MI_LAW16, MI_LAW17, MI_LAW18, MI_LAW19, MI_LAW20, MI_LAW21, MI_LAW22, MI_LAW23, MI_LAWS, MI_FAVS, MI_PEOPLE, MI_COLL, MI_MORE, MI_AIR, MI_SLOTS };
 static int extrasView;      // which menu (0 main, 1 options, 2 extras), the highlighted row, a pending "are you sure", and whether an extras page is open
 static int menuList(int*ids){ int n=0, ctx=titleOn?0:1;
     if(ctx==1){          // the pause menu: a short root (what you do most), and five small screens behind it. L / R walk through them
         if(mScr==0){ ids[n++]=MI_RESUME; ids[n++]=MI_SAVE; ids[n++]=MI_SLOTS; ids[n++]=MI_FAVS; ids[n++]=MI_LAWS; ids[n++]=MI_PEOPLE; ids[n++]=MI_COLL; ids[n++]=MI_OPT; ids[n++]=MI_MORE; }
         else if(mScr==1){ ids[n++]=MI_DIFF; ids[n++]=MI_SPEED; ids[n++]=MI_VOL; ids[n++]=MI_MON; ids[n++]=MI_BACK; }
         else if(mScr==4){ for(int i=0;i<11;i++) ids[n++]=MI_LAW0+lawScrA[i]; }
-        else if(mScr==8){ for(int i=0;i<11;i++) ids[n++]=MI_LAW0+lawScrB[i]; }
+        else if(mScr==8){ for(int i=0;i<13;i++) ids[n++]=MI_LAW0+lawScrB[i]; }
         else if(mScr==5){ ids[n++]=MI_KING; ids[n++]=MI_CULT; ids[n++]=MI_LANG; ids[n++]=MI_JOURNAL; ids[n++]=MI_BACK; }
         else if(mScr==6){ ids[n++]=MI_BROWSE; ids[n++]=MI_AIR; ids[n++]=MI_BEST; ids[n++]=MI_CODEX; ids[n++]=MI_ACH; ids[n++]=MI_SCULPT; ids[n++]=MI_BACK; }
         else { ids[n++]=MI_NEW; ids[n++]=MI_MODE; ids[n++]=MI_TITLE; ids[n++]=MI_HELP; ids[n++]=MI_CRED; if(debugOn) ids[n++]=MI_DEBUG; ids[n++]=MI_BACK; }
@@ -1722,9 +1722,9 @@ static void uiMenu(void){
     if(mScr==9){ uiSlots(); return; }
     uiStatus(); for(int y=0;y<192;y++) for(int x=(y&1);x<256;x+=2) uiPx(x,y,U_SHADOW);
     uiRect(30,12,196,168,U_SHADOW); uiFrame(32,14,192,164,U_PANEL,U_GOLD,U_BLO); uiRect(33,15,190,16,U_PANELHI); uiText(42,19,mScr==0?"PAUSED":mScr==1?"SETTINGS":mScr==4?"WORLD LAWS 1/2":mScr==8?"WORLD LAWS 2/2":mScr==5?"KINGDOMS & FOLK":mScr==6?"COLLECTIONS":mScr==7?"MORE":"EXTRAS",U_GOLD,1); uiTextR(214,19,"L R: SCREENS",U_DIM);
-    uiMenuList(38,(mScr==4||mScr==8)?34:36,180,(mScr==4||mScr==8)?11:mScr==0?14:16);
+    uiMenuList(38,(mScr==4||mScr==8)?32:36,180,(mScr==4||mScr==8)?10:mScr==0?14:16);
     if(mScr>0){ uiRound(176,162,44,12,U_SEL,U_GOLD); uiTextC(198,165,"BACK",U_WHITE,1); uiBtn(174,160,48,16,KEY_B,0,0,0); }
-    if(menuAsk){ uiRect(40,154,176,20,U_RED); uiTextC(128,160,"ARE YOU SURE?   A YES   B NO",U_WHITE,1); uiBtn(40,154,88,20,KEY_A,0,0,0); uiBtn(128,154,88,20,KEY_B,0,0,0); } else if(mScr!=2&&mScr!=3){ int ids[14]; menuList(ids); uiWrap(40,(mScr==4||mScr==8)?158:152,24,(mScr==4||mScr==8)?2:3,menuDesc(ids[mSel]),U_LGREY); }
+    if(menuAsk){ uiRect(40,154,176,20,U_RED); uiTextC(128,160,"ARE YOU SURE?   A YES   B NO",U_WHITE,1); uiBtn(40,154,88,20,KEY_A,0,0,0); uiBtn(128,154,88,20,KEY_B,0,0,0); } else if(mScr!=2&&mScr!=3){ int ids[14]; menuList(ids); uiWrap(40,(mScr==4||mScr==8)?165:152,24,(mScr==4||mScr==8)?2:3,menuDesc(ids[mSel]),U_LGREY); }
     uiFlush(); }
 static int uiScrId=-1, uiScrDepth, uiTabDir;
 static void hud(void){
