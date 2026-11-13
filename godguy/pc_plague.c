@@ -14,4 +14,6 @@ int main(int argc,char**argv){
     int a=-1,b=-1; for(int i=0;i<nCr;i++) if(cr[i].alive&&sick[i]==0){ if(a<0) a=i; else { b=i; break; } }
     if(a>=0&&b>=0){ sick[a]=1; sick[b]=1; }
     printf("plague: peak %d sick at once, %d immune at the end, creatures %d -> %d, still sick %d\n",peak,end_imm,alive0,alive1,sk);
+    int z=0; for(int i=0;i<nCr;i++) if(cr[i].alive&&!strcmp(arch[sp[cr[i].sp].a].nm,"ZOMBIE")) z++; int pj=0; for(int i=0;i<jrN;i++) if(strstr(jr[i],"PLAGUE IN")) pj++;
+    printf("zombies alive %d, journal lines \"PLAGUE IN ...\" %d\n",z,pj);
     printf("%s\n",(peak>=3&&end_imm>0)?"PLAGUE OK":"PLAGUE WEAK"); return 0; }

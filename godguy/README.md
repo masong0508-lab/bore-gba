@@ -95,3 +95,7 @@ While a menu, page, dialogue or scene is open the screens swap: the interface mo
 
 ### v0.13.1 plague
 New power PLAGUE (red, disaster strip) and now and then a world event: a plague breaks out. Sick creatures lose health, move 30% slower, show a flickering green mark and pass the sickness to anything within two tiles (22% next to them, 8% a tile further; thick-hided and regenerating ones resist); about 3% a turn recover and become immune (12% for regenerating / enlightened ones). HEAL cures at once and leaves the creature immune. The inspect card says SICK (PLAGUE) or IMMUNE NOW (the first version cut that line off; found with a screenshot). Not saved: a loaded world starts healthy. Test: pc_plague.c. Also fixed a buffer that could overflow in the alliance-break journal line.
+
+### v0.14 plague 2, zombies, 3DS fixes
+- Folk who die of the plague sometimes rise as ZOMBIES (20% for folk, 8% for beasts): they carry the plague without suffering from it and keep spreading it. Sick folk near a village drain its store, and a village with a dozen sick in a year gets a journal line (PLAGUE IN <name>).
+- 3DS port: New 3DS speed-up switched on (`osSetSpeedupEnable`), the screen copy now goes through 8x8 tiles (byte-identical output, checked on the PC; far kinder to the 3DS's small cache) and the audio queue is 8 buffers deep (about 140 ms) so a slow frame no longer drops sound. `3ds/build.sh` works with the libctru from the devkitPro download (`godguy.3dsx` 576 KB). Still untested on real 3DS hardware or an emulator (none here).

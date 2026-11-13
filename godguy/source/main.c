@@ -17,6 +17,7 @@ int gW=128, gH=128;
 u8 world[MAXD][MAXD];
 static u16 occ[MAXD][MAXD];            // creature index + 1 standing on a tile
 static Cr cr[MAXC]; static int nCr;
+static int zombA=-1; static u8 vilSick[64];     // vilSick: sick folk met near a village this season (for the journal line)
 static u8 sick[MAXC];     // plague: 0 healthy, 1 sick (loses health, slow, spreads to neighbours), 2 recovered and immune. (Not saved: a loaded world starts healthy.)
 static int camX, camY;             // camera, in world pixels
 static int power=1, brush=2, spSel=40, paused=0, tick=0, year=0;
@@ -465,9 +466,17 @@ static void thinkBody(int i){
     Cr*c=&cr[i]; if(!c->alive) return; const Sp*s=&sp[c->sp]; const Arch*A=&arch[s->a];
     if(c->age<255) c->age++; { int dec=(HAS(c,TR_LEAN)||HAS(c,TR_CHILL))?1:HAS(c,TR_MUNCH)?3:2; if(c->food>dec) c->food-=dec; else c->food=0; }
     if(sick[i]==1){          // the plague: it wears the body down, passes to whoever stands next to it, and mostly burns itself out
-        if((tick&3)==0&&c->hp>1&&!HAS(c,TR_ZEN)) c->hp--; else if(c->hp<=1&&rnd()%3==0){ killNat(i); return; }
+        int mon=(A->diet==5);      // monsters (zombies) carry it without suffering from it
+        if(!mon&&(tick&3)==0&&c->hp>1&&!HAS(c,TR_ZEN)) c->hp--;
+        else if(!mon&&c->hp<=1&&rnd()%3==0){    // death by plague: sometimes the body gets up again as a zombie that keeps spreading it
+            int x0=c->x, y0=c->y, rise=(A->diet==4?20:8)>(int)(rnd()%100); killNat(i);
+            if(rise){ if(zombA<0) for(int a2=8;a2<ARCH_N;a2++) if(!strcmp(arch[a2].nm,"ZOMBIE")) zombA=a2;
+                if(zombA>=8){ int k2=addCr(8+(zombA-8)*16+(int)(rnd()&15),x0,y0); if(k2>=0){ sick[k2]=1; cr[k2].hp=(u8)maxHp(&cr[k2]); siprintf(info,"A ZOMBIE RISES"); } } }
+            return; }
         for(int dy=-2;dy<=2;dy++) for(int dx=-2;dx<=2;dx++){ int x=c->x+dx, y=c->y+dy; if((dx||dy)&&x>=0&&y>=0&&x<WW&&y<WH&&occ[y][x]){ int j=occ[y][x]-1; if(sick[j]==0&&cr[j].alive&&(int)(rnd()%100)<(HAS(&cr[j],TR_REGEN)||HAS(&cr[j],TR_HIDE)?4:(abs(dx)+abs(dy)<=1?22:8))) sick[j]=1; } }
-        if(rnd()%100<(HAS(c,TR_REGEN)||HAS(c,TR_ZEN)?12:3)) sick[i]=2; }
+        if(!mon&&rnd()%100<(HAS(c,TR_REGEN)||HAS(c,TR_ZEN)?12:3)) sick[i]=2;
+        if(A->diet==4){ int v=vilNear(s->a,c->x,c->y,8); if(v>=0){ if(vil[v].stock>0&&(tick&7)==0) vil[v].stock--;      // sick folk eat and do not work: the store drains
+                if(vilSick[v]<255) vilSick[v]++; if(vilSick[v]==12){ char vn[24], b[40]; vilName(v,vn); siprintf(b,"PLAGUE IN %.20s",vn); logEv(b); } } } }
     if(A->diet==5) c->food=100;
     if(c->food==0){ if(c->hp>2) c->hp-=2; else { killNat(i); return; } }
     { int lim=A->life+(HAS(c,TR_LONG)?A->life/2:0); if(lim>254) lim=254; if(c->age>lim){ killNat(i); return; } }
@@ -544,6 +553,7 @@ static void volcanoTick(void){   // lava creeps over nearby ground now and then,
     if(rnd()%90==0&&(t==T_MOUNT||t==T_HILL||t==T_DIRT||t==T_GRASS||t==T_FOREST||t==T_DESERT)){ setCell(nx,ny,T_LAVA); if(occ[ny][nx]) killCr(occ[ny][nx]-1); if(bld[ny][nx]){ bld[ny][nx]=0; putCell(nx,ny); } }
     else if(rnd()%400==0) setCell(x,y,T_MOUNT); }
 static void eventTick(void){   // now and then the world has an event of its own
+    if(tick%1200==0) memset(vilSick,0,sizeof vilSick);
     if(tick<1500||(tick%1500)!=0||rnd()%3) return; int e=(int)(rnd()%5);
     if(e==0){ for(int k=0;k<6;k++){ int x=rnd()%WW, y=rnd()%WH; burnAt(x,y,255); if(world[y][x]!=T_WATER&&world[y][x]!=T_DEEP&&world[y][x]!=T_MOUNT) setCell(x,y,(rnd()&1)?T_DIRT:T_LAVA); if(occ[y][x]) killCr(occ[y][x]-1); } siprintf(info,"A COMET SHOWER"); flashT=8; fxReq(FX_METEOR); }
     else if(e==1){ for(int v=0;v<VIL_N;v++) if(vil[v].on) vil[v].stock=(u16)(vil[v].stock+100>400?400:vil[v].stock+100); siprintf(info,"A BOUNTIFUL HARVEST"); fxReq(FX_BLESS); }
