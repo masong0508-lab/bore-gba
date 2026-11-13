@@ -21,7 +21,7 @@ void shimInput(int frame,int*held,int*tx,int*ty){
             case 26: menuOn=1; mScr=2; mSel=5; break; case 27: titleOn=1; mScr=2; mSel=3; break; case 28: menuOn=1; mScr=1; mSel=1; break;
             case 29: page=10; extrasView=1; break; case 30: page=11; extrasView=1; langSel=2; break; case 31: page=7; extrasView=1; break;
             case 32: { int v=0; for(int i=0;i<VIL_N;i++) if(vil[i].on&&vil[i].pop>3){ v=i; break; } inspKind=2; inspIdx=v; inspT=900; page=0; } break;
-            case 33: { int ci=0; for(int i=0;i<nCr;i++) if(cr[i].alive&&cr[i].rk){ ci=i; break; } if(!cr[ci].rk) for(int i=0;i<nCr;i++) if(cr[i].alive&&arch[sp[cr[i].sp].a].diet==5){ ci=i; break; } inspKind=1; inspIdx=ci; inspT=900; page=0; } break;
+            case 33: { int ci=0; for(int i=0;i<nCr;i++) if(cr[i].alive&&cr[i].rk){ ci=i; break; } if(!cr[ci].rk) for(int i=0;i<nCr;i++) if(cr[i].alive&&arch[sp[cr[i].sp].a].diet==5){ ci=i; break; } for(int i=0;i<nCr;i++) if(cr[i].alive&&abs(cr[i].x-cr[ci].x)<=6&&abs(cr[i].y-cr[ci].y)<=6) sick[i]=1; sick[ci]=1; inspKind=1; inspIdx=ci; inspT=900; page=0; } break;
             case 34: inspT=0; page=0; power=24; break; case 35: page=8; extrasView=1; break; case 36: titleOn=1; mScr=0; mSel=1; break;
             case 37: page=12; extrasView=1; brCat=2; brSel=0; for(int v=0;v<VIL_N;v++) if(vil[v].on){ favVil[v]=1; break; } favKd[0]=1; favPow[4]=1; break; case 38: page=12; extrasView=1; brCat=0; brSel=0; break; case 39: page=12; extrasView=1; brCat=3; brSel=0; break;
             default: page=0; break; } hud(); } }

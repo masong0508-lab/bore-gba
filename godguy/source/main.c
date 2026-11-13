@@ -466,8 +466,8 @@ static void thinkBody(int i){
     if(c->age<255) c->age++; { int dec=(HAS(c,TR_LEAN)||HAS(c,TR_CHILL))?1:HAS(c,TR_MUNCH)?3:2; if(c->food>dec) c->food-=dec; else c->food=0; }
     if(sick[i]==1){          // the plague: it wears the body down, passes to whoever stands next to it, and mostly burns itself out
         if((tick&3)==0&&c->hp>1&&!HAS(c,TR_ZEN)) c->hp--; else if(c->hp<=1&&rnd()%3==0){ killNat(i); return; }
-        for(int dy=-2;dy<=2;dy++) for(int dx=-2;dx<=2;dx++){ int x=c->x+dx, y=c->y+dy; if((dx||dy)&&x>=0&&y>=0&&x<WW&&y<WH&&occ[y][x]){ int j=occ[y][x]-1; if(sick[j]==0&&cr[j].alive&&(int)(rnd()%100)<(HAS(&cr[j],TR_REGEN)||HAS(&cr[j],TR_HIDE)?5:(abs(dx)+abs(dy)<=1?28:12))) sick[j]=1; } }
-        if(rnd()%100<(HAS(c,TR_REGEN)||HAS(c,TR_ZEN)?10:2)) sick[i]=2; }
+        for(int dy=-2;dy<=2;dy++) for(int dx=-2;dx<=2;dx++){ int x=c->x+dx, y=c->y+dy; if((dx||dy)&&x>=0&&y>=0&&x<WW&&y<WH&&occ[y][x]){ int j=occ[y][x]-1; if(sick[j]==0&&cr[j].alive&&(int)(rnd()%100)<(HAS(&cr[j],TR_REGEN)||HAS(&cr[j],TR_HIDE)?4:(abs(dx)+abs(dy)<=1?22:8))) sick[j]=1; } }
+        if(rnd()%100<(HAS(c,TR_REGEN)||HAS(c,TR_ZEN)?12:3)) sick[i]=2; }
     if(A->diet==5) c->food=100;
     if(c->food==0){ if(c->hp>2) c->hp-=2; else { killNat(i); return; } }
     { int lim=A->life+(HAS(c,TR_LONG)?A->life/2:0); if(lim>254) lim=254; if(c->age>lim){ killNat(i); return; } }
@@ -1047,7 +1047,7 @@ static void uiInspectCard(void){
         uiText(142,y,"HEALTH",U_DIM,1); uiBar(142,y+9,108,7,c->hp,maxHp(c),c->hp*3<maxHp(c)?U_RED:U_GREEN); y+=19;
         uiText(142,y,"HUNGER",U_DIM,1); uiBar(142,y+9,108,7,c->food>200?200:c->food,200,U_ORANGE); y+=19;
         siprintf(b,"AGE %d   %s",c->age,arch[sp[c->sp].a].diet==5?"MONSTER":arch[sp[c->sp].a].diet==4?"FOLK":"BEAST"); uiText(142,y,b,U_LGREY,1); y+=10;
-        if(sick[inspIdx]==1){ uiText(142,y,"PLAGUE: SICK AND SLOW",U_GREEN,1); y+=10; } else if(sick[inspIdx]==2){ uiText(142,y,"RECOVERED, IMMUNE",U_CYAN,1); y+=10; }
+        if(sick[inspIdx]==1){ uiText(142,y,"SICK (PLAGUE)",U_GREEN,1); y+=10; } else if(sick[inspIdx]==2){ uiText(142,y,"IMMUNE NOW",U_CYAN,1); y+=10; }
         if(c->wep) uiText(142,y,it[c->wep-1].nm,U_YELLOW,1),y+=10; if(c->arm) uiText(142,y,it[c->arm-1].nm,U_CYAN,1),y+=10;
         if(c->tr){ uiText(142,y,trNm[c->tr],U_PURPLE,1); y+=10; uiWrap(142,y,18,2,trDesc[c->tr],U_DIM); y+=18; } if(c->tr2){ uiText(142,y,trNm[c->tr2],U_PURPLE,1); y+=10; } }
     else if(inspKind==2&&inspIdx>=0&&inspIdx<VIL_N&&vil[inspIdx].on){ Vil*V=&vil[inspIdx]; int v=inspIdx; char vn[24]; vilName(v,vn);
