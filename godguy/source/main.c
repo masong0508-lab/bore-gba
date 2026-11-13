@@ -251,7 +251,7 @@ static int tilePix(int t,int v,int x,int y){   // palette entry (terrain * 8 + s
 }
 static void shadeRGB(int idx,int*r,int*g,int*b){ int t=idx/8,k=idx%8,f=60+k*20; *r=terrCol[t][0]*f/160; *g=terrCol[t][1]*f/160; *b=terrCol[t][2]*f/160; if(*r>31)*r=31; if(*g>31)*g=31; if(*b>31)*b=31; }
 // buildings: B_*; a building tile is ground (grass) with the building on it, in the colours of the people who built it
-enum { B_NONE, B_HUT, B_HOUSE, B_HALL, B_FARM, B_TOWER, B_RUIN, B_DOCK, B_N };
+enum { B_NONE, B_HUT, B_HOUSE, B_HALL, B_FARM, B_TOWER, B_RUIN, B_DOCK, B_TEMPLE, B_STATUE, B_N };
 #define BT0 (T_N*4)
 static const u8 roofCol[8][3]={ {27,4,4},{6,22,8},{8,14,26},{14,3,3},{28,24,4},{29,15,3},{20,8,26},{14,9,4} };   // human elf dwarf orc goblin halfling gnome ogre
 static const u8 bldCol[8][3]={ {27,22,14},{14,10,5},{16,16,19},{20,20,22},{4,24,6},{12,8,3},{10,10,12},{31,31,31} };   // wall, dark wood, door, stone, crop, soil, ruin, flag
@@ -263,6 +263,8 @@ static int bldPix(int type,int race,int x,int y){
     case B_HALL: if(y<=2&&x==2) return dark; if(y<=1&&x>=3&&x<=5) return flag; if(y==2&&(x&1)==0&&x>=1&&x<=7) return stone; if(y>=3) return (y>=5&&x>=3&&x<=4)?dark:((x==1||x==6)&&y==4)?dark:stone; break;
     case B_FARM: if(x==0||x==7||y==0||y==7) return (x+y)&1?dark:bg; return (y&1)?crop:soil;
     case B_TOWER: if(y==1&&(x==2||x==3||x==5)) return stone; if(y>=2&&x>=2&&x<=5) return (y==4&&x==3)?dark:stone; break;
+    case B_TEMPLE: if(y<=1&&x>=3&&x<=4) return flag; if(y==2&&x>=2&&x<=5) return roof; if(y==3&&x>=1&&x<=6) return roof; if(y>=4&&y<=7&&x>=1&&x<=6) return (y>=6&&x>=3&&x<=4)?dark:((x&1)&&y<7)?stone:wall; break;
+    case B_STATUE: if(y>=6&&x>=2&&x<=5) return stone; if(y>=2&&y<=5&&x>=3&&x<=4) return stone; if(y==1&&x>=3&&x<=4) return wall; if(y==3&&(x==2||x==5)) return stone; break;
     case B_DOCK: if(y>=3&&y<=4) return (x&1)?dark:wall; if(y>=5&&y<=6&&(x==1||x==6)) return dark; break;
     case B_RUIN: if((hsh(x,y,17)&3)==0) return ruin; if((hsh(x,y,18)&7)==1) return stone; break; }
     return bg;
@@ -291,7 +293,7 @@ static BIGMEM u8 bld[MAXD][MAXD]; static BIGMEM u8 bldv[MAXD][MAXD];   // what s
 static u8 vilRace(int v);
 // Transition tiles: where two kinds of ground meet, the "stronger" one bleeds a dithered fringe into the other, and water gets a foam line on the shore.
 // They are made on demand (64 bytes each) into spare tile slots and remembered, so a window of the map needs only a few dozen of them.
-#define TR0 128
+#define TR0 140
 #define TR_SLOTS 500
 static const u8 terrRank[T_N]={0,10,3,1,5,6,7,8,9,3,4,5,2};
 static u32 trKey[1024]; static u16 trVal[1024]; static int trUsed;   // a small hash of the transition tiles made so far
@@ -392,6 +394,8 @@ static int placeBld(int v,int type,int cost){
 }
 // ---- boats and docks (after the wiki): a town of some size builds a dock on its shore; now and then a boat carries settlers across the water to a new shore and they found a village there
 typedef struct { u8 on, race, n, i; s16 x, y, tx, ty; u16 t; u8 path[128]; } Boat; static Boat boat[8];      // path: the steps (0 up, 1 right, 2 down, 3 left) found when it set sail
+static u8 vilBf[VIL_N];      // bit 0: the village has a temple, bit 1: a statue (worked out when it builds, burns or a save is loaded)
+static void bldFlags(int v){ const Vil*V=&vil[v]; int f=0; for(int dy=-12;dy<=12;dy++) for(int dx=-12;dx<=12;dx++){ int x=V->x+dx, y=V->y+dy; if(x>=0&&y>=0&&x<WW&&y<WH&&bldv[y][x]==v+1){ if(bld[y][x]==B_TEMPLE) f|=1; else if(bld[y][x]==B_STATUE) f|=2; } } vilBf[v]=(u8)f; }
 static int hasDock(int v){ const Vil*V=&vil[v]; for(int dy=-9;dy<=9;dy++) for(int dx=-9;dx<=9;dx++){ int x=V->x+dx, y=V->y+dy; if(x>=0&&y>=0&&x<WW&&y<WH&&bld[y][x]==B_DOCK&&bldv[y][x]==v+1) return 1; } return 0; }
 static int isWater(int x,int y){ return x>=0&&y>=0&&x<WW&&y<WH&&(world[y][x]==T_WATER||world[y][x]==T_DEEP); }
 static int vilFound(int race,int x,int y);
@@ -435,13 +439,17 @@ static void burnAt(int x,int y,int chance){   // fire, lightning and meteors on 
     if(LAW(LW_ATMO)&&ATV(atO2)>28){ chance+=(ATV(atO2)-28)*8; if(chance>255) chance=255; }      // rich air feeds fires
     if(x<0||y<0||x>=WW||y>=WH||!bld[y][x]||bld[y][x]==B_RUIN) return; if((int)(rnd()&255)>=chance) return; int v=bldv[y][x]-1;
     if(v>=0&&vil[v].on){ Vil*V=&vil[v]; if(bld[y][x]==B_HOUSE||bld[y][x]==B_HUT){ if(V->houses) V->houses--; } else if(bld[y][x]==B_FARM){ if(V->farms) V->farms--; } else if(bld[y][x]==B_TOWER){ if(V->towers) V->towers--; } }
-    bld[y][x]=B_RUIN; bldv[y][x]=0; atFire+=3; if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); }
+    { int ob=bld[y][x]; bld[y][x]=B_RUIN; bldv[y][x]=0; if(v>=0&&v<VIL_N&&(ob==B_TEMPLE||ob==B_STATUE)) vilBf[v]&=(u8)~(ob==B_TEMPLE?1:2); } atFire+=3; if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); }
 // village mood, -100 sad .. 100 joyful (after the wiki's happiness), worked out on the spot so a loaded game goes on exactly as the saved one: food, crowding, war, sickness, loyalty, the air and the ground
 static int vilMood(int v); static const char* moodName(int m);
 static void vilTick(int v){
     Vil*V=&vil[v]; if(!V->on) return; int pop=0;
     for(int dy=-10;dy<=10;dy++){ int y=V->y+dy; if(y<0||y>=WH) continue; for(int dx=-10;dx<=10;dx++){ int x=V->x+dx; if(x<0||x>=WW||dx*dx+dy*dy>100) continue; int j=occ[y][x]-1; if(j>=0&&cr[j].alive&&sp[cr[j].sp].a==V->race&&sp[cr[j].sp].a<8) pop++; } }
     V->pop=(u16)pop; if(!pop){ if(++V->dead>=6){ vilRaze(v,1); return; } } else V->dead=0;
+    if((tick&7)==0||vilBf[v]==0) bldFlags(v);
+    if(V->lvl>=2&&pop>=16&&!(vilBf[v]&1)&&V->stock>=30&&(rnd()%6)==0&&placeBld(v,B_TEMPLE,30)){ vilBf[v]|=1; char vn[24], s2[40]; vilName(v,vn); siprintf(s2,"A TEMPLE RISES IN %.16s",vn); logEv(s2); }
+    if(!(vilBf[v]&2)&&V->stock>=40&&(rnd()%10)==0){ int hero=0; for(int dy=-8;dy<=8&&!hero;dy++) for(int dx=-8;dx<=8;dx++){ int x=V->x+dx, y=V->y+dy; if(x<0||y<0||x>=WW||y>=WH) continue; int j=occ[y][x]-1; if(j>=0&&cr[j].alive&&(cr[j].dir>=1||cr[j].rk)&&sp[cr[j].sp].a==V->race){ hero=1; break; } } if(hero&&placeBld(v,B_STATUE,40)){ vilBf[v]|=2; char vn[24], s2[40]; vilName(v,vn); siprintf(s2,"A STATUE HONOURS A HERO OF %.12s",vn); logEv(s2); } }
+    if((vilBf[v]&1)&&vilSick[v]) vilSick[v]=0;      /* the temple's priests tend the sick */
     if(V->lvl>=2&&pop>=10){ if(!hasDock(v)){ if((rnd()%6)==0) dockTry(v); } else if(nVilOn<VIL_N-2&&(rnd()%10)==0) boatLaunch(v); }
     int mood=vilMood(v); int gain=pop+V->farms*3; if(mood>=40) gain+=pop/4; else if(mood<=-40) gain=gain/2; if(mood<=-60&&vilK[v]&&(rnd()&7)==0&&vilL[v]>0) vilL[v]--; else if(mood>=40&&vilK[v]&&(rnd()&7)==0&&vilL[v]<100) vilL[v]++;
      V->stock=(u16)(V->stock+gain>400?400:V->stock+gain);
@@ -473,7 +481,7 @@ static const char* const ctrN[6]={"XENOPHOBIC","SCHOLARLY","MERCANTILE","MARTIAL
 static int worldAge(void){ return (year/12+(int)(worldSeed&3))%5; }   /* ages of the world, twelve years each: they tilt growth, monsters, rebellion, learning and peace */
 static int vilMood(int v){ const Vil*V=&vil[v]; int m=V->stock/8-20; if(V->pop>V->houses*3+3) m-=20; if(V->foe) m-=25; if(vilSick[v]) m-=15; if(vilK[v]) m+=(vilL[v]-60)/3; m+=V->towers>0?5:0;
     { int ag=worldAge(); m+=(ag==0||ag==4)?10:ag==1?-10:0; } if(LAW(LW_ATMO)){ int T=ATV(atTemp); if(T>=22||T<=-18) m-=15; } { int b=bioAt(V->x,V->y); m+=b==1?-20:b==3?20:0; }
-    return m<-100?-100:m>100?100:m; }
+    m+=(vilBf[v]&1?12:0)+(vilBf[v]&2?6:0); return m<-100?-100:m>100?100:m; }
 static const char* moodName(int m){ return m>=60?"JOYFUL":m>=20?"HAPPY":m>-20?"CONTENT":m>-60?"SAD":"MISERABLE"; }
 static const char* const techN[10]={"NONE","AGRICULTURE","IRON TOOLS","MASONRY","TRADE ROADS","STEEL","ENGINEERING","ALCHEMY","ASTRONOMY","FEUDALISM"};
 static void logEv(const char*s){ if(jrN<24){ strncpy(jr[jrN],s,33); jr[jrN][33]=0; jrYear[jrN]=(u16)year; jrN++; } else { memmove(jr[0],jr[1],23*34); memmove(jrYear,jrYear+1,23*2); strncpy(jr[23],s,33); jr[23][33]=0; jrYear[23]=(u16)year; } siprintf(info,"%.32s",s); }
@@ -981,7 +989,7 @@ typedef FILE SV;
 static SV*svOpen(const char*p,const char*m){ return fopen(p,m); } static size_t svWrite(const void*b,size_t s,size_t n,SV*f){ return fwrite(b,s,n,f); } static size_t svRead(void*b,size_t s,size_t n,SV*f){ return fread(b,s,n,f); } static int svClose(SV*f){ return fclose(f); }
 #endif
 static int saveGame(const char*path){
-    compact(); cursor=0;     // the dead are dropped first, so a loaded game goes on exactly as this one would
+    for(int v=0;v<VIL_N;v++) if(vil[v].on) bldFlags(v); compact(); cursor=0;     // the dead are dropped first, so a loaded game goes on exactly as this one would
     SV*f=svOpen(path,"wb"); if(!f) return 0; SaveHdr h; memset(&h,0,sizeof h); h.vcur=(u8)vilCur;
     h.magic=SAVE_MAGIC; h.ver=9; h.weather=(u8)weather; h.weatherT=(u16)weatherT; h.trSeen=trSeen; h.stMut=stMut; h.seed=worldSeed; h.diff=(u8)diff; h.full=(u8)fullDone; h.aural=(u8)auralOpen; h.debug=(u8)debugOn; h.gw=(u16)gW; h.szCr=sizeof(Cr); h.szVil=sizeof(Vil); h.tick=(u32)tick; h.year=(u32)year; h.rs=rs; h.stKill=stKill; h.stGift=stGift; h.stUse=stUse; h.nCr=(u16)nCr; h.pad_[0]=(u8)(nCr>>16); h.pad_[1]=(u8)VIL_N; h.seenN=(u16)seenN; h.camX=(u16)camX; h.camY=(u16)camY;
     h.chapter=(u8)chapter; h.tierOpen=(u8)tierOpen; h.storyOn=(u8)storyOn; h.storyDone=(u8)storyDone; h.monOn=(u8)monOn; h.shape3=(u8)shape3; h.nVilOn=(u8)nVilOn; h.planet=(u8)(planetSize/8); memcpy(h.seen,seenB,sizeof seenB); memcpy(h.slain,slainB,sizeof slainB);
@@ -1018,7 +1026,7 @@ static int loadGame(const char*path){
     svClose(f);
     if(!ok){ return 0; }
     tick=(int)h.tick; year=(int)h.year; rs=h.rs; stKill=h.stKill; stGift=h.stGift; stUse=h.stUse; seenN=h.seenN; camX=h.camX; camY=h.camY; chapter=h.chapter; tierOpen=h.tierOpen; storyOn=h.storyOn; storyDone=h.storyDone; monOn=h.monOn; shape3=h.shape3; nVilOn=h.nVilOn;
-    memcpy(seenB,h.seen,sizeof seenB); memcpy(slainB,h.slain,sizeof slainB); nVilOn=0; for(int v=0;v<VIL_N;v++) nVilOn+=vil[v].on;
+    memcpy(seenB,h.seen,sizeof seenB); memcpy(slainB,h.slain,sizeof slainB); nVilOn=0; for(int v=0;v<VIL_N;v++){ nVilOn+=vil[v].on; if(vil[v].on) bldFlags(v); else vilBf[v]=0; }
     for(int i=0;i<nCr;i++) if(cr[i].alive&&cr[i].x<gW&&cr[i].y<gH) occ[cr[i].y][cr[i].x]=(occ_t)(i+1); vilCur=h.vcur; weather=h.weather; weatherT=h.weatherT; trSeen=h.trSeen; stMut=h.stMut; worldSeed=h.seed; diff=h.diff; fullDone=h.full; auralOpen=h.aural; debugOn=h.debug; cursor=0; compact(); warMatrix(); winX=-99; return 1; }
 static int walkOn, walkX=64, walkY=64;     // walking the globe: the avatar's tile
 static int view3d=0, rotX=20, rotY=0, zoom3=40, gClouds=1;       // the globe: rotY = longitude of the centre, rotX = latitude of the centre (degrees), zoom3 = how big

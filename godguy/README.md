@@ -173,3 +173,6 @@ Found a readable copy of the Official WorldBox Wiki (its API is open; the pages 
 
 ### v0.25 boats and docks
 - A town of level 2 with 10 folk builds a **dock** on its shore (new building tile). From a dock, now and then, a **boat** takes four settlers across the water: a breadth-first search over the sea finds the nearest unsettled shore at least 12 tiles away, the boat sails there (visible as a sprite and at every zoom level) and the settlers found a village (journal: SETTLERS SAIL TO ...). Boats are saved. This spreads folk across islands on the archipelago and continent worlds. Test: pc_boats.c (22 villages founded by boats in 40,000 ticks).
+
+### v0.26 temples and statues
+- A level-2 village with 16 folk builds a **temple** (+12 mood; its priests end the village's sickness); a village with a levelled-up or elite fighter among its folk raises a **statue** to its hero (+6 mood). New building art, journal lines, saved with the world (the flags are rebuilt from the map). Mean mood in villages with a temple was 56 against 27 without in the test (pc_temples.c). Bonfires are not in yet.

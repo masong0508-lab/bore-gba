@@ -35,3 +35,5 @@ gcc $F -w -o /tmp/gg_slotsrun pc_slots.c -lm && /tmp/gg_slotsrun | tail -1
 gcc $F -w -o /tmp/gg_life pc_life.c -lm && /tmp/gg_life | tail -1
 # boats and docks
 gcc $F -w -o /tmp/gg_boats pc_boats.c -lm && /tmp/gg_boats | tail -1
+# temples and statues
+gcc $F -w -o /tmp/gg_temples pc_temples.c -lm && /tmp/gg_temples | tail -1
