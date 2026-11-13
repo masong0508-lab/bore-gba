@@ -26,15 +26,17 @@ static void uiFlushRaw(void){ if(uiSame()) return; vramCopy(bgGetGfxPtr(3),uiBuf
 #endif
 // ---- screen transitions: when the screen changes, the old picture slides out and the new one in (dir 1 forward, -1 back) or dissolves (dir 2)
 static u8 uiPrev[256*192], uiNew[256*192]; static int uiTrans, uiHavePrev;
+static int uiPending;
+static void uiCommit(void){ if(uiPending){ uiPending=0; uiFlushRaw(); } }
 static void uiFlush(void){
     if(uiTrans&&uiHavePrev&&!UI_NOTRANS){ int dir=uiTrans; uiTrans=0; memcpy(uiNew,uiBuf,sizeof uiNew);
         for(int f=1;f<=7;f++){ int p=f*256/7, sh=256-(256-p)*(256-p)/256;
             if(dir==2){ static const u8 bay[16]={0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5}; int th=f*16/7; for(int y=0;y<192;y++) for(int x=0;x<256;x++) uiBuf[y*256+x]=bay[(y&3)*4+(x&3)]<th?uiNew[y*256+x]:uiPrev[y*256+x]; }
             else for(int y=0;y<192;y++){ u8*o=&uiBuf[y*256], *a=&uiPrev[y*256], *n=&uiNew[y*256];
                 if(dir>0){ for(int x=0;x<256;x++) o[x]=x<256-sh?a[x+sh]:n[x-(256-sh)]; } else { for(int x=0;x<256;x++) o[x]=x>=sh?a[x-sh]:n[x+(256-sh)]; } }
-            uiFlushRaw(); swiWaitForVBlank(); }
+            swiWaitForVBlank(); uiFlushRaw(); }      // (wait first, then copy: the copy happens in the blank)
         memcpy(uiBuf,uiNew,sizeof uiNew); }
-    uiFlushRaw(); memcpy(uiPrev,uiBuf,sizeof uiPrev); uiHavePrev=1; }
+    uiPending=1; memcpy(uiPrev,uiBuf,sizeof uiPrev); uiHavePrev=1; }      // the screen is copied to VRAM at the next vertical blank (uiCommit), not now, in the middle of the picture
 // ---- touch buttons: each drawn control registers a rectangle; a tap on it sets *sp=sv (if given) and presses key (key2 instead when it was already selected)
 typedef struct { short x,y,w,h; unsigned short key,key2; int*sp; int sv; } UiBtn;
 static UiBtn uiBtns[64]; static int uiNBtn;
