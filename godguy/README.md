@@ -179,3 +179,6 @@ Found a readable copy of the Official WorldBox Wiki (its API is open; the pages 
 
 ### v0.27 libraries
 - Level-2 villages with 14 folk open a **library** (+4 mood); each library in a kingdom cuts the gold cost of its next technology by 5% (up to six). Statues stay conditional on a levelled hero. Bonfires, tumors and biomass, jobs and resources, and more kingdom traits are still not done.
+
+### v0.28 crowding
+- Breeding now slows as the 5 x 5 tiles around a creature fill up (half full: births taper; 13 of 25: none), so the land is no longer wall-to-wall creatures and villages and buildings stay visible at close zoom. A 128 planet settles near 3,600 creatures after 20,000 ticks instead of 4,000 to 7,000.
