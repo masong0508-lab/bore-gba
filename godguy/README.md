@@ -99,3 +99,10 @@ New power PLAGUE (red, disaster strip) and now and then a world event: a plague 
 ### v0.14 plague 2, zombies, 3DS fixes
 - Folk who die of the plague sometimes rise as ZOMBIES (20% for folk, 8% for beasts): they carry the plague without suffering from it and keep spreading it. Sick folk near a village drain its store, and a village with a dozen sick in a year gets a journal line (PLAGUE IN <name>).
 - 3DS port: New 3DS speed-up switched on (`osSetSpeedupEnable`), the screen copy now goes through 8x8 tiles (byte-identical output, checked on the PC; far kinder to the 3DS's small cache) and the audio queue is 8 buffers deep (about 140 ms) so a slow frame no longer drops sound. `3ds/build.sh` works with the libctru from the devkitPro download (`godguy.3dsx` 576 KB). Still untested on real 3DS hardware or an emulator (none here).
+
+### v0.14.1 speed (DS, DSi, 3DS)
+Measured with a profiler on a 192 x 192 world with 2,400 creatures (a PC is roughly 50 times faster than the DS ARM9, so the figures are for comparing, not for reading as DS milliseconds):
+- the creature simulation is cheap (about 15 microseconds a tick); the real costs were elsewhere:
+- `kingdomTick` asked the same village-walking questions over and over inside nested kingdom loops: their answers are now remembered for the length of the tick (45 -> 16 microseconds a call, same results);
+- the 3D globe was redrawn every frame (0.27 ms here, over 10 ms on a DS): it is now redrawn only when it turns, zooms, the weather changes or its 8-tick animation steps, so an idle globe costs nothing;
+- the software renderer of the 3DS / PC shim: palettes are converted once a frame, tiles are looked up once per 8 pixels, and `shimRenderFast` redraws a screen only when its inputs changed (a menu, a pause or the idle status screen then cost almost nothing; the 3DS port also copies only the changed screen). World frames 0.35 -> 0.22 ms. `pc_ds.c -DRCHECK` renders every frame both ways and checks they are byte-identical (3,300 frames, 0 mismatches; the old and the new renderer also give identical pixels on all 58 tour screenshots).

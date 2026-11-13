@@ -21,9 +21,11 @@ int plat_keys(int*tx,int*ty){
 static void swz(u8*fb,const unsigned char*src,int w){
     for(int x0=0;x0<w;x0+=8) for(int y0=0;y0<240;y0+=8) for(int x=x0;x<x0+8;x++){ u8*d=&fb[(x*240+(239-y0))*3]; const unsigned char*s=&src[(y0*w+x)*3];
         for(int y=0;y<8;y++,s+=w*3,d-=3){ d[0]=s[2]; d[1]=s[1]; d[2]=s[0]; } } }
-void plat_present(const unsigned char*top,const unsigned char*bot,const short*snd,int frames){
-    swz(gfxGetFramebuffer(GFX_TOP,GFX_LEFT,NULL,NULL),top,400);       // 400 x 240, BGR8, columns first
-    swz(gfxGetFramebuffer(GFX_BOTTOM,GFX_LEFT,NULL,NULL),bot,320);
+static int dirtyT, dirtyB;      // the framebuffers are double buffered: a changed screen is copied twice, an unchanged one not at all
+void plat_present(const unsigned char*top,const unsigned char*bot,const short*snd,int frames,int changed){
+    if(changed&1) dirtyT=2; if(changed&2) dirtyB=2;
+    if(dirtyT){ swz(gfxGetFramebuffer(GFX_TOP,GFX_LEFT,NULL,NULL),top,400); dirtyT--; }       // 400 x 240, BGR8, columns first
+    if(dirtyB){ swz(gfxGetFramebuffer(GFX_BOTTOM,GFX_LEFT,NULL,NULL),bot,320); dirtyB--; }
     gfxFlushBuffers(); gfxSwapBuffers();
     if(audioOk&&frames>0&&frames<=700){ for(int i=0;i<NBUF;i++) if(wb[i].status==NDSP_WBUF_DONE||wb[i].status==NDSP_WBUF_FREE){ memcpy(abuf[i],snd,frames*4); wb[i].nsamples=frames; DSP_FlushDataCache(abuf[i],frames*4); ndspChnWaveBufAdd(0,&wb[i]); break; } }
     gspWaitForVBlank(); }

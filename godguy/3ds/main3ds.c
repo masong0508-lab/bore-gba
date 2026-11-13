@@ -4,8 +4,8 @@
 #define main ds_main
 #include "../source/main.c"
 #undef main
-extern int plat_init(void); extern int plat_keys(int*tx,int*ty); extern void plat_present(const unsigned char*top,const unsigned char*bot,const short*snd,int frames); extern void plat_exit(void);
+extern int plat_init(void); extern int plat_keys(int*tx,int*ty); extern void plat_present(const unsigned char*top,const unsigned char*bot,const short*snd,int frames,int changed); extern void plat_exit(void);
 static unsigned char topBuf[400*240*3], botBuf[320*240*3]; static short sndBuf[700*2]; static double carry;
 void shimInput(int frame,int*held,int*tx,int*ty){ (void)frame; *held=plat_keys(tx,ty); }
-void shimPresent(void){ double want=SHIM_SR/60.0+carry; int n=(int)want; carry=want-n; shimMix(sndBuf,n); shimRender(topBuf,botBuf); plat_present(topBuf,botBuf,sndBuf,n); }
+void shimPresent(void){ double want=SHIM_SR/60.0+carry; int n=(int)want; carry=want-n; shimMix(sndBuf,n); int ch=shimRenderFast(topBuf,botBuf); plat_present(topBuf,botBuf,sndBuf,n,ch); }
 int main(void){ plat_init(); ds_main(); plat_exit(); return 0; }

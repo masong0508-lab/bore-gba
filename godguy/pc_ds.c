@@ -28,6 +28,9 @@ void shimInput(int frame,int*held,int*tx,int*ty){
         printf("frames %d, audio %.1fs, peak %.2f, clipped samples %ld, failed channel allocations %d, creatures %d, year %d, chapter %d, stUse %u\n",frame,audioN/(double)SHIM_SR,shimPeak,shimClip,shimChFail,nCr,year,chapter,(unsigned)stUse);
         printf("sound channels in use now: "); int u=0; for(int i=0;i<16;i++) u+=shimCh[i].on; printf("%d of 16\n",u); exit(0); } }
 void shimPresent(void){
+#ifdef RCHECK      // every frame rendered both ways (all of it / only what changed): the two must be identical
+    { static u8 tf[400*240*3], bf[320*240*3], tr[400*240*3], br[320*240*3]; static long bad, n; shimRenderFast(tf,bf); shimRender(tr,br); n++; if(memcmp(tf,tr,sizeof tf)||memcmp(bf,br,sizeof bf)){ bad++; if(bad<4) printf("RENDER MISMATCH at frame %d\n",shimFrame); } if(shimFrame>=3299) printf("fast render check: %ld frames, %ld mismatches\n",n,bad); }
+#endif
     double want=SHIM_SR/60.0+carry; int n=(int)want; carry=want-n; if(audioN+n>audioCap){ audioCap=audioCap?audioCap*2:SHIM_SR*8; audio=realloc(audio,audioCap*4); } shimMix(audio+audioN*2,n); audioN+=n;
     for(int i=0;shots[i]>=0;i++) if(shots[i]==shimFrame){ static u8 top[400*240*3], bot[320*240*3]; shimRender(top,bot); char fn[200]; sprintf(fn,"%s/top_%d.ppm",outDir,shimFrame); FILE*f=fopen(fn,"wb"); fprintf(f,"P6\n400 240\n255\n"); fwrite(top,1,sizeof top,f); fclose(f);
         sprintf(fn,"%s/bot_%d.ppm",outDir,shimFrame); f=fopen(fn,"wb"); fprintf(f,"P6\n320 240\n255\n"); fwrite(bot,1,sizeof bot,f); fclose(f); } }

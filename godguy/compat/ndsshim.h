@@ -148,19 +148,40 @@ extern void shimPresent(void);
 static inline void swiWaitForVBlank(void){ shimFrame++; shimPresent(); }
 // ---- drawing: both screens into RGB buffers (row-major). top 400 x 240 (the sub engine: bitmap + text), bottom 320 x 240 (the main engine: tiles + sprites)
 #include "font5x7.h"
-static inline void shimRGB(u16 c,u8*o){ o[0]=(u8)((c&31)*255/31); o[1]=(u8)(((c>>5)&31)*255/31); o[2]=(u8)(((c>>10)&31)*255/31); }
+static const u8 sh5[32]={0,8,16,24,32,41,49,57,65,74,82,90,98,106,115,123,131,139,148,156,164,172,180,189,197,205,213,222,230,238,246,255};      // 5-bit colour -> 8-bit (a table: the ARM11 / ARM9 have no divide instruction)
+static inline void shimRGB(u16 c,u8*o){ o[0]=sh5[c&31]; o[1]=sh5[(c>>5)&31]; o[2]=sh5[(c>>10)&31]; }
+static void shimPal3(u8 (*o)[3],const u16*pal){ for(int i=0;i<256;i++) shimRGB(pal[i],o[i]); }     // a palette converted once per frame instead of once per pixel
+static void shimRenderMain(u8*mb,int mw,int mox){
+    static u8 pb[256][3], ps[256][3]; shimPal3(pb,BG_PALETTE); shimPal3(ps,SPRITE_PALETTE);
+    // bottom: BG0 (the world, scrolling) then BG1 (the toolbar), then the sprites, at (32,24). A map entry is looked up once per 8 pixels, not once per pixel
+    for(int sy=0;sy<192;sy++){ int wy=(sy+shimScrollY)&511, my=wy>>3, ty=wy&7; u8*row=&mb[((24+sy)*mw+mox)*3];
+        for(int sx=0;sx<256;){ int wx=(sx+shimScrollX)&511, mx=wx>>3, tx=wx&7, n=8-tx; if(sx+n>256) n=256-sx;
+            u16 e=shimMap[((my>=32?2:0)+(mx>=32?1:0))*1024+(my&31)*32+(mx&31)]; const u8*t=&shimTiles[(e&0x3FF)*64+ty*8+tx];
+            for(int i=0;i<n;i++,row+=3){ const u8*c=pb[t[i]]; row[0]=c[0]; row[1]=c[1]; row[2]=c[2]; } sx+=n; } }
+    for(int sy=0;sy<192;sy++){ u8*row=&mb[((24+sy)*mw+mox)*3]; for(int mx=0;mx<32;mx++){ u16 e=shimMap1[(sy>>3)*32+mx]; const u8*t=&shimTiles[(e&0x3FF)*64+(sy&7)*8];   // BG1 over the world
+            for(int i=0;i<8;i++,row+=3) if(t[i]){ const u8*c=pb[t[i]]; row[0]=c[0]; row[1]=c[1]; row[2]=c[2]; } } }
+    for(int n=127;n>=0;n--){ const ShimSpr*s=&shimSpr[n]; if(!s->on||!s->gfx) continue; for(int y=0;y<8;y++) for(int x=0;x<8;x++){ int xx=s->hflip?7-x:x; int b=s->gfx[y*4+xx/2]; int idx=(xx&1)?(b>>4):(b&15); if(!idx) continue; int px=s->x+x, py=s->y+y; if(px<0||py<0||px>=256||py>=192) continue;
+            const u8*c=ps[s->pal*16+idx]; u8*o=&mb[((24+py)*mw+mox+px)*3]; o[0]=c[0]; o[1]=c[1]; o[2]=c[2]; } }
+}
+static void shimRenderSub(u8*sb,int sw,int sox){
+    // top: bitmap + text at (72,24)
+    static u8 pp[256][3]; shimPal3(pp,BG_PALETTE_SUB);
+    for(int sy=0;sy<192;sy++){ u8*o=&sb[((24+sy)*sw+sox)*3]; const u8*src=&shimBmp[sy*256]; for(int sx=0;sx<256;sx++,o+=3) if(src[sx]){ const u8*c=pp[src[sx]]; o[0]=c[0]; o[1]=c[1]; o[2]=c[2]; } }
+    for(int r=0;r<24;r++) for(int c=0;c<32;c++){ int ch=shimCon[r][c]; if(ch>='a'&&ch<='z') ch-=32; if(ch<32||ch>=96) continue; const unsigned char*g=font5x7[ch-32];
+        for(int y=0;y<7;y++) for(int x=0;x<5;x++) if((g[y]>>(4-x))&1){ u8*o=&sb[((24+r*8+y)*sw+sox+c*8+x+1)*3]; o[0]=o[1]=o[2]=255; } }}
 static void shimRender(u8*top,u8*bot){
     memset(top,0,400*240*3); memset(bot,0,320*240*3);
-    u8*mb=shimSwap?top:bot; int mw=shimSwap?400:320, mox=shimSwap?72:32; u8*sb=shimSwap?bot:top; int sw=shimSwap?320:400, sox=shimSwap?32:72;   // which screen shows which engine
-    // bottom: BG0 + sprites at (32,24)
-    for(int sy=0;sy<192;sy++) for(int sx=0;sx<256;sx++){ int wx=(sx+shimScrollX)&511, wy=(sy+shimScrollY)&511, mx=wx>>3, my=wy>>3; u16 e=shimMap[((my>=32?2:0)+(mx>=32?1:0))*1024+(my&31)*32+(mx&31)]; int idx=shimTiles[(e&0x3FF)*64+(wy&7)*8+(wx&7)];
-        shimRGB(BG_PALETTE[idx],&mb[((24+sy)*mw+mox+sx)*3]); }
-    for(int sy=0;sy<192;sy++) for(int sx=0;sx<256;sx++){ u16 e=shimMap1[(sy>>3)*32+(sx>>3)]; int idx=shimTiles[(e&0x3FF)*64+(sy&7)*8+(sx&7)]; if(idx) shimRGB(BG_PALETTE[idx],&mb[((24+sy)*mw+mox+sx)*3]); }   // BG1 (the toolbar) over the world, under nothing
-    for(int n=127;n>=0;n--){ const ShimSpr*s=&shimSpr[n]; if(!s->on||!s->gfx) continue; for(int y=0;y<8;y++) for(int x=0;x<8;x++){ int xx=s->hflip?7-x:x; int b=s->gfx[y*4+xx/2]; int idx=(xx&1)?(b>>4):(b&15); if(!idx) continue; int px=s->x+x, py=s->y+y; if(px<0||py<0||px>=256||py>=192) continue;
-            shimRGB(SPRITE_PALETTE[s->pal*16+idx],&mb[((24+py)*mw+mox+px)*3]); } }
-    // top: bitmap + text at (72,24)
-    for(int sy=0;sy<192;sy++) for(int sx=0;sx<256;sx++){ int idx=shimBmp[sy*256+sx]; if(idx) shimRGB(BG_PALETTE_SUB[idx],&sb[((24+sy)*sw+sox+sx)*3]); }
-    for(int r=0;r<24;r++) for(int c=0;c<32;c++){ int ch=shimCon[r][c]; if(ch>='a'&&ch<='z') ch-=32; if(ch<32||ch>=96) continue; const unsigned char*g=font5x7[ch-32];
-        for(int y=0;y<7;y++) for(int x=0;x<5;x++) if((g[y]>>(4-x))&1){ u8*o=&sb[((24+r*8+y)*sw+sox+c*8+x+1)*3]; o[0]=o[1]=o[2]=255; } }
-}
+    shimRenderMain(shimSwap?top:bot,shimSwap?400:320,shimSwap?72:32); shimRenderSub(shimSwap?bot:top,shimSwap?320:400,shimSwap?32:72); }
+// the same, but only for the engine whose inputs changed since the last call (the buffers must be the same ones every time). Returns which buffers changed: bit 0 top, bit 1 bottom.
+// Most frames of a menu, a pause or an idle status screen change nothing at all, and the world engine and the status engine rarely change together.
+static u32 shimFnv(const void*p,size_t n,u32 h){ const u32*w=(const u32*)p; for(size_t i=0;i<n/4;i++) h=(h^w[i])*16777619u; return h; }
+static int shimRenderFast(u8*top,u8*bot){
+    static u32 hm=1, hs=1; static int lsw=-1; static const u8*lt, *lb; int ch=0;
+    u32 a=2166136261u; a=shimFnv(shimMap,sizeof shimMap,a); a=shimFnv(shimMap1,sizeof shimMap1,a); a=shimFnv(shimTiles,sizeof shimTiles,a); a=shimFnv(BG_PALETTE,sizeof BG_PALETTE,a); a=shimFnv(SPRITE_PALETTE,sizeof SPRITE_PALETTE,a); a=shimFnv(shimSpr,sizeof shimSpr,a); a=(a^(u32)shimScrollX)*16777619u; a=(a^(u32)shimScrollY)*16777619u;
+    u32 b=2166136261u; b=shimFnv(shimBmp,sizeof shimBmp,b); b=shimFnv(BG_PALETTE_SUB,sizeof BG_PALETTE_SUB,b); b=shimFnv(shimCon,sizeof shimCon,b);
+    int force=(lsw!=shimSwap||lt!=top||lb!=bot); lsw=shimSwap; lt=top; lb=bot;
+    u8*mb=shimSwap?top:bot; int mw=shimSwap?400:320; u8*sb=shimSwap?bot:top; int sw=shimSwap?320:400;
+    if(force||a!=hm){ memset(mb,0,mw*240*3); shimRenderMain(mb,mw,shimSwap?72:32); ch|=shimSwap?1:2; hm=a; }
+    if(force||b!=hs){ memset(sb,0,sw*240*3); shimRenderSub(sb,sw,shimSwap?32:72); ch|=shimSwap?2:1; hs=b; }
+    return ch; }
 #endif
