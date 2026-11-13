@@ -14,10 +14,13 @@
 #include "gmdata.h"      // the music and sound-effect tables (ids like FX_SMITE and GM_TITLE are used by the game; the player is gmplay.h, DS and PC)
 
 int gW=128, gH=128;
-u8 world[MAXD][MAXD];
-static occ_t occ[MAXD][MAXD];            // creature index + 1 standing on a tile
-static Cr cr[MAXC]; static int nCr;
-static int zombA=-1; static u8 vilSick[64];     // vilSick: sick folk met near a village this season (for the journal line)
+BIGMEM u8 world[MAXD][MAXD];
+static BIGMEM occ_t occ[MAXD][MAXD];            // creature index + 1 standing on a tile
+#ifdef GG_DSIBIG
+volatile u32 dsiAlias;      // set by the start-up code: 1 when the RAM above 4 MB is only a mirror (the DS-mode launch)
+#endif
+static BIGMEM Cr cr[MAXC]; static int nCr;
+static int zombA=-1; static u8 vilSick[VIL_N>64?VIL_N:64];     // vilSick: sick folk met near a village this season (for the journal line)
 static u32 lawOff;      // World Laws (the list and the defaults of WorldBox's own law panel, as far as this game has the mechanics): stored as the switches that differ from the defaults, so 0 = all defaults
 enum { LW_AGE, LW_HUNGER, LW_CIVBABY, LW_ANIBABY, LW_PEACEMON, LW_MUTBOX, LW_MUTATE, LW_EROSION, LW_TREES, LW_LAVA, LW_WEATHER,
        LW_DIPLOMACY, LW_REBEL, LW_GROWTH, LW_POP100, LW_GAIA, LW_NATDIS, LW_OTHERDIS, LW_PLAGUE, LW_MONSTER, LW_BIOME, LW_ATMO, LW_N };
@@ -30,7 +33,7 @@ static const char* const lawDs[LW_N]={"CREATURES CAN DIE OF OLD AGE","EVERYONE N
 static const u8 lawScrA[11]={LW_AGE,LW_HUNGER,LW_CIVBABY,LW_ANIBABY,LW_PEACEMON,LW_MUTBOX,LW_MUTATE,LW_EROSION,LW_TREES,LW_LAVA,LW_WEATHER};      // the first law screen: life and land
 static const u8 lawScrB[11]={LW_DIPLOMACY,LW_REBEL,LW_GROWTH,LW_POP100,LW_GAIA,LW_NATDIS,LW_OTHERDIS,LW_PLAGUE,LW_MONSTER,LW_BIOME,LW_ATMO};                        // the second: kingdoms and disasters
 static coord_t zq[16][2]; static int zqN;      // where plague victims turned zombie fell: they rise at the end of the tick
-static u8 sick[MAXC];     // plague: 0 healthy, 1 sick (loses health, slow, spreads to neighbours), 2 recovered and immune. (Not saved: a loaded world starts healthy.)
+static BIGMEM u8 sick[MAXC];     // plague: 0 healthy, 1 sick (loses health, slow, spreads to neighbours), 2 recovered and immune. (Not saved: a loaded world starts healthy.)
 static int camX, camY;             // camera, in world pixels
 static int power=1, brush=2, spSel=40, paused=0, tick=0, year=0;
 static char info[64];
@@ -38,7 +41,7 @@ static u32 worldSeed, seedFix;               // the seed of this planet; seedFix
 static u32 stKill, stGift, stUse;                 // monsters slain, gifts given, powers used (the story counts them)
 static u8 seenB[(SP_N+7)/8], slainB[(SP_N+7)/8]; static int seenN;   // the bestiary: which kinds of monster have appeared / been slain
 #define ACH_N 26
-static u8 favVil[48], favKd[8], favItem[600], favPow[64];   // stars on cities, kingdoms, items and powers (the browser, the toolbar)
+static u8 favVil[VIL_N>48?VIL_N:48], favKd[8], favItem[600], favPow[64];   // stars on cities, kingdoms, items and powers (the browser, the toolbar)
 static void achCheck(void);
 static u32 achBits, stWars, stCapt, stAllies, stSnack;   // achievements earned and the counters they need
 static int dlgPend=-1;      // a dialogue waiting to be shown (chapter number, 14 = the epilogue)
@@ -175,7 +178,7 @@ static int vnoise(int x,int y,int cell,int s){   // value noise 0..255, cell pix
 static int fbm(int x,int y,int s){ return (vnoise(x,y,32,s)*8+vnoise(x,y,16,s+1)*4+vnoise(x,y,8,s+2)*2+vnoise(x,y,4,s+3))/15; }
 static int cShape=2, cSea, cClim, cWet, cLife=2, cCoast, cMtn;   // create-a-planet choices: land shape (0 continents, 1 one supercontinent, 2 islands), sea level, climate, wetness (all 0 = the classic planet), amount of starting life 0..3
 // ---- biomes: a second layer over the ground (0 none, 1 CORRUPTED, 2 INFERNAL, 3 ENCHANTED), two bits a tile. They spread, they act on whoever stands there, and they are painted with seed powers.
-static u8 biome2[MAXD*MAXD/4]; static int nBio[4];
+static BIGMEM u8 biome2[MAXD*MAXD/4]; static int nBio[4];
 #define BIO_Q 8192
 static u32 bioQ[BIO_Q]; static int bioQn;      // the tiles that can still spread (the edge of each patch): a growing patch costs the same on a small or a huge planet
 static inline int bioAt(int x,int y){ return (biome2[(y*MAXD+x)>>2]>>((x&3)*2))&3; }
@@ -200,9 +203,9 @@ static void genWorld(u32 seed){ bioClear(); atmoReset();
     long target=(long)W*H*(38-cSea*7)/100; if(target<W*H/12) target=W*H/12; if(cShape==5) target=target*6/10;   // the share of the planet that is to be land
     int Rb=isqrtI(target*100/(N*151)); int rmaxAll=(W<H?W:H)*45/100; if(Rb>rmaxAll) Rb=rmaxAll;      // the base radius of a land mass (its coast is at about 0.8 of it)
     for(int i=0;i<N;i++){
-        int bestx=W/2, besty=H/2; long bestd=-1;
+        int bestx=W/2, besty=H/2; long long bestd=-1;
         for(int k=0;k<(N==1?1:28);k++){ int x=W/10+(int)(hsh(i,k,s+11)%(unsigned)(W*8/10)), y=H/8+(int)(hsh(i,k,s+12)%(unsigned)(H*6/8)); if(N==1){ x=W/2+(int)(hsh(7,s,5)%(unsigned)(W/8+1))-W/16; y=H/2+(int)(hsh(8,s,5)%(unsigned)(H/8+1))-H/16; }
-            long md=1L<<40; for(int q=0;q<i;q++){ long ddx=x-cx[q], ddy=y-cy[q]; long d=ddx*ddx+ddy*ddy; if(d<md) md=d; } if(i==0) md=1L<<30; if(md>bestd){ bestd=md; bestx=x; besty=y; } }
+            long long md=1LL<<40; for(int q=0;q<i;q++){ long long ddx=x-cx[q], ddy=y-cy[q]; long long d=ddx*ddx+ddy*ddy; if(d<md) md=d; } if(i==0) md=1LL<<30; if(md>bestd){ bestd=md; bestx=x; besty=y; } }
         cx[i]=bestx; cy[i]=besty;
         int R=Rb*(70+(int)(hsh(i,s,31)%60))/100; if(R<4) R=4; int asp=65+(int)(hsh(i,s,32)%36);   // radius 0.7..1.3 of the base, flattened to 0.65..1
         int ang=(int)(hsh(i,s,33)%360); ss[i]=gSinI(ang); cc[i]=gCosI(ang);
@@ -282,7 +285,7 @@ static u16 pcm[4096]; static u16*mapPtr=pcm;
 static u16*mapPtr;
 #endif
 static int winX=-99, winY=-99;
-static u8 bld[MAXD][MAXD], bldv[MAXD][MAXD];   // what stands on a tile (B_*) and which village owns it (+1)
+static BIGMEM u8 bld[MAXD][MAXD]; static BIGMEM u8 bldv[MAXD][MAXD];   // what stands on a tile (B_*) and which village owns it (+1)
 static u8 vilRace(int v);
 // Transition tiles: where two kinds of ground meet, the "stronger" one bleeds a dithered fringe into the other, and water gets a foam line on the shore.
 // They are made on demand (64 bytes each) into spare tile slots and remembered, so a window of the map needs only a few dozen of them.
@@ -346,7 +349,6 @@ static void compact(void){   // the dead are squeezed out of the list
 
 static void moveTo(Cr*c,int i,int nx,int ny){ occ[c->y][c->x]=0; c->ox=(s8)((c->x-nx)*8); c->oy=(s8)((c->y-ny)*8); c->x=(coord_t)nx; c->y=(coord_t)ny; occ[ny][nx]=(occ_t)(i+1); c->dir=(u8)(nx>c->x?0:0); }
 // ---------------------------------------------------------------------------------------------- villages
-#define VIL_N 40
 #define VIL_OLD 24     // older saves held 24 villages
 typedef struct { u8 on, race; coord_t x, y; u8 lvl, houses, farms, towers, foe, dead, nm1, nm2; u16 pop, stock; } Vil;   // foe: the village (+1) it is at war with
 static Vil vil[VIL_N]; static int nVilOn;
@@ -745,7 +747,7 @@ static void simulate(void){
     for(int k=0;k<12;k++){ int x=rnd()%WW, y=rnd()%WH; u8 t=world[y][x]; if(t==T_DIRT){ int d=rnd()&3; int nx=x+dxs[d], ny=y+dys[d]; if(nx>=0&&ny>=0&&nx<WW&&ny<WH&&(world[ny][nx]==T_GRASS||world[ny][nx]==T_FOREST)) setCell(x,y,T_GRASS); }
         else if(t==T_GRASS&&LAW(LW_TREES)&&(rnd()&63)==0){ int d=rnd()&3; int nx=x+dxs[d], ny=y+dys[d]; if(nx>=0&&ny>=0&&nx<WW&&ny<WH&&world[ny][nx]==T_FOREST&&(rnd()&7)==0) setCell(x,y,T_FOREST); } }
     if(LAW(LW_EROSION)&&(tick&3)==0){ for(int k=0;k<4;k++){ int x=rnd()%WW, y=rnd()%WH; u8 t=world[y][x]; if((t==T_GRASS||t==T_DIRT||t==T_HILL)&&(rnd()%60)==0){ for(int d=0;d<4;d++){ int nx=x+dxs[d], ny=y+dys[d]; if(nx>=0&&ny>=0&&nx<WW&&ny<WH&&(world[ny][nx]==T_WATER||world[ny][nx]==T_DEEP)){ setCell(x,y,T_SAND); break; } } } } }      // erosion: the shore crumbles into sand
-    if((tick&15)==0){ vilCur=(vilCur+1)%VIL_N; if(LAW(LW_GROWTH)) vilTick(vilCur); if(vilCur==0) warMatrix(); } if((tick&127)==64) kingdomTick(); if((tick&63)==33) achCheck();
+    if((tick&15)==0){ for(int vs=0;vs<(VIL_N+39)/40;vs++){ vilCur=(vilCur+1)%VIL_N; if(LAW(LW_GROWTH)) vilTick(vilCur); if(vilCur==0) warMatrix(); } } /* (every village keeps its pace however many there can be) */ if((tick&127)==64) kingdomTick(); if((tick&63)==33) achCheck();
     weatherTick(); volcanoTick(); eventTick(); if(LAW(LW_NATDIS)||LAW(LW_OTHERDIS)||tor[0].on||tor[1].on||acidT){ tornadoTick(); acidTick(); }
     while(zqN>0){ zqN--; if(zombA<0) for(int a2=8;a2<ARCH_N;a2++) if(!strcmp(arch[a2].nm,"ZOMBIE")) zombA=a2; if(zombA>=8){ int k2=addCr(8+(zombA-8)*16+(int)(rnd()&15),zq[zqN][0],zq[zqN][1]); if(k2>=0){ cr[k2].hp=(u8)maxHp(&cr[k2]); siprintf(info,"A ZOMBIE RISES"); } } }
     if((tick&63)==0) monSpawn();
@@ -923,7 +925,10 @@ typedef struct { u8 on, race, x, y, lvl, houses, farms, towers, foe, dead, nm1, 
 #endif
 static const u16 szList[]={128,192,256
 #ifdef GG_BIGMAP
- ,384,512,768,1024
+ ,384,512,768
+#if MAXD>=1024
+ ,1024
+#endif
 #endif
 };
 #define SZ_N ((int)(sizeof szList/sizeof szList[0]))
@@ -938,16 +943,17 @@ static SV*svOpen(const char*p,const char*m){ return fopen(p,m); } static size_t 
 static int saveGame(const char*path){
     compact(); cursor=0;     // the dead are dropped first, so a loaded game goes on exactly as this one would
     SV*f=svOpen(path,"wb"); if(!f) return 0; SaveHdr h; memset(&h,0,sizeof h); h.vcur=(u8)vilCur;
-    h.magic=SAVE_MAGIC; h.ver=9; h.weather=(u8)weather; h.weatherT=(u16)weatherT; h.trSeen=trSeen; h.stMut=stMut; h.seed=worldSeed; h.diff=(u8)diff; h.full=(u8)fullDone; h.aural=(u8)auralOpen; h.debug=(u8)debugOn; h.gw=(u16)gW; h.szCr=sizeof(Cr); h.szVil=sizeof(Vil); h.tick=(u32)tick; h.year=(u32)year; h.rs=rs; h.stKill=stKill; h.stGift=stGift; h.stUse=stUse; h.nCr=(u16)nCr; h.pad_[0]=(u8)(nCr>>16); h.seenN=(u16)seenN; h.camX=(u16)camX; h.camY=(u16)camY;
+    h.magic=SAVE_MAGIC; h.ver=9; h.weather=(u8)weather; h.weatherT=(u16)weatherT; h.trSeen=trSeen; h.stMut=stMut; h.seed=worldSeed; h.diff=(u8)diff; h.full=(u8)fullDone; h.aural=(u8)auralOpen; h.debug=(u8)debugOn; h.gw=(u16)gW; h.szCr=sizeof(Cr); h.szVil=sizeof(Vil); h.tick=(u32)tick; h.year=(u32)year; h.rs=rs; h.stKill=stKill; h.stGift=stGift; h.stUse=stUse; h.nCr=(u16)nCr; h.pad_[0]=(u8)(nCr>>16); h.pad_[1]=(u8)VIL_N; h.seenN=(u16)seenN; h.camX=(u16)camX; h.camY=(u16)camY;
     h.chapter=(u8)chapter; h.tierOpen=(u8)tierOpen; h.storyOn=(u8)storyOn; h.storyDone=(u8)storyDone; h.monOn=(u8)monOn; h.shape3=(u8)shape3; h.nVilOn=(u8)nVilOn; h.planet=(u8)(planetSize/8); memcpy(h.seen,seenB,sizeof seenB); memcpy(h.slain,slainB,sizeof slainB);
     int ok=svWrite(&h,sizeof h,1,f)==1;
     for(int y=0;y<gH&&ok;y++){ ok&=svWrite(world[y],1,gW,f)==(size_t)gW; ok&=svWrite(bld[y],1,gW,f)==(size_t)gW; ok&=svWrite(bldv[y],1,gW,f)==(size_t)gW; }
     if(ok&&nCr) ok&=svWrite(cr,sizeof(Cr),nCr,f)==(size_t)nCr; if(ok) ok&=svWrite(vil,sizeof(Vil),VIL_N,f)==(size_t)VIL_N;
-    if(ok) ok&=svWrite(kd,sizeof(Kd),KN_N,f)==(size_t)KN_N; if(ok) ok&=svWrite(vilL,1,VIL_N,f)==(size_t)VIL_N; if(ok) ok&=svWrite(vilK,1,VIL_N,f)==(size_t)VIL_N; if(ok){ int n=jrN; ok&=svWrite(&n,sizeof n,1,f)==1; ok&=svWrite(jr,34,24,f)==24; ok&=svWrite(jrYear,2,24,f)==24; u32 sx[8]={achBits,stWars,stCapt,stAllies,stSnack,lawOff,0,0}; ok&=svWrite(sx,4,8,f)==8; ok&=svWrite(favVil,1,48,f)==48; ok&=svWrite(favKd,1,8,f)==8; ok&=svWrite(favItem,1,600,f)==600; ok&=svWrite(favPow,1,40,f)==40; ok&=svWrite(&acidT,sizeof acidT,1,f)==1; ok&=svWrite(tor,sizeof tor,1,f)==1; ok&=svWrite(vilSick,1,sizeof vilSick,f)==sizeof vilSick; if(nCr) ok&=svWrite(sick,1,nCr,f)==(size_t)nCr; for(int y=0;y<gH&&ok;y++) ok&=svWrite(biome2+y*(MAXD/4),1,gW/4,f)==(size_t)(gW/4); { int at[8]={atO2,atCO2,atDust,atTemp,atFire,atFlag,0,0}; ok&=svWrite(at,sizeof at,1,f)==1; ok&=svWrite(favPow+40,1,24,f)==24; } }      // the plague, tornadoes and acid rain are part of the world too
+    if(ok) ok&=svWrite(kd,sizeof(Kd),KN_N,f)==(size_t)KN_N; if(ok) ok&=svWrite(vilL,1,VIL_N,f)==(size_t)VIL_N; if(ok) ok&=svWrite(vilK,1,VIL_N,f)==(size_t)VIL_N; if(ok){ int n=jrN; ok&=svWrite(&n,sizeof n,1,f)==1; ok&=svWrite(jr,34,24,f)==24; ok&=svWrite(jrYear,2,24,f)==24; u32 sx[8]={achBits,stWars,stCapt,stAllies,stSnack,lawOff,0,0}; ok&=svWrite(sx,4,8,f)==8; ok&=svWrite(favVil,1,sizeof favVil,f)==sizeof favVil; ok&=svWrite(favKd,1,8,f)==8; ok&=svWrite(favItem,1,600,f)==600; ok&=svWrite(favPow,1,40,f)==40; ok&=svWrite(&acidT,sizeof acidT,1,f)==1; ok&=svWrite(tor,sizeof tor,1,f)==1; ok&=svWrite(vilSick,1,sizeof vilSick,f)==sizeof vilSick; if(nCr) ok&=svWrite(sick,1,nCr,f)==(size_t)nCr; for(int y=0;y<gH&&ok;y++) ok&=svWrite(biome2+y*(MAXD/4),1,gW/4,f)==(size_t)(gW/4); { int at[8]={atO2,atCO2,atDust,atTemp,atFire,atFlag,0,0}; ok&=svWrite(at,sizeof at,1,f)==1; ok&=svWrite(favPow+40,1,24,f)==24; } }      // the plague, tornadoes and acid rain are part of the world too
     svClose(f); return ok; }
+static int rdVec(void*dst,int dstN,int srcN,int esz,SV*f){ u8 tmp[32]; int ok=1; for(int i=0;i<srcN&&ok;i++){ ok=svRead(tmp,esz,1,f)==1; if(ok&&i<dstN) memcpy((u8*)dst+i*esz,tmp,esz); } return ok; }      // read srcN records of esz bytes, keep the first dstN (a save may hold more or fewer villages than this build)
 static int loadGame(const char*path){
     SV*f=svOpen(path,"rb"); if(!f) return 0; SaveHdr h; int ok=svRead(&h,sizeof h,1,f)==1;
-    int nC=(int)h.nCr|((int)h.pad_[0]<<16); int legacy=0;
+    int nC=(int)h.nCr|((int)h.pad_[0]<<16); int legacy=0; int nvs=h.pad_[1]?h.pad_[1]:VIL_OLDN;
 #ifdef GG_BIGMAP
     legacy=h.szCr==sizeof(CrOld)&&h.szVil==sizeof(VilOld);
 #endif
@@ -960,15 +966,15 @@ static int loadGame(const char*path){
     else
 #endif
     if(ok&&nCr) ok&=svRead(cr,sizeof(Cr),nCr,f)==(size_t)nCr;
-    memset(vil,0,sizeof vil); { int nv=h.ver>=8?VIL_N:VIL_OLD;
+    memset(vil,0,sizeof vil); { int nv=h.ver>=8?nvs:VIL_OLD;
 #ifdef GG_BIGMAP
-        if(legacy){ VilOld vo[VIL_N]; if(ok) ok&=svRead(vo,sizeof(VilOld),nv,f)==(size_t)nv; for(int k=0;k<nv&&ok;k++){ Vil*V=&vil[k]; const VilOld*o=&vo[k]; V->on=o->on; V->race=o->race; V->x=o->x; V->y=o->y; V->lvl=o->lvl; V->houses=o->houses; V->farms=o->farms; V->towers=o->towers; V->foe=o->foe; V->dead=o->dead; V->nm1=o->nm1; V->nm2=o->nm2; V->pop=o->pop; V->stock=o->stock; } }
+        if(legacy){ for(int k=0;k<nv&&ok;k++){ VilOld vo1; ok&=svRead(&vo1,sizeof(VilOld),1,f)==1; if(k>=VIL_N) continue; Vil*V=&vil[k]; const VilOld*o=&vo1; V->on=o->on; V->race=o->race; V->x=o->x; V->y=o->y; V->lvl=o->lvl; V->houses=o->houses; V->farms=o->farms; V->towers=o->towers; V->foe=o->foe; V->dead=o->dead; V->nm1=o->nm1; V->nm2=o->nm2; V->pop=o->pop; V->stock=o->stock; } }
         else
 #endif
-        if(ok) ok&=svRead(vil,sizeof(Vil),nv,f)==(size_t)nv; }
+        if(ok) ok&=rdVec(vil,VIL_N,nv,sizeof(Vil),f); }
     memset(kd,0,sizeof kd); memset(vilK,0,sizeof vilK); memset(vilL,0,sizeof vilL); lawOff=0; acidT=0; memset(tor,0,sizeof tor); memset(sick,0,sizeof sick); memset(vilSick,0,sizeof vilSick); jrN=0; achBits=stWars=stCapt=stAllies=stSnack=0;
-    if(ok&&h.ver>=9){ ok&=svRead(kd,sizeof(Kd),KN_N,f)==(size_t)KN_N; if(ok) ok&=svRead(vilL,1,VIL_N,f)==(size_t)VIL_N; if(ok) ok&=svRead(vilK,1,VIL_N,f)==(size_t)VIL_N; if(ok){ int n=0; ok&=svRead(&n,sizeof n,1,f)==1; ok&=svRead(jr,34,24,f)==24; ok&=svRead(jrYear,2,24,f)==24; jrN=n<0?0:n>24?24:n; u32 sx[8]={0}; if(svRead(sx,4,8,f)==8){ achBits=sx[0]; lawOff=sx[5]&((1u<<LW_N)-1); stWars=sx[1]; stCapt=sx[2]; stAllies=sx[3]; stSnack=sx[4]; u8 t1[48], t2[8], t3[600], t4[40]; if(svRead(t1,1,48,f)==48&&svRead(t2,1,8,f)==8&&svRead(t3,1,600,f)==600&&svRead(t4,1,40,f)==40){ memcpy(favVil,t1,48); memcpy(favKd,t2,8); memcpy(favItem,t3,600); memcpy(favPow,t4,40);
-                    int ac=0; Tor tt[2]; u8 vs[sizeof vilSick]; if(svRead(&ac,sizeof ac,1,f)==1&&svRead(tt,sizeof tt,1,f)==1&&svRead(vs,1,sizeof vs,f)==sizeof vs){ acidT=ac; memcpy(tor,tt,sizeof tor); memcpy(vilSick,vs,sizeof vs); if(nCr>0&&nCr<=MAXC) svRead(sick,1,nCr,f); { int got=1; for(int y=0;y<gH&&got;y++) got=svRead(biome2+y*(MAXD/4),1,gW/4,f)==(size_t)(gW/4); if(!got) memset(biome2,0,sizeof biome2); bioCount(); bioRescan(); if(got){ int at[8]; if(svRead(at,sizeof at,1,f)==1){ atO2=at[0]; atCO2=at[1]; atDust=at[2]; atTemp=at[3]; atFire=at[4]; atFlag=at[5]; u8 fp[24]; if(svRead(fp,1,24,f)==24) memcpy(favPow+40,fp,24); } } } } } } } }
+    if(ok&&h.ver>=9){ ok&=svRead(kd,sizeof(Kd),KN_N,f)==(size_t)KN_N; if(ok) ok&=rdVec(vilL,VIL_N,nvs,1,f); if(ok) ok&=rdVec(vilK,VIL_N,nvs,1,f); if(ok){ int n=0; ok&=svRead(&n,sizeof n,1,f)==1; ok&=svRead(jr,34,24,f)==24; ok&=svRead(jrYear,2,24,f)==24; jrN=n<0?0:n>24?24:n; u32 sx[8]={0}; if(svRead(sx,4,8,f)==8){ achBits=sx[0]; lawOff=sx[5]&((1u<<LW_N)-1); stWars=sx[1]; stCapt=sx[2]; stAllies=sx[3]; stSnack=sx[4]; u8 t1[FAV_N], t2[8], t3[600], t4[40]; memset(t1,0,sizeof t1); if(rdVec(t1,FAV_N,nvs>48?nvs:48,1,f)&&svRead(t2,1,8,f)==8&&svRead(t3,1,600,f)==600&&svRead(t4,1,40,f)==40){ memcpy(favVil,t1,sizeof favVil); memcpy(favKd,t2,8); memcpy(favItem,t3,600); memcpy(favPow,t4,40);
+                    int ac=0; Tor tt[2]; u8 vs[sizeof vilSick]; memset(vs,0,sizeof vs); if(svRead(&ac,sizeof ac,1,f)==1&&svRead(tt,sizeof tt,1,f)==1&&rdVec(vs,sizeof vs,nvs>64?nvs:64,1,f)){ acidT=ac; memcpy(tor,tt,sizeof tor); memcpy(vilSick,vs,sizeof vs); if(nCr>0&&nCr<=MAXC) svRead(sick,1,nCr,f); { int got=1; for(int y=0;y<gH&&got;y++) got=svRead(biome2+y*(MAXD/4),1,gW/4,f)==(size_t)(gW/4); if(!got) memset(biome2,0,sizeof biome2); bioCount(); bioRescan(); if(got){ int at[8]; if(svRead(at,sizeof at,1,f)==1){ atO2=at[0]; atCO2=at[1]; atDust=at[2]; atTemp=at[3]; atFire=at[4]; atFlag=at[5]; u8 fp[24]; if(svRead(fp,1,24,f)==24) memcpy(favPow+40,fp,24); } } } } } } } }
     svClose(f);
     if(!ok){ return 0; }
     tick=(int)h.tick; year=(int)h.year; rs=h.rs; stKill=h.stKill; stGift=h.stGift; stUse=h.stUse; seenN=h.seenN; camX=h.camX; camY=h.camY; chapter=h.chapter; tierOpen=h.tierOpen; storyOn=h.storyOn; storyDone=h.storyDone; monOn=h.monOn; shape3=h.shape3; nVilOn=h.nVilOn;
@@ -1640,6 +1646,9 @@ int main(void){
     uiTextC(128,124,"SAFE BUILD: NO SOUND, NO SD",U_DIM,1);
 #endif
     uiFlush();
+#ifdef GG_DSIBIG
+    if(dsiAlias){ uiRect(0,0,256,192,U_BG); uiTextC(128,70,"THIS BUILD NEEDS DSI MODE",U_RED,1); uiTextC(128,88,"ITS BIG PLANETS NEED THE DSI'S",U_WHITE,1); uiTextC(128,98,"16 MB OF RAM. RUN godguy_dsi.nds",U_WHITE,1); uiTextC(128,108,"(THE DS-MODE FILE) INSTEAD.",U_WHITE,1); uiFlush(); uiCommit(); for(;;){ swiWaitForVBlank(); } }
+#endif
     rs^=(u32)(REG_VCOUNT*2654435761u)^0xA5A5; for(int i=0;i<8;i++) rnd();
 #ifndef GG_SAFE
     sdOk=fatInitDefault();

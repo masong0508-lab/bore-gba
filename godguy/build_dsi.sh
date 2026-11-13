@@ -14,4 +14,4 @@ open('arm9.bin','wb').write(pre+open('arm9.body','rb').read())
 PY
 $DEVKITPRO/tools/bin/ndstool -c ../godguy_dsi.nds -9 arm9.bin -r9 0x2000000 -e9 0x2000800 -7 arm7.bin -r7 0x2380000 -e7 0x2380000 -b ../icon.bmp "Bore: GodGuy;A god game;DSi build" -g GGDE 01 GODGUY -h 0x4000 >/dev/null
 ${B}size arm9.elf | tail -1; ls -la ../godguy_dsi.nds
-cp ../godguy_dsi.nds ../godguy_dsi_mode.nds; printf '\x03' | dd of=../godguy_dsi_mode.nds bs=1 seek=18 conv=notrunc 2>/dev/null; $DEVKITPRO/tools/bin/ndstool -f ../godguy_dsi_mode.nds >/dev/null; ls -la ../godguy_dsi_mode.nds
+cd ..; if [ -z "$GG_NOBIG" ]; then ./build_dsibig.sh; fi

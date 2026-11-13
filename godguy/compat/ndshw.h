@@ -84,11 +84,19 @@ static inline int keysHeld(void){ return hwHeld; }
 static inline int keysDown(void){ int d=hwHeld&~hwPrev; hwPrev=hwHeld; return d; }
 static inline void touchRead(touchPosition*t){ t->px=hwTx; t->py=hwTy; }
 // ---- saving: the world is run-length packed and written to the cartridge's save memory (flash or EEPROM) by the ARM7. The buffers sit in a part of RAM the data cache never touches.
-#define SVMAX (700*1024)                       // the raw save: a 256 x 256 planet (about 250 KB) and up to 30000 creatures (16 bytes each)
+#ifdef GG_DSIBIG
+#define SVMAX (3300*1024)                      // a 768 x 768 planet (1.8 MB raw) and up to 40000 creatures, in the DSi's upper RAM
+#define SVCMAX (0x3C0000)                      // the packed save in an uncached 4 MB block at 0x02C00000 (below the system's shared area at the very top)
+static u8 svBufA[SVMAX] __attribute__((aligned(4),section(".bigbss")));
+#define SVBUF svBufA
+#define SVCMP ((u8*)0x02C00000)
+#else
+#define SVMAX (700*1024)                       // the raw save: a 256 x 256 planet (about 250 KB) and up to 22000 creatures
 #define SVCMAX (0x80000-16)                     // the packed save, in the uncached block 0x02300000..0x02380000 (the ARM7 starts at 0x02380000)
 static u8 svBufA[SVMAX] __attribute__((aligned(4)));   // ordinary cached RAM: only the ARM9 touches the raw copy
 #define SVBUF svBufA
 #define SVCMP ((u8*)0x02300000)
+#endif
 typedef struct { int dummy; } SV; static SV svDummy; static u32 svLen, svPos; static int svMode;
 static int fatInitDefault(void){ for(int i=0;i<60;i++){ while(REG_VCOUNT!=192){} while(REG_VCOUNT==192){} if(HWIPC->svType) break; } return HWIPC->svType!=0; }
 static void hwFlash(u32 op,u32 mem,u32 len,u32 off){ HWIPC->svBusy=1; HWIPC->svOK=0; HwIpc*q=HWIPC; while(((q->head+1)&63)==q->tail){} HwCmd*m=&q->q[q->head]; m->op=op; m->ch=0; m->a=mem; m->b=len; m->c=off; m->d=0; q->head=(q->head+1)&63; u32 t=0; while(HWIPC->svBusy&&++t<50000000u){} }
