@@ -98,7 +98,7 @@ static void tbDraw(void){
     for(int s=0;s<TB_SLOTS;s++){ int pi=tbTop+s; int x0=12+s*23, y0=3, sel=pi==power;
         for(int j=0;j<19;j++) for(int i=0;i<21;i++){ int edge=(i==0||j==0||i==20||j==18); int c=sel?(edge?U_GOLD:U_SEL):(edge?U_BLO:U_SHADOW); TBP(x0+i,y0+j,UI_PAL0+c); }
         // icon (10 x 10, doubled would be too coarse: drawn once, centred)
-        { int kk=pw[pi].kind, cc=kk==PK_PAINT?U_BROWN:(kk==PK_SPAWN||kk==PK_HEAL||kk==PK_FEED||kk==PK_BLOOM||kk==PK_VIBE)?U_GREEN:(kk==PK_RAIN||kk==PK_FIRE||kk==PK_BOLT||kk==PK_METEOR||kk==PK_KILL||kk==PK_QUAKE||kk==PK_FLOOD||kk==PK_PLAGUE)?U_RED:(kk==PK_SETTLE||kk==PK_WAR||kk==PK_PEACE||kk==PK_BLESS)?U_BLUE:U_GOLD; for(int i=1;i<20;i++){ TBP(x0+i,y0+1,UI_PAL0+cc); TBP(x0+i,y0+2,UI_PAL0+cc); } }   // a colour strip says what kind of power it is: land, life, disaster, people, tools
+        { int kk=pw[pi].kind, cc=kk==PK_PAINT?U_BROWN:(kk==PK_SPAWN||kk==PK_HEAL||kk==PK_FEED||kk==PK_BLOOM||kk==PK_VIBE)?U_GREEN:(kk==PK_RAIN||kk==PK_FIRE||kk==PK_BOLT||kk==PK_METEOR||kk==PK_KILL||kk==PK_QUAKE||kk==PK_FLOOD||kk==PK_PLAGUE||kk==PK_ACID||kk==PK_TORNADO||kk==PK_NUKE)?U_RED:(kk==PK_SETTLE||kk==PK_WAR||kk==PK_PEACE||kk==PK_BLESS)?U_BLUE:U_GOLD; for(int i=1;i<20;i++){ TBP(x0+i,y0+1,UI_PAL0+cc); TBP(x0+i,y0+2,UI_PAL0+cc); } }   // a colour strip says what kind of power it is: land, life, disaster, people, tools
         if(favPow[pi]){ for(int j=0;j<3;j++) for(int i=0;i<3;i++) TBP(x0+16+i,y0+4+j,UI_PAL0+U_YELLOW); }   // a starred power
         const Pw*P=&pw[pi]; for(int j=0;j<10;j++) for(int i=0;i<10;i++){ int c;
             if(P->kind==PK_PAINT){ c=uiSwatch(P->arg,i,j,200); } else { c=icon10[uiKindIcon[P->kind]][j*10+i]; if(!c) continue; c+=UI_PAL0; }

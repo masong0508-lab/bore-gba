@@ -564,11 +564,31 @@ static void volcanoTick(void){ if(!LAW(LW_DISASTER)) return;   // lava creeps ov
     if(rnd()%90==0&&(t==T_MOUNT||t==T_HILL||t==T_DIRT||t==T_GRASS||t==T_FOREST||t==T_DESERT)){ setCell(nx,ny,T_LAVA); if(occ[ny][nx]) killCr(occ[ny][nx]-1); if(bld[ny][nx]){ bld[ny][nx]=0; putCell(nx,ny); } }
     else if(rnd()%400==0) setCell(x,y,T_MOUNT); }
 static void kingdomTick(void){ memset(kcSv,0,sizeof kcSv); memset(kcDv,0,sizeof kcDv); memset(kcZv,0,sizeof kcZv); kcOn=1; kingdomTick0(); kcOn=0; }
+// ---- WorldBox's classic disasters: tornado, acid rain, the bomb
+typedef struct { u8 on; s16 x, y, t; s8 dx, dy; } Tor; static Tor tor[2]; static int acidT;
+static void tornadoSpawn(int x,int y){ for(int k=0;k<2;k++) if(!tor[k].on){ tor[k].on=1; tor[k].x=(s16)x; tor[k].y=(s16)y; tor[k].t=700; tor[k].dx=(s8)((int)(rnd()%3)-1); tor[k].dy=(s8)((int)(rnd()%3)-1); if(!tor[k].dx&&!tor[k].dy) tor[k].dx=1; siprintf(info,"A TORNADO TOUCHES DOWN"); fxReq(FX_WAR); return; } }
+static void tornadoTick(void){ for(int k=0;k<2;k++){ Tor*T=&tor[k]; if(!T->on) continue; if(--T->t<=0){ T->on=0; continue; } if(tick&1) continue;
+        if(rnd()%12==0){ T->dx=(s8)((int)(rnd()%3)-1); T->dy=(s8)((int)(rnd()%3)-1); }
+        T->x+=T->dx; T->y+=T->dy; if(T->x<3){ T->x=3; T->dx=1; } if(T->x>WW-4){ T->x=(s16)(WW-4); T->dx=-1; } if(T->y<3){ T->y=3; T->dy=1; } if(T->y>WH-4){ T->y=(s16)(WH-4); T->dy=-1; }
+        for(int yy=T->y-2;yy<=T->y+2;yy++) for(int xx=T->x-2;xx<=T->x+2;xx++){ int ddx=xx-T->x, ddy=yy-T->y, d2=ddx*ddx+ddy*ddy; if(d2>5) continue;
+            burnAt(xx,yy,170); if(world[yy][xx]==T_FOREST&&rnd()%6==0) setCell(xx,yy,T_DIRT);
+            if(occ[yy][xx]&&d2<=2){ int j=occ[yy][xx]-1; if(rnd()%3==0) killCr(j); else if(cr[j].hp>1){ cr[j].hp=(u8)(cr[j].hp>7?cr[j].hp-6:1); } } } } }
+static void acidAt(int x,int y,int strong){ if(x<0||y<0||x>=WW||y>=WH) return; u8 t=world[y][x];
+    if((t==T_GRASS||t==T_FOREST||t==T_JUNGLE)&&rnd()%(strong?2:6)==0) setCell(x,y,T_DIRT);
+    burnAt(x,y,strong?120:25); if(occ[y][x]){ int j=occ[y][x]-1; int dm=strong?8:2; if(cr[j].hp>dm) cr[j].hp=(u8)(cr[j].hp-dm); else killCr(j); } }
+static void acidTick(void){ if(acidT<=0) return; acidT--; if(tick&3) return; for(int k=0;k<14;k++) acidAt((int)(rnd()%WW),(int)(rnd()%WH),0); if(acidT==0) siprintf(info,"THE ACID RAIN STOPS"); }
+static void nukeAt(int cx,int cy){          // the bomb: a crater of lava, scorched ground, everything within 9 tiles dead, and fallout that sickens the rest out to 20
+    const int R=9, F=20; for(int y=cy-F;y<=cy+F;y++) for(int x=cx-F;x<=cx+F;x++){ if(x<0||y<0||x>=WW||y>=WH) continue; int dx=x-cx, dy=y-cy, d2=dx*dx+dy*dy;
+        if(d2<=R*R){ burnAt(x,y,255); if(occ[y][x]) killCr(occ[y][x]-1); u8 t=world[y][x]; if(t!=T_WATER&&t!=T_DEEP){ if(d2<=4) setCell(x,y,T_LAVA); else if(d2<=36||rnd()%3==0) setCell(x,y,(rnd()&3)?T_DIRT:T_HILL); } }
+        else if(d2<=F*F){ if(occ[y][x]){ int j=occ[y][x]-1; if(sick[j]==0&&rnd()%3==0) sick[j]=1; if(cr[j].hp>4&&rnd()%3==0) cr[j].hp=(u8)(cr[j].hp-3); } if(rnd()%5==0) burnAt(x,y,120); } }
+    flashT=24; siprintf(info,"THE BOMB DROPS"); fxReq(FX_METEOR); }
 static void eventTick(void){   // now and then the world has an event of its own
     if(tick%1200==0) memset(vilSick,0,sizeof vilSick);
-    if(!LAW(LW_DISASTER)||tick<1500||(tick%1500)!=0||rnd()%3) return; int e=(int)(rnd()%5); if(e==4&&!LAW(LW_PLAGUE)) e=0;
+    if(!LAW(LW_DISASTER)||tick<1500||(tick%1500)!=0||rnd()%3) return; int e=(int)(rnd()%7); if(e==4&&!LAW(LW_PLAGUE)) e=0;
     if(e==0){ for(int k=0;k<6;k++){ int x=rnd()%WW, y=rnd()%WH; burnAt(x,y,255); if(world[y][x]!=T_WATER&&world[y][x]!=T_DEEP&&world[y][x]!=T_MOUNT) setCell(x,y,(rnd()&1)?T_DIRT:T_LAVA); if(occ[y][x]) killCr(occ[y][x]-1); } siprintf(info,"A COMET SHOWER"); flashT=8; fxReq(FX_METEOR); }
     else if(e==1){ for(int v=0;v<VIL_N;v++) if(vil[v].on) vil[v].stock=(u16)(vil[v].stock+100>400?400:vil[v].stock+100); siprintf(info,"A BOUNTIFUL HARVEST"); fxReq(FX_BLESS); }
+    else if(e==5){ tornadoSpawn((int)(rnd()%(WW-8))+4,(int)(rnd()%(WH-8))+4); }
+    else if(e==6){ acidT=500; siprintf(info,"ACID RAIN FALLS"); fxReq(FX_RAIN); }
     else if(e==4){ int tries=0; while(tries++<40){ int i=(int)(rnd()%(nCr?nCr:1)); if(nCr&&cr[i].alive&&arch[sp[cr[i].sp].a].diet!=5&&sick[i]==0){ sick[i]=1; siprintf(info,"A PLAGUE BREAKS OUT"); fxReq(FX_WAR); break; } } }
     else if(e==2){ int n=0; for(int i=0;i<nCr&&n<12;i++) if(cr[i].alive&&arch[sp[cr[i].sp].a].diet!=5&&cr[i].tr2==0&&(rnd()&7)==0){ giveTrait(&cr[i],TR_MUNCH,0); cr[i].food=200; n++; } siprintf(info,"THE GREAT MUNCHIES"); fxReq(FX_BIRTH); }
     else { for(int v=0;v<VIL_N;v++) vil[v].foe=0; for(int k=0;k<KN_N;k++){ kd[k].war=0; kd[k].weary=0; } warMatrix(); siprintf(info,"A FESTIVAL: ALL FEUDS FORGOTTEN"); fxReq(FX_PEACE); } }
@@ -589,7 +609,7 @@ static void simulate(void){
     for(int k=0;k<12;k++){ int x=rnd()%WW, y=rnd()%WH; u8 t=world[y][x]; if(t==T_DIRT){ int d=rnd()&3; int nx=x+dxs[d], ny=y+dys[d]; if(nx>=0&&ny>=0&&nx<WW&&ny<WH&&(world[ny][nx]==T_GRASS||world[ny][nx]==T_FOREST)) setCell(x,y,T_GRASS); }
         else if(t==T_GRASS&&(rnd()&63)==0){ int d=rnd()&3; int nx=x+dxs[d], ny=y+dys[d]; if(nx>=0&&ny>=0&&nx<WW&&ny<WH&&world[ny][nx]==T_FOREST&&(rnd()&7)==0) setCell(x,y,T_FOREST); } }
     if((tick&15)==0){ vilCur=(vilCur+1)%VIL_N; if(LAW(LW_GROWTH)) vilTick(vilCur); if(vilCur==0) warMatrix(); } if((tick&127)==64) kingdomTick(); if((tick&63)==33) achCheck();
-    weatherTick(); volcanoTick(); eventTick();
+    weatherTick(); volcanoTick(); eventTick(); if(LAW(LW_DISASTER)||tor[0].on||tor[1].on||acidT){ tornadoTick(); acidTick(); }
     if((tick&63)==0) monSpawn();
     if((tick&15)==0) towerFire();
     if(((tick)&255)==0){ compact(); if((tick%2048)==0){ year++; fxReq(FX_YEAR); } unlockTiers(); }
@@ -689,16 +709,16 @@ static void unlockTiers(void){   // every 256 ticks: is the chapter you are on d
     chapterDone(); }
 // ---------------------------------------------------------------------------------------------- powers (the table is the catalogue)
 typedef struct { const char*nm; u8 kind, arg; } Pw;
-enum { PK_INSPECT, PK_PAINT, PK_SPAWN, PK_RAIN, PK_FIRE, PK_BOLT, PK_METEOR, PK_KILL, PK_HEAL, PK_FEED, PK_SETTLE, PK_WAR, PK_PEACE, PK_BLESS, PK_GIFT, PK_MUTATE, PK_QUAKE, PK_FLOOD, PK_BLOOM, PK_VIBE, PK_PLAGUE };
+enum { PK_INSPECT, PK_PAINT, PK_SPAWN, PK_RAIN, PK_FIRE, PK_BOLT, PK_METEOR, PK_KILL, PK_HEAL, PK_FEED, PK_SETTLE, PK_WAR, PK_PEACE, PK_BLESS, PK_GIFT, PK_MUTATE, PK_QUAKE, PK_FLOOD, PK_BLOOM, PK_VIBE, PK_PLAGUE, PK_NUKE, PK_TORNADO, PK_ACID };
 static const Pw pw[]={ {"INSPECT",PK_INSPECT,0},{"WATER",PK_PAINT,T_WATER},{"DEEP SEA",PK_PAINT,T_DEEP},{"SAND",PK_PAINT,T_SAND},{"GRASS",PK_PAINT,T_GRASS},{"FOREST",PK_PAINT,T_FOREST},{"JUNGLE",PK_PAINT,T_JUNGLE},
     {"HILLS",PK_PAINT,T_HILL},{"MOUNTAIN",PK_PAINT,T_MOUNT},{"SNOW",PK_PAINT,T_SNOW},{"DESERT",PK_PAINT,T_DESERT},{"SWAMP",PK_PAINT,T_SWAMP},{"LAVA",PK_PAINT,T_LAVA},
-    {"SPAWN",PK_SPAWN,0},{"RAIN",PK_RAIN,0},{"FIRE",PK_FIRE,0},{"LIGHTNING",PK_BOLT,0},{"METEOR",PK_METEOR,0},{"SMITE",PK_KILL,0},{"HEAL",PK_HEAL,0},{"FEED",PK_FEED,0},{"SETTLE",PK_SETTLE,0},{"WAR",PK_WAR,0},{"PEACE",PK_PEACE,0},{"BLESS",PK_BLESS,0},{"GIFT",PK_GIFT,0},{"MUTATE",PK_MUTATE,0},{"EARTHQUAKE",PK_QUAKE,0},{"TSUNAMI",PK_FLOOD,0},{"BLOOM",PK_BLOOM,0},{"GOOD VIBES",PK_VIBE,0},{"PLAGUE",PK_PLAGUE,0} };
+    {"SPAWN",PK_SPAWN,0},{"RAIN",PK_RAIN,0},{"FIRE",PK_FIRE,0},{"LIGHTNING",PK_BOLT,0},{"METEOR",PK_METEOR,0},{"SMITE",PK_KILL,0},{"HEAL",PK_HEAL,0},{"FEED",PK_FEED,0},{"SETTLE",PK_SETTLE,0},{"WAR",PK_WAR,0},{"PEACE",PK_PEACE,0},{"BLESS",PK_BLESS,0},{"GIFT",PK_GIFT,0},{"MUTATE",PK_MUTATE,0},{"EARTHQUAKE",PK_QUAKE,0},{"TSUNAMI",PK_FLOOD,0},{"BLOOM",PK_BLOOM,0},{"GOOD VIBES",PK_VIBE,0},{"PLAGUE",PK_PLAGUE,0},{"ACID RAIN",PK_ACID,0},{"TORNADO",PK_TORNADO,0},{"BOMB",PK_NUKE,0} };
 #define PW_N ((int)(sizeof(pw)/sizeof(pw[0])))
 static int inspected=-1, trSel=1;
 static int inspT, inspKind, inspIdx;   // the inspect card: what was looked at (1 creature, 2 village) and for how long it stays up
 static void usePower(int tx,int ty,int fresh){
     const Pw*P=&pw[power]; int r=brush;
-    if(fresh){ stUse++; if(P->kind==PK_GIFT) stGift++; static const u8 fxOf[21]={FX_INSPECT,FX_PAINT,FX_SPAWN,FX_RAIN,FX_FIRE,FX_LIGHTNING,FX_METEOR,FX_SMITE,FX_HEAL,FX_FEED,FX_SETTLE,FX_WAR,FX_PEACE,FX_BLESS,FX_GIFT,FX_BIRTH,FX_METEOR,FX_RAIN,FX_BIRTH,FX_BLESS,FX_WAR}; fxReq(fxOf[P->kind]); } if(P->kind==PK_GIFT&&(it[itSel].kind==IK_WEAPON||it[itSel].kind==IK_ARMOR||it[itSel].kind==IK_RELIC||it[itSel].kind==IK_GEM)) r=1;
+    if(fresh){ stUse++; if(P->kind==PK_GIFT) stGift++; static const u8 fxOf[24]={FX_INSPECT,FX_PAINT,FX_SPAWN,FX_RAIN,FX_FIRE,FX_LIGHTNING,FX_METEOR,FX_SMITE,FX_HEAL,FX_FEED,FX_SETTLE,FX_WAR,FX_PEACE,FX_BLESS,FX_GIFT,FX_BIRTH,FX_METEOR,FX_RAIN,FX_BIRTH,FX_BLESS,FX_WAR,FX_METEOR,FX_WAR,FX_RAIN}; fxReq(fxOf[P->kind]); } if(P->kind==PK_GIFT&&(it[itSel].kind==IK_WEAPON||it[itSel].kind==IK_ARMOR||it[itSel].kind==IK_RELIC||it[itSel].kind==IK_GEM)) r=1;
     for(int dy=-r;dy<=r;dy++) for(int dx=-r;dx<=r;dx++){ if(dx*dx+dy*dy>r*r+r/2) continue; int x=tx+dx, y=ty+dy; if(x<0||y<0||x>=WW||y>=WH) continue;
         switch(P->kind){
         case PK_PAINT: if(bld[y][x]){ bld[y][x]=0; bldv[y][x]=0; } setCell(x,y,P->arg); if(occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; if(!walkable(&sp[c->sp],x,y)&&(rnd()&3)==0) killCr(occ[y][x]-1); } break;
@@ -709,6 +729,9 @@ static void usePower(int tx,int ty,int fresh){
         case PK_METEOR: if(fresh){ int rr=dx*dx+dy*dy; burnAt(x,y,255); if(rr<=2) setCell(x,y,T_LAVA); else if(rr<=r*r) setCell(x,y,(rnd()&1)?T_DIRT:T_HILL); if(occ[y][x]) killCr(occ[y][x]-1); } break;
         case PK_KILL: if(occ[y][x]) killCr(occ[y][x]-1); break;
         case PK_HEAL: if(occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; c->hp=(u8)maxHp(c); if(sick[occ[y][x]-1]==1) sick[occ[y][x]-1]=2; } break;      // healing cures the plague and leaves the creature immune
+        case PK_ACID: if(fresh||rnd()%3==0) acidAt(x,y,1); break;
+        case PK_TORNADO: if(fresh&&dx==0&&dy==0) tornadoSpawn(x,y); break;
+        case PK_NUKE: if(fresh&&dx==0&&dy==0) nukeAt(x,y); break;
         case PK_PLAGUE: if(occ[y][x]&&sick[occ[y][x]-1]==0&&(fresh||rnd()%4==0)) sick[occ[y][x]-1]=1; break;
         case PK_FEED: if(occ[y][x]) cr[occ[y][x]-1].food=120; else if(world[y][x]==T_DIRT) setCell(x,y,T_GRASS); break;
         case PK_SETTLE: if(fresh&&dx==0&&dy==0){ int race=spSel<8?sp[spSel].a:0; if(vilFound(race,x,y)<0) siprintf(info,"NO ROOM FOR A VILLAGE"); else { for(int k=0;k<4;k++) addCr(spSel<8?spSel:0,x+(int)(rnd()%5)-2,y+(int)(rnd()%5)-2); } } break;
@@ -938,6 +961,7 @@ static void drawSprites(void){
     for(int i=0;i<20;i++){ if(i>=cnt||view3d){ oamSetHidden(&oamMain,108+i,true); continue; }
         if(weather==3){ wpt[i].y+=1+(i&1); wpt[i].x+=(short)(((tick>>3)+i)%3)-1; } else { wpt[i].y+=7; wpt[i].x-=2; } if(wpt[i].y>=160){ wpt[i].y=-8; wpt[i].x=(short)(rnd()%256); } if(wpt[i].x<0) wpt[i].x+=256; if(wpt[i].x>255) wpt[i].x-=256;
         oamSet(&oamMain,108+i,wpt[i].x,wpt[i].y,0,weather==3?14:6,SpriteSize_8x8,SpriteColorFormat_16Color,gfxF[weather==3?41:40][0],-1,false,false,false,false,false); }
+    for(int k=0,sl=0;k<2;k++) if(tor[k].on&&!view3d){ int px=tor[k].x*8-camX, py=tor[k].y*8-camY; for(int j=0;j<5&&sl<10;j++,sl++){ int wob=(int)(((tick>>1)+j*3)%7)-3; oamSet(&oamMain,118+sl,px+wob*(5-j)/2-(j>=2?0:0),py-j*7+10,0,13,SpriteSize_8x8,SpriteColorFormat_16Color,gfxF[41][0],-1,false,false,false,false,false); } }      // a swirl of grey flakes, wider at the top
 }
 static u8 mmCol[T_N];
 static int page=0, titleOn=1, sceneOn=0;
@@ -949,7 +973,7 @@ static const char* const helpTxt[]={"TOUCH THE WORLD: USE POWER","L R      CHOOS
 static const char* const tipTxt[]={"TOUCH THE WORLD TO USE A POWER","L R CHANGES THE POWER","TRY SPAWN, THEN RAIN AND FIRE","START A VILLAGE: SETTLE","SELECT: STORY, BESTIARY, HELP","X+Y SHOWS THE WORLD AS A GLOBE","SNACKS MAY GIVE FOLK CHILL TRAITS","DAVE SAYS: HAVE YOU TRIED SITTING","FEED A MONSTER A NACHO. SEE WHAT HAPPENS","THE COUCH HAS ROOM FOR EVERYONE","MUNCHIES ARE NOT A BUG"};
 static const char* const*sceneTxt, *const*sceneNext; static int menuOn, menuSel, menuAsk, toastT, dlgOn, dlgIdx, dlgChars, dlgPaused, sceneOff, sceneT, sceneScroll, endShown, scenePaused, helpSel, trPage, tipN;
 static const Dl*dlgSet; static char lastInfo[64];
-static const char* const pwDesc[32]={"LOOK AT A CREATURE OR A VILLAGE","PAINT SHALLOW WATER","PAINT DEEP SEA","PAINT SAND","PAINT GRASS","PLANT FOREST","PLANT JUNGLE","RAISE HILLS","RAISE MOUNTAINS","PAINT SNOW","PAINT DESERT","PAINT SWAMP","PAINT LAVA","CREATE LIFE  (X Y: SPECIES)","RAIN GREENS THE LAND","BURN WHAT YOU TOUCH","STRIKE ONE TILE DEAD","DROP A METEOR","KILL WHAT YOU TOUCH","HEAL CREATURES","FEED CREATURES","FOUND A VILLAGE","START A WAR","END ALL WARS","FILL A VILLAGE STORE","GIVE AN ITEM  (X Y: ITEM)","GIVE A TRAIT  (X Y: TRAIT)","SHAKE THE GROUND","FLOOD THE LAND","MAKE THE LAND BLOOM","CHILL A CREATURE OR VILLAGE","SPREAD A SICKNESS. HEAL CURES IT"};
+static const char* const pwDesc[35]={"LOOK AT A CREATURE OR A VILLAGE","PAINT SHALLOW WATER","PAINT DEEP SEA","PAINT SAND","PAINT GRASS","PLANT FOREST","PLANT JUNGLE","RAISE HILLS","RAISE MOUNTAINS","PAINT SNOW","PAINT DESERT","PAINT SWAMP","PAINT LAVA","CREATE LIFE  (X Y: SPECIES)","RAIN GREENS THE LAND","BURN WHAT YOU TOUCH","STRIKE ONE TILE DEAD","DROP A METEOR","KILL WHAT YOU TOUCH","HEAL CREATURES","FEED CREATURES","FOUND A VILLAGE","START A WAR","END ALL WARS","FILL A VILLAGE STORE","GIVE AN ITEM  (X Y: ITEM)","GIVE A TRAIT  (X Y: TRAIT)","SHAKE THE GROUND","FLOOD THE LAND","MAKE THE LAND BLOOM","CHILL A CREATURE OR VILLAGE","SPREAD A SICKNESS. HEAL CURES IT","CORRODE LAND, LIFE AND BUILDINGS","A TORNADO THAT WANDERS AND TEARS","DROP THE BOMB: CRATER AND FALLOUT"};
 static int sceneLines(const char*const*t){ int n=0; while(t[n]) n++; return n; }
 static void sceneStart(const char*const*t,int scroll){ sceneTxt=t; sceneScroll=scroll; sceneOff=scroll?-20:0; sceneT=0; if(!sceneOn) scenePaused=paused; sceneOn=1; paused=1; }
 static int dbgSel=0, dbgMon=0, dbgFx=0, fxSel=0, konami=0;
