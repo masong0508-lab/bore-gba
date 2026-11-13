@@ -251,7 +251,7 @@ static int tilePix(int t,int v,int x,int y){   // palette entry (terrain * 8 + s
 }
 static void shadeRGB(int idx,int*r,int*g,int*b){ int t=idx/8,k=idx%8,f=60+k*20; *r=terrCol[t][0]*f/160; *g=terrCol[t][1]*f/160; *b=terrCol[t][2]*f/160; if(*r>31)*r=31; if(*g>31)*g=31; if(*b>31)*b=31; }
 // buildings: B_*; a building tile is ground (grass) with the building on it, in the colours of the people who built it
-enum { B_NONE, B_HUT, B_HOUSE, B_HALL, B_FARM, B_TOWER, B_RUIN, B_N };
+enum { B_NONE, B_HUT, B_HOUSE, B_HALL, B_FARM, B_TOWER, B_RUIN, B_DOCK, B_N };
 #define BT0 (T_N*4)
 static const u8 roofCol[8][3]={ {27,4,4},{6,22,8},{8,14,26},{14,3,3},{28,24,4},{29,15,3},{20,8,26},{14,9,4} };   // human elf dwarf orc goblin halfling gnome ogre
 static const u8 bldCol[8][3]={ {27,22,14},{14,10,5},{16,16,19},{20,20,22},{4,24,6},{12,8,3},{10,10,12},{31,31,31} };   // wall, dark wood, door, stone, crop, soil, ruin, flag
@@ -263,6 +263,7 @@ static int bldPix(int type,int race,int x,int y){
     case B_HALL: if(y<=2&&x==2) return dark; if(y<=1&&x>=3&&x<=5) return flag; if(y==2&&(x&1)==0&&x>=1&&x<=7) return stone; if(y>=3) return (y>=5&&x>=3&&x<=4)?dark:((x==1||x==6)&&y==4)?dark:stone; break;
     case B_FARM: if(x==0||x==7||y==0||y==7) return (x+y)&1?dark:bg; return (y&1)?crop:soil;
     case B_TOWER: if(y==1&&(x==2||x==3||x==5)) return stone; if(y>=2&&x>=2&&x<=5) return (y==4&&x==3)?dark:stone; break;
+    case B_DOCK: if(y>=3&&y<=4) return (x&1)?dark:wall; if(y>=5&&y<=6&&(x==1||x==6)) return dark; break;
     case B_RUIN: if((hsh(x,y,17)&3)==0) return ruin; if((hsh(x,y,18)&7)==1) return stone; break; }
     return bg;
 }
@@ -389,6 +390,33 @@ static int placeBld(int v,int type,int cost){
         putBld(v,x,y,type); V->stock-=(u16)cost; return 1; }
     return 0;
 }
+// ---- boats and docks (after the wiki): a town of some size builds a dock on its shore; now and then a boat carries settlers across the water to a new shore and they found a village there
+typedef struct { u8 on, race, n, i; s16 x, y, tx, ty; u16 t; u8 path[128]; } Boat; static Boat boat[8];      // path: the steps (0 up, 1 right, 2 down, 3 left) found when it set sail
+static int hasDock(int v){ const Vil*V=&vil[v]; for(int dy=-9;dy<=9;dy++) for(int dx=-9;dx<=9;dx++){ int x=V->x+dx, y=V->y+dy; if(x>=0&&y>=0&&x<WW&&y<WH&&bld[y][x]==B_DOCK&&bldv[y][x]==v+1) return 1; } return 0; }
+static int isWater(int x,int y){ return x>=0&&y>=0&&x<WW&&y<WH&&(world[y][x]==T_WATER||world[y][x]==T_DEEP); }
+static int vilFound(int race,int x,int y);
+static void dockTry(int v){      // a dock: a land tile of the village beside water
+    Vil*V=&vil[v]; for(int k=0;k<40;k++){ int x=V->x+(int)(rnd()%17)-8, y=V->y+(int)(rnd()%17)-8; if(x<2||y<2||x>=WW-2||y>=WH-2||bld[y][x]||world[y][x]<=T_WATER||world[y][x]==T_LAVA) continue;
+        if(!(isWater(x+1,y)||isWater(x-1,y)||isWater(x,y+1)||isWater(x,y-1))) continue; bld[y][x]=B_DOCK; bldv[y][x]=(u8)(v+1); if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); return; } }
+#define BW 121
+static u8 bfsDir[BW*BW]; static u16 bfsQ[BW*BW];
+static void boatLaunch(int v){
+    Vil*V=&vil[v]; int nb=0; for(int b=0;b<8;b++) nb+=boat[b].on; if(nb>=8) return; int bi=-1; for(int b=0;b<8;b++) if(!boat[b].on){ bi=b; break; }
+    int sx=-1, sy=-1; for(int dy=-9;dy<=9&&sx<0;dy++) for(int dx=-9;dx<=9&&sx<0;dx++){ int x=V->x+dx, y=V->y+dy; if(x>=0&&y>=0&&x<WW&&y<WH&&bld[y][x]==B_DOCK&&bldv[y][x]==v+1){ for(int d=0;d<4;d++) if(isWater(x+dxs[d],y+dys[d])){ sx=x+dxs[d]; sy=y+dys[d]; break; } } } if(sx<0) return;
+    // a search across the water for the nearest shore at least 12 tiles away where nobody lives yet
+    int ox=sx-BW/2, oy=sy-BW/2; memset(bfsDir,255,sizeof bfsDir); int qh=0, qt=0; bfsQ[qt++]=(u16)((BW/2)*BW+BW/2); bfsDir[(BW/2)*BW+BW/2]=4; int goal=-1, gtx=0, gty=0, rot=(int)(rnd()&3);
+    while(qh<qt&&goal<0){ int c=bfsQ[qh++]; int cx=c%BW, cy=c/BW; int wx=ox+cx, wy=oy+cy;
+        if(abs(wx-V->x)+abs(wy-V->y)>=12) for(int k=0;k<4;k++){ int d=(k+rot)&3; int tx=wx+dxs[d], ty=wy+dys[d]; if(buildable(tx,ty)&&vilAny(tx,ty,9)<0){ goal=c; gtx=tx; gty=ty; break; } }
+        if(goal>=0) break;
+        for(int k=0;k<4;k++){ int d=(k+rot)&3; int nx=cx+dxs[d], ny=cy+dys[d]; if(nx<0||ny<0||nx>=BW||ny>=BW||bfsDir[ny*BW+nx]!=255||!isWater(ox+nx,oy+ny)) continue; bfsDir[ny*BW+nx]=(u8)d; bfsQ[qt++]=(u16)(ny*BW+nx); } }
+    if(goal<0) return;
+    u8 rev[128]; int n=0; for(int c=goal;c!=(BW/2)*BW+BW/2;){ int d=bfsDir[c]; if(d>3||n>=128) return; rev[n++]=(u8)d; c=(c/BW-dys[d])*BW+(c%BW-dxs[d]); }
+    int taken=0; for(int i=0;i<nCr&&taken<4;i++){ Cr*c=&cr[i]; if(c->alive&&sp[c->sp].a==V->race&&abs(c->x-V->x)<9&&abs(c->y-V->y)<9){ c->alive=0; if(occ[c->y][c->x]==i+1) occ[c->y][c->x]=0; taken++; } } if(taken<2) return;
+    Boat*B=&boat[bi]; memset(B,0,sizeof *B); B->on=1; B->race=V->race; B->x=(s16)sx; B->y=(s16)sy; B->tx=(s16)gtx; B->ty=(s16)gty; B->n=(u8)n; for(int k=0;k<n;k++) B->path[k]=rev[n-1-k]; }
+static void boatTick(void){
+    for(int b=0;b<8;b++){ Boat*B=&boat[b]; if(!B->on||(tick&3)) continue;
+        if(B->i>=B->n){ int v=vilFound(B->race,B->tx,B->ty); if(v>=0){ for(int q=0;q<4;q++) addCr(B->race,B->tx+(int)(rnd()%5)-2,B->ty+(int)(rnd()%5)-2); char vn[24], s2[48]; vilName(v,vn); siprintf(s2,"SETTLERS SAIL TO %.20s",vn); logEv(s2); } B->on=0; continue; }
+        int d=B->path[B->i++]; B->x=(s16)(B->x+dxs[d]); B->y=(s16)(B->y+dys[d]); } }
 static int vilFound(int race,int x,int y){
     if(!buildable(x,y)) return -1; if(vilAny(x,y,9)>=0) return -1; int v=-1; for(int i=0;i<VIL_N;i++) if(!vil[i].on){ v=i; break; } if(v<0) return -1;
     Vil*V=&vil[v]; memset(V,0,sizeof *V); V->on=1; V->race=(u8)race; V->x=(coord_t)x; V->y=(coord_t)y; V->lvl=1; V->stock=30; V->nm1=(u8)(rnd()%12); V->nm2=(u8)(rnd()%8);
@@ -414,6 +442,7 @@ static void vilTick(int v){
     Vil*V=&vil[v]; if(!V->on) return; int pop=0;
     for(int dy=-10;dy<=10;dy++){ int y=V->y+dy; if(y<0||y>=WH) continue; for(int dx=-10;dx<=10;dx++){ int x=V->x+dx; if(x<0||x>=WW||dx*dx+dy*dy>100) continue; int j=occ[y][x]-1; if(j>=0&&cr[j].alive&&sp[cr[j].sp].a==V->race&&sp[cr[j].sp].a<8) pop++; } }
     V->pop=(u16)pop; if(!pop){ if(++V->dead>=6){ vilRaze(v,1); return; } } else V->dead=0;
+    if(V->lvl>=2&&pop>=10){ if(!hasDock(v)){ if((rnd()%6)==0) dockTry(v); } else if(nVilOn<VIL_N-2&&(rnd()%10)==0) boatLaunch(v); }
     int mood=vilMood(v); int gain=pop+V->farms*3; if(mood>=40) gain+=pop/4; else if(mood<=-40) gain=gain/2; if(mood<=-60&&vilK[v]&&(rnd()&7)==0&&vilL[v]>0) vilL[v]--; else if(mood>=40&&vilK[v]&&(rnd()&7)==0&&vilL[v]<100) vilL[v]++;
      V->stock=(u16)(V->stock+gain>400?400:V->stock+gain);
     // what to build next: homes for everyone, fields to feed them, then towers, then a bigger hall
@@ -747,6 +776,7 @@ static void biomeTick(void){       // biomes creep outward over the ground, figh
 static void simulate(void){
     if(paused) return;
     if(LAW(LW_BIOME)) biomeTick();
+    boatTick();
     if((tick&63)==17) atmoTick();
     { int x0=(camX>>3)-1, y0=(camY>>3)-1;      // glide into the tile: only the creatures near the screen (a crowd of thousands is not walked through every tick)
       for(int y=y0<0?0:y0;y<y0+27&&y<WH;y++) for(int x=x0<0?0:x0;x<x0+35&&x<WW;x++){ int j=occ[y][x]-1; if(j<0) continue; Cr*c=&cr[j]; if(c->ox) c->ox+= c->ox<0?1:-1; if(c->oy) c->oy+= c->oy<0?1:-1; } }
@@ -919,7 +949,7 @@ static void usePower(int tx,int ty,int fresh){
 static int planetSize=128;
 static void (*loadHook)(const char*,int);
 #define LOADING(m,p) do{ if(loadHook) loadHook(m,p); }while(0)
-static void newWorld(void){ LOADING("THE VOID",4); gW=gH=planetSize; nCr=0; memset(occ,0,sizeof occ); memset(bld,0,sizeof bld); memset(bldv,0,sizeof bldv); memset(vil,0,sizeof vil); memset(kd,0,sizeof kd); memset(vilK,0,sizeof vilK); memset(vilL,0,sizeof vilL); memset(favVil,0,sizeof favVil); memset(favKd,0,sizeof favKd); jrN=0; stWars=stCapt=stAllies=stSnack=0; nVilOn=0; worldSeed=seedFix?seedFix:rnd(); genWorld(worldSeed); LOADING("SHAPING THE LAND",35); winX=-99; refillWindow();
+static void newWorld(void){ LOADING("THE VOID",4); memset(boat,0,sizeof boat); gW=gH=planetSize; nCr=0; memset(occ,0,sizeof occ); memset(bld,0,sizeof bld); memset(bldv,0,sizeof bldv); memset(vil,0,sizeof vil); memset(kd,0,sizeof kd); memset(vilK,0,sizeof vilK); memset(vilL,0,sizeof vilL); memset(favVil,0,sizeof favVil); memset(favKd,0,sizeof favKd); jrN=0; stWars=stCapt=stAllies=stSnack=0; nVilOn=0; worldSeed=seedFix?seedFix:rnd(); genWorld(worldSeed); LOADING("SHAPING THE LAND",35); winX=-99; refillWindow();
     LOADING("SEEDING LIFE",50);
     // the first life: a few of each of the first animals on their own ground
     int nAn=260*WW*WH/16384*cLife/2; { int cap=900*(WW*WH>65536?WW*WH/65536:1); if(nAn>cap) nAn=cap; }
@@ -958,7 +988,7 @@ static int saveGame(const char*path){
     int ok=svWrite(&h,sizeof h,1,f)==1;
     for(int y=0;y<gH&&ok;y++){ ok&=svWrite(world[y],1,gW,f)==(size_t)gW; ok&=svWrite(bld[y],1,gW,f)==(size_t)gW; ok&=svWrite(bldv[y],1,gW,f)==(size_t)gW; }
     if(ok&&nCr) ok&=svWrite(cr,sizeof(Cr),nCr,f)==(size_t)nCr; if(ok) ok&=svWrite(vil,sizeof(Vil),VIL_N,f)==(size_t)VIL_N;
-    if(ok) ok&=svWrite(kd,sizeof(Kd),KN_N,f)==(size_t)KN_N; if(ok) ok&=svWrite(vilL,1,VIL_N,f)==(size_t)VIL_N; if(ok) ok&=svWrite(vilK,1,VIL_N,f)==(size_t)VIL_N; if(ok){ int n=jrN; ok&=svWrite(&n,sizeof n,1,f)==1; ok&=svWrite(jr,34,24,f)==24; ok&=svWrite(jrYear,2,24,f)==24; u32 sx[8]={achBits,stWars,stCapt,stAllies,stSnack,lawOff,0,0}; ok&=svWrite(sx,4,8,f)==8; ok&=svWrite(favVil,1,sizeof favVil,f)==sizeof favVil; ok&=svWrite(favKd,1,8,f)==8; ok&=svWrite(favItem,1,600,f)==600; ok&=svWrite(favPow,1,40,f)==40; ok&=svWrite(&acidT,sizeof acidT,1,f)==1; ok&=svWrite(tor,sizeof tor,1,f)==1; ok&=svWrite(vilSick,1,sizeof vilSick,f)==sizeof vilSick; if(nCr) ok&=svWrite(sick,1,nCr,f)==(size_t)nCr; for(int y=0;y<gH&&ok;y++) ok&=svWrite(biome2+y*(MAXD/4),1,gW/4,f)==(size_t)(gW/4); { int at[8]={atO2,atCO2,atDust,atTemp,atFire,atFlag,0,0}; ok&=svWrite(at,sizeof at,1,f)==1; ok&=svWrite(favPow+40,1,24,f)==24; } }      // the plague, tornadoes and acid rain are part of the world too
+    if(ok) ok&=svWrite(kd,sizeof(Kd),KN_N,f)==(size_t)KN_N; if(ok) ok&=svWrite(vilL,1,VIL_N,f)==(size_t)VIL_N; if(ok) ok&=svWrite(vilK,1,VIL_N,f)==(size_t)VIL_N; if(ok){ int n=jrN; ok&=svWrite(&n,sizeof n,1,f)==1; ok&=svWrite(jr,34,24,f)==24; ok&=svWrite(jrYear,2,24,f)==24; u32 sx[8]={achBits,stWars,stCapt,stAllies,stSnack,lawOff,0,0}; ok&=svWrite(sx,4,8,f)==8; ok&=svWrite(favVil,1,sizeof favVil,f)==sizeof favVil; ok&=svWrite(favKd,1,8,f)==8; ok&=svWrite(favItem,1,600,f)==600; ok&=svWrite(favPow,1,40,f)==40; ok&=svWrite(&acidT,sizeof acidT,1,f)==1; ok&=svWrite(tor,sizeof tor,1,f)==1; ok&=svWrite(vilSick,1,sizeof vilSick,f)==sizeof vilSick; if(nCr) ok&=svWrite(sick,1,nCr,f)==(size_t)nCr; for(int y=0;y<gH&&ok;y++) ok&=svWrite(biome2+y*(MAXD/4),1,gW/4,f)==(size_t)(gW/4); { int at[8]={atO2,atCO2,atDust,atTemp,atFire,atFlag,0,0}; ok&=svWrite(at,sizeof at,1,f)==1; ok&=svWrite(favPow+40,1,24,f)==24; ok&=svWrite(boat,sizeof boat,1,f)==1; } }      // the plague, tornadoes and acid rain are part of the world too
     svClose(f); return ok; }
 static int rdVec(void*dst,int dstN,int srcN,int esz,SV*f){ u8 tmp[32]; int ok=1; for(int i=0;i<srcN&&ok;i++){ ok=svRead(tmp,esz,1,f)==1; if(ok&&i<dstN) memcpy((u8*)dst+i*esz,tmp,esz); } return ok; }      // read srcN records of esz bytes, keep the first dstN (a save may hold more or fewer villages than this build)
 static int loadGame(const char*path){
@@ -968,7 +998,7 @@ static int loadGame(const char*path){
     legacy=h.szCr==sizeof(CrOld)&&h.szVil==sizeof(VilOld);
 #endif
     if(!ok||h.magic!=SAVE_MAGIC||(h.ver<5||h.ver>9)||(!legacy&&(h.szCr!=sizeof(Cr)||h.szVil!=sizeof(Vil)))||!validSize(h.gw)||nC>MAXC){ svClose(f); return 0; }
-    gW=gH=h.gw; planetSize=gW; memset(world,0,sizeof world); memset(bld,0,sizeof bld); memset(bldv,0,sizeof bldv); memset(occ,0,sizeof occ); bioClear(); atmoReset();
+    gW=gH=h.gw; planetSize=gW; memset(world,0,sizeof world); memset(bld,0,sizeof bld); memset(bldv,0,sizeof bldv); memset(occ,0,sizeof occ); bioClear(); atmoReset(); memset(boat,0,sizeof boat);
     for(int y=0;y<gH&&ok;y++){ ok&=svRead(world[y],1,gW,f)==(size_t)gW; ok&=svRead(bld[y],1,gW,f)==(size_t)gW; ok&=svRead(bldv[y],1,gW,f)==(size_t)gW; }
     nCr=nC;
 #ifdef GG_BIGMAP
@@ -984,7 +1014,7 @@ static int loadGame(const char*path){
         if(ok) ok&=rdVec(vil,VIL_N,nv,sizeof(Vil),f); }
     memset(kd,0,sizeof kd); memset(vilK,0,sizeof vilK); memset(vilL,0,sizeof vilL); lawOff=0; acidT=0; memset(tor,0,sizeof tor); memset(sick,0,sizeof sick); memset(vilSick,0,sizeof vilSick); jrN=0; achBits=stWars=stCapt=stAllies=stSnack=0;
     if(ok&&h.ver>=9){ ok&=svRead(kd,sizeof(Kd),KN_N,f)==(size_t)KN_N; if(ok) ok&=rdVec(vilL,VIL_N,nvs,1,f); if(ok) ok&=rdVec(vilK,VIL_N,nvs,1,f); if(ok){ int n=0; ok&=svRead(&n,sizeof n,1,f)==1; ok&=svRead(jr,34,24,f)==24; ok&=svRead(jrYear,2,24,f)==24; jrN=n<0?0:n>24?24:n; u32 sx[8]={0}; if(svRead(sx,4,8,f)==8){ achBits=sx[0]; lawOff=sx[5]&((1u<<LW_N)-1); stWars=sx[1]; stCapt=sx[2]; stAllies=sx[3]; stSnack=sx[4]; u8 t1[FAV_N], t2[8], t3[600], t4[40]; memset(t1,0,sizeof t1); if(rdVec(t1,FAV_N,nvs>48?nvs:48,1,f)&&svRead(t2,1,8,f)==8&&svRead(t3,1,600,f)==600&&svRead(t4,1,40,f)==40){ memcpy(favVil,t1,sizeof favVil); memcpy(favKd,t2,8); memcpy(favItem,t3,600); memcpy(favPow,t4,40);
-                    int ac=0; Tor tt[2]; u8 vs[sizeof vilSick]; memset(vs,0,sizeof vs); if(svRead(&ac,sizeof ac,1,f)==1&&svRead(tt,sizeof tt,1,f)==1&&rdVec(vs,sizeof vs,nvs>64?nvs:64,1,f)){ acidT=ac; memcpy(tor,tt,sizeof tor); memcpy(vilSick,vs,sizeof vs); if(nCr>0&&nCr<=MAXC) svRead(sick,1,nCr,f); { int got=1; for(int y=0;y<gH&&got;y++) got=svRead(biome2+y*(MAXD/4),1,gW/4,f)==(size_t)(gW/4); if(!got) memset(biome2,0,sizeof biome2); bioCount(); bioRescan(); if(got){ int at[8]; if(svRead(at,sizeof at,1,f)==1){ atO2=at[0]; atCO2=at[1]; atDust=at[2]; atTemp=at[3]; atFire=at[4]; atFlag=at[5]; u8 fp[24]; if(svRead(fp,1,24,f)==24) memcpy(favPow+40,fp,24); } } } } } } } }
+                    int ac=0; Tor tt[2]; u8 vs[sizeof vilSick]; memset(vs,0,sizeof vs); if(svRead(&ac,sizeof ac,1,f)==1&&svRead(tt,sizeof tt,1,f)==1&&rdVec(vs,sizeof vs,nvs>64?nvs:64,1,f)){ acidT=ac; memcpy(tor,tt,sizeof tor); memcpy(vilSick,vs,sizeof vs); if(nCr>0&&nCr<=MAXC) svRead(sick,1,nCr,f); { int got=1; for(int y=0;y<gH&&got;y++) got=svRead(biome2+y*(MAXD/4),1,gW/4,f)==(size_t)(gW/4); if(!got) memset(biome2,0,sizeof biome2); bioCount(); bioRescan(); if(got){ int at[8]; if(svRead(at,sizeof at,1,f)==1){ atO2=at[0]; atCO2=at[1]; atDust=at[2]; atTemp=at[3]; atFire=at[4]; atFlag=at[5]; u8 fp[24]; if(svRead(fp,1,24,f)==24){ memcpy(favPow+40,fp,24); svRead(boat,sizeof boat,1,f); } } } } } } } } }
     svClose(f);
     if(!ok){ return 0; }
     tick=(int)h.tick; year=(int)h.year; rs=h.rs; stKill=h.stKill; stGift=h.stGift; stUse=h.stUse; seenN=h.seenN; camX=h.camX; camY=h.camY; chapter=h.chapter; tierOpen=h.tierOpen; storyOn=h.storyOn; storyDone=h.storyDone; monOn=h.monOn; shape3=h.shape3; nVilOn=h.nVilOn;
@@ -1203,6 +1233,7 @@ static int zDraw(void){
                 else { int h=(int)(hsh(tx,ty,3)&3); c=t*8+((t==T_WATER||t==T_DEEP)?3+((h+(tick>>4))&1):2+h); if(t>T_WATER&&t!=T_LAVA) c=bioPix(c,bioAt(tx,ty)); if(b==B_RUIN) c=142; }
                 zRect(sx0,sy0,S,S,c);
                 if(S==4){ int h2=(int)(hsh(tx,ty,5)&3); if(b==B_NONE||b==B_RUIN){ if(h2==0) zPut(sx0+1,sy0+2,c^1); else if(h2==1) zPut(sx0+2,sy0+1,c^1); } else if(b==B_HUT||b==B_HOUSE) zRect(sx0,sy0+2,4,2,136); } } } }
+    for(int b=0;b<8;b++) if(boat[b].on&&K==1){ int px=boat[b].x*S-ox, py=boat[b].y*S-oy; if(S>=4) zRect(px,py,S,S,137); if(S>=16){ zRect(px+S/4,py+S/8,S/2,S/2,UI_PAL0+U_WHITE); } else zRect(px,py,S>2?S:2,S>2?S:2,UI_PAL0+U_WHITE); }
     // creatures: every one on screen
     for(int ty=ty0-1;ty<=ty1+1;ty++){ if(ty<0||ty>=WH) continue; for(int tx=tx0-1;tx<=tx1+1;tx++){ if(tx<0||tx>=WW) continue; int i=(int)occ[ty][tx]-1; if(i<0||!cr[i].alive) continue; zCrit(i,(tx<<sh)-ox,(ty<<sh)-oy,S); } }
     return 1; }
@@ -1287,6 +1318,7 @@ static void drawSprites(void){
         oamSet(&oamMain,n,px,py,0,s->fam,SpriteSize_8x8,SpriteColorFormat_16Color,gfxF[A->shape][fr],-1,false,false,(i&1),false,false); n++;
         if(sick[i]&&sick[i]!=2&&nc<108&&((tick>>2)&1)){ oamSet(&oamMain,nc,px+3,py-5,0,sick[i]>=3?10:12,SpriteSize_8x8,SpriteColorFormat_16Color,gfxF[39][0],-1,false,false,false,false,false); nc++; }      // a flickering green mark over the sick
         if(c->rk&&nc<108){ oamSet(&oamMain,nc,px,py-6,0,c->rk==2?10:2,SpriteSize_8x8,SpriteColorFormat_16Color,gfxF[39][0],-1,false,false,false,false,false); nc++; } }
+    for(int b=0;b<8;b++) if(boat[b].on&&nc<108){ int px=boat[b].x*8-camX, py=boat[b].y*8-camY; if(px>=-8&&px<256&&py>=-8&&py<162){ oamSet(&oamMain,nc,px,py,0,7,SpriteSize_8x8,SpriteColorFormat_16Color,gfxF[39][0],-1,false,false,false,false,false); nc++; } }
     for(int k=n;k<100;k++) oamSetHidden(&oamMain,k,true);
     for(int k=nc;k<108;k++) oamSetHidden(&oamMain,k,true);
     // weather: rain and snow as sprites falling across the touch screen

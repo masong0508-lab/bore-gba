@@ -170,3 +170,6 @@ Found a readable copy of the Official WorldBox Wiki (its API is open; the pages 
 ### v0.24 levels and mood (from the wiki)
 - **Unit levels**: a creature that kills gains levels (up to 10; each level +5 health, +1 damage every two), the inspect card shows it, and notable folk or bosses reaching level 5 or 10 are written in the journal.
 - **Village mood** (happiness): fed, safe, loyal, well-defended villages in a good age and on enchanted ground are JOYFUL or HAPPY and grow and breed faster; hungry, crowded, sick, warring, hot or cold, corrupted villages turn SAD or MISERABLE: growth halves and loyalty to their kingdom drains. Shown on the village card. Test: pc_life.c.
+
+### v0.25 boats and docks
+- A town of level 2 with 10 folk builds a **dock** on its shore (new building tile). From a dock, now and then, a **boat** takes four settlers across the water: a breadth-first search over the sea finds the nearest unsettled shore at least 12 tiles away, the boat sails there (visible as a sprite and at every zoom level) and the settlers found a village (journal: SETTLERS SAIL TO ...). Boats are saved. This spreads folk across islands on the archipelago and continent worlds. Test: pc_boats.c (22 villages founded by boats in 40,000 ticks).

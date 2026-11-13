@@ -33,3 +33,5 @@ gcc $F -DGG_VILN=40 -DVS_WRITE -w -o /tmp/gg_vsw pc_vilsave.c -lm && /tmp/gg_vsw
 gcc $F -w -o /tmp/gg_slotsrun pc_slots.c -lm && /tmp/gg_slotsrun | tail -1
 # unit levels and village mood
 gcc $F -w -o /tmp/gg_life pc_life.c -lm && /tmp/gg_life | tail -1
+# boats and docks
+gcc $F -w -o /tmp/gg_boats pc_boats.c -lm && /tmp/gg_boats | tail -1
