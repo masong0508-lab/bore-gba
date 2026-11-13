@@ -20,3 +20,6 @@ gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_tour p
 gcc -O2 -DNDSSHIM -DRCHECK -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_ds_run pc_ds.c -lm && rm -rf /tmp/gg_ds && /tmp/gg_ds_run /tmp/gg_ds | head -2
 # zoom: the six levels (planet, very far, far, normal, close, micro) driven by L+R / X+Y, panned, and the stylus mapped back to tiles (screenshots in /tmp/gg_zoom)
 gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_zoom_run pc_zoom.c -lm && rm -rf /tmp/gg_zoom && /tmp/gg_zoom_run /tmp/gg_zoom | tail -1
+# biomes (corruption, infernal, enchantment) and the atmosphere (gases, greenhouse, dust, climate)
+gcc $F -w -o /tmp/gg_biome pc_biome.c -lm && /tmp/gg_biome | tail -1
+gcc $F -w -o /tmp/gg_atmo pc_atmo.c -lm && /tmp/gg_atmo | tail -1

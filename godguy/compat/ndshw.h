@@ -84,7 +84,7 @@ static inline int keysHeld(void){ return hwHeld; }
 static inline int keysDown(void){ int d=hwHeld&~hwPrev; hwPrev=hwHeld; return d; }
 static inline void touchRead(touchPosition*t){ t->px=hwTx; t->py=hwTy; }
 // ---- saving: the world is run-length packed and written to the cartridge's save memory (flash or EEPROM) by the ARM7. The buffers sit in a part of RAM the data cache never touches.
-#define SVMAX (800*1024)                       // the raw save: a 256 x 256 planet (about 250 KB) and up to 30000 creatures (16 bytes each)
+#define SVMAX (700*1024)                       // the raw save: a 256 x 256 planet (about 250 KB) and up to 30000 creatures (16 bytes each)
 #define SVCMAX (0x80000-16)                     // the packed save, in the uncached block 0x02300000..0x02380000 (the ARM7 starts at 0x02380000)
 static u8 svBufA[SVMAX] __attribute__((aligned(4)));   // ordinary cached RAM: only the ARM9 touches the raw copy
 #define SVBUF svBufA

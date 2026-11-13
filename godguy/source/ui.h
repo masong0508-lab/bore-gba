@@ -61,10 +61,10 @@ static void uiBar(int x,int y,int w,int h,int val,int max,int col){ uiFrame(x,y,
 static void uiIcon10(int x,int y,int idx){ for(int j=0;j<10;j++) for(int i=0;i<10;i++){ int c=icon10[idx][j*10+i]; if(c) uiPx(x+i,y+j,c); } }
 static void uiIcon8(int x,int y,int idx){ for(int j=0;j<8;j++) for(int i=0;i<8;i++){ int c=icon8[idx][j*8+i]; if(c) uiPx(x+i,y+j,c); } }
 // ---- a power's icon: paints show the ground they paint, everything else has its own picture
-static const u8 uiKindIcon[20]={IC10_INSPECT,0,IC10_SPAWN,IC10_RAIN,IC10_FIRE,IC10_BOLT,IC10_METEOR,IC10_SMITE,IC10_HEAL,IC10_FEED,IC10_SETTLE,IC10_WAR,IC10_PEACE,IC10_BLESS,IC10_GIFT,IC10_MUTATE,IC10_QUAKE,IC10_FLOOD,IC10_BLOOM,IC10_VIBE};
+static const u8 uiKindIcon[25]={IC10_INSPECT,0,IC10_SPAWN,IC10_RAIN,IC10_FIRE,IC10_BOLT,IC10_METEOR,IC10_SMITE,IC10_HEAL,IC10_FEED,IC10_SETTLE,IC10_WAR,IC10_PEACE,IC10_BLESS,IC10_GIFT,IC10_MUTATE,IC10_QUAKE,IC10_FLOOD,IC10_BLOOM,IC10_VIBE,IC10_SMITE,IC10_METEOR,IC10_RAIN,IC10_RAIN,IC10_FIRE};
 // ground swatches use three shades per terrain: 100.. in the top palette, 200.. in the toolbar's
-static int uiSwatch(int t,int i,int j,int base){ int p=tilePix(t,0,(i*8)/10,(j*8)/10)%8; return base+t*3+(p<=2?0:p<=4?1:2); }
-static void uiShadePal(void){ for(int t=0;t<T_N;t++) for(int j=0;j<3;j++){ int r,g,b; shadeRGB(t*8+2+j*2,&r,&g,&b); BG_PALETTE_SUB[100+t*3+j]=RGB15(r,g,b); BG_PALETTE[200+t*3+j]=RGB15(r,g,b); } }
+static int uiSwatch(int t,int i,int j,int base){ if(t>=100) t=T_N+t-101; int p=tilePix(t,0,(i*8)/10,(j*8)/10)%8; return base+t*3+(p<=2?0:p<=4?1:2); }
+static void uiShadePal(void){ for(int t=0;t<T_N+3;t++) for(int j=0;j<3;j++){ int r,g,b; shadeRGB(t*8+2+j*2,&r,&g,&b); BG_PALETTE_SUB[100+t*3+j]=RGB15(r,g,b); BG_PALETTE[200+t*3+j]=RGB15(r,g,b); } }
 static void uiPowerIcon(int pwi,int x,int y){ const Pw*P=&pw[pwi];
     if(P->kind==PK_PAINT){ for(int j=0;j<10;j++) for(int i=0;i<10;i++) uiPx(x+i,y+j,uiSwatch(P->arg,i,j,100)); return; }
     uiIcon10(x,y,uiKindIcon[P->kind]); }
@@ -85,7 +85,7 @@ static void uiScroll(int total,int top,int vis,int y0,int h){ uiRect(248,y0,5,h,
 static int uiVx, uiVy, uiVw=32, uiVh=24;      // the view's top left tile and size in tiles, for the minimap's frame
 // ---- the minimap (the whole planet squeezed to 128 x 128) with creatures, villages and the camera
 static void uiMinimap(int ox,int oy){
-    for(int y=0;y<128;y++) for(int x=0;x<128;x++) uiPx(ox+x,oy+y,64+world[y*WH/128][x*WW/128]);
+    for(int y=0;y<128;y++) for(int x=0;x<128;x++){ int wx=x*WW/128, wy=y*WH/128; int bb=bioAt(wx,wy); uiPx(ox+x,oy+y,bb?85+bb:64+world[wy][wx]); }
     for(int i=0;i<nCr;i++){ const Cr*c=&cr[i]; if(c->alive){ int da=arch[sp[c->sp].a].diet; if(da==5||da==4||c->rk) uiPx(ox+c->x*128/WW,oy+c->y*128/WH,da==4?80:da==5?85:82); } }
     for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]){ int cx=ox+vil[v].x*128/WW, cy=oy+vil[v].y*128/WH, R=14*128/WW+1; for(int a=0;a<28;a++){ int rx=(int)(R*cosf(a*0.2244f)+0.5f), ry=(int)(R*sinf(a*0.2244f)+0.5f); if((a&1)==0) uiPx(cx+rx,cy+ry,40+vilK[v]-1); } }   // each kingdom's territory, a dotted ring round its cities
     for(int a=0;a<KN_N;a++) if(kd[a].on&&kd[a].cap) for(int b=a+1;b<KN_N;b++) if(kd[b].on&&kd[b].cap&&(kd[a].tradeW>>b&1)){ const Vil*A=&vil[kd[a].cap-1], *B=&vil[kd[b].cap-1]; int x0=ox+A->x*128/WW, y0=oy+A->y*128/WH, x1=ox+B->x*128/WW, y1=oy+B->y*128/WH; int st=abs(x1-x0)>abs(y1-y0)?abs(x1-x0):abs(y1-y0); for(int i=0;i<=st;i++) if(((i+(tick>>3))&3)==0) uiPx(x0+(x1-x0)*i/(st?st:1),y0+(y1-y0)*i/(st?st:1),U_YELLOW); }   // trade routes: gold dots running between trading capitals

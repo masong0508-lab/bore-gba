@@ -141,3 +141,10 @@ Found a readable copy of the Official WorldBox Wiki (its API is open; the pages 
 - Tile art of the visible window is cached, so scrolling builds only the new column.
 - Fixed on the way: leaving the globe left stale transition tiles; the toolbar's tile numbers moved up (704) to make room for the 672-tile picture.
 - Test: pc_zoom.c drives all six levels, panning and the stylus mapping (screenshots in /tmp/gg_zoom).
+
+### v0.19 biomes and an atmosphere
+- **Biomes** (from the wiki): CORRUPT, INFERNAL and ENCHANT seeds in the land powers. A biome is a second layer over the ground (two bits a tile) that creeps outward along its edge, so a growing patch costs the same on a small or a huge planet; enchantment beats corruption, painting terrain over a biome removes it, water, lava and mountains stop it. Corrupted ground curses creatures (5% a step: slower, wasting, and the cursed folk who die rise as zombies); enchanted ground cures the curse and mends; infernal ground lights fires by itself. Rendered in the normal view, every zoom level, the globe and the minimap; saved with the world. World law: BIOME SPREAD.
+- **Atmosphere** (after SimEarth's Gaia model): oxygen, carbon dioxide, dust and the world's warmth. Forests and grass breathe CO2 in and O2 out; crowds, cities, fires, lava and bombs do the opposite; CO2 warms (the greenhouse), dust and snow cool. Too hot melts the ice and dries the land, too cold freezes it, thin air suffocates, rich air feeds fires, a dust veil dims the light and browns the planet's glow, and the journal records ice ages, runaway greenhouses and thin air. Powers: GREENHOUSE, OXYGEN, DUST CLOUD. A new ATMOSPHERE page (pause menu: collections) shows the gases, the warmth and its history. World law: ATMOSPHERE.
+- DS memory: the DS build keeps 22,000 creatures (3DS and PC: 30,000) and a 700 KB save buffer, so the picture, the creature list and the saves all fit in 4 MB.
+- Fixed: the stylus toolbar icons of the plague, bomb, tornado and acid powers read past the end of their table; the favourites list had room for 40 powers but the game now has 41.
+- Tests: pc_biome.c and pc_atmo.c.
