@@ -18,11 +18,17 @@ u8 world[MAXD][MAXD];
 static u16 occ[MAXD][MAXD];            // creature index + 1 standing on a tile
 static Cr cr[MAXC]; static int nCr;
 static int zombA=-1; static u8 vilSick[64];     // vilSick: sick folk met near a village this season (for the journal line)
-static u32 lawOff;      // World Laws: bit i set = law i is switched off (0, every law on, is the default; stored in the save)
-#define LAW(i) (!((lawOff>>(i))&1))
-enum { LW_AGE, LW_HUNGER, LW_BREED, LW_WARS, LW_DISASTER, LW_PLAGUE, LW_MONSTER, LW_WEATHER, LW_MUTATE, LW_GROWTH, LW_N };
-static const char* const lawNm[LW_N]={"OLD AGE","HUNGER","BREEDING","KINGDOM WARS","DISASTERS","PLAGUE","MONSTERS","WEATHER","MUTATIONS","CITY GROWTH"};
-static const char* const lawDs[LW_N]={"CREATURES DIE OF OLD AGE","CREATURES STARVE WHEN THEY HAVE NO FOOD","CREATURES HAVE YOUNG","KINGDOMS DECLARE WARS ON THEIR OWN","COMETS, QUAKES, VOLCANOES AND OTHER WORLD EVENTS","SICKNESS SPREADS AND ZOMBIES RISE","MONSTERS ROAM THE WILD","RAIN, STORMS AND SNOW COME AND GO","NEW SUBSPECIES APPEAR ON THEIR OWN","VILLAGES GROW, BUILD AND SPREAD"};
+static u32 lawOff;      // World Laws (the list and the defaults of WorldBox's own law panel, as far as this game has the mechanics): stored as the switches that differ from the defaults, so 0 = all defaults
+enum { LW_AGE, LW_HUNGER, LW_CIVBABY, LW_ANIBABY, LW_PEACEMON, LW_MUTBOX, LW_MUTATE, LW_EROSION, LW_TREES, LW_LAVA, LW_WEATHER,
+       LW_DIPLOMACY, LW_REBEL, LW_GROWTH, LW_POP100, LW_GAIA, LW_NATDIS, LW_OTHERDIS, LW_PLAGUE, LW_MONSTER, LW_N };
+#define LAWDEF (~((1u<<LW_PEACEMON)|(1u<<LW_MUTBOX)|(1u<<LW_LAVA)|(1u<<LW_POP100)|(1u<<LW_GAIA)))      // off by default, like WorldBox: peaceful monsters, mutant box, eternal lava, 100 people, Gaia's covenant
+#define LAW(i) (((((u32)LAWDEF)>>(i))&1)^((lawOff>>(i))&1))
+static const char* const lawNm[LW_N]={"OLD AGE","HUNGER","CIV BABIES","ANIMAL BABIES","PEACEFUL MONSTERS","MUTANT BOX","MUTATIONS","EROSION","TREES GROWTH","ETERNAL LAVA","WEATHER",
+    "DIPLOMACY","REBELLIONS","CITY GROWTH","100 PEOPLE","GAIA'S COVENANT","NATURAL DISASTERS","OTHER DISASTERS","PLAGUE","MONSTERS"};
+static const char* const lawDs[LW_N]={"CREATURES CAN DIE OF OLD AGE","EVERYONE NEEDS FOOD TO LIVE","CHILDREN ARE BORN IN VILLAGES","BABY ANIMALS AND MONSTERS ARE BORN","ANIMALS AND MONSTERS WON'T ATTACK ANYONE","NEW CREATURES ARE BORN WITH RANDOM TRAITS","NEW SUBSPECIES APPEAR ON THEIR OWN","SHORES SLOWLY TURN TO SAND","FORESTS GROW AND SPREAD","LAVA STAYS FOREVER AND NEVER COOLS","RAIN, STORMS AND SNOW COME AND GO",
+    "KINGDOMS MAKE WARS, ALLIANCES AND PEACE","CITIES WITH LOW LOYALTY LEAVE THEIR KINGDOM","VILLAGES GROW, BUILD AND SPREAD","VILLAGES HOLD AT MOST 100 PEOPLE","FIRE, BOMBS AND DISASTERS DO NOT DAMAGE THE LAND","COMETS, TORNADOES AND STORMS HAPPEN BY THEMSELVES","DRAGONS, WILD MAGES, ACID RAIN AND OTHER TROUBLE","SICKNESS SPREADS AND ZOMBIES RISE","MONSTERS ROAM THE WILD"};
+static const u8 lawScrA[11]={LW_AGE,LW_HUNGER,LW_CIVBABY,LW_ANIBABY,LW_PEACEMON,LW_MUTBOX,LW_MUTATE,LW_EROSION,LW_TREES,LW_LAVA,LW_WEATHER};      // the first law screen: life and land
+static const u8 lawScrB[9]={LW_DIPLOMACY,LW_REBEL,LW_GROWTH,LW_POP100,LW_GAIA,LW_NATDIS,LW_OTHERDIS,LW_PLAGUE,LW_MONSTER};                        // the second: kingdoms and disasters
 static u8 sick[MAXC];     // plague: 0 healthy, 1 sick (loses health, slow, spreads to neighbours), 2 recovered and immune. (Not saved: a loaded world starts healthy.)
 static int camX, camY;             // camera, in world pixels
 static int power=1, brush=2, spSel=40, paused=0, tick=0, year=0;
@@ -154,7 +160,7 @@ static int hitDmg(const Cr*a,const Cr*d){   // one blow: the attacker's strength
 static void countTraits(void){ memset(trCount,0,sizeof trCount); for(int i=0;i<nCr;i++) if(cr[i].alive){ if(cr[i].tr) trCount[cr[i].tr]++; if(cr[i].tr2) trCount[cr[i].tr2]++; } }
 static void giveTrait(Cr*c,int t,int announce){ if(c->tr==0||c->tr==t) c->tr=(u8)t; else c->tr2=(u8)t; if(!((trSeen>>t)&1)){ trSeen|=1u<<t; if(announce){ char nm[48]; crName(c,nm); siprintf(info,"NEW SUBSPECIES: %.30s",nm); fxReq(FX_BIRTH); } } }
 static void born(Cr*kid,const Cr*par){   // a child has its parent's traits, and now and then a mutation
-    kid->tr=par->tr; kid->tr2=par->tr2; int rate=diff==0?1:diff==2?3:2; if(HAS(par,TR_FERTILE)) rate+=1; if(!LAW(LW_MUTATE)) rate=0;
+    kid->tr=par->tr; kid->tr2=par->tr2; int rate=diff==0?1:diff==2?3:2; if(HAS(par,TR_FERTILE)) rate+=1; if(!LAW(LW_MUTATE)) rate=0; if(LAW(LW_MUTBOX)) rate=35;
     if((int)(rnd()%100)<rate){ int t=1+(int)(rnd()%(TR_N-1)); if(!HAS(kid,t)){ giveTrait(kid,t,1); stMut++; } }
     kid->hp=(u8)maxHp(kid); }
 // ---------------------------------------------------------------------------------------------- the world
@@ -332,6 +338,7 @@ static int vilFound(int race,int x,int y){
 static void vilRaze(int v,int ruins){ Vil*V=&vil[v]; if(!V->on) return; for(int y=0;y<WH;y++) for(int x=0;x<WW;x++) if(bldv[y][x]==v+1){ bld[y][x]=ruins&&(rnd()&1)?B_RUIN:B_NONE; if(!bld[y][x]) bldv[y][x]=0; else bldv[y][x]=0; if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); }
     for(int u=0;u<VIL_N;u++) if(vil[u].on&&vil[u].foe==v+1) vil[u].foe=0; V->on=0; nVilOn--; }
 static void burnAt(int x,int y,int chance){   // fire, lightning and meteors on a building
+    if(LAW(LW_GAIA)) return;
     if(x<0||y<0||x>=WW||y>=WH||!bld[y][x]||bld[y][x]==B_RUIN) return; if((int)(rnd()&255)>=chance) return; int v=bldv[y][x]-1;
     if(v>=0&&vil[v].on){ Vil*V=&vil[v]; if(bld[y][x]==B_HOUSE||bld[y][x]==B_HUT){ if(V->houses) V->houses--; } else if(bld[y][x]==B_FARM){ if(V->farms) V->farms--; } else if(bld[y][x]==B_TOWER){ if(V->towers) V->towers--; } }
     bld[y][x]=B_RUIN; bldv[y][x]=0; if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); }
@@ -394,7 +401,7 @@ static int kdMaxCities(int k){ return 3+kdKnow(k,0)+(kd[k].tech>=6); }   // gove
 static int kdZones0(int k){ int z=0; for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==k+1) z+=3+vil[v].lvl*3+vil[v].houses/3+kdKnow(k,1)*3; return z; }
 static int kdZones(int k){ if(!kcOn) return kdZones0(k); if(!kcZv[k]){ kcZ[k]=kdZones0(k); kcZv[k]=1; } return kcZ[k]; }
 static void kdDeclareX(int a,int b,int spite){
-    if(a==b||!kd[a].on||!kd[b].on||(kd[a].war>>b&1)) return; if(kcOn&&!LAW(LW_WARS)) return; if(spite){ kd[a].spite=kd[b].spite=1; } char x[24], y[24], s[72]; kdName(a,x); kdName(b,y); kdWar(a,b,1); stWars++; kd[a].allies&=(u8)~(1<<b); kd[b].allies&=(u8)~(1<<a); kd[a].rel[b]=kd[b].rel[a]=-60;
+    if(a==b||!kd[a].on||!kd[b].on||(kd[a].war>>b&1)) return; if(kcOn&&!LAW(LW_DIPLOMACY)) return; if(spite){ kd[a].spite=kd[b].spite=1; } char x[24], y[24], s[72]; kdName(a,x); kdName(b,y); kdWar(a,b,1); stWars++; kd[a].allies&=(u8)~(1<<b); kd[b].allies&=(u8)~(1<<a); kd[a].rel[b]=kd[b].rel[a]=-60;
     if(kd[a].rlg!=kd[b].rlg&&((kd[a].ctr>>5&1)||kd[a].rlg==0)) siprintf(s,"%s DECLARES HOLY WAR ON %s",x,y); else siprintf(s,"%s DECLARES WAR ON %s",x,y); logEv(s);
     for(int c=0;c<KN_N;c++) if(c!=a&&c!=b&&kd[c].on&&(kd[a].allies>>c&1)&&!(kd[b].allies>>c&1)&&kd[c].rel[b]<20&&!(kd[c].war>>b&1)){ kdWar(c,b,1); char z[24]; kdName(c,z); siprintf(s,"%s JOINS THE WAR",z); logEv(s); } }
 static void kdDeclare(int a,int b){ kdDeclareX(a,b,0); }
@@ -441,7 +448,7 @@ static void kingdomTick0(void){
                 if(stop){ kdWar(a,b,0); kd[a].spite=kd[b].spite=0; kd[a].truce=kd[b].truce=10; char x[24], y[24], s[72]; kdName(a,x); kdName(b,y);
                     int win=wa*2<=wb?b:wb*2<=wa?a:-1; if(win>=0){ int lo=win==a?b:a; if(!kd[lo].lord&&!kd[win].lord){ kd[lo].lord=(u8)(win+1); char t[24], u[24]; kdName(lo,t); kdName(win,u); siprintf(s,"%s BECOMES A VASSAL OF %s",t,u); logEv(s); } else { siprintf(s,"PEACE BETWEEN %s AND %s",x,y); logEv(s); } } else { siprintf(s,"PEACE BETWEEN %s AND %s",x,y); logEv(s); } } }
             else if(!ally&&!(kd[a].lord==b+1||kd[b].lord==a+1)){
-                if(kd[a].rel[b]>35&&kd[b].rel[a]>35&&(rnd()&3)==0){ int na=__builtin_popcount(kd[a].allies), nb=__builtin_popcount(kd[b].allies); if(na<3&&nb<3){ kd[a].allies|=(u8)(1<<b); kd[b].allies|=(u8)(1<<a); stAllies++; char x[24], y[24], s[72]; kdName(a,x); kdName(b,y); siprintf(s,"%s AND %s ALLY",x,y); logEv(s); } }
+                if(LAW(LW_DIPLOMACY)&&kd[a].rel[b]>35&&kd[b].rel[a]>35&&(rnd()&3)==0){ int na=__builtin_popcount(kd[a].allies), nb=__builtin_popcount(kd[b].allies); if(na<3&&nb<3){ kd[a].allies|=(u8)(1<<b); kd[b].allies|=(u8)(1<<a); stAllies++; char x[24], y[24], s[72]; kdName(a,x); kdName(b,y); siprintf(s,"%s AND %s ALLY",x,y); logEv(s); } }
                 else if(kd[a].rel[b]>10&&kd[b].rel[a]>10&&kdDist(a,b)<90){ kd[a].trade=kd[b].trade=1; kd[a].tradeW|=(u8)(1<<b); kd[b].tradeW|=(u8)(1<<a); } }
             else if(ally&&(kd[a].rel[b]<10||kd[b].rel[a]<10)){ kd[a].allies&=(u8)~(1<<b); kd[b].allies&=(u8)~(1<<a); char x[24], y[24], s[96]; kdName(a,x); kdName(b,y); siprintf(s,"%s AND %s BREAK THEIR ALLIANCE",x,y); logEv(s); } } }
     // soldiers march on the nearest enemy city; rebellious cities of big kingdoms split off
@@ -452,7 +459,7 @@ static void kingdomTick0(void){
           if(cap<0||!vil[cap].on||vilK[cap]!=k+1){ int bp=-1; kd[k].cap=0; for(int u=0;u<VIL_N;u++) if(vil[u].on&&vilK[u]==k+1&&vil[u].pop>=bp){ bp=vil[u].pop; kd[k].cap=(u8)(u+1); } cap=kd[k].cap-1; }
           if(v==cap) vilL[v]=100; else { int tg=50; int over=c-kdMaxCities(k); if(over>0) tg-=over*25; if(cap>=0){ int dx=vil[cap].x-V->x, dy=vil[cap].y-V->y, dd=dx*dx+dy*dy; int r=0; while(r*r<dd&&r<100) r++; tg+=r<20?10:-(r/10); } if(V->stock>40) tg+=5; if(V->stock<8) tg-=10; if(kd[k].ctr>>5&1) tg+=10; if(worldAge()==0) tg+=5; if(worldAge()==1) tg-=5; if(worldAge()==2) tg-=8;
             if(vilL[v]<tg) vilL[v]++; else if(vilL[v]>tg) vilL[v]--; if(vilL[v]<-100) vilL[v]=-100;
-            if(vilL[v]<0&&(c>6||c>kdMaxCities(k))&&year-(int)kd[k].born>=15&&V->pop>=10&&(rnd()%10)==0){ int nk=-1; for(int i=0;i<KN_N;i++) if(!kd[i].on){ nk=i; break; } if(nk>=0){ int cul=kd[k].cul; vilK[v]=0; int n2=kdFound(v); if(n2>=0){ kd[n2].cul=(u8)cul; kd[n2].rlg=kd[k].rlg; kd[n2].lang=kd[k].lang; kd[n2].race=vil[v].race; kdWar(n2,k,1); char n[24], x[24], s[72]; vilName(v,n); kdName(k,x); siprintf(s,"%s REBELS AGAINST %s",n,x); logEv(s); } } } } } }
+            if(LAW(LW_REBEL)&&LAW(LW_DIPLOMACY)&&vilL[v]<0&&(c>6||c>kdMaxCities(k))&&year-(int)kd[k].born>=15&&V->pop>=10&&(rnd()%10)==0){ int nk=-1; for(int i=0;i<KN_N;i++) if(!kd[i].on){ nk=i; break; } if(nk>=0){ int cul=kd[k].cul; vilK[v]=0; int n2=kdFound(v); if(n2>=0){ kd[n2].cul=(u8)cul; kd[n2].rlg=kd[k].rlg; kd[n2].lang=kd[k].lang; kd[n2].race=vil[v].race; kdWar(n2,k,1); char n[24], x[24], s[72]; vilName(v,n); kdName(k,x); siprintf(s,"%s REBELS AGAINST %s",n,x); logEv(s); } } } } } }
     // sieges: the stronger side of a war can take the nearest enemy city outright; big cities send out colonies
     for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]&&vil[v].foe&&vil[vil[v].foe-1].on){ int u=vil[v].foe-1, a=vilK[v]-1, b=vilK[u]-1; if(a<0||b<0||!(kd[a].war>>b&1)) continue; int ca,pa,wa,cb,pb,wb; kdStats(a,&ca,&pa,&wa); kdStats(b,&cb,&pb,&wb);
         int dx=vil[u].x-vil[v].x, dy=vil[u].y-vil[v].y; if(dx*dx+dy*dy>45*45) continue; if(wa>wb&&vil[v].pop>=vil[u].pop&&(int)(rnd()%100)<6+(wa-wb)*8/(wb+1)) vilConquer(u,v); }
@@ -497,6 +504,7 @@ static void thinkBody(int i){
     if(t==T_LAVA&&!((amask>>T_LAVA)&1)){ killNat(i); return; }
     if(!((amask>>t)&1)){ if(c->hp>8) c->hp-=8; else { killNat(i); return; } }
     int diet=A->diet; if((HAS(c,TR_OMNI)||HAS(c,TR_MUNCH))&&(diet==0||diet==1)) diet=2;
+    if(LAW(LW_PEACEMON)&&diet!=4) diet=0;      // peaceful monsters: animals and monsters only graze
     if(diet==5){   // a monster: it hunts every living thing in reach (people first), and burns the houses it passes
         int best=-1,bd=99,rd=99; for(int dy=-10;dy<=10;dy++) for(int dx=-10;dx<=10;dx++){ int x=c->x+dx,y=c->y+dy; if(x<0||y<0||x>=WW||y>=WH||!occ[y][x]) continue; int j=occ[y][x]-1; if(j==i||arch[sp[cr[j].sp].a].diet==5||((HAS(&cr[j],TR_CAMO)&&(rnd()&1))||(HAS(&cr[j],TR_GIGGLY)&&rnd()%3==0))) continue;
             int d=(dx<0?-dx:dx)+(dy<0?-dy:dy); int civ=arch[sp[cr[j].sp].a].diet==4; if(!civ&&d>3) continue; if(d<bd){ bd=d; rd=d; best=j; } }   // people are hunted from ten tiles away, animals only when they are in the way
@@ -538,7 +546,7 @@ static void thinkBody(int i){
             for(int k=0;k<2;k++){ int ax=(k==try1)?sx:0, ay=(k==try1)?0:sy; if(!ax&&!ay) continue; int nx=c->x+ax, ny=c->y+ay; if(walkable(s,nx,ny)&&!occ[ny][nx]){ moveTo(c,i,nx,ny); return; } } } }
     // breed
     int bch=A->breed; if(diet==4&&vilNear(s->a,c->x,c->y,8)>=0) bch*=2; if(HAS(c,TR_FERTILE)) bch=bch*3/2; if(HAS(c,TR_TINY)) bch=bch*13/10; if(HAS(c,TR_CLEVER)) bch=bch*13/10; if(HAS(c,TR_MUNCH)) bch=bch*14/10;
-    if(LAW(LW_BREED)&&c->food>=80&&c->age>8&&(int)(rnd()%100)<bch&&nCr<MAXC-4){ int d=rnd()&3; int nx=c->x+dxs[d], ny=c->y+dys[d]; int n=addCr(c->sp,nx,ny); if(n>=0){ cr[n].age=0; cr[n].food=50; born(&cr[n],&cr[i]); c->food-=40; return; } }
+    if(((A->diet==4||sp[c->sp].a<8)?LAW(LW_CIVBABY):LAW(LW_ANIBABY))&&!(LAW(LW_POP100)&&A->diet==4&&({ int vv=vilNear(s->a,c->x,c->y,8); vv>=0&&vil[vv].pop>=100; }))&&c->food>=80&&c->age>8&&(int)(rnd()%100)<bch&&nCr<MAXC-4){ int d=rnd()&3; int nx=c->x+dxs[d], ny=c->y+dys[d]; int n=addCr(c->sp,nx,ny); if(n>=0){ cr[n].age=0; cr[n].food=50; born(&cr[n],&cr[i]); c->food-=40; return; } }
     // wander
     if((rnd()&3)!=0){ int d=rnd()&3; int nx=c->x+dxs[d], ny=c->y+dys[d]; if(walkable(s,nx,ny)&&!occ[ny][nx]) moveTo(c,i,nx,ny); }
 }
@@ -557,12 +565,12 @@ static void towerFire(void){   // the towers of a village shoot the nearest mons
     for(int v=0;v<VIL_N;v++){ const Vil*V=&vil[v]; if(!V->on||!V->towers) continue; int dm=4+3*(V->towers>4?4:V->towers), shots=0;
         for(int i=0;i<nCr&&shots<2;i++){ Cr*c=&cr[i]; if(!c->alive||arch[sp[c->sp].a].diet!=5) continue; int dx=c->x-V->x, dy=c->y-V->y; if(dx*dx+dy*dy>100) continue; shots++; if(c->hp>dm) c->hp-=(u8)dm; else killCr(i); } } }
 static int weather, weatherT=900, flashT;     // 0 clear, 1 rain, 2 storm, 3 snow
-static void volcanoTick(void){ if(!LAW(LW_DISASTER)) return;   // lava creeps over nearby ground now and then, scorching it, and cools to rock in the rain
+static void volcanoTick(void){ if(!LAW(LW_NATDIS)||LAW(LW_GAIA)) return;   // lava creeps over nearby ground now and then, scorching it, and cools to rock in the rain
     if(tick&15) return; int x=rnd()%WW, y=rnd()%WH; if(world[y][x]!=T_LAVA) return;
     int dx=(int)(rnd()%3)-1, dy=(int)(rnd()%3)-1, nx=x+dx, ny=y+dy; if(nx<0||ny<0||nx>=WW||ny>=WH) return; u8 t=world[ny][nx];
-    if(weather==1||weather==2){ if(rnd()%6==0){ setCell(x,y,T_MOUNT); } return; }
+    if(!LAW(LW_LAVA)&&(weather==1||weather==2)){ if(rnd()%6==0){ setCell(x,y,T_MOUNT); } return; }
     if(rnd()%90==0&&(t==T_MOUNT||t==T_HILL||t==T_DIRT||t==T_GRASS||t==T_FOREST||t==T_DESERT)){ setCell(nx,ny,T_LAVA); if(occ[ny][nx]) killCr(occ[ny][nx]-1); if(bld[ny][nx]){ bld[ny][nx]=0; putCell(nx,ny); } }
-    else if(rnd()%400==0) setCell(x,y,T_MOUNT); }
+    else if(!LAW(LW_LAVA)&&rnd()%400==0) setCell(x,y,T_MOUNT); }
 static void kingdomTick(void){ memset(kcSv,0,sizeof kcSv); memset(kcDv,0,sizeof kcDv); memset(kcZv,0,sizeof kcZv); kcOn=1; kingdomTick0(); kcOn=0; }
 // ---- WorldBox's classic disasters: tornado, acid rain, the bomb
 typedef struct { u8 on; s16 x, y, t; s8 dx, dy; } Tor; static Tor tor[2]; static int acidT;
@@ -571,32 +579,53 @@ static void tornadoTick(void){ for(int k=0;k<2;k++){ Tor*T=&tor[k]; if(!T->on) c
         if(rnd()%12==0){ T->dx=(s8)((int)(rnd()%3)-1); T->dy=(s8)((int)(rnd()%3)-1); }
         T->x+=T->dx; T->y+=T->dy; if(T->x<3){ T->x=3; T->dx=1; } if(T->x>WW-4){ T->x=(s16)(WW-4); T->dx=-1; } if(T->y<3){ T->y=3; T->dy=1; } if(T->y>WH-4){ T->y=(s16)(WH-4); T->dy=-1; }
         for(int yy=T->y-2;yy<=T->y+2;yy++) for(int xx=T->x-2;xx<=T->x+2;xx++){ int ddx=xx-T->x, ddy=yy-T->y, d2=ddx*ddx+ddy*ddy; if(d2>5) continue;
-            burnAt(xx,yy,170); if(world[yy][xx]==T_FOREST&&rnd()%6==0) setCell(xx,yy,T_DIRT);
+            burnAt(xx,yy,170); if(!LAW(LW_GAIA)&&world[yy][xx]==T_FOREST&&rnd()%6==0) setCell(xx,yy,T_DIRT);
             if(occ[yy][xx]&&d2<=2){ int j=occ[yy][xx]-1; if(rnd()%3==0) killCr(j); else if(cr[j].hp>1){ cr[j].hp=(u8)(cr[j].hp>7?cr[j].hp-6:1); } } } } }
 static void acidAt(int x,int y,int strong){ if(x<0||y<0||x>=WW||y>=WH) return; u8 t=world[y][x];
-    if((t==T_GRASS||t==T_FOREST||t==T_JUNGLE)&&rnd()%(strong?2:6)==0) setCell(x,y,T_DIRT);
+    if(!LAW(LW_GAIA)&&(t==T_GRASS||t==T_FOREST||t==T_JUNGLE)&&rnd()%(strong?2:6)==0) setCell(x,y,T_DIRT);
     burnAt(x,y,strong?120:25); if(occ[y][x]){ int j=occ[y][x]-1; int dm=strong?8:2; if(cr[j].hp>dm) cr[j].hp=(u8)(cr[j].hp-dm); else killCr(j); } }
 static void acidTick(void){ if(acidT<=0) return; acidT--; if(tick&3) return; for(int k=0;k<14;k++) acidAt((int)(rnd()%WW),(int)(rnd()%WH),0); if(acidT==0) siprintf(info,"THE ACID RAIN STOPS"); }
 static void nukeAt(int cx,int cy){          // the bomb: a crater of lava, scorched ground, everything within 9 tiles dead, and fallout that sickens the rest out to 20
     const int R=9, F=20; for(int y=cy-F;y<=cy+F;y++) for(int x=cx-F;x<=cx+F;x++){ if(x<0||y<0||x>=WW||y>=WH) continue; int dx=x-cx, dy=y-cy, d2=dx*dx+dy*dy;
-        if(d2<=R*R){ burnAt(x,y,255); if(occ[y][x]) killCr(occ[y][x]-1); u8 t=world[y][x]; if(t!=T_WATER&&t!=T_DEEP){ if(d2<=4) setCell(x,y,T_LAVA); else if(d2<=36||rnd()%3==0) setCell(x,y,(rnd()&3)?T_DIRT:T_HILL); } }
+        if(d2<=R*R){ burnAt(x,y,255); if(occ[y][x]) killCr(occ[y][x]-1); u8 t=world[y][x]; if(t!=T_WATER&&t!=T_DEEP&&!LAW(LW_GAIA)){ if(d2<=4) setCell(x,y,T_LAVA); else if(d2<=36||rnd()%3==0) setCell(x,y,(rnd()&3)?T_DIRT:T_HILL); } }
         else if(d2<=F*F){ if(occ[y][x]){ int j=occ[y][x]-1; if(sick[j]==0&&rnd()%3==0) sick[j]=1; if(cr[j].hp>4&&rnd()%3==0) cr[j].hp=(u8)(cr[j].hp-3); } if(rnd()%5==0) burnAt(x,y,120); } }
     flashT=24; siprintf(info,"THE BOMB DROPS"); fxReq(FX_METEOR); }
-static void eventTick(void){   // now and then the world has an event of its own
+static int archByName(const char*nm){ for(int a=8;a<ARCH_N;a++) if(!strcmp(arch[a].nm,nm)) return a; return -1; }
+static int countArch(int a){ int n=0; if(a<0) return 99; for(int i=0;i<nCr;i++) if(cr[i].alive&&sp[cr[i].sp].a==a) n++; return n; }
+static int spawnWild(int a){ if(a<8) return 0; int s=8+(a-8)*16+(int)(rnd()&15); for(int k=0;k<80;k++){ int x=rnd()%WW, y=rnd()%WH; if(!walkable(&sp[s],x,y)||occ[y][x]||vilAny(x,y,9)>=0) continue; int n=addCr(s,x,y); if(n>=0){ cr[n].hp=(u8)maxHp(&cr[n]); return 1; } } return 0; }
+static void quakeAt(int cx,int cy){ for(int y=cy-8;y<=cy+8;y++) for(int x=cx-8;x<=cx+8;x++){ if(x<0||y<0||x>=WW||y>=WH||(x-cx)*(x-cx)+(y-cy)*(y-cy)>64) continue; u8 t=world[y][x];
+        if(!LAW(LW_GAIA)){ if(t==T_MOUNT||t==T_HILL){ if(rnd()%3==0) setCell(x,y,(rnd()&1)?T_HILL:T_DIRT); } else if(t!=T_WATER&&t!=T_DEEP&&t!=T_LAVA&&rnd()%7==0) setCell(x,y,T_DIRT); }
+        if(bld[y][x]&&rnd()%4==0) burnAt(x,y,255); if(occ[y][x]&&rnd()%12==0) killCr(occ[y][x]-1); }
+    flashT=6; siprintf(info,"DRRR DRRR! THE GROUND IS SHAKING!"); fxReq(FX_METEOR); }
+// the world's own disasters, as WorldBox's wiki lays them out: every so often a disaster is drawn from a pool (Natural Disasters and Other Disasters are separate laws); each has a weight,
+// a minimum number of people and cities, and a chance that it fizzles; the dragon and the wild mage only come when fewer than two of them already live
+static void eventTick(void){
     if(tick%1200==0) memset(vilSick,0,sizeof vilSick);
-    if(!LAW(LW_DISASTER)||tick<1500||(tick%1500)!=0||rnd()%3) return; int e=(int)(rnd()%7); if(e==4&&!LAW(LW_PLAGUE)) e=0;
-    if(e==0){ for(int k=0;k<6;k++){ int x=rnd()%WW, y=rnd()%WH; burnAt(x,y,255); if(world[y][x]!=T_WATER&&world[y][x]!=T_DEEP&&world[y][x]!=T_MOUNT) setCell(x,y,(rnd()&1)?T_DIRT:T_LAVA); if(occ[y][x]) killCr(occ[y][x]-1); } siprintf(info,"A COMET SHOWER"); flashT=8; fxReq(FX_METEOR); }
-    else if(e==1){ for(int v=0;v<VIL_N;v++) if(vil[v].on) vil[v].stock=(u16)(vil[v].stock+100>400?400:vil[v].stock+100); siprintf(info,"A BOUNTIFUL HARVEST"); fxReq(FX_BLESS); }
-    else if(e==5){ tornadoSpawn((int)(rnd()%(WW-8))+4,(int)(rnd()%(WH-8))+4); }
-    else if(e==6){ acidT=500; siprintf(info,"ACID RAIN FALLS"); fxReq(FX_RAIN); }
-    else if(e==4){ int tries=0; while(tries++<40){ int i=(int)(rnd()%(nCr?nCr:1)); if(nCr&&cr[i].alive&&arch[sp[cr[i].sp].a].diet!=5&&sick[i]==0){ sick[i]=1; siprintf(info,"A PLAGUE BREAKS OUT"); fxReq(FX_WAR); break; } } }
-    else if(e==2){ int n=0; for(int i=0;i<nCr&&n<12;i++) if(cr[i].alive&&arch[sp[cr[i].sp].a].diet!=5&&cr[i].tr2==0&&(rnd()&7)==0){ giveTrait(&cr[i],TR_MUNCH,0); cr[i].food=200; n++; } siprintf(info,"THE GREAT MUNCHIES"); fxReq(FX_BIRTH); }
+    if(tick<1500||(tick%1200)!=600) return; int nat=LAW(LW_NATDIS), oth=LAW(LW_OTHERDIS); if(!nat&&!oth) return;
+    int pop=0, cit=0, vv=-1; for(int v=0;v<VIL_N;v++) if(vil[v].on){ pop+=vil[v].pop; cit++; if(rnd()%cit==0) vv=v; }
+    static int dragonA=-2, lichA=-2; if(dragonA==-2){ dragonA=archByName("DRAGON"); lichA=archByName("LICH"); }
+    int kind[12], rate[12], n=0, tot=0;
+    #define EADD(k,r) { kind[n]=k; rate[n]=r; tot+=r; n++; }
+    if(nat){ if(pop>=200&&cit>=4) EADD(0,3) if(pop>=200&&cit>=3) EADD(1,3) if(pop>=100&&cit>=3) EADD(2,3) EADD(3,2) }
+    if(oth){ EADD(4,2) if(LAW(LW_PLAGUE)) EADD(5,2) if(pop>=300&&cit>=4&&countArch(dragonA)<2) EADD(6,2) if(pop>=200&&cit>=3&&countArch(lichA)<2) EADD(7,1) EADD(8,1) EADD(9,1) EADD(10,1) }
+    if(!tot) return; int r=(int)(rnd()%tot), e=0; for(int i=0;i<n;i++){ if(r<rate[i]){ e=kind[i]; break; } r-=rate[i]; }
+    static const u8 chance[11]={40,40,50,50,80,80,90,80,90,90,90}; if((int)(rnd()%100)>=chance[e]) return;      // it can fizzle
+    if(e==0){ int cx=vv>=0?vil[vv].x:(int)(rnd()%WW), cy=vv>=0?vil[vv].y:(int)(rnd()%WH); quakeAt(cx,cy); }
+    else if(e==1){ for(int k=0;k<3;k++){ int x=rnd()%WW, y=rnd()%WH; burnAt(x,y,255); if(!LAW(LW_GAIA)&&world[y][x]!=T_WATER&&world[y][x]!=T_DEEP&&world[y][x]!=T_MOUNT) setCell(x,y,(rnd()&1)?T_DIRT:T_LAVA); if(occ[y][x]) killCr(occ[y][x]-1); } siprintf(info,"WITH A SCREAMING NOISE SOMETHING HAS FALLEN"); flashT=8; fxReq(FX_METEOR); }
+    else if(e==2){ tornadoSpawn((int)(rnd()%(WW-8))+4,(int)(rnd()%(WH-8))+4); }
+    else if(e==3){ int k2=0; for(int k=0;k<90;k++){ int x=rnd()%WW, y=rnd()%WH; if(!LAW(LW_GAIA)&&(world[y][x]==T_GRASS||world[y][x]==T_FOREST)&&rnd()%3==0){ setCell(x,y,T_DESERT); k2++; } } for(int i=0;i<nCr;i++) if(cr[i].alive&&cr[i].food>25) cr[i].food-=25; (void)k2; siprintf(info,"A BLAZING HEATWAVE SWEEPS THE LAND"); fxReq(FX_FIRE); }
+    else if(e==4){ acidT=500; siprintf(info,"ACID RAIN FALLS"); fxReq(FX_RAIN); }
+    else if(e==5){ int tries=0; while(tries++<40){ int i=(int)(rnd()%(nCr?nCr:1)); if(nCr&&cr[i].alive&&arch[sp[cr[i].sp].a].diet!=5&&sick[i]==0){ sick[i]=1; siprintf(info,"A PLAGUE BREAKS OUT"); fxReq(FX_WAR); break; } } }
+    else if(e==6){ if(spawnWild(dragonA)){ siprintf(info,"A DRAGON COMES FROM FAR LANDS"); fxReq(FX_MONSTER_SEEN); } }
+    else if(e==7){ if(spawnWild(lichA)){ siprintf(info,"A WILD MAGE BRINGS CHAOS"); fxReq(FX_MONSTER_SEEN); } }
+    else if(e==8){ for(int v=0;v<VIL_N;v++) if(vil[v].on) vil[v].stock=(u16)(vil[v].stock+100>400?400:vil[v].stock+100); siprintf(info,"A BOUNTIFUL HARVEST"); fxReq(FX_BLESS); }
+    else if(e==9){ int c2=0; for(int i=0;i<nCr&&c2<12;i++) if(cr[i].alive&&arch[sp[cr[i].sp].a].diet!=5&&cr[i].tr2==0&&(rnd()&7)==0){ giveTrait(&cr[i],TR_MUNCH,0); cr[i].food=200; c2++; } siprintf(info,"THE GREAT MUNCHIES"); fxReq(FX_BIRTH); }
     else { for(int v=0;v<VIL_N;v++) vil[v].foe=0; for(int k=0;k<KN_N;k++){ kd[k].war=0; kd[k].weary=0; } warMatrix(); siprintf(info,"A FESTIVAL: ALL FEUDS FORGOTTEN"); fxReq(FX_PEACE); } }
 static void weatherTick(void){
     if(!LAW(LW_WEATHER)){ if(weather) weather=0; if(flashT>0) flashT--; return; }
     if(--weatherT<=0){ int r=(int)(rnd()%100), cold=(year&3)==3; weather=r<55?0:r<80?(cold?3:1):r<90?(cold?3:2):(cold?3:1); weatherT=weather?1200+(int)(rnd()%2400):900+(int)(rnd()%1800);
         siprintf(info,"%s",weather==1?"IT BEGINS TO RAIN":weather==2?"A STORM ROLLS IN":weather==3?"SNOW FALLS":"THE SKY CLEARS"); }
-    if((weather==1||weather==2)&&(tick&7)==0){ int x=rnd()%WW, y=rnd()%WH; u8 t=world[y][x]; if(t==T_DIRT&&(rnd()&3)==0) setCell(x,y,T_GRASS); else if(t==T_LAVA&&(rnd()&15)==0) setCell(x,y,T_MOUNT); }
+    if((weather==1||weather==2)&&(tick&7)==0){ int x=rnd()%WW, y=rnd()%WH; u8 t=world[y][x]; if(t==T_DIRT&&(rnd()&3)==0) setCell(x,y,T_GRASS); else if(t==T_LAVA&&!LAW(LW_LAVA)&&(rnd()&15)==0) setCell(x,y,T_MOUNT); }
     if(weather==2&&(rnd()%500)==0){ int x=rnd()%WW, y=rnd()%WH; burnAt(x,y,200); if(occ[y][x]) killCr(occ[y][x]-1); if(world[y][x]==T_FOREST&&(rnd()&3)==0) setCell(x,y,T_DIRT); flashT=8; fxReq(FX_LIGHTNING); }
     if(flashT>0) flashT--; }
 static int cursor=0, vilCur=0;
@@ -607,9 +636,10 @@ static void simulate(void){
     for(int k=0;k<per;k++){ if(cursor>=nCr) cursor=0; Cr*c=&cr[cursor]; if(c->alive&&++c->t>=effSpd(c)) { c->t=0; think(cursor); } cursor++; }
     // the ground heals: dirt turns back to grass beside grass, lava cools
     for(int k=0;k<12;k++){ int x=rnd()%WW, y=rnd()%WH; u8 t=world[y][x]; if(t==T_DIRT){ int d=rnd()&3; int nx=x+dxs[d], ny=y+dys[d]; if(nx>=0&&ny>=0&&nx<WW&&ny<WH&&(world[ny][nx]==T_GRASS||world[ny][nx]==T_FOREST)) setCell(x,y,T_GRASS); }
-        else if(t==T_GRASS&&(rnd()&63)==0){ int d=rnd()&3; int nx=x+dxs[d], ny=y+dys[d]; if(nx>=0&&ny>=0&&nx<WW&&ny<WH&&world[ny][nx]==T_FOREST&&(rnd()&7)==0) setCell(x,y,T_FOREST); } }
+        else if(t==T_GRASS&&LAW(LW_TREES)&&(rnd()&63)==0){ int d=rnd()&3; int nx=x+dxs[d], ny=y+dys[d]; if(nx>=0&&ny>=0&&nx<WW&&ny<WH&&world[ny][nx]==T_FOREST&&(rnd()&7)==0) setCell(x,y,T_FOREST); } }
+    if(LAW(LW_EROSION)&&(tick&3)==0){ for(int k=0;k<4;k++){ int x=rnd()%WW, y=rnd()%WH; u8 t=world[y][x]; if((t==T_GRASS||t==T_DIRT||t==T_HILL)&&(rnd()%60)==0){ for(int d=0;d<4;d++){ int nx=x+dxs[d], ny=y+dys[d]; if(nx>=0&&ny>=0&&nx<WW&&ny<WH&&(world[ny][nx]==T_WATER||world[ny][nx]==T_DEEP)){ setCell(x,y,T_SAND); break; } } } } }      // erosion: the shore crumbles into sand
     if((tick&15)==0){ vilCur=(vilCur+1)%VIL_N; if(LAW(LW_GROWTH)) vilTick(vilCur); if(vilCur==0) warMatrix(); } if((tick&127)==64) kingdomTick(); if((tick&63)==33) achCheck();
-    weatherTick(); volcanoTick(); eventTick(); if(LAW(LW_DISASTER)||tor[0].on||tor[1].on||acidT){ tornadoTick(); acidTick(); }
+    weatherTick(); volcanoTick(); eventTick(); if(LAW(LW_NATDIS)||LAW(LW_OTHERDIS)||tor[0].on||tor[1].on||acidT){ tornadoTick(); acidTick(); }
     if((tick&63)==0) monSpawn();
     if((tick&15)==0) towerFire();
     if(((tick)&255)==0){ compact(); if((tick%2048)==0){ year++; fxReq(FX_YEAR); } unlockTiers(); }
@@ -1035,13 +1065,14 @@ static void uiCreate(void){
     uiTextC(208,140,cT>=0?"SHAPING...":"READY",cT>=0?U_ORANGE:U_GREEN,1);
     uiText(6,172,cSel==9?"A: BEGIN YOUR WORLD":"PAD: UP DOWN  LEFT RIGHT CHANGE",U_DIM,1);
     uiFlush(); }
-enum { MI_CONT, MI_STORY, MI_FREE, MI_OPT, MI_EXTRA, MI_BACK, MI_SIZE, MI_DIFF, MI_VOL, MI_MON, MI_SCULPT, MI_BEST, MI_CODEX, MI_HELP, MI_CRED, MI_DEBUG, MI_RESUME, MI_SAVE, MI_NEW, MI_MODE, MI_TITLE, MI_CREATE, MI_GO, MI_STYPE, MI_SPEED, MI_KING, MI_JOURNAL, MI_ACH, MI_CULT, MI_LANG, MI_BROWSE, MI_LAW0, MI_LAW1, MI_LAW2, MI_LAW3, MI_LAW4, MI_LAW5, MI_LAW6, MI_LAW7, MI_LAW8, MI_LAW9, MI_LAWS, MI_FAVS, MI_PEOPLE, MI_COLL, MI_MORE };
+enum { MI_CONT, MI_STORY, MI_FREE, MI_OPT, MI_EXTRA, MI_BACK, MI_SIZE, MI_DIFF, MI_VOL, MI_MON, MI_SCULPT, MI_BEST, MI_CODEX, MI_HELP, MI_CRED, MI_DEBUG, MI_RESUME, MI_SAVE, MI_NEW, MI_MODE, MI_TITLE, MI_CREATE, MI_GO, MI_STYPE, MI_SPEED, MI_KING, MI_JOURNAL, MI_ACH, MI_CULT, MI_LANG, MI_BROWSE, MI_LAW0, MI_LAW1, MI_LAW2, MI_LAW3, MI_LAW4, MI_LAW5, MI_LAW6, MI_LAW7, MI_LAW8, MI_LAW9, MI_LAW10, MI_LAW11, MI_LAW12, MI_LAW13, MI_LAW14, MI_LAW15, MI_LAW16, MI_LAW17, MI_LAW18, MI_LAW19, MI_LAWS, MI_FAVS, MI_PEOPLE, MI_COLL, MI_MORE };
 static int extrasView;      // which menu (0 main, 1 options, 2 extras), the highlighted row, a pending "are you sure", and whether an extras page is open
 static int menuList(int*ids){ int n=0, ctx=titleOn?0:1;
     if(ctx==1){          // the pause menu: a short root (what you do most), and five small screens behind it. L / R walk through them
         if(mScr==0){ ids[n++]=MI_RESUME; ids[n++]=MI_SAVE; ids[n++]=MI_FAVS; ids[n++]=MI_LAWS; ids[n++]=MI_PEOPLE; ids[n++]=MI_COLL; ids[n++]=MI_OPT; ids[n++]=MI_MORE; }
         else if(mScr==1){ ids[n++]=MI_DIFF; ids[n++]=MI_SPEED; ids[n++]=MI_VOL; ids[n++]=MI_MON; ids[n++]=MI_BACK; }
-        else if(mScr==4){ for(int i=0;i<LW_N;i++) ids[n++]=MI_LAW0+i; ids[n++]=MI_BACK; }
+        else if(mScr==4){ for(int i=0;i<11;i++) ids[n++]=MI_LAW0+lawScrA[i]; }
+        else if(mScr==8){ for(int i=0;i<9;i++) ids[n++]=MI_LAW0+lawScrB[i]; }
         else if(mScr==5){ ids[n++]=MI_KING; ids[n++]=MI_CULT; ids[n++]=MI_LANG; ids[n++]=MI_JOURNAL; ids[n++]=MI_BACK; }
         else if(mScr==6){ ids[n++]=MI_BROWSE; ids[n++]=MI_BEST; ids[n++]=MI_CODEX; ids[n++]=MI_ACH; ids[n++]=MI_SCULPT; ids[n++]=MI_BACK; }
         else { ids[n++]=MI_NEW; ids[n++]=MI_MODE; ids[n++]=MI_TITLE; ids[n++]=MI_HELP; ids[n++]=MI_CRED; if(debugOn) ids[n++]=MI_DEBUG; ids[n++]=MI_BACK; }
@@ -1056,7 +1087,7 @@ static int lawOn(int i){ return i==LW_MONSTER?monOn:LAW(i); }
 static void toggleLaw(int i){ if(i==LW_MONSTER) monOn^=1; else lawOff^=1u<<i; siprintf(info,"%s: %s",lawNm[i],lawOn(i)?"ON":"OFF"); fxReq(FX_MENU_MOVE); }
 static void menuText(int id,char*l,char*v){ v[0]=0;
     if(id>=MI_LAW0&&id<MI_LAW0+LW_N){ strcpy(l,lawNm[id-MI_LAW0]); strcpy(v,lawOn(id-MI_LAW0)?"ON":"OFF"); return; }
-    switch(id){ case MI_LAWS: { strcpy(l,"WORLD LAWS"); int off=0; for(int i=0;i<LW_N;i++) off+=!lawOn(i); if(off) siprintf(v,"%d OFF",off); else strcpy(v,">"); } return; case MI_FAVS: strcpy(l,"FAVORITES"); siprintf(v,"%d",favCount()); return; case MI_PEOPLE: strcpy(l,"KINGDOMS & FOLK"); strcpy(v,">"); return; case MI_COLL: strcpy(l,"COLLECTIONS"); strcpy(v,">"); return; case MI_MORE: strcpy(l,"MORE"); strcpy(v,">"); return; }
+    switch(id){ case MI_LAWS: { strcpy(l,"WORLD LAWS"); int ch=0; for(int i=0;i<LW_N;i++) ch+=(i==LW_MONSTER?!monOn:(int)((lawOff>>i)&1)); if(ch) siprintf(v,"%d CHANGED",ch); else strcpy(v,">"); } return; case MI_FAVS: strcpy(l,"FAVORITES"); siprintf(v,"%d",favCount()); return; case MI_PEOPLE: strcpy(l,"KINGDOMS & FOLK"); strcpy(v,">"); return; case MI_COLL: strcpy(l,"COLLECTIONS"); strcpy(v,">"); return; case MI_MORE: strcpy(l,"MORE"); strcpy(v,">"); return; }
     switch(id){ case MI_CONT: strcpy(l,hasSave?"CONTINUE YOUR WORLD":"START THE STORY"); break; case MI_STORY: strcpy(l,"NEW STORY WORLD"); break; case MI_FREE: strcpy(l,"NEW FREE PLAY WORLD"); break;
         case MI_BROWSE: strcpy(l,"WORLD BROWSER"); break; case MI_KING: strcpy(l,"KINGDOMS"); break; case MI_CULT: strcpy(l,"CULTURE TREE"); break; case MI_LANG: strcpy(l,"LANGUAGES"); break; case MI_JOURNAL: strcpy(l,"JOURNAL"); siprintf(v,"%d",jrN); break; case MI_ACH: { strcpy(l,"ACHIEVEMENTS"); int c=0; for(int i=0;i<ACH_N;i++) c+=(achBits>>i)&1; siprintf(v,"%d/%d",c,ACH_N); } break; case MI_SPEED: strcpy(l,"GAME SPEED"); siprintf(v,"%dx",speedMul); break; case MI_CREATE: strcpy(l,"CREATE A PLANET"); strcpy(v,">"); break; case MI_GO: strcpy(l,"CREATE THE PLANET!"); break; case MI_STYPE: strcpy(l,"WORLD TYPE"); strcpy(v,storyOn?"STORY":"FREE PLAY"); break;
         case MI_OPT: strcpy(l,titleOn?"OPTIONS":"SETTINGS"); strcpy(v,">"); break; case MI_EXTRA: strcpy(l,"EXTRAS"); strcpy(v,">"); break; case MI_BACK: strcpy(l,"BACK"); break;
@@ -1295,15 +1326,15 @@ static void uiDialog(void){
     uiFlush(); }
 static void uiMenu(void){
     uiStatus(); for(int y=0;y<192;y++) for(int x=(y&1);x<256;x+=2) uiPx(x,y,U_SHADOW);
-    uiRect(30,12,196,168,U_SHADOW); uiFrame(32,14,192,164,U_PANEL,U_GOLD,U_BLO); uiRect(33,15,190,16,U_PANELHI); uiText(42,19,mScr==0?"PAUSED":mScr==1?"SETTINGS":mScr==4?"WORLD LAWS":mScr==5?"KINGDOMS & FOLK":mScr==6?"COLLECTIONS":mScr==7?"MORE":"EXTRAS",U_GOLD,1); uiTextR(214,19,"L R: SCREENS",U_DIM);
-    uiMenuList(38,mScr==4?34:36,180,mScr==4?11:mScr==0?14:16);
+    uiRect(30,12,196,168,U_SHADOW); uiFrame(32,14,192,164,U_PANEL,U_GOLD,U_BLO); uiRect(33,15,190,16,U_PANELHI); uiText(42,19,mScr==0?"PAUSED":mScr==1?"SETTINGS":mScr==4?"WORLD LAWS 1/2":mScr==8?"WORLD LAWS 2/2":mScr==5?"KINGDOMS & FOLK":mScr==6?"COLLECTIONS":mScr==7?"MORE":"EXTRAS",U_GOLD,1); uiTextR(214,19,"L R: SCREENS",U_DIM);
+    uiMenuList(38,(mScr==4||mScr==8)?34:36,180,(mScr==4||mScr==8)?11:mScr==0?14:16);
     if(mScr>0){ uiRound(176,162,44,12,U_SEL,U_GOLD); uiTextC(198,165,"BACK",U_WHITE,1); uiBtn(174,160,48,16,KEY_B,0,0,0); }
-    if(menuAsk){ uiRect(40,154,176,20,U_RED); uiTextC(128,160,"ARE YOU SURE?   A YES   B NO",U_WHITE,1); uiBtn(40,154,88,20,KEY_A,0,0,0); uiBtn(128,154,88,20,KEY_B,0,0,0); } else if(mScr!=2&&mScr!=3){ int ids[14]; menuList(ids); uiWrap(40,mScr==4?158:152,24,mScr==4?2:3,menuDesc(ids[mSel]),U_LGREY); }
+    if(menuAsk){ uiRect(40,154,176,20,U_RED); uiTextC(128,160,"ARE YOU SURE?   A YES   B NO",U_WHITE,1); uiBtn(40,154,88,20,KEY_A,0,0,0); uiBtn(128,154,88,20,KEY_B,0,0,0); } else if(mScr!=2&&mScr!=3){ int ids[14]; menuList(ids); uiWrap(40,(mScr==4||mScr==8)?158:152,24,(mScr==4||mScr==8)?2:3,menuDesc(ids[mSel]),U_LGREY); }
     uiFlush(); }
 static int uiScrId=-1, uiScrDepth, uiTabDir;
 static void hud(void){
     uiNBtn=0;
-    { int id=(dlgOn?1:0)|(sceneOn?2:0)|(titleOn?4:0)|(menuOn?8:0)|(extrasView?16:0)|(mScr<<5)|(page<<8); int dep=(dlgOn||sceneOn)?3:extrasView?2:(titleOn||menuOn)?(mScr>0?1:0):(page?1:0);
+    { int id=(dlgOn?1:0)|(sceneOn?2:0)|(titleOn?4:0)|(menuOn?8:0)|(extrasView?16:0)|(mScr<<5)|(page<<9); int dep=(dlgOn||sceneOn)?3:extrasView?2:(titleOn||menuOn)?(mScr>0?1:0):(page?1:0);
       if(uiScrId>=0&&id!=uiScrId){ uiTrans=uiTabDir?uiTabDir:dep>uiScrDepth?1:dep<uiScrDepth?-1:2; } uiScrId=id; uiScrDepth=dep; uiTabDir=0; }
     uiBackHint=extrasView; if(extrasView&&page!=3&&page!=4){ uiTabPrev=extName(extStep(-1)); uiTabNext=extName(extStep(1)); } else uiTabPrev=uiTabNext=0; uiPageOpen=1|2|4|(auralOK()?8:0)|(debugOn?16:0)|32|64; uiPages=titleOn||sceneOn||dlgOn||extrasView?0:7; uiPageNow=page; uiDotX=124;
     if(dlgOn){ uiDialog(); return; } if(sceneOn){ uiScene(); return; } if(!extrasView){ if(titleOn){ uiTitle(); return; } if(menuOn){ uiMenu(); return; } }
@@ -1313,7 +1344,7 @@ static void hud(void){
 static void menuToWorld(void){ setSize(planetSize); newWorld(); paused=1; camX=(WW*8-256)/2; camY=(WH*8-192)/2; winX=-99; refillWindow(); }
 static void menuOpenPage(int pg){ extrasView=1; page=pg; if(pg==3) juke=gmCur>=0?gmCur:0; menuOn=0; siprintf(info,"START: BACK TO MENU"); }
 static int menuRootIndex(int opener){ int save=mScr; mScr=0; int ids[14]; int n=menuList(ids); mScr=save; for(int i=0;i<n;i++) if(ids[i]==opener) return i; return 0; }
-static void menuBack(void){ int op=mScr==1?MI_OPT:mScr==2?MI_EXTRA:mScr==3?MI_CREATE:mScr==4?MI_LAWS:mScr==5?MI_PEOPLE:mScr==6?MI_COLL:mScr==7?MI_MORE:MI_RESUME; int i=menuRootIndex(op); mScr=0; mSel=i; }
+static void menuBack(void){ int op=mScr==1?MI_OPT:mScr==2?MI_EXTRA:mScr==3?MI_CREATE:(mScr==4||mScr==8)?MI_LAWS:mScr==5?MI_PEOPLE:mScr==6?MI_COLL:mScr==7?MI_MORE:MI_RESUME; int i=menuRootIndex(op); mScr=0; mSel=i; }
 static void menuInput(int kd){
     int ids[14]; int n=menuList(ids); int d=((kd&KEY_RIGHT)?1:0)-((kd&KEY_LEFT)?1:0);
     if(menuAsk){ if(kd&KEY_A){ int a=menuAsk; menuAsk=0; menuOn=0; if(a==5) startWorld(!storyOn); else if(a==6) startWorld(storyOn); else if(a==8){ doSave(); titleOn=1; paused=1; mScr=0; mSel=0; newWorld(); camX=(WW*8-256)/2; camY=(WH*8-192)/2; hasSave=sdOk; musReq(GM_TITLE); } } if(kd&(KEY_B|KEY_START)){ menuAsk=0; menuOn=1; } return; }
@@ -1321,7 +1352,7 @@ static void menuInput(int kd){
     if(mScr==3){ createInput(kd); return; }
     if(!titleOn&&(kd&KEY_START)){ menuOn=0; paused=dlgPaused; return; }
     if(kd&KEY_UP) mSel=(mSel+n-1)%n; if(kd&KEY_DOWN) mSel=(mSel+1)%n;
-    if(!titleOn&&(kd&(KEY_L|KEY_R))&&mScr!=3){ static const u8 tabs[6]={0,4,5,6,1,7}; int cur=0; for(int k=0;k<6;k++) if(tabs[k]==mScr) cur=k; cur=(cur+((kd&KEY_R)?1:5))%6; mScr=tabs[cur]; mSel=0; fxReq(FX_MENU_MOVE); return; }      // L / R: the next / previous screen of the pause menu
+    if(!titleOn&&(kd&(KEY_L|KEY_R))&&mScr!=3){ static const u8 tabs[7]={0,4,8,5,6,1,7}; int cur=0; for(int k=0;k<7;k++) if(tabs[k]==mScr) cur=k; cur=(cur+((kd&KEY_R)?1:6))%7; mScr=tabs[cur]; mSel=0; fxReq(FX_MENU_MOVE); return; }      // L / R: the next / previous screen of the pause menu
     if(kd&KEY_B){ if(mScr) menuBack(); else if(!titleOn){ menuOn=0; paused=dlgPaused; } return; }
     int id=ids[mSel];
     if(d){ switch(id){ case MI_SIZE: setSize(d>0?(planetSize==128?192:planetSize==192?256:128):(planetSize==256?192:planetSize==192?128:256)); fxReq(FX_MENU_MOVE); break; case MI_STYPE: storyOn^=1; break;
