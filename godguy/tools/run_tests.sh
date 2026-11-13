@@ -23,3 +23,5 @@ gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_zoom_r
 # biomes (corruption, infernal, enchantment) and the atmosphere (gases, greenhouse, dust, climate)
 gcc $F -w -o /tmp/gg_biome pc_biome.c -lm && /tmp/gg_biome | tail -1
 gcc $F -w -o /tmp/gg_atmo pc_atmo.c -lm && /tmp/gg_atmo | tail -1
+# big planets (the 3DS and PC layout: 16-bit coordinates, up to 1024 x 1024 tiles and 100,000 creatures)
+gcc $F -DGG_BIG -w -o /tmp/gg_big pc_big.c -lm && /tmp/gg_big 1024 3000 | tail -1

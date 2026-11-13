@@ -15,7 +15,7 @@
 
 int gW=128, gH=128;
 u8 world[MAXD][MAXD];
-static u16 occ[MAXD][MAXD];            // creature index + 1 standing on a tile
+static occ_t occ[MAXD][MAXD];            // creature index + 1 standing on a tile
 static Cr cr[MAXC]; static int nCr;
 static int zombA=-1; static u8 vilSick[64];     // vilSick: sick folk met near a village this season (for the journal line)
 static u32 lawOff;      // World Laws (the list and the defaults of WorldBox's own law panel, as far as this game has the mechanics): stored as the switches that differ from the defaults, so 0 = all defaults
@@ -29,7 +29,7 @@ static const char* const lawDs[LW_N]={"CREATURES CAN DIE OF OLD AGE","EVERYONE N
     "KINGDOMS MAKE WARS, ALLIANCES AND PEACE","CITIES WITH LOW LOYALTY LEAVE THEIR KINGDOM","VILLAGES GROW, BUILD AND SPREAD","VILLAGES HOLD AT MOST 100 PEOPLE","FIRE, BOMBS AND DISASTERS DO NOT DAMAGE THE LAND","COMETS, TORNADOES AND STORMS HAPPEN BY THEMSELVES","DRAGONS, WILD MAGES, ACID RAIN AND OTHER TROUBLE","SICKNESS SPREADS AND ZOMBIES RISE","MONSTERS ROAM THE WILD","CORRUPTION, INFERNO AND ENCHANTMENT CREEP","AIR, WARMTH AND DUST CHANGE WITH LIFE AND FIRE"};
 static const u8 lawScrA[11]={LW_AGE,LW_HUNGER,LW_CIVBABY,LW_ANIBABY,LW_PEACEMON,LW_MUTBOX,LW_MUTATE,LW_EROSION,LW_TREES,LW_LAVA,LW_WEATHER};      // the first law screen: life and land
 static const u8 lawScrB[11]={LW_DIPLOMACY,LW_REBEL,LW_GROWTH,LW_POP100,LW_GAIA,LW_NATDIS,LW_OTHERDIS,LW_PLAGUE,LW_MONSTER,LW_BIOME,LW_ATMO};                        // the second: kingdoms and disasters
-static u8 zq[16][2]; static int zqN;      // where plague victims turned zombie fell: they rise at the end of the tick
+static coord_t zq[16][2]; static int zqN;      // where plague victims turned zombie fell: they rise at the end of the tick
 static u8 sick[MAXC];     // plague: 0 healthy, 1 sick (loses health, slow, spreads to neighbours), 2 recovered and immune. (Not saved: a loaded world starts healthy.)
 static int camX, camY;             // camera, in world pixels
 static int power=1, brush=2, spSel=40, paused=0, tick=0, year=0;
@@ -193,6 +193,7 @@ static void genWorld(u32 seed){ bioClear(); atmoReset();
     for(int y=0;y<WH;y++) for(int x=0;x<WW;x++){
         int h=fbm(x,y,s), m=fbm(x+300,y+300,s+9), lat=(y<WH/2?y:WH-1-y)*128/WH, temp=40+lat*3+(fbm(x,y,s+20)-128)/3+cClim*28; m+=cWet*30;
         int dx=(x-WW/2)*128/WW, dy=(y-WH/2)*128/WH; if(cShape==1){ h-=(dx*dx+dy*dy)/30; h+=24; } else if(cShape==2){ h-=(dx*dx+dy*dy)/260; h-=6; if(((x/3+y/3)&1)&&h>110) h-=8; } else { h-=(dx*dx+dy*dy)/90; h+=18; } h+=cSea*7;   // a little pull to ocean at the edges
+        if(WW>256){ h+=(fbm(x*256/WW,y*256/WW,s+31)-128)*3/4; h-=((dx*dx+dy*dy)>6000?10:0)+16; }       // big planets: continents and seas at the scale of the planet, not one landmass
         u8 t;
         if(h<62) t=T_DEEP; else if(h<84) t=T_WATER; else if(h<94) t=(temp<70)?T_SNOW:T_SAND;
         else if(h>205) t=(temp<150)?T_SNOW:T_MOUNT; else if(h>170) t=T_HILL;
@@ -302,7 +303,7 @@ static int curExtra;      // the extra ground the creature being moved can cross
 static int walkable(const Sp*s,int x,int y){ if(x<0||y<0||x>=WW||y>=WH) return 0; return ((arch[s->a].mask|curExtra)>>world[y][x])&1; }
 static int addCr(int s,int x,int y){
     if(nCr>=MAXC||x<0||y<0||x>=WW||y>=WH||occ[y][x]) return -1; if(!walkable(&sp[s],x,y)) return -1;
-    Cr*c=&cr[nCr]; memset(c,0,sizeof *c); c->sp=(u16)s; c->x=(u8)x; c->y=(u8)y; c->hp=(u8)maxHp(c); c->food=70; c->age=(u8)(rnd()&15); c->t=(u8)(rnd()&15); c->alive=1; sick[nCr]=0; occ[y][x]=(u16)(nCr+1);
+    Cr*c=&cr[nCr]; memset(c,0,sizeof *c); c->sp=(u16)s; c->x=(coord_t)x; c->y=(coord_t)y; c->hp=(u8)maxHp(c); c->food=70; c->age=(u8)(rnd()&15); c->t=(u8)(rnd()&15); c->alive=1; sick[nCr]=0; occ[y][x]=(occ_t)(nCr+1);
     if(arch[sp[s].a].diet==5&&!((seenB[s>>3]>>(s&7))&1)){ seenB[s>>3]|=(u8)(1<<(s&7)); seenN++; char nm[32]; spName(s,nm); siprintf(info,"BESTIARY: %s",nm); fxReq(FX_MONSTER_SEEN); }
     return nCr++;
 }
@@ -312,14 +313,14 @@ static void killCr(int i){ Cr*c=&cr[i]; if(!c->alive) return; if(c->rk==2&&!natu
 static void killNat(int i){ natural=1; killCr(i); natural=0; }     // old age, hunger, lava: not a slaying
 static void compact(void){   // the dead are squeezed out of the list
     int j=0; for(int i=0;i<nCr;i++) if(cr[i].alive){ if(i!=j){ cr[j]=cr[i]; sick[j]=sick[i]; } j++; } nCr=j;
-    memset(occ,0,sizeof occ); for(int i=0;i<nCr;i++) occ[cr[i].y][cr[i].x]=(u16)(i+1);
+    memset(occ,0,sizeof occ); for(int i=0;i<nCr;i++) occ[cr[i].y][cr[i].x]=(occ_t)(i+1);
 }
 
-static void moveTo(Cr*c,int i,int nx,int ny){ occ[c->y][c->x]=0; c->ox=(s8)((c->x-nx)*8); c->oy=(s8)((c->y-ny)*8); c->x=(u8)nx; c->y=(u8)ny; occ[ny][nx]=(u16)(i+1); c->dir=(u8)(nx>c->x?0:0); }
+static void moveTo(Cr*c,int i,int nx,int ny){ occ[c->y][c->x]=0; c->ox=(s8)((c->x-nx)*8); c->oy=(s8)((c->y-ny)*8); c->x=(coord_t)nx; c->y=(coord_t)ny; occ[ny][nx]=(occ_t)(i+1); c->dir=(u8)(nx>c->x?0:0); }
 // ---------------------------------------------------------------------------------------------- villages
 #define VIL_N 40
 #define VIL_OLD 24     // older saves held 24 villages
-typedef struct { u8 on, race, x, y, lvl, houses, farms, towers, foe, dead, nm1, nm2; u16 pop, stock; } Vil;   // foe: the village (+1) it is at war with
+typedef struct { u8 on, race; coord_t x, y; u8 lvl, houses, farms, towers, foe, dead, nm1, nm2; u16 pop, stock; } Vil;   // foe: the village (+1) it is at war with
 static Vil vil[VIL_N]; static int nVilOn;
 static u8 warM[8][8];   // [a][b]: the people of a are fighting the people of b
 static u8 vilRace(int v){ return vil[v].race; }
@@ -357,7 +358,7 @@ static int placeBld(int v,int type,int cost){
 }
 static int vilFound(int race,int x,int y){
     if(!buildable(x,y)) return -1; if(vilAny(x,y,9)>=0) return -1; int v=-1; for(int i=0;i<VIL_N;i++) if(!vil[i].on){ v=i; break; } if(v<0) return -1;
-    Vil*V=&vil[v]; memset(V,0,sizeof *V); V->on=1; V->race=(u8)race; V->x=(u8)x; V->y=(u8)y; V->lvl=1; V->stock=30; V->nm1=(u8)(rnd()%12); V->nm2=(u8)(rnd()%8);
+    Vil*V=&vil[v]; memset(V,0,sizeof *V); V->on=1; V->race=(u8)race; V->x=(coord_t)x; V->y=(coord_t)y; V->lvl=1; V->stock=30; V->nm1=(u8)(rnd()%12); V->nm2=(u8)(rnd()%8);
     putBld(v,x,y,B_HALL); for(int k=0;k<2;k++) placeBld(v,B_HUT,0); nVilOn++; return v;
 }
 static void vilRaze(int v,int ruins){ Vil*V=&vil[v]; if(!V->on) return; for(int y=0;y<WH;y++) for(int x=0;x<WW;x++) if(bldv[y][x]==v+1){ bld[y][x]=ruins&&(rnd()&1)?B_RUIN:B_NONE; if(!bld[y][x]) bldv[y][x]=0; else bldv[y][x]=0; if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); }
@@ -880,13 +881,25 @@ static void (*loadHook)(const char*,int);
 static void newWorld(void){ LOADING("THE VOID",4); gW=gH=planetSize; nCr=0; memset(occ,0,sizeof occ); memset(bld,0,sizeof bld); memset(bldv,0,sizeof bldv); memset(vil,0,sizeof vil); memset(kd,0,sizeof kd); memset(vilK,0,sizeof vilK); memset(vilL,0,sizeof vilL); memset(favVil,0,sizeof favVil); memset(favKd,0,sizeof favKd); jrN=0; stWars=stCapt=stAllies=stSnack=0; nVilOn=0; worldSeed=seedFix?seedFix:rnd(); genWorld(worldSeed); LOADING("SHAPING THE LAND",35); winX=-99; refillWindow();
     LOADING("SEEDING LIFE",50);
     // the first life: a few of each of the first animals on their own ground
-    int nAn=260*WW*WH/16384*cLife/2; if(nAn>900) nAn=900;
+    int nAn=260*WW*WH/16384*cLife/2; { int cap=900*(WW*WH>65536?WW*WH/65536:1); if(nAn>cap) nAn=cap; }
     for(int k=0;k<nAn;k++){ int a=8+(int)(rnd()%(ARCH_A-8)); int s=8+(a-8)*16+(int)(rnd()%16); int x=rnd()%WW, y=rnd()%WH; if(arch[a].diet==3&&k%2) continue; addCr(s,x,y); }
     LOADING("RAISING THE FIRST VILLAGES",80);
     for(int r=0;r<8&&cLife>0;r++){ if(r>=5&&(rnd()&1)) continue; for(int k=0;k<80;k++){ int x=rnd()%WW, y=rnd()%WH; int v=vilFound(r,x,y); if(v>=0){ for(int q=0;q<5;q++) addCr(r,x+(int)(rnd()%5)-2,y+(int)(rnd()%5)-2); break; } } }   // the peoples start with a village each (the restless ones sometimes stay away)
     info[0]=0; LOADING("READY",100); }
 // ---------------------------------------------------------------------------------------------- saving: the whole world, the villages and the story, to one file (the SD card on the DS)
 static int shape3;
+#ifdef GG_BIGMAP
+typedef struct { u16 sp, wep, arm; u8 x, y; s8 ox, oy; u8 hp, food, age, t, dir, alive, tr, tr2, rk; } CrOld;      // the 8-bit-coordinate layouts of the DS and of older 3DS saves: read and widened
+typedef struct { u8 on, race, x, y, lvl, houses, farms, towers, foe, dead, nm1, nm2; u16 pop, stock; } VilOld;
+#endif
+static const u16 szList[]={128,192,256
+#ifdef GG_BIGMAP
+ ,384,512,768,1024
+#endif
+};
+#define SZ_N ((int)(sizeof szList/sizeof szList[0]))
+static int sizeStep(int cur,int d){ int i=0; for(int k=0;k<SZ_N;k++) if(szList[k]==cur) i=k; i=(i+d+SZ_N)%SZ_N; return szList[i]; }
+static int validSize(int g){ for(int k=0;k<SZ_N;k++) if(szList[k]==g) return 1; return 0; }
 #define SAVE_MAGIC 0x31534747u
 typedef struct { u32 magic; u16 ver, gw, szCr, szVil; u32 tick, year, rs; u32 stKill, stGift, stUse, trSeen, stMut, seed; u16 nCr, seenN, camX, camY; u8 chapter, tierOpen, storyOn, storyDone, monOn, shape3, nVilOn, planet, vcur, aural, debug, full, diff, weather; u16 weatherT; u8 pad_[2]; u8 seen[(SP_N+7)/8], slain[(SP_N+7)/8]; } SaveHdr;
 #ifndef NDSHW
@@ -896,8 +909,8 @@ static SV*svOpen(const char*p,const char*m){ return fopen(p,m); } static size_t 
 static int saveGame(const char*path){
     compact(); cursor=0;     // the dead are dropped first, so a loaded game goes on exactly as this one would
     SV*f=svOpen(path,"wb"); if(!f) return 0; SaveHdr h; memset(&h,0,sizeof h); h.vcur=(u8)vilCur;
-    h.magic=SAVE_MAGIC; h.ver=9; h.weather=(u8)weather; h.weatherT=(u16)weatherT; h.trSeen=trSeen; h.stMut=stMut; h.seed=worldSeed; h.diff=(u8)diff; h.full=(u8)fullDone; h.aural=(u8)auralOpen; h.debug=(u8)debugOn; h.gw=(u16)gW; h.szCr=sizeof(Cr); h.szVil=sizeof(Vil); h.tick=(u32)tick; h.year=(u32)year; h.rs=rs; h.stKill=stKill; h.stGift=stGift; h.stUse=stUse; h.nCr=(u16)nCr; h.seenN=(u16)seenN; h.camX=(u16)camX; h.camY=(u16)camY;
-    h.chapter=(u8)chapter; h.tierOpen=(u8)tierOpen; h.storyOn=(u8)storyOn; h.storyDone=(u8)storyDone; h.monOn=(u8)monOn; h.shape3=(u8)shape3; h.nVilOn=(u8)nVilOn; h.planet=(u8)planetSize/2; memcpy(h.seen,seenB,sizeof seenB); memcpy(h.slain,slainB,sizeof slainB);
+    h.magic=SAVE_MAGIC; h.ver=9; h.weather=(u8)weather; h.weatherT=(u16)weatherT; h.trSeen=trSeen; h.stMut=stMut; h.seed=worldSeed; h.diff=(u8)diff; h.full=(u8)fullDone; h.aural=(u8)auralOpen; h.debug=(u8)debugOn; h.gw=(u16)gW; h.szCr=sizeof(Cr); h.szVil=sizeof(Vil); h.tick=(u32)tick; h.year=(u32)year; h.rs=rs; h.stKill=stKill; h.stGift=stGift; h.stUse=stUse; h.nCr=(u16)nCr; h.pad_[0]=(u8)(nCr>>16); h.seenN=(u16)seenN; h.camX=(u16)camX; h.camY=(u16)camY;
+    h.chapter=(u8)chapter; h.tierOpen=(u8)tierOpen; h.storyOn=(u8)storyOn; h.storyDone=(u8)storyDone; h.monOn=(u8)monOn; h.shape3=(u8)shape3; h.nVilOn=(u8)nVilOn; h.planet=(u8)(planetSize/8); memcpy(h.seen,seenB,sizeof seenB); memcpy(h.slain,slainB,sizeof slainB);
     int ok=svWrite(&h,sizeof h,1,f)==1;
     for(int y=0;y<gH&&ok;y++){ ok&=svWrite(world[y],1,gW,f)==(size_t)gW; ok&=svWrite(bld[y],1,gW,f)==(size_t)gW; ok&=svWrite(bldv[y],1,gW,f)==(size_t)gW; }
     if(ok&&nCr) ok&=svWrite(cr,sizeof(Cr),nCr,f)==(size_t)nCr; if(ok) ok&=svWrite(vil,sizeof(Vil),VIL_N,f)==(size_t)VIL_N;
@@ -905,10 +918,25 @@ static int saveGame(const char*path){
     svClose(f); return ok; }
 static int loadGame(const char*path){
     SV*f=svOpen(path,"rb"); if(!f) return 0; SaveHdr h; int ok=svRead(&h,sizeof h,1,f)==1;
-    if(!ok||h.magic!=SAVE_MAGIC||(h.ver<5||h.ver>9)||h.szCr!=sizeof(Cr)||h.szVil!=sizeof(Vil)||(h.gw!=128&&h.gw!=192&&h.gw!=256)||h.nCr>MAXC){ svClose(f); return 0; }
+    int nC=(int)h.nCr|((int)h.pad_[0]<<16); int legacy=0;
+#ifdef GG_BIGMAP
+    legacy=h.szCr==sizeof(CrOld)&&h.szVil==sizeof(VilOld);
+#endif
+    if(!ok||h.magic!=SAVE_MAGIC||(h.ver<5||h.ver>9)||(!legacy&&(h.szCr!=sizeof(Cr)||h.szVil!=sizeof(Vil)))||!validSize(h.gw)||nC>MAXC){ svClose(f); return 0; }
     gW=gH=h.gw; planetSize=gW; memset(world,0,sizeof world); memset(bld,0,sizeof bld); memset(bldv,0,sizeof bldv); memset(occ,0,sizeof occ); bioClear(); atmoReset();
     for(int y=0;y<gH&&ok;y++){ ok&=svRead(world[y],1,gW,f)==(size_t)gW; ok&=svRead(bld[y],1,gW,f)==(size_t)gW; ok&=svRead(bldv[y],1,gW,f)==(size_t)gW; }
-    nCr=h.nCr; if(ok&&nCr) ok&=svRead(cr,sizeof(Cr),nCr,f)==(size_t)nCr; memset(vil,0,sizeof vil); { int nv=h.ver>=8?VIL_N:VIL_OLD; if(ok) ok&=svRead(vil,sizeof(Vil),nv,f)==(size_t)nv; }
+    nCr=nC;
+#ifdef GG_BIGMAP
+    if(legacy){ static CrOld tmp[512]; for(int i=0;i<nCr&&ok;){ int n=nCr-i<512?nCr-i:512; ok&=svRead(tmp,sizeof(CrOld),n,f)==(size_t)n; for(int k=0;k<n;k++){ const CrOld*o=&tmp[k]; Cr*c=&cr[i+k]; memset(c,0,sizeof *c); c->sp=o->sp; c->wep=o->wep; c->arm=o->arm; c->x=o->x; c->y=o->y; c->ox=o->ox; c->oy=o->oy; c->hp=o->hp; c->food=o->food; c->age=o->age; c->t=o->t; c->dir=o->dir; c->alive=o->alive; c->tr=o->tr; c->tr2=o->tr2; c->rk=o->rk; } i+=n; } }
+    else
+#endif
+    if(ok&&nCr) ok&=svRead(cr,sizeof(Cr),nCr,f)==(size_t)nCr;
+    memset(vil,0,sizeof vil); { int nv=h.ver>=8?VIL_N:VIL_OLD;
+#ifdef GG_BIGMAP
+        if(legacy){ VilOld vo[VIL_N]; if(ok) ok&=svRead(vo,sizeof(VilOld),nv,f)==(size_t)nv; for(int k=0;k<nv&&ok;k++){ Vil*V=&vil[k]; const VilOld*o=&vo[k]; V->on=o->on; V->race=o->race; V->x=o->x; V->y=o->y; V->lvl=o->lvl; V->houses=o->houses; V->farms=o->farms; V->towers=o->towers; V->foe=o->foe; V->dead=o->dead; V->nm1=o->nm1; V->nm2=o->nm2; V->pop=o->pop; V->stock=o->stock; } }
+        else
+#endif
+        if(ok) ok&=svRead(vil,sizeof(Vil),nv,f)==(size_t)nv; }
     memset(kd,0,sizeof kd); memset(vilK,0,sizeof vilK); memset(vilL,0,sizeof vilL); lawOff=0; acidT=0; memset(tor,0,sizeof tor); memset(sick,0,sizeof sick); memset(vilSick,0,sizeof vilSick); jrN=0; achBits=stWars=stCapt=stAllies=stSnack=0;
     if(ok&&h.ver>=9){ ok&=svRead(kd,sizeof(Kd),KN_N,f)==(size_t)KN_N; if(ok) ok&=svRead(vilL,1,VIL_N,f)==(size_t)VIL_N; if(ok) ok&=svRead(vilK,1,VIL_N,f)==(size_t)VIL_N; if(ok){ int n=0; ok&=svRead(&n,sizeof n,1,f)==1; ok&=svRead(jr,34,24,f)==24; ok&=svRead(jrYear,2,24,f)==24; jrN=n<0?0:n>24?24:n; u32 sx[8]={0}; if(svRead(sx,4,8,f)==8){ achBits=sx[0]; lawOff=sx[5]&((1u<<LW_N)-1); stWars=sx[1]; stCapt=sx[2]; stAllies=sx[3]; stSnack=sx[4]; u8 t1[48], t2[8], t3[600], t4[40]; if(svRead(t1,1,48,f)==48&&svRead(t2,1,8,f)==8&&svRead(t3,1,600,f)==600&&svRead(t4,1,40,f)==40){ memcpy(favVil,t1,48); memcpy(favKd,t2,8); memcpy(favItem,t3,600); memcpy(favPow,t4,40);
                     int ac=0; Tor tt[2]; u8 vs[sizeof vilSick]; if(svRead(&ac,sizeof ac,1,f)==1&&svRead(tt,sizeof tt,1,f)==1&&svRead(vs,1,sizeof vs,f)==sizeof vs){ acidT=ac; memcpy(tor,tt,sizeof tor); memcpy(vilSick,vs,sizeof vs); if(nCr>0&&nCr<=MAXC) svRead(sick,1,nCr,f); { int got=1; for(int y=0;y<gH&&got;y++) got=svRead(biome2+y*(MAXD/4),1,gW/4,f)==(size_t)(gW/4); if(!got) memset(biome2,0,sizeof biome2); bioCount(); bioRescan(); if(got){ int at[8]; if(svRead(at,sizeof at,1,f)==1){ atO2=at[0]; atCO2=at[1]; atDust=at[2]; atTemp=at[3]; atFire=at[4]; atFlag=at[5]; u8 fp[24]; if(svRead(fp,1,24,f)==24) memcpy(favPow+40,fp,24); } } } } } } } }
@@ -916,7 +944,7 @@ static int loadGame(const char*path){
     if(!ok){ return 0; }
     tick=(int)h.tick; year=(int)h.year; rs=h.rs; stKill=h.stKill; stGift=h.stGift; stUse=h.stUse; seenN=h.seenN; camX=h.camX; camY=h.camY; chapter=h.chapter; tierOpen=h.tierOpen; storyOn=h.storyOn; storyDone=h.storyDone; monOn=h.monOn; shape3=h.shape3; nVilOn=h.nVilOn;
     memcpy(seenB,h.seen,sizeof seenB); memcpy(slainB,h.slain,sizeof slainB); nVilOn=0; for(int v=0;v<VIL_N;v++) nVilOn+=vil[v].on;
-    for(int i=0;i<nCr;i++) if(cr[i].alive&&cr[i].x<gW&&cr[i].y<gH) occ[cr[i].y][cr[i].x]=(u16)(i+1); vilCur=h.vcur; weather=h.weather; weatherT=h.weatherT; trSeen=h.trSeen; stMut=h.stMut; worldSeed=h.seed; diff=h.diff; fullDone=h.full; auralOpen=h.aural; debugOn=h.debug; cursor=0; compact(); warMatrix(); winX=-99; return 1; }
+    for(int i=0;i<nCr;i++) if(cr[i].alive&&cr[i].x<gW&&cr[i].y<gH) occ[cr[i].y][cr[i].x]=(occ_t)(i+1); vilCur=h.vcur; weather=h.weather; weatherT=h.weatherT; trSeen=h.trSeen; stMut=h.stMut; worldSeed=h.seed; diff=h.diff; fullDone=h.full; auralOpen=h.aural; debugOn=h.debug; cursor=0; compact(); warMatrix(); winX=-99; return 1; }
 static int walkOn, walkX=64, walkY=64;     // walking the globe: the avatar's tile
 static int view3d=0, rotX=20, rotY=0, zoom3=40, gClouds=1;       // the globe: rotY = longitude of the centre, rotX = latitude of the centre (degrees), zoom3 = how big
 static void faceTile(int x,int y,int*lat,int*lon){ *lon=x*360/WW; int la=90-y*180/WH; *lat=la>85?85:la<-85?-85:la; }
@@ -1022,27 +1050,29 @@ static void leaveGlobe(void){
 // enlarged (with its transitions, shores, buildings and the day/night palette), and every creature on screen is drawn as an animated sprite, so a crowd of thousands shows, not just 100.
 enum { Z_PLANET, Z_VFAR, Z_FAR, Z_NORMAL, Z_CLOSE, Z_MICRO };
 static int zcx=0, zcy=0, zForce=1;        // zcx, zcy: the centre of the view, in 1/8 tile units (the normal view's pixels)
-static const u8 zSc[6]={0,2,4,8,16,32}; static const u8 zSh[6]={0,1,2,3,4,5};
+static int zS_=8, zK_=1, zSh_=3;     // pixels to a tile (1, 2, 4, 8, 16, 32) and tiles to a pixel (1: each pixel is one tile; 2 or 4: the planet squeezed, for the big planets' VERY FAR view)
+static void zScale(void){ int W=gW; switch(zl){ case Z_VFAR: if(W<=256){ zS_=2; zK_=1; } else { zS_=1; zK_=W>=768?4:W>=384?2:1; } break; case Z_FAR: zS_=W<=256?4:2; zK_=1; break; case Z_CLOSE: zS_=16; zK_=1; break; case Z_MICRO: zS_=32; zK_=1; break; default: zS_=8; zK_=1; }
+    zSh_=zS_>=32?5:zS_>=16?4:zS_>=8?3:zS_>=4?2:zS_>=2?1:0; }
 static const char* const zNm[6]={"PLANET","VERY FAR","FAR","NORMAL","CLOSE","MICRO"};
 #define ZH 168                                    // rows above the toolbar
-typedef struct { u16 xy; u32 sig; u8 px[64]; } ZArt; static ZArt zart[512];     // the 8 x 8 art of the tiles in view, so a scroll builds only the new column
+typedef struct { u32 xy; u32 sig; u8 px[64]; } ZArt; static ZArt zart[512];     // the 8 x 8 art of the tiles in view, so a scroll builds only the new column
 static const u8 zPool[9]={144,147,150,153,156,192,195,248,251};  // palette slots for creature colours (3 each); 9 families at a time, the rest share
 static inline int zFamPal(int fam){ return zPool[fam%9]; }
 static int zCol(int fam,int k){ return zFamPal(fam)+k; }
 static const u8* zArtOf(int x,int y){
     ZArt*z=&zart[((y&15)<<5)|(x&31)]; int t=world[y][x]; int mask=0,foam=0; int bld_=bld[y][x]; int race=bld_&&bldv[y][x]?vilRace(bldv[y][x]-1):0; int best=bld_?-1:cellEdge(x,y,&mask,&foam); int bb=(bld_||t<=T_WATER||t==T_LAVA)?0:bioAt(x,y);
-    u32 sig=(u32)(t|((best+1)<<4)|(mask<<8)|(foam<<12)|(bld_<<13)|(race<<17)|(bb<<20))+1u; u16 xy=(u16)(x|(y<<8));
+    u32 sig=(u32)(t|((best+1)<<4)|(mask<<8)|(foam<<12)|(bld_<<13)|(race<<17)|(bb<<20))+1u; u32 xy=(u32)(x|(y<<16));
     if(z->sig==sig&&z->xy==xy) return z->px;
     int v=(int)(hsh(x,y,3)&3);
     for(int j=0;j<8;j++) for(int i=0;i<8;i++) z->px[j*8+i]=(u8)(bld_?bldPix(bld_,race,i,j):bioPix(best>=0?edgePix(t,best,mask,v,foam,i,j):tilePix(t,v,i,j),bb));
     z->sig=sig; z->xy=xy; return z->px; }
 static inline void zPut(int x,int y,int c){ if((unsigned)x<256&&(unsigned)y<ZH) gbuf[y*256+x]=(u8)c; }
 static void zRect(int x,int y,int w,int h,int c){ for(int j=0;j<h;j++){ int yy=y+j; if((unsigned)yy>=ZH) continue; for(int i=0;i<w;i++){ int xx=x+i; if((unsigned)xx<256) gbuf[yy*256+xx]=(u8)c; } } }
-static int zOx(void){ return zcx*zSc[zl]/8-128; } static int zOy(void){ return zcy*zSc[zl]/8-ZH/2; }
-static void zClamp(void){ int S=zSc[zl]; int hx=128*8/S, hy=(ZH/2)*8/S; int mx=WW*8, my=WH*8;
+static int zOx(void){ zScale(); return zcx*zS_/(8*zK_)-128; } static int zOy(void){ zScale(); return zcy*zS_/(8*zK_)-ZH/2; }
+static void zClamp(void){ zScale(); int hx=128*8*zK_/zS_, hy=(ZH/2)*8*zK_/zS_; int mx=WW*8, my=WH*8;
     if(2*hx>=mx) zcx=mx/2; else { if(zcx<hx) zcx=hx; if(zcx>mx-hx) zcx=mx-hx; } if(2*hy>=my) zcy=my/2; else { if(zcy<hy) zcy=hy; if(zcy>my-hy) zcy=my-hy; } }
 static void zSyncCam(void){ camX=zcx-128; camY=zcy-ZH/2; if(camX<0) camX=0; if(camY<0) camY=0; if(camX>WW*8-256) camX=WW*8-256; if(camY>WH*8-192) camY=WH*8-192; }
-static int zHit(int px,int py,int*tx,int*ty){ int sh=zSh[zl]; int x=(zOx()+px)>>sh, y=(zOy()+py)>>sh; if(x<0||y<0||x>=WW||y>=WH) return 0; *tx=x; *ty=y; return 1; }
+static int zHit(int px,int py,int*tx,int*ty){ int ox=zOx(), oy=zOy(); int sh=zSh_; int x=zK_>1?(ox+px)*zK_+zK_/2:(ox+px)>>sh, y=zK_>1?(oy+py)*zK_+zK_/2:(oy+py)>>sh; if(x<0||y<0||x>=WW||y>=WH) return 0; *tx=x; *ty=y; return 1; }
 static void zCrit(int i,int px,int py,int S){   // one creature, its tile's top left corner at (px, py), enlarged to S pixels
     const Cr*c=&cr[i]; const Sp*s=&sp[c->sp]; const Arch*A=&arch[s->a]; int fam=s->fam;
     if(S<=2){ zRect(px,py,2,2,zCol(fam,0)); return; }
@@ -1058,10 +1088,16 @@ static void zCrit(int i,int px,int py,int S){   // one creature, its tile's top 
     if(S>=16&&c->wep){ zRect(px+(flip?0:S-S/8),py+S/4,S/8,S/2,UI_PAL0+U_LGREY); } }
 static int zKey=-1;
 static int zDraw(void){
-    int S=zSc[zl], sh=zSh[zl]; int ox=zOx(), oy=zOy();
+    zScale(); int S=zS_, sh=zSh_, K=zK_; int ox=zOx(), oy=zOy();
     int key=(ox*131+oy*17+zl*7)^((tick>>(zl>=Z_CLOSE?0:2))*257)^(weather*977)^(nCr*29); if(!zForce&&key==zKey) return 0; zKey=key; zForce=0;
     memset(gbuf,0,256*ZH);
     int tx0=ox>>sh, tx1=(ox+255)>>sh, ty0=oy>>sh, ty1=(oy+ZH-1)>>sh;
+    if(K>1){       // a planet squeezed K tiles to a pixel: one sampled tile a pixel, creatures as dots
+        for(int sy=0;sy<ZH;sy++){ int ty=(oy+sy)*K+K/2; if(ty<0||ty>=WH) continue; u8*d=gbuf+sy*256; for(int sx=0;sx<256;sx++){ int tx=(ox+sx)*K+K/2; if(tx<0||tx>=WW) continue; int t=world[ty][tx]; int b=bld[ty][tx]; int c;
+                if(b&&b!=B_RUIN){ int race=bldv[ty][tx]?vilRace(bldv[ty][tx]-1):0; c=(b==B_HALL||b==B_TOWER)?139:b==B_FARM?140:128+race; } else { int h=(int)(hsh(tx,ty,3)&3); c=t*8+((t==T_WATER||t==T_DEEP)?3+((h+(tick>>4))&1):2+h); if(t>T_WATER&&t!=T_LAVA) c=bioPix(c,bioAt(tx,ty)); }
+                d[sx]=(u8)c; } }
+        for(int i=0;i<nCr;i++){ const Cr*c=&cr[i]; if(!c->alive) continue; int px=c->x/K-ox, py=c->y/K-oy; if((unsigned)px<256&&(unsigned)py<ZH&&(arch[sp[c->sp].a].diet==4||arch[sp[c->sp].a].diet==5||c->rk)) gbuf[py*256+px]=(u8)(arch[sp[c->sp].a].diet==5?UI_PAL0+U_RED:UI_PAL0+U_YELLOW); }      // (only people, monsters and notables: a dot each)
+        return 1; }
     if(S>=16){ int r8=sh-3;      // enlarge the tile art: each screen row takes one art row of every tile it crosses
         for(int sy=0;sy<ZH;sy++){ int v=oy+sy; int ty=v>>sh; if(ty<0||ty>=WH) continue; int ry=(v&(S-1))>>r8; u8*d=gbuf+sy*256;
             for(int tx=tx0;tx<=tx1;tx++){ if(tx<0||tx>=WW) continue; const u8*a=zArtOf(tx,ty)+ry*8; int sx=(tx<<sh)-ox;
@@ -1168,7 +1204,7 @@ static void drawSprites(void){
 }
 static u8 mmCol[T_N];
 static int page=0, titleOn=1, sceneOn=0;
-static void drawMinimap(void){ if(zBmp&&!view3d){ int S=zSc[zl]; uiVw=256/S; uiVh=ZH/S; uiVx=zOx()/S; uiVy=zOy()/S; } else { uiVw=32; uiVh=24; uiVx=camX>>3; uiVy=camY>>3; } }   // (the minimap is part of the status screen now: see uiStatus)
+static void drawMinimap(void){ if(zBmp&&!view3d){ zScale(); uiVw=256*zK_/zS_; uiVh=ZH*zK_/zS_; uiVx=zcx/8-uiVw/2; uiVy=zcy/8-uiVh/2; } else { uiVw=32; uiVh=24; uiVx=camX>>3; uiVy=camY>>3; } }   // (the minimap is part of the status screen now: see uiStatus)
 static const char* const introTxt[]={"","  IN THE BEGINNING THERE WAS","  ONLY A QUIET, EMPTY PLANET.","","  THEN YOU WOKE.","","  YOUR HANDS MAKE LAND, RAIN","  AND FIRE. YOUR WORD MAKES LIFE.","","  TEACH THE FIRST FOLK TO LIVE.","","  BUT THE DARK IS PATIENT,","  AND IT HAS TEETH.","","  TOUCH THE WORLD TO BEGIN.",0};
 static const char* const endTxt[]={"","  THE FOLK HAVE CITIES NOW,","  AND SONGS, AND WAR, AND PEACE.","","  YOU MET EVERY NIGHTMARE","  AND GAVE IT A NAME.","","  THEY DO NOT KNOW YOUR FACE.","  THEY KNOW THE RAIN,","  THE HARVEST, THE SPARK THAT","  LEAPS FROM THE SKY.","","  THE STORY IS TOLD.","","  THE WORLD IS YOURS, GODGUY.",0};
 static const char* const credTxt[]={"","","       BORE: GODGUY","","  A SPINOFF OF BORE","","  DESIGN, CODE, MUSIC","  AND MONSTERS","  BY CLAUDE, FOR YOU","","  MUSIC AMALGAMATED FROM","  THE SONGS OF BORE","  (THE DIPPER MAN, AND ALL","  THE REST)","","  320 MONSTERS","  392 CREATURES","  364 ITEMS","  23 TRAITS","  134 TRACKS","","  THANK YOU FOR PLAYING","","","","",0};
@@ -1206,7 +1242,8 @@ static void uiLoadHook(const char*msg,int pct){   // a loading screen: the plane
     uiText(6,182,tipTxt[(year+pct/20+n)%11],U_DIM,1); uiFlush(); uiCommit(); }      // (shown at once: the world generation that follows never waits for a blank)
 static int mScr, mSel; static u32 cSeed; static int cSel, cT=-1, cLand;
 static const char*const cShapeN[]={"CONTINENTS","SUPERCONTINENT","ISLANDS"}, *const cSeaN[]={"DRY","LOW","NORMAL","HIGH","FLOODED"}, *const cClimN[]={"ICE AGE","COOL","TEMPERATE","WARM","SCORCHED"}, *const cWetN[]={"ARID","NORMAL","LUSH"}, *const cLifeN[]={"EMPTY","SPARSE","NORMAL","TEEMING"};
-static void previewWorld(void){ gW=gH=planetSize; nCr=0; memset(occ,0,sizeof occ); memset(bld,0,sizeof bld); memset(bldv,0,sizeof bldv); memset(vil,0,sizeof vil); nVilOn=0; genWorld(cSeed); camX=(WW*8-256)/2; camY=(WH*8-192)/2; winX=-99; refillWindow();
+static void previewWorld(void){ gW=gH=planetSize>256?256:planetSize;      // (the preview of a huge planet is drawn at 256: only its shape and climate matter)
+    nCr=0; memset(occ,0,sizeof occ); memset(bld,0,sizeof bld); memset(bldv,0,sizeof bldv); memset(vil,0,sizeof vil); nVilOn=0; genWorld(cSeed); camX=(WW*8-256)/2; camY=(WH*8-192)/2; winX=-99; refillWindow();
     int l=0; for(int y=0;y<WH;y++) for(int x=0;x<WW;x++) if(world[y][x]>T_WATER) l++; cLand=l*100/(WW*WH); cT=-1; }
 static void createStart(void){ if(!cSeed) cSeed=(rnd()&0xFFFF)|1; cSel=0; previewWorld(); }
 static void createInput(int kd){
@@ -1215,7 +1252,7 @@ static void createInput(int kd){
     if(kd&KEY_B){ mScr=0; mSel=1; return; }
     if(cSel==9&&(kd&KEY_A)){ seedFix=cSeed; startWorld(storyOn); seedFix=0; return; }
     if(d||(kd&KEY_A)){ if(!d) d=1; switch(cSel){
-        case 0: setSize(d>0?(planetSize==128?192:planetSize==192?256:128):(planetSize==256?192:planetSize==192?128:256)); ch=1; break;
+        case 0: setSize(sizeStep(planetSize,d>0?1:-1)); ch=1; break;
         case 1: storyOn^=1; break;
         case 2: cShape=(cShape+3+d)%3; ch=1; break; case 3: cSea=(cSea+7+d)%5-2; ch=1; break; case 4: cClim=(cClim+7+d)%5-2; ch=1; break; case 5: cWet=(cWet+4+d)%3-1; ch=1; break;
         case 6: cLife=(cLife+4+d)%4; break; case 7: diff=(diff+3+d)%3; break;
@@ -1291,7 +1328,7 @@ static void uiTitle(void){
     if(mScr==3){ uiCreate(); return; }
     uiRect(0,0,256,192,U_BG); for(int y=0;y<192;y++) if((y&3)==0) uiRect(0,y,256,1,U_PANEL);
     for(int k=0;k<70;k++){ int x=(int)(hsh(k,1,7)%256), y=(int)(hsh(k,2,7)%192); uiPx(x,y,(k&3)==0?U_WHITE:U_DIM); }
-    uiPlanetSprite(204,128,planetSize==128?36:planetSize==192?42:48);
+    uiPlanetSprite(204,128,planetSize==128?36:planetSize==192?42:planetSize==256?48:planetSize==384?50:planetSize==512?52:planetSize==768?54:56);
     if(mScr>0){ uiRound(200,166,52,12,U_SEL,U_GOLD); uiTextC(226,169,"BACK",U_WHITE,1); uiBtn(198,164,56,16,KEY_B,0,0,0); }
     if(mScr==2||mScr==6||mScr==7){ uiText(10,6,mScr==6?"MAIN MENU  >  COLLECTIONS":mScr==7?"MAIN MENU  >  MORE":"MAIN MENU  >  EXTRAS",U_GOLD,1); uiMenuList(8,18,156,15); { int ids[14]; menuList(ids); uiFrame(168,18,84,56,U_PANEL,U_BHI,U_BLO); uiWrap(172,22,13,6,menuDesc(ids[mSel]),U_LGREY); } }
     else { uiTextS(12,8,"BORE",U_LGREY,3); for(int i=0;i<6;i++){ char g[2]={"GODGUY"[i],0}; int c=U_G0+i; uiTextS(12+i*28,30,g,c,4); }
@@ -1419,13 +1456,13 @@ static void uiLang(void){
 
 // ---------------------------------------------------------------------------------------------- the world browser: look at (almost) anything, sort it by kind, star favourites and jump to them
 static int brCat, brSel, brKind;
-typedef struct { u8 type; u16 id; } BrE;      // type: 1 city, 2 kingdom, 3 item, 4 power, 5 person, 6 monster
+typedef struct { u8 type; u32 id; } BrE;      // type: 1 city, 2 kingdom, 3 item, 4 power, 5 person, 6 monster
 static BrE brL[160]; static int brN;
 static const char* const brCatN[7]={"STARS","KINGS","CITY","FOLK","MOBS","ITEMS","POWER"};
 static int crNotable(const Cr*c){ return c->rk*4+(c->tr?2:0)+(c->tr2?1:0)+(c->wep?1:0); }
 static void brBuild(void){
     brN=0;
-    #define BRADD(t,i) do{ if(brN<160){ brL[brN].type=(u8)(t); brL[brN].id=(u16)(i); brN++; } }while(0)
+    #define BRADD(t,i) do{ if(brN<160){ brL[brN].type=(u8)(t); brL[brN].id=(u32)(i); brN++; } }while(0)
     switch(brCat){
         case 0: for(int v=0;v<VIL_N;v++) if(favVil[v]&&vil[v].on) BRADD(1,v); for(int k=0;k<KN_N;k++) if(favKd[k]&&kd[k].on) BRADD(2,k); for(int i=0;i<nIt;i++) if(favItem[i]) BRADD(3,i); for(int i=0;i<PW_N;i++) if(favPow[i]) BRADD(4,i); break;
         case 1: for(int k=0;k<KN_N;k++) if(kd[k].on) BRADD(2,k); break;
@@ -1540,7 +1577,7 @@ static void menuInput(int kd){
     if(!titleOn&&(kd&(KEY_L|KEY_R))&&mScr!=3){ static const u8 tabs[7]={0,4,8,5,6,1,7}; int cur=0; for(int k=0;k<7;k++) if(tabs[k]==mScr) cur=k; cur=(cur+((kd&KEY_R)?1:6))%7; mScr=tabs[cur]; mSel=0; fxReq(FX_MENU_MOVE); return; }      // L / R: the next / previous screen of the pause menu
     if(kd&KEY_B){ if(mScr) menuBack(); else if(!titleOn){ menuOn=0; paused=dlgPaused; } return; }
     int id=ids[mSel];
-    if(d){ switch(id){ case MI_SIZE: setSize(d>0?(planetSize==128?192:planetSize==192?256:128):(planetSize==256?192:planetSize==192?128:256)); fxReq(FX_MENU_MOVE); break; case MI_STYPE: storyOn^=1; break;
+    if(d){ switch(id){ case MI_SIZE: setSize(sizeStep(planetSize,d>0?1:-1)); fxReq(FX_MENU_MOVE); break; case MI_STYPE: storyOn^=1; break;
             case MI_DIFF: diff=(diff+3+d)%3; break; case MI_SPEED: speedMul=d>0?(speedMul==1?2:speedMul==2?4:1):(speedMul==1?4:speedMul==2?1:2); break; case MI_VOL: gmMaster+=d*10; if(gmMaster<0) gmMaster=0; if(gmMaster>100) gmMaster=100; break; case MI_MON: monOn^=1; break; default: if(id>=MI_LAW0&&id<MI_LAW0+LW_N) toggleLaw(id-MI_LAW0); break; } }
     if(kd&KEY_A){ switch(id){
         case MI_CONT: if(hasSave){ LOADING("LOADING YOUR WORLD",30); loadGame(savePath); endShown=storyDone; titleOn=0; paused=0; refillWindow(); LOADING("READY",100); musReq(GM_NEWWORLD); } else startWorld(1); break;
@@ -1653,7 +1690,7 @@ int main(void){
                     case 19: if(go||d){ fullDone^=1; siprintf(info,fullDone?"100%% SET: REMIXES OPEN":"100%% CLEARED"); } break; }
                 dirty=1; }
             if(kd) dirty=1; kd&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT|KEY_L|KEY_R|KEY_A); kh&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); }
-        if(zBmp&&!view3d){ int st=sp_*8/zSc[zl]; if(st<1) st=1; if(kh&KEY_LEFT) zcx-=st; if(kh&KEY_RIGHT) zcx+=st; if(kh&KEY_UP) zcy-=st; if(kh&KEY_DOWN) zcy+=st; zClamp(); zSyncCam(); }      // zoomed: the pad moves the view's centre
+        if(zBmp&&!view3d){ zScale(); int st=sp_*8*zK_/zS_; if(st<1) st=1; if(kh&KEY_LEFT) zcx-=st; if(kh&KEY_RIGHT) zcx+=st; if(kh&KEY_UP) zcy-=st; if(kh&KEY_DOWN) zcy+=st; zClamp(); zSyncCam(); }      // zoomed: the pad moves the view's centre
         else {
         if(kh&KEY_LEFT) camX-=sp_; if(kh&KEY_RIGHT) camX+=sp_; if(kh&KEY_UP) camY-=sp_; if(kh&KEY_DOWN) camY+=sp_;
         if(camX<0) camX=0; if(camY<0) camY=0; if(camX>WW*8-256) camX=WW*8-256; if(camY>WH*8-192) camY=WH*8-192; }
