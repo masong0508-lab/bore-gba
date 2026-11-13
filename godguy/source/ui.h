@@ -12,10 +12,14 @@ static const u8 uiRgb[U_N][3]={ {0,0,0},{2,3,8},{4,6,13},{7,10,19},{16,19,28},{2
 static u8 uiBuf[256*192] __attribute__((aligned(4))); static int uiPages, uiPageNow, uiPageOpen, uiDotX=96;   // page dots in the title bar
 static const u8 uiKCol[8][3]={{31,8,8},{8,16,31},{10,28,10},{31,26,6},{24,10,30},{31,16,4},{6,28,28},{31,14,22}};   // kingdom colours (sub palette 40..47)
 static void uiPalette(void){ for(int k=0;k<8;k++) BG_PALETTE_SUB[40+k]=RGB15(uiKCol[k][0],uiKCol[k][1],uiKCol[k][2]); for(int i=0;i<U_N;i++){ u16 c=RGB15(uiRgb[i][0],uiRgb[i][1],uiRgb[i][2]); BG_PALETTE_SUB[i]=c; BG_PALETTE[UI_PAL0+i]=c; } BG_PALETTE_SUB[0]=0; }
+// the screen is copied to VRAM only when it differs from what is already there: a menu that is just sitting there costs nothing and cannot flicker or tear
+static u8 uiShown[256*192]; static int uiShownOk;
+static int uiSame(void){ static int n; if(++n>=90){ n=0; uiShownOk=0; }      // (and a refresh every 1.5 s anyway, in case something else wrote to that screen)
+    if(!uiShownOk) return 0; return !memcmp(uiShown,uiBuf,sizeof uiShown); }
 #ifdef NDSHW
-static void uiFlushRaw(void){ hwSubFlush(uiBuf); }
+static void uiFlushRaw(void){ if(uiSame()) return; hwSubFlush(uiBuf); memcpy(uiShown,uiBuf,sizeof uiShown); uiShownOk=1; }
 #else
-static void uiFlushRaw(void){ vramCopy(bgGetGfxPtr(3),uiBuf,256*192); }
+static void uiFlushRaw(void){ if(uiSame()) return; vramCopy(bgGetGfxPtr(3),uiBuf,256*192); memcpy(uiShown,uiBuf,sizeof uiShown); uiShownOk=1; }
 #endif
 #ifndef UI_NOTRANS
 #define UI_NOTRANS 0

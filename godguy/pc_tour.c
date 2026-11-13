@@ -9,7 +9,7 @@ static const char*outDir="/tmp/gg_ds"; static short*audio; static long audioN, a
 typedef struct { int f0, f1, keys, tx, ty; } Ev;
 #define K_ (KEY_TOUCH)
 static const Ev script[]={ {20,22,KEY_A,0,0}, {60,62,KEY_A,0,0}, {500,502,KEY_A,0,0} };
-static int shots[]={310,322,334,346,358,370,382,394,406,418,430,442,454,466,478,490,502,514,526,538,550,562,574,586,598,610,622,634,646,658,670,682,694,706,718,730,742,754,766,778,-1};
+static int shots[]={310,322,334,346,358,370,382,394,406,418,430,442,454,466,478,490,502,514,526,538,550,562,574,586,598,610,622,634,646,658,670,682,694,706,718,730,742,754,766,778,790,802,814,826,838,-1};
 void shimInput(int frame,int*held,int*tx,int*ty){
     { int n=(frame-300)/12; if(frame>=300&&(frame-300)%12==0){ menuOn=0; menuAsk=0; extrasView=0; sceneOn=0; dlgOn=0; dlgPend=-1; titleOn=0; page=0; paused=1;
         switch(n){ case 0: titleOn=1; mScr=0; mSel=0; break; case 1: titleOn=1; mScr=0; mSel=1; break; case 2: titleOn=1; mScr=1; mSel=0; break; case 3: titleOn=1; mScr=2; mSel=0; break; case 4: titleOn=1; mScr=2; mSel=9; break;
@@ -24,6 +24,7 @@ void shimInput(int frame,int*held,int*tx,int*ty){
             case 33: { int ci=0; for(int i=0;i<nCr;i++) if(cr[i].alive&&cr[i].rk){ ci=i; break; } if(!cr[ci].rk) for(int i=0;i<nCr;i++) if(cr[i].alive&&arch[sp[cr[i].sp].a].diet==5){ ci=i; break; } for(int i=0;i<nCr;i++) if(cr[i].alive&&abs(cr[i].x-cr[ci].x)<=6&&abs(cr[i].y-cr[ci].y)<=6) sick[i]=1; sick[ci]=1; inspKind=1; inspIdx=ci; inspT=900; page=0; } break;
             case 34: inspT=0; page=0; power=24; break; case 35: page=8; extrasView=1; break; case 36: titleOn=1; mScr=0; mSel=1; break;
             case 37: page=12; extrasView=1; brCat=2; brSel=0; for(int v=0;v<VIL_N;v++) if(vil[v].on){ favVil[v]=1; break; } favKd[0]=1; favPow[4]=1; break; case 38: page=12; extrasView=1; brCat=0; brSel=0; break; case 39: page=12; extrasView=1; brCat=3; brSel=0; break;
+            case 40: menuOn=1; mScr=0; mSel=0; titleOn=0; break; case 41: menuOn=1; mScr=4; mSel=3; lawOff|=(1u<<LW_WARS)|(1u<<LW_AGE); break; case 42: menuOn=1; mScr=5; mSel=0; break; case 43: menuOn=1; mScr=6; mSel=0; break; case 44: menuOn=1; mScr=7; mSel=0; break;
             default: page=0; break; } hud(); } }
     if(frame==1140){ weather=2; weatherT=3000; } if(frame==1248||frame==1249) flashT=6; if(frame==1290){ weather=3; weatherT=3000; }
     *held=0; for(unsigned i=0;i<sizeof script/sizeof script[0];i++) if(frame>=script[i].f0&&frame<script[i].f1){ *held|=script[i].keys; if(script[i].keys&KEY_TOUCH){ *tx=script[i].tx; *ty=script[i].ty; } }
