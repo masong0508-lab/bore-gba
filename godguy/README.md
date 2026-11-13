@@ -148,3 +148,9 @@ Found a readable copy of the Official WorldBox Wiki (its API is open; the pages 
 - DS memory: the DS build keeps 22,000 creatures (3DS and PC: 30,000) and a 700 KB save buffer, so the picture, the creature list and the saves all fit in 4 MB.
 - Fixed: the stylus toolbar icons of the plague, bomb, tornado and acid powers read past the end of their table; the favourites list had room for 40 powers but the game now has 41.
 - Tests: pc_biome.c and pc_atmo.c.
+
+### v0.20 big planets, v0.21 continents you can steer
+- **Planets up to 1024 x 1024** on 3DS and PC (the DS and DSi keep 256: their 4 MB of RAM cannot hold more). 16-bit coordinates, creature cap 100,000 on 3DS and PC, planet sizes 128, 192, 256, 384, 512, 768, 1024. Older saves (8-bit layout, including every DS save) are read and widened on load. The VERY FAR zoom of a big planet squeezes the whole planet into the screen (2 or 4 tiles a pixel); the preview of a huge planet is drawn at 256.
+- **New planet generator**: land masses are placed first (how many, how big, how far apart), their coasts are warped by layered noise, then detail noise, mountain ridges, altitude-cooled climate and coast-to-inland moisture fill them in. Everything comes from the seed alone: the same seed and settings always make the same planet.
+- **Create-a-planet controls**: LAND (PANGAEA, TWO LANDS, CONTINENTS, MANY LANDS, ARCHIPELAGO, ISLANDS), COASTS (smooth, normal, rugged), MOUNTAINS (few, normal, many), SEA (now really controls the share of land: dry 43% .. flooded 22%), CLIMATE, WETNESS, LIFE, difficulty and seed. pc_gen.c tests that the land masses follow the LAND choice, the sea level follows SEA, and seeds are reproducible.
+- Fixed: the 100 PEOPLE law now counts every village a creature stands near; the first-start world generates the same lava pools every time.

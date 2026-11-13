@@ -173,7 +173,7 @@ static int vnoise(int x,int y,int cell,int s){   // value noise 0..255, cell pix
     int t=a+(b-a)*fx/cell, u=c+(d-c)*fx/cell; return t+(u-t)*fy/cell;
 }
 static int fbm(int x,int y,int s){ return (vnoise(x,y,32,s)*8+vnoise(x,y,16,s+1)*4+vnoise(x,y,8,s+2)*2+vnoise(x,y,4,s+3))/15; }
-static int cShape, cSea, cClim, cWet, cLife=2;   // create-a-planet choices: land shape (0 continents, 1 one supercontinent, 2 islands), sea level, climate, wetness (all 0 = the classic planet), amount of starting life 0..3
+static int cShape=2, cSea, cClim, cWet, cLife=2, cCoast, cMtn;   // create-a-planet choices: land shape (0 continents, 1 one supercontinent, 2 islands), sea level, climate, wetness (all 0 = the classic planet), amount of starting life 0..3
 // ---- biomes: a second layer over the ground (0 none, 1 CORRUPTED, 2 INFERNAL, 3 ENCHANTED), two bits a tile. They spread, they act on whoever stands there, and they are painted with seed powers.
 static u8 biome2[MAXD*MAXD/4]; static int nBio[4];
 #define BIO_Q 8192
@@ -188,19 +188,47 @@ static int bioOpen(int x,int y){       // can the biome on this tile still take 
     return 0; }
 static void bioRescan(void){ bioQn=0; for(int y=0;y<gH;y++) for(int x=0;x<gW;x++) if(bioAt(x,y)&&bioQn<BIO_Q&&bioOpen(x,y)) bioQ[bioQn++]=(u32)(x|(y<<16)); }
 static void atmoReset(void);
+// ---- the planet: continents are placed first (how many, how big, how far apart, how ragged their coasts), then noise, mountain ranges, climate and moisture fill them in. Every choice below is
+// made from the seed alone, so the same seed and the same settings always make the same planet.
+static int gSinI(int deg){ deg%=360; if(deg<0) deg+=360; return (int)(sinf(deg*0.0174533f)*1024.0f); }
+static int gCosI(int deg){ return gSinI(deg+90); }
+static const u8 contN[6]={1,2,4,7,14,24};      // PANGAEA, TWO LANDS, CONTINENTS, MANY LANDS, ARCHIPELAGO, ISLANDS: how many land masses
+static int isqrtI(long v){ long r=0, b=1L<<30; while(b>v) b>>=2; while(b){ if(v>=r+b){ v-=r+b; r=(r>>1)+b; } else r>>=1; b>>=2; } return (int)r; }
 static void genWorld(u32 seed){ bioClear(); atmoReset();
-    int s=(int)(seed&0xFFFF);
-    for(int y=0;y<WH;y++) for(int x=0;x<WW;x++){
-        int h=fbm(x,y,s), m=fbm(x+300,y+300,s+9), lat=(y<WH/2?y:WH-1-y)*128/WH, temp=40+lat*3+(fbm(x,y,s+20)-128)/3+cClim*28; m+=cWet*30;
-        int dx=(x-WW/2)*128/WW, dy=(y-WH/2)*128/WH; if(cShape==1){ h-=(dx*dx+dy*dy)/30; h+=24; } else if(cShape==2){ h-=(dx*dx+dy*dy)/260; h-=6; if(((x/3+y/3)&1)&&h>110) h-=8; } else { h-=(dx*dx+dy*dy)/90; h+=18; } h+=cSea*7;   // a little pull to ocean at the edges
-        if(WW>256){ h+=(fbm(x*256/WW,y*256/WW,s+31)-128)*3/4; h-=((dx*dx+dy*dy)>6000?10:0)+16; }       // big planets: continents and seas at the scale of the planet, not one landmass
+    int s=(int)(seed&0xFFFF); const int W=WW, H=WH; int sc=W/128; if(sc<1) sc=1;      // value-noise cells grow with the planet, so its structures scale with it
+    int N=contN[cShape<0?0:cShape>5?5:cShape]; int cx[30],cy[30],ia[30],ib[30],cc[30],ss[30],rm[30];
+    long target=(long)W*H*(38-cSea*7)/100; if(target<W*H/12) target=W*H/12; if(cShape==5) target=target*6/10;   // the share of the planet that is to be land
+    int Rb=isqrtI(target*100/(N*151)); int rmaxAll=(W<H?W:H)*45/100; if(Rb>rmaxAll) Rb=rmaxAll;      // the base radius of a land mass (its coast is at about 0.8 of it)
+    for(int i=0;i<N;i++){
+        int bestx=W/2, besty=H/2; long bestd=-1;
+        for(int k=0;k<(N==1?1:28);k++){ int x=W/10+(int)(hsh(i,k,s+11)%(unsigned)(W*8/10)), y=H/8+(int)(hsh(i,k,s+12)%(unsigned)(H*6/8)); if(N==1){ x=W/2+(int)(hsh(7,s,5)%(unsigned)(W/8+1))-W/16; y=H/2+(int)(hsh(8,s,5)%(unsigned)(H/8+1))-H/16; }
+            long md=1L<<40; for(int q=0;q<i;q++){ long ddx=x-cx[q], ddy=y-cy[q]; long d=ddx*ddx+ddy*ddy; if(d<md) md=d; } if(i==0) md=1L<<30; if(md>bestd){ bestd=md; bestx=x; besty=y; } }
+        cx[i]=bestx; cy[i]=besty;
+        int R=Rb*(70+(int)(hsh(i,s,31)%60))/100; if(R<4) R=4; int asp=65+(int)(hsh(i,s,32)%36);   // radius 0.7..1.3 of the base, flattened to 0.65..1
+        int ang=(int)(hsh(i,s,33)%360); ss[i]=gSinI(ang); cc[i]=gCosI(ang);
+        int a=R, b=R*asp/100; if(b<3) b=3; ia[i]=(int)(((long long)1<<28)/((long long)a*a+1)); ib[i]=(int)(((long long)1<<28)/((long long)b*b+1)); rm[i]=a*14/10+2; }
+    int warp=W/12*(10+cCoast*6)/10; if(warp<4) warp=4; if(cShape>=4) warp=warp*13/10;    // how far the coast is pushed about; archipelagos are torn more
+    int fineAmp=14+cCoast*7; int ridgeW=3+cMtn*2;                                           // ruggedness of the coast; weight of the mountain ranges
+    for(int y=0;y<H;y++) for(int x=0;x<W;x++){
+        int wx=x+((vnoise(x,y,24*sc,s+101)*3+vnoise(x,y,10*sc,s+103)*2+vnoise(x,y,4*sc+1,s+105)*(2+cCoast))/(7+cCoast)-128)*warp/128, wy=y+((vnoise(x+977,y+353,24*sc,s+102)*3+vnoise(x+977,y+353,10*sc,s+104)*2+vnoise(x+977,y+353,4*sc+1,s+106)*(2+cCoast))/(7+cCoast)-128)*warp/128;
+        int pot=0; for(int i=0;i<N;i++){ int dx=wx-cx[i], dy=wy-cy[i]; if(dx>rm[i]||dx<-rm[i]||dy>rm[i]||dy<-rm[i]) continue; int u=(dx*cc[i]+dy*ss[i])>>10, v=(-dx*ss[i]+dy*cc[i])>>10;
+            int q=(int)((((long long)u*u*ia[i])>>20)+(((long long)v*v*ib[i])>>20)); int p=256-q; if(p>pot) pot=p; }      // q: how far out of the land mass, 256 at its rim (Q8)
+        int ex=x<W-1-x?x:W-1-x; if(ex<W/16) pot=pot*ex*16/W;       // the seam of the globe is always ocean
+        int lat=(y<H/2?y:H-1-y)*128/H;
+        int det=(vnoise(x,y,12*sc,s+7)*3+vnoise(x,y,6*sc,s+8)*2+vnoise(x,y,3,s+9)+vnoise(x,y,5,s+10)-0)/7-128;     // 0 mean, about +-60
+        if(pot<48) det=det*(pot+16)/64;       // the open ocean stays calm
+        int h=40+pot*58/100+det*(fineAmp+20)/64;
+        int rg=255-abs((vnoise(x,y,28*sc,s+50)*3+vnoise(x,y,14*sc,s+51))/4-128)*2; int rid=rg>175?rg-175:0;           // mountain ranges: the ridges of a noise field
+        if(pot>70) h+=rid*ridgeW*pot/(256*3)*(pot>140?1:2)/2;
+        h+=((vnoise(x,y,5,s+13)&255)-128)*fineAmp/256/2;
+        int temp=40+lat*3+(fbm(x,y,s+20)-128)/3+cClim*28-(h>110?(h-110)/3:0), m=fbm(x+300,y+300,s+9)+cWet*30+(120-pot)/8;
         u8 t;
         if(h<62) t=T_DEEP; else if(h<84) t=T_WATER; else if(h<94) t=(temp<70)?T_SNOW:T_SAND;
         else if(h>205) t=(temp<150)?T_SNOW:T_MOUNT; else if(h>170) t=T_HILL;
         else if(temp<70) t=T_SNOW; else if(temp>200&&m<110) t=T_DESERT; else if(temp>190&&m>150) t=T_JUNGLE; else if(m>175&&h<115) t=T_SWAMP; else if(m>135) t=T_FOREST; else t=T_GRASS;
         world[y][x]=t; }
-    // a few lava pools in the mountains
-    for(int i=0;i<40;i++){ int x=rnd()%WW, y=rnd()%WH; if(world[y][x]==T_MOUNT){ world[y][x]=T_LAVA; if(x+1<WW&&world[y][x+1]==T_MOUNT) world[y][x+1]=T_LAVA; } }
+    // a few lava pools in the mountains (from the seed, so the planet is always the same)
+    { int np=40*(W*H)/16384; for(int i=0;i<np;i++){ int x=(int)(hsh(i,s,201)%(unsigned)W), y=(int)(hsh(i,s,202)%(unsigned)H); if(world[y][x]==T_MOUNT){ world[y][x]=T_LAVA; if(x+1<W&&world[y][x+1]==T_MOUNT) world[y][x+1]=T_LAVA; } } }
 }
 
 // ---------------------------------------------------------------------------------------------- tiles (generated), palette
@@ -588,7 +616,7 @@ static void thinkBody(int i){
             for(int k=0;k<2;k++){ int ax=(k==try1)?sx:0, ay=(k==try1)?0:sy; if(!ax&&!ay) continue; int nx=c->x+ax, ny=c->y+ay; if(walkable(s,nx,ny)&&!occ[ny][nx]){ moveTo(c,i,nx,ny); return; } } } }
     // breed
     int bch=A->breed; if(diet==4&&vilNear(s->a,c->x,c->y,8)>=0) bch*=2; if(HAS(c,TR_FERTILE)) bch=bch*3/2; if(HAS(c,TR_TINY)) bch=bch*13/10; if(HAS(c,TR_CLEVER)) bch=bch*13/10; if(HAS(c,TR_MUNCH)) bch=bch*14/10;
-    if(((A->diet==4||sp[c->sp].a<8)?LAW(LW_CIVBABY):LAW(LW_ANIBABY))&&!(LAW(LW_POP100)&&A->diet==4&&({ int vv=vilNear(s->a,c->x,c->y,8); vv>=0&&vil[vv].pop>=100; }))&&c->food>=80&&c->age>8&&(int)(rnd()%100)<bch&&nCr<MAXC-4){ int d=rnd()&3; int nx=c->x+dxs[d], ny=c->y+dys[d]; int n=addCr(c->sp,nx,ny); if(n>=0){ cr[n].age=0; cr[n].food=50; born(&cr[n],&cr[i]); c->food-=40; return; } }
+    if(((A->diet==4||sp[c->sp].a<8)?LAW(LW_CIVBABY):LAW(LW_ANIBABY))&&!(LAW(LW_POP100)&&A->diet==4&&({ int full=0; for(int vv=0;vv<VIL_N&&!full;vv++){ int dx_=vil[vv].x-c->x, dy_=vil[vv].y-c->y; if(vil[vv].on&&vil[vv].race==s->a&&dx_*dx_+dy_*dy_<=100&&vil[vv].pop>=100) full=1; } full; }))&&c->food>=80&&c->age>8&&(int)(rnd()%100)<bch&&nCr<MAXC-4){ int d=rnd()&3; int nx=c->x+dxs[d], ny=c->y+dys[d]; int n=addCr(c->sp,nx,ny); if(n>=0){ cr[n].age=0; cr[n].food=50; born(&cr[n],&cr[i]); c->food-=40; return; } }
     // wander
     if((rnd()&3)!=0){ int d=rnd()&3; int nx=c->x+dxs[d], ny=c->y+dys[d]; if(walkable(s,nx,ny)&&!occ[ny][nx]) moveTo(c,i,nx,ny); }
 }
@@ -675,8 +703,9 @@ static void atmoTick(void){        // every 64 ticks: sample the land, move the 
     if(!LAW(LW_ATMO)) return;
     int fF=0,fG=0,fS=0,fW=0,fL=0; for(int k=0;k<256;k++){ int x=(int)(rnd()%WW), y=(int)(rnd()%WH); switch(world[y][x]){ case T_FOREST: case T_JUNGLE: fF++; break; case T_GRASS: case T_SWAMP: fG++; break; case T_SNOW: fS++; break; case T_WATER: case T_DEEP: fW++; break; case T_LAVA: fL++; break; } }
     int hh=0; vilTotals(&hh); int alive=nCr; int plants=fF*2+fG;
-    atCO2+= fL*16+alive*16/3000+hh*16/200+atFire*16/10 - plants*(atCO2>60*16?60*16:atCO2)/1500 - fW*atCO2/16000;      // (plants can only eat so fast: a big puff of CO2 lingers)
-    atO2 += plants*16/160 - alive*16/6000 - atFire*2 + (21*16-atO2)/8;
+    if(atFire>40) atFire=40;
+    atCO2+= 24+fL*16+alive*16/3000+hh*16/200+atFire*16/10 - plants*(atCO2>100*16?100*16:atCO2)/2000 - fW*atCO2/4000;      // (plants can only eat so fast: a big puff of CO2 lingers)
+    atO2 += plants*16/160 - alive*16/6000 - atFire + (21*16-atO2)/8;
     atDust-= atDust/10+8; atFire=atFire*3/4;
     if(atCO2<0) atCO2=0; if(atCO2>150*16) atCO2=150*16; if(atO2<0) atO2=0; if(atO2>60*16) atO2=60*16; if(atDust<0) atDust=0;
     int tgt=(ATV(atCO2)-30)*45/100 - ATV(atDust)*30/100 + (fF+fG-130)/14 - (fS-20)/3; if(tgt<-35) tgt=-35; if(tgt>40) tgt=40;
@@ -1241,39 +1270,40 @@ static void uiLoadHook(const char*msg,int pct){   // a loading screen: the plane
     uiBar(48,162,160,9,pct,100,U_GREEN); { char b[8]; siprintf(b,"%d%%",pct); uiTextC(128,163,b,U_WHITE,1); }
     uiText(6,182,tipTxt[(year+pct/20+n)%11],U_DIM,1); uiFlush(); uiCommit(); }      // (shown at once: the world generation that follows never waits for a blank)
 static int mScr, mSel; static u32 cSeed; static int cSel, cT=-1, cLand;
-static const char*const cShapeN[]={"CONTINENTS","SUPERCONTINENT","ISLANDS"}, *const cSeaN[]={"DRY","LOW","NORMAL","HIGH","FLOODED"}, *const cClimN[]={"ICE AGE","COOL","TEMPERATE","WARM","SCORCHED"}, *const cWetN[]={"ARID","NORMAL","LUSH"}, *const cLifeN[]={"EMPTY","SPARSE","NORMAL","TEEMING"};
+static const char*const cShapeN[]={"PANGAEA","TWO LANDS","CONTINENTS","MANY LANDS","ARCHIPELAGO","ISLANDS"}, *const cCoastN[]={"SMOOTH","NORMAL","RUGGED"}, *const cMtnN[]={"FEW","NORMAL","MANY"}, *const cSeaN[]={"DRY","LOW","NORMAL","HIGH","FLOODED"}, *const cClimN[]={"ICE AGE","COOL","TEMPERATE","WARM","SCORCHED"}, *const cWetN[]={"ARID","NORMAL","LUSH"}, *const cLifeN[]={"EMPTY","SPARSE","NORMAL","TEEMING"};
 static void previewWorld(void){ gW=gH=planetSize>256?256:planetSize;      // (the preview of a huge planet is drawn at 256: only its shape and climate matter)
     nCr=0; memset(occ,0,sizeof occ); memset(bld,0,sizeof bld); memset(bldv,0,sizeof bldv); memset(vil,0,sizeof vil); nVilOn=0; genWorld(cSeed); camX=(WW*8-256)/2; camY=(WH*8-192)/2; winX=-99; refillWindow();
     int l=0; for(int y=0;y<WH;y++) for(int x=0;x<WW;x++) if(world[y][x]>T_WATER) l++; cLand=l*100/(WW*WH); cT=-1; }
 static void createStart(void){ if(!cSeed) cSeed=(rnd()&0xFFFF)|1; cSel=0; previewWorld(); }
 static void createInput(int kd){
     int d=((kd&KEY_RIGHT)?1:0)-((kd&KEY_LEFT)?1:0); int ch=0;
-    if(kd&KEY_UP) cSel=(cSel+9)%10; if(kd&KEY_DOWN) cSel=(cSel+1)%10;
+    if(kd&KEY_UP) cSel=(cSel+11)%12; if(kd&KEY_DOWN) cSel=(cSel+1)%12;
     if(kd&KEY_B){ mScr=0; mSel=1; return; }
-    if(cSel==9&&(kd&KEY_A)){ seedFix=cSeed; startWorld(storyOn); seedFix=0; return; }
+    if(cSel==11&&(kd&KEY_A)){ seedFix=cSeed; startWorld(storyOn); seedFix=0; return; }
     if(d||(kd&KEY_A)){ if(!d) d=1; switch(cSel){
         case 0: setSize(sizeStep(planetSize,d>0?1:-1)); ch=1; break;
         case 1: storyOn^=1; break;
-        case 2: cShape=(cShape+3+d)%3; ch=1; break; case 3: cSea=(cSea+7+d)%5-2; ch=1; break; case 4: cClim=(cClim+7+d)%5-2; ch=1; break; case 5: cWet=(cWet+4+d)%3-1; ch=1; break;
-        case 6: cLife=(cLife+4+d)%4; break; case 7: diff=(diff+3+d)%3; break;
-        case 8: if(kd&KEY_A) cSeed=(rnd()&0xFFFF)|1; else cSeed=(cSeed+d)&0xFFFF; ch=1; break; } }
+        case 2: cShape=(cShape+6+d)%6; ch=1; break; case 3: cCoast=(cCoast+4+d)%3-1; ch=1; break; case 4: cMtn=(cMtn+4+d)%3-1; ch=1; break;
+        case 5: cSea=(cSea+7+d)%5-2; ch=1; break; case 6: cClim=(cClim+7+d)%5-2; ch=1; break; case 7: cWet=(cWet+4+d)%3-1; ch=1; break;
+        case 8: cLife=(cLife+4+d)%4; break; case 9: diff=(diff+3+d)%3; break;
+        case 10: if(kd&KEY_A) cSeed=(rnd()&0xFFFF)|1; else cSeed=(cSeed+d)&0xFFFF; ch=1; break; } }
     if(kd&(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT|KEY_A)) fxReq(FX_MENU_MOVE);
     if(ch) cT=8; }
 static void uiCreate(void){
     uiRect(0,0,256,192,U_BG); for(int y=0;y<192;y+=4) uiRect(0,y,256,1,U_PANEL);
     uiRect(0,0,256,15,U_PANELHI); uiText(6,4,"CREATE A PLANET",U_GOLD,1); uiRound(204,2,48,11,U_SEL,U_GOLD); uiTextC(228,4,"BACK",U_WHITE,1); uiBtn(202,0,52,15,KEY_B,0,0,0);
-    char l[10][16], v[10][20]; const char*lb[10]={"SIZE","TYPE","LAND","SEA","CLIMATE","WETNESS","LIFE","DIFFICULTY","SEED","CREATE!"};
-    siprintf(v[0],"%dx%d",planetSize,planetSize); strcpy(v[1],storyOn?"STORY":"FREE PLAY"); strcpy(v[2],cShapeN[cShape]); strcpy(v[3],cSeaN[cSea+2]); strcpy(v[4],cClimN[cClim+2]); strcpy(v[5],cWetN[cWet+1]); strcpy(v[6],cLifeN[cLife]); strcpy(v[7],diff==0?"CALM":diff==1?"NORMAL":"BRUTAL"); siprintf(v[8],"%04X  A:ROLL",(unsigned)cSeed); v[9][0]=0; (void)l;
-    for(int i=0;i<10;i++){ int y=19+i*15, sel=i==cSel; uiRound(4,y,156,13,sel?U_SEL:U_PANELHI,sel?U_GOLD:U_BHI); uiText(10,y+2,lb[i],sel?U_WHITE:U_LGREY,1);
-        uiBtn(4,y,156,13,i==9?KEY_A:0,0,&cSel,i); if(i<8){ uiBtn(90,y,34,13,KEY_LEFT,0,&cSel,i); uiBtn(124,y,36,13,KEY_RIGHT,0,&cSel,i); } if(i==8) uiBtn(124,y,36,13,KEY_A,0,&cSel,i);
-        if(i==9){ uiTextC(82+30,y+2,"",U_GOLD,1); continue; }
-        int vw=uiTextW(v[i],1); if(sel&&i!=8){ uiIcon8(154-vw-14,y+1,IC8_LEFT); uiIcon8(150,y+1,IC8_RIGHT); } uiTextR(148,y+2,v[i],sel?U_GOLD:U_DIM); }
+    char l[12][16], v[12][20]; const char*lb[12]={"SIZE","TYPE","LAND","COASTS","MOUNTAINS","SEA","CLIMATE","WETNESS","LIFE","DIFFICULTY","SEED","CREATE!"};
+    siprintf(v[0],"%dx%d",planetSize,planetSize); strcpy(v[1],storyOn?"STORY":"FREE PLAY"); strcpy(v[2],cShapeN[cShape]); strcpy(v[3],cCoastN[cCoast+1]); strcpy(v[4],cMtnN[cMtn+1]); strcpy(v[5],cSeaN[cSea+2]); strcpy(v[6],cClimN[cClim+2]); strcpy(v[7],cWetN[cWet+1]); strcpy(v[8],cLifeN[cLife]); strcpy(v[9],diff==0?"CALM":diff==1?"NORMAL":"BRUTAL"); siprintf(v[10],"%04X  A:ROLL",(unsigned)cSeed); v[11][0]=0; (void)l;
+    for(int i=0;i<12;i++){ int y=18+i*13, sel=i==cSel; uiRound(4,y,156,12,sel?U_SEL:U_PANELHI,sel?U_GOLD:U_BHI); uiText(10,y+2,lb[i],sel?U_WHITE:U_LGREY,1);
+        uiBtn(4,y,156,12,i==11?KEY_A:0,0,&cSel,i); if(i<10){ uiBtn(90,y,34,12,KEY_LEFT,0,&cSel,i); uiBtn(124,y,36,12,KEY_RIGHT,0,&cSel,i); } if(i==10) uiBtn(124,y,36,12,KEY_A,0,&cSel,i);
+        if(i==11){ uiTextC(82+30,y+2,"",U_GOLD,1); continue; }
+        int vw=uiTextW(v[i],1); if(sel&&i!=10){ uiIcon8(154-vw-14,y+1,IC8_LEFT); uiIcon8(150,y+1,IC8_RIGHT); } uiTextR(148,y+2,v[i],sel?U_GOLD:U_DIM); }
     // the preview of the planet as it will be
     uiFrame(163,19,90,90,U_SHADOW,U_BLO,U_BHI);
     for(int y=0;y<88;y++) for(int x=0;x<88;x++){ int wx=x*WW/88, wy=y*WH/88; int t=world[wy][wx]; uiPx(164+x,20+y,100+t*3+((wx+wy)&1)); }
     char b[24]; siprintf(b,"LAND %d%%",cLand); uiTextC(208,113,b,U_WHITE,1); siprintf(b,"SEED %04X",(unsigned)cSeed); uiTextC(208,124,b,U_DIM,1);
     uiTextC(208,140,cT>=0?"SHAPING...":"READY",cT>=0?U_ORANGE:U_GREEN,1);
-    uiText(6,172,cSel==9?"A: BEGIN YOUR WORLD":"PAD: UP DOWN  LEFT RIGHT CHANGE",U_DIM,1);
+    uiText(6,178,cSel==11?"A: BEGIN YOUR WORLD":"PAD: UP DOWN  LEFT RIGHT CHANGE",U_DIM,1);
     uiFlush(); }
 enum { MI_CONT, MI_STORY, MI_FREE, MI_OPT, MI_EXTRA, MI_BACK, MI_SIZE, MI_DIFF, MI_VOL, MI_MON, MI_SCULPT, MI_BEST, MI_CODEX, MI_HELP, MI_CRED, MI_DEBUG, MI_RESUME, MI_SAVE, MI_NEW, MI_MODE, MI_TITLE, MI_CREATE, MI_GO, MI_STYPE, MI_SPEED, MI_KING, MI_JOURNAL, MI_ACH, MI_CULT, MI_LANG, MI_BROWSE, MI_LAW0, MI_LAW1, MI_LAW2, MI_LAW3, MI_LAW4, MI_LAW5, MI_LAW6, MI_LAW7, MI_LAW8, MI_LAW9, MI_LAW10, MI_LAW11, MI_LAW12, MI_LAW13, MI_LAW14, MI_LAW15, MI_LAW16, MI_LAW17, MI_LAW18, MI_LAW19, MI_LAW20, MI_LAW21, MI_LAWS, MI_FAVS, MI_PEOPLE, MI_COLL, MI_MORE, MI_AIR };
 static int extrasView;      // which menu (0 main, 1 options, 2 extras), the highlighted row, a pending "are you sure", and whether an extras page is open
