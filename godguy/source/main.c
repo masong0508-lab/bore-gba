@@ -20,6 +20,7 @@ static BIGMEM occ_t occ[MAXD][MAXD];            // creature index + 1 standing o
 volatile u32 dsiAlias;      // set by the start-up code: 1 when the RAM above 4 MB is only a mirror (the DS-mode launch)
 #endif
 static BIGMEM Cr cr[MAXC]; static int nCr;
+static u8 vilK[VIL_N]; static s8 vilL[VIL_N];
 static int zombA=-1; static u8 vilSick[VIL_N>64?VIL_N:64];     // vilSick: sick folk met near a village this season (for the journal line)
 static u32 lawOff;      // World Laws (the list and the defaults of WorldBox's own law panel, as far as this game has the mechanics): stored as the switches that differ from the defaults, so 0 = all defaults
 enum { LW_AGE, LW_HUNGER, LW_CIVBABY, LW_ANIBABY, LW_PEACEMON, LW_MUTBOX, LW_MUTATE, LW_EROSION, LW_TREES, LW_LAVA, LW_WEATHER,
@@ -152,11 +153,11 @@ static const char* const trDesc[TR_N]={"","BITES HARDER: +4 DAMAGE","TAKES 3 LES
 static u32 trSeen; static u32 stMut; static int trCount[TR_N], diff=1;      // traits met in this save, mutations so far, living bearers, difficulty 0 calm 1 normal 2 brutal
 #define HAS(c,t) ((c)->tr==(t)||(c)->tr2==(t))
 static int trMask(const Cr*c){ int m=0; if(HAS(c,TR_FIRE)) m|=1<<T_LAVA; if(HAS(c,TR_AMPH)||HAS(c,TR_FLOATY)) m|=M_WATER; if(HAS(c,TR_CLIMB)||HAS(c,TR_SPACY)) m|=1<<T_MOUNT; if(HAS(c,TR_WING)) m|=M_ALL&~(1<<T_LAVA); if(HAS(c,TR_FROST)) m|=(1<<T_SNOW)|(1<<T_MOUNT); return m; }
-static int maxHp(const Cr*c){ int h=arch[sp[c->sp].a].hp; if(HAS(c,TR_GIANT)) h=h*16/10; if(HAS(c,TR_COUCH)) h=h*15/10; if(HAS(c,TR_TINY)) h=h*6/10; if(c->rk==1) h=h*13/10; else if(c->rk==2) h=h*2; if(h<3) h=3; return h>255?255:h; }
+static int maxHp(const Cr*c){ int h=arch[sp[c->sp].a].hp; if(HAS(c,TR_GIANT)) h=h*16/10; if(HAS(c,TR_COUCH)) h=h*15/10; if(HAS(c,TR_TINY)) h=h*6/10; if(c->rk==1) h=h*13/10; else if(c->rk==2) h=h*2; h+=c->dir*5; if(h<3) h=3; return h>255?255:h; }      // (dir holds the level, 0..10)
 static int effSpd(const Cr*c){ int sd=arch[sp[c->sp].a].spd; if(sick[c-cr]==1) sd=sd*13/10; else if(sick[c-cr]==4) sd=sd*12/10; if(HAS(c,TR_SWIFT)) sd=sd*7/10; if(HAS(c,TR_GIANT)) sd=sd*13/10; if(HAS(c,TR_CHILL)) sd=sd*13/10; if(HAS(c,TR_COUCH)) sd=sd*17/10; if(HAS(c,TR_NOCT)){ int p=(tick>>1)&2047; sd=(p<256||p>1792)?sd*7/10:sd*12/10; } return sd<3?3:sd; }
 static void crName(const Cr*c,char*out){ out[0]=0; if(c->rk==1) strcpy(out,"ELITE "); else if(c->rk==2) strcpy(out,"BOSS "); if(c->rk){ strcat(out,heroN[(c->sp*5+(int)(c-cr))%12]); strcat(out," "); } if(c->tr){ strcat(out,trNm[c->tr]); strcat(out," "); } if(c->tr2){ strcat(out,trNm[c->tr2]); strcat(out," "); } char b[32]; spName(c->sp,b); strcat(out,b); }
 static int hitDmg(const Cr*a,const Cr*d){   // one blow: the attacker's strength, gear and traits against the defender's armour and traits
-    const Arch*A=&arch[sp[a->sp].a]; int dm=A->atk+gearAtk(a)+(int)(rnd()&3); if(HAS(a,TR_CLEVER)) dm+=gearAtk(a)/2; if(HAS(a,TR_VENOM)) dm+=4; if(HAS(a,TR_GIANT)) dm+=2;
+    const Arch*A=&arch[sp[a->sp].a]; int dm=A->atk+gearAtk(a)+(int)(rnd()&3); if(HAS(a,TR_CLEVER)) dm+=gearAtk(a)/2; if(HAS(a,TR_VENOM)) dm+=4; if(HAS(a,TR_GIANT)) dm+=2; dm+=a->dir/2;
     if(HAS(a,TR_LUCKY)&&rnd()%8==0) dm+=6; if(HAS(a,TR_BRAVE)&&arch[sp[d->sp].a].diet==5) dm+=3;
     if(HAS(a,TR_PACK)){ int n=0; for(int k=0;k<4;k++){ int x=a->x+dxs[k], y=a->y+dys[k]; if(x>=0&&y>=0&&x<WW&&y<WH&&occ[y][x]&&cr[occ[y][x]-1].sp==a->sp) n++; } dm+=2*n; }
     if(a->rk==1) dm=dm*13/10; else if(a->rk==2) dm=dm*2; if(A->diet==5) dm=dm*(diff==0?70:diff==2?140:100)/100;
@@ -347,7 +348,9 @@ static void compact(void){   // the dead are squeezed out of the list
     memset(occ,0,sizeof occ); for(int i=0;i<nCr;i++) occ[cr[i].y][cr[i].x]=(occ_t)(i+1);
 }
 
-static void moveTo(Cr*c,int i,int nx,int ny){ occ[c->y][c->x]=0; c->ox=(s8)((c->x-nx)*8); c->oy=(s8)((c->y-ny)*8); c->x=(coord_t)nx; c->y=(coord_t)ny; occ[ny][nx]=(occ_t)(i+1); c->dir=(u8)(nx>c->x?0:0); }
+// ---- levels: a creature that kills grows stronger (+5 health and +1 damage every two levels, up to level 10), after the wiki's unit levels
+static void gainXp(Cr*c){ int L=c->dir; if(L>=10) return; if((int)(rnd()%(unsigned)(L*2+3))==0){ c->dir=(u8)(L+1); if(c->hp<250) c->hp=(u8)(c->hp+8); if(c->dir%5==0&&(c->rk||arch[sp[c->sp].a].diet==4)){ char nm[48], b[40]; crName(c,nm); siprintf(b,"%.20s REACHES LV %d",nm,c->dir); logEv(b); } } }
+static void moveTo(Cr*c,int i,int nx,int ny){ occ[c->y][c->x]=0; c->ox=(s8)((c->x-nx)*8); c->oy=(s8)((c->y-ny)*8); c->x=(coord_t)nx; c->y=(coord_t)ny; occ[ny][nx]=(occ_t)(i+1); }
 // ---------------------------------------------------------------------------------------------- villages
 #define VIL_OLD 24     // older saves held 24 villages
 typedef struct { u8 on, race; coord_t x, y; u8 lvl, houses, farms, towers, foe, dead, nm1, nm2; u16 pop, stock; } Vil;   // foe: the village (+1) it is at war with
@@ -405,11 +408,14 @@ static void burnAt(int x,int y,int chance){   // fire, lightning and meteors on 
     if(x<0||y<0||x>=WW||y>=WH||!bld[y][x]||bld[y][x]==B_RUIN) return; if((int)(rnd()&255)>=chance) return; int v=bldv[y][x]-1;
     if(v>=0&&vil[v].on){ Vil*V=&vil[v]; if(bld[y][x]==B_HOUSE||bld[y][x]==B_HUT){ if(V->houses) V->houses--; } else if(bld[y][x]==B_FARM){ if(V->farms) V->farms--; } else if(bld[y][x]==B_TOWER){ if(V->towers) V->towers--; } }
     bld[y][x]=B_RUIN; bldv[y][x]=0; atFire+=3; if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); }
+// village mood, -100 sad .. 100 joyful (after the wiki's happiness), worked out on the spot so a loaded game goes on exactly as the saved one: food, crowding, war, sickness, loyalty, the air and the ground
+static int vilMood(int v); static const char* moodName(int m);
 static void vilTick(int v){
     Vil*V=&vil[v]; if(!V->on) return; int pop=0;
     for(int dy=-10;dy<=10;dy++){ int y=V->y+dy; if(y<0||y>=WH) continue; for(int dx=-10;dx<=10;dx++){ int x=V->x+dx; if(x<0||x>=WW||dx*dx+dy*dy>100) continue; int j=occ[y][x]-1; if(j>=0&&cr[j].alive&&sp[cr[j].sp].a==V->race&&sp[cr[j].sp].a<8) pop++; } }
     V->pop=(u16)pop; if(!pop){ if(++V->dead>=6){ vilRaze(v,1); return; } } else V->dead=0;
-    int gain=pop+V->farms*3; V->stock=(u16)(V->stock+gain>400?400:V->stock+gain);
+    int mood=vilMood(v); int gain=pop+V->farms*3; if(mood>=40) gain+=pop/4; else if(mood<=-40) gain=gain/2; if(mood<=-60&&vilK[v]&&(rnd()&7)==0&&vilL[v]>0) vilL[v]--; else if(mood>=40&&vilK[v]&&(rnd()&7)==0&&vilL[v]<100) vilL[v]++;
+     V->stock=(u16)(V->stock+gain>400?400:V->stock+gain);
     // what to build next: homes for everyone, fields to feed them, then towers, then a bigger hall
     if(V->lvl>=2&&V->towers<V->houses/3&&V->stock>=25&&(rnd()&3)==0){ if(placeBld(v,B_TOWER,25)) V->towers++; }
     else if(V->houses<2||pop>V->houses*3){ if(placeBld(v,(rnd()&3)?B_HOUSE:B_HUT,12)) V->houses++; }
@@ -430,12 +436,16 @@ static int vilTotals(int*houses){ int pop=0,h=0; for(int v=0;v<VIL_N;v++) if(vil
 #define KN_N 8
 typedef struct { u8 on, race, tech, rtr, rn1, rn2, n1, n2, lord, allies, war, empire, weary, reign, trade, cul, cap, plot, plotT, truce, spite, rlg, lang, clan, ctr, tradeW, pcool, nlang; s8 rel[KN_N]; u16 gold, born, cpts; u32 know; } Kd;   // rel[b]: this kingdom's opinion of b; cul: culture; cap: capital village (+1); plot: the kingdom it is plotting war against (+1)
 static int kdKnow(int k,int b);
-static Kd kd[KN_N]; static u8 vilK[VIL_N]; static s8 vilL[VIL_N]; /* a city's loyalty to its kingdom */ static char jr[24][34]; static u16 jrYear[24]; static int jrN;
+static Kd kd[KN_N]; /* a city's loyalty to its kingdom: vilL (vilK: its kingdom, declared above) */ static char jr[24][34]; static u16 jrYear[24]; static int jrN;
 static const char* const kn1[12]={"AR","BEL","COR","DRA","EST","FEN","GAL","HOR","ISK","JOR","KEL","LUN"}, * const kn2[8]={"IA","ANIA","OTH","MARK","LAND","VIA","ELL","UM"};
 static const char* const rnA[12]={"ALDRIC","BRYN","CEDRA","DORN","EMBER","FARIN","GRETA","HALDOR","ISOLDE","JORAN","KIRA","LOTHAR"}, * const rnB[8]={"THE BOLD","THE WISE","THE FAT","THE MAD","THE KIND","THE LATE","THE GREEDY","THE PALE"};
 static const char* const rtrN[4]={"WARLIKE","PEACEFUL","GREEDY","WISE"}; static const char* const culN[5]={"SUN","MOON","IRON","SEA","STONE"}, * const rlgN[4]={"SUNFAITH","MOONFAITH","STONEWAY","OLD GODS"}, * const langN[5]={"HIGH TONGUE","LOWSPEAK","RUNIC","SONG","CLICKS"}, * const clanN[8]={"OAK","RAVEN","WOLF","ROSE","CROWN","STAR","IRON","TIDE"};
 static const char* const ctrN[6]={"XENOPHOBIC","SCHOLARLY","MERCANTILE","MARTIAL","AGRARIAN","PIOUS"}, * const ageN[5]={"HOPE","SHADOWS","CHAOS","WONDERS","PEACE"};
 static int worldAge(void){ return (year/12+(int)(worldSeed&3))%5; }   /* ages of the world, twelve years each: they tilt growth, monsters, rebellion, learning and peace */
+static int vilMood(int v){ const Vil*V=&vil[v]; int m=V->stock/8-20; if(V->pop>V->houses*3+3) m-=20; if(V->foe) m-=25; if(vilSick[v]) m-=15; if(vilK[v]) m+=(vilL[v]-60)/3; m+=V->towers>0?5:0;
+    { int ag=worldAge(); m+=(ag==0||ag==4)?10:ag==1?-10:0; } if(LAW(LW_ATMO)){ int T=ATV(atTemp); if(T>=22||T<=-18) m-=15; } { int b=bioAt(V->x,V->y); m+=b==1?-20:b==3?20:0; }
+    return m<-100?-100:m>100?100:m; }
+static const char* moodName(int m){ return m>=60?"JOYFUL":m>=20?"HAPPY":m>-20?"CONTENT":m>-60?"SAD":"MISERABLE"; }
 static const char* const techN[10]={"NONE","AGRICULTURE","IRON TOOLS","MASONRY","TRADE ROADS","STEEL","ENGINEERING","ALCHEMY","ASTRONOMY","FEUDALISM"};
 static void logEv(const char*s){ if(jrN<24){ strncpy(jr[jrN],s,33); jr[jrN][33]=0; jrYear[jrN]=(u16)year; jrN++; } else { memmove(jr[0],jr[1],23*34); memmove(jrYear,jrYear+1,23*2); strncpy(jr[23],s,33); jr[23][33]=0; jrYear[23]=(u16)year; } siprintf(info,"%.32s",s); }
 static void kdName(int k,char*o){ langKing(kd[k].nlang,kd[k].n1,kd[k].n2,o); }
@@ -582,7 +592,7 @@ static void thinkBody(int i){
             int d=(dx<0?-dx:dx)+(dy<0?-dy:dy); int civ=arch[sp[cr[j].sp].a].diet==4; if(!civ&&d>3) continue; if(d<bd){ bd=d; rd=d; best=j; } }   // people are hunted from ten tiles away, animals only when they are in the way
         for(int k=0;k<4;k++) burnAt(c->x+dxs[k],c->y+dys[k],40);
         if(best>=0){ Cr*p=&cr[best];
-            if(rd<=1+HAS(c,TR_SPIT)){ int dm=hitDmg(c,p); zombieBite(c,(int)(p-cr)); if(p->hp>dm) p->hp-=(u8)dm; else { killCr(best); c->hp=(u8)(c->hp+12>A->hp?A->hp:c->hp+12); } return; }
+            if(rd<=1+HAS(c,TR_SPIT)){ int dm=hitDmg(c,p); zombieBite(c,(int)(p-cr)); if(p->hp>dm) p->hp-=(u8)dm; else { killCr(best); gainXp(c); c->hp=(u8)(c->hp+12>A->hp?A->hp:c->hp+12); } return; }
             if(stepToward(c,i,s,p->x,p->y)) return; }
         else { int v=vilAny(c->x,c->y,60); if(v>=0&&(rnd()&7)) { if(stepToward(c,i,s,vil[v].x,vil[v].y)) return; } }
         if((rnd()&3)!=0){ int d=rnd()&3; int nx=c->x+dxs[d], ny=c->y+dys[d]; if(walkable(s,nx,ny)&&!occ[ny][nx]) moveTo(c,i,nx,ny); }
@@ -598,7 +608,7 @@ static void thinkBody(int i){
         int home=vilNear(s->a,c->x,c->y,14);
         // fight: an enemy people within reach is attacked; otherwise an army walks to the enemy village
         { int best=-1,bd=99; for(int dy=-3;dy<=3;dy++) for(int dx=-3;dx<=3;dx++){ int x=c->x+dx,y=c->y+dy; if(x<0||y<0||x>=WW||y>=WH||!occ[y][x]) continue; int j=occ[y][x]-1; int ra=sp[cr[j].sp].a; if(arch[ra].diet!=5&&(ra>=8||!warM[s->a][ra])) continue; int d=(dx<0?-dx:dx)+(dy<0?-dy:dy); if(d<bd){ bd=d; best=j; } }
-          if(best>=0){ Cr*p=&cr[best]; if(bd<=1+HAS(c,TR_SPIT)){ int dm=hitDmg(c,p); zombieBite(c,(int)(p-cr)); if(p->hp>dm) p->hp-=(u8)dm; else { killCr(best); c->food+=20; } return; }
+          if(best>=0){ Cr*p=&cr[best]; if(bd<=1+HAS(c,TR_SPIT)){ int dm=hitDmg(c,p); zombieBite(c,(int)(p-cr)); if(p->hp>dm) p->hp-=(u8)dm; else { killCr(best); gainXp(c); c->food+=20; } return; }
               int dx=p->x-c->x, dy=p->y-c->y; int ax=dx>0?1:dx<0?-1:0, ay=dy>0?1:dy<0?-1:0; if(((dx<0?-dx:dx)<(dy<0?-dy:dy))) ax=0; else ay=0; int nx=c->x+ax, ny=c->y+ay; if(walkable(s,nx,ny)&&!occ[ny][nx]) moveTo(c,i,nx,ny); return; } }
         if(home>=0&&vil[home].foe&&vil[vil[home].foe-1].on&&c->age>6&&c->hp>8){ const Vil*F=&vil[vil[home].foe-1]; int dx=F->x-c->x, dy=F->y-c->y; if(dx*dx+dy*dy>4){ int ax=dx>0?1:dx<0?-1:0, ay=dy>0?1:dy<0?-1:0; if(((dx<0?-dx:dx)<(dy<0?-dy:dy))) ax=0; else ay=0; int nx=c->x+ax, ny=c->y+ay; if(walkable(s,nx,ny)&&!occ[ny][nx]){ moveTo(c,i,nx,ny); return; } }
             else { int fv=vil[home].foe-1; vil[fv].stock=(u16)(vil[fv].stock>10?vil[fv].stock-10:0); if(rnd()%12==0&&vil[fv].pop<2){ if(!vilConquer(fv,home)) vilRaze(fv,1); } } }
@@ -613,11 +623,11 @@ static void thinkBody(int i){
                 const Arch*B=&arch[sp[cr[j].sp].a]; if(B->diet==1||B->diet==5||B->diet==4&&diet!=1||sp[cr[j].sp].a==s->a) continue; if(diet==2&&B->diet!=0) continue;
                 int d=(dx<0?-dx:dx)+(dy<0?-dy:dy); if(d<bd){ bd=d; best=j; } }
         if(best>=0){ Cr*p=&cr[best];
-            if(bd<=1+HAS(c,TR_SPIT)){ int dm=hitDmg(c,p); zombieBite(c,(int)(p-cr)); if(p->hp>dm) p->hp-=(u8)dm; else { c->food+=80; if(c->food>120) c->food=120; killCr(best); } return; }
+            if(bd<=1+HAS(c,TR_SPIT)){ int dm=hitDmg(c,p); zombieBite(c,(int)(p-cr)); if(p->hp>dm) p->hp-=(u8)dm; else { c->food+=80; if(c->food>120) c->food=120; killCr(best); gainXp(c); } return; }
             int dx=p->x-c->x, dy=p->y-c->y; int sx=dx>0?1:dx<0?-1:0, sy=dy>0?1:dy<0?-1:0; int try1=(((dx<0?-dx:dx)>(dy<0?-dy:dy))?0:1);
             for(int k=0;k<2;k++){ int ax=(k==try1)?sx:0, ay=(k==try1)?0:sy; if(!ax&&!ay) continue; int nx=c->x+ax, ny=c->y+ay; if(walkable(s,nx,ny)&&!occ[ny][nx]){ moveTo(c,i,nx,ny); return; } } } }
     // breed
-    int bch=A->breed; if(diet==4&&vilNear(s->a,c->x,c->y,8)>=0) bch*=2; if(HAS(c,TR_FERTILE)) bch=bch*3/2; if(HAS(c,TR_TINY)) bch=bch*13/10; if(HAS(c,TR_CLEVER)) bch=bch*13/10; if(HAS(c,TR_MUNCH)) bch=bch*14/10;
+    int bch=A->breed; if(diet==4){ int vn=vilNear(s->a,c->x,c->y,8); if(vn>=0){ bch*=2; bch=bch*(100+vilMood(vn)/2)/100; } } if(HAS(c,TR_FERTILE)) bch=bch*3/2; if(HAS(c,TR_TINY)) bch=bch*13/10; if(HAS(c,TR_CLEVER)) bch=bch*13/10; if(HAS(c,TR_MUNCH)) bch=bch*14/10;
     if(((A->diet==4||sp[c->sp].a<8)?LAW(LW_CIVBABY):LAW(LW_ANIBABY))&&!(LAW(LW_POP100)&&A->diet==4&&({ int full=0; for(int vv=0;vv<VIL_N&&!full;vv++){ int dx_=vil[vv].x-c->x, dy_=vil[vv].y-c->y; if(vil[vv].on&&vil[vv].race==s->a&&dx_*dx_+dy_*dy_<=100&&vil[vv].pop>=100) full=1; } full; }))&&c->food>=80&&c->age>8&&(int)(rnd()%100)<bch&&nCr<MAXC-4){ int d=rnd()&3; int nx=c->x+dxs[d], ny=c->y+dys[d]; int n=addCr(c->sp,nx,ny); if(n>=0){ cr[n].age=0; cr[n].food=50; born(&cr[n],&cr[i]); c->food-=40; return; } }
     // wander
     if((rnd()&3)!=0){ int d=rnd()&3; int nx=c->x+dxs[d], ny=c->y+dys[d]; if(walkable(s,nx,ny)&&!occ[ny][nx]) moveTo(c,i,nx,ny); }
@@ -1161,7 +1171,7 @@ static int zHit(int px,int py,int*tx,int*ty){ int ox=zOx(), oy=zOy(); int sh=zSh
 static void zCrit(int i,int px,int py,int S){   // one creature, its tile's top left corner at (px, py), enlarged to S pixels
     const Cr*c=&cr[i]; const Sp*s=&sp[c->sp]; const Arch*A=&arch[s->a]; int fam=s->fam;
     if(S<=2){ zRect(px,py,2,2,zCol(fam,0)); return; }
-    int mv=(c->ox||c->oy); int fr=mv?(((tick>>3)+i)&1):0; int flip=(i&1)&&c->dir; if(!mv) fr=0;
+    int mv=(c->ox||c->oy); int fr=mv?(((tick>>3)+i)&1):0; int flip=(i&1); if(!mv) fr=0;
     int gx=c->ox*S/8, gy=c->oy*S/8; px+=gx; py+=gy;
     u8 g[64]; for(int y=0;y<8;y++){ const char*row=shpRow(A->shape,fr,y); for(int x=0;x<8;x++){ char ch=row[flip?7-x:x]; g[y*8+x]=(u8)(ch=='b'?zCol(fam,0):ch=='d'?zCol(fam,1):ch=='a'?zCol(fam,2):ch=='e'?UI_PAL0+U_WHITE:0); } }
     if(S>=16){ int sh=S/8; for(int r=0;r<sh;r++){ int yy=py+S-sh+r; for(int xx=px+S/8+r;xx<px+S-S/8-r;xx++){ if((unsigned)xx<256&&(unsigned)yy<ZH){ u8 v=gbuf[yy*256+xx]; if(v<128) gbuf[yy*256+xx]=(u8)((v&~7)|((v&7)>2?(v&7)-3:0)); } } } }   // a shadow: the ground under its feet darkened
@@ -1274,7 +1284,7 @@ static void drawSprites(void){
     int n=0, nc=100;       // creatures use sprites 0..99, rank crowns 100..107, weather 108..127
     for(int ty=(camY>>3)-1;ty<(camY>>3)+26&&n<100;ty++) for(int tx=(camX>>3)-1;tx<(camX>>3)+34&&n<100;tx++){ if(tx<0||ty<0||tx>=WW||ty>=WH) continue; int i=occ[ty][tx]-1; if(i<0) continue; Cr*c=&cr[i]; if(!c->alive) continue; int px=c->x*8+c->ox-camX, py=c->y*8+c->oy-camY; if(px<-8||px>=256||py<-8||py>=162) continue;   // (the bottom 24 pixels are the toolbar)
         const Sp*s=&sp[c->sp]; const Arch*A=&arch[s->a]; int fr=((tick>>3)+i)&1; if(!c->ox&&!c->oy) fr=0;
-        oamSet(&oamMain,n,px,py,0,s->fam,SpriteSize_8x8,SpriteColorFormat_16Color,gfxF[A->shape][fr],-1,false,false,(i&1)&&c->dir,false,false); n++;
+        oamSet(&oamMain,n,px,py,0,s->fam,SpriteSize_8x8,SpriteColorFormat_16Color,gfxF[A->shape][fr],-1,false,false,(i&1),false,false); n++;
         if(sick[i]&&sick[i]!=2&&nc<108&&((tick>>2)&1)){ oamSet(&oamMain,nc,px+3,py-5,0,sick[i]>=3?10:12,SpriteSize_8x8,SpriteColorFormat_16Color,gfxF[39][0],-1,false,false,false,false,false); nc++; }      // a flickering green mark over the sick
         if(c->rk&&nc<108){ oamSet(&oamMain,nc,px,py-6,0,c->rk==2?10:2,SpriteSize_8x8,SpriteColorFormat_16Color,gfxF[39][0],-1,false,false,false,false,false); nc++; } }
     for(int k=n;k<100;k++) oamSetHidden(&oamMain,k,true);
@@ -1469,7 +1479,7 @@ static void uiInspectCard(void){
         for(int k=0;k<3;k++) BG_PALETTE_SUB[200+k]=RGB15(famCol[fam][k][0],famCol[fam][k][1],famCol[fam][k][2]); BG_PALETTE_SUB[203]=RGB15(31,31,31);
         uiFrame(142,19,38,38,U_SHADOW,U_BHI,U_BLO); for(int j=0;j<8;j++) for(int i=0;i<8;i++){ char ch=shpRow(shape,(tick>>4)&1,j)[i]; int col=ch=='b'?200:ch=='d'?201:ch=='a'?202:ch=='e'?203:0; if(col) uiRect(144+i*4,21+j*4,4,4,col); }
         crName(c,nm); uiWrap(184,20,11,4,nm,U_WHITE); spName(c->sp,nm); (void)nm; y=62;
-        uiText(142,y,"HEALTH",U_DIM,1); uiBar(142,y+9,108,7,c->hp,maxHp(c),c->hp*3<maxHp(c)?U_RED:U_GREEN); y+=19;
+        { char hb[20]; siprintf(hb,"HEALTH   LEVEL %d",c->dir); uiText(142,y,hb,U_DIM,1); } uiBar(142,y+9,108,7,c->hp,maxHp(c),c->hp*3<maxHp(c)?U_RED:U_GREEN); y+=19;
         uiText(142,y,"HUNGER",U_DIM,1); uiBar(142,y+9,108,7,c->food>200?200:c->food,200,U_ORANGE); y+=19;
         siprintf(b,"AGE %d   %s",c->age,arch[sp[c->sp].a].diet==5?"MONSTER":arch[sp[c->sp].a].diet==4?"FOLK":"BEAST"); uiText(142,y,b,U_LGREY,1); y+=10;
         if(sick[inspIdx]==3){ uiText(142,y,"INFECTED",U_RED,1); y+=10; } else if(sick[inspIdx]==1){ uiText(142,y,"SICK (PLAGUE)",U_GREEN,1); y+=10; } else if(sick[inspIdx]==2){ uiText(142,y,"IMMUNE NOW",U_CYAN,1); y+=10; }
@@ -1479,7 +1489,7 @@ static void uiInspectCard(void){
         uiFrame(142,19,38,38,U_SHADOW,U_BHI,U_BLO); uiBig(145,22,IC8_HOME,4); uiText(184,20,vn,U_WHITE,1); uiText(184,30,arch[V->race].nm,U_DIM,1); { static const char* const tier[4]={"","HAMLET","TOWN","CITY"}; int k=vilK[v]-1; uiText(184,40,(k>=0&&kd[k].cap==v+1)?"CAPITAL":tier[V->lvl>3?3:V->lvl],(k>=0&&kd[k].cap==v+1)?U_GOLD:U_LGREY,1); }
         y=62; if(vilK[v]){ int k=vilK[v]-1; char kn[24]; kdName(k,kn); uiRect(142,y,8,8,40+k); uiText(153,y,kn,U_WHITE,1); y+=11; uiText(142,y,"LOYALTY",U_DIM,1); int lo=vilL[v]<0?0:vilL[v]; uiBar(142,y+9,108,7,lo,100,vilL[v]<20?U_RED:U_GREEN); y+=19; }
         uiText(142,y,"STORE",U_DIM,1); uiBar(142,y+9,108,7,V->stock,400,U_YELLOW); y+=19;
-        siprintf(b,"POP %d  HOMES %d",V->pop,V->houses); uiText(142,y,b,U_WHITE,1); y+=10; siprintf(b,"FARMS %d  TOWERS %d",V->farms,V->towers); uiText(142,y,b,U_WHITE,1); y+=10;
+        siprintf(b,"POP %d  HOMES %d",V->pop,V->houses); uiText(142,y,b,U_WHITE,1); y+=10; siprintf(b,"MOOD %s",moodName(vilMood(v))); uiText(142,y,b,vilMood(v)>=20?U_GREEN:vilMood(v)<=-20?U_RED:U_LGREY,1); y+=10; siprintf(b,"FARMS %d  TOWERS %d",V->farms,V->towers); uiText(142,y,b,U_WHITE,1); y+=10;
         if(V->foe&&vil[V->foe-1].on){ char fn[24]; vilName(V->foe-1,fn); siprintf(b,"AT WAR: %s",fn); uiText(142,y,b,U_RED,1); } }
     else { uiText(142,24,"NOTHING HERE",U_DIM,1); }
     uiText(142,136,"A: INSPECT AGAIN",U_DIM,1); }

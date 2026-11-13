@@ -19,10 +19,10 @@ int main(int argc,char**argv){
     // the zombie infection: one zombie among the folk
     planetSize=128; rs=4242u; makeSpecies(); makeItems(); newWorld(); monOn=0; for(int t=1;t<=6000;t++){ tick=t; simulate(); }
     int za=-1; for(int a2=8;a2<ARCH_N;a2++) if(!strcmp(arch[a2].nm,"ZOMBIE")) za=a2; int vv=-1; for(int v=0;v<VIL_N;v++) if(vil[v].on&&vil[v].pop>=8){ vv=v; break; }
-    int placed=0; for(int i=0;i<nCr&&placed<5&&za>=8;i+=37) if(cr[i].alive&&arch[sp[cr[i].sp].a].diet==4){ int fx=cr[i].x, fy=cr[i].y; for(int k=0;k<4;k++){ int n=addCr(8+(za-8)*16,fx+dxs[k],fy+dys[k]); if(n>=0){ cr[n].hp=(u8)maxHp(&cr[n]); placed++; break; } } }   // five zombies among the folk
+    int placed=0; for(int i=0;i<nCr&&placed<8&&za>=8;i+=11) if(cr[i].alive&&arch[sp[cr[i].sp].a].diet==4){ int fx=cr[i].x, fy=cr[i].y; for(int k=0;k<4;k++){ int n=addCr(8+(za-8)*16,fx+dxs[k],fy+dys[k]); if(n>=0){ cr[n].hp=(u8)maxHp(&cr[n]); placed++; break; } } }   // five zombies among the folk
     // the bite chain, deterministic: each zombie takes a few turns beside its folk (no waiting for the crowd's rotation), then an infected victim falls and must rise
     int inf_peak=0, rose=0; int z0=countArch(za); int zs[8], nz=0; for(int i=0;i<nCr&&nz<8;i++) if(cr[i].alive&&sp[cr[i].sp].a==za) zs[nz++]=i;
-    for(int r=0;r<40;r++) for(int k=0;k<nz;k++){ if(cr[zs[k]].alive&&sp[cr[zs[k]].sp].a==za){ cr[zs[k]].hp=(u8)maxHp(&cr[zs[k]]); think(zs[k]); } }
+    for(int r=0;r<60;r++) for(int k=0;k<nz;k++){ if(cr[zs[k]].alive&&sp[cr[zs[k]].sp].a==za){ cr[zs[k]].hp=(u8)maxHp(&cr[zs[k]]); think(zs[k]); } }
     { int in=0; int fall=-1; for(int i=0;i<nCr;i++) if(cr[i].alive&&sick[i]==3){ in++; if(fall<0) fall=i; } inf_peak=in; if(fall>=0){ tick=12001; killCr(fall); simulate(); } }
     int z1=countArch(za); rose=z1-z0;
     printf("zombie infection: zombies placed %d, infected by their bites %d, a fallen victim rose: zombies %d -> %d\n",placed,inf_peak,z0,z1);
