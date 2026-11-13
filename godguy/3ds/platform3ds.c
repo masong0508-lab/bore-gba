@@ -15,7 +15,7 @@ int plat_init(void){
 // keys in the shim's layout (A B SELECT START RIGHT LEFT UP DOWN R L X Y, bit 12 = touch)
 int plat_keys(int*tx,int*ty){
     hidScanInput(); u32 k=hidKeysHeld(); int h=(int)(k&0xFFF); if(k&KEY_CPAD_UP) h|=1<<6; if(k&KEY_CPAD_DOWN) h|=1<<7; if(k&KEY_CPAD_LEFT) h|=1<<5; if(k&KEY_CPAD_RIGHT) h|=1<<4;
-    if(k&KEY_TOUCH){ touchPosition t; hidTouchRead(&t); int x=t.px-32, y=t.py-24; if(x>=0&&x<256&&y>=0&&y<192){ *tx=x; *ty=y; h|=1<<12; } }
+    if(k&KEY_TOUCH){ touchPosition t; hidTouchRead(&t); int x=t.px-32, y=t.py-24; if(x>=-10&&x<266&&y>=-10&&y<202){ *tx=x<0?0:x>255?255:x; *ty=y<0?0:y>191?191:y; h|=1<<12; }      // the touch screen is bigger than the game's 256 x 192: a touch within 10 pixels of its edge counts as the edge }
     if(!aptMainLoop()) exit(0); return h; }
 // RGB rows -> the 3DS framebuffer (BGR, columns first, bottom-up), in 8 x 8 tiles so the reads and the writes both stay in the small data cache
 static void swz(u8*fb,const unsigned char*src,int w){

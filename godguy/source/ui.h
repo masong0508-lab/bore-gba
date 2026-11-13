@@ -39,7 +39,10 @@ static void uiFlush(void){
 typedef struct { short x,y,w,h; unsigned short key,key2; int*sp; int sv; } UiBtn;
 static UiBtn uiBtns[64]; static int uiNBtn;
 static void uiBtn(int x,int y,int w,int h,int key,int key2,int*sp,int sv){ if(uiNBtn<64){ UiBtn*b=&uiBtns[uiNBtn++]; b->x=(short)x; b->y=(short)y; b->w=(short)w; b->h=(short)h; b->key=(unsigned short)key; b->key2=(unsigned short)key2; b->sp=sp; b->sv=sv; } }
-static int uiHit(int px,int py){ for(int i=uiNBtn-1;i>=0;i--){ const UiBtn*b=&uiBtns[i]; if(px>=b->x&&px<b->x+b->w&&py>=b->y&&py<b->y+b->h) return i; } return -1; }
+// a tap inside a button hits it (the one drawn last wins); a tap that just misses (up to 4 pixels) takes the nearest button instead of being lost: fingers and styluses are bigger than the arrows
+static int uiHit(int px,int py){ for(int i=uiNBtn-1;i>=0;i--){ const UiBtn*b=&uiBtns[i]; if(px>=b->x&&px<b->x+b->w&&py>=b->y&&py<b->y+b->h) return i; }
+    int best=-1, bd=5*5+1; for(int i=uiNBtn-1;i>=0;i--){ const UiBtn*b=&uiBtns[i]; int dx=px<b->x?b->x-px:px>=b->x+b->w?px-(b->x+b->w-1):0, dy=py<b->y?b->y-py:py>=b->y+b->h?py-(b->y+b->h-1):0; int d=dx*dx+dy*dy; if(d<bd){ bd=d; best=i; } }
+    return best; }
 static inline void uiPx(int x,int y,int c){ if((unsigned)x<256&&(unsigned)y<192) uiBuf[y*256+x]=(u8)c; }
 static void uiRect(int x,int y,int w,int h,int c){ for(int j=0;j<h;j++) for(int i=0;i<w;i++) uiPx(x+i,y+j,c); }
 static void uiFrame(int x,int y,int w,int h,int fill,int hi,int lo){ uiRect(x,y,w,h,fill); for(int i=0;i<w;i++){ uiPx(x+i,y,hi); uiPx(x+i,y+h-1,lo); } for(int j=0;j<h;j++){ uiPx(x,y+j,hi); uiPx(x+w-1,y+j,lo); } }

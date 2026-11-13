@@ -76,8 +76,9 @@ static inline void oamUpdate(OamState*o){ (void)o; }
 typedef struct { u32 op, ch, a, b, c, d; } HwCmd;
 typedef struct { volatile u32 head, tail, busy, keys, pen, px, py, alive, svType, svBusy, svOK; HwCmd q[64]; } HwIpc;
 #define HWIPC ((HwIpc*)0x023F0000)
+#include "../hw/touchfilter.h"
 static int hwHeld, hwTx, hwTy;
-static inline void scanKeys(void){ u32 k=~HW_REG16(0x04000130)&0x3FF; int h=(int)k; if(HWIPC->keys&1) h|=KEY_X; if(HWIPC->keys&2) h|=KEY_Y; if(HWIPC->pen){ h|=KEY_TOUCH; hwTx=(int)HWIPC->px; hwTy=(int)HWIPC->py; } hwHeld=h; }
+static inline void scanKeys(void){ u32 k=~HW_REG16(0x04000130)&0x3FF; int h=(int)k; if(HWIPC->keys&1) h|=KEY_X; if(HWIPC->keys&2) h|=KEY_Y; { static int sx, sy, have; int down=HWIPC->pen!=0; tcSmooth(down,&sx,&sy,&have,(int)HWIPC->px,(int)HWIPC->py); if(down){ h|=KEY_TOUCH; hwTx=sx; hwTy=sy; } } hwHeld=h; }
 static int hwPrev;
 static inline int keysHeld(void){ return hwHeld; }
 static inline int keysDown(void){ int d=hwHeld&~hwPrev; hwPrev=hwHeld; return d; }

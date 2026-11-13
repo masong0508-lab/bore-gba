@@ -14,6 +14,13 @@ typedef struct { volatile u32 head, tail, busy, keys, pen, px, py, alive, svType
 #define SPIDAT R16(0x040001C2)
 static u32 kind[16];
 static void spiWait(void){ while(SPICNT&0x80){} }
+#include "touchfilter.h"
+static TouchCal tcal; static TouchState tst;
+static u8 fwByte(int last){ SPICNT=(u16)(last?0x8100:0x8900); SPIDAT=0; spiWait(); return (u8)SPIDAT; }
+static void fwRead(u32 addr,u8*buf,int n){ SPICNT=0x8900; SPIDAT=3; spiWait(); SPIDAT=(u8)(addr>>16); spiWait(); SPIDAT=(u8)(addr>>8); spiWait(); SPIDAT=(u8)addr; spiWait(); for(int i=0;i<n;i++) buf[i]=fwByte(i==n-1); }
+static void tcInit(void){      // the calibration stored in the firmware's user settings: two copies, 0x100 bytes apart; the one with the higher update counter (and sane numbers) wins
+    u8 hdr[2]; fwRead(0x20,hdr,2); u32 base=((u32)(hdr[0]|(hdr[1]<<8)))*8; if(base<0x3F000||base>0x3FF00) base=0x3FE00; u8 b0[0x100], b1[0x100]; fwRead(base,b0,0x100); fwRead(base+0x100,b1,0x100);
+    TouchCal c0, c1; tcLoad(&c0,b0); tcLoad(&c1,b1); int n0=b0[0x70]|(b0[0x71]<<8), n1=b1[0x70]|(b1[0x71]<<8); tcal=(c0.ok&&(!c1.ok||((n0-n1)&0x7F)<0x40))?c0:c1; }
 static u16 tsc(u32 cmd){   // one 12-bit conversion from the touch controller
     SPICNT=0x8A01; SPIDAT=cmd; spiWait(); SPIDAT=0; spiWait(); u16 r1=SPIDAT; SPICNT=0x8201; SPIDAT=0; spiWait(); u16 r2=SPIDAT; return (u16)(((r1&0x7F)<<5)|(r2>>3)); }
 // ---- the cartridge's save memory (SPI): flash (3 byte addresses, 256 byte pages) or EEPROM (2 byte addresses, 128 byte pages)
@@ -43,6 +50,7 @@ static void doCmd(HwCmd*c){
 void arm7main(void){
     R16(0x04000304)=1;                       // sound on (POWCNT2)
     R16(0x04000500)=0x8000|0x7F;             // sound master enable, full volume
+    tcInit();
     int done=0, det=0;
     for(;;){
         if(IPC->alive==0x41524D39&&!det){ det=1; svDetect(); }
@@ -50,6 +58,6 @@ void arm7main(void){
         u32 b=0; for(int i=0;i<16;i++) if(CH_CNT(i)&0x80000000u) b|=1u<<i; IPC->busy=b;
         u16 vc=R16(0x04000006);
         if(vc==192){ if(!done){ done=1; u16 ext=R16(0x04000136); IPC->keys=(u32)(((~ext)&3));
-                if(!(ext&0x40)){ u32 x=tsc(0xD0), y=tsc(0x90); if(x&&y&&x<4096){ IPC->px=(x>>4)>255?255:(x>>4); u32 py=y*192/4096; IPC->py=py>191?191:py; IPC->pen=1; } else IPC->pen=0; } else IPC->pen=0; } }
+                int xs[5], ys[5], phys=!(ext&0x40); if(phys){ for(int k=0;k<5;k++){ xs[k]=tsc(0xD0); ys[k]=tsc(0x90); } } int px=0, py=0; int pen=tcFrame(&tst,&tcal,phys,xs,ys,5,&px,&py); if(pen){ IPC->px=(u32)px; IPC->py=(u32)py; } IPC->pen=(u32)pen; } }
         else done=0;
     } }
