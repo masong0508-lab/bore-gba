@@ -17,7 +17,7 @@ typedef uint8_t u8; typedef uint16_t u16; typedef uint32_t u32; typedef int8_t s
 extern int gW,gH;               // the planet in play: 128, 192 or 256 tiles a side
 #define WW gW
 #define WH gH
-#define MAXC 2400
+#define MAXC 30000                // one creature to a tile, so this is also about the most a 256 x 256 planet can hold on its land
 #define SHAPE_OLD 20             // hand-drawn two-frame shapes
 #define SHAPE_N 42               // plus the one-frame shapes drawn below (their second frame is made by swapping the feet) and the crown, rain and snow sprites
 #define ARCH_A 32                 // archetypes below this are people and animals
