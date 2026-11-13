@@ -16,6 +16,6 @@ int main(){ int fails=0, cx, cy;
     fresh(); bb=blds(); ac=alive(); int g0=0; for(int y=0;y<WH;y++) for(int x=0;x<WW;x++) g0+=world[y][x]==T_GRASS||world[y][x]==T_FOREST; acidT=900; for(int t=0;t<900;t++){ tick=13000+t; acidTick(); } int g1=0; for(int y=0;y<WH;y++) for(int x=0;x<WW;x++) g1+=world[y][x]==T_GRASS||world[y][x]==T_FOREST;
     printf("acid rain (900 ticks): living ground %d -> %d, buildings %d -> %d, creatures %d -> %d\n",g0,g1,bb,blds(),ac,alive()); if(g1>=g0){ fails++; printf("  FAIL: acid\n"); }
     // the law: with DISASTERS off the world events never run
-    fresh(); lawOff=1u<<LW_NATDIS; memset(tor,0,sizeof tor); acidT=0; int ev=0; for(int t=1;t<=60000;t++){ tick=20000+t; eventTick(); ev+=tor[0].on||tor[1].on||acidT>0; } printf("DISASTERS off: tornado / acid events started in 60000 ticks: %d\n",ev); if(ev){ fails++; printf("  FAIL: law\n"); }
+    fresh(); lawOff=(1u<<LW_NATDIS)|(1u<<LW_OTHERDIS); memset(tor,0,sizeof tor); acidT=0; int ev=0; for(int t=1;t<=60000;t++){ tick=20000+t; eventTick(); ev+=tor[0].on||tor[1].on||acidT>0; } printf("DISASTERS off: tornado / acid events started in 60000 ticks: %d\n",ev); if(ev){ fails++; printf("  FAIL: law\n"); }
     lawOff=0; ev=0; for(int t=1;t<=60000;t++){ tick=20000+t; eventTick(); ev+=tor[0].on||tor[1].on||acidT>0; memset(tor,0,sizeof tor); acidT=0; } printf("DISASTERS on : events seen %d\n",ev);
     printf("%s\n",fails?"DISASTERS FAIL":"DISASTERS OK"); return fails?1:0; }
