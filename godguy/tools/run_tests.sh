@@ -41,3 +41,5 @@ gcc -O2 -DNDSSHIM -DGG_DSI16 -Icompat -Isource -Wno-all -include unistd.h -o /tm
 if python3 -c "import unicorn" 2>/dev/null && [ -f build_dsi16/arm9.elf ]; then python3 tools/dsi_emu/probe.py build_dsi16/arm9.elf build_dsi16/arm9.bin | tail -1; else echo "probe: skipped (no unicorn or no build_dsi16)"; fi
 # the cartridge save layer's packer on a fake chip (step 9b): round trip, and a pack bigger than the chip is refused
 grep -E "^static u32 rle(Enc|Dec)" compat/ndshw.h > /tmp/gg_rle.inc && gcc -O2 -w -DRLE_INC='"/tmp/gg_rle.inc"' -o /tmp/gg_slots pc_slots.c && /tmp/gg_slots | tail -1
+# GodGuy step 10a, identity: permanent ids, derived names and personalities, GGN1 trailer, old saves still load
+gcc $F -w -o /tmp/gg_ident pc_ident.c -lm && /tmp/gg_ident | tail -1

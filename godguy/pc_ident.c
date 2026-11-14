@@ -61,7 +61,7 @@ int main(void){
     { setup(31u,128); for(int t=1;t<=2*2048;t++){ tick=t; simulate(); } compact(); int n=nCr; saveGame("/tmp/godguy_ident.sav"); long at=trailerAt("/tmp/godguy_ident.sav"); long sz=fsize("/tmp/godguy_ident.sav"); printf("old save: trailer at %ld of %ld bytes (%ld bytes for %d creatures)\n",at,sz,sz-at,n); CHK(at>0&&at<sz,"found the trailer");
       truncTo("/tmp/godguy_ident.sav","/tmp/godguy_old.sav",at); newWorld(); int lo=loadGameRaw("/tmp/godguy_old.sav"); int ordered=1; for(int i=0;i<nCr;i++) if(crId[i]!=(u32)i+1||crFl[i]) ordered=0;
       printf("  old save loads: %s, %d creatures, ids in list order: %s, next id %u, notables %d\n",lo?"YES":"NO",nCr,ordered?"YES":"NO",(unsigned)idNext,nNb); CHK(lo&&nCr==n&&ordered&&idNext==(u32)n+1&&nNb==0,"an old save loads with ids in list order");
-      for(int t=tick+1;t<=tick+600;t++){ tick=t; simulate(); } CHK(inOrder(),"an old save goes on with rising ids"); CHK(idNext>(u32)n+1,"and hands out new ids");
+      { int t0=tick; for(int t=t0+1;t<=t0+600;t++){ tick=t; simulate(); } } CHK(inOrder(),"an old save goes on with rising ids"); CHK(idNext>(u32)n+1,"and hands out new ids");
       // damage inside the trailer: half of it, a zero gap, a wrong creature count
       long cuts[3]={at+(sz-at)/2,at+14,at+9};
       for(int k=0;k<3;k++){ truncTo("/tmp/godguy_ident.sav","/tmp/godguy_bad.sav",cuts[k]); newWorld(); int l2=loadGameRaw("/tmp/godguy_bad.sav"); int ord=1; for(int i=0;i<nCr;i++) if(crId[i]!=(u32)i+1) ord=0; printf("  trailer cut %d: loads %s, ids in list order %s\n",k,l2?"YES":"NO",ord?"YES":"NO"); CHK(l2&&nCr==n&&ord,"a cut trailer falls back to list order"); }
