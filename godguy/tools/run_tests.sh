@@ -31,3 +31,7 @@ gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_lawmen
 gcc $F -w -o /tmp/gg_plague pc_plague.c -lm && /tmp/gg_plague | tail -1
 # planet generator (step 7): main's six shapes unchanged at COASTS / MOUNTAINS normal, the new controls work, SEA the right way round
 gcc $F -w -o /tmp/gg_gen pc_gen.c -lm && /tmp/gg_gen | tail -1
+# speed (step 8): the kingdom answer cache (every cached answer checked against a fresh one), the globe redrawn only on change, the fast shim renderer equal to the plain one byte for byte, a crowd's flat cost per tick
+gcc -O2 -DNDSSHIM -DKD_CHECK -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_speed pc_speed.c -lm && /tmp/gg_speed | tail -1
+# the 3DS platform file against a libctru stand-in: tiled screen copy, only changed screens copied, the sound queue, the New 3DS speed-up
+gcc -O2 -I3ds/stub -o /tmp/gg_3ds pc_3ds.c 3ds/platform3ds.c -lm && /tmp/gg_3ds | tail -1

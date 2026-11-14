@@ -334,6 +334,8 @@ static void gainXp(Cr*c){ int L=c->dir; if(L>=10) return; if((int)(rnd()%(unsign
 #define VIL_OLD 24     // older saves held 24 villages
 typedef struct { u8 on, race; coord_t x, y; u8 lvl, houses, farms, towers, foe, dead, nm1, nm2; u16 pop, stock; } Vil;   // foe: the village (+1) it is at war with
 static Vil vil[VIL_N]; static int nVilOn;
+static u32 kdEp=1; /* kingdom answer cache epoch: bumped by everything a kingdom answer reads (villages, kingdoms) */
+#define KD_DIRTY() (kdEp++)
 static u8 vilK[VIL_N]; static s8 vilL[VIL_N];      // a village's kingdom (+1) and its loyalty to it
 static u8 vilSick[VIL_N];      // the plagued folk around the village at its last look (the priests of a temple cure half of them)
 static u8 vilBf[VIL_N];        // bit 0: the village has a temple, bit 1: a statue, bit 2: a library (worked out from the map, so a loaded game goes on as it was)
@@ -404,11 +406,11 @@ static void boatTick(void){
         if(B->i>=B->n){ int v=vilFound(B->race,B->tx,B->ty); if(v>=0){ for(int q=0;q<4;q++) addCr(B->race,B->tx+(int)(rnd()%5)-2,B->ty+(int)(rnd()%5)-2); char vn[24], s2[48]; vilName(v,vn); siprintf(s2,"SETTLERS SAIL TO %.20s",vn); logEv(s2); } B->on=0; continue; }
         int d=B->path[B->i++]; B->x=(s16)(B->x+dxs[d]); B->y=(s16)(B->y+dys[d]); } }
 static int vilFound(int race,int x,int y){
-    if(!buildable(x,y)) return -1; if(vilAny(x,y,9)>=0) return -1; int v=-1; for(int i=0;i<VIL_N;i++) if(!vil[i].on){ v=i; break; } if(v<0) return -1;
+    KD_DIRTY(); if(!buildable(x,y)) return -1; if(vilAny(x,y,9)>=0) return -1; int v=-1; for(int i=0;i<VIL_N;i++) if(!vil[i].on){ v=i; break; } if(v<0) return -1;
     Vil*V=&vil[v]; memset(V,0,sizeof *V); gxVilReset(v); vilBf[v]=0; vilSick[v]=0; V->on=1; V->race=(u8)race; V->x=(coord_t)x; V->y=(coord_t)y; V->lvl=1; V->stock=30; V->nm1=(u8)(rnd()%12); V->nm2=(u8)(rnd()%8);
     putBld(v,x,y,B_HALL); for(int k=0;k<2;k++) placeBld(v,B_HUT,0); nVilOn++; return v;
 }
-static void vilRaze(int v,int ruins){ Vil*V=&vil[v]; if(!V->on) return; for(int y=0;y<WH;y++) for(int x=0;x<WW;x++) if(bldv[y][x]==v+1){ bld[y][x]=ruins&&(rnd()&1)?B_RUIN:B_NONE; if(!bld[y][x]) bldv[y][x]=0; else bldv[y][x]=0; if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); }
+static void vilRaze(int v,int ruins){ Vil*V=&vil[v]; if(!V->on) return; KD_DIRTY(); for(int y=0;y<WH;y++) for(int x=0;x<WW;x++) if(bldv[y][x]==v+1){ bld[y][x]=ruins&&(rnd()&1)?B_RUIN:B_NONE; if(!bld[y][x]) bldv[y][x]=0; else bldv[y][x]=0; if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); }
     for(int u=0;u<VIL_N;u++) if(vil[u].on&&vil[u].foe==v+1) vil[u].foe=0; V->on=0; nVilOn--; vilBf[v]=0; vilSick[v]=0; }
 // ---- the atmosphere (after SimEarth and its Gaia model): oxygen, carbon dioxide, dust and the world's warmth, all in 1/16 units. Forests and grass breathe CO2 in and O2 out; crowds, cities, fires, lava
 // and bombs do the opposite; CO2 warms (the greenhouse), dust and snow cool. Too hot melts the ice and dries the land, too cold freezes it, thin air suffocates, rich air feeds fires.
@@ -417,14 +419,14 @@ static int atO2=21*16, atCO2=30*16, atDust=0, atTemp=0, atFire=0, atFlag=0; stat
 static void atmoReset(void){ atO2=21*16; atCO2=30*16; atDust=0; atTemp=0; atFire=0; atFlag=0; memset(atHist,0,sizeof atHist); atHistN=0; }
 static void atmoDust(int d){ atDust+=d*16; if(atDust<0) atDust=0; if(atDust>100*16) atDust=100*16; }
 static void razeAt(int x,int y,int chance){   // a building falls to ruin (fire, lightning, meteors, and the calamities: see burnAt and calamity.h)
-    if(x<0||y<0||x>=WW||y>=WH||!bld[y][x]||bld[y][x]==B_RUIN) return; if((int)(rnd()&255)>=chance) return; int v=bldv[y][x]-1;
+    if(x<0||y<0||x>=WW||y>=WH||!bld[y][x]||bld[y][x]==B_RUIN) return; if((int)(rnd()&255)>=chance) return; int v=bldv[y][x]-1; if(v>=0) KD_DIRTY();
     if(v>=0&&vil[v].on){ Vil*V=&vil[v]; if(bld[y][x]==B_HOUSE||bld[y][x]==B_HUT){ if(V->houses) V->houses--; } else if(bld[y][x]==B_FARM){ if(V->farms) V->farms--; } else if(bld[y][x]==B_TOWER){ if(V->towers) V->towers--; } }
     { int ob=bld[y][x]; bld[y][x]=B_RUIN; bldv[y][x]=0; if(v>=0&&v<VIL_N&&(ob==B_TEMPLE||ob==B_STATUE||ob==B_LIBRARY)) vilBf[v]&=(u8)~(ob==B_TEMPLE?1:ob==B_STATUE?2:4); } if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); }
 static void burnAt(int x,int y,int chance){ if(gx.lFire) return; if(!gx.lAtmo&&ATV(atO2)>28){ chance+=(ATV(atO2)-28)*8; if(chance>255) chance=255; }      // rich air feeds fires
     int had=x>=0&&y>=0&&x<WW&&y<WH&&bld[y][x]&&bld[y][x]!=B_RUIN; razeAt(x,y,chance); if(had&&bld[y][x]==B_RUIN) atFire+=3; }   // fire, lightning and meteors on a building (WORLD > LAWS > FIRE ON HOMES: SAFE turns them off)
 // village mood, -100 sad .. 100 joyful (after the wiki's happiness), worked out on the spot so a loaded game goes on exactly as the saved one: food, crowding, war, sickness, loyalty, the air and the ground
 static int vilMood(int v); static const char* moodName(int m); static int worldAge(void);
-static void vilTick(int v){
+static void vilTick(int v){ KD_DIRTY();
     Vil*V=&vil[v]; if(!V->on) return; int pop=0, sk=0;
     for(int dy=-10;dy<=10;dy++){ int y=V->y+dy; if(y<0||y>=WH) continue; for(int dx=-10;dx<=10;dx++){ int x=V->x+dx; if(x<0||x>=WW||dx*dx+dy*dy>100) continue; int j=occ[y][x]-1; if(j>=0&&cr[j].alive&&sp[cr[j].sp].a==V->race&&sp[cr[j].sp].a<8){ pop++; if(cr[j].sick==1) sk++; } } }   // (the tiles around the village, not every creature on the planet)
     V->pop=(u16)pop; if(!pop){ if(++V->dead>=6){ vilRaze(v,1); return; } } else V->dead=0;
@@ -473,13 +475,15 @@ static void logEv(const char*s){ if(jrN<24){ strncpy(jr[jrN],s,33); jr[jrN][33]=
 static void kdName(int k,char*o){ langKing(kd[k].nlang,kd[k].n1,kd[k].n2,o); }
 static void kdRuler(int k,char*o){ strcpy(o,lwords[kd[k].lang%5][8]); strcat(o," "); char p[24]; langPerson(kd[k].lang,kd[k].rn1,kd[k].rn2,p); strcat(o,p); strcat(o," "); strcat(o,rnB[kd[k].rn2%8]); }
 static void kdFaith(int k,char*o){ static const u8 dn[4]={7,6,0,14}; strcpy(o,lwords[kd[k].lang%5][13]); strcat(o,"-"); strcat(o,lwords[kd[k].lang%5][dn[kd[k].rlg&3]]); }   /* the faith's local name: the tongue's word for god and for its dogma */
-static void kdStats(int k,int*cities,int*pop,int*power){ int c=0,p=0,w=0; for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==k+1){ c++; p+=vil[v].pop; w+=vil[v].pop+vil[v].towers*3+vil[v].houses; } w+=kd[k].tech*4; if(kd[k].ctr>>3&1) w=w*5/4; w=w*(100+10*kdKnow(k,2))/100; if(kd[k].rlg==0) w=w*11/10; if(cities) *cities=c; if(pop) *pop=p; if(power) *power=w; }
-static int kdDist(int a,int b){ int best=9999; for(int u=0;u<VIL_N;u++) if(vil[u].on&&vilK[u]==a+1) for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==b+1){ int dx=vil[u].x-vil[v].x, dy=vil[u].y-vil[v].y; int d=dx*dx+dy*dy; if(d<best) best=d; } int r=0; while(r*r<best&&r<200) r++; return r; }
+static void kdStatsRaw(int k,int*cities,int*pop,int*power){ int c=0,p=0,w=0; for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==k+1){ c++; p+=vil[v].pop; w+=vil[v].pop+vil[v].towers*3+vil[v].houses; } w+=kd[k].tech*4; if(kd[k].ctr>>3&1) w=w*5/4; w=w*(100+10*kdKnow(k,2))/100; if(kd[k].rlg==0) w=w*11/10; if(cities) *cities=c; if(pop) *pop=p; if(power) *power=w; }
+static int kdDistRaw(int a,int b){ int best=9999; for(int u=0;u<VIL_N;u++) if(vil[u].on&&vilK[u]==a+1) for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==b+1){ int dx=vil[u].x-vil[v].x, dy=vil[u].y-vil[v].y; int d=dx*dx+dy*dy; if(d<best) best=d; } int r=0; while(r*r<best&&r<200) r++; return r; }
 static int kdFound(int v){
+    KD_DIRTY();
     int k=-1; for(int i=0;i<KN_N;i++) if(!kd[i].on){ k=i; break; } if(k<0) return -1;
     Kd*K=&kd[k]; memset(K,0,sizeof *K); K->on=1; K->race=vil[v].race; K->n1=(u8)(rnd()%12); K->n2=(u8)(rnd()%8); K->rn1=(u8)(rnd()%12); K->rn2=(u8)(rnd()%8); K->rtr=(u8)(aggressive(K->race)?0:rnd()%4); K->born=(u16)year; K->gold=30; K->cul=(u8)(rnd()%5); K->rlg=(u8)(rnd()%4); K->lang=(u8)(rnd()%5==0?rnd()%5:raceLang(K->race)); K->nlang=K->lang; K->clan=(u8)(rnd()%8); K->cap=(u8)(v+1);
     vilK[v]=(u8)(k+1); vilL[v]=60; char n[24], b[72]; kdName(k,n); siprintf(b,"THE KINGDOM OF %s RISES",n); logEv(b); return k; }
 static void kdAssign(void){
+    KD_DIRTY();
     for(int v=0;v<VIL_N;v++){ if(!vil[v].on){ vilK[v]=0; continue; } if(vilK[v]&&kd[vilK[v]-1].on) continue; vilK[v]=0;
         int best=-1, bd=40*40; for(int u=0;u<VIL_N;u++) if(u!=v&&vil[u].on&&vilK[u]&&vil[u].race==vil[v].race){ int dx=vil[u].x-vil[v].x, dy=vil[u].y-vil[v].y, d=dx*dx+dy*dy; if(d<bd){ bd=d; best=u; } }
         if(best>=0) vilK[v]=vilK[best]; else if(kdFound(v)<0){ int nb=vilAny(vil[v].x,vil[v].y,60); (void)nb; for(int u=0;u<VIL_N;u++) if(u!=v&&vilK[u]){ vilK[v]=vilK[u]; break; } } } }
@@ -489,21 +493,42 @@ static const char* const knN[6][3]={{"TRIBAL LAW","KINGS COURT","ROYAL CHARTER"}
 static const char* const dogN[4]={"CRUSADERS: +10% POWER","PEACEKEEPERS: BETTER TALKS","BUILDERS: RICHER CITIES","MYSTICS: ODD GIFTS"};
 static int kdKnow(int k,int b){ int n=0; for(int i=0;i<3;i++) n+=(kd[k].know>>(b*3+i))&1; return n; }
 static int kdMaxCities(int k){ return 3+kdKnow(k,0)+(kd[k].tech>=6); }   // governance: each level allows one more city
-static int kdZones(int k){ int z=0; for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==k+1) z+=3+vil[v].lvl*3+vil[v].houses/3+kdKnow(k,1)*3; return z; }
+static int kdZonesRaw(int k){ int z=0; for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==k+1) z+=3+vil[v].lvl*3+vil[v].houses/3+kdKnow(k,1)*3; return z; }
+// The kingdom answer cache: kdStats (cities, people, power), kdDist (the nearest two cities of two kingdoms) and kdZones each walk every village (kdDist, every pair of villages), and the
+// kingdom turn, the pause menu's kingdom page and the browser ask them over and over for the same answers. An answer is kept until KD_DIRTY() says a village or a kingdom changed (or the tick moves on).
+// Build with -DKD_CHECK and every answer served from the cache is compared with a fresh one (pc_speed.c does).
+static struct { u32 ep, tk; u8 sOk[KN_N], zOk[KN_N], dOk[KN_N][KN_N]; int sc[KN_N], sp[KN_N], sw[KN_N], zv[KN_N]; u8 dv[KN_N][KN_N]; } kdC; static long kdHit, kdMiss, kdBad;
+static void kdCacheSync(void){ if(kdC.ep!=kdEp||kdC.tk!=(u32)tick){ memset(&kdC,0,sizeof kdC); kdC.ep=kdEp; kdC.tk=(u32)tick; } }
+static void kdStats(int k,int*cities,int*pop,int*power){ kdCacheSync(); if(!kdC.sOk[k]){ kdStatsRaw(k,&kdC.sc[k],&kdC.sp[k],&kdC.sw[k]); kdC.sOk[k]=1; kdMiss++; } else { kdHit++;
+#ifdef KD_CHECK
+        { int c,p,w; kdStatsRaw(k,&c,&p,&w); if(c!=kdC.sc[k]||p!=kdC.sp[k]||w!=kdC.sw[k]){ kdBad++; if(kdBad<6) fprintf(stderr,"BAD stats k%d tick %d: cache %d %d %d fresh %d %d %d ep %u\n",k,(int)tick,kdC.sc[k],kdC.sp[k],kdC.sw[k],c,p,w,kdEp); } }
+#endif
+    } if(cities) *cities=kdC.sc[k]; if(pop) *pop=kdC.sp[k]; if(power) *power=kdC.sw[k]; }
+static int kdDist(int a,int b){ kdCacheSync(); if(!kdC.dOk[a][b]){ kdC.dv[a][b]=(u8)kdDistRaw(a,b); kdC.dOk[a][b]=1; kdMiss++; } else { kdHit++;
+#ifdef KD_CHECK
+        if(kdC.dv[a][b]!=(u8)kdDistRaw(a,b)){ kdBad++; if(kdBad<6) fprintf(stderr,"BAD dist %d %d tick %d\n",a,b,(int)tick); }
+#endif
+    } return kdC.dv[a][b]; }
+static int kdZones(int k){ kdCacheSync(); if(!kdC.zOk[k]){ kdC.zv[k]=kdZonesRaw(k); kdC.zOk[k]=1; kdMiss++; } else { kdHit++;
+#ifdef KD_CHECK
+        if(kdC.zv[k]!=kdZonesRaw(k)){ kdBad++; if(kdBad<6) fprintf(stderr,"BAD zones %d tick %d\n",k,(int)tick); }
+#endif
+    } return kdC.zv[k]; }
 static void kdDeclareX(int a,int b,int spite){
     if(a==b||!gx.war||!LAWON(LW_DIPLOMACY)||!kd[a].on||!kd[b].on||(kd[a].war>>b&1)) return; if(spite){ kd[a].spite=kd[b].spite=1; } char x[24], y[24], s[72]; kdName(a,x); kdName(b,y); kdWar(a,b,1); stWars++; kd[a].allies&=(u8)~(1<<b); kd[b].allies&=(u8)~(1<<a); kd[a].rel[b]=kd[b].rel[a]=-60;
     if(kd[a].rlg!=kd[b].rlg&&((kd[a].ctr>>5&1)||kd[a].rlg==0)) siprintf(s,"%s DECLARES HOLY WAR ON %s",x,y); else siprintf(s,"%s DECLARES WAR ON %s",x,y); logEv(s);
     for(int c=0;c<KN_N;c++) if(c!=a&&c!=b&&kd[c].on&&(kd[a].allies>>c&1)&&!(kd[b].allies>>c&1)&&kd[c].rel[b]<20&&!(kd[c].war>>b&1)){ kdWar(c,b,1); char z[24]; kdName(c,z); siprintf(s,"%s JOINS THE WAR",z); logEv(s); } }
 static void kdDeclare(int a,int b){ kdDeclareX(a,b,0); }
-static void kdDie(int k){ char n[24], s[72]; kdName(k,n); siprintf(s,"THE KINGDOM OF %s FALLS",n); logEv(s); for(int o=0;o<KN_N;o++){ kd[o].allies&=(u8)~(1<<k); kd[o].war&=(u8)~(1<<k); if(kd[o].lord==k+1) kd[o].lord=0; kd[o].rel[k]=0; } memset(&kd[k],0,sizeof kd[k]); }
+static void kdDie(int k){ KD_DIRTY(); char n[24], s[72]; kdName(k,n); siprintf(s,"THE KINGDOM OF %s FALLS",n); logEv(s); for(int o=0;o<KN_N;o++){ kd[o].allies&=(u8)~(1<<k); kd[o].war&=(u8)~(1<<k); if(kd[o].lord==k+1) kd[o].lord=0; kd[o].rel[k]=0; } memset(&kd[k],0,sizeof kd[k]); }
 static int vilConquer(int fv,int byV){   // a village taken in war changes kingdom instead of dying
+    KD_DIRTY();
     int a=vilK[byV]-1, b=vilK[fv]-1; if(a<0||b<0||a==b||!(kd[a].war>>b&1)) return 0;
     int wasCap=kd[b].cap==fv+1; vilK[fv]=(u8)(a+1); vilL[fv]=-20; stCapt++; vil[fv].foe=0; vil[fv].stock/=2;
     if(wasCap){ kd[b].cap=0; for(int u=0;u<VIL_N;u++) if(vil[u].on&&vilK[u]==b+1){ vilL[u]=(s8)(vilL[u]-25); vil[u].foe=0; } logEv("A CAPITAL FALLS: ARMIES DESERT"); }   /* taking a capital shakes every other city of the kingdom */ char n[24], x[24], s[72]; vilName(fv,n); kdName(a,x); siprintf(s,"%s TAKES %s",x,n); logEv(s); kd[b].weary=(u8)(kd[b].weary>3?kd[b].weary-3:0); return 1; }
 static void kingdomTick(void){
     { static int lastAge=-1; int ag=worldAge(); if(ag!=lastAge){ if(lastAge>=0){ char s2[72]; siprintf(s2,"THE AGE OF %s BEGINS",ageN[ag]); logEv(s2); } lastAge=ag; } }
     kdAssign();
-    for(int k=0;k<KN_N;k++) if(kd[k].on){ int c,p,w; kdStats(k,&c,&p,&w); if(!c){ kdDie(k); continue; }
+    for(int k=0;k<KN_N;k++) if(kd[k].on){ KD_DIRTY(); int c,p,w; kdStats(k,&c,&p,&w); if(!c){ kdDie(k); continue; }
         Kd*K=&kd[k]; { int g=p/6+c*2+(K->trade?(K->ctr>>2&1)?10:4:0); if(worldAge()==0) g=g*5/4; g=g*(100+15*kdKnow(k,3))/100; K->gold=(u16)(K->gold+g>60000?60000:K->gold+g); } K->trade=0; K->tradeW=0;
         { int bon=(K->ctr>>4&1?3:0)+kdKnow(k,4)*2+(K->rlg==2?2:0); if(bon) for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==k+1&&vil[v].stock<390) vil[v].stock=(u16)(vil[v].stock+bon); }
         { /* the culture tree: points from people and scholars buy the next node of the branch the ruler cares about */ static const u8 pref[4][6]={{2,1,0,3,4,5},{0,4,5,3,1,2},{3,1,4,0,2,5},{5,0,3,4,1,2}}; int lv=0; for(int b=0;b<6;b++) lv+=kdKnow(k,b); K->cpts=(u16)(K->cpts+p/8+c+((K->ctr>>1&1)?4:0)+kdKnow(k,5)*2); int cost=(30+lv*20)*(100-10*kdKnow(k,5))/100;
@@ -520,6 +545,7 @@ static void kingdomTick(void){
         int emp=c>=5||(0); for(int o=0;o<KN_N;o++) if(kd[o].on&&kd[o].lord==k+1) emp+=0; { int vs=0; for(int o=0;o<KN_N;o++) vs+=kd[o].on&&kd[o].lord==k+1; if(vs>=2) emp=1; }
         if(emp&&!K->empire){ K->empire=1; char y[24], s[72]; kdName(k,y); siprintf(s,"%s BECOMES AN EMPIRE",y); logEv(s); } else if(!emp) K->empire=0;
         if(K->lord){ int l=K->lord-1; if(!kd[l].on) K->lord=0; else { int tr=K->gold/8; K->gold-=(u16)tr; kd[l].gold=(u16)(kd[l].gold+tr>60000?60000:kd[l].gold+tr); int c2,p2,w2; kdStats(l,&c2,&p2,&w2); if(w2*2<w||(rnd()%300)==0){ K->lord=0; char y[24], z[24], s[72]; kdName(k,y); kdName(l,z); kdWar(k,l,1); K->rel[l]=kd[l].rel[k]=-70; siprintf(s,"%s REVOLTS AGAINST %s",y,z); logEv(s); } } } }
+    KD_DIRTY();   // (the loop above changed technology, culture, faith: no answer worked out inside it is still good)
     // opinions (each kingdom's view of every other: distance, species, culture, alliance, size, ruler tempers), then plots: war, peace and alliance
     for(int a=0;a<KN_N;a++) if(kd[a].on){ if(kd[a].truce) kd[a].truce--; for(int b=0;b<KN_N;b++) if(b!=a&&kd[b].on){
             int d=kdDist(a,b), op=0; if(d<16) op-=15; else if(d>45) op+=10;
@@ -832,7 +858,7 @@ static const Pw pw[]={ {"INSPECT",PK_INSPECT,0},{"WATER",PK_PAINT,T_WATER},{"DEE
 #define PW_N ((int)(sizeof(pw)/sizeof(pw[0])))
 static int inspected=-1, trSel=1;
 static int inspT, inspKind, inspIdx;   // the inspect card: what was looked at (1 creature, 2 village) and for how long it stays up
-static void usePower(int tx,int ty,int fresh){
+static void usePower(int tx,int ty,int fresh){ KD_DIRTY();
     const Pw*P=&pw[power]; int r=brush;
     if(fresh){ stUse++; if(P->kind==PK_GIFT) stGift++; static const u8 fxOf[27]={FX_INSPECT,FX_PAINT,FX_SPAWN,FX_RAIN,FX_FIRE,FX_LIGHTNING,FX_METEOR,FX_SMITE,FX_HEAL,FX_FEED,FX_SETTLE,FX_WAR,FX_PEACE,FX_BLESS,FX_GIFT,FX_BIRTH,FX_METEOR,FX_RAIN,FX_BIRTH,FX_BLESS,FX_LIGHTNING,FX_RAIN,FX_SMITE,FX_METEOR,FX_MONSTER_SEEN,FX_SMITE,FX_RAIN}; fxReq(fxOf[P->kind]); } if(P->kind==PK_GIFT&&(it[itSel].kind==IK_WEAPON||it[itSel].kind==IK_ARMOR||it[itSel].kind==IK_RELIC||it[itSel].kind==IK_GEM)) r=1;
     for(int dy=-r;dy<=r;dy++) for(int dx=-r;dx<=r;dx++){ if(dx*dx+dy*dy>r*r+r/2) continue; int x=tx+dx, y=ty+dy; if(x<0||y<0||x>=WW||y>=WH) continue;
@@ -882,7 +908,7 @@ static void usePower(int tx,int ty,int fresh){
 static int planetSize=128;
 static void (*loadHook)(const char*,int);
 #define LOADING(m,p) do{ if(loadHook) loadHook(m,p); }while(0)
-static void newWorld(void){ LOADING("THE VOID",4); gxDefaults(); gW=gH=planetSize; nCr=0; memset(hz,0,sizeof hz); memset(occ,0,sizeof occ); memset(bld,0,sizeof bld); memset(bldv,0,sizeof bldv); memset(vil,0,sizeof vil); memset(kd,0,sizeof kd); memset(vilK,0,sizeof vilK); memset(vilL,0,sizeof vilL); memset(boat,0,sizeof boat); memset(vilBf,0,sizeof vilBf); memset(vilSick,0,sizeof vilSick); memset(favVil,0,sizeof favVil); memset(favKd,0,sizeof favKd); jrN=0; stWars=stCapt=stAllies=stSnack=0; nVilOn=0; worldSeed=seedFix?seedFix:rnd(); genWorld(worldSeed); LOADING("SHAPING THE LAND",35); winX=-99; refillWindow();
+static void newWorld(void){ KD_DIRTY(); LOADING("THE VOID",4); gxDefaults(); gW=gH=planetSize; nCr=0; memset(hz,0,sizeof hz); memset(occ,0,sizeof occ); memset(bld,0,sizeof bld); memset(bldv,0,sizeof bldv); memset(vil,0,sizeof vil); memset(kd,0,sizeof kd); memset(vilK,0,sizeof vilK); memset(vilL,0,sizeof vilL); memset(boat,0,sizeof boat); memset(vilBf,0,sizeof vilBf); memset(vilSick,0,sizeof vilSick); memset(favVil,0,sizeof favVil); memset(favKd,0,sizeof favKd); jrN=0; stWars=stCapt=stAllies=stSnack=0; nVilOn=0; worldSeed=seedFix?seedFix:rnd(); genWorld(worldSeed); LOADING("SHAPING THE LAND",35); winX=-99; refillWindow();
     LOADING("SEEDING LIFE",50);
     // the first life: a few of each of the first animals on their own ground
     int nAn=260*WW*WH/16384*cLife/2; { int cap=900*(WW*WH>65536?WW*WH/65536:1); if(nAn>cap) nAn=cap; }
@@ -927,7 +953,7 @@ static int saveGameRaw(const char*path){
     if(ok){ u32 mg=0x31544747u, sz=sizeof(Boat), nb=0; for(int b=0;b<8;b++) nb+=boat[b].on?1u:0u; ok&=svWrite(&mg,4,1,f)==1; ok&=svWrite(&sz,4,1,f)==1; ok&=svWrite(&nb,4,1,f)==1; for(int b=0;b<8&&ok;b++) if(boat[b].on) ok&=svWrite(&boat[b],sizeof(Boat),1,f)==1; }      // GGT1 trailer: the boats at sea (only those; none, and it is twelve bytes). Older builds never read it
     if(ok){ u32 mg=0x314C4747u, n=LW_N; ok&=svWrite(&mg,4,1,f)==1; ok&=svWrite(&n,4,1,f)==1; ok&=svWrite(lw,1,LW_N,f)==LW_N; }      // GGL1 trailer: the World Laws that differ from their defaults (an old build never reads it; an old save has none)
     svClose(f); return ok; }
-static int loadGameRaw(const char*path){
+static int loadGameRaw(const char*path){ KD_DIRTY();
     SV*f=svOpen(path,"rb"); if(!f) return 0; SaveHdr h; int ok=svRead(&h,sizeof h,1,f)==1;
     int nC=(int)h.nCr|(h.ver>=10?(int)h.pad_[1]<<16:0); int nvs=h.ver>=10&&h.planet?h.planet:VIL_OLDN; int legacy=0;
 #ifdef GG_BIGMAP
@@ -1036,7 +1062,7 @@ static void globePalette(void){
     for(int b=0;b<3;b++) for(int l=0;l<8;l++){ int r,g,bl; shadeRGB((T_N+b)*8+(l<1?0:l),&r,&g,&bl); int f=l==0?9:l==1?14:18+l*2; r=r*f/26; g=g*f/26; bl=bl*f/26; if(r>31) r=31; if(g>31) g=31; if(bl>31) bl=31; BG_PALETTE[GP_BIO+b*8+l]=RGB15(r,g,bl); }
     for(int l=0;l<6;l++) BG_PALETTE[GP_ATMO+l]=RGB15(2+l,6+l*3,14+l*3);
     BG_PALETTE[126]=RGB15(31,28,10); BG_PALETTE[127]=RGB15(31,18,4); BG_PALETTE[128]=RGB15(31,6,2); BG_PALETTE[129]=RGB15(31,31,28); }
-static void globeDraw(void){
+static void globeDrawNow(void){
     int R=globeR(); globeTables(R); int cL,sL,cP,sP; globeAim(rotY,rotX,&cL,&sL,&cP,&sP);
     memset(gbuf,1,sizeof gbuf); for(int k=0;k<44;k++){ int x=(int)(hsh(k,1,9)%256), y=(int)(hsh(k,2,9)%192); gbuf[y*256+x]=(u8)(2+((k+(tick>>5))&1)); }
     int drift=(tick>>6); int R2=R*R, H=R+3;
@@ -1054,6 +1080,13 @@ static void globeDraw(void){
             gbuf[sy*256+sx]=col; if(sx+1<256) gbuf[sy*256+sx+1]=col; if(sy+1<192){ gbuf[(sy+1)*256+sx]=col; if(sx+1<256) gbuf[(sy+1)*256+sx+1]=col; } } }
     if(walkOn){ int c=((tick>>3)&1)?3:129; for(int d=4;d<=8;d++){ gbuf[96*256+128+d]=(u8)c; gbuf[96*256+128-d]=(u8)c; gbuf[(96+d)*256+128]=(u8)c; gbuf[(96-d)*256+128]=(u8)c; } }
 }
+// The globe is drawn again only when something it shows has changed: the view (turn, zoom, walking, clouds, weather), the blink of the stars, the city lights and the walker's cross, a power
+// used (force), or every 16 ticks, so a planet that is not turning (paused, or a still view) costs nothing, and the picture goes to the screen only when it was redrawn (and now and then anyway).
+static int gKeyOk=0, gKey[10], gDrawN=0;
+static int globeDraw(int force){
+    int key[10]={rotX,rotY,zoom3,walkOn,gClouds,weather,(int)(tick>>6),(int)(tick>>5),(int)(tick>>4),walkOn?(int)((tick>>3)&1):0};
+    if(!force&&gKeyOk&&!memcmp(key,gKey,sizeof key)) return 0;
+    memcpy(gKey,key,sizeof key); gKeyOk=1; gDrawN++; globeDrawNow(); return 1; }
 static void globeFlush(void){
     static u8 tl[64] __attribute__((aligned(4)));
     for(int ty=0;ty<24;ty++) for(int tx=0;tx<32;tx++){ for(int y=0;y<8;y++){ const u8*r=gbuf+(ty*8+y)*256+tx*8; for(int x=0;x<8;x++) tl[y*8+x]=r[x]; } vramCopy((u8*)BG_TILE_RAM(1)+(ty*32+tx)*64,tl,64); } }
@@ -1062,7 +1095,7 @@ static void globeEnter(void){
     videoSetMode(MODE_0_2D|DISPLAY_BG0_ACTIVE|DISPLAY_SPR_ACTIVE|DISPLAY_SPR_1D_LAYOUT|DISPLAY_SPR_1D_SIZE_32); lcdMainOnBottom();
     for(int i=0;i<128;i++) oamSetHidden(&oamMain,i,true);
     bgSetScroll(0,0,0); for(int my=0;my<32;my++) for(int mx=0;mx<32;mx++) mapPtr[my*32+mx]=(u16)(my<24?my*32+mx:0);
-    globeDraw(); globeFlush(); view3d=1; }
+    globeDraw(1); globeFlush(); view3d=1; }
 static void leaveGlobe(void){
     walkOn=0; trUsed=0; memset(trKey,0,sizeof trKey); zl=3; makeTiles(); { int b0=0; (void)b0; } videoSetMode(MODE_0_2D|DISPLAY_BG0_ACTIVE|DISPLAY_BG1_ACTIVE|DISPLAY_SPR_ACTIVE|DISPLAY_SPR_1D_LAYOUT|DISPLAY_SPR_1D_SIZE_32); lcdMainOnBottom();
     uiPalette(); tbInit(); saveBasePal(); winX=-99; view3d=0; }
@@ -1110,7 +1143,7 @@ static void zCrit(int i,int px,int py,int S){   // one creature, its tile's top 
     if(S>=16&&c->wep){ zRect(px+(flip?0:S-S/8),py+S/4,S/8,S/2,UI_PAL0+U_LGREY); } }
 static int bZoomCol(int b,int race){ return (b==B_HALL||b==B_TOWER||b==B_TEMPLE||b==B_STATUE)?139:b==B_FARM?140:b==B_DOCK?137:128+race; }      // the colour of a building tile when the picture is too small for its art
 static int zKey=-1;
-static int zDraw(void){
+static int zDraw(void){ gKeyOk=0;
     zScale(); int S=zS_, sh=zSh_, K=zK_; int ox=zOx(), oy=zOy();
     int key=(ox*131+oy*17+zl*7)^((tick>>(zl>=Z_CLOSE?0:2))*257)^(weather*977)^(nCr*29); if(!zForce&&key==zKey) return 0; zKey=key; zForce=0;
     memset(gbuf,0,256*ZH);
@@ -1853,7 +1886,7 @@ int main(void){
                   if(kh&KEY_B){ if(lpx>=0){ sax+=tp.px-lpx; say+=tp.py-lpy; rotY-=sax/2; rotX+=say/2; sax%=2; say%=2; } else { sax=say=0; } lpx=tp.px; lpy=tp.py; h3=0; }   // B held: drag to turn the planet (the odd pixel is carried over, nothing is lost)
                   else { lpx=-1; int tx,ty; if(globePick(tp.px,tp.py,&tx,&ty)){ int fresh=!h3||tx!=l3x||ty!=l3y; if(pw[power].kind==PK_PAINT||fresh) usePower(tx,ty,!h3); h3=1; l3x=tx; l3y=ty; dirty=1; } } }
               else { h3=0; lpx=-1; } }
-            if(!paused) simulate(); for(int k=1;k<speedMul&&!paused;k++){ tick++; simulate(); } globeDraw(); swiWaitForVBlank(); globeFlush(); if((tick&15)==0||dirty){ drawMinimap(); hud(); } continue; }
+            if(!paused) simulate(); for(int k=1;k<speedMul&&!paused;k++){ tick++; simulate(); } { static int gfc=0; int gd=globeDraw(dirty); swiWaitForVBlank(); if(gd||((++gfc)&31)==0) globeFlush(); } if((tick&15)==0||dirty){ drawMinimap(); hud(); } continue; }
         if(kd&(KEY_X|KEY_Y)){ int d=(kd&KEY_X)?1:-1; if(kh&KEY_B){ if(pw[power].kind==PK_GIFT) itSel=itNext(itSel,10*d); else spSel=(spSel+nSp+10*d)%nSp; } else if(pw[power].kind==PK_SPAWN){ spSel=(spSel+nSp+d)%nSp; } else if(pw[power].kind==PK_GIFT){ itSel=itNext(itSel,d); } else if(pw[power].kind==PK_MUTATE){ for(int k=1;k<=TR_N;k++){ int t=(trSel+TR_N*2+d*k)%TR_N; if(t==0||((trSeen>>t)&1)||debugOn||unlockAll){ trSel=t; break; } } } else { brush+=d; if(brush<0) brush=0; if(brush>8) brush=8; } dirty=1; }
         if(kd&KEY_A&&page!=3){ paused^=1; dirty=1; }
         if(pen.held&&!pen.fromUi){ if(pen.fromBar){ if((pen.press||pen.rep)&&pen.y>=TB_Y){ tbTouch(pen.x,pen.y); fxReq(FX_MENU_MOVE); dirty=1; } held=1; } else if(pen.y>=TB_Y){ held=1; } else {   /* a touch that starts on the toolbar stays on it, a drift upward never paints; a stroke that slides down onto it just stops */ int tx=(pen.x+camX)>>3, ty=(pen.y+camY)>>3; if(zBmp&&!zHit(pen.x,pen.y,&tx,&ty)){ held=1; } else { int fresh=!held||tx!=lastTx||ty!=lastTy; if(pw[power].kind==PK_PAINT&&held&&(abs(tx-lastTx)>1||abs(ty-lastTy)>1)){ int n=abs(tx-lastTx)>abs(ty-lastTy)?abs(tx-lastTx):abs(ty-lastTy); if(n>24) n=24; for(int q=1;q<n;q++) usePower(lastTx+(tx-lastTx)*q/n,lastTy+(ty-lastTy)*q/n,0); } if(pw[power].kind==PK_PAINT||fresh) usePower(tx,ty,!held); held=1; lastTx=tx; lastTy=ty; dirty=1; } } } else held=0;

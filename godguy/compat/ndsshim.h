@@ -167,7 +167,7 @@ static inline void swiWaitForVBlank(void){ shimFrame++; shimPresent(); }
 // ---- drawing: both screens into RGB buffers (row-major). top 400 x 240 (the sub engine: bitmap + text), bottom 320 x 240 (the main engine: tiles + sprites)
 #include "font5x7.h"
 static inline void shimRGB(u16 c,u8*o){ o[0]=(u8)((c&31)*255/31); o[1]=(u8)(((c>>5)&31)*255/31); o[2]=(u8)(((c>>10)&31)*255/31); }
-static void shimRender(u8*top,u8*bot){
+static void shimRenderRef(u8*top,u8*bot){   // the plain renderer: every pixel of both screens, every time (kept as the reference the fast one is tested against)
     memset(top,0,400*240*3); memset(bot,0,320*240*3);
     u8*mb=shimSwap?top:bot; int mw=shimSwap?400:320, mox=shimSwap?72:32; u8*sb=shimSwap?bot:top; int sw=shimSwap?320:400, sox=shimSwap?32:72;   // which screen shows which engine
     // bottom: BG0 + sprites at (32,24)
@@ -181,4 +181,41 @@ static void shimRender(u8*top,u8*bot){
     for(int r=0;r<24;r++) for(int c=0;c<32;c++){ int ch=shimCon[r][c]; if(ch>='a'&&ch<='z') ch-=32; if(ch<32||ch>=96) continue; const unsigned char*g=font5x7[ch-32];
         for(int y=0;y<7;y++) for(int x=0;x<5;x++) if((g[y]>>(4-x))&1){ u8*o=&sb[((24+r*8+y)*sw+sox+c*8+x+1)*3]; o[0]=o[1]=o[2]=255; } }
 }
+
+// ---- the fast renderer. The same picture as shimRenderRef, byte for byte (pc_speed.c checks it), made quicker three ways: palettes are turned into RGB once (a table, rebuilt only when a palette changed),
+// the map and the tile rows are looked up once per 8 pixels instead of once per pixel, and each engine's inputs (tiles, maps, palettes, sprites, scroll, the bitmap and the text) are hashed, so an engine that did not change
+// is not drawn again and the caller is told which screen changed (the 3DS copies only those).
+typedef struct { u32 a, b; } ShimSig;
+static inline void shimSigAdd(ShimSig*g,const void*p,size_t n){ const u8*q=(const u8*)p; u32 a=g->a, b=g->b; for(;n>=8;n-=8,q+=8){ u32 x,y; memcpy(&x,q,4); memcpy(&y,q+4,4); a=(a^x)*16777619u; b=(b^y)*2246822519u; a^=a>>15; b^=b>>13; } for(;n;n--,q++){ a=(a^*q)*16777619u; } g->a=a; g->b=b; }
+static inline void shimSigInt(ShimSig*g,int v){ shimSigAdd(g,&v,4); }
+static u8 shimLutM[256][3], shimLutS[256][3], shimLutP[256][3];
+static void shimLut(u8 (*l)[3],const u16*pal){ for(int i=0;i<256;i++) shimRGB(pal[i],l[i]); }
+static void shimDrawMain(u8*mb,int mw,int mox){
+    for(int sy=0;sy<192;sy++){ int wy=(sy+shimScrollY)&511, my=wy>>3, ty=wy&7; u8*o=&mb[((24+sy)*mw+mox)*3];
+        for(int sx=0;sx<256;){ int wx=(sx+shimScrollX)&511, mx=wx>>3, tx0=wx&7; u16 e=shimMap[((my>=32?2:0)+(mx>=32?1:0))*1024+(my&31)*32+(mx&31)]; const u8*t=shimTiles+(e&0x3FF)*64+ty*8; int n=8-tx0; if(sx+n>256) n=256-sx;
+            for(int k=0;k<n;k++){ const u8*c=shimLutM[t[tx0+k]]; o[0]=c[0]; o[1]=c[1]; o[2]=c[2]; o+=3; } sx+=n; } }
+    for(int sy=0;sy<192;sy++){ u8*o=&mb[((24+sy)*mw+mox)*3]; for(int tx=0;tx<32;tx++){ u16 e=shimMap1[(sy>>3)*32+tx]; const u8*t=shimTiles+(e&0x3FF)*64+(sy&7)*8;   // BG1 (the toolbar): colour 0 is clear
+            for(int k=0;k<8;k++){ int idx=t[k]; if(idx){ const u8*c=shimLutM[idx]; o[tx*24+k*3]=c[0]; o[tx*24+k*3+1]=c[1]; o[tx*24+k*3+2]=c[2]; } } } }
+    for(int n=127;n>=0;n--){ const ShimSpr*s=&shimSpr[n]; if(!s->on||!s->gfx) continue; for(int y=0;y<8;y++){ int py=s->y+y; if(py<0||py>=192) continue; for(int x=0;x<8;x++){ int xx=s->hflip?7-x:x; int b=s->gfx[y*4+xx/2]; int idx=(xx&1)?(b>>4):(b&15); if(!idx) continue; int px=s->x+x; if(px<0||px>=256) continue;
+            const u8*c=shimLutP[s->pal*16+idx]; u8*d=&mb[((24+py)*mw+mox+px)*3]; d[0]=c[0]; d[1]=c[1]; d[2]=c[2]; } } } }
+static void shimDrawSub(u8*sb,int sw,int sox){
+    for(int sy=0;sy<192;sy++){ const u8*in=&shimBmp[sy*256]; u8*o=&sb[((24+sy)*sw+sox)*3]; for(int sx=0;sx<256;sx++){ const u8*c=shimLutS[in[sx]]; if(in[sx]){ o[0]=c[0]; o[1]=c[1]; o[2]=c[2]; } else o[0]=o[1]=o[2]=0; o+=3; } }
+    for(int r=0;r<24;r++) for(int c=0;c<32;c++){ int ch=shimCon[r][c]; if(ch>='a'&&ch<='z') ch-=32; if(ch<32||ch>=96) continue; const unsigned char*g=font5x7[ch-32];
+        for(int y=0;y<7;y++) for(int x=0;x<5;x++) if((g[y]>>(4-x))&1){ u8*o=&sb[((24+r*8+y)*sw+sox+c*8+x+1)*3]; o[0]=o[1]=o[2]=255; } } }
+static long shimDrawnMain, shimDrawnSub, shimSkipped;   // counters (pc_speed.c reads them)
+// Draws what changed into top / bottom (400 x 240 and 320 x 240, RGB, row by row) and says which of the two screens changed. The buffers must be the ones passed last time (they keep their picture);
+// a new buffer, or the screens swapping places, draws everything.
+static void shimRenderChanged(u8*top,u8*bot,int*topChanged,int*botChanged){
+    static u8*lt, *lb; static int lswap=-1, lmax=0; static ShimSig sm, ss; static int have;
+    int force=!have||top!=lt||bot!=lb||shimSwap!=lswap; if(force){ memset(top,0,400*240*3); memset(bot,0,320*240*3); lt=top; lb=bot; lswap=shimSwap; have=1; }
+    ShimSig m={2166136261u,0x9E3779B9u}, b={2166136261u,0x9E3779B9u}; (void)lmax;
+    shimSigAdd(&m,shimTiles,sizeof shimTiles); shimSigAdd(&m,shimMap,sizeof shimMap); shimSigAdd(&m,shimMap1,sizeof shimMap1); shimSigAdd(&m,BG_PALETTE,sizeof BG_PALETTE); shimSigAdd(&m,SPRITE_PALETTE,sizeof SPRITE_PALETTE); shimSigInt(&m,shimScrollX); shimSigInt(&m,shimScrollY);
+    for(int n=0;n<128;n++){ const ShimSpr*s=&shimSpr[n]; shimSigInt(&m,s->on); if(!s->on||!s->gfx) continue; shimSigInt(&m,s->x); shimSigInt(&m,s->y); shimSigInt(&m,s->pal); shimSigInt(&m,s->hflip); shimSigAdd(&m,s->gfx,32); }
+    shimSigAdd(&b,shimBmp,sizeof shimBmp); shimSigAdd(&b,BG_PALETTE_SUB,sizeof BG_PALETTE_SUB); shimSigAdd(&b,shimCon,sizeof shimCon);
+    int mc=force||m.a!=sm.a||m.b!=sm.b, sc=force||b.a!=ss.a||b.b!=ss.b; sm=m; ss=b;
+    u8*mbuf=shimSwap?top:bot; int mw=shimSwap?400:320, mox=shimSwap?72:32; u8*sbuf=shimSwap?bot:top; int sw=shimSwap?320:400, sox=shimSwap?32:72;
+    if(mc){ shimLut(shimLutM,BG_PALETTE); shimLut(shimLutP,SPRITE_PALETTE); shimDrawMain(mbuf,mw,mox); shimDrawnMain++; } else shimSkipped++;
+    if(sc){ shimLut(shimLutS,BG_PALETTE_SUB); shimDrawSub(sbuf,sw,sox); shimDrawnSub++; } else shimSkipped++;
+    if(topChanged) *topChanged=shimSwap?mc:sc; if(botChanged) *botChanged=shimSwap?sc:mc; }
+static void shimRender(u8*top,u8*bot){ shimRenderChanged(top,bot,0,0); }
 #endif
