@@ -20,6 +20,13 @@ P10 = {  # by power kind (see PK_ enum order in main.c)
  'BLOOM':   ["...rr.....", "..rrrr....", "...rr.yy..", "....n.yyy.", "...nn..y..", "..nnnn.n..", ".nn.nn.n..", "....n.nn..", "....n.....", "..........",],
  'VIBE':    ["..........", "...pp.....", "..p..p....", "...pp.p...", "....pp....", "...p..p...", "..pp.pp...", "...pppp...", "....pp....", ".........."],
  'MUTATE':  ["..p....p..", "..pp..pp..", "...pppp...", "....pp....", "...pppp...", "..pp..pp..", "..p....p..", "..pp..pp..", "...pppp...", "....pp...."],
+ # the Calamity pack (v0.14): see calamity.h
+ 'TORNADO': ["lllllllll.", ".sslllsss.", "..lssssl..", "...lllsl..", "..sslll...", "...slls...", "....lss...", ".....ls...", "....sl....", "...s......"],
+ 'ACID':    ["..nnnn....", ".nnnnnnn..", "nnnnnnnnn.", ".nnnnnnn..", "..........", "..y..y..y.", "..n..n..n.", ".n..n..n..", ".y..y..y..", ".........."],
+ 'HOLE':    ["...wwww...", "..wddddw..", ".wddppddw.", ".wdpddpdw.", ".wdpddpdw.", ".wddppddw.", "..wddddw..", "...wwww...", "..........", ".........."],
+ 'NUKE':    ["...oooo...", "..oyyyyo..", ".ooyyyyoo.", "..oooooo..", "....oo....", "....oo....", "...oooo...", "..oooooo..", ".sssssssss", ".........."],
+ 'PLAGUE':  [".n..nn..n.", "..nnnnnn..", ".nnnnnnnn.", "nnnwnnwnnn", ".nnnnnnnn.", "nnnnwwnnnn", ".nnnnnnnn.", "..nnnnnn..", ".n..nn..n.", ".........."],
+ 'CURSE':   ["..pppppp..", ".pppppppp.", "ppdppppdpp", "ppdppppdpp", "pppppppppp", ".pppppppp.", "..pp..pp..", "..pppppp..", "..p.pp.p..", ".........."],
 }
 P8 = {
  'LIFE':  [".rr..rr.", "rrrrrrrr", "rrrrrrrr", "rrrrrrrr", ".rrrrrr.", "..rrrr..", "...rr...", "........"],

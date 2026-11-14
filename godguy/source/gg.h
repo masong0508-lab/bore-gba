@@ -19,12 +19,12 @@ extern int gW,gH;               // the planet in play: 128, 192 or 256 tiles a s
 #define WH gH
 #define MAXC 2400
 #define SHAPE_OLD 20             // hand-drawn two-frame shapes
-#define SHAPE_N 42               // plus the one-frame shapes drawn below (their second frame is made by swapping the feet) and the crown, rain and snow sprites
+#define SHAPE_N 45               // plus the one-frame shapes drawn below (their second frame is made by swapping the feet) and the crown, rain and snow sprites, then the tornado (two pieces) and the black hole
 #define ARCH_A 32                 // archetypes below this are people and animals
 #define ARCH_N 52                 // 32..51 are monsters
 #define SP_N 720
 enum { T_DEEP, T_WATER, T_SAND, T_GRASS, T_FOREST, T_HILL, T_MOUNT, T_SNOW, T_LAVA, T_DESERT, T_SWAMP, T_JUNGLE, T_DIRT, T_N };
-typedef struct { u16 sp, wep, arm; u8 x, y; s8 ox, oy; u8 hp, food, age, t, dir, alive, tr, tr2, rk; } Cr;   // a creature (tr, tr2: its subspecies traits; rk: 0 normal, 1 elite, 2 boss): its kind, its tile and the offset it glides in from, health, hunger, age; wep and arm: the item (+1) it carries
+typedef struct { u16 sp, wep, arm; u8 x, y; s8 ox, oy; u8 hp, food, age, t, dir, alive, tr, tr2, rk, sick; } Cr;   // a creature (tr, tr2: its subspecies traits; rk: 0 normal, 1 elite, 2 boss; sick: 0 healthy, 1 plagued, 2 recovered and immune. It sits in what was padding, so the struct is still 20 bytes and old saves load as healthy): its kind, its tile and the offset it glides in from, health, hunger, age; wep and arm: the item (+1) it carries
 typedef struct { u8 a, fam; } Sp;                                                     // a kind of creature: its archetype (shape and habits) and its colour family
 extern u8 world[MAXD][MAXD];
 u32 rnd(void);

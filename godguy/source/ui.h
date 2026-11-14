@@ -64,7 +64,7 @@ static void uiBar(int x,int y,int w,int h,int val,int max,int col){ uiFrame(x,y,
 static void uiIcon10(int x,int y,int idx){ for(int j=0;j<10;j++) for(int i=0;i<10;i++){ int c=icon10[idx][j*10+i]; if(c) uiPx(x+i,y+j,c); } }
 static void uiIcon8(int x,int y,int idx){ for(int j=0;j<8;j++) for(int i=0;i<8;i++){ int c=icon8[idx][j*8+i]; if(c) uiPx(x+i,y+j,c); } }
 // ---- a power's icon: paints show the ground they paint, everything else has its own picture
-static const u8 uiKindIcon[20]={IC10_INSPECT,0,IC10_SPAWN,IC10_RAIN,IC10_FIRE,IC10_BOLT,IC10_METEOR,IC10_SMITE,IC10_HEAL,IC10_FEED,IC10_SETTLE,IC10_WAR,IC10_PEACE,IC10_BLESS,IC10_GIFT,IC10_MUTATE,IC10_QUAKE,IC10_FLOOD,IC10_BLOOM,IC10_VIBE};
+static const u8 uiKindIcon[26]={IC10_INSPECT,0,IC10_SPAWN,IC10_RAIN,IC10_FIRE,IC10_BOLT,IC10_METEOR,IC10_SMITE,IC10_HEAL,IC10_FEED,IC10_SETTLE,IC10_WAR,IC10_PEACE,IC10_BLESS,IC10_GIFT,IC10_MUTATE,IC10_QUAKE,IC10_FLOOD,IC10_BLOOM,IC10_VIBE,IC10_TORNADO,IC10_ACID,IC10_HOLE,IC10_NUKE,IC10_PLAGUE,IC10_CURSE};
 // ground swatches use three shades per terrain: 100.. in the top palette, 200.. in the toolbar's
 static int uiSwatch(int t,int i,int j,int base){ int p=tilePix(t,0,(i*8)/10,(j*8)/10); p=(p>=104&&p<128)?4:p%8; return base+t*3+(p<=2?0:p<=4?1:2); }
 static void uiShadePal(void){ for(int t=0;t<T_N;t++) for(int j=0;j<3;j++){ int r,g,b; shadeRGB(t*8+2+j*2,&r,&g,&b); BG_PALETTE_SUB[100+t*3+j]=RGB15(r,g,b); BG_PALETTE[200+t*3+j]=RGB15(r,g,b); } }
@@ -129,7 +129,7 @@ static void tbDraw(void){
         int tw=(int)strlen(tbCatNm[c])*6-1; tbText((x0+x1)/2-tw/2,1+(TT-1-7)/2,tbCatNm[c],UI_PAL0+(sel?U_WHITE:U_LGREY)); }
     for(int s=0;s<TB_SLOTS&&tbTop+s<tbN;s++){ int pi=tbList[tbTop+s]; int x0=12+s*PI, y0=Y0, sel=pi==power;
         for(int j=0;j<SH;j++) for(int i=0;i<SW;i++){ int edge=(i==0||j==0||i==SW-1||j==SH-1); int c=sel?(edge?U_GOLD:(j<=2?U_BHI:U_SEL)):(edge?U_BLO:(j==1?U_PANEL:U_SHADOW)); TBP(x0+i,y0+j,UI_PAL0+c); }
-        { int kk=pw[pi].kind, cc=kk==PK_PAINT?U_BROWN:(kk==PK_SPAWN||kk==PK_HEAL||kk==PK_FEED||kk==PK_BLOOM||kk==PK_VIBE)?U_GREEN:(kk==PK_RAIN||kk==PK_FIRE||kk==PK_BOLT||kk==PK_METEOR||kk==PK_KILL||kk==PK_QUAKE||kk==PK_FLOOD)?U_RED:(kk==PK_SETTLE||kk==PK_WAR||kk==PK_PEACE||kk==PK_BLESS)?U_BLUE:U_GOLD; for(int i=1;i<SW-1;i++){ for(int j=1;j<=2+(K>1);j++) TBP(x0+i,y0+j,UI_PAL0+cc); } }   // a colour
+        { int kk=pw[pi].kind, cc=kk==PK_PAINT?U_BROWN:(kk==PK_SPAWN||kk==PK_HEAL||kk==PK_FEED||kk==PK_BLOOM||kk==PK_VIBE)?U_GREEN:(kk==PK_RAIN||kk==PK_FIRE||kk==PK_BOLT||kk==PK_METEOR||kk==PK_KILL||kk==PK_QUAKE||kk==PK_FLOOD||kk>=PK_TORNADO)?U_RED:(kk==PK_SETTLE||kk==PK_WAR||kk==PK_PEACE||kk==PK_BLESS)?U_BLUE:U_GOLD; for(int i=1;i<SW-1;i++){ for(int j=1;j<=2+(K>1);j++) TBP(x0+i,y0+j,UI_PAL0+cc); } }   // a colour
         if(favPow[pi]){ for(int j=0;j<3*K;j++) for(int i=0;i<3*K;i++) TBP(x0+SW-5*K+i,y0+3+K+j,UI_PAL0+U_YELLOW); }   // a starred power
         const Pw*P=&pw[pi]; int ix=x0+(SW-IS)/2, iy=y0+(SH-IS)/2+(K>1);
         for(int j=0;j<IS;j++) for(int i=0;i<IS;i++){ int si=i*10/IS, sj=j*10/IS, c;   // 10 x 10 icons, drawn 1.5 or 2 times as big when the scale is up
