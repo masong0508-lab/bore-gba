@@ -5,6 +5,6 @@ SECTIONS {
 	.text : { *(.crt0) *(.text .text.*) *(.rodata .rodata.*) *(.data .data.*) . = ALIGN(4); } > ram
 	.bss (NOLOAD) : { . = ALIGN(4); __bss_start = .; *(.bss .bss.*) *(COMMON) . = ALIGN(4); __bss_end = .; } > ram
 	__heap_start = .; __end__ = .;
-	ASSERT(__bss_end <= 0x02300000, "GodGuy: the ARM9 code and data run into the save buffer at 0x02300000 - lower MAXC in source/gg.h");
 	/DISCARD/ : { *(.ARM.exidx*) *(.ARM.extab*) *(.comment) *(.note*) }
 }
+ASSERT(__bss_end <= 0x02300000, "GodGuy: the ARM9 code and data run into the save buffer at 0x02300000 - lower MAXC in source/gg.h");
