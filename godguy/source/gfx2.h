@@ -1,7 +1,7 @@
 // gfx2.h - GODGUY graphics pass 1 (included once from main.c, right before bldPix).
 // Richer ground tiles (tufts, meadows, shaded trees, snow-capped peaks, dunes, cracked lava, waves), a calmer mottling of the ground over large areas,
 // buildings with shaded roofs and windows that light up at night, and creatures with a lit top edge and a shaded underside.
-// Integer maths only (the DS has no FPU). Tile and palette layout is unchanged: ground is still terrain*4+variant, buildings still BT0+type*8+race.
+// Integer maths only (the DS has no FPU). Tile and palette layout is unchanged: ground is still terrain*4+variant, buildings still BT0+type*8+race (the later ones, dock to library, at BT1; see BTILE in main.c).
 // New palette entries (main background): 104..114 details (flowers, hot lava, cactus, cattail), 144..159 roofs (dark, light), 160 window glass.
 #define GFX_PAL_N 192
 #define GFX_MEADOW0 108          // 16 spare tile slots (108..123): grass with flowers

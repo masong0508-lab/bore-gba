@@ -20,3 +20,7 @@ gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_fix pc
 gcc -O2 -DNDSSHIM -DGG_BIG -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_big pc_big.c -lm && /tmp/gg_big | tail -1
 gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_small pc_big.c -lm
 N=$(/tmp/gg_small mk /tmp/gg_x.sav | sed -n 's/.*creatures \([0-9]*\) villages \([0-9]*\).*/\1 \2/p'); /tmp/gg_big ld /tmp/gg_x.sav $N | tail -1   # a DS-sized save loads on the big build, creature for creature
+# settlements (step 4): unit levels and village mood, docks and boats (and the boat trailer of a save), temples, statues, libraries, crowding
+gcc $F -w -o /tmp/gg_life pc_life.c -lm && /tmp/gg_life | tail -1
+gcc $F -w -o /tmp/gg_boats pc_boats.c -lm && /tmp/gg_boats | tail -1
+gcc $F -w -o /tmp/gg_temples pc_temples.c -lm && /tmp/gg_temples | tail -1

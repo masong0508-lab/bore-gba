@@ -1,0 +1,15 @@
+// PC test: villages raise temples (a mood lift, the priests tend the sick), statues to their heroes and libraries (a mood lift, cheaper technology)
+#define PCTEST 1
+#include <stdlib.h>
+#include "source/main.c"
+int main(){ planetSize=128; rs=31u; makeSpecies(); makeItems(); newWorld(); monOn=1; for(int t=1;t<=40000;t++){ tick=t; year=t/1200; simulate(); }
+  int tm=0,st=0,vt=0,lib=0; for(int y=0;y<WH;y++) for(int x=0;x<WW;x++){ tm+=bld[y][x]==B_TEMPLE; lib+=bld[y][x]==B_LIBRARY; st+=bld[y][x]==B_STATUE; } for(int v=0;v<VIL_N;v++) vt+=vil[v].on;
+  int w=0,wo=0,nw=0,no=0; for(int v=0;v<VIL_N;v++) if(vil[v].on){ if(vilBf[v]&1){ w+=vilMood(v); nw++; } else { wo+=vilMood(v); no++; } }
+  printf("libraries %d; ",lib); printf("villages %d, temples %d, statues %d; mean mood with a temple %d (%d), without %d (%d)\n",vt,tm,st,nw?w/nw:0,nw,no?wo/no:0,no);
+  int ok=saveGame("/tmp/gg_t.sav"); int f0=0; for(int v=0;v<VIL_N;v++) f0+=vil[v].on?vilBf[v]:0; memset(vilBf,0,sizeof vilBf); loadGame("/tmp/gg_t.sav"); int f1=0; for(int v=0;v<VIL_N;v++) f1+=vil[v].on?vilBf[v]:0; printf("flags kept by load: %s (%d vs %d); folk of level 2+: %d\n",f0==f1?"yes":"NO",f0,f1,({int c=0; for(int i=0;i<nCr;i++) c+=cr[i].alive&&cr[i].dir>=1&&arch[sp[cr[i].sp].a].diet==4; c;}));
+  // the priests: in a village with a temple half of the plagued folk recover each look; without one nobody is cured by it
+  int tv=-1; for(int v=0;v<VIL_N;v++) if(vil[v].on&&(vilBf[v]&1)&&vil[v].pop>=6){ tv=v; break; } int cured=-1;
+  if(tv>=0){ Vil*V=&vil[tv]; int made=0; for(int i=0;i<nCr&&made<20;i++){ Cr*c=&cr[i]; if(c->alive&&sp[c->sp].a==V->race&&sp[c->sp].a<8&&(c->x-V->x)*(c->x-V->x)+(c->y-V->y)*(c->y-V->y)<=100){ c->sick=1; made++; } }
+    tick=16; vilTick(tv); int still=0; for(int i=0;i<nCr;i++) { Cr*c=&cr[i]; still+=c->alive&&c->sick==1&&sp[c->sp].a==V->race&&(c->x-V->x)*(c->x-V->x)+(c->y-V->y)*(c->y-V->y)<=100; } cured=made-still; printf("temple village: %d sick folk, %d recovered at one look, %d left (counted %d)\n",made,cured,still,vilSick[tv]); }
+  // a kingdom with libraries learns cheaper: the library count shows in the flags
+  printf("%s\n",(tm>0&&lib>0&&f0==f1&&cured>0)?"TEMPLES OK":"TEMPLES WEAK"); return 0; }

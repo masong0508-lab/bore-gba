@@ -95,6 +95,7 @@ static const char* const shpN[SHAPE_N-SHAPE_OLD][8]={
  /*42 tornado top*/ {"bbbbbbbb","dbbbbbbd",".bbdbbb.",".dbbbbd.","..bbdb..","..dbbb..","...bbd..","...dbb.."},
  /*43 tornado tip*/ {"...bbd..","...dbb..","....bb..","....db..","...bb...","...bd...","....b...","........"},
  /*44 black hole*/ {"..eeee..",".edddde.","eddbbdde","edbbbbde","edbbbbde","eddbbdde",".edddde.","..eeee.."},
+ /*45 boat*/ {"...b....","...bb...","..bbb...","..bbbb..","...d....","dddddddd",".dddddd.","........"},
 };
 static const char* shpRow(int s,int f,int y){   // row y of frame f of shape s (the walking frame of the new shapes flips their lower three rows)
     if(s<SHAPE_OLD) return shp[s][f][y]; static char flip[9]; const char*r=shpN[s-SHAPE_OLD][y]; if(!f||y<5||s>=SHAPE_OLD+19) return r; for(int i=0;i<8;i++) flip[i]=r[7-i]; flip[8]=0; return flip; }
@@ -139,11 +140,11 @@ static const char* const trDesc[TR_N]={"","BITES HARDER: +4 DAMAGE","TAKES 3 LES
 static u32 trSeen; static u32 stMut; static int trCount[TR_N], diff=1;      // traits met in this save, mutations so far, living bearers, difficulty 0 calm 1 normal 2 brutal
 #define HAS(c,t) ((c)->tr==(t)||(c)->tr2==(t))
 static int trMask(const Cr*c){ int m=0; if(HAS(c,TR_FIRE)) m|=1<<T_LAVA; if(HAS(c,TR_AMPH)||HAS(c,TR_FLOATY)) m|=M_WATER; if(HAS(c,TR_CLIMB)||HAS(c,TR_SPACY)) m|=1<<T_MOUNT; if(HAS(c,TR_WING)) m|=M_ALL&~(1<<T_LAVA); if(HAS(c,TR_FROST)) m|=(1<<T_SNOW)|(1<<T_MOUNT); return m; }
-static int maxHp(const Cr*c){ int h=arch[sp[c->sp].a].hp*gxVigorK(sp[c->sp].a)/100; if(HAS(c,TR_GIANT)) h=h*16/10; if(HAS(c,TR_COUCH)) h=h*15/10; if(HAS(c,TR_TINY)) h=h*6/10; if(c->rk==1) h=h*13/10; else if(c->rk==2) h=h*2; if(h<3) h=3; return h>255?255:h; }
+static int maxHp(const Cr*c){ int h=arch[sp[c->sp].a].hp*gxVigorK(sp[c->sp].a)/100; if(HAS(c,TR_GIANT)) h=h*16/10; if(HAS(c,TR_COUCH)) h=h*15/10; if(HAS(c,TR_TINY)) h=h*6/10; if(c->rk==1) h=h*13/10; else if(c->rk==2) h=h*2; h+=c->dir*5; if(h<3) h=3; return h>255?255:h; }      // (dir holds the level, 0..10)
 static int effSpd(const Cr*c){ int sd=arch[sp[c->sp].a].spd; if(HAS(c,TR_SWIFT)) sd=sd*7/10; if(HAS(c,TR_GIANT)) sd=sd*13/10; if(HAS(c,TR_CHILL)) sd=sd*13/10; if(HAS(c,TR_COUCH)) sd=sd*17/10; if(HAS(c,TR_NOCT)){ int p=(tick>>1)&2047; sd=(p<256||p>1792)?sd*7/10:sd*12/10; } if(c->sick==1) sd=sd*13/10; return sd<3?3:sd; }
 static void crName(const Cr*c,char*out){ out[0]=0; if(c->rk==1) strcpy(out,"ELITE "); else if(c->rk==2) strcpy(out,"BOSS "); if(c->rk){ strcat(out,heroN[(c->sp*5+(int)(c-cr))%12]); strcat(out," "); } if(c->tr){ strcat(out,trNm[c->tr]); strcat(out," "); } if(c->tr2){ strcat(out,trNm[c->tr2]); strcat(out," "); } char b[32]; spName(c->sp,b); strcat(out,b); if(c->sick==1&&strlen(out)+8<=46){ memmove(out+8,out,strlen(out)+1); memcpy(out,"PLAGUED ",8); } }
 static int hitDmg(const Cr*a,const Cr*d){   // one blow: the attacker's strength, gear and traits against the defender's armour and traits
-    const Arch*A=&arch[sp[a->sp].a]; int dm=A->atk+gearAtk(a)+(int)(rnd()&3); if(HAS(a,TR_CLEVER)) dm+=gearAtk(a)/2; if(HAS(a,TR_VENOM)) dm+=4; if(HAS(a,TR_GIANT)) dm+=2;
+    const Arch*A=&arch[sp[a->sp].a]; int dm=A->atk+gearAtk(a)+(int)(rnd()&3); if(HAS(a,TR_CLEVER)) dm+=gearAtk(a)/2; if(HAS(a,TR_VENOM)) dm+=4; if(HAS(a,TR_GIANT)) dm+=2; dm+=a->dir/2;
     if(HAS(a,TR_LUCKY)&&rnd()%8==0) dm+=6; if(HAS(a,TR_BRAVE)&&arch[sp[d->sp].a].diet==5) dm+=3;
     if(HAS(a,TR_PACK)){ int n=0; for(int k=0;k<4;k++){ int x=a->x+dxs[k], y=a->y+dys[k]; if(x>=0&&y>=0&&x<WW&&y<WH&&occ[y][x]&&cr[occ[y][x]-1].sp==a->sp) n++; } dm+=2*n; }
     if(a->rk==1) dm=dm*13/10; else if(a->rk==2) dm=dm*2; if(A->diet==5) dm=dm*(diff==0?70:diff==2?140:100)/100;
@@ -209,8 +210,10 @@ static int tilePixOld(int t,int v,int x,int y){   // (the old ground art, replac
 }
 static void shadeRGB(int idx,int*r,int*g,int*b){ int t=idx/8,k=idx%8,f=60+k*20; *r=terrCol[t][0]*f/160; *g=terrCol[t][1]*f/160; *b=terrCol[t][2]*f/160; if(*r>31)*r=31; if(*g>31)*g=31; if(*b>31)*b=31; }
 // buildings: B_*; a building tile is ground (grass) with the building on it, in the colours of the people who built it
-enum { B_NONE, B_HUT, B_HOUSE, B_HALL, B_FARM, B_TOWER, B_RUIN, B_N };
+enum { B_NONE, B_HUT, B_HOUSE, B_HALL, B_FARM, B_TOWER, B_RUIN, B_DOCK, B_TEMPLE, B_STATUE, B_LIBRARY, B_N };
 #define BT0 (T_N*4)
+#define BT1 124      // the tiles of the later buildings (dock .. library, 8 a type: 124..155), after the meadow tiles at 108..123
+#define BTILE(b,r) ((b)<B_DOCK?BT0+(b)*8+(r):BT1+((b)-B_DOCK)*8+(r))
 static const u8 roofCol[8][3]={ {27,4,4},{6,22,8},{8,14,26},{14,3,3},{28,24,4},{29,15,3},{20,8,26},{14,9,4} };   // human elf dwarf orc goblin halfling gnome ogre
 static const u8 bldCol[8][3]={ {27,22,14},{14,10,5},{16,16,19},{20,20,22},{4,24,6},{12,8,3},{10,10,12},{31,31,31} };   // wall, dark wood, door, stone, crop, soil, ruin, flag
 #include "gfx2.h"
@@ -222,6 +225,10 @@ static int bldPixOld(int type,int race,int x,int y){   // (the old building art)
     case B_HALL: if(y<=2&&x==2) return dark; if(y<=1&&x>=3&&x<=5) return flag; if(y==2&&(x&1)==0&&x>=1&&x<=7) return stone; if(y>=3) return (y>=5&&x>=3&&x<=4)?dark:((x==1||x==6)&&y==4)?dark:stone; break;
     case B_FARM: if(x==0||x==7||y==0||y==7) return (x+y)&1?dark:bg; return (y&1)?crop:soil;
     case B_TOWER: if(y==1&&(x==2||x==3||x==5)) return stone; if(y>=2&&x>=2&&x<=5) return (y==4&&x==3)?dark:stone; break;
+    case B_DOCK: if(y>=3&&y<=4) return (x&1)?door:wall; if(y>=5&&y<=6&&(x==1||x==6)) return door; break;
+    case B_TEMPLE: if(y<=1&&x>=3&&x<=4) return flag; if(y==2&&x>=2&&x<=5) return roof; if(y==3&&x>=1&&x<=6) return roof; if(y>=4&&y<=7&&x>=1&&x<=6) return (y>=6&&x>=3&&x<=4)?door:((x&1)&&y<7)?stone:wall; break;
+    case B_STATUE: if(y>=6&&x>=2&&x<=5) return stone; if(y>=2&&y<=5&&x>=3&&x<=4) return stone; if(y==1&&x>=3&&x<=4) return wall; if(y==3&&(x==2||x==5)) return stone; break;
+    case B_LIBRARY: if(y>=1&&y<=2&&x>=1&&x<=6) return roof; if(y>=3&&y<=7&&x>=1&&x<=6) return (y>=6&&x>=3&&x<=4)?door:((y==4||y==5)&&(x==2||x==5))?flag:wall; break;
     case B_RUIN: if((hsh(x,y,17)&3)==0) return ruin; if((hsh(x,y,18)&7)==1) return stone; break; }
     return bg;
 }
@@ -235,7 +242,7 @@ static void makeTiles(void){
     for(int k=0;k<8;k++) BG_PALETTE[136+k]=RGB15(bldCol[k][0],bldCol[k][1],bldCol[k][2]);
     // (tiles are built in RAM and copied 16 bits at a time: the DS ignores byte writes to VRAM)
     static u8 tl[64] __attribute__((aligned(4))); u8*bb=(u8*)BG_TILE_RAM(1);
-    for(int ty=1;ty<B_N;ty++) for(int r=0;r<8;r++){ for(int y=0;y<8;y++) for(int x=0;x<8;x++) tl[y*8+x]=(u8)bldPix(ty,r,x,y); vramCopy(bb+(BT0+ty*8+r)*64,tl,64); }
+    for(int ty=1;ty<B_N;ty++) for(int r=0;r<8;r++){ for(int y=0;y<8;y++) for(int x=0;x<8;x++) tl[y*8+x]=(u8)bldPix(ty,r,x,y); vramCopy(bb+BTILE(ty,r)*64,tl,64); }
     for(int t=0;t<T_N;t++) for(int v=0;v<4;v++){ for(int y=0;y<8;y++) for(int x=0;x<8;x++) tl[y*8+x]=(u8)tilePix(t,v,x,y); vramCopy(bb+(t*4+v)*64,tl,64); }
     for(int m=0;m<GFX_MEADOW_N;m++){ for(int y=0;y<8;y++) for(int x=0;x<8;x++) tl[y*8+x]=(u8)pxMeadow(m,x,y); vramCopy(bb+(GFX_MEADOW0+m)*64,tl,64); }
 }
@@ -251,8 +258,8 @@ static u8 bld[MAXD][MAXD], bldv[MAXD][MAXD];   // what stands on a tile (B_*) an
 static u8 vilRace(int v);
 // Transition tiles: where two kinds of ground meet, the "stronger" one bleeds a dithered fringe into the other, and water gets a foam line on the shore.
 // They are made on demand (64 bytes each) into spare tile slots and remembered, so a window of the map needs only a few dozen of them.
-#define TR0 128
-#define TR_SLOTS 500
+#define TR0 156          // (the buildings' tiles end at 155; the toolbar's start at 640)
+#define TR_SLOTS 484
 static const u8 terrRank[T_N]={0,10,3,1,5,6,7,8,9,3,4,5,2};
 static u32 trKey[1024]; static u16 trVal[1024]; static int trUsed;
 static inline int bioPix(int p,int b){ return (b&&p<T_N*8)?BIO_PAL+(b-1)*8+(p&7):p; }      // a pixel of ground, in the colours of biome b   // a small hash of the transition tiles made so far
@@ -284,7 +291,7 @@ static int zBmp=0;       // 1 while the background holds the zoom picture (a bit
 static inline void putCell(int x,int y){   // world cell -> background entry (a 64 x 64 torus of 8 pixel tiles)
     if(zBmp) return;
     int mx=x&63, my=y&63; int blk=(my>=32?2:0)+(mx>=32?1:0); int t=world[y][x], v=tileVar(t,x,y); u16 e=(u16)(t*4+v); if(t==T_GRASS&&v==2) e=(u16)(GFX_MEADOW0+(int)(hsh(x,y,5)&15));
-    if(bld[y][x]) e=(u16)(BT0+bld[y][x]*8+(bldv[y][x]?vilRace(bldv[y][x]-1):0));
+    if(bld[y][x]) e=(u16)BTILE(bld[y][x],(bldv[y][x]?vilRace(bldv[y][x]-1):0));
     else { int mask,foam; int best=cellEdge(x,y,&mask,&foam); int b=(t>T_WATER&&t!=T_LAVA)?bioAt(x,y):0; if(best>=0||b){ int k=trTile(t,best>=0?best:15,best>=0?mask:0,v,best>=0?foam:0,b); if(k>=0) e=(u16)k; } }
     mapPtr[blk*1024+(my&31)*32+(mx&31)]=e; }
 static void refillWindow(void){ if(zBmp) return; int x0=camX>>3, y0=camY>>3; if(x0==winX&&y0==winY) return; winX=x0; winY=y0;
@@ -314,11 +321,16 @@ static void compact(void){   // the dead are squeezed out of the list
     memset(occ,0,sizeof occ); for(int i=0;i<nCr;i++) occ[cr[i].y][cr[i].x]=(occ_t)(i+1);
 }
 
-static void moveTo(Cr*c,int i,int nx,int ny){ occ[c->y][c->x]=0; { int ddx=c->x-nx, ddy=c->y-ny; if(ddx>1||ddx<-1) ddx=0; if(ddy>1||ddy<-1) ddy=0; c->ox=(s8)(ddx*8); c->oy=(s8)(ddy*8); } c->x=(coord_t)nx; c->y=(coord_t)ny; occ[ny][nx]=(occ_t)(i+1); c->dir=(u8)(nx>c->x?0:0); }
+static void moveTo(Cr*c,int i,int nx,int ny){ occ[c->y][c->x]=0; { int ddx=c->x-nx, ddy=c->y-ny; if(ddx>1||ddx<-1) ddx=0; if(ddy>1||ddy<-1) ddy=0; c->ox=(s8)(ddx*8); c->oy=(s8)(ddy*8); } c->x=(coord_t)nx; c->y=(coord_t)ny; occ[ny][nx]=(occ_t)(i+1); }
+// ---- levels: a creature that kills grows stronger (+5 health and +1 damage every two levels, up to level 10), after the wiki's unit levels; Cr.dir holds the level
+static void gainXp(Cr*c){ int L=c->dir; if(L>=10) return; if((int)(rnd()%(unsigned)(L*2+3))==0){ c->dir=(u8)(L+1); if(c->hp<250) c->hp=(u8)(c->hp+8); if(c->dir%5==0&&(c->rk||arch[sp[c->sp].a].diet==4)){ char nm[48], b[40]; crName(c,nm); siprintf(b,"%.20s REACHES LV %d",nm,c->dir); logEv(b); } } }
 // ---------------------------------------------------------------------------------------------- villages
 #define VIL_OLD 24     // older saves held 24 villages
 typedef struct { u8 on, race; coord_t x, y; u8 lvl, houses, farms, towers, foe, dead, nm1, nm2; u16 pop, stock; } Vil;   // foe: the village (+1) it is at war with
 static Vil vil[VIL_N]; static int nVilOn;
+static u8 vilK[VIL_N]; static s8 vilL[VIL_N];      // a village's kingdom (+1) and its loyalty to it
+static u8 vilSick[VIL_N];      // the plagued folk around the village at its last look (the priests of a temple cure half of them)
+static u8 vilBf[VIL_N];        // bit 0: the village has a temple, bit 1: a statue, bit 2: a library (worked out from the map, so a loaded game goes on as it was)
 static u8 warM[8][8];   // [a][b]: the people of a are fighting the people of b
 static u8 vilRace(int v){ return vil[v].race; }
 static const char* const vn1[12]={"BRAN","DUN","MOR","TAL","KAR","EL","OR","ISH","VAL","GRO","HAR","NIM"}, * const vn2[8]={"TON","HOLM","BURG","DELL","FORD","MERE","STEAD","HOLD"};
@@ -353,13 +365,45 @@ static int placeBld(int v,int type,int cost){
         putBld(v,x,y,type); V->stock-=(u16)cost; return 1; }
     return 0;
 }
+// ---- boats and docks (after the wiki): a town of some size builds a dock on its shore; now and then a boat carries settlers across the water to a new shore and they found a village there
+typedef struct { u8 on, race, n, i; s16 x, y, tx, ty; u16 t; u8 path[128]; } Boat; static Boat boat[8];      // path: the steps (0 up, 1 right, 2 down, 3 left) found when it set sail
+static void bldFlags(int v){ const Vil*V=&vil[v]; int f=0; for(int dy=-12;dy<=12;dy++) for(int dx=-12;dx<=12;dx++){ int x=V->x+dx, y=V->y+dy; if(x>=0&&y>=0&&x<WW&&y<WH&&bldv[y][x]==v+1){ if(bld[y][x]==B_TEMPLE) f|=1; else if(bld[y][x]==B_STATUE) f|=2; else if(bld[y][x]==B_LIBRARY) f|=4; } } vilBf[v]=(u8)f; }
+static int hasDock(int v){ const Vil*V=&vil[v]; for(int dy=-9;dy<=9;dy++) for(int dx=-9;dx<=9;dx++){ int x=V->x+dx, y=V->y+dy; if(x>=0&&y>=0&&x<WW&&y<WH&&bld[y][x]==B_DOCK&&bldv[y][x]==v+1) return 1; } return 0; }
+static int isWater(int x,int y){ return x>=0&&y>=0&&x<WW&&y<WH&&(world[y][x]==T_WATER||world[y][x]==T_DEEP); }
+static int vilFound(int race,int x,int y);
+static void dockTry(int v){      // a dock: a land tile of the village beside water
+    Vil*V=&vil[v]; for(int k=0;k<40;k++){ int x=V->x+(int)(rnd()%17)-8, y=V->y+(int)(rnd()%17)-8; if(x<2||y<2||x>=WW-2||y>=WH-2||bld[y][x]||world[y][x]<=T_WATER||world[y][x]==T_LAVA) continue;
+        if(!(isWater(x+1,y)||isWater(x-1,y)||isWater(x,y+1)||isWater(x,y-1))) continue; bld[y][x]=B_DOCK; bldv[y][x]=(u8)(v+1); if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); return; } }
+#ifdef GG_BIGMAP
+#define BW 121      // the sea is searched in a window of BW x BW tiles round the dock (the DS gets a smaller one: its RAM is tight)
+#else
+#define BW 81
+#endif
+static u8 bfsDir[BW*BW]; static u16 bfsQ[BW*BW];
+static void boatLaunch(int v){
+    Vil*V=&vil[v]; int nb=0; for(int b=0;b<8;b++) nb+=boat[b].on; if(nb>=8) return; int bi=-1; for(int b=0;b<8;b++) if(!boat[b].on){ bi=b; break; }
+    int sx=-1, sy=-1; for(int dy=-9;dy<=9&&sx<0;dy++) for(int dx=-9;dx<=9&&sx<0;dx++){ int x=V->x+dx, y=V->y+dy; if(x>=0&&y>=0&&x<WW&&y<WH&&bld[y][x]==B_DOCK&&bldv[y][x]==v+1){ for(int d=0;d<4;d++) if(isWater(x+dxs[d],y+dys[d])){ sx=x+dxs[d]; sy=y+dys[d]; break; } } } if(sx<0) return;
+    // a search across the water for the nearest shore at least 12 tiles away where nobody lives yet
+    int ox=sx-BW/2, oy=sy-BW/2; memset(bfsDir,255,sizeof bfsDir); int qh=0, qt=0; bfsQ[qt++]=(u16)((BW/2)*BW+BW/2); bfsDir[(BW/2)*BW+BW/2]=4; int goal=-1, gtx=0, gty=0, rot=(int)(rnd()&3);
+    while(qh<qt&&goal<0){ int c=bfsQ[qh++]; int cx=c%BW, cy=c/BW; int wx=ox+cx, wy=oy+cy;
+        if(abs(wx-V->x)+abs(wy-V->y)>=12) for(int k=0;k<4;k++){ int d=(k+rot)&3; int tx=wx+dxs[d], ty=wy+dys[d]; if(buildable(tx,ty)&&vilAny(tx,ty,9)<0){ goal=c; gtx=tx; gty=ty; break; } }
+        if(goal>=0) break;
+        for(int k=0;k<4;k++){ int d=(k+rot)&3; int nx=cx+dxs[d], ny=cy+dys[d]; if(nx<0||ny<0||nx>=BW||ny>=BW||bfsDir[ny*BW+nx]!=255||!isWater(ox+nx,oy+ny)) continue; bfsDir[ny*BW+nx]=(u8)d; bfsQ[qt++]=(u16)(ny*BW+nx); } }
+    if(goal<0) return;
+    u8 rev[128]; int n=0; for(int c=goal;c!=(BW/2)*BW+BW/2;){ int d=bfsDir[c]; if(d>3||n>=128) return; rev[n++]=(u8)d; c=(c/BW-dys[d])*BW+(c%BW-dxs[d]); }
+    int taken=0; for(int i=0;i<nCr&&taken<4;i++){ Cr*c=&cr[i]; if(c->alive&&sp[c->sp].a==V->race&&abs(c->x-V->x)<9&&abs(c->y-V->y)<9){ c->alive=0; if(occ[c->y][c->x]==i+1) occ[c->y][c->x]=0; taken++; } } if(taken<2) return;
+    Boat*B=&boat[bi]; memset(B,0,sizeof *B); B->on=1; B->race=V->race; B->x=(s16)sx; B->y=(s16)sy; B->tx=(s16)gtx; B->ty=(s16)gty; B->n=(u8)n; for(int k=0;k<n;k++) B->path[k]=rev[n-1-k]; }
+static void boatTick(void){
+    for(int b=0;b<8;b++){ Boat*B=&boat[b]; if(!B->on||(tick&3)) continue;
+        if(B->i>=B->n){ int v=vilFound(B->race,B->tx,B->ty); if(v>=0){ for(int q=0;q<4;q++) addCr(B->race,B->tx+(int)(rnd()%5)-2,B->ty+(int)(rnd()%5)-2); char vn[24], s2[48]; vilName(v,vn); siprintf(s2,"SETTLERS SAIL TO %.20s",vn); logEv(s2); } B->on=0; continue; }
+        int d=B->path[B->i++]; B->x=(s16)(B->x+dxs[d]); B->y=(s16)(B->y+dys[d]); } }
 static int vilFound(int race,int x,int y){
     if(!buildable(x,y)) return -1; if(vilAny(x,y,9)>=0) return -1; int v=-1; for(int i=0;i<VIL_N;i++) if(!vil[i].on){ v=i; break; } if(v<0) return -1;
-    Vil*V=&vil[v]; memset(V,0,sizeof *V); gxVilReset(v); V->on=1; V->race=(u8)race; V->x=(coord_t)x; V->y=(coord_t)y; V->lvl=1; V->stock=30; V->nm1=(u8)(rnd()%12); V->nm2=(u8)(rnd()%8);
+    Vil*V=&vil[v]; memset(V,0,sizeof *V); gxVilReset(v); vilBf[v]=0; vilSick[v]=0; V->on=1; V->race=(u8)race; V->x=(coord_t)x; V->y=(coord_t)y; V->lvl=1; V->stock=30; V->nm1=(u8)(rnd()%12); V->nm2=(u8)(rnd()%8);
     putBld(v,x,y,B_HALL); for(int k=0;k<2;k++) placeBld(v,B_HUT,0); nVilOn++; return v;
 }
 static void vilRaze(int v,int ruins){ Vil*V=&vil[v]; if(!V->on) return; for(int y=0;y<WH;y++) for(int x=0;x<WW;x++) if(bldv[y][x]==v+1){ bld[y][x]=ruins&&(rnd()&1)?B_RUIN:B_NONE; if(!bld[y][x]) bldv[y][x]=0; else bldv[y][x]=0; if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); }
-    for(int u=0;u<VIL_N;u++) if(vil[u].on&&vil[u].foe==v+1) vil[u].foe=0; V->on=0; nVilOn--; }
+    for(int u=0;u<VIL_N;u++) if(vil[u].on&&vil[u].foe==v+1) vil[u].foe=0; V->on=0; nVilOn--; vilBf[v]=0; vilSick[v]=0; }
 // ---- the atmosphere (after SimEarth and its Gaia model): oxygen, carbon dioxide, dust and the world's warmth, all in 1/16 units. Forests and grass breathe CO2 in and O2 out; crowds, cities, fires, lava
 // and bombs do the opposite; CO2 warms (the greenhouse), dust and snow cool. Too hot melts the ice and dries the land, too cold freezes it, thin air suffocates, rich air feeds fires.
 static int atO2=21*16, atCO2=30*16, atDust=0, atTemp=0, atFire=0, atFlag=0; static s8 atHist[48]; static int atHistN;
@@ -369,14 +413,24 @@ static void atmoDust(int d){ atDust+=d*16; if(atDust<0) atDust=0; if(atDust>100*
 static void razeAt(int x,int y,int chance){   // a building falls to ruin (fire, lightning, meteors, and the calamities: see burnAt and calamity.h)
     if(x<0||y<0||x>=WW||y>=WH||!bld[y][x]||bld[y][x]==B_RUIN) return; if((int)(rnd()&255)>=chance) return; int v=bldv[y][x]-1;
     if(v>=0&&vil[v].on){ Vil*V=&vil[v]; if(bld[y][x]==B_HOUSE||bld[y][x]==B_HUT){ if(V->houses) V->houses--; } else if(bld[y][x]==B_FARM){ if(V->farms) V->farms--; } else if(bld[y][x]==B_TOWER){ if(V->towers) V->towers--; } }
-    bld[y][x]=B_RUIN; bldv[y][x]=0; if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); }
+    { int ob=bld[y][x]; bld[y][x]=B_RUIN; bldv[y][x]=0; if(v>=0&&v<VIL_N&&(ob==B_TEMPLE||ob==B_STATUE||ob==B_LIBRARY)) vilBf[v]&=(u8)~(ob==B_TEMPLE?1:ob==B_STATUE?2:4); } if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); }
 static void burnAt(int x,int y,int chance){ if(gx.lFire) return; if(!gx.lAtmo&&ATV(atO2)>28){ chance+=(ATV(atO2)-28)*8; if(chance>255) chance=255; }      // rich air feeds fires
     int had=x>=0&&y>=0&&x<WW&&y<WH&&bld[y][x]&&bld[y][x]!=B_RUIN; razeAt(x,y,chance); if(had&&bld[y][x]==B_RUIN) atFire+=3; }   // fire, lightning and meteors on a building (WORLD > LAWS > FIRE ON HOMES: SAFE turns them off)
+// village mood, -100 sad .. 100 joyful (after the wiki's happiness), worked out on the spot so a loaded game goes on exactly as the saved one: food, crowding, war, sickness, loyalty, the air and the ground
+static int vilMood(int v); static const char* moodName(int m); static int worldAge(void);
 static void vilTick(int v){
-    Vil*V=&vil[v]; if(!V->on) return; int pop=0;
-    for(int dy=-10;dy<=10;dy++){ int y=V->y+dy; if(y<0||y>=WH) continue; for(int dx=-10;dx<=10;dx++){ int x=V->x+dx; if(x<0||x>=WW||dx*dx+dy*dy>100) continue; int j=occ[y][x]-1; if(j>=0&&cr[j].alive&&sp[cr[j].sp].a==V->race&&sp[cr[j].sp].a<8) pop++; } }   // (the tiles around the village, not every creature on the planet)
+    Vil*V=&vil[v]; if(!V->on) return; int pop=0, sk=0;
+    for(int dy=-10;dy<=10;dy++){ int y=V->y+dy; if(y<0||y>=WH) continue; for(int dx=-10;dx<=10;dx++){ int x=V->x+dx; if(x<0||x>=WW||dx*dx+dy*dy>100) continue; int j=occ[y][x]-1; if(j>=0&&cr[j].alive&&sp[cr[j].sp].a==V->race&&sp[cr[j].sp].a<8){ pop++; if(cr[j].sick==1) sk++; } } }   // (the tiles around the village, not every creature on the planet)
     V->pop=(u16)pop; if(!pop){ if(++V->dead>=6){ vilRaze(v,1); return; } } else V->dead=0;
-    int gain=pop+V->farms*3; if(gx.vGrow[v]==1) gain=gain*3/2+2; else if(gx.vGrow[v]==2) gain=gain/2; V->stock=(u16)(V->stock+gain>400?400:V->stock+gain);
+    if((tick&7)==0||vilBf[v]==0) bldFlags(v);
+    if(V->lvl>=2&&pop>=16&&!(vilBf[v]&1)&&V->stock>=30&&(rnd()%6)==0&&placeBld(v,B_TEMPLE,30)){ vilBf[v]|=1; char vn[24], s2[40]; vilName(v,vn); siprintf(s2,"A TEMPLE RISES IN %.16s",vn); logEv(s2); }
+    if(!(vilBf[v]&2)&&V->stock>=40&&(rnd()%10)==0){ int hero=0; for(int dy=-8;dy<=8&&!hero;dy++) for(int dx=-8;dx<=8;dx++){ int x=V->x+dx, y=V->y+dy; if(x<0||y<0||x>=WW||y>=WH) continue; int j=occ[y][x]-1; if(j>=0&&cr[j].alive&&(cr[j].dir>=1||cr[j].rk)&&sp[cr[j].sp].a==V->race){ hero=1; break; } } if(hero&&placeBld(v,B_STATUE,40)){ vilBf[v]|=2; char vn[24], s2[40]; vilName(v,vn); siprintf(s2,"A STATUE HONOURS A HERO OF %.12s",vn); logEv(s2); } }
+    if(V->lvl>=2&&pop>=14&&!(vilBf[v]&4)&&V->stock>=35&&(rnd()%8)==0&&placeBld(v,B_LIBRARY,35)){ vilBf[v]|=4; char vn[24], s2[40]; vilName(v,vn); siprintf(s2,"A LIBRARY OPENS IN %.14s",vn); logEv(s2); }
+    if((vilBf[v]&1)&&sk){ for(int dy=-10;dy<=10;dy++){ int y=V->y+dy; if(y<0||y>=WH) continue; for(int dx=-10;dx<=10;dx++){ int x=V->x+dx; if(x<0||x>=WW||dx*dx+dy*dy>100) continue; int j=occ[y][x]-1; if(j>=0&&cr[j].alive&&cr[j].sick==1&&sp[cr[j].sp].a==V->race&&sp[cr[j].sp].a<8&&(rnd()&1)){ cr[j].sick=2; sk--; } } } }      /* the temple's priests tend the sick: half of the plagued folk recover (and stay immune) */
+    vilSick[v]=(u8)(sk>255?255:sk);
+    if(V->lvl>=2&&pop>=10){ if(!hasDock(v)){ if((rnd()%6)==0) dockTry(v); } else if(nVilOn<VIL_N-2&&(rnd()%10)==0) boatLaunch(v); }
+    int mood=vilMood(v); int gain=pop+V->farms*3; if(gx.vGrow[v]==1) gain=gain*3/2+2; else if(gx.vGrow[v]==2) gain=gain/2; if(mood>=40) gain+=pop/4; else if(mood<=-40) gain=gain/2; if(mood<=-60&&vilK[v]&&(rnd()&7)==0&&vilL[v]>0) vilL[v]--; else if(mood>=40&&vilK[v]&&(rnd()&7)==0&&vilL[v]<100) vilL[v]++;
+    V->stock=(u16)(V->stock+gain>400?400:V->stock+gain);
     // what to build next: homes for everyone, fields to feed them, then towers, then a bigger hall
     if(V->lvl>=2&&V->towers<V->houses/3&&V->stock>=25&&(rnd()&3)==0){ if(placeBld(v,B_TOWER,25)) V->towers++; }
     else if(V->houses<2||pop>V->houses*3){ if(placeBld(v,(rnd()&3)?B_HOUSE:B_HUT,12)) V->houses++; }
@@ -397,12 +451,16 @@ static int vilTotals(int*houses){ int pop=0,h=0; for(int v=0;v<VIL_N;v++) if(vil
 #define KN_N 8
 typedef struct { u8 on, race, tech, rtr, rn1, rn2, n1, n2, lord, allies, war, empire, weary, reign, trade, cul, cap, plot, plotT, truce, spite, rlg, lang, clan, ctr, tradeW, pcool, nlang; s8 rel[KN_N]; u16 gold, born, cpts; u32 know; } Kd;   // rel[b]: this kingdom's opinion of b; cul: culture; cap: capital village (+1); plot: the kingdom it is plotting war against (+1)
 static int kdKnow(int k,int b);
-static Kd kd[KN_N]; static u8 vilK[VIL_N]; static s8 vilL[VIL_N]; /* a city's loyalty to its kingdom */ static char jr[24][34]; static u16 jrYear[24]; static int jrN;
+static Kd kd[KN_N]; /* (vilK, vilL: a city's kingdom and its loyalty, declared with the villages) */ static char jr[24][34]; static u16 jrYear[24]; static int jrN;
 static const char* const kn1[12]={"AR","BEL","COR","DRA","EST","FEN","GAL","HOR","ISK","JOR","KEL","LUN"}, * const kn2[8]={"IA","ANIA","OTH","MARK","LAND","VIA","ELL","UM"};
 static const char* const rnA[12]={"ALDRIC","BRYN","CEDRA","DORN","EMBER","FARIN","GRETA","HALDOR","ISOLDE","JORAN","KIRA","LOTHAR"}, * const rnB[8]={"THE BOLD","THE WISE","THE FAT","THE MAD","THE KIND","THE LATE","THE GREEDY","THE PALE"};
 static const char* const rtrN[4]={"WARLIKE","PEACEFUL","GREEDY","WISE"}; static const char* const culN[5]={"SUN","MOON","IRON","SEA","STONE"}, * const rlgN[4]={"SUNFAITH","MOONFAITH","STONEWAY","OLD GODS"}, * const langN[5]={"HIGH TONGUE","LOWSPEAK","RUNIC","SONG","CLICKS"}, * const clanN[8]={"OAK","RAVEN","WOLF","ROSE","CROWN","STAR","IRON","TIDE"};
 static const char* const ctrN[6]={"XENOPHOBIC","SCHOLARLY","MERCANTILE","MARTIAL","AGRARIAN","PIOUS"}, * const ageN[5]={"HOPE","SHADOWS","CHAOS","WONDERS","PEACE"};
 static int worldAge(void){ return (year/12+(int)(worldSeed&3))%5; }   /* ages of the world, twelve years each: they tilt growth, monsters, rebellion, learning and peace */
+static int vilMood(int v){ const Vil*V=&vil[v]; int m=V->stock/8-20; if(V->pop>V->houses*3+3) m-=20; if(V->foe) m-=25; if(vilSick[v]) m-=15; if(vilK[v]) m+=(vilL[v]-60)/3; m+=V->towers>0?5:0;
+    { int ag=worldAge(); m+=(ag==0||ag==4)?10:ag==1?-10:0; } if(!gx.lAtmo){ int T=ATV(atTemp); if(T>=22||T<=-18) m-=15; } { int b=bioAt(V->x,V->y); m+=b==1?-20:b==3?20:0; }
+    m+=(vilBf[v]&1?12:0)+(vilBf[v]&2?6:0)+(vilBf[v]&4?4:0); return m<-100?-100:m>100?100:m; }
+static const char* moodName(int m){ return m>=60?"JOYFUL":m>=20?"HAPPY":m>-20?"CONTENT":m>-60?"SAD":"MISERABLE"; }
 static const char* const techN[10]={"NONE","AGRICULTURE","IRON TOOLS","MASONRY","TRADE ROADS","STEEL","ENGINEERING","ALCHEMY","ASTRONOMY","FEUDALISM"};
 static void logEv(const char*s){ if(jrN<24){ strncpy(jr[jrN],s,33); jr[jrN][33]=0; jrYear[jrN]=(u16)year; jrN++; } else { memmove(jr[0],jr[1],23*34); memmove(jrYear,jrYear+1,23*2); strncpy(jr[23],s,33); jr[23][33]=0; jrYear[23]=(u16)year; } siprintf(info,"%.32s",s); }
 static void kdName(int k,char*o){ langKing(kd[k].nlang,kd[k].n1,kd[k].n2,o); }
@@ -451,7 +509,7 @@ static void kingdomTick(void){
         if(K->lord&&kd[K->lord-1].on&&(rnd()%100)<8){ Kd*L=&kd[K->lord-1]; int w2=(int)(rnd()%3); if(w2==0) K->cul=L->cul; else if(w2==1) K->rlg=L->rlg; else K->lang=L->lang; }   /* a vassal slowly takes on its lord's ways */
         if(K->gold>1500){ K->gold-=600; for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==k+1) vil[v].stock=(u16)(vil[v].stock+40>400?400:vil[v].stock+40); }
         if(K->gold>400){ K->gold-=150; for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==k+1&&vil[v].stock<350){ vil[v].stock+=50; break; } }
-        int tcost=(70+K->tech*60)*((K->ctr>>1&1)?8:10)/10*(worldAge()==3?7:10)/10*(100-10*kdKnow(k,5))/100; if(K->tech<9&&K->gold>=(u16)tcost){ K->gold-=(u16)tcost; K->tech++; char y[24], s[72]; kdName(k,y); siprintf(s,"%s LEARNS %s",y,techN[K->tech]); logEv(s); }
+        int tcost=(70+K->tech*60)*((K->ctr>>1&1)?8:10)/10*(worldAge()==3?7:10)/10*(100-10*kdKnow(k,5))/100; { int lb=0; for(int v2=0;v2<VIL_N;v2++) if(vil[v2].on&&vilK[v2]==k+1&&(vilBf[v2]&4)) lb++; if(lb>6) lb=6; tcost=tcost*(100-5*lb)/100; } if(K->tech<9&&K->gold>=(u16)tcost){ K->gold-=(u16)tcost; K->tech++; char y[24], s[72]; kdName(k,y); siprintf(s,"%s LEARNS %s",y,techN[K->tech]); logEv(s); }
         int emp=c>=5||(0); for(int o=0;o<KN_N;o++) if(kd[o].on&&kd[o].lord==k+1) emp+=0; { int vs=0; for(int o=0;o<KN_N;o++) vs+=kd[o].on&&kd[o].lord==k+1; if(vs>=2) emp=1; }
         if(emp&&!K->empire){ K->empire=1; char y[24], s[72]; kdName(k,y); siprintf(s,"%s BECOMES AN EMPIRE",y); logEv(s); } else if(!emp) K->empire=0;
         if(K->lord){ int l=K->lord-1; if(!kd[l].on) K->lord=0; else { int tr=K->gold/8; K->gold-=(u16)tr; kd[l].gold=(u16)(kd[l].gold+tr>60000?60000:kd[l].gold+tr); int c2,p2,w2; kdStats(l,&c2,&p2,&w2); if(w2*2<w||(rnd()%300)==0){ K->lord=0; char y[24], z[24], s[72]; kdName(k,y); kdName(l,z); kdWar(k,l,1); K->rel[l]=kd[l].rel[k]=-70; siprintf(s,"%s REVOLTS AGAINST %s",y,z); logEv(s); } } } }
@@ -528,7 +586,7 @@ static void thinkBody(int i){
             int d=(dx<0?-dx:dx)+(dy<0?-dy:dy); int civ=arch[sp[cr[j].sp].a].diet==4; if(!civ&&d>3) continue; if(d<bd){ bd=d; rd=d; best=j; } }   // people are hunted from ten tiles away, animals only when they are in the way
         for(int k=0;k<4;k++) burnAt(c->x+dxs[k],c->y+dys[k],40);
         if(best>=0){ Cr*p=&cr[best];
-            if(rd<=1+HAS(c,TR_SPIT)){ int dm=hitDmg(c,p); if(p->hp>dm) p->hp-=(u8)dm; else { killCr(best); c->hp=(u8)(c->hp+12>A->hp?A->hp:c->hp+12); } return; }
+            if(rd<=1+HAS(c,TR_SPIT)){ int dm=hitDmg(c,p); if(p->hp>dm) p->hp-=(u8)dm; else { killCr(best); gainXp(c); c->hp=(u8)(c->hp+12>A->hp?A->hp:c->hp+12); } return; }
             if(stepToward(c,i,s,p->x,p->y)) return; }
         else { int v=vilAny(c->x,c->y,60); if(v>=0&&(rnd()&7)) { if(stepToward(c,i,s,vil[v].x,vil[v].y)) return; } }
         if((rnd()&3)!=0){ int d=rnd()&3; int nx=c->x+dxs[d], ny=c->y+dys[d]; if(stepOk(s,&nx,&ny)) moveTo(c,i,nx,ny); }
@@ -544,7 +602,7 @@ static void thinkBody(int i){
         int home=vilNear(s->a,c->x,c->y,14);
         // fight: an enemy people within reach is attacked; otherwise an army walks to the enemy village
         { int best=-1,bd=99; for(int dy=-3;dy<=3;dy++) for(int dx=-3;dx<=3;dx++){ int x=c->x+dx,y=c->y+dy; if(x<0||y<0||x>=WW||y>=WH||!occ[y][x]) continue; int j=occ[y][x]-1; int ra=sp[cr[j].sp].a; if(arch[ra].diet!=5&&(ra>=8||!warM[s->a][ra])) continue; int d=(dx<0?-dx:dx)+(dy<0?-dy:dy); if(d<bd){ bd=d; best=j; } }
-          if(best>=0){ Cr*p=&cr[best]; if(bd<=1+HAS(c,TR_SPIT)){ int dm=hitDmg(c,p); if(p->hp>dm) p->hp-=(u8)dm; else { killCr(best); c->food+=20; } return; }
+          if(best>=0){ Cr*p=&cr[best]; if(bd<=1+HAS(c,TR_SPIT)){ int dm=hitDmg(c,p); if(p->hp>dm) p->hp-=(u8)dm; else { killCr(best); gainXp(c); c->food+=20; } return; }
               int dx=p->x-c->x, dy=p->y-c->y; int ax=dx>0?1:dx<0?-1:0, ay=dy>0?1:dy<0?-1:0; if(((dx<0?-dx:dx)<(dy<0?-dy:dy))) ax=0; else ay=0; int nx=c->x+ax, ny=c->y+ay; if(stepOk(s,&nx,&ny)) moveTo(c,i,nx,ny); return; } }
         if(home>=0&&vil[home].foe&&vil[vil[home].foe-1].on&&c->age>6&&c->hp>8){ const Vil*F=&vil[vil[home].foe-1]; int dx=F->x-c->x, dy=F->y-c->y; if(dx*dx+dy*dy>4){ int ax=dx>0?1:dx<0?-1:0, ay=dy>0?1:dy<0?-1:0; if(((dx<0?-dx:dx)<(dy<0?-dy:dy))) ax=0; else ay=0; int nx=c->x+ax, ny=c->y+ay; if(stepOk(s,&nx,&ny)){ moveTo(c,i,nx,ny); return; } }
             else { int fv=vil[home].foe-1; vil[fv].stock=(u16)(vil[fv].stock>10?vil[fv].stock-10:0); if(rnd()%12==0&&vil[fv].pop<2&&(gx.vDef[fv]!=2||(rnd()&3)==0)){ if(!vilConquer(fv,home)) vilRaze(fv,1); } } }
@@ -559,11 +617,12 @@ static void thinkBody(int i){
                 const Arch*B=&arch[sp[cr[j].sp].a]; if(B->diet==1||B->diet==5||B->diet==4&&diet!=1||sp[cr[j].sp].a==s->a) continue; if(diet==2&&B->diet!=0) continue;
                 int d=(dx<0?-dx:dx)+(dy<0?-dy:dy); if(d<bd){ bd=d; best=j; } }
         if(best>=0){ Cr*p=&cr[best];
-            if(bd<=1+HAS(c,TR_SPIT)){ int dm=hitDmg(c,p); if(p->hp>dm) p->hp-=(u8)dm; else { c->food+=80; if(c->food>120) c->food=120; killCr(best); } return; }
+            if(bd<=1+HAS(c,TR_SPIT)){ int dm=hitDmg(c,p); if(p->hp>dm) p->hp-=(u8)dm; else { c->food+=80; if(c->food>120) c->food=120; killCr(best); gainXp(c); } return; }
             int dx=p->x-c->x, dy=p->y-c->y; int sx=dx>0?1:dx<0?-1:0, sy=dy>0?1:dy<0?-1:0; int try1=(((dx<0?-dx:dx)>(dy<0?-dy:dy))?0:1);
             for(int k=0;k<2;k++){ int ax=(k==try1)?sx:0, ay=(k==try1)?0:sy; if(!ax&&!ay) continue; int nx=c->x+ax, ny=c->y+ay; if(stepOk(s,&nx,&ny)){ moveTo(c,i,nx,ny); return; } } } }
     // breed
-    int bch=A->breed; if(diet==4){ int vv=vilNear(s->a,c->x,c->y,8); if(vv>=0) bch=bch*(gx.vGrow[vv]==1?28:gx.vGrow[vv]==2?12:20)/10; } if(HAS(c,TR_FERTILE)) bch=bch*3/2; if(HAS(c,TR_TINY)) bch=bch*13/10; if(HAS(c,TR_CLEVER)) bch=bch*13/10; if(HAS(c,TR_MUNCH)) bch=bch*14/10; bch=bch*gxBirthK(s->a,diet)/100;
+    int crowd=0; for(int dy=-2;dy<=2;dy++){ int yy=c->y+dy; if(yy<0||yy>=WH) continue; for(int dx=-2;dx<=2;dx++){ int xx=c->x+dx; if(xx>=0&&xx<WW&&occ[yy][xx]) crowd++; } }      // crowding: no room, fewer births (a packed tile block stops breeding at 13 of 25)
+    int bch=A->breed; if(crowd>=13) bch=0; else if(crowd>6) bch=bch*(13-crowd)/7; if(diet==4){ int vv=vilNear(s->a,c->x,c->y,8); if(vv>=0){ bch=bch*(gx.vGrow[vv]==1?28:gx.vGrow[vv]==2?12:20)/10; bch=bch*(100+vilMood(vv)/2)/100; } } if(HAS(c,TR_FERTILE)) bch=bch*3/2; if(HAS(c,TR_TINY)) bch=bch*13/10; if(HAS(c,TR_CLEVER)) bch=bch*13/10; if(HAS(c,TR_MUNCH)) bch=bch*14/10; bch=bch*gxBirthK(s->a,diet)/100;
     if(c->food>=80&&c->age>8&&(int)(rnd()%100)<bch&&nCr<MAXC-4){ int d=rnd()&3; int nx=c->x+dxs[d], ny=c->y+dys[d]; int n=addCr(c->sp,nx,ny); if(n>=0){ cr[n].age=0; cr[n].food=50; born(&cr[n],&cr[i]); c->food-=40; return; } }
     // wander
     if((rnd()&3)!=0){ int d=rnd()&3; int nx=c->x+dxs[d], ny=c->y+dys[d]; if(stepOk(s,&nx,&ny)) moveTo(c,i,nx,ny); }
@@ -641,6 +700,7 @@ static void biomeTick(void){       // biomes creep outward over the ground, figh
 static void simulate(void){
     if(paused) return;
     if(!gx.lBio) biomeTick();
+    boatTick();
     if((tick&63)==17) atmoTick();
     { int x0=(camX>>3)-1, y0=(camY>>3)-1;      // glide into the tile: only the creatures near the screen (a crowd of thousands is not walked through every tick)
       for(int y=y0<0?0:y0;y<y0+27&&y<WH;y++) for(int x=x0<0?0:x0;x<x0+35&&x<WW;x++){ int j=occ[y][x]-1; if(j<0) continue; Cr*c=&cr[j]; if(c->ox) c->ox+= c->ox<0?1:-1; if(c->oy) c->oy+= c->oy<0?1:-1; } }
@@ -809,7 +869,7 @@ static void usePower(int tx,int ty,int fresh){
 static int planetSize=128;
 static void (*loadHook)(const char*,int);
 #define LOADING(m,p) do{ if(loadHook) loadHook(m,p); }while(0)
-static void newWorld(void){ LOADING("THE VOID",4); gxDefaults(); gW=gH=planetSize; nCr=0; memset(hz,0,sizeof hz); memset(occ,0,sizeof occ); memset(bld,0,sizeof bld); memset(bldv,0,sizeof bldv); memset(vil,0,sizeof vil); memset(kd,0,sizeof kd); memset(vilK,0,sizeof vilK); memset(vilL,0,sizeof vilL); memset(favVil,0,sizeof favVil); memset(favKd,0,sizeof favKd); jrN=0; stWars=stCapt=stAllies=stSnack=0; nVilOn=0; worldSeed=seedFix?seedFix:rnd(); genWorld(worldSeed); LOADING("SHAPING THE LAND",35); winX=-99; refillWindow();
+static void newWorld(void){ LOADING("THE VOID",4); gxDefaults(); gW=gH=planetSize; nCr=0; memset(hz,0,sizeof hz); memset(occ,0,sizeof occ); memset(bld,0,sizeof bld); memset(bldv,0,sizeof bldv); memset(vil,0,sizeof vil); memset(kd,0,sizeof kd); memset(vilK,0,sizeof vilK); memset(vilL,0,sizeof vilL); memset(boat,0,sizeof boat); memset(vilBf,0,sizeof vilBf); memset(vilSick,0,sizeof vilSick); memset(favVil,0,sizeof favVil); memset(favKd,0,sizeof favKd); jrN=0; stWars=stCapt=stAllies=stSnack=0; nVilOn=0; worldSeed=seedFix?seedFix:rnd(); genWorld(worldSeed); LOADING("SHAPING THE LAND",35); winX=-99; refillWindow();
     LOADING("SEEDING LIFE",50);
     // the first life: a few of each of the first animals on their own ground
     int nAn=260*WW*WH/16384*cLife/2; { int cap=900*(WW*WH>65536?WW*WH/65536:1); if(nAn>cap) nAn=cap; }
@@ -851,6 +911,7 @@ static int saveGameRaw(const char*path){
     if(ok){ u32 mg=0x31584747u, sz=sizeof gx, cs[2]={stBorn,stDied}; ok&=svWrite(&mg,4,1,f)==1; ok&=svWrite(&sz,4,1,f)==1; ok&=svWrite(&gx,sizeof gx,1,f)==1; ok&=svWrite(cs,4,2,f)==2; }   // GGX1 trailer: old builds never read it
     if(ok){ u32 mg=0x31484747u, sz=sizeof(Hz); ok&=svWrite(&mg,4,1,f)==1; ok&=svWrite(&sz,4,1,f)==1; ok&=svWrite(hz,sizeof(Hz),HZ_N,f)==(size_t)HZ_N; }   // GGH1 trailer (calamity.h): the tornadoes and black holes in flight
     if(ok){ u32 mg=0x31424747u; ok&=svWrite(&mg,4,1,f)==1; for(int y=0;y<gH&&ok;y++) ok&=svWrite(biome2+y*(MAXD/4),1,gW/4,f)==(size_t)(gW/4); if(ok){ int at[8]={atO2,atCO2,atDust,atTemp,atFire,atFlag,0,0}; ok&=svWrite(at,sizeof at,1,f)==1; if(ok) ok&=svWrite(favPow+40,1,24,f)==24; } }      // (the stars on powers 40 to 63 ride behind the atmosphere: there are more than 40 powers now)   // GGB1 trailer: the biomes and the atmosphere
+    if(ok){ u32 mg=0x31544747u, sz=sizeof(Boat), nb=0; for(int b=0;b<8;b++) nb+=boat[b].on?1u:0u; ok&=svWrite(&mg,4,1,f)==1; ok&=svWrite(&sz,4,1,f)==1; ok&=svWrite(&nb,4,1,f)==1; for(int b=0;b<8&&ok;b++) if(boat[b].on) ok&=svWrite(&boat[b],sizeof(Boat),1,f)==1; }      // GGT1 trailer: the boats at sea (only those; none, and it is twelve bytes). Older builds never read it
     svClose(f); return ok; }
 static int loadGameRaw(const char*path){
     SV*f=svOpen(path,"rb"); if(!f) return 0; SaveHdr h; int ok=svRead(&h,sizeof h,1,f)==1;
@@ -879,12 +940,13 @@ static int loadGameRaw(const char*path){
     memset(hz,0,sizeof hz); if(ok&&h.ver>=9){ u32 mg=0, sz=0; if(svRead(&mg,4,1,f)==1&&mg==0x31484747u&&svRead(&sz,4,1,f)==1&&(sz==sizeof(Hz)||sz==sizeof(HzOld))){ if(sz==sizeof(Hz)){ Hz t2[HZ_N]; if(svRead(t2,sizeof(Hz),HZ_N,f)==(size_t)HZ_N) memcpy(hz,t2,sizeof hz); }
             else { HzOld t3[HZ_N]; if(svRead(t3,sizeof(HzOld),HZ_N,f)==(size_t)HZ_N) for(int i=0;i<HZ_N;i++){ Hz*q=&hz[i]; const HzOld*o=&t3[i]; q->kind=o->kind; q->x=o->x; q->y=o->y; q->dx=o->dx; q->dy=o->dy; q->r=o->r; q->t=o->t; q->life=o->life; q->age=o->age; } }
             for(int i=0;i<HZ_N;i++) if(hz[i].kind>HZ_HOLE||hz[i].x>=gW||hz[i].y>=gH) memset(&hz[i],0,sizeof hz[i]); } }   // GGH1 trailer: an old save has none
-    bioClear(); atmoReset(); if(ok&&h.ver>=9){ u32 mg=0; if(svRead(&mg,4,1,f)==1&&mg==0x31424747u){ int got=1; for(int y=0;y<gH&&got;y++) got=svRead(biome2+y*(MAXD/4),1,gW/4,f)==(size_t)(gW/4); if(!got) memset(biome2,0,sizeof biome2); else { int at[8]; if(svRead(at,sizeof at,1,f)==1){ atO2=at[0]; atCO2=at[1]; atDust=at[2]; atTemp=at[3]; atFire=at[4]; atFlag=at[5]; u8 fp[24]; if(svRead(fp,1,24,f)==24) memcpy(favPow+40,fp,24); } } } }   // GGB1 trailer: an old save has none
+    int bioRead=0; bioClear(); atmoReset(); if(ok&&h.ver>=9){ u32 mg=0; if(svRead(&mg,4,1,f)==1&&mg==0x31424747u){ int got=1; for(int y=0;y<gH&&got;y++) got=svRead(biome2+y*(MAXD/4),1,gW/4,f)==(size_t)(gW/4); if(!got) memset(biome2,0,sizeof biome2); else { int at[8]; if(svRead(at,sizeof at,1,f)==1){ atO2=at[0]; atCO2=at[1]; atDust=at[2]; atTemp=at[3]; atFire=at[4]; atFlag=at[5]; u8 fp[24]; if(svRead(fp,1,24,f)==24){ memcpy(favPow+40,fp,24); bioRead=1; } } } } }   // GGB1 trailer: an old save has none
+    memset(boat,0,sizeof boat); if(ok&&bioRead){ u32 mg=0, sz=0, nb=0; if(svRead(&mg,4,1,f)==1&&mg==0x31544747u&&svRead(&sz,4,1,f)==1&&sz==sizeof(Boat)&&svRead(&nb,4,1,f)==1&&nb<=8){ for(u32 b=0;b<nb;b++){ Boat t; if(svRead(&t,sizeof t,1,f)!=1) break; if(t.on&&t.race<8&&t.x>=0&&t.y>=0&&t.x<gW&&t.y<gH&&t.tx>=0&&t.ty>=0&&t.tx<gW&&t.ty<gH&&t.n<=128&&t.i<=t.n) boat[b]=t; } } }   // GGT1 trailer: the boats at sea (an old save has none)
     bioCount(); bioRescan();
     svClose(f);
     if(!ok){ return 0; }
     tick=(int)h.tick; year=(int)h.year; rs=h.rs; stKill=h.stKill; stGift=h.stGift; stUse=h.stUse; seenN=h.seenN; camX=h.camX; camY=h.camY; chapter=h.chapter; tierOpen=h.tierOpen; storyOn=h.storyOn; storyDone=h.storyDone; monOn=h.monOn; shape3=h.shape3; nVilOn=h.nVilOn;
-    memcpy(seenB,h.seen,sizeof seenB); memcpy(slainB,h.slain,sizeof slainB); nVilOn=0; for(int v=0;v<VIL_N;v++) nVilOn+=vil[v].on;
+    memcpy(seenB,h.seen,sizeof seenB); memcpy(slainB,h.slain,sizeof slainB); nVilOn=0; memset(vilSick,0,sizeof vilSick); for(int v=0;v<VIL_N;v++){ nVilOn+=vil[v].on; if(vil[v].on) bldFlags(v); else vilBf[v]=0; }
     for(int i=0;i<nCr;i++) if(cr[i].alive&&cr[i].x<gW&&cr[i].y<gH) occ[cr[i].y][cr[i].x]=(occ_t)(i+1); vilCur=h.vcur; weather=h.weather; weatherT=h.weatherT; trSeen=h.trSeen; stMut=h.stMut; worldSeed=h.seed; cEdge=h.pad_[0]<3?h.pad_[0]:0; diff=h.diff; fullDone=h.full; auralOpen=h.aural; debugOn=h.debug; cursor=0; compact(); warMatrix(); winX=-99; return 1; }
 #ifndef NDSHW
 static int saveGame(const char*path){ char t[64], b[64]; siprintf(t,"%s.tmp",path); siprintf(b,"%s.bak",path);
@@ -1021,7 +1083,7 @@ static int zHit(int px,int py,int*tx,int*ty){ int ox=zOx(), oy=zOy(); int sh=zSh
 static void zCrit(int i,int px,int py,int S){   // one creature, its tile's top left corner at (px, py), enlarged to S pixels
     const Cr*c=&cr[i]; const Sp*s=&sp[c->sp]; const Arch*A=&arch[s->a]; int fam=s->fam;
     if(S<=2){ zRect(px,py,2,2,zCol(fam,0)); return; }
-    int mv=(c->ox||c->oy); int fr=mv?(((tick>>3)+i)&1):0; int flip=(i&1)&&c->dir; if(!mv) fr=0;
+    int mv=(c->ox||c->oy); int fr=mv?(((tick>>3)+i)&1):0; int flip=0; if(!mv) fr=0;
     int gx=c->ox*S/8, gy=c->oy*S/8; px+=gx; py+=gy;
     u8 g[64]; for(int y=0;y<8;y++){ const char*row=shpRow(A->shape,fr,y); for(int x=0;x<8;x++){ char ch=row[flip?7-x:x]; g[y*8+x]=(u8)(ch=='b'?zCol(fam,0):ch=='d'?zCol(fam,1):ch=='a'?zCol(fam,2):ch=='e'?UI_PAL0+U_WHITE:0); } }
     if(S>=16){ int sh=S/8; for(int r=0;r<sh;r++){ int yy=py+S-sh+r; for(int xx=px+S/8+r;xx<px+S-S/8-r;xx++){ if((unsigned)xx<256&&(unsigned)yy<ZH){ u8 v=gbuf[yy*256+xx]; if(v<128) gbuf[yy*256+xx]=(u8)((v&~7)|((v&7)>2?(v&7)-3:0)); } } } }   // a shadow: the ground under its feet darkened
@@ -1031,6 +1093,7 @@ static void zCrit(int i,int px,int py,int S){   // one creature, its tile's top 
     if(c->rk&&S>=16){ int cc=c->rk==2?UI_PAL0+U_RED:UI_PAL0+U_GOLD; zRect(px+S/2-S/8,py-S/8,S/4,S/8,cc); zRect(px+S/2-S/4,py-S/4+1,S/8,S/8,cc); zRect(px+S/2+S/8,py-S/4+1,S/8,S/8,cc); }      // a crown
     if(cr[i].sick==1&&S>=16&&((tick>>2)&1)) zRect(px+S*5/8,py-S/8,S/4,S/4,UI_PAL0+U_GREEN);     // the plague's flicker
     if(S>=16&&c->wep){ zRect(px+(flip?0:S-S/8),py+S/4,S/8,S/2,UI_PAL0+U_LGREY); } }
+static int bZoomCol(int b,int race){ return (b==B_HALL||b==B_TOWER||b==B_TEMPLE||b==B_STATUE)?139:b==B_FARM?140:b==B_DOCK?137:128+race; }      // the colour of a building tile when the picture is too small for its art
 static int zKey=-1;
 static int zDraw(void){
     zScale(); int S=zS_, sh=zSh_, K=zK_; int ox=zOx(), oy=zOy();
@@ -1038,7 +1101,7 @@ static int zDraw(void){
     memset(gbuf,0,256*ZH);
     if(K>1){       // a planet squeezed K tiles to a pixel: one sampled tile a pixel, creatures as dots
         for(int sy=0;sy<ZH;sy++){ int ty=(oy+sy)*K+K/2; if(ty<0||ty>=WH) continue; u8*d=gbuf+sy*256; for(int sx=0;sx<256;sx++){ int tx=(ox+sx)*K+K/2; if(tx<0||tx>=WW) continue; int t=world[ty][tx]; int b=bld[ty][tx]; int c;
-                if(b&&b!=B_RUIN){ int race=bldv[ty][tx]?vilRace(bldv[ty][tx]-1):0; c=(b==B_HALL||b==B_TOWER)?139:b==B_FARM?140:128+race; } else { int h=(int)(hsh(tx,ty,3)&3); c=t*8+((t==T_WATER||t==T_DEEP)?3+((h+(tick>>4))&1):2+h); if(t>T_WATER&&t!=T_LAVA) c=bioPix(c,bioAt(tx,ty)); }
+                if(b&&b!=B_RUIN){ int race=bldv[ty][tx]?vilRace(bldv[ty][tx]-1):0; c=bZoomCol(b,race); } else { int h=(int)(hsh(tx,ty,3)&3); c=t*8+((t==T_WATER||t==T_DEEP)?3+((h+(tick>>4))&1):2+h); if(t>T_WATER&&t!=T_LAVA) c=bioPix(c,bioAt(tx,ty)); }
                 d[sx]=(u8)c; } }
         for(int i=0;i<nCr;i++){ const Cr*c=&cr[i]; if(!c->alive) continue; int px=c->x/K-ox, py=c->y/K-oy; if((unsigned)px<256&&(unsigned)py<ZH&&(arch[sp[c->sp].a].diet==4||arch[sp[c->sp].a].diet==5||c->rk)) gbuf[py*256+px]=(u8)(arch[sp[c->sp].a].diet==5?UI_PAL0+U_RED:UI_PAL0+U_YELLOW); }      // (only people, monsters and notables)
         return 1; }
@@ -1049,10 +1112,11 @@ static int zDraw(void){
                 for(int i=0;i<8;i++){ u8 c=a[i]; int x0=sx+(i<<r8); for(int q=0;q<(1<<r8);q++){ int xx=x0+q; if((unsigned)xx<256) d[xx]=c; } } } } }
     else { for(int ty=ty0;ty<=ty1;ty++){ if(ty<0||ty>=WH) continue; int sy0=(ty<<sh)-oy;
             for(int tx=tx0;tx<=tx1;tx++){ if(tx<0||tx>=WW) continue; int sx0=(tx<<sh)-ox; int t=world[ty][tx]; int c; int b=bld[ty][tx];
-                if(b&&b!=B_RUIN){ int race=bldv[ty][tx]?vilRace(bldv[ty][tx]-1):0; c=(b==B_HALL||b==B_TOWER)?139:b==B_FARM?140:128+race; }
+                if(b&&b!=B_RUIN){ int race=bldv[ty][tx]?vilRace(bldv[ty][tx]-1):0; c=bZoomCol(b,race); }
                 else { int h=(int)(hsh(tx,ty,3)&3); c=t*8+((t==T_WATER||t==T_DEEP)?3+((h+(tick>>4))&1):2+h); if(t>T_WATER&&t!=T_LAVA) c=bioPix(c,bioAt(tx,ty)); if(b==B_RUIN) c=142; }
                 zRect(sx0,sy0,S,S,c);
                 if(S==4){ int h2=(int)(hsh(tx,ty,5)&3); if(b==B_NONE||b==B_RUIN){ if(h2==0) zPut(sx0+1,sy0+2,c^1); else if(h2==1) zPut(sx0+2,sy0+1,c^1); } else if(b==B_HUT||b==B_HOUSE) zRect(sx0,sy0+2,4,2,136); } } } }
+    for(int b=0;b<8;b++) if(boat[b].on&&K==1){ int px=boat[b].x*S-ox, py=boat[b].y*S-oy; if(S>=4) zRect(px,py,S,S,137); if(S>=16) zRect(px+S/4,py+S/8,S/2,S/2,UI_PAL0+U_WHITE); else zRect(px,py,S>2?S:2,S>2?S:2,UI_PAL0+U_WHITE); }      // boats at sea
     // creatures: every one on screen
     for(int ty=ty0-1;ty<=ty1+1;ty++){ if(ty<0||ty>=WH) continue; for(int tx=tx0-1;tx<=tx1+1;tx++){ if(tx<0||tx>=WW) continue; int i=(int)occ[ty][tx]-1; if(i<0||!cr[i].alive) continue; zCrit(i,(tx<<sh)-ox,(ty<<sh)-oy,S); } }
     return 1; }
@@ -1152,8 +1216,9 @@ static void drawSprites(void){
     int crMax=100-nh;
     for(int ty=(camY>>3)-1;ty<(camY>>3)+26&&n<crMax;ty++) for(int tx=(camX>>3)-1;tx<(camX>>3)+34&&n<crMax;tx++){ if(tx<0||ty<0||tx>=WW||ty>=WH) continue; int i=occ[ty][tx]-1; if(i<0) continue; Cr*c=&cr[i]; if(!c->alive) continue; int px=c->x*8+c->ox-camX, py=c->y*8+c->oy-camY; if(px<-8||px>=256||py<-8||py>=TB_Y-6) continue;   // (the bottom rows are the toolbar)
         const Sp*s=&sp[c->sp]; const Arch*A=&arch[s->a]; int fr=((tick>>3)+i)&1; if(!c->ox&&!c->oy) fr=0;
-        oamSet(&oamMain,n,px,py,0,c->sick==1?((s->fam==3||s->fam==4)?11:3):s->fam,SpriteSize_8x8,SpriteColorFormat_16Color,gfxF[A->shape][fr],-1,false,false,(i&1)&&c->dir,false,false); n++;
+        oamSet(&oamMain,n,px,py,0,c->sick==1?((s->fam==3||s->fam==4)?11:3):s->fam,SpriteSize_8x8,SpriteColorFormat_16Color,gfxF[A->shape][fr],-1,false,false,false,false,false); n++;
         if(c->rk&&nc<108){ oamSet(&oamMain,nc,px,py-6,0,c->rk==2?10:2,SpriteSize_8x8,SpriteColorFormat_16Color,gfxF[39][0],-1,false,false,false,false,false); nc++; } }
+    for(int b=0;b<8;b++) if(boat[b].on&&nc<108){ int px=boat[b].x*8-camX, py=boat[b].y*8-camY; if(px>=-8&&px<256&&py>=-8&&py<TB_Y-6){ oamSet(&oamMain,nc,px,py,0,14,SpriteSize_8x8,SpriteColorFormat_16Color,gfxF[45][0],-1,false,false,false,false,false); nc++; } }      // boats at sea
     for(int k=n;k<crMax;k++) oamSetHidden(&oamMain,k,true);
     for(int k=0;k<nh;k++) oamSet(&oamMain,crMax+k,hs[k][0],hs[k][1],0,hs[k][2]==44?15:13,SpriteSize_8x8,SpriteColorFormat_16Color,gfxF[hs[k][2]][0],-1,false,false,hs[k][3]!=0,false,false);
     for(int k=nc;k<108;k++) oamSetHidden(&oamMain,k,true);
@@ -1357,13 +1422,13 @@ static void uiInspectCard(void){
         for(int k=0;k<3;k++) BG_PALETTE_SUB[200+k]=RGB15(famCol[fam][k][0],famCol[fam][k][1],famCol[fam][k][2]); BG_PALETTE_SUB[203]=RGB15(31,31,31);
         uiFrame(142,19,38,38,U_SHADOW,U_BHI,U_BLO); for(int j=0;j<8;j++) for(int i=0;i<8;i++){ char ch=shpRow(shape,(tick>>4)&1,j)[i]; int col=ch=='b'?200:ch=='d'?201:ch=='a'?202:ch=='e'?203:0; if(col) uiRect(144+i*4,21+j*4,4,4,col); }
         crName(c,nm); uiWrap(184,20,11,4,nm,U_WHITE); spName(c->sp,nm); (void)nm; y=62;
-        uiText(142,y,"HEALTH",U_DIM,1); uiBar(142,y+9,108,7,c->hp,maxHp(c),c->hp*3<maxHp(c)?U_RED:U_GREEN); y+=19;
+        { char hb[24]; siprintf(hb,"HEALTH   LEVEL %d",c->dir); uiText(142,y,hb,U_DIM,1); } uiBar(142,y+9,108,7,c->hp,maxHp(c),c->hp*3<maxHp(c)?U_RED:U_GREEN); y+=19;
         uiText(142,y,"HUNGER",U_DIM,1); uiBar(142,y+9,108,7,c->food>200?200:c->food,200,U_ORANGE); y+=19;
         siprintf(b,"AGE %d   %s",c->age,arch[sp[c->sp].a].diet==5?"MONSTER":arch[sp[c->sp].a].diet==4?"FOLK":"BEAST"); uiText(142,y,b,U_LGREY,1); y+=10;
         if(c->wep) uiText(142,y,it[c->wep-1].nm,U_YELLOW,1),y+=10; if(c->arm) uiText(142,y,it[c->arm-1].nm,U_CYAN,1),y+=10;
         if(c->tr){ uiText(142,y,trNm[c->tr],U_PURPLE,1); y+=10; uiWrap(142,y,18,2,trDesc[c->tr],U_DIM); y+=18; } if(c->tr2){ uiText(142,y,trNm[c->tr2],U_PURPLE,1); y+=10; } }
     else if(inspKind==2&&inspIdx>=0&&inspIdx<VIL_N&&vil[inspIdx].on){ Vil*V=&vil[inspIdx]; int v=inspIdx; char vn[24]; vilName(v,vn);
-        uiFrame(142,19,38,38,U_SHADOW,U_BHI,U_BLO); uiBig(145,22,IC8_HOME,4); uiText(184,20,vn,U_WHITE,1); uiText(184,30,arch[V->race].nm,U_DIM,1); { static const char* const tier[4]={"","HAMLET","TOWN","CITY"}; int k=vilK[v]-1; uiText(184,40,(k>=0&&kd[k].cap==v+1)?"CAPITAL":tier[V->lvl>3?3:V->lvl],(k>=0&&kd[k].cap==v+1)?U_GOLD:U_LGREY,1); }
+        uiFrame(142,19,38,38,U_SHADOW,U_BHI,U_BLO); uiBig(145,22,IC8_HOME,4); uiText(184,20,vn,U_WHITE,1); uiText(184,30,arch[V->race].nm,U_DIM,1); { int mo=vilMood(v); uiText(184,50,moodName(mo),mo>=20?U_GREEN:mo<=-20?U_RED:U_LGREY,1); } { static const char* const tier[4]={"","HAMLET","TOWN","CITY"}; int k=vilK[v]-1; uiText(184,40,(k>=0&&kd[k].cap==v+1)?"CAPITAL":tier[V->lvl>3?3:V->lvl],(k>=0&&kd[k].cap==v+1)?U_GOLD:U_LGREY,1); }
         y=62; if(vilK[v]){ int k=vilK[v]-1; char kn[24]; kdName(k,kn); uiRect(142,y,8,8,40+k); uiText(153,y,kn,U_WHITE,1); y+=11; uiText(142,y,"LOYALTY",U_DIM,1); int lo=vilL[v]<0?0:vilL[v]; uiBar(142,y+9,108,7,lo,100,vilL[v]<20?U_RED:U_GREEN); y+=19; }
         uiText(142,y,"STORE",U_DIM,1); uiBar(142,y+9,108,7,V->stock,400,U_YELLOW); y+=19;
         siprintf(b,"POP %d  HOMES %d",V->pop,V->houses); uiText(142,y,b,U_WHITE,1); y+=10; siprintf(b,"FARMS %d  TOWERS %d",V->farms,V->towers); uiText(142,y,b,U_WHITE,1); y+=10;
