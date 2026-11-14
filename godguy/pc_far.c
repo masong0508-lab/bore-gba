@@ -8,15 +8,16 @@
 #define GG_NOCAPTURE 1
 #define main pc_war_main
 #include "pc_war.c"
+static const char*ggTmp(const char*n){ static char b[600]; snprintf(b,sizeof b,"%s/%s",getenv("TMPDIR")?getenv("TMPDIR"):"/tmp",n); return b; }
 #undef main
 static u32 hashAll(void){ return stateHash(); }
 int main(void){
     int bad=0;
     for(int near=0;near<2;near++){
         stage(1000); camera(near); wgBuild(); for(int t=1;t<=700;t++){ tick=t; simulate(); }
-        CHK(saveGame("/tmp/gg_far.sav"),"the war saves"); int alive0=survivors(0)+survivors(1);
+        CHK(saveGame(ggTmp("gg_far.sav")),"the war saves"); int alive0=survivors(0)+survivors(1);
         for(int t=701;t<=1300;t++){ tick=t; simulate(); } u32 h1=hashAll(); int d1=stDied;
-        newWorld(); int lo=loadGame("/tmp/gg_far.sav"); CHK(lo,"the war loads"); camera(near);
+        newWorld(); int lo=loadGame(ggTmp("gg_far.sav")); CHK(lo,"the war loads"); camera(near);
         CHK(survivors(0)+survivors(1)==alive0,"the loaded war has the soldiers it was saved with");
         for(int t=701;t<=1300;t++){ tick=t; simulate(); } u32 h2=hashAll();
         printf("camera %s: hash after 600 ticks, original %08x, loaded %08x, creatures lost since the save %d\n",near?"near":"far ",h1,h2,d1); CHK(h1==h2,"a loaded war goes on exactly as the saved one"); }
