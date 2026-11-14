@@ -45,7 +45,7 @@ static void doCmd(HwCmd*c){
 static int calOk, calTry; static int cAx1, cAy1, cSx1, cSy1, cAx2, cAy2, cSx2, cSy2;
 static int ab(int v){ return v<0?-v:v; }
 static void calInit(void){   // the user settings the firmware leaves in main RAM: ADC x1 y1, screen x1 y1, ADC x2 y2, screen x2 y2
-    volatile u8*u=(volatile u8*)0x027FFC80; calTry++; cAx1=u[0x58]|(u[0x59]<<8); cAy1=u[0x5A]|(u[0x5B]<<8); cSx1=u[0x5C]; cSy1=u[0x5D]; cAx2=u[0x5E]|(u[0x5F]<<8); cAy2=u[0x60]|(u[0x61]<<8); cSx2=u[0x62]; cSy2=u[0x63];
+    volatile u8*u=(volatile u8*)(calTry&1?0x027FFC80:0x02FFFC80); calTry++;   /* DSi mode has no 4 MB mirror: the firmware settings sit at 0x02FFFC80 (the same bytes on a DS). Each try uses the other address, and the sanity checks below decide. */ cAx1=u[0x58]|(u[0x59]<<8); cAy1=u[0x5A]|(u[0x5B]<<8); cSx1=u[0x5C]; cSy1=u[0x5D]; cAx2=u[0x5E]|(u[0x5F]<<8); cAy2=u[0x60]|(u[0x61]<<8); cSx2=u[0x62]; cSy2=u[0x63];
     calOk=0; if(cAx2<cAx1+0x200||cAy2<cAy1+0x200||cSx2<cSx1+100||cSy2<cSy1+80||cAx2>4095||cAy2>4095) return;
     if(ab((cAx1>>4)-cSx1)>20||ab((cAx2>>4)-cSx2)>20||ab(cAy1*192/4096-cSy1)>20||ab(cAy2*192/4096-cSy2)>20) return;   // far from the plain mapping: do not trust it
     calOk=1; }

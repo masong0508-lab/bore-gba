@@ -5,6 +5,43 @@
 _start:
 	msr	cpsr_c, #0xD3			@ supervisor mode, IRQ and FIQ off
 	ldr	sp, =0x022F0000
+#ifdef GG_DSI16
+	@ RAM probe, before anything is cleared or cached: 16 MB (DSi mode) or only 4 MB mirrored (DS mode)? 0x02200000 and 0x02A00000 are the same word in a 4 MB machine. A write there would
+	@ otherwise land on the program, so only these two free words are touched (and put back).
+	ldr	r4, =0x02200000
+	ldr	r5, =0x02A00000
+	ldr	r6, [r4]
+	ldr	r7, [r5]
+	ldr	r0, =0x600DF00D
+	ldr	r1, =0x0BADCAFE
+	str	r0, [r4]
+	str	r1, [r5]
+	ldr	r2, [r4]
+	ldr	r3, [r5]
+	str	r6, [r4]
+	str	r7, [r5]
+	cmp	r2, r0
+	cmpeq	r3, r1
+	beq	3f
+	@ not enough RAM: a red screen and stop (this ROM only runs in DSi mode)
+	ldr	r0, =0x04000304
+	ldr	r1, =0x0203
+	strh	r1, [r0]
+	ldr	r0, =0x04000240
+	mov	r1, #0x80
+	strb	r1, [r0]
+	ldr	r0, =0x04000000
+	ldr	r1, =0x00020000
+	str	r1, [r0]
+	ldr	r0, =0x06800000
+	ldr	r1, =0x801F801F
+	ldr	r2, =12288
+4:	str	r1, [r0], #4
+	subs	r2, r2, #1
+	bne	4b
+5:	b	5b
+3:
+#endif
 	ldr	r0, =__bss_start
 	ldr	r1, =__bss_end
 	mov	r2, #0
@@ -19,15 +56,27 @@ _start:
 	mcr	p15, 0, r0, c7, c6, 0		@ invalidate the data cache
 	ldr	r0, =0x04000033
 	mcr	p15, 0, r0, c6, c0, 0
+#ifdef GG_DSI16
+	ldr	r0, =0x0200002F			@ region 1 = all 16 MB of main RAM (cached)
+#else
 	ldr	r0, =0x0200002B
+#endif
 	mcr	p15, 0, r0, c6, c1, 0
 	ldr	r0, =0x02300027
 	mcr	p15, 0, r0, c6, c2, 0
+#ifdef GG_DSI16
+	ldr	r0, =0x02C00029			@ region 3 = the 2 MB packed-save block at 0x02C00000 (never cached, wins over region 1)
+	mcr	p15, 0, r0, c6, c3, 0
+#endif
 	mov	r0, #0x02
 	mcr	p15, 0, r0, c2, c0, 0		@ data cacheable: region 1
 	mcr	p15, 0, r0, c2, c0, 1		@ instructions cacheable: region 1
 	mcr	p15, 0, r0, c3, c0, 0		@ write buffer: region 1
+#ifdef GG_DSI16
+	ldr	r0, =0x00003333
+#else
 	ldr	r0, =0x00000333
+#endif
 	mcr	p15, 0, r0, c5, c0, 2		@ data access: full, regions 0..2
 	mcr	p15, 0, r0, c5, c0, 3		@ instruction access: full
 	mrc	p15, 0, r0, c1, c0, 0

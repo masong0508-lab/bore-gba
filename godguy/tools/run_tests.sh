@@ -35,3 +35,7 @@ gcc $F -w -o /tmp/gg_gen pc_gen.c -lm && /tmp/gg_gen | tail -1
 gcc -O2 -DNDSSHIM -DKD_CHECK -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_speed pc_speed.c -lm && /tmp/gg_speed | tail -1
 # the 3DS platform file against a libctru stand-in: tiled screen copy, only changed screens copied, the sound queue, the New 3DS speed-up
 gcc -O2 -I3ds/stub -o /tmp/gg_3ds pc_3ds.c 3ds/platform3ds.c -lm && /tmp/gg_3ds | tail -1
+# DSi mode (step 9): a 768 x 768 planet saves, packs into the 2 MB block and loads back identical
+gcc -O2 -DNDSSHIM -DGG_DSI16 -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_vilsave pc_vilsave.c -lm && /tmp/gg_vilsave | tail -1
+# the DSi-mode boot probe under Unicorn (only when pip's unicorn and an arm-none-eabi compiler are installed; build_dsi.sh's build_dsi16/arm9.elf is used when it exists)
+if python3 -c "import unicorn" 2>/dev/null && [ -f build_dsi16/arm9.elf ]; then python3 tools/dsi_emu/probe.py build_dsi16/arm9.elf build_dsi16/arm9.bin | tail -1; else echo "probe: skipped (no unicorn or no build_dsi16)"; fi

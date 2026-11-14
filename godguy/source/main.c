@@ -927,7 +927,10 @@ typedef struct { u8 on, race, x, y, lvl, houses, farms, towers, foe, dead, nm1, 
 typedef struct { u8 kind, x, y; s8 dx, dy; u8 r, t, pad; u16 life, age; } HzOld;       // the GGH1 trailer before the coordinates went 16-bit
 static const u16 szList[]={128,192,256
 #ifdef GG_BIGMAP
- ,384,512,768,1024
+ ,384,512,768
+#ifndef GG_DSI16
+ ,1024
+#endif
 #endif
 };
 #define SZ_N ((int)(sizeof szList/sizeof szList[0]))
@@ -952,7 +955,7 @@ static int saveGameRaw(const char*path){
     if(ok){ u32 mg=0x31424747u; ok&=svWrite(&mg,4,1,f)==1; for(int y=0;y<gH&&ok;y++) ok&=svWrite(biome2+y*(MAXD/4),1,gW/4,f)==(size_t)(gW/4); if(ok){ int at[8]={atO2,atCO2,atDust,atTemp,atFire,atFlag,0,0}; ok&=svWrite(at,sizeof at,1,f)==1; if(ok) ok&=svWrite(favPow+40,1,24,f)==24; } }      // (the stars on powers 40 to 63 ride behind the atmosphere: there are more than 40 powers now)   // GGB1 trailer: the biomes and the atmosphere
     if(ok){ u32 mg=0x31544747u, sz=sizeof(Boat), nb=0; for(int b=0;b<8;b++) nb+=boat[b].on?1u:0u; ok&=svWrite(&mg,4,1,f)==1; ok&=svWrite(&sz,4,1,f)==1; ok&=svWrite(&nb,4,1,f)==1; for(int b=0;b<8&&ok;b++) if(boat[b].on) ok&=svWrite(&boat[b],sizeof(Boat),1,f)==1; }      // GGT1 trailer: the boats at sea (only those; none, and it is twelve bytes). Older builds never read it
     if(ok){ u32 mg=0x314C4747u, n=LW_N; ok&=svWrite(&mg,4,1,f)==1; ok&=svWrite(&n,4,1,f)==1; ok&=svWrite(lw,1,LW_N,f)==LW_N; }      // GGL1 trailer: the World Laws that differ from their defaults (an old build never reads it; an old save has none)
-    svClose(f); return ok; }
+    { int cl_=svClose(f); return ok&&cl_==0; } }   // (a pack that does not fit the cartridge chip fails the save instead of reporting SAVED)
 static int loadGameRaw(const char*path){ KD_DIRTY();
     SV*f=svOpen(path,"rb"); if(!f) return 0; SaveHdr h; int ok=svRead(&h,sizeof h,1,f)==1;
     int nC=(int)h.nCr|(h.ver>=10?(int)h.pad_[1]<<16:0); int nvs=h.ver>=10&&h.planet?h.planet:VIL_OLDN; int legacy=0;

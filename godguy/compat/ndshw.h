@@ -95,11 +95,19 @@ static inline int keysHeld(void){ return hwHeld; }
 static inline int keysDown(void){ int d=hwHeld&~hwPrev; hwPrev=hwHeld; return d; }
 static inline void touchRead(touchPosition*t){ t->px=hwTx; t->py=hwTy; }
 // ---- saving: the world is run-length packed and written to the cartridge's save memory (flash or EEPROM) by the ARM7. The buffers sit in a part of RAM the data cache never touches.
+#ifdef GG_DSI16
+#define SVMAX (3*1024*1024)                    // DSi mode: a 768 x 768 planet (three maps of 590 KB), up to 40000 creatures (20 bytes each) and the trailers
+#define SVCMAX (0x200000-16)                    // the packed save, in its own uncached 2 MB block at 0x02C00000 (hw/crt0.s makes it cache region 3; the ARM7 and the IPC block stay at 0x02380000 / 0x023F0000)
+static u8 svBufA[SVMAX] __attribute__((aligned(4)));   // ordinary cached RAM: only the ARM9 touches the raw copy
+#define SVBUF svBufA
+#define SVCMP ((u8*)0x02C00000)
+#else
 #define SVMAX (700*1024)                       // the raw save: a 256 x 256 planet (about 200 KB) and up to 16000 creatures (20 bytes each)
 #define SVCMAX (0x80000-16)                     // the packed save, in the uncached block 0x02300000..0x02380000 (the ARM7 starts at 0x02380000)
 static u8 svBufA[SVMAX] __attribute__((aligned(4)));   // ordinary cached RAM: only the ARM9 touches the raw copy
 #define SVBUF svBufA
 #define SVCMP ((u8*)0x02300000)
+#endif
 typedef struct { int dummy; } SV; static SV svDummy; static u32 svLen, svPos; static int svMode;
 static int fatInitDefault(void){ for(int i=0;i<60;i++){ while(REG_VCOUNT!=192){} while(REG_VCOUNT==192){} if(HWIPC->svType) break; } return HWIPC->svType!=0; }
 static void hwFlash(u32 op,u32 mem,u32 len,u32 off){ HWIPC->svBusy=1; HWIPC->svOK=0; HwIpc*q=HWIPC; while(((q->head+1)&63)==q->tail){} HwCmd*m=&q->q[q->head]; m->op=op; m->ch=0; m->a=mem; m->b=len; m->c=off; m->d=0; q->head=(q->head+1)&63; u32 t=0; while(HWIPC->svBusy&&++t<50000000u){} }
@@ -113,6 +121,7 @@ static size_t svWrite(const void*b,size_t s,size_t n,SV*f){ (void)f; u32 t=(u32)
 static size_t svRead(void*b,size_t s,size_t n,SV*f){ (void)f; u32 t=(u32)(s*n); if(svPos+t>svLen) return 0; memcpy(b,SVBUF+svPos,t); svPos+=t; return n; }
 static u32 hwSvLimit(void){ return HWIPC->svSize?HWIPC->svSize:65536u; }   // the end of the save memory (65536 when the chip does not say: the largest EEPROM)
 static int svClose(SV*f){ (void)f; if(svMode==1){ u32 clen=rleEnc(SVBUF,svLen,SVCMP+12,SVCMAX); if(!clen) return -1; SVCMP[0]='G'; SVCMP[1]='G'; SVCMP[2]='S'; SVCMP[3]=1; *(u32*)(SVCMP+4)=clen; *(u32*)(SVCMP+8)=svLen; u32 tot=clen+12;
+    if(tot>hwSvLimit()) return -1;   // the packed world does not fit this chip: refuse instead of wrapping round and overwriting its start
     if(tot+44<=SVCMAX&&tot+44<=hwSvLimit()){ hwCalPack(SVCMP+tot); tot+=44; }   // the touch calibration rides along right behind the world, in the same write
     hwFlash(8,(u32)SVCMP,tot,0); return HWIPC->svOK?0:-1; } return 0; }
 // ---- the touch calibration is kept in the save memory: right behind the world data when a world is saved (so the old save layout still loads), at the very start when there is none
