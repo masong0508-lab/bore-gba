@@ -39,3 +39,5 @@ gcc -O2 -I3ds/stub -o /tmp/gg_3ds pc_3ds.c 3ds/platform3ds.c -lm && /tmp/gg_3ds 
 gcc -O2 -DNDSSHIM -DGG_DSI16 -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_vilsave pc_vilsave.c -lm && /tmp/gg_vilsave | tail -1
 # the DSi-mode boot probe under Unicorn (only when pip's unicorn and an arm-none-eabi compiler are installed; build_dsi.sh's build_dsi16/arm9.elf is used when it exists)
 if python3 -c "import unicorn" 2>/dev/null && [ -f build_dsi16/arm9.elf ]; then python3 tools/dsi_emu/probe.py build_dsi16/arm9.elf build_dsi16/arm9.bin | tail -1; else echo "probe: skipped (no unicorn or no build_dsi16)"; fi
+# the cartridge save layer's packer on a fake chip (step 9b): round trip, and a pack bigger than the chip is refused
+grep -E "^static u32 rle(Enc|Dec)" compat/ndshw.h > /tmp/gg_rle.inc && gcc -O2 -w -DRLE_INC='"/tmp/gg_rle.inc"' -o /tmp/gg_slots pc_slots.c && /tmp/gg_slots | tail -1
