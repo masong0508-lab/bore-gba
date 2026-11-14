@@ -45,3 +45,5 @@ grep -E "^static u32 rle(Enc|Dec)" compat/ndshw.h > /tmp/gg_rle.inc && gcc -O2 -
 gcc $F -w -o /tmp/gg_ident pc_ident.c -lm && /tmp/gg_ident | tail -1
 # GodGuy step 10b, notables: promotion, hero, scars, grief, births, full-table eviction, stars, save and load
 gcc $F -w -o /tmp/gg_notable pc_notable.c -lm && /tmp/gg_notable | tail -1
+# GodGuy step 10c, cells: the 8 x 8 cell grid equals a rebuild, cellNearest equals the tile scan, and the game runs exactly as with the old scan (same state hash with -DGG_NOCELL)
+gcc $F -w -o /tmp/gg_cells pc_cells.c -lm && /tmp/gg_cells | tail -1 && gcc $F -w -DGG_NOCELL -o /tmp/gg_cells_old pc_cells.c -lm && [ "$(/tmp/gg_cells | grep 'state hash')" = "$(/tmp/gg_cells_old | grep 'state hash')" ] && echo "CELLS same game as the tile scan"
