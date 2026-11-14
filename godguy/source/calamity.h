@@ -21,14 +21,18 @@ static void hzFling(int i){   // thrown up to six tiles away, onto any free tile
         occ[c->y][c->x]=0; c->x=(coord_t)nx; c->y=(coord_t)ny; c->ox=0; c->oy=0; occ[ny][nx]=(occ_t)(i+1); return; } }
 static void stormRaze(int x,int y,int chance){ if(!gx.lStorm) razeAt(x,y,chance); }   // tornado, acid and black hole leave homes alone when WORLD > LAWS says so
 // ---------------------------------------------------------------- the plague
-static int infect(int i){ Cr*c=&cr[i]; if(!c->alive||c->sick||gx.lPlague==1) return 0; c->sick=1; return 1; }   // only the healthy and the never-ill can fall sick
+static int infect(int i){ Cr*c=&cr[i]; if(!c->alive||c->sick||gx.lPlague==1||arch[sp[c->sp].a].diet==5) return 0; c->sick=1; return 1; }   // only the healthy and the never-ill can fall sick
 static void plagueTick(void){   // every 32 ticks: the sick suffer, pass it to whoever stands next to them, and now and then get better (and stay immune)
     if((tick&31)!=11) return; int mode=gx.lPlague;   // 0 normal, 1 off (everyone is cured at once), 2 deadly
-    for(int i=0;i<nCr;i++){ Cr*c=&cr[i]; if(!c->alive||c->sick!=1) continue;
+    for(int i=0;i<nCr;i++){ Cr*c=&cr[i]; if(!c->alive||(c->sick!=1&&c->sick!=3)) continue;
+        if(c->sick==3){ if(mode==1){ c->sick=0; continue; } int d=maxHp(c)/4; if(d<1) d=1; if(c->hp>d) c->hp=(u8)(c->hp-d); else killNat(i); continue; }      // the zombie infection drains a quarter of the health and the body gets up again as a zombie
         if(mode==1){ c->sick=2; continue; }
         int dmg=mode==2?4:2; if(c->hp>dmg) c->hp=(u8)(c->hp-dmg); else { killNat(i); continue; }
+        if(arch[sp[c->sp].a].diet==4){ int v=vilNear(sp[c->sp].a,c->x,c->y,8); if(v>=0&&vil[v].stock>0) vil[v].stock--; }      // sick folk eat and do not work: the store drains
         for(int k=0;k<4;k++){ int x=c->x+dxs[k], y=c->y+dys[k]; if(x<0||y<0||x>=WW||y>=WH||!occ[y][x]) continue; Cr*q=&cr[occ[y][x]-1]; if(q->alive&&!q->sick&&(int)(rnd()%100)<(mode==2?45:25)) q->sick=1; }
         if((int)(rnd()%100)<(mode==2?4:10)) c->sick=2; } }
+static int zombSp=-2;
+static void zombiesRise(void){ while(zqN>0){ zqN--; if(zombSp==-2){ zombSp=-1; for(int s=0;s<nSp;s++) if(!strcmp(arch[sp[s].a].nm,"ZOMBIE")){ zombSp=s; break; } } if(zombSp>=0&&addCr(zombSp,zq[zqN][0],zq[zqN][1])>=0) siprintf(info,"A ZOMBIE RISES"); } }
 static int plagueCount(int st){ int n=0; for(int i=0;i<nCr;i++) n+=cr[i].alive&&cr[i].sick==st; return n; }
 // ---------------------------------------------------------------- the tornado: wanders, uproots forest, flattens homes, throws whatever it meets
 static void tornadoStep(Hz*h){
@@ -78,4 +82,4 @@ static void calamityTick(void){
     for(int i=0;i<HZ_N;i++){ Hz*h=&hz[i]; if(!h->kind) continue; if(++h->t<(h->kind==HZ_TORNADO?4:6)) continue; h->t=0;
         if(h->kind==HZ_TORNADO) tornadoStep(h); else holeStep(h);
         if(h->life>0) h->life--; if(!h->life){ if(h->kind==HZ_TORNADO) siprintf(info,"THE TORNADO DIES OUT"); else { siprintf(info,"THE BLACK HOLE COLLAPSES"); flashT=6; } h->kind=HZ_NONE; } }
-    plagueTick(); calamityNatural(); }
+    plagueTick(); zombiesRise(); calamityNatural(); }

@@ -27,3 +27,5 @@ gcc $F -w -o /tmp/gg_temples pc_temples.c -lm && /tmp/gg_temples | tail -1
 # World Laws (step 5): each law really changes what it names, laws are saved, and the LAWS tab pages and flips them
 gcc $F -w -o /tmp/gg_laws pc_laws.c -lm && /tmp/gg_laws | tail -1
 gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_lawmenu pc_lawmenu.c -lm && /tmp/gg_lawmenu | tail -1
+# plague (step 6): spread, recovery, heal, the law, zombie bite and rising, village store drain, save
+gcc $F -w -o /tmp/gg_plague pc_plague.c -lm && /tmp/gg_plague | tail -1

@@ -141,7 +141,7 @@ static u32 trSeen; static u32 stMut; static int trCount[TR_N], diff=1;      // t
 #define HAS(c,t) ((c)->tr==(t)||(c)->tr2==(t))
 static int trMask(const Cr*c){ int m=0; if(HAS(c,TR_FIRE)) m|=1<<T_LAVA; if(HAS(c,TR_AMPH)||HAS(c,TR_FLOATY)) m|=M_WATER; if(HAS(c,TR_CLIMB)||HAS(c,TR_SPACY)) m|=1<<T_MOUNT; if(HAS(c,TR_WING)) m|=M_ALL&~(1<<T_LAVA); if(HAS(c,TR_FROST)) m|=(1<<T_SNOW)|(1<<T_MOUNT); return m; }
 static int maxHp(const Cr*c){ int h=arch[sp[c->sp].a].hp*gxVigorK(sp[c->sp].a)/100; if(HAS(c,TR_GIANT)) h=h*16/10; if(HAS(c,TR_COUCH)) h=h*15/10; if(HAS(c,TR_TINY)) h=h*6/10; if(c->rk==1) h=h*13/10; else if(c->rk==2) h=h*2; h+=c->dir*5; if(h<3) h=3; return h>255?255:h; }      // (dir holds the level, 0..10)
-static int effSpd(const Cr*c){ int sd=arch[sp[c->sp].a].spd; if(HAS(c,TR_SWIFT)) sd=sd*7/10; if(HAS(c,TR_GIANT)) sd=sd*13/10; if(HAS(c,TR_CHILL)) sd=sd*13/10; if(HAS(c,TR_COUCH)) sd=sd*17/10; if(HAS(c,TR_NOCT)){ int p=(tick>>1)&2047; sd=(p<256||p>1792)?sd*7/10:sd*12/10; } if(c->sick==1) sd=sd*13/10; return sd<3?3:sd; }
+static int effSpd(const Cr*c){ int sd=arch[sp[c->sp].a].spd; if(c->sick==1) sd=sd*13/10; else if(c->sick==3) sd=sd*12/10; if(HAS(c,TR_SWIFT)) sd=sd*7/10; if(HAS(c,TR_GIANT)) sd=sd*13/10; if(HAS(c,TR_CHILL)) sd=sd*13/10; if(HAS(c,TR_COUCH)) sd=sd*17/10; if(HAS(c,TR_NOCT)){ int p=(tick>>1)&2047; sd=(p<256||p>1792)?sd*7/10:sd*12/10; } if(c->sick==1) sd=sd*13/10; return sd<3?3:sd; }
 static void crName(const Cr*c,char*out){ out[0]=0; if(c->rk==1) strcpy(out,"ELITE "); else if(c->rk==2) strcpy(out,"BOSS "); if(c->rk){ strcat(out,heroN[(c->sp*5+(int)(c-cr))%12]); strcat(out," "); } if(c->tr){ strcat(out,trNm[c->tr]); strcat(out," "); } if(c->tr2){ strcat(out,trNm[c->tr2]); strcat(out," "); } char b[32]; spName(c->sp,b); strcat(out,b); if(c->sick==1&&strlen(out)+8<=46){ memmove(out+8,out,strlen(out)+1); memcpy(out,"PLAGUED ",8); } }
 static int hitDmg(const Cr*a,const Cr*d){   // one blow: the attacker's strength, gear and traits against the defender's armour and traits
     const Arch*A=&arch[sp[a->sp].a]; int dm=A->atk+gearAtk(a)+(int)(rnd()&3); if(HAS(a,TR_CLEVER)) dm+=gearAtk(a)/2; if(HAS(a,TR_VENOM)) dm+=4; if(HAS(a,TR_GIANT)) dm+=2; dm+=a->dir/2;
@@ -154,6 +154,7 @@ static void giveTrait(Cr*c,int t,int announce){ if(c->tr==0||c->tr==t) c->tr=(u8
 static void born(Cr*kid,const Cr*par){ stBorn++;   // a child has its parent's traits, and now and then a mutation
     kid->tr=par->tr; kid->tr2=par->tr2; int rate=diff==0?1:diff==2?3:2; if(HAS(par,TR_FERTILE)) rate+=1; if(!LAWON(LW_MUTATE)) rate=0; if(LAWON(LW_MUTBOX)) rate=35;
     if((int)(rnd()%100)<rate){ int t=1+(int)(rnd()%(TR_N-1)); if(!HAS(kid,t)){ giveTrait(kid,t,1); stMut++; } }
+    if(arch[sp[kid->sp].a].diet==4&&rnd()%100<8) kid->sick=2;      // some children are born immune, as in WorldBox
     kid->hp=(u8)maxHp(kid); }
 // ---------------------------------------------------------------------------------------------- the world
 static u32 hsh(int x,int y,int s){ u32 h=(u32)x*374761393u+(u32)y*668265263u+(u32)s*2246822519u; h=(h^(h>>13))*1274126177u; return h^(h>>16); }
@@ -313,7 +314,8 @@ static int addCr(int s,int x,int y){
     return nCr++;
 }
 static void logEv(const char*s);
-static void killCr(int i){ Cr*c=&cr[i]; if(!c->alive) return; if(c->rk==2&&!natural){ char nm[48], b[40]; crName(c,nm); siprintf(b,"%.28s FALLS",nm); logEv(b); } c->alive=0; stDied++; if(c->rk==1&&!natural&&(rnd()&3)==0){ char nm[48], b2[40]; crName(c,nm); siprintf(b2,"%.24s FALLS",nm); logEv(b2); } if(occ[c->y][c->x]==i+1) occ[c->y][c->x]=0;
+static coord_t zq[16][2]; static int zqN;      // where plague victims bitten by a zombie fell: they rise again at the end of the tick (calamity.h)
+static void killCr(int i){ Cr*c=&cr[i]; if(!c->alive) return; if(c->rk==2&&!natural){ char nm[48], b[40]; crName(c,nm); siprintf(b,"%.28s FALLS",nm); logEv(b); } c->alive=0; stDied++; if(c->sick==3&&arch[sp[c->sp].a].diet!=5&&zqN<16){ zq[zqN][0]=c->x; zq[zqN][1]=c->y; zqN++; } if(c->rk==1&&!natural&&(rnd()&3)==0){ char nm[48], b2[40]; crName(c,nm); siprintf(b2,"%.24s FALLS",nm); logEv(b2); } if(occ[c->y][c->x]==i+1) occ[c->y][c->x]=0;
     if(!natural&&arch[sp[c->sp].a].diet==5){ stKill++; if(!((slainB[c->sp>>3]>>(c->sp&7))&1)) slainB[c->sp>>3]|=(u8)(1<<(c->sp&7)); fxReq(FX_MONSTER_SLAIN); } }
 static void killNat(int i){ natural=1; killCr(i); natural=0; }     // old age, hunger, lava: not a slaying
 static void compact(void){   // the dead are squeezed out of the list
@@ -323,6 +325,9 @@ static void compact(void){   // the dead are squeezed out of the list
 
 static void moveTo(Cr*c,int i,int nx,int ny){ occ[c->y][c->x]=0; { int ddx=c->x-nx, ddy=c->y-ny; if(ddx>1||ddx<-1) ddx=0; if(ddy>1||ddy<-1) ddy=0; c->ox=(s8)(ddx*8); c->oy=(s8)(ddy*8); } c->x=(coord_t)nx; c->y=(coord_t)ny; occ[ny][nx]=(occ_t)(i+1); }
 // ---- levels: a creature that kills grows stronger (+5 health and +1 damage every two levels, up to level 10), after the wiki's unit levels; Cr.dir holds the level
+static void zombieBite(const Cr*a,int j){      // a zombie's hit infects half of the living it touches (not the immune, not monsters); the infected fall and rise as zombies
+    const Arch*A=&arch[sp[a->sp].a]; if(A->diet!=5||strcmp(A->nm,"ZOMBIE")||gx.lPlague==1) return;
+    if(!cr[j].alive||arch[sp[cr[j].sp].a].diet==5||cr[j].sick==2||cr[j].sick==3) return; if(rnd()&1) cr[j].sick=3; }
 static void gainXp(Cr*c){ int L=c->dir; if(L>=10) return; if((int)(rnd()%(unsigned)(L*2+3))==0){ c->dir=(u8)(L+1); if(c->hp<250) c->hp=(u8)(c->hp+8); if(c->dir%5==0&&(c->rk||arch[sp[c->sp].a].diet==4)){ char nm[48], b[40]; crName(c,nm); siprintf(b,"%.20s REACHES LV %d",nm,c->dir); logEv(b); } } }
 // ---------------------------------------------------------------------------------------------- villages
 #define VIL_OLD 24     // older saves held 24 villages
@@ -427,6 +432,7 @@ static void vilTick(int v){
     if(!(vilBf[v]&2)&&V->stock>=40&&(rnd()%10)==0){ int hero=0; for(int dy=-8;dy<=8&&!hero;dy++) for(int dx=-8;dx<=8;dx++){ int x=V->x+dx, y=V->y+dy; if(x<0||y<0||x>=WW||y>=WH) continue; int j=occ[y][x]-1; if(j>=0&&cr[j].alive&&(cr[j].dir>=1||cr[j].rk)&&sp[cr[j].sp].a==V->race){ hero=1; break; } } if(hero&&placeBld(v,B_STATUE,40)){ vilBf[v]|=2; char vn[24], s2[40]; vilName(v,vn); siprintf(s2,"A STATUE HONOURS A HERO OF %.12s",vn); logEv(s2); } }
     if(V->lvl>=2&&pop>=14&&!(vilBf[v]&4)&&V->stock>=35&&(rnd()%8)==0&&placeBld(v,B_LIBRARY,35)){ vilBf[v]|=4; char vn[24], s2[40]; vilName(v,vn); siprintf(s2,"A LIBRARY OPENS IN %.14s",vn); logEv(s2); }
     if((vilBf[v]&1)&&sk){ for(int dy=-10;dy<=10;dy++){ int y=V->y+dy; if(y<0||y>=WH) continue; for(int dx=-10;dx<=10;dx++){ int x=V->x+dx; if(x<0||x>=WW||dx*dx+dy*dy>100) continue; int j=occ[y][x]-1; if(j>=0&&cr[j].alive&&cr[j].sick==1&&sp[cr[j].sp].a==V->race&&sp[cr[j].sp].a<8&&(rnd()&1)){ cr[j].sick=2; sk--; } } } }      /* the temple's priests tend the sick: half of the plagued folk recover (and stay immune) */
+    if(sk>=12&&vilSick[v]<12){ char vn[24], b[40]; vilName(v,vn); siprintf(b,"PLAGUE IN %.20s",vn); logEv(b); }      // the journal line
     vilSick[v]=(u8)(sk>255?255:sk);
     if(V->lvl>=2&&pop>=10){ if(!hasDock(v)){ if((rnd()%6)==0) dockTry(v); } else if(nVilOn<VIL_N-2&&(rnd()%10)==0) boatLaunch(v); }
     int mood=vilMood(v); int gain=pop+V->farms*3; if(gx.vGrow[v]==1) gain=gain*3/2+2; else if(gx.vGrow[v]==2) gain=gain/2; if(mood>=40) gain+=pop/4; else if(mood<=-40) gain=gain/2; if(mood<=-60&&vilK[v]&&(rnd()&7)==0&&vilL[v]>0) vilL[v]--; else if(mood>=40&&vilK[v]&&(rnd()&7)==0&&vilL[v]<100) vilL[v]++;
@@ -587,7 +593,7 @@ static void thinkBody(int i){
             int d=(dx<0?-dx:dx)+(dy<0?-dy:dy); int civ=arch[sp[cr[j].sp].a].diet==4; if(!civ&&d>3) continue; if(d<bd){ bd=d; rd=d; best=j; } }   // people are hunted from ten tiles away, animals only when they are in the way
         for(int k=0;k<4;k++) burnAt(c->x+dxs[k],c->y+dys[k],40);
         if(best>=0){ Cr*p=&cr[best];
-            if(rd<=1+HAS(c,TR_SPIT)){ int dm=hitDmg(c,p); if(p->hp>dm) p->hp-=(u8)dm; else { killCr(best); gainXp(c); c->hp=(u8)(c->hp+12>A->hp?A->hp:c->hp+12); } return; }
+            if(rd<=1+HAS(c,TR_SPIT)){ int dm=hitDmg(c,p); zombieBite(c,(int)(p-cr)); if(p->hp>dm) p->hp-=(u8)dm; else { killCr(best); gainXp(c); c->hp=(u8)(c->hp+12>A->hp?A->hp:c->hp+12); } return; }
             if(stepToward(c,i,s,p->x,p->y)) return; }
         else { int v=vilAny(c->x,c->y,60); if(v>=0&&(rnd()&7)) { if(stepToward(c,i,s,vil[v].x,vil[v].y)) return; } }
         if((rnd()&3)!=0){ int d=rnd()&3; int nx=c->x+dxs[d], ny=c->y+dys[d]; if(stepOk(s,&nx,&ny)) moveTo(c,i,nx,ny); }
@@ -603,7 +609,7 @@ static void thinkBody(int i){
         int home=vilNear(s->a,c->x,c->y,14);
         // fight: an enemy people within reach is attacked; otherwise an army walks to the enemy village
         { int best=-1,bd=99; for(int dy=-3;dy<=3;dy++) for(int dx=-3;dx<=3;dx++){ int x=c->x+dx,y=c->y+dy; if(x<0||y<0||x>=WW||y>=WH||!occ[y][x]) continue; int j=occ[y][x]-1; int ra=sp[cr[j].sp].a; if(arch[ra].diet!=5&&(ra>=8||!warM[s->a][ra])) continue; int d=(dx<0?-dx:dx)+(dy<0?-dy:dy); if(d<bd){ bd=d; best=j; } }
-          if(best>=0){ Cr*p=&cr[best]; if(bd<=1+HAS(c,TR_SPIT)){ int dm=hitDmg(c,p); if(p->hp>dm) p->hp-=(u8)dm; else { killCr(best); gainXp(c); c->food+=20; } return; }
+          if(best>=0){ Cr*p=&cr[best]; if(bd<=1+HAS(c,TR_SPIT)){ int dm=hitDmg(c,p); zombieBite(c,(int)(p-cr)); if(p->hp>dm) p->hp-=(u8)dm; else { killCr(best); gainXp(c); c->food+=20; } return; }
               int dx=p->x-c->x, dy=p->y-c->y; int ax=dx>0?1:dx<0?-1:0, ay=dy>0?1:dy<0?-1:0; if(((dx<0?-dx:dx)<(dy<0?-dy:dy))) ax=0; else ay=0; int nx=c->x+ax, ny=c->y+ay; if(stepOk(s,&nx,&ny)) moveTo(c,i,nx,ny); return; } }
         if(home>=0&&vil[home].foe&&vil[vil[home].foe-1].on&&c->age>6&&c->hp>8){ const Vil*F=&vil[vil[home].foe-1]; int dx=F->x-c->x, dy=F->y-c->y; if(dx*dx+dy*dy>4){ int ax=dx>0?1:dx<0?-1:0, ay=dy>0?1:dy<0?-1:0; if(((dx<0?-dx:dx)<(dy<0?-dy:dy))) ax=0; else ay=0; int nx=c->x+ax, ny=c->y+ay; if(stepOk(s,&nx,&ny)){ moveTo(c,i,nx,ny); return; } }
             else { int fv=vil[home].foe-1; vil[fv].stock=(u16)(vil[fv].stock>10?vil[fv].stock-10:0); if(rnd()%12==0&&vil[fv].pop<2&&(gx.vDef[fv]!=2||(rnd()&3)==0)){ if(!vilConquer(fv,home)) vilRaze(fv,1); } } }
@@ -618,7 +624,7 @@ static void thinkBody(int i){
                 const Arch*B=&arch[sp[cr[j].sp].a]; if(B->diet==1||B->diet==5||B->diet==4&&diet!=1||sp[cr[j].sp].a==s->a) continue; if(diet==2&&B->diet!=0) continue;
                 int d=(dx<0?-dx:dx)+(dy<0?-dy:dy); if(d<bd){ bd=d; best=j; } }
         if(best>=0){ Cr*p=&cr[best];
-            if(bd<=1+HAS(c,TR_SPIT)){ int dm=hitDmg(c,p); if(p->hp>dm) p->hp-=(u8)dm; else { c->food+=80; if(c->food>120) c->food=120; killCr(best); gainXp(c); } return; }
+            if(bd<=1+HAS(c,TR_SPIT)){ int dm=hitDmg(c,p); zombieBite(c,(int)(p-cr)); if(p->hp>dm) p->hp-=(u8)dm; else { c->food+=80; if(c->food>120) c->food=120; killCr(best); gainXp(c); } return; }
             int dx=p->x-c->x, dy=p->y-c->y; int sx=dx>0?1:dx<0?-1:0, sy=dy>0?1:dy<0?-1:0; int try1=(((dx<0?-dx:dx)>(dy<0?-dy:dy))?0:1);
             for(int k=0;k<2;k++){ int ax=(k==try1)?sx:0, ay=(k==try1)?0:sy; if(!ax&&!ay) continue; int nx=c->x+ax, ny=c->y+ay; if(stepOk(s,&nx,&ny)){ moveTo(c,i,nx,ny); return; } } } }
     // breed
@@ -839,7 +845,7 @@ static void usePower(int tx,int ty,int fresh){
         case PK_AIR: if(fresh&&dx==0&&dy==0){ if(P->arg==0){ atCO2+=8*16; atFire+=4; siprintf(info,"CO2 UP: %d",ATV(atCO2)); } else if(P->arg==1){ atO2+=4*16; atCO2-=5*16; siprintf(info,"OXYGEN UP: %d%%",ATV(atO2)); } else { atmoDust(10); siprintf(info,"DUST: %d",ATV(atDust)); } if(atCO2<0) atCO2=0; if(atCO2>150*16) atCO2=150*16; if(atO2>60*16) atO2=60*16; } break;
         case PK_METEOR: if(fresh){ if(dx==0&&dy==0){ atmoDust(6); atFire+=6; } int rr=dx*dx+dy*dy; burnAt(x,y,255); if(rr<=2) setCell(x,y,T_LAVA); else if(rr<=r*r) setCell(x,y,(rnd()&1)?T_DIRT:T_HILL); if(occ[y][x]) killCr(occ[y][x]-1); } break;
         case PK_KILL: if(occ[y][x]) killCr(occ[y][x]-1); break;
-        case PK_HEAL: if(occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; c->hp=(u8)maxHp(c); if(c->sick==1) c->sick=2; } break;
+        case PK_HEAL: if(occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; c->hp=(u8)maxHp(c); if(c->sick==1) c->sick=2; else if(c->sick==3) c->sick=0; } break;      // heal ends the plague (immune after) and the zombie infection (not immune)
         case PK_FEED: if(occ[y][x]) cr[occ[y][x]-1].food=120; else if(world[y][x]==T_DIRT) setCell(x,y,T_GRASS); break;
         case PK_SETTLE: if(fresh&&dx==0&&dy==0){ int race=spSel<8?sp[spSel].a:0; if(vilFound(race,x,y)<0) siprintf(info,"NO ROOM FOR A VILLAGE"); else { for(int k=0;k<4;k++) addCr(spSel<8?spSel:0,x+(int)(rnd()%5)-2,y+(int)(rnd()%5)-2); } } break;
         case PK_WAR: if(fresh&&dx==0&&dy==0){ int v=vilAny(x,y,4); if(v>=0){ int best=-1,bd=2000; for(int u=0;u<VIL_N;u++){ if(!vil[u].on||u==v||vil[u].race==vil[v].race) continue; int ddx=vil[u].x-vil[v].x, ddy=vil[u].y-vil[v].y, d=ddx*ddx+ddy*ddy; if(d<bd){ bd=d; best=u; } } if(best>=0){ vil[v].foe=(u8)(best+1); siprintf(info,"WAR! %s ATTACKS %s",arch[vil[v].race].nm,arch[vil[best].race].nm); if(vilK[v]&&vilK[best]&&vilK[v]!=vilK[best]) kdDeclareX(vilK[v]-1,vilK[best]-1,1); } } } break;
@@ -1099,7 +1105,7 @@ static void zCrit(int i,int px,int py,int S){   // one creature, its tile's top 
     if(S==4){ for(int dy=0;dy<4;dy++) for(int dx=0;dx<4;dx++){ int c2=g[(dy*2)*8+dx*2]; if(!c2) c2=g[(dy*2)*8+dx*2+1]; if(!c2) c2=g[(dy*2+1)*8+dx*2]; if(!c2) c2=g[(dy*2+1)*8+dx*2+1]; if(c2) zPut(px+dx,py+dy,c2); } }
     else { int k=S/8; for(int y=0;y<8;y++) for(int x=0;x<8;x++){ int c2=g[y*8+x]; if(c2) zRect(px+x*k,py+y*k,k,k,c2); } }
     if(c->rk&&S>=16){ int cc=c->rk==2?UI_PAL0+U_RED:UI_PAL0+U_GOLD; zRect(px+S/2-S/8,py-S/8,S/4,S/8,cc); zRect(px+S/2-S/4,py-S/4+1,S/8,S/8,cc); zRect(px+S/2+S/8,py-S/4+1,S/8,S/8,cc); }      // a crown
-    if(cr[i].sick==1&&S>=16&&((tick>>2)&1)) zRect(px+S*5/8,py-S/8,S/4,S/4,UI_PAL0+U_GREEN);     // the plague's flicker
+    if((cr[i].sick==1||cr[i].sick==3)&&S>=16&&((tick>>2)&1)) zRect(px+S*5/8,py-S/8,S/4,S/4,UI_PAL0+(cr[i].sick==3?U_PURPLE:U_GREEN));     // the plague's flicker
     if(S>=16&&c->wep){ zRect(px+(flip?0:S-S/8),py+S/4,S/8,S/2,UI_PAL0+U_LGREY); } }
 static int bZoomCol(int b,int race){ return (b==B_HALL||b==B_TOWER||b==B_TEMPLE||b==B_STATUE)?139:b==B_FARM?140:b==B_DOCK?137:128+race; }      // the colour of a building tile when the picture is too small for its art
 static int zKey=-1;
@@ -1224,7 +1230,7 @@ static void drawSprites(void){
     int crMax=100-nh;
     for(int ty=(camY>>3)-1;ty<(camY>>3)+26&&n<crMax;ty++) for(int tx=(camX>>3)-1;tx<(camX>>3)+34&&n<crMax;tx++){ if(tx<0||ty<0||tx>=WW||ty>=WH) continue; int i=occ[ty][tx]-1; if(i<0) continue; Cr*c=&cr[i]; if(!c->alive) continue; int px=c->x*8+c->ox-camX, py=c->y*8+c->oy-camY; if(px<-8||px>=256||py<-8||py>=TB_Y-6) continue;   // (the bottom rows are the toolbar)
         const Sp*s=&sp[c->sp]; const Arch*A=&arch[s->a]; int fr=((tick>>3)+i)&1; if(!c->ox&&!c->oy) fr=0;
-        oamSet(&oamMain,n,px,py,0,c->sick==1?((s->fam==3||s->fam==4)?11:3):s->fam,SpriteSize_8x8,SpriteColorFormat_16Color,gfxF[A->shape][fr],-1,false,false,false,false,false); n++;
+        oamSet(&oamMain,n,px,py,0,(c->sick==1||c->sick==3)?((s->fam==3||s->fam==4)?11:3):s->fam,SpriteSize_8x8,SpriteColorFormat_16Color,gfxF[A->shape][fr],-1,false,false,false,false,false); n++;
         if(c->rk&&nc<108){ oamSet(&oamMain,nc,px,py-6,0,c->rk==2?10:2,SpriteSize_8x8,SpriteColorFormat_16Color,gfxF[39][0],-1,false,false,false,false,false); nc++; } }
     for(int b=0;b<8;b++) if(boat[b].on&&nc<108){ int px=boat[b].x*8-camX, py=boat[b].y*8-camY; if(px>=-8&&px<256&&py>=-8&&py<TB_Y-6){ oamSet(&oamMain,nc,px,py,0,14,SpriteSize_8x8,SpriteColorFormat_16Color,gfxF[45][0],-1,false,false,false,false,false); nc++; } }      // boats at sea
     for(int k=n;k<crMax;k++) oamSetHidden(&oamMain,k,true);
@@ -1433,6 +1439,7 @@ static void uiInspectCard(void){
         { char hb[24]; siprintf(hb,"HEALTH   LEVEL %d",c->dir); uiText(142,y,hb,U_DIM,1); } uiBar(142,y+9,108,7,c->hp,maxHp(c),c->hp*3<maxHp(c)?U_RED:U_GREEN); y+=19;
         uiText(142,y,"HUNGER",U_DIM,1); uiBar(142,y+9,108,7,c->food>200?200:c->food,200,U_ORANGE); y+=19;
         siprintf(b,"AGE %d   %s",c->age,arch[sp[c->sp].a].diet==5?"MONSTER":arch[sp[c->sp].a].diet==4?"FOLK":"BEAST"); uiText(142,y,b,U_LGREY,1); y+=10;
+        if(c->sick==3){ uiText(142,y,"INFECTED",U_RED,1); y+=10; } else if(c->sick==1){ uiText(142,y,"SICK (PLAGUE)",U_GREEN,1); y+=10; } else if(c->sick==2){ uiText(142,y,"IMMUNE NOW",U_CYAN,1); y+=10; }
         if(c->wep) uiText(142,y,it[c->wep-1].nm,U_YELLOW,1),y+=10; if(c->arm) uiText(142,y,it[c->arm-1].nm,U_CYAN,1),y+=10;
         if(c->tr){ uiText(142,y,trNm[c->tr],U_PURPLE,1); y+=10; uiWrap(142,y,18,2,trDesc[c->tr],U_DIM); y+=18; } if(c->tr2){ uiText(142,y,trNm[c->tr2],U_PURPLE,1); y+=10; } }
     else if(inspKind==2&&inspIdx>=0&&inspIdx<VIL_N&&vil[inspIdx].on){ Vil*V=&vil[inspIdx]; int v=inspIdx; char vn[24]; vilName(v,vn);
