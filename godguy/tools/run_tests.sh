@@ -57,3 +57,5 @@ gcc $F -w -o /tmp/gg_war pc_war.c -lm && /tmp/gg_war 1 3000 20 4096 | tail -1 &&
 gcc $F -w -o /tmp/gg_far pc_far.c -lm && /tmp/gg_far | tail -1
 # the game as it was before the tiers (-DGG_NOTIER) still builds and plays a war: the benchmark's old side, and the small-world guarantee (below 600 creatures nothing changes)
 gcc $F -w -DGG_NOTIER -o /tmp/gg_far_old pc_far.c -lm && /tmp/gg_far_old | tail -1 | grep -q "FAR" && echo "FAR (no tiers) builds"
+# GodGuy step 10e, the home lookup of the war groups: the village blocks give the answer vilNear gives for every tile and people (and a crowded block falls back), and a war plays out with the same state hash counted either way
+gcc $F -w -o /tmp/gg_home pc_home.c -lm && /tmp/gg_home | tail -1 && gcc $F -w -DGG_SLOWHOME -o /tmp/gg_home_old pc_home.c -lm && [ "$(/tmp/gg_war 1 3000 20 2048 | grep 'state hash')" = "$(gcc $F -w -DGG_SLOWHOME -o /tmp/gg_war_old pc_war.c -lm && /tmp/gg_war_old 1 3000 20 2048 | grep 'state hash')" ] && echo "HOME same war as the old count"
