@@ -4,8 +4,9 @@
 // and a save made here still loads in an older build (the trailer is simply never read). Integer maths only.
 #define GX_V 40                       // = VIL_N (one slot per city)
 typedef struct {
-    u8 mon, birth, hunger, life, dis, war, wx, tm, gfx, pad[7];   // monsters (0 few, 1 normal, 2 many), birth rate, hunger, lifespan (0 low, 1 normal, 2 high), disasters (0 off, 1 rare, 2 normal),
-                                                                   // wars (0 never, 1 allowed), weather lock (0 auto, 1 clear, 2 rain, 3 storm, 4 snow), time lock (0 auto, 1 day, 2 dawn, 3 dusk, 4 night), graphics (1 rich, 0 classic)
+    u8 mon, birth, hunger, life, dis, war, wx, tm, gfx, lAge, lPlague, lFire, lLava, lStorm, pad[2];   // monsters (0 few, 1 normal, 2 many), birth rate, hunger, lifespan (0 low, 1 normal, 2 high), disasters (0 off, 1 rare, 2 normal),
+                                                                   // wars (0 never, 1 allowed), weather lock (0 auto, 1 clear, 2 rain, 3 storm, 4 snow), time lock (0 auto, 1 day, 2 dawn, 3 dusk, 4 night), graphics (1 rich, 0 classic),
+                                                                   // the WORLD LAWS (0 is always how the game was before): lAge old age (0 on, 1 off), lPlague (0 normal, 1 off, 2 deadly), lFire fire on homes (0 burns, 1 safe), lLava lava creep (0 on, 1 off), lStorm tornado / acid / black hole on homes (0 hit, 1 spare)
     u8 rBirth[8], rVigor[8], rTemper[8], rLife[8];                 // per people: birth rate, toughness, temper (0 peaceful, 1 as it was, 2 warlike), lifespan
     u8 vGrow[GX_V], vDef[GX_V];                                    // per city: growth (0 normal, 1 boom, 2 slow), defence (0 normal, 1 pacifist, 2 fortified)
 } GgX;
