@@ -2,7 +2,7 @@
 //   gcc -O2 -DPCTEST -w -o pc_war pc_war.c -lm
 //   ./pc_war                     the benchmark: 2 armies of 6,000 (ELF against DWARF), camera far and near, 3 seeds; ends with WAR BENCH OK
 //   ./pc_war N SIDE GAP TICKS [RA RB]   the same with N seeds, SIDE soldiers a side, GAP tiles between the two grids of villages, TICKS ticks (2,048 ticks are a game year), peoples RA and RB (arch 0..7)
-//   ./pc_war ref FILE [N]        write the reference, N seeds, camera far and near. Build THIS one with -DGG_FULLTURNS: every creature then thinks at its own pace (the full per-unit run that step 10d's tiers are compared with)
+//   ./pc_war ref FILE [N [TICKS]] write the reference, N seeds (default 3), TICKS ticks (default 2048, one game year), camera far and near. Build THIS one with -DGG_FULLTURNS: every creature then thinks at its own pace (the full per-unit run that step 10d's tiers are compared with)
 //   ./pc_war cmp FILE [TOL]      run again and compare with FILE: the casualties of every checkpoint, averaged over the seeds, must be within TOL percent (default 10)
 //   -DGG_FULLTURNS               benchmark build in which simulate() visits every creature every tick (see main.c); this is the reference run
 //   -DWAR_NOSTAT                 build without the turn counter (the "state hash" line must be the same as the build with it: run_tests.sh compares them)
@@ -11,6 +11,8 @@
 // An army of 6,000 is therefore 24 villages a side, 250 soldiers round each, every village at war with the nearest village of the other people: 48 war groups, the way the game would
 // make them. They are placed on flat grass with no animals, monsters, disasters, ageing death, biomes or air; what is left to kill a soldier is the other army (and hunger).
 #define PCTEST 1
+#define GG_NOCIVIL 1
+#define GG_NOCAPTURE 1      // villages are not taken or razed in the benchmark (see main.c)
 #ifndef WAR_NOSTAT
 #define GG_WARSTAT 1
 #endif
@@ -26,7 +28,7 @@ static double now(void){ struct timespec t; clock_gettime(CLOCK_MONOTONIC,&t); r
 #define NCP 128                   // checkpoints kept
 #define CPT 128                   // ticks between checkpoints
 #define YEAR 2048
-static int gapTiles=20, perSide=6000, runTicks=8192, raceA=1, raceB=2;      // the two peoples at war (arch numbers 0..7)
+static int gapTiles=20, perSide=6000, runTicks=2048, raceA=1, raceB=2;      // the two peoples at war (arch numbers 0..7)
 static u32 ids0[2*MAXC/2]; static u8 side0[2*MAXC/2]; static int nIds0;
 
 static u32 stateHash(void){ u32 h=2166136261u; const u8*p;
@@ -45,6 +47,9 @@ static void stage(unsigned seed){
     int xL=(gW-(132+gapTiles))/2, xR=xL+66+gapTiles, y0=gH/2-55; int per=perSide/VPS; nIds0=0;
     for(int k=0;k<VPS;k++) for(int side=0;side<2;side++){ int x=(side?xR:xL)+(k%4)*22, y=y0+(k/4)*22; int v=vilFound(side?raceB:raceA,x,y); if(v<0){ printf("  (no room for village %d of side %d)\n",k,side); continue; }
         int placed=0; for(int q=0;q<per;q++){ for(int tr=0;tr<200;tr++){ int dx=(int)(rnd()%21)-10, dy=(int)(rnd()%21)-10; if(dx*dx+dy*dy>100) continue; int n=addCr(side?raceB:raceA,x+dx,y+dy); if(n<0) continue; cr[n].age=20; cr[n].food=100; ids0[nIds0]=crId[n]; side0[nIds0++]=(u8)side; placed++; break; } } vil[v].pop=(u16)placed; }
+    // (the spare village slots are filled with empty hamlets far from the armies: a marching soldier more than 14 tiles from home founds a colony, and a colony can join the other side's kingdom, which sets a people against itself
+    // (found with this harness: the elves' own colonies, in the dwarves' kingdom, made every elf strike every other). The hamlets keep the war to the two armies)
+    for(int y=8;y<gH-8;y+=14) for(int x=8;x<gW-8;x+=14){ if(y>60&&y<200) continue; if(vilFound(7,x,y)<0&&nVilOn>=VIL_N) goto filled; } filled:;
     for(int v=0;v<VIL_N;v++) if(vil[v].on){ int best=-1,bd=1<<30; for(int u=0;u<VIL_N;u++) if(vil[u].on&&vil[u].race!=vil[v].race){ int dx=vil[u].x-vil[v].x, dy=vil[u].y-vil[v].y, d=dx*dx+dy*dy; if(d<bd){ bd=d; best=u; } } if(best>=0) vil[v].foe=(u8)(best+1); }
     // (each village's pop is set to the soldiers placed round it: the kingdoms' strength is counted from it, and a war between a side with a pop and a side without would be stopped at once by the first peace talk)
     // a village's war order is cancelled every 128 ticks unless its kingdom is at war with the target's (kingdomTick), so each side is a kingdom, the two at war with spite (as the WAR power declares it)
@@ -92,7 +97,7 @@ static void curveMean(const Res*R,int n,double*a,double*b,int ncp){ for(int c=0;
 
 int main(int argc,char**argv){
     int nSeeds=3; const char*mode="bench"; const char*file=0; double tol=10;
-    if(argc>2&&!strcmp(argv[1],"ref")){ mode="ref"; file=argv[2]; if(argc>3) nSeeds=atoi(argv[3]); if(nSeeds<1) nSeeds=1; }
+    if(argc>2&&!strcmp(argv[1],"ref")){ mode="ref"; file=argv[2]; if(argc>3) nSeeds=atoi(argv[3]); if(argc>4) runTicks=atoi(argv[4]); if(nSeeds<1) nSeeds=1; }
     else if(argc>2&&!strcmp(argv[1],"cmp")){ mode="cmp"; file=argv[2]; if(argc>3) tol=atof(argv[3]); }
     else { if(argc>1) nSeeds=atoi(argv[1]); if(argc>2) perSide=atoi(argv[2]); if(argc>3) gapTiles=atoi(argv[3]); if(argc>4) runTicks=atoi(argv[4]); if(argc>6){ raceA=atoi(argv[5])&7; raceB=atoi(argv[6])&7; if(raceA==raceB) raceB=(raceA+1)&7; } if(nSeeds<1) nSeeds=1; }
     if(!strcmp(mode,"cmp")){ FILE*f=fopen(file,"r"); if(!f){ printf("cannot read %s\n",file); return 1; } int ns, fl=0, cp=0; if(fscanf(f,"GGWAR1 seeds %d side %d gap %d ticks %d races %d %d full %d cp %d",&ns,&perSide,&gapTiles,&runTicks,&raceA,&raceB,&fl,&cp)<8){ printf("bad reference file\n"); return 1; } fclose(f); nSeeds=ns; refFull=fl; }

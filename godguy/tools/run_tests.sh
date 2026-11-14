@@ -51,5 +51,9 @@ gcc $F -w -o /tmp/gg_cells pc_cells.c -lm && /tmp/gg_cells | tail -1 && gcc $F -
 gcc $F -w -o /tmp/gg_wargrp pc_wargrp.c -lm && /tmp/gg_wargrp | tail -1
 # GodGuy, the war benchmark (the harness before step 10d): two armies of thousands at war, time per tick, turns per creature per year, casualties, save size. The turn counter changes nothing in the game (same state hash without it)
 gcc $F -w -o /tmp/gg_war pc_war.c -lm && /tmp/gg_war 1 3000 20 4096 | tail -1 && gcc $F -w -DWAR_NOSTAT -o /tmp/gg_war_ns pc_war.c -lm && [ "$(/tmp/gg_war 1 1200 20 2048 | grep 'state hash')" = "$(/tmp/gg_war_ns 1 1200 20 2048 | grep 'state hash')" ] && echo "WAR same game with and without the counter"
-# the gap step 10d has to close: the game as it is against the full per-unit run in war_ref_full.txt (printed, not yet a pass or fail; 10d turns it into one: casualties within 10%)
-/tmp/gg_war cmp war_ref_full.txt 10 | grep -E "compared|casualties at" || true
+# GodGuy step 10d, tiers and distant battles: the game against the full per-unit run in war_ref_full.txt (8 seeds, elves against dwarves, camera far and near): casualties within 10% at every checkpoint (this is now a pass or fail)
+/tmp/gg_war cmp war_ref_full.txt 10 | tail -1 | grep -q "WAR BENCH OK" && echo "WAR within 10% of the full per-unit run"
+# save and load in the middle of a far war, the same state hash; member lists only name their own soldiers; far battles reach the notable table
+gcc $F -w -o /tmp/gg_far pc_far.c -lm && /tmp/gg_far | tail -1
+# the game as it was before the tiers (-DGG_NOTIER) still builds and plays a war: the benchmark's old side, and the small-world guarantee (below 600 creatures nothing changes)
+gcc $F -w -DGG_NOTIER -o /tmp/gg_far_old pc_far.c -lm && /tmp/gg_far_old | tail -1 | grep -q "FAR" && echo "FAR (no tiers) builds"

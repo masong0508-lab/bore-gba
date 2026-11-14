@@ -40,7 +40,7 @@ typedef char nbSizeCheck[sizeof(Nb)==32?1:-1];
 // crId / crFl / idNext (6 bytes a creature) are declared in main.c beside cr[] and kept in step with it by addCr, compact and the loader.
 static Nb nb[NB_N]; static int nNb; static u32 favCrId[CSTAR_N];
 
-static void idReset(void){ idNext=1; nNb=0; memset(favCrId,0,sizeof favCrId); }
+static void idReset(void){ idNext=1; nNb=0; wgNc=0; memset(favCrId,0,sizeof favCrId); }
 
 // ---------------------------------------------------------------------------------------------- names and personalities, worked out from the id
 static u32 hmix(u32 x){ x^=x>>16; x*=0x7feb352dU; x^=x>>15; x*=0x846ca68bU; x^=x>>16; return x; }

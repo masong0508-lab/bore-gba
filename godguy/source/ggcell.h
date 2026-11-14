@@ -24,14 +24,14 @@ static void cellDel(int x,int y,int spIdx){ int k=cellKind(spIdx); if(k<0) retur
 static void cellRebuild(void){ cellClear(); for(int i=0;i<nCr;i++) if(cr[i].alive&&cr[i].x<gW&&cr[i].y<gH&&occ[cr[i].y][cr[i].x]==(occ_t)(i+1)) cellAdd(cr[i].x,cr[i].y,cr[i].sp); }
 
 // The nearest creature of any kind in the mask em (bit 0..7 a people, bit 8 monsters) within the (2R+1) x (2R+1) window round creature ci, R at most 8. Returns its index, or -1;
-// *dist gets the Manhattan distance. Same answer as scanning the window row by row and keeping the first nearest (the creature itself counts, as it does in the tile scan).
+// *dist gets the Manhattan distance. Same answer as scanning the window row by row and keeping the first nearest (the creature itself never counts: a people at war with itself, a civil war, used to make every soldier strike itself).
 static int cellNearest(int ci,int R,unsigned em,int*dist){
     int cx=cr[ci].x, cy=cr[ci].y, cw=(gW+7)>>CELL_SH, ch=(gH+7)>>CELL_SH; int x0=cx-R<0?0:cx-R, x1=cx+R>=gW?gW-1:cx+R, y0=cy-R<0?0:cy-R, y1=cy+R>=gH?gH-1:cy+R;
     int best=-1; unsigned bk=~0u;
     for(int gy=y0>>CELL_SH;gy<=(y1>>CELL_SH)&&gy<ch;gy++) for(int gx2=x0>>CELL_SH;gx2<=(x1>>CELL_SH)&&gx2<cw;gx2++){
         if(!(cellMask[gy*cw+gx2]&em)) continue;
         int ya=gy<<CELL_SH, yb=ya+7, xa=gx2<<CELL_SH, xb=xa+7; if(ya<y0) ya=y0; if(yb>y1) yb=y1; if(xa<x0) xa=x0; if(xb>x1) xb=x1;
-        for(int y=ya;y<=yb;y++) for(int x=xa;x<=xb;x++){ if(!occ[y][x]) continue; int j=occ[y][x]-1; int k=cellKind(cr[j].sp); if(k<0||!((em>>k)&1)) continue;
+        for(int y=ya;y<=yb;y++) for(int x=xa;x<=xb;x++){ if(!occ[y][x]) continue; int j=occ[y][x]-1; if(j==ci) continue; int k=cellKind(cr[j].sp); if(k<0||!((em>>k)&1)) continue;
             int dx=x-cx, dy=y-cy; int d=(dx<0?-dx:dx)+(dy<0?-dy:dy); unsigned key=((unsigned)d<<10)|(unsigned)((dy+8)<<5)|(unsigned)(dx+8); if(key<bk){ bk=key; best=j; } } }
     if(best>=0&&dist) *dist=(int)(bk>>10); return best; }
 

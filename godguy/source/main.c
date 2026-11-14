@@ -318,6 +318,7 @@ static void setCell(int x,int y,u8 t){ if(x<0||y<0||x>=WW||y>=WH) return; world[
 static int curExtra;      // the extra ground the creature being moved can cross (its traits)
 static int walkable(const Sp*s,int x,int y){ if(x<0||y<0||x>=WW||y>=WH) return 0; return ((arch[s->a].mask|curExtra)>>world[y][x])&1; }
 static int edgeOut;     // a creature tried to walk off the map (EDGE = VANISH)
+static int wgNc;      // (10d: how many creatures the war groups were last counted from; 0 when the lists are out of date)
 #include "ggcell.h"      // (10c: the 8 x 8 cell grid for finding enemies; kept in step with occ[])
 static int stepOk(const Sp*s,int*nx,int*ny){   // can the creature step to (*nx,*ny)? Off the map it wraps round (EDGE 2), leaves the world (1) or is stopped (0)
     int x=*nx, y=*ny;
@@ -336,7 +337,7 @@ static void killCr(int i){ Cr*c=&cr[i]; if(!c->alive) return; ntDeath(i); if(c->
 static void killNat(int i){ natural=1; killCr(i); natural=0; }     // old age, hunger, lava: not a slaying
 static void compact(void){   // the dead are squeezed out of the list
     int j=0; for(int i=0;i<nCr;i++){ if(cr[i].alive){ if(i!=j){ cr[j]=cr[i]; crId[j]=crId[i]; crFl[j]=crFl[i]; } j++; } else if(crFl[i]&0x0080) ntGone(crId[i]); } nCr=j;
-    memset(occ,0,sizeof occ); for(int i=0;i<nCr;i++) occ[cr[i].y][cr[i].x]=(occ_t)(i+1); cellRebuild();
+    memset(occ,0,sizeof occ); for(int i=0;i<nCr;i++) occ[cr[i].y][cr[i].x]=(occ_t)(i+1); cellRebuild(); wgNc=0;
 }
 
 static void moveTo(Cr*c,int i,int nx,int ny){ occ[c->y][c->x]=0; cellDel(c->x,c->y,c->sp); { int ddx=c->x-nx, ddy=c->y-ny; if(ddx>1||ddx<-1) ddx=0; if(ddy>1||ddy<-1) ddy=0; c->ox=(s8)(ddx*8); c->oy=(s8)(ddy*8); } c->x=(coord_t)nx; c->y=(coord_t)ny; occ[ny][nx]=(occ_t)(i+1); cellAdd(nx,ny,c->sp); }
@@ -466,7 +467,11 @@ static void vilTick(int v){ KD_DIRTY();
     if(V->foe&&(!vil[V->foe-1].on)) V->foe=0;
     if(V->foe&&(rnd()&15)==0&&pop<3) V->foe=0;   // a beaten army goes home
 }
-static void warMatrix(void){ memset(warM,0,sizeof warM); for(int v=0;v<VIL_N;v++) if(vil[v].on&&vil[v].foe&&vil[vil[v].foe-1].on){ int a=vil[v].race, b=vil[vil[v].foe-1].race; warM[a][b]=warM[b][a]=1; } }
+static void warMatrix(void){ memset(warM,0,sizeof warM); for(int v=0;v<VIL_N;v++) if(vil[v].on&&vil[v].foe&&vil[vil[v].foe-1].on){ int a=vil[v].race, b=vil[vil[v].foe-1].race;
+#ifdef GG_NOCIVIL      // (benchmark builds only, pc_war.c: a war inside one people is ignored. Enemies are found by race, so a village taken or lost across kingdoms would otherwise set every soldier of that people on every other)
+        if(a==b) continue;
+#endif
+        warM[a][b]=warM[b][a]=1; } }
 static int vilTotals(int*houses){ int pop=0,h=0; for(int v=0;v<VIL_N;v++) if(vil[v].on){ pop+=vil[v].pop; h+=vil[v].houses; } if(houses) *houses=h; return pop; }
 
 // ---------------------------------------------------------------------------------------------- kingdoms, wars, vassals and empires
@@ -654,14 +659,18 @@ static void thinkBody(int i){
         // fight: an enemy people within reach is attacked; otherwise an army walks to the enemy village
         { int best=-1,bd=99;
 #ifdef GG_NOCELL
-          for(int dy=-3;dy<=3;dy++) for(int dx=-3;dx<=3;dx++){ int x=c->x+dx,y=c->y+dy; if(x<0||y<0||x>=WW||y>=WH||!occ[y][x]) continue; int j=occ[y][x]-1; int ra=sp[cr[j].sp].a; if(arch[ra].diet!=5&&(ra>=8||!warM[s->a][ra])) continue; int d=(dx<0?-dx:dx)+(dy<0?-dy:dy); if(d<bd){ bd=d; best=j; } }
+          for(int dy=-3;dy<=3;dy++) for(int dx=-3;dx<=3;dx++){ int x=c->x+dx,y=c->y+dy; if(x<0||y<0||x>=WW||y>=WH||!occ[y][x]) continue; int j=occ[y][x]-1; if(j==i) continue; int ra=sp[cr[j].sp].a; if(arch[ra].diet!=5&&(ra>=8||!warM[s->a][ra])) continue; int d=(dx<0?-dx:dx)+(dy<0?-dy:dy); if(d<bd){ bd=d; best=j; } }
 #else
           { unsigned em=0x100; for(int r=0;r<8;r++) if(warM[s->a][r]) em|=1u<<r; int dd=99; best=cellNearest(i,3,em,&dd); if(best>=0) bd=dd; }      // (10c: nine cell masks instead of 49 tiles; the same answer)
 #endif
           if(best>=0){ Cr*p=&cr[best]; if(bd<=1+HAS(c,TR_SPIT)){ int dm=hitDmg(c,p); ntHit(c,p,dm); zombieBite(c,(int)(p-cr)); if(p->hp>dm) p->hp-=(u8)dm; else { killCr(best); gainXp(c); c->food+=20; } return; }
               int dx=p->x-c->x, dy=p->y-c->y; int ax=dx>0?1:dx<0?-1:0, ay=dy>0?1:dy<0?-1:0; if(((dx<0?-dx:dx)<(dy<0?-dy:dy))) ax=0; else ay=0; int nx=c->x+ax, ny=c->y+ay; if(stepOk(s,&nx,&ny)) moveTo(c,i,nx,ny); return; } }
         if(home>=0&&vil[home].foe&&vil[vil[home].foe-1].on&&c->age>6&&c->hp>8){ const Vil*F=&vil[vil[home].foe-1]; int dx=F->x-c->x, dy=F->y-c->y; if(dx*dx+dy*dy>4){ int ax=dx>0?1:dx<0?-1:0, ay=dy>0?1:dy<0?-1:0; if(((dx<0?-dx:dx)<(dy<0?-dy:dy))) ax=0; else ay=0; int nx=c->x+ax, ny=c->y+ay; if(stepOk(s,&nx,&ny)){ moveTo(c,i,nx,ny); return; } }
-            else { int fv=vil[home].foe-1; vil[fv].stock=(u16)(vil[fv].stock>10?vil[fv].stock-10:0); if(rnd()%12==0&&vil[fv].pop<2&&(gx.vDef[fv]!=2||(rnd()&3)==0)){ if(!vilConquer(fv,home)) vilRaze(fv,1); } } }
+            else { int fv=vil[home].foe-1; vil[fv].stock=(u16)(vil[fv].stock>10?vil[fv].stock-10:0);
+#ifndef GG_NOCAPTURE      // (benchmark builds only, pc_war.c: no village is taken or razed, so a war is only the two armies wearing each other down; a captured village sets its own people against each other)
+            if(rnd()%12==0&&vil[fv].pop<2&&(gx.vDef[fv]!=2||(rnd()&3)==0)){ if(!vilConquer(fv,home)) vilRaze(fv,1); }
+#endif
+            } }
         // settle: a grown person far from their own village starts one
         if(home<0&&c->age>12&&c->food>60&&(rnd()%6)==0){ int fv=vilFound(s->a,c->x,c->y); if(fv>=0){ ntFounder(c,fv); return; } }
         // stay close to home
@@ -757,6 +766,7 @@ static void biomeTick(void){       // biomes creep outward over the ground, figh
         int win=nb==0?(b==1?3:b==3?4:6):(b==3&&nb==1?3:b==2?12:8);      // 1 in win to take the neighbouring tile
         if((int)(rnd()%(unsigned)win)) continue; bioSet(nx,ny,b); if(nx>=winX-1&&nx<winX+34&&ny>=winY-1&&ny<winY+26) putCell(nx,ny); }
     if(nBio[2]>=10&&(rnd()&15)==0){ for(int tr=0;tr<40;tr++){ int x=(int)(rnd()%WW), y=(int)(rnd()%WH); if(bioAt(x,y)==2){ burnAt(x,y,160); for(int q=0;q<4;q++) burnAt(x+dxs[q],y+dys[q],90); if(occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; if(arch[sp[c->sp].a].diet!=5&&!HAS(c,TR_FIRE)){ if(c->hp>12) c->hp-=12; else killCr(occ[y][x]-1); } } break; } } } }
+#include "ggfar.h"      // (10d: tiers and distant battles)
 static void simulate(void){
     if(paused) return;
     if(!gx.lBio) biomeTick();
@@ -768,8 +778,13 @@ static void simulate(void){
 #ifdef GG_FULLTURNS
     per=n;      // (benchmark builds only, pc_war.c: every creature is visited every tick, so each thinks at its own pace: the full per-unit run that step 10d's tiers are compared with)
 #endif
+    farTick();      // (10d) the far battles, one roll each, and which armies are far and touching this tick
+    if(farOn()){ int period=(n+per-1)/per; windowThink();      // tier A: the camera window thinks every tick; tier C: far soldiers also march
+        for(int k=0;k<per;k++){ if(cursor>=nCr) cursor=0; Cr*c=&cr[cursor]; if(c->alive&&!inWin(c->x,c->y)){ if(++c->t>=effSpd(c)){ c->t=0; think(cursor); } if(cursor<nCr&&cr[cursor].alive) farStride(cursor,period); } cursor++; } }
+    else {
     for(int k=0;k<per;k++){ if(cursor>=nCr) cursor=0; Cr*c=&cr[cursor]; if(c->alive&&++c->t>=effSpd(c)) { c->t=0; think(cursor); } cursor++; }
     if(n>600){ int x0=camX>>3, y0=camY>>3; for(int k=0;k<40;k++){ int x=x0+(int)(rnd()%32), y=y0+(int)(rnd()%20); if(x>=WW||y>=WH) continue; int j=occ[y][x]-1; if(j>=0&&cr[j].alive){ Cr*c=&cr[j]; if(++c->t>=effSpd(c)){ c->t=0; think(j); } } } }   // and whoever is on screen is always played at full pace
+    }
     if(LAWON(LW_EROSION)&&(tick&3)==0){ for(int k=0;k<4;k++){ int x=rnd()%WW, y=rnd()%WH; u8 t=world[y][x]; if((t==T_GRASS||t==T_DIRT||t==T_HILL)&&!bld[y][x]&&(rnd()%60)==0){ for(int d=0;d<4;d++){ int nx=x+dxs[d], ny=y+dys[d]; if(nx>=0&&ny>=0&&nx<WW&&ny<WH&&(world[ny][nx]==T_WATER||world[ny][nx]==T_DEEP)){ setCell(x,y,T_SAND); break; } } } } }      // EROSION: the shore crumbles into sand
     // the ground heals: dirt turns back to grass beside grass, lava cools
     for(int k=0;k<12;k++){ int x=rnd()%WW, y=rnd()%WH; u8 t=world[y][x]; if(t==T_DIRT){ int d=rnd()&3; int nx=x+dxs[d], ny=y+dys[d]; if(nx>=0&&ny>=0&&nx<WW&&ny<WH&&(world[ny][nx]==T_GRASS||world[ny][nx]==T_FOREST)) setCell(x,y,T_GRASS); }
@@ -968,7 +983,7 @@ static SV*svOpen(const char*p,const char*m){ return fopen(p,m); } static size_t 
 static int rdVec(void*dst,int dstN,int srcN,int esz,SV*f){ u8 tmp[32]; int ok=1; for(int i=0;i<srcN&&ok;i++){ ok=svRead(tmp,esz,1,f)==1; if(ok&&i<dstN) memcpy((u8*)dst+i*esz,tmp,esz); } return ok; }      // read srcN records of esz bytes, keep the first dstN (a save may hold more or fewer villages than this build)
 #include "ggidsv.h"
 static int saveGameRaw(const char*path){
-    compact(); cursor=0;     // the dead are dropped first, so a loaded game goes on exactly as this one would
+    compact(); wgBuild(); cursor=0;     // (10d: and the war groups are counted again, as a load will count them) the dead are dropped first, so a loaded game goes on exactly as this one would
     SV*f=svOpen(path,"wb"); if(!f) return 0; SaveHdr h; memset(&h,0,sizeof h); h.vcur=(u8)vilCur;
     h.magic=SAVE_MAGIC; h.pad_[0]=(u8)cEdge; h.pad_[1]=(u8)(nCr>>16); h.ver=10; h.weather=(u8)weather; h.weatherT=(u16)weatherT; h.trSeen=trSeen; h.stMut=stMut; h.seed=worldSeed; h.diff=(u8)diff; h.full=(u8)fullDone; h.aural=(u8)auralOpen; h.debug=(u8)debugOn; h.gw=(u16)gW; h.szCr=sizeof(Cr); h.szVil=sizeof(Vil); h.tick=(u32)tick; h.year=(u32)year; h.rs=rs; h.stKill=stKill; h.stGift=stGift; h.stUse=stUse; h.nCr=(u16)(nCr&0xFFFF); h.seenN=(u16)seenN; h.camX=(u16)camX; h.camY=(u16)camY;
     h.chapter=(u8)chapter; h.tierOpen=(u8)tierOpen; h.storyOn=(u8)storyOn; h.storyDone=(u8)storyDone; h.monOn=(u8)monOn; h.shape3=(u8)shape3; h.nVilOn=(u8)nVilOn; h.planet=(u8)VIL_N; memcpy(h.seen,seenB,sizeof seenB); memcpy(h.slain,slainB,sizeof slainB);
@@ -1019,7 +1034,7 @@ static int loadGameRaw(const char*path){ KD_DIRTY();
     if(!ok){ return 0; }
     tick=(int)h.tick; year=(int)h.year; rs=h.rs; stKill=h.stKill; stGift=h.stGift; stUse=h.stUse; seenN=h.seenN; camX=h.camX; camY=h.camY; chapter=h.chapter; tierOpen=h.tierOpen; storyOn=h.storyOn; storyDone=h.storyDone; monOn=h.monOn; shape3=h.shape3; nVilOn=h.nVilOn;
     memcpy(seenB,h.seen,sizeof seenB); memcpy(slainB,h.slain,sizeof slainB); nVilOn=0; memset(vilSick,0,sizeof vilSick); for(int v=0;v<VIL_N;v++){ nVilOn+=vil[v].on; if(vil[v].on) bldFlags(v); else vilBf[v]=0; }
-    for(int i=0;i<nCr;i++) if(cr[i].alive&&cr[i].x<gW&&cr[i].y<gH) occ[cr[i].y][cr[i].x]=(occ_t)(i+1); cellRebuild(); vilCur=h.vcur; weather=h.weather; weatherT=h.weatherT; trSeen=h.trSeen; stMut=h.stMut; worldSeed=h.seed; cEdge=h.pad_[0]<3?h.pad_[0]:0; diff=h.diff; fullDone=h.full; auralOpen=h.aural; debugOn=h.debug; cursor=0; compact(); warMatrix(); winX=-99; return 1; }
+    for(int i=0;i<nCr;i++) if(cr[i].alive&&cr[i].x<gW&&cr[i].y<gH) occ[cr[i].y][cr[i].x]=(occ_t)(i+1); cellRebuild(); vilCur=h.vcur; weather=h.weather; weatherT=h.weatherT; trSeen=h.trSeen; stMut=h.stMut; worldSeed=h.seed; cEdge=h.pad_[0]<3?h.pad_[0]:0; diff=h.diff; fullDone=h.full; auralOpen=h.aural; debugOn=h.debug; cursor=0; compact(); warMatrix(); wgBuild(); winX=-99; return 1; }
 #ifndef NDSHW
 static int saveGame(const char*path){ char t[64], b[64]; siprintf(t,"%s.tmp",path); siprintf(b,"%s.bak",path);
     if(!saveGameRaw(t)){ remove(t); return 0; }

@@ -10,7 +10,7 @@ static int fails;
 #define CHK(c,msg) do{ if(!(c)){ fails++; printf("  FAIL: %s\n",msg); } }while(0)
 static void setup(unsigned seed,int size){ planetSize=size; rs=seed; makeSpecies(); makeItems(); newWorld(); chapter=3; tierOpen=4; monOn=1; }
 static int brute(int ci,int R,unsigned em,int*dist){      // the tile scan, row by row, first nearest wins
-    int best=-1,bd=99; for(int dy=-R;dy<=R;dy++) for(int dx=-R;dx<=R;dx++){ int x=cr[ci].x+dx,y=cr[ci].y+dy; if(x<0||y<0||x>=gW||y>=gH||!occ[y][x]) continue; int j=occ[y][x]-1; int k=cellKind(cr[j].sp); if(k<0||!((em>>k)&1)) continue;
+    int best=-1,bd=99; for(int dy=-R;dy<=R;dy++) for(int dx=-R;dx<=R;dx++){ int x=cr[ci].x+dx,y=cr[ci].y+dy; if(x<0||y<0||x>=gW||y>=gH||!occ[y][x]) continue; int j=occ[y][x]-1; if(j==ci) continue; int k=cellKind(cr[j].sp); if(k<0||!((em>>k)&1)) continue;
         int d=(dx<0?-dx:dx)+(dy<0?-dy:dy); if(d<bd){ bd=d; best=j; } } if(dist) *dist=bd; return best; }
 static unsigned long long qs, qhit; static long tilesBrute, tilesCell;
 static int compareAll(int step,unsigned seed){      // every (or every step-th) creature, three windows, three masks
