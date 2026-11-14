@@ -2,7 +2,7 @@
 // Included from main.c near the top, before the world generator, so the simulation can read it anywhere.
 // Everything lives in one small block of bytes (gx) so the save file can carry it as one trailer ("GGX1"): old saves load with the defaults,
 // and a save made here still loads in an older build (the trailer is simply never read). Integer maths only.
-#define GX_V 40                       // = VIL_N (one slot per city)
+#define GX_V VIL_N                    // one slot per city (the save trailer keeps its own count, so builds with other village counts still read each other's saves)
 typedef struct {
     u8 mon, birth, hunger, life, dis, war, wx, tm, gfx, lAge, lPlague, lFire, lLava, lStorm, lBio, lAtmo;   // monsters (0 few, 1 normal, 2 many), birth rate, hunger, lifespan (0 low, 1 normal, 2 high), disasters (0 off, 1 rare, 2 normal),
                                                                    // wars (0 never, 1 allowed), weather lock (0 auto, 1 clear, 2 rain, 3 storm, 4 snow), time lock (0 auto, 1 day, 2 dawn, 3 dusk, 4 night), graphics (1 rich, 0 classic),
@@ -11,6 +11,7 @@ typedef struct {
     u8 vGrow[GX_V], vDef[GX_V];                                    // per city: growth (0 normal, 1 boom, 2 slow), defence (0 normal, 1 pacifist, 2 fortified)
 } GgX;
 static GgX gx;
+#define GX_HEAD ((int)__builtin_offsetof(GgX,vGrow))      // the bytes before the per-city tables: the same in every build
 static u32 stBorn, stDied;            // births and deaths since the world began
 static void gxDefaults(void){ memset(&gx,0,sizeof gx); gx.mon=1; gx.birth=1; gx.hunger=1; gx.life=1; gx.dis=2; gx.war=1; gx.gfx=1;
     for(int i=0;i<8;i++){ gx.rBirth[i]=1; gx.rVigor[i]=1; gx.rTemper[i]=1; gx.rLife[i]=1; } stBorn=stDied=0; }

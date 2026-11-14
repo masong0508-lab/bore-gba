@@ -5,12 +5,12 @@
 // The roaming disasters are a small table (hz) that goes to the save file in a second trailer ("GGH1") after the GGX1 one, so an old build never reads it and an old save has none.
 #define HZ_N 6
 enum { HZ_NONE, HZ_TORNADO, HZ_HOLE };
-typedef struct { u8 kind, x, y; s8 dx, dy; u8 r, t, pad; u16 life, age; } Hz;   // a roaming disaster: what, where, which way it drifts, its size, a step timer, steps left, steps lived
+typedef struct { u8 kind, r, t, pad; u16 x, y; s8 dx, dy; u16 life, age; } Hz;   // a roaming disaster: what, where, which way it drifts, its size, a step timer, steps left, steps lived
 static Hz hz[HZ_N];
 static const s8 hzDx[8]={1,1,0,-1,-1,-1,0,1}, hzDy[8]={0,1,1,1,0,-1,-1,-1};
 static int hzAdd(int kind,int x,int y){
     for(int i=0;i<HZ_N;i++) if(hz[i].kind==HZ_NONE){ Hz*h=&hz[i]; memset(h,0,sizeof *h); int d=(int)(rnd()%8);
-        h->kind=(u8)kind; h->x=(u8)x; h->y=(u8)y; h->dx=hzDx[d]; h->dy=hzDy[d]; h->r=1; h->life=(u16)(kind==HZ_TORNADO?220:110); return i; }
+        h->kind=(u8)kind; h->x=(u16)x; h->y=(u16)y; h->dx=hzDx[d]; h->dy=hzDy[d]; h->r=1; h->life=(u16)(kind==HZ_TORNADO?220:110); return i; }
     return -1; }
 static int hzCount(int kind){ int n=0; for(int i=0;i<HZ_N;i++) n+=hz[i].kind==kind; return n; }
 // ---------------------------------------------------------------- helpers
@@ -18,7 +18,7 @@ static int hzFree(int x,int y,const Sp*s){ return x>=0&&y>=0&&x<WW&&y<WH&&!occ[y
 static int hzHurt(int i,int dmg){ Cr*c=&cr[i]; if(c->hp>dmg){ c->hp=(u8)(c->hp-dmg); return 1; } killCr(i); return 0; }   // 1 if it lives
 static void hzFling(int i){   // thrown up to six tiles away, onto any free tile it could stand on (if there is none it just stays)
     Cr*c=&cr[i]; for(int k=0;k<8;k++){ int nx=c->x+(int)(rnd()%13)-6, ny=c->y+(int)(rnd()%13)-6; if(!hzFree(nx,ny,&sp[c->sp])) continue;
-        occ[c->y][c->x]=0; c->x=(u8)nx; c->y=(u8)ny; c->ox=0; c->oy=0; occ[ny][nx]=(u16)(i+1); return; } }
+        occ[c->y][c->x]=0; c->x=(coord_t)nx; c->y=(coord_t)ny; c->ox=0; c->oy=0; occ[ny][nx]=(occ_t)(i+1); return; } }
 static void stormRaze(int x,int y,int chance){ if(!gx.lStorm) razeAt(x,y,chance); }   // tornado, acid and black hole leave homes alone when WORLD > LAWS says so
 // ---------------------------------------------------------------- the plague
 static int infect(int i){ Cr*c=&cr[i]; if(!c->alive||c->sick||gx.lPlague==1) return 0; c->sick=1; return 1; }   // only the healthy and the never-ill can fall sick
@@ -33,7 +33,7 @@ static int plagueCount(int st){ int n=0; for(int i=0;i<nCr;i++) n+=cr[i].alive&&
 // ---------------------------------------------------------------- the tornado: wanders, uproots forest, flattens homes, throws whatever it meets
 static void tornadoStep(Hz*h){
     if(rnd()%5==0){ h->dx=(s8)((int)(rnd()%3)-1); h->dy=(s8)((int)(rnd()%3)-1); if(!h->dx&&!h->dy) h->dx=1; }
-    int nx=h->x+h->dx, ny=h->y+h->dy; if(nx<2||nx>=WW-2){ h->dx=(s8)-h->dx; nx=h->x; } if(ny<2||ny>=WH-2){ h->dy=(s8)-h->dy; ny=h->y; } h->x=(u8)nx; h->y=(u8)ny;
+    int nx=h->x+h->dx, ny=h->y+h->dy; if(nx<2||nx>=WW-2){ h->dx=(s8)-h->dx; nx=h->x; } if(ny<2||ny>=WH-2){ h->dy=(s8)-h->dy; ny=h->y; } h->x=(u16)nx; h->y=(u16)ny;
     for(int dy=-1;dy<=1;dy++) for(int dx=-1;dx<=1;dx++){ int x=h->x+dx, y=h->y+dy; if(x<0||y<0||x>=WW||y>=WH) continue; u8 t=world[y][x];
         if((t==T_FOREST||t==T_JUNGLE)&&rnd()%3==0) setCell(x,y,T_GRASS);
         if(bld[y][x]) stormRaze(x,y,150);

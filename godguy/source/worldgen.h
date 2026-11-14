@@ -10,7 +10,7 @@ static int wnoise(int x,int y,int cell,int s){   // value noise 0..255 that repe
     int t=a+(b-a)*fx/cell, u=c+(d-c)*fx/cell; return t+(u-t)*fy/cell;
 }
 static int wfbm(int x,int y,int s){ return (wnoise(x,y,32,s)*8+wnoise(x,y,16,s+1)*4+wnoise(x,y,8,s+2)*2+wnoise(x,y,4,s+3))/15; }
-#define GW_P 40
+#define GW_P 128                // (a 1024 planet of islands needs well over a hundred plates)
 static int gpX[GW_P], gpY[GW_P], gpR[GW_P], gpN;
 static int gwDist(int ax,int ay,int bx,int by){   // a cheap round-ish distance, the short way round when the planet wraps
     int dx=ax-bx, dy=ay-by; if(dx<0) dx=-dx; if(dy<0) dy=-dy;
@@ -74,5 +74,5 @@ static void genWorld(u32 seed){ bioClear(); atmoReset();
         else if(temp<70) t=T_SNOW; else if(temp>200&&m<110) t=T_DESERT; else if(temp>190&&m>150) t=T_JUNGLE; else if(m>175&&h<115) t=T_SWAMP; else if(m>135) t=T_FOREST; else t=T_GRASS;
         world[y][x]=t; }
     // a few lava pools in the mountains
-    for(int i=0;i<40;i++){ int x=rnd()%WW, y=rnd()%WH; if(world[y][x]==T_MOUNT){ world[y][x]=T_LAVA; if(x+1<WW&&world[y][x+1]==T_MOUNT) world[y][x+1]=T_LAVA; } }
+    for(int i=0,nl=40+(WW*WH>65536?40*(WW*WH/65536-1):0);i<nl;i++){ int x=rnd()%WW, y=rnd()%WH; if(world[y][x]==T_MOUNT){ world[y][x]=T_LAVA; if(x+1<WW&&world[y][x+1]==T_MOUNT) world[y][x+1]=T_LAVA; } }
 }
