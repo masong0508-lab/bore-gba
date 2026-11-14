@@ -152,7 +152,7 @@ static int hitDmg(const Cr*a,const Cr*d){   // one blow: the attacker's strength
 static void countTraits(void){ memset(trCount,0,sizeof trCount); for(int i=0;i<nCr;i++) if(cr[i].alive){ if(cr[i].tr) trCount[cr[i].tr]++; if(cr[i].tr2) trCount[cr[i].tr2]++; } }
 static void giveTrait(Cr*c,int t,int announce){ if(c->tr==0||c->tr==t) c->tr=(u8)t; else c->tr2=(u8)t; if(!((trSeen>>t)&1)){ trSeen|=1u<<t; if(announce){ char nm[48]; crName(c,nm); siprintf(info,"NEW SUBSPECIES: %.30s",nm); fxReq(FX_BIRTH); } } }
 static void born(Cr*kid,const Cr*par){ stBorn++;   // a child has its parent's traits, and now and then a mutation
-    kid->tr=par->tr; kid->tr2=par->tr2; int rate=diff==0?1:diff==2?3:2; if(HAS(par,TR_FERTILE)) rate+=1;
+    kid->tr=par->tr; kid->tr2=par->tr2; int rate=diff==0?1:diff==2?3:2; if(HAS(par,TR_FERTILE)) rate+=1; if(!LAWON(LW_MUTATE)) rate=0; if(LAWON(LW_MUTBOX)) rate=35;
     if((int)(rnd()%100)<rate){ int t=1+(int)(rnd()%(TR_N-1)); if(!HAS(kid,t)){ giveTrait(kid,t,1); stMut++; } }
     kid->hp=(u8)maxHp(kid); }
 // ---------------------------------------------------------------------------------------------- the world
@@ -484,7 +484,7 @@ static int kdKnow(int k,int b){ int n=0; for(int i=0;i<3;i++) n+=(kd[k].know>>(b
 static int kdMaxCities(int k){ return 3+kdKnow(k,0)+(kd[k].tech>=6); }   // governance: each level allows one more city
 static int kdZones(int k){ int z=0; for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==k+1) z+=3+vil[v].lvl*3+vil[v].houses/3+kdKnow(k,1)*3; return z; }
 static void kdDeclareX(int a,int b,int spite){
-    if(a==b||!gx.war||!kd[a].on||!kd[b].on||(kd[a].war>>b&1)) return; if(spite){ kd[a].spite=kd[b].spite=1; } char x[24], y[24], s[72]; kdName(a,x); kdName(b,y); kdWar(a,b,1); stWars++; kd[a].allies&=(u8)~(1<<b); kd[b].allies&=(u8)~(1<<a); kd[a].rel[b]=kd[b].rel[a]=-60;
+    if(a==b||!gx.war||!LAWON(LW_DIPLOMACY)||!kd[a].on||!kd[b].on||(kd[a].war>>b&1)) return; if(spite){ kd[a].spite=kd[b].spite=1; } char x[24], y[24], s[72]; kdName(a,x); kdName(b,y); kdWar(a,b,1); stWars++; kd[a].allies&=(u8)~(1<<b); kd[b].allies&=(u8)~(1<<a); kd[a].rel[b]=kd[b].rel[a]=-60;
     if(kd[a].rlg!=kd[b].rlg&&((kd[a].ctr>>5&1)||kd[a].rlg==0)) siprintf(s,"%s DECLARES HOLY WAR ON %s",x,y); else siprintf(s,"%s DECLARES WAR ON %s",x,y); logEv(s);
     for(int c=0;c<KN_N;c++) if(c!=a&&c!=b&&kd[c].on&&(kd[a].allies>>c&1)&&!(kd[b].allies>>c&1)&&kd[c].rel[b]<20&&!(kd[c].war>>b&1)){ kdWar(c,b,1); char z[24]; kdName(c,z); siprintf(s,"%s JOINS THE WAR",z); logEv(s); } }
 static void kdDeclare(int a,int b){ kdDeclareX(a,b,0); }
@@ -531,7 +531,7 @@ static void kingdomTick(void){
                 if(stop){ kdWar(a,b,0); kd[a].spite=kd[b].spite=0; kd[a].truce=kd[b].truce=10; char x[24], y[24], s[72]; kdName(a,x); kdName(b,y);
                     int win=wa*2<=wb?b:wb*2<=wa?a:-1; if(win>=0){ int lo=win==a?b:a; if(!kd[lo].lord&&!kd[win].lord){ kd[lo].lord=(u8)(win+1); char t[24], u[24]; kdName(lo,t); kdName(win,u); siprintf(s,"%s BECOMES A VASSAL OF %s",t,u); logEv(s); } else { siprintf(s,"PEACE BETWEEN %s AND %s",x,y); logEv(s); } } else { siprintf(s,"PEACE BETWEEN %s AND %s",x,y); logEv(s); } } }
             else if(!ally&&!(kd[a].lord==b+1||kd[b].lord==a+1)){
-                if(kd[a].rel[b]>35&&kd[b].rel[a]>35&&(rnd()&3)==0){ int na=__builtin_popcount(kd[a].allies), nb=__builtin_popcount(kd[b].allies); if(na<3&&nb<3){ kd[a].allies|=(u8)(1<<b); kd[b].allies|=(u8)(1<<a); stAllies++; char x[24], y[24], s[72]; kdName(a,x); kdName(b,y); siprintf(s,"%s AND %s ALLY",x,y); logEv(s); } }
+                if(LAWON(LW_DIPLOMACY)&&kd[a].rel[b]>35&&kd[b].rel[a]>35&&(rnd()&3)==0){ int na=__builtin_popcount(kd[a].allies), nb=__builtin_popcount(kd[b].allies); if(na<3&&nb<3){ kd[a].allies|=(u8)(1<<b); kd[b].allies|=(u8)(1<<a); stAllies++; char x[24], y[24], s[72]; kdName(a,x); kdName(b,y); siprintf(s,"%s AND %s ALLY",x,y); logEv(s); } }
                 else if(kd[a].rel[b]>10&&kd[b].rel[a]>10&&kdDist(a,b)<90){ kd[a].trade=kd[b].trade=1; kd[a].tradeW|=(u8)(1<<b); kd[b].tradeW|=(u8)(1<<a); } }
             else if(ally&&(kd[a].rel[b]<10||kd[b].rel[a]<10)){ kd[a].allies&=(u8)~(1<<b); kd[b].allies&=(u8)~(1<<a); char x[24], y[24], s[72]; kdName(a,x); kdName(b,y); siprintf(s,"%s AND %s BREAK THEIR ALLIANCE",x,y); logEv(s); } } }
     // soldiers march on the nearest enemy city; rebellious cities of big kingdoms split off
@@ -542,7 +542,7 @@ static void kingdomTick(void){
           if(cap<0||!vil[cap].on||vilK[cap]!=k+1){ int bp=-1; kd[k].cap=0; for(int u=0;u<VIL_N;u++) if(vil[u].on&&vilK[u]==k+1&&vil[u].pop>=bp){ bp=vil[u].pop; kd[k].cap=(u8)(u+1); } cap=kd[k].cap-1; }
           if(v==cap) vilL[v]=100; else { int tg=50; int over=c-kdMaxCities(k); if(over>0) tg-=over*25; if(cap>=0){ int dx=vil[cap].x-V->x, dy=vil[cap].y-V->y, dd=dx*dx+dy*dy; int r=0; while(r*r<dd&&r<100) r++; tg+=r<20?10:-(r/10); } if(V->stock>40) tg+=5; if(V->stock<8) tg-=10; if(kd[k].ctr>>5&1) tg+=10; if(worldAge()==0) tg+=5; if(worldAge()==1) tg-=5; if(worldAge()==2) tg-=8;
             if(vilL[v]<tg) vilL[v]++; else if(vilL[v]>tg) vilL[v]--; if(vilL[v]<-100) vilL[v]=-100;
-            if(vilL[v]<0&&(c>6||c>kdMaxCities(k))&&year-(int)kd[k].born>=15&&V->pop>=10&&(rnd()%10)==0){ int nk=-1; for(int i=0;i<KN_N;i++) if(!kd[i].on){ nk=i; break; } if(nk>=0){ int cul=kd[k].cul; vilK[v]=0; int n2=kdFound(v); if(n2>=0){ kd[n2].cul=(u8)cul; kd[n2].rlg=kd[k].rlg; kd[n2].lang=kd[k].lang; kd[n2].race=vil[v].race; kdWar(n2,k,1); char n[24], x[24], s[72]; vilName(v,n); kdName(k,x); siprintf(s,"%s REBELS AGAINST %s",n,x); logEv(s); } } } } } }
+            if(LAWON(LW_REBEL)&&vilL[v]<0&&(c>6||c>kdMaxCities(k))&&year-(int)kd[k].born>=15&&V->pop>=10&&(rnd()%10)==0){ int nk=-1; for(int i=0;i<KN_N;i++) if(!kd[i].on){ nk=i; break; } if(nk>=0){ int cul=kd[k].cul; vilK[v]=0; int n2=kdFound(v); if(n2>=0){ kd[n2].cul=(u8)cul; kd[n2].rlg=kd[k].rlg; kd[n2].lang=kd[k].lang; kd[n2].race=vil[v].race; kdWar(n2,k,1); char n[24], x[24], s[72]; vilName(v,n); kdName(k,x); siprintf(s,"%s REBELS AGAINST %s",n,x); logEv(s); } } } } } }
     // sieges: the stronger side of a war can take the nearest enemy city outright; big cities send out colonies
     for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]&&vil[v].foe&&vil[vil[v].foe-1].on){ int u=vil[v].foe-1, a=vilK[v]-1, b=vilK[u]-1; if(a<0||b<0||!(kd[a].war>>b&1)) continue; int ca,pa,wa,cb,pb,wb; kdStats(a,&ca,&pa,&wa); kdStats(b,&cb,&pb,&wb);
         int dx=vil[u].x-vil[v].x, dy=vil[u].y-vil[v].y; if(dx*dx+dy*dy>45*45) continue; if(wa>wb&&vil[v].pop>=vil[u].pop&&(int)(rnd()%100)<6+(wa-wb)*8/(wb+1)) vilConquer(u,v); }
@@ -573,14 +573,15 @@ static void thinkBody(int i){
         if(ATV(atTemp)<=-22&&!HAS(c,TR_FROST)&&!HAS(c,TR_CHILL)&&rnd()%40==0){ if(c->hp>2) c->hp-=2; }            // an ice age: the cold bites
         if(ATV(atTemp)>=26&&!HAS(c,TR_FIRE)&&rnd()%40==0){ if(c->hp>2) c->hp-=2; } }                                // a furnace world
     if(A->diet==5) c->food=100;
-    if(c->food==0){ if(c->hp>2) c->hp-=2; else { killNat(i); return; } }
+    if(c->food==0&&LAWON(LW_HUNGER)){ if(c->hp>2) c->hp-=2; else { killNat(i); return; } }
     { int lim=(A->life+(HAS(c,TR_LONG)?A->life/2:0))*gxLifeK(s->a)/100; if(lim>254) lim=254; if(!gx.lAge&&c->age>lim){ killNat(i); return; } }
     if((HAS(c,TR_REGEN)||HAS(c,TR_ZEN))&&c->hp<maxHp(c)) c->hp++;
     if(HAS(c,TR_SYMB)&&(tick&1)==0){ for(int k=0;k<4;k++){ int x=c->x+dxs[k], y=c->y+dys[k]; if(x>=0&&y>=0&&x<WW&&y<WH&&occ[y][x]){ Cr*q=&cr[occ[y][x]-1]; if(q->hp<maxHp(q)) q->hp+=2; } } }
     int t=world[c->y][c->x]; int amask=A->mask|curExtra;
     if(t==T_LAVA&&!((amask>>T_LAVA)&1)){ killNat(i); return; }
     if(!((amask>>t)&1)){ if(c->hp>8) c->hp-=8; else { killNat(i); return; } }
-    int diet=A->diet; if((HAS(c,TR_OMNI)||HAS(c,TR_MUNCH))&&(diet==0||diet==1)) diet=2;
+    int diet=A->diet; if((HAS(c,TR_OMNI)||HAS(c,TR_MUNCH))&&(diet==0||diet==1)) diet=2; if(LAWON(LW_PEACEMON)&&diet!=4) diet=0;      // peaceful monsters: animals and monsters only graze
+   
     if(diet==5){   // a monster: it hunts every living thing in reach (people first), and burns the houses it passes
         int best=-1,bd=99,rd=99; for(int dy=-10;dy<=10;dy++) for(int dx=-10;dx<=10;dx++){ int x=c->x+dx,y=c->y+dy; if(x<0||y<0||x>=WW||y>=WH||!occ[y][x]) continue; int j=occ[y][x]-1; if(j==i||arch[sp[cr[j].sp].a].diet==5||((HAS(&cr[j],TR_CAMO)&&(rnd()&1))||(HAS(&cr[j],TR_GIGGLY)&&rnd()%3==0))) continue;
             int d=(dx<0?-dx:dx)+(dy<0?-dy:dy); int civ=arch[sp[cr[j].sp].a].diet==4; if(!civ&&d>3) continue; if(d<bd){ bd=d; rd=d; best=j; } }   // people are hunted from ten tiles away, animals only when they are in the way
@@ -622,7 +623,10 @@ static void thinkBody(int i){
             for(int k=0;k<2;k++){ int ax=(k==try1)?sx:0, ay=(k==try1)?0:sy; if(!ax&&!ay) continue; int nx=c->x+ax, ny=c->y+ay; if(stepOk(s,&nx,&ny)){ moveTo(c,i,nx,ny); return; } } } }
     // breed
     int crowd=0; for(int dy=-2;dy<=2;dy++){ int yy=c->y+dy; if(yy<0||yy>=WH) continue; for(int dx=-2;dx<=2;dx++){ int xx=c->x+dx; if(xx>=0&&xx<WW&&occ[yy][xx]) crowd++; } }      // crowding: no room, fewer births (a packed tile block stops breeding at 13 of 25)
-    int bch=A->breed; if(crowd>=13) bch=0; else if(crowd>6) bch=bch*(13-crowd)/7; if(diet==4){ int vv=vilNear(s->a,c->x,c->y,8); if(vv>=0){ bch=bch*(gx.vGrow[vv]==1?28:gx.vGrow[vv]==2?12:20)/10; bch=bch*(100+vilMood(vv)/2)/100; } } if(HAS(c,TR_FERTILE)) bch=bch*3/2; if(HAS(c,TR_TINY)) bch=bch*13/10; if(HAS(c,TR_CLEVER)) bch=bch*13/10; if(HAS(c,TR_MUNCH)) bch=bch*14/10; bch=bch*gxBirthK(s->a,diet)/100;
+    int bch=A->breed; if(LAWON(LW_CROWD)){ if(crowd>=13) bch=0; else if(crowd>6) bch=bch*(13-crowd)/7; } if(diet==4){ int vv=vilNear(s->a,c->x,c->y,8); if(vv>=0){ bch=bch*(gx.vGrow[vv]==1?28:gx.vGrow[vv]==2?12:20)/10; bch=bch*(100+vilMood(vv)/2)/100; } } if(HAS(c,TR_FERTILE)) bch=bch*3/2; if(HAS(c,TR_TINY)) bch=bch*13/10; if(HAS(c,TR_CLEVER)) bch=bch*13/10; if(HAS(c,TR_MUNCH)) bch=bch*14/10; bch=bch*gxBirthK(s->a,diet)/100;
+    if(!(((diet==4||sp[c->sp].a<8)?LAWON(LW_CIVBABY):LAWON(LW_ANIBABY)))) bch=0;      // CIV BABIES / ANIMAL BABIES
+    if(LAWON(LW_LIMIT)&&diet!=4&&diet!=5&&nCr>WW*WH/3) bch=0;      // WORLD LIMIT: wildlife stops breeding once it fills a third of the world
+    if(LAWON(LW_POP100)&&diet==4){ int vp=vilNear(s->a,c->x,c->y,8); if(vp>=0&&vil[vp].pop>=100) bch=0; }
     if(c->food>=80&&c->age>8&&(int)(rnd()%100)<bch&&nCr<MAXC-4){ int d=rnd()&3; int nx=c->x+dxs[d], ny=c->y+dys[d]; int n=addCr(c->sp,nx,ny); if(n>=0){ cr[n].age=0; cr[n].food=50; born(&cr[n],&cr[i]); c->food-=40; return; } }
     // wander
     if((rnd()&3)!=0){ int d=rnd()&3; int nx=c->x+dxs[d], ny=c->y+dys[d]; if(stepOk(s,&nx,&ny)) moveTo(c,i,nx,ny); }
@@ -648,21 +652,22 @@ static void volcanoTick(void){   // lava creeps over nearby ground now and then,
     if(tick&15) return; int x=rnd()%WW, y=rnd()%WH; if(world[y][x]!=T_LAVA) return; atmoDust(1);
     int dx=(int)(rnd()%3)-1, dy=(int)(rnd()%3)-1, nx=x+dx, ny=y+dy; if(nx<0||ny<0||nx>=WW||ny>=WH) return; u8 t=world[ny][nx];
     if(weather==1||weather==2){ if(rnd()%6==0){ setCell(x,y,T_MOUNT); } return; }
-    if(!gx.lLava&&rnd()%(gx.dis==0?100000:gx.dis==1?270:90)==0&&(t==T_MOUNT||t==T_HILL||t==T_DIRT||t==T_GRASS||t==T_FOREST||t==T_DESERT)){ setCell(nx,ny,T_LAVA); if(occ[ny][nx]) killCr(occ[ny][nx]-1); if(bld[ny][nx]){ bld[ny][nx]=0; putCell(nx,ny); } }
+    if(!gx.lLava&&LAWON(LW_NATDIS)&&!LAWON(LW_GAIA)&&rnd()%(gx.dis==0?100000:gx.dis==1?270:90)==0&&(t==T_MOUNT||t==T_HILL||t==T_DIRT||t==T_GRASS||t==T_FOREST||t==T_DESERT)){ setCell(nx,ny,T_LAVA); if(occ[ny][nx]) killCr(occ[ny][nx]-1); if(bld[ny][nx]){ bld[ny][nx]=0; putCell(nx,ny); } }
     else if(rnd()%400==0) setCell(x,y,T_MOUNT); }
 #include "calamity.h"           // the Calamity pack: tornado, black hole, acid rain, atomic bomb, plague, curse
 static void eventTick(void){   // now and then the world has an event of its own
-    if(tick<1500||(tick%1500)!=0||rnd()%3) return; int e=(int)(rnd()%4); if(e==0&&(gx.dis==0||(gx.dis==1&&rnd()%3))) e=1;
-    if(e==0){ for(int k=0;k<6;k++){ int x=rnd()%WW, y=rnd()%WH; burnAt(x,y,255); if(world[y][x]!=T_WATER&&world[y][x]!=T_DEEP&&world[y][x]!=T_MOUNT) setCell(x,y,(rnd()&1)?T_DIRT:T_LAVA); if(occ[y][x]) killCr(occ[y][x]-1); } siprintf(info,"A COMET SHOWER"); flashT=8; fxReq(FX_METEOR); }
+    if(tick<1500||(tick%1500)!=0||rnd()%3) return; int e=(int)(rnd()%4); if(e==0&&(gx.dis==0||(gx.dis==1&&rnd()%3)||!LAWON(LW_NATDIS))) e=1;
+    if(e==0){ for(int k=0;k<6;k++){ int x=rnd()%WW, y=rnd()%WH; burnAt(x,y,255); if(!LAWON(LW_GAIA)&&world[y][x]!=T_WATER&&world[y][x]!=T_DEEP&&world[y][x]!=T_MOUNT) setCell(x,y,(rnd()&1)?T_DIRT:T_LAVA); if(occ[y][x]) killCr(occ[y][x]-1); } siprintf(info,"A COMET SHOWER"); flashT=8; fxReq(FX_METEOR); }
     else if(e==1){ for(int v=0;v<VIL_N;v++) if(vil[v].on) vil[v].stock=(u16)(vil[v].stock+100>400?400:vil[v].stock+100); siprintf(info,"A BOUNTIFUL HARVEST"); fxReq(FX_BLESS); }
     else if(e==2){ int n=0; for(int i=0;i<nCr&&n<12;i++) if(cr[i].alive&&arch[sp[cr[i].sp].a].diet!=5&&cr[i].tr2==0&&(rnd()&7)==0){ giveTrait(&cr[i],TR_MUNCH,0); cr[i].food=200; n++; } siprintf(info,"THE GREAT MUNCHIES"); fxReq(FX_BIRTH); }
     else { for(int v=0;v<VIL_N;v++) vil[v].foe=0; for(int k=0;k<KN_N;k++){ kd[k].war=0; kd[k].weary=0; } warMatrix(); siprintf(info,"A FESTIVAL: ALL FEUDS FORGOTTEN"); fxReq(FX_PEACE); } }
 static void weatherTick(void){
+    if(!LAWON(LW_WEATHER)){ if(weather) weather=0; if(flashT>0) flashT--; return; }
     if(gx.wx){ weather=gx.wx-1; weatherT=3000; }
     if(--weatherT<=0){ int r=(int)(rnd()%100), cold=(year&3)==3; weather=r<55?0:r<80?(cold?3:1):r<90?(cold?3:2):(cold?3:1); weatherT=weather?1200+(int)(rnd()%2400):900+(int)(rnd()%1800);
         siprintf(info,"%s",weather==1?"IT BEGINS TO RAIN":weather==2?"A STORM ROLLS IN":weather==3?"SNOW FALLS":"THE SKY CLEARS"); }
     if((weather==1||weather==2)&&(tick&7)==0){ int x=rnd()%WW, y=rnd()%WH; u8 t=world[y][x]; if(t==T_DIRT&&(rnd()&3)==0) setCell(x,y,T_GRASS); else if(t==T_LAVA&&(rnd()&15)==0) setCell(x,y,T_MOUNT); }
-    if(weather==2&&gx.dis&&(rnd()%(gx.dis==1?1500:500))==0){ int x=rnd()%WW, y=rnd()%WH; burnAt(x,y,200); if(occ[y][x]) killCr(occ[y][x]-1); if(world[y][x]==T_FOREST&&(rnd()&3)==0) setCell(x,y,T_DIRT); flashT=8; fxReq(FX_LIGHTNING); }
+    if(weather==2&&gx.dis&&LAWON(LW_NATDIS)&&(rnd()%(gx.dis==1?1500:500))==0){ int x=rnd()%WW, y=rnd()%WH; burnAt(x,y,200); if(occ[y][x]) killCr(occ[y][x]-1); if(world[y][x]==T_FOREST&&(rnd()&3)==0) setCell(x,y,T_DIRT); flashT=8; fxReq(FX_LIGHTNING); }
     if(flashT>0) flashT--; }
 static int cursor=0, vilCur=0;
 static void atmoTick(void){        // every 64 ticks: sample the land, move the gases, warm or cool the world, and let the climate act on the ground
@@ -707,10 +712,11 @@ static void simulate(void){
     int n=nCr; if(n==0) return; int per=n>96?96+(n>2400?(n-2400)/300:0):n;     // everyone takes a turn in rotation; a bigger crowd gets a few more turns a tick
     for(int k=0;k<per;k++){ if(cursor>=nCr) cursor=0; Cr*c=&cr[cursor]; if(c->alive&&++c->t>=effSpd(c)) { c->t=0; think(cursor); } cursor++; }
     if(n>600){ int x0=camX>>3, y0=camY>>3; for(int k=0;k<40;k++){ int x=x0+(int)(rnd()%32), y=y0+(int)(rnd()%20); if(x>=WW||y>=WH) continue; int j=occ[y][x]-1; if(j>=0&&cr[j].alive){ Cr*c=&cr[j]; if(++c->t>=effSpd(c)){ c->t=0; think(j); } } } }   // and whoever is on screen is always played at full pace
+    if(LAWON(LW_EROSION)&&(tick&3)==0){ for(int k=0;k<4;k++){ int x=rnd()%WW, y=rnd()%WH; u8 t=world[y][x]; if((t==T_GRASS||t==T_DIRT||t==T_HILL)&&!bld[y][x]&&(rnd()%60)==0){ for(int d=0;d<4;d++){ int nx=x+dxs[d], ny=y+dys[d]; if(nx>=0&&ny>=0&&nx<WW&&ny<WH&&(world[ny][nx]==T_WATER||world[ny][nx]==T_DEEP)){ setCell(x,y,T_SAND); break; } } } } }      // EROSION: the shore crumbles into sand
     // the ground heals: dirt turns back to grass beside grass, lava cools
     for(int k=0;k<12;k++){ int x=rnd()%WW, y=rnd()%WH; u8 t=world[y][x]; if(t==T_DIRT){ int d=rnd()&3; int nx=x+dxs[d], ny=y+dys[d]; if(nx>=0&&ny>=0&&nx<WW&&ny<WH&&(world[ny][nx]==T_GRASS||world[ny][nx]==T_FOREST)) setCell(x,y,T_GRASS); }
-        else if(t==T_GRASS&&(rnd()&63)==0){ int d=rnd()&3; int nx=x+dxs[d], ny=y+dys[d]; if(nx>=0&&ny>=0&&nx<WW&&ny<WH&&world[ny][nx]==T_FOREST&&(rnd()&7)==0) setCell(x,y,T_FOREST); } }
-    if((tick&15)==0){ int steps=(tick>>4)*VIL_N/40-((tick>>4)-1)*VIL_N/40; for(int s_=0;s_<steps;s_++){ vilCur=(vilCur+1)%VIL_N; vilTick(vilCur); if(vilCur==0) warMatrix(); } } /* every village is looked at once in 640 ticks, however many slots the build has (40 slots: one a step, as before) */ if((tick&127)==64) kingdomTick(); if((tick&63)==33) achCheck();
+        else if(t==T_GRASS&&LAWON(LW_TREES)&&(rnd()&63)==0){ int d=rnd()&3; int nx=x+dxs[d], ny=y+dys[d]; if(nx>=0&&ny>=0&&nx<WW&&ny<WH&&world[ny][nx]==T_FOREST&&(rnd()&7)==0) setCell(x,y,T_FOREST); } }
+    if((tick&15)==0){ int steps=(tick>>4)*VIL_N/40-((tick>>4)-1)*VIL_N/40; for(int s_=0;s_<steps;s_++){ vilCur=(vilCur+1)%VIL_N; if(LAWON(LW_GROWTH)) vilTick(vilCur); if(vilCur==0) warMatrix(); } } /* every village is looked at once in 640 ticks, however many slots the build has (40 slots: one a step, as before) */ if((tick&127)==64) kingdomTick(); if((tick&63)==33) achCheck();
     weatherTick(); volcanoTick(); eventTick(); calamityTick();
     if((tick&63)==0) monSpawn();
     if((tick&15)==0) towerFire();
@@ -912,6 +918,7 @@ static int saveGameRaw(const char*path){
     if(ok){ u32 mg=0x31484747u, sz=sizeof(Hz); ok&=svWrite(&mg,4,1,f)==1; ok&=svWrite(&sz,4,1,f)==1; ok&=svWrite(hz,sizeof(Hz),HZ_N,f)==(size_t)HZ_N; }   // GGH1 trailer (calamity.h): the tornadoes and black holes in flight
     if(ok){ u32 mg=0x31424747u; ok&=svWrite(&mg,4,1,f)==1; for(int y=0;y<gH&&ok;y++) ok&=svWrite(biome2+y*(MAXD/4),1,gW/4,f)==(size_t)(gW/4); if(ok){ int at[8]={atO2,atCO2,atDust,atTemp,atFire,atFlag,0,0}; ok&=svWrite(at,sizeof at,1,f)==1; if(ok) ok&=svWrite(favPow+40,1,24,f)==24; } }      // (the stars on powers 40 to 63 ride behind the atmosphere: there are more than 40 powers now)   // GGB1 trailer: the biomes and the atmosphere
     if(ok){ u32 mg=0x31544747u, sz=sizeof(Boat), nb=0; for(int b=0;b<8;b++) nb+=boat[b].on?1u:0u; ok&=svWrite(&mg,4,1,f)==1; ok&=svWrite(&sz,4,1,f)==1; ok&=svWrite(&nb,4,1,f)==1; for(int b=0;b<8&&ok;b++) if(boat[b].on) ok&=svWrite(&boat[b],sizeof(Boat),1,f)==1; }      // GGT1 trailer: the boats at sea (only those; none, and it is twelve bytes). Older builds never read it
+    if(ok){ u32 mg=0x314C4747u, n=LW_N; ok&=svWrite(&mg,4,1,f)==1; ok&=svWrite(&n,4,1,f)==1; ok&=svWrite(lw,1,LW_N,f)==LW_N; }      // GGL1 trailer: the World Laws that differ from their defaults (an old build never reads it; an old save has none)
     svClose(f); return ok; }
 static int loadGameRaw(const char*path){
     SV*f=svOpen(path,"rb"); if(!f) return 0; SaveHdr h; int ok=svRead(&h,sizeof h,1,f)==1;
@@ -942,6 +949,7 @@ static int loadGameRaw(const char*path){
             for(int i=0;i<HZ_N;i++) if(hz[i].kind>HZ_HOLE||hz[i].x>=gW||hz[i].y>=gH) memset(&hz[i],0,sizeof hz[i]); } }   // GGH1 trailer: an old save has none
     int bioRead=0; bioClear(); atmoReset(); if(ok&&h.ver>=9){ u32 mg=0; if(svRead(&mg,4,1,f)==1&&mg==0x31424747u){ int got=1; for(int y=0;y<gH&&got;y++) got=svRead(biome2+y*(MAXD/4),1,gW/4,f)==(size_t)(gW/4); if(!got) memset(biome2,0,sizeof biome2); else { int at[8]; if(svRead(at,sizeof at,1,f)==1){ atO2=at[0]; atCO2=at[1]; atDust=at[2]; atTemp=at[3]; atFire=at[4]; atFlag=at[5]; u8 fp[24]; if(svRead(fp,1,24,f)==24){ memcpy(favPow+40,fp,24); bioRead=1; } } } } }   // GGB1 trailer: an old save has none
     memset(boat,0,sizeof boat); if(ok&&bioRead){ u32 mg=0, sz=0, nb=0; if(svRead(&mg,4,1,f)==1&&mg==0x31544747u&&svRead(&sz,4,1,f)==1&&sz==sizeof(Boat)&&svRead(&nb,4,1,f)==1&&nb<=8){ for(u32 b=0;b<nb;b++){ Boat t; if(svRead(&t,sizeof t,1,f)!=1) break; if(t.on&&t.race<8&&t.x>=0&&t.y>=0&&t.x<gW&&t.y<gH&&t.tx>=0&&t.ty>=0&&t.tx<gW&&t.ty<gH&&t.n<=128&&t.i<=t.n) boat[b]=t; } } }   // GGT1 trailer: the boats at sea (an old save has none)
+    memset(lw,0,sizeof lw); if(ok&&bioRead){ u32 mg=0, n=0; if(svRead(&mg,4,1,f)==1&&mg==0x314C4747u&&svRead(&n,4,1,f)==1&&n<=sizeof lw){ u8 t[sizeof lw]; memset(t,0,sizeof t); if(svRead(t,1,n,f)==n){ for(u32 k=0;k<n&&k<LW_N;k++) lw[k]=t[k]&1; } } }      // GGL1 trailer: an old save has none, so every law is at its default
     bioCount(); bioRescan();
     svClose(f);
     if(!ok){ return 0; }

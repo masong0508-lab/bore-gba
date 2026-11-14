@@ -24,3 +24,6 @@ N=$(/tmp/gg_small mk /tmp/gg_x.sav | sed -n 's/.*creatures \([0-9]*\) villages \
 gcc $F -w -o /tmp/gg_life pc_life.c -lm && /tmp/gg_life | tail -1
 gcc $F -w -o /tmp/gg_boats pc_boats.c -lm && /tmp/gg_boats | tail -1
 gcc $F -w -o /tmp/gg_temples pc_temples.c -lm && /tmp/gg_temples | tail -1
+# World Laws (step 5): each law really changes what it names, laws are saved, and the LAWS tab pages and flips them
+gcc $F -w -o /tmp/gg_laws pc_laws.c -lm && /tmp/gg_laws | tail -1
+gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_lawmenu pc_lawmenu.c -lm && /tmp/gg_lawmenu | tail -1

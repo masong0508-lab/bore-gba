@@ -46,10 +46,10 @@ static void uiStats(void){
     for(int i=0;i<8;i++){ int y=98+i*10, v=0; for(int q=0;q<VIL_N;q++) v+=vil[q].on&&vil[q].race==i; uiText(8,y,arch[i].nm,U_LGREY,1); siprintf(b,"%d",c[i]); uiTextR(88,y,b,U_WHITE); siprintf(b,"%dV",v); uiTextR(112,y,b,U_DIM); uiBar(118,y,108,7,c[i],mx,U_G0+i); }
     uiFlush(); }
 // ---- WORLD: four tabs, rows that change a parameter (LEFT RIGHT or tap the arrows), rows that do something (A)
-static const struct { const char*n[5]; int c; } wk[16]={ {{"FEW","NORMAL","MANY"},3},{{"LOW","NORMAL","HIGH"},3},{{"SHORT","NORMAL","LONG"},3},{{"OFF","RARE","NORMAL"},3},{{"FRAIL","NORMAL","HARDY"},3},{{"PEACEFUL","AS IT WAS","WARLIKE"},3},{{"NORMAL","BOOM","SLOW"},3},{{"NORMAL","PACIFIST","FORTIFIED"},3},{{"NEVER","ALLOWED"},2},{{"AUTO","CLEAR","RAIN","STORM","SNOW"},5},{{"AUTO","DAY","DAWN","DUSK","NIGHT"},5},{{"WARLIKE","PEACEFUL","GREEDY","WISE"},4},
-    {{"ON","OFF"},2},{{"NORMAL","OFF","DEADLY"},3},{{"BURNS","SAFE"},2},{{"HIT","SPARE"},2} };   // 12..15: the LAWS tab (on / off, plague, fire, storms)
+static const struct { const char*n[5]; int c; } wk[17]={ {{"FEW","NORMAL","MANY"},3},{{"LOW","NORMAL","HIGH"},3},{{"SHORT","NORMAL","LONG"},3},{{"OFF","RARE","NORMAL"},3},{{"FRAIL","NORMAL","HARDY"},3},{{"PEACEFUL","AS IT WAS","WARLIKE"},3},{{"NORMAL","BOOM","SLOW"},3},{{"NORMAL","PACIFIST","FORTIFIED"},3},{{"NEVER","ALLOWED"},2},{{"AUTO","CLEAR","RAIN","STORM","SNOW"},5},{{"AUTO","DAY","DAWN","DUSK","NIGHT"},5},{{"WARLIKE","PEACEFUL","GREEDY","WISE"},4},
+    {{"ON","OFF"},2},{{"NORMAL","OFF","DEADLY"},3},{{"BURNS","SAFE"},2},{{"HIT","SPARE"},2}, {{"OFF","ON"},2} };   // 12..16: the LAWS tab (on / off, plague, fire, storms, and 16: a law that is off until you switch it on)
 typedef struct { const char*lb; u8*p; int k, act; const char*ds; } WR;
-static WR wr[12]; static int wn, wTab, wSel, wTabPrev, wPeo, wCity, wKing; static char wVal[12][20];
+static WR wr[12]; static int wLawPg, wn, wTab, wSel, wTabPrev, wPeo, wCity, wKing; static char wVal[12][20];
 static const char* const wTabN[5]={"WORLD","PEOPLES","CITIES","KINGS","LAWS"};
 static int wNextOn(int cur,int d,int total,int isCity){ for(int k=1;k<=total;k++){ int i=((cur+d*k)%total+total)%total; if(isCity?vil[i].on:kd[i].on) return i; } return cur; }
 static void worldBuild(void){
@@ -58,10 +58,16 @@ static void worldBuild(void){
     if(wTab==0){ WRW("MONSTERS",&gx.mon,0,0,"HOW MANY NIGHTMARES THE RIFTS OPEN"); WRW("BIRTH RATE",&gx.birth,1,0,"HOW FAST EVERYONE BREEDS"); WRW("HUNGER",&gx.hunger,1,0,"HOW QUICKLY BELLIES EMPTY"); WRW("LIFESPAN",&gx.life,2,0,"HOW LONG LIVES LAST"); WRW("DISASTERS",&gx.dis,3,0,"COMETS, LIGHTNING, CREEPING LAVA"); WRW("WARS",&gx.war,8,0,"CAN KINGDOMS DECLARE WAR"); WRW("WEATHER",&gx.wx,9,0,"LOCK THE SKY"); WRW("TIME OF DAY",&gx.tm,10,0,"LOCK THE LIGHT"); WRW("RESET WORLD",0,-1,1,"BACK TO THE DEFAULTS (A)"); }
     else if(wTab==1){ WRW("PEOPLE",0,-1,7,"LEFT RIGHT: CHOOSE A PEOPLE"); WRW("BIRTH RATE",&gx.rBirth[wPeo],1,0,"HOW FAST THIS PEOPLE BREEDS"); WRW("TOUGHNESS",&gx.rVigor[wPeo],4,0,"HEALTH OF THIS PEOPLE"); WRW("TEMPER",&gx.rTemper[wPeo],5,0,"WILL THEY GO LOOKING FOR WAR"); WRW("LIFESPAN",&gx.rLife[wPeo],2,0,"HOW LONG THEY LIVE"); WRW("RESET PEOPLE",0,-1,8,"BACK TO NORMAL (A)"); }
     else if(wTab==2){ if(vil[wCity].on||(wCity=wNextOn(wCity,1,VIL_N,1),vil[wCity].on)){ WRW("CITY",0,-1,7,"LEFT RIGHT: CHOOSE A CITY"); WRW("GROWTH",&gx.vGrow[wCity],6,0,"HOW FAST IT GROWS"); WRW("DEFENCE",&gx.vDef[wCity],7,0,"PACIFIST NEVER MARCHES, FORTIFIED IS HARD TO TAKE"); WRW("FILL STORE",0,-1,2,"FOOD AND GOODS TO THE BRIM (A)"); WRW("GO THERE",0,-1,3,"LOOK AT THIS CITY (A)"); } }
-    else if(wTab==4){ WRW("OLD AGE",&gx.lAge,12,0,"OFF: NOBODY DIES OF OLD AGE"); WRW("PLAGUE",&gx.lPlague,13,0,"OFF CURES EVERYONE, DEADLY SPREADS FAST"); WRW("FIRE ON HOMES",&gx.lFire,14,0,"SAFE: FIRE, BOLTS, METEORS SPARE HOMES"); WRW("LAVA CREEP",&gx.lLava,12,0,"OFF: LAVA STAYS WHERE IT IS"); WRW("STORMS ON HOMES",&gx.lStorm,15,0,"TORNADO, ACID, BLACK HOLE: SPARE HOMES"); }
+    else if(wTab==4){
+#define LAWR(L_,I_,D_) WRW(L_,&lw[I_],(LAWDEFON>>(I_))&1?12:16,0,D_)
+        WRW("LAWS",0,-1,7,"LEFT RIGHT: NEXT PAGE OF LAWS");
+        if(wLawPg==0){ WRW("OLD AGE",&gx.lAge,12,0,"OFF: NOBODY DIES OF OLD AGE"); LAWR("HUNGER",LW_HUNGER,"OFF: NOBODY STARVES"); LAWR("CIV BABIES",LW_CIVBABY,"OFF: NO BABIES IN VILLAGES AND CITIES"); LAWR("ANIMAL BABIES",LW_ANIBABY,"OFF: NO BABY ANIMALS OR MONSTERS"); LAWR("MUTATIONS",LW_MUTATE,"OFF: CHILDREN NEVER MUTATE"); LAWR("MUTANT BOX",LW_MUTBOX,"ON: MANY NEWBORNS HAVE RANDOM TRAITS"); LAWR("PEACEFUL MON",LW_PEACEMON,"ON: ANIMALS AND MONSTERS ONLY GRAZE"); }
+        else if(wLawPg==1){ LAWR("EROSION",LW_EROSION,"OFF: SHORES NEVER CRUMBLE INTO SAND"); LAWR("TREES GROWTH",LW_TREES,"OFF: FORESTS DO NOT SPREAD"); WRW("LAVA CREEP",&gx.lLava,12,0,"OFF: LAVA STAYS WHERE IT IS"); LAWR("GAIA COVENANT",LW_GAIA,"ON: DISASTERS LEAVE THE LAND ITSELF ALONE"); WRW("BIOMES",&gx.lBio,12,0,"OFF: BIOMES DO NOT SPREAD OR HURT"); WRW("ATMOSPHERE",&gx.lAtmo,12,0,"OFF: NO AIR, WARMTH OR DUST"); LAWR("WEATHER",LW_WEATHER,"OFF: THE SKY STAYS CLEAR"); }
+        else if(wLawPg==2){ LAWR("DIPLOMACY",LW_DIPLOMACY,"OFF: NO WARS AND NO ALLIANCES"); LAWR("REBELLIONS",LW_REBEL,"OFF: CITIES NEVER SPLIT OFF"); LAWR("CITY GROWTH",LW_GROWTH,"OFF: VILLAGES STOP GROWING AND BUILDING"); LAWR("100 PEOPLE",LW_POP100,"ON: A VILLAGE STOPS BREEDING AT 100 FOLK"); LAWR("CROWDING",LW_CROWD,"OFF: PACKED CROWDS KEEP BREEDING"); LAWR("WORLD LIMIT",LW_LIMIT,"OFF: ANIMALS MAY FILL THE WHOLE WORLD"); }
+        else { LAWR("NATURAL DIS.",LW_NATDIS,"OFF: NO COMETS, LIGHTNING OR LAVA CREEP"); LAWR("OTHER DIS.",LW_OTHERDIS,"OFF: NO TORNADO, BLACK HOLE OR PLAGUE"); WRW("PLAGUE",&gx.lPlague,13,0,"OFF CURES EVERYONE, DEADLY SPREADS FAST"); WRW("FIRE ON HOMES",&gx.lFire,14,0,"SAFE: FIRE, BOLTS, METEORS SPARE HOMES"); WRW("STORMS ON HOMES",&gx.lStorm,15,0,"TORNADO, ACID, BLACK HOLE: SPARE HOMES"); } }
     else { if(kd[wKing].on||(wKing=wNextOn(wKing,1,KN_N,0),kd[wKing].on)){ WRW("KINGDOM",0,-1,7,"LEFT RIGHT: CHOOSE A KINGDOM"); WRW("RULER TEMPER",&kd[wKing].rtr,11,0,"HOW THE RULER BEHAVES"); WRW("MAKE PEACE",0,-1,4,"END ITS WARS (A)"); WRW("GIFT 200 GOLD",0,-1,5,"FILL ITS TREASURY (A)"); WRW("NEW RULER",0,-1,6,"THE OLD ONE FALLS (A)"); } }
     for(int i=0;i<wn;i++){ char*v=wVal[i]; v[0]=0; if(wr[i].k>=0) strcpy(v,wk[wr[i].k].n[*wr[i].p%wk[wr[i].k].c]);
-        else if(wr[i].act==7){ if(wTab==1) siprintf(v,"%.12s",arch[wPeo].nm); else if(wTab==2){ char nm[24]; vilName(wCity,nm); siprintf(v,"%.12s",nm); } else { char nm[24]; kdName(wKing,nm); siprintf(v,"%.12s",nm); } } else if(wr[i].act) strcpy(v,">"); }
+        else if(wr[i].act==7){ if(wTab==4){ static const char*const pn[4]={"LIFE","LAND","FOLK","WRATH"}; siprintf(v,"%d/4 %s",wLawPg+1,pn[wLawPg]); } else if(wTab==1) siprintf(v,"%.12s",arch[wPeo].nm); else if(wTab==2){ char nm[24]; vilName(wCity,nm); siprintf(v,"%.12s",nm); } else { char nm[24]; kdName(wKing,nm); siprintf(v,"%.12s",nm); } } else if(wr[i].act) strcpy(v,">"); }
     if(wSel>=wn) wSel=wn?wn-1:0; }
 static void worldAct(int a){
     if(a==1){ u32 b=stBorn, d=stDied; gxDefaults(); stBorn=b; stDied=d; siprintf(info,"WORLD RESET"); }
@@ -71,7 +77,7 @@ static void worldAct(int a){
     else if(a==4){ for(int o=0;o<KN_N;o++) if(kd[wKing].war>>o&1) kdWar(wKing,o,0); for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==wKing+1) vil[v].foe=0; warMatrix(); siprintf(info,"PEACE"); }
     else if(a==5){ int g=kd[wKing].gold+200; kd[wKing].gold=(u16)(g>60000?60000:g); siprintf(info,"+200 GOLD"); }
     else if(a==6){ Kd*K=&kd[wKing]; K->rn1=(u8)(rnd()%12); K->rn2=(u8)(rnd()%8); K->rtr=(u8)(rnd()%4); K->reign=0; siprintf(info,"A NEW RULER"); } }
-static void worldStep(int d){ if(wTab==1) wPeo=(wPeo+8+d)%8; else if(wTab==2) wCity=wNextOn(wCity,d,VIL_N,1); else if(wTab==3) wKing=wNextOn(wKing,d,KN_N,0); }
+static void worldStep(int d){ if(wTab==4) wLawPg=(wLawPg+4+d)%4; else if(wTab==1) wPeo=(wPeo+8+d)%8; else if(wTab==2) wCity=wNextOn(wCity,d,VIL_N,1); else if(wTab==3) wKing=wNextOn(wKing,d,KN_N,0); }
 static void worldInput(int k){
     if(wTab!=wTabPrev){ wTabPrev=wTab; wSel=0; } worldBuild();
     if(k&KEY_X){ wTab=(wTab+1)%5; } if(k&KEY_Y){ wTab=(wTab+4)%5; } if(wTab!=wTabPrev){ wTabPrev=wTab; wSel=0; worldBuild(); }

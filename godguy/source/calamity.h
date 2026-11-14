@@ -35,7 +35,7 @@ static void tornadoStep(Hz*h){
     if(rnd()%5==0){ h->dx=(s8)((int)(rnd()%3)-1); h->dy=(s8)((int)(rnd()%3)-1); if(!h->dx&&!h->dy) h->dx=1; }
     int nx=h->x+h->dx, ny=h->y+h->dy; if(nx<2||nx>=WW-2){ h->dx=(s8)-h->dx; nx=h->x; } if(ny<2||ny>=WH-2){ h->dy=(s8)-h->dy; ny=h->y; } h->x=(u16)nx; h->y=(u16)ny;
     for(int dy=-1;dy<=1;dy++) for(int dx=-1;dx<=1;dx++){ int x=h->x+dx, y=h->y+dy; if(x<0||y<0||x>=WW||y>=WH) continue; u8 t=world[y][x];
-        if((t==T_FOREST||t==T_JUNGLE)&&rnd()%3==0) setCell(x,y,T_GRASS);
+        if((t==T_FOREST||t==T_JUNGLE)&&!LAWON(LW_GAIA)&&rnd()%3==0) setCell(x,y,T_GRASS);
         if(bld[y][x]) stormRaze(x,y,150);
         if(occ[y][x]){ int i=occ[y][x]-1; if(hzHurt(i,6+(int)(rnd()%8))) hzFling(i); } } }
 // ---------------------------------------------------------------- the black hole: grows, drags creatures in, kills what reaches it and leaves deep sea where it was
@@ -46,10 +46,10 @@ static void holeStep(Hz*h){
         int sx=dx>0?-1:dx<0?1:0, sy=dy>0?-1:dy<0?1:0; Cr*c=&cr[i]; if(hzFree(x+sx,y+sy,&sp[c->sp])) moveTo(c,i,x+sx,y+sy); }   // one tile towards the middle
     for(int dy=-r;dy<=r;dy++) for(int dx=-r;dx<=r;dx++){ if(dx*dx+dy*dy>r*r) continue; int x=h->x+dx, y=h->y+dy; if(x<0||y<0||x>=WW||y>=WH) continue;
         if(bld[y][x]){ if(gx.lStorm) continue; razeAt(x,y,255); bld[y][x]=0; bldv[y][x]=0; }
-        if(world[y][x]!=T_DEEP) setCell(x,y,T_DEEP); } }
+        if(world[y][x]!=T_DEEP&&!LAWON(LW_GAIA)) setCell(x,y,T_DEEP); } }
 // ---------------------------------------------------------------- acid rain: a brush; plants die, stone crumbles, homes corrode, flesh burns
 static void acidAt(int x,int y){ u8 t=world[y][x];
-    if((t==T_GRASS||t==T_FOREST||t==T_JUNGLE)&&rnd()%3==0) setCell(x,y,T_DIRT);
+    if(LAWON(LW_GAIA)){} else if((t==T_GRASS||t==T_FOREST||t==T_JUNGLE)&&rnd()%3==0) setCell(x,y,T_DIRT);
     else if((t==T_HILL||t==T_MOUNT)&&rnd()%20==0) setCell(x,y,t==T_MOUNT?T_HILL:T_DIRT);
     if(bld[y][x]) stormRaze(x,y,24);
     if(occ[y][x]&&(rnd()&3)==0) hzHurt(occ[y][x]-1,5); }
@@ -61,14 +61,15 @@ static void nukeAt(int cx,int cy,int R){
         if(d2<=R*R){
             if(bld[y][x]) razeAt(x,y,255);
             if(occ[y][x]) killCr(occ[y][x]-1);
-            if(d2<=core){ if(bld[y][x]){ bld[y][x]=0; bldv[y][x]=0; } setCell(x,y,water?T_SAND:T_LAVA); }
+            if(LAWON(LW_GAIA)){ if(bld[y][x]){ bld[y][x]=0; bldv[y][x]=0; } }      // Gaia's covenant: the blast kills, the land stays
+            else if(d2<=core){ if(bld[y][x]){ bld[y][x]=0; bldv[y][x]=0; } setCell(x,y,water?T_SAND:T_LAVA); }
             else if(d2<=mid){ if(!water){ if(bld[y][x]){ bld[y][x]=0; bldv[y][x]=0; } setCell(x,y,T_DIRT); } }
             else if((t==T_FOREST||t==T_JUNGLE||t==T_GRASS||t==T_SWAMP)&&rnd()%10<7) setCell(x,y,T_DIRT); }
         else if(occ[y][x]){ int i=occ[y][x]-1; if((int)(rnd()%100)<60) infect(i); if(rnd()&1) hzHurt(i,10); } }   // the fallout ring: sickness and burns
     flashT=14; fxReq(FX_METEOR); logEv("AN ATOMIC BOMB FALLS"); }
 // ---------------------------------------------------------------- the world has calamities of its own now and then (only when DISASTERS is not OFF)
 static void calamityNatural(void){
-    if(!gx.dis||tick<2400||(tick%1800)!=900||rnd()%(gx.dis==1?6:3)) return;
+    if(!gx.dis||!LAWON(LW_OTHERDIS)||tick<2400||(tick%1800)!=900||rnd()%(gx.dis==1?6:3)) return;
     int k=(int)(rnd()%6), x=(int)(rnd()%WW), y=(int)(rnd()%WH);
     if(k<3){ if(hzAdd(HZ_TORNADO,x,y)>=0){ logEv("A TORNADO TOUCHES DOWN"); fxReq(FX_LIGHTNING); } }
     else if(k==3){ if(hzAdd(HZ_HOLE,x,y)>=0){ logEv("A BLACK HOLE OPENS"); fxReq(FX_SMITE); flashT=4; } }
