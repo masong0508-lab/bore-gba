@@ -49,3 +49,7 @@ gcc $F -w -o /tmp/gg_notable pc_notable.c -lm && /tmp/gg_notable | tail -1
 gcc $F -w -o /tmp/gg_cells pc_cells.c -lm && /tmp/gg_cells | tail -1 && gcc $F -w -DGG_NOCELL -o /tmp/gg_cells_old pc_cells.c -lm && [ "$(/tmp/gg_cells | grep 'state hash')" = "$(/tmp/gg_cells_old | grep 'state hash')" ] && echo "CELLS same game as the tile scan"
 # GodGuy step 10c, war groups: one record per army (target, soldiers, power, centre) equals an independent count, and counting changes nothing
 gcc $F -w -o /tmp/gg_wargrp pc_wargrp.c -lm && /tmp/gg_wargrp | tail -1
+# GodGuy, the war benchmark (the harness before step 10d): two armies of thousands at war, time per tick, turns per creature per year, casualties, save size. The turn counter changes nothing in the game (same state hash without it)
+gcc $F -w -o /tmp/gg_war pc_war.c -lm && /tmp/gg_war 1 3000 20 4096 | tail -1 && gcc $F -w -DWAR_NOSTAT -o /tmp/gg_war_ns pc_war.c -lm && [ "$(/tmp/gg_war 1 1200 20 2048 | grep 'state hash')" = "$(/tmp/gg_war_ns 1 1200 20 2048 | grep 'state hash')" ] && echo "WAR same game with and without the counter"
+# the gap step 10d has to close: the game as it is against the full per-unit run in war_ref_full.txt (printed, not yet a pass or fail; 10d turns it into one: casualties within 10%)
+/tmp/gg_war cmp war_ref_full.txt 10 | grep -E "compared|casualties at" || true

@@ -18,6 +18,12 @@ int gW=128, gH=128;
 u8 world[MAXD][MAXD];
 static occ_t occ[MAXD][MAXD];            // creature index + 1 standing on a tile
 static Cr cr[MAXC]; static int nCr;
+#ifdef GG_WARSTAT
+static unsigned long ggTurns;      // (benchmark builds only, pc_war.c: how many turns think() has taken; not compiled into any game build)
+#define GG_TURN() (ggTurns++)
+#else
+#define GG_TURN() ((void)0)
+#endif
 static u32 crId[MAXC]; static u16 crFl[MAXC]; static u32 idNext=1;
 static void ntKill(Cr*c); static void ntHit(Cr*a,Cr*d,int dm); static void ntDeath(int i); static void ntGone(u32 id); static void ntBirth(Cr*kid,const Cr*par); static void ntFounder(Cr*c,int v); static void ntSweep(void);   // (ggid.h: names, ids and the notable table)
 static int crNamed(const Cr*c); static void crFirst(const Cr*c,char*o); static void idReset(void);
@@ -680,7 +686,7 @@ static void thinkBody(int i){
     // wander
     if((rnd()&3)!=0){ int d=rnd()&3; int nx=c->x+dxs[d], ny=c->y+dys[d]; if(stepOk(s,&nx,&ny)) moveTo(c,i,nx,ny); }
 }
-static void think(int i){ Cr*c=&cr[i]; curExtra=c->alive?trMask(c):0; int x0=c->x, y0=c->y; edgeOut=0; thinkBody(i); curExtra=0;
+static void think(int i){ GG_TURN(); Cr*c=&cr[i]; curExtra=c->alive?trMask(c):0; int x0=c->x, y0=c->y; edgeOut=0; thinkBody(i); curExtra=0;
     if(edgeOut&&cEdge==1&&c->alive&&c->x==x0&&c->y==y0&&arch[sp[c->sp].a].diet!=4) killNat(i);   // VANISH: an animal or monster that walks off the map is gone (the peoples turn back)
     edgeOut=0; }
 static int monTierMax(void){ int t=(tierOpen-1)/3+year/4; return t>4?4:t; }
@@ -759,6 +765,9 @@ static void simulate(void){
     { int x0=(camX>>3)-1, y0=(camY>>3)-1;      // glide into the tile: only the creatures near the screen (a crowd of thousands is not walked through every tick)
       for(int y=y0<0?0:y0;y<y0+27&&y<WH;y++) for(int x=x0<0?0:x0;x<x0+35&&x<WW;x++){ int j=occ[y][x]-1; if(j<0) continue; Cr*c=&cr[j]; if(c->ox) c->ox+= c->ox<0?1:-1; if(c->oy) c->oy+= c->oy<0?1:-1; } }
     int n=nCr; if(n==0) return; int per=n>96?96+(n>2400?(n-2400)/300:0):n;     // everyone takes a turn in rotation; a bigger crowd gets a few more turns a tick
+#ifdef GG_FULLTURNS
+    per=n;      // (benchmark builds only, pc_war.c: every creature is visited every tick, so each thinks at its own pace: the full per-unit run that step 10d's tiers are compared with)
+#endif
     for(int k=0;k<per;k++){ if(cursor>=nCr) cursor=0; Cr*c=&cr[cursor]; if(c->alive&&++c->t>=effSpd(c)) { c->t=0; think(cursor); } cursor++; }
     if(n>600){ int x0=camX>>3, y0=camY>>3; for(int k=0;k<40;k++){ int x=x0+(int)(rnd()%32), y=y0+(int)(rnd()%20); if(x>=WW||y>=WH) continue; int j=occ[y][x]-1; if(j>=0&&cr[j].alive){ Cr*c=&cr[j]; if(++c->t>=effSpd(c)){ c->t=0; think(j); } } } }   // and whoever is on screen is always played at full pace
     if(LAWON(LW_EROSION)&&(tick&3)==0){ for(int k=0;k<4;k++){ int x=rnd()%WW, y=rnd()%WH; u8 t=world[y][x]; if((t==T_GRASS||t==T_DIRT||t==T_HILL)&&!bld[y][x]&&(rnd()%60)==0){ for(int d=0;d<4;d++){ int nx=x+dxs[d], ny=y+dys[d]; if(nx>=0&&ny>=0&&nx<WW&&ny<WH&&(world[ny][nx]==T_WATER||world[ny][nx]==T_DEEP)){ setCell(x,y,T_SAND); break; } } } } }      // EROSION: the shore crumbles into sand
