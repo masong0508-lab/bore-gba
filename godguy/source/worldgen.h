@@ -61,16 +61,16 @@ static void gwSetup(int s){
 static void genWorld(u32 seed){ bioClear(); atmoReset();
     int s=(int)(seed&0xFFFF); gwSetup(s); int lakes=cShape==5;
     for(int y=0;y<WH;y++) for(int x=0;x<WW;x++){
-        int hn=wfbm(x,y,s), m=wfbm(x,y,s+9), lat=(y<WH/2?y:WH-1-y)*128/WH, temp=40+lat*3+(wfbm(x,y,s+20)-128)/3+cClim*28; m+=cWet*30;
+        int wp=10+cCoast*5; int hn=wfbm(x,y,s), m=wfbm(x,y,s+9), lat=(y<WH/2?y:WH-1-y)*128/WH, temp=40+lat*3+(wfbm(x,y,s+20)-128)/3+cClim*28; m+=cWet*30;
         int warp=wfbm(x,y,s+30)-128, best=-256;   // the plate that holds this cell: how far inside it (256 = middle, 0 = coast, negative = open sea)
-        for(int k=0;k<gpN;k++){ int R=gpR[k]; int d=gwDist(x,y,gpX[k],gpY[k]); if(d>2*R) continue; d+=warp*R/220; int n=(R-d)*256/R; if(n>best) best=n; }
-        int h=92+best*105/256+(hn-128)/3+(wnoise(x,y,6,s+41)-128)/10;
+        for(int k=0;k<gpN;k++){ int R=gpR[k]; int d=gwDist(x,y,gpX[k],gpY[k]); if(d>2*R) continue; d+=warp*R*wp/2200; int n=(R-d)*256/R; if(n>best) best=n; }
+        int h=92+best*105/256+(hn-128)/3+(wnoise(x,y,6,s+41)-128)*wp/100;
         if(lakes){ int l=wfbm(x,y,s+50); if(l>145&&best>20) h-=(l-145)*3; }
         if(cEdge!=2){ int e=x<y?x:y, e2=(WW-1-x)<(WH-1-y)?(WW-1-x):(WH-1-y); if(e2<e) e=e2; if(e<10) h-=(10-e)*7; }   // walls: an ocean border
-        h+=cSea*9;
+        h-=cSea*9;      // SEA: DRY (-2) lifts the land, FLOODED (+2) drowns it (this was the wrong way round: DRY made the least land)
         u8 t;
         if(h<62) t=T_DEEP; else if(h<84) t=T_WATER; else if(h<94) t=(temp<70)?T_SNOW:T_SAND;
-        else if(h>205) t=(temp<150)?T_SNOW:T_MOUNT; else if(h>170) t=T_HILL;
+        else if(h>205-cMtn*12) t=(temp<150)?T_SNOW:T_MOUNT; else if(h>170-cMtn*8) t=T_HILL;
         else if(temp<70) t=T_SNOW; else if(temp>200&&m<110) t=T_DESERT; else if(temp>190&&m>150) t=T_JUNGLE; else if(m>175&&h<115) t=T_SWAMP; else if(m>135) t=T_FOREST; else t=T_GRASS;
         world[y][x]=t; }
     // a few lava pools in the mountains

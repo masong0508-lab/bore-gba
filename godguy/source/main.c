@@ -164,6 +164,7 @@ static int vnoise(int x,int y,int cell,int s){   // value noise 0..255, cell pix
     int t=a+(b-a)*fx/cell, u=c+(d-c)*fx/cell; return t+(u-t)*fy/cell;
 }
 static int fbm(int x,int y,int s){ return (vnoise(x,y,32,s)*8+vnoise(x,y,16,s+1)*4+vnoise(x,y,8,s+2)*2+vnoise(x,y,4,s+3))/15; }
+static int cCoast, cMtn;      // coasts (-1 smooth, 0 as it always was, 1 rugged) and mountains (-1 few, 0 as before, 1 many): 0 makes exactly the planet a seed always made
 static int cShape, cSea, cClim, cWet, cLife=2;   // create-a-planet choices: land shape (0 continents, 1 one supercontinent, 2 islands), sea level, climate, wetness (all 0 = the classic planet), amount of starting life 0..3
 // ---- biomes: a second layer over the ground (0 none, 1 CORRUPTED, 2 INFERNAL, 3 ENCHANTED), two bits a tile. They spread, they act on whoever stands there, and they are painted with seed powers.
 static u8 biome2[MAXD*MAXD/4]; static int nBio[4];
@@ -1307,6 +1308,7 @@ static void uiLoadHook(const char*msg,int pct){   // a loading screen: the plane
     uiBar(48,162,160,9,pct,100,U_GREEN); { char b[8]; siprintf(b,"%d%%",pct); uiTextC(128,163,b,U_WHITE,1); }
     uiText(6,182,tipTxt[(year+pct/20+n)%11],U_DIM,1); uiFlush(); }
 static int mScr, mSel; static u32 cSeed; static int cSel, cT=-1, cLand; static const char*const cEdgeN[]={"WALLS","VANISH","WRAP"};
+static const char*const cCoastN[]={"SMOOTH","NORMAL","RUGGED"}, *const cMtnN[]={"FEW","NORMAL","MANY"};
 static const char*const cShapeN[]={"CONTINENTS","SUPERCONTINENT","ISLANDS","ARCHIPELAGO","TWO CONTINENTS","INLAND SEAS"}, *const cSeaN[]={"DRY","LOW","NORMAL","HIGH","FLOODED"}, *const cClimN[]={"ICE AGE","COOL","TEMPERATE","WARM","SCORCHED"}, *const cWetN[]={"ARID","NORMAL","LUSH"}, *const cLifeN[]={"EMPTY","SPARSE","NORMAL","TEEMING"};
 static void previewWorld(void){ gW=gH=planetSize>256?256:planetSize;      // (the preview of a huge planet is drawn at 256: only its shape and climate matter)
     nCr=0; memset(occ,0,sizeof occ); memset(bld,0,sizeof bld); memset(bldv,0,sizeof bldv); memset(vil,0,sizeof vil); nVilOn=0; genWorld(cSeed); camX=(WW*8-256)/2; camY=(WH*8-192)/2; winX=-99; refillWindow();
@@ -1314,16 +1316,17 @@ static void previewWorld(void){ gW=gH=planetSize>256?256:planetSize;      // (th
 static void createStart(void){ if(!cSeed) cSeed=(rnd()&0xFFFF)|1; cSel=0; previewWorld(); }
 static void createInput(int kd){
     int d=((kd&KEY_RIGHT)?1:0)-((kd&KEY_LEFT)?1:0); int ch=0;
-    if(kd&KEY_UP) cSel=(cSel+10)%11; if(kd&KEY_DOWN) cSel=(cSel+1)%11;
+    if(kd&KEY_UP) cSel=(cSel+12)%13; if(kd&KEY_DOWN) cSel=(cSel+1)%13;
     if(kd&KEY_B){ fxReq(FX_MENU_BACK); mScr=0; mSel=1; return; }
-    if(cSel==10&&(kd&KEY_A)){ fxReq(FX_MENU_OK); seedFix=cSeed; startWorld(storyOn); seedFix=0; return; }
+    if(cSel==12&&(kd&KEY_A)){ fxReq(FX_MENU_OK); seedFix=cSeed; startWorld(storyOn); seedFix=0; return; }
     if(d||(kd&KEY_A)){ if(!d) d=1; switch(cSel){
         case 0: setSize(sizeStep(planetSize,d>0?1:-1)); ch=1; break;
         case 1: storyOn^=1; break;
-        case 2: cShape=(cShape+6+d)%6; ch=1; break; case 3: cSea=(cSea+7+d)%5-2; ch=1; break; case 4: cClim=(cClim+7+d)%5-2; ch=1; break; case 5: cWet=(cWet+4+d)%3-1; ch=1; break;
-        case 6: cLife=(cLife+4+d)%4; break; case 7: diff=(diff+3+d)%3; break;
-        case 8: if(kd&KEY_A) cSeed=(rnd()&0xFFFF)|1; else cSeed=(cSeed+d)&0xFFFF; ch=1; break;
-        case 9: cEdge=(cEdge+3+d)%3; ch=1; break; } }
+        case 2: cShape=(cShape+6+d)%6; ch=1; break; case 3: cCoast=(cCoast+4+d)%3-1; ch=1; break; case 4: cMtn=(cMtn+4+d)%3-1; ch=1; break;
+        case 5: cSea=(cSea+7+d)%5-2; ch=1; break; case 6: cClim=(cClim+7+d)%5-2; ch=1; break; case 7: cWet=(cWet+4+d)%3-1; ch=1; break;
+        case 8: cLife=(cLife+4+d)%4; break; case 9: diff=(diff+3+d)%3; break;
+        case 10: if(kd&KEY_A) cSeed=(rnd()&0xFFFF)|1; else cSeed=(cSeed+d)&0xFFFF; ch=1; break;
+        case 11: cEdge=(cEdge+3+d)%3; ch=1; break; } }
     if(kd&(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT|KEY_A)) fxReq(FX_MENU_MOVE);
     if(ch) cT=8; }
 // GFX1 menus: shared pieces so every menu looks and behaves the same: a header strip, a hint strip, a framed description box
@@ -1333,20 +1336,20 @@ static void gfxHead(const char*t,int back){
     if(back){ uiGradRound(204,2,48,11,G_SEL,U_GOLD); uiTextC(228,4,"BACK",U_WHITE,1); uiBtn(202,0,52,15,KEY_B,0,0,0); } }
 static void gfxHint(const char*t,int col){ uiGrad(0,180,256,12,G_FOOT); uiRect(0,180,256,1,U_BHI); uiTextC(128,183,t,col,1); }
 static void gfxDescBox(int x,int y,int w,int h,const char*t){ uiFrame(x,y,w,h,U_SHADOW,U_BLO,U_BHI); uiGrad(x+1,y+1,w-2,h-2,G_BG); uiRect(x+1,y+2,2,h-4,U_GOLD); uiWrap(x+5,y+(h>=24?5:h>=22?4:3),w/6-2,h>=30?3:2,t,U_LGREY); }
-static const char* const cHelp[11]={"BIGGER PLANETS HOLD MORE LIVES","STORY HAS CHAPTERS, FREE PLAY HAS NONE","THE SHAPE OF THE LAND","HOW MUCH OF THE PLANET IS WATER","FROM ICE AGE TO SCORCHED","HOW LUSH OR DRY THE LAND IS","HOW MANY CREATURES START OUT","HOW HARD THE MONSTERS BITE","THE SAME SEED MAKES THE SAME PLANET","WALLS STOP, VANISH ERASES, WRAP LOOPS","MAKE THE PLANET AND BEGIN"};
+static const char* const cHelp[13]={"BIGGER PLANETS HOLD MORE LIVES","STORY HAS CHAPTERS, FREE PLAY HAS NONE","THE SHAPE OF THE LAND","SMOOTH BEACHES OR RAGGED, TORN COASTS","HOW MANY PEAKS AND HILLS RISE","HOW MUCH OF THE PLANET IS WATER","FROM ICE AGE TO SCORCHED","HOW LUSH OR DRY THE LAND IS","HOW MANY CREATURES START OUT","HOW HARD THE MONSTERS BITE","THE SAME SEED MAKES THE SAME PLANET","WALLS STOP, VANISH ERASES, WRAP LOOPS","MAKE THE PLANET AND BEGIN"};
 static void uiCreate(void){
     uiRect(0,0,256,192,U_BG); for(int y=0;y<192;y+=4) uiRect(0,y,256,1,U_PANEL);
     gfxHead("CREATE A PLANET",1);
-    const char*lb[11]={"SIZE","TYPE","LAND","SEA","CLIMATE","WETNESS","LIFE","DIFFICULTY","SEED","EDGE","CREATE THIS PLANET"}; char v[11][20];
-    siprintf(v[0],"%dx%d",planetSize,planetSize); strcpy(v[1],storyOn?"STORY":"FREE PLAY"); strcpy(v[2],cShapeN[cShape]); strcpy(v[3],cSeaN[cSea+2]); strcpy(v[4],cClimN[cClim+2]); strcpy(v[5],cWetN[cWet+1]); strcpy(v[6],cLifeN[cLife]);
-    strcpy(v[7],diff==0?"CALM":diff==1?"NORMAL":"BRUTAL"); siprintf(v[8],"%04X",(unsigned)cSeed); strcpy(v[9],cEdgeN[cEdge]); v[10][0]=0;
-    for(int i=0;i<11;i++){ int y=19+i*14, sel=i==cSel;
-        uiRound(4,y,156,12,i==10?(sel?U_TEAL:U_PANELHI):(sel?U_SEL:U_PANELHI),sel?U_GOLD:U_BHI);
-        uiBtn(4,y,156,13,i==10?KEY_A:0,0,&cSel,i); if(i<8||i==9){ uiBtn(90,y,34,13,KEY_LEFT,0,&cSel,i); uiBtn(124,y,36,13,KEY_RIGHT,0,&cSel,i); }
-        if(i==10){ uiTextC(78,y+2,lb[i],sel?U_WHITE:U_GOLD,1); uiIcon8(146,y+2,IC8_RIGHT); continue; }
+    const char*lb[13]={"SIZE","TYPE","LAND","COASTS","MOUNTAINS","SEA","CLIMATE","WETNESS","LIFE","DIFFICULTY","SEED","EDGE","CREATE THIS PLANET"}; char v[13][20];
+    siprintf(v[0],"%dx%d",planetSize,planetSize); strcpy(v[1],storyOn?"STORY":"FREE PLAY"); strcpy(v[2],cShapeN[cShape]); strcpy(v[3],cCoastN[cCoast+1]); strcpy(v[4],cMtnN[cMtn+1]); strcpy(v[5],cSeaN[cSea+2]); strcpy(v[6],cClimN[cClim+2]); strcpy(v[7],cWetN[cWet+1]); strcpy(v[8],cLifeN[cLife]);
+    strcpy(v[9],diff==0?"CALM":diff==1?"NORMAL":"BRUTAL"); siprintf(v[10],"%04X",(unsigned)cSeed); strcpy(v[11],cEdgeN[cEdge]); v[12][0]=0;
+    for(int i=0;i<13;i++){ int y=19+i*12, sel=i==cSel;
+        uiRound(4,y,156,11,i==12?(sel?U_TEAL:U_PANELHI):(sel?U_SEL:U_PANELHI),sel?U_GOLD:U_BHI);
+        uiBtn(4,y,156,12,i==12?KEY_A:0,0,&cSel,i); if(i<10||i==11){ uiBtn(90,y,34,12,KEY_LEFT,0,&cSel,i); uiBtn(124,y,36,12,KEY_RIGHT,0,&cSel,i); }
+        if(i==12){ uiTextC(78,y+2,lb[i],sel?U_WHITE:U_GOLD,1); uiIcon8(146,y+2,IC8_RIGHT); continue; }
         uiText(10,y+2,lb[i],sel?U_WHITE:U_LGREY,1);
-        if(i==8){ uiRound(120,y+1,37,10,sel?U_SEL:U_PANEL,sel?U_GOLD:U_BHI); uiTextC(138,y+2,"ROLL",sel?U_WHITE:U_LGREY,1); uiBtn(120,y,40,13,KEY_A,0,&cSel,i); uiTextR(114,y+2,v[i],sel?U_GOLD:U_LGREY); continue; }
-        int vc=i==7?(diff==0?U_GREEN:diff==2?U_RED:(sel?U_GOLD:U_LGREY)):(sel?U_GOLD:U_LGREY);
+        if(i==10){ uiRound(120,y+1,37,9,sel?U_SEL:U_PANEL,sel?U_GOLD:U_BHI); uiTextC(138,y+2,"ROLL",sel?U_WHITE:U_LGREY,1); uiBtn(120,y,40,12,KEY_A,0,&cSel,i); uiTextR(114,y+2,v[i],sel?U_GOLD:U_LGREY); continue; }
+        int vc=i==9?(diff==0?U_GREEN:diff==2?U_RED:(sel?U_GOLD:U_LGREY)):(sel?U_GOLD:U_LGREY);
         int vw=uiTextW(v[i],1); if(sel){ uiIcon8(154-vw-14,y+2,IC8_LEFT); uiIcon8(150,y+2,IC8_RIGHT); } uiTextR(148,y+2,v[i],vc); }
     // the preview of the planet as it will be, and what it is
     uiFrame(163,18,90,90,U_SHADOW,U_BLO,U_BHI);

@@ -13,7 +13,7 @@ static int shots[]={310,322,334,346,358,370,382,394,406,418,430,442,454,466,478,
 void shimInput(int frame,int*held,int*tx,int*ty){
     { int n=(frame-300)/12; if(frame>=300&&(frame-300)%12==0){ menuOn=0; menuAsk=0; extrasView=0; sceneOn=0; dlgOn=0; dlgPend=-1; titleOn=0; page=0; paused=1;
         switch(n){ case 0: titleOn=1; mScr=0; mSel=0; break; case 1: titleOn=1; mScr=0; mSel=1; break; case 2: titleOn=1; mScr=1; mSel=0; break; case 3: titleOn=1; mScr=2; mSel=0; break; case 4: titleOn=1; mScr=2; mSel=9; break;
-            case 5: titleOn=1; mScr=3; mSel=0; cSel=0; createStart(); break; case 6: titleOn=1; mScr=3; cSel=9; break; case 7: titleOn=1; mScr=3; cSel=2; break;
+            case 5: titleOn=1; mScr=3; mSel=0; cSel=0; createStart(); break; case 6: titleOn=1; mScr=3; cSel=11; break; case 7: titleOn=1; mScr=3; cSel=2; break;
             case 8: menuOn=1; mScr=0; mSel=0; break; case 9: menuOn=1; mScr=1; mSel=0; break; case 10: menuOn=1; mScr=2; mSel=0; break; case 11: menuOn=1; mScr=0; mSel=4; menuAsk=6; break;
             case 12: page=0; break; case 13: page=1; break; case 14: page=2; extrasView=1; break; case 15: page=3; extrasView=1; break; case 16: page=4; extrasView=1; break; case 17: page=5; extrasView=1; break;
             case 18: page=6; extrasView=1; break; case 19: paused=0; planetSize=192; rs=777u*2654435761u+31337u; newWorld(); monOn=1; for(int t=1;t<=45000;t++){ tick=t; year=t/1200; simulate(); } tick=700; page=7; extrasView=1; break; case 20: page=8; extrasView=1; break; case 21: page=9; extrasView=1; break;

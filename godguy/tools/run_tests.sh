@@ -29,3 +29,5 @@ gcc $F -w -o /tmp/gg_laws pc_laws.c -lm && /tmp/gg_laws | tail -1
 gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_lawmenu pc_lawmenu.c -lm && /tmp/gg_lawmenu | tail -1
 # plague (step 6): spread, recovery, heal, the law, zombie bite and rising, village store drain, save
 gcc $F -w -o /tmp/gg_plague pc_plague.c -lm && /tmp/gg_plague | tail -1
+# planet generator (step 7): main's six shapes unchanged at COASTS / MOUNTAINS normal, the new controls work, SEA the right way round
+gcc $F -w -o /tmp/gg_gen pc_gen.c -lm && /tmp/gg_gen | tail -1
