@@ -43,3 +43,5 @@ if python3 -c "import unicorn" 2>/dev/null && [ -f build_dsi16/arm9.elf ]; then 
 grep -E "^static u32 rle(Enc|Dec)" compat/ndshw.h > /tmp/gg_rle.inc && gcc -O2 -w -DRLE_INC='"/tmp/gg_rle.inc"' -o /tmp/gg_slots pc_slots.c && /tmp/gg_slots | tail -1
 # GodGuy step 10a, identity: permanent ids, derived names and personalities, GGN1 trailer, old saves still load
 gcc $F -w -o /tmp/gg_ident pc_ident.c -lm && /tmp/gg_ident | tail -1
+# GodGuy step 10b, notables: promotion, hero, scars, grief, births, full-table eviction, stars, save and load
+gcc $F -w -o /tmp/gg_notable pc_notable.c -lm && /tmp/gg_notable | tail -1
