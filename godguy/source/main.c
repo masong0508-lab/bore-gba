@@ -163,6 +163,21 @@ static int vnoise(int x,int y,int cell,int s){   // value noise 0..255, cell pix
 }
 static int fbm(int x,int y,int s){ return (vnoise(x,y,32,s)*8+vnoise(x,y,16,s+1)*4+vnoise(x,y,8,s+2)*2+vnoise(x,y,4,s+3))/15; }
 static int cShape, cSea, cClim, cWet, cLife=2;   // create-a-planet choices: land shape (0 continents, 1 one supercontinent, 2 islands), sea level, climate, wetness (all 0 = the classic planet), amount of starting life 0..3
+// ---- biomes: a second layer over the ground (0 none, 1 CORRUPTED, 2 INFERNAL, 3 ENCHANTED), two bits a tile. They spread, they act on whoever stands there, and they are painted with seed powers.
+static u8 biome2[MAXD*MAXD/4]; static int nBio[4];
+#define BIO_Q 8192
+#define BIO_PAL 168      // the biomes' ground colours in the main palette (168..191)
+static u32 bioQ[BIO_Q]; static int bioQn;      // the tiles that can still spread (the edge of each patch): a growing patch costs the same on a small or a huge planet
+static inline int bioAt(int x,int y){ return (biome2[(y*MAXD+x)>>2]>>((x&3)*2))&3; }
+static void bioSet(int x,int y,int b){ int o=bioAt(x,y); if(o==b) return; u8*p=&biome2[(y*MAXD+x)>>2]; int sh=(x&3)*2; *p=(u8)((*p&~(3<<sh))|(b<<sh)); nBio[o]--; nBio[b]++; if(b&&bioQn<BIO_Q) bioQ[bioQn++]=(u32)(x|(y<<16)); }
+static void bioClear(void){ memset(biome2,0,sizeof biome2); memset(nBio,0,sizeof nBio); bioQn=0; }
+static void bioCount(void){ memset(nBio,0,sizeof nBio); for(int y=0;y<gH;y++) for(int x=0;x<gW;x++) nBio[bioAt(x,y)]++; }
+static int bioOpen(int x,int y){       // can the biome on this tile still take a neighbouring tile?
+    int b=bioAt(x,y); static const int ddx[4]={0,1,0,-1}, ddy[4]={-1,0,1,0};
+    for(int d=0;d<4;d++){ int nx=x+ddx[d], ny=y+ddy[d]; if(nx<0||ny<0||nx>=gW||ny>=gH) continue; int t=world[ny][nx]; if(t<=T_WATER||t==T_LAVA||t==T_MOUNT) continue; if(bioAt(nx,ny)!=b) return 1; }
+    return 0; }
+static void bioRescan(void){ bioQn=0; for(int y=0;y<gH;y++) for(int x=0;x<gW;x++) if(bioAt(x,y)&&bioQn<BIO_Q&&bioOpen(x,y)) bioQ[bioQn++]=(u32)(x|(y<<16)); }
+static void atmoReset(void);
 #include "worldgen.h"
 static void genWorldOld(u32 seed){   // (the old generator, replaced by worldgen.h)
     int s=(int)(seed&0xFFFF);
@@ -179,7 +194,7 @@ static void genWorldOld(u32 seed){   // (the old generator, replaced by worldgen
 }
 
 // ---------------------------------------------------------------------------------------------- tiles (generated), palette
-static const u8 terrCol[T_N][3]={ {2,5,16},{4,12,26},{28,25,14},{8,22,6},{3,13,4},{16,14,8},{15,15,17},{28,30,31},{31,9,2},{29,22,11},{7,14,10},{3,17,9},{18,12,6} };
+static const u8 terrCol[T_N+3][3]={ {2,5,16},{4,12,26},{28,25,14},{8,22,6},{3,13,4},{16,14,8},{15,15,17},{28,30,31},{31,9,2},{29,22,11},{7,14,10},{3,17,9},{18,12,6} ,{14,4,18},{30,11,2},{22,13,29} };
 static int tilePixOld(int t,int v,int x,int y){   // (the old ground art, replaced by gfx2.h)
     int n=(int)(hsh(x+v*8,y+t*16,t)&7); int c=3+(n>>1)-(n==0); if(c<0) c=0; if(c>7) c=7; int pix=t*8+c;
     if(t==T_WATER||t==T_DEEP){ int w=((x+v*2)&7)==(y&7)||((x+v*2+4)&7)==((y+3)&7); if(w&&t==T_WATER) pix=t*8+6; else if(w) pix=t*8+4; }
@@ -214,6 +229,7 @@ static int bldPixOld(int type,int race,int x,int y){   // (the old building art)
 static void vramCopy(void*dst,const void*src,int bytes){ u16*d=(u16*)dst; const u16*s=(const u16*)src; for(int i=0;i<bytes/2;i++) d[i]=s[i]; }   // 16 bit stores only
 static void makeTiles(void){
     for(int t=0;t<T_N;t++) for(int k=0;k<8;k++){ int r,g,b; shadeRGB(t*8+k,&r,&g,&b); BG_PALETTE[t*8+k]=RGB15(r,g,b); }
+    for(int b=0;b<3;b++) for(int k=0;k<8;k++){ int r,g,bl; shadeRGB((T_N+b)*8+k,&r,&g,&bl); BG_PALETTE[BIO_PAL+b*8+k]=RGB15(r,g,bl); }      // the three biomes' ground (168..191)
     BG_PALETTE[0]=RGB15(0,0,0); gfxBgPal();
     for(int r=0;r<8;r++) BG_PALETTE[128+r]=RGB15(roofCol[r][0],roofCol[r][1],roofCol[r][2]);
     for(int k=0;k<8;k++) BG_PALETTE[136+k]=RGB15(bldCol[k][0],bldCol[k][1],bldCol[k][2]);
@@ -238,7 +254,8 @@ static u8 vilRace(int v);
 #define TR0 128
 #define TR_SLOTS 500
 static const u8 terrRank[T_N]={0,10,3,1,5,6,7,8,9,3,4,5,2};
-static u16 trKey[1024], trVal[1024]; static int trUsed;   // a small hash of the transition tiles made so far
+static u32 trKey[1024]; static u16 trVal[1024]; static int trUsed;
+static inline int bioPix(int p,int b){ return (b&&p<T_N*8)?BIO_PAL+(b-1)*8+(p&7):p; }      // a pixel of ground, in the colours of biome b   // a small hash of the transition tiles made so far
 static int edgePix(int t,int n,int mask,int v,int foam,int x,int y){   // one pixel of a transition tile: ground t with a dithered fringe of n along the sides in mask (or a foam line on a shore)
     int px=tilePix(t,v,x,y); int d=9;
     if(mask&1) if(y<d) d=y; if(mask&2) if(7-x<d) d=7-x; if(mask&4) if(7-y<d) d=7-y; if(mask&8) if(x<d) d=x;
@@ -252,11 +269,11 @@ static int cellEdge(int x,int y,int*mask,int*foam){   // the ground that bleeds 
     for(int i=0;i<4;i++){ int n=nb[i]; if(n==t) continue; if(wat&&n>T_WATER){ fm=1; best=n; continue; } if(!wat&&terrRank[n]>terrRank[t]&&terrRank[n]>br){ br=terrRank[n]; best=n; } }
     int m=0; if(best>=0) for(int i=0;i<4;i++) if(fm?(nb[i]>T_WATER):(nb[i]==best)) m|=1<<i;
     *mask=m; *foam=fm; return best; }
-static int trTile(int t,int n,int mask,int v,int foam){
-    int key=(((t*16+n)*16+mask)*4+v)*2+foam; unsigned hi=(unsigned)(key*2654435761u>>22)&1023; while(trKey[hi]){ if(trKey[hi]==key+1) return trVal[hi]; hi=(hi+1)&1023; }
+static int trTile(int t,int n,int mask,int v,int foam,int b){
+    u32 key=(u32)(((((b*16+t)*16+n)*16+mask)*4+v)*2+foam); unsigned hi=(unsigned)(key*2654435761u>>22)&1023; while(trKey[hi]){ if(trKey[hi]==key+1) return trVal[hi]; hi=(hi+1)&1023; }
     if(trUsed>=TR_SLOTS) return -1;
     static u8 tl[64] __attribute__((aligned(4)));
-    for(int y=0;y<8;y++) for(int x=0;x<8;x++) tl[y*8+x]=(u8)edgePix(t,n,mask,v,foam,x,y);
+    for(int y=0;y<8;y++) for(int x=0;x<8;x++) tl[y*8+x]=(u8)bioPix(edgePix(t,n,mask,v,foam,x,y),b);
     int slot=TR0+trUsed++;
 #ifndef PCTEST
     vramCopy((u8*)BG_TILE_RAM(1)+slot*64,tl,64);
@@ -268,11 +285,11 @@ static inline void putCell(int x,int y){   // world cell -> background entry (a 
     if(zBmp) return;
     int mx=x&63, my=y&63; int blk=(my>=32?2:0)+(mx>=32?1:0); int t=world[y][x], v=tileVar(t,x,y); u16 e=(u16)(t*4+v); if(t==T_GRASS&&v==2) e=(u16)(GFX_MEADOW0+(int)(hsh(x,y,5)&15));
     if(bld[y][x]) e=(u16)(BT0+bld[y][x]*8+(bldv[y][x]?vilRace(bldv[y][x]-1):0));
-    else { int mask,foam; int best=cellEdge(x,y,&mask,&foam); if(best>=0){ int k=trTile(t,best,mask,v,foam); if(k>=0) e=(u16)k; } }
+    else { int mask,foam; int best=cellEdge(x,y,&mask,&foam); int b=(t>T_WATER&&t!=T_LAVA)?bioAt(x,y):0; if(best>=0||b){ int k=trTile(t,best>=0?best:15,best>=0?mask:0,v,best>=0?foam:0,b); if(k>=0) e=(u16)k; } }
     mapPtr[blk*1024+(my&31)*32+(mx&31)]=e; }
 static void refillWindow(void){ if(zBmp) return; int x0=camX>>3, y0=camY>>3; if(x0==winX&&y0==winY) return; winX=x0; winY=y0;
     for(int y=y0-1;y<y0+26&&y<WH;y++) for(int x=x0-1;x<x0+34&&x<WW;x++) if(x>=0&&y>=0) putCell(x,y); }
-static void setCell(int x,int y,u8 t){ if(x<0||y<0||x>=WW||y>=WH) return; world[y][x]=t; for(int k=0;k<5;k++){ int xx=x+(k==1)-(k==2), yy=y+(k==3)-(k==4); if(xx<0||yy<0||xx>=WW||yy>=WH) continue; if(xx>=winX-1&&xx<winX+34&&yy>=winY-1&&yy<winY+26) putCell(xx,yy); } }
+static void setCell(int x,int y,u8 t){ if(x<0||y<0||x>=WW||y>=WH) return; world[y][x]=t; if(t<=T_WATER||t==T_LAVA||t==T_MOUNT) bioSet(x,y,0); for(int k=0;k<5;k++){ int xx=x+(k==1)-(k==2), yy=y+(k==3)-(k==4); if(xx<0||yy<0||xx>=WW||yy>=WH) continue; if(xx>=winX-1&&xx<winX+34&&yy>=winY-1&&yy<winY+26) putCell(xx,yy); } }
 
 // ---------------------------------------------------------------------------------------------- creatures
 static int curExtra;      // the extra ground the creature being moved can cross (its traits)
@@ -344,11 +361,18 @@ static int vilFound(int race,int x,int y){
 }
 static void vilRaze(int v,int ruins){ Vil*V=&vil[v]; if(!V->on) return; for(int y=0;y<WH;y++) for(int x=0;x<WW;x++) if(bldv[y][x]==v+1){ bld[y][x]=ruins&&(rnd()&1)?B_RUIN:B_NONE; if(!bld[y][x]) bldv[y][x]=0; else bldv[y][x]=0; if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); }
     for(int u=0;u<VIL_N;u++) if(vil[u].on&&vil[u].foe==v+1) vil[u].foe=0; V->on=0; nVilOn--; }
+// ---- the atmosphere (after SimEarth and its Gaia model): oxygen, carbon dioxide, dust and the world's warmth, all in 1/16 units. Forests and grass breathe CO2 in and O2 out; crowds, cities, fires, lava
+// and bombs do the opposite; CO2 warms (the greenhouse), dust and snow cool. Too hot melts the ice and dries the land, too cold freezes it, thin air suffocates, rich air feeds fires.
+static int atO2=21*16, atCO2=30*16, atDust=0, atTemp=0, atFire=0, atFlag=0; static s8 atHist[48]; static int atHistN;
+#define ATV(v) (((v)+8)>>4)
+static void atmoReset(void){ atO2=21*16; atCO2=30*16; atDust=0; atTemp=0; atFire=0; atFlag=0; memset(atHist,0,sizeof atHist); atHistN=0; }
+static void atmoDust(int d){ atDust+=d*16; if(atDust<0) atDust=0; if(atDust>100*16) atDust=100*16; }
 static void razeAt(int x,int y,int chance){   // a building falls to ruin (fire, lightning, meteors, and the calamities: see burnAt and calamity.h)
     if(x<0||y<0||x>=WW||y>=WH||!bld[y][x]||bld[y][x]==B_RUIN) return; if((int)(rnd()&255)>=chance) return; int v=bldv[y][x]-1;
     if(v>=0&&vil[v].on){ Vil*V=&vil[v]; if(bld[y][x]==B_HOUSE||bld[y][x]==B_HUT){ if(V->houses) V->houses--; } else if(bld[y][x]==B_FARM){ if(V->farms) V->farms--; } else if(bld[y][x]==B_TOWER){ if(V->towers) V->towers--; } }
     bld[y][x]=B_RUIN; bldv[y][x]=0; if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); }
-static void burnAt(int x,int y,int chance){ if(!gx.lFire) razeAt(x,y,chance); }   // fire, lightning and meteors on a building (WORLD > LAWS > FIRE ON HOMES: SAFE turns them off)
+static void burnAt(int x,int y,int chance){ if(gx.lFire) return; if(!gx.lAtmo&&ATV(atO2)>28){ chance+=(ATV(atO2)-28)*8; if(chance>255) chance=255; }      // rich air feeds fires
+    int had=x>=0&&y>=0&&x<WW&&y<WH&&bld[y][x]&&bld[y][x]!=B_RUIN; razeAt(x,y,chance); if(had&&bld[y][x]==B_RUIN) atFire+=3; }   // fire, lightning and meteors on a building (WORLD > LAWS > FIRE ON HOMES: SAFE turns them off)
 static void vilTick(int v){
     Vil*V=&vil[v]; if(!V->on) return; int pop=0;
     for(int i=0;i<nCr;i++){ const Cr*c=&cr[i]; if(c->alive&&sp[c->sp].a==V->race&&sp[c->sp].a<8){ int dx=c->x-V->x, dy=c->y-V->y; if(dx*dx+dy*dy<=100) pop++; } }
@@ -484,6 +508,13 @@ static int stepToward(Cr*c,int i,const Sp*s,int tx,int ty){   // one step toward
 static void thinkBody(int i){
     Cr*c=&cr[i]; if(!c->alive) return; const Sp*s=&sp[c->sp]; const Arch*A=&arch[s->a];
     if(c->age<255) c->age++; { int dec=(HAS(c,TR_LEAN)||HAS(c,TR_CHILL))?1:HAS(c,TR_MUNCH)?3:2; if(gx.hunger==0&&(c->age%3)==0) dec=0; else if(gx.hunger==2&&(c->age%3)==0) dec++; if(c->food>dec) c->food-=dec; else c->food=0; }
+    if(!gx.lBio&&nBio[1]+nBio[2]+nBio[3]){ int b=bioAt(c->x,c->y);      // the ground works on whoever stands on it
+        if(b==1){ if(A->diet!=5&&(tick&7)==0&&c->hp>maxHp(c)*4/10&&!HAS(c,TR_ZEN)&&rnd()%20==0) c->hp--; }      // corrupted: it slowly wastes the body down to four tenths, never to death
+        else if(b==3){ if((tick&3)==0&&c->hp<maxHp(c)) c->hp++; if(c->sick==1&&rnd()%40==0) c->sick=2; } }      // enchanted: mends, and wears a plague off
+    if(!gx.lAtmo&&A->diet!=5){      // the air and the weather of the whole world
+        if(ATV(atO2)<12&&rnd()%30==0){ if(c->hp>3) c->hp-=3; else { killNat(i); return; } }                       // thin air: suffocation
+        if(ATV(atTemp)<=-22&&!HAS(c,TR_FROST)&&!HAS(c,TR_CHILL)&&rnd()%40==0){ if(c->hp>2) c->hp-=2; }            // an ice age: the cold bites
+        if(ATV(atTemp)>=26&&!HAS(c,TR_FIRE)&&rnd()%40==0){ if(c->hp>2) c->hp-=2; } }                                // a furnace world
     if(A->diet==5) c->food=100;
     if(c->food==0){ if(c->hp>2) c->hp-=2; else { killNat(i); return; } }
     { int lim=(A->life+(HAS(c,TR_LONG)?A->life/2:0))*gxLifeK(s->a)/100; if(lim>254) lim=254; if(!gx.lAge&&c->age>lim){ killNat(i); return; } }
@@ -556,7 +587,7 @@ static void towerFire(void){   // the towers of a village shoot the nearest mons
         for(int i=0;i<nCr&&shots<2;i++){ Cr*c=&cr[i]; if(!c->alive||arch[sp[c->sp].a].diet!=5) continue; int dx=c->x-V->x, dy=c->y-V->y; if(dx*dx+dy*dy>100) continue; shots++; if(c->hp>dm) c->hp-=(u8)dm; else killCr(i); } } }
 static int weather, weatherT=900, flashT;     // 0 clear, 1 rain, 2 storm, 3 snow
 static void volcanoTick(void){   // lava creeps over nearby ground now and then, scorching it, and cools to rock in the rain
-    if(tick&15) return; int x=rnd()%WW, y=rnd()%WH; if(world[y][x]!=T_LAVA) return;
+    if(tick&15) return; int x=rnd()%WW, y=rnd()%WH; if(world[y][x]!=T_LAVA) return; atmoDust(1);
     int dx=(int)(rnd()%3)-1, dy=(int)(rnd()%3)-1, nx=x+dx, ny=y+dy; if(nx<0||ny<0||nx>=WW||ny>=WH) return; u8 t=world[ny][nx];
     if(weather==1||weather==2){ if(rnd()%6==0){ setCell(x,y,T_MOUNT); } return; }
     if(!gx.lLava&&rnd()%(gx.dis==0?100000:gx.dis==1?270:90)==0&&(t==T_MOUNT||t==T_HILL||t==T_DIRT||t==T_GRASS||t==T_FOREST||t==T_DESERT)){ setCell(nx,ny,T_LAVA); if(occ[ny][nx]) killCr(occ[ny][nx]-1); if(bld[ny][nx]){ bld[ny][nx]=0; putCell(nx,ny); } }
@@ -576,8 +607,42 @@ static void weatherTick(void){
     if(weather==2&&gx.dis&&(rnd()%(gx.dis==1?1500:500))==0){ int x=rnd()%WW, y=rnd()%WH; burnAt(x,y,200); if(occ[y][x]) killCr(occ[y][x]-1); if(world[y][x]==T_FOREST&&(rnd()&3)==0) setCell(x,y,T_DIRT); flashT=8; fxReq(FX_LIGHTNING); }
     if(flashT>0) flashT--; }
 static int cursor=0, vilCur=0;
+static void atmoTick(void){        // every 64 ticks: sample the land, move the gases, warm or cool the world, and let the climate act on the ground
+    if(!(!gx.lAtmo)) return;
+    int fF=0,fG=0,fS=0,fW=0,fL=0; for(int k=0;k<256;k++){ int x=(int)(rnd()%WW), y=(int)(rnd()%WH); switch(world[y][x]){ case T_FOREST: case T_JUNGLE: fF++; break; case T_GRASS: case T_SWAMP: fG++; break; case T_SNOW: fS++; break; case T_WATER: case T_DEEP: fW++; break; case T_LAVA: fL++; break; } }
+    int hh=0; vilTotals(&hh); int alive=nCr; int plants=fF*2+fG;
+    atCO2+= fL*16+alive*16/3000+hh*16/200+atFire*16/10 - plants*(atCO2>60*16?60*16:atCO2)/1500 - fW*atCO2/16000;      // (plants can only eat so fast: a big puff of CO2 lingers)
+    atO2 += plants*16/160 - alive*16/6000 - atFire*2 + (21*16-atO2)/8;
+    atDust-= atDust/10+8; atFire=atFire*3/4;
+    if(atCO2<0) atCO2=0; if(atCO2>150*16) atCO2=150*16; if(atO2<0) atO2=0; if(atO2>60*16) atO2=60*16; if(atDust<0) atDust=0;
+    int tgt=(ATV(atCO2)-30)*45/100 - ATV(atDust)*30/100 + (fF+fG-130)/14 - (fS-20)/3; if(tgt<-35) tgt=-35; if(tgt>40) tgt=40;
+    atTemp+=(tgt*16-atTemp)/10;
+    int T=ATV(atTemp);
+    if(T>=12){ int K=(T-10)/3+1; if(K>8) K=8; for(int k=0;k<K;k++){ int x=(int)(rnd()%WW), y=(int)(rnd()%WH); u8 t=world[y][x];
+            if(t==T_SNOW){ int wet=0; for(int d=0;d<4;d++){ int nx=x+dxs[d], ny=y+dys[d]; if(nx>=0&&ny>=0&&nx<WW&&ny<WH&&(world[ny][nx]==T_WATER||world[ny][nx]==T_DEEP)) wet=1; } setCell(x,y,wet?T_WATER:T_GRASS); }
+            else if(T>=22&&(t==T_GRASS||t==T_FOREST)&&(rnd()&3)==0) setCell(x,y,T_DESERT); } }
+    else if(T<=-12){ int K=(-T-10)/3+1; if(K>8) K=8; for(int k=0;k<K;k++){ int x=(int)(rnd()%WW), y=(int)(rnd()%WH); u8 t=world[y][x];
+            if(t==T_GRASS||t==T_FOREST||t==T_JUNGLE||t==T_SWAMP||t==T_DIRT||t==T_DESERT){ if(rnd()%3==0&&!bld[y][x]) setCell(x,y,T_SNOW); }
+            else if(t==T_WATER){ int sn=0; for(int d=0;d<4;d++){ int nx=x+dxs[d], ny=y+dys[d]; if(nx>=0&&ny>=0&&nx<WW&&ny<WH&&world[ny][nx]==T_SNOW) sn=1; } if(sn&&(rnd()&1)) setCell(x,y,T_SNOW); } } }
+    atHist[atHistN%48]=(s8)(T<-40?-40:T>40?40:T); atHistN++;
+    { int f=0; if(ATV(atO2)<12) f|=1; if(T>=20) f|=2; if(T<=-18) f|=4; if(ATV(atDust)>=40) f|=8; if(ATV(atCO2)>=80) f|=16; int nw=f&~atFlag;
+      if(nw&1) logEv("THE AIR IS THINNING"); if(nw&2) logEv("THE WORLD IS BURNING UP"); if(nw&4) logEv("AN ICE AGE BEGINS"); if(nw&8) logEv("A DUST VEIL DARKENS THE SKY"); if(nw&16) logEv("THE GREENHOUSE RUNS AWAY");
+      atFlag=f; } }
+static int bioIdle;
+static void biomeTick(void){       // biomes creep outward over the ground, fight each other (enchantment beats corruption), and the infernal one lights fires by itself
+    int tot=nBio[1]+nBio[2]+nBio[3]; if(!tot) return;
+    if(bioQn==0){ if(++bioIdle>=2048){ bioIdle=0; bioRescan(); } }
+    for(int k=0;k<2&&bioQn>0;k++){ int qi=(int)(rnd()%(unsigned)bioQn); int x=(int)(bioQ[qi]&0xFFFF), y=(int)(bioQ[qi]>>16); int b=bioAt(x,y);
+        if(!b||!bioOpen(x,y)){ bioQ[qi]=bioQ[--bioQn]; continue; }      // gone, or surrounded: it leaves the edge list
+        int d=(int)(rnd()&3); int nx=x+dxs[d], ny=y+dys[d]; if(nx<0||ny<0||nx>=WW||ny>=WH) continue;
+        int t=world[ny][nx]; if(t<=T_WATER||t==T_LAVA||t==T_MOUNT) continue; int nb=bioAt(nx,ny); if(nb==b) continue;
+        int win=nb==0?(b==1?3:b==3?4:6):(b==3&&nb==1?3:b==2?12:8);      // 1 in win to take the neighbouring tile
+        if((int)(rnd()%(unsigned)win)) continue; bioSet(nx,ny,b); if(nx>=winX-1&&nx<winX+34&&ny>=winY-1&&ny<winY+26) putCell(nx,ny); }
+    if(nBio[2]>=10&&(rnd()&15)==0){ for(int tr=0;tr<40;tr++){ int x=(int)(rnd()%WW), y=(int)(rnd()%WH); if(bioAt(x,y)==2){ burnAt(x,y,160); for(int q=0;q<4;q++) burnAt(x+dxs[q],y+dys[q],90); if(occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; if(arch[sp[c->sp].a].diet!=5&&!HAS(c,TR_FIRE)){ if(c->hp>12) c->hp-=12; else killCr(occ[y][x]-1); } } break; } } } }
 static void simulate(void){
     if(paused) return;
+    if(!gx.lBio) biomeTick();
+    if((tick&63)==17) atmoTick();
     for(int i=0;i<nCr;i++){ Cr*c=&cr[i]; if(c->ox){ int sp_=arch[sp[c->sp].a].spd; (void)sp_; c->ox+= c->ox<0?1:-1; } if(c->oy){ c->oy+= c->oy<0?1:-1; } }   // glide into the tile
     int n=nCr; if(n==0) return; int per=n>96?96:n;
     for(int k=0;k<per;k++){ if(cursor>=nCr) cursor=0; Cr*c=&cr[cursor]; if(c->alive&&++c->t>=effSpd(c)) { c->t=0; think(cursor); } cursor++; }
@@ -685,9 +750,9 @@ static void unlockTiers(void){   // every 256 ticks: is the chapter you are on d
     chapterDone(); }
 // ---------------------------------------------------------------------------------------------- powers (the table is the catalogue)
 typedef struct { const char*nm; u8 kind, arg; } Pw;
-enum { PK_INSPECT, PK_PAINT, PK_SPAWN, PK_RAIN, PK_FIRE, PK_BOLT, PK_METEOR, PK_KILL, PK_HEAL, PK_FEED, PK_SETTLE, PK_WAR, PK_PEACE, PK_BLESS, PK_GIFT, PK_MUTATE, PK_QUAKE, PK_FLOOD, PK_BLOOM, PK_VIBE, PK_TORNADO, PK_ACID, PK_HOLE, PK_NUKE, PK_PLAGUE, PK_CURSE };
+enum { PK_INSPECT, PK_PAINT, PK_SPAWN, PK_RAIN, PK_FIRE, PK_BOLT, PK_METEOR, PK_KILL, PK_HEAL, PK_FEED, PK_SETTLE, PK_WAR, PK_PEACE, PK_BLESS, PK_GIFT, PK_MUTATE, PK_QUAKE, PK_FLOOD, PK_BLOOM, PK_VIBE, PK_TORNADO, PK_ACID, PK_HOLE, PK_NUKE, PK_PLAGUE, PK_CURSE, PK_AIR };
 static const Pw pw[]={ {"INSPECT",PK_INSPECT,0},{"WATER",PK_PAINT,T_WATER},{"DEEP SEA",PK_PAINT,T_DEEP},{"SAND",PK_PAINT,T_SAND},{"GRASS",PK_PAINT,T_GRASS},{"FOREST",PK_PAINT,T_FOREST},{"JUNGLE",PK_PAINT,T_JUNGLE},
-    {"HILLS",PK_PAINT,T_HILL},{"MOUNTAIN",PK_PAINT,T_MOUNT},{"SNOW",PK_PAINT,T_SNOW},{"DESERT",PK_PAINT,T_DESERT},{"SWAMP",PK_PAINT,T_SWAMP},{"LAVA",PK_PAINT,T_LAVA},
+    {"HILLS",PK_PAINT,T_HILL},{"MOUNTAIN",PK_PAINT,T_MOUNT},{"SNOW",PK_PAINT,T_SNOW},{"DESERT",PK_PAINT,T_DESERT},{"SWAMP",PK_PAINT,T_SWAMP},{"LAVA",PK_PAINT,T_LAVA},{"CORRUPT",PK_PAINT,101},{"INFERNAL",PK_PAINT,102},{"ENCHANT",PK_PAINT,103},{"GREENHOUSE",PK_AIR,0},{"OXYGEN",PK_AIR,1},{"DUST CLOUD",PK_AIR,2},
     {"SPAWN",PK_SPAWN,0},{"RAIN",PK_RAIN,0},{"FIRE",PK_FIRE,0},{"LIGHTNING",PK_BOLT,0},{"METEOR",PK_METEOR,0},{"SMITE",PK_KILL,0},{"HEAL",PK_HEAL,0},{"FEED",PK_FEED,0},{"SETTLE",PK_SETTLE,0},{"WAR",PK_WAR,0},{"PEACE",PK_PEACE,0},{"BLESS",PK_BLESS,0},{"GIFT",PK_GIFT,0},{"MUTATE",PK_MUTATE,0},{"EARTHQUAKE",PK_QUAKE,0},{"TSUNAMI",PK_FLOOD,0},{"BLOOM",PK_BLOOM,0},{"GOOD VIBES",PK_VIBE,0},
     {"TORNADO",PK_TORNADO,0},{"ACID RAIN",PK_ACID,0},{"BLACK HOLE",PK_HOLE,0},{"ATOMIC BOMB",PK_NUKE,0},{"PLAGUE",PK_PLAGUE,0},{"CURSE",PK_CURSE,0} };   // the Calamity pack (calamity.h)
 #define PW_N ((int)(sizeof(pw)/sizeof(pw[0])))
@@ -695,15 +760,17 @@ static int inspected=-1, trSel=1;
 static int inspT, inspKind, inspIdx;   // the inspect card: what was looked at (1 creature, 2 village) and for how long it stays up
 static void usePower(int tx,int ty,int fresh){
     const Pw*P=&pw[power]; int r=brush;
-    if(fresh){ stUse++; if(P->kind==PK_GIFT) stGift++; static const u8 fxOf[26]={FX_INSPECT,FX_PAINT,FX_SPAWN,FX_RAIN,FX_FIRE,FX_LIGHTNING,FX_METEOR,FX_SMITE,FX_HEAL,FX_FEED,FX_SETTLE,FX_WAR,FX_PEACE,FX_BLESS,FX_GIFT,FX_BIRTH,FX_METEOR,FX_RAIN,FX_BIRTH,FX_BLESS,FX_LIGHTNING,FX_RAIN,FX_SMITE,FX_METEOR,FX_MONSTER_SEEN,FX_SMITE}; fxReq(fxOf[P->kind]); } if(P->kind==PK_GIFT&&(it[itSel].kind==IK_WEAPON||it[itSel].kind==IK_ARMOR||it[itSel].kind==IK_RELIC||it[itSel].kind==IK_GEM)) r=1;
+    if(fresh){ stUse++; if(P->kind==PK_GIFT) stGift++; static const u8 fxOf[27]={FX_INSPECT,FX_PAINT,FX_SPAWN,FX_RAIN,FX_FIRE,FX_LIGHTNING,FX_METEOR,FX_SMITE,FX_HEAL,FX_FEED,FX_SETTLE,FX_WAR,FX_PEACE,FX_BLESS,FX_GIFT,FX_BIRTH,FX_METEOR,FX_RAIN,FX_BIRTH,FX_BLESS,FX_LIGHTNING,FX_RAIN,FX_SMITE,FX_METEOR,FX_MONSTER_SEEN,FX_SMITE,FX_RAIN}; fxReq(fxOf[P->kind]); } if(P->kind==PK_GIFT&&(it[itSel].kind==IK_WEAPON||it[itSel].kind==IK_ARMOR||it[itSel].kind==IK_RELIC||it[itSel].kind==IK_GEM)) r=1;
     for(int dy=-r;dy<=r;dy++) for(int dx=-r;dx<=r;dx++){ if(dx*dx+dy*dy>r*r+r/2) continue; int x=tx+dx, y=ty+dy; if(x<0||y<0||x>=WW||y>=WH) continue;
         switch(P->kind){
-        case PK_PAINT: if(bld[y][x]){ bld[y][x]=0; bldv[y][x]=0; } setCell(x,y,P->arg); if(occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; if(!walkable(&sp[c->sp],x,y)&&(rnd()&3)==0) killCr(occ[y][x]-1); } break;
+        case PK_PAINT: if(P->arg>=100){ int t=world[y][x]; if(t>T_WATER&&t!=T_LAVA&&t!=T_MOUNT&&(fresh||(rnd()&1))){ bioSet(x,y,P->arg-100); if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); } break; }
+            if(bld[y][x]){ bld[y][x]=0; bldv[y][x]=0; } bioSet(x,y,0); setCell(x,y,P->arg); if(occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; if(!walkable(&sp[c->sp],x,y)&&(rnd()&3)==0) killCr(occ[y][x]-1); } break;
         case PK_SPAWN: if(fresh&&dx==0&&dy==0){ for(int k=0;k<brush;k++) addCr(spSel,x+(k?(int)(rnd()%3)-1:0),y+(k?(int)(rnd()%3)-1:0)); } break;
         case PK_RAIN: if(world[y][x]==T_DIRT||world[y][x]==T_SAND||world[y][x]==T_DESERT) { if((rnd()&3)==0) setCell(x,y,T_GRASS); } else if(world[y][x]==T_LAVA) setCell(x,y,T_MOUNT); else if(world[y][x]==T_GRASS&&(rnd()&15)==0) setCell(x,y,T_FOREST); break;
         case PK_FIRE: burnAt(x,y,90); if(world[y][x]==T_FOREST||world[y][x]==T_GRASS||world[y][x]==T_JUNGLE){ if((rnd()&1)==0) setCell(x,y,T_DIRT); } if(occ[y][x]&&(rnd()&1)) { Cr*c=&cr[occ[y][x]-1]; if(c->hp>10) c->hp-=10; else killCr(occ[y][x]-1); } break;
         case PK_BOLT: if(dx==0&&dy==0){ burnAt(x,y,255); if(occ[y][x]) killCr(occ[y][x]-1); if(world[y][x]==T_FOREST) setCell(x,y,T_DIRT); } break;
-        case PK_METEOR: if(fresh){ int rr=dx*dx+dy*dy; burnAt(x,y,255); if(rr<=2) setCell(x,y,T_LAVA); else if(rr<=r*r) setCell(x,y,(rnd()&1)?T_DIRT:T_HILL); if(occ[y][x]) killCr(occ[y][x]-1); } break;
+        case PK_AIR: if(fresh&&dx==0&&dy==0){ if(P->arg==0){ atCO2+=8*16; atFire+=4; siprintf(info,"CO2 UP: %d",ATV(atCO2)); } else if(P->arg==1){ atO2+=4*16; atCO2-=5*16; siprintf(info,"OXYGEN UP: %d%%",ATV(atO2)); } else { atmoDust(10); siprintf(info,"DUST: %d",ATV(atDust)); } if(atCO2<0) atCO2=0; if(atCO2>150*16) atCO2=150*16; if(atO2>60*16) atO2=60*16; } break;
+        case PK_METEOR: if(fresh){ if(dx==0&&dy==0){ atmoDust(6); atFire+=6; } int rr=dx*dx+dy*dy; burnAt(x,y,255); if(rr<=2) setCell(x,y,T_LAVA); else if(rr<=r*r) setCell(x,y,(rnd()&1)?T_DIRT:T_HILL); if(occ[y][x]) killCr(occ[y][x]-1); } break;
         case PK_KILL: if(occ[y][x]) killCr(occ[y][x]-1); break;
         case PK_HEAL: if(occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; c->hp=(u8)maxHp(c); if(c->sick==1) c->sick=2; } break;
         case PK_FEED: if(occ[y][x]) cr[occ[y][x]-1].food=120; else if(world[y][x]==T_DIRT) setCell(x,y,T_GRASS); break;
@@ -768,6 +835,7 @@ static int saveGameRaw(const char*path){
     if(ok) ok&=svWrite(kd,sizeof(Kd),KN_N,f)==(size_t)KN_N; if(ok) ok&=svWrite(vilL,1,VIL_N,f)==(size_t)VIL_N; if(ok) ok&=svWrite(vilK,1,VIL_N,f)==(size_t)VIL_N; if(ok){ int n=jrN; ok&=svWrite(&n,sizeof n,1,f)==1; ok&=svWrite(jr,34,24,f)==24; ok&=svWrite(jrYear,2,24,f)==24; u32 sx[8]={achBits,stWars,stCapt,stAllies,stSnack,0,0,0}; ok&=svWrite(sx,4,8,f)==8; ok&=svWrite(favVil,1,48,f)==48; ok&=svWrite(favKd,1,8,f)==8; ok&=svWrite(favItem,1,600,f)==600; ok&=svWrite(favPow,1,40,f)==40; }
     if(ok){ u32 mg=0x31584747u, sz=sizeof gx, cs[2]={stBorn,stDied}; ok&=svWrite(&mg,4,1,f)==1; ok&=svWrite(&sz,4,1,f)==1; ok&=svWrite(&gx,sizeof gx,1,f)==1; ok&=svWrite(cs,4,2,f)==2; }   // GGX1 trailer: old builds never read it
     if(ok){ u32 mg=0x31484747u, sz=sizeof(Hz); ok&=svWrite(&mg,4,1,f)==1; ok&=svWrite(&sz,4,1,f)==1; ok&=svWrite(hz,sizeof(Hz),HZ_N,f)==(size_t)HZ_N; }   // GGH1 trailer (calamity.h): the tornadoes and black holes in flight
+    if(ok){ u32 mg=0x31424747u; ok&=svWrite(&mg,4,1,f)==1; for(int y=0;y<gH&&ok;y++) ok&=svWrite(biome2+y*(MAXD/4),1,gW/4,f)==(size_t)(gW/4); if(ok){ int at[8]={atO2,atCO2,atDust,atTemp,atFire,atFlag,0,0}; ok&=svWrite(at,sizeof at,1,f)==1; } }   // GGB1 trailer: the biomes and the atmosphere
     svClose(f); return ok; }
 static int loadGameRaw(const char*path){
     SV*f=svOpen(path,"rb"); if(!f) return 0; SaveHdr h; int ok=svRead(&h,sizeof h,1,f)==1;
@@ -779,6 +847,8 @@ static int loadGameRaw(const char*path){
     if(ok&&h.ver>=9){ ok&=svRead(kd,sizeof(Kd),KN_N,f)==(size_t)KN_N; if(ok) ok&=svRead(vilL,1,VIL_N,f)==(size_t)VIL_N; if(ok) ok&=svRead(vilK,1,VIL_N,f)==(size_t)VIL_N; if(ok){ int n=0; ok&=svRead(&n,sizeof n,1,f)==1; ok&=svRead(jr,34,24,f)==24; ok&=svRead(jrYear,2,24,f)==24; jrN=n<0?0:n>24?24:n; u32 sx[8]={0}; if(svRead(sx,4,8,f)==8){ achBits=sx[0]; stWars=sx[1]; stCapt=sx[2]; stAllies=sx[3]; stSnack=sx[4]; u8 t1[48], t2[8], t3[600], t4[40]; if(svRead(t1,1,48,f)==48&&svRead(t2,1,8,f)==8&&svRead(t3,1,600,f)==600&&svRead(t4,1,40,f)==40){ memcpy(favVil,t1,48); memcpy(favKd,t2,8); memcpy(favItem,t3,600); memcpy(favPow,t4,40); } } } }
     if(ok&&h.ver>=9){ u32 mg=0, sz=0; if(svRead(&mg,4,1,f)==1&&mg==0x31584747u&&svRead(&sz,4,1,f)==1&&sz==sizeof gx){ if(svRead(&gx,sizeof gx,1,f)==1){ u32 cs[2]; if(svRead(cs,4,2,f)==2){ stBorn=cs[0]; stDied=cs[1]; } } else gxDefaults(); } }
     memset(hz,0,sizeof hz); if(ok&&h.ver>=9){ u32 mg=0, sz=0; if(svRead(&mg,4,1,f)==1&&mg==0x31484747u&&svRead(&sz,4,1,f)==1&&sz==sizeof(Hz)){ Hz t2[HZ_N]; if(svRead(t2,sizeof(Hz),HZ_N,f)==(size_t)HZ_N){ memcpy(hz,t2,sizeof hz); for(int i=0;i<HZ_N;i++) if(hz[i].kind>HZ_HOLE||hz[i].x>=gW||hz[i].y>=gH) memset(&hz[i],0,sizeof hz[i]); } } }   // GGH1 trailer: an old save has none
+    bioClear(); atmoReset(); if(ok&&h.ver>=9){ u32 mg=0; if(svRead(&mg,4,1,f)==1&&mg==0x31424747u){ int got=1; for(int y=0;y<gH&&got;y++) got=svRead(biome2+y*(MAXD/4),1,gW/4,f)==(size_t)(gW/4); if(!got) memset(biome2,0,sizeof biome2); else { int at[8]; if(svRead(at,sizeof at,1,f)==1){ atO2=at[0]; atCO2=at[1]; atDust=at[2]; atTemp=at[3]; atFire=at[4]; atFlag=at[5]; } } } }   // GGB1 trailer: an old save has none
+    bioCount(); bioRescan();
     svClose(f);
     if(!ok){ return 0; }
     tick=(int)h.tick; year=(int)h.year; rs=h.rs; stKill=h.stKill; stGift=h.stGift; stUse=h.stUse; seenN=h.seenN; camX=h.camX; camY=h.camY; chapter=h.chapter; tierOpen=h.tierOpen; storyOn=h.storyOn; storyDone=h.storyDone; monOn=h.monOn; shape3=h.shape3; nVilOn=h.nVilOn;
@@ -804,6 +874,7 @@ static void saveBasePal(void){ for(int i=0;i<GFX_PAL_N;i++) basePal[i]=BG_PALETT
 static void applyLight(void){
     int p=gxTimeP((tick>>1)&2047), sun=p<1024?p:2047-p; int L=70+sun*186/1024, Lr=L*236/256, Lg=L*246/256, Lb=L+(256-L)/5+14; if(Lb>256) Lb=256; if(L>256) L=256;
     { int tw=300-(sun>300?sun-300:300-sun); if(tw<0) tw=0; Lr+=tw*Lr/900; Lg+=tw*Lg/3200; Lb-=tw*Lb/1100; if(sun<150){ Lr=Lr*(100-(150-sun)/12)/100; Lb+=(150-sun)/10; } if(Lr>256) Lr=256; if(Lg>256) Lg=256; if(Lb>256) Lb=256; if(Lb<0) Lb=0; }   // warm dawn and dusk, bluer deep night
+    if(!gx.lAtmo&&atDust>16*8){ int d=ATV(atDust); if(d>60) d=60; Lr=Lr*(100-d/3)/100; Lg=Lg*(100-d/2)/100; Lb=Lb*(100-d*2/3)/100; }      // a dust veil: dimmer, browner
     if(weather==1||weather==2){ Lr=Lr*78/100; Lg=Lg*80/100; Lb=Lb*90/100; } else if(weather==3){ Lr=Lr*95/100; Lg=Lg*97/100; }
     if(flashT>0){ Lr=Lg=Lb=256; }
     int sh=(tick>>4)&3;
@@ -828,6 +899,7 @@ static u16 gSavedPal[256];
 #define GP_GROUND 8
 #define GP_CLOUD 112
 #define GP_ATMO 120
+#define GP_BIO 130      // the three biomes' ground, 8 light levels each (130..153)
 static int isqrt32(u32 v){ u32 r=0, b=1u<<30; while(b>v) b>>=2; while(b){ if(v>=r+b){ v-=r+b; r=(r>>1)+b; } else r>>=1; b>>=2; } return (int)r; }
 static void globeTables(int R){
     if(!gInit){ gInit=1;
@@ -852,6 +924,7 @@ static void globePalette(void){
     BG_PALETTE[0]=0; BG_PALETTE[1]=RGB15(0,0,2); BG_PALETTE[2]=RGB15(12,12,16); BG_PALETTE[3]=RGB15(31,31,31);
     for(int t=0;t<T_N;t++) for(int l=0;l<8;l++){ int r,g,b; shadeRGB(t*8+(l<1?0:l),&r,&g,&b); int f=l==0?9:l==1?14:18+l*2; r=r*f/26; g=g*f/26; b=b*f/26; if(l==0){ b+=3; } if(r>31) r=31; if(g>31) g=31; if(b>31) b=31; BG_PALETTE[GP_GROUND+t*8+l]=RGB15(r,g,b); }
     for(int l=0;l<8;l++){ int v=6+l*3; BG_PALETTE[GP_CLOUD+l]=RGB15(v,v,v+(l>5?0:2)); }
+    for(int b=0;b<3;b++) for(int l=0;l<8;l++){ int r,g,bl; shadeRGB((T_N+b)*8+(l<1?0:l),&r,&g,&bl); int f=l==0?9:l==1?14:18+l*2; r=r*f/26; g=g*f/26; bl=bl*f/26; if(r>31) r=31; if(g>31) g=31; if(bl>31) bl=31; BG_PALETTE[GP_BIO+b*8+l]=RGB15(r,g,bl); }
     for(int l=0;l<6;l++) BG_PALETTE[GP_ATMO+l]=RGB15(2+l,6+l*3,14+l*3);
     BG_PALETTE[126]=RGB15(31,28,10); BG_PALETTE[127]=RGB15(31,18,4); BG_PALETTE[128]=RGB15(31,6,2); BG_PALETTE[129]=RGB15(31,31,28); }
 static void globeDraw(void){
@@ -863,7 +936,7 @@ static void globeDraw(void){
             else { int nx=gxn[x+R], ny=gxn[y+R], nz=gnz[d2]; int tx,ty; globeDir(nx,ny,nz,cL,sL,cP,sP,&tx,&ty);
                 int lam=(-nx*7+ny*7+nz*12)/26;   // light from the upper left, toward the viewer (about -0.43, 0.43, 0.75 in Q14)
                 int terr=world[ty][tx]; int lvl; if(lam<-1500) lvl=0; else lvl=(lam+1500)*7/17000; if(lvl>7) lvl=7; if(lvl<0) lvl=0;
-                col=(u8)(GP_GROUND+terr*8+lvl);
+                col=(u8)(GP_GROUND+terr*8+lvl); { int bb=bioAt(tx,ty); if(bb&&terr>T_WATER&&terr!=T_LAVA) col=(u8)(GP_BIO+(bb-1)*8+lvl); }
                 if(bld[ty][tx]&&bld[ty][tx]!=B_RUIN){ col=lam<2000?(u8)(126+((tick>>4)&1)):(u8)(GP_GROUND+T_DIRT*8+7); }
                 else if(terr==T_LAVA&&lam<3000) col=128;
                 else if((terr==T_WATER||terr==T_DEEP)&&lam>11000&&nz>9000&&((nx+ny)&255)<120) col=129;
@@ -894,15 +967,15 @@ static const u8 zSc[6]={0,2,4,8,16,32}; static const u8 zSh[6]={0,1,2,3,4,5};
 static const char* const zNm[6]={"PLANET","VERY FAR","FAR","NORMAL","CLOSE","MICRO"};
 #define ZH 168                                    // rows above the toolbar
 typedef struct { u16 xy; u32 sig; u8 px[64]; } ZArt; static ZArt zart[512];     // the 8 x 8 art of the tiles in view, so a scroll builds only the new column
-static const u8 zPool[12]={144,147,150,153,156,192,195,239,242,245,248,251};  // palette slots for creature colours (3 each); 12 families at a time, the rest share
-static inline int zFamPal(int fam){ return zPool[fam%12]; }
+static const u8 zPool[9]={144,147,150,153,156,192,195,248,251};  // palette slots for creature colours (3 each); 12 families at a time, the rest share
+static inline int zFamPal(int fam){ return zPool[fam%9]; }
 static int zCol(int fam,int k){ return zFamPal(fam)+k; }
 static const u8* zArtOf(int x,int y){
-    ZArt*z=&zart[((y&15)<<5)|(x&31)]; int t=world[y][x]; int mask=0,foam=0; int bld_=bld[y][x]; int race=bld_&&bldv[y][x]?vilRace(bldv[y][x]-1):0; int best=bld_?-1:cellEdge(x,y,&mask,&foam);
-    u32 sig=(u32)(t|((best+1)<<4)|(mask<<8)|(foam<<12)|(bld_<<13)|(race<<17))+1u; u16 xy=(u16)(x|(y<<8));
+    ZArt*z=&zart[((y&15)<<5)|(x&31)]; int t=world[y][x]; int mask=0,foam=0; int bld_=bld[y][x]; int race=bld_&&bldv[y][x]?vilRace(bldv[y][x]-1):0; int best=bld_?-1:cellEdge(x,y,&mask,&foam); int bb=(bld_||t<=T_WATER||t==T_LAVA)?0:bioAt(x,y);
+    u32 sig=(u32)(t|((best+1)<<4)|(mask<<8)|(foam<<12)|(bld_<<13)|(race<<17)|(bb<<20))+1u; u16 xy=(u16)(x|(y<<8));
     if(z->sig==sig&&z->xy==xy) return z->px;
     int v=(int)(hsh(x,y,3)&3);
-    for(int j=0;j<8;j++) for(int i=0;i<8;i++) z->px[j*8+i]=(u8)(bld_?bldPix(bld_,race,i,j):best>=0?edgePix(t,best,mask,v,foam,i,j):tilePix(t,v,i,j));
+    for(int j=0;j<8;j++) for(int i=0;i<8;i++) z->px[j*8+i]=(u8)(bld_?bldPix(bld_,race,i,j):bioPix(best>=0?edgePix(t,best,mask,v,foam,i,j):tilePix(t,v,i,j),bb));
     z->sig=sig; z->xy=xy; return z->px; }
 static inline void zPut(int x,int y,int c){ if((unsigned)x<256&&(unsigned)y<ZH) gbuf[y*256+x]=(u8)c; }
 static void zRect(int x,int y,int w,int h,int c){ for(int j=0;j<h;j++){ int yy=y+j; if((unsigned)yy>=ZH) continue; for(int i=0;i<w;i++){ int xx=x+i; if((unsigned)xx<256) gbuf[yy*256+xx]=(u8)c; } } }
@@ -937,7 +1010,7 @@ static int zDraw(void){
     else { for(int ty=ty0;ty<=ty1;ty++){ if(ty<0||ty>=WH) continue; int sy0=(ty<<sh)-oy;
             for(int tx=tx0;tx<=tx1;tx++){ if(tx<0||tx>=WW) continue; int sx0=(tx<<sh)-ox; int t=world[ty][tx]; int c; int b=bld[ty][tx];
                 if(b&&b!=B_RUIN){ int race=bldv[ty][tx]?vilRace(bldv[ty][tx]-1):0; c=(b==B_HALL||b==B_TOWER)?139:b==B_FARM?140:128+race; }
-                else { int h=(int)(hsh(tx,ty,3)&3); c=t*8+((t==T_WATER||t==T_DEEP)?3+((h+(tick>>4))&1):2+h); if(b==B_RUIN) c=142; }
+                else { int h=(int)(hsh(tx,ty,3)&3); c=t*8+((t==T_WATER||t==T_DEEP)?3+((h+(tick>>4))&1):2+h); if(t>T_WATER&&t!=T_LAVA) c=bioPix(c,bioAt(tx,ty)); if(b==B_RUIN) c=142; }
                 zRect(sx0,sy0,S,S,c);
                 if(S==4){ int h2=(int)(hsh(tx,ty,5)&3); if(b==B_NONE||b==B_RUIN){ if(h2==0) zPut(sx0+1,sy0+2,c^1); else if(h2==1) zPut(sx0+2,sy0+1,c^1); } else if(b==B_HUT||b==B_HOUSE) zRect(sx0,sy0+2,4,2,136); } } } }
     // creatures: every one on screen
@@ -946,7 +1019,7 @@ static int zDraw(void){
 static void zFlush(void){
     static u8 tl[64] __attribute__((aligned(4)));
     for(int ty=0;ty<ZH/8;ty++) for(int tx=0;tx<32;tx++){ for(int y=0;y<8;y++){ const u8*r=gbuf+(ty*8+y)*256+tx*8; for(int x=0;x<8;x++) tl[y*8+x]=r[x]; } vramCopy((u8*)BG_TILE_RAM(1)+(ty*32+tx)*64,tl,64); } }
-static void zPalette(void){ for(int f=0;f<12;f++) for(int k=0;k<3;k++) BG_PALETTE[zPool[f]+k]=RGB15(famCol[f][k][0],famCol[f][k][1],famCol[f][k][2]); }
+static void zPalette(void){ for(int f=0;f<9;f++) for(int k=0;k<3;k++) BG_PALETTE[zPool[f]+k]=RGB15(famCol[f][k][0],famCol[f][k][1],famCol[f][k][2]); }
 static void zEnterBmp(void){
     zPalette(); for(int i=0;i<128;i++) oamSetHidden(&oamMain,i,true);
     zBmp=1; bgSetScroll(0,0,0); for(int my=0;my<32;my++) for(int mx=0;mx<32;mx++) mapPtr[my*32+mx]=(u16)(my<ZH/8?my*32+mx:0);

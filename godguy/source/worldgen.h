@@ -58,7 +58,7 @@ static void gwSetup(int s){
         break; }
     }
 }
-static void genWorld(u32 seed){
+static void genWorld(u32 seed){ bioClear(); atmoReset();
     int s=(int)(seed&0xFFFF); gwSetup(s); int lakes=cShape==5;
     for(int y=0;y<WH;y++) for(int x=0;x<WW;x++){
         int hn=wfbm(x,y,s), m=wfbm(x,y,s+9), lat=(y<WH/2?y:WH-1-y)*128/WH, temp=40+lat*3+(wfbm(x,y,s+20)-128)/3+cClim*28; m+=cWet*30;

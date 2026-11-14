@@ -55,6 +55,7 @@ static void acidAt(int x,int y){ u8 t=world[y][x];
     if(occ[y][x]&&(rnd()&3)==0) hzHurt(occ[y][x]-1,5); }
 // ---------------------------------------------------------------- the atomic bomb: a lava core, a scorched crater, everything dead inside, fallout (plague) outside
 static void nukeAt(int cx,int cy,int R){
+    atmoDust(25); atFire+=40;
     int core=R*R/9, mid=R*R*4/9, outer=(R+5)*(R+5);
     for(int dy=-R-5;dy<=R+5;dy++) for(int dx=-R-5;dx<=R+5;dx++){ int x=cx+dx, y=cy+dy; if(x<0||y<0||x>=WW||y>=WH) continue; int d2=dx*dx+dy*dy; if(d2>outer) continue; u8 t=world[y][x]; int water=(t==T_WATER||t==T_DEEP);
         if(d2<=R*R){
