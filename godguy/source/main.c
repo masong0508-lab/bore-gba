@@ -483,6 +483,7 @@ static const char* const techN[10]={"NONE","AGRICULTURE","IRON TOOLS","MASONRY",
 static void logEv(const char*s){ if(jrN<24){ strncpy(jr[jrN],s,33); jr[jrN][33]=0; jrYear[jrN]=(u16)year; jrN++; } else { memmove(jr[0],jr[1],23*34); memmove(jrYear,jrYear+1,23*2); strncpy(jr[23],s,33); jr[23][33]=0; jrYear[23]=(u16)year; } siprintf(info,"%.32s",s); }
 static void kdName(int k,char*o){ langKing(kd[k].nlang,kd[k].n1,kd[k].n2,o); }
 #include "ggid.h"
+#include "ggwar.h"      // (10c: war groups: one record for an army, counted from its soldiers)
 static void kdRuler(int k,char*o){ strcpy(o,lwords[kd[k].lang%5][8]); strcat(o," "); char p[24]; langPerson(kd[k].lang,kd[k].rn1,kd[k].rn2,p); strcat(o,p); strcat(o," "); strcat(o,rnB[kd[k].rn2%8]); }
 static void kdFaith(int k,char*o){ static const u8 dn[4]={7,6,0,14}; strcpy(o,lwords[kd[k].lang%5][13]); strcat(o,"-"); strcat(o,lwords[kd[k].lang%5][dn[kd[k].rlg&3]]); }   /* the faith's local name: the tongue's word for god and for its dogma */
 static void kdStatsRaw(int k,int*cities,int*pop,int*power){ int c=0,p=0,w=0; for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==k+1){ c++; p+=vil[v].pop; w+=vil[v].pop+vil[v].towers*3+vil[v].houses; } w+=kd[k].tech*4; if(kd[k].ctr>>3&1) w=w*5/4; w=w*(100+10*kdKnow(k,2))/100; if(kd[k].rlg==0) w=w*11/10; if(cities) *cities=c; if(pop) *pop=p; if(power) *power=w; }
@@ -768,7 +769,7 @@ static void simulate(void){
     weatherTick(); volcanoTick(); eventTick(); calamityTick();
     if((tick&63)==0) monSpawn();
     if((tick&15)==0) towerFire();
-    if(((tick)&255)==0){ compact(); ntSweep(); if((tick%2048)==0){ year++; fxReq(FX_YEAR); } unlockTiers(); }
+    if(((tick)&255)==0){ compact(); ntSweep(); wgBuild(); if((tick%2048)==0){ year++; fxReq(FX_YEAR); } unlockTiers(); }
 }
 
 // ---------------------------------------------------------------------------------------------- the item catalogue (generated: materials x kinds, plus potions, seeds, foods, relics, gems, god tools)

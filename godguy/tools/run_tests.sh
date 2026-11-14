@@ -47,3 +47,5 @@ gcc $F -w -o /tmp/gg_ident pc_ident.c -lm && /tmp/gg_ident | tail -1
 gcc $F -w -o /tmp/gg_notable pc_notable.c -lm && /tmp/gg_notable | tail -1
 # GodGuy step 10c, cells: the 8 x 8 cell grid equals a rebuild, cellNearest equals the tile scan, and the game runs exactly as with the old scan (same state hash with -DGG_NOCELL)
 gcc $F -w -o /tmp/gg_cells pc_cells.c -lm && /tmp/gg_cells | tail -1 && gcc $F -w -DGG_NOCELL -o /tmp/gg_cells_old pc_cells.c -lm && [ "$(/tmp/gg_cells | grep 'state hash')" = "$(/tmp/gg_cells_old | grep 'state hash')" ] && echo "CELLS same game as the tile scan"
+# GodGuy step 10c, war groups: one record per army (target, soldiers, power, centre) equals an independent count, and counting changes nothing
+gcc $F -w -o /tmp/gg_wargrp pc_wargrp.c -lm && /tmp/gg_wargrp | tail -1
