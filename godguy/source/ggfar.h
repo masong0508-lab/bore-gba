@@ -21,7 +21,7 @@
 #endif
 #define FAR_MIN 600        // tiers are for crowds larger than this
 #ifndef FAR_MARGIN
-#define FAR_MARGIN 0       // tiles round the camera window that still count as near
+#define FAR_MARGIN -2      // tiles round the camera window that still count as near (negative: an army counts as near only when its centre is this far INSIDE the window; step 10g, see README)
 #endif
 #define FAR_STRIDE 12      // the most steps a soldier takes in one visit
 

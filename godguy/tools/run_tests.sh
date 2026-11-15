@@ -59,3 +59,10 @@ gcc $F -w -o /tmp/gg_far pc_far.c -lm && /tmp/gg_far | tail -1
 gcc $F -w -DGG_NOTIER -o /tmp/gg_far_old pc_far.c -lm && /tmp/gg_far_old | tail -1 | grep -q "FAR" && echo "FAR (no tiers) builds"
 # GodGuy step 10e, the home lookup of the war groups: the village blocks give the answer vilNear gives for every tile and people (and a crowded block falls back), and a war plays out with the same state hash counted either way
 gcc $F -w -o /tmp/gg_home pc_home.c -lm && /tmp/gg_home | tail -1 && gcc $F -w -DGG_SLOWHOME -o /tmp/gg_home_old pc_home.c -lm && [ "$(/tmp/gg_war 1 3000 20 2048 | grep 'state hash')" = "$(gcc $F -w -DGG_SLOWHOME -o /tmp/gg_war_old pc_war.c -lm && /tmp/gg_war_old 1 3000 20 2048 | grep 'state hash')" ] && echo "HOME same war as the old count"
+# GodGuy step 10f, the rolled war-group count finds every soldier's home exactly (ends with ROLL OK)
+gcc $F -w -o /tmp/gg_roll pc_roll.c -lm && /tmp/gg_roll | tail -1
+# GodGuy step 10g, the near-camera war at big sizes: 32,000 (768 planet, DSi caps) and 60,000 (1024 planet, 3DS/PC caps) against their 8-seed full per-unit references. Takes a few minutes, so only with GG_BIGWAR=1 ./tools/run_tests.sh
+if [ "$GG_BIGWAR" = "1" ]; then
+gcc $F -w -DWAR_PLANET=768 -DWAR_COLS=8 -DWAR_ROWS=8 -DWAR_SIDE=16000 -DGG_DSI16 -o /tmp/gg_war_dsi pc_war.c -lm && /tmp/gg_war_dsi cmp war_ref_dsi.txt 10 | tail -1
+gcc $F -w -DWAR_PLANET=1024 -DWAR_COLS=10 -DWAR_ROWS=10 -DWAR_SIDE=30000 -DGG_BIG -o /tmp/gg_war_big pc_war.c -lm && /tmp/gg_war_big cmp war_ref_big.txt 10 | tail -1
+fi
