@@ -41,7 +41,7 @@ typedef enum { DutyCycle_12=1, DutyCycle_25=2, DutyCycle_75=6 } ShimDuty;
 static u16 BG_PALETTE[256], BG_PALETTE_SUB[256], SPRITE_PALETTE[256];
 static u8 shimTiles[1024*64];
 static u16 shimMap[4096];
-static u8 shimBmp[256*256];
+static u8 shimBmp[256*256]; static signed char shimDepth[256*192];      // shimDepth: a level for each pixel of the top picture, for the 3DS's 3D screen (see compat/stereo.h)
 #define BG_TILE_RAM(n) ((void*)shimTiles)
 static u16 shimMap1[1024];
 static void*bgGetMapPtr(int id){ return id==1?(void*)shimMap1:(void*)shimMap; }

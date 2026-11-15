@@ -17,7 +17,9 @@ typedef struct { void*data_vaddr; u32 nsamples; int status; } ndspWaveBuf;
 extern u8 stubFb[2][2][400*240*3]; extern int stubCur[2], stubShown[2], stubSwaps, stubFlushes, stubSpeedup, stubQueued, stubNextExpect; extern u32 stubKeys; extern touchPosition stubTouch; extern short*stubQueue[64]; extern ndspWaveBuf*stubWb[64];
 static inline void osSetSpeedupEnable(int on){ extern int stubSpeedup; stubSpeedup=on; }
 static inline void gfxInitDefault(void){} static inline void gfxSet3D(int b){ (void)b; } static inline void gfxSetDoubleBuffering(int s,int b){ (void)s;(void)b; } static inline void gfxExit(void){}
-static inline u8*gfxGetFramebuffer(int s,int side,u16*w,u16*h){ (void)side;(void)w;(void)h; return stubFb[s][stubCur[s]]; }
+extern u8 stubFbR[2][400*240*3]; extern float stubSlider;
+static inline u8*gfxGetFramebuffer(int s,int side,u16*w,u16*h){ (void)w;(void)h; if(s==GFX_TOP&&side==GFX_RIGHT) return stubFbR[stubCur[0]]; return stubFb[s][stubCur[s]]; }
+static inline float osGet3DSliderState(void){ return stubSlider; }
 static inline void gfxFlushBuffers(void){ extern int stubFlushes; stubFlushes++; }
 static inline void gfxSwapBuffers(void){ extern int stubSwaps; for(int s=0;s<2;s++){ stubShown[s]=stubCur[s]; stubCur[s]^=1; } stubSwaps++; }
 static inline void gspWaitForVBlank(void){}

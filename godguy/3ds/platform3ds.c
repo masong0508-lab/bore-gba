@@ -5,6 +5,7 @@
 #include <3ds.h>
 #include <string.h>
 #include <stdlib.h>
+#include "../compat/stereo.h"
 #define SR 32768
 #define NWB 8       // sound buffers queued ahead (one is a frame of 546 samples: about 130 ms in all)
 static ndspWaveBuf wb[NWB]; static short*abuf[NWB]; static int audioOk, wbHead;
@@ -24,9 +25,15 @@ static void copyScreen(u8*fb,const unsigned char*src,int W){
     for(int by=0;by<240;by+=8) for(int bx=0;bx<W;bx+=8) for(int x=bx;x<bx+8;x++){ u8*d=&fb[(x*240+(239-by))*3]; const unsigned char*s=&src[(by*W+x)*3];
         for(int y=0;y<8;y++){ d[0]=s[2]; d[1]=s[1]; d[2]=s[0]; d-=3; s+=W*3; } } }
 static int topPend, botPend;       // frames still to copy: two after a change (the screen has two buffers)
-void plat_present(const unsigned char*top,const unsigned char*bot,int topChanged,int botChanged,const short*snd,int frames){
+static int stereoOn; static unsigned char eyeL[400*240*3], eyeR[400*240*3]; static int frameNo, lastStrength=-1;
+void plat_present(const unsigned char*top,const unsigned char*bot,int topChanged,int botChanged,const short*snd,int frames,const signed char*depth){
+    // the 3D slider: 0 is a flat screen (and the 3D hardware is switched off, as before); above it the top screen is drawn twice, once for each eye (compat/stereo.h)
+    float sl=osGet3DSliderState(); int want=depth&&sl>0.03f; if(want!=stereoOn){ stereoOn=want; gfxSet3D(want?true:false); topChanged=1; }
+    int strength=want?(int)(sl*24.f+0.5f):0; if(strength!=lastStrength){ lastStrength=strength; topChanged=1; }
+    frameNo++; if(want&&(frameNo&3)==0) topChanged=1;                 // the stars around the picture drift, so a still screen is redrawn every few frames
     if(topChanged) topPend=2; if(botChanged) botPend=2; int any=0;
-    if(topPend>0){ copyScreen(gfxGetFramebuffer(GFX_TOP,GFX_LEFT,NULL,NULL),top,400); topPend--; any=1; }
+    if(topPend>0){ if(want){ if(topPend==2) stereoTop(eyeL,eyeR,top,depth,frameNo,strength); copyScreen(gfxGetFramebuffer(GFX_TOP,GFX_LEFT,NULL,NULL),eyeL,400); copyScreen(gfxGetFramebuffer(GFX_TOP,GFX_RIGHT,NULL,NULL),eyeR,400); }
+        else copyScreen(gfxGetFramebuffer(GFX_TOP,GFX_LEFT,NULL,NULL),top,400); topPend--; any=1; }
     if(botPend>0){ copyScreen(gfxGetFramebuffer(GFX_BOTTOM,GFX_LEFT,NULL,NULL),bot,320); botPend--; any=1; }
     if(any){ gfxFlushBuffers(); gfxSwapBuffers(); }
     if(audioOk&&frames>0&&frames<=700){ ndspWaveBuf*w=&wb[wbHead]; if(w->status==NDSP_WBUF_DONE||w->status==NDSP_WBUF_FREE){ memcpy(abuf[wbHead],snd,frames*4); w->nsamples=frames; DSP_FlushDataCache(abuf[wbHead],frames*4); ndspChnWaveBufAdd(0,w); wbHead=(wbHead+1)%NWB; } }   // in order, or the sound would play out of turn; a full queue drops the frame's sound

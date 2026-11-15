@@ -1527,13 +1527,22 @@ static void doSave(void){ if(!sdOk) { siprintf(info,"NO SD CARD: NOT SAVED"); re
 static void setSize(int sz){ planetSize=sz; }
 static void startWorld(int story){ storyOn=story; newWorld(); camX=(WW*8-256)/2; camY=(WH*8-192)/2; winX=-99; refillWindow(); titleOn=0; paused=0; endShown=storyDone; musReq(GM_NEWWORLD); if(story&&chapter==0&&stUse==0){ sceneStart(introTxt,0); dlgPend=0; } }
 static void monName(int m,char*out){ int a=ARCH_A+m/16, fam=m%16; strcpy(out,advNm[fam]); strcat(out," "); strcat(out,arch[a].nm); }
-static short plLon[109*109], plWy[109*109]; static u8 plJ[109*109]; static int plInit; static short plHalo[180][2];
+static short plLon[109*109], plWy[109*109]; static u8 plJ[109*109];
+#ifdef NDSSHIM
+static signed char plZ[109*109];
+#define PLZSET(k) plZ[k]=(signed char)(z*14.f);
+#define PLZ(k) plZ[k]
+#else
+#define PLZSET(k)
+#define PLZ(k) 0
+#endif
+static int plInit; static short plHalo[180][2];
 static void uiPlanetSprite(int cx,int cy,int R){   // the planet as a lit ball (the sphere maths is done once for radius 54; any smaller radius samples it)
     const int B=54; if(!plInit){ plInit=1; for(int y=-B;y<=B;y++) for(int x=-B;x<=B;x++){ int k=(y+B)*109+(x+B); plJ[k]=255; if(x*x+y*y>B*B) continue; float nx=(float)x/B, ny=(float)y/B, z=sqrtf(1.f-nx*nx-ny*ny);
-            float lon=atan2f(nx,z), lat=asinf(ny); plLon[k]=(short)((0.5f+lon/6.2831853f)*4096); plWy[k]=(short)((0.5f+lat/3.1415927f)*4096); float l=0.3f+0.7f*(-nx*0.45f-ny*0.45f+z*0.8f); plJ[k]=(u8)(l<0.5f?0:l<0.78f?1:2); }
+            float lon=atan2f(nx,z), lat=asinf(ny); plLon[k]=(short)((0.5f+lon/6.2831853f)*4096); plWy[k]=(short)((0.5f+lat/3.1415927f)*4096); float l=0.3f+0.7f*(-nx*0.45f-ny*0.45f+z*0.8f); plJ[k]=(u8)(l<0.5f?0:l<0.78f?1:2); PLZSET(k) }
         for(int a=0;a<180;a++){ float r=(float)B+1.5f; plHalo[a][0]=(short)(r*cosf(a*2*0.0174533f)); plHalo[a][1]=(short)(r*sinf(a*2*0.0174533f)); } }
     if(R<4) R=4; if(R>B) R=B; int shift=(tick>>5)*WW/600;
-    for(int y=-R;y<=R;y++) for(int x=-R;x<=R;x++){ if(x*x+y*y>R*R) continue; int k=((y*B/R)+B)*109+((x*B/R)+B); if(plJ[k]==255) continue; int wx=((plLon[k]*WW>>12)+shift)%WW, wy=plWy[k]*WH>>12; if(wy<0) wy=0; if(wy>=WH) wy=WH-1; uiPx(cx+x,cy+y,100+world[wy][wx]*3+plJ[k]); }
+    for(int y=-R;y<=R;y++) for(int x=-R;x<=R;x++){ if(x*x+y*y>R*R) continue; int k=((y*B/R)+B)*109+((x*B/R)+B); if(plJ[k]==255) continue; int wx=((plLon[k]*WW>>12)+shift)%WW, wy=plWy[k]*WH>>12; if(wy<0) wy=0; if(wy>=WH) wy=WH-1; uiPx(cx+x,cy+y,100+world[wy][wx]*3+plJ[k]); uiZSet(cx+x,cy+y,3+PLZ(k)); }
     for(int a=0;a<180;a++) uiPx(cx+plHalo[a][0]*R/B,cy+plHalo[a][1]*R/B,U_CYAN); }
 static void uiLoadHook(const char*msg,int pct){   // a loading screen: the planet grows as the world is made
     static int n; n++; uiRect(0,0,256,192,U_BG); for(int y=0;y<192;y+=3) uiRect(0,y,256,1,U_PANEL); for(int k=0;k<60;k++){ int x=(int)(hsh(k,1,7)%256), y=(int)(hsh(k,2,7)%192); uiPx(x,y,(k&3)==0?U_WHITE:U_DIM); }
@@ -1724,7 +1733,27 @@ static void uiInspectCard(void){
         if(V->foe&&vil[V->foe-1].on){ char fn[24]; vilName(V->foe-1,fn); siprintf(b,"AT WAR: %s",fn); uiText(142,y,b,U_RED,1); } }
     else { uiText(142,24,"NOTHING HERE",U_DIM,1); }
     uiText(142,136,"A: INSPECT AGAIN",U_DIM,1); }
+#ifdef GG_THEATRE
+// ---- the 3DS "theatre": while the globe is up on the touch screen, the top screen shows the same planet big (a ball 176 pixels across) over a deep starfield, and gives every pixel of it a depth
+// (the ball is a dome, its atmosphere a thin shell, the stars far behind), so with the 3D slider up the planet really is a ball in front of the screen (compat/stereo.h). It turns with the globe.
+static void uiTheatre(void){
+    const int R=88; globeTables(R); int cL,sL,cP,sP; globeAim(rotY,rotX,&cL,&sL,&cP,&sP);
+    uiRect(0,0,256,192,U_BG); for(int k=0;k<90;k++){ int x=(int)(hsh(k,3,9)%256), y=(int)(hsh(k,4,9)%192); uiPx(x,y,((k+(tick>>5))&3)?U_DIM:U_WHITE); uiZSet(x,y,-6+(k%3)); }
+    int drift=(tick>>6);
+    for(int y=-R-3;y<=R+3;y++) for(int x=-R-3;x<=R+3;x++){ int d2=x*x+y*y, sx=128+x, sy=96-y; if(sx<0||sx>=256||sy<0||sy>=192) continue;
+        if(d2>R*R){ if(d2<=(R+3)*(R+3)){ int lam=(-x*5-y*5+R*3)>0; uiPx(sx,sy,lam?U_CYAN:U_BLUE); uiZSet(sx,sy,2); } continue; }
+        int nx=gxn[x+R], ny=gxn[y+R], nz=gnz[d2]; int tx,ty; globeDir(nx,ny,nz,cL,sL,cP,sP,&tx,&ty);
+        int lam=(-nx*7+ny*7+nz*12)/26; int j=lam<2500?0:lam<9000?1:2; int terr=world[ty][tx]; int col=100+terr*3+j; { int bb=bioAt(tx,ty); if(bb&&terr>T_WATER&&terr!=T_LAVA) col=85+bb; }
+        if(bld[ty][tx]&&bld[ty][tx]!=B_RUIN&&lam>-2000) col=lam<9000?U_ORANGE:U_YELLOW;
+        if(gClouds){ int cv=gCloud[(ty*64/WH)&63][((tx*64/WW)+drift)&63]; int thr=weather==1||weather==2?105:weather==3?125:165; if(cv>thr) col=U_WHITE; }
+        if(nz<3000&&lam>-3000) col=U_CYAN;
+        uiPx(sx,sy,col); uiZSet(sx,sy,col==U_WHITE?nz*10/16384+4:nz*10/16384+1); }
+    { char b[40]; siprintf(b,"YEAR %d  %d KINGDOMS",year,(int)(kd[0].on+kd[1].on+kd[2].on+kd[3].on+kd[4].on+kd[5].on+kd[6].on+kd[7].on)); uiTextC(128,182,b,U_GOLD,1); uiZSet(128,182,0); } }
+#endif
 static void uiStatus(void){
+#ifdef GG_THEATRE
+    if(view3d){ uiTheatre(); uiFlush(); return; }
+#endif
     static int aliveC=0; static unsigned aliveT=~0u; if(aliveT!=(unsigned)(tick>>3)){ aliveT=(unsigned)(tick>>3); aliveC=0; for(int i=0;i<nCr;i++) aliveC+=cr[i].alive; } int alive=aliveC; int hh; int folk=vilTotals(&hh); char b[64];
     siprintf(b,"%s  YEAR %d",storyOn?"STORY":"FREE PLAY",year); uiWin(view3d?(walkOn?"BORE: GODGUY  WALKING":"BORE: GODGUY  GLOBE"):"BORE: GODGUY",b,0);
     { int p=(tick>>1)&2047; uiIcon8(238-uiTextW(b,1)-10,3,(p<256||p>1792)?IC8_MOON:IC8_SUN); if(paused) uiText(82,3,"PAUSED",U_RED,1); }

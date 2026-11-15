@@ -33,10 +33,32 @@ static const u8 uiPmap[31]={0,162,162,162,163,123,117,165,118,119,120,255,121,12
 static void uiPalette(void){ uiGradPal(); for(int k=0;k<8;k++) BG_PALETTE_SUB[40+k]=RGB15(uiKCol[k][0],uiKCol[k][1],uiKCol[k][2]); for(int i=0;i<U_N;i++){ u16 c=RGB15(uiRgb[i][0],uiRgb[i][1],uiRgb[i][2]); BG_PALETTE_SUB[i]=c; } for(int i=0;i<22;i++) BG_PALETTE[tcSlot[i]]=RGB15(tcRgb[i][0],tcRgb[i][1],tcRgb[i][2]); BG_PALETTE_SUB[0]=0; }
 static unsigned uiFlushes;   // pictures sent to the screen so far (the tests count them: a menu must send one per redraw, never two)
 static int uiHold;           // while set, uiFlush sends nothing: a screen that is drawn on top of another one (the pause menu over the status screen) must not show the one underneath for a frame
+// ---- depth for the 3DS's 3D top screen (compat/stereo.h): each pixel of the picture has a level. Anything drawn with a level of its own (the planet's dome) puts it in uiZ; the rest take it from the colour
+// they were drawn in (a table: backgrounds sink, panels sit at the screen, bevels, text and marks come out a little, the minimap's mountains stand up). Nothing else in the game knows about it.
+#ifdef NDSSHIM
+static signed char uiZ[256*192]; static signed char uiDepthLut[256]; static int uiDepthReady;
+static void uiDepthInit(void){ memset(uiZ,-128,sizeof uiZ); for(int i=0;i<256;i++) uiDepthLut[i]=0;
+    uiDepthLut[U_CLEAR]=-3; uiDepthLut[U_BG]=-3; uiDepthLut[U_PANEL]=-2; uiDepthLut[U_SHADOW]=-1; uiDepthLut[U_PANELHI]=0; uiDepthLut[U_BHI]=2; uiDepthLut[U_BLO]=-1; uiDepthLut[U_SEL]=1;
+    for(int c=U_WHITE;c<=U_PURPLE;c++) uiDepthLut[c]=3; uiDepthLut[U_ORANGE]=3; for(int c=U_G0;c<=U_G7;c++) uiDepthLut[c]=2; for(int c=U_YELLOW;c<U_N;c++) uiDepthLut[c]=3; uiDepthLut[U_DIM]=2; uiDepthLut[U_DGREY]=1;
+    for(int g=0;g<G_N;g++) for(int k=0;k<8;k++) uiDepthLut[UI_GRAD0+g*8+k]=(g==G_BG)?-3:2;            // the backgrounds sink, title bars, buttons and the footer come out
+    for(int k=0;k<8;k++) uiDepthLut[40+k]=3;                                                           // kingdom colours
+    static const signed char ter[13]={-2,-2,0,1,2,3,5,5,1,0,0,3,0}; for(int t=0;t<13;t++) uiDepthLut[64+t]=(signed char)(ter[t]+1);      // the minimap's land stands up: mountains and snow most
+    for(int k=80;k<90;k++) uiDepthLut[k]=6;                                                           // creature dots and biome marks
+    for(int k=100;k<140;k++) uiDepthLut[k]=4;                                                          // the planet (its own dome overrides this)
+    uiDepthReady=1; }
+static inline void uiZSet(int x,int y,int z){ if((unsigned)x<256&&(unsigned)y<192) uiZ[y*256+x]=(signed char)z; }
+static void uiDepthBuild(signed char*out){ if(!uiDepthReady) uiDepthInit(); for(int i=0;i<256*192;i++){ int z=uiZ[i]; out[i]=(signed char)(z!=-128?z:uiDepthLut[uiBuf[i]]); } memset(uiZ,-128,sizeof uiZ); }
+#else
+#define uiZSet(x,y,z) ((void)0)
+#endif
 #ifdef NDSHW
 static void uiFlushRaw(void){ uiFlushes++; hwSubFlush(uiBuf); }
 #else
+#ifdef NDSSHIM
+static void uiFlushRaw(void){ uiFlushes++; vramCopy(bgGetGfxPtr(3),uiBuf,256*192); uiDepthBuild(shimDepth); }
+#else
 static void uiFlushRaw(void){ uiFlushes++; vramCopy(bgGetGfxPtr(3),uiBuf,256*192); }
+#endif
 #endif
 #ifndef UI_NOTRANS
 #define UI_NOTRANS 0
