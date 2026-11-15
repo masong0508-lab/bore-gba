@@ -62,16 +62,10 @@ def tune_curve(x, sr, pad=None):      # semitones of correction per hop: the pit
         for n, w in bas.items(): pcw[n % 12] = pcw.get(n % 12, 0) + w * 0.5
         heavy = [n for n, w in mel.items() if w >= 8]
         if heavy and max(heavy) >= 63: top = max(heavy)
-    p90 = float(np.percentile(sm[v], 90))
-    if top is not None and abs(top - p90) <= 3.5: off = top - p90; cost = 0.0      # the hook: its highest note is the song's highest note (F#4 in "from the lover that you have loved")
-    else:
-        best = (1e9, 0.0)
-        for o in np.arange(-2.5, 2.51, 0.1):
-            c = np.mean([abs(snap_target(p + o, pcw) - (p + o)) for p in sm[v]]) + 0.03 * abs(o)
-            if c < best[0]: best = (c, o)
-        cost, off = best
+    # The Koala project is two semitones above the new song (its hook's top note, G#4, is the song's F#4): every phrase is moved down a whole tone, then each note onto the song's harmony
+    off = -2.0; cost = 0.0
     tgt = np.array([snap_target(p + off, pcw) for p in sm])
-    if top is not None and cost == 0.0: tgt = np.minimum(tgt, top)      # (nothing sung above the hook's top note)
+    if top is not None: tgt = np.minimum(tgt, top)      # (nothing sung above the hook's top note)
     corr = np.clip(tgt - mm, -3.0, 3.0)
     k = 2; corr = np.convolve(np.pad(corr, k, mode='edge'), np.ones(2 * k + 1) / (2 * k + 1), 'valid')
     return corr, float(cost)
@@ -190,16 +184,12 @@ def corp_lyric_chops():
     ev = json.load(open(os.path.join(HERE, '..', '..', 'tools', 'corporations', 'lyric_events.json'))); cell_s = 60.0 / ev['bpm'] / 4; srcs = []
     for e in ev['events']:
         w = wave.open(os.path.join(HERE, '..', '..', 'tools', 'corporations', 'lyrics', 'corp_%02d.wav' % e['i'])); srcs.append((e, np.frombuffer(w.readframes(w.getnframes()), dtype='<i2').astype(np.float64) / 32768.0, w.getframerate()))
-    offs = []                                      # the voice against the 12-tone grid: a circular mean of the cents of every voiced frame
-    for e, x, sr in srcs:
-        m = f0_track(x, sr); m = m[~np.isnan(m)]; offs += list((m - np.round(m)))
-    th = 2 * np.pi * np.array(offs); cents = float(np.angle(np.mean(np.exp(1j * th))) / (2 * np.pi) * 100) if offs else 0.0
-    global CORP_CENTS; CORP_CENTS = cents; fix = 2 ** (-cents / 1200.0) if abs(cents) > 8 else 1.0
+    CORP_CENTS = -39.84; fix = 2 ** (CORP_CENTS / 1200.0)      # the recording is tuned to A = 430 Hz (notes.json): the voice is raised 40 cents to the MIDI's A = 440
     for e, x, sr in srcs:
         x = sosfilt(butter(4, min(CLYR_LP, 0.45 * sr), 'lp', fs=sr, output='sos'), x)
         cell = int(round(e['beat'] * 4)); frac = e['beat'] * 4 - cell      # the sixteenth it is placed on, and how far past it the phrase really starts (cells)
         sh = int(round(abs(frac) * cell_s * sr)); x = np.concatenate([np.zeros(sh), x]) if frac > 0 else x[sh:]
-        if fix != 1.0: x = resamp(x, 1.0 / fix)
+        x = resamp(x, 1.0 / fix)
         g_ = gcd(CLYR_RATE, sr); x = resample_poly(x, CLYR_RATE // g_, sr // g_); x = plate(x, CLYR_RATE, 0.55)
         CLYR.append(e); add('CORP LYRIC %02d' % e['i'], x, 100, 46 if e['i'] % 2 == 0 else 82, 99.0, CLYR_RATE)
 corp_lyric_chops()

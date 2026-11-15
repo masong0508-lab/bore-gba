@@ -118,7 +118,31 @@ static const char* const shpN[SHAPE_N-SHAPE_OLD][8]={
  /*51 penguin*/ {"..ddd...","..deb...","..dddd..",".dbbbd..",".dbbbd..",".dbbbd..","..aa.aa.","........"},
  /*52 frog*/ {"........","b.b..b.b","bbbbbbbb","bebbbbeb",".bbbbbb.",".bbbbbb.","bb.bb.bb","........"},
  /*53 bee*/ {"........","..b.b...",".bbbbb.b","bdbdbbbb","bbbbbbb.",".bdbd...","........","........"},
- /*54 headset*/ {"........","dddddddd","dbbbbbbd","dbeebeed","dbbbbbbd",".dbbbbd.","..d..d..","........"},
+ /*54 headset*/ {"........","dddddddd","dbbbbbbd","dbeebeed","dbbbbbbd",".dbbbbd.","..d..d..","........"}, /*55 cat*/ {"b.b.....","bbbb....","bebeb...",".bbbb..b","..bbbbbb","..bbbbb.","..b.b.b.","..d.d.d."},
+ /*56 dog*/ {"..b.....",".bbb.b..",".bebbb..","bbbbbbb.","bbbbbbb.",".bbbbb..",".b.b.b..",".d.d.d.."},
+ /*57 chicken*/ {"..a.....","..bb....","..bbe...","...bb...","..bbbb..",".bbbbbb.","..a..a..","..a..a.."},
+ /*58 goat*/ {"b..b....","bbbb....","bebbb...","bbbbb...",".bbbbbb.",".bbbbbb.",".b.b.b..",".d.d.d.."},
+ /*59 armadillo*/ {"........","..dddd..",".dbdbdd.","dbdbdbd.","dbbbbbbe",".bbbbbb.",".d.dd.d.","........"},
+ /*60 ostrich*/ {"..bb....","..be....","..b.....","..b.....",".bbbb...","bbbbbb..",".bbbb...",".a..a..."},
+ /*61 seal*/ {"........","..bbb...",".bbebb..","bbbbbb..","bbbbbbb.",".bbbbbbb","..b..bb.","........"},
+ /*62 piranha*/ {"........","...bbb..","..bbbbb.",".bbbebbb","bbbbbbb.",".bbbbbb.","..b.b...","........"},
+ /*63 butterfly*/ {"a.b..b.a","aabbbbaa","aabbbbaa",".ab..ba.",".a.bb.a.","..b..b..","........","........"},
+ /*64 grasshopper*/ {"........","b.......","bb......",".bbebb..","..bbbbbb","..b.b.bb",".b..b..b",".b......"},
+ /*65 fly*/ {"........","b..bb..b","bbbbbbbb",".bbebbb.","..bbbb..","..b..b..","........","........"},
+ /*66 fairy*/ {"a...a...","aa.aa...","a.bb.a..","..beb...","..bbb...","..a.a...","........","........"},
+ /*67 unicorn*/ {"...a....","..ab....","bbeb....","bbbbbbb.","bbbbbbb.",".bbbbbb.",".b.b.b..",".d.d.d.."},
+ /*68 white mage*/ {"..aaa...","..beb...","..bbb...",".bbbbb..","baabaab.","b.bbb.b.","..bbb...",".bb.bb.."},
+ /*69 druid*/ {".aaaa...","..beb...","..bbb...",".bddbb..","bbddbbb.","..bdb...","..bdb...",".dd.dd.."},
+ /*70 flower bud*/ {"..aaa...",".aabaa..","..aaa...","...d....","..dd.d..",".d.dd.d.","...d....","..ddd..."},
+ /*71 crystal sword*/ {"....bb..","...bbb..","...bb...","..bb....",".bb.....","dbd.....","ddd.....","d......."},
+ /*72 bitba*/ {"........",".bbbbb..","bbebebb.","bbbbbbb.","bbbbbbb.","bbaaabb.",".bbbbb..","........"},
+ /*73 garl*/ {".b.b....","bbbbb...","bebeb...","bbbbb...","dbbbbd..","dbbbbd..",".d..d...",".dd.dd.."},
+ /*74 smore*/ {"bbbbbb..","dddddd..","aaaaaa..","dddddd..","bbbbbb..","........","........","........"},
+ /*75 acid blob*/ {"........","..bbb...",".bbbbb..","bbebbeb.","bbbbbbb.","dbbbbbd.",".d.d.d..","........"},
+ /*76 ant*/ {"........","...bb...","..bbbb..","b.bbbb.b",".b.bb.b.","b.bbbb.b","..b..b..","........"},
+ /*77 worm*/ {"........","........","bbb.....","bebbb...","..bbbb..","....bbb.","......bb","........"},
+ /*78 printer*/ {"dddddddd","dbbbbbbd","dbaabbbd","dbbbbbbd","dddddddd","dbbbbbbd","dddddddd","........"},
+ /*79 finger*/ {"..b.....","..b.....","..bb....","bbbbb...","bbbbbb..","bbbbbb..",".bbbb...","..dd...."},
 };
 static const char* shpRow(int s,int f,int y){   // row y of frame f of shape s (the walking frame of the new shapes flips their lower three rows)
     if(s<SHAPE_OLD) return shp[s][f][y]; static char flip[9]; const char*r=shpN[s-SHAPE_OLD][y]; if(!f||y<5||s>=SHAPE_OLD+19) return r; for(int i=0;i<8;i++) flip[i]=r[7-i]; flip[8]=0; return flip; }
@@ -140,6 +164,36 @@ static const Arch arch[ARCH_N]={
  {"RHINO",21,0,M_LAND,24,80,10,100,8},{"BUFFALO",23,0,M_LAND,22,60,7,90,14},{"HYENA",20,1,M_LAND,10,24,7,60,20},{"ALPACA",22,0,M_CLIMB,22,18,1,70,20},
  {"CAPYBARA",21,0,M_LAND|M_WATER,26,22,0,70,22},{"PENGUIN",51,2,M_LAND|M_WATER,18,10,2,60,24},{"MONKEY",8,2,M_CLIMB,10,14,3,60,26},{"CRAB",50,2,M_LAND|M_WATER,20,8,4,50,40},
  {"CROCODILE",7,1,M_LAND|M_WATER,20,60,12,120,8},{"FROG",52,2,M_LAND|M_WATER,12,5,1,40,50},{"BEE",53,0,M_ALL&~(1<<T_LAVA),4,3,2,25,60},{"RACCOON",20,2,M_LAND,14,14,3,60,24},
+ // ---- the new animals, insects, magical folk and special animals (diet 0 to 3), then the terraformers (diet 6: they work the ground and harm nobody)
+ {"CAT",55,1,M_LAND,10,12,4,60,24},
+ {"DOG",56,2,M_LAND,12,18,5,70,22},
+ {"CHICKEN",57,0,M_LAND,16,6,0,40,50},
+ {"GOAT",58,0,M_CLIMB,16,16,3,60,28},
+ {"ARMADILLO",59,2,M_LAND,22,26,2,80,18},
+ {"OSTRICH",60,0,M_LAND,8,24,5,70,16},
+ {"SEAL",61,3,M_LAND|M_WATER,14,36,4,100,12},
+ {"PIRANHA",62,1,M_WATER,6,8,6,40,40},
+ {"BUTTERFLY",63,0,M_ALL&~(1<<T_LAVA),5,2,0,20,60},
+ {"GRASSHOPPER",64,0,M_LAND,6,4,1,25,60},
+ {"FLY",65,0,M_ALL&~(1<<T_LAVA),4,2,0,15,70},
+ {"FAIRY",66,0,M_ALL&~(1<<T_LAVA),6,8,0,150,8},
+ {"UNICORN",67,0,M_LAND,10,50,8,160,6},
+ {"WHITE MAGE",68,2,M_LAND,14,40,3,170,8},
+ {"DRUID",69,2,M_LAND,14,40,4,170,8},
+ {"FLOWER BUD",70,0,M_LAND,30,10,0,100,20},
+ {"CRYSTAL SWORD",71,1,M_LAND,8,30,14,120,6},
+ {"BITBA",72,2,M_LAND,12,20,4,80,18},
+ {"GARL",73,2,M_LAND,14,24,6,90,14},
+ {"SMORE",74,0,M_LAND,18,16,2,80,22},
+ {"ACID BLOB",75,1,M_LAND|M_WATER,22,22,6,80,14},
+ {"GOD FINGER",79,6,M_ALL,16,60,0,250,0},
+ {"BLACK ANT",76,6,M_LAND,18,12,0,250,0},
+ {"RED ANT",76,6,M_LAND,18,12,0,250,0},
+ {"BLUE ANT",76,6,M_LAND,18,12,0,250,0},
+ {"GREEN ANT",76,6,M_LAND,18,12,0,250,0},
+ {"WORM",77,6,M_LAND,22,16,0,250,0},
+ {"SAND SPIDER",12,6,M_LAND|(1<<T_MOUNT),16,20,0,250,0},
+ {"PRINTER",78,6,M_LAND,26,40,0,250,0},
  // ---- the monsters (diet 5): they hunt every living thing, and burn the houses of the peoples. tier = the age of the world they first come in (monTier[])
  {"IMP",31,5,M_ALL&~(1<<T_LAVA),8,14,4,120,0},{"GHOUL",5,5,M_LAND,14,28,6,150,0},{"SKELETON",16,5,M_LAND,14,24,7,200,0},{"OOZE",6,5,M_LAND|M_WATER,24,30,4,200,0},
  {"WEREWOLF",32,5,M_LAND,10,40,11,160,0},{"ZOMBIE",5,5,M_LAND,22,60,7,220,0},{"WRAITH",17,5,M_ALL,10,30,10,180,0},{"GIANT SPIDER",12,5,M_CLIMB,10,36,9,170,0},{"SCORPION",37,5,M_LAND,12,30,10,170,0},
@@ -1379,6 +1433,9 @@ static void gb_vset(int v,int rate,int vol,int pan){ int id=gvId[v]; if(id<0) re
     if(rate!=gvRate[v]){ soundSetFreq(id,(u16)rate); gvRate[v]=rate; } if(vol!=gvVol[v]){ soundSetVolume(id,(u8)vol); gvVol[v]=vol; } if(pan!=gvPan[v]){ soundSetPan(id,(u8)pan); gvPan[v]=pan; } }
 static int ghEnd[4];      // the music tick a hit on each slot stops sounding: a finished sample's channel number is free to be reused (by another hit, or by a note), so killing the old id once it has ended would cut a different sound short
 static void gb_hit(int slot,int part,int idx,int vol,int pan){ if(ghId[slot]>=0&&gmTick-ghEnd[slot]<0) soundKill(ghId[slot]); const GmDrum*D=part==2?gmVoxLoad(idx,slot):part?&gmKitB[idx]:&gmKitA[idx]; if(vol>127) vol=127;
+#ifdef NDSSHIM
+    shimNextBus=part==2&&((idx>=GM_VOX_LYR0&&idx<GM_VOX_LYR0+GM_VOX_LYRN)||(idx>=GM_VOX_CLYR0&&idx<GM_VOX_CLYR0+GM_VOX_CLYRN)); shimNextKick=part==0&&idx==0;
+#endif
     ghId[slot]=soundPlaySample(D->d,SoundFormat_8Bit,D->n,D->rate,(u8)vol,(u8)pan,false,0); ghEnd[slot]=gmTick+(int)((unsigned)D->n*60u/(D->rate?D->rate:1))+2; }
 static int midi8Hz(int m8){ int m=m8>>3; if(m<0) m=0; if(m>126) m=126; int a=gmHz64[m], b=gmHz64[m+1]; return (a+(b-a)*(m8&7)/8)/64; }
 static void gb_ptone(int midi8,int vol,int duty){ (void)duty; if(gpId<0) return; int hz=midi8Hz(midi8); if(hz<20) hz=20; if(vol>127) vol=127; if(vol<0) vol=0; soundSetFreq(gpId,(u16)hz); soundSetVolume(gpId,(u8)vol); }   // (one reserved PSG voice, 50% pulse: the 16 channels are all spoken for)
@@ -1422,6 +1479,9 @@ static void musUpdate(void){
     return;     // the safe build has no sound at all
 #endif
     gmNextHook=musNext;
+#ifdef NDSSHIM
+    shimTempoBpm=gmCur>=0?gmSongs[gmCur].bpm:0;
+#endif
 #ifdef NDSSHIM
     for(int k=0;k<shimMusicTicks;k++) gmFrame();
 #else

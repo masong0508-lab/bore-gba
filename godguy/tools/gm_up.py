@@ -53,19 +53,20 @@ def fix_clash(sc, pcs, stats):      # a bass note a semitone (or a major seventh
                 m = n + d
                 if 24 <= m <= 83 and m % 12 in pcs and all(not lead[x] or abs(lead[x] - m) % 12 not in (1, 11) for x in span): sc.v[6][c] = (m, ln); stats['bass'] += 1; break
 def upgrade(sc, R, kt, mt):
-    if R.get('midi'): return sc      # (the two songs read from MIDI files are written note for note)
+    rm = bool(R.get('midi'))
+    if rm and not R.get('remix'): return sc      # (the MIDI-read songs are written note for note, except a song flagged 'remix': then the band is only ADDED to, never changed)
     pcs = set(scale(kt, mt)); pl = sorted(pcs); bars = sc.cells // 16; form = R['form']; vox = bool(R.get('vox'))
     bassn = sounding(sc, 6); stats = dict(snapped=0, bass=0, turns=0, harm=0, fills=0, crashes=0, approach=0, spark=0)
     # 1a. off-key notes onto the key (a chord tone of the bass note under them is allowed too)
     for v in (0, 1, 2, 3, 7, 8):
-        for c in range(sc.cells):
+        for c in range(sc.cells if not rm else 0):
             n, ln = sc.v[v][c]
             if not n: continue
             b = bassn[c]; chord = [(b + x) % 12 for x in (0, 3, 4, 7, 10)] if b else []
             if n % 12 in pcs or n % 12 in chord: continue
             m = snap(n, pcs, chord); 
             if m != n: sc.v[v][c] = (m, ln); stats['snapped'] += 1
-    fix_clash(sc, pcs, stats)
+    if not rm: fix_clash(sc, pcs, stats)
     # identify repeats (against the score as it was)
     keys = []
     for b in range(bars):
@@ -81,7 +82,22 @@ def upgrade(sc, R, kt, mt):
     for b in range(2, bars - 1):
         if form in ('jingle', 'sting', 'ambient'): break
         k = rep[b]; c0 = b * 16
-        if k >= 1:
+        if k >= 1 and rm:
+            # REMIX additions to the band (the notes of the MIDI are left alone): a third below the lead on the harmony voice, and a rising sparkle on the offbeats of the last bar of a phrase
+            if b % 4 in (1, 3):
+                for c in range(c0, c0 + 16):
+                    n, ln = sc.v[0][c]
+                    if n and ln >= 2 and not any(sc.v[3][x][0] or sc.v[3][x][1] for x in range(c, min(sc.cells, c + ln))):
+                        h = step(n, -2, pcs)
+                        if 24 <= h <= 83: sc.v[3][c] = (h, ln); stats['harm'] += 1
+            if k >= 2 and b % 4 == 3:
+                r = next((sc.v[6][c0 + q][0] for q in range(16) if sc.v[6][c0 + q][0]), 0)
+                if r:
+                    t = r + 24
+                    while t > 83: t -= 12
+                    for j, q in enumerate((1, 5, 9, 13)):
+                        if sc.v[8][c0 + q] == (0, 0): set_note(sc, 8, c0 + q, snap(t + (0, 4, 7, 12)[j], pcs), 2); stats['spark'] += 1
+        if k >= 1 and not rm:
             # neighbour-note turn on the last cell of every lead note of 4 cells or more
             for c in range(c0, c0 + 16):
                 n, ln = sc.v[0][c]
@@ -123,6 +139,9 @@ def upgrade(sc, R, kt, mt):
                     while t > 83: t -= 12
                     for j, q in enumerate((1, 5, 9, 13)):
                         if sc.v[8][c0 + q] == (0, 0): set_note(sc, 8, c0 + q, snap(t + (0, 4, 7, 12)[j], pcs), 2); stats['spark'] += 1
+        if rm and b % 8 == 0 and b > 0 and sum(1 for q in range(16) if sc.v[9][c0 + q][0]) >= 3:      # a riser into every eighth bar and an impact (with a crash) on it, where the cymbal stream is free
+            if sc.v[10][c0 - 12] == (0, 0): sc.v[10][c0 - 12] = (7, 1)
+            if sc.v[10][c0] == (0, 0): sc.v[10][c0] = (8 if b % 16 == 0 else 3, 1); stats['crashes'] += 1
         # drums: a fill at the end of each phrase, a crash on the first bar of a repeated eight
         drums = sum(1 for q in range(16) if sc.v[9][c0 + q][0])
         if drums >= 3 and b % 4 == 3 and sum(1 for q in range(12, 16) if sc.v[9][c0 + q][0]) < 2:
@@ -131,7 +150,7 @@ def upgrade(sc, R, kt, mt):
             stats['fills'] += 1
         if (not vox) and b % 8 == 0 and k >= 1 and drums >= 3 and sc.v[10][c0] == (0, 0): sc.v[10][c0] = (3, 1); stats['crashes'] += 1
     # 4. a breath: the harmony and the arpeggio rest for the last bar of every sixteen, so the next section comes back in bigger
-    if form in ('epic', 'suite', 'song') and not vox:
+    if form in ('epic', 'suite', 'song') and not vox and not rm:
         for b in range(15, bars - 4, 16):
             for v in (3, 7):
                 c0 = b * 16; s = start_of(sc, v, c0)
@@ -148,7 +167,7 @@ def upgrade(sc, R, kt, mt):
             n0, l0 = sc.v[v][s]
             if n0 or l0: sc.v[v][s] = (n0, c0 - s)
         for c in range(c0, min(sc.cells, c1)): sc.v[v][c] = (0, 0)
-    if form in ('epic', 'suite', 'song') and bars >= 32:
+    if form in ('epic', 'suite', 'song') and bars >= 32 and not rm:
         for v in (2, 3, 8): clear(v, 0, 8 * 16)
         for v in (1, 2, 3, 8): clear(v, (bars - 4) * 16, sc.cells)
         stats['arc'] = stats.get('arc', 0) + 1
@@ -162,7 +181,7 @@ def upgrade(sc, R, kt, mt):
     for b in range(bars):
         c0 = b * 16; key = tuple(sc.v[0][c0 + q] for q in range(16)) + tuple(sc.v[6][c0 + q] for q in range(16))
         if not any(x[0] for x in key): continue
-        if key in seen2 and b >= 2 and form not in ('jingle', 'sting', 'ambient'):
+        if key in seen2 and b >= 2 and form not in ('jingle', 'sting', 'ambient') and not rm:
             n6, l6 = sc.v[6][c0]
             if n6:
                 alt = n6 + 12 if n6 < 48 else n6 - 12
@@ -175,7 +194,7 @@ def upgrade(sc, R, kt, mt):
                     if 24 <= nn <= 83: sc.v[0][cl] = (nn, ll); stats['turns'] += 1
                 key = tuple(sc.v[0][c0 + q] for q in range(16)) + tuple(sc.v[6][c0 + q] for q in range(16))
         seen2.add(key)
-    fix_clash(sc, pcs, stats)
+    if not rm: fix_clash(sc, pcs, stats)
     g._UPSTATS = getattr(g, '_UPSTATS', {})
     for k_, v_ in stats.items(): g._UPSTATS[k_] = g._UPSTATS.get(k_, 0) + v_
     return sc

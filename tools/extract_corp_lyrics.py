@@ -11,5 +11,5 @@ for p in T['phrases']:
     a = int(max(0, p['start_s'] - 0.04) * R); b = int(min(len(x) / R, p['end_s'] + 0.18) * R); s = x[a:b].copy()
     f = int(0.012 * R); s[:f] *= np.linspace(0, 1, f); g = int(0.12 * R); s[-g:] *= np.linspace(1, 0, g)
     wavfile.write('tools/corporations/lyrics/corp_%02d.wav' % p['i'], R, (s / max(1e-9, np.abs(s).max()) * 30000).astype('<i2'))
-    ev.append({'i': p['i'], 'beat': round(p['beat'] - 0.04 * T['bpm'] / 60, 4), 'dur': round(len(s) / R, 3), 'vol': p['vol_q8']})      # (the 40 ms of lead-in moves the start a little earlier)
+    ev.append({'i': p['i'], 'beat': round((p['start_s'] - 0.04 - 0.152) * 131.005 / 60, 4), 'dur': round(len(s) / R, 3), 'vol': p['vol_q8']})      # (beat 0 of the MIDI grid is at 0.152 s of the recording, tools/corporations/notes.json; the 40 ms of lead-in moves the start a little earlier)
 json.dump({'bpm': T['bpm'], 'events': ev}, open('tools/corporations/lyric_events.json', 'w'), indent=0); print(len(ev), 'phrases,', round(sum(e['dur'] for e in ev), 1), 's')
