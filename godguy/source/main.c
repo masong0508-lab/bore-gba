@@ -506,7 +506,8 @@ static void kdName(int k,char*o){ langKing(kd[k].nlang,kd[k].n1,kd[k].n2,o); }
 #include "ggwar.h"      // (10c: war groups: one record for an army, counted from its soldiers)
 static void kdRuler(int k,char*o){ strcpy(o,lwords[kd[k].lang%5][8]); strcat(o," "); char p[24]; langPerson(kd[k].lang,kd[k].rn1,kd[k].rn2,p); strcat(o,p); strcat(o," "); strcat(o,rnB[kd[k].rn2%8]); }
 static void kdFaith(int k,char*o){ static const u8 dn[4]={7,6,0,14}; strcpy(o,lwords[kd[k].lang%5][13]); strcat(o,"-"); strcat(o,lwords[kd[k].lang%5][dn[kd[k].rlg&3]]); }   /* the faith's local name: the tongue's word for god and for its dogma */
-static void kdStatsRaw(int k,int*cities,int*pop,int*power){ int c=0,p=0,w=0; for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==k+1){ c++; p+=vil[v].pop; w+=vil[v].pop+vil[v].towers*3+vil[v].houses; } w+=kd[k].tech*4; if(kd[k].ctr>>3&1) w=w*5/4; w=w*(100+10*kdKnow(k,2))/100; if(kd[k].rlg==0) w=w*11/10; if(cities) *cities=c; if(pop) *pop=p; if(power) *power=w; }
+static int kdRStat(int k,int w){ const Kd*K=&kd[k]; int v=1+(int)(hsh(K->rn1*16+K->rn2+1,w+1,0x52554C45)%10)+(K->reign>=120?3:K->reign>=80?2:K->reign>=40?1:0); return v>10?10:v; }   // the ruler's four stats (1..10), worked out from the name seed and the years of rule, so nothing is saved and a new ruler changes them: 0 STEWARDSHIP, 1 WARFARE, 2 DIPLOMACY, 3 INTELLIGENCE
+static void kdStatsRaw(int k,int*cities,int*pop,int*power){ int c=0,p=0,w=0; for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==k+1){ c++; p+=vil[v].pop; w+=vil[v].pop+vil[v].towers*3+vil[v].houses; } w+=kd[k].tech*4; if(kd[k].ctr>>3&1) w=w*5/4; w=w*(100+10*kdKnow(k,2))/100; w=w*(100+3*(kdRStat(k,1)-5))/100; if(kd[k].rlg==0) w=w*11/10; if(cities) *cities=c; if(pop) *pop=p; if(power) *power=w; }
 static int kdDistRaw(int a,int b){ int best=9999; for(int u=0;u<VIL_N;u++) if(vil[u].on&&vilK[u]==a+1) for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==b+1){ int dx=vil[u].x-vil[v].x, dy=vil[u].y-vil[v].y; int d=dx*dx+dy*dy; if(d<best) best=d; } int r=0; while(r*r<best&&r<200) r++; return r; }
 static int kdFound(int v){
     KD_DIRTY();
@@ -523,7 +524,7 @@ static const char* const knBr[6]={"GOVERNANCE","ZONE CONTROL","WARFARE","ECONOMY
 static const char* const knN[6][3]={{"TRIBAL LAW","KINGS COURT","ROYAL CHARTER"},{"BOUNDARY STONES","BORDER FORTS","GRAND SURVEY"},{"DRILLED LEVIES","STEEL ARMS","SIEGECRAFT"},{"BARTER","COINAGE","BANKING"},{"MASONRY","ARCHES","CATHEDRALS"},{"WRITING","SCHOLARS","UNIVERSITIES"}};
 static const char* const dogN[4]={"CRUSADERS: +10% POWER","PEACEKEEPERS: BETTER TALKS","BUILDERS: RICHER CITIES","MYSTICS: ODD GIFTS"};
 static int kdKnow(int k,int b){ int n=0; for(int i=0;i<3;i++) n+=(kd[k].know>>(b*3+i))&1; return n; }
-static int kdMaxCities(int k){ return 3+kdKnow(k,0)+(kd[k].tech>=6); }   // governance: each level allows one more city
+static int kdMaxCities(int k){ return 3+kdKnow(k,0)+(kd[k].tech>=6)+kdRStat(k,0)/6; }   // governance: each level allows one more city
 static int kdZonesRaw(int k){ int z=0; for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==k+1) z+=3+vil[v].lvl*3+vil[v].houses/3+kdKnow(k,1)*3; return z; }
 // The kingdom answer cache: kdStats (cities, people, power), kdDist (the nearest two cities of two kingdoms) and kdZones each walk every village (kdDist, every pair of villages), and the
 // kingdom turn, the pause menu's kingdom page and the browser ask them over and over for the same answers. An answer is kept until KD_DIRTY() says a village or a kingdom changed (or the tick moves on).
@@ -567,12 +568,12 @@ static void kingdomTick(void){
         if(K->rlg==3&&nCr&&(rnd()%100)<4){ for(int t=0;t<24;t++){ int i=(int)(rnd()%nCr); Cr*c2=&cr[i]; if(c2->alive&&sp[c2->sp].a==K->race&&c2->tr2==0){ giveTrait(c2,1+(int)(rnd()%(TR_N-1)),0); break; } } }
         if(((K->ctr>>5&1)||K->rlg==0)&&(rnd()%100)<5){ for(int o=0;o<KN_N;o++) if(o!=k&&kd[o].on&&kd[o].rlg!=K->rlg&&kd[o].rel[k]>-30&&kdDist(k,o)<40){ kd[o].rlg=K->rlg; char y[24], f[24], s2[72]; kdName(o,y); kdFaith(k,f); siprintf(s2,"%s ADOPTS FAITH %s",y,f); logEv(s2); break; } }
         if(++K->reign>90+(rnd()%70)){ K->reign=0; K->rn1=(u8)(rnd()%12); K->rn2=(u8)(rnd()%8); if(!aggressive(K->race)) K->rtr=(u8)(rnd()%4); else if(rnd()&1) K->rtr=(u8)(rnd()%4); }
-        if(K->reign==0){ int old=K->clan; if(rnd()%10>=7) K->clan=(u8)(rnd()%8); if(K->clan!=old){ char y[24], s2[72]; kdName(k,y); siprintf(s2,"HOUSE %s TAKES %s",clanN[K->clan],y); logEv(s2); } }
+        if(K->reign==0){ kdEp++; { char y1[24], r1[40], s1[80]; kdName(k,y1); kdRuler(k,r1); siprintf(s1,"%.22s CROWNS %.30s",y1,r1); logEv(s1); } int old=K->clan; if(rnd()%10>=7) K->clan=(u8)(rnd()%8); if(K->clan!=old){ char y[24], s2[72]; kdName(k,y); siprintf(s2,"HOUSE %s TAKES %s",clanN[K->clan],y); logEv(s2); } }
         if(__builtin_popcount(K->ctr)<4&&(rnd()%100)<3){ int t=(int)(rnd()%6); if(!(K->ctr>>t&1)){ K->ctr|=(u8)(1<<t); char y[24], s2[72]; kdName(k,y); siprintf(s2,"%s TURNS %s",y,ctrN[t]); logEv(s2); } }
         if(K->lord&&kd[K->lord-1].on&&(rnd()%100)<8){ Kd*L=&kd[K->lord-1]; int w2=(int)(rnd()%3); if(w2==0) K->cul=L->cul; else if(w2==1) K->rlg=L->rlg; else K->lang=L->lang; }   /* a vassal slowly takes on its lord's ways */
         if(K->gold>1500){ K->gold-=600; for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==k+1) vil[v].stock=(u16)(vil[v].stock+40>400?400:vil[v].stock+40); }
         if(K->gold>400){ K->gold-=150; for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==k+1&&vil[v].stock<350){ vil[v].stock+=50; break; } }
-        int tcost=(70+K->tech*60)*((K->ctr>>1&1)?8:10)/10*(worldAge()==3?7:10)/10*(100-10*kdKnow(k,5))/100; { int lb=0; for(int v2=0;v2<VIL_N;v2++) if(vil[v2].on&&vilK[v2]==k+1&&(vilBf[v2]&4)) lb++; if(lb>6) lb=6; tcost=tcost*(100-5*lb)/100; } if(K->tech<9&&K->gold>=(u16)tcost){ K->gold-=(u16)tcost; K->tech++; char y[24], s[72]; kdName(k,y); siprintf(s,"%s LEARNS %s",y,techN[K->tech]); logEv(s); }
+        int tcost=(70+K->tech*60)*((K->ctr>>1&1)?8:10)/10*(worldAge()==3?7:10)/10*(100-10*kdKnow(k,5))/100; { int lb=0; for(int v2=0;v2<VIL_N;v2++) if(vil[v2].on&&vilK[v2]==k+1&&(vilBf[v2]&4)) lb++; if(lb>6) lb=6; tcost=tcost*(100-5*lb)/100; } tcost=tcost*(100-2*(kdRStat(k,3)-5))/100; if(K->tech<9&&K->gold>=(u16)tcost){ K->gold-=(u16)tcost; K->tech++; char y[24], s[72]; kdName(k,y); siprintf(s,"%s LEARNS %s",y,techN[K->tech]); logEv(s); }
         int emp=c>=5||(0); for(int o=0;o<KN_N;o++) if(kd[o].on&&kd[o].lord==k+1) emp+=0; { int vs=0; for(int o=0;o<KN_N;o++) vs+=kd[o].on&&kd[o].lord==k+1; if(vs>=2) emp=1; }
         if(emp&&!K->empire){ K->empire=1; char y[24], s[72]; kdName(k,y); siprintf(s,"%s BECOMES AN EMPIRE",y); logEv(s); } else if(!emp) K->empire=0;
         if(K->lord){ int l=K->lord-1; if(!kd[l].on) K->lord=0; else { int tr=K->gold/8; K->gold-=(u16)tr; kd[l].gold=(u16)(kd[l].gold+tr>60000?60000:kd[l].gold+tr); int c2,p2,w2; kdStats(l,&c2,&p2,&w2); if(w2*2<w||(rnd()%300)==0){ K->lord=0; char y[24], z[24], s[72]; kdName(k,y); kdName(l,z); kdWar(k,l,1); K->rel[l]=kd[l].rel[k]=-70; siprintf(s,"%s REVOLTS AGAINST %s",y,z); logEv(s); } } } }
@@ -580,7 +581,7 @@ static void kingdomTick(void){
     // opinions (each kingdom's view of every other: distance, species, culture, alliance, size, ruler tempers), then plots: war, peace and alliance
     for(int a=0;a<KN_N;a++) if(kd[a].on){ if(kd[a].truce) kd[a].truce--; for(int b=0;b<KN_N;b++) if(b!=a&&kd[b].on){
             int d=kdDist(a,b), op=0; if(d<16) op-=15; else if(d>45) op+=10;
-            op+=kd[a].race==kd[b].race?15:-10; op+=kd[a].cul==kd[b].cul?15:-15; op+=kd[a].rlg==kd[b].rlg?15:-15; op+=kd[a].lang==kd[b].lang?8:-8; op+=kd[a].clan==kd[b].clan?10:-12; if((kd[a].ctr&1)&&(kd[a].cul!=kd[b].cul||kd[a].race!=kd[b].race)) op-=12; if(worldAge()==4) op+=10; if(kd[a].rlg==1) op+=5; if(kd[a].allies>>b&1) op+=30; if(kd[a].war>>b&1) op-=500; if(kd[a].truce) op+=20; if(kd[a].lord==b+1||kd[b].lord==a+1) op+=15;
+            op+=kd[a].race==kd[b].race?15:-10; op+=kd[a].cul==kd[b].cul?15:-15; op+=kd[a].rlg==kd[b].rlg?15:-15; op+=kd[a].lang==kd[b].lang?8:-8; op+=kd[a].clan==kd[b].clan?10:-12; if((kd[a].ctr&1)&&(kd[a].cul!=kd[b].cul||kd[a].race!=kd[b].race)) op-=12; if(worldAge()==4) op+=10; if(kd[a].rlg==1) op+=5; op+=kdRStat(a,2)-5; if(kd[a].allies>>b&1) op+=30; if(kd[a].war>>b&1) op-=500; if(kd[a].truce) op+=20; if(kd[a].lord==b+1||kd[b].lord==a+1) op+=15;
             { int za=kdZones(a), zb=kdZones(b); if(zb>za){ int t=(zb-za)/5; op-=t>20?20:t; } int ca,pa,wa,cb,pb,wb; kdStats(a,&ca,&pa,&wa); kdStats(b,&cb,&pb,&wb); if(wb>wa){ int t=(wb-wa)/30; op-=t>15?15:t; } }
             if(kd[a].rtr==0&&kd[b].rtr!=0) op-=10; else if(kd[a].rtr==1&&kd[b].rtr==0) op-=10; else if(kd[a].rtr==kd[b].rtr) op+=5;
             op+=worldAge()==2?(int)(rnd()%17)-8:(int)(rnd()%5)-2; if(op>100) op=100; if(op<-100) op=-100; kd[a].rel[b]=(s8)op; } }
@@ -604,7 +605,7 @@ static void kingdomTick(void){
         if(kd[k].war&&!V->foe&&gx.vDef[v]!=1){ int best=-1, bd=80*80; for(int u=0;u<VIL_N;u++) if(vil[u].on&&vilK[u]&&u!=v&&(kd[k].war>>(vilK[u]-1)&1)){ int dx=vil[u].x-V->x, dy=vil[u].y-V->y, dd=dx*dx+dy*dy; if(dd<bd){ bd=dd; best=u; } } if(best>=0) V->foe=(u8)(best+1); }
         { int c,p,w; kdStats(k,&c,&p,&w); int cap=kd[k].cap?kd[k].cap-1:-1;
           if(cap<0||!vil[cap].on||vilK[cap]!=k+1){ int bp=-1; kd[k].cap=0; for(int u=0;u<VIL_N;u++) if(vil[u].on&&vilK[u]==k+1&&vil[u].pop>=bp){ bp=vil[u].pop; kd[k].cap=(u8)(u+1); } cap=kd[k].cap-1; }
-          if(v==cap) vilL[v]=100; else { int tg=50; int over=c-kdMaxCities(k); if(over>0) tg-=over*25; if(cap>=0){ int dx=vil[cap].x-V->x, dy=vil[cap].y-V->y, dd=dx*dx+dy*dy; int r=0; while(r*r<dd&&r<100) r++; tg+=r<20?10:-(r/10); } if(V->stock>40) tg+=5; if(V->stock<8) tg-=10; if(kd[k].ctr>>5&1) tg+=10; if(worldAge()==0) tg+=5; if(worldAge()==1) tg-=5; if(worldAge()==2) tg-=8;
+          if(v==cap) vilL[v]=100; else { int tg=50+(kdRStat(k,0)-5)*2; int over=c-kdMaxCities(k); if(over>0) tg-=over*25; if(cap>=0){ int dx=vil[cap].x-V->x, dy=vil[cap].y-V->y, dd=dx*dx+dy*dy; int r=0; while(r*r<dd&&r<100) r++; tg+=r<20?10:-(r/10); } if(V->stock>40) tg+=5; if(V->stock<8) tg-=10; if(kd[k].ctr>>5&1) tg+=10; if(worldAge()==0) tg+=5; if(worldAge()==1) tg-=5; if(worldAge()==2) tg-=8;
             if(vilL[v]<tg) vilL[v]++; else if(vilL[v]>tg) vilL[v]--; if(vilL[v]<-100) vilL[v]=-100;
             if(LAWON(LW_REBEL)&&vilL[v]<0&&(c>6||c>kdMaxCities(k))&&year-(int)kd[k].born>=15&&V->pop>=10&&(rnd()%10)==0){ int nk=-1; for(int i=0;i<KN_N;i++) if(!kd[i].on){ nk=i; break; } if(nk>=0){ int cul=kd[k].cul; vilK[v]=0; int n2=kdFound(v); if(n2>=0){ kd[n2].cul=(u8)cul; kd[n2].rlg=kd[k].rlg; kd[n2].lang=kd[k].lang; kd[n2].race=vil[v].race; kdWar(n2,k,1); char n[24], x[24], s[72]; vilName(v,n); kdName(k,x); siprintf(s,"%s REBELS AGAINST %s",n,x); logEv(s); } } } } } }
     // sieges: the stronger side of a war can take the nearest enemy city outright; big cities send out colonies
@@ -1601,9 +1602,10 @@ static void uiKing(void){
         uiText(70,y,kd[k].empire?"EMPIRE":kd[k].lord?"VASSAL":"KINGDOM",kd[k].empire?U_GOLD:U_DIM,1); siprintf(b,"%dC %dP W%d",c,p,w); uiTextR(246,y,b,kd[k].war?U_RED:U_WHITE); }
     int k=ids[kingSel], c,p,w; kdStats(k,&c,&p,&w); char nm[24], rn[40]; kdName(k,nm); kdRuler(k,rn); int y0=16+m*11+4;
     uiFrame(4,y0,248,177-y0,U_PANELHI,40+k,U_BLO);
-    char L[9][64]; int col[9], pri[9], nl=0; char cp[24]="NONE"; if(kd[k].cap) vilName(kd[k].cap-1,cp);
+    char L[10][64]; int col[10], pri[10], nl=0; char cp[24]="NONE"; if(kd[k].cap) vilName(kd[k].cap-1,cp);
     siprintf(L[nl],"%s %s",kd[k].empire?"EMPEROR":"RULER",rn); col[nl]=U_WHITE; pri[nl++]=0;
     siprintf(L[nl],"CITIES %d/%d  CAPITAL %s",c,kdMaxCities(k),cp); col[nl]=c>kdMaxCities(k)?U_ORANGE:U_WHITE; pri[nl++]=1;
+    siprintf(L[nl],"STEW %d  WAR %d  DIP %d  INT %d",kdRStat(k,0),kdRStat(k,1),kdRStat(k,2),kdRStat(k,3)); col[nl]=U_LGREY; pri[nl++]=1;
     { char s2[64]="WAR: "; int any=0; for(int o=0;o<KN_N;o++) if(kd[k].war>>o&1){ char z[24]; kdName(o,z); if(strlen(s2)<30){ strcat(s2,z); strcat(s2," "); any=1; } } if(!any) strcpy(s2,kd[k].plot?"PLOTTING WAR":"AT PEACE"); strcpy(L[nl],s2); col[nl]=any?U_RED:kd[k].plot?U_ORANGE:U_GREEN; pri[nl++]=2; }
     { char s2[64]="ALLIES: "; int any=0; for(int o=0;o<KN_N;o++) if(kd[k].allies>>o&1){ char z[24]; kdName(o,z); if(strlen(s2)<26){ strcat(s2,z); strcat(s2," "); any=1; } } if(kd[k].lord){ char z[24]; kdName(kd[k].lord-1,z); siprintf(s2,"VASSAL OF %s",z); any=1; } if(!any) strcpy(s2,"NO ALLIES"); strcpy(L[nl],s2); col[nl]=U_CYAN; pri[nl++]=3; }
     siprintf(L[nl],"%s  %s  %s",arch[kd[k].race].nm,culN[kd[k].cul],rlgN[kd[k].rlg]); col[nl]=U_DIM; pri[nl++]=4;
@@ -1611,7 +1613,7 @@ static void uiKing(void){
     siprintf(L[nl],"TECH %d %s  %s",kd[k].tech,techN[kd[k].tech],langN[kd[k].lang]); col[nl]=U_DIM; pri[nl++]=5;
     { char t2[48]=""; for(int q=0;q<6;q++) if(kd[k].ctr>>q&1){ if(strlen(t2)+strlen(ctrN[q])<34){ strcat(t2,ctrN[q]); strcat(t2," "); } } if(t2[0]){ strcpy(L[nl],t2); col[nl]=U_PURPLE; pri[nl++]=7; } }
     siprintf(L[nl],"GOLD %d  POWER %d",kd[k].gold,w); col[nl]=U_GOLD; pri[nl++]=8;
-    { int fit=(177-y0-5)/10; int show[9]; for(int i=0;i<nl;i++) show[i]=1; int cnt=nl; while(cnt>fit&&cnt>1){ int bi=-1; for(int i=0;i<nl;i++) if(show[i]&&(bi<0||pri[i]>pri[bi])) bi=i; show[bi]=0; cnt--; }
+    { int fit=(177-y0-5)/10; int show[10]; for(int i=0;i<nl;i++) show[i]=1; int cnt=nl; while(cnt>fit&&cnt>1){ int bi=-1; for(int i=0;i<nl;i++) if(show[i]&&(bi<0||pri[i]>pri[bi])) bi=i; show[bi]=0; cnt--; }
       int y=y0+4; for(int i=0;i<nl;i++) if(show[i]){ uiText(10,y,L[i],col[i],1); y+=10; } }
     uiFlush(); }
 static int langSel;

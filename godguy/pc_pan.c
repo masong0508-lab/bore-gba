@@ -26,4 +26,4 @@ void shimInput(int frame,int*held,int*tx,int*ty){ *held=0;
         CHECK(zcx1!=zcx0,"zoomed view centre moved too (%d -> %d)",zcx0,zcx1);
         printf(fails?"FAILED\n":"PASSED\n"); exit(fails?1:0); } }
 void shimPresent(void){}
-int main(int argc,char**argv){ char d[]="/tmp/gg_pan"; mkdir(d,0777); if(chdir(d)) return 1; return ds_main(); }
+int main(int argc,char**argv){ char d[]="/tmp/gg_pan_run"; mkdir(d,0777); if(chdir(d)) return 1; return ds_main(); }

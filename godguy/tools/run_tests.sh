@@ -16,6 +16,8 @@ gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_ds_run
 gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_zoom_run pc_zoom.c -lm && rm -rf /tmp/gg_zoom && /tmp/gg_zoom_run /tmp/gg_zoom | tail -1   # zoom: six levels, L+R / X+Y, stylus mapped back to tiles
 gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_bio_run pc_bio.c -lm && /tmp/gg_bio_run | tail -1   # biomes and atmosphere: painting, spreading, air powers, save and load
 gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_fix pc_fix.c -lm && for t in "menu" "chap 1" "chap 2" "chap 4" "music 0" "music 1"; do /tmp/gg_fix $t | tail -1; done   # the pause menu does not flicker, chapters move on (paused, 2x, 4x), songs end
+# Pack A1, ruler stats: derived from the name seed, 1..10, feed the city cap / power / loyalty, a coronation is journalled
+gcc $F -w -o /tmp/gg_rulers pc_rulers.c -lm && /tmp/gg_rulers | tail -1
 # B + stylus drag pans the map (normal and zoomed view), nothing is painted while B is held
 gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_pan pc_pan.c -lm && /tmp/gg_pan | tail -1
 # big planets (384 .. 1024), the 100,000 creature cap, the village cap, zoom on a squeezed planet, save and load, and saves crossing between builds (DS-sized <-> big)
