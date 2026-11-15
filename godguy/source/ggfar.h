@@ -69,8 +69,8 @@ static void farTick(void){
 static void farStride(int i,int period){      // a far soldier's visit: the steps it would have taken since the last one
     if(i>=wgNc) return; int h=wgOf[i]; if(!h) return; h--; if(wgSt[h]!=1) return; Cr*c=&cr[i]; if(!c->alive||c->hp<=8) return; int k=period/effSpd(c); if(k>FAR_STRIDE) k=FAR_STRIDE;
     const Vil*F=&vil[wg[h].tgt-1]; const Sp*s=&sp[c->sp]; for(int q=0;q<k;q++){ int dx=F->x-c->x, dy=F->y-c->y; if(dx*dx+dy*dy<=4) break; if(!stepToward(c,i,s,F->x,F->y)) break; } }
-static int winIdx[1024];
+static int winIdx[1024], winM;
 static void windowThink(void){      // tier A: whoever is in the camera window thinks at their own pace, every tick
-    int x0=(camX>>3)-1, y0=(camY>>3)-1, m=0; for(int y=y0<0?0:y0;y<y0+27&&y<WH;y++) for(int x=x0<0?0:x0;x<x0+35&&x<WW;x++){ int j=occ[y][x]-1; if(j>=0&&m<1024) winIdx[m++]=j; }
+    int x0=(camX>>3)-1, y0=(camY>>3)-1, m=0; for(int y=y0<0?0:y0;y<y0+27&&y<WH;y++) for(int x=x0<0?0:x0;x<x0+35&&x<WW;x++){ int j=occ[y][x]-1; if(j>=0&&m<1024) winIdx[m++]=j; } winM=m;
     for(int q=0;q<m;q++){ Cr*c=&cr[winIdx[q]]; if(c->alive&&++c->t>=effSpd(c)){ c->t=0; think(winIdx[q]); } } }
 #endif

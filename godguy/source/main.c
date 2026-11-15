@@ -113,6 +113,10 @@ static const char* const shpN[SHAPE_N-SHAPE_OLD][8]={
  /*47 goo*/ {"........","..bbb...",".bbbbb..","bbebbeb.","bbbbbbb.","dbbbbbd.",".dddddd.","........"},
  /*48 ghost*/ {"..bbbb..",".bbbbbb.",".bebbeb.",".bbbbbb.",".bbbbbb.",".bbbbbb.",".b.bb.b.","........"},
  /*49 snowman*/ {"..bbb...","..beb...","...b....","..bbbb..",".bbbbbb.",".bbbbbb.","..bbbb..","........"},
+ /*50 crab*/ {"........","b.....b.","bb.bb.bb",".bbbbbb.","bbebbebb",".bbbbbb.","b.b..b.b","........"},
+ /*51 penguin*/ {"..ddd...","..deb...","..dddd..",".dbbbd..",".dbbbd..",".dbbbd..","..aa.aa.","........"},
+ /*52 frog*/ {"........","b.b..b.b","bbbbbbbb","bebbbbeb",".bbbbbb.",".bbbbbb.","bb.bb.bb","........"},
+ /*53 bee*/ {"........","..b.b...",".bbbbb.b","bdbdbbbb","bbbbbbb.",".bdbd...","........","........"},
 };
 static const char* shpRow(int s,int f,int y){   // row y of frame f of shape s (the walking frame of the new shapes flips their lower three rows)
     if(s<SHAPE_OLD) return shp[s][f][y]; static char flip[9]; const char*r=shpN[s-SHAPE_OLD][y]; if(!f||y<5||s>=SHAPE_OLD+19) return r; for(int i=0;i<8;i++) flip[i]=r[7-i]; flip[8]=0; return flip; }
@@ -131,6 +135,9 @@ static const Arch arch[ARCH_N]={
  {"LIZARD",7,2,M_LAND,14,8,2,50,32},{"SPIDER",12,1,M_CLIMB,12,8,4,40,40},{"BEETLE",4,0,M_LAND,20,5,1,30,60},{"TURTLE",15,2,M_LAND|M_WATER,34,40,1,200,8},
  {"FISH",2,3,M_WATER,8,5,0,40,50},{"SHARK",2,1,M_WATER,8,40,10,60,10},{"WHALE",13,3,M_WATER,18,120,6,150,5},{"BLOB",6,2,M_LAND|M_WATER,24,20,2,60,40},
  {"DRAGON",11,1,M_ALL,10,120,22,200,3},{"DRAKE",11,1,M_ALL&~(1<<T_LAVA),12,70,14,140,5},{"MOUSE",10,0,M_LAND,8,4,0,30,70},{"BADGER",21,2,M_LAND,18,26,7,60,14},
+ {"RHINO",21,0,M_LAND,24,80,10,100,8},{"BUFFALO",23,0,M_LAND,22,60,7,90,14},{"HYENA",20,1,M_LAND,10,24,7,60,20},{"ALPACA",22,0,M_CLIMB,22,18,1,70,20},
+ {"CAPYBARA",21,0,M_LAND|M_WATER,26,22,0,70,22},{"PENGUIN",51,2,M_LAND|M_WATER,18,10,2,60,24},{"MONKEY",8,2,M_CLIMB,10,14,3,60,26},{"CRAB",50,2,M_LAND|M_WATER,20,8,4,50,40},
+ {"CROCODILE",7,1,M_LAND|M_WATER,20,60,12,120,8},{"FROG",52,2,M_LAND|M_WATER,12,5,1,40,50},{"BEE",53,0,M_ALL&~(1<<T_LAVA),4,3,2,25,60},{"RACCOON",20,2,M_LAND,14,14,3,60,24},
  // ---- the monsters (diet 5): they hunt every living thing, and burn the houses of the peoples. tier = the age of the world they first come in (monTier[])
  {"IMP",31,5,M_ALL&~(1<<T_LAVA),8,14,4,120,0},{"GHOUL",5,5,M_LAND,14,28,6,150,0},{"SKELETON",16,5,M_LAND,14,24,7,200,0},{"OOZE",6,5,M_LAND|M_WATER,24,30,4,200,0},
  {"WEREWOLF",32,5,M_LAND,10,40,11,160,0},{"ZOMBIE",5,5,M_LAND,22,60,7,220,0},{"WRAITH",17,5,M_ALL,10,30,10,180,0},{"GIANT SPIDER",12,5,M_CLIMB,10,36,9,170,0},{"SCORPION",37,5,M_LAND,12,30,10,170,0},
@@ -661,7 +668,7 @@ static int achOK(int i){ int c=0,p=0,w=0,king=0,emp=0,vas=0,tech=0,l3=0,nv=0; fo
         case 36: { for(int j=0;j<nCr;j++) if(cr[j].alive&&((cr[j].wep&&itRar(cr[j].wep-1)==3)||(cr[j].arm&&itRar(cr[j].arm-1)==3))) return 1; return 0; }
         case 37: { for(int j=0;j<nCr;j++) if(cr[j].alive&&(crFl[j]&FL_SLAYER)) return 1; return 0; } case 38: return hzCount(5)>=1; case 39: return denCount>0; case 40: return monoN>0; case 41: return (achX[2]&8)!=0; case 42: return (achX[2]&16)!=0;
         case 43: return stAllies>=10; case 44: return year>=100; default: { for(int k=0;k<KN_N;k++) if(kd[k].on&&kd[k].reign>=120) return 1; return 0; } } }
-static void achCheck(void){ for(int i=0;i<ACH_N;i++) if(!ACH_HAS(i)&&achOK(i)){ ACH_SET(i); char b[40]; siprintf(b,"ACHIEVED: %s",ach[i].nm); logEv(b); fxReq(FX_UNLOCK); } }
+static void achCheck(void){ for(int i=0;i<ACH_N;i++) if(!ACH_HAS(i)&&((i!=29&&i!=31&&i!=36&&i!=37)||(tick&255)==33)&&achOK(i)){ ACH_SET(i); char b[40]; siprintf(b,"ACHIEVED: %s",ach[i].nm); logEv(b); fxReq(FX_UNLOCK); } }
 static int stepToward(Cr*c,int i,const Sp*s,int tx,int ty){   // one step towards a tile along the longer axis, then the other
     int dx=tx-c->x, dy=ty-c->y; int sx=dx>0?1:dx<0?-1:0, sy=dy>0?1:dy<0?-1:0; int ax=dx<0?-dx:dx, ay=dy<0?-dy:dy; int first=ax>=ay;
     for(int k=0;k<2;k++){ int mx=((k==0)==first)?sx:0, my=((k==0)==first)?0:sy; if(!mx&&!my) continue; int nx=c->x+mx, ny=c->y+my; if(stepOk(s,&nx,&ny)){ moveTo(c,i,nx,ny); return 1; } }
@@ -845,7 +852,7 @@ static void simulate(void){
     if(!gx.lBio) biomeTick();
     boatTick();
     if((tick&63)==17) atmoTick();
-    { static int gcx=-1, gcy=-1; int x0=(camX>>3)-1, y0=(camY>>3)-1; if(x0!=gcx||y0!=gcy||(tick&63)==0){ gcx=x0; gcy=y0; glideOn=1; }      // glide into the tile: only the creatures near the screen (a crowd of thousands is not walked through every tick), and only while something is gliding
+    { static int gcx=-1, gcy=-1; int x0=(camX>>3)-1, y0=(camY>>3)-1; int camMoved=(x0!=gcx||y0!=gcy); int fullScan=camMoved||(tick&63)==0; if(fullScan){ gcx=x0; gcy=y0; glideOn=1; }      // glide into the tile: only the creatures near the screen (a crowd of thousands is not walked through every tick), and only while something is gliding
       if(glideOn){ int rem=0; for(int y=y0<0?0:y0;y<y0+27&&y<WH;y++) for(int x=x0<0?0:x0;x<x0+35&&x<WW;x++){ int j=occ[y][x]-1; if(j<0) continue; Cr*c=&cr[j]; if(c->ox) c->ox+= c->ox<0?1:-1; if(c->oy) c->oy+= c->oy<0?1:-1; if(c->ox||c->oy) rem=1; } glideOn=rem; } }
     int n=nCr; if(n==0) return; int per=n>96?96+(n>2400?(n-2400)/300:0):n;     // everyone takes a turn in rotation; a bigger crowd gets a few more turns a tick
 #ifdef GG_FULLTURNS
