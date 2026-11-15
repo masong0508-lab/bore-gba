@@ -4,15 +4,15 @@
 // What is saved: the plague is one byte in each creature (Cr.sick: 0 healthy, 1 plagued, 2 recovered and immune), which rides along in the creature list.
 // The roaming disasters are a small table (hz) that goes to the save file in a second trailer ("GGH1") after the GGX1 one, so an old build never reads it and an old save has none.
 #define HZ_N 6
-enum { HZ_NONE, HZ_TORNADO, HZ_HOLE, HZ_FIRE, HZ_GOO, HZ_GHOST };   // (the last three are Pack C, wild.h)
+enum { HZ_NONE, HZ_TORNADO, HZ_HOLE, HZ_FIRE, HZ_GOO, HZ_GHOST, HZ_SNOWMAN };   // (the last three are Pack C, wild.h)
 typedef struct { u8 kind, r, t, pad; u16 x, y; s8 dx, dy; u16 life, age; } Hz;   // a roaming disaster: what, where, which way it drifts, its size, a step timer, steps left, steps lived
 static Hz hz[HZ_N];
 static const s8 hzDx[8]={1,1,0,-1,-1,-1,0,1}, hzDy[8]={0,1,1,1,0,-1,-1,-1};
 static int hzAdd(int kind,int x,int y){
     for(int i=0;i<HZ_N;i++) if(hz[i].kind==HZ_NONE){ Hz*h=&hz[i]; memset(h,0,sizeof *h); int d=(int)(rnd()%8);
-        h->kind=(u8)kind; h->x=(u16)x; h->y=(u16)y; h->dx=hzDx[d]; h->dy=hzDy[d]; h->r=1; h->life=(u16)(kind==HZ_TORNADO?220:kind==HZ_FIRE?300:kind==HZ_GOO?500:kind==HZ_GHOST?500:110); if(kind==HZ_GOO) h->r=2; return i; }
+        h->kind=(u8)kind; h->x=(u16)x; h->y=(u16)y; h->dx=hzDx[d]; h->dy=hzDy[d]; h->r=1; h->life=(u16)(kind==HZ_TORNADO?220:kind==HZ_FIRE?300:kind==HZ_GOO?500:kind==HZ_GHOST?500:kind==HZ_SNOWMAN?900:110); if(kind==HZ_GOO){ h->r=2; achX[2]|=8; } if(kind==HZ_FIRE) achX[2]|=16; return i; }
     return -1; }
-static void fireStep(Hz*h); static void gooStep(Hz*h); static void ghostStep(Hz*h); static void wildTick(void);
+static void fireStep(Hz*h); static void gooStep(Hz*h); static void ghostStep(Hz*h); static void wildTick(void); static void snowStep(Hz*h);
 static int hzCount(int kind){ int n=0; for(int i=0;i<HZ_N;i++) n+=hz[i].kind==kind; return n; }
 // ---------------------------------------------------------------- helpers
 static int hzFree(int x,int y,const Sp*s){ return x>=0&&y>=0&&x<WW&&y<WH&&!occ[y][x]&&!bld[y][x]&&walkable(s,x,y); }
@@ -82,7 +82,7 @@ static void calamityNatural(void){
     else if(k==7){ if(hzAdd(HZ_GOO,x,y)>=0){ logEv("GREY GOO SPREADS"); fxReq(FX_SMITE); } }
     else if(gx.lPlague!=1){ for(int tries=0;tries<60;tries++){ int i=(int)(rnd()%(unsigned)(nCr?nCr:1)); if(i<nCr&&cr[i].alive&&arch[sp[cr[i].sp].a].diet!=5&&infect(i)){ logEv("A PLAGUE BREAKS OUT"); fxReq(FX_MONSTER_SEEN); break; } } } }
 static void calamityTick(void){
-    for(int i=0;i<HZ_N;i++){ Hz*h=&hz[i]; if(!h->kind) continue; if(++h->t<(h->kind==HZ_TORNADO?4:h->kind==HZ_GHOST?8:h->kind==HZ_GOO?10:6)) continue; h->t=0;
-        if(h->kind==HZ_TORNADO) tornadoStep(h); else if(h->kind==HZ_HOLE) holeStep(h); else if(h->kind==HZ_FIRE) fireStep(h); else if(h->kind==HZ_GOO) gooStep(h); else ghostStep(h);
+    for(int i=0;i<HZ_N;i++){ Hz*h=&hz[i]; if(!h->kind) continue; if(++h->t<(h->kind==HZ_TORNADO?4:h->kind==HZ_GHOST?8:h->kind==HZ_GOO?10:h->kind==HZ_SNOWMAN?30:6)) continue; h->t=0;
+        if(h->kind==HZ_TORNADO) tornadoStep(h); else if(h->kind==HZ_HOLE) holeStep(h); else if(h->kind==HZ_FIRE) fireStep(h); else if(h->kind==HZ_GOO) gooStep(h); else if(h->kind==HZ_SNOWMAN) snowStep(h); else ghostStep(h);
         if(h->life>0) h->life--; if(!h->life){ if(h->kind==HZ_TORNADO) siprintf(info,"THE TORNADO DIES OUT"); else if(h->kind>=HZ_FIRE){} else { siprintf(info,"THE BLACK HOLE COLLAPSES"); flashT=6; } h->kind=HZ_NONE; } }
     plagueTick(); zombiesRise(); calamityNatural(); wildTick(); }

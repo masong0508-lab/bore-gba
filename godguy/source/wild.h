@@ -25,19 +25,21 @@ static void ghostStep(Hz*h){
     for(int dy=-6;dy<=6;dy++) for(int dx=-6;dx<=6;dx++){ int x=h->x+dx, y=h->y+dy; if(x<0||y<0||x>=WW||y>=WH) continue; if(bld[y][x]==B_TEMPLE){ h->life=0; return; } } }
 static int ghostFor(int i){       // a notable with kills or children dies: a ghost where it fell (if the table has room)
     if(!(crFl[i]&FL_NOTE)) return 0; int k=nbFind(crId[i]); if(k<0||(nb[k].kills<5&&nb[k].kids<2)) return 0; if(hzAdd(HZ_GHOST,cr[i].x,cr[i].y)<0) return 0; return 1; }
+// ---- snowmen: harmless, they stand on snow while it snows and melt when it stops or the ground is no longer snow
+static void snowStep(Hz*h){ h->age++; if(world[h->y][h->x]!=T_SNOW||(weather!=3&&rnd()%12==0)) h->life=0; }
+static void snowmenTick(void){ if(weather!=3||(tick&255)!=0||hzCount(HZ_SNOWMAN)>=2) return; for(int k=0;k<30;k++){ int x=(int)(rnd()%WW), y=(int)(rnd()%WH); if(world[y][x]==T_SNOW&&!occ[y][x]&&!bld[y][x]){ hzAdd(HZ_SNOWMAN,x,y); break; } } }
 // ---- the crab bomb and Crabzilla
 static int crabT;
 static void crabBomb(int x,int y){ for(int dy=-6;dy<=6;dy++) for(int dx=-6;dx<=6;dx++){ if(dx*dx+dy*dy>36) continue; int xx=x+dx, yy=y+dy; if(xx<0||yy<0||xx>=WW||yy>=WH||!occ[yy][xx]) continue; Cr*c=&cr[occ[yy][xx]-1]; if(arch[sp[c->sp].a].diet==5) continue; if(!HAS(c,TR_GIGGLY)&&c->tr2==0) giveTrait(c,TR_GIGGLY,0); c->food=200; }
     for(int v=0;v<VIL_N;v++) if(vil[v].on){ int dx=vil[v].x-x, dy=vil[v].y-y; if(dx*dx+dy*dy<=64) vil[v].stock=(u16)(vil[v].stock>80?vil[v].stock-80:0); }      // the party eats the stores
-    flashT=6; fxReq(FX_BIRTH); logEv("A CRAB BOMB: EVERYONE RAVES"); }
+    flashT=6; fxReq(FX_BIRTH); logEv("A CRAB BOMB: EVERYONE RAVES"); achX[2]|=2; }
 static void crabStomp(int x,int y){ if(tick<crabT){ siprintf(info,"CRABZILLA IS RESTING"); return; } crabT=tick+120;
     for(int dy=-3;dy<=3;dy++) for(int dx=-3;dx<=3;dx++){ if(dx*dx+dy*dy>10) continue; int xx=x+dx, yy=y+dy; if(xx<0||yy<0||xx>=WW||yy>=WH) continue; if(bld[yy][xx]) stormRaze(xx,yy,200); if(occ[yy][xx]){ int i=occ[yy][xx]-1; if(maxHp(&cr[i])<30) killCr(i); else hzHurt(i,20); } }
-    flashT=4; fxReq(FX_SMITE); siprintf(info,"CRABZILLA STOMPS"); }
+    flashT=4; fxReq(FX_SMITE); siprintf(info,"CRABZILLA STOMPS"); achX[2]|=4; }
 // ---- sapient animals (UPLIFT, EVOLUTION) and their dens
 static int isAnimal(const Cr*c){ int d=arch[sp[c->sp].a].diet; return d<4; }
 static int sapientCount(void){ int n=0; for(int i=0;i<nCr;i++) n+=cr[i].alive&&(crFl[i]&FL_SAPIENT); return n; }
 static int uplift(int i){ if(!cr[i].alive||!isAnimal(&cr[i])||(crFl[i]&FL_SAPIENT)) return 0; crFl[i]|=FL_SAPIENT; if(sapientCount()==1){ char nm[48], b[56]; crName(&cr[i],nm); siprintf(b,"%.24s IS THE FIRST UPLIFTED ANIMAL",nm); logEv(b); } return 1; }
-static int denCount;
 static void denTick(void){      // every so often a sapient animal with three sapient friends near builds a den (a hut) and sapient animals near a den never starve
     if((tick&127)!=0||!LAWON(LW_EVOLUTION)&&sapientCount()==0) return; denCount=0;
     for(int i=0;i<nCr;i++){ Cr*c=&cr[i]; if(!c->alive||!(crFl[i]&FL_SAPIENT)) continue; int near=0, den=0;
@@ -53,5 +55,12 @@ static void banditTick(void){
     for(int i=0;i<nCr;i++){ Cr*c=&cr[i]; if(!c->alive||!(crFl[i]&FL_DESERT)) continue;
         for(int u=0;u<VIL_N;u++){ Vil*V=&vil[u]; if(!V->on) continue; int dx=c->x-V->x, dy=c->y-V->y; if(dx*dx+dy*dy<=16&&V->stock>5){ V->stock-=5; if(c->food<110) c->food+=40; } }
         for(int dy=-6;dy<=6;dy++) for(int dx=-6;dx<=6;dx++){ int x=c->x+dx, y=c->y+dy; if(x<0||y<0||x>=WW||y>=WH) continue; if(bld[y][x]==B_TOWER&&rnd()%3==0){ hzHurt(i,12); dy=7; break; } } } }
-static void wildTick(void){ denTick(); banditTick(); }
+// ---- monoliths: a standing stone (a statue marked 255) that slowly uplifts the animals around it; found again by a scan after a load
+static int monoX[8], monoY[8];
+static void monoScan(void){ monoN=0; for(int y=0;y<WH&&monoN<8;y++) for(int x=0;x<WW&&monoN<8;x++) if(bld[y][x]==B_STATUE&&bldv[y][x]==255){ monoX[monoN]=x; monoY[monoN]=y; monoN++; } }
+static void monolithTick(void){ if((tick&2047)==0) monoScan(); if(!monoN||(tick&63)!=0) return;
+    for(int m=0;m<monoN;m++) for(int dy=-6;dy<=6;dy++) for(int dx=-6;dx<=6;dx++){ int x=monoX[m]+dx, y=monoY[m]+dy; if(x<0||y<0||x>=WW||y>=WH||!occ[y][x]) continue; if(rnd()%10==0) uplift(occ[y][x]-1); } }
+// ---- drowning (law): a creature that cannot walk on water and stands in it loses health until it dies
+static void drownTick(void){ if(!LAWON(LW_DROWN)||(tick&7)!=0) return; for(int i=0;i<nCr;i++){ Cr*c=&cr[i]; if(!c->alive) continue; u8 t=world[c->y][c->x]; if((t!=T_WATER&&t!=T_DEEP)||walkable(&sp[c->sp],c->x,c->y)) continue; if(c->hp>10) c->hp-=10; else killNat(i); } }
+static void wildTick(void){ drownTick(); denTick(); banditTick(); snowmenTick(); monolithTick(); }
 #endif

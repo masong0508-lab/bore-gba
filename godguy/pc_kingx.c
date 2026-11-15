@@ -28,9 +28,9 @@ int main(void){
     int best=-1,bc=0; for(int i=0;i<KN_N;i++) if(kd[i].on&&nCity(i)>bc){ bc=nCity(i); best=i; }
     printf("  (largest kingdom has %d cities, %d kingdoms)\n",bc,nKd());
     { int fr=0; for(int i=0;i<KN_N&&fr<4;i++) if(kd[i].on&&i!=best){ kdDie(i); fr++; } for(int u=0;u<VIL_N;u++) if(vil[u].on&&vilK[u]&&!kd[vilK[u]-1].on) vilK[u]=0; }
-    if(bc>=2){ int k2=best, kb=nKd(), cb=nCity(k2); int fr=KN_N-kb; kdSplit(k2,1); int ka=nKd();
+    if(bc>=2){ int k2=best, kb=nKd(), cb=nCity(k2); int fr=KN_N-kb; int was[KN_N]; for(int i=0;i<KN_N;i++) was[i]=kd[i].on; kdSplit(k2,1); int ka=nKd();
         CHECK(ka==kb+1,"EQUAL HEIRS with room makes exactly one new kingdom (%d -> %d)",kb,ka);
-        { int cn=0; for(int i=0;i<KN_N;i++) if(kd[i].on&&i!=k2&&kd[i].truce) cn+=nCity(i); CHECK(cn>=1&&cn<=cb/2+1,"the heir gets about half the far cities (%d of %d)",cn,cb); }
+        { int cn=0; for(int i=0;i<KN_N;i++) if(kd[i].on&&!was[i]) cn+=nCity(i); CHECK(cn>=1&&cn<=cb/2+1,"the heir gets about half the far cities (%d of %d)",cn,cb); }
         kdSplit(k2,0); CHECK(nKd()>=ka&&nKd()<=KN_N,"SHATTERED CROWN adds kingdoms only as far as slots allow (%d now)",nKd());
         int cap=kd[k2].cap-1; CHECK(cap>=0&&vilK[cap]==k2+1,"the capital stays with the kingdom");
         int tot=0; for(int i=0;i<KN_N;i++) if(kd[i].on) tot+=nCity(i); int all=0; for(int u=0;u<VIL_N;u++) all+=vil[u].on&&vilK[u]; CHECK(tot==all,"every city belongs to exactly one live kingdom"); (void)fr;(void)cb; }
