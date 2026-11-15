@@ -122,9 +122,14 @@ def midi_track_build(R, Sc, V, A):
         if b % 16 == 15: vox(sc, V['DB'], c + 12, VOXT['YEHA'])
         if b % 32 == 31: vox(sc, V['DB'], c + 14, VOXT['WIN'])
     if R.get('lyrics'):
-        import gm_vox as gv; cell_s = 60.0 / bpm / 4; k0 = len(gv.CHOPS) - len(gv.LYR_PAD)
+        import gm_vox as gv; cell_s = 60.0 / bpm / 4; k0 = gv.LYR0
         durs = [int(math.ceil(len(gv.CHOPS[k0 + j][1]) / gv.CRATE[k0 + j] / cell_s)) + 2 for j in range(len(gv.LYR_PAD))]
         duck_lyrics(sc, V, k0, len(gv.CHOPS), gv.LYR_PAD, durs, 16 + len(gv.CHOPS))
+    if R.get('corp_lyrics'):
+        import gm_vox as gv
+        for k, e in enumerate(gv.CLYR):      # CORPORATIONS' own voice, each phrase on the sixteenth the song sang it (the 40 ms of lead-in and the sub-cell offset are inside the chop)
+            cell = int(round(e['beat'] * 4))
+            if 0 <= cell < sc.cells: sc.v[V['DB']][cell] = (16 + gv.CLYR0 + k, 1)
     return sc, 0, bpm, kt, mt
 # ---------------------------------------------------------------------------------------------------- the familiar set
 # source song -> (drums, bass, mood, arp, unlock)
@@ -175,7 +180,7 @@ def duck_lyrics(sc, V, kit_lyr0, kit_n, lyr_pads, lyr_beats_cells, voxe0):
         over = any((k != i) and (evs[k][0] < c + dur and c < evs[k][0] + evs[k][2]) for k in range(len(evs)))      # (two phrases sounding together get no echo copies: the player has two voice channels for them)
         if over and any(evs[k][0] < c and evs[k][0] + evs[k][2] > c + 4 and evs[k][1] != j and any(evs[m][0] < evs[k][0] + evs[k][2] and evs[m][0] > evs[k][0] and m != k for m in range(len(evs)) if m != i) for k in range(len(evs)) if k != i): continue
         sc.v[V['DB']][c] = (16 + kit_lyr0 + j, 1)
-        if not over and dur >= 3: sc.v[V['DB']][c + 1] = (voxe0 + 2 * j + (i & 1), 1)
+        if not over and dur >= 3: sc.v[V['DB']][c + 1] = ((16 + kit_lyr0 + j) | 0x80, 1)
         keep = max(4, dur - 8) if dur > 12 else dur
         for cc in range(c + 2, min(sc.cells, c + 2 + keep)):
             sc.v[V['DB']][cc] = (0, 0)      # (nothing else on the cymbal / voice channels while it sings)

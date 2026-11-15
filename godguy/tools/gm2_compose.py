@@ -371,7 +371,7 @@ assert len(TRACKS) == 82, len(TRACKS)
 # ---- the two newest songs, read from their MIDI files and given voices (gm4_compose.py)
 _ROOT = os.path.join(HERE, '..', '..', 'tools')
 TRACKS.append(dict(id='corporations', name='CORPORATIONS', use='jukebox: a full song', midi=os.path.join(_ROOT, 'corporations', 'corporations_grid.mid'),
-                   roles={0: ('BASS', 4, 40), 1: ('ARP', 2, 52), 2: ('pad', 8, 46), 3: ('LEAD', 3, 0)}, mood='dance', form='boss', maxbars=210, echo=True, ownvox=(24, 14), inst={6: 1, 7: 4}, gain=1.5))
+                   roles={0: ('BASS', 4, 40), 1: ('ARP', 2, 52), 2: ('pad', 8, 46), 3: ('LEAD', 3, 0)}, mood='dance', form='boss', maxbars=210, echo=True, ownvox=(24, 14), corp_lyrics=True, inst={6: 1, 7: 4}, gain=1.5))
 TRACKS.append(dict(id='duckcover', name='DUCK & COVER', use='jukebox: a full song', midi=os.path.join(_ROOT, 'duckcover', 'duck_cover_dnb.mid'),
                    roles={1: ('BASS', 3, 38), 2: ('LEAD', 3, 0), 3: ('SPARK', 4, 0)}, mood='dark', form='boss', echo=True, bpm=88, lyrics=True, inst={6: 1}, gain=1.4))
 REMIX_START = len(TRACKS)

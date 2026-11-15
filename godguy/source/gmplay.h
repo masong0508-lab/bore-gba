@@ -13,6 +13,8 @@
 #include "gmkit.h"
 #ifdef GG_HQVOX
 #include "gmvox_hq.h"      // the 3DS: the lyrics at 16 kHz (tools/gm_vox.py with GM_HQ=1)
+#elif defined(GG_DSI16)
+#include "gmvox_full.h"    // DSi mode: every phrase of CORPORATIONS, in the ARM9 program (GM_FULL=1)
 #else
 #include "gmvox.h"
 #endif        // the vocal chop kit: drum-B stream ids GM_VOX0 and up play a chop instead of a cymbal
@@ -20,7 +22,7 @@
 #define GMV 10                      // voice 9 is a Haas double of the lead (one frame late, a hair sharp, on the other side): it widens the lead
 static int gmCur=-1, gmAcc, gmRow, gmMaster=100, gmPaused, gmTick;
 static int gmLyrT;      // frames the lyric phrase sounding now has left: the melody voices make room for it
-static int gmCrowd, gmCrowdS, gmSwF, gmSwN, gmSwUp;   // the size of the battle (0..400, set by the game) and how far the war music has opened up to it; the riser or fall of the swoop now sounding
+static int gmCrowd, gmCrowdS;   // the size of the battle (0..400, set by the game) and how far the war music has opened up to it
 static int gmInT, gmInN;                       // a song that follows another one fades in: frames left, frames in all
 static int (*gmNextHook)(int);                 // asked when a song reaches its end: which song follows it (-1 = none: the music fades to silence and stops). Set by the game; without one every song just ends
 static int gmPos[11], gmRem[11], gmNote[11], gmAge[11], gmRel[11], gmAlt[11];
@@ -59,14 +61,21 @@ static int gmFadeMul(void){ const GmSong*S=&gmSongs[gmCur]; int fs=gmFadeStart(S
     if(fs&&gmRow>=fs){ int r=S->rows-fs; if(r<=0||gmRow>=S->rows) return 0; m=256*(S->rows-gmRow)/r; m=m*m>>8; }
     if(gmInT>0){ int a=256-256*gmInT/gmInN; m=m*(a*a>>8)>>8; }
     return m; }
+static int gmNoClyr;      // (a test switch: CORPORATIONS' own voice is left out)
+static int gmLyrSlot=2, gmLyrDuck=45, gmEchoSide;      // the cymbal channel the lyric sounds on; how far the melody voices step back for it (percent); which side the next echo copy goes to
 static void gmDrum(int part,int id){
     int soft=(id>>7)&1; id&=127; if(!id) return; int vol, pan, idx, slot; if(gmCur==GM_WAR&&part==1&&gmCrowdS<120) return; int wm=gmCur==GM_WAR?(gmCrowdS>300?78:100):100;      // (a small fight keeps to the war drums alone: the cymbals and chops join as the crowd grows)
+    int lyr=0, echo=0;
     if(part==0){ static const u8 dv[8]={0,120,105,95,100,100,100,80}, dp[8]={0,64,64,70,38,62,88,76}; if(id>7) return; idx=id-1; vol=dv[id]; pan=dp[id]; slot=(gmSlotA^=1); }
-    else if(id>=GM_VOXE0){ int e=id-GM_VOXE0; idx=GM_VOX_LYR0+(e>>1); if(idx>=GM_VOX_N) return; vol=gmVoxVol[idx]*62/100; pan=(e&1)?100:28; slot=2+(gmSlotB^=1); part=2; }      // the stereo echo copy of a lyric phrase: the same voice a moment later, quieter, far to one side
-    else if(id>=GM_VOX0){ idx=id-GM_VOX0; if(idx>=GM_VOX_N) return; gmAlt[10]^=1; vol=gmVoxVol[idx]; pan=gmVoxPan[idx]; slot=2+(gmSlotB^=1); part=2; }      // a vocal chop: it takes a cymbal channel for as long as it sounds
-    else { static const u8 dv[7]={0,72,72,84,72,56,52}; if(id>6) return; idx=id-1; vol=dv[id]; gmAlt[10]^=1;      // (hats, open hats, crash, ride, shaker, soft hats: lifted a little, the top octaves were only 1% of the sound)
-        pan=id==3?34:id==4?100:id==2?92:(gmAlt[10]?46:82); slot=2+(gmSlotB^=1); }
-    if(soft) vol=vol*55/100; int lyr=part==2&&idx>=GM_VOX_LYR0&&idx<GM_VOX_LYR0+GM_VOX_LYRN; if(lyr&&!(id>=GM_VOXE0)){ int f=gmVoxLen[idx]*60/gmVoxRate[idx]; if(f>gmLyrT) gmLyrT=f; }
+    else if(id>=GM_VOX0){ idx=id-GM_VOX0; if(idx>=GM_VOX_N||!gmVoxLen[idx]) return; gmAlt[10]^=1; vol=gmVoxVol[idx]; pan=gmVoxPan[idx]; part=2;      // a vocal chop: it takes a cymbal channel for as long as it sounds
+        if(idx>=GM_VOX_LYR0&&idx<GM_VOX_LYR0+GM_VOX_LYRN){ lyr=1; if(soft){ echo=1; soft=0; vol=vol*62/100; pan=(gmEchoSide^=1)?100:28; } }     // (a Duck & Cover lyric with the soft bit is its stereo echo copy: quieter, far to one side)
+        else if(idx>=GM_VOX_CLYR0&&idx<GM_VOX_CLYR0+GM_VOX_CLYRN) lyr=2;
+        if(lyr&&!echo){ int f=gmVoxLen[idx]*60/gmVoxRate[idx]; if(f>gmLyrT){ gmLyrT=f; gmLyrDuck=lyr==1?45:22; } }
+        slot=2+(gmSlotB^=1); if(lyr&&!echo) gmLyrSlot=slot; else if(!lyr&&gmLyrT>0&&slot==gmLyrSlot) slot=5-slot; }
+    else { static const u8 dv[9]={0,72,72,84,72,56,52,112,127}; if(id>8) return; idx=id-1; vol=dv[id]; gmAlt[10]^=1;      // (hats, open hats, crash, ride, shaker, soft hats: lifted a little, the top octaves were only 1% of the sound)
+        pan=id>=7?64:id==3?34:id==4?100:id==2?92:(gmAlt[10]?46:82); slot=2+(gmSlotB^=1); if(gmLyrT>0&&slot==gmLyrSlot) slot=5-slot; }      // (a hat or a crash never takes the channel a lyric is sounding on)
+    if(lyr==2&&gmNoClyr) return;
+    if(soft) vol=vol*55/100;
     vol=vol*wm/100*gmMaster/100*(lyr?92:40)/100; vol=vol*gmFadeMul()>>8;
     gb_hit(slot,part,idx,vol,pan);
 }
@@ -93,28 +102,21 @@ static void gmVoiceFrame(int v,const GmSong*S){
     int pan=S->pan[v];
     if(v==0) pan+=gmSin[(gmTick>>4)&31]*10>>7; else if(v==4) pan+=gmSin[(gmTick>>5)&31]*8>>7; else if(v==5) pan-=gmSin[(gmTick>>5)&31]*8>>7;
     else if(v==7) pan=gmAlt[v]?26:102; else if(v==8) pan=gmAlt[v]?104:24; else if(v==2) pan=gmAlt[v]?24:104;
-    int vol=S->vol[v]*lev/100*gmMaster/100*56/100; vol=vol*gmFadeMul()>>8; if(gmLyrT>0&&(v<=3||v==7||v==8)) vol=vol*(100-45*(gmLyrT>12?12:gmLyrT)/12)/100; if(gmCur==GM_WAR){ vol=vol*gmWarMix(v)/100; vol=vol*(92+gmCrowdS/40)/100; }
+    int vol=S->vol[v]*lev/100*gmMaster/100*56/100; vol=vol*gmFadeMul()>>8; if(gmLyrT>0&&(v<=3||v==7||v==8)) vol=vol*(100-gmLyrDuck*(gmLyrT>12?12:gmLyrT)/12)/100; if(gmCur==GM_WAR){ vol=vol*gmWarMix(v)/100; vol=vol*(92+gmCrowdS/40)/100; }
     if(pan<0) pan=0; if(pan>127) pan=127;
     gb_vset(v,rate,vol,pan);
     if(v==0){ ldRate=rate; ldVol=vol; ldPan=pan; }
 }
-// ORCHESTRA AND SWOOPS for the battle music, put on top at run time by the size of the crowd: timpani on the beats, crashes at the bar lines, tom fills before them, and sweeps of noise and pitch
-// (a riser into a big downbeat, a fall away after it) on the effect voices. Only when no sound effect is using them.
-static void gmSwStart(int frames,int up){ if(fxCur>=0) return; gmSwF=gmSwN=frames; gmSwUp=up; }
-static void gmSwoop(void){
-    if(gmSwF<=0) return; if(fxCur>=0||gmCur!=GM_WAR){ gmSwF=0; gb_pnoff(); gb_poff(); return; }
-    int t=gmSwN-gmSwF, p=gmSwUp?t*100/gmSwN:100-t*100/gmSwN;      // 0..100 along the sweep, rising or falling
-    int pk=gmSwUp?p:100-t*100/gmSwN, amp=gmSwUp?(p*p/100):(100-p);   // a riser swells to its end; a fall starts loud and dies away
-    gb_pnoise(1000+(8+p*40/100)*170,amp*(gmCrowdS>300?46:34)/100*gmMaster/100);
-    gb_ptone((36+p*48/100)*8,amp*(gmCrowdS>300?34:24)/100*gmMaster/100,2); (void)pk;
-    if(--gmSwF<=0){ gb_pnoff(); gb_poff(); } }
+// ORCHESTRA FOR THE BATTLE MUSIC, put on top at run time by the size of the crowd: timpani on the beats, crashes and a deep impact at the bar lines, tom fills before them, and a RISER
+// (a reversed-cymbal swell with a low swell under it, sampled: gm_kit.py) into every big downbeat.
 static void gmWarExtras(void){
     int c=gmCrowdS, r=gmRow&63, b=r&15; if(c<100) return;
-    if(r==0&&c>=200){ gmDrum(1,3); gmDrum(0,4); if(c>=300) gmSwStart(70,0); }                                  // a crash and a drum under it on the big downbeat, and the fall away
+    if(r==0&&c>=200){ gmDrum(1,8); gmDrum(0,4); gmDrum(1,3); }                                                 // the impact, a drum and a crash under it on the big downbeat
     else if(b==0||b==8) gmDrum(0,4);                                                                           // timpani on beats 1 and 3
     if(c>=200&&r>=60) gmDrum(0,4+(r-60));                                                                      // a tom fill going up into the next bar of four
-    if(c>=200&&r==48) gmSwStart(118,1);                                                                        // the riser through the last bar of four
-    if(c>=300&&r==16) gmSwStart(60,1); if(c>=300&&r==32) gmDrum(1,3);
+    if(c>=200&&r==53) gmDrum(1,7);                                                                             // the riser through the last bar of four (it is 1.3 s long)
+    if(c>=300&&r==21) gmDrum(1,7);
+    if(c>=300&&r==32) gmDrum(1,8);
 }
 static void gmFrame(void){
     gmTick++;
@@ -133,7 +135,6 @@ static void gmFrame(void){
             if(gmCur==GM_WAR) gmWarExtras();
             gmRow++; }
         if(gmCur==GM_WAR){ if(gmCrowdS<gmCrowd) gmCrowdS+=2; else if(gmCrowdS>gmCrowd) gmCrowdS--; } else gmCrowdS=0;
-        gmSwoop();
         if(gmInT>0) gmInT--;
         if(gmCur>=0){ const GmSong*S=&gmSongs[gmCur]; gmVoiceFrame(9,S); for(int v=0;v<9;v++) gmVoiceFrame(v,S); } }
     // the sound effect channel

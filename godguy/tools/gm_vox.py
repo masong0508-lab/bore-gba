@@ -164,13 +164,14 @@ def song_pieces(folder, tag):
 song_pieces(os.path.join(HERE, '..', '..', 'tools', 'voices_corp'), 'CORP')
 # ---- DUCK & COVER's lyrics: the ten vocal pads of the Koala project, each stretched (pitch kept) to a whole number of half beats of the new 88 bpm tempo, wrapped in a plate-like tail made of dense
 # echoes, at 5.5 kHz. The song plays each one where the project played it (tools/duckcover/lyric_events.json); a second copy follows on the other side (see gmplay.h: the stereo echo).
+FULL = bool(os.environ.get('GM_FULL'))      # GM_FULL=1: source/gmvox_full.h, the DSi-mode set: DS rates, ALL of CORPORATIONS' voice, the packed data an ordinary array in the ARM9 program (16 MB of RAM)
 HQ = bool(os.environ.get('GM_HQ'))      # GM_HQ=1: the 3DS set (source/gmvox_hq.h): the lyrics at 16 kHz instead of 5.5 (the 3DS has the room and a mixer that interpolates)
 LYR_PAD = []; LYR_RATE = 16000 if HQ else 5500; LYR_LP = 6500 if HQ else 2700; PLATE_LP = 5500 if HQ else 2400; NEWBPM = 88.0
-def plate(x, rate):
+def plate(x, rate, wet=1.0):
     y = np.concatenate([x, np.zeros(int(0.7 * rate))]); out = y.copy()
     for d, a in ((0.019, 0.42), (0.031, 0.36), (0.047, 0.31), (0.071, 0.27), (0.103, 0.22), (0.151, 0.18), (0.233, 0.14), (0.347, 0.1), (0.5, 0.07)):
-        n = int(d * rate); out[n:] += y[:len(y) - n] * a
-    return sosfilt(butter(2, PLATE_LP, 'lp', fs=rate, output='sos'), out)
+        n = int(d * rate); out[n:] += y[:len(y) - n] * a * wet
+    return sosfilt(butter(2, min(PLATE_LP, 0.45 * rate), 'lp', fs=rate, output='sos'), out)
 def lyric_chops():
     import glob
     for f in sorted(glob.glob(os.path.join(HERE, '..', '..', 'tools', 'duckcover', 'lyrics', 'pad_*.wav'))):
@@ -180,6 +181,30 @@ def lyric_chops():
         g = gcd(LYR_RATE, sr); x = resample_poly(x, LYR_RATE // g, sr // g); x = plate(x, LYR_RATE)
         LYR_PAD.append(pad); add('LYRIC PAD %d' % pad, x, 112, 64, 99.0, LYR_RATE)
 lyric_chops()
+# ---- CORPORATIONS' own voice, accurately: the 56 sung phrases of the song (tools/corporations/lyrics, cut from the isolated vocal stem by tools/extract_corp_lyrics.py) sounded where the song sang them,
+# at the song's own tempo (131 bpm, the MIDI's grid: no stretching), on the song's own pitch (only the whole voice nudged to A = 440 when the stem is a few cents off), with a light plate tail.
+# The remix feel comes from the manipulated chops of the same voice (CORP 00..13), the stereo placement and the ducking of the band under the line.
+CLYR_RATE = 12000 if HQ else 4500; CLYR_LP = 5200 if HQ else 1900; CLYR = []
+def corp_lyric_chops():
+    import json
+    ev = json.load(open(os.path.join(HERE, '..', '..', 'tools', 'corporations', 'lyric_events.json'))); cell_s = 60.0 / ev['bpm'] / 4; srcs = []
+    for e in ev['events']:
+        w = wave.open(os.path.join(HERE, '..', '..', 'tools', 'corporations', 'lyrics', 'corp_%02d.wav' % e['i'])); srcs.append((e, np.frombuffer(w.readframes(w.getnframes()), dtype='<i2').astype(np.float64) / 32768.0, w.getframerate()))
+    offs = []                                      # the voice against the 12-tone grid: a circular mean of the cents of every voiced frame
+    for e, x, sr in srcs:
+        m = f0_track(x, sr); m = m[~np.isnan(m)]; offs += list((m - np.round(m)))
+    th = 2 * np.pi * np.array(offs); cents = float(np.angle(np.mean(np.exp(1j * th))) / (2 * np.pi) * 100) if offs else 0.0
+    global CORP_CENTS; CORP_CENTS = cents; fix = 2 ** (-cents / 1200.0) if abs(cents) > 8 else 1.0
+    for e, x, sr in srcs:
+        x = sosfilt(butter(4, min(CLYR_LP, 0.45 * sr), 'lp', fs=sr, output='sos'), x)
+        cell = int(round(e['beat'] * 4)); frac = e['beat'] * 4 - cell      # the sixteenth it is placed on, and how far past it the phrase really starts (cells)
+        sh = int(round(abs(frac) * cell_s * sr)); x = np.concatenate([np.zeros(sh), x]) if frac > 0 else x[sh:]
+        if fix != 1.0: x = resamp(x, 1.0 / fix)
+        g_ = gcd(CLYR_RATE, sr); x = resample_poly(x, CLYR_RATE // g_, sr // g_); x = plate(x, CLYR_RATE, 0.55)
+        CLYR.append(e); add('CORP LYRIC %02d' % e['i'], x, 100, 46 if e['i'] % 2 == 0 else 82, 99.0, CLYR_RATE)
+corp_lyric_chops()
+LYR0 = next(i for i, c in enumerate(CHOPS) if c[0].startswith('LYRIC PAD')); CLYR0 = next(i for i, c in enumerate(CHOPS) if c[0].startswith('CORP LYRIC'))
+BLOB_MAX = 0x5B000 - 4096          # the DS: room for the packed chops between 0x02382000 and the decode buffers at 0x023DD000 (a little to spare)
 STEP = [7,8,9,10,11,12,13,14,16,17,19,21,23,25,28,31,34,37,41,45,50,55,60,66,73,80,88,97,107,118,130,143,157,173,190,209,230,253,279,307,337,371,408,449,494,544,598,658,724,796,876,963,1060,1166,1282,1411,1552,1707,1878,2066,2272,2499,2749,3024,3327,3660,4026,4428,4871,5358,5894,6484,7132,7845,8630,9493,10442,11487,12635,13899,15289,16818,18500,20350,22385,24623,27086,29794,32767]
 IDX = [-1, -1, -1, -1, 2, 4, 6, 8]
 def ima_encode(x16):      # 4-bit IMA ADPCM, two samples to a byte (low nibble first); the same coder the game's songs use
@@ -201,19 +226,30 @@ def write_header(path):
     L = ['#ifndef GMVOX_H', '#define GMVOX_H', '// gmvox.h - GENERATED by godguy/tools/gm_vox.py: the vocal chop kit, 4-bit IMA ADPCM, cut from the GBA game\'s voice clips, from the CORPORATIONS vocal stem and from the Duck & Cover Koala project, pushed hard. Do not edit.',
          '// A chop is unpacked into a RAM buffer when it is struck (gmVoxLoad). On the real DS the packed data lives in the ARM7 binary (hw/arm7vox.s, loaded at 0x02390000: uncached memory the ARM9 reads) so it',
          '// does not use the ARM9\'s RAM; everywhere else it is an ordinary array.']
+    inc = [True] * len(CHOPS)
+    if not HQ and not FULL:      # the DS holds only as much of CORPORATIONS' own voice as fits (the loudest phrases first, which are the hooks); the rest play nothing there (length 0). The 3DS holds all 56.
+        size = lambda x: (len(x) + 1) // 2 + 3
+        base = sum(size(x) for i, (_, x, _, _) in enumerate(CHOPS) if i < CLYR0); room = BLOB_MAX - base - 8 * len(CHOPS)
+        order = sorted(range(len(CLYR)), key=lambda k: (-CLYR[k]['vol'], -CLYR[k]['dur'])); inc2 = [False] * len(CLYR)
+        for k in order:
+            s = size(CHOPS[CLYR0 + k][1])
+            if s <= room: inc2[k] = True; room -= s
+        for k in range(len(CLYR)): inc[CLYR0 + k] = inc2[k]
+        print('DS: %d of %d CORPORATIONS phrases (%.0f s of %.0f s) fit' % (sum(inc2), len(CLYR), sum(CLYR[k]['dur'] for k in range(len(CLYR)) if inc2[k]), sum(e['dur'] for e in CLYR)))
+    CH = [(nm, x if inc[i] else x[:0], vol, pan) for i, (nm, x, vol, pan) in enumerate(CHOPS)]
     blob = bytearray(); offs = []; tot = 0; mx = 0
-    for i, (nm, x, vol, pan) in enumerate(CHOPS):
+    for i, (nm, x, vol, pan) in enumerate(CH):
         pcm = np.clip(np.round(x * 32000), -32768, 32767).astype(int); pk = ima_encode(pcm); offs.append(len(blob)); blob += pk
         if len(blob) & 3: blob += bytes(4 - (len(blob) & 3))
         mx = max(mx, len(x))
-    open(os.path.join(os.path.dirname(path), 'gmvox_hq.bin' if HQ else 'gmvox.bin'), 'wb').write(bytes(blob))
-    L.append('#define GM_VOX_BLOB 0x02390000u'); L.append('#define GM_VOX_BLOBSIZE %d' % len(blob)); L.append('#ifdef NDSHW'); L.append('#define GM_VOX_PK(o) ((const unsigned char*)(GM_VOX_BLOB+(o)))'); L.append('#else')
+    open(os.path.join(os.path.dirname(path), 'gmvox_hq.bin' if HQ else 'gmvox_full.bin' if FULL else 'gmvox.bin'), 'wb').write(bytes(blob))
+    L.append('#define GM_VOX_BLOB 0x02382000u'); L.append('#define GM_VOX_BLOBSIZE %d' % len(blob)); L.append('#if defined(NDSHW) && %d' % (0 if FULL else 1)); L.append('#define GM_VOX_PK(o) ((const unsigned char*)(GM_VOX_BLOB+(o)))'); L.append('#else')
     L.append('static const unsigned char gmVoxBlob[%d]={%s};' % (len(blob), ','.join(map(str, blob)))); L.append('#define GM_VOX_PK(o) (gmVoxBlob+(o))'); L.append('#endif')
     L.append('static const unsigned int gmVoxOff[%d]={%s};' % (len(CHOPS), ','.join(map(str, offs))))
-    L.append('static const %s gmVoxLen[%d]={%s}; static const unsigned short gmVoxRate[%d]={%s};' % ('unsigned int' if HQ else 'unsigned short', len(CHOPS), ','.join(str(len(x)) for _, x, _, _ in CHOPS), len(CHOPS), ','.join(str(r) for r in CRATE)))
+    L.append('static const %s gmVoxLen[%d]={%s}; static const unsigned short gmVoxRate[%d]={%s};' % ('unsigned int' if HQ else 'unsigned short', len(CHOPS), ','.join(str(len(x)) for _, x, _, _ in CH), len(CHOPS), ','.join(str(r) for r in CRATE)))
     L.append('static const unsigned char gmVoxVol[%d]={%s}, gmVoxPan[%d]={%s};' % (len(CHOPS), ','.join(str(v) for _, _, v, _ in CHOPS), len(CHOPS), ','.join(str(p) for _, _, _, p in CHOPS)))
     L.append('#define GM_VOX_N %d' % len(CHOPS)); L.append('#define GM_VOX0 16      // vocal chop id in the drum-B stream = GM_VOX0 + index'); L.append('#define GM_VOX_MAX %d' % mx)
-    L.append('#define GM_VOX_LYR0 %d      // the first of the Duck & Cover lyric phrases; GM_VOXE0 + 2 * (n) + side is the stereo echo copy of lyric n' % (len(CHOPS) - len(LYR_PAD))); L.append('#define GM_VOX_LYRN %d' % len(LYR_PAD)); L.append('#define GM_VOXE0 (GM_VOX0+GM_VOX_N)')
+    L.append('#define GM_VOX_LYR0 %d      // the first of the Duck & Cover lyric phrases (a lyric id with the soft bit set is its stereo echo copy)' % LYR0); L.append('#define GM_VOX_LYRN %d' % len(LYR_PAD)); L.append('#define GM_VOX_CLYR0 %d      // the first of the CORPORATIONS phrases' % CLYR0); L.append('#define GM_VOX_CLYRN %d' % len(CLYR)); L.append('#define GM_VOXE0 (GM_VOX0+GM_VOX_N)')
     L.append('static const unsigned char gmVoxLyrPad[%d]={%s};' % (len(LYR_PAD), ','.join(map(str, LYR_PAD))))
     L.append('static const char*const gmVoxName[%d]={%s};' % (len(CHOPS), ','.join('"%s"' % n for n, _, _, _ in CHOPS)))
     if not HQ:
@@ -224,7 +260,7 @@ def write_header(path):
         L.append("    for(int i=0;i<n;i++){ int c=(p[i>>1]>>((i&1)*4))&15, step=st[si], d=step>>3; if(c&1) d+=step>>2; if(c&2) d+=step>>1; if(c&4) d+=step; pred+=(c&8)?-d:d; if(pred>32767) pred=32767; if(pred<-32768) pred=-32768; si+=ix[c&7]; if(si<0) si=0; if(si>88) si=88; o[i]=(signed char)(pred>>8); }")
         L.append("    gmVoxDr[b].d=o; gmVoxDr[b].n=n; gmVoxDr[b].rate=gmVoxRate[idx]; return &gmVoxDr[b]; }")
     if HQ:      # the 3DS: every chop is unpacked ONCE, at start-up (gmVoxWarm), into one pool: a strike then costs nothing (no decode hitch in a frame) and no two phrases can share a buffer
-        L.append('static signed char gmVoxPool[%d]; static GmDrum gmVoxDr[%d]; static int gmVoxWarmed;' % (sum(len(x) for _, x, _, _ in CHOPS), len(CHOPS)))
+        L.append('static signed char gmVoxPool[%d]; static GmDrum gmVoxDr[%d]; static int gmVoxWarmed;' % (sum(len(x) for _, x, _, _ in CH), len(CHOPS)))
         L.append("static void gmVoxWarm(void){ static const short st[89]={%s}; static const signed char ix[8]={-1,-1,-1,-1,2,4,6,8}; signed char*o=gmVoxPool; if(gmVoxWarmed) return; gmVoxWarmed=1;" % ','.join(map(str, STEP)))
         L.append("    for(int k=0;k<GM_VOX_N;k++){ int n=gmVoxLen[k], pred=0, si=0; const unsigned char*p=GM_VOX_PK(gmVoxOff[k]);")
         L.append("        for(int i=0;i<n;i++){ int c=(p[i>>1]>>((i&1)*4))&15, step=st[si], d=step>>3; if(c&1) d+=step>>2; if(c&2) d+=step>>1; if(c&4) d+=step; pred+=(c&8)?-d:d; if(pred>32767) pred=32767; if(pred<-32768) pred=-32768; si+=ix[c&7]; if(si<0) si=0; if(si>88) si=88; o[i]=(signed char)(pred>>8); }")
@@ -233,7 +269,7 @@ def write_header(path):
     L.append('#endif')
     open(path, 'w').write('\n'.join(L) + '\n'); return len(blob)
 if __name__ == '__main__':
-    tot = write_header(os.path.join(HERE, '..', 'source', 'gmvox_hq.h' if HQ else 'gmvox.h')); print('%d chops, %d bytes of packed data, max %d samples, tonal source f0 %.1f Hz' % (len(CHOPS), tot, max(len(x) for _, x, _, _ in CHOPS), f0))
+    tot = write_header(os.path.join(HERE, '..', 'source', 'gmvox_hq.h' if HQ else 'gmvox_full.h' if FULL else 'gmvox.h')); print('%d chops, %d bytes of packed data, max %d samples, tonal source f0 %.1f Hz' % (len(CHOPS), tot, max(len(x) for _, x, _, _ in CHOPS), f0))
     if len(sys.argv) > 1:
         os.makedirs(sys.argv[1], exist_ok=True)
         for nm, x, v, p in CHOPS:

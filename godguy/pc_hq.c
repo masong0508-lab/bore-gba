@@ -6,7 +6,7 @@
 #undef main
 static const char*outWav; static int track, secs; static short*audio; static long audioN, audioCap; static double carry; static double dry2, wet2;
 void shimInput(int frame,int*held,int*tx,int*ty){ (void)tx;(void)ty; *held=0;
-    if(frame==30){ gmStop(); jukeOn=1; gmPlay(track); musHold=999999; }
+    if(frame==30){ gmNoClyr=getenv("NOCLYR")!=0; gmStop(); jukeOn=1; gmPlay(track); musHold=999999; }
     if(getenv("GMCROWD")&&frame>30){ int cv=atoi(getenv("GMCROWD")); gmCrowd=cv<0?(frame-30)*400/(secs*60):cv; }
     if(frame>=30+secs*60){ FILE*w=fopen(outWav,"wb"); int dl=(int)(audioN*4); unsigned hdr[11]={0x46464952,36+dl,0x45564157,0x20746d66,16,0x00020001,SHIM_SR,SHIM_SR*4,0x00100004,0x61746164,dl}; fwrite(hdr,4,11,w); fwrite(audio,4,audioN,w); fclose(w);
         printf("%s: %d s, peak %.2f, clipped %ld, failed allocations %d\n",gmSongs[track].name,secs,shimPeak,shimClip,shimChFail); exit(0); } }

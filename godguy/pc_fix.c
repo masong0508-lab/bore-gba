@@ -69,6 +69,7 @@ void shimInput(int frame,int*held,int*tx,int*ty){
     if(!strcmp(mode,"menu")&&frame>=14){}
 }
 void shimPresent(void){
+    { static short mixb[600*2]; shimMix(mixb,546); }      // (the sound hardware plays on: finished samples free their channels)
     if(!strcmp(mode,"menu")){
         static unsigned last; static int init;
         if(!init){ last=uiFlushes; init=1; }

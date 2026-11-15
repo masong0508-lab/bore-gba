@@ -1377,8 +1377,9 @@ static void gb_vstop(int v){ if(gvId[v]>=0){ soundKill(gvId[v]); gvId[v]=-1; } }
 static void gb_vstart(int v,int wave){ gb_vstop(v); gvId[v]=soundPlaySample(gmWaveT[wave],SoundFormat_8Bit,64,gmHz64[60],0,64,true,0); gvRate[v]=gmHz64[60]; gvVol[v]=0; gvPan[v]=64; }
 static void gb_vset(int v,int rate,int vol,int pan){ int id=gvId[v]; if(id<0) return; if(rate>65535) rate=65535; if(vol<0) vol=0; if(vol>127) vol=127;
     if(rate!=gvRate[v]){ soundSetFreq(id,(u16)rate); gvRate[v]=rate; } if(vol!=gvVol[v]){ soundSetVolume(id,(u8)vol); gvVol[v]=vol; } if(pan!=gvPan[v]){ soundSetPan(id,(u8)pan); gvPan[v]=pan; } }
-static void gb_hit(int slot,int part,int idx,int vol,int pan){ if(ghId[slot]>=0) soundKill(ghId[slot]); const GmDrum*D=part==2?gmVoxLoad(idx,slot):part?&gmKitB[idx]:&gmKitA[idx]; if(vol>127) vol=127;
-    ghId[slot]=soundPlaySample(D->d,SoundFormat_8Bit,D->n,D->rate,(u8)vol,(u8)pan,false,0); }
+static int ghEnd[4];      // the music tick a hit on each slot stops sounding: a finished sample's channel number is free to be reused (by another hit, or by a note), so killing the old id once it has ended would cut a different sound short
+static void gb_hit(int slot,int part,int idx,int vol,int pan){ if(ghId[slot]>=0&&gmTick-ghEnd[slot]<0) soundKill(ghId[slot]); const GmDrum*D=part==2?gmVoxLoad(idx,slot):part?&gmKitB[idx]:&gmKitA[idx]; if(vol>127) vol=127;
+    ghId[slot]=soundPlaySample(D->d,SoundFormat_8Bit,D->n,D->rate,(u8)vol,(u8)pan,false,0); ghEnd[slot]=gmTick+(int)((unsigned)D->n*60u/(D->rate?D->rate:1))+2; }
 static int midi8Hz(int m8){ int m=m8>>3; if(m<0) m=0; if(m>126) m=126; int a=gmHz64[m], b=gmHz64[m+1]; return (a+(b-a)*(m8&7)/8)/64; }
 static void gb_ptone(int midi8,int vol,int duty){ (void)duty; if(gpId<0) return; int hz=midi8Hz(midi8); if(hz<20) hz=20; if(vol>127) vol=127; if(vol<0) vol=0; soundSetFreq(gpId,(u16)hz); soundSetVolume(gpId,(u8)vol); }   // (one reserved PSG voice, 50% pulse: the 16 channels are all spoken for)
 static void gb_poff(void){ if(gpId>=0) soundSetVolume(gpId,0); }

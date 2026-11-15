@@ -80,8 +80,27 @@ def mk_ride():
 def mk_shaker():
     hp = HP(0.8); lp = LP(0.7)
     return drum('SHAKER', 22050, 0.09, lambda t, i, n: lp(hp(nz())) * (math.sin(math.pi * min(1, t / 0.09)) ** 1.5))
+def mk_riser():      # a reversed-cymbal swell with the room opening up: noise through a band-pass (a biquad, stable at any frequency) whose centre climbs from 500 Hz to 5 kHz while it grows, and a low swell underneath
+    rate = 16000; secs = 1.3; st = [0.0, 0.0, 0.0, 0.0]; co = [0, 0, 0, 0, 0]; ph = [0.0]
+    def f(t, i, n):
+        p = t / secs
+        if i % 32 == 0:
+            fc = 500 * (10 ** p); w0 = 2 * math.pi * min(fc, 7000) / rate; al = math.sin(w0) / (2 * 1.1); a0 = 1 + al
+            co[:] = [al / a0, 0.0, -al / a0, -2 * math.cos(w0) / a0, (1 - al) / a0]
+        x = nz(); y = co[0] * x + co[2] * st[1] - co[3] * st[2] - co[4] * st[3]; st[1] = st[0]; st[0] = x; st[3] = st[2]; st[2] = y
+        ph[0] += 2 * math.pi * (50 + 60 * p) / rate
+        env = p ** 2.2 * (1 - 0.35 * max(0, (p - 0.93) / 0.07))
+        return (y * 3.0 + 0.35 * math.sin(ph[0]) * p) * env
+    return drum('RISER', rate, secs, f)
+def mk_impact():      # the downbeat after it: a sub boom dropping from 95 to 38 Hz, a dark thump of noise, and a long low-passed tail that falls away
+    rate = 11025; secs = 1.0; lp1 = LP(0.30); lp2 = LP(0.12); ph = [0.0]
+    def f(t, i, n):
+        ph[0] += 2 * math.pi * (38 + 57 * math.exp(-t * 7)) / rate; boom = math.sin(ph[0]) * math.exp(-t * 3.2)
+        thump = lp1(nz()) * math.exp(-t * 26) * 0.9; a = 0.30 - 0.22 * min(1, t / 0.9); lp2.a = a; tail = lp2(nz()) * math.exp(-t * 3.6) * 1.1
+        return boom * 1.2 + thump + tail
+    return drum('IMPACT', rate, secs, f)
 KITA = [mk_kick(), mk_snare(), mk_clap(), mk_tom('TOMLO', 85), mk_tom('TOMMID', 120), mk_tom('TOMHI', 170), mk_rim()]
-KITB = [mk_hat('HAT', 0.05, 90), mk_hat('OPENHAT', 0.30, 11), mk_crash(), mk_ride(), mk_shaker(), mk_hat('HATSOFT', 0.035, 140)]
+KITB = [mk_hat('HAT', 0.05, 90), mk_hat('OPENHAT', 0.30, 11), mk_crash(), mk_ride(), mk_shaker(), mk_hat('HATSOFT', 0.035, 140), mk_riser(), mk_impact()]
 
 def cl(w): return ','.join(str(x) for x in w)
 if __name__ == '__main__':
@@ -93,7 +112,7 @@ if __name__ == '__main__':
     for tag, kit in (('A', KITA), ('B', KITB)):
         for i, (nm, rate, w) in enumerate(kit):
             L.append('static const signed char gmDr%s%d[%d] __attribute__((aligned(4)))={%s};' % (tag, i, len(w), cl(w))); tot += len(w)
-        L.append('typedef struct { const signed char*d; unsigned short n, rate; } GmDrum;') if tag == 'A' else None
+        L.append('#ifdef GG_HQVOX\ntypedef struct { const signed char*d; unsigned int n; unsigned short rate; } GmDrum;      // (the 3DS\'s long chops: more than 65535 samples)\n#else\ntypedef struct { const signed char*d; unsigned short n, rate; } GmDrum;\n#endif') if tag == 'A' else None
         L.append('static const GmDrum gmKit%s[%d]={%s};' % (tag, len(kit), ','.join('{gmDr%s%d,%d,%d}' % (tag, i, len(w), rate) for i, (nm, rate, w) in enumerate(kit))))
     L.append('#endif')
     open(os.path.join(HERE, '..', 'source', 'gmkit.h'), 'w').write('\n'.join(L) + '\n')
