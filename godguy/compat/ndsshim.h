@@ -140,6 +140,7 @@ enum { GL_ANTIALIAS=1, GL_TEXTURE_2D, GL_MODELVIEW, GL_PROJECTION, GL_QUAD, GL_R
 #define POLY_ALPHA(x) 0
 // ---- sound: 16 channels mixed in software at 32768 Hz (stereo, 16 bit)
 #define SHIM_SR 32768
+static int shimMusicTicks=1;      // how many 1/60 s the music should advance this frame (the 3DS sets it from the real time elapsed, so a slow frame does not slow the song or starve the sound)
 typedef struct { int on, kind, size, vol, pan, loop, duty; const s8*data; double rate, pos, ph; unsigned lfsr; float cur; } ShimCh;   // kind 1 sample, 2 PSG, 3 noise
 static ShimCh shimCh[16]; static int shimChFail;
 static inline void soundEnable(void){}

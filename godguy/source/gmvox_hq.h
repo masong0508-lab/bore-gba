@@ -22,15 +22,10 @@ static const unsigned char gmVoxVol[56]={90,90,90,90,90,90,90,90,90,90,90,90,88,
 #define GM_VOXE0 (GM_VOX0+GM_VOX_N)
 static const unsigned char gmVoxLyrPad[18]={0,2,3,4,5,8,10,11,12,13,60,61,62,63,64,65,70,71};
 static const char*const gmVoxName[56]={"VOX C","VOX C#","VOX D","VOX D#","VOX E","VOX F","VOX F#","VOX G","VOX G#","VOX A","VOX A#","VOX B","LAUGH CLOUD","YAHOO BACKWARDS","YEHA STUTTER","SHRIEK CRUSH","CRY SHUFFLE","FIGHT CHOP","FLIRT ROBOT","NAH SUB","AGREE STAB","SNEEZE WARP","GHOST CHOIR","WIN STAB","CORP 00 RAW","CORP 01 CLOUD","CORP 02 BACKWARDS","CORP 03 STUTTER","CORP 04 LOW CRUSH","CORP 05 SQUEAK GATE","CORP 06 SHUFFLE","CORP 07 ROBOT","CORP 08 GHOST","CORP 09 TAPE STOP","CORP 10 RAW","CORP 11 CLOUD","CORP 12 BACKWARDS","CORP 13 STUTTER","LYRIC PAD 0","LYRIC PAD 2","LYRIC PAD 3","LYRIC PAD 4","LYRIC PAD 5","LYRIC PAD 8","LYRIC PAD 10","LYRIC PAD 11","LYRIC PAD 12","LYRIC PAD 13","LYRIC PAD 60","LYRIC PAD 61","LYRIC PAD 62","LYRIC PAD 63","LYRIC PAD 64","LYRIC PAD 65","LYRIC PAD 70","LYRIC PAD 71"};
-#ifdef NDSHW
-#define GM_VOXBUF(b) ((signed char*)(0x023DD000+(b)*0x9800))      /* the real DS: two 38 KB buffers in the uncached block (the ARM7 reads them; ARM9 writes would sit in its data cache) */
-#else
-static signed char gmVoxBuf[2][GM_VOX_MAX] __attribute__((aligned(4)));
-#define GM_VOXBUF(b) (gmVoxBuf[b])
-#endif
-static GmDrum gmVoxDr[2];
-static const GmDrum*gmVoxLoad(int idx,int slot){ static const short st[89]={7,8,9,10,11,12,13,14,16,17,19,21,23,25,28,31,34,37,41,45,50,55,60,66,73,80,88,97,107,118,130,143,157,173,190,209,230,253,279,307,337,371,408,449,494,544,598,658,724,796,876,963,1060,1166,1282,1411,1552,1707,1878,2066,2272,2499,2749,3024,3327,3660,4026,4428,4871,5358,5894,6484,7132,7845,8630,9493,10442,11487,12635,13899,15289,16818,18500,20350,22385,24623,27086,29794,32767}; static const signed char ix[8]={-1,-1,-1,-1,2,4,6,8};
-    int b=slot&1, n=gmVoxLen[idx], pred=0, si=0; const unsigned char*p=GM_VOX_PK(gmVoxOff[idx]); signed char*o=GM_VOXBUF(b);
-    for(int i=0;i<n;i++){ int c=(p[i>>1]>>((i&1)*4))&15, step=st[si], d=step>>3; if(c&1) d+=step>>2; if(c&2) d+=step>>1; if(c&4) d+=step; pred+=(c&8)?-d:d; if(pred>32767) pred=32767; if(pred<-32768) pred=-32768; si+=ix[c&7]; if(si<0) si=0; if(si>88) si=88; o[i]=(signed char)(pred>>8); }
-    gmVoxDr[b].d=o; gmVoxDr[b].n=n; gmVoxDr[b].rate=gmVoxRate[idx]; return &gmVoxDr[b]; }
+static signed char gmVoxPool[1469978]; static GmDrum gmVoxDr[56]; static int gmVoxWarmed;
+static void gmVoxWarm(void){ static const short st[89]={7,8,9,10,11,12,13,14,16,17,19,21,23,25,28,31,34,37,41,45,50,55,60,66,73,80,88,97,107,118,130,143,157,173,190,209,230,253,279,307,337,371,408,449,494,544,598,658,724,796,876,963,1060,1166,1282,1411,1552,1707,1878,2066,2272,2499,2749,3024,3327,3660,4026,4428,4871,5358,5894,6484,7132,7845,8630,9493,10442,11487,12635,13899,15289,16818,18500,20350,22385,24623,27086,29794,32767}; static const signed char ix[8]={-1,-1,-1,-1,2,4,6,8}; signed char*o=gmVoxPool; if(gmVoxWarmed) return; gmVoxWarmed=1;
+    for(int k=0;k<GM_VOX_N;k++){ int n=gmVoxLen[k], pred=0, si=0; const unsigned char*p=GM_VOX_PK(gmVoxOff[k]);
+        for(int i=0;i<n;i++){ int c=(p[i>>1]>>((i&1)*4))&15, step=st[si], d=step>>3; if(c&1) d+=step>>2; if(c&2) d+=step>>1; if(c&4) d+=step; pred+=(c&8)?-d:d; if(pred>32767) pred=32767; if(pred<-32768) pred=-32768; si+=ix[c&7]; if(si<0) si=0; if(si>88) si=88; o[i]=(signed char)(pred>>8); }
+        gmVoxDr[k].d=o; gmVoxDr[k].n=n; gmVoxDr[k].rate=gmVoxRate[k]; o+=n; } }
+static const GmDrum*gmVoxLoad(int idx,int slot){ (void)slot; gmVoxWarm(); return &gmVoxDr[idx]; }
 #endif

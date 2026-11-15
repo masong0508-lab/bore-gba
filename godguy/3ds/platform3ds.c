@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include "../compat/stereo.h"
 #define SR 32768
-#define NWB 8       // sound buffers queued ahead (one is a frame of 546 samples: about 130 ms in all)
+#define NWB 12       // sound buffers queued ahead (one is a frame of 546 samples: about 130 ms in all)
 static ndspWaveBuf wb[NWB]; static short*abuf[NWB]; static int audioOk, wbHead;
 int plat_init(void){
     osSetSpeedupEnable(true);       // New 3DS: 804 MHz and the extra cache (nothing happens on an old 3DS)
@@ -36,7 +36,9 @@ void plat_present(const unsigned char*top,const unsigned char*bot,int topChanged
         else copyScreen(gfxGetFramebuffer(GFX_TOP,GFX_LEFT,NULL,NULL),top,400); topPend--; any=1; }
     if(botPend>0){ copyScreen(gfxGetFramebuffer(GFX_BOTTOM,GFX_LEFT,NULL,NULL),bot,320); botPend--; any=1; }
     if(any){ gfxFlushBuffers(); gfxSwapBuffers(); }
-    if(audioOk&&frames>0&&frames<=700){ ndspWaveBuf*w=&wb[wbHead]; if(w->status==NDSP_WBUF_DONE||w->status==NDSP_WBUF_FREE){ memcpy(abuf[wbHead],snd,frames*4); w->nsamples=frames; DSP_FlushDataCache(abuf[wbHead],frames*4); ndspChnWaveBufAdd(0,w); wbHead=(wbHead+1)%NWB; } }   // in order, or the sound would play out of turn; a full queue drops the frame's sound
+    if(audioOk){ int done=0; while(done<frames){ int c=frames-done>700?700:frames-done; ndspWaveBuf*w=&wb[wbHead]; if(!(w->status==NDSP_WBUF_DONE||w->status==NDSP_WBUF_FREE)) break;       // (a full queue drops the rest: it can only be a stall)
+            memcpy(abuf[wbHead],snd+done*2,c*4); w->nsamples=c; DSP_FlushDataCache(abuf[wbHead],c*4); ndspChnWaveBufAdd(0,w); wbHead=(wbHead+1)%NWB; done+=c; } }   // in order, or the sound would play out of turn
     gspWaitForVBlank(); }
+unsigned long long plat_ms(void){ return osGetTime(); }
 int plat_isNew3DS(void){ bool n=false; APT_CheckNew3DS(&n); return n; }
 void plat_exit(void){ if(audioOk) ndspExit(); gfxExit(); }

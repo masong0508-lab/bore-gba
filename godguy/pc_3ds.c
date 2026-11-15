@@ -22,8 +22,8 @@ int main(void){
         if(memcmp(stubFb[0][stubShown[0]],want[0],400*240*3)) shownBad++; if(memcmp(stubFb[1][stubShown[1]],want[1],320*240*3)) shownBad++; }
     printf("tiled copy and skipping: %d frames, %d frames shown a wrong picture, %d frames copied nothing\n",frames,shownBad,copies0); bad+=shownBad!=0; if(copies0<frames/10){ printf("FAIL: unchanged frames are still copied\n"); bad++; }
     // 2. the sound queue: frames go in in order; eight in a row fill it; none are lost while it is drained
-    playAll(); stubQueued=0; for(int i=0;i<12;i++){ for(int k=0;k<1092;k++) snd[k]=(short)(i*100+1); plat_present(top,bot,0,0,snd,546,0); }
-    printf("sound queue: %d of 12 frames queued (the queue is 8 deep, so the rest are dropped)\n",stubQueued); if(stubQueued!=8){ printf("FAIL: expected 8\n"); bad++; }
+    playAll(); stubQueued=0; for(int i=0;i<16;i++){ for(int k=0;k<1092;k++) snd[k]=(short)(i*100+1); plat_present(top,bot,0,0,snd,546,0); }
+    printf("sound queue: %d of 16 frames queued (the queue is 12 deep, so the rest are dropped)\n",stubQueued); if(stubQueued!=12){ printf("FAIL: expected 12\n"); bad++; }
     int order=1; for(int i=0;i<8&&i<stubQueued;i++) if(stubQueue[i][0]!=(short)(i*100+1)) order=0; printf("sound order: %s\n",order?"in order":"OUT OF ORDER"); bad+=!order;
     // 3. the 3D slider: at 0 the right eye is not touched; above it both eyes are made, they differ where the depth is, and the left is not the flat picture
     { static signed char dep[256*192]; for(int i=0;i<256*192;i++) dep[i]=(signed char)((i/256/16)%7-2); memset(stubFbR,0,sizeof stubFbR); stubSlider=0.f; plat_present(top,bot,1,1,snd,546,dep); plat_present(top,bot,0,0,snd,546,dep);

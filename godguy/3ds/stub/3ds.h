@@ -19,6 +19,7 @@ static inline void osSetSpeedupEnable(int on){ extern int stubSpeedup; stubSpeed
 static inline void gfxInitDefault(void){} static inline void gfxSet3D(int b){ (void)b; } static inline void gfxSetDoubleBuffering(int s,int b){ (void)s;(void)b; } static inline void gfxExit(void){}
 extern u8 stubFbR[2][400*240*3]; extern float stubSlider;
 static inline u8*gfxGetFramebuffer(int s,int side,u16*w,u16*h){ (void)w;(void)h; if(s==GFX_TOP&&side==GFX_RIGHT) return stubFbR[stubCur[0]]; return stubFb[s][stubCur[s]]; }
+static inline unsigned long long osGetTime(void){ static unsigned long long t; t+=17; return t; }
 static inline float osGet3DSliderState(void){ return stubSlider; }
 static inline Result APT_CheckNew3DS(bool*o){ *o=true; return 0; }
 static inline void gfxFlushBuffers(void){ extern int stubFlushes; stubFlushes++; }

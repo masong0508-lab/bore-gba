@@ -1421,7 +1421,11 @@ static void musUpdate(void){
     return;     // the safe build has no sound at all
 #endif
     gmNextHook=musNext;
+#ifdef NDSSHIM
+    for(int k=0;k<shimMusicTicks;k++) gmFrame();
+#else
     gmFrame();
+#endif
     if(fxCool>0) fxCool--; if(fxQ>=0){ if(fxQ!=FX_PAINT||fxCool==0){ fxPlay(fxQ); if(fxQ==FX_PAINT) fxCool=10; } fxQ=-1; }
     if(musHold>0) musHold--;
     if(musQ>=0){ gmPlay(musQ); musHold=1800; musQ=-1; musLast=-1; return; }
