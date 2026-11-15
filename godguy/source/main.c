@@ -1653,18 +1653,21 @@ static void uiKing(void){
         uiText(70,y,kd[k].empire?"EMPIRE":kd[k].lord?"VASSAL":"KINGDOM",kd[k].empire?U_GOLD:U_DIM,1); siprintf(b,"%dC %dP W%d",c,p,w); uiTextR(246,y,b,kd[k].war?U_RED:U_WHITE); }
     int k=ids[kingSel], c,p,w; kdStats(k,&c,&p,&w); char nm[24], rn[40]; kdName(k,nm); kdRuler(k,rn); int y0=16+m*11+4;
     uiFrame(4,y0,248,177-y0,U_PANELHI,40+k,U_BLO);
-    char L[10][64]; int col[10], pri[10], nl=0; char cp[24]="NONE"; if(kd[k].cap) vilName(kd[k].cap-1,cp);
+    char L[12][64]; int col[12], pri[12], nl=0; char cp[24]="NONE"; if(kd[k].cap) vilName(kd[k].cap-1,cp);
     siprintf(L[nl],"%s %s",kd[k].empire?"EMPEROR":"RULER",rn); col[nl]=U_WHITE; pri[nl++]=0;
     siprintf(L[nl],"CITIES %d/%d  CAPITAL %s",c,kdMaxCities(k),cp); col[nl]=c>kdMaxCities(k)?U_ORANGE:U_WHITE; pri[nl++]=1;
     siprintf(L[nl],"STEW %d  WAR %d  DIP %d  INT %d",kdRStat(k,0),kdRStat(k,1),kdRStat(k,2),kdRStat(k,3)); col[nl]=U_LGREY; pri[nl++]=1;
     { char s2[64]="WAR: "; int any=0; for(int o=0;o<KN_N;o++) if(kd[k].war>>o&1){ char z[24]; kdName(o,z); if(strlen(s2)<30){ strcat(s2,z); strcat(s2," "); any=1; } } if(!any) strcpy(s2,kd[k].plot?"PLOTTING WAR":"AT PEACE"); strcpy(L[nl],s2); col[nl]=any?U_RED:kd[k].plot?U_ORANGE:U_GREEN; pri[nl++]=2; }
     { char s2[64]="ALLIES: "; int any=0; for(int o=0;o<KN_N;o++) if(kd[k].allies>>o&1){ char z[24]; kdName(o,z); if(strlen(s2)<26){ strcat(s2,z); strcat(s2," "); any=1; } } if(kd[k].lord){ char z[24]; kdName(kd[k].lord-1,z); siprintf(s2,"VASSAL OF %s",z); any=1; } if(!any) strcpy(s2,"NO ALLIES"); strcpy(L[nl],s2); col[nl]=U_CYAN; pri[nl++]=3; }
     siprintf(L[nl],"%s  %s  %s",arch[kd[k].race].nm,culN[kd[k].cul],rlgN[kd[k].rlg]); col[nl]=U_DIM; pri[nl++]=4;
+    { int pp[8]={0}, tot=0; for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==k+1){ pp[vil[v].race&7]+=vil[v].pop; tot+=vil[v].pop; }      // who lives in it: the people of its cities, counted now
+      char t2[48]="FOLK "; for(int q=0;q<2;q++){ int bi=-1; for(int r=0;r<8;r++) if(pp[r]>0&&(bi<0||pp[r]>pp[bi])) bi=r; if(bi<0) break; char z[20]; siprintf(z,"%s %d%% ",arch[bi].nm,pp[bi]*100/(tot?tot:1)); if(strlen(t2)+strlen(z)<34) strcat(t2,z); pp[bi]=0; }
+      if(tot){ strcpy(L[nl],t2); col[nl]=U_LGREY; pri[nl++]=3; } }
     siprintf(L[nl],"HOUSE %s  %s",clanN[kd[k].clan],kd[k].lord?"":"INDEPENDENT"); col[nl]=U_DIM; pri[nl++]=6;
     siprintf(L[nl],"TECH %d %s  %s",kd[k].tech,techN[kd[k].tech],langN[kd[k].lang]); col[nl]=U_DIM; pri[nl++]=5;
     { char t2[48]=""; for(int q=0;q<6;q++) if(kd[k].ctr>>q&1){ if(strlen(t2)+strlen(ctrN[q])<34){ strcat(t2,ctrN[q]); strcat(t2," "); } } if(t2[0]){ strcpy(L[nl],t2); col[nl]=U_PURPLE; pri[nl++]=7; } }
     siprintf(L[nl],"GOLD %d  POWER %d",kd[k].gold,w); col[nl]=U_GOLD; pri[nl++]=8;
-    { int fit=(177-y0-5)/10; int show[10]; for(int i=0;i<nl;i++) show[i]=1; int cnt=nl; while(cnt>fit&&cnt>1){ int bi=-1; for(int i=0;i<nl;i++) if(show[i]&&(bi<0||pri[i]>pri[bi])) bi=i; show[bi]=0; cnt--; }
+    { int fit=(177-y0-5)/10; int show[12]; for(int i=0;i<nl;i++) show[i]=1; int cnt=nl; while(cnt>fit&&cnt>1){ int bi=-1; for(int i=0;i<nl;i++) if(show[i]&&(bi<0||pri[i]>pri[bi])) bi=i; show[bi]=0; cnt--; }
       int y=y0+4; for(int i=0;i<nl;i++) if(show[i]){ uiText(10,y,L[i],col[i],1); y+=10; } }
     uiFlush(); }
 static int langSel;
