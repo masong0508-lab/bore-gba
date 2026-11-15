@@ -22,6 +22,7 @@ gcc $F -w -o /tmp/gg_kingx pc_kingx.c -lm && /tmp/gg_kingx | tail -1
 gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_meddle pc_meddle.c -lm && /tmp/gg_meddle | tail -1
 gcc $F -w -o /tmp/gg_events pc_events.c -lm && /tmp/gg_events | tail -1
 gcc $F -w -o /tmp/gg_loot pc_loot.c -lm && /tmp/gg_loot | tail -1
+gcc $F -w -o /tmp/gg_wild pc_wild.c -lm && /tmp/gg_wild | tail -1
 # B + stylus drag pans the map (normal and zoomed view), nothing is painted while B is held
 gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_pan pc_pan.c -lm && /tmp/gg_pan | tail -1
 # DS (19,999), DSi mode (38,000) and 3DS / PC (199,999) worlds filled to the creature cap: refused at the cap, save and load identical, the raw and packed saves fit their blocks, the loader refuses a save above the cap
