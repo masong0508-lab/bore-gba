@@ -20,7 +20,7 @@ gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_fix pc
 gcc $F -w -o /tmp/gg_rulers pc_rulers.c -lm && /tmp/gg_rulers | tail -1
 # B + stylus drag pans the map (normal and zoomed view), nothing is painted while B is held
 gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_pan pc_pan.c -lm && /tmp/gg_pan | tail -1
-# DS (19,999), DSi mode (42,000) and 3DS / PC (199,999) worlds filled to the creature cap: refused at the cap, save and load identical, the raw and packed saves fit their blocks, the loader refuses a save above the cap
+# DS (19,999), DSi mode (38,000) and 3DS / PC (199,999) worlds filled to the creature cap: refused at the cap, save and load identical, the raw and packed saves fit their blocks, the loader refuses a save above the cap
 # (and tools/ram_estimate.sh: an estimate of the DS and DSi link room, since no ARM linker runs here)
 gcc -O2 -DNDSSHIM -DGG_MAXC_TEST=19999 -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_cap_ds pc_cap.c -lm && /tmp/gg_cap_ds | grep -E "FAIL|^CAP " | tail -3 | tee /tmp/gg_cap_ds.out; grep -q "^CAP DS OK" /tmp/gg_cap_ds.out
 gcc -O2 -DNDSSHIM -DGG_DSI16 -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_cap_dsi pc_cap.c -lm && /tmp/gg_cap_dsi | grep -E "FAIL|^CAP " | tail -3 | tee /tmp/gg_cap_dsi.out; grep -q "^CAP DSI OK" /tmp/gg_cap_dsi.out
@@ -37,6 +37,7 @@ gcc $F -w -o /tmp/gg_temples pc_temples.c -lm && /tmp/gg_temples | tail -1
 # World Laws (step 5): each law really changes what it names, laws are saved, and the LAWS tab pages and flips them
 gcc $F -w -o /tmp/gg_laws pc_laws.c -lm && /tmp/gg_laws | tail -1
 gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_lawmenu pc_lawmenu.c -lm && /tmp/gg_lawmenu | tail -1
+gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_slotscr pc_slotscr.c -lm && /tmp/gg_slotscr | tail -1
 # plague (step 6): spread, recovery, heal, the law, zombie bite and rising, village store drain, save
 gcc $F -w -o /tmp/gg_plague pc_plague.c -lm && /tmp/gg_plague | tail -1
 # planet generator (step 7): main's six shapes unchanged at COASTS / MOUNTAINS normal, the new controls work, SEA the right way round

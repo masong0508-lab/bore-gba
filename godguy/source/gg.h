@@ -18,7 +18,7 @@ static uint16_t pcBgPal[512], pcSprPal[512];      // (the palettes gfx2.h writes
 #include <nds.h>
 #endif
 #if defined(GG_DSI16)
-#define GG_BIGMAP 1                // DSi mode (16 MB of RAM, build_dsi.sh): planets up to 768 x 768 and 42,000 creatures; the 16-bit creature index below still fits in occ_t
+#define GG_BIGMAP 1                // DSi mode (16 MB of RAM, build_dsi.sh): planets up to 768 x 768 and 38,000 creatures; the 16-bit creature index below still fits in occ_t
 #define MAXD 768
 typedef unsigned short coord_t; typedef unsigned short occ_t;
 #elif defined(GG_BIG)||defined(__3DS__)
@@ -35,7 +35,7 @@ extern int gW,gH;               // the planet in play: 128, 192 or 256 tiles a s
 #ifdef GG_MAXC_TEST
 #define MAXC GG_MAXC_TEST          // (tests: pretend to be a build with another creature cap, as GG_VILN does for villages)
 #elif defined(GG_DSI16)
-#define MAXC 42000                // 16 MB: world, buildings, owners, the creature index and the creature list (20 bytes each) plus the raw save buffer fit under 0x02C00000 (hw/arm9dsi.ld stops the link if not)
+#define MAXC 38000                // 16 MB: world, buildings, owners, the creature index and the creature list (20 bytes each) plus the raw save buffer fit under 0x02C00000 (hw/arm9dsi.ld stops the link if not)
 #elif defined(NDSHW)
 #define MAXC 19999                // the DS's 4 MB of RAM: the creature list (20 bytes each), the save buffer and the picture all have to fit (arm9.ld stops the link if they do not)
 #elif defined(GG_BIGMAP)

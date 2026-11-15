@@ -9,7 +9,7 @@ bss(){ nm -S -t d "$1" | awk '$3 ~ /^[bB]$/ && $4 !~ /^(shim|BG_PAL|SPRITE_PAL|_
 cap(){ printf '#include "source/gg.h"\nint maxc_is = MAXC;\n' | gcc -E -P -DPCTEST $1 -I. - | sed -n 's/.*maxc_is = \([0-9]*\);.*/\1/p'; }
 DS=$(cap -DNDSHW); DSI=$(cap -DGG_DSI16); BIG=$(cap -DGG_BIG)
 echo "caps in gg.h: DS $DS  DSi $DSI  3DS/PC $BIG"
-[ "$DS" = 19999 ] && [ "$DSI" = 42000 ] && [ "$BIG" = 199999 ] || echo "NOTE: not the 19,999 / 42,000 / 199,999 of the cap raise"
+[ "$DS" = 19999 ] && [ "$DSI" = 38000 ] && [ "$BIG" = 199999 ] || echo "NOTE: not the 19,999 / 38,000 / 199,999 of the cap raise"
 gcc $G -DGG_MAXC_TEST=$DS -o /tmp/gg_ram_ds pc_cap.c -lm 2>/dev/null; gcc $G -DGG_DSI16 -o /tmp/gg_ram_dsi pc_cap.c -lm 2>/dev/null
 d=$(bss /tmp/gg_ram_ds); t=$(size /tmp/gg_ram_ds | awk 'NR==2{print $1+$2}'); sv=$((700*1024)); lim=$((0x02300000-0x02000800))
 echo "DS : game data $d + code and read-only data about $t + raw save buffer $sv = $((d+t+sv)) of $lim bytes -> spare about $((lim-d-t-sv)) (the code figure is the PC's; ARM code differs)"

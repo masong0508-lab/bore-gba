@@ -1361,17 +1361,30 @@ static int bestSel=0, juke=0, sdOk=0, savedYear=-1, hasSave=0;
 #define SAVE_PATH "godguy.sav"
 #endif
 static const char*savePath=SAVE_PATH;
+#define SLOT_MAX 9                   /* files: nine worlds side by side. The cartridge chip is cut into 1 to 4 (see compat/ndshw.h) */
 #ifdef NDSHW
-#define NSLOT 1      /* the cartridge chip holds one world */
+#define NSLOT hwSlots
 #else
-#define NSLOT 3
+#define NSLOT SLOT_MAX
 #endif
 static int slot=0; static char slotPath[48];
-static void slotSet(int n){ slot=((n%NSLOT)+NSLOT)%NSLOT; if(slot==0) savePath=SAVE_PATH; else { siprintf(slotPath,"%s.%d",SAVE_PATH,slot+1); savePath=slotPath; } }
+static void slotSet(int n){ slot=((n%NSLOT)+NSLOT)%NSLOT;
+#ifdef NDSHW
+    hwSlotCur=slot;
+#else
+    if(slot==0) savePath=SAVE_PATH; else { siprintf(slotPath,"%s.%d",SAVE_PATH,slot+1); savePath=slotPath; }
+#endif
+}
 static int slotPeek(int n,int*yr){     // is there a readable save in slot n, and what year was it saved in (the header only: nothing in the game changes)
+    SaveHdr h;
+#ifdef NDSHW
+    if(!svPeek(n,&h,sizeof h)||h.magic!=SAVE_MAGIC) return 0; *yr=(int)h.year; return 1;
+#else
     char p[48], b[56]; if(n==0) strcpy(p,SAVE_PATH); else siprintf(p,"%s.%d",SAVE_PATH,n+1);
     SV*f=svOpen(p,"rb"); if(!f){ siprintf(b,"%s.bak",p); f=svOpen(b,"rb"); if(!f) return 0; }
-    SaveHdr h; int ok=svRead(&h,sizeof h,1,f)==1; svClose(f); if(!ok||h.magic!=SAVE_MAGIC) return 0; *yr=(int)h.year; return 1; }
+    int ok=svRead(&h,sizeof h,1,f)==1; svClose(f); if(!ok||h.magic!=SAVE_MAGIC) return 0; *yr=(int)h.year; return 1;
+#endif
+}
 static void slotRemember(void){
 #ifndef NDSHW
     FILE*f=fopen("godguy.slt","wb"); if(f){ fputc('0'+slot,f); fclose(f); }
@@ -1382,11 +1395,22 @@ static void slotRecall(void){
     FILE*f=fopen("godguy.slt","rb"); if(f){ int c=fgetc(f); fclose(f); if(c>='0'&&c<'0'+NSLOT) slotSet(c-'0'); }
 #endif
 }
-static int slotYr[3]={-1,-1,-1};           // what each slot holds (-1 = empty), looked up when it can have changed, not every frame
+static int slotYr[SLOT_MAX]={-1,-1,-1,-1,-1,-1,-1,-1,-1};           // what each slot holds (-1 = empty), looked up when it can have changed, not every frame
 #define slotOn (NSLOT>1&&sdOk)
-static void slotScan(void){ for(int i=0;i<NSLOT;i++){ int y=0; slotYr[i]=slotPeek(i,&y)?y:-1; } }
+static void slotScan(void){ for(int i=0;i<SLOT_MAX;i++){ int y=0; slotYr[i]=(i<NSLOT&&slotPeek(i,&y))?y:-1; } }
 static void slotStep(int d){ slotSet(slot+d); slotScan(); hasSave=slotYr[slot]>=0; savedYear=-1; slotRemember(); }
-static void doSave(void){ if(!sdOk) { siprintf(info,"NO SD CARD: NOT SAVED"); return; } if(saveGame(savePath)){ savedYear=year; siprintf(info,"SAVED"); fxReq(FX_SAVE); slotScan(); } else siprintf(info,"SAVE FAILED"); }
+static int slotErase(int k){     // empty slot k (its file and backup, or its first page in the cartridge chip)
+#ifdef NDSHW
+    return hwSlotErase(k);
+#else
+    char p[48], b[56]; if(k==0) strcpy(p,SAVE_PATH); else siprintf(p,"%s.%d",SAVE_PATH,k+1); siprintf(b,"%s.bak",p); remove(p); remove(b); return 1;
+#endif
+}
+static void doSave(void){ if(!sdOk) { siprintf(info,"NO SD CARD: NOT SAVED"); return; } if(saveGame(savePath)){ savedYear=year; siprintf(info,"SAVED"); fxReq(FX_SAVE); slotScan(); } else {
+#ifdef NDSHW
+ if(svTooBig) siprintf(info,"TOO BIG: %dK NEEDED, SLOT HOLDS %dK",svTooBig,(int)(hwSlotSz/1024)); else
+#endif
+ siprintf(info,"SAVE FAILED"); } }
 static void setSize(int sz){ planetSize=sz; }
 static void startWorld(int story){ storyOn=story; newWorld(); camX=(WW*8-256)/2; camY=(WH*8-192)/2; winX=-99; refillWindow(); titleOn=0; paused=0; endShown=storyDone; musReq(GM_NEWWORLD); if(story&&chapter==0&&stUse==0){ sceneStart(introTxt,0); dlgPend=0; } }
 static void monName(int m,char*out){ int a=ARCH_A+m/16, fam=m%16; strcpy(out,advNm[fam]); strcat(out," "); strcat(out,arch[a].nm); }
@@ -1512,8 +1536,23 @@ static void uiMenuList(int x,int y,int w,int rh,int vis){   // rows with a stead
 static void uiTitleArt(int x0,int y0){
     for(int i=0;i<TT_N;i++) BG_PALETTE_SUB[TT_PAL0+i]=ttPal[i];
     int p=0; for(int k=0;k<(int)(sizeof ttRle/sizeof ttRle[0]);k++){ int v=ttRle[k]>>8, n=ttRle[k]&255; if(v) for(int j=0;j<n;j++){ int q=p+j; uiPx(x0+q%TT_W,y0+q/TT_W,TT_PAL0+v-1); } p+=n; } }
+static int slSel, slAsk=-1;
+static void uiSlots(void){     // the SAVE SLOTS screen: every slot with the year it holds, A picks it, X (twice) empties it; on the cartridge L / R change how many slots the chip is cut into
+    uiRect(0,0,256,192,U_BG); for(int y=0;y<192;y+=4) uiRect(0,y,256,1,U_PANEL);
+    gfxHead("SAVE SLOTS",1);
+    for(int i=0;i<NSLOT;i++){ int y=19+i*15, sel=i==slSel; char b[28];
+        uiRound(4,y,248,14,sel?U_SEL:U_PANELHI,sel?U_GOLD:U_BHI); uiBtn(4,y,200,14,KEY_A,0,&slSel,i); uiBtn(206,y,44,14,KEY_X,0,&slSel,i);
+        siprintf(b,"SLOT %d",i+1); uiText(10,y+3,b,sel?U_WHITE:U_LGREY,1);
+        if(slotYr[i]>=0){ siprintf(b,"YEAR %d",slotYr[i]&0xFFFF); uiText(70,y+3,b,sel?U_GOLD:U_LGREY,1); } else uiText(70,y+3,"EMPTY",U_DIM,1);
+        if(i==slot) uiText(140,y+3,"IN USE",U_GREEN,1);
+        if(slotYr[i]>=0){ uiRound(208,y+2,40,10,slAsk==i?U_RED:U_PANEL,sel?U_GOLD:U_BHI); uiTextC(228,y+3,slAsk==i?"SURE?":"ERASE",U_WHITE,1); } }
+#ifdef NDSHW
+    { char b[44]; siprintf(b,"CHIP %dK    %d SLOT%s OF %dK",(int)(hwCap/1024),hwSlots,hwSlots>1?"S":"",(int)(hwSlotSz/1024)); uiText(8,19+NSLOT*15+3,b,U_DIM,1); uiText(8,19+NSLOT*15+14,"L / R: HOW MANY SLOTS",U_LGREY,1); }
+#endif
+    gfxHint("A: USE THIS SLOT   X: ERASE   B: BACK",U_LGREY); }
 static void uiTitle(void){
     if(mScr==3){ uiCreate(); return; }
+    if(mScr==4){ uiSlots(); return; }
     uiGrad(0,0,256,192,G_BG); for(int y=0;y<192;y++) if((y&3)==0) uiRect(0,y,256,1,U_PANEL);
     for(int k=0;k<70;k++){ int x=(int)(hsh(k,1,7)%256), y=(int)(hsh(k,2,7)%192); uiPx(x,y,(k&3)==0?U_WHITE:U_DIM); }
     int ids[14];
@@ -1731,6 +1770,7 @@ static void uiDialog(void){
     if(dlgChars>=tl&&((tick>>4)&1)) uiText(222,164,"A >",U_GOLD,1); else if(dlgChars<tl) uiText(196,164,"A: HURRY  B: SKIP",U_DIM,1);
     uiFlush(); }
 static void uiMenu(void){
+    if(mScr==4){ uiSlots(); return; }
     uiHold=1; uiStatus(); uiHold=0;   // (the status screen is only the backdrop: it is drawn but not sent, or the screen flickered between it and the menu every frame)
     for(int y=0;y<192;y++) for(int x=(y&1);x<256;x+=2) uiPx(x,y,U_SHADOW);
     uiRect(30,12,196,168,U_SHADOW); uiFrame(32,14,192,164,U_PANEL,U_GOLD,U_BLO); uiRect(33,15,190,16,U_PANELHI); uiRect(33,31,190,1,U_BHI);
@@ -1746,6 +1786,16 @@ static void uiMenu(void){
         if(menuNoteT>0&&info[0]){ char hb[44]; siprintf(hb,"%.40s",info); gfxHint(hb,strncmp(info,"SAVED",5)?U_RED:U_GREEN); } else gfxHint(mScr==0?"A: SELECT    START: RESUME":"A: SELECT    B: BACK",U_DIM); }
     uiFlush(); }
 #include "ggmenu.h"
+static void slotsInput(int kd){
+    int n=NSLOT; if(menuNoteT>0) menuNoteT--;
+    if(kd&KEY_UP){ slSel=(slSel+n-1)%n; slAsk=-1; fxReq(FX_MENU_MOVE); } if(kd&KEY_DOWN){ slSel=(slSel+1)%n; slAsk=-1; fxReq(FX_MENU_MOVE); }
+    if(kd&KEY_B){ fxReq(FX_MENU_BACK); mScr=0; slAsk=-1; menuSelId(MI_SLOT); return; }
+    if(kd&KEY_A){ slotSet(slSel); slotScan(); hasSave=slotYr[slot]>=0; savedYear=-1; slotRemember(); fxReq(FX_MENU_OK); siprintf(info,"SLOT %d",slot+1); mScr=0; slAsk=-1; menuSelId(MI_SLOT); return; }
+    if((kd&KEY_X)&&slotYr[slSel]>=0){ if(slAsk==slSel){ slotErase(slSel); slotScan(); if(slSel==slot){ hasSave=0; savedYear=-1; } slAsk=-1; fxReq(FX_MENU_BACK); } else { slAsk=slSel; fxReq(FX_MENU_MOVE); } }
+#ifdef NDSHW
+    { int d=((kd&KEY_RIGHT)?1:0)-((kd&KEY_LEFT)?1:0); if(d){ int want=d>0?(hwSlots==1?2:4):(hwSlots==4?2:1); if(want>hwSlots&&!hwLayoutOk(want)) want=hwSlots; if(want!=hwSlots){ if(hwLayoutSet(want)){ slotSet(0); slSel=0; slotScan(); hasSave=slotYr[0]>=0; savedYear=-1; fxReq(FX_MENU_OK); } else { siprintf(info,"SLOT 1 IS TOO BIG FOR THAT"); fxReq(FX_MENU_BACK); } } } }
+#endif
+}
 static int uiScrId=-1, uiScrDepth, uiTabDir;
 static void hud(void){
     uiNBtn=0;
@@ -1808,9 +1858,10 @@ static void menuInput(int kd){
     if(menuAsk){ if(kd&KEY_B) fxReq(FX_MENU_BACK); else if(kd&KEY_A) fxReq(FX_MENU_OK); if(kd&KEY_A){ int a=menuAsk; menuAsk=0; menuOn=0; if(a==5) startWorld(!storyOn); else if(a==6) startWorld(storyOn); else if(a==9){ if(loadGame(savePath)){ refillWindow(); paused=dlgPaused; siprintf(info,"LOADED"); } else { siprintf(info,"NO SAVE TO LOAD"); menuOn=1; menuNoteT=100; } } else if(a==8){ doSave(); titleOn=1; paused=1; mScr=0; mSel=0; newWorld(); camX=(WW*8-256)/2; camY=(WH*8-192)/2; hasSave=sdOk; musReq(GM_TITLE); } } if(kd&(KEY_B|KEY_START)){ menuAsk=0; menuOn=1; } return; }
     if(titleOn&&konami>=4) return;          // the secret code is in progress: the menu holds still
     if(mScr==3){ createInput(kd); return; }
+    if(mScr==4){ slotsInput(kd); return; }
     if(!titleOn&&(kd&KEY_START)){ menuOn=0; paused=dlgPaused; return; }
     if(kd&KEY_UP) mSel=(mSel+n-1)%n; if(kd&KEY_DOWN) mSel=(mSel+1)%n; if(kd&(KEY_UP|KEY_DOWN)) fxReq(FX_MENU_MOVE);
-    if(kd&KEY_B){ if(mScr||!titleOn) fxReq(FX_MENU_BACK); if(mScr){ int bk=mScr==3?MI_CREATE:mScr==2?MI_EXTRA:MI_OPT; mScr=0; menuSelId(bk); } else if(!titleOn){ menuOn=0; paused=dlgPaused; } return; }
+    if(kd&KEY_B){ if(mScr||!titleOn) fxReq(FX_MENU_BACK); if(mScr){ int bk=mScr==3?MI_CREATE:mScr==4?MI_SLOT:mScr==2?MI_EXTRA:MI_OPT; mScr=0; menuSelId(bk); } else if(!titleOn){ menuOn=0; paused=dlgPaused; } return; }
     int id=ids[mSel]; if(d&&menuAdj(id)&&id!=MI_SIZE) fxReq(FX_MENU_MOVE); if((kd&KEY_A)&&!menuAdj(id)) fxReq(FX_MENU_OK);
     if(d){ switch(id){ case MI_SIZE: setSize(sizeStep(planetSize,d>0?1:-1)); fxReq(FX_MENU_MOVE); break; case MI_STYPE: storyOn^=1; break;
             case MI_SLOT: slotStep(d); break; case MI_DIFF: diff=(diff+3+d)%3; break; case MI_SPEED: speedMul=d>0?(speedMul==1?2:speedMul==2?4:1):(speedMul==1?4:speedMul==2?1:2); break; case MI_VOL: gmMaster+=d*10; if(gmMaster<0) gmMaster=0; if(gmMaster>100) gmMaster=100; break; case MI_MON: monOn^=1; break; case MI_SCALE: hwUiScale=(hwUiScale+3+d)%3; tbInit(); uiScaleSave(); fxReq(FX_MENU_MOVE); break; } }
@@ -1821,7 +1872,7 @@ static void menuInput(int kd){
         case MI_CAL: calStart(); break;
 #endif
         case MI_OPT: mScr=1; mSel=0; break; case MI_EXTRA: mScr=2; mSel=0; break; case MI_BACK: { int bk=mScr==3?MI_CREATE:mScr==2?MI_EXTRA:MI_OPT; mScr=0; menuSelId(bk); } break;
-        case MI_SLOT: slotStep(1); fxReq(FX_MENU_MOVE); break; case MI_SIZE: case MI_DIFF: case MI_VOL: case MI_MON: case MI_SPEED: break;
+        case MI_SLOT: mScr=4; slSel=slot; slAsk=-1; fxReq(FX_MENU_OK); break; case MI_SIZE: case MI_DIFF: case MI_VOL: case MI_MON: case MI_SPEED: break;
         case MI_SCULPT: if(auralOK()) menuOpenPage(3); else { siprintf(info,"UNLOCK IN STORY CHAPTER 3"); menuNoteT=100; fxReq(FX_ERROR); } break;
         case MI_STATS: menuOpenPage(13); break; case MI_FAVS: brCat=0; brSel=0; menuOpenPage(12); break; case MI_MISSION: menuOpenPage(1); break; case MI_WORLD: menuOpenPage(14); break; case MI_BROWSE: menuOpenPage(12); break; case MI_KING: menuOpenPage(7); break; case MI_CULT: menuOpenPage(10); break; case MI_LANG: menuOpenPage(11); break; case MI_JOURNAL: menuOpenPage(8); jrSel=0; break; case MI_ACH: menuOpenPage(9); break; case MI_BEST: menuOpenPage(2); break; case MI_CODEX: menuOpenPage(5); break; case MI_HELP: menuOpenPage(6); break; case MI_DEBUG: menuOpenPage(4); break;
         case MI_CRED: menuOn=0; sceneStart(credTxt,1); musReq(GM_CREDITS); break;
@@ -1851,6 +1902,9 @@ int main(void){
     rs^=(u32)(REG_VCOUNT*2654435761u)^0xA5A5; for(int i=0;i<8;i++) rnd();
 #ifndef GG_SAFE
     sdOk=fatInitDefault();
+#ifdef NDSHW
+    if(sdOk) hwSlotsInit();
+#endif
     soundEnable(); DC_FlushRange((void*)gmWave0,64); gmTables();
     // the two effect voices (a PSG pulse and the noise channel, silent until an effect plays) are reserved first, so the wave voices and drum slots can only fill the other 14 channels
     gpId=soundPlayPSG(DutyCycle_50,440,0,64); gnId=soundPlayNoise(8000,0,64);

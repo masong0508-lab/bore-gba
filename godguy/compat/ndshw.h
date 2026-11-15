@@ -101,7 +101,7 @@ static inline int keysDown(void){ int d=hwHeld&~hwPrev; hwPrev=hwHeld; return d;
 static inline void touchRead(touchPosition*t){ t->px=hwTx; t->py=hwTy; }
 // ---- saving: the world is run-length packed and written to the cartridge's save memory (flash or EEPROM) by the ARM7. The buffers sit in a part of RAM the data cache never touches.
 #ifdef GG_DSI16
-#define SVMAX (3*1024*1024)                    // DSi mode: a 768 x 768 planet (three maps of 590 KB), up to 42000 creatures (20 bytes each) and the trailers
+#define SVMAX (3*1024*1024)                    // DSi mode: a 768 x 768 planet (three maps of 590 KB), up to 38000 creatures (20 bytes each) and the trailers
 #define SVCMAX (0x200000-16)                    // the packed save, in its own uncached 2 MB block at 0x02C00000 (hw/crt0.s makes it cache region 3; the ARM7 and the IPC block stay at 0x02380000 / 0x023F0000)
 static u8 svBufA[SVMAX] __attribute__((aligned(4)));   // ordinary cached RAM: only the ARM9 touches the raw copy
 #define SVBUF svBufA
@@ -118,21 +118,44 @@ static int fatInitDefault(void){ for(int i=0;i<60;i++){ while(REG_VCOUNT!=192){}
 static void hwFlash(u32 op,u32 mem,u32 len,u32 off){ HWIPC->svBusy=1; HWIPC->svOK=0; HwIpc*q=HWIPC; while(((q->head+1)&63)==q->tail){} HwCmd*m=&q->q[q->head]; m->op=op; m->ch=0; m->a=mem; m->b=len; m->c=off; m->d=0; q->head=(q->head+1)&63; u32 t=0; while(HWIPC->svBusy&&++t<50000000u){} }
 static u32 rleEnc(const u8*in,u32 n,u8*out,u32 max){ u32 o=0,i=0; while(i<n){ if(o+140>max) return 0; u32 r=1; while(i+r<n&&in[i+r]==in[i]&&r<129) r++; if(r>=3){ out[o++]=(u8)(126+r); out[o++]=in[i]; i+=r; } else { u32 st=i; u32 l=0; while(i<n&&l<128){ u32 rr=1; while(i+rr<n&&in[i+rr]==in[i]&&rr<3) rr++; if(rr>=3) break; i++; l++; } out[o++]=(u8)(l-1); for(u32 k=0;k<l;k++) out[o++]=in[st+k]; } } return o; }
 static u32 rleDec(const u8*in,u32 n,u8*out,u32 max){ u32 o=0,i=0; while(i<n){ u8 c=in[i++]; if(c<128){ u32 l=c+1; if(o+l>max||i+l>n) return 0; for(u32 k=0;k<l;k++) out[o++]=in[i++]; } else { u32 r=c-126; if(o+r>max||i>=n) return 0; for(u32 k=0;k<r;k++) out[o++]=in[i]; i++; } } return o; }
+static u32 hwSvLimit(void){ return HWIPC->svSize?HWIPC->svSize:65536u; }   // the end of the save memory (65536 when the chip does not say: the largest EEPROM)
+// ---- save slots: the save memory is cut into 1 to 4 equal slots. A record in the last 256 bytes says how many (when it is missing there is one slot, so a save made before slots existed is slot 1, where it always was).
+// hwCap is the size the ARM7 found (0 = unknown: one slot and no size limit, as before). A slot holds one packed save; a bigger save is refused instead of running into the next slot.
+#define SV_REC 256
+static u32 hwCap, hwSlotSz; static int hwSlots=1, hwSlotCur, svTooBig;
+static u32 hwSlotOff(int k){ return (u32)k*hwSlotSz; }
+static void hwSlotGeom(int n){ hwSlots=n; hwSlotSz=hwCap?(((hwCap>=192u*1024?hwCap-SV_REC:hwCap)/(u32)n)&~255u):0; }
+static void hwSlotsInit(void){ hwCap=HWIPC->svSize; hwSlotGeom(1); if(hwCap<192u*1024) return;
+    hwFlash(9,(u32)SVCMP,SV_REC,hwCap-SV_REC); if(HWIPC->svOK&&SVCMP[0]=='G'&&SVCMP[1]=='G'&&SVCMP[2]=='L'&&SVCMP[3]=='1'&&*(u32*)(SVCMP+4)==hwCap&&SVCMP[8]>=1&&SVCMP[8]<=4){ hwSlotGeom(SVCMP[8]); return; }
+    hwFlash(9,(u32)SVCMP,16,0); int legacy=HWIPC->svOK&&SVCMP[0]=='G'&&SVCMP[1]=='G'&&SVCMP[2]=='S'; int n=legacy?1:hwCap>=1024u*1024?4:hwCap>=512u*1024?2:1;
+    hwSlotGeom(n); if(n>1){ memset(SVCMP,0,SV_REC); SVCMP[0]='G'; SVCMP[1]='G'; SVCMP[2]='L'; SVCMP[3]='1'; *(u32*)(SVCMP+4)=hwCap; SVCMP[8]=(u8)n; hwFlash(8,(u32)SVCMP,SV_REC,hwCap-SV_REC); } }
+static int svPeek(int k,void*dst,u32 n){      // the first n bytes of the unpacked save in slot k (the header, for the slot list); 0 if the slot is empty
+    u32 rd=12+n+n/32+64; hwFlash(9,(u32)SVCMP,rd,hwSlotOff(k)); if(!HWIPC->svOK||SVCMP[0]!='G'||SVCMP[1]!='G'||SVCMP[2]!='S'||SVCMP[3]=='\0') return 0;
+    u32 clen=*(u32*)(SVCMP+4), raw=*(u32*)(SVCMP+8); if(clen==0||raw<n||clen>SVCMAX) return 0; const u8*in=SVCMP+12; u32 avail=rd-12<clen?rd-12:clen, i=0, o=0; u8*out=(u8*)dst;
+    while(i<avail&&o<n){ u8 c=in[i++]; if(c<128){ u32 l=c+1; for(u32 q=0;q<l&&i<avail&&o<n;q++) out[o++]=in[i++]; } else { u32 r=c-126; if(i>=avail) break; u8 v=in[i++]; for(u32 q=0;q<r&&o<n;q++) out[o++]=v; } }
+    return o>=n; }
+static int hwSlotErase(int k){ memset(SVCMP,0,256); hwFlash(8,(u32)SVCMP,256,hwSlotOff(k)); return HWIPC->svOK; }
+static int hwLayoutOk(int n){ return hwCap>=192u*1024&&n>=1&&n<=4&&(((hwCap-SV_REC)/(u32)n)&~255u)>=96u*1024; }
+static u32 hwSlot0Len(void){ hwFlash(9,(u32)SVCMP,12,0); return (HWIPC->svOK&&SVCMP[0]=='G'&&SVCMP[1]=='G'&&SVCMP[2]=='S')?*(u32*)(SVCMP+4)+12:0; }
+static int hwLayoutSet(int n){      // 1 on success. Slot 1 keeps its save if it still fits; the others are cleared.
+    if(!hwLayoutOk(n)||n==hwSlots) return 0; u32 nsz=((hwCap-SV_REC)/(u32)n)&~255u; if(hwSlot0Len()>nsz) return 0;
+    int old=hwSlots; u32 osz=hwSlotSz; for(int k=1;k<old;k++){ memset(SVCMP,0,256); hwFlash(8,(u32)SVCMP,256,(u32)k*osz); } hwSlotGeom(n); for(int k=1;k<n;k++) hwSlotErase(k);
+    memset(SVCMP,0,SV_REC); SVCMP[0]='G'; SVCMP[1]='G'; SVCMP[2]='L'; SVCMP[3]='1'; *(u32*)(SVCMP+4)=hwCap; SVCMP[8]=(u8)n; hwFlash(8,(u32)SVCMP,SV_REC,hwCap-SV_REC); return HWIPC->svOK; }
 static SV*svOpen(const char*p,const char*m){ (void)p; if(!HWIPC->svType) return 0; svPos=0;
     if(m[0]=='w'){ svMode=1; svLen=0; return &svDummy; }
-    hwFlash(9,(u32)SVCMP,12,0); if(!HWIPC->svOK||SVCMP[0]!='G'||SVCMP[1]!='G'||SVCMP[2]!='S'||SVCMP[3]=='\0') return 0; u32 clen=*(u32*)(SVCMP+4), raw=*(u32*)(SVCMP+8); if(clen==0||clen>SVCMAX||raw>SVMAX) return 0;
-    hwFlash(9,(u32)SVCMP,clen+12,0); if(!HWIPC->svOK) return 0; svLen=rleDec(SVCMP+12,clen,SVBUF,SVMAX); if(svLen!=raw) return 0; svMode=0; return &svDummy; }
+    hwFlash(9,(u32)SVCMP,12,hwSlotOff(hwSlotCur)); if(!HWIPC->svOK||SVCMP[0]!='G'||SVCMP[1]!='G'||SVCMP[2]!='S'||SVCMP[3]=='\0') return 0; u32 clen=*(u32*)(SVCMP+4), raw=*(u32*)(SVCMP+8); if(clen==0||clen>SVCMAX||raw>SVMAX||(hwSlotSz&&clen+12>hwSlotSz)) return 0;
+    hwFlash(9,(u32)SVCMP,clen+12,hwSlotOff(hwSlotCur)); if(!HWIPC->svOK) return 0; svLen=rleDec(SVCMP+12,clen,SVBUF,SVMAX); if(svLen!=raw) return 0; svMode=0; return &svDummy; }
 static size_t svWrite(const void*b,size_t s,size_t n,SV*f){ (void)f; u32 t=(u32)(s*n); if(svLen+t>SVMAX) return 0; memcpy(SVBUF+svLen,b,t); svLen+=t; return n; }
 static size_t svRead(void*b,size_t s,size_t n,SV*f){ (void)f; u32 t=(u32)(s*n); if(svPos+t>svLen) return 0; memcpy(b,SVBUF+svPos,t); svPos+=t; return n; }
-static u32 hwSvLimit(void){ return HWIPC->svSize?HWIPC->svSize:65536u; }   // the end of the save memory (65536 when the chip does not say: the largest EEPROM)
-static int svClose(SV*f){ (void)f; if(svMode==1){ u32 clen=rleEnc(SVBUF,svLen,SVCMP+12,SVCMAX); if(!clen) return -1; SVCMP[0]='G'; SVCMP[1]='G'; SVCMP[2]='S'; SVCMP[3]=1; *(u32*)(SVCMP+4)=clen; *(u32*)(SVCMP+8)=svLen; u32 tot=clen+12;
-    if(tot>hwSvLimit()) return -1;   // the packed world does not fit this chip: refuse instead of wrapping round and overwriting its start
-    if(tot+44<=SVCMAX&&tot+44<=hwSvLimit()){ hwCalPack(SVCMP+tot); tot+=44; }   // the touch calibration rides along right behind the world, in the same write
-    hwFlash(8,(u32)SVCMP,tot,0); return HWIPC->svOK?0:-1; } return 0; }
+static u32 hwSlotLimit(void){ return hwSlotSz?hwSlotSz:hwSvLimit(); }
+static int svClose(SV*f){ (void)f; if(svMode==1){ u32 clen=rleEnc(SVBUF,svLen,SVCMP+12,SVCMAX); svTooBig=0; if(!clen) return -1; SVCMP[0]='G'; SVCMP[1]='G'; SVCMP[2]='S'; SVCMP[3]=1; *(u32*)(SVCMP+4)=clen; *(u32*)(SVCMP+8)=svLen; u32 tot=clen+12;
+    if(tot>hwSlotLimit()){ svTooBig=(int)((tot+1023)/1024); return -1; }   // the packed world does not fit its slot (or the chip): refuse instead of wrapping round or running into the next slot
+    if(hwSlotCur==0&&tot+44<=SVCMAX&&tot+44<=hwSlotLimit()){ hwCalPack(SVCMP+tot); tot+=44; }   // the touch calibration rides along right behind slot 1's world, in the same write
+    hwFlash(8,(u32)SVCMP,tot,hwSlotOff(hwSlotCur)); return HWIPC->svOK?0:-1; } return 0; }
 // ---- the touch calibration is kept in the save memory: right behind the world data when a world is saved (so the old save layout still loads), at the very start when there is none
 static u32 hwCalOff(void){ hwFlash(9,(u32)SVCMP,12,0); if(HWIPC->svOK&&SVCMP[0]=='G'&&SVCMP[1]=='G'&&SVCMP[2]=='S'&&SVCMP[3]){ u32 clen; memcpy(&clen,SVCMP+4,4); if(clen&&clen<=SVCMAX) return 12+clen; } return 0; }
 static int hwCalLoad(void){ if(!HWIPC->svType) return 0; u32 off=hwCalOff(); hwFlash(9,(u32)SVCMP,44,off); if(!HWIPC->svOK) return 0; return hwCalUnpack(SVCMP)&&hwCalOn; }
-static void hwCalStore(void){ if(!HWIPC->svType) return; u32 off=hwCalOff(), base=off&~255u; if(base+512>hwSvLimit()) return;   // a page or two are read, patched and written back whole, so the world around the record is not touched
+static void hwCalStore(void){ if(!HWIPC->svType) return; u32 off=hwCalOff(), base=off&~255u; if(base+512>hwSlotLimit()) return;   // a page or two are read, patched and written back whole, so the world around the record is not touched
     hwFlash(9,(u32)SVCMP,512,base); if(!HWIPC->svOK) return; hwCalPack(SVCMP+(off-base)); hwFlash(8,(u32)SVCMP,512,base); }
 // ---- sound: channels are allocated here, played by the ARM7
 static int hwUsed[16], hwAge[16]; static u32 hwKind[16];

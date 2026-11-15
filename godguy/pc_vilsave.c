@@ -1,4 +1,4 @@
-// DSi mode sizes (step 9): -DGG_DSI16 planets to 768, 42,000 creatures, 128 villages; a 768 world saves, packs (the cartridge-chip run-length packer of compat/ndshw.h) and loads back identical.
+// DSi mode sizes (step 9): -DGG_DSI16 planets to 768, 38,000 creatures, 128 villages; a 768 world saves, packs (the cartridge-chip run-length packer of compat/ndshw.h) and loads back identical.
 //   gcc -O2 -DNDSSHIM -DGG_DSI16 -Icompat -Isource -Wno-all -include unistd.h -o pc_vilsave pc_vilsave.c -lm && ./pc_vilsave
 // (old text) Big planets, the big creature cap and the village cap on the real program (through compat/ndsshim.h).
 //   gcc -O2 -DNDSSHIM -DGG_BIG -Icompat -Isource -Wno-all -include unistd.h -o pc_big pc_big.c -lm && ./pc_big            (planets 384..1024, 100,000 creatures, zoom, save and load)
@@ -16,7 +16,7 @@ static unsigned long sig(void){ unsigned long h=1469598103934665603UL; for(int y
 static unsigned rleEnc(const u8*in,unsigned n,u8*out,unsigned max){ unsigned o=0,i=0; while(i<n){ if(o+140>max) return 0; unsigned r=1; while(i+r<n&&in[i+r]==in[i]&&r<129) r++; if(r>=3){ out[o++]=(u8)(126+r); out[o++]=in[i]; i+=r; } else { unsigned st=i,l=0; while(i<n&&l<128){ unsigned rr=1; while(i+rr<n&&in[i+rr]==in[i]&&rr<3) rr++; if(rr>=3) break; i++; l++; } out[o++]=(u8)(l-1); for(unsigned k=0;k<l;k++) out[o++]=in[st+k]; } } return o; }
 void shimInput(int frame,int*held,int*tx,int*ty){
     *held=0; if(frame!=5) return;
-    chk(MAXD==768&&MAXC==42000&&VIL_N==128,"DSi build limits");
+    chk(MAXD==768&&MAXC==38000&&VIL_N==128,"DSi build limits");
     chk(sizeStep(512,1)==768&&sizeStep(768,1)==128&&sizeStep(128,-1)==768,"the size list stops at 768");
     titleOn=0; menuOn=0; extrasView=0; sceneOn=0; dlgOn=0; dlgPend=-1; page=0; paused=0; planetSize=768; rs=4242u*2654435761u+7; newWorld(); monOn=0;
     chk(gW==768&&gH==768,"a 768 planet is made"); for(int t=1;t<=600;t++){ tick=t; simulate(); }
