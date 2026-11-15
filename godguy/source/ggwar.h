@@ -39,7 +39,7 @@ static WarAvg wga[VIL_N]; static occ_t wgMem[MAXC]; static u32 wgOff[VIL_N+1]; s
 static u32 wgAcc[VIL_N][5]; static int wgCur;      // 10f: the averages being gathered by the slices (blow, armour, health, pace, soldiers seen) and where the slice has got to in the creature list
 static int wgBlow(const Cr*c){ int a=arch[sp[c->sp].a].atk+gearAtk(c)+1+c->dir/2; if(c->rk==1) a=a*13/10; else if(c->rk==2) a*=2; return a; }      // one blow before armour, the random part at its average
 static void wgBuild(void){
-    static unsigned sx[VIL_N], sy[VIL_N], sa[VIL_N], sd[VIL_N], sh[VIL_N], ss[VIL_N], cc[VIL_N]; memset(wg,0,sizeof wg); memset(sx,0,sizeof sx); memset(sy,0,sizeof sy); memset(sa,0,sizeof sa); memset(sd,0,sizeof sd); memset(sh,0,sizeof sh); memset(ss,0,sizeof ss); memset(cc,0,sizeof cc); memset(wga,0,sizeof wga); wgN=0; wgNc=nCr; wgCur=0; memset(wgAcc,0,sizeof wgAcc);
+    static unsigned sx[VIL_N], sy[VIL_N], sa[VIL_N], sd[VIL_N], sh[VIL_N], ss[VIL_N], cc[VIL_N]; memset(wg,0,sizeof wg); memset(sx,0,sizeof sx); memset(sy,0,sizeof sy); memset(sa,0,sizeof sa); memset(sd,0,sizeof sd); memset(sh,0,sizeof sh); memset(ss,0,sizeof ss); memset(cc,0,sizeof cc); memset(wga,0,sizeof wga); wgN=0; wgNc=nCr; wgKeep=nCr; wgCur=0; memset(wgAcc,0,sizeof wgAcc);      // (10f fix: an exact count leaves wgOf good for every creature, so a loaded game rolls from the start exactly as the game that was saved goes on)
 #ifndef GG_SLOWHOME
     wvBuild(); wvOn=1;
 #endif

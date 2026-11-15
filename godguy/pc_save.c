@@ -16,7 +16,10 @@ int main(int argc,char**argv){
         for(int t=tk+1;t<=tk+600;t++){ tick=t; simulate(); } u32 hB=hashAll();
         printf("size %d: save %d load %d | loaded state equals saved state: %s | 600 ticks later equal to the unsaved run: %s | creatures %d villages %d chapter %d\n",size,ok,lo,h0==h1?"YES":"NO",hA==hB?"YES":"NO",nCr,nVilOn,chapter);
         bad+=!(ok&&lo&&h0==h1&&hA==hB); }
-    // a damaged file is refused
-    FILE*f=fopen("/tmp/godguy_test.sav","r+b"); fputc(0,f); fclose(f); printf("damaged header refused: %s\n",loadGame("/tmp/godguy_test.sav")?"NO":"YES");
-    f=fopen("/tmp/godguy_short.sav","wb"); fwrite("GGS1",1,4,f); fclose(f); printf("truncated file refused: %s\n",loadGame("/tmp/godguy_short.sav")?"NO":"YES");
-    return bad; }
+    // a damaged file is refused by the loader itself; loadGame then falls back to the .bak that saveGame keeps, so a damaged save still loads (the backup is the previous save)
+    int bad2=0; FILE*f=fopen("/tmp/godguy_test.sav","r+b"); fputc(0,f); fclose(f);
+    int raw=loadGameRaw("/tmp/godguy_test.sav"); printf("damaged header refused: %s\n",raw?"NO":"YES"); bad2+=raw;
+    int fb=loadGame("/tmp/godguy_test.sav"); printf("damaged file falls back to the .bak: %s\n",fb?"YES":"NO"); bad2+=!fb;
+    remove("/tmp/godguy_test.sav.bak"); int none=loadGame("/tmp/godguy_test.sav"); printf("damaged file and no backup refused: %s\n",none?"NO":"YES"); bad2+=none;
+    f=fopen("/tmp/godguy_short.sav","wb"); fwrite("GGS1",1,4,f); fclose(f); int sh=loadGame("/tmp/godguy_short.sav"); printf("truncated file refused: %s\n",sh?"NO":"YES"); bad2+=sh;
+    return bad+bad2; }
