@@ -17,8 +17,8 @@ ${B}size arm9.elf | tail -1; ls -la ../godguy_dsi.nds
 # DSi MODE (step 9): the same game with 768 x 768 planets in 16 MB (-DGG_DSI16), its own linker script, a RAM probe in crt0.s (a red screen if the machine has only 4 MB) and an uncached save block
 cd ..; mkdir -p build_dsi16; cd build_dsi16
 F16="${FLAGS} -DGG_DSI16"
-${B}gcc $F16 -c ../hw/main_hw.c -o main_hw.o; ${B}gcc $F16 -c ../hw/syscalls.c -o syscalls.o; ${B}gcc $F16 -x assembler-with-cpp -c ../hw/crt0.s -o crt0.o
-${B}gcc -nostartfiles -march=armv5te -marm -mthumb-interwork -Wl,--gc-sections -Wl,-T,../hw/arm9dsi.ld crt0.o main_hw.o syscalls.o -lm -lc -lgcc -o arm9.elf
+${B}gcc $F16 -c ../hw/main_hw.c -o main_hw.o; ${B}gcc $F16 -c ../hw/syscalls.c -o syscalls.o; ${B}gcc $F16 -c ../hw/ramfail.c -o ramfail.o; ${B}gcc $F16 -x assembler-with-cpp -c ../hw/crt0.s -o crt0.o
+${B}gcc -nostartfiles -march=armv5te -marm -mthumb-interwork -Wl,--gc-sections -Wl,-T,../hw/arm9dsi.ld crt0.o main_hw.o syscalls.o ramfail.o -lm -lc -lgcc -o arm9.elf
 ${B}objcopy -O binary arm9.elf arm9.body
 python3 - <<'PY'
 import struct

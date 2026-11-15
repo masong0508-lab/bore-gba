@@ -1750,13 +1750,23 @@ static void uiJournal(void){
     if(!jrN) uiText(10,30,"NOTHING HAS HAPPENED YET.",U_DIM,1);
     for(int r=0;r<14;r++){ int i=jrN-1-jrSel-r; if(i<0) break; int y=17+r*11; if(r&1) uiRect(4,y-2,240,11,U_PANEL); siprintf(b,"Y%d",jrYear[i]); uiText(8,y,b,U_GOLD,1); { const char*j=jr[i]; int jc=strstr(j,"WAR")||strstr(j,"SLAYS")||strstr(j,"FLEES")||strstr(j,"REBELS")?U_RED:strstr(j,"PEACE")||strstr(j,"ALLY")||strstr(j,"ALLIES")||strstr(j,"RISES")?U_GREEN:strstr(j,"CROWNS")||strstr(j,"TAKES")?U_YELLOW:strstr(j,"FALLS")||strstr(j,"GHOST")?U_ORANGE:strstr(j,"ACHIEVED")||strstr(j,"MONOLITH")||strstr(j,"UPLIFT")?U_CYAN:strstr(j,"LEARNS")||strstr(j,"REBUILDS")||strstr(j,"TURNS")?U_LGREY:U_WHITE; uiText(40,y,j,jc,1); } }
     uiFlush(); }
+static int cmpOn, cmpB=1;
+static void uiCompare(int a,int b,int y0){      // two kingdoms side by side (WORLD > KINGS, X); LEFT RIGHT picks the second one
+    uiFrame(4,y0,248,177-y0,U_PANELHI,U_GOLD,U_BLO); char na[24], nb2[24], s[40]; kdName(a,na); kdName(b,nb2); int ca,pa,wa,cb,pb,wb; kdStats(a,&ca,&pa,&wa); kdStats(b,&cb,&pb,&wb);
+    uiRect(8,y0+3,6,6,40+a); uiText(17,y0+2,na,U_WHITE,1); uiRect(132,y0+3,6,6,40+b); uiText(141,y0+2,nb2,U_WHITE,1);
+    struct { const char*l; int x, y; } r[8]={{"CITIES",ca,cb},{"PEOPLE",pa,pb},{"POWER",wa,wb},{"GOLD",kd[a].gold,kd[b].gold},{"TECH",kd[a].tech,kd[b].tech},{"RENOWN",kx[a].renown,kx[b].renown},{"STEW",kdRStat(a,0),kdRStat(b,0)},{"WARFARE",kdRStat(a,1),kdRStat(b,1)}};
+    int rows=(177-y0-14)/9; if(rows>8) rows=8; for(int i=0;i<rows;i++){ int y=y0+12+i*9; uiText(8,y,r[i].l,U_DIM,1); siprintf(s,"%d",r[i].x); uiTextR(122,y,s,r[i].x>r[i].y?U_GREEN:r[i].x<r[i].y?U_LGREY:U_WHITE); siprintf(s,"%d",r[i].y); uiTextR(246,y,s,r[i].y>r[i].x?U_GREEN:r[i].y<r[i].x?U_LGREY:U_WHITE); }
+    siprintf(s,"OPINION %d / %d",kd[a].rel[b],kd[b].rel[a]); if(rows<8||y0<170){} }
 static void uiKing(void){
-    int n=0; for(int k=0;k<KN_N;k++) n+=kd[k].on; char b[64]; siprintf(b,"%d KINGDOMS",n); uiWin("KINGDOMS",b,"UP DOWN CHOOSE    START: BACK");
+    int n=0; for(int k=0;k<KN_N;k++) n+=kd[k].on; char b[64]; siprintf(b,"%d KINGDOMS",n); uiWin("KINGDOMS","",cmpOn?"LEFT RIGHT: SECOND   X: BACK":"UP DOWN CHOOSE   X: COMPARE");
+    uiTextR(246,4,"POWER",U_GOLD); uiTextR(204,4,"PEOPLE",U_GOLD); uiTextR(160,4,"CITIES",U_GOLD);      // column labels in the title bar, so the numbers below are plain
     if(!n){ uiText(10,30,"NO KINGDOMS YET. FOUND VILLAGES",U_DIM,1); uiText(10,40,"AND LET THEM GROW.",U_DIM,1); uiFlush(); return; }
     int ids[KN_N], m=0; for(int k=0;k<KN_N;k++) if(kd[k].on) ids[m++]=k; if(kingSel>=m) kingSel=m-1; if(kingSel<0) kingSel=0;
     for(int r=0;r<m;r++){ int k=ids[r], c,p,w; kdStats(k,&c,&p,&w); char nm[24]; kdName(k,nm); int y=16+r*11; uiBtn(4,y-1,232,11,0,0,&kingSel,r); if(r==kingSel) uiRect(4,y-1,246,11,U_SEL); uiRect(7,y+1,6,6,40+k); uiText(17,y,nm,r==kingSel?U_WHITE:U_LGREY,1);
-        uiText(70,y,kd[k].empire?"EMPIRE":kd[k].lord?"VASSAL":"KINGDOM",kd[k].empire?U_GOLD:U_DIM,1); siprintf(b,"%dC %dP W%d",c,p,w); uiTextR(246,y,b,kd[k].war?U_RED:U_WHITE); }
+        uiText(70,y,kd[k].empire?"EMPIRE":kd[k].lord?"VASSAL":"KINGDOM",kd[k].empire?U_GOLD:U_DIM,1); { int rc=kd[k].war?U_RED:U_WHITE; siprintf(b,"%d",c); uiTextR(160,y,b,rc); siprintf(b,"%d",p); uiTextR(204,y,b,rc); siprintf(b,"%d",w); uiTextR(246,y,b,rc); } }
     int k=ids[kingSel], c,p,w; relK=k; kdStats(k,&c,&p,&w); char nm[24], rn[40]; kdName(k,nm); kdRuler(k,rn); int y0=16+m*11+4;
+    if(cmpOn){ int o=ids[cmpB%m]; if(o==k) o=ids[(cmpB+1)%m]; if(m>1){ uiCompare(k,o,y0); uiFlush(); return; } cmpOn=0; }
+    if(cmpOn){ int o=ids[cmpB%m]; if(o==k) o=ids[(cmpB+1)%m]; if(m>1){ uiCompare(k,o,y0); uiFlush(); return; } cmpOn=0; }
     uiFrame(4,y0,248,177-y0,U_PANELHI,40+k,U_BLO);
     int barLine=-1; char L[14][64]; int col[14], pri[14], nl=0; char cp[24]="NONE"; if(kd[k].cap) vilName(kd[k].cap-1,cp);
     siprintf(L[nl],"%s %s",kd[k].empire?"EMPEROR":"RULER",rn); col[nl]=U_WHITE; pri[nl++]=0;
@@ -1820,7 +1830,7 @@ static void brBuild(void){
 static u8*brFav(const BrE*e){ switch(e->type){ case 1: return &favVil[e->id]; case 2: return &favKd[e->id]; case 3: return &favItem[e->id]; case 4: return &favPow[e->id]; default: return 0; } }
 static void brText(const BrE*e,char*l,char*r){ l[0]=r[0]=0; switch(e->type){
     case 1: { vilName(e->id,l); int k=vilK[e->id]-1; char kn[24]=""; if(k>=0) kdName(k,kn); siprintf(r,"%s %dP",kn,vil[e->id].pop); } break;
-    case 2: { kdName(e->id,l); int c,p,w; kdStats(e->id,&c,&p,&w); siprintf(r,"%dC %dP W%d",c,p,w); } break;
+    case 2: { kdName(e->id,l); int c,p,w; kdStats(e->id,&c,&p,&w); siprintf(r,"%d CITIES  %d PEOPLE",c,p); } break;
     case 3: itSay(l,e->id); l[26]=0; break; case 4: strcpy(l,pw[e->id].nm); break;
     default: { const Cr*c=&cr[e->id]; crName(c,l); l[24]=0; int k=(crFl[e->id]&FL_NOTE)?nbFind(crId[e->id]):-1; if(k>=0) siprintf(r,"%dK %dB",nb[k].kills>999?999:nb[k].kills,nb[k].battles>99?99:nb[k].battles); else siprintf(r,"HP %d",c->hp); } } }
 static void brGo(const BrE*e){   // jump to it
@@ -2084,7 +2094,7 @@ int main(void){
         else if(page==12){ brBuild(); if(kd&KEY_UP) brSel=brSel>0?brSel-1:0; if(kd&KEY_DOWN) brSel=brSel<brN-1?brSel+1:(brN?brN-1:0); if(kd&KEY_LEFT){ brCat=(brCat+6)%7; brSel=0; } if(kd&KEY_RIGHT){ brCat=(brCat+1)%7; brSel=0; }
             if((kd&KEY_Y)&&brCat==5){ brKind=(brKind+1)%8; brSel=0; } if((kd&KEY_X)&&brN){ u8*f=brFav(&brL[brSel]); if(f){ *f^=1; fxReq(*f?FX_UNLOCK:FX_MENU_MOVE); siprintf(info,*f?"STARRED":"STAR REMOVED"); } else if(brL[brSel].type>=5&&brL[brSel].id<nCr){ int on=crStarToggle(brL[brSel].id); fxReq(on?FX_UNLOCK:FX_MENU_MOVE); siprintf(info,on?"STARRED":"STAR REMOVED"); } }
             if((kd&KEY_A)&&brN){ brGo(&brL[brSel]); } if(kd) dirty=1; kd&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT|KEY_A|KEY_X|KEY_Y); kh&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); }
-        else if(page>=7&&page<=11){ int*sel=(page==7||page==10)?&kingSel:page==8?&jrSel:page==11?&langSel:&achSel; int mx=(page==7||page==10)?KN_N-1:page==8?(jrN>14?jrN-14:0):page==11?4:ACH_N-1; if(kd&KEY_UP) *sel=*sel>0?*sel-1:0; if(kd&KEY_DOWN) *sel=*sel<mx?*sel+1:mx; if(kd) dirty=1; kd&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); kh&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); }
+        else if(page>=7&&page<=11){ int*sel=(page==7||page==10)?&kingSel:page==8?&jrSel:page==11?&langSel:&achSel; int mx=(page==7||page==10)?KN_N-1:page==8?(jrN>14?jrN-14:0):page==11?4:ACH_N-1; if(page==7){ if(kd&KEY_X) cmpOn^=1; if(cmpOn){ if(kd&KEY_RIGHT) cmpB++; if(kd&KEY_LEFT) cmpB+=KN_N-1; cmpB%=KN_N; } } if(kd&KEY_UP) *sel=*sel>0?*sel-1:0; if(kd&KEY_DOWN) *sel=*sel<mx?*sel+1:mx; if(kd) dirty=1; kd&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); kh&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); }
         else if(page==5){ if(kd&KEY_UP) trPage=trPage>1?trPage-1:1; if(kd&KEY_DOWN) trPage=trPage<TR_N-1?trPage+1:TR_N-1; if(kd) dirty=1; kd&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); kh&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); }
         else if(page==6){ int hn=sceneLines(helpTxt); if(kd&KEY_UP) helpSel=helpSel>0?helpSel-1:0; if(kd&KEY_DOWN) helpSel=helpSel<hn-10?helpSel+1:helpSel; if(kd) dirty=1; kd&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); kh&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); }
         else if(page==3){ if(kd&KEY_LEFT) juke=(juke+GM_SONGS-1)%GM_SONGS; if(kd&KEY_RIGHT) juke=(juke+1)%GM_SONGS; if(kd&KEY_UP) juke=(juke+GM_SONGS-10)%GM_SONGS; if(kd&KEY_DOWN) juke=(juke+10)%GM_SONGS;

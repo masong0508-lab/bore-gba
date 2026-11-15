@@ -97,7 +97,7 @@ static void uiWorld(void){
         else uiTextR(224,y+2,wVal[i],sel?U_GOLD:U_DIM); }
     int y=32+wn*13+4; char b[64];
     if(wTab==2){ const Vil*V=&vil[wCity]; siprintf(b,"POP %d HOMES %d FARMS %d TOWERS %d",V->pop,V->houses,V->farms,V->towers); uiText(8,y,b,U_WHITE,1); if(vilK[wCity]){ char kn[24]; kdName(vilK[wCity]-1,kn); siprintf(b,"%s LOYALTY %d",kn,vilL[wCity]); uiText(8,y+10,b,U_DIM,1); } }
-    else if(wTab==3){ int c,p,w; kdStats(wKing,&c,&p,&w); siprintf(b,"%s  %dC %dP POWER %d",kd[wKing].empire?"EMPIRE":kd[wKing].lord?"VASSAL":"KINGDOM",c,p,w); uiText(8,y,b,U_WHITE,1); siprintf(b,"GOLD %d  %s",kd[wKing].gold,kd[wKing].war?"AT WAR":"AT PEACE"); uiText(8,y+10,b,kd[wKing].war?U_RED:U_GREEN,1); }
+    else if(wTab==3){ int c,p,w; kdStats(wKing,&c,&p,&w); siprintf(b,"%s  %d CITIES %d PEOPLE POWER %d",kd[wKing].empire?"EMPIRE":kd[wKing].lord?"VASSAL":"KINGDOM",c,p,w); uiText(8,y,b,U_WHITE,1); siprintf(b,"GOLD %d  %s",kd[wKing].gold,kd[wKing].war?"AT WAR":"AT PEACE"); uiText(8,y+10,b,kd[wKing].war?U_RED:U_GREEN,1); }
     else if(wTab==1){ siprintf(b,"%d ALIVE",raceCnt(wPeo)); uiText(8,y,b,U_WHITE,1); }
     else if(wTab==4){ siprintf(b,"TORNADOES %d  BLACK HOLES %d",hzCount(HZ_TORNADO),hzCount(HZ_HOLE)); uiText(8,y,b,U_WHITE,1); siprintf(b,"PLAGUED %d  IMMUNE %d",plagueCount(1),plagueCount(2)); uiText(8,y+10,b,plagueCount(1)?U_GREEN:U_DIM,1); }
     uiText(8,168,wr[wSel].ds,U_DIM,1); uiFlush(); }

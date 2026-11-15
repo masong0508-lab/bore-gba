@@ -23,23 +23,9 @@ _start:
 	cmp	r2, r0
 	cmpeq	r3, r1
 	beq	3f
-	@ not enough RAM: a red screen and stop (this ROM only runs in DSi mode)
-	ldr	r0, =0x04000304
-	ldr	r1, =0x0203
-	strh	r1, [r0]
-	ldr	r0, =0x04000240
-	mov	r1, #0x80
-	strb	r1, [r0]
-	ldr	r0, =0x04000000
-	ldr	r1, =0x00020000
-	str	r1, [r0]
-	ldr	r0, =0x06800000
-	ldr	r1, =0x801F801F
-	ldr	r2, =12288
-4:	str	r1, [r0], #4
-	subs	r2, r2, #1
-	bne	4b
-5:	b	5b
+	@ not enough RAM: show a message that says so (hw/ramfail.c) and stop (this ROM only runs in DSi mode)
+	ldr	r0, =ramfail
+	bx	r0
 3:
 #endif
 	ldr	r0, =__bss_start
