@@ -15,6 +15,7 @@
 #include "gmdata.h"
 #define GMV 10                      // voice 9 is a Haas double of the lead (one frame late, a hair sharp, on the other side): it widens the lead
 static int gmCur=-1, gmAcc, gmRow, gmMaster=100, gmPaused, gmTick;
+static int gmLyrT;      // frames the lyric phrase sounding now has left: the melody voices make room for it
 static int gmCrowd, gmCrowdS, gmSwF, gmSwN, gmSwUp;   // the size of the battle (0..400, set by the game) and how far the war music has opened up to it; the riser or fall of the swoop now sounding
 static int gmInT, gmInN;                       // a song that follows another one fades in: frames left, frames in all
 static int (*gmNextHook)(int);                 // asked when a song reaches its end: which song follows it (-1 = none: the music fades to silence and stops). Set by the game; without one every song just ends
@@ -61,7 +62,8 @@ static void gmDrum(int part,int id){
     else if(id>=GM_VOX0){ idx=id-GM_VOX0; if(idx>=GM_VOX_N) return; gmAlt[10]^=1; vol=gmVoxVol[idx]; pan=gmVoxPan[idx]; slot=2+(gmSlotB^=1); part=2; }      // a vocal chop: it takes a cymbal channel for as long as it sounds
     else { static const u8 dv[7]={0,60,62,80,66,45,42}; if(id>6) return; idx=id-1; vol=dv[id]; gmAlt[10]^=1;
         pan=id==3?34:id==4?100:id==2?92:(gmAlt[10]?46:82); slot=2+(gmSlotB^=1); }
-    if(soft) vol=vol*55/100; vol=vol*wm/100*gmMaster/100*40/100; vol=vol*gmFadeMul()>>8;
+    if(soft) vol=vol*55/100; int lyr=part==2&&idx>=GM_VOX_LYR0&&idx<GM_VOX_LYR0+GM_VOX_LYRN; if(lyr&&!(id>=GM_VOXE0)){ int f=gmVoxLen[idx]*60/gmVoxRate[idx]; if(f>gmLyrT) gmLyrT=f; }
+    vol=vol*wm/100*gmMaster/100*(lyr?92:40)/100; vol=vol*gmFadeMul()>>8;
     gb_hit(slot,part,idx,vol,pan);
 }
 static void gmNoteOn(int v,int n){
@@ -87,7 +89,7 @@ static void gmVoiceFrame(int v,const GmSong*S){
     int pan=S->pan[v];
     if(v==0) pan+=gmSin[(gmTick>>4)&31]*10>>7; else if(v==4) pan+=gmSin[(gmTick>>5)&31]*8>>7; else if(v==5) pan-=gmSin[(gmTick>>5)&31]*8>>7;
     else if(v==7) pan=gmAlt[v]?26:102; else if(v==8) pan=gmAlt[v]?104:24; else if(v==2) pan=gmAlt[v]?24:104;
-    int vol=S->vol[v]*lev/100*gmMaster/100*56/100; vol=vol*gmFadeMul()>>8; if(gmCur==GM_WAR){ vol=vol*gmWarMix(v)/100; vol=vol*(92+gmCrowdS/40)/100; }
+    int vol=S->vol[v]*lev/100*gmMaster/100*56/100; vol=vol*gmFadeMul()>>8; if(gmLyrT>0&&(v<=3||v==7||v==8)) vol=vol*(100-45*(gmLyrT>12?12:gmLyrT)/12)/100; if(gmCur==GM_WAR){ vol=vol*gmWarMix(v)/100; vol=vol*(92+gmCrowdS/40)/100; }
     if(pan<0) pan=0; if(pan>127) pan=127;
     gb_vset(v,rate,vol,pan);
     if(v==0){ ldRate=rate; ldVol=vol; ldPan=pan; }
@@ -113,6 +115,7 @@ static void gmWarExtras(void){
 static void gmFrame(void){
     gmTick++;
     if(gmPaused) return;
+    if(gmLyrT>0) gmLyrT--;
     if(gmCur>=0){ const GmSong*S=&gmSongs[gmCur];
         gmAcc+=S->bpm*4*65536/3600;
         while(gmAcc>=65536){ gmAcc-=65536;

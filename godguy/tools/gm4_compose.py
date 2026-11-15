@@ -153,8 +153,21 @@ def duck_lyrics(sc, V, kit_lyr0, kit_n, lyr_pads, lyr_beats_cells, voxe0):
     the dry voice on one side and, one cell (a sixteenth) later, a copy of it on the other side, quieter. The hats are taken out while a phrase sounds so the voice has the channels to itself."""
     import json
     ev = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'tools', 'duckcover', 'lyric_events.json')))['events']
-    placed = 0; busy_until = -1
+    # what the song plays under each phrase, for the tuning of the chops (tools/gm_vox.py): the melody's notes (weighted by how long they sound) and the bass, in the first window each pad is used
+    info = {}
     for e in ev:
+        if e['pad'] not in lyr_pads or str(e['pad']) in info: continue
+        c0 = int(round(e['t'] * 4)); mel = {}; bas = {}
+        for v, d in ((0, mel), (1, mel), (2, mel), (3, mel), (7, mel), (8, mel), (6, bas)):
+            for cc in range(c0, min(sc.cells, c0 + 36)):
+                n = sc.v[v][cc][0]
+                if n: d[n] = d.get(n, 0) + (3 if v == 0 else 1)
+        info[str(e['pad'])] = {'mel': mel, 'bass': bas}
+    json.dump(info, open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'duck_lyric_notes.json'), 'w'), sort_keys=True)
+    placed = 0; busy_until = -1
+    rounds = [dict(x, t=x['t'] + r / 4.0) for r in (0, 640) for x in ev]      # the project's phrases, then once more forty bars later (the song is longer than the project)
+    rounds.sort(key=lambda z: z['t'])
+    for e in rounds:
         if e['pad'] not in lyr_pads: continue
         j = lyr_pads.index(e['pad']); c = int(round(e['t'] * 4))
         if c < busy_until or c + 2 >= sc.cells: continue          # two phrases never overlap (the player has two voice channels for them)

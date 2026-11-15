@@ -1,7 +1,7 @@
 # Builds source/gmvox.h: the VOCAL CHOP kit of the music. 24 one-shots (signed 8 bit, 8 kHz) cut from the GBA game's voice clips (tools/voices_src) and pushed hard:
 # 12 TONAL chops (the sung "serenade" clip, one steady vowel found in it, retuned to each of the twelve notes: a vocal pad you can play in any key) and 12 TEXTURE chops
 # (stretched into clouds, reversed, stuttered, bit-crushed, shuffled, ring-modulated, pitched into squeaks and growls). The music player fires them from the drum-B stream (ids 16 and up).
-import numpy as np, wave, os, sys
+import json, numpy as np, wave, os, sys
 from scipy.signal import resample_poly, butter, sosfilt, fftconvolve
 from math import gcd
 HERE = os.path.dirname(os.path.abspath(__file__)); SRC = os.path.join(HERE, '..', '..', 'tools', 'voices_src'); R = 8000
@@ -37,29 +37,46 @@ def f0_track(x, sr, hop=0.01):     # midi pitch per 10 ms hop (nan where unvoice
             a, b, c = ac[k - 1], ac[k], ac[k + 1]; d = a - 2 * b + c; k = k + (0.5 * (a - c) / d if d else 0)
         out.append(69 + 12 * np.log2(sr / k / 440.0))
     return np.array(out)
-def snap_target(m):      # the nearest note of the key
-    best = None
+def song_notes(pad):      # what DUCK & COVER plays under a lyric (written by gm4_compose.py): melody and bass notes, weighted by how long they sound
+    p = os.path.join(HERE, 'duck_lyric_notes.json')
+    try: d = json.load(open(p))[str(pad)]
+    except Exception: return None
+    return {int(n): w for n, w in d['mel'].items()}, {int(n): w for n, w in d['bass'].items()}
+def snap_target(m, pcw=None):      # the nearest note of the song's own harmony (or of the key, when the song gives none): the notes it plays there, the heavy ones preferred
+    pcw = pcw or {pc: 1.0 for pc in SCALE_PCS}; best = None; bc = 1e9
     for o in range(int(m) - 2, int(m) + 3):
-        for pc in SCALE_PCS:
-            t = (o // 12) * 12 + pc
-            for tt in (t - 12, t, t + 12):
-                if best is None or abs(tt - m) < abs(best - m): best = tt
+        for pc, wgt in pcw.items():
+            for t in (o // 12 * 12 + pc - 12, o // 12 * 12 + pc, o // 12 * 12 + pc + 12):
+                c = abs(t - m) - 0.12 * np.log2(1 + wgt)
+                if c < bc: bc = c; best = t
     return best
-def tune_curve(x, sr):      # semitones of correction per hop: median-smoothed pitch snapped to the key, held through unvoiced bits and eased so it never steps
+def tune_curve(x, sr, pad=None):      # semitones of correction per hop: the pitch, moved as a whole so the phrase's top note lands on the song's top note there, then each note onto the song's harmony; held through unvoiced bits and eased so it never steps
     m = f0_track(x, sr); v = ~np.isnan(m)
     if v.sum() < 3: return np.zeros(len(m)), 0.0
     idx = np.arange(len(m)); mm = np.interp(idx, idx[v], m[v])
-    sm = np.array([np.median(mm[max(0, i - 3):i + 4]) for i in range(len(mm))])
-    # one global offset first (a sung line is rarely tuned to A440), then each note onto the key
-    best = (1e9, 0.0)
-    for off in np.arange(-0.5, 0.51, 0.05):
-        cost = np.mean([(snap_target(p + off) - (p + off)) ** 2 for p in sm[v]])
-        if cost < best[0]: best = (cost, off)
-    off = best[1]; tgt = np.array([snap_target(p + off) for p in sm]); corr = tgt - mm
-    corr = np.clip(corr, -1.2, 1.2); k = 5; corr = np.convolve(np.pad(corr, k, mode='edge'), np.ones(2 * k + 1) / (2 * k + 1), 'valid')
-    return corr, float(np.sqrt(best[0]))
-def tune_stretch(x, sr, factor, grain=0.04):   # WSOLA stretch (each grain is slid to the place that continues the last one, so voiced sound stays coherent instead of beating) with every grain's pitch pushed onto the key
-    corr, _ = tune_curve(x, sr); gl = int(grain * sr); hop_out = gl // 2; hop_in = hop_out / factor; win = np.hanning(gl); S = int(0.012 * sr)
+    sm = np.array([np.median(mm[max(0, i - 3):i + 4]) for i in range(len(mm))]); sn = song_notes(pad) if pad is not None else None
+    pcw = {pc: 0.5 for pc in SCALE_PCS}; top = None
+    if sn:
+        mel, bas = sn
+        for n, w in mel.items(): pcw[n % 12] = pcw.get(n % 12, 0) + w
+        for n, w in bas.items(): pcw[n % 12] = pcw.get(n % 12, 0) + w * 0.5
+        heavy = [n for n, w in mel.items() if w >= 8]
+        if heavy and max(heavy) >= 63: top = max(heavy)
+    p90 = float(np.percentile(sm[v], 90))
+    if top is not None and abs(top - p90) <= 3.5: off = top - p90; cost = 0.0      # the hook: its highest note is the song's highest note (F#4 in "from the lover that you have loved")
+    else:
+        best = (1e9, 0.0)
+        for o in np.arange(-2.5, 2.51, 0.1):
+            c = np.mean([abs(snap_target(p + o, pcw) - (p + o)) for p in sm[v]]) + 0.03 * abs(o)
+            if c < best[0]: best = (c, o)
+        cost, off = best
+    tgt = np.array([snap_target(p + off, pcw) for p in sm])
+    if top is not None and cost == 0.0: tgt = np.minimum(tgt, top)      # (nothing sung above the hook's top note)
+    corr = np.clip(tgt - mm, -3.0, 3.0)
+    k = 2; corr = np.convolve(np.pad(corr, k, mode='edge'), np.ones(2 * k + 1) / (2 * k + 1), 'valid')
+    return corr, float(cost)
+def tune_stretch(x, sr, factor, pad=None, grain=0.04):   # WSOLA stretch (each grain is slid to the place that continues the last one, so voiced sound stays coherent instead of beating) with every grain's pitch pushed onto the key
+    corr, _ = tune_curve(x, sr, pad); gl = int(grain * sr); hop_out = gl // 2; hop_in = hop_out / factor; win = np.hanning(gl); S = int(0.012 * sr)
     n_out = int(len(x) * factor) + gl; y = np.zeros(n_out + 2 * gl); nom = 0.0; o = 0; prev = None; rprev = 1.0
     xp = np.concatenate([x, np.zeros(6 * gl)])
     while o < n_out and nom < len(x):
@@ -158,7 +175,7 @@ def lyric_chops():
     for f in sorted(glob.glob(os.path.join(HERE, '..', '..', 'tools', 'duckcover', 'lyrics', 'pad_*.wav'))):
         pad = int(os.path.basename(f)[4:6]); w = wave.open(f); sr = w.getframerate(); x = np.frombuffer(w.readframes(w.getnframes()), dtype='<i2').astype(np.float64) / 32768.0
         x = sosfilt(butter(4, 2700, 'lp', fs=sr, output='sos'), x); dur = len(x) / sr; half = 30.0 / NEWBPM
-        target = max(2, int(round(dur * 1.5 / half + 0.49))) * half; x = tune_stretch(x, sr, target / dur)
+        target = max(2, int(round(dur * 1.5 / half + 0.49))) * half; x = tune_stretch(x, sr, target / dur, pad)
         g = gcd(LYR_RATE, sr); x = resample_poly(x, LYR_RATE // g, sr // g); x = plate(x, LYR_RATE)
         LYR_PAD.append(pad); add('LYRIC PAD %d' % pad, x, 112, 36, 99.0, LYR_RATE)
 lyric_chops()
