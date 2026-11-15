@@ -1573,6 +1573,17 @@ static void uiScene(void){
     uiFlush(); }
 
 static void uiBig(int x,int y,int idx,int sc){ for(int j=0;j<8;j++) for(int i=0;i<8;i++){ int c=icon8[idx][j*8+i]; if(c) uiRect(x+i*sc,y+j*sc,sc,sc,c); } }
+static const char*crDoing(const Cr*c){     // "what is it doing?": worked out from what it stands on and how it is, nothing is stored
+    int t=world[c->y][c->x], d=arch[sp[c->sp].a].diet;
+    if(c->sick==3) return "HUNTING THE LIVING";
+    if(t==T_DEEP||t==T_WATER) return d==5?"HUNTING IN THE WATER":"SWIMMING";
+    if(t==T_LAVA) return "BURNING";
+    if(c->hp*3<maxHp(c)) return "NURSING WOUNDS";
+    if(c->food<40) return d==4?"LOOKING FOR FOOD":"HUNTING FOR FOOD";
+    if(t==T_SNOW) return "WADING THROUGH SNOW";
+    if(d==5) return "PROWLING";
+    if(d==4) return bld[c->y][c->x]?"AT HOME":"GOING ABOUT ITS DAY";
+    return t==T_GRASS?"GRAZING":"WANDERING"; }
 static void uiInspectCard(void){
     uiFrame(138,15,116,132,U_PANEL,U_GOLD,U_BLO); char b[64], nm[48]; int y=19;
     if(inspKind==1&&inspIdx>=0&&inspIdx<nCr&&cr[inspIdx].alive){ Cr*c=&cr[inspIdx]; int fam=sp[c->sp].fam, shape=arch[sp[c->sp].a].shape;
@@ -1582,6 +1593,7 @@ static void uiInspectCard(void){
         { char hb[24]; siprintf(hb,"HEALTH   LEVEL %d",c->dir); uiText(142,y,hb,U_DIM,1); } uiBar(142,y+9,108,7,c->hp,maxHp(c),c->hp*3<maxHp(c)?U_RED:U_GREEN); y+=19;
         uiText(142,y,"HUNGER",U_DIM,1); uiBar(142,y+9,108,7,c->food>200?200:c->food,200,U_ORANGE); y+=19;
         siprintf(b,"AGE %d   %s",c->age,arch[sp[c->sp].a].diet==5?"MONSTER":arch[sp[c->sp].a].diet==4?"FOLK":"BEAST"); uiText(142,y,b,U_LGREY,1); y+=10;
+        uiText(142,y,crDoing(c),U_GREEN,1); y+=10;
         if(crNamed(c)&&y<=128){ int po[2]; idPers(crId[inspIdx],crFl[inspIdx],po); siprintf(b,"%s %s",persN[po[0]],persN[po[1]]); uiText(142,y,b,U_CYAN,1); y+=10; }      // personality: worked out from its id
         if((crFl[inspIdx]&FL_NOTE)&&y<=128){ int k=nbFind(crId[inspIdx]); if(k>=0){ siprintf(b,"KILLS %d BATTLES %d",nb[k].kills>99?99:nb[k].kills,nb[k].battles>9?9:nb[k].battles); uiText(142,y,b,U_GOLD,1); y+=10;
             u16 fl=crFl[inspIdx]; b[0]=0; if(fl&FL_HERO) strcat(b,"HERO "); if(fl&FL_FOUND) strcat(b,"FOUNDER "); if(fl&FL_VET) strcat(b,"VET "); if(fl&FL_SCAR) strcat(b,"SCARRED "); if(fl&FL_GRIEF) strcat(b,"GRIEVING"); if(b[0]&&y<=128){ b[18]=0; uiText(142,y,b,U_ORANGE,1); y+=10; } } }
