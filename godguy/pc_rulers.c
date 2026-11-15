@@ -6,7 +6,7 @@
 static int fails;
 #define CHECK(c,...) do{ if(c) printf("  ok    "); else { printf("  FAIL  "); fails++; } printf(__VA_ARGS__); printf("\n"); }while(0)
 int main(void){
-    planetSize=192; rs=777u*2654435761u; makeSpecies(); makeItems(); newWorld(); monOn=1; for(int t=1;t<=60000;t++){ tick=t; year=t/1200; simulate(); }
+    planetSize=192; rs=777u*2654435761u; makeSpecies(); makeItems(); newWorld(); monOn=1; static int sawCrown; for(int t=1;t<=60000;t++){ tick=t; year=t/1200; simulate(); if(t%50==0) for(int i=0;i<jrN;i++) if(strstr(jr[i],"CROWNS")) sawCrown=1; }
     int k=-1; for(int i=0;i<KN_N;i++) if(kd[i].on){ k=i; break; } printf("ruler stats (kingdom %d):\n",k); if(k<0){ printf("  FAIL  no kingdom rose\nFAILED\n"); return 1; }
     int inRange=1, same=1, seen[4][11]={{0}}, spread[4]={0};
     for(int r1=0;r1<12;r1++) for(int r2=0;r2<8;r2++){ kd[k].rn1=(u8)r1; kd[k].rn2=(u8)r2; kd[k].reign=0; for(int w=0;w<4;w++){ int a=kdRStat(k,w), b=kdRStat(k,w); if(a<1||a>10) inRange=0; if(a!=b) same=0; seen[w][a]=1; } }
@@ -26,5 +26,5 @@ int main(void){
     int okL=1; for(int v=0;v<VIL_N;v++) if(vil[v].on&&(vilL[v]<-100||vilL[v]>100)) okL=0;
     CHECK(okL,"loyalty never leaves -100..100");
     int crowns=0; for(int i=0;i<jrN;i++) if(strstr(jr[i],"CROWNS")) crowns++;
-    CHECK(crowns>0,"a coronation is written to the journal (%d in the last %d lines)",crowns,jrN);
+    CHECK(crowns>0||sawCrown,"a coronation is written to the journal (%d in the last %d lines)",crowns,jrN);
     printf(fails?"FAILED\n":"PASSED\n"); return fails?1:0; }
