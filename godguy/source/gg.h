@@ -57,8 +57,9 @@ extern int gW,gH;               // the planet in play: 128, 192 or 256 tiles a s
 #define SHAPE_OLD 20             // hand-drawn two-frame shapes
 #define SHAPE_N 54               // plus the one-frame shapes drawn below (their second frame is made by swapping the feet) and the crown, rain and snow sprites, then the tornado (two pieces), the black hole and the boat
 #define ARCH_A 44                 // archetypes below this are people and animals
-#define ARCH_N 64                 // 44..63 are monsters
-#define SP_N 904
+#define ARCH_N 80                 // 44..63 are monsters
+#define SP_N 1160
+#define MON_N ((ARCH_N-ARCH_A)*16)   // monster kinds in the bestiary
 enum { T_DEEP, T_WATER, T_SAND, T_GRASS, T_FOREST, T_HILL, T_MOUNT, T_SNOW, T_LAVA, T_DESERT, T_SWAMP, T_JUNGLE, T_DIRT, T_N };
 typedef struct { u16 sp, wep, arm; coord_t x, y; s8 ox, oy; u8 hp, food, age, t, dir, alive, tr, tr2, rk, sick; } Cr;   // a creature (tr, tr2: its subspecies traits; rk: 0 normal, 1 elite, 2 boss; sick: 0 healthy, 1 plagued, 2 recovered and immune. It sits in what was padding, so the struct is still 20 bytes and old saves load as healthy): its kind, its tile and the offset it glides in from, health, hunger, age; wep and arm: the item (+1) it carries
 typedef struct { u8 a, fam; } Sp;                                                     // a kind of creature: its archetype (shape and habits) and its colour family

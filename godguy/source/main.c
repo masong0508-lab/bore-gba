@@ -144,8 +144,12 @@ static const Arch arch[ARCH_N]={
  {"TROLL",38,5,M_CLIMB,18,90,14,230,0},{"GOLEM",18,5,M_CLIMB,28,140,16,250,0},{"WYVERN",11,5,M_ALL,8,70,15,200,0},{"SEA SERPENT",2,5,M_WATER,8,80,14,200,0},
  {"KRAKEN",19,5,M_WATER,14,160,18,230,0},{"CYCLOPS",33,5,M_LAND,20,150,20,240,0},{"BASILISK",7,5,M_LAND,12,90,18,220,0},
  {"HYDRA",36,5,M_LAND|M_WATER,16,200,20,250,0},{"DEMON",34,5,M_ALL,10,140,24,250,0},{"LICH",35,5,M_LAND,12,120,26,250,0},{"ELDER DRAGON",11,5,M_ALL,8,250,30,250,0},
+ {"EVIL MAGE",5,5,M_LAND,14,40,12,160,0},{"NECROMANCER",35,5,M_LAND,14,60,14,200,0},{"PLAGUE DOCTOR",5,5,M_LAND,16,50,9,170,0},{"COLD ONE",38,5,M_CLIMB,18,100,14,220,0},
+ {"ALIEN",31,5,M_ALL,12,50,13,200,0},{"UFO",18,5,M_ALL&~(1<<T_LAVA),8,90,16,230,0},{"LIVING PLANT",6,5,M_LAND,26,60,8,210,2},{"LIVING HOUSE",18,5,M_LAND,30,110,12,240,0},
+ {"TUMOR MONSTER",6,5,M_LAND,28,50,5,220,6},{"BIOBLOB",6,5,M_LAND|M_WATER,24,40,6,200,5},{"LIL PUMPKIN",31,5,M_LAND,14,20,5,150,4},{"ASSIMILATOR",18,5,M_LAND,20,120,14,240,3},
+ {"RUDE SKULL",16,5,M_ALL,12,26,8,180,0},{"FIRE SKULL",16,5,M_ALL,10,34,11,190,0},{"GREG",5,5,M_LAND,16,70,10,200,0},{"ANGEL",1,5,M_ALL,6,110,20,250,0},
 };
-static const u8 monTier[ARCH_N-ARCH_A]={0,0,0,0, 1,1,1,1,1, 2,2,2,2, 3,3,3, 4,4,4,4};
+static const u8 monTier[ARCH_N-ARCH_A]={0,0,0,0, 1,1,1,1,1, 2,2,2,2, 3,3,3, 4,4,4,4, 2,3,2,3,3,4,1,3,2,2,1,4,1,2,2,4};
 static Sp sp[SP_N]; static int nSp;
 static const char* const bioNm[]={"DEEP","WATER","SAND","GRASS","FOREST","HILL","MOUNTAIN","SNOW","LAVA","DESERT","SWAMP","JUNGLE","DIRT"};
 static void makeSpecies(void){
@@ -652,14 +656,14 @@ static void kingdomTick(void){
     warMatrix(); }
 typedef struct { const char*nm, *ds; } Ach;
 static const Ach ach[ACH_N]={ {"FIRST SPARK","USE A POWER"},{"TOUCH OF GOD","USE POWERS 100 TIMES"},{"CREATOR","USE POWERS 1000 TIMES"},{"FIRST BLOOD","SLAY A MONSTER"},{"HUNTER","SLAY 50 MONSTERS"},{"EXTERMINATOR","SLAY 300 MONSTERS"},
- {"COLLECTOR","MEET 50 MONSTERS"},{"BESTIARY MASTER","MEET ALL 320 MONSTERS"},{"GENEROUS","GIVE 25 GIFTS"},{"A KINGDOM RISES","SEE A KINGDOM FOUNDED"},{"EMPIRE BUILDER","SEE AN EMPIRE FORM"},{"LORD AND VASSAL","SEE A KINGDOM BECOME A VASSAL"},
+ {"COLLECTOR","MEET 50 MONSTERS"},{"BESTIARY MASTER","MEET EVERY MONSTER"},{"GENEROUS","GIVE 25 GIFTS"},{"A KINGDOM RISES","SEE A KINGDOM FOUNDED"},{"EMPIRE BUILDER","SEE AN EMPIRE FORM"},{"LORD AND VASSAL","SEE A KINGDOM BECOME A VASSAL"},
  {"WARMONGER","SEE 5 WARS DECLARED"},{"PEACEMAKER","SEE AN ALLIANCE FORMED"},{"CITY PLANNER","GROW A LEVEL 3 HALL"},{"METROPOLIS","HAVE 12 CITIES AT ONCE"},{"SCHOLAR","A KINGDOM LEARNS EVERYTHING"},{"CONQUEROR","SEE 3 CITIES CAPTURED"},
  {"MUTANT","MUTATE 20 CREATURES"},{"ALL THE VIBES","MEET ALL EIGHT CHILL TRAITS"},{"SPECIES SPOTTER","MEET 20 SUBSPECIES"},{"ANCIENT","REACH YEAR 60"},{"STORY'S END","FINISH THE STORY"},{"COMPLETIONIST","FINISH THE GAME 100%"},{"SNACK TIME","GIVE 20 SNACKS"},{"THE COUCH AWAITS","GIVE 100 SNACKS"},
  {"PUPPETEER","USE 5 POLITICAL POWERS"},{"SCHISM","SEE A SHATTERED CROWN"},{"WISE KING","A RULER WITH ALL STATS 7+"},{"BANDIT KING","10 OUTLAWS AT ONCE"},{"HAUNTED","4 GHOSTS AT ONCE"},{"UPLIFTED","MAKE AN ANIMAL SAPIENT"},{"CRAB RAVE","DROP A CRAB BOMB"},{"STOMPED","LET CRABZILLA STOMP"},{"NO MORE KINGS","END THE LAST KINGDOM"},{"TREASURY","A KINGDOM WITH 5000 GOLD"},
  {"LEGENDARY","SEE A LEGENDARY ITEM CARRIED"},{"SLAYER","A BOSS FALLS TO FOLK"},{"GHOST STORY","SEE A GHOST"},{"DEN MOTHER","SAPIENT ANIMALS BUILD A DEN"},{"STANDING STONE","RAISE A MONOLITH"},{"GREY AREA","SEE GREY GOO"},{"FIRE SPIRIT","SEE A FIRE ELEMENTAL"},{"ALLIANCE WEB","SEE 10 ALLIANCES"},{"CENTURY","REACH YEAR 100"},{"DYNASTY","A REIGN OF 120 YEARS"} };
 static int denCount, monoN; static int banditCount(void); static int sapientCount(void); static int hzCount(int kind); static int itRar(int i);
 static int achOK(int i){ int c=0,p=0,w=0,king=0,emp=0,vas=0,tech=0,l3=0,nv=0; for(int k=0;k<KN_N;k++) if(kd[k].on){ king++; achX[2]|=32; emp+=kd[k].empire; vas+=kd[k].lord!=0; if(kd[k].tech>=9) tech=1; } for(int v=0;v<VIL_N;v++) if(vil[v].on){ nv++; if(vil[v].lvl>=3) l3=1; } (void)c;(void)p;(void)w;
-    switch(i){ case 0: return stUse>=1; case 1: return stUse>=100; case 2: return stUse>=1000; case 3: return stKill>=1; case 4: return stKill>=50; case 5: return stKill>=300; case 6: return seenN>=50; case 7: return seenN>=320; case 8: return stGift>=25;
+    switch(i){ case 0: return stUse>=1; case 1: return stUse>=100; case 2: return stUse>=1000; case 3: return stKill>=1; case 4: return stKill>=50; case 5: return stKill>=300; case 6: return seenN>=50; case 7: return seenN>=MON_N; case 8: return stGift>=25;
         case 9: return king>0; case 10: return emp>0; case 11: return vas>0; case 12: return stWars>=5; case 13: return stAllies>=1; case 14: return l3; case 15: return nv>=12; case 16: return tech; case 17: return stCapt>=3; case 18: return stMut>=20;
         case 19: return ((trSeen>>TR_CHILL)&255)==255; case 20: return __builtin_popcount(trSeen)>=20; case 21: return year>=60; case 22: return storyDone; case 23: return fullDone; case 24: return stSnack>=20; case 25: return stSnack>=100;
         case 26: return __builtin_popcount(achX[1])>=5; case 27: return (achX[2]&1)!=0; case 28: { for(int k=0;k<KN_N;k++) if(kd[k].on&&kdRStat(k,0)>=7&&kdRStat(k,1)>=7&&kdRStat(k,2)>=7&&kdRStat(k,3)>=7) return 1; return 0; }
@@ -853,7 +857,7 @@ static void simulate(void){
     boatTick();
     if((tick&63)==17) atmoTick();
     { static int gcx=-1, gcy=-1; int x0=(camX>>3)-1, y0=(camY>>3)-1; int camMoved=(x0!=gcx||y0!=gcy); int fullScan=camMoved||(tick&63)==0; if(fullScan){ gcx=x0; gcy=y0; glideOn=1; }      // glide into the tile: only the creatures near the screen (a crowd of thousands is not walked through every tick), and only while something is gliding
-      if(glideOn){ int rem=0; for(int y=y0<0?0:y0;y<y0+27&&y<WH;y++) for(int x=x0<0?0:x0;x<x0+35&&x<WW;x++){ int j=occ[y][x]-1; if(j<0) continue; Cr*c=&cr[j]; if(c->ox) c->ox+= c->ox<0?1:-1; if(c->oy) c->oy+= c->oy<0?1:-1; if(c->ox||c->oy) rem=1; } glideOn=rem; } }
+      if(glideOn){ int rem=0; for(int y=y0<0?0:y0;y<y0+27&&y<WH;y++) for(int x=x0<0?0:x0;x<x0+35&&x<WW;x++){ if(!cellTot[cellOf(x,y)]){ x|=7; continue; } int j=occ[y][x]-1; if(j<0) continue; Cr*c=&cr[j]; if(c->ox) c->ox+= c->ox<0?1:-1; if(c->oy) c->oy+= c->oy<0?1:-1; if(c->ox||c->oy) rem=1; } glideOn=rem; } }
     int n=nCr; if(n==0) return; int per=n>96?96+(n>2400?(n-2400)/300:0):n;     // everyone takes a turn in rotation; a bigger crowd gets a few more turns a tick
 #ifdef GG_FULLTURNS
     per=n;      // (benchmark builds only, pc_war.c: every creature is visited every tick, so each thinks at its own pace: the full per-unit run that step 10d's tiers are compared with)
@@ -973,8 +977,8 @@ static void chapterDone(void){   // a chapter is finished (by play, or by the de
     if(chapter>=3&&!auralOpen){ auralOpen=1; siprintf(info,"AURAL SCULPTURES UNLOCKED"); }
     if(chapter>=CHAP_N){ storyDone=1; tierOpen=14; musReq(GM_GODHOOD); fxReq(FX_CHAPTER_DONE); }
     else { if(chapter+1>tierOpen) tierOpen=chapter+1>14?14:chapter+1; musReq(GM_ASCEND); fxReq(FX_CHAPTER_DONE); } }
-static int slainCount(void){ int n=0; for(int m=0;m<320;m++){ int sI=8+(ARCH_A+m/16-8)*16+m%16; n+=(slainB[sI>>3]>>(sI&7))&1; } return n; }
-static void checkFull(void){ if(!fullDone&&storyDone&&seenN>=320&&slainCount()>=320){ fullDone=1; siprintf(info,"100%%! THE REMIXES ARE YOURS"); musReq(GM_GODHOOD); fxReq(FX_UNLOCK); } }
+static int slainCount(void){ int n=0; for(int m=0;m<MON_N;m++){ int sI=8+(ARCH_A+m/16-8)*16+m%16; n+=(slainB[sI>>3]>>(sI&7))&1; } return n; }
+static void checkFull(void){ if(!fullDone&&storyDone&&seenN>=MON_N&&slainCount()>=MON_N){ fullDone=1; siprintf(info,"100%%! THE REMIXES ARE YOURS"); musReq(GM_GODHOOD); fxReq(FX_UNLOCK); } }
 static void unlockTiers(void){   // every 256 ticks: is the chapter you are on done?
     checkFull();
     if(!storyOn||storyDone||chapter>=CHAP_N) return;
@@ -1454,8 +1458,8 @@ static int page=0, titleOn=1, sceneOn=0;
 static void drawMinimap(void){ if(zBmp&&!view3d){ zScale(); uiVw=256*zK_/zS_; uiVh=ZH*zK_/zS_; if(uiVw>WW) uiVw=WW; if(uiVh>WH) uiVh=WH; uiVx=zcx/8-uiVw/2; uiVy=zcy/8-uiVh/2; } else { uiVw=32; uiVh=24; uiVx=camX>>3; uiVy=camY>>3; } }   // (the minimap is part of the status screen now: see uiStatus)
 static const char* const introTxt[]={"","  IN THE BEGINNING THERE WAS","  ONLY A QUIET, EMPTY PLANET.","","  THEN YOU WOKE.","","  YOUR HANDS MAKE LAND, RAIN","  AND FIRE. YOUR WORD MAKES LIFE.","","  TEACH THE FIRST FOLK TO LIVE.","","  BUT THE DARK IS PATIENT,","  AND IT HAS TEETH.","","  TOUCH THE WORLD TO BEGIN.",0};
 static const char* const endTxt[]={"","  THE FOLK HAVE CITIES NOW,","  AND SONGS, AND WAR, AND PEACE.","","  YOU MET EVERY NIGHTMARE","  AND GAVE IT A NAME.","","  THEY DO NOT KNOW YOUR FACE.","  THEY KNOW THE RAIN,","  THE HARVEST, THE SPARK THAT","  LEAPS FROM THE SKY.","","  THE STORY IS TOLD.","","  THE WORLD IS YOURS, GODGUY.",0};
-static const char* const credTxt[]={"","","       BORE: GODGUY","","  A SPINOFF OF BORE","","  DESIGN, CODE, MUSIC","  AND MONSTERS","  BY CLAUDE, FOR YOU","","  MUSIC AMALGAMATED FROM","  THE SONGS OF BORE","  (THE DIPPER MAN, AND ALL","  THE REST)","","  320 MONSTERS","  392 CREATURES","  364 ITEMS","  23 TRAITS","  134 TRACKS","","  THANK YOU FOR PLAYING","","","","",0};
-static const char* const helpTxt[]={"TOUCH THE WORLD: USE POWER","L R      CHOOSE POWER","X Y      BRUSH SIZE","         (SPAWN: SPECIES)","         (GIFT: ITEM)","         (MUTATE: TRAIT)","B + X Y  JUMP TEN","B + DRAG PANS THE MAP","L + R    ZOOM IN","X + Y    ZOOM OUT","  6 LEVELS: PLANET, VERY FAR,","  FAR, NORMAL, CLOSE, MICRO","D-PAD    PAN (B = FAST)","A        PAUSE  (B+A: SPEED)","  PLANET: TOUCH = POWER,","  B + DRAG = SPIN, A = SHAPE","SELECT   NEXT INFO PAGE","START    PAUSE MENU","Y + A   WALK THE GLOBE (3D)","L+R+SELECT    SAVE NOW","","STORY: FINISH CHAPTERS TO","OPEN ITEMS FOR FREE PLAY.","100%: MEET AND SLAY ALL 320","MONSTERS AFTER THE STORY.","","TRAITS: CHILDREN INHERIT AND","SOMETIMES MUTATE. MUTATE","MAKES A SUBSPECIES ON PURPOSE.","","TOWERS SHOOT MONSTERS.","GIFTS DECIDE WHO WINS.","","WRATH TAB: TORNADO, ACID RAIN,","BLACK HOLE, ATOMIC BOMB, PLAGUE","AND CURSE. HEAL CURES A PLAGUE.","WORLD > LAWS SWITCHES RULES OFF.",0};
+static const char* const credTxt[]={"","","       BORE: GODGUY","","  A SPINOFF OF BORE","","  DESIGN, CODE, MUSIC","  AND MONSTERS","  BY CLAUDE, FOR YOU","","  MUSIC AMALGAMATED FROM","  THE SONGS OF BORE","  (THE DIPPER MAN, AND ALL","  THE REST)","","  MANY MONSTERS","  392 CREATURES","  364 ITEMS","  23 TRAITS","  134 TRACKS","","  THANK YOU FOR PLAYING","","","","",0};
+static const char* const helpTxt[]={"TOUCH THE WORLD: USE POWER","L R      CHOOSE POWER","X Y      BRUSH SIZE","         (SPAWN: SPECIES)","         (GIFT: ITEM)","         (MUTATE: TRAIT)","B + X Y  JUMP TEN","B + DRAG PANS THE MAP","L + R    ZOOM IN","X + Y    ZOOM OUT","  6 LEVELS: PLANET, VERY FAR,","  FAR, NORMAL, CLOSE, MICRO","D-PAD    PAN (B = FAST)","A        PAUSE  (B+A: SPEED)","  PLANET: TOUCH = POWER,","  B + DRAG = SPIN, A = SHAPE","SELECT   NEXT INFO PAGE","START    PAUSE MENU","Y + A   WALK THE GLOBE (3D)","L+R+SELECT    SAVE NOW","","STORY: FINISH CHAPTERS TO","OPEN ITEMS FOR FREE PLAY.","100%: MEET AND SLAY EVERY","MONSTERS AFTER THE STORY.","","TRAITS: CHILDREN INHERIT AND","SOMETIMES MUTATE. MUTATE","MAKES A SUBSPECIES ON PURPOSE.","","TOWERS SHOOT MONSTERS.","GIFTS DECIDE WHO WINS.","","WRATH TAB: TORNADO, ACID RAIN,","BLACK HOLE, ATOMIC BOMB, PLAGUE","AND CURSE. HEAL CURES A PLAGUE.","WORLD > LAWS SWITCHES RULES OFF.",0};
 static const char* const tipTxt[]={"TOUCH THE WORLD TO USE A POWER","L R CHANGES THE POWER","TRY SPAWN, THEN RAIN AND FIRE","START A VILLAGE: SETTLE","SELECT: STORY, BESTIARY, HELP","X+Y SHOWS THE WORLD AS A GLOBE","SNACKS MAY GIVE FOLK CHILL TRAITS","DAVE SAYS: HAVE YOU TRIED SITTING","FEED A MONSTER A NACHO. SEE WHAT HAPPENS","THE COUCH HAS ROOM FOR EVERYONE","MUNCHIES ARE NOT A BUG"};
 static const char* const*sceneTxt, *const*sceneNext; static int menuOn, menuSel, menuAsk, toastT, dlgOn, dlgIdx, dlgChars, dlgPaused, sceneOff, sceneT, sceneScroll, endShown, scenePaused, helpSel, trPage, tipN;
 static const Dl*dlgSet; static char lastInfo[64];
@@ -1613,7 +1617,7 @@ static void menuText(int id,char*l,char*v){ v[0]=0;
         case MI_SCALE: strcpy(l,"UI SCALE"); strcpy(v,hwUiScale==0?"NORMAL":hwUiScale==1?"LARGE":"HUGE"); break; case MI_CAL: strcpy(l,"CALIBRATE TOUCH"); strcpy(v,">"); break; case MI_OPT: strcpy(l,"OPTIONS"); strcpy(v,">"); break; case MI_EXTRA: strcpy(l,"EXTRAS"); strcpy(v,">"); break; case MI_BACK: strcpy(l,"BACK"); break;
         case MI_SIZE: strcpy(l,"PLANET SIZE"); siprintf(v,"%dx%d",planetSize,planetSize); break; case MI_DIFF: strcpy(l,"DIFFICULTY"); strcpy(v,diff==0?"CALM":diff==1?"NORMAL":"BRUTAL"); break;
         case MI_VOL: strcpy(l,"MUSIC VOLUME"); siprintf(v,"%d%%",gmMaster); break; case MI_MON: strcpy(l,"MONSTERS"); strcpy(v,monOn?"ON":"OFF"); break;
-        case MI_SCULPT: strcpy(l,"AURAL SCULPTURES"); strcpy(v,auralOK()?"":"LOCKED"); break; case MI_BEST: strcpy(l,"BESTIARY"); siprintf(v,"%d/320",seenN); break; case MI_CODEX: strcpy(l,"SUBSPECIES"); siprintf(v,"%d/%d",__builtin_popcount(trSeen),TR_N-1); break;
+        case MI_SCULPT: strcpy(l,"AURAL SCULPTURES"); strcpy(v,auralOK()?"":"LOCKED"); break; case MI_BEST: strcpy(l,"BESTIARY"); siprintf(v,"%d/%d",seenN,MON_N); break; case MI_CODEX: strcpy(l,"SUBSPECIES"); siprintf(v,"%d/%d",__builtin_popcount(trSeen),TR_N-1); break;
         case MI_STATS: strcpy(l,"STATS"); break; case MI_FAVS: strcpy(l,"FAVOURITES"); break; case MI_WORLD: strcpy(l,"WORLD"); strcpy(v,">"); break; case MI_MISSION: strcpy(l,"MISSION GOAL"); break; case MI_HELP: strcpy(l,"HELP"); break; case MI_CRED: strcpy(l,"CREDITS"); break; case MI_DEBUG: strcpy(l,"DEBUG MENU"); break;
         case MI_LOAD: strcpy(l,"LOAD GAME"); break; case MI_SLOT: strcpy(l,"SAVE SLOT"); if(slotYr[slot]>=0) siprintf(v,"%d Y%d",slot+1,slotYr[slot]&0xFFFF); else siprintf(v,"%d EMPTY",slot+1); break; case MI_RESUME: strcpy(l,"RESUME"); break; case MI_SAVE: strcpy(l,"SAVE GAME"); if(savedYear>=0) siprintf(v,"SAVED Y%d",savedYear&0xFFFF); break; case MI_NEW: strcpy(l,"NEW WORLD"); break; case MI_MODE: strcpy(l,"MODE"); strcpy(v,storyOn?"STORY":"FREE PLAY"); break; case MI_TITLE: strcpy(l,"TITLE SCREEN"); break; } }
 static int menuAdj(int id){ return id==MI_SIZE||id==MI_STYPE||id==MI_SPEED||id==MI_DIFF||id==MI_VOL||id==MI_MON||id==MI_SLOT||id==MI_SCALE||id==MI_MMODE; }
@@ -1738,7 +1742,7 @@ static void uiStatus(void){
             nm[17]=0; if(k==0) uiRect(140,116+(k+1)*10,112,10,U_SEL); uiText(143,118+(k+1)*10,nm,k==0?U_WHITE:U_DIM,1); } }
     else if(storyOn&&chapter<CHAP_N){ const Chap*C=&chap[chapter]; int v=chapVal(C->kind); if(v>(int)C->target) v=C->target; siprintf(b,"CHAPTER %d",chapter+1); uiText(143,108,b,U_GOLD,1); uiWrap(143,118,18,2,C->goal,U_WHITE); uiBar(143,137,106,9,v,C->target,U_GREEN); siprintf(b,"%d/%d",v,C->target); uiTextC(196,138,b,U_WHITE,1); }
     else if(storyOn){ uiText(143,108,"STORY TOLD",U_GOLD,1); uiText(143,120,"YOU ARE A GOD",U_WHITE,1); }
-    else { int o; int tot=itCount(&o); uiText(143,108,"FREE PLAY",U_GOLD,1); siprintf(b,"ITEMS %d/%d",o,tot); uiText(143,120,b,U_WHITE,1); siprintf(b,"MET %d/320",seenN); uiText(143,132,b,U_DIM,1); }
+    else { int o; int tot=itCount(&o); uiText(143,108,"FREE PLAY",U_GOLD,1); siprintf(b,"ITEMS %d/%d",o,tot); uiText(143,120,b,U_WHITE,1); siprintf(b,"MET %d/%d",seenN,MON_N); uiText(143,132,b,U_DIM,1); }
     }
     uiFrame(2,150,252,28,U_PANEL,U_BHI,U_BLO); uiRect(5,153,14,14,U_SHADOW); uiPowerIcon(power,7,155);
     { char nm[40]; if(pw[power].kind==PK_SPAWN){ spName(spSel,nm); siprintf(b,"%s",nm); } else if(pw[power].kind==PK_GIFT){ itSay(nm,itSel); siprintf(b,"%.28s",nm); } else if(pw[power].kind==PK_MUTATE) siprintf(b,"TRAIT: %s",trSel?trNm[trSel]:"CLEAR"); else if(pw[power].kind==PK_PAINT) siprintf(b,"BRUSH %d",brush); else siprintf(b,"BRUSH %d",brush);
@@ -1867,13 +1871,13 @@ static void uiStory(void){
     else { uiFrame(4,16,248,34,U_PANELHI,U_GOLD,U_BLO); uiText(10,28,"THE STORY IS TOLD. YOU ARE A GOD.",U_GOLD,1); }
     for(int c=0;c<CHAP_N;c++){ int y=52+c*8; int done=c<chapter; uiRect(4,y-1,248,8,c&1?U_PANEL:U_BG); uiRect(8,y,7,7,done?U_GREEN:U_SHADOW); if(done){ uiPx(10,y+3,U_WHITE); uiPx(11,y+4,U_WHITE); uiPx(12,y+2,U_WHITE); }
         siprintf(b,"%2d",c+1); uiText(20,y,b,U_DIM,1); uiText(36,y,done?chap[c].nm:"??????????",done?U_WHITE:U_DIM,1); }
-    { int o; int tot=itCount(&o); siprintf(b,"ITEMS %d/%d  MET %d/320  SLAIN %u",o,tot,seenN,(unsigned)stKill); uiText(6,172,b,U_DIM,1); }
+    { int o; int tot=itCount(&o); siprintf(b,"ITEMS %d/%d  MET %d/%d  SLAIN %u",o,tot,seenN,MON_N,(unsigned)stKill); uiText(6,172,b,U_DIM,1); }
     uiFlush(); }
 static void uiBest(void){
-    char b[64]; siprintf(b,"%d/320 MET",seenN); uiWin("BESTIARY",b,"UP DOWN  LEFT RIGHT +10   * = SLAIN"); int first=bestSel-7; if(first<0) first=0; if(first>320-15) first=320-15;
+    char b[64]; siprintf(b,"%d/%d MET",seenN,MON_N); uiWin("BESTIARY",b,"UP DOWN  LEFT RIGHT +10   * = SLAIN"); int first=bestSel-7; if(first<0) first=0; if(first>MON_N-15) first=MON_N-15;
     for(int r=0;r<15;r++){ int m=first+r; int s_=8+(ARCH_A+m/16-8)*16+m%16; int seen=(seenB[s_>>3]>>(s_&7))&1, sl=(slainB[s_>>3]>>(s_&7))&1; char n2[40]; if(seen) monName(m,n2); else strcpy(n2,"??????????"); char nn[8]; siprintf(nn,"%3d",m+1);
         int y=17+r*10; if(m==bestSel) uiRect(4,y-1,240,10,U_SEL); else if(r&1) uiRect(4,y-1,240,10,U_PANEL); uiText(8,y,nn,U_DIM,1); uiText(32,y,n2,seen?U_WHITE:U_DIM,1); if(sl) uiIcon8(228,y,IC8_STAR); else if(seen) uiIcon8(228,y,IC8_SKULL); }
-    uiScroll(320,first,15,16,150); uiFlush(); }
+    uiScroll(MON_N,first,15,16,150); uiFlush(); }
 static void uiCodex(void){
     countTraits(); char b[64]; siprintf(b,"%d/%d MET  MUT %u",__builtin_popcount(trSeen),TR_N-1,(unsigned)stMut); uiWin("SUBSPECIES",b,"UP DOWN   MUTATE: X Y PICKS A TRAIT");
     int first=trPage-6; if(first<1) first=1; if(first>TR_N-1-11) first=TR_N-1-11; if(first<1) first=1;
@@ -2115,14 +2119,14 @@ int main(void){
             if(d||go){ int cx=(camX>>3)+16, cy=(camY>>3)+12;
                 switch(dbgSel){ case 0: if(d||go){ speedMul=speedMul==1?2:speedMul==2?4:speedMul==4?8:1; } break; case 1: if(d||go) paused^=1; break; case 2: year+=d?d:1; if(year<0) year=0; break;
                     case 3: chapter+=d; if(chapter<0) chapter=0; if(chapter>CHAP_N) chapter=CHAP_N; storyDone=chapter>=CHAP_N; break; case 4: tierOpen+=d; if(tierOpen<1) tierOpen=1; if(tierOpen>14) tierOpen=14; break;
-                    case 5: unlockAll^=1; break; case 6: monOn^=1; break; case 7: dbgMon=(dbgMon+320+d)%320; break;
+                    case 5: unlockAll^=1; break; case 6: monOn^=1; break; case 7: dbgMon=(dbgMon+MON_N+d)%MON_N; break;
                     case 8: if(go){ int a=ARCH_A+dbgMon/16, sIdx=8+(a-8)*16+dbgMon%16; int ok=0; for(int k=0;k<40&&!ok;k++) ok=addCr(sIdx,cx+(int)(rnd()%7)-3,cy+(int)(rnd()%7)-3)>=0; siprintf(info,ok?"SPAWNED":"NO ROOM HERE"); } break;
                     case 9: if(go){ int n=0; for(int i=0;i<nCr;i++) if(cr[i].alive&&arch[sp[cr[i].sp].a].diet==5){ killNat(i); n++; } siprintf(info,"%d MONSTERS GONE",n); } break;
-                    case 10: if(go){ for(int m=0;m<320;m++){ int sIdx=8+(ARCH_A+m/16-8)*16+m%16; seenB[sIdx>>3]|=(u8)(1<<(sIdx&7)); } seenN=320; siprintf(info,"ALL 320 MET"); } break;
+                    case 10: if(go){ for(int m=0;m<MON_N;m++){ int sIdx=8+(ARCH_A+m/16-8)*16+m%16; seenB[sIdx>>3]|=(u8)(1<<(sIdx&7)); } seenN=MON_N; siprintf(info,"ALL MONSTERS MET"); } break;
                     case 11: if(go){ for(int i=0;i<nCr;i++) if(cr[i].alive){ cr[i].hp=(u8)maxHp(&cr[i]); cr[i].food=120; } siprintf(info,"EVERYONE HEALED"); } break;
                     case 12: if(go){ for(int v=0;v<VIL_N;v++) if(vil[v].on) vil[v].stock=400; siprintf(info,"STORES FULL"); } break;
                     case 13: if(go){ int r=spSel<8?sp[spSel].a:0; siprintf(info,vilFound(r,cx,cy)>=0?"VILLAGE FOUNDED":"NO ROOM"); } break;
-                    case 14: if(go){ for(int m=0;m<320;m++){ int sI=8+(ARCH_A+m/16-8)*16+m%16; slainB[sI>>3]|=(u8)(1<<(sI&7)); } stKill+=50; siprintf(info,"ALL 320 SLAIN"); } break;
+                    case 14: if(go){ for(int m=0;m<MON_N;m++){ int sI=8+(ARCH_A+m/16-8)*16+m%16; slainB[sI>>3]|=(u8)(1<<(sI&7)); } stKill+=50; siprintf(info,"ALL MONSTERS SLAIN"); } break;
                     case 15: if(go&&chapter<CHAP_N) chapterDone(); break;
                     case 16: if(d<0) doSave(); else if(d>0||go){ if(sdOk&&loadGame(savePath)){ refillWindow(); siprintf(info,"LOADED"); } else siprintf(info,"NO SAVE TO LOAD"); } if(go&&(kh&KEY_B)){ if(sdOk){ remove(savePath); { char b[64]; siprintf(b,"%s.bak",savePath); remove(b); } hasSave=0; siprintf(info,"SAVE ERASED"); slotScan(); } } break;
                     case 17: dbgFx=(dbgFx+GM_FX+d)%GM_FX; if(go||d) fxPlay(dbgFx); break; case 18: if(go||d) auralOpen^=1; break; case 20: seedFix=(seedFix?seedFix:worldSeed)+(d?d:0); if(!seedFix) seedFix=1; break;

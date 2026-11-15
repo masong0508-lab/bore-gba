@@ -14,13 +14,13 @@
 #define CELL_SH 3
 #define CELL_MAX ((MAXD>>CELL_SH)*(MAXD>>CELL_SH))
 #define CELL_K 9
-static u8 cellCnt[CELL_MAX][CELL_K]; static u16 cellMask[CELL_MAX];
+static u8 cellCnt[CELL_MAX][CELL_K]; static u16 cellMask[CELL_MAX]; static u8 cellTot[CELL_MAX];      // cellTot: every creature in the cell (animals too, saturating at 255), so a sweep of the camera window can skip empty cells
 
 static int cellKind(int spIdx){ int a=sp[spIdx].a; if(arch[a].diet==5) return 8; return a<8?a:-1; }
 static int cellOf(int x,int y){ return (y>>CELL_SH)*((gW+7)>>CELL_SH)+(x>>CELL_SH); }
-static void cellClear(void){ memset(cellCnt,0,sizeof cellCnt); memset(cellMask,0,sizeof cellMask); }
-static void cellAdd(int x,int y,int spIdx){ int k=cellKind(spIdx); if(k<0) return; int c=cellOf(x,y); cellCnt[c][k]++; cellMask[c]|=(u16)(1<<k); }
-static void cellDel(int x,int y,int spIdx){ int k=cellKind(spIdx); if(k<0) return; int c=cellOf(x,y); if(cellCnt[c][k]&&--cellCnt[c][k]==0) cellMask[c]&=(u16)~(1<<k); }
+static void cellClear(void){ memset(cellCnt,0,sizeof cellCnt); memset(cellMask,0,sizeof cellMask); memset(cellTot,0,sizeof cellTot); }
+static void cellAdd(int x,int y,int spIdx){ { int t=cellOf(x,y); if(cellTot[t]<255) cellTot[t]++; } int k=cellKind(spIdx); if(k<0) return; int c=cellOf(x,y); cellCnt[c][k]++; cellMask[c]|=(u16)(1<<k); }
+static void cellDel(int x,int y,int spIdx){ { int t=cellOf(x,y); if(cellTot[t]&&cellTot[t]<255) cellTot[t]--; } int k=cellKind(spIdx); if(k<0) return; int c=cellOf(x,y); if(cellCnt[c][k]&&--cellCnt[c][k]==0) cellMask[c]&=(u16)~(1<<k); }
 static void cellRebuild(void){ cellClear(); for(int i=0;i<nCr;i++) if(cr[i].alive&&cr[i].x<gW&&cr[i].y<gH&&occ[cr[i].y][cr[i].x]==(occ_t)(i+1)) cellAdd(cr[i].x,cr[i].y,cr[i].sp); }
 
 // The nearest creature of any kind in the mask em (bit 0..7 a people, bit 8 monsters) within the (2R+1) x (2R+1) window round creature ci, R at most 8. Returns its index, or -1;
