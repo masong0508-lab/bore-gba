@@ -341,7 +341,8 @@ static void compact(void){   // the dead are squeezed out of the list
     memset(occ,0,sizeof occ); for(int i=0;i<nCr;i++) occ[cr[i].y][cr[i].x]=(occ_t)(i+1); cellRebuild(); wgKeep=keep; wgNc=0;
 }
 
-static void moveTo(Cr*c,int i,int nx,int ny){ occ[c->y][c->x]=0; cellDel(c->x,c->y,c->sp); { int ddx=c->x-nx, ddy=c->y-ny; if(ddx>1||ddx<-1) ddx=0; if(ddy>1||ddy<-1) ddy=0; c->ox=(s8)(ddx*8); c->oy=(s8)(ddy*8); } c->x=(coord_t)nx; c->y=(coord_t)ny; occ[ny][nx]=(occ_t)(i+1); cellAdd(nx,ny,c->sp); }
+static int glideOn=1;      // some creature may have a pixel offset to glide off (set by moveTo and the camera; simulate() only walks the screen when it is set)
+static void moveTo(Cr*c,int i,int nx,int ny){ glideOn=1; occ[c->y][c->x]=0; cellDel(c->x,c->y,c->sp); { int ddx=c->x-nx, ddy=c->y-ny; if(ddx>1||ddx<-1) ddx=0; if(ddy>1||ddy<-1) ddy=0; c->ox=(s8)(ddx*8); c->oy=(s8)(ddy*8); } c->x=(coord_t)nx; c->y=(coord_t)ny; occ[ny][nx]=(occ_t)(i+1); cellAdd(nx,ny,c->sp); }
 // ---- levels: a creature that kills grows stronger (+5 health and +1 damage every two levels, up to level 10), after the wiki's unit levels; Cr.dir holds the level
 static void zombieBite(const Cr*a,int j){      // a zombie's hit infects half of the living it touches (not the immune, not monsters); the infected fall and rise as zombies
     const Arch*A=&arch[sp[a->sp].a]; if(A->diet!=5||strcmp(A->nm,"ZOMBIE")||gx.lPlague==1) return;
@@ -701,6 +702,7 @@ static void think(int i){ GG_TURN(); Cr*c=&cr[i]; curExtra=c->alive?trMask(c):0;
     edgeOut=0; }
 static int monTierMax(void){ int t=(tierOpen-1)/3+year/4; return t>4?4:t; }
 static int monCount(void){ int n=0; for(int i=0;i<nCr;i++) n+=cr[i].alive&&arch[sp[cr[i].sp].a].diet==5; return n; }
+static int monCountHud(void){ static int c=0; static unsigned t=~0u; if(t!=(unsigned)(tick>>3)){ t=(unsigned)(tick>>3); c=monCount(); } return c; }      // (display only: counted once every 8 ticks; the spawn rules use monCount)
 static void monSpawn(void){   // rifts open: monsters of the strength the world has earned appear far from the villages
     if(!monOn||(year<2&&tierOpen<4)) return; int tm=monTierMax(); int cap=(4+tm*6)*WW*WH/16384*(diff==0?6:diff==2?15:10)/10*(worldAge()==1?15:10)/10*(gx.mon==0?5:gx.mon==2?18:10)/10; if(cap<3) cap=3; if(monCount()>=cap||(rnd()%3)) return;
     int a; for(int k=0;k<8;k++){ a=ARCH_A+(int)(rnd()%(ARCH_N-ARCH_A)); int tr=monTier[a-ARCH_A]; if(tr<=tm&&(tr>=tm-2||(rnd()&7)==0)) break; if(k==7) a=ARCH_A+(int)(rnd()%4); }
@@ -778,8 +780,8 @@ static void simulate(void){
     if(!gx.lBio) biomeTick();
     boatTick();
     if((tick&63)==17) atmoTick();
-    { int x0=(camX>>3)-1, y0=(camY>>3)-1;      // glide into the tile: only the creatures near the screen (a crowd of thousands is not walked through every tick)
-      for(int y=y0<0?0:y0;y<y0+27&&y<WH;y++) for(int x=x0<0?0:x0;x<x0+35&&x<WW;x++){ int j=occ[y][x]-1; if(j<0) continue; Cr*c=&cr[j]; if(c->ox) c->ox+= c->ox<0?1:-1; if(c->oy) c->oy+= c->oy<0?1:-1; } }
+    { static int gcx=-1, gcy=-1; int x0=(camX>>3)-1, y0=(camY>>3)-1; if(x0!=gcx||y0!=gcy||(tick&63)==0){ gcx=x0; gcy=y0; glideOn=1; }      // glide into the tile: only the creatures near the screen (a crowd of thousands is not walked through every tick), and only while something is gliding
+      if(glideOn){ int rem=0; for(int y=y0<0?0:y0;y<y0+27&&y<WH;y++) for(int x=x0<0?0:x0;x<x0+35&&x<WW;x++){ int j=occ[y][x]-1; if(j<0) continue; Cr*c=&cr[j]; if(c->ox) c->ox+= c->ox<0?1:-1; if(c->oy) c->oy+= c->oy<0?1:-1; if(c->ox||c->oy) rem=1; } glideOn=rem; } }
     int n=nCr; if(n==0) return; int per=n>96?96+(n>2400?(n-2400)/300:0):n;     // everyone takes a turn in rotation; a bigger crowd gets a few more turns a tick
 #ifdef GG_FULLTURNS
     per=n;      // (benchmark builds only, pc_war.c: every creature is visited every tick, so each thinks at its own pace: the full per-unit run that step 10d's tiers are compared with)
@@ -1548,7 +1550,7 @@ static void uiInspectCard(void){
     else { uiText(142,24,"NOTHING HERE",U_DIM,1); }
     uiText(142,136,"A: INSPECT AGAIN",U_DIM,1); }
 static void uiStatus(void){
-    int alive=0; for(int i=0;i<nCr;i++) alive+=cr[i].alive; int hh; int folk=vilTotals(&hh); char b[64];
+    static int aliveC=0; static unsigned aliveT=~0u; if(aliveT!=(unsigned)(tick>>3)){ aliveT=(unsigned)(tick>>3); aliveC=0; for(int i=0;i<nCr;i++) aliveC+=cr[i].alive; } int alive=aliveC; int hh; int folk=vilTotals(&hh); char b[64];
     siprintf(b,"%s  YEAR %d",storyOn?"STORY":"FREE PLAY",year); uiWin(view3d?(walkOn?"BORE: GODGUY  WALKING":"BORE: GODGUY  GLOBE"):"BORE: GODGUY",b,0);
     { int p=(tick>>1)&2047; uiIcon8(238-uiTextW(b,1)-10,3,(p<256||p>1792)?IC8_MOON:IC8_SUN); if(paused) uiText(82,3,"PAUSED",U_RED,1); }
     uiFrame(2,15,132,132,U_SHADOW,U_BHI,U_BLO); uiMinimap(4,17);
@@ -1556,7 +1558,7 @@ static void uiStatus(void){
         for(int i=0;i<m;i++){ int k=ids[i], x=7+(i&1)*62, y=y0+2+(i>>1)*8; char nm[24]; kdName(k,nm); nm[6]=0; uiRect(x,y+1,5,5,40+k); uiText(x+7,y,nm,kd[k].empire?U_GOLD:U_LGREY,1); if(kd[k].war) uiText(x+48,y,"!",U_RED,1); } } }
     if(inspT>0){ uiInspectCard(); } else {
     uiFrame(138,15,116,86,U_PANEL,U_BHI,U_BLO);
-    { struct { int ic; const char*l; int v; } r[6]={{IC8_LIFE,"LIFE",alive},{IC8_FOLK,"FOLK",folk},{IC8_HOME,"HOMES",hh},{IC8_FLAG,"VILLAGES",nVilOn},{IC8_SKULL,"MONSTERS",monCount()},{IC8_STAR,"SLAIN",(int)stKill}};
+    { struct { int ic; const char*l; int v; } r[6]={{IC8_LIFE,"LIFE",alive},{IC8_FOLK,"FOLK",folk},{IC8_HOME,"HOMES",hh},{IC8_FLAG,"VILLAGES",nVilOn},{IC8_SKULL,"MONSTERS",monCountHud()},{IC8_STAR,"SLAIN",(int)stKill}};
       for(int i=0;i<6;i++){ int y=19+i*13; uiIcon8(143,y,r[i].ic); uiText(155,y+1,r[i].l,U_DIM,1); siprintf(b,"%d",r[i].v); uiTextR(250,y+1,b,U_WHITE); } }
     uiFrame(138,104,116,44,U_PANEL,U_BHI,U_BLO);
     if(pw[power].kind==PK_SPAWN||pw[power].kind==PK_GIFT||pw[power].kind==PK_MUTATE){   // a picker: the choice before, the choice now, the choice after
