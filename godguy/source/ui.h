@@ -133,7 +133,7 @@ static const u8 tbCatCol[TB_NCAT]={118,126,119,120,255};   // main palette slots
 static u8 tbPix[56][256]; static int tbTop=0, tbCat=0, tbN=0; static u8 tbList[64]; static u16*mapPtr1;
 static int tbHome(int pi){ int k=pw[pi].kind; if(k==PK_INSPECT) return 0; if(k==PK_PAINT||k==PK_AIR) return 1;
     if(k==PK_SPAWN||k==PK_HEAL||k==PK_FEED||k==PK_BLOOM||k==PK_VIBE||k==PK_MUTATE) return 2;
-    if(k==PK_SETTLE||k==PK_WAR||k==PK_PEACE||k==PK_BLESS||k==PK_GIFT||(k>=PK_INSPIRE&&k<=PK_DUSTG)) return 4; return 3; }
+    if(k==PK_SETTLE||k==PK_WAR||k==PK_PEACE||k==PK_BLESS||k==PK_GIFT||(k>=PK_INSPIRE&&k<=PK_DUSTG)||k==PK_LOOT) return 4; return 3; }
 static void tbBuild(void){ tbN=0; for(int i=0;i<PW_N&&tbN<64;i++) if(tbCat==0||pw[i].kind==PK_INSPECT||tbHome(i)==tbCat) tbList[tbN++]=(u8)i; }
 static int tbPos(int p){ for(int i=0;i<tbN;i++) if(tbList[i]==p) return i; return -1; }
 static void tbText(int x,int y,const char*s,int c){ for(;*s;s++){ int ch=(unsigned char)*s; if(ch<32||ch>=96) ch=32; const unsigned char*g=font5x7[ch-32];

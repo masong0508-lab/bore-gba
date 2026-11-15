@@ -13,9 +13,9 @@ typedef struct {
 static GgX gx;
 // WORLD LAWS (port step 5, from the old line's 20 laws). The older laws live in gx (lAge, lPlague, lFire, lLava, lStorm, lBio, lAtmo); the rest are bytes in lw[]:
 // lw[i]!=0 means law i differs from its default (0 is always "as before"), saved in the GGL1 trailer, so an old save loads with every default.
-enum { LW_HUNGER, LW_CIVBABY, LW_ANIBABY, LW_PEACEMON, LW_MUTBOX, LW_MUTATE, LW_EROSION, LW_TREES, LW_WEATHER, LW_GAIA, LW_DIPLOMACY, LW_REBEL, LW_GROWTH, LW_POP100, LW_CROWD, LW_LIMIT, LW_NATDIS, LW_OTHERDIS, LW_SUCCESSION, LW_KINGSTATS, LW_SPAGHETTI, LW_N };
-static u8 lw[LW_N+3];
-#define LAWDEFON (((1u<<LW_N)-1)&~((1u<<LW_PEACEMON)|(1u<<LW_MUTBOX)|(1u<<LW_GAIA)|(1u<<LW_POP100)|(1u<<LW_SPAGHETTI)))     // off by default, like WorldBox: peaceful monsters, mutant box, Gaia's covenant, 100 people
+enum { LW_HUNGER, LW_CIVBABY, LW_ANIBABY, LW_PEACEMON, LW_MUTBOX, LW_MUTATE, LW_EROSION, LW_TREES, LW_WEATHER, LW_GAIA, LW_DIPLOMACY, LW_REBEL, LW_GROWTH, LW_POP100, LW_CROWD, LW_LIMIT, LW_NATDIS, LW_OTHERDIS, LW_SUCCESSION, LW_KINGSTATS, LW_SPAGHETTI, LW_SNOW, LW_N };
+static u8 lw[LW_N+2];
+#define LAWDEFON (((1u<<LW_N)-1)&~((1u<<LW_PEACEMON)|(1u<<LW_MUTBOX)|(1u<<LW_GAIA)|(1u<<LW_POP100)|(1u<<LW_SPAGHETTI)|(1u<<LW_SNOW)))     // off by default, like WorldBox: peaceful monsters, mutant box, Gaia's covenant, 100 people
 #define LAWON(i) (((LAWDEFON>>(i))&1u)^(u32)(lw[i]&1))
 #define GX_HEAD ((int)__builtin_offsetof(GgX,vGrow))      // the bytes before the per-city tables: the same in every build
 static u32 stBorn, stDied;            // births and deaths since the world began

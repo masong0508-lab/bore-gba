@@ -149,7 +149,7 @@ static u32 trSeen; static u32 stMut; static int trCount[TR_N], diff=1;      // t
 #define HAS(c,t) ((c)->tr==(t)||(c)->tr2==(t))
 static int trMask(const Cr*c){ int m=0; if(HAS(c,TR_FIRE)) m|=1<<T_LAVA; if(HAS(c,TR_AMPH)||HAS(c,TR_FLOATY)) m|=M_WATER; if(HAS(c,TR_CLIMB)||HAS(c,TR_SPACY)) m|=1<<T_MOUNT; if(HAS(c,TR_WING)) m|=M_ALL&~(1<<T_LAVA); if(HAS(c,TR_FROST)) m|=(1<<T_SNOW)|(1<<T_MOUNT); return m; }
 static int maxHp(const Cr*c){ int h=arch[sp[c->sp].a].hp*gxVigorK(sp[c->sp].a)/100; if(HAS(c,TR_GIANT)) h=h*16/10; if(HAS(c,TR_COUCH)) h=h*15/10; if(HAS(c,TR_TINY)) h=h*6/10; if(c->rk==1) h=h*13/10; else if(c->rk==2) h=h*2; h+=c->dir*5; if(h<3) h=3; return h>255?255:h; }      // (dir holds the level, 0..10)
-static int effSpd(const Cr*c){ int sd=arch[sp[c->sp].a].spd; if(!c->sick&&!c->tr&&!c->tr2) return sd<3?3:sd;      // (no sickness, no traits: nothing below applies; this is the common case)
+static int effSpd(const Cr*c){ int sd=arch[sp[c->sp].a].spd; if(LAWON(LW_SNOW)&&world[c->y][c->x]==T_SNOW&&!HAS(c,TR_FROST)&&!HAS(c,TR_CHILL)&&!HAS(c,TR_WING)) sd=sd*13/10;      // SNOW DRAG: snow slows everyone but the frost-born, the chilled and the winged if(!c->sick&&!c->tr&&!c->tr2) return sd<3?3:sd;      // (no sickness, no traits: nothing below applies; this is the common case)
     if(c->sick==1) sd=sd*13/10; else if(c->sick==3) sd=sd*12/10; if(HAS(c,TR_SWIFT)) sd=sd*7/10; if(HAS(c,TR_GIANT)) sd=sd*13/10; if(HAS(c,TR_CHILL)) sd=sd*13/10; if(HAS(c,TR_COUCH)) sd=sd*17/10; if(HAS(c,TR_NOCT)){ int p=(tick>>1)&2047; sd=(p<256||p>1792)?sd*7/10:sd*12/10; } if(c->sick==1) sd=sd*13/10; return sd<3?3:sd; }
 static void crName(const Cr*c,char*out){      // "ELITE ELANDIL SWIFT HUMAN": rank, personal name (people, ranked monsters, anyone with a record), traits, kind. Never longer than 46.
     char b[32]; out[0]=0;
@@ -334,7 +334,9 @@ static int addCr(int s,int x,int y){
 }
 static void logEv(const char*s);
 static coord_t zq[16][2]; static int zqN;      // where plague victims bitten by a zombie fell: they rise again at the end of the tick (calamity.h)
-static void killCr(int i){ Cr*c=&cr[i]; if(!c->alive) return; ntDeath(i); if(c->rk==2&&!natural){ char nm[48], b[40]; crName(c,nm); siprintf(b,"%.28s FALLS",nm); logEv(b); } c->alive=0; stDied++; if(c->sick==3&&arch[sp[c->sp].a].diet!=5&&zqN<16){ zq[zqN][0]=c->x; zq[zqN][1]=c->y; zqN++; } if(c->rk==1&&!natural&&(rnd()&3)==0){ char nm[48], b2[40]; crName(c,nm); siprintf(b2,"%.24s FALLS",nm); logEv(b2); } if(occ[c->y][c->x]==i+1){ occ[c->y][c->x]=0; cellDel(c->x,c->y,c->sp); }
+#define FL_SLAYER 0x0020      /* killed a boss (the bit ggid.h reserved for a ruler mark, which nothing uses) */
+static int lastKillRk;      // rank of what was last killed (killCr sets it): a killer of a boss earns the SLAYER mark
+static void lootDrop(int mi); static void killCr(int i){ Cr*c=&cr[i]; if(!c->alive) return; lastKillRk=c->rk; if(c->rk>=1&&arch[sp[c->sp].a].diet==5) lootDrop(i); ntDeath(i); if(c->rk==2&&!natural){ char nm[48], b[40]; crName(c,nm); siprintf(b,"%.28s FALLS",nm); logEv(b); } c->alive=0; stDied++; if(c->sick==3&&arch[sp[c->sp].a].diet!=5&&zqN<16){ zq[zqN][0]=c->x; zq[zqN][1]=c->y; zqN++; } if(c->rk==1&&!natural&&(rnd()&3)==0){ char nm[48], b2[40]; crName(c,nm); siprintf(b2,"%.24s FALLS",nm); logEv(b2); } if(occ[c->y][c->x]==i+1){ occ[c->y][c->x]=0; cellDel(c->x,c->y,c->sp); }
     if(!natural&&arch[sp[c->sp].a].diet==5){ stKill++; if(!((slainB[c->sp>>3]>>(c->sp&7))&1)) slainB[c->sp>>3]|=(u8)(1<<(c->sp&7)); fxReq(FX_MONSTER_SLAIN); } }
 static void killNat(int i){ natural=1; killCr(i); natural=0; }     // old age, hunger, lava: not a slaying
 static void compact(void){   // the dead are squeezed out of the list
@@ -348,7 +350,7 @@ static void moveTo(Cr*c,int i,int nx,int ny){ glideOn=1; occ[c->y][c->x]=0; cell
 static void zombieBite(const Cr*a,int j){      // a zombie's hit infects half of the living it touches (not the immune, not monsters); the infected fall and rise as zombies
     const Arch*A=&arch[sp[a->sp].a]; if(A->diet!=5||strcmp(A->nm,"ZOMBIE")||gx.lPlague==1) return;
     if(!cr[j].alive||arch[sp[cr[j].sp].a].diet==5||cr[j].sick==2||cr[j].sick==3) return; if(rnd()&1) cr[j].sick=3; }
-static void gainXp(Cr*c){ ntKill(c); int L=c->dir; if(L>=10) return; if((int)(rnd()%(unsigned)(L*2+3))==0){ c->dir=(u8)(L+1); if(c->hp<250) c->hp=(u8)(c->hp+8); if(c->dir%5==0&&(c->rk||arch[sp[c->sp].a].diet==4)){ char nm[48], b[40]; crName(c,nm); siprintf(b,"%.20s REACHES LV %d",nm,c->dir); logEv(b); } } }
+static void gainXp(Cr*c){ if(lastKillRk==2&&arch[sp[c->sp].a].diet==4&&!(crFl[c-cr]&FL_SLAYER)){ crFl[c-cr]|=FL_SLAYER; char nm[48], b[48]; crName(c,nm); siprintf(b,"%.22s SLAYS A BOSS",nm); logEv(b); } ntKill(c); int L=c->dir; if(L>=10) return; if((int)(rnd()%(unsigned)(L*2+3))==0){ c->dir=(u8)(L+1); if(c->hp<250) c->hp=(u8)(c->hp+8); if(c->dir%5==0&&(c->rk||arch[sp[c->sp].a].diet==4)){ char nm[48], b[40]; crName(c,nm); siprintf(b,"%.20s REACHES LV %d",nm,c->dir); logEv(b); } } }
 // ---------------------------------------------------------------------------------------------- villages
 #define VIL_OLD 24     // older saves held 24 villages
 typedef struct { u8 on, race; coord_t x, y; u8 lvl, houses, farms, towers, foe, dead, nm1, nm2; u16 pop, stock; } Vil;   // foe: the village (+1) it is at war with
@@ -524,7 +526,9 @@ static void kdAssign(void){
     for(int v=0;v<VIL_N;v++){ if(!vil[v].on){ vilK[v]=0; vilIndep[v]=0; continue; } if(vilIndep[v]){ vilK[v]=0; continue; } if(vilK[v]&&kd[vilK[v]-1].on) continue; vilK[v]=0;
         int best=-1, bd=40*40; for(int u=0;u<VIL_N;u++) if(u!=v&&vil[u].on&&vilK[u]&&vil[u].race==vil[v].race){ int dx=vil[u].x-vil[v].x, dy=vil[u].y-vil[v].y, d=dx*dx+dy*dy; if(d<bd){ bd=d; best=u; } }
         if(best>=0) vilK[v]=vilK[best]; else if(kdFound(v)<0){ int nb=vilAny(vil[v].x,vil[v].y,60); (void)nb; for(int u=0;u<VIL_N;u++) if(u!=v&&vilK[u]){ vilK[v]=vilK[u]; break; } } } }
-static void kdWar(int a,int b,int on){ if(on){ kd[a].war|=(u8)(1<<b); kd[b].war|=(u8)(1<<a); kd[a].weary=kd[b].weary=0; } else { kd[a].war&=(u8)~(1<<b); kd[b].war&=(u8)~(1<<a); } }
+static u16 warYr[KN_N][KN_N];   // the year each war began (not saved: the war records are only for the journal)
+static void renown(int k,int n){ int r=kx[k].renown+n; kx[k].renown=(u16)(r>65000?65000:r); }
+static void kdWar(int a,int b,int on){ if(on){ if(!(kd[a].war>>b&1)) warYr[a][b]=warYr[b][a]=(u16)year; kd[a].war|=(u8)(1<<b); kd[b].war|=(u8)(1<<a); kd[a].weary=kd[b].weary=0; } else { kd[a].war&=(u8)~(1<<b); kd[b].war&=(u8)~(1<<a); } }
 static const char* const knBr[6]={"GOVERNANCE","ZONE CONTROL","WARFARE","ECONOMY","ARCHITECTURE","EDUCATION"};
 static const char* const knN[6][3]={{"TRIBAL LAW","KINGS COURT","ROYAL CHARTER"},{"BOUNDARY STONES","BORDER FORTS","GRAND SURVEY"},{"DRILLED LEVIES","STEEL ARMS","SIEGECRAFT"},{"BARTER","COINAGE","BANKING"},{"MASONRY","ARCHES","CATHEDRALS"},{"WRITING","SCHOLARS","UNIVERSITIES"}};
 static const char* const dogN[4]={"CRUSADERS: +10% POWER","PEACEKEEPERS: BETTER TALKS","BUILDERS: RICHER CITIES","MYSTICS: ODD GIFTS"};
@@ -560,8 +564,8 @@ static void kdDie(int k){ KD_DIRTY(); char n[24], s[72]; kdName(k,n); siprintf(s
 static int vilConquer(int fv,int byV){   // a village taken in war changes kingdom instead of dying
     KD_DIRTY();
     int a=vilK[byV]-1, b=vilK[fv]-1; if(a<0||b<0||a==b||!(kd[a].war>>b&1)) return 0;
-    int wasCap=kd[b].cap==fv+1; vilK[fv]=(u8)(a+1); vilL[fv]=-20; stCapt++; vil[fv].foe=0; vil[fv].stock/=2;
-    if(wasCap){ kd[b].cap=0; for(int u=0;u<VIL_N;u++) if(vil[u].on&&vilK[u]==b+1){ vilL[u]=(s8)(vilL[u]-25); vil[u].foe=0; } logEv("A CAPITAL FALLS: ARMIES DESERT"); }   /* taking a capital shakes every other city of the kingdom */ char n[24], x[24], s[72]; vilName(fv,n); kdName(a,x); siprintf(s,"%s TAKES %s",x,n); logEv(s); kd[b].weary=(u8)(kd[b].weary>3?kd[b].weary-3:0); return 1; }
+    int wasCap=kd[b].cap==fv+1; vilK[fv]=(u8)(a+1); vilL[fv]=-20; stCapt++; vil[fv].foe=0; vil[fv].stock/=2; renown(a,3);
+    if(wasCap){ kd[b].cap=0; for(int u=0;u<VIL_N;u++) if(vil[u].on&&vilK[u]==b+1){ vilL[u]=(s8)(vilL[u]-25); vil[u].foe=0; } logEv("A CAPITAL FALLS: ARMIES DESERT"); { char kn[24], t[72]; kdName(b,kn); if(hsh(fv,(u32)tick,0x464C4545)&1){ siprintf(t,"THE RULER OF %.20s FLEES THE FALLEN CAPITAL",kn); } else { kd[b].rn1=(u8)(hsh(fv,(u32)tick,1)%12); kd[b].rn2=(u8)(hsh(fv,(u32)tick,2)%8); kd[b].reign=0; siprintf(t,"THE RULER OF %.20s FALLS WITH THE CAPITAL",kn); } logEv(t); } }   /* taking a capital shakes every other city of the kingdom */ char n[24], x[24], s[72]; vilName(fv,n); kdName(a,x); siprintf(s,"%s TAKES %s",x,n); logEv(s); kd[b].weary=(u8)(kd[b].weary>3?kd[b].weary-3:0); return 1; }
 static void kdSplit(int k,int mode){      // a crown changes hands in a kingdom with the SHATTERED CROWN (mode 0: every far city becomes a kingdom of its own) or EQUAL HEIRS (mode 1: the farther half goes to one heir). Only as far as free kingdom slots allow: the cities that cannot be given away stay with the heir.
     int cap=kd[k].cap?kd[k].cap-1:-1; if(cap<0||!vil[cap].on) return; int vs[VIL_N], d[VIL_N], n=0;
     for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==k+1&&v!=cap){ int dx=vil[v].x-vil[cap].x, dy=vil[v].y-vil[cap].y; vs[n]=v; d[n]=dx*dx+dy*dy; n++; }
@@ -608,9 +612,9 @@ static void kingdomTick(void){
             if(war){ kd[a].weary++; kd[b].weary++; int ww=kd[a].weary; int spite=kd[a].spite||kd[b].spite;
                 int stop=ww>40||wa*5<wb||wb*5<wa||(!spite&&ww>=8&&(int)(rnd()%100)<ww*3+((kd[a].rlg==1||kd[b].rlg==1)?10:0)&&(kd[a].rtr==1||kd[b].rtr==1||wa*2<wb||wb*2<wa||ww>20));   // peace talks
                 if(stop){ kdWar(a,b,0); kd[a].spite=kd[b].spite=0; kd[a].truce=kd[b].truce=10; char x[24], y[24], s[72]; kdName(a,x); kdName(b,y);
-                    int win=wa*2<=wb?b:wb*2<=wa?a:-1; if(win>=0){ int lo=win==a?b:a; if(!kd[lo].lord&&!kd[win].lord){ kd[lo].lord=(u8)(win+1); char t[24], u[24]; kdName(lo,t); kdName(win,u); siprintf(s,"%s BECOMES A VASSAL OF %s",t,u); logEv(s); } else { siprintf(s,"PEACE BETWEEN %s AND %s",x,y); logEv(s); } } else { siprintf(s,"PEACE BETWEEN %s AND %s",x,y); logEv(s); } } }
+                    int win=wa*2<=wb?b:wb*2<=wa?a:-1; if(win>=0){ int lo=win==a?b:a; renown(win,10); { char w1[24], l1[24], r1[72]; kdName(win,w1); kdName(lo,l1); siprintf(r1,"WAR RECORD: %.18s BEAT %.18s IN %d YEARS",w1,l1,year-(int)warYr[a][b]); logEv(r1); } if(!kd[lo].lord&&!kd[win].lord){ kd[lo].lord=(u8)(win+1); char t[24], u[24]; kdName(lo,t); kdName(win,u); siprintf(s,"%s BECOMES A VASSAL OF %s",t,u); logEv(s); } else { siprintf(s,"PEACE BETWEEN %s AND %s",x,y); logEv(s); } } else { siprintf(s,"PEACE BETWEEN %s AND %s",x,y); logEv(s); } } }
             else if(!ally&&!(kd[a].lord==b+1||kd[b].lord==a+1)){
-                if(LAWON(LW_DIPLOMACY)&&kd[a].rel[b]>35&&kd[b].rel[a]>35&&(rnd()&3)==0){ int na=__builtin_popcount(kd[a].allies), nb=__builtin_popcount(kd[b].allies); if(na<3&&nb<3){ kd[a].allies|=(u8)(1<<b); kd[b].allies|=(u8)(1<<a); stAllies++; char x[24], y[24], s[72]; kdName(a,x); kdName(b,y); siprintf(s,"%s AND %s ALLY",x,y); logEv(s); } }
+                if(LAWON(LW_DIPLOMACY)&&kd[a].rel[b]>35&&kd[b].rel[a]>35&&(rnd()&3)==0){ int na=__builtin_popcount(kd[a].allies), nb=__builtin_popcount(kd[b].allies); if(na<3&&nb<3){ kd[a].allies|=(u8)(1<<b); kd[b].allies|=(u8)(1<<a); stAllies++; renown(a,5); renown(b,5); char x[24], y[24], s[72]; kdName(a,x); kdName(b,y); siprintf(s,"%s AND %s ALLY",x,y); logEv(s); } }
                 else if(kd[a].rel[b]>10&&kd[b].rel[a]>10&&kdDist(a,b)<90){ kd[a].trade=kd[b].trade=1; kd[a].tradeW|=(u8)(1<<b); kd[b].tradeW|=(u8)(1<<a); } }
             else if(ally&&(kd[a].rel[b]<10||kd[b].rel[a]<10)){ kd[a].allies&=(u8)~(1<<b); kd[b].allies&=(u8)~(1<<a); char x[24], y[24], s[72]; kdName(a,x); kdName(b,y); siprintf(s,"%s AND %s BREAK THEIR ALLIANCE",x,y); logEv(s); } } }
     // soldiers march on the nearest enemy city; rebellious cities of big kingdoms split off
@@ -692,7 +696,7 @@ static void thinkBody(int i){
         if(home>=0&&vil[home].foe&&vil[vil[home].foe-1].on&&c->age>6&&c->hp>8){ const Vil*F=&vil[vil[home].foe-1]; int dx=F->x-c->x, dy=F->y-c->y; if(dx*dx+dy*dy>4){ int ax=dx>0?1:dx<0?-1:0, ay=dy>0?1:dy<0?-1:0; if(((dx<0?-dx:dx)<(dy<0?-dy:dy))) ax=0; else ay=0; int nx=c->x+ax, ny=c->y+ay; if(stepOk(s,&nx,&ny)){ moveTo(c,i,nx,ny); return; } }
             else { int fv=vil[home].foe-1; vil[fv].stock=(u16)(vil[fv].stock>10?vil[fv].stock-10:0);
 #ifndef GG_NOCAPTURE      // (benchmark builds only, pc_war.c: no village is taken or razed, so a war is only the two armies wearing each other down; a captured village sets its own people against each other)
-            if(rnd()%12==0&&vil[fv].pop<2&&(gx.vDef[fv]!=2||(rnd()&3)==0)){ if(!vilConquer(fv,home)) vilRaze(fv,1); }
+            if(rnd()%12==0&&vil[fv].pop<2&&(gx.vDef[fv]!=2||(rnd()&3)==0)){ if(vil[fv].pop>0){ if(!vilConquer(fv,home)) vilRaze(fv,1); } else vilRaze(fv,1); }
 #endif
             } }
         // settle: a grown person far from their own village starts one
@@ -885,9 +889,20 @@ static void makeChillItems(void){
 static int itOpen(int i){ return unlockAll||it[i].tier<=tierOpen; }
 static int itNext(int from,int d){ for(int k=1;k<=nIt;k++){ int j=(from+d*k%nIt+nIt*2)%nIt; if(itOpen(j)) return j; } return from; }
 static int itCount(int*open){ int o=0; for(int i=0;i<nIt;i++) o+=itOpen(i); if(open) *open=o; return nIt; }
-static int gearAtk(const Cr*c){ return c->wep?it[c->wep-1].val:0; }
-static int armDef(const Cr*c){ return c->arm?it[c->arm-1].val/2:0; }
-static void itSay(char*out,int i){ const Item*I=&it[i]; static const char*kn[8]={"ATK","HP","POTION","SEED","FOOD","RELIC","GEM","TOOL"}; if(I->kind==IK_WEAPON||I->kind==IK_ARMOR) siprintf(out,"%s %s+%d",I->nm,kn[I->kind],I->val); else if(I->kind==IK_TOOL) siprintf(out,"%s: %s",I->nm,toolFx[I->val]); else siprintf(out,"%s",I->nm); }
+// ---- loot (Pack G): an item's rarity and modifiers are worked out from its index, so nothing is saved and every save agrees
+static const char* const modNm[10]={"BAL","FIN","HP","KNOW","MAST","STR","PROT","SHARP","SPD","TRUTH"}, * const rarNm[4]={"","RARE","EPIC","LEGEND"};
+static int itRar(int i){ if(it[i].kind!=IK_WEAPON&&it[i].kind!=IK_ARMOR) return 0; int h=(int)(hsh(i,0,0x4C4F4F54)%100); return h<60?0:h<85?1:h<96?2:3; }
+static int itMods(int i){ int r=itRar(i), m=0, n=0; for(int k=0;n<r&&k<24;k++){ int b=(int)(hsh(i,k+1,0x4D4F4453)%10); if(!(m>>b&1)){ m|=1<<b; n++; } } return m; }     // up to three of the ten, as many as the rarity
+static int itBonus(int i){ int m=itMods(i), r=itRar(i); if(it[i].kind==IK_WEAPON) return r*2+((m>>5&1)?2:0)+((m>>7&1)?2:0)+((m>>4&1)?1:0); return r*2+((m>>6&1)?2:0)+((m>>2&1)?2:0); }
+static int itPow(int i){ return it[i].val+itBonus(i); }
+static int gearAtk(const Cr*c){ return c->wep?itPow(c->wep-1):0; }
+static int armDef(const Cr*c){ return c->arm?itPow(c->arm-1)/2:0; }
+static void itTag(char*o,int i){ int m=itMods(i); o[0]=0; for(int b=0;b<10;b++) if(m>>b&1){ strcat(o,"+"); strcat(o,modNm[b]); strcat(o," "); } }
+static int itDrop(int seed,int minRar){ for(int k=0;k<400;k++){ int i=(int)(hsh(seed,k,0x44524F50)%(u32)nIt); if((it[i].kind==IK_WEAPON||it[i].kind==IK_ARMOR)&&itOpen(i)&&itRar(i)>=minRar) return i; } return -1; }
+static void lootDrop(int mi){      // a slain elite or boss drops its gear: the nearest folk within five tiles picks it up
+    Cr*m=&cr[mi]; int best=-1, bd=26; for(int dy=-5;dy<=5;dy++) for(int dx=-5;dx<=5;dx++){ int x=m->x+dx, y=m->y+dy; if(x<0||y<0||x>=WW||y>=WH||!occ[y][x]) continue; int j=occ[y][x]-1; if(!cr[j].alive||arch[sp[cr[j].sp].a].diet!=4) continue; int d=dx*dx+dy*dy; if(d<bd){ bd=d; best=j; } }
+    if(best<0) return; int i=itDrop((int)(mi*7+tick),m->rk==2?3:2); if(i<0) return; if(it[i].kind==IK_WEAPON) cr[best].wep=(u16)(i+1); else cr[best].arm=(u16)(i+1); char nm[48], b[48]; crName(&cr[best],nm); siprintf(b,"%.20s TAKES %.20s",nm,it[i].nm); logEv(b); }
+static void itSay(char*out,int i){ const Item*I=&it[i]; static const char*kn[8]={"ATK","HP","POTION","SEED","FOOD","RELIC","GEM","TOOL"}; if(I->kind==IK_WEAPON||I->kind==IK_ARMOR) siprintf(out,"%s%s%s %s+%d",rarNm[itRar(i)],itRar(i)?" ":"",I->nm,kn[I->kind],itPow(i)); else if(I->kind==IK_TOOL) siprintf(out,"%s: %s",I->nm,toolFx[I->val]); else siprintf(out,"%s",I->nm); }
 // ---------------------------------------------------------------------------------------------- the story: fourteen chapters; each one done opens a tier of items (and stronger monsters) for free play, for good
 typedef struct { const char*nm, *goal; u8 kind; u16 target; } Chap;
 enum { OB_USE, OB_FOLK, OB_HOMES, OB_PEOPLES, OB_SLAY, OB_GIFT, OB_L3, OB_SEEN, OB_YEAR, OB_FINAL };
@@ -938,12 +953,12 @@ static void unlockTiers(void){   // every 256 ticks: is the chapter you are on d
     chapterDone(); }
 // ---------------------------------------------------------------------------------------------- powers (the table is the catalogue)
 typedef struct { const char*nm; u8 kind, arg; } Pw;
-enum { PK_INSPECT, PK_PAINT, PK_SPAWN, PK_RAIN, PK_FIRE, PK_BOLT, PK_METEOR, PK_KILL, PK_HEAL, PK_FEED, PK_SETTLE, PK_WAR, PK_PEACE, PK_BLESS, PK_GIFT, PK_MUTATE, PK_QUAKE, PK_FLOOD, PK_BLOOM, PK_VIBE, PK_TORNADO, PK_ACID, PK_HOLE, PK_NUKE, PK_PLAGUE, PK_CURSE, PK_AIR, PK_INSPIRE, PK_WHISPER, PK_DISCORD, PK_UNITY, PK_SPITE, PK_FRIEND, PK_DUSTW, PK_DUSTR, PK_DUSTG };
+enum { PK_INSPECT, PK_PAINT, PK_SPAWN, PK_RAIN, PK_FIRE, PK_BOLT, PK_METEOR, PK_KILL, PK_HEAL, PK_FEED, PK_SETTLE, PK_WAR, PK_PEACE, PK_BLESS, PK_GIFT, PK_MUTATE, PK_QUAKE, PK_FLOOD, PK_BLOOM, PK_VIBE, PK_TORNADO, PK_ACID, PK_HOLE, PK_NUKE, PK_PLAGUE, PK_CURSE, PK_AIR, PK_INSPIRE, PK_WHISPER, PK_DISCORD, PK_UNITY, PK_SPITE, PK_FRIEND, PK_DUSTW, PK_DUSTR, PK_DUSTG, PK_LOOT, PK_CORRODE };
 static const Pw pw[]={ {"INSPECT",PK_INSPECT,0},{"WATER",PK_PAINT,T_WATER},{"DEEP SEA",PK_PAINT,T_DEEP},{"SAND",PK_PAINT,T_SAND},{"GRASS",PK_PAINT,T_GRASS},{"FOREST",PK_PAINT,T_FOREST},{"JUNGLE",PK_PAINT,T_JUNGLE},
     {"HILLS",PK_PAINT,T_HILL},{"MOUNTAIN",PK_PAINT,T_MOUNT},{"SNOW",PK_PAINT,T_SNOW},{"DESERT",PK_PAINT,T_DESERT},{"SWAMP",PK_PAINT,T_SWAMP},{"LAVA",PK_PAINT,T_LAVA},{"CORRUPT",PK_PAINT,101},{"INFERNAL",PK_PAINT,102},{"ENCHANT",PK_PAINT,103},{"GREENHOUSE",PK_AIR,0},{"OXYGEN",PK_AIR,1},{"DUST CLOUD",PK_AIR,2},
     {"SPAWN",PK_SPAWN,0},{"RAIN",PK_RAIN,0},{"FIRE",PK_FIRE,0},{"LIGHTNING",PK_BOLT,0},{"METEOR",PK_METEOR,0},{"SMITE",PK_KILL,0},{"HEAL",PK_HEAL,0},{"FEED",PK_FEED,0},{"SETTLE",PK_SETTLE,0},{"WAR",PK_WAR,0},{"PEACE",PK_PEACE,0},{"BLESS",PK_BLESS,0},{"GIFT",PK_GIFT,0},{"MUTATE",PK_MUTATE,0},{"EARTHQUAKE",PK_QUAKE,0},{"TSUNAMI",PK_FLOOD,0},{"BLOOM",PK_BLOOM,0},{"GOOD VIBES",PK_VIBE,0},
     {"TORNADO",PK_TORNADO,0},{"ACID RAIN",PK_ACID,0},{"BLACK HOLE",PK_HOLE,0},{"ATOMIC BOMB",PK_NUKE,0},{"PLAGUE",PK_PLAGUE,0},{"CURSE",PK_CURSE,0},
-    {"INSPIRE",PK_INSPIRE,0},{"WHISPER",PK_WHISPER,0},{"DISCORD",PK_DISCORD,0},{"UNITY",PK_UNITY,0},{"SPITE",PK_SPITE,0},{"FRIENDSHIP",PK_FRIEND,0},{"WHITE DUST",PK_DUSTW,0},{"RED DUST",PK_DUSTR,0},{"GOLD DUST",PK_DUSTG,0} };   // Pack B: political powers   // the Calamity pack (calamity.h)
+    {"INSPIRE",PK_INSPIRE,0},{"WHISPER",PK_WHISPER,0},{"DISCORD",PK_DISCORD,0},{"UNITY",PK_UNITY,0},{"SPITE",PK_SPITE,0},{"FRIENDSHIP",PK_FRIEND,0},{"WHITE DUST",PK_DUSTW,0},{"RED DUST",PK_DUSTR,0},{"GOLD DUST",PK_DUSTG,0},{"LOOT RAIN",PK_LOOT,0},{"CORROSIVE",PK_CORRODE,0} };   // Pack B: political powers   // the Calamity pack (calamity.h)
 #define PW_N ((int)(sizeof(pw)/sizeof(pw[0])))
 static int inspected=-1, trSel=1;
 static int inspT, inspKind, inspIdx;   // the inspect card: what was looked at (1 creature, 2 village) and for how long it stays up
@@ -968,7 +983,7 @@ static void polApply(int kind,int x,int y){      // the six political powers and
     if(kind==PK_DUSTG){ if(v<0||!vilK[v]){ return; } vilName(v,b); vilK[v]=0; vilIndep[v]=1; siprintf(s,"%.20s FORGETS %.20s AND STANDS ALONE",b,a); logEv(s); siprintf(info,"CITY IS INDEPENDENT"); KD_DIRTY(); return; } }
 static void usePower(int tx,int ty,int fresh){ KD_DIRTY();
     const Pw*P=&pw[power]; int r=brush;
-    if(fresh){ stUse++; if(P->kind==PK_GIFT) stGift++; static const u8 fxOf[36]={FX_INSPECT,FX_PAINT,FX_SPAWN,FX_RAIN,FX_FIRE,FX_LIGHTNING,FX_METEOR,FX_SMITE,FX_HEAL,FX_FEED,FX_SETTLE,FX_WAR,FX_PEACE,FX_BLESS,FX_GIFT,FX_BIRTH,FX_METEOR,FX_RAIN,FX_BIRTH,FX_BLESS,FX_LIGHTNING,FX_RAIN,FX_SMITE,FX_METEOR,FX_MONSTER_SEEN,FX_SMITE,FX_RAIN,FX_BLESS,FX_WAR,FX_WAR,FX_PEACE,FX_SMITE,FX_PEACE,FX_RAIN,FX_RAIN,FX_RAIN}; fxReq(fxOf[P->kind]); } if(P->kind==PK_GIFT&&(it[itSel].kind==IK_WEAPON||it[itSel].kind==IK_ARMOR||it[itSel].kind==IK_RELIC||it[itSel].kind==IK_GEM)) r=1;
+    if(fresh){ stUse++; if(P->kind==PK_GIFT) stGift++; static const u8 fxOf[38]={FX_INSPECT,FX_PAINT,FX_SPAWN,FX_RAIN,FX_FIRE,FX_LIGHTNING,FX_METEOR,FX_SMITE,FX_HEAL,FX_FEED,FX_SETTLE,FX_WAR,FX_PEACE,FX_BLESS,FX_GIFT,FX_BIRTH,FX_METEOR,FX_RAIN,FX_BIRTH,FX_BLESS,FX_LIGHTNING,FX_RAIN,FX_SMITE,FX_METEOR,FX_MONSTER_SEEN,FX_SMITE,FX_RAIN,FX_BLESS,FX_WAR,FX_WAR,FX_PEACE,FX_SMITE,FX_PEACE,FX_RAIN,FX_RAIN,FX_RAIN,FX_GIFT,FX_RAIN}; fxReq(fxOf[P->kind]); } if(P->kind==PK_GIFT&&(it[itSel].kind==IK_WEAPON||it[itSel].kind==IK_ARMOR||it[itSel].kind==IK_RELIC||it[itSel].kind==IK_GEM)) r=1;
     for(int dy=-r;dy<=r;dy++) for(int dx=-r;dx<=r;dx++){ if(dx*dx+dy*dy>r*r+r/2) continue; int x=tx+dx, y=ty+dy; if(x<0||y<0||x>=WW||y>=WH) continue;
         switch(P->kind){
         case PK_PAINT: if(P->arg>=100){ int t=world[y][x]; if(t>T_WATER&&t!=T_LAVA&&t!=T_MOUNT&&(fresh||(rnd()&1))){ bioSet(x,y,P->arg-100); if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); } break; }
@@ -984,6 +999,8 @@ static void usePower(int tx,int ty,int fresh){ KD_DIRTY();
         case PK_FEED: if(occ[y][x]) cr[occ[y][x]-1].food=120; else if(world[y][x]==T_DIRT) setCell(x,y,T_GRASS); break;
         case PK_SETTLE: if(fresh&&dx==0&&dy==0){ int race=spSel<8?sp[spSel].a:0; if(vilFound(race,x,y)<0) siprintf(info,"%s",vilWhyNot(x,y)); else { for(int k=0;k<4;k++) addCr(spSel<8?spSel:0,x+(int)(rnd()%5)-2,y+(int)(rnd()%5)-2); } } break;
         case PK_INSPIRE: case PK_WHISPER: case PK_DISCORD: case PK_UNITY: case PK_SPITE: case PK_FRIEND: case PK_DUSTW: case PK_DUSTG: if(fresh&&dx==0&&dy==0) polApply(P->kind,x,y); break;
+        case PK_LOOT: if(occ[y][x]&&(fresh||(rnd()&7)==0)){ Cr*c=&cr[occ[y][x]-1]; if(arch[sp[c->sp].a].diet==4&&(rnd()%3)==0){ int i=itDrop((int)rnd(),0); if(i>=0){ if(it[i].kind==IK_WEAPON) c->wep=(u16)(i+1); else c->arm=(u16)(i+1); } } } break;
+        case PK_CORRODE: if(occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; if(c->wep||c->arm){ if(c->arm){ int hp=c->hp-itPow(c->arm-1); c->hp=(u8)(hp<1?1:hp); } c->wep=0; c->arm=0; } } break;
         case PK_DUSTR: if(occ[y][x]){ u32 id=crId[occ[y][x]-1]; int q=nbFind(id); if(q>=0){ nb[q].par=0; nb[q].mate=0; } } if(fresh&&dx==0&&dy==0){ int vv=vilAny(x,y,4); if(vv>=0&&vilK[vv]){ int k=vilK[vv]-1; kd[k].clan=(u8)(rnd()%8); KD_DIRTY(); } siprintf(info,"FAMILY FORGOTTEN"); } break;
         case PK_WAR: if(fresh&&dx==0&&dy==0){ int v=vilAny(x,y,4); if(v>=0){ int best=-1,bd=2000; for(int u=0;u<VIL_N;u++){ if(!vil[u].on||u==v||vil[u].race==vil[v].race) continue; int ddx=vil[u].x-vil[v].x, ddy=vil[u].y-vil[v].y, d=ddx*ddx+ddy*ddy; if(d<bd){ bd=d; best=u; } } if(best>=0){ vil[v].foe=(u8)(best+1); siprintf(info,"WAR! %s ATTACKS %s",arch[vil[v].race].nm,arch[vil[best].race].nm); if(vilK[v]&&vilK[best]&&vilK[v]!=vilK[best]) kdDeclareX(vilK[v]-1,vilK[best]-1,1); } } } break;
         case PK_PEACE: if(fresh&&dx==0&&dy==0){ for(int v=0;v<VIL_N;v++) vil[v].foe=0; for(int k=0;k<KN_N;k++){ kd[k].war=0; kd[k].weary=0; } warMatrix(); siprintf(info,"PEACE"); } break;
@@ -991,7 +1008,7 @@ static void usePower(int tx,int ty,int fresh){ KD_DIRTY();
         case PK_GIFT: { const Item*I=&it[itSel]; Cr*c=occ[y][x]?&cr[occ[y][x]-1]:0; int cen=(dx==0&&dy==0);
             switch(I->kind){
             case IK_WEAPON: if(c&&cen&&fresh){ c->wep=(u16)(itSel+1); } break;
-            case IK_ARMOR: if(c&&cen&&fresh){ int old=c->arm?it[c->arm-1].val:0; c->arm=(u16)(itSel+1); int hp=c->hp+I->val*2-old*2; c->hp=(u8)(hp>250?250:hp<1?1:hp); } break;
+            case IK_ARMOR: if(c&&cen&&fresh){ int old=c->arm?itPow(c->arm-1):0; c->arm=(u16)(itSel+1); int hp=c->hp+itPow(itSel)*2-old*2; c->hp=(u8)(hp>250?250:hp<1?1:hp); } break;
             case IK_FOOD: if(c){ int f=c->food+I->val*2; c->food=(u8)(f>250?250:f); if(I->sub>=20&&(rnd()&3)==0&&c->tr2==0){ giveTrait(c,TR_CHILL+(int)(rnd()%8),1); siprintf(info,"IT HITS DIFFERENT"); } if(I->sub>=20) stSnack++; } else if(world[y][x]==T_DIRT) setCell(x,y,T_GRASS); break;
             case IK_POTION: if(c){ switch(I->sub){ case 0: case 19: c->hp=arch[sp[c->sp].a].hp; if(I->sub==19){ c->age=0; c->food=120; } break; case 1: case 16: c->food=250; break; case 2: c->age=0; break; case 3: if(cen&&fresh){ int n=addCr(c->sp,c->x+1,c->y); if(n<0) addCr(c->sp,c->x,c->y+1); } break; case 4: c->wep=(u16)(c->wep?c->wep:1); break; case 5: { int hp=c->hp+40; c->hp=(u8)(hp>250?250:hp); } break; case 15: { int hp=c->hp+60; c->hp=(u8)(hp>250?250:hp); } break; default: c->food=100; } } break;
             case IK_SEED: if(world[y][x]!=T_WATER&&world[y][x]!=T_DEEP&&world[y][x]!=T_LAVA&&!bld[y][x]&&(rnd()&1)) setCell(x,y,(u8)I->val); break;
@@ -1404,7 +1421,7 @@ static const char* const helpTxt[]={"TOUCH THE WORLD: USE POWER","L R      CHOOS
 static const char* const tipTxt[]={"TOUCH THE WORLD TO USE A POWER","L R CHANGES THE POWER","TRY SPAWN, THEN RAIN AND FIRE","START A VILLAGE: SETTLE","SELECT: STORY, BESTIARY, HELP","X+Y SHOWS THE WORLD AS A GLOBE","SNACKS MAY GIVE FOLK CHILL TRAITS","DAVE SAYS: HAVE YOU TRIED SITTING","FEED A MONSTER A NACHO. SEE WHAT HAPPENS","THE COUCH HAS ROOM FOR EVERYONE","MUNCHIES ARE NOT A BUG"};
 static const char* const*sceneTxt, *const*sceneNext; static int menuOn, menuSel, menuAsk, toastT, dlgOn, dlgIdx, dlgChars, dlgPaused, sceneOff, sceneT, sceneScroll, endShown, scenePaused, helpSel, trPage, tipN;
 static const Dl*dlgSet; static char lastInfo[64];
-static const char* const pwDesc[PW_N]={"LOOK AT A CREATURE OR A VILLAGE","PAINT SHALLOW WATER","PAINT DEEP SEA","PAINT SAND","PAINT GRASS","PLANT FOREST","PLANT JUNGLE","RAISE HILLS","RAISE MOUNTAINS","PAINT SNOW","PAINT DESERT","PAINT SWAMP","PAINT LAVA","PAINT CORRUPTED GROUND","PAINT INFERNAL GROUND","PAINT ENCHANTED GROUND","WARM THE AIR (GREENHOUSE)","ADD OXYGEN TO THE AIR","RAISE A DUST CLOUD","CREATE LIFE  (X Y: SPECIES)","RAIN GREENS THE LAND","BURN WHAT YOU TOUCH","STRIKE ONE TILE DEAD","DROP A METEOR","KILL WHAT YOU TOUCH","HEAL CREATURES","FEED CREATURES","FOUND A VILLAGE","START A WAR","END ALL WARS","FILL A VILLAGE STORE","GIVE AN ITEM  (X Y: ITEM)","GIVE A TRAIT  (X Y: TRAIT)","SHAKE THE GROUND","FLOOD THE LAND","MAKE THE LAND BLOOM","CHILL A CREATURE OR VILLAGE","A ROAMING TORNADO TEARS THINGS UP","ACID BURNS PLANTS, HOMES AND FLESH","A HOLE THAT EATS LAND AND LIFE","THE BIG ONE: A CRATER AND FALLOUT","SICKEN FOLK: IT SPREADS BY TOUCH","WITHER FOLK AND ROT A STORE","A CITY BECOMES ITS OWN KINGDOM","WHISPER WAR: TAP A KINGDOM, THEN A TARGET","TAP A KINGDOM: ITS ALLIANCES BREAK","TAP TWO KINGDOMS: THEY ALLY","EVERYONE DESPISES THIS KINGDOM","TAP A KINGDOM: ITS WARS END","A KINGDOM FORGETS ITS LANGUAGE","CREATURES FORGET FAMILY AND LOVED ONES","A CITY FORGETS ITS KINGDOM"};
+static const char* const pwDesc[PW_N]={"LOOK AT A CREATURE OR A VILLAGE","PAINT SHALLOW WATER","PAINT DEEP SEA","PAINT SAND","PAINT GRASS","PLANT FOREST","PLANT JUNGLE","RAISE HILLS","RAISE MOUNTAINS","PAINT SNOW","PAINT DESERT","PAINT SWAMP","PAINT LAVA","PAINT CORRUPTED GROUND","PAINT INFERNAL GROUND","PAINT ENCHANTED GROUND","WARM THE AIR (GREENHOUSE)","ADD OXYGEN TO THE AIR","RAISE A DUST CLOUD","CREATE LIFE  (X Y: SPECIES)","RAIN GREENS THE LAND","BURN WHAT YOU TOUCH","STRIKE ONE TILE DEAD","DROP A METEOR","KILL WHAT YOU TOUCH","HEAL CREATURES","FEED CREATURES","FOUND A VILLAGE","START A WAR","END ALL WARS","FILL A VILLAGE STORE","GIVE AN ITEM  (X Y: ITEM)","GIVE A TRAIT  (X Y: TRAIT)","SHAKE THE GROUND","FLOOD THE LAND","MAKE THE LAND BLOOM","CHILL A CREATURE OR VILLAGE","A ROAMING TORNADO TEARS THINGS UP","ACID BURNS PLANTS, HOMES AND FLESH","A HOLE THAT EATS LAND AND LIFE","THE BIG ONE: A CRATER AND FALLOUT","SICKEN FOLK: IT SPREADS BY TOUCH","WITHER FOLK AND ROT A STORE","A CITY BECOMES ITS OWN KINGDOM","WHISPER WAR: TAP A KINGDOM, THEN A TARGET","TAP A KINGDOM: ITS ALLIANCES BREAK","TAP TWO KINGDOMS: THEY ALLY","EVERYONE DESPISES THIS KINGDOM","TAP A KINGDOM: ITS WARS END","A KINGDOM FORGETS ITS LANGUAGE","CREATURES FORGET FAMILY AND LOVED ONES","A CITY FORGETS ITS KINGDOM","RAIN GEAR ON FOLK AND CREATURES","STRIP GEAR FROM ALL IN THE BRUSH"};
 static int sceneLines(const char*const*t){ int n=0; while(t[n]) n++; return n; }
 static void sceneStart(const char*const*t,int scroll){ sceneTxt=t; sceneScroll=scroll; sceneOff=scroll?-20:0; sceneT=0; if(!sceneOn) scenePaused=paused; sceneOn=1; paused=1; }
 static int dbgSel=0, dbgMon=0, dbgFx=0, fxSel=0, konami=0;
@@ -1651,9 +1668,9 @@ static void uiInspectCard(void){
         uiText(142,y,crDoing(c),U_GREEN,1); y+=10;
         if(crNamed(c)&&y<=128){ int po[2]; idPers(crId[inspIdx],crFl[inspIdx],po); siprintf(b,"%s %s",persN[po[0]],persN[po[1]]); uiText(142,y,b,U_CYAN,1); y+=10; }      // personality: worked out from its id
         if((crFl[inspIdx]&FL_NOTE)&&y<=128){ int k=nbFind(crId[inspIdx]); if(k>=0){ siprintf(b,"KILLS %d BATTLES %d",nb[k].kills>99?99:nb[k].kills,nb[k].battles>9?9:nb[k].battles); uiText(142,y,b,U_GOLD,1); y+=10;
-            u16 fl=crFl[inspIdx]; b[0]=0; if(fl&FL_HERO) strcat(b,"HERO "); if(fl&FL_FOUND) strcat(b,"FOUNDER "); if(fl&FL_VET) strcat(b,"VET "); if(fl&FL_SCAR) strcat(b,"SCARRED "); if(fl&FL_GRIEF) strcat(b,"GRIEVING"); if(b[0]&&y<=128){ b[18]=0; uiText(142,y,b,U_ORANGE,1); y+=10; } } }
+            u16 fl=crFl[inspIdx]; b[0]=0; if(fl&FL_HERO) strcat(b,"HERO "); if(fl&FL_FOUND) strcat(b,"FOUNDER "); if(fl&FL_VET) strcat(b,"VET "); if(fl&FL_SLAYER) strcat(b,"SLAYER "); if(fl&FL_SCAR) strcat(b,"SCARRED "); if(fl&FL_GRIEF) strcat(b,"GRIEVING"); if(b[0]&&y<=128){ b[18]=0; uiText(142,y,b,U_ORANGE,1); y+=10; } } }
         if(c->sick==3){ uiText(142,y,"INFECTED",U_RED,1); y+=10; } else if(c->sick==1){ uiText(142,y,"SICK (PLAGUE)",U_GREEN,1); y+=10; } else if(c->sick==2){ uiText(142,y,"IMMUNE NOW",U_CYAN,1); y+=10; }
-        if(c->wep) uiText(142,y,it[c->wep-1].nm,U_YELLOW,1),y+=10; if(c->arm) uiText(142,y,it[c->arm-1].nm,U_CYAN,1),y+=10;
+        if(c->wep){ uiText(142,y,it[c->wep-1].nm,itRar(c->wep-1)?U_ORANGE:U_YELLOW,1); y+=10; if(itRar(c->wep-1)&&y<=128){ char tg[40]; itTag(tg,c->wep-1); uiText(142,y,tg,U_DIM,1); y+=10; } } if(c->arm){ uiText(142,y,it[c->arm-1].nm,itRar(c->arm-1)?U_ORANGE:U_CYAN,1); y+=10; }
         if(c->tr){ uiText(142,y,trNm[c->tr],U_PURPLE,1); y+=10; uiWrap(142,y,18,2,trDesc[c->tr],U_DIM); y+=18; } if(c->tr2){ uiText(142,y,trNm[c->tr2],U_PURPLE,1); y+=10; } }
     else if(inspKind==2&&inspIdx>=0&&inspIdx<VIL_N&&vil[inspIdx].on){ Vil*V=&vil[inspIdx]; int v=inspIdx; char vn[24]; vilName(v,vn);
         uiFrame(142,19,38,38,U_SHADOW,U_BHI,U_BLO); uiBig(145,22,IC8_HOME,4); uiText(184,20,vn,U_WHITE,1); uiText(184,30,arch[V->race].nm,U_DIM,1); { int mo=vilMood(v); uiText(184,50,moodName(mo),mo>=20?U_GREEN:mo<=-20?U_RED:U_LGREY,1); } { static const char* const tier[4]={"","HAMLET","TOWN","CITY"}; int k=vilK[v]-1; uiText(184,40,(k>=0&&kd[k].cap==v+1)?"CAPITAL":tier[V->lvl>3?3:V->lvl],(k>=0&&kd[k].cap==v+1)?U_GOLD:U_LGREY,1); }
@@ -1723,7 +1740,7 @@ static void uiKing(void){
     { char t2[48]=""; for(int q=0;q<6;q++) if(kd[k].ctr>>q&1){ if(strlen(t2)+strlen(ctrN[q])<34){ strcat(t2,ctrN[q]); strcat(t2," "); } } if(t2[0]){ strcpy(L[nl],t2); col[nl]=U_PURPLE; pri[nl++]=7; } }
     { static const char*const pn[3]={"NORMAL","HIGH","LOW"}; char t2[56]; siprintf(t2,"TRIBUTE %s TAX %s",pn[kx[k].tribute%3],pn[kx[k].tax%3]); strcpy(L[nl],t2); col[nl]=U_LGREY; pri[nl++]=6; }
     { char t2[48]=""; for(int q=0;q<5;q++) if(kx[k].ctr2>>q&1){ if(strlen(t2)+strlen(ctr2N[q])<34){ strcat(t2,ctr2N[q]); strcat(t2," "); } } if(t2[0]){ strcpy(L[nl],t2); col[nl]=U_PURPLE; pri[nl++]=7; } }
-    siprintf(L[nl],"GOLD %d  POWER %d",kd[k].gold,w); col[nl]=U_GOLD; pri[nl++]=8;
+    siprintf(L[nl],"GOLD %d  POWER %d  RENOWN %d",kd[k].gold,w,kx[k].renown); col[nl]=U_GOLD; pri[nl++]=8;
     { int fit=(177-y0-5)/10; int show[14]; for(int i=0;i<nl;i++) show[i]=1; int cnt=nl; while(cnt>fit&&cnt>1){ int bi=-1; for(int i=0;i<nl;i++) if(show[i]&&(bi<0||pri[i]>pri[bi])) bi=i; show[bi]=0; cnt--; }
       int y=y0+4; for(int i=0;i<nl;i++) if(show[i]){ uiText(10,y,L[i],col[i],1); y+=10; } }
     uiFlush(); }
