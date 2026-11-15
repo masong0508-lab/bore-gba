@@ -55,7 +55,7 @@ extern int gW,gH;               // the planet in play: 128, 192 or 256 tiles a s
 #define VIL_OLDN 40                // saves made before the header said how many villages it holds
 #define FAV_N (VIL_N>48?VIL_N:48)
 #define SHAPE_OLD 20             // hand-drawn two-frame shapes
-#define SHAPE_N 54               // plus the one-frame shapes drawn below (their second frame is made by swapping the feet) and the crown, rain and snow sprites, then the tornado (two pieces), the black hole and the boat
+#define SHAPE_N 55               // plus the one-frame shapes drawn below (their second frame is made by swapping the feet) and the crown, rain and snow sprites, then the tornado (two pieces), the black hole and the boat
 #define ARCH_A 44                 // archetypes below this are people and animals
 #define ARCH_N 80                 // 44..63 are monsters
 #define SP_N 1160

@@ -10,7 +10,7 @@ static const u8 uiRgb[U_N][3]={ {0,0,0},{2,3,8},{4,6,13},{7,10,19},{16,19,28},{2
     {31,30,12},{31,28,9},{31,25,7},{31,22,5},{30,18,4},{28,14,3},{25,10,3},{20,6,3},{31,31,8},{8,29,31},{14,8,3},{23,24,27},{10,11,14},{31,18,24},{6,22,20} };
 #define UI_PAL0_OLD 160           // the toolbar's colours live at 160.. of the main palette (the day / night light only touches 0..143)
 static u8 uiBuf[256*192] __attribute__((aligned(4))); static int uiPages, uiPageNow, uiPageOpen, uiDotX=96;   // page dots in the title bar
-static const u8 uiKCol[8][3]={{31,8,8},{8,16,31},{10,28,10},{31,26,6},{24,10,30},{31,16,4},{6,28,28},{31,14,22}};   // kingdom colours (sub palette 40..47)
+static const u8 uiKCol[16][3]={{31,8,8},{8,16,31},{10,28,10},{31,26,6},{24,10,30},{31,16,4},{6,28,28},{31,14,22},{20,31,14},{14,20,31},{31,22,14},{18,10,22},{31,31,16},{10,24,20},{26,12,12},{22,22,28}};   // kingdom colours (sub palette 40..55)
 // ---- v2 look: vertical gradients (8 palette steps each, 140.. of the sub palette, free of everything else) for window bars, buttons, selected rows and backdrops
 enum { G_HEAD, G_SEL, G_BTN, G_BG, G_FOOT, G_N };
 #define UI_GRAD0 148
@@ -30,7 +30,7 @@ enum { TC_BAR=12,TC_BARHI,TC_TAB,TC_TABEDGE,TC_TABSEL,TC_SLOT,TC_SLOTHI,TC_SLOTE
 // UIP: a UI colour (U_*) as a main palette slot
 static const u8 uiPmap[31]={0,162,162,162,163,123,117,165,118,119,120,255,121,122,166,123,118,118,118,118,118,118,118,118,124,125,126,127,161,120,125};
 #define UIP(c) ((int)(tcSlot[0]*0+uiPmap[(c)]))
-static void uiPalette(void){ uiGradPal(); for(int k=0;k<8;k++) BG_PALETTE_SUB[40+k]=RGB15(uiKCol[k][0],uiKCol[k][1],uiKCol[k][2]); for(int i=0;i<U_N;i++){ u16 c=RGB15(uiRgb[i][0],uiRgb[i][1],uiRgb[i][2]); BG_PALETTE_SUB[i]=c; } for(int i=0;i<22;i++) BG_PALETTE[tcSlot[i]]=RGB15(tcRgb[i][0],tcRgb[i][1],tcRgb[i][2]); BG_PALETTE_SUB[0]=0; }
+static void uiPalette(void){ uiGradPal(); for(int k=0;k<16;k++) BG_PALETTE_SUB[40+k]=RGB15(uiKCol[k][0],uiKCol[k][1],uiKCol[k][2]); for(int i=0;i<U_N;i++){ u16 c=RGB15(uiRgb[i][0],uiRgb[i][1],uiRgb[i][2]); BG_PALETTE_SUB[i]=c; } for(int i=0;i<22;i++) BG_PALETTE[tcSlot[i]]=RGB15(tcRgb[i][0],tcRgb[i][1],tcRgb[i][2]); BG_PALETTE_SUB[0]=0; }
 static unsigned uiFlushes;   // pictures sent to the screen so far (the tests count them: a menu must send one per redraw, never two)
 static int uiHold;           // while set, uiFlush sends nothing: a screen that is drawn on top of another one (the pause menu over the status screen) must not show the one underneath for a frame
 // ---- depth for the 3DS's 3D top screen (compat/stereo.h): each pixel of the picture has a level. Anything drawn with a level of its own (the planet's dome) puts it in uiZ; the rest take it from the colour
@@ -41,7 +41,7 @@ static void uiDepthInit(void){ memset(uiZ,-128,sizeof uiZ); for(int i=0;i<256;i+
     uiDepthLut[U_CLEAR]=-3; uiDepthLut[U_BG]=-3; uiDepthLut[U_PANEL]=-2; uiDepthLut[U_SHADOW]=-1; uiDepthLut[U_PANELHI]=0; uiDepthLut[U_BHI]=2; uiDepthLut[U_BLO]=-1; uiDepthLut[U_SEL]=1;
     for(int c=U_WHITE;c<=U_PURPLE;c++) uiDepthLut[c]=3; uiDepthLut[U_ORANGE]=3; for(int c=U_G0;c<=U_G7;c++) uiDepthLut[c]=2; for(int c=U_YELLOW;c<U_N;c++) uiDepthLut[c]=3; uiDepthLut[U_DIM]=2; uiDepthLut[U_DGREY]=1;
     for(int g=0;g<G_N;g++) for(int k=0;k<8;k++) uiDepthLut[UI_GRAD0+g*8+k]=(g==G_BG)?-3:2;            // the backgrounds sink, title bars, buttons and the footer come out
-    for(int k=0;k<8;k++) uiDepthLut[40+k]=3;                                                           // kingdom colours
+    for(int k=0;k<16;k++) uiDepthLut[40+k]=3;                                                           // kingdom colours
     static const signed char ter[13]={-2,-2,0,1,2,3,5,5,1,0,0,3,0}; for(int t=0;t<13;t++) uiDepthLut[64+t]=(signed char)(ter[t]+1);      // the minimap's land stands up: mountains and snow most
     for(int k=80;k<90;k++) uiDepthLut[k]=6;                                                           // creature dots and biome marks
     for(int k=100;k<140;k++) uiDepthLut[k]=4;                                                          // the planet (its own dome overrides this)
