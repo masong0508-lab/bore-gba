@@ -33,7 +33,7 @@ int main(int argc,char**argv){
         double want=SR/60.0+carry; int n=(int)want; carry=want-n;
         for(int i=0;i<n;i++){ float L=0,R=0;
             for(int v=0;v<10;v++) if(tv[v].on&&tv[v].vol>0){ tv[v].pos+=tv[v].rate/SR; float s=gmWaveT[tv[v].wave][((int)tv[v].pos)&63]/127.f*tv[v].vol/127.f; L+=s*(128-tv[v].pan)/128.f; R+=s*tv[v].pan/128.f; }
-            for(int h=0;h<4;h++) if(hit[h].on){ const GmDrum*D=hit[h].part?&gmKitB[hit[h].idx]:&gmKitA[hit[h].idx]; hit[h].pos+=(double)D->rate/SR; int p=(int)hit[h].pos; if(p>=D->n){ hit[h].on=0; continue; }
+            for(int h=0;h<4;h++) if(hit[h].on){ const GmDrum*D=hit[h].part==2?&gmKitC[hit[h].idx]:hit[h].part?&gmKitB[hit[h].idx]:&gmKitA[hit[h].idx]; hit[h].pos+=(double)D->rate/SR; int p=(int)hit[h].pos; if(p>=D->n){ hit[h].on=0; continue; }
                 float s=D->d[p]/127.f*hit[h].vol/127.f; L+=s*(128-hit[h].pan)/128.f; R+=s*hit[h].pan/128.f; }
             if(ps.on&&ps.vol>0){ double hz=440.0*pow(2.0,(ps.midi8/8.0-69.0)/12.0); ps.ph+=hz/SR; ps.ph-=floor(ps.ph); float s=(ps.ph<dutyF[ps.duty&3]?1.f:-1.f)*ps.vol/127.f; L+=s*0.5f; R+=s*0.5f; }
             if(pn.on){ pn.ph+=pn.freq/SR; while(pn.ph>=1){ pn.ph-=1; unsigned x=((pn.lfsr^(pn.lfsr>>1))&1); pn.lfsr=(pn.lfsr>>1)|(x<<14); pn.cur=(pn.lfsr&1)?1.f:-1.f; } float s=pn.cur*pn.vol/127.f; L+=s*0.5f; R+=s*0.5f; }

@@ -1376,7 +1376,7 @@ static void gb_vstop(int v){ if(gvId[v]>=0){ soundKill(gvId[v]); gvId[v]=-1; } }
 static void gb_vstart(int v,int wave){ gb_vstop(v); gvId[v]=soundPlaySample(gmWaveT[wave],SoundFormat_8Bit,64,gmHz64[60],0,64,true,0); gvRate[v]=gmHz64[60]; gvVol[v]=0; gvPan[v]=64; }
 static void gb_vset(int v,int rate,int vol,int pan){ int id=gvId[v]; if(id<0) return; if(rate>65535) rate=65535; if(vol<0) vol=0; if(vol>127) vol=127;
     if(rate!=gvRate[v]){ soundSetFreq(id,(u16)rate); gvRate[v]=rate; } if(vol!=gvVol[v]){ soundSetVolume(id,(u8)vol); gvVol[v]=vol; } if(pan!=gvPan[v]){ soundSetPan(id,(u8)pan); gvPan[v]=pan; } }
-static void gb_hit(int slot,int part,int idx,int vol,int pan){ if(ghId[slot]>=0) soundKill(ghId[slot]); const GmDrum*D=part?&gmKitB[idx]:&gmKitA[idx]; if(vol>127) vol=127;
+static void gb_hit(int slot,int part,int idx,int vol,int pan){ if(ghId[slot]>=0) soundKill(ghId[slot]); const GmDrum*D=part==2?&gmKitC[idx]:part?&gmKitB[idx]:&gmKitA[idx]; if(vol>127) vol=127;
     ghId[slot]=soundPlaySample(D->d,SoundFormat_8Bit,D->n,D->rate,(u8)vol,(u8)pan,false,0); }
 static int midi8Hz(int m8){ int m=m8>>3; if(m<0) m=0; if(m>126) m=126; int a=gmHz64[m], b=gmHz64[m+1]; return (a+(b-a)*(m8&7)/8)/64; }
 static void gb_ptone(int midi8,int vol,int duty){ (void)duty; if(gpId<0) return; int hz=midi8Hz(midi8); if(hz<20) hz=20; if(vol>127) vol=127; if(vol<0) vol=0; soundSetFreq(gpId,(u16)hz); soundSetVolume(gpId,(u8)vol); }   // (one reserved PSG voice, 50% pulse: the 16 channels are all spoken for)
@@ -1386,6 +1386,7 @@ static void gb_pnoff(void){ if(gnId>=0) soundSetVolume(gnId,0); }
 // ---- the music director: what is happening in the world picks the track (with a 30 second hold so it never flips about); jingles play once and hand back
 static int musHold, jukeOn, fxCool;
 static int isJingle(int s){ return s>=0&&gmSongs[s].loopRow==65535; }
+static int famOpen(int k);
 static int musDirector(void){
     if(paused) return GM_PAUSE;
     if(weather==2&&!view3d) return GM_STORM;
@@ -1397,7 +1398,8 @@ static int musDirector(void){
     if(monCount()>0) return GM_MONSTER;
     { int t=world[cy<WH?cy:WH-1][cx<WW?cx:WW-1]; if(t==T_DESERT) return GM_DESERT; if(t==T_SNOW) return GM_SNOW; if(t==T_DEEP||t==T_WATER) return GM_OCEAN; if(t==T_JUNGLE) return GM_JUNGLE; if(t==T_SWAMP) return GM_SWAMP; if(t==T_LAVA||t==T_MOUNT) return GM_VOLCANO; }
     { int lv=0; for(int v=0;v<VIL_N;v++) if(vil[v].on&&vil[v].lvl>lv) lv=vil[v].lvl; if(lv>=3) return GM_CITY; if(lv==2) return GM_MARKET; if(lv==1&&nVilOn>0&&(year&1)) return GM_VILLAGE; }
-    int p=(tick>>1)&2047; if(fullDone&&(year&1)) return GM_REMIX0+(year*7+(p>>9))%GM_REMIXES; if(!storyOn&&(year%5==4)) return GM_FREEPLAY;
+    int p=(tick>>1)&2047; { int nf=0, op[GM_FAMN]; for(int k=0;k<GM_FAMN;k++) if(famOpen(k)) op[nf++]=k; if(nf&&((year+(p>>10))%3==0)) return GM_FAM0+op[(year*5+(p>>9))%nf]; }      // an unlocked REPRISE now and then
+    if(fullDone&&(year&1)) return GM_REMIX0+(year*7+(p>>9))%GM_REMIXES; if(!storyOn&&(year%5==4)) return GM_FREEPLAY;
     return (p<256||p>1792)?GM_NIGHT:p<640?GM_MORNING:p<1408?GM_NOON:GM_SUNSET;
 }
 static int musLast=-1;   // what the director wanted when it last chose: the music only changes when that changes (a song picked by musNext keeps playing until the world gives a new reason)
@@ -1468,7 +1470,11 @@ static const char* const pwDesc[PW_N]={"LOOK AT A CREATURE OR A VILLAGE","PAINT 
 static int sceneLines(const char*const*t){ int n=0; while(t[n]) n++; return n; }
 static void sceneStart(const char*const*t,int scroll){ sceneTxt=t; sceneScroll=scroll; sceneOff=scroll?-20:0; sceneT=0; if(!sceneOn) scenePaused=paused; sceneOn=1; paused=1; }
 static int dbgSel=0, dbgMon=0, dbgFx=0, fxSel=0, konami=0;
-static int trackOpen(int i){ return i<GM_REMIX0||i>=GM_EPIC0||fullDone||debugOn||unlockAll; }
+// the REPRISE set (26 of the original BORE songs, kept close to what they were, with voices): each one opens with a milestone of the story. 0..13: finishing chapter 1..14; 14..23: every 4 achievements;
+// 24: the story's end; 25: 100%.
+static int famOpen(int k){ if(unlockAll||debugOn) return 1; if(k<14) return chapter>=k+1; if(k<24) return __builtin_popcount(achBits)+__builtin_popcount(achX[0])>=4*(k-13); return k==24?storyDone:fullDone; }
+static void famHint(int k,char*o){ if(k<14) siprintf(o,"?? FINISH CHAPTER %d ??",k+1); else if(k<24) siprintf(o,"?? %d ACHIEVEMENTS ??",4*(k-13)); else if(k==24) strcpy(o,"?? FINISH THE STORY ??"); else strcpy(o,"?? 100% ??"); }
+static int trackOpen(int i){ if(i>=GM_FAM0) return famOpen(i-GM_FAM0); return i<GM_REMIX0||i>=GM_EPIC0||fullDone||debugOn||unlockAll; }
 static int auralOK(void){ return auralOpen||debugOn||unlockAll; }
 static int bestSel=0, juke=0, sdOk=0, savedYear=-1, hasSave=0;
 #ifndef SAVE_PATH
@@ -1919,7 +1925,7 @@ static void uiAural(void){
     uiWin("AURAL SCULPTURES",0,"PAD TRACK A PLAY B AUTO X Y SFX L R VOL"); char b[64]; siprintf(b,"%d TRACKS",GM_SONGS); uiTextR(250,3,b,U_DIM);
     int first=juke-5; if(first<0) first=0; if(first>GM_SONGS-11) first=GM_SONGS-11;
     for(int r=0;r<11;r++){ int m=first+r; if(m>=GM_SONGS) break; int y=17+r*10; int op=trackOpen(m); char nn[8]; siprintf(nn,"%3d",m+1); if(m==juke) uiRect(4,y-1,240,10,U_SEL); else if(r&1) uiRect(4,y-1,240,10,U_PANEL); uiText(8,y,nn,U_DIM,1);
-        uiText(32,y,op?gmSongs[m].name:"?? LOCKED: 100% ??",op?(m>=GM_EPIC0?U_GOLD:m>=GM_REMIX0?U_PINK:U_WHITE):U_DIM,1); if(gmCur==m) uiIcon8(228,y,IC8_NOTE); }
+        { char lk[28]; if(m>=GM_FAM0) famHint(m-GM_FAM0,lk); else strcpy(lk,"?? LOCKED: 100% ??"); uiText(32,y,op?gmSongs[m].name:lk,op?(m>=GM_FAM0?U_CYAN:m>=GM_EPIC0?U_GOLD:m>=GM_REMIX0?U_PINK:U_WHITE):U_DIM,1); } if(gmCur==m) uiIcon8(228,y,IC8_NOTE); }
     uiScroll(GM_SONGS,first,11,16,110);
     uiFrame(4,130,248,48,U_PANELHI,U_BHI,U_BLO);
     uiText(10,134,trackOpen(juke)?gmSongs[juke].use:"FINISH THE GAME 100%",U_DIM,1);

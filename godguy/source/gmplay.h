@@ -11,6 +11,7 @@
 #ifndef GMPLAY_H
 #define GMPLAY_H
 #include "gmkit.h"
+#include "gmvox.h"        // the vocal chop kit: drum-B stream ids GM_VOX0 and up play a chop instead of a cymbal
 #include "gmdata.h"
 #define GMV 10                      // voice 9 is a Haas double of the lead (one frame late, a hair sharp, on the other side): it widens the lead
 static int gmCur=-1, gmAcc, gmRow, gmMaster=100, gmPaused, gmTick;
@@ -55,6 +56,7 @@ static int gmFadeMul(void){ const GmSong*S=&gmSongs[gmCur]; int fs=gmFadeStart(S
 static void gmDrum(int part,int id){
     int soft=(id>>7)&1; id&=127; if(!id) return; int vol, pan, idx, slot;
     if(part==0){ static const u8 dv[8]={0,120,105,95,100,100,100,80}, dp[8]={0,64,64,70,38,62,88,76}; if(id>7) return; idx=id-1; vol=dv[id]; pan=dp[id]; slot=(gmSlotA^=1); }
+    else if(id>=GM_VOX0){ idx=id-GM_VOX0; if(idx>=GM_VOX_N) return; gmAlt[10]^=1; vol=gmVoxVol[idx]; pan=gmVoxPan[idx]; slot=2+(gmSlotB^=1); part=2; soft=soft; }      // a vocal chop: it takes a cymbal channel for as long as it sounds
     else { static const u8 dv[7]={0,60,62,80,66,45,42}; if(id>6) return; idx=id-1; vol=dv[id]; gmAlt[10]^=1;
         pan=id==3?34:id==4?100:id==2?92:(gmAlt[10]?46:82); slot=2+(gmSlotB^=1); }
     if(soft) vol=vol*55/100; vol=vol*gmMaster/100*40/100; vol=vol*gmFadeMul()>>8;
