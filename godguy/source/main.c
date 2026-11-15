@@ -1061,7 +1061,7 @@ static void applyLight(void){
     if(weather==1||weather==2){ Lr=Lr*78/100; Lg=Lg*80/100; Lb=Lb*90/100; } else if(weather==3){ Lr=Lr*95/100; Lg=Lg*97/100; }
     if(flashT>0){ Lr=Lg=Lb=256; }
     int sh=(tick>>4)&3;
-    for(int i=0;i<GFX_PAL_N;i++){ int src=i; if(i>=T_WATER*8+5&&i<T_WATER*8+8) src=T_WATER*8+5+((i-T_WATER*8-5+sh)%3); else if(i>=T_DEEP*8+4&&i<T_DEEP*8+7) src=T_DEEP*8+4+((i-T_DEEP*8-4+(sh>>1))%3);
+    for(int i=0;i<GFX_PAL_N;i++){ if(UI_RESV(i)) continue; int src=i; if(i>=T_WATER*8+5&&i<T_WATER*8+8) src=T_WATER*8+5+((i-T_WATER*8-5+sh)%3); else if(i>=T_DEEP*8+4&&i<T_DEEP*8+7) src=T_DEEP*8+4+((i-T_DEEP*8-4+(sh>>1))%3);
         u16 c=basePal[src]; int r=(c&31)*Lr>>8, g=((c>>5)&31)*Lg>>8, b=((c>>10)&31)*Lb>>8; if(i>=T_LAVA*8&&i<T_LAVA*8+8){ int pu=((tick>>3)&15); pu=pu<8?pu:15-pu; r=r*(24+pu)/28; g=g*(20+pu*2)/28; } if(r>31) r=31; if(g>31) g=31; if(b>31) b=31; BG_PALETTE[i]=(u16)(r|(g<<5)|(b<<10)); }
     for(int i=PX_LAVAHOT;i<=PX_LAVAWHITE;i++){ int pu=((tick>>3)&15); pu=pu<8?pu:15-pu; u16 c=basePal[i]; int r=(c&31)*Lr>>8, g=((c>>5)&31)*Lg>>8, b=((c>>10)&31)*Lb>>8; g=g*(22+pu)/28; b=b*(22+pu)/28; BG_PALETTE[i]=(u16)(r|(g<<5)|(b<<10)); }
     gfxLight(Lr,Lg,Lb);
@@ -1181,14 +1181,14 @@ static void zCrit(int i,int px,int py,int S){   // one creature, its tile's top 
     if(S<=2){ zRect(px,py,2,2,zCol(fam,0)); return; }
     int mv=(c->ox||c->oy); int fr=mv?(((tick>>3)+i)&1):0; int flip=0; if(!mv) fr=0;
     int gx=c->ox*S/8, gy=c->oy*S/8; px+=gx; py+=gy;
-    u8 g[64]; for(int y=0;y<8;y++){ const char*row=shpRow(A->shape,fr,y); for(int x=0;x<8;x++){ char ch=row[flip?7-x:x]; g[y*8+x]=(u8)(ch=='b'?zCol(fam,0):ch=='d'?zCol(fam,1):ch=='a'?zCol(fam,2):ch=='e'?UI_PAL0+U_WHITE:0); } }
+    u8 g[64]; for(int y=0;y<8;y++){ const char*row=shpRow(A->shape,fr,y); for(int x=0;x<8;x++){ char ch=row[flip?7-x:x]; g[y*8+x]=(u8)(ch=='b'?zCol(fam,0):ch=='d'?zCol(fam,1):ch=='a'?zCol(fam,2):ch=='e'?UIP(U_WHITE):0); } }
     if(S>=16){ int sh=S/8; for(int r=0;r<sh;r++){ int yy=py+S-sh+r; for(int xx=px+S/8+r;xx<px+S-S/8-r;xx++){ if((unsigned)xx<256&&(unsigned)yy<ZH){ u8 v=gbuf[yy*256+xx]; if(v<128) gbuf[yy*256+xx]=(u8)((v&~7)|((v&7)>2?(v&7)-3:0)); } } } }   // a shadow: the ground under its feet darkened
     if(S>=16&&mv&&((tick>>1)&1)) py-=S/16;      // a hop while it walks
     if(S==4){ for(int dy=0;dy<4;dy++) for(int dx=0;dx<4;dx++){ int c2=g[(dy*2)*8+dx*2]; if(!c2) c2=g[(dy*2)*8+dx*2+1]; if(!c2) c2=g[(dy*2+1)*8+dx*2]; if(!c2) c2=g[(dy*2+1)*8+dx*2+1]; if(c2) zPut(px+dx,py+dy,c2); } }
     else { int k=S/8; for(int y=0;y<8;y++) for(int x=0;x<8;x++){ int c2=g[y*8+x]; if(c2) zRect(px+x*k,py+y*k,k,k,c2); } }
-    if(c->rk&&S>=16){ int cc=c->rk==2?UI_PAL0+U_RED:UI_PAL0+U_GOLD; zRect(px+S/2-S/8,py-S/8,S/4,S/8,cc); zRect(px+S/2-S/4,py-S/4+1,S/8,S/8,cc); zRect(px+S/2+S/8,py-S/4+1,S/8,S/8,cc); }      // a crown
-    if((cr[i].sick==1||cr[i].sick==3)&&S>=16&&((tick>>2)&1)) zRect(px+S*5/8,py-S/8,S/4,S/4,UI_PAL0+(cr[i].sick==3?U_PURPLE:U_GREEN));     // the plague's flicker
-    if(S>=16&&c->wep){ zRect(px+(flip?0:S-S/8),py+S/4,S/8,S/2,UI_PAL0+U_LGREY); } }
+    if(c->rk&&S>=16){ int cc=c->rk==2?UIP(U_RED):UIP(U_GOLD); zRect(px+S/2-S/8,py-S/8,S/4,S/8,cc); zRect(px+S/2-S/4,py-S/4+1,S/8,S/8,cc); zRect(px+S/2+S/8,py-S/4+1,S/8,S/8,cc); }      // a crown
+    if((cr[i].sick==1||cr[i].sick==3)&&S>=16&&((tick>>2)&1)) zRect(px+S*5/8,py-S/8,S/4,S/4,UIP(cr[i].sick==3?U_PURPLE:U_GREEN));     // the plague's flicker
+    if(S>=16&&c->wep){ zRect(px+(flip?0:S-S/8),py+S/4,S/8,S/2,UIP(U_LGREY)); } }
 static int bZoomCol(int b,int race){ return (b==B_HALL||b==B_TOWER||b==B_TEMPLE||b==B_STATUE)?139:b==B_FARM?140:b==B_DOCK?137:128+race; }      // the colour of a building tile when the picture is too small for its art
 static int zKey=-1;
 static int zDraw(void){ gKeyOk=0;
@@ -1199,7 +1199,7 @@ static int zDraw(void){ gKeyOk=0;
         for(int sy=0;sy<ZH;sy++){ int ty=(oy+sy)*K+K/2; if(ty<0||ty>=WH) continue; u8*d=gbuf+sy*256; for(int sx=0;sx<256;sx++){ int tx=(ox+sx)*K+K/2; if(tx<0||tx>=WW) continue; int t=world[ty][tx]; int b=bld[ty][tx]; int c;
                 if(b&&b!=B_RUIN){ int race=bldv[ty][tx]?vilRace(bldv[ty][tx]-1):0; c=bZoomCol(b,race); } else { int h=(int)(hsh(tx,ty,3)&3); c=t*8+((t==T_WATER||t==T_DEEP)?3+((h+(tick>>4))&1):2+h); if(t>T_WATER&&t!=T_LAVA) c=bioPix(c,bioAt(tx,ty)); }
                 d[sx]=(u8)c; } }
-        for(int i=0;i<nCr;i++){ const Cr*c=&cr[i]; if(!c->alive) continue; int px=c->x/K-ox, py=c->y/K-oy; if((unsigned)px<256&&(unsigned)py<ZH&&(arch[sp[c->sp].a].diet==4||arch[sp[c->sp].a].diet==5||c->rk)) gbuf[py*256+px]=(u8)(arch[sp[c->sp].a].diet==5?UI_PAL0+U_RED:UI_PAL0+U_YELLOW); }      // (only people, monsters and notables)
+        for(int i=0;i<nCr;i++){ const Cr*c=&cr[i]; if(!c->alive) continue; int px=c->x/K-ox, py=c->y/K-oy; if((unsigned)px<256&&(unsigned)py<ZH&&(arch[sp[c->sp].a].diet==4||arch[sp[c->sp].a].diet==5||c->rk)) gbuf[py*256+px]=(u8)(arch[sp[c->sp].a].diet==5?UIP(U_RED):UIP(U_YELLOW)); }      // (only people, monsters and notables)
         return 1; }
     int tx0=ox>>sh, tx1=(ox+255)>>sh, ty0=oy>>sh, ty1=(oy+ZH-1)>>sh;
     if(S>=16){ int r8=sh-3;      // enlarge the tile art: each screen row takes one art row of every tile it crosses
@@ -1212,7 +1212,7 @@ static int zDraw(void){ gKeyOk=0;
                 else { int h=(int)(hsh(tx,ty,3)&3); c=t*8+((t==T_WATER||t==T_DEEP)?3+((h+(tick>>4))&1):2+h); if(t>T_WATER&&t!=T_LAVA) c=bioPix(c,bioAt(tx,ty)); if(b==B_RUIN) c=142; }
                 zRect(sx0,sy0,S,S,c);
                 if(S==4){ int h2=(int)(hsh(tx,ty,5)&3); if(b==B_NONE||b==B_RUIN){ if(h2==0) zPut(sx0+1,sy0+2,c^1); else if(h2==1) zPut(sx0+2,sy0+1,c^1); } else if(b==B_HUT||b==B_HOUSE) zRect(sx0,sy0+2,4,2,136); } } } }
-    for(int b=0;b<8;b++) if(boat[b].on&&K==1){ int px=boat[b].x*S-ox, py=boat[b].y*S-oy; if(S>=4) zRect(px,py,S,S,137); if(S>=16) zRect(px+S/4,py+S/8,S/2,S/2,UI_PAL0+U_WHITE); else zRect(px,py,S>2?S:2,S>2?S:2,UI_PAL0+U_WHITE); }      // boats at sea
+    for(int b=0;b<8;b++) if(boat[b].on&&K==1){ int px=boat[b].x*S-ox, py=boat[b].y*S-oy; if(S>=4) zRect(px,py,S,S,137); if(S>=16) zRect(px+S/4,py+S/8,S/2,S/2,UIP(U_WHITE)); else zRect(px,py,S>2?S:2,S>2?S:2,UIP(U_WHITE)); }      // boats at sea
     // creatures: every one on screen
     for(int ty=ty0-1;ty<=ty1+1;ty++){ if(ty<0||ty>=WH) continue; for(int tx=tx0-1;tx<=tx1+1;tx++){ if(tx<0||tx>=WW) continue; int i=(int)occ[ty][tx]-1; if(i<0||!cr[i].alive) continue; zCrit(i,(tx<<sh)-ox,(ty<<sh)-oy,S); } }
     return 1; }
@@ -1417,7 +1417,12 @@ static void gfxHead(const char*t,int back){
     if(back){ uiGradRound(204,2,48,11,G_SEL,U_GOLD); uiTextC(228,4,"BACK",U_WHITE,1); uiBtn(202,0,52,15,KEY_B,0,0,0); } }
 static void gfxHint(const char*t,int col){ uiGrad(0,180,256,12,G_FOOT); uiRect(0,180,256,1,U_BHI); uiTextC(128,183,t,col,1); }
 static void gfxDescBox(int x,int y,int w,int h,const char*t){ uiFrame(x,y,w,h,U_SHADOW,U_BLO,U_BHI); uiGrad(x+1,y+1,w-2,h-2,G_BG); uiRect(x+1,y+2,2,h-4,U_GOLD); uiWrap(x+5,y+(h>=24?5:h>=22?4:3),w/6-2,h>=30?3:2,t,U_LGREY); }
-static const char* const cHelp[13]={"BIGGER PLANETS HOLD MORE LIVES","STORY HAS CHAPTERS, FREE PLAY HAS NONE","THE SHAPE OF THE LAND","SMOOTH BEACHES OR RAGGED, TORN COASTS","HOW MANY PEAKS AND HILLS RISE","HOW MUCH OF THE PLANET IS WATER","FROM ICE AGE TO SCORCHED","HOW LUSH OR DRY THE LAND IS","HOW MANY CREATURES START OUT","HOW HARD THE MONSTERS BITE","THE SAME SEED MAKES THE SAME PLANET","WALLS STOP, VANISH ERASES, WRAP LOOPS","MAKE THE PLANET AND BEGIN"};
+#ifdef GG_BIGMAP
+#define SZHELP "BIGGER PLANETS HOLD MORE LIVES"
+#else
+#define SZHELP "DS RAM STOPS AT 256: 384-768 NEED THE DSI MODE BUILD"
+#endif
+static const char* const cHelp[13]={SZHELP,"STORY HAS CHAPTERS, FREE PLAY HAS NONE","THE SHAPE OF THE LAND","SMOOTH BEACHES OR RAGGED, TORN COASTS","HOW MANY PEAKS AND HILLS RISE","HOW MUCH OF THE PLANET IS WATER","FROM ICE AGE TO SCORCHED","HOW LUSH OR DRY THE LAND IS","HOW MANY CREATURES START OUT","HOW HARD THE MONSTERS BITE","THE SAME SEED MAKES THE SAME PLANET","WALLS STOP, VANISH ERASES, WRAP LOOPS","MAKE THE PLANET AND BEGIN"};
 static void uiCreate(void){
     uiRect(0,0,256,192,U_BG); for(int y=0;y<192;y+=4) uiRect(0,y,256,1,U_PANEL);
     gfxHead("CREATE A PLANET",1);

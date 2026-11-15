@@ -4,6 +4,7 @@
 // Integer maths only (the DS has no FPU). Tile and palette layout is unchanged: ground is still terrain*4+variant, buildings still BT0+type*8+race (the later ones, dock to library, at BT1; see BTILE in main.c).
 // New palette entries (main background): 104..114 details (flowers, hot lava, cactus, cattail), 144..159 roofs (dark, light), 160 window glass.
 #define GFX_PAL_N 192
+#define UI_RESV(i) (((i)>=117&&(i)<=127)||((i)>=161&&(i)<=167))   // toolbar colours (ui.h): the day / night light leaves these slots alone
 #define GFX_MEADOW0 108          // 16 spare tile slots (108..123): grass with flowers
 #define GFX_MEADOW_N 16
 enum { PX_FLW=104, PX_LAVAHOT=110, PX_LAVAWHITE=111, PX_CACT=112, PX_CACTD=113, PX_CATTAIL=114, PX_SNOWS1=115, PX_SNOWS2=116, PX_ROOFD=144, PX_ROOFL=152, PX_WIN=160 };

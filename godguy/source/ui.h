@@ -6,21 +6,30 @@
 #include "font5x7.h"
 #include "icons.h"
 enum { U_CLEAR, U_BG, U_PANEL, U_PANELHI, U_BHI, U_BLO, U_WHITE, U_DIM, U_GOLD, U_GREEN, U_RED, U_BLUE, U_PURPLE, U_ORANGE, U_SEL, U_SHADOW, U_G0, U_G1, U_G2, U_G3, U_G4, U_G5, U_G6, U_G7, U_YELLOW, U_CYAN, U_BROWN, U_LGREY, U_DGREY, U_PINK, U_TEAL, U_N };
-static const u8 uiRgb[U_N][3]={ {0,0,0},{2,3,8},{4,6,13},{7,10,19},{16,19,28},{2,3,7},{31,31,31},{17,19,25},{31,26,6},{8,26,10},{29,6,6},{9,17,31},{20,9,28},{31,17,4},{9,14,27},{0,0,2},
+static const u8 uiRgb[U_N][3]={ {0,0,0},{2,3,8},{4,6,13},{7,10,19},{16,19,28},{2,3,7},{31,31,31},{21,24,30},{31,26,6},{8,26,10},{29,6,6},{9,17,31},{20,9,28},{31,17,4},{9,14,27},{0,0,2},
     {31,30,12},{31,28,9},{31,25,7},{31,22,5},{30,18,4},{28,14,3},{25,10,3},{20,6,3},{31,31,8},{8,29,31},{14,8,3},{23,24,27},{10,11,14},{31,18,24},{6,22,20} };
-#define UI_PAL0 160           // the toolbar's colours live at 160.. of the main palette (the day / night light only touches 0..143)
+#define UI_PAL0_OLD 160           // the toolbar's colours live at 160.. of the main palette (the day / night light only touches 0..143)
 static u8 uiBuf[256*192] __attribute__((aligned(4))); static int uiPages, uiPageNow, uiPageOpen, uiDotX=96;   // page dots in the title bar
 static const u8 uiKCol[8][3]={{31,8,8},{8,16,31},{10,28,10},{31,26,6},{24,10,30},{31,16,4},{6,28,28},{31,14,22}};   // kingdom colours (sub palette 40..47)
 // ---- v2 look: vertical gradients (8 palette steps each, 140.. of the sub palette, free of everything else) for window bars, buttons, selected rows and backdrops
 enum { G_HEAD, G_SEL, G_BTN, G_BG, G_FOOT, G_N };
-#define UI_GRAD0 140
+#define UI_GRAD0 148
 static const u8 uiGradRgb[G_N][2][3]={ {{14,18,31},{4,6,17}}, {{17,25,31},{7,12,25}}, {{10,14,25},{4,7,15}}, {{5,7,16},{1,2,6}}, {{6,8,18},{2,3,9}} };
 static void uiGradPal(void){ for(int g=0;g<G_N;g++) for(int k=0;k<8;k++){ int r=uiGradRgb[g][0][0]+(uiGradRgb[g][1][0]-uiGradRgb[g][0][0])*k/7, gg=uiGradRgb[g][0][1]+(uiGradRgb[g][1][1]-uiGradRgb[g][0][1])*k/7, b=uiGradRgb[g][0][2]+(uiGradRgb[g][1][2]-uiGradRgb[g][0][2])*k/7; BG_PALETTE_SUB[UI_GRAD0+g*8+k]=RGB15(r,gg,b); } }
 static inline void uiPx(int x,int y,int c);
 static void uiGrad(int x,int y,int w,int h,int g){ for(int j=0;j<h;j++){ int k=h>1?j*7/(h-1):0; int c=UI_GRAD0+g*8+k; for(int i=0;i<w;i++) uiPx(x+i,y+j,c); } }
 static void uiGradRound(int x,int y,int w,int h,int g,int edge){ for(int j=0;j<h;j++){ int k=h>1?j*7/(h-1):0; int c=UI_GRAD0+g*8+k; int a=(j==0||j==h-1)?1:0; for(int i=a;i<w-a;i++) uiPx(x+i,y+j,c); }
     for(int i=1;i<w-1;i++){ uiPx(x+i,y,edge); uiPx(x+i,y+h-1,edge); } for(int j=1;j<h-1;j++){ uiPx(x,y+j,edge); uiPx(x+w-1,y+j,edge); } }
-static void uiPalette(void){ uiGradPal(); for(int k=0;k<8;k++) BG_PALETTE_SUB[40+k]=RGB15(uiKCol[k][0],uiKCol[k][1],uiKCol[k][2]); for(int i=0;i<U_N;i++){ u16 c=RGB15(uiRgb[i][0],uiRgb[i][1],uiRgb[i][2]); BG_PALETTE_SUB[i]=c; BG_PALETTE[UI_PAL0+i]=c; } BG_PALETTE_SUB[0]=0; }
+// toolbar colours: 22 slots of the main palette that nothing else touches (applyLight skips UI_RESV; zoom's creature colours sit at 192..197 and 248..253)
+#define UI_RESV(i) (((i)>=117&&(i)<=127)||((i)>=161&&(i)<=167))
+static const u8 tcSlot[22]={117,118,119,120,121,122,123,124,125,126,127,161,162,163,164,165,166,167,198,199,254,255};
+static const u8 tcRgb[22][3]={ {31,31,31},{31,26,6},{9,28,11},{31,10,10},{25,14,31},{31,17,4},{0,0,2},{31,31,8},{8,29,31},{24,14,6},{27,28,31},{13,14,18},   // the icon colours: white gold green red purple orange shadow yellow cyan brown light-grey grey
+    {2,3,9},{12,16,28},{6,8,18},{12,15,27},{13,19,31},{4,6,15},{7,10,22},{10,13,25},{9,14,27},{10,19,31} };   // bar, bar top line, tab, tab edge, selected tab, slot, slot top, slot edge, selected slot, blue
+enum { TC_BAR=12,TC_BARHI,TC_TAB,TC_TABEDGE,TC_TABSEL,TC_SLOT,TC_SLOTHI,TC_SLOTEDGE,TC_SELFILL,TC_BLUE };
+// UIP: a UI colour (U_*) as a main palette slot
+static const u8 uiPmap[31]={0,162,162,162,163,123,117,165,118,119,120,255,121,122,166,123,118,118,118,118,118,118,118,118,124,125,126,127,161,120,125};
+#define UIP(c) ((int)(tcSlot[0]*0+uiPmap[(c)]))
+static void uiPalette(void){ uiGradPal(); for(int k=0;k<8;k++) BG_PALETTE_SUB[40+k]=RGB15(uiKCol[k][0],uiKCol[k][1],uiKCol[k][2]); for(int i=0;i<U_N;i++){ u16 c=RGB15(uiRgb[i][0],uiRgb[i][1],uiRgb[i][2]); BG_PALETTE_SUB[i]=c; } for(int i=0;i<22;i++) BG_PALETTE[tcSlot[i]]=RGB15(tcRgb[i][0],tcRgb[i][1],tcRgb[i][2]); BG_PALETTE_SUB[0]=0; }
 static unsigned uiFlushes;   // pictures sent to the screen so far (the tests count them: a menu must send one per redraw, never two)
 static int uiHold;           // while set, uiFlush sends nothing: a screen that is drawn on top of another one (the pause menu over the status screen) must not show the one underneath for a frame
 #ifdef NDSHW
@@ -102,14 +111,14 @@ static int hwUiScale;
 #define TB_BLANK 1023
 // TBCAT: the toolbox has categories. A strip of tabs along its top (ALL, LAND, LIFE, WRATH, FOLK) picks which powers the slots below show; INSPECT is in every one.
 // Choosing a power by the L and R keys (or from the favourites) that is not in the open category opens the one it belongs to.
-static const u8 tbRowsT[3]={4,5,7}, tbTabT[3]={9,10,13}, tbSlotsT[3]={10,8,6}, tbPitchT[3]={23,29,38}, tbBoxW[3]={21,27,36}, tbBoxH[3]={19,25,34}, tbIcoT[3]={10,15,20};
+static const u8 tbRowsT[3]={4,5,7}, tbTabT[3]={11,12,14}, tbSlotsT[3]={10,8,6}, tbPitchT[3]={23,29,38}, tbBoxW[3]={21,27,36}, tbBoxH[3]={18,25,34}, tbIcoT[3]={10,15,20};
 #define TB_ROWS (tbRowsT[hwUiScale])
 #define TB_H (TB_ROWS*8)
 #define TB_Y (192-TB_H)
 #define TB_SLOTS (tbSlotsT[hwUiScale])
 #define TB_NCAT 5
 static const char* const tbCatNm[TB_NCAT]={"ALL","LAND","LIFE","WRATH","FOLK"};
-static const u8 tbCatCol[TB_NCAT]={U_GOLD,U_BROWN,U_GREEN,U_RED,U_BLUE};
+static const u8 tbCatCol[TB_NCAT]={118,126,119,120,255};   // main palette slots
 static u8 tbPix[56][256]; static int tbTop=0, tbCat=0, tbN=0; static u8 tbList[64]; static u16*mapPtr1;
 static int tbHome(int pi){ int k=pw[pi].kind; if(k==PK_INSPECT) return 0; if(k==PK_PAINT||k==PK_AIR) return 1;
     if(k==PK_SPAWN||k==PK_HEAL||k==PK_FEED||k==PK_BLOOM||k==PK_VIBE||k==PK_MUTATE) return 2;
@@ -121,23 +130,23 @@ static void tbText(int x,int y,const char*s,int c){ for(;*s;s++){ int ch=(unsign
 static void tbDraw(void){
     const int H=TB_H, TT=tbTabT[hwUiScale], SW=tbBoxW[hwUiScale], SH=tbBoxH[hwUiScale], PI=tbPitchT[hwUiScale], IS=tbIcoT[hwUiScale], K=hwUiScale?2:1, Y0=TT+(H-TT-SH)/2+1;
     #define TBP(x,y,c) do{ if((unsigned)(x)<256&&(unsigned)(y)<(unsigned)H) tbPix[y][x]=(u8)(c); }while(0)
-    for(int y=0;y<H;y++) for(int x=0;x<256;x++) tbPix[y][x]=(u8)(UI_PAL0+(y==0?U_BHI:y==1?U_PANELHI:U_PANEL));
+    for(int y=0;y<H;y++) for(int x=0;x<256;x++) tbPix[y][x]=(u8)(y==0?tcSlot[TC_BARHI]:tcSlot[TC_BAR]);
     if(!tbN) tbBuild(); if(tbPos(power)<0){ tbCat=tbHome(power); tbBuild(); }
     int pp=tbPos(power); if(pp<tbTop) tbTop=pp; if(pp>=tbTop+TB_SLOTS) tbTop=pp-TB_SLOTS+1; if(tbTop>tbN-TB_SLOTS) tbTop=tbN-TB_SLOTS; if(tbTop<0) tbTop=0;
     for(int c=0;c<TB_NCAT;c++){ int x0=c*256/TB_NCAT+1, x1=(c+1)*256/TB_NCAT-1, sel=c==tbCat;   // the tabs
-        for(int y=1;y<TT;y++) for(int x=x0;x<x1;x++){ int edge=(x==x0||x==x1-1||y==1); int cc=sel?(edge?U_GOLD:U_SEL):(edge?U_BLO:U_SHADOW); TBP(x,y,UI_PAL0+cc); }
-        if(!sel) for(int x=x0+1;x<x1-1;x++) TBP(x,TT-1,UI_PAL0+tbCatCol[c]);
-        int tw=(int)strlen(tbCatNm[c])*6-1; tbText((x0+x1)/2-tw/2,1+(TT-1-7)/2,tbCatNm[c],UI_PAL0+(sel?U_WHITE:U_LGREY)); }
+        for(int y=1;y<TT;y++) for(int x=x0;x<x1;x++){ int edge=(x==x0||x==x1-1||y==1); int cc=sel?(edge?118:tcSlot[TC_TABSEL]):(edge?tcSlot[TC_TABEDGE]:tcSlot[TC_TAB]); TBP(x,y,cc); }
+        for(int x=x0+1;x<x1-1;x++){ TBP(x,TT-1,tbCatCol[c]); if(!sel) TBP(x,TT-2,tbCatCol[c]); }
+        int tw=(int)strlen(tbCatNm[c])*6-1; tbText((x0+x1)/2-tw/2,2+(TT-4-7)/2,tbCatNm[c],sel?117:127); }
     for(int s=0;s<TB_SLOTS&&tbTop+s<tbN;s++){ int pi=tbList[tbTop+s]; int x0=12+s*PI, y0=Y0, sel=pi==power;
-        for(int j=0;j<SH;j++) for(int i=0;i<SW;i++){ int edge=(i==0||j==0||i==SW-1||j==SH-1); int c=sel?(edge?U_GOLD:(j<=2?U_BHI:U_SEL)):(edge?U_BLO:(j==1?U_PANEL:U_SHADOW)); TBP(x0+i,y0+j,UI_PAL0+c); }
-        { int kk=pw[pi].kind, cc=kk==PK_PAINT?U_BROWN:(kk==PK_SPAWN||kk==PK_HEAL||kk==PK_FEED||kk==PK_BLOOM||kk==PK_VIBE)?U_GREEN:(kk==PK_RAIN||kk==PK_FIRE||kk==PK_BOLT||kk==PK_METEOR||kk==PK_KILL||kk==PK_QUAKE||kk==PK_FLOOD||kk>=PK_TORNADO)?U_RED:(kk==PK_SETTLE||kk==PK_WAR||kk==PK_PEACE||kk==PK_BLESS)?U_BLUE:U_GOLD; for(int i=1;i<SW-1;i++){ for(int j=1;j<=2+(K>1);j++) TBP(x0+i,y0+j,UI_PAL0+cc); } }   // a colour
-        if(favPow[pi]){ for(int j=0;j<3*K;j++) for(int i=0;i<3*K;i++) TBP(x0+SW-5*K+i,y0+3+K+j,UI_PAL0+U_YELLOW); }   // a starred power
+        for(int j=0;j<SH;j++) for(int i=0;i<SW;i++){ int edge=(i==0||j==0||i==SW-1||j==SH-1); int c=sel?(edge?118:(j<=2?tcSlot[TC_SLOTEDGE]:tcSlot[TC_SELFILL])):(edge?tcSlot[TC_SLOTEDGE]:(j==1?tcSlot[TC_SLOTHI]:tcSlot[TC_SLOT])); TBP(x0+i,y0+j,c); }
+        { int kk=pw[pi].kind, cc=kk==PK_PAINT?126:(kk==PK_SPAWN||kk==PK_HEAL||kk==PK_FEED||kk==PK_BLOOM||kk==PK_VIBE)?119:(kk==PK_RAIN||kk==PK_FIRE||kk==PK_BOLT||kk==PK_METEOR||kk==PK_KILL||kk==PK_QUAKE||kk==PK_FLOOD||kk>=PK_TORNADO)?120:(kk==PK_SETTLE||kk==PK_WAR||kk==PK_PEACE||kk==PK_BLESS)?255:118; for(int i=1;i<SW-1;i++){ for(int j=1;j<=2+(K>1);j++) TBP(x0+i,y0+j,cc); } }   // a colour
+        if(favPow[pi]){ for(int j=0;j<3*K;j++) for(int i=0;i<3*K;i++) TBP(x0+SW-5*K+i,y0+3+K+j,124); }   // a starred power
         const Pw*P=&pw[pi]; int ix=x0+(SW-IS)/2, iy=y0+(SH-IS)/2+(K>1);
         for(int j=0;j<IS;j++) for(int i=0;i<IS;i++){ int si=i*10/IS, sj=j*10/IS, c;   // 10 x 10 icons, drawn 1.5 or 2 times as big when the scale is up
-            if(P->kind==PK_PAINT){ c=uiSwatch(P->arg,si,sj,200); } else { c=icon10[uiKindIcon[P->kind]][sj*10+si]; if(!c) continue; c+=UI_PAL0; }
+            if(P->kind==PK_PAINT){ c=uiSwatch(P->arg,si,sj,200); } else { c=icon10[uiKindIcon[P->kind]][sj*10+si]; if(!c) continue; c=UIP(c); }
             TBP(ix+i,iy+j,c); } }
     // arrows (twice the size when the scale is up): they scroll the open category
-    { int ay=TT+(H-TT-7*K)/2, lx=K>1?9:6, rx=K>1?246:249; for(int j=0;j<7*K;j++){ int jj=j/K, w=(jj<4?jj+1:7-jj)*K; for(int i=0;i<w;i++){ TBP(lx-i,ay+j,UI_PAL0+(tbTop>0?U_WHITE:U_DGREY)); TBP(rx+i,ay+j,UI_PAL0+(tbTop<tbN-TB_SLOTS?U_WHITE:U_DGREY)); } } }
+    { int ay=TT+(H-TT-7*K)/2, lx=K>1?9:6, rx=K>1?246:249; for(int j=0;j<7*K;j++){ int jj=j/K, w=(jj<4?jj+1:7-jj)*K; for(int i=0;i<w;i++){ TBP(lx-i,ay+j,tbTop>0?117:161); TBP(rx+i,ay+j,tbTop<tbN-TB_SLOTS?117:161); } } }
     for(int ty=0;ty<TB_ROWS;ty++) for(int tx=0;tx<32;tx++){ u8 tile[64] __attribute__((aligned(4))); for(int y=0;y<8;y++) for(int x=0;x<8;x++) tile[y*8+x]=tbPix[ty*8+y][tx*8+x]; vramCopy((u8*)BG_TILE_RAM(1)+(TB_TILE0+ty*32+tx)*64,tile,64); }
     #undef TBP
 }
