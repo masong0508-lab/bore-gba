@@ -1429,7 +1429,7 @@ static void musUpdate(void){
     if((tick&31)==0){ static const short ht[5]={8,40,120,300,700}; int h=warHeat, c=0;      // the crowd: battle heat -> 0..400 (1/100 levels): a skirmish is level 1, a few dozen fighters level 4
         if(h>=ht[4]) c=400; else if(h>=ht[0]){ int k=0; while(h>=ht[k+1]) k++; c=k*100+(h-ht[k])*100/(ht[k+1]-ht[k]); }
         gmCrowd=c; warHeat-=warHeat/4+(warHeat>0); }
-    if((tick&31)==0){ int want=musDirector(); if(gmCur<0){ gmPlay(want); musLast=want; } else if(want==gmCur) musLast=want; else if(want!=musLast&&(musHold<=0||want==GM_WAR||gmCur==GM_WAR)&&!isJingle(gmCur)){ gmPlay(want); musLast=want; musHold=1800; } }
+    if((tick&31)==0){ int want=musDirector(); if(gmCur<0){ gmPlay(want); musLast=want; } else if(want==gmCur) musLast=want; else if(want!=musLast&&(musHold<=0||((want==GM_WAR||gmCur==GM_WAR)&&musHold<100000))&&!isJingle(gmCur)){ gmPlay(want); musLast=want; musHold=1800; } }
 }
 static u16*gfxF[SHAPE_N][2];
 static void makeSprites(void){

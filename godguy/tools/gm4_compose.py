@@ -164,17 +164,20 @@ def duck_lyrics(sc, V, kit_lyr0, kit_n, lyr_pads, lyr_beats_cells, voxe0):
                 if n: d[n] = d.get(n, 0) + (3 if v == 0 else 1)
         info[str(e['pad'])] = {'mel': mel, 'bass': bas}
     json.dump(info, open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'duck_lyric_notes.json'), 'w'), sort_keys=True)
-    placed = 0; busy_until = -1
-    rounds = [dict(x, t=x['t'] + r / 4.0) for r in (0, 640) for x in ev]      # the project's phrases, then once more forty bars later (the song is longer than the project)
-    rounds.sort(key=lambda z: z['t'])
-    for e in rounds:
-        if e['pad'] not in lyr_pads: continue
-        j = lyr_pads.index(e['pad']); c = int(round(e['t'] * 4))
-        if c < busy_until or c + 2 >= sc.cells: continue          # two phrases never overlap (the player has two voice channels for them)
-        dur = lyr_beats_cells[j]
-        sc.v[V['DB']][c] = (16 + kit_lyr0 + j, 1); sc.v[V['DB']][c + 1] = (voxe0 + 2 * j + 1, 1)
-        dur = max(8, dur - 8)      # (the last second or so is only the plate tail: the next phrase may begin over it)
-        for cc in range(c + 2, min(sc.cells, c + 2 + dur)):
+    evs = []
+    for x in sorted(ev, key=lambda z: z['t']):
+        if x['pad'] not in lyr_pads: continue
+        j = lyr_pads.index(x['pad']); c = int(round(x['t'] * 4))
+        if c + 2 >= sc.cells: continue
+        evs.append([c, j, max(3, lyr_beats_cells[j])])
+    placed = 0
+    for i, (c, j, dur) in enumerate(evs):
+        over = any((k != i) and (evs[k][0] < c + dur and c < evs[k][0] + evs[k][2]) for k in range(len(evs)))      # (two phrases sounding together get no echo copies: the player has two voice channels for them)
+        if over and any(evs[k][0] < c and evs[k][0] + evs[k][2] > c + 4 and evs[k][1] != j and any(evs[m][0] < evs[k][0] + evs[k][2] and evs[m][0] > evs[k][0] and m != k for m in range(len(evs)) if m != i) for k in range(len(evs)) if k != i): continue
+        sc.v[V['DB']][c] = (16 + kit_lyr0 + j, 1)
+        if not over and dur >= 3: sc.v[V['DB']][c + 1] = (voxe0 + 2 * j + 1, 1)
+        keep = max(4, dur - 8) if dur > 12 else dur
+        for cc in range(c + 2, min(sc.cells, c + 2 + keep)):
             sc.v[V['DB']][cc] = (0, 0)      # (nothing else on the cymbal / voice channels while it sings)
-        busy_until = c + 2 + dur; placed += 1
+        placed += 1
     return placed

@@ -175,9 +175,9 @@ def lyric_chops():
     for f in sorted(glob.glob(os.path.join(HERE, '..', '..', 'tools', 'duckcover', 'lyrics', 'pad_*.wav'))):
         pad = int(os.path.basename(f)[4:6]); w = wave.open(f); sr = w.getframerate(); x = np.frombuffer(w.readframes(w.getnframes()), dtype='<i2').astype(np.float64) / 32768.0
         x = sosfilt(butter(4, 2700, 'lp', fs=sr, output='sos'), x); dur = len(x) / sr; half = 30.0 / NEWBPM
-        target = max(2, int(round(dur * 1.5 / half + 0.49))) * half; x = tune_stretch(x, sr, target / dur, pad)
+        target = dur * 145.0 / NEWBPM; x = tune_stretch(x, sr, target / dur, pad)      # (the project's bars are kept: its 145 bpm becomes 88, so a phrase lasts the same number of beats)
         g = gcd(LYR_RATE, sr); x = resample_poly(x, LYR_RATE // g, sr // g); x = plate(x, LYR_RATE)
-        LYR_PAD.append(pad); add('LYRIC PAD %d' % pad, x, 112, 36, 99.0, LYR_RATE)
+        LYR_PAD.append(pad); add('LYRIC PAD %d' % pad, x, 112, 36 if pad < 70 else 64, 99.0, LYR_RATE)
 lyric_chops()
 STEP = [7,8,9,10,11,12,13,14,16,17,19,21,23,25,28,31,34,37,41,45,50,55,60,66,73,80,88,97,107,118,130,143,157,173,190,209,230,253,279,307,337,371,408,449,494,544,598,658,724,796,876,963,1060,1166,1282,1411,1552,1707,1878,2066,2272,2499,2749,3024,3327,3660,4026,4428,4871,5358,5894,6484,7132,7845,8630,9493,10442,11487,12635,13899,15289,16818,18500,20350,22385,24623,27086,29794,32767]
 IDX = [-1, -1, -1, -1, 2, 4, 6, 8]
@@ -215,7 +215,7 @@ def write_header(path):
     L.append('#define GM_VOX_LYR0 %d      // the first of the Duck & Cover lyric phrases; GM_VOXE0 + 2 * (n) + side is the stereo echo copy of lyric n' % (len(CHOPS) - len(LYR_PAD))); L.append('#define GM_VOX_LYRN %d' % len(LYR_PAD)); L.append('#define GM_VOXE0 (GM_VOX0+GM_VOX_N)')
     L.append('static const unsigned char gmVoxLyrPad[%d]={%s};' % (len(LYR_PAD), ','.join(map(str, LYR_PAD))))
     L.append('static const char*const gmVoxName[%d]={%s};' % (len(CHOPS), ','.join('"%s"' % n for n, _, _, _ in CHOPS)))
-    L.append('#ifdef NDSHW'); L.append('#define GM_VOXBUF(b) ((signed char*)(0x023D0000+(b)*0x9000))      /* the real DS: two 36 KB buffers in the uncached block (the ARM7 reads them; ARM9 writes would sit in its data cache) */')
+    L.append('#ifdef NDSHW'); L.append('#define GM_VOXBUF(b) ((signed char*)(0x023DD000+(b)*0x9800))      /* the real DS: two 38 KB buffers in the uncached block (the ARM7 reads them; ARM9 writes would sit in its data cache) */')
     L.append('#else'); L.append('static signed char gmVoxBuf[2][GM_VOX_MAX] __attribute__((aligned(4)));'); L.append('#define GM_VOXBUF(b) (gmVoxBuf[b])'); L.append('#endif'); L.append('static GmDrum gmVoxDr[2];')
     L.append("static const GmDrum*gmVoxLoad(int idx,int slot){ static const short st[89]={%s}; static const signed char ix[8]={-1,-1,-1,-1,2,4,6,8};" % ','.join(map(str, STEP)))
     L.append("    int b=slot&1, n=gmVoxLen[idx], pred=0, si=0; const unsigned char*p=GM_VOX_PK(gmVoxOff[idx]); signed char*o=GM_VOXBUF(b);")
