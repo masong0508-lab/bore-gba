@@ -175,7 +175,7 @@ def duck_lyrics(sc, V, kit_lyr0, kit_n, lyr_pads, lyr_beats_cells, voxe0):
         over = any((k != i) and (evs[k][0] < c + dur and c < evs[k][0] + evs[k][2]) for k in range(len(evs)))      # (two phrases sounding together get no echo copies: the player has two voice channels for them)
         if over and any(evs[k][0] < c and evs[k][0] + evs[k][2] > c + 4 and evs[k][1] != j and any(evs[m][0] < evs[k][0] + evs[k][2] and evs[m][0] > evs[k][0] and m != k for m in range(len(evs)) if m != i) for k in range(len(evs)) if k != i): continue
         sc.v[V['DB']][c] = (16 + kit_lyr0 + j, 1)
-        if not over and dur >= 3: sc.v[V['DB']][c + 1] = (voxe0 + 2 * j + 1, 1)
+        if not over and dur >= 3: sc.v[V['DB']][c + 1] = (voxe0 + 2 * j + (i & 1), 1)
         keep = max(4, dur - 8) if dur > 12 else dur
         for cc in range(c + 2, min(sc.cells, c + 2 + keep)):
             sc.v[V['DB']][cc] = (0, 0)      # (nothing else on the cymbal / voice channels while it sings)

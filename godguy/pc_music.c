@@ -44,6 +44,6 @@ int main(int argc,char**argv){
     FILE*w=fopen(argv[2],"wb"); int dl=(int)(ns*4); unsigned hdr[11]={0x46464952,36+dl,0x45564157,0x20746d66,16,0x00020001,SR,SR*4,0x00100004,0x61746164,dl}; fwrite(hdr,4,11,w);
     for(long i=0;i<ns*2;i++){ short s=(short)(buf[i]*30000); fwrite(&s,2,1,w); } fclose(w);
     double bal=(eL+eR)>0?(eL-eR)/(eL+eR):0, wid=eM>0?eS/eM:0;
-    if(!isfx){ const GmSong*S=&gmSongs[id]; printf("%-28s %3d bpm %3d bars = %5.1fs loop@%-5d loops %d  peak %.2f clip %ld  L/R balance %+.2f  side/mid %.2f\n",S->name,S->bpm,S->rows/16,S->rows*15.0/S->bpm,S->loopRow,loops,peak,clip,bal,wid); }
+    if(!isfx){ const GmSong*S=&gmSongs[id]; printf("rms %.1f dB  ",ns?10*log10((eL+eR)/(2.0*ns)+1e-12):-99); printf("%-28s %3d bpm %3d bars = %5.1fs loop@%-5d loops %d  peak %.2f clip %ld  L/R balance %+.2f  side/mid %.2f\n",S->name,S->bpm,S->rows/16,S->rows*15.0/S->bpm,S->loopRow,loops,peak,clip,bal,wid); }
     else printf("fx %-16s [%s] %d events, peak %.2f, clipped %ld\n",gmFx[id].name,gmFx[id].src,gmFx[id].n,peak,clip);
     return 0; }
