@@ -1,5 +1,5 @@
 // Big planets, the big creature cap and the village cap on the real program (through compat/ndsshim.h).
-//   gcc -O2 -DNDSSHIM -DGG_BIG -Icompat -Isource -Wno-all -include unistd.h -o pc_big pc_big.c -lm && ./pc_big            (planets 384..1024, 100,000 creatures, zoom, save and load)
+//   gcc -O2 -DNDSSHIM -DGG_BIG -Icompat -Isource -Wno-all -include unistd.h -o pc_big pc_big.c -lm && ./pc_big            (planets 384..1024, 199,999 creatures, zoom, save and load)
 //   ./pc_big mk FILE     (any build: a 192 planet saved to FILE, its numbers printed)      ./pc_big ld FILE N V     (loads FILE, expects N creatures and V villages)
 // the second form is the cross-build check: a save made by the small (DS-sized) build must load on the big build, and the other way round when it fits.
 #define UI_NOTRANS 1
@@ -19,7 +19,7 @@ void shimInput(int frame,int*held,int*tx,int*ty){
     if(mode==2){ chk(loadGameRaw(file),"loaded a save from the other build"); printf("LD creatures %d villages %d gW %d sig %lx\n",nCr,vils(),gW,sig()); chk(wantN<0||nCr==wantN,"same creature count"); chk(wantV<0||vils()==wantV,"same village count");
         for(int t=1;t<=300;t++){ tick=t; simulate(); } chk(nCr>0,"it plays on"); printf(fails?"LD FAIL\n":"LD OK\n"); exit(fails?1:0); }
 #ifdef GG_BIGMAP
-    chk(MAXD==1024&&MAXC==100000&&VIL_N==200,"big build limits");
+    chk(MAXD==1024&&MAXC==199999&&VIL_N==200,"big build limits");
     chk(sizeStep(256,1)==384&&sizeStep(1024,1)==128&&sizeStep(128,-1)==1024&&sizeStep(512,-1)==384,"the size list steps through 128 .. 1024 and wraps");
     static const int szs[]={384,768,1024};
     for(int si=0;si<3;si++){ int S=szs[si]; printf("--- %d x %d\n",S,S); clock_t t0=clock();

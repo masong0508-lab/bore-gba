@@ -20,7 +20,13 @@ gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_fix pc
 gcc $F -w -o /tmp/gg_rulers pc_rulers.c -lm && /tmp/gg_rulers | tail -1
 # B + stylus drag pans the map (normal and zoomed view), nothing is painted while B is held
 gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_pan pc_pan.c -lm && /tmp/gg_pan | tail -1
-# big planets (384 .. 1024), the 100,000 creature cap, the village cap, zoom on a squeezed planet, save and load, and saves crossing between builds (DS-sized <-> big)
+# DS (19,999), DSi mode (42,000) and 3DS / PC (199,999) worlds filled to the creature cap: refused at the cap, save and load identical, the raw and packed saves fit their blocks, the loader refuses a save above the cap
+# (and tools/ram_estimate.sh: an estimate of the DS and DSi link room, since no ARM linker runs here)
+gcc -O2 -DNDSSHIM -DGG_MAXC_TEST=19999 -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_cap_ds pc_cap.c -lm && /tmp/gg_cap_ds | grep -E "FAIL|^CAP " | tail -3 | tee /tmp/gg_cap_ds.out; grep -q "^CAP DS OK" /tmp/gg_cap_ds.out
+gcc -O2 -DNDSSHIM -DGG_DSI16 -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_cap_dsi pc_cap.c -lm && /tmp/gg_cap_dsi | grep -E "FAIL|^CAP " | tail -3 | tee /tmp/gg_cap_dsi.out; grep -q "^CAP DSI OK" /tmp/gg_cap_dsi.out
+gcc -O2 -DNDSSHIM -DGG_BIG -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_cap_big pc_cap.c -lm && /tmp/gg_cap_big | grep -E "FAIL|^CAP " | tail -3 | tee /tmp/gg_cap_big.out; grep -q "^CAP BIG OK" /tmp/gg_cap_big.out
+tools/ram_estimate.sh
+# big planets (384 .. 1024), the 199,999 creature cap, the village cap, zoom on a squeezed planet, save and load, and saves crossing between builds (DS-sized <-> big)
 gcc -O2 -DNDSSHIM -DGG_BIG -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_big pc_big.c -lm && /tmp/gg_big | tail -1
 gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_small pc_big.c -lm
 N=$(/tmp/gg_small mk /tmp/gg_x.sav | sed -n 's/.*creatures \([0-9]*\) villages \([0-9]*\).*/\1 \2/p'); /tmp/gg_big ld /tmp/gg_x.sav $N | tail -1   # a DS-sized save loads on the big build, creature for creature

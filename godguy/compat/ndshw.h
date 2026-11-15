@@ -101,13 +101,13 @@ static inline int keysDown(void){ int d=hwHeld&~hwPrev; hwPrev=hwHeld; return d;
 static inline void touchRead(touchPosition*t){ t->px=hwTx; t->py=hwTy; }
 // ---- saving: the world is run-length packed and written to the cartridge's save memory (flash or EEPROM) by the ARM7. The buffers sit in a part of RAM the data cache never touches.
 #ifdef GG_DSI16
-#define SVMAX (3*1024*1024)                    // DSi mode: a 768 x 768 planet (three maps of 590 KB), up to 40000 creatures (20 bytes each) and the trailers
+#define SVMAX (3*1024*1024)                    // DSi mode: a 768 x 768 planet (three maps of 590 KB), up to 42000 creatures (20 bytes each) and the trailers
 #define SVCMAX (0x200000-16)                    // the packed save, in its own uncached 2 MB block at 0x02C00000 (hw/crt0.s makes it cache region 3; the ARM7 and the IPC block stay at 0x02380000 / 0x023F0000)
 static u8 svBufA[SVMAX] __attribute__((aligned(4)));   // ordinary cached RAM: only the ARM9 touches the raw copy
 #define SVBUF svBufA
 #define SVCMP ((u8*)0x02C00000)
 #else
-#define SVMAX (700*1024)                       // the raw save: a 256 x 256 planet (about 200 KB) and up to 16000 creatures (20 bytes each)
+#define SVMAX (700*1024)                       // the raw save: a 256 x 256 planet (about 200 KB) and up to 19999 creatures (20 bytes each)
 #define SVCMAX (0x80000-16)                     // the packed save, in the uncached block 0x02300000..0x02380000 (the ARM7 starts at 0x02380000)
 static u8 svBufA[SVMAX] __attribute__((aligned(4)));   // ordinary cached RAM: only the ARM9 touches the raw copy
 #define SVBUF svBufA
