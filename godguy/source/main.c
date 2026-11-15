@@ -429,6 +429,9 @@ static int vilFound(int race,int x,int y){
     Vil*V=&vil[v]; memset(V,0,sizeof *V); gxVilReset(v); vilBf[v]=0; vilSick[v]=0; V->on=1; V->race=(u8)race; V->x=(coord_t)x; V->y=(coord_t)y; V->lvl=1; V->stock=30; V->nm1=(u8)(rnd()%12); V->nm2=(u8)(rnd()%8);
     putBld(v,x,y,B_HALL); for(int k=0;k<2;k++) placeBld(v,B_HUT,0); nVilOn++; return v;
 }
+static const char* vilWhyNot(int x,int y){      // the reason vilFound said no (for the message under a SETTLE touch)
+    if(x<2||y<2||x>=WW-2||y>=WH-2) return "TOO NEAR THE MAP EDGE"; if(bld[y][x]) return "SOMETHING IS BUILT HERE"; { u8 t=world[y][x]; if(t!=T_GRASS&&t!=T_DIRT&&t!=T_FOREST) return "NEEDS GRASS, DIRT OR FOREST"; }
+    if(vilAny(x,y,9)>=0) return "TOO NEAR ANOTHER VILLAGE"; return "TOO MANY VILLAGES"; }
 static void vilRaze(int v,int ruins){ Vil*V=&vil[v]; if(!V->on) return; KD_DIRTY(); for(int y=0;y<WH;y++) for(int x=0;x<WW;x++) if(bldv[y][x]==v+1){ bld[y][x]=ruins&&(rnd()&1)?B_RUIN:B_NONE; if(!bld[y][x]) bldv[y][x]=0; else bldv[y][x]=0; if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); }
     for(int u=0;u<VIL_N;u++) if(vil[u].on&&vil[u].foe==v+1) vil[u].foe=0; V->on=0; nVilOn--; vilBf[v]=0; vilSick[v]=0; }
 // ---- the atmosphere (after SimEarth and its Gaia model): oxygen, carbon dioxide, dust and the world's warmth, all in 1/16 units. Forests and grass breathe CO2 in and O2 out; crowds, cities, fires, lava
@@ -450,6 +453,9 @@ static void vilTick(int v){ KD_DIRTY();
     for(int dy=-10;dy<=10;dy++){ int y=V->y+dy; if(y<0||y>=WH) continue; for(int dx=-10;dx<=10;dx++){ int x=V->x+dx; if(x<0||x>=WW||dx*dx+dy*dy>100) continue; int j=occ[y][x]-1; if(j>=0&&cr[j].alive&&sp[cr[j].sp].a==V->race&&sp[cr[j].sp].a<8){ pop++; if(cr[j].sick==1) sk++; } } }   // (the tiles around the village, not every creature on the planet)
     V->pop=(u16)pop; if(!pop){ if(++V->dead>=6){ vilRaze(v,1); return; } } else V->dead=0;
     if((tick&7)==0||vilBf[v]==0) bldFlags(v);
+    if(pop){      // recovery: the folk clear the ruins that fires and wars left round the village (a ruin blocks building for ever otherwise) and rebuild a hall that fell
+        int R=3+V->lvl*3; for(int k=0;k<2;k++){ int x=V->x+(int)(rnd()%(2*R+1))-R, y=V->y+(int)(rnd()%(2*R+1))-R; if(x>=0&&y>=0&&x<WW&&y<WH&&bld[y][x]==B_RUIN){ bld[y][x]=B_NONE; bldv[y][x]=0; if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); } }
+        { int cx=V->x, cy=V->y; if(V->stock>=20&&(bld[cy][cx]==B_RUIN||bld[cy][cx]==B_NONE)){ u8 t=world[cy][cx]; if(t==T_GRASS||t==T_DIRT||t==T_FOREST){ bld[cy][cx]=B_NONE; putBld(v,cx,cy,B_HALL); V->stock=(u16)(V->stock-20); char vn[24], s2[40]; vilName(v,vn); siprintf(s2,"%.14s REBUILDS ITS HALL",vn); logEv(s2); } } } }
     if(V->lvl>=2&&pop>=16&&!(vilBf[v]&1)&&V->stock>=30&&(rnd()%6)==0&&placeBld(v,B_TEMPLE,30)){ vilBf[v]|=1; char vn[24], s2[40]; vilName(v,vn); siprintf(s2,"A TEMPLE RISES IN %.16s",vn); logEv(s2); }
     if(!(vilBf[v]&2)&&V->stock>=40&&(rnd()%10)==0){ int hero=0; for(int dy=-8;dy<=8&&!hero;dy++) for(int dx=-8;dx<=8;dx++){ int x=V->x+dx, y=V->y+dy; if(x<0||y<0||x>=WW||y>=WH) continue; int j=occ[y][x]-1; if(j>=0&&cr[j].alive&&(cr[j].dir>=1||cr[j].rk)&&sp[cr[j].sp].a==V->race){ hero=1; break; } } if(hero&&placeBld(v,B_STATUE,40)){ vilBf[v]|=2; char vn[24], s2[40]; vilName(v,vn); siprintf(s2,"A STATUE HONOURS A HERO OF %.12s",vn); logEv(s2); } }
     if(V->lvl>=2&&pop>=14&&!(vilBf[v]&4)&&V->stock>=35&&(rnd()%8)==0&&placeBld(v,B_LIBRARY,35)){ vilBf[v]|=4; char vn[24], s2[40]; vilName(v,vn); siprintf(s2,"A LIBRARY OPENS IN %.14s",vn); logEv(s2); }
@@ -924,7 +930,7 @@ static void usePower(int tx,int ty,int fresh){ KD_DIRTY();
         case PK_KILL: if(occ[y][x]) killCr(occ[y][x]-1); break;
         case PK_HEAL: if(occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; c->hp=(u8)maxHp(c); if(c->sick==1) c->sick=2; else if(c->sick==3) c->sick=0; } break;      // heal ends the plague (immune after) and the zombie infection (not immune)
         case PK_FEED: if(occ[y][x]) cr[occ[y][x]-1].food=120; else if(world[y][x]==T_DIRT) setCell(x,y,T_GRASS); break;
-        case PK_SETTLE: if(fresh&&dx==0&&dy==0){ int race=spSel<8?sp[spSel].a:0; if(vilFound(race,x,y)<0) siprintf(info,"NO ROOM FOR A VILLAGE"); else { for(int k=0;k<4;k++) addCr(spSel<8?spSel:0,x+(int)(rnd()%5)-2,y+(int)(rnd()%5)-2); } } break;
+        case PK_SETTLE: if(fresh&&dx==0&&dy==0){ int race=spSel<8?sp[spSel].a:0; if(vilFound(race,x,y)<0) siprintf(info,"%s",vilWhyNot(x,y)); else { for(int k=0;k<4;k++) addCr(spSel<8?spSel:0,x+(int)(rnd()%5)-2,y+(int)(rnd()%5)-2); } } break;
         case PK_WAR: if(fresh&&dx==0&&dy==0){ int v=vilAny(x,y,4); if(v>=0){ int best=-1,bd=2000; for(int u=0;u<VIL_N;u++){ if(!vil[u].on||u==v||vil[u].race==vil[v].race) continue; int ddx=vil[u].x-vil[v].x, ddy=vil[u].y-vil[v].y, d=ddx*ddx+ddy*ddy; if(d<bd){ bd=d; best=u; } } if(best>=0){ vil[v].foe=(u8)(best+1); siprintf(info,"WAR! %s ATTACKS %s",arch[vil[v].race].nm,arch[vil[best].race].nm); if(vilK[v]&&vilK[best]&&vilK[v]!=vilK[best]) kdDeclareX(vilK[v]-1,vilK[best]-1,1); } } } break;
         case PK_PEACE: if(fresh&&dx==0&&dy==0){ for(int v=0;v<VIL_N;v++) vil[v].foe=0; for(int k=0;k<KN_N;k++){ kd[k].war=0; kd[k].weary=0; } warMatrix(); siprintf(info,"PEACE"); } break;
         case PK_BLESS: if(fresh&&dx==0&&dy==0){ int v=vilAny(x,y,4); if(v>=0){ vil[v].stock=(u16)(vil[v].stock+150>400?400:vil[v].stock+150); } } break;
