@@ -17,7 +17,8 @@ enum { G_HEAD, G_SEL, G_BTN, G_BG, G_FOOT, G_N };
 static const u8 uiGradRgb[G_N][2][3]={ {{14,18,31},{4,6,17}}, {{17,25,31},{7,12,25}}, {{10,14,25},{4,7,15}}, {{5,7,16},{1,2,6}}, {{6,8,18},{2,3,9}} };
 static void uiGradPal(void){ for(int g=0;g<G_N;g++) for(int k=0;k<8;k++){ int r=uiGradRgb[g][0][0]+(uiGradRgb[g][1][0]-uiGradRgb[g][0][0])*k/7, gg=uiGradRgb[g][0][1]+(uiGradRgb[g][1][1]-uiGradRgb[g][0][1])*k/7, b=uiGradRgb[g][0][2]+(uiGradRgb[g][1][2]-uiGradRgb[g][0][2])*k/7; BG_PALETTE_SUB[UI_GRAD0+g*8+k]=RGB15(r,gg,b); } }
 static inline void uiPx(int x,int y,int c);
-static void uiGrad(int x,int y,int w,int h,int g){ for(int j=0;j<h;j++){ int k=h>1?j*7/(h-1):0; int c=UI_GRAD0+g*8+k; for(int i=0;i<w;i++) uiPx(x+i,y+j,c); } }
+static inline void uiRow(int x,int y,int w,int c){ if((unsigned)y>=192) return; if(x<0){ w+=x; x=0; } if(x+w>256) w=256-x; if(w>0) memset(&uiBuf[y*256+x],c,(size_t)w); }
+static void uiGrad(int x,int y,int w,int h,int g){ for(int j=0;j<h;j++){ int k=h>1?j*7/(h-1):0; uiRow(x,y+j,w,UI_GRAD0+g*8+k); } }
 static void uiGradRound(int x,int y,int w,int h,int g,int edge){ for(int j=0;j<h;j++){ int k=h>1?j*7/(h-1):0; int c=UI_GRAD0+g*8+k; int a=(j==0||j==h-1)?1:0; for(int i=a;i<w-a;i++) uiPx(x+i,y+j,c); }
     for(int i=1;i<w-1;i++){ uiPx(x+i,y,edge); uiPx(x+i,y+h-1,edge); } for(int j=1;j<h-1;j++){ uiPx(x,y+j,edge); uiPx(x+w-1,y+j,edge); } }
 // toolbar colours: 22 slots of the main palette that nothing else touches (applyLight skips UI_RESV; zoom's creature colours sit at 192..197 and 248..253)
@@ -58,7 +59,7 @@ static UiBtn uiBtns[64]; static int uiNBtn;
 static void uiBtn(int x,int y,int w,int h,int key,int key2,int*sp,int sv){ if(uiNBtn<64){ UiBtn*b=&uiBtns[uiNBtn++]; b->x=(short)x; b->y=(short)y; b->w=(short)w; b->h=(short)h; b->key=(unsigned short)key; b->key2=(unsigned short)key2; b->sp=sp; b->sv=sv; } }
 static int uiHit(int px,int py){ for(int i=uiNBtn-1;i>=0;i--){ const UiBtn*b=&uiBtns[i]; if(px>=b->x&&px<b->x+b->w&&py>=b->y&&py<b->y+b->h) return i; } return -1; }
 static inline void uiPx(int x,int y,int c){ if((unsigned)x<256&&(unsigned)y<192) uiBuf[y*256+x]=(u8)c; }
-static void uiRect(int x,int y,int w,int h,int c){ for(int j=0;j<h;j++) for(int i=0;i<w;i++) uiPx(x+i,y+j,c); }
+static void uiRect(int x,int y,int w,int h,int c){ for(int j=0;j<h;j++) uiRow(x,y+j,w,(u8)c); }
 static void uiFrame(int x,int y,int w,int h,int fill,int hi,int lo){ uiRect(x,y,w,h,fill); for(int i=0;i<w;i++){ uiPx(x+i,y,hi); uiPx(x+i,y+h-1,lo); } for(int j=0;j<h;j++){ uiPx(x,y+j,hi); uiPx(x+w-1,y+j,lo); } }
 static void uiRound(int x,int y,int w,int h,int fill,int edge){ uiRect(x+1,y,w-2,h,fill); uiRect(x,y+1,w,h-2,fill); for(int i=1;i<w-1;i++){ uiPx(x+i,y,edge); uiPx(x+i,y+h-1,edge); } for(int j=1;j<h-1;j++){ uiPx(x,y+j,edge); uiPx(x+w-1,y+j,edge); } }
 static int uiChar(int x,int y,int ch,int col,int sc){ if(ch>='a'&&ch<='z') ch-=32; if(ch<32||ch>=96) ch=32; const unsigned char*g=font5x7[ch-32];
@@ -97,7 +98,8 @@ static void uiScroll(int total,int top,int vis,int y0,int h){ uiRect(248,y0,5,h,
 static int uiVx, uiVy, uiVw=32, uiVh=24;      // the view's top left tile and size in tiles, for the minimap's frame
 // ---- the minimap (the whole planet squeezed to 128 x 128) with creatures, villages and the camera
 static void uiMinimap(int ox,int oy){
-    for(int y=0;y<128;y++) for(int x=0;x<128;x++) { int wx=x*WW/128, wy=y*WH/128; int bb=bioAt(wx,wy); uiPx(ox+x,oy+y,bb?85+bb:64+world[wy][wx]); }
+    static int mmW=-1, mmH=-1; static short mmX[128], mmY[128]; if(mmW!=WW||mmH!=WH){ mmW=WW; mmH=WH; for(int i=0;i<128;i++){ mmX[i]=(short)(i*WW/128); mmY[i]=(short)(i*WH/128); } }
+    for(int y=0;y<128;y++){ int wy=mmY[y]; u8*row=&uiBuf[(oy+y)*256+ox]; for(int x=0;x<128;x++){ int wx=mmX[x]; int bb=bioAt(wx,wy); row[x]=(u8)(bb?85+bb:64+world[wy][wx]); } }
     for(int i=0;i<nCr;i++){ const Cr*c=&cr[i]; if(c->alive){ int da=arch[sp[c->sp].a].diet; if(da==5||da==4||c->rk) uiPx(ox+c->x*128/WW,oy+c->y*128/WH,da==4?80:da==5?85:82); } }
     for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]){ int cx=ox+vil[v].x*128/WW, cy=oy+vil[v].y*128/WH, R=14*128/WW+1; static int ringR=-1; static signed char ringX[14], ringY[14]; if(ringR!=R){ ringR=R; for(int a=0;a<28;a+=2){ ringX[a>>1]=(signed char)(int)(R*cosf(a*0.2244f)+0.5f); ringY[a>>1]=(signed char)(int)(R*sinf(a*0.2244f)+0.5f); } } for(int a=0;a<14;a++) uiPx(cx+ringX[a],cy+ringY[a],40+vilK[v]-1); }   // each kingdom's territory, a dotted ring round its cities
     for(int a=0;a<KN_N;a++) if(kd[a].on&&kd[a].cap) for(int b=a+1;b<KN_N;b++) if(kd[b].on&&kd[b].cap&&(kd[a].tradeW>>b&1)){ const Vil*A=&vil[kd[a].cap-1], *B=&vil[kd[b].cap-1]; int x0=ox+A->x*128/WW, y0=oy+A->y*128/WH, x1=ox+B->x*128/WW, y1=oy+B->y*128/WH; int st=abs(x1-x0)>abs(y1-y0)?abs(x1-x0):abs(y1-y0); for(int i=0;i<=st;i++) if(((i+(tick>>3))&3)==0) uiPx(x0+(x1-x0)*i/(st?st:1),y0+(y1-y0)*i/(st?st:1),U_YELLOW); }   // trade routes: gold dots running between trading capitals
