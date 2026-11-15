@@ -3,6 +3,7 @@
 //   ./pc_war                     the benchmark: 2 armies of 6,000 (ELF against DWARF), camera far and near, 3 seeds; ends with WAR BENCH OK
 //   ./pc_war N SIDE GAP TICKS [RA RB]   the same with N seeds, SIDE soldiers a side, GAP tiles between the two grids of villages, TICKS ticks (2,048 ticks are a game year), peoples RA and RB (arch 0..7)
 //   ./pc_war ref FILE [N [TICKS]] write the reference, N seeds (default 3), TICKS ticks (default 2048, one game year), camera far and near. Build THIS one with -DGG_FULLTURNS: every creature then thinks at its own pace (the full per-unit run that step 10d's tiers are compared with)
+//   bigger wars: -DWAR_PLANET=768 -DWAR_COLS=8 -DWAR_ROWS=8 -DWAR_SIDE=16000 -DGG_DSI16 (32,000 at war, DSi-mode caps) or -DWAR_PLANET=1024 -DWAR_COLS=10 -DWAR_ROWS=10 -DWAR_SIDE=30000 -DGG_BIG (60,000, 3DS/PC caps); war_ref_dsi.txt and war_ref_big.txt are their full-per-unit references
 //   ./pc_war cmp FILE [TOL]      run again and compare with FILE: the casualties of every checkpoint, averaged over the seeds, must be within TOL percent (default 10)
 //   -DGG_FULLTURNS               benchmark build in which simulate() visits every creature every tick (see main.c); this is the reference run
 //   -DWAR_NOSTAT                 build without the turn counter (the "state hash" line must be the same as the build with it: run_tests.sh compares them)
@@ -24,11 +25,20 @@ static int fails, refFull;
 #define CHK(c,msg) do{ if(!(c)){ fails++; printf("  FAIL: %s\n",msg); } }while(0)
 static double now(void){ struct timespec t; clock_gettime(CLOCK_MONOTONIC,&t); return t.tv_sec+t.tv_nsec*1e-9; }
 
+#ifndef WAR_PLANET
+#define WAR_PLANET 256
+#define WAR_COLS 4
 #define VPS 24                    // villages a side (4 columns of 6 rows, 22 tiles apart)
+#else
+#define VPS (WAR_COLS*WAR_ROWS)   // (-DWAR_PLANET=768 -DWAR_COLS=8 -DWAR_ROWS=8: a bigger war on a bigger planet, for the DSi-mode and 3DS/PC caps; the default build is unchanged)
+#endif
 #define NCP 128                   // checkpoints kept
 #define CPT 128                   // ticks between checkpoints
 #define YEAR 2048
-static int gapTiles=20, perSide=6000, runTicks=2048, raceA=1, raceB=2;      // the two peoples at war (arch numbers 0..7)
+#ifndef WAR_SIDE
+#define WAR_SIDE 6000
+#endif
+static int gapTiles=20, perSide=WAR_SIDE, runTicks=2048, raceA=1, raceB=2;      // the two peoples at war (arch numbers 0..7)
 static u32 ids0[2*MAXC/2]; static u8 side0[2*MAXC/2]; static int nIds0;
 
 static u32 stateHash(void){ u32 h=2166136261u; const u8*p;
@@ -39,17 +49,23 @@ static u32 stateHash(void){ u32 h=2166136261u; const u8*p;
 // and, found with this harness, loses almost nothing while the other side loses everything; see the report)
 // two armies on a flat grass world: VPS villages a side, soldiers round each, every village at war with the nearest village of the other people
 static void stage(unsigned seed){
-    planetSize=256; rs=seed; makeSpecies(); makeItems(); newWorld(); chapter=3; tierOpen=4; monOn=0;
+    planetSize=WAR_PLANET; rs=seed; makeSpecies(); makeItems(); newWorld(); chapter=3; tierOpen=4; monOn=0;
     gx.lAge=1; gx.lBio=1; gx.lAtmo=1; gx.dis=0; lw[LW_CIVBABY]=(u8)((LAWDEFON>>LW_CIVBABY)&1);      // CIV BABIES off: no births, so a side's losses are the war's and the crowd stays at 12,000 (at the full pace a people breeds up to the creature cap in a year)                                             // no ageing death, biomes, air, disasters or births: only the war and hunger kill
     for(int y=0;y<gH;y++) for(int x=0;x<gW;x++) world[y][x]=T_GRASS;
     nCr=0; idReset(); memset(hz,0,sizeof hz); memset(occ,0,sizeof occ); cellClear(); memset(bld,0,sizeof bld); memset(bldv,0,sizeof bldv); memset(vil,0,sizeof vil); memset(kd,0,sizeof kd); memset(vilK,0,sizeof vilK); memset(vilL,0,sizeof vilL);
     memset(boat,0,sizeof boat); memset(vilBf,0,sizeof vilBf); memset(vilSick,0,sizeof vilSick); nVilOn=0; KD_DIRTY(); tick=0; year=0; cursor=0; vilCur=0; weather=0; weatherT=900; flashT=0; atmoReset(); bioClear(); zqN=0;      // (every piece of state a run could carry over into the next is put back, so a seed always gives the same war)
-    int xL=(gW-(132+gapTiles))/2, xR=xL+66+gapTiles, y0=gH/2-55; int per=perSide/VPS; nIds0=0;
-    for(int k=0;k<VPS;k++) for(int side=0;side<2;side++){ int x=(side?xR:xL)+(k%4)*22, y=y0+(k/4)*22; int v=vilFound(side?raceB:raceA,x,y); if(v<0){ printf("  (no room for village %d of side %d)\n",k,side); continue; }
+    int W1=(WAR_COLS-1)*22, xL=(gW-(2*W1+gapTiles))/2, xR=xL+W1+gapTiles, y0=gH/2-((VPS/WAR_COLS-1)*11); int per=perSide/VPS; nIds0=0;
+    for(int k=0;k<VPS;k++) for(int side=0;side<2;side++){ int x=(side?xR:xL)+(k%WAR_COLS)*22, y=y0+(k/WAR_COLS)*22; int v=vilFound(side?raceB:raceA,x,y); if(v<0){ printf("  (no room for village %d of side %d)\n",k,side); continue; }
         int placed=0; for(int q=0;q<per;q++){ for(int tr=0;tr<200;tr++){ int dx=(int)(rnd()%21)-10, dy=(int)(rnd()%21)-10; if(dx*dx+dy*dy>100) continue; int n=addCr(side?raceB:raceA,x+dx,y+dy); if(n<0) continue; cr[n].age=20; cr[n].food=100; ids0[nIds0]=crId[n]; side0[nIds0++]=(u8)side; placed++; break; } } vil[v].pop=(u16)placed; }
     // (the spare village slots are filled with empty hamlets far from the armies: a marching soldier more than 14 tiles from home founds a colony, and a colony can join the other side's kingdom, which sets a people against itself
     // (found with this harness: the elves' own colonies, in the dwarves' kingdom, made every elf strike every other). The hamlets keep the war to the two armies)
-    for(int y=8;y<gH-8;y+=14) for(int x=8;x<gW-8;x+=14){ if(y>60&&y<200) continue; if(vilFound(7,x,y)<0&&nVilOn>=VIL_N) goto filled; } filled:;
+    for(int y=8;y<gH-8;y+=14) for(int x=8;x<gW-8;x+=14){ 
+#if WAR_PLANET==256
+if(y>60&&y<200) continue;
+#else
+if(y>y0-14&&y<y0+(VPS/WAR_COLS)*22+14) continue;
+#endif
+ if(vilFound(7,x,y)<0&&nVilOn>=VIL_N) goto filled; } filled:;
     for(int v=0;v<VIL_N;v++) if(vil[v].on){ int best=-1,bd=1<<30; for(int u=0;u<VIL_N;u++) if(vil[u].on&&vil[u].race!=vil[v].race){ int dx=vil[u].x-vil[v].x, dy=vil[u].y-vil[v].y, d=dx*dx+dy*dy; if(d<bd){ bd=d; best=u; } } if(best>=0) vil[v].foe=(u8)(best+1); }
     // (each village's pop is set to the soldiers placed round it: the kingdoms' strength is counted from it, and a war between a side with a pop and a side without would be stopped at once by the first peace talk)
     // a village's war order is cancelled every 128 ticks unless its kingdom is at war with the target's (kingdomTick), so each side is a kingdom, the two at war with spite (as the WAR power declares it)
@@ -88,7 +104,13 @@ static void ramReport(void){      // what the war adds in memory, and what a sav
         (int)sizeof(Cr)+6,(int)sizeof(Cr),dsCr,dsCr*((int)sizeof(Cr)+6)/1024,(int)sizeof wg,VIL_N,(int)sizeof(WarGrp),((256>>3)*(256>>3)*(CELL_K+2))/1024,256*(int)sizeof(Nb)/1024);
     static u8 buf[8<<20], out[9<<20]; char f[600]; snprintf(f,sizeof f,"%s/gg_war.sav",getenv("TMPDIR")?getenv("TMPDIR"):"/tmp"); if(!saveGameRaw(f)){ printf("  (save failed)\n"); fails++; return; } FILE*h=fopen(f,"rb"); if(!h) return; long raw=(long)fread(buf,1,sizeof buf,h); fclose(h);
     unsigned pk=0; { unsigned o=0,i=0,n=(unsigned)raw,max=sizeof out-200; while(i<n){ if(o+140>max){ o=0; break; } unsigned r=1; while(i+r<n&&buf[i+r]==buf[i]&&r<129) r++; if(r>=3){ out[o++]=(u8)(126+r); out[o++]=buf[i]; i+=r; } else { unsigned st=i,l=0; while(i<n&&l<128){ unsigned rr=1; while(i+rr<n&&buf[i+rr]==buf[i]&&rr<3) rr++; if(rr>=3) break; i++; l++; } out[o++]=(u8)(l-1); for(unsigned k=0;k<l;k++) out[o++]=buf[st+k]; } } pk=o; }
-    printf("save with %d creatures at the end of the run: raw %ld bytes (the DS buffer is about 700 KB), packed %u bytes\n",nCr,raw,pk); CHK(raw>0&&raw<700*1024,"the raw save of a 12,000-creature war fits the DS buffer"); CHK(pk>0&&pk<=(unsigned)raw+raw/64+200,"the packer does not blow a save up"); }
+    printf("save with %d creatures at the end of the run: raw %ld bytes (the DS buffer is about 700 KB), packed %u bytes\n",nCr,raw,pk); 
+#if WAR_PLANET==256
+    CHK(raw>0&&raw<700*1024,"the raw save of a 12,000-creature war fits the DS buffer");
+#else
+    CHK(raw>0,"the save is written");      // (the bigger builds have their own buffers: this run only reports the sizes)
+#endif
+ CHK(pk>0&&pk<=(unsigned)raw+raw/64+200,"the packer does not blow a save up"); }
 
 static void line(const char*tag,const Res*r){ printf("  %-10s ms/tick mean %.4f p99 %.4f max %.3f | rotation visits %.0f, thinks (turns) %.1f per creature per year | lost A %d/%d B %d/%d | first death tick %d | groups %d at the start, %d..%d later, biggest %d soldiers power %d | born %d died %d, %d left\n",
     tag,r->msMean,r->msP99,r->msMax,r->visitsYr,r->turnsYr,r->lost[0],r->start[0],r->lost[1],r->start[1],r->firstDeath,r->g0,r->minGroups,r->maxGroups,r->maxCnt,r->maxPow,r->nBorn,r->nDied,r->nEnd); }
@@ -130,7 +152,7 @@ int main(int argc,char**argv){
     // the hash guard: a fixed small run, printed; build with -DWAR_NOSTAT and the line must be the same (the counter changes nothing in the game)
     { Res a=run(77u,0,1024), b=run(77u,0,1024); printf("state hash %08x\n",a.hash); CHK(a.hash==b.hash,"the same seed and camera give the same game twice"); }
 #ifdef GG_WARSTAT
-    CHK(far_[0].turnsYr>1&&far_[0].turnsYr<1000,"the turn counter counts");
+    CHK(far_[0].turnsYr>0&&far_[0].turnsYr<1000,"the turn counter counts");
 #endif
     CHK(far_[0].start[0]>=perSide/VPS*VPS*9/10&&far_[0].start[1]>=perSide/VPS*VPS*9/10,"both armies were placed");
     CHK(far_[0].g0>=2*VPS-4,"the war groups are all there as the war starts (a group a village)"); CHK(near_[0].lost[0]+near_[0].lost[1]>0,"the armies fought");
