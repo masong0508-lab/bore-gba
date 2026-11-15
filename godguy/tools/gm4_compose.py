@@ -121,6 +121,10 @@ def midi_track_build(R, Sc, V, A):
         if b % 8 == 4 and not own: vox(sc, V['DB'], c + 6, VOXT[TX[(b // 8) % len(TX)]])
         if b % 16 == 15: vox(sc, V['DB'], c + 12, VOXT['YEHA'])
         if b % 32 == 31: vox(sc, V['DB'], c + 14, VOXT['WIN'])
+    if R.get('lyrics'):
+        import gm_vox as gv; cell_s = 60.0 / bpm / 4; k0 = len(gv.CHOPS) - len(gv.LYR_PAD)
+        durs = [int(math.ceil(len(gv.CHOPS[k0 + j][1]) / gv.CRATE[k0 + j] / cell_s)) + 2 for j in range(len(gv.LYR_PAD))]
+        duck_lyrics(sc, V, k0, len(gv.CHOPS), gv.LYR_PAD, durs, 16 + len(gv.CHOPS))
     return sc, 0, bpm, kt, mt
 # ---------------------------------------------------------------------------------------------------- the familiar set
 # source song -> (drums, bass, mood, arp, unlock)
@@ -142,3 +146,22 @@ def fam_tracks(A):
         out.append(dict(id='fam%d' % n, name=nm, use='hidden: unlocked in story mode', a=src, ra=0, b=src, rb=1, c=src, rc=2, key=a['key'], mode=a['mode'], bpm=max(70, min(180, a['bpm'])),
                         form='song', bass=bs, drums=dr, mood=mood, arp=arp, lift=0, cup=0, inv=False, vox=True))
     return out
+
+# ---------------------------------------------------------------------------------------------------- DUCK & COVER's lyrics, on top of everything
+def duck_lyrics(sc, V, kit_lyr0, kit_n, lyr_pads, lyr_beats_cells, voxe0):
+    """The Koala project's vocal pads, each where the project played it (its bar and beat; the song keeps the project's bars, so the vocals land on the same bars at the new tempo), twice:
+    the dry voice on one side and, one cell (a sixteenth) later, a copy of it on the other side, quieter. The hats are taken out while a phrase sounds so the voice has the channels to itself."""
+    import json
+    ev = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'tools', 'duckcover', 'lyric_events.json')))['events']
+    placed = 0; busy_until = -1
+    for e in ev:
+        if e['pad'] not in lyr_pads: continue
+        j = lyr_pads.index(e['pad']); c = int(round(e['t'] * 4))
+        if c < busy_until or c + 2 >= sc.cells: continue          # two phrases never overlap (the player has two voice channels for them)
+        dur = lyr_beats_cells[j]
+        sc.v[V['DB']][c] = (16 + kit_lyr0 + j, 1); sc.v[V['DB']][c + 1] = (voxe0 + 2 * j + 1, 1)
+        dur = max(8, dur - 8)      # (the last second or so is only the plate tail: the next phrase may begin over it)
+        for cc in range(c + 2, min(sc.cells, c + 2 + dur)):
+            sc.v[V['DB']][cc] = (0, 0)      # (nothing else on the cymbal / voice channels while it sings)
+        busy_until = c + 2 + dur; placed += 1
+    return placed

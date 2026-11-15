@@ -29,6 +29,7 @@ static u32 crId[MAXC]; static u16 crFl[MAXC]; static u32 idNext=1;
 static void ntKill(Cr*c); static void ntHit(Cr*a,Cr*d,int dm); static void ntDeath(int i); static void ntGone(u32 id); static void ntBirth(Cr*kid,const Cr*par); static void ntFounder(Cr*c,int v); static void ntSweep(void);   // (ggid.h: names, ids and the notable table)
 static int crNamed(const Cr*c); static void crFirst(const Cr*c,char*o); static void idReset(void);
 static int camX, camY;             // camera, in world pixels
+static int warHeat;                // blows struck near the camera, decaying: how loud the battle music is (see musDirector)
 static int power=1, brush=2, spSel=40, paused=0, tick=0, year=0;
 static char info[64];
 static u32 worldSeed, seedFix;               // the seed of this planet; seedFix (if not 0) is used for the next one
@@ -1394,7 +1395,7 @@ static int musDirector(void){
     int cx=(camX>>3)+16, cy=(camY>>3)+12;
     for(int i=0;i<nCr;i++){ const Cr*c=&cr[i]; if(!c->alive) continue; int a=sp[c->sp].a; if(arch[a].diet!=5||c->hp<100) continue; int dx=c->x-cx, dy=c->y-cy; if(dx*dx+dy*dy>900) continue;
         if(a==ARCH_A+19) return GM_DRAGON; if(a==ARCH_A+17) return GM_DEMON; if(a==ARCH_A+18) return GM_LICH; if(a==ARCH_A+13||a==ARCH_A+12) return GM_KRAKEN; if(a==ARCH_A+16) return GM_DRAGON; }
-    for(int a=0;a<8;a++) for(int b=a+1;b<8;b++) if(warM[a][b]) return GM_WAR;
+    if(warHeat>=8||(gmCur==GM_WAR&&warHeat>=2)) return GM_WAR;      // the war drums play while blows are really being struck nearby (not merely while two peoples are at war)
     if(monCount()>0) return GM_MONSTER;
     { int t=world[cy<WH?cy:WH-1][cx<WW?cx:WW-1]; if(t==T_DESERT) return GM_DESERT; if(t==T_SNOW) return GM_SNOW; if(t==T_DEEP||t==T_WATER) return GM_OCEAN; if(t==T_JUNGLE) return GM_JUNGLE; if(t==T_SWAMP) return GM_SWAMP; if(t==T_LAVA||t==T_MOUNT) return GM_VOLCANO; }
     { int lv=0; for(int v=0;v<VIL_N;v++) if(vil[v].on&&vil[v].lvl>lv) lv=vil[v].lvl; if(lv>=3) return GM_CITY; if(lv==2) return GM_MARKET; if(lv==1&&nVilOn>0&&(year&1)) return GM_VILLAGE; }
@@ -1425,7 +1426,10 @@ static void musUpdate(void){
     if(musHold>0) musHold--;
     if(musQ>=0){ gmPlay(musQ); musHold=1800; musQ=-1; musLast=-1; return; }
     if(jukeOn) return;
-    if((tick&31)==0){ int want=musDirector(); if(gmCur<0){ gmPlay(want); musLast=want; } else if(want==gmCur) musLast=want; else if(want!=musLast&&musHold<=0&&!isJingle(gmCur)){ gmPlay(want); musLast=want; musHold=1800; } }
+    if((tick&31)==0){ static const short ht[5]={8,40,120,300,700}; int h=warHeat, c=0;      // the crowd: battle heat -> 0..400 (1/100 levels): a skirmish is level 1, a few dozen fighters level 4
+        if(h>=ht[4]) c=400; else if(h>=ht[0]){ int k=0; while(h>=ht[k+1]) k++; c=k*100+(h-ht[k])*100/(ht[k+1]-ht[k]); }
+        gmCrowd=c; warHeat-=warHeat/4+(warHeat>0); }
+    if((tick&31)==0){ int want=musDirector(); if(gmCur<0){ gmPlay(want); musLast=want; } else if(want==gmCur) musLast=want; else if(want!=musLast&&(musHold<=0||want==GM_WAR||gmCur==GM_WAR)&&!isJingle(gmCur)){ gmPlay(want); musLast=want; musHold=1800; } }
 }
 static u16*gfxF[SHAPE_N][2];
 static void makeSprites(void){

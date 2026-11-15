@@ -29,6 +29,7 @@ int main(int argc,char**argv){
     gmTables(); if(isfx) fxPlay(id); else { gmPlay(id); if(argc>4){ gmSeek(atoi(argv[4])*16); } }
     int frames=(int)(secs*60); long ns=0; float*buf=malloc(sizeof(float)*2*(size_t)(SR*(secs+2))); double carry=0; long clip=0; double peak=0; int loops=0, lastRow=0; double eL=0,eR=0,eM=0,eS=0;
     for(int f=0;f<frames;f++){
+        if(getenv("GMCROWD")){ int cv=atoi(getenv("GMCROWD")); gmCrowd=cv<0?f*400/frames:cv; }
         gmFrame(); if(gmCur>=0){ if(gmRow<lastRow) loops++; lastRow=gmRow; }
         double want=SR/60.0+carry; int n=(int)want; carry=want-n;
         for(int i=0;i<n;i++){ float L=0,R=0;

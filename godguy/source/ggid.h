@@ -95,6 +95,7 @@ static void ntKill(Cr*c){      // called by gainXp: c has just killed something
         if(n->kills>=10&&!(f&FL_HERO)){ crFl[i]|=FL_HERO; n->titles++; nbLog("BECOMES A HERO",n); } }
     else { int kc=(f&FL_KMASK)>>12; if(kc<3){ kc++; crFl[i]=(u16)((crFl[i]&~FL_KMASK)|(kc<<12)); } if(kc>=3) nbPromote(i,3,(f&FL_BMASK)>>14,0); } }
 static void ntHit(Cr*a,Cr*d,int dm){      // a strikes d for dm (before the blow lands): both have fought; a blow that leaves d under a third of its health scars it
+    { int dx=a->x-((camX>>3)+16), dy=a->y-((camY>>3)+12); if(dx*dx+dy*dy<=900&&warHeat<1200) warHeat++; }      // (the music director hears every blow near the camera)
     int ai=(int)(a-cr), di=(int)(d-cr); if(isFighter(a)) crFl[ai]|=FL_FIGHT; if(!isFighter(d)) return; crFl[di]|=FL_FIGHT;
     if(d->hp>dm&&d->hp-dm<maxHp(d)/3&&!(crFl[di]&FL_SCAR)){ crFl[di]|=FL_SCAR; if(crFl[di]&FL_NOTE){ int k=nbFind(crId[di]); if(k>=0&&nb[k].wounds<255) nb[k].wounds++; } } }
 static void ntGrieve(u32 id){ int j=idFind(id); if(j>=0&&cr[j].alive) crFl[j]|=FL_GRIEF; }
