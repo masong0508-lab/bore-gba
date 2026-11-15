@@ -60,6 +60,8 @@ static void hwSubFlush(const u8*buf){      // only the words that differ from wh
     for(int ty=0;ty<24;ty++) for(int tx=0;tx<32;tx++){ vu32*d=(vu32*)(0x06204000+(ty*32+tx)*64); u32*h=&hwSubSh[(ty*32+tx)*16];
         for(int y=0;y<8;y++){ const u32*r=(const u32*)(buf+(ty*8+y)*256+tx*8); u32 a=r[0], b=r[1]; if(!hwSubShOk||a!=h[y*2]) { d[y*2]=a; h[y*2]=a; } if(!hwSubShOk||b!=h[y*2+1]) { d[y*2+1]=b; h[y*2+1]=b; } } }
     hwSubShOk=1; }
+static void hwSubGet(u8*out){      // the picture the top screen holds, back in rows (from the flush's copy)
+    for(int ty=0;ty<24;ty++) for(int tx=0;tx<32;tx++){ const u32*h=&hwSubSh[(ty*32+tx)*16]; for(int y=0;y<8;y++){ u32*r=(u32*)(out+(ty*8+y)*256+tx*8); r[0]=h[y*2]; r[1]=h[y*2+1]; } } }
 static inline void bgSetPriority(int id,int p){ u32 a=id==0?0x04000008:0x0400000A; HW_REG16(a)=(u16)((HW_REG16(a)&~3)|(p&3)); }
 static inline void bgSetScroll(int id,int x,int y){ HW_REG16(0x04000010+id*4)=(u16)x; HW_REG16(0x04000012+id*4)=(u16)y; }
 static inline void bgUpdate(void){}

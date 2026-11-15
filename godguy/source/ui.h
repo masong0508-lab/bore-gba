@@ -46,13 +46,20 @@ static u8 uiPrev[256*192], uiNew[256*192]; static int uiTrans, uiHavePrev;
 static void uiFlush(void){
     if(uiHold) return;
     if(uiTrans&&uiHavePrev&&!UI_NOTRANS){ int dir=uiTrans; uiTrans=0; memcpy(uiNew,uiBuf,sizeof uiNew);
+#ifdef NDSHW
+        hwSubGet(uiPrev);      // (the picture on the screen now, read back from the flush's own copy: it is not kept a second time after every flush)
+#endif
         for(int f=1;f<=7;f++){ int p=f*256/7, sh=256-(256-p)*(256-p)/256;
             if(dir==2){ static const u8 bay[16]={0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5}; int th=f*16/7; for(int y=0;y<192;y++) for(int x=0;x<256;x++) uiBuf[y*256+x]=bay[(y&3)*4+(x&3)]<th?uiNew[y*256+x]:uiPrev[y*256+x]; }
             else for(int y=0;y<192;y++){ u8*o=&uiBuf[y*256], *a=&uiPrev[y*256], *n=&uiNew[y*256];
                 if(dir>0){ for(int x=0;x<256;x++) o[x]=x<256-sh?a[x+sh]:n[x-(256-sh)]; } else { for(int x=0;x<256;x++) o[x]=x>=sh?a[x-sh]:n[x+(256-sh)]; } }
             uiFlushRaw(); swiWaitForVBlank(); }
         memcpy(uiBuf,uiNew,sizeof uiNew); }
-    uiFlushRaw(); memcpy(uiPrev,uiBuf,sizeof uiPrev); uiHavePrev=1; }
+    uiFlushRaw();
+#ifndef NDSHW
+    memcpy(uiPrev,uiBuf,sizeof uiPrev);
+#endif
+    uiHavePrev=1; }
 // ---- touch buttons: each drawn control registers a rectangle; a tap on it sets *sp=sv (if given) and presses key (key2 instead when it was already selected)
 typedef struct { short x,y,w,h; unsigned short key,key2; int*sp; int sv; } UiBtn;
 static UiBtn uiBtns[64]; static int uiNBtn;
