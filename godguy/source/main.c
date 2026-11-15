@@ -1145,7 +1145,7 @@ static int globeDraw(int force){
     memcpy(gKey,key,sizeof key); gKeyOk=1; gDrawN++; globeDrawNow(); return 1; }
 static void globeFlush(void){
     static u8 tl[64] __attribute__((aligned(4)));
-    for(int ty=0;ty<24;ty++) for(int tx=0;tx<32;tx++){ for(int y=0;y<8;y++){ const u8*r=gbuf+(ty*8+y)*256+tx*8; for(int x=0;x<8;x++) tl[y*8+x]=r[x]; } vramCopy((u8*)BG_TILE_RAM(1)+(ty*32+tx)*64,tl,64); } }
+    for(int ty=0;ty<24;ty++) for(int tx=0;tx<32;tx++){ for(int y=0;y<8;y++){ const u8*r=gbuf+(ty*8+y)*256+tx*8; ((u32*)tl)[y*2]=((const u32*)r)[0]; ((u32*)tl)[y*2+1]=((const u32*)r)[1]; } vramCopy((u8*)BG_TILE_RAM(1)+(ty*32+tx)*64,tl,64); } }
 static void globeEnter(void){
     for(int i=0;i<256;i++) gSavedPal[i]=BG_PALETTE[i]; globePalette();
     videoSetMode(MODE_0_2D|DISPLAY_BG0_ACTIVE|DISPLAY_SPR_ACTIVE|DISPLAY_SPR_1D_LAYOUT|DISPLAY_SPR_1D_SIZE_32); lcdMainOnBottom();
@@ -1226,7 +1226,7 @@ static int zDraw(void){ gKeyOk=0;
     return 1; }
 static void zFlush(void){
     static u8 tl[64] __attribute__((aligned(4)));
-    for(int ty=0;ty<ZH/8;ty++) for(int tx=0;tx<32;tx++){ for(int y=0;y<8;y++){ const u8*r=gbuf+(ty*8+y)*256+tx*8; for(int x=0;x<8;x++) tl[y*8+x]=r[x]; } vramCopy((u8*)BG_TILE_RAM(1)+(ty*32+tx)*64,tl,64); } }
+    for(int ty=0;ty<ZH/8;ty++) for(int tx=0;tx<32;tx++){ for(int y=0;y<8;y++){ const u8*r=gbuf+(ty*8+y)*256+tx*8; ((u32*)tl)[y*2]=((const u32*)r)[0]; ((u32*)tl)[y*2+1]=((const u32*)r)[1]; } vramCopy((u8*)BG_TILE_RAM(1)+(ty*32+tx)*64,tl,64); } }
 static void zPalette(void){ for(int f=0;f<9;f++) for(int k=0;k<3;k++) BG_PALETTE[zPool[f]+k]=RGB15(famCol[f][k][0],famCol[f][k][1],famCol[f][k][2]); }
 static void zEnterBmp(void){
     zPalette(); for(int i=0;i<128;i++) oamSetHidden(&oamMain,i,true);

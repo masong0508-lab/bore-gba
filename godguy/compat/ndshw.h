@@ -50,13 +50,16 @@ static inline void vramSetBankD(int b){ (void)b; }
 static inline void lcdMainOnBottom(void){ HW_REG16(0x04000304)=HW_REG16(0x04000304)&~0x8000; }
 static inline void lcdMainOnTop(void){ HW_REG16(0x04000304)=HW_REG16(0x04000304)|0x8000; }
 static inline int bgInit(int l,int t,int s,int m,int tb){ (void)t; if(l==0) HW_REG16(0x04000008)=(u16)(0x0001|(tb<<2)|(m<<8)|0x80|(s==BgSize_T_512x512?(3<<14):0)); else HW_REG16(0x0400000A)=(u16)(0x0000|(tb<<2)|(m<<8)|0x80); return l; }
-static inline int bgInitSub(int l,int t,int s,int m,int tb){ (void)l;(void)t;(void)s;(void)m;(void)tb;
+static u32 hwSubSh[768*16]; static int hwSubShOk;      // what the top screen's tiles hold (little-endian words), so a flush can skip what has not changed
+static inline int bgInitSub(int l,int t,int s,int m,int tb){ (void)l;(void)t;(void)s;(void)m;(void)tb; hwSubShOk=0;
     HW_REG16(0x04001008)=(u16)(0x0080|(1<<2)|(0<<8));            // BG0: 8 bit tiles, tiles at 16 KB, map at 0, 256 x 256
     vu16*map=(vu16*)0x06200000; for(int i=0;i<1024;i++) map[i]=(u16)i;   // tile i = screen block i (32 wide)
     return 3; }
 // the 256 x 192 picture the UI draws in RAM goes to the top screen as 768 tiles of 8 x 8 pixels (32-bit stores only)
-static void hwSubFlush(const u8*buf){
-    for(int ty=0;ty<24;ty++) for(int tx=0;tx<32;tx++){ vu32*d=(vu32*)(0x06204000+(ty*32+tx)*64); for(int y=0;y<8;y++){ const u8*r=buf+(ty*8+y)*256+tx*8; d[y*2]=(u32)r[0]|((u32)r[1]<<8)|((u32)r[2]<<16)|((u32)r[3]<<24); d[y*2+1]=(u32)r[4]|((u32)r[5]<<8)|((u32)r[6]<<16)|((u32)r[7]<<24); } } }
+static void hwSubFlush(const u8*buf){      // only the words that differ from what the screen already holds are written (VRAM is slow to write; a still menu or a small change costs a compare, not 12,000 stores)
+    for(int ty=0;ty<24;ty++) for(int tx=0;tx<32;tx++){ vu32*d=(vu32*)(0x06204000+(ty*32+tx)*64); u32*h=&hwSubSh[(ty*32+tx)*16];
+        for(int y=0;y<8;y++){ const u32*r=(const u32*)(buf+(ty*8+y)*256+tx*8); u32 a=r[0], b=r[1]; if(!hwSubShOk||a!=h[y*2]) { d[y*2]=a; h[y*2]=a; } if(!hwSubShOk||b!=h[y*2+1]) { d[y*2+1]=b; h[y*2+1]=b; } } }
+    hwSubShOk=1; }
 static inline void bgSetPriority(int id,int p){ u32 a=id==0?0x04000008:0x0400000A; HW_REG16(a)=(u16)((HW_REG16(a)&~3)|(p&3)); }
 static inline void bgSetScroll(int id,int x,int y){ HW_REG16(0x04000010+id*4)=(u16)x; HW_REG16(0x04000012+id*4)=(u16)y; }
 static inline void bgUpdate(void){}
