@@ -34,6 +34,13 @@ static int farOn(void){
     return nCr>FAR_MIN&&wgNc;
 #endif
 }
+static int wgRolling(void){      // 10f: the count every 256 ticks is the cheap one (wgCommit) when the tiers are in use and the lists survived compact(); otherwise it is the exact pass (wgBuild)
+#if defined(GG_NOTIER)||defined(GG_FULLTURNS)||defined(GG_NOROLL)
+    return 0;
+#else
+    return nCr>FAR_MIN&&wgKeep>0;
+#endif
+}
 static int isq(int v){ int r=0, b=1<<14; while(b>v) b>>=2; while(b){ if(v>=r+b){ v-=r+b; r=(r>>1)+b; } else r>>=1; b>>=2; } return r; }
 static int inWin(int x,int y){ int wx=(camX>>3)-1, wy=(camY>>3)-1; return x>=wx&&x<wx+35&&y>=wy&&y<wy+27; }
 static int farTile(int x,int y){ int wx=(camX>>3)-1, wy=(camY>>3)-1; return x<wx-FAR_MARGIN||x>=wx+35+FAR_MARGIN||y<wy-FAR_MARGIN||y>=wy+27+FAR_MARGIN; }
