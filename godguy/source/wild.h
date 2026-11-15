@@ -41,10 +41,16 @@ static int isAnimal(const Cr*c){ int d=arch[sp[c->sp].a].diet; return d<4; }
 static int sapientCount(void){ int n=0; for(int i=0;i<nCr;i++) n+=cr[i].alive&&(crFl[i]&FL_SAPIENT); return n; }
 static int uplift(int i){ if(!cr[i].alive||!isAnimal(&cr[i])||(crFl[i]&FL_SAPIENT)) return 0; crFl[i]|=FL_SAPIENT; if(sapientCount()==1){ char nm[48], b[56]; crName(&cr[i],nm); siprintf(b,"%.24s IS THE FIRST UPLIFTED ANIMAL",nm); logEv(b); } return 1; }
 static void denTick(void){      // every so often a sapient animal with three sapient friends near builds a den (a hut) and sapient animals near a den never starve
-    if((tick&127)!=0||!LAWON(LW_EVOLUTION)&&sapientCount()==0) return; denCount=0;
+    if((tick&127)!=0||!LAWON(LW_EVOLUTION)&&sapientCount()==0) return; denCount=0; int sapN=sapientCount(); sapNow=sapN;      // (tribes grow slowly and stop at eighty sapient animals in the world)
     for(int i=0;i<nCr;i++){ Cr*c=&cr[i]; if(!c->alive||!(crFl[i]&FL_SAPIENT)) continue; int near=0, den=0;
         for(int dy=-5;dy<=5;dy++) for(int dx=-5;dx<=5;dx++){ int x=c->x+dx, y=c->y+dy; if(x<0||y<0||x>=WW||y>=WH) continue; if(bld[y][x]==B_HUT) den=1; if(occ[y][x]&&occ[y][x]-1!=i&&(crFl[occ[y][x]-1]&FL_SAPIENT)) near++; }
-        if(den){ denCount++; if(c->food<120) c->food=120; }
+        if(den){ denCount++; if(c->food<120) c->food=120;
+            // life around a den: tools, a growing tribe, more huts
+            if(!c->wep&&rnd()%6==0) giveTool(c,0);
+            if(!c->arm&&rnd()%8==0) giveTool(c,1);
+            if(near>=2&&near<12&&sapN<80&&c->food>=100&&nCr<MAXC-4&&rnd()%30==0){ int d=rnd()&3; int n=addCr(c->sp,c->x+dxs[d],c->y+dys[d]); if(n>=0){ cr[n].age=0; cr[n].food=60; born(&cr[n],c); crFl[n]|=FL_SAPIENT|(crFl[i]&FL_EVOLVED); sapN++; sapNow=sapN; } }
+            if(near>=5&&rnd()%6==0){ int huts=0; for(int dy=-5;dy<=5;dy++) for(int dx=-5;dx<=5;dx++){ int x=c->x+dx, y=c->y+dy; if(x>=0&&y>=0&&x<WW&&y<WH&&bld[y][x]==B_HUT) huts++; }
+                if(huts<4){ int d=rnd()&3, x=c->x+2*dxs[d], y=c->y+2*dys[d]; if(x>=0&&y>=0&&x<WW&&y<WH&&!bld[y][x]&&!occ[y][x]&&world[y][x]>T_WATER&&world[y][x]!=T_LAVA&&world[y][x]!=T_MOUNT){ bld[y][x]=B_HUT; bldv[y][x]=1; } } } }
         else if(near>=3&&!bld[c->y][c->x]&&walkable(&sp[c->sp],c->x,c->y)&&rnd()%4==0&&world[c->y][c->x]!=T_WATER&&world[c->y][c->x]!=T_DEEP){ bld[c->y][c->x]=B_HUT; bldv[c->y][c->x]=1; logEv("SAPIENT ANIMALS BUILD A DEN"); } } }
 // ---- bandits: a fighter from a restless city turns outlaw, raids the nearest store, and is hunted by towers
 static int banditCount(void){ int n=0; for(int i=0;i<nCr;i++) n+=cr[i].alive&&(crFl[i]&FL_DESERT); return n; }

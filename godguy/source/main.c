@@ -50,7 +50,7 @@ static int fullDone, auralOpen, debugOn, speedMul=1, chapter, storyOn=1, storyDo
 static int fxQ=-1, musQ=-1;       // requests for the sound code (DS main loop plays them)
 static void fxReq(int id){ fxQ=id; }
 static void musReq(int id){ musQ=id; }
-static int gearAtk(const Cr*c); static int armDef(const Cr*c); static void unlockTiers(void);
+static void giveTool(Cr*c,int armor); static int gearAtk(const Cr*c); static int armDef(const Cr*c); static void unlockTiers(void);
 static u32 rs=12345;
 u32 rnd(void){ rs^=rs<<13; rs^=rs>>17; rs^=rs<<5; return rs; }
 
@@ -128,22 +128,22 @@ static const char* const shpN[SHAPE_N-SHAPE_OLD][8]={
  /*59 armadillo*/ {"........","..dddd..",".dbdbdd.","dbdbdbd.","dbbbbbbe",".bbbbbb.",".d.dd.d.","........"},
  /*60 ostrich*/ {"..bb....","..be....","..b.....","..b.....",".bbbb...","bbbbbb..",".bbbb...",".a..a..."},
  /*61 seal*/ {"........","..bbb...",".bbebb..","bbbbbb..","bbbbbbb.",".bbbbbbb","..b..bb.","........"},
- /*62 piranha*/ {"........","...bbb..","..bbbbb.",".bbbebbb","bbbbbbb.",".bbbbbb.","..b.b...","........"},
+ /*62 piranha*/ {"........","...bb...",".bbbbb.b","bbbebbbb","baabbbb.",".bbbbbb.","..bb..bb","........"},
  /*63 butterfly*/ {"a.b..b.a","aabbbbaa","aabbbbaa",".ab..ba.",".a.bb.a.","..b..b..","........","........"},
  /*64 grasshopper*/ {"........","b.......","bb......",".bbebb..","..bbbbbb","..b.b.bb",".b..b..b",".b......"},
- /*65 fly*/ {"........","b..bb..b","bbbbbbbb",".bbebbb.","..bbbb..","..b..b..","........","........"},
+ /*65 fly*/ {"..b..b..",".bbb.bbb","b.bbbb.b","..bebb..","..bbbb..","...bb...","..b..b..","........"},
  /*66 fairy*/ {"a...a...","aa.aa...","a.bb.a..","..beb...","..bbb...","..a.a...","........","........"},
  /*67 unicorn*/ {"...a....","..ab....","bbeb....","bbbbbbb.","bbbbbbb.",".bbbbbb.",".b.b.b..",".d.d.d.."},
  /*68 white mage*/ {"..aaa...","..beb...","..bbb...",".bbbbb..","baabaab.","b.bbb.b.","..bbb...",".bb.bb.."},
- /*69 druid*/ {".aaaa...","..beb...","..bbb...",".bddbb..","bbddbbb.","..bdb...","..bdb...",".dd.dd.."},
+ /*69 druid*/ {".aaaa...","aaaaaa..",".bebb...","..bbb.d.",".bddbbd.","bbddbbd.",".bbbb.d.",".d..d.d."},
  /*70 flower bud*/ {"..aaa...",".aabaa..","..aaa...","...d....","..dd.d..",".d.dd.d.","...d....","..ddd..."},
  /*71 crystal sword*/ {"....bb..","...bbb..","...bb...","..bb....",".bb.....","dbd.....","ddd.....","d......."},
  /*72 bitba*/ {"........",".bbbbb..","bbebebb.","bbbbbbb.","bbbbbbb.","bbaaabb.",".bbbbb..","........"},
- /*73 garl*/ {".b.b....","bbbbb...","bebeb...","bbbbb...","dbbbbd..","dbbbbd..",".d..d...",".dd.dd.."},
+ /*73 garl*/ {"...b....","..bb....",".bbbbb..","bbebebb.","bbbbbbb.","bbbbbbb.",".bbbbb..","..ddd..."},
  /*74 smore*/ {"bbbbbb..","dddddd..","aaaaaa..","dddddd..","bbbbbb..","........","........","........"},
  /*75 acid blob*/ {"........","..bbb...",".bbbbb..","bbebbeb.","bbbbbbb.","dbbbbbd.",".d.d.d..","........"},
  /*76 ant*/ {"........","...bb...","..bbbb..","b.bbbb.b",".b.bb.b.","b.bbbb.b","..b..b..","........"},
- /*77 worm*/ {"........","........","bbb.....","bebbb...","..bbbb..","....bbb.","......bb","........"},
+ /*77 worm*/ {"........","........","..bbb...",".bebbb..","..bbbbb.","....bbbb",".....bbb","......bb"},
  /*78 printer*/ {"dddddddd","dbbbbbbd","dbaabbbd","dbbbbbbd","dddddddd","dbbbbbbd","dddddddd","........"},
  /*79 finger*/ {"..b.....","..b.....","..bb....","bbbbb...","bbbbbb..","bbbbbb..",".bbbb...","..dd...."},
 };
@@ -247,12 +247,13 @@ static int hitDmg(const Cr*a,const Cr*d){   // one blow: the attacker's strength
     dm-=armDef(d); if(HAS(d,TR_HIDE)) dm-=3; if(HAS(d,TR_ZEN)) dm-=2; if(HAS(d,TR_GIANT)) dm-=1; return dm<1?1:dm; }
 static void countTraits(void){ memset(trCount,0,sizeof trCount); for(int i=0;i<nCr;i++) if(cr[i].alive){ if(cr[i].tr) trCount[cr[i].tr]++; if(cr[i].tr2) trCount[cr[i].tr2]++; } }
 static void giveTrait(Cr*c,int t,int announce){ if(c->tr==0||c->tr==t) c->tr=(u8)t; else c->tr2=(u8)t; if(!((trSeen>>t)&1)){ trSeen|=1u<<t; if(announce){ char nm[48]; crName(c,nm); siprintf(info,"NEW SUBSPECIES: %.30s",nm); fxReq(FX_BIRTH); } } }
+static int sapNow;      // sapient animals alive (kept by denTick): a child inherits the mind only while there are fewer than a hundred
 static void born(Cr*kid,const Cr*par){ stBorn++;   // a child has its parent's traits, and now and then a mutation
     kid->tr=par->tr; kid->tr2=par->tr2; int rate=diff==0?1:diff==2?3:2; if(HAS(par,TR_FERTILE)) rate+=1; if(!LAWON(LW_MUTATE)) rate=0; if(LAWON(LW_MUTBOX)) rate=35; else if(LAWON(LW_SPAGHETTI)) rate*=3;
     if((int)(rnd()%100)<rate){ int t=1+(int)(rnd()%(TR_N-1)); if(!HAS(kid,t)){ giveTrait(kid,t,1); stMut++; } }
     if(arch[sp[kid->sp].a].diet==4&&rnd()%100<8) kid->sick=2;      // some children are born immune, as in WorldBox
     kid->hp=(u8)maxHp(kid); ntBirth(kid,par);
-    { int ki=(int)(kid-cr), pi=(int)(par-cr); if(arch[sp[kid->sp].a].diet<4){ if(crFl[pi]&FL_SAPIENT) crFl[ki]|=FL_SAPIENT; else if(LAWON(LW_EVOLUTION)&&(HAS(par,TR_CLEVER)||HAS(par,TR_FERTILE))&&nCr>200&&rnd()%300==0) crFl[ki]|=FL_SAPIENT; } } }
+    { int ki=(int)(kid-cr), pi=(int)(par-cr); if(arch[sp[kid->sp].a].diet<4){ if(crFl[pi]&FL_SAPIENT){ if(sapNow<100) crFl[ki]|=FL_SAPIENT; } else if(LAWON(LW_EVOLUTION)&&(HAS(par,TR_CLEVER)||HAS(par,TR_FERTILE))&&nCr>200&&rnd()%300==0) crFl[ki]|=FL_SAPIENT; } } }
 // ---------------------------------------------------------------------------------------------- the world
 static u32 hsh(int x,int y,int s){ u32 h=(u32)x*374761393u+(u32)y*668265263u+(u32)s*2246822519u; h=(h^(h>>13))*1274126177u; return h^(h>>16); }
 static int vnoise(int x,int y,int cell,int s){   // value noise 0..255, cell pixels per lattice step
@@ -804,6 +805,8 @@ static void thinkBody(int i){
    
     if(diet==5&&A->breed) spawnerTick(i,c,s->a);
     if(diet==6){ terraformTick(i,c,s); return; }
+    if(diet<4&&(crFl[i]&FL_SAPIENT)){      // a sapient animal defends its home: a monster within two tiles is fought, with whatever tools it has made
+        for(int dy=-2;dy<=2;dy++) for(int dx=-2;dx<=2;dx++){ int x=c->x+dx, y=c->y+dy; if(x<0||y<0||x>=WW||y>=WH||!occ[y][x]) continue; int j=occ[y][x]-1; if(j==i||arch[sp[cr[j].sp].a].diet!=5) continue; Cr*p=&cr[j]; int dm=hitDmg(c,p); ntHit(c,p,dm); if(p->hp>dm) p->hp-=(u8)dm; else { killCr(j); gainXp(c); } return; } }
     if(diet<4&&s->a>=8){ specialAnimal(i,c,s->a); if(LAWON(LW_EVOLUTION)&&!(crFl[i]&FL_EVOLVED)&&c->age>40&&c->food>=90&&nCr>150&&rnd()%2500==0) evolve(i); }
     if(diet==5){   // a monster: it hunts every living thing in reach (people first), and burns the houses it passes
         int best=-1,bd=99,rd=99; for(int dy=-10;dy<=10;dy++) for(int dx=-10;dx<=10;dx++){ int x=c->x+dx,y=c->y+dy; if(x<0||y<0||x>=WW||y>=WH||!occ[y][x]) continue; int j=occ[y][x]-1; if(j==i||arch[sp[cr[j].sp].a].diet==5||((HAS(&cr[j],TR_CAMO)&&(rnd()&1))||(HAS(&cr[j],TR_GIGGLY)&&rnd()%3==0))) continue;
@@ -1038,6 +1041,7 @@ static int itMods(int i){ int r=itRar(i), m=0, n=0; for(int k=0;n<r&&k<24;k++){ 
 static int itBonus(int i){ int m=itMods(i), r=itRar(i); if(it[i].kind==IK_WEAPON) return r*2+((m>>5&1)?2:0)+((m>>7&1)?2:0)+((m>>4&1)?1:0); return r*2+((m>>6&1)?2:0)+((m>>2&1)?2:0); }
 static int itPow(int i){ return it[i].val+itBonus(i); }
 static int gearAtk(const Cr*c){ return c->wep?itPow(c->wep-1):0; }
+static void giveTool(Cr*c,int armor){ int want=armor?IK_ARMOR:IK_WEAPON; for(int k=0,j=(int)(rnd()%nIt);k<nIt;k++,j=(j+1)%nIt) if(it[j].kind==want&&it[j].tier<=1){ if(armor) c->arm=(u16)(j+1); else c->wep=(u16)(j+1); return; } }      // (a sapient animal near its den makes simple gear)
 static int armDef(const Cr*c){ return c->arm?itPow(c->arm-1)/2:0; }
 static void itTag(char*o,int i){ int m=itMods(i); o[0]=0; for(int b=0;b<10;b++) if(m>>b&1){ strcat(o,"+"); strcat(o,modNm[b]); strcat(o," "); } }
 static int itDrop(int seed,int minRar){ for(int k=0;k<400;k++){ int i=(int)(hsh(seed,k,0x44524F50)%(u32)nIt); if((it[i].kind==IK_WEAPON||it[i].kind==IK_ARMOR)&&itOpen(i)&&itRar(i)>=minRar) return i; } return -1; }
