@@ -319,7 +319,6 @@ static int curExtra;      // the extra ground the creature being moved can cross
 static int walkable(const Sp*s,int x,int y){ if(x<0||y<0||x>=WW||y>=WH) return 0; return ((arch[s->a].mask|curExtra)>>world[y][x])&1; }
 static int edgeOut;     // a creature tried to walk off the map (EDGE = VANISH)
 static int wgNc;      // (10d: how many creatures the war groups were last counted from; 0 when the lists are out of date)
-static int wgKeep; static u8 wgOf[MAXC];      // (10f: wgOf, the group each creature belonged to (village +1), is carried through compact(); wgKeep: how many creatures at the front of the list still have a good wgOf after it)
 #include "ggcell.h"      // (10c: the 8 x 8 cell grid for finding enemies; kept in step with occ[])
 static int stepOk(const Sp*s,int*nx,int*ny){   // can the creature step to (*nx,*ny)? Off the map it wraps round (EDGE 2), leaves the world (1) or is stopped (0)
     int x=*nx, y=*ny;
@@ -337,8 +336,8 @@ static void killCr(int i){ Cr*c=&cr[i]; if(!c->alive) return; ntDeath(i); if(c->
     if(!natural&&arch[sp[c->sp].a].diet==5){ stKill++; if(!((slainB[c->sp>>3]>>(c->sp&7))&1)) slainB[c->sp>>3]|=(u8)(1<<(c->sp&7)); fxReq(FX_MONSTER_SLAIN); } }
 static void killNat(int i){ natural=1; killCr(i); natural=0; }     // old age, hunger, lava: not a slaying
 static void compact(void){   // the dead are squeezed out of the list
-    int j=0, keep=0, oc=wgNc; for(int i=0;i<nCr;i++){ if(cr[i].alive){ if(i!=j){ cr[j]=cr[i]; crId[j]=crId[i]; crFl[j]=crFl[i]; if(i<oc) wgOf[j]=wgOf[i]; } if(i<oc) keep=j+1; j++; } else if(crFl[i]&0x0080) ntGone(crId[i]); } nCr=j;
-    memset(occ,0,sizeof occ); for(int i=0;i<nCr;i++) occ[cr[i].y][cr[i].x]=(occ_t)(i+1); cellRebuild(); wgKeep=keep; wgNc=0;
+    int j=0; for(int i=0;i<nCr;i++){ if(cr[i].alive){ if(i!=j){ cr[j]=cr[i]; crId[j]=crId[i]; crFl[j]=crFl[i]; } j++; } else if(crFl[i]&0x0080) ntGone(crId[i]); } nCr=j;
+    memset(occ,0,sizeof occ); for(int i=0;i<nCr;i++) occ[cr[i].y][cr[i].x]=(occ_t)(i+1); cellRebuild(); wgNc=0;
 }
 
 static void moveTo(Cr*c,int i,int nx,int ny){ occ[c->y][c->x]=0; cellDel(c->x,c->y,c->sp); { int ddx=c->x-nx, ddy=c->y-ny; if(ddx>1||ddx<-1) ddx=0; if(ddy>1||ddy<-1) ddy=0; c->ox=(s8)(ddx*8); c->oy=(s8)(ddy*8); } c->x=(coord_t)nx; c->y=(coord_t)ny; occ[ny][nx]=(occ_t)(i+1); cellAdd(nx,ny,c->sp); }
@@ -779,7 +778,6 @@ static void simulate(void){
 #ifdef GG_FULLTURNS
     per=n;      // (benchmark builds only, pc_war.c: every creature is visited every tick, so each thinks at its own pace: the full per-unit run that step 10d's tiers are compared with)
 #endif
-    if(farOn()) wgSlice();      // (10f) a few creatures a tick have their group looked at again, so the count every 256 ticks is a cheap pass
     farTick();      // (10d) the far battles, one roll each, and which armies are far and touching this tick
     if(farOn()){ int period=(n+per-1)/per; windowThink();      // tier A: the camera window thinks every tick; tier C: far soldiers also march
         for(int k=0;k<per;k++){ if(cursor>=nCr) cursor=0; Cr*c=&cr[cursor]; if(c->alive&&!inWin(c->x,c->y)){ if(++c->t>=effSpd(c)){ c->t=0; think(cursor); } if(cursor<nCr&&cr[cursor].alive) farStride(cursor,period); } cursor++; } }
@@ -795,7 +793,7 @@ static void simulate(void){
     weatherTick(); volcanoTick(); eventTick(); calamityTick();
     if((tick&63)==0) monSpawn();
     if((tick&15)==0) towerFire();
-    if(((tick)&255)==0){ compact(); ntSweep(); if(wgRolling()) wgCommit(); else wgBuild(); if((tick%2048)==0){ year++; fxReq(FX_YEAR); } unlockTiers(); }
+    if(((tick)&255)==0){ compact(); ntSweep(); wgBuild(); if((tick%2048)==0){ year++; fxReq(FX_YEAR); } unlockTiers(); }
 }
 
 // ---------------------------------------------------------------------------------------------- the item catalogue (generated: materials x kinds, plus potions, seeds, foods, relics, gems, god tools)
