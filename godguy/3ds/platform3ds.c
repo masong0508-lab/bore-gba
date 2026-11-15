@@ -38,4 +38,5 @@ void plat_present(const unsigned char*top,const unsigned char*bot,int topChanged
     if(any){ gfxFlushBuffers(); gfxSwapBuffers(); }
     if(audioOk&&frames>0&&frames<=700){ ndspWaveBuf*w=&wb[wbHead]; if(w->status==NDSP_WBUF_DONE||w->status==NDSP_WBUF_FREE){ memcpy(abuf[wbHead],snd,frames*4); w->nsamples=frames; DSP_FlushDataCache(abuf[wbHead],frames*4); ndspChnWaveBufAdd(0,w); wbHead=(wbHead+1)%NWB; } }   // in order, or the sound would play out of turn; a full queue drops the frame's sound
     gspWaitForVBlank(); }
+int plat_isNew3DS(void){ bool n=false; APT_CheckNew3DS(&n); return n; }
 void plat_exit(void){ if(audioOk) ndspExit(); gfxExit(); }

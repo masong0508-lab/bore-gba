@@ -12,6 +12,8 @@ def region(pad):
     if d.ndim > 1: d = d.mean(1)
     return sr, d[p['start']:p['end']]
 def save(name, sr, x): wavfile.write('tools/duckcover/lyrics/%s.wav' % name, sr, (x / max(1e-9, np.abs(x).max()) * 30000).astype('<i2'))
+for pad in (0, 2, 3, 4, 5, 8, 10, 11, 12, 13):      # (the first pass kept these at 11 kHz: re-cut at the project's own 48 kHz for the 3DS's fuller set)
+    sr0, x0 = region(pad); save('pad_%02d' % pad, sr0, x0)
 base = 0; hits = {6: [], 7: []}
 for s in SQ['sequences'][:6]:
     for n in s['pattern']['notes']:

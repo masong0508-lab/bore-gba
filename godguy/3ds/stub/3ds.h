@@ -20,6 +20,7 @@ static inline void gfxInitDefault(void){} static inline void gfxSet3D(int b){ (v
 extern u8 stubFbR[2][400*240*3]; extern float stubSlider;
 static inline u8*gfxGetFramebuffer(int s,int side,u16*w,u16*h){ (void)w;(void)h; if(s==GFX_TOP&&side==GFX_RIGHT) return stubFbR[stubCur[0]]; return stubFb[s][stubCur[s]]; }
 static inline float osGet3DSliderState(void){ return stubSlider; }
+static inline Result APT_CheckNew3DS(bool*o){ *o=true; return 0; }
 static inline void gfxFlushBuffers(void){ extern int stubFlushes; stubFlushes++; }
 static inline void gfxSwapBuffers(void){ extern int stubSwaps; for(int s=0;s<2;s++){ stubShown[s]=stubCur[s]; stubCur[s]^=1; } stubSwaps++; }
 static inline void gspWaitForVBlank(void){}

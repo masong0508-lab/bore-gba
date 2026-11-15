@@ -83,3 +83,5 @@ if [ "$GG_BIGWAR" = "1" ]; then
 gcc $F -w -DWAR_PLANET=768 -DWAR_COLS=8 -DWAR_ROWS=8 -DWAR_SIDE=16000 -DGG_DSI16 -o /tmp/gg_war_dsi pc_war.c -lm && /tmp/gg_war_dsi cmp war_ref_dsi.txt 10 | tail -1
 gcc $F -w -DWAR_PLANET=1024 -DWAR_COLS=10 -DWAR_ROWS=10 -DWAR_SIDE=30000 -DGG_BIG -o /tmp/gg_war_big pc_war.c -lm && /tmp/gg_war_big cmp war_ref_big.txt 10 | tail -1
 fi
+echo "--- the 3DS mixer (cubic interpolation, unison voices, reverb, limiter) and the 16 kHz lyric set"
+gcc -O2 -DNDSSHIM -DSHIM_HQ -DGG_HQVOX -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_hqmix pc_hq.c -lm && for t in 83 22 0; do /tmp/gg_hqmix /tmp/gg_hqmix.wav $t 40 | tail -1; done

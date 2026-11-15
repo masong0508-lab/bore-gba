@@ -151,8 +151,55 @@ static inline void soundKill(int id){ if(id>=0&&id<16) shimCh[id].on=0; }
 static inline void soundSetFreq(int id,u16 f){ if(id>=0&&id<16) shimCh[id].rate=f; }
 static inline void soundSetVolume(int id,u8 v){ if(id>=0&&id<16) shimCh[id].vol=v; }
 static inline void soundSetPan(int id,u8 p){ if(id>=0&&id<16) shimCh[id].pan=p; }
+#ifdef SHIM_HQ
+// ---- the HIGH-QUALITY mixer (the 3DS build; -DSHIM_HQ): the same 16 channels, mixed the way a better machine can afford.
+//   * samples and the 64-step waves are read with cubic (Hermite) interpolation instead of nearest-neighbour, so the waves lose their aliasing grit and the drums their hiss;
+//   * a looped wave (a melodic voice) is played as THREE slightly detuned copies spread across the stereo field: a unison / chorus that makes every pad, lead and arp wider and fuller;
+//   * volume and pan are smoothed over about 1.5 ms (no clicks at note starts or on voice changes) and panned with an equal-power law;
+//   * the square wave is band-limited (PolyBLEP) and the noise is softened;
+//   * a Freeverb-style stereo reverb (8 combs and 4 all-passes a side) gives the whole mix a room, and a soft-knee limiter replaces the hard clip.
+static float shimPanL[128], shimPanR[128]; static int shimHqInit;
+typedef struct { float sv, sp, pos2, pos3; } ShimHq; static ShimHq shimHq[16];
+#define SHQ_NC 8
+#define SHQ_NA 4
+static const int shqComb[SHQ_NC]={829,883,949,1007,1057,1108,1157,1202}, shqAp[SHQ_NA]={413,328,253,167};
+static float shqCB[2][SHQ_NC][1300], shqCS[2][SHQ_NC], shqAB[2][SHQ_NA][450]; static int shqCI[2][SHQ_NC], shqAI[2][SHQ_NA];
+static float shqWet=0.20f, shqFb=0.80f, shqDamp=0.30f;
+static inline float shqBlep(float t,float dt){ if(t<dt){ t/=dt; return t+t-t*t-1.f; } if(t>1.f-dt){ t=(t-1.f)/dt; return t*t+t+t+1.f; } return 0.f; }
+static inline float shqCubic(const s8*d,int size,int loop,float pos){
+    int p=(int)pos; float f=pos-p; int i0=p-1,i1=p,i2=p+1,i3=p+2;
+    if(loop){ if(!(size&(size-1))){ int m=size-1; i0&=m; i1&=m; i2&=m; i3&=m; } else { i0=(i0%size+size)%size; i1%=size; i2%=size; i3%=size; } } else { if(i0<0) i0=0; if(i2>=size) i2=size-1; if(i3>=size) i3=size-1; if(i1>=size) i1=size-1; }
+    float y0=d[i0],y1=d[i1],y2=d[i2],y3=d[i3];
+    float c1=0.5f*(y2-y0), c2=y0-2.5f*y1+2.f*y2-0.5f*y3, c3=0.5f*(y3-y0)+1.5f*(y1-y2);
+    return ((c3*f+c2)*f+c1)*f+y1; }
 static double shimPeak; static long shimClip;
-static void shimMix(short*out,int frames){   // interleaved stereo
+static float shqReverb(int side,float in){
+    float out=0;
+    for(int k=0;k<SHQ_NC;k++){ int n=shqComb[k]+(side?23:0); if(n>1299) n=1299; float*b=shqCB[side][k]; int*ix=&shqCI[side][k]; float y=b[*ix]; shqCS[side][k]=y*(1.f-shqDamp)+shqCS[side][k]*shqDamp; b[*ix]=in+shqCS[side][k]*shqFb+1e-18f; if(++*ix>=n) *ix=0; out+=y; }
+    for(int k=0;k<SHQ_NA;k++){ int n=shqAp[k]+(side?11:0); if(n>449) n=449; float*b=shqAB[side][k]; int*ix=&shqAI[side][k]; float y=b[*ix]; float o=-out+y; b[*ix]=out+y*0.5f+1e-18f; out=o; if(++*ix>=n) *ix=0; }
+    return out; }
+static void shimMixHQ(short*out,int frames){   // interleaved stereo
+    if(!shimHqInit){ shimHqInit=1; for(int i=0;i<128;i++){ float th=i/127.f*1.5707963f; shimPanL[i]=cosf(th)*0.7071f; shimPanR[i]=sinf(th)*0.7071f; } }
+    for(int n=0;n<frames;n++){ float L=0,R=0;
+        for(int i=0;i<16;i++){ ShimCh*c=&shimCh[i]; ShimHq*h=&shimHq[i]; if(!c->on){ h->sv=0; continue; }
+            float tv=c->vol<=0?0.f:c->vol/127.f; h->sv+=(tv-h->sv)*0.045f; if(tv==0.f&&h->sv<1e-4f) h->sv=0.f; h->sp+=((float)c->pan-h->sp)*0.045f; float dt=(float)(c->rate/SHIM_SR); float v=h->sv; int pi=(int)(h->sp+0.5f); if(pi<0) pi=0; if(pi>127) pi=127;
+            if(c->kind==1){
+                c->pos+=dt; if(c->pos>=c->size){ if(c->loop){ while(c->pos>=c->size) c->pos-=c->size; } else { c->on=0; continue; } }
+                if(v<0.0005f){ if(c->loop){ h->pos2+=dt*1.0028f; h->pos3+=dt*0.9969f; } continue; }
+                if(c->loop&&c->size<=256){ h->pos2+=dt*1.0028f; h->pos3+=dt*0.9969f; while(h->pos2>=c->size) h->pos2-=c->size; while(h->pos3>=c->size) h->pos3-=c->size;
+                    float s1=shqCubic(c->data,c->size,1,c->pos)/127.f, s2=shqCubic(c->data,c->size,1,h->pos2)/127.f, s3=shqCubic(c->data,c->size,1,h->pos3)/127.f; int pa=pi-22<0?0:pi-22, pb=pi+22>127?127:pi+22;
+                    L+=v*(s1*0.60f*shimPanL[pi]+s2*0.30f*shimPanL[pa]+s3*0.30f*shimPanL[pb]); R+=v*(s1*0.60f*shimPanR[pi]+s2*0.30f*shimPanR[pa]+s3*0.30f*shimPanR[pb]); }
+                else { float s=shqCubic(c->data,c->size,c->loop,c->pos)/127.f*v; L+=s*shimPanL[pi]; R+=s*shimPanR[pi]; } }
+            else if(c->kind==2){ c->ph+=dt; c->ph-=floor(c->ph); float d=c->duty==1?0.125f:c->duty==2?0.25f:c->duty==6?0.75f:0.5f; float ph=(float)c->ph; float s=ph<d?1.f:-1.f; float dtf=dt>0.45f?0.45f:dt; s+=shqBlep(ph,dtf); float p2=ph-d; if(p2<0) p2+=1.f; s-=shqBlep(p2,dtf); s*=v; L+=s*shimPanL[pi]; R+=s*shimPanR[pi]; }
+            else { c->ph+=dt; while(c->ph>=1){ c->ph-=1; unsigned x=((c->lfsr^(c->lfsr>>1))&1); c->lfsr=(c->lfsr>>1)|(x<<14); c->cur=(c->lfsr&1)?1.f:-1.f; } h->pos2+=(c->cur-h->pos2)*0.45f; float s=h->pos2*v; L+=s*shimPanL[pi]; R+=s*shimPanR[pi]; } }
+        float in=(L+R)*0.5f*0.06f, wl=shqReverb(0,in)*shqWet, wr=shqReverb(1,in)*shqWet; L=(L+wl)*1.2f; R=(R+wr)*1.2f;
+        if(fabsf(L)>shimPeak) shimPeak=fabsf(L); if(fabsf(R)>shimPeak) shimPeak=fabsf(R);
+        float a=fabsf(L); if(a>0.7f){ float y=0.7f+0.3f*tanhf((a-0.7f)/0.3f); L=L<0?-y:y; shimClip+=(a>1.2f); } a=fabsf(R); if(a>0.7f){ float y=0.7f+0.3f*tanhf((a-0.7f)/0.3f); R=R<0?-y:y; shimClip+=(a>1.2f); }
+        out[n*2]=(short)(L*30000); out[n*2+1]=(short)(R*30000); } }
+#else
+static double shimPeak; static long shimClip;
+#endif
+static void shimMixBasic(short*out,int frames){   // interleaved stereo
     for(int n=0;n<frames;n++){ float L=0,R=0;
         for(int i=0;i<16;i++){ ShimCh*c=&shimCh[i]; if(!c->on||c->vol<=0) { if(c->on&&c->kind==1&&c->vol<=0){ c->pos+=c->rate/SHIM_SR; if(c->loop) { if(c->pos>=c->size) c->pos-=c->size*(int)(c->pos/c->size); } else if(c->pos>=c->size) c->on=0; } continue; } float s=0;
             if(c->kind==1){ c->pos+=c->rate/SHIM_SR; if(c->pos>=c->size){ if(c->loop) c->pos-=c->size*(int)(c->pos/c->size); else { c->on=0; continue; } } s=c->data[(int)c->pos]/127.f; }
@@ -162,6 +209,12 @@ static void shimMix(short*out,int frames){   // interleaved stereo
         if(fabs(L)>shimPeak) shimPeak=fabs(L); if(fabs(R)>shimPeak) shimPeak=fabs(R);
         if(L>1.f){ L=1.f; shimClip++; } if(L<-1.f){ L=-1.f; shimClip++; } if(R>1.f){ R=1.f; shimClip++; } if(R<-1.f){ R=-1.f; shimClip++; }
         out[n*2]=(short)(L*30000); out[n*2+1]=(short)(R*30000); } }
+#ifdef SHIM_HQ
+static int shimHqOn=1;      // the platform may switch the rich mixer off (an old 3DS has the cycles for the game, not for it)
+static void shimMix(short*out,int frames){ if(shimHqOn) shimMixHQ(out,frames); else shimMixBasic(out,frames); }
+#else
+static void shimMix(short*out,int frames){ shimMixBasic(out,frames); }
+#endif
 extern void shimPresent(void);
 static inline void swiWaitForVBlank(void){ shimFrame++; shimPresent(); }
 // ---- drawing: both screens into RGB buffers (row-major). top 400 x 240 (the sub engine: bitmap + text), bottom 320 x 240 (the main engine: tiles + sprites)

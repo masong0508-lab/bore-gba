@@ -11,7 +11,11 @@
 #ifndef GMPLAY_H
 #define GMPLAY_H
 #include "gmkit.h"
-#include "gmvox.h"        // the vocal chop kit: drum-B stream ids GM_VOX0 and up play a chop instead of a cymbal
+#ifdef GG_HQVOX
+#include "gmvox_hq.h"      // the 3DS: the lyrics at 16 kHz (tools/gm_vox.py with GM_HQ=1)
+#else
+#include "gmvox.h"
+#endif        // the vocal chop kit: drum-B stream ids GM_VOX0 and up play a chop instead of a cymbal
 #include "gmdata.h"
 #define GMV 10                      // voice 9 is a Haas double of the lead (one frame late, a hair sharp, on the other side): it widens the lead
 static int gmCur=-1, gmAcc, gmRow, gmMaster=100, gmPaused, gmTick;
