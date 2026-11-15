@@ -17,7 +17,7 @@ int main(void){
     int g0=kd[k].gold; kd[k].gold=100; kx[k].tribute=1; /* income is added in the tick */ 
     CHECK(polSgn(0)==0&&polSgn(1)==1&&polSgn(2)==-1,"policy values map to normal, high, low");
     kx[k].tribute=0;
-    int ex=kdMaxCities(k); kx[k].ctr2|=4; int ex2=kdMaxCities(k); kx[k].ctr2&=~4; CHECK(ex2==ex+2,"EXPANSIONIST allows two more cities (%d -> %d)",ex,ex2);
+    kx[k].ctr2&=~4; int ex=kdMaxCities(k); kx[k].ctr2|=4; int ex2=kdMaxCities(k); kx[k].ctr2&=~4; CHECK(ex2==ex+2,"EXPANSIONIST allows two more cities (%d -> %d)",ex,ex2);
     // save and load keep policies and traits; an old save (no trailer) has everything normal
     kx[k].tribute=1; kx[k].tax=2; kx[k].ctr2=0x0B; kx[k].renown=17;
     int ok=saveGame("/tmp/gg_kingx.sav"); memset(kx,0,sizeof kx); int lo=loadGame("/tmp/gg_kingx.sav");

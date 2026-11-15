@@ -167,7 +167,7 @@ static int hitDmg(const Cr*a,const Cr*d){   // one blow: the attacker's strength
 static void countTraits(void){ memset(trCount,0,sizeof trCount); for(int i=0;i<nCr;i++) if(cr[i].alive){ if(cr[i].tr) trCount[cr[i].tr]++; if(cr[i].tr2) trCount[cr[i].tr2]++; } }
 static void giveTrait(Cr*c,int t,int announce){ if(c->tr==0||c->tr==t) c->tr=(u8)t; else c->tr2=(u8)t; if(!((trSeen>>t)&1)){ trSeen|=1u<<t; if(announce){ char nm[48]; crName(c,nm); siprintf(info,"NEW SUBSPECIES: %.30s",nm); fxReq(FX_BIRTH); } } }
 static void born(Cr*kid,const Cr*par){ stBorn++;   // a child has its parent's traits, and now and then a mutation
-    kid->tr=par->tr; kid->tr2=par->tr2; int rate=diff==0?1:diff==2?3:2; if(HAS(par,TR_FERTILE)) rate+=1; if(!LAWON(LW_MUTATE)) rate=0; if(LAWON(LW_MUTBOX)) rate=35;
+    kid->tr=par->tr; kid->tr2=par->tr2; int rate=diff==0?1:diff==2?3:2; if(HAS(par,TR_FERTILE)) rate+=1; if(!LAWON(LW_MUTATE)) rate=0; if(LAWON(LW_MUTBOX)) rate=35; else if(LAWON(LW_SPAGHETTI)) rate*=3;
     if((int)(rnd()%100)<rate){ int t=1+(int)(rnd()%(TR_N-1)); if(!HAS(kid,t)){ giveTrait(kid,t,1); stMut++; } }
     if(arch[sp[kid->sp].a].diet==4&&rnd()%100<8) kid->sick=2;      // some children are born immune, as in WorldBox
     kid->hp=(u8)maxHp(kid); ntBirth(kid,par); }
@@ -511,7 +511,7 @@ static void kdName(int k,char*o){ langKing(kd[k].nlang,kd[k].n1,kd[k].n2,o); }
 #include "ggwar.h"      // (10c: war groups: one record for an army, counted from its soldiers)
 static void kdRuler(int k,char*o){ strcpy(o,lwords[kd[k].lang%5][8]); strcat(o," "); char p[24]; langPerson(kd[k].lang,kd[k].rn1,kd[k].rn2,p); strcat(o,p); strcat(o," "); strcat(o,rnB[kd[k].rn2%8]); }
 static void kdFaith(int k,char*o){ static const u8 dn[4]={7,6,0,14}; strcpy(o,lwords[kd[k].lang%5][13]); strcat(o,"-"); strcat(o,lwords[kd[k].lang%5][dn[kd[k].rlg&3]]); }   /* the faith's local name: the tongue's word for god and for its dogma */
-static int kdRStat(int k,int w){ const Kd*K=&kd[k]; int v=1+(int)(hsh(K->rn1*16+K->rn2+1,w+1,0x52554C45)%10)+(K->reign>=120?3:K->reign>=80?2:K->reign>=40?1:0); return v>10?10:v; }   // the ruler's four stats (1..10), worked out from the name seed and the years of rule, so nothing is saved and a new ruler changes them: 0 STEWARDSHIP, 1 WARFARE, 2 DIPLOMACY, 3 INTELLIGENCE
+static int kdRStat(int k,int w){ if(!LAWON(LW_KINGSTATS)) return 5; const Kd*K=&kd[k]; int v=1+(int)(hsh(K->rn1*16+K->rn2+1,w+1,0x52554C45)%10)+(K->reign>=120?3:K->reign>=80?2:K->reign>=40?1:0); return v>10?10:v; }   // the ruler's four stats (1..10), worked out from the name seed and the years of rule, so nothing is saved and a new ruler changes them: 0 STEWARDSHIP, 1 WARFARE, 2 DIPLOMACY, 3 INTELLIGENCE
 static void kdStatsRaw(int k,int*cities,int*pop,int*power){ int c=0,p=0,w=0; for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==k+1){ c++; p+=vil[v].pop; w+=vil[v].pop+vil[v].towers*3+vil[v].houses; } w+=kd[k].tech*4; if(kd[k].ctr>>3&1) w=w*5/4; w=w*(100+10*kdKnow(k,2))/100; w=w*(100+3*(kdRStat(k,1)-5))/100; if(kd[k].rlg==0) w=w*11/10; if(cities) *cities=c; if(pop) *pop=p; if(power) *power=w; }
 static int kdDistRaw(int a,int b){ int best=9999; for(int u=0;u<VIL_N;u++) if(vil[u].on&&vilK[u]==a+1) for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==b+1){ int dx=vil[u].x-vil[v].x, dy=vil[u].y-vil[v].y; int d=dx*dx+dy*dy; if(d<best) best=d; } int r=0; while(r*r<best&&r<200) r++; return r; }
 static int kdFound(int v){
@@ -581,7 +581,7 @@ static void kingdomTick(void){
         if(K->rlg==3&&nCr&&(rnd()%100)<4){ for(int t=0;t<24;t++){ int i=(int)(rnd()%nCr); Cr*c2=&cr[i]; if(c2->alive&&sp[c2->sp].a==K->race&&c2->tr2==0){ giveTrait(c2,1+(int)(rnd()%(TR_N-1)),0); break; } } }
         if(((K->ctr>>5&1)||K->rlg==0)&&(rnd()%100)<5){ for(int o=0;o<KN_N;o++) if(o!=k&&kd[o].on&&kd[o].rlg!=K->rlg&&kd[o].rel[k]>-30&&kdDist(k,o)<40){ kd[o].rlg=K->rlg; char y[24], f[24], s2[72]; kdName(o,y); kdFaith(k,f); siprintf(s2,"%s ADOPTS FAITH %s",y,f); logEv(s2); break; } }
         if(__builtin_popcount(kx[k].ctr2)<2&&(rnd()%100)<2){ int t=(int)(rnd()%5); if(!(kx[k].ctr2>>t&1)){ kx[k].ctr2|=(u16)(1<<t); char y[24], s2[72]; kdName(k,y); siprintf(s2,"%.20s TURNS %s",y,ctr2N[t]); logEv(s2); } }
-        if(++K->reign>90+(rnd()%70)){ K->reign=0; K->rn1=(u8)(rnd()%12); K->rn2=(u8)(rnd()%8); if(!aggressive(K->race)) K->rtr=(u8)(rnd()%4); else if(rnd()&1) K->rtr=(u8)(rnd()%4); }
+        if((LAWON(LW_SUCCESSION)||K->reign>=250)&&++K->reign>90+(rnd()%70)){ K->reign=0; K->rn1=(u8)(rnd()%12); K->rn2=(u8)(rnd()%8); if(!aggressive(K->race)) K->rtr=(u8)(rnd()%4); else if(rnd()&1) K->rtr=(u8)(rnd()%4); }
         if(K->reign==0){ kdEp++; { char y1[24], r1[40], s1[80]; kdName(k,y1); kdRuler(k,r1); siprintf(s1,"%.22s CROWNS %.30s",y1,r1); logEv(s1); } if(year-(int)K->born>=10){ if(kx[k].ctr2&1) kdSplit(k,0); else if(kx[k].ctr2>>1&1) kdSplit(k,1); } int old=K->clan; if(rnd()%10>=7) K->clan=(u8)(rnd()%8); if(K->clan!=old){ char y[24], s2[72]; kdName(k,y); siprintf(s2,"HOUSE %s TAKES %s",clanN[K->clan],y); logEv(s2); } }
         if(__builtin_popcount(K->ctr)<4&&(rnd()%100)<3){ int t=(int)(rnd()%6); if(!(K->ctr>>t&1)){ K->ctr|=(u8)(1<<t); char y[24], s2[72]; kdName(k,y); siprintf(s2,"%s TURNS %s",y,ctrN[t]); logEv(s2); } }
         if(K->lord&&kd[K->lord-1].on&&(rnd()%100)<8){ Kd*L=&kd[K->lord-1]; int w2=(int)(rnd()%3); if(w2==0) K->cul=L->cul; else if(w2==1) K->rlg=L->rlg; else K->lang=L->lang; }   /* a vassal slowly takes on its lord's ways */
@@ -749,12 +749,29 @@ static void volcanoTick(void){   // lava creeps over nearby ground now and then,
     if(!gx.lLava&&LAWON(LW_NATDIS)&&!LAWON(LW_GAIA)&&rnd()%(gx.dis==0?100000:gx.dis==1?270:90)==0&&(t==T_MOUNT||t==T_HILL||t==T_DIRT||t==T_GRASS||t==T_FOREST||t==T_DESERT)){ setCell(nx,ny,T_LAVA); if(occ[ny][nx]) killCr(occ[ny][nx]-1); if(bld[ny][nx]){ bld[ny][nx]=0; putCell(nx,ny); } }
     else if(rnd()%400==0) setCell(x,y,T_MOUNT); }
 #include "calamity.h"           // the Calamity pack: tornado, black hole, acid rain, atomic bomb, plague, curse
-static void eventTick(void){   // now and then the world has an event of its own
-    if(tick<1500||(tick%1500)!=0||rnd()%3) return; int e=(int)(rnd()%4); if(e==0&&(gx.dis==0||(gx.dis==1&&rnd()%3)||!LAWON(LW_NATDIS))) e=1;
-    if(e==0){ for(int k=0;k<6;k++){ int x=rnd()%WW, y=rnd()%WH; burnAt(x,y,255); if(!LAWON(LW_GAIA)&&world[y][x]!=T_WATER&&world[y][x]!=T_DEEP&&world[y][x]!=T_MOUNT) setCell(x,y,(rnd()&1)?T_DIRT:T_LAVA); if(occ[y][x]) killCr(occ[y][x]-1); } siprintf(info,"A COMET SHOWER"); flashT=8; fxReq(FX_METEOR); }
-    else if(e==1){ for(int v=0;v<VIL_N;v++) if(vil[v].on) vil[v].stock=(u16)(vil[v].stock+100>400?400:vil[v].stock+100); siprintf(info,"A BOUNTIFUL HARVEST"); fxReq(FX_BLESS); }
-    else if(e==2){ int n=0; for(int i=0;i<nCr&&n<12;i++) if(cr[i].alive&&arch[sp[cr[i].sp].a].diet!=5&&cr[i].tr2==0&&(rnd()&7)==0){ giveTrait(&cr[i],TR_MUNCH,0); cr[i].food=200; n++; } siprintf(info,"THE GREAT MUNCHIES"); fxReq(FX_BIRTH); }
-    else { for(int v=0;v<VIL_N;v++) vil[v].foe=0; for(int k=0;k<KN_N;k++){ kd[k].war=0; kd[k].weary=0; } warMatrix(); siprintf(info,"A FESTIVAL: ALL FEUDS FORGOTTEN"); fxReq(FX_PEACE); } }
+enum { EV_COMET, EV_HARVEST, EV_MUNCH, EV_FEST, EV_PROPHET, EV_FAMINE, EV_MIGRATE, EV_GOLDEN, EV_CARAVAN, EV_BLOOM, EV_CRISIS, EV_COLD, EV_N };
+static const u8 evW[EV_N][5]={   // weights by age of the world: HOPE, SHADOWS, CHAOS, WONDERS, PEACE
+    {2,3,5,2,1},{6,2,2,4,5},{2,2,3,5,2},{2,1,1,3,6},{3,2,2,5,3},{1,4,3,1,1},{3,2,3,3,3},{2,0,0,3,4},{3,2,2,3,4},{1,2,3,5,1},{1,3,4,1,1},{1,4,3,1,2} };
+static void eventDo(int e){      // one world event; each one is written to the journal
+    char s[72]; int ag=worldAge();
+    switch(e){
+    case EV_COMET: for(int k=0;k<6;k++){ int x=rnd()%WW, y=rnd()%WH; burnAt(x,y,255); if(!LAWON(LW_GAIA)&&world[y][x]!=T_WATER&&world[y][x]!=T_DEEP&&world[y][x]!=T_MOUNT) setCell(x,y,(rnd()&1)?T_DIRT:T_LAVA); if(occ[y][x]) killCr(occ[y][x]-1); } siprintf(info,"A COMET SHOWER"); flashT=8; fxReq(FX_METEOR); break;
+    case EV_HARVEST: for(int v=0;v<VIL_N;v++) if(vil[v].on) vil[v].stock=(u16)(vil[v].stock+100>400?400:vil[v].stock+100); siprintf(info,"A BOUNTIFUL HARVEST"); fxReq(FX_BLESS); break;
+    case EV_MUNCH: { int n=0; for(int i=0;i<nCr&&n<12;i++) if(cr[i].alive&&arch[sp[cr[i].sp].a].diet!=5&&cr[i].tr2==0&&(rnd()&7)==0){ giveTrait(&cr[i],TR_MUNCH,0); cr[i].food=200; n++; } siprintf(info,"THE GREAT MUNCHIES"); fxReq(FX_BIRTH); } break;
+    case EV_FEST: for(int v=0;v<VIL_N;v++) vil[v].foe=0; for(int k=0;k<KN_N;k++){ kd[k].war=0; kd[k].weary=0; } warMatrix(); siprintf(info,"A FESTIVAL: ALL FEUDS FORGOTTEN"); fxReq(FX_PEACE); break;
+    case EV_PROPHET: { int n=0, ids[KN_N]; for(int k=0;k<KN_N;k++) if(kd[k].on) ids[n++]=k; if(!n) return; int k=ids[rnd()%n], old=kd[k].rlg; kd[k].rlg=(u8)((old+1+rnd()%3)%4); kdName(k,s+0); char t[72]; siprintf(t,"A PROPHET CONVERTS %.18s TO %s",s,rlgN[kd[k].rlg]); logEv(t); siprintf(info,"A WANDERING PROPHET"); KD_DIRTY(); } return;
+    case EV_FAMINE: { int n=0; for(int v=0;v<VIL_N;v++) if(vil[v].on&&(rnd()%3)==0){ vil[v].stock=(u16)(vil[v].stock>150?vil[v].stock-150:0); n++; } if(!n) return; siprintf(info,"FAMINE"); logEv("A FAMINE EMPTIES THE STORES"); } return;
+    case EV_MIGRATE: { int n=0, ids[VIL_N]; for(int v=0;v<VIL_N;v++) if(vil[v].on) ids[n++]=v; if(n<2) return; int v=ids[rnd()%n]; for(int k=0;k<6;k++) addCr(vil[v].race,vil[v].x+(int)(rnd()%7)-3,vil[v].y+(int)(rnd()%7)-3); char t[72]; vilName(v,s); siprintf(t,"MIGRANTS ARRIVE AT %.30s",s); logEv(t); siprintf(info,"MIGRATION"); } return;
+    case EV_GOLDEN: for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]){ int l=vilL[v]+15; vilL[v]=(s8)(l>100?100:l); } siprintf(info,"A GOLDEN AGE"); logEv("A GOLDEN AGE LIFTS EVERY CITY"); fxReq(FX_BLESS); break;
+    case EV_CARAVAN: { int n=0, ids[KN_N]; for(int k=0;k<KN_N;k++) if(kd[k].on&&kd[k].tech>=2) ids[n++]=k; if(!n) return; int k=ids[rnd()%n]; int g=kd[k].gold+120; kd[k].gold=(u16)(g>60000?60000:g); kdName(k,s); char t[72]; siprintf(t,"A MERCHANT CARAVAN ENRICHES %.28s",s); logEv(t); siprintf(info,"A MERCHANT CARAVAN"); } return;
+    case EV_BLOOM: { static const u8 tt[6]={TR_GIGGLY,TR_ZEN,TR_FLOATY,TR_LEAN,TR_REGEN,TR_FERTILE}; int n=0; for(int i=0;i<nCr&&n<8;i++) if(cr[i].alive&&arch[sp[cr[i].sp].a].diet!=5&&cr[i].tr2==0&&(rnd()&7)==0){ giveTrait(&cr[i],tt[rnd()%6],0); n++; } if(!n) return; siprintf(info,"A MUTANT BLOOM"); logEv("A MUTANT BLOOM CHANGES THE WILD"); fxReq(FX_BIRTH); } return;
+    case EV_CRISIS: { int n=0, ids[KN_N]; for(int k=0;k<KN_N;k++) if(kd[k].on) ids[n++]=k; if(!n) return; int k=ids[rnd()%n]; kd[k].reign=250; kdName(k,s); char t[72]; siprintf(t,"A SUCCESSION CRISIS SHAKES %.26s",s); logEv(t); siprintf(info,"SUCCESSION CRISIS"); } return;
+    case EV_COLD: weather=3; weatherT=1800; siprintf(info,"A COLD SNAP"); logEv("A COLD SNAP BLANKETS THE LAND"); break; }
+    (void)ag; }
+static void eventTick(void){   // now and then the world has an event of its own: a weighted table by the age of the world (disasters off take the comet out instead of doubling the harvests)
+    if(tick<1500||(tick%1500)!=0||rnd()%3) return; int ag=worldAge(), w[EV_N], tot=0;
+    for(int e=0;e<EV_N;e++){ w[e]=evW[e][ag]; if(e==EV_COMET&&(gx.dis==0||(gx.dis==1&&rnd()%3)||!LAWON(LW_NATDIS))) w[e]=0; if(e==EV_CRISIS&&!LAWON(LW_SUCCESSION)) w[e]=0; if(e==EV_COLD&&!LAWON(LW_WEATHER)) w[e]=0; tot+=w[e]; }
+    if(tot<=0) return; int r=(int)(rnd()%(u32)tot), e=0; while(e<EV_N-1&&r>=w[e]){ r-=w[e]; e++; } eventDo(e); }
 static void weatherTick(void){
     if(!LAWON(LW_WEATHER)){ if(weather) weather=0; if(flashT>0) flashT--; return; }
     if(gx.wx){ weather=gx.wx-1; weatherT=3000; }
