@@ -40,7 +40,7 @@ def key_of(pcs):      # a rough major / minor guess from a pitch class histogram
             num = sum((x - ma) * (y - mp) for x, y in zip(a, pr)); den = math.sqrt(sum((x - ma) ** 2 for x in a) * sum((y - mp) ** 2 for y in pr)) or 1
             if num / den > best[0]: best = (num / den, k, nm)
     return best[1], best[2]
-def midi_score(path, Sc, V, roles, drum_map, bars_max=None, cell_div=4):
+def midi_score(path, Sc, V, roles, drum_map, bars_max=None, cell_div=4, echo_lead=False):
     import mido
     m = mido.MidiFile(path); tpb = m.ticks_per_beat; tempo = 500000; ev = []
     for tr in m.tracks:
@@ -74,22 +74,31 @@ def midi_score(path, Sc, V, roles, drum_map, bars_max=None, cell_div=4):
                 cur = sc.v[stream][c]
                 if cur[0] == 0 or (part == 'A' and did in (1, 2) and cur[0] not in (1, 2)): sc.put(stream, c, did, 1)
             continue
-        role = roles.get(ch)
-        if role is None: continue
+        spec = roles.get(ch)
+        if spec is None: continue
+        role, leg, lo = spec if isinstance(spec, tuple) else (spec, 1, 0)
         byc = {}
         for c, n, l in lst: byc.setdefault(c, []).append((n, l))
+        cs = sorted(byc); nxt = {c: (cs[i + 1] if i + 1 < len(cs) else bars * 16) for i, c in enumerate(cs)}
+        def hold(c, l): return max(l, min(leg, nxt[c] - c)) if leg > 1 else l       # the transcription's notes are short: let each one ring on (to the next onset, up to leg cells) so it can be heard
+        def up(n):
+            while lo and n < lo: n += 12
+            return n
         if role == 'pad':       # chords: low note left, top note right (the middle one doubles as the harmony voice)
             for c, ns in byc.items():
-                ns.sort(); sc.put(V['PADL'], c, ns[0][0] + 12 if ns[0][0] < 46 else ns[0][0], ns[0][1]); sc.put(V['PADR'], c, ns[-1][0], ns[-1][1])
-                if len(ns) > 2: sc.put(V['HARM'], c, ns[len(ns) // 2][0], ns[len(ns) // 2][1])
+                ns.sort(); L = hold(c, ns[0][1]); sc.put(V['PADL'], c, up(ns[0][0]), L); sc.put(V['PADR'], c, ns[-1][0], L)
+                if len(ns) > 2: sc.put(V['HARM'], c, ns[len(ns) // 2][0], L)
         else:
             vc = V[role]
-            for c, ns in byc.items(): n, l = max(ns); sc.put(vc, c, n, l)
+            for c, ns in byc.items():
+                n, l = max(ns) if role not in ('BASS',) else min(ns); L = hold(c, l); sc.put(vc, c, up(n), L)
+                if role == 'LEAD' and echo_lead and c + 3 < bars * 16: sc.put(V['ECHO'], c + 3, up(n), min(L, 4))
     tempo_bpm = int(round(60e6 / tempo)); return sc, tempo_bpm, kt, mt
 GMD = {36: ('A', 1), 35: ('A', 1), 38: ('A', 2), 40: ('A', 2), 39: ('A', 3), 41: ('A', 4), 43: ('A', 4), 45: ('A', 5), 47: ('A', 5), 48: ('A', 6), 50: ('A', 6), 37: ('A', 7), 42: ('B', 1), 44: ('B', 1), 46: ('B', 2),
        49: ('B', 3), 57: ('B', 3), 51: ('B', 4), 59: ('B', 4), 70: ('B', 5), 69: ('B', 5)}
 def midi_track_build(R, Sc, V, A):
-    sc, bpm, kt, mt = midi_score(R['midi'], Sc, V, R['roles'], GMD, R.get('maxbars'))
+    sc, bpm, kt, mt = midi_score(R['midi'], Sc, V, R['roles'], GMD, R.get('maxbars'), echo_lead=R.get('echo', False))
+    if R.get('bpm'): bpm = R['bpm']      # (a slower tempo than the file's: every note keeps its place on the grid, so the song plays at that pace)
     # voices: a chop on the first beat of every 8 bars (the chord's note), textures between, an opening swell, a stutter before every 32nd bar
     bass = [(c, sc.v[V['BASS']][c][0]) for c in range(sc.cells) if sc.v[V['BASS']][c][0]]
     def rootpc(c):
@@ -99,12 +108,17 @@ def midi_track_build(R, Sc, V, A):
             else: break
         return best % 12 if best else kt
     r = random.Random(R['id']); TX = ['LAUGH', 'GHOST', 'CRY', 'FLIRT', 'SNEEZE', 'SHRIEK', 'FIGHT']
-    nb = sc.cells // 16
+    nb = sc.cells // 16; own = R.get('ownvox')          # own: (first chop index, count) of the song's OWN voice pieces, then the 24 older chops for colour
     for b in range(nb):
         c = b * 16
         if b == 0: vox(sc, V['DB'], c + 8, VOXT['YAHOO_REV'])
+        if own:
+            f0, cnt = own
+            if b % 4 == 0 and b > 0: vox(sc, V['DB'], c + 6, f0 + (b // 4) % cnt)                        # the song's own voice, a different piece every four bars
+            if b % 4 == 2: vox(sc, V['DB'], c + 14, f0 + (b // 4 * 5 + 2) % cnt, soft=True)
+            if R.get('chatter') and b % 2 == 1: vox(sc, V['DB'], c + 10, f0 + (b * 3) % cnt, soft=True)   # a rhythmic chatter between
         if b % 8 == 0 and b > 0: vox(sc, V['DB'], c, rootpc(c)); vox(sc, V['DB'], c + 8, (rootpc(c) + 7) % 12, soft=True)
-        if b % 8 == 4: vox(sc, V['DB'], c + 6, VOXT[TX[(b // 8) % len(TX)]])
+        if b % 8 == 4 and not own: vox(sc, V['DB'], c + 6, VOXT[TX[(b // 8) % len(TX)]])
         if b % 16 == 15: vox(sc, V['DB'], c + 12, VOXT['YEHA'])
         if b % 32 == 31: vox(sc, V['DB'], c + 14, VOXT['WIN'])
     return sc, 0, bpm, kt, mt
@@ -125,6 +139,6 @@ def fam_tracks(A):
     out = []
     for n, (src, dr, bs, mood, arp) in enumerate(FAM):
         a = A[src]; nm = src.upper().replace('_', ' ')
-        out.append(dict(id='fam%d' % n, name=nm + ' (REPRISE)', use='reprise: unlocked in story mode', a=src, ra=0, b=src, rb=1, c=src, rc=2, key=a['key'], mode=a['mode'], bpm=max(70, min(180, a['bpm'])),
+        out.append(dict(id='fam%d' % n, name=nm, use='hidden: unlocked in story mode', a=src, ra=0, b=src, rb=1, c=src, rc=2, key=a['key'], mode=a['mode'], bpm=max(70, min(180, a['bpm'])),
                         form='song', bass=bs, drums=dr, mood=mood, arp=arp, lift=0, cup=0, inv=False, vox=True))
     return out

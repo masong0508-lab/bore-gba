@@ -1376,7 +1376,7 @@ static void gb_vstop(int v){ if(gvId[v]>=0){ soundKill(gvId[v]); gvId[v]=-1; } }
 static void gb_vstart(int v,int wave){ gb_vstop(v); gvId[v]=soundPlaySample(gmWaveT[wave],SoundFormat_8Bit,64,gmHz64[60],0,64,true,0); gvRate[v]=gmHz64[60]; gvVol[v]=0; gvPan[v]=64; }
 static void gb_vset(int v,int rate,int vol,int pan){ int id=gvId[v]; if(id<0) return; if(rate>65535) rate=65535; if(vol<0) vol=0; if(vol>127) vol=127;
     if(rate!=gvRate[v]){ soundSetFreq(id,(u16)rate); gvRate[v]=rate; } if(vol!=gvVol[v]){ soundSetVolume(id,(u8)vol); gvVol[v]=vol; } if(pan!=gvPan[v]){ soundSetPan(id,(u8)pan); gvPan[v]=pan; } }
-static void gb_hit(int slot,int part,int idx,int vol,int pan){ if(ghId[slot]>=0) soundKill(ghId[slot]); const GmDrum*D=part==2?&gmKitC[idx]:part?&gmKitB[idx]:&gmKitA[idx]; if(vol>127) vol=127;
+static void gb_hit(int slot,int part,int idx,int vol,int pan){ if(ghId[slot]>=0) soundKill(ghId[slot]); const GmDrum*D=part==2?gmVoxLoad(idx,slot):part?&gmKitB[idx]:&gmKitA[idx]; if(vol>127) vol=127;
     ghId[slot]=soundPlaySample(D->d,SoundFormat_8Bit,D->n,D->rate,(u8)vol,(u8)pan,false,0); }
 static int midi8Hz(int m8){ int m=m8>>3; if(m<0) m=0; if(m>126) m=126; int a=gmHz64[m], b=gmHz64[m+1]; return (a+(b-a)*(m8&7)/8)/64; }
 static void gb_ptone(int midi8,int vol,int duty){ (void)duty; if(gpId<0) return; int hz=midi8Hz(midi8); if(hz<20) hz=20; if(vol>127) vol=127; if(vol<0) vol=0; soundSetFreq(gpId,(u16)hz); soundSetVolume(gpId,(u8)vol); }   // (one reserved PSG voice, 50% pulse: the 16 channels are all spoken for)
@@ -1473,7 +1473,7 @@ static int dbgSel=0, dbgMon=0, dbgFx=0, fxSel=0, konami=0;
 // the REPRISE set (26 of the original BORE songs, kept close to what they were, with voices): each one opens with a milestone of the story. 0..13: finishing chapter 1..14; 14..23: every 4 achievements;
 // 24: the story's end; 25: 100%.
 static int famOpen(int k){ if(unlockAll||debugOn) return 1; if(k<14) return chapter>=k+1; if(k<24) return __builtin_popcount(achBits)+__builtin_popcount(achX[0])>=4*(k-13); return k==24?storyDone:fullDone; }
-static void famHint(int k,char*o){ if(k<14) siprintf(o,"?? FINISH CHAPTER %d ??",k+1); else if(k<24) siprintf(o,"?? %d ACHIEVEMENTS ??",4*(k-13)); else if(k==24) strcpy(o,"?? FINISH THE STORY ??"); else strcpy(o,"?? 100% ??"); }
+static void famHint(int k,char*o){ (void)k; strcpy(o,"?? HIDDEN TRACK ??"); }      // the hidden tracks do not say how to open them: they come with the story
 static int trackOpen(int i){ if(i>=GM_FAM0) return famOpen(i-GM_FAM0); return i<GM_REMIX0||i>=GM_EPIC0||fullDone||debugOn||unlockAll; }
 static int auralOK(void){ return auralOpen||debugOn||unlockAll; }
 static int bestSel=0, juke=0, sdOk=0, savedYear=-1, hasSave=0;

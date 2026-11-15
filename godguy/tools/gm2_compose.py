@@ -370,8 +370,10 @@ assert len(TRACKS) == 82, len(TRACKS)
 # and a REBIRTH (revised: the opposite mode, a quieter or stranger form -- a third of them minimalist -- with a neighbouring song's hooks woven in). Locked until the game is 100% done.
 # ---- the two newest songs, read from their MIDI files and given voices (gm4_compose.py)
 _ROOT = os.path.join(HERE, '..', '..', 'tools')
-TRACKS.append(dict(id='corporations', name='CORPORATIONS', use='jukebox: a full song', midi=os.path.join(_ROOT, 'corporations', 'corporations_grid.mid'), roles={0: 'BASS', 1: 'ARP', 2: 'pad', 3: 'LEAD'}, mood='dance', form='boss', maxbars=210))
-TRACKS.append(dict(id='duckcover', name='DUCK & COVER', use='jukebox: a full song', midi=os.path.join(_ROOT, 'duckcover', 'duck_cover_dnb.mid'), roles={1: 'BASS', 2: 'LEAD', 3: 'SPARK'}, mood='dance', form='boss'))
+TRACKS.append(dict(id='corporations', name='CORPORATIONS', use='jukebox: a full song', midi=os.path.join(_ROOT, 'corporations', 'corporations_grid.mid'),
+                   roles={0: ('BASS', 4, 40), 1: ('ARP', 2, 52), 2: ('pad', 8, 46), 3: ('LEAD', 3, 0)}, mood='dance', form='boss', maxbars=210, echo=True, ownvox=(24, 14), inst={6: 1, 7: 4}, gain=1.5))
+TRACKS.append(dict(id='duckcover', name='DUCK & COVER', use='jukebox: a full song', midi=os.path.join(_ROOT, 'duckcover', 'duck_cover_dnb.mid'),
+                   roles={1: ('BASS', 3, 38), 2: ('LEAD', 3, 0), 3: ('SPARK', 4, 0)}, mood='dark', form='boss', echo=True, bpm=88, ownvox=(38, 14), chatter=True, inst={6: 1}, gain=1.4))
 REMIX_START = len(TRACKS)
 ORIG = [  # source song, remix name, rebirth name
  ('earth_and_the_space_citizens', 'EARTH AND THE STAR CITIZENS', 'EARTHRISE'), ('amiga_music', 'AMIGA MUSIC 2000', 'AMIGA AMIGO'), ('emergency_hitech', 'EMERGENCY ON THE SKY FLOOR', 'EMERGENCY EXIT'),
@@ -434,7 +436,8 @@ def write_header(path):
             raw = bytes(b) if b else bytes([0, 255]); z = lz.encode(raw); assert lz.decode(z, len(raw)) == raw; rawlens.setdefault(i, []).append(len(raw))
             L.append('static const unsigned char gm%d_%d[]={%s};' % (i, vc, ','.join(map(str, z)))); total += len(z)
         inst = MOODS[R['mood']][:]; vol = VOLS[:]
-        if R.get('midi'): vol = [min(127, int(v * 1.35)) for v in vol]      # the two MIDI-read songs are written quieter than the rest
+        if R.get('midi'): vol = [min(127, int(v * R.get('gain', 1.35))) for v in vol]      # the two MIDI-read songs are written quieter than the rest
+        if R.get('inst'): inst = list(inst); [inst.__setitem__(k_, v_) for k_, v_ in R['inst'].items()]
         if R['form'] in ('ambient',): vol[V_LEAD] = 56; vol[V_PADL] = vol[V_PADR] = 40
         if R['form'] in ('jingle', 'sting'): vol[V_LEAD] = 76
         meta.append('{"%s","%s",%d,{%s},{%s},{%s},%d,%d,%d,{%s},{%s}}' % (R['name'], R['use'], bpm, ','.join(map(str, inst)), ','.join(map(str, vol)), ','.join(map(str, PANS)), sc.cells,
