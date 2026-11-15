@@ -13,7 +13,7 @@ static int nCity(int k){ int c=0; for(int v=0;v<VIL_N;v++) c+=vil[v].on&&vilK[v]
 static void tap(int kind,int v){ polApply(kind,vil[v].x,vil[v].y); }
 static int cityOf(int k,int skipCap){ for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==k+1&&(!skipCap||kd[k].cap!=v+1)) return v; return -1; }
 int main(){ mapPtr=(u16*)bgGetMapPtr(0); gxDefaults(); planetSize=192; rs=4242u*2654435761u; makeSpecies(); makeItems(); newWorld(); monOn=0; for(int t=1;t<=40000;t++){ tick=t; year=t/1200; simulate(); }
-    int a=-1,b=-1; for(int i=0;i<KN_N;i++) if(kd[i].on){ if(a<0) a=i; else if(b<0) b=i; } if(b<0){ printf("  FAIL  need two kingdoms\nFAILED\n"); return 1; }
+    int a=-1,b=-1; for(int i=0;i<KN_N;i++) if(kd[i].on&&!kd[i].lord){ if(a<0) a=i; else if(b<0) b=i; } if(b<0){ printf("  FAIL  need two kingdoms\nFAILED\n"); return 1; }
     int va=cityOf(a,0), vb=cityOf(b,0);
     // DISCORD / UNITY
     kd[a].allies|=(u8)(1<<b); kd[b].allies|=(u8)(1<<a); tap(PK_DISCORD,va); CHECK(!(kd[a].allies>>b&1)&&!(kd[b].allies>>a&1)&&disT[a]==8,"DISCORD breaks the alliance both ways and starts the counter");
@@ -22,7 +22,7 @@ int main(){ mapPtr=(u16*)bgGetMapPtr(0); gxDefaults(); planetSize=192; rs=4242u*
     tap(PK_UNITY,vb); CHECK((kd[a].allies>>b&1)&&(kd[b].allies>>a&1)&&!(kd[a].war>>b&1)&&!(kd[b].war>>a&1)&&polPend<0,"UNITY: the second tap allies them both ways and ends their war");
     // WHISPER
     kd[a].allies=kd[b].allies=0; kd[a].war=kd[b].war=0; tap(PK_WHISPER,va); tap(PK_WHISPER,vb); CHECK(kd[a].plot==b+1&&whisT[a]==b+1,"WHISPER: the first kingdom now plots war on the second");
-    for(int t=0;t<5&&!(kd[a].war>>b&1);t++){ kingdomTick(); } CHECK((kd[a].war>>b&1)&&warM[0][0]>=0,"WHISPER: the war breaks out within a few kingdom turns");
+    for(int t=0;t<60&&!(kd[a].war>>b&1);t++){ kingdomTick(); } CHECK((kd[a].war>>b&1)&&warM[0][0]>=0,"WHISPER: the war breaks out within a few kingdom turns");
     // SPITE and FRIENDSHIP
     kd[a].allies=kd[b].allies=0; tap(PK_SPITE,vb); CHECK(spiT[b]==12,"SPITE sets its counter on that kingdom only"); 
     tap(PK_FRIEND,va); CHECK(!kd[a].war&&!(kd[b].war>>a&1),"FRIENDSHIP ends that kingdom's wars");

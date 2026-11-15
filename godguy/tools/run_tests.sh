@@ -85,3 +85,5 @@ gcc $F -w -DWAR_PLANET=1024 -DWAR_COLS=10 -DWAR_ROWS=10 -DWAR_SIDE=30000 -DGG_BI
 fi
 echo "--- the 3DS mixer (cubic interpolation, unison voices, reverb, limiter) and the 16 kHz lyric set"
 gcc -O2 -DNDSSHIM -DSHIM_HQ -DGG_HQVOX -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_hqmix pc_hq.c -lm && for t in 83 22 0; do /tmp/gg_hqmix /tmp/gg_hqmix.wav $t 40 | tail -1; done
+echo "--- the new animals, terraformers, evolved forms, spawners and captain morale"
+gcc -O2 -w -DNDSSHIM -Icompat -Isource -include unistd.h -o /tmp/gg_roster pc_roster.c -lm && /tmp/gg_roster | tail -1

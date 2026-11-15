@@ -16,7 +16,7 @@
 #define FL_SCAR    0x0002      // was wounded to under a third of its health in a fight
 #define FL_GRIEF   0x0004      // a parent, partner or child died (fades after a few sweeps)
 #define FL_HERO    0x0008      // ten kills
-#define FL_DESERT  0x0010      // (reserved for the war groups of step 10c)
+#define FL_DESERT  0x0010      // (reserved for the war groups of step 10c; the outlaws of wild.h use it)
 #define FL_RULER   0x0020      // (reserved)
 #define FL_FOUND   0x0040      // founded a village
 #define FL_NOTE    0x0080      // has a record in the notable table
@@ -100,8 +100,9 @@ static void ntHit(Cr*a,Cr*d,int dm){      // a strikes d for dm (before the blow
     if(d->hp>dm&&d->hp-dm<maxHp(d)/3&&!(crFl[di]&FL_SCAR)){ crFl[di]|=FL_SCAR; if(crFl[di]&FL_NOTE){ int k=nbFind(crId[di]); if(k>=0&&nb[k].wounds<255) nb[k].wounds++; } } }
 static void ntGrieve(u32 id){ int j=idFind(id); if(j>=0&&cr[j].alive) crFl[j]|=FL_GRIEF; }
 static void ntGone(u32 id){ int k=nbFind(id); if(k>=0&&!nb[k].st){ nb[k].st=1; nb[k].died=(u16)year; } }   // (compact: a creature that left the list without being killed, a settler, say)
+static void ntRout(int i){ rz[rzN&3].x=cr[i].x; rz[rzN&3].y=cr[i].y; rz[rzN&3].a=sp[cr[i].sp].a; rz[rzN&3].until=tick+700; rzN++; }      // CAPTAIN DOWN: the fallen war hero's people within ten tiles lose heart and fall back (routed() in main.c) for about eleven seconds
 static void ntDeath(int i){      // called by killCr before the creature is marked dead
-    u16 f=crFl[i]; if(!(f&FL_NOTE)) return; int k=nbFind(crId[i]); if(k<0) return; Nb*n=&nb[k]; n->st=1; n->died=(u16)year; u32 id=n->id, par=n->par, mate=n->mate;
+    u16 f=crFl[i]; if(!(f&FL_NOTE)) return; int k=nbFind(crId[i]); if(k<0) return; Nb*n=&nb[k]; n->st=1; n->died=(u16)year; if(arch[sp[cr[i].sp].a].diet==4&&((f&FL_HERO)||n->kills>=5)) ntRout(i); u32 id=n->id, par=n->par, mate=n->mate;
     if((f&FL_HERO)||n->kills>=5){ if(natural) nbLog("DIES OF AGE",n); else if(!cr[i].rk) nbLog("FALLS IN BATTLE",n); }      // (elites and bosses already have their own FALLS line)
     if(par) ntGrieve(par); if(mate) ntGrieve(mate); for(int x=0;x<nNb;x++) if(nb[x].id!=id&&(nb[x].par==id||nb[x].mate==id)) ntGrieve(nb[x].id); }
 static void ntBirth(Cr*kid,const Cr*par){      // a notable's first two children are written down as notable too (their parent is on record); the parent's partner is whoever stands beside it
