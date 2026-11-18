@@ -1,5 +1,9 @@
 # GodGuy vs WorldBox: what is still different (rewritten 15 November 2026)
 
+## Creature-life batch implemented (18 November 2026)
+The first creature-life batch has now been added to the shared game code: the 45-trait codex includes the biome adaptations and the missing traits in this area; the six listed statuses are available from a STATUS divine power; the Grin Mark affects nearby settlement happiness; Handsome Migrant steers people toward a nearby same-race settlement; Burning Feet scorches nearby vegetation and can hurt adjacent creatures. Disease remains in `Cr.sick` bits 0..1 and statuses use its six spare bits, so the DS creature record does not grow. Version 12 adds only a small `GGU1` trailer for high trait-discovery bits; version 11 saves still load. Automated PC-host regression tests exercise the DS, DSi and 3DS record layouts.
+
+
 The earlier version of this file was out of date: most of what it listed as missing had already been built. This one was checked against the code (keyword search of `source/`, plus the tests) and against the official changelog (https://www.superworldbox.com/changelog, versions 0.21.0 to 0.51.4; about two thirds of the page was read). The Fandom wiki (Special:AllPages and every page tried) answers HTTP 402 from here, so wiki-only pages (the full power, trait and building lists) were NOT read. Anything marked *(unchecked)* was not verified in play.
 
 ## Built (do not redo)
@@ -10,8 +14,8 @@ The earlier version of this file was out of date: most of what it listed as miss
 ## Still missing (from the changelog, 0.21.0 to 0.51.4)
 | Area | Missing |
 |---|---|
-| Traits | adaptation traits that give immunity to slowing in desert, swamp and permafrost (snow already slows); thorns, whirlwind, bubble defense, miracle-born, lustful, moonchild, nightchild, mega heartbeat, Burning Feet (fire elementals), Grin Mark; light lamp *(a "lamp" exists in the code: unchecked)* |
-| Statuses | invincible, ash fever, cough (and plague from rats), motivated, Handsome Migrant, mindless (one-click) |
+| Traits | species-specific preferred colours and remaining WorldBox-only visual/behaviour variants; the listed adaptation, defense, healing, social and fire traits are now implemented |
+| Statuses | rat-mediated plague transmission (ordinary plague spread and Cough status exist); any further one-click status variants not covered by the six new toggles |
 | Weather and clouds | ash cloud, magic cloud, rage cloud, heatwave |
 | Disasters | alien invasion, dragon from far lands, moon horrors, biomass monstrosity (a big tumor event), ice disasters from dreams, garden surprise |
 | Creatures | Navy Seals, planes, hypercube, ghosty ghosts (ghost civilisations), cybercore, super pumpkin, the five fire-elemental kinds, bees with a matriarchy |
@@ -29,9 +33,9 @@ The earlier version of this file was out of date: most of what it listed as miss
 - Terraformer rates, healing amounts and sapient tribe caps are first guesses. The 25 new 8 x 8 sprites were looked at once; five redrawn.
 
 ## Suggested order
-1. Adaptation traits, the other new traits and statuses (small, extend the trait table).
-2. Clouds, heatwave and the extra disasters (extend the weather and hazard code).
-3. Missing creatures and the printer powers.
-4. Possession, skins, preferred colours, teleport home.
-5. Interface items (meta selection, zone multi-toggle, save slots in the pause menu).
+1. Clouds, heatwave and the extra disasters (extend the weather and hazard code).
+2. Missing creatures and the printer powers.
+3. Possession, skins, preferred colours, teleport home.
+4. Interface items (meta selection, zone multi-toggle, save slots in the pause menu).
+5. Verify rat-mediated plague transmission and the remaining species-specific behaviour gaps.
 6. Paste the wiki AllPages text (or the pages' text) so the unread pages can be compared.

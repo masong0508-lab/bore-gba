@@ -46,6 +46,10 @@ gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_slotsc
 gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_stereo pc_stereo.c -lm && mkdir -p /tmp/gg_stereo_out && /tmp/gg_stereo /tmp/gg_stereo_out | tail -1
 # plague (step 6): spread, recovery, heal, the law, zombie bite and rising, village store drain, save
 gcc $F -w -o /tmp/gg_plague pc_plague.c -lm && /tmp/gg_plague | tail -1
+# GodGuy creature-life batch: disease/status bit coexistence, defensive traits, biome adaptation, Grin Mark and save v11/v12 compatibility on each shared record layout
+gcc $F -w -o /tmp/gg_traits pc_traits.c -lm && /tmp/gg_traits | tail -1
+gcc $F -w -DGG_DSI16 -o /tmp/gg_traits_dsi pc_traits.c -lm && /tmp/gg_traits_dsi | tail -1
+gcc $F -w -DGG_BIG -o /tmp/gg_traits_3ds pc_traits.c -lm && /tmp/gg_traits_3ds | tail -1
 # planet generator (step 7): main's six shapes unchanged at COASTS / MOUNTAINS normal, the new controls work, SEA the right way round
 gcc $F -w -o /tmp/gg_gen pc_gen.c -lm && /tmp/gg_gen | tail -1
 # speed (step 8): the kingdom answer cache (every cached answer checked against a fresh one), the globe redrawn only on change, the fast shim renderer equal to the plain one byte for byte, a crowd's flat cost per tick

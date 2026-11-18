@@ -1,7 +1,7 @@
 // calamity.h - GODGUY v0.14, the CALAMITY PACK: two roaming disasters (TORNADO, BLACK HOLE), ACID RAIN, the ATOMIC BOMB, a PLAGUE that spreads from creature to creature, a CURSE,
 // and the rules behind WORLD > LAWS (gx.lAge, lPlague, lFire, lLava, lStorm: see ggx.h).
 // Included from main.c just before eventTick: it uses setCell, killCr, moveTo, razeAt, logEv and friends, which are all defined above that point. Integer maths only.
-// What is saved: the plague is one byte in each creature (Cr.sick: 0 healthy, 1 plagued, 2 recovered and immune), which rides along in the creature list.
+// What is saved: disease occupies Cr.sick bits 0..1 (0 healthy, 1 plagued, 2 recovered/immune, 3 zombie); upper bits are independent creature statuses.
 // The roaming disasters are a small table (hz) that goes to the save file in a second trailer ("GGH1") after the GGX1 one, so an old build never reads it and an old save has none.
 #define HZ_N 6
 enum { HZ_NONE, HZ_TORNADO, HZ_HOLE, HZ_FIRE, HZ_GOO, HZ_GHOST, HZ_SNOWMAN };   // (the last three are Pack C, wild.h)
@@ -16,25 +16,25 @@ static void fireStep(Hz*h); static void gooStep(Hz*h); static void ghostStep(Hz*
 static int hzCount(int kind){ int n=0; for(int i=0;i<HZ_N;i++) n+=hz[i].kind==kind; return n; }
 // ---------------------------------------------------------------- helpers
 static int hzFree(int x,int y,const Sp*s){ return x>=0&&y>=0&&x<WW&&y<WH&&!occ[y][x]&&!bld[y][x]&&walkable(s,x,y); }
-static int hzHurt(int i,int dmg){ Cr*c=&cr[i]; if(c->hp>dmg){ c->hp=(u8)(c->hp-dmg); return 1; } killCr(i); return 0; }   // 1 if it lives
+static int hzHurt(int i,int dmg){ return damageCreature(i,dmg,-1); }   // 1 if it lives
 static void hzFling(int i){   // thrown up to six tiles away, onto any free tile it could stand on (if there is none it just stays)
     Cr*c=&cr[i]; for(int k=0;k<8;k++){ int nx=c->x+(int)(rnd()%13)-6, ny=c->y+(int)(rnd()%13)-6; if(!hzFree(nx,ny,&sp[c->sp])) continue;
         occ[c->y][c->x]=0; cellDel(c->x,c->y,c->sp); c->x=(coord_t)nx; c->y=(coord_t)ny; c->ox=0; c->oy=0; occ[ny][nx]=(occ_t)(i+1); cellAdd(nx,ny,c->sp); return; } }
 static void stormRaze(int x,int y,int chance){ if(!gx.lStorm) razeAt(x,y,chance); }   // tornado, acid and black hole leave homes alone when WORLD > LAWS says so
 // ---------------------------------------------------------------- the plague
-static int infect(int i){ Cr*c=&cr[i]; if(!c->alive||c->sick||gx.lPlague==1||arch[sp[c->sp].a].diet==5) return 0; c->sick=1; return 1; }   // only the healthy and the never-ill can fall sick
+static int infect(int i){ Cr*c=&cr[i]; if(!c->alive||DISEASE(c)!=0||gx.lPlague==1||arch[sp[c->sp].a].diet==5) return 0; SET_DISEASE(c,1); return 1; }   // only the healthy and the never-ill can fall sick
 static void plagueTick(void){   // every 32 ticks: the sick suffer, pass it to whoever stands next to them, and now and then get better (and stay immune)
     if((tick&31)!=11) return; int mode=gx.lPlague;   // 0 normal, 1 off (everyone is cured at once), 2 deadly
-    for(int i=0;i<nCr;i++){ Cr*c=&cr[i]; if(!c->alive||(c->sick!=1&&c->sick!=3)) continue;
-        if(c->sick==3){ if(mode==1){ c->sick=0; continue; } int d=maxHp(c)/4; if(d<1) d=1; if(c->hp>d) c->hp=(u8)(c->hp-d); else killNat(i); continue; }      // the zombie infection drains a quarter of the health and the body gets up again as a zombie
-        if(mode==1){ c->sick=2; continue; }
+    for(int i=0;i<nCr;i++){ Cr*c=&cr[i]; if(!c->alive||(DISEASE(c)!=1&&DISEASE(c)!=3)) continue;
+        if(DISEASE(c)==3){ if(mode==1){ SET_DISEASE(c,0); continue; } int d=maxHp(c)/4; if(d<1) d=1; if(c->hp>d) c->hp=(u8)(c->hp-d); else killNat(i); continue; }      // the zombie infection drains a quarter of the health and the body gets up again as a zombie
+        if(mode==1){ SET_DISEASE(c,2); continue; }
         int dmg=mode==2?4:2; if(c->hp>dmg) c->hp=(u8)(c->hp-dmg); else { killNat(i); continue; }
         if(arch[sp[c->sp].a].diet==4){ int v=vilNear(sp[c->sp].a,c->x,c->y,8); if(v>=0&&vil[v].stock>0) vil[v].stock--; }      // sick folk eat and do not work: the store drains
-        for(int k=0;k<4;k++){ int x=c->x+dxs[k], y=c->y+dys[k]; if(x<0||y<0||x>=WW||y>=WH||!occ[y][x]) continue; Cr*q=&cr[occ[y][x]-1]; if(q->alive&&!q->sick&&(int)(rnd()%100)<(mode==2?45:25)) q->sick=1; }
-        if((int)(rnd()%100)<(mode==2?4:10)) c->sick=2; } }
+        for(int k=0;k<4;k++){ int x=c->x+dxs[k], y=c->y+dys[k]; if(x<0||y<0||x>=WW||y>=WH||!occ[y][x]) continue; Cr*q=&cr[occ[y][x]-1]; if(q->alive&&DISEASE(q)==0&&(int)(rnd()%100)<(mode==2?45:25)) SET_DISEASE(q,1); }
+        if((int)(rnd()%100)<(mode==2?4:10)) SET_DISEASE(c,2); } }
 static int zombSp=-2;
 static void zombiesRise(void){ while(zqN>0){ zqN--; if(zombSp==-2){ zombSp=-1; for(int s=0;s<nSp;s++) if(!strcmp(arch[sp[s].a].nm,"ZOMBIE")){ zombSp=s; break; } } if(zombSp>=0&&addCr(zombSp,zq[zqN][0],zq[zqN][1])>=0) siprintf(info,"A ZOMBIE RISES"); } }
-static int plagueCount(int st){ int n=0; for(int i=0;i<nCr;i++) n+=cr[i].alive&&cr[i].sick==st; return n; }
+static int plagueCount(int st){ int n=0; for(int i=0;i<nCr;i++) n+=cr[i].alive&&DISEASE(&cr[i])==st; return n; }
 // ---------------------------------------------------------------- the tornado: wanders, uproots forest, flattens homes, throws whatever it meets
 static void tornadoStep(Hz*h){
     if(rnd()%5==0){ h->dx=(s8)((int)(rnd()%3)-1); h->dy=(s8)((int)(rnd()%3)-1); if(!h->dx&&!h->dy) h->dx=1; }
