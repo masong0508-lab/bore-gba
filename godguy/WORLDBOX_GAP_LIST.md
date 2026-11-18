@@ -11,12 +11,15 @@ The earlier version of this file was out of date: most of what it listed as miss
 - Kingdoms (up to 16), rulers with stats, ruler hall, tribute and tax, culture traits, religions, languages, clans, alliances, wars, plots, vassals, renown, war records, kings flee, captains and the captain-down rout, loot rarity and modifiers, monster drops, loot and corrosive rain, Pack B powers (inspire, whisper, discord, unity, spite, friendship, dusts), monoliths and uplift, laws (succession, king stats, spaghetti, snow, bandits, evolution, drowning, magic).
 - Interface: "what is it doing?", hall of rulers, map tint (kingdom, city, culture, faith, language, relations), map dots by kind, population page, world browser with back, zoom saved, favourites.
 
+## Climate batch implemented (18 November 2026)
+The four special weather states are now part of the normal weather cycle. Ash clouds add atmospheric dust and dry vegetation; magic clouds heal creatures and encourage forest growth; rage clouds damage creatures and can scorch forests; heatwaves add dust, dry wetlands/vegetation and stress creatures. Their weather IDs use the existing saved weather byte, so no creature or save-header layout expansion is needed. The world map, globe lighting/cloud threshold, weather particles and status label recognize the new states.
+
 ## Still missing (from the changelog, 0.21.0 to 0.51.4)
 | Area | Missing |
 |---|---|
 | Traits | species-specific preferred colours and remaining WorldBox-only visual/behaviour variants; the listed adaptation, defense, healing, social and fire traits are now implemented |
 | Statuses | rat-mediated plague transmission (ordinary plague spread and Cough status exist); any further one-click status variants not covered by the six new toggles |
-| Weather and clouds | ash cloud, magic cloud, rage cloud, heatwave |
+| Weather and clouds | Further polish: tune balance and verify on hardware. |
 | Disasters | alien invasion, dragon from far lands, moon horrors, biomass monstrosity (a big tumor event), ice disasters from dreams, garden surprise |
 | Creatures | Navy Seals, planes, hypercube, ghosty ghosts (ghost civilisations), cybercore, super pumpkin, the five fire-elemental kinds, bees with a matriarchy |
 | Mechanics | unit possession; teleporting units return to their home city; five culture-based skins per people; species preferred colours; border brush; only xenophobic cultures destroy cities and the rest capture them *(our war code unchecked)*; species loyalty checks and culture/religion/language splits (0.50.3) *(partly: schisms exist, unchecked)*; random traits for new cultures, languages, clans and religions |
@@ -33,7 +36,7 @@ The earlier version of this file was out of date: most of what it listed as miss
 - Terraformer rates, healing amounts and sapient tribe caps are first guesses. The 25 new 8 x 8 sprites were looked at once; five redrawn.
 
 ## Suggested order
-1. Clouds, heatwave and the extra disasters (extend the weather and hazard code).
+1. Extra disasters (extend the weather and hazard code; the four special weather states are now implemented).
 2. Missing creatures and the printer powers.
 3. Possession, skins, preferred colours, teleport home.
 4. Interface items (meta selection, zone multi-toggle, save slots in the pause menu).

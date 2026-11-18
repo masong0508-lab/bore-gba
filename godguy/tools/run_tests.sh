@@ -50,6 +50,8 @@ gcc $F -w -o /tmp/gg_plague pc_plague.c -lm && /tmp/gg_plague | tail -1
 gcc $F -w -o /tmp/gg_traits pc_traits.c -lm && /tmp/gg_traits | tail -1
 gcc $F -w -DGG_DSI16 -o /tmp/gg_traits_dsi pc_traits.c -lm && /tmp/gg_traits_dsi | tail -1
 gcc $F -w -DGG_BIG -o /tmp/gg_traits_3ds pc_traits.c -lm && /tmp/gg_traits_3ds | tail -1
+# Climate pack: ash, magic, rage and heatwave weather states, atmosphere effects, and save/load.
+gcc $F -w -o /tmp/gg_weather pc_weather.c -lm && /tmp/gg_weather | tail -1
 # planet generator (step 7): main's six shapes unchanged at COASTS / MOUNTAINS normal, the new controls work, SEA the right way round
 gcc $F -w -o /tmp/gg_gen pc_gen.c -lm && /tmp/gg_gen | tail -1
 # speed (step 8): the kingdom answer cache (every cached answer checked against a fresh one), the globe redrawn only on change, the fast shim renderer equal to the plain one byte for byte, a crowd's flat cost per tick

@@ -6,7 +6,7 @@
 #define GGWILD_H
 // ---- the fire elemental: wanders, sets fire to what it touches, dies in rain and storms
 static void fireStep(Hz*h){
-    h->age++; if(weather==1||weather==2){ if(rnd()%8==0){ h->life=0; return; } }
+    h->age++; if(weather==WX_RAIN||weather==WX_STORM){ if(rnd()%8==0){ h->life=0; return; } }
     if(rnd()%6==0){ int d=(int)(rnd()%8); h->dx=hzDx[d]; h->dy=hzDy[d]; }
     int nx=h->x+h->dx, ny=h->y+h->dy; if(nx<2||nx>=WW-2){ h->dx=(s8)-h->dx; nx=h->x; } if(ny<2||ny>=WH-2){ h->dy=(s8)-h->dy; ny=h->y; }
     if(world[ny][nx]==T_DEEP||world[ny][nx]==T_WATER){ h->dx=(s8)-h->dx; h->dy=(s8)-h->dy; nx=h->x; ny=h->y; }       // it will not cross water
@@ -26,8 +26,8 @@ static void ghostStep(Hz*h){
 static int ghostFor(int i){       // a notable with kills or children dies: a ghost where it fell (if the table has room)
     if(!(crFl[i]&FL_NOTE)) return 0; int k=nbFind(crId[i]); if(k<0||(nb[k].kills<5&&nb[k].kids<2)) return 0; if(hzAdd(HZ_GHOST,cr[i].x,cr[i].y)<0) return 0; return 1; }
 // ---- snowmen: harmless, they stand on snow while it snows and melt when it stops or the ground is no longer snow
-static void snowStep(Hz*h){ h->age++; if(world[h->y][h->x]!=T_SNOW||(weather!=3&&rnd()%12==0)) h->life=0; }
-static void snowmenTick(void){ if(weather!=3||(tick&255)!=0||hzCount(HZ_SNOWMAN)>=2) return; for(int k=0;k<30;k++){ int x=(int)(rnd()%WW), y=(int)(rnd()%WH); if(world[y][x]==T_SNOW&&!occ[y][x]&&!bld[y][x]){ hzAdd(HZ_SNOWMAN,x,y); break; } } }
+static void snowStep(Hz*h){ h->age++; if(world[h->y][h->x]!=T_SNOW||(weather!=WX_SNOW&&rnd()%12==0)) h->life=0; }
+static void snowmenTick(void){ if(weather!=WX_SNOW||(tick&255)!=0||hzCount(HZ_SNOWMAN)>=2) return; for(int k=0;k<30;k++){ int x=(int)(rnd()%WW), y=(int)(rnd()%WH); if(world[y][x]==T_SNOW&&!occ[y][x]&&!bld[y][x]){ hzAdd(HZ_SNOWMAN,x,y); break; } } }
 // ---- the crab bomb and Crabzilla
 static int crabT;
 static void crabBomb(int x,int y){ for(int dy=-6;dy<=6;dy++) for(int dx=-6;dx<=6;dx++){ if(dx*dx+dy*dy>36) continue; int xx=x+dx, yy=y+dy; if(xx<0||yy<0||xx>=WW||yy>=WH||!occ[yy][xx]) continue; Cr*c=&cr[occ[yy][xx]-1]; if(arch[sp[c->sp].a].diet==5) continue; if(!HAS(c,TR_GIGGLY)&&c->tr2==0) giveTrait(c,TR_GIGGLY,0); c->food=200; }

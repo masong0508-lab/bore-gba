@@ -923,11 +923,16 @@ static void towerFire(void){   // the towers of a village shoot the nearest mons
             for(int y=ya;y<=yb;y++) for(int x=xa;x<=xb;x++){ int j=occ[y][x]-1; if(j<0) continue; const Cr*c=&cr[j]; if(!c->alive||cellKind(c->sp)!=8) continue; int dx=x-cx, dy=y-cy; if(dx*dx+dy*dy>100) continue;
                 if(f1<0||j<f1){ f2=f1; f1=j; } else if(f2<0||j<f2) f2=j; } }
         for(int q=0;q<2;q++){ int i=q?f2:f1; if(i<0) break; Cr*c=&cr[i]; damageCreature(i,dm,-1); } } }
-static int weather, weatherT=900, flashT;     // 0 clear, 1 rain, 2 storm, 3 snow
+enum { WX_CLEAR, WX_RAIN, WX_STORM, WX_SNOW, WX_ASH, WX_MAGIC, WX_RAGE, WX_HEAT };
+static int weather, weatherT=900, flashT;     // saved in SaveHdr.weather; 4..7 are the four climate events
+static const char *weatherName(int w){
+    static const char *const names[]={"CLEAR","RAIN","STORM","SNOW","ASH CLOUD","MAGIC CLOUD","RAGE CLOUD","HEATWAVE"};
+    return names[(unsigned)w<8?(unsigned)w:0];
+}
 static void volcanoTick(void){   // lava creeps over nearby ground now and then, scorching it, and cools to rock in the rain
     if(tick&15) return; int x=rnd()%WW, y=rnd()%WH; if(world[y][x]!=T_LAVA) return; atmoDust(1);
     int dx=(int)(rnd()%3)-1, dy=(int)(rnd()%3)-1, nx=x+dx, ny=y+dy; if(nx<0||ny<0||nx>=WW||ny>=WH) return; u8 t=world[ny][nx];
-    if(weather==1||weather==2){ if(rnd()%6==0){ setCell(x,y,T_MOUNT); } return; }
+    if(weather==WX_RAIN||weather==WX_STORM){ if(rnd()%6==0){ setCell(x,y,T_MOUNT); } return; }
     if(!gx.lLava&&LAWON(LW_NATDIS)&&!LAWON(LW_GAIA)&&rnd()%(gx.dis==0?100000:gx.dis==1?270:90)==0&&(t==T_MOUNT||t==T_HILL||t==T_DIRT||t==T_GRASS||t==T_FOREST||t==T_DESERT)){ setCell(nx,ny,T_LAVA); if(occ[ny][nx]) killCr(occ[ny][nx]-1); if(bld[ny][nx]){ bld[ny][nx]=0; putCell(nx,ny); } }
     else if(rnd()%400==0) setCell(x,y,T_MOUNT); }
 #include "calamity.h"           // the Calamity pack: tornado, black hole, acid rain, atomic bomb, plague, curse
@@ -958,10 +963,22 @@ static void eventTick(void){   // now and then the world has an event of its own
 static void weatherTick(void){
     if(!LAWON(LW_WEATHER)){ if(weather) weather=0; if(flashT>0) flashT--; return; }
     if(gx.wx){ weather=gx.wx-1; weatherT=3000; }
-    if(--weatherT<=0){ int r=(int)(rnd()%100), cold=(year&3)==3; weather=r<55?0:r<80?(cold?3:1):r<90?(cold?3:2):(cold?3:1); weatherT=weather?1200+(int)(rnd()%2400):900+(int)(rnd()%1800);
-        siprintf(info,"%s",weather==1?"IT BEGINS TO RAIN":weather==2?"A STORM ROLLS IN":weather==3?"SNOW FALLS":"THE SKY CLEARS"); }
-    if((weather==1||weather==2)&&(tick&7)==0){ int x=rnd()%WW, y=rnd()%WH; u8 t=world[y][x]; if(t==T_DIRT&&(rnd()&3)==0) setCell(x,y,T_GRASS); else if(t==T_LAVA&&(rnd()&15)==0) setCell(x,y,T_MOUNT); }
-    if(weather==2&&gx.dis&&LAWON(LW_NATDIS)&&(rnd()%(gx.dis==1?1500:500))==0){ int x=rnd()%WW, y=rnd()%WH; burnAt(x,y,200); if(occ[y][x]) killCr(occ[y][x]-1); if(world[y][x]==T_FOREST&&(rnd()&3)==0) setCell(x,y,T_DIRT); flashT=8; fxReq(FX_LIGHTNING); }
+    if(--weatherT<=0){
+        int r=(int)(rnd()%100), cold=(year&3)==3;
+        weather=r<50?WX_CLEAR:r<68?(cold?WX_SNOW:WX_RAIN):r<76?(cold?WX_SNOW:WX_STORM):r<84?(cold?WX_SNOW:WX_RAIN):r<88?WX_ASH:r<92?WX_MAGIC:r<96?WX_RAGE:WX_HEAT;
+        weatherT=weather?1200+(int)(rnd()%2400):900+(int)(rnd()%1800);
+        siprintf(info,"%s",weather==WX_RAIN?"IT BEGINS TO RAIN":weather==WX_STORM?"A STORM ROLLS IN":weather==WX_SNOW?"SNOW FALLS":weather==WX_ASH?"AN ASH CLOUD GATHERS":weather==WX_MAGIC?"A MAGIC CLOUD DRIFTS IN":weather==WX_RAGE?"A RAGE CLOUD GATHERS":weather==WX_HEAT?"A HEATWAVE BEGINS":"THE SKY CLEARS");
+        if(weather>=WX_ASH) logEv(info);
+    }
+    if((weather==WX_RAIN||weather==WX_STORM)&&(tick&7)==0){ int x=rnd()%WW, y=rnd()%WH; u8 t=world[y][x]; if(t==T_DIRT&&(rnd()&3)==0) setCell(x,y,T_GRASS); else if(t==T_LAVA&&(rnd()&15)==0) setCell(x,y,T_MOUNT); }
+    if((tick&7)==0 && weather>=WX_ASH){
+        int x=(int)(rnd()%WW), y=(int)(rnd()%WH), t=world[y][x], ci=occ[y][x]?(int)occ[y][x]-1:-1;
+        if(weather==WX_ASH){ atmoDust(1); if(t==T_GRASS||t==T_FOREST||t==T_JUNGLE){ if((rnd()&3)==0) setCell(x,y,t==T_GRASS?T_DIRT:T_GRASS); } if(ci>=0&&cr[ci].alive&&arch[sp[cr[ci].sp].a].diet!=5) damageCreature(ci,1,-1); }
+        else if(weather==WX_MAGIC){ if(ci>=0&&cr[ci].alive){ Cr*c=&cr[ci]; c->hp=(u8)(c->hp+2>maxHp(c)?maxHp(c):c->hp+2); if(c->food<120)c->food+=2; } else if(t==T_GRASS&&(rnd()&7)==0) setCell(x,y,T_FOREST); }
+        else if(weather==WX_RAGE){ if(ci>=0&&cr[ci].alive&&arch[sp[cr[ci].sp].a].diet!=5) damageCreature(ci,2,-1); if(t==T_FOREST||t==T_JUNGLE){ burnAt(x,y,60); if((rnd()&3)==0)setCell(x,y,T_DIRT); } }
+        else if(weather==WX_HEAT){ atmoDust(1); if(t==T_SWAMP&&(rnd()&3)==0)setCell(x,y,T_DIRT); else if((t==T_GRASS||t==T_FOREST)&&(rnd()&7)==0)setCell(x,y,T_DIRT); if(ci>=0&&cr[ci].alive&&arch[sp[cr[ci].sp].a].diet!=5) damageCreature(ci,1,-1); }
+    }
+    if(weather==WX_STORM&&gx.dis&&LAWON(LW_NATDIS)&&(rnd()%(gx.dis==1?1500:500))==0){ int x=rnd()%WW, y=rnd()%WH; burnAt(x,y,200); if(occ[y][x]) killCr(occ[y][x]-1); if(world[y][x]==T_FOREST&&(rnd()&3)==0) setCell(x,y,T_DIRT); flashT=8; fxReq(FX_LIGHTNING); }
     if(flashT>0) flashT--; }
 static int cursor=0, vilCur=0;
 static void atmoTick(void){        // every 64 ticks: sample the land, move the gases, warm or cool the world, and let the climate act on the ground
@@ -1345,7 +1362,8 @@ static void applyLight(void){
     int p=gxTimeP((tick>>1)&2047), sun=p<1024?p:2047-p; int L=70+sun*186/1024, Lr=L*236/256, Lg=L*246/256, Lb=L+(256-L)/5+14; if(Lb>256) Lb=256; if(L>256) L=256;
     { int tw=300-(sun>300?sun-300:300-sun); if(tw<0) tw=0; Lr+=tw*Lr/900; Lg+=tw*Lg/3200; Lb-=tw*Lb/1100; if(sun<150){ Lr=Lr*(100-(150-sun)/12)/100; Lb+=(150-sun)/10; } if(Lr>256) Lr=256; if(Lg>256) Lg=256; if(Lb>256) Lb=256; if(Lb<0) Lb=0; }   // warm dawn and dusk, bluer deep night
     if(!gx.lAtmo&&atDust>16*8){ int d=ATV(atDust); if(d>60) d=60; Lr=Lr*(100-d/3)/100; Lg=Lg*(100-d/2)/100; Lb=Lb*(100-d*2/3)/100; }      // a dust veil: dimmer, browner
-    if(weather==1||weather==2){ Lr=Lr*78/100; Lg=Lg*80/100; Lb=Lb*90/100; } else if(weather==3){ Lr=Lr*95/100; Lg=Lg*97/100; }
+    if(weather==WX_RAIN||weather==WX_STORM){ Lr=Lr*78/100; Lg=Lg*80/100; Lb=Lb*90/100; } else if(weather==WX_SNOW){ Lr=Lr*95/100; Lg=Lg*97/100; }
+    else if(weather==WX_ASH){ Lr=Lr*76/100; Lg=Lg*72/100; Lb=Lb*68/100; } else if(weather==WX_MAGIC){ Lr=Lr*92/100; Lg=Lg*96/100; Lb=Lb*82/100; } else if(weather==WX_RAGE){ Lr=Lr*86/100; Lg=Lg*72/100; Lb=Lb*70/100; } else if(weather==WX_HEAT){ Lr=Lr*105/100; Lg=Lg*96/100; Lb=Lb*82/100; if(Lr>256)Lr=256; }
     if(flashT>0){ Lr=Lg=Lb=256; }
     int sh=(tick>>4)&3;
     for(int i=0;i<GFX_PAL_N;i++){ if(UI_RESV(i)) continue; int src=i; if(i>=T_WATER*8+5&&i<T_WATER*8+8) src=T_WATER*8+5+((i-T_WATER*8-5+sh)%3); else if(i>=T_DEEP*8+4&&i<T_DEEP*8+7) src=T_DEEP*8+4+((i-T_DEEP*8-4+(sh>>1))%3);
@@ -1410,7 +1428,7 @@ static void globeDrawNow(void){
                 if(bld[ty][tx]&&bld[ty][tx]!=B_RUIN){ col=lam<2000?(u8)(126+((tick>>4)&1)):(u8)(GP_GROUND+T_DIRT*8+7); }
                 else if(terr==T_LAVA&&lam<3000) col=128;
                 else if((terr==T_WATER||terr==T_DEEP)&&lam>11000&&nz>9000&&((nx+ny)&255)<120) col=129;
-                if(gClouds){ int cv=gCloud[(ty*64/WH)&63][((tx*64/WW)+drift)&63]; int thr=weather==1||weather==2?105:weather==3?125:165; if(cv>thr){ int cl=lvl+(cv-thr)/12; if(cl>7) cl=7; col=(u8)(GP_CLOUD+cl); } }
+                if(gClouds){ int cv=gCloud[(ty*64/WH)&63][((tx*64/WW)+drift)&63]; int thr=(weather==WX_RAIN||weather==WX_STORM||weather==WX_ASH||weather==WX_RAGE)?105:weather==WX_SNOW?125:weather==WX_MAGIC?95:weather==WX_HEAT?180:165; if(cv>thr){ int cl=lvl+(cv-thr)/12; if(cl>7) cl=7; col=(u8)(GP_CLOUD+cl); } }
                 if(nz<3800){ int a=(3800-nz)/700; if(a>5) a=5; if(lam>-2000||a>3) col=(u8)(GP_ATMO+a); } }
             gbuf[sy*256+sx]=col; if(sx+1<256) gbuf[sy*256+sx+1]=col; if(sy+1<192){ gbuf[(sy+1)*256+sx]=col; if(sx+1<256) gbuf[(sy+1)*256+sx+1]=col; } } }
     if(walkOn){ int c=((tick>>3)&1)?3:129; for(int d=4;d<=8;d++){ gbuf[96*256+128+d]=(u8)c; gbuf[96*256+128-d]=(u8)c; gbuf[(96+d)*256+128]=(u8)c; gbuf[(96-d)*256+128]=(u8)c; } }
@@ -1551,7 +1569,7 @@ static int isJingle(int s){ return s>=0&&gmSongs[s].loopRow==65535; }
 static int famOpen(int k);
 static int musDirector(void){
     if(paused) return GM_PAUSE;
-    if(weather==2&&!view3d) return GM_STORM;
+    if((weather==WX_STORM||weather==WX_RAGE)&&!view3d) return GM_STORM;
     if(view3d) return GM_SPHERE;
     int cx=(camX>>3)+16, cy=(camY>>3)+12;
     for(int i=0;i<nCr;i++){ const Cr*c=&cr[i]; if(!c->alive) continue; int a=sp[c->sp].a; if(arch[a].diet!=5||c->hp<100) continue; int dx=c->x-cx, dy=c->y-cy; if(dx*dx+dy*dy>900) continue;
@@ -1622,11 +1640,11 @@ static void drawSprites(void){
     for(int k=0;k<nh;k++) oamSet(&oamMain,crMax+k,hs[k][0],hs[k][1],0,hs[k][2]==44?15:hs[k][2]==46?1:hs[k][2]==47?13:hs[k][2]>=48?14:13,SpriteSize_8x8,SpriteColorFormat_16Color,gfxF[hs[k][2]][0],-1,false,false,hs[k][3]!=0,false,false);
     for(int k=nc;k<108;k++) oamSetHidden(&oamMain,k,true);
     // weather: rain and snow as sprites falling across the touch screen
-    int cnt=weather==1?14:weather==2?20:weather==3?16:0;
+    int cnt=weather==WX_RAIN?14:weather==WX_STORM?20:weather==WX_SNOW?16:weather==WX_ASH?12:weather==WX_MAGIC?10:weather==WX_RAGE?16:weather==WX_HEAT?8:0;
     if(!wptInit){ wptInit=1; for(int i=0;i<20;i++){ wpt[i].x=(short)(hsh(i,1,3)%256); wpt[i].y=(short)(hsh(i,2,3)%160); } }
     for(int i=0;i<20;i++){ if(i>=cnt||view3d){ oamSetHidden(&oamMain,108+i,true); continue; }
-        if(weather==3){ wpt[i].y+=1+(i&1); wpt[i].x+=(short)(((tick>>3)+i)%3)-1; } else { wpt[i].y+=7; wpt[i].x-=2; } if(wpt[i].y>=160){ wpt[i].y=-8; wpt[i].x=(short)(rnd()%256); } if(wpt[i].x<0) wpt[i].x+=256; if(wpt[i].x>255) wpt[i].x-=256;
-        oamSet(&oamMain,108+i,wpt[i].x,wpt[i].y,0,weather==3?14:6,SpriteSize_8x8,SpriteColorFormat_16Color,gfxF[weather==3?41:40][0],-1,false,false,false,false,false); }
+        if(weather==WX_SNOW||weather==WX_MAGIC){ wpt[i].y+=1+(i&1); wpt[i].x+=(short)(((tick>>3)+i)%3)-1; } else if(weather==WX_HEAT){ wpt[i].y-=1+(i&1); wpt[i].x+=(short)(((tick>>2)+i)%3)-1; } else { wpt[i].y+=weather==WX_ASH?3:7; wpt[i].x-=weather==WX_RAGE?1:2; } if(wpt[i].y>=160){ wpt[i].y=-8; wpt[i].x=(short)(rnd()%256); } else if(wpt[i].y<-8){ wpt[i].y=160; wpt[i].x=(short)(rnd()%256); } if(wpt[i].x<0) wpt[i].x+=256; if(wpt[i].x>255) wpt[i].x-=256;
+        oamSet(&oamMain,108+i,wpt[i].x,wpt[i].y,0,weather==WX_SNOW?14:weather==WX_MAGIC?13:weather==WX_ASH?3:weather==WX_RAGE?2:weather==WX_HEAT?4:6,SpriteSize_8x8,SpriteColorFormat_16Color,gfxF[(weather==WX_SNOW||weather==WX_MAGIC)?41:40][0],-1,false,false,false,false,false); }
 }
 static u8 mmCol[T_N];
 static int page=0, titleOn=1, sceneOn=0;
@@ -1925,7 +1943,7 @@ static void uiTheatre(void){
         int nx=gxn[x+R], ny=gxn[y+R], nz=gnz[d2]; int tx,ty; globeDir(nx,ny,nz,cL,sL,cP,sP,&tx,&ty);
         int lam=(-nx*7+ny*7+nz*12)/26; int j=lam<2500?0:lam<9000?1:2; int terr=world[ty][tx]; int col=100+terr*3+j; { int bb=bioAt(tx,ty); if(bb&&terr>T_WATER&&terr!=T_LAVA) col=85+bb; }
         if(bld[ty][tx]&&bld[ty][tx]!=B_RUIN&&lam>-2000) col=lam<9000?U_ORANGE:U_YELLOW;
-        if(gClouds){ int cv=gCloud[(ty*64/WH)&63][((tx*64/WW)+drift)&63]; int thr=weather==1||weather==2?105:weather==3?125:165; if(cv>thr) col=U_WHITE; }
+        if(gClouds){ int cv=gCloud[(ty*64/WH)&63][((tx*64/WW)+drift)&63]; int thr=(weather==WX_RAIN||weather==WX_STORM||weather==WX_ASH||weather==WX_RAGE)?105:weather==WX_SNOW?125:weather==WX_MAGIC?95:weather==WX_HEAT?180:165; if(cv>thr) col=U_WHITE; }
         if(nz<3000&&lam>-3000) col=U_CYAN;
         uiPx(sx,sy,col); uiZSet(sx,sy,col==U_WHITE?nz*10/16384+4:nz*10/16384+1); }
     { char b[40]; siprintf(b,"YEAR %d  %d KINGDOMS",year,(int)(kd[0].on+kd[1].on+kd[2].on+kd[3].on+kd[4].on+kd[5].on+kd[6].on+kd[7].on)); uiTextC(128,182,b,U_GOLD,1); uiZSet(128,182,0); } }
@@ -1956,7 +1974,7 @@ static void uiStatus(void){
     uiFrame(2,150,252,28,U_PANEL,U_BHI,U_BLO); uiRect(5,153,14,14,U_SHADOW); uiPowerIcon(power,7,155);
     { char nm[40]; if(pw[power].kind==PK_SPAWN){ spName(spSel,nm); siprintf(b,"%s",nm); } else if(pw[power].kind==PK_GIFT){ itSay(nm,itSel); siprintf(b,"%.28s",nm); } else if(pw[power].kind==PK_MUTATE) siprintf(b,"TRAIT: %s",trSel?trNm[trSel]:"CLEAR"); else if(pw[power].kind==PK_STATUS) siprintf(b,"STATUS: %.20s",statusName[statusSel]); else if(pw[power].kind==PK_PAINT) siprintf(b,"BRUSH %d",brush); else siprintf(b,"BRUSH %d",brush);
       uiText(24,154,pw[power].nm,U_GOLD,1); uiText(24+uiTextW(pw[power].nm,1)+6,154,b,U_WHITE,1); if(toastT>0&&info[0]) uiText(24,166,info,U_YELLOW,1); else uiText(24,166,pw[power].kind<PW_N?pwDesc[power]:"",U_DIM,1); }
-    uiIcon8(4,182,IC8_NOTE); { char mn[24]=""; if(gmCur>=0){ strncpy(mn,gmSongs[gmCur].name,19); mn[19]=0; } uiText(14,183,mn,U_DIM,1); } { static const char* const wn[4]={"CLEAR","RAIN","STORM","SNOW"}; siprintf(b,"%s %s",ageN[worldAge()],wn[weather&3]); uiTextR(250,183,b,U_DIM); }
+    uiIcon8(4,182,IC8_NOTE); { char mn[24]=""; if(gmCur>=0){ strncpy(mn,gmSongs[gmCur].name,19); mn[19]=0; } uiText(14,183,mn,U_DIM,1); } { siprintf(b,"%s %s",ageN[worldAge()],weatherName(weather)); uiTextR(250,183,b,U_DIM); }
     uiFlush(); }
 static int achSel, kingSel, jrSel;
 static void uiAch(void){
