@@ -4,7 +4,8 @@
 set -e; cd "$(dirname "$0")"; : ${DEVKITPRO:=/opt/devkitpro}; export DEVKITPRO DEVKITARM=$DEVKITPRO/devkitARM
 sed "s#ORIGIN = 0x2000000, LENGTH = 0x380000#ORIGIN = 0x2000800, LENGTH = 0x37f800#" $DEVKITPRO/calico/lib/ds9-legacy.ld > ds9-800.ld
 printf '%%include <sync-none.specs>\n\n*link:\n+ -dT %s/ds9-800.ld --gc-sections --nmagic --no-warn-rwx-segments --use-blx\n\n*startfile:\ncrti%%O%%s crtbegin%%O%%s --require-defined=main\n' "$PWD" > ds9-800.specs
-make "$@" 2>&1 | grep -E "error|undefined" || true
+# Do not filter or ignore make output: preserve the real linker diagnostic and exit status.
+make "$@"
 $DEVKITARM/bin/arm-none-eabi-objcopy -O binary godguy.elf godguy9.body
 /usr/bin/python3 - <<'PY'
 import struct
