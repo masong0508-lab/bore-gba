@@ -1161,23 +1161,24 @@ static int chapVal(int kind){
 // ---------------------------------------------------------------------------------------------- the cast and their words
 enum { W_WISP, W_MIRA, W_GRUUL, W_ELOWEN, W_THORGRIM, W_HOLLOW, W_DAVE, W_N };
 static const char* const whoNm[W_N]={"WISP","MIRA","GRUUL","ELOWEN","THORGRIM","THE HOLLOW KING","DAVE THE COUCH WIZARD"};
-static const u8 whoShape[W_N]={17,5,26,24,25,17,22}, whoFam[W_N]={14,12,4,5,11,15,3};
+static const char* const whoRole[W_N]={"THE FIRST SPARK","KEEPER OF THE HEARTH","WARDEN OF THE RIVER",
+    "KEEPER OF NAMES","SMITH OF THE HALL","THE GOD WHO CAME BEFORE","WIZARD OF THE LONG COUCH"};
 typedef struct { u8 who; const char*txt; } Dl;
 static const Dl dl0[]={{W_WISP,"You woke. Good. I am Wisp. I was a spark in the dark before you, and I have waited a very long time for a god."},{W_WISP,"The world is empty and quiet. Touch it. Rain, fire, new land. Teach me what you are."},{0,0}};
-static const Dl dl1[]={{W_WISP,"Land is not enough. Land is a stage. We need someone to stand on it. Use SPAWN, or SETTLE, and make us some folk."},{W_MIRA,"Who spoke the rain? ...Was it you, up there? I am Mira. We are cold, and we are many, and we are afraid."},{W_WISP,"Be gentle with her. She is the first to ever look up."},{0,0}};
-static const Dl dl2[]={{W_MIRA,"The nights are long and the wolves are longer. We piled stones against the wind, but stones do not hold a roof."},{W_WISP,"Give them time and food and room. Homes will follow. People are better builders than gods."},{0,0}};
-static const Dl dl3[]={{W_GRUUL,"I am Gruul of the orcs. The humans took the river. It was OUR river. Tell your sky-god to keep to the clouds."},{W_MIRA,"We did not know it was yours. We only knew we were thirsty."},{W_WISP,"Two peoples, one river. You can bless them, or break them. A god chooses."},{W_DAVE,"Whoa. Hey. Is this the part where the world starts? I am Dave. I have been a wizard on this couch for, like, a thousand years."},{W_DAVE,"Anyway. Snacks. If you give a creature a snack, it might just... get it. Like, really get it. Try the nachos."},{0,0}};
+static const Dl dl1[]={{W_WISP,"Land is not enough. Land is a stage. We need someone to stand on it. Use SPAWN, or SETTLE, and make us some folk."},{W_MIRA,"Who spoke the rain? I am Mira. I set out my brass cup to catch the first drops. It is the first full thing we have had in days."},{W_WISP,"Be gentle with her. She is the first to ever look up."},{0,0}};
+static const Dl dl2[]={{W_MIRA,"We piled stones against the wind. At night the children take turns holding down the roof. Give us time to learn to build it right."},{W_WISP,"Leave room along the paths they walk. They know where a door belongs."},{0,0}};
+static const Dl dl3[]={{W_GRUUL,"I am Gruul, warden of this river. My people dug the ford. Now I find your footprints on both banks. Tell me what I am to tell them."},{W_MIRA,"We only knew we were thirsty. Take the first cup. Then tell me where your folk need us to stop."},{W_WISP,"Two peoples, one river. You can bless them, or break them. A god chooses."},{W_DAVE,"Whoa. Hey. Is this the part where the world starts? I am Dave. I have been a wizard on this couch for, like, a thousand years."},{W_DAVE,"Anyway. Snacks. If you give a creature a snack, it might just... get it. Like, really get it. Try the nachos."},{0,0}};
 static const Dl dl4[]={{W_HOLLOW,"I smell a new god. How sweet. How young."},{W_WISP,"...He is here. The Hollow King. He was the god before you, and the one before that."},{W_WISP,"His creatures are coming. Smite them, arm your people, build towers. He will not stop."},{0,0}};
-static const Dl dl5[]={{W_THORGRIM,"Thorgrim, smith. Give us iron, godguy, and we will make the dark bleed. Swords, shields, anything with an edge."},{W_GRUUL,"Orcs fight better than they build. Give us an axe and stand back."},{W_MIRA,"Use the GIFT power. A gift to a hand is worth ten prayers."},{0,0}};
+static const Dl dl5[]={{W_THORGRIM,"Thorgrim, smith. The first blade is for Gruul. The second will be a plough. Bring iron, godguy. We need enough for both."},{W_GRUUL,"Orcs fight better than they build. Give us an axe and stand back."},{W_MIRA,"Use the GIFT power. A gift to a hand is worth ten prayers."},{0,0}};
 static const Dl dl6[]={{W_MIRA,"A hall of stone. My grandmother would not believe it. Our children will never know this cold."},{W_THORGRIM,"Stone remembers what wood forgets. Build it tall."},{0,0}};
-static const Dl dl7[]={{W_ELOWEN,"I am Elowen. I keep the names of things. If a nightmare has a name, it shrinks a little."},{W_ELOWEN,"Walk the world and show me every creature the Hollow King sends. I will write each one in the bestiary."},{0,0}};
-static const Dl dl8[]={{W_GRUUL,"The humans and the orcs sit at one fire now. I never thought I would say it. Peace is a strange meat."},{W_MIRA,"Kings and queens rise and fall, godguy. We do not need them to be good. We need them to be many."},{0,0}};
+static const Dl dl7[]={{W_ELOWEN,"I am Elowen. When something scares me, I draw it. Then I leave room on the page for all the things I got wrong."},{W_ELOWEN,"Walk the world and show me every creature the Hollow King sends. I will write each one in the bestiary."},{0,0}};
+static const Dl dl8[]={{W_GRUUL,"Mira still leaves a cup by our fire. I used to think she was asking permission. Turns out she was saving me a seat."},{W_MIRA,"Kings and queens rise and fall, godguy. We do not need them to be good. We need them to be many."},{0,0}};
 static const Dl dl9[]={{W_HOLLOW,"I was here before you. I made seas, and cities, and loved them. They all burned, or forgot me. Or I forgot them."},{W_WISP,"Do not listen. He wants you to be as tired as he is."},{W_THORGRIM,"Hold the walls! The horde is at the gate!"},{W_DAVE,"Dude. Kings. Crowns. So much stress. Have you tried just... sitting? The couch is very long, godguy. It has room."},{0,0}};
-static const Dl dl10[]={{W_MIRA,"I am old now, godguy. The city never sleeps, and neither do I. Thank you for the rain. And the fire."},{W_WISP,"She will not be here forever. That is what makes it matter."},{0,0}};
-static const Dl dl11[]={{W_ELOWEN,"Every one of them has a page now. Venomous, giant, tiny, winged. I never thought the dark could be so varied."},{W_ELOWEN,"And do you know, they are not all evil. Some only follow the Hollow King because no one asked them to stay."},{0,0}};
+static const Dl dl10[]={{W_MIRA,"The cup leaks now. One of the children uses it to water the beans anyway. I think she will be all right when I am gone."},{W_WISP,"She will not be here forever. That is what makes it matter."},{0,0}};
+static const Dl dl11[]={{W_ELOWEN,"I drew teeth first. Then I drew where they sleep, what they eat and which ones come back for their young. The book needed more pages."},{W_ELOWEN,"And do you know, they are not all evil. Some only follow the Hollow King because no one asked them to stay."},{0,0}};
 static const Dl dl12[]={{W_WISP,"I have learned something about the Hollow King. He is not a monster. He is the last god who gave up."},{W_WISP,"Every world he made, he watched die. So he made monsters instead. They never leave."},{W_GRUUL,"Then end him. Or end the loneliness. I do not know which is harder."},{W_DAVE,"The long peace. Yeah. That is the vibe. Honestly the best thing you ever made was a quiet afternoon and a bag of cheesy puffs."},{W_WISP,"Dave, how are you in my story."},{W_DAVE,"Wisp. Man. The couch is in everyone's story."},{0,0}};
 static const Dl dl13[]={{W_HOLLOW,"You have counted my children and you have killed many. Why do you still come?"},{W_WISP,"Because they are not only monsters. Because you are not only a king."},{W_HOLLOW,"...Show me, then. Show me a world that does not burn."},{0,0}};
-static const Dl dl14[]={{W_HOLLOW,"The sky is open. The rain falls. Mira's children laugh in a city that never sleeps. It does not burn."},{W_HOLLOW,"Thank you, godguy. I will stay, if the world will have me."},{W_WISP,"There is room for two gods. There always was. Welcome home."},{0,0}};
+static const Dl dl14[]={{W_HOLLOW,"I heard laughter in the rain and waited for it to stop. Mira's children moved their supper under the eaves. The city kept its lights on."},{W_HOLLOW,"Thank you, godguy. I will stay, if the world will have me."},{W_WISP,"There is room for two gods. There always was. Welcome home."},{0,0}};
 static const Dl*const dlgTab[15]={dl0,dl1,dl2,dl3,dl4,dl5,dl6,dl7,dl8,dl9,dl10,dl11,dl12,dl13,dl14};
 static const char* const chapTxt[CHAP_N]={"THE FIRST LIGHT TOUCHES THE LAND","SOMEONE LOOKS UP AT YOU","ROOFS GO UP AGAINST THE NIGHT","TWO PEOPLES MEET AT THE WELL","THE DARKNESS HAS TEETH","THEY LEARN TO FIGHT BACK","STONE REMEMBERS, WOOD FORGETS","YOU BEGIN TO NAME THE FEARS","KINGS RISE. KINGS FALL.","THE HORDE BREAKS ON THE WALLS","A CITY THAT NEVER SLEEPS","EVERY NIGHTMARE HAS A PAGE","THE LONG PEACE BEGINS","THE WORLD KNOWS YOUR NAME"};
 static void chapterDone(void){   // a chapter is finished (by play, or by the debug menu): items open, the jingle plays, the aural sculptures open at chapter 3
@@ -1758,11 +1759,14 @@ static const char* const helpTxt[]={"TOUCH THE WORLD: USE POWER","L R      CHOOS
 static const char* const tipTxt[]={"TOUCH THE WORLD TO USE A POWER","L R CHANGES THE POWER","TRY SPAWN, THEN RAIN AND FIRE","START A VILLAGE: SETTLE","SELECT: STORY, BESTIARY, HELP","X+Y SHOWS THE WORLD AS A GLOBE","SNACKS MAY GIVE FOLK CHILL TRAITS","DAVE SAYS: HAVE YOU TRIED SITTING","FEED A MONSTER A NACHO. SEE WHAT HAPPENS","THE COUCH HAS ROOM FOR EVERYONE","MUNCHIES ARE NOT A BUG"};
 static const char* const*sceneTxt, *const*sceneNext; static int menuOn, menuSel, menuAsk, toastT, dlgOn, dlgIdx, dlgChars, dlgPaused, sceneOff, sceneT, sceneScroll, endShown, scenePaused, helpSel, trPage, tipN;
 static const Dl*dlgSet; static char lastInfo[64];
-static const u16 *sceneClip;
+static const FmvClip *sceneClip;
+_Static_assert(sizeof fmvClips/sizeof *fmvClips==CHAP_N+1,"One FMV per chapter plus the finale");
+_Static_assert(sizeof fmvPortraitOffsets/sizeof *fmvPortraitOffsets==(W_N+1)*FMV_PORTRAIT_CELS,
+    "Portrait cels for the cast and older Mira");
 static const char* const pwDesc[PW_N]={"LOOK AT A CREATURE OR A VILLAGE","PAINT SHALLOW WATER","PAINT DEEP SEA","PAINT SAND","PAINT GRASS","PLANT FOREST","PLANT JUNGLE","RAISE HILLS","RAISE MOUNTAINS","PAINT SNOW","PAINT DESERT","PAINT SWAMP","PAINT LAVA","PAINT CORRUPTED GROUND","PAINT INFERNAL GROUND","PAINT ENCHANTED GROUND","WARM THE AIR (GREENHOUSE)","ADD OXYGEN TO THE AIR","RAISE A DUST CLOUD","CREATE LIFE  (X Y: SPECIES)","RAIN GREENS THE LAND","BURN WHAT YOU TOUCH","STRIKE ONE TILE DEAD","DROP A METEOR","KILL WHAT YOU TOUCH","HEAL CREATURES","FEED CREATURES","FOUND A VILLAGE","START A WAR","END ALL WARS","FILL A VILLAGE STORE","GIVE AN ITEM  (X Y: ITEM)","GIVE A TRAIT  (X Y: TRAIT)","SHAKE THE GROUND","FLOOD THE LAND","MAKE THE LAND BLOOM","CHILL A CREATURE OR VILLAGE","A ROAMING TORNADO TEARS THINGS UP","ACID BURNS PLANTS, HOMES AND FLESH","A HOLE THAT EATS LAND AND LIFE","THE BIG ONE: A CRATER AND FALLOUT","SICKEN FOLK: IT SPREADS BY TOUCH","WITHER FOLK AND ROT A STORE","A CITY BECOMES ITS OWN KINGDOM","WHISPER WAR: TAP A KINGDOM, THEN A TARGET","TAP A KINGDOM: ITS ALLIANCES BREAK","TAP TWO KINGDOMS: THEY ALLY","EVERYONE DESPISES THIS KINGDOM","TAP A KINGDOM: ITS WARS END","A KINGDOM FORGETS ITS LANGUAGE","CREATURES FORGET FAMILY AND LOVED ONES","A CITY FORGETS ITS KINGDOM","RAIN GEAR ON FOLK AND CREATURES","STRIP GEAR FROM ALL IN THE BRUSH","A ROAMING FIRE SPIRIT (FIVE ELEMENTAL VARIANTS)","A CREEPING GREY BLOB EATS THE LAND","A FALLING CRAB: EVERYONE RAVES","THE GIANT CRAB STOMPS (COOLS DOWN)","GIVE ANIMALS A MIND OF THEIR OWN","A STONE THAT SLOWLY UPLIFTS ANIMALS NEAR IT","TOGGLE A CREATURE STATUS (X Y: STATUS)","ALIENS LAND AND HUNT THE LIVING","AN ELDER DRAGON BURNS A PATH","WRAITHS HAUNT SETTLEMENTS","A GROWING TUMOR SPREADS OVER THE LAND","A MOVING BLIZZARD FREEZES THE GROUND","A HEALING GARDEN SPREADS LIFE","A SMALL PRECISE LIGHTNING STRIKE","A WIDER LIGHTNING STRIKE","COPY A TILE AND STAMP IT WITH THE BRUSH","PRINT FOREST","PRINT WATER","PRINT MOUNTAIN","COPY THE BIOME UNDER THE BRUSH","CLEAR BIOME AND BUILDINGS","TAKE DIRECT CONTROL OF A CREATURE WITH THE D-PAD","CYCLE THROUGH NAVY SEALS, PLANES, HYPERCUBE, GHOST CIVILIZATION, CYBERCORE AND SUPER PUMPKIN"};
 static int sceneLines(const char*const*t){ int n=0; while(t[n]) n++; return n; }
 static void sceneStart(const char*const*t,int scroll){ sceneTxt=t; sceneScroll=scroll; sceneOff=scroll?-20:0; sceneT=0; if(!sceneOn) scenePaused=paused; sceneOn=1; paused=1; }
-static void sceneStartFmv(const char*const*t,const u16*clip){
+static void sceneStartFmv(const char*const*t,const FmvClip*clip){
     sceneStart(t,0);
     sceneClip=clip;
     uiNBtn=0;
@@ -1832,7 +1836,7 @@ static void doSave(void){ if(!sdOk) { siprintf(info,"NO SD CARD: NOT SAVED"); re
 #endif
  siprintf(info,"SAVE FAILED"); } }
 static void setSize(int sz){ planetSize=sz; }
-static void startWorld(int story){ possessed=-1; printerCopied=0; storyOn=story; newWorld(); camX=(WW*8-256)/2; camY=(WH*8-192)/2; winX=-99; refillWindow(); titleOn=0; paused=0; endShown=storyDone; musReq(GM_NEWWORLD); if(story&&chapter==0&&stUse==0){ sceneStartFmv(introTxt,fmv_opening); dlgPend=0; } }
+static void startWorld(int story){ possessed=-1; printerCopied=0; storyOn=story; newWorld(); camX=(WW*8-256)/2; camY=(WH*8-192)/2; winX=-99; refillWindow(); titleOn=0; paused=0; endShown=storyDone; musReq(GM_NEWWORLD); if(story&&chapter==0&&stUse==0){ sceneStartFmv(introTxt,&fmvClips[0]); dlgPend=0; } }
 static void monName(int m,char*out){ int a=ARCH_A+m/16, fam=m%16; strcpy(out,advNm[fam]); strcat(out," "); strcat(out,arch[a].nm); }
 static short plLon[109*109], plWy[109*109]; static u8 plJ[109*109];
 #ifdef NDSSHIM
@@ -2259,11 +2263,28 @@ static void uiDebug(void){
 static void uiDialog(void){
     uiBtn(0,0,256,192,KEY_A,0,0,0);
     const Dl*d=&dlgSet[dlgIdx]; uiRect(0,0,256,192,U_BG); for(int y=0;y<192;y+=2) uiRect(0,y,256,1,U_PANEL);
-    uiFrame(8,10,66,66,U_SHADOW,U_GOLD,U_BLO); { int fam=whoFam[d->who]; for(int k=0;k<3;k++) BG_PALETTE_SUB[200+k]=RGB15(famCol[fam][k][0],famCol[fam][k][1],famCol[fam][k][2]); BG_PALETTE_SUB[203]=RGB15(31,31,31);
-        for(int y=0;y<8;y++) for(int x=0;x<8;x++){ char ch=shpRow(whoShape[d->who],((tick>>4)&1),y)[x]; int c=ch=='b'?200:ch=='d'?201:ch=='a'?202:ch=='e'?203:0; if(c) uiRect(13+x*7,15+y*7,7,7,c); } }
-    int len=(int)strlen(whoNm[d->who]); uiTextS(84,18,whoNm[d->who],U_GOLD,len>9?1:2); uiRect(84,38,160,1,U_BHI); { char b[32]; int n=0; while(dlgSet[n].txt) n++; siprintf(b,"%d/%d",dlgIdx+1,n); uiTextR(246,28,b,U_DIM); }
-    uiFrame(8,84,240,92,U_PANEL,U_BHI,U_BLO); char buf[160]; int tl=(int)strlen(d->txt); int cc=dlgChars<tl?dlgChars:tl; memcpy(buf,d->txt,cc); buf[cc]=0; uiWrap(14,90,37,9,buf,U_WHITE);
-    if(dlgChars>=tl&&((tick>>4)&1)) uiText(222,164,"A >",U_GOLD,1); else if(dlgChars<tl) uiText(196,164,"A: HURRY  B: SKIP",U_DIM,1);
+    uiFrame(8,8,70,70,U_SHADOW,U_GOLD,U_BLO);
+    uiGrad(11,11,64,64,G_BG);
+    int who=d->who;
+    int portrait=who==W_MIRA&&dlgSet==dlgTab[10]?W_N:who;
+    int tl=(int)strlen(d->txt), cc=dlgChars<tl?dlgChars:tl;
+    int cel=(tick+who*11)%107<5?2:cc<tl&&(tick/5)%2?1:0;
+    fmvPortrait(11,11,portrait,cel);
+    int len=(int)strlen(whoNm[who]);
+    uiTextS(86,17,whoNm[who],U_GOLD,len>12?1:2);
+    uiText(86,37,whoRole[who],U_DIM,1);
+    uiRect(86,49,160,1,U_BHI);
+    int lines=0;
+    while(dlgSet[lines].txt) lines++;
+    char count[16];
+    siprintf(count,"%d/%d",dlgIdx+1,lines);
+    uiTextR(244,57,count,U_DIM);
+    uiFrame(8,84,240,94,U_PANEL,U_BHI,U_BLO);
+    char buf[160];
+    memcpy(buf,d->txt,cc);
+    buf[cc]=0;
+    uiWrap(15,94,37,7,buf,U_WHITE);
+    uiTextR(241,166,cc<tl?"A HURRY  B SKIP":"A NEXT  B SKIP",U_DIM);
     uiFlush(); }
 static void uiMenu(void){
     if(mScr==4){ uiSlots(); return; }
@@ -2428,10 +2449,12 @@ int main(void){
         if(zBmp&&(sceneOn||titleOn)) zSet(Z_NORMAL);
         if(sceneClip){
             int skipped=kd&(KEY_A|KEY_START);
-            if(skipped||sceneT==FMV_FRAMES*FMV_TICKS){
+            if(skipped||sceneT==sceneClip->frames*FMV_TICKS){
                 sceneClip=0;
                 sceneT=0;
-                // Consume the skip and show the narration before accepting another press.
+                // A chapter interlude returns to the dialogue it was covering.
+                // Intro and finale keep their narration cards open.
+                if(!sceneTxt){ sceneOn=0; paused=scenePaused; }
                 uiScrId=-1;
                 swiWaitForVBlank();
                 hud();
@@ -2445,13 +2468,27 @@ int main(void){
         if(sceneOn){ sceneT++; int n=sceneLines(sceneTxt); if(sceneScroll&&(sceneT&7)==0) sceneOff++; int done=(kd&(KEY_A|KEY_START))!=0; if(sceneScroll&&sceneOff>n+2) done=1;
             if(done){ if(sceneNext){ const char*const*nx=sceneNext; int sp0=scenePaused; sceneNext=0; sceneOn=0; sceneStart(nx,1); scenePaused=sp0; musReq(GM_CREDITS); } else { sceneOn=0; paused=scenePaused; } }
             refillWindow(); swiWaitForVBlank(); bgSetScroll(0,zBmp?0:camX&511,zBmp?0:camY&511); bgUpdate(); drawSprites(); oamUpdate(&oamMain); if((tick&7)==0){ applyLight(); hud(); } continue; }
-        if(!titleOn&&!sceneOn&&!dlgOn&&dlgPend>=0&&storyOn){ dlgSet=dlgTab[dlgPend]; dlgPend=-1; dlgIdx=0; dlgChars=0; dlgOn=1; dlgPaused=paused; paused=1; }
+        if(!titleOn&&!sceneOn&&!dlgOn&&dlgPend>=0&&storyOn){
+            int next=dlgPend;
+            dlgSet=dlgTab[next];
+            dlgPend=-1;
+            dlgIdx=0;
+            dlgChars=0;
+            dlgOn=1;
+            dlgPaused=paused;
+            paused=1;
+            if(next>0&&next<CHAP_N){
+                sceneStartFmv(0,&fmvClips[next]);
+                swiWaitForVBlank();
+                continue;
+            }
+        }
         if(dlgOn){ const Dl*d=&dlgSet[dlgIdx]; int tl=(int)strlen(d->txt); if(dlgChars<tl) dlgChars+=2; if(kd&KEY_A){ if(dlgChars<tl) dlgChars=tl; else { dlgIdx++; dlgChars=0; if(!dlgSet[dlgIdx].txt){ dlgOn=0; paused=dlgPaused; } } } if(kd&KEY_B){ dlgOn=0; paused=dlgPaused; }
             refillWindow(); swiWaitForVBlank(); bgSetScroll(0,zBmp?0:camX&511,zBmp?0:camY&511); bgUpdate(); drawSprites(); oamUpdate(&oamMain); if((tick&7)==0) applyLight(); if(dlgOn&&((tick&1)==0||(kd))) hud(); else if(!dlgOn) hud(); continue; }
         if(!titleOn&&!sceneOn&&strcmp(info,lastInfo)){ strcpy(lastInfo,info); toastT=420; } if(toastT>0) toastT--;
         if(menuOn){ menuInput(kd); refillWindow(); swiWaitForVBlank(); bgSetScroll(0,zBmp?0:camX&511,zBmp?0:camY&511); bgUpdate(); drawSprites(); oamUpdate(&oamMain); if(kd||(tick&15)==0) hud(); continue; }   // (redrawn when a button was pressed, and now and then for the clock: a full redraw and copy every frame took longer than a frame)
         if(!titleOn&&(tick&15)==0) unlockTiers();   // the chapter goal is checked here as well as in simulate(): a paused world, or a speed that steps over the 256th tick, never reached the check there
-        if(storyOn&&storyDone&&!endShown&&!titleOn&&!dlgOn&&dlgPend<0){ endShown=1; if(view3d) leave3D(); sceneNext=credTxt; sceneStartFmv(endTxt,fmv_finale); swiWaitForVBlank(); continue; }
+        if(storyOn&&storyDone&&!endShown&&!titleOn&&!dlgOn&&dlgPend<0){ endShown=1; if(view3d) leave3D(); sceneNext=credTxt; sceneStartFmv(endTxt,&fmvClips[CHAP_N]); swiWaitForVBlank(); continue; }
         if(!titleOn&&!sceneOn&&stUse<12&&tick>300&&(tick%600)==0){ siprintf(info,"%.32s",tipTxt[tipN++%11]); }
         if(titleOn&&!extrasView){
             int ch=kd!=0; { static const u16 code[10]={KEY_UP,KEY_UP,KEY_DOWN,KEY_DOWN,KEY_LEFT,KEY_LEFT,KEY_RIGHT,KEY_B,KEY_A,KEY_START};
