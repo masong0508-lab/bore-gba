@@ -51,6 +51,18 @@ Build: `make` with devkitARM + libnds. PC test of the world and the ecosystem: `
 
 Roadmap: villages and civilisations that build, wars, disasters over time, 300+ items and tools, 300+ enemies, the story mode that unlocks free-play items, bigger planets (the world arrays are the limit: 256 x 256 fits the DS's 4 MB), saves, then PSP / Vita / 3DS ports.
 
+## Story movies
+
+Story Mode starts with a pre-rendered fly-in to the first planet. After the
+Hollow King's epilogue, a second clip revisits the coast as its villages wake
+up. Each clip plays for four seconds. Press **A** or **START**, or tap the
+cutscene screen, to go straight to the narration.
+
+The DS, DSi, 3DS and PC builds play the same bundled 128 × 72 footage at
+12 frames per second. The game score continues during playback. To regenerate
+the assets after editing the shots, run `python3 tools/make_story_fmv.py`
+from `godguy/` with Pillow installed.
+
 ## v0.9.1 menus and loading screens
 The title and pause menus are now structured with sub-menus: CONTINUE, CREATE A PLANET (size, world type, difficulty, create), OPTIONS (difficulty, music volume, monsters) and EXTRAS (Aural Sculptures, Bestiary, Subspecies, Help, Credits, Debug). The pause menu has RESUME, SAVE, OPTIONS, EXTRAS, NEW WORLD, MODE, TITLE SCREEN. START leaves an Extras page back to the menu. Making, loading or enlarging a world shows a loading screen with a growing planet and progress bar.
 

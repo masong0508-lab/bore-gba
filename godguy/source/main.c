@@ -1474,6 +1474,7 @@ static void applyLight(void){
     BG_PALETTE[0]=0;
 }
 #include "ui.h"
+#include "story_fmv.h"
 #include "title3d.h"
 // ---------------------------------------------------------------------------------------------- the globe: a planet drawn by the CPU (no 3D hardware, so it works in every build)
 // Every pixel of the disc has a normal (from a table made once per size); a small matrix turns it into a direction on the planet, two table lookups give the longitude and latitude, and the
@@ -1757,9 +1758,17 @@ static const char* const helpTxt[]={"TOUCH THE WORLD: USE POWER","L R      CHOOS
 static const char* const tipTxt[]={"TOUCH THE WORLD TO USE A POWER","L R CHANGES THE POWER","TRY SPAWN, THEN RAIN AND FIRE","START A VILLAGE: SETTLE","SELECT: STORY, BESTIARY, HELP","X+Y SHOWS THE WORLD AS A GLOBE","SNACKS MAY GIVE FOLK CHILL TRAITS","DAVE SAYS: HAVE YOU TRIED SITTING","FEED A MONSTER A NACHO. SEE WHAT HAPPENS","THE COUCH HAS ROOM FOR EVERYONE","MUNCHIES ARE NOT A BUG"};
 static const char* const*sceneTxt, *const*sceneNext; static int menuOn, menuSel, menuAsk, toastT, dlgOn, dlgIdx, dlgChars, dlgPaused, sceneOff, sceneT, sceneScroll, endShown, scenePaused, helpSel, trPage, tipN;
 static const Dl*dlgSet; static char lastInfo[64];
+static const u16 *sceneClip;
 static const char* const pwDesc[PW_N]={"LOOK AT A CREATURE OR A VILLAGE","PAINT SHALLOW WATER","PAINT DEEP SEA","PAINT SAND","PAINT GRASS","PLANT FOREST","PLANT JUNGLE","RAISE HILLS","RAISE MOUNTAINS","PAINT SNOW","PAINT DESERT","PAINT SWAMP","PAINT LAVA","PAINT CORRUPTED GROUND","PAINT INFERNAL GROUND","PAINT ENCHANTED GROUND","WARM THE AIR (GREENHOUSE)","ADD OXYGEN TO THE AIR","RAISE A DUST CLOUD","CREATE LIFE  (X Y: SPECIES)","RAIN GREENS THE LAND","BURN WHAT YOU TOUCH","STRIKE ONE TILE DEAD","DROP A METEOR","KILL WHAT YOU TOUCH","HEAL CREATURES","FEED CREATURES","FOUND A VILLAGE","START A WAR","END ALL WARS","FILL A VILLAGE STORE","GIVE AN ITEM  (X Y: ITEM)","GIVE A TRAIT  (X Y: TRAIT)","SHAKE THE GROUND","FLOOD THE LAND","MAKE THE LAND BLOOM","CHILL A CREATURE OR VILLAGE","A ROAMING TORNADO TEARS THINGS UP","ACID BURNS PLANTS, HOMES AND FLESH","A HOLE THAT EATS LAND AND LIFE","THE BIG ONE: A CRATER AND FALLOUT","SICKEN FOLK: IT SPREADS BY TOUCH","WITHER FOLK AND ROT A STORE","A CITY BECOMES ITS OWN KINGDOM","WHISPER WAR: TAP A KINGDOM, THEN A TARGET","TAP A KINGDOM: ITS ALLIANCES BREAK","TAP TWO KINGDOMS: THEY ALLY","EVERYONE DESPISES THIS KINGDOM","TAP A KINGDOM: ITS WARS END","A KINGDOM FORGETS ITS LANGUAGE","CREATURES FORGET FAMILY AND LOVED ONES","A CITY FORGETS ITS KINGDOM","RAIN GEAR ON FOLK AND CREATURES","STRIP GEAR FROM ALL IN THE BRUSH","A ROAMING FIRE SPIRIT (FIVE ELEMENTAL VARIANTS)","A CREEPING GREY BLOB EATS THE LAND","A FALLING CRAB: EVERYONE RAVES","THE GIANT CRAB STOMPS (COOLS DOWN)","GIVE ANIMALS A MIND OF THEIR OWN","A STONE THAT SLOWLY UPLIFTS ANIMALS NEAR IT","TOGGLE A CREATURE STATUS (X Y: STATUS)","ALIENS LAND AND HUNT THE LIVING","AN ELDER DRAGON BURNS A PATH","WRAITHS HAUNT SETTLEMENTS","A GROWING TUMOR SPREADS OVER THE LAND","A MOVING BLIZZARD FREEZES THE GROUND","A HEALING GARDEN SPREADS LIFE","A SMALL PRECISE LIGHTNING STRIKE","A WIDER LIGHTNING STRIKE","COPY A TILE AND STAMP IT WITH THE BRUSH","PRINT FOREST","PRINT WATER","PRINT MOUNTAIN","COPY THE BIOME UNDER THE BRUSH","CLEAR BIOME AND BUILDINGS","TAKE DIRECT CONTROL OF A CREATURE WITH THE D-PAD","CYCLE THROUGH NAVY SEALS, PLANES, HYPERCUBE, GHOST CIVILIZATION, CYBERCORE AND SUPER PUMPKIN"};
 static int sceneLines(const char*const*t){ int n=0; while(t[n]) n++; return n; }
 static void sceneStart(const char*const*t,int scroll){ sceneTxt=t; sceneScroll=scroll; sceneOff=scroll?-20:0; sceneT=0; if(!sceneOn) scenePaused=paused; sceneOn=1; paused=1; }
+static void sceneStartFmv(const char*const*t,const u16*clip){
+    sceneStart(t,0);
+    sceneClip=clip;
+    uiNBtn=0;
+    uiBtn(0,0,256,192,KEY_A,0,0,0);
+    uiTrans=0;
+}
 static int dbgSel=0, dbgMon=0, dbgFx=0, fxSel=0, konami=0;
 // the REPRISE set (26 of the original BORE songs, kept close to what they were, with voices): each one opens with a milestone of the story. 0..13: finishing chapter 1..14; 14..23: every 4 achievements;
 // 24: the story's end; 25: 100%.
@@ -1823,7 +1832,7 @@ static void doSave(void){ if(!sdOk) { siprintf(info,"NO SD CARD: NOT SAVED"); re
 #endif
  siprintf(info,"SAVE FAILED"); } }
 static void setSize(int sz){ planetSize=sz; }
-static void startWorld(int story){ possessed=-1; printerCopied=0; storyOn=story; newWorld(); camX=(WW*8-256)/2; camY=(WH*8-192)/2; winX=-99; refillWindow(); titleOn=0; paused=0; endShown=storyDone; musReq(GM_NEWWORLD); if(story&&chapter==0&&stUse==0){ sceneStart(introTxt,0); dlgPend=0; } }
+static void startWorld(int story){ possessed=-1; printerCopied=0; storyOn=story; newWorld(); camX=(WW*8-256)/2; camY=(WH*8-192)/2; winX=-99; refillWindow(); titleOn=0; paused=0; endShown=storyDone; musReq(GM_NEWWORLD); if(story&&chapter==0&&stUse==0){ sceneStartFmv(introTxt,fmv_opening); dlgPend=0; } }
 static void monName(int m,char*out){ int a=ARCH_A+m/16, fam=m%16; strcpy(out,advNm[fam]); strcat(out," "); strcat(out,arch[a].nm); }
 static short plLon[109*109], plWy[109*109]; static u8 plJ[109*109];
 #ifdef NDSSHIM
@@ -2285,6 +2294,7 @@ static void slotsInput(int kd){
 }
 static int uiScrId=-1, uiScrDepth, uiTabDir;
 static void hud(void){
+    if(sceneClip) return;
     uiNBtn=0;
     { int id=(dlgOn?1:0)|(sceneOn?2:0)|(titleOn?4:0)|(menuOn?8:0)|(extrasView?16:0)|(mScr<<5)|(page<<8); int dep=(dlgOn||sceneOn)?3:extrasView?2:(titleOn||menuOn)?(mScr>0?1:0):(page?1:0);
       if(uiScrId>=0&&id!=uiScrId){ uiTrans=uiTabDir?uiTabDir:dep>uiScrDepth?1:dep<uiScrDepth?-1:2; } uiScrId=id; uiScrDepth=dep; uiTabDir=0; }
@@ -2416,6 +2426,22 @@ int main(void){
         musUpdate();
         if(view3d&&(sceneOn||dlgOn||menuOn||titleOn)) leaveGlobe();
         if(zBmp&&(sceneOn||titleOn)) zSet(Z_NORMAL);
+        if(sceneClip){
+            int skipped=kd&(KEY_A|KEY_START);
+            if(skipped||sceneT==FMV_FRAMES*FMV_TICKS){
+                sceneClip=0;
+                sceneT=0;
+                // Consume the skip and show the narration before accepting another press.
+                uiScrId=-1;
+                swiWaitForVBlank();
+                hud();
+            } else {
+                swiWaitForVBlank();
+                if(sceneT%FMV_TICKS==0) fmvDraw(sceneClip,sceneT/FMV_TICKS);
+                sceneT++;
+            }
+            continue;
+        }
         if(sceneOn){ sceneT++; int n=sceneLines(sceneTxt); if(sceneScroll&&(sceneT&7)==0) sceneOff++; int done=(kd&(KEY_A|KEY_START))!=0; if(sceneScroll&&sceneOff>n+2) done=1;
             if(done){ if(sceneNext){ const char*const*nx=sceneNext; int sp0=scenePaused; sceneNext=0; sceneOn=0; sceneStart(nx,1); scenePaused=sp0; musReq(GM_CREDITS); } else { sceneOn=0; paused=scenePaused; } }
             refillWindow(); swiWaitForVBlank(); bgSetScroll(0,zBmp?0:camX&511,zBmp?0:camY&511); bgUpdate(); drawSprites(); oamUpdate(&oamMain); if((tick&7)==0){ applyLight(); hud(); } continue; }
@@ -2425,7 +2451,7 @@ int main(void){
         if(!titleOn&&!sceneOn&&strcmp(info,lastInfo)){ strcpy(lastInfo,info); toastT=420; } if(toastT>0) toastT--;
         if(menuOn){ menuInput(kd); refillWindow(); swiWaitForVBlank(); bgSetScroll(0,zBmp?0:camX&511,zBmp?0:camY&511); bgUpdate(); drawSprites(); oamUpdate(&oamMain); if(kd||(tick&15)==0) hud(); continue; }   // (redrawn when a button was pressed, and now and then for the clock: a full redraw and copy every frame took longer than a frame)
         if(!titleOn&&(tick&15)==0) unlockTiers();   // the chapter goal is checked here as well as in simulate(): a paused world, or a speed that steps over the 256th tick, never reached the check there
-        if(storyDone&&!endShown&&!titleOn&&!dlgOn&&dlgPend<0){ endShown=1; if(view3d) leave3D(); sceneNext=credTxt; sceneStart(endTxt,0); }
+        if(storyOn&&storyDone&&!endShown&&!titleOn&&!dlgOn&&dlgPend<0){ endShown=1; if(view3d) leave3D(); sceneNext=credTxt; sceneStartFmv(endTxt,fmv_finale); swiWaitForVBlank(); continue; }
         if(!titleOn&&!sceneOn&&stUse<12&&tick>300&&(tick%600)==0){ siprintf(info,"%.32s",tipTxt[tipN++%11]); }
         if(titleOn&&!extrasView){
             int ch=kd!=0; { static const u16 code[10]={KEY_UP,KEY_UP,KEY_DOWN,KEY_DOWN,KEY_LEFT,KEY_LEFT,KEY_RIGHT,KEY_B,KEY_A,KEY_START};
