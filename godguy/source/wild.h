@@ -6,12 +6,23 @@
 #define GGWILD_H
 // ---- the fire elemental: wanders, sets fire to what it touches, dies in rain and storms
 static void fireStep(Hz*h){
-    h->age++; if(weather==WX_RAIN||weather==WX_STORM){ if(rnd()%8==0){ h->life=0; return; } }
-    if(rnd()%6==0){ int d=(int)(rnd()%8); h->dx=hzDx[d]; h->dy=hzDy[d]; }
+    int kind=h->pad%5; h->age++;
+    if(weather==WX_RAIN||weather==WX_STORM){ if(rnd()%8==0){ h->life=0; return; } }
+    if(kind==3&&h->age%4==0){ int tx=(int)(rnd()%WW),ty=(int)(rnd()%WH); if(tx>1&&ty>1&&tx<WW-1&&ty<WH-1&&world[ty][tx]!=T_WATER&&world[ty][tx]!=T_DEEP){ h->x=(u16)tx; h->y=(u16)ty; } }
+    else if(rnd()%6==0){ int d=(int)(rnd()%8); h->dx=hzDx[d]; h->dy=hzDy[d]; }
     int nx=h->x+h->dx, ny=h->y+h->dy; if(nx<2||nx>=WW-2){ h->dx=(s8)-h->dx; nx=h->x; } if(ny<2||ny>=WH-2){ h->dy=(s8)-h->dy; ny=h->y; }
-    if(world[ny][nx]==T_DEEP||world[ny][nx]==T_WATER){ h->dx=(s8)-h->dx; h->dy=(s8)-h->dy; nx=h->x; ny=h->y; }       // it will not cross water
+    if(world[ny][nx]==T_DEEP||world[ny][nx]==T_WATER){ h->dx=(s8)-h->dx; h->dy=(s8)-h->dy; nx=h->x; ny=h->y; }
     h->x=(u16)nx; h->y=(u16)ny;
-    for(int dy=-1;dy<=1;dy++) for(int dx=-1;dx<=1;dx++){ int x=h->x+dx, y=h->y+dy; if(x<0||y<0||x>=WW||y>=WH) continue; burnAt(x,y,90); if(world[y][x]==T_FOREST||world[y][x]==T_GRASS) if(!LAWON(LW_GAIA)&&rnd()%4==0) setCell(x,y,T_DIRT); if(occ[y][x]&&rnd()%4==0) hzHurt(occ[y][x]-1,8); } }
+    int radius=kind==2?2:1;
+    for(int dy=-radius;dy<=radius;dy++) for(int dx=-radius;dx<=radius;dx++){ int x=h->x+dx, y=h->y+dy; if(x<0||y<0||x>=WW||y>=WH||dx*dx+dy*dy>radius*radius+1) continue;
+        burnAt(x,y,kind==2?180:kind==4?55:100);
+        if(!LAWON(LW_GAIA)&&(world[y][x]==T_FOREST||world[y][x]==T_GRASS||world[y][x]==T_JUNGLE)&&rnd()%(kind==0?4:kind==2?2:3)==0) setCell(x,y,T_DIRT);
+        if(kind==1&&!LAWON(LW_GAIA)&&dx==0&&dy==0&&world[y][x]!=T_WATER&&world[y][x]!=T_DEEP&&world[y][x]!=T_MOUNT&&rnd()%8==0) setCell(x,y,T_LAVA);
+        if(occ[y][x]&&rnd()%(kind==2?2:kind==4?6:4)==0){ int i=occ[y][x]-1; if(kind==4&&arch[sp[cr[i].sp].a].diet==5){ if(cr[i].hp<maxHp(&cr[i])) cr[i].hp++; } else hzHurt(i,kind==2?12:kind==1?10:kind==3?9:6); }
+    }
+    if(kind==3&&h->age%12==0){ atmoDust(2); fxReq(FX_LIGHTNING); }
+    if(kind==4&&(h->age&7)==0){ for(int dy=-4;dy<=4;dy++) for(int dx=-4;dx<=4;dx++){ int x=(int)h->x+dx,y=(int)h->y+dy; if(x<0||y<0||x>=WW||y>=WH||!occ[y][x]) continue; Cr*c=&cr[occ[y][x]-1]; if(c->alive&&arch[sp[c->sp].a].diet==5&&c->hp<maxHp(c)) c->hp++; } }
+}
 // ---- grey goo: a creeping blob that turns land to dirt, erases buildings and kills what it touches; it turns back at water, and dies after a while
 static void gooStep(Hz*h){
     h->age++; int nx=h->x+h->dx, ny=h->y+h->dy; if(nx<3||nx>=WW-3||ny<3||ny>=WH-3||world[ny][nx]==T_DEEP||world[ny][nx]==T_WATER){ h->dx=(s8)-h->dx; h->dy=(s8)-h->dy; if(rnd()&1) h->dx=(s8)(h->dx?0:1); nx=h->x; ny=h->y; }
@@ -19,7 +30,7 @@ static void gooStep(Hz*h){
     for(int dy=-r;dy<=r;dy++) for(int dx=-r;dx<=r;dx++){ if(dx*dx+dy*dy>r*r+1) continue; int x=h->x+dx, y=h->y+dy; if(x<0||y<0||x>=WW||y>=WH) continue; u8 t=world[y][x]; if(t==T_DEEP||t==T_WATER||t==T_LAVA) continue;
         if(bld[y][x]){ razeAt(x,y,255); bld[y][x]=0; bldv[y][x]=0; } if(t!=T_DIRT&&t!=T_MOUNT&&!LAWON(LW_GAIA)) setCell(x,y,T_DIRT); if(occ[y][x]&&(dx*dx+dy*dy)>=(r-1)*(r-1)) killCr(occ[y][x]-1); } }
 // ---- ghosts of the notable dead: they drift, lower the mood of the villages near them, and are driven off by a temple
-static int ghostMood(int v){ int n=0; for(int i=0;i<HZ_N;i++) if(hz[i].kind==HZ_GHOST){ int dx=hz[i].x-vil[v].x, dy=hz[i].y-vil[v].y; if(dx*dx+dy*dy<=100) n++; } return n>2?20:n*10; }
+static int ghostMood(int v){ int n=0; for(int i=0;i<HZ_N;i++) if(hz[i].kind==HZ_GHOST||hz[i].kind==HZ_GHOSTCIV){ int dx=hz[i].x-vil[v].x, dy=hz[i].y-vil[v].y; if(dx*dx+dy*dy<=100) n++; } return n>2?20:n*10; }
 static void ghostStep(Hz*h){
     h->age++; if(rnd()%5==0){ int d=(int)(rnd()%8); h->dx=hzDx[d]; h->dy=hzDy[d]; } int nx=h->x+h->dx, ny=h->y+h->dy; if(nx<2||nx>=WW-2||ny<2||ny>=WH-2){ h->dx=(s8)-h->dx; h->dy=(s8)-h->dy; nx=h->x; ny=h->y; } h->x=(u16)nx; h->y=(u16)ny;
     for(int dy=-6;dy<=6;dy++) for(int dx=-6;dx<=6;dx++){ int x=h->x+dx, y=h->y+dy; if(x<0||y<0||x>=WW||y>=WH) continue; if(bld[y][x]==B_TEMPLE){ h->life=0; return; } } }

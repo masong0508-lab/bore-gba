@@ -17,6 +17,11 @@ The four special weather states are now part of the normal weather cycle. Ash cl
 ## World-disaster batch implemented (18 November 2026)
 Six more events now run through the existing `Hz` roaming-hazard table and `GGH1` save trailer: alien invasion (ALIEN/UFO wave), far-land elder dragon (or wyvern fallback), moon horrors (wraiths and a lich), spreading biomass (tumor monsters and bioblobs), dream ice (a moving freeze front that can extinguish nearby fire elementals), and garden surprise (a moving healing and regrowth front). Each has a divine power, world effects, map marker, and a rare natural-event chance when disasters are enabled. The `Hz` and `Cr` record sizes are unchanged. Save v13 adds an optional `GGF1` tail for starred powers 64–79; v11/v12 saves still load and default the new favorite slots to off. Regression tests exercise all six on DS, DSi and 3DS/PC record layouts, including save/load and the actual power path.
 
+## Special-entity event batch implemented (19 November 2026)
+The SPECIAL EVENT power now cycles through six additional world encounters: Navy Seal deployment (armed seal units), plane squadron (elite flying units), hypercube anomaly (teleporting terrain/damage pulse), ghost-civilization incursion (wraiths and settlement drain), cybercore (VR-headset/golem defenders with local regeneration), and super pumpkin (boss pumpkin plus recurring minions). The existing saved `Hz` record is reused; the new kinds are accepted by save/load and have map markers. The existing FIRE ELEM. power now cycles five saved variants—ember, magma, inferno, plasma and solar—with distinct pulse, terrain, teleport, damage and regeneration effects.
+
+**Scope note:** these are playable event prototypes built from existing seal/eagle/wraith/monster units and the existing hazard system. They are not yet seven fully independent creature archetypes with dedicated animation sets; a true ghost kingdom with its own culture, cities and diplomacy is still open. The five fire forms are hazard variants, not five separate entries in the species codex. Do not mark the full named-creature roster complete on this basis.
+
 ## Remaining-mechanics batch implemented (18 November 2026)
 - SEND HOME is a divine power: tapping a citizen returns it to a free walkable tile beside the nearest city of its people.
 - BORDER BRUSH paints and toggles a visible perimeter for a city; border markers are owned by that city and are removed if it is razed.
@@ -37,7 +42,7 @@ The pause menu now exposes AUTOSAVE ON/OFF. Turning it off suppresses only autom
 | Statuses | rat-mediated plague transmission and the Rat King law are now implemented; further one-click status variants not covered by the six new toggles remain |
 | Weather and clouds | Further polish: tune balance and verify on hardware. |
 | Disasters | the six listed world events are implemented; remaining work is balancing, visual polish and on-hardware verification |
-| Creatures | Navy Seals, planes, hypercube, ghosty ghosts (ghost civilisations), cybercore, super pumpkin, the five fire-elemental kinds |
+| Creatures | The six special encounters and five fire-elemental hazard variants now have playable prototypes; dedicated creature archetypes, art/animations and a true ghost kingdom remain open |
 | Mechanics | unit possession, SEND HOME, five culture skins, preferred colours, border brush, xenophobic razing, same-race kingdom loyalty and random traits for culture/language/clan/religion creation are implemented. Remaining: culture/religion/language schisms (0.50.3) *(partly: schisms exist, unchecked)* |
 | Laws | Glitched Noosphere and Drop of Thoughts are implemented. Grin Reaper was removed in WorldBox 0.51.0, so it is intentionally not a target. Rat King is also implemented as a plague law. |
 | Powers | six printer powers and small/medium lightning are implemented; clan, alliance, war and plot displays remain *(partly)* |
@@ -52,7 +57,7 @@ The pause menu now exposes AUTOSAVE ON/OFF. Turning it off suppresses only autom
 - Terraformer rates, healing amounts and sapient tribe caps are first guesses. The 25 new 8 x 8 sprites were looked at once; five redrawn.
 
 ## Suggested order
-1. Missing creature families (the remaining named species need their intended behaviour and art, not just aliases).
+1. Finish dedicated creature archetypes, art/animations and true ghost-kingdom simulation for the new special-event prototypes.
 2. Interface items (meta selection, zone multi-toggle and keyboard selection shortcuts).
 3. Verify the new life-cloud and Rat King laws in long-running simulations and on hardware.
 4. Paste the wiki AllPages text (or the pages' text) so the unread pages can be compared.

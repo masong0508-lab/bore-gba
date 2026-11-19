@@ -5,13 +5,14 @@
 // The roaming disasters are a small table (hz) that goes to the save file in a second trailer ("GGH1") after the GGX1 one, so an old build never reads it and an old save has none.
 #define HZ_N 6
 enum { HZ_NONE, HZ_TORNADO, HZ_HOLE, HZ_FIRE, HZ_GOO, HZ_GHOST, HZ_SNOWMAN,
-       HZ_ALIEN, HZ_DRAGON, HZ_MOON, HZ_BIOMASS, HZ_ICE, HZ_GARDEN };   // Pack C + the six world disasters
+       HZ_ALIEN, HZ_DRAGON, HZ_MOON, HZ_BIOMASS, HZ_ICE, HZ_GARDEN,
+       HZ_NAVY, HZ_PLANES, HZ_HYPERCUBE, HZ_GHOSTCIV, HZ_CYBERCORE, HZ_PUMPKIN };   // Pack C + the six world disasters
 typedef struct { u8 kind, r, t, pad; u16 x, y; s8 dx, dy; u16 life, age; } Hz;   // a roaming disaster: what, where, which way it drifts, its size, a step timer, steps left, steps lived
 static Hz hz[HZ_N];
 static const s8 hzDx[8]={1,1,0,-1,-1,-1,0,1}, hzDy[8]={0,1,1,1,0,-1,-1,-1};
 static int hzAdd(int kind,int x,int y){
     for(int i=0;i<HZ_N;i++) if(hz[i].kind==HZ_NONE){ Hz*h=&hz[i]; memset(h,0,sizeof *h); int d=(int)(rnd()%8);
-        h->kind=(u8)kind; h->x=(u16)x; h->y=(u16)y; h->dx=hzDx[d]; h->dy=hzDy[d]; h->r=1; h->life=(u16)(kind==HZ_TORNADO?220:kind==HZ_FIRE?300:kind==HZ_GOO?500:kind==HZ_GHOST?500:kind==HZ_SNOWMAN?900:kind==HZ_ALIEN?110:kind==HZ_DRAGON?180:kind==HZ_MOON?150:kind==HZ_BIOMASS?260:kind==HZ_ICE?180:kind==HZ_GARDEN?140:110); if(kind==HZ_GOO||kind==HZ_BIOMASS){ h->r=2; if(kind==HZ_GOO) achX[2]|=8; } if(kind==HZ_FIRE) achX[2]|=16; return i; }
+        h->kind=(u8)kind; h->x=(u16)x; h->y=(u16)y; h->dx=hzDx[d]; h->dy=hzDy[d]; h->r=1; h->life=(u16)(kind==HZ_TORNADO?220:kind==HZ_FIRE?300:kind==HZ_GOO?500:kind==HZ_GHOST?500:kind==HZ_SNOWMAN?900:kind==HZ_ALIEN?110:kind==HZ_DRAGON?180:kind==HZ_MOON?150:kind==HZ_BIOMASS?260:kind==HZ_ICE?180:kind==HZ_GARDEN?140:kind==HZ_NAVY?120:kind==HZ_PLANES?100:kind==HZ_HYPERCUBE?180:kind==HZ_GHOSTCIV?240:kind==HZ_CYBERCORE?220:kind==HZ_PUMPKIN?180:110); if(kind==HZ_GOO||kind==HZ_BIOMASS){ h->r=2; if(kind==HZ_GOO) achX[2]|=8; } if(kind==HZ_FIRE) achX[2]|=16; return i; }
     return -1; }
 static void fireStep(Hz*h); static void gooStep(Hz*h); static void ghostStep(Hz*h); static void wildTick(void); static void snowStep(Hz*h); static void disasterStep(Hz*h);
 static int hzCount(int kind){ int n=0; for(int i=0;i<HZ_N;i++) n+=hz[i].kind==kind; return n; }
@@ -93,7 +94,7 @@ static void calamityNatural(void){
     int k=(int)(rnd()%8), x=(int)(rnd()%WW), y=(int)(rnd()%WH);
     if(k<3){ if(hzAdd(HZ_TORNADO,x,y)>=0){ logEv("A TORNADO TOUCHES DOWN"); fxReq(FX_LIGHTNING); } }
     else if(k==3){ if(hzAdd(HZ_HOLE,x,y)>=0){ logEv("A BLACK HOLE OPENS"); fxReq(FX_SMITE); flashT=4; } }
-    else if(k==6){ if(hzAdd(HZ_FIRE,x,y)>=0){ logEv("A FIRE ELEMENTAL WAKES"); fxReq(FX_SMITE); } }
+    else if(k==6){ int i=hzAdd(HZ_FIRE,x,y); if(i>=0){ hz[i].pad=(u8)(rnd()%5); logEv("A FIRE ELEMENTAL WAKES"); fxReq(FX_SMITE); } }
     else if(k==7){ if(hzAdd(HZ_GOO,x,y)>=0){ logEv("GREY GOO SPREADS"); fxReq(FX_SMITE); } }
     else if(gx.lPlague!=1){ for(int tries=0;tries<60;tries++){ int i=(int)(rnd()%(unsigned)(nCr?nCr:1)); if(i<nCr&&cr[i].alive&&arch[sp[cr[i].sp].a].diet!=5&&infect(i)){ logEv("A PLAGUE BREAKS OUT"); fxReq(FX_MONSTER_SEEN); break; } } }
     // New world disasters are deliberately rarer than the established tornado / plague table.
