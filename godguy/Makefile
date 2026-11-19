@@ -18,7 +18,8 @@ TARGET		:=	godguy
 GAME_TITLE := Bore: GodGuy
 GAME_SUBTITLE1 := A god game
 GAME_SUBTITLE2 := Bore spinoff
-GAME_ICON := $(CURDIR)/icon.bmp
+# ?= plus the export below: make re-runs itself inside build/, where $(CURDIR) is build/ and would give build/icon.bmp
+GAME_ICON ?= $(CURDIR)/icon.bmp
 BUILD		:=	build
 SOURCES		:=	source
 INCLUDES	:=	include build
@@ -57,6 +58,7 @@ ifneq ($(BUILD),$(notdir $(CURDIR)))
 #---------------------------------------------------------------------------------
 
 export OUTPUT	:=	$(CURDIR)/$(TARGET)
+export GAME_ICON
 
 export VPATH	:=	$(foreach dir,$(SOURCES),$(CURDIR)/$(dir))
 export DEPSDIR	:=	$(CURDIR)/$(BUILD)
