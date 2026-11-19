@@ -84,6 +84,7 @@ From the 0.51.0 interface list, ranked by value on a DS:
 3. Drowning and snow slow change balance in every existing save. On by default, or two new LAWS that start off?
 4. Pack F's captain-death morale break changes the near-camera war numbers; it needs the war benchmark re-recorded (8 seeds). OK to do that?
 
+
 ## 6. Sources
 
 - WorldBox changelog (0.51.4 to 0.50.4): https://superworldbox.com/changelog
@@ -91,3 +92,20 @@ From the 0.51.0 interface list, ranked by value on a DS:
 - WorldBox traits guide (Destructoid): https://www.destructoid.com/how-to-unlock-all-traits-in-worldbox/
 - WorldBox tools, weapons and armour guide: https://worldboxguide.blogspot.com/2024/03/tools-weapons-and-armor-explained-in.html
 - Your roadmap PDF and `godguy/` source (`main.c`, `ggx.h`, `ggid.h`, `ggmenu.h`).
+
+## 7. Follow-up implementation: remaining mechanics batch (18 November 2026)
+
+The 18 November implementation batch closes several of the previously open items. The detailed player-facing and engineering notes are in [`GODGUY_REMAINING_FEATURES.md`](GODGUY_REMAINING_FEATURES.md); the live checklist is [`godguy/WORLDBOX_GAP_LIST.md`](../godguy/WORLDBOX_GAP_LIST.md).
+
+| Item | Implemented behaviour | Compatibility / test coverage |
+|---|---|---|
+| Bee matriarchy | A local bee colony elects one queen; nearby workers follow her, and a living queen periodically lays a worker, with a local cap of 24 bees. | Queen state uses an existing creature-flag extension; the `Cr` record is not enlarged. `pc_remaining.c` exercises queen election and worker spawning. |
+| Autosave control | AUTOSAVE ON/OFF is exposed in the in-game pause menu. OFF suppresses automatic year-boundary saves only; manual saving remains available. | `autoSaveDue()` has enabled, disabled and no-storage-card test cases. |
+| SEND HOME | The divine power returns a selected citizen to a free walkable tile beside the nearest city of that citizen's people. | Test covers the helper and the actual power-dispatch path. |
+| BORDER BRUSH | The divine power paints or clears a visible perimeter for the city at the selected location. | Test covers painting and clearing; border ownership is tied to the city so a razed city does not leave a permanent border. |
+| Culture skins / species colours | People receive one of five palette variants from their culture family; wildlife and monsters use deterministic species-family colour preferences. | Palette selection is derived; it adds no per-creature saved fields. |
+| Culture / law details | Glitched Noosphere increases the number of randomly assigned culture, language, clan and religion traits. Drop of Thoughts can create a sapient from a life cloud. Rat King lets a sufficiently large mouse swarm spread plague. | `pc_laws.c` and `pc_remaining.c` exercise the law effects. |
+| Ages | The age-name table now contains DARK, HOPE, SUN, TEARS, MOON, CHAOS, WONDERS, ICE, ASH and DESPAIR. | This documents the ten labels in code; balance and on-hardware behaviour still need playtesting. |
+| Captain rout persistence | The four temporary captain-rout zones and their ring index survive a save/load cycle. | Save version 14 adds the `GGR2` trailer; versions 11–13 remain accepted. |
+
+These additions do **not** close the remaining creature roster or all interface work. Navy Seals, planes, hypercube, ghost civilizations, cybercore, super pumpkin and the five fire-elemental kinds remain listed as open creature work. Meta-object selection, zone multi-toggle and Ctrl+1–9 selection shortcuts also remain open. See the gap list before choosing the next batch.
