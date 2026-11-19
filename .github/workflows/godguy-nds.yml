@@ -54,6 +54,17 @@ jobs:
           GG_FLAGS=-DGG_SAFE ./build_hw.sh && cp godguy_hw.nds ../out/godguy_hw_safe.nds
           GG_NOCACHE=" " ./build_hw.sh && cp godguy_hw.nds ../out/godguy_hw_nocache.nds
 
+      # 4. the Nintendo 3DS homebrew build (libctru): godguy.3dsx
+      - name: godguy.3dsx  (3DS, libctru)
+        continue-on-error: true
+        working-directory: godguy
+        run: |
+          dkp-pacman -S --needed --noconfirm 3ds-dev || true
+          export DEVKITPRO=/opt/devkitpro
+          chmod +x 3ds/build.sh
+          ./3ds/build.sh
+          mkdir -p ../out && cp godguy.3dsx ../out/godguy.3dsx
+
       - name: What was built
         if: always()
         run: |
@@ -63,7 +74,9 @@ jobs:
         if: always()
         with:
           name: godguy-nds
-          path: out/*.nds
+          path: |
+            out/*.nds
+            out/*.3dsx
           if-no-files-found: error
       - name: Publish as the "GodGuy DS (latest)" release
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -71,7 +84,9 @@ jobs:
         with:
           tag_name: godguy-latest
           name: GodGuy DS (latest) - ${{ github.sha }}
-          body: "The newest GodGuy DS build from main, commit ${{ github.sha }}. godguy_hw.nds runs in DraStic and melonDS (no SD saving). godguy.nds is the libnds build with SD saving and three save slots (melonDS, flashcarts). godguy_dsi*.nds are the DSi builds, godguy_hw_safe.nds has all sound off (for finding crashes)."
+          body: "The newest GodGuy DS build from main, commit ${{ github.sha }}. godguy_hw.nds runs in DraStic and melonDS (no SD saving). godguy.nds is the libnds build with SD saving and three save slots (melonDS, flashcarts). godguy.3dsx is the Nintendo 3DS build (run it from the Homebrew Launcher). godguy_dsi*.nds are the DSi builds, godguy_hw_safe.nds has all sound off (for finding crashes)."
           target_commitish: ${{ github.sha }}
           make_latest: false
-          files: out/*.nds
+          files: |
+            out/*.nds
+            out/*.3dsx

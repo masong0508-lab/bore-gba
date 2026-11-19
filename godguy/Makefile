@@ -64,7 +64,9 @@ export DEPSDIR	:=	$(CURDIR)/$(BUILD)
 CFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.c)))
 CPPFILES	:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.cpp)))
 SFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.s)))
-BINFILES	:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.bin)))
+# source/gmvox*.bin are generated audio dumps for the ARM7 blob (hw/arm7vox.s) and the PC tools; the game itself uses the gmvox*.h arrays.
+# Globbing them here made ld ask for gmvox.o / gmvox_full.o / gmvox_hq.o, so no .bin is linked in.
+BINFILES	:=
 
 #---------------------------------------------------------------------------------
 # use CXX for linking C++ projects, CC for standard C
