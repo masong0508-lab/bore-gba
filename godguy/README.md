@@ -58,7 +58,9 @@ chapters and a finale after the Hollow King's epilogue. The films follow
 Mira's first rain, the dispute at the river, Thorgrim's forge, the siege,
 Elowen's growing bestiary, and the worlds the Hollow King lost. Every
 chapter interlude leads into its dialogue. Press **A** or **START**, or tap
-the cutscene screen, to skip the current film.
+the cutscene screen, to skip the current film. Dialogue has a dedicated touch
+button to skip the conversation. When gameplay resumes, the HUD highlights
+the current goal for three seconds before another chapter can trigger.
 
 The films and dialogue portraits share new 32 × 32 cast sprites. Each speaker
 has a distinct silhouette, animated talking and blinking poses, and their

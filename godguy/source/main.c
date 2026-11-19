@@ -48,6 +48,10 @@ static u32 achX[3];   /* achievements 32 and up, the political powers used (a bi
 #define ACH_SET(i) do{ if((i)<32) achBits|=1u<<(i); else achX[0]|=1u<<((i)-32); }while(0)
 static u32 achBits, stWars, stCapt, stAllies, stSnack;   // achievements earned and the counters they need
 static int dlgPend=-1;      // a dialogue waiting to be shown (chapter number, 14 = the epilogue)
+#ifndef PCTEST
+enum { STORY_HANDOFF_TICKS = 180 };
+static int storyGoalT;      // real gameplay frames to read the objective after a dialogue
+#endif
 static int fullDone, auralOpen, debugOn, speedMul=1, chapter, storyOn=1, storyDone, monOn=1, natural, tierOpen=1;
 static int autoSaveDue(void){ return autoSaveOn&&sdOk&&year>0&&year!=savedYear&&(tick&255)>=1&&(tick&255)<=(unsigned)speedMul; }
 static int fxQ=-1, musQ=-1;       // requests for the sound code (DS main loop plays them)
@@ -1190,6 +1194,11 @@ static int slainCount(void){ int n=0; for(int m=0;m<MON_N;m++){ int sI=8+(ARCH_A
 static void checkFull(void){ if(!fullDone&&storyDone&&seenN>=MON_N&&slainCount()>=MON_N){ fullDone=1; siprintf(info,"100%%! THE REMIXES ARE YOURS"); musReq(GM_GODHOOD); fxReq(FX_UNLOCK); } }
 static void unlockTiers(void){   // every 256 ticks: is the chapter you are on done?
     checkFull();
+#ifndef PCTEST
+    // Keep a queued dialogue intact at high sim speeds. The story bot runs
+    // without a dialogue UI, so this handoff only applies to the actual game.
+    if(dlgPend>=0||storyGoalT>0) return;
+#endif
     if(!storyOn||storyDone||chapter>=CHAP_N) return;
     const Chap*C=&chap[chapter]; if(chapVal(C->kind)<C->target) return;
     chapterDone(); }
@@ -1339,7 +1348,12 @@ static void usePower(int tx,int ty,int fresh){ KD_DIRTY();
 static int planetSize=128;
 static void (*loadHook)(const char*,int);
 #define LOADING(m,p) do{ if(loadHook) loadHook(m,p); }while(0)
-static void newWorld(void){ KD_DIRTY(); LOADING("THE VOID",4); trSeen=trSeenHi=stMut=0; gxDefaults(); gW=gH=planetSize; nCr=0; idReset(); memset(hz,0,sizeof hz); memset(occ,0,sizeof occ); cellClear(); memset(bld,0,sizeof bld); memset(bldv,0,sizeof bldv); memset(vil,0,sizeof vil); memset(kd,0,sizeof kd); memset(kx,0,sizeof kx); memset(hall,0,sizeof hall); memset(whisT,0,sizeof whisT); memset(disT,0,sizeof disT); memset(spiT,0,sizeof spiT); memset(vilIndep,0,sizeof vilIndep); memset(vilK,0,sizeof vilK); memset(vilL,0,sizeof vilL); memset(boat,0,sizeof boat); memset(rz,0,sizeof rz); rzN=0; cursor=0; vilCur=0; memset(vilBf,0,sizeof vilBf); memset(vilSick,0,sizeof vilSick); memset(favVil,0,sizeof favVil); memset(favKd,0,sizeof favKd); jrN=0; stWars=stCapt=stAllies=stSnack=0; nVilOn=0; worldSeed=seedFix?seedFix:rnd(); genWorld(worldSeed); LOADING("SHAPING THE LAND",35); winX=-99; refillWindow();
+static void newWorld(void){
+    dlgPend=-1;
+#ifndef PCTEST
+    storyGoalT=0;
+#endif
+    KD_DIRTY(); LOADING("THE VOID",4); trSeen=trSeenHi=stMut=0; gxDefaults(); gW=gH=planetSize; nCr=0; idReset(); memset(hz,0,sizeof hz); memset(occ,0,sizeof occ); cellClear(); memset(bld,0,sizeof bld); memset(bldv,0,sizeof bldv); memset(vil,0,sizeof vil); memset(kd,0,sizeof kd); memset(kx,0,sizeof kx); memset(hall,0,sizeof hall); memset(whisT,0,sizeof whisT); memset(disT,0,sizeof disT); memset(spiT,0,sizeof spiT); memset(vilIndep,0,sizeof vilIndep); memset(vilK,0,sizeof vilK); memset(vilL,0,sizeof vilL); memset(boat,0,sizeof boat); memset(rz,0,sizeof rz); rzN=0; cursor=0; vilCur=0; memset(vilBf,0,sizeof vilBf); memset(vilSick,0,sizeof vilSick); memset(favVil,0,sizeof favVil); memset(favKd,0,sizeof favKd); jrN=0; stWars=stCapt=stAllies=stSnack=0; nVilOn=0; worldSeed=seedFix?seedFix:rnd(); genWorld(worldSeed); LOADING("SHAPING THE LAND",35); winX=-99; refillWindow();
     LOADING("SEEDING LIFE",50);
     // the first life: a few of each of the first animals on their own ground
     int nAn=260*WW*WH/16384*cLife/2; { int cap=900*(WW*WH>65536?WW*WH/65536:1); if(nAn>cap) nAn=cap; }
@@ -1439,7 +1453,9 @@ static int loadGameRaw(const char*path){ KD_DIRTY();
     for(int q=0;q<4;q++) if(rz[q].until>(int)h.tick&&(rz[q].a<0||rz[q].a>=8||rz[q].x<0||rz[q].y<0||rz[q].x>=gW||rz[q].y>=gH)){ memset(rz,0,sizeof rz); rzN=0; break; }
     memcpy(seenB,h.seen,sizeof seenB); memcpy(slainB,h.slain,sizeof slainB); nVilOn=0; memset(vilSick,0,sizeof vilSick); for(int v=0;v<VIL_N;v++){ nVilOn+=vil[v].on; if(vil[v].on) bldFlags(v); else vilBf[v]=0; }
     for(int i=0;i<nCr;i++) if(cr[i].alive&&cr[i].x<gW&&cr[i].y<gH) occ[cr[i].y][cr[i].x]=(occ_t)(i+1); cellRebuild(); vilCur=h.vcur; weather=h.weather; weatherT=h.weatherT; trSeen=h.trSeen; stMut=h.stMut; worldSeed=h.seed; cEdge=h.pad_[0]<3?h.pad_[0]:0; diff=h.diff; fullDone=h.full; auralOpen=h.aural; debugOn=h.debug; cursor=0; compact(); warMatrix(); wgBuild(); winX=-99;
+    dlgPend=-1;
 #ifndef PCTEST
+    storyGoalT=0;
     zSet(h.pad_[2]<=5?h.pad_[2]:3);      // the zoom level comes back with the save
 #endif
     return 1; }
@@ -2087,7 +2103,9 @@ static void uiStatus(void){
     }
     uiFrame(2,150,252,28,U_PANEL,U_BHI,U_BLO); uiRect(5,153,14,14,U_SHADOW); uiPowerIcon(power,7,155);
     { char nm[40]; if(pw[power].kind==PK_SPAWN){ spName(spSel,nm); siprintf(b,"%s",nm); } else if(pw[power].kind==PK_GIFT){ itSay(nm,itSel); siprintf(b,"%.28s",nm); } else if(pw[power].kind==PK_MUTATE) siprintf(b,"TRAIT: %s",trSel?trNm[trSel]:"CLEAR"); else if(pw[power].kind==PK_STATUS) siprintf(b,"STATUS: %.20s",statusName[statusSel]); else if(pw[power].kind==PK_PAINT) siprintf(b,"BRUSH %d",brush); else siprintf(b,"BRUSH %d",brush);
-      uiText(24,154,pw[power].nm,U_GOLD,1); uiText(24+uiTextW(pw[power].nm,1)+6,154,b,U_WHITE,1); if(toastT>0&&info[0]) uiText(24,166,info,U_YELLOW,1); else uiText(24,166,pw[power].kind<PW_N?pwDesc[power]:"",U_DIM,1); }
+      uiText(24,154,pw[power].nm,U_GOLD,1); uiText(24+uiTextW(pw[power].nm,1)+6,154,b,U_WHITE,1);
+      if(storyGoalT>0&&storyOn&&chapter<CHAP_N) uiText(24,166,chap[chapter].goal,U_GOLD,1);
+      else if(toastT>0&&info[0]) uiText(24,166,info,U_YELLOW,1); else uiText(24,166,pw[power].kind<PW_N?pwDesc[power]:"",U_DIM,1); }
     uiIcon8(4,182,IC8_NOTE); { char mn[24]=""; if(gmCur>=0){ strncpy(mn,gmSongs[gmCur].name,19); mn[19]=0; } uiText(14,183,mn,U_DIM,1); } { siprintf(b,"%s %s",ageN[worldAge()],weatherName(weather)); uiTextR(250,183,b,U_DIM); }
     uiFlush(); }
 static int achSel, kingSel, jrSel;
@@ -2225,8 +2243,15 @@ static void uiStory(void){
     char b[64]; uiWin("STORY",storyOn?(storyDone?"FINISHED":"STORY MODE"):"FREE PLAY: PAUSED","SELECT NEXT PAGE");
     if(chapter<CHAP_N){ const Chap*C=&chap[chapter]; int v=chapVal(C->kind); if(v>(int)C->target) v=C->target; uiFrame(4,16,248,34,U_PANELHI,U_GOLD,U_BLO); siprintf(b,"CHAPTER %d: %s",chapter+1,C->nm); uiText(10,20,b,U_GOLD,1); uiText(10,30,C->goal,U_WHITE,1); uiBar(10,40,200,7,v,C->target,U_GREEN); siprintf(b,"%d/%d",v,C->target); uiText(216,40,b,U_WHITE,1); }
     else { uiFrame(4,16,248,34,U_PANELHI,U_GOLD,U_BLO); uiText(10,28,"THE STORY IS TOLD. YOU ARE A GOD.",U_GOLD,1); }
-    for(int c=0;c<CHAP_N;c++){ int y=52+c*8; int done=c<chapter; uiRect(4,y-1,248,8,c&1?U_PANEL:U_BG); uiRect(8,y,7,7,done?U_GREEN:U_SHADOW); if(done){ uiPx(10,y+3,U_WHITE); uiPx(11,y+4,U_WHITE); uiPx(12,y+2,U_WHITE); }
-        siprintf(b,"%2d",c+1); uiText(20,y,b,U_DIM,1); uiText(36,y,done?chap[c].nm:"??????????",done?U_WHITE:U_DIM,1); }
+    for(int c=0;c<CHAP_N;c++){
+        int y=52+c*8, done=c<chapter, active=storyOn&&c==chapter;
+        uiRect(4,y-1,248,8,active?U_SEL:(c&1?U_PANEL:U_BG));
+        uiRect(8,y,7,7,done?U_GREEN:(active?U_GOLD:U_SHADOW));
+        if(done){ uiPx(10,y+3,U_WHITE); uiPx(11,y+4,U_WHITE); uiPx(12,y+2,U_WHITE); }
+        siprintf(b,"%2d",c+1);
+        uiText(20,y,b,active?U_GOLD:U_DIM,1);
+        uiText(36,y,done||active?chap[c].nm:"??????????",active?U_GOLD:(done?U_WHITE:U_DIM),1);
+    }
     { int o; int tot=itCount(&o); siprintf(b,"ITEMS %d/%d  MET %d/%d  SLAIN %u",o,tot,seenN,MON_N,(unsigned)stKill); uiText(6,172,b,U_DIM,1); }
     uiFlush(); }
 static void uiBest(void){
@@ -2284,7 +2309,11 @@ static void uiDialog(void){
     memcpy(buf,d->txt,cc);
     buf[cc]=0;
     uiWrap(15,94,37,7,buf,U_WHITE);
-    uiTextR(241,166,cc<tl?"A HURRY  B SKIP":"A NEXT  B SKIP",U_DIM);
+    uiRound(114,157,64,16,U_PANELHI,U_BHI);
+    uiTextC(146,162,"B SKIP",U_LGREY,1);
+    uiBtn(114,157,64,16,KEY_B,0,0,0);
+    uiRound(182,157,60,16,U_SEL,U_GOLD);
+    uiTextC(212,162,cc<tl?"A REVEAL":"A NEXT",U_WHITE,1);
     uiFlush(); }
 static void uiMenu(void){
     if(mScr==4){ uiSlots(); return; }
@@ -2467,8 +2496,8 @@ int main(void){
         }
         if(sceneOn){ sceneT++; int n=sceneLines(sceneTxt); if(sceneScroll&&(sceneT&7)==0) sceneOff++; int done=(kd&(KEY_A|KEY_START))!=0; if(sceneScroll&&sceneOff>n+2) done=1;
             if(done){ if(sceneNext){ const char*const*nx=sceneNext; int sp0=scenePaused; sceneNext=0; sceneOn=0; sceneStart(nx,1); scenePaused=sp0; musReq(GM_CREDITS); } else { sceneOn=0; paused=scenePaused; } }
-            refillWindow(); swiWaitForVBlank(); bgSetScroll(0,zBmp?0:camX&511,zBmp?0:camY&511); bgUpdate(); drawSprites(); oamUpdate(&oamMain); if((tick&7)==0){ applyLight(); hud(); } continue; }
-        if(!titleOn&&!sceneOn&&!dlgOn&&dlgPend>=0&&storyOn){
+            refillWindow(); swiWaitForVBlank(); bgSetScroll(0,zBmp?0:camX&511,zBmp?0:camY&511); bgUpdate(); drawSprites(); oamUpdate(&oamMain); if((tick&7)==0){ applyLight(); if(sceneOn||dlgPend<0) hud(); } continue; }
+        if(!titleOn&&!menuOn&&!extrasView&&!sceneOn&&!dlgOn&&dlgPend>=0&&storyOn){
             int next=dlgPend;
             dlgSet=dlgTab[next];
             dlgPend=-1;
@@ -2483,12 +2512,39 @@ int main(void){
                 continue;
             }
         }
-        if(dlgOn){ const Dl*d=&dlgSet[dlgIdx]; int tl=(int)strlen(d->txt); if(dlgChars<tl) dlgChars+=2; if(kd&KEY_A){ if(dlgChars<tl) dlgChars=tl; else { dlgIdx++; dlgChars=0; if(!dlgSet[dlgIdx].txt){ dlgOn=0; paused=dlgPaused; } } } if(kd&KEY_B){ dlgOn=0; paused=dlgPaused; }
-            refillWindow(); swiWaitForVBlank(); bgSetScroll(0,zBmp?0:camX&511,zBmp?0:camY&511); bgUpdate(); drawSprites(); oamUpdate(&oamMain); if((tick&7)==0) applyLight(); if(dlgOn&&((tick&1)==0||(kd))) hud(); else if(!dlgOn) hud(); continue; }
+        if(dlgOn){
+            int len=(int)strlen(dlgSet[dlgIdx].txt);
+            if(kd&KEY_B){
+                dlgOn=0;
+            } else if(kd&KEY_A){
+                if(dlgChars<len) dlgChars=len;
+                else {
+                    dlgIdx++;
+                    dlgChars=0;
+                    dlgOn=dlgSet[dlgIdx].txt!=0;
+                }
+            } else if(dlgChars<len){
+                dlgChars+=len-dlgChars>2?2:1;
+            }
+            if(!dlgOn){
+                paused=dlgPaused;
+                if(storyOn&&chapter<CHAP_N) storyGoalT=STORY_HANDOFF_TICKS;
+            }
+            refillWindow();
+            swiWaitForVBlank();
+            bgSetScroll(0,zBmp?0:camX&511,zBmp?0:camY&511);
+            bgUpdate();
+            drawSprites();
+            oamUpdate(&oamMain);
+            if((tick&7)==0) applyLight();
+            if(dlgOn?((tick&1)==0||kd):(!storyDone||endShown)) hud();
+            continue;
+        }
         if(!titleOn&&!sceneOn&&strcmp(info,lastInfo)){ strcpy(lastInfo,info); toastT=420; } if(toastT>0) toastT--;
         if(menuOn){ menuInput(kd); refillWindow(); swiWaitForVBlank(); bgSetScroll(0,zBmp?0:camX&511,zBmp?0:camY&511); bgUpdate(); drawSprites(); oamUpdate(&oamMain); if(kd||(tick&15)==0) hud(); continue; }   // (redrawn when a button was pressed, and now and then for the clock: a full redraw and copy every frame took longer than a frame)
-        if(!titleOn&&(tick&15)==0) unlockTiers();   // the chapter goal is checked here as well as in simulate(): a paused world, or a speed that steps over the 256th tick, never reached the check there
-        if(storyOn&&storyDone&&!endShown&&!titleOn&&!dlgOn&&dlgPend<0){ endShown=1; if(view3d) leave3D(); sceneNext=credTxt; sceneStartFmv(endTxt,&fmvClips[CHAP_N]); swiWaitForVBlank(); continue; }
+        if(!titleOn&&!extrasView&&storyGoalT>0) storyGoalT--;
+        if(!titleOn&&!extrasView&&(tick&15)==0) unlockTiers();   // the chapter goal is checked here as well as in simulate(): a paused world, or a speed that steps over the 256th tick, never reached the check there
+        if(storyOn&&storyDone&&!endShown&&!titleOn&&!extrasView&&!dlgOn&&dlgPend<0){ endShown=1; if(view3d) leave3D(); sceneNext=credTxt; sceneStartFmv(endTxt,&fmvClips[CHAP_N]); swiWaitForVBlank(); continue; }
         if(!titleOn&&!sceneOn&&stUse<12&&tick>300&&(tick%600)==0){ siprintf(info,"%.32s",tipTxt[tipN++%11]); }
         if(titleOn&&!extrasView){
             int ch=kd!=0; { static const u16 code[10]={KEY_UP,KEY_UP,KEY_DOWN,KEY_DOWN,KEY_LEFT,KEY_LEFT,KEY_RIGHT,KEY_B,KEY_A,KEY_START};

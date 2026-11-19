@@ -6,9 +6,9 @@
 
 enum {
     TITLE, OPENING, RUN_OPENING, OPENING_DIALOGUE, NEXT_CHAPTER, CHAPTER_FILM,
-    CHAPTER_DIALOGUE, EPILOGUE, FINALE, ENDING_CARD, SHOW_CREDITS, SKIP_CREDITS, DONE,
+    CHAPTER_DIALOGUE, TOUCH_SKIP_DIALOGUE, EXTRAS_BREAK, EPILOGUE, FINALE, ENDING_CARD, SHOW_CREDITS, SKIP_CREDITS, DONE,
 };
-static int phase, clipStart, expectedChapter=1;
+static int phase, clipStart, handoffStart, expectedChapter=1;
 static unsigned firstFlush;
 static u32 firstPicture;
 
@@ -70,11 +70,35 @@ void shimInput(int frame,int *held,int *tx,int *ty){
     case NEXT_CHAPTER:
         check(!paused&&!dlgOn&&!sceneOn,"dialogue did not restore gameplay");
         check(chapter==expectedChapter-1,"unexpected story progress");
-        if(expectedChapter==CHAP_N) paused=1;
-        chapterDone();
-        phase=expectedChapter<CHAP_N?CHAPTER_FILM:EPILOGUE;
+        check(storyGoalT==STORY_HANDOFF_TICKS,"dialogue did not show the current objective");
+        if(expectedChapter==1){
+            // Let a real completed objective trigger after the handoff, at 4x sim speed.
+            stUse=20;
+            speedMul=4;
+            handoffStart=frame;
+        } else {
+            if(expectedChapter==CHAP_N) paused=1;
+            chapterDone();
+        }
+        if(expectedChapter==2){
+            extrasView=1;
+            handoffStart=frame;
+            phase=EXTRAS_BREAK;
+        } else {
+            phase=expectedChapter<CHAP_N?CHAPTER_FILM:EPILOGUE;
+        }
+        break;
+    case EXTRAS_BREAK:
+        check(!sceneClip&&!dlgOn&&dlgPend==expectedChapter,"a film interrupted Extras");
+        if(frame-handoffStart==6){
+            extrasView=0;
+            phase=CHAPTER_FILM;
+        }
         break;
     case CHAPTER_FILM:
+        if(expectedChapter==1&&frame-handoffStart<STORY_HANDOFF_TICKS){
+            check(chapter==0&&!sceneClip,"another chapter interrupted the objective handoff");
+        }
         if(sceneClip&&sceneT>=2){
             check(sceneClip==&fmvClips[expectedChapter],"chapter picked the wrong film");
             check(dlgOn&&dlgSet==dlgTab[expectedChapter]&&!dlgIdx&&!dlgChars&&paused,
@@ -86,7 +110,23 @@ void shimInput(int frame,int *held,int *tx,int *ty){
     case CHAPTER_DIALOGUE:
         check(!sceneClip&&!sceneOn&&dlgOn&&paused&&!dlgIdx&&!dlgChars,
               "skip bypassed the first line or replayed the film");
-        *held=KEY_B;
+        if(expectedChapter==1){
+            speedMul=1;
+            *held=KEY_TOUCH;
+            *tx=146;
+            *ty=165;
+            phase=TOUCH_SKIP_DIALOGUE;
+        } else {
+            *held=KEY_B;
+            expectedChapter++;
+            phase=NEXT_CHAPTER;
+        }
+        break;
+    case TOUCH_SKIP_DIALOGUE:
+        // Two stylus samples settle a contact on the libnds / shim path.
+        *held=KEY_TOUCH;
+        *tx=146;
+        *ty=165;
         expectedChapter++;
         phase=NEXT_CHAPTER;
         break;
