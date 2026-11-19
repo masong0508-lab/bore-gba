@@ -107,7 +107,7 @@ static u8 svBufA[SVMAX] __attribute__((aligned(4)));   // ordinary cached RAM: o
 #define SVBUF svBufA
 #define SVCMP ((u8*)0x02C00000)
 #else
-#define SVMAX (700*1024)                       // the raw save: a 256 x 256 planet (about 200 KB) and up to 19999 creatures (20 bytes each)
+#define SVMAX (700*1024)                       // the raw save: a 256 x 256 planet (about 200 KB) and up to 12000 creatures (20 bytes each)
 #define SVCMAX (0x80000-16)                     // the packed save, in the uncached block 0x02300000..0x02380000 (the ARM7 starts at 0x02380000)
 static u8 svBufA[SVMAX] __attribute__((aligned(4)));   // ordinary cached RAM: only the ARM9 touches the raw copy
 #define SVBUF svBufA

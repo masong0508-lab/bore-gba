@@ -99,8 +99,8 @@ static Res run(unsigned seed,int near,int ticks){
     r.visitsYr=nSum&&sumN>0?visits/(sumN/nSum)/((double)ticks/YEAR):0;
     r.hash=stateHash(); return r; }
 
-static void ramReport(void){      // what the war adds in memory, and what a save costs (the DS figures are the build's own limits: 19,999 creatures, a 256 planet, 64 villages, 256 notables)
-    int dsCr=19999; printf("memory: a creature costs %d bytes (Cr %d + id 4 + flags 2); at the DS cap of %d that is %d KB; war groups %d bytes (%d villages x %d); cell grid on a 256 planet %d KB; notable table at 256: %d KB\n",
+static void ramReport(void){      // what the war adds in memory, and what a save costs (the DS figures are the build's own limits: 12,000 creatures, a 256 planet, 64 villages, 256 notables)
+    int dsCr=12000; printf("memory: a creature costs %d bytes (Cr %d + id 4 + flags 2); at the DS cap of %d that is %d KB; war groups %d bytes (%d villages x %d); cell grid on a 256 planet %d KB; notable table at 256: %d KB\n",
         (int)sizeof(Cr)+6,(int)sizeof(Cr),dsCr,dsCr*((int)sizeof(Cr)+6)/1024,(int)sizeof wg,VIL_N,(int)sizeof(WarGrp),((256>>3)*(256>>3)*(CELL_K+2))/1024,256*(int)sizeof(Nb)/1024);
     static u8 buf[8<<20], out[9<<20]; char f[600]; snprintf(f,sizeof f,"%s/gg_war.sav",getenv("TMPDIR")?getenv("TMPDIR"):"/tmp"); if(!saveGameRaw(f)){ printf("  (save failed)\n"); fails++; return; } FILE*h=fopen(f,"rb"); if(!h) return; long raw=(long)fread(buf,1,sizeof buf,h); fclose(h);
     unsigned pk=0; { unsigned o=0,i=0,n=(unsigned)raw,max=sizeof out-200; while(i<n){ if(o+140>max){ o=0; break; } unsigned r=1; while(i+r<n&&buf[i+r]==buf[i]&&r<129) r++; if(r>=3){ out[o++]=(u8)(126+r); out[o++]=buf[i]; i+=r; } else { unsigned st=i,l=0; while(i<n&&l<128){ unsigned rr=1; while(i+rr<n&&buf[i+rr]==buf[i]&&rr<3) rr++; if(rr>=3) break; i++; l++; } out[o++]=(u8)(l-1); for(unsigned k=0;k<l;k++) out[o++]=buf[st+k]; } } pk=o; }

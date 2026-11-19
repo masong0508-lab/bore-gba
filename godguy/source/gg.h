@@ -37,7 +37,7 @@ extern int gW,gH;               // the planet in play: 128, 192 or 256 tiles a s
 #elif defined(GG_DSI16)
 #define MAXC 38000                // 16 MB: world, buildings, owners, the creature index and the creature list (20 bytes each) plus the raw save buffer fit under 0x02C00000 (hw/arm9dsi.ld stops the link if not)
 #elif defined(NDSHW)
-#define MAXC 19999                // the DS's 4 MB of RAM: the creature list (20 bytes each), the save buffer and the picture all have to fit (arm9.ld stops the link if they do not)
+#define MAXC 12000                // DS RAM budget: keep ARM9 code/data below 0x02300000, which is reserved for the packed-save buffer
 #elif defined(GG_BIGMAP)
 #define MAXC 199999
 #else

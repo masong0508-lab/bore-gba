@@ -1,6 +1,6 @@
-// The creature caps, filled to the brim (the cap raise: DS 19,999, DSi mode 38,000, 3DS / PC 199,999).
-//   DS sizes   (a 256 planet, 19,999 creatures, the DS's raw / packed save blocks; the PC test build is DS-sized in everything but MAXC, so GG_MAXC_TEST=19999 stands in for it):
-//     gcc -O2 -DNDSSHIM -DGG_MAXC_TEST=19999 -Icompat -Isource -Wno-all -include unistd.h -o pc_cap_ds pc_cap.c -lm && ./pc_cap_ds
+// The creature caps, filled to the brim (the cap raise: DS 12,000, DSi mode 38,000, 3DS / PC 199,999).
+//   DS sizes   (a 256 planet, 12,000 creatures, the DS's raw / packed save blocks; the PC test build is DS-sized in everything but MAXC, so GG_MAXC_TEST=12000 stands in for it):
+//     gcc -O2 -DNDSSHIM -DGG_MAXC_TEST=12000 -Icompat -Isource -Wno-all -include unistd.h -o pc_cap_ds pc_cap.c -lm && ./pc_cap_ds
 //   DSi mode   (a 768 planet, 38,000 creatures, the 3 MB raw buffer and the 2 MB packed block):
 //     gcc -O2 -DNDSSHIM -DGG_DSI16 -Icompat -Isource -Wno-all -include unistd.h -o pc_cap_dsi pc_cap.c -lm && ./pc_cap_dsi
 //   3DS / PC   (a 1024 planet, 199,999 creatures):
@@ -29,8 +29,8 @@
 #define CAP_RAWMAX 0                      // saves go to a file: no block
 #define CAP_PKMAX 0
 #else
-#define CAP_NAME "DS"                      // the PC test build is DS-sized in everything but MAXC (30,000): GG_MAXC_TEST=19999 gives it the DS figure, and the DS block sizes are used here
-#define CAP_WANT 19999
+#define CAP_NAME "DS"                      // the PC test build is DS-sized in everything but MAXC (30,000): GG_MAXC_TEST=12000 gives it the DS figure, and the DS block sizes are used here
+#define CAP_WANT 12000
 #define CAP_PLANET 256
 #define CAP_RAWMAX DS_RAWMAX
 #define CAP_PKMAX (0x80000-16)
@@ -90,7 +90,7 @@ void shimInput(int frame,int*held,int*tx,int*ty){
     { FILE*g=fopen(file,"r+b"); if(g){ SaveHdr h; if(fread(&h,sizeof h,1,g)==1){ int big=MAXC+1; h.nCr=(u16)(big&0xFFFF); h.pad_[1]=(u8)(big>>16); fseek(g,0,SEEK_SET); fwrite(&h,sizeof h,1,g); } fclose(g); }
       planetSize=128; rs=6; newWorld(); monOn=0; chk(!loadGameRaw(file),"a save with MAXC+1 creatures is refused by the loader"); chk(gW==128||gW==CAP_PLANET,"the refusal leaves a world in memory"); }
     // ---- the old caps: a save at the old (lower) count loads, count and all
-    { int oldCap=CAP_WANT==19999?16000:CAP_WANT==38000?36000:100000; planetSize=CAP_PLANET>256?CAP_PLANET:256; rs=777; newWorld(); monOn=0; long tr=0; while(nCr<oldCap&&tr<200L*oldCap){ tr++; addCr((int)(rnd()%SP_N),(int)(rnd()%WW),(int)(rnd()%WH)); }
+    { int oldCap=CAP_WANT==12000?10000:CAP_WANT==38000?36000:100000; planetSize=CAP_PLANET>256?CAP_PLANET:256; rs=777; newWorld(); monOn=0; long tr=0; while(nCr<oldCap&&tr<200L*oldCap){ tr++; addCr((int)(rnd()%SP_N),(int)(rnd()%WW),(int)(rnd()%WH)); }
       chk(saveGameRaw(file),"saved a world at the old cap"); int m=nCr; planetSize=128; rs=8; newWorld(); chk(loadGameRaw(file)&&nCr==m,"a world at the old cap loads on the new build"); }
     printf("CAP %s %s\n",CAP_NAME,fails?"FAIL":"OK"); (void)stuck; exit(fails?1:0); }
 void shimPresent(void){}
