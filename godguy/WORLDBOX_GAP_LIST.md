@@ -14,13 +14,16 @@ The earlier version of this file was out of date: most of what it listed as miss
 ## Climate batch implemented (18 November 2026)
 The four special weather states are now part of the normal weather cycle. Ash clouds add atmospheric dust and dry vegetation; magic clouds heal creatures and encourage forest growth; rage clouds damage creatures and can scorch forests; heatwaves add dust, dry wetlands/vegetation and stress creatures. Their weather IDs use the existing saved weather byte, so no creature or save-header layout expansion is needed. The world map, globe lighting/cloud threshold, weather particles and status label recognize the new states.
 
+## World-disaster batch implemented (18 November 2026)
+Six more events now run through the existing `Hz` roaming-hazard table and `GGH1` save trailer: alien invasion (ALIEN/UFO wave), far-land elder dragon (or wyvern fallback), moon horrors (wraiths and a lich), spreading biomass (tumor monsters and bioblobs), dream ice (a moving freeze front that can extinguish nearby fire elementals), and garden surprise (a moving healing and regrowth front). Each has a divine power, world effects, map marker, and a rare natural-event chance when disasters are enabled. The `Hz` and `Cr` record sizes are unchanged. Save v13 adds an optional `GGF1` tail for starred powers 64–79; v11/v12 saves still load and default the new favorite slots to off. Regression tests exercise all six on DS, DSi and 3DS/PC record layouts, including save/load and the actual power path.
+
 ## Still missing (from the changelog, 0.21.0 to 0.51.4)
 | Area | Missing |
 |---|---|
 | Traits | species-specific preferred colours and remaining WorldBox-only visual/behaviour variants; the listed adaptation, defense, healing, social and fire traits are now implemented |
 | Statuses | rat-mediated plague transmission (ordinary plague spread and Cough status exist); any further one-click status variants not covered by the six new toggles |
 | Weather and clouds | Further polish: tune balance and verify on hardware. |
-| Disasters | alien invasion, dragon from far lands, moon horrors, biomass monstrosity (a big tumor event), ice disasters from dreams, garden surprise |
+| Disasters | the six listed world events are implemented; remaining work is balancing, visual polish and on-hardware verification |
 | Creatures | Navy Seals, planes, hypercube, ghosty ghosts (ghost civilisations), cybercore, super pumpkin, the five fire-elemental kinds, bees with a matriarchy |
 | Mechanics | unit possession; teleporting units return to their home city; five culture-based skins per people; species preferred colours; border brush; only xenophobic cultures destroy cities and the rest capture them *(our war code unchecked)*; species loyalty checks and culture/religion/language splits (0.50.3) *(partly: schisms exist, unchecked)*; random traits for new cultures, languages, clans and religions |
 | Laws | Glitched Noosphere, Drop of Thoughts, Grin Reaper |
@@ -36,9 +39,8 @@ The four special weather states are now part of the normal weather cycle. Ash cl
 - Terraformer rates, healing amounts and sapient tribe caps are first guesses. The 25 new 8 x 8 sprites were looked at once; five redrawn.
 
 ## Suggested order
-1. Extra disasters (extend the weather and hazard code; the four special weather states are now implemented).
-2. Missing creatures and the printer powers.
-3. Possession, skins, preferred colours, teleport home.
-4. Interface items (meta selection, zone multi-toggle, save slots in the pause menu).
-5. Verify rat-mediated plague transmission and the remaining species-specific behaviour gaps.
-6. Paste the wiki AllPages text (or the pages' text) so the unread pages can be compared.
+1. Missing creatures and the six printer powers.
+2. Possession, skins, preferred colours and teleport-home mechanics.
+3. Interface items (meta selection, zone multi-toggle, save slots in the pause menu).
+4. Verify rat-mediated plague transmission and the remaining species-specific behaviour gaps.
+5. Paste the wiki AllPages text (or the pages' text) so the unread pages can be compared.
