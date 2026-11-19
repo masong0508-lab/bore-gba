@@ -27,6 +27,7 @@ static unsigned long ggTurns;      // (benchmark builds only, pc_war.c: how many
 #define FL_SAPIENT 0x0400     /* a sapient animal (Pack D) */
 #define FL_EVOLVED 0x0800     /* an animal that has evolved (law EVOLUTION): its own name, half again the health, +3 damage, half again the years, a crown */
 #define IS_EVO(c) ((c)>=cr&&(c)<cr+MAXC&&(crFl[(c)-cr]&FL_EVOLVED))
+#define FL_BEEQUEEN 0x1000     /* queen of a local bee colony; stored in the existing creature-flags trailer */
 static u32 crId[MAXC]; static u16 crFl[MAXC]; static u32 idNext=1;
 static struct { int x, y, a, until; } rz[4]; static int rzN;      // the last four places a captain fell: the soldiers of his people near them are routed for a while
 static void ntKill(Cr*c); static void ntHit(Cr*a,Cr*d,int dm); static void ntDeath(int i); static void ntGone(u32 id); static void ntBirth(Cr*kid,const Cr*par); static void ntFounder(Cr*c,int v); static void ntSweep(void);   // (ggid.h: names, ids and the notable table)
@@ -34,6 +35,7 @@ static int crNamed(const Cr*c); static void crFirst(const Cr*c,char*o); static v
 static int camX, camY;             // camera, in world pixels
 static int warHeat;                // blows struck near the camera, decaying: how loud the battle music is (see musDirector)
 static int power=1, brush=2, spSel=40, paused=0, tick=0, year=0;
+static int sdOk=0, savedYear=-1, autoSaveOn=1;
 static char info[64];
 static u32 worldSeed, seedFix;               // the seed of this planet; seedFix (if not 0) is used for the next one
 static u32 stKill, stGift, stUse;                 // monsters slain, gifts given, powers used (the story counts them)
@@ -47,6 +49,7 @@ static u32 achX[3];   /* achievements 32 and up, the political powers used (a bi
 static u32 achBits, stWars, stCapt, stAllies, stSnack;   // achievements earned and the counters they need
 static int dlgPend=-1;      // a dialogue waiting to be shown (chapter number, 14 = the epilogue)
 static int fullDone, auralOpen, debugOn, speedMul=1, chapter, storyOn=1, storyDone, monOn=1, natural, tierOpen=1;
+static int autoSaveDue(void){ return autoSaveOn&&sdOk&&year>0&&year!=savedYear&&(tick&255)>=1&&(tick&255)<=(unsigned)speedMul; }
 static int fxQ=-1, musQ=-1;       // requests for the sound code (DS main loop plays them)
 static void fxReq(int id){ fxQ=id; }
 static void musReq(int id){ musQ=id; }
@@ -216,6 +219,8 @@ static void makeSpecies(void){
     for(int a=0;a<8&&nSp<SP_N;a++){ sp[nSp].a=(u8)a; sp[nSp].fam=(u8)(a==0?12:a==1?5:a==2?11:a==3?4:a==4?3:a==5?1:a==6?9:2); nSp++; }   // the peoples: one each, their own colours
     for(int a=8;a<ARCH_N;a++) for(int f=0;f<16&&nSp<SP_N;f++){ sp[nSp].a=(u8)a; sp[nSp].fam=(u8)f; nSp++; }   // every animal in every colour: 8 + 24 x 16 = 392 kinds
 }
+static int preferredFamily(int a){ return (a*7+3)&15; }  // each species has a favoured coat colour
+static int randomFamily(int a){ u32 q=rnd(); return (q%100<65)?preferredFamily(a):(int)((q>>8)&15); }
 enum { A_FAIRY=55, A_UNICORN, A_WMAGE, A_DRUID, A_BUD, A_SWORD, A_BITBA, A_GARL, A_SMORE, A_ACID, A_FINGER, A_BANT, A_RANT, A_BLANT, A_GANT, A_WORM, A_SSPIDER, A_PRINTER, A_BUTTERFLY=52 };
 #define EVN_N 57
 static const char* const evNm[EVN_N]={"WOOLLORD","MOOLORD","ANTLERFOLK","HOPLORD","FANGKIN","CUNNINGFOLK","BRUINLORD","TUSKFOLK","SKYLORD","CHIRPFOLK","NIGHTWING","COILFOLK","SCALEFOLK","WEBFOLK","DUNGLORD","SHELLFOLK","FINFOLK","MAWFOLK","DEEPSINGER","BLOBMORPH","WYRMLORD","DRAKELORD","SQUEAKFOLK","DIGGERFOLK","HORNLORD","HERDLORD","LAUGHFOLK","FLUFFLORD","CHILLFOLK","WADDLEFOLK","APEFOLK","CLAWFOLK","SNAPFOLK","BOGFOLK","HIVEKIN","BANDITFOLK","MEOWMORPH","BARKFOLK","PECKLORD","BLEATLORD","PLATEFOLK","STRIDEFOLK","FLIPPERFOLK","BITEFOLK","WINGMORPH","LEAPFOLK","BUZZFOLK","FAEFOLK","PUNKCORN","ARCHMAGE","ELDERDRUID","BLOOMFOLK","CRYSTALLORD","BITBYTE","GARLLORD","SMORELORD","ACIDMORPH"};      // the evolved forms, by archetype 8..64
@@ -325,7 +330,7 @@ static int tilePixOld(int t,int v,int x,int y){   // (the old ground art, replac
 }
 static void shadeRGB(int idx,int*r,int*g,int*b){ int t=idx/8,k=idx%8,f=60+k*20; *r=terrCol[t][0]*f/160; *g=terrCol[t][1]*f/160; *b=terrCol[t][2]*f/160; if(*r>31)*r=31; if(*g>31)*g=31; if(*b>31)*b=31; }
 // buildings: B_*; a building tile is ground (grass) with the building on it, in the colours of the people who built it
-enum { B_NONE, B_HUT, B_HOUSE, B_HALL, B_FARM, B_TOWER, B_RUIN, B_DOCK, B_TEMPLE, B_STATUE, B_LIBRARY, B_N };
+enum { B_NONE, B_HUT, B_HOUSE, B_HALL, B_FARM, B_TOWER, B_RUIN, B_DOCK, B_TEMPLE, B_STATUE, B_LIBRARY, B_BORDER, B_N };
 #define BT0 (T_N*4)
 #define BT1 124      // the tiles of the later buildings (dock .. library, 8 a type: 124..155), after the meadow tiles at 108..123
 #define BTILE(b,r) ((b)<B_DOCK?BT0+(b)*8+(r):BT1+((b)-B_DOCK)*8+(r))
@@ -344,7 +349,8 @@ static int bldPixOld(int type,int race,int x,int y){   // (the old building art)
     case B_TEMPLE: if(y<=1&&x>=3&&x<=4) return flag; if(y==2&&x>=2&&x<=5) return roof; if(y==3&&x>=1&&x<=6) return roof; if(y>=4&&y<=7&&x>=1&&x<=6) return (y>=6&&x>=3&&x<=4)?door:((x&1)&&y<7)?stone:wall; break;
     case B_STATUE: if(y>=6&&x>=2&&x<=5) return stone; if(y>=2&&y<=5&&x>=3&&x<=4) return stone; if(y==1&&x>=3&&x<=4) return wall; if(y==3&&(x==2||x==5)) return stone; break;
     case B_LIBRARY: if(y>=1&&y<=2&&x>=1&&x<=6) return roof; if(y>=3&&y<=7&&x>=1&&x<=6) return (y>=6&&x>=3&&x<=4)?door:((y==4||y==5)&&(x==2||x==5))?flag:wall; break;
-    case B_RUIN: if((hsh(x,y,17)&3)==0) return ruin; if((hsh(x,y,18)&7)==1) return stone; break; }
+    case B_RUIN: if((hsh(x,y,17)&3)==0) return ruin; if((hsh(x,y,18)&7)==1) return stone; break;
+    case B_BORDER: if(y>=3&&y<=6&&(x==3||x==4)) return dark; if(y==2&&(x==3||x==4)) return flag; break; }
     return bg;
 }
 #ifndef PCTEST
@@ -607,11 +613,12 @@ static const char* const kn1[12]={"AR","BEL","COR","DRA","EST","FEN","GAL","HOR"
 static const char* const rnA[12]={"ALDRIC","BRYN","CEDRA","DORN","EMBER","FARIN","GRETA","HALDOR","ISOLDE","JORAN","KIRA","LOTHAR"}, * const rnB[8]={"THE BOLD","THE WISE","THE FAT","THE MAD","THE KIND","THE LATE","THE GREEDY","THE PALE"};
 static const char* const rtrN[4]={"WARLIKE","PEACEFUL","GREEDY","WISE"}; static const char* const culN[5]={"SUN","MOON","IRON","SEA","STONE"}, * const rlgN[4]={"SUNFAITH","MOONFAITH","STONEWAY","OLD GODS"}, * const langN[5]={"HIGH TONGUE","LOWSPEAK","RUNIC","SONG","CLICKS"}, * const clanN[8]={"OAK","RAVEN","WOLF","ROSE","CROWN","STAR","IRON","TIDE"};
 static const char* const ctr2N[5]={"SHATTERED CROWN","EQUAL HEIRS","EXPANSIONIST","ETHNOCENTRIC","XENOPHILE"};
-static const char* const ctrN[6]={"XENOPHOBIC","SCHOLARLY","MERCANTILE","MARTIAL","AGRARIAN","PIOUS"}, * const ageN[5]={"HOPE","SHADOWS","CHAOS","WONDERS","PEACE"};
-static int worldAge(void){ return (year/12+(int)(worldSeed&3))%5; }   /* ages of the world, twelve years each: they tilt growth, monsters, rebellion, learning and peace */
+static const char* const langTraitN[3]={"TRADE TONGUE","DIPLOMATIC TONGUE","SCHOLARLY TONGUE"}, * const clanTraitN[3]={"WARRIOR CLAN","STEWARD CLAN","EXPANSIONIST CLAN"}, * const faithTraitN[3]={"PEACEFUL FAITH","MILITANT FAITH","MISSIONARY FAITH"};
+static const char* const ctrN[6]={"XENOPHOBIC","SCHOLARLY","MERCANTILE","MARTIAL","AGRARIAN","PIOUS"}, * const ageN[10]={"DARK","HOPE","SUN","TEARS","MOON","CHAOS","WONDERS","ICE","ASH","DESPAIR"};
+static int worldAge(void){ return (year/12+(int)(worldSeed%10))%10; }   /* ten twelve-year ages: they tilt morale, war, growth and learning */
 static int ghostMood(int v);
 static int vilMood(int v){ const Vil*V=&vil[v]; int m=V->stock/8-20-ghostMood(v); if(V->pop>V->houses*3+3) m-=20; if(V->foe) m-=25; if(vilSick[v]) m-=15; if(vilK[v]) m+=(vilL[v]-60)/3-8*polSgn(kx[vilK[v]-1].tax); m+=V->towers>0?5:0;
-    { int ag=worldAge(); m+=(ag==0||ag==4)?10:ag==1?-10:0; } if(!gx.lAtmo){ int T=ATV(atTemp); if(T>=22||T<=-18) m-=15; } { int b=bioAt(V->x,V->y); m+=b==1?-20:b==3?20:0; }
+    { int ag=worldAge(); m+=(ag==1||ag==2||ag==6)?10:(ag==0||ag==5||ag==8||ag==9)?-10:ag==3?-5:0; } if(!gx.lAtmo){ int T=ATV(atTemp); if(T>=22||T<=-18) m-=15; } { int b=bioAt(V->x,V->y); m+=b==1?-20:b==3?20:0; }
     /* Grin Mark is a social trait: nearby bearers lift the settlement's mood. */
     { int joy=0; for(int dy=-10;dy<=10;dy++){ int y=V->y+dy; if(y<0||y>=WH) continue; for(int dx=-10;dx<=10;dx++){ int x=V->x+dx; if(x<0||x>=WW||dx*dx+dy*dy>100||!occ[y][x]) continue; Cr*c=&cr[occ[y][x]-1]; if(c->alive&&HAS(c,TR_GRIN)&&sp[c->sp].a==V->race&&sp[c->sp].a<8) joy++; } } m+=joy*4; }
     m+=(vilBf[v]&1?12:0)+(vilBf[v]&2?6:0)+(vilBf[v]&4?4:0); return m<-100?-100:m>100?100:m; }
@@ -624,12 +631,20 @@ static void kdName(int k,char*o){ langKing(kd[k].nlang,kd[k].n1,kd[k].n2,o); }
 static void kdRuler(int k,char*o){ strcpy(o,lwords[kd[k].lang%5][8]); strcat(o," "); char p[24]; langPerson(kd[k].lang,kd[k].rn1,kd[k].rn2,p); strcat(o,p); strcat(o," "); strcat(o,rnB[kd[k].rn2%8]); }
 static void kdFaith(int k,char*o){ static const u8 dn[4]={7,6,0,14}; strcpy(o,lwords[kd[k].lang%5][13]); strcat(o,"-"); strcat(o,lwords[kd[k].lang%5][dn[kd[k].rlg&3]]); }   /* the faith's local name: the tongue's word for god and for its dogma */
 static int kdRStat(int k,int w){ if(!LAWON(LW_KINGSTATS)) return 5; const Kd*K=&kd[k]; int v=1+(int)(hsh(K->rn1*16+K->rn2+1,w+1,0x52554C45)%10)+(K->reign>=120?3:K->reign>=80?2:K->reign>=40?1:0); return v>10?10:v; }   // the ruler's four stats (1..10), worked out from the name seed and the years of rule, so nothing is saved and a new ruler changes them: 0 STEWARDSHIP, 1 WARFARE, 2 DIPLOMACY, 3 INTELLIGENCE
-static void kdStatsRaw(int k,int*cities,int*pop,int*power){ int c=0,p=0,w=0; for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==k+1){ c++; p+=vil[v].pop; w+=vil[v].pop+vil[v].towers*3+vil[v].houses; } w+=kd[k].tech*4; if(kd[k].ctr>>3&1) w=w*5/4; w=w*(100+10*kdKnow(k,2))/100; w=w*(100+3*(kdRStat(k,1)-5))/100; if(kd[k].rlg==0) w=w*11/10; if(cities) *cities=c; if(pop) *pop=p; if(power) *power=w; }
+static void kdStatsRaw(int k,int*cities,int*pop,int*power){ int c=0,p=0,w=0; for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==k+1){ c++; p+=vil[v].pop; w+=vil[v].pop+vil[v].towers*3+vil[v].houses; } w+=kd[k].tech*4; if(kd[k].ctr>>3&1) w=w*5/4; w=w*(100+10*kdKnow(k,2))/100; w=w*(100+3*(kdRStat(k,1)-5))/100; if(kd[k].rlg==0) w=w*11/10; if(kx[k].ctr2&(1u<<8)) w=w*11/10; if(kx[k].ctr2&(1u<<12)) w=w*105/100; if(cities) *cities=c; if(pop) *pop=p; if(power) *power=w; }
 static int kdDistRaw(int a,int b){ int best=9999; for(int u=0;u<VIL_N;u++) if(vil[u].on&&vilK[u]==a+1) for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==b+1){ int dx=vil[u].x-vil[v].x, dy=vil[u].y-vil[v].y; int d=dx*dx+dy*dy; if(d<best) best=d; } int r=0; while(r*r<best&&r<200) r++; return r; }
+static u16 randomTraitBits(int bits,int count){ u16 m=0; if(bits>15) bits=15; if(count>bits) count=bits; while(count>0){ int b=(int)(rnd()%(unsigned)bits); if(!(m&(1u<<b))){ m|=(u16)(1u<<b); count--; } } return m; }
+static int randomTraitCount(void){ return LAWON(LW_NOOSPHERE)?3+(int)(rnd()%4):1+(int)(rnd()%3); }
 static int kdFound(int v){
     KD_DIRTY();
     int k=-1; for(int i=0;i<KN_N;i++) if(!kd[i].on){ k=i; break; } if(k<0) return -1;
-    Kd*K=&kd[k]; memset(K,0,sizeof *K); K->on=1; K->race=vil[v].race; K->n1=(u8)(rnd()%12); K->n2=(u8)(rnd()%8); K->rn1=(u8)(rnd()%12); K->rn2=(u8)(rnd()%8); K->rtr=(u8)(aggressive(K->race)?0:rnd()%4); K->born=(u16)year; K->gold=30; K->cul=(u8)(rnd()%5); K->rlg=(u8)(rnd()%4); K->lang=(u8)(rnd()%5==0?rnd()%5:raceLang(K->race)); K->nlang=K->lang; K->clan=(u8)(rnd()%8); K->cap=(u8)(v+1); memset(&kx[k],0,sizeof kx[k]); memset(hall[k],0,sizeof hall[k]); { int t=K->rtr; kx[k].tribute=(u8)(t==0||t==2?1:t==1?2:0); kx[k].tax=(u8)(t==2?1:t==1?2:0); }
+    Kd*K=&kd[k]; memset(K,0,sizeof *K); K->on=1; K->race=vil[v].race; K->n1=(u8)(rnd()%12); K->n2=(u8)(rnd()%8); K->rn1=(u8)(rnd()%12); K->rn2=(u8)(rnd()%8); K->rtr=(u8)(aggressive(K->race)?0:rnd()%4); K->born=(u16)year; K->gold=30; K->cul=(u8)(rnd()%5); K->rlg=(u8)(rnd()%4); K->lang=(u8)(rnd()%5==0?rnd()%5:raceLang(K->race)); K->nlang=K->lang; K->clan=(u8)(rnd()%8); K->cap=(u8)(v+1); memset(&kx[k],0,sizeof kx[k]); memset(hall[k],0,sizeof hall[k]);
+    /* Every new meta identity can pick up a few traits. Glitched Noosphere raises the count from 1-3 to 3-6. */
+    if(LAWON(LW_NOOSPHERE)||rnd()%100<55){ int n=randomTraitCount(); u16 cb=randomTraitBits(11,n); K->ctr=(u8)(cb&63); kx[k].ctr2=(u16)((cb>>6)&31); }
+    if(LAWON(LW_NOOSPHERE)||rnd()%100<55) kx[k].ctr2|=(u16)(randomTraitBits(3,randomTraitCount())<<5);  // language traits
+    if(LAWON(LW_NOOSPHERE)||rnd()%100<55) kx[k].ctr2|=(u16)(randomTraitBits(3,randomTraitCount())<<8);  // clan traits
+    if(LAWON(LW_NOOSPHERE)||rnd()%100<55) kx[k].ctr2|=(u16)(randomTraitBits(3,randomTraitCount())<<11); // religion traits
+    { int t=K->rtr; kx[k].tribute=(u8)(t==0||t==2?1:t==1?2:0); kx[k].tax=(u8)(t==2?1:t==1?2:0); }
     vilK[v]=(u8)(k+1); vilL[v]=60; char n[24], b[72]; kdName(k,n); siprintf(b,"THE KINGDOM OF %s RISES",n); logEv(b); return k; }
 static void kdAssign(void){
     KD_DIRTY();
@@ -639,11 +654,19 @@ static void kdAssign(void){
 static u16 warYr[KN_N][KN_N];   // the year each war began (not saved: the war records are only for the journal)
 static void renown(int k,int n){ int r=kx[k].renown+n; kx[k].renown=(u16)(r>65000?65000:r); }
 static void kdWar(int a,int b,int on){ if(on){ if(!(kd[a].war>>b&1)) warYr[a][b]=warYr[b][a]=(u16)year; kd[a].war|=(u16)(1<<b); kd[b].war|=(u16)(1<<a); kd[a].weary=kd[b].weary=0; } else { kd[a].war&=(u16)~(1<<b); kd[b].war&=(u16)~(1<<a); } }
+static int peopleKingdomsAtWar(int ia,int ib){
+    if(ia<0||ib<0||ia>=nCr||ib>=nCr||!cr[ia].alive||!cr[ib].alive) return 0;
+    int ra=sp[cr[ia].sp].a, rb=sp[cr[ib].sp].a; if(ra>=8||rb>=8) return 0;
+    int va=vilNear(ra,cr[ia].x,cr[ia].y,20), vb=vilNear(rb,cr[ib].x,cr[ib].y,20);
+    if(va<0||vb<0||!vilK[va]||!vilK[vb]) return ra!=rb&&warM[ra][rb];
+    int ka=vilK[va]-1,kb=vilK[vb]-1;
+    return ka!=kb&&kd[ka].on&&kd[kb].on&&((kd[ka].war>>kb)&1);
+}
 static const char* const knBr[6]={"GOVERNANCE","ZONE CONTROL","WARFARE","ECONOMY","ARCHITECTURE","EDUCATION"};
 static const char* const knN[6][3]={{"TRIBAL LAW","KINGS COURT","ROYAL CHARTER"},{"BOUNDARY STONES","BORDER FORTS","GRAND SURVEY"},{"DRILLED LEVIES","STEEL ARMS","SIEGECRAFT"},{"BARTER","COINAGE","BANKING"},{"MASONRY","ARCHES","CATHEDRALS"},{"WRITING","SCHOLARS","UNIVERSITIES"}};
 static const char* const dogN[4]={"CRUSADERS: +10% POWER","PEACEKEEPERS: BETTER TALKS","BUILDERS: RICHER CITIES","MYSTICS: ODD GIFTS"};
 static int kdKnow(int k,int b){ int n=0; for(int i=0;i<3;i++) n+=(kd[k].know>>(b*3+i))&1; return n; }
-static int kdMaxCities(int k){ return 3+kdKnow(k,0)+(kd[k].tech>=6)+kdRStat(k,0)/6+((kx[k].ctr2>>2&1)?2:0); }   // (EXPANSIONIST: two more)   // governance: each level allows one more city
+static int kdMaxCities(int k){ return 3+kdKnow(k,0)+(kd[k].tech>=6)+kdRStat(k,0)/6+((kx[k].ctr2>>2&1)?2:0)+((kx[k].ctr2&(1u<<10))?1:0); }   // (EXPANSIONIST: two more)   // governance: each level allows one more city
 static int kdZonesRaw(int k){ int z=0; for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==k+1) z+=3+vil[v].lvl*3+vil[v].houses/3+kdKnow(k,1)*3; return z; }
 // The kingdom answer cache: kdStats (cities, people, power), kdDist (the nearest two cities of two kingdoms) and kdZones each walk every village (kdDist, every pair of villages), and the
 // kingdom turn, the pause menu's kingdom page and the browser ask them over and over for the same answers. An answer is kept until KD_DIRTY() says a village or a kingdom changed (or the tick moves on).
@@ -667,13 +690,15 @@ static int kdZones(int k){ kdCacheSync(); if(!kdC.zOk[k]){ kdC.zv[k]=kdZonesRaw(
     } return kdC.zv[k]; }
 static void kdDeclareX(int a,int b,int spite){
     if(a==b||!gx.war||!LAWON(LW_DIPLOMACY)||!kd[a].on||!kd[b].on||(kd[a].war>>b&1)) return; if(spite){ kd[a].spite=kd[b].spite=1; } char x[24], y[24], s[72]; kdName(a,x); kdName(b,y); kdWar(a,b,1); stWars++; kd[a].allies&=(u16)~(1<<b); kd[b].allies&=(u16)~(1<<a); kd[a].rel[b]=kd[b].rel[a]=-60;
-    if(kd[a].rlg!=kd[b].rlg&&((kd[a].ctr>>5&1)||kd[a].rlg==0)) siprintf(s,"%s DECLARES HOLY WAR ON %s",x,y); else siprintf(s,"%s DECLARES WAR ON %s",x,y); logEv(s);
+    if(kd[a].rlg!=kd[b].rlg&&((kd[a].ctr>>5&1)||kd[a].rlg==0||(kx[a].ctr2&(1u<<12)))) siprintf(s,"%s DECLARES HOLY WAR ON %s",x,y); else siprintf(s,"%s DECLARES WAR ON %s",x,y); logEv(s);
     for(int c=0;c<KN_N;c++) if(c!=a&&c!=b&&kd[c].on&&(kd[a].allies>>c&1)&&!(kd[b].allies>>c&1)&&kd[c].rel[b]<20&&!(kd[c].war>>b&1)){ kdWar(c,b,1); char z[24]; kdName(c,z); siprintf(s,"%s JOINS THE WAR",z); logEv(s); } }
 static void kdDeclare(int a,int b){ kdDeclareX(a,b,0); }
 static void kdDie(int k){ KD_DIRTY(); char n[24], s[72]; kdName(k,n); siprintf(s,"THE KINGDOM OF %s FALLS",n); logEv(s); for(int o=0;o<KN_N;o++){ kd[o].allies&=(u16)~(1<<k); kd[o].war&=(u16)~(1<<k); if(kd[o].lord==k+1) kd[o].lord=0; kd[o].rel[k]=0; } memset(&kd[k],0,sizeof kd[k]); memset(&kx[k],0,sizeof kx[k]); memset(hall[k],0,sizeof hall[k]); whisT[k]=disT[k]=spiT[k]=0; for(int o=0;o<KN_N;o++) if(whisT[o]==k+1) whisT[o]=0; }
 static int vilConquer(int fv,int byV){   // a village taken in war changes kingdom instead of dying
     KD_DIRTY();
     int a=vilK[byV]-1, b=vilK[fv]-1; if(a<0||b<0||a==b||!(kd[a].war>>b&1)) return 0;
+    /* Ethnocentric / xenophobic attackers raze a city of another people; other cultures capture it. */
+    if(vil[fv].race!=kd[a].race&&((kd[a].ctr&1)||(kx[a].ctr2&(1u<<3)))){ char n[24], x[24], msg[72]; vilName(fv,n); kdName(a,x); siprintf(msg,"%.18s DESTROYS %.20s",x,n); logEv(msg); vilRaze(fv,1); renown(a,1); return 1; }
     int wasCap=kd[b].cap==fv+1; vilK[fv]=(u8)(a+1); vilL[fv]=-20; stCapt++; vil[fv].foe=0; vil[fv].stock/=2; renown(a,3);
     if(wasCap){ kd[b].cap=0; for(int u=0;u<VIL_N;u++) if(vil[u].on&&vilK[u]==b+1){ vilL[u]=(s8)(vilL[u]-25); vil[u].foe=0; } logEv("A CAPITAL FALLS: ARMIES DESERT"); { char kn[24], t[72]; kdName(b,kn); if(hsh(fv,(u32)tick,0x464C4545)&1){ siprintf(t,"THE RULER OF %.20s FLEES THE FALLEN CAPITAL",kn); } else { hallPush(b); kd[b].rn1=(u8)(hsh(fv,(u32)tick,1)%12); kd[b].rn2=(u8)(hsh(fv,(u32)tick,2)%8); kd[b].reign=0; siprintf(t,"THE RULER OF %.20s FALLS WITH THE CAPITAL",kn); } logEv(t); } }   /* taking a capital shakes every other city of the kingdom */ char n[24], x[24], s[72]; vilName(fv,n); kdName(a,x); siprintf(s,"%s TAKES %s",x,n); logEv(s); kd[b].weary=(u8)(kd[b].weary>3?kd[b].weary-3:0); return 1; }
 static void kdSplit(int k,int mode){      // a crown changes hands in a kingdom with the SHATTERED CROWN (mode 0: every far city becomes a kingdom of its own) or EQUAL HEIRS (mode 1: the farther half goes to one heir). Only as far as free kingdom slots allow: the cities that cannot be given away stay with the heir.
@@ -688,9 +713,9 @@ static void kingdomTick(void){
     { static int lastAge=-1; int ag=worldAge(); if(ag!=lastAge){ if(lastAge>=0){ char s2[72]; siprintf(s2,"THE AGE OF %s BEGINS",ageN[ag]); logEv(s2); } lastAge=ag; } }
     kdAssign();
     for(int k=0;k<KN_N;k++) if(kd[k].on){ KD_DIRTY(); if(disT[k]) disT[k]--; if(spiT[k]) spiT[k]--; int c,p,w; kdStats(k,&c,&p,&w); if(!c){ kdDie(k); continue; }
-        Kd*K=&kd[k]; { int g=p/6+c*2+(K->trade?(K->ctr>>2&1)?10:4:0); if(worldAge()==0) g=g*5/4; g=g*(100+15*kdKnow(k,3))/100; g=g*(100+30*polSgn(kx[k].tribute)+15*polSgn(kx[k].tax))/100; K->gold=(u16)(K->gold+g>60000?60000:K->gold+g); } K->trade=0; K->tradeW=0;
+        Kd*K=&kd[k]; { int g=p/6+c*2+(K->trade?(K->ctr>>2&1)?10:4:0); if(kx[k].ctr2&(1u<<5)) g=g*110/100; if(kx[k].ctr2&(1u<<9)) g=g*110/100; if(worldAge()==1||worldAge()==2) g=g*5/4; g=g*(100+15*kdKnow(k,3))/100; g=g*(100+30*polSgn(kx[k].tribute)+15*polSgn(kx[k].tax))/100; K->gold=(u16)(K->gold+g>60000?60000:K->gold+g); } K->trade=0; K->tradeW=0;
         { int bon=(K->ctr>>4&1?3:0)+kdKnow(k,4)*2+(K->rlg==2?2:0); if(bon) for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==k+1&&vil[v].stock<390) vil[v].stock=(u16)(vil[v].stock+bon); }
-        { /* the culture tree: points from people and scholars buy the next node of the branch the ruler cares about */ static const u8 pref[4][6]={{2,1,0,3,4,5},{0,4,5,3,1,2},{3,1,4,0,2,5},{5,0,3,4,1,2}}; int lv=0; for(int b=0;b<6;b++) lv+=kdKnow(k,b); K->cpts=(u16)(K->cpts+p/8+c+((K->ctr>>1&1)?4:0)+kdKnow(k,5)*2); int cost=(30+lv*20)*(100-10*kdKnow(k,5))/100;
+        { /* the culture tree: points from people and scholars buy the next node of the branch the ruler cares about */ static const u8 pref[4][6]={{2,1,0,3,4,5},{0,4,5,3,1,2},{3,1,4,0,2,5},{5,0,3,4,1,2}}; int lv=0; for(int b=0;b<6;b++) lv+=kdKnow(k,b); K->cpts=(u16)(K->cpts+p/8+c+((K->ctr>>1&1)?4:0)+kdKnow(k,5)*2+((kx[k].ctr2&(1u<<7))?3:0)); int cost=(30+lv*20)*(100-10*kdKnow(k,5))/100;
           if(lv<18&&K->cpts>=cost){ for(int q=0;q<6;q++){ int b=pref[K->rtr&3][q]; int l=kdKnow(k,b); if(l<3){ K->know|=1u<<(b*3+l); K->cpts-=(u16)cost; char y[24], s2[72]; kdName(k,y); siprintf(s2,"%s LEARNS %s",y,knN[b][l]); logEv(s2); break; } } } }
         if(K->rlg==3&&nCr&&(rnd()%100)<4){ for(int t=0;t<24;t++){ int i=(int)(rnd()%nCr); Cr*c2=&cr[i]; if(c2->alive&&sp[c2->sp].a==K->race&&c2->tr2==0){ giveTrait(c2,1+(int)(rnd()%(TR_N-1)),0); break; } } }
         if(((K->ctr>>5&1)||K->rlg==0)&&(rnd()%100)<5){ for(int o=0;o<KN_N;o++) if(o!=k&&kd[o].on&&kd[o].rlg!=K->rlg&&kd[o].rel[k]>-30&&kdDist(k,o)<40){ kd[o].rlg=K->rlg; char y[24], f[24], s2[72]; kdName(o,y); kdFaith(k,f); siprintf(s2,"%s ADOPTS FAITH %s",y,f); logEv(s2); break; } }
@@ -701,7 +726,7 @@ static void kingdomTick(void){
         if(K->lord&&kd[K->lord-1].on&&(rnd()%100)<8){ Kd*L=&kd[K->lord-1]; int w2=(int)(rnd()%3); if(w2==0) K->cul=L->cul; else if(w2==1) K->rlg=L->rlg; else K->lang=L->lang; }   /* a vassal slowly takes on its lord's ways */
         if(K->gold>1500){ K->gold-=600; for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==k+1) vil[v].stock=(u16)(vil[v].stock+40>400?400:vil[v].stock+40); }
         if(K->gold>400){ K->gold-=150; for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==k+1&&vil[v].stock<350){ vil[v].stock+=50; break; } }
-        int tcost=(70+K->tech*60)*((K->ctr>>1&1)?8:10)/10*(worldAge()==3?7:10)/10*(100-10*kdKnow(k,5))/100; { int lb=0; for(int v2=0;v2<VIL_N;v2++) if(vil[v2].on&&vilK[v2]==k+1&&(vilBf[v2]&4)) lb++; if(lb>6) lb=6; tcost=tcost*(100-5*lb)/100; } tcost=tcost*(100-2*(kdRStat(k,3)-5))/100; if(K->tech<9&&K->gold>=(u16)tcost){ K->gold-=(u16)tcost; K->tech++; char y[24], s[72]; kdName(k,y); siprintf(s,"%s LEARNS %s",y,techN[K->tech]); logEv(s); }
+        int tcost=(70+K->tech*60)*((K->ctr>>1&1)?8:10)/10*((worldAge()==6||worldAge()==7)?7:10)/10*(100-10*kdKnow(k,5))/100; { int lb=0; for(int v2=0;v2<VIL_N;v2++) if(vil[v2].on&&vilK[v2]==k+1&&(vilBf[v2]&4)) lb++; if(lb>6) lb=6; tcost=tcost*(100-5*lb)/100; } tcost=tcost*(100-2*(kdRStat(k,3)-5))/100; if(K->tech<9&&K->gold>=(u16)tcost){ K->gold-=(u16)tcost; K->tech++; char y[24], s[72]; kdName(k,y); siprintf(s,"%s LEARNS %s",y,techN[K->tech]); logEv(s); }
         int emp=c>=5||(0); for(int o=0;o<KN_N;o++) if(kd[o].on&&kd[o].lord==k+1) emp+=0; { int vs=0; for(int o=0;o<KN_N;o++) vs+=kd[o].on&&kd[o].lord==k+1; if(vs>=2) emp=1; }
         if(emp&&!K->empire){ K->empire=1; char y[24], s[72]; kdName(k,y); siprintf(s,"%s BECOMES AN EMPIRE",y); logEv(s); } else if(!emp) K->empire=0;
         if(K->lord){ int l=K->lord-1; if(!kd[l].on) K->lord=0; else { int tr=K->gold/8; K->gold-=(u16)tr; kd[l].gold=(u16)(kd[l].gold+tr>60000?60000:kd[l].gold+tr); int c2,p2,w2; kdStats(l,&c2,&p2,&w2); if(w2*2<w||(rnd()%300)==0){ K->lord=0; char y[24], z[24], s[72]; kdName(k,y); kdName(l,z); kdWar(k,l,1); K->rel[l]=kd[l].rel[k]=-70; siprintf(s,"%s REVOLTS AGAINST %s",y,z); logEv(s); } } } }
@@ -709,10 +734,10 @@ static void kingdomTick(void){
     // opinions (each kingdom's view of every other: distance, species, culture, alliance, size, ruler tempers), then plots: war, peace and alliance
     for(int a=0;a<KN_N;a++) if(kd[a].on){ if(kd[a].truce) kd[a].truce--; for(int b=0;b<KN_N;b++) if(b!=a&&kd[b].on){
             int d=kdDist(a,b), op=0; if(d<16) op-=15; else if(d>45) op+=10;
-            op+=kd[a].race==kd[b].race?15:-10; op+=kd[a].cul==kd[b].cul?15:-15; op+=kd[a].rlg==kd[b].rlg?15:-15; op+=kd[a].lang==kd[b].lang?8:-8; op+=kd[a].clan==kd[b].clan?10:-12; if((kd[a].ctr&1)&&!(kx[a].ctr2>>4&1)&&(kd[a].cul!=kd[b].cul||kd[a].race!=kd[b].race)) op-=12; if((kx[a].ctr2>>3&1)&&kd[a].race==kd[b].race&&kd[a].cul!=kd[b].cul) op-=20; if((kx[a].ctr2>>4&1)&&kd[a].race!=kd[b].race) op+=10; if(worldAge()==4) op+=10; if(kd[a].rlg==1) op+=5; op+=kdRStat(a,2)-5; if(kd[a].allies>>b&1) op+=30; if(disT[a]||disT[b]) op-=20; if(spiT[b]) op-=25; if(kd[a].war>>b&1) op-=500; if(kd[a].truce) op+=20; if(kd[a].lord==b+1||kd[b].lord==a+1) op+=15;
+            op+=kd[a].race==kd[b].race?15:-10; op+=kd[a].cul==kd[b].cul?15:-15; op+=kd[a].rlg==kd[b].rlg?15:-15; op+=kd[a].lang==kd[b].lang?8:-8; if(kx[a].ctr2&(1u<<6)) op+=4; if(kx[a].ctr2&(1u<<11)) op+=kd[a].rlg==kd[b].rlg?5:0; if(kx[a].ctr2&(1u<<12)) op+=kd[a].rlg==kd[b].rlg?0:-5; if(kx[a].ctr2&(1u<<13)) op+=kd[a].rlg==kd[b].rlg?0:4; op+=kd[a].clan==kd[b].clan?10:-12; if((kd[a].ctr&1)&&!(kx[a].ctr2>>4&1)&&(kd[a].cul!=kd[b].cul||kd[a].race!=kd[b].race)) op-=12; if((kx[a].ctr2>>3&1)&&kd[a].race==kd[b].race&&kd[a].cul!=kd[b].cul) op-=20; if((kx[a].ctr2>>4&1)&&kd[a].race!=kd[b].race) op+=10; if(worldAge()==1) op+=10; if(kd[a].rlg==1) op+=5; op+=kdRStat(a,2)-5; if(kd[a].allies>>b&1) op+=30; if(disT[a]||disT[b]) op-=20; if(spiT[b]) op-=25; if(kd[a].war>>b&1) op-=500; if(kd[a].truce) op+=20; if(kd[a].lord==b+1||kd[b].lord==a+1) op+=15;
             { int za=kdZones(a), zb=kdZones(b); if(zb>za){ int t=(zb-za)/5; op-=t>20?20:t; } int ca,pa,wa,cb,pb,wb; kdStats(a,&ca,&pa,&wa); kdStats(b,&cb,&pb,&wb); if(wb>wa){ int t=(wb-wa)/30; op-=t>15?15:t; } }
             if(kd[a].rtr==0&&kd[b].rtr!=0) op-=10; else if(kd[a].rtr==1&&kd[b].rtr==0) op-=10; else if(kd[a].rtr==kd[b].rtr) op+=5;
-            op+=worldAge()==2?(int)(rnd()%17)-8:(int)(rnd()%5)-2; if(op>100) op=100; if(op<-100) op=-100; kd[a].rel[b]=(s8)op; } }
+            op+=worldAge()==5?(int)(rnd()%17)-8:(int)(rnd()%5)-2; if(op>100) op=100; if(op<-100) op=-100; kd[a].rel[b]=(s8)op; } }
     for(int a=0;a<KN_N;a++) if(kd[a].on){
         if(kd[a].plot){ int b=kd[a].plot-1; if(!kd[b].on||(kd[a].war>>b&1)||(kd[a].allies>>b&1)||(kd[a].rel[b]>-10&&whisT[a]!=b+1)){ kd[a].plot=0; kd[a].pcool=8; whisT[a]=0; } else if(++kd[a].plotT>=3){ int ca,pa,wa,cb,pb,wb; kdStats(a,&ca,&pa,&wa); kdStats(b,&cb,&pb,&wb); kd[a].plot=0; kd[a].pcool=8; if(whisT[a]==b+1||wa*10>=wb*6) kdDeclare(a,b); whisT[a]=0; } }
         else if(kd[a].pcool) kd[a].pcool--;
@@ -733,7 +758,7 @@ static void kingdomTick(void){
         if(kd[k].war&&!V->foe&&gx.vDef[v]!=1){ int best=-1, bd=80*80; for(int u=0;u<VIL_N;u++) if(vil[u].on&&vilK[u]&&u!=v&&(kd[k].war>>(vilK[u]-1)&1)){ int dx=vil[u].x-V->x, dy=vil[u].y-V->y, dd=dx*dx+dy*dy; if(dd<bd){ bd=dd; best=u; } } if(best>=0) V->foe=(u8)(best+1); }
         { int c,p,w; kdStats(k,&c,&p,&w); int cap=kd[k].cap?kd[k].cap-1:-1;
           if(cap<0||!vil[cap].on||vilK[cap]!=k+1){ int bp=-1; kd[k].cap=0; for(int u=0;u<VIL_N;u++) if(vil[u].on&&vilK[u]==k+1&&vil[u].pop>=bp){ bp=vil[u].pop; kd[k].cap=(u8)(u+1); } cap=kd[k].cap-1; }
-          if(v==cap) vilL[v]=100; else { int tg=50+(kdRStat(k,0)-5)*2-4*polSgn(kx[k].tribute)-3*polSgn(kx[k].tax); int over=c-kdMaxCities(k); if(over>0) tg-=over*25; if(cap>=0){ int dx=vil[cap].x-V->x, dy=vil[cap].y-V->y, dd=dx*dx+dy*dy; int r=0; while(r*r<dd&&r<100) r++; tg+=r<20?10:-(r/10); } if(V->stock>40) tg+=5; if(V->stock<8) tg-=10; if(kd[k].ctr>>5&1) tg+=10; if(worldAge()==0) tg+=5; if(worldAge()==1) tg-=5; if(worldAge()==2) tg-=8;
+          if(v==cap) vilL[v]=100; else { int tg=50+(kdRStat(k,0)-5)*2-4*polSgn(kx[k].tribute)-3*polSgn(kx[k].tax); int over=c-kdMaxCities(k); if(over>0) tg-=over*25; if(cap>=0){ int dx=vil[cap].x-V->x, dy=vil[cap].y-V->y, dd=dx*dx+dy*dy; int r=0; while(r*r<dd&&r<100) r++; tg+=r<20?10:-(r/10); } if(V->stock>40) tg+=5; if(V->stock<8) tg-=10; if(kd[k].ctr>>5&1) tg+=10; if(worldAge()==1||worldAge()==2) tg+=5; if(worldAge()==0||worldAge()==9) tg-=5; if(worldAge()==5||worldAge()==8) tg-=8;
             if(vilL[v]<tg) vilL[v]++; else if(vilL[v]>tg) vilL[v]--; if(vilL[v]<-100) vilL[v]=-100;
             if(LAWON(LW_REBEL)&&vilL[v]<0&&(c>6||c>kdMaxCities(k))&&year-(int)kd[k].born>=15&&V->pop>=10&&(rnd()%10)==0){ int nk=-1; for(int i=0;i<KN_N;i++) if(!kd[i].on){ nk=i; break; } if(nk>=0){ int cul=kd[k].cul; vilK[v]=0; int n2=kdFound(v); if(n2>=0){ kd[n2].cul=(u8)cul; kd[n2].rlg=kd[k].rlg; kd[n2].lang=kd[k].lang; kd[n2].race=vil[v].race; kdWar(n2,k,1); char n[24], x[24], s[72]; vilName(v,n); kdName(k,x); siprintf(s,"%s REBELS AGAINST %s",n,x); logEv(s); } } } } } }
     // sieges: the stronger side of a war can take the nearest enemy city outright; big cities send out colonies
@@ -790,6 +815,13 @@ static void terraformTick(int i,Cr*c,const Sp*s){       // diet 6: they work the
     case A_WORM: if(t==T_FOREST||t==T_JUNGLE||t==T_GRASS||t==T_SWAMP) tfSet(wx,wy,T_DIRT); else if(t==T_DIRT&&(rnd()&3)==0) tfSet(wx,wy,T_SAND); break;
     case A_SSPIDER: if(t==T_GRASS||t==T_DIRT||t==T_HILL||t==T_FOREST||t==T_SWAMP) tfSet(wx,wy,T_SAND); else if(t==T_SAND&&(rnd()%5)==0) tfSet(wx,wy,T_DESERT); break; } }
 static void healAround(Cr*c,int r,int amt,int cure){ for(int dy=-r;dy<=r;dy++) for(int dx=-r;dx<=r;dx++){ int x=c->x+dx, y=c->y+dy; if(x<0||y<0||x>=WW||y>=WH||!occ[y][x]) continue; Cr*q=&cr[occ[y][x]-1]; if(q==c||!q->alive) continue; int mh=maxHp(q); if(q->hp<mh) q->hp=(u8)(q->hp+amt>mh?mh:q->hp+amt); if(cure&&DISEASE(q)==1) SET_DISEASE(q,2); } }
+static void beeMatriarchy(int i,Cr*c){
+    int queen=-1, bees=0, bestAge=-1; const int a=sp[c->sp].a;
+    for(int j=0;j<nCr;j++){ Cr*q=&cr[j]; if(!q->alive||sp[q->sp].a!=a) continue; int dx=(int)q->x-c->x,dy=(int)q->y-c->y; if(dx*dx+dy*dy>144) continue; bees++; if(crFl[j]&FL_BEEQUEEN){ int age=q->age; if(queen<0||age>bestAge||(age==bestAge&&crId[j]<crId[queen])){ queen=j; bestAge=age; } } }
+    if(queen<0){ crFl[i]|=FL_BEEQUEEN; queen=i; }
+    if(queen==i){ if((tick&255)==0&&bees<24){ for(int d=0;d<4;d++){ int x=c->x+dxs[d],y=c->y+dys[d]; if(x<0||y<0||x>=WW||y>=WH||occ[y][x]) continue; int n=addCr(c->sp,x,y); if(n>=0) cr[n].age=0; break; } } }
+    else { Cr*q=&cr[queen]; int dx=(int)q->x-c->x,dy=(int)q->y-c->y; if(dx*dx+dy*dy>9&&(tick&15)==0) stepToward(c,i,&sp[c->sp],q->x,q->y); }
+}
 static void specialAnimal(int i,Cr*c,int a){        // the magical and special animals do their one thing every few ticks
     if(((tick+i)&7)!=0) return; int e=(int)(rnd()&3), wx=c->x+dxs[e], wy=c->y+dys[e]; int ok=wx>=0&&wy>=0&&wx<WW&&wy<WH&&!bld[wy][wx]; int t=ok?world[wy][wx]:-1;
     switch(a){
@@ -841,6 +873,7 @@ static void thinkBody(int i){
     if(diet==6){ terraformTick(i,c,s); return; }
     if(diet<4&&(crFl[i]&FL_SAPIENT)){      // a sapient animal defends its home: a monster within two tiles is fought, with whatever tools it has made
         for(int dy=-2;dy<=2;dy++) for(int dx=-2;dx<=2;dx++){ int x=c->x+dx, y=c->y+dy; if(x<0||y<0||x>=WW||y>=WH||!occ[y][x]) continue; int j=occ[y][x]-1; if(j==i||arch[sp[cr[j].sp].a].diet!=5) continue; Cr*p=&cr[j]; int dm=hitDmg(c,p); ntHit(c,p,dm); if(!damageCreature(j,dm,i)) gainXp(c); return; } }
+    if(s->a==42&&(tick&63)==0) beeMatriarchy(i,c);
     if(diet<4&&s->a>=8){ specialAnimal(i,c,s->a); if(LAWON(LW_EVOLUTION)&&!(crFl[i]&FL_EVOLVED)&&c->age>40&&c->food>=90&&nCr>150&&rnd()%2500==0) evolve(i); }
     if(diet==5){   // a monster: it hunts every living thing in reach (people first), and burns the houses it passes
         int best=-1,bd=99,rd=99; for(int dy=-10;dy<=10;dy++) for(int dx=-10;dx<=10;dx++){ int x=c->x+dx,y=c->y+dy; if(x<0||y<0||x>=WW||y>=WH||!occ[y][x]) continue; int j=occ[y][x]-1; if(j==i||arch[sp[cr[j].sp].a].diet==5||((HAS(&cr[j],TR_CAMO)&&(rnd()&1))||(HAS(&cr[j],TR_GIGGLY)&&rnd()%3==0))) continue;
@@ -865,9 +898,10 @@ static void thinkBody(int i){
         // fight: an enemy people within reach is attacked; otherwise an army walks to the enemy village
         { int best=-1,bd=99;
 #ifdef GG_NOCELL
-          for(int dy=-3;dy<=3;dy++) for(int dx=-3;dx<=3;dx++){ int x=c->x+dx,y=c->y+dy; if(x<0||y<0||x>=WW||y>=WH||!occ[y][x]) continue; int j=occ[y][x]-1; if(j==i) continue; int ra=sp[cr[j].sp].a; if(arch[ra].diet!=5&&(ra>=8||!warM[s->a][ra])) continue; int d=(dx<0?-dx:dx)+(dy<0?-dy:dy); if(d<bd){ bd=d; best=j; } }
+          for(int dy=-3;dy<=3;dy++) for(int dx=-3;dx<=3;dx++){ int x=c->x+dx,y=c->y+dy; if(x<0||y<0||x>=WW||y>=WH||!occ[y][x]) continue; int j=occ[y][x]-1; if(j==i) continue; int ra=sp[cr[j].sp].a; if(arch[ra].diet!=5&&(ra>=8||(!warM[s->a][ra]&&ra!=s->a)||((ra==s->a)&&!peopleKingdomsAtWar(i,j)))) continue; int d=(dx<0?-dx:dx)+(dy<0?-dy:dy); if(d<bd){ bd=d; best=j; } }
 #else
-          { unsigned em=0x100; for(int r=0;r<8;r++) if(warM[s->a][r]) em|=1u<<r; int dd=99; best=cellNearest(i,3,em,&dd); if(best>=0) bd=dd; }      // (10c: nine cell masks instead of 49 tiles; the same answer)
+          { unsigned em=0x100; for(int r=0;r<8;r++) if(warM[s->a][r]&&r!=s->a) em|=1u<<r; int dd=99; best=cellNearest(i,3,em,&dd); if(best>=0) bd=dd;
+            if(warM[s->a][s->a]) for(int dy=-3;dy<=3;dy++) for(int dx=-3;dx<=3;dx++){ int x=c->x+dx,y=c->y+dy; if(x<0||y<0||x>=WW||y>=WH||!occ[y][x]) continue; int j=occ[y][x]-1; if(j==i||sp[cr[j].sp].a!=s->a||!peopleKingdomsAtWar(i,j)) continue; int d=(dx<0?-dx:dx)+(dy<0?-dy:dy); if(d<bd){bd=d;best=j;} } }      // (10c: nine cell masks instead of 49 tiles; the same answer)
 #endif
           if(best>=0){ Cr*p=&cr[best]; if(bd<=1+HAS(c,TR_SPIT)){ int dm=hitDmg(c,p); ntHit(c,p,dm); zombieBite(c,(int)(p-cr)); if(!damageCreature(best,dm,i)){ gainXp(c); c->food+=20; } return; }
               int dx=p->x-c->x, dy=p->y-c->y; int ax=dx>0?1:dx<0?-1:0, ay=dy>0?1:dy<0?-1:0; if(((dx<0?-dx:dx)<(dy<0?-dy:dy))) ax=0; else ay=0; int nx=c->x+ax, ny=c->y+ay; if(stepOk(s,&nx,&ny)) moveTo(c,i,nx,ny); return; } }
@@ -908,9 +942,9 @@ static int monTierMax(void){ int t=(tierOpen-1)/3+year/4; return t>4?4:t; }
 static int monCount(void){ int n=0; for(int i=0;i<nCr;i++) n+=cr[i].alive&&arch[sp[cr[i].sp].a].diet==5; return n; }
 static int monCountHud(void){ static int c=0; static unsigned t=~0u; if(t!=(unsigned)(tick>>3)){ t=(unsigned)(tick>>3); c=monCount(); } return c; }      // (display only: counted once every 8 ticks; the spawn rules use monCount)
 static void monSpawn(void){   // rifts open: monsters of the strength the world has earned appear far from the villages
-    if(!monOn||(year<2&&tierOpen<4)) return; int tm=monTierMax(); int cap=(4+tm*6)*WW*WH/16384*(diff==0?6:diff==2?15:10)/10*(worldAge()==1?15:10)/10*(gx.mon==0?5:gx.mon==2?18:10)/10; if(cap<3) cap=3; if(monCount()>=cap||(rnd()%3)) return;
+    if(!monOn||(year<2&&tierOpen<4)) return; int tm=monTierMax(); int cap=(4+tm*6)*WW*WH/16384*(diff==0?6:diff==2?15:10)/10*(worldAge()==0?15:10)/10*(gx.mon==0?5:gx.mon==2?18:10)/10; if(cap<3) cap=3; if(monCount()>=cap||(rnd()%3)) return;
     int a; for(int k=0;k<8;k++){ a=ARCH_A+(int)(rnd()%(ARCH_N-ARCH_A)); int tr=monTier[a-ARCH_A]; if(tr<=tm&&(tr>=tm-2||(rnd()&7)==0)) break; if(k==7) a=ARCH_A+(int)(rnd()%4); }
-    int s=8+(a-8)*16+(int)(rnd()%16); int grp=monTier[a-ARCH_A]==0?1+(int)(rnd()%3):1;
+    int s=8+(a-8)*16+randomFamily(a); int grp=monTier[a-ARCH_A]==0?1+(int)(rnd()%3):1;
     int home=-1; { int n=0; for(int v=0;v<VIL_N;v++) if(vil[v].on&&(rnd()%(++n))==0) home=v; }   // a rift opens 14 to 40 tiles from a village (any, at random)
     for(int k=0;k<40;k++){ int x=rnd()%WW, y=rnd()%WH; if(home>=0){ int r=14+(int)(rnd()%27); int ang=(int)(rnd()&3); x=vil[home].x+(ang&1?r:-r)+(int)(rnd()%9)-4; y=vil[home].y+(ang&2?r:-r)+(int)(rnd()%9)-4; if(x<0||y<0||x>=WW||y>=WH) continue; }
         if(!walkable(&sp[s],x,y)||occ[y][x]||vilAny(x,y,9)>=0) continue; int n=0; for(int q=0;q<grp;q++) { int k2=addCr(s,x+(q?(int)(rnd()%3)-1:0),y+(q?(int)(rnd()%3)-1:0)); if(k2>=0){ n++; int rr=(int)(rnd()%100); if(tm>=1&&rr<4+tm*3) cr[k2].rk=1; else if(tm>=2&&rr<6+tm*3) cr[k2].rk=2; if(tm>=2&&(rnd()&7)==0) giveTrait(&cr[k2],1+(int)(rnd()%(TR_N-1)),0); cr[k2].hp=(u8)maxHp(&cr[k2]); } } if(n) return; }
@@ -939,8 +973,10 @@ static void volcanoTick(void){   // lava creeps over nearby ground now and then,
 #include "wild.h"           // Pack C and D: fire elemental, goo, ghosts, crab powers, bandits, sapient animals and dens
 #include "disasters.h"       // alien invasion, far-land dragon, moon horrors, biomass, dream ice and garden surprise
 enum { EV_COMET, EV_HARVEST, EV_MUNCH, EV_FEST, EV_PROPHET, EV_FAMINE, EV_MIGRATE, EV_GOLDEN, EV_CARAVAN, EV_BLOOM, EV_CRISIS, EV_COLD, EV_N };
-static const u8 evW[EV_N][5]={   // weights by age of the world: HOPE, SHADOWS, CHAOS, WONDERS, PEACE
-    {2,3,5,2,1},{6,2,2,4,5},{2,2,3,5,2},{2,1,1,3,6},{3,2,2,5,3},{1,4,3,1,1},{3,2,3,3,3},{2,0,0,3,4},{3,2,2,3,4},{1,2,3,5,1},{1,3,4,1,1},{1,4,3,1,2} };
+static const u8 evW[EV_N][10]={   // weights by the ten world ages: dark, hope, sun, tears, moon, chaos, wonders, ice, ash, despair
+    {2,3,3,2,3,5,2,4,5,4},{4,6,6,3,4,2,5,3,1,1},{2,3,4,2,2,3,5,3,2,1},{4,5,4,3,4,1,5,2,2,4},
+    {3,3,2,4,5,2,5,3,2,2},{3,1,1,4,2,4,1,3,5,5},{4,3,3,4,3,3,4,2,3,2},{5,4,3,3,2,1,5,2,1,1},
+    {3,3,4,3,3,2,4,2,1,1},{2,2,3,5,3,2,5,3,1,1},{1,2,4,1,3,5,2,1,3,5},{2,3,1,2,4,2,1,6,2,3} };
 static void eventDo(int e){      // one world event; each one is written to the journal
     char s[72]; int ag=worldAge();
     switch(e){
@@ -1015,10 +1051,17 @@ static void biomeTick(void){       // biomes creep outward over the ground, figh
         if((int)(rnd()%(unsigned)win)) continue; bioSet(nx,ny,b); if(nx>=winX-1&&nx<winX+34&&ny>=winY-1&&ny<winY+26) putCell(nx,ny); }
     if(nBio[2]>=10&&(rnd()&15)==0){ for(int tr=0;tr<40;tr++){ int x=(int)(rnd()%WW), y=(int)(rnd()%WH); if(bioAt(x,y)==2){ burnAt(x,y,160); for(int q=0;q<4;q++) burnAt(x+dxs[q],y+dys[q],90); if(occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; if(arch[sp[c->sp].a].diet!=5&&!HAS(c,TR_FIRE)){ if(c->hp>12) c->hp-=12; else killCr(occ[y][x]-1); } } break; } } } }
 #include "ggfar.h"      // (10d: tiers and distant battles)
+static void thoughtCloudTick(void){
+    if(!LAWON(LW_THOUGHTS)||(tick&255)!=77||rnd()%4) return;
+    int x=(int)(rnd()%WW), y=(int)(rnd()%WH), race=0; u8 t=world[y][x];
+    if(t==T_WATER||t==T_DEEP||t==T_LAVA) return;
+    if(t==T_MOUNT||t==T_HILL) race=2; else if(t==T_DESERT||t==T_SAND) race=3; else if(t==T_SWAMP) race=4; else if(t==T_FOREST||t==T_JUNGLE) race=1; else if(t==T_SNOW) race=5;
+    for(int r=0;r<=3;r++) for(int dy=-r;dy<=r;dy++) for(int dx=-r;dx<=r;dx++){ if((dx<0?-dx:dx)+(dy<0?-dy:dy)!=r) continue; int xx=x+dx,yy=y+dy; if(xx<0||yy<0||xx>=WW||yy>=WH) continue; if(addCr(race,xx,yy)>=0){ logEv("A CLOUD OF THOUGHTS DROPS A PERSON"); fxReq(FX_BIRTH); return; } }
+}
 static void simulate(void){
     if(paused) return;
     if(!gx.lBio) biomeTick();
-    boatTick();
+    boatTick(); thoughtCloudTick();
     if((tick&63)==17) atmoTick();
     { static int gcx=-1, gcy=-1; int x0=(camX>>3)-1, y0=(camY>>3)-1; int camMoved=(x0!=gcx||y0!=gcy); int fullScan=camMoved||(tick&63)==0; if(fullScan){ gcx=x0; gcy=y0; glideOn=1; }      // glide into the tile: only the creatures near the screen (a crowd of thousands is not walked through every tick), and only while something is gliding
       if(glideOn){ int rem=0; for(int y=y0<0?0:y0;y<y0+27&&y<WH;y++) for(int x=x0<0?0:x0;x<x0+35&&x<WW;x++){ if(!cellTot[cellOf(x,y)]){ x|=7; continue; } int j=occ[y][x]-1; if(j<0) continue; Cr*c=&cr[j]; if(c->ox) c->ox+= c->ox<0?1:-1; if(c->oy) c->oy+= c->oy<0?1:-1; if(c->ox||c->oy) rem=1; } glideOn=rem; } }
@@ -1151,14 +1194,15 @@ static void unlockTiers(void){   // every 256 ticks: is the chapter you are on d
     chapterDone(); }
 // ---------------------------------------------------------------------------------------------- powers (the table is the catalogue)
 typedef struct { const char*nm; u8 kind, arg; } Pw;
-enum { PK_INSPECT, PK_PAINT, PK_SPAWN, PK_RAIN, PK_FIRE, PK_BOLT, PK_METEOR, PK_KILL, PK_HEAL, PK_FEED, PK_SETTLE, PK_WAR, PK_PEACE, PK_BLESS, PK_GIFT, PK_MUTATE, PK_QUAKE, PK_FLOOD, PK_BLOOM, PK_VIBE, PK_TORNADO, PK_ACID, PK_HOLE, PK_NUKE, PK_PLAGUE, PK_CURSE, PK_AIR, PK_INSPIRE, PK_WHISPER, PK_DISCORD, PK_UNITY, PK_SPITE, PK_FRIEND, PK_DUSTW, PK_DUSTR, PK_DUSTG, PK_LOOT, PK_CORRODE, PK_FIREEL, PK_GOO, PK_CRABBOMB, PK_CRABZILLA, PK_UPLIFT, PK_MONOLITH, PK_STATUS, PK_ALIEN, PK_DRAGON, PK_MOON, PK_BIOMASS, PK_ICE, PK_GARDEN };
+enum { PK_INSPECT, PK_PAINT, PK_SPAWN, PK_RAIN, PK_FIRE, PK_BOLT, PK_METEOR, PK_KILL, PK_HEAL, PK_FEED, PK_SETTLE, PK_WAR, PK_PEACE, PK_BLESS, PK_GIFT, PK_MUTATE, PK_QUAKE, PK_FLOOD, PK_BLOOM, PK_VIBE, PK_TORNADO, PK_ACID, PK_HOLE, PK_NUKE, PK_PLAGUE, PK_CURSE, PK_AIR, PK_INSPIRE, PK_WHISPER, PK_DISCORD, PK_UNITY, PK_SPITE, PK_FRIEND, PK_DUSTW, PK_DUSTR, PK_DUSTG, PK_LOOT, PK_CORRODE, PK_FIREEL, PK_GOO, PK_CRABBOMB, PK_CRABZILLA, PK_UPLIFT, PK_MONOLITH, PK_STATUS, PK_ALIEN, PK_DRAGON, PK_MOON, PK_BIOMASS, PK_ICE, PK_GARDEN, PK_BOLT_SMALL, PK_BOLT_MEDIUM, PK_PRINT_COPY, PK_PRINT_FOREST, PK_PRINT_WATER, PK_PRINT_MOUNTAIN, PK_PRINT_BIOME, PK_PRINT_CLEAR, PK_POSSESS, PK_HOME, PK_BORDER };
 static const Pw pw[]={ {"INSPECT",PK_INSPECT,0},{"WATER",PK_PAINT,T_WATER},{"DEEP SEA",PK_PAINT,T_DEEP},{"SAND",PK_PAINT,T_SAND},{"GRASS",PK_PAINT,T_GRASS},{"FOREST",PK_PAINT,T_FOREST},{"JUNGLE",PK_PAINT,T_JUNGLE},
     {"HILLS",PK_PAINT,T_HILL},{"MOUNTAIN",PK_PAINT,T_MOUNT},{"SNOW",PK_PAINT,T_SNOW},{"DESERT",PK_PAINT,T_DESERT},{"SWAMP",PK_PAINT,T_SWAMP},{"LAVA",PK_PAINT,T_LAVA},{"CORRUPT",PK_PAINT,101},{"INFERNAL",PK_PAINT,102},{"ENCHANT",PK_PAINT,103},{"GREENHOUSE",PK_AIR,0},{"OXYGEN",PK_AIR,1},{"DUST CLOUD",PK_AIR,2},
     {"SPAWN",PK_SPAWN,0},{"RAIN",PK_RAIN,0},{"FIRE",PK_FIRE,0},{"LIGHTNING",PK_BOLT,0},{"METEOR",PK_METEOR,0},{"SMITE",PK_KILL,0},{"HEAL",PK_HEAL,0},{"FEED",PK_FEED,0},{"SETTLE",PK_SETTLE,0},{"WAR",PK_WAR,0},{"PEACE",PK_PEACE,0},{"BLESS",PK_BLESS,0},{"GIFT",PK_GIFT,0},{"MUTATE",PK_MUTATE,0},{"EARTHQUAKE",PK_QUAKE,0},{"TSUNAMI",PK_FLOOD,0},{"BLOOM",PK_BLOOM,0},{"GOOD VIBES",PK_VIBE,0},
     {"TORNADO",PK_TORNADO,0},{"ACID RAIN",PK_ACID,0},{"BLACK HOLE",PK_HOLE,0},{"ATOMIC BOMB",PK_NUKE,0},{"PLAGUE",PK_PLAGUE,0},{"CURSE",PK_CURSE,0},
-    {"INSPIRE",PK_INSPIRE,0},{"WHISPER",PK_WHISPER,0},{"DISCORD",PK_DISCORD,0},{"UNITY",PK_UNITY,0},{"SPITE",PK_SPITE,0},{"FRIENDSHIP",PK_FRIEND,0},{"WHITE DUST",PK_DUSTW,0},{"RED DUST",PK_DUSTR,0},{"GOLD DUST",PK_DUSTG,0},{"LOOT RAIN",PK_LOOT,0},{"CORROSIVE",PK_CORRODE,0},{"FIRE ELEM.",PK_FIREEL,0},{"GREY GOO",PK_GOO,0},{"CRAB BOMB",PK_CRABBOMB,0},{"CRABZILLA",PK_CRABZILLA,0},{"UPLIFT",PK_UPLIFT,0},{"MONOLITH",PK_MONOLITH,0},{"STATUS",PK_STATUS,0},{"ALIEN INVASION",PK_ALIEN,0},{"FAR DRAGON",PK_DRAGON,0},{"MOON HORRORS",PK_MOON,0},{"BIOMASS",PK_BIOMASS,0},{"DREAM ICE",PK_ICE,0},{"GARDEN SURPRISE",PK_GARDEN,0} };   // Pack B: political powers   // the Calamity pack (calamity.h)
+    {"INSPIRE",PK_INSPIRE,0},{"WHISPER",PK_WHISPER,0},{"DISCORD",PK_DISCORD,0},{"UNITY",PK_UNITY,0},{"SPITE",PK_SPITE,0},{"FRIENDSHIP",PK_FRIEND,0},{"WHITE DUST",PK_DUSTW,0},{"RED DUST",PK_DUSTR,0},{"GOLD DUST",PK_DUSTG,0},{"LOOT RAIN",PK_LOOT,0},{"CORROSIVE",PK_CORRODE,0},{"FIRE ELEM.",PK_FIREEL,0},{"GREY GOO",PK_GOO,0},{"CRAB BOMB",PK_CRABBOMB,0},{"CRABZILLA",PK_CRABZILLA,0},{"UPLIFT",PK_UPLIFT,0},{"MONOLITH",PK_MONOLITH,0},{"STATUS",PK_STATUS,0},{"ALIEN INVASION",PK_ALIEN,0},{"FAR DRAGON",PK_DRAGON,0},{"MOON HORRORS",PK_MOON,0},{"BIOMASS",PK_BIOMASS,0},{"DREAM ICE",PK_ICE,0},{"GARDEN SURPRISE",PK_GARDEN,0},{"SMALL LIGHTNING",PK_BOLT_SMALL,0},{"MEDIUM LIGHTNING",PK_BOLT_MEDIUM,0},{"PRINTER COPY",PK_PRINT_COPY,0},{"PRINTER FOREST",PK_PRINT_FOREST,0},{"PRINTER WATER",PK_PRINT_WATER,0},{"PRINTER MOUNTAIN",PK_PRINT_MOUNTAIN,0},{"PRINTER BIOME",PK_PRINT_BIOME,0},{"PRINTER CLEAR",PK_PRINT_CLEAR,0},{"POSSESS",PK_POSSESS,0},{"SEND HOME",PK_HOME,0},{"BORDER BRUSH",PK_BORDER,0} };   // Pack B: political powers   // the Calamity pack (calamity.h)
 #define PW_N ((int)(sizeof(pw)/sizeof(pw[0])))
 static int inspected=-1, trSel=1, statusSel=0;
+static u8 printerTile=T_GRASS, printerBiome; static int printerCopied, possessed=-1;
 static const u8 statusMask[6]={ST_INVINCIBLE,ST_ASH_FEVER,ST_COUGH,ST_MOTIVATED,ST_HANDSOME,ST_MINDLESS};
 static const char* const statusName[6]={"INVINCIBLE","ASH FEVER","COUGH","MOTIVATED","HANDSOME MIGRANT","MINDLESS"};
 static int inspT, inspKind, inspIdx;   // the inspect card: what was looked at (1 creature, 2 village) and for how long it stays up
@@ -1182,9 +1226,44 @@ static void polApply(int kind,int x,int y){      // the six political powers and
     if(kind==PK_FRIEND){ for(int o=0;o<KN_N;o++) if(kd[k].war>>o&1){ kdWar(k,o,0); kd[k].truce=kd[o].truce=10; } for(int u=0;u<VIL_N;u++) if(vil[u].on&&vilK[u]==k+1) vil[u].foe=0; for(int u=0;u<VIL_N;u++) if(vil[u].on&&vil[u].foe&&vilK[vil[u].foe-1]==k+1) vil[u].foe=0; warMatrix(); siprintf(s,"%.22s MAKES PEACE",a); logEv(s); siprintf(info,"FRIENDSHIP"); KD_DIRTY(); return; }
     if(kind==PK_DUSTW){ kd[k].lang=(u8)((kd[k].lang+1+rnd()%4)%5); kd[k].nlang=(u8)((kd[k].nlang+1+rnd()%4)%5); kdName(k,b); siprintf(s,"%.20s FORGETS ITS LANGUAGE: NOW %.20s",a,b); logEv(s); siprintf(info,"LANGUAGE FORGOTTEN"); KD_DIRTY(); return; }
     if(kind==PK_DUSTG){ if(v<0||!vilK[v]){ return; } vilName(v,b); vilK[v]=0; vilIndep[v]=1; siprintf(s,"%.20s FORGETS %.20s AND STANDS ALONE",b,a); logEv(s); siprintf(info,"CITY IS INDEPENDENT"); KD_DIRTY(); return; } }
+static int sendCreatureHome(int ci){
+    if(ci<0||ci>=nCr||!cr[ci].alive) return 0;
+    Cr*c=&cr[ci]; int race=sp[c->sp].a; if(race>=8||arch[race].diet!=4) return 0;
+    int v=vilNear(race,c->x,c->y,WW>WH?WW:WH); if(v<0) return 0;
+    for(int r=0;r<=4;r++) for(int dy=-r;dy<=r;dy++) for(int dx=-r;dx<=r;dx++){
+        if((dx<0?-dx:dx)+(dy<0?-dy:dy)!=r) continue;
+        int x=vil[v].x+dx,y=vil[v].y+dy;
+        if(x<0||y<0||x>=WW||y>=WH||!walkable(&sp[c->sp],x,y)||occ[y][x]) continue;
+        moveTo(c,ci,x,y); return 1;
+    }
+    return 0;
+}
+static int paintCityBorder(int x,int y){
+    int v=vilAny(x,y,8); if(v<0) return 0;
+    int rad=6+vil[v].lvl*3, found=0;
+    int x0=vil[v].x-rad-2, x1=vil[v].x+rad+2, y0=vil[v].y-rad-2, y1=vil[v].y+rad+2;
+    if(x0<0)x0=0; if(y0<0)y0=0; if(x1>=WW)x1=WW-1; if(y1>=WH)y1=WH-1;
+    for(int yy=y0;yy<=y1&&!found;yy++) for(int xx=x0;xx<=x1;xx++) if(bld[yy][xx]==B_BORDER&&bldv[yy][xx]==v+1){ found=1; break; }
+    if(found){ for(int yy=y0;yy<=y1;yy++) for(int xx=x0;xx<=x1;xx++) if(bld[yy][xx]==B_BORDER&&bldv[yy][xx]==v+1){ bld[yy][xx]=B_NONE; bldv[yy][xx]=0; if(xx>=winX-1&&xx<winX+34&&yy>=winY-1&&yy<winY+26) putCell(xx,yy); } return -1; }
+    int made=0;
+    for(int yy=vil[v].y-rad;yy<=vil[v].y+rad;yy++) for(int xx=vil[v].x-rad;xx<=vil[v].x+rad;xx++){
+        if(xx<1||yy<1||xx>=WW-1||yy>=WH-1||bld[yy][xx]||occ[yy][xx]) continue;
+        int dx=xx-vil[v].x,dy=yy-vil[v].y; if(dx*dx+dy*dy>rad*rad) continue;
+        int edge=0; for(int d=0;d<4;d++){ int ax=xx+dxs[d]-vil[v].x, ay=yy+dys[d]-vil[v].y; if(ax*ax+ay*ay>rad*rad) edge=1; }
+        if(!edge) continue;
+        bld[yy][xx]=B_BORDER; bldv[yy][xx]=(u8)(v+1); if(xx>=winX-1&&xx<winX+34&&yy>=winY-1&&yy<winY+26) putCell(xx,yy); made++;
+    }
+    return made;
+}
+static int creatureFamily(const Cr*c){
+    const Sp*s=&sp[c->sp]; if(s->a>=8) return s->fam;
+    int v=vilNear(s->a,c->x,c->y,WW>WH?WW:WH); if(v<0||!vilK[v]||!kd[vilK[v]-1].on) return s->fam;
+    static const u8 base[8]={12,5,11,4,3,1,9,2};
+    return (base[s->a]+3*(kd[vilK[v]-1].cul%5))&15;
+}
 static void usePower(int tx,int ty,int fresh){ KD_DIRTY();
     const Pw*P=&pw[power]; int r=brush;
-    if(fresh){ stUse++; if(P->kind==PK_GIFT) stGift++; static const u8 fxOf[51]={FX_INSPECT,FX_PAINT,FX_SPAWN,FX_RAIN,FX_FIRE,FX_LIGHTNING,FX_METEOR,FX_SMITE,FX_HEAL,FX_FEED,FX_SETTLE,FX_WAR,FX_PEACE,FX_BLESS,FX_GIFT,FX_BIRTH,FX_METEOR,FX_RAIN,FX_BIRTH,FX_BLESS,FX_LIGHTNING,FX_RAIN,FX_SMITE,FX_METEOR,FX_MONSTER_SEEN,FX_SMITE,FX_RAIN,FX_BLESS,FX_WAR,FX_WAR,FX_PEACE,FX_SMITE,FX_PEACE,FX_RAIN,FX_RAIN,FX_RAIN,FX_GIFT,FX_RAIN,FX_SMITE,FX_SMITE,FX_BIRTH,FX_SMITE,FX_BLESS,FX_BLESS,FX_BLESS,FX_MONSTER_SEEN,FX_SMITE,FX_MONSTER_SEEN,FX_SMITE,FX_RAIN,FX_BLESS}; fxReq(fxOf[P->kind]); } if(P->kind==PK_GIFT&&(it[itSel].kind==IK_WEAPON||it[itSel].kind==IK_ARMOR||it[itSel].kind==IK_RELIC||it[itSel].kind==IK_GEM)) r=1;
+    if(fresh){ stUse++; if(P->kind==PK_GIFT) stGift++; static const u8 fxOf[64]={FX_INSPECT,FX_PAINT,FX_SPAWN,FX_RAIN,FX_FIRE,FX_LIGHTNING,FX_METEOR,FX_SMITE,FX_HEAL,FX_FEED,FX_SETTLE,FX_WAR,FX_PEACE,FX_BLESS,FX_GIFT,FX_BIRTH,FX_METEOR,FX_RAIN,FX_BIRTH,FX_BLESS,FX_LIGHTNING,FX_RAIN,FX_SMITE,FX_METEOR,FX_MONSTER_SEEN,FX_SMITE,FX_RAIN,FX_BLESS,FX_WAR,FX_WAR,FX_PEACE,FX_SMITE,FX_PEACE,FX_RAIN,FX_RAIN,FX_RAIN,FX_GIFT,FX_RAIN,FX_SMITE,FX_SMITE,FX_BIRTH,FX_SMITE,FX_BLESS,FX_BLESS,FX_BLESS,FX_MONSTER_SEEN,FX_SMITE,FX_MONSTER_SEEN,FX_SMITE,FX_RAIN,FX_BLESS}; fxReq(fxOf[P->kind]); } if(P->kind==PK_GIFT&&(it[itSel].kind==IK_WEAPON||it[itSel].kind==IK_ARMOR||it[itSel].kind==IK_RELIC||it[itSel].kind==IK_GEM)) r=1;
     for(int dy=-r;dy<=r;dy++) for(int dx=-r;dx<=r;dx++){ if(dx*dx+dy*dy>r*r+r/2) continue; int x=tx+dx, y=ty+dy; if(x<0||y<0||x>=WW||y>=WH) continue;
         switch(P->kind){
         case PK_PAINT: if(P->arg>=100){ int t=world[y][x]; if(t>T_WATER&&t!=T_LAVA&&t!=T_MOUNT&&(fresh||(rnd()&1))){ bioSet(x,y,P->arg-100); if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); } break; }
@@ -1192,7 +1271,16 @@ static void usePower(int tx,int ty,int fresh){ KD_DIRTY();
         case PK_SPAWN: if(fresh&&dx==0&&dy==0){ for(int k=0;k<brush;k++) addCr(spSel,x+(k?(int)(rnd()%3)-1:0),y+(k?(int)(rnd()%3)-1:0)); } break;
         case PK_RAIN: if(world[y][x]==T_DIRT||world[y][x]==T_SAND||world[y][x]==T_DESERT) { if((rnd()&3)==0) setCell(x,y,T_GRASS); } else if(world[y][x]==T_LAVA) setCell(x,y,T_MOUNT); else if(world[y][x]==T_GRASS&&(rnd()&15)==0) setCell(x,y,T_FOREST); break;
         case PK_FIRE: burnAt(x,y,90); if(world[y][x]==T_FOREST||world[y][x]==T_GRASS||world[y][x]==T_JUNGLE){ if((rnd()&1)==0) setCell(x,y,T_DIRT); } if(occ[y][x]&&(rnd()&1)) { Cr*c=&cr[occ[y][x]-1]; if(c->hp>10) c->hp-=10; else killCr(occ[y][x]-1); } break;
-        case PK_BOLT: if(dx==0&&dy==0){ burnAt(x,y,255); if(occ[y][x]) killCr(occ[y][x]-1); if(world[y][x]==T_FOREST) setCell(x,y,T_DIRT); } break;
+        case PK_BOLT: case PK_BOLT_SMALL: case PK_BOLT_MEDIUM: { int rad=P->kind==PK_BOLT_SMALL?0:P->kind==PK_BOLT_MEDIUM?1:0; if(dx*dx+dy*dy<=rad*rad&&fresh){ burnAt(x,y,255); if(occ[y][x]){ int ci=occ[y][x]-1; if(P->kind==PK_BOLT_SMALL) damageCreature(ci,18,-1); else killCr(ci); } if(world[y][x]==T_FOREST||world[y][x]==T_JUNGLE) setCell(x,y,T_DIRT); } } break;
+        case PK_PRINT_COPY: if(fresh&&dx==0&&dy==0){ if(!printerCopied){ printerTile=world[y][x]; printerBiome=(u8)bioAt(x,y); printerCopied=1; siprintf(info,"PRINTER COPIED TILE"); } else { for(int py=-r;py<=r;py++) for(int px=-r;px<=r;px++){ int xx=x+px, yy=y+py; if(xx<0||yy<0||xx>=WW||yy>=WH||px*px+py*py>r*r+r/2) continue; if(printerTile!=T_WATER&&printerTile!=T_DEEP&&printerTile!=T_LAVA&&bld[yy][xx]){ bld[yy][xx]=0; bldv[yy][xx]=0; } setCell(xx,yy,printerTile); bioSet(xx,yy,printerBiome); } siprintf(info,"PRINTER COPIED AREA"); } } break;
+        case PK_PRINT_FOREST: if(world[y][x]==T_GRASS||world[y][x]==T_DIRT||world[y][x]==T_SAND) setCell(x,y,T_FOREST); break;
+        case PK_PRINT_WATER: if(world[y][x]!=T_MOUNT&&world[y][x]!=T_LAVA) setCell(x,y,T_WATER); break;
+        case PK_PRINT_MOUNTAIN: if(world[y][x]!=T_WATER&&world[y][x]!=T_DEEP&&world[y][x]!=T_LAVA) setCell(x,y,T_MOUNT); break;
+        case PK_PRINT_BIOME: if(fresh&&dx==0&&dy==0){ u8 b=(u8)bioAt(x,y); for(int py=-r;py<=r;py++) for(int px=-r;px<=r;px++){ int xx=x+px, yy=y+py; if(xx>=0&&yy>=0&&xx<WW&&yy<WH&&px*px+py*py<=r*r+r/2&&world[yy][xx]>T_WATER&&world[yy][xx]!=T_LAVA) bioSet(xx,yy,b); } } break;
+        case PK_PRINT_CLEAR: if(world[y][x]!=T_WATER&&world[y][x]!=T_DEEP&&world[y][x]!=T_LAVA){ bioSet(x,y,0); if(bld[y][x]){ bld[y][x]=0; bldv[y][x]=0; } } break;
+        case PK_HOME: if(fresh&&dx==0&&dy==0&&occ[y][x]){ int ci=occ[y][x]-1; siprintf(info,sendCreatureHome(ci)?"SENT HOME":"NO HOME CITY OR ROOM"); } break;
+        case PK_BORDER: if(fresh&&dx==0&&dy==0){ int n=paintCityBorder(x,y); siprintf(info,n>0?"CITY BORDER PAINTED":n<0?"CITY BORDER CLEARED":"NO CITY HERE"); } break;
+        case PK_POSSESS: if(fresh&&dx==0&&dy==0){ int ci=occ[y][x]?occ[y][x]-1:-1; if(ci>=0&&ci<nCr&&cr[ci].alive){ possessed=possessed==ci?-1:ci; siprintf(info,possessed<0?"RELEASED":"POSSESSING CREATURE"); } else { possessed=-1; siprintf(info,"TAP A CREATURE TO POSSESS"); } } break;
         case PK_AIR: if(fresh&&dx==0&&dy==0){ if(P->arg==0){ atCO2+=8*16; atFire+=4; siprintf(info,"CO2 UP: %d",ATV(atCO2)); } else if(P->arg==1){ atO2+=4*16; atCO2-=5*16; siprintf(info,"OXYGEN UP: %d%%",ATV(atO2)); } else { atmoDust(10); siprintf(info,"DUST: %d",ATV(atDust)); } if(atCO2<0) atCO2=0; if(atCO2>150*16) atCO2=150*16; if(atO2>60*16) atO2=60*16; } break;
         case PK_METEOR: if(fresh){ if(dx==0&&dy==0){ atmoDust(6); atFire+=6; } int rr=dx*dx+dy*dy; burnAt(x,y,255); if(rr<=2) setCell(x,y,T_LAVA); else if(rr<=r*r) setCell(x,y,(rnd()&1)?T_DIRT:T_HILL); if(occ[y][x]) killCr(occ[y][x]-1); } break;
         case PK_KILL: if(occ[y][x]) killCr(occ[y][x]-1); break;
@@ -1249,11 +1337,11 @@ static void usePower(int tx,int ty,int fresh){ KD_DIRTY();
 static int planetSize=128;
 static void (*loadHook)(const char*,int);
 #define LOADING(m,p) do{ if(loadHook) loadHook(m,p); }while(0)
-static void newWorld(void){ KD_DIRTY(); LOADING("THE VOID",4); trSeen=trSeenHi=stMut=0; gxDefaults(); gW=gH=planetSize; nCr=0; idReset(); memset(hz,0,sizeof hz); memset(occ,0,sizeof occ); cellClear(); memset(bld,0,sizeof bld); memset(bldv,0,sizeof bldv); memset(vil,0,sizeof vil); memset(kd,0,sizeof kd); memset(kx,0,sizeof kx); memset(hall,0,sizeof hall); memset(whisT,0,sizeof whisT); memset(disT,0,sizeof disT); memset(spiT,0,sizeof spiT); memset(vilIndep,0,sizeof vilIndep); memset(vilK,0,sizeof vilK); memset(vilL,0,sizeof vilL); memset(boat,0,sizeof boat); memset(vilBf,0,sizeof vilBf); memset(vilSick,0,sizeof vilSick); memset(favVil,0,sizeof favVil); memset(favKd,0,sizeof favKd); jrN=0; stWars=stCapt=stAllies=stSnack=0; nVilOn=0; worldSeed=seedFix?seedFix:rnd(); genWorld(worldSeed); LOADING("SHAPING THE LAND",35); winX=-99; refillWindow();
+static void newWorld(void){ KD_DIRTY(); LOADING("THE VOID",4); trSeen=trSeenHi=stMut=0; gxDefaults(); gW=gH=planetSize; nCr=0; idReset(); memset(hz,0,sizeof hz); memset(occ,0,sizeof occ); cellClear(); memset(bld,0,sizeof bld); memset(bldv,0,sizeof bldv); memset(vil,0,sizeof vil); memset(kd,0,sizeof kd); memset(kx,0,sizeof kx); memset(hall,0,sizeof hall); memset(whisT,0,sizeof whisT); memset(disT,0,sizeof disT); memset(spiT,0,sizeof spiT); memset(vilIndep,0,sizeof vilIndep); memset(vilK,0,sizeof vilK); memset(vilL,0,sizeof vilL); memset(boat,0,sizeof boat); memset(rz,0,sizeof rz); rzN=0; cursor=0; vilCur=0; memset(vilBf,0,sizeof vilBf); memset(vilSick,0,sizeof vilSick); memset(favVil,0,sizeof favVil); memset(favKd,0,sizeof favKd); jrN=0; stWars=stCapt=stAllies=stSnack=0; nVilOn=0; worldSeed=seedFix?seedFix:rnd(); genWorld(worldSeed); LOADING("SHAPING THE LAND",35); winX=-99; refillWindow();
     LOADING("SEEDING LIFE",50);
     // the first life: a few of each of the first animals on their own ground
     int nAn=260*WW*WH/16384*cLife/2; { int cap=900*(WW*WH>65536?WW*WH/65536:1); if(nAn>cap) nAn=cap; }
-    for(int k=0;k<nAn;k++){ int a=8+(int)(rnd()%(ARCH_A-8)); int s=8+(a-8)*16+(int)(rnd()%16); int x=rnd()%WW, y=rnd()%WH; if(arch[a].diet==3&&k%2) continue; if(arch[a].diet==6&&(rnd()&7)) continue; addCr(s,x,y); }
+    for(int k=0;k<nAn;k++){ int a=8+(int)(rnd()%(ARCH_A-8)); int s=8+(a-8)*16+randomFamily(a); int x=rnd()%WW, y=rnd()%WH; if(arch[a].diet==3&&k%2) continue; if(arch[a].diet==6&&(rnd()&7)) continue; addCr(s,x,y); }
     LOADING("RAISING THE FIRST VILLAGES",80);
     for(int r=0;r<8&&cLife>0;r++){ if(r>=5&&(rnd()&1)) continue; for(int k=0;k<80;k++){ int x=rnd()%WW, y=rnd()%WH; int v=vilFound(r,x,y); if(v>=0){ for(int q=0;q<5;q++) addCr(r,x+(int)(rnd()%5)-2,y+(int)(rnd()%5)-2); break; } } }   // the peoples start with a village each (the restless ones sometimes stay away)
     info[0]=0; LOADING("READY",100); }
@@ -1289,7 +1377,7 @@ static void zSet(int nz);
 static int saveGameRaw(const char*path){
     compact(); wgBuild(); cursor=0;     // (10d: and the war groups are counted again, as a load will count them) the dead are dropped first, so a loaded game goes on exactly as this one would
     SV*f=svOpen(path,"wb"); if(!f) return 0; SaveHdr h; memset(&h,0,sizeof h); h.vcur=(u8)vilCur;
-    h.magic=SAVE_MAGIC; h.pad_[0]=(u8)cEdge; h.pad_[1]=(u8)(nCr>>16); h.pad_[2]=(u8)zl; h.ver=13; h.weather=(u8)weather; h.weatherT=(u16)weatherT; h.trSeen=trSeen; h.stMut=stMut; h.seed=worldSeed; h.diff=(u8)diff; h.full=(u8)fullDone; h.aural=(u8)auralOpen; h.debug=(u8)debugOn; h.gw=(u16)gW; h.szCr=sizeof(Cr); h.szVil=sizeof(Vil); h.tick=(u32)tick; h.year=(u32)year; h.rs=rs; h.stKill=stKill; h.stGift=stGift; h.stUse=stUse; h.nCr=(u16)(nCr&0xFFFF); h.seenN=(u16)seenN; h.camX=(u16)camX; h.camY=(u16)camY;
+    h.magic=SAVE_MAGIC; h.pad_[0]=(u8)cEdge; h.pad_[1]=(u8)(nCr>>16); h.pad_[2]=(u8)zl; h.ver=14; h.weather=(u8)weather; h.weatherT=(u16)weatherT; h.trSeen=trSeen; h.stMut=stMut; h.seed=worldSeed; h.diff=(u8)diff; h.full=(u8)fullDone; h.aural=(u8)auralOpen; h.debug=(u8)debugOn; h.gw=(u16)gW; h.szCr=sizeof(Cr); h.szVil=sizeof(Vil); h.tick=(u32)tick; h.year=(u32)year; h.rs=rs; h.stKill=stKill; h.stGift=stGift; h.stUse=stUse; h.nCr=(u16)(nCr&0xFFFF); h.seenN=(u16)seenN; h.camX=(u16)camX; h.camY=(u16)camY;
     h.chapter=(u8)chapter; h.tierOpen=(u8)tierOpen; h.storyOn=(u8)storyOn; h.storyDone=(u8)storyDone; h.monOn=(u8)monOn; h.shape3=(u8)shape3; h.nVilOn=(u8)nVilOn; h.planet=(u8)VIL_N; memcpy(h.seen,seenB,sizeof seenB); memcpy(h.slain,slainB,sizeof slainB);
     int ok=svWrite(&h,sizeof h,1,f)==1;
     for(int y=0;y<gH&&ok;y++){ ok&=svWrite(world[y],1,gW,f)==(size_t)gW; ok&=svWrite(bld[y],1,gW,f)==(size_t)gW; ok&=svWrite(bldv[y],1,gW,f)==(size_t)gW; }
@@ -1305,6 +1393,7 @@ static int saveGameRaw(const char*path){
     if(ok){ u32 mg=0x31524747u, n=sizeof hall; ok&=svWrite(&mg,4,1,f)==1; ok&=svWrite(&n,4,1,f)==1; ok&=svWrite(hall,1,sizeof hall,f)==sizeof hall; }      // GGR1 trailer: the hall of rulers (the last four of each kingdom)
     if(ok){ u32 mg=0x31554747u; ok&=svWrite(&mg,4,1,f)==1; ok&=svWrite(&trSeenHi,4,1,f)==1; }      // GGU1: trait discoveries above bit 31; old builds ignore this optional tail
     if(ok){ u32 mg=0x31464747u; ok&=svWrite(&mg,4,1,f)==1; ok&=svWrite(favPow+64,1,16,f)==16; }      // GGF1: extra starred powers 64..79; version 13 adds this optional trailer
+    if(ok){ u32 mg=0x32524747u, n=(u32)(rzN<0?0:rzN); ok&=svWrite(&mg,4,1,f)==1; ok&=svWrite(&n,4,1,f)==1; ok&=svWrite(rz,sizeof rz,1,f)==1; }      // GGR2: four temporary captain-rout zones; required by v14 for save/load determinism
     // (an old build never reads it; an old save has none, so every policy is normal)
     { int cl_=svClose(f); return ok&&cl_==0; } }   // (a pack that does not fit the cartridge chip fails the save instead of reporting SAVED)
 static int loadGameRaw(const char*path){ KD_DIRTY();
@@ -1313,8 +1402,8 @@ static int loadGameRaw(const char*path){ KD_DIRTY();
 #ifdef GG_BIGMAP
     legacy=h.szCr==sizeof(CrOld)&&h.szVil==sizeof(VilOld);      // a DS save (or one from before the big planets) on a big build: widened as it is read
 #endif
-    if(!ok||h.magic!=SAVE_MAGIC||(h.ver<11||h.ver>13)||(!legacy&&(h.szCr!=sizeof(Cr)||h.szVil!=sizeof(Vil)))||!validSize(h.gw)||nC>MAXC){ svClose(f); return 0; }
-    gxDefaults(); gW=gH=h.gw; planetSize=gW; memset(world,0,sizeof world); memset(bld,0,sizeof bld); memset(bldv,0,sizeof bldv); memset(occ,0,sizeof occ);
+    if(!ok||h.magic!=SAVE_MAGIC||(h.ver<11||h.ver>14)||(!legacy&&(h.szCr!=sizeof(Cr)||h.szVil!=sizeof(Vil)))||!validSize(h.gw)||nC>MAXC){ svClose(f); return 0; }
+    memset(rz,0,sizeof rz); rzN=0; gxDefaults(); gW=gH=h.gw; planetSize=gW; memset(world,0,sizeof world); memset(bld,0,sizeof bld); memset(bldv,0,sizeof bldv); memset(occ,0,sizeof occ);
     for(int y=0;y<gH&&ok;y++){ ok&=svRead(world[y],1,gW,f)==(size_t)gW; ok&=svRead(bld[y],1,gW,f)==(size_t)gW; ok&=svRead(bldv[y],1,gW,f)==(size_t)gW; }
     nCr=nC;
 #ifdef GG_BIGMAP
@@ -1337,13 +1426,15 @@ static int loadGameRaw(const char*path){ KD_DIRTY();
     int bioRead=0; bioClear(); atmoReset(); if(ok&&h.ver>=9){ u32 mg=0; if(svRead(&mg,4,1,f)==1&&mg==0x31424747u){ int got=1; for(int y=0;y<gH&&got;y++) got=svRead(biome2+y*(MAXD/4),1,gW/4,f)==(size_t)(gW/4); if(!got) memset(biome2,0,sizeof biome2); else { int at[8]; if(svRead(at,sizeof at,1,f)==1){ atO2=at[0]; atCO2=at[1]; atDust=at[2]; atTemp=at[3]; atFire=at[4]; atFlag=at[5]; u8 fp[24]; if(svRead(fp,1,24,f)==24){ memcpy(favPow+40,fp,24); bioRead=1; } } } } }   // GGB1 trailer: an old save has none
     memset(boat,0,sizeof boat); if(ok&&bioRead){ u32 mg=0, sz=0, nb=0; if(svRead(&mg,4,1,f)==1&&mg==0x31544747u&&svRead(&sz,4,1,f)==1&&sz==sizeof(Boat)&&svRead(&nb,4,1,f)==1&&nb<=8){ for(u32 b=0;b<nb;b++){ Boat t; if(svRead(&t,sizeof t,1,f)!=1) break; if(t.on&&t.race<8&&t.x>=0&&t.y>=0&&t.x<gW&&t.y<gH&&t.tx>=0&&t.ty>=0&&t.tx<gW&&t.ty<gH&&t.n<=128&&t.i<=t.n) boat[b]=t; } } }   // GGT1 trailer: the boats at sea (an old save has none)
     memset(lw,0,sizeof lw); int lwRead=0; if(ok&&bioRead){ u32 mg=0, n=0; if(svRead(&mg,4,1,f)==1&&mg==0x314C4747u&&svRead(&n,4,1,f)==1&&n<=sizeof lw){ u8 t[sizeof lw]; memset(t,0,sizeof t); if(svRead(t,1,n,f)==n){ for(u32 k=0;k<n&&k<LW_N;k++) lw[k]=t[k]&1; lwRead=1; } } }      // GGL1 trailer: an old save has none, so every law is at its default
-    { int idOk=ok&&lwRead&&idRead(f); if(!idOk) idAssign(); memset(kx,0,sizeof kx); if(idOk){ u32 mg=0, n=0, sz=0; if(svRead(&mg,4,1,f)==1&&mg==0x314B4747u&&svRead(&n,4,1,f)==1&&n==KN_N&&svRead(&sz,4,1,f)==1&&sz==sizeof(KdX)){ KdX t[KN_N]; if(svRead(t,sizeof(KdX),KN_N,f)==KN_N){ for(int i=0;i<KN_N;i++){ if(t[i].tribute>2||t[i].tax>2) continue; kx[i]=t[i]; kx[i].ctr2&=0x1F; } u32 g2=0, n2=0; if(svRead(&g2,4,1,f)==1&&g2==0x31524747u&&svRead(&n2,4,1,f)==1&&n2==sizeof hall){ svRead(hall,1,sizeof hall,f); } } } } }      // GGK1 trailer (after GGN1): none in an old save; GGR1 (the hall of rulers) behind it      // GGN1 trailer: ids, flags, stars, notables (none in an old save: ids in list order, no records)
+    { int idOk=ok&&lwRead&&idRead(f); if(!idOk) idAssign(); memset(kx,0,sizeof kx); if(idOk){ u32 mg=0, n=0, sz=0; if(svRead(&mg,4,1,f)==1&&mg==0x314B4747u&&svRead(&n,4,1,f)==1&&n==KN_N&&svRead(&sz,4,1,f)==1&&sz==sizeof(KdX)){ KdX t[KN_N]; if(svRead(t,sizeof(KdX),KN_N,f)==KN_N){ for(int i=0;i<KN_N;i++){ if(t[i].tribute>2||t[i].tax>2) continue; kx[i]=t[i]; kx[i].ctr2&=0x3FFF; } u32 g2=0, n2=0; if(svRead(&g2,4,1,f)==1&&g2==0x31524747u&&svRead(&n2,4,1,f)==1&&n2==sizeof hall){ svRead(hall,1,sizeof hall,f); } } } } }      // GGK1 trailer (after GGN1): none in an old save; GGR1 (the hall of rulers) behind it      // GGN1 trailer: ids, flags, stars, notables (none in an old save: ids in list order, no records)
     if(ok&&h.ver>=12){ u32 mg=0; if(svRead(&mg,4,1,f)==1&&mg==0x31554747u&&svRead(&trSeenHi,4,1,f)==1){} else ok=0; }      // GGU1 is required by version 12
     if(ok&&h.ver>=13){ u32 mg=0; if(svRead(&mg,4,1,f)==1&&mg==0x31464747u&&svRead(favPow+64,1,16,f)==16){} else ok=0; }      // GGF1 stores starred powers 64..79; earlier saves default them to unstarred
+    if(ok&&h.ver>=14){ u32 mg=0,n=0; if(svRead(&mg,4,1,f)==1&&mg==0x32524747u&&svRead(&n,4,1,f)==1&&n<=0x7FFFFFFFu&&svRead(rz,sizeof rz,1,f)==1) rzN=(int)n; else ok=0; }      // GGR2 preserves captain routs across a save; v13 and earlier start without temporary rout zones
     bioCount(); bioRescan();
     svClose(f);
     if(!ok){ return 0; }
     tick=(int)h.tick; year=(int)h.year; rs=h.rs; stKill=h.stKill; stGift=h.stGift; stUse=h.stUse; seenN=h.seenN; camX=h.camX; camY=h.camY; chapter=h.chapter; tierOpen=h.tierOpen; storyOn=h.storyOn; storyDone=h.storyDone; monOn=h.monOn; shape3=h.shape3; nVilOn=h.nVilOn;
+    for(int q=0;q<4;q++) if(rz[q].until>(int)h.tick&&(rz[q].a<0||rz[q].a>=8||rz[q].x<0||rz[q].y<0||rz[q].x>=gW||rz[q].y>=gH)){ memset(rz,0,sizeof rz); rzN=0; break; }
     memcpy(seenB,h.seen,sizeof seenB); memcpy(slainB,h.slain,sizeof slainB); nVilOn=0; memset(vilSick,0,sizeof vilSick); for(int v=0;v<VIL_N;v++){ nVilOn+=vil[v].on; if(vil[v].on) bldFlags(v); else vilBf[v]=0; }
     for(int i=0;i<nCr;i++) if(cr[i].alive&&cr[i].x<gW&&cr[i].y<gH) occ[cr[i].y][cr[i].x]=(occ_t)(i+1); cellRebuild(); vilCur=h.vcur; weather=h.weather; weatherT=h.weatherT; trSeen=h.trSeen; stMut=h.stMut; worldSeed=h.seed; cEdge=h.pad_[0]<3?h.pad_[0]:0; diff=h.diff; fullDone=h.full; auralOpen=h.aural; debugOn=h.debug; cursor=0; compact(); warMatrix(); wgBuild(); winX=-99;
 #ifndef PCTEST
@@ -1491,7 +1582,7 @@ static void zClamp(void){ zScale(); int hx=128*8*zK_/zS_, hy=(ZH/2)*8*zK_/zS_; i
 static void zSyncCam(void){ camX=zcx-128; camY=zcy-ZH/2; if(camX<0) camX=0; if(camY<0) camY=0; if(camX>WW*8-256) camX=WW*8-256; if(camY>WH*8-192) camY=WH*8-192; }
 static int zHit(int px,int py,int*tx,int*ty){ int ox=zOx(), oy=zOy(); int sh=zSh_; int x=zK_>1?(ox+px)*zK_+zK_/2:(ox+px)>>sh, y=zK_>1?(oy+py)*zK_+zK_/2:(oy+py)>>sh; if(x<0||y<0||x>=WW||y>=WH) return 0; *tx=x; *ty=y; return 1; }
 static void zCrit(int i,int px,int py,int S){   // one creature, its tile's top left corner at (px, py), enlarged to S pixels
-    const Cr*c=&cr[i]; const Sp*s=&sp[c->sp]; const Arch*A=&arch[s->a]; int fam=s->fam;
+    const Cr*c=&cr[i]; const Sp*s=&sp[c->sp]; const Arch*A=&arch[s->a]; int fam=creatureFamily(c);
     if(S<=2){ zRect(px,py,2,2,zCol(fam,0)); return; }
     int mv=(c->ox||c->oy); int fr=mv?(((tick>>3)+i)&1):0; int flip=0; if(!mv) fr=0;
     int gx=c->ox*S/8, gy=c->oy*S/8; px+=gx; py+=gy;
@@ -1641,8 +1732,8 @@ static void drawSprites(void){
         if(h->kind==HZ_TORNADO){ int fl=(tick/6)&1; hs[nh][0]=px; hs[nh][1]=py-8; hs[nh][2]=42; hs[nh][3]=fl; nh++; hs[nh][0]=px; hs[nh][1]=py; hs[nh][2]=43; hs[nh][3]=!fl; nh++; } else { int sh=h->kind==HZ_FIRE||h->kind==HZ_DRAGON?46:h->kind==HZ_GOO||h->kind==HZ_BIOMASS?47:h->kind==HZ_GHOST||h->kind==HZ_MOON?48:h->kind==HZ_SNOWMAN||h->kind==HZ_ICE?49:h->kind==HZ_GARDEN?41:44; hs[nh][0]=px; hs[nh][1]=py; hs[nh][2]=sh; hs[nh][3]=(tick/8)&1; nh++; } }
     int crMax=100-nh;
     for(int ty=(camY>>3)-1;ty<(camY>>3)+26&&n<crMax;ty++) for(int tx=(camX>>3)-1;tx<(camX>>3)+34&&n<crMax;tx++){ if(tx<0||ty<0||tx>=WW||ty>=WH) continue; int i=occ[ty][tx]-1; if(i<0) continue; Cr*c=&cr[i]; if(!c->alive) continue; int px=c->x*8+c->ox-camX, py=c->y*8+c->oy-camY; if(px<-8||px>=256||py<-8||py>=TB_Y-6) continue;   // (the bottom rows are the toolbar)
-        const Sp*s=&sp[c->sp]; const Arch*A=&arch[s->a]; int fr=((tick>>3)+i)&1; if(!c->ox&&!c->oy) fr=0;
-        oamSet(&oamMain,n,px,py,0,(DISEASE(c)==1||DISEASE(c)==3)?((s->fam==3||s->fam==4)?11:3):s->fam,SpriteSize_8x8,SpriteColorFormat_16Color,gfxF[A->shape][fr],-1,false,false,false,false,false); n++;
+        const Sp*s=&sp[c->sp]; const Arch*A=&arch[s->a]; int fam=creatureFamily(c); int fr=((tick>>3)+i)&1; if(!c->ox&&!c->oy) fr=0;
+        oamSet(&oamMain,n,px,py,0,(DISEASE(c)==1||DISEASE(c)==3)?((fam==3||fam==4)?11:3):fam,SpriteSize_8x8,SpriteColorFormat_16Color,gfxF[A->shape][fr],-1,false,false,false,false,false); n++;
         if((c->rk||(crFl[i]&FL_EVOLVED))&&nc<108){ oamSet(&oamMain,nc,px,py-6,0,c->rk==2?10:c->rk?2:6,SpriteSize_8x8,SpriteColorFormat_16Color,gfxF[39][0],-1,false,false,false,false,false); nc++; } }
     for(int b=0;b<8;b++) if(boat[b].on&&nc<108){ int px=boat[b].x*8-camX, py=boat[b].y*8-camY; if(px>=-8&&px<256&&py>=-8&&py<TB_Y-6){ oamSet(&oamMain,nc,px,py,0,14,SpriteSize_8x8,SpriteColorFormat_16Color,gfxF[45][0],-1,false,false,false,false,false); nc++; } }      // boats at sea
     for(int k=n;k<crMax;k++) oamSetHidden(&oamMain,k,true);
@@ -1665,7 +1756,7 @@ static const char* const helpTxt[]={"TOUCH THE WORLD: USE POWER","L R      CHOOS
 static const char* const tipTxt[]={"TOUCH THE WORLD TO USE A POWER","L R CHANGES THE POWER","TRY SPAWN, THEN RAIN AND FIRE","START A VILLAGE: SETTLE","SELECT: STORY, BESTIARY, HELP","X+Y SHOWS THE WORLD AS A GLOBE","SNACKS MAY GIVE FOLK CHILL TRAITS","DAVE SAYS: HAVE YOU TRIED SITTING","FEED A MONSTER A NACHO. SEE WHAT HAPPENS","THE COUCH HAS ROOM FOR EVERYONE","MUNCHIES ARE NOT A BUG"};
 static const char* const*sceneTxt, *const*sceneNext; static int menuOn, menuSel, menuAsk, toastT, dlgOn, dlgIdx, dlgChars, dlgPaused, sceneOff, sceneT, sceneScroll, endShown, scenePaused, helpSel, trPage, tipN;
 static const Dl*dlgSet; static char lastInfo[64];
-static const char* const pwDesc[PW_N]={"LOOK AT A CREATURE OR A VILLAGE","PAINT SHALLOW WATER","PAINT DEEP SEA","PAINT SAND","PAINT GRASS","PLANT FOREST","PLANT JUNGLE","RAISE HILLS","RAISE MOUNTAINS","PAINT SNOW","PAINT DESERT","PAINT SWAMP","PAINT LAVA","PAINT CORRUPTED GROUND","PAINT INFERNAL GROUND","PAINT ENCHANTED GROUND","WARM THE AIR (GREENHOUSE)","ADD OXYGEN TO THE AIR","RAISE A DUST CLOUD","CREATE LIFE  (X Y: SPECIES)","RAIN GREENS THE LAND","BURN WHAT YOU TOUCH","STRIKE ONE TILE DEAD","DROP A METEOR","KILL WHAT YOU TOUCH","HEAL CREATURES","FEED CREATURES","FOUND A VILLAGE","START A WAR","END ALL WARS","FILL A VILLAGE STORE","GIVE AN ITEM  (X Y: ITEM)","GIVE A TRAIT  (X Y: TRAIT)","SHAKE THE GROUND","FLOOD THE LAND","MAKE THE LAND BLOOM","CHILL A CREATURE OR VILLAGE","A ROAMING TORNADO TEARS THINGS UP","ACID BURNS PLANTS, HOMES AND FLESH","A HOLE THAT EATS LAND AND LIFE","THE BIG ONE: A CRATER AND FALLOUT","SICKEN FOLK: IT SPREADS BY TOUCH","WITHER FOLK AND ROT A STORE","A CITY BECOMES ITS OWN KINGDOM","WHISPER WAR: TAP A KINGDOM, THEN A TARGET","TAP A KINGDOM: ITS ALLIANCES BREAK","TAP TWO KINGDOMS: THEY ALLY","EVERYONE DESPISES THIS KINGDOM","TAP A KINGDOM: ITS WARS END","A KINGDOM FORGETS ITS LANGUAGE","CREATURES FORGET FAMILY AND LOVED ONES","A CITY FORGETS ITS KINGDOM","RAIN GEAR ON FOLK AND CREATURES","STRIP GEAR FROM ALL IN THE BRUSH","A ROAMING FIRE SPIRIT","A CREEPING GREY BLOB EATS THE LAND","A FALLING CRAB: EVERYONE RAVES","THE GIANT CRAB STOMPS (COOLS DOWN)","GIVE ANIMALS A MIND OF THEIR OWN","A STONE THAT SLOWLY UPLIFTS ANIMALS NEAR IT","TOGGLE A CREATURE STATUS (X Y: STATUS)","ALIENS LAND AND HUNT THE LIVING","AN ELDER DRAGON BURNS A PATH","WRAITHS HAUNT SETTLEMENTS","A GROWING TUMOR SPREADS OVER THE LAND","A MOVING BLIZZARD FREEZES THE GROUND","A HEALING GARDEN SPREADS LIFE"};
+static const char* const pwDesc[PW_N]={"LOOK AT A CREATURE OR A VILLAGE","PAINT SHALLOW WATER","PAINT DEEP SEA","PAINT SAND","PAINT GRASS","PLANT FOREST","PLANT JUNGLE","RAISE HILLS","RAISE MOUNTAINS","PAINT SNOW","PAINT DESERT","PAINT SWAMP","PAINT LAVA","PAINT CORRUPTED GROUND","PAINT INFERNAL GROUND","PAINT ENCHANTED GROUND","WARM THE AIR (GREENHOUSE)","ADD OXYGEN TO THE AIR","RAISE A DUST CLOUD","CREATE LIFE  (X Y: SPECIES)","RAIN GREENS THE LAND","BURN WHAT YOU TOUCH","STRIKE ONE TILE DEAD","DROP A METEOR","KILL WHAT YOU TOUCH","HEAL CREATURES","FEED CREATURES","FOUND A VILLAGE","START A WAR","END ALL WARS","FILL A VILLAGE STORE","GIVE AN ITEM  (X Y: ITEM)","GIVE A TRAIT  (X Y: TRAIT)","SHAKE THE GROUND","FLOOD THE LAND","MAKE THE LAND BLOOM","CHILL A CREATURE OR VILLAGE","A ROAMING TORNADO TEARS THINGS UP","ACID BURNS PLANTS, HOMES AND FLESH","A HOLE THAT EATS LAND AND LIFE","THE BIG ONE: A CRATER AND FALLOUT","SICKEN FOLK: IT SPREADS BY TOUCH","WITHER FOLK AND ROT A STORE","A CITY BECOMES ITS OWN KINGDOM","WHISPER WAR: TAP A KINGDOM, THEN A TARGET","TAP A KINGDOM: ITS ALLIANCES BREAK","TAP TWO KINGDOMS: THEY ALLY","EVERYONE DESPISES THIS KINGDOM","TAP A KINGDOM: ITS WARS END","A KINGDOM FORGETS ITS LANGUAGE","CREATURES FORGET FAMILY AND LOVED ONES","A CITY FORGETS ITS KINGDOM","RAIN GEAR ON FOLK AND CREATURES","STRIP GEAR FROM ALL IN THE BRUSH","A ROAMING FIRE SPIRIT","A CREEPING GREY BLOB EATS THE LAND","A FALLING CRAB: EVERYONE RAVES","THE GIANT CRAB STOMPS (COOLS DOWN)","GIVE ANIMALS A MIND OF THEIR OWN","A STONE THAT SLOWLY UPLIFTS ANIMALS NEAR IT","TOGGLE A CREATURE STATUS (X Y: STATUS)","ALIENS LAND AND HUNT THE LIVING","AN ELDER DRAGON BURNS A PATH","WRAITHS HAUNT SETTLEMENTS","A GROWING TUMOR SPREADS OVER THE LAND","A MOVING BLIZZARD FREEZES THE GROUND","A HEALING GARDEN SPREADS LIFE","A SMALL PRECISE LIGHTNING STRIKE","A WIDER LIGHTNING STRIKE","COPY A TILE AND STAMP IT WITH THE BRUSH","PRINT FOREST","PRINT WATER","PRINT MOUNTAIN","COPY THE BIOME UNDER THE BRUSH","CLEAR BIOME AND BUILDINGS","TAKE DIRECT CONTROL OF A CREATURE WITH THE D-PAD"};
 static int sceneLines(const char*const*t){ int n=0; while(t[n]) n++; return n; }
 static void sceneStart(const char*const*t,int scroll){ sceneTxt=t; sceneScroll=scroll; sceneOff=scroll?-20:0; sceneT=0; if(!sceneOn) scenePaused=paused; sceneOn=1; paused=1; }
 static int dbgSel=0, dbgMon=0, dbgFx=0, fxSel=0, konami=0;
@@ -1675,7 +1766,7 @@ static int famOpen(int k){ if(unlockAll||debugOn) return 1; if(k<14) return chap
 static void famHint(int k,char*o){ (void)k; strcpy(o,"?? HIDDEN TRACK ??"); }      // the hidden tracks do not say how to open them: they come with the story
 static int trackOpen(int i){ if(i>=GM_FAM0) return famOpen(i-GM_FAM0); return i<GM_REMIX0||i>=GM_EPIC0||fullDone||debugOn||unlockAll; }
 static int auralOK(void){ return auralOpen||debugOn||unlockAll; }
-static int bestSel=0, juke=0, sdOk=0, savedYear=-1, hasSave=0;
+static int bestSel=0, juke=0, hasSave=0;
 #ifndef SAVE_PATH
 #define SAVE_PATH "godguy.sav"
 #endif
@@ -1731,7 +1822,7 @@ static void doSave(void){ if(!sdOk) { siprintf(info,"NO SD CARD: NOT SAVED"); re
 #endif
  siprintf(info,"SAVE FAILED"); } }
 static void setSize(int sz){ planetSize=sz; }
-static void startWorld(int story){ storyOn=story; newWorld(); camX=(WW*8-256)/2; camY=(WH*8-192)/2; winX=-99; refillWindow(); titleOn=0; paused=0; endShown=storyDone; musReq(GM_NEWWORLD); if(story&&chapter==0&&stUse==0){ sceneStart(introTxt,0); dlgPend=0; } }
+static void startWorld(int story){ possessed=-1; printerCopied=0; storyOn=story; newWorld(); camX=(WW*8-256)/2; camY=(WH*8-192)/2; winX=-99; refillWindow(); titleOn=0; paused=0; endShown=storyDone; musReq(GM_NEWWORLD); if(story&&chapter==0&&stUse==0){ sceneStart(introTxt,0); dlgPend=0; } }
 static void monName(int m,char*out){ int a=ARCH_A+m/16, fam=m%16; strcpy(out,advNm[fam]); strcat(out," "); strcat(out,arch[a].nm); }
 static short plLon[109*109], plWy[109*109]; static u8 plJ[109*109];
 #ifdef NDSSHIM
@@ -1813,10 +1904,10 @@ static void uiCreate(void){
     uiRound(170,168,76,11,U_PANELHI,cT>=0?U_ORANGE:U_GREEN); uiTextC(208,170,cT>=0?"SHAPING...":"READY",cT>=0?U_ORANGE:U_GREEN,1);
     gfxHint(cHelp[cSel],U_LGREY);
     uiFlush(); }
-enum { MI_CONT, MI_STORY, MI_FREE, MI_OPT, MI_EXTRA, MI_BACK, MI_SIZE, MI_DIFF, MI_VOL, MI_MON, MI_SCULPT, MI_BEST, MI_CODEX, MI_HELP, MI_CRED, MI_DEBUG, MI_RESUME, MI_SAVE, MI_NEW, MI_MODE, MI_TITLE, MI_CREATE, MI_GO, MI_STYPE, MI_SPEED, MI_KING, MI_JOURNAL, MI_ACH, MI_CULT, MI_LANG, MI_BROWSE, MI_STATS, MI_FAVS, MI_MISSION, MI_WORLD, MI_LOAD, MI_SLOT, MI_CAL, MI_SCALE, MI_MMODE, MI_PEOPLES, MI_MMICON };
+enum { MI_CONT, MI_STORY, MI_FREE, MI_OPT, MI_EXTRA, MI_BACK, MI_SIZE, MI_DIFF, MI_VOL, MI_MON, MI_SCULPT, MI_BEST, MI_CODEX, MI_HELP, MI_CRED, MI_DEBUG, MI_RESUME, MI_SAVE, MI_NEW, MI_MODE, MI_TITLE, MI_CREATE, MI_GO, MI_STYPE, MI_SPEED, MI_KING, MI_JOURNAL, MI_ACH, MI_CULT, MI_LANG, MI_BROWSE, MI_STATS, MI_FAVS, MI_MISSION, MI_WORLD, MI_LOAD, MI_SLOT, MI_CAL, MI_SCALE, MI_MMODE, MI_PEOPLES, MI_MMICON, MI_AUTOSAVE };
 static int extrasView;      // which menu (0 main, 1 options, 2 extras), the highlighted row, a pending "are you sure", and whether an extras page is open
 static int menuList(int*ids){ int n=0, ctx=titleOn?0:1;
-    if(mScr==0){ if(ctx==0){ ids[n++]=MI_CONT; ids[n++]=MI_CREATE; ids[n++]=MI_OPT; ids[n++]=MI_EXTRA; if(slotOn) ids[n++]=MI_SLOT; } else { ids[n++]=MI_RESUME; if(storyOn&&chapter<CHAP_N) ids[n++]=MI_MISSION; ids[n++]=MI_JOURNAL; ids[n++]=MI_STATS; ids[n++]=MI_FAVS; ids[n++]=MI_WORLD; ids[n++]=MI_SAVE; if(sdOk) ids[n++]=MI_LOAD; if(slotOn) ids[n++]=MI_SLOT; ids[n++]=MI_OPT; ids[n++]=MI_EXTRA; } }
+    if(mScr==0){ if(ctx==0){ ids[n++]=MI_CONT; ids[n++]=MI_CREATE; ids[n++]=MI_OPT; ids[n++]=MI_EXTRA; if(slotOn) ids[n++]=MI_SLOT; } else { ids[n++]=MI_RESUME; if(storyOn&&chapter<CHAP_N) ids[n++]=MI_MISSION; ids[n++]=MI_JOURNAL; ids[n++]=MI_STATS; ids[n++]=MI_FAVS; ids[n++]=MI_WORLD; ids[n++]=MI_SAVE; ids[n++]=MI_AUTOSAVE; if(sdOk) ids[n++]=MI_LOAD; if(slotOn) ids[n++]=MI_SLOT; ids[n++]=MI_OPT; ids[n++]=MI_EXTRA; } }
     else if(mScr==3){ ids[n++]=MI_SIZE; ids[n++]=MI_STYPE; ids[n++]=MI_DIFF; ids[n++]=MI_GO; ids[n++]=MI_BACK; }
     else if(mScr==1){ ids[n++]=MI_DIFF; ids[n++]=MI_SPEED; ids[n++]=MI_VOL; ids[n++]=MI_MON; ids[n++]=MI_SCALE; ids[n++]=MI_MMODE; ids[n++]=MI_MMICON;
 #ifdef HW_CAL
@@ -1827,7 +1918,7 @@ static int menuList(int*ids){ int n=0, ctx=titleOn?0:1;
     return n; }
 static void menuText(int id,char*l,char*v){ v[0]=0;
     switch(id){ case MI_CONT: strcpy(l,hasSave?"CONTINUE YOUR WORLD":"START THE STORY"); break; case MI_STORY: strcpy(l,"NEW STORY WORLD"); break; case MI_FREE: strcpy(l,"NEW FREE PLAY WORLD"); break;
-        case MI_BROWSE: strcpy(l,"WORLD BROWSER"); break; case MI_KING: strcpy(l,"KINGDOMS"); break; case MI_CULT: strcpy(l,"CULTURE TREE"); break; case MI_PEOPLES: strcpy(l,"POPULATION"); break; case MI_MMICON: strcpy(l,"MAP DOTS"); strcpy(v,mmIcons?"EVERY KIND":"FOLK ONLY"); break; case MI_LANG: strcpy(l,"LANGUAGES"); break; case MI_JOURNAL: strcpy(l,"JOURNAL"); siprintf(v,"%d",jrN); break; case MI_ACH: { strcpy(l,"ACHIEVEMENTS"); int c=0; for(int i=0;i<ACH_N;i++) c+=(achBits>>i)&1; siprintf(v,"%d/%d",c,ACH_N); } break; case MI_SPEED: strcpy(l,"GAME SPEED"); siprintf(v,"%dx",speedMul); break; case MI_CREATE: strcpy(l,"CREATE A PLANET"); strcpy(v,">"); break; case MI_GO: strcpy(l,"CREATE THE PLANET!"); break; case MI_STYPE: strcpy(l,"WORLD TYPE"); strcpy(v,storyOn?"STORY":"FREE PLAY"); break;
+        case MI_BROWSE: strcpy(l,"WORLD BROWSER"); break; case MI_KING: strcpy(l,"KINGDOMS"); break; case MI_CULT: strcpy(l,"CULTURE TREE"); break; case MI_PEOPLES: strcpy(l,"POPULATION"); break; case MI_MMICON: strcpy(l,"MAP DOTS"); strcpy(v,mmIcons?"EVERY KIND":"FOLK ONLY"); break; case MI_AUTOSAVE: strcpy(l,"AUTOSAVE"); strcpy(v,autoSaveOn?"ON":"OFF"); break; case MI_LANG: strcpy(l,"LANGUAGES"); break; case MI_JOURNAL: strcpy(l,"JOURNAL"); siprintf(v,"%d",jrN); break; case MI_ACH: { strcpy(l,"ACHIEVEMENTS"); int c=0; for(int i=0;i<ACH_N;i++) c+=(achBits>>i)&1; siprintf(v,"%d/%d",c,ACH_N); } break; case MI_SPEED: strcpy(l,"GAME SPEED"); siprintf(v,"%dx",speedMul); break; case MI_CREATE: strcpy(l,"CREATE A PLANET"); strcpy(v,">"); break; case MI_GO: strcpy(l,"CREATE THE PLANET!"); break; case MI_STYPE: strcpy(l,"WORLD TYPE"); strcpy(v,storyOn?"STORY":"FREE PLAY"); break;
         case MI_MMODE: strcpy(l,"MAP TINT"); strcpy(v,mmMode==0?"KINGDOM":mmMode==1?"CULTURE":mmMode==2?"FAITH":mmMode==3?"LANGUAGE":mmMode==4?"RELATIONS":"CITY"); break;
         case MI_SCALE: strcpy(l,"UI SCALE"); strcpy(v,hwUiScale==0?"NORMAL":hwUiScale==1?"LARGE":"HUGE"); break; case MI_CAL: strcpy(l,"CALIBRATE TOUCH"); strcpy(v,">"); break; case MI_OPT: strcpy(l,"OPTIONS"); strcpy(v,">"); break; case MI_EXTRA: strcpy(l,"EXTRAS"); strcpy(v,">"); break; case MI_BACK: strcpy(l,"BACK"); break;
         case MI_SIZE: strcpy(l,"PLANET SIZE"); siprintf(v,"%dx%d",planetSize,planetSize); break; case MI_DIFF: strcpy(l,"DIFFICULTY"); strcpy(v,diff==0?"CALM":diff==1?"NORMAL":"BRUTAL"); break;
@@ -1842,7 +1933,7 @@ static int extOpen(int pg){ return !(pg==3&&!auralOK())&&!(pg==4&&!debugOn); }
 static int extStep(int d){ int i=0; for(int k=0;k<15;k++) if(extOrder[k]==page) i=k; for(int n=0;n<15;n++){ i=(i+d+15)%15; if(extOpen(extOrder[i])) return extOrder[i]; } return page; }
 static const char* menuDesc(int id){ switch(id){
     case MI_CONT: return hasSave?"PICK UP YOUR SAVED WORLD WHERE YOU LEFT IT":"BEGIN THE STORY ON A NEW PLANET"; case MI_CREATE: return "CHOOSE SIZE, LAND, CLIMATE AND SEED OF A NEW PLANET"; case MI_OPT: return "DIFFICULTY, SPEED, VOLUME, MONSTERS"; case MI_EXTRA: return "KINGDOMS, MUSIC, BESTIARY, HELP AND MORE";
-    case MI_MMICON: return "THE DOTS ON THE MINIMAP: ONLY FOLK AND MONSTERS, OR EVERY KIND OF CREATURE"; case MI_MMODE: return "WHAT THE RINGS ON THE MAP SHOW. RELATIONS: GREEN ALLY, RED WAR"; case MI_SCALE: return "BIGGER TOOLBAR AND TOUCH TARGETS"; case MI_CAL: return "TAP TWO CROSSES SO THE STYLUS LANDS WHERE YOU TOUCH"; case MI_DIFF: return "HOW HARD THE MONSTERS BITE"; case MI_SPEED: return "HOW FAST TIME RUNS"; case MI_VOL: return "MUSIC AND EFFECT LOUDNESS"; case MI_MON: return "TURN THE NIGHTMARES ON OR OFF";
+    case MI_MMICON: return "THE DOTS ON THE MINIMAP: ONLY FOLK AND MONSTERS, OR EVERY KIND OF CREATURE"; case MI_MMODE: return "WHAT THE RINGS ON THE MAP SHOW. RELATIONS: GREEN ALLY, RED WAR"; case MI_AUTOSAVE: return "AUTOMATICALLY SAVE AT EACH NEW YEAR; MANUAL SAVE STILL WORKS WHEN OFF"; case MI_SCALE: return "BIGGER TOOLBAR AND TOUCH TARGETS"; case MI_CAL: return "TAP TWO CROSSES SO THE STYLUS LANDS WHERE YOU TOUCH"; case MI_DIFF: return "HOW HARD THE MONSTERS BITE"; case MI_SPEED: return "HOW FAST TIME RUNS"; case MI_VOL: return "MUSIC AND EFFECT LOUDNESS"; case MI_MON: return "TURN THE NIGHTMARES ON OR OFF";
     case MI_SCULPT: return "THE JUKEBOX: ALL THE TRACKS AND SUITES"; case MI_BROWSE: return "FIND AND STAR CITIES, FOLK, ITEMS, POWERS"; case MI_KING: return "WHO RULES WHAT: WARS, ALLIES, VASSALS"; case MI_CULT: return "WHAT EACH KINGDOM HAS LEARNED"; case MI_LANG: return "THE FIVE TONGUES AND THEIR NAMES"; case MI_PEOPLES: return "WHO LIVES UNDER WHICH CULTURE, FAITH, TONGUE"; case MI_JOURNAL: return "THE LAST EVENTS OF THE WORLD"; case MI_ACH: return "THINGS YOU HAVE DONE AS A GOD"; case MI_BEST: return "EVERY NIGHTMARE YOU HAVE MET"; case MI_CODEX: return "SUBSPECIES AND WHAT THEY DO"; case MI_HELP: return "THE CONTROLS"; case MI_CRED: return "WHO MADE THIS"; case MI_DEBUG: return "CHEATS AND TOOLS";
     case MI_STATS: return "COUNTS OF EVERYTHING"; case MI_FAVS: return "YOUR STARRED CITIES, KINGS, ITEMS"; case MI_WORLD: return "CHANGE THE RULES OF THE WORLD"; case MI_MISSION: return "THE CURRENT CHAPTER GOAL"; case MI_RESUME: return "BACK TO THE WORLD"; case MI_SAVE: return "WRITE THE WORLD TO THE CARD"; case MI_LOAD: return "GO BACK TO THE LAST SAVE"; case MI_SLOT: return "PICK THE SAVE FILE FOR SAVE AND CONTINUE"; case MI_NEW: return "REPLACE THIS WORLD WITH A NEW ONE"; case MI_MODE: return "SWITCH BETWEEN STORY AND FREE PLAY"; case MI_TITLE: return "SAVE AND GO TO THE TITLE SCREEN"; case MI_SIZE: return "BIGGER PLANETS TAKE LONGER TO MAKE"; case MI_STYPE: return "STORY HAS CHAPTERS, FREE PLAY HAS NONE"; case MI_GO: return "MAKE THE PLANET AND BEGIN"; default: return ""; } }
 static const char* gfxDesc(int id){ if(menuNoteT>0&&info[0]) return info; const char*d=menuDesc(id); if(d[0]) return d; return id==MI_BACK?"GO BACK TO THE LAST MENU":""; }
@@ -1917,7 +2008,7 @@ static const char*crDoing(const Cr*c){     // "what is it doing?": worked out fr
     return t==T_GRASS?"GRAZING":"WANDERING"; }
 static void uiInspectCard(void){
     uiFrame(138,15,116,132,U_PANEL,U_GOLD,U_BLO); char b[64], nm[48]; int y=19;
-    if(inspKind==1&&inspIdx>=0&&inspIdx<nCr&&cr[inspIdx].alive){ Cr*c=&cr[inspIdx]; int fam=sp[c->sp].fam, shape=arch[sp[c->sp].a].shape;
+    if(inspKind==1&&inspIdx>=0&&inspIdx<nCr&&cr[inspIdx].alive){ Cr*c=&cr[inspIdx]; int fam=creatureFamily(c), shape=arch[sp[c->sp].a].shape;
         for(int k=0;k<3;k++) BG_PALETTE_SUB[200+k]=RGB15(famCol[fam][k][0],famCol[fam][k][1],famCol[fam][k][2]); BG_PALETTE_SUB[203]=RGB15(31,31,31);
         uiFrame(142,19,38,38,U_SHADOW,U_BHI,U_BLO); for(int j=0;j<8;j++) for(int i=0;i<8;i++){ char ch=shpRow(shape,(tick>>4)&1,j)[i]; int col=ch=='b'?200:ch=='d'?201:ch=='a'?202:ch=='e'?203:0; if(col) uiRect(144+i*4,21+j*4,4,4,col); }
         crName(c,nm); uiWrap(184,20,11,4,nm,U_WHITE); spName(c->sp,nm); (void)nm; y=62;
@@ -2016,7 +2107,7 @@ static void uiKing(void){
     if(cmpOn){ int o=ids[cmpB%m]; if(o==k) o=ids[(cmpB+1)%m]; if(m>1){ uiCompare(k,o,y0); uiFlush(); return; } cmpOn=0; }
     if(cmpOn){ int o=ids[cmpB%m]; if(o==k) o=ids[(cmpB+1)%m]; if(m>1){ uiCompare(k,o,y0); uiFlush(); return; } cmpOn=0; }
     uiFrame(4,y0,248,177-y0,U_PANELHI,40+k,U_BLO);
-    int barLine=-1; char L[14][64]; int col[14], pri[14], nl=0; char cp[24]="NONE"; if(kd[k].cap) vilName(kd[k].cap-1,cp);
+    int barLine=-1; char L[18][64]; int col[18], pri[18], nl=0; char cp[24]="NONE"; if(kd[k].cap) vilName(kd[k].cap-1,cp);
     siprintf(L[nl],"%s %s",kd[k].empire?"EMPEROR":"RULER",rn); col[nl]=U_WHITE; pri[nl++]=0;
     siprintf(L[nl],"CITIES %d/%d  CAPITAL %s",c,kdMaxCities(k),cp); col[nl]=c>kdMaxCities(k)?U_ORANGE:U_WHITE; pri[nl++]=1;
     barLine=nl; L[nl][0]=0; col[nl]=U_LGREY; pri[nl++]=1;      // the four ruler stats are drawn as bars on this line
@@ -2026,14 +2117,17 @@ static void uiKing(void){
     { int pp[8]={0}, tot=0; for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==k+1){ pp[vil[v].race&7]+=vil[v].pop; tot+=vil[v].pop; }      // who lives in it: the people of its cities, counted now
       char t2[48]="FOLK "; for(int q=0;q<2;q++){ int bi=-1; for(int r=0;r<8;r++) if(pp[r]>0&&(bi<0||pp[r]>pp[bi])) bi=r; if(bi<0) break; char z[20]; siprintf(z,"%s %d%% ",arch[bi].nm,pp[bi]*100/(tot?tot:1)); if(strlen(t2)+strlen(z)<34) strcat(t2,z); pp[bi]=0; }
       if(tot){ strcpy(L[nl],t2); col[nl]=U_LGREY; pri[nl++]=3; } }
-    siprintf(L[nl],"HOUSE %s  %s",clanN[kd[k].clan],kd[k].lord?"":"INDEPENDENT"); col[nl]=U_DIM; pri[nl++]=6;
+    siprintf(L[nl],"HOUSE %s",clanN[kd[k].clan]); col[nl]=U_DIM; pri[nl++]=6;
     siprintf(L[nl],"TECH %d %s  %s",kd[k].tech,techN[kd[k].tech],langN[kd[k].lang]); col[nl]=U_DIM; pri[nl++]=5;
     { char t2[48]=""; for(int q=0;q<6;q++) if(kd[k].ctr>>q&1){ if(strlen(t2)+strlen(ctrN[q])<34){ strcat(t2,ctrN[q]); strcat(t2," "); } } if(t2[0]){ strcpy(L[nl],t2); col[nl]=U_PURPLE; pri[nl++]=7; } }
     { static const char*const pn[3]={"NORMAL","HIGH","LOW"}; char t2[56]; siprintf(t2,"TRIBUTE %s TAX %s",pn[kx[k].tribute%3],pn[kx[k].tax%3]); strcpy(L[nl],t2); col[nl]=U_LGREY; pri[nl++]=6; }
     { char t2[48]=""; for(int q=0;q<5;q++) if(kx[k].ctr2>>q&1){ if(strlen(t2)+strlen(ctr2N[q])<34){ strcat(t2,ctr2N[q]); strcat(t2," "); } } if(t2[0]){ strcpy(L[nl],t2); col[nl]=U_PURPLE; pri[nl++]=7; } }
+    { char t2[56]="LANG "; int any=0; for(int q=0;q<3;q++) if(kx[k].ctr2>>(5+q)&1){ if(strlen(t2)+strlen(langTraitN[q])<52){ strcat(t2,langTraitN[q]); strcat(t2," "); any=1; } } if(any){ strcpy(L[nl],t2); col[nl]=U_CYAN; pri[nl++]=7; } }
+    { char t2[56]="CLAN "; int any=0; for(int q=0;q<3;q++) if(kx[k].ctr2>>(8+q)&1){ if(strlen(t2)+strlen(clanTraitN[q])<52){ strcat(t2,clanTraitN[q]); strcat(t2," "); any=1; } } if(any){ strcpy(L[nl],t2); col[nl]=U_GOLD; pri[nl++]=7; } }
+    { char t2[56]="FAITH "; int any=0; for(int q=0;q<3;q++) if(kx[k].ctr2>>(11+q)&1){ if(strlen(t2)+strlen(faithTraitN[q])<52){ strcat(t2,faithTraitN[q]); strcat(t2," "); any=1; } } if(any){ strcpy(L[nl],t2); col[nl]=U_PURPLE; pri[nl++]=7; } }
     { char t2[64]="PAST: "; int any=0; for(int q=0;q<2;q++) if(hall[k][q][2]||hall[k][q][0]||hall[k][q][1]){ char p[24], z[40]; langPerson(kd[k].lang,hall[k][q][0],hall[k][q][1],p); siprintf(z,"%.12s %dY ",p,hall[k][q][2]); if(strlen(t2)+strlen(z)<40){ strcat(t2,z); any=1; } } if(any){ strcpy(L[nl],t2); col[nl]=U_DIM; pri[nl++]=9; } }
     siprintf(L[nl],"GOLD %d  POWER %d  RENOWN %d",kd[k].gold,w,kx[k].renown); col[nl]=U_GOLD; pri[nl++]=8;
-    { int fit=(177-y0-5)/10; int show[14]; for(int i=0;i<nl;i++) show[i]=1; int cnt=nl; while(cnt>fit&&cnt>1){ int bi=-1; for(int i=0;i<nl;i++) if(show[i]&&(bi<0||pri[i]>pri[bi])) bi=i; show[bi]=0; cnt--; }
+    { int fit=(177-y0-5)/10; int show[18]; for(int i=0;i<nl;i++) show[i]=1; int cnt=nl; while(cnt>fit&&cnt>1){ int bi=-1; for(int i=0;i<nl;i++) if(show[i]&&(bi<0||pri[i]>pri[bi])) bi=i; show[bi]=0; cnt--; }
       int y=y0+4; for(int i=0;i<nl;i++) if(show[i]){ if(i==barLine){ static const char*const sn="SWDI"; static const u8 sc[4]={U_GOLD,U_RED,U_CYAN,U_GREEN}; for(int q=0;q<4;q++){ int x=10+q*58; char one[2]={sn[q],0}; uiText(x,y,one,U_DIM,1); uiBar(x+8,y+1,42,6,kdRStat(k,q),10,sc[q]); } } else uiText(10,y,L[i],col[i],1); y+=10; } }
     uiFlush(); }
 static int langSel;
@@ -2256,7 +2350,7 @@ static void menuInput(int kd){
     if(kd&KEY_B){ if(mScr||!titleOn) fxReq(FX_MENU_BACK); if(mScr){ int bk=mScr==3?MI_CREATE:mScr==4?MI_SLOT:mScr==2?MI_EXTRA:MI_OPT; mScr=0; menuSelId(bk); } else if(!titleOn){ menuOn=0; paused=dlgPaused; } return; }
     int id=ids[mSel]; if(d&&menuAdj(id)&&id!=MI_SIZE) fxReq(FX_MENU_MOVE); if((kd&KEY_A)&&!menuAdj(id)) fxReq(FX_MENU_OK);
     if(d){ switch(id){ case MI_SIZE: setSize(sizeStep(planetSize,d>0?1:-1)); fxReq(FX_MENU_MOVE); break; case MI_STYPE: storyOn^=1; break;
-            case MI_MMODE: mmMode=(mmMode+6+d)%6; break; case MI_MMICON: mmIcons^=1; break; case MI_SLOT: slotStep(d); break; case MI_DIFF: diff=(diff+3+d)%3; break; case MI_SPEED: speedMul=d>0?(speedMul==1?2:speedMul==2?4:1):(speedMul==1?4:speedMul==2?1:2); break; case MI_VOL: gmMaster+=d*10; if(gmMaster<0) gmMaster=0; if(gmMaster>100) gmMaster=100; break; case MI_MON: monOn^=1; break; case MI_SCALE: hwUiScale=(hwUiScale+3+d)%3; tbInit(); uiScaleSave(); fxReq(FX_MENU_MOVE); break; } }
+            case MI_MMODE: mmMode=(mmMode+6+d)%6; break; case MI_MMICON: mmIcons^=1; break; case MI_AUTOSAVE: autoSaveOn^=1; break; case MI_SLOT: slotStep(d); break; case MI_DIFF: diff=(diff+3+d)%3; break; case MI_SPEED: speedMul=d>0?(speedMul==1?2:speedMul==2?4:1):(speedMul==1?4:speedMul==2?1:2); break; case MI_VOL: gmMaster+=d*10; if(gmMaster<0) gmMaster=0; if(gmMaster>100) gmMaster=100; break; case MI_MON: monOn^=1; break; case MI_SCALE: hwUiScale=(hwUiScale+3+d)%3; tbInit(); uiScaleSave(); fxReq(FX_MENU_MOVE); break; } }
     if(kd&KEY_A){ switch(id){
         case MI_CONT: if(hasSave){ LOADING("LOADING YOUR WORLD",30); if(!loadGame(savePath)){ planetSize=128; newWorld(); hasSave=0; siprintf(info,"SAVE UNREADABLE"); menuNoteT=100; break; } endShown=storyDone; titleOn=0; paused=0; refillWindow(); LOADING("READY",100); musReq(GM_NEWWORLD); } else startWorld(1); break;
         case MI_CREATE: mScr=3; mSel=0; createStart(); break; case MI_GO: startWorld(storyOn); break;
@@ -2264,7 +2358,7 @@ static void menuInput(int kd){
         case MI_CAL: calStart(); break;
 #endif
         case MI_OPT: mScr=1; mSel=0; break; case MI_EXTRA: mScr=2; mSel=0; break; case MI_BACK: { int bk=mScr==3?MI_CREATE:mScr==2?MI_EXTRA:MI_OPT; mScr=0; menuSelId(bk); } break;
-        case MI_SLOT: mScr=4; slSel=slot; slAsk=-1; fxReq(FX_MENU_OK); break; case MI_SIZE: case MI_DIFF: case MI_VOL: case MI_MON: case MI_SPEED: break;
+        case MI_AUTOSAVE: autoSaveOn^=1; siprintf(info,autoSaveOn?"AUTOSAVE ON":"AUTOSAVE OFF"); menuNoteT=80; break; case MI_SLOT: mScr=4; slSel=slot; slAsk=-1; fxReq(FX_MENU_OK); break; case MI_SIZE: case MI_DIFF: case MI_VOL: case MI_MON: case MI_SPEED: break;
         case MI_SCULPT: if(auralOK()) menuOpenPage(3); else { siprintf(info,"UNLOCK IN STORY CHAPTER 3"); menuNoteT=100; fxReq(FX_ERROR); } break;
         case MI_STATS: menuOpenPage(13); break; case MI_FAVS: brCat=0; brSel=0; menuOpenPage(12); break; case MI_MISSION: menuOpenPage(1); break; case MI_WORLD: menuOpenPage(14); break; case MI_BROWSE: menuOpenPage(12); break; case MI_KING: menuOpenPage(7); break; case MI_CULT: menuOpenPage(10); break; case MI_LANG: menuOpenPage(11); break; case MI_PEOPLES: menuOpenPage(15); break; case MI_JOURNAL: menuOpenPage(8); jrSel=0; break; case MI_ACH: menuOpenPage(9); break; case MI_BEST: menuOpenPage(2); break; case MI_CODEX: menuOpenPage(5); break; case MI_HELP: menuOpenPage(6); break; case MI_DEBUG: menuOpenPage(4); break;
         case MI_CRED: menuOn=0; sceneStart(credTxt,1); musReq(GM_CREDITS); break;
@@ -2385,12 +2479,19 @@ int main(void){
                     case 19: if(go||d){ fullDone^=1; siprintf(info,fullDone?"100%% SET: REMIXES OPEN":"100%% CLEARED"); } break; }
                 dirty=1; }
             if(kd) dirty=1; kd&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT|KEY_L|KEY_R|KEY_A); kh&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); }
+        /* Possession temporarily gives the D-pad to one creature; A releases it. */
+        if(possessed>=0){ if(possessed>=nCr||!cr[possessed].alive) possessed=-1; else {
+            if(kd&KEY_A){ possessed=-1; siprintf(info,"POSSESSION RELEASED"); dirty=1; }
+            else { int dxp=((kd&KEY_RIGHT)?1:0)-((kd&KEY_LEFT)?1:0), dyp=((kd&KEY_DOWN)?1:0)-((kd&KEY_UP)?1:0);
+                if(dxp||dyp){ Cr*pc=&cr[possessed]; int nx=pc->x+dxp, ny=pc->y+dyp; if(stepOk(&sp[pc->sp],&nx,&ny)) moveTo(pc,possessed,nx,ny); dirty=1; } }
+            kd&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT|KEY_A); kh&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT);
+        } }
         if(zBmp&&!view3d){ zScale(); int st=sp_*8*zK_/zS_; if(st<1) st=1; if(kh&KEY_LEFT) zcx-=st; if(kh&KEY_RIGHT) zcx+=st; if(kh&KEY_UP) zcy-=st; if(kh&KEY_DOWN) zcy+=st; zClamp(); zSyncCam(); }      // zoomed: the pad moves the view's centre
         else {
         if(kh&KEY_LEFT) camX-=sp_; if(kh&KEY_RIGHT) camX+=sp_; if(kh&KEY_UP) camY-=sp_; if(kh&KEY_DOWN) camY+=sp_;
         if(camX<0) camX=0; if(camY<0) camY=0; if(camX>WW*8-256) camX=WW*8-256; if(camY>WH*8-192) camY=WH*8-192; }
         if(kd&KEY_R){ power=(power+1)%PW_N; dirty=1; } if(kd&KEY_L){ power=(power+PW_N-1)%PW_N; dirty=1; }
-        if(year!=savedYear&&year>0&&(tick&255)>=1&&(tick&255)<=(unsigned)speedMul){ doSave(); dirty=1; }
+        if(autoSaveDue()){ doSave(); dirty=1; }
         if(view3d){
             int ts=(kh&KEY_B)?4:2; if(!walkOn){ if(kh&KEY_LEFT) rotY-=ts; if(kh&KEY_RIGHT) rotY+=ts; if(kh&KEY_UP) rotX+=ts; if(kh&KEY_DOWN) rotX-=ts; if(!(kh&(KEY_LEFT|KEY_RIGHT|KEY_UP|KEY_DOWN))&&(tick&3)==0) rotY+=1; }
             if(rotX>85) rotX=85; if(rotX<-85) rotX=-85; rotY%=360; if(rotY<0) rotY+=360;

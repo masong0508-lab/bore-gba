@@ -93,6 +93,10 @@ echo "--- the 3DS mixer (cubic interpolation, unison voices, reverb, limiter) an
 gcc -O2 -DNDSSHIM -DSHIM_HQ -DGG_HQVOX -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_hqmix pc_hq.c -lm && for t in 83 22 0; do /tmp/gg_hqmix /tmp/gg_hqmix.wav $t 40 | tail -1; done
 echo "--- the new animals, terraformers, evolved forms, spawners and captain morale"
 gcc -O2 -w -DNDSSHIM -Icompat -Isource -include unistd.h -o /tmp/gg_roster pc_roster.c -lm && /tmp/gg_roster | tail -1
+# Remaining GODGUY features: culture-based people skins, species colour preferences, SEND HOME and BORDER BRUSH powers, seeded culture traits.
+gcc $F -w -o /tmp/gg_remaining pc_remaining.c -lm && /tmp/gg_remaining | tail -1
+gcc $F -w -DGG_DSI16 -o /tmp/gg_remaining_dsi pc_remaining.c -lm && /tmp/gg_remaining_dsi | tail -1
+gcc $F -w -DGG_BIG -o /tmp/gg_remaining_big pc_remaining.c -lm && /tmp/gg_remaining_big | tail -1
 # GODGUY disaster pack: six new world events, real monster spawns, powers, save/load, fixed-size hazard and creature records.
 gcc $F -w -o /tmp/gg_disasters pc_disasters.c -lm && /tmp/gg_disasters | tail -1
 gcc $F -w -DGG_DSI16 -o /tmp/gg_disasters_dsi pc_disasters.c -lm && /tmp/gg_disasters_dsi | tail -1

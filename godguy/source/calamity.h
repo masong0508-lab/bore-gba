@@ -23,6 +23,17 @@ static void hzFling(int i){   // thrown up to six tiles away, onto any free tile
         occ[c->y][c->x]=0; cellDel(c->x,c->y,c->sp); c->x=(coord_t)nx; c->y=(coord_t)ny; c->ox=0; c->oy=0; occ[ny][nx]=(occ_t)(i+1); cellAdd(nx,ny,c->sp); return; } }
 static void stormRaze(int x,int y,int chance){ if(!gx.lStorm) razeAt(x,y,chance); }   // tornado, acid and black hole leave homes alone when WORLD > LAWS says so
 // ---------------------------------------------------------------- the plague
+static int infect(int i);
+static int plagueRatArch=-2;
+static int plagueRatSpecies(void){ if(plagueRatArch==-2){ plagueRatArch=-1; for(int a=8;a<ARCH_N;a++) if(!strcmp(arch[a].nm,"RAT")){ plagueRatArch=a; break; } if(plagueRatArch<0) for(int a=8;a<ARCH_N;a++) if(!strcmp(arch[a].nm,"MOUSE")){ plagueRatArch=a; break; } } return plagueRatArch; }
+static int ratKingAt(int cx,int cy){
+    int rat=plagueRatSpecies(); if(rat<0) return 0; int n=0;
+    for(int dy=-4;dy<=4;dy++) for(int dx=-4;dx<=4;dx++){ int x=cx+dx,y=cy+dy; if(x<0||y<0||x>=WW||y>=WH||!occ[y][x]) continue; Cr*c=&cr[occ[y][x]-1]; if(c->alive&&sp[c->sp].a==rat) n++; }
+    if(n<=20||rnd()%100>=14) return 0;
+    int infected=0; for(int dy=-5;dy<=5;dy++) for(int dx=-5;dx<=5;dx++){ int x=cx+dx,y=cy+dy; if(x<0||y<0||x>=WW||y>=WH||!occ[y][x]) continue; int i=occ[y][x]-1; if(arch[sp[cr[i].sp].a].diet==4&&infect(i)) infected++; }
+    if(infected){ logEv("THE RAT KING SWARM STARTS A PLAGUE"); fxReq(FX_MONSTER_SEEN); } return infected;
+}
+static void ratKingTick(void){ if(LAWON(LW_RATKING)&&(tick&255)==41) ratKingAt((int)(rnd()%WW),(int)(rnd()%WH)); }
 static int infect(int i){ Cr*c=&cr[i]; if(!c->alive||DISEASE(c)!=0||gx.lPlague==1||arch[sp[c->sp].a].diet==5) return 0; SET_DISEASE(c,1); return 1; }   // only the healthy and the never-ill can fall sick
 static void plagueTick(void){   // every 32 ticks: the sick suffer, pass it to whoever stands next to them, and now and then get better (and stay immune)
     if((tick&31)!=11) return; int mode=gx.lPlague;   // 0 normal, 1 off (everyone is cured at once), 2 deadly
@@ -32,6 +43,9 @@ static void plagueTick(void){   // every 32 ticks: the sick suffer, pass it to w
         int dmg=mode==2?4:2; if(c->hp>dmg) c->hp=(u8)(c->hp-dmg); else { killNat(i); continue; }
         if(arch[sp[c->sp].a].diet==4){ int v=vilNear(sp[c->sp].a,c->x,c->y,8); if(v>=0&&vil[v].stock>0) vil[v].stock--; }      // sick folk eat and do not work: the store drains
         for(int k=0;k<4;k++){ int x=c->x+dxs[k], y=c->y+dys[k]; if(x<0||y<0||x>=WW||y>=WH||!occ[y][x]) continue; Cr*q=&cr[occ[y][x]-1]; if(q->alive&&DISEASE(q)==0&&(int)(rnd()%100)<(mode==2?45:25)) SET_DISEASE(q,1); }
+        /* Rats are mobile plague carriers: infected folk can infect nearby rats, which in turn
+           spread the disease across a wider three-tile radius. The ordinary contact rule remains. */
+        { int ratSp=plagueRatSpecies(); if(ratSp>=0){ for(int dy=-3;dy<=3;dy++) for(int dx=-3;dx<=3;dx++){ int x=c->x+dx,y=c->y+dy; if(x<0||y<0||x>=WW||y>=WH||!occ[y][x]) continue; Cr*q=&cr[occ[y][x]-1]; if(!q->alive) continue; if(sp[c->sp].a==ratSp&&arch[sp[q->sp].a].diet==4&&DISEASE(q)==0&&rnd()%100<(mode==2?35:18)) SET_DISEASE(q,1); else if(sp[c->sp].a!=ratSp&&sp[q->sp].a==ratSp&&DISEASE(q)==0&&rnd()%100<(mode==2?35:18)) SET_DISEASE(q,1); } } }
         if((int)(rnd()%100)<(mode==2?4:10)) SET_DISEASE(c,2); } }
 static int zombSp=-2;
 static void zombiesRise(void){ while(zqN>0){ zqN--; if(zombSp==-2){ zombSp=-1; for(int s=0;s<nSp;s++) if(!strcmp(arch[sp[s].a].nm,"ZOMBIE")){ zombSp=s; break; } } if(zombSp>=0&&addCr(zombSp,zq[zqN][0],zq[zqN][1])>=0) siprintf(info,"A ZOMBIE RISES"); } }
@@ -90,4 +104,4 @@ static void calamityTick(void){
     for(int i=0;i<HZ_N;i++){ Hz*h=&hz[i]; if(!h->kind) continue; if(++h->t<(h->kind==HZ_TORNADO?4:h->kind==HZ_GHOST?8:h->kind==HZ_GOO?10:h->kind==HZ_SNOWMAN?30:h->kind==HZ_ALIEN?8:h->kind==HZ_DRAGON?4:h->kind==HZ_MOON?10:h->kind==HZ_BIOMASS?12:h->kind==HZ_ICE?8:h->kind==HZ_GARDEN?12:6)) continue; h->t=0;
         if(h->kind==HZ_TORNADO) tornadoStep(h); else if(h->kind==HZ_HOLE) holeStep(h); else if(h->kind==HZ_FIRE) fireStep(h); else if(h->kind==HZ_GOO) gooStep(h); else if(h->kind==HZ_SNOWMAN) snowStep(h); else if(h->kind==HZ_GHOST) ghostStep(h); else disasterStep(h);
         if(h->life>0) h->life--; if(!h->life){ if(h->kind==HZ_TORNADO) siprintf(info,"THE TORNADO DIES OUT"); else if(h->kind==HZ_HOLE){ siprintf(info,"THE BLACK HOLE COLLAPSES"); flashT=6; } h->kind=HZ_NONE; } }
-    plagueTick(); zombiesRise(); calamityNatural(); wildTick(); }
+    plagueTick(); ratKingTick(); zombiesRise(); calamityNatural(); wildTick(); }

@@ -22,9 +22,9 @@ int main(){ int fails=0; unsigned seed=555u;
     setup(seed); lw[LW_MUTBOX]=1; stMut=0; runT(1,6000); unsigned mb=stMut; setup(seed); stMut=0; runT(1,6000); printf("MUTANT BOX on: mutations %u vs %u in 6000 ticks\n",mb,(unsigned)stMut); if(mb<=stMut){ fails++; printf("  FAIL: mutant box\n"); }
     // BABIES off: the population cannot grow by birth
     { setup(seed); lw[LW_CIVBABY]=lw[LW_ANIBABY]=1; stBorn=0; runT(1,6000); unsigned b1=stBorn; setup(seed); stBorn=0; runT(1,6000); printf("BABIES off: born %u (default %u)\n",b1,(unsigned)stBorn); if(!(b1<stBorn)){ fails++; printf("  FAIL: babies\n"); } }
-    // HUNGER off: an empty belly kills (default) or does not (law off): same creatures, hp 3, food 0, one turn each
-    { int d[2]; for(int m=0;m<2;m++){ setup(seed); runT(1,2000); lw[LW_HUNGER]=m; int n0=nCr; int tot=0; for(int i=0;i<n0;i++) if(cr[i].alive&&arch[sp[cr[i].sp].a].diet!=5){ cr[i].hp=3; cr[i].food=0; tot++; } for(int i=0;i<n0;i++) if(cr[i].alive&&cr[i].food==0&&cr[i].hp==3) think(i); int al=0; for(int i=0;i<n0;i++) al+=cr[i].alive&&cr[i].hp==3&&cr[i].food==0; d[m]=tot-al; }
-      printf("HUNGER: starving creatures that died in one turn: %d (default) vs %d (law off)\n",d[0],d[1]); if(!(d[0]>d[1])){ fails++; printf("  FAIL: hunger\n"); } }
+    // HUNGER off: isolate one citizen so this measures starvation, not predation or movement by the rest of the world.
+    { int hp[2]={0}; for(int m=0;m<2;m++){ setup(seed); nCr=0; memset(occ,0,sizeof occ); cellClear(); for(int y=0;y<WH;y++) for(int x=0;x<WW;x++){ world[y][x]=T_GRASS; bld[y][x]=0; bldv[y][x]=0; } lw[LW_HUNGER]=(u8)m; int i=addCr(0,64,64); if(i>=0){ cr[i].hp=3; cr[i].food=0; think(i); hp[m]=cr[i].alive?cr[i].hp:0; } }
+      printf("HUNGER: isolated citizen HP after one empty-belly turn: %d (default) vs %d (law off)\n",hp[0],hp[1]); if(!(hp[0]<hp[1])){ fails++; printf("  FAIL: hunger\n"); } }
     // WEATHER off: clear sky
     { setup(seed); lw[LW_WEATHER]=1; int w=0; for(int t=1;t<=8000;t++){ tick=t; year=t/1200; weatherTick(); w+=weather!=0; } printf("WEATHER off: ticks with weather %d\n",w); if(w){ fails++; printf("  FAIL: weather\n"); } }
     // NATURAL / OTHER DISASTERS off: no events, no roaming calamities

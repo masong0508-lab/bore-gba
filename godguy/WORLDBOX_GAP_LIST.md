@@ -17,19 +17,32 @@ The four special weather states are now part of the normal weather cycle. Ash cl
 ## World-disaster batch implemented (18 November 2026)
 Six more events now run through the existing `Hz` roaming-hazard table and `GGH1` save trailer: alien invasion (ALIEN/UFO wave), far-land elder dragon (or wyvern fallback), moon horrors (wraiths and a lich), spreading biomass (tumor monsters and bioblobs), dream ice (a moving freeze front that can extinguish nearby fire elementals), and garden surprise (a moving healing and regrowth front). Each has a divine power, world effects, map marker, and a rare natural-event chance when disasters are enabled. The `Hz` and `Cr` record sizes are unchanged. Save v13 adds an optional `GGF1` tail for starred powers 64–79; v11/v12 saves still load and default the new favorite slots to off. Regression tests exercise all six on DS, DSi and 3DS/PC record layouts, including save/load and the actual power path.
 
+## Remaining-mechanics batch implemented (18 November 2026)
+- SEND HOME is a divine power: tapping a citizen returns it to a free walkable tile beside the nearest city of its people.
+- BORDER BRUSH paints and toggles a visible perimeter for a city; border markers are owned by that city and are removed if it is razed.
+- People use five culture-derived palette skins inside their kingdom; wildlife and monsters favour deterministic species-specific coat colours.
+- Same-race soldiers check the kingdoms of their nearby home cities before treating another same-race unit as an enemy; they fight only when those kingdoms are at war.
+- New worlds clear temporary captain-rout zones. Save version 14 adds a `GGR2` trailer for the four rout zones and their ring index; v11–v13 saves remain supported.
+
+## Bee matriarchy implemented (18 November 2026)
+Bee colonies establish one local queen; workers follow her, and a living queen periodically lays another worker, up to 24 nearby bees. Queen identity uses an existing creature-flag bit and does not enlarge the creature or save record. Regression tests cover queen election and worker spawning on DS, DSi and 3DS/PC layouts.
+
+## Autosave control implemented (18 November 2026)
+The pause menu now exposes AUTOSAVE ON/OFF. Turning it off suppresses only automatic year-boundary writes; manual SAVE GAME and save-slot controls remain available. The `autoSaveDue()` decision is covered for enabled, disabled and no-card cases in the remaining-mechanics regression.
+
 ## Still missing (from the changelog, 0.21.0 to 0.51.4)
 | Area | Missing |
 |---|---|
-| Traits | species-specific preferred colours and remaining WorldBox-only visual/behaviour variants; the listed adaptation, defense, healing, social and fire traits are now implemented |
-| Statuses | rat-mediated plague transmission (ordinary plague spread and Cough status exist); any further one-click status variants not covered by the six new toggles |
+| Traits | remaining WorldBox-only visual/behaviour variants; species-specific preferred colours and five culture skins are now implemented |
+| Statuses | rat-mediated plague transmission and the Rat King law are now implemented; further one-click status variants not covered by the six new toggles remain |
 | Weather and clouds | Further polish: tune balance and verify on hardware. |
 | Disasters | the six listed world events are implemented; remaining work is balancing, visual polish and on-hardware verification |
-| Creatures | Navy Seals, planes, hypercube, ghosty ghosts (ghost civilisations), cybercore, super pumpkin, the five fire-elemental kinds, bees with a matriarchy |
-| Mechanics | unit possession; teleporting units return to their home city; five culture-based skins per people; species preferred colours; border brush; only xenophobic cultures destroy cities and the rest capture them *(our war code unchecked)*; species loyalty checks and culture/religion/language splits (0.50.3) *(partly: schisms exist, unchecked)*; random traits for new cultures, languages, clans and religions |
-| Laws | Glitched Noosphere, Drop of Thoughts, Grin Reaper |
-| Powers | the six printer powers (we have the printer creature only), small and medium lightning, clan, alliance, war and plot displays *(partly)* |
-| Ages | the changelog lists ten ages (dark, hope, sun, tears, moon, chaos, wonders, ice, ash, despair); the code has "age" strings: *check all ten exist* |
-| Interface (0.51.0) | select any meta object (kingdom, city, culture) on the map with its own power tab; multi-toggle for zones; Ctrl+1-9 save and recall selections; save and autosave buttons in the quit menu |
+| Creatures | Navy Seals, planes, hypercube, ghosty ghosts (ghost civilisations), cybercore, super pumpkin, the five fire-elemental kinds |
+| Mechanics | unit possession, SEND HOME, five culture skins, preferred colours, border brush, xenophobic razing, same-race kingdom loyalty and random traits for culture/language/clan/religion creation are implemented. Remaining: culture/religion/language schisms (0.50.3) *(partly: schisms exist, unchecked)* |
+| Laws | Glitched Noosphere and Drop of Thoughts are implemented. Grin Reaper was removed in WorldBox 0.51.0, so it is intentionally not a target. Rat King is also implemented as a plague law. |
+| Powers | six printer powers and small/medium lightning are implemented; clan, alliance, war and plot displays remain *(partly)* |
+| Ages | all ten named ages (dark, hope, sun, tears, moon, chaos, wonders, ice, ash, despair) are present; balance and on-hardware behaviour remain unchecked |
+| Interface (0.51.0) | select any meta object (kingdom, city, culture) on the map with its own power tab; multi-toggle for zones; Ctrl+1-9 save and recall selections. Save/load/save slots are in the pause menu; automatic year-boundary saves now have an ON/OFF toggle (manual save remains available). Meta-object selection, zone multi-toggle and Ctrl+1-9 selection shortcuts remain. |
 
 ## Known weak spots (not WorldBox gaps)
 - DS build has about 13 KB of RAM to spare; the DS holds only 7 of the 56 CORPORATIONS vocal phrases (3DS and DSi mode hold all).
@@ -39,8 +52,7 @@ Six more events now run through the existing `Hz` roaming-hazard table and `GGH1
 - Terraformer rates, healing amounts and sapient tribe caps are first guesses. The 25 new 8 x 8 sprites were looked at once; five redrawn.
 
 ## Suggested order
-1. Missing creatures and the six printer powers.
-2. Possession, skins, preferred colours and teleport-home mechanics.
-3. Interface items (meta selection, zone multi-toggle, save slots in the pause menu).
-4. Verify rat-mediated plague transmission and the remaining species-specific behaviour gaps.
-5. Paste the wiki AllPages text (or the pages' text) so the unread pages can be compared.
+1. Missing creature families (the remaining named species need their intended behaviour and art, not just aliases).
+2. Interface items (meta selection, zone multi-toggle and keyboard selection shortcuts).
+3. Verify the new life-cloud and Rat King laws in long-running simulations and on hardware.
+4. Paste the wiki AllPages text (or the pages' text) so the unread pages can be compared.
