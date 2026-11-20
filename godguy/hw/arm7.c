@@ -91,7 +91,9 @@ void arm7main(void){
     R16(0x04000500)=0x8000|0x7F;             // sound master enable, full volume
     int done=0, mid=0, det=0; calInit();
     for(;;){
+#ifndef GG_NO_CART_SAVE
         if(IPC->alive==0x41524D39&&!det){ det=1; svDetect(); }
+#endif
         if(IPC->alive==0x41524D39){ while(IPC->tail!=IPC->head){ doCmd(&IPC->q[IPC->tail]); IPC->tail=(IPC->tail+1)&63; } }
         u32 b=0; for(int i=0;i<16;i++) if(CH_CNT(i)&0x80000000u) b|=1u<<i; IPC->busy=b;
         u16 vc=R16(0x04000006);

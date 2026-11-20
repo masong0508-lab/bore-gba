@@ -4,7 +4,17 @@
 	.global _start
 _start:
 	msr	cpsr_c, #0xD3			@ supervisor mode, IRQ and FIQ off
+#ifdef GG_DSI16
+	@ DSi mode puts .bss above 0x02400000. The low-memory stack stays
+	@ below 0x02300000, clear of the executable and ARM7/shared memory.
 	ldr	sp, =0x022F0000
+#else
+	@ On a 4 MiB DS, the ordinary .bss now extends beyond 0x022F0000.
+	@ The old stack started *inside* .bss and overwrote live game state.
+	@ Save scratch begins at 0x02300000; use its lower boundary as the
+	@ exclusive stack top, growing DOWN into a linker-reserved 32 KiB gap.
+	ldr	sp, =0x02300000
+#endif
 #ifdef GG_DSI16
 	@ RAM probe, before anything is cleared or cached: 16 MB (DSi mode) or only 4 MB mirrored (DS mode)? 0x02200000 and 0x02A00000 are the same word in a 4 MB machine. A write there would
 	@ otherwise land on the program, so only these two free words are touched (and put back).

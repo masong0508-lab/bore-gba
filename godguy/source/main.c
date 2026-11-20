@@ -1827,8 +1827,8 @@ static int musNext(int cur){
     if(!n) return want!=cur?want:-1;
     musRot=musRot*1103515245u+12345u+(unsigned)tick; return pool[(musRot>>16)%(unsigned)n]; }
 static void musUpdate(void){
-#ifdef GG_SAFE
-    return;     // the safe build has no sound at all
+#if defined(GG_SAFE) || defined(GG_NO_AUDIO)
+    return;     // diagnostic no-audio build and safe build bypass the mixer
 #endif
     gmNextHook=musNext;
 #ifdef NDSSHIM
@@ -2560,13 +2560,19 @@ int main(void){
     gxDefaults();
     rs^=(u32)(REG_VCOUNT*2654435761u)^0xA5A5; for(int i=0;i<8;i++) rnd();
 #ifndef GG_SAFE
+#ifndef GG_NO_CART_SAVE
+    // Optional DraStic diagnostic: allow music to run while leaving cartridge
+    // save-device probing entirely off (emulator save states still work).
     sdOk=fatInitDefault();
 #ifdef NDSHW
     if(sdOk) hwSlotsInit();
 #endif
+#endif
+#ifndef GG_NO_AUDIO
     soundEnable(); DC_FlushRange((void*)gmWave0,64); gmTables();
     // the two effect voices (a PSG pulse and the noise channel, silent until an effect plays) are reserved first, so the wave voices and drum slots can only fill the other 14 channels
     gpId=soundPlayPSG(DutyCycle_50,440,0,64); gnId=soundPlayNoise(8000,0,64);
+#endif
 #endif
     makeSpecies(); makeItems(); makeTiles(); makeSprites(); tbInit(); saveBasePal();
     if(sdOk){ slotRecall(); slotScan(); hasSave=loadGame(savePath); }
