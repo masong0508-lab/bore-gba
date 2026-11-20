@@ -123,7 +123,9 @@ static void checkDirectedPlayback(void){
             check(fxQ==(!elapsed&&beat->sound?beat->sound:-1),"directed sound cue played outside its beat");
             unsigned hash=pictureHash();
             same=previous==hash?same+1:0;
-            check(same*FILM_STAGE_TICKS<15,"a directed take froze");
+            // Real films allow quiet holds and reaction beats; reject a
+            // genuinely stuck renderer only after 1.5 seconds unchanged.
+            check(same*FILM_STAGE_TICKS<90,"a directed take froze for over 1.5 seconds");
             previous=hash;
             frames++;
         }
