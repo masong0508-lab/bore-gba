@@ -2829,6 +2829,8 @@ static void uiBonusFilms(void){
         int y=33+i*23,open=filmBonusOpen(i),selected=i==filmBonusSel;
         uiRect(6,y-3,244,21,selected?U_SEL:(i&1?U_PANEL:U_BG));
         if(selected)uiRect(7,y-2,2,18,U_GOLD);
+        // A tap on a row uses the same focus/confirm path as other Extras.
+        uiBtn(6,y-3,244,21,KEY_A,0,&filmBonusSel,i);
         uiText(13,y,open?filmBonusTitles[i]:"?? HIDDEN FILM ??",
                selected?U_WHITE:open?U_LGREY:U_DIM,1);
         char state[27];
