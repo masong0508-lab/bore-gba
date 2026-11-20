@@ -103,13 +103,36 @@ static void uiBar(int x,int y,int w,int h,int val,int max,int col){ uiFrame(x,y,
 static void uiIcon10(int x,int y,int idx){ for(int j=0;j<10;j++) for(int i=0;i<10;i++){ int c=icon10[idx][j*10+i]; if(c) uiPx(x+i,y+j,c); } }
 static void uiIcon8(int x,int y,int idx){ for(int j=0;j<8;j++) for(int i=0;i<8;i++){ int c=icon8[idx][j*8+i]; if(c) uiPx(x+i,y+j,c); } }
 // ---- a power's icon: paints show the ground they paint, everything else has its own picture
-static const u8 uiKindIcon[27]={IC10_INSPECT,0,IC10_SPAWN,IC10_RAIN,IC10_FIRE,IC10_BOLT,IC10_METEOR,IC10_SMITE,IC10_HEAL,IC10_FEED,IC10_SETTLE,IC10_WAR,IC10_PEACE,IC10_BLESS,IC10_GIFT,IC10_MUTATE,IC10_QUAKE,IC10_FLOOD,IC10_BLOOM,IC10_VIBE,IC10_TORNADO,IC10_ACID,IC10_HOLE,IC10_NUKE,IC10_PLAGUE,IC10_CURSE,IC10_RAIN};
+static const u8 uiKindIcon[PK_KIND_N]={IC10_INSPECT,0,IC10_SPAWN,IC10_RAIN,IC10_FIRE,IC10_BOLT,IC10_METEOR,IC10_SMITE,IC10_HEAL,IC10_FEED,IC10_SETTLE,IC10_WAR,IC10_PEACE,IC10_BLESS,IC10_GIFT,IC10_MUTATE,IC10_QUAKE,IC10_FLOOD,IC10_BLOOM,IC10_VIBE,IC10_TORNADO,IC10_ACID,IC10_HOLE,IC10_NUKE,IC10_PLAGUE,IC10_CURSE,IC10_RAIN,
+    [PK_INSPIRE]=IC10_SETTLE, [PK_WHISPER]=IC10_WAR, [PK_DISCORD]=IC10_WAR,
+    [PK_UNITY]=IC10_PEACE, [PK_SPITE]=IC10_CURSE, [PK_FRIEND]=IC10_PEACE,
+    [PK_DUSTW]=IC10_INSPECT, [PK_DUSTR]=IC10_MUTATE, [PK_DUSTG]=IC10_SETTLE,
+    [PK_LOOT]=IC10_GIFT, [PK_CORRODE]=IC10_ACID, [PK_FIREEL]=IC10_FIRE,
+    [PK_GOO]=IC10_FLOOD, [PK_CRABBOMB]=IC10_METEOR, [PK_CRABZILLA]=IC10_QUAKE,
+    [PK_UPLIFT]=IC10_MUTATE, [PK_MONOLITH]=IC10_BLESS, [PK_STATUS]=IC10_VIBE,
+    [PK_ALIEN]=IC10_METEOR, [PK_DRAGON]=IC10_FIRE, [PK_MOON]=IC10_CURSE,
+    [PK_BIOMASS]=IC10_PLAGUE, [PK_ICE]=IC10_TORNADO, [PK_GARDEN]=IC10_BLOOM,
+    [PK_BOLT_SMALL]=IC10_BOLT, [PK_BOLT_MEDIUM]=IC10_BOLT,
+    [PK_PRINT_COPY]=IC10_INSPECT, [PK_PRINT_FOREST]=IC10_BLOOM,
+    [PK_PRINT_WATER]=IC10_FLOOD, [PK_PRINT_MOUNTAIN]=IC10_QUAKE,
+    [PK_PRINT_BIOME]=IC10_MUTATE, [PK_PRINT_CLEAR]=IC10_SMITE,
+    [PK_POSSESS]=IC10_VIBE, [PK_HOME]=IC10_SETTLE, [PK_BORDER]=IC10_SETTLE,
+    [PK_SPECIAL]=IC10_METEOR, [PK_FIELD]=IC10_FIELD };
+static int uiIconForKind(int kind){
+    static const u8 fieldIcons[FIELD_N]={IC10_SURVEY,IC10_RATIONS,IC10_CLINIC,IC10_RESTORE};
+    return kind==PK_FIELD?fieldIcons[fieldMode]:uiKindIcon[kind];
+}
+#ifdef __3DS__
+static const u8 tbIcoT[3]={10,20,24};
+#else
+static const u8 tbIcoT[3]={10,15,20};
+#endif
 // ground swatches use three shades per terrain: 100.. in the top palette, 200.. in the toolbar's
 static int uiSwatch(int t,int i,int j,int base){ if(t>=100) t=T_N+t-101; int p=tilePix(t,0,(i*8)/10,(j*8)/10); p=(p>=104&&p<128)?4:p%8; return base+t*3+(p<=2?0:p<=4?1:2); }
 static void uiShadePal(void){ for(int t=0;t<T_N+3;t++) for(int j=0;j<3;j++){ int r,g,b; shadeRGB(t*8+2+j*2,&r,&g,&b); BG_PALETTE_SUB[100+t*3+j]=RGB15(r,g,b); BG_PALETTE[200+t*3+j]=RGB15(r,g,b); } }
 static void uiPowerIcon(int pwi,int x,int y){ const Pw*P=&pw[pwi];
     if(P->kind==PK_PAINT){ for(int j=0;j<10;j++) for(int i=0;i<10;i++) uiPx(x+i,y+j,uiSwatch(P->arg,i,j,100)); return; }
-    uiIcon10(x,y,uiKindIcon[P->kind]); }
+    uiIcon10(x,y,uiIconForKind(P->kind)); }
 // ---- window furniture
 static int uiBackHint;   // set while an Extras page is open: START goes back to the menu, so the page hint says so
 static const char* uiTabPrev, *uiTabNext;   // names of the neighbouring Extras pages (L and R switch between them)
@@ -119,7 +142,7 @@ static void uiWin(const char*title,const char*right,const char*hint){ if(uiBackH
     uiTextS(6,3,title,U_GOLD,1); if(right) uiTextR(250,3,right,U_DIM);
     if(uiPages>0){ char pg[8]; int n=0; for(int i=0;i<=uiPageNow;i++) if(uiPageOpen&(1<<i)) n++; int t=0; for(int i=0;i<uiPages;i++) if(uiPageOpen&(1<<i)) t++; pg[0]='0'+n; pg[1]='/'; pg[2]='0'+t; pg[3]=0; uiText(uiDotX,3,pg,U_LGREY,1); }
     uiGrad(0,179,256,13,G_FOOT); uiRect(0,179,256,1,U_BHI); uiRect(0,178,256,1,U_SHADOW); if(hint) uiText(6,183,hint,U_DIM,1);
-    if(uiBackHint){ if(uiTabPrev){ uiRound(3,181,12,10,U_SEL,U_BHI); uiText(7,183,"L",U_GOLD,1); uiText(19,183,uiTabPrev,U_DIM,1); uiBtn(2,180,84,12,KEY_L,0,0,0); } uiRound(98,180,60,12,U_SEL,U_GOLD); uiTextC(128,183,"BACK",U_WHITE,1); uiBtn(96,179,64,13,KEY_START,0,0,0); if(uiTabNext){ uiRound(241,181,12,10,U_SEL,U_BHI); uiText(245,183,"R",U_GOLD,1); uiTextR(237,183,uiTabNext,U_DIM); uiBtn(170,180,84,12,KEY_R,0,0,0); }
+    if(uiBackHint){ if(uiTabPrev){ uiRound(3,181,12,10,U_SEL,U_BHI); uiText(7,183,"L",U_GOLD,1); uiText(19,183,uiTabPrev,U_DIM,1); uiBtn(2,180,84,12,KEY_L,0,0,0); } uiRound(98,180,60,12,U_SEL,U_GOLD); uiTextC(128,183,uiBackHint==2?"MAP":"BACK",U_WHITE,1); uiBtn(96,179,64,13,KEY_START,0,0,0); if(uiTabNext){ uiRound(241,181,12,10,U_SEL,U_BHI); uiText(245,183,"R",U_GOLD,1); uiTextR(237,183,uiTabNext,U_DIM); uiBtn(170,180,84,12,KEY_R,0,0,0); }
         uiRound(240,147,13,13,U_SEL,U_BHI); uiIcon8(243,150,IC8_UP); uiBtn(236,145,19,17,KEY_UP,0,0,0); uiRound(240,163,13,13,U_SEL,U_BHI); uiIcon8(243,166,IC8_DOWN); uiBtn(236,162,19,16,KEY_DOWN,0,0,0); } }
 static void uiListRow(int y,int sel,int n,const char*left,const char*right,int col){ if(sel) uiRect(4,y-1,240,10,U_SEL); else if(n&1) uiRect(4,y-1,240,10,U_PANEL);
     if(sel) uiText(6,y,">",U_GOLD,1); uiText(14,y,left,col,1); if(right&&right[0]) uiTextR(242,y,right,sel?U_WHITE:U_DIM); }
@@ -140,36 +163,84 @@ static void uiMinimap(int ox,int oy){
     for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]){ int cx=ox+vil[v].x*128/WW, cy=oy+vil[v].y*128/WH, R=14*128/WW+1; static int ringR=-1; static signed char ringX[14], ringY[14]; if(ringR!=R){ ringR=R; for(int a=0;a<28;a+=2){ ringX[a>>1]=(signed char)(int)(R*cosf(a*0.2244f)+0.5f); ringY[a>>1]=(signed char)(int)(R*sinf(a*0.2244f)+0.5f); } } for(int a=0;a<14;a++) uiPx(cx+ringX[a],cy+ringY[a],mmMode==5?40+(v&7):mmRingCol(vilK[v]-1)); }   // each kingdom's territory, a dotted ring round its cities
     for(int a=0;a<KN_N;a++) if(kd[a].on&&kd[a].cap) for(int b=a+1;b<KN_N;b++) if(kd[b].on&&kd[b].cap&&(kd[a].tradeW>>b&1)){ const Vil*A=&vil[kd[a].cap-1], *B=&vil[kd[b].cap-1]; int x0=ox+A->x*128/WW, y0=oy+A->y*128/WH, x1=ox+B->x*128/WW, y1=oy+B->y*128/WH; int st=abs(x1-x0)>abs(y1-y0)?abs(x1-x0):abs(y1-y0); for(int i=0;i<=st;i++) if(((i+(tick>>3))&3)==0) uiPx(x0+(x1-x0)*i/(st?st:1),y0+(y1-y0)*i/(st?st:1),U_YELLOW); }   // trade routes: gold dots running between trading capitals
     for(int v=0;v<VIL_N;v++) if(vil[v].on){ for(int dy=-1;dy<=1;dy++) for(int dx=-1;dx<=1;dx++) uiPx(ox+vil[v].x*128/WW+dx,oy+vil[v].y*128/WH+dy,vil[v].foe?81:84); }
+    for(int i=0;i<MAP_PIN_N;i++) if(mapPinMask&(1u<<i)){
+        int x=ox+(mapPin[i][0]+128)*16/WW, y=oy+(mapPin[i][1]+96)*16/WH;
+        uiRect(x-1,y-1,3,3,U_WHITE);
+        uiPx(x,y,U_CYAN);
+    }
     int cx0=uiVx*128/WW, cy0=uiVy*128/WH, cw=uiVw*128/WW, ch=uiVh*128/WH; if(cx0<0) cx0=0; if(cy0<0) cy0=0; if(cx0+cw>127) cx0=127-cw; if(cy0+ch>127) cy0=127-ch; for(int x=cx0;x<cx0+cw;x++){ uiPx(ox+x,oy+cy0,83); uiPx(ox+x,oy+cy0+ch,83); } for(int y=cy0;y<=cy0+ch;y++){ uiPx(ox+cx0,oy+y,83); uiPx(ox+cx0+cw,oy+y,83); } }
 // ---- the toolbar (bottom of the touch screen): power slots with arrows, a second tile layer. UI SCALE (hwUiScale 0..2) makes it taller with bigger slots and icons (24, 32 or 40 pixels; 10, 8 or 6 slots)
 #ifndef HW_CAL
+#ifdef __3DS__
+static int hwUiScale=1;
+#else
 static int hwUiScale;
+#endif
 #endif
 #define TB_TILE0 640
 #define TB_BLANK 1023
-// TBCAT: the toolbox has categories. A strip of tabs along its top (ALL, LAND, LIFE, WRATH, FOLK) picks which powers the slots below show; INSPECT is in every one.
-// Choosing a power by the L and R keys (or from the favourites) that is not in the open category opens the one it belongs to.
-static const u8 tbRowsT[3]={4,5,7}, tbTabT[3]={11,12,14}, tbSlotsT[3]={10,8,6}, tbPitchT[3]={23,29,38}, tbBoxW[3]={21,27,36}, tbBoxH[3]={18,25,34}, tbIcoT[3]={10,15,20};
+// KIT shows starter and starred powers. Each other tab holds one category and Inspect.
+static const u8 tbRowsT[3]={4,5,7}, tbTabT[3]={11,12,14}, tbSlotsT[3]={10,8,6}, tbPitchT[3]={23,29,38}, tbBoxW[3]={21,27,36}, tbBoxH[3]={18,25,34};
 #define TB_ROWS (tbRowsT[hwUiScale])
 #define TB_H (TB_ROWS*8)
 #define TB_Y (192-TB_H)
 #define TB_SLOTS (tbSlotsT[hwUiScale])
 #define TB_NCAT 5
-static const char* const tbCatNm[TB_NCAT]={"ALL","LAND","LIFE","WRATH","FOLK"};
+static const char* const tbCatNm[TB_NCAT]={"KIT","LAND","LIFE","EVENTS","FOLK"};
 static const u8 tbCatCol[TB_NCAT]={118,126,119,120,255};   // main palette slots
-static u8 tbPix[56][256]; static int tbTop=0, tbCat=0, tbN=0; static u8 tbList[80]; static u16*mapPtr1;
-static int tbHome(int pi){ int k=pw[pi].kind; if(k==PK_INSPECT) return 0; if(k==PK_PAINT||k==PK_AIR) return 1;
-    if(k==PK_SPAWN||k==PK_HEAL||k==PK_FEED||k==PK_BLOOM||k==PK_VIBE||k==PK_MUTATE) return 2;
-    if(k==PK_SETTLE||k==PK_WAR||k==PK_PEACE||k==PK_BLESS||k==PK_GIFT||(k>=PK_INSPIRE&&k<=PK_DUSTG)||k==PK_LOOT) return 4; return 3; }
-static void tbBuild(void){ tbN=0; for(int i=0;i<PW_N&&tbN<80;i++) if(tbCat==0||pw[i].kind==PK_INSPECT||tbHome(i)==tbCat) tbList[tbN++]=(u8)i; }
+static u8 tbPix[56][256]; static int tbTop=0, tbCat=0, tbN=0; static u8 tbList[PW_N]; static u16*mapPtr1;
+static u32 tbStamp;
+static int tbHome(int pi){
+    int k=pw[pi].kind;
+    if(k==PK_INSPECT) return 0;
+    if(k==PK_PAINT||k==PK_AIR||(k>=PK_PRINT_COPY&&k<=PK_PRINT_CLEAR)) return 1;
+    if(k==PK_SPAWN||k==PK_HEAL||k==PK_FEED||k==PK_BLOOM||k==PK_VIBE||k==PK_MUTATE
+        ||k==PK_UPLIFT||k==PK_MONOLITH||k==PK_STATUS||k==PK_GARDEN||k==PK_POSSESS) return 2;
+    if(k==PK_SETTLE||k==PK_WAR||k==PK_PEACE||k==PK_BLESS||k==PK_GIFT||(k>=PK_INSPIRE&&k<=PK_DUSTG)
+        ||k==PK_LOOT||k==PK_HOME||k==PK_BORDER||k==PK_FIELD) return 4;
+    return 3;
+}
+static int tbStarter(int i){
+    const Pw*P=&pw[i];
+    if(P->kind==PK_PAINT) return P->arg==T_WATER||P->arg==T_GRASS;
+    return P->kind==PK_INSPECT||P->kind==PK_SPAWN
+        ||P->kind==PK_SETTLE||P->kind==PK_FIELD;
+}
+static void tbBuild(void){
+    tbN=0;
+    for(int i=0;i<PW_N;i++){
+        if(tbCat==0?(tbStarter(i)||favPow[i]):(pw[i].kind==PK_INSPECT||tbHome(i)==tbCat))
+            tbList[tbN++]=(u8)i;
+    }
+}
 static int tbPos(int p){ for(int i=0;i<tbN;i++) if(tbList[i]==p) return i; return -1; }
+static void tbStep(int d){
+    if(!tbN) tbBuild();
+    int p=tbPos(power);
+    if(p<0){ tbCat=tbHome(power); tbBuild(); p=tbPos(power); }
+    power=tbList[(p+tbN+d)%tbN];
+}
 static void tbText(int x,int y,const char*s,int c){ for(;*s;s++){ int ch=(unsigned char)*s; if(ch<32||ch>=96) ch=32; const unsigned char*g=font5x7[ch-32];
     for(int r=0;r<7;r++) for(int q=0;q<5;q++) if((g[r]>>(4-q))&1){ int xx=x+q, yy=y+r; if((unsigned)xx<256&&(unsigned)yy<56) tbPix[yy][xx]=(u8)c; } x+=6; } }
+static void tbInvalidate(void){ tbN=0; tbStamp=0; }
+static u32 tbDrawKey(void){
+    return 1u+(u32)power+((u32)tbCat<<8)+((u32)hwUiScale<<12)+((u32)fieldMode<<14);
+}
 static void tbDraw(void){
+    if(tbStamp==tbDrawKey()) return;
+    if(!tbN) tbBuild();
+    if(tbPos(power)<0){ tbCat=tbHome(power); tbBuild(); }
+    tbStamp=tbDrawKey();
+#ifdef __3DS__
+    const int spriteSize=20;
+    const u8 (*sprites)[20*20]=icon20;
+#else
+    const int spriteSize=10;
+    const u8 (*sprites)[10*10]=icon10;
+#endif
     const int H=TB_H, TT=tbTabT[hwUiScale], SW=tbBoxW[hwUiScale], SH=tbBoxH[hwUiScale], PI=tbPitchT[hwUiScale], IS=tbIcoT[hwUiScale], K=hwUiScale?2:1, Y0=TT+(H-TT-SH)/2+1;
     #define TBP(x,y,c) do{ if((unsigned)(x)<256&&(unsigned)(y)<(unsigned)H) tbPix[y][x]=(u8)(c); }while(0)
     for(int y=0;y<H;y++) for(int x=0;x<256;x++) tbPix[y][x]=(u8)(y==0?tcSlot[TC_BARHI]:tcSlot[TC_BAR]);
-    if(!tbN) tbBuild(); if(tbPos(power)<0){ tbCat=tbHome(power); tbBuild(); }
     int pp=tbPos(power); if(pp<tbTop) tbTop=pp; if(pp>=tbTop+TB_SLOTS) tbTop=pp-TB_SLOTS+1; if(tbTop>tbN-TB_SLOTS) tbTop=tbN-TB_SLOTS; if(tbTop<0) tbTop=0;
     for(int c=0;c<TB_NCAT;c++){ int x0=c*256/TB_NCAT+1, x1=(c+1)*256/TB_NCAT-1, sel=c==tbCat;   // the tabs
         for(int y=1;y<TT;y++) for(int x=x0;x<x1;x++){ int edge=(x==x0||x==x1-1||y==1); int cc=sel?(edge?118:tcSlot[TC_TABSEL]):(edge?tcSlot[TC_TABEDGE]:tcSlot[TC_TAB]); TBP(x,y,cc); }
@@ -177,26 +248,48 @@ static void tbDraw(void){
         int tw=(int)strlen(tbCatNm[c])*6-1; tbText((x0+x1)/2-tw/2,2+(TT-4-7)/2,tbCatNm[c],sel?117:127); }
     for(int s=0;s<TB_SLOTS&&tbTop+s<tbN;s++){ int pi=tbList[tbTop+s]; int x0=12+s*PI, y0=Y0, sel=pi==power;
         for(int j=0;j<SH;j++) for(int i=0;i<SW;i++){ int edge=(i==0||j==0||i==SW-1||j==SH-1); int c=sel?(edge?118:(j<=2?tcSlot[TC_SLOTEDGE]:tcSlot[TC_SELFILL])):(edge?tcSlot[TC_SLOTEDGE]:(j==1?tcSlot[TC_SLOTHI]:tcSlot[TC_SLOT])); TBP(x0+i,y0+j,c); }
-        { int kk=pw[pi].kind, cc=kk==PK_PAINT?126:(kk==PK_SPAWN||kk==PK_HEAL||kk==PK_FEED||kk==PK_BLOOM||kk==PK_VIBE)?119:(kk==PK_RAIN||kk==PK_FIRE||kk==PK_BOLT||kk==PK_METEOR||kk==PK_KILL||kk==PK_QUAKE||kk==PK_FLOOD||kk>=PK_TORNADO)?120:(kk==PK_SETTLE||kk==PK_WAR||kk==PK_PEACE||kk==PK_BLESS)?255:118; for(int i=1;i<SW-1;i++){ for(int j=1;j<=2+(K>1);j++) TBP(x0+i,y0+j,cc); } }   // a colour
+        int cc=tbCatCol[tbHome(pi)];
+        for(int i=1;i<SW-1;i++) for(int j=1;j<=2+(K>1);j++) TBP(x0+i,y0+j,cc);
         if(favPow[pi]){ for(int j=0;j<3*K;j++) for(int i=0;i<3*K;i++) TBP(x0+SW-5*K+i,y0+3+K+j,124); }   // a starred power
         const Pw*P=&pw[pi]; int ix=x0+(SW-IS)/2, iy=y0+(SH-IS)/2+(K>1);
-        for(int j=0;j<IS;j++) for(int i=0;i<IS;i++){ int si=i*10/IS, sj=j*10/IS, c;   // 10 x 10 icons, drawn 1.5 or 2 times as big when the scale is up
-            if(P->kind==PK_PAINT){ c=uiSwatch(P->arg,si,sj,200); } else { c=icon10[uiKindIcon[P->kind]][sj*10+si]; if(!c) continue; c=UIP(c); }
+        const u8*sprite=sprites[P->kind==PK_FIELD&&!sel?IC10_FIELD:uiIconForKind(P->kind)];
+        for(int j=0;j<IS;j++) for(int i=0;i<IS;i++){ int c;
+            if(P->kind==PK_PAINT){
+                if((i==0||i==IS-1)&&(j==0||j==IS-1)) continue;
+                c=uiSwatch(P->arg,i*10/IS,j*10/IS,200);
+                if(j==0||i==0) c+=(c-200)%3<2;
+                if(j==IS-1||i==IS-1) c-=(c-200)%3>0;
+            } else {
+                c=sprite[(j*spriteSize/IS)*spriteSize+i*spriteSize/IS];
+                if(!c) continue;
+                c=UIP(c);
+            }
             TBP(ix+i,iy+j,c); } }
     // arrows (twice the size when the scale is up): they scroll the open category
-    { int ay=TT+(H-TT-7*K)/2, lx=K>1?9:6, rx=K>1?246:249; for(int j=0;j<7*K;j++){ int jj=j/K, w=(jj<4?jj+1:7-jj)*K; for(int i=0;i<w;i++){ TBP(lx-i,ay+j,tbTop>0?117:161); TBP(rx+i,ay+j,tbTop<tbN-TB_SLOTS?117:161); } } }
+    { int ay=TT+(H-TT-7*K)/2, lx=K>1?9:6, rx=K>1?246:249; for(int j=0;j<7*K;j++){ int jj=j/K, w=(jj<4?jj+1:7-jj)*K; for(int i=0;i<w;i++){ TBP(lx-i,ay+j,pp>0?117:161); TBP(rx+i,ay+j,pp<tbN-1?117:161); } } }
     for(int ty=0;ty<TB_ROWS;ty++) for(int tx=0;tx<32;tx++){ u8 tile[64] __attribute__((aligned(4))); for(int y=0;y<8;y++) for(int x=0;x<8;x++) tile[y*8+x]=tbPix[ty*8+y][tx*8+x]; vramCopy((u8*)BG_TILE_RAM(1)+(TB_TILE0+ty*32+tx)*64,tile,64); }
     #undef TBP
+}
+static void openStarterKit(void){
+    tbCat=tbTop=0;
+    tbInvalidate();
+    tbDraw();
 }
 static void tbInit(void){   // the layer: all blank except the bottom rows
     for(int i=0;i<1024;i++) mapPtr1[i]=TB_BLANK; for(int ty=0;ty<TB_ROWS;ty++) for(int tx=0;tx<32;tx++) mapPtr1[(24-TB_ROWS+ty)*32+tx]=(u16)(TB_TILE0+ty*32+tx);
     u8 z[64] __attribute__((aligned(4))); memset(z,0,64); vramCopy((u8*)BG_TILE_RAM(1)+TB_BLANK*64,z,64);
-    uiShadePal(); tbBuild();
+    uiShadePal(); tbInvalidate();
     tbDraw(); }
+static void tbSelect(int c){
+    if(c==tbCat) return;
+    tbCat=c; tbBuild(); tbTop=0;
+    if(tbPos(power)<0) power=tbList[(c&&tbN>1)?1:0];
+}
 static int tbTouch(int px,int py){   // a touch in the toolbar: returns 1 if it was used
     if(py<TB_Y) return 0;
+    if(!tbN) tbBuild();
     if(py-TB_Y<tbTabT[hwUiScale]){ int c=px*TB_NCAT/256; if(c<0) c=0; if(c>=TB_NCAT) c=TB_NCAT-1;   // a tab: open that category (the power stays if it is in it, otherwise the first real power of it)
-        if(c!=tbCat){ tbCat=c; tbBuild(); tbTop=0; if(tbPos(power)<0) power=tbList[(c&&tbN>1)?1:0]; } return 1; }
+        tbSelect(c); return 1; }
     int p=tbPos(power); if(p<0) p=0;
     if(px<12){ if(p>0) power=tbList[p-1]; return 1; } if(px>=244){ if(p<tbN-1) power=tbList[p+1]; return 1; }
     int s=(px-12)/tbPitchT[hwUiScale]; if(s>=0&&s<TB_SLOTS&&tbTop+s<tbN) power=tbList[tbTop+s]; return 1; }

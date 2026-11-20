@@ -45,12 +45,13 @@ static void uiStats(void){
     uiText(6,88,"THE PEOPLES",U_GOLD,1); int mx=1, c[8]; for(int i=0;i<8;i++){ c[i]=raceCnt(i); if(c[i]>mx) mx=c[i]; }
     for(int i=0;i<8;i++){ int y=98+i*10, v=0; for(int q=0;q<VIL_N;q++) v+=vil[q].on&&vil[q].race==i; uiText(8,y,arch[i].nm,U_LGREY,1); siprintf(b,"%d",c[i]); uiTextR(88,y,b,U_WHITE); siprintf(b,"%dV",v); uiTextR(112,y,b,U_DIM); uiBar(118,y,108,7,c[i],mx,U_G0+i); }
     uiFlush(); }
-// ---- WORLD: four tabs, rows that change a parameter (LEFT RIGHT or tap the arrows), rows that do something (A)
+// ---- WORLD: settings and map pins, rows that change a parameter (LEFT RIGHT or tap the arrows), rows that do something (A)
 static const struct { const char*n[5]; int c; } wk[18]={ {{"FEW","NORMAL","MANY"},3},{{"LOW","NORMAL","HIGH"},3},{{"SHORT","NORMAL","LONG"},3},{{"OFF","RARE","NORMAL"},3},{{"FRAIL","NORMAL","HARDY"},3},{{"PEACEFUL","AS IT WAS","WARLIKE"},3},{{"NORMAL","BOOM","SLOW"},3},{{"NORMAL","PACIFIST","FORTIFIED"},3},{{"NEVER","ALLOWED"},2},{{"AUTO","CLEAR","RAIN","STORM","SNOW"},5},{{"AUTO","DAY","DAWN","DUSK","NIGHT"},5},{{"WARLIKE","PEACEFUL","GREEDY","WISE"},4},
     {{"ON","OFF"},2},{{"NORMAL","OFF","DEADLY"},3},{{"BURNS","SAFE"},2},{{"HIT","SPARE"},2}, {{"OFF","ON"},2}, {{"NORMAL","HIGH","LOW"},3} };   // 12..16: the LAWS tab (on / off, plague, fire, storms, and 16: a law that is off until you switch it on)
 typedef struct { const char*lb; u8*p; int k, act; const char*ds; } WR;
-static WR wr[12]; static int wLawPg, wn, wTab, wSel, wTabPrev, wPeo, wCity, wKing; static char wVal[12][20];
-static const char* const wTabN[5]={"WORLD","PEOPLES","CITIES","KINGS","LAWS"};
+enum { WORLD_TAB_N=6, WORLD_LAW_PAGE_N=5 };
+static WR wr[12]; static int wLawPg, wn, wTab, wSel, wTabPrev, wPeo, wCity, wKing, wPin; static char wVal[12][20];
+static const char* const wTabN[WORLD_TAB_N]={"WORLD","FOLK","CITIES","KINGS","LAWS","PINS"};
 static int wNextOn(int cur,int d,int total,int isCity){ for(int k=1;k<=total;k++){ int i=((cur+d*k)%total+total)%total; if(isCity?vil[i].on:kd[i].on) return i; } return cur; }
 static void worldBuild(void){
     wn=0;
@@ -64,10 +65,23 @@ static void worldBuild(void){
         if(wLawPg==0){ WRW("OLD AGE",&gx.lAge,12,0,"OFF: NOBODY DIES OF OLD AGE"); LAWR("HUNGER",LW_HUNGER,"OFF: NOBODY STARVES"); LAWR("CIV BABIES",LW_CIVBABY,"OFF: NO BABIES IN VILLAGES AND CITIES"); LAWR("ANIMAL BABIES",LW_ANIBABY,"OFF: NO BABY ANIMALS OR MONSTERS"); LAWR("MUTATIONS",LW_MUTATE,"OFF: CHILDREN NEVER MUTATE"); LAWR("MUTANT BOX",LW_MUTBOX,"ON: MANY NEWBORNS HAVE RANDOM TRAITS"); LAWR("GENE SPAGHETTI",LW_SPAGHETTI,"ON: THREE TIMES THE MUTATIONS"); LAWR("PEACEFUL MON",LW_PEACEMON,"ON: ANIMALS AND MONSTERS ONLY GRAZE"); LAWR("GLITCHED NOOSPHERE",LW_NOOSPHERE,"ON: CULTURES, TONGUES, CLANS AND FAITHS GET MORE RANDOM TRAITS"); }
         else if(wLawPg==1){ LAWR("EROSION",LW_EROSION,"OFF: SHORES NEVER CRUMBLE INTO SAND"); LAWR("SNOW DRAG",LW_SNOW,"ON: SNOW SLOWS EVERYONE BUT THE FROST-BORN"); LAWR("DROWNING",LW_DROWN,"ON: NON-SWIMMERS IN WATER SLOWLY DROWN"); LAWR("TREES GROWTH",LW_TREES,"OFF: FORESTS DO NOT SPREAD"); WRW("LAVA CREEP",&gx.lLava,12,0,"OFF: LAVA STAYS WHERE IT IS"); LAWR("GAIA COVENANT",LW_GAIA,"ON: DISASTERS LEAVE THE LAND ITSELF ALONE"); WRW("BIOMES",&gx.lBio,12,0,"OFF: BIOMES DO NOT SPREAD OR HURT"); WRW("ATMOSPHERE",&gx.lAtmo,12,0,"OFF: NO AIR, WARMTH OR DUST"); LAWR("WEATHER",LW_WEATHER,"OFF: THE SKY STAYS CLEAR"); }
         else if(wLawPg==2){ LAWR("DIPLOMACY",LW_DIPLOMACY,"OFF: NO WARS AND NO ALLIANCES"); LAWR("REBELLIONS",LW_REBEL,"OFF: CITIES NEVER SPLIT OFF"); LAWR("CITY GROWTH",LW_GROWTH,"OFF: VILLAGES STOP GROWING AND BUILDING"); LAWR("100 PEOPLE",LW_POP100,"ON: A VILLAGE STOPS BREEDING AT 100 FOLK"); LAWR("CROWDING",LW_CROWD,"OFF: PACKED CROWDS KEEP BREEDING"); LAWR("WORLD LIMIT",LW_LIMIT,"OFF: ANIMALS MAY FILL THE WHOLE WORLD"); LAWR("SUCCESSION",LW_SUCCESSION,"OFF: RULERS NEVER DIE OF AGE OR CAUSES"); LAWR("KING STATS",LW_KINGSTATS,"OFF: EVERY RULER HAS 5 IN EVERYTHING"); }
-        else { LAWR("NATURAL DIS.",LW_NATDIS,"OFF: NO COMETS, LIGHTNING OR LAVA CREEP"); LAWR("OTHER DIS.",LW_OTHERDIS,"OFF: NO TORNADO, BLACK HOLE OR PLAGUE"); WRW("PLAGUE",&gx.lPlague,13,0,"OFF CURES EVERYONE, DEADLY SPREADS FAST"); WRW("FIRE ON HOMES",&gx.lFire,14,0,"SAFE: FIRE, BOLTS, METEORS SPARE HOMES"); WRW("STORMS ON HOMES",&gx.lStorm,15,0,"TORNADO, ACID, BLACK HOLE: SPARE HOMES"); LAWR("BANDITS",LW_BANDITS,"ON: RESTLESS CITIES BREED OUTLAWS THAT RAID STORES"); LAWR("EVOLUTION",LW_EVOLUTION,"ON: CLEVER OR FERTILE ANIMALS MAY BECOME SAPIENT"); LAWR("MAGIC COST",LW_MAGIC,"ON: BLESSING A CITY COSTS ITS KINGDOM 20 GOLD"); LAWR("DROP OF THOUGHTS",LW_THOUGHTS,"ON: CLOUDS OF LIFE MAY DROP SAPIENT PEOPLE"); LAWR("RAT KING",LW_RATKING,"ON: LARGE RAT SWARMS MAY START A PLAGUE"); } }
+        else if(wLawPg==3){ LAWR("NATURAL DIS.",LW_NATDIS,"OFF: NO COMETS, LIGHTNING OR LAVA CREEP"); LAWR("OTHER DIS.",LW_OTHERDIS,"OFF: NO TORNADO, BLACK HOLE OR PLAGUE"); WRW("PLAGUE",&gx.lPlague,13,0,"OFF CURES EVERYONE, DEADLY SPREADS FAST"); WRW("FIRE ON HOMES",&gx.lFire,14,0,"SAFE: FIRE, BOLTS, METEORS SPARE HOMES"); WRW("STORMS ON HOMES",&gx.lStorm,15,0,"TORNADO, ACID, BLACK HOLE: SPARE HOMES"); LAWR("BANDITS",LW_BANDITS,"ON: RESTLESS CITIES BREED OUTLAWS THAT RAID STORES"); LAWR("EVOLUTION",LW_EVOLUTION,"ON: CLEVER OR FERTILE ANIMALS MAY BECOME SAPIENT"); LAWR("MAGIC COST",LW_MAGIC,"ON: BLESSING A CITY COSTS ITS KINGDOM 20 GOLD"); }
+        else { LAWR("DROP OF THOUGHTS",LW_THOUGHTS,"ON: CLOUDS OF LIFE MAY DROP SAPIENT PEOPLE"); LAWR("RAT KING",LW_RATKING,"RAT SWARMS CAN START PLAGUES");
+            LAWR("RELIEF ROUTES",LW_RELIEF,"NEARBY ALLIES SHARE SURPLUS FOOD");
+            LAWR("GREENBELTS",LW_GREENBELT,"FARM TOWNS REGREEN BARE GROUND"); }
+#undef LAWR
+    }
+    else if(wTab==5){
+        WRW("PIN SLOT",0,-1,7,"LEFT RIGHT CHOOSES A SLOT");
+        WRW("SET PIN",0,-1,9,"REMEMBER THIS MAP VIEW");
+        if(mapPinMask&(1u<<wPin)){
+            WRW("GO TO PIN",0,-1,10,"RETURN TO THE PINNED LOCATION");
+            WRW("CLEAR PIN",0,-1,11,"FREE THIS PIN SLOT");
+        }
+    }
     else { if(kd[wKing].on||(wKing=wNextOn(wKing,1,KN_N,0),kd[wKing].on)){ WRW("KINGDOM",0,-1,7,"LEFT RIGHT: CHOOSE A KINGDOM"); WRW("RULER TEMPER",&kd[wKing].rtr,11,0,"HOW THE RULER BEHAVES"); WRW("TRIBUTE",&kx[wKing].tribute,17,0,"HIGH: A FAT TREASURY, CITIES LESS LOYAL. LOW: THE OPPOSITE"); WRW("TAX",&kx[wKing].tax,17,0,"HIGH: MORE GOLD, UNHAPPY PEOPLE. LOW: HAPPY PEOPLE, LESS GOLD"); WRW("MAKE PEACE",0,-1,4,"END ITS WARS (A)"); WRW("GIFT 200 GOLD",0,-1,5,"FILL ITS TREASURY (A)"); WRW("NEW RULER",0,-1,6,"THE OLD ONE FALLS (A)"); } }
     for(int i=0;i<wn;i++){ char*v=wVal[i]; v[0]=0; if(wr[i].k>=0) strcpy(v,wk[wr[i].k].n[*wr[i].p%wk[wr[i].k].c]);
-        else if(wr[i].act==7){ if(wTab==4){ static const char*const pn[4]={"LIFE","LAND","FOLK","WRATH"}; siprintf(v,"%d/4 %s",wLawPg+1,pn[wLawPg]); } else if(wTab==1) siprintf(v,"%.12s",arch[wPeo].nm); else if(wTab==2){ char nm[24]; vilName(wCity,nm); siprintf(v,"%.12s",nm); } else { char nm[24]; kdName(wKing,nm); siprintf(v,"%.12s",nm); } } else if(wr[i].act) strcpy(v,">"); }
+        else if(wr[i].act==7){ if(wTab==4){ static const char*const pn[WORLD_LAW_PAGE_N]={"LIFE","LAND","FOLK","EVENTS","CARE"}; siprintf(v,"%d/%d %s",wLawPg+1,WORLD_LAW_PAGE_N,pn[wLawPg]); } else if(wTab==5) siprintf(v,"%d/%d %s",wPin+1,MAP_PIN_N,mapPinMask&(1u<<wPin)?"SET":"EMPTY"); else if(wTab==1) siprintf(v,"%.12s",arch[wPeo].nm); else if(wTab==2){ char nm[24]; vilName(wCity,nm); siprintf(v,"%.12s",nm); } else { char nm[24]; kdName(wKing,nm); siprintf(v,"%.12s",nm); } } else if(wr[i].act) strcpy(v,">"); }
     if(wSel>=wn) wSel=wn?wn-1:0; }
 static void worldAct(int a){
     if(a==1){ u32 b=stBorn, d=stDied; gxDefaults(); stBorn=b; stDied=d; siprintf(info,"WORLD RESET"); }
@@ -76,28 +90,47 @@ static void worldAct(int a){
     else if(a==3){ BrE e; e.type=1; e.id=(u16)wCity; brGo(&e); }
     else if(a==4){ for(int o=0;o<KN_N;o++) if(kd[wKing].war>>o&1) kdWar(wKing,o,0); for(int v=0;v<VIL_N;v++) if(vil[v].on&&vilK[v]==wKing+1) vil[v].foe=0; warMatrix(); siprintf(info,"PEACE"); }
     else if(a==5){ int g=kd[wKing].gold+200; kd[wKing].gold=(u16)(g>60000?60000:g); siprintf(info,"+200 GOLD"); }
-    else if(a==6){ Kd*K=&kd[wKing]; hallPush(wKing); K->rn1=(u8)(rnd()%12); K->rn2=(u8)(rnd()%8); K->rtr=(u8)(rnd()%4); K->reign=0; siprintf(info,"A NEW RULER"); } }
-static void worldStep(int d){ if(wTab==4) wLawPg=(wLawPg+4+d)%4; else if(wTab==1) wPeo=(wPeo+8+d)%8; else if(wTab==2) wCity=wNextOn(wCity,d,VIL_N,1); else if(wTab==3) wKing=wNextOn(wKing,d,KN_N,0); }
+    else if(a==6){ Kd*K=&kd[wKing]; hallPush(wKing); K->rn1=(u8)(rnd()%12); K->rn2=(u8)(rnd()%8); K->rtr=(u8)(rnd()%4); K->reign=0; siprintf(info,"A NEW RULER"); }
+    else if(a==9){
+        mapPin[wPin][0]=(u16)camX; mapPin[wPin][1]=(u16)camY;
+        mapPinMask|=(u8)(1u<<wPin);
+        fxReq(FX_UNLOCK);
+    }
+    else if(a==10&&(mapPinMask&(1u<<wPin))){
+        zSet(Z_NORMAL);
+        camX=mapPin[wPin][0]; camY=mapPin[wPin][1]; winX=-99;
+        fieldLedgerOpen=extrasView=page=menuOn=0;
+        if(!titleOn) paused=dlgPaused;
+        siprintf(info,"MAP PIN %d",wPin+1);
+        fxReq(FX_MENU_BACK);
+    }
+    else if(a==11){
+        mapPinMask&=(u8)~(1u<<wPin);
+        fxReq(FX_MENU_BACK);
+    }
+}
+static void worldStep(int d){ if(wTab==4) wLawPg=(wLawPg+WORLD_LAW_PAGE_N+d)%WORLD_LAW_PAGE_N; else if(wTab==5) wPin=(wPin+MAP_PIN_N+d)%MAP_PIN_N; else if(wTab==1) wPeo=(wPeo+8+d)%8; else if(wTab==2) wCity=wNextOn(wCity,d,VIL_N,1); else if(wTab==3) wKing=wNextOn(wKing,d,KN_N,0); }
 static void worldInput(int k){
     if(wTab!=wTabPrev){ wTabPrev=wTab; wSel=0; } worldBuild();
-    if(k&KEY_X){ wTab=(wTab+1)%5; } if(k&KEY_Y){ wTab=(wTab+4)%5; } if(wTab!=wTabPrev){ wTabPrev=wTab; wSel=0; worldBuild(); }
+    if(k&KEY_X){ wTab=(wTab+1)%WORLD_TAB_N; } if(k&KEY_Y){ wTab=(wTab+WORLD_TAB_N-1)%WORLD_TAB_N; } if(wTab!=wTabPrev){ wTabPrev=wTab; wSel=0; worldBuild(); }
     if(!wn) return; if(k&KEY_UP) wSel=(wSel+wn-1)%wn; if(k&KEY_DOWN) wSel=(wSel+1)%wn;
     int d=((k&KEY_RIGHT)?1:0)-((k&KEY_LEFT)?1:0); WR*r=&wr[wSel];
     if(d||(k&KEY_A)){ int s=d?d:1;
         if(r->k>=0){ int c=wk[r->k].c; *r->p=(u8)((*r->p+c+s)%c); fxReq(FX_MENU_MOVE); }
         else if(r->act==7) worldStep(s); else if(k&KEY_A) worldAct(r->act); } }
 static void uiWorld(void){
-    if(wTab!=wTabPrev){ wTabPrev=wTab; wSel=0; } worldBuild(); uiWin("WORLD","X Y: TAB",0);
-    for(int i=0;i<5;i++){ int x=4+i*50, sel=i==wTab; uiRound(x,15,48,13,sel?U_SEL:U_PANELHI,sel?U_GOLD:U_BHI); uiTextC(x+24,18,wTabN[i],sel?U_WHITE:U_DIM,1); uiBtn(x,15,48,13,0,0,&wTab,i); }
+    if(wTab!=wTabPrev){ wTabPrev=wTab; wSel=0; } worldBuild(); uiWin(fieldLedgerOpen?"CITY LEDGER":"WORLD","X Y: TAB",0);
+    for(int i=0;i<WORLD_TAB_N;i++){ int x=3+i*42, sel=i==wTab; uiRound(x,15,40,13,sel?U_SEL:U_PANELHI,sel?U_GOLD:U_BHI); uiTextC(x+20,18,wTabN[i],sel?U_WHITE:U_DIM,1); uiBtn(x,15,40,13,0,0,&wTab,i); }
     if(!wn){ uiText(10,40,wTab==2?"NO CITIES YET.":"NO KINGDOMS YET.",U_DIM,1); uiFlush(); return; }
-    for(int i=0;i<wn;i++){ int y=32+i*13, sel=i==wSel, adj=wr[i].k>=0||wr[i].act==7;
+    for(int i=0;i<wn;i++){ int y=31+i*12, sel=i==wSel, adj=wr[i].k>=0||wr[i].act==7;
         uiRound(4,y,226,12,sel?U_SEL:U_PANELHI,sel?U_GOLD:U_BHI); uiText(10,y+2,wr[i].lb,sel?U_WHITE:U_LGREY,1);
         uiBtn(4,y,226,12,adj?0:KEY_A,0,&wSel,i);
         if(adj){ uiBtn(120,y,50,12,KEY_LEFT,0,&wSel,i); uiBtn(176,y,54,12,KEY_RIGHT,0,&wSel,i); if(sel){ uiIcon8(122,y+2,IC8_LEFT); uiIcon8(216,y+2,IC8_RIGHT); } uiTextC(170,y+2,wVal[i],sel?U_GOLD:U_DIM,1); }
         else uiTextR(224,y+2,wVal[i],sel?U_GOLD:U_DIM); }
-    int y=32+wn*13+4; char b[64];
-    if(wTab==2){ const Vil*V=&vil[wCity]; siprintf(b,"POP %d HOMES %d FARMS %d TOWERS %d",V->pop,V->houses,V->farms,V->towers); uiText(8,y,b,U_WHITE,1); if(vilK[wCity]){ char kn[24]; kdName(vilK[wCity]-1,kn); siprintf(b,"%s LOYALTY %d",kn,vilL[wCity]); uiText(8,y+10,b,U_DIM,1); } }
+    int y=31+wn*12+4; char b[64];
+    if(wTab==2){ const Vil*V=&vil[wCity]; siprintf(b,"POP %d HOMES %d FARMS %d TOWERS %d",V->pop,V->houses,V->farms,V->towers); uiText(8,y,b,U_WHITE,1); if(vilK[wCity]){ char kn[24]; kdName(vilK[wCity]-1,kn); siprintf(b,"%s LOYALTY %d",kn,vilL[wCity]); uiText(8,y+10,b,U_DIM,1); } siprintf(b,"FOOD %d  SICK %d",V->stock,vilSick[wCity]); uiText(8,y+20,b,U_DIM,1); }
     else if(wTab==3){ int c,p,w; kdStats(wKing,&c,&p,&w); siprintf(b,"%s  %d CITIES %d PEOPLE POWER %d",kd[wKing].empire?"EMPIRE":kd[wKing].lord?"VASSAL":"KINGDOM",c,p,w); uiText(8,y,b,U_WHITE,1); siprintf(b,"GOLD %d  %s",kd[wKing].gold,kd[wKing].war?"AT WAR":"AT PEACE"); uiText(8,y+10,b,kd[wKing].war?U_RED:U_GREEN,1); }
     else if(wTab==1){ siprintf(b,"%d ALIVE",raceCnt(wPeo)); uiText(8,y,b,U_WHITE,1); }
-    else if(wTab==4){ siprintf(b,"TORNADOES %d  BLACK HOLES %d",hzCount(HZ_TORNADO),hzCount(HZ_HOLE)); uiText(8,y,b,U_WHITE,1); siprintf(b,"PLAGUED %d  IMMUNE %d",plagueCount(1),plagueCount(2)); uiText(8,y+10,b,plagueCount(1)?U_GREEN:U_DIM,1); }
-    uiText(8,168,wr[wSel].ds,U_DIM,1); uiFlush(); }
+    else if(wTab==4&&wn<=8){ siprintf(b,"TORNADOES %d  BLACK HOLES %d",hzCount(HZ_TORNADO),hzCount(HZ_HOLE)); uiText(8,y,b,U_WHITE,1); siprintf(b,"PLAGUED %d  IMMUNE %d",plagueCount(1),plagueCount(2)); uiText(8,y+10,b,plagueCount(1)?U_GREEN:U_DIM,1); }
+    else if(wTab==5){ uiText(8,y,"PINS LAST UNTIL YOU LOAD OR RESTART",U_DIM,1); }
+    uiWrap(8,160,38,2,wr[wSel].ds,U_DIM); uiFlush(); }

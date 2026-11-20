@@ -10,7 +10,9 @@ int main(int argc,char**argv){
     int seed=argc>1?atoi(argv[1]):777, ticks=argc>2?atoi(argv[2]):12000;
     mapPtr=(u16*)bgGetMapPtr(0); planetSize=128; rs=(u32)seed*2654435761u+5;
     makeSpecies(); makeItems(); newWorld(); monOn=1;
-    for(int t=1;t<=ticks;t++){ tick=t; year=t/1200; if(t%900==0){ power=(int)(rnd()%PW_N); usePower((int)(rnd()%WW),(int)(rnd()%WH),1); } simulate();
+    // Keep the benchmark action sequence stable as the toolbox grows.
+    enum { WORKLOAD_POWERS=79 };
+    for(int t=1;t<=ticks;t++){ tick=t; year=t/1200; if(t%900==0){ power=(int)(rnd()%WORKLOAD_POWERS); usePower((int)(rnd()%WW),(int)(rnd()%WH),1); } simulate();
         if((t&31)==0){
             for(int v=0;v<VIL_N;v++) if(vil[v].on){ int cached=vilMood(v); joyStamp[v]=0; int fresh=vilMood(v); if(cached!=fresh){ fprintf(stderr,"stale village mood at tick %d, village %d\n",t,v); return 1; } }
             for(int a=0;a<8;a++){ int x=(t*37+a*13)%WW, y=(t*17+a*29)%WH, r=4+(t+a)%39, best=-1, bd=r*r+1;

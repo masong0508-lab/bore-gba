@@ -47,7 +47,7 @@ The pause menu now exposes AUTOSAVE ON/OFF. Turning it off suppresses only autom
 | Laws | Glitched Noosphere and Drop of Thoughts are implemented. Grin Reaper was removed in WorldBox 0.51.0, so it is intentionally not a target. Rat King is also implemented as a plague law. |
 | Powers | six printer powers and small/medium lightning are implemented; clan, alliance, war and plot displays remain *(partly)* |
 | Ages | all ten named ages (dark, hope, sun, tears, moon, chaos, wonders, ice, ash, despair) are present; balance and on-hardware behaviour remain unchecked |
-| Interface (0.51.0) | select any meta object (kingdom, city, culture) on the map with its own power tab; multi-toggle for zones; Ctrl+1-9 save and recall selections. Save/load/save slots are in the pause menu; automatic year-boundary saves now have an ON/OFF toggle (manual save remains available). Meta-object selection, zone multi-toggle and Ctrl+1-9 selection shortcuts remain. |
+| Interface (0.51.0) | select any meta object (kingdom, city, culture) on the map with its own power tab; multi-toggle for zones; Ctrl+1-9 save and recall selections. Save/load/save slots are in the pause menu; automatic year-boundary saves now have an ON/OFF toggle (manual save remains available). GodGuy now has city selection through Field Tools → Survey and three session map pins in World → Pins. Direct culture and kingdom map selection, region editing and keyboard selection shortcuts remain. |
 
 ## Known weak spots (not WorldBox gaps)
 - DS build has about 13 KB of RAM to spare; the DS holds only 7 of the 56 CORPORATIONS vocal phrases (3DS and DSi mode hold all).
@@ -58,6 +58,6 @@ The pause menu now exposes AUTOSAVE ON/OFF. Turning it off suppresses only autom
 
 ## Suggested order
 1. Finish dedicated creature archetypes, art/animations and true ghost-kingdom simulation for the new special-event prototypes.
-2. Interface items (meta selection, zone multi-toggle and keyboard selection shortcuts).
+2. Interface items (direct culture and kingdom selection, region editing and keyboard shortcuts).
 3. Verify the new life-cloud and Rat King laws in long-running simulations and on hardware.
 4. Paste the wiki AllPages text (or the pages' text) so the unread pages can be compared.
