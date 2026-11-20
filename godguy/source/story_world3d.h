@@ -175,6 +175,60 @@ static void ggFilmFloor(GgFilmCamera cam,int p,int t){
         }
     }
 }
+// A complete timber crossing has raised deck boards, stone abutments,
+// diagonal bracing, load-bearing pillars and hand rails. It occupies the
+// same ford coordinates from shot to shot, and appears only after the story
+// has actually introduced Nessa's engineering work.
+static void ggFilmBridge(GgFilmCamera cam,int damaged,int t){
+    for(int i=0;i<8;i++){
+        int z=510+i*88;
+        int sway=damaged&&i>4?(i-4)*3:0;
+        ggFilmBox(cam,sway,23,z,192,11,86,24,20,25);
+        // Raised outer strakes and individually supported tread boards.
+        for(int x=-77;x<=77;x+=22)
+            ggFilmBox(cam,x+sway,34,z,17,3,77,26,24,25);
+        for(int side=-1;side<=1;side+=2){
+            ggFilmBox(cam,side*99+sway,0,z,16,53,14,20,24,26);
+            ggFilmBeam(cam,side*94+sway,63,z,10,12,92,25);
+            ggFilmQuad(cam,ggV3(side*100+sway,17,z+32),
+                ggV3(side*86+sway,42,z+32),
+                ggV3(side*86+sway,50,z+37),
+                ggV3(side*100+sway,17,z+37),20);
+        }
+    }
+    // Continuous handrails, not disconnected decorative lines.
+    for(int side=-1;side<=1;side+=2){
+        ggFilmBox(cam,side*95,73,832,12,9,700,25,24,26);
+        ggFilmBox(cam,side*103,0,510,28,28,80,21,20,25);
+        ggFilmBox(cam,side*103,0,1150,28,28,80,21,20,25);
+    }
+    // Rescue lamps are rigidly mounted to the bridge rather than flying
+    // through the camera plane. One lamp flickers on the far parapet.
+    ggFilmBox(cam,-99,79,784,12,19,12,20,24,25);
+    ggFilmBox(cam,-99,94,784,16,17,16,(t/20)&1?10:9,24,26);
+}
+// People walking or repairing within a location are small 3D figures:
+// heads, tunics, arms and articulated legs all share a world-space base.
+static void ggFilmBackgroundWorker(GgFilmCamera cam,int x,int z,int t,int id){
+    int travel=((t/12+id*19)%89)-44;
+    x+=travel;
+    int stride=((t/17+id)&1)?8:-8;
+    int stance=0;
+    ggFilmBeam(cam,x-10,stance,z,13,47+stride/2,13,24);
+    ggFilmBeam(cam,x+11,stance,z,13,47-stride/2,13,24);
+    ggFilmBox(cam,x,47,z,37,57,22,id&1?17:13,20,26);
+    // Polygonal neck/head, set within a darker hood.
+    ggFilmBox(cam,x,104,z-1,26,31,24,26,24,25);
+    ggFilmBox(cam,x,123,z+1,36,13,26,id&1?20:16,24,25);
+    ggFilmBeam(cam,x-28,58,z,12,42+stride/2,10,20);
+    ggFilmBeam(cam,x+28,58,z,12,42-stride/2,10,20);
+    if(id==1){
+        // The engineer's tool moves about a fixed hand, never floats.
+        int lift=((t/23)&1)?9:0;
+        ggFilmBeam(cam,x+32,85+lift,z-8,7,43,7,24);
+        ggFilmBox(cam,x+32,119+lift,z-8,28,11,13,21,24,26);
+    }
+}
 static void ggFilmInterior(GgFilmCamera cam,int p,int t){
     // Walls, cornice and corridor all converge on the same perspective.
     ggFilmQuad(cam,ggV3(-700,0,1600),ggV3(700,0,1600),
@@ -226,7 +280,7 @@ static void ggFilmInterior(GgFilmCamera cam,int p,int t){
         }
     }
 }
-static void ggFilmWorldDraw(const FilmBeat *beat,int elapsed,int move){
+static void ggFilmWorldDraw(const FilmBeat *beat,int elapsed,int move,int chapter){
     int p=beat->place;
     if(p==F_ORBIT)return; // globe remains the spherical dedicated renderer
     GgFilmCamera cam=ggFilmCameraAt(beat,move);
@@ -239,20 +293,31 @@ static void ggFilmWorldDraw(const FilmBeat *beat,int elapsed,int move){
         ggFilmArch(cam,225,970,p==F_RUINS);
         ggFilmBox(cam,0,0,1610,650,140,80,21,20,26);
     }else if(p==F_VILLAGE||p==F_HEARTH){
-        // Same village layout and three recognizable houses across edits.
+        // Persist the same village plan, but let the town actually GROW:
+        // one founding shelter, then its first neighbor, then the hall.
+        // Later stories never jump back to a vanished building.
         ggFilmHouse(cam,-340,1190,158,138,1);
-        ggFilmHouse(cam,325,1040,155,155,1);
-        ggFilmHouse(cam,25,1510,185,163,0);
+        if(chapter>=2)ggFilmHouse(cam,325,1040,155,155,1);
+        if(chapter>=5)ggFilmHouse(cam,25,1510,185,163,0);
+        if(chapter>=10)ggFilmHouse(cam,-75,1800,190,177,1);
         ggFilmTree(cam,-530,910,158,elapsed,0);
         ggFilmTree(cam,515,1180,190,elapsed,2);
+        if(chapter>=2)ggFilmBackgroundWorker(cam,-175,1070,elapsed,1);
+        if(chapter>=10)ggFilmBackgroundWorker(cam,140,1280,elapsed,0);
     }else if(p==F_FORD||p==F_SHORE||p==F_STORM){
         ggFilmTree(cam,-385,1220,144,elapsed,0);
         ggFilmTree(cam,425,1160,151,elapsed,1);
         if(p==F_FORD){
-            for(int k=0;k<5;k++){
-                // Raised stones describe a traversable crossing in Z.
-                ggFilmBox(cam,(k%2?37:-39),0,510+k*112,
-                          84,9,56,21,20,26);
+            if(chapter>=8){
+                ggFilmBridge(cam,chapter==9,elapsed);
+                if(chapter>=10)ggFilmBackgroundWorker(cam,172,1120,elapsed,1);
+            }else{
+                for(int k=0;k<5;k++){
+                    // The original raised stones remain where travelers
+                    // walked before the bridge existed.
+                    ggFilmBox(cam,(k%2?37:-39),0,510+k*112,
+                              84,9,56,21,20,26);
+                }
             }
         }
     }
