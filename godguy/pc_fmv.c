@@ -227,10 +227,10 @@ static void checkCinematicActingAndMix(void){
     check(nearPoint.x-128>farPoint.x-128,"3DS scene lost depth perspective");
     check(ggFilmProject(trackCam,ggV3(90,0,550)).x!=nearPoint.x,
           "3DS camera movement does not transform geometry");
-    FilmBlocking nearCast=filmBlocking(firstLightBeats+6,0);
-    FilmBlocking finalCast=filmBlocking(firstLightBeats+6,180);
-    ggFilmWorldBlocking(firstLightBeats+6,0,0,&nearCast);
-    ggFilmWorldBlocking(firstLightBeats+6,180,256,&finalCast);
+    FilmBlocking nearCast=filmBlocking(roofBeats+0,0);
+    FilmBlocking finalCast=filmBlocking(roofBeats+0,180);
+    ggFilmWorldBlocking(roofBeats+0,0,0,&nearCast);
+    ggFilmWorldBlocking(roofBeats+0,180,256,&finalCast);
     check(finalCast.leadHeight>nearCast.leadHeight,
           "3DS stage action has no approach depth");
     int ness=0,serin=0;
