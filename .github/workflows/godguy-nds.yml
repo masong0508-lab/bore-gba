@@ -93,6 +93,20 @@ jobs:
           ./3ds/build.sh
           mkdir -p ../out && cp godguy.3dsx ../out/godguy.3dsx
 
+      # Exact pixel/VRAM regression for zoomed terrain, partial updates and
+      # forced repaints in all three coordinate/creature-memory layouts.
+      # This test must pass before uploading or publishing ROMs.
+      - name: Verify zoom renderer (DS, DSi16 and 3DS layouts)
+        working-directory: godguy
+        run: |
+          command -v gcc >/dev/null || { apt-get update && apt-get install -y gcc; }
+          for cfg in ds dsi16 big; do
+            flags=""
+            case "$cfg" in dsi16) flags="-DGG_DSI16";; big) flags="-DGG_BIG";; esac
+            gcc -O2 -DNDSSHIM -DGG_ZOOM_TEST $flags -Icompat -Isource -Wno-all -include unistd.h pc_zoom_perf.c -lm -o "/tmp/godguy-zoom-$cfg"
+            "/tmp/godguy-zoom-$cfg"
+          done
+
       - name: What was built
         if: always()
         run: |
