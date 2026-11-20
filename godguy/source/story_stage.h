@@ -593,7 +593,21 @@ static void filmCastContact(int who,int x,int feet,int height){
 }
 static int filmActingPose(const FilmBeat *beat,int elapsed,int lead,int action){
     int paired=beat->lead<F_ACTOR_N&&beat->other<F_ACTOR_N;
-    int spoken=beat->line&&elapsed>=108&&elapsed<beat->seconds*FILM_SECOND-28;
+    // Speaking length follows the actual line, not the entire shot. A
+    // ten-word sentence should not trigger eight seconds of lip flapping.
+    // Cache the subtitle duration per immutable FilmBeat: no per-frame
+    // allocation or text measurement in the actor drawing loop.
+    static const FilmBeat *lastLine;
+    static int speechEnd;
+    if(beat!=lastLine){
+        lastLine=beat;
+        int n=0;
+        if(beat->line)while(beat->line[n]&&n<41)n++;
+        speechEnd=108+35+n*5;
+        int latest=beat->seconds*FILM_SECOND-75;
+        if(speechEnd>latest)speechEnd=latest;
+    }
+    int spoken=beat->line&&elapsed>=108&&elapsed<speechEnd;
     if(!lead){
         // The second performer *listens*. A held look and brief nod give
         // dialogue a reaction shot rather than synchronized mouth flapping.
@@ -617,11 +631,26 @@ static int filmActingPose(const FilmBeat *beat,int elapsed,int lead,int action){
     if(action==F_ACT_APPROACH)
         return elapsed<95?2:elapsed<205?3:elapsed<260?7:0;
     if(spoken){
-        // Two authored mouth cels and an actual reaction cel. Deliberate
-        // 5Hz cadence stays legible at 20fps without twitching.
-        if(elapsed>=234&&elapsed<252)return 7;
+        // Two authored mouth cels, plus a timed small hand gesture. No
+        // constant twitch or continued talking during reaction silence.
+        if(elapsed>=204&&elapsed<225)return 7;
         return (elapsed/12)&1?4:5;
     }
+    // Directed silent consequences for the additional 3DS ensemble. Serin
+    // writes rather than gesturing with a floating quill; Nessa braces
+    // before she demonstrates how to cross the current; Hollow's final
+    // admission lands as a visible, held bow toward his witness.
+    if(beat->lead==F_SERIN&&beat->prop==F_QUILL&&
+       elapsed>=speechEnd&&elapsed<beat->seconds*FILM_SECOND-42)
+        return (elapsed/30)&1?11:3;
+    if(beat->lead==F_NESSA&&beat->place==F_FORD&&
+       elapsed>=speechEnd&&elapsed<beat->seconds*FILM_SECOND-45)
+        return 9;
+    if(beat->lead==F_HOLLOW&&beat->other==F_SERIN&&
+       elapsed>=speechEnd&&elapsed<beat->seconds*FILM_SECOND-20)
+        return 10;
+    if(beat->line&&elapsed>=speechEnd&&elapsed<speechEnd+30)
+        return 6; // listen for the response before resuming a neutral hold
     return (elapsed+beat->lead*17)%193<9?6:0;
 }
 #endif
