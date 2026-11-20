@@ -294,12 +294,14 @@ static void checkFeatureFilmAndArchive(void){
     chapter=0;storyDone=unlockAll=debugOn=0;
     for(int i=0;i<FILM_BONUS_N;i++)
         check(!filmBonusOpen(i),"a film is unlocked before its chapter");
-    for(int i=0;i<FILM_BONUS_N;i++){
+    for(int i=0;i<FILM_BONUS_N-1;i++){
         chapter=filmBonusChapterUnlock[i];
         check(filmBonusOpen(i),"completed chapter did not unlock a film");
-        if(chapter>0&&i<FILM_BONUS_N-1)
-            check(!filmBonusOpen(i+1),"a later film unlocked too early");
+        check(!filmBonusOpen(i+1),"a later film unlocked too early");
     }
+    storyDone=1;
+    check(filmBonusOpen(FILM_BONUS_N-1),
+          "campaign completion did not unlock the final epilogue");
     chapter=oldChapter;storyDone=oldStory;unlockAll=oldUnlock;debugOn=oldDebug;
     filmBonusIndex=oldBonus;
     printf("3DS FEATURE OK: %d:%02d campaign, %d:%02d unlockable films, %d:%02d combined (plus baked footage)\\n",
