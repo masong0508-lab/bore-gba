@@ -52,17 +52,16 @@ typedef struct {
 
 _Static_assert(FMV_W*FMV_H*FILM_PLATE_SCALE*FILM_PLATE_SCALE<=sizeof uiNew,"Backdrops share the transition buffer");
 
+// Locked cameras: a cut chooses its composition, rather than zooming for
+// the entire line. The only camera travel is a short, measured track.
 static FilmFraming filmFraming(const FilmBeat *beat,int move){
-    static const u8 widths[]={128,108,118,114,105};
+    static const u8 widths[]={128,120,116,122,116};
     int w=widths[beat->camera];
-#ifdef __3DS__
-    // A second, slower push on the larger display. Keep actors in the
-    // composed frame while the set shifts behind them.
-    if(beat->camera!=F_WIDE) w-=6+move/64;
-#endif
     int h=w*FMV_H/FMV_W, sx=FMV_W-w, sy=FMV_H-h;
-    int pan=(beat->camera==F_TRACK)?move:((beat->lead==F_OFFSCREEN)?128:96+move/4);
-    FilmFraming frame={sx*pan*FILM_PLATE_SCALE,sy*(beat->camera==F_INSERT?168:94)*FILM_PLATE_SCALE,
+    int pan=128;
+    if(beat->camera==F_TRACK) pan=80+move*96/256; // at most ~4 pixels
+    FilmFraming frame={sx*pan*FILM_PLATE_SCALE,
+                       sy*(beat->camera==F_INSERT?168:96)*FILM_PLATE_SCALE,
                        w*FILM_PLATE_SCALE,h*FILM_PLATE_SCALE*256/FILM_H};
     return frame;
 }
@@ -114,25 +113,71 @@ static int filmPulse(int phase,int range){
     int at=phase%(2*range);
     return at<range?at:2*range-at;
 }
+
+// An actor occupies one side of the set for the *whole* conversation.
+// Switching speakers must not teleport Wisp, Mira or the smith across a cut.
+typedef struct {
+    int leadX, otherX, leadFeet, otherFeet, leadHeight, otherHeight;
+} FilmBlocking;
+static int filmScreenOrder(int who){
+    static const u8 rank[F_ACTOR_N]={6,1,3,0,5,4,2,1};
+    return who<F_ACTOR_N?rank[who]:0;
+}
+static int filmActorLeftOf(int actor,int partner){
+    int a=filmScreenOrder(actor),b=filmScreenOrder(partner);
+    return a==b?actor<partner:a<b;
+}
+static int filmStageHeight(int who,int humanHeight){
+    // Wisp is a small hovering spark, never a 118-pixel giant.
+    if(who==F_WISP) return humanHeight>=90?36:humanHeight>=70?32:26;
+    return humanHeight;
+}
+static FilmBlocking filmBlocking(const FilmBeat *beat,int elapsed){
+    int paired=beat->lead<F_ACTOR_N&&beat->other<F_ACTOR_N;
+    int left=beat->camera==F_WIDE?91:83;
+    int right=beat->camera==F_WIDE?170:176;
+    int leadLeft=paired&&filmActorLeftOf(beat->lead,beat->other);
+    int leadX=paired?(leadLeft?left:right):128;
+    int otherX=paired?(leadLeft?right:left):0;
+    int h=beat->camera==F_WIDE?62:beat->camera==F_NEAR?92:78;
+    int feet=beat->camera==F_WIDE?156:161;
+    if(beat->camera==F_TRACK&&beat->lead<F_ACTOR_N){
+        int arrival=filmEase(elapsed,140)*19/256;
+        leadX+=(paired&&!leadLeft?1:-1)*(19-arrival);
+    }
+    // Breathing is one pixel, not a constant bouncing or walking cycle.
+    int breath=(elapsed/12)&1;
+    FilmBlocking b={leadX,otherX,
+        feet-breath-(beat->lead==F_WISP?33:0),
+        feet-breath-(beat->other==F_WISP?33:0),
+        filmStageHeight(beat->lead,h),filmStageHeight(beat->other,h)};
+    return b;
+}
+
+// All atmosphere has an in-world source. No drifting particles in empty
+// rooms or random streaks crossing a character's face.
 static void filmAtmosphere(const FilmBeat *beat,int t){
-    const int storm=beat->place==F_STORM, water=beat->place==F_FORD||beat->place==F_SHORE;
+    static const u8 lightX[F_SET_N]={30,160,221,32,145,42,193,210,221,128,129,205,206,63};
+    static const u8 lightY[F_SET_N]={41,151,110,141,150,126,130,142,120,145,83,141,111,145};
+    int x=lightX[beat->place],y=lightY[beat->place];
+    uiPx(x,y,fmvSlots[(t/11)&1?10:8]);
+    if(beat->place==F_STORM){
 #ifdef __3DS__
-    const int count=24;
+        const int count=12;
 #else
-    const int count=9;
+        const int count=7;
 #endif
-    for(int i=0;i<count;i++){
-        int speed=2+i%3, x=(i*71+t*speed/3)&255;
-        int y=storm?(i*97+t*speed)%139:13+(i*29+t/3)%81;
-        int color=fmvSlots[storm?31:i%4?21:23];
-        if(water){
-            y=110+(i*7+t/5)%22;
-            if(x<76||x>181) continue;
-            color=fmvSlots[i%3?13:14];
+        for(int i=0;i<count;i++){
+            int rx=(i*59+13)&255,ry=FILM_TOP+((i*37+t/2)%FILM_H);
+            uiRect(rx,ry,1,3,fmvSlots[22]);
         }
-        if(storm) uiRect(x,FILM_TOP+y,1,3,color);
-        else if(water) uiRect(x,FILM_TOP+y,3+i%3,1,color);
-        else uiPx(x,FILM_TOP+y,color);
+    } else if(beat->place==F_SHORE||beat->place==F_FORD){
+        for(int i=0;i<4;i++){
+            int rx=63+i*41,ry=147+i%3*3;
+            uiRect(rx+((t/12+i)&1),ry,6,1,fmvSlots[14]);
+        }
+    } else if(beat->place==F_FORGE||beat->place==F_HEARTH){
+        for(int i=0;i<3;i++) uiPx(189+i*8,135+((t/8+i)&3),fmvSlots[i&1?9:8]);
     }
 }
 static void filmCaption(const FilmBeat *beat,int shown){
@@ -182,71 +227,86 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
         filmBars(clip->title);
     }
     int total=beat->seconds*FILM_SECOND;
-    int move=filmEase(elapsed,total), t=elapsed/3;
+    int move=filmEase(elapsed,total);
+    FilmBlocking block=filmBlocking(beat,elapsed);
     filmDrawSet(beat,move);
-    filmAtmosphere(beat,t);
+    filmAtmosphere(beat,elapsed);
 
-    int paired=beat->other<F_ACTOR_N, near=beat->camera==F_NEAR;
-    int left=paired?86:126, right=176;
-    int height=near?118:82, feet=near?164:157;
-    int pose=0, otherPose=0;
-    if(beat->camera==F_WIDE) height=64;
-    if(beat->camera==F_TRACK){
-        left-=36-(move*66)/256;
-        pose=elapsed<total-34?1+(elapsed/15&1):0;
-        otherPose=paired?pose:0;
-    } else if(beat->camera==F_HAND&&elapsed>60){
-        pose=3;
-        otherPose=3;
-    } else if(beat->line&&elapsed>=110&&elapsed<total-45){
-        // Small gestures are separated by pauses for the other person to react.
-        pose=(elapsed/45&1)?3:0;
+    int paired=beat->lead<F_ACTOR_N&&beat->other<F_ACTOR_N;
+    int leadPose=0,otherPose=0;
+    if(beat->camera==F_TRACK&&elapsed<140){
+        leadPose=1+(elapsed/18&1); // one purposeful entrance, then stop
+    } else if(beat->camera==F_HAND){
+        if(elapsed>=60&&elapsed<230) leadPose=3;
+        if(paired&&elapsed>=170&&elapsed<290) otherPose=3;
+    } else if(beat->line&&elapsed>=130&&elapsed<220){
+        leadPose=3; // one deliberate gesture while speaking
     }
     if(beat->camera!=F_INSERT){
-        int bob=filmPulse(t/2,4);
-        filmDrawActor(beat->other,otherPose,right-(beat->camera==F_TRACK?20-move/8:0),
-                      feet+(beat->other==F_WISP?-22+bob:0),height,1);
-        filmDrawActor(beat->lead,pose,left,feet+(beat->lead==F_WISP?-23+bob:0),height,0);
+        filmDrawActor(beat->other,otherPose,block.otherX,block.otherFeet,
+                      block.otherHeight,paired&&block.otherX>block.leadX);
+        filmDrawActor(beat->lead,leadPose,block.leadX,block.leadFeet,
+                      block.leadHeight,paired&&block.leadX>block.otherX);
     }
 
-    int px=128, py=142, size=beat->camera==F_INSERT?72:35;
-    if(beat->camera==F_INSERT){
-        // Push into the object as it settles into the shot.
-        size+=move/17;
-        px+=12-move/10;
-        py-=filmPulse(t/2,4);
-    } else if(beat->camera==F_HAND){
-        int pass=filmEase(elapsed>60?elapsed-60:0,140);
-        px=left+20+(paired?(right-left-40)*pass/256:0);
-        py=126-filmPulse(pass/8,16)/2;
-    } else if(beat->prop==F_GOAT){
-        px=28+move*200/256;
-        py=(beat->place==F_VILLAGE?124:151)-filmPulse(t,4);
-    } else if(beat->prop==F_LAMP){
-        px=paired?129:left+27;
-        py-=filmPulse(t/3,5);
-    }
-    if(beat->camera==F_INSERT){
-        int settle=filmEase(elapsed,total/2);
-        if(beat->prop==F_CRUMB){
-            px=82+settle/3;
-            py=124+settle/6;
-            size=35-settle/11;
-        } else if(beat->prop==F_CROWN) py=104+settle/9;
-        else if(beat->prop==F_CUP){
-            int drop=t%27;
-            if(drop<18) uiRect(px-3,FILM_TOP+18+drop*2,2,4,fmvSlots[23]);
+    if(beat->prop<F_PROP_N){
+        int px=128,py=146,size=23;
+        if(beat->camera==F_INSERT){
+            // An insert is a steady tabletop/ground-level close-up, not
+            // an object flying toward the camera.
+            size=47;
+            if(beat->prop==F_SEED){
+                py=125+filmEase(elapsed,total/2)*21/256; // plant it
+            } else if(beat->prop==F_HAMMER){
+                py=130+((elapsed/36)&1)*3; // tap a real surface
+            } else if(beat->prop==F_CRUMB){
+                py=132+filmEase(elapsed,total/2)*12/256;
+                size=27;
+            } else if(beat->prop==F_CROWN){
+                py=123+filmEase(elapsed,total/2)*7/256;
+            }
+            if(beat->prop==F_CUP&&beat->place==F_PORCH){
+                int drop=FILM_TOP+16+(elapsed/3)%99;
+                if(drop<py-13) uiRect(px,drop,1,3,fmvSlots[23]);
+            }
+        } else if(beat->prop==F_GOAT){
+            // The goat belongs on the floor, with a short walk across it.
+            px=55+move*64/256;
+            py=157;
+            size=24;
+        } else if(beat->camera==F_HAND&&beat->lead<F_ACTOR_N){
+            int pass=filmEase(elapsed>70?elapsed-70:0,180);
+            px=block.leadX+(paired?(block.otherX-block.leadX)*pass/256:16);
+            py=block.leadFeet-(beat->lead==F_WISP?14:45);
+            size=21;
+        } else if(beat->lead<F_ACTOR_N){
+            // The object remains with its owner, beside their hand.
+            int side=paired&&block.leadX>block.otherX?-1:1;
+            px=block.leadX+side*(beat->lead==F_WISP?23:16);
+            py=block.leadFeet-(beat->lead==F_WISP?15:44);
+            size=beat->camera==F_WIDE?17:23;
+        } else {
+            // Establishing shots use a prop in the scene, not at screen centre.
+            if(beat->prop==F_LAMP){ px=204;py=138; }
+            else if(beat->prop==F_CROWN){ px=131;py=114; }
+            else if(beat->prop==F_MASK){ px=154;py=142; }
+            else if(beat->prop==F_HAMMER){ px=145;py=143; }
+            else if(beat->prop==F_CUP){ px=130;py=146; }
+            else if(beat->prop==F_SEED){ px=116;py=148; }
+            else { px=154;py=145; }
         }
+        if(beat->prop==F_LAMP){
+            // Two anchored warm pixels read as a lantern rather than
+            // particles flying above the cast.
+            uiPx(px-2,py-size+2,fmvSlots[10]);
+            uiPx(px+2,py-size+2,fmvSlots[9]);
+        }
+        filmDrawProp(beat->prop,px,py,size);
     }
-    if(beat->prop==F_LAMP||beat->prop==F_SEED){
-        int glow=filmPulse(t/2,6);
-        for(int i=0;i<6;i++) uiPx(px-9+(i*13+t/2)%19,py-38-glow-(i*7+t)%15,fmvSlots[8+i%3]);
-    }
-    filmDrawProp(beat->prop,px,py,size);
-    // The first seconds give the action or the other actor's reaction room.
+    // Silence/action first, dialogue afterwards. The caption ends before
+    // the cut so the next speaker gets a clean visual handoff.
     filmCaption(beat,elapsed>=100&&elapsed<total-20);
 }
-
 static int fmvRenderAt(const FmvClip *clip,int elapsed){
     int baked=clip->frames*FMV_TICKS;
     if(elapsed<baked){
