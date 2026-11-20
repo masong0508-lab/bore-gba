@@ -30,7 +30,7 @@ static void gooStep(Hz*h){
     for(int dy=-r;dy<=r;dy++) for(int dx=-r;dx<=r;dx++){ if(dx*dx+dy*dy>r*r+1) continue; int x=h->x+dx, y=h->y+dy; if(x<0||y<0||x>=WW||y>=WH) continue; u8 t=world[y][x]; if(t==T_DEEP||t==T_WATER||t==T_LAVA) continue;
         if(bld[y][x]){ razeAt(x,y,255); bld[y][x]=0; bldv[y][x]=0; } if(t!=T_DIRT&&t!=T_MOUNT&&!LAWON(LW_GAIA)) setCell(x,y,T_DIRT); if(occ[y][x]&&(dx*dx+dy*dy)>=(r-1)*(r-1)) killCr(occ[y][x]-1); } }
 // ---- ghosts of the notable dead: they drift, lower the mood of the villages near them, and are driven off by a temple
-static int ghostMood(int v){ int n=0; for(int i=0;i<HZ_N;i++) if(hz[i].kind==HZ_GHOST||hz[i].kind==HZ_GHOSTCIV){ int dx=hz[i].x-vil[v].x, dy=hz[i].y-vil[v].y; if(dx*dx+dy*dy<=100) n++; } return n>2?20:n*10; }
+static int ghostMood(int v){ int n=0; for(int i=0;i<HZ_N;i++) if(hz[i].kind==HZ_GHOST||hz[i].kind==HZ_GHOSTCIV){ int dx=hz[i].x-vil[v].x, dy=hz[i].y-vil[v].y; if(dx*dx+dy*dy<=100&&++n>=2) return 20; } return n*10; }
 static void ghostStep(Hz*h){
     h->age++; if(rnd()%5==0){ int d=(int)(rnd()%8); h->dx=hzDx[d]; h->dy=hzDy[d]; } int nx=h->x+h->dx, ny=h->y+h->dy; if(nx<2||nx>=WW-2||ny<2||ny>=WH-2){ h->dx=(s8)-h->dx; h->dy=(s8)-h->dy; nx=h->x; ny=h->y; } h->x=(u16)nx; h->y=(u16)ny;
     for(int dy=-6;dy<=6;dy++) for(int dx=-6;dx<=6;dx++){ int x=h->x+dx, y=h->y+dy; if(x<0||y<0||x>=WW||y>=WH) continue; if(bld[y][x]==B_TEMPLE){ h->life=0; return; } } }
