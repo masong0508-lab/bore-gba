@@ -62,7 +62,7 @@ static int storyGoalT;      // real gameplay frames to read the objective after 
 #endif
 static int fullDone, auralOpen, debugOn, speedMul=1, chapter, storyOn=1, storyDone, monOn=1, natural, tierOpen=1;
 static int autoSaveDue(void){ return autoSaveOn&&sdOk&&year>0&&year!=savedYear&&(tick&255)>=1&&(tick&255)<=(unsigned)speedMul; }
-static int fxQ=-1, musQ=-1;       // requests for the sound code (DS main loop plays them)
+static int fxQ=-1, musQ=-1, storyScore=-1;       // requests for the sound code (DS main loop plays them)
 static void fxReq(int id){ fxQ=id; }
 static void musReq(int id){ musQ=id; }
 static void giveTool(Cr*c,int armor); static int gearAtk(const Cr*c); static int armDef(const Cr*c); static void unlockTiers(void);
@@ -1343,7 +1343,7 @@ static const Dl dl9[]={{W_HOLLOW,"I was here before you. I made seas, and cities
 static const Dl dl10[]={{W_MIRA,"The cup leaks now. One of the children uses it to water the beans anyway. I think she will be all right when I am gone."},{W_WISP,"She will not be here forever. That is what makes it matter."},{0,0}};
 static const Dl dl11[]={{W_ELOWEN,"I drew teeth first. Then I drew where they sleep, what they eat and which ones come back for their young. The book needed more pages."},{W_ELOWEN,"And do you know, they are not all evil. Some only follow the Hollow King because no one asked them to stay."},{0,0}};
 static const Dl dl12[]={{W_WISP,"I have learned something about the Hollow King. He is not a monster. He is the last god who gave up."},{W_WISP,"Every world he made, he watched die. So he made monsters instead. They never leave."},{W_GRUUL,"Then end him. Or end the loneliness. I do not know which is harder."},{W_DAVE,"The long peace. Yeah. The wizard weed goes on the windowsill. Cheesy puffs go on the couch. I have a whole system."},{W_WISP,"Dave, how are you in my story."},{W_DAVE,"Wisp. Man. The couch is in everyone's story."},{0,0}};
-static const Dl dl13[]={{W_HOLLOW,"You have counted my children and you have killed many. Why do you still come?"},{W_WISP,"Because they are not only monsters. Because you are not only a king."},{W_HOLLOW,"...Show me, then. Show me a world that does not burn."},{0,0}};
+static const Dl dl13[]={{W_HOLLOW,"You showed me an open door, a dry seat, and a light that burned until morning. I thought I had forgotten what those were for."},{W_WISP,"The seat is still there. We have one more hard night ahead, and we could use another pair of hands."},{W_HOLLOW,"Then let us keep the lights on."},{0,0}};
 static const Dl dl14[]={{W_HOLLOW,"I heard laughter in the rain and waited for it to stop. Mira's children moved their supper under the eaves. The city kept its lights on."},{W_HOLLOW,"Thank you, godguy. I will stay, if the world will have me."},{W_WISP,"There is room for two gods. There always was. Welcome home."},{0,0}};
 static const Dl*const dlgTab[15]={dl0,dl1,dl2,dl3,dl4,dl5,dl6,dl7,dl8,dl9,dl10,dl11,dl12,dl13,dl14};
 static const char* const chapTxt[CHAP_N]={"THE FIRST LIGHT TOUCHES THE LAND","SOMEONE LOOKS UP AT YOU","ROOFS GO UP AGAINST THE NIGHT","TWO PEOPLES MEET AT THE WELL","THE DARKNESS HAS TEETH","THEY LEARN TO FIGHT BACK","STONE REMEMBERS, WOOD FORGETS","YOU BEGIN TO NAME THE FEARS","KINGS RISE. KINGS FALL.","THE HORDE BREAKS ON THE WALLS","A CITY THAT NEVER SLEEPS","EVERY NIGHTMARE HAS A PAGE","THE LONG PEACE BEGINS","THE WORLD KNOWS YOUR NAME"};
@@ -2196,6 +2196,7 @@ static int musCellMonsterAnywhere(void){
 #endif
 }
 static int musDirector(void){
+    if(storyScore>=0) return storyScore;
     if(paused) return GM_PAUSE;
     if((weather==WX_STORM||weather==WX_RAGE)&&!view3d) return GM_STORM;
     if(view3d) return GM_SPHERE;
@@ -2217,6 +2218,7 @@ static int trackOpen(int i);
 // A song has run to its end (it has faded out). In the Aural Sculptures (a song played on its own) the music stops: it faded to silence. In the game the next song takes over:
 // what the world calls for if that is a different song, else another open song from the jukebox, the remixes and the rebirths (never the same one twice in a row).
 static int musNext(int cur){
+    if(storyScore>=0) return storyScore;
     if(jukeOn) return -1;
     int want=musDirector(); musLast=want; musHold=1800;
     if(want!=cur&&!isJingle(want)) return want;
@@ -2240,7 +2242,7 @@ static void musUpdate(void){
     if(fxCool>0) fxCool--; if(fxQ>=0){ if(fxQ!=FX_PAINT||fxCool==0){ fxPlay(fxQ); if(fxQ==FX_PAINT) fxCool=10; } fxQ=-1; }
     if(musHold>0) musHold--;
     if(musQ>=0){ gmPlay(musQ); musHold=1800; musQ=-1; musLast=-1; return; }
-    if(jukeOn) return;
+    if(jukeOn||storyScore>=0) return;
     if((tick&31)==0){ static const short ht[5]={8,40,120,300,700}; int h=warHeat, c=0;      // the crowd: battle heat -> 0..400 (1/100 levels): a skirmish is level 1, a few dozen fighters level 4
         if(h>=ht[4]) c=400; else if(h>=ht[0]){ int k=0; while(h>=ht[k+1]) k++; c=k*100+(h-ht[k])*100/(ht[k+1]-ht[k]); }
         gmCrowd=c; warHeat-=warHeat/4+(warHeat>0); }
@@ -2285,6 +2287,7 @@ static const char* const helpTxt[]={"TOUCH THE WORLD: USE POWER","L R      POWER
 static const char* const*sceneTxt, *const*sceneNext; static int menuOn, menuSel, menuAsk, toastT, dlgOn, dlgIdx, dlgChars, dlgPaused, sceneOff, sceneT, sceneScroll, endShown, scenePaused, helpSel, trPage;
 static const Dl*dlgSet; static char lastInfo[64];
 static const FmvClip *sceneClip;
+static int sceneFilmLength;
 _Static_assert(sizeof fmvClips/sizeof *fmvClips==CHAP_N+1,"One FMV per chapter plus the finale");
 _Static_assert(sizeof fmvPortraitOffsets/sizeof *fmvPortraitOffsets==(W_N+1)*FMV_PORTRAIT_CELS,
     "Portrait cels for the cast and older Mira");
@@ -2301,6 +2304,9 @@ static void sceneStart(const char*const*t,int scroll){ sceneTxt=t; sceneScroll=s
 static void sceneStartFmv(const char*const*t,const FmvClip*clip){
     sceneStart(t,0);
     sceneClip=clip;
+    sceneFilmLength=fmvLength(clip);
+    storyScore=filmOpeningScore[clip-fmvClips];
+    musReq(storyScore);
     uiNBtn=0;
     uiBtn(0,0,256,192,KEY_A,0,0,0);
     uiTrans=0;
@@ -2936,8 +2942,7 @@ static void presentStoryCut(void){
     hud();
 }
 static void advanceStoryFilm(void){
-    if(sceneT%FMV_TICKS==0){
-        fmvDecode(sceneClip,sceneT/FMV_TICKS);
+    if(fmvRenderAt(sceneClip,sceneT)){
         queueUiScreens();
         uiCut=1;
         uiFlush();
@@ -3068,7 +3073,8 @@ int main(void){
     { int calGood=sdOk&&hwCalLoad(); if(hwUiScale) tbInit(); if(!calGood) calStart(); }   // a saved calibration is used as it is; otherwise the first thing on a console or emulator is two taps, so the stylus lands where it is touched (START skips)
 #endif
     while(1){
-        scanKeys(); int kd=keysDown(), kh=keysHeld(); tick++; if(inspT>0) inspT--;
+        scanKeys(); int kd=keysDown(), kh=keysHeld();
+        if(!sceneClip){ tick++; if(inspT>0) inspT--; }
         GG_FRAME_BEGIN(frame);
 #ifdef HW_CAL
         if(calOn){ if(gOnTop!=1){ lcdMainOnTop(); gOnTop=1; } calStep(kd,kh); musUpdate(); if(calDirty){ calDirty=0; calDraw((kh&KEY_TOUCH)!=0); } swiWaitForVBlank(); continue; }
@@ -3085,9 +3091,10 @@ int main(void){
         if(zBmp&&(sceneOn||titleOn)) zSet(Z_NORMAL);
         if(sceneClip){
             int skipped=kd&(KEY_A|KEY_START);
-            if(skipped||sceneT==sceneClip->frames*FMV_TICKS){
+            if(skipped||sceneT>=sceneFilmLength){
                 sceneClip=0;
                 sceneT=0;
+                storyScore=musLast=-1; musHold=0;
                 // The first complete dialogue or narration frame replaces
                 // the final cel in the same display refresh.
                 if(!sceneTxt){ sceneOn=0; paused=scenePaused; }
