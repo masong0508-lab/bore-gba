@@ -45,16 +45,44 @@ jobs:
           ./build_rom.sh
           cp godguy.nds ../out/godguy.nds
 
-      # 3. extras: the DSi build, the no-sound crash finder, the no-cache build
-      - name: godguy_dsi.nds, godguy_hw_safe.nds, godguy_hw_nocache.nds
+      # 3. The DS-mode DSi build is an important DraStic fallback, so a
+      # missing one is a *hard failure*, not a green build with no ROM.
+      - name: godguy_dsi.nds and godguy_dsi_mode.nds
+        working-directory: godguy
+        run: |
+          ./build_dsi.sh
+          cp godguy_dsi.nds godguy_dsi_mode.nds ../out/
+
+      # 4. Keep the confirmed diagnostic recovery build available even
+      # if an experimental audio or save-device configuration fails.
+      - name: godguy_hw_safe.nds (no audio, no saving)
+        working-directory: godguy
+        run: |
+          GG_FLAGS=-DGG_SAFE ./build_hw.sh
+          cp godguy_hw.nds ../out/godguy_hw_safe.nds
+
+      # 5. Targeted recovery ROMs: isolate the two startup subsystems
+      # disabled by GG_SAFE; never overwrite the normal published ROM.
+      - name: godguy_hw_audio_only.nds (music, no cartridge saves)
+        working-directory: godguy
+        run: |
+          GG_FLAGS=-DGG_NO_CART_SAVE ./build_hw.sh
+          cp godguy_hw.nds ../out/godguy_hw_audio_only.nds
+
+      - name: godguy_hw_save_only.nds (saves, no audio)
+        working-directory: godguy
+        run: |
+          GG_FLAGS=-DGG_NO_AUDIO ./build_hw.sh
+          cp godguy_hw.nds ../out/godguy_hw_save_only.nds
+
+      - name: godguy_hw_nocache.nds (diagnostic)
         continue-on-error: true
         working-directory: godguy
         run: |
-          ./build_dsi.sh && cp godguy_dsi.nds godguy_dsi_mode.nds ../out/
-          GG_FLAGS=-DGG_SAFE ./build_hw.sh && cp godguy_hw.nds ../out/godguy_hw_safe.nds
-          GG_NOCACHE=" " ./build_hw.sh && cp godguy_hw.nds ../out/godguy_hw_nocache.nds
+          GG_NOCACHE=" " ./build_hw.sh
+          cp godguy_hw.nds ../out/godguy_hw_nocache.nds
 
-      # 4. the Nintendo 3DS homebrew build (libctru): godguy.3dsx
+      # 6. the Nintendo 3DS homebrew build (libctru): godguy.3dsx
       - name: godguy.3dsx  (3DS, libctru)
         continue-on-error: true
         working-directory: godguy
@@ -69,7 +97,7 @@ jobs:
         if: always()
         run: |
           { echo "### GodGuy DS ROMs"; echo '```'; ls -la out 2>&1; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-          test -f out/godguy_hw.nds
+          for rom in godguy_hw.nds godguy_dsi.nds godguy_hw_safe.nds godguy_hw_audio_only.nds godguy_hw_save_only.nds; do test -s "out/$rom" || exit 1; done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -84,7 +112,7 @@ jobs:
         with:
           tag_name: godguy-latest
           name: GodGuy DS (latest) - ${{ github.sha }}
-          body: "The newest GodGuy DS build from main, commit ${{ github.sha }}. godguy_hw.nds runs in DraStic and melonDS (no SD saving). godguy.nds is the libnds build with SD saving and three save slots (melonDS, flashcarts). godguy.3dsx is the Nintendo 3DS build (run it from the Homebrew Launcher). godguy_dsi*.nds are the DSi builds, godguy_hw_safe.nds has all sound off (for finding crashes)."
+          body: "New GodGuy DS build from main, commit ${{ github.sha }}. Start with godguy_hw.nds or godguy_dsi.nds (DS-mode). If DraStic fails: godguy_hw_audio_only.nds has music but skips cartridge save initialization (use emulator save states), godguy_hw_save_only.nds has saves but no sound, and godguy_hw_safe.nds has neither. godguy_dsi_mode.nds needs real DSi-mode support (not DraStic). godguy.nds is the experimental libnds/calico build. Green CI verifies builds, NOT emulator startup."
           target_commitish: ${{ github.sha }}
           make_latest: false
           files: |
