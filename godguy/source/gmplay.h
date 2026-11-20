@@ -31,6 +31,22 @@ static int gmHz64[128], gmSin[32], gmInit;
 static int gmSlotA, gmSlotB;
 static unsigned char gmBuf[GM_BUFMAX]; static const unsigned char*gmStr[11];   // the song's streams, unpacked when it starts (the ROM keeps them compressed)
 static int fxCur=-1, fxPos, fxFrames, fxAge, fxNote, fxVol, fxKind, fxSlide, fxPitch8, fxOn, fxNoiseOn;
+// Film-only three-bus sound direction. All music voices and drums move as
+// ONE coherent bed. Dialogue beats and foreground actions gently lower it;
+// effects retain their own headroom. Single integers, no buffers or DSP tax.
+static int gmFilmOn,gmFilmDialogue,gmFilmPan=64;
+static int gmFilmGain=100,gmFilmFxHold;
+static void gmFilmMixSet(int active,int caption,int pan){
+    gmFilmOn=!!active;
+    gmFilmDialogue=gmFilmOn&&!!caption;
+    gmFilmPan=gmFilmOn?(pan<32?32:pan>96?96:pan):64;
+    if(!gmFilmOn)gmFilmFxHold=0;
+}
+static int gmFilmDesired(void){
+    int goal=gmFilmOn?(gmFilmDialogue?76:90):100;
+    if(gmFilmOn&&gmFilmFxHold>0&&goal>65)goal=65;
+    return goal;
+}
 // envelope per voice: attack frames, decay frames, sustain %, release frames
 static const u8 gmEnv[GMV][4]={ {1,10,86,3}, {1,10,80,3}, {1,14,70,2}, {2,10,88,3}, {10,1,100,8}, {10,1,100,8}, {1,6,85,2}, {1,8,45,1}, {1,16,25,1}, {1,10,86,3} };
 static int ldRate, ldVol, ldPan;     // the lead's values of the last frame, which the double plays now
@@ -75,7 +91,8 @@ static void gmDrum(int part,int id){
         pan=id>=7?64:id==3?34:id==4?100:id==2?92:(gmAlt[10]?46:82); slot=2+(gmSlotB^=1); if(gmLyrT>0&&slot==gmLyrSlot) slot=5-slot; }      // (a hat or a crash never takes the channel a lyric is sounding on)
     if(lyr==2&&gmNoClyr) return;
     if(soft) vol=vol*55/100;
-    vol=vol*wm/100*gmMaster/100*(lyr?92:40)/100; vol=vol*gmFadeMul()>>8;
+    vol=vol*wm/100*gmMaster/100*(lyr?92:40)/100;
+    vol=vol*gmFilmGain/100; vol=vol*gmFadeMul()>>8;
     gb_hit(slot,part,idx,vol,pan);
 }
 static void gmNoteOn(int v,int n){
@@ -101,7 +118,8 @@ static void gmVoiceFrame(int v,const GmSong*S){
     int pan=S->pan[v];
     if(v==0) pan+=gmSin[(gmTick>>4)&31]*10>>7; else if(v==4) pan+=gmSin[(gmTick>>5)&31]*8>>7; else if(v==5) pan-=gmSin[(gmTick>>5)&31]*8>>7;
     else if(v==7) pan=gmAlt[v]?26:102; else if(v==8) pan=gmAlt[v]?104:24; else if(v==2) pan=gmAlt[v]?24:104;
-    int vol=S->vol[v]*lev/100*gmMaster/100*56/100; vol=vol*gmFadeMul()>>8; if(gmLyrT>0&&(v<=3||v==7||v==8)) vol=vol*(100-gmLyrDuck*(gmLyrT>12?12:gmLyrT)/12)/100; if(gmCur==GM_WAR){ vol=vol*gmWarMix(v)/100; vol=vol*(92+gmCrowdS/40)/100; }
+    int vol=S->vol[v]*lev/100*gmMaster/100*56/100;
+    vol=vol*gmFilmGain/100; vol=vol*gmFadeMul()>>8; if(gmLyrT>0&&(v<=3||v==7||v==8)) vol=vol*(100-gmLyrDuck*(gmLyrT>12?12:gmLyrT)/12)/100; if(gmCur==GM_WAR){ vol=vol*gmWarMix(v)/100; vol=vol*(92+gmCrowdS/40)/100; }
     if(pan<0) pan=0; if(pan>127) pan=127;
     gb_vset(v,rate,vol,pan);
     if(v==0){ ldRate=rate; ldVol=vol; ldPan=pan; }
@@ -120,6 +138,12 @@ static void gmWarExtras(void){
 static void gmFrame(void){
     gmTick++;
     if(gmPaused) return;
+    // Two gain points per 60 Hz tick: no sudden pumping when subtitles
+    // appear or a hammer lands; settle back after the action.
+    int goal=gmFilmDesired();
+    if(gmFilmGain<goal) gmFilmGain+=(goal-gmFilmGain<2?goal-gmFilmGain:2);
+    else if(gmFilmGain>goal)gmFilmGain-=(gmFilmGain-goal<2?gmFilmGain-goal:2);
+    if(gmFilmFxHold>0)gmFilmFxHold--;
     if(gmLyrT>0) gmLyrT--;
     if(gmCur>=0){ const GmSong*S=&gmSongs[gmCur];
         gmAcc+=S->bpm*4*65536/3600;
@@ -146,5 +170,11 @@ static void gmFrame(void){
         if(fxNote){ if(fxKind<4){ fxPitch8+=fxSlide; gb_ptone(fxPitch8,vol,fxKind); } else { gb_pnoise(1000+fxNote*170,vol); fxNoiseOn=1; } }
         if(++fxAge>=fxFrames) fxAge=0; }
 }
-static void fxPlay(int i){ if(i<0||i>=GM_FX) return; if(fxOn){ gb_poff(); fxOn=0; } if(fxNoiseOn){ gb_pnoff(); fxNoiseOn=0; } fxCur=i; fxPos=0; fxAge=0; }
+static void fxPlay(int i){
+    if(i<0||i>=GM_FX) return;
+    if(gmFilmOn)gmFilmFxHold=36; // music makes room for actual physical sound
+    if(fxOn){gb_poff();fxOn=0;}
+    if(fxNoiseOn){gb_pnoff();fxNoiseOn=0;}
+    fxCur=i;fxPos=0;fxAge=0;
+}
 #endif
