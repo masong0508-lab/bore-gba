@@ -587,8 +587,16 @@ static int filmActionCue(const FilmBeat *beat,int elapsed){
         return FX_SETTLE;
     if(action==F_ACT_WORK&&elapsed==180)
         return FX_STEP;
-    if((action==F_ACT_PASS||action==F_ACT_RECEIVE)&&elapsed==225)
-        return FX_FEED;
+    if((action==F_ACT_PASS||action==F_ACT_RECEIVE)&&elapsed==225){
+        // A hammer should sound like a small clank, never like eating.
+        // Bread/crumbs get a soft feed rustle; the cup makes a clink;
+        // quill/spoon touches are lighter than metalwork.
+        if(beat->prop==F_HAMMER)return FX_STEP;
+        if(beat->prop==F_BREAD||beat->prop==F_CRUMB)return FX_FEED;
+        if(beat->prop==F_QUILL||beat->prop==F_SPOON)return FX_PAINT;
+        if(beat->prop==F_LAMP||beat->prop==F_CROWN)return FX_GIFT;
+        return FX_INSPECT;
+    }
     return -1;
 }
 
