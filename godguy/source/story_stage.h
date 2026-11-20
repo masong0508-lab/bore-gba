@@ -301,10 +301,24 @@ static FilmPoint filmPropCenterForGrip(int prop,int size,FilmPoint hand){
 static int filmLerp(int start,int finish,int step){
     return start+(finish-start)*step/256;
 }
-static void filmGripOverlay(int who,FilmPoint hand,int prop){
-    // An actual thumb/finger over the grip closes the silhouette.
+static int filmHandColor(int who){
     static const u8 skin[F_ACTOR_N]={15,27,18,27,26,21,27,26};
-    int color=fmvSlots[skin[who]];
+    return fmvSlots[skin[who]];
+}
+static void filmArmReach(int who,FilmPoint from,FilmPoint target){
+    // Attach the hand to the object while lifting or handing it over.
+    // A single 2-pixel line costs at most 31 iterations, no new art buffers.
+    int dx=target.x-from.x,dy=target.y-from.y;
+    int adx=dx<0?-dx:dx,ady=dy<0?-dy:dy;
+    int steps=adx>ady?adx:ady;
+    if(!steps)return;
+    if(steps>31)steps=31;
+    int color=filmHandColor(who);
+    for(int i=1;i<=steps;i++)
+        uiRect(from.x+dx*i/steps,from.y+dy*i/steps,2,2,color);
+}
+static void filmGripOverlay(int who,FilmPoint hand,int prop){
+    int color=filmHandColor(who);
     if(prop==F_HAMMER||prop==F_QUILL||prop==F_SPOON)
         uiRect(hand.x-1,hand.y,3,2,color);
     else
@@ -356,14 +370,16 @@ static void filmDrawPropAction(const FilmBeat *beat,int elapsed,int leadPose,int
         int lift=filmEase(elapsed>50?elapsed-50:0,145);
         grip.x=filmLerp(restGrip.x,leadHand.x,lift);
         grip.y=filmLerp(restGrip.y,leadHand.y,lift);
-        holding=lift>150;
-        thumb=holding;
+        // The actor reaches down BEFORE the object starts lifting.
+        holding=1;
+        thumb=elapsed>=40;
     }else if(action==F_ACT_PUT){
         filmSurface(beat->place,ground.x,ground.y);
         int down=filmEase(elapsed>55?elapsed-55:0,170);
         grip.x=filmLerp(leadHand.x,restGrip.x,down);
         grip.y=filmLerp(leadHand.y,restGrip.y,down);
-        holding=down<165;
+        // Release only when the item actually touches the sill/ground.
+        holding=down<248;
         thumb=holding;
     }else if(action==F_ACT_PASS&&paired&&beat->other!=F_WISP){
         FilmPoint otherHand=filmHandPoint(beat->other,otherPose,b.otherX,
@@ -373,6 +389,8 @@ static void filmDrawPropAction(const FilmBeat *beat,int elapsed,int leadPose,int
         grip.y=filmLerp(leadHand.y,otherHand.y,handoff);
         if(handoff>190){holding=0;thumb=0;}
         FilmPoint center=filmPropCenterForGrip(prop,size,grip);
+        filmArmReach(beat->lead,leadHand,grip);
+        if(handoff>90)filmArmReach(beat->other,otherHand,grip);
         filmDrawProp(prop,center.x,center.y,size);
         if(thumb)filmGripOverlay(beat->lead,grip,prop);
         if(!holding)filmGripOverlay(beat->other,grip,prop);
@@ -382,6 +400,8 @@ static void filmDrawPropAction(const FilmBeat *beat,int elapsed,int leadPose,int
         if(elapsed>70&&elapsed<250) grip.y+=((elapsed/42)&1)*2;
     }
     FilmPoint center=filmPropCenterForGrip(prop,size,grip);
+    if(thumb&&(action==F_ACT_TAKE||action==F_ACT_PUT))
+        filmArmReach(beat->lead,leadHand,grip);
     filmDrawProp(prop,center.x,center.y,size);
     if(thumb)filmGripOverlay(beat->lead,grip,prop);
 }
