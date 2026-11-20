@@ -65,6 +65,9 @@ static int autoSaveDue(void){ return autoSaveOn&&sdOk&&year>0&&year!=savedYear&&
 static int fxQ=-1, musQ=-1, storyScore=-1;       // requests for the sound code (DS main loop plays them)
 static void fxReq(int id){ fxQ=id; }
 static void musReq(int id){ musQ=id; }
+// Defined by gmplay.h after the story renderer; declarations keep the
+// film's visual and sound timelines in the same 60 Hz clock domain.
+static void gmFilmMixSet(int active,int caption,int pan);
 static void giveTool(Cr*c,int armor); static int gearAtk(const Cr*c); static int armDef(const Cr*c); static void unlockTiers(void);
 static u32 rs=12345;
 u32 rnd(void){ rs^=rs<<13; rs^=rs>>17; rs^=rs<<5; return rs; }
@@ -2159,9 +2162,19 @@ static void gb_hit(int slot,int part,int idx,int vol,int pan){ if(ghId[slot]>=0&
 #endif
     ghId[slot]=soundPlaySample(D->d,SoundFormat_8Bit,D->n,D->rate,(u8)vol,(u8)pan,false,0); ghEnd[slot]=gmTick+(int)((unsigned)D->n*60u/(D->rate?D->rate:1))+2; }
 static int midi8Hz(int m8){ int m=m8>>3; if(m<0) m=0; if(m>126) m=126; int a=gmHz64[m], b=gmHz64[m+1]; return (a+(b-a)*(m8&7)/8)/64; }
-static void gb_ptone(int midi8,int vol,int duty){ (void)duty; if(gpId<0) return; int hz=midi8Hz(midi8); if(hz<20) hz=20; if(vol>127) vol=127; if(vol<0) vol=0; soundSetFreq(gpId,(u16)hz); soundSetVolume(gpId,(u8)vol); }   // (one reserved PSG voice, 50% pulse: the 16 channels are all spoken for)
+static void gb_ptone(int midi8,int vol,int duty){ (void)duty; if(gpId<0) return; int hz=midi8Hz(midi8); if(hz<20) hz=20; if(vol>127) vol=127; if(vol<0) vol=0; soundSetFreq(gpId,(u16)hz); soundSetVolume(gpId,(u8)vol);
+#ifdef __3DS__
+    // Keep the actor's on-screen sound with that actor, not pinned to
+    // the centre of the listener's stereo field.
+    soundSetPan(gpId,(u8)gmFilmPan);
+#endif
+}   // (one reserved PSG voice, 50% pulse: the 16 channels are all spoken for)
 static void gb_poff(void){ if(gpId>=0) soundSetVolume(gpId,0); }
-static void gb_pnoise(int freq,int vol){ if(gnId<0) return; if(vol>127) vol=127; if(vol<0) vol=0; if(freq>60000) freq=60000; soundSetFreq(gnId,(u16)freq); soundSetVolume(gnId,(u8)vol); }
+static void gb_pnoise(int freq,int vol){ if(gnId<0) return; if(vol>127) vol=127; if(vol<0) vol=0; if(freq>60000) freq=60000; soundSetFreq(gnId,(u16)freq); soundSetVolume(gnId,(u8)vol);
+#ifdef __3DS__
+    soundSetPan(gnId,(u8)gmFilmPan);
+#endif
+}
 static void gb_pnoff(void){ if(gnId>=0) soundSetVolume(gnId,0); }
 // ---- the music director: what is happening in the world picks the track (with a 30 second hold so it never flips about); jingles play once and hand back
 static int musHold, jukeOn, fxCool;
@@ -2241,7 +2254,11 @@ static void musUpdate(void){
 #endif
     if(fxCool>0) fxCool--; if(fxQ>=0){ if(fxQ!=FX_PAINT||fxCool==0){ fxPlay(fxQ); if(fxQ==FX_PAINT) fxCool=10; } fxQ=-1; }
     if(musHold>0) musHold--;
-    if(musQ>=0){ gmPlay(musQ); musHold=1800; musQ=-1; musLast=-1; return; }
+    if(musQ>=0){ gmPlay(musQ);
+        // Fade the score in across the film's establishing shot rather
+        // than slamming a new mastered track over the last scene.
+        if(gmFilmOn){gmInN=gmInT=45;}
+        musHold=1800; musQ=-1; musLast=-1; return; }
     if(jukeOn||storyScore>=0) return;
     if((tick&31)==0){ static const short ht[5]={8,40,120,300,700}; int h=warHeat, c=0;      // the crowd: battle heat -> 0..400 (1/100 levels): a skirmish is level 1, a few dozen fighters level 4
         if(h>=ht[4]) c=400; else if(h>=ht[0]){ int k=0; while(h>=ht[k+1]) k++; c=k*100+(h-ht[k])*100/(ht[k+1]-ht[k]); }
