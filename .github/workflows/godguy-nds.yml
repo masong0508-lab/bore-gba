@@ -155,6 +155,14 @@ jobs:
           gcc -O2 -DNDSSHIM -Icompat -Isource -w -include unistd.h pc_lawmenu.c -lm -o /tmp/godguy-lawmenu
           /tmp/godguy-lawmenu
 
+      # SDK-free 3DS perspective regression: exercises real scene geometry
+      # before the complete cinematic playback and ROM packaging checks.
+      - name: Verify 3DS world-space film geometry and animated sets
+        working-directory: godguy
+        run: |
+          gcc -O2 -std=c11 -D__3DS__ -Wall -Wextra -Icompat -Isource pc_world3d.c -o /tmp/godguy-world3d
+          /tmp/godguy-world3d
+
       - name: Verify chapter-film playback and sound timing
         working-directory: godguy
         run: |
