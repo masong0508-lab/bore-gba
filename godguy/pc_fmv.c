@@ -111,14 +111,15 @@ static void checkPhysicalStoryContinuity(void){
     for(int i=0;i<opening->count;i++)
         check(opening->beats[i].place==(i<2?F_ORBIT:i<7?F_SHORE:F_VILLAGE),
               "the first-light story jumped back to an earlier location");
+    // The baked first-rain film ends on the porch. The new edit cannot
+    // jump backward outside before Mira takes and puts the same cup down.
     for(int i=0;i<rain->count;i++)
-        check(rain->beats[i].place==(i<3?F_STORM:i<7?F_PORCH:F_VILLAGE),
-              "Mira teleported between storm and shelter");
+        check(rain->beats[i].place==(i<7?F_PORCH:F_VILLAGE),
+              "rain edit jumped away from the baked porch scene");
     for(int i=0;i<roof->count;i++)
         check(roof->beats[i].place==(i<7?F_VILLAGE:F_PORCH),
               "construction jumped into a different building");
-    check(rain->beats[0].action==F_ACT_TAKE&&
-          rain->beats[4].action==F_ACT_TAKE&&
+    check(rain->beats[3].action==F_ACT_TAKE&&
           rain->beats[5].action==F_ACT_PUT&&
           roof->beats[1].action==F_ACT_TAKE&&
           roof->beats[2].action==F_ACT_WORK,
@@ -163,6 +164,10 @@ static void checkPhysicalStoryContinuity(void){
     }
     check(finaleBeats[19].action==F_ACT_RECEIVE,
           "the student mistakenly handed the hammer away from the teacher");
+    check(rain->beats[0].place==F_PORCH&&
+          rain->beats[2].camera==F_INSERT&&
+          rain->beats[3].place==rain->beats[5].place,
+          "rain prologue-to-directed cup blocking lost continuity");
     FilmPoint porch=filmSurfacePoint(firstRainBeats+5,90);
     FilmPoint porchReverse=filmSurfacePoint(firstRainBeats+4,170);
     check(porch.x==porchReverse.x&&porch.y==porchReverse.y,
