@@ -613,6 +613,12 @@ static int filmActingPose(const FilmBeat *beat,int elapsed,int lead,int action){
 }
 #endif
 
+#ifdef __3DS__
+// 3DS-exclusive world-space geometry and projected actor routes. The DS
+// binaries keep their original plate-and-cel film director unchanged.
+#include "story_world3d.h"
+#endif
+
 // Sparse effects are synced to on-screen hand contact, not to unrelated
 // cuts. Use times divisible by both 3 (3DS) and 5 (DS) frame ticks.
 static int filmActionCue(const FilmBeat *beat,int elapsed){
@@ -653,6 +659,9 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
     int total=beat->seconds*FILM_SECOND;
     int move=filmEase(elapsed,total);
     FilmBlocking block=filmBlocking(beat,elapsed);
+#ifdef __3DS__
+    ggFilmWorldBlocking(beat,elapsed,move,&block);
+#endif
     int captionOn=beat->line&&elapsed>=100&&elapsed<total-20;
     int position=beat->lead<F_ACTOR_N?
                  32+block.leadX*64/256:64;
@@ -660,6 +669,11 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
     int cue=filmActionCue(beat,elapsed);
     if(cue>=0)fxReq(cue);
     filmDrawSet(beat,move);
+#ifdef __3DS__
+    // The geometry is projected through the same dollying camera as actors.
+    // Draw before cast so roofs, water and room floors form a stable world.
+    ggFilmWorldDraw(beat,elapsed,move);
+#endif
     filmWorldContinuity(clip,beat,elapsed);
     filmAtmosphere(beat,elapsed);
 #ifdef __3DS__
