@@ -402,7 +402,7 @@ static const FilmBeat finaleExtra[]={
     L(HALL,NEAR,SERIN,HOLLOW,NO_PROP,"THEN HELP THEM ANYWAY. WITHOUT A CROWN."),
     L(HEARTH,NEAR,DAVE,HOLLOW,BREAD,"SOMEONE SAVED YOU A PLACE."),
     L(HEARTH,NEAR,HOLLOW,DAVE,NO_PROP,"I DID NOT KNOW HOW TO ASK FOR ONE."),
-    L(ORBIT,WIDE,OFFSCREEN,OFFSCREEN,NO_PROP,0),
+    L(PORCH,WIDE,OFFSCREEN,OFFSCREEN,CUP,0),
 };
 static const FilmReel filmExtraReels[]={
     REEL(firstLightExtra), REEL(folkExtra), REEL(roofExtra), REEL(fordExtra),
@@ -410,6 +410,9 @@ static const FilmReel filmExtraReels[]={
     REEL(hearthExtra), REEL(siegeExtra), REEL(cityExtra), REEL(libraryExtra),
     REEL(couchExtra), REEL(godhoodExtra), REEL(finaleExtra),
 };
+// Long-form 3DS-only campaign and six unlockable story films. The DS/DSi
+// firmware never compiles these extra voices or their authored scene data.
+#include "story_feature_3ds.h"
 #endif
 #undef REEL
 #undef A
