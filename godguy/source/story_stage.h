@@ -83,16 +83,22 @@ static void filmDrawCel(const u8 *image,int sw,int sh,int center,int feet,int he
     // Actors and props are displayed close to their native cel resolution.
     int width=height*sw/sh, left=center-width/2, top=feet-height;
     if(width<=0||height<=0) return;
-    for(int y=0;y<height;y++){
+    // One 16.16 step calculation per axis; no divides in the inner
+    // pixel loop (important for DS ARM9 frame and music timing).
+    int dx=(sw<<16)/width, dy=(sh<<16)/height, sy=dy/2;
+    for(int y=0;y<height;y++,sy+=dy){
         int dstY=top+y;
         if(dstY<FILM_TOP||dstY>=FILM_BOTTOM) continue;
-        int sourceY=(2*y+1)*sh/(2*height);
+        int sourceY=sy>>16;
+        if(sourceY>=sh) sourceY=sh-1;
         u8 *out=uiBuf+dstY*256;
         const u8 *source=image+sourceY*sw;
-        for(int x=0;x<width;x++){
+        int sx=dx/2;
+        for(int x=0;x<width;x++,sx+=dx){
             int target=left+x;
             if((unsigned)target>=256) continue;
-            int sourceX=(2*x+1)*sw/(2*width);
+            int sourceX=sx>>16;
+            if(sourceX>=sw) sourceX=sw-1;
             int color=source[flip?sw-1-sourceX:sourceX];
             if(color!=255) out[target]=fmvSlots[color];
         }
