@@ -1,9 +1,9 @@
 // Export actual GodGuy 3DS film frames. Four deliberate story beats per
 // chapter show the setup, response, physical action, and consequence -- not
 // an arbitrary montage of zoomed-in props. Original game art and rendering.
-// Video-only RGB24; the playable game retains its soundtrack and effects.
-// Build: gcc -O2 -DNDSSHIM -D__3DS__ -Icompat -Isource -w
-//        -include unistd.h pc_fmv_reel.c -lm -o /tmp/gg-reel
+// RGB24 plus game-generated stereo PCM: this reel includes the real 3DS
+// soundtrack and synchronized on-set effects, not silent mockup footage.
+// Build with -DSHIM_HQ -DGG_HQVOX to use the 3DS audio mixer.
 #define UI_NOTRANS 1
 #define main ds_main
 #include "source/main.c"
@@ -11,14 +11,19 @@
 #include <stdio.h>
 #include <stdint.h>
 
-enum { REEL_BAKED_FRAMES=24, REEL_TAKE_FRAMES=24, REEL_TAKES=4, REEL_CHAPTERS=3 };
+// Longer acting holds at the real 3DS 20fps cadence. Four full sequences
+// per chapter are represented without the jumpy 12fps sampling of old reels.
+enum { REEL_FPS=20, REEL_BAKED_FRAMES=40, REEL_TAKE_FRAMES=90,
+       REEL_TAKES=4, REEL_CHAPTERS=3, REEL_AUDIO_TICKS=3 };
 static const u8 reelShots[REEL_CHAPTERS][REEL_TAKES]={
     {0,3,4,7}, // planet, Wisp's seed, planting, first village light
     {0,1,2,5}, // Mira waits, Wisp answers, rain fills cup, handoff
     {0,2,3,7}, // wall is built, goat intervenes, hammer, home light
 };
 static unsigned char reelRgb[256*192*3];
-static int reelFrameCount;
+static int reelFrameCount,reelAudioSamples;
+static FILE *reelAudio;
+static short reelPcm[700*2];
 
 void shimInput(int frame,int*held,int*tx,int*ty){
     (void)frame;*held=*tx=*ty=0;
@@ -35,21 +40,58 @@ static int reelWrite(FILE *f){
         reelRgb[i*3+2]=(unsigned char)((((c>>10)&31u)*255u+15u)/31u);
     }
     if(fwrite(reelRgb,1,sizeof reelRgb,f)!=sizeof reelRgb) return 0;
+    // Re-pace the real sequencer continuously at 60 Hz across the edited
+    // 20fps preview. The images are selected from long scenes, but the
+    // soundtrack never stutters or restarts at a montage cut.
+    if(musQ>=0){
+        gmPlay(musQ);
+        gmInN=gmInT=45;
+        musQ=-1;
+    }
+    if(fxQ>=0){fxPlay(fxQ);fxQ=-1;}
+    gmFilmMixSet(1,gmFilmDialogue,gmFilmPan);
+    for(int tick=0;tick<REEL_AUDIO_TICKS;tick++){
+        gmFrame();
+        int target=(int)((long long)SHIM_SR*(reelFrameCount*REEL_AUDIO_TICKS+tick+1)/60);
+        int count=target-reelAudioSamples;
+        if(count<0||count>700)return 0;
+        shimMix(reelPcm,count);
+        if(fwrite(reelPcm,4,(size_t)count,reelAudio)!=(size_t)count)return 0;
+        reelAudioSamples=target;
+    }
     reelFrameCount++;
     return 1;
 }
 
 int main(int argc,char **argv){
-    if(argc!=2){fputs("usage: reel <out.rgb>\n",stderr);return 2;}
+    if(argc!=3){fputs("usage: reel <out.rgb> <out-stereo.pcm>\n",stderr);return 2;}
     FILE *out=fopen(argv[1],"wb");
     if(!out){perror(argv[1]);return 2;}
+    reelAudio=fopen(argv[2],"wb");
+    if(!reelAudio){perror(argv[2]);fclose(out);return 2;}
     uiPalette();
     fmvSetPalette();
+    soundEnable();
+    // The game initializes these reserved 3DS effect voices in its main
+    // loop. This stand-alone reel renderer must do the same or the movie
+    // score plays but its actions are silently missing.
+    gpId=soundPlayPSG(DutyCycle_50,440,0,64);
+    gnId=soundPlayNoise(8000,0,64);
+    if(gpId<0||gnId<0){
+        fputs("REEL FAIL: cannot reserve cinematic sound-effect channels\n",stderr);
+        fclose(out);fclose(reelAudio);return 2;
+    }
+    gmTables();
+    gmFilmMixSet(1,0,64);
     int film;
     for(film=0;film<REEL_CHAPTERS;film++){
         const FmvClip *clip=&fmvClips[film];
         int prev=-1,bakedCount=0;
         storyScore=filmOpeningScore[film];
+        gmPlay(storyScore);
+        gmInN=gmInT=45;
+        fxQ=musQ=-1;
+        gmFilmMixSet(1,0,64);
         // Sequentially decode every compressed frame even when not sampled.
         for(int frame=0;frame<clip->frames;frame++){
             if(!fmvRenderAt(clip,frame*FMV_TICKS))goto invalid;
@@ -86,14 +128,21 @@ int main(int argc,char **argv){
         printf("REEL %s: %d intro + %d directed-action frames\n",
                clip->title,bakedCount,stagedCount);
     }
-    if(fclose(out)){perror("close");return 2;}
+    if(fclose(out)||fclose(reelAudio)){perror("close");return 2;}
     if(reelFrameCount!=REEL_CHAPTERS*(REEL_BAKED_FRAMES+REEL_TAKES*REEL_TAKE_FRAMES)){
         fputs("REEL FAIL: wrong frame count\n",stderr);return 1;
     }
-    printf("REEL OK: %d authentic 3DS film frames, 30s at 12 fps (video only)\n",reelFrameCount);
+    int seconds=reelFrameCount/REEL_FPS;
+    if(reelAudioSamples!=SHIM_SR*seconds||seconds!=60){
+        fprintf(stderr,"REEL FAIL: audio ended at sample %d, expected %d\n",
+                reelAudioSamples,SHIM_SR*60);return 1;
+    }
+    printf("REEL OK: %d authentic 3DS frames, %ds at %d fps; %d stereo score/effects samples\n",
+           reelFrameCount,seconds,REEL_FPS,reelAudioSamples);
     return 0;
 invalid:
     fclose(out);
+    fclose(reelAudio);
     fprintf(stderr,"REEL FAIL: extraction failed in film %d at frame %d\n",film,reelFrameCount);
     return 1;
 }

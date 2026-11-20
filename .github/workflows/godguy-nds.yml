@@ -29,6 +29,15 @@ jobs:
           dkp-pacman -S --needed --noconfirm nds-dev ndstool || true
           ls "$DEVKITPRO/tools/bin/ndstool" "$DEVKITPRO/calico" 2>&1 | head -5
 
+      # 3DS only: twelve expressive native-detail cels per cast member.
+      # DS/DSi retain the existing four-cel art and RAM footprint.
+      - name: Generate 3DS high-detail animated character cels
+        working-directory: godguy
+        run: |
+          /usr/bin/python3 -c "from PIL import Image" 2>/dev/null || { apt-get update && apt-get install -y python3-pil; }
+          /usr/bin/python3 tools/make_story_hq.py
+          test -s source/story_film_hq_data.h
+
       # 1. the main one: no libnds, no calico. Runs in DraStic and melonDS. No SD saving (it saves to the cartridge chip, or use DraStic save states).
       - name: godguy_hw.nds  (DraStic / melonDS / hardware, no libnds)
         working-directory: godguy
@@ -160,17 +169,20 @@ jobs:
         working-directory: godguy
         run: |
           command -v ffmpeg >/dev/null || { apt-get update && apt-get install -y ffmpeg; }
-          gcc -O2 -DNDSSHIM -D__3DS__ -Icompat -Isource -w -include unistd.h pc_fmv_reel.c -lm -o /tmp/godguy-fmv-reel
-          /tmp/godguy-fmv-reel ../out/first_three_chapters.rgb
-          ffmpeg -hide_banner -loglevel error -y -f rawvideo -pixel_format rgb24 -video_size 256x192 -framerate 12 \
-            -i ../out/first_three_chapters.rgb -an -vf 'scale=768:576:flags=neighbor' \
-            -c:v libx264 -crf 18 -preset veryfast -pix_fmt yuv420p -movflags +faststart \
-            ../out/godguy_first_three_chapters.mp4
-          ffmpeg -hide_banner -loglevel error -y -f rawvideo -pixel_format rgb24 -video_size 256x192 -framerate 12 \
-            -i ../out/first_three_chapters.rgb -an -vf 'fps=8,scale=384:288:flags=neighbor' \
+          gcc -O2 -DNDSSHIM -D__3DS__ -DSHIM_HQ -DGG_HQVOX -Icompat -Isource -w -include unistd.h pc_fmv_reel.c -lm -o /tmp/godguy-fmv-reel
+          /tmp/godguy-fmv-reel ../out/first_three_chapters.rgb ../out/first_three_chapters.pcm
+          ffmpeg -hide_banner -loglevel error -y -f rawvideo -pixel_format rgb24 -video_size 256x192 -framerate 20 \
+            -i ../out/first_three_chapters.rgb -f s16le -ar 32768 -ac 2 -i ../out/first_three_chapters.pcm \
+            -vf 'scale=768:576:flags=neighbor' \
+            -af 'afade=t=in:st=0:d=0.35,afade=t=out:st=59.3:d=0.7' \
+            -c:v libx264 -crf 18 -preset veryfast -pix_fmt yuv420p -c:a aac -b:a 160k \
+            -movflags +faststart -shortest ../out/godguy_first_three_chapters.mp4
+          ffmpeg -hide_banner -loglevel error -y -f rawvideo -pixel_format rgb24 -video_size 256x192 -framerate 20 \
+            -i ../out/first_three_chapters.rgb -an -vf 'fps=10,scale=384:288:flags=neighbor' \
             -loop 0 ../out/godguy_first_three_chapters.gif
-          rm ../out/first_three_chapters.rgb
+          rm ../out/first_three_chapters.rgb ../out/first_three_chapters.pcm
           test -s ../out/godguy_first_three_chapters.mp4
+          ffprobe -v error -select_streams a:0 -show_entries stream=codec_name -of csv=p=0 ../out/godguy_first_three_chapters.mp4 | grep -q aac
           test -s ../out/godguy_first_three_chapters.gif
 
       - name: Profile gameplay frame and simulation-tick budgets

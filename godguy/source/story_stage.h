@@ -1,6 +1,9 @@
 // The chapter reels dress shared illustrated sets with cels, camera moves and
 // timed subtitles. Playback draws into the same back page as the baked films.
 #include "story_reels.h"
+#ifdef __3DS__
+#include "story_film_hq_data.h"
+#endif
 
 enum { FILM_TOP=24, FILM_BOTTOM=168, FILM_H=144, FILM_SECOND=60 };
 #ifdef __3DS__
@@ -15,6 +18,8 @@ _Static_assert(sizeof filmProps/sizeof *filmProps==F_PROP_N,"One cel per prop");
 _Static_assert(sizeof filmCasts/sizeof *filmCasts==F_ACTOR_N*FILM_CEL_N,"All cast cels are present");
 #ifdef __3DS__
 _Static_assert(sizeof filmExtraReels/sizeof *filmExtraReels==sizeof filmReels/sizeof *filmReels,"Every film has a 3DS edit");
+_Static_assert(sizeof filmHqCasts/sizeof *filmHqCasts==F_ACTOR_N*FILM_HQ_N,
+               "Every 3DS actor has twelve detailed acting keys");
 #endif
 
 static const u8 filmOpeningScore[]={
@@ -106,9 +111,20 @@ static void filmDrawCel(const u8 *image,int sw,int sh,int center,int feet,int he
 }
 static void filmDrawActor(int who,int pose,int x,int feet,int h,int flip){
     if(who>=F_ACTOR_N) return;
+#ifdef __3DS__
+    // 40x48 native authored detail: do NOT magnify the 28x34 DS art.
+    // Scratch memory remains on the call stack and is shared by the two
+    // sequential actors, not allocated or cached per frame.
+    u8 pixels[FILM_HQ_W*FILM_HQ_H];
+    if(pose<0||pose>=FILM_HQ_N) pose=0;
+    ggUnpack(filmHqCasts[who*FILM_HQ_N+pose],pixels,sizeof pixels);
+    filmDrawCel(pixels,FILM_HQ_W,FILM_HQ_H,x,feet,h,flip);
+#else
     u8 pixels[FILM_CEL_W*FILM_CEL_H];
+    if(pose<0||pose>=FILM_CEL_N) pose=0;
     ggUnpack(filmCasts[who*FILM_CEL_N+pose],pixels,sizeof pixels);
     filmDrawCel(pixels,FILM_CEL_W,FILM_CEL_H,x,feet,h,flip);
+#endif
 }
 static void filmDrawProp(int prop,int x,int feet,int height){
     if(prop>=F_PROP_N) return;
@@ -240,12 +256,20 @@ static const FilmBeat *filmBeatAt(const FmvClip *clip,int *elapsed){
 // the actor" point. The same cel geometry is shared by DS and 3DS.
 typedef struct { int x,y; } FilmPoint;
 static FilmPoint filmHandPoint(int who,int pose,int cx,int feet,int height,int flip){
-    int width=height*FILM_CEL_W/FILM_CEL_H;
-    // Source art has an extended right arm in cel 3. Its visible hand is
-    // around (24,18) of the 28x34 cel; idle hand around (19,24).
-    int sx=pose==3?24:19, sy=pose==3?18:24;
-    int x=cx-width/2+(flip?FILM_CEL_W-1-sx:sx)*width/FILM_CEL_W;
-    int y=feet-height+sy*height/FILM_CEL_H;
+#ifdef __3DS__
+    // High-detail actor() draws a real 40x48 hand for each acting pose.
+    static const u8 hx[FILM_HQ_N]={26,25,27,35,30,30,26,30,28,35,30,34};
+    static const u8 hy[FILM_HQ_N]={34,34,34,25,27,27,34,23,15,37,32,29};
+    if(pose<0||pose>=FILM_HQ_N) pose=0;
+    int sw=FILM_HQ_W, sh=FILM_HQ_H;
+    int sx=hx[pose],sy=hy[pose];
+#else
+    int sw=FILM_CEL_W,sh=FILM_CEL_H;
+    int sx=pose==3?24:19,sy=pose==3?18:24;
+#endif
+    int width=height*sw/sh;
+    int x=cx-width/2+(flip?sw-1-sx:sx)*width/sw;
+    int y=feet-height+sy*height/sh;
     if(who==F_WISP){
         // The spark has no human fingers. A seed/leaf must stay grounded.
         x=cx+(flip?-8:8);
@@ -480,6 +504,102 @@ static void filmWorldContinuity(const FmvClip *clip,const FilmBeat *beat,int ela
     }
 }
 
+#ifdef __3DS__
+// Physically anchored shadows, reflections and practical light at 20 fps.
+// Never zoom a plate, create floating effects, or allocate a second surface.
+static void filmStageLight(const FilmBeat *beat,int t){
+    int p=beat->place, pulse=(t/21)&1;
+    if(p==F_FORGE||p==F_HEARTH){
+        int x=p==F_FORGE?192:204,y=p==F_FORGE?140:137;
+        uiRect(x-6,y+3,16,1,fmvSlots[pulse?8:9]);
+        uiRect(x-3,y-4+(t/18&1),5,2,fmvSlots[9]);
+        uiPx(x,y-6,fmvSlots[10]);
+    }else if(p==F_SHORE||p==F_FORD||p==F_VILLAGE){
+        for(int i=0;i<5;i++){
+            int x=24+i*47,y=156+i%3*2;
+            int shift=((t/15+i)&1);
+            uiRect(x+shift,y,9,1,fmvSlots[i%2?13:14]);
+        }
+    }else if(p==F_PORCH){
+        // Window highlights are fixed to the wall. Rain falls *outside*.
+        for(int i=0;i<6;i++){
+            int x=216+i*4, y=60+((i*11+t/4)%30);
+            uiRect(x,y,1,3,fmvSlots[22]);
+        }
+    }else if(p==F_GATE||p==F_RUINS){
+        for(int i=0;i<3;i++){
+            int x=17+i*67,y=146+i%2*5;
+            uiRect(x,y,4+(pulse&1),1,fmvSlots[21]);
+        }
+    }
+}
+static void filmCastContact(int who,int x,int feet,int height){
+    if(who>=F_ACTOR_N)return;
+    if(who==F_WISP){
+        // The spark is genuinely hovering; its light glances off the floor.
+        uiRect(x-5,155,10,1,fmvSlots[13]);
+        return;
+    }
+    uiRect(x-height/3,feet+1,height*2/3,2,fmvSlots[20]);
+    uiRect(x-height/5,feet+3,height*2/5,1,fmvSlots[21]);
+}
+static int filmActingPose(const FilmBeat *beat,int elapsed,int lead,int action){
+    int paired=beat->lead<F_ACTOR_N&&beat->other<F_ACTOR_N;
+    int spoken=beat->line&&elapsed>=108&&elapsed<beat->seconds*FILM_SECOND-28;
+    if(!lead){
+        // The second performer *listens*. A held look and brief nod give
+        // dialogue a reaction shot rather than synchronized mouth flapping.
+        if((action==F_ACT_PASS||action==F_ACT_RECEIVE)&&paired&&
+           elapsed>=75&&elapsed<=290)return elapsed<165?9:3;
+        if(elapsed>=280&&elapsed<320&&beat->line)return 10;
+        return (elapsed+(beat->other*13))%167<10?6:0;
+    }
+    if(beat->camera==F_TRACK&&elapsed<140&&action!=F_ACT_WORK)
+        return (elapsed/18)&1?1:2;
+    if(action==F_ACT_TAKE)
+        return elapsed<45?9:elapsed<145?3:elapsed<280?8:0;
+    if(action==F_ACT_PUT)
+        return elapsed<55?8:elapsed<265?3:elapsed<310?9:0;
+    if(action==F_ACT_PASS||action==F_ACT_RECEIVE)
+        return elapsed<65?9:elapsed<280?3:elapsed<328?7:0;
+    if(action==F_ACT_WORK)
+        return elapsed<60?9:elapsed<255?((elapsed/42)&1?11:3):elapsed<298?8:0;
+    if(action==F_ACT_APPROACH)
+        return elapsed<95?2:elapsed<205?3:elapsed<260?7:0;
+    if(spoken){
+        // Two authored mouth cels and an actual reaction cel. Deliberate
+        // 5Hz cadence stays legible at 20fps without twitching.
+        if(elapsed>=234&&elapsed<252)return 7;
+        return (elapsed/12)&1?4:5;
+    }
+    return (elapsed+beat->lead*17)%193<9?6:0;
+}
+#endif
+
+// Sparse effects are synced to on-screen hand contact, not to unrelated
+// cuts. Use times divisible by both 3 (3DS) and 5 (DS) frame ticks.
+static int filmActionCue(const FilmBeat *beat,int elapsed){
+    if(elapsed==0) return beat->sound?beat->sound:-1;
+    int action=filmActionOf(beat);
+    if(action==F_ACT_TAKE&&elapsed==195)
+        return beat->prop==F_CUP?FX_INSPECT:-1;
+    if(action==F_ACT_PUT&&elapsed==225)
+        return FX_SETTLE;
+    if(action==F_ACT_WORK&&elapsed==180)
+        return FX_STEP;
+    if((action==F_ACT_PASS||action==F_ACT_RECEIVE)&&elapsed==225){
+        // A hammer should sound like a small clank, never like eating.
+        // Bread/crumbs get a soft feed rustle; the cup makes a clink;
+        // quill/spoon touches are lighter than metalwork.
+        if(beat->prop==F_HAMMER)return FX_STEP;
+        if(beat->prop==F_BREAD||beat->prop==F_CRUMB)return FX_FEED;
+        if(beat->prop==F_QUILL||beat->prop==F_SPOON)return FX_PAINT;
+        if(beat->prop==F_LAMP||beat->prop==F_CROWN)return FX_GIFT;
+        return FX_INSPECT;
+    }
+    return -1;
+}
+
 static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
     static u8 establishing;
     if(!elapsed){
@@ -489,7 +609,6 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
         ggUnpack(filmSets[beat->place],uiNew,FMV_W*FMV_H);
 #endif
         if(storyScore>=0) filmScoreTurn(beat);
-        if(beat->sound) fxReq(beat->sound);
         filmBars(clip->title);
         const FilmBeat *previous=filmPreviousBeat(clip,beat);
         establishing=previous&&previous->place!=beat->place;
@@ -497,9 +616,18 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
     int total=beat->seconds*FILM_SECOND;
     int move=filmEase(elapsed,total);
     FilmBlocking block=filmBlocking(beat,elapsed);
+    int captionOn=beat->line&&elapsed>=100&&elapsed<total-20;
+    int position=beat->lead<F_ACTOR_N?
+                 32+block.leadX*64/256:64;
+    gmFilmMixSet(1,captionOn,position);
+    int cue=filmActionCue(beat,elapsed);
+    if(cue>=0)fxReq(cue);
     filmDrawSet(beat,move);
     filmWorldContinuity(clip,beat,elapsed);
     filmAtmosphere(beat,elapsed);
+#ifdef __3DS__
+    filmStageLight(beat,elapsed);
+#endif
 
     int paired=beat->lead<F_ACTOR_N&&beat->other<F_ACTOR_N;
     int action=filmActionOf(beat);
@@ -513,9 +641,17 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
         if((action==F_ACT_PASS||action==F_ACT_RECEIVE)&&paired&&
            elapsed>55&&elapsed<310)otherPose=3;
     }else if(beat->line&&elapsed>=130&&elapsed<220)leadPose=3;
+#ifdef __3DS__
+    leadPose=filmActingPose(beat,elapsed,1,action);
+    otherPose=filmActingPose(beat,elapsed,0,action);
+#endif
 
     int showCast=!(establishing&&elapsed<39);
     if(beat->camera!=F_INSERT&&showCast){
+#ifdef __3DS__
+        filmCastContact(beat->other,block.otherX,block.otherFeet,block.otherHeight);
+        filmCastContact(beat->lead,block.leadX,block.leadFeet,block.leadHeight);
+#endif
         filmDrawActor(beat->other,otherPose,block.otherX,block.otherFeet,
                       block.otherHeight,paired&&block.otherX>block.leadX);
         filmDrawActor(beat->lead,leadPose,block.leadX,block.leadFeet,
@@ -523,7 +659,7 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
     }
     if(showCast||beat->camera==F_INSERT)
         filmDrawPropAction(beat,elapsed,leadPose,otherPose,block);
-    filmCaption(beat,elapsed>=100&&elapsed<total-20);
+    filmCaption(beat,captionOn);
 }
 static int fmvRenderAt(const FmvClip *clip,int elapsed){
     int baked=clip->frames*FMV_TICKS;

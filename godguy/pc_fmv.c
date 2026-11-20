@@ -175,6 +175,44 @@ static void checkPhysicalStoryContinuity(void){
     puts("FMV continuity OK: two-way handoffs, hand grips, grounded props and stable locations");
 }
 
+static void checkCinematicActingAndMix(void){
+    // Real sound direction must recover smoothly after speech and effects.
+    gmFilmMixSet(1,1,80);
+    for(int i=0;i<24;i++)gmFrame();
+    check(gmFilmGain<100&&gmFilmGain>=76,
+          "cinematic subtitles failed to duck music gently");
+    int previous=gmFilmGain;
+    gmFilmFxHold=36;
+    for(int i=0;i<8;i++)gmFrame();
+    check(gmFilmGain<previous&&gmFilmGain>=65,
+          "foreground prop effects did not get musical headroom");
+    gmFilmMixSet(0,0,64);
+    for(int i=0;i<50;i++)gmFrame();
+    check(gmFilmGain==100,"music did not recover after leaving the film");
+    check(filmActionCue(roofBeats+2,180)==FX_STEP,
+          "hammer sound missed the actual strike");
+    check(filmActionCue(firstRainBeats+5,225)==FX_SETTLE,
+          "cup setdown had no tactile sound");
+#ifdef __3DS__
+    // Do not accept a renderer that silently substitutes the four tiny DS
+    // poses for the twelve 3DS acting cels.
+    u8 neutral[FILM_HQ_W*FILM_HQ_H],pose[FILM_HQ_W*FILM_HQ_H];
+    for(int who=0;who<F_ACTOR_N;who++){
+        ggUnpack(filmHqCasts[who*FILM_HQ_N],neutral,sizeof neutral);
+        int unique=0;
+        for(int p=1;p<FILM_HQ_N;p++){
+            ggUnpack(filmHqCasts[who*FILM_HQ_N+p],pose,sizeof pose);
+            unique+=memcmp(neutral,pose,sizeof pose)!=0;
+        }
+        check(unique>=6,"a 3DS actor lacks expressive high-detail poses");
+    }
+    check(filmActingPose(roofBeats+2,170,1,F_ACT_WORK)==11||
+          filmActingPose(roofBeats+2,170,1,F_ACT_WORK)==3,
+          "3DS hammer beat lost its work animation");
+#endif
+    puts("FMV cinematic mix and acting OK: smooth ducks, timed props and native-detail 3DS poses");
+}
+
 static void checkDirectedPlayback(void){
     for(unsigned i=0;i<sizeof fmvClips/sizeof *fmvClips;i++){
         const FmvClip *clip=&fmvClips[i];
@@ -194,7 +232,8 @@ static void checkDirectedPlayback(void){
             }
             fxQ=-1;
             check(fmvRenderAt(clip,t),"directed edit dropped a scheduled frame");
-            check(fxQ==(!elapsed&&beat->sound?beat->sound:-1),"directed sound cue played outside its beat");
+            check(fxQ==filmActionCue(beat,elapsed),
+                  "physical sound was not aligned with its actual action frame");
             unsigned hash=pictureHash();
             same=previous==hash?same+1:0;
             // Real films allow quiet holds and reaction beats; reject a
@@ -229,6 +268,7 @@ void shimInput(int frame,int *held,int *tx,int *ty){
             checkFullPlayback();
             checkDirectedBlocking();
             checkPhysicalStoryContinuity();
+            checkCinematicActingAndMix();
             checkDirectedPlayback();
             startWorld(0);
             check(!sceneClip&&!sceneOn,"free play started a cutscene");
