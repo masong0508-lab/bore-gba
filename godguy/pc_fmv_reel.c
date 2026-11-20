@@ -45,7 +45,8 @@ int main(int argc,char **argv){
     if(!out){perror(argv[1]);return 2;}
     uiPalette();
     fmvSetPalette();
-    for(int film=0;film<REEL_CHAPTERS;film++){
+    int film;
+    for(film=0;film<REEL_CHAPTERS;film++){
         const FmvClip *clip=&fmvClips[film];
         int prev=-1, sampleCount=0;
         storyScore=filmOpeningScore[film];
