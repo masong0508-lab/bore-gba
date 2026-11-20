@@ -21,9 +21,12 @@ int main(void){
     CHK(compareAll("war world after 600 ticks")==0,"wvNear equals vilNear everywhere (after 600 ticks)");
     // a crowd of villages in one place: more than WV_K inside one block's reach (the slots are all taken on the war world, so the villages are written straight into vil[])
     memset(vil,0,sizeof vil); int made=0; for(int k=0;k<VIL_N&&k<24;k++){ vil[k].on=1; vil[k].race=(u8)(k%3); vil[k].x=(coord_t)(100+(k%6)*2); vil[k].y=(coord_t)(100+(k/6)*2); vil[k].foe=0; made++; }
+    vilIndexInvalidate();
     int bad=compareAll("crowded block"); int full=fullBlocks(); printf("villages %d, blocks marked full: %d\n",made,full);
     CHK(bad==0,"wvNear equals vilNear in and round a crowded block"); CHK(full>0,"a crowded block is marked full (the fallback is really tested)");
-    for(int v=0;v<VIL_N;v++) vil[v].on=0; compareAll("no villages at all"); CHK(compareAll("no villages")==0,"wvNear equals vilNear with no villages");
+    for(int v=0;v<VIL_N;v++) vil[v].on=0;
+    vilIndexInvalidate();
+    CHK(compareAll("no villages")==0,"wvNear equals vilNear with no villages");
     stage(1001); camera(0); wgBuild();
     // the groups are the same counted either way
     wgBuild(); static WarGrp w1[VIL_N]; static u8 of1[4096]; memcpy(w1,wg,sizeof wg); int nn=nCr<4096?nCr:4096; memcpy(of1,wgOf,nn);

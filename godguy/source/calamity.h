@@ -21,7 +21,7 @@ static int hzFree(int x,int y,const Sp*s){ return x>=0&&y>=0&&x<WW&&y<WH&&!occ[y
 static int hzHurt(int i,int dmg){ return damageCreature(i,dmg,-1); }   // 1 if it lives
 static void hzFling(int i){   // thrown up to six tiles away, onto any free tile it could stand on (if there is none it just stays)
     Cr*c=&cr[i]; for(int k=0;k<8;k++){ int nx=c->x+(int)(rnd()%13)-6, ny=c->y+(int)(rnd()%13)-6; if(!hzFree(nx,ny,&sp[c->sp])) continue;
-        occ[c->y][c->x]=0; cellDel(c->x,c->y,c->sp); c->x=(coord_t)nx; c->y=(coord_t)ny; c->ox=0; c->oy=0; occ[ny][nx]=(occ_t)(i+1); cellAdd(nx,ny,c->sp); return; } }
+        leaveTile(c); c->x=(coord_t)nx; c->y=(coord_t)ny; c->ox=0; c->oy=0; occ[ny][nx]=(occ_t)(i+1); cellAdd(nx,ny,c->sp); return; } }
 static void stormRaze(int x,int y,int chance){ if(!gx.lStorm) razeAt(x,y,chance); }   // tornado, acid and black hole leave homes alone when WORLD > LAWS says so
 // ---------------------------------------------------------------- the plague
 static int infect(int i);
