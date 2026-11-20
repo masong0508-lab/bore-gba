@@ -262,6 +262,11 @@ jobs:
           chmod +x 3ds/build.sh
           ./3ds/build.sh
           test -s godguy.3dsx
+      - name: Verify crisp top/bottom 3DS cinema scaling and UI restore
+        working-directory: godguy
+        run: |
+          gcc -O2 -DNDSSHIM -D__3DS__ -Icompat -Isource -w pc_cinema_display3ds.c -lm -o /tmp/gg-3ds-film-screen
+          /tmp/gg-3ds-film-screen
       - name: Host-test 3DS cast and world geometry
         working-directory: godguy
         run: |
