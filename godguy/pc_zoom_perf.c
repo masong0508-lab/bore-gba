@@ -61,6 +61,10 @@ static void testNear(int level){
     legacyTerrain();
     CK(!memcmp(zoomSaved,gbuf,sizeof zoomSaved),"CLOSE/MICRO terrain differs from original pixel output");
     memcpy(gbuf,zoomSaved,sizeof zoomSaved);
+    // Reinitializing the tile signatures models re-entering bitmap mode:
+    // the first upload must be complete even when the previous zoom was
+    // rendered with different tile art.
+    zTileHashValid=0;
     int uploaded=zUploadN, skipped=zSkipN;
     zFlush(); CK(zUploadN-uploaded==32*(ZH/8),"first zoom flush must populate every tile");
     checkTiles();
