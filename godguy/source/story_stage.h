@@ -15,7 +15,9 @@ enum { FILM_STAGE_TICKS=5, FILM_PLATE_SCALE=1 };
 _Static_assert(sizeof filmReels/sizeof *filmReels==sizeof fmvClips/sizeof *fmvClips,"Every film has an edit");
 _Static_assert(sizeof filmSets/sizeof *filmSets==F_SET_N,"One plate per set");
 _Static_assert(sizeof filmProps/sizeof *filmProps==F_PROP_N,"One cel per prop");
-_Static_assert(sizeof filmCasts/sizeof *filmCasts==F_ACTOR_N*FILM_CEL_N,"All cast cels are present");
+// Shared DS movie cels stay at eight original cast members. Nessa and
+// Serin's dedicated additional twelve-pose acting cels are 3DS-only.
+_Static_assert(sizeof filmCasts/sizeof *filmCasts==(F_ELDER+1)*FILM_CEL_N,"All shared cast cels are present");
 #ifdef __3DS__
 _Static_assert(sizeof filmExtraReels/sizeof *filmExtraReels==sizeof filmReels/sizeof *filmReels,"Every film has a 3DS edit");
 _Static_assert(sizeof filmHqCasts/sizeof *filmHqCasts==F_ACTOR_N*FILM_HQ_N,
@@ -165,7 +167,11 @@ typedef struct {
     int leadX, otherX, leadFeet, otherFeet, leadHeight, otherHeight;
 } FilmBlocking;
 static int filmScreenOrder(int who){
+#ifdef __3DS__
+    static const u8 rank[F_ACTOR_N]={6,1,3,0,5,4,2,1,2,7};
+#else
     static const u8 rank[F_ACTOR_N]={6,1,3,0,5,4,2,1};
+#endif
     return who<F_ACTOR_N?rank[who]:0;
 }
 static int filmActorLeftOf(int actor,int partner){
@@ -257,6 +263,9 @@ static void filmCaption(const FilmBeat *beat,int shown){
     uiRect(0,168,256,24,U_SHADOW);
     if(!shown||!beat->line) return;
     const char *name=beat->lead==F_ELDER?"MIRA":beat->lead==F_DAVE?"DAVE":
+#ifdef __3DS__
+                     beat->lead==F_NESSA?"NESSA":beat->lead==F_SERIN?"SERIN":
+#endif
                      beat->lead<W_N?whoNm[beat->lead]:NULL;
     if(name){
         uiTextC(128,171,name,U_GOLD,1);
@@ -367,7 +376,11 @@ static int filmLerp(int start,int finish,int step){
     return start+(finish-start)*step/256;
 }
 static int filmHandColor(int who){
+#ifdef __3DS__
+    static const u8 skin[F_ACTOR_N]={15,27,18,27,26,21,27,26,26,27};
+#else
     static const u8 skin[F_ACTOR_N]={15,27,18,27,26,21,27,26};
+#endif
     return fmvSlots[skin[who]];
 }
 static void filmArmReach(int who,FilmPoint from,FilmPoint target){
