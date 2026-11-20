@@ -182,7 +182,7 @@ jobs:
             -loop 0 ../out/godguy_first_three_chapters.gif
           rm ../out/first_three_chapters.rgb ../out/first_three_chapters.pcm
           test -s ../out/godguy_first_three_chapters.mp4
-          ffprobe -v error -select_streams a:0 -show_entries stream=codec_name -of csv=p=0 ../out/godguy_first_three_chapters.mp4 | grep -q '^aac
+          ffprobe -v error -select_streams a:0 -show_entries stream=codec_name -of csv=p=0 ../out/godguy_first_three_chapters.mp4 | grep -q aac
           test -s ../out/godguy_first_three_chapters.gif
 
       - name: Profile gameplay frame and simulation-tick budgets
