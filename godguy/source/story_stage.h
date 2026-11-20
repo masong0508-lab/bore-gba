@@ -300,13 +300,14 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
         } else if(beat->camera==F_HAND&&beat->lead<F_ACTOR_N){
             int pass=filmEase(elapsed>70?elapsed-70:0,180);
             px=block.leadX+(paired?(block.otherX-block.leadX)*pass/256:16);
-            py=block.leadFeet-(beat->lead==F_WISP?14:45);
+            // Match the hand height of a hovering Wisp and a standing adult.
+            py=block.leadFeet-(beat->lead==F_WISP?-1:32);
             size=21;
         } else if(beat->lead<F_ACTOR_N){
             // The object remains with its owner, beside their hand.
             int side=paired&&block.leadX>block.otherX?-1:1;
-            px=block.leadX+side*(beat->lead==F_WISP?23:16);
-            py=block.leadFeet-(beat->lead==F_WISP?15:44);
+            px=block.leadX+side*(beat->lead==F_WISP?15:16);
+            py=block.leadFeet-(beat->lead==F_WISP?-1:32);
             size=beat->camera==F_WIDE?17:22;
         } else {
             // Establishing shots use a prop in the scene, not at screen centre.
