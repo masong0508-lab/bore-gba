@@ -33,7 +33,7 @@ def spark(draw, x, y, color, core, radius=2):
     draw.point((x, y), fill=core)
 
 
-def cast_sprite(who, talking=False, blink=False):
+def cast_sprite(who, talking=False, blink=False, react=False):
     # The transparency key is outside the 32-color palette. Portraits use
     # these same silhouettes at 2x and movies can stage them at either scale.
     image = canvas((32, 32), 255)
@@ -45,8 +45,8 @@ def cast_sprite(who, talking=False, blink=False):
                    (12, 21), (4, 18), (12, 14)], fill=TEAL, outline=INK)
         d.polygon([(16, 6), (19, 14), (23, 17), (18, 19), (16, 25),
                    (12, 19), (9, 17), (14, 14)], fill=MINT)
-        d.ellipse((13, 13, 19, 20), fill=WHITE)
-        d.point((19, 16 if talking else 17), fill=TEAL)
+        d.ellipse((13, 15 if blink else 13, 20 if react else 19, 18 if blink else 20), fill=WHITE)
+        d.point((20 if react else 19, 16 if talking else 17), fill=TEAL)
         d.point((7, 9), fill=MINT)
         d.point((25, 24), fill=JADE)
     elif who == HOLLOW:
@@ -66,6 +66,9 @@ def cast_sprite(who, talking=False, blink=False):
             d.point((14, 15), fill=MINT)
             d.point((21, 15), fill=MINT)
         d.point((17, 19 + talking), fill=INK)
+        if react:
+            d.line((12, 13, 15, 12), fill=SLATE)
+            d.line((20, 12, 23, 13), fill=SLATE)
         d.line((10, 24, 15, 29), fill=LILAC)
         d.point((17, 27), fill=AMBER)
     else:
@@ -94,6 +97,10 @@ def cast_sprite(who, talking=False, blink=False):
         d.line((15, 21, 18, 21), fill=WOOD)
         if talking:
             d.point((17, 22), fill=INK)
+        if react:
+            d.line((12, 13, 14, 12), fill=hair)
+            d.line((19, 12, 21, 13), fill=hair)
+            d.line((15, 20, 17, 22, 19, 20), fill=WOOD)
         if who in (MIRA, MIRA_ELDER):
             d.polygon([(7, 11), (9, 6), (15, 3), (22, 5), (25, 10),
                        (22, 12), (17, 8), (12, 14), (9, 22), (5, 25)], fill=hair, outline=INK)
@@ -155,3 +162,70 @@ def cast(frame, who, x, y, time, size=32, flip=False, speaking=False):
     if flip:
         sprite = sprite.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
     frame.paste(sprite, (x-size//2, y-size-int(sway)), sprite.point(lambda i: 255 if i != 255 else 0, "1"))
+
+
+def actor(frame, who, x, y, time, height, *, flip=False, pose="idle", prop=None):
+    """Stage whole-body movement with separate limbs, props and expressions."""
+    if who == WISP:
+        drift = (0, 0, 1, 2, 2, 1)[time//2 % 6]
+        draw = ImageDraw.Draw(frame)
+        for i, color in enumerate((MINT, JADE, TEAL, SEA)):
+            tail = i*3+2
+            draw.point((x-tail*(-1 if flip else 1), y-height//2+tail//2), fill=color)
+        cast(frame, who, x, y+drift, time, height, flip, speaking=pose == "talk")
+        return
+
+    shade, cloth, trim, skin = {
+        MIRA: (SEA, TEAL, MINT, SKIN), MIRA_ELDER: (SEA, TEAL, MINT, TAN),
+        GRUUL: (WINE, RUST, AMBER, OLIVE), ELOWEN: (PURPLE, PLUM, LILAC, SKIN),
+        THORGRIM: (WOOD, CLAY, AMBER, TAN), HOLLOW: (INK, INDIGO, PLUM, ASH),
+        DAVE: (INDIGO, PURPLE, LILAC, SKIN),
+    }[who]
+    image = canvas((40, 48), 255)
+    d = ImageDraw.Draw(image)
+    step = (-4, -2, 0, 3, 5, 2, 0, -2)[time//2 % 8] if pose == "walk" else 0
+    bob = abs(step)//3
+    lean = 2 if pose in ("reach", "bow") else 0
+    for foot in (15+step, 24-step):
+        heel = 45-abs(step)//3
+        d.line((19, 32-bob, foot, heel), fill=INK, width=5)
+        d.line((19, 32-bob, foot, heel-1), fill=shade, width=3)
+        d.line((foot-1, heel, foot+3, heel), fill=WOOD, width=2)
+    if who == HOLLOW:
+        wind = (0,1,2,1,0,-1,-2,-1)[time//2 % 8]
+        d.polygon(((12, 18), (22, 20), (25, 30), (31+wind, 44),
+                   (13+wind, 41), (7+wind, 45)), fill=shade, outline=VOID)
+        d.line((13, 25, 12+wind, 42), fill=trim, width=2)
+    d.polygon(((10, 23-bob), (25, 22-bob), (27, 32-bob),
+               (22, 37-bob), (12, 36-bob), (9, 28-bob)),
+              fill=cloth, outline=INK)
+    d.line((11, 33-bob, 25, 33-bob), fill=shade, width=3)
+    d.rectangle((18, 32-bob, 20, 34-bob), fill=trim)
+    head = cast_sprite(who, pose == "talk" and time//4 % 2 == 0,
+                       (time+who*9)%79 < 3)
+    top = head.crop((3, 0, 31, 25)).resize((23, 21), Image.Resampling.NEAREST)
+    nod = 2 if pose == "bow" else 0
+    image.paste(top, (7+lean, 3+nod-bob), top.point(lambda i: 255 if i != 255 else 0, "1"))
+    d.line((11, 24-bob, 7-step//2, 29-bob, 9-step//2, 34-bob), fill=shade, width=4)
+    hx, hy = {
+        "reach": (35, 25), "lift": (28, 15), "bow": (30, 32),
+        "write": (31+(time//2)%3, 32+(time//2)%2),
+    }.get(pose, (26+step//2, 34-bob))
+    d.line((24, 24-bob, 27, hy+2, hx, hy), fill=shade, width=5)
+    d.line((25, 24-bob, 27, hy+1, hx, hy), fill=cloth, width=3)
+    d.rectangle((hx-1, hy-1, hx+1, hy+1), fill=skin)
+    if prop == "cup":
+        d.rectangle((hx-1, hy-5, hx+3, hy-2), fill=CLAY, outline=AMBER)
+        d.arc((hx+2, hy-6, hx+6, hy-2), 260, 100, fill=SUN)
+    elif prop == "hammer":
+        d.line((hx, hy, hx+4, hy-5), fill=WOOD, width=2)
+        d.rectangle((hx+1, hy-8, hx+7, hy-5), fill=ASH, outline=STONE)
+    elif prop == "quill":
+        d.line((hx-2, hy+3, hx+4, hy-6), fill=CREAM)
+        d.polygon(((hx, hy), (hx+1, hy-6), (hx+5, hy-8), (hx+3, hy-2)), fill=ICE)
+    if flip:
+        image = image.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+    width = max(1, height*40//48)
+    if height != 48:
+        image = image.resize((width, height), Image.Resampling.NEAREST)
+    frame.paste(image, (x-width//2, y-height), image.point(lambda i: 255 if i != 255 else 0, "1"))

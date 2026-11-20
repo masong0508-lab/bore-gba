@@ -9,7 +9,7 @@ from story_art import (
     WHITE, SEA, TEAL, JADE, MINT, PINE, LEAF, OLIVE, STONE, ASH,
     CLOUD, ICE, WOOD, CLAY, TAN, SKIN, LILAC, PLUM, BLUE,
     WISP, MIRA, GRUUL, ELOWEN, THORGRIM, HOLLOW, DAVE, MIRA_ELDER,
-    canvas, cast, spark,
+    canvas, cast, actor, spark,
 )
 
 WIDTH, HEIGHT = 128, 72
@@ -45,7 +45,7 @@ def orbit(frame, d, t, lost=False):
     d.ellipse((cx-radius-1, cy-radius-1, cx+radius+1, cy+radius+1),
               fill=WINE if lost else TEAL)
     pixels = frame.load()
-    angle = (t//3)*0.055
+    angle = (t//4)*0.072
     ca, sa = cos(angle), sin(angle)
     for y in range(cy-radius, min(HEIGHT, cy+radius+1)):
         v = (y-cy)/radius
@@ -150,7 +150,8 @@ def coast(d, t, settled=False, storm=False, night=False):
             d.line((x-2, y-wing, x, y, x+2, y-wing), fill=INK)
 
 
-def rain(d, t, count=44):
+def rain(d, t, count=25):
+    t = t//2*2
     for i in range(count):
         x, y = (i*43-t)%131, (i*37+t*3)%75
         d.line((x, y, x-1, y+4), fill=BLUE if i%4 else CLOUD)
@@ -247,8 +248,12 @@ def river(d, t):
 
 
 def creature(d, x, y, t, color=INK):
-    d.polygon(((x-8, y), (x-7, y-9), (x-10, y-15), (x-3, y-12),
-               (x+4, y-12), (x+9, y-17), (x+7, y-8), (x+9, y)), fill=color)
+    stride = (0, 1, 2, 1)[t//2 % 4]
+    d.polygon(((x-8, y-3), (x-7, y-9), (x-10, y-15-stride),
+               (x-3, y-12), (x+4, y-12), (x+9, y-17+stride),
+               (x+7, y-8), (x+9, y-3)), fill=color)
+    d.line((x-5, y-6, x-4-stride, y), fill=color, width=3)
+    d.line((x+5, y-6, x+4+stride, y-stride), fill=color, width=3)
     d.line((x-4, y-7, x-2, y-7), fill=AMBER)
     d.line((x+2, y-7, x+4, y-7), fill=AMBER)
     d.point((x, y-3+(t//6)%2), fill=RUST)
@@ -271,7 +276,7 @@ def gate(d, t, siege=False):
         for i in range(4):
             x = (8, 31, 101, 122)[i] + (1 if i < 2 else -1)*min(8, t//4)
             creature(d, x, 72-i%2*4, t)
-        for i in range(12):
+        for i in range(8):
             d.point(((i*31+t//4)%128, (i*17-t)%52), fill=RUST)
 
 
@@ -294,6 +299,7 @@ def book(d, t, illuminated=False):
 
 
 def throne(d, t, crown=True):
+    t = t//3*3
     sky(d, (VOID, INK, INK, INDIGO, INDIGO, PURPLE, PURPLE, WINE, INK))
     d.ellipse((47, 7, 81, 47), fill=SLATE, outline=PURPLE, width=2)
     for x in (9, 28, 100, 119):
@@ -378,6 +384,54 @@ def field_notes(d, t):
         spark(d, 57+i*7, 33+(i*11+t//4)%12, JADE, MINT, 1)
 
 
+def cup_close(d, t, dry=False):
+    """Return to the same small prop as the village grows up around it."""
+    interior(d, t)
+    d.rectangle((0, 49, 127, 71), fill=WOOD)
+    d.line((0, 51, 127, 51), fill=CLAY)
+    d.ellipse((45, 58, 87, 65), fill=INK)
+    cup(d, 51, 42, t)
+    if dry:
+        d.ellipse((58, 65, 71, 70), fill=SEA)
+        d.line((64, 70, 65, 60), fill=LEAF)
+        d.ellipse((62, 61, 65, 64), fill=MINT)
+        d.ellipse((65, 60, 68, 62), fill=JADE)
+        d.point((64, 57+t%7), fill=MINT)
+    else:
+        d.line((60, 6+t%30, 60, 9+t%30), fill=ICE)
+        radius = (t//2)%6
+        d.ellipse((60-radius, 43, 60+radius, 47), outline=MINT)
+
+
+def lift_roof(d, t):
+    masonry(d, (0, 45, 127, 75))
+    fall = min(16, t)
+    d.polygon(((10, 36+fall), (95, 11+fall), (107, 14+fall), (21, 41+fall)),
+              fill=WOOD, outline=INK)
+    d.line((17, 38+fall, 100, 13+fall), fill=TAN)
+    nail = 36+max(0, fall-12)
+    swing = max(0, (10-t%13)*2)
+    d.line((99, 18, 71, nail-8-swing), fill=WOOD, width=4)
+    d.rectangle((61, nail-13-swing, 74, nail-7-swing), fill=ASH, outline=INK)
+    d.line((66, nail-5, 66, nail), fill=ASH, width=2)
+    d.line((65, nail-5, 68, nail-5), fill=ICE)
+    if t%13 >= 10:
+        spark(d, 67, 43, AMBER, WHITE)
+
+
+def quill_close(d, t):
+    interior(d, t, library=True)
+    book(d, t)
+    edge = 62 + min(51, max(0, t-4)*5)
+    d.polygon(((64, 39), (edge, 33), (edge, 61), (64, 66)), fill=CREAM)
+    for j in range(4):
+        d.line((68, 45+j*4, min(edge, 103-2*j), 43+j*4), fill=CLAY)
+    x = 70+t*2 % 26
+    d.line((x, 58, x+11, 32), fill=INK)
+    d.polygon(((x+2, 54), (x+4, 35), (x+14, 30), (x+11, 42)), fill=ICE)
+    d.point((x, 59), fill=INK)
+
+
 def render(name, t):
     f = canvas((WIDTH, HEIGHT))
     d = ImageDraw.Draw(f)
@@ -386,49 +440,67 @@ def render(name, t):
             orbit(f, d, t)
         elif t < 74:
             coast(d, t-38)
-            cast(f, WISP, 69, 50-min(20, (t-38)//2), t, 17)
+            actor(f, WISP, 49+(t-38)//2, 50-min(20, (t-38)//2), t, 17)
         else:
             coast(d, t-56)
-            cast(f, WISP, 64, 51, t, 39)
+            actor(f, WISP, 64, 51, t, 37, pose="talk")
+            for i in range(5):
+                x, y = 57+i*6, 67-i%2*4
+                rise = min(7, max(0, (t-75-i*3)//2))
+                if rise:
+                    d.line((x, y, x, y-rise), fill=MINT)
+                    d.point((x+1, y-rise), fill=CREAM)
     elif name == "first_folk":
         if t < 30:
             coast(d, t, storm=True)
-            cast(f, MIRA, 27, 70, t, 24)
-        else:
+            actor(f, MIRA, 17+t//2, 71, t, 32, pose="walk", prop="cup")
+        elif t < 55:
             landscape(d, t, "night")
-            cast(f, MIRA, 40, 73, t, 49, speaking=True)
-            cup(d, 60, 52, t)
-            cast(f, WISP, 94, 51, t, 23)
-            rain(d, t, 26)
-    elif name == "roof":
-        if t < 38:
-            rafters(d, t)
-            cast(f, MIRA, 30, 75, t, 25)
+            actor(f, MIRA, 42, 74, t, 62, pose="reach", prop="cup")
+            actor(f, WISP, 101-(t-30)//3, 48, t, 25)
+            rain(d, t, 18)
         else:
-            coast(d, t, settled=True, night=True)
-            cast(f, MIRA, 91, 73, t, 24, flip=True)
+            cup_close(d, t-55)
+    elif name == "roof":
+        if t < 32:
+            rafters(d, t)
+            actor(f, MIRA, 17+t//3, 75, t, 36, pose="walk")
+            actor(f, THORGRIM, 99, 72, t, 34, flip=True, pose="lift", prop="hammer")
+        elif t < 54:
+            lift_roof(d, t-32)
+        else:
+            coast(d, t-20, settled=True, night=True)
+            actor(f, MIRA, 104-(t-54)//2, 73, t, 28, flip=True, pose="walk")
             fire(d, 87, 71, t, 10)
     elif name == "river_oath":
         river(d, t)
-        cast(f, GRUUL, 28+min(t//8, 5), 72, t, 36, speaking=t < 35)
-        cast(f, MIRA, 101-min(t//8, 5), 72, t, 35, flip=True, speaking=t >= 35)
-        cup(d, 82, 62, t)
-        if t > 40:
-            cast(f, WISP, 63, 44, t, 17)
+        for x, y in ((54, 69), (63, 67), (72, 70)):
+            d.ellipse((x-5, y-1, x+5, y+2), fill=STONE)
+            d.line((x-3, y-1, x+3, y-1), fill=ASH)
+        move = min(t, 38)
+        actor(f, GRUUL, 26+2*move//3, 71, t, 43,
+              pose="walk" if t<38 else "reach", prop="cup" if t>=52 else None)
+        actor(f, MIRA, 102-2*move//3, 72, t, 42, flip=True,
+              pose="walk" if t<38 else "reach", prop="cup" if t<52 else None)
+        if t >= 61:
+            actor(f, WISP, 62, 45-min(9, (t-61)//2), t, 19)
     elif name == "first_darkness":
-        if t < 25:
+        if t < 29:
             coast(d, t, storm=True)
             for i in range(4):
-                creature(d, 11+i*10, 69, t)
+                creature(d, 4+i*11+t//2, 69-i%2, t+i*7)
+        elif t < 53:
+            throne(d, t, crown=False)
+            actor(f, HOLLOW, 39+(t-29), 67, t, 54, pose="walk")
         else:
             throne(d, t, crown=False)
-            cast(f, HOLLOW, 64, 65, t, min(54, 38+(t-25)//2), speaking=True)
+            cast(f, HOLLOW, 64, 68, t, 57, speaking=True)
     elif name == "iron":
         if t >= 39:
             forge_close(d, t-39)
         else:
             interior(d, t, forge=True)
-            cast(f, THORGRIM, 38, 69, t, 39, speaking=True)
+            actor(f, THORGRIM, 36, 72, t, 57, pose="lift" if t%12<5 else "bow")
             d.polygon(((53, 58), (77, 58), (71, 61), (70, 68), (60, 68),
                        (60, 62)), fill=ASH, outline=INK)
             angle = (t//3)%6
@@ -439,53 +511,70 @@ def render(name, t):
     elif name == "stone":
         if t >= 34:
             hall(d, t)
-            cast(f, MIRA, 44, 72, t, 32, speaking=True)
-            cast(f, THORGRIM, 84, 72, t, 35, flip=True)
+            actor(f, MIRA, 38+min(9,(t-34)//3), 73, t, 42,
+                  pose="walk" if t < 59 else "talk")
+            actor(f, THORGRIM, 95-min(9,(t-34)//3), 73, t, 44, flip=True,
+                  pose="walk" if t < 59 else "bow")
         else:
             gate(d, t)
             for x in (18, 105):
                 h = t//7%4
                 d.line((x, 26, x, 42), fill=WOOD, width=2)
                 d.polygon(((x,31), (x+8,31+h), (x+8,39+h), (x,37)), fill=TEAL)
-            cast(f, MIRA, 53, 72, t, 22)
-            cast(f, THORGRIM, 73, 72, t, 23, flip=True)
+            actor(f, MIRA, 31+t//2, 72, t, 29, pose="walk")
+            actor(f, THORGRIM, 43+t//2, 72, t+4, 31, pose="walk")
     elif name == "ink":
-        interior(d, t, library=True)
-        cast(f, ELOWEN, 63, 51, t, 42, speaking=True)
-        book(d, t, illuminated=True)
+        if t < 47:
+            interior(d, t, library=True)
+            actor(f, ELOWEN, 63, 58, t, 55, pose="write", prop="quill")
+            book(d, t, illuminated=True)
+        else:
+            quill_close(d, t-47)
     elif name == "library":
         if t < 32:
             field_notes(d, t)
-            cast(f, ELOWEN, 23, 68, t, 28)
+            actor(f, ELOWEN, 18+t//3, 70, t, 37, pose="walk", prop="quill")
         else:
             interior(d, t, library=True)
-            cast(f, ELOWEN, 79, 55, t, 30, flip=True)
+            actor(f, ELOWEN, 79, 57, t, 46, flip=True, pose="write", prop="quill")
             book(d, t, illuminated=True)
             creature(d, 35, 55, t, TEAL)
     elif name == "one_fire":
         landscape(d, t, "night")
         house(d, 14, 59, 5, SUN)
         house(d, 100, 59, 6, AMBER)
-        cast(f, GRUUL, 44, 69, t, 28, speaking=True)
-        cast(f, MIRA, 85, 69, t, 27, flip=True)
+        actor(f, GRUUL, 39, 72, t, 41, pose="reach" if t<29 else "talk")
+        actor(f, MIRA, 87-min(t//3, 11), 72, t, 41, flip=True,
+              pose="walk" if t<25 else "reach", prop="cup" if t<38 else None)
         fire(d, 63, 67, t, 18)
+        if t > 58:
+            cup(d, 29, 55, t)
+            d.line((34, 53-t%7, 36, 51-t%7), fill=CLOUD)
     elif name == "siege":
         if t < 42:
             gate(d, t, siege=True)
-            cast(f, THORGRIM, 66, 57, t, 18)
+            actor(f, THORGRIM, 38+t//2, 54, t, 24, pose="walk", prop="hammer")
+            for i in range(3):
+                x, y = 13+(t*4+i*36)%108, 51-((t*3+i*11)%34)
+                d.line((x-7, y+2, x, y), fill=AMBER)
+                d.point((x, y), fill=SUN)
+            if 22<=t<28:
+                spark(d, 70, 45, AMBER, WHITE, 6-(t-22))
         else:
             throne(d, t, crown=False)
             cast(f, HOLLOW, 55, 61, t, 40, speaking=True)
-            cast(f, WISP, 91, 43, t, 21)
+            actor(f, WISP, 105-min(18,(t-42)//2), 45, t, 22)
     elif name == "city":
         coast(d, t, settled=True, night=True)
         for x, y in ((12, 51), (27, 53), (111, 54)):
             house(d, x, y, 4, AMBER)
-        if t >= 32:
+        if t >= 66:
+            cup_close(d, t-66, dry=True)
+        elif t >= 32:
             d.ellipse((2, 53, 51, 78), fill=INK)
             cast(f, MIRA_ELDER, 29, 74, t, 39, speaking=True)
             cup(d, 49, 54, t)
-            cast(f, WISP, 85, 47, t, 17)
+            actor(f, WISP, 85, 47, t, 17)
     elif name == "old_god":
         if t < 31:
             orbit(f, d, t, lost=True)
@@ -494,33 +583,40 @@ def render(name, t):
             d.rounded_rectangle((12, 47, 73, 70), radius=5, fill=PLUM, outline=INK, width=2)
             d.line((17, 61, 67, 61), fill=LILAC, width=2)
             cast(f, DAVE, 44, 66, t, 36, speaking=True)
-            cast(f, WISP, 89, 47, t, 23)
+            actor(f, WISP, 89, 47, t, 23)
+            # Dave tosses a puff and the couch gets it first.
+            if 58 <= t < 80:
+                arc = t-58
+                x, y = 58+arc//2, 53-arc*(22-arc)//13
+                d.ellipse((x-1, y-1, x+1, y+1), fill=SUN)
+            if t >= 80:
+                d.ellipse((69, 58, 72, 59), fill=AMBER)
     elif name == "godhood":
-        throne(d, t)
+        throne(d, t, crown=False)
         if t >= 40:
-            span = min(13, (t-40)//2)
+            span = min(13, 2*((t-40)//4))
             d.rectangle((63-span, 6, 64+span, 49), fill=AMBER)
             d.rectangle((64-span//2, 6, 64+span//2, 49), fill=CREAM)
             d.polygon(((63-span, 49), (64+span, 49), (82, 65),
                        (50, 65)), fill=RUST)
-        cast(f, HOLLOW, 49+min(12,t//6), 54+(t<44)*4, t, 38, speaking=t<40)
-        cast(f, WISP, 95-min(16,t//8), 44, t, 22)
+        actor(f, HOLLOW, 42+min(19,t//3), 66, t, 51,
+              pose="walk" if t<38 else "bow")
+        actor(f, WISP, 96-min(17,t//5), 45, t, 24)
+        if t>=54:
+            spark(d, 59, 56+(t-54)//10, SUN, WHITE, 1)
     elif name == "finale":
         if t < 36:
             coast(d, t, settled=True, storm=True)
-            cast(f, HOLLOW, 38, 67, t, 28)
-            cast(f, WISP, 78, 45, t, 19)
-        elif t < 78:
+            actor(f, HOLLOW, 21+t//2, 71, t, 39, pose="walk")
+            actor(f, WISP, 78, 46, t, 19)
+        elif t < 69:
             coast(d, t-23, settled=True, night=True)
-            cup(d, 26, 56, t)
-            for i in range(2):
-                x = 101 + i*11 - (t-36)//8
-                d.ellipse((x-2, 57+i, x+2, 61+i), fill=SKIN)
-                d.line((x, 61+i, x, 66+i), fill=MINT if i else AMBER, width=3)
-                step = (t//4+i)%2
-                d.line((x-2, 69+i-step, x, 66+i, x+2, 68+i+step), fill=ASH)
+            actor(f, MIRA_ELDER, 100-(t-36)//2, 72, t, 28, flip=True, pose="walk", prop="cup")
+            actor(f, HOLLOW, 36+(t-36)//2, 70, t+3, 34, pose="walk")
+        elif t < 87:
+            cup_close(d, t-69, dry=True)
         else:
-            orbit(f, d, t-78)
+            orbit(f, d, (t-87)//4*4)
             spark(d, 45, 23, MINT, WHITE, 2)
             spark(d, 80, 33, AMBER, WHITE, 2)
     else:
@@ -531,18 +627,18 @@ def render(name, t):
 # Chapter order. The finale follows the epilogue dialogue.
 SHOTS = (
     ("opening", "BEFORE THE FIRST LIGHT", 96),
-    ("first_folk", "THE FIRST RAIN", 69),
-    ("roof", "A ROOF AGAINST THE NIGHT", 72),
-    ("river_oath", "TWO PEOPLES, ONE RIVER", 72),
-    ("first_darkness", "THE KING IN THE DARK", 72),
+    ("first_folk", "THE FIRST RAIN", 75),
+    ("roof", "A ROOF AGAINST THE NIGHT", 84),
+    ("river_oath", "TWO PEOPLES, ONE RIVER", 84),
+    ("first_darkness", "THE KING IN THE DARK", 77),
     ("iron", "THE FIRST FORGE", 72),
-    ("stone", "WHAT STONE REMEMBERS", 72),
-    ("ink", "GIVING THE DARK A NAME", 60),
-    ("one_fire", "ONE FIRE", 60),
-    ("siege", "HOLD THE WALLS", 84),
-    ("city", "THE CITY THAT NEVER SLEEPS", 72),
+    ("stone", "WHAT STONE REMEMBERS", 77),
+    ("ink", "GIVING THE DARK A NAME", 72),
+    ("one_fire", "ONE FIRE", 70),
+    ("siege", "HOLD THE WALLS", 92),
+    ("city", "THE CITY THAT NEVER SLEEPS", 82),
     ("library", "THE OTHER SIDE OF THE PAGE", 72),
-    ("old_god", "THE WORLDS HE LOST", 78),
-    ("godhood", "SHOW ME", 72),
-    ("finale", "THERE IS ROOM FOR TWO", 108),
+    ("old_god", "THE WORLDS HE LOST", 88),
+    ("godhood", "SHOW ME", 84),
+    ("finale", "THERE IS ROOM FOR TWO", 117),
 )

@@ -25,6 +25,30 @@ static u32 pictureHash(void){
     return hash;
 }
 
+static void checkFullPlayback(void){
+    for(unsigned i=0;i<sizeof fmvClips/sizeof *fmvClips;i++){
+        const FmvClip*clip=&fmvClips[i];
+        u32 previous=0;
+        int changes=0;
+        unsigned flush=uiFlushes;
+        for(int f=0;f<clip->frames;f++){
+            fxQ=-1;
+            fmvDraw(clip,f);
+            int want=-1;
+            for(int c=0;c<2;c++) if(clip->cue[c].effect&&clip->cue[c].frame==f) want=clip->cue[c].effect;
+            check(fxQ==want,"sound cue did not land on its frame");
+            check(fmvRead<=fmvBlockEnd,"frame ran past its delta block");
+            u32 now=pictureHash();
+            changes+=f>0&&previous!=now;
+            previous=now;
+        }
+        check(changes>=clip->frames/4,"film held the same picture too long");
+        check(uiFlushes-flush==(unsigned)clip->frames,"film dropped a frame");
+        check(fmvRead==fmvBlockEnd,"film left unread delta commands");
+    }
+    fxQ=-1;
+}
+
 void shimPresent(void){}
 
 void shimInput(int frame,int *held,int *tx,int *ty){
@@ -33,6 +57,7 @@ void shimInput(int frame,int *held,int *tx,int *ty){
     switch(phase){
     case TITLE:
         if(frame==3){
+            checkFullPlayback();
             startWorld(0);
             check(!sceneClip&&!sceneOn,"free play started a cutscene");
             *held=KEY_A;   // Continue without a save starts a story.
@@ -51,7 +76,7 @@ void shimInput(int frame,int *held,int *tx,int *ty){
         break;
     case RUN_OPENING:
         if(sceneT==1) firstPicture=pictureHash();
-        if(sceneT==3*FMV_TICKS+1) check(pictureHash()!=firstPicture,"opening frame did not animate");
+        if(sceneT==6*FMV_TICKS+1) check(pictureHash()!=firstPicture,"opening frame did not animate");
         if(!sceneClip){
             check(frame-clipStart==fmvClips[0].frames*FMV_TICKS+1,"opening ended at the wrong time");
             check(uiFlushes-firstFlush==(unsigned)fmvClips[0].frames+1,"opening missed frames or narration");
@@ -73,7 +98,7 @@ void shimInput(int frame,int *held,int *tx,int *ty){
         check(storyGoalT==STORY_HANDOFF_TICKS,"dialogue did not show the current objective");
         if(expectedChapter==1){
             // Let a real completed objective trigger after the handoff, at 4x sim speed.
-            stUse=20;
+            stUse=chap[0].target;
             speedMul=4;
             handoffStart=frame;
         } else {
@@ -161,7 +186,7 @@ void shimInput(int frame,int *held,int *tx,int *ty){
         break;
     case DONE:
         check(!sceneOn&&!sceneClip&&paused&&endShown,"ending did not restore the prior pause state");
-        puts("FMV story flow OK (14 chapters and finale)");
+        puts("FMV playback, sound cues and story flow OK (14 chapters and finale)");
         exit(0);
     }
 }
