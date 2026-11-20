@@ -84,7 +84,6 @@ jobs:
 
       # 6. the Nintendo 3DS homebrew build (libctru): godguy.3dsx
       - name: godguy.3dsx  (3DS, libctru)
-        continue-on-error: true
         working-directory: godguy
         run: |
           dkp-pacman -S --needed --noconfirm 3ds-dev || true
@@ -107,11 +106,31 @@ jobs:
             "/tmp/godguy-zoom-$cfg"
           done
 
+      # 3DS-only globe renderer is more detailed than the DS fallback.
+      # Confirm real ARM11/libctru builds above, then compare picking,
+      # visual palette, pixel detail, tile uploads and scene music against
+      # regression references on the host. These tests are required.
+      - name: Validate 3DS globe graphics and simulation audio detection
+        working-directory: godguy
+        run: |
+          command -v gcc >/dev/null || { apt-get update && apt-get install -y gcc; }
+          gcc -O2 -DNDSSHIM -D__3DS__ -DGG_GLOBE_TEST -Icompat -Isource -Wno-all -include unistd.h pc_globe3ds.c -lm -o /tmp/godguy-globe3ds
+          /tmp/godguy-globe3ds
+          gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h pc_music_fast.c -lm -o /tmp/godguy-music-fast
+          /tmp/godguy-music-fast
+          gcc -O2 -DNDSSHIM -DGG_BIG -Icompat -Isource -Wno-all -include unistd.h pc_music_fast.c -lm -o /tmp/godguy-music-big
+          /tmp/godguy-music-big
+
+      - name: Profile gameplay frame and simulation-tick budgets
+        working-directory: godguy
+        run: |
+          GG_STRESS_FRAMES=300 ./tools/bench_frame.sh ds 3ds
+
       - name: What was built
         if: always()
         run: |
           { echo "### GodGuy DS ROMs"; echo '```'; ls -la out 2>&1; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-          for rom in godguy_hw.nds godguy_dsi.nds godguy_hw_safe.nds godguy_hw_audio_only.nds godguy_hw_save_only.nds; do test -s "out/$rom" || exit 1; done
+          for rom in godguy_hw.nds godguy_dsi.nds godguy_hw_safe.nds godguy_hw_audio_only.nds godguy_hw_save_only.nds godguy.3dsx; do test -s "out/$rom" || exit 1; done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
