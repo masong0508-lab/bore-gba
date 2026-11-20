@@ -27,7 +27,7 @@ static void gg3dsClockInit(Gg3dsFrameClock*c,int new3ds){
     c->new3ds=new3ds!=0; c->highDetail=c->new3ds;
 }
 static void gg3dsClockFrame(Gg3dsFrameClock*c,uint64_t now,int*frames,int*ticks,int*highDetail){
-    uint64_t delta=c->lastMs && now>c->lastMs?now-c->lastMs:17;
+    uint64_t delta=!c->lastMs?17:now>=c->lastMs?now-c->lastMs:17;
     c->lastMs=now;
     // Treat a resumed process as a new stream; 250 ms is still enough
     // to cover a single severe rendering hitch without losing its tempo.
