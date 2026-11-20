@@ -20,6 +20,11 @@ _Static_assert(sizeof filmProps/sizeof *filmProps==F_PROP_N,"One cel per prop");
 _Static_assert(sizeof filmCasts/sizeof *filmCasts==(F_ELDER+1)*FILM_CEL_N,"All shared cast cels are present");
 #ifdef __3DS__
 _Static_assert(sizeof filmExtraReels/sizeof *filmExtraReels==sizeof filmReels/sizeof *filmReels,"Every film has a 3DS edit");
+_Static_assert(sizeof filmFeatureReels/sizeof *filmFeatureReels==sizeof filmReels/sizeof *filmReels,
+               "Every 3DS chapter has a feature-film sequence");
+_Static_assert(FILM_BONUS_N==6,"The 3DS film archive must contain six stories");
+_Static_assert(sizeof filmBonusTitles/sizeof *filmBonusTitles==FILM_BONUS_N,
+               "Each bonus film has a visible archive title");
 _Static_assert(sizeof filmHqCasts/sizeof *filmHqCasts==F_ACTOR_N*FILM_HQ_N,
                "Every 3DS actor has twelve detailed acting keys");
 #endif
@@ -35,6 +40,15 @@ static void filmScoreTurn(const FilmBeat *beat){
     if(beat==&siegeBeats[16]) storyScore=GM_LASTBEACON;
     else if(beat==&godhoodBeats[14]) storyScore=GM_HEARTH;
     else if(beat==&finaleBeats[17]) storyScore=GM_FIRSTSUN;
+#ifdef __3DS__
+    // Longer films need musical turning points connected to consequences,
+    // not an endlessly looping establishing cue or random effect hits.
+    else if(beat==&featureFord[14]) storyScore=GM_GLASSRIVER;
+    else if(beat==&featureInk[14]) storyScore=GM_BESTIARY;
+    else if(beat==&featureSiege[11]) storyScore=GM_LASTBEACON;
+    else if(beat==&featureGodhood[12]) storyScore=GM_HEARTH;
+    else if(beat==&featureFinale[21]) storyScore=GM_FIRSTSUN;
+#endif
     else return;
     musReq(storyScore);
 }
