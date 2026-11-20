@@ -53,15 +53,26 @@ Roadmap: villages and civilisations that build, wars, disasters over time, 300+ 
 
 ## Story movies
 
-Story Mode starts with a pre-rendered fly-in to the first planet. After the
-Hollow King's epilogue, a second clip revisits the coast as its villages wake
-up. Each clip plays for four seconds. Press **A** or **START**, or tap the
-cutscene screen, to go straight to the narration.
+Story Mode has 15 pre-rendered pixel-art films, with one for each of the 14
+chapters and a finale after the Hollow King's epilogue. The films follow
+Mira's first rain, the dispute at the river, Thorgrim's forge, the siege,
+Elowen's growing bestiary, and the worlds the Hollow King lost. Every
+chapter interlude leads into its dialogue. Press **A** or **START**, or tap
+the cutscene screen, to skip the current film. Dialogue has a dedicated touch
+button to skip the conversation. When gameplay resumes, the HUD highlights
+the current goal for three seconds before another chapter can trigger.
 
-The DS, DSi, 3DS and PC builds play the same bundled 128 × 72 footage at
-12 frames per second. The game score continues during playback. To regenerate
-the assets after editing the shots, run `python3 tools/make_story_fmv.py`
-from `godguy/` with Pillow installed.
+The films and dialogue portraits share new 32 × 32 cast sprites. Each speaker
+has a distinct silhouette, animated talking and blinking poses, and their
+own role in the dialogue frame. Mira ages as the city grows.
+
+The DS, DSi, 3DS and PC builds play the same 128 × 72 footage at 12 frames per
+second over the game score. About 94 seconds of film and the portraits take
+about 145 KiB. The films use the UI's existing transition buffer for decoding.
+
+To regenerate the assets, install Pillow and run `python3 tools/make_story_fmv.py`
+from `godguy/`. Edit the cast in `tools/story_art.py` and shot layouts in
+`tools/story_shots.py`.
 
 ## v0.9.1 menus and loading screens
 The title and pause menus are now structured with sub-menus: CONTINUE, CREATE A PLANET (size, world type, difficulty, create), OPTIONS (difficulty, music volume, monsters) and EXTRAS (Aural Sculptures, Bestiary, Subspecies, Help, Credits, Debug). The pause menu has RESUME, SAVE, OPTIONS, EXTRAS, NEW WORLD, MODE, TITLE SCREEN. START leaves an Extras page back to the menu. Making, loading or enlarging a world shows a loading screen with a growing planet and progress bar.

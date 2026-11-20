@@ -10,6 +10,7 @@
 //   gb_ptone(midi8,vol,duty) gb_pvol(vol) gb_poff()   the effect tone (PSG, midi8 = MIDI note x 8)      gb_pnoise(freq,vol) gb_pnoff()   the effect noise
 #ifndef GMPLAY_H
 #define GMPLAY_H
+#include "gglz.h"
 #include "gmkit.h"
 #ifdef GG_HQVOX
 #include "gmvox_hq.h"      // the 3DS: the lyrics at 16 kHz (tools/gm_vox.py with GM_HQ=1)
@@ -29,8 +30,6 @@ static int gmPos[11], gmRem[11], gmNote[11], gmAge[11], gmRel[11], gmAlt[11];
 static int gmHz64[128], gmSin[32], gmInit;
 static int gmSlotA, gmSlotB;
 static unsigned char gmBuf[GM_BUFMAX]; static const unsigned char*gmStr[11];   // the song's streams, unpacked when it starts (the ROM keeps them compressed)
-static void gmUnpack(const unsigned char*s,unsigned char*d,int n){   // flag byte (1 = literal), or a 2-byte match: 12 bits back, 4 bits length-3 (15 = 18 + one more byte)
-    int o=0; while(o<n){ int fl=*s++|0x100; while(fl>1&&o<n){ if(fl&1) d[o++]=*s++; else { int a=s[0], b=s[1]; s+=2; int off=((a<<4)|(b>>4))+1, len=(b&15)+3; if(len==18) len+=*s++; while(len--&&o<n){ d[o]=d[o-off]; o++; } } fl>>=1; } } }
 static int fxCur=-1, fxPos, fxFrames, fxAge, fxNote, fxVol, fxKind, fxSlide, fxPitch8, fxOn, fxNoiseOn;
 // envelope per voice: attack frames, decay frames, sustain %, release frames
 static const u8 gmEnv[GMV][4]={ {1,10,86,3}, {1,10,80,3}, {1,14,70,2}, {2,10,88,3}, {10,1,100,8}, {10,1,100,8}, {1,6,85,2}, {1,8,45,1}, {1,16,25,1}, {1,10,86,3} };
@@ -50,7 +49,7 @@ static void gmSeek(int row){
 static void gmStop(void){ for(int v=0;v<GMV;v++) gb_vstop(v); gmCur=-1; }
 static void gmPlay(int s){
     gmTables(); if(s==gmCur) return; if(gmCur>=0) gmStop(); if(s<0||s>=GM_SONGS) return;
-    gmInT=0; gmCur=s; { int o=0; for(int v=0;v<11;v++){ gmStr[v]=gmBuf+o; gmUnpack(gmSongs[s].v[v],gmBuf+o,gmSongs[s].n[v]); o+=gmSongs[s].n[v]; } } gmAcc=0; gmSlotA=gmSlotB=0; gmSeek(0); gmRow=0; ldRate=gmHz64[60]; ldVol=0; ldPan=64;
+    gmInT=0; gmCur=s; { int o=0; for(int v=0;v<11;v++){ gmStr[v]=gmBuf+o; ggUnpack(gmSongs[s].v[v],gmBuf+o,gmSongs[s].n[v]); o+=gmSongs[s].n[v]; } } gmAcc=0; gmSlotA=gmSlotB=0; gmSeek(0); gmRow=0; ldRate=gmHz64[60]; ldVol=0; ldPan=64;
     for(int v=0;v<GMV;v++){ gb_vstart(v,gmSongs[s].inst[v<9?v:0]); gmAge[v]=0; gmRel[v]=-1; gmAlt[v]=0; }
 }
 // THE END OF A SONG. A song plays through once (from row 0 to its last row) and then it is over: it fades out over its last seconds and the next song takes over
