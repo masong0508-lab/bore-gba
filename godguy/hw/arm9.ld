@@ -7,4 +7,8 @@ SECTIONS {
 	__heap_start = .; __end__ = .;
 	/DISCARD/ : { *(.ARM.exidx*) *(.ARM.extab*) *(.comment) *(.note*) }
 }
-ASSERT(__bss_end <= 0x02300000, "GodGuy: the ARM9 code and data run into the save buffer at 0x02300000 - lower MAXC in source/gg.h");
+/* Stack is initialized at 0x02300000 in crt0.s and grows downward.
+   Keep >=32 KiB between the end of .bss and that stack top.
+   Previously the 20-Nov full build ended at 0x022F1C08, above the
+   old 0x022F0000 stack, so every push could corrupt live globals. */
+ASSERT(__bss_end <= 0x022F8000, "GodGuy: ARM9 code/data encroaches on the reserved 32 KiB stack; reduce MAXC or static buffers");
