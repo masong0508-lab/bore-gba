@@ -118,7 +118,7 @@ if '#include "story_feature_3ds.h"' not in shared:
     fail("feature reels are not included in cinematic runtime")
 if "REEL(bonusFirstWinter)" not in feature or "REEL(featureFinale)" not in feature:
     fail("feature/archive reel tables are missing")
-if "3,5,8,11,14,15" not in feature:
+if "3,5,8,11,14,255" not in feature:
     fail("chapter unlock gates are missing")
 for banned in ("malloc(", "calloc(", "realloc(", "free("):
     if banned in feature:
