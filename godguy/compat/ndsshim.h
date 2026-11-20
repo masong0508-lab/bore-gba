@@ -195,15 +195,33 @@ static float shimDuck, shimCmpE; static float shqDL[2][24000], shqDLP[2], shqVin
 #define SHQ_DL 24000
 static void shimMixHQ(short*out,int frames){   // interleaved stereo
     if(!shimHqInit){ shimHqInit=1; for(int i=0;i<128;i++){ float th=i/127.f*1.5707963f; shimPanL[i]=cosf(th)*0.7071f; shimPanR[i]=sinf(th)*0.7071f; } }
+    if(frames<=0) return;
+    // Channel settings and tempo are fixed until the next buffer. Prepare
+    // them once, retaining channel order and the same per-sample arithmetic.
+    struct { int index, bass; float volume, pan, step; } active[SHIM_NCH];
+    int activeCount=0;
+    for(int i=0;i<SHIM_NCH;i++){
+        const ShimCh*c=&shimCh[i];
+        if(!c->on){ shimHq[i].sv=0; continue; }
+        active[activeCount].index=i;
+        active[activeCount].volume=c->vol<=0?0.f:c->vol/127.f;
+        active[activeCount].pan=(float)c->pan;
+        active[activeCount].step=(float)(c->rate/SHIM_SR);
+        active[activeCount].bass=c->kind==1&&c->loop&&c->size<=256&&c->rate/c->size<170.0;
+        activeCount++;
+    }
+    int dly=shimTempoBpm>0?(int)(60.0/shimTempoBpm*0.75*SHIM_SR):12288;
+    if(dly>SHQ_DL-2) dly=SHQ_DL-2;
+    if(dly<2000) dly=2000;
     for(int n=0;n<frames;n++){ float L=0,R=0,vL=0,vR=0;
-        for(int i=0;i<SHIM_NCH;i++){ ShimCh*c=&shimCh[i]; ShimHq*h=&shimHq[i]; if(!c->on){ h->sv=0; continue; }
-            float tv=c->vol<=0?0.f:c->vol/127.f; h->sv+=(tv-h->sv)*0.045f; if(tv==0.f&&h->sv<1e-4f) h->sv=0.f; h->sp+=((float)c->pan-h->sp)*0.045f; float dt=(float)(c->rate/SHIM_SR); float v=h->sv; int pi=(int)(h->sp+0.5f); if(pi<0) pi=0; if(pi>127) pi=127;
+        for(int k=0;k<activeCount;k++){ int i=active[k].index; ShimCh*c=&shimCh[i]; ShimHq*h=&shimHq[i]; if(!c->on){ h->sv=0; continue; }
+            float tv=active[k].volume; h->sv+=(tv-h->sv)*0.045f; if(tv==0.f&&h->sv<1e-4f) h->sv=0.f; h->sp+=(active[k].pan-h->sp)*0.045f; float dt=active[k].step; float v=h->sv; int pi=(int)(h->sp+0.5f); if(pi<0) pi=0; if(pi>127) pi=127;
             if(c->kind==1){
                 c->pos+=dt; if(c->pos>=c->size){ if(c->loop){ while(c->pos>=c->size) c->pos-=c->size; } else { c->on=0; continue; } }
                 if(v<0.0005f){ if(c->loop){ h->pos2+=dt*1.0028f; h->pos3+=dt*0.9969f; } continue; }
                 if(c->loop&&c->size<=256){ h->pos2+=dt*1.0028f; h->pos3+=dt*0.9969f; while(h->pos2>=c->size) h->pos2-=c->size; while(h->pos3>=c->size) h->pos3-=c->size;
                     float s1=shqCubic(c->data,c->size,1,c->pos)/127.f, s2=shqCubic(c->data,c->size,1,h->pos2)/127.f, s3=shqCubic(c->data,c->size,1,h->pos3)/127.f; int pa=pi-22<0?0:pi-22, pb=pi+22>127?127:pi+22;
-                    if(c->rate/c->size<170.0){ s1=0.5f*s1+0.7f*tanhf(2.4f*s1); s2=0.5f*s2+0.7f*tanhf(2.4f*s2); s3=0.5f*s3+0.7f*tanhf(2.4f*s3); }      // (a bass: tape-style drive adds the harmonics a small speaker can actually play)
+                    if(active[k].bass){ s1=0.5f*s1+0.7f*tanhf(2.4f*s1); s2=0.5f*s2+0.7f*tanhf(2.4f*s2); s3=0.5f*s3+0.7f*tanhf(2.4f*s3); }      // (a bass: tape-style drive adds the harmonics a small speaker can actually play)
                     v*=1.f-0.32f*shimDuck;      // (sidechain: every kick pushes the melodic voices down and lets them swell back)
                     L+=v*(s1*0.60f*shimPanL[pi]+s2*0.30f*shimPanL[pa]+s3*0.30f*shimPanL[pb]); R+=v*(s1*0.60f*shimPanR[pi]+s2*0.30f*shimPanR[pa]+s3*0.30f*shimPanR[pb]); }
                 else { if(c->kick&&c->pos<=dt*2.0+0.5) shimDuck=1.f; float s=shqCubic(c->data,c->size,c->loop,c->pos)/127.f*v; if(c->bus){ vL+=s*shimPanL[pi]; vR+=s*shimPanR[pi]; } else { L+=s*shimPanL[pi]; R+=s*shimPanR[pi]; } } }
@@ -211,7 +229,7 @@ static void shimMixHQ(short*out,int frames){   // interleaved stereo
             else { c->ph+=dt; while(c->ph>=1){ c->ph-=1; unsigned x=((c->lfsr^(c->lfsr>>1))&1); c->lfsr=(c->lfsr>>1)|(x<<14); c->cur=(c->lfsr&1)?1.f:-1.f; } h->pos2+=(c->cur-h->pos2)*0.45f; float s=h->pos2*v; L+=s*shimPanL[pi]; R+=s*shimPanR[pi]; } }
         shimDuck*=0.99955f;
         {   // the VOCAL BUS: a ping-pong echo of a dotted eighth at the song's tempo (it answers from the other side, darker each time) and a bigger room than the band has
-            int dly=shimTempoBpm>0?(int)(60.0/shimTempoBpm*0.75*SHIM_SR):12288; if(dly>SHQ_DL-2) dly=SHQ_DL-2; if(dly<2000) dly=2000; int rd=shqDI-dly; if(rd<0) rd+=SHQ_DL;
+            int rd=shqDI-dly; if(rd<0) rd+=SHQ_DL;
             float tl=shqDL[0][rd], tr=shqDL[1][rd], vin=(vL+vR)*0.5f; shqDLP[0]+=0.45f*(tl-shqDLP[0]); shqDLP[1]+=0.45f*(tr-shqDLP[1]);
             shqDL[0][shqDI]=vin*0.8f+shqDLP[1]*0.40f+1e-18f; shqDL[1][shqDI]=shqDLP[0]*0.40f+1e-18f; if(++shqDI>=SHQ_DL) shqDI=0;
             L+=vL*0.9f+tl*0.24f; R+=vR*0.9f+tr*0.24f; vin+=(tl+tr)*0.1f; shqVin=vin; }
@@ -283,13 +301,20 @@ static long shimDrawnMain, shimDrawnSub, shimSkipped;   // counters (pc_speed.c 
 // Draws what changed into top / bottom (400 x 240 and 320 x 240, RGB, row by row) and says which of the two screens changed. The buffers must be the ones passed last time (they keep their picture);
 // a new buffer, or the screens swapping places, draws everything.
 static void shimRenderChanged(u8*top,u8*bot,int*topChanged,int*botChanged){
-    static u8*lt, *lb; static int lswap=-1, lmax=0; static ShimSig sm, ss; static int have;
+    static u8*lt, *lb; static int lswap=-1; static ShimSig sm, ss; static int have;
+    // These large buffers dominate the per-frame hash. Compare their bytes
+    // directly, and keep a snapshot only when they change.
+    static u8 oldTiles[sizeof shimTiles], oldBitmap[256*192];
     int force=!have||top!=lt||bot!=lb||shimSwap!=lswap; if(force){ memset(top,0,400*240*3); memset(bot,0,320*240*3); lt=top; lb=bot; lswap=shimSwap; have=1; }
-    ShimSig m={2166136261u,0x9E3779B9u}, b={2166136261u,0x9E3779B9u}; (void)lmax;
-    shimSigAdd(&m,shimTiles,sizeof shimTiles); shimSigAdd(&m,shimMap,sizeof shimMap); shimSigAdd(&m,shimMap1,sizeof shimMap1); shimSigAdd(&m,BG_PALETTE,sizeof BG_PALETTE); shimSigAdd(&m,SPRITE_PALETTE,sizeof SPRITE_PALETTE); shimSigInt(&m,shimScrollX); shimSigInt(&m,shimScrollY);
+    int tilesChanged=memcmp(oldTiles,shimTiles,sizeof oldTiles)!=0;
+    int bitmapChanged=memcmp(oldBitmap,shimBmp,sizeof oldBitmap)!=0;
+    if(tilesChanged) memcpy(oldTiles,shimTiles,sizeof oldTiles);
+    if(bitmapChanged) memcpy(oldBitmap,shimBmp,sizeof oldBitmap);
+    ShimSig m={2166136261u,0x9E3779B9u}, b={2166136261u,0x9E3779B9u};
+    shimSigAdd(&m,shimMap,sizeof shimMap); shimSigAdd(&m,shimMap1,sizeof shimMap1); shimSigAdd(&m,BG_PALETTE,sizeof BG_PALETTE); shimSigAdd(&m,SPRITE_PALETTE,sizeof SPRITE_PALETTE); shimSigInt(&m,shimScrollX); shimSigInt(&m,shimScrollY);
     for(int n=0;n<128;n++){ const ShimSpr*s=&shimSpr[n]; shimSigInt(&m,s->on); if(!s->on||!s->gfx) continue; shimSigInt(&m,s->x); shimSigInt(&m,s->y); shimSigInt(&m,s->pal); shimSigInt(&m,s->hflip); shimSigAdd(&m,s->gfx,32); }
-    shimSigAdd(&b,shimBmp,sizeof shimBmp); shimSigAdd(&b,BG_PALETTE_SUB,sizeof BG_PALETTE_SUB); shimSigAdd(&b,shimCon,sizeof shimCon);
-    int mc=force||m.a!=sm.a||m.b!=sm.b, sc=force||b.a!=ss.a||b.b!=ss.b; sm=m; ss=b;
+    shimSigAdd(&b,BG_PALETTE_SUB,sizeof BG_PALETTE_SUB); shimSigAdd(&b,shimCon,sizeof shimCon);
+    int mc=force||tilesChanged||m.a!=sm.a||m.b!=sm.b, sc=force||bitmapChanged||b.a!=ss.a||b.b!=ss.b; sm=m; ss=b;
     u8*mbuf=shimSwap?top:bot; int mw=shimSwap?400:320, mox=shimSwap?72:32; u8*sbuf=shimSwap?bot:top; int sw=shimSwap?320:400, sox=shimSwap?32:72;
     if(mc){ shimLut(shimLutM,BG_PALETTE); shimLut(shimLutP,SPRITE_PALETTE); shimDrawMain(mbuf,mw,mox); shimDrawnMain++; } else shimSkipped++;
     if(sc){ shimLut(shimLutS,BG_PALETTE_SUB); shimDrawSub(sbuf,sw,sox); shimDrawnSub++; } else shimSkipped++;

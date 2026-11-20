@@ -28,9 +28,41 @@ static void wvBuild(void){
 static int wvNear(int race,int x,int y){
     int b=(y>>WV_SH)*wvW+(x>>WV_SH); int n=wvN[b]; if(n==255) return vilNear(race,x,y,14);
     int best=-1,bd=14*14+1; for(int k=0;k<n;k++){ int v=wvL[b][k]; if(!vil[v].on||vil[v].race!=race) continue; int dx=(int)vil[v].x-x, dy=(int)vil[v].y-y, d=dx*dx+dy*dy; if(d<bd){ bd=d; best=v; } } return best; }
-static int wgSoldier(const Cr*c,int*home){      // the very test the soldiers' thinking makes before marching
-    if(!c->alive||arch[sp[c->sp].a].diet!=4||c->age<=6||c->hp<=8) return 0;
-    int h=wvOn?wvNear(sp[c->sp].a,c->x,c->y):vilNear(sp[c->sp].a,c->x,c->y,14); if(h<0||!vil[h].foe||!vil[vil[h].foe-1].on) return 0; *home=h; return 1; }
+static inline int wgSoldierWithHint(const Cr*c,int*home,int hint,const u16 *separation){
+    if(!c->alive||c->age<=6||c->hp<=8) return 0;
+    int race=sp[c->sp].a;
+    if(arch[race].diet!=4) return 0;
+    int h=-1;
+    if(hint>=0&&vil[hint].on&&vil[hint].race==race){
+        int dx=(int)vil[hint].x-c->x, dy=(int)vil[hint].y-c->y;
+        // Strictly inside half the distance to the next village of this race,
+        // the old home is still the unique nearest one. Ties take the full path.
+        if(4*(dx*dx+dy*dy)<separation[hint]) h=hint;
+    }
+    if(h<0) h=wvOn?wvNear(race,c->x,c->y):vilNear(race,c->x,c->y,14);
+    if(h<0||!vil[h].foe||!vil[vil[h].foe-1].on) return 0;
+    *home=h;
+    return 1;
+}
+static int wgSoldier(const Cr*c,int*home){ return wgSoldierWithHint(c,home,-1,NULL); }
+
+static void wgHomeSeparation(u16 *separation){
+    // Cap at four times the squared home radius plus one. Even an isolated
+    // village then falls back outside 14 tiles, just like the regular lookup.
+    for(int v=0;v<VIL_N;v++) separation[v]=4*14*14+1;
+    if(!vilIndexValid) vilIndexBuild();
+    for(int race=0;race<8;race++){
+        for(int i=vilRaceOff[race];i<vilRaceOff[race+1];i++){
+            int a=vilByRace[i];
+            for(int j=i+1;j<vilRaceOff[race+1];j++){
+                int b=vilByRace[j], dx=(int)vil[a].x-vil[b].x, dy=(int)vil[a].y-vil[b].y;
+                int d=dx*dx+dy*dy;
+                if(d<separation[a]) separation[a]=(u16)d;
+                if(d<separation[b]) separation[b]=(u16)d;
+            }
+        }
+    }
+}
 static int wgPower(const Cr*c){ return 1+c->dir+(c->rk?3:0); }
 // 10d: what a battle needs to know about an army, worked out in the same pass: the average blow, armour, health and pace of its soldiers, and the list of who they are (wgMem, grouped by village).
 // wgOf[i] says which group creature i belonged to when the groups were last counted (village +1, 0 for none); it is good only for creatures below wgNc (compact() and a new world clear it).
@@ -63,9 +95,12 @@ static void wgSlice(void){
 static void wgCommit(void){      // after compact(): wgKeep creatures at the front have a wgOf from the slices
     static unsigned sx[VIL_N], sy[VIL_N], cc[VIL_N], pw[VIL_N], na[VIL_N], nd[VIL_N], nh[VIL_N], ns[VIL_N];
     memset(wg,0,sizeof wg); memset(sx,0,sizeof sx); memset(sy,0,sizeof sy); memset(cc,0,sizeof cc); memset(pw,0,sizeof pw); memset(na,0,sizeof na); memset(nd,0,sizeof nd); memset(nh,0,sizeof nh); memset(ns,0,sizeof ns);
+    u16 separation[VIL_N];
+    wgHomeSeparation(separation);
     wgN=0; wgNc=nCr; wgCur=0; memset(wgAcc,0,sizeof wgAcc); wvBuild(); wvOn=1;
     for(int i=0;i<nCr;i++){ const Cr*c=&cr[i]; int h;      // every soldier finds its home again, exactly as wgBuild does (a war that has just begun, a soldier whose nearest village has changed); only the averages are left to the slices
-        if(!wgSoldier(c,&h)){ wgOf[i]=0; continue; } wgOf[i]=(u8)(h+1);
+        int hint=i<wgKeep?wgOf[i]-1:-1;
+        if(!wgSoldierWithHint(c,&h,hint,separation)){ wgOf[i]=0; continue; } wgOf[i]=(u8)(h+1);
         cc[h]++; pw[h]+=(unsigned)wgPower(c); sx[h]+=c->x; sy[h]+=c->y;
         nh[h]+=c->hp; if(!wga[h].hp){ na[h]+=(unsigned)wgBlow(c); nd[h]+=(unsigned)armDef(c); ns[h]+=(unsigned)effSpd(c); } }      // (health changes fast in a battle, so it is always counted fresh; blow, armour and pace come from the slices unless the group has no averages yet)
     wvOn=0;

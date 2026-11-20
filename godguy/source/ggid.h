@@ -73,14 +73,32 @@ static void idAssign(void){ idNext=1; for(int i=0;i<nCr;i++){ crId[i]=idNext++; 
 static int nbPos(u32 id){ int lo=0,hi=nNb; while(lo<hi){ int m=(lo+hi)>>1; if(nb[m].id<id) lo=m+1; else hi=m; } return lo; }
 static int nbFind(u32 id){ int p=nbPos(id); return p<nNb&&nb[p].id==id?p:-1; }
 static int idStarred(u32 id){ if(!id) return 0; for(int k=0;k<CSTAR_N;k++) if(favCrId[k]==id) return 1; return 0; }
-static int nbScore(const Nb*n){ int s=n->kills*2+n->battles*3+n->titles*5+n->kids+n->wounds; if(n->vil) s+=5; if(idStarred(n->id)) s+=50; return s>32000?32000:s; }
-static int nbKeep(const Nb*n){ int s=nbScore(n); return n->st?s/2:s; }       // the fallen count for half: they go first
+static inline int nbBaseScore(const Nb*n){
+    return n->kills*2+n->battles*3+n->titles*5+n->kids+n->wounds+(n->vil?5:0);
+}
+static inline int nbCapScore(int score){ return score>32000?32000:score; }
+static int nbScore(const Nb*n){ return nbCapScore(nbBaseScore(n)+(idStarred(n->id)?50:0)); }
+static inline int nbKeep(const Nb*n){ int score=nbScore(n); return n->st?score/2:score; }
+static int nbVictim(int *score){
+    int victim=0, best=32001;
+    for(int k=0;k<nNb;k++){
+        const Nb*n=&nb[k];
+        int base=nbBaseScore(n), shift=n->st!=0;
+        // Stars only raise a score. Only records that can beat the current
+        // minimum need a star lookup. Equal scores keep the oldest ID.
+        if((nbCapScore(base)>>shift)>=best) continue;
+        int keep=nbCapScore(base+(idStarred(n->id)?50:0))>>shift;
+        if(keep<best){ best=keep; victim=k; }
+    }
+    *score=best;
+    return victim;
+}
 static void nbLog(const char*what,const Nb*n){ char nm[24], b[48]; idFirst(n->id,idLangOf(n->sp),nm); siprintf(b,"%.12s %s",nm,what); logEv(b); }
 static void nbRemove(int k){ memmove(&nb[k],&nb[k+1],(size_t)(nNb-k-1)*sizeof(Nb)); nNb--; }
 // A record for creature ci (made if it has none). Returns 0 when the table is full and everything in it ranks above this newcomer's first score sc0. The pointer is good only until the next table change.
 static Nb* nbMake(int ci,int sc0){
     u32 id=crId[ci]; int p=nbPos(id); if(p<nNb&&nb[p].id==id) return &nb[p];
-    if(nNb>=NB_N){ int v=0, vk=nbKeep(&nb[0]); for(int k=1;k<nNb;k++){ int s=nbKeep(&nb[k]); if(s<vk){ vk=s; v=k; } } if(sc0<vk) return 0;
+    if(nNb>=NB_N){ int vk, v=nbVictim(&vk); if(sc0<vk) return 0;
         if(!nb[v].st){ int j=idFind(nb[v].id); if(j>=0) crFl[j]&=(u16)~FL_NOTE; if(nbScore(&nb[v])>=6) nbLog("FADES FROM FAME",&nb[v]); }      // an entry that is dropped while alive still goes into the journal if it mattered
         nbRemove(v); p=nbPos(id); }
     memmove(&nb[p+1],&nb[p],(size_t)(nNb-p)*sizeof(Nb)); nNb++; Nb*n=&nb[p]; memset(n,0,sizeof *n); n->id=id; n->sp=cr[ci].sp; n->yr=(u16)year; crFl[ci]|=FL_NOTE; return n; }
