@@ -1619,6 +1619,23 @@ static u16 gSavedPal[256];
 #define GP_CLOUD 112
 #define GP_ATMO 120
 #define GP_BIO 130      // the three biomes' ground, 8 light levels each (130..153)
+#ifdef __3DS__
+// Dedicated 3DS-only globe palette banks. They are restored when the map
+// returns, so normal DS palettes, zoom art and save files are untouched.
+#define GP3_AIR   160
+#define GP3_SEA   168
+#define GP3_SHORE 176
+#define GP3_LIGHT 184
+#define GP3_STAR  192
+#define GP3_HIGH  200
+// Set by the 3DS platform entry point. The larger/older 3DS globe keeps
+// two-pixel sampling for audio headroom; New 3DS can resolve smaller discs
+// at individual pixels without quadrupling the largest planet's workload.
+static int gg3dsGlobeQuality;
+static inline int gg3Height(int t){
+    return t==T_MOUNT?7:t==T_HILL?4:t==T_FOREST||t==T_JUNGLE?2:t==T_SNOW?1:0;
+}
+#endif
 static int isqrt32(u32 v){ u32 r=0, b=1u<<30; while(b>v) b>>=2; while(b){ if(v>=r+b){ v-=r+b; r=(r>>1)+b; } else r>>=1; b>>=2; } return (int)r; }
 static void globeTables(int R){
     if(!gInit){ gInit=1;
@@ -1645,23 +1662,132 @@ static void globePalette(void){
     for(int l=0;l<8;l++){ int v=6+l*3; BG_PALETTE[GP_CLOUD+l]=RGB15(v,v,v+(l>5?0:2)); }
     for(int b=0;b<3;b++) for(int l=0;l<8;l++){ int r,g,bl; shadeRGB((T_N+b)*8+(l<1?0:l),&r,&g,&bl); int f=l==0?9:l==1?14:18+l*2; r=r*f/26; g=g*f/26; bl=bl*f/26; if(r>31) r=31; if(g>31) g=31; if(bl>31) bl=31; BG_PALETTE[GP_BIO+b*8+l]=RGB15(r,g,bl); }
     for(int l=0;l<6;l++) BG_PALETTE[GP_ATMO+l]=RGB15(2+l,6+l*3,14+l*3);
-    BG_PALETTE[126]=RGB15(31,28,10); BG_PALETTE[127]=RGB15(31,18,4); BG_PALETTE[128]=RGB15(31,6,2); BG_PALETTE[129]=RGB15(31,31,28); }
+    BG_PALETTE[126]=RGB15(31,28,10); BG_PALETTE[127]=RGB15(31,18,4); BG_PALETTE[128]=RGB15(31,6,2); BG_PALETTE[129]=RGB15(31,31,28);
+#ifdef __3DS__
+    // Expanded 3DS lighting palette: luminous cyan limb, depth-graded sea,
+    // foam coast, warm cities, multicolour stars and high-altitude ice.
+    // These use no extra image assets or framebuffers.
+    for(int i=0;i<8;i++){
+        BG_PALETTE[GP3_AIR+i]=RGB15(1+i/2,4+i*2,10+i*2);
+        BG_PALETTE[GP3_SEA+i]=RGB15(0+i/3,2+i*2,8+i*3);
+        BG_PALETTE[GP3_SHORE+i]=RGB15(8+i*2,11+i*2,7+i*2);
+        BG_PALETTE[GP3_LIGHT+i]=RGB15(14+i*2,7+i*2,1+i*2);
+        BG_PALETTE[GP3_STAR+i]=RGB15(11+i*2,13+i*2,20+i);
+        BG_PALETTE[GP3_HIGH+i]=RGB15(9+i*3,12+i*2,16+i*2);
+    }
+#endif
+}
 static void globeDrawNow(void){
     int R=globeR(); globeTables(R); int cL,sL,cP,sP; globeAim(rotY,rotX,&cL,&sL,&cP,&sP);
-    memset(gbuf,1,sizeof gbuf); for(int k=0;k<44;k++){ int x=(int)(hsh(k,1,9)%256), y=(int)(hsh(k,2,9)%192); gbuf[y*256+x]=(u8)(2+((k+(tick>>5))&1)); }
-    int drift=(tick>>6); int R2=R*R, H=R+3;
-    for(int sy=96-H;sy<96+H;sy+=2){ if(sy<0||sy>=192) continue; int y=96-sy; for(int sx=128-H;sx<128+H;sx+=2){ if(sx<0||sx>=256) continue; int x=sx-128; int d2=x*x+y*y; u8 col;
-            if(d2>R2){ if(d2<=(R+3)*(R+3)){ int lam=(-x*5-y*5+R*3)>0?5:2; col=(u8)(GP_ATMO+(lam>3?(d2<=(R+1)*(R+1)?5:3):1)); } else continue; }
-            else { int nx=gxn[x+R], ny=gxn[y+R], nz=gnz[d2]; int tx,ty; globeDir(nx,ny,nz,cL,sL,cP,sP,&tx,&ty);
-                int lam=(-nx*7+ny*7+nz*12)/26;   // light from the upper left, toward the viewer (about -0.43, 0.43, 0.75 in Q14)
-                int terr=world[ty][tx]; int lvl; if(lam<-1500) lvl=0; else lvl=(lam+1500)*7/17000; if(lvl>7) lvl=7; if(lvl<0) lvl=0;
-                col=(u8)(GP_GROUND+terr*8+lvl); { int bb=bioAt(tx,ty); if(bb&&terr>T_WATER&&terr!=T_LAVA) col=(u8)(GP_BIO+(bb-1)*8+lvl); }
-                if(bld[ty][tx]&&bld[ty][tx]!=B_RUIN){ col=lam<2000?(u8)(126+((tick>>4)&1)):(u8)(GP_GROUND+T_DIRT*8+7); }
+    memset(gbuf,1,sizeof gbuf);
+#ifdef __3DS__
+    for(int k=0;k<108;k++){
+        u32 h=hsh(k,1,9); int x=(int)(h%256), y=(int)((h>>8)%192);
+        int shimmer=(int)((tick>>5)+(h>>24))&7;
+        gbuf[y*256+x]=(u8)(GP3_STAR+(k%3==0?7:shimmer));
+        if((k%11)==0 && x+1<256 && y+1<192){
+            gbuf[y*256+x+1]=(u8)(GP3_STAR+2);
+            gbuf[(y+1)*256+x]=(u8)(GP3_STAR+2);
+        }
+    }
+#else
+    for(int k=0;k<44;k++){ int x=(int)(hsh(k,1,9)%256), y=(int)(hsh(k,2,9)%192); gbuf[y*256+x]=(u8)(2+((k+(tick>>5))&1)); }
+#endif
+    int drift=tick>>6, R2=R*R, H=R+3, step=2;
+    const int cloudThr=(weather==WX_RAIN||weather==WX_STORM||weather==WX_ASH||weather==WX_RAGE)?105:weather==WX_SNOW?125:weather==WX_MAGIC?95:weather==WX_HEAT?180:165;
+#ifdef __3DS__
+    H=R+7;
+    if(gg3dsGlobeQuality&&R<=55) step=1; // full detail on smaller discs
+#endif
+    for(int sy=96-H;sy<96+H;sy+=step){ if(sy<0||sy>=192) continue; int y=96-sy;
+        for(int sx=128-H;sx<128+H;sx+=step){ if(sx<0||sx>=256) continue; int x=sx-128, d2=x*x+y*y; u8 col;
+            if(d2>R2){
+#ifdef __3DS__
+                if(d2>(R+7)*(R+7)) continue;
+                int rim=((d2-R2)/(2*R)); if(rim>7) rim=7;
+                int lit=(-x*5-y*5+R*3)>0;
+                col=(u8)(GP3_AIR+(lit?(7-rim):(4-rim/2)));
+#else
+                if(d2<=(R+3)*(R+3)){ int lam=(-x*5-y*5+R*3)>0?5:2; col=(u8)(GP_ATMO+(lam>3?(d2<=(R+1)*(R+1)?5:3):1)); } else continue;
+#endif
+            }else{
+                int nx=gxn[x+R], ny=gxn[y+R], nz=gnz[d2], tx,ty;
+                globeDir(nx,ny,nz,cL,sL,cP,sP,&tx,&ty);
+                int terr=world[ty][tx];
+                int lam=(-nx*7+ny*7+nz*12)/26;
+#ifdef __3DS__
+                // Relief shading at mountain ridges and forest edges without
+                // changing the true globe geometry or picking transform.
+                int height=gg3Height(terr);
+                if(height){
+                    int east=world[ty][tx+1<WW?tx+1:0];
+                    int south=world[ty+1<WH?ty+1:ty][tx];
+                    lam+=(height-gg3Height(east))*480+(height-gg3Height(south))*320;
+                }
+#endif
+                int lvl=lam<-1500?0:(lam+1500)*7/17000; if(lvl>7) lvl=7;
+                if(lvl<0) lvl=0;
+                int cv=0;
+                if(gClouds) cv=gCloud[(ty*64/WH)&63][((tx*64/WW)+drift)&63];
+#ifdef __3DS__
+                if(gClouds && cv>cloudThr-17 && cv<=cloudThr && lvl>1) lvl--; // projected cloud shadow
+#endif
+                col=(u8)(GP_GROUND+terr*8+lvl);
+                { int bb=bioAt(tx,ty); if(bb&&terr>T_WATER&&terr!=T_LAVA) col=(u8)(GP_BIO+(bb-1)*8+lvl); }
+                if(bld[ty][tx]&&bld[ty][tx]!=B_RUIN){
+#ifdef __3DS__
+                    col=(u8)(lam<2400?GP3_LIGHT+3+((tick>>4)&1):GP3_LIGHT+7);
+#else
+                    col=lam<2000?(u8)(126+((tick>>4)&1)):(u8)(GP_GROUND+T_DIRT*8+7);
+#endif
+                }
                 else if(terr==T_LAVA&&lam<3000) col=128;
                 else if((terr==T_WATER||terr==T_DEEP)&&lam>11000&&nz>9000&&((nx+ny)&255)<120) col=129;
-                if(gClouds){ int cv=gCloud[(ty*64/WH)&63][((tx*64/WW)+drift)&63]; int thr=(weather==WX_RAIN||weather==WX_STORM||weather==WX_ASH||weather==WX_RAGE)?105:weather==WX_SNOW?125:weather==WX_MAGIC?95:weather==WX_HEAT?180:165; if(cv>thr){ int cl=lvl+(cv-thr)/12; if(cl>7) cl=7; col=(u8)(GP_CLOUD+cl); } }
-                if(nz<3800){ int a=(3800-nz)/700; if(a>5) a=5; if(lam>-2000||a>3) col=(u8)(GP_ATMO+a); } }
-            gbuf[sy*256+sx]=col; if(sx+1<256) gbuf[sy*256+sx+1]=col; if(sy+1<192){ gbuf[(sy+1)*256+sx]=col; if(sx+1<256) gbuf[(sy+1)*256+sx+1]=col; } } }
+#ifdef __3DS__
+                else if(terr==T_WATER||terr==T_DEEP) col=(u8)(GP3_SEA+lvl);
+                else if(terr==T_SNOW && lam>2800) col=(u8)(GP3_HIGH+lvl);
+                else if((terr==T_SAND||terr==T_DIRT||terr==T_GRASS) &&
+                        (world[ty][tx+1<WW?tx+1:0]<=T_WATER ||
+                         world[ty+1<WH?ty+1:ty][tx]<=T_WATER))
+                    col=(u8)(GP3_SHORE+lvl);
+#endif
+                if(gClouds&&cv>cloudThr){
+                    int cl=lvl+(cv-cloudThr)/12; if(cl>7) cl=7;
+                    col=(u8)(GP_CLOUD+cl);
+                }
+#ifdef __3DS__
+                // An independent high cirrus layer adds depth without a new
+                // cloud texture: the same 64x64 noise is sampled offset in
+                // world-space and animated at half the lower layer's speed.
+                if(gClouds&&cv<=cloudThr && lam>1000){
+                    int high=gCloud[(((ty*64/WH)+17)&63)][((((tx*64/WW)+37)+(drift>>1))&63)];
+                    if(high>236 && ((tx+ty)&3)==0) col=(u8)(GP_CLOUD+7);
+                }
+                if(nz<4000){
+                    int a=(4000-nz)/650; if(a>7) a=7;
+                    if(lam>-2000||a>3) col=(u8)(GP3_AIR+a);
+                }
+#else
+                if(nz<3800){ int a=(3800-nz)/700; if(a>5) a=5; if(lam>-2000||a>3) col=(u8)(GP_ATMO+a); }
+#endif
+            }
+            gbuf[sy*256+sx]=col;
+            if(step==2){
+                if(sx+1<256) gbuf[sy*256+sx+1]=col;
+                if(sy+1<192){
+                    gbuf[(sy+1)*256+sx]=col;
+                    if(sx+1<256) gbuf[(sy+1)*256+sx+1]=col;
+                }
+#ifdef __3DS__
+                // Tiny one-pixel facets preserve relief in the larger 2x2
+                // sampling mode; colour variations stay within one bank.
+                if(d2<=R2 && col>=GP_GROUND && col<GP_GROUND+T_N*8
+                   && ((x*3+y*7)&7)==0 && (col&7)>0 && sx+1<256)
+                    gbuf[sy*256+sx+1]=col-1;
+#endif
+            }
+        }
+    }
     if(walkOn){ int c=((tick>>3)&1)?3:129; for(int d=4;d<=8;d++){ gbuf[96*256+128+d]=(u8)c; gbuf[96*256+128-d]=(u8)c; gbuf[(96+d)*256+128]=(u8)c; gbuf[(96-d)*256+128]=(u8)c; } }
 }
 // The globe is drawn again only when something it shows has changed: the view (turn, zoom, walking, clouds, weather), the blink of the stars, the city lights and the walker's cross, a power
@@ -1671,11 +1797,50 @@ static int globeDraw(int force){
     int key[10]={rotX,rotY,zoom3,walkOn,gClouds,weather,(int)(tick>>6),(int)(tick>>5),(int)(tick>>4),walkOn?(int)((tick>>3)&1):0};
     if(!force&&gKeyOk&&!memcmp(key,gKey,sizeof key)) return 0;
     memcpy(gKey,key,sizeof key); gKeyOk=1; gDrawN++; globeDrawNow(); return 1; }
+#ifdef __3DS__
+static u32 gg3GlobeHash[32*24]; static int gg3GlobeHashValid;
+#ifdef GG_GLOBE_TEST
+static int gg3GlobeUploaded,gg3GlobeSkipped;
+#endif
+#endif
 static void globeFlush(void){
     static u8 tl[64] __attribute__((aligned(4)));
-    for(int ty=0;ty<24;ty++) for(int tx=0;tx<32;tx++){ for(int y=0;y<8;y++){ const u8*r=gbuf+(ty*8+y)*256+tx*8; ((u32*)tl)[y*2]=((const u32*)r)[0]; ((u32*)tl)[y*2+1]=((const u32*)r)[1]; } vramCopy((u8*)BG_TILE_RAM(1)+(ty*32+tx)*64,tl,64); } }
+    for(int ty=0;ty<24;ty++) for(int tx=0;tx<32;tx++){
+#ifdef __3DS__
+        u32 hash=2166136261u;
+#endif
+        for(int y=0;y<8;y++){
+            const u8*r=gbuf+(ty*8+y)*256+tx*8;
+            u32 a=((const u32*)r)[0], b=((const u32*)r)[1];
+            ((u32*)tl)[y*2]=a; ((u32*)tl)[y*2+1]=b;
+#ifdef __3DS__
+            hash=(hash^a)*16777619u; hash=(hash^b)*16777619u;
+#endif
+        }
+#ifdef __3DS__
+        int k=ty*32+tx;
+        if(gg3GlobeHashValid&&gg3GlobeHash[k]==hash){
+#ifdef GG_GLOBE_TEST
+            gg3GlobeSkipped++;
+#endif
+            continue;
+        }
+        gg3GlobeHash[k]=hash;
+#ifdef GG_GLOBE_TEST
+        gg3GlobeUploaded++;
+#endif
+#endif
+        vramCopy((u8*)BG_TILE_RAM(1)+(ty*32+tx)*64,tl,64);
+    }
+#ifdef __3DS__
+    gg3GlobeHashValid=1;
+#endif
+}
 static void globeEnter(void){
     for(int i=0;i<256;i++) gSavedPal[i]=BG_PALETTE[i]; globePalette();
+#ifdef __3DS__
+    gg3GlobeHashValid=0;
+#endif
     videoSetMode(MODE_0_2D|DISPLAY_BG0_ACTIVE|DISPLAY_SPR_ACTIVE|DISPLAY_SPR_1D_LAYOUT|DISPLAY_SPR_1D_SIZE_32); lcdMainOnBottom();
     for(int i=0;i<128;i++) oamSetHidden(&oamMain,i,true);
     bgSetScroll(0,0,0); for(int my=0;my<32;my++) for(int mx=0;mx<32;mx++) mapPtr[my*32+mx]=(u16)(my<24?my*32+mx:0);
@@ -1920,7 +2085,7 @@ static void makeSprites(void){
 }
 static struct { short x, y; } wpt[20]; static int wptInit;
 static void drawSprites(void){
-    if(zBmp){ for(int k=0;k<128;k++) oamSetHidden(&oamMain,k,true); return; }       // the zoom picture draws its own creatures
+    if(zBmp) return;  // all 128 were hidden once by zEnterBmp; the zoom renderer draws its own creatures
     int n=0, nc=100;       // creatures use sprites 0..99 (the last few go to a tornado or a black hole while one is on screen), rank crowns 100..107, weather 108..127
     int hs[8][4], nh=0;    // hazard sprites: x, y, shape, flip
     for(int i=0;i<HZ_N&&nh<7;i++){ const Hz*h=&hz[i]; if(!h->kind) continue; int px=h->x*8-camX, py=h->y*8-camY; if(px<-8||px>=256||py<-16||py>=TB_Y) continue;
