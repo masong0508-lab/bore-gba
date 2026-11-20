@@ -18,7 +18,10 @@ PALETTE = (
     (80, 47, 48), (130, 76, 61), (189, 125, 83), (236, 173, 124),
     (213, 131, 141), (177, 144, 202), (113, 76, 140), (72, 117, 166),
 )
-WISP, MIRA, GRUUL, ELOWEN, THORGRIM, HOLLOW, DAVE, MIRA_ELDER = range(8)
+# Nessa is the bridgewright; Serin once drew siege maps for the Hollow King.
+# Their full-body acting cels are authored for the 3DS film. DS portraits and
+# compressed assets intentionally retain the original eight-person cast.
+WISP, MIRA, GRUUL, ELOWEN, THORGRIM, HOLLOW, DAVE, MIRA_ELDER, NESSA, SERIN = range(10)
 
 
 def canvas(size, color=VOID):
@@ -79,6 +82,8 @@ def cast_sprite(who, talking=False, blink=False, react=False):
             ELOWEN: (PLUM, PURPLE, LILAC, SKIN, TAN),
             THORGRIM: (CLAY, WOOD, AMBER, TAN, RUST),
             DAVE: (PURPLE, INDIGO, LILAC, SKIN, ASH),
+            NESSA: (JADE, PINE, ICE, TAN, INK),
+            SERIN: (SLATE, INDIGO, CLOUD, SKIN, ASH),
         }[who]
         d.polygon([(3, 31), (6, 25), (12, 21), (20, 21), (26, 24),
                    (29, 31)], fill=shade, outline=INK)
@@ -136,6 +141,26 @@ def cast_sprite(who, talking=False, blink=False, react=False):
             d.point((18, 26), fill=SUN)
             d.line((26, 24, 22, 31), fill=ASH, width=2)
             d.rectangle((23, 22, 28, 25), fill=STONE)
+        elif who == NESSA:
+            # Long dark scarf, braided hair and copper clasp distinguish
+            # the river engineer from the existing village characters.
+            d.polygon(((6, 13), (10, 4), (22, 4), (26, 13), (23, 24),
+                       (21, 12), (13, 11), (8, 27)),fill=INK,outline=PINE)
+            d.line((10, 5, 19, 4, 23, 9),fill=ASH,width=2)
+            d.line((9, 25, 7, 30, 10, 31),fill=WOOD,width=3)
+            d.line((11, 23, 19, 29, 25, 25),fill=ICE,width=2)
+            d.rectangle((18, 26, 22, 29),fill=AMBER)
+        elif who == SERIN:
+            # White-streaked hair, narrow ceremonial mantle and a damaged
+            # bronze pin: a former royal surveyor, not another masked guard.
+            d.polygon(((7, 12),(9, 4),(15, 6),(21, 2),(26, 9),
+                       (24, 15),(18, 10),(11, 12)),fill=ASH,outline=INK)
+            d.line((11, 6, 20, 4, 24, 9),fill=WHITE,width=2)
+            d.polygon(((7, 26),(14, 22),(18, 27),(24, 23),(28, 31),
+                       (8, 31)),fill=INDIGO)
+            d.line((12, 26, 17, 28, 22, 26),fill=CLOUD,width=2)
+            d.point((18, 28),fill=AMBER)
+            d.line((12, 20, 19, 20),fill=ASH)
         elif who == DAVE:
             d.polygon([(4, 13), (9, 10), (11, 2), (16, 1), (22, 5),
                        (18, 5), (23, 11), (29, 13), (22, 15), (9, 15)],
@@ -201,6 +226,8 @@ def actor(frame, who, x, y, time, height, *, flip=False, pose="idle", prop=None)
         GRUUL: (WINE, RUST, AMBER, OLIVE), ELOWEN: (PURPLE, PLUM, LILAC, SKIN),
         THORGRIM: (WOOD, CLAY, AMBER, TAN), HOLLOW: (INK, INDIGO, PLUM, ASH),
         DAVE: (INDIGO, PURPLE, LILAC, SKIN),
+        NESSA: (PINE, JADE, ICE, TAN),
+        SERIN: (SLATE, INDIGO, CLOUD, SKIN),
     }[who]
     image = canvas((40, 48), 255)
     d = ImageDraw.Draw(image)
