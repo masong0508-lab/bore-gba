@@ -250,12 +250,37 @@ def actor(frame, who, x, y, time, height, *, flip=False, pose="idle", prop=None)
               fill=cloth, outline=INK)
     d.line((11, 33-bob, 25, 33-bob), fill=shade, width=3)
     d.rectangle((18, 32-bob, 20, 34-bob), fill=trim)
+    # Clear shoulder seams and fitted collar: the neck actually joins the
+    # torso rather than a large disembodied portrait hovering above it.
+    # Only the 3DS 40x48 acting keys use this proportional full-body face;
+    # readable 32x32 DS/dialogue portraits remain completely unchanged.
+    d.polygon(((12, 23-bob), (16, 21-bob), (20, 21-bob), (25, 23-bob),
+               (22, 27-bob), (15, 27-bob)),
+              fill=shade, outline=INK)
+    d.polygon(((16+lean, 18-bob), (21+lean, 18-bob),
+               (21+lean, 24-bob), (16+lean, 24-bob)),
+              fill=skin, outline=INK)
+    d.line((13, 24-bob, 17, 27-bob), fill=trim, width=2)
+    d.line((23, 24-bob, 20, 27-bob), fill=trim, width=2)
     head = cast_sprite(who, pose == "talk" and time//4 % 2 == 0,
                        pose == "listen" or (time+who*9)%79 < 3,
                        pose == "react")
-    top = head.crop((3, 0, 31, 25)).resize((23, 21), Image.Resampling.NEAREST)
+    # Previous 23x21 portrait dominated nearly half a 48-pixel body. A
+    # narrower, reshaped 18x16 face leaves room for the shoulders, neck,
+    # waist, knees and ankles in a clean silhouette. Retain the original
+    # detailed face artwork and resample only once during asset generation.
+    head_width = 19 if who in (GRUUL, THORGRIM) else 18
+    top = head.crop((3, 0, 31, 25)).resize((head_width, 16),
+                                           Image.Resampling.NEAREST)
     nod = 2 if pose == "bow" else (1 if pose == "brace" else 0)
-    image.paste(top, (7+lean, 3+nod-bob), top.point(lambda i: 255 if i != 255 else 0, "1"))
+    face_x = 19-head_width//2+lean
+    image.paste(top, (face_x, 5+nod-bob),
+                top.point(lambda i: 255 if i != 255 else 0, "1"))
+    # A tiny jaw shadow, forehead plane and one-pixel neckline help the
+    # character read as a torso with a face rather than a spherical head.
+    d.line((face_x+4, 20+nod-bob, face_x+head_width-5, 20+nod-bob),
+           fill=shade)
+    d.point((19+lean, 22+nod-bob), fill=trim)
     left_hand = {
         "brace": (4, 26), "react": (7, 20), "work": (8, 29),
         "talk": (5, 29), "listen": (8, 34),
