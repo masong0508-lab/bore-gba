@@ -46,6 +46,7 @@ static void fmvDraw(const FmvClip *clip,int frame){
         if(command<128){
             pixel+=command;
         } else {
+            // High bit marks a color run. Bits 5-6 hold lengths 1-3 or an extension.
             int mode=(command>>5)&3;
             int length=mode==3?4+*fmvRead++:1+mode;
             u8 color=fmvSlots[command&31];
