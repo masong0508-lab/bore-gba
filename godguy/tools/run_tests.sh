@@ -26,6 +26,7 @@ gcc $F -w -o /tmp/gg_loot pc_loot.c -lm && /tmp/gg_loot | tail -1
 gcc $F -w -o /tmp/gg_wild pc_wild.c -lm && /tmp/gg_wild | tail -1
 # B + stylus drag pans the map (normal and zoomed view), nothing is painted while B is held
 gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_pan pc_pan.c -lm && /tmp/gg_pan | tail -1
+gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_window pc_window.c -lm && /tmp/gg_window | tail -2
 # DS (12,000), DSi mode (38,000) and 3DS / PC (199,999) worlds filled to the creature cap: refused at the cap, save and load identical, the raw and packed saves fit their blocks, the loader refuses a save above the cap
 # (and tools/ram_estimate.sh: an estimate of the DS and DSi link room, since no ARM linker runs here)
 gcc -O2 -DNDSSHIM -DGG_MAXC_TEST=12000 -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_cap_ds pc_cap.c -lm && /tmp/gg_cap_ds | grep -E "FAIL|^CAP " | tail -3 | tee /tmp/gg_cap_ds.out; grep -q "^CAP DS OK" /tmp/gg_cap_ds.out
