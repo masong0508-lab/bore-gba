@@ -54,10 +54,12 @@ int main(void){
     require(near.y>far.y,"world-space floor has no depth gradient");
     require(ggFilmProject(moved,ggV3(120,0,560)).x!=near.x,
             "a camera track does not transform a point");
+    memset(uiBuf,0,sizeof picture.page);
+    unsigned long empty=hashFrame();
     int populated=0;
     for(int p=F_SHORE;p<F_SET_N;p++){
         unsigned long h=frame(p,F_WIDE,0);
-        populated+=(h!=2166136261u);
+        populated+=(h!=empty);
         require(picture.before[0]==0xa6&&picture.before[31]==0xa6&&
                 picture.after[0]==0x6d&&picture.after[31]==0x6d,
                 "world renderer wrote outside the 256x192 film surface");
