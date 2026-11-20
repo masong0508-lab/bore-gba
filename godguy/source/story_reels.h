@@ -265,7 +265,7 @@ static const FilmBeat firstLightExtra[]={
 };
 static const FilmBeat folkExtra[]={
     L(VILLAGE,WIDE,OFFSCREEN,OFFSCREEN,NO_PROP,"THE RAIN SLOWS TO A DRIZZLE."),
-    L(PORCH,NEAR,MIRA,WISP,CUP,"NEXT TIME WE'LL PUT A BARREL OUT."),
+    L(VILLAGE,NEAR,MIRA,WISP,NO_PROP,"NEXT TIME WE'LL PUT A BARREL OUT."),
 };
 static const FilmBeat roofExtra[]={
     L(PORCH,WIDE,OFFSCREEN,OFFSCREEN,GOAT,0),
