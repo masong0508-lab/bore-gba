@@ -812,7 +812,8 @@ static const char *const filmBonusTitles[]={
  "THE FIRST WINTER","THE BRIDGE IN WINTER","THE MAP THAT LIED",
  "THE ROOM WITH NO THRONE","NAMES AT DAWN","AFTER THE CROWN"
 };
-static const u8 filmBonusChapterUnlock[]={3,5,8,11,14,15};
+// The final film requires storyDone; 255 is a completion sentinel, not a chapter.
+static const u8 filmBonusChapterUnlock[]={3,5,8,11,14,255};
 enum { FILM_BONUS_N=sizeof filmBonusReels/sizeof *filmBonusReels };
 
 #undef FD
