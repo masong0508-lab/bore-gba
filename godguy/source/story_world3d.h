@@ -284,15 +284,17 @@ static void ggFilmWorldDraw(const FilmBeat *beat,int elapsed,int move,int chapte
     int p=beat->place;
     if(p==F_ORBIT)return; // globe remains the spherical dedicated renderer
     GgFilmCamera cam=ggFilmCameraAt(beat,move);
+    // Hearth is an actual interior. Formerly it incorrectly received the
+    // outdoor village set (houses and trees), breaking cuts from the room.
     int inside=(p==F_FORGE||p==F_ARCHIVE||p==F_HALL||
-                p==F_THRONE||p==F_COUCH||p==F_PORCH);
+                p==F_THRONE||p==F_COUCH||p==F_PORCH||p==F_HEARTH);
     if(inside){ggFilmInterior(cam,p,elapsed);return;}
     ggFilmFloor(cam,p,elapsed);
     if(p==F_GATE||p==F_RUINS){
         ggFilmArch(cam,-170,1260,p==F_RUINS);
         ggFilmArch(cam,225,970,p==F_RUINS);
         ggFilmBox(cam,0,0,1610,650,140,80,21,20,26);
-    }else if(p==F_VILLAGE||p==F_HEARTH){
+    }else if(p==F_VILLAGE){
         // Persist the same village plan, but let the town actually GROW:
         // one founding shelter, then its first neighbor, then the hall.
         // Later stories never jump back to a vanished building.
