@@ -410,6 +410,11 @@ static void filmWorldContinuity(const FmvClip *clip,const FilmBeat *beat,int ela
             uiRect(211,56,30,2,fmvSlots[24]);
             uiRect(211,92,30,3,fmvSlots[24]);
             for(int i=0;i<4;i++) uiRect(216+i*6,61+(elapsed/7+i*13)%24,1,4,fmvSlots[22]);
+            // The cup remains on the sill after Mira puts it there.
+            if(beat==firstRainBeats+6){
+                filmSurface(F_PORCH,133,150);
+                filmDrawProp(F_CUP,133,150,19);
+            }
         }else if(beat->place==F_VILLAGE){
             // After the rain, puddles keep the prior weather visible.
             for(int i=0;i<5;i++)uiRect(37+i*40,152+i%2*3,13,1,fmvSlots[14]);
@@ -423,6 +428,8 @@ static void filmWorldContinuity(const FmvClip *clip,const FilmBeat *beat,int ela
         if(finished){
             for(int i=0;i<6;i++)uiRect(49+i*10,110+i%2,10,4,fmvSlots[24]);
             uiRect(47,115,64,3,fmvSlots[25]);
+            // Thorgrim leaves his hammer at the completed work site.
+            filmDrawProp(F_HAMMER,117,156,17);
         }else{
             uiRect(48,111,20,3,fmvSlots[24]);
             uiRect(85,111,20,3,fmvSlots[24]);
