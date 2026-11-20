@@ -685,7 +685,7 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
 #ifdef __3DS__
     // The geometry is projected through the same dollying camera as actors.
     // Draw before cast so roofs, water and room floors form a stable world.
-    ggFilmWorldDraw(beat,elapsed,move);
+    ggFilmWorldDraw(beat,elapsed,move,(int)(clip-fmvClips));
 #endif
     filmWorldContinuity(clip,beat,elapsed);
     filmAtmosphere(beat,elapsed);
