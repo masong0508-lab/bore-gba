@@ -63,25 +63,65 @@ static void uiFlushRaw(void){ uiFlushes++; vramCopy(bgGetGfxPtr(3),uiBuf,256*192
 #ifndef UI_NOTRANS
 #define UI_NOTRANS 0
 #endif
-// ---- screen transitions: when the screen changes, the old picture slides out and the new one in (dir 1 forward, -1 back) or dissolves (dir 2)
-static u8 uiPrev[256*192], uiNew[256*192]; static int uiTrans, uiHavePrev;
+// ---- screen transitions: slide between pages or dissolve menus in seven steps.
+#ifndef NDSHW
+static u8 uiPrev[256*192];
+#endif
+static u8 uiNew[256*192] __attribute__((aligned(4)));
+static int uiTrans, uiHavePrev;
+static void uiTransitionRow(u8*out,const u8*old,const u8*new,int y,int dir,int shift,int threshold){
+    if(dir==2){
+        static const u8 bayer[16]={0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5};
+        for(int x=0;x<256;x++) out[x]=bayer[(y&3)*4+(x&3)]<threshold?new[x]:old[x];
+    } else if(dir>0){
+        memcpy(out,old+shift,256-shift);
+        memcpy(out+256-shift,new,shift);
+    } else {
+        memcpy(out,new+256-shift,shift);
+        memcpy(out+shift,old,256-shift);
+    }
+}
 static void uiFlush(void){
     if(uiHold) return;
-    if(uiTrans&&uiHavePrev&&!UI_NOTRANS){ int dir=uiTrans; uiTrans=0; memcpy(uiNew,uiBuf,sizeof uiNew);
+    if(uiTrans&&uiHavePrev&&!UI_NOTRANS){
+        int dir=uiTrans;
+        uiTrans=0;
 #ifdef NDSHW
-        hwSubGet(uiPrev);      // (the picture on the screen now, read back from the flush's own copy: it is not kept a second time after every flush)
+        // The live UI is the destination. Keep the previous frame in the
+        // shared FMV scratch and stream rows straight to tile VRAM.
+        hwSubGet(uiNew);
+#else
+        memcpy(uiNew,uiBuf,sizeof uiNew);
 #endif
-        for(int f=1;f<=7;f++){ int p=f*256/7, sh=256-(256-p)*(256-p)/256;
-            if(dir==2){ static const u8 bay[16]={0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5}; int th=f*16/7; for(int y=0;y<192;y++) for(int x=0;x<256;x++) uiBuf[y*256+x]=bay[(y&3)*4+(x&3)]<th?uiNew[y*256+x]:uiPrev[y*256+x]; }
-            else for(int y=0;y<192;y++){ u8*o=&uiBuf[y*256], *a=&uiPrev[y*256], *n=&uiNew[y*256];
-                if(dir>0){ for(int x=0;x<256;x++) o[x]=x<256-sh?a[x+sh]:n[x-(256-sh)]; } else { for(int x=0;x<256;x++) o[x]=x>=sh?a[x-sh]:n[x+(256-sh)]; } }
-            uiFlushRaw(); swiWaitForVBlank(); }
-        memcpy(uiBuf,uiNew,sizeof uiNew); }
+        for(int f=1;f<=7;f++){
+            int p=f*256/7, shift=256-(256-p)*(256-p)/256, threshold=f*16/7;
+            for(int y=0;y<192;y++){
+                int off=y*256;
+#ifdef NDSHW
+                u8 row[256] __attribute__((aligned(4)));
+                uiTransitionRow(row,uiNew+off,uiBuf+off,y,dir,shift,threshold);
+                hwSubFlushRow(y,row);
+#else
+                uiTransitionRow(uiBuf+off,uiPrev+off,uiNew+off,y,dir,shift,threshold);
+#endif
+            }
+#ifdef NDSHW
+            uiFlushes++;
+#else
+            uiFlushRaw();
+#endif
+            swiWaitForVBlank();
+        }
+#ifndef NDSHW
+        memcpy(uiBuf,uiNew,sizeof uiNew);
+#endif
+    }
     uiFlushRaw();
 #ifndef NDSHW
     memcpy(uiPrev,uiBuf,sizeof uiPrev);
 #endif
-    uiHavePrev=1; }
+    uiHavePrev=1;
+}
 // ---- touch buttons: each drawn control registers a rectangle; a tap on it sets *sp=sv (if given) and presses key (key2 instead when it was already selected)
 typedef struct { short x,y,w,h; unsigned short key,key2; int*sp; int sv; } UiBtn;
 static UiBtn uiBtns[64]; static int uiNBtn;

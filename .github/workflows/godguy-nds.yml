@@ -146,6 +146,12 @@ jobs:
           gcc -O2 -DNDSSHIM -Icompat -Isource -w -include unistd.h pc_lawmenu.c -lm -o /tmp/godguy-lawmenu
           /tmp/godguy-lawmenu
 
+      - name: Verify chapter-film playback and sound timing
+        working-directory: godguy
+        run: |
+          gcc -O2 -DNDSSHIM -Icompat -Isource -w -include unistd.h pc_fmv.c -lm -o /tmp/godguy-fmv
+          /tmp/godguy-fmv
+
       - name: Profile gameplay frame and simulation-tick budgets
         working-directory: godguy
         run: |

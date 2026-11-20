@@ -5,6 +5,7 @@ typedef struct {
     const u8 *data;
     int frames;
     const char *title;
+    struct { u8 frame, effect; } cue[2];
 } FmvClip;
 
 #include "story_fmv_data.h"
@@ -45,8 +46,10 @@ static void fmvDraw(const FmvClip *clip,int frame){
         if(command<128){
             pixel+=command;
         } else {
-            int length=command-127;
-            u8 color=fmvSlots[*fmvRead++];
+            // High bit marks a color run. Bits 5-6 hold lengths 1-3 or an extension.
+            int mode=(command>>5)&3;
+            int length=mode==3?4+*fmvRead++:1+mode;
+            u8 color=fmvSlots[command&31];
             while(length){
                 int x=pixel%FMV_W, y=pixel/FMV_W;
                 int count=FMV_W-x;
@@ -60,6 +63,7 @@ static void fmvDraw(const FmvClip *clip,int frame){
         }
     }
     fmvRead++;
+    for(int i=0;i<2;i++) if(clip->cue[i].effect&&clip->cue[i].frame==frame) fxReq(clip->cue[i].effect);
     uiFlush();
 }
 

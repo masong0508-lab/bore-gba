@@ -1342,7 +1342,7 @@ static const Dl dl8[]={{W_GRUUL,"Mira still leaves a cup by our fire. I used to 
 static const Dl dl9[]={{W_HOLLOW,"I was here before you. I made seas, and cities, and loved them. They all burned, or forgot me. Or I forgot them."},{W_WISP,"Do not listen. He wants you to be as tired as he is."},{W_THORGRIM,"Hold the walls! The horde is at the gate!"},{W_DAVE,"Dude. Kings. Crowns. So much stress. Have you tried just... sitting? The couch is very long, godguy. It has room."},{0,0}};
 static const Dl dl10[]={{W_MIRA,"The cup leaks now. One of the children uses it to water the beans anyway. I think she will be all right when I am gone."},{W_WISP,"She will not be here forever. That is what makes it matter."},{0,0}};
 static const Dl dl11[]={{W_ELOWEN,"I drew teeth first. Then I drew where they sleep, what they eat and which ones come back for their young. The book needed more pages."},{W_ELOWEN,"And do you know, they are not all evil. Some only follow the Hollow King because no one asked them to stay."},{0,0}};
-static const Dl dl12[]={{W_WISP,"I have learned something about the Hollow King. He is not a monster. He is the last god who gave up."},{W_WISP,"Every world he made, he watched die. So he made monsters instead. They never leave."},{W_GRUUL,"Then end him. Or end the loneliness. I do not know which is harder."},{W_DAVE,"The long peace. Yeah. That is the vibe. Honestly the best thing you ever made was a quiet afternoon and a bag of cheesy puffs."},{W_WISP,"Dave, how are you in my story."},{W_DAVE,"Wisp. Man. The couch is in everyone's story."},{0,0}};
+static const Dl dl12[]={{W_WISP,"I have learned something about the Hollow King. He is not a monster. He is the last god who gave up."},{W_WISP,"Every world he made, he watched die. So he made monsters instead. They never leave."},{W_GRUUL,"Then end him. Or end the loneliness. I do not know which is harder."},{W_DAVE,"The long peace. Yeah. The wizard weed goes on the windowsill. Cheesy puffs go on the couch. I have a whole system."},{W_WISP,"Dave, how are you in my story."},{W_DAVE,"Wisp. Man. The couch is in everyone's story."},{0,0}};
 static const Dl dl13[]={{W_HOLLOW,"You have counted my children and you have killed many. Why do you still come?"},{W_WISP,"Because they are not only monsters. Because you are not only a king."},{W_HOLLOW,"...Show me, then. Show me a world that does not burn."},{0,0}};
 static const Dl dl14[]={{W_HOLLOW,"I heard laughter in the rain and waited for it to stop. Mira's children moved their supper under the eaves. The city kept its lights on."},{W_HOLLOW,"Thank you, godguy. I will stay, if the world will have me."},{W_WISP,"There is room for two gods. There always was. Welcome home."},{0,0}};
 static const Dl*const dlgTab[15]={dl0,dl1,dl2,dl3,dl4,dl5,dl6,dl7,dl8,dl9,dl10,dl11,dl12,dl13,dl14};
@@ -2838,7 +2838,7 @@ static void uiDialog(void){
     int who=d->who;
     int portrait=who==W_MIRA&&dlgSet==dlgTab[10]?W_N:who;
     int tl=(int)strlen(d->txt), cc=dlgChars<tl?dlgChars:tl;
-    int cel=(tick+who*11)%107<5?2:cc<tl&&(tick/5)%2?1:0;
+    int cel=cc<8?3:(tick+who*11)%107<5?2:cc<tl&&(tick/5)%2?1:0;
     fmvPortrait(11,11,portrait,cel);
     int len=(int)strlen(whoNm[who]);
     uiTextS(86,17,whoNm[who],U_GOLD,len>12?1:2);

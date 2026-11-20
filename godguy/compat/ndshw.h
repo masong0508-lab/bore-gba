@@ -60,6 +60,17 @@ static void hwSubFlush(const u8*buf){      // only the words that differ from wh
     for(int ty=0;ty<24;ty++) for(int tx=0;tx<32;tx++){ vu32*d=(vu32*)(0x06204000+(ty*32+tx)*64); u32*h=&hwSubSh[(ty*32+tx)*16];
         for(int y=0;y<8;y++){ const u32*r=(const u32*)(buf+(ty*8+y)*256+tx*8); u32 a=r[0], b=r[1]; if(!hwSubShOk||a!=h[y*2]) { d[y*2]=a; h[y*2]=a; } if(!hwSubShOk||b!=h[y*2+1]) { d[y*2+1]=b; h[y*2+1]=b; } } }
     hwSubShOk=1; }
+// Stream a completed transition row using the same dirty-word shadow.
+static void hwSubFlushRow(int y,const u8*row){
+    const u32*r=(const u32*)row;
+    int offset=(y/8)*32*16+(y%8)*2;
+    vu32*d=(vu32*)0x06204000+offset;
+    u32*h=hwSubSh+offset;
+    for(int x=0;x<32;x++,d+=16,h+=16,r+=2){
+        if(r[0]!=h[0]) d[0]=h[0]=r[0];
+        if(r[1]!=h[1]) d[1]=h[1]=r[1];
+    }
+}
 static void hwSubGet(u8*out){      // the picture the top screen holds, back in rows (from the flush's copy)
     for(int ty=0;ty<24;ty++) for(int tx=0;tx<32;tx++){ const u32*h=&hwSubSh[(ty*32+tx)*16]; for(int y=0;y<8;y++){ u32*r=(u32*)(out+(ty*8+y)*256+tx*8); r[0]=h[y*2]; r[1]=h[y*2+1]; } } }
 static inline void bgSetPriority(int id,int p){ u32 a=id==0?0x04000008:0x0400000A; HW_REG16(a)=(u16)((HW_REG16(a)&~3)|(p&3)); }
