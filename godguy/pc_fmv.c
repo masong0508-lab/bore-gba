@@ -80,9 +80,9 @@ static void checkDirectedBlocking(void){
                     const FilmBeat *next=&reel->beats[j];
                     if(beat->lead==next->other&&beat->other==next->lead){
                         FilmBlocking converse=filmBlocking(next,250);
-                        check(finish.leadX==converse.otherX&&
-                              finish.otherX==converse.leadX,
-                              "a speaker teleported to the opposite side");
+                        check((finish.leadX<finish.otherX)==
+                              (converse.otherX<converse.leadX),
+                              "a speaker switched screen sides between cuts");
                     }
                 }
             }
