@@ -79,7 +79,24 @@ static void filmDrawSet(const FilmBeat *beat,int move){
     for(int y=FILM_TOP;y<FILM_BOTTOM;y++,sy+=camera.dy){
         const u8 *row=uiNew+(sy>>8)*FMV_W*FILM_PLATE_SCALE;
         u8 *out=uiBuf+y*256;
+#ifdef __3DS__
+        // Depth-graded lateral tracking: far scenery moves less than the
+        // near ground. Keep the set's original pixel geometry and focal
+        // length, without enlarging/blurring the illustrated backdrop.
+        // The shift is subtle (maximum two source pixels) and is only
+        // applied during an authored tracking shot.
+        int near=y-FILM_TOP;
+        int parallax=beat->camera==F_TRACK?
+            (move-128)*near/(FILM_H*64):0;
+        for(int x=0;x<256;x++){
+            int source=x+parallax;
+            if(source<0)source=0;
+            if(source>255)source=255;
+            out[x]=fmvSlots[row[columns[source]]];
+        }
+#else
         for(int x=0;x<256;x++) out[x]=fmvSlots[row[columns[x]]];
+#endif
     }
 }
 static void filmDrawCel(const u8 *image,int sw,int sh,int center,int feet,int height,int flip){
@@ -180,10 +197,28 @@ static FilmBlocking filmBlocking(const FilmBeat *beat,int elapsed){
         int arrival=filmEase(elapsed,140)*19/256;
         leadX+=(paired&&!leadLeft?1:-1)*(19-arrival);
     }
+#ifdef __3DS__
+    // Walk the set during establishing action, rather than merely changing
+    // expressions in place. This is world-ground travel, not cel zooming.
+    // Arrival settles BEFORE the character interacts with a hand prop.
+    if(beat->camera==F_WIDE&&beat->lead<F_ACTOR_N&&
+       beat->prop>=F_PROP_N){
+        int approach=filmEase(elapsed,180);
+        leadX+=(paired&&!leadLeft?1:-1)*(12-12*approach/256);
+    }
+#endif
     // Restrained one-pixel acting, with a held pose instead of a bounce.
     int breath=(elapsed/72)&1;
+#ifdef __3DS__
+    // Footfall is tied to actual travel, not to dialogue or a static pose.
+    int walking=(beat->camera==F_TRACK&&elapsed<140)||
+                (beat->camera==F_WIDE&&beat->prop>=F_PROP_N&&elapsed<180);
+    int stride=walking?((elapsed/18)&1):0;
+#else
+    int stride=0;
+#endif
     FilmBlocking b={leadX,otherX,
-        feet-breath-(beat->lead==F_WISP?33:0),
+        feet-breath-stride-(beat->lead==F_WISP?33:0),
         feet-breath-(beat->other==F_WISP?33:0),
         filmStageHeight(beat->lead,h),filmStageHeight(beat->other,h)};
     return b;
@@ -554,7 +589,9 @@ static int filmActingPose(const FilmBeat *beat,int elapsed,int lead,int action){
         if(elapsed>=280&&elapsed<320&&beat->line)return 10;
         return (elapsed+(beat->other*13))%167<10?6:0;
     }
-    if(beat->camera==F_TRACK&&elapsed<140&&action!=F_ACT_WORK)
+    if(((beat->camera==F_TRACK&&elapsed<140)||
+        (beat->camera==F_WIDE&&beat->prop>=F_PROP_N&&elapsed<180))&&
+       action!=F_ACT_WORK)
         return (elapsed/18)&1?1:2;
     if(action==F_ACT_TAKE)
         return elapsed<45?9:elapsed<145?3:elapsed<280?8:0;
