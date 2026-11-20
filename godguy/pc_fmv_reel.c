@@ -68,6 +68,16 @@ int main(int argc,char **argv){
     if(!reelAudio){perror(argv[2]);fclose(out);return 2;}
     uiPalette();
     fmvSetPalette();
+    soundEnable();
+    // The game initializes these reserved 3DS effect voices in its main
+    // loop. This stand-alone reel renderer must do the same or the movie
+    // score plays but its actions are silently missing.
+    gpId=soundPlayPSG(DutyCycle_50,440,0,64);
+    gnId=soundPlayNoise(8000,0,64);
+    if(gpId<0||gnId<0){
+        fputs("REEL FAIL: cannot reserve cinematic sound-effect channels\n",stderr);
+        fclose(out);fclose(reelAudio);return 2;
+    }
     gmTables();
     gmFilmMixSet(1,0,64);
     int film;
