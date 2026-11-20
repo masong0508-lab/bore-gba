@@ -147,7 +147,11 @@ static int filmStageHeight(int who,int humanHeight){
 static FilmBlocking filmBlocking(const FilmBeat *beat,int elapsed){
     int paired=beat->lead<F_ACTOR_N&&beat->other<F_ACTOR_N;
     // Screen direction is fixed even as the shot type changes.
-    int left=85,right=171;
+    // For an actual hand-off both performers move close enough that
+    // their hands can touch the same object. All other frames keep the
+    // established screen-side positions.
+    int compact=beat->camera==F_HAND&&paired&&beat->prop<F_PROP_N;
+    int left=compact?106:85,right=compact?150:171;
     int leadLeft=paired&&filmActorLeftOf(beat->lead,beat->other);
     int leadX=paired?(leadLeft?left:right):
                 beat->lead==F_WISP?171:filmScreenOrder(beat->lead)<=2?85:171;
@@ -232,9 +236,253 @@ static const FilmBeat *filmBeatAt(const FmvClip *clip,int *elapsed){
 #endif
     return beat;
 }
+// A drawn cel has a real reachable hand, not a generic "object beside
+// the actor" point. The same cel geometry is shared by DS and 3DS.
+typedef struct { int x,y; } FilmPoint;
+static FilmPoint filmHandPoint(int who,int pose,int cx,int feet,int height,int flip){
+    int width=height*FILM_CEL_W/FILM_CEL_H;
+    // Source art has an extended right arm in cel 3. Its visible hand is
+    // around (24,18) of the 28x34 cel; idle hand around (19,24).
+    int sx=pose==3?24:19, sy=pose==3?18:24;
+    int x=cx-width/2+(flip?FILM_CEL_W-1-sx:sx)*width/FILM_CEL_W;
+    int y=feet-height+sy*height/FILM_CEL_H;
+    if(who==F_WISP){
+        // The spark has no human fingers. A seed/leaf must stay grounded.
+        x=cx+(flip?-8:8);
+        y=feet+7;
+    }
+    FilmPoint point={x,y};
+    return point;
+}
+static FilmPoint filmPropGripPoint(int prop){
+    // Exact attachment points on the 20x20 prop drawings: cup handle,
+    // hammer shaft, lamp loop, quill shaft, bread crust, and so on.
+    static const u8 gx[F_PROP_N]={17,10,6,5,7,10,11,9,14,11,11,11};
+    static const u8 gy[F_PROP_N]={11,10,16,16,15,3,13,12,11,12,12,11};
+    FilmPoint p={gx[prop],gy[prop]};
+    return p;
+}
+static FilmPoint filmSurfacePoint(const FilmBeat *beat,int handX){
+    // Interior furniture belongs to the set, not to the currently speaking
+    // actor: the cup stays on the same sill when the edit reverses.
+    if(beat->place==F_PORCH){FilmPoint p={128,150};return p;}
+    if(beat->place==F_FORGE){FilmPoint p={128,150};return p;}
+    if(beat->place==F_ARCHIVE){FilmPoint p={128,151};return p;}
+    if(beat->place==F_HEARTH){FilmPoint p={128,151};return p;}
+    if(beat->place==F_COUCH){FilmPoint p={128,152};return p;}
+    if(beat->place==F_HALL){FilmPoint p={128,150};return p;}
+    if(beat->place==F_THRONE){FilmPoint p={128,150};return p;}
+    FilmPoint p={handX+((handX>128)?-14:14),156};
+    return p;
+}
+static int filmActionOf(const FilmBeat *beat){
+    if(beat->action!=F_ACT_AUTO) return beat->action;
+    if(beat->prop>=F_PROP_N) return F_ACT_AUTO;
+    if(beat->camera==F_HAND&&beat->lead<F_ACTOR_N&&beat->other<F_ACTOR_N)
+        return F_ACT_PASS;
+    return F_ACT_AUTO;
+}
+static void filmSurface(int place,int x,int y){
+    int outdoor=place==F_SHORE||place==F_STORM||place==F_FORD||
+                place==F_VILLAGE||place==F_GATE||place==F_RUINS;
+    if(outdoor){
+        // A persistent patch of soil/stone under a grounded object.
+        uiRect(x-16,y,32,2,fmvSlots[20]);
+        uiRect(x-12,y+2,24,1,fmvSlots[21]);
+    }else{
+        // Narrow table/sill with two real supporting legs.
+        uiRect(x-24,y,48,3,fmvSlots[25]);
+        uiRect(x-18,y+3,3,14,fmvSlots[24]);
+        uiRect(x+15,y+3,3,14,fmvSlots[24]);
+    }
+}
+static FilmPoint filmPropCenterForGrip(int prop,int size,FilmPoint hand){
+    FilmPoint pin=filmPropGripPoint(prop);
+    FilmPoint result={
+        hand.x-((pin.x-10)*size)/FILM_PROP_SIZE,
+        hand.y+(FILM_PROP_SIZE-pin.y)*size/FILM_PROP_SIZE
+    };
+    return result;
+}
+static int filmLerp(int start,int finish,int step){
+    return start+(finish-start)*step/256;
+}
+static int filmHandColor(int who){
+    static const u8 skin[F_ACTOR_N]={15,27,18,27,26,21,27,26};
+    return fmvSlots[skin[who]];
+}
+static void filmArmReach(int who,FilmPoint from,FilmPoint target){
+    // Attach the hand to the object while lifting or handing it over.
+    // A single 2-pixel line costs at most 31 iterations, no new art buffers.
+    int dx=target.x-from.x,dy=target.y-from.y;
+    int adx=dx<0?-dx:dx,ady=dy<0?-dy:dy;
+    int steps=adx>ady?adx:ady;
+    if(!steps)return;
+    if(steps>31)steps=31;
+    int color=filmHandColor(who);
+    int x=from.x*256, y=from.y*256;
+    int sx=dx*256/steps,sy=dy*256/steps;
+    for(int i=1;i<=steps;i++){
+        x+=sx; y+=sy;
+        uiRect(x/256,y/256,2,2,color);
+    }
+}
+static void filmGripOverlay(int who,FilmPoint hand,int prop){
+    int color=filmHandColor(who);
+    if(prop==F_HAMMER||prop==F_QUILL||prop==F_SPOON)
+        uiRect(hand.x-1,hand.y,3,2,color);
+    else
+        uiRect(hand.x-2,hand.y-1,4,2,color);
+}
+static void filmDrawPropAction(const FilmBeat *beat,int elapsed,int leadPose,int otherPose,FilmBlocking b){
+    int prop=beat->prop;
+    if(prop>=F_PROP_N)return;
+    if(prop==F_GOAT){
+        // The goat is a character on the floor, not a levitating hand prop.
+        int walk=filmEase(elapsed,beat->seconds*FILM_SECOND);
+        filmDrawProp(prop,58+walk*49/256,157,24);
+        return;
+    }
+    int size=beat->camera==F_INSERT?27:beat->camera==F_WIDE?17:19;
+    int paired=beat->lead<F_ACTOR_N&&beat->other<F_ACTOR_N;
+    int flipLead=paired&&b.leadX>b.otherX, flipOther=paired&&b.otherX>b.leadX;
+    if(beat->camera==F_INSERT||beat->lead>=F_ACTOR_N){
+        // Insert and establishing objects *start* on a named support.
+        FilmPoint table={128,149};
+        filmSurface(beat->place,table.x,table.y);
+        // Resting props use their literal lower edge on the table top.
+        // Grip/pivot coordinates apply only while a character HOLDS one.
+        int feet=table.y;
+        if(beat->camera==F_INSERT&&prop==F_HAMMER&&elapsed>=72&&elapsed<142)
+            feet-=2;
+        filmDrawProp(prop,table.x,feet,size);
+        return;
+    }
+    int action=filmActionOf(beat);
+    FilmPoint leadHand=filmHandPoint(beat->lead,leadPose,b.leadX,b.leadFeet,
+                                   b.leadHeight,flipLead);
+    FilmPoint grip=leadHand;
+    FilmPoint ground=filmSurfacePoint(beat,leadHand.x);
+    FilmPoint pivot=filmPropGripPoint(prop);
+    FilmPoint restGrip={
+        ground.x+(pivot.x-10)*size/FILM_PROP_SIZE,
+        ground.y-size+pivot.y*size/FILM_PROP_SIZE
+    };
+    // Wisp has no fingers: seed, leaf and cup stay physically on the floor.
+    if(beat->lead==F_WISP||action==F_ACT_APPROACH){
+        filmSurface(beat->place,ground.x,ground.y);
+        filmDrawProp(prop,ground.x,ground.y,size);
+        return;
+    }
+    int holding=1, thumb=1;
+    if(action==F_ACT_TAKE){
+        filmSurface(beat->place,ground.x,ground.y);
+        int lift=filmEase(elapsed>50?elapsed-50:0,145);
+        grip.x=filmLerp(restGrip.x,leadHand.x,lift);
+        grip.y=filmLerp(restGrip.y,leadHand.y,lift);
+        // The actor reaches down BEFORE the object starts lifting.
+        holding=1;
+        thumb=elapsed>=40;
+    }else if(action==F_ACT_PUT){
+        filmSurface(beat->place,ground.x,ground.y);
+        int down=filmEase(elapsed>55?elapsed-55:0,170);
+        grip.x=filmLerp(leadHand.x,restGrip.x,down);
+        grip.y=filmLerp(leadHand.y,restGrip.y,down);
+        // Release only when the item actually touches the sill/ground.
+        holding=down<248;
+        thumb=holding;
+    }else if((action==F_ACT_PASS||action==F_ACT_RECEIVE)&&paired&&
+               beat->other!=F_WISP){
+        FilmPoint otherHand=filmHandPoint(beat->other,otherPose,b.otherX,
+                           b.otherFeet,b.otherHeight,flipOther);
+        int receive=action==F_ACT_RECEIVE;
+        FilmPoint giver=receive?otherHand:leadHand;
+        FilmPoint taker=receive?leadHand:otherHand;
+        int fromActor=receive?beat->other:beat->lead;
+        int toActor=receive?beat->lead:beat->other;
+        int handoff=filmEase(elapsed>60?elapsed-60:0,160);
+        grip.x=filmLerp(giver.x,taker.x,handoff);
+        grip.y=filmLerp(giver.y,taker.y,handoff);
+        if(handoff>190){holding=0;thumb=0;}
+        FilmPoint center=filmPropCenterForGrip(prop,size,grip);
+        filmArmReach(fromActor,giver,grip);
+        if(handoff>90)filmArmReach(toActor,taker,grip);
+        filmDrawProp(prop,center.x,center.y,size);
+        if(thumb)filmGripOverlay(fromActor,grip,prop);
+        if(!holding)filmGripOverlay(toActor,grip,prop);
+        return;
+    }else if(action==F_ACT_WORK){
+        // Controlled tool strike: the hammer remains in the hand.
+        if(elapsed>70&&elapsed<250) grip.y+=((elapsed/42)&1)*2;
+    }
+    FilmPoint center=filmPropCenterForGrip(prop,size,grip);
+    if(thumb&&(action==F_ACT_TAKE||action==F_ACT_PUT))
+        filmArmReach(beat->lead,leadHand,grip);
+    filmDrawProp(prop,center.x,center.y,size);
+    if(thumb)filmGripOverlay(beat->lead,grip,prop);
+}
+
+// A location change is a new scene; keep an establishing look on the set
+// before the actors enter. Near/insert cuts within one set are continuous.
+static const FilmBeat *filmPreviousBeat(const FmvClip *clip,const FilmBeat *beat){
+    int i=(int)(clip-fmvClips);
+    const FilmReel *main=&filmReels[i];
+    for(int j=0;j<main->count;j++)
+        if(beat==main->beats+j) return j?main->beats+j-1:NULL;
+#ifdef __3DS__
+    const FilmReel *extra=&filmExtraReels[i];
+    for(int j=0;j<extra->count;j++)
+        if(beat==extra->beats+j) return j?extra->beats+j-1:main->beats+main->count-1;
+#endif
+    return NULL;
+}
+static void filmWorldContinuity(const FmvClip *clip,const FilmBeat *beat,int elapsed){
+    int chapter=(int)(clip-fmvClips);
+    if(chapter==1){
+        if(beat->place==F_PORCH){
+            // The same storm remains visible from the sheltered porch.
+            uiRect(211,56,30,38,fmvSlots[2]);
+            uiRect(212,57,28,36,fmvSlots[13]);
+            uiRect(211,56,30,2,fmvSlots[24]);
+            uiRect(211,92,30,3,fmvSlots[24]);
+            for(int i=0;i<4;i++) uiRect(216+i*6,61+(elapsed/7+i*13)%24,1,4,fmvSlots[22]);
+            // The cup remains on the sill after Mira puts it there.
+            if(beat==firstRainBeats+6){
+                filmSurface(F_PORCH,128,150);
+                filmDrawProp(F_CUP,128,150,19);
+            }
+        }else if(beat->place==F_VILLAGE){
+            // After the rain, puddles keep the prior weather visible.
+            for(int i=0;i<5;i++)uiRect(37+i*40,152+i%2*3,13,1,fmvSlots[14]);
+        }
+    }else if(chapter==2&&beat->place==F_VILLAGE){
+        // The unfinished roof stays in the SAME position across cuts.
+        int finished=beat==roofBeats+5||beat==roofBeats+6;
+        uiRect(49,117,2,31,fmvSlots[24]);
+        uiRect(105,117,2,31,fmvSlots[24]);
+        uiRect(48,117,60,3,fmvSlots[25]);
+        if(finished){
+            for(int i=0;i<6;i++)uiRect(49+i*10,110+i%2,10,4,fmvSlots[24]);
+            uiRect(47,115,64,3,fmvSlots[25]);
+            // Thorgrim leaves his hammer at the completed work site.
+            filmDrawProp(F_HAMMER,117,156,17);
+        }else{
+            uiRect(48,111,20,3,fmvSlots[24]);
+            uiRect(85,111,20,3,fmvSlots[24]);
+        }
+    }else if(chapter==0&&beat->place==F_SHORE){
+        // The sprout remains where the seed went into the earth.
+        if(beat==firstLightBeats+5||beat==firstLightBeats+6){
+            uiRect(129,149,2,7,fmvSlots[17]);
+            uiRect(126,150,4,2,fmvSlots[14]);
+            uiRect(131,150,4,2,fmvSlots[14]);
+        }
+    }
+}
+
 static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
+    static u8 establishing;
     if(!elapsed){
-        // uiNew is free once the baked prologue has reached its final frame.
 #ifdef __3DS__
         ggUnpack(filmWides[beat->place],uiNew,FMV_W*FMV_H*4);
 #else
@@ -243,94 +491,38 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
         if(storyScore>=0) filmScoreTurn(beat);
         if(beat->sound) fxReq(beat->sound);
         filmBars(clip->title);
+        const FilmBeat *previous=filmPreviousBeat(clip,beat);
+        establishing=previous&&previous->place!=beat->place;
     }
     int total=beat->seconds*FILM_SECOND;
     int move=filmEase(elapsed,total);
     FilmBlocking block=filmBlocking(beat,elapsed);
     filmDrawSet(beat,move);
+    filmWorldContinuity(clip,beat,elapsed);
     filmAtmosphere(beat,elapsed);
 
     int paired=beat->lead<F_ACTOR_N&&beat->other<F_ACTOR_N;
+    int action=filmActionOf(beat);
     int leadPose=0,otherPose=0;
-    if(beat->camera==F_TRACK&&elapsed<140){
-        leadPose=1+(elapsed/18&1); // one purposeful entrance, then stop
-    } else if(beat->camera==F_HAND){
-        if(elapsed>=60&&elapsed<230) leadPose=3;
-        if(paired&&elapsed>=170&&elapsed<290) otherPose=3;
-    } else if(beat->line&&elapsed>=130&&elapsed<220){
-        leadPose=3; // one deliberate gesture while speaking
-    }
-    if(beat->camera!=F_INSERT){
+    if(beat->camera==F_TRACK&&elapsed<140&&action!=F_ACT_WORK)
+        leadPose=1+(elapsed/18&1);
+    else if((beat->prop<F_PROP_N&&(action==F_ACT_TAKE||action==F_ACT_PUT||
+             action==F_ACT_WORK||action==F_ACT_PASS||action==F_ACT_RECEIVE))||
+             beat->camera==F_HAND){
+        if(elapsed>30&&elapsed<310)leadPose=3;
+        if((action==F_ACT_PASS||action==F_ACT_RECEIVE)&&paired&&
+           elapsed>55&&elapsed<310)otherPose=3;
+    }else if(beat->line&&elapsed>=130&&elapsed<220)leadPose=3;
+
+    int showCast=!(establishing&&elapsed<39);
+    if(beat->camera!=F_INSERT&&showCast){
         filmDrawActor(beat->other,otherPose,block.otherX,block.otherFeet,
                       block.otherHeight,paired&&block.otherX>block.leadX);
         filmDrawActor(beat->lead,leadPose,block.leadX,block.leadFeet,
                       block.leadHeight,paired&&block.leadX>block.otherX);
     }
-
-    if(beat->prop<F_PROP_N){
-        int px=128,py=146,size=22;
-        if(beat->camera==F_INSERT){
-            // Insert shots use a fixed-scale prop on an actual surface:
-            // a seed meets soil, a cup rests on a wooden sill, a hammer
-            // strikes a bench. Never zoom a 20-pixel prop into 50 pixels.
-            size=28;
-            py=148;
-            int surface=148;
-            int surfaceColor=beat->prop==F_SEED||beat->prop==F_LEAF?
-                fmvSlots[17]:beat->place==F_FORGE?fmvSlots[21]:fmvSlots[25];
-            uiRect(73,surface,111,3,surfaceColor);
-            uiRect(79,surface+3,101,1,fmvSlots[20]);
-            if(beat->prop==F_SEED){
-                py-=6-filmEase(elapsed,75)*6/256; // settle into soil once
-            } else if(beat->prop==F_HAMMER){
-                py-=((elapsed/45)&1)?2:0;
-            } else if(beat->prop==F_CRUMB){
-                size=23;
-                py-=4-filmEase(elapsed,75)*4/256;
-            } else if(beat->prop==F_CROWN){
-                py=146-filmEase(elapsed,100)*3/256;
-            }
-            if(beat->prop==F_CUP&&beat->place==F_PORCH){
-                int drop=FILM_TOP+18+(elapsed/3)%110;
-                if(drop<py-12) uiRect(px,drop,1,2,fmvSlots[23]);
-            }
-        } else if(beat->prop==F_GOAT){
-            // The goat belongs on the floor, with a short walk across it.
-            px=55+move*64/256;
-            py=157;
-            size=24;
-        } else if(beat->camera==F_HAND&&beat->lead<F_ACTOR_N){
-            int pass=filmEase(elapsed>70?elapsed-70:0,180);
-            px=block.leadX+(paired?(block.otherX-block.leadX)*pass/256:16);
-            // Match the hand height of a hovering Wisp and a standing adult.
-            py=block.leadFeet-(beat->lead==F_WISP?-1:32);
-            size=21;
-        } else if(beat->lead<F_ACTOR_N){
-            // The object remains with its owner, beside their hand.
-            int side=paired&&block.leadX>block.otherX?-1:1;
-            px=block.leadX+side*(beat->lead==F_WISP?15:16);
-            py=block.leadFeet-(beat->lead==F_WISP?-1:32);
-            size=beat->camera==F_WIDE?17:22;
-        } else {
-            // Establishing shots use a prop in the scene, not at screen centre.
-            if(beat->prop==F_LAMP){ px=204;py=138; }
-            else if(beat->prop==F_CROWN){ px=131;py=114; }
-            else if(beat->prop==F_MASK){ px=154;py=142; }
-            else if(beat->prop==F_HAMMER){ px=145;py=143; }
-            else if(beat->prop==F_CUP){ px=130;py=146; }
-            else if(beat->prop==F_SEED){ px=116;py=148; }
-            else { px=154;py=145; }
-        }
-        if(beat->prop==F_LAMP){
-            // Two anchored warm pixels read as a lantern rather than
-            // particles flying above the cast.
-            uiPx(px-2,py-size+2,fmvSlots[10]);
-            uiPx(px+2,py-size+2,fmvSlots[9]);
-        }
-        filmDrawProp(beat->prop,px,py,size);
-    }
-    // Silence/action first, dialogue afterwards. The caption ends before
-    // the cut so the next speaker gets a clean visual handoff.
+    if(showCast||beat->camera==F_INSERT)
+        filmDrawPropAction(beat,elapsed,leadPose,otherPose,block);
     filmCaption(beat,elapsed>=100&&elapsed<total-20);
 }
 static int fmvRenderAt(const FmvClip *clip,int elapsed){

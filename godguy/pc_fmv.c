@@ -101,6 +101,75 @@ static void checkDirectedBlocking(void){
     puts("FMV direction OK: natural cel scale, stable speaker sides, fixed lenses, modest tracking and small Wisp");
 }
 
+// The physical-story contract goes beyond changing pixels: cast hands
+// actually reach prop grips, an object rests on the surface, locations
+// establish before actors enter, and the first act has causal geography.
+static void checkPhysicalStoryContinuity(void){
+    const FilmReel *opening=&filmReels[0],*rain=&filmReels[1],*roof=&filmReels[2];
+    check(opening->count==8&&rain->count==8&&roof->count==8,
+          "opening three-chapter shot order changed unexpectedly");
+    for(int i=0;i<opening->count;i++)
+        check(opening->beats[i].place==(i<2?F_ORBIT:i<7?F_SHORE:F_VILLAGE),
+              "the first-light story jumped back to an earlier location");
+    for(int i=0;i<rain->count;i++)
+        check(rain->beats[i].place==(i<3?F_STORM:i<7?F_PORCH:F_VILLAGE),
+              "Mira teleported between storm and shelter");
+    for(int i=0;i<roof->count;i++)
+        check(roof->beats[i].place==(i<7?F_VILLAGE:F_PORCH),
+              "construction jumped into a different building");
+    check(rain->beats[0].action==F_ACT_TAKE&&
+          rain->beats[4].action==F_ACT_TAKE&&
+          rain->beats[5].action==F_ACT_PUT&&
+          roof->beats[1].action==F_ACT_TAKE&&
+          roof->beats[2].action==F_ACT_WORK,
+          "script lost the visible pickup, putdown or building action");
+    for(unsigned i=0;i<sizeof fmvClips/sizeof *fmvClips;i++){
+        const FilmReel *reels[2]={&filmReels[i],NULL};
+#ifdef __3DS__
+        reels[1]=&filmExtraReels[i];
+#endif
+        for(int group=0;group<2;group++){
+            if(!reels[group])continue;
+            for(int n=0;n<reels[group]->count;n++){
+                const FilmBeat *beat=&reels[group]->beats[n];
+                check(beat->action<=F_ACT_RECEIVE,"unknown actor prop action");
+                if(beat->action!=F_ACT_AUTO){
+                    check(beat->prop<F_PROP_N&&beat->lead<F_ACTOR_N,
+                          "story asked a missing character to pick up a prop");
+                }
+                const FilmBeat *prev=filmPreviousBeat(&fmvClips[i],beat);
+                if(n>0)check(prev==beat-1,"scene edit lost its previous shot");
+                if(beat->prop<F_PROP_N&&beat->prop!=F_GOAT&&
+                   beat->lead<F_ACTOR_N&&beat->lead!=F_WISP){
+                    FilmBlocking b=filmBlocking(beat,180);
+                    int paired=beat->other<F_ACTOR_N;
+                    int flip=paired&&b.leadX>b.otherX;
+                    FilmPoint palm=filmHandPoint(beat->lead,3,b.leadX,
+                                                b.leadFeet,b.leadHeight,flip);
+                    int size=beat->camera==F_WIDE?17:19;
+                    FilmPoint center=filmPropCenterForGrip(beat->prop,size,palm);
+                    FilmPoint pivot=filmPropGripPoint(beat->prop);
+                    int gripX=center.x-size/2+size*pivot.x/20;
+                    int gripY=center.y-size+size*pivot.y/20;
+                    check(gripX>=palm.x-2&&gripX<=palm.x+2&&
+                          gripY>=palm.y-2&&gripY<=palm.y+2,
+                          "prop handle missed the actor's real hand");
+                    check(palm.y>=b.leadFeet-b.leadHeight*3/4&&
+                          palm.y<=b.leadFeet,
+                          "prop grip floats above character's upper body");
+                }
+            }
+        }
+    }
+    check(finaleBeats[19].action==F_ACT_RECEIVE,
+          "the student mistakenly handed the hammer away from the teacher");
+    FilmPoint porch=filmSurfacePoint(firstRainBeats+5,90);
+    FilmPoint porchReverse=filmSurfacePoint(firstRainBeats+4,170);
+    check(porch.x==porchReverse.x&&porch.y==porchReverse.y,
+          "the cup's porch sill shifted between camera reverses");
+    puts("FMV continuity OK: two-way handoffs, hand grips, grounded props and stable locations");
+}
+
 static void checkDirectedPlayback(void){
     for(unsigned i=0;i<sizeof fmvClips/sizeof *fmvClips;i++){
         const FmvClip *clip=&fmvClips[i];
@@ -154,6 +223,7 @@ void shimInput(int frame,int *held,int *tx,int *ty){
         if(frame==3){
             checkFullPlayback();
             checkDirectedBlocking();
+            checkPhysicalStoryContinuity();
             checkDirectedPlayback();
             startWorld(0);
             check(!sceneClip&&!sceneOn,"free play started a cutscene");
