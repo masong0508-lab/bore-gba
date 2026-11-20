@@ -419,8 +419,29 @@ static inline void putCell(int x,int y){   // world cell -> background entry (a 
     if(bld[y][x]) e=(u16)BTILE(bld[y][x],(bldv[y][x]?vilRace(bldv[y][x]-1):0));
     else { int mask,foam; int best=cellEdge(x,y,&mask,&foam); int b=(t>T_WATER&&t!=T_LAVA)?bioAt(x,y):0; if(best>=0||b){ int k=trTile(t,best>=0?best:15,best>=0?mask:0,v,best>=0?foam:0,b); if(k>=0) e=(u16)k; } }
     mapPtr[blk*1024+(my&31)*32+(mx&31)]=e; }
-static void refillWindow(void){ if(zBmp) return; int x0=camX>>3, y0=camY>>3; if(x0==winX&&y0==winY) return; winX=x0; winY=y0;
-    for(int y=y0-1;y<y0+26&&y<WH;y++) for(int x=x0-1;x<x0+34&&x<WW;x++) if(x>=0&&y>=0) putCell(x,y); }
+static void refillWindow(void){
+    if(zBmp) return;
+    int x0=camX>>3, y0=camY>>3;
+    if(x0==winX&&y0==winY) return;
+    int oldX=winX, oldY=winY;
+    winX=x0;
+    winY=y0;
+    // Adjacent camera tiles share almost the entire map window. Only the
+    // newly exposed rows and columns need their terrain/transition tiles.
+    if(oldX>=0&&oldY>=0&&abs(x0-oldX)<34&&abs(y0-oldY)<26){
+        for(int y=y0-1;y<y0+26&&y<WH;y++){
+            if(y<0) continue;
+            int freshRow=y<oldY-1||y>=oldY+26;
+            for(int x=x0-1;x<x0+34&&x<WW;x++){
+                if(x>=0&&(freshRow||x<oldX-1||x>=oldX+34)) putCell(x,y);
+            }
+        }
+        return;
+    }
+    for(int y=y0-1;y<y0+26&&y<WH;y++)
+        for(int x=x0-1;x<x0+34&&x<WW;x++)
+            if(x>=0&&y>=0) putCell(x,y);
+}
 static void setCell(int x,int y,u8 t){ if(x<0||y<0||x>=WW||y>=WH) return; world[y][x]=t; if(t<=T_WATER||t==T_LAVA||t==T_MOUNT) bioSet(x,y,0); for(int k=0;k<5;k++){ int xx=x+(k==1)-(k==2), yy=y+(k==3)-(k==4); if(xx<0||yy<0||xx>=WW||yy>=WH) continue; if(xx>=winX-1&&xx<winX+34&&yy>=winY-1&&yy<winY+26) putCell(xx,yy); } }
 
 // ---------------------------------------------------------------------------------------------- creatures
