@@ -2027,15 +2027,44 @@ static void gb_pnoff(void){ if(gnId>=0) soundSetVolume(gnId,0); }
 static int musHold, jukeOn, fxCool;
 static int isJingle(int s){ return s>=0&&gmSongs[s].loopRow==65535; }
 static int famOpen(int k);
+// A distant-crowd soundtrack used to scan every creature twice just to
+// decide whether a monster was nearby or anywhere in the world. The maintained
+// 8x8 spatial-cell mask answers both presence queries without a 12k..200k
+// creature walk. If a nearby monster exists we deliberately retain the old
+// index-ordered creature walk, so the exact monster-theme priority is unchanged.
+static int musCellMonsterNear(int cx,int cy){
+#ifdef GG_NOCELL
+    (void)cx;(void)cy;return 1;
+#else
+    int x0=cx-30, x1=cx+30, y0=cy-30, y1=cy+30;
+    if(x0<0)x0=0;if(y0<0)y0=0;if(x1>=WW)x1=WW-1;if(y1>=WH)y1=WH-1;
+    if(x0>x1||y0>y1)return 0;
+    int cw=(WW+7)>>CELL_SH;
+    for(int gy=y0>>CELL_SH;gy<=y1>>CELL_SH;gy++)
+        for(int gx=x0>>CELL_SH;gx<=x1>>CELL_SH;gx++)
+            if(cellMask[gy*cw+gx]&(1u<<8))return 1;
+    return 0;
+#endif
+}
+static int musCellMonsterAnywhere(void){
+#ifdef GG_NOCELL
+    return monCount()>0;
+#else
+    int n=((WW+7)>>CELL_SH)*((WH+7)>>CELL_SH);
+    for(int k=0;k<n;k++)if(cellMask[k]&(1u<<8))return 1;
+    return 0;
+#endif
+}
 static int musDirector(void){
     if(paused) return GM_PAUSE;
     if((weather==WX_STORM||weather==WX_RAGE)&&!view3d) return GM_STORM;
     if(view3d) return GM_SPHERE;
     int cx=(camX>>3)+16, cy=(camY>>3)+12;
-    for(int i=0;i<nCr;i++){ const Cr*c=&cr[i]; if(!c->alive) continue; int a=sp[c->sp].a; if(arch[a].diet!=5||c->hp<100) continue; int dx=c->x-cx, dy=c->y-cy; if(dx*dx+dy*dy>900) continue;
-        if(a==ARCH_A+19) return GM_DRAGON; if(a==ARCH_A+17) return GM_DEMON; if(a==ARCH_A+18) return GM_LICH; if(a==ARCH_A+13||a==ARCH_A+12) return GM_KRAKEN; if(a==ARCH_A+16) return GM_DRAGON; }
+    if(musCellMonsterNear(cx,cy))
+        for(int i=0;i<nCr;i++){ const Cr*c=&cr[i]; if(!c->alive) continue; int a=sp[c->sp].a; if(arch[a].diet!=5||c->hp<100) continue; int dx=c->x-cx, dy=c->y-cy; if(dx*dx+dy*dy>900) continue;
+            if(a==ARCH_A+19) return GM_DRAGON; if(a==ARCH_A+17) return GM_DEMON; if(a==ARCH_A+18) return GM_LICH; if(a==ARCH_A+13||a==ARCH_A+12) return GM_KRAKEN; if(a==ARCH_A+16) return GM_DRAGON; }
     if(warHeat>=8||(gmCur==GM_WAR&&warHeat>=2)) return GM_WAR;      // the war drums play while blows are really being struck nearby (not merely while two peoples are at war)
-    if(monCount()>0) return GM_MONSTER;
+    if(musCellMonsterAnywhere()) return GM_MONSTER;
     { int t=world[cy<WH?cy:WH-1][cx<WW?cx:WW-1]; if(t==T_DESERT) return GM_DESERT; if(t==T_SNOW) return GM_SNOW; if(t==T_DEEP||t==T_WATER) return GM_OCEAN; if(t==T_JUNGLE) return GM_JUNGLE; if(t==T_SWAMP) return GM_SWAMP; if(t==T_LAVA||t==T_MOUNT) return GM_VOLCANO; }
     { int lv=0; for(int v=0;v<VIL_N;v++) if(vil[v].on&&vil[v].lvl>lv) lv=vil[v].lvl; if(lv>=3) return GM_CITY; if(lv==2) return GM_MARKET; if(lv==1&&nVilOn>0&&(year&1)) return GM_VILLAGE; }
     int p=(tick>>1)&2047; { int nf=0, op[GM_FAMN]; for(int k=0;k<GM_FAMN;k++) if(famOpen(k)) op[nf++]=k; if(nf&&((year+(p>>10))%3==0)) return GM_FAM0+op[(year*5+(p>>9))%nf]; }      // an unlocked REPRISE now and then
