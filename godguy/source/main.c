@@ -2321,6 +2321,7 @@ static void sceneStart(const char*const*t,int scroll){ sceneTxt=t; sceneScroll=s
 static void sceneStartFmv(const char*const*t,const FmvClip*clip){
     sceneStart(t,0);
     sceneClip=clip;
+    gmFilmMixSet(1,0,64);
     sceneFilmLength=fmvLength(clip);
     storyScore=filmOpeningScore[clip-fmvClips];
     musReq(storyScore);
@@ -3110,6 +3111,7 @@ int main(void){
             int skipped=kd&(KEY_A|KEY_START);
             if(skipped||sceneT>=sceneFilmLength){
                 sceneClip=0;
+                gmFilmMixSet(0,0,64);
                 sceneT=0;
                 storyScore=musLast=-1; musHold=0;
                 // The first complete dialogue or narration frame replaces
