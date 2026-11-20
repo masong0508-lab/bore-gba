@@ -39,16 +39,26 @@ static void filmScoreTurn(const FilmBeat *beat){
     musReq(storyScore);
 }
 
+#ifdef __3DS__
+// -1: regular campaign; 0..5: selected unlockable chapter in the Extras
+// film archive. This affects playback only, never world save data.
+static int filmBonusIndex=-1;
+#endif
 static int filmReelTicks(const FilmReel *reel){
     int ticks=0;
     for(int i=0;i<reel->count;i++) ticks+=reel->beats[i].seconds*FILM_SECOND;
     return ticks;
 }
 static int fmvLength(const FmvClip *clip){
+#ifdef __3DS__
+    if(filmBonusIndex>=0&&filmBonusIndex<FILM_BONUS_N)
+        return filmReelTicks(&filmBonusReels[filmBonusIndex]);
+#endif
     int id=(int)(clip-fmvClips);
     int length=clip->frames*FMV_TICKS+filmReelTicks(&filmReels[id]);
 #ifdef __3DS__
     length+=filmReelTicks(&filmExtraReels[id]);
+    length+=filmReelTicks(&filmFeatureReels[id]);
 #endif
     return length;
 }
@@ -289,10 +299,15 @@ static const FilmBeat *filmFindBeat(const FilmReel *reel,int *elapsed){
     return NULL;
 }
 static const FilmBeat *filmBeatAt(const FmvClip *clip,int *elapsed){
+#ifdef __3DS__
+    if(filmBonusIndex>=0&&filmBonusIndex<FILM_BONUS_N)
+        return filmFindBeat(&filmBonusReels[filmBonusIndex],elapsed);
+#endif
     int id=(int)(clip-fmvClips);
     const FilmBeat *beat=filmFindBeat(&filmReels[id],elapsed);
 #ifdef __3DS__
     if(!beat) beat=filmFindBeat(&filmExtraReels[id],elapsed);
+    if(!beat) beat=filmFindBeat(&filmFeatureReels[id],elapsed);
 #endif
     return beat;
 }
@@ -505,6 +520,14 @@ static const FilmBeat *filmPreviousBeat(const FmvClip *clip,const FilmBeat *beat
     const FilmReel *extra=&filmExtraReels[i];
     for(int j=0;j<extra->count;j++)
         if(beat==extra->beats+j) return j?extra->beats+j-1:main->beats+main->count-1;
+    const FilmReel *feature=&filmFeatureReels[i];
+    for(int j=0;j<feature->count;j++)
+        if(beat==feature->beats+j) return j?feature->beats+j-1:extra->beats+extra->count-1;
+    if(filmBonusIndex>=0&&filmBonusIndex<FILM_BONUS_N){
+        const FilmReel *bonus=&filmBonusReels[filmBonusIndex];
+        for(int j=0;j<bonus->count;j++)
+            if(beat==bonus->beats+j)return j?bonus->beats+j-1:NULL;
+    }
 #endif
     return NULL;
 }
@@ -696,7 +719,12 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
         ggUnpack(filmSets[beat->place],uiNew,FMV_W*FMV_H);
 #endif
         if(storyScore>=0) filmScoreTurn(beat);
+#ifdef __3DS__
+        filmBars(filmBonusIndex>=0&&filmBonusIndex<FILM_BONUS_N?
+                 filmBonusTitles[filmBonusIndex]:clip->title);
+#else
         filmBars(clip->title);
+#endif
         const FilmBeat *previous=filmPreviousBeat(clip,beat);
         establishing=previous&&previous->place!=beat->place;
     }
@@ -716,9 +744,12 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
 #if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
     // The geometry is projected through the same dollying camera as actors.
     // Draw before cast so roofs, water and room floors form a stable world.
-    ggFilmWorldDraw(beat,elapsed,move,(int)(clip-fmvClips));
+    ggFilmWorldDraw(beat,elapsed,move,filmBonusIndex>=0?14:(int)(clip-fmvClips));
 #endif
-    filmWorldContinuity(clip,beat,elapsed);
+#ifdef __3DS__
+    if(filmBonusIndex<0)
+#endif
+        filmWorldContinuity(clip,beat,elapsed);
     filmAtmosphere(beat,elapsed);
 #ifdef __3DS__
     filmStageLight(beat,elapsed);
@@ -757,12 +788,15 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
 #if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
     // True near-camera geometry is composited last, so the actors and
     // gripped props are partially hidden when they move behind an obstacle.
-    ggFilmWorldForeground(beat,move,(int)(clip-fmvClips));
+    ggFilmWorldForeground(beat,move,filmBonusIndex>=0?14:(int)(clip-fmvClips));
 #endif
     filmCaption(beat,captionOn);
 }
 static int fmvRenderAt(const FmvClip *clip,int elapsed){
     int baked=clip->frames*FMV_TICKS;
+#ifdef __3DS__
+    if(filmBonusIndex>=0&&filmBonusIndex<FILM_BONUS_N)baked=0;
+#endif
     if(elapsed<baked){
         if(elapsed%FMV_TICKS) return 0;
         fmvDecode(clip,elapsed/FMV_TICKS);
