@@ -1,14 +1,9 @@
-// Export a short preview made from ACTUAL GodGuy 3DS film pixels.
-// Shows the first 24 rendered intro frames and the first three directed
-// 7-second shots from each of the first three chapters (accelerated).
-// The image is read from uiBuf/3DS palette exactly as the game draws it.
-// This exports video-only RGB24; audio remains in the playable game.
-// Build (host): gcc -O2 -DNDSSHIM -D__3DS__ -Icompat -Isource -w
-//               -include unistd.h pc_fmv_reel.c -lm -o /tmp/gg-reel
-// Output: /tmp/gg-reel out/first-three-chapters.rgb  (216 frames at 256x192)
-//
-// All source images, cast sprites, text, and animation come from main.c's
-// fmvRenderAt(). No non-game artwork or video generators are involved.
+// Export actual GodGuy 3DS film frames. Four deliberate story beats per
+// chapter show the setup, response, physical action, and consequence -- not
+// an arbitrary montage of zoomed-in props. Original game art and rendering.
+// Video-only RGB24; the playable game retains its soundtrack and effects.
+// Build: gcc -O2 -DNDSSHIM -D__3DS__ -Icompat -Isource -w
+//        -include unistd.h pc_fmv_reel.c -lm -o /tmp/gg-reel
 #define UI_NOTRANS 1
 #define main ds_main
 #include "source/main.c"
@@ -16,7 +11,12 @@
 #include <stdio.h>
 #include <stdint.h>
 
-enum { REEL_BAKED_FRAMES=24, REEL_STAGE_FRAMES=48, REEL_CHAPTERS=3 };
+enum { REEL_BAKED_FRAMES=24, REEL_TAKE_FRAMES=24, REEL_TAKES=4, REEL_CHAPTERS=3 };
+static const u8 reelShots[REEL_CHAPTERS][REEL_TAKES]={
+    {0,3,4,7}, // planet, Wisp's seed, planting, first village light
+    {0,1,2,5}, // Mira waits, Wisp answers, rain fills cup, handoff
+    {0,2,3,7}, // wall is built, goat intervenes, hammer, home light
+};
 static unsigned char reelRgb[256*192*3];
 static int reelFrameCount;
 
@@ -48,45 +48,52 @@ int main(int argc,char **argv){
     int film;
     for(film=0;film<REEL_CHAPTERS;film++){
         const FmvClip *clip=&fmvClips[film];
-        int prev=-1, sampleCount=0;
+        int prev=-1,bakedCount=0;
         storyScore=filmOpeningScore[film];
-        // Delta-compressed baked frames have to be decoded sequentially.
-        // Store 24 representative original animation frames in each scene.
+        // Sequentially decode every compressed frame even when not sampled.
         for(int frame=0;frame<clip->frames;frame++){
-            if(!fmvRenderAt(clip,frame*FMV_TICKS)) goto invalid;
+            if(!fmvRenderAt(clip,frame*FMV_TICKS))goto invalid;
             int slot=frame*REEL_BAKED_FRAMES/clip->frames;
             if(slot!=prev){
                 if(!reelWrite(out))goto invalid;
-                prev=slot;sampleCount++;
+                prev=slot;bakedCount++;
             }
         }
-        if(sampleCount!=REEL_BAKED_FRAMES)goto invalid;
-        prev=-1;sampleCount=0;
-        // 21 seconds of new in-game scripted shots (three opening beats).
-        // Run every actual 3DS render tick to preserve backdrop loading,
-        // actor movement, caption timing and stage animation. Capture just
-        // 48 representative frames as a short video teaser.
-        const int reelTicks=21*FILM_SECOND;
-        for(int elapsed=0;elapsed<reelTicks;elapsed+=FILM_STAGE_TICKS){
-            if(!fmvRenderAt(clip,clip->frames*FMV_TICKS+elapsed))goto invalid;
-            int slot=elapsed*REEL_STAGE_FRAMES/reelTicks;
-            if(slot!=prev){
+        if(bakedCount!=REEL_BAKED_FRAMES)goto invalid;
+
+        int shot=-1,lastTake=-1,lastSlot=-1,stagedCount=0;
+        int baked=clip->frames*FMV_TICKS;
+        // Render the full extended film in narrative order so each set is
+        // loaded at the real cut. Only sample the four chosen complete takes.
+        for(int elapsed=0;elapsed<fmvLength(clip)-baked;elapsed+=FILM_STAGE_TICKS){
+            int beatElapsed=elapsed;
+            const FilmBeat *beat=filmBeatAt(clip,&beatElapsed);
+            if(!beat)goto invalid;
+            if(!beatElapsed)shot++;
+            if(!fmvRenderAt(clip,baked+elapsed))goto invalid;
+            int take=-1;
+            for(int i=0;i<REEL_TAKES;i++)
+                if(shot==reelShots[film][i])take=i;
+            if(take<0)continue;
+            if(take!=lastTake){lastTake=take;lastSlot=-1;}
+            int slot=beatElapsed*REEL_TAKE_FRAMES/(beat->seconds*FILM_SECOND);
+            if(slot!=lastSlot){
                 if(!reelWrite(out))goto invalid;
-                prev=slot;sampleCount++;
+                lastSlot=slot;stagedCount++;
             }
         }
-        if(sampleCount!=REEL_STAGE_FRAMES)goto invalid;
-        printf("REEL %s: %d baked + %d authored stage frames\n",
-                clip->title,REEL_BAKED_FRAMES,REEL_STAGE_FRAMES);
+        if(stagedCount!=REEL_TAKES*REEL_TAKE_FRAMES)goto invalid;
+        printf("REEL %s: %d intro + %d directed-action frames\n",
+               clip->title,bakedCount,stagedCount);
     }
     if(fclose(out)){perror("close");return 2;}
-    if(reelFrameCount!=REEL_CHAPTERS*(REEL_BAKED_FRAMES+REEL_STAGE_FRAMES)){
+    if(reelFrameCount!=REEL_CHAPTERS*(REEL_BAKED_FRAMES+REEL_TAKES*REEL_TAKE_FRAMES)){
         fputs("REEL FAIL: wrong frame count\n",stderr);return 1;
     }
-    printf("REEL OK: %d authentic 3DS GodGuy frames, 18.0s at 12 fps (video only)\n",reelFrameCount);
+    printf("REEL OK: %d authentic 3DS film frames, 30s at 12 fps (video only)\n",reelFrameCount);
     return 0;
 invalid:
     fclose(out);
-    fprintf(stderr,"REEL FAIL: frame extraction failed in film %d at frame %d\n",film,reelFrameCount);
+    fprintf(stderr,"REEL FAIL: extraction failed in film %d at frame %d\n",film,reelFrameCount);
     return 1;
 }
