@@ -7,7 +7,7 @@ dialogue, listening, reactions, and controlled work instead of 4-pose loops.
 Only the compressed 3DS binary contains these cels. No run-time allocation.
 """
 from pathlib import Path
-from story_art import WISP, MIRA_ELDER, actor, canvas
+from story_art import WISP, MIRA_ELDER, SERIN, actor, canvas
 import lz
 
 WIDTH, HEIGHT = 40, 48
@@ -26,7 +26,7 @@ def c_array(out, name, data):
 
 def main():
     images = []
-    for who in range(MIRA_ELDER + 1):
+    for who in range(SERIN + 1):
         for pose, phase in POSES:
             cel = canvas((WIDTH, HEIGHT), 255)
             actor(cel, who, WIDTH // 2, HEIGHT, phase, HEIGHT, pose=pose)
