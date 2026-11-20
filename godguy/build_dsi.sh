@@ -1,7 +1,11 @@
 #!/bin/bash
 # builds godguy_dsi.nds (and godguy_dsi_mode.nds): the same game as the DS build compiled with -DGG_DSI, so anything only the DSi may use goes behind #ifdef GG_DSI. godguy_dsi.nds has a normal header (a DSi runs it in DS mode); godguy_dsi_mode.nds is EXPERIMENTAL: unit code 3, 16 MB, 768 x 768 planets (-DGG_DSI16); the CPU/RAM side is checked in an emulator (tools/dsi_emu), the DSi-mode touch screen and sound are not.
 set -e; cd "$(dirname "$0")"; : ${DEVKITPRO:=/opt/devkitpro}; export DEVKITARM=$DEVKITPRO/devkitARM; B=$DEVKITARM/bin/arm-none-eabi-; mkdir -p build_dsi; cd build_dsi
-FLAGS="-march=armv5te -mtune=arm946e-s -marm -mthumb-interwork -O2 -ffunction-sections -fdata-sections -fno-unwind-tables -fno-asynchronous-unwind-tables -DNDSHW -DGG_DSI ${GG_NOCACHE:--DHW_CACHE} -I../compat -I../source -Wno-all ${GG_FLAGS}"
+# DS-compatible DSi ROMs have the same tight 4 MiB ARM9 bound as the
+# normal DS. Match the verified size-oriented code generation there while
+# preserving the 38,000-creature cap of the separate DSi 16 MiB build.
+: ${GG_ARM9_OPT:=-Os}
+FLAGS="-march=armv5te -mtune=arm946e-s -marm -mthumb-interwork $GG_ARM9_OPT -ffunction-sections -fdata-sections -fno-unwind-tables -fno-asynchronous-unwind-tables -DNDSHW -DGG_DSI ${GG_NOCACHE:--DHW_CACHE} -I../compat -I../source -Wno-all ${GG_FLAGS}"
 ${B}gcc $FLAGS -c ../hw/main_hw.c -o main_hw.o; ${B}gcc $FLAGS -c ../hw/syscalls.c -o syscalls.o; ${B}gcc $FLAGS -x assembler-with-cpp -c ../hw/crt0.s -o crt0.o
 ${B}gcc -nostartfiles -march=armv5te -marm -mthumb-interwork -Wl,--gc-sections -Wl,-T,../hw/arm9.ld crt0.o main_hw.o syscalls.o -lm -lc -lgcc -o arm9.elf
 ${B}objcopy -O binary arm9.elf arm9.body
