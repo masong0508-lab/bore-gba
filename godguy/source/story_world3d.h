@@ -332,6 +332,33 @@ static void ggFilmWorldDraw(const FilmBeat *beat,int elapsed,int move,int chapte
         }
     }
 }
+// Selective painter-order occluders sit *in front* of the actors.
+// This gives genuine traversal behind door posts, bridge rails and trees,
+// without allocating a full-depth buffer on the 3DS. The supporting geometry
+// is authored at nearer Z than character feet (normally around 690).
+static void ggFilmWorldForeground(const FilmBeat *beat,int move,int chapter){
+    int p=beat->place;
+    if(p==F_ORBIT||beat->camera==F_INSERT)return;
+    GgFilmCamera cam=ggFilmCameraAt(beat,move);
+    if(p==F_FORD&&chapter>=8){
+        // Near timber handrail, diagonal braces and a physical end post.
+        ggFilmBox(cam,-160,75,515,13,10,136,25,24,26);
+        ggFilmBox(cam,-160,0,515,19,91,23,20,24,25);
+        ggFilmQuad(cam,ggV3(-169,15,531),ggV3(-151,70,531),
+                       ggV3(-151,77,537),ggV3(-169,21,537),24);
+    }else if(p==F_PORCH||p==F_HALL||p==F_ARCHIVE||p==F_FORGE){
+        // Local architecture stays at fixed world coordinates during cuts.
+        ggFilmBox(cam,-335,0,510,30,276,37,20,24,26);
+        ggFilmBox(cam,335,0,510,30,276,37,21,24,26);
+        ggFilmBox(cam,0,267,510,704,24,37,24,25,26);
+        if(p==F_ARCHIVE)ggFilmBox(cam,-320,12,540,67,96,45,24,20,25);
+    }else if(p==F_GATE){
+        ggFilmArch(cam,-300,552,0);
+    }else if(p==F_VILLAGE&&chapter>=5){
+        // A foreground canopy can really obscure a person passing it.
+        ggFilmTree(cam,-365,558,124,move*2,4);
+    }
+}
 // Actors share the exact world camera used for geometry, so entering a room,
 // approaching the foreground, and crossing the frame changes perspective
 // rather than just dragging/zooming a flat sprite. Attachment and prop
