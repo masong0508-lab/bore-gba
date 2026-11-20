@@ -13,6 +13,9 @@ void shimPresent(void){      // the sound is mixed for the time that really pass
     double want=dt*SHIM_SR/1000.0+carry; int n=(int)want; carry=want-n; if(n>2800) n=2800; tickAcc+=dt*0.06; int k=(int)tickAcc; tickAcc-=k; if(k>4) k=4; shimMusicTicks=k;
     shimMix(sndBuf,n); int tc,bc; shimRenderChanged(topBuf,botBuf,&tc,&bc); plat_present(topBuf,botBuf,tc,bc,sndBuf,n,shimSwap?0:shimDepth); }   // only a screen that changed is drawn and copied
 int main(void){ plat_init();
+    // Fine globe pixels on New 3DS only; classic sampling on Old 3DS
+    // keeps enough CPU available for simulation and the music mixer.
+    gg3dsGlobeQuality=plat_isNew3DS();
 #ifdef GG_HQVOX
     gmVoxWarm();      // every vocal chop is unpacked once, now, so no strike ever has to decode in the middle of a frame
 #endif
