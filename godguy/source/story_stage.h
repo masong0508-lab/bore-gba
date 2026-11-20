@@ -263,10 +263,16 @@ static FilmPoint filmPropGripPoint(int prop){
     return p;
 }
 static FilmPoint filmSurfacePoint(const FilmBeat *beat,int handX){
-    int ground=beat->place==F_SHORE||beat->place==F_STORM||
-               beat->place==F_FORD||beat->place==F_RUINS||
-               beat->place==F_VILLAGE||beat->place==F_GATE;
-    FilmPoint p={handX+((handX>128)?-14:14),ground?156:150};
+    // Interior furniture belongs to the set, not to the currently speaking
+    // actor: the cup stays on the same sill when the edit reverses.
+    if(beat->place==F_PORCH){FilmPoint p={128,150};return p;}
+    if(beat->place==F_FORGE){FilmPoint p={128,150};return p;}
+    if(beat->place==F_ARCHIVE){FilmPoint p={128,151};return p;}
+    if(beat->place==F_HEARTH){FilmPoint p={128,151};return p;}
+    if(beat->place==F_COUCH){FilmPoint p={128,152};return p;}
+    if(beat->place==F_HALL){FilmPoint p={128,150};return p;}
+    if(beat->place==F_THRONE){FilmPoint p={128,150};return p;}
+    FilmPoint p={handX+((handX>128)?-14:14),156};
     return p;
 }
 static int filmActionOf(const FilmBeat *beat){
@@ -314,8 +320,12 @@ static void filmArmReach(int who,FilmPoint from,FilmPoint target){
     if(!steps)return;
     if(steps>31)steps=31;
     int color=filmHandColor(who);
-    for(int i=1;i<=steps;i++)
-        uiRect(from.x+dx*i/steps,from.y+dy*i/steps,2,2,color);
+    int x=from.x*256, y=from.y*256;
+    int sx=dx*256/steps,sy=dy*256/steps;
+    for(int i=1;i<=steps;i++){
+        x+=sx; y+=sy;
+        uiRect(x/256,y/256,2,2,color);
+    }
 }
 static void filmGripOverlay(int who,FilmPoint hand,int prop){
     int color=filmHandColor(who);
@@ -381,19 +391,25 @@ static void filmDrawPropAction(const FilmBeat *beat,int elapsed,int leadPose,int
         // Release only when the item actually touches the sill/ground.
         holding=down<248;
         thumb=holding;
-    }else if(action==F_ACT_PASS&&paired&&beat->other!=F_WISP){
+    }else if((action==F_ACT_PASS||action==F_ACT_RECEIVE)&&paired&&
+               beat->other!=F_WISP){
         FilmPoint otherHand=filmHandPoint(beat->other,otherPose,b.otherX,
                            b.otherFeet,b.otherHeight,flipOther);
+        int receive=action==F_ACT_RECEIVE;
+        FilmPoint giver=receive?otherHand:leadHand;
+        FilmPoint taker=receive?leadHand:otherHand;
+        int fromActor=receive?beat->other:beat->lead;
+        int toActor=receive?beat->lead:beat->other;
         int handoff=filmEase(elapsed>60?elapsed-60:0,160);
-        grip.x=filmLerp(leadHand.x,otherHand.x,handoff);
-        grip.y=filmLerp(leadHand.y,otherHand.y,handoff);
+        grip.x=filmLerp(giver.x,taker.x,handoff);
+        grip.y=filmLerp(giver.y,taker.y,handoff);
         if(handoff>190){holding=0;thumb=0;}
         FilmPoint center=filmPropCenterForGrip(prop,size,grip);
-        filmArmReach(beat->lead,leadHand,grip);
-        if(handoff>90)filmArmReach(beat->other,otherHand,grip);
+        filmArmReach(fromActor,giver,grip);
+        if(handoff>90)filmArmReach(toActor,taker,grip);
         filmDrawProp(prop,center.x,center.y,size);
-        if(thumb)filmGripOverlay(beat->lead,grip,prop);
-        if(!holding)filmGripOverlay(beat->other,grip,prop);
+        if(thumb)filmGripOverlay(fromActor,grip,prop);
+        if(!holding)filmGripOverlay(toActor,grip,prop);
         return;
     }else if(action==F_ACT_WORK){
         // Controlled tool strike: the hammer remains in the hand.
@@ -432,8 +448,8 @@ static void filmWorldContinuity(const FmvClip *clip,const FilmBeat *beat,int ela
             for(int i=0;i<4;i++) uiRect(216+i*6,61+(elapsed/7+i*13)%24,1,4,fmvSlots[22]);
             // The cup remains on the sill after Mira puts it there.
             if(beat==firstRainBeats+6){
-                filmSurface(F_PORCH,133,150);
-                filmDrawProp(F_CUP,133,150,19);
+                filmSurface(F_PORCH,128,150);
+                filmDrawProp(F_CUP,128,150,19);
             }
         }else if(beat->place==F_VILLAGE){
             // After the rain, puddles keep the prior weather visible.
@@ -488,11 +504,14 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
     int paired=beat->lead<F_ACTOR_N&&beat->other<F_ACTOR_N;
     int action=filmActionOf(beat);
     int leadPose=0,otherPose=0;
-    if(beat->camera==F_TRACK&&elapsed<140) leadPose=1+(elapsed/18&1);
+    if(beat->camera==F_TRACK&&elapsed<140&&action!=F_ACT_WORK)
+        leadPose=1+(elapsed/18&1);
     else if((beat->prop<F_PROP_N&&(action==F_ACT_TAKE||action==F_ACT_PUT||
-             action==F_ACT_WORK||action==F_ACT_PASS))||beat->camera==F_HAND){
+             action==F_ACT_WORK||action==F_ACT_PASS||action==F_ACT_RECEIVE))||
+             beat->camera==F_HAND){
         if(elapsed>30&&elapsed<310)leadPose=3;
-        if(action==F_ACT_PASS&&paired&&elapsed>55&&elapsed<310)otherPose=3;
+        if((action==F_ACT_PASS||action==F_ACT_RECEIVE)&&paired&&
+           elapsed>55&&elapsed<310)otherPose=3;
     }else if(beat->line&&elapsed>=130&&elapsed<220)leadPose=3;
 
     int showCast=!(establishing&&elapsed<39);
