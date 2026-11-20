@@ -167,12 +167,33 @@ def cast(frame, who, x, y, time, size=32, flip=False, speaking=False):
 def actor(frame, who, x, y, time, height, *, flip=False, pose="idle", prop=None):
     """Stage whole-body movement with separate limbs, props and expressions."""
     if who == WISP:
-        drift = (0, 0, 1, 2, 2, 1)[time//2 % 6]
+        # Wisp never grows human hands. Animate its actual spark silhouette:
+        # eye-line, wing arc, light pulse and a deliberate forward lean.
+        drift = ((0, 1, 2, 1)[time//2 % 4] if pose == "walk"
+                 else 2 if pose == "bow" else 0)
         draw = ImageDraw.Draw(frame)
         for i, color in enumerate((MINT, JADE, TEAL, SEA)):
             tail = i*3+2
-            draw.point((x-tail*(-1 if flip else 1), y-height//2+tail//2), fill=color)
-        cast(frame, who, x, y+drift, time, height, flip, speaking=pose == "talk")
+            draw.point((x-tail*(-1 if flip else 1), y-height//2+tail//2),
+                       fill=color)
+        sprite = cast_sprite(who,
+                             pose == "talk" and time//4 % 2 == 0,
+                             pose in ("listen", "bow"),
+                             pose == "react")
+        size = max(1, height*5//6)
+        sprite = sprite.resize((size, size), Image.Resampling.NEAREST)
+        if flip:
+            sprite = sprite.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+        frame.paste(sprite, (x-size//2, y-size+drift),
+                    sprite.point(lambda i: 255 if i != 255 else 0, "1"))
+        if pose == "reach":
+            draw.line((x+4,y-12,x+10,y-7), fill=MINT, width=2)
+        elif pose == "lift":
+            draw.line((x+1,y-31,x+2,y-37), fill=ICE, width=2)
+        elif pose == "brace":
+            draw.arc((x-13,y-29,x+10,y-6), 195, 325, fill=JADE, width=2)
+        elif pose == "work":
+            draw.line((x-12,y-17,x-17,y-18), fill=TEAL, width=2)
         return
 
     shade, cloth, trim, skin = {
