@@ -176,7 +176,9 @@ static void filmAtmosphere(const FilmBeat *beat,int t){
     static const u8 lightY[F_SET_N]={41,151,110,141,150,126,130,142,120,145,83,141,111,145};
     int x=lightX[beat->place],y=lightY[beat->place];
     // A fixed lantern/star flicker supplies motion without floating props.
-    uiPx(x,y,fmvSlots[(t/FILM_STAGE_TICKS)&1?10:8]);
+    // Soft, anchored light changes every 0.4 seconds; do not manufacture
+    // constant flashing solely to satisfy a frame-difference test.
+    uiPx(x,y,fmvSlots[(t/24)&1?10:9]);
     if(beat->place==F_STORM){
 #ifdef __3DS__
         const int count=12;
