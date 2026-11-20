@@ -68,8 +68,18 @@ static void checkDirectedBlocking(void){
                 check(last.x>first.x&&last.x-first.x<=6*256,
                       "camera tracking traveled too far");
             } else check(first.x==last.x,"a locked camera moved");
+            // Each 34-pixel cast cel stays within 1.5x native scale.
+            // A 20-pixel prop insert can never become a 50-pixel zoom.
+            check(first.dx>=FMV_W*FILM_PLATE_SCALE-4*FILM_PLATE_SCALE,
+                  "a scene cropped too far into the backdrop");
+            if(beat->camera!=F_TRACK)
+                check(first.dx==FMV_W*FILM_PLATE_SCALE,
+                      "a close-up digitally magnified the set");
             FilmBlocking start=filmBlocking(beat,0);
             FilmBlocking finish=filmBlocking(beat,250);
+            check(start.leadHeight<=FILM_CEL_H*3/2&&
+                  start.otherHeight<=FILM_CEL_H*3/2,
+                  "a close-up enlarged an actor beyond the sharp source art");
             if(beat->lead==F_WISP) check(start.leadHeight<=36,"Wisp was scaled to human height");
             if(beat->other==F_WISP) check(start.otherHeight<=36,"Wisp was scaled to human height");
             if(beat->camera!=F_TRACK) check(start.leadX==finish.leadX,
@@ -88,7 +98,7 @@ static void checkDirectedBlocking(void){
             }
         }
     }
-    puts("FMV direction OK: stable speaker sides, fixed lenses, modest tracking and small Wisp");
+    puts("FMV direction OK: natural cel scale, stable speaker sides, fixed lenses, modest tracking and small Wisp");
 }
 
 static void checkDirectedPlayback(void){
