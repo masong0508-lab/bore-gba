@@ -6,11 +6,16 @@
 #include "../source/main.c"
 #undef main
 #include "frame_clock.h"
+extern void plat_setCinema(int on);
 extern unsigned long long plat_ms(void); extern int plat_init(void); extern int plat_keys(int*tx,int*ty); extern void plat_present(const unsigned char*top,const unsigned char*bot,int topChanged,int botChanged,const short*snd,int frames,const signed char*depth); extern void plat_exit(void); extern int plat_isNew3DS(void);
 static unsigned char topBuf[400*240*3], botBuf[320*240*3];
 static short sndBuf[2800*2];
 static Gg3dsFrameClock frameClock;
-void shimInput(int frame,int*held,int*tx,int*ty){ (void)frame; *held=plat_keys(tx,ty); }
+void shimInput(int frame,int*held,int*tx,int*ty){
+    (void)frame;
+    plat_setCinema(sceneClip!=0);
+    *held=plat_keys(tx,ty);
+}
 void shimPresent(void){
     // Preserve wall-clock time across short rendering stalls instead of
     // discarding everything above 80 ms, which dragged music and starved
@@ -22,6 +27,7 @@ void shimPresent(void){
     gg3dsGlobeQuality=quality;  // New 3DS detail yields to audio under load
     shimMix(sndBuf,n);
     int tc,bc;
+    shimFilmFullscreen=sceneClip!=0;
     shimRenderChanged(topBuf,botBuf,&tc,&bc);
     plat_present(topBuf,botBuf,tc,bc,sndBuf,n,shimSwap?0:shimDepth);
 }
