@@ -14,6 +14,11 @@
 #include "gmdata.h"      // the music and sound-effect tables (ids like FX_SMITE and GM_TITLE are used by the game; the player is gmplay.h, DS and PC)
 
 #include "ggx.h"
+// Optional instrumentation for the frame stress benchmark.
+#ifndef GG_FRAME_BEGIN
+#define GG_FRAME_BEGIN(phase) ((void)0)
+#define GG_FRAME_END(phase) ((void)0)
+#endif
 int gW=128, gH=128;
 u8 world[MAXD][MAXD];
 static occ_t occ[MAXD][MAXD];            // creature index + 1 standing on a tile
@@ -1143,6 +1148,7 @@ static void simulate(void){
 #ifdef GG_FULLTURNS
     per=n;      // (benchmark builds only, pc_war.c: every creature is visited every tick, so each thinks at its own pace: the full per-unit run that step 10d's tiers are compared with)
 #endif
+    GG_FRAME_BEGIN(creatures);
     if(farOn()&&wgRolling()) wgSlice();      // (10f) a few creatures a tick have their group looked at again, so the count every 256 ticks is a cheap pass
     farTick();      // (10d) the far battles, one roll each, and which armies are far and touching this tick
     if(farOn()){ int period=(n+per-1)/per; windowThink();      // tier A: the camera window thinks every tick; tier C: far soldiers also march
@@ -1151,15 +1157,31 @@ static void simulate(void){
     for(int k=0;k<per;k++){ if(cursor>=nCr) cursor=0; Cr*c=&cr[cursor]; if(c->alive&&++c->t>=effSpd(c)) { c->t=0; think(cursor); } cursor++; }
     if(n>600){ int x0=camX>>3, y0=camY>>3; for(int k=0;k<40;k++){ int x=x0+(int)(rnd()%32), y=y0+(int)(rnd()%20); if(x>=WW||y>=WH) continue; int j=occ[y][x]-1; if(j>=0&&cr[j].alive){ Cr*c=&cr[j]; if(++c->t>=effSpd(c)){ c->t=0; think(j); } } } }   // and whoever is on screen is always played at full pace
     }
+    GG_FRAME_END(creatures);
     if(LAWON(LW_EROSION)&&(tick&3)==0){ for(int k=0;k<4;k++){ int x=rnd()%WW, y=rnd()%WH; u8 t=world[y][x]; if((t==T_GRASS||t==T_DIRT||t==T_HILL)&&!bld[y][x]&&(rnd()%60)==0){ for(int d=0;d<4;d++){ int nx=x+dxs[d], ny=y+dys[d]; if(nx>=0&&ny>=0&&nx<WW&&ny<WH&&(world[ny][nx]==T_WATER||world[ny][nx]==T_DEEP)){ setCell(x,y,T_SAND); break; } } } } }      // EROSION: the shore crumbles into sand
     // the ground heals: dirt turns back to grass beside grass, lava cools
     for(int k=0;k<12;k++){ int x=rnd()%WW, y=rnd()%WH; u8 t=world[y][x]; if(t==T_DIRT){ int d=rnd()&3; int nx=x+dxs[d], ny=y+dys[d]; if(nx>=0&&ny>=0&&nx<WW&&ny<WH&&(world[ny][nx]==T_GRASS||world[ny][nx]==T_FOREST)) setCell(x,y,T_GRASS); }
         else if(t==T_GRASS&&LAWON(LW_TREES)&&(rnd()&63)==0){ int d=rnd()&3; int nx=x+dxs[d], ny=y+dys[d]; if(nx>=0&&ny>=0&&nx<WW&&ny<WH&&world[ny][nx]==T_FOREST&&(rnd()&7)==0) setCell(x,y,T_FOREST); } }
     if((tick&15)==0){ int steps=(tick>>4)*VIL_N/40-((tick>>4)-1)*VIL_N/40; for(int s_=0;s_<steps;s_++){ vilCur=(vilCur+1)%VIL_N; if(LAWON(LW_GROWTH)) vilTick(vilCur); if(vilCur==0) warMatrix(); } } /* every village is looked at once in 640 ticks, however many slots the build has (40 slots: one a step, as before) */ if((tick&127)==64) kingdomTick(); if((tick&63)==33) achCheck();
+    GG_FRAME_BEGIN(disasters);
     weatherTick(); volcanoTick(); eventTick(); calamityTick();
+    GG_FRAME_END(disasters);
     if((tick&63)==0) monSpawn();
     if((tick&15)==0) towerFire();
-    if(((tick)&255)==0){ compact(); ntSweep(); if(wgRolling()) wgCommit(); else wgBuild(); if((tick%2048)==0){ year++; fxReq(FX_YEAR); } unlockTiers(); }
+    if(((tick)&255)==0){
+        GG_FRAME_BEGIN(maintenance);
+        GG_FRAME_BEGIN(compaction);
+        compact();
+        GG_FRAME_END(compaction);
+        GG_FRAME_BEGIN(notables);
+        ntSweep();
+        GG_FRAME_END(notables);
+        GG_FRAME_BEGIN(warIndex);
+        if(wgRolling()) wgCommit(); else wgBuild();
+        GG_FRAME_END(warIndex);
+        if((tick%2048)==0){ year++; fxReq(FX_YEAR); } unlockTiers();
+        GG_FRAME_END(maintenance);
+    }
 }
 
 // ---------------------------------------------------------------------------------------------- the item catalogue (generated: materials x kinds, plus potions, seeds, foods, relics, gems, god tools)
@@ -2536,6 +2558,7 @@ int main(void){
 #endif
     while(1){
         scanKeys(); int kd=keysDown(), kh=keysHeld(); tick++; if(inspT>0) inspT--;
+        GG_FRAME_BEGIN(frame);
 #ifdef HW_CAL
         if(calOn){ if(gOnTop!=1){ lcdMainOnTop(); gOnTop=1; } calStep(kd,kh); musUpdate(); if(calDirty){ calDirty=0; calDraw((kh&KEY_TOUCH)!=0); } swiWaitForVBlank(); continue; }
 #endif
@@ -2543,7 +2566,9 @@ int main(void){
           if(ui){ if(pen.press||pen.rep){ int h=uiHitSlop(pen.x,pen.y); if(pen.rep&&h>=0&&!(uiBtns[h].key&(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT))) h=-1; if(h>=0){ const UiBtn*bt=&uiBtns[h]; int was=bt->sp&&*bt->sp==bt->sv; if(bt->sp) *bt->sp=bt->sv; kd|=was&&bt->key2?bt->key2:bt->key; if(bt->key&(KEY_L|KEY_R)) uiTabDir=(bt->key&KEY_L)?-1:1; } } kd&=~KEY_TOUCH; kh&=~KEY_TOUCH; } }
         { static int rpT; int ui2=(titleOn||menuOn||extrasView)&&!sceneOn&&!dlgOn&&!(titleOn&&konami>0), dir=kh&(KEY_UP|KEY_DOWN);   // GFX1: a held UP or DOWN repeats
           if(ui2&&dir&&!(kd&dir)){ rpT++; if(rpT>=18&&((rpT-18)&3)==0) kd|=dir; } else rpT=0; }
+        GG_FRAME_BEGIN(sequencer);
         musUpdate();
+        GG_FRAME_END(sequencer);
         if(view3d&&(sceneOn||dlgOn||menuOn||titleOn)) leaveGlobe();
         if(zBmp&&(sceneOn||titleOn)) zSet(Z_NORMAL);
         if(sceneClip){
@@ -2705,14 +2730,29 @@ int main(void){
               pnx=pen.x; pny=pen.y; held=1; } else pnx=-1; }
         if(panning){ }
         else if(pen.held&&!pen.fromUi){ if(pen.fromBar){ if((pen.press||pen.rep)&&pen.y>=TB_Y){ tbTouch(pen.x,pen.y); fxReq(FX_MENU_MOVE); dirty=1; } held=1; } else if(pen.y>=TB_Y){ held=1; } else {   /* a touch that starts on the toolbar stays on it, a drift upward never paints; a stroke that slides down onto it just stops */ int tx=(pen.x+camX)>>3, ty=(pen.y+camY)>>3; if(zBmp&&!zHit(pen.x,pen.y,&tx,&ty)){ held=1; } else { int fresh=!held||tx!=lastTx||ty!=lastTy; if(pw[power].kind==PK_PAINT&&held&&(abs(tx-lastTx)>1||abs(ty-lastTy)>1)){ int n=abs(tx-lastTx)>abs(ty-lastTy)?abs(tx-lastTx):abs(ty-lastTy); if(n>24) n=24; for(int q=1;q<n;q++) usePower(lastTx+(tx-lastTx)*q/n,lastTy+(ty-lastTy)*q/n,0); } if(pw[power].kind==PK_PAINT||fresh) usePower(tx,ty,!held); held=1; lastTx=tx; lastTy=ty; dirty=1; } } } else held=0;
-        refillWindow(); simulate();   // (this tick first, then the extra ones of 2x / 4x: each tick is simulated once. Before, the tick the frame started on was never simulated and the last one twice, so at 2x a year, a chapter or a monster wave that fell on the skipped ticks never came)
+        GG_FRAME_BEGIN(draw);
+        refillWindow();
+        GG_FRAME_END(draw);
+        GG_FRAME_BEGIN(simulation);
+        simulate();   // (this tick first, then the extra ones of 2x / 4x: each tick is simulated once. Before, the tick the frame started on was never simulated and the last one twice, so at 2x a year, a chapter or a monster wave that fell on the skipped ticks never came)
         for(int k=1;k<speedMul&&!paused;k++){ tick++; simulate(); }
+        GG_FRAME_END(simulation);
+        GG_FRAME_BEGIN(draw);
         int zd=0; if(zBmp){ if(winX==-99){ zForce=1; winX=-98; zcx=camX+128; zcy=camY+ZH/2; zClamp(); } zd=zDraw(); }      // (a zoomed picture is drawn before the blank, sent after it)
-        swiWaitForVBlank(); if(zd) zFlush();
+        GG_FRAME_END(draw);
+        swiWaitForVBlank();
+        GG_FRAME_BEGIN(draw);
+        if(zd) zFlush();
         bgSetScroll(0,zBmp?0:camX&511,zBmp?0:camY&511); bgUpdate(); drawSprites(); oamUpdate(&oamMain);
         if((tick&7)==0||flashT>0) applyLight();
         if(dirty) tbDraw();
-        if((tick&15)==0||dirty){ drawMinimap(); hud(); }
+        if((tick&15)==0||dirty){
+            GG_FRAME_BEGIN(hudWork);
+            drawMinimap(); hud();
+            GG_FRAME_END(hudWork);
+        }
+        GG_FRAME_END(draw);
+        GG_FRAME_END(frame);
     }
     return 0;
 }
