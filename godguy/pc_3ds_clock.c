@@ -26,16 +26,16 @@ int main(void){
     CHECK(q==1,"New 3DS starts in fine-detail mode");
     CHECK(samples==(60ull*17*32768/1000),"steady 17 ms audio sample time exact");
     CHECK(ticks==(60ull*17*60/1000),"steady 60 Hz music time exact");
-    // A 200ms renderer stall used to be clipped at 80ms, permanently
-    // dropping 120ms of music and audio. Repay it across later frames.
-    now+=200;step(&c,now,&q);
+    // A 220ms renderer stall used to be clipped at 80ms, permanently
+    // dropping 140ms of music and audio. Repay it across later frames.
+    now+=220;step(&c,now,&q);
     CHECK(q==1,"one slow globe frame must not drop detail");
     CHECK(c.audioDebt>0,"large render stall retains unmixed audio samples");
     CHECK(c.tickDebt>0,"large render stall retains music tick fractions");
     for(int i=0;i<40;i++){now+=17;step(&c,now,&q);}
-    unsigned long long ms=(60ull*17+200+40ull*17);
-    CHECK(samples==ms*32768/1000,"200 ms audio stall fully repaid");
-    CHECK(ticks==ms*60/1000,"200 ms music stall fully repaid");
+    unsigned long long ms=(60ull*17+220+40ull*17);
+    CHECK(samples==ms*32768/1000,"220 ms audio stall fully repaid");
+    CHECK(ticks==ms*60/1000,"220 ms music stall fully repaid");
     CHECK(c.audioDebt<1000u,"audio catch-up has drained to fractional remainder");
     CHECK(c.tickDebt<1000u,"music catch-up has drained to fractional remainder");
     // Three consecutive slow globe frames trigger conservative sampling.
