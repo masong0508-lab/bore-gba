@@ -21,7 +21,7 @@ static void fmvSetPalette(void){
     for(int i=0;i<32;i++) BG_PALETTE_SUB[fmvSlots[i]]=fmvPalette[i];
 }
 
-static void fmvDraw(const FmvClip *clip,int frame){
+static void fmvDecode(const FmvClip *clip,int frame){
     if(frame==0){
         fmvSetPalette();
         uiRect(0,0,256,24,U_SHADOW);
@@ -64,7 +64,6 @@ static void fmvDraw(const FmvClip *clip,int frame){
     }
     fmvRead++;
     for(int i=0;i<2;i++) if(clip->cue[i].effect&&clip->cue[i].frame==frame) fxReq(clip->cue[i].effect);
-    uiFlush();
 }
 
 static void fmvPortrait(int x,int y,int who,int cel){

@@ -45,7 +45,7 @@ def orbit(frame, d, t, lost=False):
     d.ellipse((cx-radius-1, cy-radius-1, cx+radius+1, cy+radius+1),
               fill=WINE if lost else TEAL)
     pixels = frame.load()
-    angle = (t//4)*0.072
+    angle = (t//3)*0.054
     ca, sa = cos(angle), sin(angle)
     for y in range(cy-radius, min(HEIGHT, cy+radius+1)):
         v = (y-cy)/radius
@@ -240,7 +240,7 @@ def river(d, t):
     d.polygon(((59, 43), (67, 43), (64, 53), (81, 59), (93, 72),
                (32, 72), (45, 60), (52, 52)), fill=SEA)
     for i in range(11):
-        y = 49+(i*7+t//5)%24
+        y = 49+(i*7+t//3)%24
         x = 62+i%5-2
         d.line((x-(y-46)//2, y, x+i%7, y), fill=JADE if i%4 == 0 else TEAL)
     for x, y in ((4, 59), (14, 63), (115, 59), (126, 56)):
@@ -366,7 +366,7 @@ def hall(d, t):
     d.polygon(((51, 55), (77, 55), (104, 71), (24, 71)), fill=WINE)
     for i in range(12):
         x = (i*37+t//6)%128
-        y = 28+(i*19+t//4)%38
+        y = 28+(i*19+t//3)%38
         d.point((x, y), fill=AMBER if i%4 else CREAM)
 
 
@@ -616,7 +616,7 @@ def render(name, t):
         elif t < 87:
             cup_close(d, t-69, dry=True)
         else:
-            orbit(f, d, (t-87)//4*4)
+            orbit(f, d, t-87)
             spark(d, 45, 23, MINT, WHITE, 2)
             spark(d, 80, 33, AMBER, WHITE, 2)
     else:

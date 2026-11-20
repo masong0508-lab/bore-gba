@@ -50,29 +50,38 @@ static inline void vramSetBankD(int b){ (void)b; }
 static inline void lcdMainOnBottom(void){ HW_REG16(0x04000304)=HW_REG16(0x04000304)&~0x8000; }
 static inline void lcdMainOnTop(void){ HW_REG16(0x04000304)=HW_REG16(0x04000304)|0x8000; }
 static inline int bgInit(int l,int t,int s,int m,int tb){ (void)t; if(l==0) HW_REG16(0x04000008)=(u16)(0x0001|(tb<<2)|(m<<8)|0x80|(s==BgSize_T_512x512?(3<<14):0)); else HW_REG16(0x0400000A)=(u16)(0x0000|(tb<<2)|(m<<8)|0x80); return l; }
-static u32 hwSubSh[768*16]; static int hwSubShOk;      // what the top screen's tiles hold (little-endian words), so a flush can skip what has not changed
-static inline int bgInitSub(int l,int t,int s,int m,int tb){ (void)l;(void)t;(void)s;(void)m;(void)tb; hwSubShOk=0;
+static u32 hwSubSh[768*16]; static int hwSubShOk, hwSubPage;      // what the top screen's tiles hold (little-endian words), so a flush can skip what has not changed
+static inline int bgInitSub(int l,int t,int s,int m,int tb){ (void)l;(void)t;(void)s;(void)m;(void)tb; hwSubShOk=hwSubPage=0;
     HW_REG16(0x04001008)=(u16)(0x0080|(1<<2)|(0<<8));            // BG0: 8 bit tiles, tiles at 16 KB, map at 0, 256 x 256
     vu16*map=(vu16*)0x06200000; for(int i=0;i<1024;i++) map[i]=(u16)i;   // tile i = screen block i (32 wide)
     return 3; }
+static vu32* hwSubTiles(int page){ return (vu32*)(0x06204000+page*0xC000); }
 // the 256 x 192 picture the UI draws in RAM goes to the top screen as 768 tiles of 8 x 8 pixels (32-bit stores only)
 static void hwSubFlush(const u8*buf){      // only the words that differ from what the screen already holds are written (VRAM is slow to write; a still menu or a small change costs a compare, not 12,000 stores)
-    for(int ty=0;ty<24;ty++) for(int tx=0;tx<32;tx++){ vu32*d=(vu32*)(0x06204000+(ty*32+tx)*64); u32*h=&hwSubSh[(ty*32+tx)*16];
+    vu32*tiles=hwSubTiles(hwSubPage);
+    for(int ty=0;ty<24;ty++) for(int tx=0;tx<32;tx++){ vu32*d=tiles+(ty*32+tx)*16; u32*h=&hwSubSh[(ty*32+tx)*16];
         for(int y=0;y<8;y++){ const u32*r=(const u32*)(buf+(ty*8+y)*256+tx*8); u32 a=r[0], b=r[1]; if(!hwSubShOk||a!=h[y*2]) { d[y*2]=a; h[y*2]=a; } if(!hwSubShOk||b!=h[y*2+1]) { d[y*2+1]=b; h[y*2+1]=b; } } }
     hwSubShOk=1; }
-// Stream a completed transition row using the same dirty-word shadow.
-static void hwSubFlushRow(int y,const u8*row){
+// Each 48 KiB tile page has its own character base in sub BG VRAM.
+static void hwSubStageRow(int y,const u8*row){
     const u32*r=(const u32*)row;
-    int offset=(y/8)*32*16+(y%8)*2;
-    vu32*d=(vu32*)0x06204000+offset;
-    u32*h=hwSubSh+offset;
-    for(int x=0;x<32;x++,d+=16,h+=16,r+=2){
-        if(r[0]!=h[0]) d[0]=h[0]=r[0];
-        if(r[1]!=h[1]) d[1]=h[1]=r[1];
+    vu32*d=hwSubTiles(hwSubPage^1)+(y/8)*32*16+(y%8)*2;
+    for(int x=0;x<32;x++,d+=16,r+=2){ d[0]=r[0]; d[1]=r[1]; }
+}
+static void hwSubFlip(void){
+    hwSubPage^=1;
+    HW_REG16(0x04001008)=(u16)((HW_REG16(0x04001008)&~0x3C)|((hwSubPage?4:1)<<2));
+    hwSubShOk=0;
+}
+static void hwSubGet(u8*out){
+    // Normal HUD updates maintain the shadow. An atomic swap exposes a
+    // different page, which is read only when starting a later transition.
+    const vu32*tiles=hwSubShOk?hwSubSh:hwSubTiles(hwSubPage);
+    for(int ty=0;ty<24;ty++) for(int tx=0;tx<32;tx++){
+        const vu32*h=tiles+(ty*32+tx)*16;
+        for(int y=0;y<8;y++){ u32*r=(u32*)(out+(ty*8+y)*256+tx*8); r[0]=h[y*2]; r[1]=h[y*2+1]; }
     }
 }
-static void hwSubGet(u8*out){      // the picture the top screen holds, back in rows (from the flush's copy)
-    for(int ty=0;ty<24;ty++) for(int tx=0;tx<32;tx++){ const u32*h=&hwSubSh[(ty*32+tx)*16]; for(int y=0;y<8;y++){ u32*r=(u32*)(out+(ty*8+y)*256+tx*8); r[0]=h[y*2]; r[1]=h[y*2+1]; } } }
 static inline void bgSetPriority(int id,int p){ u32 a=id==0?0x04000008:0x0400000A; HW_REG16(a)=(u16)((HW_REG16(a)&~3)|(p&3)); }
 static inline void bgSetScroll(int id,int x,int y){ HW_REG16(0x04000010+id*4)=(u16)x; HW_REG16(0x04000012+id*4)=(u16)y; }
 static inline void bgUpdate(void){}
