@@ -57,23 +57,56 @@ static void uiFlushRaw(void){ uiFlushes++; hwSubFlush(uiBuf); }
 #ifdef NDSSHIM
 static void uiFlushRaw(void){ uiFlushes++; vramCopy(bgGetGfxPtr(3),uiBuf,256*192); uiDepthBuild(shimDepth); }
 #else
-static void uiFlushRaw(void){ uiFlushes++; vramCopy(bgGetGfxPtr(3),uiBuf,256*192); }
+static int uiBitmapPage;
+static void* uiBitmap(int page){ return (void*)(0x06200000+page*0x10000); }
+static void uiFlushRaw(void){ uiFlushes++; vramCopy(uiBitmap(uiBitmapPage),uiBuf,256*192); }
 #endif
 #endif
 #ifndef UI_NOTRANS
 #define UI_NOTRANS 0
 #endif
-// ---- screen transitions: slide between pages or dissolve menus in seven steps.
+// ---- stage a complete view, then swap it onto the display at VBlank.
 #ifndef NDSHW
 static u8 uiPrev[256*192];
 #endif
 static u8 uiNew[256*192] __attribute__((aligned(4)));
-static int uiTrans, uiHavePrev;
-static void uiTransitionRow(u8*out,const u8*old,const u8*new,int y,int dir,int shift,int threshold){
-    if(dir==2){
-        static const u8 bayer[16]={0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5};
-        for(int x=0;x<256;x++) out[x]=bayer[(y&3)*4+(x&3)]<threshold?new[x]:old[x];
-    } else if(dir>0){
+static int uiTrans, uiHavePrev, uiCut, uiNextLcd=-1;
+static void uiApplyLcd(void){
+    if(uiNextLcd<0) return;
+    if(uiNextLcd) lcdMainOnTop(); else lcdMainOnBottom();
+    uiNextLcd=-1;
+}
+#ifdef NDSHW
+static void uiFlipStaged(void){
+    swiWaitForVBlank();
+    hwSubFlip();
+    uiApplyLcd();
+    uiFlushes++;
+}
+#endif
+static void uiPresent(void){
+#ifdef NDSHW
+    for(int y=0;y<192;y++) hwSubStageRow(y,uiBuf+y*256);
+    uiFlipStaged();
+#elif defined(NDSSHIM)
+    uiFlushRaw();
+    uiApplyLcd();
+    swiWaitForVBlank();
+#else
+    int next=uiBitmapPage^1;
+    vramCopy(uiBitmap(next),uiBuf,256*192);
+    swiWaitForVBlank();
+    // Extended affine bitmap bases advance by 16 KiB on the sub engine.
+    vu16*cnt=(vu16*)0x0400100e;
+    *cnt=(u16)((*cnt&~0x1F00)|(next<<10));
+    uiBitmapPage=next;
+    uiApplyLcd();
+    uiFlushes++;
+#endif
+}
+
+static void uiTransitionRow(u8*out,const u8*old,const u8*new,int dir,int shift){
+    if(dir>0){
         memcpy(out,old+shift,256-shift);
         memcpy(out+256-shift,new,shift);
     } else {
@@ -83,7 +116,10 @@ static void uiTransitionRow(u8*out,const u8*old,const u8*new,int y,int dir,int s
 }
 static void uiFlush(void){
     if(uiHold) return;
-    if(uiTrans&&uiHavePrev&&!UI_NOTRANS){
+    if(uiCut){
+        uiTrans=uiCut=0;
+        uiPresent();
+    } else if(uiTrans&&uiHavePrev&&!UI_NOTRANS){
         int dir=uiTrans;
         uiTrans=0;
 #ifdef NDSHW
@@ -94,29 +130,27 @@ static void uiFlush(void){
         memcpy(uiNew,uiBuf,sizeof uiNew);
 #endif
         for(int f=1;f<=7;f++){
-            int p=f*256/7, shift=256-(256-p)*(256-p)/256, threshold=f*16/7;
+            int p=f*256/7, shift=256-(256-p)*(256-p)/256;
             for(int y=0;y<192;y++){
                 int off=y*256;
 #ifdef NDSHW
                 u8 row[256] __attribute__((aligned(4)));
-                uiTransitionRow(row,uiNew+off,uiBuf+off,y,dir,shift,threshold);
-                hwSubFlushRow(y,row);
+                uiTransitionRow(row,uiNew+off,uiBuf+off,dir,shift);
+                hwSubStageRow(y,row);
 #else
-                uiTransitionRow(uiBuf+off,uiPrev+off,uiNew+off,y,dir,shift,threshold);
+                uiTransitionRow(uiBuf+off,uiPrev+off,uiNew+off,dir,shift);
 #endif
             }
 #ifdef NDSHW
-            uiFlushes++;
+            uiFlipStaged();
 #else
-            uiFlushRaw();
+            uiPresent();
 #endif
-            swiWaitForVBlank();
         }
 #ifndef NDSHW
         memcpy(uiBuf,uiNew,sizeof uiNew);
 #endif
-    }
-    uiFlushRaw();
+    } else uiFlushRaw();
 #ifndef NDSHW
     memcpy(uiPrev,uiBuf,sizeof uiPrev);
 #endif

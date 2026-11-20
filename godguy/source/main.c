@@ -1981,12 +1981,12 @@ static void globeEnter(void){
 #ifdef __3DS__
     gg3GlobeHashValid=0;
 #endif
-    videoSetMode(MODE_0_2D|DISPLAY_BG0_ACTIVE|DISPLAY_SPR_ACTIVE|DISPLAY_SPR_1D_LAYOUT|DISPLAY_SPR_1D_SIZE_32); lcdMainOnBottom();
+    videoSetMode(MODE_0_2D|DISPLAY_BG0_ACTIVE|DISPLAY_SPR_ACTIVE|DISPLAY_SPR_1D_LAYOUT|DISPLAY_SPR_1D_SIZE_32);
     for(int i=0;i<128;i++) oamSetHidden(&oamMain,i,true);
     bgSetScroll(0,0,0); for(int my=0;my<32;my++) for(int mx=0;mx<32;mx++) mapPtr[my*32+mx]=(u16)(my<24?my*32+mx:0);
     globeDraw(1); globeFlush(); view3d=1; }
 static void leaveGlobe(void){
-    walkOn=0; trUsed=0; memset(trKey,0,sizeof trKey); zl=3; makeTiles(); { int b0=0; (void)b0; } videoSetMode(MODE_0_2D|DISPLAY_BG0_ACTIVE|DISPLAY_BG1_ACTIVE|DISPLAY_SPR_ACTIVE|DISPLAY_SPR_1D_LAYOUT|DISPLAY_SPR_1D_SIZE_32); lcdMainOnBottom();
+    walkOn=0; trUsed=0; memset(trKey,0,sizeof trKey); zl=3; makeTiles(); { int b0=0; (void)b0; } videoSetMode(MODE_0_2D|DISPLAY_BG0_ACTIVE|DISPLAY_BG1_ACTIVE|DISPLAY_SPR_ACTIVE|DISPLAY_SPR_1D_LAYOUT|DISPLAY_SPR_1D_SIZE_32);
     uiPalette(); tbInit(); saveBasePal(); winX=-99; view3d=0; }
 // ---------------------------------------------------------------------------------------------- zoom: six levels, from the whole planet down to single creatures
 // 0 PLANET (the globe), 1 VERY FAR (2 pixels a tile), 2 FAR (4), 3 NORMAL (8: the map's own tiles and the hardware sprites), 4 CLOSE (16), 5 MICRO (32).
@@ -2553,7 +2553,7 @@ static void uiScene(void){
     uiBtn(0,0,256,192,KEY_A,0,0,0);
     int n=sceneLines(sceneTxt); uiRect(0,0,256,192,U_BG); for(int y=0;y<192;y+=2) uiRect(0,y,256,1,U_PANEL);
     if(sceneScroll){ for(int r=0;r<24;r++){ int l=sceneOff+r; if(l>=0&&l<n){ int yy=r*8; int c=(yy<24||yy>160)?U_DIM:U_WHITE; if(sceneTxt[l][0]) uiTextC(128,yy,sceneTxt[l],c,1); } } uiText(6,184,"A SKIP",U_DIM,1); }
-    else { uiFrame(14,10,228,160,U_PANEL,U_BHI,U_BLO); uiFrame(17,13,222,154,U_PANELHI,U_BLO,U_BHI); for(int l=0;l<n;l++) uiTextC(128,20+l*9,sceneTxt[l],U_WHITE,1); if((tick>>4)&1) uiTextC(128,160,"PRESS A",U_GOLD,1); }
+    else { uiFrame(14,10,228,160,U_PANEL,U_BHI,U_BLO); uiFrame(17,13,222,154,U_PANELHI,U_BLO,U_BHI); for(int l=0;l<n;l++) uiTextC(128,20+l*9,sceneTxt[l],U_WHITE,1); uiTextC(128,160,"PRESS A",U_GOLD,1); }
     uiFlush(); }
 
 static void uiBig(int x,int y,int idx,int sc){ for(int j=0;j<8;j++) for(int i=0;i<8;i++){ int c=icon8[idx][j*8+i]; if(c) uiRect(x+i*sc,y+j*sc,sc,sc,c); } }
@@ -2887,12 +2887,27 @@ static void slotsInput(int kd){
     { int d=((kd&KEY_RIGHT)?1:0)-((kd&KEY_LEFT)?1:0); if(d){ int want=d>0?(hwSlots==1?2:4):(hwSlots==4?2:1); if(want>hwSlots&&!hwLayoutOk(want)) want=hwSlots; if(want!=hwSlots){ if(hwLayoutSet(want)){ slotSet(0); slSel=0; slotScan(); hasSave=slotYr[0]>=0; savedYear=-1; fxReq(FX_MENU_OK); } else { siprintf(info,"SLOT 1 IS TOO BIG FOR THAT"); fxReq(FX_MENU_BACK); } } } }
 #endif
 }
+static int gOnTop=-1;
+static void queueUiScreens(void){
+    int menuOnBottom=titleOn||menuOn||extrasView||sceneOn||dlgOn;
+    if(gOnTop<0){
+        if(menuOnBottom) lcdMainOnTop(); else lcdMainOnBottom();
+        gOnTop=menuOnBottom;
+    } else if(gOnTop!=menuOnBottom){
+        uiNextLcd=gOnTop=menuOnBottom;
+        uiCut=1;
+    }
+}
 static int uiScrId=-1, uiScrDepth, uiTabDir;
 static void hud(void){
     if(sceneClip) return;
+    queueUiScreens();
     uiNBtn=0;
     { int id=(dlgOn?1:0)|(sceneOn?2:0)|(titleOn?4:0)|(menuOn?8:0)|(extrasView?16:0)|(mScr<<5)|(page<<8); int dep=(dlgOn||sceneOn)?3:extrasView?2:(titleOn||menuOn)?(mScr>0?1:0):(page?1:0);
-      if(uiScrId>=0&&id!=uiScrId){ uiTrans=uiTabDir?uiTabDir:dep>uiScrDepth?1:dep<uiScrDepth?-1:2; } uiScrId=id; uiScrDepth=dep; uiTabDir=0; }
+      if(uiScrId>=0&&id!=uiScrId){
+          uiTrans=uiTabDir?uiTabDir:dep>uiScrDepth?1:dep<uiScrDepth?-1:0;
+          if(!uiTrans&&!UI_NOTRANS) uiCut=1;
+      } uiScrId=id; uiScrDepth=dep; uiTabDir=0; }
     uiBackHint=fieldLedgerOpen?2:extrasView; if(extrasView&&page!=3&&page!=4){ uiTabPrev=extName(extStep(-1)); uiTabNext=extName(extStep(1)); } else uiTabPrev=uiTabNext=0; uiPageOpen=1|2|4|(auralOK()?8:0)|(debugOn?16:0)|32|64; uiPages=titleOn||sceneOn||dlgOn||extrasView?0:7; uiPageNow=page; uiDotX=124;
     if(dlgOn){ uiDialog(); return; } if(sceneOn){ uiScene(); return; } if(!extrasView){ if(titleOn){ uiTitle(); return; } if(menuOn){ uiMenu(); return; } }
     switch(page){ case 1: uiStory(); break; case 2: uiBest(); break; case 3: uiAural(); break; case 4: uiDebug(); break; case 5: uiCodex(); break; case 6: uiHelp(); break; case 7: uiKing(); break; case 8: uiJournal(); break; case 9: uiAch(); break; case 10: uiCult(); break; case 11: uiLang(); break; case 12: uiBrowser(); break; case 13: uiStats(); break; case 14: uiWorld(); break; case 15: uiPeople(); break; default: uiStatus(); }
@@ -2915,7 +2930,29 @@ static int closeFieldLedger(int keys){
     return 1;
 }
 
-static int gOnTop=-1;
+static void presentStoryCut(void){
+    uiScrId=-1;
+    uiCut=1;
+    hud();
+}
+static void advanceStoryFilm(void){
+    if(sceneT%FMV_TICKS==0){
+        fmvDecode(sceneClip,sceneT/FMV_TICKS);
+        queueUiScreens();
+        uiCut=1;
+        uiFlush();
+    } else swiWaitForVBlank();
+    sceneT++;
+}
+static void startFinale(void){
+    endShown=1;
+    if(view3d) leave3D();
+    if(zBmp) zSet(Z_NORMAL);
+    sceneNext=credTxt;
+    sceneStartFmv(endTxt,&fmvClips[CHAP_N]);
+    advanceStoryFilm();
+}
+
 static void uiScaleSave(void){
 #ifdef HW_CAL
     hwCalStore();
@@ -3036,7 +3073,7 @@ int main(void){
 #ifdef HW_CAL
         if(calOn){ if(gOnTop!=1){ lcdMainOnTop(); gOnTop=1; } calStep(kd,kh); musUpdate(); if(calDirty){ calDirty=0; calDraw((kh&KEY_TOUCH)!=0); } swiWaitForVBlank(); continue; }
 #endif
-        { int ui=titleOn||menuOn||extrasView||sceneOn||dlgOn; penPoll((kh&KEY_TOUCH)!=0,ui); if(ui!=gOnTop){ gOnTop=ui; if(ui) lcdMainOnTop(); else lcdMainOnBottom(); }   // menus move to the touch screen, the world goes up
+        { int ui=titleOn||menuOn||extrasView||sceneOn||dlgOn; penPoll((kh&KEY_TOUCH)!=0,ui);   // hud() pairs any LCD move with the new picture
           if(ui){ if(pen.press||pen.rep){ int h=uiHitSlop(pen.x,pen.y); if(pen.rep&&h>=0&&!(uiBtns[h].key&(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT))) h=-1; if(h>=0){ const UiBtn*bt=&uiBtns[h]; int was=bt->sp&&*bt->sp==bt->sv; if(bt->sp) *bt->sp=bt->sv; kd|=was&&bt->key2?bt->key2:bt->key; if(bt->key&(KEY_L|KEY_R)) uiTabDir=(bt->key&KEY_L)?-1:1; } } kd&=~KEY_TOUCH; kh&=~KEY_TOUCH; } }
         { static int rpT; int ui2=(titleOn||menuOn||extrasView)&&!sceneOn&&!dlgOn&&!(titleOn&&konami>0), dir=kh&(KEY_UP|KEY_DOWN);   // GFX1: a held UP or DOWN repeats
           if(ui2&&dir&&!(kd&dir)){ rpT++; if(rpT>=18&&((rpT-18)&3)==0) kd|=dir; } else rpT=0; }
@@ -3051,22 +3088,44 @@ int main(void){
             if(skipped||sceneT==sceneClip->frames*FMV_TICKS){
                 sceneClip=0;
                 sceneT=0;
-                // A chapter interlude returns to the dialogue it was covering.
-                // Intro and finale keep their narration cards open.
+                // The first complete dialogue or narration frame replaces
+                // the final cel in the same display refresh.
                 if(!sceneTxt){ sceneOn=0; paused=scenePaused; }
-                uiScrId=-1;
-                swiWaitForVBlank();
-                hud();
-            } else {
-                swiWaitForVBlank();
-                if(sceneT%FMV_TICKS==0) fmvDraw(sceneClip,sceneT/FMV_TICKS);
-                sceneT++;
-            }
+                presentStoryCut();
+            } else advanceStoryFilm();
             continue;
         }
-        if(sceneOn){ sceneT++; int n=sceneLines(sceneTxt); if(sceneScroll&&(sceneT&7)==0) sceneOff++; int done=(kd&(KEY_A|KEY_START))!=0; if(sceneScroll&&sceneOff>n+2) done=1;
-            if(done){ if(sceneNext){ const char*const*nx=sceneNext; int sp0=scenePaused; sceneNext=0; sceneOn=0; sceneStart(nx,1); scenePaused=sp0; musReq(GM_CREDITS); } else { sceneOn=0; paused=scenePaused; } }
-            refillWindow(); swiWaitForVBlank(); bgSetScroll(0,zBmp?0:camX&511,zBmp?0:camY&511); bgUpdate(); drawSprites(); oamUpdate(&oamMain); if((tick&7)==0){ applyLight(); if(sceneOn||dlgPend<0) hud(); } continue; }
+        if(sceneOn){
+            sceneT++;
+            int n=sceneLines(sceneTxt), done=(kd&(KEY_A|KEY_START))!=0;
+            if(sceneScroll&&(sceneT&7)==0) sceneOff++;
+            if(sceneScroll&&sceneOff>n+2) done=1;
+            if(done){
+                if(sceneNext){
+                    const char*const*nx=sceneNext;
+                    int priorPause=scenePaused;
+                    sceneNext=0;
+                    sceneStart(nx,1);
+                    scenePaused=priorPause;
+                    musReq(GM_CREDITS);
+                    presentStoryCut();
+                    continue;
+                }
+                sceneOn=0;
+                paused=scenePaused;
+                kd&=~(KEY_A|KEY_START);
+                if(dlgPend<0){
+                    presentStoryCut();
+                    continue;
+                }
+            } else {
+                // A stationary story card is already on screen. Credits
+                // replace it with a new frame only as the scroll advances.
+                if(sceneScroll&&(sceneT&7)==0) presentStoryCut();
+                else swiWaitForVBlank();
+                continue;
+            }
+        }
         if(!titleOn&&!menuOn&&!extrasView&&!sceneOn&&!dlgOn&&dlgPend>=0&&storyOn){
             int next=dlgPend;
             dlgSet=dlgTab[next];
@@ -3077,12 +3136,15 @@ int main(void){
             dlgPaused=paused;
             paused=1;
             if(next>0&&next<CHAP_N){
+                if(view3d) leave3D();
+                if(zBmp) zSet(Z_NORMAL);
                 sceneStartFmv(0,&fmvClips[next]);
-                swiWaitForVBlank();
-                continue;
-            }
+                advanceStoryFilm();
+            } else presentStoryCut();
+            continue;
         }
         if(dlgOn){
+            int previousLine=dlgIdx;
             int len=(int)strlen(dlgSet[dlgIdx].txt);
             if(kd&KEY_B){
                 dlgOn=0;
@@ -3099,6 +3161,13 @@ int main(void){
             if(!dlgOn){
                 paused=dlgPaused;
                 if(storyOn&&chapter<CHAP_N) storyGoalT=STORY_HANDOFF_TICKS;
+                if(storyOn&&storyDone&&!endShown&&dlgPend<0) startFinale();
+                else presentStoryCut();
+                continue;
+            }
+            if(dlgIdx!=previousLine){
+                presentStoryCut();
+                continue;
             }
             refillWindow();
             swiWaitForVBlank();
@@ -3107,14 +3176,14 @@ int main(void){
             drawSprites();
             oamUpdate(&oamMain);
             if((tick&7)==0) applyLight();
-            if(dlgOn?((tick&1)==0||kd):(!storyDone||endShown)) hud();
+            if((tick&1)==0||kd) hud();
             continue;
         }
         if(!titleOn&&!sceneOn&&strcmp(info,lastInfo)){ strcpy(lastInfo,info); toastT=420; } if(toastT>0) toastT--;
         if(menuOn){ menuInput(kd); refillWindow(); swiWaitForVBlank(); bgSetScroll(0,zBmp?0:camX&511,zBmp?0:camY&511); bgUpdate(); drawSprites(); oamUpdate(&oamMain); if(kd||(tick&15)==0) hud(); continue; }   // (redrawn when a button was pressed, and now and then for the clock: a full redraw and copy every frame took longer than a frame)
         if(!titleOn&&!extrasView&&storyGoalT>0) storyGoalT--;
         if(!titleOn&&!extrasView&&(tick&15)==0) unlockTiers();   // the chapter goal is checked here as well as in simulate(): a paused world, or a speed that steps over the 256th tick, never reached the check there
-        if(storyOn&&storyDone&&!endShown&&!titleOn&&!extrasView&&!dlgOn&&dlgPend<0){ endShown=1; if(view3d) leave3D(); sceneNext=credTxt; sceneStartFmv(endTxt,&fmvClips[CHAP_N]); swiWaitForVBlank(); continue; }
+        if(storyOn&&storyDone&&!endShown&&!titleOn&&!extrasView&&!dlgOn&&dlgPend<0){ startFinale(); continue; }
         if(titleOn&&!extrasView){
             int ch=kd!=0; { static const u16 code[10]={KEY_UP,KEY_UP,KEY_DOWN,KEY_DOWN,KEY_LEFT,KEY_LEFT,KEY_RIGHT,KEY_B,KEY_A,KEY_START};
                 menuInput(kd);

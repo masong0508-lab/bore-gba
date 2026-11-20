@@ -88,6 +88,10 @@ static void stressWorld(void){
     startCount=nCr;
     startGroups=wgN;
     paused=titleOn=menuOn=dlgOn=sceneOn=extrasView=storyOn=autoSaveOn=0;
+    // This fixture enters a running world directly. Start its LCD routing
+    // in gameplay too, before sampling stable frames.
+    gOnTop=0;
+    lcdMainOnBottom();
     speedMul=speed;
     year=tick=0;
     camX=WW*4-128;

@@ -29,17 +29,20 @@ static void checkFullPlayback(void){
     for(unsigned i=0;i<sizeof fmvClips/sizeof *fmvClips;i++){
         const FmvClip*clip=&fmvClips[i];
         u32 previous=0;
-        int changes=0;
+        int changes=0, still=0;
         unsigned flush=uiFlushes;
         for(int f=0;f<clip->frames;f++){
             fxQ=-1;
-            fmvDraw(clip,f);
+            fmvDecode(clip,f);
+            uiFlushRaw();
             int want=-1;
             for(int c=0;c<2;c++) if(clip->cue[c].effect&&clip->cue[c].frame==f) want=clip->cue[c].effect;
             check(fxQ==want,"sound cue did not land on its frame");
             check(fmvRead<=fmvBlockEnd,"frame ran past its delta block");
             u32 now=pictureHash();
             changes+=f>0&&previous!=now;
+            still=previous==now?still+1:0;
+            check(still<3,"a frame stayed frozen for too long");
             previous=now;
         }
         check(changes>=clip->frames/4,"film held the same picture too long");
@@ -49,7 +52,12 @@ static void checkFullPlayback(void){
     fxQ=-1;
 }
 
-void shimPresent(void){}
+void shimPresent(void){
+    if(sceneClip||dlgOn||sceneOn){
+        check(shimSwap,"story appeared on the wrong LCD");
+        check(!memcmp(bgGetGfxPtr(3),uiBuf,sizeof uiBuf),"presented a stale or partially drawn story frame");
+    }
+}
 
 void shimInput(int frame,int *held,int *tx,int *ty){
     *held=0;
