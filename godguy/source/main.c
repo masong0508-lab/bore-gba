@@ -1696,9 +1696,15 @@ static const char* const zNm[6]={"PLANET","VERY FAR","FAR","NORMAL","CLOSE","MIC
 #define ZH 168                                    // rows above the toolbar
 typedef struct { u32 xy; u32 sig; u8 px[64]; } ZArt; static ZArt zart[512];     // the 8 x 8 art of the tiles in view, so a scroll builds only the new column
 static const u8 zPool[9]={144,147,150,153,156,192,195,248,251};  // palette slots for creature colours (3 each); 12 families at a time, the rest share
+#ifdef GG_ZOOM_TEST
+static int zArtLookups;
+#endif
 static inline int zFamPal(int fam){ return zPool[fam%9]; }
 static int zCol(int fam,int k){ return zFamPal(fam)+k; }
 static const u8* zArtOf(int x,int y){
+#ifdef GG_ZOOM_TEST
+    zArtLookups++;
+#endif
     ZArt*z=&zart[((y&15)<<5)|(x&31)]; int t=world[y][x]; int mask=0,foam=0; int bld_=bld[y][x]; int race=bld_&&bldv[y][x]?vilRace(bldv[y][x]-1):0; int best=bld_?-1:cellEdge(x,y,&mask,&foam); int bb=(bld_||t<=T_WATER||t==T_LAVA)?0:bioAt(x,y);
     u32 sig=(u32)(t|((best+1)<<4)|(mask<<8)|(foam<<12)|(bld_<<13)|(race<<17)|(bb<<20))+1u; u32 xy=(u32)(x|(y<<16));
     if(z->sig==sig&&z->xy==xy) return z->px;
@@ -1706,7 +1712,14 @@ static const u8* zArtOf(int x,int y){
     for(int j=0;j<8;j++) for(int i=0;i<8;i++) z->px[j*8+i]=(u8)(bld_?bldPix(bld_,race,i,j):bioPix(best>=0?edgePix(t,best,mask,v,foam,i,j):tilePix(t,v,i,j),bb));
     z->sig=sig; z->xy=xy; return z->px; }
 static inline void zPut(int x,int y,int c){ if((unsigned)x<256&&(unsigned)y<ZH) gbuf[y*256+x]=(u8)c; }
-static void zRect(int x,int y,int w,int h,int c){ for(int j=0;j<h;j++){ int yy=y+j; if((unsigned)yy>=ZH) continue; for(int i=0;i<w;i++){ int xx=x+i; if((unsigned)xx<256) gbuf[yy*256+xx]=(u8)c; } } }
+static void zRect(int x,int y,int w,int h,int c){
+    // Clip ONCE per rectangle instead of testing every enlarged pixel.
+    // The 16x/32x creatures and the 2x/4x terrain call this thousands
+    // of times on busy views. A row is contiguous in the shared buffer.
+    int x0=x<0?0:x, y0=y<0?0:y, x1=x+w>256?256:x+w, y1=y+h>ZH?ZH:y+h;
+    if(x1<=x0||y1<=y0) return;
+    for(int yy=y0;yy<y1;yy++) memset(gbuf+yy*256+x0,(u8)c,(size_t)(x1-x0));
+}
 static int zOx(void){ zScale(); return zcx*zS_/(8*zK_)-128; } static int zOy(void){ zScale(); return zcy*zS_/(8*zK_)-ZH/2; }
 static void zClamp(void){ zScale(); int hx=128*8*zK_/zS_, hy=(ZH/2)*8*zK_/zS_; int mx=WW*8, my=WH*8;
     if(2*hx>=mx) zcx=mx/2; else { if(zcx<hx) zcx=hx; if(zcx>mx-hx) zcx=mx-hx; } if(2*hy>=my) zcy=my/2; else { if(zcy<hy) zcy=hy; if(zcy>my-hy) zcy=my-hy; } }
@@ -1729,7 +1742,11 @@ static int bZoomCol(int b,int race){ return (b==B_HALL||b==B_TOWER||b==B_TEMPLE|
 static int zKey=-1;
 static int zDraw(void){ gKeyOk=0;
     zScale(); int S=zS_, sh=zSh_, K=zK_; int ox=zOx(), oy=zOy();
-    int key=(ox*131+oy*17+zl*7)^((tick>>(zl>=Z_CLOSE?0:2))*257)^(weather*977)^(nCr*29); if(!zForce&&key==zKey) return 0; zKey=key; zForce=0;
+    // CLOSE/MICRO artwork and animated entities refresh at up to 30 Hz.
+    // The game loop (including sound) still runs at its regular cadence.
+    // Camera movement, creature count, weather, and a divine-power edit
+    // force an immediate new image; only redundant interleaved frames skip.
+    int key=(ox*131+oy*17+zl*7)^((tick>>(zl>=Z_CLOSE?1:2))*257)^(weather*977)^(nCr*29); if(!zForce&&key==zKey) return 0; zKey=key; zForce=0;
     memset(gbuf,0,256*ZH);
     if(K>1){       // a planet squeezed K tiles to a pixel: one sampled tile a pixel, creatures as dots
         for(int sy=0;sy<ZH;sy++){ int ty=(oy+sy)*K+K/2; if(ty<0||ty>=WH) continue; u8*d=gbuf+sy*256; for(int sx=0;sx<256;sx++){ int tx=(ox+sx)*K+K/2; if(tx<0||tx>=WW) continue; int t=world[ty][tx]; int b=bld[ty][tx]; int c;
@@ -1738,10 +1755,29 @@ static int zDraw(void){ gKeyOk=0;
         for(int i=0;i<nCr;i++){ const Cr*c=&cr[i]; if(!c->alive) continue; int px=c->x/K-ox, py=c->y/K-oy; if((unsigned)px<256&&(unsigned)py<ZH&&(arch[sp[c->sp].a].diet==4||arch[sp[c->sp].a].diet==5||c->rk)) gbuf[py*256+px]=(u8)(arch[sp[c->sp].a].diet==5?UIP(U_RED):UIP(U_YELLOW)); }      // (only people, monsters and notables)
         return 1; }
     int tx0=ox>>sh, tx1=(ox+255)>>sh, ty0=oy>>sh, ty1=(oy+ZH-1)>>sh;
-    if(S>=16){ int r8=sh-3;      // enlarge the tile art: each screen row takes one art row of every tile it crosses
-        for(int sy=0;sy<ZH;sy++){ int v=oy+sy; int ty=v>>sh; if(ty<0||ty>=WH) continue; int ry=(v&(S-1))>>r8; u8*d=gbuf+sy*256;
-            for(int tx=tx0;tx<=tx1;tx++){ if(tx<0||tx>=WW) continue; const u8*a=zArtOf(tx,ty)+ry*8; int sx=(tx<<sh)-ox;
-                for(int i=0;i<8;i++){ u8 c=a[i]; int x0=sx+(i<<r8); for(int q=0;q<(1<<r8);q++){ int xx=x0+q; if((unsigned)xx<256) d[xx]=c; } } } } }
+    if(S>=16){ int r8=sh-3;      // enlarge each source tile's 8x8 art
+        // Resolve art once per visible WORLD tile, not again for every
+        // output scanline. CLOSE used to look up each tile 16 times and
+        // MICRO 32 times even though zArtOf's signature rarely changes.
+        const u8* rowArt[18];   // CLOSE covers at most 17 tiles horizontally
+        for(int ty=ty0;ty<=ty1;ty++){
+            if(ty<0||ty>=WH) continue;
+            for(int tx=tx0;tx<=tx1;tx++) rowArt[tx-tx0]=(tx>=0&&tx<WW)?zArtOf(tx,ty):0;
+            int sy0=(ty<<sh)-oy;
+            int syBeg=sy0<0?0:sy0, syEnd=sy0+S>ZH?ZH:sy0+S;
+            for(int sy=syBeg;sy<syEnd;sy++){
+                const int ry=(sy-sy0)>>r8; u8*d=gbuf+sy*256;
+                for(int tx=tx0;tx<=tx1;tx++){
+                    const u8*art=rowArt[tx-tx0]; if(!art) continue;
+                    const u8*a=art+ry*8; const int sx=(tx<<sh)-ox;
+                    for(int i=0;i<8;i++){
+                        int x0=sx+(i<<r8); int left=x0<0?0:x0, right=x0+(1<<r8);
+                        if(right>256) right=256;
+                        for(int xx=left;xx<right;xx++) d[xx]=a[i];
+                    }
+                }
+            }
+        } }
     else { for(int ty=ty0;ty<=ty1;ty++){ if(ty<0||ty>=WH) continue; int sy0=(ty<<sh)-oy;
             for(int tx=tx0;tx<=tx1;tx++){ if(tx<0||tx>=WW) continue; int sx0=(tx<<sh)-ox; int t=world[ty][tx]; int c; int b=bld[ty][tx];
                 if(b&&b!=B_RUIN){ int race=bldv[ty][tx]?vilRace(bldv[ty][tx]-1):0; c=bZoomCol(b,race); }
@@ -1752,14 +1788,42 @@ static int zDraw(void){ gKeyOk=0;
     // creatures: every one on screen
     for(int ty=ty0-1;ty<=ty1+1;ty++){ if(ty<0||ty>=WH) continue; for(int tx=tx0-1;tx<=tx1+1;tx++){ if(tx<0||tx>=WW) continue; int i=(int)occ[ty][tx]-1; if(i<0||!cr[i].alive) continue; zCrit(i,(tx<<sh)-ox,(ty<<sh)-oy,S); } }
     return 1; }
+// Only 2.6 KiB of signatures: no second framebuffer (43 KiB) and no
+// per-frame allocations. These signatures belong exclusively to the
+// zoomed BG, and are invalidated whenever that BG is entered afresh.
+static u32 zTileHash[32*(ZH/8)]; static int zTileHashValid;
+#ifdef GG_ZOOM_TEST
+static int zUploadN, zSkipN;
+#endif
 static void zFlush(void){
     static u8 tl[64] __attribute__((aligned(4)));
-    for(int ty=0;ty<ZH/8;ty++) for(int tx=0;tx<32;tx++){ for(int y=0;y<8;y++){ const u8*r=gbuf+(ty*8+y)*256+tx*8; ((u32*)tl)[y*2]=((const u32*)r)[0]; ((u32*)tl)[y*2+1]=((const u32*)r)[1]; } vramCopy((u8*)BG_TILE_RAM(1)+(ty*32+tx)*64,tl,64); } }
+    for(int ty=0;ty<ZH/8;ty++) for(int tx=0;tx<32;tx++){
+        u32 sig=2166136261u; u32*dst=(u32*)tl;
+        for(int y=0;y<8;y++){
+            const u32*r=(const u32*)(gbuf+(ty*8+y)*256+tx*8);
+            u32 a=r[0], b=r[1]; dst[y*2]=a; dst[y*2+1]=b;
+            sig=(sig^a)*16777619u; sig=(sig^b)*16777619u;
+        }
+        int idx=ty*32+tx;
+        if(zTileHashValid&&zTileHash[idx]==sig){
+#ifdef GG_ZOOM_TEST
+            zSkipN++;
+#endif
+            continue;
+        }
+        zTileHash[idx]=sig;
+        vramCopy((u8*)BG_TILE_RAM(1)+idx*64,tl,64);
+#ifdef GG_ZOOM_TEST
+        zUploadN++;
+#endif
+    }
+    zTileHashValid=1;
+}
 static void zPalette(void){ for(int f=0;f<9;f++) for(int k=0;k<3;k++) BG_PALETTE[zPool[f]+k]=RGB15(famCol[f][k][0],famCol[f][k][1],famCol[f][k][2]); }
 static void zEnterBmp(void){
     zPalette(); for(int i=0;i<128;i++) oamSetHidden(&oamMain,i,true);
     zBmp=1; bgSetScroll(0,0,0); for(int my=0;my<32;my++) for(int mx=0;mx<32;mx++) mapPtr[my*32+mx]=(u16)(my<ZH/8?my*32+mx:0);
-    memset(zart,0,sizeof zart); zForce=1; }
+    memset(zart,0,sizeof zart); zTileHashValid=0; zKey=-1; zForce=1; }
 static void zLeaveBmp(void){
     zBmp=0; memset(trKey,0,sizeof trKey); trUsed=0; makeTiles(); winX=-99; }
 static void zSet(int nz){
@@ -2764,7 +2828,7 @@ int main(void){
         for(int k=1;k<speedMul&&!paused;k++){ tick++; simulate(); }
         GG_FRAME_END(simulation);
         GG_FRAME_BEGIN(draw);
-        int zd=0; if(zBmp){ if(winX==-99){ zForce=1; winX=-98; zcx=camX+128; zcy=camY+ZH/2; zClamp(); } zd=zDraw(); }      // (a zoomed picture is drawn before the blank, sent after it)
+        int zd=0; if(zBmp){ if(dirty) zForce=1; if(winX==-99){ zForce=1; winX=-98; zcx=camX+128; zcy=camY+ZH/2; zClamp(); } zd=zDraw(); }      // (a zoomed picture is drawn before the blank, sent after it)
         GG_FRAME_END(draw);
         swiWaitForVBlank();
         GG_FRAME_BEGIN(draw);
