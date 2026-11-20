@@ -2491,7 +2491,7 @@ static void uiCreate(void){
     uiRound(170,168,76,11,U_PANELHI,cT>=0?U_ORANGE:U_GREEN); uiTextC(208,170,cT>=0?"SHAPING...":"READY",cT>=0?U_ORANGE:U_GREEN,1);
     gfxHint(cHelp[cSel],U_LGREY);
     uiFlush(); }
-enum { MI_CONT, MI_STORY, MI_FREE, MI_OPT, MI_EXTRA, MI_BACK, MI_SIZE, MI_DIFF, MI_VOL, MI_MON, MI_SCULPT, MI_BEST, MI_CODEX, MI_HELP, MI_CRED, MI_DEBUG, MI_RESUME, MI_SAVE, MI_NEW, MI_MODE, MI_TITLE, MI_CREATE, MI_GO, MI_STYPE, MI_SPEED, MI_KING, MI_JOURNAL, MI_ACH, MI_CULT, MI_LANG, MI_BROWSE, MI_STATS, MI_FAVS, MI_MISSION, MI_WORLD, MI_LOAD, MI_SLOT, MI_CAL, MI_SCALE, MI_MMODE, MI_PEOPLES, MI_MMICON, MI_AUTOSAVE };
+enum { MI_CONT, MI_STORY, MI_FREE, MI_OPT, MI_EXTRA, MI_BACK, MI_SIZE, MI_DIFF, MI_VOL, MI_MON, MI_SCULPT, MI_BEST, MI_CODEX, MI_HELP, MI_CRED, MI_DEBUG, MI_RESUME, MI_SAVE, MI_NEW, MI_MODE, MI_TITLE, MI_CREATE, MI_GO, MI_STYPE, MI_SPEED, MI_KING, MI_JOURNAL, MI_ACH, MI_CULT, MI_LANG, MI_BROWSE, MI_STATS, MI_FAVS, MI_MISSION, MI_WORLD, MI_LOAD, MI_SLOT, MI_CAL, MI_SCALE, MI_MMODE, MI_PEOPLES, MI_MMICON, MI_AUTOSAVE, MI_FILMS };
 static int fieldLedgerOpen;
 static int extrasView;      // which menu (0 main, 1 options, 2 extras), the highlighted row, a pending "are you sure", and whether an extras page is open
 static int menuList(int*ids){ int n=0, ctx=titleOn?0:1;
@@ -2502,7 +2502,11 @@ static int menuList(int*ids){ int n=0, ctx=titleOn?0:1;
  ids[n++]=MI_CAL;
 #endif
  if(ctx){ ids[n++]=MI_NEW; ids[n++]=MI_MODE; ids[n++]=MI_TITLE; } ids[n++]=MI_BACK; }
-    else { ids[n++]=MI_SCULPT; ids[n++]=MI_BROWSE; ids[n++]=MI_KING; ids[n++]=MI_CULT; ids[n++]=MI_LANG; ids[n++]=MI_PEOPLES; if(!ctx) ids[n++]=MI_JOURNAL; ids[n++]=MI_ACH; ids[n++]=MI_BEST; ids[n++]=MI_CODEX; ids[n++]=MI_HELP; ids[n++]=MI_CRED; if(debugOn) ids[n++]=MI_DEBUG; ids[n++]=MI_BACK; }
+    else { ids[n++]=MI_SCULPT; ids[n++]=MI_BROWSE; ids[n++]=MI_KING; ids[n++]=MI_CULT; ids[n++]=MI_LANG; ids[n++]=MI_PEOPLES; if(!ctx) ids[n++]=MI_JOURNAL; ids[n++]=MI_ACH; ids[n++]=MI_BEST; ids[n++]=MI_CODEX; ids[n++]=MI_HELP;
+#ifdef __3DS__
+ ids[n++]=MI_FILMS;
+#endif
+ ids[n++]=MI_CRED; if(debugOn) ids[n++]=MI_DEBUG; ids[n++]=MI_BACK; }
     return n; }
 static void menuText(int id,char*l,char*v){ v[0]=0;
     switch(id){ case MI_CONT: strcpy(l,hasSave?"CONTINUE YOUR WORLD":"START THE STORY"); break; case MI_STORY: strcpy(l,"NEW STORY WORLD"); break; case MI_FREE: strcpy(l,"NEW FREE PLAY WORLD"); break;
@@ -2512,7 +2516,7 @@ static void menuText(int id,char*l,char*v){ v[0]=0;
         case MI_SIZE: strcpy(l,"PLANET SIZE"); siprintf(v,"%dx%d",planetSize,planetSize); break; case MI_DIFF: strcpy(l,"DIFFICULTY"); strcpy(v,diff==0?"CALM":diff==1?"NORMAL":"BRUTAL"); break;
         case MI_VOL: strcpy(l,"MUSIC VOLUME"); siprintf(v,"%d%%",gmMaster); break; case MI_MON: strcpy(l,"MONSTERS"); strcpy(v,monOn?"ON":"OFF"); break;
         case MI_SCULPT: strcpy(l,"AURAL SCULPTURES"); strcpy(v,auralOK()?"":"LOCKED"); break; case MI_BEST: strcpy(l,"BESTIARY"); siprintf(v,"%d/%d",seenN,MON_N); break; case MI_CODEX: strcpy(l,"SUBSPECIES"); siprintf(v,"%d/%d",traitMetCount(),TR_N-1); break;
-        case MI_STATS: strcpy(l,"STATS"); break; case MI_FAVS: strcpy(l,"FAVOURITES"); break; case MI_WORLD: strcpy(l,"WORLD"); strcpy(v,">"); break; case MI_MISSION: strcpy(l,"MISSION GOAL"); break; case MI_HELP: strcpy(l,"HELP"); break; case MI_CRED: strcpy(l,"CREDITS"); break; case MI_DEBUG: strcpy(l,"DEBUG MENU"); break;
+        case MI_STATS: strcpy(l,"STATS"); break; case MI_FAVS: strcpy(l,"FAVOURITES"); break; case MI_WORLD: strcpy(l,"WORLD"); strcpy(v,">"); break; case MI_MISSION: strcpy(l,"MISSION GOAL"); break; case MI_HELP: strcpy(l,"HELP"); break; case MI_FILMS: strcpy(l,"FILM ARCHIVE"); strcpy(v,">"); break; case MI_CRED: strcpy(l,"CREDITS"); break; case MI_DEBUG: strcpy(l,"DEBUG MENU"); break;
         case MI_LOAD: strcpy(l,"LOAD GAME"); break; case MI_SLOT: strcpy(l,"SAVE SLOT"); if(slotYr[slot]>=0) siprintf(v,"%d Y%d",slot+1,slotYr[slot]&0xFFFF); else siprintf(v,"%d EMPTY",slot+1); break; case MI_RESUME: strcpy(l,"RESUME"); break; case MI_SAVE: strcpy(l,"SAVE GAME"); if(savedYear>=0) siprintf(v,"SAVED Y%d",savedYear&0xFFFF); break; case MI_NEW: strcpy(l,"NEW WORLD"); break; case MI_MODE: strcpy(l,"MODE"); strcpy(v,storyOn?"STORY":"FREE PLAY"); break; case MI_TITLE: strcpy(l,"TITLE SCREEN"); break; } }
 static int menuAdj(int id){ return id==MI_SIZE||id==MI_STYPE||id==MI_SPEED||id==MI_DIFF||id==MI_VOL||id==MI_MON||id==MI_SLOT||id==MI_SCALE||id==MI_MMODE||id==MI_MMICON; }
 static const u8 extOrder[15]={13,1,8,12,14,7,15,10,11,9,2,5,6,3,4};
@@ -2522,12 +2526,12 @@ static int extStep(int d){ int i=0; for(int k=0;k<15;k++) if(extOrder[k]==page) 
 static const char* menuDesc(int id){ switch(id){
     case MI_CONT: return hasSave?"PICK UP YOUR SAVED WORLD WHERE YOU LEFT IT":"BEGIN THE STORY ON A NEW PLANET"; case MI_CREATE: return "CHOOSE SIZE, LAND, CLIMATE AND SEED OF A NEW PLANET"; case MI_OPT: return "DIFFICULTY, SPEED, VOLUME, MONSTERS"; case MI_EXTRA: return "KINGDOMS, MUSIC, BESTIARY, HELP AND MORE";
     case MI_MMICON: return "THE DOTS ON THE MINIMAP: ONLY FOLK AND MONSTERS, OR EVERY KIND OF CREATURE"; case MI_MMODE: return "WHAT THE RINGS ON THE MAP SHOW. RELATIONS: GREEN ALLY, RED WAR"; case MI_AUTOSAVE: return "AUTOMATICALLY SAVE AT EACH NEW YEAR; MANUAL SAVE STILL WORKS WHEN OFF"; case MI_SCALE: return "BIGGER TOOLBAR AND TOUCH TARGETS"; case MI_CAL: return "TAP TWO CROSSES SO THE STYLUS LANDS WHERE YOU TOUCH"; case MI_DIFF: return "HOW HARD THE MONSTERS BITE"; case MI_SPEED: return "HOW FAST TIME RUNS"; case MI_VOL: return "MUSIC AND EFFECT LOUDNESS"; case MI_MON: return "TURN THE NIGHTMARES ON OR OFF";
-    case MI_SCULPT: return "THE JUKEBOX: ALL THE TRACKS AND SUITES"; case MI_BROWSE: return "FIND AND STAR CITIES, FOLK, ITEMS, POWERS"; case MI_KING: return "WHO RULES WHAT: WARS, ALLIES, VASSALS"; case MI_CULT: return "WHAT EACH KINGDOM HAS LEARNED"; case MI_LANG: return "THE FIVE TONGUES AND THEIR NAMES"; case MI_PEOPLES: return "WHO LIVES UNDER WHICH CULTURE, FAITH, TONGUE"; case MI_JOURNAL: return "THE LAST EVENTS OF THE WORLD"; case MI_ACH: return "THINGS YOU HAVE DONE AS A GOD"; case MI_BEST: return "EVERY NIGHTMARE YOU HAVE MET"; case MI_CODEX: return "SUBSPECIES AND WHAT THEY DO"; case MI_HELP: return "THE CONTROLS"; case MI_CRED: return "WHO MADE THIS"; case MI_DEBUG: return "CHEATS AND TOOLS";
+    case MI_SCULPT: return "THE JUKEBOX: ALL THE TRACKS AND SUITES"; case MI_BROWSE: return "FIND AND STAR CITIES, FOLK, ITEMS, POWERS"; case MI_KING: return "WHO RULES WHAT: WARS, ALLIES, VASSALS"; case MI_CULT: return "WHAT EACH KINGDOM HAS LEARNED"; case MI_LANG: return "THE FIVE TONGUES AND THEIR NAMES"; case MI_PEOPLES: return "WHO LIVES UNDER WHICH CULTURE, FAITH, TONGUE"; case MI_JOURNAL: return "THE LAST EVENTS OF THE WORLD"; case MI_ACH: return "THINGS YOU HAVE DONE AS A GOD"; case MI_BEST: return "EVERY NIGHTMARE YOU HAVE MET"; case MI_CODEX: return "SUBSPECIES AND WHAT THEY DO"; case MI_HELP: return "THE CONTROLS"; case MI_FILMS: return "UNLOCK NEW 3DS STORY FILMS AS YOU PLAY"; case MI_CRED: return "WHO MADE THIS"; case MI_DEBUG: return "CHEATS AND TOOLS";
     case MI_STATS: return "COUNTS OF EVERYTHING"; case MI_FAVS: return "YOUR STARRED CITIES, KINGS, ITEMS"; case MI_WORLD: return "CHANGE THE RULES OF THE WORLD"; case MI_MISSION: return "THE CURRENT CHAPTER GOAL"; case MI_RESUME: return "BACK TO THE WORLD"; case MI_SAVE: return "WRITE THE WORLD TO THE CARD"; case MI_LOAD: return "GO BACK TO THE LAST SAVE"; case MI_SLOT: return "PICK THE SAVE FILE FOR SAVE AND CONTINUE"; case MI_NEW: return "REPLACE THIS WORLD WITH A NEW ONE"; case MI_MODE: return "SWITCH BETWEEN STORY AND FREE PLAY"; case MI_TITLE: return "SAVE AND GO TO THE TITLE SCREEN"; case MI_SIZE: return "BIGGER PLANETS TAKE LONGER TO MAKE"; case MI_STYPE: return "STORY HAS CHAPTERS, FREE PLAY HAS NONE"; case MI_GO: return "MAKE THE PLANET AND BEGIN"; default: return ""; } }
 static const char* gfxDesc(int id){ if(menuNoteT>0&&info[0]) return info; const char*d=menuDesc(id); if(d[0]) return d; return id==MI_BACK?"GO BACK TO THE LAST MENU":""; }
 static void uiMenuList(int x,int y,int w,int rh,int vis){   // rows with a steady gold highlight; more rows than fit scroll (scroll bar, touch arrows)
     if(hwUiScale){ int tot=vis*rh; rh+=3*hwUiScale; vis=tot/rh; if(vis<3) vis=3; }   // UI SCALE: taller rows, fewer of them
-    int ids[14]; int n=menuList(ids); if(mSel>=n) mSel=n-1; if(mSel<0) mSel=0; char l[32], v[16];
+    int ids[16]; int n=menuList(ids); if(mSel>=n) mSel=n-1; if(mSel<0) mSel=0; char l[32], v[16];
     int sc=n>vis; if(!sc) vis=n; if(mSel<mTop) mTop=mSel; if(mSel>=mTop+vis) mTop=mSel-vis+1; if(mTop>n-vis) mTop=n-vis; if(mTop<0) mTop=0;
     int rw=sc?w-10:w;
     for(int r=0;r<vis;r++){ int i=mTop+r, id=ids[i]; menuText(id,l,v); int yy=y+r*rh, sel=i==mSel, ty=yy+(rh-9)/2, vx=x+rw;
@@ -2563,7 +2567,7 @@ static void uiTitle(void){
     if(mScr==4){ uiSlots(); return; }
     uiGrad(0,0,256,192,G_BG); for(int y=0;y<192;y++) if((y&3)==0) uiRect(0,y,256,1,U_PANEL);
     for(int k=0;k<70;k++){ int x=(int)(hsh(k,1,7)%256), y=(int)(hsh(k,2,7)%192); uiPx(x,y,(k&3)==0?U_WHITE:U_DIM); }
-    int ids[14];
+    int ids[16];
     if(mScr==0){
         uiPlanetSprite(206,128,planetSize==128?34:planetSize==192?40:46);
         uiTitleArt(6,2);
@@ -2808,6 +2812,34 @@ static void uiBrowser(void){
     uiText(6,156,"< > KIND",U_DIM,1);
     uiFlush(); }
 static void uiHelp(void){ uiWin("HELP","UP DOWN SCROLL","SELECT NEXT PAGE"); int n=sceneLines(helpTxt); for(int r=0;r<15;r++){ int l=helpSel+r; if(l>=n) break; uiText(10,18+r*10,helpTxt[l],helpTxt[l][0]&&helpTxt[l][0]!=' '&&l<n&&helpTxt[l][1]!=' '&&!(helpTxt[l][0]=='B'&&helpTxt[l][1]==' ')?U_WHITE:U_DIM,1); } uiScroll(n,helpSel,15,16,160); uiFlush(); }
+#ifdef __3DS__
+// Dedicated archive, not the regular chapter sequence. Unlocks derive from
+// existing saved chapter progression; no new save-format field or data block.
+static int filmBonusSel;
+static int filmBonusOpen(int which){
+    return which>=0&&which<FILM_BONUS_N&&
+           (unlockAll||debugOn||storyDone||
+            chapter>=filmBonusChapterUnlock[which]);
+}
+static void uiBonusFilms(void){
+    uiWin("FILM ARCHIVE","SIX STORIES TO DISCOVER","A WATCH  B BACK");
+    uiText(9,17,"UNLOCK MORE AS CHAPTERS ADVANCE",U_GOLD,1);
+    for(int i=0;i<FILM_BONUS_N;i++){
+        int y=33+i*23,open=filmBonusOpen(i),selected=i==filmBonusSel;
+        uiRect(6,y-3,244,21,selected?U_SEL:(i&1?U_PANEL:U_BG));
+        if(selected)uiRect(7,y-2,2,18,U_GOLD);
+        uiText(13,y,open?filmBonusTitles[i]:"?? HIDDEN FILM ??",
+               selected?U_WHITE:open?U_LGREY:U_DIM,1);
+        char state[27];
+        if(open)siprintf(state,"READY    %dm %ds",
+                        filmReelTicks(&filmBonusReels[i])/3600,
+                        (filmReelTicks(&filmBonusReels[i])/60)%60);
+        else siprintf(state,"AFTER CHAPTER %d",(int)filmBonusChapterUnlock[i]);
+        uiText(18,y+10,state,open?U_GREEN:U_DIM,1);
+    }
+    uiFlush();
+}
+#endif
 static void uiStory(void){
     char b[64]; uiWin("STORY",storyOn?(storyDone?"FINISHED":"STORY MODE"):"FREE PLAY: PAUSED","SELECT NEXT PAGE");
     if(chapter<CHAP_N){ const Chap*C=&chap[chapter]; int v=chapVal(C->kind); if(v>(int)C->target) v=C->target; uiFrame(4,16,248,34,U_PANELHI,U_GOLD,U_BLO); siprintf(b,"CHAPTER %d: %s",chapter+1,C->nm); uiText(10,20,b,U_GOLD,1); uiText(10,30,C->goal,U_WHITE,1); uiBar(10,40,200,7,v,C->target,U_GREEN); siprintf(b,"%d/%d",v,C->target); uiText(216,40,b,U_WHITE,1); }
@@ -2892,7 +2924,7 @@ static void uiMenu(void){
     uiText(42,19,mScr==0?"PAUSED":mScr==1?"PAUSED  >  OPTIONS":"PAUSED  >  EXTRAS",U_GOLD,1);
     if(mScr==0) uiTextR(214,19,"START: RESUME",U_DIM); else { uiRound(172,17,44,12,U_SEL,U_GOLD); uiTextC(194,20,"BACK",U_WHITE,1); uiBtn(170,16,48,14,KEY_B,0,0,0); }
     uiMenuList(38,35,180,13,9);
-    int ids[14]; menuList(ids);
+    int ids[16]; menuList(ids);
     if(menuAsk){ const char*q=menuAsk==5?"SWITCH MODE?":menuAsk==6?"START A NEW WORLD?":menuAsk==9?"LOAD YOUR SAVED WORLD?":"BACK TO THE TITLE?", *m=menuAsk==5?"THIS STARTS A NEW WORLD.":menuAsk==6?"THIS WORLD WILL BE REPLACED.":menuAsk==9?"UNSAVED PROGRESS IS LOST.":"THE GAME IS SAVED FIRST.";
         uiFrame(36,122,184,54,U_PANEL,U_RED,U_BLO); uiRect(37,123,182,13,U_RED); uiTextC(128,126,q,U_WHITE,1); uiTextC(128,141,m,U_LGREY,1);
         uiRound(44,156,80,15,U_SEL,U_GOLD); uiTextC(84,160,"A  YES",U_WHITE,1); uiBtn(44,156,80,15,KEY_A,0,0,0);
@@ -2932,9 +2964,13 @@ static void hud(void){
           uiTrans=uiTabDir?uiTabDir:dep>uiScrDepth?1:dep<uiScrDepth?-1:0;
           if(!uiTrans&&!UI_NOTRANS) uiCut=1;
       } uiScrId=id; uiScrDepth=dep; uiTabDir=0; }
-    uiBackHint=fieldLedgerOpen?2:extrasView; if(extrasView&&page!=3&&page!=4){ uiTabPrev=extName(extStep(-1)); uiTabNext=extName(extStep(1)); } else uiTabPrev=uiTabNext=0; uiPageOpen=1|2|4|(auralOK()?8:0)|(debugOn?16:0)|32|64; uiPages=titleOn||sceneOn||dlgOn||extrasView?0:7; uiPageNow=page; uiDotX=124;
+    uiBackHint=fieldLedgerOpen?2:extrasView; if(extrasView&&page!=3&&page!=4&&page!=16){ uiTabPrev=extName(extStep(-1)); uiTabNext=extName(extStep(1)); } else uiTabPrev=uiTabNext=0; uiPageOpen=1|2|4|(auralOK()?8:0)|(debugOn?16:0)|32|64; uiPages=titleOn||sceneOn||dlgOn||extrasView?0:7; uiPageNow=page; uiDotX=124;
     if(dlgOn){ uiDialog(); return; } if(sceneOn){ uiScene(); return; } if(!extrasView){ if(titleOn){ uiTitle(); return; } if(menuOn){ uiMenu(); return; } }
-    switch(page){ case 1: uiStory(); break; case 2: uiBest(); break; case 3: uiAural(); break; case 4: uiDebug(); break; case 5: uiCodex(); break; case 6: uiHelp(); break; case 7: uiKing(); break; case 8: uiJournal(); break; case 9: uiAch(); break; case 10: uiCult(); break; case 11: uiLang(); break; case 12: uiBrowser(); break; case 13: uiStats(); break; case 14: uiWorld(); break; case 15: uiPeople(); break; default: uiStatus(); }
+    switch(page){ case 1: uiStory(); break; case 2: uiBest(); break; case 3: uiAural(); break; case 4: uiDebug(); break; case 5: uiCodex(); break; case 6: uiHelp(); break; case 7: uiKing(); break; case 8: uiJournal(); break; case 9: uiAch(); break; case 10: uiCult(); break; case 11: uiLang(); break; case 12: uiBrowser(); break; case 13: uiStats(); break; case 14: uiWorld(); break; case 15: uiPeople(); break;
+#ifdef __3DS__
+    case 16: uiBonusFilms(); break;
+#endif
+    default: uiStatus(); }
 }
 
 static void menuToWorld(void){ setSize(planetSize); newWorld(); paused=1; camX=(WW*8-256)/2; camY=(WH*8-192)/2; winX=-99; refillWindow(); }
@@ -3021,7 +3057,7 @@ static void calStep(int kd,int kh){
         else if(kd&KEY_B) calStart(); } }
 #endif
 static void menuInput(int kd){
-    int ids[14]; int n=menuList(ids); int d=((kd&KEY_RIGHT)?1:0)-((kd&KEY_LEFT)?1:0); if(menuNoteT>0) menuNoteT--;
+    int ids[16]; int n=menuList(ids); int d=((kd&KEY_RIGHT)?1:0)-((kd&KEY_LEFT)?1:0); if(menuNoteT>0) menuNoteT--;
     if(menuAsk){ if(kd&KEY_B) fxReq(FX_MENU_BACK); else if(kd&KEY_A) fxReq(FX_MENU_OK); if(kd&KEY_A){ int a=menuAsk; menuAsk=0; menuOn=0; if(a==5) startWorld(!storyOn); else if(a==6) startWorld(storyOn); else if(a==9){ if(loadGame(savePath)){ refillWindow(); paused=dlgPaused; siprintf(info,"LOADED"); } else { siprintf(info,"NO SAVE TO LOAD"); menuOn=1; menuNoteT=100; } } else if(a==8){ doSave(); titleOn=1; paused=1; mScr=0; mSel=0; newWorld(); camX=(WW*8-256)/2; camY=(WH*8-192)/2; hasSave=sdOk; musReq(GM_TITLE); } } if(kd&(KEY_B|KEY_START)){ menuAsk=0; menuOn=1; } return; }
     if(titleOn&&konami>=4) return;          // the secret code is in progress: the menu holds still
     if(mScr==3){ createInput(kd); return; }
@@ -3041,7 +3077,11 @@ static void menuInput(int kd){
         case MI_OPT: mScr=1; mSel=0; break; case MI_EXTRA: mScr=2; mSel=0; break; case MI_BACK: { int bk=mScr==3?MI_CREATE:mScr==2?MI_EXTRA:MI_OPT; mScr=0; menuSelId(bk); } break;
         case MI_AUTOSAVE: autoSaveOn^=1; siprintf(info,autoSaveOn?"AUTOSAVE ON":"AUTOSAVE OFF"); menuNoteT=80; break; case MI_SLOT: mScr=4; slSel=slot; slAsk=-1; fxReq(FX_MENU_OK); break; case MI_SIZE: case MI_DIFF: case MI_VOL: case MI_MON: case MI_SPEED: break;
         case MI_SCULPT: if(auralOK()) menuOpenPage(3); else { siprintf(info,"UNLOCK IN STORY CHAPTER 3"); menuNoteT=100; fxReq(FX_ERROR); } break;
-        case MI_STATS: menuOpenPage(13); break; case MI_FAVS: brCat=0; brSel=0; menuOpenPage(12); break; case MI_MISSION: menuOpenPage(1); break; case MI_WORLD: menuOpenPage(14); break; case MI_BROWSE: menuOpenPage(12); break; case MI_KING: menuOpenPage(7); break; case MI_CULT: menuOpenPage(10); break; case MI_LANG: menuOpenPage(11); break; case MI_PEOPLES: menuOpenPage(15); break; case MI_JOURNAL: menuOpenPage(8); jrSel=0; break; case MI_ACH: menuOpenPage(9); break; case MI_BEST: menuOpenPage(2); break; case MI_CODEX: menuOpenPage(5); break; case MI_HELP: menuOpenPage(6); break; case MI_DEBUG: menuOpenPage(4); break;
+        case MI_STATS: menuOpenPage(13); break; case MI_FAVS: brCat=0; brSel=0; menuOpenPage(12); break; case MI_MISSION: menuOpenPage(1); break; case MI_WORLD: menuOpenPage(14); break; case MI_BROWSE: menuOpenPage(12); break; case MI_KING: menuOpenPage(7); break; case MI_CULT: menuOpenPage(10); break; case MI_LANG: menuOpenPage(11); break; case MI_PEOPLES: menuOpenPage(15); break; case MI_JOURNAL: menuOpenPage(8); jrSel=0; break; case MI_ACH: menuOpenPage(9); break; case MI_BEST: menuOpenPage(2); break; case MI_CODEX: menuOpenPage(5); break; case MI_HELP: menuOpenPage(6); break;
+#ifdef __3DS__
+        case MI_FILMS: filmBonusSel=0; menuOpenPage(16); break;
+#endif
+        case MI_DEBUG: menuOpenPage(4); break;
         case MI_CRED: menuOn=0; sceneStart(credTxt,1); musReq(GM_CREDITS); break;
         case MI_RESUME: menuOn=0; paused=dlgPaused; break; case MI_SAVE: doSave(); menuNoteT=100; break; case MI_LOAD: menuAsk=9; break;
         case MI_NEW: menuAsk=6; break; case MI_MODE: menuAsk=5; break; case MI_TITLE: menuAsk=8; break; } } }
@@ -3111,6 +3151,9 @@ int main(void){
             int skipped=kd&(KEY_A|KEY_START);
             if(skipped||sceneT>=sceneFilmLength){
                 sceneClip=0;
+#ifdef __3DS__
+                filmBonusIndex=-1;
+#endif
                 gmFilmMixSet(0,0,64);
                 sceneT=0;
                 storyScore=musLast=-1; musHold=0;
@@ -3226,7 +3269,32 @@ int main(void){
         if((kd&(KEY_X|KEY_Y))&&(kh&KEY_X)&&(kh&KEY_Y)){ zSet(zl-1); dirty=1; kd&=~(KEY_X|KEY_Y); }      // X + Y: zoom out one level (planet, very far, far, NORMAL, close, micro)
         if((kd&(KEY_L|KEY_R))&&(kh&KEY_L)&&(kh&KEY_R)&&!(kh&(KEY_START|KEY_SELECT))){ zSet(zl+1); dirty=1; kd&=~(KEY_L|KEY_R); }      // L + R: zoom in
         if(kd&KEY_START){ if((kh&KEY_L)&&(kh&KEY_R)){ unlockAll=1; siprintf(info,"EVERYTHING UNLOCKED"); } else if(!(kh&KEY_SELECT)){ menuOn=1; menuSel=0; menuAsk=0; mScr=0; mSel=0; dlgPaused=paused; paused=1; } dirty=1; }
-        if(extrasView&&page!=3&&page!=4&&(kd&(KEY_L|KEY_R))){ uiTabDir=(kd&KEY_L)?-1:1; page=(kd&KEY_L)?extStep(-1):extStep(1); kd&=~(KEY_L|KEY_R); dirty=1; fxReq(FX_MENU_MOVE); }
+        if(extrasView&&page!=3&&page!=4&&page!=16&&(kd&(KEY_L|KEY_R))){ uiTabDir=(kd&KEY_L)?-1:1; page=(kd&KEY_L)?extStep(-1):extStep(1); kd&=~(KEY_L|KEY_R); dirty=1; fxReq(FX_MENU_MOVE); }
+#ifdef __3DS__
+        if(extrasView&&page==16){
+            if(kd&KEY_UP)filmBonusSel=(filmBonusSel+FILM_BONUS_N-1)%FILM_BONUS_N;
+            if(kd&KEY_DOWN)filmBonusSel=(filmBonusSel+1)%FILM_BONUS_N;
+            if(kd&KEY_A){
+                if(filmBonusOpen(filmBonusSel)){
+                    filmBonusIndex=filmBonusSel;
+                    sceneStartFmv(NULL,&fmvClips[CHAP_N]);
+                    fxReq(FX_MENU_OK);
+                }else{
+                    siprintf(info,"FINISH CHAPTER %d TO UNLOCK",
+                             (int)filmBonusChapterUnlock[filmBonusSel]);
+                    fxReq(FX_ERROR);
+                }
+            }
+            if(kd&KEY_B){
+                extrasView=0;page=0;
+                if(titleOn)mScr=menuRetScr;
+                else {menuOn=1;mScr=menuRetScr;}
+                mSel=menuRetSel;
+            }
+            if(kd)dirty=1;
+            kd&=~(KEY_UP|KEY_DOWN|KEY_A|KEY_B);
+        }else
+#endif
         if(page==2){ if(kd&KEY_UP) bestSel=bestSel>0?bestSel-1:0; if(kd&KEY_DOWN) bestSel=bestSel<319?bestSel+1:319; if(kd&KEY_LEFT) bestSel=bestSel>=10?bestSel-10:0; if(kd&KEY_RIGHT) bestSel=bestSel<310?bestSel+10:319; if(kd) dirty=1; kd&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); kh&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); }
         else if(extrasView&&(page==1||page==13||page==14)){ if(page==14){ if(wTab!=wTabPrev) dirty=1; worldInput(kd); } if(kd) dirty=1; kd&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT|KEY_A|KEY_X|KEY_Y|KEY_SELECT); kh&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); }
         else if(page==12){ brBuild(); if(kd&KEY_UP) brSel=brSel>0?brSel-1:0; if(kd&KEY_DOWN) brSel=brSel<brN-1?brSel+1:(brN?brN-1:0); if(kd&KEY_LEFT){ brCat=(brCat+6)%7; brSel=0; } if(kd&KEY_RIGHT){ brCat=(brCat+1)%7; brSel=0; }
