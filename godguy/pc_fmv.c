@@ -304,7 +304,7 @@ static void checkFeatureFilmAndArchive(void){
           "campaign completion did not unlock the final epilogue");
     chapter=oldChapter;storyDone=oldStory;unlockAll=oldUnlock;debugOn=oldDebug;
     filmBonusIndex=oldBonus;
-    printf("3DS FEATURE OK: %d:%02d campaign, %d:%02d unlockable films, %d:%02d combined (plus baked footage)\\n",
+    printf("3DS FEATURE OK: %d:%02d campaign, %d:%02d unlockable films, %d:%02d combined (plus baked footage)\n",
            campaignSeconds/60,campaignSeconds%60,
            bonusSeconds/60,bonusSeconds%60,
            (campaignSeconds+bonusSeconds)/60,(campaignSeconds+bonusSeconds)%60);
