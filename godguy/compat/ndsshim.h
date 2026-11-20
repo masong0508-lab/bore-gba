@@ -41,7 +41,13 @@ typedef enum { DutyCycle_12=1, DutyCycle_25=2, DutyCycle_75=6 } ShimDuty;
 static u16 BG_PALETTE[256], BG_PALETTE_SUB[256], SPRITE_PALETTE[256];
 static u8 shimTiles[1024*64];
 static u16 shimMap[4096];
-static u8 shimBmp[256*256]; static signed char shimDepth[256*192];      // shimDepth: a level for each pixel of the top picture, for the 3DS's 3D screen (see compat/stereo.h)
+static u8 shimBmp[256*256]; static signed char shimDepth[256*192];
+#ifdef __3DS__
+// Cinema is originally authored at 256x192. Display it on the 3DS at
+// exactly 320x240 (5:4 nearest-neighbour scaling), centered on the wide
+// 400x240 top display and full-screen on the 320x240 touch display.
+static int shimFilmFullscreen;
+#endif      // shimDepth: a level for each pixel of the top picture, for the 3DS's 3D screen (see compat/stereo.h)
 #define BG_TILE_RAM(n) ((void*)shimTiles)
 static u16 shimMap1[1024];
 static void*bgGetMapPtr(int id){ return id==1?(void*)shimMap1:(void*)shimMap; }
@@ -294,6 +300,24 @@ static void shimDrawMain(u8*mb,int mw,int mox){
     for(int n=127;n>=0;n--){ const ShimSpr*s=&shimSpr[n]; if(!s->on||!s->gfx) continue; for(int y=0;y<8;y++){ int py=s->y+y; if(py<0||py>=192) continue; for(int x=0;x<8;x++){ int xx=s->hflip?7-x:x; int b=s->gfx[y*4+xx/2]; int idx=(xx&1)?(b>>4):(b&15); if(!idx) continue; int px=s->x+x; if(px<0||px>=256) continue;
             const u8*c=shimLutP[s->pal*16+idx]; u8*d=&mb[((24+py)*mw+mox+px)*3]; d[0]=c[0]; d[1]=c[1]; d[2]=c[2]; } } } }
 static void shimDrawSub(u8*sb,int sw,int sox){
+#ifdef __3DS__
+    if(shimFilmFullscreen){
+        // Exact 4:3 image: 256x192 -> 320x240. Five output pixels
+        // correspond to four source pixels in each axis; no bilinear blur,
+        // stretching, texture filtering, crop or extra framebuffer.
+        int off=(sw-320)/2;
+        for(int y=0;y<240;y++){
+            const u8 *src=&shimBmp[((y*4)/5)*256];
+            u8 *dst=&sb[(y*sw+off)*3];
+            for(int x=0;x<320;x++){
+                const u8 *c=shimLutS[src[(x*4)/5]];
+                dst[0]=c[0];dst[1]=c[1];dst[2]=c[2];
+                dst+=3;
+            }
+        }
+        return; // all cinematic captions are already in the indexed film
+    }
+#endif
     for(int sy=0;sy<192;sy++){ const u8*in=&shimBmp[sy*256]; u8*o=&sb[((24+sy)*sw+sox)*3]; for(int sx=0;sx<256;sx++){ const u8*c=shimLutS[in[sx]]; if(in[sx]){ o[0]=c[0]; o[1]=c[1]; o[2]=c[2]; } else o[0]=o[1]=o[2]=0; o+=3; } }
     for(int r=0;r<24;r++) for(int c=0;c<32;c++){ int ch=shimCon[r][c]; if(ch>='a'&&ch<='z') ch-=32; if(ch<32||ch>=96) continue; const unsigned char*g=font5x7[ch-32];
         for(int y=0;y<7;y++) for(int x=0;x<5;x++) if((g[y]>>(4-x))&1){ u8*o=&sb[((24+r*8+y)*sw+sox+c*8+x+1)*3]; o[0]=o[1]=o[2]=255; } } }
@@ -302,10 +326,19 @@ static long shimDrawnMain, shimDrawnSub, shimSkipped;   // counters (pc_speed.c 
 // a new buffer, or the screens swapping places, draws everything.
 static void shimRenderChanged(u8*top,u8*bot,int*topChanged,int*botChanged){
     static u8*lt, *lb; static int lswap=-1; static ShimSig sm, ss; static int have;
+#ifdef __3DS__
+    static int lastFilm=-1;
+#endif
     // These large buffers dominate the per-frame hash. Compare their bytes
     // directly, and keep a snapshot only when they change.
     static u8 oldTiles[sizeof shimTiles], oldBitmap[256*192];
-    int force=!have||top!=lt||bot!=lb||shimSwap!=lswap; if(force){ memset(top,0,400*240*3); memset(bot,0,320*240*3); lt=top; lb=bot; lswap=shimSwap; have=1; }
+    int force=!have||top!=lt||bot!=lb||shimSwap!=lswap;
+#ifdef __3DS__
+    // A film starting/ending must repaint both LCDs even when the palette
+    // and underlying world map are otherwise identical.
+    if(lastFilm!=shimFilmFullscreen){force=1;lastFilm=shimFilmFullscreen;}
+#endif
+    if(force){ memset(top,0,400*240*3); memset(bot,0,320*240*3); lt=top; lb=bot; lswap=shimSwap; have=1; }
     int tilesChanged=memcmp(oldTiles,shimTiles,sizeof oldTiles)!=0;
     int bitmapChanged=memcmp(oldBitmap,shimBmp,sizeof oldBitmap)!=0;
     if(tilesChanged) memcpy(oldTiles,shimTiles,sizeof oldTiles);
@@ -318,6 +351,21 @@ static void shimRenderChanged(u8*top,u8*bot,int*topChanged,int*botChanged){
     u8*mbuf=shimSwap?top:bot; int mw=shimSwap?400:320, mox=shimSwap?72:32; u8*sbuf=shimSwap?bot:top; int sw=shimSwap?320:400, sox=shimSwap?32:72;
     if(mc){ shimLut(shimLutM,BG_PALETTE); shimLut(shimLutP,SPRITE_PALETTE); shimDrawMain(mbuf,mw,mox); shimDrawnMain++; } else shimSkipped++;
     if(sc){ shimLut(shimLutS,BG_PALETTE_SUB); shimDrawSub(sbuf,sw,sox); shimDrawnSub++; } else shimSkipped++;
+#ifdef __3DS__
+    if(shimFilmFullscreen&&shimSwap&&sc){
+        // Keep the bottom LCD touch/skip image intact, and put the same
+        // larger film onto the top 400x240 3DS screen with 40px black
+        // pillarboxes. Copy only on a changed film frame, not every VBlank.
+        for(int y=0;y<240;y++){
+            u8 *dst=top+y*400*3;
+            const u8 *src=bot+y*320*3;
+            memset(dst,0,40*3);
+            memcpy(dst+40*3,src,320*3);
+            memset(dst+360*3,0,40*3);
+        }
+        mc=1;
+    }
+#endif
     if(topChanged) *topChanged=shimSwap?mc:sc; if(botChanged) *botChanged=shimSwap?sc:mc; }
 static void shimRender(u8*top,u8*bot){ shimRenderChanged(top,bot,0,0); }
 #endif
