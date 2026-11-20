@@ -725,6 +725,11 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
     }
     if(showCast||beat->camera==F_INSERT)
         filmDrawPropAction(beat,elapsed,leadPose,otherPose,block);
+#if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
+    // True near-camera geometry is composited last, so the actors and
+    // gripped props are partially hidden when they move behind an obstacle.
+    ggFilmWorldForeground(beat,move,(int)(clip-fmvClips));
+#endif
     filmCaption(beat,captionOn);
 }
 static int fmvRenderAt(const FmvClip *clip,int elapsed){
