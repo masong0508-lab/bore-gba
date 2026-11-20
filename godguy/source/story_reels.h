@@ -43,14 +43,15 @@ static const FilmBeat firstLightBeats[]={
     S(VILLAGE,WIDE,OFFSCREEN,OFFSCREEN,LAMP,"AND SOMEONE LEAVES A LIGHT ON."),
 };
 
-// The rain is followed from outside into the SAME shelter. Mira catches
-// water, sets the cup on the sill, then opens the door for the next person.
+// The baked prologue already brings Mira and her cup onto the porch.
+// Begin the staged film on that same sill, NOT back outside in the storm.
+// The cup fills, she picks it up, and later puts it on the exact same sill.
 static const FilmBeat firstRainBeats[]={
-    A(STORM,TRACK,MIRA,OFFSCREEN,CUP,TAKE,"THE RAIN IS HERE. FIND SHELTER."),
-    S(STORM,NEAR,WISP,MIRA,NO_PROP,"THE CLOUD FOLLOWED US TO THE DOOR."),
-    S(STORM,WIDE,OFFSCREEN,OFFSCREEN,NO_PROP,"THE WIND DRIVES THEM UNDER THE ROOF."),
+    S(PORCH,WIDE,OFFSCREEN,OFFSCREEN,CUP,"RAIN TAPS THE SILL. WE'RE SAFE INSIDE."),
+    S(PORCH,NEAR,WISP,MIRA,NO_PROP,"THE CLOUD FOLLOWED US TO THE DOOR."),
     SHOT(PORCH,INSERT,OFFSCREEN,OFFSCREEN,CUP,7,FX_RAIN,0),
-    A(PORCH,NEAR,MIRA,WISP,CUP,TAKE,"THE CUP IS FULL. SO IS THE EARTH."),
+    A(PORCH,NEAR,MIRA,WISP,CUP,TAKE,"A CUP OF RAIN. AND MORE THAN WE NEED."),
+    S(PORCH,NEAR,MIRA,WISP,CUP,"THE GROUND NEEDS IT MORE THAN WE DO."),
     A(PORCH,HAND,MIRA,WISP,CUP,PUT,"I'LL LEAVE THE CUP ON THE SILL."),
     A(PORCH,NEAR,WISP,MIRA,LEAF,APPROACH,"EVEN THIS LITTLE LEAF MADE IT."),
     S(VILLAGE,WIDE,MIRA,OFFSCREEN,LAMP,"THEN WE'LL LEAVE THE DOOR OPEN."),
