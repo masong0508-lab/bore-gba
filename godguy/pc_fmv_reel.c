@@ -11,7 +11,10 @@
 #include <stdio.h>
 #include <stdint.h>
 
-enum { REEL_BAKED_FRAMES=24, REEL_TAKE_FRAMES=24, REEL_TAKES=4, REEL_CHAPTERS=3 };
+// Longer acting holds at the real 3DS 20fps cadence. Four full sequences
+// per chapter are represented without the jumpy 12fps sampling of old reels.
+enum { REEL_FPS=20, REEL_BAKED_FRAMES=40, REEL_TAKE_FRAMES=90,
+       REEL_TAKES=4, REEL_CHAPTERS=3, REEL_AUDIO_TICKS=3 };
 static const u8 reelShots[REEL_CHAPTERS][REEL_TAKES]={
     {0,3,4,7}, // planet, Wisp's seed, planting, first village light
     {0,1,2,5}, // Mira waits, Wisp answers, rain fills cup, handoff
@@ -38,7 +41,7 @@ static int reelWrite(FILE *f){
     }
     if(fwrite(reelRgb,1,sizeof reelRgb,f)!=sizeof reelRgb) return 0;
     // Re-pace the real sequencer continuously at 60 Hz across the edited
-    // 12fps preview. The images are selected from long scenes, but the
+    // 20fps preview. The images are selected from long scenes, but the
     // soundtrack never stutters or restarts at a montage cut.
     if(musQ>=0){
         gmPlay(musQ);
@@ -47,9 +50,9 @@ static int reelWrite(FILE *f){
     }
     if(fxQ>=0){fxPlay(fxQ);fxQ=-1;}
     gmFilmMixSet(1,gmFilmDialogue,gmFilmPan);
-    for(int tick=0;tick<5;tick++){
+    for(int tick=0;tick<REEL_AUDIO_TICKS;tick++){
         gmFrame();
-        int target=(int)((long long)SHIM_SR*(reelFrameCount*5+tick+1)/60);
+        int target=(int)((long long)SHIM_SR*(reelFrameCount*REEL_AUDIO_TICKS+tick+1)/60);
         int count=target-reelAudioSamples;
         if(count<0||count>700)return 0;
         shimMix(reelPcm,count);
@@ -129,12 +132,13 @@ int main(int argc,char **argv){
     if(reelFrameCount!=REEL_CHAPTERS*(REEL_BAKED_FRAMES+REEL_TAKES*REEL_TAKE_FRAMES)){
         fputs("REEL FAIL: wrong frame count\n",stderr);return 1;
     }
-    if(reelAudioSamples!=SHIM_SR*30){
+    int seconds=reelFrameCount/REEL_FPS;
+    if(reelAudioSamples!=SHIM_SR*seconds||seconds!=60){
         fprintf(stderr,"REEL FAIL: audio ended at sample %d, expected %d\n",
-                reelAudioSamples,SHIM_SR*30);return 1;
+                reelAudioSamples,SHIM_SR*60);return 1;
     }
-    printf("REEL OK: %d authentic 3DS frames, 30s at 12 fps; %d stereo score/effects samples\n",
-           reelFrameCount,reelAudioSamples);
+    printf("REEL OK: %d authentic 3DS frames, %ds at %d fps; %d stereo score/effects samples\n",
+           reelFrameCount,seconds,REEL_FPS,reelAudioSamples);
     return 0;
 invalid:
     fclose(out);
