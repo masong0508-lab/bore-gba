@@ -5,6 +5,8 @@ F="-O2 -DPCTEST -Wno-misleading-indentation -Wno-unused-variable -Wno-unused-fun
 set -e
 gcc $F -o /tmp/gg_pc pc.c -lm && /tmp/gg_pc 7 3 | tail -3
 gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_globe pc_globe.c -lm && /tmp/gg_globe | head -2
+gcc -O2 -DNDSSHIM -D__3DS__ -DGG_GLOBE_TEST -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_globe3ds pc_globe3ds.c -lm && /tmp/gg_globe3ds | tail -4   # 3DS globe colour/geometry/picking and partial tile updates
+gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_music_fast pc_music_fast.c -lm && /tmp/gg_music_fast | tail -2   # 1800 exact music director comparisons against the original scan
 gcc $F -o /tmp/gg_save pc_save.c -lm && /tmp/gg_save
 gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_touch_run pc_touch.c -lm && rm -rf /tmp/gg_touch && /tmp/gg_touch_run | head -1   # stylus taps on the menus
 gcc $F -o /tmp/gg_king pc_kingdom.c -lm && /tmp/gg_king 3 50000 | grep -E "^world|totals"
