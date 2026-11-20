@@ -906,35 +906,6 @@ static void spawnerTick(int i,Cr*c,int a){      // the biomass monsters make mor
     int br=arch[a].breed; if(!br||(int)(rnd()%100)>=br/2+1) return; if(monAtLeast(70)) return;
     if(a==M_TUMOR) monMinion(c,M_BIOBLOB,0); else if(a==M_BIOBLOB){ monMinion(c,M_BIOBLOB,0); int t=world[c->y][c->x]; if(t==T_GRASS||t==T_FOREST||t==T_DIRT) tfSet(c->x,c->y,T_SWAMP); } else if(a==M_PUMPKIN) monMinion(c,M_PUMPKIN,0); (void)i; }
 static int routed(const Cr*c){ int a=sp[c->sp].a; for(int k=0;k<4;k++) if(rz[k].until>tick&&rz[k].a==a&&c->x-rz[k].x<=10&&rz[k].x-c->x<=10&&c->y-rz[k].y<=10&&rz[k].y-c->y<=10) return 1; return 0; }
-static int birthChance(const Cr*c,int race,int diet,int chance){
-    if(!chance||!LAWON((diet==4||race<8)?LW_CIVBABY:LW_ANIBABY)) return 0;
-    if(diet!=4&&diet!=5&&LAWON(LW_LIMIT)&&nCr>WW*WH/3) return 0;
-    if(LAWON(LW_CROWD)){
-        int x0=c->x-2, x1=c->x+2, y0=c->y-2, y1=c->y+2, crowd=0;
-        if(x0<0) x0=0;
-        if(y0<0) y0=0;
-        if(x1>=WW) x1=WW-1;
-        if(y1>=WH) y1=WH-1;
-        for(int y=y0;y<=y1;y++) for(int x=x0;x<=x1;x++)
-            if(occ[y][x]&&++crowd==13) return 0;
-        if(crowd>6) chance=chance*(13-crowd)/7;
-    }
-    if(diet==4){
-        int v=vilNear(race,c->x,c->y,8);
-        if(v>=0){
-            if(LAWON(LW_POP100)&&vil[v].pop>=100) return 0;
-            chance=chance*(gx.vGrow[v]==1?28:gx.vGrow[v]==2?12:20)/10;
-            chance=chance*(100+vilMood(v)/2)/100;
-        }
-    }
-    if(HAS(c,TR_FERTILE)) chance=chance*3/2;
-    if(HAS(c,TR_LUSTFUL)) chance=chance*5/4;
-    if(HAS_STATUS(c,ST_MOTIVATED)) chance=chance*11/10;
-    if(HAS(c,TR_TINY)) chance=chance*13/10;
-    if(HAS(c,TR_CLEVER)) chance=chance*13/10;
-    if(HAS(c,TR_MUNCH)) chance=chance*14/10;
-    return chance*gxBirthK(race,diet)/100;
-}
 static void thinkBody(int i){
     Cr*c=&cr[i]; if(!c->alive) return; const Sp*s=&sp[c->sp]; const Arch*A=&arch[s->a];
     if(c->age<255) c->age++; { int dec=(HAS(c,TR_LEAN)||HAS(c,TR_CHILL))?1:HAS(c,TR_MUNCH)?3:2; if(gx.hunger==0&&(c->age%3)==0) dec=0; else if(gx.hunger==2&&(c->age%3)==0) dec++; if(c->food>dec) c->food-=dec; else c->food=0; }
@@ -1021,13 +992,18 @@ static void thinkBody(int i){
             if(bd<=1+HAS(c,TR_SPIT)){ int dm=hitDmg(c,p); ntHit(c,p,dm); zombieBite(c,(int)(p-cr)); if(!damageCreature(best,dm,i)){ c->food+=80; if(c->food>120) c->food=120; gainXp(c); } return; }
             int dx=p->x-c->x, dy=p->y-c->y; int sx=dx>0?1:dx<0?-1:0, sy=dy>0?1:dy<0?-1:0; int try1=(((dx<0?-dx:dx)>(dy<0?-dy:dy))?0:1);
             for(int k=0;k<2;k++){ int ax=(k==try1)?sx:0, ay=(k==try1)?0:sy; if(!ax&&!ay) continue; int nx=c->x+ax, ny=c->y+ay; if(stepOk(s,&nx,&ny)){ moveTo(c,i,nx,ny); return; } } } }
-    // Keep the birth roll even if the creature cap or world laws block birth.
+    // A hungry or immature creature cannot breed. Skip the crowd and village
+    // scans in that case; neither scan consumes randomness or changes state.
     if(c->food>=80&&c->age>8){
-        int roll=(int)(rnd()%100);
-        if(nCr<MAXC-4&&roll<birthChance(c,s->a,diet,A->breed)){
-            int d=rnd()&3, n=addCr(c->sp,c->x+dxs[d],c->y+dys[d]);
-            if(n>=0){ cr[n].age=0; cr[n].food=50; born(&cr[n],c); c->food-=40; return; }
-        }
+        int crowd=0; if(LAWON(LW_CROWD)){ int x0=c->x-2, x1=c->x+2, y0=c->y-2, y1=c->y+2;
+            if(x0<0) x0=0; if(y0<0) y0=0; if(x1>=WW) x1=WW-1; if(y1>=WH) y1=WH-1;
+            for(int yy=y0;yy<=y1;yy++) for(int xx=x0;xx<=x1;xx++) crowd+=occ[yy][xx]!=0;
+        }      // crowding: no room, fewer births (a packed tile block stops breeding at 13 of 25)
+        int bch=A->breed; if(LAWON(LW_CROWD)){ if(crowd>=13) bch=0; else if(crowd>6) bch=bch*(13-crowd)/7; } if(diet==4){ int vv=vilNear(s->a,c->x,c->y,8); if(vv>=0){ bch=bch*(gx.vGrow[vv]==1?28:gx.vGrow[vv]==2?12:20)/10; bch=bch*(100+vilMood(vv)/2)/100; } } if(HAS(c,TR_FERTILE)) bch=bch*3/2; if(HAS(c,TR_LUSTFUL)) bch=bch*5/4; if(HAS_STATUS(c,ST_MOTIVATED)) bch=bch*11/10; if(HAS(c,TR_TINY)) bch=bch*13/10; if(HAS(c,TR_CLEVER)) bch=bch*13/10; if(HAS(c,TR_MUNCH)) bch=bch*14/10; bch=bch*gxBirthK(s->a,diet)/100;
+        if(!(((diet==4||sp[c->sp].a<8)?LAWON(LW_CIVBABY):LAWON(LW_ANIBABY)))) bch=0;      // CIV BABIES / ANIMAL BABIES
+        if(LAWON(LW_LIMIT)&&diet!=4&&diet!=5&&nCr>WW*WH/3) bch=0;      // WORLD LIMIT: wildlife stops breeding once it fills a third of the world
+        if(LAWON(LW_POP100)&&diet==4){ int vp=vilNear(s->a,c->x,c->y,8); if(vp>=0&&vil[vp].pop>=100) bch=0; }
+        if((int)(rnd()%100)<bch&&nCr<MAXC-4){ int d=rnd()&3; int nx=c->x+dxs[d], ny=c->y+dys[d]; int n=addCr(c->sp,nx,ny); if(n>=0){ cr[n].age=0; cr[n].food=50; born(&cr[n],&cr[i]); c->food-=40; return; } }
     }
     // wander
     if((rnd()&3)!=0){ int d=rnd()&3; int nx=c->x+dxs[d], ny=c->y+dys[d]; if(stepOk(s,&nx,&ny)) moveTo(c,i,nx,ny); }
