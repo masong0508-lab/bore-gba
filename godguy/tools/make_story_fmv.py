@@ -5,6 +5,7 @@ from struct import pack
 
 from story_art import PALETTE, MIRA_ELDER, cast_sprite
 from story_shots import WIDTH, HEIGHT, SHOTS, render
+from story_plates import SETS, PROPS, CEL_WIDTH, CEL_HEIGHT, CEL_N, PROP_SIZE, plate, plate_hd, cast_cel, prop
 import lz
 
 
@@ -100,7 +101,12 @@ def main():
                                    (False, True, False), (False, False, True)):
             portrait_offsets.append(len(art))
             art.extend(lz.encode(cast_sprite(who, talk, blink, react).tobytes()))
-    total = sum(len(data) for _, _, _, data in clips) + len(art)
+    sets = [lz.encode(plate(name)) for name in SETS]
+    wide_sets = [lz.encode(plate_hd(name)) for name in SETS]
+    props = [lz.encode(prop(name)) for name in PROPS]
+    cast_data = [lz.encode(cast_cel(who, cel)) for who in range(MIRA_ELDER + 1) for cel in range(CEL_N)]
+    total = (sum(len(data) for _, _, _, data in clips) + len(art)
+             + sum(map(len, sets + props + cast_data)))
     if total > DS_ASSET_LIMIT:
         raise ValueError(f"{total:,} bytes exceeds the DS cinematic asset budget")
     target = Path(__file__).resolve().parents[1] / "source" / "story_fmv_data.h"
@@ -113,6 +119,20 @@ def main():
         c_array(out, "fmvPortraits", "u8", art, 24)
         for name, _, _, data in clips:
             c_array(out, f"fmv_{name}", "u8", data, 24)
+        out.write(f"enum {{ FILM_CEL_W = {CEL_WIDTH}, FILM_CEL_H = {CEL_HEIGHT}, "
+                  f"FILM_CEL_N = {CEL_N}, FILM_PROP_SIZE = {PROP_SIZE} }};\n")
+        for group, images in (("filmSet", sets), ("filmProp", props), ("filmCast", cast_data)):
+            for i, image in enumerate(images):
+                c_array(out, f"{group}{i}", "u8", image, 24)
+            out.write(f"static const u8 *const {group}s[] = {{")
+            out.write(",".join(f"{group}{i}" for i in range(len(images))))
+            out.write("};\n")
+        out.write("#ifdef __3DS__\n")
+        for i, image in enumerate(wide_sets):
+            c_array(out, f"filmWide{i}", "u8", image, 24)
+        out.write("static const u8 *const filmWides[] = {")
+        out.write(",".join(f"filmWide{i}" for i in range(len(wide_sets))))
+        out.write("};\n#endif\n")
         out.write("static const FmvClip fmvClips[] = {\n")
         for name, title, count, _ in clips:
             cues = CUES[name]
@@ -122,7 +142,7 @@ def main():
             out.write(f'    {{fmv_{name}, {count}, "{title}", {{{hits}}}}},\n')
         out.write("};\n")
     print(f"{len(clips)} films, {sum(c for _, _, c, _ in clips)/12:g}s, "
-          f"{total:,} bytes with portrait art")
+          f"{total:,} shared bytes with portrait art, {sum(map(len, wide_sets)):,} 3DS-only bytes")
 
 
 if __name__ == "__main__":

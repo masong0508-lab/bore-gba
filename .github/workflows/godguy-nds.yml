@@ -149,8 +149,12 @@ jobs:
       - name: Verify chapter-film playback and sound timing
         working-directory: godguy
         run: |
-          gcc -O2 -DNDSSHIM -Icompat -Isource -w -include unistd.h pc_fmv.c -lm -o /tmp/godguy-fmv
-          /tmp/godguy-fmv
+          for cfg in ds 3ds; do
+            flags=""
+            if [ "$cfg" = 3ds ]; then flags="-D__3DS__"; fi
+            gcc -O2 -DNDSSHIM $flags -Icompat -Isource -w -include unistd.h pc_fmv.c -lm -o "/tmp/godguy-fmv-$cfg"
+            "/tmp/godguy-fmv-$cfg"
+          done
 
       - name: Profile gameplay frame and simulation-tick budgets
         working-directory: godguy

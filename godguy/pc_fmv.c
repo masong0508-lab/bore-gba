@@ -10,6 +10,7 @@ enum {
 };
 static int phase, clipStart, handoffStart, expectedChapter=1;
 static unsigned firstFlush;
+static int firstWorldTick;
 static u32 firstPicture;
 
 static void check(int condition,const char *message){
@@ -52,6 +53,42 @@ static void checkFullPlayback(void){
     fxQ=-1;
 }
 
+static void checkDirectedPlayback(void){
+    for(unsigned i=0;i<sizeof fmvClips/sizeof *fmvClips;i++){
+        const FmvClip *clip=&fmvClips[i];
+        int length=fmvLength(clip), baked=clip->frames*FMV_TICKS;
+        int spotlight=i==9||i==13||i==14;
+        check(length>=60*FILM_SECOND,"a chapter film is shorter than one minute");
+        if(spotlight) check(length>180*FILM_SECOND,"a centerpiece runs three minutes or less");
+        unsigned previous=0;
+        int same=0, shots=0, frames=0;
+        for(int t=baked;t<length;t+=FILM_STAGE_TICKS){
+            int elapsed=t-baked;
+            const FilmBeat *beat=filmBeatAt(clip,&elapsed);
+            check(beat!=NULL,"directed timeline has a gap");
+            if(!elapsed){
+                check(!beat->line||uiTextW(beat->line,1)<=248,"caption exceeds the safe width");
+                shots++;
+            }
+            fxQ=-1;
+            check(fmvRenderAt(clip,t),"directed edit dropped a scheduled frame");
+            check(fxQ==(!elapsed&&beat->sound?beat->sound:-1),"directed sound cue played outside its beat");
+            unsigned hash=pictureHash();
+            same=previous==hash?same+1:0;
+            check(same*FILM_STAGE_TICKS<15,"a directed take froze");
+            previous=hash;
+            frames++;
+        }
+        check(!fmvRenderAt(clip,length),"a film drew past its end");
+        check(shots>=8&&frames==(length-baked)/FILM_STAGE_TICKS,"the edit skipped a take or a frame");
+#ifdef __3DS__
+        check(shots==filmReels[i].count+filmExtraReels[i].count,"a 3DS scene missed its additional takes");
+#endif
+        printf("%-27s %6.2fs  %2d directed takes\n",clip->title,length/60.0,shots);
+    }
+    fxQ=-1;
+}
+
 void shimPresent(void){
     if(sceneClip||dlgOn||sceneOn){
         check(shimSwap,"story appeared on the wrong LCD");
@@ -61,11 +98,12 @@ void shimPresent(void){
 
 void shimInput(int frame,int *held,int *tx,int *ty){
     *held=0;
-    check(frame<1500,"story flow timed out");
+    check(frame<fmvLength(&fmvClips[0])+fmvLength(&fmvClips[CHAP_N])+2500,"story flow timed out");
     switch(phase){
     case TITLE:
         if(frame==3){
             checkFullPlayback();
+            checkDirectedPlayback();
             startWorld(0);
             check(!sceneClip&&!sceneOn,"free play started a cutscene");
             *held=KEY_A;   // Continue without a save starts a story.
@@ -78,6 +116,7 @@ void shimInput(int frame,int *held,int *tx,int *ty){
         if(sceneClip){
             check(sceneClip==&fmvClips[0]&&paused&&dlgPend==0,"opening starts before chapter dialogue");
             firstFlush=uiFlushes;
+            firstWorldTick=tick;
             clipStart=frame;
             phase=RUN_OPENING;
         }
@@ -86,8 +125,12 @@ void shimInput(int frame,int *held,int *tx,int *ty){
         if(sceneT==1) firstPicture=pictureHash();
         if(sceneT==6*FMV_TICKS+1) check(pictureHash()!=firstPicture,"opening frame did not animate");
         if(!sceneClip){
-            check(frame-clipStart==fmvClips[0].frames*FMV_TICKS+1,"opening ended at the wrong time");
-            check(uiFlushes-firstFlush==(unsigned)fmvClips[0].frames+1,"opening missed frames or narration");
+            const FmvClip *clip=&fmvClips[0];
+            int length=fmvLength(clip), staged=(length-clip->frames*FMV_TICKS)/FILM_STAGE_TICKS;
+            check(frame-clipStart==length+1,"opening ended at the wrong time");
+            check(tick==firstWorldTick,"cinematic time advanced the world clock");
+            check(storyScore<0,"the cinematic score escaped into gameplay");
+            check(uiFlushes-firstFlush==(unsigned)(clip->frames+staged+1),"opening missed frames or narration");
             check(sceneOn&&paused&&sceneTxt==introTxt&&dlgPend==0,"opening narration was bypassed");
             *held=KEY_A;
             phase=OPENING_DIALOGUE;
@@ -132,7 +175,7 @@ void shimInput(int frame,int *held,int *tx,int *ty){
         if(expectedChapter==1&&frame-handoffStart<STORY_HANDOFF_TICKS){
             check(chapter==0&&!sceneClip,"another chapter interrupted the objective handoff");
         }
-        if(sceneClip&&sceneT>=2){
+        if(sceneClip&&sceneT>=(expectedChapter==1?fmvClips[1].frames*FMV_TICKS+2:2)){
             check(sceneClip==&fmvClips[expectedChapter],"chapter picked the wrong film");
             check(dlgOn&&dlgSet==dlgTab[expectedChapter]&&!dlgIdx&&!dlgChars&&paused,
                   "chapter dialogue advanced during the film");
@@ -171,16 +214,17 @@ void shimInput(int frame,int *held,int *tx,int *ty){
         }
         break;
     case FINALE:
-        if(sceneClip&&sceneT>=2){
+        if(sceneClip&&sceneT==2){
             check(sceneClip==&fmvClips[CHAP_N]&&sceneTxt==endTxt&&paused,"finale failed to start");
-            *held=KEY_TOUCH;
-            *tx=128;
-            *ty=178;
-            if(sceneT==3) phase=ENDING_CARD;
+            clipStart=frame;
+        }
+        if(!sceneClip&&clipStart&&sceneTxt==endTxt){
+            check(frame-clipStart==fmvLength(&fmvClips[CHAP_N])-1,"the full finale ended at the wrong time");
+            phase=ENDING_CARD;
         }
         break;
     case ENDING_CARD:
-        check(!sceneClip&&sceneOn&&sceneTxt==endTxt,"touch skip bypassed the ending narration");
+        check(!sceneClip&&sceneOn&&sceneTxt==endTxt,"the finale bypassed the ending narration");
         phase=SHOW_CREDITS;
         break;
     case SHOW_CREDITS:

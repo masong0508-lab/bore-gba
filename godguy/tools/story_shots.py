@@ -45,7 +45,7 @@ def orbit(frame, d, t, lost=False):
     d.ellipse((cx-radius-1, cy-radius-1, cx+radius+1, cy+radius+1),
               fill=WINE if lost else TEAL)
     pixels = frame.load()
-    angle = (t//3)*0.054
+    angle = (t//5)*0.090
     ca, sa = cos(angle), sin(angle)
     for y in range(cy-radius, min(HEIGHT, cy+radius+1)):
         v = (y-cy)/radius
@@ -72,8 +72,10 @@ def orbit(frame, d, t, lost=False):
             if z < 0.18 and light > 0.45:
                 color = AMBER if lost else MINT
             pixels[x, y] = color
+    # A near star drifts while the distant globe turns more slowly.
+    d.point((14+(t//2)%24, 9+t%5), fill=ICE)
     if lost:
-        for i in range(14):
+        for i in range(10):
             x = 13+(i*31+3*(t//3))%104
             y = 5+(i*37+t)%62
             d.point((x, y), fill=AMBER if i%5 == 0 else RUST)
@@ -122,7 +124,7 @@ def coast(d, t, settled=False, storm=False, night=False):
     ridge(d, 0, 0, PURPLE if storm else WINE)
     ridge(d, 1, 2, SLATE if storm else TEAL)
     d.rectangle((0, 56, 127, 71), fill=SEA)
-    for i in range(9):
+    for i in range(7):
         y = 56+(i*7+t//5)%16
         x = 61+(i*11%17-8)
         d.line((x-i-2, y, x+i+2, y), fill=JADE if storm else AMBER if i%2 else SUN)
@@ -150,7 +152,7 @@ def coast(d, t, settled=False, storm=False, night=False):
             d.line((x-2, y-wing, x, y, x+2, y-wing), fill=INK)
 
 
-def rain(d, t, count=25):
+def rain(d, t, count=16):
     t = t//2*2
     for i in range(count):
         x, y = (i*43-t)%131, (i*37+t*3)%75
@@ -458,7 +460,7 @@ def render(name, t):
             landscape(d, t, "night")
             actor(f, MIRA, 42, 74, t, 62, pose="reach", prop="cup")
             actor(f, WISP, 101-(t-30)//3, 48, t, 25)
-            rain(d, t, 18)
+            rain(d, t, 12)
         else:
             cup_close(d, t-55)
     elif name == "roof":

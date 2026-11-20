@@ -21,13 +21,12 @@ static void fmvSetPalette(void){
     for(int i=0;i<32;i++) BG_PALETTE_SUB[fmvSlots[i]]=fmvPalette[i];
 }
 
+static void filmBars(const char *title);
+
 static void fmvDecode(const FmvClip *clip,int frame){
     if(frame==0){
         fmvSetPalette();
-        uiRect(0,0,256,24,U_SHADOW);
-        uiRect(0,168,256,24,U_SHADOW);
-        uiTextC(128,9,clip->title,U_GOLD,1);
-        uiTextR(248,178,"A / START  SKIP",U_DIM);
+        filmBars(clip->title);
         fmvBlock=clip->data;
         fmvRead=fmvBlockEnd=uiNew;
     }
@@ -78,3 +77,5 @@ static void fmvPortrait(int x,int y,int who,int cel){
         }
     }
 }
+
+#include "story_stage.h"
