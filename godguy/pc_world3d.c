@@ -40,7 +40,7 @@ static unsigned long hashFrame(void){
 static unsigned long frame(int place,int camera,int t){
     FilmBeat b={place,camera,F_MIRA,F_THORGRIM,F_NO_PROP};
     memset(uiBuf,0,sizeof picture.page);
-    ggFilmWorldDraw(&b,t,filmEase(t,420));
+    ggFilmWorldDraw(&b,t,filmEase(t,420),t/300);
     return hashFrame();
 }
 int main(void){
