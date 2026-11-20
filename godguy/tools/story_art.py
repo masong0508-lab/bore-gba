@@ -183,9 +183,10 @@ def actor(frame, who, x, y, time, height, *, flip=False, pose="idle", prop=None)
     }[who]
     image = canvas((40, 48), 255)
     d = ImageDraw.Draw(image)
+    # Directed acting keys: anticipation, contact, lift, hold and recovery.
     step = (-4, -2, 0, 3, 5, 2, 0, -2)[time//2 % 8] if pose == "walk" else 0
     bob = abs(step)//3
-    lean = 2 if pose in ("reach", "bow") else 0
+    lean = 2 if pose in ("reach", "bow", "work", "brace") else (-1 if pose == "react" else 0)
     for foot in (15+step, 24-step):
         heel = 45-abs(step)//3
         d.line((19, 32-bob, foot, heel), fill=INK, width=5)
@@ -202,13 +203,21 @@ def actor(frame, who, x, y, time, height, *, flip=False, pose="idle", prop=None)
     d.line((11, 33-bob, 25, 33-bob), fill=shade, width=3)
     d.rectangle((18, 32-bob, 20, 34-bob), fill=trim)
     head = cast_sprite(who, pose == "talk" and time//4 % 2 == 0,
-                       (time+who*9)%79 < 3)
+                       pose == "listen" or (time+who*9)%79 < 3,
+                       pose == "react")
     top = head.crop((3, 0, 31, 25)).resize((23, 21), Image.Resampling.NEAREST)
-    nod = 2 if pose == "bow" else 0
+    nod = 2 if pose == "bow" else (1 if pose == "brace" else 0)
     image.paste(top, (7+lean, 3+nod-bob), top.point(lambda i: 255 if i != 255 else 0, "1"))
-    d.line((11, 24-bob, 7-step//2, 29-bob, 9-step//2, 34-bob), fill=shade, width=4)
+    left_hand = {
+        "brace": (4, 26), "react": (7, 20), "work": (8, 29),
+        "talk": (5, 29), "listen": (8, 34),
+    }.get(pose, (9-step//2, 34-bob))
+    d.line((11, 24-bob, 7-step//2, 29-bob, *left_hand),
+           fill=shade, width=4)
     hx, hy = {
         "reach": (35, 25), "lift": (28, 15), "bow": (30, 32),
+        "work": (34, 29), "brace": (35, 37), "react": (30, 23),
+        "talk": (30, 27), "listen": (26, 34),
         "write": (31+(time//2)%3, 32+(time//2)%2),
     }.get(pose, (26+step//2, 34-bob))
     d.line((24, 24-bob, 27, hy+2, hx, hy), fill=shade, width=5)
