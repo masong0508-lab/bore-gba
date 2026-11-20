@@ -69,6 +69,13 @@ int main(void){
     gg3dsGlobeQuality=1;globeDraw(1);
     for(int i=0;i<256*192;i++)diffLarge+=(oldImage[i]!=gbuf[i]);
     VERIFY(diffLarge==0,"New and Old 3DS use the same bounded detail on large discs");
+    // Quality changes must also invalidate the globe key even with an
+    // otherwise motionless planet. They must be visible in the next frame.
+    zoom3=80;gg3dsGlobeQuality=0;globeDraw(1);
+    gg3dsGlobeQuality=1;
+    VERIFY(globeDraw(0)==1,"adaptive quality change repaints a still planet");
+    globeFlush();VERIFY(compareTiles(),"quality change flush matches rendered pixels");
+    VERIFY(globeDraw(0)==0,"identical quality/angle/time skips a duplicate redraw");
     for(int mode=0;mode<2;mode++){
         gg3dsGlobeQuality=mode;zoom3=80;rotY=40;
         unsigned long long begin=micros();

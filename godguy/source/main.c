@@ -1792,9 +1792,20 @@ static void globeDrawNow(void){
 }
 // The globe is drawn again only when something it shows has changed: the view (turn, zoom, walking, clouds, weather), the blink of the stars, the city lights and the walker's cross, a power
 // used (force), or every 16 ticks, so a planet that is not turning (paused, or a still view) costs nothing, and the picture goes to the screen only when it was redrawn (and now and then anyway).
-static int gKeyOk=0, gKey[10], gDrawN=0;
+static int gKeyOk=0, gDrawN=0;
+#ifdef __3DS__
+static int gKey[11];
+#else
+static int gKey[10];
+#endif
 static int globeDraw(int force){
+#ifdef __3DS__
+    // A quality-governor transition must immediately repaint the still globe
+    // even when the rotation/zoom/time components are unchanged.
+    int key[11]={rotX,rotY,zoom3,walkOn,gClouds,weather,(int)(tick>>6),(int)(tick>>5),(int)(tick>>4),walkOn?(int)((tick>>3)&1):0,gg3dsGlobeQuality};
+#else
     int key[10]={rotX,rotY,zoom3,walkOn,gClouds,weather,(int)(tick>>6),(int)(tick>>5),(int)(tick>>4),walkOn?(int)((tick>>3)&1):0};
+#endif
     if(!force&&gKeyOk&&!memcmp(key,gKey,sizeof key)) return 0;
     memcpy(gKey,key,sizeof key); gKeyOk=1; gDrawN++; globeDrawNow(); return 1; }
 #ifdef __3DS__
@@ -3005,7 +3016,23 @@ int main(void){
                   if(kh&KEY_B){ if(lpx>=0){ sax+=tp.px-lpx; say+=tp.py-lpy; rotY-=sax/2; rotX+=say/2; sax%=2; say%=2; } else { sax=say=0; } lpx=tp.px; lpy=tp.py; h3=0; }   // B held: drag to turn the planet (the odd pixel is carried over, nothing is lost)
                   else { lpx=-1; int tx,ty; if(globePick(tp.px,tp.py,&tx,&ty)){ int fresh=!h3||tx!=l3x||ty!=l3y; if(pw[power].kind==PK_PAINT||fresh) usePower(tx,ty,!h3); h3=1; l3x=tx; l3y=ty; dirty=1; } } }
               else { h3=0; lpx=-1; } }
-            if(!paused) simulate(); for(int k=1;k<speedMul&&!paused;k++){ tick++; simulate(); } { static int gfc=0; int gd=globeDraw(dirty); swiWaitForVBlank(); if(gd||((++gfc)&31)==0) globeFlush(); } if((tick&15)==0||dirty){ drawMinimap(); hud(); } continue; }
+            if(!paused) simulate(); for(int k=1;k<speedMul&&!paused;k++){ tick++; simulate(); }
+            { int gd=globeDraw(dirty);
+#ifdef __3DS__
+              // On 3DS the tile VRAM is software memory: upload BEFORE the
+              // frame is composited/presented. This removes a full frame of
+              // rotation latency and avoids a redundant scan every 32 frames.
+              if(gd) globeFlush();
+              swiWaitForVBlank();
+#else
+              // Real DS hardware keeps the VBlank-only upload and its
+              // periodic refresh behaviour for compatibility.
+              static int gfc=0;
+              swiWaitForVBlank();
+              if(gd||((++gfc)&31)==0) globeFlush();
+#endif
+            }
+            if((tick&15)==0||dirty){ drawMinimap(); hud(); } continue; }
         if(kd&(KEY_X|KEY_Y)){ int d=(kd&KEY_X)?1:-1; if(kh&KEY_B){ if(pw[power].kind==PK_GIFT) itSel=itNext(itSel,10*d); else spSel=(spSel+nSp+10*d)%nSp; } else if(pw[power].kind==PK_SPAWN){ spSel=(spSel+nSp+d)%nSp; } else if(pw[power].kind==PK_GIFT){ itSel=itNext(itSel,d); } else if(pw[power].kind==PK_MUTATE){ for(int k=1;k<=TR_N;k++){ int t=(trSel+TR_N*2+d*k)%TR_N; if(t==0||traitMet(t)||debugOn||unlockAll){ trSel=t; break; } } } else if(pw[power].kind==PK_STATUS){ statusSel=(statusSel+6+d)%6; } else { brush+=d; if(brush<0) brush=0; if(brush>8) brush=8; } dirty=1; }
         if(kd&KEY_A&&page!=3){ if(kh&KEY_B){ speedMul=speedMul==1?2:speedMul==2?4:1; siprintf(info,"SPEED X%d",speedMul); } else paused^=1; dirty=1; }
         int panning=0; { static int pnx=-1, pny=-1;   // B + drag on the world pans the map (the same gesture that spins the globe); nothing is painted while B is held

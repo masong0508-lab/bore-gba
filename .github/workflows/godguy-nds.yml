@@ -121,6 +121,18 @@ jobs:
           gcc -O2 -DNDSSHIM -DGG_BIG -Icompat -Isource -Wno-all -include unistd.h pc_music_fast.c -lm -o /tmp/godguy-music-big
           /tmp/godguy-music-big
 
+      # Deterministic 3DS wall-clock recovery and quality-governor test,
+      # followed by an active-music population/weather/rotation workload.
+      # Unlike build-only checks, these run the real globe rasterizer and
+      # full software audio mixer with 720 simulation ticks per profile.
+      - name: Stress 3DS globe with populated coast, live music and timing stalls
+        working-directory: godguy
+        run: |
+          gcc -O2 -Wall -Wextra pc_3ds_clock.c -o /tmp/godguy-clock-3ds
+          /tmp/godguy-clock-3ds
+          gcc -O2 -DNDSSHIM -D__3DS__ -DSHIM_HQ -DGG_HQVOX -Icompat -Isource -Wno-all -include unistd.h pc_globe_audio_load.c -lm -o /tmp/godguy-globe-audio-load
+          /tmp/godguy-globe-audio-load
+
       - name: Profile gameplay frame and simulation-tick budgets
         working-directory: godguy
         run: |
