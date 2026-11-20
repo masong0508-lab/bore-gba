@@ -112,6 +112,10 @@ int main(int argc,char **argv){
             const FilmBeat *beat=filmBeatAt(clip,&beatElapsed);
             if(!beat)goto invalid;
             if(!beatElapsed)shot++;
+            // The 60-second preview uses the four selected chapter scenes.
+            // It does not need to render the subsequent feature-length
+            // 3DS act merely to reach the next chapter's independent clip.
+            if(shot>reelShots[film][REEL_TAKES-1])break;
             if(!fmvRenderAt(clip,baked+elapsed))goto invalid;
             int take=-1;
             for(int i=0;i<REEL_TAKES;i++)
