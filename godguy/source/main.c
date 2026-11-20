@@ -2819,7 +2819,8 @@ static int filmBonusSel;
 static int filmBonusOpen(int which){
     return which>=0&&which<FILM_BONUS_N&&
            (unlockAll||debugOn||storyDone||
-            chapter>=filmBonusChapterUnlock[which]);
+            (which<FILM_BONUS_N-1&&
+             chapter>=filmBonusChapterUnlock[which]));
 }
 static void uiBonusFilms(void){
     uiWin("FILM ARCHIVE","SIX STORIES TO DISCOVER","A WATCH  B BACK");
@@ -2834,6 +2835,7 @@ static void uiBonusFilms(void){
         if(open)siprintf(state,"READY    %dm %ds",
                         filmReelTicks(&filmBonusReels[i])/3600,
                         (filmReelTicks(&filmBonusReels[i])/60)%60);
+        else if(i==FILM_BONUS_N-1)strcpy(state,"AFTER THE FINALE");
         else siprintf(state,"AFTER CHAPTER %d",(int)filmBonusChapterUnlock[i]);
         uiText(18,y+10,state,open?U_GREEN:U_DIM,1);
     }
@@ -3280,8 +3282,11 @@ int main(void){
                     sceneStartFmv(NULL,&fmvClips[CHAP_N]);
                     fxReq(FX_MENU_OK);
                 }else{
-                    siprintf(info,"FINISH CHAPTER %d TO UNLOCK",
-                             (int)filmBonusChapterUnlock[filmBonusSel]);
+                    if(filmBonusSel==FILM_BONUS_N-1)
+                        siprintf(info,"COMPLETE THE FINALE TO UNLOCK");
+                    else
+                        siprintf(info,"FINISH CHAPTER %d TO UNLOCK",
+                                 (int)filmBonusChapterUnlock[filmBonusSel]);
                     fxReq(FX_ERROR);
                 }
             }
