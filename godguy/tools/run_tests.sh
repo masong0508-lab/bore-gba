@@ -50,9 +50,12 @@ gcc -O2 -DNDSSHIM -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_stereo
 # plague (step 6): spread, recovery, heal, the law, zombie bite and rising, village store drain, save
 gcc $F -w -o /tmp/gg_plague pc_plague.c -lm && /tmp/gg_plague | tail -1
 # GodGuy creature-life batch: disease/status bit coexistence, defensive traits, biome adaptation, Grin Mark and save v11/v12 compatibility on each shared record layout
-gcc $F -w -o /tmp/gg_traits pc_traits.c -lm && /tmp/gg_traits | tail -1
-gcc $F -w -DGG_DSI16 -o /tmp/gg_traits_dsi pc_traits.c -lm && /tmp/gg_traits_dsi | tail -1
-gcc $F -w -DGG_BIG -o /tmp/gg_traits_3ds pc_traits.c -lm && /tmp/gg_traits_3ds | tail -1
+gcc $F -w -o /tmp/gg_traits pc_traits.c -lm
+/tmp/gg_traits
+gcc $F -w -DGG_DSI16 -o /tmp/gg_traits_dsi pc_traits.c -lm
+/tmp/gg_traits_dsi
+gcc $F -w -DGG_BIG -o /tmp/gg_traits_3ds pc_traits.c -lm
+/tmp/gg_traits_3ds
 # Climate pack: ash, magic, rage and heatwave weather states, atmosphere effects, and save/load.
 gcc $F -w -o /tmp/gg_weather pc_weather.c -lm && /tmp/gg_weather | tail -1
 # planet generator (step 7): main's six shapes unchanged at COASTS / MOUNTAINS normal, the new controls work, SEA the right way round
@@ -84,7 +87,10 @@ gcc $F -w -o /tmp/gg_far pc_far.c -lm && /tmp/gg_far | tail -1
 # the game as it was before the tiers (-DGG_NOTIER) still builds and plays a war: the benchmark's old side, and the small-world guarantee (below 600 creatures nothing changes)
 gcc $F -w -DGG_NOTIER -o /tmp/gg_far_old pc_far.c -lm && /tmp/gg_far_old | tail -1 | grep -q "FAR" && echo "FAR (no tiers) builds"
 # GodGuy step 10e, the home lookup of the war groups: the village blocks give the answer vilNear gives for every tile and people (and a crowded block falls back), and a war plays out with the same state hash counted either way
-gcc $F -w -o /tmp/gg_home pc_home.c -lm && /tmp/gg_home | tail -1 && gcc $F -w -DGG_SLOWHOME -o /tmp/gg_home_old pc_home.c -lm && [ "$(/tmp/gg_war 1 3000 20 2048 | grep 'state hash')" = "$(gcc $F -w -DGG_SLOWHOME -o /tmp/gg_war_old pc_war.c -lm && /tmp/gg_war_old 1 3000 20 2048 | grep 'state hash')" ] && echo "HOME same war as the old count"
+gcc $F -w -o /tmp/gg_home pc_home.c -lm
+/tmp/gg_home
+gcc $F -w -DGG_SLOWHOME -o /tmp/gg_home_old pc_home.c -lm
+[ "$(/tmp/gg_war 1 3000 20 2048 | grep 'state hash')" = "$(gcc $F -w -DGG_SLOWHOME -o /tmp/gg_war_old pc_war.c -lm && /tmp/gg_war_old 1 3000 20 2048 | grep 'state hash')" ] && echo "HOME same war as the old count"
 # GodGuy step 10f, the rolled war-group count finds every soldier's home exactly (ends with ROLL OK)
 gcc $F -w -o /tmp/gg_roll pc_roll.c -lm && /tmp/gg_roll | tail -1
 # GodGuy step 10g, the near-camera war at big sizes: 32,000 (768 planet, DSi caps) and 60,000 (1024 planet, 3DS/PC caps) against their 8-seed full per-unit references. Takes a few minutes, so only with GG_BIGWAR=1 ./tools/run_tests.sh

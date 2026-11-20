@@ -275,7 +275,12 @@ static int hitDmg(const Cr*a,const Cr*d){   // one blow: the attacker's strength
     if(a->rk==1) dm=dm*13/10; else if(a->rk==2) dm=dm*2; if(A->diet==5) dm=dm*(diff==0?70:diff==2?140:100)/100;
     dm-=armDef(d); if(HAS(d,TR_HIDE)) dm-=3; if(HAS(d,TR_ZEN)) dm-=2; if(HAS(d,TR_GIANT)) dm-=1; return dm<1?1:dm; }
 static void countTraits(void){ memset(trCount,0,sizeof trCount); for(int i=0;i<nCr;i++) if(cr[i].alive){ if(cr[i].tr) trCount[cr[i].tr]++; if(cr[i].tr2) trCount[cr[i].tr2]++; } }
-static void giveTrait(Cr*c,int t,int announce){ if(c->tr==0||c->tr==t) c->tr=(u8)t; else c->tr2=(u8)t; joyInvalidate(); if(!traitMet(t)){ traitMark(t); if(announce){ char nm[48]; crName(c,nm); siprintf(info,"NEW SUBSPECIES: %.30s",nm); fxReq(FX_BIRTH); } } }
+static void giveTrait(Cr*c,int t,int announce){
+    int hadGrin=HAS(c,TR_GRIN);
+    if(c->tr==0||c->tr==t) c->tr=(u8)t; else c->tr2=(u8)t;
+    if(hadGrin!=HAS(c,TR_GRIN)) joyInvalidate();
+    if(!traitMet(t)){ traitMark(t); if(announce){ char nm[48]; crName(c,nm); siprintf(info,"NEW SUBSPECIES: %.30s",nm); fxReq(FX_BIRTH); } }
+}
 static int sapNow;      // sapient animals alive (kept by denTick): a child inherits the mind only while there are fewer than a hundred
 static void born(Cr*kid,const Cr*par){ stBorn++;   // a child has its parent's traits, and now and then a mutation
     kid->tr=par->tr; kid->tr2=par->tr2; if(HAS(kid,TR_GRIN)) joyInvalidate(); int rate=diff==0?1:diff==2?3:2; if(HAS(par,TR_FERTILE)) rate+=1; if(!LAWON(LW_MUTATE)) rate=0; if(LAWON(LW_MUTBOX)) rate=35; else if(LAWON(LW_SPAGHETTI)) rate*=3;
@@ -469,10 +474,16 @@ static int addCr(int s,int x,int y){
     return nCr++;
 }
 static void logEv(const char*s);
+// Movement and removal both change the neighborhood used for village mood.
+static inline void leaveTile(const Cr*c){
+    if(HAS(c,TR_GRIN)) joyInvalidate();
+    occ[c->y][c->x]=0;
+    cellDel(c->x,c->y,c->sp);
+}
 static coord_t zq[16][2]; static int zqN;      // where plague victims bitten by a zombie fell: they rise again at the end of the tick (calamity.h)
 #define FL_SLAYER 0x0020      /* killed a boss (the bit ggid.h reserved for a ruler mark, which nothing uses) */
 static int lastKillRk;      // rank of what was last killed (killCr sets it): a killer of a boss earns the SLAYER mark
-static void lootDrop(int mi); static int ghostFor(int i); static void killCr(int i){ Cr*c=&cr[i]; if(!c->alive||HAS_STATUS(c,ST_INVINCIBLE)) return; lastKillRk=c->rk; if(c->rk>=1&&arch[sp[c->sp].a].diet==5) lootDrop(i); ghostFor(i); ntDeath(i); if(c->rk==2&&!natural){ char nm[48], b[40]; crName(c,nm); siprintf(b,"%.28s FALLS",nm); logEv(b); } c->alive=0; if(HAS(c,TR_GRIN)) joyInvalidate(); stDied++; if(DISEASE(c)==3&&arch[sp[c->sp].a].diet!=5&&zqN<16){ zq[zqN][0]=c->x; zq[zqN][1]=c->y; zqN++; } if(c->rk==1&&!natural&&(rnd()&3)==0){ char nm[48], b2[40]; crName(c,nm); siprintf(b2,"%.24s FALLS",nm); logEv(b2); } if(occ[c->y][c->x]==i+1){ occ[c->y][c->x]=0; cellDel(c->x,c->y,c->sp); }
+static void lootDrop(int mi); static int ghostFor(int i); static void killCr(int i){ Cr*c=&cr[i]; if(!c->alive||HAS_STATUS(c,ST_INVINCIBLE)) return; lastKillRk=c->rk; if(c->rk>=1&&arch[sp[c->sp].a].diet==5) lootDrop(i); ghostFor(i); ntDeath(i); if(c->rk==2&&!natural){ char nm[48], b[40]; crName(c,nm); siprintf(b,"%.28s FALLS",nm); logEv(b); } c->alive=0; stDied++; if(DISEASE(c)==3&&arch[sp[c->sp].a].diet!=5&&zqN<16){ zq[zqN][0]=c->x; zq[zqN][1]=c->y; zqN++; } if(c->rk==1&&!natural&&(rnd()&3)==0){ char nm[48], b2[40]; crName(c,nm); siprintf(b2,"%.24s FALLS",nm); logEv(b2); } if(occ[c->y][c->x]==i+1) leaveTile(c);
     if(!natural&&arch[sp[c->sp].a].diet==5){ stKill++; if(!((slainB[c->sp>>3]>>(c->sp&7))&1)) slainB[c->sp>>3]|=(u8)(1<<(c->sp&7)); fxReq(FX_MONSTER_SLAIN); } }
 static int damageCreature(int i,int dmg,int attacker){
     if(i<0||i>=nCr||!cr[i].alive) return 0; Cr*v=&cr[i]; if(HAS_STATUS(v,ST_INVINCIBLE)) return 1;
@@ -488,7 +499,7 @@ static void compact(void){   // the dead are squeezed out of the list
 }
 
 static int glideOn=1;      // some creature may have a pixel offset to glide off (set by moveTo and the camera; simulate() only walks the screen when it is set)
-static void moveTo(Cr*c,int i,int nx,int ny){ glideOn=1; if(HAS(c,TR_GRIN)) joyInvalidate(); occ[c->y][c->x]=0; cellDel(c->x,c->y,c->sp); { int ddx=c->x-nx, ddy=c->y-ny; if(ddx>1||ddx<-1) ddx=0; if(ddy>1||ddy<-1) ddy=0; c->ox=(s8)(ddx*8); c->oy=(s8)(ddy*8); } c->x=(coord_t)nx; c->y=(coord_t)ny; occ[ny][nx]=(occ_t)(i+1); cellAdd(nx,ny,c->sp); }
+static void moveTo(Cr*c,int i,int nx,int ny){ glideOn=1; leaveTile(c); { int ddx=c->x-nx, ddy=c->y-ny; if(ddx>1||ddx<-1) ddx=0; if(ddy>1||ddy<-1) ddy=0; c->ox=(s8)(ddx*8); c->oy=(s8)(ddy*8); } c->x=(coord_t)nx; c->y=(coord_t)ny; occ[ny][nx]=(occ_t)(i+1); cellAdd(nx,ny,c->sp); }
 // ---- levels: a creature that kills grows stronger (+5 health and +1 damage every two levels, up to level 10), after the wiki's unit levels; Cr.dir holds the level
 static void zombieBite(const Cr*a,int j){      // a zombie's hit infects half of the living it touches (not the immune, not monsters); the infected fall and rise as zombies
     const Arch*A=&arch[sp[a->sp].a]; if(A->diet!=5||strcmp(A->nm,"ZOMBIE")||gx.lPlague==1) return;
@@ -580,7 +591,7 @@ static void boatLaunch(int v){
         for(int k=0;k<4;k++){ int d=(k+rot)&3; int nx=cx+dxs[d], ny=cy+dys[d]; if(nx<0||ny<0||nx>=BW||ny>=BW||bfsDir[ny*BW+nx]!=255||!isWater(ox+nx,oy+ny)) continue; bfsDir[ny*BW+nx]=(u8)d; bfsQ[qt++]=(u16)(ny*BW+nx); } }
     if(goal<0) return;
     u8 rev[128]; int n=0; for(int c=goal;c!=(BW/2)*BW+BW/2;){ int d=bfsDir[c]; if(d>3||n>=128) return; rev[n++]=(u8)d; c=(c/BW-dys[d])*BW+(c%BW-dxs[d]); }
-    int taken=0; for(int i=0;i<nCr&&taken<4;i++){ Cr*c=&cr[i]; if(c->alive&&sp[c->sp].a==V->race&&abs(c->x-V->x)<9&&abs(c->y-V->y)<9){ c->alive=0; if(occ[c->y][c->x]==i+1){ occ[c->y][c->x]=0; cellDel(c->x,c->y,c->sp); } taken++; } } if(taken<2) return;
+    int taken=0; for(int i=0;i<nCr&&taken<4;i++){ Cr*c=&cr[i]; if(c->alive&&sp[c->sp].a==V->race&&abs(c->x-V->x)<9&&abs(c->y-V->y)<9){ c->alive=0; if(occ[c->y][c->x]==i+1) leaveTile(c); taken++; } } if(taken<2) return;
     Boat*B=&boat[bi]; memset(B,0,sizeof *B); B->on=1; B->race=V->race; B->x=(s16)sx; B->y=(s16)sy; B->tx=(s16)gtx; B->ty=(s16)gty; B->n=(u8)n; for(int k=0;k<n;k++) B->path[k]=rev[n-1-k]; }
 static void boatTick(void){
     for(int b=0;b<8;b++){ Boat*B=&boat[b]; if(!B->on||(tick&3)) continue;
@@ -895,6 +906,35 @@ static void spawnerTick(int i,Cr*c,int a){      // the biomass monsters make mor
     int br=arch[a].breed; if(!br||(int)(rnd()%100)>=br/2+1) return; if(monAtLeast(70)) return;
     if(a==M_TUMOR) monMinion(c,M_BIOBLOB,0); else if(a==M_BIOBLOB){ monMinion(c,M_BIOBLOB,0); int t=world[c->y][c->x]; if(t==T_GRASS||t==T_FOREST||t==T_DIRT) tfSet(c->x,c->y,T_SWAMP); } else if(a==M_PUMPKIN) monMinion(c,M_PUMPKIN,0); (void)i; }
 static int routed(const Cr*c){ int a=sp[c->sp].a; for(int k=0;k<4;k++) if(rz[k].until>tick&&rz[k].a==a&&c->x-rz[k].x<=10&&rz[k].x-c->x<=10&&c->y-rz[k].y<=10&&rz[k].y-c->y<=10) return 1; return 0; }
+static int birthChance(const Cr*c,int race,int diet,int chance){
+    if(!chance||!LAWON((diet==4||race<8)?LW_CIVBABY:LW_ANIBABY)) return 0;
+    if(diet!=4&&diet!=5&&LAWON(LW_LIMIT)&&nCr>WW*WH/3) return 0;
+    if(LAWON(LW_CROWD)){
+        int x0=c->x-2, x1=c->x+2, y0=c->y-2, y1=c->y+2, crowd=0;
+        if(x0<0) x0=0;
+        if(y0<0) y0=0;
+        if(x1>=WW) x1=WW-1;
+        if(y1>=WH) y1=WH-1;
+        for(int y=y0;y<=y1;y++) for(int x=x0;x<=x1;x++)
+            if(occ[y][x]&&++crowd==13) return 0;
+        if(crowd>6) chance=chance*(13-crowd)/7;
+    }
+    if(diet==4){
+        int v=vilNear(race,c->x,c->y,8);
+        if(v>=0){
+            if(LAWON(LW_POP100)&&vil[v].pop>=100) return 0;
+            chance=chance*(gx.vGrow[v]==1?28:gx.vGrow[v]==2?12:20)/10;
+            chance=chance*(100+vilMood(v)/2)/100;
+        }
+    }
+    if(HAS(c,TR_FERTILE)) chance=chance*3/2;
+    if(HAS(c,TR_LUSTFUL)) chance=chance*5/4;
+    if(HAS_STATUS(c,ST_MOTIVATED)) chance=chance*11/10;
+    if(HAS(c,TR_TINY)) chance=chance*13/10;
+    if(HAS(c,TR_CLEVER)) chance=chance*13/10;
+    if(HAS(c,TR_MUNCH)) chance=chance*14/10;
+    return chance*gxBirthK(race,diet)/100;
+}
 static void thinkBody(int i){
     Cr*c=&cr[i]; if(!c->alive) return; const Sp*s=&sp[c->sp]; const Arch*A=&arch[s->a];
     if(c->age<255) c->age++; { int dec=(HAS(c,TR_LEAN)||HAS(c,TR_CHILL))?1:HAS(c,TR_MUNCH)?3:2; if(gx.hunger==0&&(c->age%3)==0) dec=0; else if(gx.hunger==2&&(c->age%3)==0) dec++; if(c->food>dec) c->food-=dec; else c->food=0; }
@@ -981,18 +1021,13 @@ static void thinkBody(int i){
             if(bd<=1+HAS(c,TR_SPIT)){ int dm=hitDmg(c,p); ntHit(c,p,dm); zombieBite(c,(int)(p-cr)); if(!damageCreature(best,dm,i)){ c->food+=80; if(c->food>120) c->food=120; gainXp(c); } return; }
             int dx=p->x-c->x, dy=p->y-c->y; int sx=dx>0?1:dx<0?-1:0, sy=dy>0?1:dy<0?-1:0; int try1=(((dx<0?-dx:dx)>(dy<0?-dy:dy))?0:1);
             for(int k=0;k<2;k++){ int ax=(k==try1)?sx:0, ay=(k==try1)?0:sy; if(!ax&&!ay) continue; int nx=c->x+ax, ny=c->y+ay; if(stepOk(s,&nx,&ny)){ moveTo(c,i,nx,ny); return; } } } }
-    // A hungry or immature creature cannot breed. Skip the crowd and village
-    // scans in that case; neither scan consumes randomness or changes state.
+    // Keep the birth roll even if the creature cap or world laws block birth.
     if(c->food>=80&&c->age>8){
-        int crowd=0; if(LAWON(LW_CROWD)){ int x0=c->x-2, x1=c->x+2, y0=c->y-2, y1=c->y+2;
-            if(x0<0) x0=0; if(y0<0) y0=0; if(x1>=WW) x1=WW-1; if(y1>=WH) y1=WH-1;
-            for(int yy=y0;yy<=y1;yy++) for(int xx=x0;xx<=x1;xx++) crowd+=occ[yy][xx]!=0;
-        }      // crowding: no room, fewer births (a packed tile block stops breeding at 13 of 25)
-        int bch=A->breed; if(LAWON(LW_CROWD)){ if(crowd>=13) bch=0; else if(crowd>6) bch=bch*(13-crowd)/7; } if(diet==4){ int vv=vilNear(s->a,c->x,c->y,8); if(vv>=0){ bch=bch*(gx.vGrow[vv]==1?28:gx.vGrow[vv]==2?12:20)/10; bch=bch*(100+vilMood(vv)/2)/100; } } if(HAS(c,TR_FERTILE)) bch=bch*3/2; if(HAS(c,TR_LUSTFUL)) bch=bch*5/4; if(HAS_STATUS(c,ST_MOTIVATED)) bch=bch*11/10; if(HAS(c,TR_TINY)) bch=bch*13/10; if(HAS(c,TR_CLEVER)) bch=bch*13/10; if(HAS(c,TR_MUNCH)) bch=bch*14/10; bch=bch*gxBirthK(s->a,diet)/100;
-        if(!(((diet==4||sp[c->sp].a<8)?LAWON(LW_CIVBABY):LAWON(LW_ANIBABY)))) bch=0;      // CIV BABIES / ANIMAL BABIES
-        if(LAWON(LW_LIMIT)&&diet!=4&&diet!=5&&nCr>WW*WH/3) bch=0;      // WORLD LIMIT: wildlife stops breeding once it fills a third of the world
-        if(LAWON(LW_POP100)&&diet==4){ int vp=vilNear(s->a,c->x,c->y,8); if(vp>=0&&vil[vp].pop>=100) bch=0; }
-        if((int)(rnd()%100)<bch&&nCr<MAXC-4){ int d=rnd()&3; int nx=c->x+dxs[d], ny=c->y+dys[d]; int n=addCr(c->sp,nx,ny); if(n>=0){ cr[n].age=0; cr[n].food=50; born(&cr[n],&cr[i]); c->food-=40; return; } }
+        int roll=(int)(rnd()%100);
+        if(nCr<MAXC-4&&roll<birthChance(c,s->a,diet,A->breed)){
+            int d=rnd()&3, n=addCr(c->sp,c->x+dxs[d],c->y+dys[d]);
+            if(n>=0){ cr[n].age=0; cr[n].food=50; born(&cr[n],c); c->food-=40; return; }
+        }
     }
     // wander
     if((rnd()&3)!=0){ int d=rnd()&3; int nx=c->x+dxs[d], ny=c->y+dys[d]; if(stepOk(s,&nx,&ny)) moveTo(c,i,nx,ny); }
@@ -1387,7 +1422,7 @@ static void usePower(int tx,int ty,int fresh){ KD_DIRTY();
         case PK_FLOOD: { u8 t=world[y][x]; if(t!=T_MOUNT&&t!=T_DEEP&&(rnd()&3)!=0){ if(bld[y][x]){ bld[y][x]=0; bldv[y][x]=0; } setCell(x,y,t==T_LAVA?T_MOUNT:T_WATER); if(occ[y][x]&&!walkable(&sp[cr[occ[y][x]-1].sp],x,y)&&(rnd()&1)) killCr(occ[y][x]-1); } } break;
         case PK_BLOOM: { u8 t=world[y][x]; if(t==T_GRASS){ if(rnd()&1) setCell(x,y,T_FOREST); } else if(t==T_DIRT||t==T_SAND){ setCell(x,y,T_GRASS); } else if(t==T_DESERT&&(rnd()&3)==0) setCell(x,y,T_GRASS); if(occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; c->hp=(u8)maxHp(c); c->food=120; } } break;
         case PK_VIBE: if(fresh&&dx==0&&dy==0){ int v=vilAny(x,y,5); if(v>=0){ vil[v].foe=0; warMatrix(); } if(occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; if(c->tr2==0&&!(HAS(c,TR_CHILL)||HAS(c,TR_MUNCH)||HAS(c,TR_GIGGLY)||HAS(c,TR_ZEN)||HAS(c,TR_FLOATY))){ giveTrait(c,TR_CHILL+(int)(rnd()%8),1); siprintf(info,"GOOD VIBES"); } else siprintf(info,"ALREADY VIBING"); } else if(v>=0) siprintf(info,"THE VILLAGE CHILLS OUT"); } break;
-        case PK_MUTATE: if(fresh&&dx==0&&dy==0&&occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; if(trSel==0){ c->tr=c->tr2=0; joyInvalidate(); siprintf(info,"TRAITS CLEARED"); } else { giveTrait(c,trSel,1); char nm[48]; crName(c,nm); siprintf(info,"%.46s",nm); } c->hp=(u8)maxHp(c); } break;
+        case PK_MUTATE: if(fresh&&dx==0&&dy==0&&occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; if(trSel==0){ if(HAS(c,TR_GRIN)) joyInvalidate(); c->tr=c->tr2=0; siprintf(info,"TRAITS CLEARED"); } else { giveTrait(c,trSel,1); char nm[48]; crName(c,nm); siprintf(info,"%.46s",nm); } c->hp=(u8)maxHp(c); } break;
         case PK_STATUS: if(fresh&&dx==0&&dy==0&&occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; u8 mask=statusMask[statusSel]; c->sick^=mask; siprintf(info,"%s: %s",statusName[statusSel],HAS_STATUS(c,mask)?"ON":"OFF"); } break;
         case PK_ALIEN: if(fresh&&dx==0&&dy==0){ if(hzAdd(HZ_ALIEN,x,y)<0) siprintf(info,"TOO MANY CALAMITIES AT ONCE"); else { siprintf(info,"ALIEN INVASION BEGINS"); flashT=5; } } break;
         case PK_DRAGON: if(fresh&&dx==0&&dy==0){ if(hzAdd(HZ_DRAGON,x,y)<0) siprintf(info,"TOO MANY CALAMITIES AT ONCE"); else { siprintf(info,"A DRAGON COMES FROM FAR LANDS"); flashT=5; } } break;

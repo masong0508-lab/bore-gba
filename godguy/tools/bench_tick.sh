@@ -1,7 +1,7 @@
 #!/bin/bash
 # Host timing of the shared simulation in each port's size/cap configuration.
 # These are comparable CPU benchmarks, not timings on DS/DSi/3DS hardware.
-set -e
+set -eo pipefail
 cd "$(dirname "$0")/.." || exit 1
 size=${GG_BENCH_SIZE:-128}
 ticks=${GG_BENCH_TICKS:-12000}
@@ -9,9 +9,10 @@ seed=${GG_BENCH_SEED:-777}
 out=$(mktemp -d)
 trap 'rm -rf "$out"' EXIT
 echo "Host simulation timings: planet $size, ticks $ticks, seed $seed"
-for port in ds dsi_ds dsi16 3ds pc_big; do
+for port in ds ds_sd dsi_ds dsi16 3ds pc_big; do
     case "$port" in
         ds) flags='-DGG_MAXC_TEST=12000' ;;
+        ds_sd) flags='' ;;
         dsi_ds) flags='-DGG_MAXC_TEST=12000 -DGG_DSI' ;;
         dsi16) flags='-DGG_DSI16' ;;
         3ds) flags='-D__3DS__' ;;

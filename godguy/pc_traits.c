@@ -20,6 +20,35 @@ static int addHumanAt(int sx,int sy){
     return -1;
 }
 static int findPower(int kind){ for(int i=0;i<PW_N;i++) if(pw[i].kind==kind) return i; return -1; }
+static void checkGrinMovement(void){
+    const int x=64, y=64;
+    nCr=0; memset(occ,0,sizeof occ); cellClear();
+    memset(vil,0,sizeof vil); nVilOn=0; vilIndexInvalidate(); joyInvalidate();
+    memset(boat,0,sizeof boat);
+    memset(world,T_WATER,sizeof world); memset(bld,0,sizeof bld); memset(bldv,0,sizeof bldv);
+    world[y][x]=world[y][x+1]=world[y][x+10]=world[y][x+11]=T_GRASS;
+    world[y-20][x]=T_GRASS;
+    int v=vilFound(0,x,y);
+    int flung=addCr(findHuman(),x+10,y);
+    CHECK(v>=0&&flung>=0,"set up village and creature for tornado test");
+    if(v<0||flung<0) return;
+    int base=vilMood(v);
+    giveTrait(&cr[flung],TR_GRIN,0);
+    CHECK(vilMood(v)==base+4,"a bearer ten tiles away adds four mood points");
+    for(int tries=0;tries<256&&cr[flung].x==x+10;tries++) hzFling(flung);
+    CHECK(cr[flung].x==x+11&&cr[flung].y==y,"tornado flings the bearer outside the mood radius");
+    CHECK(vilMood(v)==base,"tornado movement removes the mood bonus immediately");
+
+    int settler=addCr(findHuman(),x,y), passenger=addCr(findHuman(),x+1,y);
+    CHECK(settler>=0&&passenger>=0,"set up two boat passengers");
+    if(settler<0||passenger<0) return;
+    giveTrait(&cr[settler],TR_GRIN,0);
+    CHECK(vilMood(v)==base+4,"a settler at the village adds four mood points");
+    bld[y-1][x]=B_DOCK; bldv[y-1][x]=(u8)(v+1);
+    boatLaunch(v);
+    CHECK(boat[0].on&&!cr[settler].alive&&!cr[passenger].alive,"the boat takes both settlers aboard");
+    CHECK(vilMood(v)==base,"boarding removes the mood bonus immediately");
+}
 static void saveVersion11(const char *src,const char *dst){
     FILE *in=fopen(src,"rb"), *out=fopen(dst,"wb");
     if(!in||!out){ if(in) fclose(in); if(out) fclose(out); return; }
@@ -56,7 +85,7 @@ int main(void){
     { Cr test=cr[a]; int fast=0; for(int q=1;q<nSp;q++) if(arch[sp[q].a].spd>arch[sp[fast].a].spd) fast=q; test.sp=(u16)fast; test.x=4; test.y=4; world[test.y][test.x]=T_DESERT; test.tr=test.tr2=0; int slow=effSpd(&test); test.tr=TR_DESERT; int adapted=effSpd(&test); CHECK(adapted<slow,"desert adaptation removes desert movement penalty"); test.tr=TR_PERMA; CHECK((trMask(&test)&(1<<T_SNOW))!=0,"permafrost adaptation permits snow terrain"); }
 
     // Grin Mark directly improves nearby people’s settlement mood.
-    { int v=0; memset(&vil[v],0,sizeof vil[v]); vil[v].on=1; vil[v].race=sp[cr[a].sp].a; vil[v].x=cr[a].x; vil[v].y=cr[a].y; vil[v].stock=100; vil[v].houses=10; vil[v].pop=10; cr[a].tr=0; int before=vilMood(v); cr[a].tr=TR_GRIN; int after=vilMood(v); CHECK(after>=before+4,"Grin Mark raises nearby settlement happiness"); vil[v].on=0; }
+    { int v=0; memset(&vil[v],0,sizeof vil[v]); vil[v].on=1; vil[v].race=sp[cr[a].sp].a; vil[v].x=cr[a].x; vil[v].y=cr[a].y; vil[v].stock=100; vil[v].houses=10; vil[v].pop=10; cr[a].tr=0; int before=vilMood(v); giveTrait(&cr[a],TR_GRIN,0); int after=vilMood(v); CHECK(after>=before+4,"Grin Mark raises nearby settlement happiness"); vil[v].on=0; }
 
     // Save/load new trait discoveries and status bits in the v12 trailer.
     traitMark(TR_DESERT); traitMark(TR_LAMP); trSeenHi&=0x3FFFu;
@@ -70,6 +99,7 @@ int main(void){
     trSeenHi=0; CHECK(loadGame("/tmp/gg_traits_v11.sav"),"load legacy version 11 save without GGU1");
     CHECK(!traitMet(TR_DESERT)&&!traitMet(TR_LAMP),"version 11 has no high trait discoveries");
 
+    checkGrinMovement();
     printf("%s\n",failures?"TRAITS FAIL":"TRAITS OK");
     return failures?1:0;
 }
