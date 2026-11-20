@@ -326,13 +326,12 @@ static void filmDrawPropAction(const FilmBeat *beat,int elapsed,int leadPose,int
         // Insert and establishing objects *start* on a named support.
         FilmPoint table={128,149};
         filmSurface(beat->place,table.x,table.y);
-        FilmPoint pin=filmPropGripPoint(prop);
-        FilmPoint center={table.x,table.y+size-(FILM_PROP_SIZE-pin.y)*size/FILM_PROP_SIZE};
-        // For an insert, a slight contact movement is credible, but never
-        // allow a prop to pop up toward the camera.
+        // Resting props use their literal lower edge on the table top.
+        // Grip/pivot coordinates apply only while a character HOLDS one.
+        int feet=table.y;
         if(beat->camera==F_INSERT&&prop==F_HAMMER&&elapsed>=72&&elapsed<142)
-            center.y-=2;
-        filmDrawProp(prop,center.x,center.y,size);
+            feet-=2;
+        filmDrawProp(prop,table.x,feet,size);
         return;
     }
     int action=filmActionOf(beat);
@@ -340,28 +339,30 @@ static void filmDrawPropAction(const FilmBeat *beat,int elapsed,int leadPose,int
                                    b.leadHeight,flipLead);
     FilmPoint grip=leadHand;
     FilmPoint ground=filmSurfacePoint(beat,leadHand.x);
-    // Wisp can hover over a grounded seed but cannot mime a human grip.
+    FilmPoint pivot=filmPropGripPoint(prop);
+    FilmPoint restGrip={
+        ground.x+(pivot.x-10)*size/FILM_PROP_SIZE,
+        ground.y-size+pivot.y*size/FILM_PROP_SIZE
+    };
+    // Wisp has no fingers: seed, leaf and cup stay physically on the floor.
     if(beat->lead==F_WISP||action==F_ACT_APPROACH){
         filmSurface(beat->place,ground.x,ground.y);
-        FilmPoint pos=ground;
-        pos.y-=size*2/3;
-        FilmPoint ctr=filmPropCenterForGrip(prop,size,pos);
-        filmDrawProp(prop,ctr.x,ctr.y,size);
+        filmDrawProp(prop,ground.x,ground.y,size);
         return;
     }
     int holding=1, thumb=1;
     if(action==F_ACT_TAKE){
         filmSurface(beat->place,ground.x,ground.y);
         int lift=filmEase(elapsed>50?elapsed-50:0,145);
-        grip.x=filmLerp(ground.x,leadHand.x,lift);
-        grip.y=filmLerp(ground.y-size/2,leadHand.y,lift);
+        grip.x=filmLerp(restGrip.x,leadHand.x,lift);
+        grip.y=filmLerp(restGrip.y,leadHand.y,lift);
         holding=lift>150;
         thumb=holding;
     }else if(action==F_ACT_PUT){
         filmSurface(beat->place,ground.x,ground.y);
         int down=filmEase(elapsed>55?elapsed-55:0,170);
-        grip.x=filmLerp(leadHand.x,ground.x,down);
-        grip.y=filmLerp(leadHand.y,ground.y-size/2,down);
+        grip.x=filmLerp(leadHand.x,restGrip.x,down);
+        grip.y=filmLerp(leadHand.y,restGrip.y,down);
         holding=down<165;
         thumb=holding;
     }else if(action==F_ACT_PASS&&paired&&beat->other!=F_WISP){
