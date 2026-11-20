@@ -1981,12 +1981,12 @@ static void globeEnter(void){
 #ifdef __3DS__
     gg3GlobeHashValid=0;
 #endif
-    videoSetMode(MODE_0_2D|DISPLAY_BG0_ACTIVE|DISPLAY_SPR_ACTIVE|DISPLAY_SPR_1D_LAYOUT|DISPLAY_SPR_1D_SIZE_32); lcdMainOnBottom();
+    videoSetMode(MODE_0_2D|DISPLAY_BG0_ACTIVE|DISPLAY_SPR_ACTIVE|DISPLAY_SPR_1D_LAYOUT|DISPLAY_SPR_1D_SIZE_32);
     for(int i=0;i<128;i++) oamSetHidden(&oamMain,i,true);
     bgSetScroll(0,0,0); for(int my=0;my<32;my++) for(int mx=0;mx<32;mx++) mapPtr[my*32+mx]=(u16)(my<24?my*32+mx:0);
     globeDraw(1); globeFlush(); view3d=1; }
 static void leaveGlobe(void){
-    walkOn=0; trUsed=0; memset(trKey,0,sizeof trKey); zl=3; makeTiles(); { int b0=0; (void)b0; } videoSetMode(MODE_0_2D|DISPLAY_BG0_ACTIVE|DISPLAY_BG1_ACTIVE|DISPLAY_SPR_ACTIVE|DISPLAY_SPR_1D_LAYOUT|DISPLAY_SPR_1D_SIZE_32); lcdMainOnBottom();
+    walkOn=0; trUsed=0; memset(trKey,0,sizeof trKey); zl=3; makeTiles(); { int b0=0; (void)b0; } videoSetMode(MODE_0_2D|DISPLAY_BG0_ACTIVE|DISPLAY_BG1_ACTIVE|DISPLAY_SPR_ACTIVE|DISPLAY_SPR_1D_LAYOUT|DISPLAY_SPR_1D_SIZE_32);
     uiPalette(); tbInit(); saveBasePal(); winX=-99; view3d=0; }
 // ---------------------------------------------------------------------------------------------- zoom: six levels, from the whole planet down to single creatures
 // 0 PLANET (the globe), 1 VERY FAR (2 pixels a tile), 2 FAR (4), 3 NORMAL (8: the map's own tiles and the hardware sprites), 4 CLOSE (16), 5 MICRO (32).
