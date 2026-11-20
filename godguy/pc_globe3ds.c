@@ -50,6 +50,11 @@ int main(void){
     gg3dsGlobeQuality=0;globeDraw(1);
     int diff=0;for(int i=0;i<256*192;i++)diff+=(oldImage[i]!=gbuf[i]);
     VERIFY(diff>30,"New 3DS small globe uses visibly finer pixels");
+    // The old-detail image must actually reach VRAM before testing the
+    // reverse transition. Otherwise the cached signatures correctly match
+    // the already-uploaded fine image and zero uploads are expected.
+    globeFlush();
+    VERIFY(compareTiles(),"old-detail image is uploaded before switching back");
     printf("3DS globe: %d palette detail pixels, %d fine-sampling differences, first 768 VRAM uploads then zero; picking (%d,%d)\n",
         special,diff,pickX,pickY);
     gg3dsGlobeQuality=1;globeDraw(1);
