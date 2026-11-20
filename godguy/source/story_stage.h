@@ -626,9 +626,11 @@ static int filmActingPose(const FilmBeat *beat,int elapsed,int lead,int action){
 }
 #endif
 
-#ifdef __3DS__
-// 3DS-exclusive world-space geometry and projected actor routes. The DS
-// binaries keep their original plate-and-cel film director unchanged.
+#if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
+// Default 3DS film: true world-space geometry and projected actor routes.
+// A diagnostic -DGG_FILM_2D_FALLBACK build retains the previously working
+// 3DS art/camera path if a device-specific frame budget regression appears.
+// DS/DSi always use the shared low-cost illustrated film director.
 #include "story_world3d.h"
 #endif
 
@@ -672,7 +674,7 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
     int total=beat->seconds*FILM_SECOND;
     int move=filmEase(elapsed,total);
     FilmBlocking block=filmBlocking(beat,elapsed);
-#ifdef __3DS__
+#if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
     ggFilmWorldBlocking(beat,elapsed,move,&block);
 #endif
     int captionOn=beat->line&&elapsed>=100&&elapsed<total-20;
@@ -682,7 +684,7 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
     int cue=filmActionCue(beat,elapsed);
     if(cue>=0)fxReq(cue);
     filmDrawSet(beat,move);
-#ifdef __3DS__
+#if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
     // The geometry is projected through the same dollying camera as actors.
     // Draw before cast so roofs, water and room floors form a stable world.
     ggFilmWorldDraw(beat,elapsed,move,(int)(clip-fmvClips));
