@@ -53,6 +53,44 @@ static void checkFullPlayback(void){
     fxQ=-1;
 }
 
+// Film-direction contract: lock the lens after choosing a shot, give every
+// actor a consistent screen side, and never enlarge Wisp to human scale.
+static void checkDirectedBlocking(void){
+    for(unsigned i=0;i<sizeof filmReels/sizeof *filmReels;i++){
+        const FilmReel *reel=&filmReels[i];
+        for(int n=0;n<reel->count;n++){
+            const FilmBeat *beat=&reel->beats[n];
+            FilmFraming first=filmFraming(beat,0),last=filmFraming(beat,256);
+            check(first.dx==last.dx&&first.dy==last.dy,
+                  "a scene zoomed while the characters were speaking");
+            check(first.y==last.y,"a shot drifted vertically");
+            if(beat->camera==F_TRACK){
+                check(last.x>first.x&&last.x-first.x<=6*256,
+                      "camera tracking traveled too far");
+            } else check(first.x==last.x,"a locked camera moved");
+            FilmBlocking start=filmBlocking(beat,0);
+            FilmBlocking finish=filmBlocking(beat,250);
+            if(beat->lead==F_WISP) check(start.leadHeight<=36,"Wisp was scaled to human height");
+            if(beat->other==F_WISP) check(start.otherHeight<=36,"Wisp was scaled to human height");
+            if(beat->camera!=F_TRACK) check(start.leadX==finish.leadX,
+                   "a stationary conversation moved the lead actor");
+            if(beat->lead<F_ACTOR_N&&beat->other<F_ACTOR_N){
+                check(start.leadX!=start.otherX,"speakers overlap one another");
+                for(int j=n+1;j<reel->count;j++){
+                    const FilmBeat *next=&reel->beats[j];
+                    if(beat->lead==next->other&&beat->other==next->lead){
+                        FilmBlocking converse=filmBlocking(next,250);
+                        check(finish.leadX==converse.otherX&&
+                              finish.otherX==converse.leadX,
+                              "a speaker teleported to the opposite side");
+                    }
+                }
+            }
+        }
+    }
+    puts("FMV direction OK: stable speaker sides, fixed lenses, modest tracking and small Wisp");
+}
+
 static void checkDirectedPlayback(void){
     for(unsigned i=0;i<sizeof fmvClips/sizeof *fmvClips;i++){
         const FmvClip *clip=&fmvClips[i];
@@ -103,6 +141,7 @@ void shimInput(int frame,int *held,int *tx,int *ty){
     case TITLE:
         if(frame==3){
             checkFullPlayback();
+            checkDirectedBlocking();
             checkDirectedPlayback();
             startWorld(0);
             check(!sceneClip&&!sceneOn,"free play started a cutscene");
