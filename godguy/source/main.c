@@ -498,10 +498,30 @@ static int damageCreature(int i,int dmg,int attacker){
     if(dmg>=v->hp){ killCr(i); return cr[i].alive!=0; } v->hp=(u8)(v->hp-dmg); return 1;
 }
 static void killNat(int i){ natural=1; killCr(i); natural=0; }     // old age, hunger, lava: not a slaying
-static void compact(void){   // the dead are squeezed out of the list
-    int j=0, keep=0, oc=wgNc; for(int i=0;i<nCr;i++){ if(cr[i].alive){ if(i!=j){ cr[j]=cr[i]; crId[j]=crId[i]; crFl[j]=crFl[i]; if(i<oc) wgOf[j]=wgOf[i]; } if(i<oc) keep=j+1; j++; } else if(crFl[i]&0x0080) ntGone(crId[i]); } nCr=j;
-    memset(occ,0,sizeof occ); for(int i=0;i<nCr;i++) occ[cr[i].y][cr[i].x]=(occ_t)(i+1); cellRebuild(); wgKeep=keep; wgNc=0;
+static void compactCreatures(int rebuildGrid){
+    int j=0, keep=0, oldGroupCount=wgNc;
+    for(int i=0;i<nCr;i++){
+        if(!cr[i].alive){ if(crFl[i]&0x0080) ntGone(crId[i]); continue; }
+        if(i!=j){
+            cr[j]=cr[i]; crId[j]=crId[i]; crFl[j]=crFl[i];
+            if(i<oldGroupCount) wgOf[j]=wgOf[i];
+            // Movement and death maintain the live grid. Compaction changes
+            // the occupant's index, but leaves its position and cell counts intact.
+            if(!rebuildGrid) occ[cr[j].y][cr[j].x]=(occ_t)(j+1);
+        }
+        if(i<oldGroupCount) keep=j+1;
+        j++;
+    }
+    nCr=j;
+    if(rebuildGrid){
+        memset(occ,0,sizeof occ);
+        for(int i=0;i<nCr;i++) occ[cr[i].y][cr[i].x]=(occ_t)(i+1);
+        cellRebuild();
+    }
+    wgKeep=keep;
+    wgNc=0;
 }
+static void compact(void){ compactCreatures(1); }
 
 static int glideOn=1;      // some creature may have a pixel offset to glide off (set by moveTo and the camera; simulate() only walks the screen when it is set)
 static void moveTo(Cr*c,int i,int nx,int ny){ glideOn=1; leaveTile(c); { int ddx=c->x-nx, ddy=c->y-ny; if(ddx>1||ddx<-1) ddx=0; if(ddy>1||ddy<-1) ddy=0; c->ox=(s8)(ddx*8); c->oy=(s8)(ddy*8); } c->x=(coord_t)nx; c->y=(coord_t)ny; occ[ny][nx]=(occ_t)(i+1); cellAdd(nx,ny,c->sp); }
@@ -1171,7 +1191,7 @@ static void simulate(void){
     if(((tick)&255)==0){
         GG_FRAME_BEGIN(maintenance);
         GG_FRAME_BEGIN(compaction);
-        compact();
+        compactCreatures(0);
         GG_FRAME_END(compaction);
         GG_FRAME_BEGIN(notables);
         ntSweep();

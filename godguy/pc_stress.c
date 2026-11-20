@@ -117,6 +117,29 @@ static int orderFrame(const void*a,const void*b){
     const struct Sample *x=a, *y=b;
     return orderTime(&x->ns[frame],&y->ns[frame]);
 }
+static unsigned hashBytes(unsigned hash,const void*data,size_t bytes){
+    const unsigned char *p=data;
+    while(bytes--) hash=(hash^*p++)*16777619u;
+    return hash;
+}
+static unsigned hashWorldState(void){
+    unsigned hash=2166136261u;
+    hash=hashBytes(hash,&rs,sizeof rs);
+    for(int y=0;y<WH;y++){
+        hash=hashBytes(hash,world[y],WW);
+        hash=hashBytes(hash,bld[y],WW);
+        hash=hashBytes(hash,occ[y],(size_t)WW*sizeof occ[0][0]);
+    }
+    hash=hashBytes(hash,cr,(size_t)nCr*sizeof cr[0]);
+    hash=hashBytes(hash,crId,(size_t)nCr*sizeof crId[0]);
+    hash=hashBytes(hash,crFl,(size_t)nCr*sizeof crFl[0]);
+    hash=hashBytes(hash,nb,(size_t)nNb*sizeof nb[0]);
+    hash=hashBytes(hash,vil,sizeof vil);
+    hash=hashBytes(hash,kd,sizeof kd);
+    hash=hashBytes(hash,wg,sizeof wg);
+    hash=hashBytes(hash,wga,sizeof wga);
+    return hashBytes(hash,wgOf,(size_t)wgNc);
+}
 static void report(void){
     int ticks=tick-startTick;
     if(ticks!=frames*speed||startGroups==0||hazards==0||panFrames<frames/2||stDied==(u32)startDeaths){
@@ -136,6 +159,7 @@ static void report(void){
            WW,WH,frames,ticks,speed,startCount,startGroups);
     printf("activity: %d scripted disasters started (including warmup), %d pan frames, %u deaths during sampling, %d alive at end, fingerprint %08x\n",
            hazards,panFrames,stDied-(u32)startDeaths,living,fingerprint);
+    printf("world state: %08x\n",hashWorldState());
     printf("presentation: %d composed frames, %d frames mixed, mixer %s\n",
            composedFrames,mixedFrames,mixedFrames?(audioHq?"high quality":"basic"):"hardware proxy");
     static const char *const names[]={"total","simulation (4 ticks)","  creature turns & war","  weather & disasters","  256-tick maintenance",
