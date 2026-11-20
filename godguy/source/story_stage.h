@@ -59,7 +59,7 @@ static FilmFraming filmFraming(const FilmBeat *beat,int move){
     int w=widths[beat->camera];
     int h=w*FMV_H/FMV_W, sx=FMV_W-w, sy=FMV_H-h;
     int pan=128;
-    if(beat->camera==F_TRACK) pan=80+move*96/256; // at most ~4 pixels
+    if(beat->camera==F_TRACK) pan=96+move*64/256; // at most 6 pixels on 3DS, 3 on DS
     FilmFraming frame={sx*pan*FILM_PLATE_SCALE,
                        sy*(beat->camera==F_INSERT?168:96)*FILM_PLATE_SCALE,
                        w*FILM_PLATE_SCALE,h*FILM_PLATE_SCALE*256/FILM_H};
