@@ -576,6 +576,22 @@ static int filmActingPose(const FilmBeat *beat,int elapsed,int lead,int action){
 }
 #endif
 
+// Sparse effects are synced to on-screen hand contact, not to unrelated
+// cuts. Use times divisible by both 3 (3DS) and 5 (DS) frame ticks.
+static int filmActionCue(const FilmBeat *beat,int elapsed){
+    if(elapsed==0) return beat->sound?beat->sound:-1;
+    int action=filmActionOf(beat);
+    if(action==F_ACT_TAKE&&elapsed==195)
+        return beat->prop==F_CUP?FX_INSPECT:-1;
+    if(action==F_ACT_PUT&&elapsed==225)
+        return FX_SETTLE;
+    if(action==F_ACT_WORK&&elapsed==180)
+        return FX_STEP;
+    if((action==F_ACT_PASS||action==F_ACT_RECEIVE)&&elapsed==225)
+        return FX_FEED;
+    return -1;
+}
+
 static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
     static u8 establishing;
     if(!elapsed){
@@ -585,7 +601,6 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
         ggUnpack(filmSets[beat->place],uiNew,FMV_W*FMV_H);
 #endif
         if(storyScore>=0) filmScoreTurn(beat);
-        if(beat->sound) fxReq(beat->sound);
         filmBars(clip->title);
         const FilmBeat *previous=filmPreviousBeat(clip,beat);
         establishing=previous&&previous->place!=beat->place;
@@ -593,6 +608,12 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
     int total=beat->seconds*FILM_SECOND;
     int move=filmEase(elapsed,total);
     FilmBlocking block=filmBlocking(beat,elapsed);
+    int captionOn=beat->line&&elapsed>=100&&elapsed<total-20;
+    int position=beat->lead<F_ACTOR_N?
+                 32+block.leadX*64/256:64;
+    gmFilmMixSet(1,captionOn,position);
+    int cue=filmActionCue(beat,elapsed);
+    if(cue>=0)fxReq(cue);
     filmDrawSet(beat,move);
     filmWorldContinuity(clip,beat,elapsed);
     filmAtmosphere(beat,elapsed);
@@ -630,7 +651,7 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
     }
     if(showCast||beat->camera==F_INSERT)
         filmDrawPropAction(beat,elapsed,leadPose,otherPose,block);
-    filmCaption(beat,elapsed>=100&&elapsed<total-20);
+    filmCaption(beat,captionOn);
 }
 static int fmvRenderAt(const FmvClip *clip,int elapsed){
     int baked=clip->frames*FMV_TICKS;
