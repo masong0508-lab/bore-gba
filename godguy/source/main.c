@@ -1696,9 +1696,15 @@ static const char* const zNm[6]={"PLANET","VERY FAR","FAR","NORMAL","CLOSE","MIC
 #define ZH 168                                    // rows above the toolbar
 typedef struct { u32 xy; u32 sig; u8 px[64]; } ZArt; static ZArt zart[512];     // the 8 x 8 art of the tiles in view, so a scroll builds only the new column
 static const u8 zPool[9]={144,147,150,153,156,192,195,248,251};  // palette slots for creature colours (3 each); 12 families at a time, the rest share
+#ifdef GG_ZOOM_TEST
+static int zArtLookups;
+#endif
 static inline int zFamPal(int fam){ return zPool[fam%9]; }
 static int zCol(int fam,int k){ return zFamPal(fam)+k; }
 static const u8* zArtOf(int x,int y){
+#ifdef GG_ZOOM_TEST
+    zArtLookups++;
+#endif
     ZArt*z=&zart[((y&15)<<5)|(x&31)]; int t=world[y][x]; int mask=0,foam=0; int bld_=bld[y][x]; int race=bld_&&bldv[y][x]?vilRace(bldv[y][x]-1):0; int best=bld_?-1:cellEdge(x,y,&mask,&foam); int bb=(bld_||t<=T_WATER||t==T_LAVA)?0:bioAt(x,y);
     u32 sig=(u32)(t|((best+1)<<4)|(mask<<8)|(foam<<12)|(bld_<<13)|(race<<17)|(bb<<20))+1u; u32 xy=(u32)(x|(y<<16));
     if(z->sig==sig&&z->xy==xy) return z->px;
