@@ -133,10 +133,23 @@ jobs:
           gcc -O2 -DNDSSHIM -D__3DS__ -DSHIM_HQ -DGG_HQVOX -Icompat -Isource -Wno-all -include unistd.h pc_globe_audio_load.c -lm -o /tmp/godguy-globe-audio-load
           /tmp/godguy-globe-audio-load
 
+      - name: Verify the GodGuy starter kit, field tools and world laws
+        working-directory: godguy
+        run: |
+          for cfg in ds dsi16 3ds; do
+            flags=""
+            case "$cfg" in dsi16) flags="-DGG_DSI16";; 3ds) flags="-D__3DS__";; esac
+            gcc -O2 -DNDSSHIM $flags -Icompat -Isource -w -include unistd.h pc_field.c -lm -o "/tmp/godguy-field-$cfg"
+            scratch=$(mktemp -d)
+            (cd "$scratch" && "/tmp/godguy-field-$cfg")
+          done
+          gcc -O2 -DNDSSHIM -Icompat -Isource -w -include unistd.h pc_lawmenu.c -lm -o /tmp/godguy-lawmenu
+          /tmp/godguy-lawmenu
+
       - name: Profile gameplay frame and simulation-tick budgets
         working-directory: godguy
         run: |
-          GG_STRESS_FRAMES=300 ./tools/bench_frame.sh ds 3ds
+          GG_STRESS_FRAMES=300 ./tools/bench_frame.sh
 
       - name: What was built
         if: always()

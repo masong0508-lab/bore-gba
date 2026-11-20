@@ -38,6 +38,9 @@ static struct { int x, y, a, until; } rz[4]; static int rzN;      // the last fo
 static void ntKill(Cr*c); static void ntHit(Cr*a,Cr*d,int dm); static void ntDeath(int i); static void ntGone(u32 id); static void ntBirth(Cr*kid,const Cr*par); static void ntFounder(Cr*c,int v); static void ntSweep(void);   // (ggid.h: names, ids and the notable table)
 static int crNamed(const Cr*c); static void crFirst(const Cr*c,char*o); static void idReset(void);
 static int camX, camY;             // camera, in world pixels
+enum { MAP_PIN_N=3 };
+static u16 mapPin[MAP_PIN_N][2];
+static u8 mapPinMask;
 static int warHeat;                // blows struck near the camera, decaying: how loud the battle music is (see musDirector)
 static int power=1, brush=2, spSel=40, paused=0, tick=0, year=0;
 static int sdOk=0, savedYear=-1, autoSaveOn=1;
@@ -46,7 +49,7 @@ static u32 worldSeed, seedFix;               // the seed of this planet; seedFix
 static u32 stKill, stGift, stUse;                 // monsters slain, gifts given, powers used (the story counts them)
 static u8 seenB[(SP_N+7)/8], slainB[(SP_N+7)/8]; static int seenN;   // the bestiary: which kinds of monster have appeared / been slain
 #define ACH_N 46
-static u8 favVil[FAV_N], favKd[16], favItem[600], favPow[80];   // stars on cities, kingdoms, items and all 67 powers
+static u8 favVil[FAV_N], favKd[16], favItem[600], favPow[80];   // saved stars on cities, kingdoms, items and powers
 static void achCheck(void);
 static u32 achX[3];   /* achievements 32 and up, the political powers used (a bit each), and event flags (1 schism, 2 crab bomb, 4 stomp, 8 goo, 16 fire elemental, 32 had a kingdom): they ride in the spare words of the stats block */
 #define ACH_HAS(i) ((i)<32?(int)((achBits>>(i))&1):(int)((achX[0]>>((i)-32))&1))
@@ -646,10 +649,27 @@ static void burnAt(int x,int y,int chance){ if(gx.lFire) return; if(!gx.lAtmo&&A
     int had=x>=0&&y>=0&&x<WW&&y<WH&&bld[y][x]&&bld[y][x]!=B_RUIN; razeAt(x,y,chance); if(had&&bld[y][x]==B_RUIN) atFire+=3; }   // fire, lightning and meteors on a building (WORLD > LAWS > FIRE ON HOMES: SAFE turns them off)
 // village mood, -100 sad .. 100 joyful (after the wiki's happiness), worked out on the spot so a loaded game goes on exactly as the saved one: food, crowding, war, sickness, loyalty, the air and the ground
 static int vilMood(int v); static const char* moodName(int m); static int worldAge(void);
+static int villageRelief(int v);
+static int villageGreenbelt(int v){
+    const Vil*V=&vil[v];
+    if(!V->farms) return 0;
+    // Check at most four sites on the regular village turn. Use a stable
+    // hash so enabling a greenbelt doesn't consume simulation randomness.
+    for(int i=0;i<4;i++){
+        unsigned h=hsh(V->x,V->y,(unsigned)tick+i);
+        int x=V->x+(int)(h%13)-6, y=V->y+(int)((h>>8)%13)-6;
+        if((unsigned)x>=WW||(unsigned)y>=WH||bld[y][x]||occ[y][x]||world[y][x]!=T_DIRT||bioAt(x,y)) continue;
+        setCell(x,y,T_GRASS);
+        return 1;
+    }
+    return 0;
+}
 static void vilTick(int v){ KD_DIRTY();
     Vil*V=&vil[v]; if(!V->on) return; int pop=0, sk=0;
     for(int dy=-10;dy<=10;dy++){ int y=V->y+dy; if(y<0||y>=WH) continue; for(int dx=-10;dx<=10;dx++){ int x=V->x+dx; if(x<0||x>=WW||dx*dx+dy*dy>100) continue; int j=occ[y][x]-1; if(j>=0&&cr[j].alive&&sp[cr[j].sp].a==V->race&&sp[cr[j].sp].a<8){ pop++; if(DISEASE(&cr[j])==1) sk++; } } }   // (the tiles around the village, not every creature on the planet)
     V->pop=(u16)pop; if(!pop){ if(++V->dead>=6){ vilRaze(v,1); return; } } else V->dead=0;
+    if(pop&&LAWON(LW_RELIEF)&&V->stock<64) villageRelief(v);
+    if(pop&&LAWON(LW_GREENBELT)) villageGreenbelt(v);
     if((tick&7)==0||vilBf[v]==0) bldFlags(v);
     if(pop){      // recovery: the folk clear the ruins that fires and wars left round the village (a ruin blocks building for ever otherwise) and rebuild a hall that fell
         int R=3+V->lvl*3; for(int k=0;k<2;k++){ int x=V->x+(int)(rnd()%(2*R+1))-R, y=V->y+(int)(rnd()%(2*R+1))-R; if(x>=0&&y>=0&&x<WW&&y<WH&&bld[y][x]==B_RUIN){ bld[y][x]=B_NONE; bldv[y][x]=0; if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); } }
@@ -692,6 +712,36 @@ static KdX kx[KN_N];
 static u8 whisT[KN_N], disT[KN_N], spiT[KN_N], vilIndep[VIL_N];   // Pack B, temporary on purpose (not saved): a whispered war, discord and spite counters (in kingdom turns), cities that left their kingdom by GOLD DUST
 static int polSgn(int v){ return v==1?1:v==2?-1:0; }   // a policy value as +1 (high), -1 (low) or 0
 static Kd kd[KN_N]; /* (vilK, vilL: a city's kingdom and its loyalty, declared with the villages) */ static char jr[24][34]; static u16 jrYear[24]; static int jrN;
+static int villageRelief(int v){
+    Vil*dest=&vil[v];
+    if(!dest->on||dest->stock>=64) return 0;
+    int donor=-1, best=24*24+1, targetKing=vilK[v]-1;
+    for(int u=0;u<VIL_N;u++){
+        const Vil*V=&vil[u];
+        if(u==v||!V->on||V->stock<160||V->foe==v+1||dest->foe==u+1) continue;
+        int dx=(int)V->x-dest->x, dy=(int)V->y-dest->y, d=dx*dx+dy*dy;
+        if(d>=best) continue;
+        int sourceKing=vilK[u]-1;
+        if(targetKing<0||sourceKing<0){
+            if(targetKing!=sourceKing||V->race!=dest->race) continue;
+        } else {
+            if(targetKing>=KN_N||sourceKing>=KN_N) continue;
+            const Kd *a=&kd[targetKing], *b=&kd[sourceKing];
+            if(!a->on||!b->on) continue;
+            if(targetKing!=sourceKing){
+                if(!(a->allies&(1u<<sourceKing))||!(b->allies&(1u<<targetKing))) continue;
+                if((a->war&(1u<<sourceKing))||(b->war&(1u<<targetKing))) continue;
+            }
+        }
+        donor=u; best=d;
+    }
+    if(donor<0) return 0;
+    int amount=64-dest->stock;
+    if(amount>32) amount=32;
+    vil[donor].stock-=(u16)amount;
+    dest->stock+=(u16)amount;
+    return amount;
+}
 static u8 hall[KN_N][4][3];   // the last four rulers of each kingdom: name seeds rn1, rn2 and the years they reigned (GGR1 trailer)
 static void hallPush(int k){ memmove(hall[k][1],hall[k][0],9); hall[k][0][0]=kd[k].rn1; hall[k][0][1]=kd[k].rn2; hall[k][0][2]=kd[k].reign>255?255:kd[k].reign; }
 static const char* const kn1[12]={"AR","BEL","COR","DRA","EST","FEN","GAL","HOR","ISK","JOR","KEL","LUN"}, * const kn2[8]={"IA","ANIA","OTH","MARK","LAND","VIA","ELL","UM"};
@@ -1265,7 +1315,7 @@ typedef struct { const char*nm, *goal; u8 kind; u16 target; } Chap;
 enum { OB_USE, OB_FOLK, OB_HOMES, OB_PEOPLES, OB_SLAY, OB_GIFT, OB_L3, OB_SEEN, OB_YEAR, OB_FINAL };
 #define CHAP_N 14
 static const Chap chap[CHAP_N]={
- {"LET THERE BE LIGHT","USE YOUR POWERS 20 TIMES",OB_USE,20}, {"THE FIRST FOLK","20 FOLK IN YOUR WORLD",OB_FOLK,20}, {"A ROOF OVERHEAD","BUILD 8 HOMES",OB_HOMES,8}, {"TWO PEOPLES","TWO PEOPLES WITH VILLAGES",OB_PEOPLES,2},
+ {"LET THERE BE LIGHT","USE YOUR POWERS 6 TIMES",OB_USE,6}, {"THE FIRST FOLK","20 FOLK IN YOUR WORLD",OB_FOLK,20}, {"A ROOF OVERHEAD","BUILD 8 HOMES",OB_HOMES,8}, {"TWO PEOPLES","TWO PEOPLES WITH VILLAGES",OB_PEOPLES,2},
  {"THE FIRST DARKNESS","SLAY 5 MONSTERS",OB_SLAY,5}, {"ARMS FOR THE FAITHFUL","GIVE 5 GIFTS",OB_GIFT,5}, {"A HALL OF STONE","GROW A LEVEL 3 HALL",OB_L3,1}, {"THE BESTIARY","MEET 15 KINDS OF MONSTER",OB_SEEN,15},
  {"AGE OF KINGS","REACH YEAR 8",OB_YEAR,8}, {"THE HORDE","SLAY 40 MONSTERS",OB_SLAY,40}, {"THE GREAT CITY","BUILD 40 HOMES",OB_HOMES,40}, {"A GOD'S LIBRARY","MEET 80 KINDS OF MONSTER",OB_SEEN,80},
  {"THE LONG PEACE","250 FOLK IN YOUR WORLD",OB_FOLK,250}, {"GODHOOD","SLAY 150, REACH YEAR 16",OB_FINAL,1} };
@@ -1280,8 +1330,8 @@ static const char* const whoNm[W_N]={"WISP","MIRA","GRUUL","ELOWEN","THORGRIM","
 static const char* const whoRole[W_N]={"THE FIRST SPARK","KEEPER OF THE HEARTH","WARDEN OF THE RIVER",
     "KEEPER OF NAMES","SMITH OF THE HALL","THE GOD WHO CAME BEFORE","WIZARD OF THE LONG COUCH"};
 typedef struct { u8 who; const char*txt; } Dl;
-static const Dl dl0[]={{W_WISP,"You woke. Good. I am Wisp. I was a spark in the dark before you, and I have waited a very long time for a god."},{W_WISP,"The world is empty and quiet. Touch it. Rain, fire, new land. Teach me what you are."},{0,0}};
-static const Dl dl1[]={{W_WISP,"Land is not enough. Land is a stage. We need someone to stand on it. Use SPAWN, or SETTLE, and make us some folk."},{W_MIRA,"Who spoke the rain? I am Mira. I set out my brass cup to catch the first drops. It is the first full thing we have had in days."},{W_WISP,"Be gentle with her. She is the first to ever look up."},{0,0}};
+static const Dl dl0[]={{W_WISP,"You woke. Good. I am Wisp. I was a spark in the dark before you, and I have waited a very long time for a god."},{W_WISP,"Start with a patch of grass. Tap the land below and watch the ground change. We can bring it to life when you are ready."},{0,0}};
+static const Dl dl1[]={{W_WISP,"Choose SETTLE from your Kit and touch some open grass. The first folk will build homes and grow their own food."},{W_MIRA,"Who spoke the rain? I am Mira. I set out my brass cup to catch the first drops. It is the first full thing we have had in days."},{W_WISP,"Be gentle with her. She is the first to ever look up."},{0,0}};
 static const Dl dl2[]={{W_MIRA,"We piled stones against the wind. At night the children take turns holding down the roof. Give us time to learn to build it right."},{W_WISP,"Leave room along the paths they walk. They know where a door belongs."},{0,0}};
 static const Dl dl3[]={{W_GRUUL,"I am Gruul, warden of this river. My people dug the ford. Now I find your footprints on both banks. Tell me what I am to tell them."},{W_MIRA,"We only knew we were thirsty. Take the first cup. Then tell me where your folk need us to stop."},{W_WISP,"Two peoples, one river. You can bless them, or break them. A god chooses."},{W_DAVE,"Whoa. Hey. Is this the part where the world starts? I am Dave. I have been a wizard on this couch for, like, a thousand years."},{W_DAVE,"Anyway. Snacks. If you give a creature a snack, it might just... get it. Like, really get it. Try the nachos."},{0,0}};
 static const Dl dl4[]={{W_HOLLOW,"I smell a new god. How sweet. How young."},{W_WISP,"...He is here. The Hollow King. He was the god before you, and the one before that."},{W_WISP,"His creatures are coming. Smite them, arm your people, build towers. He will not stop."},{0,0}};
@@ -1316,13 +1366,20 @@ static void unlockTiers(void){   // every 256 ticks: is the chapter you are on d
     chapterDone(); }
 // ---------------------------------------------------------------------------------------------- powers (the table is the catalogue)
 typedef struct { const char*nm; u8 kind, arg; } Pw;
-enum { PK_INSPECT, PK_PAINT, PK_SPAWN, PK_RAIN, PK_FIRE, PK_BOLT, PK_METEOR, PK_KILL, PK_HEAL, PK_FEED, PK_SETTLE, PK_WAR, PK_PEACE, PK_BLESS, PK_GIFT, PK_MUTATE, PK_QUAKE, PK_FLOOD, PK_BLOOM, PK_VIBE, PK_TORNADO, PK_ACID, PK_HOLE, PK_NUKE, PK_PLAGUE, PK_CURSE, PK_AIR, PK_INSPIRE, PK_WHISPER, PK_DISCORD, PK_UNITY, PK_SPITE, PK_FRIEND, PK_DUSTW, PK_DUSTR, PK_DUSTG, PK_LOOT, PK_CORRODE, PK_FIREEL, PK_GOO, PK_CRABBOMB, PK_CRABZILLA, PK_UPLIFT, PK_MONOLITH, PK_STATUS, PK_ALIEN, PK_DRAGON, PK_MOON, PK_BIOMASS, PK_ICE, PK_GARDEN, PK_BOLT_SMALL, PK_BOLT_MEDIUM, PK_PRINT_COPY, PK_PRINT_FOREST, PK_PRINT_WATER, PK_PRINT_MOUNTAIN, PK_PRINT_BIOME, PK_PRINT_CLEAR, PK_POSSESS, PK_HOME, PK_BORDER, PK_SPECIAL };
+enum { PK_INSPECT, PK_PAINT, PK_SPAWN, PK_RAIN, PK_FIRE, PK_BOLT, PK_METEOR, PK_KILL, PK_HEAL, PK_FEED, PK_SETTLE, PK_WAR, PK_PEACE, PK_BLESS, PK_GIFT, PK_MUTATE, PK_QUAKE, PK_FLOOD, PK_BLOOM, PK_VIBE, PK_TORNADO, PK_ACID, PK_HOLE, PK_NUKE, PK_PLAGUE, PK_CURSE, PK_AIR, PK_INSPIRE, PK_WHISPER, PK_DISCORD, PK_UNITY, PK_SPITE, PK_FRIEND, PK_DUSTW, PK_DUSTR, PK_DUSTG, PK_LOOT, PK_CORRODE, PK_FIREEL, PK_GOO, PK_CRABBOMB, PK_CRABZILLA, PK_UPLIFT, PK_MONOLITH, PK_STATUS, PK_ALIEN, PK_DRAGON, PK_MOON, PK_BIOMASS, PK_ICE, PK_GARDEN, PK_BOLT_SMALL, PK_BOLT_MEDIUM, PK_PRINT_COPY, PK_PRINT_FOREST, PK_PRINT_WATER, PK_PRINT_MOUNTAIN, PK_PRINT_BIOME, PK_PRINT_CLEAR, PK_POSSESS, PK_HOME, PK_BORDER, PK_SPECIAL, PK_FIELD, PK_KIND_N };
 static const Pw pw[]={ {"INSPECT",PK_INSPECT,0},{"WATER",PK_PAINT,T_WATER},{"DEEP SEA",PK_PAINT,T_DEEP},{"SAND",PK_PAINT,T_SAND},{"GRASS",PK_PAINT,T_GRASS},{"FOREST",PK_PAINT,T_FOREST},{"JUNGLE",PK_PAINT,T_JUNGLE},
     {"HILLS",PK_PAINT,T_HILL},{"MOUNTAIN",PK_PAINT,T_MOUNT},{"SNOW",PK_PAINT,T_SNOW},{"DESERT",PK_PAINT,T_DESERT},{"SWAMP",PK_PAINT,T_SWAMP},{"LAVA",PK_PAINT,T_LAVA},{"CORRUPT",PK_PAINT,101},{"INFERNAL",PK_PAINT,102},{"ENCHANT",PK_PAINT,103},{"GREENHOUSE",PK_AIR,0},{"OXYGEN",PK_AIR,1},{"DUST CLOUD",PK_AIR,2},
     {"SPAWN",PK_SPAWN,0},{"RAIN",PK_RAIN,0},{"FIRE",PK_FIRE,0},{"LIGHTNING",PK_BOLT,0},{"METEOR",PK_METEOR,0},{"SMITE",PK_KILL,0},{"HEAL",PK_HEAL,0},{"FEED",PK_FEED,0},{"SETTLE",PK_SETTLE,0},{"WAR",PK_WAR,0},{"PEACE",PK_PEACE,0},{"BLESS",PK_BLESS,0},{"GIFT",PK_GIFT,0},{"MUTATE",PK_MUTATE,0},{"EARTHQUAKE",PK_QUAKE,0},{"TSUNAMI",PK_FLOOD,0},{"BLOOM",PK_BLOOM,0},{"GOOD VIBES",PK_VIBE,0},
     {"TORNADO",PK_TORNADO,0},{"ACID RAIN",PK_ACID,0},{"BLACK HOLE",PK_HOLE,0},{"ATOMIC BOMB",PK_NUKE,0},{"PLAGUE",PK_PLAGUE,0},{"CURSE",PK_CURSE,0},
-    {"INSPIRE",PK_INSPIRE,0},{"WHISPER",PK_WHISPER,0},{"DISCORD",PK_DISCORD,0},{"UNITY",PK_UNITY,0},{"SPITE",PK_SPITE,0},{"FRIENDSHIP",PK_FRIEND,0},{"WHITE DUST",PK_DUSTW,0},{"RED DUST",PK_DUSTR,0},{"GOLD DUST",PK_DUSTG,0},{"LOOT RAIN",PK_LOOT,0},{"CORROSIVE",PK_CORRODE,0},{"FIRE ELEM.",PK_FIREEL,0},{"GREY GOO",PK_GOO,0},{"CRAB BOMB",PK_CRABBOMB,0},{"CRABZILLA",PK_CRABZILLA,0},{"UPLIFT",PK_UPLIFT,0},{"MONOLITH",PK_MONOLITH,0},{"STATUS",PK_STATUS,0},{"ALIEN INVASION",PK_ALIEN,0},{"FAR DRAGON",PK_DRAGON,0},{"MOON HORRORS",PK_MOON,0},{"BIOMASS",PK_BIOMASS,0},{"DREAM ICE",PK_ICE,0},{"GARDEN SURPRISE",PK_GARDEN,0},{"SMALL LIGHTNING",PK_BOLT_SMALL,0},{"MEDIUM LIGHTNING",PK_BOLT_MEDIUM,0},{"PRINTER COPY",PK_PRINT_COPY,0},{"PRINTER FOREST",PK_PRINT_FOREST,0},{"PRINTER WATER",PK_PRINT_WATER,0},{"PRINTER MOUNTAIN",PK_PRINT_MOUNTAIN,0},{"PRINTER BIOME",PK_PRINT_BIOME,0},{"PRINTER CLEAR",PK_PRINT_CLEAR,0},{"POSSESS",PK_POSSESS,0},{"SEND HOME",PK_HOME,0},{"BORDER BRUSH",PK_BORDER,0},{"SPECIAL EVENT",PK_SPECIAL,0} };   // Pack B: political powers   // the Calamity pack (calamity.h)
+    {"INSPIRE",PK_INSPIRE,0},{"WHISPER",PK_WHISPER,0},{"DISCORD",PK_DISCORD,0},{"UNITY",PK_UNITY,0},{"SPITE",PK_SPITE,0},{"FRIENDSHIP",PK_FRIEND,0},{"WHITE DUST",PK_DUSTW,0},{"RED DUST",PK_DUSTR,0},{"GOLD DUST",PK_DUSTG,0},{"LOOT RAIN",PK_LOOT,0},{"CORROSIVE",PK_CORRODE,0},{"FIRE ELEM.",PK_FIREEL,0},{"GREY GOO",PK_GOO,0},{"CRAB BOMB",PK_CRABBOMB,0},{"CRABZILLA",PK_CRABZILLA,0},{"UPLIFT",PK_UPLIFT,0},{"MONOLITH",PK_MONOLITH,0},{"STATUS",PK_STATUS,0},{"ALIEN INVASION",PK_ALIEN,0},{"FAR DRAGON",PK_DRAGON,0},{"MOON HORRORS",PK_MOON,0},{"BIOMASS",PK_BIOMASS,0},{"DREAM ICE",PK_ICE,0},{"GARDEN SURPRISE",PK_GARDEN,0},{"SMALL LIGHTNING",PK_BOLT_SMALL,0},{"MEDIUM LIGHTNING",PK_BOLT_MEDIUM,0},{"PRINTER COPY",PK_PRINT_COPY,0},{"PRINTER FOREST",PK_PRINT_FOREST,0},{"PRINTER WATER",PK_PRINT_WATER,0},{"PRINTER MOUNTAIN",PK_PRINT_MOUNTAIN,0},{"PRINTER BIOME",PK_PRINT_BIOME,0},{"PRINTER CLEAR",PK_PRINT_CLEAR,0},{"POSSESS",PK_POSSESS,0},{"SEND HOME",PK_HOME,0},{"BORDER BRUSH",PK_BORDER,0},{"SPECIAL EVENT",PK_SPECIAL,0},{"FIELD TOOLS",PK_FIELD,0} };   // Pack B: political powers   // the Calamity pack (calamity.h)
 #define PW_N ((int)(sizeof(pw)/sizeof(pw[0])))
+_Static_assert(PW_N<=sizeof favPow,"Update the saved favorites format before adding more powers");
+enum { FIELD_SURVEY, FIELD_RATIONS, FIELD_CLINIC, FIELD_RESTORE, FIELD_N };
+static int fieldMode, fieldRadius=2;
+#ifndef PCTEST
+static const char*const fieldName[FIELD_N]={"SURVEY","RATIONS","CLINIC","RESTORE"};
+static void openFieldLedger(int v);
+#endif
 static int inspected=-1, trSel=1, statusSel=0, specialEventSel=0, fireElementalNext=0;
 static u8 printerTile=T_GRASS, printerBiome; static int printerCopied, possessed=-1;
 static const u8 statusMask[6]={ST_INVINCIBLE,ST_ASH_FEVER,ST_COUGH,ST_MOTIVATED,ST_HANDSOME,ST_MINDLESS};
@@ -1383,14 +1440,82 @@ static int creatureFamily(const Cr*c){
     static const u8 base[8]={12,5,11,4,3,1,9,2};
     return (base[s->a]+3*(kd[vilK[v]-1].cul%5))&15;
 }
-static void usePower(int tx,int ty,int fresh){ KD_DIRTY();
+static int fieldCityAt(int x,int y){
+    int v=bldv[y][x]-1;
+    if(bld[y][x]&&v>=0&&v<VIL_N&&vil[v].on) return v;
+    return vilAny(x,y,5);
+}
+static int fieldRations(int v){
+    Vil*V=&vil[v];
+    int helped=0;
+    for(int dy=-6;dy<=6&&helped<8&&V->stock;dy++) for(int dx=-6;dx<=6&&helped<8&&V->stock;dx++){
+        int x=V->x+dx, y=V->y+dy;
+        if((unsigned)x>=WW||(unsigned)y>=WH||dx*dx+dy*dy>36||!occ[y][x]) continue;
+        Cr*c=&cr[occ[y][x]-1];
+        if(!c->alive||sp[c->sp].a!=V->race||c->food>=65||vilNear(V->race,x,y,6)!=v) continue;
+        c->food+=35; V->stock--; helped++;
+    }
+    return helped;
+}
+static int fieldRestore(int x,int y){
+    int ground=world[y][x], bio=bioAt(x,y), ruin=bld[y][x]==B_RUIN;
+    if(bld[y][x]&&!ruin) return 0;
+    if(ground!=T_DIRT&&bio!=1&&bio!=2&&!ruin) return 0;
+    if(ruin){ bld[y][x]=B_NONE; bldv[y][x]=0; }
+    if(bio==1||bio==2) bioSet(x,y,0);
+    if(ground==T_DIRT) setCell(x,y,T_GRASS);
+    else if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y);
+    return 1;
+}
+static int fieldClinic(int x,int y){
+    int i=occ[y][x]-1;
+    if(i<0||!cr[i].alive) return 0;
+    Cr*c=&cr[i];
+    u8 before=c->sick;
+    if(DISEASE(c)==1) SET_DISEASE(c,2);
+    else if(DISEASE(c)==3) SET_DISEASE(c,0);
+    c->sick&=(u8)~(ST_ASH_FEVER|ST_COUGH);
+    return before!=c->sick;
+}
+static void fieldApply(int x,int y){
+    if((unsigned)x>=WW||(unsigned)y>=WH) return;
+    if(fieldMode==FIELD_SURVEY||fieldMode==FIELD_RATIONS){
+        int v=fieldCityAt(x,y);
+        if(v<0){ siprintf(info,"TAP A CITY OR ITS HOMES"); return; }
+        if(fieldMode==FIELD_SURVEY){
+#ifndef PCTEST
+            openFieldLedger(v);
+#endif
+            return;
+        }
+        int n=fieldRations(v);
+        if(!n){ siprintf(info,vil[v].stock?"NO HUNGRY FOLK NEARBY":"CITY STORE IS EMPTY"); return; }
+        siprintf(info,"RATIONS FOR %d FOLK",n);
+    } else {
+        int r=fieldRadius, n=0;
+        for(int dy=-r;dy<=r;dy++) for(int dx=-r;dx<=r;dx++){
+            int xx=x+dx, yy=y+dy;
+            if((unsigned)xx>=WW||(unsigned)yy>=WH||dx*dx+dy*dy>r*r) continue;
+            n+=fieldMode==FIELD_CLINIC?fieldClinic(xx,yy):fieldRestore(xx,yy);
+        }
+        if(!n){ siprintf(info,fieldMode==FIELD_CLINIC?"NO AILMENTS IN REACH":"NO DAMAGED LAND IN REACH"); return; }
+        siprintf(info,fieldMode==FIELD_CLINIC?"TREATED %d CREATURES":"RESTORED %d TILES",n);
+    }
+    stUse++;
+    fxReq(FX_BLESS);
+}
+static void usePower(int tx,int ty,int fresh){
+    if(pw[power].kind==PK_FIELD){ if(fresh) fieldApply(tx,ty); return; }
+    KD_DIRTY();
     const Pw*P=&pw[power]; int r=brush;
     if(fresh){ stUse++; if(P->kind==PK_GIFT) stGift++; static const u8 fxOf[65]={FX_INSPECT,FX_PAINT,FX_SPAWN,FX_RAIN,FX_FIRE,FX_LIGHTNING,FX_METEOR,FX_SMITE,FX_HEAL,FX_FEED,FX_SETTLE,FX_WAR,FX_PEACE,FX_BLESS,FX_GIFT,FX_BIRTH,FX_METEOR,FX_RAIN,FX_BIRTH,FX_BLESS,FX_LIGHTNING,FX_RAIN,FX_SMITE,FX_METEOR,FX_MONSTER_SEEN,FX_SMITE,FX_RAIN,FX_BLESS,FX_WAR,FX_WAR,FX_PEACE,FX_SMITE,FX_PEACE,FX_RAIN,FX_RAIN,FX_RAIN,FX_GIFT,FX_RAIN,FX_SMITE,FX_SMITE,FX_BIRTH,FX_SMITE,FX_BLESS,FX_BLESS,FX_BLESS,FX_MONSTER_SEEN,FX_SMITE,FX_MONSTER_SEEN,FX_SMITE,FX_RAIN,FX_BLESS,0,0,0,0,0,0,0,0,0,0,0,FX_MONSTER_SEEN}; fxReq(fxOf[P->kind]); } if(P->kind==PK_GIFT&&(it[itSel].kind==IK_WEAPON||it[itSel].kind==IK_ARMOR||it[itSel].kind==IK_RELIC||it[itSel].kind==IK_GEM)) r=1;
     for(int dy=-r;dy<=r;dy++) for(int dx=-r;dx<=r;dx++){ if(dx*dx+dy*dy>r*r+r/2) continue; int x=tx+dx, y=ty+dy; if(x<0||y<0||x>=WW||y>=WH) continue;
         switch(P->kind){
         case PK_PAINT: if(P->arg>=100){ int t=world[y][x]; if(t>T_WATER&&t!=T_LAVA&&t!=T_MOUNT&&(fresh||(rnd()&1))){ bioSet(x,y,P->arg-100); if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); } break; }
             if(bld[y][x]){ bld[y][x]=0; bldv[y][x]=0; } bioSet(x,y,0); setCell(x,y,P->arg); if(occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; if(!walkable(&sp[c->sp],x,y)&&(rnd()&3)==0) killCr(occ[y][x]-1); } break;
-        case PK_SPAWN: if(fresh&&dx==0&&dy==0){ for(int k=0;k<brush;k++) addCr(spSel,x+(k?(int)(rnd()%3)-1:0),y+(k?(int)(rnd()%3)-1:0)); } break;
+        case PK_SPAWN: if(fresh&&dx==0&&dy==0){ int count=0;
+            for(int k=0;k<(brush?brush:1);k++) count+=addCr(spSel,x+(k?(int)(rnd()%3)-1:0),y+(k?(int)(rnd()%3)-1:0))>=0;
+            if(!count) siprintf(info,"TRY OPEN GROUND FOR THIS SPECIES"); } break;
         case PK_RAIN: if(world[y][x]==T_DIRT||world[y][x]==T_SAND||world[y][x]==T_DESERT) { if((rnd()&3)==0) setCell(x,y,T_GRASS); } else if(world[y][x]==T_LAVA) setCell(x,y,T_MOUNT); else if(world[y][x]==T_GRASS&&(rnd()&15)==0) setCell(x,y,T_FOREST); break;
         case PK_FIRE: burnAt(x,y,90); if(world[y][x]==T_FOREST||world[y][x]==T_GRASS||world[y][x]==T_JUNGLE){ if((rnd()&1)==0) setCell(x,y,T_DIRT); } if(occ[y][x]&&(rnd()&1)) { Cr*c=&cr[occ[y][x]-1]; if(c->hp>10) c->hp-=10; else killCr(occ[y][x]-1); } break;
         case PK_BOLT: case PK_BOLT_SMALL: case PK_BOLT_MEDIUM: { int rad=P->kind==PK_BOLT_SMALL?0:P->kind==PK_BOLT_MEDIUM?1:0; if(dx*dx+dy*dy<=rad*rad&&fresh){ burnAt(x,y,255); if(occ[y][x]){ int ci=occ[y][x]-1; if(P->kind==PK_BOLT_SMALL) damageCreature(ci,18,-1); else killCr(ci); } if(world[y][x]==T_FOREST||world[y][x]==T_JUNGLE) setCell(x,y,T_DIRT); } } break;
@@ -1408,7 +1533,7 @@ static void usePower(int tx,int ty,int fresh){ KD_DIRTY();
         case PK_KILL: if(occ[y][x]) killCr(occ[y][x]-1); break;
         case PK_HEAL: if(occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; c->hp=(u8)maxHp(c); if(DISEASE(c)==1) SET_DISEASE(c,2); else if(DISEASE(c)==3) SET_DISEASE(c,0); } break;      // heal ends the plague (immune after) and the zombie infection (not immune)
         case PK_FEED: if(occ[y][x]) cr[occ[y][x]-1].food=120; else if(world[y][x]==T_DIRT) setCell(x,y,T_GRASS); break;
-        case PK_SETTLE: if(fresh&&dx==0&&dy==0){ int race=spSel<8?sp[spSel].a:0; if(vilFound(race,x,y)<0) siprintf(info,"%s",vilWhyNot(x,y)); else { for(int k=0;k<4;k++) addCr(spSel<8?spSel:0,x+(int)(rnd()%5)-2,y+(int)(rnd()%5)-2); } } break;
+        case PK_SETTLE: if(fresh&&dx==0&&dy==0){ int race=spSel<8?sp[spSel].a:0; if(vilFound(race,x,y)<0) siprintf(info,"%s",vilWhyNot(x,y)); else { for(int k=0;k<4;k++) addCr(spSel<8?spSel:0,x+(int)(rnd()%5)-2,y+(int)(rnd()%5)-2); siprintf(info,"VILLAGE FOUNDED. LET IT GROW"); } } break;
         case PK_INSPIRE: case PK_WHISPER: case PK_DISCORD: case PK_UNITY: case PK_SPITE: case PK_FRIEND: case PK_DUSTW: case PK_DUSTG: if(fresh&&dx==0&&dy==0) polApply(P->kind,x,y); break;
         case PK_MONOLITH: if(fresh&&dx==0&&dy==0){ if(world[y][x]==T_WATER||world[y][x]==T_DEEP||world[y][x]==T_LAVA||bld[y][x]) siprintf(info,"NO ROOM FOR A MONOLITH"); else { bld[y][x]=B_STATUE; bldv[y][x]=255; monoScan(); siprintf(info,"A MONOLITH RISES"); logEv("A MONOLITH RISES"); if(winX>=0) putCell(x,y); } } break;
         case PK_FIREEL: if(fresh&&dx==0&&dy==0){ int i=hzAdd(HZ_FIRE,x,y); if(i<0) siprintf(info,"TOO MANY CALAMITIES AT ONCE"); else { hz[i].pad=(u8)(fireElementalNext++%5); static const char*const fn[5]={"EMBER","MAGMA","INFERNO","PLASMA","SOLAR"}; siprintf(info,"A %s ELEMENTAL WAKES",fn[hz[i].pad]); } } break;
@@ -1461,6 +1586,7 @@ static int planetSize=128;
 static void (*loadHook)(const char*,int);
 #define LOADING(m,p) do{ if(loadHook) loadHook(m,p); }while(0)
 static void newWorld(void){
+    mapPinMask=0;
     dlgPend=-1; joyInvalidate(); vilIndexInvalidate();
 #ifndef PCTEST
     storyGoalT=0;
@@ -1501,6 +1627,7 @@ static int rdVec(void*dst,int dstN,int srcN,int esz,SV*f){ u8 tmp[32]; int ok=1;
 #include "ggidsv.h"
 #ifndef PCTEST
 static void zSet(int nz);
+static void tbInvalidate(void);
 #endif
 static int saveGameRaw(const char*path){
     compact(); wgBuild(); cursor=0;     // (10d: and the war groups are counted again, as a load will count them) the dead are dropped first, so a loaded game goes on exactly as this one would
@@ -1561,6 +1688,7 @@ static int loadGameRaw(const char*path){ KD_DIRTY(); joyInvalidate(); vilIndexIn
     bioCount(); bioRescan();
     svClose(f);
     if(!ok){ return 0; }
+    mapPinMask=0;
     tick=(int)h.tick; year=(int)h.year; rs=h.rs; stKill=h.stKill; stGift=h.stGift; stUse=h.stUse; seenN=h.seenN; camX=h.camX; camY=h.camY; chapter=h.chapter; tierOpen=h.tierOpen; storyOn=h.storyOn; storyDone=h.storyDone; monOn=h.monOn; shape3=h.shape3; nVilOn=h.nVilOn;
     for(int q=0;q<4;q++) if(rz[q].until>(int)h.tick&&(rz[q].a<0||rz[q].a>=8||rz[q].x<0||rz[q].y<0||rz[q].x>=gW||rz[q].y>=gH)){ memset(rz,0,sizeof rz); rzN=0; break; }
     memcpy(seenB,h.seen,sizeof seenB); memcpy(slainB,h.slain,sizeof slainB); nVilOn=0; memset(vilSick,0,sizeof vilSick); for(int v=0;v<VIL_N;v++){ nVilOn+=vil[v].on; if(vil[v].on) bldFlags(v); else vilBf[v]=0; }
@@ -1568,6 +1696,7 @@ static int loadGameRaw(const char*path){ KD_DIRTY(); joyInvalidate(); vilIndexIn
     dlgPend=-1;
 #ifndef PCTEST
     storyGoalT=0;
+    tbInvalidate();
     zSet(h.pad_[2]<=5?h.pad_[2]:3);      // the zoom level comes back with the save
 #endif
     return 1; }
@@ -2152,15 +2281,21 @@ static void drawMinimap(void){ if(zBmp&&!view3d){ zScale(); uiVw=256*zK_/zS_; ui
 static const char* const introTxt[]={"","  IN THE BEGINNING THERE WAS","  ONLY A QUIET, EMPTY PLANET.","","  THEN YOU WOKE.","","  YOUR HANDS MAKE LAND, RAIN","  AND FIRE. YOUR WORD MAKES LIFE.","","  TEACH THE FIRST FOLK TO LIVE.","","  BUT THE DARK IS PATIENT,","  AND IT HAS TEETH.","","  TOUCH THE WORLD TO BEGIN.",0};
 static const char* const endTxt[]={"","  THE FOLK HAVE CITIES NOW,","  AND SONGS, AND WAR, AND PEACE.","","  YOU MET EVERY NIGHTMARE","  AND GAVE IT A NAME.","","  THEY DO NOT KNOW YOUR FACE.","  THEY KNOW THE RAIN,","  THE HARVEST, THE SPARK THAT","  LEAPS FROM THE SKY.","","  THE STORY IS TOLD.","","  THE WORLD IS YOURS, GODGUY.",0};
 static const char* const credTxt[]={"","","       BORE: GODGUY","","  A SPINOFF OF BORE","","  DESIGN, CODE, MUSIC","  AND MONSTERS","  BY CLAUDE, FOR YOU","","  MUSIC AMALGAMATED FROM","  THE SONGS OF BORE","  (THE DIPPER MAN, AND ALL","  THE REST)","","  MANY MONSTERS","  392 CREATURES","  364 ITEMS","  23 TRAITS","  134 TRACKS","","  THANK YOU FOR PLAYING","","","","",0};
-static const char* const helpTxt[]={"TOUCH THE WORLD: USE POWER","L R      CHOOSE POWER","X Y      BRUSH SIZE","         (SPAWN: SPECIES)","         (GIFT: ITEM)","         (MUTATE: TRAIT)","B + X Y  JUMP TEN","B + DRAG PANS THE MAP","L + R    ZOOM IN","X + Y    ZOOM OUT","  6 LEVELS: PLANET, VERY FAR,","  FAR, NORMAL, CLOSE, MICRO","D-PAD    PAN (B = FAST)","A        PAUSE  (B+A: SPEED)","  PLANET: TOUCH = POWER,","  B + DRAG = SPIN, A = SHAPE","SELECT   NEXT INFO PAGE","START    PAUSE MENU","Y + A   WALK THE GLOBE (3D)","L+R+SELECT    SAVE NOW","","STORY: FINISH CHAPTERS TO","OPEN ITEMS FOR FREE PLAY.","100%: MEET AND SLAY EVERY","MONSTERS AFTER THE STORY.","","TRAITS: CHILDREN INHERIT AND","SOMETIMES MUTATE. MUTATE","MAKES A SUBSPECIES ON PURPOSE.","","TOWERS SHOOT MONSTERS.","GIFTS DECIDE WHO WINS.","","WRATH TAB: TORNADO, ACID RAIN,","BLACK HOLE, ATOMIC BOMB, PLAGUE","AND CURSE. HEAL CURES A PLAGUE.","WORLD > LAWS SWITCHES RULES OFF.",0};
-static const char* const tipTxt[]={"TOUCH THE WORLD TO USE A POWER","L R CHANGES THE POWER","TRY SPAWN, THEN RAIN AND FIRE","START A VILLAGE: SETTLE","SELECT: STORY, BESTIARY, HELP","X+Y SHOWS THE WORLD AS A GLOBE","SNACKS MAY GIVE FOLK CHILL TRAITS","DAVE SAYS: HAVE YOU TRIED SITTING","FEED A MONSTER A NACHO. SEE WHAT HAPPENS","THE COUCH HAS ROOM FOR EVERYONE","MUNCHIES ARE NOT A BUG"};
-static const char* const*sceneTxt, *const*sceneNext; static int menuOn, menuSel, menuAsk, toastT, dlgOn, dlgIdx, dlgChars, dlgPaused, sceneOff, sceneT, sceneScroll, endShown, scenePaused, helpSel, trPage, tipN;
+static const char* const helpTxt[]={"TOUCH THE WORLD: USE POWER","L R      POWER IN CURRENT TAB","B + L R  SWITCH KIT TABS","X Y      BRUSH SIZE","         (SPAWN: SPECIES)","         (GIFT: ITEM)","         (MUTATE: TRAIT)","         (FIELD TOOLS: MODE)","B + X Y  FIELD BRUSH RADIUS","         OR JUMP TEN SPECIES/ITEMS","B + DRAG PANS THE MAP","L + R    ZOOM IN","X + Y    ZOOM OUT","  6 LEVELS: PLANET, VERY FAR,","  FAR, NORMAL, CLOSE, MICRO","D-PAD    PAN (B = FAST)","A        PAUSE  (B+A: SPEED)","  PLANET: TOUCH = POWER,","  B + DRAG = SPIN, A = SHAPE","SELECT   NEXT INFO PAGE","START    PAUSE MENU","Y + A   WALK THE GLOBE (3D)","L+R+SELECT    SAVE NOW","","STORY: FINISH CHAPTERS TO","OPEN ITEMS FOR FREE PLAY.","100%: MEET AND SLAY EVERY","MONSTERS AFTER THE STORY.","","TRAITS: CHILDREN INHERIT AND","SOMETIMES MUTATE. MUTATE","MAKES A SUBSPECIES ON PURPOSE.","","TOWERS SHOOT MONSTERS.","GIFTS DECIDE WHO WINS.","","EVENTS TAB: TORNADO, ACID RAIN,","BLACK HOLE, ATOMIC BOMB, PLAGUE","AND CURSE. HEAL CURES A PLAGUE.","WORLD > LAWS SETS SIM RULES.","","KIT SHOWS STARTERS AND STARRED POWERS.","STAR POWERS IN THE WORLD BROWSER.","WORLD > PINS BOOKMARKS MAP VIEWS.",0};
+static const char* const*sceneTxt, *const*sceneNext; static int menuOn, menuSel, menuAsk, toastT, dlgOn, dlgIdx, dlgChars, dlgPaused, sceneOff, sceneT, sceneScroll, endShown, scenePaused, helpSel, trPage;
 static const Dl*dlgSet; static char lastInfo[64];
 static const FmvClip *sceneClip;
 _Static_assert(sizeof fmvClips/sizeof *fmvClips==CHAP_N+1,"One FMV per chapter plus the finale");
 _Static_assert(sizeof fmvPortraitOffsets/sizeof *fmvPortraitOffsets==(W_N+1)*FMV_PORTRAIT_CELS,
     "Portrait cels for the cast and older Mira");
-static const char* const pwDesc[PW_N]={"LOOK AT A CREATURE OR A VILLAGE","PAINT SHALLOW WATER","PAINT DEEP SEA","PAINT SAND","PAINT GRASS","PLANT FOREST","PLANT JUNGLE","RAISE HILLS","RAISE MOUNTAINS","PAINT SNOW","PAINT DESERT","PAINT SWAMP","PAINT LAVA","PAINT CORRUPTED GROUND","PAINT INFERNAL GROUND","PAINT ENCHANTED GROUND","WARM THE AIR (GREENHOUSE)","ADD OXYGEN TO THE AIR","RAISE A DUST CLOUD","CREATE LIFE  (X Y: SPECIES)","RAIN GREENS THE LAND","BURN WHAT YOU TOUCH","STRIKE ONE TILE DEAD","DROP A METEOR","KILL WHAT YOU TOUCH","HEAL CREATURES","FEED CREATURES","FOUND A VILLAGE","START A WAR","END ALL WARS","FILL A VILLAGE STORE","GIVE AN ITEM  (X Y: ITEM)","GIVE A TRAIT  (X Y: TRAIT)","SHAKE THE GROUND","FLOOD THE LAND","MAKE THE LAND BLOOM","CHILL A CREATURE OR VILLAGE","A ROAMING TORNADO TEARS THINGS UP","ACID BURNS PLANTS, HOMES AND FLESH","A HOLE THAT EATS LAND AND LIFE","THE BIG ONE: A CRATER AND FALLOUT","SICKEN FOLK: IT SPREADS BY TOUCH","WITHER FOLK AND ROT A STORE","A CITY BECOMES ITS OWN KINGDOM","WHISPER WAR: TAP A KINGDOM, THEN A TARGET","TAP A KINGDOM: ITS ALLIANCES BREAK","TAP TWO KINGDOMS: THEY ALLY","EVERYONE DESPISES THIS KINGDOM","TAP A KINGDOM: ITS WARS END","A KINGDOM FORGETS ITS LANGUAGE","CREATURES FORGET FAMILY AND LOVED ONES","A CITY FORGETS ITS KINGDOM","RAIN GEAR ON FOLK AND CREATURES","STRIP GEAR FROM ALL IN THE BRUSH","A ROAMING FIRE SPIRIT (FIVE ELEMENTAL VARIANTS)","A CREEPING GREY BLOB EATS THE LAND","A FALLING CRAB: EVERYONE RAVES","THE GIANT CRAB STOMPS (COOLS DOWN)","GIVE ANIMALS A MIND OF THEIR OWN","A STONE THAT SLOWLY UPLIFTS ANIMALS NEAR IT","TOGGLE A CREATURE STATUS (X Y: STATUS)","ALIENS LAND AND HUNT THE LIVING","AN ELDER DRAGON BURNS A PATH","WRAITHS HAUNT SETTLEMENTS","A GROWING TUMOR SPREADS OVER THE LAND","A MOVING BLIZZARD FREEZES THE GROUND","A HEALING GARDEN SPREADS LIFE","A SMALL PRECISE LIGHTNING STRIKE","A WIDER LIGHTNING STRIKE","COPY A TILE AND STAMP IT WITH THE BRUSH","PRINT FOREST","PRINT WATER","PRINT MOUNTAIN","COPY THE BIOME UNDER THE BRUSH","CLEAR BIOME AND BUILDINGS","TAKE DIRECT CONTROL OF A CREATURE WITH THE D-PAD","CYCLE THROUGH NAVY SEALS, PLANES, HYPERCUBE, GHOST CIVILIZATION, CYBERCORE AND SUPER PUMPKIN"};
+static const char* const pwDesc[]={"LOOK AT A CREATURE OR A VILLAGE","PAINT SHALLOW WATER","PAINT DEEP SEA","PAINT SAND","PAINT GRASS","PLANT FOREST","PLANT JUNGLE","RAISE HILLS","RAISE MOUNTAINS","PAINT SNOW","PAINT DESERT","PAINT SWAMP","PAINT LAVA","PAINT CORRUPTED GROUND","PAINT INFERNAL GROUND","PAINT ENCHANTED GROUND","WARM THE AIR (GREENHOUSE)","ADD OXYGEN TO THE AIR","RAISE A DUST CLOUD","CREATE LIFE  (X Y: SPECIES)","RAIN GREENS THE LAND","BURN WHAT YOU TOUCH","STRIKE ONE TILE DEAD","DROP A METEOR","KILL WHAT YOU TOUCH","HEAL CREATURES","FEED CREATURES","FOUND A VILLAGE","START A WAR","END ALL WARS","FILL A VILLAGE STORE","GIVE AN ITEM  (X Y: ITEM)","GIVE A TRAIT  (X Y: TRAIT)","SHAKE THE GROUND","FLOOD THE LAND","MAKE THE LAND BLOOM","CHILL A CREATURE OR VILLAGE","A ROAMING TORNADO TEARS THINGS UP","ACID BURNS PLANTS, HOMES AND FLESH","A HOLE THAT EATS LAND AND LIFE","THE BIG ONE: A CRATER AND FALLOUT","SICKEN FOLK: IT SPREADS BY TOUCH","WITHER FOLK AND ROT A STORE","A CITY BECOMES ITS OWN KINGDOM","WHISPER WAR: TAP A KINGDOM, THEN A TARGET","TAP A KINGDOM: ITS ALLIANCES BREAK","TAP TWO KINGDOMS: THEY ALLY","EVERYONE DESPISES THIS KINGDOM","TAP A KINGDOM: ITS WARS END","A KINGDOM FORGETS ITS LANGUAGE","CREATURES FORGET FAMILY AND LOVED ONES","A CITY FORGETS ITS KINGDOM","RAIN GEAR ON FOLK AND CREATURES","STRIP GEAR FROM ALL IN THE BRUSH","A ROAMING FIRE SPIRIT (FIVE ELEMENTAL VARIANTS)","A CREEPING GREY BLOB EATS THE LAND","A FALLING CRAB: EVERYONE RAVES","THE GIANT CRAB STOMPS (COOLS DOWN)","GIVE ANIMALS A MIND OF THEIR OWN","A STONE THAT SLOWLY UPLIFTS ANIMALS NEAR IT","TOGGLE A CREATURE STATUS (X Y: STATUS)","ALIENS LAND AND HUNT THE LIVING","AN ELDER DRAGON BURNS A PATH","WRAITHS HAUNT SETTLEMENTS","A GROWING TUMOR SPREADS OVER THE LAND","A MOVING BLIZZARD FREEZES THE GROUND","A HEALING GARDEN SPREADS LIFE","A SMALL PRECISE LIGHTNING STRIKE","A WIDER LIGHTNING STRIKE","COPY A TILE AND STAMP IT WITH THE BRUSH","PRINT FOREST","PRINT WATER","PRINT MOUNTAIN","COPY THE BIOME UNDER THE BRUSH","CLEAR BIOME AND BUILDINGS", "MOVE ONE CREATURE WITH THE D-PAD","SEND A CREATURE TO ITS HOME","TOGGLE A CITY'S BORDER MARKERS","CYCLE THROUGH SPECIAL EVENTS","X/Y SWITCHES FIELD TOOLS"};
+_Static_assert(sizeof pwDesc/sizeof *pwDesc==PW_N,"Each power needs a description");
+static const char*const fieldDesc[FIELD_N]={
+    "TAP A HOME TO OPEN ITS CITY LEDGER",
+    "FEED FOLK FROM A CITY'S OWN STORE",
+    "TAP TO TREAT PLAGUE AND FEVERS",
+    "TAP TO RECLAIM RUINS AND BAD SOIL"
+};
 static int sceneLines(const char*const*t){ int n=0; while(t[n]) n++; return n; }
 static void sceneStart(const char*const*t,int scroll){ sceneTxt=t; sceneScroll=scroll; sceneOff=scroll?-20:0; sceneT=0; if(!sceneOn) scenePaused=paused; sceneOn=1; paused=1; }
 static void sceneStartFmv(const char*const*t,const FmvClip*clip){
@@ -2233,7 +2368,24 @@ static void doSave(void){ if(!sdOk) { siprintf(info,"NO SD CARD: NOT SAVED"); re
 #endif
  siprintf(info,"SAVE FAILED"); } }
 static void setSize(int sz){ planetSize=sz; }
-static void startWorld(int story){ possessed=-1; printerCopied=0; storyOn=story; newWorld(); camX=(WW*8-256)/2; camY=(WH*8-192)/2; winX=-99; refillWindow(); titleOn=0; paused=0; endShown=storyDone; musReq(GM_NEWWORLD); if(story&&chapter==0&&stUse==0){ sceneStartFmv(introTxt,&fmvClips[0]); dlgPend=0; } }
+static void startWorld(int story){
+    possessed=-1; printerCopied=0; storyOn=story;
+    newWorld();
+    int x=WW/2,y=WH/2,best=33*33;
+    for(int dy=-32;dy<=32;dy++) for(int dx=-32;dx<=32;dx++){
+        int tx=WW/2+dx,ty=WH/2+dy,d=dx*dx+dy*dy;
+        if(d<best&&buildable(tx,ty)&&!occ[ty][tx]){ x=tx; y=ty; best=d; }
+    }
+    zSet(Z_NORMAL);
+    camX=x*8-128; camY=y*8-72; winX=-99;
+    power=0;
+    for(int i=0;i<PW_N;i++) if(pw[i].kind==PK_PAINT&&pw[i].arg==T_GRASS){ power=i; break; }
+    if(stUse<6) spSel=0;
+    fieldMode=FIELD_SURVEY;
+    refillWindow(); openStarterKit();
+    titleOn=0; paused=0; endShown=storyDone; musReq(GM_NEWWORLD);
+    if(story&&chapter==0&&stUse==0){ sceneStartFmv(introTxt,&fmvClips[0]); dlgPend=0; }
+}
 static void monName(int m,char*out){ int a=ARCH_A+m/16, fam=m%16; strcpy(out,advNm[fam]); strcat(out," "); strcat(out,arch[a].nm); }
 static short plLon[109*109], plWy[109*109]; static u8 plJ[109*109];
 #ifdef NDSSHIM
@@ -2253,10 +2405,10 @@ static void uiPlanetSprite(int cx,int cy,int R){   // the planet as a lit ball (
     for(int y=-R;y<=R;y++) for(int x=-R;x<=R;x++){ if(x*x+y*y>R*R) continue; int k=((y*B/R)+B)*109+((x*B/R)+B); if(plJ[k]==255) continue; int wx=((plLon[k]*WW>>12)+shift)%WW, wy=plWy[k]*WH>>12; if(wy<0) wy=0; if(wy>=WH) wy=WH-1; uiPx(cx+x,cy+y,100+world[wy][wx]*3+plJ[k]); uiZSet(cx+x,cy+y,3+PLZ(k)); }
     for(int a=0;a<180;a++) uiPx(cx+plHalo[a][0]*R/B,cy+plHalo[a][1]*R/B,U_CYAN); }
 static void uiLoadHook(const char*msg,int pct){   // a loading screen: the planet grows as the world is made
-    static int n; n++; uiRect(0,0,256,192,U_BG); for(int y=0;y<192;y+=3) uiRect(0,y,256,1,U_PANEL); for(int k=0;k<60;k++){ int x=(int)(hsh(k,1,7)%256), y=(int)(hsh(k,2,7)%192); uiPx(x,y,(k&3)==0?U_WHITE:U_DIM); }
+    uiRect(0,0,256,192,U_BG); for(int y=0;y<192;y+=3) uiRect(0,y,256,1,U_PANEL); for(int k=0;k<60;k++){ int x=(int)(hsh(k,1,7)%256), y=(int)(hsh(k,2,7)%192); uiPx(x,y,(k&3)==0?U_WHITE:U_DIM); }
     uiPlanetSprite(128,76,8+pct*46/100); uiTextC(128,138,"BORE: GODGUY",U_GOLD,1); uiTextC(128,150,msg,U_WHITE,1);
     uiBar(48,162,160,9,pct,100,U_GREEN); { char b[8]; siprintf(b,"%d%%",pct); uiTextC(128,163,b,U_WHITE,1); }
-    uiText(6,182,tipTxt[(year+pct/20+n)%11],U_DIM,1); uiFlush(); }
+    uiText(6,182,"TAP THE KIT TO CHANGE POWERS",U_DIM,1); uiFlush(); }
 static int mScr, mSel; static u32 cSeed; static int cSel, cT=-1, cLand; static const char*const cEdgeN[]={"WALLS","VANISH","WRAP"};
 static const char*const cCoastN[]={"SMOOTH","NORMAL","RUGGED"}, *const cMtnN[]={"FEW","NORMAL","MANY"};
 static const char*const cShapeN[]={"CONTINENTS","SUPERCONTINENT","ISLANDS","ARCHIPELAGO","TWO CONTINENTS","INLAND SEAS"}, *const cSeaN[]={"DRY","LOW","NORMAL","HIGH","FLOODED"}, *const cClimN[]={"ICE AGE","COOL","TEMPERATE","WARM","SCORCHED"}, *const cWetN[]={"ARID","NORMAL","LUSH"}, *const cLifeN[]={"EMPTY","SPARSE","NORMAL","TEEMING"};
@@ -2316,6 +2468,7 @@ static void uiCreate(void){
     gfxHint(cHelp[cSel],U_LGREY);
     uiFlush(); }
 enum { MI_CONT, MI_STORY, MI_FREE, MI_OPT, MI_EXTRA, MI_BACK, MI_SIZE, MI_DIFF, MI_VOL, MI_MON, MI_SCULPT, MI_BEST, MI_CODEX, MI_HELP, MI_CRED, MI_DEBUG, MI_RESUME, MI_SAVE, MI_NEW, MI_MODE, MI_TITLE, MI_CREATE, MI_GO, MI_STYPE, MI_SPEED, MI_KING, MI_JOURNAL, MI_ACH, MI_CULT, MI_LANG, MI_BROWSE, MI_STATS, MI_FAVS, MI_MISSION, MI_WORLD, MI_LOAD, MI_SLOT, MI_CAL, MI_SCALE, MI_MMODE, MI_PEOPLES, MI_MMICON, MI_AUTOSAVE };
+static int fieldLedgerOpen;
 static int extrasView;      // which menu (0 main, 1 options, 2 extras), the highlighted row, a pending "are you sure", and whether an extras page is open
 static int menuList(int*ids){ int n=0, ctx=titleOn?0:1;
     if(mScr==0){ if(ctx==0){ ids[n++]=MI_CONT; ids[n++]=MI_CREATE; ids[n++]=MI_OPT; ids[n++]=MI_EXTRA; if(slotOn) ids[n++]=MI_SLOT; } else { ids[n++]=MI_RESUME; if(storyOn&&chapter<CHAP_N) ids[n++]=MI_MISSION; ids[n++]=MI_JOURNAL; ids[n++]=MI_STATS; ids[n++]=MI_FAVS; ids[n++]=MI_WORLD; ids[n++]=MI_SAVE; ids[n++]=MI_AUTOSAVE; if(sdOk) ids[n++]=MI_LOAD; if(slotOn) ids[n++]=MI_SLOT; ids[n++]=MI_OPT; ids[n++]=MI_EXTRA; } }
@@ -2459,6 +2612,17 @@ static void uiTheatre(void){
         uiPx(sx,sy,col); uiZSet(sx,sy,col==U_WHITE?nz*10/16384+4:nz*10/16384+1); }
     { char b[40]; siprintf(b,"YEAR %d  %d KINGDOMS",year,(int)(kd[0].on+kd[1].on+kd[2].on+kd[3].on+kd[4].on+kd[5].on+kd[6].on+kd[7].on)); uiTextC(128,182,b,U_GOLD,1); uiZSet(128,182,0); } }
 #endif
+static const char* starterHint(void){
+    int kind=pw[power].kind;
+    if(storyOn&&chapter==0&&stUse<2&&kind==PK_PAINT)
+        return "TOUCH THE MAP TO SHAPE THE GROUND";
+    if(storyOn&&(chapter==1||chapter==2)){
+        if(kind==PK_SETTLE) return "TAP OPEN GRASS TO FOUND A VILLAGE";
+        if(kind==PK_INSPECT) return "TAP A HOME TO SEE HOW IT'S DOING";
+    }
+    if(!storyOn&&stUse<3&&kind==PK_PAINT) return "PAINT LAND, THEN PICK SPAWN OR SETTLE";
+    return 0;
+}
 static void uiStatus(void){
 #ifdef GG_THEATRE
     if(view3d){ uiTheatre(); uiFlush(); return; }
@@ -2474,19 +2638,19 @@ static void uiStatus(void){
     { struct { int ic; const char*l; int v; } r[6]={{IC8_LIFE,"LIFE",alive},{IC8_FOLK,"FOLK",folk},{IC8_HOME,"HOMES",hh},{IC8_FLAG,"VILLAGES",nVilOn},{IC8_SKULL,"MONSTERS",monCountHud()},{IC8_STAR,"SLAIN",(int)stKill}};
       for(int i=0;i<6;i++){ int y=19+i*13; uiIcon8(143,y,r[i].ic); uiText(155,y+1,r[i].l,U_DIM,1); siprintf(b,"%d",r[i].v); uiTextR(250,y+1,b,U_WHITE); } }
     uiFrame(138,104,116,44,U_PANEL,U_BHI,U_BLO);
-    if(pw[power].kind==PK_SPAWN||pw[power].kind==PK_GIFT||pw[power].kind==PK_MUTATE||pw[power].kind==PK_STATUS){   // a picker: the choice before, the choice now, the choice after
+    if(pw[power].kind==PK_SPAWN||pw[power].kind==PK_GIFT||pw[power].kind==PK_MUTATE||pw[power].kind==PK_STATUS||pw[power].kind==PK_FIELD){   // a picker: the choice before, the choice now, the choice after
         uiText(143,107,"X Y: CHOOSE",U_DIM,1); for(int k=-1;k<=1;k++){ char nm[40]; int ok=1;
-            if(pw[power].kind==PK_SPAWN){ spName((spSel+nSp+k)%nSp,nm); } else if(pw[power].kind==PK_GIFT){ int j=k==0?itSel:itNext(itSel,k); itSay(nm,j); } else if(pw[power].kind==PK_STATUS){ int q=(statusSel+6+k)%6; strcpy(nm,statusName[q]); } else { int t=(trSel+TR_N+k)%TR_N; strcpy(nm,t?trNm[t]:"(CLEAR)"); (void)ok; }
+            if(pw[power].kind==PK_SPAWN){ spName((spSel+nSp+k)%nSp,nm); } else if(pw[power].kind==PK_GIFT){ int j=k==0?itSel:itNext(itSel,k); itSay(nm,j); } else if(pw[power].kind==PK_STATUS){ int q=(statusSel+6+k)%6; strcpy(nm,statusName[q]); } else if(pw[power].kind==PK_FIELD){ strcpy(nm,fieldName[(fieldMode+FIELD_N+k)%FIELD_N]); } else { int t=(trSel+TR_N+k)%TR_N; strcpy(nm,t?trNm[t]:"(CLEAR)"); (void)ok; }
             nm[17]=0; if(k==0) uiRect(140,116+(k+1)*10,112,10,U_SEL); uiText(143,118+(k+1)*10,nm,k==0?U_WHITE:U_DIM,1); } }
     else if(storyOn&&chapter<CHAP_N){ const Chap*C=&chap[chapter]; int v=chapVal(C->kind); if(v>(int)C->target) v=C->target; siprintf(b,"CHAPTER %d",chapter+1); uiText(143,108,b,U_GOLD,1); uiWrap(143,118,18,2,C->goal,U_WHITE); uiBar(143,137,106,9,v,C->target,U_GREEN); siprintf(b,"%d/%d",v,C->target); uiTextC(196,138,b,U_WHITE,1); }
     else if(storyOn){ uiText(143,108,"STORY TOLD",U_GOLD,1); uiText(143,120,"YOU ARE A GOD",U_WHITE,1); }
     else { int o; int tot=itCount(&o); uiText(143,108,"FREE PLAY",U_GOLD,1); siprintf(b,"ITEMS %d/%d",o,tot); uiText(143,120,b,U_WHITE,1); siprintf(b,"MET %d/%d",seenN,MON_N); uiText(143,132,b,U_DIM,1); }
     }
     uiFrame(2,150,252,28,U_PANEL,U_BHI,U_BLO); uiRect(5,153,14,14,U_SHADOW); uiPowerIcon(power,7,155);
-    { char nm[40]; if(pw[power].kind==PK_SPAWN){ spName(spSel,nm); siprintf(b,"%s",nm); } else if(pw[power].kind==PK_GIFT){ itSay(nm,itSel); siprintf(b,"%.28s",nm); } else if(pw[power].kind==PK_MUTATE) siprintf(b,"TRAIT: %s",trSel?trNm[trSel]:"CLEAR"); else if(pw[power].kind==PK_STATUS) siprintf(b,"STATUS: %.20s",statusName[statusSel]); else if(pw[power].kind==PK_PAINT) siprintf(b,"BRUSH %d",brush); else siprintf(b,"BRUSH %d",brush);
+    { const char*hint=starterHint(); char nm[40]; if(pw[power].kind==PK_SPAWN){ spName(spSel,nm); siprintf(b,"%s",nm); } else if(pw[power].kind==PK_GIFT){ itSay(nm,itSel); siprintf(b,"%.28s",nm); } else if(pw[power].kind==PK_MUTATE) siprintf(b,"TRAIT: %s",trSel?trNm[trSel]:"CLEAR"); else if(pw[power].kind==PK_STATUS) siprintf(b,"STATUS: %.20s",statusName[statusSel]); else if(pw[power].kind==PK_FIELD){ if(fieldMode>=FIELD_CLINIC) siprintf(b,"%s  R%d",fieldName[fieldMode],fieldRadius); else siprintf(b,"%s",fieldName[fieldMode]); } else siprintf(b,"BRUSH %d",brush);
       uiText(24,154,pw[power].nm,U_GOLD,1); uiText(24+uiTextW(pw[power].nm,1)+6,154,b,U_WHITE,1);
       if(storyGoalT>0&&storyOn&&chapter<CHAP_N) uiText(24,166,chap[chapter].goal,U_GOLD,1);
-      else if(toastT>0&&info[0]) uiText(24,166,info,U_YELLOW,1); else uiText(24,166,pw[power].kind<PW_N?pwDesc[power]:"",U_DIM,1); }
+      else if(toastT>0&&info[0]) uiText(24,166,info,U_YELLOW,1); else uiText(24,166,hint?hint:pw[power].kind==PK_FIELD?fieldDesc[fieldMode]:pwDesc[power],U_DIM,1); }
     uiIcon8(4,182,IC8_NOTE); { char mn[24]=""; if(gmCur>=0){ strncpy(mn,gmSongs[gmCur].name,19); mn[19]=0; } uiText(14,183,mn,U_DIM,1); } { siprintf(b,"%s %s",ageN[worldAge()],weatherName(weather)); uiTextR(250,183,b,U_DIM); }
     uiFlush(); }
 static int achSel, kingSel, jrSel;
@@ -2605,7 +2769,7 @@ static void brGo(const BrE*e){   // jump to it
         case 3: itSel=e->id; for(int i=0;i<PW_N;i++) if(pw[i].kind==PK_GIFT) power=i; break; case 4: power=e->id; break;
         default: if(e->id<nCr&&cr[e->id].alive){ x=cr[e->id].x; y=cr[e->id].y; inspKind=1; inspIdx=e->id; inspT=480; } }
     if(x>=0){ camX=x*8-128; camY=y*8-96; if(camX<0) camX=0; if(camY<0) camY=0; if(camX>WW*8-256) camX=WW*8-256; if(camY>WH*8-192) camY=WH*8-192; winX=-99; }
-    extrasView=0; page=0; if(!titleOn){ menuOn=0; paused=dlgPaused; } }
+    fieldLedgerOpen=0; extrasView=0; page=0; if(!titleOn){ menuOn=0; paused=dlgPaused; } }
 static void uiBrowser(void){
     brBuild(); uiWin("WORLD BROWSER","",brHn?"SELECT: BACK TO WHERE YOU WERE":"");
     for(int c=0;c<7;c++){ int x=4+c*36, sel=c==brCat; uiRound(x,15,35,13,sel?U_SEL:U_PANELHI,sel?U_GOLD:U_BHI); uiTextC(x+17,18,brCatN[c],sel?U_WHITE:U_DIM,1); uiBtn(x,15,35,13,0,0,&brCat,c); }
@@ -2729,13 +2893,28 @@ static void hud(void){
     uiNBtn=0;
     { int id=(dlgOn?1:0)|(sceneOn?2:0)|(titleOn?4:0)|(menuOn?8:0)|(extrasView?16:0)|(mScr<<5)|(page<<8); int dep=(dlgOn||sceneOn)?3:extrasView?2:(titleOn||menuOn)?(mScr>0?1:0):(page?1:0);
       if(uiScrId>=0&&id!=uiScrId){ uiTrans=uiTabDir?uiTabDir:dep>uiScrDepth?1:dep<uiScrDepth?-1:2; } uiScrId=id; uiScrDepth=dep; uiTabDir=0; }
-    uiBackHint=extrasView; if(extrasView&&page!=3&&page!=4){ uiTabPrev=extName(extStep(-1)); uiTabNext=extName(extStep(1)); } else uiTabPrev=uiTabNext=0; uiPageOpen=1|2|4|(auralOK()?8:0)|(debugOn?16:0)|32|64; uiPages=titleOn||sceneOn||dlgOn||extrasView?0:7; uiPageNow=page; uiDotX=124;
+    uiBackHint=fieldLedgerOpen?2:extrasView; if(extrasView&&page!=3&&page!=4){ uiTabPrev=extName(extStep(-1)); uiTabNext=extName(extStep(1)); } else uiTabPrev=uiTabNext=0; uiPageOpen=1|2|4|(auralOK()?8:0)|(debugOn?16:0)|32|64; uiPages=titleOn||sceneOn||dlgOn||extrasView?0:7; uiPageNow=page; uiDotX=124;
     if(dlgOn){ uiDialog(); return; } if(sceneOn){ uiScene(); return; } if(!extrasView){ if(titleOn){ uiTitle(); return; } if(menuOn){ uiMenu(); return; } }
     switch(page){ case 1: uiStory(); break; case 2: uiBest(); break; case 3: uiAural(); break; case 4: uiDebug(); break; case 5: uiCodex(); break; case 6: uiHelp(); break; case 7: uiKing(); break; case 8: uiJournal(); break; case 9: uiAch(); break; case 10: uiCult(); break; case 11: uiLang(); break; case 12: uiBrowser(); break; case 13: uiStats(); break; case 14: uiWorld(); break; case 15: uiPeople(); break; default: uiStatus(); }
 }
 
 static void menuToWorld(void){ setSize(planetSize); newWorld(); paused=1; camX=(WW*8-256)/2; camY=(WH*8-192)/2; winX=-99; refillWindow(); }
-static void menuOpenPage(int pg){ menuRetScr=mScr; menuRetSel=mSel; extrasView=1; page=pg; if(pg==3) juke=gmCur>=0?gmCur:0; menuOn=0; siprintf(info,"START: BACK TO MENU"); }
+static void menuOpenPage(int pg){ fieldLedgerOpen=0; menuRetScr=mScr; menuRetSel=mSel; extrasView=1; page=pg; if(pg==3) juke=gmCur>=0?gmCur:0; menuOn=0; siprintf(info,"START: BACK TO MENU"); }
+static void openFieldLedger(int v){
+    int k=vilK[v]-1;
+    wTab=wTabPrev=2; wSel=0;
+    wCity=v; wPeo=vil[v].race;
+    if(k>=0&&k<KN_N&&kd[k].on) wKing=k;
+    dlgPaused=paused; paused=1;
+    menuOpenPage(14); fieldLedgerOpen=1;
+    fxReq(FX_MENU_MOVE);
+}
+static int closeFieldLedger(int keys){
+    if(!fieldLedgerOpen||!(keys&(KEY_START|KEY_B))) return 0;
+    fieldLedgerOpen=extrasView=page=0; paused=dlgPaused;
+    return 1;
+}
+
 static int gOnTop=-1;
 static void uiScaleSave(void){
 #ifdef HW_CAL
@@ -2864,6 +3043,7 @@ int main(void){
         GG_FRAME_BEGIN(sequencer);
         musUpdate();
         GG_FRAME_END(sequencer);
+        if(view3d&&fieldLedgerOpen) zSet(Z_NORMAL);
         if(view3d&&(sceneOn||dlgOn||menuOn||titleOn)) leaveGlobe();
         if(zBmp&&(sceneOn||titleOn)) zSet(Z_NORMAL);
         if(sceneClip){
@@ -2935,7 +3115,6 @@ int main(void){
         if(!titleOn&&!extrasView&&storyGoalT>0) storyGoalT--;
         if(!titleOn&&!extrasView&&(tick&15)==0) unlockTiers();   // the chapter goal is checked here as well as in simulate(): a paused world, or a speed that steps over the 256th tick, never reached the check there
         if(storyOn&&storyDone&&!endShown&&!titleOn&&!extrasView&&!dlgOn&&dlgPend<0){ endShown=1; if(view3d) leave3D(); sceneNext=credTxt; sceneStartFmv(endTxt,&fmvClips[CHAP_N]); swiWaitForVBlank(); continue; }
-        if(!titleOn&&!sceneOn&&stUse<12&&tick>300&&(tick%600)==0){ siprintf(info,"%.32s",tipTxt[tipN++%11]); }
         if(titleOn&&!extrasView){
             int ch=kd!=0; { static const u16 code[10]={KEY_UP,KEY_UP,KEY_DOWN,KEY_DOWN,KEY_LEFT,KEY_LEFT,KEY_RIGHT,KEY_B,KEY_A,KEY_START};
                 menuInput(kd);
@@ -2945,18 +3124,19 @@ int main(void){
             refillWindow(); swiWaitForVBlank(); bgSetScroll(0,zBmp?0:camX&511,zBmp?0:camY&511); bgUpdate(); drawSprites(); oamUpdate(&oamMain); if((tick&7)==0) applyLight(); if(ch||(tick&31)==0){ drawMinimap(); hud(); }
             continue; }
         if(titleOn) kh&=~KEY_TOUCH;
-        if(extrasView&&(kd&KEY_START)){ extrasView=0; page=0; kd&=~KEY_START; if(titleOn) mScr=menuRetScr; else { menuOn=1; mScr=menuRetScr; } mSel=menuRetSel; }
-        int sp_=(kh&KEY_B)?6:3; int dirty=0;
+        int sp_=(kh&KEY_B)?6:3, dirty=0;
+        if(closeFieldLedger(kd)){ kd&=~(KEY_START|KEY_B); dirty=1; }
+        else if(extrasView&&(kd&KEY_START)){ extrasView=0; page=0; kd&=~KEY_START; if(titleOn) mScr=menuRetScr; else { menuOn=1; mScr=menuRetScr; } mSel=menuRetSel; }
         if((kd&KEY_SELECT)&&!extrasView){ if(0){ } else if(kh&KEY_L&&kh&KEY_R){ doSave(); } else { do page=(page+1)%7; while((page==3&&!auralOK())||(page==4&&!debugOn)); if(page==3) juke=gmCur>=0?gmCur:0; } dirty=1; }
         if((kd&(KEY_X|KEY_Y))&&(kh&KEY_X)&&(kh&KEY_Y)){ zSet(zl-1); dirty=1; kd&=~(KEY_X|KEY_Y); }      // X + Y: zoom out one level (planet, very far, far, NORMAL, close, micro)
         if((kd&(KEY_L|KEY_R))&&(kh&KEY_L)&&(kh&KEY_R)&&!(kh&(KEY_START|KEY_SELECT))){ zSet(zl+1); dirty=1; kd&=~(KEY_L|KEY_R); }      // L + R: zoom in
         if(kd&KEY_START){ if((kh&KEY_L)&&(kh&KEY_R)){ unlockAll=1; siprintf(info,"EVERYTHING UNLOCKED"); } else if(!(kh&KEY_SELECT)){ menuOn=1; menuSel=0; menuAsk=0; mScr=0; mSel=0; dlgPaused=paused; paused=1; } dirty=1; }
         if(extrasView&&page!=3&&page!=4&&(kd&(KEY_L|KEY_R))){ uiTabDir=(kd&KEY_L)?-1:1; page=(kd&KEY_L)?extStep(-1):extStep(1); kd&=~(KEY_L|KEY_R); dirty=1; fxReq(FX_MENU_MOVE); }
         if(page==2){ if(kd&KEY_UP) bestSel=bestSel>0?bestSel-1:0; if(kd&KEY_DOWN) bestSel=bestSel<319?bestSel+1:319; if(kd&KEY_LEFT) bestSel=bestSel>=10?bestSel-10:0; if(kd&KEY_RIGHT) bestSel=bestSel<310?bestSel+10:319; if(kd) dirty=1; kd&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); kh&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); }
-        else if(extrasView&&(page==1||page==13||page==14)){ if(page==14) worldInput(kd); if(kd) dirty=1; kd&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT|KEY_A|KEY_X|KEY_Y|KEY_SELECT); kh&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); }
+        else if(extrasView&&(page==1||page==13||page==14)){ if(page==14){ if(wTab!=wTabPrev) dirty=1; worldInput(kd); } if(kd) dirty=1; kd&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT|KEY_A|KEY_X|KEY_Y|KEY_SELECT); kh&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); }
         else if(page==12){ brBuild(); if(kd&KEY_UP) brSel=brSel>0?brSel-1:0; if(kd&KEY_DOWN) brSel=brSel<brN-1?brSel+1:(brN?brN-1:0); if(kd&KEY_LEFT){ brCat=(brCat+6)%7; brSel=0; } if(kd&KEY_RIGHT){ brCat=(brCat+1)%7; brSel=0; }
-            if((kd&KEY_Y)&&brCat==5){ brKind=(brKind+1)%8; brSel=0; } if((kd&KEY_X)&&brN){ u8*f=brFav(&brL[brSel]); if(f){ *f^=1; fxReq(*f?FX_UNLOCK:FX_MENU_MOVE); siprintf(info,*f?"STARRED":"STAR REMOVED"); } else if(brL[brSel].type>=5&&brL[brSel].id<nCr){ int on=crStarToggle(brL[brSel].id); fxReq(on?FX_UNLOCK:FX_MENU_MOVE); siprintf(info,on?"STARRED":"STAR REMOVED"); } }
-            if((kd&KEY_SELECT)&&brHn){ camX=brHist[0].cx; camY=brHist[0].cy; brCat=brHist[0].cat; brBuild(); brSel=brHist[0].sel<brN?brHist[0].sel:0; int zz=brHist[0].z; for(int k=0;k<7;k++) brHist[k]=brHist[k+1]; brHn--; winX=-99; if(zz!=zl) zSet(zz); fxReq(FX_MENU_BACK); siprintf(info,"BACK WHERE YOU WERE"); extrasView=0; page=0; if(!titleOn){ menuOn=0; paused=dlgPaused; } }
+            if((kd&KEY_Y)&&brCat==5){ brKind=(brKind+1)%8; brSel=0; } if((kd&KEY_X)&&brN){ u8*f=brFav(&brL[brSel]); if(f){ *f^=1; if(brL[brSel].type==4) tbInvalidate(); fxReq(*f?FX_UNLOCK:FX_MENU_MOVE); siprintf(info,*f?"STARRED":"STAR REMOVED"); } else if(brL[brSel].type>=5&&brL[brSel].id<nCr){ int on=crStarToggle(brL[brSel].id); fxReq(on?FX_UNLOCK:FX_MENU_MOVE); siprintf(info,on?"STARRED":"STAR REMOVED"); } }
+            if((kd&KEY_SELECT)&&brHn){ camX=brHist[0].cx; camY=brHist[0].cy; brCat=brHist[0].cat; brBuild(); brSel=brHist[0].sel<brN?brHist[0].sel:0; int zz=brHist[0].z; for(int k=0;k<7;k++) brHist[k]=brHist[k+1]; brHn--; winX=-99; if(zz!=zl) zSet(zz); fxReq(FX_MENU_BACK); siprintf(info,"BACK WHERE YOU WERE"); fieldLedgerOpen=0; extrasView=0; page=0; if(!titleOn){ menuOn=0; paused=dlgPaused; } }
             if((kd&KEY_A)&&brN){ brGo(&brL[brSel]); } if(kd) dirty=1; kd&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT|KEY_A|KEY_X|KEY_Y); kh&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); }
         else if(page>=7&&page<=11){ int*sel=(page==7||page==10)?&kingSel:page==8?&jrSel:page==11?&langSel:&achSel; int mx=(page==7||page==10)?KN_N-1:page==8?(jrN>14?jrN-14:0):page==11?4:ACH_N-1; if(page==7){ if(kd&KEY_X) cmpOn^=1; if(cmpOn){ if(kd&KEY_RIGHT) cmpB++; if(kd&KEY_LEFT) cmpB+=KN_N-1; cmpB%=KN_N; } } if(kd&KEY_UP) *sel=*sel>0?*sel-1:0; if(kd&KEY_DOWN) *sel=*sel<mx?*sel+1:mx; if(kd) dirty=1; kd&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); kh&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); }
         else if(page==5){ if(kd&KEY_UP) trPage=trPage>1?trPage-1:1; if(kd&KEY_DOWN) trPage=trPage<TR_N-1?trPage+1:TR_N-1; if(kd) dirty=1; kd&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); kh&=~(KEY_UP|KEY_DOWN|KEY_LEFT|KEY_RIGHT); }
@@ -3000,12 +3180,26 @@ int main(void){
         else {
         if(kh&KEY_LEFT) camX-=sp_; if(kh&KEY_RIGHT) camX+=sp_; if(kh&KEY_UP) camY-=sp_; if(kh&KEY_DOWN) camY+=sp_;
         if(camX<0) camX=0; if(camY<0) camY=0; if(camX>WW*8-256) camX=WW*8-256; if(camY>WH*8-192) camY=WH*8-192; }
-        if(kd&KEY_R){ power=(power+1)%PW_N; dirty=1; } if(kd&KEY_L){ power=(power+PW_N-1)%PW_N; dirty=1; }
+        if(kd&(KEY_L|KEY_R)){
+            int d=(kd&KEY_R)?1:-1;
+            if(kh&KEY_B) tbSelect((tbCat+TB_NCAT+d)%TB_NCAT);
+            else tbStep(d);
+            dirty=1;
+        }
         if(autoSaveDue()){ doSave(); dirty=1; }
+        if(pw[power].kind==PK_FIELD&&(kd&(KEY_X|KEY_Y))&&!(view3d&&(kh&(KEY_A|KEY_B)))){
+            int d=(kd&KEY_X)?1:-1;
+            if(kh&KEY_B){
+                fieldRadius+=d;
+                if(fieldRadius<0) fieldRadius=0;
+                if(fieldRadius>4) fieldRadius=4;
+            } else fieldMode=(fieldMode+FIELD_N+d)%FIELD_N;
+            kd&=~(KEY_X|KEY_Y); dirty=1;
+        }
         if(view3d){
             int ts=(kh&KEY_B)?4:2; if(!walkOn){ if(kh&KEY_LEFT) rotY-=ts; if(kh&KEY_RIGHT) rotY+=ts; if(kh&KEY_UP) rotX+=ts; if(kh&KEY_DOWN) rotX-=ts; if(!(kh&(KEY_LEFT|KEY_RIGHT|KEY_UP|KEY_DOWN))&&(tick&3)==0) rotY+=1; }
             if(rotX>85) rotX=85; if(rotX<-85) rotX=-85; rotY%=360; if(rotY<0) rotY+=360;
-            if(kh&KEY_X){ zoom3-=1; if(zoom3<30) zoom3=30; } if(kh&KEY_Y){ zoom3+=1; if(zoom3>110) zoom3=110; }
+            if((kh&KEY_X)&&(pw[power].kind!=PK_FIELD||(kh&KEY_B))){ zoom3-=1; if(zoom3<30) zoom3=30; } if((kh&KEY_Y)&&(pw[power].kind!=PK_FIELD||(kh&KEY_B))){ zoom3+=1; if(zoom3>110) zoom3=110; }
             if((kd&KEY_A)&&(kh&KEY_Y)){ walkOn^=1; if(walkOn){ walkX=(camX>>3)+16; walkY=(camY>>3)+12; if(walkX>=WW) walkX=WW-1; if(walkY>=WH) walkY=WH-1; zoom3=30; siprintf(info,"WALKING: PAD MOVES, A USES POWER"); } else siprintf(info,"WALK OFF"); dirty=1; kd&=~KEY_A; }
             if(walkOn){ static int wt=0; int mv=(kh&KEY_B)?2:4; if(++wt>=mv){ wt=0; int dx2=((kh&KEY_RIGHT)?1:0)-((kh&KEY_LEFT)?1:0), dy2=((kh&KEY_DOWN)?1:0)-((kh&KEY_UP)?1:0); if(dx2||dy2){ walkX=(walkX+dx2+WW)%WW; walkY+=dy2; if(walkY<0) walkY=0; if(walkY>=WH) walkY=WH-1; } }
                 faceTile(walkX,walkY,&rotX,&rotY); if(kh&KEY_A){ static int at=0; if((kd&KEY_A)||++at>=4){ at=0; usePower(walkX,walkY,(kd&KEY_A)?1:(pw[power].kind==PK_PAINT)); } } kd&=~KEY_A; }
@@ -3056,7 +3250,7 @@ int main(void){
         if(zd) zFlush();
         bgSetScroll(0,zBmp?0:camX&511,zBmp?0:camY&511); bgUpdate(); drawSprites(); oamUpdate(&oamMain);
         if((tick&7)==0||flashT>0) applyLight();
-        if(dirty) tbDraw();
+        if(dirty||!tbStamp) tbDraw();
         if((tick&15)==0||dirty){
             GG_FRAME_BEGIN(hudWork);
             drawMinimap(); hud();
