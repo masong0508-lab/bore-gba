@@ -431,9 +431,11 @@ static void refillWindow(void){
     if(oldX>=0&&oldY>=0&&abs(x0-oldX)<34&&abs(y0-oldY)<26){
         for(int y=y0-1;y<y0+26&&y<WH;y++){
             if(y<0) continue;
-            int freshRow=y<oldY-1||y>=oldY+26;
-            for(int x=x0-1;x<x0+34&&x<WW;x++){
-                if(x>=0&&(freshRow||x<oldX-1||x>=oldX+34)) putCell(x,y);
+            if(y<oldY-1||y>=oldY+26){
+                for(int x=x0-1;x<x0+34&&x<WW;x++) if(x>=0) putCell(x,y);
+            } else {
+                for(int x=x0-1;x<oldX-1&&x<x0+34&&x<WW;x++) if(x>=0) putCell(x,y);
+                for(int x=oldX+34>x0-1?oldX+34:x0-1;x<x0+34&&x<WW;x++) if(x>=0) putCell(x,y);
             }
         }
         return;
