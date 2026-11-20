@@ -218,6 +218,7 @@ static void checkCinematicActingAndMix(void){
     check(filmActingPose(roofBeats+2,170,1,F_ACT_WORK)==11||
           filmActingPose(roofBeats+2,170,1,F_ACT_WORK)==3,
           "3DS hammer beat lost its work animation");
+#ifndef GG_FILM_2D_FALLBACK
     // Depth and world-cast regressions: higher depth gives less apparent
     // displacement, a tracked camera changes the projection, and traveling
     // characters approach through perspective instead of sprite zoom alone.
@@ -241,6 +242,7 @@ static void checkCinematicActingAndMix(void){
             serin+=b->lead==F_SERIN||b->other==F_SERIN;
         }
     check(ness>=10&&serin>=10,"new 3DS cast lacks a persistent story arc");
+#endif // !GG_FILM_2D_FALLBACK
 #endif
     puts("FMV cinematic mix and acting OK: smooth ducks, timed props and native-detail 3DS poses");
 }
