@@ -237,6 +237,11 @@ static const char* const trNm[TR_N]={"","VENOMOUS","THICK-HIDED","SWIFT","LEAN",
 static const char* const trDesc[TR_N]={"","BITES HARDER: +4 DAMAGE","TAKES 3 LESS DAMAGE A HIT","MOVES 30% FASTER","HALF THE HUNGER","BREEDS HALF AGAIN AS OFTEN","LIVES HALF AGAIN AS LONG","60% MORE HP, +2 DAMAGE, SLOW","40% LESS HP, BREEDS MORE","WALKS ON LAVA","WALKS ON WATER AND LAND","WALKS UP MOUNTAINS","FLIES OVER ANYTHING BUT LAVA","+2 DAMAGE PER PACKMATE NEXT TO IT","EATS PLANTS AND PREY","HEALS A LITTLE EVERY TURN","+3 DAMAGE TO MONSTERS","BETTER GEAR, MORE BREEDING","HUNTS EVEN WHEN NOT HUNGRY","HALF OF THE HUNTERS MISS IT","FAST AT NIGHT, SLOW BY DAY","STRIKES FROM TWO TILES AWAY","HEALS THE ONES NEXT TO IT","WALKS SNOW AND MOUNTAINS","NOTHING MATTERS. HALF HUNGER, SLOW","HAS THE MUNCHIES: EATS ANYTHING, BREEDS MORE","LAUGHS IT OFF: HUNTERS MISS 1 IN 3","INNER PEACE: -2 DAMAGE, HEALS","FLOATS ACROSS WATER, LOST IN THOUGHT","50% MORE HP, VERY SLOW","1 HIT IN 8 LANDS FOR +6","STARES AT MOUNTAINS, THEN WALKS UP THEM","LESS SLOWED BY DESERT HEAT","LESS SLOWED BY SWAMP","RESISTS SNOW AND EXTREME COLD","SPIKES REFLECT SOME ATTACK DAMAGE","SOMETIMES DODGES A HIT","BUBBLE CUTS INCOMING DAMAGE","RARELY SURVIVES A FATAL HIT","BREEDS MORE OFTEN","HEALS UNDER THE NIGHT SKY","MOVES FASTER AT NIGHT","PERIODICALLY RESTORES HEALTH","SETS NEARBY GROUND ALIGHT","BRINGS JOY TO NEARBY FOLK","SENDS OUT A SMALL HEALING AURA"};
 static u32 trSeen, trSeenHi; static u32 stMut; static int trCount[TR_N], diff=1;      // traits met in this save, mutations so far, living bearers, difficulty 0 calm 1 normal 2 brutal
 #define HAS(c,t) ((c)->tr==(t)||(c)->tr2==(t))
+// Village Grin Mark counts change only when a bearer moves, is born, dies,
+// mutates, or a village changes. Keep this tiny cache outside the save format.
+static u8 joyEpoch=1, joyStamp[VIL_N];
+static u16 joyCached[VIL_N];
+static void joyInvalidate(void){ if(++joyEpoch==0){ memset(joyStamp,0,sizeof joyStamp); joyEpoch=1; } }
 /* Disease occupies sick bits 0..1; the six status flags use its spare bits. The DS record remains 20 bytes. */
 enum { ST_INVINCIBLE=0x04, ST_ASH_FEVER=0x08, ST_COUGH=0x10, ST_MOTIVATED=0x20, ST_HANDSOME=0x40, ST_MINDLESS=0x80 };
 #define DISEASE(c) ((c)->sick & 3u)
@@ -270,10 +275,10 @@ static int hitDmg(const Cr*a,const Cr*d){   // one blow: the attacker's strength
     if(a->rk==1) dm=dm*13/10; else if(a->rk==2) dm=dm*2; if(A->diet==5) dm=dm*(diff==0?70:diff==2?140:100)/100;
     dm-=armDef(d); if(HAS(d,TR_HIDE)) dm-=3; if(HAS(d,TR_ZEN)) dm-=2; if(HAS(d,TR_GIANT)) dm-=1; return dm<1?1:dm; }
 static void countTraits(void){ memset(trCount,0,sizeof trCount); for(int i=0;i<nCr;i++) if(cr[i].alive){ if(cr[i].tr) trCount[cr[i].tr]++; if(cr[i].tr2) trCount[cr[i].tr2]++; } }
-static void giveTrait(Cr*c,int t,int announce){ if(c->tr==0||c->tr==t) c->tr=(u8)t; else c->tr2=(u8)t; if(!traitMet(t)){ traitMark(t); if(announce){ char nm[48]; crName(c,nm); siprintf(info,"NEW SUBSPECIES: %.30s",nm); fxReq(FX_BIRTH); } } }
+static void giveTrait(Cr*c,int t,int announce){ if(c->tr==0||c->tr==t) c->tr=(u8)t; else c->tr2=(u8)t; joyInvalidate(); if(!traitMet(t)){ traitMark(t); if(announce){ char nm[48]; crName(c,nm); siprintf(info,"NEW SUBSPECIES: %.30s",nm); fxReq(FX_BIRTH); } } }
 static int sapNow;      // sapient animals alive (kept by denTick): a child inherits the mind only while there are fewer than a hundred
 static void born(Cr*kid,const Cr*par){ stBorn++;   // a child has its parent's traits, and now and then a mutation
-    kid->tr=par->tr; kid->tr2=par->tr2; int rate=diff==0?1:diff==2?3:2; if(HAS(par,TR_FERTILE)) rate+=1; if(!LAWON(LW_MUTATE)) rate=0; if(LAWON(LW_MUTBOX)) rate=35; else if(LAWON(LW_SPAGHETTI)) rate*=3;
+    kid->tr=par->tr; kid->tr2=par->tr2; if(HAS(kid,TR_GRIN)) joyInvalidate(); int rate=diff==0?1:diff==2?3:2; if(HAS(par,TR_FERTILE)) rate+=1; if(!LAWON(LW_MUTATE)) rate=0; if(LAWON(LW_MUTBOX)) rate=35; else if(LAWON(LW_SPAGHETTI)) rate*=3;
     if((int)(rnd()%100)<rate){ int t=1+(int)(rnd()%(TR_N-1)); if(!HAS(kid,t)){ giveTrait(kid,t,1); stMut++; } }
     if(arch[sp[kid->sp].a].diet==4&&rnd()%100<8) SET_DISEASE(kid,2);      // some children are born immune, as in WorldBox
     kid->hp=(u8)maxHp(kid); ntBirth(kid,par);
@@ -467,7 +472,7 @@ static void logEv(const char*s);
 static coord_t zq[16][2]; static int zqN;      // where plague victims bitten by a zombie fell: they rise again at the end of the tick (calamity.h)
 #define FL_SLAYER 0x0020      /* killed a boss (the bit ggid.h reserved for a ruler mark, which nothing uses) */
 static int lastKillRk;      // rank of what was last killed (killCr sets it): a killer of a boss earns the SLAYER mark
-static void lootDrop(int mi); static int ghostFor(int i); static void killCr(int i){ Cr*c=&cr[i]; if(!c->alive||HAS_STATUS(c,ST_INVINCIBLE)) return; lastKillRk=c->rk; if(c->rk>=1&&arch[sp[c->sp].a].diet==5) lootDrop(i); ghostFor(i); ntDeath(i); if(c->rk==2&&!natural){ char nm[48], b[40]; crName(c,nm); siprintf(b,"%.28s FALLS",nm); logEv(b); } c->alive=0; stDied++; if(DISEASE(c)==3&&arch[sp[c->sp].a].diet!=5&&zqN<16){ zq[zqN][0]=c->x; zq[zqN][1]=c->y; zqN++; } if(c->rk==1&&!natural&&(rnd()&3)==0){ char nm[48], b2[40]; crName(c,nm); siprintf(b2,"%.24s FALLS",nm); logEv(b2); } if(occ[c->y][c->x]==i+1){ occ[c->y][c->x]=0; cellDel(c->x,c->y,c->sp); }
+static void lootDrop(int mi); static int ghostFor(int i); static void killCr(int i){ Cr*c=&cr[i]; if(!c->alive||HAS_STATUS(c,ST_INVINCIBLE)) return; lastKillRk=c->rk; if(c->rk>=1&&arch[sp[c->sp].a].diet==5) lootDrop(i); ghostFor(i); ntDeath(i); if(c->rk==2&&!natural){ char nm[48], b[40]; crName(c,nm); siprintf(b,"%.28s FALLS",nm); logEv(b); } c->alive=0; if(HAS(c,TR_GRIN)) joyInvalidate(); stDied++; if(DISEASE(c)==3&&arch[sp[c->sp].a].diet!=5&&zqN<16){ zq[zqN][0]=c->x; zq[zqN][1]=c->y; zqN++; } if(c->rk==1&&!natural&&(rnd()&3)==0){ char nm[48], b2[40]; crName(c,nm); siprintf(b2,"%.24s FALLS",nm); logEv(b2); } if(occ[c->y][c->x]==i+1){ occ[c->y][c->x]=0; cellDel(c->x,c->y,c->sp); }
     if(!natural&&arch[sp[c->sp].a].diet==5){ stKill++; if(!((slainB[c->sp>>3]>>(c->sp&7))&1)) slainB[c->sp>>3]|=(u8)(1<<(c->sp&7)); fxReq(FX_MONSTER_SLAIN); } }
 static int damageCreature(int i,int dmg,int attacker){
     if(i<0||i>=nCr||!cr[i].alive) return 0; Cr*v=&cr[i]; if(HAS_STATUS(v,ST_INVINCIBLE)) return 1;
@@ -483,7 +488,7 @@ static void compact(void){   // the dead are squeezed out of the list
 }
 
 static int glideOn=1;      // some creature may have a pixel offset to glide off (set by moveTo and the camera; simulate() only walks the screen when it is set)
-static void moveTo(Cr*c,int i,int nx,int ny){ glideOn=1; occ[c->y][c->x]=0; cellDel(c->x,c->y,c->sp); { int ddx=c->x-nx, ddy=c->y-ny; if(ddx>1||ddx<-1) ddx=0; if(ddy>1||ddy<-1) ddy=0; c->ox=(s8)(ddx*8); c->oy=(s8)(ddy*8); } c->x=(coord_t)nx; c->y=(coord_t)ny; occ[ny][nx]=(occ_t)(i+1); cellAdd(nx,ny,c->sp); }
+static void moveTo(Cr*c,int i,int nx,int ny){ glideOn=1; if(HAS(c,TR_GRIN)) joyInvalidate(); occ[c->y][c->x]=0; cellDel(c->x,c->y,c->sp); { int ddx=c->x-nx, ddy=c->y-ny; if(ddx>1||ddx<-1) ddx=0; if(ddy>1||ddy<-1) ddy=0; c->ox=(s8)(ddx*8); c->oy=(s8)(ddy*8); } c->x=(coord_t)nx; c->y=(coord_t)ny; occ[ny][nx]=(occ_t)(i+1); cellAdd(nx,ny,c->sp); }
 // ---- levels: a creature that kills grows stronger (+5 health and +1 damage every two levels, up to level 10), after the wiki's unit levels; Cr.dir holds the level
 static void zombieBite(const Cr*a,int j){      // a zombie's hit infects half of the living it touches (not the immune, not monsters); the infected fall and rise as zombies
     const Arch*A=&arch[sp[a->sp].a]; if(A->diet!=5||strcmp(A->nm,"ZOMBIE")||gx.lPlague==1) return;
@@ -522,7 +527,24 @@ static void langCity(int l,int a,int b,char*o){ strcpy(o,lwords[l%5][a%8]); strc
 static void langPerson(int l,int a,int b,char*o){ strcpy(o,pn1[l%5][a%6]); strcat(o,pn2[l%5][b%6]); strcat(o,pn3[l%5][(a+b)%6]); }
 static void vilName(int v,char*out){ langCity(raceLang(vil[v].race),vil[v].nm1,vil[v].nm2,out); }
 static int aggressive(int race){ int t=gxTemper(race); if(t!=1) return t==2; return race==3||race==4||race==7; }   // the orcs, the goblins and the ogres go looking for trouble
-static int vilNear(int race,int x,int y,int r){ int best=-1,bd=r*r+1; for(int v=0;v<VIL_N;v++){ if(!vil[v].on||vil[v].race!=race) continue; int dx=vil[v].x-x, dy=vil[v].y-y, d=dx*dx+dy*dy; if(d<bd){ bd=d; best=v; } } return best; }
+// Keep live villages grouped by race, in slot order. This avoids walking every
+// empty village slot for each creature decision without changing tie breaks.
+#if VIL_N>255
+#error vilByRace needs a wider village index
+#endif
+static u8 vilByRace[VIL_N], vilRaceOff[9]; static int vilIndexValid;
+static void vilIndexInvalidate(void){ vilIndexValid=0; }
+static void vilIndexBuild(void){ u8 n[8]={0};
+    for(int v=0;v<VIL_N;v++) if(vil[v].on&&vil[v].race<8) n[vil[v].race]++;
+    int total=0; for(int a=0;a<8;a++){ vilRaceOff[a]=(u8)total; total+=n[a]; n[a]=(u8)vilRaceOff[a]; } vilRaceOff[8]=(u8)total;
+    for(int v=0;v<VIL_N;v++) if(vil[v].on&&vil[v].race<8) vilByRace[n[vil[v].race]++]=(u8)v;
+    vilIndexValid=1;
+}
+static int vilNear(int race,int x,int y,int r){ int best=-1,bd=r*r+1;
+    if((unsigned)race>=8){ for(int v=0;v<VIL_N;v++) if(vil[v].on&&vil[v].race==race){ int dx=vil[v].x-x, dy=vil[v].y-y, d=dx*dx+dy*dy; if(d<bd){ bd=d; best=v; } } return best; }
+    if(!vilIndexValid) vilIndexBuild();
+    for(int q=vilRaceOff[race];q<vilRaceOff[race+1];q++){ int v=vilByRace[q]; int dx=vil[v].x-x, dy=vil[v].y-y, d=dx*dx+dy*dy; if(d<bd){ bd=d; best=v; } }
+    return best; }
 static int vilAny(int x,int y,int r){ int best=-1,bd=r*r+1; for(int v=0;v<VIL_N;v++){ if(!vil[v].on) continue; int dx=vil[v].x-x, dy=vil[v].y-y, d=dx*dx+dy*dy; if(d<bd){ bd=d; best=v; } } return best; }
 static int buildable(int x,int y){ if(x<2||y<2||x>=WW-2||y>=WH-2||bld[y][x]) return 0; u8 t=world[y][x]; return t==T_GRASS||t==T_DIRT||t==T_FOREST; }
 static void putBld(int v,int x,int y,int type){ if(world[y][x]==T_FOREST) setCell(x,y,T_GRASS); bld[y][x]=(u8)type; bldv[y][x]=(u8)(v+1); if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); }
@@ -567,13 +589,13 @@ static void boatTick(void){
 static int vilFound(int race,int x,int y){
     KD_DIRTY(); if(!buildable(x,y)) return -1; if(vilAny(x,y,9)>=0) return -1; int v=-1; for(int i=0;i<VIL_N;i++) if(!vil[i].on){ v=i; break; } if(v<0) return -1;
     Vil*V=&vil[v]; memset(V,0,sizeof *V); gxVilReset(v); vilBf[v]=0; vilSick[v]=0; V->on=1; V->race=(u8)race; V->x=(coord_t)x; V->y=(coord_t)y; V->lvl=1; V->stock=30; V->nm1=(u8)(rnd()%12); V->nm2=(u8)(rnd()%8);
-    putBld(v,x,y,B_HALL); for(int k=0;k<2;k++) placeBld(v,B_HUT,0); nVilOn++; return v;
+    putBld(v,x,y,B_HALL); for(int k=0;k<2;k++) placeBld(v,B_HUT,0); nVilOn++; joyInvalidate(); vilIndexInvalidate(); return v;
 }
 static const char* vilWhyNot(int x,int y){      // the reason vilFound said no (for the message under a SETTLE touch)
     if(x<2||y<2||x>=WW-2||y>=WH-2) return "TOO NEAR THE MAP EDGE"; if(bld[y][x]) return "SOMETHING IS BUILT HERE"; { u8 t=world[y][x]; if(t!=T_GRASS&&t!=T_DIRT&&t!=T_FOREST) return "NEEDS GRASS, DIRT OR FOREST"; }
     if(vilAny(x,y,9)>=0) return "TOO NEAR ANOTHER VILLAGE"; return "TOO MANY VILLAGES"; }
 static void vilRaze(int v,int ruins){ Vil*V=&vil[v]; if(!V->on) return; KD_DIRTY(); for(int y=0;y<WH;y++) for(int x=0;x<WW;x++) if(bldv[y][x]==v+1){ bld[y][x]=ruins&&(rnd()&1)?B_RUIN:B_NONE; if(!bld[y][x]) bldv[y][x]=0; else bldv[y][x]=0; if(x>=winX-1&&x<winX+34&&y>=winY-1&&y<winY+26) putCell(x,y); }
-    for(int u=0;u<VIL_N;u++) if(vil[u].on&&vil[u].foe==v+1) vil[u].foe=0; V->on=0; nVilOn--; vilBf[v]=0; vilSick[v]=0; }
+    for(int u=0;u<VIL_N;u++) if(vil[u].on&&vil[u].foe==v+1) vil[u].foe=0; V->on=0; nVilOn--; vilBf[v]=0; vilSick[v]=0; joyInvalidate(); vilIndexInvalidate(); }
 // ---- the atmosphere (after SimEarth and its Gaia model): oxygen, carbon dioxide, dust and the world's warmth, all in 1/16 units. Forests and grass breathe CO2 in and O2 out; crowds, cities, fires, lava
 // and bombs do the opposite; CO2 warms (the greenhouse), dust and snow cool. Too hot melts the ice and dries the land, too cold freezes it, thin air suffocates, rich air feeds fires.
 static int atO2=21*16, atCO2=30*16, atDust=0, atTemp=0, atFire=0, atFlag=0; static s8 atHist[48]; static int atHistN;
@@ -647,7 +669,13 @@ static int ghostMood(int v);
 static int vilMood(int v){ const Vil*V=&vil[v]; int m=V->stock/8-20-ghostMood(v); if(V->pop>V->houses*3+3) m-=20; if(V->foe) m-=25; if(vilSick[v]) m-=15; if(vilK[v]) m+=(vilL[v]-60)/3-8*polSgn(kx[vilK[v]-1].tax); m+=V->towers>0?5:0;
     { int ag=worldAge(); m+=(ag==1||ag==2||ag==6)?10:(ag==0||ag==5||ag==8||ag==9)?-10:ag==3?-5:0; } if(!gx.lAtmo){ int T=ATV(atTemp); if(T>=22||T<=-18) m-=15; } { int b=bioAt(V->x,V->y); m+=b==1?-20:b==3?20:0; }
     /* Grin Mark is a social trait: nearby bearers lift the settlement's mood. */
-    { int joy=0; for(int dy=-10;dy<=10;dy++){ int y=V->y+dy; if(y<0||y>=WH) continue; for(int dx=-10;dx<=10;dx++){ int x=V->x+dx; if(x<0||x>=WW||dx*dx+dy*dy>100||!occ[y][x]) continue; Cr*c=&cr[occ[y][x]-1]; if(c->alive&&HAS(c,TR_GRIN)&&sp[c->sp].a==V->race&&sp[c->sp].a<8) joy++; } } m+=joy*4; }
+    { int joy;
+      if(joyStamp[v]==joyEpoch) joy=joyCached[v];
+      else { static const u8 span[11]={10,9,9,9,9,8,8,7,6,4,0}; joy=0;
+          for(int dy=-10;dy<=10;dy++){ int y=V->y+dy; if(y<0||y>=WH) continue; int r=span[dy<0?-dy:dy], lo=V->x-r, hi=V->x+r; if(lo<0) lo=0; if(hi>=WW) hi=WW-1;
+              for(int x=lo;x<=hi;x++){ int j=occ[y][x]-1; if(j<0) continue; Cr*c=&cr[j]; if(c->alive&&HAS(c,TR_GRIN)&&sp[c->sp].a==V->race&&sp[c->sp].a<8) joy++; } }
+          joyCached[v]=(u16)joy; joyStamp[v]=joyEpoch; }
+      m+=joy*4; }
     m+=(vilBf[v]&1?12:0)+(vilBf[v]&2?6:0)+(vilBf[v]&4?4:0); return m<-100?-100:m>100?100:m; }
 static const char* moodName(int m){ return m>=60?"JOYFUL":m>=20?"HAPPY":m>-20?"CONTENT":m>-60?"SAD":"MISERABLE"; }
 static const char* const techN[10]={"NONE","AGRICULTURE","IRON TOOLS","MASONRY","TRADE ROADS","STEEL","ENGINEERING","ALCHEMY","ASTRONOMY","FEUDALISM"};
@@ -818,6 +846,7 @@ static int stepToward(Cr*c,int i,const Sp*s,int tx,int ty){   // one step toward
     return 0; }
 // ---------------------------------------------------------------------------------------------- terraformers, special animals, evolution and the spawner monsters
 static int monCount(void);
+static int monAtLeast(int limit);
 #define M_TUMOR (ARCH_A+28)
 #define M_BIOBLOB (ARCH_A+29)
 #define M_PUMPKIN (ARCH_A+30)
@@ -863,7 +892,7 @@ static void evolve(int i){      // an animal becomes its evolved form: sapient, 
     Cr*c=&cr[i]; crFl[i]|=FL_EVOLVED|FL_SAPIENT; c->hp=(u8)maxHp(c); char nm[48], b[64]; crName(c,nm); siprintf(b,"A %.30s EVOLVES",nm); logEv(b); fxReq(FX_BIRTH); }
 static int monMinion(const Cr*c,int arc,int*ox){ int d=(int)(rnd()&3), x=c->x+dxs[d], y=c->y+dys[d]; int sI=8+(arc-8)*16+sp[c->sp].fam; int n=addCr(sI,x,y); if(n>=0&&ox) *ox=n; return n; }
 static void spawnerTick(int i,Cr*c,int a){      // the biomass monsters make more of themselves (the world's monster count is the limit)
-    int br=arch[a].breed; if(!br||(int)(rnd()%100)>=br/2+1) return; if(monCount()>=70) return;
+    int br=arch[a].breed; if(!br||(int)(rnd()%100)>=br/2+1) return; if(monAtLeast(70)) return;
     if(a==M_TUMOR) monMinion(c,M_BIOBLOB,0); else if(a==M_BIOBLOB){ monMinion(c,M_BIOBLOB,0); int t=world[c->y][c->x]; if(t==T_GRASS||t==T_FOREST||t==T_DIRT) tfSet(c->x,c->y,T_SWAMP); } else if(a==M_PUMPKIN) monMinion(c,M_PUMPKIN,0); (void)i; }
 static int routed(const Cr*c){ int a=sp[c->sp].a; for(int k=0;k<4;k++) if(rz[k].until>tick&&rz[k].a==a&&c->x-rz[k].x<=10&&rz[k].x-c->x<=10&&c->y-rz[k].y<=10&&rz[k].y-c->y<=10) return 1; return 0; }
 static void thinkBody(int i){
@@ -907,7 +936,7 @@ static void thinkBody(int i){
             int d=(dx<0?-dx:dx)+(dy<0?-dy:dy); int civ=arch[sp[cr[j].sp].a].diet==4; if(!civ&&d>3) continue; if(d<bd){ bd=d; rd=d; best=j; } }   // people are hunted from ten tiles away, animals only when they are in the way
         for(int k=0;k<4;k++) burnAt(c->x+dxs[k],c->y+dys[k],40);
         if(best>=0){ Cr*p=&cr[best];
-            if(rd<=1+HAS(c,TR_SPIT)){ int dm=hitDmg(c,p); ntHit(c,p,dm); zombieBite(c,(int)(p-cr)); if(!damageCreature(best,dm,i)){ int px_=p->x, py_=p->y; gainXp(c); c->hp=(u8)(c->hp+12>A->hp?A->hp:c->hp+12); if(s->a==M_ASSIM&&monCount()<70){ int n_=addCr(8+(M_BIOBLOB-8)*16+s->fam,px_,py_); (void)n_; } } return; }
+            if(rd<=1+HAS(c,TR_SPIT)){ int dm=hitDmg(c,p); ntHit(c,p,dm); zombieBite(c,(int)(p-cr)); if(!damageCreature(best,dm,i)){ int px_=p->x, py_=p->y; gainXp(c); c->hp=(u8)(c->hp+12>A->hp?A->hp:c->hp+12); if(s->a==M_ASSIM&&!monAtLeast(70)){ int n_=addCr(8+(M_BIOBLOB-8)*16+s->fam,px_,py_); (void)n_; } } return; }
             if(stepToward(c,i,s,p->x,p->y)) return; }
         else { int v=vilAny(c->x,c->y,60); if(v>=0&&(rnd()&7)) { if(stepToward(c,i,s,vil[v].x,vil[v].y)) return; } }
         if((rnd()&3)!=0){ int d=rnd()&3; int nx=c->x+dxs[d], ny=c->y+dys[d]; if(stepOk(s,&nx,&ny)) moveTo(c,i,nx,ny); }
@@ -952,13 +981,19 @@ static void thinkBody(int i){
             if(bd<=1+HAS(c,TR_SPIT)){ int dm=hitDmg(c,p); ntHit(c,p,dm); zombieBite(c,(int)(p-cr)); if(!damageCreature(best,dm,i)){ c->food+=80; if(c->food>120) c->food=120; gainXp(c); } return; }
             int dx=p->x-c->x, dy=p->y-c->y; int sx=dx>0?1:dx<0?-1:0, sy=dy>0?1:dy<0?-1:0; int try1=(((dx<0?-dx:dx)>(dy<0?-dy:dy))?0:1);
             for(int k=0;k<2;k++){ int ax=(k==try1)?sx:0, ay=(k==try1)?0:sy; if(!ax&&!ay) continue; int nx=c->x+ax, ny=c->y+ay; if(stepOk(s,&nx,&ny)){ moveTo(c,i,nx,ny); return; } } } }
-    // breed
-    int crowd=0; for(int dy=-2;dy<=2;dy++){ int yy=c->y+dy; if(yy<0||yy>=WH) continue; for(int dx=-2;dx<=2;dx++){ int xx=c->x+dx; if(xx>=0&&xx<WW&&occ[yy][xx]) crowd++; } }      // crowding: no room, fewer births (a packed tile block stops breeding at 13 of 25)
-    int bch=A->breed; if(LAWON(LW_CROWD)){ if(crowd>=13) bch=0; else if(crowd>6) bch=bch*(13-crowd)/7; } if(diet==4){ int vv=vilNear(s->a,c->x,c->y,8); if(vv>=0){ bch=bch*(gx.vGrow[vv]==1?28:gx.vGrow[vv]==2?12:20)/10; bch=bch*(100+vilMood(vv)/2)/100; } } if(HAS(c,TR_FERTILE)) bch=bch*3/2; if(HAS(c,TR_LUSTFUL)) bch=bch*5/4; if(HAS_STATUS(c,ST_MOTIVATED)) bch=bch*11/10; if(HAS(c,TR_TINY)) bch=bch*13/10; if(HAS(c,TR_CLEVER)) bch=bch*13/10; if(HAS(c,TR_MUNCH)) bch=bch*14/10; bch=bch*gxBirthK(s->a,diet)/100;
-    if(!(((diet==4||sp[c->sp].a<8)?LAWON(LW_CIVBABY):LAWON(LW_ANIBABY)))) bch=0;      // CIV BABIES / ANIMAL BABIES
-    if(LAWON(LW_LIMIT)&&diet!=4&&diet!=5&&nCr>WW*WH/3) bch=0;      // WORLD LIMIT: wildlife stops breeding once it fills a third of the world
-    if(LAWON(LW_POP100)&&diet==4){ int vp=vilNear(s->a,c->x,c->y,8); if(vp>=0&&vil[vp].pop>=100) bch=0; }
-    if(c->food>=80&&c->age>8&&(int)(rnd()%100)<bch&&nCr<MAXC-4){ int d=rnd()&3; int nx=c->x+dxs[d], ny=c->y+dys[d]; int n=addCr(c->sp,nx,ny); if(n>=0){ cr[n].age=0; cr[n].food=50; born(&cr[n],&cr[i]); c->food-=40; return; } }
+    // A hungry or immature creature cannot breed. Skip the crowd and village
+    // scans in that case; neither scan consumes randomness or changes state.
+    if(c->food>=80&&c->age>8){
+        int crowd=0; if(LAWON(LW_CROWD)){ int x0=c->x-2, x1=c->x+2, y0=c->y-2, y1=c->y+2;
+            if(x0<0) x0=0; if(y0<0) y0=0; if(x1>=WW) x1=WW-1; if(y1>=WH) y1=WH-1;
+            for(int yy=y0;yy<=y1;yy++) for(int xx=x0;xx<=x1;xx++) crowd+=occ[yy][xx]!=0;
+        }      // crowding: no room, fewer births (a packed tile block stops breeding at 13 of 25)
+        int bch=A->breed; if(LAWON(LW_CROWD)){ if(crowd>=13) bch=0; else if(crowd>6) bch=bch*(13-crowd)/7; } if(diet==4){ int vv=vilNear(s->a,c->x,c->y,8); if(vv>=0){ bch=bch*(gx.vGrow[vv]==1?28:gx.vGrow[vv]==2?12:20)/10; bch=bch*(100+vilMood(vv)/2)/100; } } if(HAS(c,TR_FERTILE)) bch=bch*3/2; if(HAS(c,TR_LUSTFUL)) bch=bch*5/4; if(HAS_STATUS(c,ST_MOTIVATED)) bch=bch*11/10; if(HAS(c,TR_TINY)) bch=bch*13/10; if(HAS(c,TR_CLEVER)) bch=bch*13/10; if(HAS(c,TR_MUNCH)) bch=bch*14/10; bch=bch*gxBirthK(s->a,diet)/100;
+        if(!(((diet==4||sp[c->sp].a<8)?LAWON(LW_CIVBABY):LAWON(LW_ANIBABY)))) bch=0;      // CIV BABIES / ANIMAL BABIES
+        if(LAWON(LW_LIMIT)&&diet!=4&&diet!=5&&nCr>WW*WH/3) bch=0;      // WORLD LIMIT: wildlife stops breeding once it fills a third of the world
+        if(LAWON(LW_POP100)&&diet==4){ int vp=vilNear(s->a,c->x,c->y,8); if(vp>=0&&vil[vp].pop>=100) bch=0; }
+        if((int)(rnd()%100)<bch&&nCr<MAXC-4){ int d=rnd()&3; int nx=c->x+dxs[d], ny=c->y+dys[d]; int n=addCr(c->sp,nx,ny); if(n>=0){ cr[n].age=0; cr[n].food=50; born(&cr[n],&cr[i]); c->food-=40; return; } }
+    }
     // wander
     if((rnd()&3)!=0){ int d=rnd()&3; int nx=c->x+dxs[d], ny=c->y+dys[d]; if(stepOk(s,&nx,&ny)) moveTo(c,i,nx,ny); }
 }
@@ -967,9 +1002,10 @@ static void think(int i){ GG_TURN(); Cr*c=&cr[i]; curExtra=c->alive?trMask(c):0;
     edgeOut=0; }
 static int monTierMax(void){ int t=(tierOpen-1)/3+year/4; return t>4?4:t; }
 static int monCount(void){ int n=0; for(int i=0;i<nCr;i++) n+=cr[i].alive&&arch[sp[cr[i].sp].a].diet==5; return n; }
+static int monAtLeast(int limit){ int n=0; for(int i=0;i<nCr;i++) if(cr[i].alive&&arch[sp[cr[i].sp].a].diet==5&&++n>=limit) return 1; return 0; }
 static int monCountHud(void){ static int c=0; static unsigned t=~0u; if(t!=(unsigned)(tick>>3)){ t=(unsigned)(tick>>3); c=monCount(); } return c; }      // (display only: counted once every 8 ticks; the spawn rules use monCount)
 static void monSpawn(void){   // rifts open: monsters of the strength the world has earned appear far from the villages
-    if(!monOn||(year<2&&tierOpen<4)) return; int tm=monTierMax(); int cap=(4+tm*6)*WW*WH/16384*(diff==0?6:diff==2?15:10)/10*(worldAge()==0?15:10)/10*(gx.mon==0?5:gx.mon==2?18:10)/10; if(cap<3) cap=3; if(monCount()>=cap||(rnd()%3)) return;
+    if(!monOn||(year<2&&tierOpen<4)) return; int tm=monTierMax(); int cap=(4+tm*6)*WW*WH/16384*(diff==0?6:diff==2?15:10)/10*(worldAge()==0?15:10)/10*(gx.mon==0?5:gx.mon==2?18:10)/10; if(cap<3) cap=3; if(monAtLeast(cap)||(rnd()%3)) return;
     int a; for(int k=0;k<8;k++){ a=ARCH_A+(int)(rnd()%(ARCH_N-ARCH_A)); int tr=monTier[a-ARCH_A]; if(tr<=tm&&(tr>=tm-2||(rnd()&7)==0)) break; if(k==7) a=ARCH_A+(int)(rnd()%4); }
     int s=8+(a-8)*16+randomFamily(a); int grp=monTier[a-ARCH_A]==0?1+(int)(rnd()%3):1;
     int home=-1; { int n=0; for(int v=0;v<VIL_N;v++) if(vil[v].on&&(rnd()%(++n))==0) home=v; }   // a rift opens 14 to 40 tiles from a village (any, at random)
@@ -1351,7 +1387,7 @@ static void usePower(int tx,int ty,int fresh){ KD_DIRTY();
         case PK_FLOOD: { u8 t=world[y][x]; if(t!=T_MOUNT&&t!=T_DEEP&&(rnd()&3)!=0){ if(bld[y][x]){ bld[y][x]=0; bldv[y][x]=0; } setCell(x,y,t==T_LAVA?T_MOUNT:T_WATER); if(occ[y][x]&&!walkable(&sp[cr[occ[y][x]-1].sp],x,y)&&(rnd()&1)) killCr(occ[y][x]-1); } } break;
         case PK_BLOOM: { u8 t=world[y][x]; if(t==T_GRASS){ if(rnd()&1) setCell(x,y,T_FOREST); } else if(t==T_DIRT||t==T_SAND){ setCell(x,y,T_GRASS); } else if(t==T_DESERT&&(rnd()&3)==0) setCell(x,y,T_GRASS); if(occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; c->hp=(u8)maxHp(c); c->food=120; } } break;
         case PK_VIBE: if(fresh&&dx==0&&dy==0){ int v=vilAny(x,y,5); if(v>=0){ vil[v].foe=0; warMatrix(); } if(occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; if(c->tr2==0&&!(HAS(c,TR_CHILL)||HAS(c,TR_MUNCH)||HAS(c,TR_GIGGLY)||HAS(c,TR_ZEN)||HAS(c,TR_FLOATY))){ giveTrait(c,TR_CHILL+(int)(rnd()%8),1); siprintf(info,"GOOD VIBES"); } else siprintf(info,"ALREADY VIBING"); } else if(v>=0) siprintf(info,"THE VILLAGE CHILLS OUT"); } break;
-        case PK_MUTATE: if(fresh&&dx==0&&dy==0&&occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; if(trSel==0){ c->tr=c->tr2=0; siprintf(info,"TRAITS CLEARED"); } else { giveTrait(c,trSel,1); char nm[48]; crName(c,nm); siprintf(info,"%.46s",nm); } c->hp=(u8)maxHp(c); } break;
+        case PK_MUTATE: if(fresh&&dx==0&&dy==0&&occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; if(trSel==0){ c->tr=c->tr2=0; joyInvalidate(); siprintf(info,"TRAITS CLEARED"); } else { giveTrait(c,trSel,1); char nm[48]; crName(c,nm); siprintf(info,"%.46s",nm); } c->hp=(u8)maxHp(c); } break;
         case PK_STATUS: if(fresh&&dx==0&&dy==0&&occ[y][x]){ Cr*c=&cr[occ[y][x]-1]; u8 mask=statusMask[statusSel]; c->sick^=mask; siprintf(info,"%s: %s",statusName[statusSel],HAS_STATUS(c,mask)?"ON":"OFF"); } break;
         case PK_ALIEN: if(fresh&&dx==0&&dy==0){ if(hzAdd(HZ_ALIEN,x,y)<0) siprintf(info,"TOO MANY CALAMITIES AT ONCE"); else { siprintf(info,"ALIEN INVASION BEGINS"); flashT=5; } } break;
         case PK_DRAGON: if(fresh&&dx==0&&dy==0){ if(hzAdd(HZ_DRAGON,x,y)<0) siprintf(info,"TOO MANY CALAMITIES AT ONCE"); else { siprintf(info,"A DRAGON COMES FROM FAR LANDS"); flashT=5; } } break;
@@ -1372,7 +1408,7 @@ static int planetSize=128;
 static void (*loadHook)(const char*,int);
 #define LOADING(m,p) do{ if(loadHook) loadHook(m,p); }while(0)
 static void newWorld(void){
-    dlgPend=-1;
+    dlgPend=-1; joyInvalidate(); vilIndexInvalidate();
 #ifndef PCTEST
     storyGoalT=0;
 #endif
@@ -1435,7 +1471,7 @@ static int saveGameRaw(const char*path){
     if(ok){ u32 mg=0x32524747u, n=(u32)(rzN<0?0:rzN); ok&=svWrite(&mg,4,1,f)==1; ok&=svWrite(&n,4,1,f)==1; ok&=svWrite(rz,sizeof rz,1,f)==1; }      // GGR2: four temporary captain-rout zones; required by v14 for save/load determinism
     // (an old build never reads it; an old save has none, so every policy is normal)
     { int cl_=svClose(f); return ok&&cl_==0; } }   // (a pack that does not fit the cartridge chip fails the save instead of reporting SAVED)
-static int loadGameRaw(const char*path){ KD_DIRTY();
+static int loadGameRaw(const char*path){ KD_DIRTY(); joyInvalidate(); vilIndexInvalidate();
     SV*f=svOpen(path,"rb"); if(!f) return 0; SaveHdr h; int ok=svRead(&h,sizeof h,1,f)==1; trSeenHi=0; memset(favPow,0,sizeof favPow);
     int nC=(int)h.nCr|(h.ver>=10?(int)h.pad_[1]<<16:0); int nvs=h.ver>=10&&h.planet?h.planet:VIL_OLDN; int legacy=0;
 #ifdef GG_BIGMAP
@@ -1903,7 +1939,7 @@ static int mScr, mSel; static u32 cSeed; static int cSel, cT=-1, cLand; static c
 static const char*const cCoastN[]={"SMOOTH","NORMAL","RUGGED"}, *const cMtnN[]={"FEW","NORMAL","MANY"};
 static const char*const cShapeN[]={"CONTINENTS","SUPERCONTINENT","ISLANDS","ARCHIPELAGO","TWO CONTINENTS","INLAND SEAS"}, *const cSeaN[]={"DRY","LOW","NORMAL","HIGH","FLOODED"}, *const cClimN[]={"ICE AGE","COOL","TEMPERATE","WARM","SCORCHED"}, *const cWetN[]={"ARID","NORMAL","LUSH"}, *const cLifeN[]={"EMPTY","SPARSE","NORMAL","TEEMING"};
 static void previewWorld(void){ gW=gH=planetSize>256?256:planetSize;      // (the preview of a huge planet is drawn at 256: only its shape and climate matter)
-    nCr=0; idReset(); memset(occ,0,sizeof occ); cellClear(); memset(bld,0,sizeof bld); memset(bldv,0,sizeof bldv); memset(vil,0,sizeof vil); nVilOn=0; genWorld(cSeed); camX=(WW*8-256)/2; camY=(WH*8-192)/2; winX=-99; refillWindow();
+    joyInvalidate(); vilIndexInvalidate(); nCr=0; idReset(); memset(occ,0,sizeof occ); cellClear(); memset(bld,0,sizeof bld); memset(bldv,0,sizeof bldv); memset(vil,0,sizeof vil); nVilOn=0; genWorld(cSeed); camX=(WW*8-256)/2; camY=(WH*8-192)/2; winX=-99; refillWindow();
     int l=0; for(int y=0;y<WH;y++) for(int x=0;x<WW;x++) if(world[y][x]>T_WATER) l++; cLand=l*100/(WW*WH); cT=-1; }
 static void createStart(void){ if(!cSeed) cSeed=(rnd()&0xFFFF)|1; cSel=0; previewWorld(); }
 static void createInput(int kd){
