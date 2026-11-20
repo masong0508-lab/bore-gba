@@ -118,6 +118,7 @@ static void checkPhysicalStoryContinuity(void){
         check(roof->beats[i].place==(i<7?F_VILLAGE:F_PORCH),
               "construction jumped into a different building");
     check(rain->beats[0].action==F_ACT_TAKE&&
+          rain->beats[4].action==F_ACT_TAKE&&
           rain->beats[5].action==F_ACT_PUT&&
           roof->beats[1].action==F_ACT_TAKE&&
           roof->beats[2].action==F_ACT_WORK,
@@ -131,7 +132,7 @@ static void checkPhysicalStoryContinuity(void){
             if(!reels[group])continue;
             for(int n=0;n<reels[group]->count;n++){
                 const FilmBeat *beat=&reels[group]->beats[n];
-                check(beat->action<=F_ACT_APPROACH,"unknown actor prop action");
+                check(beat->action<=F_ACT_RECEIVE,"unknown actor prop action");
                 if(beat->action!=F_ACT_AUTO){
                     check(beat->prop<F_PROP_N&&beat->lead<F_ACTOR_N,
                           "story asked a missing character to pick up a prop");
@@ -160,7 +161,13 @@ static void checkPhysicalStoryContinuity(void){
             }
         }
     }
-    puts("FMV continuity OK: hand grips, floor contact, opening actions and stable locations");
+    check(finaleBeats[19].action==F_ACT_RECEIVE,
+          "the student mistakenly handed the hammer away from the teacher");
+    FilmPoint porch=filmSurfacePoint(firstRainBeats+5,90);
+    FilmPoint porchReverse=filmSurfacePoint(firstRainBeats+4,170);
+    check(porch.x==porchReverse.x&&porch.y==porchReverse.y,
+          "the cup's porch sill shifted between camera reverses");
+    puts("FMV continuity OK: two-way handoffs, hand grips, grounded props and stable locations");
 }
 
 static void checkDirectedPlayback(void){
