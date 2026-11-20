@@ -1,6 +1,6 @@
 # GODGUY — The Long Film Edition (3DS) / Story Edition (DS)
 
-**Implementation status, 20 November 2026:** this document is an authored story treatment and production contract, not a claim that the complete feature-length film has been rendered. The current directed 3DS timeline has approximately 35 minutes of staged beats, plus baked opening footage; the DS shares roughly 21 minutes of staged beats, plus baked footage. Target: a coherent 65–80 minute 3DS cutscene narrative **after** cinematic motion, legibility, and performance tests pass. Do not pad shots to fake running time.
+**Screenplay implementation status, 20 November 2026:** the 3DS cinematic timeline is now scripted for **84 minutes 44 seconds of campaign-directed shots**: 34:44 of shared/existing extended scenes plus 375 newly authored eight-second beats (50:00). Six independent, replayable, chapter-unlocked anthology films add **exactly 40:00** of scenes (300 additional eight-second beats), for **124 minutes 44 seconds of authored, directed screenplay** plus the original baked movie footage. The DS/DSi retains the stronger shared 20:44 directed scenes. All totals describe **scheduled scene lengths in source**, not an emulator-verified or fully rendered two-hour movie. Realistic acting pace, native 3DS character geometry, animation, audio mix, old-hardware FPS, and complete film playback still require verification and polish.
 
 ## What makes the film work
 
@@ -16,18 +16,32 @@ The DS gets a complete, understandable account with the same moral choices, clea
 
 Neither is there solely to recite exposition. Both have goals, obstacles, changing choices, visible work, and final consequences.
 
-## Directed acts — target running time
+## Directed acts — implemented script schedule
 
-| Act | Chapters | Target 3DS story time | Dramatic purpose |
+The 15 feature-chapter arrays in `source/story_feature_3ds.h` add 25 purpose-written eight-second shots to each existing 3DS episode. Every new beat has a named location, camera, physical performers and/or an authored action. The main arc reaches **84:44** of staged material; the older baked prologues add additional time.
+
+| Act | Chapters | Main conflict |
+| --- | --- | --- |
+| I — A Light, Then a House | 1–3 | Wisp learns why creation requires maintenance; Mira opens the house, Thorgrim makes the roof others can repair |
+| II — Across the River | 4–6 | Nessa refuses shortcuts and teaches engineers; Serin chooses to name his complicity rather than hide behind orders |
+| III — What the Records Hold | 7–9 | The hall debates scarcity, Elowen turns the ledgers into names, and Nessa learns to share responsibility |
+| IV — The Fire and the Names | 10–12 | The siege rescue moves along a real gate-to-ford route; survivors refuse false reassurances and the community ages |
+| V — The Empty Crown | 13–15 | Dave offers human-scale respite; Hollow hears names, accepts refusal, carries material responsibility and asks for a task |
+
+### The six unlockable films — 40 additional minutes
+
+Access: **Extras → Film Archive** on the 3DS only. Unlocks follow save-compatible chapter progress; completed films can be replayed without advancing a save.
+
+| Film | Unlock after | Running time | Dramatic core |
 | --- | --- | --- | --- |
-| I — A Light, Then a House | 1–3 | 12–14 min | Wisp learns that making a home is a commitment, not a gesture; Mira and Thorgrim build a dependable shelter |
-| II — Across the River | 4–6 | 11–13 min | Nessa insists on engineering instead of salvation-by-speech; Serin learns where the army will strike |
-| III — What the Records Hold | 7–9 | 11–13 min | Town grows, Elowen's ledger becomes a record of people, not monsters; friendship tested by the cost of growth |
-| IV — The Fire and the Names | 10–12 | 15–18 min | Rescue through the gate and across the bridge; people act on information Serin once used to hurt them |
-| V — The Empty Crown | 13–15 | 16–20 min | Hollow must listen to the dead's names, accept the right to be refused, and repair rather than rule |
-| **Total target** | **15 films** | **65–78 min** | Narrative target; not yet the current measured runtime |
+| The First Winter | Chapter 3 | 6:40 | Shared shelter, food scarcity and Wisp's limits |
+| The Bridge in Winter | Chapter 5 | 6:40 | Nessa and Gruul risk a structural failure and choose to close the crossing |
+| The Map That Lied | Chapter 8 | 6:40 | Serin actively accepts he erased a school from the survey |
+| The Room With No Throne | Chapter 11 | 6:40 | Dave refuses to make Hollow's wrongdoing into a joke or instant absolution |
+| Names at Dawn | Chapter 14 | 6:40 | Elowen and Elder Mira leave space for those not ready to remember publicly |
+| After the Crown | Campaign completion | 6:40 | Hollow respects refusal and chooses ordinary, accountable work |
 
-Shot count must be driven by action coverage, not artificial holds. The baseline already includes 15 chapter reels; add story beats and new acting keys only as they demonstrably advance a conflict or consequence.
+**Calculated totals:** 15×25×8 seconds = 50:00 newly staged campaign material, plus 34:44 existing staged campaign = **84:44**; six×50×8 seconds = **40:00** bonus; combined staged schedule = **2:04:44** before the pre-rendered film portions. If it feels like padded dialogue, the right response is to write and animate more purposeful coverage—not simply increase shot durations.
 
 ## Ending — the strongest rewriting priority
 
@@ -55,7 +69,7 @@ Avoid cheap comedy undercutting grief. Humor from Dave and the goat is welcome i
 
 **Animation:** schedule walk-in, anticipation, contact, force, recovery and reaction. Wind bends a tree about its trunk. Water moves in its plane. Flames and lamps illuminate a stable source. Tools stay gripped or grounded. No free-floating effects added merely to increase the number of changed pixels.
 
-**Geometry:** prefer profiled roof sections, framed doors, beams, braces, stair/rail construction and arch details over plain cubes; the current software-rasterized model is the first geometry layer, not finished sculpting. 3DS is still rendering a 256×192 indexed film page, so higher-resolution native geometry/lighting and full 3D character meshes remain future work.
+**Geometry:** prefer profiled roof sections, framed doors, beams, braces, stair/rail construction and arch details over plain cubes; the current software-rasterized model is the first geometry layer, not finished sculpting. 3DS currently renders a 256×192 indexed film page. **Humanoid actors still use high-detail 2D cels projected into 3D sets; they are not yet polished skinned 3D models.** The acceptance standard and explicit anti-bubble-head requirements are in [CHARACTER_FIDELITY_BIBLE.md](3ds/CHARACTER_FIDELITY_BIBLE.md).
 
 ## Non-negotiable engineering acceptance
 
@@ -70,5 +84,5 @@ Avoid cheap comedy undercutting grief. Humor from Dave and the goat is welcome i
 
 1. Verify this new renderer's build/test pipeline and inspect 3DS cinematic frames in an emulator; correct clipping or geometry occlusion before expanding scene complexity.
 2. Move physical prop supports into the same 3D scene transform instead of keeping their legacy fixed screen coordinates.
-3. Create additional 3DS-only acting/camera coverage for the five-act treatment, primarily the siege-to-finale arcs, until the runtime is **earned** and not static filler.
+3. Review and improve the authored 84:44 campaign and 40:00 bonus timeline shot by shot; give every silent beat physical action, lip timing, reaction and continuity. Revise unnatural holds rather than hiding them in the runtime total.
 4. Upgrade from 2D character billboards to articulated 3D body models where the hardware budget permits, while retaining sharp close-up acting portraits and the DS cutscene fallback.
