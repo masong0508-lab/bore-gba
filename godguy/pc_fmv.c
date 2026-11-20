@@ -82,8 +82,17 @@ static void checkDirectedBlocking(void){
                   "a close-up enlarged an actor beyond the sharp source art");
             if(beat->lead==F_WISP) check(start.leadHeight<=36,"Wisp was scaled to human height");
             if(beat->other==F_WISP) check(start.otherHeight<=36,"Wisp was scaled to human height");
-            if(beat->camera!=F_TRACK) check(start.leadX==finish.leadX,
-                   "a stationary conversation moved the lead actor");
+            // A 3DS wide establishing shot may contain a short, authored
+            // walk into position; DS cuts and stationary dialogues stay fixed.
+#ifdef __3DS__
+            int travelingWide=beat->camera==F_WIDE&&
+                beat->lead<F_ACTOR_N&&beat->prop>=F_PROP_N;
+            if(beat->camera!=F_TRACK&&!travelingWide)
+#else
+            if(beat->camera!=F_TRACK)
+#endif
+                check(start.leadX==finish.leadX,
+                      "a stationary conversation moved the lead actor");
             if(beat->lead<F_ACTOR_N&&beat->other<F_ACTOR_N){
                 check(start.leadX!=start.otherX,"speakers overlap one another");
                 for(int j=n+1;j<reel->count;j++){
@@ -209,6 +218,29 @@ static void checkCinematicActingAndMix(void){
     check(filmActingPose(roofBeats+2,170,1,F_ACT_WORK)==11||
           filmActingPose(roofBeats+2,170,1,F_ACT_WORK)==3,
           "3DS hammer beat lost its work animation");
+    // Depth and world-cast regressions: higher depth gives less apparent
+    // displacement, a tracked camera changes the projection, and traveling
+    // characters approach through perspective instead of sprite zoom alone.
+    GgFilmCamera nearCam={0,0},trackCam={55,18};
+    GgS2 nearPoint=ggFilmProject(nearCam,ggV3(90,0,550));
+    GgS2 farPoint=ggFilmProject(nearCam,ggV3(90,0,1300));
+    check(nearPoint.x-128>farPoint.x-128,"3DS scene lost depth perspective");
+    check(ggFilmProject(trackCam,ggV3(90,0,550)).x!=nearPoint.x,
+          "3DS camera movement does not transform geometry");
+    FilmBlocking nearCast=filmBlocking(firstLightBeats+6,0);
+    FilmBlocking finalCast=filmBlocking(firstLightBeats+6,180);
+    ggFilmWorldBlocking(firstLightBeats+6,0,0,&nearCast);
+    ggFilmWorldBlocking(firstLightBeats+6,180,256,&finalCast);
+    check(finalCast.leadHeight>nearCast.leadHeight,
+          "3DS stage action has no approach depth");
+    int ness=0,serin=0;
+    for(unsigned k=0;k<sizeof filmExtraReels/sizeof *filmExtraReels;k++)
+        for(int j=0;j<filmExtraReels[k].count;j++){
+            const FilmBeat *b=filmExtraReels[k].beats+j;
+            ness+=b->lead==F_NESSA||b->other==F_NESSA;
+            serin+=b->lead==F_SERIN||b->other==F_SERIN;
+        }
+    check(ness>=10&&serin>=10,"new 3DS cast lacks a persistent story arc");
 #endif
     puts("FMV cinematic mix and acting OK: smooth ducks, timed props and native-detail 3DS poses");
 }
