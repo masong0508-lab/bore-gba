@@ -498,6 +498,27 @@ int main(void){
     for(int t=0;t<100;t++)ggReignSquadTick();
     check(ggChron.foe[0].hp<40,
           "tactical field squad did not damage an opposing soldier");
+    // Foes must recognize followers as real battlefield participants:
+    // a nearer guard can absorb attacks, fall and be replaced, while
+    // the 2D creature population and player health remain untouched.
+    ggChron.foe[0].hp=40;
+    ggChron.foe[0].x=62;ggChron.foe[0].y=60;ggChron.foe[0].wait=0;
+    ggReign.squad[0].x=61;ggReign.squad[0].y=60;
+    ggReign.squad[0].hp=6;ggReign.squadN=1;
+    ggExplore.px=67*256+128;ggExplore.py=60*256+128;
+    int healthBefore=ggChron.hp;
+    ggChronEnemiesStep();
+    check(ggReign.squad[0].hp<6&&ggChron.hp==healthBefore,
+          "enemy completely ignored closer living squad member");
+    ggChron.foe[0].wait=0;
+    ggChronEnemiesStep();
+    check(ggReign.squad[0].hp==0,
+          "allies could not be defeated by real enemy AI");
+    ggExplore.px=60*256+128;ggExplore.py=60*256+128;
+    ggChron.foeN=0;
+    check(ggReignRecruit()&&ggReign.squadN==1&&
+          ggReign.squad[0].hp>0,
+          "fallen squad member permanently occupied a recruit slot");
     int storyChapter=chapter;
     ggReignStep(KEY_SELECT);
     check(ggReign.menu,"SELECT did not open the independent council");

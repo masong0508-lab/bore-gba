@@ -40,6 +40,8 @@ static const int ggChronRequires[GG_CHRON_ACTS]={3,5,8,14};
 // Resolved by the 3DS-only saga director after the player secures a final post.
 static void ggSagaStartChoice(void);
 static int ggSagaParley(int post);
+static int ggReignNearestGuard(int x,int y,int *gx,int *gy);
+static void ggReignGuardDamage(int index,int damage);
 static int ggChronReady(void){return chapter>=3||storyDone;}
 static int ggChronLand(int x,int y){
     if(x<1||y<1||x>=WW-1||y>=WH-1)return 0;
@@ -293,22 +295,34 @@ static void ggChronEnemiesStep(void){
         if(f->hp<=0)continue;
         if(f->wait>0){f->wait--;continue;}
         int distance=ggChronNear(f->x,f->y,px,py);
-        if(distance<=2){
+        int guardX=px,guardY=py;
+        int guard=ggReignNearestGuard(f->x,f->y,&guardX,&guardY);
+        int toGuard=guard<0?999:ggChronNear(f->x,f->y,guardX,guardY);
+        // Recruited allies can screen the player and genuinely die
+        // protecting a settlement. A foe prefers the nearest opponent,
+        // rather than unrealistically hitting only the protagonist.
+        if(guard>=0&&toGuard<=2&&toGuard<distance){
+            ggReignGuardDamage(guard,4+ggChron.act);
+            f->wait=(signed char)(33+(i&3)*5);
+            ggChron.dirty=1;
+        }else if(distance<=2){
             ggChron.hp-=4+ggChron.act;
             ggChron.morale=ggExpClamp(ggChron.morale-1,0,100);
             f->wait=(signed char)(33+(i&3)*5);
             ggChron.dirty=1;
-        }else if(distance<8){
-            // Bounded pursuit with axis fallback; no all-world A* search
-            // and never overwrite or damage live god-game inhabitants.
-            int dx=px>f->x?1:px<f->x?-1:0;
-            int dy=py>f->y?1:py<f->y?-1:0;
+        }else if(distance<8||toGuard<8){
+            // Pursue the closest visible opponent, with axis fallback.
+            // No all-world A*, no injury to unrelated 2D inhabitants.
+            int tx=px,ty=py;
+            if(toGuard<distance){tx=guardX;ty=guardY;}
+            int dx=tx>f->x?1:tx<f->x?-1:0;
+            int dy=ty>f->y?1:ty<f->y?-1:0;
             int nx=f->x,ny=f->y;
-            if(abs(px-f->x)>=abs(py-f->y)&&ggChronLand(nx+dx,ny))
+            if(abs(tx-f->x)>=abs(ty-f->y)&&ggChronLand(nx+dx,ny))
                 nx+=dx;
             else if(ggChronLand(nx,ny+dy))ny+=dy;
             else if(ggChronLand(nx+dx,ny))nx+=dx;
-            if(ggChronNear(nx,ny,px,py)>0){
+            if(ggChronNear(nx,ny,tx,ty)>0){
                 int collide=0;
                 for(int j=0;j<ggChron.foeN;j++)if(j!=i&&
                     ggChron.foe[j].hp>0&&ggChron.foe[j].x==nx&&

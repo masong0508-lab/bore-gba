@@ -159,9 +159,43 @@ static int ggReignEnroll(int role){
     ggReignSave();
     return 1;
 }
+
+static int ggReignNearestGuard(int x,int y,int *gx,int *gy){
+    int best=-1,distance=999;
+    if(!ggChron.active)return -1;
+    for(int i=0;i<ggReign.squadN;i++){
+        const GgReignGuard *g=&ggReign.squad[i];
+        if(g->hp<=0)continue;
+        int d=ggChronNear(x,y,g->x,g->y);
+        if(d<distance){distance=d;best=i;}
+    }
+    if(best>=0){
+        *gx=ggReign.squad[best].x;
+        *gy=ggReign.squad[best].y;
+    }
+    return best;
+}
+static void ggReignGuardDamage(int index,int damage){
+    if(index<0||index>=ggReign.squadN||damage<=0)return;
+    GgReignGuard *g=&ggReign.squad[index];
+    if(g->hp<=0)return;
+    int hp=(int)g->hp-damage;
+    g->hp=(signed char)(hp>0?hp:0);
+    if(g->hp==0){
+        ggChron.morale=ggExpClamp(ggChron.morale-7,0,100);
+        ggReignNotice("A FOLLOWER HAS FALLEN. RECRUIT IN A LIVING TOWN.");
+    }
+    ggChron.dirty=1;
+}
 static int ggReignRecruit(void){
     int v=ggReignVillage(ggExplore.px>>8,ggExplore.py>>8,12);
     if(v<0){ggReignNotice("RECRUIT AT A REAL SETTLEMENT");return 0;}
+    // Dead recruits occupy no permanent capacity. Compact only on
+    // recruitment (never during combat/iteration or per-frame render).
+    int live=0;
+    for(int k=0;k<ggReign.squadN;k++)if(ggReign.squad[k].hp>0)
+        ggReign.squad[live++]=ggReign.squad[k];
+    ggReign.squadN=live;
     if(ggReign.squadN>=GG_REIGN_SQUAD_MAX){
         ggReignNotice("YOUR FIELD SQUAD IS AT CAPACITY");return 0;
     }
@@ -453,6 +487,15 @@ static int ggReignGuardStep(int fromX,int fromY,int goalX,int goalY,
             int q=ny*W+nx,wx=fromX+nx-R,wy=fromY+ny-R;
             if(dist[q]!=255||!ggChronLand(wx,wy))continue;
             if(wx==playerX&&wy==playerY)continue;
+            int squadBlocked=0;
+            for(int g=0;g<ggReign.squadN;g++)if(
+                ggReign.squad[g].hp>0&&
+                (ggReign.squad[g].x!=fromX||
+                 ggReign.squad[g].y!=fromY)&&
+                ggReign.squad[g].x==wx&&ggReign.squad[g].y==wy){
+                squadBlocked=1;break;
+            }
+            if(squadBlocked)continue;
             if(ggExpGround(world[wy][wx])-
                ggExpGround(world[y][x])>19)continue;
             dist[q]=dist[p]+1;
@@ -546,8 +589,11 @@ static void ggReignDraw(u8 *out){
             ggExpText(out,25,96,"X BROWSE JOB  A APPLY IN TOWN",190,214,218);
             ggExpText(out,25,112,"FARM / CRAFT / HEAL / TRADE / SERVE / MORE",190,214,218);
         }else if(ggReign.page==1){
-            snprintf(line,sizeof line,"SQUAD %d/%d   ORDER: %s",
-                     ggReign.squadN,GG_REIGN_SQUAD_MAX,
+            int able=0;
+            for(int k=0;k<ggReign.squadN;k++)
+                able+=ggReign.squad[k].hp>0;
+            snprintf(line,sizeof line,"SQUAD %d ACTIVE / %d SLOTS  ORDER: %s",
+                     able,GG_REIGN_SQUAD_MAX,
                      ggReignOrders[ggReign.selectedOrder]);
             ggExpText(out,25,79,line,225,233,216);
             ggExpText(out,25,98,"X CHANGE  A COMMAND  Y RECRUIT IN TOWN",190,214,218);
