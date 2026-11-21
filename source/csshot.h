@@ -153,10 +153,10 @@ static const CsShot csShots[]={
     {12,6,1, 0,110, 530,  0,81, 760,  0,82},  // her answer
 };
 static const CsShot* csShotFind(int t){   // the shot in use on this beat now, if any (several on a beat: the one with the latest start that has begun)
-    if(csMemOn) return 0;   // (a memory: the automatic camera frames it)
-    const CsShot*s=0; int n=(int)(sizeof(csShots)/sizeof(csShots[0]));
     static int lastSc=-1,lastBi=-1,lastT=-1,nextT=-1;
     static const CsShot*lastShot;
+    if(csMemOn){ lastSc=-1; return 0; } // a montage invalidates the cache: after it, find the correct live shot
+    const CsShot*s=0; int n=(int)(sizeof(csShots)/sizeof(csShots[0]));
     if(lastSc==csCurSc&&lastBi==csCurBi&&t>=lastT&&t<nextT) return lastShot;
     nextT=0x7FFFFFFF;
     for(int i=0;i<n;i++){ const CsShot*c=&csShots[i]; if(c->sc!=csCurSc||c->bi!=csCurBi) continue;

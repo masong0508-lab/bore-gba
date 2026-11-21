@@ -7,6 +7,7 @@ cut = Path("source/cutscene.h").read_text(encoding="utf-8")
 shots = Path("source/csshot.h").read_text(encoding="utf-8")
 story = Path("source/story.h").read_text(encoding="utf-8")
 house = Path("source/house.h").read_text(encoding="utf-8")
+save = Path("source/savegame.h").read_text(encoding="utf-8")
 scenes = {}
 for match in re.finditer(r"static const CsBeat csS(\d+)\[\]=\{([\s\S]*?)^\};", cut, re.M):
     n = int(match.group(1))
@@ -43,8 +44,11 @@ for needle in [
     "if(stTvHospitalUid(s->uid))",
     "static void stTvPatientRest(int m)",
     "if(stId==STY_TVSHOW&&stCh==4&&stKid!=255",
+    "if((cl!=8&&cl!=12)", "slwPut(w,(u8)(stId==STY_TVSHOW?stmGet():0))",
+    "SRAM_BASE[STB_OFF+i]=c.p[9+i]",
+    "if(csMemOn){ lastSc=-1; return 0; }",
 ]:
-    assert needle in cut + story + house, needle
+    assert needle in cut + story + house + save + shots, needle
 assert cut.count("CF_AUTO,250") == 1, "the original tracker song must start once"
 assert cut.count(",251,0,") == 1, "the original tracker song must fade once"
 assert cut.index("static const CsBeat csS3") < cut.index("static const CsBeat csS5")

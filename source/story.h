@@ -480,6 +480,10 @@ static void stTvControl(void){
         int me=hhPUid; hhSwitchTo(m);
         if(hhPUid!=(int)stPart) return;   // it did not switch: try again later
         stKid=(u8)me; stTvWant=0;
+        { int patient=stMember(stKid); if(patient>=0){
+            HhSim*p=&hhM[patient]; p->act=HA_AWAY; p->use=HN_REST; p->item=0;
+            p->pn=p->pi=0; hhUp[patient]=0;
+        } } // no single frame where a newly switched comatose Missy can be selected
     } else {   // chapter 5: return to Missy, even if the player selected a different housemate
         if(stCh<4||stPart==255||stKid==255){ stTvWant=0; return; }
         if(hhPUid==(int)stKid){ stTvWant=0; return; }
@@ -654,7 +658,11 @@ static void stqBeatTick(void){   // a goal reached for the first time this chapt
 }
 static void stTick(void){ { static u8 bt; if(++bt>=45){ bt=0; stqBeatTick(); } } papTick(); plugTick(); stTick0(); if(stTvWant&&stId==STY_TVSHOW){ static u8 tc; if(++tc>=60){ tc=0; stTvControl(); } } }   // (TV SHOW & TELL: keep asking while the hand-over is waiting)
 static void stFix(void);
-static void stEnter(void){ stLoad(); stFix(); if(stId){ stAnnounce();
+static void stEnter(void){ stLoad(); stFix(); if(stId){
+        if(stCh==3&&stId==STY_TVSHOW&&stKid!=255){ int patient=stMember(stKid);
+            if(patient>=0){ hhM[patient].act=HA_AWAY; hhUp[patient]=0; }
+        } // hide Missy immediately on loading the hospital chapter, before the first rendered frame
+        stAnnounce();
         if(stPending&&stId==STY_TVSHOW){ stShown=(u16)(stId*16+stCh+1); stModal=2; }  // a save/reload must not silently skip Missy's ending scenes
         else if(stShown!=(u16)(stId*16+stCh+1)){ stShown=(u16)(stId*16+stCh+1); stModal=1; }
     } }   // (a chapter card once per chapter and power on)   // entering the life game: the current goal on the top bar

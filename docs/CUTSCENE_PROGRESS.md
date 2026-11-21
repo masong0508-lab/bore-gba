@@ -78,3 +78,14 @@ hospital flag ends and Missy's off-lot proxy is returned to a valid exit tile
 before she is switched back into the player's control. A different manually
 selected housemate cannot permanently block the hand-back. The goals cannot
 complete while the player is controlling the wrong sister.
+
+### Player-file continuity and camera montage invalidation
+The player's story chunk is 12 bytes rather than eight: the original eight
+bytes are unchanged, then comes one byte of lapse/medical-review memory and
+three bytes of chapter-start cash. The reader accepts both 8 and 12 bytes;
+older saves start a fair new earnings baseline and do not inherit the
+previously loaded player's hospital status. This fixes switching between
+saved players and restoring a chapter-four medical review from disk. The
+initial handover and first story entry also hide comatose Missy immediately,
+not merely after the first gameplay AI tick. The shot cache is invalidated
+during a flashback montage so the shot following the memory cue is correct.
