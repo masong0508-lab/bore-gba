@@ -58,6 +58,7 @@ static void ggExpRenderCreatures(u8 *top){
     ggExpNpcClosestDepth=0;
     ggMeshPersonCount=0;
     ggMeshPersonPixels=0;
+    ggMeshPersonWalkingDrawn=0;
     // O(23x23) cell probes independent of 3DS creature capacity; no
     // looping through all 12,000+ creatures during each rendered frame.
     for(int y=py-GG_EXP_NEAR_RADIUS;y<=py+GG_EXP_NEAR_RADIUS;y++){
