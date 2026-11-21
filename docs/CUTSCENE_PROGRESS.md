@@ -213,3 +213,15 @@ over the first 21 frames rather than snapping up at once.
 A folding chair appears behind Mamesy and slides closer as the
 vigil scene describes her moving it. These use existing renderer
 primitives, no additional buffers or image files.
+
+### On-emulator visual review and anatomy repair
+The 480x340 mGBA screenshot evidence (GBA output scaled 2x) proves the
+procedural ICU room is rendering in the game. It also showed Missy's head
+was still too round and visually separated from a tiny gown. The next
+pass joins the jaw to the neck, connects the shoulder to the gown,
+exposes more torso before the folded sheet, shapes the nose and chin in
+profile and adds hairline/cheek shading to high-zoom portraits. Added
+directed bedside two-shots for the doctor's first appearance and return:
+the automated camera previously left Missy's head cropped at the far
+right edge. These are code-drawn polygons and ellipses, not new bitmap
+sprites; no new textures or framebuffer storage.

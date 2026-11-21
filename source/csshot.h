@@ -94,6 +94,8 @@ static const CsShot csShots[]={
     {5,47,0,  0,41, 296,120,68, 256,120,64},
     // waking shots (cutscene redo 7): WAKING UP (scene 3): a slow push into the room (0), Mamesy's plea (4), the held hand (7), her grief (8), the monitor (11-12), a hard cut to the fingers (14), Missy's face (16), the shout (17), the coffee and lawyer (21), "I heard you" (28), the rain (29-30), a last push (33)
     {3,0,0,   0,150, 256,120,64, 300,120,70},
+    {3,3,0,   0,110, 280,120,69, 325,120,73}, // hold doctor and patient in the same framed bedside geography
+    {3,20,0,  0,110, 285,120,69, 335,120,72}, // Okafor returns: repeat the two-shot instead of clipping Missy's head
     {3,4,2,   0, 90, 560,  0,80, 620,  0,80},
     {3,7,1,   0,120, 330,-40,86, 560,-30,88},
     {3,8,2,   0,120, 520,  0,80, 700,  0,82},

@@ -112,20 +112,33 @@ static void csFaceBed(int wx,int wy,int t,u16 skin,u16 hair,int awake){
     if(csCz<600) return; // the small profile already reads at wide zoom
     csFcx=csCamX(wx); csFcy=csCamY(wy);
     u16 ol=RGB(3,4,8), sh=csFSh(skin,4), lit=csFLt(skin,2);
-    // One shaped head and neck, with hair under and around the pillow edge.
-    csFE(1,0,32,24,ol);
-    csFE(2,-2,29,22,hair);
+    // Neck and collar FIRST: the face must join the world-scale shoulder.
+    csFE(33,19,17,13,ol);
+    csFE(31,17,14,10,sh);
+    csFE(27,14,12,9,skin);
+    csFR(38,16,24,9,RGB(12,21,23)); // gown neckline, under the jaw
+    csFR(41,16,18,2,RGB(20,27,27));
+    // Three-quarter side profile with a cheek, brow and hairline, not a disk.
+    csFE(1,0,31,23,ol);
+    csFE(3,-2,28,21,hair);
     csFE(-3,1,27,19,sh);
-    csFE(-4,-1,25,18,skin);
-    csFE(-9,-9,13,4,lit); // forehead caught in monitor light
+    csFE(-5,-1,25,18,skin);
+    csFE(-15,-8,13,5,lit); // brow ridge picks up the monitor light
+    csFE(-22,3,9,5,skin); // front cheek toward the pillow
+    csFE(-18,12,11,5,sh); csFE(-19,10,9,3,skin); // chin / jaw
     csFR(-25,-15,21,4,hair); csFR(-26,-12,8,8,hair);
     csFR(-4,-21,20,5,hair); csFR(4,-19,13,3,csFLt(hair,3));
+    csFR(-24,-15,9,3,csFSh(hair,2));
+    csFR(6,-16,8,9,csFSh(hair,3)); // low sideburn against the pillow
+    csFR(-10,-20,10,1,csFLt(hair,5));
     csFE(17,5,6,8,sh); csFE(18,4,4,6,skin); // ear toward bed's far side
     // Missy's nose and lips point left, not down as on an upright portrait.
-    csFR(-31,0,9,5,csFSh(skin,3));
-    csFR(-32,-1,7,4,skin);
+    csFE(-29,1,8,5,csFSh(skin,3));
+    csFE(-31,0,6,4,skin); // round nose bridge, not square masonry
+    csFR(-34,3,6,2,csFSh(skin,4));
     csFR(-30,6,9,2,RGB(18,7,9));
     csFR(-26,8,7,1,csFLt(skin,3));
+    csFR(-15,9,8,2,csFLt(skin,1)); // reflected cheek light
     // The first finger twitch does NOT open her eye: words at beat 16 do.
     if(awake){
         int blink=((t/11)&3)==0;

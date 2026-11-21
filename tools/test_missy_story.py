@@ -70,6 +70,9 @@ assert "csCurSc==3&&csCurBi>=16&&csCurBi<34" in art
 assert "int talking=awake&&csTalking&&csSpk==who" in art
 assert "static void csWardPatient(" in art
 assert "csWardPatient(x,y,who,pose,t,sk,hr)" in art
+assert "Anatomical neck and shoulder connect the head" in art
+assert "Neck and collar FIRST:" in face
+assert "{3,3,0," in shots and "{3,20,0," in shots
 assert "static void csWardFront(void)" in cut
 assert "Mamesy's chair moves toward the bed in the vigil beat" in cut
 assert "PERSPECTIVE SITE:" in cut

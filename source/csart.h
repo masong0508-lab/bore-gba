@@ -87,16 +87,22 @@ static void csWardPatient(int x,int y,int who,int pose,int t,u16 sk,u16 hr){
     csR(x-48,y-24,30,18,RGB(17,23,25));
     csR(x-46,y-23,28,15,light);
     csR(x-45,y-10,25,2,RGB(20,25,25));
-    // Bedside shoulder, neck and one bent arm. The shoulder rises with breath.
-    csR(x-20,y-17-breath,29,13,ink);
-    csR(x-18,y-16-breath,27,10,gown);
-    csR(x-17,y-16-breath,19,2,csLt(gown,4));
-    csR(x-21,y-14-breath,8,5,sk);
-    csR(x-10,y-11-breath,17,3,csSh(gown,3));
+    // Anatomical neck and shoulder connect the head to the gown and blanket.
+    // The older geometry left the head as a separate ball beside a flat bar.
+    csR(x-23,y-17-breath,15,12,ink);
+    csR(x-22,y-16-breath,14,9,csSh(sk,2));
+    csR(x-20,y-17-breath,39,15,ink);
+    csR(x-18,y-16-breath,37,12,gown);
+    csR(x-17,y-16-breath,28,3,csLt(gown,5));
+    csR(x-20,y-13-breath,11,5,sk);
+    csR(x-12,y-11-breath,27,3,csSh(gown,3));
     // Head in side profile, turned toward the left of the picture, ON the pillow.
     csD(x-29,y-16,10,ink); csD(x-29,y-16,9,hr);
-    csD(x-31,y-14,8,sk); csR(x-39,y-20,10,4,hr);
-    csR(x-37,y-21,12,2,csLt(hr,4)); csR(x-39,y-15,2,3,csSh(sk,3));
+    csD(x-31,y-14,8,csSh(sk,2)); csD(x-32,y-15,7,sk);
+    csR(x-39,y-20,10,4,hr); csR(x-37,y-21,12,2,csLt(hr,4));
+    csR(x-41,y-14,3,3,csSh(sk,3)); // nose in profile, not a flat disc
+    csR(x-35,y-10,9,2,csSh(sk,4)); // chin joins neck at the jaw
+    csR(x-26,y-13,5,4,sk); // visible skin from jaw to collar
     csR(x-39,y-12,4,2,sk); // nose / profile: no floating circular head
     if(awake){ // eyes open AFTER her first spoken line, not at the initial twitch
         csR(x-35,y-16,5,3,csSh(sk,7)); csR(x-34,y-15,3,2,RGB(29,29,28));
@@ -105,9 +111,10 @@ static void csWardPatient(int x,int y,int who,int pose,int t,u16 sk,u16 hr){
     csR(x-32,y-9-(talking?1:0),4,talking?2:1,RGB(17,8,9)); // softly moving lips when she speaks
     csR(x-24,y-14,3,3,csSh(sk,3)); csR(x-23,y-14,2,2,sk); // ear
     // Blanket runs over the torso AND both legs instead of a 17px bar.
-    csR(x-9,y-12-breath,47,14+breath,ink);
-    csR(x-8,y-11-breath,45,12+breath,linen);
-    csR(x+5,y-10-breath,27,3,light);
+    csR(x+1,y-12-breath,40,14+breath,ink);
+    csR(x+2,y-11-breath,38,12+breath,linen);
+    csR(x+5,y-10-breath,28,3,light);
+    csR(x+2,y-12-breath,6,10,csSh(linen,3)); // folded sheet slopes onto the torso
     csR(x+31,y-8,7,5,RGB(20,26,26)); // rounded fold over the feet
     csLn(x+10,y-7,x+16,y-1,fold); csLn(x+19,y-7,x+25,y-2,fold);
     csLn(x+4,y-1,x+30,y-1,RGB(20,25,26));
