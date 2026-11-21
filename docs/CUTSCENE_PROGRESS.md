@@ -167,3 +167,13 @@ Missy's round glasses rest on the nearby tray, rather than appearing to
 levitate over her cheek. Only the hospital uses this new face painter;
 other character models and memory budgets are unchanged. Screen-space
 detail is bypassed in wide shots to preserve FPS.
+
+### Direct-play hospital preview ROM
+`make preview-missy` now builds a separate, non-release GBA ROM with
+`CS_PREVIEW=4`. After the boot logo, it plays the hospital awakening
+film repeatedly; use A to advance dialogue, START to skip. The normal
+`bore.gba` and seven expansion packs are unchanged. GitHub Actions
+uploads `bore-missy-hospital-preview` for direct mGBA testing and
+checks that its GBA cartridge header is stamped MISSYWARD. To preview
+the road sequence locally, use `make clean && make preview-missy CS_PREVIEW_SCENE=11`.
+A preview builds the film directly; it is not a full gameplay validation.

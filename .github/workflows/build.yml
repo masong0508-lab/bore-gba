@@ -43,6 +43,23 @@ jobs:
           make
           make size
           make creator
+      - name: Build Missy hospital cinematic preview
+        run: |
+          export DEVKITPRO=/opt/devkitpro
+          export DEVKITARM=/opt/devkitpro/devkitARM
+          export PATH=$DEVKITARM/bin:$DEVKITPRO/tools/bin:$PATH
+          make preview-missy CS_PREVIEW_SCENE=4
+          test -s bore-missy-preview.gba
+          python3 - <<'PY'
+          from pathlib import Path
+          rom=Path("bore-missy-preview.gba").read_bytes()
+          assert rom[0xA0:0xA9]==b"MISSYWARD"
+          print(f"Missy hospital preview ROM: PASS ({len(rom)} bytes)")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bore-missy-hospital-preview
+          path: bore-missy-preview.gba
       - name: Biggest users and ROM headroom
         run: |
           export PATH=/opt/devkitpro/devkitARM/bin:$PATH
