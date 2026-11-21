@@ -188,7 +188,8 @@ static void ggMeshActorCharacter(GgMeshContext*m,int x,int y,int ground,
                                   int humanoid,const u8 colors[3][3],
                                   int quality){
     int oldMat=m->material,oldSeed=m->materialSeed;
-    m->materialSeed=family*991+phase/16;
+    // Actor clothing identity must not shimmer every pose frame.
+    m->materialSeed=family*991;
     ggMeshContactShadow(m,x,y,humanoid?23:36,humanoid?6:4);
     if(humanoid)
         ggMeshActorHuman(m,x,y,ground,heading,phase,family,
