@@ -41,6 +41,21 @@ int main(void){
         assert(msDaysProgress(d,0)==d);
         assert(msDaysProgress(d,1)==(d?d-1:0));
     }
+    // Every possible save status byte round-trips exactly, including when
+    // pending scenes and guest-state flags are both set during reload.
+    for(unsigned status=0;status<256;status++){
+        unsigned ch=msStatusChapter(status), tasks=msStatusTasks(status);
+        unsigned pending=msStatusPending(status), guest=msStatusGuest(status);
+        assert(msStatusPack(ch,tasks,pending,guest)==status);
+    }
+    for(unsigned ch=0;ch<8;ch++) for(unsigned tasks=0;tasks<8;tasks++)
+        for(unsigned pending=0;pending<2;pending++) for(unsigned guest=0;guest<2;guest++){
+            unsigned status=msStatusPack(ch,tasks,pending,guest);
+            assert(msStatusChapter(status)==ch);
+            assert(msStatusTasks(status)==tasks);
+            assert(msStatusPending(status)==pending);
+            assert(msStatusGuest(status)==guest);
+        }
     assert(MS_PENDING_SCENE==64u&&MS_ONE_MORE_NIGHT==16u);
     puts("BORE Missy story memory: PASS");
     return 0;
