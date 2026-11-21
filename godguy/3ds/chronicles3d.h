@@ -13,11 +13,15 @@ typedef struct {
     int active,loaded,act,cleared,frame,lastKeys;
     int hp,stamina,food,rations,morale,score,attackWait,attackFlash;
     int post,won,lost,briefTime,day,dirty;
+    int routeOx,routeOy; // mission's already-validated 33x33 walking region
     short px[GG_CHRON_POSTS],py[GG_CHRON_POSTS];
     GgChronFoe foe[GG_CHRON_FOES];
     int foeN;
 } GgChronicles;
 static GgChronicles ggChron;
+// Bounded cache, built only when a mission or objective changes; this
+// is never allocated again or computed on an individual 3D draw call.
+static unsigned char ggChronNavDistance[GG_CHRON_CELLS];
 static const char *const ggChronActName[GG_CHRON_ACTS]={
     "THE FORD'S LAST LIGHT","THE BROKEN WATCH",
     "THE BORDER OF NAMES","THE HOLLOW MARCH"
@@ -53,6 +57,7 @@ static int ggChronRoute(void){
     unsigned short queue[GG_CHRON_CELLS];
     const int sx=ggExplore.px>>8,sy=ggExplore.py>>8;
     const int ox=sx-16,oy=sy-16;
+    ggChron.routeOx=ox;ggChron.routeOy=oy;
     int front=0,back=0;
     memset(dist,255,sizeof dist);
     dist[16*GG_CHRON_GRID+16]=0;
@@ -101,6 +106,68 @@ static int ggChronRoute(void){
         if(best==0x7fffffff)return 0; // no reachable distinct site
     }
     return 1;
+}
+
+static void ggChronNavBuild(int post){
+    // Reverse breadth-first walking distances from the CURRENT objective.
+    // The flow field uses the SAME map cells and climb rules as the 3D
+    // player's feet. Render/UI lookups are constant-time and cheap.
+    memset(ggChronNavDistance,255,sizeof ggChronNavDistance);
+    if(post<0||post>=GG_CHRON_POSTS)return;
+    int xx=ggChron.px[post]-ggChron.routeOx;
+    int yy=ggChron.py[post]-ggChron.routeOy;
+    if((unsigned)xx>=GG_CHRON_GRID||(unsigned)yy>=GG_CHRON_GRID)
+        return;
+    unsigned short queue[GG_CHRON_CELLS];
+    int front=0,back=0,origin=yy*GG_CHRON_GRID+xx;
+    queue[back++]=(unsigned short)origin;
+    ggChronNavDistance[origin]=0;
+    static const signed char dx[4]={1,0,-1,0};
+    static const signed char dy[4]={0,1,0,-1};
+    while(front<back){
+        int pos=queue[front++],x=pos%GG_CHRON_GRID,y=pos/GG_CHRON_GRID;
+        if(ggChronNavDistance[pos]>=254)continue;
+        int toX=ggChron.routeOx+x,toY=ggChron.routeOy+y;
+        for(int k=0;k<4;k++){
+            int nx=x+dx[k],ny=y+dy[k];
+            if((unsigned)nx>=GG_CHRON_GRID||
+               (unsigned)ny>=GG_CHRON_GRID)continue;
+            int q=ny*GG_CHRON_GRID+nx;
+            if(ggChronNavDistance[q]!=255)continue;
+            int fromX=ggChron.routeOx+nx,fromY=ggChron.routeOy+ny;
+            if(!ggChronLand(fromX,fromY))continue;
+            // Reverse traversal: a player at the neighbor must be able
+            // to climb toward the current cell, not the other way round.
+            if(ggExpGround(world[toY][toX])-
+               ggExpGround(world[fromY][fromX])>19)continue;
+            ggChronNavDistance[q]=ggChronNavDistance[pos]+1;
+            queue[back++]=(unsigned short)q;
+        }
+    }
+}
+static int ggChronNavNext(int x,int y,int *nx,int *ny,int *steps){
+    int lx=x-ggChron.routeOx,ly=y-ggChron.routeOy;
+    if((unsigned)lx>=GG_CHRON_GRID||(unsigned)ly>=GG_CHRON_GRID)
+        return 0;
+    int pos=ly*GG_CHRON_GRID+lx;
+    unsigned d=ggChronNavDistance[pos];
+    if(d==255)return 0;
+    *steps=(int)d;*nx=x;*ny=y;
+    if(d==0)return 1;
+    static const signed char dx[4]={1,0,-1,0};
+    static const signed char dy[4]={0,1,0,-1};
+    for(int k=0;k<4;k++){
+        int tx=lx+dx[k],ty=ly+dy[k];
+        if((unsigned)tx>=GG_CHRON_GRID||
+           (unsigned)ty>=GG_CHRON_GRID)continue;
+        int q=ty*GG_CHRON_GRID+tx;
+        if(ggChronNavDistance[q]<d){
+            *nx=ggChron.routeOx+tx;
+            *ny=ggChron.routeOy+ty;
+            return 1;
+        }
+    }
+    return 0;
 }
 static void ggChronSpawn(void){
     ggChron.foeN=0;
@@ -184,6 +251,7 @@ static int ggChronBegin(int x,int y,int oldPause){
         return -2; // no traversable route: never create a soft-locked act
     }
     ggChronSpawn();
+    ggChronNavBuild(0);
     return 1;
 }
 static int ggChronEnemiesAt(int post){
@@ -289,6 +357,8 @@ static int ggChronStep(int raw){
                            ggChron.px[p],ggChron.py[p])<=2 &&
                (!ggChronEnemiesAt(p)||ggSagaParley(p))){
                 ggChron.post++;
+                if(ggChron.post<GG_CHRON_POSTS)
+                    ggChronNavBuild(ggChron.post);
                 ggChron.rations=ggExpClamp(ggChron.rations+1,0,9);
                 ggChron.morale=ggExpClamp(ggChron.morale+12,0,100);
                 ggChron.hp=ggExpClamp(ggChron.hp+12,0,100);
@@ -365,8 +435,17 @@ static void ggChronDraw(u8 *out){
                   124,44,55);
         int bar=ggExpClamp(14*scale,16,60);
         ggExpRect(out,x-bar/2,y-9*scale-3,bar,3,34,29,35);
+        // Spawn places the chapter's single captain first at the last
+        // post. The captain is distinctly tougher; its bar must show
+        // actual damage from the first hit, not only after 65 HP vanish.
+        int captain=ggChron.act==GG_CHRON_ACTS-1&&
+                    f->post==GG_CHRON_POSTS-1&&
+                    i>=0&&i<ggChron.foeN&&
+                    (i==0||ggChron.foe[i-1].post!=f->post);
+        int maxHp=captain?105:20+ggChron.act*6+f->post*3;
+        if(maxHp<1)maxHp=40;
         ggExpRect(out,x-bar/2,y-9*scale-3,
-                  bar*ggExpClamp(f->hp,0,40)/40,3,196,76,64);
+                  bar*ggExpClamp(f->hp,0,maxHp)/maxHp,3,196,76,64);
     }
     if(!ggChron.won){
         int p=ggChron.post,x,y,s;
@@ -409,8 +488,26 @@ static void ggChronDraw(u8 *out){
             {"SAVE A WITNESS","SECURE THE ARCHIVE","READ THE NAMES"},
             {"DEFEND THE HOMES","BREAK THE SIEGE","FACE THE LAST CAPTAIN"}
         };
-        snprintf(line,sizeof line,"%s  %s %d TILES  HOSTILES %d",
-                 tasks[ggChron.act][p],dir,distance,ggChronEnemiesAt(p));
+        int nextX,nextY,routeSteps=0;
+        int routed=ggChronNavNext(ggExplore.px>>8,ggExplore.py>>8,
+                                  &nextX,&nextY,&routeSteps);
+        if(distance<=2&&ggChronEnemiesAt(p)==0){
+            snprintf(line,sizeof line,"%s - PRESS X TO SECURE",
+                     tasks[ggChron.act][p]);
+        }else if(distance<=2){
+            snprintf(line,sizeof line,"%s - %d GUARDS: FIGHT OR NEGOTIATE X",
+                     tasks[ggChron.act][p],ggChronEnemiesAt(p));
+        }else if(routed&&routeSteps>0){
+            int stepX=nextX-(ggExplore.px>>8);
+            int stepY=nextY-(ggExplore.py>>8);
+            const char *road=stepX>0?"EAST":stepX<0?"WEST":
+                              stepY>0?"SOUTH":"NORTH";
+            snprintf(line,sizeof line,"%s  PATH %s %d STEPS  GUARDS %d",
+                     tasks[ggChron.act][p],road,routeSteps,
+                     ggChronEnemiesAt(p));
+        }else snprintf(line,sizeof line,"%s  SEEK %s %d TILES  GUARDS %d",
+                       tasks[ggChron.act][p],dir,distance,
+                       ggChronEnemiesAt(p));
         ggExpText(out,9,203,line,247,216,155);
     }
     ggExpText(out,9,221,"A ACTION  X SECURE  Y RATION  B RUN  SELECT COUNCIL  START 2D",

@@ -301,6 +301,22 @@ int main(void){
           "chapter 3 cannot enter the unlocked companion campaign");
     check(ggChron.foeN>=3&&ggChron.foeN<=GG_CHRON_FOES,
           "campaign has no bounded enemy encounters");
+    // Route directions must follow passable tiles rather than lying
+    // about where the player can go through walls, cliffs or water.
+    int navX,navY,navSteps=0;
+    int navOk=ggChronNavNext(ggExplore.px>>8,ggExplore.py>>8,
+                            &navX,&navY,&navSteps);
+    check(navOk&&navSteps>=0,
+          "mission route navigation failed to reach starting region");
+    if(navSteps>0){
+        check(ggChronLand(navX,navY)&&
+              ggChronNear(navX,navY,ggExplore.px>>8,
+                          ggExplore.py>>8)==1,
+              "route-aware navigation proposed an impassable or remote step");
+        int nextSteps=0,nextX,nextY;
+        check(ggChronNavNext(navX,navY,&nextX,&nextY,&nextSteps)&&
+              nextSteps<navSteps,"mission route did not progress toward post");
+    }
     for(int i=0;i<GG_CHRON_POSTS;i++){
         check(ggChronLand(ggChron.px[i],ggChron.py[i]),
               "the campaign objective is on blocked or water terrain");
@@ -424,6 +440,14 @@ int main(void){
           "a heist did not change the generated town or public trust");
     check(!ggReignDeed(),"repeated heists bypassed the world-time cooldown");
     ggReign.frame=ggReign.nextCivicAt;
+    check(ggReignEnroll(GG_ROLE_TRADER),
+          "trader was not a reachable non-linear profession");
+    int cash=ggReign.credits,goods=vil[0].stock;
+    check(ggReignDeed()&&ggReign.credits==cash+4&&
+          vil[0].stock==goods+12,
+          "trader failed to pay eight and earn twelve from real goods");
+    ggReign.frame=ggReign.nextCivicAt;
+    ggReign.frame=ggReign.nextCivicAt;
     check(ggReignEnroll(GG_ROLE_ENVOY)&&ggReign.role==GG_ROLE_ENVOY,
           "a thief cannot retrain into civic leadership at a real town");
     check(ggReignDeed()&&vil[0].stock>stock-8,
@@ -453,6 +477,19 @@ int main(void){
           "inland towns incorrectly offered sea voyages");
     check(ggReignRecruit()&&ggReign.squadN==1 &&
           vil[0].stock>0,"real settlement could not provision a companion");
+    // A real village structure blocks the straight-line path. The
+    // follower must route around it, without walking through houses.
+    int gx=ggReign.squad[0].x,gy=ggReign.squad[0].y;
+    ggExplore.px=(gx+3)*256+128;
+    ggExplore.py=gy*256+128;
+    bld[gy][gx+1]=B_HALL;bld[gy][gx+2]=B_HALL;
+    int px=0,py=0;
+    check(ggReignGuardStep(gx,gy,gx+3,gy,&px,&py)&&
+          ggChronLand(px,py)&&
+          !(px==gx+1&&py==gy),
+          "companion did not find an obstacle-free first step");
+    bld[gy][gx+1]=0;bld[gy][gx+2]=0;
+    ggExplore.px=60*256+128;ggExplore.py=60*256+128;
     ggChron.foeN=1;
     ggChron.foe[0]=(GgChronFoe){61,60,40,0,0};
     check(ggReignDivine(0)&&ggChron.foe[0].hp<=0&&ggReign.divine==80,

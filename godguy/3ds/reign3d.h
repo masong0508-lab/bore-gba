@@ -209,7 +209,11 @@ static int ggReignDeed(void){
         ggReignNotice("HEIST: WEALTH GAINED, PUBLIC TRUST LOST");break;
     case GG_ROLE_TRADER:
         if(ggReign.credits<8){ggReignNotice("TRADE REQUIRES 8 CROWNS");return 0;}
-        ggReign.credits+=4;ggReign.influence+=4;
+        // Pay the advertised 8 crowns up front; earn 12 back after
+        // real goods arrive, rather than minting profit from no purchase.
+        ggReign.credits-=8;
+        ggReign.credits=ggExpClamp(ggReign.credits+12,0,9999);
+        ggReign.influence+=4;
         ggReignVillageStock(v,12);ggReignVillageLoyalty(v,2);
         ggReignNotice("MERCHANT CONVOY RESTOCKED THE SETTLEMENT");break;
     case GG_ROLE_SOLDIER:return ggReignRecruit();
@@ -417,6 +421,50 @@ static int ggReignStep(int raw){
     }
     return 1; // 3D world is paused while the command board is open
 }
+
+static int ggReignGuardStep(int fromX,int fromY,int goalX,int goalY,
+                            int *outX,int *outY){
+    // 11x11 bounded flood fill on the existing terrain, at most six
+    // soldiers every 12 game ticks. Static memory is < 1 KiB and zero
+    // heap; far targets are approached through the closest reachable
+    // waypoint in this local window. No creature data is altered.
+    enum { R=5,W=11,N=121 };
+    unsigned char dist[N],first[N];
+    unsigned char queue[N];
+    memset(dist,255,sizeof dist);
+    dist[R*W+R]=0;first[R*W+R]=255;
+    int front=0,back=0;queue[back++]=R*W+R;
+    int best=R*W+R,bestScore=0x7fffffff;
+    static const signed char dx[4]={1,0,-1,0};
+    static const signed char dy[4]={0,1,0,-1};
+    int playerX=ggExplore.px>>8,playerY=ggExplore.py>>8;
+    while(front<back){
+        int p=queue[front++],lx=p%W,ly=p/W;
+        int x=fromX+lx-R,y=fromY+ly-R;
+        int gap=ggChronNear(x,y,goalX,goalY);
+        // Maintain a one-tile personal-space gap; do not park on the
+        // protagonist or enemy while companions are maneuvering.
+        int score=gap*16+dist[p];
+        if((x!=playerX||y!=playerY)&&dist[p]>0&&
+           score<bestScore){bestScore=score;best=p;}
+        for(int k=0;k<4;k++){
+            int nx=lx+dx[k],ny=ly+dy[k];
+            if((unsigned)nx>=W||(unsigned)ny>=W)continue;
+            int q=ny*W+nx,wx=fromX+nx-R,wy=fromY+ny-R;
+            if(dist[q]!=255||!ggChronLand(wx,wy))continue;
+            if(wx==playerX&&wy==playerY)continue;
+            if(ggExpGround(world[wy][wx])-
+               ggExpGround(world[y][x])>19)continue;
+            dist[q]=dist[p]+1;
+            first[q]=dist[p]?first[p]:(unsigned char)q;
+            queue[back++]=(unsigned char)q;
+        }
+    }
+    if(best==R*W+R||first[best]==255)return 0;
+    int p=first[best];
+    *outX=fromX+p%W-R;*outY=fromY+p/W-R;
+    return *outX!=fromX||*outY!=fromY;
+}
 static void ggReignSquadTick(void){
     if(!ggChron.active||ggChron.won||ggChron.lost||ggReign.menu)return;
     ggReign.frame++;
@@ -443,14 +491,8 @@ static void ggReignSquadTick(void){
         if(ggReign.order==GG_REIGN_ASSAULT&&enemy>=0&&distance<8){
             tx=ggChron.foe[enemy].x;ty=ggChron.foe[enemy].y;
         }
-        int stepX=tx>g->x?1:tx<g->x?-1:0;
-        int stepY=ty>g->y?1:ty<g->y?-1:0;
         int nx=g->x,ny=g->y;
-        if(abs(tx-g->x)>abs(ty-g->y)&&ggChronLand(nx+stepX,ny))
-            nx+=stepX;
-        else if(ggChronLand(nx,ny+stepY))ny+=stepY;
-        else if(ggChronLand(nx+stepX,ny))nx+=stepX;
-        if(nx==tx&&ny==ty)continue;
+        if(!ggReignGuardStep(g->x,g->y,tx,ty,&nx,&ny))continue;
         int blocked=0;
         for(int k=0;k<ggReign.squadN;k++)if(i!=k&&
             ggReign.squad[k].hp>0&&ggReign.squad[k].x==nx&&
