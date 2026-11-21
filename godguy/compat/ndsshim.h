@@ -47,6 +47,9 @@ static u8 shimBmp[256*256]; static signed char shimDepth[256*192];
 // exactly 320x240 (5:4 nearest-neighbour scaling), centered on the wide
 // 400x240 top display and full-screen on the 320x240 touch display.
 static int shimFilmFullscreen;
+// Externally composited top-LCD views (3DS walkable voxel mode) must
+// invalidate the cached ordinary HUD image when returning to normal play.
+static int shimExternalInvalidate;
 #endif      // shimDepth: a level for each pixel of the top picture, for the 3DS's 3D screen (see compat/stereo.h)
 #define BG_TILE_RAM(n) ((void*)shimTiles)
 static u16 shimMap1[1024];
@@ -334,6 +337,7 @@ static void shimRenderChanged(u8*top,u8*bot,int*topChanged,int*botChanged){
     static u8 oldTiles[sizeof shimTiles], oldBitmap[256*192];
     int force=!have||top!=lt||bot!=lb||shimSwap!=lswap;
 #ifdef __3DS__
+    if(shimExternalInvalidate){force=1;shimExternalInvalidate=0;}
     // A film starting/ending must repaint both LCDs even when the palette
     // and underlying world map are otherwise identical.
     if(lastFilm!=shimFilmFullscreen){force=1;lastFilm=shimFilmFullscreen;}
