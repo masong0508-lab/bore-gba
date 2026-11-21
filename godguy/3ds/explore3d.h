@@ -487,7 +487,9 @@ static void ggExpRenderMode(u8 *top,int cinematic){
             g=sky?45+y/2:92+y/15;
             b=sky?77+y/2:94+y/20;
         }else{
-            r=sky?28+y/2:67;g=sky?65+y:113;b=sky?112+y:151;
+            // Exploration uses the same restrained cool sky family as
+            // the high-quality film rather than fluorescent cyan.
+            r=sky?32+y/2:67;g=sky?57+y:99;b=sky?89+y:113;
         }
         u8 *line=top+(cinematic?y:y*2)*400*3;
         for(int x=0;x<400;x++){
@@ -654,10 +656,11 @@ static void ggExpRenderMode(u8 *top,int cinematic){
                 baseG=(baseG*3+71)/4;
                 baseB=(baseB*4+91)/5;
             }
-            if(cinematic&&!build&&(type==T_GRASS||type==T_FOREST)){
-                // The old highly saturated grass bands looked like a
-                // flat fluorescent carpet. Ground uses a calmer natural
-                // green, while distant layers gradually blend into air.
+            if(!build&&(type==T_GRASS||type==T_FOREST||
+                         type==T_JUNGLE)){
+                // Shared naturalistic color grading across both render
+                // modes. The playable POV no longer turns this world
+                // into a neon green lawn when leaving a cutscene.
                 baseG=(baseG*4+baseR)/5;
                 baseB=(baseB*3+baseG)/4;
             }
@@ -666,15 +669,14 @@ static void ggExpRenderMode(u8 *top,int cinematic){
             baseR=baseR*shade/256;
             baseG=baseG*shade/256;
             baseB=baseB*shade/256;
-            if(cinematic){
-                // Fog is evaluated ONCE for a ray's visible world cell,
-                // not for every painted pixel. Keep far buildings
-                // recognizable without hard green/gray cutout layers.
-                int mist=ggExpClamp((d-6)*6,0,144);
-                baseR=(baseR*(256-mist)+76*mist)/256;
-                baseG=(baseG*(256-mist)+95*mist)/256;
-                baseB=(baseB*(256-mist)+113*mist)/256;
-            }
+            // Per-visible-cell atmospheric depth, not a pixel pass.
+            // Exploration has a smaller fog budget so long sightlines
+            // stay responsive while film shots get richer distant air.
+            int mist=cinematic?ggExpClamp((d-6)*6,0,144):
+                               ggExpClamp((d-8)*3,0,84);
+            baseR=(baseR*(256-mist)+76*mist)/256;
+            baseG=(baseG*(256-mist)+95*mist)/256;
+            baseB=(baseB*(256-mist)+113*mist)/256;
             int bright=build?13:6;
             // One material coordinate per ray/visible tile rather than
             // calling RNG or scanning any texture map per pixel.
@@ -713,6 +715,33 @@ static void ggExpRenderMode(u8 *top,int cinematic){
                     g+=17;r-=6; // canopy over a darker forest wall
                 }else if(!build&&type==T_MOUNT&&((materialY+ty*3)/9)%4==0){
                     r+=8;g+=9;b+=11; // strata follow world coordinates
+                }
+                if(!cinematic&&build&&d<=14&&edge>4){
+                    // The same authored facade height contract at half
+                    // resolution, evaluated ONLY for near buildings.
+                    // This keeps the fast 200-ray POV legible without
+                    // doing 400-ray film materials every gameplay frame.
+                    int wallHeight=ggFilmFacadeHeightAt(y*2,horizon*2,
+                                                        eye,d,ground);
+                    int feature=ggFilmFacadeFeature(build,surfaceU,
+                                                    wallHeight);
+                    if(feature==GG_FACADE_GLASS){
+                        r=122*shade/256;g=106*shade/256;
+                        b=90*shade/256;
+                    }else if(feature==GG_FACADE_DOOR||
+                             feature==GG_FACADE_PORTAL){
+                        r=43*shade/256;g=52*shade/256;
+                        b=59*shade/256;
+                    }else if(feature==GG_FACADE_FRAME||
+                             feature==GG_FACADE_COURSE||
+                             feature==GG_FACADE_BRACE){
+                        r=r*3/5;g=g*3/5;b=b*3/5;
+                    }else if(feature==GG_FACADE_SILL||
+                             feature==GG_FACADE_CORNICE){
+                        r=r*5/4;g=g*5/4;b=b*5/4;
+                    }else if(feature==GG_FACADE_MOSS){
+                        r=52;g=83;b=64;
+                    }
                 }
                 if(cinematic&&build){
                     // Compute a building's vertical detail position from
