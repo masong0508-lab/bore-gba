@@ -145,7 +145,11 @@ jobs:
           dkp-pacman -S --needed --noconfirm 3ds-dev || true
           export DEVKITPRO=/opt/devkitpro
           chmod +x 3ds/build.sh
+          echo "MIXED-PORT New3DS source and compiler provenance"
+          "$DEVKITARM/bin/arm-none-eabi-gcc" --version | head -1
+          sha256sum source/gmdata.h source/gmvox_hq.h source/story_film_hq_data.h
           ./3ds/build.sh
+          sha256sum godguy.3dsx
           mkdir -p ../out && cp godguy.3dsx ../out/godguy.3dsx
 
       # Exact pixel/VRAM regression for zoomed terrain, partial updates and
@@ -326,7 +330,11 @@ jobs:
         working-directory: godguy
         run: |
           chmod +x 3ds/build.sh
+          echo "CINEMA New3DS source and compiler provenance"
+          "$DEVKITARM/bin/arm-none-eabi-gcc" --version | head -1
+          sha256sum source/gmdata.h source/gmvox_hq.h source/story_film_hq_data.h
           GG_BUILD_GPU_PROBE=1 ./3ds/build.sh
+          sha256sum godguy.3dsx
           test -s godguy.3dsx
           test -s godguy_new3ds_gpu_probe.3dsx
       - name: Verify crisp top/bottom 3DS cinema scaling and UI restore
