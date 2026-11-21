@@ -131,8 +131,11 @@ static void ggFilmPairActPose(GgFilmPose *p,int dir,int inset){
     int extent=(inset+23)/24;
     if(extent>4)extent=4;
     p->reach=(signed char)(dir*extent);
-    if(dir<0){if(p->armL<2)p->armL=2;}
-    else if(p->armR<2)p->armR=2;
+    // Raise the shoulder in stages; a one-pixel approach must not
+    // snap a resting elbow straight to its maximum gesture.
+    int lift=inset>=48?2:inset>=16?1:0;
+    if(dir<0){if(p->armL<lift)p->armL=(signed char)lift;}
+    else if(p->armR<lift)p->armR=(signed char)lift;
     p->lean=(signed char)(p->lean+dir*(inset/64));
     p->head=(signed char)(p->head+(inset>=64?1:0));
     p->legL=(signed char)(dir*(inset/48));
