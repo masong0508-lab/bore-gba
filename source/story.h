@@ -483,6 +483,17 @@ static int stTvCan(int m){
     if(custom){ if(!stTvWarn){ stTvWarn=1; toast("REBUILD CUSTOM BODY FOR STORY CAST"); } return 0; }
     return m>=0&&!(hhM[m].act==HA_AWAY&&!hhOnOtherFloor(m));
 }   // the switch would work right now (else we ask again in a second, silently)
+// Reuse Mamesy when replaying in an existing household, provided she really
+// is the saved protagonist's sister. Also avoids demanding an extra slot.
+static int stTvMamesyMember(int patientUid){
+    if(patientUid<0||patientUid>=HU_N) return -1;
+    for(int k=0;k<hhN;k++){
+        const char*nm="MAMESY", *name=hhM[k].name; int n=0;
+        while(n<HH_NM&&nm[n]&&nm[n]==name[n]) n++;
+        if(!nm[n]&&!name[n]&&kin[patientUid][hhM[k].uid]==KN_SISTER) return k;
+    }
+    return -1;
+}
 static void stTvControl(void){
     if(stId!=STY_TVSHOW||!stTvWant){ stTvWant=0; return; }
     if(stTvWant==1){   // chapter 4: be Mamesy
@@ -491,13 +502,9 @@ static void stTvControl(void){
         int patientUid=(int)msPatientUid((unsigned)stKid,(unsigned)hhPUid);
         if(patientUid>=HU_N){ if(!stTvWarn){ stTvWarn=1; toast("MISSY'S SAVE ID NEEDS REPAIR"); } return; }
         int m=stPart!=255?stMember(stPart):-1;
-        if(m<0&&stPart==255){ // replaying this story in the same household: do not create a second Mamesy
-            for(int k=0;k<hhN;k++){ const char*nm="MAMESY"; const char*p=hhM[k].name; int n=0;
-                while(n<HH_NM&&nm[n]&&nm[n]==p[n]) n++;
-                if(!nm[n]&&!p[n]&&kin[patientUid][hhM[k].uid]==KN_SISTER){
-                    m=k; stPart=hhM[k].uid; stTvPatientRest(k); stSave(); break;
-                }
-            }
+        if(m<0&&stPart==255){ // reuse a known sister instead of duplicating cast
+            m=stTvMamesyMember(patientUid);
+            if(m>=0){ stPart=hhM[m].uid; stTvPatientRest(m); stSave(); }
         }
         if(m<0){   // the cast arrives: Mamesy, the way the cutscenes draw her (stMamesyLook)
             u8 lk[LK_N]; for(int i=0;i<LK_N;i++) lk[i]=stMamesyLook[i];
@@ -753,6 +760,7 @@ static void storyJoin(void){   // floors step 10: pause menu > STORY with no sto
     int s=storyPick(); if(!s) return;
     if(s==STY_TVSHOW&&custom){ toast("MISSY STORY NEEDS A STANDARD SIM BODY"); return; } // mandatory cast switches cannot use hand-built geometry
     int need=(s==STY_ROOM||s==STY_WED||s==STY_PARENT||s==STY_SECOND||s==STY_HOUSE||s==STY_TOWN||s==STY_ICE||s==STY_SPARKS||s==STY_TVSHOW)?1:s==STY_FRIEND?2:0;   // Sims the story brings in
+    if(s==STY_TVSHOW&&stTvMamesyMember(hhPUid)>=0) need=0; // an existing sister needs no extra household slot
     if(hhN+need>HH_MAX){ toast("Too many people home for that story."); return; }
     static const char* const yn[2]={"START THIS STORY","NOT NOW"}; if(menu(stNm[s],yn,2)!=0) return;
     money_t money=simMoney; storySetup(s); if(s==STY_RAGS) simMoney=money;   // (RAGS TO RICHES keeps your money here: a new life is the way to start it poor)
