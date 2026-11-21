@@ -12,6 +12,7 @@ static void ggExpRenderCreatures(u8 *top);
 #include "hybrid3d.h"
 #include "population3d.h"
 #include "chronicles3d.h"
+#include "reign3d.h"
 #include "frame_clock.h"
 extern void plat_setCinema(int on);
 extern unsigned long long plat_ms(void); extern int plat_init(void); extern int plat_keys(int*tx,int*ty); extern void plat_present(const unsigned char*top,const unsigned char*bot,int topChanged,int botChanged,const short*snd,int frames,const signed char*depth); extern void plat_exit(void); extern int plat_isNew3DS(void);
@@ -102,11 +103,16 @@ void shimInput(int frame,int*held,int*tx,int*ty){
     // A wholly separate, unlockable 3DS story. The main story stays on
     // the original 2D tile UI and neither story's save format is changed.
     if(ggChron.active){
+        if(ggReignStep(raw)){
+            *held=0;*tx=*ty=0;return;
+        }
         if(ggChronStep(raw)){
+            ggReignSave();
             ggChron.active=0;
             ggExpFinish();
-            ggExpMessage("CHRONICLES RETREAT: 2D STORY RESTORED");
+            ggExpMessage("UNWRITTEN REIGN: 2D STORY RESTORED");
         }else{
+            ggReignSquadTick();
             camX=ggExpClamp((ggExplore.px>>8)*8-128,0,WW*8-256);
             camY=ggExpClamp((ggExplore.py>>8)*8-96,0,WH*8-192);
         }
@@ -119,19 +125,20 @@ void shimInput(int frame,int*held,int*tx,int*ty){
             int entered=ggChronBegin(cx,cy,paused);
             if(entered>0){
                 paused=1;ggExpRenderValid=0;
-                ggExpMessage("ASHEN CHRONICLES: 3DS CAMPAIGN ENTERED");
+                ggReignBegin();ggReign.lastKeys=raw;
+                ggExpMessage("THE UNWRITTEN REIGN: GODBORN CAMPAIGN");
             }else if(entered==-2)
                 ggExpMessage("NO SAFE EXPEDITION ROUTE: CHOOSE A LAND REGION");
             else if(entered<0)
-                ggExpMessage("NEXT CHRONICLE LOCKED: ADVANCE THE 2D STORY");
-            else ggExpMessage("CHRONICLES LOCKED: COMPLETE STORY CHAPTER 3");
+                ggExpMessage("NEXT ACT LOCKED: ADVANCE THE 2D STORY");
+            else ggExpMessage("UNWRITTEN REIGN UNLOCKS AT CHAPTER 3");
         }
         *held=0;*tx=*ty=0;return;
     }
     if(!ggChronHintShown&&ggChronReady()&&!ggExplore.active&&
        ggExpCanEnter()&&!toastT){
         ggChronHintShown=1;
-        ggExpMessage("3DS CHRONICLES UNLOCKED: SELECT+Y TO ENTER");
+        ggExpMessage("UNWRITTEN REIGN: SELECT+Y TO ENTER");
     }
     if(pressedPick){
         if(ggExplore.active)ggExpFinish();
@@ -245,10 +252,11 @@ void shimPresent(void){
                   ggExplore.px!=lastX||ggExplore.py!=lastY||
                   ggExplore.angle!=lastA||ggExplore.edits!=lastEdits||
                   ggExplore.feedback!=lastFx||sky!=lastSky||
-                  (ggChron.active&&(ggChron.dirty||!(ggChron.frame&3)));
+                  (ggChron.active&&(ggChron.dirty||ggReign.menu||ggReign.noticeT||
+                                     !(ggChron.frame&3)));
         if(dirty){
             ggExpRender(topBuf);
-            if(ggChron.active)ggChronDraw(topBuf);
+            if(ggChron.active){ggChronDraw(topBuf);ggReignDraw(topBuf);}
             ggExpRenderValid=1;
             lastX=ggExplore.px;lastY=ggExplore.py;
             lastA=ggExplore.angle;lastEdits=ggExplore.edits;
