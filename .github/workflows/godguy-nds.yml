@@ -41,7 +41,7 @@ jobs:
           /usr/bin/python3 tools/check_vocal_banks.py
           gcc -O2 -std=c11 -Wall -Wextra -Werror pc_save_stream.c -o /tmp/gg-ds-save-stream
           /tmp/gg-ds-save-stream
-          gcc -O2 -std=c11 -Icompat -Isource pc_vocal_priority.c -lm -o /tmp/gg-vocal-priority
+          gcc -O2 -std=c11 -DNDSHW -Icompat -Isource pc_vocal_priority.c -lm -o /tmp/gg-vocal-priority
           /tmp/gg-vocal-priority
           GM_FULL=1 /usr/bin/python3 tools/gm_vox.py
           GM_HQ=1 /usr/bin/python3 tools/gm_vox.py
