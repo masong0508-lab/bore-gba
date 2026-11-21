@@ -293,7 +293,9 @@ static void ggFilmArtArm(u8*out,int bodyX,int centerY,int s,int dir,
     int extra=(p->reach*dir>0)?(p->reach*dir):0;
     int shoulderX=bodyX+dir*shoulderHalf*s;
     int shoulderY=centerY-17*s;
-    int elbowX=shoulderX+dir*(1+extra/2)*s;
+    // Gesture arcs originate at the shoulder; the elbow articulates
+    // rather than the entire sleeve translating as a rigid rectangle.
+    int elbowX=shoulderX+dir*(1+extra/2+lift/2)*s;
     int elbowY=centerY-(14+lift/2)*s;
     int wristX=bodyX+dir*(8+extra)*s;
     int wristY=centerY-(13+lift)*s;
@@ -308,6 +310,11 @@ static void ggFilmArtArm(u8*out,int bodyX,int centerY,int s,int dir,
     ggFilmArtStroke(out,elbowX,elbowY,wristX,wristY,
                     2*s,ggFilmArtShade(r,189),
                     ggFilmArtShade(g,189),ggFilmArtShade(b,189));
+    ggFilmArtRounded(out,elbowX-s,wristY-(2+lift/3)*s,
+                     2*s,2*s,s,
+                     ggFilmArtShade(coat[0],far?105:172),
+                     ggFilmArtShade(coat[1],far?105:172),
+                     ggFilmArtShade(coat[2],far?105:172));
     ggFilmArtRounded(out,wristX-s,wristY-s,3*s,3*s,s,
                      ggFilmArtShade(skin[0],far?139:196),
                      ggFilmArtShade(skin[1],far?139:196),
@@ -344,6 +351,73 @@ static void ggFilmArtContactShadow(u8*out,int x,int feet,int scale){
             p[1]=(u8)(p[1]*(256-shade)/256);
             p[2]=(u8)(p[2]*(256-shade)/256);
         }
+    }
+}
+// Identity-specific layered hairstyles and contours. In contrast to
+// changing only hair color, these remain recognizable as near silhouettes
+// under the same film lighting and at left/right three-quarter turns.
+// All pieces sit on the already-built head/neck, with no raster cache.
+static void ggFilmArtHairShape(u8*out,int x,int centerY,int s,
+                                const u8*hair,int style,int turn){
+    int y=centerY-31*s;
+    int darkR=ggFilmArtShade(hair[0],160),
+        darkG=ggFilmArtShade(hair[1],160),
+        darkB=ggFilmArtShade(hair[2],160);
+    int brightR=ggFilmArtShade(hair[0],294),
+        brightG=ggFilmArtShade(hair[1],294),
+        brightB=ggFilmArtShade(hair[2],294);
+    int forward=turn>0?1:turn<0?-1:0;
+    if(style==0){
+        // Mira: long, soft sweep, two broken fringe strands and
+        // an illuminated bronze clasp above the existing rear braid.
+        ggFilmArtRounded(out,x-5*s,y+2*s,8*s,3*s,s,
+                         hair[0],hair[1],hair[2]);
+        ggExpRect(out,x-4*s,y+4*s,s,3*s,darkR,darkG,darkB);
+        ggExpRect(out,x+2*s,y+4*s,s,2*s,darkR,darkG,darkB);
+        ggExpRect(out,x-2*s,y+2*s,3*s,s,brightR,brightG,brightB);
+        ggExpRect(out,x-6*s,y+6*s,s,2*s,190,155,91);
+    }else if(style==1){
+        // Thorgrim: flat military crop, solid temples, wide sideburns.
+        ggExpRect(out,x-5*s,y+s,10*s,3*s,darkR,darkG,darkB);
+        ggExpRect(out,x-5*s,y+4*s,2*s,5*s,darkR,darkG,darkB);
+        ggExpRect(out,x+3*s,y+4*s,2*s,5*s,darkR,darkG,darkB);
+        ggExpRect(out,x-3*s,y+s,6*s,s,brightR,brightG,brightB);
+    }else if(style==2){
+        // Varro: combed angular side part, solid crown and temple.
+        ggExpRect(out,x-5*s,y+2*s,10*s,3*s,
+                  darkR,darkG,darkB);
+        ggExpRect(out,x-2*s,y,6*s,2*s,
+                  hair[0],hair[1],hair[2]);
+        ggExpRect(out,x-2*s+forward*s,y+s,4*s,s,
+                  brightR,brightG,brightB);
+        ggExpRect(out,x+4*s,y+4*s,s,4*s,
+                  darkR,darkG,darkB);
+    }else if(style==3){
+        // Serin: high swept hairline, silver temple, longer side curl.
+        ggFilmArtRounded(out,x-4*s,y,8*s,4*s,s,
+                         hair[0],hair[1],hair[2]);
+        ggExpRect(out,x-4*s,y+4*s,s,7*s,darkR,darkG,darkB);
+        ggExpRect(out,x+3*s,y+4*s,s,5*s,darkR,darkG,darkB);
+        ggExpRect(out,x-4*s,y+4*s,s,5*s,156,150,139);
+        ggExpRect(out,x-s,y+s,2*s,s,brightR,brightG,brightB);
+    }else if(style==4){
+        // Elowen: a taller swept-up bun, gold hair ornament.
+        ggFilmArtRounded(out,x-3*s,y-2*s,6*s,4*s,s,
+                         hair[0],hair[1],hair[2]);
+        ggExpRect(out,x-5*s,y+3*s,2*s,6*s,darkR,darkG,darkB);
+        ggExpRect(out,x+4*s,y+3*s,s,6*s,darkR,darkG,darkB);
+        ggExpRect(out,x-2*s,y-s,4*s,s,202,170,109);
+    }else if(style==5){
+        // Worker's side-swept unkempt lock.
+        ggExpRect(out,x-5*s,y+2*s,3*s,5*s,darkR,darkG,darkB);
+        ggExpRect(out,x+2*s,y+2*s,3*s,3*s,darkR,darkG,darkB);
+        ggExpRect(out,x-3*s,y+s,5*s,s,brightR,brightG,brightB);
+    }else{
+        // Playable hero remains customizable; the source hair palette
+        // is unchanged and the silhouette is deliberately restrained.
+        ggExpRect(out,x-4*s,y+2*s,8*s,2*s,
+                  hair[0],hair[1],hair[2]);
+        ggExpRect(out,x-3*s,y+s,5*s,s,brightR,brightG,brightB);
     }
 }
 static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
@@ -395,6 +469,10 @@ static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
         ggFilmArtRounded(out,lx-3*s,feet-4*s,6*s,3*s,s,
                          43,43,49);
         ggExpRect(out,lx-2*s,feet-3*s,3*s,s,92,91,97);
+        // Separate calf edge, boot sole and forward toe instead of a
+        // single detached rectangle. Both remain above the ground row.
+        ggExpRect(out,lx-2*s,feet-s,4*s,1,52,54,57);
+        ggExpRect(out,lx+2*s,feet-2*s,s,s,70,70,75);
     }
     // A far sleeve is occluded by the torso; the near sleeve will be
     // painted later. Body narrows gradually as the speaker turns into a
@@ -413,10 +491,16 @@ static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
                   innerW,10*s,jacketR,jacketG,jacketB);
     ggFilmArtRounded(out,bodyX-hipW/2,centerY-11*s,
                      hipW,5*s,s,jacketR,jacketG,jacketB);
-    ggExpRect(out,bodyX-5*s,centerY-17*s,3*s,8*s,
+    ggExpRect(out,bodyX-innerW/2+s,centerY-17*s,2*s,8*s,
               lightR,lightG,lightB);
-    ggExpRect(out,bodyX+3*s,centerY-17*s,2*s,8*s,
+    ggExpRect(out,bodyX+innerW/2-3*s,centerY-17*s,2*s,8*s,
               shadeR,shadeG,shadeB);
+    // Cloth shadow follows the turned torso volume. Hem pleats bend
+    // with world-travel-driven sway but stay stitched to the coat.
+    ggExpRect(out,bodyX-hipW/3+p->clothSway*s,
+              centerY-10*s,s,3*s,shadeR,shadeG,shadeB);
+    ggExpRect(out,bodyX+hipW/4+p->clothSway*s,
+              centerY-10*s,s,3*s,lightR,lightG,lightB);
     // Shaped hem, vertical tailoring and a raised collar.
     // Asymmetric wind-shifted coat hem introduces motion without moving
     // either foot. The fabric sways independently of grounded legs.
@@ -469,6 +553,7 @@ static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
               ggFilmArtShade(hair[2],174));
     ggExpRect(out,headX-3*s,centerY-30*s,4*s,s,
               hairLightR,hairLightG,hairLightB);
+    ggFilmArtHairShape(out,headX,centerY,s,hair,style,turn);
     // Expressive brows, sclera, irises, nose, lips and a jaw highlight:
     // face features are NOT enlarged 5x7 grid letters or block eyes.
     int gaze=ggExpClamp(p->gaze,-1,1)*s;
@@ -513,9 +598,18 @@ static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
     }else if(style==2){
         ggExpRect(out,headX-2*s,centerY-27*s,s,3*s,153,104,100);
     }
-    if(p->mouth)ggExpRect(out,headX-s,centerY-21*s,
-                         p->mouth==2?3*s:2*s,s,119,59,65);
-    else ggExpRect(out,headX-s,centerY-21*s,2*s,1,122,84,76);
+    // Mouth direction and emotional shape are composed under the nose.
+    // Keep genuine silent frames and prevent the wide open-mouth
+    // rectangle from protruding through a turned cheek.
+    int lipsX=headX-s+(turn>2?s:turn< -2?-s:0);
+    int lipWidth=p->mouth==2?2*s:p->mouth?s+1:2*s;
+    ggExpRect(out,lipsX,centerY-21*s,lipWidth,p->mouth?s:1,
+              p->mouth?104:122,p->mouth?54:84,p->mouth?63:76);
+    if(p->mouth==2&&s>1)
+        ggExpRect(out,lipsX,centerY-21*s,lipWidth,1,
+                  202,155,135);
+    if(p->pose==GG_FILM_REASSURE&&!p->mouth)
+        ggExpRect(out,lipsX+s,centerY-21*s,1,1,153,96,85);
     // Character-exclusive costume accents and hair shapes; the same
     // distinct person remains recognizable across stories/ending routes.
     if(style==0){ // Mira: warm shawl; braid behind eyes and cheeks

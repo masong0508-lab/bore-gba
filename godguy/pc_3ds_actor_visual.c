@@ -109,6 +109,15 @@ int main(void){
           "opposite three-quarter profile lost its visible eye");
     // Exercise the actor integration, legacy script-pose entry and
     // partner contact geometry under the SAME strict -Werror unit.
+    // Motion and identity art are live RGB edits, not an art-only
+    // mockup: static face and responsive mood must render differently.
+    GgFilmPose worry=frontPose;
+    worry.pose=GG_FILM_REFLECT;worry.brow=-1;worry.head=-1;
+    static u8 worried[400*240*3];
+    memset(worried,48,sizeof worried);
+    ggFilmDrawGuestActor(worried,200,150,2,hair,skin,coat,&worry,0);
+    check(memcmp(front,worried,sizeof front)!=0,
+          "facial and torso expression are not visibly animated");
     GgFilmPose legacy=ggFilmPoseAt("YOU","The records are open.",
                                   2,48,1,0,2);
     check(legacy.holdProp==3,
