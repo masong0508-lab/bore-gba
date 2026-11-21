@@ -56,6 +56,14 @@ int main(void){
                                   2,48,0,0,0,2);
     check(!silent.mouth&&!silent.holdProp,
           "silent partner is lip-syncing or duplicating the prop");
+    GgFilmPose initial={0};
+    ggFilmPairActPose(&initial,1,1);
+    check(initial.armR==0&&initial.reach==1,
+          "shoulder jumped up before the character actually reached");
+    GgFilmPose midway={0};
+    ggFilmPairActPose(&midway,1,24);
+    check(midway.armR==1&&midway.reach==1,
+          "shoulder did not ease through an intermediate gesture");
     GgFilmPose reach=ggFilmPoseFor("We'll help the families.",
                                  2,64,1,0,0,3);
     ggFilmPairActPose(&reach,1,96);
