@@ -229,6 +229,27 @@ static void ggMeshFoliage(GgMeshContext*m,int x,int y,int ground,
         }
     }
 }
+static void ggMeshShrub(GgMeshContext*m,int x,int y,int ground,
+                          uint32_t key){
+    // Broad low foliage footprint, not a full-sized oak reused as a
+    // shrub. Eight actual side facets give recognizable small-scale
+    // understory without view-dependent sprite stretching.
+    int radius=32,base=ground+1,mid=ground+5,tip=ground+10;
+    for(int i=0;i<8;i++){
+        int a=i*32,b=(i+1)*32;
+        int ax=x+ggExpCos[a]*radius/4096,
+            ay=y+ggExpSin[a]*radius/4096;
+        int bx=x+ggExpCos[b]*radius/4096,
+            by=y+ggExpSin[b]*radius/4096;
+        int shade=(int)((key>>(i+8))&3u);
+        ggMeshTriangle(m,ggMeshV(x,y,tip),
+            ggMeshV(ax,ay,mid),ggMeshV(bx,by,mid),
+            55+shade*4,95+shade*5,62+shade*3);
+        ggMeshTriangle(m,ggMeshV(ax,ay,mid),
+            ggMeshV(x,y,base),ggMeshV(bx,by,mid),
+            36+shade*3,77+shade*3,53+shade*2);
+    }
+}
 static void ggMeshProp(GgMeshContext*m,int tx,int ty,int kind,
                        int ground,uint32_t key,int quality){
     int x=tx*256+128+(int)((key>>12)&63u)-32;
@@ -238,7 +259,7 @@ static void ggMeshProp(GgMeshContext*m,int tx,int ty,int kind,
     case GG_SCENE_OAK:case GG_SCENE_PINE:
         ggMeshFoliage(m,x,y,z,kind==GG_SCENE_PINE,key,quality);break;
     case GG_SCENE_SHRUB:
-        ggMeshFoliage(m,x,y,z-2,0,key,1);break;
+        ggMeshShrub(m,x,y,z,key);break;
     case GG_SCENE_COLUMN:
         ggMeshBox(m,x-15,y-15,x+15,y+15,z,z+16,144,141,131);
         ggMeshBox(m,x-23,y-23,x+23,y+23,z+16,z+19,156,153,138);

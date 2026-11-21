@@ -36,6 +36,13 @@ jobs:
             gcc -O2 -std=c11 -Wall -Wextra -Werror "pc_3ds_${test}.c" -o "/tmp/gg-3ds-${test}"
             "/tmp/gg-3ds-${test}"
           done
+      - name: Run real-world mesh and gameplay-coherence integration checks
+        working-directory: godguy
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcc -O2 -std=c11 -w -Icompat -Isource pc_3ds_mesh_world.c -lm -o /tmp/gg-3ds-worldmesh
+          /tmp/gg-3ds-worldmesh
       - name: Render 400x240 story, character turntables and occlusion comparisons
         working-directory: godguy
         shell: bash
@@ -58,6 +65,14 @@ jobs:
               -i artifacts/godguy-cinema/scenery_%02d.ppm -c:v libx264 \
               -preset veryfast -crf 19 -pix_fmt yuv420p \
               artifacts/godguy-cinema/3ds_biome_showcase.mp4
+            ffmpeg -hide_banner -loglevel error -y -framerate 2 -start_number 0 \
+              -i artifacts/godguy-cinema/mesh_env_%02d.ppm -c:v libx264 \
+              -preset veryfast -crf 19 -pix_fmt yuv420p \
+              artifacts/godguy-cinema/3ds_true_polygon_world.mp4
+            ffmpeg -hide_banner -loglevel error -y -framerate 6 -start_number 0 \
+              -i artifacts/godguy-cinema/mesh_walk_%02d.ppm -c:v libx264 \
+              -preset veryfast -crf 19 -pix_fmt yuv420p \
+              artifacts/godguy-cinema/3ds_true_polygon_camera.mp4
           fi
       - name: Publish native source captures and measured host frame costs
         uses: actions/upload-artifact@v4
