@@ -319,6 +319,11 @@ static long long stbGet(void){ volatile u8*m=SRAM_BASE+STB_OFF; return (long lon
 static void stbSet(void){ long long c=(long long)simMoneyI(); if(c<0) c=0; u32 v=(u32)((c+63)/64); if(v>0xFFFFFF) v=0xFFFFFF; volatile u8*m=SRAM_BASE+STB_OFF; m[0]=(u8)v; m[1]=(u8)(v>>8); m[2]=(u8)(v>>16); }
 static int stbEarned(void){ long long c=(long long)simMoneyI(), b=stbGet(); if(b>c+64){ stbSet(); b=stbGet(); } long long e=c-b; return e<0?0:e>0x7FFFFFFF?0x7FFFFFFF:(int)e; }
 static void plugRemember(int v){ int old=stmGet(), next=(int)msPressurePack((unsigned)old,(unsigned)v); if(next!=old) stmPut(next); }
+static void plugRestore(void){   // Events may arrive before the first hospital tick after loading SRAM.
+    if(plugDay!=0xFFFF) return;
+    plugDay=(u16)simDay; plugNight=(u8)msNightUsed((unsigned)stmGet());
+    plugV=(u8)msPressureResume((unsigned)stmGet(),PLUG_START);
+}
 static void stmSlip(int ch){ int m=stmGet(), sh=ch==1?0:ch==2?2:-1; if(sh<0) return; int n=(m>>sh)&3; if(n<3) stmPut((m&~(3<<sh))|((n+1)<<sh)); }
 // CONTINUITY (mission pass 2): every goal says what it means in the story, every chapter card opens with what just happened, and reaching a goal plays a
 // line of the story (who calls, what changes). Same order as stqT.
@@ -366,7 +371,7 @@ static void stqText(const StQ*q,char*b){   // one goal line, b at least 44 long:
 static void stqList(int x,int y,int dy){ if(stCh>=5) return; for(int i=0;i<stqN[stCh];i++){ char b[48]; stqText(&stqT[stCh][i],b); text(x,y+i*dy,b,b[0]=='+'?RGB(10,28,12):WHITE,1); } }
 static void stTvEvent(int ev){   // sims.h simEventV calls this for every game event: a puff or a collapse in chapters 2, 3 and 5 starts the clock again
     if(stId==STY_TVSHOW&&stCh==3&&stKidDay!=255&&(ev==SE_FRIEND||ev==SE_BFF||ev==SE_PROMO)){   // step 4: good news eases the hospital
-        int d=ev==SE_BFF?15:10; plugV=(u8)(plugV>d?plugV-d:0); plugRemember(plugV); lnote=ev==SE_PROMO?"A raise. Okafor eases off.":"A friend helps. Okafor eases."; lnoteT=90; }
+        plugRestore(); int d=ev==SE_BFF?15:10; plugV=(u8)(plugV>d?plugV-d:0); plugRemember(plugV); lnote=ev==SE_PROMO?"A raise. Okafor eases off.":"A friend helps. Okafor eases."; lnoteT=90; }
     if(stId!=STY_TVSHOW||stKidDay==255||(stCh!=1&&stCh!=2&&stCh!=4)) return;
     if(ev!=SE_PIPE&&ev!=SE_FAINT&&ev!=SE_PASSOUT) return;
     stmSlip(stCh); stKidDay=stqDay(); stSave(); toast(ev==SE_PIPE?"You relapsed. The clock restarts.":"You collapsed. The clock resets.");
@@ -561,10 +566,7 @@ static void plugTick(void){   // once per logic step (stTick): the hospital's pr
     if(!on){ plugV=PLUG_START; plugDay=0xFFFF; plugSec=0; plugTen=0; plugNight=0; return; }
     if(++plugSec<60) return; plugSec=0;
     static const StQ qF={TQ_FRIENDS,2}, qH={TQ_HAPPY,1}, qM={TQ_MONEY,8000};
-    if(plugDay==0xFFFF){ // restore a resumed appeal instead of granting a fresh reprieve after reloading
-        plugDay=(u16)simDay; plugNight=(u8)msNightUsed((unsigned)stmGet());
-        plugV=(u8)msPressureResume((unsigned)stmGet(),PLUG_START);
-    }
+    plugRestore(); // restore before any hospital pressure changes
     int old=plugV, v=plugV;
     if((u16)simDay!=plugDay){ plugDay=(u16)simDay;   // a new day: Dr. Okafor calls about the life support
         v+=8; { static const char* const ok3[3]={"Okafor called. Bill's paid.","Bill paid. One more day.","Paid. Okafor sounds calmer."}, * const no3[3]={"You can't cover the bill.","Okafor called. No money.","Overdue bill. Okafor noticed."}; int r=rnd8()%3; if(simMoney>=PLUG_BILL){ simMoney-=PLUG_BILL; lnote=ok3[r]; } else { v+=20; lnote=no3[r]; } } lnoteT=120; }
