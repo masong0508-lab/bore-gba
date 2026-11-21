@@ -43,6 +43,7 @@ typedef struct {
     int opacity,blendedFragments;
     int fogR,fogG,fogB,fogMax;
     int texBaseU,texBaseV;
+    int detailQuality; // independent of native 400x240 pixel geometry
 } GgMeshContext;
 static uint16_t ggMeshDepthStorage[GG_MESH_MAX_W*GG_MESH_MAX_H];
 static GgMeshContext ggMeshContext;
@@ -61,10 +62,24 @@ static void ggMeshBegin(GgMeshContext*m,unsigned char *rgb,
                         int quality,int px,int py,int eye,int cosine,int sine,
                         int skyR,int skyG,int skyB){
     m->rgb=rgb;m->depth=ggMeshDepthStorage;
-    m->scale=quality>=2?1:2;m->w=400/m->scale;m->h=240/m->scale;
+#ifdef GG_NEW3DS_ONLY
+    // Preserve a 400x240 optical camera on New-series hardware even
+    // when frame-clock pressure reduces vegetation/material detail.
+    // A quality transition must not change perspective or pixel size.
+    m->scale=1;
+#else
+    m->scale=quality>=2?1:2;
+#endif
+    m->detailQuality=quality;
+    m->w=400/m->scale;m->h=240/m->scale;
     m->cx=px;m->cy=py;m->eye=eye;
     m->cosine=cosine;m->sine=sine;m->near=GG_MESH_NEAR;
-    m->focal=m->w*5/8;m->vertical=quality>=2?7:4;
+    m->focal=m->w*5/8;
+#ifdef GG_NEW3DS_ONLY
+    m->vertical=7;
+#else
+    m->vertical=quality>=2?7:4;
+#endif
     m->horizon=m->h*29/60;
     m->skyR=skyR;m->skyG=skyG;m->skyB=skyB;
     m->triangles=0;m->fragments=0;m->textureSamples=0;
@@ -166,6 +181,7 @@ static void ggMeshRasterProjected(GgMeshContext*m,GgMeshProjected a,
     // on distant surfaces, preserving New-3DS audio and frame budget.
     int inverseMid=(a.iz+b.iz+c.iz)/3;
     int doTexture=m->material!=GG_MAT_NONE&&m->scale==1&&
+                  m->detailQuality>=2&&
                   inverseMid>=65535/(6*256);
     int dux=0,duy=0,dvx=0,dvy=0;
     int rowU=0,rowV=0;
@@ -256,7 +272,8 @@ static void ggMeshTriangle(GgMeshContext*m,GgMeshVertex a,
         ggMeshCameraPoint(m,a),ggMeshCameraPoint(m,b),
         ggMeshCameraPoint(m,c)
     };
-    if(m->material!=GG_MAT_NONE&&m->scale==1){
+    if(m->material!=GG_MAT_NONE&&m->scale==1&&
+       m->detailQuality>=2){
         // Use XY on floors and roofs, and horizontal-plus-height on
         // walls. Local 512-unit origins retain absolute UV continuity
         // across adjacent triangles while avoiding 32-bit overflow.
