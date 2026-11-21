@@ -264,6 +264,41 @@ static void ggFilmInterior(GgFilmCamera cam,int p,int t){
     ggFilmQuad(cam,ggV3(700,0,1600),ggV3(700,0,350),
                    ggV3(700,390,350),ggV3(700,390,1600),21);
     ggFilmFloor(cam,p,t);
+    if(p==F_PORCH){
+        // A real shelter, not the generic palace corridor that the first
+        // rain scene previously inherited. The same window, sill, roof,
+        // beams and furniture occupy fixed world coordinates in every cut.
+        ggFilmBox(cam,0,242,1490,800,22,75,24,20,26);
+        ggFilmBox(cam,-325,0,990,34,260,39,21,20,25);
+        ggFilmBox(cam,325,0,990,34,260,39,21,20,25);
+        ggFilmBox(cam,0,238,994,688,18,42,25,24,26);
+        for(int x=-280;x<=280;x+=140)
+            ggFilmBox(cam,x,254,1100,9,15,660,25,24,26);
+        // Glazed window with a world-positioned rain layer behind the
+        // mullions; the light never follows the talking actor's face.
+        ggFilmQuad(cam,ggV3(200,115,1554),ggV3(450,115,1554),
+                       ggV3(450,253,1554),ggV3(200,253,1554),12);
+        for(int i=0;i<9;i++){
+            int x=210+i*24;
+            int y=130+((i*37+t/5)%104);
+            ggFilmQuad(cam,ggV3(x,y,1551),ggV3(x+3,y,1551),
+                           ggV3(x+3,y+16,1551),ggV3(x,y+16,1551),13);
+        }
+        ggFilmBox(cam,325,114,1536,268,10,12,24,25,26);
+        ggFilmBox(cam,325,248,1536,268,10,12,24,25,26);
+        ggFilmBox(cam,200,114,1536,10,148,12,24,25,26);
+        ggFilmBox(cam,450,114,1536,10,148,12,24,25,26);
+        ggFilmBox(cam,325,114,1536,8,148,12,25,24,26);
+        ggFilmBox(cam,325,182,1536,265,8,12,25,24,26);
+        // Side bench and an honest foreground surface for Mira's cup at
+        // screen (128,150). The table is z=583, top y=36 in world space.
+        ggFilmBox(cam,-220,0,1120,195,31,71,20,24,25);
+        ggFilmBox(cam,-220,28,1138,195,57,19,21,24,26);
+        ggFilmBox(cam,0,0,583,145,36,74,24,20,26);
+        ggFilmBox(cam,-52,0,583,12,39,42,20,24,25);
+        ggFilmBox(cam,52,0,583,12,39,42,20,24,25);
+        return;
+    }
     ggFilmBox(cam,0,235,1562,820,13,40,25,24,26);
     for(int x=-460;x<=460;x+=230){
         ggFilmBox(cam,x,0,1190,28,270,32,21,24,26);
@@ -291,11 +326,19 @@ static void ggFilmInterior(GgFilmCamera cam,int p,int t){
         GgS2 a=ggFilmProject(cam,ggV3(-220,72,797));
         GgS2 b=ggFilmProject(cam,ggV3(-219,93,797));
         ggFilmTri(tip,a,b,25);
-    }else if(p==F_COUCH||p==F_HEARTH||p==F_PORCH){
+    }else if(p==F_COUCH||p==F_HEARTH){
         ggFilmBox(cam,175,18,1200,220,46,83,24,20,25);
         ggFilmBox(cam,175,59,1237,220,72,25,21,24,25);
         ggFilmBox(cam,58,30,1200,25,69,105,21,24,25);
         ggFilmBox(cam,292,30,1200,25,69,105,21,24,25);
+        if(p==F_HEARTH){
+            // Hearth stonework, recessed fire and mantel are fixed to the
+            // rear wall. Firelight flickers *inside* its opening.
+            ggFilmBox(cam,-245,0,1500,194,140,48,21,20,26);
+            ggFilmBox(cam,-245,26,1469,115,79,10,20,24,25);
+            ggFilmBox(cam,-245,26,1462,81,64,8,(t/20)&1?9:10,24,26);
+            ggFilmBox(cam,-245,142,1491,230,13,67,25,24,26);
+        }
     }else if(p==F_THRONE||p==F_HALL){
         ggFilmBox(cam,0,0,1470,270,32,136,24,20,25);
         ggFilmBox(cam,0,30,1460,155,112,40,25,24,26);
