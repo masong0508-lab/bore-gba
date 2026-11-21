@@ -82,7 +82,7 @@ static const char *shpRow(int shape,int frame,int row){
  #include "3ds/population3d.h"
 static int chapter,storyDone;
 #define VIL_N 16
-typedef struct {int on,x,y;u16 stock;} Vil;
+typedef struct {int on,x,y;u16 stock;int lvl;} Vil;
 static Vil vil[VIL_N];
 static s8 vilL[VIL_N];
 static int politicalDirty;

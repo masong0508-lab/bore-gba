@@ -120,6 +120,9 @@ static void ggWorldMusicReset(void){
     gmFilmMixSet(0,0,64);
     gmStop();
     musLast=-1;musHold=0;
+    // Re-enter the original musical director immediately rather than
+    // relying on a potentially paused 2D simulation to advance tick&31.
+    musReq(musDirector());
 }
 static int ggWorldMusicTick(void){
     if(!ggExplore.active){
