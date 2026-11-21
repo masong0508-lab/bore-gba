@@ -25,7 +25,8 @@ def convert(path):
         # The 400x240 regression must remain native-resolution. Only
         # the explicitly named 8-view source sprite atlas is larger.
         expected = ((GG_PERSON_ATLAS_W, GG_PERSON_ATLAS_H)
-                    if path.name == "procedural_people_turntable.ppm"
+                    if path.name in ("procedural_people_turntable.ppm",
+                                     "people_8_direction_turntable.ppm")
                     else (400, 240))
         assert (width, height) == expected, (path, wh, expected)
         assert f.readline() == b"255\n"
