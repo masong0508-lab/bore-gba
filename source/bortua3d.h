@@ -50,14 +50,17 @@ static void bzBackdrop(int top){   // sky, the crowd's skyline, and the ring: ev
         int h3=bzSqrt(q3), xe=120+(((cxx-h3)*inv)>>16), xf=120+(((cxx+h3)*inv)>>16);
         rect(xc,y,xe-xc,2,mat); rect(xe,y,xf-xe,2,cir); rect(xf,y,xd-xf,2,mat); }
 }
+// Already baked for sphere drawing when BALLZ MODE starts; reuse for ordinary-sized shadows too.
+#define BZ_RMAX 44
+static u8 bzHW[BZ_RMAX+1][BZ_RMAX+1] EWRAM_BSS;
+static u8 bzHWok;
 static void bzShadow(const Bz*f){
     const BzCam*c=&bzCam; int sx,sy,iv; if(f->fall||!bzProjI(c,bzCamS,bzCamC,f->x,0,f->z,&sx,&sy,&iv)) return;
     int k=256-f->y*256/2600; if(k<40) k=40;
     int rx=(520*iv>>16)*k>>8, ry=rx*c->h*(iv>>8)/(c->f*256); if(ry<1) ry=1; if(rx<2) return;
-    for(int dy=-ry;dy<=ry;dy++){ int hw=rx*bzSqrt(ry*ry-dy*dy)/ry; rect(sx-hw,sy+dy,hw*2+1,1,RGB(1,2,6)); }
+    for(int dy=-ry;dy<=ry;dy++){ int ad=dy<0?-dy:dy; int rad=ry<=BZ_RMAX?bzHW[ry][ad]:bzSqrt(ry*ry-ad*ad); int hw=rx*rad/ry; rect(sx-hw,sy+dy,hw*2+1,1,RGB(1,2,6)); }
 }
-#define BZ_RMAX 44
-static u8 bzHW[BZ_RMAX+1][BZ_RMAX+1] EWRAM_BSS; static u8 bzHWok;   // a disc's half widths: row dy of radius r (the sqrt is done once, here)
+// bzHW is shared by discs and shadows (allocated above), and filled once at BALLZ MODE entry.
 static void bzDisc(int cx,int cy,int r,u16 col){ if(r<1) r=1; if(r>BZ_RMAX) r=BZ_RMAX; discLut(cx,cy,r,col,bzHW[r]); }   // (discLut: main.c, in IWRAM)
 static void bzBallDraw(int x,int y,int r,const u16*m){   // a sphere: a dark rim, the body, a lit patch
     if(r<=4){ bzDisc(x,y,r,m[1]); return; }

@@ -19,3 +19,7 @@ margins a little. Gravity and top speed remain unchanged.
   collisions; compare busy skate park draw cost and FPS before/after.
 - Follow-on: contest interactions, better ramp landing cues and targeted
   renderer profiling in crowded lots and expansion modes.
+
+### Small frame-time optimizations
+- Wallride dismount heading uses eight precomputed exact results instead of a 128-angle trigonometric search. A general fallback remains for unrecognized directions.
+- BORTUA FIGHTER BALLZ MODE shadows reuse the existing half-width cache for typical small projected radii instead of computing a square root for every scanline. Large shadows retain the original fallback. No additional buffers.

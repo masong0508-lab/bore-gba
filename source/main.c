@@ -3462,7 +3462,15 @@ static void clTick(void){
 // second or so, scoring as you go, then kick off it. Let go of R, land, or run out of wall and you drop. Walking never does this.
 #define WR_LEN 70   // steps a wallride lasts at most (about 1.2 s)
 static u8 lwr EWRAM_BSS; static s8 lwrAx EWRAM_BSS, lwrSg EWRAM_BSS; static int lwrV EWRAM_BSS;   // steps left, which axis the wall is on (0 = x), which side it is on (+1 / -1), the speed along it
-static void wrDir(int bx,int by){ int best=0, bd=-999999; for(int a=0;a<256;a+=2){ int dp=fcos(a)*bx+fsin(a)*by; if(dp>bd){ bd=dp; best=a; } } F.angF=best<<4; }   // point the board along (bx,by)
+static void wrDir(int bx,int by){   // wall exits only use eight (2,1)/(1,2) signed vectors: exact winners of the old 128-angle search
+    int a;
+    if(bx==2&&(by==1||by==-1)) a=by>0?20:236;
+    else if(bx==-2&&(by==1||by==-1)) a=by>0?108:148;
+    else if(by==2&&(bx==1||bx==-1)) a=bx>0?44:84;
+    else if(by==-2&&(bx==1||bx==-1)) a=bx>0?212:172;
+    else { int bd=-999999; a=0; for(int q=0;q<256;q+=2){ int dp=fcos(q)*bx+fsin(q)*by; if(dp>bd){ bd=dp; a=q; } } }
+    F.angF=a<<4;
+}   // unchanged direction, but no trigonometry scan on the normal wallride exit
 static void wrEnd(void){   // kick off the wall: away from it and on along it, with the spin cleared so the landing is fair
     int al=lwrV<0?-1:1; lwr=0; lbumpCd=40;
     if(lwrAx==0) wrDir(-lwrSg*2,al); else wrDir(al,-lwrSg*2);
