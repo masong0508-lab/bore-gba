@@ -3,6 +3,7 @@
 // No heap, per-frame ray searches, texture assets or second framebuffer.
 #ifndef GG_FILM_FRAMING3D_H
 #define GG_FILM_FRAMING3D_H
+#include "film_projection3d.h"
 // Match the existing 3DS actor projector's perspective in a tighter,
 // subtitle-safe composition. Reject actors clipped by either picture edge.
 static int ggFilmFrameProject(int cameraX,int cameraY,int cosA,int sinA,
@@ -12,7 +13,7 @@ static int ggFilmFrameProject(int cameraX,int cameraY,int cosA,int sinA,
     int side=(-dx*sinA+dy*cosA)/4096;
     if(forward<=80||forward>16*256||
        (side<0?-side:side)*4>forward*5)return 0;
-    int sx=200+side*140/forward;
+    int sx=ggFilmProjectScreenX(side,forward);
     if(sx<65||sx>335)return 0;
     *screenX=sx;*depth=forward;
     return 1;
