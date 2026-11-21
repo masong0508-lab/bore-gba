@@ -2,6 +2,9 @@
 #include <assert.h>
 #include <stdio.h>
 typedef unsigned short u16;
+typedef unsigned char u8;
+typedef signed char s8;
+typedef int s32;
 enum { K_LEFT=1, K_RIGHT=2, K_UP=4, K_DOWN=8, K_A=16, K_B=32 };
 enum { AB_GRIP, AB_JUMP, SFX_STICK };
 static int lsp,lvx,lvy,lhd,lvz,lz,lfx,lfy,lfr,lflip,lspecOn,bdOwn,stage,cview,lnoteT;
