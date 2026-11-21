@@ -90,6 +90,20 @@ int main(void){
                 ggMeshPersonFacing(192,0)==2,
                 "world-anchored procedural people have incorrect turn directions");
     occ[64][66]=0;nCr=0;
+    // Moving an actual simulation citizen changes its world-space feet
+    // and heading, not merely the animation tile or a screen-space wobble.
+    ggPersonTrackReset();
+    GgPersonMotion planted=ggPersonMotionSample(733,66*256+128,
+                                                64*256+128,0,0);
+    GgPersonMotion striding=ggPersonMotionSample(733,67*256+128,
+                                                 64*256+128,10,0);
+    GgPersonMotion mid=ggPersonMotionSample(733,67*256+128,
+                                            64*256+128,15,0);
+    meshRequire(!planted.walking&&striding.walking&&
+                mid.x>striding.x&&mid.x<67*256+128&&
+                mid.heading==0,
+                "3DS citizens still teleport cell-to-cell instead of walking");
+    ggPersonTrackReset();
     // Wall/world occlusion cannot be bypassed by the new generated
     // sprite painter. Front/behind use the SAME camera and geometry.
     ggMeshBegin(&ggMeshContext,pixels,2,0,0,10,4096,0,42,65,89);

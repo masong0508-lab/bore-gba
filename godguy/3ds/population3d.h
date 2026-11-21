@@ -114,20 +114,32 @@ static void ggExpRenderCreatures(u8 *top){
             // facing directions. Other families preserve actual low-poly
             // animal volumes. Both share real terrain, physical z depth.
             int wx=(c->x<<8)+128,wy=(c->y<<8)+128;
-            int planted=ggMeshGroundAtQ8(wx,wy);
             uint32_t identity=(uint32_t)crId[npc.index];
             if(!identity)identity=(uint32_t)(npc.index+1);
             uint32_t stable=ggPersonMix(identity^0xa1379c5du);
-            int heading=(int)(stable>>24);
+            GgPersonMotion movement=ggPersonMotionSample(
+                identity,wx,wy,ggExplore.frame,(int)(stable>>24));
+            int motionDX=movement.x-ggExplore.px;
+            int motionDY=movement.y-ggExplore.py;
+            int motionF=(motionDX*forwardX+motionDY*forwardY)/4096;
+            int motionSide=(-motionDX*forwardY+motionDY*forwardX)/4096;
+            int bodyGround=ggMeshGroundAtQ8(movement.x,movement.y);
             int phase=(ggExplore.frame*2+npc.index*17)&255;
             if(arch[si].diet==4){
-                ggMeshPersonDraw(&ggMeshContext,wx,wy,planted,
-                                 npc.forward,npc.side,
-                                 identity,fam,heading,
-                                 ggExplore.frame,0,famCol[fam]);
+                // Real 3D depth and tilt now follow INTERPOLATED feet.
+                // Direction is derived from the last creature move,
+                // not its random ID. A stationary resident can breathe
+                // or blink without perpetually moonwalking.
+                ggMeshPersonDraw(&ggMeshContext,
+                                 movement.x,movement.y,bodyGround,
+                                 motionF,motionSide,identity,fam,
+                                 movement.heading,ggExplore.frame,
+                                 movement.walking,famCol[fam]);
             }else{
-                ggMeshActorCharacter(&ggMeshContext,wx,wy,planted,
-                                     heading,phase,fam,0,famCol[fam],
+                ggMeshActorCharacter(&ggMeshContext,
+                                     movement.x,movement.y,bodyGround,
+                                     movement.heading,phase,fam,0,
+                                     famCol[fam],
                                      ggExpScenicQuality>=2?2:1);
             }
             ggExpNpcsDrawn++;
