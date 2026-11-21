@@ -595,6 +595,7 @@ compiled:
 }
 #include "mesh_world3d.h"
 #include "mesh_character3d.h"
+#include "mesh_people_billboard3d.h"
 static void ggExpRenderMode(u8 *top,int cinematic){
     ggExpFilmDrawDepth=0;
     ggExpMeshActive=0;

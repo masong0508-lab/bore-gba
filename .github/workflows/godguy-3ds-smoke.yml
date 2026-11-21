@@ -51,6 +51,7 @@ jobs:
           gcc -O2 -std=c11 -w -Icompat -Isource pc_3ds_cinema_capture.c -lm -o /tmp/gg-3ds-capture
           mkdir -p artifacts/godguy-cinema
           /tmp/gg-3ds-capture artifacts/godguy-cinema
+          /tmp/gg-3ds-procedural_people artifacts/godguy-cinema/procedural_people_turntable.ppm
           python3 tools/film_capture_png.py artifacts/godguy-cinema
           if command -v ffmpeg >/dev/null; then
             ffmpeg -hide_banner -loglevel error -y -framerate 6 -start_number 0 \

@@ -83,6 +83,12 @@ int main(void){
     ggExpRenderMode(pixels,0);
     meshRequire(ggExpNpcsDrawn==1,
                 "playable citizen was not passed to the 3D actor renderer");
+    meshRequire(ggMeshPersonCount==1&&ggMeshPersonPixels>40,
+                "playable person is not a visibly rendered procedural sprite");
+    meshRequire(ggMeshPersonFacing(128,0)==0&&
+                ggMeshPersonFacing(0,0)==4&&
+                ggMeshPersonFacing(192,0)==2,
+                "world-anchored procedural people have incorrect turn directions");
     occ[64][66]=0;nCr=0;
     // Keep legacy renderer selectable while the new 3D port is tuned.
     ggExpMeshEnabled=0;

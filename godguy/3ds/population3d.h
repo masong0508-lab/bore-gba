@@ -56,6 +56,8 @@ static void ggExpRenderCreatures(u8 *top){
     int count=0;
     ggExpNpcsDrawn=0;
     ggExpNpcClosestDepth=0;
+    ggMeshPersonCount=0;
+    ggMeshPersonPixels=0;
     // O(23x23) cell probes independent of 3DS creature capacity; no
     // looping through all 12,000+ creatures during each rendered frame.
     for(int y=py-GG_EXP_NEAR_RADIUS;y<=py+GG_EXP_NEAR_RADIUS;y++){
@@ -107,19 +109,27 @@ static void ggExpRenderCreatures(u8 *top){
         int sx,feet;
         int ground=ggExpGround(world[c->y][c->x]);
         if(ggExpMeshActive){
-            // The definitive 3DS camera now renders actual living
-            // polygonal inhabitants, not an 8x8 screen-facing tile.
-            // Every body occupies the authoritative citizen cell and
-            // obeys the terrain/world depth buffer and near foliage.
+            // Person: authored 32x48 procedural anatomical sprite with
+            // stable clothing, complexion, facial features and eight
+            // facing directions. Other families preserve actual low-poly
+            // animal volumes. Both share real terrain, physical z depth.
             int wx=(c->x<<8)+128,wy=(c->y<<8)+128;
             int planted=ggMeshGroundAtQ8(wx,wy);
-            int heading=(ggExplore.frame/6+npc.index*37)&255;
+            uint32_t identity=(uint32_t)crId[npc.index];
+            if(!identity)identity=(uint32_t)(npc.index+1);
+            uint32_t stable=ggPersonMix(identity^0xa1379c5du);
+            int heading=(int)(stable>>24);
             int phase=(ggExplore.frame*2+npc.index*17)&255;
-            int humanoid=arch[si].diet==4;
-            ggMeshActorCharacter(&ggMeshContext,wx,wy,planted,
-                                 heading,phase,fam,humanoid,
-                                 famCol[fam],
-                                 ggExpScenicQuality>=2?2:1);
+            if(arch[si].diet==4){
+                ggMeshPersonDraw(&ggMeshContext,wx,wy,planted,
+                                 npc.forward,npc.side,
+                                 identity,fam,heading,
+                                 ggExplore.frame,0,famCol[fam]);
+            }else{
+                ggMeshActorCharacter(&ggMeshContext,wx,wy,planted,
+                                     heading,phase,fam,0,famCol[fam],
+                                     ggExpScenicQuality>=2?2:1);
+            }
             ggExpNpcsDrawn++;
             continue;
         }

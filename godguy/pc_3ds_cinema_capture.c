@@ -394,9 +394,11 @@ int main(int argc,char **argv){
     for(int k=0;k<4;k++){
         ggExplore.frame=20+k*16;
         ggExpRenderMode(guarded.img,0);
-        if(ggExpNpcsDrawn!=2){
-            fprintf(stderr,"MESH CAPTURE FAIL: live mesh actors missing (%d)\n",
-                    ggExpNpcsDrawn);
+        if(ggExpNpcsDrawn!=2||ggMeshPersonCount!=1||
+           ggMeshPersonPixels<40){
+            fprintf(stderr,"MESH CAPTURE FAIL: living procedural person missing (%d actors, %d sprite people, %d pixels)\n",
+                    ggExpNpcsDrawn,ggMeshPersonCount,
+                    ggMeshPersonPixels);
             fclose(meshMetrics);return 30;
         }
         char filename[40];
@@ -437,7 +439,7 @@ int main(int argc,char **argv){
             ggMeshContext.textureSamples,ggMeshContext.blendedFragments,
             ggMeshBuildingsDrawn,ggMeshPropsDrawn);
     fclose(meshMetrics);
-    printf("3DS TRUE MESH CAPTURE OK: eight material-rich polygonal biomes, six moving-camera images, four living-world cast frames, %d source pixels changed by modeled people, %d triangles in scene zero, %d cumulative triangles\n",
+    printf("3DS TRUE MESH CAPTURE OK: eight polygonal biomes, six moving-camera images, four living-world frames with procedural 32x48 people and volumetric animals, %d changed pixels, %d triangles in scene zero, %d cumulative triangles\n",
            movingPeople,firstPolys,totalTriangles);
     printf("3DS CAPTURE OK: 12 story frames, 15 cast turntable views, 8 biomes, 6 playable POV frames and wall occlusion; %d props across biomes, minimum %d scenic pixel changes, %d playable POV changes; %.3f ms/host scene frame, %.6f/%.6f ms actor without/with depth; %zu B depth+scenery scratch\n",
            visibleProps,minScenicPixels,povPixels,
