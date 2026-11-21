@@ -71,6 +71,8 @@ assert "csWardPatient(x,y,who,pose,t,sk,hr)" in art
 assert "static void csWardFront(void)" in cut
 assert "PERSPECTIVE SITE:" in cut
 assert "INSIDE THE CAR:" in cut
+assert "qM={TQ_MONEY,8000}" in story, "hospital relief must agree with the actual 8k goal"
+assert "csR(123,61,60,4" in cut, "scaffold platform must be at Missy's final foot height"
 assert "if(csCurSc==10&&csCurBi>=8)" in cut
 assert "backstage doorway" in cut
 assert "warm twin footlights" in cut

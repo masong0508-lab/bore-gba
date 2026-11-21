@@ -556,7 +556,7 @@ static void plugTick(void){   // once per logic step (stTick): the hospital's pr
     int on=stId==STY_TVSHOW&&stCh==3&&stKidDay!=255;
     if(!on){ plugV=PLUG_START; plugDay=0xFFFF; plugSec=0; plugTen=0; plugNight=0; return; }
     if(++plugSec<60) return; plugSec=0;
-    static const StQ qF={TQ_FRIENDS,2}, qH={TQ_HAPPY,1}, qM={TQ_MONEY,12000};
+    static const StQ qF={TQ_FRIENDS,2}, qH={TQ_HAPPY,1}, qM={TQ_MONEY,8000};
     if(plugDay==0xFFFF){ // restore a resumed appeal instead of granting a fresh reprieve after reloading
         plugDay=(u16)simDay; plugNight=(u8)msNightUsed((unsigned)stmGet());
         plugV=(u8)msPressureResume((unsigned)stmGet(),PLUG_START);

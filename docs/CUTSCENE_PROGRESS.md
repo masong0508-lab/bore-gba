@@ -187,3 +187,10 @@ These captures are a useful rendering sanity check, but they do not
 establish frame-rate stability or full mission playthrough correctness.
 If the emulator package or display setup fails, this QA job fails
 openly instead of silently claiming a visual pass.
+
+### Final coherence correction
+The hospital support calculation now uses the chapter's actual 8,000
+earned-money goal (previously 12,000), so meeting the displayed target
+immediately affects the care-review pressure. The top construction platform
+is aligned with the climbing pose's final foot height instead of floating
+ten pixels above Missy's shoes. Both properties have static checks.

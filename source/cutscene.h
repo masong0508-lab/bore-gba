@@ -136,9 +136,9 @@ static void csBg(int bg,int t,int fx){   // the picture area: y 12 .. 115
         csR(10,64,103,3,RGB(24,17,10)); csR(10,77,103,3,RGB(24,17,10));
         for(int i=0;i<3;i++) csLn(14+i*29,50,43+i*29,76,RGB(14,12,11));
         // Actual work platform has depth, not a floating horizontal bar.
-        csR(123,53,60,7,RGB(5,7,10)); csR(123,52,60,4,RGB(26,19,10));
-        csR(124,56,59,3,RGB(14,10,8));
-        for(int i=0;i<3;i++) csR(127+i*22,52,1,4,RGB(31,26,14));
+        csR(123,62,60,7,RGB(5,7,10)); csR(123,61,60,4,RGB(26,19,10));
+        csR(124,65,59,3,RGB(14,10,8));
+        for(int i=0;i<3;i++) csR(127+i*22,61,1,4,RGB(31,26,14));
         csR(127,25,4,88,RGB(11,14,18)); csR(173,25,4,88,RGB(11,14,18));
         for(int y=34;y<101;y+=21){ csR(126,y,52,3,RGB(22,24,25));
             csLn(130,y+3,173,y+21,RGB(10,15,18));
@@ -147,8 +147,8 @@ static void csBg(int bg,int t,int fx){   // the picture area: y 12 .. 115
         for(int y=59;y<111;y+=8) csR(181,y,12,2,RGB(25,22,15)); // ladder
         // The upper plank begins to shift, then falls behind the actress.
         if(csCurSc==2&&csCurBi>=10&&csCurBi<=12){
-            csLn(130,52,180,56+(csCurBi-10)*7,RGB(27,19,9));
-            if(csCurBi>=11) for(int i=0;i<5;i++) csR(136+i*8,58+i*3+(t>>3)%7,2,2,RGB(28,22,12));
+            csLn(130,62,180,65+(csCurBi-10)*7,RGB(27,19,9));
+            if(csCurBi>=11) for(int i=0;i<5;i++) csR(136+i*8,67+i*3+(t>>3)%7,2,2,RGB(28,22,12));
         }
         csR(198,39,42,77,RGB(7,8,9));
         for(int i=0;i<8;i++) csR(199+i*6,40+(i&1),2,76,RGB(14,13,12));
