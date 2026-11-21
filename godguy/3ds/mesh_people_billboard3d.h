@@ -9,6 +9,7 @@
 static GgPersonCel ggMeshPersonCel;
 static int ggMeshPersonCount;
 static int ggMeshPersonPixels;
+static int ggMeshPersonWalkingDrawn; // source-rendered walk visibility QC
 static inline int ggMeshPersonFacing(int heading,int cameraAngle){
     // Front when citizen's forward vector points AT the camera.
     return ((heading-cameraAngle-128+16)&255)>>5;
@@ -107,6 +108,7 @@ static void ggMeshPersonDraw(GgMeshContext*m,int worldX,int worldY,
     if(drawn){
         ggMeshPersonPixels+=drawn;
         ggMeshPersonCount++;
+        if(active)ggMeshPersonWalkingDrawn++;
     }
 }
 #endif
