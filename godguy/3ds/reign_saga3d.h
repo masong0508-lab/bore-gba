@@ -1067,10 +1067,14 @@ static void ggSagaDraw(u8 *out){
     }
     ggExplore.px=px;ggExplore.py=py;
     ggExplore.angle=angle;ggExplore.frame=frame;
-    ggExpRect(out,0,0,400,43,13,24,37);
-    ggExpRect(out,0,41,400,2,204,156,88);
-    ggExpRect(out,0,185,400,55,13,23,36);
-    ggExpRect(out,0,185,400,2,204,156,88);
+    // Restrained letterbox treatment, not the old oversized computer
+    // console HUD. 18 more lines of landscape remain visible.
+    ggExpRect(out,0,0,400,33,17,24,34);
+    ggExpRect(out,0,0,400,1,53,71,84);
+    ggExpRect(out,0,32,400,1,189,146,92);
+    ggExpRect(out,0,188,400,52,16,23,32);
+    ggExpRect(out,0,187,400,1,196,157,99);
+    ggExpRect(out,0,190,3,48,174,124,80);
     char line[110];
     if(ggSaga.mode==GG_SAGA_CHOICE){
         snprintf(line,sizeof line,"ACT %d - YOUR CHOICE CHANGES THE REALM",
@@ -1100,29 +1104,31 @@ static void ggSagaDraw(u8 *out){
                  ggSagaAmbientTitles[ggSaga.event]);
     else snprintf(line,sizeof line,"THE UNWRITTEN REIGN / ACT %d: %.32s",
                   ggChron.act+1,ggChronActName[ggChron.act]);
-    ggExpText(out,10,7,line,246,224,175);
+    ggExpText(out,11,6,line,238,226,190);
     if(ggSaga.mode==GG_SAGA_INTERLUDE){
-        ggExpText(out,10,27,"A STORY YOU FOUND, NOT A CHAPTER YOU WERE ASSIGNED",
-                  185,207,215);
+        ggExpText(out,11,19,"A WORLD STORY / FOUND THROUGH EXPLORATION",
+                  151,174,187);
     }else if(ggSaga.ending>=0){
         snprintf(line,sizeof line,"FINAL ENDING %d/9: %.34s",
                  ggSaga.ending+1,ggSagaEndNames[ggSaga.ending]);
-        ggExpText(out,10,27,line,223,190,130);
+        ggExpText(out,11,19,line,197,174,137);
     }else{
         snprintf(line,sizeof line,"WORLD CHAPTER / %s",
                  ggSaga.mode==GG_SAGA_OPEN?"BEFORE THE ROAD":"AFTER THE STANDARD");
-        ggExpText(out,10,27,line,185,207,215);
+        ggExpText(out,11,19,line,151,174,187);
     }
     snprintf(line,sizeof line,"%s:",beat->voice);
-    ggExpText(out,11,194,line,255,216,145);
-    ggExpText(out,11,208,beat->line,231,232,223);
-    ggExpText(out,11,222,beat->sub,182,202,214);
-    // Text-heavy lines can be paused without missing dialogue. The
-    // controls remain visible without stealing the main subtitle band.
-    ggExpRect(out,8,170,214,13,14,26,38);
-    ggExpText(out,13,173,ggSaga.paused?
-              "X RESUME  A NEXT  B SKIP":"X PAUSE  A NEXT  B SKIP",
-              ggSaga.paused?252:186,211,168);
+    // Clean actor name plate, story text and a subdued secondary line.
+    // The same cutscene font now sits on a consistent cinematic panel.
+    ggExpRect(out,10,193,3,8,188,154,96);
+    ggExpText(out,19,193,line,243,217,162);
+    ggExpText(out,12,207,beat->line,235,238,233);
+    ggExpText(out,12,221,beat->sub,168,188,198);
+    // Commands sit off the actors rather than obscuring the ground line.
+    ggExpRect(out,241,173,150,12,17,27,37);
+    ggExpText(out,247,175,ggSaga.paused?
+              "X RESUME A NEXT B SKIP":"X PAUSE A NEXT B SKIP",
+              ggSaga.paused?243:179,198,186);
     int full=ggSagaBeatCount()*GG_SAGA_BEAT_TICKS;
     ggExpRect(out,0,238,400*ggSaga.frame/full,2,207,169,103);
 }
