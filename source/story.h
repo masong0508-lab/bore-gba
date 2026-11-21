@@ -574,8 +574,8 @@ static void plugTick(void){   // once per logic step (stTick): the hospital's pr
         v=(int)msPressureStep((unsigned)(v>100?100:v),support);
     }
     if(v>100) v=100;
-    if(v>=100&&plugNight){ plugV=100; plugRemember(100); if(!stModal) stModal=3; return; }   // the second time there is no more night: the hospital pulls the plug (stModal 3: stRunModal0 plays the loss, then back to your last save)
-    if(v>=100){   // a final-night extension, no erasing the existing bedside progress
+    if(msPressureOutcome((unsigned)v,(unsigned)plugNight)==2u){ plugV=100; plugRemember(100); if(!stModal) stModal=3; return; }   // the second time there is no more night: the hospital pulls the plug (stModal 3: stRunModal0 plays the loss, then back to your last save)
+    if(msPressureOutcome((unsigned)v,(unsigned)plugNight)==1u){   // one final-night extension, keep bedside progress
         v=50; if(simMoney>=1000) simMoney-=1000; plugNight=1; stmPut(stmGet()|16);
         toast("One more night. One extra day."); lnote="There won't be another one."; lnoteT=200; }
     else if(old<90&&v>=90){ static const char* const l90[3]={"Last chance. Save Missy.","She's almost out of time.","Mamesy, hurry. Please."}; lnote=l90[rnd8()%3]; lnoteT=150; }
