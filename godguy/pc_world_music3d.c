@@ -50,6 +50,11 @@ int main(void){
         ggWorldMusicTick();
     }
     if(playCalls>2)return 3;
+    // Quest completion gains a short fanfare without allocating a new
+    // audio channel; it cannot override dialogue or a final boss.
+    ggQuest.completed++;
+    ggWorldMusicTick();
+    if(ggWorldMusic.celebrate<=0)return 11;
     // Nearby foes immediately change atmosphere, then do not restart
     // every frame of combat.
     ggChron.foeN=1;

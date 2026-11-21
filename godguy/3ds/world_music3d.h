@@ -12,6 +12,7 @@ enum { GG_MUSIC_FIELDS,GG_MUSIC_FOREST,GG_MUSIC_COAST,
 typedef struct {
     int active,state,wanted,track,hold,candidate,stable,fade;
     int scanned,frames,urgent,transitions;
+    int completedSeen,celebrate;
 } GgWorldMusic;
 static GgWorldMusic ggWorldMusic;
 // Themes are variations, not loops started on every step. Existing
@@ -136,9 +137,17 @@ static int ggWorldMusicTick(void){
         ggWorldMusic.state=-1;ggWorldMusic.candidate=-1;
         ggWorldMusic.stable=0;ggWorldMusic.track=-1;
         ggWorldMusic.transitions=0;
+        ggWorldMusic.completedSeen=ggQuest.completed;
+        ggWorldMusic.celebrate=0;
     }
     gg3dMusicNext=ggWorldMusicNext;
     ggWorldMusic.frames++;
+    if(ggWorldMusic.hold>0)ggWorldMusic.hold--;
+    if(ggQuest.completed>ggWorldMusic.completedSeen){
+        ggWorldMusic.completedSeen=ggQuest.completed;
+        ggWorldMusic.celebrate=192; // original 3DS-only victory phrase
+    }
+    if(ggWorldMusic.celebrate>0)ggWorldMusic.celebrate--;
     // A fixed 12-tick polling rate keeps world/village/foe checks out
     // of the per-sample and most per-frame paths. Urgent transitions
     // still start within one 12-frame block.
@@ -153,7 +162,7 @@ static int ggWorldMusicTick(void){
                      scene==GG_MUSIC_DEFEAT||scene==GG_MUSIC_CHOICE);
         if(ggWorldMusic.state<0||
            (scene!=ggWorldMusic.state&&
-            (urgency||ggWorldMusic.stable>=48))){
+            (urgency||(ggWorldMusic.stable>=48&&ggWorldMusic.hold==0)))){
             ggWorldMusic.state=scene;
             ggWorldMusic.wanted=ggWorldMusicTrack(scene);
             ggWorldMusic.urgent=urgency;
@@ -169,6 +178,8 @@ static int ggWorldMusicTick(void){
     // Quiet worlds emphasize strings/pads, urban worlds brass/arp, war
     // brings the drums forward. Instrument gain never exceeds 100%.
     int motif=ggWorldMotifFor[s];
+    if(ggWorldMusic.celebrate>0&&s!=GG_MUSIC_BATTLE&&
+       s!=GG_MUSIC_BOSS)motif=5;
     if(talk||s==GG_MUSIC_CHOICE||s==GG_MUSIC_END)
         motif=-1;  // dialogue and voiced finales retain clear headroom
     int drums=(s==GG_MUSIC_BOSS||s==GG_MUSIC_BATTLE)?100:

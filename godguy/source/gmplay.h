@@ -30,12 +30,15 @@ static int gmWorldStem[9]={100,100,100,100,100,100,100,100,100};
 static int gmWorldStemGoal[9]={100,100,100,100,100,100,100,100,100};
 static int gmWorldDrums=100,gmWorldDrumGoal=100;
 static int gmWorldMotif=-1,gmWorldPatch=13,gmWorldLastBeat=-1;
-static const signed char gmWorldMotifs[5][16]={
+static int gmWorldMotifBase;
+static const signed char gmWorldMotifs[6][16]={
     {0,99,7,4,99,9,7,99,4,99,7,2,99,5,4,99},
     {0,3,7,99,10,7,5,99,0,5,8,99,7,5,3,99},
     {0,99,12,7,99,5,7,99,0,99,10,7,99,5,3,99},
     {0,7,10,7,3,7,12,7,0,7,10,7,5,7,12,7},
-    {0,99,3,99,7,99,10,99,12,99,7,99,5,99,3,99}
+    {0,99,3,99,7,99,10,99,12,99,7,99,5,99,3,99},
+    // A brief homecoming fanfare after real quest completion.
+    {0,4,7,12,7,4,12,16,12,7,4,99,7,99,99,99}
 };
 static int gmWorldToward(int x,int y,int step){
     return x<y?(y-x<step?y:x+step):x>y?(x-y<step?y:x-step):x;
@@ -50,6 +53,7 @@ static void gmWorldSet(int gain,int drums,int motif,int patch,
                        const unsigned char *stem){
     gmWorldMode=1;
     gmWorldGoal=gain;gmWorldDrumGoal=drums;
+    if(gmWorldMotif!=motif)gmWorldLastBeat=-1;
     gmWorldMotif=motif;gmWorldPatch=patch;
     for(int i=0;i<9;i++)gmWorldStemGoal[i]=stem[i];
 }
@@ -125,12 +129,18 @@ static void gmDrum(int part,int id){
     else if(id>=GM_VOX0){ idx=id-GM_VOX0; if(idx>=GM_VOX_N||!gmVoxLen[idx]) return; gmAlt[10]^=1; vol=gmVoxVol[idx]; pan=gmVoxPan[idx]; part=2;      // a vocal chop: it takes a cymbal channel for as long as it sounds
         if(idx>=GM_VOX_LYR0&&idx<GM_VOX_LYR0+GM_VOX_LYRN){ lyr=1; if(soft){ echo=1; soft=0; vol=vol*62/100; pan=(gmEchoSide^=1)?100:28; } }     // (a Duck & Cover lyric with the soft bit is its stereo echo copy: quieter, far to one side)
         else if(idx>=GM_VOX_CLYR0&&idx<GM_VOX_CLYR0+GM_VOX_CLYRN) lyr=2;
-        if(lyr&&!echo){ int f=gmVoxLen[idx]*60/gmVoxRate[idx]; if(f>gmLyrT){ gmLyrT=f; gmLyrDuck=lyr==1?45:22; } }
+        if(lyr&&!echo){ int f=gmVoxLen[idx]*60/gmVoxRate[idx]; if(f>gmLyrT){ gmLyrT=f; gmLyrDuck=lyr==1?52:30; } }
         slot=2+(gmSlotB^=1); if(lyr&&!echo) gmLyrSlot=slot; else if(!lyr&&gmLyrT>0&&slot==gmLyrSlot) slot=5-slot; }
     else { static const u8 dv[9]={0,72,72,84,72,56,52,112,127}; if(id>8) return; idx=id-1; vol=dv[id]; gmAlt[10]^=1;      // (hats, open hats, crash, ride, shaker, soft hats: lifted a little, the top octaves were only 1% of the sound)
         pan=id>=7?64:id==3?34:id==4?100:id==2?92:(gmAlt[10]?46:82); slot=2+(gmSlotB^=1); if(gmLyrT>0&&slot==gmLyrSlot) slot=5-slot; }      // (a hat or a crash never takes the channel a lyric is sounding on)
     if(lyr==2&&gmNoClyr) return;
     if(soft) vol=vol*55/100;
+    // CORPORATIONS and DUCK & COVER: ease cymbal/vocal-chop backing
+    // behind their own foreground lyrics instead of drowning consonants.
+    // The original melody notes and lead vocal timing are unchanged.
+    if(!lyr&&gmLyrT>0&&part!=0&&
+       (gmCur==GM_CORPORATIONS||gmCur==GM_DUCKCOVER))
+        vol=vol*78/100;
     vol=vol*wm/100*gmMaster/100*(lyr?92:40)/100;
     vol=vol*gmFilmGain/100; vol=vol*gmFadeMul()>>8;
 #ifdef __3DS__
@@ -223,7 +233,9 @@ static void gmFrame(void){
         // full vocal mixes of CORPORATIONS and DUCK & COVER.
         if(gmWorldMode&&gmWorldMotif>=0&&
            gmCur!=GM_CORPORATIONS&&gmCur!=GM_DUCKCOVER){
-            int beat=gmRow>>2;
+            int tickBeat=gmRow>>2;
+            if(gmWorldLastBeat<0)gmWorldMotifBase=tickBeat;
+            int beat=tickBeat-gmWorldMotifBase;
             if(beat!=gmWorldLastBeat){
                 gmWorldLastBeat=beat;
                 int off=gmWorldMotifs[gmWorldMotif][beat&15];
