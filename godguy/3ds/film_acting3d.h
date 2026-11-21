@@ -7,7 +7,7 @@ enum { GG_FILM_LISTEN,GG_FILM_SPEAK,GG_FILM_POINT,GG_FILM_PRESENT,
        GG_FILM_REFLECT,GG_FILM_REASSURE,GG_FILM_WALK };
 typedef struct {
     signed char pose,head,lean,armL,armR,legL,legR,bob;
-    signed char gaze,blink,mouth,holdProp,reach;
+    signed char gaze,blink,mouth,holdProp,reach,clothSway;
 } GgFilmPose;
 // One 6x3x3 palette, shared by all guest film cels. These identities
 // are stable across chapters, alternate endings and nonlinear films.
@@ -108,10 +108,15 @@ static GgFilmPose ggFilmPoseFor(const char*line,int beat,int local,
         if((beat&3)==2&&t>35&&t<70)
             p.armL=1;
     }
-    // Intentionally sparse blinking and breathing.
+    // Planted boots: speaking must never bounce the ENTIRE body off
+    // the floor. Instead animate only hair/coat movement, head reaction,
+    // syllables and arm gestures at staggered beats for the two actors.
     p.blink=(signed char)(((t+beat*17+(hero?13:39))%79)<3);
-    if(!walking&&((t/24+beat+(hero?0:1))&3)==0)
-        p.bob=1;
+    if(!walking){
+        int phase=(t+beat*13+(hero?5:22))%60;
+        p.clothSway=(signed char)(phase<17?-1:phase<37?0:1);
+        p.bob=0;
+    }
     return p;
 }
 // Preserve the simple authored-pose API used in existing regression
@@ -270,9 +275,11 @@ static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
         hairLightG=ggFilmArtShade(hair[1],292),
         hairLightB=ggFilmArtShade(hair[2],292);
     int style=identity<0?6:identity;
-    // Tight soft-looking oval ground contact, darker toward the center.
-    ggFilmArtRounded(out,x-8*s,feet-s,16*s,s,0,45,44,48);
-    ggExpRect(out,x-5*s,feet-s,10*s,s,24,27,32);
+    // Projected boots and feathered shadow share the SAME world foot.
+    // No floating contact disk attached to the torso or camera horizon.
+    ggFilmArtOval(out,x-12*s,feet-2*s,24*s,2*s,37,43,42);
+    ggFilmArtOval(out,x-8*s,feet-s,16*s,s,26,32,32);
+    ggExpRect(out,x-4*s,feet-s,8*s,s,20,25,27);
     // Calf, articulated knees and fitted boots. Both feet stay registered
     // to ground, even when dialogue adds head gestures and arm reach.
     for(int leg=0;leg<2;leg++){
@@ -298,7 +305,10 @@ static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
     ggExpRect(out,bodyX+3*s,centerY-17*s,2*s,8*s,
               shadeR,shadeG,shadeB);
     // Shaped hem, vertical tailoring and a raised collar.
-    ggFilmArtRounded(out,bodyX-6*s,centerY-10*s,12*s,3*s,s,
+    // Asymmetric wind-shifted coat hem introduces motion without moving
+    // either foot. The fabric sways independently of grounded legs.
+    ggFilmArtRounded(out,bodyX-6*s+p->clothSway*s,
+                     centerY-10*s,12*s,3*s,s,
                      jacketR,jacketG,jacketB);
     ggExpRect(out,bodyX,centerY-16*s,s,8*s,44,43,48);
     ggExpRect(out,bodyX-5*s,centerY-12*s,10*s,s,75,63,63);
@@ -377,9 +387,10 @@ static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
     // distinct person remains recognizable across stories/ending routes.
     if(style==0){ // Mira: warm shoulder shawl and visible side braid
         ggExpRect(out,bodyX-5*s,centerY-17*s,10*s,2*s,79,151,116);
-        ggExpRect(out,headX-6*s,centerY-26*s,2*s,8*s,
+        ggExpRect(out,headX-6*s+p->clothSway*s,centerY-26*s,2*s,8*s,
                   hair[0],hair[1],hair[2]);
-        ggExpRect(out,headX-6*s,centerY-19*s,2*s,s,205,167,102);
+        ggExpRect(out,headX-6*s+p->clothSway*s,centerY-19*s,
+                  2*s,s,205,167,102);
     }else if(style==1){ // Thorgrim: reinforced watch armor
         ggFilmArtRounded(out,bodyX-8*s,centerY-18*s,5*s,4*s,s,
                          106,121,142);
