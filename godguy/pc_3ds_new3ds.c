@@ -40,6 +40,9 @@ int main(void){
     ggMeshQuad(m,a,b,c,d,160,142,122);
     require(m->textureSamples==0&&m->fragments>50,
             "degraded detail did not trade expensive textures for native pixels");
+    require(ggMeshHidden(m,200,116,1024)&&
+            !ggMeshHidden(m,200,116,256),
+            "full-res low-detail pass must preserve correct physical z depth");
     int light=ggMeshSunlight(a,b,c,m->ambientLight);
     require(pixels[center]==160*light/256&&
             pixels[center+1]==142*light/256&&
