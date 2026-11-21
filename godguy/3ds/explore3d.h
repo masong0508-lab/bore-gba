@@ -387,12 +387,15 @@ static void ggExpRenderMode(u8 *top,int cinematic){
             if(projected>=highest)continue;
             int from=ggExpClamp(projected,0,screenHeight);
             int to=ggExpClamp(highest,0,screenHeight);
-            if(cinematic&&build){
-                // Wall facades physically stop at their ground-footprint,
-                // rather than extending like giant cardboard rectangles
-                // toward the player through the continuous terrain.
-                int groundFoot=horizon-(ground-eye)*12/(d+1);
-                if(groundFoot<to)to=ggExpClamp(groundFoot,from,to);
+            if(cinematic&&(build||ground>ggExpGround(terrain))){
+                // Building walls end at their physical foundation. Raised
+                // grass/forest/hill faces end at the nearby level ground,
+                // not at the BOTTOM OF THE SCREEN. Two-height steps
+                // become a few-pixel embankment, not 80px solid cubes.
+                int baseHeight=build?ground:ggExpGround(terrain);
+                int bottom=ggFilmTerrainSurfaceY(baseHeight,eye,
+                                                  horizon,d,12);
+                if(bottom<to)to=ggExpClamp(bottom,from,to);
             }
             int baseR,baseG,baseB;
             if(build){
