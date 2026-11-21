@@ -114,49 +114,46 @@ static void csFaceBed(int wx,int wy,int t,u16 skin,u16 hair,int awake){
     csFcx=csCamX(wx); csFcy=csCamY(wy);
     u16 shadow=csFSh(skin,2), warm=csFLt(skin,2);
     u16 lip=RGB(17,7,9), outline=RGB(8,7,9);
-    // The nape joins the shoulder under the gown collar at x+40.
-    csFE(30,10,16,11,shadow);
-    csFR(22,7,23,10,skin);
-    csFR(39,8,20,10,RGB(12,19,27));
-    csFLn(36,9,44,14,RGB(24,29,30));
-    // Head silhouette: roughly 12 world px across, narrower than chest.
-    // Hair follows the back of the skull rather than swelling under the jaw.
-    csFE(8,-3,23,19,outline);
-    csFE(8,-4,21,18,hair);
-    csFE(20,5,9,9,csFLt(hair,2));
-    csFE(-1,0,21,16,shadow);
-    csFE(-3,-2,20,15,skin);
-    csFE(-17,5,8,8,skin);
-    csFE(-9,9,10,5,shadow);
-    csFE(-12,7,10,4,skin);
-    // Real side-profile nose: LEFT of the face; the lips rest just beneath.
-    csFE(-24,1,5,4,skin);
-    csFR(-27,3,5,2,shadow);
-    csFR(-26,7,7,2,lip);
-    if(awake&&csTalking&&csSpk==CA_MISSY){
-        int speak=((t/5)&3)!=0;
-        csFR(-26,7,7,speak?3:2,lip);
-        if(speak) csFR(-24,8,4,1,RGB(26,18,19));
-    }
-    // Swept hairline and loose curl, kept smaller than the skull.
-    csFE(-3,-12,21,8,hair);
-    csFR(-20,-17,20,3,csFLt(hair,3));
-    csFR(-18,-13,8,3,hair);
-    csFE(18,-7,6,9,csFSh(hair,2));
-    csFR(0,-19,10,2,csFLt(hair,5));
-    // Ear on the rear edge of the jaw; never a disconnected disc.
+    // SUPINE close-up: skull supported by the pillow, forehead and nose
+    // pointing toward the ceiling, nape joining a horizontal shoulder.
+    // Draw neck first so the jaw overlaps its edge without an elbow shape.
+    csFR(19,6,30,12,shadow);
+    csFR(20,5,29,9,skin);
+    csFR(39,7,19,11,RGB(12,19,27));       // gown collar
+    csFLn(36,8,45,12,RGB(24,29,30));
+    // Hair is behind and BELOW the resting head, not a huge side helmet.
+    csFE(5,1,25,18,outline);
+    csFE(5,0,23,16,hair);
+    csFE(18,4,10,10,csFLt(hair,2));
+    csFE(-7,-4,21,15,shadow);
+    csFE(-8,-6,19,14,skin);              // forehead-to-chin silhouette
+    csFE(-20,-11,9,7,skin);               // gently receding forehead
+    csFE(11,5,5,5,shadow);               // jaw rests on nape
+    csFE(12,4,4,4,skin);
+    // Nose projects UP from the face profile; it must not jut left like a beak.
+    csFR(-15,-23,6,8,skin);
+    csFR(-14,-23,4,2,warm);
+    csFR(-13,-16,5,1,shadow);             // subtle nostril shadow
+    // Hairline stays along the back half of the reclining skull.
+    csFR(-2,-19,17,3,hair);
+    csFR(0,-20,13,2,csFLt(hair,3));
+    csFE(16,-9,6,7,csFSh(hair,2));
+    // Ear on the underside, closer to the neck and the pillow.
     csFE(15,4,5,7,shadow);
-    csFE(16,3,4,5,skin);
-    csFE(16,4,2,2,csFSh(skin,4));
-    csFR(-20,-8,12,2,csFSh(hair,2));
+    csFE(15,3,4,5,skin);
+    csFE(15,4,2,2,csFSh(skin,4));
+    // The eye and mouth lie on the upward-looking face plane.
     if(awake){
         int blink=((t+37)%180)<5;
-        csFE(-14,-4,8,blink?2:4,csFSh(skin,5));
+        csFE(-12,-13,7,blink?2:4,csFSh(skin,5));
         if(!blink){
-            csFE(-14,-4,6,3,RGB(29,29,27));
-            csFE(-13,-3,3,3,RGB(11,9,9));
-            csFR(-14,-5,2,1,RGB(31,31,30));
+            csFE(-12,-13,5,3,RGB(29,29,27));
+            csFE(-11,-12,2,3,RGB(11,9,9));
+            csFR(-12,-15,2,1,RGB(31,31,30));
         }
-    } else csFR(-20,-3,12,2,csFSh(skin,5));
-    csFR(-18,-10,11,1,warm);
+    } else csFR(-18,-12,12,2,csFSh(skin,5));
+    csFR(-12,-17,11,1,csFSh(hair,2));     // relaxed brow
+    csFR(-9,-7,8,awake&&csTalking&&csSpk==CA_MISSY&&((t/5)&3)?3:2,lip);
+    csFR(-7,-6,4,1,warm);                  // lower lip light
 }
+
