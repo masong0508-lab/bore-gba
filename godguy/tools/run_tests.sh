@@ -78,6 +78,7 @@ gcc -O2 -std=c11 -Wall -Wextra -Werror -o /tmp/gg_3ds_projection pc_3ds_projecti
 gcc -O2 -std=c11 -Wall -Wextra -Werror -o /tmp/gg_3ds_architecture pc_3ds_architecture.c && /tmp/gg_3ds_architecture
 gcc -O2 -std=c11 -Wall -Wextra -Werror -o /tmp/gg_3ds_direction pc_3ds_direction.c && /tmp/gg_3ds_direction
 gcc -O2 -std=c11 -Wall -Wextra -Werror -o /tmp/gg_3ds_actor_visual pc_3ds_actor_visual.c && /tmp/gg_3ds_actor_visual
+gcc -O2 -std=c11 -Wall -Wextra -Werror -o /tmp/gg_3ds_floor pc_3ds_floor.c && /tmp/gg_3ds_floor
 gcc -O2 -std=c11 -Wall -Wextra -Werror -o /tmp/gg_3ds_partner pc_3ds_partner.c && /tmp/gg_3ds_partner
 # DSi mode (step 9): a 768 x 768 planet saves, packs into the 2 MB block and loads back identical
 gcc -O2 -DNDSSHIM -DGG_DSI16 -Icompat -Isource -Wno-all -include unistd.h -o /tmp/gg_vilsave pc_vilsave.c -lm && /tmp/gg_vilsave | tail -1
