@@ -15,6 +15,8 @@
 #define NPC_PALS 13
 #define NPC_SKN  3   // (was SK_N: that name is the skill count in sims.h)
 #define NPC_PARK 6
+#include "npcspots.h"
+_Static_assert(MW*MH<=65535,"skate target cache needs a 16-bit map cell index");
 static const char npcArt[4][32][17]={
  {
     "                ",
@@ -161,6 +163,9 @@ static const u16 npcPal[4][16]={   // 0 clear, 1 outline, 2 skin, 3 hair / hat, 
     {0,RGB(2,2,5),RGB(17,11,7),RGB(26,22,4),RGB(8,10,28),RGB(6,8,14),RGB(20,8,22),RGB(28,28,28),RGB(13,8,5),RGB(10,13,31),RGB(5,7,19),RGB(3,5,9),RGB(31,31,7),RGB(28,28,10),RGB(31,31,31),RGB(3,2,4)} };
 typedef struct { s32 fx, fy; u8 tx, ty, air, face, wait, tries; } NpcSk;
 static NpcSk npcSk[NPC_SKN] EWRAM_BSS; static u8 npcSkN EWRAM_BSS, npcVramOk EWRAM_BSS;
+// A 96-byte, fixed-capacity reservoir of ramp/rail positions rebuilt on each playable lot.
+// The oldest code scanned the whole map TWICE on each new NPC target (every hop).
+static u16 npcSpot[NPC_SPOT_CAP] EWRAM_BSS; static u8 npcSpotN EWRAM_BSS;
 
 static void npcUpload(void){   // in vblank
     for(int f=0;f<4;f++){
@@ -173,11 +178,15 @@ static void npcUpload(void){   // in vblank
     for(int p=0;p<4;p++){ volatile u16*q=OBJ_PAL+(NPC_PALC+p)*16; for(int i=0;i<16;i++) q[i]=npcPal[p][i]; }
 }
 static int npcObjCh(char c){ return (c>='1'&&c<='<')||c=='X'||c=='='||c=='L'||c=='J'||c=='M'; }   // kicker 1-4, quarter pipe 5-8, launch 9-<, funbox, rail, ledge, jersey, manual pad
-static void npcAim(NpcSk*k){   // pick the next skate object to ride to
-    int n=0; for(int y=0;y<MH;y++) for(int x=0;x<MW;x++) if(npcObjCh(lifeMap[y][x])) n++;
-    if(!n) return;
-    int r=(int)(((u32)rnd8()<<8|rnd8())%(unsigned)n);
-    for(int y=0;y<MH;y++) for(int x=0;x<MW;x++) if(npcObjCh(lifeMap[y][x])&&r--==0){ k->tx=(u8)x; k->ty=(u8)y; return; }
+static void npcAim(NpcSk*k){   // pick a route target in constant time, not two whole-map scans
+    if(!npcSpotN) return;
+    unsigned i=(((u32)rnd8()<<8)|rnd8())%npcSpotN;
+    unsigned pos=npcSpot[i];
+    if(npcSpotN>1&&pos==(unsigned)k->ty*MW+k->tx){
+        i=(i+1u+((unsigned)rnd8()%(npcSpotN-1u)))%npcSpotN;
+        pos=npcSpot[i];
+    }
+    k->tx=(u8)(pos%MW); k->ty=(u8)(pos/MW);
 }
 static void npcSkTick(NpcSk*k){
     if(k->air){ k->air--; if(!k->air) npcAim(k); return; }
@@ -193,7 +202,14 @@ static void npcSkTick(NpcSk*k){
     k->wait=40; if(++k->tries>3){ k->tries=0; npcAim(k); }      // boxed in: wait, then try somewhere else
 }
 static void npcSkSpawn(void){
-    npcSkN=0; int n=0; for(int y=0;y<MH;y++) for(int x=0;x<MW;x++) if(npcObjCh(lifeMap[y][x])) n++;
+    npcSkN=0; npcSpotN=0; unsigned n=0;
+    for(int y=0;y<MH;y++) for(int x=0;x<MW;x++) if(npcObjCh(lifeMap[y][x])){
+        n++;
+        unsigned rnd=n>NPC_SPOT_CAP?(((u32)rnd8()<<8)|rnd8()):0u;
+        int slot=npcSpotSlot(n,rnd);
+        if(slot>=0){ npcSpot[slot]=(u16)(y*MW+x); if(npcSpotN<NPC_SPOT_CAP) npcSpotN++; }
+    }
+
     if(FLG(1)&&n){   // SKATE FLAGS (main.c): each one spawns a skater (up to NPC_SKN), even on a lot with only a few things to skate
         for(int f=0;f<FLG(1)&&npcSkN<NPC_SKN;f++){ NpcSk*k=&npcSk[npcSkN++]; k->fx=flgX[1][f]*256+128; k->fy=flgY[1][f]*256+128; k->air=0; k->face=0; k->wait=(u8)(20*npcSkN); k->tries=0; npcAim(k); }
         return; }

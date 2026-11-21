@@ -8,7 +8,10 @@
 static int jobFriends(void){ int me=hhPUid, n=0; for(int u=0;u<HU_N;u++) if(u!=me&&(relF[me][u]&RF_FRIEND)) n++; return n+nrFriends(me); }   // (and the friends you have in the town: townrel.h)
 static const char* const jobPerkNm[5]={"","TRAINING","FINES","BARRACKS","STAFF MEAL"};
 static const char* const jobPerkTx[5]={"","+1 SKILL EACH GOOD SHIFT","A BAD SHIFT COSTS 40","BILLS ARE HALVED","A GOOD SHIFT FILLS FOOD"};
-static int jobAllowed(int t){ return stage>=AG_ADULT||jobTr[t].teen; }
+// Casual skating is always independent of employment; an earned team tryout opens the Pro Skater job.
+// Existing employed skaters keep their job regardless of current skill or score.
+static int jobSkateReady(void){ return sjQualified(trnMetaGet(),skillLvl,simTricks,simBestCombo); }
+static int jobAllowed(int t){ return (stage>=AG_ADULT||jobTr[t].teen)&&(t!=JT_SKATE||jobSkateReady()); }
 static int jobStartLvl(int t){ int l=jobLvl>=5?2:jobLvl>=3?1:0; return l>jobTr[t].top?jobTr[t].top:l; }
 static void jobBranchMenu(void){   // the first visit after reaching level 3: pick the branch
     static char a[28] EWRAM_BSS, b[28] EWRAM_BSS; char*e=simCat(a,jobTitleOf(jobTrack,3,0)); simCat(e,"  STEADY"); e=simCat(b,jobTitleOf(jobTrack,3,1)); simCat(e,"  HIGH PAY");
@@ -16,7 +19,7 @@ static void jobBranchMenu(void){   // the first visit after reaching level 3: pi
     jobBr=c; jobChosen=1; simsSave(); toast(c?"BRANCH B  HIGH PAY  HIGH QUOTA":"BRANCH A  STEADY");
 }
 static void careerScreen(void){
-    int sel=jobTrack; u16 prev=keyNow(); u32 cnt=0, lt=~0u;
+    int sel=jobNone?JT_ENT:jobTrack; u16 prev=keyNow(); u32 cnt=0, lt=~0u;
     if(jobLvl>=3&&jobT()->top>=3&&!jobChosen) jobBranchMenu();
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; cnt++;
@@ -26,7 +29,7 @@ static void careerScreen(void){
         const JobTr*t=&jobTr[sel]; int me=sel==jobTrack&&!jobNone, ok=jobAllowed(sel), nl=t->top+1;
         if(pr&K_A){
             if(me){ if(jobLvl>=3&&t->top>=3) jobBranchMenu(); }
-            else if(!ok) toast("ADULTS ONLY");
+            else if(!ok) toast(sel==JT_SKATE&&stage>=AG_ADULT?"LAND TRICKS TO EARN A TRYOUT":"ADULTS ONLY");
             else if(jobNone) toast("GET HIRED  PAPER OR COMPUTER");
             else { static char q[40] EWRAM_BSS; char*e=simCat(q,"JOIN "); simCat(e,t->nm); static const char* const yn[2]={"YES  TRANSFER","NO"};
                 if(menu(q,yn,2)==0){ int nlv=jobStartLvl(sel); jobTrack=sel; jobLvl=nlv; jobBr=0; jobChosen=0; jobGood=jobBad=0; shiftPts=0; simsSave();
@@ -58,7 +61,8 @@ static void careerScreen(void){
           if(me){ if(jobLvl>=t->top) e=simCat(b,"TOP OF THE TRACK  TRANSFER FOR MORE");
               else { e=simCat(simCat(b,"NEXT LEVEL  "),jobSkName(jobTrack)); e=simCat(e," "); e=simCatN(e,jobNeedSkill(jobLvl)); if(jobNeedFriend(jobLvl)) simCat(e,"  1 FRIEND"); }
               text(14,117,b,RGB(24,27,30),1); }
-          else if(!ok) text(14,117,"ONLY GROWN UPS CAN TAKE THIS",RGB(31,14,10),1);
+          else if(!ok) text(14,117,sel==JT_SKATE&&stage>=AG_ADULT?"JAM MEDAL + LV1 + 5 + 250 COMBO":"ONLY GROWN UPS CAN TAKE THIS",RGB(31,14,10),1);
+          else if(jobNone) text(14,117,sel==JT_SKATE?"TRYOUT OPEN  APPLY AT A COMPUTER":"APPLY AT PAPER OR COMPUTER",RGB(24,27,30),1);
           else { e=simCat(b,"A TRANSFER  YOU START AT "); simCat(e,jobTitleOf(sel,jobStartLvl(sel),0)); text(14,117,b,RGB(24,27,30),1); } }
         for(int i=0;i<JT_N;i++) s2rr(86+i*9,131,6,4,i==sel?GOLD:i==jobTrack?RGB(10,26,12):RGB(7,14,22));   // which track this is (green: yours)
         text(14,129,"<",GOLD,1); text(223,129,">",GOLD,1);

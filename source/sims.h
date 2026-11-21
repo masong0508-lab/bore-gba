@@ -7,7 +7,7 @@
 //            ROOM rises when you stand among furniture (fridge, toilet, bed, shower, sofa) and sags in an empty place.
 //            Everything feeds the HAPPY meter (mood.h -> simsComfort()).
 //  CLOCK     see SIM_STEPS_MIN. A week is MON..SUN, the game starts MON 08:00. Sleeping runs the clock fast.
-//  CAREER    PRO SKATER (the default job), the only one with a trick-point QUOTA: trick points you score during the shift count towards the day's QUOTA. Every other job counts work minutes instead (jobQuotaOf). At 17:00 you are paid:
+//  CAREER    PRO SKATER (an optional career earned through a team tryout), the only one with a trick-point QUOTA: trick points you score during the shift count towards the day's QUOTA. Every other job counts work minutes instead (jobQuotaOf). At 17:00 you are paid:
 //            full quota = full pay (and a step towards promotion), half quota = half pay, less = nothing and a strike. 3 good days = promotion,
 //            3 strikes = demotion. Bills are taken at midnight; if you cannot pay, that is a fear coming true.
 //  SKILL     SKATING skill 0..5, trained by tricks, combos and grinds; each level adds 8% to trick points.
@@ -569,7 +569,7 @@ static void fxGhostLoad(volatile unsigned char*m); static int simsLoad(void){ in
 
 static void fxGhostClear(void); static void simsDefaults(void){ fxGhostClear();   // a brand new life (nothing is written to SRAM)
     sNrg=100; sHyg=100; sCom=80; sRoom=40; sSoc=70; simMoney=SIM_CASH0; simAsp=0; simDone=0; simDay=0; simMin=480;
-    jobLvl=0; jobGood=0; jobBad=0; skillPts=0; jobTrack=JT_SKATE; jobBr=0; jobChosen=0; jobNone=1; skReset();   // (a new life starts unemployed: jobhunt.h)
+    jobLvl=0; jobGood=0; jobBad=0; skillPts=0; jobTrack=JT_ENT; jobBr=0; jobChosen=0; jobNone=1; skReset();   // (a new life starts unemployed: jobhunt.h)
     simMeter=SIM_METER0; simFlags=0; simTricks=simBestCombo=simStokedS=simNights=0; simAspUsed=-1; simLock=0;
     for(int s=0;s<SIM_WS;s++){ simW[s]=-1; simWP[s]=0; } for(int s=0;s<SIM_FS;s++) simF[s]=-1;
 }

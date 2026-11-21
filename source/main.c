@@ -1720,7 +1720,7 @@ static int bdx=10, bdy=4, spx=3, spy=6;   // skateboard tile and spawn tile, fou
 #define BDY bdy
 static int lbailT;   // frames of bail flicker left (the skater blinks while getting up)
 static int lsp,lhd,lspin,lflip,lgrind,lscore,lstun,lairF,lpts,lnoteT,lglide; static const char*lnote;
-static int trnOn EWRAM_BSS, trnLeft EWRAM_BSS, trnDone EWRAM_BSS, trnCombo EWRAM_BSS;   // timed.h: TIMED RUN running / game steps left / just ran out (the results card is due)
+static int trnOn EWRAM_BSS, trnLeft EWRAM_BSS, trnDone EWRAM_BSS, trnCombo EWRAM_BSS, trnMode EWRAM_BSS;   // timed.h: TIMED RUN running / game steps left / just ran out (the results card is due)
 // COMBO STRING: the names of the tricks in the running chain, oldest first (hud.h shows the newest ones that fit in the top bar: "KICKFLIP + 360 + GRIND  X3")
 #define LC_NM 6
 static char lcNm[LC_NM][16] EWRAM_BSS; static u8 lcNmN;   // lcNmN: names kept (the oldest drop out when the chain is longer than LC_NM)
@@ -2508,6 +2508,8 @@ static inline __attribute__((always_inline)) int isWinCh(char c){ return c=='E'|
 static int tileHc(char c){   // the surface height of a kind of tile (ramps: -1, they need the cell: rampTop)
     return (c=='j')?2*CC: (c=='n')?CC: (c=='#'||c=='F'||c=='W'||c=='H'||isWinCh(c))?2*CC: (c=='X'||c=='Y')?SOLID_H: (c=='O')?BARREL_H: (c=='b')?2*CC: (c=='m')?5: (c=='w'||c=='T'||c=='S'||c=='C'||c=='t'||c=='h'||c=='d'||c=='l'||c=='p'||c=='i'||c=='o'||c=='y'||c=='G'||c=='V'||c=='U'||c=='Q'||c=='A'||c=='v'||c=='c'||c=='q')?CC: (c=='='||c=='L'||c=='N'||c=='Z'||c=='K'||c=='J')?GRIND_H: (c=='I'||c=='R'||c=='g'||c=='&'||c=='@')?6: (c=='u')?CC: (c=='M')?3: isRamp(c)?-1: 0; }
 static s16 thTab[256] EWRAM_BSS; static u8 thOk;   // tileH by character, worked out once (the chain of tests it came from ran for every tile every planner step and every drawn tile)
+static inline int skInside(int tx,int ty){ return (unsigned)tx<(unsigned)MW&&(unsigned)ty<(unsigned)MH; }
+static inline int skRampAt(int tx,int ty){ return skInside(tx,ty)&&isRamp(lifeMap[ty][tx]); }
 static int tileH(int tx,int ty){   // surface height in px (ramps: their highest point). Grind height is 6: rails, ledges and benches
     if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
     if(!thOk){ for(int i=0;i<256;i++) thTab[i]=(s16)tileHc((char)i); thOk=1; }
@@ -2525,9 +2527,9 @@ static int surf8(s32 fx,s32 fy){   // the same in 8.8 px, ramps without steps (t
 }
 static inline int wallTall(char c){ return c=='W'||c=='#'||isWinCh(c); }   // full walls and windows: nothing gets over them, however high the jump (low walls and fences can be cleared)
 static int moveH(s32 fx,s32 fy){   // the height a step into (fx,fy) has to clear: the surface, or no way at all into a full wall from another tile
-    int tx=(int)(fx>>8), ty=(int)(fy>>8); if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
-    if(wallTall(lifeMap[ty][tx])&&(tx!=(int)(lfx>>8)||ty!=(int)(lfy>>8))) return 99;   // (already inside one, somehow: walk out)
-    if(curFl&&floorMap[ty][tx]==FL_AIR&&(tx!=(int)(lfx>>8)||ty!=(int)(lfy>>8))) return 99;   // upstairs, open air: no floor to step onto
+    int tx=(int)(fx>>8), ty=(int)(fy>>8); if(!skInside(tx,ty)) return 0x7fff;  // even a huge ollie cannot leave the array
+    if(wallTall(lifeMap[ty][tx])&&(tx!=(int)(lfx>>8)||ty!=(int)(lfy>>8))) return 0x7fff;   // (already inside one, somehow: walk out)
+    if(curFl&&floorMap[ty][tx]==FL_AIR&&(tx!=(int)(lfx>>8)||ty!=(int)(lfy>>8))) return 0x7fff;   // upstairs, open air: no floor to step onto
     return surfH(fx,fy);
 }
 // THE WALL BETWEEN. wallClear: 1 = nothing solid on the straight line from (ax,ay) to (bx,by) (1/256 tiles). A wall is what drawWall draws: an arm
@@ -3444,6 +3446,7 @@ static void clPlace(void){
 }
 static void clTick(void){
     tgPump(); if(CL_ON&&lscore>=2000) tgDone(8);   // goals (goals.h): SCORE 2000 in a run, and a goal note waiting for the note line
+    if((trnOn||trnDone)&&trnMode==1) return;   // PARK JAM: collect after the results, not on the last tick
     if(!CL_ON||ldead||lz>(30<<8)) return;
     for(int i=0;i<CL_N;i++){
         if(clGot>>i&1) continue;
@@ -3452,8 +3455,8 @@ static void clTick(void){
         if(dy<0) dy=-dy;
         if(dx>0xB0||dy>0xB0) continue;
         clGot|=(u8)(1<<i);
-        if(i<5){ lscore+=100; specAdd(60); moodEvent(M_TRICK); sfxPlay(SFX_POP); sktAward(); simEvent(SE_LETTER); }   // sktAward writes the note (S, SK, ...) and pays the SKATE bonus at five
-        else { lscore+=1000; specAdd(SPEC_MAX/2); moodEvent(M_TRICK); sfxPlay(SFX_STICK); voxPlay(V_yahoo); lnote="SECRET TAPE  +1000"; lnoteT=100; simEvent(SE_TAPE); tgMark(); }
+        if(i<5){ lscore+=100; specAdd(60); sfxPlay(SFX_POP); sktAward(); simEvent(SE_LETTER); }   // sktAward writes the note (S, SK, ...) and pays the SKATE bonus at five
+        else { lscore+=1000; specAdd(SPEC_MAX/2); sfxPlay(SFX_STICK); voxPlay(V_yahoo); lnote="SECRET TAPE  +1000"; lnoteT=100; simEvent(SE_TAPE); tgMark(); }
         clTook|=(u8)(1<<i);
         if(clReal&&clTook==clReal){ lscore+=500; specAdd(SPEC_MAX); sfxPlay(SFX_STICK); lnote="LOT CLEARED  +500"; lnoteT=110; tgDone(4); }   // every letter and the tape of this lot
     }
@@ -3462,7 +3465,15 @@ static void clTick(void){
 // second or so, scoring as you go, then kick off it. Let go of R, land, or run out of wall and you drop. Walking never does this.
 #define WR_LEN 70   // steps a wallride lasts at most (about 1.2 s)
 static u8 lwr EWRAM_BSS; static s8 lwrAx EWRAM_BSS, lwrSg EWRAM_BSS; static int lwrV EWRAM_BSS;   // steps left, which axis the wall is on (0 = x), which side it is on (+1 / -1), the speed along it
-static void wrDir(int bx,int by){ int best=0, bd=-999999; for(int a=0;a<256;a+=2){ int dp=fcos(a)*bx+fsin(a)*by; if(dp>bd){ bd=dp; best=a; } } F.angF=best<<4; }   // point the board along (bx,by)
+static void wrDir(int bx,int by){   // wall exits only use eight (2,1)/(1,2) signed vectors: exact winners of the old 128-angle search
+    int a;
+    if(bx==2&&(by==1||by==-1)) a=by>0?20:236;
+    else if(bx==-2&&(by==1||by==-1)) a=by>0?108:148;
+    else if(by==2&&(bx==1||bx==-1)) a=bx>0?44:84;
+    else if(by==-2&&(bx==1||bx==-1)) a=bx>0?212:172;
+    else { int bd=-999999; a=0; for(int q=0;q<256;q+=2){ int dp=fcos(q)*bx+fsin(q)*by; if(dp>bd){ bd=dp; a=q; } } }
+    F.angF=a<<4;
+}   // unchanged direction, but no trigonometry scan on the normal wallride exit
 static void wrEnd(void){   // kick off the wall: away from it and on along it, with the spin cleared so the landing is fair
     int al=lwrV<0?-1:1; lwr=0; lbumpCd=40;
     if(lwrAx==0) wrDir(-lwrSg*2,al); else wrDir(al,-lwrSg*2);
@@ -3537,7 +3548,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
     }
     int gr0=lskate&&lz<=fh+64&&lvz<=0;   // (rolling on the ground as this step begins)
     if(lskate&&!ldead&&lstun<=0&&!lwr){   // SKATING 2: a lip ahead. Off a kicker's you fly; up a quarter pipe's you go VERT (in the air too: no sailing over the wall behind it)
-        int tx=(int)(lfx>>8), ty=(int)(lfy>>8); char rc=lifeMap[ty][tx];
+        int tx=(int)(lfx>>8), ty=(int)(lfy>>8); char rc=skInside(tx,ty)?lifeMap[ty][tx]:'.';
         if(isRamp(rc)&&(gr0||(isQPipe(rc)&&!lqp))){ int ux, uy; rampUp(rc,&ux,&uy);
             s32 qx=lfx+lvx, qy=lfy+lvy; int out=ux>0?(int)(qx>>8)>tx:ux<0?(int)(qx>>8)<tx:uy>0?(int)(qy>>8)>ty:(int)(qy>>8)<ty, along=lvx*ux+lvy*uy;
             if(out&&along>0){
@@ -3546,15 +3557,16 @@ static void lifeStep(u16 k,u16 pr,int fr){
                 else { int nh=surf8(qx,qy);
                     if(nh<fh-F_LIP_DROP){ int sl=rampLipSlope(rc,tx,ty); if(sl>12) sl=12+(sl-12)/2; int v=F.spd*sl*F_LIP_K/1024; /* (a launch ramp's 18 px counts as 15: big air, not orbit) */ if(v>0x600) v=0x600; if(lvz<v) lvz=v; lz=fh; lnote="AIR"; lnoteT=20; moodEvent(M_LAUNCH); } } } }
     }
-    int zp=(int)(lz>>8); char oc0=lifeMap[lfy>>8][lfx>>8];   // (the tile this step starts on: rolling down a ramp keeps you on it)
+    int zp=(int)(lz>>8); char oc0=skInside((int)(lfx>>8),(int)(lfy>>8))?lifeMap[lfy>>8][lfx>>8]:'.';   // (the tile this step starts on: rolling down a ramp keeps you on it)
     s32 nx=lfx+lvx, ny=lfy+lvy;   // move per axis so walls slide
     int bump=0, sp0b=lsp, bxS=0, byS=0;   // bxS / byS: which way the wall is that stopped the x / y move
-    int tol=isRamp(lifeMap[lfy>>8][lfx>>8])?F_RAMP_TOL:3;   // a ramp climbs a few px per step without being a wall
+    int tol=skRampAt((int)(lfx>>8),(int)(lfy>>8))?F_RAMP_TOL:3;   // a ramp climbs a few px per step without being a wall
     int fall=lskate&&lvz<0&&lz>fh;   // (falling onto a ramp catches you up to 10 px short of its top: no crash for a landing that was nearly right)
-    if(moveH(nx,lfy)<=zp+((fall&&isRamp(lifeMap[lfy>>8][nx>>8]))?10:tol)) lfx=nx; else { bump=1; bxS=lvx>0?1:-1; }
-    if(moveH(lfx,ny)<=zp+((fall&&isRamp(lifeMap[ny>>8][lfx>>8]))?10:tol)) lfy=ny; else { bump=1; byS=lvy>0?1:-1; }
+    if(moveH(nx,lfy)<=zp+((fall&&skRampAt((int)(nx>>8),(int)(lfy>>8)))?10:tol)) lfx=nx; else { bump=1; bxS=lvx>0?1:-1; }
+    if(moveH(lfx,ny)<=zp+((fall&&skRampAt((int)(lfx>>8),(int)(ny>>8)))?10:tol)) lfy=ny; else { bump=1; byS=lvy>0?1:-1; }
     if(lwr&&bump) wrEnd();   // ran into a corner
-    if(bump&&lskate&&!lwr&&(k&K_R)&&lstun<=0&&!ldead&&sp0b>=8&&(bxS||byS)&&lz>fh+(5<<8)&&!isRamp(lifeMap[byS?(lfy>>8)+byS:lfy>>8][bxS?(lfx>>8)+bxS:lfx>>8])){   // WALLRIDE
+    int wx=(int)(lfx>>8)+(bxS?bxS:0), wy=(int)(lfy>>8)+(byS?byS:0);
+    if(bump&&lskate&&!lwr&&(k&K_R)&&lstun<=0&&!ldead&&sp0b>=8&&(bxS||byS)&&lz>fh+(5<<8)&&skInside(wx,wy)&&!skRampAt(wx,wy)){   // WALLRIDE: no grabbing the void beyond the map
         int al=bxS?lvy:lvx; if(al>-12&&al<12) al=al<0?-12:12; if(al>40) al=40; if(al<-40) al=-40;
         lwr=WR_LEN; lwrAx=bxS?0:1; lwrSg=(s8)(bxS?bxS:byS); lwrV=al; lvz=0; lbumpCd=40;
         { int wp=100+skLvl(SK_GRIND)*5; if(lspecOn) wp*=2; lscore+=wp; lcPts+=wp; } lcAdd("WALLRIDE"); lcN++; lcT=oComboLen(); lnote="WALLRIDE"; lnoteT=40; sfxPlay(SFX_POP); specAdd(40); moodEvent(M_TRICK);
@@ -3569,14 +3581,14 @@ static void lifeStep(u16 k,u16 pr,int fr){
     if(lbumpCd>0) lbumpCd--;
     if(lLand>0) lLand--;
     { int z0=lz; fh=surf8(lfx,lfy);
-      int stick=fh>=z0-F_LIP_DROP||((isRamp(oc0)||isRamp(lifeMap[lfy>>8][lfx>>8]))&&fh>=z0-(12<<8));   // (down a ramp's face the board stays on it however steep; off a ledge you drop)
+      int stick=fh>=z0-F_LIP_DROP||((isRamp(oc0)||skRampAt((int)(lfx>>8),(int)(lfy>>8)))&&fh>=z0-(12<<8));   // (down a ramp's face the board stays on it however steep; off a ledge you drop)
       if(gr0&&lvz<=0&&stick){   // SKATING 2: rolling: the board follows the ground, and a slope trades speed for height (and back)
           int dz=fh-z0; lz=fh; lvz=0; rGvz=dz;
           if(dz){ int s2=F.spd*F.spd-F_SLOPE*dz;
-              if(s2<=0&&dz>0){ F.angF=(F.angF+2048)&4095; F.fvx=-F.fvx; F.fvy=-F.fvy; F.rx=F.ry=0; F.turn=0; F.spd=12; if(isQPipe(lifeMap[lfy>>8][lfx>>8])){ lnote="ROLL BACK"; lnoteT=30; } }   // ran out of speed going up: back down you roll
+              if(s2<=0&&dz>0){ F.angF=(F.angF+2048)&4095; F.fvx=-F.fvx; F.fvy=-F.fvy; F.rx=F.ry=0; F.turn=0; F.spd=12; if(skInside((int)(lfx>>8),(int)(lfy>>8))&&isQPipe(lifeMap[lfy>>8][lfx>>8])){ lnote="ROLL BACK"; lnoteT=30; } }   // ran out of speed going up: back down you roll
               else { int v=isqrtI(s2); F.spd=v>F_SPD_MAX?F_SPD_MAX:v; }
               lsp=F.spd>>4; }   // (keep lsp in step, or feelSync takes the change back next step)
-          { char rc=lifeMap[lfy>>8][lfx>>8]; if(isRamp(rc)&&F.spd<24&&!(k&K_A)){ int ux, uy; rampUp(rc,&ux,&uy); int a=ux>0?128:ux<0?0:uy>0?192:64; F.angF=a<<4; F.spd+=6; lsp=F.spd>>4; } }   // standing on a slope: it rolls you down
+          { char rc=skInside((int)(lfx>>8),(int)(lfy>>8))?lifeMap[lfy>>8][lfx>>8]:'.'; if(isRamp(rc)&&F.spd<24&&!(k&K_A)){ int ux, uy; rampUp(rc,&ux,&uy); int a=ux>0?128:ux<0?0:uy>0?192:64; F.angF=a<<4; F.spd+=6; lsp=F.spd>>4; } }   // standing on a slope: it rolls you down
       } else { rGvz=0; if(lz<fh){ lz=fh; if(lvz<0) lvz=0; } }
     }
     if(lz>fh||lvz>0){ lz+=lvz; lvz-=0x40;   // gravity
@@ -4734,7 +4746,7 @@ static void gmTick(void){   // once per frame: when the song is over, another ra
     if(!gMusic||!mPlay) return;
     if((xo[XO_GAMEXF]&&musNearEnd(XF_SONG))||(mKind?mDone:mLaps>=1)){ gmCur=gmPick(); if(gmCur<0){ gMusic=0; return; } gmPlay(); if(radioSt) radioNote(0); }   // crossfade on: the next song blends in before this one ends. Off: it starts right at the end
 }
-#include "timedrun.h"   // TIMED RUN: a 2:00 score attack with a high score (PAUSE > WANTS)
+#include "timedrun.h"   // FREE PRACTICE and PARK JAM: optional 2:00 skating sessions (MY SIM > MORE)
 #include "tutorial.h"   // the TUTORIAL: pop-up lessons in the Sims 2 style (tutTick / tutRunModal, called from lifeModeRun)
 static void lifeModeRun(int ed); static void introFly(void);   // goals.h
 static void ambTick(void); static void ambOff(void);   // ambience.h
@@ -4958,7 +4970,7 @@ static void drawEditorHud(const char*msg){
                 case 20:blitItem(V_TRASH,221,141);break; case 21:blitItem(V_PLANTER,221,141);break; case 22:blitItem(V_PICNIC,221,141);break;
                 case 23:blitItem(V_JERSEYU,221,141);break; case 24:blitItem(V_MPAD,221,141);break;
                 case 14:blitItem(V_BED,221,141);break; case 15:blitItem(V_SHOWER,221,141);break; case 16:blitItem(V_SOFA,221,141);break; case 25:blitItem(V_PIPE,221,141);break; case 26:blitItem(V_LAVA,221,141);break; case 27:blitItem(V_BEANBAG,221,141);break; case 28:case 29:drawStairs(221,141,eOb==28);break; case 30:blitItem(V_DEADSET,221,141);break; case 31:blitItem(V_PHONE,221,141);break; case 32:blitItem(V_RADIO,221,141);break; case 33:blitItem(V_STEREO,221,141);break;
-                case 34:blitItem(V_TV,221,141);break; case 35:blitItem(V_SHELF,221,141);break; case 36:blitItem(V_COFFEE,221,141);break; case 37:blitItem(V_AQUA,221,141);break; case 38:blitItem(V_TREAD,221,141);break; case OB_HALF:blitItem(V_QPIPE+((eRot-cview)&3),221,141);break; case 48:blitItem(V_RUG,221,141);break; case 49:blitItem(V_TABLE,221,141);break; case 50:blitItem(V_CHAIR,221,141);break; case 51:blitItem(V_DESK,221,141);break; case 52:blitItem(V_LAMP,221,141);break; case 53:blitItem(V_PLANT,221,141);break; case 54:blitItem(V_DRESSER,221,141);break; case 55:blitItem(V_FIRE,221,141);break; case 56:blitItem(V_COUNTER,221,141);break; case 57:drawPlanterS(221,143,3,3,1,0);break; case 39:case 40:case 41:{ u16 wb[WALL_H]; for(int u=0;u<8;u++){ winCol(eOb-39,0,u,wb); for(int r=0;r<12;r++) px(215+u+(u>3),136+r,wb[3+r*2]); } break; } default:drawSpawn(221,142); } }
+                case 34:blitItem(V_TV,221,141);break; case 35:blitItem(V_SHELF,221,141);break; case 36:blitItem(V_COFFEE,221,141);break; case 37:blitItem(V_AQUA,221,141);break; case 38:blitItem(V_TREAD,221,141);break; case OB_HALF:blitItem(V_QPIPE+((eRot-cview)&3),221,141);break; case 48:blitItem(V_RUG,221,141);break; case 49:blitItem(V_TABLE,221,141);break; case 50:blitItem(V_CHAIR,221,141);break; case 51:blitItem(V_DESK,221,141);break; case 52:blitItem(V_LAMP,221,141);break; case 53:blitItem(V_PLANT,221,141);break; case 54:blitItem(V_DRESSER,221,141);break; case 55:blitItem(V_FIRE,221,141);break; case 56:blitItem(V_COUNTER,221,141);break; case 57:drawPlanterS(221,143,3,3,1,0);break; case 39:case 40:case 41:{ u16 wb[WALL_H]; for(int u=0;u<8;u++){ winCol(eOb-39,0,u,wb); for(int r=0;r<12;r++) px(215+u+(u>3),136+r,wb[1+r*2]);  /* WALL_H=24: sample 1..23; no out-of-range index 25 */ } break; } default:drawSpawn(221,142); } }
         if(eOb==1||eOb==2){ wallSwatch(eWp,212,137); }
         h1="A  BUY    B  SELL    L R  ITEM";
         h2="START  MAP MENU AND CONTROLS";
