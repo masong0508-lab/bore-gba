@@ -141,6 +141,87 @@ int main(int argc,char **argv){
         snprintf(name,sizeof name,"pov_%02d.ppm",i);
         if(!ggCaptureSave(argv[1],name))return 11;
     }
+    // Native RGB reference footage of biome-specific actual world cells.
+    // Compare the exact same camera frame with the bounded set-dressing
+    // enabled and disabled, ensuring richer scenery isn't only a list
+    // of design intentions or a separate illustration/mockup.
+    static const int biome[8]={
+        T_FOREST,T_GRASS,T_GRASS,T_HILL,
+        T_SWAMP,T_SNOW,T_GRASS,T_MOUNT
+    };
+    static const int settlement[8]={
+        B_NONE,B_FARM,B_TEMPLE,B_RUIN,
+        B_DOCK,B_NONE,B_HOUSE,B_NONE
+    };
+    int minScenicPixels=999999,visibleProps=0;
+    FILE*scenicStats=0;
+    char sceneryMetrics[512];
+    if(snprintf(sceneryMetrics,sizeof sceneryMetrics,
+                "%s/scenery_metrics.csv",argv[1])>=
+       (int)sizeof sceneryMetrics)return 12;
+    scenicStats=fopen(sceneryMetrics,"wb");
+    if(!scenicStats)return 13;
+    fprintf(scenicStats,
+            "biome,visible_props,changed_pixels,host_cpu_ms_per_frame,resolution\n");
+    for(int scene=0;scene<8;scene++){
+        for(int y=0;y<WH;y++)for(int x=0;x<WW;x++){
+            world[y][x]=(u8)biome[scene];
+            bld[y][x]=0;occ[y][x]=0;
+        }
+        if(settlement[scene]){
+            for(int y=63;y<=67;y+=2)for(int x=67;x<=75;x+=4){
+                bld[y][x]=(u8)(scene==6&&((x+y)&2)?
+                               B_HALL:settlement[scene]);
+            }
+        }
+        ggExplore.px=64*256+128;ggExplore.py=65*256+128;
+        ggExplore.angle=0;ggExplore.frame=40;
+        ggExpSceneryEnabled=0;
+        ggExpRenderMode(guarded.img,1);
+        char offName[48],onName[48];
+        snprintf(offName,sizeof offName,"scenery_off_%02d.ppm",scene);
+        snprintf(onName,sizeof onName,"scenery_%02d.ppm",scene);
+        if(!ggCaptureSave(argv[1],offName))return 14;
+        memcpy(unmaskedFrame,guarded.img,sizeof unmaskedFrame);
+        ggExpSceneryEnabled=1;
+        clock_t scenicStart=clock();
+        ggExpRenderMode(guarded.img,1);
+        double scenicMs=(double)(clock()-scenicStart)*1000.0/
+                        CLOCKS_PER_SEC;
+        if(!ggCaptureSave(argv[1],onName))return 15;
+        int difference=0;
+        for(int i=0;i<400*240*3;i+=3)
+            if(memcmp(unmaskedFrame+i,guarded.img+i,3))difference++;
+        if(difference<minScenicPixels)minScenicPixels=difference;
+        visibleProps+=ggExpScenicVisible;
+        fprintf(scenicStats,"%d,%d,%d,%.4f,400x240\n",
+                scene,ggExpScenicVisible,difference,scenicMs);
+        if(difference<110||ggExpScenicVisible<4){
+            fprintf(stderr,
+                "SCENERY CAPTURE FAIL: empty biome %d (%d scenic pixels, %d projected objects)\n",
+                scene,difference,ggExpScenicVisible);
+            fclose(scenicStats);
+            return 16;
+        }
+    }
+    fclose(scenicStats);
+    // Playable POV demonstration of the enhanced low-cost 2x grid.
+    ggExplore.active=1;ggExplore.px=64*256+128;
+    ggExplore.py=65*256+128;ggExplore.angle=0;ggExplore.frame=15;
+    ggExpSceneryEnabled=0;
+    ggExpRender(guarded.img);
+    if(!ggCaptureSave(argv[1],"pov_scenery_off.ppm"))return 17;
+    memcpy(unmaskedFrame,guarded.img,sizeof unmaskedFrame);
+    ggExpSceneryEnabled=1;
+    ggExpRender(guarded.img);
+    if(!ggCaptureSave(argv[1],"pov_scenery_on.ppm"))return 18;
+    int povPixels=0;
+    for(int i=0;i<400*240*3;i+=3)
+        if(memcmp(unmaskedFrame+i,guarded.img+i,3))povPixels++;
+    if(povPixels<60){
+        fprintf(stderr,"SCENERY CAPTURE FAIL: playable POV only changed %d pixels\n",povPixels);
+        return 19;
+    }
     // Compare the EXACT same actor compositing load with and without
     // the wall-depth test, on a host CPU. This is instrumentation, NOT
     // an unmeasured claim about the Old 3DS's hardware frame rate.
@@ -179,8 +260,13 @@ int main(int argc,char **argv){
             trials,flatMs,sizeof ggExpFilmOcclusion);
     fprintf(stats,"actor_overlay_depth_test,%d,400x240,%.6f,%zu,0\n",
             trials,maskedMs,sizeof ggExpFilmOcclusion);
+    fprintf(stats,"scenery_biomes,8,400x240,,%zu,%d\n",
+            sizeof ggExpFilmOcclusion,visibleProps);
+    fprintf(stats,"playable_pov_scenery,1,400x240,,%zu,%d\n",
+            sizeof ggExpFilmOcclusion,povPixels);
     fclose(stats);
-    printf("3DS CAPTURE OK: 12 story frames, 15 three-quarter turntable views, 6 playable POV frames and wall occlusion comparisons; %.3f ms/host scene frame, %.6f ms/actor without depth, %.6f ms/actor with depth; %zu B scratch\n",
+    printf("3DS CAPTURE OK: 12 story frames, 15 cast turntable views, 8 biomes, 6 playable POV frames and wall occlusion; %d props across biomes, minimum %d scenic pixel changes, %d playable POV changes; %.3f ms/host scene frame, %.6f/%.6f ms actor without/with depth; %zu B scratch\n",
+           visibleProps,minScenicPixels,povPixels,
            ms,flatMs,maskedMs,sizeof ggExpFilmOcclusion);
     return 0;
 }

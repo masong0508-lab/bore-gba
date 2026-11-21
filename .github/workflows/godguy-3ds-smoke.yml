@@ -54,6 +54,10 @@ jobs:
               -i artifacts/godguy-cinema/pov_%02d.ppm -c:v libx264 \
               -preset veryfast -crf 19 -pix_fmt yuv420p \
               artifacts/godguy-cinema/3ds_playable_pov.mp4
+            ffmpeg -hide_banner -loglevel error -y -framerate 2 -start_number 0 \
+              -i artifacts/godguy-cinema/scenery_%02d.ppm -c:v libx264 \
+              -preset veryfast -crf 19 -pix_fmt yuv420p \
+              artifacts/godguy-cinema/3ds_biome_showcase.mp4
           fi
       - name: Publish native source captures and measured host frame costs
         uses: actions/upload-artifact@v4

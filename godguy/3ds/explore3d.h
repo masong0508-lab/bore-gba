@@ -497,15 +497,21 @@ static void ggExpRenderMode(u8 *top,int cinematic){
         }
         if(!cinematic)memcpy(line+400*3,line,400*3);
     }
-    // Thin wispy clouds in full-resolution story shots. Cinematic
-    // silhouettes avoid the old 2x chunky 3-pixel cloud bars.
-    for(int k=0;k<7;k++){
-        int x=(k*67+fogTick)%(cinematic?500:260)-30;
-        int y=cinematic?16+(k*23)%56:8+(k*13)%29;
-        int w=cinematic?38+(k*13)%41:18+(k*7)%24;
+    // Three-layer, parallax-stable distant cloud banks. Unlike the
+    // former seven equal-width horizontal bars, these break into
+    // thinner irregular silhouettes anchored to camera yaw/location.
+    // The fast 2x gameplay renderer retains its low-cost cloud pass.
+    for(int k=0;k<(cinematic?12:7);k++){
+        int drift=fogTick+(ggExplore.angle&255)*3+
+                  (ggExplore.px>>7);
+        int x=(k*79+drift)%(cinematic?570:290)-40;
+        int y=cinematic?14+(k*19)%64:8+(k*13)%29;
+        int w=cinematic?27+(k*17)%48:18+(k*7)%24;
         if(cinematic){
-            ggExpRect(top,x,y,w,1,107,129,151);
-            ggExpRect(top,x+w/4,y+1,w/2,1,99,122,146);
+            ggExpRect(top,x+w/6,y-2,w/4,1,104,125,151);
+            ggExpRect(top,x,y,w,1,97,120,148);
+            ggExpRect(top,x+w/4,y+1,w*2/3,1,90,113,142);
+            ggExpRect(top,x+w/3,y+2,w/3,1,84,109,138);
         }else{
             for(int cx=x;cx<x+w;cx++)for(int cy=y;cy<y+3;cy++)
                 ggExpDot(top,cx,cy,122,160,184);
