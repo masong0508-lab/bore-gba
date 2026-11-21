@@ -423,9 +423,9 @@ static void ggFilmWorldDraw(const FilmBeat *beat,int elapsed,int move,
         // Both unlockable winter reels have snow at scene depth rather than
         // a flat white overlay. Flakes descend through the camera volume.
         for(int i=0;i<14;i++){
-            int x=((i*179+t/6)%1100)-550;
+            int x=((i*179+elapsed/6)%1100)-550;
             int z=470+(i*107)%1200;
-            int y=40+((i*61-t/8)%260+260)%260;
+            int y=40+((i*61-elapsed/8)%260+260)%260;
             ggFilmQuad(cam,ggV3(x,y,z),ggV3(x+5,y,z),
                            ggV3(x+5,y+5,z),ggV3(x,y+5,z),i&1?22:23);
         }
