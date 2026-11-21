@@ -17,13 +17,13 @@ static inline int ggFilmProjectScreenX(int side,int forward){
 // height and left every actor hovering dozens of pixels above grass.
 static inline int ggFilmProjectFootY(int forward,int cameraGround,int actorGround){
     if(forward<=0)return -10000;
-    // At whole-tile distances this exactly matches the raycaster's
-    // d+1 denominator. Interpolate in Q8 between tile samples, so a
-    // tracking dolly does not pop boots up or down when forward crosses
-    // the next 256-unit boundary.
+    // Raycaster sample d is at forward=d*256 and uses /(d+1).
+    // Previous code accidentally added TWO tile steps, so boots floated
+    // above flat grass by 8-13 px. Add ONE step and interpolate in Q8;
+    // this is the exact inverse of the cinema ground-floor projection.
     return GG_FILM_HORIZON-(actorGround-cameraGround-
            GG_FILM_EYE_HEIGHT)*GG_FILM_HEIGHT_MULT*256/
-           (forward+512);
+           (forward+256);
 }
 // Scaling is an authored camera-take property, NOT rounded independently
 // every time the actor moves a fraction of a tile. Hero and guests share
