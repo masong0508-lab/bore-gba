@@ -348,6 +348,9 @@ static void ggExpRenderMode(u8 *top,int cinematic){
             baseG=baseG*shade/256;
             baseB=baseB*shade/256;
             int bright=build?13:6;
+            // One material coordinate per ray/visible tile rather than
+            // calling RNG or scanning any texture map per pixel.
+            int surfaceU=(abs(dirX)>abs(dirY)?wy:wx)&255;
             // Terrain strata, pitched roofs, shadowed stone and tree
             // crowns. Keep these material cues stable in world space so
             // moving the camera doesn't cause procedural visual noise.
@@ -374,20 +377,86 @@ static void ggExpRenderMode(u8 *top,int cinematic){
                 }else if(!build&&type==T_MOUNT&&((materialY+ty*3)/9)%4==0){
                     r+=8;g+=9;b+=11; // strata follow world coordinates
                 }
-                if(cinematic&&build&&d<11&&edge>12&&edge<55&&
-                   (build==B_HUT||build==B_HOUSE||build==B_HALL)){
-                    // Projected windows and warm plaster courses follow
-                    // live building tiles, not a decorative overlay.
-                    int panel=(wx&255);
-                    if((panel>46&&panel<83)||(panel>168&&panel<205)){
-                        if(edge>24&&edge<38){
-                            r=190*shade/256;
-                            g=163*shade/256;
-                            b=112*shade/256;
-                        }else if(edge==23||edge==38){
-                            r=72*shade/256;g=66*shade/256;
-                            b=71*shade/256;
+                if(cinematic&&build){
+                    // Material-specific, world-anchored facades. The
+                    // 3DS no longer paints every hall, house, archive
+                    // and watch tower as a bare gray/orange cube.
+                    int wood=build==B_HUT||build==B_HOUSE||
+                             build==B_DOCK||build==B_FARM;
+                    int stone=build==B_TOWER||build==B_HALL||
+                              build==B_TEMPLE||build==B_LIBRARY;
+                    int mortar=wood?20:16;
+                    if(stone){
+                        r=(151+(build==B_TEMPLE?28:0))*shade/256;
+                        g=(146+(build==B_TEMPLE?24:0))*shade/256;
+                        b=(142+(build==B_TEMPLE?15:0))*shade/256;
+                        if(edge%mortar<2){
+                            r=r*4/5;g=g*4/5;b=b*4/5;
                         }
+                        if((surfaceU+((edge/mortar)&1)*64)%125<3&&
+                           edge>9){
+                            r=r*3/4;g=g*3/4;b=b*3/4;
+                        }
+                        if(surfaceU<13||surfaceU>243){
+                            r=r*4/5;g=g*4/5;b=b*4/5;
+                        }
+                        if(build==B_LIBRARY&&edge>10&&edge<70&&
+                           surfaceU>105&&surfaceU<150){
+                            r=91*shade/256;g=114*shade/256;
+                            b=127*shade/256;
+                        }
+                    }else if(wood){
+                        r=baseR*241/256;
+                        g=baseG*266/256;
+                        b=baseB*277/256;
+                        if(surfaceU<13||surfaceU>241||
+                           (surfaceU>118&&surfaceU<130)){
+                            r=78*shade/256;
+                            g=61*shade/256;b=49*shade/256;
+                        }else if(edge%22<2&&edge>8){
+                            r=104*shade/256;g=83*shade/256;
+                            b=62*shade/256;
+                        }
+                    }
+                    if(edge<9){
+                        // Gabled roofs and ridge tiles differ from walls.
+                        int trim=build==B_HOUSE||build==B_HUT;
+                        r=(trim?138:stone?87:102)*shade/256;
+                        g=(trim?75:stone?78:72)*shade/256;
+                        b=(trim?59:stone?91:69)*shade/256;
+                        if(edge==8){r+=18;g+=12;b+=8;}
+                    }else if(d<15&&edge>16&&edge<68){
+                        int window=surfaceU>42&&surfaceU<86||
+                                   surfaceU>172&&surfaceU<216;
+                        if(window){
+                            if(edge>=25&&edge<=48){
+                                int frame=edge<28||edge>45||
+                                          (surfaceU%128)<47||
+                                          (surfaceU%128)>81;
+                                r=(frame?58:222)*shade/256;
+                                g=(frame?59:175)*shade/256;
+                                b=(frame?69:102)*shade/256;
+                                if(!frame&&(edge==37||surfaceU%128==64)){
+                                    r=105*shade/256;
+                                    g=79*shade/256;b=68*shade/256;
+                                }
+                            }
+                        }else if(stone&&edge>51&&edge<68&&
+                                 surfaceU>109&&surfaceU<147){
+                            // Architectural arch/entry recess.
+                            r=47*shade/256;g=50*shade/256;
+                            b=61*shade/256;
+                        }
+                    }
+                }else if(cinematic&&!build){
+                    // Restrained grass and stone microtexture in genuine
+                    // world cells: no static sprites or screen-space noise.
+                    int pattern=(tx*19+ty*31+materialY/3)&15;
+                    if(type==T_GRASS||type==T_FOREST){
+                        if(pattern<2){r+=8;g+=9;b+=4;}
+                        else if(pattern>13){r-=7;g-=9;b-=4;}
+                    }else if(type==T_MOUNT||type==T_HILL){
+                        if(pattern<3){r+=11;g+=9;b+=6;}
                     }
                 }
                 int cr=ggExpClamp(r,0,255),
