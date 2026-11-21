@@ -853,13 +853,13 @@ static void ggSagaDraw(u8 *out){
     int local=ggSaga.frame%GG_SAGA_BEAT_TICKS;
     int px=ggExplore.px,py=ggExplore.py;
     int angle=ggExplore.angle,frame=ggExplore.frame;
-    int chronFrame=ggChron.frame;
-    int stageX,stageY;
+     int stageX,stageY;
     ggSagaCamera(index,local,&stageX,&stageY);
-    ggExpRenderMode(out,1); // true-resolution 3DS cinema, HUD-free
-    ggChron.frame+=ggSaga.frame; // cinematic farm crops and flags move
-    ggReignSceneDraw(out);
-    ggChron.frame=chronFrame;
+    // Cinematic geometry is already drawn from live bld[][] by the
+    // raycaster. Never paint a second, differently projected 2D building
+    // decal pass on top: it produced impossible spiky house cut-ins,
+    // pasted-on windows and objects floating across actors.
+    ggExpRenderMode(out,1);
     // Three moving performers and one optional stage prop, all in the
     // existing scene. An interaction cue is resolved once per two-line
     // take, using the actual script, not random animation selection.
@@ -1072,9 +1072,8 @@ static void ggSagaDraw(u8 *out){
     ggExplore.angle=angle;ggExplore.frame=frame;
     // Restrained letterbox treatment, not the old oversized computer
     // console HUD. 18 more lines of landscape remain visible.
-    ggExpRect(out,0,0,400,33,17,24,34);
-    ggExpRect(out,0,0,400,1,53,71,84);
-    ggExpRect(out,0,32,400,1,189,146,92);
+    ggExpRect(out,0,0,400,23,17,24,34);
+    ggExpRect(out,0,22,400,1,189,146,92);
     ggExpRect(out,0,188,400,52,16,23,32);
     ggExpRect(out,0,187,400,1,196,157,99);
     ggExpRect(out,0,190,3,48,174,124,80);
@@ -1102,24 +1101,17 @@ static void ggSagaDraw(u8 *out){
         return;
     }
     const GgSagaBeat *beat=ggSagaCurrentBeat(index);
+    // Exactly ONE title: the old chapter AND ending banners repeated
+    // status information, pushed the landscape down and looked like HUD.
     if(ggSaga.mode==GG_SAGA_INTERLUDE)
-        snprintf(line,sizeof line,"A LIVING WORLD / %.34s",
+        snprintf(line,sizeof line,"WORLD STORY: %.44s",
                  ggSagaAmbientTitles[ggSaga.event]);
-    else snprintf(line,sizeof line,"THE UNWRITTEN REIGN / ACT %d: %.32s",
-                  ggChron.act+1,ggChronActName[ggChron.act]);
-    ggFilmText(out,11,6,line,238,226,190);
-    if(ggSaga.mode==GG_SAGA_INTERLUDE){
-        ggFilmText(out,11,19,"A WORLD STORY / FOUND THROUGH EXPLORATION",
-                  151,174,187);
-    }else if(ggSaga.ending>=0){
-        snprintf(line,sizeof line,"FINAL ENDING %d/9: %.34s",
+    else if(ggSaga.ending>=0)
+        snprintf(line,sizeof line,"ENDING %d/9: %.45s",
                  ggSaga.ending+1,ggSagaEndNames[ggSaga.ending]);
-        ggFilmText(out,11,19,line,197,174,137);
-    }else{
-        snprintf(line,sizeof line,"WORLD CHAPTER / %s",
-                 ggSaga.mode==GG_SAGA_OPEN?"BEFORE THE ROAD":"AFTER THE STANDARD");
-        ggFilmText(out,11,19,line,151,174,187);
-    }
+    else snprintf(line,sizeof line,"ACT %d: %.47s",
+                  ggChron.act+1,ggChronActName[ggChron.act]);
+    ggFilmText(out,11,9,line,238,226,190);
     snprintf(line,sizeof line,"%s:",beat->voice);
     // Clean actor name plate, story text and a subdued secondary line.
     // The same cutscene font now sits on a consistent cinematic panel.
@@ -1127,11 +1119,15 @@ static void ggSagaDraw(u8 *out){
     ggFilmText(out,19,193,line,243,217,162);
     ggFilmText(out,12,207,beat->line,235,238,233);
     ggFilmText(out,12,221,beat->sub,168,188,198);
-    // Commands sit off the actors rather than obscuring the ground line.
-    ggExpRect(out,241,173,150,12,17,27,37);
-    ggFilmText(out,247,175,ggSaga.paused?
-              "X RESUME A NEXT B SKIP":"X PAUSE A NEXT B SKIP",
-              ggSaga.paused?243:179,198,186);
+    // Only show help during the take's opening or while paused.
+    // A permanent console control strip over the scenery made even
+    // dramatic shots look like static debug screenshots.
+    if(ggSaga.paused||(local<21&&!(index&1))){
+        ggExpRect(out,269,175,126,11,20,29,38);
+        ggFilmText(out,273,177,ggSaga.paused?
+                  "X RESUME A NEXT":"X PAUSE A NEXT",
+                  ggSaga.paused?235:147,169,168);
+    }
     int full=ggSagaBeatCount()*GG_SAGA_BEAT_TICKS;
     ggExpRect(out,0,238,400*ggSaga.frame/full,2,207,169,103);
 }
