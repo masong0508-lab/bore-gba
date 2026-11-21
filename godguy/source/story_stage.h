@@ -18,7 +18,11 @@ _Static_assert(sizeof filmProps/sizeof *filmProps==F_PROP_N,"One cel per prop");
 // Shared DS movie cels stay at eight original cast members. Nessa and
 // Serin's dedicated additional twelve-pose acting cels are 3DS-only.
 _Static_assert(sizeof filmCasts/sizeof *filmCasts==(F_ELDER+1)*FILM_CEL_N,"All shared cast cels are present");
+_Static_assert(FILM_CEL_N==6,
+               "Shared film data is stale: run python3 tools/make_story_fmv.py");
 #ifdef __3DS__
+_Static_assert(FILM_HQ_N==14,
+               "3DS film data is stale: run python3 tools/make_story_hq.py");
 _Static_assert(sizeof filmExtraReels/sizeof *filmExtraReels==sizeof filmReels/sizeof *filmReels,"Every film has a 3DS edit");
 _Static_assert(sizeof filmFeatureReels/sizeof *filmFeatureReels==sizeof filmReels/sizeof *filmReels,
                "Every 3DS chapter has a feature-film sequence");
