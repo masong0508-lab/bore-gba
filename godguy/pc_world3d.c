@@ -26,10 +26,12 @@ static int filmActorLeftOf(int a,int b){return a<b;}
 static struct { u8 before[32],page[256*192],after[32]; } picture;
 #define uiBuf picture.page
 static u8 fmvSlots[32];
+static int backgroundSpriteCalls;
 // Real firmware uses the decompressed 40x48 actor cels. Standalone geometry
 // testing uses a minimal projected rectangle so it can verify the camera,
 // animation timeline and memory bounds without depending on art generator.
 static void filmDrawActor(int who,int pose,int x,int feet,int h,int flip){
+    backgroundSpriteCalls++;
     (void)pose;(void)flip;
     if(h<0||h>100)return;
     for(int y=feet-h;y<feet;y++)
@@ -106,6 +108,42 @@ int main(void){
             "water is not animated within its world plane");
     require(frame(F_STORM,F_NEAR,0)!=frame(F_STORM,F_NEAR,180),
             "world-space rain did not animate");
+    // Regression: consecutive dialogue lines must not reuse precisely
+    // the same camera position and generic painted backdrop.
+    FilmBeat cutA={F_PORCH,F_NEAR,F_MIRA,F_THORGRIM,F_CUP};
+    FilmBeat cutB={F_PORCH,F_NEAR,F_MIRA,F_THORGRIM,F_CUP};
+    // The first five letters deliberately change, but the room and cast
+    // remain the same, so any difference is an authored camera choice.
+    cutA.line="THE CUP IS STILL ON THE TABLE.";
+    cutB.line="LOOK OUT THROUGH THE WINDOW.";
+    GgFilmCamera camA=ggFilmCameraAt(&cutA,128);
+    GgFilmCamera camB=ggFilmCameraAt(&cutB,128);
+    require(camA.x!=camB.x||camA.z!=camB.z,
+            "successive story shots reuse identical locked-off backgrounds");
+    // The scene clock is not reset by changing dialogue takes.
+    backgroundSpriteCalls=0;
+    ggFilmWorldClock=280;
+    memset(uiBuf,0,sizeof picture.page);
+    ggFilmWorldDraw(&village,0,128,10,1,0);
+    unsigned long firstStreet=hashFrame();
+    require(backgroundSpriteCalls>=2,
+            "town workers reverted to primitive polygon people");
+    ggFilmWorldClock=460;
+    memset(uiBuf,0,sizeof picture.page);
+    ggFilmWorldDraw(&village,0,128,10,1,0);
+    require(hashFrame()!=firstStreet,
+            "market, foliage and villagers freeze when the shot time restarts");
+    // The door has a real physical arc during the first rain sequence.
+    ggFilmWorldClock=0;
+    memset(uiBuf,0,sizeof picture.page);
+    ggFilmWorldDraw(&porch,0,128,1,1,0);
+    unsigned long entryClosed=hashFrame();
+    ggFilmWorldClock=370;
+    memset(uiBuf,0,sizeof picture.page);
+    ggFilmWorldDraw(&porch,0,128,1,1,0);
+    require(hashFrame()!=entryClosed,
+            "first-rain porch door and curtains remain frozen");
+    ggFilmWorldClock=-1;
     FilmBeat walk={F_VILLAGE,F_WIDE,F_MIRA,F_THORGRIM,F_NO_PROP};
     FilmBlocking a={85,171,156,156,45,45},b=a;
     ggFilmWorldBlocking(&walk,0,0,&a);
