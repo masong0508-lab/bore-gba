@@ -53,7 +53,7 @@ static void filmFlight2D(const FilmRouteCamera *camera,int t){
 static void filmFlight3D(const FilmRouteCamera *camera,int t){
     GgFilmCamera projection={0,-280};
     int models=0,trees=0;
-    // Far to near to respect painter's order. At most 9x9 terrain cells,
+    // Far to near to respect painter's order. At most 13x9 terrain cells,
     // six models and two trees: bounded time on old 3DS hardware.
     for(int depth=13;depth>=1;depth-=1){
         int z=250+depth*116;
@@ -133,7 +133,9 @@ static int filmFlightDraw(const FmvClip *clip,int t){
     int next=filmRoute.count>2&&
              traveled>=filmRoute.length[0]?2:1;
     const char *landmark=filmRoute.kind[next]==FILM_VISTA_COAST?
-                           "THE REAL COAST":"THE REAL RIDGE";
+                           "THE REAL COAST":
+                         filmRoute.kind[next]==FILM_VISTA_RIDGE?
+                           "THE REAL RIDGE":"YOUR SETTLEMENT";
     uiRect(0,169,256,17,U_SHADOW);
     uiTextC(128,170,"A JOURNEY THROUGH YOUR WORLD",U_GOLD,1);
     char label[48];
