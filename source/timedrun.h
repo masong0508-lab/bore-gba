@@ -76,11 +76,15 @@ static void trnResult(void){   // the results card (the game holds still behind 
     int md=sc>=TRN_GOLD?3:sc>=TRN_SILVER?2:sc>=TRN_BRONZE?1:0, pay=trnMode?sjPrize(md):0;   // free practice pays no salary; park jam has a capped once-daily medal purse
     static const char* const mdNm[4]={"NONE","BRONZE","SILVER","GOLD"};
     static const u16 mdCol[4]={RGB(12,14,16),RGB(24,14,6),RGB(24,26,28),RGB(31,26,6)};
-    u8 meta=trnMetaGet();
+    u8 meta=trnMetaGet(), before=meta;
     if(trnMode){ meta=(u8)sjRecord(meta,(unsigned)simDay,(unsigned)md); }
     trnBestPut(nw?sc:old,runs,meta);
     if(pay) simMoneyAdd(pay);
-    if(trnMode&&md>0) simEvent(SE_SHOWOFF);
+    if(trnMode&&md>0){
+        simEvent(SE_SHOWOFF);
+        if(!(before&128u)&&sjQualified(meta,skillLvl,simTricks,simBestCombo))
+            simQueue("SKATE TRYOUT OPEN  CHECK THE JOB BOARD");
+    }
     u16 prev=keyNow(); u32 t=0; const u16 lab=RGB(22,25,28);
     for(;;){
         u16 k=keyNow(), pr=k&~prev; prev=k; t++;

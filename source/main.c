@@ -2508,6 +2508,8 @@ static inline __attribute__((always_inline)) int isWinCh(char c){ return c=='E'|
 static int tileHc(char c){   // the surface height of a kind of tile (ramps: -1, they need the cell: rampTop)
     return (c=='j')?2*CC: (c=='n')?CC: (c=='#'||c=='F'||c=='W'||c=='H'||isWinCh(c))?2*CC: (c=='X'||c=='Y')?SOLID_H: (c=='O')?BARREL_H: (c=='b')?2*CC: (c=='m')?5: (c=='w'||c=='T'||c=='S'||c=='C'||c=='t'||c=='h'||c=='d'||c=='l'||c=='p'||c=='i'||c=='o'||c=='y'||c=='G'||c=='V'||c=='U'||c=='Q'||c=='A'||c=='v'||c=='c'||c=='q')?CC: (c=='='||c=='L'||c=='N'||c=='Z'||c=='K'||c=='J')?GRIND_H: (c=='I'||c=='R'||c=='g'||c=='&'||c=='@')?6: (c=='u')?CC: (c=='M')?3: isRamp(c)?-1: 0; }
 static s16 thTab[256] EWRAM_BSS; static u8 thOk;   // tileH by character, worked out once (the chain of tests it came from ran for every tile every planner step and every drawn tile)
+static inline int skInside(int tx,int ty){ return (unsigned)tx<(unsigned)MW&&(unsigned)ty<(unsigned)MH; }
+static inline int skRampAt(int tx,int ty){ return skInside(tx,ty)&&isRamp(lifeMap[ty][tx]); }
 static int tileH(int tx,int ty){   // surface height in px (ramps: their highest point). Grind height is 6: rails, ledges and benches
     if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
     if(!thOk){ for(int i=0;i<256;i++) thTab[i]=(s16)tileHc((char)i); thOk=1; }
@@ -2525,7 +2527,7 @@ static int surf8(s32 fx,s32 fy){   // the same in 8.8 px, ramps without steps (t
 }
 static inline int wallTall(char c){ return c=='W'||c=='#'||isWinCh(c); }   // full walls and windows: nothing gets over them, however high the jump (low walls and fences can be cleared)
 static int moveH(s32 fx,s32 fy){   // the height a step into (fx,fy) has to clear: the surface, or no way at all into a full wall from another tile
-    int tx=(int)(fx>>8), ty=(int)(fy>>8); if(tx<0||ty<0||tx>=MW||ty>=MH) return 99;
+    int tx=(int)(fx>>8), ty=(int)(fy>>8); if(!skInside(tx,ty)) return 0x7fff;  // even a huge ollie cannot leave the array
     if(wallTall(lifeMap[ty][tx])&&(tx!=(int)(lfx>>8)||ty!=(int)(lfy>>8))) return 99;   // (already inside one, somehow: walk out)
     if(curFl&&floorMap[ty][tx]==FL_AIR&&(tx!=(int)(lfx>>8)||ty!=(int)(lfy>>8))) return 99;   // upstairs, open air: no floor to step onto
     return surfH(fx,fy);
@@ -3546,7 +3548,7 @@ static void lifeStep(u16 k,u16 pr,int fr){
     }
     int gr0=lskate&&lz<=fh+64&&lvz<=0;   // (rolling on the ground as this step begins)
     if(lskate&&!ldead&&lstun<=0&&!lwr){   // SKATING 2: a lip ahead. Off a kicker's you fly; up a quarter pipe's you go VERT (in the air too: no sailing over the wall behind it)
-        int tx=(int)(lfx>>8), ty=(int)(lfy>>8); char rc=lifeMap[ty][tx];
+        int tx=(int)(lfx>>8), ty=(int)(lfy>>8); char rc=skInside(tx,ty)?lifeMap[ty][tx]:'.';
         if(isRamp(rc)&&(gr0||(isQPipe(rc)&&!lqp))){ int ux, uy; rampUp(rc,&ux,&uy);
             s32 qx=lfx+lvx, qy=lfy+lvy; int out=ux>0?(int)(qx>>8)>tx:ux<0?(int)(qx>>8)<tx:uy>0?(int)(qy>>8)>ty:(int)(qy>>8)<ty, along=lvx*ux+lvy*uy;
             if(out&&along>0){
@@ -3555,15 +3557,16 @@ static void lifeStep(u16 k,u16 pr,int fr){
                 else { int nh=surf8(qx,qy);
                     if(nh<fh-F_LIP_DROP){ int sl=rampLipSlope(rc,tx,ty); if(sl>12) sl=12+(sl-12)/2; int v=F.spd*sl*F_LIP_K/1024; /* (a launch ramp's 18 px counts as 15: big air, not orbit) */ if(v>0x600) v=0x600; if(lvz<v) lvz=v; lz=fh; lnote="AIR"; lnoteT=20; moodEvent(M_LAUNCH); } } } }
     }
-    int zp=(int)(lz>>8); char oc0=lifeMap[lfy>>8][lfx>>8];   // (the tile this step starts on: rolling down a ramp keeps you on it)
+    int zp=(int)(lz>>8); char oc0=skInside((int)(lfx>>8),(int)(lfy>>8))?lifeMap[lfy>>8][lfx>>8]:'.';   // (the tile this step starts on: rolling down a ramp keeps you on it)
     s32 nx=lfx+lvx, ny=lfy+lvy;   // move per axis so walls slide
     int bump=0, sp0b=lsp, bxS=0, byS=0;   // bxS / byS: which way the wall is that stopped the x / y move
-    int tol=isRamp(lifeMap[lfy>>8][lfx>>8])?F_RAMP_TOL:3;   // a ramp climbs a few px per step without being a wall
+    int tol=skRampAt((int)(lfx>>8),(int)(lfy>>8))?F_RAMP_TOL:3;   // a ramp climbs a few px per step without being a wall
     int fall=lskate&&lvz<0&&lz>fh;   // (falling onto a ramp catches you up to 10 px short of its top: no crash for a landing that was nearly right)
-    if(moveH(nx,lfy)<=zp+((fall&&isRamp(lifeMap[lfy>>8][nx>>8]))?10:tol)) lfx=nx; else { bump=1; bxS=lvx>0?1:-1; }
-    if(moveH(lfx,ny)<=zp+((fall&&isRamp(lifeMap[ny>>8][lfx>>8]))?10:tol)) lfy=ny; else { bump=1; byS=lvy>0?1:-1; }
+    if(moveH(nx,lfy)<=zp+((fall&&skRampAt((int)(nx>>8),(int)(lfy>>8)))?10:tol)) lfx=nx; else { bump=1; bxS=lvx>0?1:-1; }
+    if(moveH(lfx,ny)<=zp+((fall&&skRampAt((int)(lfx>>8),(int)(ny>>8)))?10:tol)) lfy=ny; else { bump=1; byS=lvy>0?1:-1; }
     if(lwr&&bump) wrEnd();   // ran into a corner
-    if(bump&&lskate&&!lwr&&(k&K_R)&&lstun<=0&&!ldead&&sp0b>=8&&(bxS||byS)&&lz>fh+(5<<8)&&!isRamp(lifeMap[byS?(lfy>>8)+byS:lfy>>8][bxS?(lfx>>8)+bxS:lfx>>8])){   // WALLRIDE
+    int wx=(int)(lfx>>8)+(bxS?bxS:0), wy=(int)(lfy>>8)+(byS?byS:0);
+    if(bump&&lskate&&!lwr&&(k&K_R)&&lstun<=0&&!ldead&&sp0b>=8&&(bxS||byS)&&lz>fh+(5<<8)&&skInside(wx,wy)&&!skRampAt(wx,wy)){   // WALLRIDE: no grabbing the void beyond the map
         int al=bxS?lvy:lvx; if(al>-12&&al<12) al=al<0?-12:12; if(al>40) al=40; if(al<-40) al=-40;
         lwr=WR_LEN; lwrAx=bxS?0:1; lwrSg=(s8)(bxS?bxS:byS); lwrV=al; lvz=0; lbumpCd=40;
         { int wp=100+skLvl(SK_GRIND)*5; if(lspecOn) wp*=2; lscore+=wp; lcPts+=wp; } lcAdd("WALLRIDE"); lcN++; lcT=oComboLen(); lnote="WALLRIDE"; lnoteT=40; sfxPlay(SFX_POP); specAdd(40); moodEvent(M_TRICK);
@@ -3578,14 +3581,14 @@ static void lifeStep(u16 k,u16 pr,int fr){
     if(lbumpCd>0) lbumpCd--;
     if(lLand>0) lLand--;
     { int z0=lz; fh=surf8(lfx,lfy);
-      int stick=fh>=z0-F_LIP_DROP||((isRamp(oc0)||isRamp(lifeMap[lfy>>8][lfx>>8]))&&fh>=z0-(12<<8));   // (down a ramp's face the board stays on it however steep; off a ledge you drop)
+      int stick=fh>=z0-F_LIP_DROP||((isRamp(oc0)||skRampAt((int)(lfx>>8),(int)(lfy>>8)))&&fh>=z0-(12<<8));   // (down a ramp's face the board stays on it however steep; off a ledge you drop)
       if(gr0&&lvz<=0&&stick){   // SKATING 2: rolling: the board follows the ground, and a slope trades speed for height (and back)
           int dz=fh-z0; lz=fh; lvz=0; rGvz=dz;
           if(dz){ int s2=F.spd*F.spd-F_SLOPE*dz;
-              if(s2<=0&&dz>0){ F.angF=(F.angF+2048)&4095; F.fvx=-F.fvx; F.fvy=-F.fvy; F.rx=F.ry=0; F.turn=0; F.spd=12; if(isQPipe(lifeMap[lfy>>8][lfx>>8])){ lnote="ROLL BACK"; lnoteT=30; } }   // ran out of speed going up: back down you roll
+              if(s2<=0&&dz>0){ F.angF=(F.angF+2048)&4095; F.fvx=-F.fvx; F.fvy=-F.fvy; F.rx=F.ry=0; F.turn=0; F.spd=12; if(skInside((int)(lfx>>8),(int)(lfy>>8))&&isQPipe(lifeMap[lfy>>8][lfx>>8])){ lnote="ROLL BACK"; lnoteT=30; } }   // ran out of speed going up: back down you roll
               else { int v=isqrtI(s2); F.spd=v>F_SPD_MAX?F_SPD_MAX:v; }
               lsp=F.spd>>4; }   // (keep lsp in step, or feelSync takes the change back next step)
-          { char rc=lifeMap[lfy>>8][lfx>>8]; if(isRamp(rc)&&F.spd<24&&!(k&K_A)){ int ux, uy; rampUp(rc,&ux,&uy); int a=ux>0?128:ux<0?0:uy>0?192:64; F.angF=a<<4; F.spd+=6; lsp=F.spd>>4; } }   // standing on a slope: it rolls you down
+          { char rc=skInside((int)(lfx>>8),(int)(lfy>>8))?lifeMap[lfy>>8][lfx>>8]:'.'; if(isRamp(rc)&&F.spd<24&&!(k&K_A)){ int ux, uy; rampUp(rc,&ux,&uy); int a=ux>0?128:ux<0?0:uy>0?192:64; F.angF=a<<4; F.spd+=6; lsp=F.spd>>4; } }   // standing on a slope: it rolls you down
       } else { rGvz=0; if(lz<fh){ lz=fh; if(lvz<0) lvz=0; } }
     }
     if(lz>fh||lvz>0){ lz+=lvz; lvz-=0x40;   // gravity

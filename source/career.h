@@ -61,7 +61,7 @@ static void careerScreen(void){
           if(me){ if(jobLvl>=t->top) e=simCat(b,"TOP OF THE TRACK  TRANSFER FOR MORE");
               else { e=simCat(simCat(b,"NEXT LEVEL  "),jobSkName(jobTrack)); e=simCat(e," "); e=simCatN(e,jobNeedSkill(jobLvl)); if(jobNeedFriend(jobLvl)) simCat(e,"  1 FRIEND"); }
               text(14,117,b,RGB(24,27,30),1); }
-          else if(!ok) text(14,117,sel==JT_SKATE&&stage>=AG_ADULT?"TRYOUT: PARK JAM + LV1 5 TRICKS":"ONLY GROWN UPS CAN TAKE THIS",RGB(31,14,10),1);
+          else if(!ok) text(14,117,sel==JT_SKATE&&stage>=AG_ADULT?"JAM MEDAL + LV1 + 5 + 250 COMBO":"ONLY GROWN UPS CAN TAKE THIS",RGB(31,14,10),1);
           else if(jobNone) text(14,117,sel==JT_SKATE?"TRYOUT OPEN  APPLY AT A COMPUTER":"APPLY AT PAPER OR COMPUTER",RGB(24,27,30),1);
           else { e=simCat(b,"A TRANSFER  YOU START AT "); simCat(e,jobTitleOf(sel,jobStartLvl(sel),0)); text(14,117,b,RGB(24,27,30),1); } }
         for(int i=0;i<JT_N;i++) s2rr(86+i*9,131,6,4,i==sel?GOLD:i==jobTrack?RGB(10,26,12):RGB(7,14,22));   // which track this is (green: yours)

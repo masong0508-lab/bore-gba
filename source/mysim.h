@@ -21,7 +21,7 @@ static void msCareer(void){
     const JobTr*t=jobT(); char b[56], *e; msPanel(35,110);
     if(jobNone&&ojobOn()){   // jobhunt.h: no job yet
         text(14,40,"UNEMPLOYED",GOLD,2); text(14,66,"NO JOB  SKATING IS A HOBBY",WHITE,1); text(14,80,"PAPER AT 6 AM OR COMPUTER FOR JOBS",WHITE,1);
-        text(14,92,"SKATE TRYOUT: WIN A PARK JAM MEDAL",RGB(17,29,31),1); text(14,104,"PLUS LV1  5 TRICKS  250 COMBO",RGB(17,29,31),1); text(14,147,"A  JOB TRACKS AND REQUIREMENTS",RGB(12,14,16),1);
+        text(14,92,jobSkateReady()?"TEAM TRYOUT READY  APPLICATION OPEN":(trnMetaGet()&128)?"PARK JAM MEDAL EARNED  KEEP TRAINING":"SKATE TRYOUT: WIN A PARK JAM MEDAL",RGB(17,29,31),1); text(14,104,jobSkateReady()?"APPLY AT THE COMPUTER JOB BOARD":"PLUS LV1  5 TRICKS  250 COMBO",RGB(17,29,31),1); text(14,147,"A  JOB TRACKS AND REQUIREMENTS",RGB(12,14,16),1);
         return; }
     if(!ojob()){
         text(14,42,stage<AG_TEEN?"TOO YOUNG FOR A JOB":stage>=AG_ELDER?"RETIRED":"JOBS ARE OFF",GOLD,1);
