@@ -821,7 +821,10 @@ static int ggSagaSideTile(int tx,int ty,int preferred,int fallback,
 static int ggSagaGuestTile(int tx,int ty,int *guestX,int *guestY){
     return ggSagaSideTile(tx,ty,1,1,guestX,guestY);
 }
+// Use the same foreground span test for the direct RGB shadow blend.
+#define GG_FILM_SHADOW_MASKED(x,y) ggExpFilmPixelHidden((x),(y))
 #include "film_acting3d.h"
+#undef GG_FILM_SHADOW_MASKED
 static void ggSagaGuestPortrait(u8 *out,int x,int feet,int scale,
                                 int style,int talking){
     static const u8 palette[6][3][3]={
@@ -1075,6 +1078,9 @@ static void ggSagaDraw(u8 *out){
     int heroHandX=0,heroHandY=0,guestHandX=0,guestHandY=0;
     for(int i=0;i<actorCount;i++){
         const GgFilmStageItem *item=&actors[i];
+        // Hardware-style depth rejection only for the foreground actor
+        // primitives, using raycast wall spans already rendered this frame.
+        ggExpFilmDrawDepth=item->depth;
         if(item->kind==GG_STAGE_PROP){
             ggSagaPropDraw(out,item->x,item->feet,item->size,propKind);
         }else if(item->kind==GG_STAGE_HERO){
@@ -1143,7 +1149,9 @@ static void ggSagaDraw(u8 *out){
                                  &performance,style);
         }
     }
+    ggExpFilmDrawDepth=0;
     if(pairVisible){
+        ggExpFilmDrawDepth=(heroItem->depth+partnerItem->depth)/2;
         int touching=ggFilmPairTouch(heroHandX,heroHandY,
                                     guestHandX,guestHandY);
         if(pairKind==GG_FILM_PAIR_COMFORT&&pairInset>=80&&touching){
@@ -1173,6 +1181,7 @@ static void ggSagaDraw(u8 *out){
                     pairKind==GG_FILM_PAIR_BOOK?3:4,skin);
         }
     }
+    ggExpFilmDrawDepth=0;
     ggExplore.px=px;ggExplore.py=py;
     ggExplore.angle=angle;ggExplore.frame=frame;
     // Restrained letterbox treatment, not the old oversized computer

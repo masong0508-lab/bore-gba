@@ -316,6 +316,10 @@ static void ggFilmArtArm(u8*out,int bodyX,int centerY,int s,int dir,
               ggFilmArtShade(skin[1],far?169:276),
               ggFilmArtShade(skin[2],far?169:276));
 }
+// In SDK-free actor unit tests there is no world occlusion context.
+#ifndef GG_FILM_SHADOW_MASKED
+#define GG_FILM_SHADOW_MASKED(x,y) 0
+#endif
 // Feather the actual already-rendered terrain beneath each pair of boots.
 // A flat black oval used to look pasted over grass, snow and masonry.
 // Blend directly into the existing RGB film buffer; no additional image,
@@ -332,7 +336,7 @@ static void ggFilmArtContactShadow(u8*out,int x,int feet,int scale){
         for(int px=x0;px<x1;px++){
             int dx=px-x;
             int inside=area-v-dx*dx*ry*ry;
-            if(inside<=0)continue;
+            if(inside<=0||GG_FILM_SHADOW_MASKED(px,py))continue;
             int shade=90*inside/area;
             u8 *p=out+(py*400+px)*3;
             p[0]=(u8)(p[0]*(256-shade)/256);

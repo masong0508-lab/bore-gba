@@ -12,6 +12,7 @@
 #include "film_architecture3d.h"
 #include "film_facade3d.h"
 #include "film_floor3d.h"
+#include "film_occlusion3d.h"
 enum { GG_EXP_W=200, GG_EXP_H=120, GG_EXP_MAX_DEPTH=42,
        GG_EXP_EXIT=1, GG_EXP_SAVE=2, GG_EXP_CHANGE=4 };
 enum { GG_EXP_MATERIALS=8 };
@@ -215,11 +216,20 @@ static inline void ggExpDotInView(u8 *out,int x,int y,int r,int g,int b){
     p[1]=p[4]=p[1201]=p[1204]=(u8)g;
     p[2]=p[5]=p[1202]=p[1205]=(u8)b;
 }
+// Foreground spans are populated during the existing 400-ray scene pass.
+// Actor overlay depth is zero for the world, HUD, exploration and 2D screens.
+static GgFilmOcclusionColumn ggExpFilmOcclusion[GG_FILM_OCCLUSION_COLS];
+static int ggExpFilmDrawDepth;
+static inline int ggExpFilmPixelHidden(int x,int y){
+    return ggExpFilmDrawDepth>0&&
+           ggFilmOcclusionHidden(ggExpFilmOcclusion,x,y,ggExpFilmDrawDepth);
+}
 static void ggExpRect(u8*out,int x,int y,int w,int h,int r,int g,int b){
     int x1=ggExpClamp(x,0,400),y1=ggExpClamp(y,0,240);
     int x2=ggExpClamp(x+w,0,400),y2=ggExpClamp(y+h,0,240);
     for(int iy=y1;iy<y2;iy++)
         for(int ix=x1;ix<x2;ix++){
+            if(ggExpFilmPixelHidden(ix,iy))continue;
             u8*p=out+(iy*400+ix)*3;
             p[0]=(u8)r;p[1]=(u8)g;p[2]=(u8)b;
         }
@@ -239,6 +249,8 @@ static void ggExpText(u8*out,int x,int y,const char*str,int r,int g,int b){
 // The story uses full native 400x240 ray columns; real-time exploration
 // retains the original 200x120 fast renderer. Both access the SAME world.
 static void ggExpRenderMode(u8 *top,int cinematic){
+    ggExpFilmDrawDepth=0;
+    if(cinematic)ggFilmOcclusionClear(ggExpFilmOcclusion);
     int columns=cinematic?400:GG_EXP_W;
     int screenHeight=cinematic?240:GG_EXP_H;
     int a=ggExplore.angle&255;
@@ -398,6 +410,9 @@ static void ggExpRenderMode(u8 *top,int cinematic){
                                                   horizon,d,12);
                 if(bottom<to)to=ggExpClamp(bottom,from,to);
             }
+            if(cinematic&&from<to&&
+               (build||ground>ggExpGround(terrain)))
+                ggFilmOcclusionAdd(ggExpFilmOcclusion,x,from,to,d*256);
             int baseR,baseG,baseB;
             if(build){
                 // Stone, timber, roofs and towers are recognizable solid
