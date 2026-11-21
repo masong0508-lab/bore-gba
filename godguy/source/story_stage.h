@@ -758,12 +758,28 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
 #if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
     // The geometry is projected through the same dollying camera as actors.
     // Draw before cast so roofs, water and room floors form a stable world.
-    ggFilmWorldDraw(beat,elapsed,move,filmBonusIndex>=0?14:(int)(clip-fmvClips));
+    int chapter=(int)(clip-fmvClips),roofFinished=1;
+    if(chapter==2){
+        // Only the early construction takes show exposed rafters.
+        // Later angles, extras and subsequent films retain the new roof.
+        for(int shot=0;shot<5;shot++)
+            if(beat==roofBeats+shot)roofFinished=0;
+    }
+    ggFilmWorldDraw(beat,elapsed,move,
+                    filmBonusIndex>=0?14:chapter,roofFinished);
 #endif
-#ifdef __3DS__
-    if(filmBonusIndex<0)
-#endif
+#if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
+    // World geometry now owns the rain window, roof construction and
+    // ground. Keep only the intentionally grounded first seed/sprout from
+    // the 2D continuity pass; do not paint floating structural overlays
+    // on top of the coherent 3D set.
+    if(filmBonusIndex<0&&(beat->place==F_SHORE||beat->place==F_ORBIT))
         filmWorldContinuity(clip,beat,elapsed);
+#elif defined(__3DS__)
+    if(filmBonusIndex<0)filmWorldContinuity(clip,beat,elapsed);
+#else
+    filmWorldContinuity(clip,beat,elapsed);
+#endif
     filmAtmosphere(beat,elapsed);
 #ifdef __3DS__
     filmStageLight(beat,elapsed);
