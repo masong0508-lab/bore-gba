@@ -49,3 +49,44 @@ unbounded asset counts. For future true GPU geometry, introduce a
 separate PICA/Citro3D renderer with camera/material parity tests,
 lifecycle and VRAM budgets; do not relabel existing software triangles
 as GPU accelerated.
+
+## PICA200 GPU migration experiment (separate preview binary)
+
+Set `GG_BUILD_GPU_PROBE=1` when running `3ds/build.sh` to build
+`godguy_new3ds_gpu_probe.3dsx` in addition to the unchanged playable
+`godguy.3dsx`. This prototype is intentionally a **separate homebrew
+binary** rather than an unreviewed renderer toggle inside the game.
+Its test map uses the same GodGuy terrain/building tile encoding, but
+**does not read live game saves or drive the actual campaign yet**.
+
+The prototype has a working-source PICA vertex shader
+(`3ds/gpu_world.v.pica`) assembled by `picasso`, with Citro3D
+perspective, GPU vertex colors, GPU depth, and a bounded linear-RAM
+vertex buffer. The SDK-free `3ds/gpu_world_batch3d.h` has a reusable
+tile/building mesh contract accepting world and bld arrays directly.
+`pc_3ds_gpu_batch.c` verifies determinism, map edits, height, camera
+re-basing and hard bounds without SDK support. A New 3DS hardware build
+checks shader assembly and linker compatibility.
+
+**Memory ceilings:** 8192 vertices x 24 bytes = 192 KiB linear buffer.
+No second 400x240 CPU RGB buffer in the GPU sidecar. GPU render targets
+use Citro3D's VRAM, not the existing software depth buffer. The main
+game's software rasterizer and saving remain unchanged.
+
+**What the PICA probe DOES NOT yet provide:** on-device visual proof,
+renderer parity, NPCs / full building grammar, texture atlas streaming,
+cutscene composition, or gameplay integration. Shader and GPU render
+calls are real, but compiling a probe does not by itself prove correct
+camera orientation, depth conventions or acceptable console FPS.
+A captured hardware walk-through is the release gate for this step.
+
+**Next integration gate:**
+1. Verify the shader, GPU geometry path and depth on New hardware with
+   actual screen captures, benchmarked against software view.
+2. Stream the game's authoritative `world[][]`/`bld[][]` into the
+   same bounded GPU batch, without a duplicated world or save format.
+3. Add NPCs, interaction HUD, lighting and collision parity; only then
+   enable an explicit user-selectable PICA backend in the playable ROM.
+4. Eventually replace CPU-built tile triangles with static terrain
+   patches, geometric occlusion culling, materials and vertex-shader
+   lighting, keeping strict VRAM and frame-time budgets.
