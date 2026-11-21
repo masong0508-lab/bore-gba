@@ -20,6 +20,11 @@ static const char *const ggExpMaterialNames[GG_EXP_MATERIALS]={
 };
 typedef struct {
     int active,wasPaused;
+    // Persistent selected-creature identity. The population list can
+    // compact on save; an array slot is NOT a durable identity.
+    u32 actorId;
+    int actorIndex;
+    char actorName[40];
     int px,py;                   // tile coordinates in Q8 (1 tile = 256)
     int angle;                   // 0..255; one revolution is 256
     int material;
@@ -87,6 +92,9 @@ static void ggExpBegin(int x,int y,int priorPause){
     }
     ggExplore.active=1;
     ggExplore.wasPaused=priorPause;
+    ggExplore.actorId=0;
+    ggExplore.actorIndex=-1;
+    ggExplore.actorName[0]=0;
     ggExplore.px=x*256+128;
     ggExplore.py=y*256+128;
     ggExplore.angle=64; // begin looking into the map, not a random shot
@@ -152,7 +160,7 @@ static int ggExpStep(int held,int touchX,int touchY){
     if((down&KEY_TOUCH)&&touchX>=0&&touchX<256&&
        touchY>=0&&touchY<160){
         int nx=(camX+touchX)>>3,ny=(camY+touchY)>>3;
-        if(ggExpWalkable(nx,ny,60,1)){
+        if(!ggExplore.actorId&&ggExpWalkable(nx,ny,60,1)){
             ggExplore.px=nx*256+128;
             ggExplore.py=ny*256+128;
         }
@@ -210,14 +218,20 @@ static void ggExpRender(u8 *top){
     int dirX=ggExpCos[a],dirY=ggExpSin[a];
     int rightX=-dirY,rightY=dirX;
     int fogTick=ggExplore.frame/8;
-    // Clear to readable dusk/blue sky first. Water is never synthesized
-    // into non-water game cells: sky is a camera background only.
+    // Fast RGB background: fill the first 400px screen row directly,
+    // then copy it to the matching 2x row. This eliminates 24,000
+    // function calls and 96,000 individual per-pixel bounds checks.
+    // It writes only into the already allocated 400x240 top RGB buffer.
     for(int y=0;y<GG_EXP_H;y++){
-        int sky=(y<horizon);
-        int r=sky?28+y/2:67;
-        int g=sky?65+y:113;
-        int b=sky?112+y:151;
-        for(int x=0;x<GG_EXP_W;x++)ggExpDot(top,x,y,r,g,b);
+        int sky=y<horizon;
+        int r=sky?28+y/2:67,g=sky?65+y:113,b=sky?112+y:151;
+        u8 *line=top+(y*2)*400*3;
+        for(int x=0;x<400;x++){
+            line[x*3]=(u8)r;
+            line[x*3+1]=(u8)g;
+            line[x*3+2]=(u8)b;
+        }
+        memcpy(line+400*3,line,400*3);
     }
     // Sparse moving high-altitude clouds preserve horizon readability.
     for(int k=0;k<7;k++){
@@ -287,14 +301,23 @@ static void ggExpRender(u8 *top){
     ggExpRect(top,200,115,1,10,247,240,206);
     char buf[96];
     ggExpRect(top,0,0,400,22,13,25,40);
-    snprintf(buf,sizeof buf,"GODGUY WORLD WALK   %d,%d   %s",
-             ggExplore.px>>8,ggExplore.py>>8,
-             ggExpMaterialNames[ggExplore.material]);
+    if(ggExplore.actorId){
+        snprintf(buf,sizeof buf,"POV %-18.18s  %d,%d",
+                 ggExplore.actorName,ggExplore.px>>8,ggExplore.py>>8);
+    }else{
+        snprintf(buf,sizeof buf,"GODGUY FREE WALK   %d,%d  %s",
+                 ggExplore.px>>8,ggExplore.py>>8,
+                 ggExpMaterialNames[ggExplore.material]);
+    }
     ggExpText(top,10,7,buf,243,225,163);
     ggExpRect(top,0,202,400,38,12,22,34);
-    ggExpText(top,9,207,"PAD MOVE  L/R TURN  B RUN   X BLOCK  A PLACE  Y CLEAR",
+    ggExpText(top,9,207,ggExplore.actorId?
+              "PAD WALK  L/R LOOK  B RUN  X MATERIAL  A BUILD  Y CLEAR":
+              "PAD MOVE  L/R TURN  B RUN  X BLOCK  A PLACE  Y CLEAR",
               221,228,221);
-    ggExpText(top,9,221,"TAP MAP WARP   SELECT SAVE   START EXIT",180,202,222);
+    ggExpText(top,9,221,ggExplore.actorId?
+              "TAP MAP: CHANGE MIND  SELECT SAVE  START: 2D":
+              "TAP MAP WARP   SELECT SAVE   START EXIT",180,202,222);
     if(ggExplore.feedbackT){
         const char *msg=ggExplore.feedback==2?"WORLD TILE CHANGED":
                         ggExplore.feedback==3?"PROTECTED OR OUT OF REACH":
