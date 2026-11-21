@@ -81,6 +81,23 @@ int main(void){
     check(ggFilmPairObjectOwner(GG_FILM_PAIR_COMFORT,1,1)==-1&&
           ggFilmPairObjectOwner(GG_FILM_PAIR_NONE,1,1)==-1,
           "comfort gesture materialized an imaginary second prop");
+    // A+NEXT skips frames; a paused or resumed reel may render only
+    // the first and last ticks of either line. The book still changes
+    // owners exactly once at the authored cut, independent of history.
+    const int scrub[]={0,5,48,94,95,96,97,140,191,97,0,191};
+    for(unsigned i=0;i<sizeof(scrub)/sizeof(scrub[0]);i++){
+        int frame=scrub[i],beat=frame>=96?1:0,local=frame>=96?frame-96:frame;
+        int expected=frame>=96;
+        check(ggFilmPairOwnerAt(GG_FILM_PAIR_BOOK,beat,local,96)==expected,
+              "jump, reverse seek or playback pause lost object ownership");
+        check(ggFilmPairOwnerAt(GG_FILM_PAIR_PARCEL,beat,local,96)==expected,
+              "provisions owner depends on rendered contact frames");
+    }
+    check(ggFilmPairOwnerAt(GG_FILM_PAIR_COMFORT,1,40,96)==-1&&
+          ggFilmPairOwnerAt(GG_FILM_PAIR_NONE,1,40,96)==-1,
+          "non-transfer narrative made an imaginary gift");
+    check(ggFilmPairOwnerAt(GG_FILM_PAIR_BOOK,1,40,0)==0,
+          "zero-duration dialogue must not synthesize a handover");
     puts("3DS PARTNER OK: story cues, grounded synchronized approach, contact, persistent single-object handover");
     return 0;
 }
