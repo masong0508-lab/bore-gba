@@ -40,9 +40,11 @@ int main(void){
     ggMeshQuad(m,a,b,c,d,160,142,122);
     require(m->textureSamples==0&&m->fragments>50,
             "degraded detail did not trade expensive textures for native pixels");
-    require(pixels[center]==160&&pixels[center+1]==142&&
-            pixels[center+2]==122,
-            "reduced detail changed material color or lost the solid wall");
+    int light=ggMeshSunlight(a,b,c,m->ambientLight);
+    require(pixels[center]==160*light/256&&
+            pixels[center+1]==142*light/256&&
+            pixels[center+2]==122*light/256,
+            "reduced detail lost the same directional wall lighting");
     require(memcmp(first,pixels+center,3)!=0,
             "native high detail was indistinguishable from untextured fallback");
     require(sizeof ggMeshDepthStorage==192000,
