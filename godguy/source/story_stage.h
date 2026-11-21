@@ -177,6 +177,32 @@ static void filmDrawWorldVista(const FilmBeat *beat,int t){
             if(((t/17+x*3)&3)==0)
                 uiRect(px+2,95,4,1,fmvSlots[15]);
         }
+        // Midground is sampled from the *same* latitude and terrain
+        // cells as the skyline. A cliff now has a lower rocky ledge, a
+        // beach slopes toward real water, and an inland mountain has
+        // stone foothills. This inexpensive two-strip DS/DSi treatment
+        // uses only the existing palette and at most 50 small rectangles.
+        if(index==FILM_VISTA_COAST||index==FILM_VISTA_RIDGE){
+            int mid=filmVistaRead(v,x,4,0);
+            int near=filmVistaRead(v,x,6,0);
+            int midTone=mid==T_MOUNT?20:mid==T_HILL?21:
+                        mid==T_SNOW?23:mid==T_SAND?26:
+                        filmVistaIsWater(mid)?13:mid==T_FOREST?16:18;
+            int nearTone=near==T_MOUNT?20:near==T_HILL?21:
+                         near==T_SNOW?23:near==T_SAND?26:
+                         filmVistaIsWater(near)?13:near==T_FOREST?16:18;
+            int midRise=mid==T_MOUNT?10:mid==T_HILL?7:
+                        mid==T_FOREST?4:2;
+            int nearRise=near==T_MOUNT?12:near==T_HILL?8:
+                         near==T_FOREST?4:2;
+            uiRect(px,104-midRise,8,8+midRise,fmvSlots[midTone]);
+            uiRect(px,114-nearRise,8,10+nearRise,fmvSlots[nearTone]);
+            // Only draw breaking surf where the sampled beach actually
+            // meets water. Animation is continuous across dialogue cuts.
+            if(filmVistaIsWater(near)&&!filmVistaIsWater(mid)&&
+               ((t/24+x)&3)==0)
+                uiRect(px+1,113,6,1,fmvSlots[15]);
+        }
         // Position real halls/towers/huts as seen in the player's world,
         // rather than drawing a fictional castle when none was built.
         for(int y=2;y<FILM_VISTA_H-1&&drawn<12;y++){
