@@ -1,6 +1,29 @@
 // The chapter reels dress shared illustrated sets with cels, camera moves and
 // timed subtitles. Playback draws into the same back page as the baked films.
 #include "story_reels.h"
+#include "story_vistas.h"
+
+// The game world is the authoritative source for movie locations. Capture
+// just three small neighborhoods at the beginning of a chapter; cinematic
+// playback never scans or mutates the simulation map, its building arrays,
+// or the save file. All coordinates are the real player's world tiles.
+static int filmWorldCell(int x,int y,int building){
+    return building?bld[y][x]:world[y][x];
+}
+static void filmCaptureWorld(void){
+    if(WW<=0||WH<=0)return;
+    int cx=(camX+128)/8,cy=(camY+96)/8;
+    if(cx>=WW)cx=WW-1;if(cy>=WH)cy=WH-1;
+    int bx=cx,by=cy,best=-2147483647;
+    for(int v=0;v<VIL_N;v++)if(vil[v].on){
+        int dx=(int)vil[v].x-cx,dy=(int)vil[v].y-cy;
+        int score=(int)vil[v].houses*6+(int)vil[v].towers*28+
+                  (int)vil[v].lvl*18+(int)vil[v].pop/10-
+                  (dx*dx+dy*dy)/14;
+        if(score>best){best=score;bx=vil[v].x;by=vil[v].y;}
+    }
+    filmVistaCapture(WW,WH,bx,by,cx,cy,filmWorldCell);
+}
 #ifdef __3DS__
 #include "story_film_hq_data.h"
 #endif
@@ -104,6 +127,68 @@ static FilmFraming filmFraming(const FilmBeat *beat,int move){
                        sy*(beat->camera==F_INSERT?168:96)*FILM_PLATE_SCALE,
                        w*FILM_PLATE_SCALE,h*FILM_PLATE_SCALE*256/FILM_H};
     return frame;
+}
+// Real coast/ridge/village skyline. Colors and relative placement come
+// from world[][] and bld[][], not an arbitrary seed based solely on chapter.
+// It returns to the SAME horizon as the camera revisits a familiar place.
+// DS: 25 short columns plus at most 12 building silhouettes, all on the
+// existing 256x192 indexed page. 3DS gets the same recognizable silhouette
+// behind its projected 3D geometry; no extra 3D heap or framebuffer.
+static void filmDrawWorldVista(const FilmBeat *beat,int t){
+    int index=filmVistaPlace(beat->place);
+    if(index<0)return;
+    const FilmVista *v=&filmVista[index];
+    if(!v->valid)return;
+    int drawn=0;
+    for(int x=0;x<FILM_VISTA_W;x++){
+        int high=3,kind=T_GRASS,water=0,shore=0;
+        for(int y=1;y<FILM_VISTA_H-1;y++){
+            int terr=filmVistaRead(v,x,y,0);
+            int height=terr==T_MOUNT?27:terr==T_HILL?17:
+                       terr==T_SNOW?13:terr==T_FOREST?11:
+                       terr==T_JUNGLE?12:terr==T_GRASS?6:
+                       terr==T_SAND?4:terr==T_DESERT?5:
+                       terr==T_SWAMP?5:terr==T_DIRT?4:2;
+            if(filmVistaIsWater(terr))water++;
+            else shore++;
+            if(height>high){high=height;kind=terr;}
+        }
+        int px=28+x*8,upper=94-high;
+        int tone=kind==T_MOUNT?20:kind==T_HILL?21:
+                 kind==T_SNOW?22:kind==T_FOREST?16:
+                 kind==T_JUNGLE?17:kind==T_SAND?26:
+                 kind==T_DESERT?25:kind==T_SWAMP?13:
+                 kind==T_DIRT?24:18;
+        // Pixel-art stepped ridge: exact terrain samples, no aliasing and
+        // no screen-wide noisy texture. Water stays below dry hills.
+        uiRect(px,upper,8,94-upper,fmvSlots[tone]);
+        if(water&&index==FILM_VISTA_COAST){
+            uiRect(px,94,8,3,fmvSlots[13]);
+            if(((t/17+x*3)&3)==0)
+                uiRect(px+2,95,4,1,fmvSlots[15]);
+        }
+        // Position real halls/towers/huts as seen in the player's world,
+        // rather than drawing a fictional castle when none was built.
+        for(int y=2;y<FILM_VISTA_H-1&&drawn<12;y++){
+            int b=filmVistaRead(v,x,y,1);
+            if(b!=B_HALL&&b!=B_TOWER&&b!=B_HOUSE&&
+               b!=B_HUT&&b!=B_DOCK&&b!=B_RUIN)continue;
+            int h=b==B_TOWER?17:b==B_HALL?12:
+                  b==B_HOUSE?8:b==B_HUT?6:b==B_DOCK?5:5;
+            int gy=90+(y-4)*2;
+            if(gy>101)gy=101;
+            int color=b==B_RUIN?21:b==B_DOCK?24:20;
+            uiRect(px+1,gy-h,6,h,fmvSlots[color]);
+            if(b==B_TOWER||b==B_HALL){
+                uiRect(px,gy-h-2,8,3,fmvSlots[25]);
+                uiRect(px+3,gy-h+4,2,3,fmvSlots[1]);
+            }else if(b==B_HOUSE||b==B_HUT){
+                uiRect(px,gy-h-1,8,2,fmvSlots[24]);
+            }
+            drawn++;
+        }
+        (void)shore;
+    }
 }
 static void filmDrawSet(const FilmBeat *beat,int move){
     FilmFraming camera=filmFraming(beat,move);
@@ -950,6 +1035,9 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
     int cue=filmActionCue(beat,elapsed);
     if(cue>=0)fxReq(cue);
     filmDrawSet(beat,move);
+    // Draw the player's own saved coastline/city/ridge behind scene props
+    // and performers. It is captured once per movie, never per frame.
+    filmDrawWorldVista(beat,filmSceneryClock);
 #if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
     // The geometry is projected through the same dollying camera as actors.
     // Draw before cast so roofs, water and room floors form a stable world.
