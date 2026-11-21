@@ -99,6 +99,7 @@ static int politicalDirty;
 #include "3ds/reign_saga3d.h"
 #define GG_AMBIENT_SAVE_PATH "/tmp/godguy_ambient_pc_test.dat"
 #include "3ds/reign_ambient3d.h"
+#include "3ds/reign_map3d.h"
 static void check(int value,const char *message){
     if(!value){fprintf(stderr,"EXPLORE3D FAIL: %s\n",message);exit(1);}
 }
@@ -113,6 +114,23 @@ int main(void){
     memset(guarded.first,0x5a,sizeof guarded.first);
     memset(guarded.last,0xc3,sizeof guarded.last);
     ggExpBegin(64,64,0);
+    // Objective pins are painted only on the existing lower-screen
+    // pixels, and never write outside its 320x240 RGB frame.
+    camX=64*8-128;camY=64*8-96;
+    ggChron.active=1;ggChron.post=0;
+    ggChron.px[0]=64;ggChron.py[0]=64;
+    memset(guarded.img,0,320*240*3);
+    check(ggMapObjectiveSignature()!=0,"live mission pin not requested");
+    check(ggMapPinDraw(guarded.img,64,64,244,204,82),
+          "mission objective is not visible on bottom 2D map");
+    int pinX=32+128+4,pinY=24+96+4;
+    check(guarded.img[(pinY*320+pinX)*3]==255,
+          "objective marker did not render a centered crosshair");
+    check(!ggMapPinDraw(guarded.img,0,0,244,204,82),
+          "off-screen map pin tried to draw outside map");
+    check(guarded.first[0]==0&&guarded.last[0]==0,
+          "objective pin overflowed 3DS map buffer");
+    ggChron.active=0;
     check(ggExplore.active&&(ggExplore.px>>8)==64&&(ggExplore.py>>8)==64,
           "did not enter the player's map at its saved camera position");
     check(ggExpTrigReady,"first-person camera trig not cached");

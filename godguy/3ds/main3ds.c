@@ -18,6 +18,7 @@ static void ggExpRenderCreatures(u8 *top);
 #include "reign_quests.h"
 #include "reign_saga3d.h"
 #include "reign_ambient3d.h"
+#include "reign_map3d.h"
 #include "world_music3d.h"
 #include "frame_clock.h"
 extern void plat_setCinema(int on);
@@ -295,7 +296,16 @@ void shimPresent(void){
     // The 3D top screen completely replaces the old sub-engine bitmap.
     // Keep rendering and caching the live 2D map on the bottom LCD.
     shimExploreTopOverride=ggExplore.active;
+    // Force a lower-screen redraw only when the objective changes. The
+    // map's usual camera/terrain invalidation still handles walking.
+    static int lastObjectiveSignature=-1;
+    int objectiveSignature=ggMapObjectiveSignature();
+    if(objectiveSignature!=lastObjectiveSignature){
+        shimExternalInvalidate=1;
+        lastObjectiveSignature=objectiveSignature;
+    }
     shimRenderChanged(topBuf,botBuf,&tc,&bc);
+    if(bc)ggMapObjectivesDraw(botBuf);
     if(ggExplore.active){
         // Render on actual camera/world changes, or every eighth frame
         // for subtle clouds/feedback. Static scenes reuse the existing
