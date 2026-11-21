@@ -190,95 +190,213 @@ static void ggFilmDrawHeldObject(u8*out,int handX,int handY,
     }else return;
     ggExpRect(out,handX-s,handY-s,3*s,2*s,skin[0],skin[1],skin[2]);
 }
-// Every pose deforms the SAME original 16x24 cel consistently: head,
-// torso, individual sleeves/hands, legs, eyes and mouth are separate
-// movement layers. Runs of identical pixels are drawn as one rectangle
-// to keep the Old 3DS fill budget bounded.
+// Hand-authored procedural 2.5D cast. Unlike the old giant 16x24 bitmap,
+// figures have tapered limbs, rounded faces, individualized silhouettes,
+// a shaded face/coat, readable eyes and hair, and expressive contact hands.
+// All primitives write directly to the EXISTING 400x240 RGB buffer.
+// No animation atlas, heap, alpha framebuffer, matrix or float math.
+static int ggFilmArtShade(int v,int light){
+    return ggExpClamp(v*light/256,0,255);
+}
+static void ggFilmArtRounded(u8*out,int x,int y,int w,int h,int cut,
+                             int r,int g,int b){
+    if(w<=0||h<=0)return;
+    cut=ggExpClamp(cut,0,ggExpClamp(w/3,0,h/3));
+    if(!cut){ggExpRect(out,x,y,w,h,r,g,b);return;}
+    ggExpRect(out,x+cut,y,w-2*cut,cut,r,g,b);
+    ggExpRect(out,x,y+cut,w,h-2*cut,r,g,b);
+    ggExpRect(out,x+cut,y+h-cut,w-2*cut,cut,r,g,b);
+}
+// A tapered jointed sleeve rather than an independently sliding square.
+// Stroke cost is bounded: at most 12 short rectangles per joint.
+static void ggFilmArtStroke(u8*out,int x0,int y0,int x1,int y1,int thick,
+                            int r,int g,int b){
+    int dx=x1-x0,dy=y1-y0;
+    int adx=dx<0?-dx:dx,ady=dy<0?-dy:dy;
+    int n=adx>ady?adx:ady;
+    n=ggExpClamp(n/3,1,12);
+    int rad=thick/2;
+    for(int i=0;i<=n;i++){
+        int px=x0+dx*i/n,py=y0+dy*i/n;
+        ggExpRect(out,px-rad,py-rad,thick,thick,r,g,b);
+    }
+}
+static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
+                             const u8*hair,const u8*skin,const u8*coat,
+                             const GgFilmPose *p,int identity){
+    int s=ggExpClamp(scale,1,3);
+    int headX=x+p->head*s,bodyX=x+p->lean*s;
+    int centerY=feet-p->bob*s;
+    int inkR=30,inkG=34,inkB=41;
+    int jacketR=ggFilmArtShade(coat[0],205),
+        jacketG=ggFilmArtShade(coat[1],205),
+        jacketB=ggFilmArtShade(coat[2],205);
+    int lightR=ggFilmArtShade(coat[0],292),
+        lightG=ggFilmArtShade(coat[1],292),
+        lightB=ggFilmArtShade(coat[2],292);
+    int shadeR=ggFilmArtShade(coat[0],138),
+        shadeG=ggFilmArtShade(coat[1],138),
+        shadeB=ggFilmArtShade(coat[2],138);
+    int faceR=ggFilmArtShade(skin[0],278),
+        faceG=ggFilmArtShade(skin[1],278),
+        faceB=ggFilmArtShade(skin[2],278);
+    int faceShadeR=ggFilmArtShade(skin[0],195),
+        faceShadeG=ggFilmArtShade(skin[1],195),
+        faceShadeB=ggFilmArtShade(skin[2],195);
+    int hairLightR=ggFilmArtShade(hair[0],292),
+        hairLightG=ggFilmArtShade(hair[1],292),
+        hairLightB=ggFilmArtShade(hair[2],292);
+    int style=identity<0?6:identity;
+    // Tight soft-looking oval ground contact, darker toward the center.
+    ggFilmArtRounded(out,x-8*s,feet-s,16*s,s,0,45,44,48);
+    ggExpRect(out,x-5*s,feet-s,10*s,s,24,27,32);
+    // Calf, articulated knees and fitted boots. Both feet stay registered
+    // to ground, even when dialogue adds head gestures and arm reach.
+    for(int leg=0;leg<2;leg++){
+        int side=leg?-1:1;
+        int offset=leg?p->legL:p->legR;
+        int lx=bodyX+side*3*s+offset*s;
+        int y=centerY-10*s;
+        ggFilmArtStroke(out,bodyX+side*2*s,y,lx,feet-4*s,3*s,
+                        inkR,inkG,inkB);
+        ggFilmArtStroke(out,bodyX+side*2*s,y,lx,feet-4*s,2*s,
+                        shadeR,shadeG,shadeB);
+        ggFilmArtRounded(out,lx-3*s,feet-4*s,6*s,3*s,s,
+                         43,43,49);
+        ggExpRect(out,lx-2*s,feet-3*s,3*s,s,92,91,97);
+    }
+    // Tunic: dark silhouette and shaped shoulder line, not a flat rectangle.
+    ggFilmArtRounded(out,bodyX-7*s,centerY-19*s,14*s,12*s,2*s,
+                     inkR,inkG,inkB);
+    ggFilmArtRounded(out,bodyX-6*s,centerY-18*s,12*s,10*s,2*s,
+                     jacketR,jacketG,jacketB);
+    ggExpRect(out,bodyX-5*s,centerY-17*s,3*s,8*s,
+              lightR,lightG,lightB);
+    ggExpRect(out,bodyX+3*s,centerY-17*s,2*s,8*s,
+              shadeR,shadeG,shadeB);
+    // Shaped hem, vertical tailoring and a raised collar.
+    ggFilmArtRounded(out,bodyX-6*s,centerY-10*s,12*s,3*s,s,
+                     jacketR,jacketG,jacketB);
+    ggExpRect(out,bodyX,centerY-16*s,s,8*s,44,43,48);
+    ggExpRect(out,bodyX-5*s,centerY-12*s,10*s,s,75,63,63);
+    ggExpRect(out,bodyX+3*s,centerY-12*s,2*s,s,189,153,92);
+    ggFilmArtRounded(out,bodyX-3*s,centerY-21*s,6*s,5*s,s,
+                     faceShadeR,faceShadeG,faceShadeB);
+    // Sleeves and palms: draw jointed angled segments whose wrists remain
+    // physically connected to the cuffs in both idles and handovers.
+    for(int arm=0;arm<2;arm++){
+        int dir=arm?1:-1;
+        int lift=arm?p->armR:p->armL;
+        int extra=(p->reach*dir>0)?(p->reach*dir):0;
+        int shoulderX=bodyX+dir*6*s;
+        int shoulderY=centerY-17*s;
+        int elbowX=shoulderX+dir*(1+extra/2)*s;
+        int elbowY=centerY-(14+lift/2)*s;
+        int wristX=bodyX+dir*(8+extra)*s;
+        int wristY=centerY-(13+lift)*s;
+        ggFilmArtStroke(out,shoulderX,shoulderY,elbowX,elbowY,
+                        3*s,inkR,inkG,inkB);
+        ggFilmArtStroke(out,shoulderX,shoulderY,elbowX,elbowY,
+                        2*s,jacketR,jacketG,jacketB);
+        ggFilmArtStroke(out,elbowX,elbowY,wristX,wristY,
+                        2*s,shadeR,shadeG,shadeB);
+        ggFilmArtRounded(out,wristX-s,wristY-s,3*s,3*s,s,
+                         faceShadeR,faceShadeG,faceShadeB);
+        ggExpRect(out,wristX,wristY-s,s,s,faceR,faceG,faceB);
+    }
+    // Neck, cheeks and tapered jaw (6 bands create an organic silhouette).
+    ggFilmArtRounded(out,headX-5*s,centerY-30*s,10*s,12*s,2*s,
+                     39,39,46);
+    ggFilmArtRounded(out,headX-4*s,centerY-29*s,8*s,10*s,2*s,
+                     faceShadeR,faceShadeG,faceShadeB);
+    ggFilmArtRounded(out,headX-3*s,centerY-28*s,6*s,8*s,s,
+                     faceR,faceG,faceB);
+    ggExpRect(out,headX-3*s,centerY-23*s,2*s,3*s,
+              faceShadeR,faceShadeG,faceShadeB);
+    // Hair has a crown, swept fringe, temporal shading and a highlight;
+    // head/gaze offset is independent from torso animation.
+    ggFilmArtRounded(out,headX-5*s,centerY-31*s,10*s,5*s,2*s,
+                     hair[0],hair[1],hair[2]);
+    ggExpRect(out,headX-5*s,centerY-28*s,2*s,6*s,
+              hair[0],hair[1],hair[2]);
+    ggExpRect(out,headX+4*s,centerY-28*s,2*s,5*s,
+              ggFilmArtShade(hair[0],174),
+              ggFilmArtShade(hair[1],174),
+              ggFilmArtShade(hair[2],174));
+    ggExpRect(out,headX-3*s,centerY-30*s,4*s,s,
+              hairLightR,hairLightG,hairLightB);
+    // Expressive brows, sclera, irises, nose, lips and a jaw highlight:
+    // face features are NOT enlarged 5x7 grid letters or block eyes.
+    int gaze=ggExpClamp(p->gaze,-1,1)*s;
+    int eyesY=centerY-25*s;
+    for(int eye=0;eye<2;eye++){
+        int ex=headX+(eye?2:-3)*s+gaze;
+        ggExpRect(out,ex,eyesY-s,2*s,s,
+                  ggFilmArtShade(hair[0],115),
+                  ggFilmArtShade(hair[1],115),
+                  ggFilmArtShade(hair[2],115));
+        if(!p->blink){
+            ggExpRect(out,ex,eyesY,2*s,s,240,224,197);
+            ggExpRect(out,ex+(eye?0:s),eyesY,s,s,42,51,61);
+        }else ggExpRect(out,ex,eyesY,2*s,s,
+                        faceShadeR,faceShadeG,faceShadeB);
+    }
+    ggExpRect(out,headX,centerY-23*s,s,2*s,
+              faceShadeR,faceShadeG,faceShadeB);
+    if(p->mouth)ggExpRect(out,headX-s,centerY-21*s,
+                         p->mouth==2?3*s:2*s,s,119,59,65);
+    else ggExpRect(out,headX-s,centerY-21*s,2*s,1,122,84,76);
+    // Character-exclusive costume accents and hair shapes; the same
+    // distinct person remains recognizable across stories/ending routes.
+    if(style==0){ // Mira: warm shoulder shawl and visible side braid
+        ggExpRect(out,bodyX-5*s,centerY-17*s,10*s,2*s,79,151,116);
+        ggExpRect(out,headX-6*s,centerY-26*s,2*s,8*s,
+                  hair[0],hair[1],hair[2]);
+        ggExpRect(out,headX-6*s,centerY-19*s,2*s,s,205,167,102);
+    }else if(style==1){ // Thorgrim: reinforced watch armor
+        ggFilmArtRounded(out,bodyX-8*s,centerY-18*s,5*s,4*s,s,
+                         106,121,142);
+        ggFilmArtRounded(out,bodyX+4*s,centerY-18*s,5*s,4*s,s,
+                         106,121,142);
+        ggExpRect(out,bodyX-2*s,centerY-15*s,4*s,2*s,190,171,127);
+        ggExpRect(out,headX-3*s,centerY-22*s,6*s,2*s,98,72,63);
+    }else if(style==2){ // Varro: crimson officer lapels, dark cloak
+        ggExpRect(out,bodyX-5*s,centerY-17*s,2*s,8*s,171,66,76);
+        ggExpRect(out,bodyX+3*s,centerY-17*s,2*s,8*s,171,66,76);
+        ggExpRect(out,bodyX-2*s,centerY-16*s,4*s,s,224,191,113);
+    }else if(style==3){ // Serin: ink-lined scholar robes and pin
+        ggExpRect(out,bodyX+2*s,centerY-17*s,2*s,8*s,202,167,92);
+        ggExpRect(out,bodyX-2*s,centerY-15*s,2*s,2*s,220,199,142);
+        ggExpRect(out,headX+4*s,centerY-27*s,s,5*s,64,55,72);
+    }else if(style==4){ // Elowen: pale mantle and shaped circlet
+        ggFilmArtRounded(out,bodyX-7*s,centerY-19*s,14*s,4*s,s,
+                         148,125,178);
+        ggExpRect(out,headX-3*s,centerY-31*s,7*s,s,221,184,105);
+        ggExpRect(out,headX,centerY-32*s,2*s,2*s,237,213,154);
+    }else if(style==5){ // citizen: fitted earth-tone leather straps
+        ggExpRect(out,bodyX-4*s,centerY-17*s,2*s,8*s,148,118,83);
+        ggExpRect(out,bodyX+2*s,centerY-17*s,2*s,8*s,148,118,83);
+    }else{ // player identity: original selected haircut and colors
+        ggExpRect(out,bodyX-4*s,centerY-17*s,2*s,8*s,
+                  lightR,lightG,lightB);
+    }
+    if(p->holdProp){
+        int handX=bodyX+(8+p->reach)*s;
+        int handY=centerY-(13+p->armR)*s;
+        ggFilmDrawHeldObject(out,handX,handY,s,p->holdProp,skin);
+    }
+}
+// Existing game's player outfit remains customizable. Guest film actors
+// receive their own readable silhouette and acting details.
 static void ggFilmDrawActor(u8*out,int x,int feet,int scale,
                             const u8*hair,const u8*skin,const u8*coat,
                             const GgFilmPose *p){
-    int s=ggExpClamp(scale,1,3);
-    ggExpRect(out,x-7*s,feet-2,14*s,2,29,36,41);
-    for(int py=0;py<24;py++){
-        const char *row=ggOriginHumanCel[py];
-        for(int px=0;px<16;){
-            int kind=row[px],xoff=0,yoff=0;
-            if(kind=='.'){px++;continue;}
-            int head=py<=8;
-            int left=py>=10&&py<=15&&px<=3;
-            int right=py>=10&&py<=15&&px>=12;
-            int leg=py>=17&&py<=23;
-            if(head){
-                xoff=p->head;
-                if(py<=4)xoff+=p->gaze;
-                yoff=p->head<0?1:0;
-            }else if(left){
-                xoff=p->lean-(p->armL>1?1:0)+
-                     (p->reach<0?p->reach:0);
-                yoff=-p->armL;
-            }else if(right){
-                xoff=p->lean+(p->armR>1?1:0)+
-                     (p->reach>0?p->reach:0);
-                yoff=-p->armR;
-            }else if(leg){
-                xoff=px<8?p->legL:p->legR;
-                yoff=-p->bob;
-            }else{
-                xoff=p->lean;
-                yoff=-(p->bob);
-            }
-            int blink=(p->blink&&(kind=='e'||kind=='i'));
-            if(blink)kind='s';
-            // Batch contiguous body pixels with the same palette
-            // entry and movement transform; never allocate a cel.
-            int end=px+1;
-            while(end<16){
-                int k=row[end],xo=0,yo=0;
-                if(k=='.')break;
-                int h=py<=8,l=py>=10&&py<=15&&end<=3;
-                int r=py>=10&&py<=15&&end>=12;
-                int legs=py>=17&&py<=23;
-                if(h){xo=p->head+(py<=4?p->gaze:0);
-                      yo=p->head<0?1:0;}
-                else if(l){xo=p->lean-(p->armL>1?1:0)+
-                               (p->reach<0?p->reach:0);yo=-p->armL;}
-                else if(r){xo=p->lean+(p->armR>1?1:0)+
-                               (p->reach>0?p->reach:0);yo=-p->armR;}
-                else if(legs){xo=end<8?p->legL:p->legR;yo=-p->bob;}
-                else {xo=p->lean;yo=-p->bob;}
-                if(p->blink&&(k=='e'||k=='i'))k='s';
-                if(k!=kind||xo!=xoff||yo!=yoff)break;
-                end++;
-            }
-            int r=42,g=46,b=51;
-            switch(kind){
-            case 'h':r=hair[0];g=hair[1];b=hair[2];break;
-            case 's':r=skin[0];g=skin[1];b=skin[2];break;
-            case 'e':r=237;g=232;b=210;break;
-            case 'i':r=44;g=47;b=52;break;
-            case 'c':r=coat[0];g=coat[1];b=coat[2];break;
-            case 'd':r=coat[0]*3/5;g=coat[1]*3/5;b=coat[2]*3/5;break;
-            case 'a':r=196;g=166;b=95;break;
-            case 'm':r=202;g=192;b=159;break;
-            case 'p':r=57;g=68;b=80;break;
-            default:break;
-            }
-            ggExpRect(out,x+(px-8+xoff)*s,
-                      feet-(24-py-yoff)*s,(end-px)*s,s,r,g,b);
-            px=end;
-        }
-    }
-    // A deliberate lip sync shape is placed on the chin of this
-    // character rather than drawing arbitrary text in its face.
-    if(p->mouth){
-        int mx=x+p->head*s, my=feet-17*s;
-        ggExpRect(out,mx-s,my,p->mouth==2?3*s:2*s,
-                  p->mouth==2?2*s:s,113,65,68);
-    }
-    if(p->holdProp){
-        int handX=x+(7+p->lean)*s;
-        int handY=feet-(15+p->armR)*s;
-        ggFilmDrawHeldObject(out,handX,handY,s,p->holdProp,skin);
-    }
+    ggFilmArtFigure(out,x,feet,scale,hair,skin,coat,p,6);
+}
+static inline void ggFilmDrawGuestActor(u8*out,int x,int feet,int scale,
+                                        const u8*hair,const u8*skin,
+                                        const u8*coat,const GgFilmPose *p,
+                                        int identity){
+    ggFilmArtFigure(out,x,feet,scale,hair,skin,coat,p,identity);
 }
 #endif
