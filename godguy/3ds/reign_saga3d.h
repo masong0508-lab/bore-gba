@@ -555,6 +555,19 @@ static void ggSagaCamera(int beat,int local,int *anchorX,int *anchorY){
                               pValid,mValid);
                 score-=ggFilmFrameHeightPenalty(stageHeight,
                                  ggExpGround(world[gy][gx]));
+                // Terrain LOS protects the center, but a near building
+                // can still slice across the left/right third of frame.
+                // Scan only a 7x7 NEIGHBORHOOD of existing bld[][] tiles
+                // when authoring a shot (24 candidates maximum).
+                for(int oy=-3;oy<=3;oy++)for(int ox=-3;ox<=3;ox++){
+                    int nx=gx+ox,ny=gy+oy;
+                    if((unsigned)nx>=WW||(unsigned)ny>=WH||
+                       !bld[ny][nx])continue;
+                    int rx=nx*256+128-cx,ry=ny*256+128-cy;
+                    int z=(rx*fx+ry*fy)/4096;
+                    int side=(-rx*fy+ry*fx)/4096;
+                    score-=ggFilmFrameObstructionPenalty(z,side,1);
+                }
                 // Keep some shot variety when compositions tie, without
                 // allowing a whim of shot index to hide the speakers.
                 score-=turn;
