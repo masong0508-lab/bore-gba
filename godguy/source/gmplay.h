@@ -104,7 +104,9 @@ static void gmSeek(int row){
 static void gmStop(void){ for(int v=0;v<GMV;v++) gb_vstop(v); gmCur=-1; }
 static void gmPlay(int s){
     gmTables(); if(s==gmCur) return; if(gmCur>=0) gmStop(); if(s<0||s>=GM_SONGS) return;
-    gmInT=0; gmCur=s; { int o=0; for(int v=0;v<11;v++){ gmStr[v]=gmBuf+o; ggUnpack(gmSongs[s].v[v],gmBuf+o,gmSongs[s].n[v]); o+=gmSongs[s].n[v]; } } gmAcc=0; gmSlotA=gmSlotB=0; gmSeek(0); gmRow=0; ldRate=gmHz64[60]; ldVol=0; ldPan=64;
+    gmInT=0; gmCur=s;
+    gmLyrT=0;gmLyrEnd[0]=gmLyrEnd[1]=0;gmLyrSlot=2;
+    { int o=0; for(int v=0;v<11;v++){ gmStr[v]=gmBuf+o; ggUnpack(gmSongs[s].v[v],gmBuf+o,gmSongs[s].n[v]); o+=gmSongs[s].n[v]; } } gmAcc=0; gmSlotA=gmSlotB=0; gmSeek(0); gmRow=0; ldRate=gmHz64[60]; ldVol=0; ldPan=64;
     for(int v=0;v<GMV;v++){
         int wave=gmSongs[s].inst[v<9?v:0];
 #ifdef __3DS__
@@ -123,7 +125,10 @@ static int gmFadeMul(void){ const GmSong*S=&gmSongs[gmCur]; int fs=gmFadeStart(S
     if(gmInT>0){ int a=256-256*gmInT/gmInN; m=m*(a*a>>8)>>8; }
     return m; }
 static int gmNoClyr;      // (a test switch: CORPORATIONS' own voice is left out)
-static int gmLyrSlot=2, gmLyrDuck=45, gmEchoSide;      // the cymbal channel the lyric sounds on; how far the melody voices step back for it (percent); which side the next echo copy goes to
+static int gmLyrSlot=2, gmLyrDuck=45, gmEchoSide;
+// Protect both long-running vocal channels individually: the foreground
+// lyric cannot be truncated by a hi-hat, decorative chop or echo.
+static int gmLyrEnd[2];      // the cymbal channel the lyric sounds on; how far the melody voices step back for it (percent); which side the next echo copy goes to
 static void gmDrum(int part,int id){
     int soft=(id>>7)&1; id&=127; if(!id) return; int vol, pan, idx, slot; if(gmCur==GM_WAR&&part==1&&gmCrowdS<120) return; int wm=gmCur==GM_WAR?(gmCrowdS>300?78:100):100;      // (a small fight keeps to the war drums alone: the cymbals and chops join as the crowd grows)
     int lyr=0, echo=0;
@@ -131,11 +136,34 @@ static void gmDrum(int part,int id){
     else if(id>=GM_VOX0){ idx=id-GM_VOX0; if(idx>=GM_VOX_N||!gmVoxLen[idx]) return; gmAlt[10]^=1; vol=gmVoxVol[idx]; pan=gmVoxPan[idx]; part=2;      // a vocal chop: it takes a cymbal channel for as long as it sounds
         if(idx>=GM_VOX_LYR0&&idx<GM_VOX_LYR0+GM_VOX_LYRN){ lyr=1; if(soft){ echo=1; soft=0; vol=vol*62/100; pan=(gmEchoSide^=1)?100:28; } }     // (a Duck & Cover lyric with the soft bit is its stereo echo copy: quieter, far to one side)
         else if(idx>=GM_VOX_CLYR0&&idx<GM_VOX_CLYR0+GM_VOX_CLYRN) lyr=2;
-        if(lyr&&!echo){ int f=gmVoxLen[idx]*60/gmVoxRate[idx]; if(f>gmLyrT){ gmLyrT=f; gmLyrDuck=lyr==1?52:30; } }
-        slot=2+(gmSlotB^=1); if(lyr&&!echo) gmLyrSlot=slot; else if(!lyr&&gmLyrT>0&&slot==gmLyrSlot) slot=5-slot; }
+        if(lyr==2&&gmNoClyr)return;
+        slot=2+(gmSlotB^=1);
+        if(lyr&&!echo){
+            int alt=5-slot;
+            // Prefer the free channel. If both are occupied by live
+            // lyrics, replace whichever will end sooner.
+            if(gmLyrEnd[slot-2]>gmTick &&
+               (gmLyrEnd[alt-2]<=gmTick ||
+                gmLyrEnd[alt-2]<gmLyrEnd[slot-2]))slot=alt;
+            int f=(int)((unsigned)gmVoxLen[idx]*60u/
+                        (gmVoxRate[idx]?gmVoxRate[idx]:1))+2;
+            gmLyrEnd[slot-2]=gmTick+f;
+            gmLyrSlot=slot;
+            if(f>gmLyrT){gmLyrT=f;gmLyrDuck=lyr==1?52:30;}
+        }else{
+            // Echoes and incidental chops must not erase active singing.
+            // Under two concurrent lyrics, dropping an echo is better
+            // than losing a word of foreground dialogue.
+            if(gmLyrEnd[slot-2]>gmTick)slot=5-slot;
+            if(gmLyrEnd[slot-2]>gmTick)return;
+        }
+    }
     else { static const u8 dv[9]={0,72,72,84,72,56,52,112,127}; if(id>8) return; idx=id-1; vol=dv[id]; gmAlt[10]^=1;      // (hats, open hats, crash, ride, shaker, soft hats: lifted a little, the top octaves were only 1% of the sound)
-        pan=id>=7?64:id==3?34:id==4?100:id==2?92:(gmAlt[10]?46:82); slot=2+(gmSlotB^=1); if(gmLyrT>0&&slot==gmLyrSlot) slot=5-slot; }      // (a hat or a crash never takes the channel a lyric is sounding on)
-    if(lyr==2&&gmNoClyr) return;
+        pan=id>=7?64:id==3?34:id==4?100:id==2?92:(gmAlt[10]?46:82);
+        slot=2+(gmSlotB^=1);
+        if(gmLyrEnd[slot-2]>gmTick)slot=5-slot;
+        if(gmLyrEnd[slot-2]>gmTick)return;
+    } // A hi-hat never steals the channel of a still-playing lyric.
     if(soft) vol=vol*48/100;
     if(part==2&&!lyr){
         // Older tracker arrangements can still call the original 24
