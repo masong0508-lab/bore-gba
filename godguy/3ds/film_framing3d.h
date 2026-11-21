@@ -40,7 +40,10 @@ static int ggFilmFrameScore(int cameraX,int cameraY,int cosA,int sinA,
     // Nearby grounded actors read more clearly than tiny distant figures;
     // retain some horizon in the frame rather than forcing zero distance.
     int distance=hDepth-576;if(distance<0)distance=-distance;
-    score-=distance/44;
+    // With the corrected 250px focal length a distant 4-tile shot
+    // can otherwise outscore a legible 3-tile two-shot. Prefer actors
+    // that occupy the frame without cropping or exaggerating perspective.
+    score-=distance/6;
     if(plusValid||minusValid){
         int gx=plusValid?plusX:minusX,gy=plusValid?plusY:minusY;
         if(!ggFilmFrameProject(cameraX,cameraY,cosA,sinA,
