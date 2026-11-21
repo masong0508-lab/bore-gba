@@ -820,38 +820,80 @@ static void ggExpRenderMode(u8 *top,int cinematic){
     if(cinematic)return; // no first-person crosshair, build HUD or 2x
                         // creature cels pasted over filmed cast
     ggExpRenderCreatures(top);
-    // Crosshair fixed at camera centre. Changes always affect a cell a
-    // few tiles ahead, never an invisible object behind the player's feet.
-    ggExpRect(top,192,119,16,2,12,21,30);
-    ggExpRect(top,199,112,2,16,12,21,30);
-    ggExpRect(top,195,119,10,1,247,240,206);
-    ggExpRect(top,200,115,1,10,247,240,206);
+    // Smaller brass-bracketed aim marker; it communicates the true
+    // editable world target without a huge retro-computer cross.
+    ggExpRect(top,195,115,4,1,34,41,47);
+    ggExpRect(top,201,115,4,1,34,41,47);
+    ggExpRect(top,195,123,4,1,34,41,47);
+    ggExpRect(top,201,123,4,1,34,41,47);
+    ggExpRect(top,196,116,3,1,240,216,164);
+    ggExpRect(top,201,116,3,1,240,216,164);
+    ggExpRect(top,196,122,3,1,240,216,164);
+    ggExpRect(top,201,122,3,1,240,216,164);
+    ggExpRect(top,199,118,2,3,233,213,161);
+    // One coherent, readable scene UI shared with the film captions:
+    // warm brass keylines, cool slate panels and short grouped controls.
+    ggExpFilmDrawDepth=0;
+    ggExpRect(top,0,0,400,28,13,24,35);
+    ggExpRect(top,0,26,400,2,174,137,85);
+    ggExpRect(top,0,0,3,28,192,148,93);
+    ggExpText(top,9,5,ggExplore.actorId?"CITIZEN'S EYES":
+                                       "GODGUY  /  EXPLORING",
+              242,220,164);
     char buf[96];
-    ggExpRect(top,0,0,400,22,13,25,40);
-    if(ggExplore.actorId){
-        snprintf(buf,sizeof buf,"POV %-18.18s  %d,%d",
-                 ggExplore.actorName,ggExplore.px>>8,ggExplore.py>>8);
-    }else{
-        snprintf(buf,sizeof buf,"GODGUY FREE WALK   %d,%d  %s",
-                 ggExplore.px>>8,ggExplore.py>>8,
-                 ggExpMaterialNames[ggExplore.material]);
-    }
-    ggExpText(top,10,7,buf,243,225,163);
-    ggExpRect(top,0,202,400,38,12,22,34);
-    ggExpText(top,9,207,ggExplore.actorId?
-              "PAD WALK  L/R LOOK  B RUN  X MATERIAL  A BUILD  Y CLEAR":
-              "PAD MOVE  L/R TURN  B RUN  X BLOCK  A PLACE  Y CLEAR",
-              221,228,221);
-    ggExpText(top,9,221,ggExplore.actorId?
-              "TAP MAP: CHANGE MIND  SELECT SAVE  START: 2D":
-              "TAP MAP WARP   SELECT SAVE   START EXIT",180,202,222);
+    snprintf(buf,sizeof buf,"X:%d  Y:%d",
+             ggExplore.px>>8,ggExplore.py>>8);
+    ggExpText(top,293,5,buf,220,225,221);
+    int localTerrain=world[ggExplore.py>>8][ggExplore.px>>8];
+    const char *region=localTerrain==T_FOREST?"WOODLAND":
+                 localTerrain==T_JUNGLE?"JUNGLE":
+                 localTerrain==T_HILL?"HIGHLANDS":
+                 localTerrain==T_MOUNT?"MOUNTAINS":
+                 localTerrain==T_SNOW?"SNOWFIELD":
+                 localTerrain==T_SAND||localTerrain==T_DESERT?"DRYLANDS":
+                 localTerrain==T_SWAMP?"MARSHLAND":
+                 localTerrain<=T_WATER?"COAST":
+                 localTerrain==T_DIRT?"ROADLAND":"GREEN COUNTRY";
+    snprintf(buf,sizeof buf,"REGION: %s",region);
+    ggExpText(top,9,17,buf,181,203,204);
+    if(ggExplore.actorId)
+        snprintf(buf,sizeof buf,"YOU ARE: %.18s",ggExplore.actorName);
+    else snprintf(buf,sizeof buf,"BUILD: %s",
+                  ggExpMaterialNames[ggExplore.material]);
+    ggExpText(top,223,17,buf,225,204,153);
+    ggExpRect(top,376,15,15,9,
+              ggExpClamp(terrCol[ggExpMaterials[ggExplore.material]][0]*8,0,255),
+              ggExpClamp(terrCol[ggExpMaterials[ggExplore.material]][1]*8,0,255),
+              ggExpClamp(terrCol[ggExpMaterials[ggExplore.material]][2]*8,0,255));
+    ggExpRect(top,0,196,400,44,12,22,33);
+    ggExpRect(top,0,195,400,1,178,143,91);
+    ggExpRect(top,0,239,400,1,178,143,91);
+    // Controls are grouped by actual action rather than one long
+    // unexplained NES-style string of letters.
+    ggExpRect(top,8,202,92,14,29,42,53);
+    ggExpRect(top,105,202,92,14,29,42,53);
+    ggExpRect(top,202,202,92,14,29,42,53);
+    ggExpRect(top,299,202,92,14,29,42,53);
+    ggExpText(top,14,206,ggExplore.actorId?"A  INTERACT":"A  PLACE",
+              239,218,163);
+    ggExpText(top,111,206,"Y  CLEAR",239,218,163);
+    ggExpText(top,208,206,"X  MATERIAL",239,218,163);
+    ggExpText(top,305,206,"B  SPRINT",239,218,163);
+    ggExpText(top,9,225,"MOVE PAD   LOOK L/R   TAP MAP TO WARP",
+              202,217,218);
+    ggExpText(top,250,225,"SELECT SAVE  START EXIT",171,197,206);
     if(ggExplore.feedbackT){
-        const char *msg=ggExplore.feedback==2?"WORLD TILE CHANGED":
-                        ggExplore.feedback==3?"PROTECTED OR OUT OF REACH":
+        const char *msg=ggExplore.feedback==2?"TERRAIN CHANGED":
+                        ggExplore.feedback==3?"BLOCKED: PROTECTED/TOO FAR":
                         ggExplore.feedback==4?"WORLD SAVED":
-                        ggExplore.feedback==5?"SAVE FAILED - CHECK 2D NOTICE":
-                        "MATERIAL SELECTED";
-        ggExpText(top,9,191,msg,255,216,117);
+                        ggExplore.feedback==5?"SAVE FAILED: RETURN TO MAP":
+                        "BUILDING MATERIAL SELECTED";
+        int warning=ggExplore.feedback==3||ggExplore.feedback==5;
+        ggExpRect(top,8,179,330,13,warning?69:44,
+                  warning?39:62,warning?38:58);
+        ggExpRect(top,8,179,3,13,warning?219:169,
+                  warning?115:185,warning?103:139);
+        ggExpText(top,16,182,msg,250,224,174);
     }
 }
 static void ggExpRender(u8 *top){
