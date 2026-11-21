@@ -4,6 +4,8 @@
 #ifndef GG_FILM_ACTING3D_H
 #define GG_FILM_ACTING3D_H
 #include "film_life3d.h"
+#include "film_walk3d.h"
+#include "film_anatomy3d.h"
 enum { GG_FILM_LISTEN,GG_FILM_SPEAK,GG_FILM_POINT,GG_FILM_PRESENT,
        GG_FILM_REFLECT,GG_FILM_REASSURE,GG_FILM_WALK };
 typedef struct {
@@ -11,6 +13,19 @@ typedef struct {
     signed char gaze,blink,mouth,holdProp,reach,clothSway,turn;
     signed char breath,weightShift,brow;
 } GgFilmPose;
+// Drive the gait from actual Q8 world travel, not a second timer.
+// Exactly two symmetric footfalls over the eased one-tile walk; the
+// character starts and finishes with both boots planted. Replaying,
+// pausing, and seeking to a dialogue beat produces the same pose.
+// In particular a blocked approach cannot create a continuously
+// bouncing figure while its world position has already settled.
+static int ggFilmWalkLegAt(int beat,int local,int beatTicks){
+    int distance=ggFilmWalkProgress(beat,local,beatTicks);
+    if(distance<=0||distance>=256)return 0;
+    int phase=(distance*2)&255;
+    int triangle=phase<64?phase:phase<192?128-phase:phase-256;
+    return triangle/32;
+}
 // One 6x3x3 palette, shared by all guest film cels. These identities
 // are stable across chapters, alternate endings and nonlinear films.
 static const u8 ggFilmGuestPalette[6][3][3]={
@@ -63,13 +78,18 @@ static GgFilmPose ggFilmPoseFor(const char*line,int beat,int local,
     // Acting has anticipation, held emphasis, reaction and recovery;
     // no per-frame RNG or universal continuous bobbing.
     if(p.pose==GG_FILM_WALK){
-        int phase=(t/6)&3;
-        p.legL=(signed char)((phase==0?-2:phase==2?2:0));
-        p.legR=(signed char)-p.legL;
-        p.armL=(signed char)(phase==0?1:phase==2?0:1);
-        p.armR=(signed char)(phase==2?1:phase==0?0:1);
-        p.bob=(signed char)((phase==1||phase==3)?1:0);
-        p.lean=1;
+        // Footfalls are keyed to the very same ease curve moving the
+        // actor through the real world, so a dolly cannot make them
+        // moonwalk or stop mid-stride. Opposite arm swings come from
+        // the active leg; no whole-body vertical hover while walking.
+        int step=ggFilmWalkLegAt(beat,t,GG_SAGA_BEAT_TICKS);
+        p.legL=(signed char)step;
+        p.legR=(signed char)-step;
+        p.armL=(signed char)(step<0);
+        p.armR=(signed char)(step>0);
+        p.clothSway=(signed char)(step<0?-1:step>0?1:0);
+        p.bob=0;
+        p.lean=(signed char)(step!=0);
     }else if(speaking){
         if(p.pose==GG_FILM_POINT){
             p.armR=(signed char)(strength*4/256);
@@ -266,17 +286,26 @@ static void ggFilmArtStroke(u8*out,int x0,int y0,int x1,int y1,int thick,
 // Depth-ordered articulated sleeve. A turned character's distant arm
 // belongs BEHIND the torso, while the near arm stays in front. The old
 // renderer stamped both rectangular arms across the coat like stickers.
+// Idle wrists fall alongside the coat; only a directed gesture or
+// handover moves the hand away from the shoulder. This fixes the old
+// unnatural permanent T-pose without changing prop/contact ownership.
+static inline int ggFilmArtWristSpread(int shoulderHalf,int lift,int reach){
+    return lift>0||reach>0?8+reach:shoulderHalf+1;
+}
 static void ggFilmArtArm(u8*out,int bodyX,int centerY,int s,int dir,
                           const GgFilmPose*p,const u8*coat,
-                          const u8*skin,int far){
+                          const u8*skin,int far,int shoulderHalf){
     int lift=dir>0?p->armR:p->armL;
     int extra=(p->reach*dir>0)?(p->reach*dir):0;
-    int shoulderX=bodyX+dir*6*s;
+    int shoulderX=bodyX+dir*shoulderHalf*s;
     int shoulderY=centerY-17*s;
-    int elbowX=shoulderX+dir*(1+extra/2)*s;
+    // Gesture arcs originate at the shoulder; the elbow articulates
+    // rather than the entire sleeve translating as a rigid rectangle.
+    int elbowX=shoulderX+dir*(1+extra/2+lift/2)*s;
     int elbowY=centerY-(14+lift/2)*s;
-    int wristX=bodyX+dir*(8+extra)*s;
-    int wristY=centerY-(13+lift)*s;
+    int wristX=bodyX+dir*
+                ggFilmArtWristSpread(shoulderHalf,lift,extra)*s;
+    int wristY=centerY-(lift>0?13+lift:10)*s;
     int dim=far?127:206;
     int r=ggFilmArtShade(coat[0],dim),
         g=ggFilmArtShade(coat[1],dim),
@@ -288,6 +317,11 @@ static void ggFilmArtArm(u8*out,int bodyX,int centerY,int s,int dir,
     ggFilmArtStroke(out,elbowX,elbowY,wristX,wristY,
                     2*s,ggFilmArtShade(r,189),
                     ggFilmArtShade(g,189),ggFilmArtShade(b,189));
+    ggFilmArtRounded(out,elbowX-s,elbowY-s,
+                     2*s,2*s,s,
+                     ggFilmArtShade(coat[0],far?105:172),
+                     ggFilmArtShade(coat[1],far?105:172),
+                     ggFilmArtShade(coat[2],far?105:172));
     ggFilmArtRounded(out,wristX-s,wristY-s,3*s,3*s,s,
                      ggFilmArtShade(skin[0],far?139:196),
                      ggFilmArtShade(skin[1],far?139:196),
@@ -296,6 +330,102 @@ static void ggFilmArtArm(u8*out,int bodyX,int centerY,int s,int dir,
               ggFilmArtShade(skin[0],far?169:276),
               ggFilmArtShade(skin[1],far?169:276),
               ggFilmArtShade(skin[2],far?169:276));
+}
+// In SDK-free actor unit tests there is no world occlusion context.
+#ifndef GG_FILM_SHADOW_MASKED
+#define GG_FILM_SHADOW_MASKED(x,y) 0
+#endif
+// Feather the actual already-rendered terrain beneath each pair of boots.
+// A flat black oval used to look pasted over grass, snow and masonry.
+// Blend directly into the existing RGB film buffer; no additional image,
+// alpha buffer, allocations or world sampling. At 3x it touches at most
+// 72x6 pixels per actor, and never writes below the projected foot row.
+static void ggFilmArtContactShadow(u8*out,int x,int feet,int scale){
+    int s=ggExpClamp(scale,1,3);
+    int rx=12*s,ry=s;
+    int area=rx*rx*ry*ry;
+    int x0=ggExpClamp(x-rx,0,400),x1=ggExpClamp(x+rx,0,400);
+    int y0=ggExpClamp(feet-2*ry,0,240),y1=ggExpClamp(feet,0,240);
+    for(int py=y0;py<y1;py++){
+        int dy=py-(feet-ry),v=dy*dy*rx*rx;
+        for(int px=x0;px<x1;px++){
+            int dx=px-x;
+            int inside=area-v-dx*dx*ry*ry;
+            if(inside<=0||GG_FILM_SHADOW_MASKED(px,py))continue;
+            int shade=90*inside/area;
+            u8 *p=out+(py*400+px)*3;
+            p[0]=(u8)(p[0]*(256-shade)/256);
+            p[1]=(u8)(p[1]*(256-shade)/256);
+            p[2]=(u8)(p[2]*(256-shade)/256);
+        }
+    }
+}
+// Identity-specific layered hairstyles and contours. In contrast to
+// changing only hair color, these remain recognizable as near silhouettes
+// under the same film lighting and at left/right three-quarter turns.
+// All pieces sit on the already-built head/neck, with no raster cache.
+static void ggFilmArtHairShape(u8*out,int x,int centerY,int s,
+                                const u8*hair,int style,int turn){
+    int y=centerY-31*s;
+    int darkR=ggFilmArtShade(hair[0],160),
+        darkG=ggFilmArtShade(hair[1],160),
+        darkB=ggFilmArtShade(hair[2],160);
+    int brightR=ggFilmArtShade(hair[0],294),
+        brightG=ggFilmArtShade(hair[1],294),
+        brightB=ggFilmArtShade(hair[2],294);
+    int forward=turn>0?1:turn<0?-1:0;
+    if(style==0){
+        // Mira: long, soft sweep, two broken fringe strands and
+        // an illuminated bronze clasp above the existing rear braid.
+        ggFilmArtRounded(out,x-5*s,y+2*s,8*s,3*s,s,
+                         hair[0],hair[1],hair[2]);
+        ggExpRect(out,x-4*s,y+4*s,s,3*s,darkR,darkG,darkB);
+        ggExpRect(out,x+2*s,y+4*s,s,2*s,darkR,darkG,darkB);
+        ggExpRect(out,x-2*s,y+2*s,3*s,s,brightR,brightG,brightB);
+        ggExpRect(out,x-6*s,y+6*s,s,2*s,190,155,91);
+    }else if(style==1){
+        // Thorgrim: flat military crop, solid temples, wide sideburns.
+        ggExpRect(out,x-5*s,y+s,10*s,3*s,darkR,darkG,darkB);
+        ggExpRect(out,x-5*s,y+4*s,2*s,5*s,darkR,darkG,darkB);
+        ggExpRect(out,x+3*s,y+4*s,2*s,5*s,darkR,darkG,darkB);
+        ggExpRect(out,x-3*s,y+s,6*s,s,brightR,brightG,brightB);
+    }else if(style==2){
+        // Varro: combed angular side part, solid crown and temple.
+        ggExpRect(out,x-5*s,y+2*s,10*s,3*s,
+                  darkR,darkG,darkB);
+        ggExpRect(out,x-2*s,y,6*s,2*s,
+                  hair[0],hair[1],hair[2]);
+        ggExpRect(out,x-2*s+forward*s,y+s,4*s,s,
+                  brightR,brightG,brightB);
+        ggExpRect(out,x+4*s,y+4*s,s,4*s,
+                  darkR,darkG,darkB);
+    }else if(style==3){
+        // Serin: high swept hairline, silver temple, longer side curl.
+        ggFilmArtRounded(out,x-4*s,y,8*s,4*s,s,
+                         hair[0],hair[1],hair[2]);
+        ggExpRect(out,x-4*s,y+4*s,s,7*s,darkR,darkG,darkB);
+        ggExpRect(out,x+3*s,y+4*s,s,5*s,darkR,darkG,darkB);
+        ggExpRect(out,x-4*s,y+4*s,s,5*s,156,150,139);
+        ggExpRect(out,x-s,y+s,2*s,s,brightR,brightG,brightB);
+    }else if(style==4){
+        // Elowen: a taller swept-up bun, gold hair ornament.
+        ggFilmArtRounded(out,x-3*s,y-2*s,6*s,4*s,s,
+                         hair[0],hair[1],hair[2]);
+        ggExpRect(out,x-5*s,y+3*s,2*s,6*s,darkR,darkG,darkB);
+        ggExpRect(out,x+4*s,y+3*s,s,6*s,darkR,darkG,darkB);
+        ggExpRect(out,x-2*s,y-s,4*s,s,202,170,109);
+    }else if(style==5){
+        // Worker's side-swept unkempt lock.
+        ggExpRect(out,x-5*s,y+2*s,3*s,5*s,darkR,darkG,darkB);
+        ggExpRect(out,x+2*s,y+2*s,3*s,3*s,darkR,darkG,darkB);
+        ggExpRect(out,x-3*s,y+s,5*s,s,brightR,brightG,brightB);
+    }else{
+        // Playable hero remains customizable; the source hair palette
+        // is unchanged and the silhouette is deliberately restrained.
+        ggExpRect(out,x-4*s,y+2*s,8*s,2*s,
+                  hair[0],hair[1],hair[2]);
+        ggExpRect(out,x-3*s,y+s,5*s,s,brightR,brightG,brightB);
+    }
 }
 static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
                              const u8*hair,const u8*skin,const u8*coat,
@@ -328,11 +458,10 @@ static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
         hairLightG=ggFilmArtShade(hair[1],292),
         hairLightB=ggFilmArtShade(hair[2],292);
     int style=identity<0?6:identity;
+    GgFilmAnatomy anatomy=ggFilmAnatomyFor(style);
     // Projected boots and feathered shadow share the SAME world foot.
     // No floating contact disk attached to the torso or camera horizon.
-    ggFilmArtOval(out,x-12*s,feet-2*s,24*s,2*s,37,43,42);
-    ggFilmArtOval(out,x-8*s,feet-s,16*s,s,26,32,32);
-    ggExpRect(out,x-4*s,feet-s,8*s,s,20,25,27);
+    ggFilmArtContactShadow(out,x,feet,s);
     // Calf, articulated knees and fitted boots. Both feet stay registered
     // to ground, even when dialogue adds head gestures and arm reach.
     for(int leg=0;leg<2;leg++){
@@ -344,30 +473,48 @@ static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
                         inkR,inkG,inkB);
         ggFilmArtStroke(out,bodyX+side*2*s,y,lx,feet-4*s,2*s,
                         shadeR,shadeG,shadeB);
-        ggFilmArtRounded(out,lx-3*s,feet-4*s,6*s,3*s,s,
+        // Proportional fitted boots rather than overlapping platform
+        // shoes almost as wide as the whole body.
+        ggFilmArtRounded(out,lx-2*s,feet-4*s,4*s,3*s,s,
                          43,43,49);
         ggExpRect(out,lx-2*s,feet-3*s,3*s,s,92,91,97);
+        // Separate calf edge, boot sole and forward toe instead of a
+        // single detached rectangle. Both remain above the ground row.
+        ggExpRect(out,lx-2*s,feet-s,4*s,1,52,54,57);
+        ggExpRect(out,lx+2*s,feet-2*s,s,s,70,70,75);
     }
     // A far sleeve is occluded by the torso; the near sleeve will be
     // painted later. Body narrows gradually as the speaker turns into a
     // three-quarter profile, rather than always facing the camera flat.
     int farDir=turn>0?-1:1;
     if(turnAbs)ggFilmArtArm(out,bodyX,centerY,s,farDir,p,
-                            coat,skin,1);
-    int outerW=(14-turnAbs)*s,innerW=(12-turnAbs)*s;
+                            coat,skin,1,anatomy.shoulderHalf);
+    // Real differentiated body volume: broad compact watchman versus
+    // Serin's narrow frame, independent of costume paint or eye color.
+    int outerW=ggFilmAnatomyWidth(anatomy.shoulder,turn,8)*s;
+    int innerW=ggFilmAnatomyWidth(anatomy.shoulder-2,turn,6)*s;
+    int hipW=ggFilmAnatomyWidth(anatomy.hip,turn/2,7)*s;
     ggFilmArtOval(out,bodyX-outerW/2,centerY-19*s,
                   outerW,12*s,inkR,inkG,inkB);
     ggFilmArtOval(out,bodyX-innerW/2,centerY-18*s,
                   innerW,10*s,jacketR,jacketG,jacketB);
-    ggExpRect(out,bodyX-5*s,centerY-17*s,3*s,8*s,
+    ggFilmArtRounded(out,bodyX-hipW/2,centerY-11*s,
+                     hipW,5*s,s,jacketR,jacketG,jacketB);
+    ggExpRect(out,bodyX-innerW/2+s,centerY-17*s,2*s,8*s,
               lightR,lightG,lightB);
-    ggExpRect(out,bodyX+3*s,centerY-17*s,2*s,8*s,
+    ggExpRect(out,bodyX+innerW/2-3*s,centerY-17*s,2*s,8*s,
               shadeR,shadeG,shadeB);
+    // Cloth shadow follows the turned torso volume. Hem pleats bend
+    // with world-travel-driven sway but stay stitched to the coat.
+    ggExpRect(out,bodyX-hipW/3+p->clothSway*s,
+              centerY-10*s,s,3*s,shadeR,shadeG,shadeB);
+    ggExpRect(out,bodyX+hipW/4+p->clothSway*s,
+              centerY-10*s,s,3*s,lightR,lightG,lightB);
     // Shaped hem, vertical tailoring and a raised collar.
     // Asymmetric wind-shifted coat hem introduces motion without moving
     // either foot. The fabric sways independently of grounded legs.
-    ggFilmArtRounded(out,bodyX-6*s+p->clothSway*s,
-                     centerY-10*s,12*s,3*s,s,
+    ggFilmArtRounded(out,bodyX-hipW/2+p->clothSway*s,
+                     centerY-10*s,hipW,3*s,s,
                      jacketR,jacketG,jacketB);
     ggExpRect(out,bodyX,centerY-16*s,s,8*s,44,43,48);
     ggExpRect(out,bodyX-5*s,centerY-12*s,10*s,s,75,63,63);
@@ -378,7 +525,7 @@ static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
     for(int arm=0;arm<2;arm++){
         int dir=arm?1:-1;
         if(turnAbs&&dir==farDir)continue;
-        ggFilmArtArm(out,bodyX,centerY,s,dir,p,coat,skin,0);
+        ggFilmArtArm(out,bodyX,centerY,s,dir,p,coat,skin,0,anatomy.shoulderHalf);
     }
     // Hair that hangs behind the face is a BACK layer. The old
     // costume pass drew Mira's braid over her eye in left profiles.
@@ -390,16 +537,29 @@ static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
         ggExpRect(out,braidX,centerY-19*s,2*s,s,205,167,102);
     }
     // Neck, cheeks and tapered jaw (6 bands create an organic silhouette).
-    int skullW=(10-turnAbs/2)*s;
-    int faceW=(8-turnAbs/2)*s;
+    int skullW=ggFilmAnatomyWidth(anatomy.skull,turnAbs/2,7)*s;
+    int faceW=ggFilmAnatomyWidth(anatomy.cheek,turnAbs/2,6)*s;
+    int jawW=ggFilmAnatomyWidth(anatomy.jaw,turnAbs/2,4)*s;
+    // A slightly shorter adult skull and distinct chin, while retaining
+    // the original ~32-unit eye-to-boot framing/screen safety contract.
     ggFilmArtOval(out,headX-skullW/2,centerY-30*s,
-                  skullW,12*s,39,39,46);
+                  skullW,10*s,39,39,46);
+    ggFilmArtRounded(out,headX-jawW/2,centerY-23*s,
+                     jawW,4*s,s,faceShadeR,faceShadeG,faceShadeB);
     ggFilmArtOval(out,headX-faceW/2,centerY-29*s,
-                  faceW,10*s,faceShadeR,faceShadeG,faceShadeB);
+                  faceW,anatomy.faceHeight*s,faceShadeR,faceShadeG,faceShadeB);
     ggFilmArtOval(out,headX-faceW/2+s,centerY-28*s,
-                  faceW-2*s,8*s,faceR,faceG,faceB);
-    ggExpRect(out,headX-3*s,centerY-23*s,2*s,3*s,
+                  faceW-2*s,(anatomy.faceHeight-1)*s,faceR,faceG,faceB);
+    ggExpRect(out,headX-jawW/2+s,centerY-22*s,2*s,2*s,
               faceShadeR,faceShadeG,faceShadeB);
+    if(turnAbs>=2){
+        // A separate shaded ear reinforces a real directional profile.
+        int earX=turn>0?headX-faceW/2:headX+faceW/2-s;
+        ggExpRect(out,earX,centerY-25*s,2*s,2*s,
+                  faceShadeR,faceShadeG,faceShadeB);
+        ggExpRect(out,earX+s/2,centerY-25*s,s,1,
+                  faceR,faceG,faceB);
+    }
     // Hair has a crown, swept fringe, temporal shading and a highlight;
     // head/gaze offset is independent from torso animation.
     ggFilmArtOval(out,headX-5*s,centerY-31*s,10*s,5*s,
@@ -412,6 +572,7 @@ static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
               ggFilmArtShade(hair[2],174));
     ggExpRect(out,headX-3*s,centerY-30*s,4*s,s,
               hairLightR,hairLightG,hairLightB);
+    ggFilmArtHairShape(out,headX,centerY,s,hair,style,turn);
     // Expressive brows, sclera, irises, nose, lips and a jaw highlight:
     // face features are NOT enlarged 5x7 grid letters or block eyes.
     int gaze=ggExpClamp(p->gaze,-1,1)*s;
@@ -420,7 +581,7 @@ static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
         // Far eye rolls naturally behind the profile silhouette.
         if(turn>=3&&!eye)continue;
         if(turn<=-3&&eye)continue;
-        int ex=headX+(eye?2:-3)*s+gaze;
+        int ex=headX+(eye?anatomy.eyeGap:-anatomy.eyeGap-1)*s+gaze;
         int ew=s>1?s:2,iris=s>1?s-1:1;
         ggExpRect(out,ex,eyesY-s-p->brow,ew+1,1,
                   ggFilmArtShade(hair[0],115),
@@ -435,14 +596,42 @@ static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
         }else ggExpRect(out,ex,eyesY,ew,1,
                         faceShadeR,faceShadeG,faceShadeB);
     }
-    ggExpRect(out,headX+(turn>=2?2*s:turn<=-2?-2*s:0),
-              centerY-23*s,s,2*s,faceShadeR,faceShadeG,faceShadeB);
+    // The bridge really projects in profile. Eye occlusion above
+    // removes the far eye; no mirrored front mask pasted on sideways.
+    int protrude=ggExpClamp((anatomy.nose+1)*s/2,s/2,3*s);
+    int noseX=turn>=2?headX+faceW/2-s/2:
+              turn<=-2?headX-faceW/2-protrude:headX;
+    int noseWidth=turnAbs>=2?protrude+s/2:s;
+    ggExpRect(out,noseX,centerY-24*s,noseWidth,2*s,
+              faceShadeR,faceShadeG,faceShadeB);
     if(turnAbs>=2)
-        ggExpRect(out,headX+(turn>0?4*s:-5*s),
-                  centerY-22*s,2*s,s,faceR,faceG,faceB);
-    if(p->mouth)ggExpRect(out,headX-s,centerY-21*s,
-                         p->mouth==2?3*s:2*s,s,119,59,65);
-    else ggExpRect(out,headX-s,centerY-21*s,2*s,1,122,84,76);
+        ggExpRect(out,noseX+(turn>0?s/2:0),centerY-23*s,
+                  protrude,s,faceR,faceG,faceB);
+    if(style==1){
+        // Thorgrim's square beard changes his chin silhouette.
+        ggFilmArtRounded(out,headX-jawW/2,centerY-21*s,
+                         jawW,2*s,s,ggFilmArtShade(hair[0],155),
+                         ggFilmArtShade(hair[1],155),
+                         ggFilmArtShade(hair[2],155));
+    }else if(style==3){
+        // Serin's silver temple remains visible from three quarters.
+        ggExpRect(out,headX-4*s,centerY-29*s,s,5*s,153,148,142);
+    }else if(style==2){
+        ggExpRect(out,headX-2*s,centerY-27*s,s,3*s,153,104,100);
+    }
+    // Mouth direction and emotional shape are composed under the nose.
+    // Keep genuine silent frames and prevent the wide open-mouth
+    // rectangle from protruding through a turned cheek.
+    int lipsX=headX-s+
+              (turn>=2?faceW/4:turn<=-2?-faceW/4:0);
+    int lipWidth=p->mouth==2?2*s:p->mouth?s+1:2*s;
+    ggExpRect(out,lipsX,centerY-21*s,lipWidth,p->mouth?s:1,
+              p->mouth?104:122,p->mouth?54:84,p->mouth?63:76);
+    if(p->mouth==2&&s>1)
+        ggExpRect(out,lipsX,centerY-21*s,lipWidth,1,
+                  202,155,135);
+    if(p->pose==GG_FILM_REASSURE&&!p->mouth)
+        ggExpRect(out,lipsX+s,centerY-21*s,1,1,153,96,85);
     // Character-exclusive costume accents and hair shapes; the same
     // distinct person remains recognizable across stories/ending routes.
     if(style==0){ // Mira: warm shawl; braid behind eyes and cheeks

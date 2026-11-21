@@ -25,6 +25,7 @@ static void ggExpRect(u8*out,int x,int y,int w,int h,int r,int g,int b){
 }
 #include "3ds/film_acting3d.h"
 static u8 front[400*240*3],side[400*240*3];
+static u8 tintedGround[400*240*3];
 static void check(int okay,const char*why){
     if(!okay){fprintf(stderr,"3DS VISUAL FAIL: %s\n",why);exit(1);}
 }
@@ -40,6 +41,33 @@ int main(void){
     const u8 *hair=ggFilmGuestPalette[0][0],
              *skin=ggFilmGuestPalette[0][1],
              *coat=ggFilmGuestPalette[0][2];
+    // The contact shadow should tint *existing* grass, snow or stone,
+    // not paste a flat black capsule. Ensure color ratios survive and the
+    // alpha falloff stops precisely at the projected foot row.
+    for(int pixel=0;pixel<400*240;pixel++){
+        tintedGround[pixel*3]=205;
+        tintedGround[pixel*3+1]=220;
+        tintedGround[pixel*3+2]=235;
+    }
+    ggFilmArtContactShadow(tintedGround,200,150,2);
+    int shaded=(148*400+200)*3;
+    int outer=(148*400+170)*3;
+    int below=(150*400+200)*3;
+    check(tintedGround[shaded]<205&&
+          tintedGround[shaded+1]<220&&
+          tintedGround[shaded+2]<235,
+          "the contact shadow does not actually blend with the terrain");
+    check(tintedGround[shaded]<tintedGround[shaded+1]&&
+          tintedGround[shaded+1]<tintedGround[shaded+2],
+          "shadow destroyed world material hue by painting a black oval");
+    check(tintedGround[outer]==205&&tintedGround[outer+1]==220&&
+          tintedGround[below]==205&&tintedGround[below+2]==235,
+          "contact shadow spread outside its footprint or below the boots");
+    check(ggFilmArtWristSpread(6,0,0)==7&&
+          ggFilmArtWristSpread(8,0,0)==9&&
+          ggFilmArtWristSpread(6,2,0)==8&&
+          ggFilmArtWristSpread(6,0,5)==13,
+          "idle T-pose and reaching hand use the same rigid wrist placement");
     GgFilmPose frontPose=ggFilmPoseFor("The village lives.",1,48,0,0,0,0);
     GgFilmPose profilePose=frontPose;profilePose.turn=4;
     ggFilmDrawGuestActor(front,200,150,2,hair,skin,coat,&frontPose,0);
@@ -60,6 +88,24 @@ int main(void){
         check(front[i]==48&&side[i]==48,
               "shoe, silhouette or shadow spills below projected ground");
     }
+    // Rendered silhouette width, measured on native 400x240 pixels:
+    // the guard is wider than the scholar even with costume stripped.
+    static u8 guard[400*240*3],scholar[400*240*3];
+    memset(guard,48,sizeof guard);memset(scholar,48,sizeof scholar);
+    ggFilmDrawGuestActor(guard,200,150,2,
+        ggFilmGuestPalette[1][0],ggFilmGuestPalette[1][1],
+        ggFilmGuestPalette[1][2],&frontPose,1);
+    ggFilmDrawGuestActor(scholar,200,150,2,
+        ggFilmGuestPalette[3][0],ggFilmGuestPalette[3][1],
+        ggFilmGuestPalette[3][2],&frontPose,3);
+    int guardWidth=0,scholarWidth=0;
+    for(int x=160;x<240;x++){
+        int k=(116*400+x)*3;
+        if(guard[k]!=48||guard[k+1]!=48||guard[k+2]!=48)guardWidth++;
+        if(scholar[k]!=48||scholar[k+1]!=48||scholar[k+2]!=48)scholarWidth++;
+    }
+    check(guardWidth>scholarWidth+6,
+          "different cast silhouettes still share generic shoulders");
     GgFilmPose other=ggFilmPoseFor("The village lives.",1,14,0,0,0,0);
     other.turn=-4;
     memset(side,48,sizeof(side));
@@ -68,6 +114,15 @@ int main(void){
           "opposite three-quarter profile lost its visible eye");
     // Exercise the actor integration, legacy script-pose entry and
     // partner contact geometry under the SAME strict -Werror unit.
+    // Motion and identity art are live RGB edits, not an art-only
+    // mockup: static face and responsive mood must render differently.
+    GgFilmPose worry=frontPose;
+    worry.pose=GG_FILM_REFLECT;worry.brow=-1;worry.head=-1;
+    static u8 worried[400*240*3];
+    memset(worried,48,sizeof worried);
+    ggFilmDrawGuestActor(worried,200,150,2,hair,skin,coat,&worry,0);
+    check(memcmp(front,worried,sizeof front)!=0,
+          "facial and torso expression are not visibly animated");
     GgFilmPose legacy=ggFilmPoseAt("YOU","The records are open.",
                                   2,48,1,0,2);
     check(legacy.holdProp==3,

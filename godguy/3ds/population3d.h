@@ -7,6 +7,28 @@
 enum { GG_EXP_MAX_VISIBLE=12, GG_EXP_NEAR_RADIUS=11 };
 typedef struct {int index,forward,side;} GgExpNPC;
 static int ggExpNpcsDrawn;
+// The live 200x120 POV upscaled to 400x240 has the same 250px focal
+// length and Q8 ground contract as the 3DS film, not the obsolete 140px.
+static inline void ggExpNpcProject(int forward,int side,
+                                   int cameraGround,int actorGround,
+                                   int footBob,int scale,
+                                   int *screenX,int *footY){
+    *screenX=ggFilmProjectScreenX(side,forward)-4*scale;
+    *footY=ggFilmProjectFootY(forward,cameraGround,actorGround)+
+           footBob*2;
+}
+static void ggExpNpcContactShade(u8*out,int center,int feet,int span){
+    if(feet<1||feet>=240)return;
+    int y=feet-1;
+    int from=ggExpClamp(center-span/2,0,400);
+    int to=ggExpClamp(center+span/2,0,400);
+    for(int x=from;x<to;x++){
+        u8*p=out+(y*400+x)*3;
+        p[0]=(u8)(p[0]*204/256);
+        p[1]=(u8)(p[1]*204/256);
+        p[2]=(u8)(p[2]*204/256);
+    }
+}
 static int ggExpLineClear(int fromX,int fromY,int x,int y){
     int dx=x-fromX,dy=y-fromY;
     int n=abs(dx)>abs(dy)?abs(dx):abs(dy);
@@ -30,6 +52,7 @@ static void ggExpRenderCreatures(u8 *top){
     GgExpNPC draw[GG_EXP_MAX_VISIBLE];
     int count=0;
     ggExpNpcsDrawn=0;
+    ggExpNpcClosestDepth=0;
     // O(23x23) cell probes independent of 3DS creature capacity; no
     // looping through all 12,000+ creatures during each rendered frame.
     for(int y=py-GG_EXP_NEAR_RADIUS;y<=py+GG_EXP_NEAR_RADIUS;y++){
@@ -78,13 +101,15 @@ static void ggExpRenderCreatures(u8 *top){
         if(size>72)size=72;
         int scale=size/8;
         if(scale<1)scale=1;
-        int sx=200+npc.side*140/npc.forward-4*scale;
+        int sx,feet;
         int ground=ggExpGround(world[c->y][c->x]);
-        int d=npc.forward/256+1;
-        int feet=(58-(ground-eye)*6/d)*2;
+        int walkBob=ggExplore.stepPhase?
+                    ((ggExplore.stepPhase/5)&1):0;
+        ggExpNpcProject(npc.forward,npc.side,eye-13,ground,
+                        walkBob,scale,&sx,&feet);
         if(sx>=400||sx+8*scale<0||feet-8*scale>=240||feet<0)
             continue;
-        ggExpRect(top,sx+scale,feet-2,scale*6,2,24,35,40);
+        ggExpNpcContactShade(top,sx+4*scale,feet,scale*6);
         int pose=((ggExplore.frame>>4)+npc.index)&1;
         for(int y=0;y<8;y++){
             const char *row=shpRow(shape,pose,y);
@@ -95,10 +120,21 @@ static void ggExpRenderCreatures(u8 *top){
                 int r=col==3?246:famCol[fam][col][0]*8;
                 int g=col==3?244:famCol[fam][col][1]*8;
                 int b=col==3?225:famCol[fam][col][2]*8;
-                ggExpRect(top,sx+x*scale,feet-(8-y)*scale,
-                          scale,scale,r,g,b);
+                int xx=sx+x*scale,yy=feet-(8-y)*scale;
+                ggExpRect(top,xx,yy,scale,scale,r,g,b);
+                // Two subtle world-light edges at high magnification,
+                // preserving the source game's real 8x8 creature shape
+                // without ballooning it into a featureless colored cube.
+                if(scale>=4&&col!=3){
+                    ggExpRect(top,xx,yy,1,scale,
+                              r*5/6,g*5/6,b*5/6);
+                    ggExpRect(top,xx+scale-1,yy,1,scale,
+                              r*3/4,g*3/4,b*3/4);
+                }
             }
         }
+        if(!ggExpNpcClosestDepth||npc.forward<ggExpNpcClosestDepth)
+            ggExpNpcClosestDepth=npc.forward;
         ggExpNpcsDrawn++;
     }
 }

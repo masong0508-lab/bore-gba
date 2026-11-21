@@ -111,6 +111,15 @@ static unsigned long hash(void){
     return h;
 }
 int main(void){
+    // Real-world citizen sprites must use the same 250px lens,
+    // physically projected foot row and 2px walking-camera bob.
+    int npcX,npcFoot;
+    ggExpNpcProject(512,256,10,10,0,3,&npcX,&npcFoot);
+    check(npcX==325-12&&npcFoot==ggFilmProjectFootY(512,10,10),
+          "playable NPCs still drift against the world's camera lens");
+    ggExpNpcProject(512,-256,10,10,1,3,&npcX,&npcFoot);
+    check(npcX==75-12&&npcFoot==ggFilmProjectFootY(512,10,10)+2,
+          "citizen profile/ground height changes across POV movement");
     // An entry combo must not become a save or council command on the
     // following frame, and START must not pause the 2D game on exit.
     GgModeInputGuard guard={0};

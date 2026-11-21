@@ -2,7 +2,8 @@
 // Two cameras must see the same windows, arch and masonry HEIGHT.
 #include <stdio.h>
 #include <stdlib.h>
-enum {B_HUT=1,B_HOUSE,B_HALL,B_TOWER,B_TEMPLE,B_LIBRARY,B_FARM,B_DOCK};
+enum {B_NONE,B_HUT,B_HOUSE,B_HALL,B_FARM,B_TOWER,B_RUIN,
+       B_DOCK,B_TEMPLE,B_STATUE,B_LIBRARY,B_BORDER,B_N};
 #include "3ds/film_facade3d.h"
 static void check(int ok,const char*why){
     if(!ok){fprintf(stderr,"3DS FACADE FAIL: %s\n",why);exit(1);}
@@ -44,6 +45,18 @@ int main(void){
     check(ggFilmFacadeFeature(B_HOUSE,10,-3)==GG_FACADE_WALL&&
           ggFilmFacadeFeature(B_FARM,238,19)==GG_FACADE_WALL,
           "roof/ground or sparse farm material got phantom windows");
-    puts("3DS FACADE OK: world-height windows, portico, masonry and timber volume");
+    check(ggFilmFacadeFeature(B_FARM,0,3)==GG_FACADE_BRACE&&
+          ggFilmFacadeFeature(B_DOCK,2,3)==GG_FACADE_BRACE,
+          "agricultural walls and timber docks are blank boxes");
+    check(ggFilmFacadeFeature(B_RUIN,12,8)==GG_FACADE_COURSE&&
+          ggFilmFacadeFeature(B_RUIN,125,6)==GG_FACADE_PORTAL,
+          "collapsed settlements lack masonry or broken entrances");
+    check(ggFilmFacadeFeature(B_STATUE,130,10)==GG_FACADE_SCULPT&&
+          ggFilmFacadeFeature(B_STATUE,10,3)==GG_FACADE_CORNICE,
+          "monuments still render as plain stone cubes");
+    check(ggFilmFacadeFeature(B_HOUSE,56,6)==GG_FACADE_SILL&&
+          ggFilmFacadeFeature(B_HALL,55,15)==GG_FACADE_SILL,
+          "windows lack physically anchored stone/wood sills");
+    puts("3DS FACADE OK: portals, framed windows, farmland, docks, ruins and sculpted monuments");
     return 0;
 }
