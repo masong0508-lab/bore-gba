@@ -1,5 +1,15 @@
 # BORE: GODGUY (Nintendo DS)
 
+**New 3DS 3D-world target (21 November 2026):** The 3DS homebrew
+`godguy.3dsx` now requires a **New Nintendo 3DS/3DS XL or New Nintendo
+2DS XL**. Original 3DS/2DS models are unsupported by this build and
+receive a safe startup notice. Its real-polygon software renderer keeps
+400×240 output when reducing expensive material/scenery effects during
+slow frames. DS, DSi and GBA builds remain separate. See
+[`3ds/NEW3DS_TARGET.md`](3ds/NEW3DS_TARGET.md) for compatibility, test
+gates, caveats, and the future hardware-GPU milestone.
+
+
 A god game spun off from BORE: shape a 128 x 128 world with the stylus, drop in life, and watch it live, eat, hunt and breed.
 
 **Starting out.** New worlds open on the six-power Kit with Grass selected. Tap the map to shape it, then use Spawn for individual creatures or Settle on clear grass for a village. Browse all other powers in Land, Life, Events and Folk. L/R moves through a tab and B+L/R switches tabs. Powers starred in the World Browser also appear in Kit.
