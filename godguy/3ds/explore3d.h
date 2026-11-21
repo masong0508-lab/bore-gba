@@ -257,13 +257,23 @@ static void ggExpRender(u8 *top){
         int highest=GG_EXP_H;
         int previousX=-1,previousY=-1;
         for(int d=1;d<=GG_EXP_MAX_DEPTH;d++){
-            int tx=(ggExplore.px+rayX*d*256/4096)>>8;
-            int ty=(ggExplore.py+rayY*d*256/4096)>>8;
+            int wx=ggExplore.px+rayX*d*256/4096;
+            int wy=ggExplore.py+rayY*d*256/4096;
+            int tx=wx>>8,ty=wy>>8;
             if((unsigned)tx>=WW||(unsigned)ty>=WH)break;
             if(tx==previousX&&ty==previousY)continue;
             previousX=tx;previousY=ty;
             int type=world[ty][tx],build=bld[ty][tx];
             int h=ggExpGround(type)+ggExpBuilding(build);
+            // Pitch real village roofs across each existing tile instead
+            // of turning every home into a flat-topped Minecraft cube.
+            // The roof is only a few integer operations on a sampled ray.
+            if(build==B_HUT||build==B_HOUSE||
+               build==B_HALL||build==B_TEMPLE){
+                int ex=abs((wx&255)-128),ey=abs((wy&255)-128);
+                int edge=ex>ey?ex:ey;
+                h-=edge/(build==B_HALL?16:12);
+            }
             // Height is measured in coarse world-cell units, not raw
             // screen pixels. The former scale (68) pushed nearby ground
             // entirely below the viewport; six gives legible walking
@@ -290,15 +300,33 @@ static void ggExpRender(u8 *top){
             baseG=baseG*shade/256;
             baseB=baseB*shade/256;
             int bright=build?13:6;
-            // Horizontal ledges give the player legible voxel/block faces,
-            // rather than a strange fuzzy texture or smooth gradient mesh.
+            // Terrain strata, pitched roofs, shadowed stone and tree
+            // crowns. Keep these material cues stable in world space so
+            // moving the camera doesn't cause procedural visual noise.
             for(int y=from;y<to;y++){
-                int edge=(y-from<2);
+                int edge=y-from;
                 int grain=((tx*17+ty*11+y/6)&3)==0?7:0;
-                int r=ggExpClamp(baseR+(edge?bright:0)-grain,0,255);
-                int g=ggExpClamp(baseG+(edge?bright:0)-grain,0,255);
-                int b=ggExpClamp(baseB+(edge?bright:0)-grain,0,255);
-                ggExpDot(top,x,y,r,g,b);
+                int r=baseR+(edge<2?bright:0)-grain;
+                int g=baseG+(edge<2?bright:0)-grain;
+                int b=baseB+(edge<2?bright:0)-grain;
+                if(build&&edge<5){
+                    // Architecturally distinct roofs in the real cities.
+                    if(build==B_HOUSE||build==B_HUT){
+                        r=125*shade/256;g=70*shade/256;b=51*shade/256;
+                    }else if(build==B_HALL){
+                        r=86*shade/256;g=81*shade/256;b=100*shade/256;
+                    }else if(build==B_TEMPLE){
+                        r=194*shade/256;g=174*shade/256;b=137*shade/256;
+                    }
+                }else if(build==B_TOWER&&(y-from)%11<2){
+                    r+=15;g+=16;b+=19; // bands between stone courses
+                }else if(!build&&type==T_FOREST&&edge<7){
+                    g+=17;r-=6; // canopy over a darker forest wall
+                }else if(!build&&type==T_MOUNT&&((y+ty*3)/9)%4==0){
+                    r+=8;g+=9;b+=11; // strata follow world coordinates
+                }
+                ggExpDot(top,x,y,ggExpClamp(r,0,255),
+                         ggExpClamp(g,0,255),ggExpClamp(b,0,255));
             }
             highest=from;
             if(!highest)break;
