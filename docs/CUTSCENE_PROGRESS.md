@@ -49,3 +49,13 @@ In `csart.h` (small sprite only; close-ups already had their own):
 - CP_CRY: sobs come in bursts (24 frames of quick heaves, then 24 of slow breaths): the shoulders heave up while the head is pulled down, the raised hands rise a pixel on the peaks. Eyes scrunched shut, two tears run down the cheeks and start again, the mouth quivers. Also used when a sad head (CP_HEAD / CP_SLUMP) is shaking with CF_SHAKE.
 - CP_LAUGH: eyes shut as two upturned arcs, a wide open mouth with teeth on top and the jaw bobbing, and a tear of joy now and then. Missy keeps her glasses with the eyes simply shut.
 - No new statics.
+
+## Missy director's pass — 21 November 2026
+- Mission continuity is saved: an interrupted chapter transition is replayed on loading the save, and a chapter-4 handover resumes rather than leaving the player controlling the wrong sister.
+- The one-more-night medical review remains spent across reloads. A compact pressure band is stored in unused bits of the existing single-byte story memory; a reload no longer resets the hospital to the beginning of the appeal.
+- Money targets were rebalanced to wages the game actually pays: 8k for the lawyer, 16k for the house, 8k for the hospital, 18k for the comeback. The story pays the corresponding contractual expenses when each relevant chapter ends.
+- Film consistency: five days at the bedside (or five more after a successful extension), the whistle in the hospital before Missy recognizes it, medical caution after awakening, the no-camera recovery vow, a credible chain from rain and loss of control to the crash, no implication that she was texting while the car was moving, and an unambiguous official report in the dressing room.
+- Film voice: Vance remains exploitative but Missy's responsibility is not erased. Her apology varies if recovery included slips; the original song timing, scene IDs and lyric beats are preserved.
+- Camera: 16 additional beat-indexed shots in the offer, gate, drive, wings, and refill scenes. The shot-list lookup now caches its current shot and next cut; a full scan happens on entering a scene beat or a cut, not every rendered frame.
+- Presentation: warmth in Missy's brief laugh and in Mamesy's letter, sombre clinic and dressing-room lighting, and removal of a redundant always-true expression in the close-up face renderer.
+- Still required: GBA emulator playback at native 240x160, text readability, shot-by-shot continuity and full build/packaging checks. Static and host tests do not demonstrate cinematic frame rate.

@@ -30,6 +30,7 @@ static int csMood=0, csLite=0;   // cutscene redo 12: the picture's mood (-1 bri
 static int csSlow=0;   // 1 while the frames are coming slowly: the backdrop lighting (glows, dust, vignette) is skipped until they speed up again
 static char csFull[208] EWRAM_BSS; static u8 csLs[16] EWRAM_BSS, csLl[16] EWRAM_BSS; static int csFullN, csNL, csPg, csTypingNow;   // the caption as one string, wrapped into lines for the big font; the page (two lines) on screen; typing now
 static int csMemOn;   // HERE TODAY: a flashback (or a cutaway) is on the screen in place of the beat's own picture
+static u8 csStoryMemory; // the TV story passes its saved choices into the film without new storage
 static int csCurSc=-1, csCurBi=0;   // the scene and beat csPlay is on (csshot.h, the backdrops and csDraw look at them)
 static int csSeat, csGlassUp;   // the figure being drawn sits at the judges' table; the glass is in her hand (not on the table)
 static const signed char csSinT[64]={0,12,25,37,49,60,71,81,90,98,106,112,117,122,125,126,127,126,125,122,117,112,106,98,90,81,71,60,49,37,25,12,0,-12,-25,-37,-49,-60,-71,-81,-90,-98,-106,-112,-117,-122,-125,-126,-127,-126,-125,-122,-117,-112,-106,-98,-90,-81,-71,-60,-49,-37,-25,-12};
@@ -290,9 +291,15 @@ static void csDraw(const CsBeat*b,int t,int shown){   // one frame of one beat (
     { int tot=0; for(int i=0;i<3&&b->t[i];i++) tot+=csLen(b->t[i]); csFrameNo++; csTalking=csTypingNow; (void)tot; csSpk=csWho(b->who); csOth=-1; csPuncS=csPunc(b,shown); csPuncL=csPunc(b,shown-5);
       { int sf=b->sfx-1; csStart=(b->sfx&&t<12&&sf>=0&&sf<SFX_VOICE0&&!(sf==SFX_CRY||sf==SFX_GROAN||sf==SFX_TICK||sf==SFX_INSTANT||sf==SFX_GHOST||sf==SFX_LAND||sf==SFX_STICK||sf==SFX_GRIND))?12-t:0; } csMirPose=(!b->a&&b->pa)?b->pa:CP_HEAD; }   // cutscene redo 10
     { int sc=csCurSc, bi=csCurBi; csMood=0; csLite=0;   // cutscene redo 12: the lights go down for the news (4) and the plug (6), and the world turns up when she wakes (3)
-      if(sc==4&&bi>=21) csMood=1; if(sc==6&&bi>=7) csMood=bi>=9?2:1; if(sc==3&&bi>=29) csMood=-1;
+      if(sc==4&&bi>=8&&bi<=10) csMood=-1; // a brief warmth when Missy genuinely laughs
+       if(sc==4&&bi>=21) csMood=bi>=23?2:1; // the dressing-room lights die with the call
+       if(sc==6&&bi>=7) csMood=bi>=9?2:1;
+       if(sc==3&&bi>=11&&bi<=16) csMood=1; // the vigil before the first movement
+       if(sc==3&&bi>=29) csMood=-1;
       if(sc==6&&bi==9&&((t<10)||(t>=16&&t<20))) csLite=1;
-      if(sc==10&&bi>=7) csMood=1; if(sc==10&&bi>=8) csMood=2; }
+      if(sc==10&&bi>=7) csMood=1; if(sc==10&&bi>=8) csMood=2;
+       if(sc==11&&bi>=16&&bi<=20) csMood=-1; // the napkin gives the stage its warmth again
+       if(sc==12&&bi>=6) csMood=1; }
     csOx=csOy=0; if(b->fx&CF_SHAKE){ csOx=(rnd8()%5)-2; csOy=(rnd8()%5)-2; }
     { static const CsBeat*lb EWRAM_BSS; if(b!=lb){ lb=b; csBN++; } } csBT=t; csVar=csBN; csBgNow=b->bg;
     csFxNow=b->fx; csCamAim(b,t); csShotApply(b,t);
@@ -400,10 +407,10 @@ static const CsBeat csS2[]={
  {CB_SITE,CA_CREW,CP_STAND,10,CA_MISSY,CP_STAND,32,0,0,0,0,{"Her crew has opinions, selfies, and a worrying","relationship with the blueprints.",0}},
  {CB_SITE,CA_CREW,CP_TALK,10,CA_MISSY,CP_STAND,32,0,0,0,"Hal",{"Ma'am, I'm going to ask you one more time to stay","off the scaffolding.",0}},
  {CB_SITE,CA_CREW,CP_STAND,10,CA_MISSY,CP_POINT,32,0,0,0,"Missy",{"It's my house, Hal. I'll stand wherever I want.",0,0}},
- {CB_SITE,CA_CREW,CP_SHOCK,10,CA_MISSY,CP_STAND,32,0,SFX_HIT+1,0,0,{"Behind her, a panel cracks. Someone 'accidentally'","tips a bucket of mix across the new floor. Hours of","work, gone in one splash."}},
+ {CB_SITE,CA_CREW,CP_SHOCK,10,CA_MISSY,CP_STAND,32,0,SFX_HIT+1,0,0,{"An unsecured panel slips, striking a bucket of mix.","The fresh floor is ruined. Hal calls for everyone to","step away until the work area is safe."}},
  {CB_SITE,CA_CREW,CP_SHOCK,10,CA_MISSY,CP_STAND,32,0,0,0,"Hal",{"Don't touch that. Missy, don't touch that.",0,0}},
  {CB_SITE,CA_CREW,CP_SHOCK,10,CA_MISSY,CP_FLAIL,32,CF_SHAKE,0,0,"Missy",{"Do you people want to get paid or not?! Give it","here. I'll do it myself!",0}},
- {CB_SITE,CA_CREW,CP_HEAD,10,CA_MISSY,CP_CLIMB,32,0,0,40,0,{"Her temper climbs faster than she does.",0,0}},
+ {CB_SITE,CA_CREW,CP_HEAD,10,CA_MISSY,CP_CLIMB,32,0,0,40,0,{"Hal blocks the ladder. She steps around him. Anger","makes the height seem smaller than it is.",0}},
  {CB_SITE,CA_CREW,CP_FLAIL,10,CA_MISSY,CP_CLIMB,32,0,0,0,"Hal",{"Come down! That platform isn't rated for- Missy!",0,0}},
  {CB_SITE,CA_CREW,CP_FLAIL,10,CA_MISSY,CP_CLIMB,32,0,0,0,0,{"Fifteen feet up, she wedges the beam into place with","her bare hands. For one glorious second, she is winning.",0}},
  {CB_SITE,CA_CREW,CP_FLAIL,10,CA_MISSY,CP_CLIMB,32,0,SFX_NEARLY+1,0,"Missy",{"See? Easy! You just have to-",0,0}},
@@ -414,7 +421,7 @@ static const CsBeat csS2[]={
 };
 static const CsBeat csS3[]={
 // scene 3 rewritten (cutscene redo 7): longer, tenser, more heartfelt, with the humor kept
- {CB_HOSP,CA_MAME,CP_STAND,20,CA_MISSY,CP_LIE,41,CF_FADEIN,0,0,0,{"Day nine. The machines do the breathing now, and","Mamesy does the talking.",0}},
+ {CB_HOSP,CA_MAME,CP_STAND,20,CA_MISSY,CP_LIE,41,CF_FADEIN,0,0,0,{"Five days of bedside vigils. A machine gives each","breath; Mamesy supplies every word.",0}},
  {CB_HOSP,CA_MAME,CP_HEAD,20,CA_MISSY,CP_LIE,41,0,0,0,0,{"She has read Missy the weather, the headlines, and the","entire terms and conditions of her phone. Twice.",0}},
  {CB_HOSP,CA_MAME,CP_HEAD,20,CA_MISSY,CP_LIE,41,0,0,0,"Mamesy",{"Not even the arbitration clause got a reaction, Mish.","That's when I knew it was bad.",0}},
  {CB_HOSP,CA_DOC,CP_WALK,20,CA_MISSY,CP_LIE,41,0,0,0,"Dr. Okafor",{"Ms. Jeanne, we need to talk about next steps. Her scans","haven't changed. I'm so sorry, I know how hard this is.",0}},
@@ -425,7 +432,7 @@ static const CsBeat csS3[]={
  {CB_HOSP,CA_MAME,CP_CRY,20,CA_MISSY,CP_LIE,41,0,0,0,"Mamesy",{"I'm so tired, Mish. I'm so angry at you. And I'd give","anything to hear you say something awful about my outfit.",0}},
  {CB_HOSP,CA_MAME,CP_TALK,20,CA_MISSY,CP_LIE,41,0,0,0,"Mamesy",{"This sweater is a crime. You'd say so. Say it. Say","it's a crime, and I'll never wear it again.",0}},
  {CB_HOSP,CA_MAME,CP_TALK,20,CA_MISSY,CP_LIE,41,0,0,0,"Mamesy",{"Hey, Mish. You still owe me a duet. And a rematch at","that card game you cheat at.",0}},
- {CB_HOSP,CA_MAME,CP_STAND,20,CA_MISSY,CP_LIE,41,0,SFX_TICK+1,0,0,{"The monitor keeps its slow green rhythm.","Somewhere between the third beep and the fourth,","something changes."}},
+ {CB_HOSP,CA_MAME,CP_STAND,20,CA_MISSY,CP_LIE,41,0,SFX_TICK+1,0,0,{"Mamesy whistles two notes, high then low. Her voice","falls silent. Between the third beep and the fourth,","the monitor's rhythm changes."}},
  {CB_HOSP,CA_MAME,CP_SHOCK,20,CA_MISSY,CP_LIE,41,CF_AUTO,SFX_TICK+1,50,0,{"The fourth beep comes early.",0,0}},
  {CB_HOSP,CA_MAME,CP_HEAD,20,CA_MISSY,CP_LIE,41,0,0,0,"Mamesy",{"...Mish?",0,0}},
  {CB_HOSP,CA_MAME,CP_STAND,20,CA_MISSY,CP_STIR,41,CF_AUTO,0,60,0,{"Her fingers move.",0,0}},
@@ -436,7 +443,7 @@ static const CsBeat csS3[]={
  {CB_HOSP,CA_MAME,CP_TALK,20,CA_MISSY,CP_LIE,41,0,0,0,"Mamesy",{"It's doing the thing. It's doing a lot of things.",0,0}},
  {CB_HOSP,CA_DOC,CP_WALK,20,CA_MISSY,CP_LIE,41,0,0,0,"Dr. Okafor",{"Ms. Jeanne? Missy? Can you tell me your name?",0,0}},
  {CB_HOSP,CA_DOC,CP_STAND,20,CA_MISSY,CP_LIE,41,0,0,0,"Missy",{"Missy Jeanne. I'd like a coffee and a lawyer, in that","order.",0}},
- {CB_HOSP,CA_DOC,CP_TALK,20,CA_MISSY,CP_LIE,41,0,0,0,"Dr. Okafor",{"A concussion, some scrapes... and by every","measure she shouldn't be awake. Missy, do you","remember what happened?"}},
+ {CB_HOSP,CA_DOC,CP_TALK,20,CA_MISSY,CP_LIE,41,0,0,0,"Dr. Okafor",{"You've had a serious head injury. Waking up is good","news, but recovery comes next. Can you tell me","what you remember?"}},
  {CB_HOSP,CA_DOC,CP_STAND,20,CA_MISSY,CP_LIE,41,0,0,0,"Missy",{"There was scaffolding. And a lot of martinis, I think?","Honestly, it's all a bit of a blur.",0}},
  {CB_HOSP,CA_MAME,CP_TALK,20,CA_MISSY,CP_LIE,41,0,0,0,"Mamesy",{"Then let it stay a blur.",0,0}},
  {CB_HOSP,CA_DOC,CP_TALK,20,CA_MISSY,CP_LIE,41,0,0,0,"Dr. Okafor",{"The review is cancelled, by the way. Patients who wake","up tend to do that.",0}},
@@ -447,7 +454,7 @@ static const CsBeat csS3[]={
  {CB_HOSP,CA_MAME,CP_STAND,20,CA_MISSY,CP_LIE,41,0,0,0,0,{"She listens to the rain as if it were a symphony. The","whole world has been turned up.",0}},
  {CB_HOSP,CA_MAME,CP_STAND,20,CA_MISSY,CP_LIE,41,0,0,0,"Missy",{"Everything's so bright. Was it always this beautiful?",0,0}},
  {CB_HOSP,CA_MAME,CP_TALK,20,CA_MISSY,CP_LIE,41,0,0,0,"Mamesy",{"Always was. You just had your eyes closed.",0,0}},
- {CB_HOSP,CA_MAME,CP_STAND,20,CA_MISSY,CP_LIE,41,CF_FADEOUT,0,0,"Missy",{"Then I'm done closing them. Mame, let's go win","everybody back. The right way.",0}},
+ {CB_HOSP,CA_MAME,CP_STAND,20,CA_MISSY,CP_LIE,41,CF_FADEOUT,0,0,"Missy",{"First I get better. Then I earn my way back.","Not for the cameras. For me.",0}},
  {CB_BLACK,CA_NONE,CP_STAND,0,CA_NONE,CP_STAND,0,0,0,80,0,{0,0,0}},
 };
 static const CsBeat csS4[]={
@@ -459,7 +466,7 @@ static const CsBeat csS4[]={
  {CB_BACK,CA_HOST,CP_WALK,47,CA_MISSY,CP_STAND,27,0,SFX_POP+1,0,0,{"Dex backs in with a clipboard, a headset, and three","coffees he insists are all for the room.",0}},
  {CB_BACK,CA_HOST,CP_TALK,47,CA_MISSY,CP_STAND,27,0,0,0,"Dex",{"Sold out. Even the bad seats. Especially the bad seats.","A man is watching from a ladder.",0}},
  {CB_BACK,CA_HOST,CP_STAND,47,CA_MISSY,CP_TALK,27,0,0,0,"Missy",{"Where's Mame? She swore front row, center, and the","loudest whistle in the building.",0}},
- {CB_BACK,CA_HOST,CP_TALK,47,CA_MISSY,CP_STAND,27,0,0,0,"Dex",{"She texted at six. Parked, snacks acquired, whistle","warmed up. The fire marshal has a file on that whistle.",0}},
+ {CB_BACK,CA_HOST,CP_TALK,47,CA_MISSY,CP_STAND,27,0,0,0,"Dex",{"She texted from the shops at six. Snacks acquired,","whistle warmed up. You know what traffic's like.",0}},
  {CB_BACK,CA_HOST,CP_STAND,47,CA_MISSY,CP_LAUGH,27,0,0,0,0,{"For the first time in two years, Missy laughs, and","it isn't for a camera.",0}},
  {CB_BACK,CA_HOST,CP_STAND,47,CA_MISSY,CP_HEAD,27,0,0,0,"Missy",{"I forgot being nervous felt like this. Like being alive","on purpose. Mame told me I could stop pretending to be","okay. I'm only just learning how."}},
  {CB_BACK,CA_HOST,CP_TALK,47,CA_MISSY,CP_STAND,27,0,0,0,"Dex",{"She's proud of you, you know. She won't say it.","She'll whistle it.",0}},
@@ -473,11 +480,11 @@ static const CsBeat csS4[]={
  {CB_BACK,CA_HOST,CP_STAND,47,CA_MISSY,CP_HEAD,27,0,0,0,"Missy",{"Hey, it's me. Just checking you're alive. ...Obviously","you're alive, you're late. Hurry up, okay?",0}},
  {CB_BACK,CA_HOST,CP_STAND,47,CA_MISSY,CP_HEAD,27,0,SFX_TICK+1,0,0,{"The phone rings in her hand almost at once. She's","already smiling when she answers. It isn't Mamesy.",0}},
  {CB_BACK,CA_HOST,CP_STAND,47,CA_MISSY,CP_HEAD,27,0,0,0,0,{"'Ms. Jeanne? This is the Route 9 Highway Patrol. Is","Mamesy Jeanne your sister?'",0}},
- {CB_BACK,CA_HOST,CP_STAND,47,CA_MISSY,CP_SHOCK,27,CF_SHAKE,SFX_GASP+1,0,0,{"'There has been a collision. I am very sorry.'",0,0}},
- {CB_BACK,CA_HOST,CP_STAND,47,CA_MISSY,CP_SHOCK,27,CF_SHAKE,0,0,0,{"The words arrive in the wrong order. Truck. Wet road.","Nothing anyone could have done.",0}},
+ {CB_BACK,CA_HOST,CP_STAND,47,CA_MISSY,CP_SHOCK,27,CF_SHAKE,SFX_GASP+1,0,0,{"'A truck crossed the centreline in the rain.","The paramedics could not save her. I'm so sorry.'",0}},
+ {CB_BACK,CA_HOST,CP_STAND,47,CA_MISSY,CP_SHOCK,27,CF_SHAKE,0,0,0,{"The words come apart in her head: rain, headlights,","truck. Her sister. They have checked the name twice.",0}},
  {CB_BACK,CA_HOST,CP_HEAD,47,CA_MISSY,CP_SLUMP,27,0,0,90,0,{0,0,0}},
  {CB_BACK,CA_HOST,CP_TALK,47,CA_MISSY,CP_SLUMP,27,0,0,0,"Dex",{"Missy? Missy, sit down. Please sit down.",0,0}},
- {CB_BACK,CA_HOST,CP_HEAD,47,CA_MISSY,CP_CRY,27,CF_SHAKE,SFX_CRY+1,0,"Missy",{"She was just here. She texted at six. She said she'd","bring snacks.",0}},
+ {CB_BACK,CA_HOST,CP_HEAD,47,CA_MISSY,CP_CRY,27,CF_SHAKE,SFX_CRY+1,0,"Missy",{"She texted me at six. She was bringing snacks.","I kept telling her to hurry.",0}},
  {CB_BACK,CA_HOST,CP_HEAD,47,CA_MISSY,CP_CRY,27,0,0,0,"Missy",{"She said she'd whistle.",0,0}},
  {CB_BACK,CA_HOST,CP_HEAD,47,CA_MISSY,CP_CRY,27,0,0,0,0,{"In the mirror, a woman in a sparkling gown is being told","something that cannot be told.",0}},
  {CB_BACK,CA_HOST,CP_TALK,47,CA_MISSY,CP_CRY,27,0,0,0,"Dex",{"We can hold the show. Say the word and we hold it. All","night, if we have to.","...Ignore my voice. It's doing a thing."}},
@@ -494,7 +501,7 @@ static const CsBeat csS5[]={
  {CB_BIG,CA_NONE,CP_STAND,17,CA_MISSY,CP_TALK,43,0,0,0,"Missy",{"I was going to say I'm sorry. For all of it. I am.",0,0}},
  {CB_BIG,CA_NONE,CP_STAND,17,CA_MISSY,CP_TALK,43,0,0,0,"Missy",{"But I came to sing for somebody tonight. She was","supposed to be sitting right there.",0}},
  {CB_BIG,CA_NONE,CP_STAND,17,CA_MISSY,CP_TALK,43,0,0,0,"Missy",{"She'd call this song far too sentimental. She would","sing every word anyway. And get half of them wrong.",0}},
- {CB_BIG,CA_NONE,CP_STAND,17,CA_MISSY,CP_STAND,43,0,SFX_TICK+1,0,0,{"The band takes a breath. So does she. One held chord,","and then there is only the room.",0}},
+ {CB_BIG,CA_NONE,CP_STAND,17,CA_MISSY,CP_STAND,43,0,SFX_TICK+1,0,0,{"She looks toward the empty seat. The band waits.","For once the silence belongs to her, not the network.",0}},
  {CB_BIG,CA_NONE,CP_STAND,17,CA_MISSY,CP_TALK,43,0,0,0,"Missy",{"This one's called Here Today. I wrote it in a hospital","hallway, on the back of a parking ticket.",0}},
  {CB_BIG,CA_NONE,CP_STAND,17,CA_MISSY,CP_STAND,43,CF_AUTO,0,40,0,{"The camera finds the front row, dead center. One seat,","still folded up. Nobody asks to sit in it.",0}},
  {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_STAND,43,CF_AUTO,250,122,"Missy",{"Hey, Mame, it's me.",0,0}},
@@ -537,18 +544,18 @@ static const CsBeat csS5[]={
  {CB_BIG,CA_NONE,CP_STAND,0,CA_MISSY,CP_SWAY,43,0,0,41,0,{0,0,0}},
  {CB_BIG,CA_NONE,CP_STAND,17,CA_MISSY,CP_HEAD,43,CF_AUTO,0,150,0,{"From somewhere at the back of the hall, so faint it could","be the air, two notes of a whistle.",0}},
  {CB_BIG,CA_NONE,CP_STAND,17,CA_MISSY,CP_STAND,43,0,251,0,"Missy",{"Thanks for coming, Mame.",0,0}},
- {CB_BLACK,CA_NONE,CP_STAND,0,CA_NONE,CP_STAND,0,CF_FADEIN|CF_FADEOUT,0,0,0,{"Some nights she still pours two glasses of water. One","for her. One for the front row.",0}},
+ {CB_BLACK,CA_NONE,CP_STAND,0,CA_NONE,CP_STAND,0,CF_FADEIN|CF_FADEOUT,0,0,0,{"After the applause she goes home. Two clean glasses","sit beside the sink. She washes one and leaves the","other where her sister would have put it."}},
  {CB_BLACK,CA_NONE,CP_STAND,0,CA_NONE,CP_STAND,0,0,0,80,0,{0,0,0}},
 };
 // CH4 LOSS: the plug pressure hit 100 for the second time (story.h stPlugLose plays this, then the game goes back to your last save). CB_FLAT = the hospital with a flat green line.
 static const CsBeat csS6[]={
  {CB_HOSP,CA_MAME,CP_HEAD,20,CA_MISSY,CP_LIE,41,CF_FADEIN,0,0,0,{"The pressure reached a hundred. There were no more","nights left to give her.",0}},
- {CB_HOSP,CA_DOC,CP_WALK,20,CA_MISSY,CP_LIE,41,0,0,0,"Dr. Okafor",{"Ms. Jeanne, the hospital has made its decision.","I am so sorry. I fought for every night I could.",0}},
+ {CB_HOSP,CA_DOC,CP_WALK,20,CA_MISSY,CP_LIE,41,0,0,0,"Dr. Okafor",{"Mamesy, the care review has denied our appeal.","I argued for every extension they would hear.",0}},
  {CB_HOSP,CA_MAME,CP_CRY,20,CA_MISSY,CP_LIE,41,CF_SHAKE,SFX_CRY+1,0,"Mamesy",{"No. Please. One more night. She has never once","missed an entrance.",0}},   // cutscene redo 8: Mamesy is on screen for her own plea
  {CB_HOSP,CA_DOC,CP_LEAVE,20,CA_MISSY,CP_LIE,41,0,0,0,"Dr. Okafor",{"I'll give you a few minutes with her.",0,0}},
  {CB_HOSP,CA_MAME,CP_HEAD,20,CA_MISSY,CP_LIE,41,0,SFX_TICK+1,0,0,{"Mamesy takes her sister's hand. The monitor keeps","its slow green rhythm.",0}},
  {CB_HOSP,CA_MAME,CP_HEAD,20,CA_MISSY,CP_LIE,41,0,0,0,"Mamesy",{"Hey, Mish. You still owe me a duet.",0,0}},
- {CB_HOSP,CA_MAME,CP_HEAD,20,CA_MISSY,CP_LIE,41,0,SFX_TICK+1,0,0,{"The machines are switched off, one at a time. The","room gets very quiet.",0}},
+ {CB_HOSP,CA_MAME,CP_HEAD,20,CA_MISSY,CP_LIE,41,0,SFX_TICK+1,0,0,{"The care team stays until the final monitor falls","quiet. Mamesy will not let go of her hand.",0}},
  {CB_FLAT,CA_MAME,CP_SHOCK,20,CA_MISSY,CP_LIE,41,CF_AUTO,SFX_DEATH+1,70,0,{"The green line goes flat.",0,0}},
  {CB_FLAT,CA_MAME,CP_CRY,20,CA_MISSY,CP_LIE,41,CF_SHAKE,SFX_CRY+1,0,"Mamesy",{"Mish? ...Mish.",0,0}},
  {CB_FLAT,CA_MAME,CP_SLUMP,20,CA_MISSY,CP_LIE,41,0,SFX_THUNDER+1,0,0,{"Missy Jeanne is gone. For the last time, nobody is","taking her picture.",0}},
@@ -629,10 +636,10 @@ static const CsBeat csS10[]={   // THE DRIVE: Mamesy on Route 9. Her whistle, th
  {CB_CAR,CA_MAME,CP_STAND,27,CA_NONE,CP_STAND,0,0,0,0,0,{"On the radio, a presenter with a voice like warm gravy:","'Tonight at Studio 9, Missy Jeanne returns to the stage.","Nobody knows what she will do.'"},SPOT(SP_SEAT,0)},
  {CB_CAR,CA_MAME,CP_LAUGH,27,CA_NONE,CP_STAND,0,0,0,0,"Mamesy",{"I know what she'll do. She'll be ten minutes late to her","own entrance and blame the lighting.",0},SPOT(SP_SEAT,0)},
  {CB_CAR,CA_MAME,CP_STAND,27,CA_NONE,CP_STAND,0,0,0,0,0,{"She whistles two notes, high then low, the way she has since","they were girls. It's how they find each other in crowds,","in car parks, in the dark."},SPOT(SP_SEAT,0)},
- {CB_CAR,CA_MAME,CP_STAND,27,CA_NONE,CP_STAND,0,0,SFX_BELL+1,0,0,{"Her phone lights up on the dash. MISH. 'Where are you??","Hurry up, okay?'",0},SPOT(SP_SEAT,0)},
- {CB_CAR,CA_MAME,CP_TALK,27,CA_NONE,CP_STAND,0,0,0,0,"Mamesy",{"Nine minutes, Mish. Save me a seat.",0,0},SPOT(SP_SEAT,0)},
- {CB_CAR,CA_MAME,CP_STAND,27,CA_NONE,CP_STAND,0,0,0,0,0,{"The road ahead is a river of red lights. She turns the radio","up. For the first time in two years, she isn't worried","about anybody."},SPOT(SP_SEAT,0)},
- {CB_CAR,CA_MAME,CP_SHOCK,27,CA_NONE,CP_STAND,0,CF_FLASH,SFX_THUNDER+1,60,0,{"Headlights, wide and white.",0,0},SPOT(SP_SEAT,0)},
+ {CB_CAR,CA_MAME,CP_STAND,27,CA_NONE,CP_STAND,0,0,SFX_BELL+1,0,0,{"Traffic stops at a red light. Her phone lights up in","its cradle. MISH: 'Where are you? Hurry up, okay?'",0},SPOT(SP_SEAT,0)},
+ {CB_CAR,CA_MAME,CP_TALK,27,CA_NONE,CP_STAND,0,0,0,0,"Mamesy",{"The car is stopped. She replies by voice: 'Nine","minutes, Mish. Save me a seat.'",0},SPOT(SP_SEAT,0)},
+ {CB_CAR,CA_MAME,CP_STAND,27,CA_NONE,CP_STAND,0,0,0,0,0,{"The signal changes. She puts both hands on the wheel.","For the first time in years, she's going somewhere","without having to rescue anyone."},SPOT(SP_SEAT,0)},
+ {CB_CAR,CA_MAME,CP_SHOCK,27,CA_NONE,CP_STAND,0,CF_FLASH,SFX_THUNDER+1,60,0,{"Across the rain-slick divider, a truck loses its grip.","The headlights turn straight toward her.",0},SPOT(SP_SEAT,0)},
  {CB_BLACK,CA_NONE,CP_STAND,0,CA_NONE,CP_STAND,0,CF_FADEIN|CF_FADEOUT,0,0,0,{"The whistle stops in the middle of the second note.",0,0}},
  {CB_BLACK,CA_NONE,CP_STAND,0,CA_NONE,CP_STAND,0,0,0,80,0,{0,0,0}},
 };
@@ -649,7 +656,7 @@ static const CsBeat csS11[]={   // THE WINGS: Vance tries to pull the broadcast;
  {CB_STAGE,CA_EXEC,CP_STAND,12,CA_MISSY,CP_POINT,36,0,0,0,"Missy",{"So let them hold them up.",0,0}},
  {CB_STAGE,CA_HOST,CP_TALK,12,CA_MISSY,CP_STAND,36,0,0,0,"Dex",{"We told the audience at the door. Phones up, lights on, for","Mamesy. Four hundred and twelve people. Not one said no.",0}},
  {CB_STAGE,CA_HOST,CP_STAND,12,CA_MISSY,CP_TALK,36,0,0,0,"Missy",{"Can they do that?",0,0}},
- {CB_STAGE,CA_HOST,CP_TALK,12,CA_MISSY,CP_STAND,36,0,0,0,"Dex",{"Forty thousand people are already streaming from the fire","exit. I think the cat is out of the bag.",0}},
+ {CB_STAGE,CA_HOST,CP_TALK,12,CA_MISSY,CP_STAND,36,0,0,0,"Dex",{"Forty thousand people have found the audience stream.","We can't call it a secret rehearsal now.",0}},
  {CB_STAGE,CA_HOST,CP_STAND,12,CA_MISSY,CP_TALK,36,0,0,0,"Missy",{"Which cat?",0,0}},
  {CB_STAGE,CA_HOST,CP_TALK,12,CA_MISSY,CP_STAND,36,0,0,0,"Dex",{"All of them.",0,0}},
  {CB_STAGE,CA_HOST,CP_STAND,12,CA_NONE,CP_STAND,0,0,0,0,0,{"Vance looks at his phone. Then at his watch. Then, very","slowly, at the door.",0}},
@@ -710,8 +717,18 @@ static void csPlay(int id){   // play scene id; returns when it ends or START sk
     const CsScene*sc=&csScenes[id]; clipAll(); objHideAll(); csCapB=0; csCamReset(); csAliveReset(); csRateSc=-1; csWholeOk=0; csCamKey=0; csCurSc=id; csSlow=0;
     u16 prev=keyNow(); int skip=0;
     { int tn=csTune[id]; if(tn>=0&&sSnd){ mGain=mGainT=256; musBegin(2,chipsyn+csTnT[tn].off,0); csSongOn=1; csTuneBS=csTnT[tn].bs; csMT=0; csMP=csy.step; } }   // the scene's chip tune, locked to the figures by csFt
+    static CsBeat csAlternate; // same camera/beat index and soundtrack timing; only continuity-dependent text changes
     for(int bi=0;bi<sc->n&&!skip;bi++){
-        csCurBi=bi; const CsBeat*b=&sc->b[bi]; int total=csLayout(b), np=(csNL+CS_PL-1)/CS_PL, pg=0, tp=0; csPg=0; csTypingNow=0;
+        csCurBi=bi; const CsBeat*b=&sc->b[bi];
+        if(id==3&&bi==0){ csAlternate=*b;
+            if(csStoryMemory&16){ csAlternate.t[0]="They won one more hospital review. Five more days"; csAlternate.t[1]="at the bedside, and Mamesy has barely slept."; }
+            else { csAlternate.t[0]="Five days since the fall. Mamesy knows every nurse"; csAlternate.t[1]="on the ward and every sound the monitors make."; }
+            b=&csAlternate;
+        } else if(id==5&&bi==4&&(csStoryMemory&15)){ csAlternate=*b;
+            csAlternate.t[0]="I made promises I broke. More than once. I am sorry.";
+            b=&csAlternate;
+        }
+        int total=csLayout(b), np=(csNL+CS_PL-1)/CS_PL, pg=0, tp=0; csPg=0; csTypingNow=0;
         int t=0, shown=0, rest=0, dt=1; if(b->sfx==250){ if(sSnd){ csSongOn=1; musBegin(0,0,&xm_here_today); } } else if(b->sfx==251){ if(csSongOn) musFadeOut(XF_OUT); csSongOn=0; } else if(b->sfx) sfxPlay(b->sfx-1);
         csTimeReset();
         for(;;){

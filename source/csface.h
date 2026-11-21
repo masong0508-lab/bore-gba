@@ -35,7 +35,7 @@ static void csFaceBig(int wx,int wy,int who,int pose,int t,int open,u16 sk,u16 h
 #define csFOff(o) (csFcx=bx+csFu(o))
     u16 dk=RGB(3,2,3), ol=RGB(2,1,4), lip=RGB(20,7,8), wh=RGB(30,30,31);
     int sick=(csFxNow&CF_SICK)!=0, shake=(csFxNow&CF_SHAKE)!=0;
-    int lie=pose==CP_LIE||pose==CP_STIR, sad=pose==CP_HEAD||pose==CP_CRY||pose==CP_SLUMP, sing=pose==CP_SING||open, scream=pose==CP_FLAIL||pose==CP_SHOCK||sick, yell=shake&&!sad&&!lie&&(who!=CA_MISSY||pose!=CP_STAND||1);
+    int lie=pose==CP_LIE||pose==CP_STIR, sad=pose==CP_HEAD||pose==CP_CRY||pose==CP_SLUMP, sing=pose==CP_SING||open, scream=pose==CP_FLAIL||pose==CP_SHOCK||sick, yell=shake&&!sad&&!lie;  /* the old '||1' made this condition needlessly always true */
     int crying=(sad&&shake&&!sick)||pose==CP_CRY, bph=((t+who*23)%100), bk=bph<6?((bph<2||bph>=4)?1:2):0, closed=lie||bk==2||crying, half=bk==1&&!closed, loud=sing||scream||(yell&&!sad);
     u16 fc=sick?csFMix(sk,RGB(12,24,6),4):sk, hat=RGB(31,31,28); int w4=csMd==4;   // csMd: the mood (cutscene redo 14 step 4)
     int ex=(who==CA_MISSY)?10:8;
