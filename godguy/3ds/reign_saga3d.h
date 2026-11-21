@@ -5,6 +5,7 @@
 // duplicated game world, asset heap or 2D/DS/DSi story modification.
 #ifndef GG_REIGN_SAGA3D_H
 #define GG_REIGN_SAGA3D_H
+#include "film_walk3d.h"
 #ifndef GG_SAGA_SAVE_PATH
 #define GG_SAGA_SAVE_PATH "sdmc:/godguy_saga.dat"
 #endif
@@ -432,17 +433,12 @@ static const GgSagaBeat *ggSagaCurrentBeat(int n){
 typedef struct {
     int mode,act,beat,eventX,eventY,anchorX,anchorY;
     int landmarkX,landmarkY,angle,distance,valid;
+    int approachX,approachY; // prevalidated entry tile, fixed for two beats
     int sidesResolved,plusValid,minusValid;
     int plusX,plusY,minusX,minusY;
 } GgSagaShot;
 static GgSagaShot ggSagaShot;
 
-static int ggSagaEase(int local){
-    // Q8 smoothstep avoids a jarring change of camera velocity at cuts.
-    int t=ggExpClamp(local,0,GG_SAGA_BEAT_TICKS)*256/
-          GG_SAGA_BEAT_TICKS;
-    return (t*t*(768-2*t))/(256*256);
-}
 // Paired dialogue lines are one establishing shot, not two unrelated
 // camera teleports. A controlled second shot occurs after the pair.
 static void ggSagaLocation(int beat,int *x,int *y){
@@ -525,6 +521,29 @@ static void ggSagaCamera(int beat,int local,int *anchorX,int *anchorY){
                 ggSagaShot.angle=a;ggSagaShot.distance=d;
                 found=1;
             }
+        // Instead of walking a few pixels in place, enter from a real
+        // neighboring tile toward the camera. One lookup per TWO dialogue
+        // beats; no new world or collision checks in the frame renderer.
+        ggSagaShot.approachX=tx;
+        ggSagaShot.approachY=ty;
+        if(found&&ggChronLand(tx,ty)){
+            int a=ggSagaShot.angle;
+            int fx=ggExpCos[a],fy=ggExpSin[a];
+            int dx=abs(fx)>=abs(fy)?(fx>=0?1:-1):0;
+            int dy=dx?0:(fy>=0?1:-1);
+            int sx=tx-dx,sy=ty-dy;
+            int cx=tx*256+128-fx*ggSagaShot.distance*256/4096;
+            int cy=ty*256+128-fy*ggSagaShot.distance*256/4096;
+            // Equal-height, clear floor keeps feet planted, avoids a
+            // cliff-height pop halfway through the tracking shot and
+            // cannot overlap a building, citizen or water cell.
+            if(ggChronLand(sx,sy)&&
+               ggExpGround(world[sy][sx])==ggExpGround(world[ty][tx])&&
+               ggExpLineClear(cx>>8,cy>>8,sx,sy)){
+                ggSagaShot.approachX=sx;
+                ggSagaShot.approachY=sy;
+            }
+        }
     }
     // Never recompute a shot's stage after its first frame. That would
     // allow crowd movement to make the movie's actors jump locations.
@@ -575,18 +594,15 @@ static int ggSagaProjectActor(int worldX,int worldY,
 }
 static void ggSagaActorPosition(int stageX,int stageY,int beat,int local,
                                 int *worldX,int *worldY){
-    // Only approach/exit beats move the performer; spoken lines hold
-    // at the landmark. Movement stays inside its actual unblocked tile.
-    // A take starts with one deliberate walk-in and settles to a
-    // planted pose before the next line. There is NO backward jump at
-    // the paired-beat boundary, unlike the old beat%3 motion rule.
-    int progress=(beat&1)?GG_SAGA_BEAT_TICKS:
-                  ggExpClamp(local*2,0,GG_SAGA_BEAT_TICKS);
-    int smooth=ggSagaEase(progress);
-    int pace=-64+smooth*64/256;
+    // The hero enters on a real adjacent terrain cell if it is safe,
+    // then settles at the same world-space mark for the entire response.
+    // A blocked lane gets a small same-tile movement instead of
+    // clipping through cliffs, houses or other residents.
     int a=ggSagaShot.angle;
-    *worldX=stageX*256+128+ggExpSin[a]*pace/4096;
-    *worldY=stageY*256+128-ggExpCos[a]*pace/4096;
+    ggFilmWalkWorldPosition(stageX,stageY,
+                            ggSagaShot.approachX,ggSagaShot.approachY,
+                            ggExpCos[a],ggExpSin[a],beat,local,
+                            GG_SAGA_BEAT_TICKS,worldX,worldY);
 }
 // Small, recurring film cast drawn using the same 16x24 authored human
 // cel as the playable adult. Named speakers have stable clothes/hair;
