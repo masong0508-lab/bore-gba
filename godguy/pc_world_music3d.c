@@ -18,7 +18,7 @@ enum { GM_MORNING=6,GM_NIGHT=9,GM_JUNGLE=14,GM_OCEAN=13,
        GM_HOMEWORLD=68,GM_STONECIRCLES=72,GM_COUNTINGSTARS=77,
        GM_CORPORATIONS=82,GM_DUCKCOVER=83 };
 static int gmCur=-1,gmWorldMode,gmWorldGain=100,gmInN,gmInT;
-static int musLast,musHold,gmRow,playCalls,stopped,musQ=-1;
+static int musLast,musHold,gmRow,gmCrowd,playCalls,stopped,musQ=-1;
 static int musDirector(void){return GM_MORNING;}
 static void musReq(int id){musQ=id;}
 static int (*gg3dMusicNext)(int);
@@ -60,7 +60,8 @@ int main(void){
     ggChron.foeN=1;
     ggChron.foe[0]=(GgChronFoe){60,60,40,0,0};
     for(int f=0;f<200;f++)ggWorldMusicTick();
-    if(ggWorldMusic.state!=GG_MUSIC_BATTLE||gmCur<0)return 4;
+    if(ggWorldMusic.state!=GG_MUSIC_BATTLE||gmCur<0||
+       gmCrowd<60)return 4;
     int fight=playCalls;
     for(int f=0;f<100;f++)ggWorldMusicTick();
     if(playCalls!=fight)return 5;
@@ -79,7 +80,7 @@ int main(void){
     if(ggWorldMusicScene()!=GG_MUSIC_CHOICE)return 9;
     ggSaga.mode=0;ggExplore.active=0;
     ggWorldMusicTick();
-    if(gmWorldMode||gg3dMusicNext||gmCur!=-1)return 10;
+    if(gmWorldMode||gg3dMusicNext||gmCur!=-1||gmCrowd)return 10;
     printf("WORLD SCORE OK: %d music starts, exploration %d, battle, "
            "cities, two vocal songs, films, cleanup\n",playCalls,first);
     return 0;

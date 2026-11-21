@@ -117,6 +117,7 @@ static void ggWorldMusicReset(void){
     if(!ggWorldMusic.active)return;
     ggWorldMusic.active=0;
     gg3dMusicNext=0;
+    gmCrowd=0;
     gmWorldOff();
     gmFilmMixSet(0,0,64);
     gmStop();
@@ -171,6 +172,21 @@ static int ggWorldMusicTick(void){
     }
     int s=ggWorldMusic.state;
     if(s<0)return 1;
+    // The battle arranger originally followed warHeat from 2D battles.
+    // Populate its existing intensity bus from LOCAL 3DS opponents, so
+    // solo duels retain bass/pads while sieges acquire percussion,
+    // counterpoint and the full orchestral layers. The main mixer
+    // already smooths gmCrowdS to this target each music frame.
+    int battleStrength=0;
+    if(s==GG_MUSIC_BATTLE||s==GG_MUSIC_BOSS){
+        int px=ggExplore.px>>8,py=ggExplore.py>>8;
+        for(int k=0;k<ggChron.foeN;k++)if(ggChron.foe[k].hp>0&&
+            ggChronNear(px,py,ggChron.foe[k].x,ggChron.foe[k].y)<=10)
+            battleStrength+=65;
+        if(s==GG_MUSIC_BOSS&&battleStrength)battleStrength+=115;
+        if(battleStrength>400)battleStrength=400;
+    }
+    gmCrowd=battleStrength;
     int talk=ggQuest.talk||ggReign.menu;
     int cinematic=ggSaga.mode||ggOrigin.active;
     gmFilmMixSet(cinematic||talk,cinematic||talk,64);
