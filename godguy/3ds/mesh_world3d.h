@@ -113,8 +113,22 @@ static void ggMeshGroundLife(GgMeshContext*m,int tx,int ty,int type,
         }
     }
 }
+static inline int ggMeshGroundMaterial(int type){
+    switch(type){
+    case T_GRASS:case T_FOREST:case T_JUNGLE:case T_SWAMP:return GG_MAT_MEADOW;
+    case T_SAND:case T_DESERT:return GG_MAT_SAND;
+    case T_SNOW:return GG_MAT_SNOW;
+    case T_MOUNT:case T_HILL:return GG_MAT_ROCK;
+    case T_DEEP:case T_WATER:return GG_MAT_WATER;
+    case T_DIRT:return GG_MAT_STONE;
+    default:return GG_MAT_ROCK;
+    }
+}
 static void ggMeshGroundTile(GgMeshContext*m,int tx,int ty,
                               int type,uint32_t key){
+    int prior=m->material,priorSeed=m->materialSeed;
+    m->material=ggMeshGroundMaterial(type);
+    m->materialSeed=(int)key;
     int left=tx*256,right=left+256,top=ty*256,bottom=top+256;
     int center=ggExpGround(type);
     int a=ggMeshCornerHeight(tx,ty);
@@ -162,10 +176,13 @@ static void ggMeshGroundTile(GgMeshContext*m,int tx,int ty,
                    ggMeshV(left+26,top+68+24*ripple,center+1),
                    80,130,154);
     }
+    m->material=prior;m->materialSeed=priorSeed;
     ggMeshTilesDrawn++;
 }
 static void ggMeshRoof(GgMeshContext*m,int build,
                        int x0,int y0,int x1,int y1,int wallTop){
+    int prior=m->material;
+    m->material=GG_MAT_ROOF;
     int ridgeY=(y0+y1)/2;
     int roofRise=build==B_TEMPLE?6:
                  build==B_HALL?9:build==B_TOWER?3:7;
@@ -216,6 +233,7 @@ static void ggMeshRoof(GgMeshContext*m,int build,
                    ggMeshV(x1,y1,wallTop),
                    ggMeshV(x1,ridgeY,wallTop+roofRise),
                    88,88,97);
+    m->material=prior;
 }
 static void ggMeshWindow(GgMeshContext*m,int x0,int x1,
                           int frontY,int facing,int ground,int height){
@@ -536,6 +554,15 @@ static void ggMeshProp(GgMeshContext*m,int tx,int ty,int kind,
     int x=tx*256+128+(int)((key>>12)&63u)-32;
     int y=ty*256+128+(int)((key>>20)&63u)-32;
     int z=ground;
+    int previous=m->material,previousSeed=m->materialSeed;
+    m->materialSeed=(int)key;
+    m->material=(kind==GG_SCENE_OAK||kind==GG_SCENE_PINE||
+                 kind==GG_SCENE_SHRUB||kind==GG_SCENE_CROPS||
+                 kind==GG_SCENE_GRASS||kind==GG_SCENE_REEDS)?
+                GG_MAT_LEAVES:
+                (kind==GG_SCENE_STONE||kind==GG_SCENE_COLUMN)?
+                GG_MAT_STONE:
+                kind==GG_SCENE_BANNER?GG_MAT_FABRIC:GG_MAT_WOOD;
     switch(kind){
     case GG_SCENE_OAK:case GG_SCENE_PINE:
         ggMeshFoliage(m,x,y,z,kind==GG_SCENE_PINE,key,quality);break;
@@ -596,6 +623,7 @@ static void ggMeshProp(GgMeshContext*m,int tx,int ty,int kind,
         break;
     default:break;
     }
+    m->material=previous;m->materialSeed=previousSeed;
     ggMeshPropsDrawn++;
 }
 static void ggMeshCloudPuff(GgMeshContext*m,int x,int y,int z,
@@ -697,7 +725,13 @@ static void ggMeshWorldDraw(unsigned char *out,int cinematic){
             int build=bld[ty][tx];
             if(build){
                 int detailed=forward<6*256&&forward>-128;
+                int oldMaterial=m->material,oldSeed=m->materialSeed;
+                m->material=(build==B_HOUSE||build==B_HUT||
+                             build==B_DOCK||build==B_FARM)?
+                             GG_MAT_WOOD:GG_MAT_STONE;
+                m->materialSeed=(int)key;
                 ggMeshBuilding(m,tx,ty,build,ggExpGround(t),detailed);
+                m->material=oldMaterial;m->materialSeed=oldSeed;
             }else{
                 uint32_t scenic=ggFilmScenicHash(tx,ty,7);
                 if(((scenic>>24)&7u)>=5u||forward<192)continue;
