@@ -255,3 +255,22 @@ long, frequent squint to a short blink roughly every three seconds.
 Three cheap angled sheet-fold details stop the patient's blanket from
 reading as a featureless rectangular slab at high zoom. Verified issues
 came from captured mGBA output, not an artist mockup.
+
+### Anatomy-first ICU correction after user screenshot feedback
+The live mGBA screenshot revealed a disproportionate, detached balloon-head.
+The underlying cause was a full-size wide-sprite head plus a **second**
+camera-space head/neck painted over it; two incompatible sets of silhouettes
+overlapped. The patient was also drawn around y=94 with the bed's old
+mattress plane at y=79, and an upper bed rail crossed the upper body.
+The replacement renders exactly **one head per shot**. It uses a ~14px
+wide world-space head (with a compact close-up face), a narrow joining
+neck, a shoulder ~38px wide, a visible upper torso, sheet beginning at
+the waist and a linked upper arm/hand. The mattress and bed rail have
+been moved to y=90 and y=107 respectively. The close-up camera has
+been reduced from a final 900/256 zoom to 700/256 to show the neck,
+pillow and upper torso instead of an isolated balloon face.
+Regression checks now explicitly assert one portrait call, aligned
+bed planes, narrow head versus torso and a safe closeup zoom. This is
+procedural art with no new bitmap allocation, heap use or framebuffer.
+These are *source changes*, not proof of final artwork quality: emulator
+screenshots must be reviewed before merging.

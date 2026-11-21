@@ -68,16 +68,28 @@ assert cut.count(",251,0,") == 1, "the original tracker song must fade once"
 assert cut.index("static const CsBeat csS3") < cut.index("static const CsBeat csS5")
 face = Path("source/csface.h").read_text(encoding="utf-8")
 assert "static void csFaceBed(" in face
-assert "csFaceBed(x-30,y-15,t,sk,hr,csWardAwake())" in art
+assert "csFaceBed(x-31,y-16,t,sk,hr,awake)" in art
 assert "csCurSc==3&&csCurBi>=16&&csCurBi<34" in art
 assert "int talking=awake&&csTalking&&csSpk==who" in art
 assert "static void csWardPatient(" in art
 assert "csWardPatient(x,y,who,pose,t,sk,hr)" in art
-assert "Anatomical neck and shoulder connect the head" in art
-assert "Neck and collar FIRST:" in face
-assert "the jaw is warm skin, not a dark beard" in face
+assert "One NARROW neck joins the jaw to a broad gown/shoulder." in art
+assert "The nape joins the shoulder under the gown collar" in face
+assert "NO second full-sized black head shadow" in face
 assert "int blink=((t+37)%180)<5" in face
-assert "short arced quilting folds" in art
+# Bed, pillow and one unified anatomical head are a regression contract.
+# Previously the stand-in head was painted twice and the mattress was
+# 11 pixels above the patient. Passing compilation did not catch the art bug.
+assert art.count("csFaceBed(")==1, "portrait must be rendered only once"
+assert "csD(x-29,y-17,7,edge)" in art, "wide sprite head must remain modest"
+assert "csR(x-20,y-17-breath,38,15,edge)" in art
+assert "csR(x-51,y-25,34,21" in art
+assert "csR(115,90,96,15" in cut, "ICU mattress must be beneath patient/pillow"
+assert "csR(118,107,96,2" in cut, "near rail should not cross the patient's face"
+assert "{3,16,1,  0,100, 560,-12,90, 700,-12,89}" in shots
+assert "csFaceBed(x-30,y-15,t,sk,hr,csWardAwake())" not in art
+assert "csFE(0,13,10,3,sh)" not in face
+assert "long diagonal folds suggest bent legs" in art
 assert "{3,3,0," in shots and "{3,20,0," in shots
 assert "static void csWardFront(void)" in cut
 assert "Mamesy's chair moves toward the bed in the vigil beat" in cut
