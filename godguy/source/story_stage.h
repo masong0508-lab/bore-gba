@@ -2,6 +2,7 @@
 // timed subtitles. Playback draws into the same back page as the baked films.
 #include "story_reels.h"
 #include "story_vistas.h"
+#include "story_route.h"
 
 // The game world is the authoritative source for movie locations. Capture
 // just three small neighborhoods at the beginning of a chapter; cinematic
@@ -33,6 +34,14 @@ static void filmCaptureWorld(void){
         filmTownName[20]=0;
     }
     filmVistaCapture(WW,WH,bx,by,cx,cy,filmWorldCell);
+    // A journey is available only after the player genuinely founded a
+    // settlement and the actual planet contains a coastline or ridge.
+    // The route is fixed for the entire film and needs no frame scans.
+#ifdef __3DS__
+    filmRouteCapture(bestVillage>=0,18*60);
+#else
+    filmRouteCapture(bestVillage>=0,10*60);
+#endif
 }
 #ifdef __3DS__
 #include "story_film_hq_data.h"
@@ -110,7 +119,8 @@ static int fmvLength(const FmvClip *clip){
         return filmReelTicks(&filmBonusReels[filmBonusIndex]);
 #endif
     int id=(int)(clip-fmvClips);
-    int length=clip->frames*FMV_TICKS+filmReelTicks(&filmReels[id]);
+    int length=clip->frames*FMV_TICKS+filmRoute.duration+
+               filmReelTicks(&filmReels[id]);
 #ifdef __3DS__
     length+=filmReelTicks(&filmExtraReels[id]);
     length+=filmReelTicks(&filmFeatureReels[id]);
