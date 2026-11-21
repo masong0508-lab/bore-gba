@@ -41,14 +41,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gcc -O2 -std=c11 -w -Icompat -Isource pc_3ds_mesh_world.c -lm -o /tmp/gg-3ds-worldmesh
+          gcc -O2 -std=c11 -DGG_NEW3DS_ONLY -w -Icompat -Isource pc_3ds_mesh_world.c -lm -o /tmp/gg-3ds-worldmesh
           /tmp/gg-3ds-worldmesh
       - name: Render 400x240 story, character turntables and occlusion comparisons
         working-directory: godguy
         shell: bash
         run: |
           set -euo pipefail
-          gcc -O2 -std=c11 -w -Icompat -Isource pc_3ds_cinema_capture.c -lm -o /tmp/gg-3ds-capture
+          gcc -O2 -std=c11 -DGG_NEW3DS_ONLY -w -Icompat -Isource pc_3ds_cinema_capture.c -lm -o /tmp/gg-3ds-capture
           mkdir -p artifacts/godguy-cinema
           /tmp/gg-3ds-capture artifacts/godguy-cinema
           /tmp/gg-3ds-procedural_people artifacts/godguy-cinema/procedural_people_turntable.ppm
