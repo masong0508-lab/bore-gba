@@ -12,6 +12,14 @@ typedef struct { short x,y,z; } GgV3;
 typedef struct { int x,y; } GgS2;
 typedef struct { int x,z; } GgFilmCamera;
 
+// The long movie has one continuous scenery clock per chapter. The stage
+// sets this from the complete clip position; direct geometry tests fall back
+// to the local shot clock. Dialogue poses still use their local shot time.
+static int ggFilmWorldClock=-1;
+static int ggFilmSceneTime(int local){
+    return ggFilmWorldClock>=0?ggFilmWorldClock:local;
+}
+
 static GgV3 ggV3(int x,int y,int z){
     GgV3 v={(short)x,(short)y,(short)z}; return v;
 }
@@ -394,13 +402,14 @@ static void ggFilmWorldDraw(const FilmBeat *beat,int elapsed,int move,
                             int chapter,int roofFinished,int winter){
     int p=beat->place;
     if(p==F_ORBIT)return; // globe remains the spherical dedicated renderer
+    int scenic=ggFilmSceneTime(elapsed);
     GgFilmCamera cam=ggFilmCameraAt(beat,move);
     // Hearth is an actual interior. Formerly it incorrectly received the
     // outdoor village set (houses and trees), breaking cuts from the room.
     int inside=(p==F_FORGE||p==F_ARCHIVE||p==F_HALL||
                 p==F_THRONE||p==F_COUCH||p==F_PORCH||p==F_HEARTH);
-    if(inside){ggFilmInterior(cam,p,elapsed,chapter,winter);return;}
-    ggFilmFloor(cam,p,elapsed,winter);
+    if(inside){ggFilmInterior(cam,p,scenic,chapter,winter);return;}
+    ggFilmFloor(cam,p,scenic,winter);
     if(p==F_GATE||p==F_RUINS){
         ggFilmArch(cam,-170,1260,p==F_RUINS);
         ggFilmArch(cam,225,970,p==F_RUINS);
@@ -413,17 +422,17 @@ static void ggFilmWorldDraw(const FilmBeat *beat,int elapsed,int move,
         if(chapter>=2)ggFilmHouse(cam,325,1040,155,155,1,roofFinished);
         if(chapter>=5)ggFilmHouse(cam,25,1510,185,163,0,1);
         if(chapter>=10)ggFilmHouse(cam,-75,1800,190,177,1,1);
-        ggFilmTree(cam,-530,910,158,elapsed,0);
-        ggFilmTree(cam,515,1180,190,elapsed,2);
-        if(chapter>=2)ggFilmBackgroundWorker(cam,-175,1070,elapsed,1);
-        if(chapter>=10)ggFilmBackgroundWorker(cam,140,1280,elapsed,0);
+        ggFilmTree(cam,-530,910,158,scenic,0);
+        ggFilmTree(cam,515,1180,190,scenic,2);
+        if(chapter>=2)ggFilmBackgroundWorker(cam,-175,1070,scenic,1);
+        if(chapter>=10)ggFilmBackgroundWorker(cam,140,1280,scenic,0);
     }else if(p==F_FORD||p==F_SHORE||p==F_STORM){
-        ggFilmTree(cam,-385,1220,144,elapsed,0);
-        ggFilmTree(cam,425,1160,151,elapsed,1);
+        ggFilmTree(cam,-385,1220,144,scenic,0);
+        ggFilmTree(cam,425,1160,151,scenic,1);
         if(p==F_FORD){
             if(chapter>=8){
-                ggFilmBridge(cam,chapter==9,elapsed);
-                if(chapter>=10)ggFilmBackgroundWorker(cam,172,1120,elapsed,1);
+                ggFilmBridge(cam,chapter==9,scenic);
+                if(chapter>=10)ggFilmBackgroundWorker(cam,172,1120,scenic,1);
             }else{
                 for(int k=0;k<5;k++){
                     // The original raised stones remain where travelers
@@ -438,9 +447,9 @@ static void ggFilmWorldDraw(const FilmBeat *beat,int elapsed,int move,
         // Both unlockable winter reels have snow at scene depth rather than
         // a flat white overlay. Flakes descend through the camera volume.
         for(int i=0;i<14;i++){
-            int x=((i*179+elapsed/6)%1100)-550;
+            int x=((i*179+scenic/6)%1100)-550;
             int z=470+(i*107)%1200;
-            int y=40+((i*61-elapsed/8)%260+260)%260;
+            int y=40+((i*61-scenic/8)%260+260)%260;
             ggFilmQuad(cam,ggV3(x,y,z),ggV3(x+5,y,z),
                            ggV3(x+5,y+5,z),ggV3(x,y+5,z),i&1?22:23);
         }
@@ -448,9 +457,9 @@ static void ggFilmWorldDraw(const FilmBeat *beat,int elapsed,int move,
     if(p==F_STORM){
         // Rain exists within the set's depth, not a fuzzy full-screen veil.
         for(int i=0;i<14;i++){
-            int x=((i*131+elapsed/3)%900)-450;
+            int x=((i*131+scenic/3)%900)-450;
             int z=480+(i*89)%950;
-            int y=55+((i*97-elapsed/3)%210+210)%210;
+            int y=55+((i*97-scenic/3)%210+210)%210;
             ggFilmQuad(cam,ggV3(x,y,z),ggV3(x+3,y,z),
                            ggV3(x+11,y+24,z),ggV3(x+8,y+24,z),22);
         }
