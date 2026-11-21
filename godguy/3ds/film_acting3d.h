@@ -207,6 +207,29 @@ static void ggFilmArtRounded(u8*out,int x,int y,int w,int h,int cut,
     ggExpRect(out,x,y+cut,w,h-2*cut,r,g,b);
     ggExpRect(out,x+cut,y+h-cut,w-2*cut,cut,r,g,b);
 }
+// Soft native-resolution contour. Draws at most 16 horizontal bands
+// per shape: unlike 2x enlarged box pixels, round cheeks/shoulders remain
+// curved even on closeups. One RGB framebuffer; no sqrt/floats/textures.
+static void ggFilmArtOval(u8*out,int x,int y,int w,int h,
+                           int r,int g,int b){
+    static const u8 taper[16]={
+        10,8,6,5,3,2,1,0,0,1,2,3,5,6,8,10
+    };
+    if(w<=0||h<=0)return;
+    int step=h>16?(h+15)/16:1;
+    for(int row=0;row<h;row+=step){
+        int i=row*16/h,cut=(w*taper[i])/32;
+        int span=w-cut*2,band=step;
+        if(row+band>h)band=h-row;
+        if(span<1)continue;
+        ggExpRect(out,x+cut,y+row,span,band,r,g,b);
+        if(span>5&&i>1&&i<14)
+            ggExpRect(out,x+cut+1,y+row,1,band,
+                      ggFilmArtShade(r,277),
+                      ggFilmArtShade(g,277),
+                      ggFilmArtShade(b,277));
+    }
+}
 // A tapered jointed sleeve rather than an independently sliding square.
 // Stroke cost is bounded: at most 12 short rectangles per joint.
 static void ggFilmArtStroke(u8*out,int x0,int y0,int x1,int y1,int thick,
@@ -266,10 +289,10 @@ static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
         ggExpRect(out,lx-2*s,feet-3*s,3*s,s,92,91,97);
     }
     // Tunic: dark silhouette and shaped shoulder line, not a flat rectangle.
-    ggFilmArtRounded(out,bodyX-7*s,centerY-19*s,14*s,12*s,2*s,
-                     inkR,inkG,inkB);
-    ggFilmArtRounded(out,bodyX-6*s,centerY-18*s,12*s,10*s,2*s,
-                     jacketR,jacketG,jacketB);
+    ggFilmArtOval(out,bodyX-7*s,centerY-19*s,14*s,12*s,
+                  inkR,inkG,inkB);
+    ggFilmArtOval(out,bodyX-6*s,centerY-18*s,12*s,10*s,
+                  jacketR,jacketG,jacketB);
     ggExpRect(out,bodyX-5*s,centerY-17*s,3*s,8*s,
               lightR,lightG,lightB);
     ggExpRect(out,bodyX+3*s,centerY-17*s,2*s,8*s,
@@ -305,18 +328,18 @@ static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
         ggExpRect(out,wristX,wristY-s,s,s,faceR,faceG,faceB);
     }
     // Neck, cheeks and tapered jaw (6 bands create an organic silhouette).
-    ggFilmArtRounded(out,headX-5*s,centerY-30*s,10*s,12*s,2*s,
-                     39,39,46);
-    ggFilmArtRounded(out,headX-4*s,centerY-29*s,8*s,10*s,2*s,
-                     faceShadeR,faceShadeG,faceShadeB);
-    ggFilmArtRounded(out,headX-3*s,centerY-28*s,6*s,8*s,s,
-                     faceR,faceG,faceB);
+    ggFilmArtOval(out,headX-5*s,centerY-30*s,10*s,12*s,
+                  39,39,46);
+    ggFilmArtOval(out,headX-4*s,centerY-29*s,8*s,10*s,
+                  faceShadeR,faceShadeG,faceShadeB);
+    ggFilmArtOval(out,headX-3*s,centerY-28*s,6*s,8*s,
+                  faceR,faceG,faceB);
     ggExpRect(out,headX-3*s,centerY-23*s,2*s,3*s,
               faceShadeR,faceShadeG,faceShadeB);
     // Hair has a crown, swept fringe, temporal shading and a highlight;
     // head/gaze offset is independent from torso animation.
-    ggFilmArtRounded(out,headX-5*s,centerY-31*s,10*s,5*s,2*s,
-                     hair[0],hair[1],hair[2]);
+    ggFilmArtOval(out,headX-5*s,centerY-31*s,10*s,5*s,
+                  hair[0],hair[1],hair[2]);
     ggExpRect(out,headX-5*s,centerY-28*s,2*s,6*s,
               hair[0],hair[1],hair[2]);
     ggExpRect(out,headX+4*s,centerY-28*s,2*s,5*s,
@@ -331,14 +354,18 @@ static void ggFilmArtFigure(u8*out,int x,int feet,int scale,
     int eyesY=centerY-25*s;
     for(int eye=0;eye<2;eye++){
         int ex=headX+(eye?2:-3)*s+gaze;
-        ggExpRect(out,ex,eyesY-s,2*s,s,
+        int ew=s>1?s:2,iris=s>1?s-1:1;
+        ggExpRect(out,ex,eyesY-s,ew+1,1,
                   ggFilmArtShade(hair[0],115),
                   ggFilmArtShade(hair[1],115),
                   ggFilmArtShade(hair[2],115));
         if(!p->blink){
-            ggExpRect(out,ex,eyesY,2*s,s,240,224,197);
-            ggExpRect(out,ex+(eye?0:s),eyesY,s,s,42,51,61);
-        }else ggExpRect(out,ex,eyesY,2*s,s,
+            ggExpRect(out,ex,eyesY,ew,ggExpClamp(s-1,1,2),
+                      230,226,211);
+            ggExpRect(out,ex+(eye?0:iris),eyesY,iris,iris,
+                      44,60,68);
+            ggExpRect(out,ex+(eye?0:iris),eyesY,1,1,161,184,179);
+        }else ggExpRect(out,ex,eyesY,ew,1,
                         faceShadeR,faceShadeG,faceShadeB);
     }
     ggExpRect(out,headX,centerY-23*s,s,2*s,
