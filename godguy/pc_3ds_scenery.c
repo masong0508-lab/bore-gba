@@ -79,6 +79,24 @@ int main(void){
     check(ggFilmScenicFloorDetail(T_GRASS,0,0)==
           ggFilmScenicFloorDetail(T_GRASS,0,0),
           "floor detail depends on frame time");
+    int minGrain=100,maxGrain=-100,windLeft=0,windRight=0;
+    for(int y=0;y<1024;y+=64)for(int x=0;x<1024;x+=64){
+        int g=ggFilmScenicFloorDetail(T_GRASS,x,y);
+        if(g<minGrain)minGrain=g;
+        if(g>maxGrain)maxGrain=g;
+    }
+    for(int frame=0;frame<700;frame+=14){
+        int sway=ggFilmScenicWind(0x12af5783u,frame);
+        if(sway<0)windLeft=1;
+        if(sway>0)windRight=1;
+        check(sway>=-1&&sway<=1&&
+              sway==ggFilmScenicWind(0x12af5783u,frame),
+              "world foliage flickers or drifts unpredictably");
+    }
+    check(maxGrain-minGrain>=13,
+          "near world floor still a single flat, untextured color");
+    check(windLeft&&windRight,
+          "tree crowns never breathe or only sway one direction");
     puts("3DS SCENERY OK: biome-authored density, populated settlements, world-anchored textures and bounded scan");
     return 0;
 }

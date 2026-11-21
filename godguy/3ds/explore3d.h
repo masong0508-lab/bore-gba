@@ -286,13 +286,34 @@ static void ggExpScenicShadow(u8*out,int x,int foot,int half,int depth){
 static void ggExpScenicProp(u8*out,int kind,int x,int foot,int h,
                             int depth,uint32_t key){
     if(h<3)return;
-    int w=ggExpClamp((h*(kind==GG_SCENE_OAK||kind==GG_SCENE_STALL?
-                         7:kind==GG_SCENE_PINE?5:4))/11,3,52);
+    int widthRatio=kind==GG_SCENE_OAK||kind==GG_SCENE_STALL?7:
+                   kind==GG_SCENE_PINE?5:
+                   kind==GG_SCENE_SHRUB?12:
+                   kind==GG_SCENE_GRASS?6:4;
+    int w=ggExpClamp(h*widthRatio/11,3,52);
     int trunk=ggExpClamp(h/9,1,5);
     int y=foot-h;
     int warmth=(int)((key>>9)&7u);
+    int breeze=ggFilmScenicWind(key,ggExplore.frame);
     ggExpFilmDrawDepth=ggExpScenicCoarse?0:depth;
     ggExpScenicShadow(out,x,foot,w/2,depth);
+    // A tiny far-field silhouette costs two rectangles, not a dozen
+    // strokes that all collapse onto the same 3-8 pixels. Actor and
+    // tree rendering still respect the same physical depth mask.
+    if(h<=8){
+        int plant=kind==GG_SCENE_OAK||kind==GG_SCENE_PINE||
+                  kind==GG_SCENE_SHRUB||kind==GG_SCENE_GRASS||
+                  kind==GG_SCENE_CROPS||kind==GG_SCENE_REEDS;
+        int stone=kind==GG_SCENE_STONE||kind==GG_SCENE_COLUMN;
+        ggExpRect(out,x-1,foot-h/2,2,h/2,
+                  stone?103:plant?66:119,
+                  stone?105:plant?94:86,stone?102:plant?65:59);
+        ggExpRect(out,x-2,foot-h,4,h/2,
+                  stone?151:plant?73:163,
+                  stone?148:plant?114:121,stone?134:plant?79:77);
+        ggExpFilmDrawDepth=0;
+        return;
+    }
     if(kind==GG_SCENE_OAK||kind==GG_SCENE_PINE){
         int pine=kind==GG_SCENE_PINE;
         int foliageR=pine?39:43,foliageG=pine?79:90,
@@ -300,27 +321,30 @@ static void ggExpScenicProp(u8*out,int kind,int x,int foot,int h,
         ggExpRect(out,x-trunk/2,foot-h/2,trunk,h/2,65,56,48);
         ggExpRect(out,x,foot-h/2,1,h/3,122,90,65);
         if(pine){
+            // The old spruce widened at its TOP like an upside-down
+            // block pyramid. These overlapping tiers now broaden toward
+            // the branches, exposing a grounded trunk at the bottom.
             for(int band=0;band<4;band++){
-                int ww=w*(4-band)/4;
-                int yy=y+band*h/6;
-                ggExpRect(out,x-ww/2,yy,ww,h/5+1,
+                int ww=w*(band+1)/4;
+                int yy=y+band*h/9;
+                ggExpRect(out,x+breeze-ww/2,yy,ww,h/3+1,
                           foliageR+band*3,foliageG+band*4,
                           foliageB+band*2);
-                ggExpRect(out,x-ww/3,yy,ww/3,h/8+1,
+                ggExpRect(out,x+breeze-ww/3,yy,ww/3,h/5+1,
                           71+band*2,110+band*3,91);
             }
         }else{
             // Layered canopy lobes: a bright upper crown and darker rim,
             // with staggered edges rather than three floating boxes.
-            ggExpRect(out,x-w*2/5,y+h/9,w*4/5,h/3,
+            ggExpRect(out,x+breeze-w*2/5,y+h/9,w*4/5,h/3,
                       54,109,76);
-            ggExpRect(out,x-w/2,y+h/4,w,h/4,
+            ggExpRect(out,x+breeze-w/2,y+h/4,w,h/4,
                       foliageR,foliageG,foliageB);
-            ggExpRect(out,x-w*2/5,y+h*2/5,w*4/5,h/6,
+            ggExpRect(out,x+breeze-w*2/5,y+h*2/5,w*4/5,h/6,
                       39,81,63);
-            ggExpRect(out,x-w/3,y+h/12,w/2,h/7,
+            ggExpRect(out,x+breeze-w/3,y+h/12,w/2,h/7,
                       88,139,96);
-            ggExpRect(out,x-w*3/7,y+h/3,w/5,h/9,
+            ggExpRect(out,x+breeze-w*3/7,y+h/3,w/5,h/9,
                       46,91,70);
         }
     }else if(kind==GG_SCENE_SHRUB||kind==GG_SCENE_GRASS||
@@ -329,8 +353,11 @@ static void ggExpScenicProp(u8*out,int kind,int x,int foot,int h,
         for(int i=0;i<stalks;i++){
             int xx=x+(i*2-stalks+1)*w/(stalks+1);
             int ht=h*(3+(int)((key>>(i*3))&3u))/6;
-            ggExpRect(out,xx,foot-ht,ggExpClamp(w/13,1,3),
-                      ht,44,91,57);
+            int thick=ggExpClamp(w/13,1,3);
+            ggExpRect(out,xx,foot-ht/2,thick,ht/2,
+                      44,91,57);
+            ggExpRect(out,xx+breeze,foot-ht,thick,ht/2+1,
+                      51,101,62);
             if(kind==GG_SCENE_CROPS||kind==GG_SCENE_REEDS){
                 ggExpRect(out,xx+1,foot-ht,h/15+1,h/6+1,
                           kind==GG_SCENE_REEDS?118:154,
@@ -340,8 +367,16 @@ static void ggExpScenicProp(u8*out,int kind,int x,int foot,int h,
                           h/5+1,68,112,69);
             }
         }
-        if(kind==GG_SCENE_SHRUB)
-            ggExpRect(out,x-w/2,foot-h/2,w,h/3,43,90,61);
+        if(kind==GG_SCENE_SHRUB){
+            ggExpRect(out,x-w/2,foot-h/2,w,h/3,42,85,59);
+            ggExpRect(out,x+breeze-w*2/5,foot-h*2/3,
+                      w*4/5,h/3,54,105,67);
+            ggExpRect(out,x+breeze-w/3,foot-h*3/4,
+                      w/2,h/5,79,123,80);
+        }else if(kind==GG_SCENE_GRASS&&((key>>5)&7u)<2u){
+            // Occasional tiny flower/wild seed head, world-anchored.
+            ggExpRect(out,x+breeze,foot-h,2,2,184,177,121);
+        }
     }else if(kind==GG_SCENE_STONE||kind==GG_SCENE_COLUMN){
         int stone=kind==GG_SCENE_COLUMN;
         int bw=stone?w/2:w;

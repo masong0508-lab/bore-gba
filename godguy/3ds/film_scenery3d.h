@@ -38,6 +38,13 @@ static inline uint32_t ggFilmScenicHash(int x,int y,int salt){
     h^=h>>16;h*=0x7feb352du;h^=h>>15;h*=0x846ca68bu;
     return h^(h>>16);
 }
+// Wind is derived from the world seed and film time. Tree trunks and
+// boot/road anchors remain immobile; only upper foliage sways by one
+// native pixel. Replay/seek produces identical camera and foliage.
+static inline int ggFilmScenicWind(uint32_t key,int frame){
+    int phase=((frame<0?0:frame)/14+(int)(key>>23))&31;
+    return phase<8?0:phase<16?1:phase<24?0:-1;
+}
 static inline int ggFilmScenicKind(int terrain,int nearby,uint32_t key){
     int pick=(int)(key&15u);
     // Specific settlements outrank biome scatter: farms have crop rows
@@ -110,17 +117,22 @@ static inline int ggFilmScenicHeight(int kind){
 static inline int ggFilmScenicFloorDetail(int type,int wx,int wy){
     int u=wx&255,v=wy&255;
     int grain=((wx>>4)*5+(wy>>5)*3)&15;
+    int patch=((wx>>6)*11+(wy>>6)*17)&15;
     switch(type){
     case T_DIRT:
         if((u>70&&u<86)||(u>171&&u<187))return -10;
         return grain<2?7:0;
     case T_GRASS:case T_FOREST:case T_JUNGLE:
-        return ((u&31)<3&&(v&63)<14)?9:grain<2?4:0;
+        if((u&31)<3&&(v&63)<14)return 9;
+        return patch<4?-8:patch>=13?7:grain<2?4:0;
     case T_SAND:case T_DESERT:
-        return (((u+(v>>2))&63)<5)?7:grain<2?-5:0;
-    case T_SNOW:return grain<2?12:0;
+        return (((u+(v>>2))&63)<5)?7:
+               patch<4?-6:grain<2?-3:0;
+    case T_SNOW:
+        return grain<2?12:patch<4?-6:patch>=13?6:0;
     case T_MOUNT:case T_HILL:
-        return ((u+(v>>1))&31)<4?10:0;
+        return ((u+(v>>1))&31)<4?10:
+               patch<4?-9:patch>=13?6:0;
     case T_WATER:case T_DEEP:case T_SWAMP:
         return ((u+(v>>2))&63)<4?8:0;
     default:return 0;
