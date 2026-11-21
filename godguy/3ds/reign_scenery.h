@@ -106,8 +106,12 @@ static void ggReignSceneDraw(u8*out){
     ggReignSceneDrawn=0;
     if(!ggChron.active)return;
     int px=ggExplore.px>>8,py=ggExplore.py>>8;
-    // Far-to-near draw order makes nearby details obscure distant ones.
-    for(int d=GG_REIGN_SCENE_RADIUS;d>=1;d--){
+    // Choose the closest *visible* real buildings first. The old
+    // far-first cap spent its 16 decals on distant huts, omitted nearby
+    // landmarks and could waste occlusion tests on invisible districts.
+    // This stack list is < 256 bytes; no heap, texture or framebuffer.
+    struct { short sx,foot; unsigned char build,u; } visible[GG_REIGN_SCENE_CAP];
+    for(int d=1;d<=GG_REIGN_SCENE_RADIUS;d++){
         for(int dy=-d;dy<=d;dy++){
             int y=py+dy;
             if((unsigned)y>=WH)continue;
@@ -117,11 +121,18 @@ static void ggReignSceneDraw(u8*out){
                 if((unsigned)x>=WW||!bld[y][x])continue;
                 int sx,foot,size;
                 if(!ggChronProject(x,y,&sx,&foot,&size))continue;
-                int u=ggExpClamp(24/(d+3),1,5);
-                ggReignSceneAt(out,bld[y][x],sx,foot,u,ggChron.frame);
-                if(++ggReignSceneDrawn>=GG_REIGN_SCENE_CAP)return;
+                int i=ggReignSceneDrawn++;
+                visible[i].sx=(short)sx;visible[i].foot=(short)foot;
+                visible[i].build=(unsigned char)bld[y][x];
+                visible[i].u=(unsigned char)ggExpClamp(24/(d+3),1,5);
+                if(ggReignSceneDrawn>=GG_REIGN_SCENE_CAP)goto render;
             }
         }
     }
+render:
+    // Painter's order is still far-to-near, despite near-first selection.
+    for(int i=ggReignSceneDrawn-1;i>=0;i--)
+        ggReignSceneAt(out,visible[i].build,visible[i].sx,visible[i].foot,
+                       visible[i].u,ggChron.frame);
 }
 #endif

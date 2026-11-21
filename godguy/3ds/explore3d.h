@@ -195,6 +195,14 @@ static void ggExpDot(u8 *out,int x,int y,int r,int g,int b){
         a[k*3+2]=z[k*3+2]=(u8)b;
     }
 }
+// The terrain loop already clips x and y to 200x120. Avoid thousands of
+// bounds checks and per-dot call overhead in its hottest drawing path.
+static inline void ggExpDotInView(u8 *out,int x,int y,int r,int g,int b){
+    u8 *p=out+((y*2)*400+x*2)*3;
+    p[0]=p[3]=p[1200]=p[1203]=(u8)r;
+    p[1]=p[4]=p[1201]=p[1204]=(u8)g;
+    p[2]=p[5]=p[1202]=p[1205]=(u8)b;
+}
 static void ggExpRect(u8*out,int x,int y,int w,int h,int r,int g,int b){
     int x1=ggExpClamp(x,0,400),y1=ggExpClamp(y,0,240);
     int x2=ggExpClamp(x+w,0,400),y2=ggExpClamp(y+h,0,240);
@@ -256,9 +264,15 @@ static void ggExpRender(u8 *top){
         int rayY=dirY+rightY*skew/125;
         int highest=GG_EXP_H;
         int previousX=-1,previousY=-1;
+        // Advance fixed-point ray numerators instead of two multiplies
+        // at every sample. Division retains the EXACT original rounding
+        // (including negative directions), so cell/roof pixels do not shift.
+        const int stepX=rayX*256,stepY=rayY*256;
+        int sampleX=0,sampleY=0;
         for(int d=1;d<=GG_EXP_MAX_DEPTH;d++){
-            int wx=ggExplore.px+rayX*d*256/4096;
-            int wy=ggExplore.py+rayY*d*256/4096;
+            sampleX+=stepX;sampleY+=stepY;
+            int wx=ggExplore.px+sampleX/4096;
+            int wy=ggExplore.py+sampleY/4096;
             int tx=wx>>8,ty=wy>>8;
             if((unsigned)tx>=WW||(unsigned)ty>=WH)break;
             if(tx==previousX&&ty==previousY)continue;
@@ -325,8 +339,8 @@ static void ggExpRender(u8 *top){
                 }else if(!build&&type==T_MOUNT&&((y+ty*3)/9)%4==0){
                     r+=8;g+=9;b+=11; // strata follow world coordinates
                 }
-                ggExpDot(top,x,y,ggExpClamp(r,0,255),
-                         ggExpClamp(g,0,255),ggExpClamp(b,0,255));
+                ggExpDotInView(top,x,y,ggExpClamp(r,0,255),
+                               ggExpClamp(g,0,255),ggExpClamp(b,0,255));
             }
             highest=from;
             if(!highest)break;

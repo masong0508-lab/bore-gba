@@ -325,6 +325,13 @@ static void shimDrawSub(u8*sb,int sw,int sox){
     for(int r=0;r<24;r++) for(int c=0;c<32;c++){ int ch=shimCon[r][c]; if(ch>='a'&&ch<='z') ch-=32; if(ch<32||ch>=96) continue; const unsigned char*g=font5x7[ch-32];
         for(int y=0;y<7;y++) for(int x=0;x<5;x++) if((g[y]>>(4-x))&1){ u8*o=&sb[((24+r*8+y)*sw+sox+c*8+x+1)*3]; o[0]=o[1]=o[2]=255; } } }
 static long shimDrawnMain, shimDrawnSub, shimSkipped;   // counters (pc_speed.c reads them)
+#ifdef __3DS__
+// The first-person 3DS renderer completely replaces the sub-engine
+// picture on the TOP LCD. Do not convert that invisible bitmap, scan its
+// text or clear its framebuffer while exploring. The real bottom map
+// still follows the normal byte-exact dirty renderer.
+static int shimExploreTopOverride;
+#endif
 // Draws what changed into top / bottom (400 x 240 and 320 x 240, RGB, row by row) and says which of the two screens changed. The buffers must be the ones passed last time (they keep their picture);
 // a new buffer, or the screens swapping places, draws everything.
 static void shimRenderChanged(u8*top,u8*bot,int*topChanged,int*botChanged){
@@ -336,22 +343,34 @@ static void shimRenderChanged(u8*top,u8*bot,int*topChanged,int*botChanged){
     // directly, and keep a snapshot only when they change.
     static u8 oldTiles[sizeof shimTiles], oldBitmap[256*192];
     int force=!have||top!=lt||bot!=lb||shimSwap!=lswap;
+    int skipSub=0;
 #ifdef __3DS__
+    skipSub=shimExploreTopOverride&&!shimSwap;
     if(shimExternalInvalidate){force=1;shimExternalInvalidate=0;}
     // A film starting/ending must repaint both LCDs even when the palette
     // and underlying world map are otherwise identical.
     if(lastFilm!=shimFilmFullscreen){force=1;lastFilm=shimFilmFullscreen;}
 #endif
-    if(force){ memset(top,0,400*240*3); memset(bot,0,320*240*3); lt=top; lb=bot; lswap=shimSwap; have=1; }
+    if(force){
+        if(!skipSub)memset(top,0,400*240*3);
+        memset(bot,0,320*240*3);
+        lt=top; lb=bot; lswap=shimSwap; have=1;
+    }
     int tilesChanged=memcmp(oldTiles,shimTiles,sizeof oldTiles)!=0;
-    int bitmapChanged=memcmp(oldBitmap,shimBmp,sizeof oldBitmap)!=0;
-    if(tilesChanged) memcpy(oldTiles,shimTiles,sizeof oldTiles);
-    if(bitmapChanged) memcpy(oldBitmap,shimBmp,sizeof oldBitmap);
+    int bitmapChanged=!skipSub&&memcmp(oldBitmap,shimBmp,sizeof oldBitmap)!=0;
+    if(tilesChanged)memcpy(oldTiles,shimTiles,sizeof oldTiles);
+    if(bitmapChanged)memcpy(oldBitmap,shimBmp,sizeof oldBitmap);
     ShimSig m={2166136261u,0x9E3779B9u}, b={2166136261u,0x9E3779B9u};
     shimSigAdd(&m,shimMap,sizeof shimMap); shimSigAdd(&m,shimMap1,sizeof shimMap1); shimSigAdd(&m,BG_PALETTE,sizeof BG_PALETTE); shimSigAdd(&m,SPRITE_PALETTE,sizeof SPRITE_PALETTE); shimSigInt(&m,shimScrollX); shimSigInt(&m,shimScrollY);
     for(int n=0;n<128;n++){ const ShimSpr*s=&shimSpr[n]; shimSigInt(&m,s->on); if(!s->on||!s->gfx) continue; shimSigInt(&m,s->x); shimSigInt(&m,s->y); shimSigInt(&m,s->pal); shimSigInt(&m,s->hflip); shimSigAdd(&m,s->gfx,32); }
-    shimSigAdd(&b,BG_PALETTE_SUB,sizeof BG_PALETTE_SUB); shimSigAdd(&b,shimCon,sizeof shimCon);
-    int mc=force||tilesChanged||m.a!=sm.a||m.b!=sm.b, sc=force||bitmapChanged||b.a!=ss.a||b.b!=ss.b; sm=m; ss=b;
+    if(!skipSub){
+        shimSigAdd(&b,BG_PALETTE_SUB,sizeof BG_PALETTE_SUB);
+        shimSigAdd(&b,shimCon,sizeof shimCon);
+    }
+    int mc=force||tilesChanged||m.a!=sm.a||m.b!=sm.b;
+    int sc=!skipSub&&(force||bitmapChanged||b.a!=ss.a||b.b!=ss.b);
+    sm=m;
+    if(!skipSub)ss=b;
     u8*mbuf=shimSwap?top:bot; int mw=shimSwap?400:320, mox=shimSwap?72:32; u8*sbuf=shimSwap?bot:top; int sw=shimSwap?320:400, sox=shimSwap?32:72;
     if(mc){ shimLut(shimLutM,BG_PALETTE); shimLut(shimLutP,SPRITE_PALETTE); shimDrawMain(mbuf,mw,mox); shimDrawnMain++; } else shimSkipped++;
     if(sc){ shimLut(shimLutS,BG_PALETTE_SUB); shimDrawSub(sbuf,sw,sox); shimDrawnSub++; } else shimSkipped++;

@@ -110,6 +110,29 @@ int main(void){
     check(ggExplore.active&&(ggExplore.px>>8)==64&&(ggExplore.py>>8)==64,
           "did not enter the player's map at its saved camera position");
     check(ggExpTrigReady,"first-person camera trig not cached");
+    // The faster incremental ray must sample exactly the old positions,
+    // especially left/backwards rays where C division truncates to zero.
+    for(int a=0;a<256;a+=7)for(int col=0;col<200;col+=5){
+        int x=ggExpCos[a]-ggExpSin[a]*(col-100)/125;
+        int y=ggExpSin[a]+ggExpCos[a]*(col-100)/125;
+        int sx=0,sy=0;
+        for(int d=1;d<=GG_EXP_MAX_DEPTH;d++){
+            sx+=x*256;sy+=y*256;
+            check(sx/4096==x*d*256/4096 &&
+                  sy/4096==y*d*256/4096,
+                  "incremental ray drifted from original world sampling");
+        }
+    }
+    // The unclipped 2x2 raster is byte-identical for valid rays.
+    ggExpDot(guarded.img,25,35,97,149,201);
+    u8 pixelRef[12];
+    for(int yy=0;yy<2;yy++)
+        memcpy(pixelRef+yy*6,guarded.img+((35*2+yy)*400+25*2)*3,6);
+    ggExpDotInView(guarded.img,25,35,97,149,201);
+    for(int yy=0;yy<2;yy++)
+        check(!memcmp(pixelRef+yy*6,
+               guarded.img+((35*2+yy)*400+25*2)*3,6),
+              "fast terrain pixel differs from clipped reference");
     int ox=ggExplore.px,oy=ggExplore.py;
     ggExplore.angle=0;
     ggExpStep(KEY_UP,0,0);
@@ -454,10 +477,27 @@ int main(void){
     check(ggReignSceneDrawn>0&&hash()!=bareFarm,
           "3DS farm decorations are absent from the real settlement");
     bld[60][62]=0;
+    // Dense districts must not allocate more than the fixed scene cap.
+    for(int yy=57;yy<65;yy++)for(int xx=60;xx<68;xx++)
+        bld[yy][xx]=(xx+yy)&1?B_HOUSE:B_HALL;
+    ggExpRender(guarded.img);
+    ggReignSceneDraw(guarded.img);
+    check(ggReignSceneDrawn<=GG_REIGN_SCENE_CAP,
+          "busy city bypassed the bounded 3DS scene-decoration budget");
+    for(int yy=57;yy<65;yy++)for(int xx=60;xx<68;xx++)bld[yy][xx]=0;
     ggChronDraw(guarded.img);
     ggReignDraw(guarded.img);
     check(guarded.first[0]==0x5a&&guarded.last[47]==0xc3,
           "new 3DS civic HUD overflowed its sole allocated frame buffer");
+    // Repeat on moving viewpoints, not just one flat frame. Host timings
+    // are diagnostics; they are not a claim of Old/New 3DS hardware FPS.
+    clock_t benchStart=clock();
+    for(int f=0;f<36;f++){
+        ggExplore.angle=(f*7)&255;ggExplore.frame=f*2;
+        ggExpRender(guarded.img);
+    }
+    double benchMs=1000.0*(clock()-benchStart)/CLOCKS_PER_SEC/36.0;
+    printf("EXPLORE3D render diagnostic: 36 camera frames, %.3f ms/frame (host CPU)\n",benchMs);
     double elapsed=1000.0*(clock()-started)/CLOCKS_PER_SEC;
     printf("EXPLORE3D OK: hybrid minds, stable IDs, selection, 2D/3D "
            "actor movement, protected homes, safe frame buffers; "

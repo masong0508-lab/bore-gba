@@ -259,6 +259,9 @@ void shimPresent(void){
     shimMix(sndBuf,n);
     int tc,bc;
     shimFilmFullscreen=sceneClip!=0;
+    // The 3D top screen completely replaces the old sub-engine bitmap.
+    // Keep rendering and caching the live 2D map on the bottom LCD.
+    shimExploreTopOverride=ggExplore.active;
     shimRenderChanged(topBuf,botBuf,&tc,&bc);
     if(ggExplore.active){
         // Render on actual camera/world changes, or every eighth frame
