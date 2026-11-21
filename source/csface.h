@@ -110,50 +110,35 @@ static void csFaceBig(int wx,int wy,int who,int pose,int t,int open,u16 sk,u16 h
 // CAMERA scaled. Hair behind the face, then neck, cheek, eye and mouth:
 // NO second full-sized black head shadow, chin-beard, or pasted-on mask.
 static void csFaceBed(int wx,int wy,int t,u16 skin,u16 hair,int awake){
-    if(csCz<560) return;
-    csFcx=csCamX(wx); csFcy=csCamY(wy);
-    u16 shadow=csFSh(skin,2), warm=csFLt(skin,2);
-    u16 lip=RGB(17,7,9), outline=RGB(8,7,9);
-    // SUPINE close-up: skull supported by the pillow, forehead and nose
-    // pointing toward the ceiling, nape joining a horizontal shoulder.
-    // Draw neck first so the jaw overlaps its edge without an elbow shape.
-    csFR(19,6,30,12,shadow);
-    csFR(20,5,29,9,skin);
-    csFR(39,7,19,11,RGB(12,19,27));       // gown collar
-    csFLn(36,8,45,12,RGB(24,29,30));
-    // Hair is behind and BELOW the resting head, not a huge side helmet.
-    csFE(5,1,21,16,outline);
-    csFE(5,1,19,14,hair);
-    csFE(16,4,7,8,csFLt(hair,2));
-    csFE(-7,-4,19,14,shadow);
-    csFE(-8,-5,17,13,skin);              // a smaller, gently oval head
-    csFE(-19,-9,6,5,skin);               // forehead flows into nasal bridge
-    csFE(10,5,5,5,shadow);               // jaw rests on nape
-    csFE(11,4,4,4,skin);
-    // Nose faces ceiling but projects only subtly from the resting face.
-    csFE(-13,-15,4,5,skin);
-    csFR(-12,-18,3,2,warm);
-    csFR(-11,-12,3,1,shadow);
-    // Hair follows the back of the skull, no helmet-sized disc.
-    csFR(-1,-17,13,2,hair);
-    csFR(0,-18,10,2,csFLt(hair,3));
-    csFE(15,-7,5,6,csFSh(hair,2));
-    // Ear on the underside, closer to the neck and the pillow.
-    csFE(15,4,5,7,shadow);
-    csFE(15,3,4,5,skin);
-    csFE(15,4,2,2,csFSh(skin,4));
-    // The eye and mouth lie on the upward-looking face plane.
+    // Same WORLD-space head at every zoom. The old csFE quarter-pixel
+    // portrait was a separate enormous circular helmet at high zoom.
+    // This is a restrained three-quarter face resting on the pillow.
+    u16 outline=RGB(8,7,9), shadow=csFSh(skin,2), lip=RGB(17,7,9);
+    csR(wx-7,wy-6,15,12,outline);  // hair/neck underside
+    csR(wx-6,wy-7,12,12,hair);
+    csR(wx-8,wy+2,15,6,csFSh(hair,2));  // strands against pillow
+    csD(wx-1,wy,6,shadow);   // small, oval-looking facial silhouette
+    csD(wx-1,wy-1,5,skin);
+    csR(wx-6,wy-7,11,2,hair); // soft fringe
+    csR(wx-7,wy-5,3,6,csFSh(hair,2));
+    // Jaw to nape to collar: no floating disc and no protruding beak.
+    csR(wx+4,wy+2,5,3,csFSh(skin,1));
+    csR(wx+7,wy+3,5,2,skin);
+    csR(wx-1,wy+1,1,1,csFSh(skin,4)); // subtle nose, not a raised spike
     if(awake){
         int blink=((t+37)%180)<5;
-        csFE(-12,-11,6,blink?2:3,csFSh(skin,5));
-        if(!blink){
-            csFE(-12,-11,4,3,RGB(29,29,27));
-            csFE(-11,-10,2,2,RGB(11,9,9));
-            csFR(-12,-13,2,1,RGB(31,31,30));
+        csR(wx-4,wy-1,2,blink?1:2,RGB(9,7,9));
+        csR(wx,wy-1,2,blink?1:2,RGB(9,7,9));
+        if(!blink&&csCz>=560){
+            csR(wx-4,wy-1,1,1,RGB(30,29,27));
+            csR(wx,wy-1,1,1,RGB(30,29,27));
         }
-    } else csFR(-17,-10,10,2,csFSh(skin,5));
-    csFR(-13,-15,10,1,csFSh(hair,2));     // relaxed brow
-    csFR(-9,-6,7,awake&&csTalking&&csSpk==CA_MISSY&&((t/5)&3)?3:2,lip);
-    csFR(-7,-5,4,1,warm);                  // lower lip light
+    } else {
+        csR(wx-4,wy-1,2,1,csFSh(skin,5));
+        csR(wx,wy-1,2,1,csFSh(skin,5));
+    }
+    // Mouth is optional at small sizes: facial features never outgrow head.
+    csR(wx-2,wy+3,3,awake&&csTalking&&csSpk==CA_MISSY&&((t/5)&3)?2:1,lip);
 }
+
 

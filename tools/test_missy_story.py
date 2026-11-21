@@ -107,37 +107,25 @@ assert "static void csFaceBed(" in face
 assert "static void csWardPatient(" in art
 assert "csWardPatient(x,y,who,pose,t,sk,hr)" in art
 assert "csCurSc==3&&csCurBi>=16&&csCurBi<34" in art
-assert "int talking=awake&&csTalking&&csSpk==who" in art
 assert "int blink=((t+37)%180)<5" in face
-# Ward anatomy contract: the whole silhouette shares ONE horizontal bed
-# plane, hair rests on a pillow, and the face aims UP rather than left.
-assert "SUPINE BED POSE:" in art
-assert "SUPINE close-up:" in face
-assert art.count("csFaceBed(")==1, "patient portrait must render exactly once"
-assert "csR(x-53,y-19,40,16" in art, "pillow must support skull"
-assert "csR(x-37,y-4,86,3" in art, "spine/blanket rests on mattress"
-assert "csR(x-15,y-13-breath,35,13,edge)" in art, "horizontal torso and rounded shoulder on mattress"
-assert "csR(x+8,y-10,41,11,edge)" in art, "blanket starts at the hips"
-assert "csR(x+1,y-6-breath-lift,8,3,sh)" in art, "bent forearm rests on abdomen"
-assert "csD(x-31,y-12-breath,9,edge)" in art, "wide head should not float upright"
-assert "csR(x-37,y-22-breath,3,4,sk)" in art, "wide nose faces ceiling"
-assert "csFaceBed(x-32,y-12-breath,t,sk,hr,awake)" in art, "closeup shares pose anchor"
-assert "csFR(19,6,30,12,shadow)" in face, "reclining neck meets gown"
-assert "csFE(-13,-15,4,5,skin)" in face, "closeup nose points up without a projecting block"
-assert "csFE(5,1,21,16,outline)" in face, "skull must be correctly proportioned"
-assert "csR(x-12,y-5-breath,9,4,csSh(cloth,3))" in art, "upper arm stays beside the ribs"
-assert "csFR(-27,3,5,2,shadow)" not in face, "old horizontal-beak profile must not return"
-# Geometry test independent of scaling: skull is above the mattress but its
-# lower edge rests on the pillow, while the neck/gown reaches the bed.
-head_y, head_radius, pillow_y, pillow_height = -12, 9, -19, 16
-torso_y, torso_height, blanket_y, blanket_height = -13, 13, -10, 11
-assert head_y+head_radius >= pillow_y+7, "head needs actual pillow contact"
-assert torso_y+torso_height >= -1, "torso must lie on mattress instead of floating"
-assert blanket_y+blanket_height >= 0, "feet must be supported by the bed"
-assert "csR(115,90,96,15" in cut, "mattress remains beneath patient/pillow"
-assert "csR(118,107,96,2" in cut, "near rail must stay below body"
+# One head mesh, one scale, one bed plane; do not reintroduce an isolated,
+# oversized screen-space closeup or make the skull bob while breathing.
+assert art.count("csFaceBed(")==1
+assert "csFaceBed(x-33,y-12,t,sk,hr,awake)" in art
+assert "csFaceBed(x-33,y-12-breath" not in art
+assert "csD(wx-1,wy-1,5,skin)" in face
+assert "csR(wx-6,wy-7,12,12,hair)" in face
+assert "if(csCz<560) return" not in face[face.index("static void csFaceBed("):]
+assert "csFcx=csCamX(wx)" not in face[face.index("static void csFaceBed("):]
+assert "csR(x-25,y-10,12,6,edge)" in art, "short neck must meet chest"
+assert "csR(x-16,y-12-breath,32,12+breath,edge)" in art
+assert "csR(x-52,y-18,37,13" in art, "head must be supported by pillow"
+assert "csR(x+12,y-10,44,11,edge)" in art, "blanket begins at waist"
+assert "csR(x-3,y-3,5,2,sk)" in art, "arm has an elbow"
+assert "csR(x+8,y-7-lift,5,3,sk)" in art, "forearm ends over abdomen"
+assert "csR(115,90,96,15" in cut, "mattress remains below patient"
+assert "csR(118,107,96,2" in cut, "rail must remain in front"
 assert "{3,16,1,  0,100, 560,-12,90, 700,-12,89}" in shots
-assert "csFaceBed(x-30,y-15,t,sk,hr,csWardAwake())" not in art
 assert "{3,3,0," in shots and "{3,20,0," in shots
 assert "static void csWardFront(void)" in cut
 assert "Mamesy's chair moves toward the bed in the vigil beat" in cut

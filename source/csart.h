@@ -80,73 +80,57 @@ static void csWardPatient(int x,int y,int who,int pose,int t,u16 sk,u16 hr){
     int flat=csBgNow==CB_FLAT, awake=csWardAwake()&&!flat;
     int stir=pose==CP_STIR&&!flat, breath=flat?0:((t/38)&1);
     int lift=stir?(t<24?t/12:2+((t>>5)&1)):0;
-    int talking=awake&&csTalking&&csSpk==who;
-    u16 edge=RGB(7,11,19), cloth=RGB(12,19,27), sh=csSh(sk,3);
-    u16 sheet=RGB(12,19,27), sheetHi=RGB(19,27,30), sheetFold=RGB(8,14,23);
-    // SUPINE BED POSE: head left, legs right, spine horizontal along the
-    // mattress. The head is supported from behind, never standing upright.
-    // The patient is drawn at y=98; mattress top y=90, body back y=95-98.
-    csR(x-53,y-19,40,16,RGB(8,16,23));      // pillow casing
-    csR(x-51,y-18,38,13,RGB(23,28,30));     // pillow, not a vertical slab
-    csR(x-50,y-17,35,9,RGB(28,30,30));
-    csLn(x-49,y-6,x-16,y-6,RGB(17,24,28));
-    csR(x-37,y-4,86,3,RGB(8,15,21));        // body/blanket contact shadow
+    u16 edge=RGB(7,11,19), cloth=RGB(12,19,27);
+    u16 sheet=RGB(12,19,27), hi=RGB(19,27,30), fold=RGB(8,14,23);
+    // The hospital set is a SIDE VIEW. Use the same landmarks at every zoom:
+    // skull x-33, neck x-24, shoulder x-16, waist x+12, feet x+54.
+    // A low pillow supports the head; neither head nor pillow bobs with breath.
+    csR(x-54,y-20,39,17,RGB(8,16,23));
+    csR(x-52,y-18,37,13,RGB(23,28,30));
+    csR(x-50,y-16,33,10,RGB(28,30,30));
+    csLn(x-46,y-6,x-18,y-6,RGB(17,24,28));
+    csR(x-40,y-5,93,3,RGB(8,15,21));  // contact shadow along mattress
 
-    // Neck lies on the same bed plane as the chest. The gown continues from
-    // shoulder to hip instead of making the patient's torso a right angle.
-    csR(x-23,y-10-breath,14,6,edge);
-    csR(x-22,y-9-breath,13,4,csSh(sk,1));
-    csR(x-21,y-10-breath,12,4,sk);
-    // Round the shoulder into the neck rather than drawing a square slab.
-    csD(x-15,y-7-breath,7,edge);
-    csD(x-15,y-7-breath,6,cloth);
-    csR(x-15,y-13-breath,35,13,edge);
-    csR(x-14,y-12-breath,33,11,cloth);
-    csR(x-13,y-12-breath,20,2,csLt(cloth,5));
-    csR(x-12,y-5-breath,29,3,csSh(cloth,2));
-    csR(x-17,y-11-breath,6,3,sk);           // small visible collar
-    csLn(x-12,y-10-breath,x-6,y-7-breath,RGB(20,29,30));
+    // Human neck is shorter than the head; the shoulders sit level with the
+    // bed, not 20 pixels above it. Only the upper chest rises with breathing.
+    csR(x-25,y-10,12,6,edge);
+    csR(x-24,y-10,11,4,csSh(sk,1));
+    csR(x-23,y-10,10,4,sk);
+    csR(x-16,y-12-breath,32,12+breath,edge);
+    csR(x-16,y-9-breath,4,6+breath,csSh(cloth,2));  // dropped shoulder
+    csR(x-12,y-12-breath,26,10+breath,cloth);
+    csR(x-12,y-12-breath,24,2,csLt(cloth,5));
+    csR(x+7,y-5,9,3,csSh(cloth,2));
+    csR(x-17,y-10,5,3,sk);  // collar and neckline
+    csLn(x-13,y-10,x-8,y-7,RGB(20,29,30));
 
-    // A blanket lies over the hips and legs, not across the throat. Its top
-    // contour rises just at the knees; its underside rests on the mattress.
-    csR(x+8,y-10,41,11,edge);
-    csR(x+9,y-9,39,9,sheet);
-    csR(x+10,y-9,32,2,sheetHi);
-    csLn(x+10,y-10,x+21,y-11,sheetHi);
-    csLn(x+21,y-11,x+33,y-10,sheetHi);
-    csLn(x+33,y-10,x+45,y-9,sheetHi);
-    csLn(x+19,y-3,x+30,y-2,sheetFold);
-    csLn(x+34,y-5,x+44,y-3,sheetFold);
-    csR(x+46,y-8,4,8,csSh(sheet,2));        // tucked foot end
+    // Sheet starts at the WAIST, follows hips and legs, and tucks beneath
+    // the feet. It cannot slice the shoulder or hide the whole person.
+    csR(x+12,y-10,44,11,edge);
+    csR(x+13,y-9,41,8,sheet);
+    csR(x+13,y-10,9,1,hi);
+    csR(x+22,y-11,18,2,sheet);
+    csR(x+40,y-10,12,1,hi);
+    csR(x+13,y-2,42,2,csSh(sheet,2));
+    csLn(x+19,y-5,x+32,y-4,fold);
+    csLn(x+34,y-5,x+44,y-3,fold);
+    csR(x+54,y-7,2,7,csSh(sheet,2));
 
-    // Elbow drops beside the ribs; the shortened forearm folds back
-    // onto the abdomen, rather than projecting as one rigid horizontal bar.
-    csR(x-12,y-5-breath,9,4,csSh(cloth,3));
-    csR(x-4,y-4-breath,6,3,sh);
-    csR(x-3,y-4-breath,6,2,sk);
-    csR(x+1,y-6-breath-lift,8,3,sh);
-    csR(x+2,y-6-breath-lift,7,2,sk);
-    csD(x+9,y-5-breath-lift,2,sk); // relaxed hand over the blanket edge
-    if(stir) csR(x+10,y-5-breath-lift,2,1,csLt(sk,2));
+    // The near arm is FLEXED at the elbow (below the ribs), then folds
+    // across the stomach. It is two linked limbs, not a horizontal plank.
+    csR(x-9,y-5-breath,6,4,csSh(cloth,3));  // short sleeve
+    csR(x-6,y-4,5,3,csSh(sk,2));          // upper arm
+    csR(x-3,y-3,5,2,sk);                 // elbow
+    csR(x,y-6-lift,8,3,csSh(sk,1));      // forearm returns over torso
+    csR(x+1,y-6-lift,7,2,sk);
+    csR(x+8,y-7-lift,5,3,sk);            // hand rests over abdomen
+    if(stir) csR(x+11,y-8-lift,2,2,csLt(sk,2));
 
-    // Repose the face UP toward the ceiling, not pointing horizontally away
-    // from the body. Skull, jaw and collar meet without the orange L-shape.
-    if(csCz>=560) csFaceBed(x-32,y-12-breath,t,sk,hr,awake);
-    else {
-        csD(x-31,y-12-breath,9,edge);
-        csD(x-30,y-12-breath,8,hr);         // hair sits underneath the skull
-        csD(x-35,y-14-breath,7,csSh(sk,1));
-        csD(x-35,y-15-breath,6,sk);
-        csR(x-37,y-22-breath,3,4,sk);       // upturned nose, not a left beak
-        csR(x-36,y-19-breath,2,1,csSh(sk,2));
-        csR(x-35,y-19-breath,4,1,csSh(hr,1)); // brow across upper face
-        if(awake){ csR(x-34,y-18-breath,3,2,RGB(30,29,25));
-            csR(x-33,y-18-breath,1,2,RGB(10,9,8)); }
-        else csR(x-35,y-17-breath,4,1,csSh(sk,5));
-        csR(x-33,y-10-breath,3,talking?2:1,RGB(18,7,9)); // mouth
-        csR(x-26,y-9-breath,4,2,sk);        // jaw reaches the neck
-    }
+    // One head renderer for WIDE, BEDSIDE and CLOSE-UP shots. A second
+    // independently enlarged head was the source of the bobblehead look.
+    csFaceBed(x-33,y-12,t,sk,hr,awake);
 }
+
 static void csFig(int x,int y,int who,int pose,int t){   // t: the motion clock (csFt: on the tune's beat when one plays); csBT: frames since the beat began, for what happens once (walk in, leave, slump, the shock's jolt)
     //                         -    MISSY        MAMESY       DEX          HAL          OKAFOR     (the game's own skinTones / hairTones / topTones / botTones), then VANCE (the network exec: a charcoal suit, silver slick hair)
     static const u16 SKc[7]={0,RGB(24,16,10),RGB(24,16,10),RGB(30,23,17),RGB(19,12,7),RGB(13,8,5),RGB(28,21,16)};
