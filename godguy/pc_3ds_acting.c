@@ -82,6 +82,24 @@ int main(void){
           "guest did not reciprocate the same physical hand contact");
     check(otherY>80&&otherY<140,
           "guest hand detached from projected torso");
+    // The offered hand must begin on the original sleeve, not
+    // teleport to the other character at the start of an interaction.
+    GgFilmPose idleReach={0};
+    int restX,restY,fullX,fullY;
+    ggFilmPairHandAt(100,140,3,180,&idleReach,&restX,&restY);
+    ggFilmPairActPose(&idleReach,1,96);
+    ggFilmPairHandAt(100,140,3,180,&idleReach,&fullX,&fullY);
+    check(restX==121&&fullX==136&&restX<fullX&&fullX<140,
+          "hand floated at the destination before the arm extended");
+    check(ggFilmPairProjectedContact(120,140,3,172,140,3),
+          "valid two-person screen-space grasp was rejected");
+    check(!ggFilmPairProjectedContact(120,140,3,250,140,3),
+          "distant projected people attempted an impossible reach");
+    check(!ggFilmPairProjectedContact(120,140,3,172,181,3),
+          "cliff-height misalignment triggered a floating handoff");
+    check(!ggFilmPairProjectedContact(120,140,3,130,140,3),
+          "superimposed characters triggered an unreadable embrace");
+
     reach.holdProp=0;reply.holdProp=0;
     draws=bookCover=parcelBody=handLinks=0;
     ggFilmDrawActor(buffer,200,140,3,hair,skin,coat,&reach);

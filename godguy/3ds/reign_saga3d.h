@@ -439,7 +439,7 @@ typedef struct {
     int approachX,approachY; // prevalidated entry tile, fixed for two beats
     GgFilmCameraTrack camera; // camera corridor also solved once per shot
     int sidesResolved,plusValid,minusValid;
-    int pairResolved,pairKind,pairSourceHero,pairTransferred;
+    int pairResolved,pairKind,pairSourceHero;
     int plusX,plusY,minusX,minusY;
 } GgSagaShot;
 static GgSagaShot ggSagaShot;
@@ -515,7 +515,7 @@ static void ggSagaCamera(int beat,int local,int *anchorX,int *anchorY){
         ggSagaShot.landmarkY=landmarkY;
         ggSagaShot.anchorX=tx;ggSagaShot.anchorY=ty;
         ggSagaShot.sidesResolved=0;
-        ggSagaShot.pairResolved=0;ggSagaShot.pairTransferred=0;
+        ggSagaShot.pairResolved=0;
         ggSagaShot.angle=(shot*51+ggChron.act*23+32)&255;
         ggSagaShot.distance=3;
         // Eight cardinal/diagonal angles at three distances, visited
@@ -853,15 +853,40 @@ static void ggSagaDraw(u8 *out){
     if(!ggSagaShot.pairResolved){
         ggSagaShot.pairKind=GG_FILM_PAIR_NONE;
         ggSagaShot.pairSourceHero=0;
-        ggSagaShot.pairTransferred=0;
         if(spoken&&guestCount==1&&firstSide&&ggOrigin.complete){
             int begin=index&~1,count=ggSagaBeatCount();
             const GgSagaBeat *a=ggSagaCurrentBeat(begin);
             const GgSagaBeat *b=begin+1<count?
                                ggSagaCurrentBeat(begin+1):0;
-            ggSagaShot.pairKind=ggFilmPairCue(a->line,
-                                             b?b->line:"");
-            ggSagaShot.pairSourceHero=!strcmp(a->voice,"YOU");
+            int cue=ggFilmPairCue(a->line,b?b->line:"");
+            if(cue){
+                // Rehearse peak contact against the ACTUAL film camera and
+                // world projection ONCE at shot setup. A distant guest,
+                // cliff-height mismatch or narrow sightline should not
+                // make the actor reach through space for a prop.
+                int gx,gy,hwx,hwy,gwx,gwy;
+                ggSagaSidePosition(firstSide,&gx,&gy);
+                ggFilmPairPosition(stageX*256+128,stageY*256+128,
+                                   gx,gy,96,1,&hwx,&hwy);
+                ggFilmPairPosition(stageX*256+128,stageY*256+128,
+                                   gx,gy,96,0,&gwx,&gwy);
+                int saveX=ggExplore.px,saveY=ggExplore.py;
+                int camX,camY;
+                ggFilmCameraTrackAt(&ggSagaShot.camera,1,0,
+                                    GG_SAGA_BEAT_TICKS,&camX,&camY);
+                ggExplore.px=camX;ggExplore.py=camY;
+                int hx,hy,hs,gx2,gy2,gs;
+                int visibleHero=ggSagaProjectActor(hwx,hwy,&hx,&hy,&hs);
+                int visibleGuest=ggSagaProjectActor(gwx,gwy,&gx2,&gy2,&gs);
+                ggExplore.px=saveX;ggExplore.py=saveY;
+                if(visibleHero&&visibleGuest&&
+                   ggFilmPairProjectedContact(hx,hy,
+                       ggExpClamp(hs/12,1,3),gx2,gy2,
+                       ggExpClamp(gs/16,1,3))){
+                    ggSagaShot.pairKind=cue;
+                    ggSagaShot.pairSourceHero=!strcmp(a->voice,"YOU");
+                }
+            }
         }
         ggSagaShot.pairResolved=1;
     }
@@ -984,7 +1009,6 @@ static void ggSagaDraw(u8 *out){
     if(pairVisible){
         int touching=ggFilmPairTouch(heroHandX,heroHandY,
                                     guestHandX,guestHandY);
-        int elapsed=(index&1)*GG_SAGA_BEAT_TICKS+local;
         if(pairKind==GG_FILM_PAIR_COMFORT&&pairInset>=80&&touching){
             // An actual shared contact point, in front of BOTH sleeves.
             int cx=(heroHandX+guestHandX)/2;
@@ -995,15 +1019,12 @@ static void ggSagaDraw(u8 *out){
             ggExpRect(out,cx,cy-1,3,3,b[0],b[1],b[2]);
         }else if(pairKind==GG_FILM_PAIR_BOOK||
                  pairKind==GG_FILM_PAIR_PARCEL){
-            if(!ggSagaShot.pairTransferred&&
-               elapsed>=GG_SAGA_BEAT_TICKS-8&&
-               elapsed<=GG_SAGA_BEAT_TICKS+32&&touching)
-                ggSagaShot.pairTransferred=1;
-            // Transfer only on verified visible hand contact. Once
-            // transferred, possession persists while both actors
-            // step apart; never draw two copies of the same object.
-            int owner=ggFilmPairObjectOwner(pairKind,0,
-                                            ggSagaShot.pairTransferred);
+            // Rehearsed contact guarantees a physically attainable
+            // handoff. Possession is based on the dialogue beat, not
+            // whether a particular frame happened to render. Skipping,
+            // pausing or replaying cannot strand or duplicate a book.
+            int owner=ggFilmPairOwnerAt(pairKind,index,local,
+                                        GG_SAGA_BEAT_TICKS);
             int holderHero=ggSagaShot.pairSourceHero!=owner;
             int hx=holderHero?heroHandX:guestHandX;
             int hy=holderHero?heroHandY:guestHandY;

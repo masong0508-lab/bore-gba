@@ -87,4 +87,13 @@ static int ggFilmPairObjectOwner(int kind,int touched,int transferred){
     if(kind!=GG_FILM_PAIR_BOOK&&kind!=GG_FILM_PAIR_PARCEL)return -1;
     return touched||transferred?1:0;
 }
+// Owner is a pure function of film time once the shot has rehearsed a
+// reachable contact. Skip-to-next, pause/resume, replay, and backward
+// seeks cannot miss the exchange or leave the prop with the wrong actor.
+// No state is changed while drawing cinematic frames.
+static int ggFilmPairOwnerAt(int kind,int beat,int local,int beatTicks){
+    (void)local;
+    if(beatTicks<=0)return ggFilmPairObjectOwner(kind,0,0);
+    return ggFilmPairObjectOwner(kind,(beat&1)!=0,0);
+}
 #endif
