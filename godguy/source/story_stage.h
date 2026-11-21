@@ -689,15 +689,24 @@ static void filmWorldContinuity(const FmvClip *clip,const FilmBeat *beat,int ela
         }
     }else if(chapter==2&&beat->place==F_VILLAGE){
         // The unfinished roof stays in the SAME position across cuts.
-        int finished=beat==roofBeats+5||beat==roofBeats+6;
+        // A continuous seven-second construction sequence. Planks
+        // appear as they are nailed in, remain placed when a new line
+        // starts, and never vanish after the chapter's fifth shot.
+        // The DS uses its existing colors and framebuffer only.
+        int phase=elapsed/(7*FILM_SECOND);
+        int complete=phase>=5,planks=complete?6:phase+1;
+        if(planks<0)planks=0;
         uiRect(49,117,2,31,fmvSlots[24]);
         uiRect(105,117,2,31,fmvSlots[24]);
         uiRect(48,117,60,3,fmvSlots[25]);
-        if(finished){
-            for(int i=0;i<6;i++)uiRect(49+i*10,110+i%2,10,4,fmvSlots[24]);
+        for(int i=0;i<planks;i++)
+            uiRect(49+i*10,110+i%2,10,4,fmvSlots[24]);
+        if(complete){
             uiRect(47,115,64,3,fmvSlots[25]);
-            // Thorgrim leaves his hammer at the completed work site.
-            filmDrawProp(F_HAMMER,117,156,17);
+            // The hammer stays at the worksite after construction, but
+            // not simultaneously in a speaking actor's gripped hand.
+            if(beat->prop!=F_HAMMER)
+                filmDrawProp(F_HAMMER,117,156,17);
         }else{
             uiRect(48,111,20,3,fmvSlots[24]);
             uiRect(85,111,20,3,fmvSlots[24]);
@@ -711,6 +720,84 @@ static void filmWorldContinuity(const FmvClip *clip,const FilmBeat *beat,int ela
         }
     }
 }
+
+#ifndef __3DS__
+// DS/DSi: purposeful scenery motion that uses the *existing* indexed film
+// page and existing native-detail character cels. No extra bitmap, RAM,
+// dynamic allocations, or expensive per-pixel transforms.
+//
+// Avoid "cutting everything": environment time is the complete chapter
+// clock; the same window, forge, street or archive remains recognizable.
+static void filmDSSetAction(const FilmBeat *beat,int t,int chapter){
+    switch(beat->place){
+    case F_PORCH:
+        if(chapter==1){
+            // The two cloth curtains sway within the established window;
+            // their motion continues when Mira and Wisp exchange lines.
+            int sway=(t/24)%5-2;
+            uiRect(208+sway,63,3,22,fmvSlots[16]);
+            uiRect(243-sway,63,3,22,fmvSlots[16]);
+            uiRect(207+sway,85,6,2,fmvSlots[17]);
+            uiRect(240-sway,85,6,2,fmvSlots[17]);
+        }
+        break;
+    case F_VILLAGE:
+        if(chapter>=3){
+            // A grounded village worker walks past the same persistent
+            // lane, not an animated primitive, ghost or floating prop.
+            // Keep named Thorgrim unique when he is in the foreground.
+            if(beat->lead!=F_THORGRIM&&beat->other!=F_THORGRIM){
+                int phase=(t/15)%90;
+                int travel=phase<45?phase:90-phase;
+                int x=121+travel/2;
+                int pose=(t/15)&1?1:2;
+                filmDrawActor(F_THORGRIM,pose,x,157,24,phase>=45);
+            }
+            // A pair of fixed-height windows gently change light as the
+            // village grows rather than twinkling randomly in empty air.
+            int bright=(t/78)&1;
+            uiRect(67,119,4,5,fmvSlots[bright?10:9]);
+            uiRect(177,116,4,5,fmvSlots[bright?10:9]);
+        }
+        break;
+    case F_FORGE: {
+        // The smith's bellows physically compress, then recover beside
+        // a fixed glowing fire. Re-use 2D palette colors and rectangles.
+        int compression=(t/20)%7;
+        uiRect(196,139,24,5,fmvSlots[24]);
+        uiRect(200+compression,132,17-compression,8,fmvSlots[25]);
+        uiRect(202+compression,135,11-compression,3,fmvSlots[20]);
+        break;
+    }
+    case F_ARCHIVE: {
+        // On the desk, a bound page moves through a single turn.
+        // Repeated shots revisit this exact desk and remain legible.
+        int page=(t/42)%6;
+        uiRect(110,150,34,3,fmvSlots[24]);
+        uiRect(112,144,17,6,fmvSlots[23]);
+        uiRect(129,144-page,12,6+page,fmvSlots[22]);
+        uiRect(127,142,2,9,fmvSlots[25]);
+        break;
+    }
+    case F_FORD:
+    case F_SHORE:
+        // Local, shallow ripples; stable banks and no scrolling overlay.
+        for(int i=0;i<3;i++){
+            int travel=(t/14+i*3)%8;
+            uiRect(65+i*56+travel,150+i%2*3,8,1,fmvSlots[i&1?12:14]);
+        }
+        break;
+    case F_HEARTH:
+        // The fire flickers inside its fixed hearth aperture, not all
+        // over the picture or independently of the ambient flame.
+        uiRect(187,135+(t/22)%3,6,7-(t/22)%3,fmvSlots[9]);
+        uiRect(190,136,2,4,fmvSlots[10]);
+        break;
+    default:
+        break;
+    }
+}
+#endif
 
 #ifdef __3DS__
 // Physically anchored shadows, reflections and practical light at 20 fps.
@@ -903,6 +990,7 @@ static void filmDrawBeat(const FmvClip *clip,const FilmBeat *beat,int elapsed){
     if(filmBonusIndex<0)filmWorldContinuity(clip,beat,elapsed);
 #else
     filmWorldContinuity(clip,beat,filmSceneryClock);
+    filmDSSetAction(beat,filmSceneryClock,(int)(clip-fmvClips));
 #endif
 #if defined(__3DS__) && !defined(GG_FILM_2D_FALLBACK)
     // Environment, weather, tree sway and background people continue
