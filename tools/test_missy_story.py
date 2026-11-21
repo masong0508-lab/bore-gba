@@ -21,8 +21,13 @@ assert scenes[10] == 11 and scenes[11] == 22 and scenes[12] == 10
 
 seen = set()
 count = 0
-for m in re.finditer(r"^\s*\{(\d+),(\d+),([0-4]),\s*(-?\d+),\s*(-?\d+),", shots, re.M):
-    sc, beat, anchor, frame, duration = map(int, m.groups())
+for m in re.finditer(r"^\s*\{(\d+),(\d+),([0-4]),\s*(-?\d+),\s*(-?\d+),\s*(-?\d+),\s*(-?\d+),\s*(-?\d+),\s*(-?\d+),\s*(-?\d+),\s*(-?\d+)\s*\}", shots, re.M):
+    sc, beat, anchor, frame, duration, z0, x0, y0, z1, x1, y1 = map(int, m.groups())
+    # Guard camera inputs before they reach signed fixed-point arithmetic on GBA.
+    assert 0 <= frame <= 4096 and 0 < duration <= 4096, (sc, beat, frame, duration)
+    assert 128 <= z0 <= 1536 and 128 <= z1 <= 1536, (sc, beat, z0, z1)
+    assert all(-256 <= x <= 512 for x in (x0, x1)), (sc, beat, x0, x1)
+    assert all(-128 <= y <= 256 for y in (y0, y1)), (sc, beat, y0, y1)
     assert sc in scenes and 0 <= beat < scenes[sc], (sc, beat, scenes.get(sc))
     assert frame >= 0 and duration > 0, (sc, beat, frame, duration)
     key = (sc, beat, frame)
