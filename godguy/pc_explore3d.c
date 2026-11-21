@@ -214,6 +214,15 @@ int main(void){
     bld[ty][tx]=0;occ[ty][tx]=1;
     check(!ggExpEdit(tx,ty,0,1),"terrain edit damaged an occupied creature");
     occ[ty][tx]=0;
+    // Corrupted terrain must never index outside terrCol or allow a
+    // player to begin walking through an unknown physical material.
+    world[ty][tx]=255;
+    check(!ggExpWalkable(tx,ty,60,1),
+          "invalid terrain tile accepted as walkable");
+    ggExpRender(guarded.img);
+    check(guarded.first[0]==0x5a&&guarded.last[47]==0xc3,
+          "corrupted terrain crashed/overran the software voxel raster");
+    world[ty][tx]=T_HILL;
     check(ggExpEdit(tx,ty,0,1)&&world[ty][tx]==T_GRASS,
           "removing the terrain does not restore the live world");
     ggExplore.px=63*256+248;ggExplore.py=64*256+128;

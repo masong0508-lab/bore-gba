@@ -285,7 +285,12 @@ void shimInput(int frame,int*held,int*tx,int*ty){
             if(action&GG_EXP_SAVE){
                 doSave(); // compacts live population; rebind via crId
                 ggHybridAfterSave();
-                ggExpMessage("WORLD SAVE REQUESTED");
+                // doSave reports SAVED, SAVE FAILED or NO SD CARD into
+                // info. Do not overwrite that result with a misleading
+                // "requested" toast. Show outcome in the 3D HUD too.
+                ggExplore.feedback=!strcmp(info,"SAVED")?4:5;
+                ggExplore.feedbackT=150;
+                toastT=150;
             }
         }
         *held=0;*tx=*ty=0;return;

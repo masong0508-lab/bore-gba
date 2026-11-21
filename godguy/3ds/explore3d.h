@@ -72,6 +72,7 @@ static int ggExpBuilding(int b){
 static int ggExpWalkable(int x,int y,int fromHeight,int climb){
     if(x<1||y<1||x>=WW-1||y>=WH-1)return 0;
     int t=world[y][x];
+    if((unsigned)t>=T_N)return 0; // reject damaged terrain indices
     if(ggExplore.actorId){
         // The actor can begin inside their own home or water habitat.
         // Allow fractional travel there; ggHybridMove applies the true
@@ -235,6 +236,7 @@ static void ggExpText(u8*out,int x,int y,const char*str,int r,int g,int b){
 static void ggExpRender(u8 *top){
     int a=ggExplore.angle&255;
     int terrain=world[ggExplore.py>>8][ggExplore.px>>8];
+    if((unsigned)terrain>=T_N)terrain=T_DIRT;
     int eye=ggExpGround(terrain)+13;
     int walkBob=ggExplore.stepPhase?((ggExplore.stepPhase/5)&1):0;
     int horizon=58+walkBob;
@@ -286,6 +288,7 @@ static void ggExpRender(u8 *top){
             if(tx==previousX&&ty==previousY)continue;
             previousX=tx;previousY=ty;
             int type=world[ty][tx],build=bld[ty][tx];
+            if((unsigned)type>=T_N)type=T_DIRT;
             int h=ggExpGround(type)+ggExpBuilding(build);
             // Pitch real village roofs across each existing tile instead
             // of turning every home into a flat-topped Minecraft cube.
@@ -386,6 +389,8 @@ static void ggExpRender(u8 *top){
     if(ggExplore.feedbackT){
         const char *msg=ggExplore.feedback==2?"WORLD TILE CHANGED":
                         ggExplore.feedback==3?"PROTECTED OR OUT OF REACH":
+                        ggExplore.feedback==4?"WORLD SAVED":
+                        ggExplore.feedback==5?"SAVE FAILED - CHECK 2D NOTICE":
                         "MATERIAL SELECTED";
         ggExpText(top,9,191,msg,255,216,117);
     }
