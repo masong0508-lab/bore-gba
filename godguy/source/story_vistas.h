@@ -22,7 +22,7 @@ static int filmVistaRead(const FilmVista *v,int x,int y,int building){
                     v->terrain[y*FILM_VISTA_W+x];
 }
 static int filmVistaPlace(int place){
-    if(place==F_VILLAGE||place==F_GATE||place==F_HALL)
+    if(place==F_VILLAGE||place==F_GATE)
         return FILM_VISTA_TOWN;
     if(place==F_SHORE||place==F_STORM||place==F_FORD)
         return FILM_VISTA_COAST;
