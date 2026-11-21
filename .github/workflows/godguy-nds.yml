@@ -264,7 +264,9 @@ jobs:
           command -v gcc >/dev/null || { apt-get update && apt-get install -y gcc; }
           /usr/bin/python3 -c 'from PIL import Image' 2>/dev/null || { apt-get update && apt-get install -y python3-pil; }
           /usr/bin/python3 tools/check_story_duration.py
+          /usr/bin/python3 tools/make_story_fmv.py
           /usr/bin/python3 tools/make_story_hq.py
+          grep -q 'FILM_CEL_N = 6' source/story_fmv_data.h
       - name: Build native 3DS homebrew executable
         working-directory: godguy
         run: |
