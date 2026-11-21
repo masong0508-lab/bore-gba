@@ -25,6 +25,12 @@ int main(void){
     for(int y=0;y<24;y++)memset(ggOriginHumanCel[y],'.',16);
     const u8 hair[3]={90,60,50},skin[3]={204,167,132},coat[3]={58,90,110};
     u8 buffer[1]={0};
+    check(ggFilmGuestPalette[0][0][0]==126,
+          "actor colour identity is not stable");
+    GgFilmPose compatibility=ggFilmPoseAt("YOU","The records are open.",
+                                         2,48,1,0,2);
+    check(compatibility.holdProp==3,
+          "older portrait-pose caller lost its acting semantics");
     GgFilmPose book=ggFilmPoseFor("The records belong to the people.",
                                2,16,0,1,0,2);
     check(book.pose==GG_FILM_PRESENT&&book.holdProp==3,
