@@ -7,6 +7,7 @@
 #define GG_REIGN_SAGA3D_H
 #include "film_walk3d.h"
 #include "film_camera3d.h"
+#include "film_stage3d.h"
 #ifndef GG_SAGA_SAVE_PATH
 #define GG_SAGA_SAVE_PATH "sdmc:/godguy_saga.dat"
 #endif
@@ -658,34 +659,45 @@ static int ggSagaConversationGuest(int beat){
 // The staging sides are selected once when a take begins. A transient
 // crowd-cell change or a held dialogue frame cannot teleport a guest
 // or a physical prop on screen. Both sides are distinct; no duplicates.
+// Resolve actual passable left/right staging tiles once per take.
+// The camera may move later, but the set and actors do not teleport.
+static void ggSagaResolveSides(int tx,int ty){
+    if(ggSagaShot.sidesResolved)return;
+    int a=ggSagaShot.angle;
+    int sx=-ggExpSin[a],sy=ggExpCos[a],dx=0,dy=0;
+    if(abs(sx)>=abs(sy))dx=sx>=0?1:-1;
+    else dy=sy>=0?1:-1;
+    int px=ggExplore.px>>8,py=ggExplore.py>>8;
+    ggSagaShot.plusX=(tx+dx)*256+128;
+    ggSagaShot.plusY=(ty+dy)*256+128;
+    ggSagaShot.minusX=(tx-dx)*256+128;
+    ggSagaShot.minusY=(ty-dy)*256+128;
+    int stageHeight=ggExpGround(world[ty][tx]);
+    ggSagaShot.plusValid=ggChronLand(tx+dx,ty+dy)&&
+                         ggFilmStageHeightOK(stageHeight,
+                           ggExpGround(world[ty+dy][tx+dx]))&&
+                         ggExpLineClear(px,py,tx+dx,ty+dy);
+    ggSagaShot.minusValid=ggChronLand(tx-dx,ty-dy)&&
+                          ggFilmStageHeightOK(stageHeight,
+                            ggExpGround(world[ty-dy][tx-dx]))&&
+                          ggExpLineClear(px,py,tx-dx,ty-dy);
+    ggSagaShot.sidesResolved=1;
+}
+static void ggSagaSidePosition(int side,int *worldX,int *worldY){
+    *worldX=side>0?ggSagaShot.plusX:ggSagaShot.minusX;
+    *worldY=side>0?ggSagaShot.plusY:ggSagaShot.minusY;
+}
 static int ggSagaSideTile(int tx,int ty,int preferred,int fallback,
                           int *worldX,int *worldY){
-    if(!ggSagaShot.sidesResolved){
-        int a=ggSagaShot.angle;
-        int sx=-ggExpSin[a],sy=ggExpCos[a],dx=0,dy=0;
-        if(abs(sx)>=abs(sy))dx=sx>=0?1:-1;
-        else dy=sy>=0?1:-1;
-        int px=ggExplore.px>>8,py=ggExplore.py>>8;
-        ggSagaShot.plusX=(tx+dx)*256+128;
-        ggSagaShot.plusY=(ty+dy)*256+128;
-        ggSagaShot.minusX=(tx-dx)*256+128;
-        ggSagaShot.minusY=(ty-dy)*256+128;
-        ggSagaShot.plusValid=ggChronLand(tx+dx,ty+dy)&&
-                             ggExpLineClear(px,py,tx+dx,ty+dy);
-        ggSagaShot.minusValid=ggChronLand(tx-dx,ty-dy)&&
-                              ggExpLineClear(px,py,tx-dx,ty-dy);
-        ggSagaShot.sidesResolved=1;
-    }
+    ggSagaResolveSides(tx,ty);
     int plus=preferred>=0;
     if(plus?ggSagaShot.plusValid:ggSagaShot.minusValid){
-        *worldX=plus?ggSagaShot.plusX:ggSagaShot.minusX;
-        *worldY=plus?ggSagaShot.plusY:ggSagaShot.minusY;
+        ggSagaSidePosition(plus?1:-1,worldX,worldY);
         return 1;
     }
     if(fallback&&
        (plus?ggSagaShot.minusValid:ggSagaShot.plusValid)){
-        *worldX=plus?ggSagaShot.minusX:ggSagaShot.plusX;
-        *worldY=plus?ggSagaShot.minusY:ggSagaShot.plusY;
+        ggSagaSidePosition(plus?-1:1,worldX,worldY);
         return 1;
     }
     return 0;
@@ -813,62 +825,101 @@ static void ggSagaDraw(u8 *out){
     ggChron.frame+=ggSaga.frame; // cinematic farm crops and flags move
     ggReignSceneDraw(out);
     ggChron.frame=chronFrame;
-    // Stage a context-appropriate physical prop on the OPPOSITE side
-    // of the speaker, so a wagon or lectern cannot hover over faces.
-    int propX,propY,screenX,screenY,screenSize;
-    int primaryGuest,secondGuest;
+    // Collect the protagonist, named guests, and one optional physical
+    // prop in a bounded stack queue. All positions come from the same
+    // film camera and real tiles; no dynamically allocated cels.
+    GgFilmStageItem actors[4];
+    int actorCount=0,primaryGuest,secondGuest;
     ggSagaPairGuests(index,&primaryGuest,&secondGuest);
-    // In three-person scenes the opposite side belongs to the second
-    // actor, so a wagon cannot appear underneath someone's feet.
-    if(secondGuest<0&&
-       ggSagaSideTile(stageX,stageY,-1,0,&propX,&propY)&&
-       ggSagaProjectActor(propX,propY,&screenX,&screenY,&screenSize))
-        ggSagaPropDraw(out,screenX,screenY,
-                       ggExpClamp(screenSize/13,1,3),ggSagaPropKind());
-    // Draw the protagonist BEFORE restoring the gameplay camera.
-    // Previously projection happened after restore, so the person
-    // vanished or stood in the wrong place relative to the shot.
-    // The hero stays in every dialogue beat. The former index%3 rule
-    // erased the protagonist every third line without story justification.
+    ggSagaResolveSides(stageX,stageY);
+    const GgSagaBeat *spoken=ggSaga.mode==GG_SAGA_CHOICE?0:
+                            ggSagaCurrentBeat(index);
+    int activeStyle=spoken?ggSagaGuestStyle(spoken->voice):-1;
+    int propKind=ggSagaPropKind();
+    int filmCos=ggExpCos[ggExplore.angle&255];
+    int filmSin=ggExpSin[ggExplore.angle&255];
     if(ggOrigin.complete){
-        int x,feet,size,worldX,worldY;
-        ggSagaActorPosition(stageX,stageY,index,local,&worldX,&worldY);
-        if(ggSagaProjectActor(worldX,worldY,&x,&feet,&size)){
+        int x,y,size,wx,wy;
+        ggSagaActorPosition(stageX,stageY,index,local,&wx,&wy);
+        if(ggSagaProjectActor(wx,wy,&x,&y,&size)){
+            actors[actorCount++]=(GgFilmStageItem){
+                GG_STAGE_HERO,x,y,ggExpClamp(size/12,1,3),
+                ggFilmStageDepth(wx,wy,ggExplore.px,ggExplore.py,
+                                 filmCos,filmSin)
+            };
+        }
+    }
+    if(spoken){
+        int styles[2]={primaryGuest,secondGuest};
+        for(int slot=0;slot<2;slot++){
+            if(styles[slot]<0)continue;
+            int side=ggFilmStageGuestSide(ggSagaShot.plusValid,
+                                          ggSagaShot.minusValid,slot);
+            if(!side)continue; // a blocked side must not duplicate a guest
+            int wx,wy,x,y,size;
+            ggSagaSidePosition(side,&wx,&wy);
+            if(!ggSagaProjectActor(wx,wy,&x,&y,&size))continue;
+            actors[actorCount++]=(GgFilmStageItem){
+                slot?GG_STAGE_GUEST_TWO:GG_STAGE_GUEST_ONE,
+                x,y,ggExpClamp(size/16,1,3),
+                ggFilmStageDepth(wx,wy,ggExplore.px,ggExplore.py,
+                                 filmCos,filmSin)
+            };
+        }
+    }
+    int guestCount=primaryGuest<0?0:secondGuest<0?1:2;
+    int firstSide=guestCount?
+                  ggFilmStageGuestSide(ggSagaShot.plusValid,
+                                       ggSagaShot.minusValid,0):0;
+    int secondSide=guestCount>1?
+                   ggFilmStageGuestSide(ggSagaShot.plusValid,
+                                        ggSagaShot.minusValid,1):0;
+    int speakerSide=activeStyle==primaryGuest?firstSide:
+                    activeStyle==secondGuest?secondSide:0;
+    int propSide=ggFilmStagePropSide(ggSagaShot.plusValid,
+                                      ggSagaShot.minusValid,guestCount);
+    if(propSide){
+        int wx,wy,x,y,size;
+        ggSagaSidePosition(propSide,&wx,&wy);
+        if(ggSagaProjectActor(wx,wy,&x,&y,&size))
+            actors[actorCount++]=(GgFilmStageItem){
+                GG_STAGE_PROP,x,y,ggExpClamp(size/13,1,3),
+                ggFilmStageDepth(wx,wy,ggExplore.px,ggExplore.py,
+                                 filmCos,filmSin)
+            };
+    }
+    // Painter's algorithm: distant actors are drawn before near ones.
+    // Prevents a character behind the hero from covering the hero's
+    // shoulders, or a wagon appearing pasted across someone's legs.
+    ggFilmStageSort(actors,actorCount);
+    for(int i=0;i<actorCount;i++){
+        const GgFilmStageItem *item=&actors[i];
+        if(item->kind==GG_STAGE_PROP){
+            ggSagaPropDraw(out,item->x,item->feet,item->size,propKind);
+        }else if(item->kind==GG_STAGE_HERO){
             int walking=ggSaga.mode!=GG_SAGA_CHOICE&&
                         !(index&1)&&local<GG_SAGA_BEAT_TICKS/2;
-            const GgSagaBeat *line=ggSaga.mode==GG_SAGA_CHOICE?0:
-                                   ggSagaCurrentBeat(index);
-            GgFilmPose performance=ggFilmPoseFor(line?line->line:"",
-                               index,local,1,
-                               line&&!strcmp(line->voice,"YOU"),
-                               walking,ggSagaPropKind());
-            ggFilmDrawActor(out,x,feet,ggExpClamp(size/12,1,3),
+            GgFilmPose performance=ggFilmPoseFor(spoken?spoken->line:"",
+                      index,local,1,
+                      spoken&&!strcmp(spoken->voice,"YOU"),walking,propKind);
+            performance.gaze=(signed char)ggFilmStageGaze(0,
+                                  speakerSide? speakerSide:firstSide);
+            ggFilmDrawActor(out,item->x,item->feet,item->size,
                             ggOriginHairRGB[ggOrigin.hair],
                             ggOriginSkinRGB[ggOrigin.skin],
                             ggOriginClothesRGB[ggOrigin.garment],
                             &performance);
-        }
-    }
-    // A recurring named speaker now stands on real terrain beside the
-    // protagonist, with a tiny hand-gesture cycle during spoken lines.
-    // The guest uses the very same film perspective and line-of-sight.
-    if(ggSaga.mode!=GG_SAGA_CHOICE){
-        const GgSagaBeat *line=ggSagaCurrentBeat(index);
-        int activeStyle=ggSagaGuestStyle(line->voice);
-        int guestStyles[2]={primaryGuest,secondGuest};
-        for(int slot=0;slot<2;slot++){
-            int style=guestStyles[slot];
-            if(style<0)continue;
-            int worldX,worldY,x,y,size;
-            // The same person holds the same side across both beats.
-            // Two named speakers are both visible, with no cast swapping.
-            if(!ggSagaSideTile(stageX,stageY,slot?-1:1,
-                               secondGuest<0,&worldX,&worldY)||
-               !ggSagaProjectActor(worldX,worldY,&x,&y,&size))
-                continue;
-            GgFilmPose performance=ggFilmPoseFor(line->line,index,local,
-                                0,activeStyle==style,0,ggSagaPropKind());
-            ggFilmDrawActor(out,x,y,ggExpClamp(size/16,1,3),
+        }else{
+            int style=item->kind==GG_STAGE_GUEST_ONE?
+                      primaryGuest:secondGuest;
+            GgFilmPose performance=ggFilmPoseFor(spoken->line,index,local,
+                                                 0,activeStyle==style,
+                                                 0,propKind);
+            int ownSide=item->kind==GG_STAGE_GUEST_ONE?
+                        firstSide:secondSide;
+            int lookSide=activeStyle==style?0:speakerSide;
+            performance.gaze=(signed char)ggFilmStageGaze(ownSide,lookSide);
+            ggFilmDrawActor(out,item->x,item->feet,item->size,
                             ggFilmGuestPalette[style][0],
                             ggFilmGuestPalette[style][1],
                             ggFilmGuestPalette[style][2],&performance);
