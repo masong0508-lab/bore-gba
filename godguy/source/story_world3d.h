@@ -474,6 +474,84 @@ static void ggFilmInterior(GgFilmCamera cam,int p,int t,int chapter,int winter){
         }
     }
 }
+// The skyline is a view *of the current playable world*: each contour
+// follows sampled live hill, mountain, shore and forest tiles. 3DS pixels
+// are projected from true distant Z geometry; no still image swapping.
+static int ggFilmVistaHeight(int terr){
+    return terr==T_MOUNT?255:terr==T_HILL?158:
+           terr==T_SNOW?144:terr==T_FOREST?92:
+           terr==T_JUNGLE?105:terr==T_SWAMP?42:
+           terr==T_GRASS?51:terr==T_SAND?24:
+           terr==T_DESERT?35:terr==T_DIRT?31:10;
+}
+static int ggFilmVistaPeak(const FilmVista *v,int col,int *tone){
+    int high=6;*tone=13;
+    for(int j=1;j<FILM_VISTA_H-1;j++){
+        int terr=filmVistaRead(v,col,j,0);
+        int h=ggFilmVistaHeight(terr);
+        if(h>high){
+            high=h;
+            *tone=terr==T_MOUNT?20:terr==T_HILL?21:
+                  terr==T_SNOW?22:terr==T_FOREST?16:
+                  terr==T_JUNGLE?17:terr==T_SAND?26:
+                  terr==T_DESERT?25:terr==T_SWAMP?13:18;
+        }
+    }
+    return high;
+}
+static void ggFilmRealHorizon(GgFilmCamera cam,int place){
+    int kind=filmVistaPlace(place);
+    if(kind<0||!filmVista[kind].valid)return;
+    const FilmVista *v=&filmVista[kind];
+    for(int i=0;i<FILM_VISTA_W-1;i++){
+        int color=13,nextColor=13;
+        int lh=ggFilmVistaPeak(v,i,&color);
+        int rh=ggFilmVistaPeak(v,i+1,&nextColor);
+        int x=(i-FILM_VISTA_W/2)*84;
+        int z=1970; // beyond the walkable lane, always behind the cast
+        ggFilmQuad(cam,ggV3(x,0,z),ggV3(x+84,0,z),
+                       ggV3(x+84,rh,z),ggV3(x,lh,z),(u8)color);
+    }
+}
+// Draw only constructions that exist at these exact sampled cells.
+// Their relative positions are maintained from the game-world map.
+// This replaces placeholder town backdrops when the player has built a
+// settlement; the original founding-worksite remains as a story fallback.
+static int ggFilmRealTown(GgFilmCamera cam){
+    const FilmVista *v=&filmVista[FILM_VISTA_TOWN];
+    if(!v->valid)return 0;
+    int count=0;
+    // Priority: the player's fortified halls and towers, then a few
+    // houses and docks. Cap models for Old 3DS triangle/frame budgets.
+    for(int pass=0;pass<2&&count<5;pass++)
+    for(int j=1;j<FILM_VISTA_H-1&&count<5;j++)
+    for(int i=1;i<FILM_VISTA_W-1&&count<5;i++){
+        int b=filmVistaRead(v,i,j,1);
+        if(pass==0&&b!=B_HALL&&b!=B_TOWER)continue;
+        if(pass==1&&b!=B_HOUSE&&b!=B_HUT&&b!=B_DOCK)continue;
+        int x=(i-FILM_VISTA_W/2)*56;
+        int z=1430+(FILM_VISTA_H/2-j)*104;
+        if(z<790)z=790;
+        if(b==B_TOWER){
+            ggFilmBox(cam,x,0,z,52,201,57,21,20,26);
+            ggFilmBox(cam,x,195,z,76,20,70,25,24,26);
+            ggFilmQuad(cam,ggV3(x-12,93,z-30),ggV3(x+12,93,z-30),
+                           ggV3(x+12,128,z-30),ggV3(x-12,128,z-30),2);
+        }else if(b==B_HALL){
+            ggFilmHouse(cam,x,z,174,179,1,1);
+            ggFilmBox(cam,x,173,z,47,35,35,24,25,26);
+        }else if(b==B_DOCK){
+            ggFilmBox(cam,x,17,z,93,11,89,24,20,25);
+            ggFilmBeam(cam,x-35,0,z,10,52,12,25);
+            ggFilmBeam(cam,x+35,0,z,10,52,12,25);
+        }else{
+            ggFilmHouse(cam,x,z,b==B_HUT?105:136,
+                        b==B_HUT?110:142,1,1);
+        }
+        count++;
+    }
+    return count;
+}
 static void ggFilmWorldDraw(const FilmBeat *beat,int elapsed,int move,
                             int chapter,int roofFinished,int winter){
     int p=beat->place;
@@ -486,7 +564,9 @@ static void ggFilmWorldDraw(const FilmBeat *beat,int elapsed,int move,
                 p==F_THRONE||p==F_COUCH||p==F_PORCH||p==F_HEARTH);
     if(inside){ggFilmInterior(cam,p,scenic,chapter,winter);return;}
     ggFilmFloor(cam,p,scenic,winter);
+    ggFilmRealHorizon(cam,p);
     if(p==F_GATE||p==F_RUINS){
+        if(p==F_GATE)ggFilmRealTown(cam);
         ggFilmArch(cam,-170,1260,p==F_RUINS);
         ggFilmArch(cam,225,970,p==F_RUINS);
         ggFilmBox(cam,0,0,1610,650,140,80,21,20,26);
@@ -494,10 +574,19 @@ static void ggFilmWorldDraw(const FilmBeat *beat,int elapsed,int move,
         // Persist the same village plan, but let the town actually GROW:
         // one founding shelter, then its first neighbor, then the hall.
         // Later stories never jump back to a vanished building.
-        ggFilmHouse(cam,-340,1190,158,138,1,1);
-        if(chapter>=2)ggFilmHouse(cam,325,1040,155,155,1,roofFinished);
-        if(chapter>=5)ggFilmHouse(cam,25,1510,185,163,0,1);
-        if(chapter>=10)ggFilmHouse(cam,-75,1800,190,177,1,1);
+        int actualTown=ggFilmRealTown(cam);
+        if(!actualTown){
+            // Before settlements exist, the directed founding sequence
+            // still needs its first shelter and construction scaffolding.
+            ggFilmHouse(cam,-340,1190,158,138,1,1);
+            if(chapter>=2)ggFilmHouse(cam,325,1040,155,155,1,roofFinished);
+            if(chapter>=5)ggFilmHouse(cam,25,1510,185,163,0,1);
+            if(chapter>=10)ggFilmHouse(cam,-75,1800,190,177,1,1);
+        }else if(chapter==2&&!roofFinished){
+            // During the roof-building chapter the focal worksite has
+            // real unfinished rafters, even with homes behind it.
+            ggFilmHouse(cam,325,1040,155,155,1,0);
+        }
         ggFilmTree(cam,-530,910,158,scenic,0);
         ggFilmTree(cam,515,1180,190,scenic,2);
         // One physical character cannot work in the distance and speak
