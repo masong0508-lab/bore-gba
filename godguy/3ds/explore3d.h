@@ -373,6 +373,8 @@ static void ggExpRenderMode(u8 *top,int cinematic){
             // One material coordinate per ray/visible tile rather than
             // calling RNG or scanning any texture map per pixel.
             int surfaceU=(abs(dirX)>abs(dirY)?wy:wx)&255;
+            int wallShade=cinematic&&build?
+                shade*ggFilmWallFaceLight(wx,wy)/256:shade;
             int roofBottom=cinematic&&roof.roofPitch?
                 ggFilmRoofBottomScreen(roof.wallTop,eye,
                                         horizon,d,12):-1;
@@ -416,9 +418,9 @@ static void ggExpRenderMode(u8 *top,int cinematic){
                               build==B_TEMPLE||build==B_LIBRARY;
                     int mortar=wood?20:16;
                     if(stone){
-                        r=(151+(build==B_TEMPLE?28:0))*shade/256;
-                        g=(146+(build==B_TEMPLE?24:0))*shade/256;
-                        b=(142+(build==B_TEMPLE?15:0))*shade/256;
+                        r=(151+(build==B_TEMPLE?28:0))*wallShade/256;
+                        g=(146+(build==B_TEMPLE?24:0))*wallShade/256;
+                        b=(142+(build==B_TEMPLE?15:0))*wallShade/256;
                         if(edge%mortar<2){
                             r=r*4/5;g=g*4/5;b=b*4/5;
                         }
@@ -431,8 +433,8 @@ static void ggExpRenderMode(u8 *top,int cinematic){
                         }
                         if(build==B_LIBRARY&&edge>10&&edge<70&&
                            surfaceU>105&&surfaceU<150){
-                            r=91*shade/256;g=114*shade/256;
-                            b=127*shade/256;
+                            r=91*wallShade/256;g=114*wallShade/256;
+                            b=127*wallShade/256;
                         }
                     }else if(wood){
                         r=baseR*241/256;
@@ -440,11 +442,11 @@ static void ggExpRenderMode(u8 *top,int cinematic){
                         b=baseB*277/256;
                         if(surfaceU<13||surfaceU>241||
                            (surfaceU>118&&surfaceU<130)){
-                            r=78*shade/256;
-                            g=61*shade/256;b=49*shade/256;
+                            r=78*wallShade/256;
+                            g=61*wallShade/256;b=49*wallShade/256;
                         }else if(edge%22<2&&edge>8){
-                            r=104*shade/256;g=83*shade/256;
-                            b=62*shade/256;
+                            r=104*wallShade/256;g=83*wallShade/256;
+                            b=62*wallShade/256;
                         }
                     }
                     if(roofBottom>=0&&y<roofBottom){
@@ -461,19 +463,24 @@ static void ggExpRenderMode(u8 *top,int cinematic){
                                 int frame=edge<28||edge>45||
                                           (surfaceU%128)<47||
                                           (surfaceU%128)>81;
-                                r=(frame?58:222)*shade/256;
-                                g=(frame?59:175)*shade/256;
-                                b=(frame?69:102)*shade/256;
+                                // Windows have locally offset candle
+                                // flicker in occupied towns; no global
+                                // flashing texture, only a bounded RGB tint.
+                                int glow=((ggExplore.frame/17+tx*5+ty*11)&7)<2?
+                                         13:0;
+                                r=(frame?58:222+glow)*wallShade/256;
+                                g=(frame?59:175+glow/2)*wallShade/256;
+                                b=(frame?69:102+glow/3)*wallShade/256;
                                 if(!frame&&(edge==37||surfaceU%128==64)){
-                                    r=105*shade/256;
-                                    g=79*shade/256;b=68*shade/256;
+                                    r=105*wallShade/256;
+                                    g=79*wallShade/256;b=68*wallShade/256;
                                 }
                             }
                         }else if(stone&&edge>51&&edge<68&&
                                  surfaceU>109&&surfaceU<147){
                             // Architectural arch/entry recess.
-                            r=47*shade/256;g=50*shade/256;
-                            b=61*shade/256;
+                            r=47*wallShade/256;g=50*wallShade/256;
+                            b=61*wallShade/256;
                         }
                     }
                 }else if(cinematic&&!build){
@@ -483,6 +490,13 @@ static void ggExpRenderMode(u8 *top,int cinematic){
                     if(type==T_GRASS||type==T_FOREST){
                         if(pattern<2){r+=8;g+=9;b+=4;}
                         else if(pattern>13){r-=7;g-=9;b-=4;}
+                        // A coherent moving breeze across actual terrain
+                        // tiles; feet stay fixed and distant grass fades.
+                        int gust=(ggExplore.frame/7+tx*9+ty*5)&31;
+                        if(edge<16&&gust<8){
+                            g+=5-gust/2;
+                            r+=2;
+                        }
                     }else if(type==T_MOUNT||type==T_HILL){
                         if(pattern<3){r+=11;g+=9;b+=6;}
                     }
